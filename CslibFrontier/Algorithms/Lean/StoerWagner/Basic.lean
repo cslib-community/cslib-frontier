@@ -9,10 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Combinatorics.WeightedCut.Contraction
 public import CslibFrontier.Foundations.Combinatorics.WeightedCut.MAOrdering
-public import Cslib.Algorithms.Lean.TimeM
-public import Mathlib.Algebra.GroupWithZero.Nat
 import Mathlib.Tactic.Linarith
-import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # The Stoer–Wagner minimum cut algorithm
@@ -35,52 +32,34 @@ the weight of the cut of the phase and the minimum cut weight after the merge
 which keeps the supervertices as `Fin m` and moves the last one into the freed slot; it is shared
 with Karger's algorithm and needs no probability.
 
+A machine-checked `O(n³)` running-time certificate for the dense array implementation lives in
+`CslibFrontier.Algorithms.WordRAM.StoerWagner`.
+
 ## Main definitions
 
 * `Cslib.Algorithms.Lean.StoerWagner.maOrder`: a maximum adjacency ordering of `Fin k`.
+* `Cslib.Algorithms.Lean.StoerWagner.CutResult`: one side of a cut and its weight.
 * `Cslib.Algorithms.Lean.StoerWagner.run`: the phases on the supervertices of a contraction.
 * `Cslib.Algorithms.Lean.StoerWagner.stoerWagner`: the algorithm, answering one side of a minimum
   cut and its weight.
-* `Cslib.Algorithms.Lean.StoerWagner.stoerWagnerM`: the algorithm in `TimeM`, with a cost model.
 
 ## Main results
 
+* `Cslib.Algorithms.Lean.StoerWagner.perm_maOrder`,
+  `Cslib.Algorithms.Lean.StoerWagner.isMAOrdering_maOrder`: `maOrder` lists every vertex once in
+  maximum adjacency order.
 * `Cslib.Algorithms.Lean.StoerWagner.minCut_eq_min_contractMatrix`,
   `Cslib.Algorithms.Lean.StoerWagner.minCut_eq_min_minCutBetween`: the phase recursion.
 * `Cslib.Algorithms.Lean.StoerWagner.minCut_eq_min_of_isMAOrdering`: one phase.
-* `Cslib.Algorithms.Lean.StoerWagner.stoerWagner_spec`: the algorithm answers a non-trivial cut of
+* `Cslib.Algorithms.Lean.StoerWagner.run_spec`,
+  `Cslib.Algorithms.Lean.StoerWagner.stoerWagner_spec`: the algorithm answers a non-trivial cut of
   minimum weight, and its weight.
-* `Cslib.Algorithms.Lean.StoerWagner.time_stoerWagnerM_le`: at most `n ^ 3 + 4 n ^ 2` steps.
-
-## Cost model
-
-`stoerWagnerM` charges unit cost per scanned entry of an array implementation with machine-word
-arithmetic on weights, as the `TimeM` annotations of the other algorithms here do; the charges are
-`TimeM.tick` annotations in the program, not derived from the Lean evaluation, which uses
-closures. For a phase on `m` supervertices of a graph on `n` vertices:
-
-* initializing the key array costs `m`;
-* a search step on `r` remaining candidates costs `2 r - 1`: a scan for the largest key and an
-  update of the other `r - 1` keys, so the search costs `m ^ 2`;
-* recording the cut of the phase costs `m + n`: its degree, and the vertex set of the original
-  graph mapped to `t`;
-* the merge costs `4 m + n + 1`: adding row and column `t` of the weight matrix into those of `s`
-  (`2 m`), moving row and column `m - 1` into the freed slot `t` (`2 m`), relabelling the original
-  vertices (`n`) and comparing two weights (`1`).
-
-The final phase, on two supervertices, needs no search and costs `2 + n`. One-time setup is not
-charged: the weight matrix is taken as given, and the initial map `part = id` of the `n` original
-vertices to supervertices is free. The total is at most `n ^ 3 + 4 n ^ 2` (`time_stoerWagnerM_le`).
-This bound is loose. Summing the charges by hand, a phase on `m ≥ 3` supervertices costs
-`m ^ 2 + 6 m + 2 n + 1`, so the charged time is `n ^ 3 / 3 + O(n ^ 2)`; only the weaker bound is
-proved. On the 8-vertex example of the tests the charged time is `509`, against the bound `768`.
-This is the `O(n³)` array version of the algorithm; the `O(n m + n² log n)` bound of
-[StoerWagner1997] uses Fibonacci heaps and is not formalized here.
 
 ## Limitations
 
 Weights are natural numbers, as in `Cslib.WeightedCut`; rational weights can be scaled to natural
-numbers, real weights are not covered. The algorithm answers one minimum cut, not all of them.
+numbers, real weights are not covered. The algorithm answers one minimum cut, not all of them. The
+`O(n m + n² log n)` Fibonacci-heap variant of [StoerWagner1997] is not formalized here.
 
 ## References
 
@@ -99,7 +78,7 @@ open Cslib.WeightedCut
 
 /-- A maximum adjacency ordering of `Fin k`, by maximum adjacency search starting from vertex `0`
 (ties broken towards smaller vertices). -/
-def maOrder {k : ℕ} (W : Fin k → Fin k → ℕ) : List (Fin k) :=
+@[expose] def maOrder {k : ℕ} (W : Fin k → Fin k → ℕ) : List (Fin k) :=
   maSearch W k (fun _ => 0) (List.finRange k)
 
 private theorem maOrder_spec {k : ℕ} (W : Fin k → Fin k → ℕ) :
@@ -160,10 +139,30 @@ def run {n : ℕ} : (k : ℕ) → (Fin (k + 2) → Fin (k + 2) → ℕ) → (Fin
       let rest := run k (contractMatrix W st.1 st.2) (contractPart part st.1 st.2 hst)
       if rest.weight ≤ phase.weight then rest else phase
 
+/-- On two supervertices, `run` returns the cut of supervertex `1`. -/
+theorem run_zero {n : ℕ} (W : Fin 2 → Fin 2 → ℕ) (part : Fin n → Fin 2) :
+    run 0 W part = ⟨pullbackCut part {1}, rowDeg W 1⟩ := by rfl
+
+/-- Step equation for `run` when `maOrder W` ends with distinct vertices `s, t`. -/
+theorem run_succ {n k : ℕ} (W : Fin (k + 3) → Fin (k + 3) → ℕ) (part : Fin n → Fin (k + 3))
+    {p : List (Fin (k + 3))} {s t : Fin (k + 3)} (hp : maOrder W = p ++ [s, t]) (hst : s ≠ t) :
+    run (k + 1) W part =
+      let phase : CutResult n := ⟨pullbackCut part {t}, rowDeg W t⟩
+      let rest := run k (contractMatrix W s t) (contractPart part s t hst)
+      if rest.weight ≤ phase.weight then rest else phase := by
+  have hlast : lastTwo 0 (maOrder W) = (s, t) := by
+    simp [lastTwo, hp]
+  rw [run]
+  dsimp only
+  generalize hst' : lastTwo 0 (maOrder W) = st
+  rw [hlast] at hst'
+  subst hst'
+  simp only [hst, ↓reduceDIte]
+
 /-- **The Stoer–Wagner algorithm** [StoerWagner1997]: one side of a minimum cut of the multigraph
 `W` on `Fin n`, and its weight. With fewer than two vertices there is no non-trivial cut, and the
 answer is `(∅, 0)`. -/
-def stoerWagner : {n : ℕ} → (Fin n → Fin n → ℕ) → CutResult n
+@[expose] def stoerWagner : {n : ℕ} → (Fin n → Fin n → ℕ) → CutResult n
   | 0, _ => ⟨∅, 0⟩
   | 1, _ => ⟨∅, 0⟩
   | n + 2, W => run n W id
@@ -181,8 +180,7 @@ theorem minCut_eq_min_contractMatrix {k : ℕ} {W : Fin (k + 3) → Fin (k + 3) 
   have hXnt : IsNonTrivialCut X := by
     by_cases hs : s ∈ X
     · exact ⟨⟨s, hs⟩, fun h => hX.mp hs (h ▸ Finset.mem_univ t)⟩
-    · have ht : t ∈ X := by tauto
-      exact ⟨⟨t, ht⟩, fun h => hs (h ▸ Finset.mem_univ s)⟩
+    · exact ⟨⟨t, by tauto⟩, fun h => hs (h ▸ Finset.mem_univ s)⟩
   refine le_antisymm (le_min (minCut_le_cutWeight W hXnt)
     (minCut_le_of_isContractionOf (by simp) hc)) ?_
   obtain ⟨C, hCnt, hCw⟩ := exists_minCut_achiever (by simp) W
@@ -190,12 +188,10 @@ theorem minCut_eq_min_contractMatrix {k : ℕ} {W : Fin (k + 3) → Fin (k + 3) 
   by_cases hsep : s ∈ C ↔ t ∉ C
   · exact (min_le_left _ _).trans (hmin C hsep)
   · have hsame : s ∈ C ↔ t ∈ C := by tauto
-    have hpull : pullbackCut (contractPart id s t hst) (contractCut t C) = C := by
-      rw [pullbackCut_contractCut id hst hsame, pullbackCut_id]
-    have hBnt : IsNonTrivialCut (contractCut t C) :=
-      isNonTrivialCut_of_pullbackCut _ (hpull ▸ hCnt)
-    refine (min_le_right _ _).trans ((minCut_le_cutWeight _ hBnt).trans (le_of_eq ?_))
-    exact cutWeight_contractCut hW hst hsame
+    have hBnt : IsNonTrivialCut (contractCut t C) := isNonTrivialCut_of_pullbackCut
+      (contractPart id s t hst) (by rwa [pullbackCut_contractCut id hst hsame, pullbackCut_id])
+    exact (min_le_right _ _).trans
+      ((minCut_le_cutWeight _ hBnt).trans_eq (cutWeight_contractCut hW hst hsame))
 
 /-- **The phase recursion** in terms of the minimum `s`–`t` cut weight `λ(s, t)`
 (`Cslib.WeightedCut.minCutBetween`): for distinct `s` and `t`, the global minimum cut weight is
@@ -277,140 +273,5 @@ theorem stoerWagner_spec {n : ℕ} (hn : 2 ≤ n) {W : Fin n → Fin n → ℕ} 
   · omega
   obtain ⟨h1, h2, h3⟩ := run_spec n (isContractionOf_id hW)
   exact ⟨h1, h2.trans h3, h3⟩
-
-/-! ### Cost -/
-
-open Cslib.Algorithms.Lean (TimeM)
-
-variable {V : Type*} [DecidableEq V]
-
-/-- Maximum adjacency search (`Cslib.WeightedCut.maSearch`) in `TimeM`: a step on `r` remaining
-candidates costs `2 r - 1`, a scan for the largest key and an update of the other keys. -/
-def maSearchM (W : V → V → ℕ) : ℕ → (V → ℕ) → List V → TimeM ℕ (List V)
-  | 0, _, _ => pure []
-  | fuel + 1, key, R =>
-    match R.argmax key with
-    | none => pure []
-    | some v => do
-      TimeM.tick (2 * R.length - 1)
-      let rest ← maSearchM W fuel (fun y => key y + W v y) (R.erase v)
-      pure (v :: rest)
-
-/-- `maSearchM` computes `maSearch`. -/
-theorem ret_maSearchM (W : V → V → ℕ) :
-    ∀ fuel key R, (maSearchM W fuel key R).ret = maSearch W fuel key R := by
-  time_spec maSearchM [maSearch]
-
-/-- Maximum adjacency search over `r` candidates costs at most `r ^ 2`. -/
-theorem time_maSearchM_le (W : V → V → ℕ) :
-    ∀ fuel key R, (maSearchM W fuel key R).time ≤ R.length ^ 2
-  | 0, _, _ => by simp [maSearchM]
-  | fuel + 1, key, R => by
-    rw [maSearchM]
-    rcases harg : R.argmax key with _ | v
-    · simp
-    · have hvR : v ∈ R := List.argmax_mem harg
-      have ih := time_maSearchM_le W fuel (fun y => key y + W v y) (R.erase v)
-      rw [List.length_erase_of_mem hvR] at ih
-      obtain ⟨m, hm⟩ : ∃ m, R.length = m + 1 := ⟨R.length - 1, by
-        have := List.length_pos_of_mem hvR
-        omega⟩
-      have hstep : 2 * (m + 1) - 1 = 2 * m + 1 := by omega
-      rw [hm, Nat.add_sub_cancel] at ih
-      simp only [time_simps, hm, hstep]
-      nlinarith
-
-/-- `maOrder` in `TimeM`: initializing the `k` keys, then the search. -/
-def maOrderM {k : ℕ} (W : Fin k → Fin k → ℕ) : TimeM ℕ (List (Fin k)) := do
-  TimeM.tick k
-  maSearchM W k (fun _ => 0) (List.finRange k)
-
-/-- `maOrderM` computes `maOrder`. -/
-theorem ret_maOrderM {k : ℕ} (W : Fin k → Fin k → ℕ) : (maOrderM W).ret = maOrder W := by
-  simp only [maOrderM, TimeM.ret_bind]
-  exact ret_maSearchM W k _ _
-
-/-- A maximum adjacency ordering of `k` supervertices costs at most `k ^ 2 + k`. -/
-theorem time_maOrderM_le {k : ℕ} (W : Fin k → Fin k → ℕ) : (maOrderM W).time ≤ k ^ 2 + k := by
-  have := time_maSearchM_le W k (fun _ => 0) (List.finRange k)
-  rw [List.length_finRange] at this
-  simp only [maOrderM, time_simps]
-  omega
-
-/-- `run` in `TimeM`, with the charges of the cost model. -/
-def runM {n : ℕ} : (k : ℕ) → (Fin (k + 2) → Fin (k + 2) → ℕ) → (Fin n → Fin (k + 2)) →
-    TimeM ℕ (CutResult n)
-  | 0, W, part => do
-    TimeM.tick (2 + n)
-    pure ⟨pullbackCut part {1}, rowDeg W 1⟩
-  | k + 1, W, part => do
-    let order ← maOrderM W
-    let st := lastTwo 0 order
-    TimeM.tick (k + 3 + n)
-    let phase : CutResult n := ⟨pullbackCut part {st.2}, rowDeg W st.2⟩
-    if hst : st.1 = st.2 then pure phase else do
-      TimeM.tick (4 * (k + 3) + n + 1)
-      let rest ← runM k (contractMatrix W st.1 st.2) (contractPart part st.1 st.2 hst)
-      pure (if rest.weight ≤ phase.weight then rest else phase)
-
-/-- `runM` computes `run`. -/
-theorem ret_runM {n : ℕ} :
-    ∀ (k : ℕ) (W : Fin (k + 2) → Fin (k + 2) → ℕ) (part : Fin n → Fin (k + 2)),
-      (runM k W part).ret = run k W part
-  | 0, W, part => rfl
-  | k + 1, W, part => by
-    rw [runM, run, TimeM.ret_bind]
-    generalize hord : (maOrderM W).ret = ord
-    rw [ret_maOrderM] at hord
-    subst hord
-    dsimp only
-    split
-    · rfl
-    · simp only [time_simps, ret_runM k]
-
-/-- The phases on `k + 2` supervertices of a contraction of a graph on `n` vertices cost at most
-`(k + 2) ^ 3 + 2 (k + 2) ^ 2 + 2 n (k + 2)`. -/
-theorem time_runM_le {n : ℕ} : ∀ (k : ℕ) (W : Fin (k + 2) → Fin (k + 2) → ℕ)
-    (part : Fin n → Fin (k + 2)),
-    (runM k W part).time ≤ (k + 2) ^ 3 + 2 * (k + 2) ^ 2 + 2 * n * (k + 2)
-  | 0, W, part => by
-    simp only [runM, time_simps]
-    nlinarith
-  | k + 1, W, part => by
-    have hs := time_maOrderM_le W
-    simp only [runM, time_simps]
-    split_ifs with hst
-    · simp only [TimeM.time_pure]
-      nlinarith
-    · have ih := time_runM_le k (contractMatrix W (lastTwo 0 (maOrderM W).ret).1
-        (lastTwo 0 (maOrderM W).ret).2) (contractPart part _ _ hst)
-      simp only [time_simps]
-      nlinarith
-
-/-- `stoerWagner` in `TimeM`, with the charges of the cost model. -/
-def stoerWagnerM : {n : ℕ} → (Fin n → Fin n → ℕ) → TimeM ℕ (CutResult n)
-  | 0, _ => pure ⟨∅, 0⟩
-  | 1, _ => pure ⟨∅, 0⟩
-  | n + 2, W => runM n W id
-
-/-- `stoerWagnerM` computes `stoerWagner`. -/
-theorem ret_stoerWagnerM {n : ℕ} (W : Fin n → Fin n → ℕ) :
-    (stoerWagnerM W).ret = stoerWagner W := by
-  obtain _ | _ | n := n
-  · rfl
-  · rfl
-  · exact ret_runM n W id
-
-/-- **The cost of the Stoer–Wagner algorithm**: at most `n ^ 3 + 4 n ^ 2` steps on `n` vertices in
-the cost model of the module docstring, which does not charge one-time setup. The bound is not
-tight: the leading term of the charged time is `n ^ 3 / 3`. -/
-theorem time_stoerWagnerM_le {n : ℕ} (W : Fin n → Fin n → ℕ) :
-    (stoerWagnerM W).time ≤ n ^ 3 + 4 * n ^ 2 := by
-  obtain _ | _ | n := n
-  · simp [stoerWagnerM]
-  · simp [stoerWagnerM]
-  · have := time_runM_le n W id
-    simp only [stoerWagnerM]
-    nlinarith
 
 end Cslib.Algorithms.Lean.StoerWagner

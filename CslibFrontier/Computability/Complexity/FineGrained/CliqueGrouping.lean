@@ -146,44 +146,26 @@ end GroupClique
 
 private lemma blockSize_mul_ge {m r : ℕ} (hr : 1 ≤ r) :
     m ≤ r * ((m + r - 1) / r) := by
-  have hr0 : 0 < r := hr
-  have hdiv := Nat.div_add_mod (m + r - 1) r
-  have hmod : (m + r - 1) % r ≤ r - 1 := Nat.lt_succ_iff.mp (by
-    have hlt := Nat.mod_lt (m + r - 1) hr0
-    omega)
+  have := Nat.div_add_mod (m + r - 1) r
+  have := Nat.mod_lt (m + r - 1) hr
   omega
 
 private lemma mem_block_of_mem {φ : CNF ℕ} {r : ℕ} (hr : 1 ≤ r) {c : Clause ℕ} (hc : c ∈ φ) :
     ∃ i < r, c ∈ GroupClique.block φ r i := by
-  rw [List.mem_iff_getElem] at hc
-  rcases hc with ⟨k, hk, rfl⟩
-  set B := GroupClique.blockSize φ r
+  obtain ⟨k, hk, rfl⟩ := List.mem_iff_getElem.mp hc
+  set B := GroupClique.blockSize φ r with hB_def
   have hcov : φ.length ≤ r * B := blockSize_mul_ge hr
-  have hB : 0 < B := by
-    by_contra hB0
-    have h0 : B = 0 := Nat.eq_zero_of_not_pos hB0
-    rw [h0, Nat.mul_zero] at hcov
-    omega
-  refine ⟨k / B, ?_, ?_⟩
-  · exact Nat.div_lt_of_lt_mul (lt_of_lt_of_le hk (by simpa [Nat.mul_comm] using hcov))
-  · have hk_eq : k / B * B + k % B = k := by
-      have hdiv := Nat.div_add_mod k B
-      rw [Nat.mul_comm] at hdiv
-      exact hdiv
-    have hk_mod : k % B < B := Nat.mod_lt k hB
-    have hlt_len : k / B * B + k % B < φ.length := by
-      rw [hk_eq]
-      exact hk
-    have hdrop_len : k % B < (φ.drop (k / B * B)).length := by
-      rw [List.length_drop]
-      omega
-    have htake_len : k % B < ((φ.drop (k / B * B)).take B).length := by
-      rw [List.length_take]
-      exact lt_min hk_mod hdrop_len
-    refine List.mem_iff_getElem.mpr ⟨k % B, htake_len, ?_⟩
-    dsimp only [GroupClique.block]
-    rw [List.getElem_take, List.getElem_drop]
-    congr 1
+  have hB : 0 < B := Nat.pos_of_ne_zero fun h0 => by
+    rw [h0, Nat.mul_zero] at hcov; omega
+  have hk_eq : k / B * B + k % B = k := by
+    rw [Nat.mul_comm]
+    exact Nat.div_add_mod k B
+  have htake_len : k % B < ((φ.drop (k / B * B)).take B).length := by
+    rw [List.length_take, List.length_drop]
+    exact lt_min (Nat.mod_lt k hB) (by omega)
+  refine ⟨k / B, Nat.div_lt_of_lt_mul (hk.trans_le (by simpa [Nat.mul_comm] using hcov)),
+    List.mem_iff_getElem.mpr ⟨k % B, htake_len, ?_⟩⟩
+  simp only [GroupClique.block, ← hB_def, List.getElem_take, List.getElem_drop, hk_eq]
 
 private lemma mem_of_mem_block {φ : CNF ℕ} {r i : ℕ} {c : Clause ℕ}
     (hc : c ∈ GroupClique.block φ r i) : c ∈ φ :=
@@ -194,12 +176,10 @@ private lemma length_distinctVars_block_le {φ : CNF ℕ} {r i : ℕ}
     (GroupClique.block φ r i).distinctVars.length ≤ 3 * GroupClique.blockSize φ r := by
   have h1 := (GroupClique.block φ r i).length_distinctVars
   have h2 := (GroupClique.block φ r i).numVars_le_length_vars
-  have h3b : ∀ c ∈ GroupClique.block φ r i, c.length ≤ 3 :=
+  have h4 := CNF.length_vars_le_mul_length (φ := GroupClique.block φ r i)
     fun c hc => h3 c (mem_of_mem_block hc)
-  have h4 := CNF.length_vars_le_mul_length h3b
-  have h5 : (GroupClique.block φ r i).length ≤ GroupClique.blockSize φ r := by
-    dsimp only [GroupClique.block]
-    exact List.length_take_le _ _
+  have h5 : (GroupClique.block φ r i).length ≤ GroupClique.blockSize φ r :=
+    List.length_take_le _ _
   omega
 
 /-! ### Vertex and edge characterization -/
@@ -215,16 +195,9 @@ private lemma vertex_mod {bound i a : ℕ} (ha : a < bound) :
 
 private lemma vertex_inj {bound i₁ a₁ i₂ a₂ : ℕ} (ha₁ : a₁ < bound) (ha₂ : a₂ < bound)
     (h : GroupClique.vertex bound i₁ a₁ = GroupClique.vertex bound i₂ a₂) :
-    i₁ = i₂ ∧ a₁ = a₂ := by
-  refine ⟨?_, ?_⟩
-  · calc
-      i₁ = GroupClique.vertex bound i₁ a₁ / bound := (vertex_div ha₁).symm
-      _ = GroupClique.vertex bound i₂ a₂ / bound := by rw [h]
-      _ = i₂ := vertex_div ha₂
-  · calc
-      a₁ = GroupClique.vertex bound i₁ a₁ % bound := (vertex_mod ha₁).symm
-      _ = GroupClique.vertex bound i₂ a₂ % bound := by rw [h]
-      _ = a₂ := vertex_mod ha₂
+    i₁ = i₂ ∧ a₁ = a₂ :=
+  ⟨by rw [← vertex_div (i := i₁) ha₁, h, vertex_div ha₂],
+    by rw [← vertex_mod (i := i₁) ha₁, h, vertex_mod ha₂]⟩
 
 private lemma mem_verticesOfBound_iff {r : ℕ} {φ : CNF ℕ} {bound v : ℕ} :
     v ∈ GroupClique.verticesOfBound r φ bound ↔
@@ -234,11 +207,8 @@ private lemma mem_verticesOfBound_iff {r : ℕ} {φ : CNF ℕ} {bound v : ℕ} :
         v = GroupClique.vertex bound i a := by
   simp only [GroupClique.verticesOfBound, List.mem_flatMap, List.mem_range, List.mem_map,
     List.mem_filter]
-  constructor
-  · rintro ⟨i, hi, a, ⟨ha, heval⟩, rfl⟩
-    exact ⟨i, hi, a, ha, heval, rfl⟩
-  · rintro ⟨i, hi, a, ha, heval, rfl⟩
-    exact ⟨i, hi, a, ⟨ha, heval⟩, rfl⟩
+  exact ⟨fun ⟨i, hi, a, ⟨ha, heval⟩, hv⟩ => ⟨i, hi, a, ha, heval, hv.symm⟩,
+    fun ⟨i, hi, a, ha, heval, hv⟩ => ⟨i, hi, a, ⟨ha, heval⟩, hv.symm⟩⟩
 
 /-- `compat vs₁ vs₂ a₁ a₂` holds when the two partial assignments agree on shared variables. -/
 private lemma compat_iff {vs₁ vs₂ : List ℕ} {a₁ a₂ : ℕ} :
@@ -275,9 +245,8 @@ private lemma mem_edgesOfBound_iff {r : ℕ} {φ : CNF ℕ} {bound : ℕ} {e : �
       rcases ha_mem with ⟨j, hj, hj_mem⟩
       by_cases hji : j = i
       · simp [hji] at hj_mem
-      · have hbeq : (j == i) = false := beq_false_of_ne hji
-        simp only [hbeq, Bool.false_eq_true, ↓reduceIte, List.mem_map, List.mem_filter,
-          List.mem_range, Bool.and_eq_true] at hj_mem
+      · simp only [beq_false_of_ne hji, Bool.false_eq_true, ↓reduceIte, List.mem_map,
+          List.mem_filter, List.mem_range, Bool.and_eq_true] at hj_mem
         rcases hj_mem with ⟨b, ⟨hb, he₂, hcomp⟩, rfl⟩
         exact ⟨i, hi, a, ha, j, hj, b, hb, hji, he₁, he₂, hcomp, rfl⟩
   · rintro ⟨i, hi, a, ha, j, hj, b, hb, hji, he₁, he₂, hcomp, rfl⟩
@@ -285,9 +254,8 @@ private lemma mem_edgesOfBound_iff {r : ℕ} {φ : CNF ℕ} {bound : ℕ} {e : �
     simp only [he₁, Bool.not_true, Bool.false_eq_true, ↓reduceIte, List.mem_flatMap,
       List.mem_range]
     refine ⟨j, hj, ?_⟩
-    have hbeq : (j == i) = false := beq_false_of_ne hji
-    simp only [hbeq, Bool.false_eq_true, ↓reduceIte, List.mem_map, List.mem_filter,
-      List.mem_range, Bool.and_eq_true]
+    simp only [beq_false_of_ne hji, Bool.false_eq_true, ↓reduceIte, List.mem_map,
+      List.mem_filter, List.mem_range, Bool.and_eq_true]
     exact ⟨b, ⟨hb, he₂, hcomp⟩, rfl⟩
 
 /-- Adjacency between two vertices of the bounded graph: their blocks differ and their partial
@@ -324,17 +292,15 @@ private lemma satisfiable_of_mem_Clique {r : ℕ} (hr : 1 ≤ r) {φ : CNF ℕ} 
     (h : (⟨⟨GroupClique.verticesOfBound r φ bound, GroupClique.edgesOfBound r φ bound⟩, r⟩ :
       CliqueInstance) ∈ Clique) :
     φ.Satisfiable := by
-  rw [mem_Clique_iff_mk] at h
-  obtain ⟨S, hSV, hclique⟩ := h
+  obtain ⟨S, hSV, hclique⟩ := mem_Clique_iff_mk.mp h
   have hV := fun v hv => mem_verticesOfBound_iff.mp (hSV v hv)
   have hinj : Set.InjOn (fun v => v / bound) S := by
     intro v₁ hv₁ v₂ hv₂ hdiv
     by_contra hne
     obtain ⟨i, hi, a, ha, hea, rfl⟩ := hV v₁ hv₁
     obtain ⟨j, hj, b, hb, heb, rfl⟩ := hV v₂ hv₂
-    have hij := ((adj_vertex_iff ha hb hi hj hea heb).mp (hclique.1 hv₁ hv₂ hne)).1
-    simp only [vertex_div ha, vertex_div hb] at hdiv
-    exact hij hdiv
+    exact ((adj_vertex_iff ha hb hi hj hea heb).mp (hclique.1 hv₁ hv₂ hne)).1
+      (by simpa only [vertex_div ha, vertex_div hb] using hdiv)
   have himg : S.image (fun v => v / bound) = Finset.range r := by
     refine Finset.eq_of_subset_of_card_le (fun i hi => ?_) ?_
     · obtain ⟨v, hv, rfl⟩ := Finset.mem_image.mp hi
@@ -347,9 +313,7 @@ private lemma satisfiable_of_mem_Clique {r : ℕ} (hr : 1 ≤ r) {φ : CNF ℕ} 
     intro i hi
     obtain ⟨v, hv, hvi⟩ := Finset.mem_image.mp (himg ▸ Finset.mem_range.mpr hi)
     obtain ⟨i', -, a, ha, hea, rfl⟩ := hV v hv
-    rw [vertex_div ha] at hvi
-    subst hvi
-    exact ⟨a, ha, hea, hv⟩
+    exact (vertex_div ha ▸ hvi) ▸ ⟨a, ha, hea, hv⟩
   choose! code hcode_lt hcode_eval hcode_mem using hpick
   have hagree : ∀ i < r, ∀ j < r, ∀ x ∈ (GroupClique.block φ r i).distinctVars,
       x ∈ (GroupClique.block φ r j).distinctVars →
@@ -357,8 +321,7 @@ private lemma satisfiable_of_mem_Clique {r : ℕ} (hr : 1 ≤ r) {φ : CNF ℕ} 
         bitsAssignment (GroupClique.block φ r j).distinctVars (code j) x := by
     intro i hi j hj x hxi hxj
     by_cases hij : i = j
-    · subst hij
-      rfl
+    · exact hij ▸ rfl
     · have hne : GroupClique.vertex bound i (code i) ≠ GroupClique.vertex bound j (code j) :=
         fun h => hij (vertex_inj (hcode_lt i hi) (hcode_lt j hj) h).1
       have hc := ((adj_vertex_iff (hcode_lt i hi) (hcode_lt j hj) hi hj (hcode_eval i hi)
@@ -430,24 +393,20 @@ theorem length_groupClique_vertices_le (r : ℕ) (φ : CNF ℕ) :
     verts.length ≤ r * 2 ^ (3 * ((φ.length + r - 1) / r)) := by
   dsimp only
   rw [groupClique, GroupClique.graphOfBound]
-  by_cases hr0 : (r == 0) = true
-  · simp [hr0]
-  · simp only [hr0, Bool.false_eq_true, ↓reduceIte]
-    by_cases h3 : (!φ.all fun c => decide (c.length ≤ 3)) = true
-    · simp [h3]
-    · simp only [h3, Bool.false_eq_true, ↓reduceIte]
-      have hlen : (GroupClique.verticesOfBound r φ
-          (2 ^ (3 * GroupClique.blockSize φ r))).length ≤
-          (List.range r).length * 2 ^ (3 * GroupClique.blockSize φ r) := by
-        apply List.length_flatMap_le
-        intro i _
+  split_ifs
+  · simp
+  · simp
+  · have hlen : (GroupClique.verticesOfBound r φ
+        (2 ^ (3 * GroupClique.blockSize φ r))).length ≤
+        (List.range r).length * 2 ^ (3 * GroupClique.blockSize φ r) :=
+      List.length_flatMap_le fun i _ => by
         rw [List.length_map]
         calc
           ((List.range (2 ^ (3 * GroupClique.blockSize φ r))).filter _).length ≤
               (List.range (2 ^ (3 * GroupClique.blockSize φ r))).length :=
             List.length_filter_le _ _
           _ = 2 ^ (3 * GroupClique.blockSize φ r) := List.length_range
-      simpa [List.length_range, GroupClique.blockSize] using hlen
+    simpa [List.length_range, GroupClique.blockSize] using hlen
 
 /-- Vertex finset cardinality bound for `SAT.groupClique r φ`. -/
 theorem card_groupClique_vertices_le (r : ℕ) (φ : CNF ℕ) :
@@ -623,8 +582,7 @@ private lemma encPair_unary_cnf_length_pow_le (r : ℕ) (φ : CNF ℕ) {D E : �
     push_cast
     nlinarith
   calc (((encPair encUnary encCNF (r, φ)).length + 1 : ℝ)) ^ D
-      ≤ (((frame (encUnary r)).length + 1 : ℕ) * (((encCNF φ).length : ℝ) + 1)) ^ D :=
-        pow_le_pow_left₀ (by positivity) hp D
+      ≤ (((frame (encUnary r)).length + 1 : ℕ) * (((encCNF φ).length : ℝ) + 1)) ^ D := by gcongr
     _ = (((frame (encUnary r)).length + 1 : ℕ) : ℝ) ^ D * (((encCNF φ).length : ℝ) + 1) ^ D :=
         mul_pow _ _ _
     _ ≤ (((frame (encUnary r)).length + 1 : ℕ) : ℝ) ^ D * (((encCNF φ).length : ℝ) + 1) ^ E := by
@@ -683,16 +641,13 @@ private lemma decidableInExpTime_threeSAT_of_groupClique_bound
           (mul_le_mul_of_nonneg_right hDr (by positivity))) (by positivity))
     have hpoly := encPair_unary_cnf_length_pow_le r φ
       ((le_max_left D d).trans (le_max_right d₀ (max D d)))
-    have hcast :
-        ((C₀ * 2 ^ (D * (3 * GroupClique.blockSize φ r)) *
-            ((encPair encUnary encCNF (r, φ)).length + 1) ^ D : ℕ) : ℝ) =
-          (C₀ : ℝ) * ((2 ^ (D * (3 * GroupClique.blockSize φ r)) : ℕ) : ℝ) *
-            (((encPair encUnary encCNF (r, φ)).length + 1 : ℝ)) ^ D := by push_cast; rfl
-    rw [hcast]
-    calc (C₀ : ℝ) * ((2 ^ (D * (3 * GroupClique.blockSize φ r)) : ℕ) : ℝ) *
-          (((encPair encUnary encCNF (r, φ)).length + 1 : ℝ)) ^ D
+    push_cast
+    calc (C₀ : ℝ) * ((2 : ℝ) ^ (D * (3 * GroupClique.blockSize φ r))) *
+          (((encPair encUnary encCNF (r, φ)).length : ℝ) + 1) ^ D
         ≤ C₀ * ((2 : ℝ) ^ (3 * D) * 2 ^ (δ * φ.length)) *
-            ((Lr : ℝ) ^ D * (((encCNF φ).length : ℝ) + 1) ^ E) := by gcongr
+            ((Lr : ℝ) ^ D * (((encCNF φ).length : ℝ) + 1) ^ E) := by
+          gcongr
+          exact_mod_cast hpow2
       _ = ((C₀ : ℝ) * 2 ^ (3 * D) * (Lr : ℝ) ^ D) *
             ((2 : ℝ) ^ (δ * φ.length) * (((encCNF φ).length : ℝ) + 1) ^ E) := by ring
   have hstep3 : ∀ φ : CNF ℕ,
@@ -907,9 +862,8 @@ theorem ETH.not_clique_subexpVertex (hETH : ETH)
         let graph := x.graph
         let verts := graph.vertices
         f x.m * ((verts.length : ℝ) + 1) ^ g x.m *
-          (((encCliqueInstance x).length : ℝ) + 1) ^ e) := by
-  intro hClique
-  exact (ETH_iff_not_decidableInSubexpTime_length.mp hETH)
+          (((encCliqueInstance x).length : ℝ) + 1) ^ e) :=
+  fun hClique => (ETH_iff_not_decidableInSubexpTime_length.mp hETH)
     (DecidableInSubexpTime.threeSAT_of_clique_subexpVertex f g e hg hClique)
 
 /-- Under `ETH`, `Clique` cannot be decided in `f(k) * |enc| ^ o(k)` time. -/
@@ -917,9 +871,8 @@ theorem ETH.not_clique_subexpEnc (hETH : ETH)
     (f g : ℕ → ℝ)
     (hg : ∀ ε : ℝ, 0 < ε → ∃ k₀, ∀ k ≥ k₀, g k ≤ ε * k) :
     ¬DecidableInTimeO Clique encCliqueInstance
-      (fun x => f x.m * (((encCliqueInstance x).length : ℝ) + 1) ^ g x.m) := by
-  intro hClique
-  exact (ETH_iff_not_decidableInSubexpTime_length.mp hETH)
+      (fun x => f x.m * (((encCliqueInstance x).length : ℝ) + 1) ^ g x.m) :=
+  fun hClique => (ETH_iff_not_decidableInSubexpTime_length.mp hETH)
     (DecidableInSubexpTime.threeSAT_of_clique_subexpEnc f g hg hClique)
 
 /-- Under `ETH`, parameterized `Clique` is not fixed-parameter tractable (`Clique ∉ FPT`). -/
@@ -927,8 +880,7 @@ theorem ETH.clique_not_mem_FPT (hETH : ETH) :
     Clique ∉ FPT encCliqueInstance CliqueInstance.m := by
   rw [mem_FPT]
   rintro ⟨f, c, hFPT⟩
-  refine hETH.not_clique_subexpVertex (fun k => (f k : ℝ)) (fun _ => 0) c
-    (fun ε hε => ⟨0, fun k _ => by positivity⟩) ?_
-  simpa using hFPT
+  exact hETH.not_clique_subexpVertex (fun k => (f k : ℝ)) (fun _ => 0) c
+    (fun _ _ => ⟨0, fun _ _ => by positivity⟩) (by simpa using hFPT)
 
 end Cslib.Complexity

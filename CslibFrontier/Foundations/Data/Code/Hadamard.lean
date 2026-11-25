@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.Data.BitString.Hamming
 public import CslibFrontier.Foundations.Data.Code.Basic
 public import Mathlib.Data.Matrix.Mul
 import CslibFrontier.Foundations.Data.Finset.Expect
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 
@@ -247,13 +248,11 @@ theorem eq_of_hammingDist_hadamardCode_le {f : (ι → Bool) → Bool} {x y : ι
     (hy : (hammingDist f (hadamardCode y) : ℝ) / 2 ^ Fintype.card ι ≤ δ) : x = y := by
   by_contra hxy
   have hpos : (0 : ℝ) < 2 ^ Fintype.card ι := by positivity
-  have hdist : (2 * hammingDist (hadamardCode x) (hadamardCode y) : ℝ) = 2 ^ Fintype.card ι := by
-    exact_mod_cast two_mul_hammingDist_hadamardCode hxy
   have htri : (hammingDist (hadamardCode x) (hadamardCode y) : ℝ) ≤
       hammingDist f (hadamardCode x) + hammingDist f (hadamardCode y) := by
     exact_mod_cast hammingDist_triangle_left _ _ f
   rw [div_le_iff₀ hpos] at hx hy
-  nlinarith
+  cast_nlinarith [two_mul_hammingDist_hadamardCode hxy]
 
 /-- **Local correction for the Hadamard code**: if `f` is within relative distance `ε` of the
 encoding of `x`, then for every `a`, self-correction at `a` returns the codeword's value at `a`

@@ -207,24 +207,18 @@ private theorem isPPTOn_lorToSingleAt_choose {Msg : Type} {encMsg : Msg ↪ List
       ChoiceOut Msg → (Msg × Msg) × List Bool :=
     fun r choice => ((ChoiceOut.msg₀ choice, ChoiceOut.msg₁ choice),
       encLoRToSingleState ⟨true, r.1.1.1.2, r.1.1.2, ChoiceOut.state choice, r.2.2⟩)
-  have hmsgs : ComputableInPolyTime
-      (fun s : ((((ℕ × List Bool) × ℕ) × List Bool) × (List Bool × List (List Bool))) ×
-          ChoiceOut Msg => (ChoiceOut.msg₀ s.2, ChoiceOut.msg₁ s.2))
-      E3 (encPair encMsg encMsg) := by
-    dsimp only [E3, encChoiceOut]; fun_prop
-  have hpost : ComputableInPolyTime (fun s => fPost s.1 s.2)
+  have hpost : ComputableInPolyTime (fun s : _ × ChoiceOut Msg => fPost s.1 s.2)
       E3 (encPair (encPair encMsg encMsg) encBits) :=
-    hmsgs.prod hrec.encoding_comp
-  have hmap : IsPPTOn E2 (encPair (encPair encMsg encMsg) encBits)
-      (fun r => adversary.query r.1.1.1.1 r.2.1 r.2.2 >>= fun choice => return fPost r choice) := by
-    simpa only [bind_pure_comp] using hquery.map_with hpost
+    ComputableInPolyTime.prod (by
+      dsimp only [E3, encChoiceOut]
+      fun_prop) hrec.encoding_comp
   have hyes : IsPPTOn EIn (encPair (encPair encMsg encMsg) encBits)
       (fun p : (ℕ × List Bool) × ℕ => do
         let st₀ ← adversary.start p.1.1 p.1.2
         let mid ← lorRunOn valid encrypt adversary p.1.1 p.1.2 true p.2 (st₀, [])
         let choice ← adversary.query p.1.1 mid.1 mid.2
         return fPost ((p, st₀), mid) choice) :=
-    hstart.bind_with (hrun.bind_with hmap)
+    hstart.bind_with (hrun.bind_with (by simpa only [bind_pure_comp] using hquery.map_with hpost))
   have hno : IsPPTOn EIn (encPair (encPair encMsg encMsg) encBits)
       (fun _ => let m := dummyMsg adversary; return ((m, m), rejectLoRToSingleState)) :=
     (ComputableInPolyTime.const ((dummyMsg adversary, dummyMsg adversary),
@@ -265,27 +259,20 @@ theorem isPPT_lorToSingleAt {Msg : Type} {encMsg : Msg ↪ List Bool}
         (encLoRToSingleState_pk_polyTime hdecoded)
         (ComputableInPolyTime.const false)
         (by
-          have hQn : ComputableInPolyTime (fun p : ℕ × List Bool × List Bool => Q p.1)
-              encGuessInput encUnary :=
-            hQ.comp (by dsimp only [encGuessInput]; fun_prop)
-          have hs := encLoRToSingleState_split_polyTime hdecoded
+          have := encLoRToSingleState_split_polyTime hdecoded
+          dsimp only [encGuessInput]
           fun_prop)
         (by
-          have hst := encLoRToSingleState_stateA_polyTime hdecoded
-          have htr := encLoRToSingleState_transcript_polyTime hdecoded
-          have hct : ComputableInPolyTime (fun p : ℕ × List Bool × List Bool => p.2.2)
-              encGuessInput encBits := by dsimp only [encGuessInput]; fun_prop
-          dsimp only [encLoRLoopState]; fun_prop)
-    have hguess : IsPPTOn (encPair encGuessInput encLoRLoopState) encBool
-        (fun q : (ℕ × List Bool × List Bool) × (List Bool × List (List Bool)) =>
-          adversary.guess q.1.1 q.2.1 q.2.2) := by
-      have harg : ComputableInPolyTime
-          (fun q : (ℕ × List Bool × List Bool) × (List Bool × List (List Bool)) => (q.1.1, q.2))
-          (encPair encGuessInput encLoRLoopState) encLoRStageInput := by
-        dsimp only [encLoRStageInput, encGuessInput, encLoRLoopState]; fun_prop
-      exact hadversary.guess.preprocess harg
+          have := encLoRToSingleState_stateA_polyTime hdecoded
+          have := encLoRToSingleState_transcript_polyTime hdecoded
+          dsimp only [encGuessInput, encLoRLoopState]
+          fun_prop)
+    have harg : ComputableInPolyTime
+        (fun q : (ℕ × List Bool × List Bool) × (List Bool × List (List Bool)) => (q.1.1, q.2))
+        (encPair encGuessInput encLoRLoopState) encLoRStageInput := by
+      dsimp only [encLoRStageInput, encGuessInput, encLoRLoopState]; fun_prop
     simpa only [lorToSingleAt] using IsPPTOn.cond (encLoRToSingleState_active_polyTime hdecoded)
-      (hrun.bind_with hguess) (ComputableInPolyTime.const false).isPPTOn
+      (hrun.bind_with (hadversary.guess.preprocess harg)) (ComputableInPolyTime.const false).isPPTOn
 
 /-- `lorToSingle` is uniformly strict PPT in `AdversaryOf.IsPPT encMsg`: `hvalid`, `hencrypt`,
 `hctBound`/`hctLen`, and `hQ` certify the dyadic sampler and simulated prefix/suffix queries. -/
@@ -430,18 +417,10 @@ theorem lorHybridGameOn_step_gap {Msg : Type}
             else PMF.pure false) := by
       simp only [gameOn, lorToSingleAt, decide_eq_true hlt, ↓reduceIte, pmf_norm,
         apply_ite ProbComp.eval, lorToSingleStateDecoder.decode_enc]
-    have hsplit_eq : (Game.succProbability
-          (ProbComp.eval (lorHybridGameOn valid keyGen encrypt Q adversary split n)) : ℝ) -
-        Game.succProbability
-          (ProbComp.eval (lorHybridGameOn valid keyGen encrypt Q adversary (split + 1) n)) =
-        (Game.succProbability (ProbComp.eval
-          (lorHybridGameOn valid keyGen encrypt Q adversary
-            (if false then split + 1 else split) n)) : ℝ) -
-        Game.succProbability (ProbComp.eval
-          (lorHybridGameOn valid keyGen encrypt Q adversary
-            (if true then split + 1 else split) n)) := by
-      simp only [Bool.false_eq_true, ↓reduceIte]
-    rw [hsplit_eq, lhs_eq false, lhs_eq true, rhs_eq false, rhs_eq true]
+    have h0 := lhs_eq false
+    have h1 := lhs_eq true
+    simp only [Bool.false_eq_true, ↓reduceIte] at h0 h1
+    rw [h0, h1, rhs_eq false, rhs_eq true]
     simp only [PMF.monad_bind_eq_bind]
     rw [sub_eq_sub_iff_add_eq_add, Game.coe_succProbability, Game.coe_succProbability,
       Game.coe_succProbability, Game.coe_succProbability,
@@ -621,11 +600,7 @@ theorem INDCPAOn.lorINDCPAOn {Msg : Type}
   intro adversary hadversary
   have hsingleNeg := h (lorToSingle valid encrypt Q adversary)
     (isPPT_lorToSingle hvalid hencrypt hctBound hctLen hQ hadversary)
-  have hpolyDyadic : Cslib.PolynomiallyBounded (fun n => dyadicSize (Q n)) := by
-    have hQpoly : Cslib.PolynomiallyBounded Q := hQ.polynomiallyBounded
-    fun_prop
-  refine negligible_of_le (hsingleNeg.polynomiallyBounded_mul hpolyDyadic) fun n => ?_
-  rw [advantage_lorGameOn_eq valid keyGen encrypt Q adversary n]
+  negligible using fun n => (advantage_lorGameOn_eq valid keyGen encrypt Q adversary n).le
 
 /-- **Theorem 11.1 (unrestricted messages):** unrestricted `INDCPAOf` implies `LoRINDCPAOf`.
 - `hencrypt`: `encrypt` must be uniformly strict PPT so `lorToSingle` can simulate prefix/suffix

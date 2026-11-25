@@ -82,9 +82,9 @@ private theorem answerStep_take_iterate {k : ℕ} {Control : Type}
   induction n with
   | zero => rfl
   | succ n ih =>
-    rw [Function.iterate_succ_apply', Function.iterate_succ_apply', ih (by omega)]
-    rw [machine.answerStep_bit (fun w => g (w.take T)), machine.answerStep_bit g]
-    rw [List.take_of_length_le ((machine.length_pendingRequest_le (hspace n)).trans (by omega))]
+    rw [Function.iterate_succ_apply', Function.iterate_succ_apply', ih (by omega),
+      machine.answerStep_bit (fun w => g (w.take T)), machine.answerStep_bit g,
+      List.take_of_length_le ((machine.length_pendingRequest_le (hspace n)).trans (by omega))]
 
 private theorem weightedReplay_error {k : ℕ} {Control : Type}
     (machine : MultiTapePTM k Bool Control Unit)
@@ -107,55 +107,49 @@ private theorem weightedReplay_error {k : ℕ} {Control : Type}
     if (machine.pendingQuery cfg).isSome then H (a, machine.pendingRequest cfg) else 0
   let answer := fun cfg => if (machine.pendingQuery cfg).isSome then
     g ((machine.pendingRequest cfg).take (T a)) else false
-  have hp : ∀ cfg, 0 ≤ p cfg ∧ p cfg ≤ D := by
-    intro cfg
-    dsimp only [p]
-    split
-    · exact (hw _).1
-    · exact ⟨le_rfl, by dsimp [D]; positivity⟩
-  have he : ∀ cfg, (2 : ℤ) ^ e * branchWeight D p cfg (!(answer cfg)) ≤ D := by
-    intro cfg
-    by_cases hq : (machine.pendingQuery cfg).isSome
-    · by_cases ha : (machine.pendingRequest cfg).take (T a) ∈ A
-      · simpa [branchWeight, p, answer, g, hq, ha] using (hw _).2.1 ha
-      · simpa [branchWeight, p, answer, g, hq, ha] using (hw _).2.2 ha
-    · simpa [branchWeight, p, answer, hq] using (show 0 ≤ D by dsimp [D]; positivity)
+  have hD : 0 ≤ D := by dsimp [D]; positivity
   have hstep : (fun cfg => machine.replyStep cfg (answer cfg)) =
-      machine.answerStep (fun q => [g (q.2.take (T a))]) := by
-    funext cfg
+      machine.answerStep (fun q => [g (q.2.take (T a))]) := funext fun cfg => by
     rw [machine.answerStep_bit (fun w => g (w.take (T a))) cfg]
     by_cases hq : (machine.pendingQuery cfg).isSome <;> simp [replyStep, answer, hq]
-  have h := acceptWeight_error machine.replyStep (fun cfg => cfg.tapes.output.headD false)
-    answer (show 0 ≤ D by dsimp [D]; positivity) (show 0 ≤ (2 : ℤ) ^ e by positivity)
-    hp he (T a) (FiniteConfig.init machine.initial (input a))
+  have h := acceptWeight_error machine.replyStep (fun cfg => cfg.tapes.output.headD false) answer
+    (p := p) hD (show 0 ≤ (2 : ℤ) ^ e by positivity)
+    (fun cfg => by
+      dsimp only [p]
+      split
+      · exact (hw _).1
+      · exact ⟨le_rfl, hD⟩)
+    (fun cfg => by
+      by_cases hq : (machine.pendingQuery cfg).isSome
+      · by_cases ha : (machine.pendingRequest cfg).take (T a) ∈ A
+        · simpa [branchWeight, p, answer, g, hq, ha] using (hw _).2.1 ha
+        · simpa [branchWeight, p, answer, g, hq, ha] using (hw _).2.2 ha
+      · simpa [branchWeight, p, answer, hq] using hD)
+    (T a) (FiniteConfig.init machine.initial (input a))
   rw [hstep, answerStep_take_iterate machine g (input a) (T a) (T a) le_rfl] at h
-  have hout := machine.interpret_run_pure_false (languageOracle A) (T a) (input a)
-  change OracleComp.interpret (m := Id) (languageOracle A) _ =
-    ((machine.answerStep (fun q => [g q.2]))^[T a]
-      (FiniteConfig.init machine.initial (input a))).tapes.output at hout
+  have hout : OracleComp.interpret (m := Id) (languageOracle A)
+      (machine.run (pure false) (fun op word => OracleComp.query (op, word)) (T a) (input a)) =
+      ((machine.answerStep (fun q => [g q.2]))^[T a]
+        (FiniteConfig.init machine.initial (input a))).tapes.output :=
+    machine.interpret_run_pure_false (languageOracle A) (T a) (input a)
   simpa only [weightedReplay, p, D, ← pow_mul, hout] using h
 
 private theorem positive_gap_iff {S C B E : ℤ} (hE : 0 < E)
     (herr : 16 * |S - C * E| ≤ E) :
     0 < 4 * S - (2 * B + 1) * E ↔ B < 2 * C := by
-  have hupper := le_abs_self (S - C * E)
-  have hlower := neg_le_abs (S - C * E)
-  constructor
-  · intro hpos
-    by_contra hn
-    have hle : 2 * C ≤ B := by omega
-    have hmul := mul_le_mul_of_nonneg_right hle hE.le
+  have h1 := le_abs_self (S - C * E)
+  have h2 := neg_le_abs (S - C * E)
+  refine ⟨fun hpos => by_contra fun hn => ?_, fun hgt => ?_⟩
+  · have := mul_le_mul_of_nonneg_right (show 2 * C ≤ B by omega) hE.le
     nlinarith
-  · intro hgt
-    have hle : B + 1 ≤ 2 * C := by omega
-    have hmul := mul_le_mul_of_nonneg_right hle hE.le
+  · have := mul_le_mul_of_nonneg_right (show B + 1 ≤ 2 * C by omega) hE.le
     nlinarith
 
 /-- Every AWPP language is low for strict-majority polynomial-time oracle verifiers. -/
 theorem PPWithOracle_eq_PP_of_mem_AWPP (hA : A ∈ AWPP encBits) (enc : α ↪ List Bool) :
     PPWithOracle A enc = PP enc := by
   classical
-  apply Set.Subset.antisymm ?_ (PP_subset_PPWithOracle A enc)
+  refine Set.Subset.antisymm ?_ (PP_subset_PPWithOracle A enc)
   rintro L ⟨p, V, ⟨program, hprogram, hV⟩, hL⟩
   obtain ⟨k, m, machine, c, d, hrun⟩ :=
     Probability.IsOraclePPTOn.exists_fin_run_pure_false hprogram
@@ -167,38 +161,29 @@ theorem PPWithOracle_eq_PP_of_mem_AWPP (hA : A ∈ AWPP encBits) (enc : α ↪ L
   have he : ComputableInPolyTime e enc encUnary := by dsimp [e]; fun_prop
   obtain ⟨H, hH, R, hR, hweights⟩ := exists_AWPP_queryWeights hA hT he
   let input : α × List Bool → List Bool := encPair enc encBits
-  let T' : α × List Bool → ℕ := fun x => T x.1
-  let R' : α × List Bool → ℕ := fun x => R x.1
-  let H' : (α × List Bool) × List Bool → ℤ := fun x => H (x.1.1, x.2)
-  let F := weightedReplay machine input T' (fun x => 2 ^ R' x) H'
+  let F := weightedReplay machine input (fun x => T x.1) (fun x => 2 ^ R x.1)
+    (fun x => H (x.1.1, x.2))
   have hF : F ∈ GapP (encPair enc encBits) := by
-    apply GapP.weightedReplay_mem machine
-    · dsimp [input]; fun_prop
-    · dsimp [T']; fun_prop
-    · exact mem_GapP_of_polyTime (by dsimp [R']; fun_prop)
-    · exact GapP.comp_mem hH (by fun_prop)
+    refine GapP.weightedReplay_mem machine ?_ (by fun_prop)
+      (mem_GapP_of_polyTime (by fun_prop)) (GapP.comp_mem hH (by fun_prop))
+    dsimp [input]; fun_prop
   let S : α → ℤ := fun a => ∑ w : Fin (r a) → Bool, F (a, List.ofFn w)
-  have hS : S ∈ GapP enc := GapP.sum_bits_mem hF hr
   let E : α → ℤ := fun a => 2 ^ (R a * T a)
-  have hE : E ∈ GapP enc := mem_GapP_of_polyTime (by dsimp [E]; fun_prop)
-  have hcoef : (fun a => 2 * (2 : ℤ) ^ r a + 1) ∈ GapP enc :=
-    mem_GapP_of_polyTime (by fun_prop)
-  apply mem_PP_iff_exists_GapP.mpr
-  refine ⟨fun a => 4 * S a - (2 * (2 : ℤ) ^ r a + 1) * E a,
-    GapP.sub_mem' (GapP.mul_mem (mem_GapP_of_polyTime (by fun_prop)) hS)
-      (GapP.mul_mem hcoef hE), fun a => ?_⟩
+  have hE : E ∈ GapP enc := mem_GapP_of_polyTime <| by
+    dsimp [E]; fun_prop
+  refine mem_PP_iff_exists_GapP.mpr ⟨fun a => 4 * S a - (2 * (2 : ℤ) ^ r a + 1) * E a,
+    GapP.sub_mem' (GapP.mul_mem (mem_GapP_of_polyTime (by fun_prop)) (GapP.sum_bits_mem hF hr))
+      (GapP.mul_mem (mem_GapP_of_polyTime (by fun_prop)) hE),
+    fun a => ?_⟩
   have herror (w : Fin (r a) → Bool) : (2 : ℤ) ^ (r a + T a + 4) *
-      |F (a, List.ofFn w) - E a * (if V (a, List.ofFn w) then 1 else 0)| ≤
-        (T a : ℤ) * E a := by
-    have hw := weightedReplay_error machine input T' R' H' (a, List.ofFn w) (e a)
-      (hweights a)
+      |F (a, List.ofFn w) - E a * (if V (a, List.ofFn w) then 1 else 0)| ≤ (T a : ℤ) * E a := by
+    have hw := weightedReplay_error machine input (fun x => T x.1) (fun x => R x.1)
+      (fun x => H (x.1.1, x.2)) (a, List.ofFn w) (e a) (hweights a)
     have hclock : T a = c * ((encPair enc encBits (a, List.ofFn w)).length + 1) ^ d := by
       simp only [T, length_encPair, encBits_apply, List.length_ofFn]
     have hout := hrun (a, List.ofFn w) (languageOracle A)
     rw [hV] at hout
-    simp only [input, T', R', H', F, E, e, hclock, hout, encBool_apply,
-      List.headD_cons] at hw ⊢
-    exact hw
+    simpa only [input, F, E, e, hclock, hout, encBool_apply, List.headD_cons] using hw
   have hbatch := sum_error (show 0 ≤ E a by dsimp [E]; positivity)
     (fun w : Fin (r a) → Bool => F (a, List.ofFn w)) (fun w => V (a, List.ofFn w)) herror
   have hcount : (∑ w : Fin (r a) → Bool, if V (a, List.ofFn w) then (1 : ℤ) else 0) =
@@ -206,8 +191,7 @@ theorem PPWithOracle_eq_PP_of_mem_AWPP (hA : A ∈ AWPP encBits) (enc : α ↪ L
     simp only [acceptCount, card_filter, Nat.cast_sum, Nat.cast_ite, Nat.cast_one, Nat.cast_zero]
   rw [hcount, mul_comm (E a)] at hbatch
   rw [hL a]
-  have hpos := positive_gap_iff (B := (2 : ℤ) ^ r a)
-    (show 0 < E a by dsimp [E]; positivity) hbatch
-  exact_mod_cast hpos.symm
+  exact_mod_cast (positive_gap_iff (B := (2 : ℤ) ^ r a)
+    (show 0 < E a by dsimp [E]; positivity) hbatch).symm
 
 end Cslib.Complexity

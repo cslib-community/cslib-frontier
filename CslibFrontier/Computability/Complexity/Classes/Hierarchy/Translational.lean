@@ -180,16 +180,13 @@ private theorem eventually_polylog_le_chain {a : ℕ} (ha : 1 ≤ a) (p k : ℕ)
     have := Nat.le_log_of_pow_le (by norm_num : 1 < 2) hn
     omega
   have hn2 : n + 1 ≤ 2 ^ L := Nat.lt_pow_succ_log_self (by norm_num) n
-  have hpowL : (n + 1) ^ a ≤ 2 ^ (a * L) := by
-    rw [pow_mul']
-    exact Nat.pow_le_pow_left hn2 a
+  have hpowL : (n + 1) ^ a ≤ 2 ^ (a * L) := by rw [pow_mul']; exact Nat.pow_le_pow_left hn2 a
   have hlog : Nat.log 2 ((n + 1) ^ a + 1) + 1 ≤ (a + 1) * L := by
     have h2 : 2 ≤ 2 ^ (a * L) := Nat.le_self_pow (Nat.mul_pos (by omega) (by omega)).ne' 2
     have hlt : (n + 1) ^ a + 1 < 2 ^ (a * L + 1) := by rw [pow_succ]; omega
     have h3 : Nat.log 2 ((n + 1) ^ a + 1) < a * L + 1 :=
       Nat.log_lt_of_lt_pow (Nat.succ_ne_zero _) hlt
-    rw [Nat.add_mul, one_mul]
-    omega
+    rw [Nat.add_mul, one_mul]; omega
   have hchain : (n + 1) * L ^ (k + 1) ≤ chain p (2 ^ p * (k + 1)) n :=
     calc (n + 1) * L ^ (k + 1) ≤ (n + 1) * (iterSqrtLog p n ^ 2 ^ p) ^ (k + 1) :=
           Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (le_iterSqrtLog_pow p n) _)
@@ -257,23 +254,17 @@ private theorem eventually_iterSqrtLog_pow_le (p : ℕ) {a : ℕ} {ε : ℝ}
     have h3 : (Nat.log 2 n : ℝ) * 0.6931471803 ≤ Real.log n :=
       (mul_le_mul_of_nonneg_left Real.log_two_gt_d9.le (Nat.cast_nonneg _)).trans h1
     linarith
-  have hr' : iterSqrtLog p n ^ 2 ^ p ≤ 4 ^ 2 ^ p * (Nat.log 2 n + 1) := iterSqrtLog_pow_le p n
   have hr : (iterSqrtLog p n : ℝ) ^ 2 ^ p ≤ 4 ^ 2 ^ p * ((Nat.log 2 n : ℝ) + 1) := by
-    exact_mod_cast hr'
+    exact_mod_cast iterSqrtLog_pow_le p n
   have hr0 : (0 : ℝ) ≤ iterSqrtLog p n := Nat.cast_nonneg _
-  have hexp : ((2 ^ p : ℕ) : ℝ) * δ = (a : ℝ) := by
-    rw [hδdef]
-    push_cast
-    field_simp
+  have hexp : ((2 ^ p : ℕ) : ℝ) * δ = (a : ℝ) := by rw [hδdef]; push_cast; field_simp
   calc (iterSqrtLog p n : ℝ) ^ a = (iterSqrtLog p n : ℝ) ^ (((2 ^ p : ℕ) : ℝ) * δ) := by
         rw [hexp, Real.rpow_natCast]
     _ = ((iterSqrtLog p n : ℝ) ^ 2 ^ p) ^ δ := by
         rw [Real.rpow_mul hr0, Real.rpow_natCast]
     _ ≤ (K * Real.log n) ^ δ := by
         refine Real.rpow_le_rpow (by positivity) (hr.trans ?_) hδ0
-        have h4 : (0 : ℝ) ≤ 4 ^ 2 ^ p := by positivity
-        calc (4 : ℝ) ^ 2 ^ p * ((Nat.log 2 n : ℝ) + 1) ≤ 4 ^ 2 ^ p * (3 * Real.log n) :=
-              mul_le_mul_of_nonneg_left hL h4
+        calc (4 : ℝ) ^ 2 ^ p * ((Nat.log 2 n : ℝ) + 1) ≤ 4 ^ 2 ^ p * (3 * Real.log n) := by gcongr
           _ = K * Real.log n := by ring
     _ = K ^ δ * Real.log n ^ δ := Real.mul_rpow (by positivity) hlog0.le
     _ ≤ Real.log n ^ (ε - δ) * Real.log n ^ δ :=
@@ -290,9 +281,7 @@ theorem DTIME_pow_ssubset_DTIME_of_pow_mul_log_rpow_le {a : ℕ} (ha : 1 ≤ a) 
   obtain ⟨p, hp⟩ := exists_nat_gt ((a : ℝ) / ε)
   have h2p : (p : ℝ) < 2 ^ p := by exact_mod_cast Nat.lt_two_pow_self
   have hδ : (a : ℝ) / 2 ^ p < ε := by
-    rw [div_lt_iff₀ (by positivity)]
-    rw [div_lt_iff₀ hε] at hp
-    nlinarith
+    rw [div_lt_iff₀ hε] at hp; rw [div_lt_iff₀ (by positivity)]; nlinarith
   have hle : ∀ᶠ n in atTop, (n * iterSqrtLog p n) ^ a ≤ g n := by
     filter_upwards [hg, eventually_iterSqrtLog_pow_le p hδ] with n hg hr
     have : (((n * iterSqrtLog p n) ^ a : ℕ) : ℝ) ≤ (g n : ℝ) := by
@@ -448,14 +437,9 @@ theorem DTIME_two_pow_ssubset_DTIME_of_two_pow_mul_rpow_le {ε : ℝ} (hε : 0 <
     (hg : ∀ᶠ n : ℕ in atTop, (2 : ℝ) ^ n * (n : ℝ) ^ ε ≤ g n) :
     DTIME encBits (fun n => 2 ^ n) ⊂ DTIME encBits g := by
   obtain ⟨q, hq⟩ := exists_nat_gt (1 / ε)
-  have hq1 : 1 ≤ q := by
-    have : (0 : ℝ) < q := (one_div_pos.2 hε).trans hq
-    have : 0 < q := by exact_mod_cast this
-    omega
+  have hq1 : 1 ≤ q := Nat.cast_pos.mp ((one_div_pos.2 hε).trans hq)
   have hqε : 1 / (q : ℝ) < ε := by
-    rw [div_lt_iff₀ (by positivity)]
-    rw [div_lt_iff₀ hε] at hq
-    linarith
+    rw [div_lt_iff₀ hε] at hq; rw [div_lt_iff₀ (by positivity)]; linarith
   have hle : ∀ᶠ n in atTop, 2 ^ (n + Nat.log 2 (n + 1) / q) ≤ g n := by
     filter_upwards [hg, eventually_two_pow_log_div_le hq1 hqε] with n hg hr
     have : ((2 ^ (n + Nat.log 2 (n + 1) / q) : ℕ) : ℝ) ≤ (g n : ℝ) := by

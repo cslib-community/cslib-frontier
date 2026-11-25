@@ -60,15 +60,11 @@ theorem IsOraclePPTOn.query_bounds {Operation α β : Type} [DecidableEq Operati
     rw [h a (State × OracleComp.Transcript (fun _ : Operation × List Bool => List Bool))
       (OracleComp.withTranscript oracle) (s, [])] at hmem
     exact ⟨hcalls.length_transcript_le oracle hmem, hsize.forall_mem_transcript oracle hmem⟩
-  have hcalls' : ProbOracleComp.IsQueryBounded (output <$> program a)
-      (c * ((input a).length + 1) ^ d) :=
-    ProbOracleComp.isQueryBounded_of_length_transcript_le fun State oracle s s' result
-      transcript hmem => (hrun State oracle s s' result transcript hmem).1
-  have hsize' : ProbOracleComp.QueriesSatisfy
-      (fun request => request.2.length ≤ c * ((input a).length + 1) ^ d) (output <$> program a) :=
-    ProbOracleComp.queriesSatisfy_of_forall_mem_transcript fun State oracle s s' result
-      transcript hmem => (hrun State oracle s s' result transcript hmem).2
-  exact ⟨(OracleComp.isCostBounded_map_iff _ _ _).mp hcalls',
-    (OracleComp.queriesSatisfy_map_iff _ _).mp hsize'⟩
+  exact ⟨(OracleComp.isCostBounded_map_iff _ _ _).mp
+      (ProbOracleComp.isQueryBounded_of_length_transcript_le fun State oracle s s' result
+        transcript hmem => (hrun State oracle s s' result transcript hmem).1),
+    (OracleComp.queriesSatisfy_map_iff _ _).mp
+      (ProbOracleComp.queriesSatisfy_of_forall_mem_transcript fun State oracle s s' result
+        transcript hmem => (hrun State oracle s s' result transcript hmem).2)⟩
 
 end Cslib.Probability

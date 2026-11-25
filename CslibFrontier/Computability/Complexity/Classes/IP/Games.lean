@@ -141,15 +141,13 @@ theorem count_mono_of_length (g : List (IPMove × ℕ)) {f f' : List Bool → �
   induction g generalizing f f' with
   | nil => exact h [] rfl
   | cons x g ih =>
+    have hlen (m : Fin x.2 → Bool) (t : List Bool) (ht : t.length = transcriptLength g) :
+        (List.ofFn m ++ t).length = transcriptLength (x :: g) := by
+      simp only [transcriptLength, List.map_cons, List.sum_cons, List.length_append,
+        List.length_ofFn, ht]
     obtain ⟨_ | _, n⟩ := x
-    · refine sum_le_sum fun m _ => ih fun t ht => h _ ?_
-      simp only [transcriptLength, List.map_cons, List.sum_cons, List.length_append,
-        List.length_ofFn] at ht ⊢
-      omega
-    · refine Finset.sup_mono_fun fun y _ => ih fun t ht => h _ ?_
-      simp only [transcriptLength, List.map_cons, List.sum_cons, List.length_append,
-        List.length_ofFn] at ht ⊢
-      omega
+    · exact sum_le_sum fun m _ => ih fun t ht => h _ (hlen m t ht)
+    · exact Finset.sup_mono_fun fun y _ => ih fun t ht => h _ (hlen y t ht)
 
 theorem count_congr_of_length (g : List (IPMove × ℕ)) {f f' : List Bool → ℕ}
     (h : ∀ t : List Bool, t.length = transcriptLength g → f t = f' t) : count g f = count g f' :=
@@ -224,13 +222,11 @@ theorem count_eq_value (g : List (IPMove × ℕ)) (f : List Bool → ℕ) :
 /-- A count of a `0`/`1`-bounded payoff is at most `2 ^ verifierBits g`. -/
 theorem count_le_two_pow (g : List (IPMove × ℕ)) (f : List Bool → ℕ) (hf : ∀ t, f t ≤ 1) :
     count g f ≤ 2 ^ verifierBits g := by
-  have h := count_eq_value g f
   have hv : AMGame.value true (toAM g) (fun t => (f t : ℚ)) ≤ 1 :=
     AMGame.value_le_one _ _ fun t => by exact_mod_cast hf t
   have : (count g f : ℚ) ≤ 2 ^ verifierBits g := by
-    rw [h]
-    have : (0 : ℚ) < 2 ^ verifierBits g := by positivity
-    nlinarith
+    rw [count_eq_value]
+    exact mul_le_of_le_one_right (by positivity) hv
   exact_mod_cast this
 
 /-- The count of a concatenation of shapes: the count of the first shape, whose payoff is the count
@@ -537,31 +533,18 @@ theorem isIPGameVerifier_iff_provers {enc : α ↪ List Bool} {G : List (IPMove 
         3 * #(univ.filter fun c : BitString (ρ.eval (enc a).length) => dec (a, List.ofFn c,
           run (fun j p => msg (a, List.ofFn c, j, p)) P (evalShape G (enc a).length) 0 []) =
             true) ≤ 2 ^ ρ.eval (enc a).length) := by
-  refine forall_congr' fun a => and_congr (imp_congr_right fun _ => ?_)
-    (imp_congr_right fun _ => ?_)
-  · constructor
-    · intro h
-      obtain ⟨P, hP⟩ := exists_card_filter_run_eq_bestCount
-        (fun c j p => msg (a, List.ofFn c, j, p)) (fun c t => dec (a, List.ofFn c, t))
-        (evalShape G (enc a).length)
-      exact ⟨P, by rw [hP]; exact h⟩
-    · rintro ⟨P, hP⟩
-      exact hP.trans (Nat.mul_le_mul_left 3 (card_filter_run_le_bestCount
-        (fun c j p => msg (a, List.ofFn c, j, p)) (fun c t => dec (a, List.ofFn c, t))
-        (evalShape G (enc a).length) P))
-  · constructor
-    · intro h P
-      exact (Nat.mul_le_mul_left 3 (card_filter_run_le_bestCount
-        (fun c j p => msg (a, List.ofFn c, j, p)) (fun c t => dec (a, List.ofFn c, t))
-        (evalShape G (enc a).length) P)).trans h
-    · intro h
-      obtain ⟨P, hP⟩ := exists_card_filter_run_eq_bestCount
-        (fun c j p => msg (a, List.ofFn c, j, p)) (fun c t => dec (a, List.ofFn c, t))
-        (evalShape G (enc a).length)
-      have := h P
-      rw [hP] at this
-      exact this
-
+  dsimp only [IsIPGameVerifier, countAt]
+  refine forall_congr' fun a => ?_
+  obtain ⟨P₀, hP₀⟩ := exists_card_filter_run_eq_bestCount (ρ := ρ.eval (enc a).length)
+    (fun c j p => msg (a, List.ofFn c, j, p)) (fun c t => dec (a, List.ofFn c, t))
+    (evalShape G (enc a).length)
+  have hle (P : ℕ → List Bool → List Bool) := card_filter_run_le_bestCount
+    (ρ := ρ.eval (enc a).length)
+    (fun c j p => msg (a, List.ofFn c, j, p)) (fun c t => dec (a, List.ofFn c, t))
+    (evalShape G (enc a).length) P
+  refine and_congr (imp_congr_right fun _ => ?_) (imp_congr_right fun _ => ?_)
+  · exact ⟨fun h => ⟨P₀, hP₀ ▸ h⟩, fun ⟨P, hP⟩ => hP.trans (Nat.mul_le_mul_left 3 (hle P))⟩
+  · exact ⟨fun h P => (Nat.mul_le_mul_left 3 (hle P)).trans h, fun h => hP₀ ▸ h P₀⟩
 
 /-! ### Public coins are private coins -/
 
@@ -575,16 +558,10 @@ def merlinBits : List (AMMove × ℕ) → ℕ
 
 theorem transcriptLength_eq_arthurBits_add_merlinBits (g : List (AMMove × ℕ)) :
     AMGame.transcriptLength g = AMGame.arthurBits g + merlinBits g := by
-  induction g with
-  | nil => rfl
-  | cons x g ih =>
-    obtain ⟨_ | _, n⟩ := x
-    · simp only [AMGame.transcriptLength, List.map_cons, List.sum_cons, AMGame.arthurBits,
-        merlinBits] at ih ⊢
-      omega
-    · simp only [AMGame.transcriptLength, List.map_cons, List.sum_cons, AMGame.arthurBits,
-        merlinBits] at ih ⊢
-      omega
+  fun_induction merlinBits g <;>
+    simp only [AMGame.transcriptLength, List.map_nil, List.map_cons, List.sum_nil, List.sum_cons,
+      AMGame.arthurBits] at * <;>
+    omega
 
 theorem transcriptLength_toAM (g : List (IPMove × ℕ)) :
     AMGame.transcriptLength (toAM g) = transcriptLength g := by
@@ -626,17 +603,12 @@ theorem agrees_reveal (g : List (AMMove × ℕ)) (j : ℕ) (p w t : List Bool)
   induction g generalizing j p t with
   | nil => rfl
   | cons x g ih =>
-    obtain ⟨_ | _, n⟩ := x
-    · simp only [AMGame.transcriptLength, List.map_cons, List.sum_cons] at ht
-      have hlen : (t.take n).length = n := List.length_take_of_le (by omega)
-      simp only [ofAM_cons, AMMove.toIP, agrees, matchArthur]
-      rw [ih (j + 1) (p ++ t.take n) (t.drop n) (by simp [AMGame.transcriptLength]; omega),
-        List.length_append, hlen, List.drop_drop]
-    · simp only [AMGame.transcriptLength, List.map_cons, List.sum_cons] at ht
-      have hlen : (t.take n).length = n := List.length_take_of_le (by omega)
-      simp only [ofAM_cons, AMMove.toIP, agrees, matchArthur]
-      rw [ih (j + 1) (p ++ t.take n) (t.drop n) (by simp [AMGame.transcriptLength]; omega),
-        List.length_append, hlen, List.drop_drop]
+    simp only [AMGame.transcriptLength, List.map_cons, List.sum_cons] at ht
+    have hlen : (t.take x.2).length = x.2 := List.length_take_of_le (by omega)
+    obtain ⟨_ | _, n⟩ := x <;>
+      · simp only [ofAM_cons, AMMove.toIP, agrees, matchArthur]
+        rw [ih (j + 1) (p ++ t.take n) (t.drop n) (by simp [AMGame.transcriptLength]; omega),
+          List.length_append, hlen, List.drop_drop]
 
 /-- Exactly `2 ^ merlinBits g` coin strings agree with Arthur's messages in a transcript: Arthur's
 bits are determined, Merlin's are free. -/

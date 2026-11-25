@@ -54,31 +54,28 @@ theorem nodup_shifted_boundaryBlocks
       (freeBoundaryBlocks (gadgets relation) (witnesses relation) ++
         auxiliaryBoundaryBlocks (gadgets relation) (witnesses relation)).flatten.map
           (occurrencePrefix (fun r => (gadgets r).template) F i + ·)).Nodup := by
-  apply List.nodup_flatMap.mpr
-  refine ⟨?_, ?_⟩
-  · intro entry _
-    exact (nodup_flatten_boundaryBlocks (gadgets entry.1.1) (witnesses entry.1.1)).map
-      (fun _ _ he => Nat.add_left_cancel he)
-  · apply List.pairwise_iff_getElem.mpr
-    intro i j hi hj hij
-    apply List.disjoint_left.mpr
-    intro index hleft hright
-    have hl := (shifted_boundaryBlocks_perm_range gadgets witnesses F
-      F.zipIdx[i].1.1 F.zipIdx[i].2).mem_iff.mp hleft
-    have hr := (shifted_boundaryBlocks_perm_range gadgets witnesses F
-      F.zipIdx[j].1.1 F.zipIdx[j].2).mem_iff.mp hright
-    simp only [List.mem_map, List.mem_range, List.getElem_zipIdx, Nat.zero_add] at hl hr
-    obtain ⟨p, hp, he⟩ := hl
-    obtain ⟨q, hq, he'⟩ := hr
-    have hiF : i < F.length := by simpa only [List.length_zipIdx] using hi
-    have hp' : p < (gadgets F[i].rel).template.vars.length := by
-      have hl := congrArg (fun entry : Constraint Src ℕ × ℕ =>
-        (gadgets entry.1.1).template.vars.length) (List.getElem_zipIdx (l := F) (i := i) hi)
-      exact hl ▸ hp
-    have hpos := List.flatMap_prefix_add_lt_of_lt (q := q) F
-      (fun c => (gadgets c.rel).template.vars)
-      hiF hp' hij
-    exact (Nat.ne_of_lt hpos) (he.trans he'.symm)
+  refine List.nodup_flatMap.mpr
+    ⟨fun entry _ =>
+      (nodup_flatten_boundaryBlocks (gadgets entry.1.1) (witnesses entry.1.1)).map
+        fun _ _ => Nat.add_left_cancel,
+     List.pairwise_iff_getElem.mpr fun i j hi hj hij =>
+      List.disjoint_left.mpr fun index hleft hright => ?_⟩
+  have hl := (shifted_boundaryBlocks_perm_range gadgets witnesses F
+    F.zipIdx[i].1.1 F.zipIdx[i].2).mem_iff.mp hleft
+  have hr := (shifted_boundaryBlocks_perm_range gadgets witnesses F
+    F.zipIdx[j].1.1 F.zipIdx[j].2).mem_iff.mp hright
+  simp only [List.mem_map, List.mem_range, List.getElem_zipIdx, Nat.zero_add] at hl hr
+  obtain ⟨p, hp, he⟩ := hl
+  obtain ⟨q, hq, he'⟩ := hr
+  have hiF : i < F.length := by simpa only [List.length_zipIdx] using hi
+  have hp' : p < (gadgets F[i].rel).template.vars.length := by
+    have hl := congrArg (fun entry : Constraint Src ℕ × ℕ =>
+      (gadgets entry.1.1).template.vars.length) (List.getElem_zipIdx (l := F) (i := i) hi)
+    exact hl ▸ hp
+  have hpos := List.flatMap_prefix_add_lt_of_lt (q := q) F
+    (fun c => (gadgets c.rel).template.vars)
+    hiF hp' hij
+  exact (Nat.ne_of_lt hpos) (he.trans he'.symm)
 
 /-- The shifted copy words cover exactly the actual target occurrence interval, on all raw
 source bodies. This is not yet a statement about their regrouped vertex-cycle order or genus. -/
@@ -98,18 +95,16 @@ theorem mem_shifted_boundaryBlocks_iff
     obtain ⟨hi, hentry⟩ := List.getElem?_eq_some_iff.mp (List.mem_zipIdx_iff_getElem?.mp he)
     obtain ⟨j, hj, hindex⟩ := List.mem_map.mp hp
     rw [← hindex]
-    apply copyIndex_lt B _ F hi
-    have hl := congrArg (fun c : Constraint Src ℕ => (gadgets c.rel).template.vars.length) hentry
-    rw [hl]
-    exact List.mem_range.mp hj
+    exact copyIndex_lt B _ F hi
+      (congrArg (fun c : Constraint Src ℕ => (gadgets c.rel).template.vars.length) hentry ▸
+        List.mem_range.mp hj)
   · intro htarget
     obtain ⟨i, hsource, j, hj, rfl⟩ :=
       exists_copyIndex B (fun r => (gadgets r).template) F htarget
-    apply List.mem_flatMap.mpr
-    refine ⟨(F[i], i), ?_, ?_⟩
-    · exact List.mem_zipIdx_iff_getElem?.mpr (List.getElem?_eq_some_iff.mpr ⟨hsource, rfl⟩)
-    · apply (shifted_boundaryBlocks_perm_range gadgets witnesses F F[i].rel i).mem_iff.mpr
-      exact List.mem_map.mpr ⟨j, List.mem_range.mpr hj, rfl⟩
+    exact List.mem_flatMap.mpr ⟨(F[i], i),
+      List.mem_zipIdx_iff_getElem?.mpr (List.getElem?_eq_some_iff.mpr ⟨hsource, rfl⟩),
+      (shifted_boundaryBlocks_perm_range gadgets witnesses F F[i].rel i).mem_iff.mpr
+        (List.mem_map.mpr ⟨j, List.mem_range.mpr hj, rfl⟩)⟩
 
 /-- Reordering all literal copy words only permutes the target occurrence enumeration.
 The target binary names do not affect this positional partition. -/

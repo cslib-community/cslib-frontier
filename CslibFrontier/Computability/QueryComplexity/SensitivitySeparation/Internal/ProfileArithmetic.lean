@@ -97,21 +97,14 @@ theorem raw_profiles_step {M r ε u v p : ℝ}
     s₁' ≤ ((1 + ε) * u + 3 * v) * (p * M * M) ∧
     j₀' ≤ (ε * u + 3 * v) * (p * M) ∧
     j₁' ≤ (ε * u + 3 * v) * (p * M * M) := by
-  have hup : 0 ≤ u * p := mul_nonneg hu hp
-  have hupM : 0 ≤ u * (p * M) := mul_nonneg hu (mul_nonneg hp hM.le)
   have hvpMM : 0 ≤ v * (p * M * M) := by positivity
-  have ht := mul_le_mul_of_nonneg_right hεt hup
-  have hr' := mul_le_mul_of_nonneg_right hεr hupM
-  have a₀ := mul_le_mul_of_nonneg_left hs₀ (show (0 : ℝ) ≤ 16 by norm_num)
+  have ht := mul_le_mul_of_nonneg_right hεt (mul_nonneg hu hp)
+  have hr' := mul_le_mul_of_nonneg_right hεr (mul_nonneg hu (mul_nonneg hp hM.le))
   have a₁ := mul_le_mul_of_nonneg_left hs₀ (sq_nonneg M)
   have b₀ := mul_le_mul_of_nonneg_left hj₀ (sq_nonneg M)
-  have b₁ := mul_le_mul_of_nonneg_left hj₁ (show (0 : ℝ) ≤ 3 by norm_num)
   have c₁ := mul_le_mul_of_nonneg_left hs₁ hr
-  constructor
-  · nlinarith
-  constructor
-  · nlinarith
-  constructor <;> nlinarith
+  refine ⟨by nlinarith, by nlinarith,
+    by nlinarith, by nlinarith⟩
 
 /-- If `r / M ≤ ε`, `16 / M ≤ ε`, `s₀, j₀ ≥ 0` and the primed quantities satisfy the four raw
 recurrences, then the normalized side maximum at level `n + 1` is at most `(1 + ε) * u + 3 * v` and

@@ -132,12 +132,10 @@ private theorem prod_add_X_mul {R : Type*} [CommRing R] {ι : Type*} (s : Finset
     ∏ i ∈ s, (a i + Polynomial.X * b i) = ∏ i ∈ s, a i + Polynomial.X *
       Polynomial.divX (∏ i ∈ s, (a i + Polynomial.X * b i) - ∏ i ∈ s, a i) := by
   have h0 : (∏ i ∈ s, (a i + Polynomial.X * b i) - ∏ i ∈ s, a i).coeff 0 = 0 := by
-    simp only [Polynomial.coeff_zero_eq_eval_zero, Polynomial.eval_sub, Polynomial.eval_prod,
-      Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_X, zero_mul, add_zero, sub_self]
-  have := Polynomial.X_mul_divX_add (∏ i ∈ s, (a i + Polynomial.X * b i) - ∏ i ∈ s, a i)
-  rw [h0, Polynomial.C_0, add_zero] at this
-  rw [this]
-  ring
+    simp [Polynomial.coeff_zero_eq_eval_zero, Polynomial.eval_prod]
+  have h := Polynomial.X_mul_divX_add (∏ i ∈ s, (a i + Polynomial.X * b i) - ∏ i ∈ s, a i)
+  rw [h0, Polynomial.C_0, add_zero] at h
+  rw [h]; ring
 
 /-- A linear combination of tensors is a restriction of their direct sum. -/
 private theorem isRestriction_sum_dsum {R : Type*} [CommSemiring R] {ι : Type*} [Fintype ι]
@@ -231,8 +229,7 @@ private theorem restrict_map_expand [Fintype X'] [Fintype Y'] [Fintype Z'] {k : 
         (γ.map (Polynomial.expand K N).toRingHom) (S.map C) =
       (Polynomial.X ^ (N * k) : K[X]) • T.map C +
         (Polynomial.X ^ (N * k + N) : K[X]) • E.map (Polynomial.expand K N).toRingHom := by
-  have he : ∀ p : K[X], (Polynomial.expand K N).toRingHom p = Polynomial.expand K N p :=
-    fun _ => rfl
+  have he (p : K[X]) : (Polynomial.expand K N).toRingHom p = Polynomial.expand K N p := rfl
   have hS : (S.map C).map (Polynomial.expand K N).toRingHom = S.map C := by
     funext x y z
     simp only [Tensor.map_apply, he, Polynomial.expand_C]
@@ -325,26 +322,17 @@ theorem IsDegen.trans_isRestriction [Fintype X'] [Fintype Y'] [Fintype Z'] [Fint
 theorem IsDegen.swap12 [Fintype X'] [Fintype Y'] [Fintype Z'] {h : ℕ} {T : Tensor K X Y Z}
     {S : Tensor K X' Y' Z'} (hT : IsDegen h T S) : IsDegen h (swap12 T) (swap12 S) := by
   obtain ⟨α, β, γ, E, hE⟩ := hT
-  refine ⟨β, α, γ, Tensor.swap12 E, ?_⟩
-  change restrict β α γ (Tensor.swap12 (S.map C)) = _
-  rw [← swap12_restrict, hE]
-  rfl
+  exact ⟨β, α, γ, Tensor.swap12 E, (swap12_restrict α β γ (S.map C)).symm.trans (congrArg _ hE)⟩
 
 theorem IsDegen.swap23 [Fintype X'] [Fintype Y'] [Fintype Z'] {h : ℕ} {T : Tensor K X Y Z}
     {S : Tensor K X' Y' Z'} (hT : IsDegen h T S) : IsDegen h (swap23 T) (swap23 S) := by
   obtain ⟨α, β, γ, E, hE⟩ := hT
-  refine ⟨α, γᵀ, βᵀ, Tensor.swap23 E, ?_⟩
-  change restrict α γᵀ βᵀ (Tensor.swap23 (S.map C)) = _
-  rw [← swap23_restrict, hE]
-  rfl
+  exact ⟨α, γᵀ, βᵀ, Tensor.swap23 E, (swap23_restrict α β γ (S.map C)).symm.trans (congrArg _ hE)⟩
 
 theorem IsDegen.swap13 [Fintype X'] [Fintype Y'] [Fintype Z'] {h : ℕ} {T : Tensor K X Y Z}
     {S : Tensor K X' Y' Z'} (hT : IsDegen h T S) : IsDegen h (swap13 T) (swap13 S) := by
   obtain ⟨α, β, γ, E, hE⟩ := hT
-  refine ⟨γᵀ, β, αᵀ, Tensor.swap13 E, ?_⟩
-  change restrict γᵀ β αᵀ (Tensor.swap13 (S.map C)) = _
-  rw [← swap13_restrict, hE]
-  rfl
+  exact ⟨γᵀ, β, αᵀ, Tensor.swap13 E, (swap13_restrict α β γ (S.map C)).symm.trans (congrArg _ hE)⟩
 
 /-- The exchange of the right input and the output keeps the left leg, so it preserves
 shared-left degenerations. -/
@@ -352,20 +340,15 @@ theorem IsSLDegen.swap23 [Fintype X'] [Fintype Y'] [Fintype Z'] [DecidableEq X']
     {h : ℕ} {T : Tensor K X Y Z} {S : Tensor K X' Y' Z'} (hT : IsSLDegen f h T S) :
     IsSLDegen f h (swap23 T) (swap23 S) := by
   obtain ⟨β, γ, E, hE⟩ := hT
-  refine ⟨γᵀ, βᵀ, Tensor.swap23 E, ?_⟩
-  change restrict (incl f) γᵀ βᵀ (Tensor.swap23 (S.map C)) = _
-  rw [← swap23_restrict, hE]
-  rfl
+  exact ⟨γᵀ, βᵀ, Tensor.swap23 E, (swap23_restrict _ β γ (S.map C)).symm.trans (congrArg _ hE)⟩
 
 theorem IsDegen.reindex_target [Fintype X'] [Fintype Y'] [Fintype Z'] {h : ℕ}
     {T : Tensor K X Y Z} {S : Tensor K X' Y' Z'} (e₁ : X ≃ X'') (e₂ : Y ≃ Y'') (e₃ : Z ≃ Z'')
     (hT : IsDegen h T S) :
     IsDegen h (reindex e₁ e₂ e₃ T) S := by
   obtain ⟨α, β, γ, E, hE⟩ := hT
-  refine ⟨α.submatrix id e₁.symm, β.submatrix id e₂.symm, γ.submatrix e₃.symm id,
-    reindex e₁ e₂ e₃ E, ?_⟩
-  rw [← reindex_restrict, hE]
-  rfl
+  exact ⟨α.submatrix id e₁.symm, β.submatrix id e₂.symm, γ.submatrix e₃.symm id,
+    reindex e₁ e₂ e₃ E, (reindex_restrict α β γ (S.map C) e₁ e₂ e₃).symm.trans (congrArg _ hE)⟩
 
 theorem IsDegen.reindex_source [Fintype X'] [Fintype Y'] [Fintype Z'] [Fintype X''] [Fintype Y'']
     [Fintype Z''] {h : ℕ} {T : Tensor K X Y Z} {S : Tensor K X' Y' Z'} (e₁ : X' ≃ X'')
@@ -377,16 +360,14 @@ theorem IsDegen.reindex_source [Fintype X'] [Fintype Y'] [Fintype Z'] [Fintype X
 theorem IsDegen.of_reindex_target [Fintype X'] [Fintype Y'] [Fintype Z'] {h : ℕ}
     {T : Tensor K X Y Z} {S : Tensor K X' Y' Z'} {e₁ : X ≃ X''} {e₂ : Y ≃ Y''} {e₃ : Z ≃ Z''}
     (hT : IsDegen h (reindex e₁ e₂ e₃ T) S) : IsDegen h T S := by
-  have := hT.reindex_target e₁.symm e₂.symm e₃.symm
-  rwa [reindex_symm_reindex] at this
+  simpa [reindex_symm_reindex] using hT.reindex_target e₁.symm e₂.symm e₃.symm
 
 /-- Removing a reindexing of the source of a degeneration. -/
 theorem IsDegen.of_reindex_source [Fintype X'] [Fintype Y'] [Fintype Z'] [Fintype X'']
     [Fintype Y''] [Fintype Z''] {h : ℕ} {T : Tensor K X Y Z} {S : Tensor K X' Y' Z'}
     {e₁ : X' ≃ X''} {e₂ : Y' ≃ Y''} {e₃ : Z' ≃ Z''} (hT : IsDegen h T (reindex e₁ e₂ e₃ S)) :
     IsDegen h T S := by
-  have := hT.reindex_source e₁.symm e₂.symm e₃.symm
-  rwa [reindex_symm_reindex] at this
+  simpa [reindex_symm_reindex] using hT.reindex_source e₁.symm e₂.symm e₃.symm
 
 /-- Reindexing the target of a shared-left degeneration composes the injection with the left
 equivalence. -/
@@ -395,10 +376,8 @@ theorem IsSLDegen.reindex_target [Fintype X'] [Fintype Y'] [Fintype Z'] [Decidab
     (e₂ : Y ≃ Y'') (e₃ : Z ≃ Z'') (hT : IsSLDegen f h T S) :
     IsSLDegen (f ∘ e₁.symm) h (reindex e₁ e₂ e₃ T) S := by
   obtain ⟨β, γ, E, hE⟩ := hT
-  refine ⟨β.submatrix id e₂.symm, γ.submatrix e₃.symm id, reindex e₁ e₂ e₃ E, ?_⟩
-  have h₁ : (incl (f ∘ e₁.symm) : Matrix X' X'' K[X]) = (incl f).submatrix id e₁.symm := rfl
-  rw [h₁, ← reindex_restrict, hE]
-  rfl
+  exact ⟨β.submatrix id e₂.symm, γ.submatrix e₃.symm id, reindex e₁ e₂ e₃ E,
+    (reindex_restrict (incl f) β γ (S.map C) e₁ e₂ e₃).symm.trans (congrArg _ hE)⟩
 
 /-- Reindexing the source of a shared-left degeneration composes the left equivalence with the
 injection. -/
@@ -413,23 +392,21 @@ theorem IsSLDegen.reindex_source [Fintype X'] [Fintype Y'] [Fintype Z'] [Decidab
   have h₁ : (fun x y z => (reindex e₁ e₂ e₃ S).map C (e₁ x) (e₂ y) (e₃ z)) = S.map C := by
     funext x y z
     simp
-  rw [h₁, hE]
+  rwa [h₁]
 
 /-- Removing a reindexing of the target of a shared-left degeneration. -/
 theorem IsSLDegen.of_reindex_target [Fintype X'] [Fintype Y'] [Fintype Z'] [DecidableEq X']
     {f : X'' → X'} {h : ℕ} {T : Tensor K X Y Z} {S : Tensor K X' Y' Z'} {e₁ : X ≃ X''}
     {e₂ : Y ≃ Y''} {e₃ : Z ≃ Z''} (hT : IsSLDegen f h (reindex e₁ e₂ e₃ T) S) :
     IsSLDegen (f ∘ e₁) h T S := by
-  have := hT.reindex_target e₁.symm e₂.symm e₃.symm
-  rwa [reindex_symm_reindex, Equiv.symm_symm] at this
+  simpa [reindex_symm_reindex] using hT.reindex_target e₁.symm e₂.symm e₃.symm
 
 /-- Removing a reindexing of the source of a shared-left degeneration. -/
 theorem IsSLDegen.of_reindex_source [Fintype X'] [Fintype Y'] [Fintype Z'] [DecidableEq X']
     [Fintype X''] [Fintype Y''] [Fintype Z''] [DecidableEq X''] {f : X → X''} {h : ℕ}
     {T : Tensor K X Y Z} {S : Tensor K X' Y' Z'} {e₁ : X' ≃ X''} {e₂ : Y' ≃ Y''} {e₃ : Z' ≃ Z''}
     (hT : IsSLDegen f h T (reindex e₁ e₂ e₃ S)) : IsSLDegen (e₁.symm ∘ f) h T S := by
-  have := hT.reindex_source e₁.symm e₂.symm e₃.symm
-  rwa [reindex_symm_reindex] at this
+  simpa [reindex_symm_reindex] using hT.reindex_source e₁.symm e₂.symm e₃.symm
 
 /-! ### Tensor products and sums -/
 
@@ -479,8 +456,7 @@ theorem IsDegen.tpow [Fintype X'] [Fintype Y'] [Fintype Z'] {h : ℕ} {T : Tenso
     {S : Tensor K X' Y' Z'} (hT : IsDegen h T S) (d : ℕ) :
     IsDegen (d * h) (tpow d T) (tpow d S) := by
   have := IsDegen.tprodPi (h := fun _ : Fin d => h) fun _ => hT
-  rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul] at this
-  exact this
+  rwa [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul] at this
 
 theorem IsDegen.dsum {ι : Type*} [Fintype ι] [DecidableEq ι] [Fintype X'] [Fintype Y']
     [Fintype Z'] {h : ℕ} {T : ι → Tensor K X Y Z} {S : ι → Tensor K X' Y' Z'}
@@ -539,8 +515,15 @@ theorem IsSLDegen.tpow [Fintype X'] [Fintype Y'] [Fintype Z'] [DecidableEq X'] {
     {h : ℕ} {T : Tensor K X Y Z} {S : Tensor K X' Y' Z'} (hT : IsSLDegen f h T S) (d : ℕ) :
     IsSLDegen (fun x i => f (x i)) (d * h) (tpow d T) (tpow d S) := by
   have := IsSLDegen.tprodPi (h := fun _ : Fin d => h) fun _ => hT
-  rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul] at this
-  exact this
+  rwa [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul] at this
+
+private theorem restrict_incl_slSum_map {ι κ : Type*} [Fintype ι] [DecidableEq ι] [DecidableEq κ]
+    [Fintype X] [Fintype Y] [Fintype Z] [DecidableEq X] [DecidableEq Y] [DecidableEq Z]
+    {G : ι → Tensor K X Y Z} {e : κ → ι} (he : Function.Injective e) :
+    restrict 1 (incl (Prod.map e id)) (incl (Prod.map e id))ᵀ ((slSum G).map (C : K →+* K[X])) =
+      (slSum (G ∘ e)).map C := by
+  rw [← slSum_comp_eq_restrict G e he, map_restrict, Matrix.map_one _ (map_zero C) (map_one C),
+    map_incl, Matrix.transpose_map, map_incl]
 
 /-- Deleting and reordering the summands of the target of a shared-left degeneration. -/
 theorem IsSLDegen.slSum_comp {ι κ : Type*} [Finite ι] [DecidableEq ι] [DecidableEq κ]
@@ -554,14 +537,10 @@ theorem IsSLDegen.slSum_comp {ι κ : Type*} [Finite ι] [DecidableEq ι] [Decid
   cases nonempty_fintype Z
   classical
   obtain ⟨β, γ, E, hE⟩ := hT
-  have hG : restrict 1 (incl (Prod.map e id)) (incl (Prod.map e id))ᵀ ((slSum G).map C) =
-      (slSum (G ∘ e)).map C := by
-    rw [← slSum_comp_eq_restrict G e he, map_restrict, Matrix.map_one _ (map_zero C) (map_one C),
-      map_incl, Matrix.transpose_map, map_incl]
   refine ⟨β * incl (Prod.map e id), (incl (Prod.map e id))ᵀ * γ,
     restrict 1 (incl (Prod.map e id)) (incl (Prod.map e id))ᵀ E, ?_⟩
-  rw [← hG, ← restrict_smul, ← restrict_smul, ← restrict_add, ← hE, restrict_restrict,
-    Matrix.mul_one]
+  rw [← restrict_incl_slSum_map he, ← restrict_smul, ← restrict_smul, ← restrict_add, ← hE,
+    restrict_restrict, Matrix.mul_one]
 
 /-- Adding unused sources ([Pass][Pass2026], Observation 2.5): a shared-left degeneration from
 a shared-left sum of some of the summands of `slSum G` is one from `slSum G`. -/
@@ -572,11 +551,7 @@ theorem IsSLDegen.slSum_source_comp {ι κ : Type*} [Fintype ι] [DecidableEq ι
   classical
   obtain ⟨β, γ, E, hE⟩ := hT
   refine ⟨incl (Prod.map e id) * β, γ * (incl (Prod.map e id))ᵀ, E, ?_⟩
-  have hG : restrict 1 (incl (Prod.map e id)) (incl (Prod.map e id))ᵀ ((slSum G).map C) =
-      (slSum (G ∘ e)).map C := by
-    rw [← slSum_comp_eq_restrict G e he, map_restrict, Matrix.map_one _ (map_zero C) (map_one C),
-      map_incl, Matrix.transpose_map, map_incl]
-  rw [← hE, ← hG, restrict_restrict, Matrix.one_mul]
+  rw [← hE, ← restrict_incl_slSum_map he, restrict_restrict, Matrix.one_mul]
 
 /-- Deleting and reordering the summands of the target of a degeneration. -/
 theorem IsDegen.dsum_comp {ι κ : Type*} [Finite ι] [DecidableEq ι] [DecidableEq κ] [Finite X]
@@ -633,21 +608,19 @@ theorem IsDegen.rank_of_natDegree_le [Finite X] [Finite Y] [Finite Z] {h D r : �
     simp only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul, Tensor.map_apply,
       Polynomial.coe_evalRingHom]
     rw [← hc _ (hD x y z), hw]
-    simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, Tensor.map_apply]
     exact (coeff_X_pow_mul_C_add h _ _).symm
-  have h₁ : ∀ k : Fin (D + 1), IsRestriction
+  have h₁ (k : Fin (D + 1)) : IsRestriction
       ((restrict α β γ ((unit r).map C)).map (Polynomial.evalRingHom (k : K))) (unit r) := by
-    intro k
-    refine ⟨α.map (Polynomial.evalRingHom (k : K)), β.map (Polynomial.evalRingHom (k : K)),
-      γ.map (Polynomial.evalRingHom (k : K)), ?_⟩
+    let ev := Polynomial.evalRingHom (k : K)
+    refine ⟨α.map ev, β.map ev, γ.map ev, ?_⟩
     rw [map_restrict]
-    congr 1 with i j l : 3
+    congr 1
+    funext i j l
     simp only [Tensor.map_apply, unit_apply, Polynomial.coe_evalRingHom]
     split_ifs <;> simp
-  have h₂ : IsRestriction T (Tensor.dsum fun _ : Fin (D + 1) => (unit r : Tensor K _ _ _)) := by
-    rw [hT]
-    exact (isRestriction_sum_dsum c _).trans (IsRestriction.dsum h₁)
-  exact Rank.of_isRestriction h₂ (Rank.dsum (D + 1) (IsRestriction.refl _))
+  rw [hT]
+  exact Rank.of_isRestriction ((isRestriction_sum_dsum c _).trans (IsRestriction.dsum h₁))
+    (Rank.dsum (D + 1) (IsRestriction.refl _))
 
 /-- **Bini's conversion** ([Bini][Bini1980]; [Pass][Pass2026], Lemma 2.4): a degeneration of
 `unit r` to `T` gives rank bounds `(D m + 1) r ^ m` on the tensor powers of `T`, for a degree
@@ -677,13 +650,12 @@ theorem IsDegen.exists_rank_tpow [Finite X] [Finite Y] [Finite Z] {h r : ℕ}
   refine IsDegen.rank_of_natDegree_le (h := m * h) (D := D * m)
     (α₁.map C * piKronecker fun _ => α) (β₁.map C * piKronecker fun _ => β)
     ((piKronecker fun _ => γ) * γ₁.map C) R ?_ ?_
-  · rw [← restrict_restrict, h₂, hw]
-    exact hR
+  · rwa [← restrict_restrict, h₂, hw]
   · intro x y z
     rw [← restrict_restrict, h₂, tprodPi_apply]
     refine (Polynomial.natDegree_prod_le _ _).trans ?_
-    refine (Finset.sum_le_card_nsmul _ _ D fun i _ => hD _ _ _).trans ?_
-    exact le_of_eq (by rw [Finset.card_univ, Fintype.card_fin, smul_eq_mul, mul_comm])
+    refine (Finset.sum_le_card_nsmul _ _ D fun _ _ => hD _ _ _).trans_eq ?_
+    rw [Finset.card_univ, Fintype.card_fin, smul_eq_mul, mul_comm]
 
 end Bini
 

@@ -67,11 +67,9 @@ theorem exec {w : ℕ} (x : Data 64) (values : Fin 3 → ℕ → ℤ)
     ∀ a < L.base, y.mem a = x.mem a
   obtain ⟨a, ha, hap, har, ham⟩ := exec_initialize x hfit
   have hRa : R a := by
-    refine ⟨hap, har, ?_⟩
-    intro b hb
+    refine ⟨hap, har, fun b hb => ?_⟩
+    have hnot : ¬(L.packed ≤ b ∧ b < L.packed + 4 * L.N) := by dsimp only [Layout.packed]; omega
     rw [ham]
-    have hp : L.base ≤ L.packed := by dsimp only [Layout.packed]; omega
-    have hnot : ¬(L.packed ≤ b ∧ b < L.packed + 4 * L.N) := by omega
     change paddingMemory L x.mem b = x.mem b
     simp only [paddingMemory, Padding.memory, hnot, ↓reduceIte]
   have hcall (j : Fin 3) (y : Data 64) (hy : R y) :
@@ -80,16 +78,12 @@ theorem exec {w : ℕ} (x : Data 64) (values : Fin 3 → ℕ → ℤ)
     obtain ⟨hp, hr, hm⟩ := hy
     obtain ⟨z, hz, hzm, _, hzp, hzr⟩ := exec_round x y values j hp hr hfit hM' hN' hmod
       (hsrc j) (hbdd j) (hsigned j)
-      (by
-        intro i hi
-        have hi' : i < L.n j := hi
-        have hsi := hsrc j
-        have hsi' : x.regs (source j) + L.n j ≤ L.base := hsi
-        rw [hm _ (by omega)]
-        exact hinput j i hi)
+      (fun i hi => by
+        have : i < L.n j := hi
+        have : x.regs (source j) + L.n j ≤ L.base := hsrc j
+        rw [hm _ (by omega)]; exact hinput j i hi)
       (hinj j)
-    refine ⟨z, hz, ⟨hzp, hzr, ?_⟩, hzm⟩
-    intro b hb
+    refine ⟨z, hz, ⟨hzp, hzr, fun b hb => ?_⟩, hzm⟩
     rw [hzm, roundMemory_before L values j y.mem hM' hN'
       (lt_of_lt_of_le hb (L.base_le_descriptor j)), hm b hb]
   obtain ⟨b, hb, hRb, hbm⟩ := hcall 0 a hRa
@@ -97,8 +91,7 @@ theorem exec {w : ℕ} (x : Data 64) (values : Fin 3 → ℕ → ℤ)
   obtain ⟨d, hd, hRd, hdm⟩ := hcall 2 c hRc
   refine ⟨d, (ha.seq (hb.seq (hc.seq hd))).mono (by dsimp only [L, Layout.total]; omega),
     ?_, hRd.1⟩
-  rw [hdm, hcm, hbm, ham]
-  rfl
+  rw [hdm, hcm, hbm, ham]; rfl
 
 /-- The complete charged bound is uniformly linear in input lengths, modulus and output length. -/
 theorem time_le_linear (L : Layout) :

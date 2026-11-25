@@ -193,8 +193,7 @@ theorem eval_oneMore_collisionAttack [DecidableEq M] (S : Scheme PK SK M Sig)
   | false => simp [oneMoreAccept, hsver]
   | true =>
     have hver : S.verify keys.1 (ys 1) s = decide (ys 0 = ys 1) := by
-      apply Bool.eq_iff_iff.mpr
-      simp only [decide_eq_true_eq]
+      rw [Bool.eq_iff_iff, decide_eq_true_iff]
       exact ⟨hfunctional _ _ _ _ hsver, fun h => h ▸ hsver⟩
     simp [oneMoreAccept, hsver, hver]
 
@@ -223,8 +222,7 @@ theorem succProbability_collisionAttack_of_uniform [Fintype M] [Nonempty M]
       (Fintype.card M : ℝ≥0∞)⁻¹ *
         ((ProbComp.eval (S.sign sk y)).bind fun s => PMF.pure (S.verify pk y s)) true := by
     rw [PMF.bind_comm]
-    simp only [PMF.bind_apply, hcoin]
-    simp only [ENNReal.tsum_mul_left, mul_left_comm]
+    simp only [PMF.bind_apply, hcoin, ENNReal.tsum_mul_left, mul_left_comm]
   have hpair (pk : PK) (sk : SK) :
       (ProbComp.eval (targets pk)).bind (fun ys =>
         (ProbComp.eval (S.sign sk (ys 0))).bind fun s =>

@@ -44,19 +44,14 @@ theorem contractionLift_relabelEquiv (G : Graph) (u v : ℕ) (d : Dart G) :
   let e := (contractLastEdgeDartEquiv G u v).trans
     (lastEdgeDartEquiv (contractLastEdgeGraph G u v) v v)
   apply e.injective
-  have h₁ : e (contractionLift G u v (Dart.relabelEquiv G (Function.update id u v) d)) =
-      some (some (Dart.relabelEquiv G (Function.update id u v) d)) :=
-    contractionLift_coordinates G u v _
-  have h₂ : e (retainedLastEdgeDart G u v d) =
-      some (some (Dart.relabelEquiv G (Function.update id u v) d)) := by
-    change ((contractLastEdgeDartEquiv G u v).trans
-      (lastEdgeDartEquiv (contractLastEdgeGraph G u v) v v)) (retainedLastEdgeDart G u v d) = _
-    rw [contractLastEdge_coordinates]
-    change (Dart.relabelEquiv G (Function.update id u v)).optionCongr.optionCongr
-      ((lastEdgeDartEquiv G u v) (retainedLastEdgeDart G u v d)) = _
-    rw [retainedLastEdgeDart, Equiv.apply_symm_apply]
-    rfl
-  exact h₁.trans h₂.symm
+  refine (contractionLift_coordinates G u v _).trans (Eq.symm ?_)
+  change ((contractLastEdgeDartEquiv G u v).trans
+    (lastEdgeDartEquiv (contractLastEdgeGraph G u v) v v)) (retainedLastEdgeDart G u v d) = _
+  rw [contractLastEdge_coordinates]
+  change (Dart.relabelEquiv G (Function.update id u v)).optionCongr.optionCongr
+    ((lastEdgeDartEquiv G u v) (retainedLastEdgeDart G u v d)) = _
+  rw [retainedLastEdgeDart, Equiv.apply_symm_apply]
+  rfl
 
 /-- Distinct retained ends lift to distinct source ends, including ends of a target loop. -/
 theorem contractionLift_injective (G : Graph) (u v : ℕ) :
@@ -97,9 +92,7 @@ theorem contractionLift_vertex_eq_iff (G : Graph) (u v : ℕ)
     d.vertex = v ↔ (contractionLift G u v d).vertex = u ∨
       (contractionLift G u v d).vertex = v := by
   rw [← vertex_contractionLift G u v d]
-  by_cases h : (contractionLift G u v d).vertex = u
-  · simp [h]
-  · simp [h]
+  by_cases h : (contractionLift G u v d).vertex = u <;> simp [h]
 
 /-- Exactly the two selected source darts are omitted by contraction. The retained
 correspondence is an equivalence of actual occurrences, without identifying loop ends. -/
@@ -258,15 +251,15 @@ theorem contractionLift_rotate_paths {G : Graph} {u v : ℕ}
   let e := (contractLastEdgeDartEquiv G u v).trans
     (lastEdgeDartEquiv (contractLastEdgeGraph G u v) v v)
   let σ := r.rotate * Equiv.swap (lastEdgeDart G u v true) (lastEdgeDart G u v false)
-  have heA := contractionLift_coordinates G u v d
-  have heB := contractionLift_coordinates G u v ((r.contractLastEdge huv).rotate d)
-  have heT := contractLastEdge_coordinates_last G u v true
-  have heF := contractLastEdge_coordinates_last G u v false
-  change e (contractionLift G u v d) = some (some d) at heA
-  change e (contractionLift G u v ((r.contractLastEdge huv).rotate d)) =
-    some (some ((r.contractLastEdge huv).rotate d)) at heB
-  change e (lastEdgeDart G u v true) = none at heT
-  change e (lastEdgeDart G u v false) = some none at heF
+  have heA : e (contractionLift G u v d) = some (some d) :=
+    contractionLift_coordinates G u v d
+  have heB : e (contractionLift G u v ((r.contractLastEdge huv).rotate d)) =
+      some (some ((r.contractLastEdge huv).rotate d)) :=
+    contractionLift_coordinates G u v _
+  have heT : e (lastEdgeDart G u v true) = none :=
+    contractLastEdge_coordinates_last G u v true
+  have heF : e (lastEdgeDart G u v false) = some none :=
+    contractLastEdge_coordinates_last G u v false
   have hpaths := Equiv.Perm.removeNone_removeNone_paths (e.permCongr σ) d
   have hrot : Equiv.removeNone (Equiv.removeNone (e.permCongr σ)) =
       (r.contractLastEdge huv).rotate := (r.rotate_contractLastEdge huv).symm
@@ -391,6 +384,12 @@ theorem val_contractionRank_rotate {G : Graph} {u v : ℕ}
   have haU : a ≠ oU := contractionLift_ne_lastEdgeDart G u v d.val false
   have hbV : b ≠ oV := contractionLift_ne_lastEdgeDart G u v d'.val true
   have hbU : b ≠ oU := contractionLift_ne_lastEdgeDart G u v d'.val false
+  have vrot {x y : Dart (lastEdgeGraph G u v)} (h : r.rotate x = y) : x.vertex = y.vertex :=
+    (r.vertex_rotate x).symm.trans (congrArg Dart.vertex h)
+  have first {o : Dart (lastEdgeGraph G u v)} (h' : r.rotate o = b) (hb : b ≠ o) :
+      r.rotationDistance o b = 1 := by
+    simpa only [h', r.rotationDistance_self, zero_add] using
+      r.rotationDistance_rotate_of_ne o o rfl (h' ▸ hb)
   have next (h : l = k + 1) : l = (k + 1) % (nV + nU) := by
     rw [← h, Nat.mod_eq_of_lt hbl]
   have wrap (h : k + 1 = nV + nU) (hzero : l = 0) : l = (k + 1) % (nV + nU) := by
@@ -398,15 +397,14 @@ theorem val_contractionRank_rotate {G : Graph} {u v : ℕ}
   rcases r.contractionLift_rotate_cases huv d.val with h | ⟨h, h'⟩ | ⟨h, h'⟩ |
     ⟨h, hfix, h'⟩ | ⟨h, hfix, h'⟩
   · change r.rotate a = b at h
-    have hab : a.vertex = b.vertex := (r.vertex_rotate a).symm.trans (congrArg Dart.vertex h)
+    have hab := vrot h
     by_cases hav : a.vertex = v
     · have hbv : b.vertex = v := hab.symm.trans hav
       have hoa : oV.vertex = a.vertex := hvV.trans hav.symm
       have hsucc := r.rotationDistance_rotate_of_ne oV a hoa (h ▸ hbV)
       rw [h] at hsucc
       have hpos := r.rotationDistance_pos_of_ne oV a hoa haV
-      rw [ite_eq_left hav] at hk
-      rw [ite_eq_left hbv] at hl
+      simp only [ite_eq_left hav, ite_eq_left hbv] at hk hl
       exact next (by omega)
     · have hau : a.vertex = u := ((contractionLift_vertex_eq_iff G u v d.val).mp
         d.property).resolve_right hav
@@ -415,70 +413,51 @@ theorem val_contractionRank_rotate {G : Graph} {u v : ℕ}
       have hsucc := r.rotationDistance_rotate_of_ne oU a hoa (h ▸ hbU)
       rw [h] at hsucc
       have hpos := r.rotationDistance_pos_of_ne oU a hoa haU
-      rw [ite_eq_right hav] at hk
-      rw [ite_eq_right hbv] at hl
+      simp only [ite_eq_right hav, ite_eq_right hbv] at hk hl
       exact next (by omega)
   · change r.rotate a = oV at h
     change r.rotate oU = b at h'
-    have hav : a.vertex = v := (r.vertex_rotate a).symm.trans
-      ((congrArg Dart.vertex h).trans hvV)
-    have hbu : b.vertex = u := (congrArg Dart.vertex h').symm.trans
-      ((r.vertex_rotate oU).trans hvU)
+    have hav : a.vertex = v := (vrot h).trans hvV
+    have hbu : b.vertex = u := (vrot h').symm.trans hvU
     have hbv : b.vertex ≠ v := fun heq => huv (hbu.symm.trans heq)
     have hlast := r.rotationDistance_of_rotate_eq oV a (hvV.trans hav.symm) h
     have hpos := r.rotationDistance_pos_of_ne oV a (hvV.trans hav.symm) haV
-    have hfirst := r.rotationDistance_rotate_of_ne oU oU rfl (h' ▸ hbU)
-    rw [h', r.rotationDistance_self] at hfirst
-    rw [ite_eq_left hav] at hk
-    rw [ite_eq_right hbv] at hl
+    have hfirst := first h' hbU
+    simp only [ite_eq_left hav, ite_eq_right hbv] at hk hl
     exact next (by dsimp [nV] at *; omega)
   · change r.rotate a = oU at h
     change r.rotate oV = b at h'
-    have hau : a.vertex = u := (r.vertex_rotate a).symm.trans
-      ((congrArg Dart.vertex h).trans hvU)
+    have hau : a.vertex = u := (vrot h).trans hvU
     have hav : a.vertex ≠ v := fun heq => huv (hau.symm.trans heq)
-    have hbv : b.vertex = v := (congrArg Dart.vertex h').symm.trans
-      ((r.vertex_rotate oV).trans hvV)
+    have hbv : b.vertex = v := (vrot h').symm.trans hvV
     have hlast := r.rotationDistance_of_rotate_eq oU a (hvU.trans hau.symm) h
     have hpos := r.rotationDistance_pos_of_ne oU a (hvU.trans hau.symm) haU
-    have hfirst := r.rotationDistance_rotate_of_ne oV oV rfl (h' ▸ hbV)
-    rw [h', r.rotationDistance_self] at hfirst
-    rw [ite_eq_right hav] at hk
-    rw [ite_eq_left hbv] at hl
+    have hfirst := first h' hbV
+    simp only [ite_eq_right hav, ite_eq_left hbv] at hk hl
     exact wrap (by dsimp [nU] at *; omega) (by omega)
   · change r.rotate a = oV at h
     change r.rotate oU = oU at hfix
     change r.rotate oV = b at h'
-    have hav : a.vertex = v := (r.vertex_rotate a).symm.trans
-      ((congrArg Dart.vertex h).trans hvV)
-    have hbv : b.vertex = v := (congrArg Dart.vertex h').symm.trans
-      ((r.vertex_rotate oV).trans hvV)
+    have hav : a.vertex = v := (vrot h).trans hvV
+    have hbv : b.vertex = v := (vrot h').symm.trans hvV
     have hlast := r.rotationDistance_of_rotate_eq oV a (hvV.trans hav.symm) h
     have hpos := r.rotationDistance_pos_of_ne oV a (hvV.trans hav.symm) haV
-    have hfirst := r.rotationDistance_rotate_of_ne oV oV rfl (h' ▸ hbV)
-    have hperiod := Function.minimalPeriod_eq_one_iff_isFixedPt.mpr hfix
-    have hU : nU = 0 := by simp only [nU, hperiod, Nat.sub_self]
-    rw [h', r.rotationDistance_self] at hfirst
-    rw [ite_eq_left hav] at hk
-    rw [ite_eq_left hbv] at hl
+    have hfirst := first h' hbV
+    have hU : nU = 0 := by simp [nU, Function.minimalPeriod_eq_one_iff_isFixedPt.mpr hfix]
+    simp only [ite_eq_left hav, ite_eq_left hbv] at hk hl
     exact wrap (by dsimp [nV] at *; omega) (by omega)
   · change r.rotate a = oU at h
     change r.rotate oV = oV at hfix
     change r.rotate oU = b at h'
-    have hau : a.vertex = u := (r.vertex_rotate a).symm.trans
-      ((congrArg Dart.vertex h).trans hvU)
+    have hau : a.vertex = u := (vrot h).trans hvU
     have hav : a.vertex ≠ v := fun heq => huv (hau.symm.trans heq)
-    have hbu : b.vertex = u := (congrArg Dart.vertex h').symm.trans
-      ((r.vertex_rotate oU).trans hvU)
+    have hbu : b.vertex = u := (vrot h').symm.trans hvU
     have hbv : b.vertex ≠ v := fun heq => huv (hbu.symm.trans heq)
     have hlast := r.rotationDistance_of_rotate_eq oU a (hvU.trans hau.symm) h
     have hpos := r.rotationDistance_pos_of_ne oU a (hvU.trans hau.symm) haU
-    have hfirst := r.rotationDistance_rotate_of_ne oU oU rfl (h' ▸ hbU)
-    have hperiod := Function.minimalPeriod_eq_one_iff_isFixedPt.mpr hfix
-    have hV : nV = 0 := by simp only [nV, hperiod, Nat.sub_self]
-    rw [h', r.rotationDistance_self] at hfirst
-    rw [ite_eq_right hav] at hk
-    rw [ite_eq_right hbv] at hl
+    have hfirst := first h' hbU
+    have hV : nV = 0 := by simp [nV, Function.minimalPeriod_eq_one_iff_isFixedPt.mpr hfix]
+    simp only [ite_eq_right hav, ite_eq_right hbv] at hk hl
     exact wrap (by dsimp [nU] at *; omega) (by omega)
 
 /-- Whenever the contracted vertex has a retained dart, its block rank zero is an

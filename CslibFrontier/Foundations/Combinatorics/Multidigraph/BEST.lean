@@ -123,7 +123,8 @@ private theorem not_mem_of_prefix_of_length_lt {α : Type*} {q s : List α} {x :
   obtain ⟨t, rfl⟩ := hpre
   have ht : t ≠ [] := by
     rintro rfl
-    simp at hlt
+    rw [List.append_nil] at hlt
+    exact lt_irrefl _ hlt
   have hxt : x ∈ t := by
     rw [List.getLast?_append, List.getLast?_eq_some_getLast ht] at hx
     simp only [Option.some_or, Option.some.injEq] at hx
@@ -137,13 +138,13 @@ private theorem nodup_of_nodup_filter {α β : Type*} [DecidableEq β] (g : α �
   | x :: l, h => by
     refine List.nodup_cons.mpr ⟨fun hx => ?_, nodup_of_nodup_filter g fun b => ?_⟩
     · have := h (g x)
-      rw [List.filter_cons_of_pos (by simp)] at this
-      exact (List.nodup_cons.mp this).1 (List.mem_filter.mpr ⟨hx, by simp⟩)
+      simp only [List.filter_cons, decide_eq_true_eq, ↓reduceIte] at this
+      exact (List.nodup_cons.mp this).1 (List.mem_filter.mpr ⟨hx, decide_eq_true rfl⟩)
     · have := h b
-      by_cases hb : g x = b
-      · rw [List.filter_cons_of_pos (by simpa using hb)] at this
-        exact (List.nodup_cons.mp this).2
-      · rwa [List.filter_cons_of_neg (by simpa using hb)] at this
+      by_cases hb : g x = b <;>
+        simp only [List.filter_cons, decide_eq_true_eq, hb, ↓reduceIte] at this
+      · exact (List.nodup_cons.mp this).2
+      · exact this
 
 /-! ### Counting orders -/
 
@@ -157,9 +158,11 @@ private theorem natCard_nodup_mem {α : Type*} (s : Finset α) :
     rw [List.mem_toFinset, List.mem_permutations]
     constructor
     · rintro ⟨hl, hmem⟩
-      exact (List.perm_ext_iff_of_nodup hl s.nodup_toList).mpr fun e => by simp [hmem]
+      exact (List.perm_ext_iff_of_nodup hl s.nodup_toList).mpr fun e =>
+        (hmem e).trans Finset.mem_toList.symm
     · intro hp
-      exact ⟨hp.nodup_iff.mpr s.nodup_toList, fun e => by simp [hp.mem_iff]⟩
+      exact ⟨hp.nodup_iff.mpr s.nodup_toList, fun e =>
+        hp.mem_iff.trans Finset.mem_toList⟩
   rw [Nat.card_congr (Equiv.subtypeEquivRight hiff), Nat.card_eq_fintype_card,
     Fintype.card_coe, List.toFinset_card_of_nodup (List.nodup_permutations _ s.nodup_toList),
     List.length_permutations, Finset.length_toList]
@@ -190,12 +193,12 @@ private theorem natCard_nodup_mem_head {α : Type*} {s : Finset α} {x : α} (hx
       · exact absurd rfl hne
       · exact he
   · refine List.nodup_cons.mpr ⟨fun h => ?_, t.2.1⟩
-    simpa using (t.2.2 x).mp h
+    exact (Finset.notMem_erase x s) ((t.2.2 x).mp h)
   · intro e
     rw [List.mem_cons, t.2.2, Finset.mem_erase]
     by_cases he : e = x
-    · simp [he, hx]
-    · simp [he]
+    · subst he; simp only [ne_eq, not_true_eq_false, false_and, or_false, hx]
+    · simp only [ne_eq, he, not_false_eq_true, true_and, false_or]
 
 /-- There are `(#s - 1)!` orders of a finite set `s` that end with a given `x ∈ s`. -/
 private theorem natCard_nodup_mem_getLast {α : Type*} {s : Finset α} {x : α} (hx : x ∈ s) :
@@ -203,18 +206,14 @@ private theorem natCard_nodup_mem_getLast {α : Type*} {s : Finset α} {x : α} 
       (s.card - 1).factorial := by
   rw [← natCard_nodup_mem_head hx]
   refine Nat.card_congr
-    { toFun := fun l => ⟨l.1.reverse, ?_, ?_, ?_⟩
-      invFun := fun l => ⟨l.1.reverse, ?_, ?_, ?_⟩
+    { toFun := fun l => ⟨l.1.reverse, List.nodup_reverse.mpr l.2.1,
+        fun e => by simpa only [List.mem_reverse] using l.2.2.1 e,
+        by rw [List.head?_reverse]; exact l.2.2.2⟩
+      invFun := fun l => ⟨l.1.reverse, List.nodup_reverse.mpr l.2.1,
+        fun e => by simpa only [List.mem_reverse] using l.2.2.1 e,
+        by rw [List.getLast?_reverse]; exact l.2.2.2⟩
       left_inv := fun l => Subtype.ext (List.reverse_reverse _)
       right_inv := fun l => Subtype.ext (List.reverse_reverse _) }
-  · exact List.nodup_reverse.mpr l.2.1
-  · simpa using l.2.2.1
-  · rw [List.head?_reverse]
-    exact l.2.2.2
-  · exact List.nodup_reverse.mpr l.2.1
-  · simpa using l.2.2.1
-  · rw [List.getLast?_reverse]
-    exact l.2.2.2
 
 /-! ### Walks -/
 
@@ -234,7 +233,7 @@ private theorem countP_src_add (w : V) :
     split_ifs <;> omega
   | e, e' :: l, h, z, hz => by
     rw [List.isChain_cons_cons] at h
-    have ih := countP_src_add w e' l h.2 z (by simpa using hz)
+    have ih := countP_src_add w e' l h.2 z (by simpa only [List.getLast?_cons_cons] using hz)
     rw [List.countP_cons (l := e' :: l), List.countP_cons (l := e' :: l)]
     simp only [decide_eq_true_eq] at ih ⊢
     rw [h.1]
@@ -247,7 +246,9 @@ private theorem countP_tgt_le {l : List E} (hl : l.Nodup) (w : V) :
     l.countP (fun a => decide (tgt a = w)) ≤ (univ.filter fun e => tgt e = w).card := by
   classical
   rw [List.countP_eq_length_filter, ← List.toFinset_card_of_nodup (hl.filter _)]
-  exact Finset.card_le_card fun e he => by simp_all
+  refine Finset.card_le_card fun e he => ?_
+  simp only [List.mem_toFinset, List.mem_filter, decide_eq_true_eq] at he
+  exact Finset.mem_filter.mpr ⟨Finset.mem_univ e, he.2⟩
 
 /-- The arcs of a duplicate-free list into `w` are fewer than the arcs into `w` if one of them is
 missing. -/
@@ -255,10 +256,12 @@ private theorem countP_tgt_lt {l : List E} (hl : l.Nodup) {e : E} (he : e ∉ l)
     l.countP (fun a => decide (tgt a = tgt e)) < (univ.filter fun e' => tgt e' = tgt e).card := by
   classical
   rw [List.countP_eq_length_filter, ← List.toFinset_card_of_nodup (hl.filter _)]
-  refine Finset.card_lt_card ⟨fun e' he' => by simp_all, fun h => he ?_⟩
-  have := h (Finset.mem_filter.mpr ⟨Finset.mem_univ e, rfl⟩)
-  simp only [List.mem_toFinset, List.mem_filter] at this
-  exact this.1
+  refine Finset.card_lt_card ⟨fun e' he' => ?_, fun h => he ?_⟩
+  · simp only [List.mem_toFinset, List.mem_filter, decide_eq_true_eq] at he'
+    exact Finset.mem_filter.mpr ⟨Finset.mem_univ e', he'.2⟩
+  · have := h (Finset.mem_filter.mpr ⟨Finset.mem_univ e, rfl⟩)
+    simp only [List.mem_toFinset, List.mem_filter] at this
+    exact this.1
 
 variable {src tgt} in
 /-- A multidigraph with an Eulerian circuit is balanced: every vertex has as many outgoing as
@@ -270,7 +273,7 @@ theorem IsEulerianCircuit.card_filter_src_eq {e₀ : E} {l : List E}
   obtain ⟨l', hl'⟩ : ∃ l', l = e₀ :: l' := ⟨l.tail, List.eq_cons_of_mem_head? hl.head⟩
   subst hl'
   obtain ⟨z, hz⟩ : ∃ z, (e₀ :: l').getLast? = some z :=
-    Option.ne_none_iff_exists'.mp (by simp)
+    ⟨_, List.getLast?_eq_some_getLast (List.cons_ne_nil e₀ l')⟩
   have h := countP_src_add src tgt v e₀ l' hl.isChain z hz
   rw [hl.getLast z hz] at h
   have hcount : ∀ p : E → Prop, [DecidablePred p] →
@@ -279,7 +282,9 @@ theorem IsEulerianCircuit.card_filter_src_eq {e₀ : E} {l : List E}
     rw [List.countP_eq_length_filter, ← List.toFinset_card_of_nodup (hl.nodup.filter _)]
     congr 1
     ext e
-    simpa using fun _ : p e => hl.mem e
+    simp only [List.mem_toFinset, List.mem_filter, decide_eq_true_eq, Finset.mem_filter,
+      Finset.mem_univ, true_and, and_iff_right_iff_imp]
+    exact fun _ => hl.mem e
   rw [hcount, hcount] at h
   omega
 
@@ -299,14 +304,14 @@ private theorem getLast?_filter_eq_lastExit {l : List E} (hl : ∀ e, e ∈ l) {
     (l.filter fun e => src e = v).getLast? = some (lastExit src e₀ l v) := by
   obtain ⟨e, he⟩ := hv
   have hne : l.filter (fun e => src e = v) ≠ [] :=
-    List.ne_nil_of_mem (List.mem_filter.mpr ⟨hl e, by simpa using he⟩)
+    List.ne_nil_of_mem (List.mem_filter.mpr ⟨hl e, decide_eq_true he⟩)
   rw [lastExit, List.getLast?_eq_some_getLast hne, Option.getD_some]
 
 omit [Fintype E] in
 private theorem src_lastExit {l : List E} (hl : ∀ e, e ∈ l) {v : V} (hv : ∃ e, src e = v) :
     src (lastExit src e₀ l v) = v := by
   have := List.mem_of_getLast? (getLast?_filter_eq_lastExit src e₀ hl hv)
-  simpa using (List.mem_filter.mp this).2
+  exact decide_eq_true_eq.mp (List.mem_filter.mp this).2
 
 omit [Fintype E] in
 /-- Following the last exits of an Eulerian circuit leads from every vertex to the source of its
@@ -325,27 +330,25 @@ private theorem reachable_lastExit {l : List E} (hl : IsEulerianCircuit src tgt 
       obtain ⟨e, he⟩ := hpos v
       exact ⟨e, hl.mem e, he ▸ hv⟩)
   have hlast : lastExit src e₀ l (src a) = a := by
+    have hq_nil : q.filter (fun e => src e = src a) = [] :=
+      List.filter_eq_nil_iff.mpr fun b hb hba => hq b hb (decide_eq_true_eq.mp hba ▸ ha)
     have hfilter : l.filter (fun e => src e = src a) =
         p.filter (fun e => src e = src a) ++ [a] := by
-      rw [hl_eq, List.filter_append, List.filter_cons_of_pos (by simp)]
-      congr 2
-      rw [List.filter_eq_nil_iff]
-      intro b hb hba
-      simp only [decide_eq_true_eq] at hba
-      exact hq b hb (hba ▸ ha)
+      rw [hl_eq, List.filter_append]
+      simp only [List.filter_cons, decide_eq_true_eq, ↓reduceIte, hq_nil]
     rw [lastExit, hfilter, List.getLast?_append]
-    simp
+    simp only [List.getLast?_singleton, Option.some_or, Option.getD_some]
   have hsrc : src a ≠ src e₀ := fun h => ha (h ▸ Relation.ReflTransGen.refl)
   have htgt : ¬ Relation.ReflTransGen Rel (tgt a) (src e₀) := fun h =>
     ha (Relation.ReflTransGen.head ⟨hsrc, by simp only [hlast]⟩ h)
   rcases q with _ | ⟨b, q⟩
-  · have hz : a ∈ l.getLast? := by simp [hl_eq]
+  · have hz : a ∈ l.getLast? := by simp only [hl_eq, List.getLast?_concat, Option.mem_def]
     exact htgt (hl.getLast a hz ▸ Relation.ReflTransGen.refl)
   · have hab : tgt a = src b := by
       have := hl.isChain
       rw [hl_eq] at this
       exact (List.isChain_append_cons_cons.mp this).2.1
-    exact hq b (by simp) (hab ▸ htgt)
+    exact hq b List.mem_cons_self (hab ▸ htgt)
 
 omit [Fintype E] in
 /-- The last exits of an Eulerian circuit form a spanning in-arborescence rooted at the source of
@@ -367,12 +370,10 @@ private theorem filter_eq_of_cons {α β : Type*} [DecidableEq β] (g : α → �
       (a :: l₂).filter (fun e => g e = v)) (v : β) :
     l₁.filter (fun e => g e = v) = l₂.filter (fun e => g e = v) := by
   have := h v
-  by_cases hv : g a = v
-  · rw [List.filter_cons_of_pos (by simpa using hv),
-      List.filter_cons_of_pos (by simpa using hv)] at this
-    exact List.cons_inj_right _ |>.mp this
-  · rwa [List.filter_cons_of_neg (by simpa using hv),
-      List.filter_cons_of_neg (by simpa using hv)] at this
+  by_cases hv : g a = v <;>
+    simp only [List.filter_cons, decide_eq_true_eq, hv, ↓reduceIte] at this
+  · exact (List.cons_inj_right _).mp this
+  · exact this
 
 omit [Fintype E] in
 /-- Two walks continuing the same nonempty walk, with the same orders of the arcs out of each
@@ -384,12 +385,12 @@ private theorem eq_of_filter_eq_of_isChain :
   | _, [], [], _, _, _, _ => rfl
   | _, [], b :: _, _, _, _, h => by
     have := h (src b)
-    rw [List.filter_cons_of_pos (by simp)] at this
-    simp at this
+    simp only [List.filter_nil, List.filter_cons, decide_eq_true_eq, ↓reduceIte] at this
+    exact absurd this (List.cons_ne_nil _ _).symm
   | _, a :: _, [], _, _, _, h => by
     have := h (src a)
-    rw [List.filter_cons_of_pos (by simp)] at this
-    simp at this
+    simp only [List.filter_cons, decide_eq_true_eq, ↓reduceIte, List.filter_nil] at this
+    exact absurd this (List.cons_ne_nil _ _)
   | p, a :: l₁, b :: l₂, hp, h₁, h₂, h => by
     have e₁ := h₁.rel_getLast_head_of_append hp (List.cons_ne_nil a l₁)
     have e₂ := h₂.rel_getLast_head_of_append hp (List.cons_ne_nil b l₂)
@@ -397,11 +398,12 @@ private theorem eq_of_filter_eq_of_isChain :
     have hba : src b = src a := e₂.symm.trans e₁
     have hab : a = b := by
       have := h (src a)
-      rw [List.filter_cons_of_pos (by simp), List.filter_cons_of_pos (by simpa using hba)] at this
+      simp only [List.filter_cons, decide_eq_true_eq, hba, ↓reduceIte] at this
       exact (List.cons.inj this).1
     subst hab
     congr 1
-    refine eq_of_filter_eq_of_isChain (p ++ [a]) l₁ l₂ (by simp) ?_ ?_ (filter_eq_of_cons src h)
+    refine eq_of_filter_eq_of_isChain (p ++ [a]) l₁ l₂ (List.append_ne_nil_of_right_ne_nil p
+      (List.cons_ne_nil a [])) ?_ ?_ (filter_eq_of_cons src h)
     · rwa [List.append_assoc, List.singleton_append]
     · rwa [List.append_assoc, List.singleton_append]
 
@@ -414,8 +416,8 @@ private theorem IsEulerianCircuit.eq_of_filter_eq {e₀ : E} {l₁ l₂ : List E
   obtain ⟨t₁, rfl⟩ : ∃ t, l₁ = e₀ :: t := ⟨_, List.eq_cons_of_mem_head? h₁.head⟩
   obtain ⟨t₂, rfl⟩ : ∃ t, l₂ = e₀ :: t := ⟨_, List.eq_cons_of_mem_head? h₂.head⟩
   congr 1
-  exact eq_of_filter_eq_of_isChain src tgt [e₀] t₁ t₂ (by simp) h₁.isChain h₂.isChain
-    (filter_eq_of_cons src h)
+  exact eq_of_filter_eq_of_isChain src tgt [e₀] t₁ t₂ (List.cons_ne_nil e₀ []) h₁.isChain
+    h₂.isChain (filter_eq_of_cons src h)
 
 /-! ### Every admissible family of orders is realized -/
 
@@ -437,16 +439,11 @@ private theorem exists_isEulerianCircuit_of_prefix
   classical
   have hp_nodup : p.Nodup :=
     nodup_of_nodup_filter src fun v => (hs_nodup v).sublist (hp_pre v).sublist
-  have hlen_s : ∀ v, (s v).length = (univ.filter fun e => src e = v).card := by
-    intro v
+  have hlen_s : ∀ v, (s v).length = (univ.filter fun e => src e = v).card := fun v => by
     rw [← List.toFinset_card_of_nodup (hs_nodup v)]
-    congr 1
-    ext e
-    simp [hs_mem]
-  obtain ⟨z, hz⟩ : ∃ z, p.getLast? = some z := by
-    rcases p with _ | ⟨e, p⟩
-    · simp at hp_head
-    · exact ⟨_, List.getLast?_eq_some_getLast (List.cons_ne_nil e p)⟩
+    exact congrArg card (Finset.ext fun e => by simpa using hs_mem v e)
+  obtain ⟨z, hz⟩ := Option.isSome_iff_exists.mp
+    (List.getLast?_isSome (l := p) |>.mpr (by rintro rfl; cases hp_head))
   by_cases hext : (p.filter fun e => src e = tgt z).length < (s (tgt z)).length
   · -- Extend the walk by the next arc out of `tgt z`.
     obtain ⟨t, ht⟩ := hp_pre (tgt z)
@@ -454,21 +451,14 @@ private theorem exists_isEulerianCircuit_of_prefix
     · rw [List.append_nil] at ht
       rw [ht] at hext
       exact absurd hext (lt_irrefl _)
-    have hbsrc : src b = tgt z := (hs_mem _ b).mp (ht ▸ by simp)
-    have hfilter : ∀ v, (p ++ [b]).filter (fun e => src e = v) =
-        p.filter (fun e => src e = v) ++ if src b = v then [b] else [] := by
-      intro v
-      rw [List.filter_append]
-      by_cases hv : src b = v <;> simp [hv]
+    have hbsrc : src b = tgt z := (hs_mem _ b).mp (ht ▸ List.mem_append_right _ List.mem_cons_self)
     have hpre' : ∀ v, (p ++ [b]).filter (fun e => src e = v) <+: s v := by
       intro v
-      rw [hfilter]
       by_cases hv : src b = v
       · subst hv
-        rw [ite_eq_left rfl, hbsrc]
+        simp only [List.filter_append, List.filter_singleton, decide_true, Bool.cond_true, hbsrc]
         exact ⟨t, by rw [← ht, List.append_assoc, List.singleton_append]⟩
-      · rw [ite_eq_right hv, List.append_nil]
-        exact hp_pre v
+      · simpa [hv] using hp_pre v
     have hnodup' : (p ++ [b]).Nodup :=
       nodup_of_nodup_filter src fun v => (hs_nodup v).sublist (hpre' v).sublist
     have hle : (p ++ [b]).length ≤ Fintype.card E := hnodup'.length_le_card
@@ -498,35 +488,25 @@ private theorem exists_isEulerianCircuit_of_prefix
       omega
     -- every arc out of every vertex is used
     have hall : ∀ v, (e₀ :: p').filter (fun e => src e = v) = s v := by
-      by_contra hne
-      push Not at hne
-      obtain ⟨v₀, hv₀⟩ := hne
+      by_contra! ⟨v₀, hv₀⟩
       let D : V → Prop := fun v =>
         ((e₀ :: p').filter fun e => src e = v).length < (s v).length
       have hD : ∀ v, ¬ D v → (e₀ :: p').filter (fun e => src e = v) = s v := fun v hv =>
         (hp_pre v).eq_of_length (le_antisymm (hp_pre v).length_le (not_lt.mp hv))
-      have hDr : ¬ D (src e₀) := by
-        intro h
-        rw [← hzr] at h
-        exact hext h
-      have hDv₀ : D v₀ := by
-        by_contra h
-        exact hv₀ (hD v₀ h)
+      have hDr : ¬ D (src e₀) := hzr ▸ hext
+      have hDv₀ : D v₀ := not_not.mp fun h => hv₀ (hD v₀ h)
       -- `D` is closed under following the arborescence
       have hstep : ∀ v w, (∃ h : v ≠ src e₀, tgt (a ⟨v, h⟩) = w) → D v → D w := by
         rintro v w ⟨hv, rfl⟩ hDv
         have hnot : a ⟨v, hv⟩ ∉ e₀ :: p' := by
           intro hmem
           refine not_mem_of_prefix_of_length_lt (hp_pre v) hDv (hs_nodup v) (hs_last ⟨v, hv⟩) ?_
-          exact List.mem_filter.mpr ⟨hmem, by simpa using ha.src_eq ⟨v, hv⟩⟩
+          exact List.mem_filter.mpr ⟨hmem, decide_eq_true (ha.src_eq ⟨v, hv⟩)⟩
         have hlt := countP_tgt_lt tgt hp_nodup hnot
         have h := hcount (tgt (a ⟨v, hv⟩)) e₀ p' hp_chain z hz
-        have hsrc : (e₀ :: p').countP (fun e => decide (src e = tgt (a ⟨v, hv⟩))) =
-            ((e₀ :: p').filter fun e => src e = tgt (a ⟨v, hv⟩)).length := by
-          rw [List.countP_eq_length_filter]
         have hcard := hlen_s (tgt (a ⟨v, hv⟩))
         have hb := hbal (tgt (a ⟨v, hv⟩))
-        rw [hzr] at h
+        rw [hzr, List.countP_eq_length_filter] at h
         change ((e₀ :: p').filter fun e => src e = tgt (a ⟨v, hv⟩)).length <
           (s (tgt (a ⟨v, hv⟩))).length
         omega
@@ -562,8 +542,11 @@ private theorem exists_isEulerianCircuit
   · subst hv
     obtain ⟨t, ht⟩ : ∃ t, s (src e₀) = e₀ :: t := ⟨_, List.eq_cons_of_mem_head? hs_head⟩
     rw [ht]
-    simp
-  · simp [hv]
+    simp only [List.filter_cons, List.filter_nil, decide_eq_true_eq, ↓reduceIte]
+    exact List.cons_prefix_cons.mpr ⟨rfl, List.nil_prefix⟩
+  · rw [List.filter_cons_of_neg (by simp only [decide_eq_true_eq, hv, not_false_eq_true]),
+      List.filter_nil]
+    exact List.nil_prefix
 
 end Extend
 
@@ -580,27 +563,33 @@ private theorem natCard_fib [Fintype E] {e₀ : E} {a : {v // v ≠ src e₀} �
     (ha : IsInArborescence src tgt (src e₀) a) (v : V) :
     Nat.card {l // Fib src e₀ a v l} = ((univ.filter fun e => src e = v).card - 1).factorial := by
   classical
+  have hmem_iff (l : List E) :
+      (∀ e, e ∈ l ↔ e ∈ univ.filter fun e => src e = v) ↔ ∀ e, e ∈ l ↔ src e = v := by
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and]
   by_cases hv : v = src e₀
   · subst hv
     rw [← natCard_nodup_mem_head (s := univ.filter fun e => src e = src e₀) (x := e₀)
-      (by simp)]
-    unfold Fib
-    simp
+      (Finset.mem_filter.mpr ⟨Finset.mem_univ _, rfl⟩)]
+    refine Nat.card_congr (Equiv.subtypeEquivRight fun l => ?_)
+    simp only [Fib, hmem_iff, ↓reduceDIte]
   · rw [← natCard_nodup_mem_getLast (s := univ.filter fun e => src e = v) (x := a ⟨v, hv⟩)
-      (by simpa using ha.src_eq ⟨v, hv⟩)]
-    unfold Fib
-    simp [hv]
+      (Finset.mem_filter.mpr ⟨Finset.mem_univ _, ha.src_eq ⟨v, hv⟩⟩)]
+    refine Nat.card_congr (Equiv.subtypeEquivRight fun l => ?_)
+    simp only [Fib, hmem_iff, hv, ↓reduceDIte]
 
 omit [Fintype E] in
 private theorem fib_filter {e₀ : E} {l : List E} (hl : IsEulerianCircuit src tgt e₀ l)
     (hpos : ∀ v, ∃ e, src e = v) {a : {v // v ≠ src e₀} → E}
     (ha : a = fun v : {v // v ≠ src e₀} => lastExit src e₀ l v) (v : V) :
     Fib src e₀ a v (l.filter fun e => src e = v) := by
-  refine ⟨hl.nodup.filter _, fun e => by simp [hl.mem e], ?_⟩
+  refine ⟨hl.nodup.filter _, fun e => by
+    simp only [List.mem_filter, decide_eq_true_eq, and_iff_right_iff_imp]
+    exact fun _ => hl.mem e, ?_⟩
   split_ifs with hv
   · subst hv
     obtain ⟨t, ht⟩ : ∃ t, l = e₀ :: t := ⟨_, List.eq_cons_of_mem_head? hl.head⟩
-    rw [ht, List.filter_cons_of_pos (by simp)]
+    rw [ht]
+    simp only [List.filter_cons, decide_eq_true_eq, ↓reduceIte]
     rfl
   · rw [ha]
     exact getLast?_filter_eq_lastExit src e₀ hl.mem (hpos v)
@@ -632,29 +621,20 @@ theorem natCard_isEulerianCircuit
         fib_filter src tgt l.1.2 hpos (congrArg Subtype.val l.2).symm v⟩
     rw [Nat.card_eq_of_bijective Ψ ⟨?_, ?_⟩, Nat.card_pi]
     · exact Finset.prod_congr rfl fun v _ => natCard_fib src tgt a.2 v
-    · intro l₁ l₂ h
-      have hv : ∀ v, l₁.1.1.filter (fun e => src e = v) = l₂.1.1.filter (fun e => src e = v) :=
-        fun v => congrArg Subtype.val (congrFun h v)
-      exact Subtype.ext (Subtype.ext (IsEulerianCircuit.eq_of_filter_eq src tgt l₁.1.2 l₂.1.2 hv))
+    · exact fun l₁ l₂ h => Subtype.ext (Subtype.ext (IsEulerianCircuit.eq_of_filter_eq src tgt
+        l₁.1.2 l₂.1.2 fun v => congrArg Subtype.val (congrFun h v)))
     · intro g
-      have hhead : ((g (src e₀)).1).head? = some e₀ := by
-        have := (g (src e₀)).2.2.2
-        rwa [dite_eq_left rfl] at this
-      have hlast : ∀ v : {v // v ≠ src e₀}, ((g v).1).getLast? = some (a.1 v) := by
-        intro v
-        have := (g v).2.2.2
-        rwa [dite_eq_right v.2] at this
+      have hhead : ((g (src e₀)).1).head? = some e₀ := by simpa using (g (src e₀)).2.2.2
+      have hlast : ∀ v : {v // v ≠ src e₀}, ((g v).1).getLast? = some (a.1 v) := fun v => by
+        simpa [v.2] using (g v).2.2.2
       obtain ⟨l, hl, hls⟩ := exists_isEulerianCircuit src tgt hbal a.2 (fun v => (g v).1)
         (fun v => (g v).2.1) (fun v => (g v).2.2.1) hhead hlast
-      have hφ : φ ⟨l, hl⟩ = a := by
-        refine Subtype.ext (funext fun v => ?_)
-        have h1 := getLast?_filter_eq_lastExit src e₀ hl.mem (hpos v)
-        rw [hls, hlast v] at h1
-        exact (Option.some.inj h1).symm
+      have hφ : φ ⟨l, hl⟩ = a := Subtype.ext (funext fun v => Option.some.inj <| by
+        rw [← getLast?_filter_eq_lastExit src e₀ hl.mem (hpos v), hls, hlast v])
       exact ⟨⟨⟨l, hl⟩, hφ⟩, funext fun v => Subtype.ext (hls v)⟩
   have : Finite Tour :=
     Finite.of_injective (fun l : Tour => (⟨l.1, l.2.nodup⟩ : {l : List E // l.Nodup}))
-      fun l₁ l₂ h => Subtype.ext (by simpa using h)
+      fun l₁ l₂ h => Subtype.ext (Subtype.mk.inj h)
   change Nat.card Tour = Nat.card Arb * _
   rw [← Nat.card_congr (Equiv.sigmaFiberEquiv φ), Nat.card_sigma,
     Finset.sum_congr rfl fun a _ => hfib a, Finset.sum_const, smul_eq_mul, Finset.card_univ,
@@ -685,6 +665,20 @@ omit [DecidableEq V] [Fintype V] [Fintype E]
 private def rotateTo [DecidableEq E] (e : E) (l : List E) : List E :=
   l.drop (l.idxOf e) ++ l.take (l.idxOf e)
 
+private theorem head_take_idxOf_eq [DecidableEq E] {e₀ e₁ : E} {l : List E}
+    (hl_mem : e₁ ∈ l) (hl_head : l.head? = some e₀) (hk0 : l.idxOf e₁ ≠ 0) :
+    ∃ t, l.take (l.idxOf e₁) = e₀ :: t := by
+  have hk : l.idxOf e₁ < l.length := List.idxOf_lt_length_iff.2 hl_mem
+  have hp_ne : l.take (l.idxOf e₁) ≠ [] := by
+    rw [← List.length_pos_iff_ne_nil, List.length_take]
+    omega
+  obtain ⟨m, t, htake⟩ := List.exists_cons_of_ne_nil hp_ne
+  have hm : m = e₀ := by
+    have hh := hl_head
+    rw [← List.take_append_drop (l.idxOf e₁) l, htake, List.cons_append, List.head?_cons] at hh
+    exact Option.some.inj hh
+  exact ⟨t, hm ▸ htake⟩
+
 private theorem isEulerianCircuit_rotateTo [DecidableEq E] {e₀ e₁ : E} {l : List E}
     (hl : IsEulerianCircuit src tgt e₀ l) :
     IsEulerianCircuit src tgt e₁ (rotateTo e₁ l) := by
@@ -702,37 +696,24 @@ private theorem isEulerianCircuit_rotateTo [DecidableEq E] {e₀ e₁ : E} {l : 
   by_cases hk0 : k = 0
   · have hrot : rotateTo e₁ l = l := by
       simp only [hrot_def, hk0, List.drop_zero, List.take_zero, List.append_nil]
-    have heq : e₁ = e₀ := by
-      have hh := hl.head
-      rw [← hrot, hhead] at hh
-      exact Option.some.inj hh
-    subst heq
+    obtain rfl : e₁ = e₀ := Option.some.inj (by rw [← hl.head, ← hhead, hrot])
     rwa [hrot]
-  · have hpk : 0 < k := Nat.pos_of_ne_zero hk0
-    have hp_ne : l.take k ≠ [] := by
-      rw [← List.length_pos_iff_ne_nil, List.length_take]
-      omega
-    obtain ⟨m, t, htake⟩ := List.exists_cons_of_ne_nil hp_ne
-    have hm : m = e₀ := by
-      have hh := hl.head
-      rw [← hsplit, htake, List.cons_append, List.head?_cons] at hh
-      exact Option.some.inj hh
-    subst hm
-    have hq_ne : l.drop k ≠ [] := by rw [hdrop]; simp
+  · obtain ⟨t, htake⟩ := head_take_idxOf_eq he₁ hl.head hk0
+    have hp_ne : l.take k ≠ [] := htake ▸ List.cons_ne_nil e₀ t
+    have hq_ne : l.drop k ≠ [] := hdrop ▸ List.cons_ne_nil e₁ _
     have hch := hl.isChain
     rw [← hsplit, List.isChain_append] at hch
     refine ⟨hperm.nodup_iff.2 hl.nodup, fun e => hperm.mem_iff.2 (hl.mem e), hhead, ?_, ?_⟩
     · rw [hrot_def, List.isChain_append]
       refine ⟨hch.2.1, hch.1, fun a ha b hb => ?_⟩
       have ha' : a ∈ l.getLast? := by
-        rw [← hsplit, List.getLast?_append_of_ne_nil (l.take k) hq_ne]
-        exact ha
+        rwa [← hsplit, List.getLast?_append_of_ne_nil (l.take k) hq_ne]
       rw [htake, List.head?_cons, Option.mem_def, Option.some.injEq] at hb
       subst hb
       exact hl.getLast a ha'
     · intro a ha
       rw [hrot_def, List.getLast?_append_of_ne_nil (l.drop k) hp_ne] at ha
-      exact hch.2.2 a ha e₁ (by simp [hdrop])
+      exact hch.2.2 a ha e₁ (by simp only [hdrop, List.head?_cons, Option.mem_def])
 
 private theorem rotateTo_rotateTo [DecidableEq E] {e₀ e₁ : E} {l : List E}
     (hl : IsEulerianCircuit src tgt e₀ l) :
@@ -747,16 +728,8 @@ private theorem rotateTo_rotateTo [DecidableEq E] {e₀ e₁ : E} {l : List E}
     have hcons : l = e₀ :: l.tail := List.eq_cons_of_mem_head? hl.head
     have hl0 : l.idxOf e₀ = 0 := by rw [hcons, List.idxOf_cons_self]
     rw [hrot, rotateTo, hl0, List.drop_zero, List.take_zero, List.append_nil]
-  · have hp_ne : l.take k ≠ [] := by
-      rw [← List.length_pos_iff_ne_nil, List.length_take]
-      omega
-    obtain ⟨m, t, htake⟩ := List.exists_cons_of_ne_nil hp_ne
-    have hm : m = e₀ := by
-      have hh := hl.head
-      rw [← hsplit, htake, List.cons_append, List.head?_cons] at hh
-      exact Option.some.inj hh
-    rw [hm] at htake
-    have he₀_mem : e₀ ∈ l.take k := by simp [htake]
+  · obtain ⟨t, htake⟩ := head_take_idxOf_eq (hl.mem e₁) hl.head hk0
+    have he₀_mem : e₀ ∈ l.take k := by rw [htake]; exact List.mem_cons_self
     have hnd := hl.nodup
     rw [← hsplit] at hnd
     have he₀_not : e₀ ∉ l.drop k := fun h => List.disjoint_of_nodup_append hnd he₀_mem h

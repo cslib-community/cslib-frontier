@@ -10,9 +10,10 @@ module
 public import CslibFrontier.Crypto.Computational.SIS.MLKEM.Family
 public import CslibFrontier.Crypto.Computational.SIS.MLKEM.Security
 public import CslibFrontier.Crypto.Computational.LWE.Module.Native
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Crypto.Game.CloseTo
-import CslibFrontier.Crypto.Negligible.Dyadic
+import CslibFrontier.Tactic.Negligible
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.PPT.Composition
 import CslibFrontier.Computability.Probabilistic.Sampling
@@ -184,13 +185,9 @@ private theorem extendedSamplePublicKey_encodeSample
   simp only [extendedSamplePublicKey, ModuleLWE.encodeSample, ModuleLWE.sampleDecoder.decode_enc,
     ModuleLWE.entryResidues_encodeMatrix, encodePublicKey, matrixResidues, unextendPublicKeyMatrix]
   congr 2
-  · apply List.ext_getElem (by simp)
-    intro i h₁ h₂
-    have hi : i < P.k := by simpa using h₁
-    apply List.ext_getElem (by simp [polyVecResidues])
-    intro j h₃ h₄
-    have hj : j < P.k := by simpa using h₃
-    simp [polyVecResidues, hi, hj]
+  · refine List.ext_getElem (by simp) fun i h₁ _ =>
+      List.ext_getElem (by simp [polyVecResidues]) fun j h₃ _ => ?_
+    simp [polyVecResidues, show i < P.k by simpa using h₁, show j < P.k by simpa using h₃]
   · simp [polyVecResidues]
 
 private theorem extendedSampleCiphertext_encodeSample
@@ -203,12 +200,10 @@ private theorem extendedSampleCiphertext_encodeSample
     ModuleLWE.chunkResidues_flattenPolyVec, encodeCiphertext, compressCiphertext,
     unextendCiphertext]
   congr 2
-  · apply List.ext_getElem (by simp [polyVecResidues])
-    intro i h₁ h₂
-    have hi : i < P.k := by simpa using h₁
-    simp [polyVecResidues, hi, compressResidues_polyResidues]
-  · have h0 : (polyVecResidues w).getD 0 [] = polyResidues (w 0) := by simp [polyVecResidues]
-    rw [h0, messageResidues_eq, addResidues_polyResidues, compressResidues_polyResidues]
+  · refine List.ext_getElem (by simp [polyVecResidues]) fun i h₁ _ => ?_
+    simp [polyVecResidues, show i < P.k by simpa using h₁, compressResidues_polyResidues]
+  · rw [show (polyVecResidues w).getD 0 [] = polyResidues (w 0) by simp [polyVecResidues],
+      messageResidues_eq, addResidues_polyResidues, compressResidues_polyResidues]
     simp
 
 end Samples
@@ -444,16 +439,15 @@ theorem isPPT_keyReduction [∀ κ, NeZero (P κ).q] (hP : ComputableInPolyTime 
     exact (ComputableInPolyTime.encDetWord hPHC hpkHC (by fun_prop) (by fun_prop)).isPPTOn
   · intro κ M t
     simp only [keyReduction, mlweKeyReduction, mlweWordReduction, keySamplePublicKey_encodeSample,
-      wordAdversary, ProbComp.eval_bind, ProbComp.eval_map, PMF.bind_map, Function.comp_def]
+      wordAdversary, pmf_norm]
     refine congrArg _ (funext fun choice => ?_)
     simp only [Encryption.ChoiceOut.msg₀, Encryption.ChoiceOut.msg₁, Encryption.ChoiceOut.msgs,
       Encryption.ChoiceOut.state, select_getD]
     by_cases hv : (kpke P).IsMessagePair κ (encodePublicKey (M, t)) choice.1.1 choice.1.2 = true
     · simp only [hv, ite_true, ctOf, keySamplePublicKey_encodeSample, ProbComp.eval_bind]
-      have h := congrArg (fun μ => μ.bind fun ct => ProbComp.eval (A.guess κ choice.2 ct))
-        (eval_encDetWord_sampleList (P κ) (M, t) (if b then choice.1.2 else choice.1.1))
       simpa only [ProbComp.eval_bind, ProbComp.eval_map, PMF.bind_map, Function.comp_def] using
-        h.symm
+        congrArg (fun μ => μ.bind fun ct => ProbComp.eval (A.guess κ choice.2 ct))
+          (eval_encDetWord_sampleList (P κ) (M, t) (if b then choice.1.2 else choice.1.1)).symm
     · simp only [hv, Bool.false_eq_true, ite_false, PMF.bind_const]
 
 /-- **The ciphertext hop is uniform strict PPT** when the parameters are computable in polynomial
@@ -470,7 +464,7 @@ theorem isPPT_ciphertextReduction [∀ κ, NeZero (P κ).q]
   intro κ M w
   simp only [ciphertextReduction, mlweReduction, mlweWordReduction,
     extendedSamplePublicKey_encodeSample, extendedSampleCiphertext_encodeSample, wordAdversary,
-    ProbComp.eval_bind, ProbComp.eval_map, PMF.bind_map, Function.comp_def]
+    pmf_norm]
   refine congrArg _ (funext fun choice => ?_)
   simp only [Encryption.ChoiceOut.msg₀, Encryption.ChoiceOut.msg₁, Encryption.ChoiceOut.msgs,
     Encryption.ChoiceOut.state, select_getD]
@@ -519,15 +513,12 @@ private theorem eval_cpaExperiment_eq (A : Encryption.WordAdversary) (b : Bool) 
     Encryption.ChoiceOut.msgs, Encryption.ChoiceOut.state, select_getD]
   by_cases hv : (kpke P).IsMessagePair κ (encodePublicKey keys.1) choice.1.1 choice.1.2 = true
   · simp only [hv, ite_true]
-    have h := eval_encDetWord_sampleList (P κ) keys.1 (if b then choice.1.2 else choice.1.1)
     rw [show (kpke P).encrypt κ (encodePublicKey keys.1) (if b then choice.1.2 else choice.1.1) =
-      (do
-        let coins ← BitString.sampleList (coinLength (P κ))
-        return encDetWord (P κ) (encodePublicKey keys.1) (if b then choice.1.2 else choice.1.1)
-          coins) from rfl, h]
-    simp only [ExplicitCoinPKE.toPKE, ExplicitCoinPKE.encrypt, toExplicitCoinPKE,
-      ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind, PMF.bind_map,
-      Function.comp_def]
+      (BitString.sampleList (coinLength (P κ)) >>= fun coins =>
+        pure (encDetWord (P κ) (encodePublicKey keys.1) (if b then choice.1.2 else choice.1.1)
+          coins)) from rfl,
+      eval_encDetWord_sampleList (P κ) keys.1 (if b then choice.1.2 else choice.1.1)]
+    simp only [ExplicitCoinPKE.toPKE, ExplicitCoinPKE.encrypt, toExplicitCoinPKE, pmf_norm]
   · simp only [hv, Bool.false_eq_true, ite_false, PMF.bind_const, ProbComp.eval_pure]
 
 /-- **The word game is the two-stage experiment up to the matrix sampler.** At each `κ` and
@@ -542,13 +533,11 @@ private theorem advantage_gameOn_cpaExperiment_le (A : Encryption.WordAdversary)
         (ProbComp.eval ((toExplicitCoinPKE (P κ)).toPKE.cpaExperiment (fun _ _ _ => true)
           (wordAdversary P A κ) b)) ≤
       ((P κ).k * (P κ).k * (P κ).n : ℝ≥0) / 2 ^ κ := by
-  rw [eval_gameOn_eq, eval_cpaExperiment_eq, Game.advantage_comm]
-  have h := Game.coe_advantage_bind_le_of_closeTo (closeTo_keyGenWord (P κ) κ) (afterKey P A b κ)
-  rw [← ENNReal.coe_le_coe]
-  refine h.trans_eq ?_
+  rw [eval_gameOn_eq, eval_cpaExperiment_eq, Game.advantage_comm, ← ENNReal.coe_le_coe]
+  refine (Game.coe_advantage_bind_le_of_closeTo (closeTo_keyGenWord (P κ) κ)
+    (afterKey P A b κ)).trans_eq ?_
   rw [ENNReal.coe_div (pow_ne_zero _ two_ne_zero)]
-  push_cast
-  rfl
+  push_cast; rfl
 
 /-- **Concrete IND-CPA bound for the word family**, a step of
 `indCPA_kpkeIdealCoins_of_decisionModuleLWEWith`: at each `κ`, the
@@ -636,16 +625,10 @@ theorem indCPA_kpkeIdealCoins_of_decisionModuleLWEWith {P : ℕ → Params} [∀
     (kpke P).INDCPA := by
   intro A hA
   simp only [← eval_sampleVecCBD] at hkey hct
-  have hk₀ := hkey _ (isPPT_keyReduction hP hA false)
-  have hk₁ := hkey _ (isPPT_keyReduction hP hA true)
-  have hc₀ := hct _ (isPPT_ciphertextReduction hP hA false)
-  have hc₁ := hct _ (isPPT_ciphertextReduction hP hA true)
+  have hkBit (b : Bool) := hkey _ (isPPT_keyReduction hP hA b)
+  have hcBit (b : Bool) := hct _ (isPPT_ciphertextReduction hP hA b)
   have hk : ComputableInPolyTime (fun κ => (P κ).k) encUnary encUnary := by fun_prop
   have hn : ComputableInPolyTime (fun κ => (P κ).n) encUnary encUnary := by fun_prop
-  have hε := PolynomiallyBounded.negligible_div_two_pow
-    ((hk.polynomiallyBounded.mul hk.polynomiallyBounded).mul hn.polynomiallyBounded)
-  push_cast at hε
-  exact negligible_of_le ((hε.add ((hk₀.add hc₀).add (hk₁.add hc₁))).add hε)
-    fun κ => advantage_gameOn_le P A κ
+  negligible [ModuleLWE.advantage] using advantage_gameOn_le P A
 
 end Cslib.Crypto.MLKEM

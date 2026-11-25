@@ -124,9 +124,7 @@ theorem iterLog_lt_of_gt_one {k n : ℕ} (h : 1 < iterLog k n) :
 theorem iterLog_le_one_iff_lt_twoTower {k n : ℕ} :
     iterLog k n ≤ 1 ↔ n < twoTower (k + 1) := by
   induction k generalizing n with
-  | zero =>
-    change n ≤ 1 ↔ n < 2
-    omega
+  | zero => simp [iterLog, twoTower]; omega
   | succ k ih =>
     rw [iterLog_succ_apply, ih, twoTower_succ]
     rcases Nat.eq_zero_or_pos n with rfl | hn
@@ -168,12 +166,9 @@ theorem floorLogStar_of_gt_one {n : ℕ} (hn : 1 < n) :
   · rw [floorLogStar_le_iff, iterLog_succ_apply]
     exact iterLog_floorLogStar_le_one (Nat.log 2 n)
   · have hpos : 0 < floorLogStar n := lt_floorLogStar_iff.mpr hn
-    obtain ⟨k, hk⟩ := Nat.exists_eq_add_of_le (Nat.succ_le_of_lt hpos)
-    have hle : iterLog (k + 1) n ≤ 1 := by
-      rw [Nat.add_comm 1 k] at hk
-      exact hk ▸ iterLog_floorLogStar_le_one n
-    rw [iterLog_succ_apply, ← floorLogStar_le_iff] at hle
-    omega
+    rw [← Nat.le_sub_iff_add_le hpos, floorLogStar_le_iff, ← iterLog_succ_apply,
+      Nat.sub_add_cancel hpos]
+    exact iterLog_floorLogStar_le_one n
 
 @[simp]
 theorem floorLogStar_two : floorLogStar 2 = 1 := rfl
@@ -211,9 +206,7 @@ theorem max_iterLog_two_max_four (n : ℕ) :
 theorem max_iterLog_two_eq (n : ℕ) : max (iterLog 2 n) 1 = iterLog 2 (max n 4) := by
   by_cases hn : n < 4
   · match n, hn with | 0, _ => decide | 1, _ => decide | 2, _ => decide | 3, _ => decide
-  · have h := max_iterLog_two_max_four n
-    rw [_root_.max_eq_left (Nat.not_lt.mp hn)] at h ⊢
-    exact h
+  · simpa [_root_.max_eq_left (Nat.not_lt.mp hn)] using max_iterLog_two_max_four n
 
 /-- If `d < floorLogStar n` and `r ≤ d`, at least `d + 1 - r` remains in `iterLog (r + 1) n`. -/
 theorem sub_le_iterLog_of_lt_floorLogStar {n d r : ℕ} (hd : d < floorLogStar n)
@@ -241,26 +234,21 @@ theorem six_mul_iterLog_two_two_pow_le {m : ℕ} (hm : 32 ≤ m) : 6 * iterLog 2
 
 /-- Floor-to-ceiling lower bound: `iterLog 2 (max n 4) ≤ ⌈log₂ ⌈log₂ (max n 4)⌉⌉`. -/
 theorem iterLog_two_max_four_le_clog (n : ℕ) :
-    iterLog 2 (max n 4) ≤ Nat.clog 2 (Nat.clog 2 (max n 4)) := by
-  have h1 : Nat.log 2 (max n 4) ≤ Nat.clog 2 (max n 4) :=
-    Nat.log_le_clog 2 (max n 4)
-  exact (Nat.log_mono_right h1).trans (Nat.log_le_clog 2 _)
+    iterLog 2 (max n 4) ≤ Nat.clog 2 (Nat.clog 2 (max n 4)) :=
+  (Nat.log_mono_right (Nat.log_le_clog 2 (max n 4))).trans (Nat.log_le_clog 2 _)
 
 /-- Ceiling-to-floor upper bound: `⌈log₂ ⌈log₂ (max n 4)⌉⌉ ≤ 2 * iterLog 2 (max n 4)`. -/
 theorem clog_clog_max_four_le_two_mul_iterLog (n : ℕ) :
     Nat.clog 2 (Nat.clog 2 (max n 4)) ≤ 2 * iterLog 2 (max n 4) := by
   set m := max n 4
   set k := iterLog 2 m
-  have hk : 1 ≤ k := one_le_iterLog_two_max_four n
-  have hlog_lt : Nat.log 2 m < 2 ^ (k + 1) :=
-    Nat.lt_pow_succ_log_self Nat.one_lt_two (Nat.log 2 m)
-  have hm_lt : m < 2 ^ (2 ^ (k + 1)) := by
+  have hm_lt : m < 2 ^ (2 ^ (k + 1)) :=
     calc m < 2 ^ (Nat.log 2 m + 1) := Nat.lt_pow_succ_log_self Nat.one_lt_two m
-      _ ≤ 2 ^ (2 ^ (k + 1)) := Nat.pow_le_pow_right Nat.two_pos hlog_lt
-  have hclog1 : Nat.clog 2 m ≤ 2 ^ (k + 1) :=
-    (Nat.clog_le_iff_le_pow Nat.one_lt_two).mpr hm_lt.le
-  have hclog2 : Nat.clog 2 (Nat.clog 2 m) ≤ k + 1 :=
-    (Nat.clog_le_iff_le_pow Nat.one_lt_two).mpr hclog1
+      _ ≤ 2 ^ (2 ^ (k + 1)) := Nat.pow_le_pow_right Nat.two_pos
+          (Nat.lt_pow_succ_log_self Nat.one_lt_two (Nat.log 2 m))
+  have hclog : Nat.clog 2 (Nat.clog 2 m) ≤ k + 1 := (Nat.clog_le_iff_le_pow Nat.one_lt_two).mpr
+    ((Nat.clog_le_iff_le_pow Nat.one_lt_two).mpr hm_lt.le)
+  have hk : 1 ≤ k := one_le_iterLog_two_max_four n
   omega
 
 end Nat

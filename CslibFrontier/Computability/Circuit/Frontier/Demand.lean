@@ -66,9 +66,7 @@ theorem isLittleO_log_affine {α β : ℝ} (hα : 0 ≤ α) (hβ : 1 ≤ β) :
     rw [← Real.log_mul (by positivity) (by positivity)]
     exact Real.log_le_log (by positivity) (by nlinarith)
   have hlogn : Real.log n ≤ δ / 2 * n := (le_abs_self _).trans hn
-  have hC : Real.log (α + β) ≤ δ / 2 * n := by
-    have := (div_le_iff₀ hδ).mp hnC'
-    linarith
+  have hC : Real.log (α + β) ≤ δ / 2 * n := by linarith [(div_le_iff₀ hδ).mp hnC']
   linarith
 
 /-- Changing from base `q ≥ 2` to the natural logarithm costs at most the factor
@@ -128,9 +126,7 @@ theorem eventually_lt_of_demand {A : ℝ} (hA : 0 < A) {κ : ℝ} (hκ : 0 ≤ �
   have hεn : 0 ≤ ε * n := by positivity
   have hsA : s ≤ (1 + 1 / A) * n := by nlinarith
   have hv' : v ≤ κ * (2 + 1 / A) * n + κ := by
-    have : κ * (n + s + 1) ≤ κ * ((2 + 1 / A) * n + 1) :=
-      mul_le_mul_of_nonneg_left (by nlinarith) hκ
-    linarith
+    linarith [mul_le_mul_of_nonneg_left (show n + s + 1 ≤ (2 + 1 / A) * n + 1 by nlinarith) hκ]
   -- The logarithmic term of the demand.
   have hL : κ * Real.log (v + 1) ≤ δ * n := by
     have hlog1 : Real.log (v + 1) ≤ Real.log (κ * (2 + 1 / A) * n + (κ + 1)) :=
@@ -139,19 +135,15 @@ theorem eventually_lt_of_demand {A : ℝ} (hA : 0 < A) {κ : ℝ} (hκ : 0 ≤ �
     have h1 := (hlog1.trans (le_abs_self _)).trans hlogn
     have h2 := mul_le_mul_of_nonneg_left h1 (by linarith : 0 ≤ κ + 1)
     rw [← mul_assoc, mul_div_cancel₀ _ (by linarith : κ + 1 ≠ 0)] at h2
-    have h3 : κ * Real.log (v + 1) ≤ (κ + 1) * Real.log (v + 1) :=
-      mul_le_mul_of_nonneg_right (by linarith) hlog0
+    have h3 : κ * Real.log (v + 1) ≤ (κ + 1) * Real.log (v + 1) := by gcongr; linarith
     linarith
   -- The error term of the problem.
   have hE : (A + η + 1) * |e n| ≤ δ * n := by
     have := mul_le_mul_of_nonneg_left hen (by linarith : 0 ≤ A + η + 1)
     rwa [← mul_assoc, mul_div_cancel₀ _ (by linarith : A + η + 1 ≠ 0)] at this
   -- The constants.
-  have hC : |C| + η * κ ≤ δ * n := by
-    have h := (Nat.le_ceil ((|C| + η * κ) / δ)).trans (show (⌈(|C| + η * κ) / δ⌉₊ : ℝ) ≤ n by
-      exact_mod_cast hnC)
-    have := (div_le_iff₀ hδ).mp h
-    linarith
+  have hC : |C| + η * κ ≤ δ * n :=
+    ((div_le_iff₀ hδ).mp ((Nat.le_ceil _).trans (Nat.cast_le.mpr hnC))).trans_eq (mul_comm _ _)
   -- Combine demand and supply.
   have hsupply' : (A + η) * (s - n) ≤ n + η / A * n - A * ε * n := by
     have h1 := mul_le_mul_of_nonneg_left (show s - n ≤ (1 / A - ε) * n by linarith)
@@ -159,20 +151,16 @@ theorem eventually_lt_of_demand {A : ℝ} (hA : 0 < A) {κ : ℝ} (hκ : 0 ≤ �
     have h2 : (A + η) * ((1 / A - ε) * n) = n + η / A * n - A * ε * n - η * (ε * n) := by
       field_simp; ring
     nlinarith [mul_nonneg hη.le hεn]
-  have hηv : η * v ≤ η * κ * (2 + 1 / A) * n + η * κ := by
-    have := mul_le_mul_of_nonneg_left hv' hη.le
-    linarith [show η * (κ * (2 + 1 / A) * n + κ) = η * κ * (2 + 1 / A) * n + η * κ by ring]
-  have he1 : (A + η) * e n + e n ≤ (A + η + 1) * |e n| := by
-    have := mul_nonneg (by linarith : 0 ≤ A + η + 1) (sub_nonneg.mpr (le_abs_self (e n)))
-    linarith [show (A + η + 1) * (|e n| - e n) = (A + η + 1) * |e n| - ((A + η) * e n + e n)
-      by ring]
+  have hηv : η * v ≤ η * κ * (2 + 1 / A) * n + η * κ :=
+    (mul_le_mul_of_nonneg_left hv' hη.le).trans_eq (by ring)
+  have he1 : (A + η) * e n + e n ≤ (A + η + 1) * |e n| :=
+    (by ring : (A + η) * e n + e n = (A + η + 1) * e n).trans_le
+      (mul_le_mul_of_nonneg_left (le_abs_self _) (by linarith))
   have hexpand : (A + η) * (s - n + e n) = (A + η) * (s - n) + (A + η) * e n := by ring
   have hBn : η * B * n = η / A * n + η * κ * (2 + 1 / A) * n := by rw [hB_def]; ring
-  have hηBn : η * B * n ≤ A * ε / 2 * n := mul_le_mul_of_nonneg_right hηB (by linarith)
+  have hηBn : η * B * n ≤ A * ε / 2 * n := mul_le_mul_of_nonneg_right hηB (Nat.cast_nonneg n)
   have hδn : δ * n = A * ε * n / 10 := by rw [hδ_def]; ring
-  have hCle := le_abs_self C
-  have hpos : 0 < A * ε * n := by positivity
-  linarith
+  linarith [le_abs_self C, (by positivity : 0 < A * ε * n)]
 
 /-- **Demand with a margin.** Below `(1 + 1/A - ε) n`, the frontier, the error, and the
 logarithmic term fall short of `n` by the linear margin `A ε n / 2`: for some slack `η > 0`,

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Logics.Propositional.Resolution.LRAT
+public import CslibFrontier.Foundations.Data.Array.SetGrow
 
 /-! # LRAT certificates built step by step
 
@@ -51,41 +52,6 @@ namespace Cslib.Logic.PL.CNF
 
 open Std.Tactic.BVDecide (LRAT.IntAction)
 
-/-- Setting the entry `i` of an array of options to `x`, growing the array with `none` if needed. -/
-def optSet {α : Type} (a : Array (Option α)) (i : ℕ) (x : Option α) : Array (Option α) :=
-  if i < a.size then a.set! i x
-  -- pushing directly at the end, so that the array is updated in place
-  else if i = a.size then a.push x
-  else (a ++ Array.replicate (i - a.size) none).push x
-
-theorem getD_optSet {α : Type} (a : Array (Option α)) (i j : ℕ) (x : Option α) :
-    (optSet a i x).getD j none = if j = i then x else a.getD j none := by
-  unfold optSet
-  by_cases hi : i < a.size
-  · rw [ite_eq_left hi]
-    simp only [Array.set!_eq_setIfInBounds, Array.getD_eq_getD_getElem?,
-      Array.getElem?_setIfInBounds]
-    by_cases hj : j = i
-    · subst hj; simp [hi]
-    · simp [hj, Ne.symm hj]
-  rw [ite_eq_right hi]
-  by_cases he : i = a.size
-  · rw [ite_eq_left he]
-    subst he
-    simp only [Array.getD_eq_getD_getElem?, Array.getElem?_push]
-    by_cases hj : j = a.size <;> simp [hj]
-  rw [ite_eq_right he]
-  simp only [Array.getD_eq_getD_getElem?, Array.getElem?_push, Array.size_append,
-    Array.size_replicate, Array.getElem?_append, Array.getElem?_replicate]
-  by_cases hj : j = i
-  · subst hj; simp only [↓reduceIte]; split <;> first | rfl | omega
-  · have h' : ¬ j = a.size + (i - a.size) := by omega
-    simp only [hj, h', ↓reduceIte]
-    by_cases hlt : j < a.size
-    · simp [hlt]
-    · simp only [hlt, ↓reduceIte, Array.getElem?_eq_none (by omega : a.size ≤ j)]
-      split <;> rfl
-
 /-- **An index in chunks**: the entries by number, in arrays of `256`, so that updating a shared
 index copies the array of chunks and one chunk rather than every entry. -/
 abbrev Chunks (α : Type) := Array (Array (Option α))
@@ -98,10 +64,15 @@ def chunkGet {α : Type} (a : Chunks α) (i : ℕ) : Option α :=
 def chunkSet {α : Type} (a : Chunks α) (i : ℕ) (x : Option α) : Chunks α :=
   let k := i / 256
   let a := if k < a.size then a else a ++ Array.replicate (k + 1 - a.size) #[]
-  a.modify k fun c => optSet c (i % 256) x
+  a.modify k fun c => c.setGrow (i % 256) none x
 
 theorem chunkGet_empty {α : Type} (j : ℕ) : chunkGet (#[] : Chunks α) j = none := by
   simp [chunkGet]
+
+private theorem lrat_nat_eq_iff_div_mod_256 (j i : ℕ) :
+    j = i ↔ j / 256 = i / 256 ∧ j % 256 = i % 256 := by
+  refine ⟨fun h => h ▸ ⟨rfl, rfl⟩, fun ⟨h₁, h₂⟩ => ?_⟩
+  rw [← Nat.div_add_mod j 256, ← Nat.div_add_mod i 256, h₁, h₂]
 
 theorem chunkGet_chunkSet {α : Type} (a : Chunks α) (i j : ℕ) (x : Option α) :
     chunkGet (chunkSet a i x) j = if j = i then x else chunkGet a j := by
@@ -122,18 +93,14 @@ theorem chunkGet_chunkSet {α : Type} (a : Chunks α) (i j : ℕ) (x : Option α
     split
     · assumption
     · simp; omega
-  have hdecomp : j = i ↔ j / 256 = i / 256 ∧ j % 256 = i % 256 := by
-    constructor
-    · rintro rfl; exact ⟨rfl, rfl⟩
-    · rintro ⟨h₁, h₂⟩
-      rw [← Nat.div_add_mod j 256, ← Nat.div_add_mod i 256, h₁, h₂]
+  have hdecomp := lrat_nat_eq_iff_div_mod_256 j i
   simp only [Array.getD_eq_getD_getElem?, Array.getElem?_modify]
   by_cases hk : i / 256 = j / 256
   · rw [ite_eq_left hk, ← hk, Array.getElem?_eq_getElem hsize]
     simp only [Option.map_some, Option.getD_some]
-    rw [show (a'[i / 256]'hsize) = a'.getD (i / 256) #[] by
-      simp [Array.getD_eq_getD_getElem?, Array.getElem?_eq_getElem hsize], hgrow,
-      ← Array.getD_eq_getD_getElem?, getD_optSet]
+    have ha_get : a'[i / 256]'hsize = a'.getD (i / 256) #[] := by
+      simp [Array.getD_eq_getD_getElem?, Array.getElem?_eq_getElem hsize]
+    rw [ha_get, hgrow, ← Array.getD_eq_getD_getElem?, Array.getD_setGrow]
     by_cases hj : j = i
     · subst hj; simp
     · have : ¬ j % 256 = i % 256 := fun h => hj (hdecomp.2 ⟨hk.symm, h⟩)
@@ -152,11 +119,7 @@ def chunkClear {α : Type} (a : Chunks α) (i : ℕ) : Chunks α :=
 theorem chunkGet_chunkClear {α : Type} (a : Chunks α) (i j : ℕ) :
     chunkGet (chunkClear a i) j = if j = i then none else chunkGet a j := by
   unfold chunkGet chunkClear
-  have hdecomp : j = i ↔ j / 256 = i / 256 ∧ j % 256 = i % 256 := by
-    constructor
-    · rintro rfl; exact ⟨rfl, rfl⟩
-    · rintro ⟨h₁, h₂⟩
-      rw [← Nat.div_add_mod j 256, ← Nat.div_add_mod i 256, h₁, h₂]
+  have hdecomp := lrat_nat_eq_iff_div_mod_256 j i
   simp only [Array.getD_eq_getD_getElem?, Array.getElem?_modify]
   by_cases hk : i / 256 = j / 256
   · rw [ite_eq_left hk, ← hk]
@@ -508,13 +471,7 @@ theorem clause?_delete {log : LRATLog φ} {ids : List ℕ} {i : ℕ} (hi : i ∉
   unfold delete
   split
   · rfl
-  simp only [clause?_eq, eraseIds_eq, List.find?_filter]
-  congr 1
-  refine List.find?_congr fun e _ => ?_
-  by_cases he : e.1 = i
-  · subst he
-    simp [hi]
-  · simp [he]
+  · rw [clause?, chunkGet_foldl_chunkClear, ite_eq_right hi, clause?]
 
 /-- **Closing the log** with an empty-clause step, given hints along which unit propagation
 reaches a conflict from no assumption. -/

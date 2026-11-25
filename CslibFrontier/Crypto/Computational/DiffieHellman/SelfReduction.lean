@@ -150,17 +150,13 @@ theorem eval_dlRerandomize_smul_apply (A : G → ProbComp (ZMod q)) (α : ZMod q
     rw [← PMF.uniformOfFintype_bind_equiv (Equiv.addLeft α)]
     simp only [dlRerandomize, ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform,
       Equiv.coe_addLeft, add_smul, add_sub_cancel_left]
-  have hevent (a x : ZMod q) : α = x - (a - α) ↔ true = decide (x = a) := by
-    rw [eq_comm (a := true), decide_eq_true_iff]
-    constructor <;> intro h <;> linear_combination -h
   simp only [hlaw, dlExperiment, ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform,
     PMF.bind_apply, PMF.pure_apply]
-  refine tsum_congr fun a => ?_
+  refine tsum_congr fun a => congrArg (_ * ·) (tsum_congr fun x => congrArg (_ * ·) ?_)
   congr 1
-  refine tsum_congr fun x => ?_
-  congr 1
-  congr 1
-  exact propext (hevent a x)
+  rw [eq_comm (a := true), decide_eq_true_iff]
+  exact propext ⟨fun h => by linear_combination -h,
+    fun h => by linear_combination -h⟩
 
 /-- **Soundness of the discrete-logarithm self-reduction.** Every answer `some x` that
 `dlSelfReduce` can return is a discrete logarithm of its input: `x • g = u`. This is the claim of
@@ -319,40 +315,25 @@ theorem eval_cdhSelfReduce_smul_apply [DecidableEq G] (A : G → G → ProbComp 
     ProbComp.eval (cdhSelfReduce q g A (α • g) (β • g)) ((α * β) • g) =
       ProbComp.eval (cdhExperiment q g A) true := by
   -- Substitute `a = α + ρ` and `b = β + τ` in the experiment.
-  have hshift (H : ZMod q → ZMod q → PMF Bool) :
-      ((PMF.uniformOfFintype (ZMod q)).bind fun a =>
-        (PMF.uniformOfFintype (ZMod q)).bind fun b => H a b) =
-      (PMF.uniformOfFintype (ZMod q)).bind fun ρ =>
-        (PMF.uniformOfFintype (ZMod q)).bind fun τ => H (α + ρ) (β + τ) := by
-    rw [← PMF.uniformOfFintype_bind_equiv (Equiv.addLeft α)]
-    refine congrArg (PMF.bind _) (funext fun ρ => ?_)
-    exact (PMF.uniformOfFintype_bind_equiv (Equiv.addLeft β) (H (α + ρ))).symm
   have hexp : ProbComp.eval (cdhExperiment q g A) =
       (PMF.uniformOfFintype (ZMod q)).bind fun ρ => (PMF.uniformOfFintype (ZMod q)).bind fun τ =>
         (ProbComp.eval (A ((α + ρ) • g) ((β + τ) • g))).bind fun w =>
           PMF.pure (decide (w = ((α + ρ) * (β + τ)) • g)) := by
     simp only [cdhExperiment, ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform]
-    exact hshift fun a b => (ProbComp.eval (A (a • g) (b • g))).bind fun w =>
-      PMF.pure (decide (w = (a * b) • g))
-  have hevent (ρ τ : ZMod q) (w : G) :
-      (α * β) • g = w - τ • α • g - ρ • β • g - (ρ * τ) • g ↔
-        true = decide (w = ((α + ρ) * (β + τ)) • g) := by
-    rw [eq_comm (a := true), decide_eq_true_iff]
-    constructor <;> intro h
-    · rw [eq_sub_iff_add_eq, eq_sub_iff_add_eq, eq_sub_iff_add_eq] at h
-      rw [← h]
-      module
-    · rw [h]
-      module
+    rw [← PMF.uniformOfFintype_bind_equiv (Equiv.addLeft α)]
+    exact congrArg (PMF.bind _) (funext fun ρ =>
+      (PMF.uniformOfFintype_bind_equiv (Equiv.addLeft β) _).symm)
   simp only [hexp, cdhSelfReduce, ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform,
     PMF.bind_apply, PMF.pure_apply, add_smul]
-  refine tsum_congr fun ρ => ?_
+  refine tsum_congr fun ρ => congrArg (_ * ·) (tsum_congr fun τ =>
+    congrArg (_ * ·) (tsum_congr fun w => congrArg (_ * ·) ?_))
   congr 1
-  refine tsum_congr fun τ => ?_
-  congr 1
-  refine tsum_congr fun w => ?_
-  congr 1
-  congr 1
-  exact propext (hevent ρ τ w)
+  rw [eq_comm (a := true), decide_eq_true_iff]
+  refine propext ⟨fun h => ?_, fun h => ?_⟩
+  · rw [eq_sub_iff_add_eq, eq_sub_iff_add_eq, eq_sub_iff_add_eq] at h
+    rw [← h]
+    module
+  · rw [h]
+    module
 
 end Cslib.Crypto

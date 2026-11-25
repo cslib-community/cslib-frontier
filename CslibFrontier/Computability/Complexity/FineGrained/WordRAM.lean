@@ -61,8 +61,34 @@ theorem exists_decidableInTimeAndSpace_KSAT (k : ℕ) :
   obtain ⟨dw, _, hw⟩ := (computableInPolyTime_all_length_le k).exists_degree
   obtain ⟨dp, _, hp⟩ := computableInPolyTime_pos_nat.exists_degree
   obtain ⟨c, htm, -⟩ := hw.inO.ite (hp.inO.comp hcount) (ComputableInO.const false)
-  set E := dw + e + b + b * dp + 1 with hE
+  set E := dw + e + b + b * dp + 1
   set F := 4 + (2 * c₀ + 1) ^ dp
+  have hbound (φ : CNF ℕ) {M B : ℕ} (hM : ((encCNF φ).length + 1) ^ E ≤ M) (hB : B ≤ M) :
+      c * (((encCNF φ).length + 1) ^ dw +
+        (if (φ.all fun c => decide (c.length ≤ k)) = true then
+          B + ((encNat (count φ)).length + 1) ^ dp
+        else (encCNF φ).length) + 1) ≤ c * F * M := by
+    set Y := (encCNF φ).length + 1
+    have hY : 1 ≤ Y := Nat.le_add_left 1 _
+    have hYb : 1 ≤ Y ^ b := Nat.one_le_pow _ _ hY
+    have hdw : Y ^ dw ≤ M := (Nat.pow_le_pow_right hY (by omega)).trans hM
+    have h1 : Y ≤ M := (Nat.le_self_pow (by omega) _).trans hM
+    have hl : (encNat (count φ)).length + 1 ≤ (2 * c₀ + 1) * Y ^ b :=
+      calc (encNat (count φ)).length + 1
+          ≤ c₀ * (Y ^ b + 1) + 1 := Nat.add_le_add_right (hlen φ) 1
+        _ ≤ c₀ * (Y ^ b + Y ^ b) + Y ^ b := by gcongr
+        _ = (2 * c₀ + 1) * Y ^ b := by ring
+    have hp : ((encNat (count φ)).length + 1) ^ dp ≤ (2 * c₀ + 1) ^ dp * M :=
+      calc ((encNat (count φ)).length + 1) ^ dp
+          ≤ ((2 * c₀ + 1) * Y ^ b) ^ dp := Nat.pow_le_pow_left hl dp
+        _ = (2 * c₀ + 1) ^ dp * Y ^ (b * dp) := by rw [mul_pow, ← pow_mul]
+        _ ≤ (2 * c₀ + 1) ^ dp * Y ^ E :=
+            Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hY (by omega))
+        _ ≤ (2 * c₀ + 1) ^ dp * M := Nat.mul_le_mul_left _ hM
+    rw [Nat.mul_assoc]
+    refine Nat.mul_le_mul_left c ?_
+    simp only [F, Nat.add_mul]
+    split <;> omega
   refine ⟨_, _, A, E, c * F, decidableInTimeAndSpace_iff.mpr ⟨_, htm, fun φ => ?_⟩,
     fun φ => ?_, fun φ => ?_⟩
   · -- correctness
@@ -75,38 +101,11 @@ theorem exists_decidableInTimeAndSpace_KSAT (k : ℕ) :
     · simp only [hwid, Bool.false_eq_true, ↓reduceIte, iff_false, not_and]
       intro h
       exact absurd (by simpa using h) hwid
-  all_goals
-    have hl := hlen φ
-    have hX : 1 ≤ ⌈(2 : ℝ) ^ ((A : ℝ) * interpolationScale φ.numVars)⌉₊ :=
-      Nat.one_le_iff_ne_zero.mpr (Nat.pos_iff_ne_zero.mp (Nat.ceil_pos.mpr (by positivity)))
-    beta_reduce at hl ⊢
-    generalize ⌈(2 : ℝ) ^ ((A : ℝ) * interpolationScale φ.numVars)⌉₊ = X at hX ⊢
-    generalize (encNat (count φ)).length = l at hl ⊢
-    generalize (encCNF φ).length = L at hl ⊢
-    have hY : 1 ≤ L + 1 := by omega
-    have hYE : ∀ d ≤ E, (L + 1) ^ d ≤ (L + 1) ^ E := fun d hd => Nat.pow_le_pow_right hY hd
-    have hYb : 1 ≤ (L + 1) ^ b := Nat.one_le_pow _ _ hY
-    have hlen' : l + 1 ≤ (2 * c₀ + 1) * (L + 1) ^ b := by nlinarith
-    have hpowp : (l + 1) ^ dp ≤ (2 * c₀ + 1) ^ dp * (L + 1) ^ E := by
-      calc _ ≤ ((2 * c₀ + 1) * (L + 1) ^ b) ^ dp := Nat.pow_le_pow_left hlen' dp
-        _ = (2 * c₀ + 1) ^ dp * (L + 1) ^ (b * dp) := by rw [mul_pow, ← pow_mul]
-        _ ≤ _ := Nat.mul_le_mul_left _ (hYE _ (by omega))
-    have hZ : (L + 1) ^ E ≤ X * (L + 1) ^ E := Nat.le_mul_of_pos_left _ hX
-    have h1 : (L + 1) ^ dw ≤ (L + 1) ^ E := hYE _ (by omega)
-    have h2 : (L + 1) ^ e ≤ (L + 1) ^ E := hYE _ (by omega)
-    have h3 : (L + 1) ^ b ≤ (L + 1) ^ E := hYE _ (by omega)
-    have h4 : L + 1 ≤ (L + 1) ^ E := Nat.le_self_pow (by omega) _
-    have h5 : X * (L + 1) ^ e ≤ X * (L + 1) ^ E := Nat.mul_le_mul_left _ h2
-    have h6 : (2 * c₀ + 1) ^ dp * (L + 1) ^ E ≤ (2 * c₀ + 1) ^ dp * (X * (L + 1) ^ E) :=
-      Nat.mul_le_mul_left _ hZ
-    have h7 : (4 + (2 * c₀ + 1) ^ dp) * (X * (L + 1) ^ E) =
-        4 * (X * (L + 1) ^ E) + (2 * c₀ + 1) ^ dp * (X * (L + 1) ^ E) := by ring
-    have h8 : (4 + (2 * c₀ + 1) ^ dp) * (L + 1) ^ E =
-        4 * (L + 1) ^ E + (2 * c₀ + 1) ^ dp * (L + 1) ^ E := by ring
-    rw [Nat.mul_assoc]
-    refine Nat.mul_le_mul_left c ?_
-    simp only [F]
-    split <;> omega
+  · -- time
+    exact hbound φ (Nat.le_mul_of_pos_left _ (Nat.ceil_pos.mpr (by positivity)))
+      (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (Nat.le_add_left 1 _) (show e ≤ E by omega)))
+  · -- space
+    exact hbound φ le_rfl (Nat.pow_le_pow_right (Nat.le_add_left 1 _) (show b ≤ E by omega))
 
 end Cslib.Complexity.CountingNativeEndpoint
 
@@ -127,21 +126,17 @@ theorem uniformDecidableInTimeLogWord_KSAT (k : ℕ) {δ : ℝ} (hδ : 0 < δ) :
   obtain ⟨K, -, hK⟩ := SubexponentialSAT.exists_two_pow_mul_interpolationScale_le (A : ℝ) hδ
   refine ⟨C * c * ⌈K⌉₊ + C, E, k', hk', hU.mono (fun φ _ => ?_) (fun _ _ h => h) hU.inputAdmissible⟩
   set X := ⌈(2 : ℝ) ^ ((A : ℝ) * SubexponentialSAT.interpolationScale φ.numVars)⌉₊ with hXdef
-  set Z := ⌈(2 : ℝ) ^ (δ * φ.numVars)⌉₊ with hZdef
+  set Z := ⌈(2 : ℝ) ^ (δ * φ.numVars)⌉₊
   set Y := (encCNF φ).length + 1
-  have hXZ : X ≤ ⌈K⌉₊ * Z := by
-    rw [hXdef, Nat.ceil_le]
+  have hXZ : X ≤ ⌈K⌉₊ * Z := Nat.ceil_le.mpr <| by
     push_cast
-    refine (hK φ.numVars).trans ?_
-    exact mul_le_mul (Nat.le_ceil K) (Nat.le_ceil _) (by positivity) (by positivity)
-  have htφ : t φ ≤ c * (X * Y ^ E) := ht φ
-  have h1 : C * t φ ≤ C * c * ⌈K⌉₊ * (Z * Y ^ E) := by
-    calc C * t φ ≤ C * (c * (X * Y ^ E)) := Nat.mul_le_mul_left _ htφ
-      _ ≤ C * (c * (⌈K⌉₊ * Z * Y ^ E)) :=
-        Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ (Nat.mul_le_mul_right _ hXZ))
+    exact (hK φ.numVars).trans <|
+      mul_le_mul (Nat.le_ceil K) (Nat.le_ceil _) (by positivity) (by positivity)
+  have h1 : C * t φ ≤ (C * c * ⌈K⌉₊ + C) * (Z * Y ^ E) :=
+    calc C * t φ ≤ C * (c * (X * Y ^ E)) := Nat.mul_le_mul_left _ (ht φ)
+      _ ≤ C * (c * (⌈K⌉₊ * Z * Y ^ E)) := by gcongr
       _ = C * c * ⌈K⌉₊ * (Z * Y ^ E) := by ring
-  have h2 : C * c * ⌈K⌉₊ * (Z * Y ^ E) ≤ (C * c * ⌈K⌉₊ + C) * (Z * Y ^ E) :=
-    Nat.mul_le_mul_right _ (Nat.le_add_right _ _)
+      _ ≤ (C * c * ⌈K⌉₊ + C) * (Z * Y ^ E) := Nat.mul_le_mul_right _ (Nat.le_add_right _ _)
   change C * t φ + C ≤ (C * c * ⌈K⌉₊ + C) * (Z * Y ^ E) + (C * c * ⌈K⌉₊ + C)
   omega
 

@@ -118,9 +118,7 @@ theorem RAMTIME_additive_subset_DTIME {T : ℕ → ℕ} (hT : TimeConstructible 
   have h₂ : (n + (c + 1) * (T n + 1) + 1) ^ 4 * (k * (Nat.size n + 1) + 1) ^ 3 ≤
       (c + 2) ^ 4 * (k + 1) ^ 3 * ((n + T n + 1) ^ 4 * (Nat.size n + 1) ^ 3) := by
     calc _ ≤ ((c + 2) * (n + T n + 1)) ^ 4 * ((k + 1) * (Nat.size n + 1)) ^ 3 := by
-          gcongr
-          · nlinarith
-          · nlinarith
+          gcongr <;> nlinarith
       _ = _ := by ring
   calc (c + 1) * (T n + 1) + (n + (c + 1) * (T n + 1) + 1) ^ 4 * (k * (Nat.size n + 1) + 1) ^ 3
       ≤ (c + 1) * ((n + T n + 1) ^ 4 * (Nat.size n + 1) ^ 3) +
@@ -162,7 +160,7 @@ theorem DTIME_subset_RAMTIME_additive {g : ℕ → ℕ} (hg : PolynomiallyBounde
         ((logWidth_mono (by omega) le_rfl).trans hw)
   have hw2 : 2 ≤ w := le_trans (by unfold logWidth; nlinarith) hw
   obtain ⟨n, hn, hex⟩ := executes_simProgram (fun _ _ _ => rfl) (Fintype.equivFin Q) hhalt hb
-    (by rw [hout]; simp only [encBool_apply, List.length_singleton]; omega)
+    (by simp only [hout, encBool_apply, List.length_singleton]; omega)
   rw [hout, encBool_apply, Cslib.BitString.lsbValue_singleton] at hex
   refine ⟨(f a).toNat, n, hex, hn.trans ?_, Bool.toNat_le _, ?_⟩
   · unfold simTime

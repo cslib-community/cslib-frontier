@@ -105,16 +105,14 @@ theorem agree_head (σ : V → Bool) (first : Cell V) (rest : List (Cell V))
   induction rest generalizing first with
   | nil =>
     intro c hc lane
-    rw [List.mem_singleton.1 hc]
-    exact hcells first List.mem_cons_self lane
+    exact List.mem_singleton.1 hc ▸ hcells first List.mem_cons_self lane
   | cons next rest ih =>
     rw [links_cons_cons, eval_append, Bool.and_eq_true] at hlinks
     have he := (eval_gapClauses_iff σ first next (hcells _ List.mem_cons_self)
       (hcells _ (List.mem_cons_of_mem _ List.mem_cons_self))).1 hlinks.1
     intro c hc lane
-    rcases List.mem_cons.1 hc with he | hc
-    · rw [he]
-      exact hcells first List.mem_cons_self lane
+    rcases List.mem_cons.1 hc with rfl | hc
+    · exact hcells c List.mem_cons_self lane
     · have h := ih next (fun c hc => hcells c (List.mem_cons_of_mem _ hc)) hlinks.2 c hc lane
       exact ⟨h.1.trans he.symm, h.2.trans he.symm⟩
 
@@ -127,17 +125,16 @@ theorem agree_head_of_ne_nil (σ : V → Bool) (fallback : Cell V) (cells : List
       σ (c lane).1 = σ (cells.headD fallback 0).1 ∧
         σ (c lane).2 = σ (cells.headD fallback 0).1 := by
   cases cells with
-  | nil => exact False.elim (hne rfl)
+  | nil => contradiction
   | cons first rest => exact agree_head σ first rest hcells hlinks
 
 /-- A common value on every entry and exit satisfies all paired links. -/
 theorem eval_links_of_constant (σ : V → Bool) (value : Bool) (cells : List (Cell V))
     (h : ∀ c ∈ cells, ∀ lane, σ (c lane).1 = value ∧ σ (c lane).2 = value) :
     (links cells).eval σ = true := by
-  have hcells : ∀ c ∈ cells, c.Agree σ := fun c hc lane =>
-    ⟨(h c hc lane).1.trans (h c hc 0).1.symm, (h c hc lane).2.trans (h c hc 0).1.symm⟩
-  apply (eval_links_iff σ cells hcells).2
-  intro p hp
+  refine (eval_links_iff σ cells fun c hc lane =>
+    ⟨(h c hc lane).1.trans (h c hc 0).1.symm, (h c hc lane).2.trans (h c hc 0).1.symm⟩).2
+    fun p hp => ?_
   have hm := List.of_mem_zip hp
   exact (h p.1 hm.1 0).1.trans (h p.2 (List.mem_of_mem_tail hm.2) 0).1.symm
 
@@ -179,10 +176,7 @@ theorem width_links (cells : List (Cell V)) : ∀ c ∈ links cells, c.length �
 /-- There are exactly four literal positions per gap. -/
 theorem length_vars_links (cells : List (Cell V)) :
     (links cells).vars.length = 4 * (cells.length - 1) := by
-  have h : (links cells).map List.length = List.replicate (links cells).length 2 := by
-    apply List.map_eq_replicate_iff.2
-    exact fun c hc => length_of_mem_links cells hc
-  rw [CNF.length_vars, h]
+  rw [CNF.length_vars, List.map_eq_replicate_iff.2 fun c hc => length_of_mem_links cells hc]
   simp [length_links, Nat.mul_right_comm]
 
 end Cslib.Logic.PL.CNF.PairedWire

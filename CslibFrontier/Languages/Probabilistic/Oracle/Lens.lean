@@ -122,9 +122,7 @@ section Combinators
 
 /-- Fixing the surrounding composite state `s`, `l.set s` is injective. -/
 theorem set_injective {S Part : Type*} (l : StateLens S Part) (s : S) :
-    Function.Injective (l.set s) := fun p₁ p₂ h => by
-  have hget := congrArg l.get h
-  simpa only [l.get_set] using hget
+    Function.Injective (l.set s) := fun _ _ h => by simpa only [l.get_set] using congrArg l.get h
 
 /-- Lift a `StateT Part m` action onto the composite state `S`, leaving everything outside `l`
 unchanged. -/
@@ -147,13 +145,9 @@ theorem run_interpret_zoom (l : StateLens S Part)
     (OracleComp.interpret (fun q => l.zoom (handler q)) program).run s =
       ((OracleComp.interpret handler program).run (l.get s)).map
         (fun x => (x.1, l.set s x.2)) := by
-  have hmap := OracleComp.run_interpret_map_state handler (fun q => l.zoom (handler q))
-    (l.set s) (fun q p => by
-      change (handler q p).map (fun (a, p') => (a, l.set s p')) =
-        (handler q (l.get (l.set s p))).map (fun x => (x.1, l.set (l.set s p) x.2))
-      simp only [l.get_set, l.set_set])
-    program (l.get s)
-  simpa only [l.set_get] using hmap.symm
+  simpa only [l.set_get] using (OracleComp.run_interpret_map_state handler
+    (fun q => l.zoom (handler q)) (l.set s)
+    (fun q p => by simp [zoom, PMF.monad_map_eq_map]) program (l.get s)).symm
 
 /-- Running a `ProbOracleComp` with `runWith` against a zoomed `PMF` handler executes against the
 inner handler from `l.get s` and writes the final inner state back into `s`. -/
@@ -162,13 +156,9 @@ theorem runWith_zoom (l : StateLens S Part)
     (s : S) :
     ProbOracleComp.runWith (fun q => l.zoom (handler q)) program s =
       (ProbOracleComp.runWith handler program (l.get s)).map (fun x => (x.1, l.set s x.2)) := by
-  have hmap := ProbOracleComp.runWith_map_state handler (fun q => l.zoom (handler q))
-    (l.set s) (fun q p => by
-      change (handler q p).map (fun (a, p') => (a, l.set s p')) =
-        (handler q (l.get (l.set s p))).map (fun x => (x.1, l.set (l.set s p) x.2))
-      simp only [l.get_set, l.set_set])
-    program (l.get s)
-  simpa only [l.set_get] using hmap.symm
+  simpa only [l.set_get] using (ProbOracleComp.runWith_map_state handler
+    (fun q => l.zoom (handler q)) (l.set s)
+    (fun q p => by simp [zoom, PMF.monad_map_eq_map]) program (l.get s)).symm
 
 /-- `OracleComp.IdenticalUntilBad` lifts along a lawful `StateLens`. -/
 theorem identicalUntilBad_zoom {first second : (q : ι) → StateT Part PMF (spec q)}
@@ -178,30 +168,25 @@ theorem identicalUntilBad_zoom {first second : (q : ι) → StateT Part PMF (spe
       (fun q => l.zoom (first q)) (fun q => l.zoom (second q)) (fun s => bad (l.get s)) where
   agree q s hs a s' hs' := by
     let emb : spec q × Part → spec q × S := fun x => (x.1, l.set s x.2)
-    have hemb : Function.Injective emb := fun x y hxy => by
-      obtain ⟨h1, h2⟩ := Prod.mk.inj hxy
-      exact Prod.ext h1 (l.set_injective s h2)
+    have hemb : Function.Injective emb := fun _ _ hxy =>
+      Prod.ext (Prod.mk.inj hxy).1 (l.set_injective s (Prod.mk.inj hxy).2)
     change ((first q (l.get s)).map emb) (a, s') = ((second q (l.get s)).map emb) (a, s')
     by_cases hex : ∃ p', s' = l.set s p'
     · obtain ⟨p', rfl⟩ := hex
-      have hp' : ¬bad p' := by rwa [l.get_set] at hs'
       change ((first q (l.get s)).map emb) (emb (a, p')) =
         ((second q (l.get s)).map emb) (emb (a, p'))
       rw [PMF.map_apply_of_injective _ hemb, PMF.map_apply_of_injective _ hemb]
-      exact h.agree q (l.get s) hs a p' hp'
-    · have hzero (μ : PMF (spec q × Part)) : (μ.map emb) (a, s') = 0 := by
-        rw [PMF.apply_eq_zero_iff]
-        intro hmem
-        obtain ⟨x, -, hx⟩ := (PMF.mem_support_map_iff _ _ _).mp hmem
-        exact hex ⟨x.2, (Prod.mk.inj hx).2.symm⟩
+      exact h.agree q (l.get s) hs a p' (by rwa [l.get_set] at hs')
+    · have hzero (μ : PMF (spec q × Part)) : (μ.map emb) (a, s') = 0 :=
+        (PMF.apply_eq_zero_iff ..).mpr fun hmem =>
+          let ⟨x, _, hx⟩ := (PMF.mem_support_map_iff ..).mp hmem
+          hex ⟨x.2, (Prod.mk.inj hx).2.symm⟩
       rw [hzero, hzero]
   absorb_first q s hs x hx := by
-    change x ∈ ((first q (l.get s)).map (fun y => (y.1, l.set s y.2))).support at hx
-    obtain ⟨y, hy, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
+    obtain ⟨y, hy, rfl⟩ := (PMF.mem_support_map_iff ..).mp hx
     simpa only [l.get_set] using h.absorb_first q (l.get s) hs y hy
   absorb_second q s hs x hx := by
-    change x ∈ ((second q (l.get s)).map (fun y => (y.1, l.set s y.2))).support at hx
-    obtain ⟨y, hy, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
+    obtain ⟨y, hy, rfl⟩ := (PMF.mem_support_map_iff ..).mp hx
     simpa only [l.get_set] using h.absorb_second q (l.get s) hs y hy
 
 /-- `ProbOracleComp.IdenticalUntilBad` lifts along a lawful `StateLens`. -/
@@ -292,10 +277,9 @@ indicator `flag.get s'` via `||`. -/
 theorem absorb_latch (flag : StateLens S Bool) (step : (q : ι) → S → PMF (spec q × S)) :
     ∀ q s, flag.Bad s → ∀ x ∈ (flag.latch step q s).support, flag.Bad x.2 := by
   intro q s hs x hx
-  dsimp only [Bad] at hs ⊢
   simp only [latch, hs, Bool.true_or, PMF.mem_support_map_iff] at hx
-  obtain ⟨y, -, rfl⟩ := hx
-  simp
+  obtain ⟨_, -, rfl⟩ := hx
+  simp [Bad]
 
 /-- Two `flag.latch` handlers satisfy `OracleComp.IdenticalUntilBad` whenever their underlying
 step kernels assign equal mass to unflagged transitions from unflagged states. -/
@@ -305,8 +289,8 @@ theorem identicalUntilBad_latch (flag : StateLens S Bool)
       step₁ q s (a, s') = step₂ q s (a, s')) :
     OracleComp.IdenticalUntilBad (flag.latch step₁) (flag.latch step₂) flag.Bad where
   agree q s hs a s' hs' := by
-    have hbs : flag.get s = false := Bool.eq_false_iff.mpr hs
-    have hbs' : flag.get s' = false := Bool.eq_false_iff.mpr hs'
+    have hbs := Bool.eq_false_iff.mpr hs
+    have hbs' := Bool.eq_false_iff.mpr hs'
     rw [flag.latch_of_false step₁ q hbs, flag.latch_of_false step₂ q hbs]
     exact hagree q s hbs a s' hbs'
   absorb_first := flag.absorb_latch step₁
@@ -354,15 +338,14 @@ theorem toOuterMeasure_latch_le (flag : StateLens S Bool)
     (hk : OracleComp.IsCostBounded (Sum.elim (fun _ => 0) cost) program k)
     {s : S} (hs : flag.get s = false) :
     (ProbOracleComp.runWith (flag.latch step) program s).toOuterMeasure {x | flag.Bad x.2} ≤
-      k * (budget s + n * δ) := by
-  refine ProbOracleComp.toOuterMeasure_bad_le cost budget δ
-    (fun q st hst => ?_) (fun q st hst x hx hgood => ?_) hn hk (Bool.eq_false_iff.mp hs)
-  · have hfalse : flag.get st = false := Bool.eq_false_iff.mpr hst
-    rw [flag.latch_of_false step q hfalse]
-    exact hstep q st hfalse
-  · have hfalse : flag.get st = false := Bool.eq_false_iff.mpr hst
-    rw [flag.latch_of_false step q hfalse] at hx
-    exact hgrow q st hfalse x hx (Bool.eq_false_iff.mpr hgood)
+      k * (budget s + n * δ) :=
+  ProbOracleComp.toOuterMeasure_bad_le cost budget δ
+    (fun q st hst => by
+      simpa [flag.latch_of_false step q (Bool.eq_false_iff.mpr hst)] using
+        hstep q st (Bool.eq_false_iff.mpr hst))
+    (fun q st hst x hx hgood => hgrow q st (Bool.eq_false_iff.mpr hst) x
+      (by rwa [flag.latch_of_false step q (Bool.eq_false_iff.mpr hst)] at hx)
+      (Bool.eq_false_iff.mpr hgood)) hn hk (Bool.eq_false_iff.mp hs)
 
 /-- Triangular (`n * size s + n.choose 2`) bad-event union bound for
 `ProbOracleComp.runWith (flag.latch step)`, stated directly in terms of unflagged `step`
@@ -377,15 +360,14 @@ theorem toOuterMeasure_latch_choose_two_le (flag : StateLens S Bool)
     {program : ProbOracleComp qspec α} {n : ℕ} (hn : program.IsQueryBounded n)
     {s : S} (hs : flag.get s = false) :
     (ProbOracleComp.runWith (flag.latch step) program s).toOuterMeasure {x | flag.Bad x.2} ≤
-      (n * size s + n.choose 2 : ℕ) * δ := by
-  refine ProbOracleComp.toOuterMeasure_bad_choose_two_le size δ
-    (fun q st hst => ?_) (fun q st hst x hx hgood => ?_) hn (Bool.eq_false_iff.mp hs)
-  · have hfalse : flag.get st = false := Bool.eq_false_iff.mpr hst
-    rw [flag.latch_of_false step q hfalse]
-    exact hstep q st hfalse
-  · have hfalse : flag.get st = false := Bool.eq_false_iff.mpr hst
-    rw [flag.latch_of_false step q hfalse] at hx
-    exact hgrow q st hfalse x hx (Bool.eq_false_iff.mpr hgood)
+      (n * size s + n.choose 2 : ℕ) * δ :=
+  ProbOracleComp.toOuterMeasure_bad_choose_two_le size δ
+    (fun q st hst => by
+      simpa [flag.latch_of_false step q (Bool.eq_false_iff.mpr hst)] using
+        hstep q st (Bool.eq_false_iff.mpr hst))
+    (fun q st hst x hx hgood => hgrow q st (Bool.eq_false_iff.mpr hst) x
+      (by rwa [flag.latch_of_false step q (Bool.eq_false_iff.mpr hst)] at hx)
+      (Bool.eq_false_iff.mpr hgood)) hn (Bool.eq_false_iff.mp hs)
 
 end Latch
 

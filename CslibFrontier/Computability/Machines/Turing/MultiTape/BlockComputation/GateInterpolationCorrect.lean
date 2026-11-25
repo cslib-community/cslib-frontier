@@ -34,13 +34,13 @@ theorem start_sumState {p r m : ℕ} (e : Q ≃ Fin s) (N b σ i chunk stride : 
     start (k := k) e (QueryGate.sumState
       (QueryGate.gateParams (s := 2 ^ m) (⟨N, b, σ, i, m, chunk, stride⟩ : Context) x) table j) =
       SupplierChunk.prepare e ((m, chunk),
-        (N, b, σ, i, (2 ^ m) ^ ((k * 3 + 1) * r), j, stride)) := by
+        ⟨N, b, σ, i, (2 ^ m) ^ ((k * 3 + 1) * r), j, stride⟩) := by
   change SupplierChunk.prepare e ((m, chunk),
-    (N, b, σ, i, (2 ^ m) ^ ((k * 3 + 1) * r),
+    ⟨N, b, σ, i, (2 ^ m) ^ ((k * 3 + 1) * r),
       (QueryGate.sumState
         (QueryGate.gateParams (s := 2 ^ m)
-            (⟨N, b, σ, i, m, chunk, stride⟩ : Context) x) table j).2.1,
-      stride)) = _
+            (⟨N, b, σ, i, m, chunk, stride⟩ : Context) x) table j).counter,
+      stride⟩) = _
   rw [QueryGate.sumState_counter]
 
 /-- Every actual interpolation assignment is answered by the original-input native supplier.

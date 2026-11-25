@@ -80,7 +80,7 @@ theorem subdivisionLayeredCall_inSpace {Context : Type} (encContext : Context â†
   have ht := QueryMachine.Subdivision.encQuery_toLabel_budget encContext hid
   have hq := encLayeredQuery_mk_budget (encLayeredParameters_radix_budget hp)
     (encLayeredParameters_inputLength_budget hp) (budget_natDiv hf hw) (budget_natMod hf hw)
-    (budget_natDiv ht hw) (budget_natMod ht hw) (budget_const none (.refl _))
+    (budget_natDiv ht hw) (budget_natMod ht hw) (budget_const none)
   have hinl := of_inO (ComputableInO.inl encLayeredQuery encBool)
   have hcall := budget_comp_linear hinl hq
   exact hcall

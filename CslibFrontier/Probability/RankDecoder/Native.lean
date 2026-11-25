@@ -96,21 +96,11 @@ theorem iterate_step_prefix (mass : α → List Bool → ℕ) (depth : α → �
   | zero => simp [decode]
   | succ n ih =>
     have hactive : pre.length < depth a := by omega
-    have hstep : step mass depth (a, pre, rank) =
-        if rank < mass a (pre ++ [false]) then (a, pre ++ [false], rank)
-        else (a, pre ++ [true], rank - mass a (pre ++ [false])) := by
-      simp only [step, hactive, ite_true]
-    rw [Function.iterate_succ_apply, hstep]
-    simp only [decode]
-    split_ifs
-    · rw [ih (pre ++ [false]) rank (by
-        simp only [List.length_append, List.length_singleton]
-        omega)]
-      simp only [List.append_assoc, List.singleton_append]
-    · rw [ih (pre ++ [true]) (rank - mass a (pre ++ [false])) (by
-        simp only [List.length_append, List.length_singleton]
-        omega)]
-      simp only [List.append_assoc, List.singleton_append]
+    rw [Function.iterate_succ_apply]
+    simp only [step, hactive, ite_true, decode]
+    split_ifs <;>
+      rw [ih _ _ (by simp only [List.length_append, List.length_singleton]; omega),
+        List.append_assoc, List.singleton_append]
 
 private theorem state_length_step_le (enc : α ↪ List Bool) (mass : α → List Bool → ℕ)
     (depth : α → ℕ) (s : State α) :
@@ -152,16 +142,15 @@ private theorem finish_polyTime {enc : α ↪ List Bool} {depth : α → ℕ}
       (stateEncoding enc) := by
   open ComputableInPolyTime in
     have hstate := fst (stateEncoding enc) encNat
-    have hinput := hstate.fst'
     have hprefix := hstate.snd'.fst'
     have hrank := hstate.snd'.snd'
     have hleft := snd (stateEncoding enc) encNat
-    have hfalse := hinput.prod ((bitsAppend hprefix (const [false])).prod hrank)
-    have htrue := hinput.prod ((bitsAppend hprefix (const [true])).prod
-      (binary_sub.comp (hrank.prod hleft)))
-    have hsplit := (binary_lt.comp (hrank.prod hleft)).ite hfalse htrue
-    have hactive := binary_lt.comp ((length_polyTime.comp hprefix).prod (hd.comp hinput))
-    refine (hactive.ite hsplit hstate).of_enc_eq fun p => ?_
+    have hsplit := (binary_lt.comp (hrank.prod hleft)).ite
+      (hstate.fst'.prod ((bitsAppend hprefix (const [false])).prod hrank))
+      (hstate.fst'.prod ((bitsAppend hprefix (const [true])).prod
+        (binary_sub.comp (hrank.prod hleft))))
+    refine ((binary_lt.comp ((length_polyTime.comp hprefix).prod
+      (hd.comp hstate.fst'))).ite hsplit hstate).of_enc_eq fun p => ?_
     simp only [finish, stateEncoding, Function.comp_def, decide_eq_true_eq]
 
 private theorem initial_polyTime {enc : α ↪ List Bool} {rank : α → ℕ}
@@ -187,8 +176,7 @@ private theorem stepCertificate_expTimePolySpace {enc : α ↪ List Bool}
     (stepCertificate hd cm).ExpTimePolySpace (fun s => E s.input) := by
   have hp := (NativeCertificate.expTimePolySpace_ofPolyTime
     (ComputableInPolyTime.id' (encIn := stateEncoding enc)) (fun _ => 0)).prod hm
-  have hf := hp.comp_ofPolyTime (finish_polyTime hd)
-  simpa only [NativeCertificate.ExpTimePolySpace, stepCertificate, Nat.zero_add] using hf
+  exact (hp.comp_ofPolyTime (finish_polyTime hd)).mono fun _ => (Nat.zero_add _).le
 
 /-- A native realization of the decoder, using one supplied left-child mass computation in each
 of `depth a` rounds. The oracle receives the retained input, current prefix and residual rank. -/

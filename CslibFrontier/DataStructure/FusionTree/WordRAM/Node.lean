@@ -64,48 +64,75 @@ def finish (w : ℕ) : Code .standard registers :=
 /-- Complete width-indexed internal-node query. Node-dependent constants occur only in RAM. -/
 def code (w : ℕ) : Code .standard registers := .seq readHeader (.seq initial (finish w))
 
+private theorem size_sketchQuery (strict : Bool) : (sketchQuery strict).size = 119 := by
+  have hcomp : compress.size = 102 := by
+    simp only [compress, Code.size, Code.size_rename, size_moves, CompressProgram.size_code]; rfl
+  have hrank : (rank strict).size = 17 := by
+    cases strict <;> simp only [rank, Code.size, Code.size_rename, size_moves] <;> rfl
+  simp only [sketchQuery, Code.size, hcomp, hrank]
+
 /-- One width-independent code-size bound includes both branches of every conditional. -/
 theorem size_code (w : ℕ) : (code w).size ≤ 201000 := by
+  have hread : readHeader.size = 55 := by
+    simp only [readHeader, Code.size, Code.size_rename]; rfl
+  have hnb : neighbors.size = 28 := by
+    simp only [neighbors, Code.size, Code.size_rename, size_moves]; rfl
+  have hinit : initial.size = 152 := by
+    simp only [initial, saveNeighbor, Code.size, size_sketchQuery, hnb]
+  have hbnd : boundaries.size = 13 := by
+    simp only [boundaries, Code.size, Code.size_rename, size_moves]; rfl
+  have hbq : boundaryQuery.size = 244 := by
+    simp only [boundaryQuery, secondQuery, Code.size, size_sketchQuery]
   have hm := MSB.Program.size_scalarCode w
-  have hh : ReadHeaderProgram.code.size = 54 := rfl
-  have hn : NeighborProgram.code.size = 21 := rfl
-  have hb : BoundaryProgram.code.size = 10 := rfl
-  have hr : RankProgram.code.size = 8 := rfl
-  have hl : LowerRankProgram.code.size = 8 := rfl
-  simp only [code, readHeader, initial, finish, correction, highest, boundaries,
-    boundaryQuery, secondQuery, sketchQuery, compress, rank, neighbors, neighborAddress,
-    saveNeighbor, Code.size, Code.size_rename, size_moves, hh, hn, hb, hr, hl,
-    CompressProgram.size_code, compressionInputs, rankInputs, neighborInputs, boundaryInputs,
-    List.length_cons, List.length_nil, Bool.false_eq_true, ↓reduceIte]
+  simp only [code, finish, correction, highest, Code.size, Code.size_rename,
+    hread, hinit, hbnd, hbq]
   omega
+
+private theorem preserves_bank {k offset : ℕ} {hk : offset + k ≤ registers} (ho : 40 ≤ offset)
+    (c : Code .standard k) {i : Fin registers} (hhi : i.val < 39) :
+    (c.rename (bank offset hk)).Preserves i :=
+  c.preserves_rename_of_offset _ (fun _ => rfl) i (Or.inl (by omega))
+
+private theorem preserves_moves {xs : List (Fin registers × Fin registers)} {i : Fin registers}
+    (hxs : ∀ p ∈ xs, 40 ≤ p.1.val) (hhi : i.val < 39) : (moves xs).Preserves i := by
+  induction xs with
+  | nil => intro h; have : (39 : ℕ) = i.val := congrArg Fin.val (Option.some.inj h); omega
+  | cons p ps ih =>
+    refine ⟨fun h => ?_, ih fun q hq => hxs q (List.mem_cons_of_mem p hq)⟩
+    have := hxs p List.mem_cons_self
+    have := congrArg Fin.val (Option.some.inj h)
+    omega
+
+private theorem preserves_sketchQuery (strict : Bool) {i : Fin registers} (hhi : i.val < 39) :
+    (sketchQuery strict).Preserves i :=
+  ⟨⟨preserves_moves (by simp [compressionInputs, compressBank, bank]) hhi,
+    preserves_bank (by decide) _ hhi⟩,
+   ⟨preserves_moves (by cases strict <;> simp [rankInputs, rankBank, bank]) hhi,
+    preserves_bank (by decide) _ hhi⟩⟩
 
 /-- Registers 31 through 38 belong to the outer traversal. They are outside every node
 workspace; the terminal self-copy used by `moves` occupies register 39 instead. -/
 private theorem preserves_caller (w : ℕ) (i : Fin registers) (hlo : 31 ≤ i.val)
     (hhi : i.val < 39) : (code w).Preserves i := by
-  have hh (c : Code .standard 21) : (c.rename headerBank).Preserves i :=
-    c.preserves_rename_of_offset _ (fun _ => rfl) i (Or.inr (by omega))
-  have hc (c : Code .standard 21) : (c.rename compressBank).Preserves i :=
-    c.preserves_rename_of_offset _ (fun _ => rfl) i (Or.inl (by omega))
-  have hr (c : Code .standard 10) : (c.rename rankBank).Preserves i :=
-    c.preserves_rename_of_offset _ (fun _ => rfl) i (Or.inl (by omega))
-  have hn (c : Code .standard 17) : (c.rename neighborBank).Preserves i :=
-    c.preserves_rename_of_offset _ (fun _ => rfl) i (Or.inl (by omega))
-  have hb (c : Code .standard 10) : (c.rename boundaryBank).Preserves i :=
-    c.preserves_rename_of_offset _ (fun _ => rfl) i (Or.inl (by omega))
-  have hm (c : Code .standard (Cslib.WordRAM.Multiword.Bank.capacity 44 + 4)) :
-      (c.rename msbBank).Preserves i :=
-    c.preserves_rename_of_offset _ (fun _ => rfl) i (Or.inl (by omega))
-  simp only [code, readHeader, initial, finish, correction, highest, boundaries,
-    boundaryQuery, secondQuery, sketchQuery, compress, rank, neighbors, neighborAddress,
-    saveNeighbor, moves, compressionInputs, rankInputs, neighborInputs, boundaryInputs,
-    Code.Preserves, hh, hc, hr, hn, hb, hm, true_and, and_true, Bool.false_eq_true,
-    ↓reduceIte, Op.dest, ne_eq, Option.some.injEq, Fin.ext_iff]
-  dsimp only [query, pointer, out, argument, cut, zero, chosen, divergence, position,
-    headerBank, compressBank, rankBank, neighborBank, boundaryBank, msbBank, bank,
-    Cslib.WordRAM.Multiword.Bank.inputReg, MSB.Program.output]
-  norm_num [registers, Op.bin, Op.dest, Fin.ext_iff]
-  omega
+  have ne_i {d : Fin registers} (hd : d.val < 31 ∨ 40 ≤ d.val) : some d ≠ some i := by
+    intro h; have := congrArg Fin.val (Option.some.inj h); omega
+  have low {d : Fin registers} (hd : d.val < 31 := by decide) := ne_i (Or.inl hd)
+  have high {d : Fin registers} (hd : 40 ≤ d.val := by decide) := ne_i (Or.inr hd)
+  have hsecond (strict : Bool) (src : Fin registers) : (secondQuery strict src).Preserves i :=
+    ⟨low, preserves_sketchQuery strict hhi, low⟩
+  have hnb : neighbors.Preserves i :=
+    ⟨preserves_moves (by simp [neighborInputs, neighborBank, bank]) hhi,
+      ⟨high, high, high⟩, preserves_bank (by decide) _ hhi⟩
+  have hread : readHeader.Preserves i :=
+    ⟨low, ReadHeaderProgram.code.preserves_rename_of_offset _ (fun _ => rfl) i (Or.inr (by omega))⟩
+  have hinit : initial.Preserves i :=
+    ⟨low, preserves_sketchQuery false hhi, low, hnb, low, low, low⟩
+  have hcorr : (correction w).Preserves i :=
+    ⟨⟨high, preserves_bank (by decide) _ hhi, low⟩,
+      ⟨preserves_moves (by simp [boundaryInputs, boundaryBank, bank]) hhi,
+        preserves_bank (by decide) _ hhi⟩,
+      hsecond true _, hsecond false _⟩
+  exact ⟨hread, hinit, low, hcorr⟩
 
 /-- Every actual execution frames the caller's eight traversal registers. -/
 theorem caller_regs_eq {w t : ℕ} {x y : Data registers} (he : Exec w (code w) x y t)
@@ -134,8 +161,7 @@ private theorem exec_correction {w n q a : ℕ} {keys : Fin n → ℕ} (p : Node
   obtain ⟨hlfit, hhfit⟩ := boundary_fits hq hdw
   by_cases hbit : q.testBit d = false
   · have htest : (Cond.eq (boundaryBank 9) zero).Holds v := by
-      simp only [Cond.holds_eq, hb, hvzero]
-      exact (bit_eq_zero_iff q d).mpr hbit
+      simpa only [Cond.holds_eq, hb, hvzero, bit_eq_zero_iff] using hbit
     obtain ⟨y, hey, hy, hry, hym⟩ := exec_secondQuery p true (boundaryBank 8)
       (by omega) hn hs hk hnB hlarge v hrv hhfit hh
     refine ⟨y, heu.seq (hev.within.seq
@@ -143,16 +169,14 @@ private theorem exec_correction {w n q a : ℕ} {keys : Fin n → ℕ} (p : Node
         (by decide : 122 ≤ 123))), ?_, hry, hym.trans (hfv.1.trans hum)⟩
     have hb0 : q.testBit (highestDiff w (keys j) q) = false := hbit
     simpa [sketchCut, boundaryRank, hb0] using hy
-  · have hbit' : q.testBit d = true := by cases he : q.testBit d <;> simp_all
-    have htest : ¬(Cond.eq (boundaryBank 9) zero).Holds v := by
-      simp only [Cond.holds_eq, hb, hvzero]
-      exact fun h => hbit ((bit_eq_zero_iff q d).mp h)
+  · have htest : ¬(Cond.eq (boundaryBank 9) zero).Holds v := by
+      simpa only [Cond.holds_eq, hb, hvzero, bit_eq_zero_iff] using hbit
     obtain ⟨y, hey, hy, hry, hym⟩ := exec_secondQuery p false (boundaryBank 7)
       (by omega) hn hs hk hnB hlarge v hrv hlfit hl
     refine ⟨y, heu.seq (hev.within.seq
       (ExecWithin.branch_neg (pos := secondQuery true (boundaryBank 8)) htest hey.within)),
       ?_, hry, hym.trans (hfv.1.trans hum)⟩
-    have hb1 : q.testBit (highestDiff w (keys j) q) = true := hbit'
+    have hb1 : q.testBit (highestDiff w (keys j) q) = true := Bool.eq_true_of_ne_false hbit
     simpa [sketchCut, boundaryRank, hb1, sketchRank] using hy
 
 /-- Every bounded query receives its true inclusive full-key rank. The physical program

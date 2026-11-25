@@ -221,18 +221,15 @@ private theorem bounds_aux {n A D N J L I E cD cO M K : ℕ} (hJ : 1 ≤ J)
             Nat.mul_le_mul (Nat.pow_le_pow_left hIM 4) (Nat.pow_le_pow_left (by omega) 2)
         _ = 64 * (M ^ 4 * J ^ 2) := by ring
         _ ≤ 64 * (M ^ 5 * J ^ 3) := by gcongr <;> omega
-    have hA : A + (n + n) ≤ M ^ 5 * J ^ 3 := by
-      have h₁ : A + (n + n) ≤ M := by omega
-      have h₂ : M ≤ M ^ 5 * J ^ 3 :=
-        (hM2.trans hM25).trans (Nat.le_mul_of_pos_right _ (Nat.pow_pos hJ))
-      omega
+    have hA : A + (n + n) ≤ M ^ 5 * J ^ 3 :=
+      (by omega : A + (n + n) ≤ M).trans
+        ((hM2.trans hM25).trans (Nat.le_mul_of_pos_right _ (Nat.pow_pos hJ)))
     rw [hK]
     generalize M ^ 5 * J ^ 3 = X at hA hU hO2 ⊢
     linarith
   · have hY : 10 * (cO + 1) * (M ^ 2 * J) ≤ 100 * (cO + 1) ^ 2 * (M ^ 5 * J) :=
       calc _ ≤ 10 * (10 * (cO + 1) ^ 2) * (M ^ 5 * J) :=
-            Nat.mul_le_mul (Nat.mul_le_mul_left _ (by nlinarith))
-              (Nat.mul_le_mul_right _ hM25)
+            by gcongr; nlinarith
         _ = 100 * (cO + 1) ^ 2 * (M ^ 5 * J) := by ring
     have hM2J : M ^ 2 * J ≤ M ^ 5 * J := Nat.mul_le_mul_right _ hM25
     rw [hK]
@@ -254,13 +251,12 @@ theorem computableInO_diagonal :
     ComputableInO diagonal encBits encBool (fun x => 2 ^ (4 * x.length))
       fun x => 2 ^ (2 * x.length) := by
   obtain ⟨dd, ed, hdec⟩ := exists_computableInDegree_decodeDesc
-  have hu := Internal.DecoderWords.unframe_degree
-  have hdesc := (hdec.comp hu).inO
-  have hsym := Universal.computableInO_map_eBit
-  have hclock := (ComputableInDegree.two_pow_length encBits).inO_one
+  have hdesc := (hdec.comp Internal.DecoderWords.unframe_degree).inO
   have hpre : ComputableInO
       (fun x : List Bool => (decodeDesc (unframe x), x.map eBit, 2 ^ x.length))
-      encBits eIn _ _ := hdesc.prod (hsym.prod hclock)
+      encBits eIn _ _ :=
+    hdesc.prod (Universal.computableInO_map_eBit.prod
+      (ComputableInDegree.two_pow_length encBits).inO_one)
   have hU := computableInO_universal_polynomialBound.comp
     (f := universal)
     (g := fun x : List Bool => (decodeDesc (unframe x), x.map eBit, 2 ^ x.length)) hpre
@@ -277,14 +273,12 @@ theorem computableInO_diagonal :
     (by fun_prop)
   set K := 65 + 100 * (cO + 1) ^ 2 with hK
   have hbounds (x : List Bool) := by
-    have hL : (encNat (2 ^ x.length)).length = x.length + 1 := by
-      rw [length_encNat_two_pow]
-    have hN := length_encList_map_eBit_le x
     have hE := hcO x
     simp only [Function.comp_apply, encBits, Function.Embedding.refl_apply] at hE
     exact bounds_aux
       (I := (eIn (decodeDesc (unframe x), x.map eBit, 2 ^ x.length)).length) Nat.one_le_two_pow
-      (hcD x) hN hL (by rw [length_encPair, length_encPair]; rfl) rfl hK hE
+      (hcD x) (length_encList_map_eBit_le x) (length_encNat_two_pow x.length)
+      (by rw [length_encPair, length_encPair]; rfl) rfl hK hE
   refine h.mono (K * C) (fun x => ?_) fun x => ?_
   · obtain ⟨h₁, -⟩ := hbounds x
     simp only [encBits, Function.Embedding.refl_apply] at h₁ ⊢

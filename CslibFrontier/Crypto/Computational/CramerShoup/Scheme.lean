@@ -1301,23 +1301,19 @@ private theorem decodeCramerShoup_fiber_eq_decodeCramerShoupDH_of_not_bad
               (csCtV (decodeBits4 ct_q)) (csCtW (decodeBits4 ct_q)) =
             F.encodeProjHash d δ.val 0 (csCtV (decodeBits4 ct_q)) (csCtW (decodeBits4 ct_q)) := by
         rw [← hvElem, hwElem, encodeProjHash_encode, encodeProjHash_encode]
-        simp only [ZMod.natCast_zmod_val, Nat.cast_zero]
-        have hfib1 := projHash_fiber_eq F d α β' (α * β') δ τ
-        have hfib0 := projHash_fiber_eq F d α β' (α * β') δ 0
-        rw [sub_self, zero_mul, add_zero] at hfib1 hfib0
-        rw [mul_zero, sub_zero] at hfib0
-        rw [hfib1, hfib0]
+        simp only [ZMod.natCast_zmod_val, Nat.cast_zero,
+          projHash_fiber_eq F d α β' (α * β'), sub_self, zero_mul, add_zero]
+        simpa only [mul_zero, sub_zero, sub_self, zero_mul, add_zero] using
+          congrArg (F.encode d) (projHash_fiber_eq F d α β' (α * β') δ 0).symm
       have hproj2 (r : ℕ) :
           F.encodeProjHash2 d (δ₁ - α * τ₁).val τ₁.val (δ₂ - α * τ₂).val τ₂.val r
             (csCtV (decodeBits4 ct_q)) (csCtW (decodeBits4 ct_q)) =
           F.encodeProjHash2 d δ₁.val 0 δ₂.val 0 r
             (csCtV (decodeBits4 ct_q)) (csCtW (decodeBits4 ct_q)) := by
         rw [← hvElem, hwElem, encodeProjHash2_encode, encodeProjHash2_encode]
-        simp only [ZMod.natCast_zmod_val, Nat.cast_zero]
-        have hfib2 := projHash2_fiber_dh F d α β' δ₁ δ₂ τ₁ τ₂ (r : ZMod (F.order d))
-        have hfib0 := projHash2_fiber_dh F d α β' δ₁ δ₂ 0 0 (r : ZMod (F.order d))
-        simp only [mul_zero, sub_zero] at hfib0
-        rw [hfib2, hfib0]
+        simpa only [ZMod.natCast_zmod_val, Nat.cast_zero, mul_zero, sub_zero] using
+          congrArg (F.encode d) ((projHash2_fiber_dh F d α β' δ₁ δ₂ τ₁ τ₂ r).trans
+            (projHash2_fiber_dh F d α β' δ₁ δ₂ 0 0 r).symm)
       simp only [skNatOfZMod, ZMod.val_zero, hproj1, hproj2]
     · simp only [Bool.not_eq_true] at hv
       simp only [hv, csCtV, Bool.and_false, Bool.false_and, Bool.false_eq_true, ↓reduceIte]
@@ -1526,19 +1522,16 @@ private theorem tsum_isCramerShoupBadDH_phase2_le
               · simpa only [extractCramerShoupTuple, parts, ct, decodeBits4_encBits4,
                   cramerShoupHashMod, csCtV, csCtW, csCtE, csCtTail, csCtBody, ρ', ρ, r'] using hρ
             exact Bool.false_ne_true (hnot_coll.symm.trans hcoll)
-          rcases Prod.mk.inj (encBits4.injective htuple_eq) with ⟨hv_eq, hrest1⟩
-          rcases Prod.mk.inj hrest1 with ⟨hw_eq, hrest2⟩
-          rcases Prod.mk.inj hrest2 with ⟨he_eq, had_eq⟩
-          have hne_ct : ct_q ≠ ct := by
-            intro hct_eq
-            have htrue : ((ct_q == ct) && (ad_q == ad)) = true := by
-              simp only [hct_eq, had_eq, beq_self_eq_true, Bool.and_self]
-            exact Bool.false_ne_true (hne_ct_ad.symm.trans htrue)
+          obtain ⟨hv_eq, hw_eq, he_eq, had_eq⟩ :
+              csCtV parts = v ∧ csCtW parts = w ∧ csCtE parts = e ∧ ad_q = ad := by
+            simpa only [Prod.mk.injEq] using encBits4.injective htuple_eq
+          have hne_ct : ct_q ≠ ct := fun hct_eq => Bool.false_ne_true
+            (hne_ct_ad.symm.trans (by simp only [hct_eq, had_eq, beq_self_eq_true, Bool.and_self]))
+          have hr'_eq : (r' : ZMod (F.order d)) = ρ := hρ
           have htag_eq :
               F.encodeProjHash2 d (δ₁ - α * (ξ - ρ * τ₂)).val (ξ - ρ * τ₂).val
                 (δ₂ - α * τ₂).val τ₂.val r' (csCtV parts) (csCtW parts) =
               F.encode d ((β * (δ₁ + ρ * δ₂) + (γ - α * β) * ξ) • F.generator d) := by
-            have hr'_eq : (r' : ZMod (F.order d)) = ρ := hρ
             rw [hv_eq, hw_eq, encodeProjHash2_encode]
             simp only [ZMod.natCast_zmod_val, hr'_eq, projHash2_fiber_challenge_eq]
           have hz_ne :
@@ -1888,15 +1881,12 @@ theorem advantage_cramerShoupGame4_game5_le
   peel_binds d α β
   refine (advantage_uniform_bind_of_eq_of_ne (α * β) _ _ fun γ hγ => ?_).trans
     (by simpa only [Nat.cast_one] using F.div_order_le_div_of_le (Q := 1) hm0 (hm d d_mem))
-  refine congrArg _ (funext fun δ => ?_)
-  rw [PMF.bind_comm]; conv_rhs => rw [PMF.bind_comm]
-  refine congrArg _ (funext fun δ₁ => ?_)
-  rw [PMF.bind_comm]; conv_rhs => rw [PMF.bind_comm]
-  refine congrArg _ (funext fun τ₁ => ?_)
-  rw [PMF.bind_comm]; conv_rhs => rw [PMF.bind_comm]
-  refine congrArg _ (funext fun δ₂ => ?_)
-  rw [PMF.bind_comm]; conv_rhs => rw [PMF.bind_comm]
-  refine congrArg _ (funext fun τ₂ => ?_)
+  have hswap {μ : PMF (ZMod (F.order d))} {f g : _ → _ → Game}
+      (h : ∀ y, μ.bind (f · y) = μ.bind (g · y)) :
+      μ.bind (fun x => μ.bind (f x)) = μ.bind (fun x => μ.bind (g x)) :=
+    (PMF.bind_comm μ μ f).trans ((congrArg _ (funext h)).trans (PMF.bind_comm μ μ g).symm)
+  refine congrArg _ (funext fun δ =>
+    hswap fun δ₁ => hswap fun τ₁ => hswap fun δ₂ => hswap fun τ₂ => ?_)
   rw [bind_runStatelessOracle_comm, bind_runStatelessOracle_comm]
   refine congrArg _ (funext fun choice => ?_)
   by_cases hvalid : (isElem (d, encodeMsg (d, csChoiceMsg₀ choice)) &&

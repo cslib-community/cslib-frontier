@@ -30,9 +30,6 @@ import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 namespace Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandPreparation
 
--- The persistent-register checks reduce the fixed 96-register parameter bank.
-set_option maxRecDepth 4096
-
 open Cslib.WordRAM Cslib.WordRAM.Signed
 open Cslib.Algorithms.MatrixMultiplication.Schonhage
 
@@ -108,11 +105,7 @@ theorem exec_band {w L m N : ℕ} (hw : 0 < w) (side : Bool) (β : ℕ) (x : Dat
   obtain ⟨e, hee, hev, hef, her⟩ := exec_encoderKernel hw side
     (bandValue L m N β side matrix) p hheader hinput A hA
     (fun i hi => abs_bandValue_le side matrix A hA ha ⟨i, hi⟩) hmag hfit
-  have hep' : BandParameters L m N e := parameters_reframe hpp (by
-    intro i hi
-    apply her
-    have hp : ∀ i ∈ parameterRegisters, 32 ≤ i.val := by decide
-    exact hp i hi)
+  have hep' : BandParameters L m N e := by regs_frame
   have heb : e.regs band = β := by regs_frame
   obtain ⟨y, hec, hmem, hyp, hyb⟩ := exec_collectBand side β e hep' hβ heb hfit
   refine ⟨y, ?_, hyp, hyb, ?_, ?_⟩

@@ -198,12 +198,9 @@ theorem phaseOracle_marked_sub (z : Fin N) (ψ : State N W) :
     phaseOracle (marked z) ψ - ψ = (-2 : ℂ) • ctrlProj z ψ := by
   ext p
   simp only [PiLp.sub_apply, phaseOracle_apply, marked, PiLp.smul_apply, ctrlProj, smul_eq_mul]
-  by_cases h : p.1 = z <;> cases p.2.1
-  · simp [h]
-  · simp only [h, decide_true, Bool.and_self, ite_true, and_self]
-    ring
-  · simp [h]
-  · simp [h]
+  cases p.2.1
+  · simp
+  · by_cases h : p.1 = z <;> simp [h]; ring
 
 /-- **The hybrid argument** for one marked item: on the inputs `e_z` and `0`, the states after `t`
 queries differ by at most `2 ∑_{s < t} ‖Π_z φ_s‖`, where `φ_s` is the state on the all-zero input
@@ -269,8 +266,10 @@ theorem regProb_sub_le {ψ φ : State N W} (hψ : ‖ψ‖ = 1) (hφ : ‖φ‖ 
       _ ≤ ‖ψ - φ‖ := norm_proj_le _ _
   have h2 : ‖proj z ψ‖ + ‖proj z φ‖ ≤ 2 := by
     linarith [norm_proj_le z ψ, norm_proj_le z φ]
-  have h3 : 0 ≤ ‖proj z ψ‖ + ‖proj z φ‖ := by positivity
-  nlinarith [norm_nonneg (ψ - φ), norm_nonneg (proj z ψ), norm_nonneg (proj z φ)]
+  calc ‖proj z ψ‖ ^ 2 - ‖proj z φ‖ ^ 2
+      = (‖proj z ψ‖ + ‖proj z φ‖) * (‖proj z ψ‖ - ‖proj z φ‖) := by ring
+    _ ≤ (‖proj z ψ‖ + ‖proj z φ‖) * ‖ψ - φ‖ := by gcongr
+    _ ≤ 2 * ‖ψ - φ‖ := by gcongr
 
 /-- **The quantum search lower bound** by the hybrid argument of [Bennett, Bernstein, Brassard,
 Vazirani][BBBV1997]: if a `T`-query algorithm with a unit initial state outputs `z` with probability
@@ -305,7 +304,8 @@ theorem card_sub_two_le (U : ℕ → State N W →ₗᵢ[ℂ] State N W) {ψ₀ 
     have hz' : regProb φ z ≤ 1 / 3 := by simpa [B] using hz
     have hd := regProb_sub_le (by rw [norm_run, hψ₀]) hφ z (ψ := run U ψ₀ (marked z) T)
     have h6 : (1 / 6 : ℝ) ≤ ‖run U ψ₀ (marked z) T - φ‖ := by linarith [hsucc z]
-    nlinarith
+    simpa only [show (1 / 6 : ℝ) ^ 2 = 1 / 36 by norm_num] using
+      pow_le_pow_left₀ (by norm_num) h6 2
   have hsum := sum_sq_norm_run_sub_le U hψ₀ T
   have hcompl : ((univ \ B).card : ℝ) * (1 / 36) ≤
       ∑ z, ‖run U ψ₀ (marked z) T - φ‖ ^ 2 := by
@@ -321,6 +321,6 @@ theorem card_sub_two_le (U : ℕ → State N W →ₗᵢ[ℂ] State N W) {ψ₀ 
     have : (B.card : ℝ) ≤ 2 := by exact_mod_cast hB
     rw [Nat.cast_sub (card_le_univ B |>.trans_eq (Fintype.card_fin N))]
     linarith
-  nlinarith
+  linarith
 
 end Cslib.Quantum

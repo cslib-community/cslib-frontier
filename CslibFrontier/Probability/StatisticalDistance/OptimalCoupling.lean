@@ -49,97 +49,15 @@ namespace Cslib.Probability.PMF
 
 variable {α β : Type*}
 
-private theorem sum_coe_eq_one [Fintype α] (μ : PMF α) : ∑ a, μ a = 1 := by
-  simpa [tsum_fintype] using μ.tsum_coe
-
 /-- **Optimal coupling** ([LevinPeres2017], Proposition 4.7 and Remark 4.8). On a finite
 type, two distributions have a coupling whose disagreement probability is exactly their
 statistical distance. -/
 theorem exists_coupling_toReal_eq_dist [Fintype α] (μ ν : PMF α) :
     ∃ ω : PMF (α × α), ω.map Prod.fst = μ ∧ ω.map Prod.snd = ν ∧
       (ω.toOuterMeasure {p | p.1 ≠ p.2}).toReal = dist μ ν := by
-  classical
-  set e : α → ℝ≥0∞ := fun a => μ a - ν a with he_def
-  set f : α → ℝ≥0∞ := fun a => ν a - μ a with hf_def
-  set m : α → ℝ≥0∞ := fun a => min (μ a) (ν a) with hm_def
-  set δ : ℝ≥0∞ := ∑ a, e a with hδ_def
-  have hμsplit (a : α) : μ a = e a + m a := tsub_add_min.symm
-  have hνsplit (a : α) : ν a = f a + m a := by
-    simp only [hf_def, hm_def, min_comm (μ a)]
-    exact tsub_add_min.symm
-  have hm_ne_top : ∑ a, m a ≠ ⊤ :=
-    ne_top_of_le_ne_top (by rw [sum_coe_eq_one μ]; exact ENNReal.one_ne_top)
-      (Finset.sum_le_sum fun a _ => min_le_left _ _)
-  have hδf : ∑ a, f a = δ := by
-    have h1 : δ + ∑ a, m a = 1 := by
-      rw [← sum_coe_eq_one μ, ← Finset.sum_add_distrib]
-      exact Finset.sum_congr rfl fun a _ => (hμsplit a).symm
-    have h2 : ∑ a, f a + ∑ a, m a = 1 := by
-      rw [← sum_coe_eq_one ν, ← Finset.sum_add_distrib]
-      exact Finset.sum_congr rfl fun a _ => (hνsplit a).symm
-    exact (ENNReal.add_left_inj hm_ne_top).mp (h2.trans h1.symm)
-  have hδ_ne_top : δ ≠ ⊤ :=
-    ne_top_of_le_ne_top (by rw [sum_coe_eq_one μ]; exact ENNReal.one_ne_top)
-      (Finset.sum_le_sum fun a _ => tsub_le_self)
-  have hcancel (x : ℝ≥0∞) (hx : δ = 0 → x = 0) : x * δ * δ⁻¹ = x := by
-    by_cases hδ : δ = 0
-    · simp [hx hδ]
-    · rw [mul_assoc, ENNReal.mul_inv_cancel hδ hδ_ne_top, mul_one]
-  have he_zero (h : δ = 0) (a : α) : e a = 0 :=
-    (Finset.sum_eq_zero_iff.mp h) a (Finset.mem_univ a)
-  have hf_zero (h : δ = 0) (a : α) : f a = 0 :=
-    (Finset.sum_eq_zero_iff.mp (hδf.trans h)) a (Finset.mem_univ a)
-  have hef (a : α) : e a * f a = 0 := by
-    rcases le_total (μ a) (ν a) with h | h
-    · simp [he_def, tsub_eq_zero_of_le h]
-    · simp [hf_def, tsub_eq_zero_of_le h]
-  let w : α × α → ℝ≥0∞ := fun p =>
-    (if p.1 = p.2 then m p.1 else 0) + e p.1 * f p.2 * δ⁻¹
-  have hrow (a : α) : ∑ b, w (a, b) = μ a := by
-    simp only [w, Finset.sum_add_distrib, Finset.sum_ite_eq, Finset.mem_univ, ite_true,
-      ← Finset.sum_mul, ← Finset.mul_sum, hδf]
-    rw [hcancel _ fun h => he_zero h a, add_comm, ← hμsplit]
-  have hcol (b : α) : ∑ a, w (a, b) = ν b := by
-    simp only [w, Finset.sum_add_distrib, Finset.sum_ite_eq', Finset.mem_univ, ite_true,
-      ← Finset.sum_mul]
-    rw [← hδ_def, mul_comm δ, hcancel _ fun h => hf_zero h b, add_comm, ← hνsplit]
-  have htotal : ∑ p, w p = 1 := by
-    rw [Fintype.sum_prod_type]
-    simp only [hrow]
-    exact sum_coe_eq_one μ
-  let ω : PMF (α × α) := PMF.ofFintype w htotal
-  refine ⟨ω, ?_, ?_, ?_⟩
-  · ext a
-    rw [PMF.map_apply, tsum_fintype, Fintype.sum_prod_type, Finset.sum_comm]
-    simp only [ω, PMF.ofFintype_apply, Finset.sum_ite_eq, Finset.mem_univ, ite_true]
-    exact hrow a
-  · ext b
-    rw [PMF.map_apply, tsum_fintype, Fintype.sum_prod_type]
-    simp only [ω, PMF.ofFintype_apply, Finset.sum_ite_eq, Finset.mem_univ, ite_true]
-    exact hcol b
-  · have hind (p : α × α) :
-        Set.indicator {p : α × α | p.1 ≠ p.2} ω p = e p.1 * f p.2 * δ⁻¹ := by
-      by_cases hp : p.1 = p.2
-      · rw [Set.indicator_of_notMem (by simpa using hp), hp, hef, zero_mul]
-      · rw [Set.indicator_of_mem hp]
-        simp only [ω, PMF.ofFintype_apply, w, hp, ite_false, zero_add]
-    have hδω : ω.toOuterMeasure {p | p.1 ≠ p.2} = δ := by
-      rw [PMF.toOuterMeasure_apply, tsum_fintype]
-      simp only [hind]
-      rw [Fintype.sum_prod_type]
-      simp only [← Finset.mul_sum, ← Finset.sum_mul, hδf]
-      rw [← hδ_def]
-      exact hcancel δ id
-    rw [hδω, dist_eq_sum_filter_lt, Finset.sum_filter, hδ_def,
-      ENNReal.toReal_sum fun a _ => ne_top_of_le_ne_top (μ.apply_ne_top a) tsub_le_self]
-    refine Finset.sum_congr rfl fun a _ => ?_
-    split_ifs with h
-    · exact ENNReal.toReal_sub_of_le
-        ((ENNReal.toReal_le_toReal (ν.apply_ne_top a) (μ.apply_ne_top a)).mp h.le)
-        (μ.apply_ne_top a)
-    · rw [tsub_eq_zero_of_le
-        ((ENNReal.toReal_le_toReal (μ.apply_ne_top a) (ν.apply_ne_top a)).mp (not_lt.mp h)),
-        ENNReal.toReal_zero]
+  obtain ⟨ω, hfst, hsnd, hdisagree⟩ := exists_coupling_toOuterMeasure_eq_tsum_tsub μ ν
+  refine ⟨ω, hfst, hsnd, ?_⟩
+  rw [hdisagree, ← ofReal_dist, ENNReal.toReal_ofReal dist_nonneg]
 
 /-- Two distributions on a finite type are coupled within their statistical distance. -/
 theorem coupledWithin_dist [Fintype α] (μ ν : PMF α) :

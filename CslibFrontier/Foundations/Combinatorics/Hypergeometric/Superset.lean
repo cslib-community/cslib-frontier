@@ -53,33 +53,21 @@ theorem card_filter_subset_powersetCard_le {n u : ℕ} (hun : u ≤ n) (T : Fins
     (#{J ∈ (univ : Finset (Fin n)).powersetCard u | T ⊆ J} : ℝ) ≤
       n.choose u * ((u : ℝ) / n) ^ #T := by
   rcases lt_or_ge u #T with htu | htu
-  · have h0 : {J ∈ (univ : Finset (Fin n)).powersetCard u | T ⊆ J} = ∅ := by
-      refine filter_false_of_mem fun J hJ hTJ => ?_
-      have := card_le_card hTJ
-      rw [(mem_powersetCard.1 hJ).2] at this
-      omega
-    rw [h0, card_empty, Nat.cast_zero]
+  · rw [filter_false_of_mem fun J hJ hTJ =>
+      (card_le_card hTJ).not_gt (by rwa [(mem_powersetCard.1 hJ).2]), card_empty, Nat.cast_zero]
     positivity
   have hT : #T ≤ n := by simpa using card_le_univ T
-  have hcard : #{J ∈ (univ : Finset (Fin n)).powersetCard u | T ⊆ J} =
-      (n - #T).choose (u - #T) := by
-    rw [card_filter_powersetCard_subset T univ u (subset_univ _) htu, card_univ,
-      Fintype.card_fin]
-  rw [hcard]
+  rw [card_filter_powersetCard_subset T univ u (subset_univ _) htu, card_univ, Fintype.card_fin]
   rcases Nat.eq_zero_or_pos n with rfl | hn
-  · obtain rfl : u = 0 := by omega
-    have hT0 : #T = 0 := by omega
-    simp [hT0]
+  · simp [show u = 0 by omega, show #T = 0 by omega]
   -- `C(n - t, u - t) n ^ t ≤ C(n, u) u ^ t`, from `C(n, u) C(u, t) = C(n, t) C(n - t, u - t)`
-  have hmul : n.choose u * u.choose #T = n.choose #T * (n - #T).choose (u - #T) :=
-    Nat.choose_mul htu
-  have hle := Nat.choose_mul_pow_le hun #T
-  have hpos : 0 < n.choose #T := Nat.choose_pos hT
   have key : (n - #T).choose (u - #T) * n ^ #T ≤ n.choose u * u ^ #T := by
-    refine Nat.le_of_mul_le_mul_left ?_ hpos
+    refine Nat.le_of_mul_le_mul_left ?_ (Nat.choose_pos hT)
     calc n.choose #T * ((n - #T).choose (u - #T) * n ^ #T)
-        = n.choose u * (u.choose #T * n ^ #T) := by rw [← mul_assoc, ← hmul]; ring
-      _ ≤ n.choose u * (n.choose #T * u ^ #T) := Nat.mul_le_mul_left _ hle
+        = n.choose u * (u.choose #T * n ^ #T) := by
+          rw [← mul_assoc, ← Nat.choose_mul htu]; ring
+      _ ≤ n.choose u * (n.choose #T * u ^ #T) :=
+          Nat.mul_le_mul_left _ (Nat.choose_mul_pow_le hun #T)
       _ = n.choose #T * (n.choose u * u ^ #T) := by ring
   have hn' : (0 : ℝ) < n := by exact_mod_cast hn
   rw [div_pow, ← mul_div_assoc, le_div_iff₀ (by positivity)]
@@ -144,27 +132,16 @@ theorem sum_powersetCard_ite_half_pow_le {n u r : ℕ} (hu : 0 < u) (hun : u ≤
       _ ≤ ∑ T ∈ V.powerset, (n.choose u * ((u : ℝ) / n) ^ #T) * (2 * y - 1) ^ #T :=
           sum_le_sum fun T _ => mul_le_mul_of_nonneg_right
             (card_filter_subset_powersetCard_le hun T) (pow_nonneg (by linarith) _)
-      _ = n.choose u * ∑ T ∈ V.powerset, ((2 * y - 1) * ((u : ℝ) / n)) ^ #T * 1 ^ (#V - #T) := by
-          rw [mul_sum]
-          refine sum_congr rfl fun T _ => ?_
-          rw [one_pow, mul_one, mul_pow]
-          ring
-      _ = n.choose u * 2 ^ #V := by
-          rw [sum_pow_mul_eq_add_pow, h2y]
-          norm_num
+      _ = ∑ T ∈ V.powerset, (n.choose u : ℝ) := sum_congr rfl fun T _ => by
+          rw [mul_assoc, ← mul_pow, mul_comm ((u : ℝ) / n), h2y, one_pow, mul_one]
+      _ = n.choose u * 2 ^ #V := by simp [mul_comm]
   calc ∑ J ∈ (univ : Finset (Fin n)).powersetCard u,
         (if r ≤ #(J ∩ V) then ((1 : ℝ) / 2) ^ #(V \ J) else 0)
       ≤ ∑ J ∈ (univ : Finset (Fin n)).powersetCard u,
           (y ^ r)⁻¹ * ((1 : ℝ) / 2) ^ #V * (2 * y) ^ #(J ∩ V) := sum_le_sum fun J _ => hterm J
-    _ = (y ^ r)⁻¹ * ((1 : ℝ) / 2) ^ #V *
-          ∑ J ∈ (univ : Finset (Fin n)).powersetCard u, (2 * y) ^ #(J ∩ V) := by
-        rw [mul_sum]
-    _ ≤ (y ^ r)⁻¹ * ((1 : ℝ) / 2) ^ #V * (n.choose u * 2 ^ #V) :=
-        mul_le_mul_of_nonneg_left hsum (by positivity)
-    _ = (y ^ r)⁻¹ * n.choose u * (((1 : ℝ) / 2) ^ #V * 2 ^ #V) := by ring
+    _ ≤ (y ^ r)⁻¹ * ((1 : ℝ) / 2) ^ #V * (n.choose u * 2 ^ #V) := by rw [← mul_sum]; gcongr
     _ = n.choose u * (2 * u / (n + u) : ℝ) ^ r := by
-        rw [← mul_pow, hyinv, inv_pow]
-        norm_num
-        ring
+        rw [hyinv, inv_pow, one_div, inv_pow]
+        field_simp
 
 end Cslib

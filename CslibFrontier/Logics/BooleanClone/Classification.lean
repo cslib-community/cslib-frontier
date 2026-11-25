@@ -67,24 +67,15 @@ theorem binary_essentiallyUnary
   have h₁ := C.comp (by decide) (by decide) hf (fun _ : Fin 2 => hf)
   have h₂ := C.comp (by decide) (by decide) hf
     (show ∀ i : Fin 2, ![(fun a : Fin 2 → Bool => a 0), f] i ∈ C.operations 2 by
-      intro i
-      fin_cases i
-      · exact C.projection 0
-      · exact hf)
+      intro i; fin_cases i <;> first | exact hf | exact C.projection _)
   have h₃ := C.comp (by decide) (by decide) hf
     (show ∀ i : Fin 2, ![f, (fun a : Fin 2 → Bool => a 1)] i ∈ C.operations 2 by
-      intro i
-      fin_cases i
-      · exact hf
-      · exact C.projection 1)
+      intro i; fin_cases i <;> first | exact hf | exact C.projection _)
   have htail := C.minor (n := 3) (by decide) (by decide) hf ![1, 2]
   have h₄ := C.comp (by decide) (by decide) hf
     (show ∀ i : Fin 2, ![(fun a : Fin 3 → Bool => a 0),
         (fun a : Fin 3 → Bool => f (a ∘ (![1, 2] : Fin 2 → Fin 3)))] i ∈ C.operations 3 by
-      intro i
-      fin_cases i
-      · exact C.projection 0
-      · exact htail)
+      intro i; fin_cases i <;> first | exact htail | exact C.projection _)
   rw [binaryTable_eq f] at hf h₁ h₂ h₃ h₄ ⊢
   generalize f ![false, false] = b00 at *
   generalize f ![false, true] = b01 at *
@@ -138,12 +129,10 @@ private theorem ternaryTable_eq {f : (Fin 3 → Bool) → Bool}
     (hself : ∀ a, f (fun i => !(a i)) = !(f a)) :
     f = ternaryTable (f ![true, false, false]) (f ![false, true, false])
       (f ![false, false, true]) := by
-  have h000 : f ![false, false, false] = false := by
-    exact (congrArg f (show ![false, false, false] = (fun _ => false) by decide)).trans
-      (hid false)
-  have h111 : f ![true, true, true] = true := by
-    exact (congrArg f (show ![true, true, true] = (fun _ => true) by decide)).trans
-      (hid true)
+  have h000 : f ![false, false, false] = false :=
+    (congrArg f (show ![false, false, false] = (fun _ => false) by decide)).trans (hid false)
+  have h111 : f ![true, true, true] = true :=
+    (congrArg f (show ![true, true, true] = (fun _ => true) by decide)).trans (hid true)
   have h011 : f ![false, true, true] = !(f ![true, false, false]) := by
     have he : (fun i : Fin 3 => !(![true, false, false] i)) = ![false, true, true] := by decide
     simpa only [he] using hself ![true, false, false]
@@ -156,8 +145,7 @@ private theorem ternaryTable_eq {f : (Fin 3 → Bool) → Bool}
   funext a
   have ha : a = ![a 0, a 1, a 2] := by ext i; fin_cases i <;> rfl
   conv_lhs => rw [ha]
-  cases h₀ : a 0 <;> cases h₁ : a 1 <;> cases h₂ : a 2 <;>
-    simp [ternaryTable, h₀, h₁, h₂, h000, h111, h011, h101, h110]
+  grind [ternaryTable]
 
 /-- An idempotent ternary operation in a clone missing the four generators is a projection.
 The eight self-dual idempotent tables are the three projections, majority, minority, and three
@@ -174,27 +162,15 @@ theorem ternary_idempotent_projection
   have h₀ := C.comp (by decide) (by decide) hf
     (show ∀ i : Fin 3, ![f, (fun a : Fin 3 → Bool => a 1),
         (fun a : Fin 3 → Bool => a 2)] i ∈ C.operations 3 by
-      intro i
-      fin_cases i
-      · exact hf
-      · exact C.projection 1
-      · exact C.projection 2)
+      intro i; fin_cases i <;> first | exact hf | exact C.projection _)
   have h₁ := C.comp (by decide) (by decide) hf
     (show ∀ i : Fin 3, ![(fun a : Fin 3 → Bool => a 0), f,
         (fun a : Fin 3 → Bool => a 2)] i ∈ C.operations 3 by
-      intro i
-      fin_cases i
-      · exact C.projection 0
-      · exact hf
-      · exact C.projection 2)
+      intro i; fin_cases i <;> first | exact hf | exact C.projection _)
   have h₂ := C.comp (by decide) (by decide) hf
     (show ∀ i : Fin 3, ![(fun a : Fin 3 → Bool => a 0),
         (fun a : Fin 3 → Bool => a 1), f] i ∈ C.operations 3 by
-      intro i
-      fin_cases i
-      · exact C.projection 0
-      · exact C.projection 1
-      · exact hf)
+      intro i; fin_cases i <;> first | exact hf | exact C.projection _)
   rw [ternaryTable_eq hid hself] at hf h₀ h₁ h₂ ⊢
   generalize f ![true, false, false] = b0 at *
   generalize f ![false, true, false] = b1 at *
@@ -220,10 +196,7 @@ theorem exists_projection_of_ternaryMinors {n : ℕ} {f : (Fin n → Bool) → B
   let χ : Finset (Fin n) → Fin n → Bool := fun s i => decide (i ∈ s)
   have hsingle : ∃ i, f (χ {i}) = true := by
     by_contra hn
-    have hz (i : Fin n) : f (χ {i}) = false := by
-      cases he : f (χ {i})
-      · rfl
-      · exact False.elim (hn ⟨i, he⟩)
+    have hz (i : Fin n) : f (χ {i}) = false := Bool.eq_false_iff.2 fun he => hn ⟨i, he⟩
     have hall (s : Finset (Fin n)) : f (χ s) = false := by
       induction s using Finset.induction_on with
       | empty => exact hid false
@@ -248,9 +221,7 @@ theorem exists_projection_of_ternaryMinors {n : ℕ} {f : (Fin n → Bool) → B
         rw [hp₁, ih] at h₁
         rw [hpu] at hu
         fin_cases k
-        · cases h₀
-        · cases h₁
-        · exact hu
+        exacts [(by cases h₀), (by cases h₁), hu]
     have hc : χ Finset.univ = fun _ => true := by ext j; simp [χ]
     have hb := hall Finset.univ
     rw [hc, hid] at hb
@@ -264,11 +235,7 @@ theorem exists_projection_of_ternaryMinors {n : ℕ} {f : (Fin n → Bool) → B
     by_cases hj : j = i <;> cases ha : a j <;> simp [p, χ, hj, ha]
   have h₀ := hk ![true, false, false]
   rw [hp₀, hi] at h₀
-  have hk₀ : k = 0 := by
-    fin_cases k
-    · rfl
-    · cases h₀
-    · cases h₀
+  have hk₀ : k = 0 := by fin_cases k <;> first | rfl | cases h₀
   have hpa : (![a i, true, false] : Fin 3 → Bool) ∘ p = a := by
     funext j
     by_cases hj : j = i

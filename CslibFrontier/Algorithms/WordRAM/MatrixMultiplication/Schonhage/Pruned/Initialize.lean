@@ -43,19 +43,15 @@ theorem exec_initialize {w L Q : ℕ} (x : Data registers) (hL : x.mem 1 = L)
           x z (4 * L + 27 + T) := by
   have hp : 1 ≤ (10 : ℕ) ^ L := Nat.one_le_pow L _ (by decide)
   have hscalar : L + Q + 10 ^ L + 16 ≤ addressBound L Q := by
-    unfold addressBound
-    nlinarith only [hp]
+    unfold addressBound; nlinarith only [hp]
   have h1 : Fits w 1 := hfit.of_le (by omega)
   have h2 : Fits w 2 := hfit.of_le (by omega)
   have h3 : Fits w 3 := hfit.of_le (by omega)
   let h := (((x.set address 1).set inputDepth L).set address 2).set queryCount Q
-  have hheader : ExecWithin w header x h 4 := by
-    ram_eval [header, h, hL, hQ, h1, h2, address, inputDepth, queryCount, Fin.mk.injEq]
-  have hdepth : h.regs inputDepth = L := by simp +decide [h, address, inputDepth, queryCount]
+  have hheader : ExecWithin w header x h 4 := by unfold header; wram_exec [hL, hQ, h1, h2]
   obtain ⟨p, hpower, hpmem, hpL, hspan, _, hnil, hone, _, hten, hnine, hfour, _⟩ :=
-    exec_powers h hdepth hfit
-  have hpQ : p.regs queryCount = Q :=
-    (hpower.regs_eq (by decide : powers.Preserves queryCount)).trans (by simp [h])
+    exec_powers h (by regs_frame) hfit
+  have hpQ : p.regs queryCount = Q := by regs_frame
   let u := ((((((p.set arrayA 3).set arrayB (3 + 10 ^ L)).set queries (3 + 10 ^ L + 10 ^ L)).set
     output (3 + 10 ^ L + 10 ^ L + Q)).set scratch (3 + 10 ^ L + 10 ^ L + Q + Q)).set epoch 0)
   have hB : Fits w (3 + 10 ^ L) := hfit.of_le (by omega)
@@ -66,46 +62,25 @@ theorem exec_initialize {w L Q : ℕ} (x : Data registers) (hL : x.mem 1 = L)
   have hs : Fits w (3 + 10 ^ L + 10 ^ L + Q + Q) :=
     hfit.of_le (by unfold addressBound; nlinarith only [hp])
   have hparameters : ExecWithin w parameters p u 6 := by
-    ram_eval [parameters, u, hspan, hpQ, h3, hB, hqueries, hout, hs, arrayA, arrayB, queries,
-      output, scratch, epoch, span, queryCount, Fin.mk.injEq]
+    unfold parameters; wram_exec [hspan, hpQ, h3, hB, hqueries, hout, hs]
   have huL : u.regs inputDepth = L := by regs_frame
   have huspan : u.regs span = 10 ^ L := by regs_frame
-  have hu1 : u.regs one = 1 := by regs_frame
-  have hu4 : u.regs frameWidth = 4 := by regs_frame
   have hus : u.regs scratch = scratchBase L Q := by
-    simp +decide [u, scratch, epoch, scratchBase, outputBase, two_mul, Nat.add_assoc]
-  obtain ⟨y, hlocate, hymem, hyf, hyl, hyv, hys, _⟩ := exec_locate u hu1 hu4
+    dsimp only [u]
+    wram_simp
+    simp only [scratchBase, outputBase, two_mul, Nat.add_assoc]
+  obtain ⟨y, hlocate, hymem, hyf, hyl, hyv, hys, _⟩ := exec_locate u (by regs_frame)
+    (by regs_frame)
     (hfit.of_le (by
       rw [hus, huL, huspan]
       unfold scratchBase outputBase addressBound
       have hm : L ≤ L * 10 ^ L := Nat.le_mul_of_pos_right _ (by positivity)
       nlinarith only [hp, hm]))
-  have hregs : KernelRegs L (scratchBase L Q) 3 (3 + 10 ^ L) y := by
-    constructor
-    · regs_frame
-    · regs_frame
-    · exact (hlocate.regs_eq (by decide : locate.Preserves arrayA)).trans (by
-        simp +decide [u, arrayA, arrayB, queries, output, scratch, epoch])
-    · exact (hlocate.regs_eq (by decide : locate.Preserves arrayB)).trans (by
-        simp +decide [u, arrayA, arrayB, queries, output, scratch, epoch])
-    · exact hyf.trans hus
-    · simpa only [hus, huL] using hyl
-    · simpa only [hus, huL, huspan] using hyv
-    · simpa only [hus, huL, huspan] using hys
-    · regs_frame
-    · regs_frame
-    · regs_frame
-    · regs_frame
-    · regs_frame
-  refine ⟨y, ?_, hregs, ?_, ?_, ?_, ?_, ?_⟩
-  · exact hymem.trans (show u.mem = p.mem from rfl) |>.trans hpmem
-  · regs_frame
-  · exact (hlocate.regs_eq (by decide : locate.Preserves queries)).trans (by
-      simp +decide [u, queries, output, scratch, epoch, two_mul, Nat.add_assoc])
-  · exact (hlocate.regs_eq (by decide : locate.Preserves output)).trans (by
-      simp +decide [u, output, scratch, epoch, outputBase, two_mul, Nat.add_assoc])
-  · exact (hlocate.regs_eq (by decide : locate.Preserves epoch)).trans (by simp [u])
-  · intro tail z T htail
-    exact (hheader.seq (hpower.seq (hparameters.seq (hlocate.seq htail)))).mono (by omega)
+  refine ⟨y, hymem.trans hpmem, by regs_frame, by regs_frame, ?_, ?_, by regs_frame,
+    fun tail z T htail =>
+      (hheader.seq (hpower.seq (hparameters.seq (hlocate.seq htail)))).mono (by omega)⟩
+  · exact (by regs_frame : y.regs queries = 3 + 10 ^ L + 10 ^ L).trans (by omega)
+  · exact (by regs_frame : y.regs output = 3 + 10 ^ L + 10 ^ L + Q).trans
+      (by unfold outputBase; omega)
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PrunedQuery

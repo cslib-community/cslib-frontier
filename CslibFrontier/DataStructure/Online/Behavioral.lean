@@ -158,7 +158,7 @@ theorem stepExpectedCost_le {w : ℕ}
         by_cases hmem : m' ∈ (B.step m r).support
         · gcongr
           exact Nat.cast_le.mpr (hw hm r m' hmem)
-        · rw [(PMF.apply_eq_zero_iff (B.step m r) m').mpr hmem, zero_mul, zero_mul]
+        · simp [(PMF.apply_eq_zero_iff (B.step m r) m').mpr hmem]
     _ = w := by rw [ENNReal.tsum_mul_right, (B.step m r).tsum_coe, one_mul]
 
 /-- If every supported transition of `B` incurs step cost at most `w`, then `expectedCostFrom` on
@@ -169,7 +169,7 @@ theorem expectedCostFrom_le_mul_length {w : ℕ}
     {m : B.Mem} (hm : B.ValidMem m) (reqs : List P.Req) :
     B.expectedCostFrom m reqs ≤ (w : ℝ≥0∞) * reqs.length := by
   induction reqs generalizing m with
-  | nil => simp only [expectedCostFrom_nil, List.length_nil, Nat.cast_zero, mul_zero, le_rfl]
+  | nil => simp
   | cons r rs ih =>
     rw [expectedCostFrom_cons_eq_add, List.length_cons, Nat.cast_add, Nat.cast_one, mul_add,
       mul_one, add_comm ((w : ℝ≥0∞) * rs.length) w]
@@ -178,9 +178,8 @@ theorem expectedCostFrom_le_mul_length {w : ℕ}
         ≤ ∑' m', B.step m r m' * ((w : ℝ≥0∞) * rs.length) := by
           refine tsum_le_tsum fun m' => ?_
           by_cases hmem : m' ∈ (B.step m r).support
-          · have hih := ih (B.valid_step r hm m' hmem).1
-            gcongr
-          · rw [(PMF.apply_eq_zero_iff (B.step m r) m').mpr hmem, zero_mul, zero_mul]
+          · exact mul_le_mul_of_nonneg_left (ih (B.valid_step r hm m' hmem).1) zero_le
+          · simp [(PMF.apply_eq_zero_iff (B.step m r) m').mpr hmem]
       _ = (w : ℝ≥0∞) * rs.length := by
           rw [ENNReal.tsum_mul_right, (B.step m r).tsum_coe, one_mul]
 
@@ -219,11 +218,9 @@ theorem validMem_runMemDist {μ : PMF B.Mem} (hμ : ∀ m ∈ μ.support, B.Vali
   induction reqs generalizing μ with
   | nil => exact hμ
   | cons r rs ih =>
-    apply ih
-    intro m' hm'
-    rw [PMF.mem_support_bind_iff] at hm'
-    obtain ⟨m, hm, hm'⟩ := hm'
-    exact (B.valid_step r (hμ m hm) m' hm').1
+    exact ih fun m' hm' =>
+      let ⟨m, hm, hm'⟩ := (PMF.mem_support_bind_iff _ _ _).mp hm'
+      (B.valid_step r (hμ m hm) m' hm').1
 
 @[simp]
 theorem expectedCostDist_nil (μ : PMF B.Mem) : B.expectedCostDist μ [] = 0 := by
@@ -232,10 +229,8 @@ theorem expectedCostDist_nil (μ : PMF B.Mem) : B.expectedCostDist μ [] = 0 := 
 @[simp]
 theorem expectedCostDist_pure (m : B.Mem) (reqs : List P.Req) :
     B.expectedCostDist (PMF.pure m) reqs = B.expectedCostFrom m reqs := by
-  rw [expectedCostDist, tsum_eq_single m]
-  · rw [PMF.pure_apply_self, one_mul]
-  · intro m' hm'
-    rw [PMF.pure_apply_of_ne _ _ hm', zero_mul]
+  rw [expectedCostDist, tsum_eq_single m fun m' hm' => by simp [PMF.pure_apply_of_ne _ _ hm']]
+  simp
 
 /-- One-step Bellman decomposition of `expectedCostDist` over a memory distribution `μ`. -/
 theorem expectedCostDist_cons (μ : PMF B.Mem) (r : P.Req) (rs : List P.Req) :
@@ -328,28 +323,18 @@ theorem expectedCost_ofDetStrategy (A : DetStrategy P) {s₀ : P.State} (hs₀ :
 
 /-- For natural-number coefficients, `ofDetStrategy A` is `(c, b)`-competitive iff `A` is. -/
 theorem isCompetitive_ofDetStrategy_iff (A : DetStrategy P) (c b : ℕ) :
-    (ofDetStrategy A).IsCompetitive c b ↔ A.IsCompetitive c b := by
-  have key : ∀ x y : ℕ, ((x : ℝ≥0∞) ≤ c * y + b) ↔ x ≤ c * y + b := fun x y => by norm_cast
-  constructor
-  · intro h s₀ hs₀ reqs offStates hv
-    have h' := h s₀ hs₀ reqs offStates hv
-    rwa [expectedCost_ofDetStrategy A hs₀, key] at h'
-  · intro h s₀ hs₀ reqs offStates hv
-    rw [expectedCost_ofDetStrategy A hs₀, key]
-    exact h s₀ hs₀ reqs offStates hv
+    (ofDetStrategy A).IsCompetitive c b ↔ A.IsCompetitive c b :=
+  forall₂_congr fun _ hs₀ => forall₃_congr fun _ _ _ => by
+    rw [expectedCost_ofDetStrategy A hs₀]
+    norm_cast
 
 /-- For natural-number coefficients, `ofDetStrategy A` is `(c, b)`-competitive across arbitrary
 initial states iff `A` is. -/
 theorem isCompetitiveAnyInit_ofDetStrategy_iff (A : DetStrategy P) (c b : ℕ) :
-    (ofDetStrategy A).IsCompetitiveAnyInit c b ↔ A.IsCompetitiveAnyInit c b := by
-  have key : ∀ x y : ℕ, ((x : ℝ≥0∞) ≤ c * y + b) ↔ x ≤ c * y + b := fun x y => by norm_cast
-  constructor
-  · intro h s₀ s_off reqs offStates hs₀ hs_off hv
-    have h' := h s₀ s_off reqs offStates hs₀ hs_off hv
-    rwa [expectedCost_ofDetStrategy A hs₀, key] at h'
-  · intro h s₀ s_off reqs offStates hs₀ hs_off hv
-    rw [expectedCost_ofDetStrategy A hs₀, key]
-    exact h s₀ s_off reqs offStates hs₀ hs_off hv
+    (ofDetStrategy A).IsCompetitiveAnyInit c b ↔ A.IsCompetitiveAnyInit c b :=
+  forall₄_congr fun _ _ _ _ => forall₃_congr fun hs₀ _ _ => by
+    rw [expectedCost_ofDetStrategy A hs₀]
+    norm_cast
 
 end BehavioralStrategy
 

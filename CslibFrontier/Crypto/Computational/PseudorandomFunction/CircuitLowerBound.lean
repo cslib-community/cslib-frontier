@@ -26,6 +26,7 @@ import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Probability.Uniform
 import CslibFrontier.Probability.PMF.Finiteness
 import CslibFrontier.Tactic.PPT
+import CslibFrontier.Tactic.Negligible
 
 /-!
 # Unconditional `2n - 2` `B₂`-circuit size lower bound for pseudorandom functions
@@ -682,12 +683,8 @@ theorem succProbability_booleanPRFIdealGame_isolatedVarDistinguisher_le {n : ℕ
 theorem negligible_booleanPRFIdealGame_isolatedVarDistinguisher :
     Negligible
       (fun n => Game.succProbability (booleanPRFIdealGame isolatedVarDistinguisher n)) := by
-  have hgeom : Negligible (fun n => (n : ℝ≥0) * (1 / 2 : ℝ≥0) ^ n) :=
-    (negligible_geometric (by norm_num : (1 / 2 : ℝ≥0) < 1)).polynomiallyBounded_mul
-      PolynomiallyBounded.id
-  refine negligible_of_eventually_le hgeom ?_
-  filter_upwards [Filter.eventually_ge_atTop 2] with n hn
-  exact succProbability_booleanPRFIdealGame_isolatedVarDistinguisher_le hn
+  negligible eventually (Filter.eventually_ge_atTop 2).mono fun _ hn =>
+    succProbability_booleanPRFIdealGame_isolatedVarDistinguisher_le hn
 
 /-! ### Lemma 7.2: Distinguishing intersecting critical paths -/
 
@@ -1007,15 +1004,7 @@ theorem succProbability_booleanPRFIdealGame_criticalPathDistinguisher_le {n : �
 theorem negligible_booleanPRFIdealGame_criticalPathDistinguisher :
     Negligible
       (fun n => Game.succProbability (booleanPRFIdealGame criticalPathDistinguisher n)) := by
-  have h1 : Negligible (fun n => (n ^ 2 : ℕ) * (1 / 2 : ℝ≥0) ^ n) :=
-    (negligible_geometric (by norm_num : (1 / 2 : ℝ≥0) < 1)).polynomiallyBounded_mul
-      (PolynomiallyBounded.id.pow 2)
-  have h2 : Negligible (fun n => (n ^ 2 : ℕ) * (7 / 8 : ℝ≥0) ^ n) :=
-    (negligible_geometric (by norm_num : (7 / 8 : ℝ≥0) < 1)).polynomiallyBounded_mul
-      (PolynomiallyBounded.id.pow 2)
-  refine negligible_of_eventually_le (h1.add h2) ?_
-  filter_upwards [Filter.eventually_ge_atTop 5] with n hn
-  simpa only [Pi.add_apply, Nat.cast_pow, mul_add] using
+  negligible eventually (Filter.eventually_ge_atTop 5).mono fun _ hn =>
     succProbability_booleanPRFIdealGame_criticalPathDistinguisher_le hn
 
 /-! ### Theorem 7.5: `2n - 2` `B₂`-circuit lower bound for PRFs -/
@@ -1164,12 +1153,10 @@ theorem PseudorandomFunction.negligible_complexity_lt_two_mul_sub_two
       simp only [Function.comp_apply, F, w, BitString.ofList, single_apply, KabanetsCai.restriction,
         Nat.sub_self, List.replicate_zero, List.nil_append]
       cases family key (List.ofFn x) <;> rfl
-    rw [hfun, complexity_wiring w, Nat.add_zero] at hcomp
-    exact hcomp
+    rwa [hfun, complexity_wiring w, Nat.add_zero] at hcomp
   refine ENNReal.toNNReal_mono (PMF.apply_ne_top _ _)
-    (PMF.map_true_mono _ fun key _ hlt => by
-      rw [decide_eq_true_iff] at hlt ⊢
-      exact (hproj key).trans_lt hlt)
+    (PMF.map_true_mono _ fun key _ hlt =>
+      decide_eq_true ((hproj key).trans_lt (of_decide_eq_true hlt)))
 
 /-- For every `PseudorandomFunction family` and all sufficiently large `n`, there exists an `n`-bit
 key whose first-output-bit function has `B₂`-circuit complexity at least `2 * n - 2`. -/

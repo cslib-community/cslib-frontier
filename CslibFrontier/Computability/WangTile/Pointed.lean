@@ -118,16 +118,8 @@ private theorem mem_variants {s t : WangTile} :
     s ∈ variants t ↔ ∃ x y, decorate x y (payload x y t) = s := by
   constructor
   · simp only [variants, List.mem_cons, List.not_mem_nil, or_false]
-    rintro (rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl)
-    all_goals first | exact ⟨.negative, .negative, rfl⟩
-                    | exact ⟨.negative, .origin, rfl⟩
-                    | exact ⟨.negative, .positive, rfl⟩
-                    | exact ⟨.origin, .negative, rfl⟩
-                    | exact ⟨.origin, .origin, rfl⟩
-                    | exact ⟨.origin, .positive, rfl⟩
-                    | exact ⟨.positive, .negative, rfl⟩
-                    | exact ⟨.positive, .origin, rfl⟩
-                    | exact ⟨.positive, .positive, rfl⟩
+    rintro (rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl) <;>
+      exact ⟨_, _, rfl⟩
   · rintro ⟨x, y, rfl⟩
     cases x <;> cases y <;> simp [variants, payload]
 

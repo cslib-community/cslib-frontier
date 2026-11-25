@@ -32,8 +32,11 @@ The sign-rank can be much smaller than the rank. The communication matrix of equ
 inputs is the identity, of rank `n`, but its sign-rank is at most three: for an injective
 numbering `e` of the inputs, the matrix `(e x - e y) ^ 2 - 1 / 4` sign-represents equality and
 has rank at most three (`signRank_equality_le_three`). With three or more inputs it is at least
-two (`two_le_signRank_equality`); for four or more it is exactly three
-[Alon, Moran and Yehudayoff, Claim 3][AlonMoranYehudayoff2016], which is not formalized here.
+two (`two_le_signRank_equality`), and for four or more it is at least three
+(`three_le_signRank_equality`), hence equal to three (`signRank_equality_eq_three`), the sign-rank
+step of Claim 3 in [Alon, Moran and Yehudayoff][AlonMoranYehudayoff2016] (`arXiv:1503.07648v2`,
+§1.2 and §3.2.1; the VC-dimension part of Claim 3 is tracked in
+[#3262](https://github.com/cslib-community/cslib-frontier/issues/3262)).
 
 The sign-rank characterizes unbounded-error communication; see
 `CslibFrontier.Computability.Communication.PaturiSimon`.
@@ -52,8 +55,11 @@ The sign-rank characterizes unbounded-error communication; see
 * `Cslib.Communication.signRank_comap_le`: monotonicity under submatrices.
 * `Cslib.Communication.exists_mul_signRepresents`,
   `Cslib.Communication.exists_int_mul_signRepresents`: real and integer factorizations.
-* `Cslib.Communication.signRank_equality_le_three`, `Cslib.Communication.two_le_signRank_equality`:
-  bounds for equality.
+* `Cslib.Communication.signRank_equality_le_three`,
+  `Cslib.Communication.two_le_signRank_equality`,
+  `Cslib.Communication.three_le_signRank_equality`,
+  `Cslib.Communication.signRank_equality_eq_three`: bounds and exact value for equality, the
+  sign-rank step of Claim 3 in [Alon, Moran and Yehudayoff][AlonMoranYehudayoff2016].
 
 ## References
 
@@ -215,20 +221,13 @@ theorem signRank_swap [Fintype X] (f : X → Y → Bool) :
     signRank (fun y x => f x y) = signRank f :=
   le_antisymm (signRank_swap_le f) (signRank_swap_le fun y x => f x y)
 
-/-- A matrix of rank zero is zero. -/
-private theorem eq_zero_of_rank_eq_zero {A : Matrix X Y ℝ} (h : A.rank = 0) (x : X) (y : Y) :
-    A x y = 0 := by
-  obtain ⟨C, D, hCD⟩ := Matrix.exists_eq_mul_rank A
-  have : IsEmpty (Fin A.rank) := by rw [h]; infer_instance
-  rw [hCD, Matrix.mul_apply, Finset.univ_eq_empty, Finset.sum_empty]
-
 /-- When both players have inputs, the sign-rank is positive: the zero matrix sign-represents
 nothing. -/
 theorem signRank_pos [Nonempty X] [Nonempty Y] (f : X → Y → Bool) : 0 < signRank f := by
   obtain ⟨x⟩ := ‹Nonempty X›
   obtain ⟨y⟩ := ‹Nonempty Y›
   refine le_signRank_iff.mpr fun A hA => Nat.pos_of_ne_zero fun h => ?_
-  exact hA.ne_zero x y (eq_zero_of_rank_eq_zero h x y)
+  exact hA.ne_zero x y (by rw [Matrix.rank_eq_zero_iff.mp h, Matrix.zero_apply])
 
 /-- If `f` has sign-rank at most one, it is sign-represented by a product `u x * v y`. -/
 theorem exists_mul_of_signRank_le_one [Nonempty X] [Nonempty Y] (h : signRank f ≤ 1) :
@@ -343,6 +342,98 @@ theorem two_le_signRank_equality [DecidableEq Y] (hY : 2 < Fintype.card Y) :
   have e : (u a * u b) * (u a * u c) * (u b * u c) = (u a * u b * u c) ^ 2 := by ring
   linarith [mul_neg_of_pos_of_neg (mul_pos_of_neg_of_neg (key a b hab) (key a c hac))
     (key b c hbc), sq_nonneg (u a * u b * u c)]
+
+/-- On four or more inputs, equality has sign-rank at least three: in a rank-two factorization
+`U * V` on four inputs, the first three rows of `U` satisfy a nontrivial linear relation in `ℝ²`;
+testing that relation against the fourth column of `V` rules out coefficients all of one sign, and
+testing against the first three columns rules out a single positive or single negative
+coefficient. -/
+theorem three_le_signRank_equality [DecidableEq Y] (hY : 3 < Fintype.card Y) :
+    3 ≤ signRank (equality (X := Y)) := by
+  obtain ⟨e⟩ : Nonempty (Fin 4 ↪ Y) :=
+    Function.Embedding.nonempty_of_card_le (by rw [Fintype.card_fin]; omega)
+  have heq : (fun x y : Fin 4 => equality (e x) (e y)) = equality := by
+    ext x y
+    simp [equality, e.injective.eq_iff]
+  suffices h4 : 3 ≤ signRank (equality (X := Fin 4)) from
+    h4.trans (heq ▸ signRank_comap_le equality e e)
+  by_contra! hlt
+  have hr : signRank (equality (X := Fin 4)) = 2 :=
+    le_antisymm (by omega) (two_le_signRank_equality (by decide))
+  obtain ⟨U₀, V₀, hUV₀⟩ := exists_mul_signRepresents (equality (X := Fin 4))
+  let U := U₀.submatrix id (finCongr hr.symm)
+  let V := V₀.submatrix (finCongr hr.symm) id
+  have hUV : SignRepresents (U * V) equality := by
+    rwa [Matrix.submatrix_mul_equiv, Matrix.submatrix_id_id]
+  set M := U * V
+  have hdiag (x : Fin 4) : M x x < 0 := hUV.neg_of_true (by simp [equality])
+  have hoff {x y : Fin 4} (hxy : x ≠ y) : 0 < M x y := hUV.pos_of_false (by simp [equality, hxy])
+  obtain ⟨c, hc0, hck⟩ : ∃ c : Fin 3 → ℝ, (c 0 ≠ 0 ∨ c 1 ≠ 0 ∨ c 2 ≠ 0) ∧
+      ∀ k : Fin 2, c 0 * U 0 k + c 1 * U 1 k + c 2 * U 2 k = 0 := by
+    suffices ∃ a b d : ℝ, (a ≠ 0 ∨ b ≠ 0 ∨ d ≠ 0) ∧ a * U 0 0 + b * U 1 0 + d * U 2 0 = 0 ∧
+        a * U 0 1 + b * U 1 1 + d * U 2 1 = 0 by
+      obtain ⟨a, b, d, h0, h1, h2⟩ := this
+      exact ⟨![a, b, d], h0, Fin.forall_fin_two.mpr ⟨h1, h2⟩⟩
+    by_cases hd : U 0 0 * U 1 1 - U 1 0 * U 0 1 = 0
+    · by_cases hu0 : U 0 0 = 0
+      · have hu1 : U 0 1 ≠ 0 := fun h => by
+          simpa [M, Matrix.mul_apply, Fin.sum_univ_two, hu0, h] using (hdiag 0).ne
+        exact ⟨U 1 1, -U 0 1, 0, Or.inr (Or.inl (neg_ne_zero.mpr hu1)), by linarith, by ring⟩
+      · exact ⟨U 1 0, -U 0 0, 0, Or.inr (Or.inl (neg_ne_zero.mpr hu0)), by ring, by linarith⟩
+    · exact ⟨U 1 0 * U 2 1 - U 2 0 * U 1 1, U 2 0 * U 0 1 - U 0 0 * U 2 1,
+        U 0 0 * U 1 1 - U 1 0 * U 0 1, Or.inr (Or.inr hd), by ring, by ring⟩
+  have hM (y : Fin 4) : c 0 * M 0 y + c 1 * M 1 y + c 2 * M 2 y = 0 := by
+    simp only [M, Matrix.mul_apply, Fin.sum_univ_two, Fin.isValue]
+    linarith [mul_eq_zero_of_left (hck 0) (V 0 y), mul_eq_zero_of_left (hck 1) (V 1 y)]
+  have no_rel (d₀ d₁ d₂ : ℝ) (hd : ∀ y : Fin 4, d₀ * M 0 y + d₁ * M 1 y + d₂ * M 2 y = 0) :
+      ¬(0 < d₀ ∧ d₁ ≤ 0 ∧ d₂ ≤ 0) ∧ ¬(d₀ ≤ 0 ∧ 0 < d₁ ∧ d₂ ≤ 0) ∧
+      ¬(d₀ ≤ 0 ∧ d₁ ≤ 0 ∧ 0 < d₂) ∧ ¬(0 ≤ d₀ ∧ 0 ≤ d₁ ∧ 0 ≤ d₂ ∧ 0 < d₀ + d₁ + d₂) :=
+    ⟨fun ⟨p₀, p₁, p₂⟩ => by
+      nlinarith [hd 0, hdiag 0, hoff (by decide : (1 : Fin 4) ≠ 0),
+        hoff (by decide : (2 : Fin 4) ≠ 0)],
+     fun ⟨p₀, p₁, p₂⟩ => by
+      nlinarith [hd 1, hoff (by decide : (0 : Fin 4) ≠ 1), hdiag 1,
+        hoff (by decide : (2 : Fin 4) ≠ 1)],
+     fun ⟨p₀, p₁, p₂⟩ => by
+      nlinarith [hd 2, hoff (by decide : (0 : Fin 4) ≠ 2),
+        hoff (by decide : (1 : Fin 4) ≠ 2), hdiag 2],
+     fun ⟨p₀, p₁, p₂, ps⟩ => by
+      have hpos : 0 < d₀ ∨ 0 < d₁ ∨ 0 < d₂ := by by_contra!; linarith
+      rcases hpos with h | h | h <;>
+        nlinarith [hd 3, hoff (by decide : (0 : Fin 4) ≠ 3),
+          hoff (by decide : (1 : Fin 4) ≠ 3), hoff (by decide : (2 : Fin 4) ≠ 3)]⟩
+  obtain ⟨hp0, hp1, hp2, hps⟩ := no_rel (c 0) (c 1) (c 2) hM
+  obtain ⟨hn0, hn1, hn2, hns⟩ := no_rel (-c 0) (-c 1) (-c 2) fun y => by linarith [hM y]
+  rcases le_or_gt (c 0) 0 with h0 | h0 <;>
+    rcases le_or_gt (c 1) 0 with h1 | h1 <;>
+    rcases le_or_gt (c 2) 0 with h2 | h2
+  · exact hns ⟨by linarith, by linarith, by linarith, by
+      rcases hc0 with h | h | h <;>
+        [have := lt_of_le_of_ne h0 h; have := lt_of_le_of_ne h1 h; have := lt_of_le_of_ne h2 h] <;>
+        linarith⟩
+  · exact hp2 ⟨h0, h1, h2⟩
+  · exact hp1 ⟨h0, h1, h2⟩
+  · rcases eq_or_lt_of_le h0 with h0' | h0'
+    · exact hps ⟨by linarith, h1.le, h2.le, by linarith⟩
+    · exact hn0 ⟨by linarith, by linarith, by linarith⟩
+  · exact hp0 ⟨h0, h1, h2⟩
+  · rcases eq_or_lt_of_le h1 with h1' | h1'
+    · exact hps ⟨h0.le, by linarith, h2.le, by linarith⟩
+    · exact hn1 ⟨by linarith, by linarith, by linarith⟩
+  · rcases eq_or_lt_of_le h2 with h2' | h2'
+    · exact hps ⟨h0.le, h1.le, by linarith, by linarith⟩
+    · exact hn2 ⟨by linarith, by linarith, by linarith⟩
+  · exact hps ⟨h0.le, h1.le, h2.le, by linarith⟩
+
+/-- The sign-rank step of Claim 3 in [Alon, Moran and Yehudayoff][AlonMoranYehudayoff2016]
+(`arXiv:1503.07648v2`, §1.2 and §3.2.1): on four or more inputs, equality has sign-rank three. The
+source states Claim 3 for the `N × N` signed identity matrix (`+1` on the diagonal and `-1` off
+the diagonal, i.e. `-signMatrix ℝ equality`, which has the same sign-rank by `signRank_not`), and
+pairs it with a VC-dimension assertion not formalized here (see
+[#3262](https://github.com/cslib-community/cslib-frontier/issues/3262)). -/
+theorem signRank_equality_eq_three [DecidableEq Y] (hY : 3 < Fintype.card Y) :
+    signRank (equality (X := Y)) = 3 :=
+  le_antisymm signRank_equality_le_three (three_le_signRank_equality hY)
 
 end Cslib.Communication
 

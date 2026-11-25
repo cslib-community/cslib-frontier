@@ -26,9 +26,8 @@ open Cslib.WordRAM Cslib.Matrix Cslib.Algorithms.ExactTriangle
 open Cslib.Algorithms.MatrixMultiplication.Schonhage
 open Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage
 
-private theorem productBank_injective : Function.Injective productBank := by
-  intro i j h
-  exact Fin.ext (congrArg (fun k : Fin 400 => k.val) h)
+private theorem productBank_injective : Function.Injective productBank :=
+  fun _ _ h => Fin.ext (congrArg (fun k : Fin 400 => k.val) h)
 
 /-- Combined physical word/address envelope required by the product-and-verifier composition
 at heap base `heap`, query count `Q` and product-answer offset `offset`. -/
@@ -152,16 +151,15 @@ theorem exec_after_record_product {w U m n g p i : ℕ} (values : ℕ → ℤ)
   have sm (u : ℕ) (hu : u < heap) : s.mem u = x.mem u := rmem u (Or.inl hu)
   have snative (j : Fin 320) (hj : j.val < 65) :
       s.regs (productBank j) = x.regs (productBank j) := (sr j).trans (rregs j hj)
-  have sout : s.regs (productBank RecordProduct.Reg.result) = out := by
-    exact (sr RecordProduct.Reg.result).trans rr
+  have sout : s.regs (productBank RecordProduct.Reg.result) = out :=
+    (sr RecordProduct.Reg.result).trans rr
   let v : Fin 6 → ℕ := ![idx.residue.val, idx.piece, q, Q, base + 6, base + 6 + n * D m]
   have hread (j : Fin 6) : s.mem (base + j.val) = v j :=
     (sm _ (by have := j.isLt; omega)).trans (hv j)
   have hquery : ∀ j < Q, s.mem (q + 2 * j) = x.mem (q + 2 * j) ∧
       s.mem (q + 2 * j + 1) = x.mem (q + 2 * j + 1) ∧
-      x.mem (q + 2 * j) < n ∧ x.mem (q + 2 * j + 1) < n := by
-    intro j hj
-    exact ⟨sm _ (by omega), sm _ (by omega), hcoords j hj⟩
+      x.mem (q + 2 * j) < n ∧ x.mem (q + 2 * j + 1) < n := fun j hj =>
+    ⟨sm _ (by omega), sm _ (by omega), hcoords j hj⟩
   have smem : ∀ a < n, ∀ b < n,
       s.mem (5 + (a * n + b)) = Signed.encode (AB a b) ∧
       s.mem (5 + n * n + (a * n + b)) = Signed.encode (BC a b) ∧
@@ -197,23 +195,16 @@ theorem exec_after_record_product {w U m n g p i : ℕ} (values : ℕ → ℤ)
       (T + 5 * Nat.sqrt (D m) + 8 * Q +
         (42 * min (pieceSize (D m) g) (n - idx.piece * pieceSize (D m) g) + 28) * S + 52) :=
     (hs.seq he).mono (by omega)
-  refine ⟨y, S, hexe, ys, yf, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨y, S, hexe, ys, yf, ?_, ?_,
+    fun j => by rw [frame _ (by decide), sout, ym]; exact rvalues j, ?_,
+    fun u hu => by rw [ym]; exact rmem u hu,
+    fun j hj => (frame _ (by change j.val < 320; omega)).trans (snative j hj)⟩
   · simpa only [ym, frame (productBank RecordProduct.Reg.result) (by decide), sout] using hS
   · simpa only [ym, frame (productBank RecordProduct.Reg.result) (by decide), sout] using yiff
-  · intro j
-    have hv := rvalues j
-    rw [frame _ (by decide), sout, ym]
-    change r.mem (out + j.val) = _
-    exact hv
   · intro hy
     obtain ⟨j, hj, -, hwa, hwb, hlo, hhi, hz⟩ := yw hy
     obtain ⟨ha, hb⟩ := hcoords j hj
     exact ⟨by simpa only [hwa] using ha, by simpa only [hwb] using hb,
       hlo, hhi, by simpa only [hwa, hwb] using hz, j, hj, hwa, hwb⟩
-  · intro u hu
-    rw [ym]
-    exact rmem u hu
-  · intro j hj
-    exact (frame _ (by change j.val < 320; omega)).trans (snative j hj)
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.RecordWitness

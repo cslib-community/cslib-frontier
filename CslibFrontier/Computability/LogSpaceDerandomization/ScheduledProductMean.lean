@@ -9,7 +9,6 @@ module
 
 public import CslibFrontier.Computability.LogSpaceDerandomization.EstimatorSchedule
 public import CslibFrontier.Computability.LogSpaceDerandomization.ConditionalProductMean
-import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
@@ -37,7 +36,7 @@ compression or the recursive estimator. Those remain obligations of issue #1721.
 
 ## Main results
 
-* `Cslib.LogSpaceEstimation.scheduled_child_cost_le_of_rate_le`: scheduled rate comparability.
+* `Cslib.LogSpaceEstimation.coarse_cost_pow_four`: fourth power of the coarse norm cost.
 * `Cslib.LogSpaceEstimation.scheduled_coarse_error_le`: payment of a child moment hypothesis.
 * `Cslib.LogSpaceEstimation.special_correction_available`: the sparse correction term is available.
 * `Matrix.scheduled_correctionAtom_denseAtom_mean_le`: actual conditional product application.
@@ -55,38 +54,6 @@ open scoped BigOperators
 
 namespace Cslib.LogSpaceEstimation
 
-/-- The scheduled child may use any endpoint rate at least `c₁` times the bin rate.
-The fixed penalty is independent of scale, budget and source rate. -/
-theorem scheduled_child_cost_le_of_rate_le {A a a' b c₁ u u' : ℝ} (hA : 0 ≤ A)
-    (M d c i i' : ℕ) (hc : 0 < c) (h : ℤ) (hi : i' + 1 ≤ i)
-    (ha : 0 < a) (hb : 0 < b) (hc₁ : 0 < c₁) (hba' : c₁ * b ≤ a')
-    (hu : 0 < u) (huu' : u ≤ u') (hscale : Real.logb 2 (b / a) = (h : ℝ)) :
-    binNormCost 4 (h : ℝ) * (2 : ℝ) ^ (Real.logb 2 (u' / u) / 4) *
-        (2 : ℝ) ^ (-precision (16 * c) A (lastBudget M d c h) i' a' u') ≤
-      (2 : ℝ) ^ (-Real.logb 2 c₁ / 2) *
-        ((2 : ℝ) ^ (-precision (16 * c) A M i a u - A +
-          (d : ℝ) / (16 * c) + 1 / 16) * scaleMajorant h) := by
-  have hbase := child_cost_mul_accuracy_le_of_rate_le (s := 4) (K := 16 * c)
-    (by norm_num) hA M (lastBudget M d c h) i i' hi ha hb hc₁ hba' hu huu'
-  rw [hscale, scaleMargin_four] at hbase
-  refine hbase.trans (mul_le_mul_of_nonneg_left ?_ (by positivity))
-  have hcR : (0 : ℝ) < c := by exact_mod_cast hc
-  have hloss : (M : ℝ) - lastBudget M d c h ≤ d + c * (1 + (h.natAbs : ℝ)) := by
-    have hnat := budget_loss_le M d c h
-    have hle : lastBudget M d c h ≤ M := Nat.sub_le _ _
-    exact_mod_cast hnat
-  rw [scaleMajorant, ← Real.rpow_add (by norm_num : (0 : ℝ) < 2),
-    ← Real.rpow_add (by norm_num : (0 : ℝ) < 2)]
-  apply Real.rpow_le_rpow_of_exponent_le (by norm_num)
-  have hdiv := (div_le_div_iff_of_pos_right (show (0 : ℝ) < 16 * c by positivity)).2 hloss
-  have heq : ((d : ℝ) + c * (1 + (h.natAbs : ℝ))) / (16 * c) =
-      (d : ℝ) / (16 * c) + (1 + (h.natAbs : ℝ)) / 16 := by field_simp
-  rw [heq] at hdiv
-  have habs : |(h : ℝ)| = (h.natAbs : ℝ) := by simp
-  have hn : (0 : ℝ) ≤ h.natAbs := Nat.cast_nonneg _
-  rw [habs]
-  linarith
-
 /-- For a coarse bin, the fourth power of the norm cost is exactly the scale ratio times
 the source-release ratio. Neither nominal rate is replaced by an actual hit probability. -/
 theorem coarse_cost_pow_four {a b u u' : ℝ} (ha : 0 < a) (hb : 0 < b)
@@ -95,14 +62,12 @@ theorem coarse_cost_pow_four {a b u u' : ℝ} (ha : 0 < a) (hb : 0 < b)
     (binNormCost 4 (h : ℝ) * (2 : ℝ) ^ (Real.logb 2 (u' / u) / 4)) ^ 4 =
       (b / a) * (u' / u) := by
   have hhR : (0 : ℝ) ≤ h := by exact_mod_cast hh
-  rw [binNormCost, ite_eq_left hhR, mul_pow]
-  have hpow (r : ℝ) : ((2 : ℝ) ^ (r / 4)) ^ 4 = (2 : ℝ) ^ r := by
-    rw [← Real.rpow_natCast, ← Real.rpow_mul (by norm_num : (0 : ℝ) ≤ 2)]
-    congr 1
-    norm_num
-  rw [hpow, hpow, ← hscale,
-    Real.rpow_logb (by norm_num) (by norm_num) (div_pos hb ha),
-    Real.rpow_logb (by norm_num) (by norm_num) (div_pos hu' hu)]
+  rw [binNormCost, ite_eq_left hhR, ← Real.rpow_add zero_lt_two, ← Real.rpow_natCast,
+    ← Real.rpow_mul zero_le_two, show ((h : ℝ) / 4 + Real.logb 2 (u' / u) / 4) * (4 : ℕ) =
+      Real.logb 2 (b / a) + Real.logb 2 (u' / u) by push_cast; linarith,
+    Real.rpow_add zero_lt_two,
+    Real.rpow_logb zero_lt_two (by norm_num) (div_pos hb ha),
+    Real.rpow_logb zero_lt_two (by norm_num) (div_pos hu' hu)]
 
 /-- A child root-moment induction hypothesis at the scheduled budget pays the coarse scale
 and source costs. The output is an explicit parent-precision bound, not an assumed aggregate. -/
@@ -116,21 +81,8 @@ theorem scheduled_coarse_error_le {A a a' b c₁ u u' C E : ℝ} (hA : 0 ≤ A) 
       (C * (2 : ℝ) ^ (-Real.logb 2 c₁ / 2) *
         ((2 : ℝ) ^ (-precision (16 * c) A M i a u - A +
           (d : ℝ) / (16 * c) + 1 / 16) * scaleMajorant h)) ^ 4 := by
-  have hbin := (binNormCost_pos 4 (h : ℝ)).le
-  have hu' := hu.trans_le huu'
-  have hcost := scheduled_child_cost_le_of_rate_le hA M d c i i' hc h hi ha hb hc₁ hba'
-    hu huu' hscale
-  have hweighted := mul_le_mul_of_nonneg_left hcost hC
-  have hpower := pow_le_pow_left₀ (by positivity) hweighted 4
-  calc
-    _ ≤ (b / a) * (u' / u) * (C * (2 : ℝ) ^
-        (-precision (16 * c) A (lastBudget M d c h) i' a' u')) ^ 4 :=
-      mul_le_mul_of_nonneg_left hE (by positivity)
-    _ = (C * (binNormCost 4 (h : ℝ) * (2 : ℝ) ^ (Real.logb 2 (u' / u) / 4) *
-        (2 : ℝ) ^ (-precision (16 * c) A (lastBudget M d c h) i' a' u'))) ^ 4 := by
-      rw [mul_pow, mul_pow, mul_pow, coarse_cost_pow_four ha hb hu (hu.trans_le huu') hh hscale]
-      ring
-    _ ≤ _ := by convert hpower using 1; ring
+  rw [← coarse_cost_pow_four ha hb hu (hu.trans_le huu') hh hscale]
+  exact scheduled_binNormCost_error_le hA hC M d c i i' hc h hi ha hb hc₁ hba' hu huu' hscale hE
 
 /-- The sparse `-E` term is available even when its stage rate is finer than the parent's
 endpoint rate. The admissibility bound `a ≤ 2^L * f` bounds that negative offset. A fixed
@@ -146,14 +98,11 @@ theorem special_correction_available {A a f u : ℝ} (M c i L : ℕ) (h : ℤ)
   rcases le_or_gt 0 h with hh | hh
   · exact coarse_scale_available M c i h hc hA1 hi hh ha ha1 hf hf1 hu hu1 hscale hactive
   have hlog := Real.logb_le_logb_of_le (by norm_num : (1 : ℝ) < 2) ha haf
-  rw [Real.logb_mul (by positivity : (2 : ℝ) ^ L ≠ 0) hf.ne', Real.logb_pow] at hlog
-  have hlow : -(L : ℝ) ≤ h := by
-    rw [Real.logb_div hf.ne' ha.ne'] at hscale
-    norm_num at hlog
-    linarith
+  rw [Real.logb_mul (by positivity : (2 : ℝ) ^ L ≠ 0) hf.ne', Real.logb_pow,
+    Real.logb_self_eq_one one_lt_two] at hlog
+  rw [Real.logb_div hf.ne' ha.ne'] at hscale
   have habs : (h.natAbs : ℝ) ≤ L := by
-    have heq : |(h : ℝ)| = (h.natAbs : ℝ) := by simp
-    rw [abs_of_neg (show (h : ℝ) < 0 by exact_mod_cast hh)] at heq
+    rw [Nat.cast_natAbs, Int.cast_abs, abs_of_neg (by exact_mod_cast hh)]
     linarith
   have hla := Real.logb_nonpos (by norm_num : (1 : ℝ) < 2) ha.le ha1
   have hlu := Real.logb_nonpos (by norm_num : (1 : ℝ) < 2) hu.le hu1
@@ -262,12 +211,13 @@ theorem scheduled_correctionAtom_denseAtom_mean_le
     (fun σ x y => sum_nonneg fun z _ => mul_nonneg
       (correctionAtom_nonneg hQ0 hρF0 hτ0 (hg'0 σ) (drawF σ) x z)
       (denseAtom_nonneg hk0 hρB0 (drawB σ) z y))
-  have hpayF := scheduled_coarse_error_le hA hC M d c i iF hc offset hoffset hiF
-    ha (ha.trans_le hab) hc₁ hbf hu (le_refl u) hscale hleft
-  have hpayB := scheduled_coarse_error_le hA hC M d c i iB hc offset hoffset hiB
-    ha (ha.trans_le hab) (by norm_num : (0 : ℝ) < 1) (by simp) hu huf hscale hrightUsage
-  simp only [div_self hu.ne', mul_one] at hpayF
-  simp only [Real.logb_one, neg_zero, zero_div, Real.rpow_zero, mul_one] at hpayB
+  have hpayF := by
+    simpa only [div_self hu.ne', mul_one] using scheduled_coarse_error_le hA hC M d c i iF hc
+      offset hoffset hiF ha hb hc₁ hbf hu le_rfl hscale hleft
+  have hpayB := by
+    simpa only [Real.logb_one, neg_zero, zero_div, Real.rpow_zero, mul_one] using
+      scheduled_coarse_error_le hA hC M d c i iB hc offset hoffset hiB ha hb zero_lt_one
+        (one_mul b).le hu huf hscale hrightUsage
   dsimp only at hprod
   norm_num only [Nat.reduceSub, Nat.reduceMul, Nat.cast_ofNat, one_div_div] at hprod hmean
   refine hmean.trans ((mul_le_mul_of_nonneg_left hprod (by positivity)).trans ?_)

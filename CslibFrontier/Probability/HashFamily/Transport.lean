@@ -50,18 +50,10 @@ theorem postcompose (hh : IsDeltaUniversalHash seed hash ε) (f : Y →+ Z)
     IsDeltaUniversalHash seed (fun i x => f (hash i x)) ε := fun x x' hx d => by
   by_cases hd : ∃ d', f d' = d
   · obtain ⟨d', rfl⟩ := hd
-    have hset : {i | f (hash i x) - f (hash i x') = f d'} = {i | hash i x - hash i x' = d'} := by
-      ext i
-      simp only [Set.mem_ofPred_eq, ← map_sub]
-      exact hf.eq_iff
-    rw [hset]
-    exact hh x x' hx d'
-  · have hset : {i | f (hash i x) - f (hash i x') = d} = ∅ := by
-      ext i
-      simp only [Set.mem_ofPred_eq, Set.mem_empty_iff_false, iff_false, ← map_sub]
-      exact fun h => hd ⟨_, h⟩
-    rw [hset]
-    simp
+    simpa only [← map_sub, hf.eq_iff] using hh x x' hx d'
+  · have hempty : {i | f (hash i x) - f (hash i x') = d} = ∅ :=
+      Set.eq_empty_iff_forall_notMem.mpr fun i hi => hd ⟨_, (map_sub f _ _).trans hi⟩
+    simp [hempty]
 
 private theorem intCast_val_sub {p q : ℕ} (a b : ZMod p) :
     (((a.val : ℤ) - b.val : ℤ) : ZMod q) = (a.val : ZMod q) - b.val := by

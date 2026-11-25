@@ -82,22 +82,15 @@ theorem IsDensityLimit.exists_mem_apply_eq {Y : Finset (ι → Bool)} {p k : ℝ
   by_contra hn
   have hd (P : ι → Bool) (hi : P i ≠ true) : coordinateDensity Y P x = 0 := by
     rw [coordinateDensity_eq_expect]
-    apply expect_eq_zero
-    intro y _
-    have hy : resample P x y ∉ Y := by
-      intro hy
-      apply hn
-      exact ⟨resample P x y, hy, by simp [resample, hi]⟩
-    simp [hy]
+    exact expect_eq_zero fun y _ => ite_eq_right fun hy =>
+      hn ⟨resample P x y, hy, by simp [resample, hi]⟩
   have hpoint (P : ι → Bool) :
       (if (2 : ℝ) ^ (-k) ≤ coordinateDensity Y P x then (1 : ℝ) else 0) ≤
         if P i then 1 else 0 := by
     by_cases hi : P i = true
     · rw [ite_eq_left hi]
       split_ifs <;> norm_num
-    · rw [ite_eq_right hi, hd P hi]
-      have hn : ¬ (2 : ℝ) ^ (-k) ≤ 0 := not_le.mpr (by positivity)
-      rw [ite_eq_right hn]
+    · rw [ite_eq_right hi, hd P hi, ite_eq_right (not_le.mpr (by positivity))]
   have h := bernoulliAverage_mono hp (show p ≤ 1 by linarith) hpoint
   rw [bernoulliAverage_coordinate] at h
   unfold IsDensityLimit at hlim
@@ -163,16 +156,16 @@ private theorem coordinateFiber_light_patterns (X : Finset (ι → Bool)) (hX : 
           (uniformMass_nonneg (coordinateFiber X s x) z))
         (expect_uniformDensity hne) (show (1 : ℝ) ≤ 64 * k by linarith)
         (uniformDensity_le_rpow hne hd) hr
-        (show r ≤ 1 / (512 * (64 * k)) by convert hr' using 1; ring)
-      rw [show (-2 : ℝ) * (64 * k) - 2 = -128 * k - 2 by ring,
+        (show r ≤ 1 / (512 * (64 * k)) by
+          convert hr' using 1
+          ring)
+      rwa [show (-2 : ℝ) * (64 * k) - 2 = -128 * k - 2 by ring,
         show -(64 * k) = -64 * k by ring] at ht
-      exact ht
-    · simp only [hd, false_and, ite_false, mul_zero, bernoulliAverage_const]
-      exact le_rfl
+    · simp [hd, bernoulliAverage_const]
   have hl := expect_le_expect (s := X) hpoint
   rw [← mul_expect] at hl
   have hg := le_expect_uniformDeficit_coordinateFiber_le X hX s (show 0 < k by linarith) hdef
-  nlinarith
+  linarith
 
 private theorem fiber_completion_density (X : Finset (ι → Bool)) (s x : ι → Bool)
     (hX : (coordinateFiber X s x).Nonempty) (R : {i // s i = true} → Bool)
@@ -189,13 +182,10 @@ private theorem fiber_completion_density (X : Finset (ι → Bool)) (s x : ι �
           (2 : ℝ) ^ (-128 * k - 2) then 1 else 0 := by
     split_ifs with hb hl
     · exact le_rfl
-    · exfalso
-      apply hl
-      have he := projectionAverage_uniformDensity_fiber X s x hX R u
-      rw [he]
+    · refine (hl ?_).elim
+      rw [projectionAverage_uniformDensity_fiber X s x hX R u]
       calc
-        _ ≤ (2 : ℝ) ^ uniformDeficit (coordinateFiber X s x) * (2 : ℝ) ^ (-194 * k) :=
-          mul_le_mul_of_nonneg_left hb.le (by positivity)
+        _ ≤ (2 : ℝ) ^ uniformDeficit (coordinateFiber X s x) * (2 : ℝ) ^ (-194 * k) := by gcongr
         _ = (2 : ℝ) ^ (uniformDeficit (coordinateFiber X s x) - 194 * k) := by
           rw [← Real.rpow_add (by norm_num)]
           congr 1
@@ -222,13 +212,11 @@ private theorem fiber_completion_density_union (X : Finset (ι → Bool)) (P Q x
   have hq : (fun i => if h : S i = true then !R ⟨i, h⟩ else false) = Q := by
     funext i
     cases hp : P i <;> cases hq : Q i <;> simp [S, R, hp, hq]
-  have ht := fiber_completion_density X S x (coordinateFiber_nonempty S hx) R hk hd hl
-  rw [hq] at ht
   simp_rw [coordinateDensity_resample_union X P Q x, resample_eq_completePattern]
   rw [Fintype.expect_restrict_coordinates
     (fun u => if coordinateDensity X Q (completePattern S x u) <
-      (2 : ℝ) ^ (-194 * k) then (1 : ℝ) else 0)]
-  exact ht
+      (2 : ℝ) ^ (-194 * k) then (1 : ℝ) else 0), ← hq]
+  exact fiber_completion_density X S x (coordinateFiber_nonempty S hx) R hk hd hl
 
 private theorem bad_modifications_probability_of_rate (X : Finset (ι → Bool)) (hX : X.Nonempty)
     {k p q r : ℝ} (hk : 1 ≤ k) (hdef : uniformDeficit X ≤ k)
@@ -243,9 +231,10 @@ private theorem bad_modifications_probability_of_rate (X : Finset (ι → Bool))
       (𝔼 z, if coordinateMarginal (uniformDensity (coordinateFiber X S x)) R z ≤
         (2 : ℝ) ^ (-128 * k - 2) then (1 : ℝ) else 0) ≤ (2 : ℝ) ^ (-64 * k)
   have htheta : 0 ≤ p + q - p * q ∧ p + q - p * q ≤ 1 := by
-    constructor
-    · nlinarith [mul_nonneg hp (sub_nonneg.mpr hq')]
-    · nlinarith [mul_nonneg (sub_nonneg.mpr hp') (sub_nonneg.mpr hq')]
+    have h1 : 0 ≤ p * (1 - q) := mul_nonneg hp (sub_nonneg.mpr hq')
+    have h2 : 0 ≤ (1 - p) * (1 - q) := mul_nonneg (sub_nonneg.mpr hp') (sub_nonneg.mpr hq')
+    exact ⟨by linarith [show p + q - p * q = p * (1 - q) + q by ring],
+      by linarith [show 1 - (p + q - p * q) = (1 - p) * (1 - q) by ring]⟩
   have hg : 31 / 32 ≤ bernoulliAverage p (fun P => bernoulliAverage q (fun Q =>
       𝔼 x ∈ X, if good (fun i => P i || Q i) (fun i => P i && !Q i) x then
         (1 : ℝ) else 0)) := by
@@ -265,6 +254,13 @@ private theorem bad_modifications_probability_of_rate (X : Finset (ι → Bool))
   · simp only [ite_eq_right hg]
     split_ifs <;> norm_num
 
+private theorem mirror_rate_bounds {k p q : ℝ} (hk : 1 ≤ k) (hp : 0 < p) (hq : q = 32768 * k * p)
+    (hq' : q ≤ 1 / 2) : 0 < q ∧ q ≤ 1 ∧ p ≤ q := by
+  refine ⟨by rw [hq]; positivity, by linarith, ?_⟩
+  calc p = 1 * p := (one_mul p).symm
+    _ ≤ 32768 * k * p := by gcongr; linarith
+    _ = q := hq.symm
+
 /-- With probability at least `31/32` over `P`, `Q`, and a uniform `x ∈ X`,
 at most a `2^(-k-6)` fraction of modifications to `x` on `P` have completion
 density below `2^(-194*k)` when the coordinates in `Q` are subsequently modified. -/
@@ -274,11 +270,10 @@ private theorem mirror_bad_modifications_probability (X : Finset (ι → Bool)) 
     31 / 32 ≤ bernoulliAverage p (fun P => bernoulliAverage q (fun Q =>
       𝔼 x ∈ X, if (𝔼 y, if coordinateDensity X Q (resample P x y) <
         (2 : ℝ) ^ (-194 * k) then (1 : ℝ) else 0) ≤ (2 : ℝ) ^ (-k - 6) then 1 else 0)) := by
-  have hqp : 0 < q := by rw [hq]; positivity
-  have hq1 : q ≤ 1 := by linarith
-  have hpq : p ≤ q := by rw [hq]; nlinarith [mul_nonneg hp.le (sub_nonneg.mpr hk)]
+  obtain ⟨hqp, hq1, hpq⟩ := mirror_rate_bounds hk hp hq hq'
   have htheta : 0 < p + q - p * q := by
-    nlinarith [mul_nonneg hp.le (sub_nonneg.mpr hq1)]
+    have h1 : 0 ≤ p * (1 - q) := mul_nonneg hp.le (sub_nonneg.mpr hq1)
+    linarith [show p + q - p * q = p * (1 - q) + q by ring]
   have hr : conditionalSamplingRate p q ≤ 1 / (32768 * k) := by
     refine (conditionalSamplingRate_le_div hp.le hqp hq1).trans_eq ?_
     rw [hq]
@@ -327,23 +322,20 @@ private theorem guidingDensity_le (Y : Finset (ι → Bool)) {k : ℝ} (hk : 0 �
     (P x y : ι → Bool) : guidingDensity Y k P x y ≤ (2 : ℝ) ^ k := by
   unfold guidingDensity
   split_ifs with h hy
-  · apply (div_le_iff₀ (lt_of_lt_of_le (by positivity) h)).mpr
-    have he : (2 : ℝ) ^ (-k) * (2 : ℝ) ^ k = 1 := by
-      rw [← Real.rpow_add (by norm_num), neg_add_cancel, Real.rpow_zero]
-    nlinarith [mul_le_mul_of_nonneg_right h (show (0 : ℝ) ≤ 2 ^ k by positivity)]
+  · rw [div_le_iff₀ (lt_of_lt_of_le (by positivity) h)]
+    calc (1 : ℝ) = (2 : ℝ) ^ k * (2 : ℝ) ^ (-k) := by
+          rw [← Real.rpow_add two_pos, add_neg_cancel, Real.rpow_zero]
+      _ ≤ (2 : ℝ) ^ k * coordinateDensity Y P x := by gcongr
   · simp only [zero_div]
     positivity
   · exact Real.one_le_rpow (by norm_num) hk
 
 private theorem guidedAverage_mono (X Y : Finset (ι → Bool)) {p k : ℝ} (hp : 0 ≤ p)
     (hp' : p ≤ 1) {f g : (ι → Bool) → ℝ} (hfg : ∀ z, f z ≤ g z) :
-    guidedAverage X Y p k f ≤ guidedAverage X Y p k g := by
-  apply expect_le_expect
-  intro x _
-  apply bernoulliAverage_mono hp hp'
-  intro P
-  exact expect_le_expect fun y _ =>
-    mul_le_mul_of_nonneg_left (hfg _) (guidingDensity_nonneg Y k P x y)
+    guidedAverage X Y p k f ≤ guidedAverage X Y p k g :=
+  expect_le_expect fun x _ => bernoulliAverage_mono hp hp' fun P =>
+    expect_le_expect fun y _ =>
+      mul_le_mul_of_nonneg_left (hfg _) (guidingDensity_nonneg Y k P x y)
 
 private theorem guidedAverage_bound (X Y : Finset (ι → Bool)) {p k : ℝ}
     (hp : 0 ≤ p) (hp' : p ≤ 1) (hk : 0 ≤ k) (f : (ι → Bool) → ℝ)
@@ -353,11 +345,9 @@ private theorem guidedAverage_bound (X Y : Finset (ι → Bool)) {p k : ℝ}
       (2 : ℝ) ^ k * bernoulliAverage p (fun P => 𝔼 x ∈ X, 𝔼 y, f (resample P x y)) := by
     unfold guidedAverage
     rw [bernoulliAverage_expect_comm, mul_expect]
-    apply expect_le_expect
-    intro x _
+    refine expect_le_expect fun x _ => ?_
     rw [← bernoulliAverage_const_mul]
-    apply bernoulliAverage_mono hp hp'
-    intro P
+    refine bernoulliAverage_mono hp hp' fun P => ?_
     rw [mul_expect]
     exact expect_le_expect fun y _ =>
       mul_le_mul_of_nonneg_right (guidingDensity_le Y hk P x y) (hf _)
@@ -427,20 +417,16 @@ private theorem guidingDensity_small_event (Y : Finset (ι → Bool)) {k : ℝ} 
     have he : (2 : ℝ) ^ k * (2 : ℝ) ^ (-k - 6) = 1 / 64 := by
       rw [← Real.rpow_add (by norm_num), show k + (-k - 6) = (-6 : ℝ) by ring]
       norm_num
-    have hh := hcap.trans ((mul_le_mul_of_nonneg_left hsmall (by positivity)).trans_eq he)
     rw [ite_eq_left hsmall]
-    linarith
-  · rw [ite_eq_right hsmall]
-    linarith
+    linarith [hcap.trans ((mul_le_mul_of_nonneg_left hsmall (by positivity)).trans_eq he)]
+  · rw [ite_eq_right hsmall]; linarith
 
 private theorem guidedAverage_bad_completion (X Y : Finset (ι → Bool)) (hX : X.Nonempty)
     {k p q : ℝ} (hk : 1 ≤ k) (hdef : uniformDeficit X ≤ k) (hp : 0 < p)
     (hq : q = 32768 * k * p) (hq' : q ≤ 1 / 2) :
     guidedAverage X Y p k (fun z => bernoulliAverage q (fun Q =>
       if coordinateDensity X Q z < (2 : ℝ) ^ (-194 * k) then (1 : ℝ) else 0)) ≤ 1 / 16 := by
-  have hqp : 0 < q := by rw [hq]; positivity
-  have hq1 : q ≤ 1 := by linarith
-  have hpq : p ≤ q := by rw [hq]; nlinarith [mul_nonneg hp.le (sub_nonneg.mpr hk)]
+  obtain ⟨hqp, hq1, hpq⟩ := mirror_rate_bounds hk hp hq hq'
   let f (Q z : ι → Bool) : ℝ :=
     if coordinateDensity X Q z < (2 : ℝ) ^ (-194 * k) then 1 else 0
   have hm : guidedAverage X Y p k (fun z => bernoulliAverage q (fun Q => f Q z)) ≤
@@ -448,15 +434,11 @@ private theorem guidedAverage_bad_completion (X Y : Finset (ι → Bool)) (hX : 
         𝔼 x ∈ X, (65 / 64 - (if (𝔼 y, f Q (resample P x y)) ≤ (2 : ℝ) ^ (-k - 6)
           then (1 : ℝ) else 0)))) := by
     rw [guidedAverage_bernoulli]
-    apply bernoulliAverage_mono hp.le (hpq.trans hq1)
-    intro P
-    apply bernoulliAverage_mono hqp.le hq1
-    intro Q
-    apply expect_le_expect
-    intro x _
-    exact guidingDensity_small_event Y (by linarith) P x (fun y => f Q (resample P x y))
-      (by intro y; dsimp [f]; split_ifs <;> norm_num)
-      (by intro y; dsimp [f]; split_ifs <;> norm_num)
+    exact bernoulliAverage_mono hp.le (hpq.trans hq1) fun P =>
+      bernoulliAverage_mono hqp.le hq1 fun Q => expect_le_expect fun x _ =>
+        guidingDensity_small_event Y (by linarith) P x (fun y => f Q (resample P x y))
+          (fun y => by dsimp [f]; split_ifs <;> norm_num)
+          (fun y => by dsimp [f]; split_ifs <;> norm_num)
   simp_rw [expect_sub_distrib, expect_const hX, bernoulliAverage_sub,
     bernoulliAverage_const] at hm
   have hg := mirror_bad_modifications_probability X hX hk hdef hp hq hq'
@@ -479,31 +461,27 @@ private theorem guidedAverage_mirror_mass (X Y : Finset (ι → Bool)) (hX : X.N
     (hlim : ∀ x ∈ X, IsDensityLimit Y p k x) :
     1 / 4 ≤ guidedAverage X Y p k
       (fun z => if z ∈ Y ∧ IsDensityLimit X q (194 * k) z then (1 : ℝ) else 0) := by
-  have hqp : 0 < q := by rw [hq]; positivity
-  have hq1 : q ≤ 1 := by linarith
-  have hpq : p ≤ q := by rw [hq]; nlinarith [mul_nonneg hp.le (sub_nonneg.mpr hk)]
+  obtain ⟨hqp, hq1, hpq⟩ := mirror_rate_bounds hk hp hq hq'
   let bad (z : ι → Bool) : ℝ := bernoulliAverage q (fun Q =>
     if coordinateDensity X Q z < (2 : ℝ) ^ (-(194 * k)) then (1 : ℝ) else 0)
   have hbad (z : ι → Bool) : 0 ≤ bad z := by
-    have h := bernoulliAverage_mono hqp.le hq1 (f := fun _ => 0)
-      (g := fun Q => if coordinateDensity X Q z < (2 : ℝ) ^ (-(194 * k)) then 1 else 0)
-      (by intro Q; split_ifs <;> norm_num)
-    simpa only [bernoulliAverage_const] using h
+    simpa only [bernoulliAverage_const] using
+      bernoulliAverage_mono hqp.le hq1 (f := fun _ => 0)
+        (g := fun Q => if coordinateDensity X Q z < (2 : ℝ) ^ (-(194 * k)) then 1 else 0)
+        fun Q => by split_ifs <;> norm_num
   have hpoint (z : ι → Bool) : (if z ∈ Y then (1 : ℝ) else 0) ≤
       (if z ∈ Y ∧ IsDensityLimit X q (194 * k) z then 1 else 0) + 4 * bad z := by
     by_cases hy : z ∈ Y
     · by_cases hl : IsDensityLimit X q (194 * k) z
       · simp only [hy, hl, and_self, ite_true]
-        nlinarith [hbad z]
-      · have hh : 1 / 4 < bad z := by
-          dsimp only [bad]
-          rw [one_sub_bernoulliAverage_density_lt]
-          unfold IsDensityLimit at hl
-          linarith
-        simp only [hy, hl, and_false, ite_true, ite_false, zero_add]
+        linarith [hbad z]
+      · simp only [hy, hl, and_false, ite_true, ite_false, zero_add]
+        dsimp only [bad]
+        rw [one_sub_bernoulliAverage_density_lt]
+        unfold IsDensityLimit at hl
         linarith
     · simp only [hy, false_and, ite_false, zero_add]
-      nlinarith [hbad z]
+      linarith [hbad z]
   have hm := guidedAverage_mono X Y (k := k) hp.le (hpq.trans hq1) hpoint
   rw [guidedAverage_add_const_mul] at hm
   have hhit := guidedAverage_hits X Y hX hp.le (hpq.trans hq1) hlim
@@ -522,33 +500,31 @@ theorem exists_mirror_set (X Y : Finset (ι → Bool)) (hX : X.Nonempty)
     ∃ Y' : Finset (ι → Bool), Y' ⊆ Y ∧ Y'.Nonempty ∧ uniformDeficit Y' ≤ 2 * k + 2 ∧
       ∀ y ∈ Y', IsDensityLimit X q (194 * k) y := by
   let A := Y.filter (IsDensityLimit X q (194 * k))
-  have hq1 : q ≤ 1 := by linarith
-  have hpq : p ≤ q := by rw [hq]; nlinarith [mul_nonneg hp.le (sub_nonneg.mpr hk)]
+  obtain ⟨_, hq1, hpq⟩ := mirror_rate_bounds hk hp hq hq'
   have hm : 1 / 4 ≤ guidedAverage X Y p k (fun z => if z ∈ A then (1 : ℝ) else 0) := by
     simpa only [A, mem_filter] using
       guidedAverage_mirror_mass X Y hX hk hdef hp hq hq' hlim
   have hb : guidedAverage X Y p k (fun z => if z ∈ A then (1 : ℝ) else 0) ≤
       (2 : ℝ) ^ k * A.card / X.card := by
     simpa using guidedAverage_bound X Y hp.le (hpq.trans hq1) (show 0 ≤ k by linarith)
-      (fun z => if z ∈ A then (1 : ℝ) else 0) (by intro z; split_ifs <;> norm_num)
+      (fun z => if z ∈ A then (1 : ℝ) else 0) (fun z => by split_ifs <;> norm_num)
   have hxpos : (0 : ℝ) < X.card := by exact_mod_cast hX.card_pos
   have hxcount := (uniformDeficit_le_iff hX).mp hdef
   have hprod : (4 * (2 : ℝ) ^ k) * (2 : ℝ) ^ ((Fintype.card ι : ℝ) - (2 * k + 2)) =
       (2 : ℝ) ^ ((Fintype.card ι : ℝ) - k) := by
     rw [show (4 : ℝ) = (2 : ℝ) ^ (2 : ℝ) by norm_num,
-      ← Real.rpow_add (by norm_num), ← Real.rpow_add (by norm_num)]
+      ← Real.rpow_add two_pos, ← Real.rpow_add two_pos]
     congr 1
     ring
   have hcard : (2 : ℝ) ^ ((Fintype.card ι : ℝ) - (2 * k + 2)) ≤ A.card := by
-    apply (mul_le_mul_iff_right₀ (show 0 < 4 * (2 : ℝ) ^ k by positivity)).mp
-    rw [hprod]
     have hh := (le_div_iff₀ hxpos).mp (hm.trans hb)
-    nlinarith
-  have hA : A.Nonempty := by
-    apply card_pos.mp
-    have hpos := (Real.rpow_pos_of_pos (show (0 : ℝ) < 2 by norm_num)
-      ((Fintype.card ι : ℝ) - (2 * k + 2))).trans_le hcard
-    exact_mod_cast hpos
+    rw [← mul_le_mul_iff_right₀ (show 0 < 4 * (2 : ℝ) ^ k by positivity), hprod]
+    calc (2 : ℝ) ^ ((Fintype.card ι : ℝ) - k) ≤ X.card := hxcount
+      _ = 4 * (1 / 4 * X.card) := by ring
+      _ ≤ 4 * ((2 : ℝ) ^ k * A.card) := by gcongr
+      _ = 4 * (2 : ℝ) ^ k * A.card := by ring
+  have hA : A.Nonempty := card_pos.mp <| Nat.cast_pos.mp <|
+    (Real.rpow_pos_of_pos two_pos _).trans_le hcard
   exact ⟨A, filter_subset _ _, hA, (uniformDeficit_le_iff hA).mpr hcard,
     fun y hy => (mem_filter.mp hy).2⟩
 

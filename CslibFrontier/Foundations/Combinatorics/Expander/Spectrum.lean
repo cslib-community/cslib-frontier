@@ -257,11 +257,8 @@ theorem spectralExpansion_eq_ciSup_abs_eigenvalues :
       rw [← sq_abs]
       exact pow_le_pow_left₀ (abs_nonneg _) hi 2
     exact mul_le_mul_of_nonneg_right hi2 (sq_nonneg _)
-  have hnorm_u : ‖u‖ ^ 2 = (Fintype.card V : ℝ) * 𝔼 v, f v ^ 2 :=
-    (card_mul_expect_sq f).symm
-  have hnorm_wu : ‖G.orthogonalWalk u‖ ^ 2 = (Fintype.card V : ℝ) * 𝔼 v, G.walk f v ^ 2 :=
-    (card_mul_expect_sq (G.walk f)).symm
-  rw [hnorm_wu, hnorm_u, mul_left_comm] at hle
+  change ‖WithLp.toLp 2 (G.walk f)‖ ^ 2 ≤ c ^ 2 * ‖WithLp.toLp 2 f‖ ^ 2 at hle
+  rw [← card_mul_expect_sq (G.walk f), ← card_mul_expect_sq f, mul_left_comm] at hle
   rcases (Fintype.card V).eq_zero_or_pos with hV | hV
   · have : IsEmpty V := Fintype.card_eq_zero_iff.1 hV
     simp
@@ -297,11 +294,9 @@ theorem secondEigenvalue_eq_orthogonalWalk_eigenvalues_zero (h0 : 0 < n) :
       (G.isSymmetric_orthogonalWalk.eigenvalues_antitone hn
         (show (⟨0, h0⟩ : Fin n) ≤ i from Nat.zero_le i.1))
       (sq_nonneg _)
-  have hinner : ⟪u, G.orthogonalWalk u⟫ = (Fintype.card V : ℝ) * 𝔼 v, f v * G.walk f v :=
-    (card_mul_expect_mul (WithLp.toLp 2 f) (WithLp.toLp 2 (G.walk f))).symm
-  have hnorm : ‖u‖ ^ 2 = (Fintype.card V : ℝ) * 𝔼 v, f v ^ 2 :=
-    (card_mul_expect_sq f).symm
-  rw [hinner, hnorm, mul_left_comm] at hle
+  change ⟪WithLp.toLp 2 f, WithLp.toLp 2 (G.walk f)⟫ ≤ _ * ‖WithLp.toLp 2 f‖ ^ 2 at hle
+  rw [← card_mul_expect_mul (WithLp.toLp 2 f) (WithLp.toLp 2 (G.walk f)),
+    ← card_mul_expect_sq f, mul_left_comm] at hle
   exact le_of_mul_le_mul_left hle (Nat.cast_pos.2 Fintype.card_pos)
 
 /-- On at least two vertices, the second eigenvalue `λ₂(G)` is the supremum of the eigenvalues of
@@ -375,19 +370,14 @@ private theorem le_secondEigenvalue_of_mul_norm_sq_le_inner [Nonempty V]
     {u : EuclideanSpace ℝ V} (hu_ne : u ≠ 0) (hu_exp : 𝔼 v, u.ofLp v = 0) {μ : ℝ}
     (hu_quad : μ * ‖u‖ ^ 2 ≤ ⟪u, G.walkEuclidean u⟫) :
     μ ≤ G.secondEigenvalue := by
-  set f : V → ℝ := u.ofLp
-  have hf_ne : f ≠ 0 := fun h ↦ hu_ne (WithLp.ofLp_injective 2 h)
-  obtain ⟨v₀, hv₀⟩ := Function.ne_iff.1 hf_ne
-  have hpos : 0 < 𝔼 v, f v ^ 2 :=
+  obtain ⟨v₀, hv₀⟩ := Function.ne_iff.1 fun h : u.ofLp = 0 ↦ hu_ne (WithLp.ofLp_injective 2 h)
+  have hpos : 0 < 𝔼 v, u.ofLp v ^ 2 :=
     expect_pos' (fun _ _ ↦ sq_nonneg _) ⟨v₀, mem_univ v₀, sq_pos_iff.2 hv₀⟩
-  have hinner : ⟪u, G.walkEuclidean u⟫ = (Fintype.card V : ℝ) * 𝔼 v, f v * G.walk f v :=
-    (card_mul_expect_mul u (G.walkEuclidean u)).symm
-  have hnorm : ‖u‖ ^ 2 = (Fintype.card V : ℝ) * 𝔼 v, f v ^ 2 := by
-    simpa [f] using (card_mul_expect_sq f).symm
-  rw [hinner, hnorm, mul_left_comm] at hu_quad
-  have hle₁ := le_of_mul_le_mul_left hu_quad (Nat.cast_pos.2 Fintype.card_pos)
-  have hle₂ := G.expect_mul_walk_le_secondEigenvalue_mul hu_exp
-  exact le_of_mul_le_mul_right (hle₁.trans hle₂) hpos
+  rw [← card_mul_expect_mul u (G.walkEuclidean u), ← card_mul_expect_sq u.ofLp,
+    ofLp_walkEuclidean, mul_left_comm] at hu_quad
+  exact le_of_mul_le_mul_right
+    ((le_of_mul_le_mul_left hu_quad (Nat.cast_pos.2 Fintype.card_pos)).trans
+      (G.expect_mul_walk_le_secondEigenvalue_mul hu_exp)) hpos
 
 /-- When `eigenvalues hm ⟨1, hm1⟩ < 1`, the top eigenvector of `G.walkEuclidean` spans the constant
 functions, so every `x : EuclideanSpace ℝ V` of mean zero has `0`-th coordinate `0` in the
@@ -457,11 +447,7 @@ private theorem secondEigenvalue_le_walkEuclidean_eigenvalues_one [Nonempty D] (
     · have hhi : i₁ ≤ i := Nat.one_le_iff_ne_zero.2 (Fin.val_ne_of_ne hi)
       exact mul_le_mul_of_nonneg_right
         (G.isSymmetric_walkEuclidean.eigenvalues_antitone hm hhi) (sq_nonneg _)
-  have hinner : ⟪x, G.walkEuclidean x⟫ = (Fintype.card V : ℝ) * 𝔼 v, f v * G.walk f v :=
-    (card_mul_expect_mul x (G.walkEuclidean x)).symm
-  have hnorm : ‖x‖ ^ 2 = (Fintype.card V : ℝ) * 𝔼 v, f v ^ 2 :=
-    (card_mul_expect_sq f).symm
-  rw [hinner, hnorm, mul_left_comm] at hle
+  rw [← card_mul_expect_mul x (G.walkEuclidean x), ← card_mul_expect_sq f, mul_left_comm] at hle
   exact le_of_mul_le_mul_left hle (Nat.cast_pos.2 Fintype.card_pos)
 
 /-- On at least two vertices, the second eigenvalue of `G.walkEuclidean` is at most

@@ -251,8 +251,7 @@ theorem computableInPolyTime_run_word [Finite Operation] {α : Type} {input : α
       (answerSize := ansMax a) (fun w hw => (ho_len w).trans (Nat.mul_le_mul_left co
         (Nat.pow_le_pow_left (Nat.add_le_add_right hw 1) do'))) hi
   have hbound : PolyBounded (fun a => (input a).length)
-      (fun a => cf * ((input a).length + clk a + ansMax a + 1)) := by
-    dsimp only [clk, ansMax]; growth_poly
+      (fun a => cf * ((input a).length + clk a + ansMax a + 1)) := by growth_poly
   have hit := ComputableInPolyTime.iterate hcount
     (ComputableInPolyTime.finiteConfig_init (by fun_prop) _)
     (machine.computableInPolyTime_answerStep_word horacle) hbound
@@ -343,7 +342,7 @@ theorem exists_computableInO_run_word [Finite Operation] {α : Type} {input : α
   obtain ⟨c₀, e₀, hc₀⟩ := (show PolyBounded (fun a => (input a).length)
     (fun a => ((input a).length + 1) ^ dn + ((input a).length + 1) ^ di +
       (B a + 1) ^ do' + stepPoly a + sgMax a + B a + (clk a + 1) ^ 2 + clk a) by
-    dsimp only [stepPoly, B, ansMax, sgMax, clk]; growth_poly).exists_le
+    growth_poly).exists_le
   refine ⟨c₀, e₀, fun a => c₀ * ((input a).length + 1) ^ e₀, by growth_poly,
     hwhole.mono_le (fun a => ?_) (fun a => ?_)⟩
   · have hfin := Nat.pow_le_pow_left (Nat.add_le_add_right (hlen a le_rfl) 1) do'
@@ -693,9 +692,7 @@ noncomputable def compCapPoly {oracle₁ oracle₂ : List Bool → List Bool} {f
   let hqb := IsOraclePPTOn.query_bounds R₁.isOraclePPTOn
   let c₁ := Classical.choose hqb
   let d₁ := Classical.choose (Classical.choose_spec hqb)
-  let hcap₂ : PolyBounded List.length R₂.alenCap := by
-    simpa only [encUnary_apply, List.length_replicate, encBits_apply] using
-      R₂.computableInPolyTime_alenCap.polyBounded_length
+  let hcap₂ : PolyBounded List.length R₂.alenCap := by growth_poly [R₂.computableInPolyTime_alenCap]
   let hex₂ := hcap₂.exists_le
   let c₂ := Classical.choose hex₂
   let d₂ := Classical.choose (Classical.choose_spec hex₂)
@@ -770,16 +767,11 @@ private theorem comp_respects_bound {oracle₁ oracle₂ : List Bool → List Bo
       forall_queriesWith_of_probQueriesSatisfy (fun q => oracle₁ q.2) (R₁.program a)
         (Classical.choose_spec (Classical.choose_spec hqb) a).2 q hq
     have hcap₂_poly : PolyBounded List.length R₂.alenCap := by
-      simpa only [encUnary_apply, List.length_replicate, encBits_apply] using
-        R₂.computableInPolyTime_alenCap.polyBounded_length
+      growth_poly [R₂.computableInPolyTime_alenCap]
     let hex₂ := hcap₂_poly.exists_le
     have hcap₂_le := Classical.choose_spec (Classical.choose_spec hex₂) q.2
-    have hcap_eval : (compCapPoly R₁ R₂).eval (encA a).length =
-        Classical.choose hex₂ * (Classical.choose hqb * ((encA a).length + 1) ^
-          Classical.choose (Classical.choose_spec hqb) + 1) ^
-          Classical.choose (Classical.choose_spec hex₂) := by
-      simp [compCapPoly]
-    rw [hcap_eval]
+    simp only [compCapPoly, Polynomial.eval_mul, Polynomial.eval_pow, Polynomial.eval_add,
+      Polynomial.eval_C, Polynomial.eval_X, Polynomial.eval_one]
     exact (hal₂.trans (R₂.alen_le_alenCap q.2)).trans (hcap₂_le.trans
       (Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (Nat.add_le_add_right hq_clk 1) _)))
 
@@ -927,9 +919,8 @@ theorem computableInPolySpace {oracle : List Bool → List Bool} {f : α → β}
     ⟨1, hc.mono (fun a => by simp only [one_mul]; omega)
       (fun a => by simp only [one_mul, encBits_apply]; omega),
       fun a => (hl a).trans (by simp only [one_mul, encBits_apply]; omega)⟩
-  have hsPoly : PolyBounded List.length (fun w : List Bool => s w.length) :=
-    .of_polynomiallyBounded List.length hs
-  obtain ⟨_, _, S, hSPoly, _, _, c, htm, hout⟩ := R.exists_computableInO_polySpace hO hsPoly
+  obtain ⟨_, _, S, hSPoly, _, _, c, htm, hout⟩ :=
+    R.exists_computableInO_polySpace hO (.of_polynomiallyBounded List.length hs)
   exact ComputableInPolySpace.of_inSpace hSPoly ⟨_, c, htm, hout⟩
 
 end BoundedOracleProgram
@@ -1113,16 +1104,13 @@ private theorem decide_mem_image_eq_of_decoder {β : Type} {encB : β ↪ List B
       if decide (encB (D.decode w) = w) then g (D.decode w) else false := by
   by_cases hcan : encB (D.decode w) = w
   · simp only [hcan, decide_true, ↓reduceIte]
-    have hmem : w ∈ encB '' B ↔ D.decode w ∈ B := by
-      conv_lhs => rw [← hcan]
-      exact encB.injective.mem_set_image
-    exact Bool.eq_iff_iff.mpr
-      ⟨fun h => (hgB _).mp (hmem.mp (of_decide_eq_true h)),
-        fun h => decide_eq_true (hmem.mpr ((hgB _).mpr h))⟩
+    rw [Bool.eq_iff_iff, decide_eq_true_iff, ← hgB]
+    conv_lhs => rw [← hcan]
+    exact encB.injective.mem_set_image
   · have hnot : w ∉ encB '' B := by
       rintro ⟨b, _, rfl⟩
-      exact hcan (by rw [D.decode_enc])
-    simp only [decide_eq_false hcan, Bool.false_eq_true, ↓reduceIte, decide_eq_false hnot]
+      exact hcan (congrArg encB (D.decode_enc b))
+    simp [hcan, hnot]
 
 /-- Lift a typed `BoundedOracleReduction encB encC B C` to a word-level `BoundedOracleProgram`
 answering `encodedDecisionOracle encB B` via a total polynomial-time `D : Decoder encB`:
@@ -1220,11 +1208,7 @@ theorem mem_PWithOracleQueries {A : Set α} {B : Set β}
   refine ⟨fun a => decide (a ∈ A), ⟨R.program, R.isOraclePPTOn, fun a => ⟨?_, ?_⟩⟩,
     fun _ => by simp⟩
   · exact R.toProgram.eval_eq a
-  · rcases R.respects_bound a with ⟨hqc, _, _, _⟩
-    have heq : (fun q : Unit × List Bool => encodedDecisionOracle encB B q.2) =
-        languageOracle (encB '' B) := rfl
-    rw [← heq]
-    exact hqc.trans (hr a)
+  · exact (R.respects_bound a).1.trans (hr a)
 
 /-- Conversely, any membership witness `A ∈ PWithOracleQueries (encB '' B) r encA` yields a
 `BoundedOracleReduction encA encB A B` with `qcount a = r |encA a|`, polynomial `qlen`,
@@ -1368,6 +1352,7 @@ private theorem guardedStep_inO {β : Type} {encB : β ↪ List Bool}
     (.const false) hisActive_pt hsub_pt hlocal_pt hcomb_pt hg
   refine ⟨d, (h.mono_le (fun _ => by simp only [true_and]; exact le_rfl)
     (fun _ => by simp only [true_and]; exact le_rfl)).of_enc_eq fun ⟨K, cfg⟩ => ?_⟩
+  congr 1
   simp only [Bool.false_eq_true, ite_false]
   rw [machine.answerStep_word (fun w =>
     [if decide (encB (D.decode w) = w) && decide (μB (D.decode w) ≤ K) then
@@ -1375,12 +1360,10 @@ private theorem guardedStep_inO {β : Type} {encB : β ↪ List Bool}
     machine.answerStep_word (fun _ => [false]) cfg]
   by_cases hpq : (machine.pendingQuery cfg).isSome = true
   · by_cases hc : (decide (encB (D.decode (machine.pendingRequest cfg)) =
-        machine.pendingRequest cfg) &&
-      decide (μB (D.decode (machine.pendingRequest cfg)) ≤ K)) = true
-    · simp only [hpq, hc, Bool.true_and, ↓reduceIte, subinst]; rfl
-    · simp only [hpq, Bool.eq_false_iff.mpr hc, Bool.true_and, Bool.false_eq_true, ↓reduceIte,
-        subinst]; rfl
-  · simp only [Bool.eq_false_iff.mpr hpq, Bool.false_eq_true, Bool.false_and, ↓reduceIte]; rfl
+          machine.pendingRequest cfg) &&
+        decide (μB (D.decode (machine.pendingRequest cfg)) ≤ K)) = true <;>
+      simp [hpq, hc, subinst]
+  · simp [hpq]
 
 /-- Agreement between `languageOracle (encB '' B)` and the budget-guarded oracle `guardAns K`
 along every query actually issued by `R.program a`. -/
@@ -1581,8 +1564,7 @@ theorem decidableInExpTime {A : Set α} {B : Set β} {μA : α → ℕ} {μB : �
         refine Nat.cast_le.mp ((ht b).trans (le_trans ?_ (Nat.le_ceil _)))
         have hexp : (2 : ℝ) ^ (δ * μB b) ≤ 2 ^ (δ * (K a : ℝ)) :=
           Real.rpow_le_rpow_of_exponent_le (by norm_num)
-            (mul_le_mul_of_nonneg_left (by exact_mod_cast hμ_le) hδ)
-        have hpow : (((encB b).length : ℝ) + 1) ^ e ≤ ((clk a : ℝ) + 1) ^ e := by gcongr
+            (mul_le_mul_of_nonneg_left (Nat.cast_le.mpr hμ_le) hδ)
         gcongr
       have hp2 : ((encPair encNat encFiniteConfig st).length +
           (encBool (g b)).length + 1) ^ d_step ≤ (stateBound a + 2) ^ d_step := by
@@ -1595,7 +1577,7 @@ theorem decidableInExpTime {A : Set α} {B : Set β} {μA : α → ℕ} {μB : �
     (fun a => ((encA a).length + 1) ^ dn + ((encA a).length + 1) ^ di +
       (stateBound a + 1) ^ da + (clk a + 1) * (stepPoly a + stateBound a +
         (clk a + 1) ^ 2 + (clk a + 1) ^ e + 1)) by
-    dsimp only [stepPoly, stateBound, clk]; growth_poly).exists_le
+    growth_poly).exists_le
   refine DecidableInExpTime.of_computableInO hloop (fun a => by
     change a ∈ A ↔ (stepGuard^[clk a] (initSt a)).2.tapes.output.headD false = true
     rw [hiter_eq a (clk a)]
