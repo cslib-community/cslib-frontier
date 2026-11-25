@@ -216,9 +216,7 @@ private theorem exists_computableInO_two_pow_length {f : ℕ → ℕ}
 private theorem padTime_add_one_le {n m d M : ℕ} (hn : n ≤ M) (hm : m ≤ M) :
     n + (n + (n + 1) ^ d + (m + 1) * 2 ^ m) + 1 ≤ 2 ^ ((d + 2) * M + 2) := by
   have hM : M < 2 ^ M := Nat.lt_two_pow_self
-  have hpow : (n + 1) ^ d ≤ 2 ^ (d * M) := by
-    rw [pow_mul']
-    exact Nat.pow_le_pow_left (by omega) d
+  have hpow : (n + 1) ^ d ≤ 2 ^ (d * M) := pow_mul' 2 d M ▸ Nat.pow_le_pow_left (by omega) d
   have hdbl : (m + 1) * 2 ^ m ≤ 2 ^ (2 * M) := by
     rw [two_mul, pow_add]
     exact Nat.mul_le_mul (by omega) (Nat.pow_le_pow_right (by norm_num) hm)
@@ -260,8 +258,7 @@ theorem NTIME_subset_iUnion_DTIME_of_agree_padded {t T : ℕ → ℕ}
       fun a => (enc a).length + S (enc a) :=
     computableInO_frame_append_replicate hpad
   obtain ⟨c', hc'⟩ := hpad.length_le_time
-  have hlen (a : α) : (g a).length = 2 * (enc a).length + 1 + t (enc a).length := by
-    simp [g]
+  have hlen (a : α) : (g a).length = 2 * (enc a).length + 1 + t (enc a).length := by simp [g]
   have ht (a : α) : t (enc a).length ≤ c' * (T (enc a).length + 1) := by
     simpa only [encUnary_apply, List.length_replicate] using hc' (enc a)
   have hpre : A = g ⁻¹' B' := by
@@ -269,10 +266,8 @@ theorem NTIME_subset_iUnion_DTIME_of_agree_padded {t T : ℕ → ℕ}
     refine Iff.trans ?_ (hagree (enc a)).symm
     refine (hA.frame_append_mem_padded_iff ?_).symm
     rw [List.length_append, List.length_replicate, length_frame]
-    have : c₁ * t (enc a).length + c₂ ≤ (c₁ + c₂) * (2 * (enc a).length + 1 + t (enc a).length) :=
-      by nlinarith
     rw [Nat.mul_assoc]
-    exact Nat.mul_le_mul_left _ this
+    exact Nat.mul_le_mul_left _ (by nlinarith)
   refine Set.mem_iUnion.mpr ⟨d + 1, hpre ▸ preimage_mem_DTIME (C := (c' + 2) ^ d + 1) hd hg
     fun a => ?_⟩
   rw [encBits_apply, hlen]
@@ -557,8 +552,7 @@ theorem preimage_pad_prod_id_mem_EXP {B : Set (List Bool × List Bool)}
       (frame (enc p.1) ++ List.replicate (2 ^ f n) true, p.2)).length + 1 ≤ 2 ^ (X + 3) := by
     have h2f : 2 ^ f n ≤ 2 ^ X := Nat.pow_le_pow_right (by norm_num) hfX
     simp only [length_encPair, encBits_apply, List.length_append, length_frame,
-      List.length_replicate]
-    rw [pow_add]
+      List.length_replicate, pow_add]
     omega
   have hpow : (encPair encBits encBits
       (frame (enc p.1) ++ List.replicate (2 ^ f n) true, p.2)).length ^ d ≤ 2 ^ E :=
@@ -599,8 +593,7 @@ theorem preimage_pad_prod_two_pow_mem_EXP {B : Set (List Bool × ℕ)}
     have h2f : 2 ^ f n ≤ 2 ^ X := Nat.pow_le_pow_right (by norm_num) (Nat.le_add_right _ _)
     have h2g : 2 ^ g n ≤ 2 ^ X := Nat.pow_le_pow_right (by norm_num) (Nat.le_add_left _ _)
     simp only [length_encPair, encBits_apply, encUnary_apply, List.length_append, length_frame,
-      List.length_replicate]
-    rw [pow_add]
+      List.length_replicate, pow_add]
     omega
   have hpow : (encPair encBits encUnary
       (frame (enc a) ++ List.replicate (2 ^ f n) true, 2 ^ g n)).length ^ d ≤ 2 ^ E :=
