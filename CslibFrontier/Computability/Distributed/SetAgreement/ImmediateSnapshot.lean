@@ -611,7 +611,8 @@ private theorem reconstructBlocksAux_spec :
       have hu : unionBlocks (B :: reconstructBlocksAux fuel (U \ B) S' hS') = U := by
         rw [unionBlocks_cons, hu', union_sdiff_of_subset hBsub]
       refine ⟨List.forall_mem_cons.mpr ⟨hBne, hne'⟩,
-        List.pairwise_cons.mpr ⟨disjoint_unionBlocks_right.mp hdisjB, hdisj'⟩, hu, funext fun p => ?_⟩
+        List.pairwise_cons.mpr ⟨disjoint_unionBlocks_right.mp hdisjB, hdisj'⟩, hu,
+        funext fun p => ?_⟩
       by_cases hpB : p ∈ B
       · rw [blocksSnapshot_cons_of_mem hpB, hBeq p hpB]
       · by_cases hpU : p ∈ U
