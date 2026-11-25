@@ -70,7 +70,8 @@ theorem length_actions_le (state : State) (symbol : Option Bool) (work : Fin k �
     (ntm.actions state symbol work).length ≤ Nat.card (Turing.Action k Bool State) := by
   classical
   have := Fintype.ofFinite (Turing.Action k Bool State)
-  simpa [actions, Nat.card_eq_fintype_card] using Finset.card_le_univ _
+  rw [actions, Finset.length_toList, Nat.card_eq_fintype_card]
+  exact Finset.card_le_univ _
 
 namespace ChoiceTable
 
@@ -104,13 +105,18 @@ def emit : OutputTrack → Option Bool → OutputTrack
 /-- Emitting a symbol updates the track of the word. -/
 theorem ofWord_append (word : List Bool) (symbol : Option Bool) :
     ofWord (word ++ symbol.toList) = (ofWord word).emit symbol := by
-  rcases symbol with _ | ⟨_ | _⟩
+  rcases symbol with _ | b
   · simp [emit]
-  all_goals rcases word with _ | ⟨_ | _, _ | _⟩ <;> rfl
+  · rcases word with _ | ⟨x, word⟩
+    · cases b <;> simp [ofWord, emit]
+    · by_cases h : x :: word = [true]
+      · simp [ofWord, emit, h]
+      · simp [ofWord, emit, h]
 
 /-- A word is `[true]` exactly when its track is `accept`. -/
 theorem ofWord_eq_accept_iff (word : List Bool) : ofWord word = accept ↔ word = [true] := by
-  unfold ofWord; split_ifs <;> simp_all
+  unfold ofWord
+  split_ifs with h₁ h₂ <;> simp_all
 
 /-- Emitting the same word after words with the same track gives words with the same track. -/
 theorem ofWord_append_eq_of_eq {word word' : List Bool} (h : ofWord word = ofWord word')
@@ -118,8 +124,8 @@ theorem ofWord_append_eq_of_eq {word word' : List Bool} (h : ofWord word = ofWor
   induction more using List.reverseRecOn with
   | nil => simpa using h
   | append_singleton more symbol ih =>
-    rw [← List.append_assoc, ← List.append_assoc, ← Option.toList_some, ofWord_append,
-      ofWord_append, ih]
+    have hsym : [symbol] = (some symbol).toList := rfl
+    rw [← List.append_assoc, ← List.append_assoc, hsym, ofWord_append, ofWord_append, ih]
 
 /-- A word with a given track: `[]`, `[true]` or `[false]`. -/
 def toWord : OutputTrack → List Bool
@@ -179,7 +185,8 @@ theorem step_choiceTable {cfg : Cfg k Bool (ScanState k State) input} {s : ScanS
     (h : cfg.state = some s) (bit : Bool) :
     (ntm.choiceTable.withCoin bit).toTM.step cfg =
       (scan ntm s cfg.inputSymbol cfg.workTapeSymbols bit).apply cfg := by
-  rw [MultiTapeTM.step_of_state h, MultiTapeMachine.toTM, MultiTapeTM.tr_ofTr]; rfl
+  rw [MultiTapeTM.step_of_state h, MultiTapeMachine.toTM, MultiTapeTM.tr_ofTr]
+  rfl
 
 /-- The table simulating the running configuration `c` in state `state`, before candidate `j`. -/
 def scanCfg (c : Cfg k Bool State input) (state : State)
@@ -207,10 +214,15 @@ theorem apply_perform (c : Cfg k Bool State input) (state : State)
     (perform (OutputTrack.ofWord c.output) action).apply (scanCfg c state j) =
       simCfg (action.apply c) := by
   rcases hs : action.state with _ | next
-  · simp only [perform, hs, simCfg, haltCfg, Action.apply, scanCfg, Cfg.mk.injEq, true_and,
-      List.nil_append, ← OutputTrack.ofWord_append, OutputTrack.ofWord_eq_accept_iff]
+  · have hacc : (OutputTrack.ofWord c.output).emit action.output = .accept ↔
+        c.output ++ action.output.toList = [true] := by
+      rw [← OutputTrack.ofWord_append, OutputTrack.ofWord_eq_accept_iff]
+    simp only [perform, hs, simCfg, haltCfg, Action.apply, scanCfg, Cfg.mk.injEq, true_and,
+      List.nil_append, hacc]
     split_ifs <;> rfl
-  · simp [perform, hs, simCfg, scanCfg, Action.apply, OutputTrack.ofWord_append]
+  · simp only [perform, hs, simCfg, scanCfg, Action.apply, Cfg.mk.injEq, Option.toList_none,
+      List.append_nil, and_true]
+    rw [OutputTrack.ofWord_append]
 
 /-- An idle instruction changes only the control state. -/
 theorem apply_idle {S : Type} (next : Option S) (cfg : Cfg k Bool S input) :
@@ -232,7 +244,9 @@ theorem scan_of_getElem?_eq_none (hj : (ntm.actions state symbol work)[j.val]? =
 theorem scan_of_take (hj : (ntm.actions state symbol work)[j.val]? = some action) {bit : Bool}
     (hbit : bit = true ∨ j.val + 1 = (ntm.actions state symbol work).length) :
     scan ntm (state, j, track) symbol work bit = perform track action := by
-  rcases hbit with rfl | h <;> simp [scan, *]
+  have hcond : (bit || decide (j.val + 1 = (ntm.actions state symbol work).length)) = true := by
+    rcases hbit with rfl | h <;> simp [*]
+  simp only [scan, hj, hcond, ↓reduceIte]
 
 theorem scan_of_skip (hj : (ntm.actions state symbol work)[j.val]? = some action)
     (hlast : j.val + 1 ≠ (ntm.actions state symbol work).length) :
@@ -245,7 +259,7 @@ theorem scan_of_skip (hj : (ntm.actions state symbol work)[j.val]? = some action
     have := ntm.length_actions_le state symbol work
     have := (List.getElem?_eq_some_iff.mp hj).1
     omega
-  simp [scan, hj, hlast, min_eq_left hle]
+  simp only [scan, hj, Bool.false_or, decide_eq_true_eq, hlast, ↓reduceIte, min_eq_left hle]
 
 end scan
 
@@ -262,7 +276,9 @@ theorem step_scanCfg_skip
         have := (List.getElem?_eq_some_iff.mp hj).1
         omega)⟩ := by
   rw [step_choiceTable ntm rfl]
-  exact (congrArg (·.apply (scanCfg c state j)) (scan_of_skip hj hlast)).trans (apply_idle _ _)
+  change (scan ntm (state, j, _) c.inputSymbol c.workTapeSymbols false).apply _ = _
+  rw [scan_of_skip hj hlast, apply_idle]
+  rfl
 
 /-- Taking a candidate, under the coin `true` or as the last candidate, simulates its step. -/
 theorem step_scanCfg_take
@@ -270,8 +286,9 @@ theorem step_scanCfg_take
     (hbit : bit = true ∨ j.val + 1 = (ntm.actions state c.inputSymbol c.workTapeSymbols).length) :
     (ntm.choiceTable.withCoin bit).toTM.step (scanCfg c state j) = simCfg (action.apply c) := by
   rw [step_choiceTable ntm rfl]
-  exact (congrArg (·.apply (scanCfg c state j)) (scan_of_take hj hbit)).trans
-    (apply_perform c state j action)
+  change (scan ntm (state, j, _) c.inputSymbol c.workTapeSymbols bit).apply _ = _
+  rw [scan_of_take hj hbit]
+  exact apply_perform c state j action
 
 /-- Without a candidate `j`, the table rejects: it halts without output. -/
 theorem step_scanCfg_reject
@@ -279,8 +296,9 @@ theorem step_scanCfg_reject
     (ntm.choiceTable.withCoin bit).toTM.step (scanCfg c state j) =
       ⟨none, c.inputPos, c.workTapes, c.workTapePos, []⟩ := by
   rw [step_choiceTable ntm rfl]
-  exact (congrArg (·.apply (scanCfg c state j)) (scan_of_getElem?_eq_none hj bit)).trans
-    (apply_idle _ _)
+  change (scan ntm (state, j, _) c.inputSymbol c.workTapeSymbols bit).apply _ = _
+  rw [scan_of_getElem?_eq_none hj, apply_idle]
+  rfl
 
 /-! ### Soundness -/
 
@@ -297,29 +315,41 @@ def Replayable (ntm : MultiTapeNTM k Bool State) (input : List Bool)
 theorem Replayable.step {b : Cfg k Bool (ScanState k State) input}
     (h : Replayable ntm input b) (bit : Bool) :
     Replayable ntm input ((ntm.choiceTable.withCoin bit).toTM.step b) := by
-  by_cases hb : b.state = none
-  · rwa [MultiTapeTM.step_of_halt hb]
-  rcases h with ⟨p, state, j, hstate, rfl⟩ | ⟨hh, -⟩ | ⟨hh, -⟩
+  rcases h with ⟨p, state, j, hstate, rfl⟩ | ⟨hhalt, hout⟩ | ⟨hhalt, hout, hacc⟩
   · rcases hj : (ntm.actions state p.last.inputSymbol p.last.workTapeSymbols)[j.val]? with
       _ | action
-    · rw [step_scanCfg_reject hj]; exact .inr (.inl ⟨rfl, rfl⟩)
-    by_cases hcond : bit = true ∨
-        j.val + 1 = (ntm.actions state p.last.inputSymbol p.last.workTapeSymbols).length
-    · obtain ⟨q, -, hq⟩ := ComputationPath.exists_snoc p (by
-        simp only [Step, hstate]; exact ⟨action, ntm.mem_actions.mp (List.mem_of_getElem? hj), rfl⟩)
-      rw [step_scanCfg_take hj hcond, ← hq]
+    · rw [step_scanCfg_reject hj]
+      exact .inr (.inl ⟨rfl, rfl⟩)
+    have hmem := List.mem_of_getElem? hj
+    have hstep : ntm.Step p.last (action.apply p.last) := by
+      simp only [Step, hstate]
+      exact ⟨action, (ntm.mem_actions).mp hmem, rfl⟩
+    obtain ⟨q, -, hq⟩ := ComputationPath.exists_snoc p hstep
+    have htake : ∀ bit : Bool,
+        bit = true ∨ j.val + 1 = (ntm.actions state p.last.inputSymbol
+          p.last.workTapeSymbols).length →
+        Replayable ntm input
+          ((ntm.choiceTable.withCoin bit).toTM.step (scanCfg p.last state j)) := by
+      intro bit hbit
+      rw [step_scanCfg_take hj hbit, ← hq]
       rcases hs : q.last.state with _ | next
       · simp only [simCfg, hs, haltCfg]
         by_cases hout : q.last.output = [true]
         · exact .inr (.inr ⟨rfl, by simp [hout], q, hs, hout⟩)
         · exact .inr (.inl ⟨rfl, by simp [hout]⟩)
-      · exact .inl ⟨q, next, 0, hs, by simp [simCfg, hs]⟩
-    · obtain ⟨rfl, hlast⟩ : bit = false ∧ j.val + 1 ≠ _ :=
-        ⟨Bool.eq_false_iff.2 fun h => hcond (.inl h), fun h => hcond (.inr h)⟩
-      rw [step_scanCfg_skip hj hlast]
-      exact .inl ⟨p, state, _, hstate, rfl⟩
-  · exact absurd hh hb
-  · exact absurd hh hb
+      · simp only [simCfg, hs]
+        exact .inl ⟨q, next, 0, hs, rfl⟩
+    by_cases hlast : j.val + 1 = (ntm.actions state p.last.inputSymbol
+        p.last.workTapeSymbols).length
+    · exact htake bit (.inr hlast)
+    · cases bit
+      · rw [step_scanCfg_skip hj hlast]
+        exact .inl ⟨p, state, _, hstate, rfl⟩
+      · exact htake true (.inl rfl)
+  · rw [MultiTapeTM.step_of_halt hhalt]
+    exact .inr (.inl ⟨hhalt, hout⟩)
+  · rw [MultiTapeTM.step_of_halt hhalt]
+    exact .inr (.inr ⟨hhalt, hout, hacc⟩)
 
 /-! ### Completeness -/
 
@@ -330,10 +360,12 @@ theorem exists_coins_step {c c' : Cfg k Bool State input} {state : State}
       ntm.choiceTable.stepCoins coins (simCfg c) = simCfg c' := by
   simp only [Step, hstate] at h
   obtain ⟨action, htr, rfl⟩ := h
-  obtain ⟨j, hj, hget⟩ := List.getElem_of_mem (ntm.mem_actions.mpr htr)
+  obtain ⟨j, hj, hget⟩ := List.getElem_of_mem ((ntm.mem_actions).mpr htr)
   have hlen := ntm.length_actions_le state c.inputSymbol c.workTapeSymbols
-  have hskip (i : ℕ) (hi : i ≤ j) : ntm.choiceTable.stepCoins (List.replicate i false)
+  -- skip the first `i` candidates
+  have hskip : ∀ i (hi : i ≤ j), ntm.choiceTable.stepCoins (List.replicate i false)
       (scanCfg c state 0) = scanCfg c state ⟨i, by omega⟩ := by
+    intro i hi
     induction i with
     | zero => rfl
     | succ i ih =>
@@ -342,9 +374,11 @@ theorem exists_coins_step {c c' : Cfg k Bool State input} {state : State}
       obtain ⟨a, ha⟩ : ∃ a, (ntm.actions state c.inputSymbol c.workTapeSymbols)[i]? = some a :=
         ⟨_, List.getElem?_eq_getElem (by omega)⟩
       exact step_scanCfg_skip (j := ⟨i, by omega⟩) ha (by change i + 1 ≠ _; omega)
-  refine ⟨List.replicate j false ++ [true], by simp; omega, ?_⟩
-  simp only [MultiTapePTM.stepCoins_append, simCfg, hstate, hskip j le_rfl,
-    MultiTapePTM.stepCoins_cons, MultiTapePTM.stepCoins_nil]
+  refine ⟨List.replicate j false ++ [true], by
+    simp only [List.length_append, List.length_replicate, List.length_singleton]; omega, ?_⟩
+  rw [MultiTapePTM.stepCoins_append]
+  simp only [simCfg, hstate]
+  rw [hskip j le_rfl, MultiTapePTM.stepCoins_cons, MultiTapePTM.stepCoins_nil]
   exact step_scanCfg_take (j := ⟨j, by omega⟩) (by simp [← hget]) (.inl rfl)
 
 /-- A run path is replayed from the simulation of its head by at most `Nat.card` coins per step.
@@ -358,18 +392,22 @@ theorem exists_coins_runPath (p : ntm.RunPath input) :
     obtain ⟨coins, hlen, hcoins⟩ := ih
     simp only [RelSeries.head_snoc, RelSeries.last_snoc, RelSeries.snoc_length]
     rcases hs : p.last.state with _ | state
-    · exact ⟨coins, hlen.trans (Nat.mul_le_mul_left _ (Nat.le_succ _)),
-        (step_of_halt hs).mp hc ▸ hcoins⟩
+    · have hc' : c = p.last := (step_of_halt hs).mp hc
+      exact ⟨coins, hlen.trans (Nat.mul_le_mul_left _ (Nat.le_succ _)), hc' ▸ hcoins⟩
     · obtain ⟨more, hmore, hstep⟩ := exists_coins_step hs hc
-      exact ⟨coins ++ more, by rw [List.length_append, Nat.mul_succ]; omega, by
-        rw [MultiTapePTM.stepCoins_append, hcoins, hstep]⟩
+      refine ⟨coins ++ more, ?_, ?_⟩
+      · rw [List.length_append, Nat.mul_succ]
+        omega
+      · rw [MultiTapePTM.stepCoins_append, hcoins, hstep]
 
 /-- A halted table ignores further coins. -/
 theorem stepCoins_haltCfg (c : Cfg k Bool State input) (coins : List Bool) :
     ntm.choiceTable.stepCoins coins (haltCfg c) = haltCfg c := by
   induction coins with
   | nil => rfl
-  | cons _ _ ih => rwa [MultiTapePTM.stepCoins_cons, MultiTapeTM.step_of_halt rfl]
+  | cons bit coins ih =>
+    rw [MultiTapePTM.stepCoins_cons, MultiTapeTM.step_of_halt rfl]
+    exact ih
 
 end ChoiceTable
 
@@ -382,17 +420,22 @@ computation path. -/
 theorem accepts_of_runClosedCoins_choiceTable {coins : List Bool}
     (h : ntm.choiceTable.runClosedCoins coins input = [true]) : ntm.Accepts input := by
   have hinit : Replayable ntm input (ntm.choiceTable.toNTM.initCfg input) :=
-    .inl ⟨⟨RelSeries.singleton _ _, rfl⟩, ntm.q₀, 0, rfl, rfl⟩
-  have hreplay (coins : List Bool) : ∀ b,
+    .inl ⟨⟨RelSeries.singleton _ (ntm.initCfg input), rfl⟩, ntm.q₀, 0, rfl, rfl⟩
+  have hreplay : ∀ (coins : List Bool) (b : Cfg k Bool (ScanState k State) input),
       Replayable ntm input b → Replayable ntm input (ntm.choiceTable.stepCoins coins b) := by
+    intro coins
     induction coins with
     | nil => exact fun _ hb => hb
-    | cons bit _ ih => exact fun _ hb => ih _ (hb.step bit)
+    | cons bit coins ih => exact fun b hb => ih _ (hb.step bit)
   have hout : (ntm.choiceTable.stepCoins coins (ntm.choiceTable.toNTM.initCfg input)).output =
-      [true] := by rwa [MultiTapePTM.initCfg_toNTM, ← MultiTapePTM.tapes_runClosedConfigFromCoins]
-  rcases hreplay coins _ hinit with ⟨_, _, _, -, hb⟩ | ⟨-, hnil⟩ | ⟨-, -, hacc⟩
-  · rw [hb] at hout; simp [scanCfg] at hout
-  · rw [hnil] at hout; simp at hout
+      [true] := by
+    rw [MultiTapePTM.initCfg_toNTM, ← MultiTapePTM.tapes_runClosedConfigFromCoins]
+    exact h
+  rcases hreplay coins _ hinit with ⟨p, state, j, -, hb⟩ | ⟨-, hnil⟩ | ⟨-, -, hacc⟩
+  · rw [hb] at hout
+    simp [scanCfg] at hout
+  · rw [hnil] at hout
+    simp at hout
   · exact hacc
 
 /-- **Completeness.** A computation path of `t` steps ending halted with output `[true]` is
@@ -404,10 +447,11 @@ theorem exists_runClosedCoins_choiceTable (p : ntm.ComputationPath input) (hhalt
       ∀ padding, ntm.choiceTable.runClosedCoins (coins ++ padding) input = [true] := by
   obtain ⟨coins, hlen, hcoins⟩ := exists_coins_runPath p.toRunPath
   refine ⟨coins, hlen, fun padding => ?_⟩
+  have hsim : simCfg p.last = haltCfg p.last := by
+    simp only [simCfg, show p.last.state = none from hhalt]
   rw [MultiTapePTM.runClosedCoins, MultiTapePTM.tapes_runClosedConfigFromCoins,
     ← MultiTapePTM.initCfg_toNTM, initCfg_choiceTable, ← p.head_eq,
-    MultiTapePTM.stepCoins_append, hcoins]
-  simp only [simCfg, show p.last.state = none from hhalt, stepCoins_haltCfg]
+    MultiTapePTM.stepCoins_append, hcoins, hsim, stepCoins_haltCfg]
   simp [haltCfg, hout]
 
 end Turing.MultiTapeNTM
