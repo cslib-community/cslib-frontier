@@ -1099,6 +1099,16 @@ private def BuilderExt.trans {N g₀ g₁ g₂ : ℕ} {B₀ : PrefixBuilder N g�
   depth_emb u := by simp only [Function.comp_apply, e₂.depth_emb, e₁.depth_emb]
   outs_old j w h := e₂.outs_old j (e₁.emb w) (e₁.outs_old j w h)
 
+private theorem BuilderExt.emb_ne_input {N g g' : ℕ} {B : PrefixBuilder N g}
+    {B' : PrefixBuilder N g'} (e : BuilderExt B B') {u : Wire N g} {i : Fin N}
+    (h : u ≠ .input i) : e.emb u ≠ .input i :=
+  fun heq => h (e.emb_injective (heq.trans (e.emb_input i).symm))
+
+private theorem BuilderExt.emb_ne_input_of_lo {N g g' : ℕ} {B : PrefixBuilder N g}
+    {B' : PrefixBuilder N g'} (e : BuilderExt B B') {u : Wire N g} {i : Fin N}
+    (h : B.lo u ≠ i.val) : e.emb u ≠ .input i :=
+  e.emb_ne_input (B.input_ne_of_lo_ne h).symm
+
 private def PrefixBuilder.empty (N : ℕ) : PrefixBuilder N 0 where
   program := .empty
   outs _ := none
@@ -1516,12 +1526,7 @@ private theorem compileTree_exists {N k : ℕ} (hk : 2 ≤ k) :
     let B₁ := B.assignOut (a - 1) v
     let e₁ := B.assignOutExt (a - 1) v hnone
     let u : Wire N g := .input ⟨a, hbN⟩
-    have hvu : u ≠ v := by
-      intro heq
-      have hlo := (B.validInputs ⟨a, hbN⟩).1
-      change B.lo u = a at hlo
-      rw [heq, hv_lo] at hlo
-      omega
+    have hvu : u ≠ v := B.input_ne_of_lo_ne (show B.lo v ≠ a by omega)
     refine ⟨g, B₁, e₁, u, (B.validInputs ⟨a, hbN⟩).1, (B.validInputs ⟨a, hbN⟩).2, le_rfl, ?_, ?_,
       ?_, ?_, ?_, B.uses_assignOut_le (by omega) v hnone (by omega) hall_uses⟩
     · exact (B.uses_assignOut_ne (a - 1) v u hnone hvu).trans
@@ -1586,9 +1591,8 @@ private theorem compileTree_exists {N k : ℕ} (hk : 2 ≤ k) :
       rfl
     · intro w hw_ne hw_in
       have h1 : e₁.emb w ≠ v₁ := castSucc_ne_lastGate w
-      have h2 : ∀ i : Fin N, a ≤ i.val → i.val < b → e₁.emb w ≠ .input i := by
-        intro i hi1 hi2 heq
-        exact hw_in i hi1 hi2 (e₁.emb_injective (heq.trans (e₁.emb_input i).symm))
+      have h2 : ∀ i : Fin N, a ≤ i.val → i.val < b → e₁.emb w ≠ .input i :=
+        fun i hi1 hi2 => e₁.emb_ne_input (hw_in i hi1 hi2)
       obtain ⟨hne_u, huses_w⟩ := hold (e₁.emb w) h1 h2
       refine ⟨hne_u, ?_⟩
       exact huses_w.trans (B.uses_addId_ne v w hw_ne)
@@ -1654,11 +1658,8 @@ private theorem compileChain_exists {N k : ℕ} (hk : 2 ≤ k) :
       rw [e₂.depth_emb, e₁.depth_emb]
     have hv_B₂_uses : B₂.uses v_in_B₂ = B.uses v + 1 := by
       have h1 : e₁.emb v ≠ v₁ := castSucc_ne_lastGate v
-      have h2 : ∀ i : Fin N, a ≤ i.val → i.val < m → e₁.emb v ≠ .input i := by
-        intro i hi1 _ heq
-        have := e₁.emb_injective (heq.trans (e₁.emb_input i).symm)
-        have hlo := (B.validInputs i).1
-        rw [← this, hv_lo] at hlo; omega
+      have h2 : ∀ i : Fin N, a ≤ i.val → i.val < m → e₁.emb v ≠ .input i :=
+        fun i hi1 _ => e₁.emb_ne_input_of_lo (by omega)
       exact (hold₂ (e₁.emb v) h1 h2).2.trans (B.uses_addId_self v)
     have h0_3 : B₂.lo v_in_B₂ < B₂.hi v_in_B₂ := by omega
     have hmid_3 : B₂.hi v_in_B₂ = B₂.lo u₁ := by omega
@@ -1685,11 +1686,8 @@ private theorem compileChain_exists {N k : ℕ} (hk : 2 ≤ k) :
       have hne_u₁ : (Wire.input i : Wire N g₂) ≠ u₁ := B₂.input_ne_of_lo_ne (by omega)
       have hB₂_in : B₂.uses (.input i) = 0 := by
         have h1 : e₁.emb (.input i) ≠ v₁ := castSucc_ne_lastGate (.input i)
-        have h2 : ∀ i' : Fin N, a ≤ i'.val → i'.val < m → e₁.emb (.input i) ≠ .input i' := by
-          intro i' _ hi'2 heq
-          have := Fin.val_eq_of_eq (Wire.input.inj
-            (e₁.emb_injective (heq.trans (e₁.emb_input i').symm)))
-          omega
+        have h2 : ∀ i' : Fin N, a ≤ i'.val → i'.val < m → e₁.emb (.input i) ≠ .input i' :=
+          fun i' _ hi'2 => e₁.emb_ne_input (mt Wire.input.inj (Fin.ne_of_val_ne (by omega)))
         have h_eq : e₂.emb (e₁.emb (.input i)) = .input i := by rw [e₁.emb_input, e₂.emb_input]
         rw [← h_eq]
         have hne0 : (Wire.input i : Wire N g) ≠ v := B.input_ne_of_lo_ne (by omega)
@@ -1709,10 +1707,8 @@ private theorem compileChain_exists {N k : ℕ} (hk : 2 ≤ k) :
       rw [e₄.depth_emb, e₃.depth_emb]
     have hu₁_B₄_uses : B₄.uses u₁_in_B₄ = 1 := by
       have h1 : e₃.emb u₁ ≠ v₂ := castSucc_ne_lastGate u₁
-      have h2 : ∀ i : Fin N, m ≤ i.val → i.val < b → e₃.emb u₁ ≠ .input i := by
-        intro i hi1 _ heq
-        have hlo : B₃.lo (e₃.emb u₁) = a := by rw [e₃.lo_emb, hu₁_lo]
-        rw [heq, (B₃.validInputs i).1] at hlo; omega
+      have h2 : ∀ i : Fin N, m ≤ i.val → i.val < b → e₃.emb u₁ ≠ .input i :=
+        fun i hi1 _ => e₃.emb_ne_input_of_lo (by omega)
       have hstep := B₂.uses_addMul_right v_in_B₂ u₁ h0_3 hmid_3 h1_3
       rw [hu₁_u] at hstep
       exact (hold₄ (e₃.emb u₁) h1 h2).2.trans hstep
@@ -1725,10 +1721,8 @@ private theorem compileChain_exists {N k : ℕ} (hk : 2 ≤ k) :
     let e_all := (((e₁.trans e₂).trans e₃).trans e₄).trans e₅
     have hv_B₄_uses : B₄.uses (e₄.emb (e₃.emb v_in_B₂)) = B.uses v + 2 := by
       have h1 : e₃.emb v_in_B₂ ≠ v₂ := castSucc_ne_lastGate v_in_B₂
-      have h2 : ∀ i : Fin N, m ≤ i.val → i.val < b → e₃.emb v_in_B₂ ≠ .input i := by
-        intro i hi1 _ heq
-        have hlo : B₃.lo (e₃.emb v_in_B₂) = 0 := by rw [e₃.lo_emb, hv_B₂_lo]
-        rw [heq, (B₃.validInputs i).1] at hlo; omega
+      have h2 : ∀ i : Fin N, m ≤ i.val → i.val < b → e₃.emb v_in_B₂ ≠ .input i :=
+        fun i hi1 _ => e₃.emb_ne_input_of_lo (by omega)
       have hstep := B₂.uses_addMul_left v_in_B₂ u₁ h0_3 hmid_3 h1_3
       rw [hv_B₂_uses] at hstep
       exact (hold₄ _ h1 h2).2.trans hstep
@@ -1790,9 +1784,8 @@ private theorem compileChain_exists {N k : ℕ} (hk : 2 ≤ k) :
     · intro w hw_ne hw_in
       refine ⟨castSucc_ne_lastGate _, ?_⟩
       have h1_w : e₁.emb w ≠ v₁ := castSucc_ne_lastGate w
-      have h2_w : ∀ i : Fin N, a ≤ i.val → i.val < m → e₁.emb w ≠ .input i := by
-        intro i hi1 hi2 heq
-        exact hw_in i hi1 (by omega) (e₁.emb_injective (heq.trans (e₁.emb_input i).symm))
+      have h2_w : ∀ i : Fin N, a ≤ i.val → i.val < m → e₁.emb w ≠ .input i :=
+        fun i hi1 hi2 => e₁.emb_ne_input (hw_in i hi1 (by omega))
       obtain ⟨hne_u₁, huses₂⟩ := hold₂ (e₁.emb w) h1_w h2_w
       have hne_v₂ : e₂.emb (e₁.emb w) ≠ v_in_B₂ :=
         fun heq => hw_ne (e₁.emb_injective (e₂.emb_injective heq))
@@ -1801,12 +1794,9 @@ private theorem compileChain_exists {N k : ℕ} (hk : 2 ≤ k) :
           (huses₂.trans (B.uses_addId_ne v w hw_ne))
       have h3_w : e₃.emb (e₂.emb (e₁.emb w)) ≠ v₂ := castSucc_ne_lastGate _
       have h4_w : ∀ i : Fin N, m ≤ i.val → i.val < b →
-          e₃.emb (e₂.emb (e₁.emb w)) ≠ .input i := by
-        intro i hi1 hi2 heq
-        have h_eq : e₃.emb (e₂.emb (e₁.emb (.input i))) = .input i := by
-          rw [e₁.emb_input, e₂.emb_input, e₃.emb_input]
-        exact hw_in i (by omega) hi2
-          (e₁.emb_injective (e₂.emb_injective (e₃.emb_injective (heq.trans h_eq.symm))))
+          e₃.emb (e₂.emb (e₁.emb w)) ≠ .input i :=
+        fun i hi1 hi2 =>
+          e₃.emb_ne_input (e₂.emb_ne_input (e₁.emb_ne_input (hw_in i (by omega) hi2)))
       obtain ⟨hne_u₂, huses₄⟩ := hold₄ _ h3_w h4_w
       have hne_u₁_B₄ : e₄.emb (e₃.emb (e₂.emb (e₁.emb w))) ≠ u₁_in_B₄ :=
         fun heq => hne_u₁ (e₃.emb_injective (e₄.emb_injective heq))
@@ -1852,9 +1842,8 @@ private theorem compileChain_exists {N k : ℕ} (hk : 2 ≤ k) :
       have hB₁_in : B₁.uses (.input i) = 0 := by
         have h1 : (Wire.input i : Wire N g) ≠ v := B.input_ne_of_lo_ne (by omega)
         have h2 : ∀ i' : Fin N, a ≤ i'.val → i'.val < m₂ →
-            (Wire.input i : Wire N g) ≠ .input i' := by
-          intro i' _ hi'2 heq
-          have := Fin.val_eq_of_eq (Wire.input.inj heq); omega
+            (Wire.input i : Wire N g) ≠ .input i' :=
+          fun i' _ hi'2 => mt Wire.input.inj (Fin.ne_of_val_ne (by omega))
         rw [← e₁.emb_input i]
         exact (hold₁ (.input i) h1 h2).2.trans (hin_free i (by omega) hi2)
       exact (B₁.uses_addMul_ne v_in_B₁ u_init h0_2 hmid_2 h1_2 (.input i) hne_v hne_ui).trans
@@ -1873,10 +1862,8 @@ private theorem compileChain_exists {N k : ℕ} (hk : 2 ≤ k) :
       rw [e₃.depth_emb, e₂.depth_emb]
     have hui_B₃_uses : B₃.uses ui_in_B₃ = 1 := by
       have h1 : e₂.emb u_init ≠ v_last := castSucc_ne_lastGate u_init
-      have h2 : ∀ i : Fin N, m₂ ≤ i.val → i.val < b → e₂.emb u_init ≠ .input i := by
-        intro i hi1 _ heq
-        have hlo : B₂.lo (e₂.emb u_init) = a := by rw [e₂.lo_emb, hui_lo]
-        rw [heq, (B₂.validInputs i).1] at hlo; omega
+      have h2 : ∀ i : Fin N, m₂ ≤ i.val → i.val < b → e₂.emb u_init ≠ .input i :=
+        fun i hi1 _ => e₂.emb_ne_input_of_lo (by omega)
       have hstep := B₁.uses_addMul_right v_in_B₁ u_init h0_2 hmid_2 h1_2
       rw [hui_u] at hstep
       exact (hold₃ (e₂.emb u_init) h1 h2).2.trans hstep
@@ -1889,10 +1876,8 @@ private theorem compileChain_exists {N k : ℕ} (hk : 2 ≤ k) :
     let e_all := ((e₁.trans e₂).trans e₃).trans e₄
     have hv_B₃_uses : B₃.uses (e₃.emb (e₂.emb v_in_B₁)) = B.uses v + init.arity + 1 := by
       have h1 : e₂.emb v_in_B₁ ≠ v_last := castSucc_ne_lastGate v_in_B₁
-      have h2 : ∀ i : Fin N, m₂ ≤ i.val → i.val < b → e₂.emb v_in_B₁ ≠ .input i := by
-        intro i hi1 _ heq
-        have hlo : B₂.lo (e₂.emb v_in_B₁) = 0 := by rw [e₂.lo_emb, hv_B₁_lo]
-        rw [heq, (B₂.validInputs i).1] at hlo; omega
+      have h2 : ∀ i : Fin N, m₂ ≤ i.val → i.val < b → e₂.emb v_in_B₁ ≠ .input i :=
+        fun i hi1 _ => e₂.emb_ne_input_of_lo (by omega)
       have hstep := B₁.uses_addMul_left v_in_B₁ u_init h0_2 hmid_2 h1_2
       rw [hv_B₁_uses] at hstep
       exact (hold₃ _ h1 h2).2.trans hstep
@@ -1954,10 +1939,8 @@ private theorem compileChain_exists {N k : ℕ} (hk : 2 ≤ k) :
       have huses₂ : B₂.uses (e₂.emb (e₁.emb w)) = B.uses w :=
         (B₁.uses_addMul_ne v_in_B₁ u_init h0_2 hmid_2 h1_2 _ hne_v hne_ui).trans huses₁
       have h2_w : e₂.emb (e₁.emb w) ≠ v_last := castSucc_ne_lastGate _
-      have h3_w : ∀ i : Fin N, m₂ ≤ i.val → i.val < b → e₂.emb (e₁.emb w) ≠ .input i := by
-        intro i hi1 hi2 heq
-        have h_eq : e₂.emb (e₁.emb (.input i)) = .input i := by rw [e₁.emb_input, e₂.emb_input]
-        exact hw_in i (by omega) hi2 (e₁.emb_injective (e₂.emb_injective (heq.trans h_eq.symm)))
+      have h3_w : ∀ i : Fin N, m₂ ≤ i.val → i.val < b → e₂.emb (e₁.emb w) ≠ .input i :=
+        fun i hi1 hi2 => e₂.emb_ne_input (e₁.emb_ne_input (hw_in i (by omega) hi2))
       obtain ⟨hne_ul, huses₃⟩ := hold₃ _ h2_w h3_w
       have hne_ui_B₃ : e₃.emb (e₂.emb (e₁.emb w)) ≠ ui_in_B₃ :=
         fun heq => hne_ui (e₂.emb_injective (e₃.emb_injective heq))
@@ -2283,11 +2266,8 @@ theorem exists_optimalPrefixCircuit_of_le_maxCircuitWidthUpper {N k D : ℕ}
           have hv2_d : B₂.program.wireDepths v_in_B₂ = d := by rw [e₂.depth_emb, e₁.depth_emb, hv_d]
           have hv2_uses : B₂.uses v_in_B₂ = 1 := by
             have h1 : e₁.emb v ≠ v_buf := castSucc_ne_lastGate v
-            have h2 : ∀ i : Fin N, a ≤ i.val → i.val < b → e₁.emb v ≠ .input i := by
-              intro i hi1 _ heq
-              have := e₁.emb_injective (heq.trans (e₁.emb_input i).symm)
-              have hlo := (B.validInputs i).1
-              rw [← this, hv_lo] at hlo; omega
+            have h2 : ∀ i : Fin N, a ≤ i.val → i.val < b → e₁.emb v ≠ .input i :=
+              fun i hi1 _ => e₁.emb_ne_input_of_lo (by omega)
             have hstep := B.uses_addId_self v
             rw [hv_u] at hstep
             exact (hold₂ (e₁.emb v) h1 h2).2.trans hstep
@@ -2336,11 +2316,8 @@ theorem exists_optimalPrefixCircuit_of_le_maxCircuitWidthUpper {N k D : ℕ}
             have hB₂_in : B₂.uses (.input i) = 0 := by
               have h1_in : e₁.emb (.input i) ≠ v_buf := castSucc_ne_lastGate (.input i)
               have h2_in : ∀ i' : Fin N, a ≤ i'.val → i'.val < b →
-                  e₁.emb (.input i) ≠ .input i' := by
-                intro i' _ hi'2 heq
-                have := Fin.val_eq_of_eq (Wire.input.inj
-                  (e₁.emb_injective (heq.trans (e₁.emb_input i').symm)))
-                omega
+                  e₁.emb (.input i) ≠ .input i' :=
+                fun i' _ hi'2 => e₁.emb_ne_input (mt Wire.input.inj (Fin.ne_of_val_ne (by omega)))
               have h_eq : e₂.emb (e₁.emb (.input i)) = .input i := by
                 rw [e₁.emb_input, e₂.emb_input]
               rw [← h_eq]
