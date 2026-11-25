@@ -230,7 +230,8 @@ private theorem binomialRandom_real_isClique_inter_le [Countable V] (p : I) {s t
   · subst hst
     rw [inter_self, hs] at hcard
     simp only [↓reduceIte, inter_self, hs, show #(edgesOn s ∪ edgesOn s) = 3 by simpa using hcard]
-    norm_num; positivity
+    norm_num
+    positivity
   · simp only [hst, ↓reduceIte, add_zero]
     have hne : #(s ∩ t) ≠ 3 := fun h => hst <|
       eq_of_subset_of_card_le (inter_eq_left.1 (eq_of_subset_of_card_le inter_subset_left

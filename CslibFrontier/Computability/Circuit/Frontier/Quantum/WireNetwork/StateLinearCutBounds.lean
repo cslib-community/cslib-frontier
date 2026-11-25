@@ -93,8 +93,9 @@ private theorem exists_run_glue_cut_factorization {n N : ℕ}
         liftYPc yPc := hdom_YPc' yP yPc
   refine ⟨fun xP yP τ => c_inact * Φ (liftXP xP) (liftYP yP) τ,
     fun xPc yPc τ => Ψ (liftXPc xPc) (liftYPc yPc) τ, fun xP xPc yP yPc => ?_⟩
-  have hamp1 := hamp (A.domRestrict (Quantum.glue e (glueX (xP, xPc)) x₀))
-    (A.domRestrict (Quantum.glue e (glueY (yP, yPc)) x₀))
+  have hamp1 :=
+    hamp (A.domRestrict (Quantum.glue e (glueX (xP, xPc)) x₀))
+      (A.domRestrict (Quantum.glue e (glueY (yP, yPc)) x₀))
   rw [hdom_XP xP xPc, hdom_XPc xP xPc, hdom_YP yP yPc, hdom_YPc yP yPc] at hamp1
   rw [run_ofLp_eq_matrix_apply, hsplit, hamp1, show (∏ q : {q : Fin N // q ∉ A},
       (inactU q : Matrix Bool Bool ℂ) (Quantum.glue e (glueY (yP, yPc)) x₀ q.1)
@@ -142,7 +143,8 @@ private theorem sq_fidelity_phaseState_mul_le_of_capped {n N : ℕ}
       amp (glueY (a, b)) = ∑ τ : Ecut → Bool, Φ' p₀.1 a τ * Ψ' p₀.2 b τ := by
     have hx₀ : Quantum.glue e ((Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => Bool).symm p₀) x₀ =
         x₀ := by
-      rw [Equiv.symm_apply_apply]; ext q
+      rw [Equiv.symm_apply_apply]
+      ext q
       by_cases h : ∃ i, e i = q
       · obtain ⟨i, rfl⟩ := h; exact Quantum.glue_apply_emb e (x₀ ∘ e) x₀ i
       · exact Quantum.glue_of_not e (x₀ ∘ e) x₀ fun i hi => h ⟨i, hi⟩
@@ -182,7 +184,8 @@ private theorem sq_fidelity_phaseState_mul_le_of_capped {n N : ℕ}
           if Quantum.AgreeOff e y x₀ then
             inner ℂ ((((1 / √2) ^ n : ℝ) : ℂ) * (if BitString.quadForm Q (y ∘ e) then -1 else 1))
               ((C.run x₀).ofLp y) else 0 := by
-      rw [phaseState, Quantum.embedState_apply]; split_ifs <;> simp_all
+      rw [phaseState, Quantum.embedState_apply]
+      split_ifs <;> simp_all
     simp_rw [hite]
     rw [Quantum.sum_agreeOff e x₀]
     refine (Finset.sum_congr rfl (g := fun z => (((1 / √2) ^ n : ℝ) : ℂ) *
@@ -195,7 +198,8 @@ private theorem sq_fidelity_phaseState_mul_le_of_capped {n N : ℕ}
       (fun p => (if BitString.quadForm Q (glueY p) then (-1 : ℂ) else 1) * amp (glueY p))
       (fun z => congrArg (fun w => (if BitString.quadForm Q w then (-1 : ℂ) else 1) * amp w)
         ((Equiv.piEquivPiSubtypeProd (· ∈ Y) fun _ => Bool).symm_apply_apply z).symm)).trans ?_
-    rw [Fintype.sum_prod_type]; push_cast
+    rw [Fintype.sum_prod_type]
+    push_cast
     rw [Finset.mul_sum]
     simp_rw [Finset.mul_sum, ← Finset.sum_add_distrib]
     refine Finset.sum_congr rfl fun a _ => Finset.sum_congr rfl fun b _ => ?_

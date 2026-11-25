@@ -156,7 +156,8 @@ theorem diagonalize_circulant_of_card_addChar_eq {L : Type*} [Field L] [Fintype 
     rw [smul_mul, show (dualAddCharMatrix G L).submatrix e id * (addCharMatrix G L).submatrix id e =
         (dualAddCharMatrix G L * addCharMatrix G L).submatrix e e by ext; simp [Matrix.mul_apply],
       dualAddCharMatrix_mul_addCharMatrix]
-    ext; simp [Matrix.one_apply, e.injective.eq_iff, inv_mul_cancel₀ hchar]
+    ext
+    simp [Matrix.one_apply, e.injective.eq_iff, inv_mul_cancel₀ hchar]
   have hdetQP : Q.det * P.det = 1 := by rw [← det_mul, hQP, det_one]
   refine ⟨hQP, (isUnit_iff_isUnit_det P).mpr (IsUnit.mk0 _ (right_ne_zero_of_mul_eq_one hdetQP)),
     (isUnit_iff_isUnit_det Q).mpr (IsUnit.mk0 _ (left_ne_zero_of_mul_eq_one hdetQP)), ?_⟩
@@ -292,7 +293,8 @@ theorem cubeCharMatrix_mul_self (R ι : Type*) [CommRing R] [Fintype ι] [Decida
   by_cases hxz : x = z
   · subst hxz
     have hpair (i : ι) : (∑ b : Bool, sylvesterTwo R (x i) b * sylvesterTwo R b (x i)) = 2 := by
-      rw [Fintype.sum_bool]; cases x i <;> simp [sylvesterTwo] <;> ring
+      rw [Fintype.sum_bool]
+      cases x i <;> simp [sylvesterTwo] <;> ring
     simp_rw [hpair]; simp
   · obtain ⟨i₀, hi₀⟩ := Function.ne_iff.mp hxz
     rw [ite_eq_right hxz]

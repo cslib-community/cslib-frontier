@@ -173,7 +173,8 @@ theorem pairwise_isUnit_liftO_sub_digits {n : ℕ} (hn : n ≤ 2 ^ fl.length) :
     List.getElem_map, List.getElem_range, List.getElem_range]
   have hbin (k b : ℕ) (hb : b < fl.length) :
       ((List.range fl.length).map fun j => if k.testBit j then 1 else 0).getD b 0 < 2 := by
-    rw [getD_map_testBit _ _ _ hb]; split <;> omega
+    rw [getD_map_testBit _ _ _ hb]
+    split <;> omega
   refine isUnit_liftO_sub hirr (hbin _) (hbin _) ?_
   by_contra! hall
   refine hij (Fin.ext (Nat.eq_of_testBit_eq fun b => ?_))

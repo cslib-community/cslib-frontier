@@ -134,7 +134,8 @@ private theorem sum_int_eq_of_shiftedIntSum_eq {ι : Type*} [Fintype ι] (w : ι
     {u v : ι → Bool} (h : shiftedIntSum w u = shiftedIntSum w v) :
     (∑ j : ι, w j * (u j).toNat) = ∑ j : ι, w j * (v j).toNat := by
   have hval : (∑ j : ι, (shiftedIntTerm (w j) (u j) : ℤ)) =
-      ∑ j : ι, (shiftedIntTerm (w j) (v j) : ℤ) := by exact_mod_cast congrArg Fin.val h
+      ∑ j : ι, (shiftedIntTerm (w j) (v j) : ℤ) := by
+    exact_mod_cast congrArg Fin.val h
   simp only [coe_shiftedIntTerm, sum_add_distrib] at hval
   linarith
 
@@ -353,7 +354,9 @@ theorem eval_eq_of_inputSummary_eq_lt (p : Program signature n g) {x y : Fin n �
     ∀ gate : Fin g, gate.val < b →
       p.eval interpretation x gate = p.eval interpretation y gate := by
   induction b with
-  | zero => intro _ hgate; omega
+  | zero =>
+    intro _ hgate
+    omega
   | succ b ih =>
     intro gate hgate
     rw [eval_gate_eq p x gate, eval_gate_eq p y gate,
@@ -526,10 +529,12 @@ private theorem f_eq_of_pendingBiasTrace_eq_of_phased {X Y : Type*} (p : Program
   refine hread _ _ fun i => ?_
   have hinit : pendingBiasTrace p (enc x₁ y) k = pendingBiasTrace p (enc x₂ y) k := by
     rw [htrace_indep x₁ y, htrace_indep x₂ y, htrace]
-  have hstep := pendingBiasTrace_add_eq_of_pendingBiasTrace_eq p k hinit
-    (fun j => hsuff j x₁ x₂ y) i.val
+  have hstep :=
+    pendingBiasTrace_add_eq_of_pendingBiasTrace_eq p k hinit
+      (fun j => hsuff j x₁ x₂ y) i.val
   have hin : (∑ a : Fin n, inputWeight p ⟨k + i.val, by omega⟩ a * (enc x₁ y a).toNat) =
-      ∑ a : Fin n, inputWeight p ⟨k + i.val, by omega⟩ a * (enc x₂ y a).toNat := hsuff i x₁ x₂ y
+      ∑ a : Fin n, inputWeight p ⟨k + i.val, by omega⟩ a * (enc x₂ y a).toNat :=
+    hsuff i x₁ x₂ y
   rw [eval_eq_decide_pendingBiasTrace, eval_eq_decide_pendingBiasTrace, hin]
   simp only [hstep]
 

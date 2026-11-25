@@ -106,7 +106,8 @@ private theorem minUnits_le (hρ : StageRate FL ρ) (hρ1 : ρ ≤ 1) (l : Verte
   have h4 : (r : ℝ) * Fintype.card (T.X j) / 2 * ∑ e ∈ univ.filter (T.ty · = i), (nf e : ℝ) ^ 2 ≤
       T.kap nf ^ 2 := by
     rw [Tower.kap_sq]
-    gcongr; exact subset_univ _
+    gcongr
+    exact subset_univ _
   have h5 : √(T.NN2 (T.nEnd i nf ω)) ^ 2 ≤ 8 * b * T.kap nf ^ 2 := by
     have h6 := (mul_le_mul_of_nonneg_left h3 (by positivity : (0 : ℝ) ≤
       Fintype.card (T.X (j + 1)) / b)).trans
@@ -141,16 +142,19 @@ private theorem moveCount_le_moveCap (hρ : StageRate FL ρ) (hρ1 : ρ ≤ 1)
     have := batchSize_le (ch := ch) (lhat := lhat) (n := n) a c γ
     have := (Nat.div_le_self (n a c) (Fintype.card (T.X 0))).trans (hn a c)
     omega
-  · have := (moveCount_relay_le _ hx).trans (hedge j.castSucc e); omega
+  · have := (moveCount_relay_le _ hx).trans (hedge j.castSucc e)
+    omega
   · have := (moveCount_middle_le (lhat := lhat) (n := n) (o := o) hx).trans
       (by split_ifs; exacts [hedge j.castSucc e, Nat.zero_le _])
     omega
-  · have := (moveCount_relay_le _ hx).trans (hedge (Fin.last J) e); omega
+  · have := (moveCount_relay_le _ hx).trans (hedge (Fin.last J) e)
+    omega
   · have h1 := moveCount_vertex_le (lhat := lhat) (n := n) (o := o) l
     have h2 := minUnits_le (lhat := lhat) (n := n) (o := o) (Uu := Uu) (A := A) hρ hρ1 l
     have h3 : (l.minUnits (load lhat n o) : ℝ) <
         (⌈3 * (b : ℝ) * normBound FL Uu A lhat⌉₊ + 2 : ℕ) := by push_cast; linarith
-    have := Nat.cast_lt.1 h3; omega
+    have := Nat.cast_lt.1 h3
+    omega
 
 /-- **The tower plan obeys the rules** ([AnthropicVPVNP2026], proof of Theorem H.2, pp. 46–48),
 with the bound `moveCap` for the numbers of units of its moves; the rate `ρ ≤ 1` bounds the norms
@@ -223,7 +227,9 @@ theorem edgeUnitBound_pow_le (hD : 0 < D) (hρ : 0 ≤ ρ) (hh : 0 < h)
             rw [mul_pow, ← pow_mul, mul_pow, ← pow_mul, ← pow_mul, mul_comm q 2]
             nth_rewrite 1 [← Nat.sub_add_cancel hpq]
             ring
-        _ ≤ (D : ℝ) ^ (q - 2 * p) * 1 := by gcongr; exact pow_le_one₀ (by positivity) hgain
+        _ ≤ (D : ℝ) ^ (q - 2 * p) * 1 := by
+          gcongr
+          exact pow_le_one₀ (by positivity) hgain
         _ = _ := mul_one _
   have hb : 0 ≤ edgeBound FL Uu A lhat ρ := by unfold edgeBound; positivity
   have key : (edgeBound FL Uu A lhat ρ ^ q * x ^ p) ^ 2 ≤
@@ -246,7 +252,8 @@ theorem edgeUnitBound_pow_le (hD : 0 < D) (hρ : 0 ≤ ρ) (hh : 0 < h)
           rw [mul_right_comm _ _ ((x ^ p) ^ 2), mul_assoc _ (x ^ (q - 2 * p)), hxq, div_pow,
             div_mul_cancel₀ _ (by positivity)]
       _ ≤ ((2 * (h : ℝ)) ^ q) ^ 2 * (normBound FL Uu A lhat ^ q) ^ 2 := by
-          gcongr; exact le_self_pow₀ (one_le_pow₀ h2h) two_ne_zero
+          gcongr
+          exact le_self_pow₀ (one_le_pow₀ h2h) two_ne_zero
       _ = _ := by ring
   exact le_trans (by gcongr; exact Nat.floor_le hb)
     ((pow_le_pow_iff_left₀ (by positivity) (by positivity) two_ne_zero).1 key)

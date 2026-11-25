@@ -430,7 +430,8 @@ theorem commonZeroCount_eq_sum_relabelRestrictedMonomials [Fintype ι] [Decidabl
     (fun z hz => ?_) (fun z₁ hz₁ z₂ hz₂ hEq => ?_) (fun y hy => ?_)
   · rw [mem_filter] at hz ⊢
     refine ⟨mem_univ _, fun i hi => ?_⟩
-    rw [monomialSum_relabelRestrictedMonomials, extendFreeAssignment_restrictToFreeVars S e hz.1]
+    rw [monomialSum_relabelRestrictedMonomials,
+      extendFreeAssignment_restrictToFreeVars S e hz.1]
     exact hz.2 i hi
   · rw [← extendFreeAssignment_restrictToFreeVars S e (mem_filter.mp hz₁).1,
       ← extendFreeAssignment_restrictToFreeVars S e (mem_filter.mp hz₂).1, hEq]

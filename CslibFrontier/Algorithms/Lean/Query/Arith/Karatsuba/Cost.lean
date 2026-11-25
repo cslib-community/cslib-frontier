@@ -184,7 +184,8 @@ theorem addCount_add_le_pow_clog (n : ℕ) :
     (fun n hn => by rcases (by omega : n = 0 ∨ n = 1) with rfl | rfl <;> simp)
     (fun n hn S hS => ?_) n
   rw [addCount_of_two_le hn]
-  have := hS (n / 2) (by omega); have := hS (n - n / 2) (by omega)
+  have := hS (n / 2) (by omega)
+  have := hS (n - n / 2) (by omega)
   omega
 
 /-- At most `8 · 3 ^ ⌈log₂ n⌉` additions and subtractions. -/
@@ -218,7 +219,8 @@ theorem mulCount_le_sq (n : ℕ) : mulCount n ≤ n ^ 2 := by
   fun_induction mulCount n with
   | case1 | case2 => simp -- 0, 1
   | case3 n ih₁ ih₂ => -- n + 2
-    set m := (n + 2) / 2; set k := n + 2 - m
+    set m := (n + 2) / 2
+    set k := n + 2 - m
     have hkm : k ≤ m + 1 := by omega
     have hm1 : 1 ≤ m := by omega
     rw [show n.succ.succ = m + k by omega]
@@ -227,8 +229,10 @@ theorem mulCount_le_sq (n : ℕ) : mulCount n ≤ n ^ 2 := by
 /-- Fewer than the `n ^ 2` coefficient products of the schoolbook method, for `n ≥ 2`. -/
 theorem mulCount_lt_sq {n : ℕ} (hn : 2 ≤ n) : mulCount n < n ^ 2 := by
   rw [mulCount_of_two_le hn]
-  set m := n / 2; set k := n - m
-  have h1 := mulCount_le_sq m; have h2 := mulCount_le_sq k
+  set m := n / 2
+  set k := n - m
+  have h1 := mulCount_le_sq m
+  have h2 := mulCount_le_sq k
   have hkm : k ≤ m + 1 := by omega
   have hm1 : 1 ≤ m := by omega
   have hkm' : m ≤ k := by omega

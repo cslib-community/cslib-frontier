@@ -271,7 +271,8 @@ theorem isEquitable_iff_card_filter [DecidableEq β] {χ : V → β} :
 private theorem encard_neighborSet_inter (v : V) (p : V → Prop) [DecidablePred p] :
     (G.neighborSet v ∩ {x | p x}).encard = ((G.neighborFinset v).filter p).card := by
   rw [← Set.encard_coe_eq_coe_finsetCard, Finset.coe_filter]
-  congr 1; ext x
+  congr 1
+  ext x
   simp only [Set.mem_inter_iff, Set.mem_ofPred_eq, mem_neighborSet, mem_neighborFinset]
 
 /-- A partition is equitable exactly when its quotient map is an equitable coloring. -/

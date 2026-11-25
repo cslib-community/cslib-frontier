@@ -130,7 +130,8 @@ private theorem ncard_setOf_ecomplexity_pair_le_eq (k u : ℕ) :
       {z ∈ {z | M.ecomplexity z ≤ k} | z.unpair.1 = u}.ncard := by
   rw [← Set.ncard_image_of_injective _
     (fun a b h => (Nat.pair_eq_pair.mp h).2 : Function.Injective (Nat.pair u))]
-  congr 1; ext z
+  congr 1
+  ext z
   exact ⟨fun ⟨v, hv, h⟩ => ⟨h ▸ hv, by simp [← h]⟩, fun ⟨hz, h⟩ =>
     ⟨z.unpair.2, by
       change M.ecomplexity (Nat.pair u z.unpair.2) ≤ k
@@ -330,7 +331,8 @@ theorem exists_complexity_universal_add_condUniversal_le :
         : ℕ) + cX :=
     hcX _ x (by simpa [heavyDecoder, decodeSelfDelimiting_selfDelimitingCode_append,
       Nat.foldr_bit_append_replicate_false, hrest, show k + 1 - (k + 1 - l) = l by omega] using hix)
-  rw [← natCast_complexity_universal] at hX; rw [← natCast_complexity_condUniversal] at hY
+  rw [← natCast_complexity_universal] at hX
+  rw [← natCast_complexity_condUniversal] at hY
   norm_cast at hX hY
   rw [List.length_append, hrest, length_selfDelimitingCode, Nat.size_eq_bits_len] at hX
   rw [List.length_append, length_selfDelimitingCode, Nat.size_eq_bits_len,

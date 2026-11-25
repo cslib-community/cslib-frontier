@@ -200,8 +200,12 @@ def asText : Datum → Except EvalError (Option String)
 theorem toTruth_eq_ok_iff {d : Datum} {t : Truth} : d.toTruth = .ok t ↔ d = t.toDatum := by
   refine ⟨fun h => ?_, fun h => h ▸ toTruth_toDatum t⟩
   match d, h with
-  | none, h => cases h; rfl
-  | some (.bool b), h => cases h; cases b <;> rfl
+  | none, h =>
+    cases h
+    rfl
+  | some (.bool b), h =>
+    cases h
+    cases b <;> rfl
 
 /-- A datum has a truth value exactly when it is boolean-typed. -/
 theorem exists_toTruth_eq_ok_iff {d : Datum} : (∃ t, d.toTruth = .ok t) ↔ d.HasType .bool := by

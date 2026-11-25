@@ -132,9 +132,12 @@ theorem survival_succ_of_ne {v x : V} (hx : x ≠ v) (t : ℕ) :
 
 /-- Survival probabilities are probabilities. -/
 theorem survival_le_one (v : V) : ∀ (t : ℕ) (x : V), survival P v t x ≤ 1
-  | 0, _ => by unfold survival; split_ifs <;> simp
+  | 0, _ => by
+    unfold survival
+    split_ifs <;> simp
   | t + 1, x => by
-    unfold survival; split_ifs
+    unfold survival
+    split_ifs
     · exact zero_le_one
     · exact (sum_le_sum (g := fun y => P x y) fun y _ =>
         mul_le_of_le_one_right' (survival_le_one v t y)).trans_eq (sum_apply P x)
@@ -233,7 +236,8 @@ theorem hittingTime_ne_top {S : Set V}
   classical
   have hm (y : V) : ∃ m, y ∈ S → survival P v m y < 1 := by
     by_cases hy : y ∈ S
-    · obtain ⟨m, hm⟩ := exists_survival_lt_one (hreach y hy); exact ⟨m, fun _ => hm⟩
+    · obtain ⟨m, hm⟩ := exists_survival_lt_one (hreach y hy)
+      exact ⟨m, fun _ => hm⟩
     · exact ⟨0, fun h => (hy h).elim⟩
   choose m hm using hm
   set M := univ.sup m + 1

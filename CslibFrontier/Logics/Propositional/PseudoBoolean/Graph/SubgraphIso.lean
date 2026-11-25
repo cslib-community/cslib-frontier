@@ -268,7 +268,8 @@ theorem exists_holds_isoConstraints_iff (P : SimpleGraph (Fin p)) [DecidableRel 
   refine ⟨fun ⟨_, f, _⟩ => ⟨f⟩, fun ⟨f⟩ =>
     ⟨fun i => decide (∃ a u, isoVar t a u = i ∧ f a = u), f, fun a u =>
       decide_eq_decide.2 ⟨fun ⟨_, _, h, hfu⟩ => ?_, fun h => ⟨a, u, rfl, h⟩⟩⟩⟩
-  obtain ⟨rfl, rfl⟩ := isoVar_inj h; exact hfu
+  obtain ⟨rfl, rfl⟩ := isoVar_inj h
+  exact hfu
 
 /-! ### CakePB's variable names -/
 
@@ -321,9 +322,12 @@ private theorem lt_of_mem_varList_isoConstraints (P : SimpleGraph (Fin p)) [Deci
   rcases hc with ((⟨a, rfl⟩ | ⟨a, rfl⟩) | ⟨u, rfl⟩) | ⟨u, a, b', -, rfl⟩ <;>
     simp only [List.mem_cons, List.mem_map, List.mem_finRange, List.mem_filter, true_and,
       Prod.mk.injEq] at hx
-  · obtain ⟨u, rfl, rfl, rfl⟩ := hx; exact isoVar_lt a u
-  · obtain ⟨u, rfl, rfl, rfl⟩ := hx; exact isoVar_lt a u
-  · obtain ⟨a, rfl, rfl, rfl⟩ := hx; exact isoVar_lt a u
+  · obtain ⟨u, rfl, rfl, rfl⟩ := hx
+    exact isoVar_lt a u
+  · obtain ⟨u, rfl, rfl, rfl⟩ := hx
+    exact isoVar_lt a u
+  · obtain ⟨a, rfl, rfl, rfl⟩ := hx
+    exact isoVar_lt a u
   · rcases hx with ⟨rfl, rfl, rfl⟩ | ⟨w, _, rfl, rfl, rfl⟩
     · exact isoVar_lt a u
     · exact isoVar_lt b' w
@@ -393,7 +397,8 @@ theorem isContained_iff_of_checkSubgraphIsoGraph {P : SimpleGraph (Fin p)} [Deci
   | unsat _ =>
     cases hb
     exact iff_of_false
-      (fun ⟨σ, hσ⟩ => not_satisfiable_of_checkOPB_printOPB (isoNames_covers P T) hc' σ hσ) (by simp)
+      (fun ⟨σ, hσ⟩ => not_satisfiable_of_checkOPB_printOPB (isoNames_covers P T) hc' σ hσ)
+      (by simp)
   | _ => cases hb
 
 /-- **Subgraph isomorphism for LAD graphs** (CakePB's `check_unsat_3_sem`, the pure functional

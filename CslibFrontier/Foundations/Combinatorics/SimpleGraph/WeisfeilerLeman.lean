@@ -290,7 +290,8 @@ private theorem ker_eq_of_antitone_step {X : Type*} [Fintype X] {C : ℕ → Typ
     | succ t hnt ih => rw [hsucc t hnt, ih]
   set N := Fintype.card X - blocks (Setoid.ker (Φ 0))
   suffices ∃ i ≤ N, Setoid.ker (Φ (i + 1)) = Setoid.ker (Φ i) by
-    obtain ⟨i, hi, h⟩ := this; rw [hprop h (hi.trans hm), hprop h hi]
+    obtain ⟨i, hi, h⟩ := this
+    rw [hprop h (hi.trans hm), hprop h hi]
   by_contra! hne
   have key (i) (hi : i ≤ N + 1) : blocks (Setoid.ker (Φ 0)) + i ≤ blocks (Setoid.ker (Φ i)) := by
     induction i with
@@ -385,7 +386,8 @@ theorem Iso.wlColoring_comp (e : G ≃g H) (n : ℕ) (u : Fin k → V) :
   | succ n ih =>
     refine wlColoring_succ_eq_iff.2 ⟨ih u, ?_⟩
     rw [← Finset.map_univ_equiv e.toEquiv, Finset.map_val, Multiset.map_map]
-    congr 1; funext v
+    congr 1
+    funext v
     change H.wlStepProfile (H.wlColoring n) (e ∘ u) (e v) =
       G.wlStepProfile (G.wlColoring n) u v
     exact wlStepProfile_eq_iff.2 ⟨by rw [← Fin.comp_snoc]; exact e.tupleAtom_comp (Fin.snoc u v),

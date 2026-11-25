@@ -276,7 +276,8 @@ theorem isReceiverStrategyProof_deferredAcceptance_of_le_two {n : ℕ} (hn : n �
       · rw [show μ' = μ from congrArg Instance.deferredAcceptance <| instance_ext rfl <|
           funext fun x => by
             by_cases hx : x = r
-            · subst hx; simp [I', Instance.updateRecvPref, hπ]
+            · subst hx
+              simp [I', Instance.updateRecvPref, hπ]
             · exact Function.update_of_ne hx π I.recvPref]
       · have htop' : I'.recvRank r (μ.symm r) = 0 := by
           change (Function.update I.recvPref r π r).symm (μ.symm r) = 0
@@ -292,11 +293,13 @@ theorem isReceiverStrategyProof_deferredAcceptance_of_le_two {n : ℕ} (hn : n �
               Function.update_of_ne hsr] using hr
         let p₀ : Fin 2 := if μ.symm r = 0 then 1 else 0
         have hp₀_ne : p₀ ≠ μ.symm r := by
-          dsimp only [p₀]; split_ifs with h
+          dsimp only [p₀]
+          split_ifs with h
           · rw [h]; decide
           · exact Ne.symm h
         have hp₀_rankR : I.recvRank r p₀ = 0 := by
-          have := (I.recvRank_injective r).ne hp₀_ne; omega
+          have := (I.recvRank_injective r).ne hp₀_ne
+          omega
         have hp₀_rankP : I.propRank p₀ (μ p₀) = 0 := by
           by_contra h0
           have h1 : I.propRank p₀ (μ p₀) = 1 := by omega

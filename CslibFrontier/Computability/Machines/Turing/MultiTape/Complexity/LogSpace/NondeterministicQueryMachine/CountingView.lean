@@ -203,7 +203,8 @@ theorem replayChoices_step_zero {input : List Bool}
   rw [← toNTM_countingMachine] at hstep
   obtain ⟨j, hj⟩ := ((countingMachine I P F C).step_toNTM_iff hlive).mp hstep
   obtain rfl : j = 0 := by simpa [hat, Nat.lt_one_iff] using step_index_lt I P F C hj
-  rw [replayChoices, hj]; simp [hat, Option.bind]
+  rw [replayChoices, hj]
+  simp [hat, Option.bind]
 
 /-- A running path through deterministic routines has a replay with no recorded choice bits. -/
 theorem replayChoices_replicate_zero {input : List Bool}

@@ -328,8 +328,10 @@ theorem card_tyingSeeds_le_of_update_bounds (f g : (Fin ℓ → Bool) → ℕ)
           congrFun he ⟨j, mem_filter.mpr ⟨mem_univ _, hj⟩⟩
     · by_cases h : z j = b
       · rw [update_eq_self_iff.mpr h.symm, sub_self, abs_zero]; positivity
-      · rw [abs_update_sub_eq h, ← hcoeff]; exact (hflip z j).1
-    · rw [abs_update_sub_eq h, ← hcoeff]; exact (hflip z j).2 hc
+      · rw [abs_update_sub_eq h, ← hcoeff]
+        exact (hflip z j).1
+    · rw [abs_update_sub_eq h, ← hcoeff]
+      exact (hflip z j).2 hc
   have hcard := card_filter_add_card_filter_not (s := (univ : Finset (Fin ℓ))) (fun j => c j = d j)
   rw [card_univ, Fintype.card_fin] at hcard
   change agree.card + hammingDist c d = ℓ at hcard

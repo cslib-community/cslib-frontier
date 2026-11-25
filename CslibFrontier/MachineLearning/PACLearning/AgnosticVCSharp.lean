@@ -160,12 +160,14 @@ theorem card_filter_swapSamples_exists_le_abs_le {Z : Type*} {G : ConceptClass Z
   have hham (g g' : Z → Bool) : (hammingDist (fun j => g (x j)) (fun j => g' (x j)) : ℝ) =
       ∑ i, ((if g (z.1 i) ≠ g' (z.1 i) then 1 else 0 : ℝ) +
         if g (z.2 i) ≠ g' (z.2 i) then 1 else 0) := by
-    rw [hammingDist, Finset.card_filter]; push_cast
+    rw [hammingDist, Finset.card_filter]
+    push_cast
     rw [Fin.sum_univ_add, ← Finset.sum_add_distrib]
     simp only [x, Fin.append_left, Fin.append_right]
   have hb (s : ℝ) (hs : s ^ 2 = 1) (g : G) (i : Fin m) : |s * a g i| ≤ 1 :=
     (sq_le_one_iff_abs_le_one _).1 <| by
-      rw [mul_pow, hs, one_mul]; simp only [a]
+      rw [mul_pow, hs, one_mul]
+      simp only [a]
       cases g.1 (z.1 i) <;> cases g.1 (z.2 i) <;> norm_num
   have hnorm (s : ℝ) (hs : s ^ 2 = 1) (g : G) : ∑ i, (s * a g i) ^ 2 ≤ √m ^ 2 := by
     rw [Real.sq_sqrt (Nat.cast_nonneg m)]
@@ -183,7 +185,8 @@ theorem card_filter_swapSamples_exists_le_abs_le {Z : Type*} {G : ConceptClass Z
       field_simp; ring
     rw [Real.sq_sqrt hmR.le, h4, hham, Finset.mul_sum]
     refine Finset.sum_le_sum fun i _ => ?_
-    rw [← mul_sub, mul_pow, hs, one_mul]; simp only [a]
+    rw [← mul_sub, mul_pow, hs, one_mul]
+    simp only [a]
     cases g.1 (z.1 i) <;> cases g'.1 (z.1 i) <;> cases g.1 (z.2 i) <;> cases g'.1 (z.2 i) <;>
       norm_num
   -- Chaining: the expected maximal correlation is at most `32 √(m d) ≤ m ε / 4`.

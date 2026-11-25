@@ -173,7 +173,8 @@ theorem mem_bag_parent_iterate {v : V} {s : Fin (n + 1)} (hs : v ∈ R.bag s) {a
   · exact hle b hba'
   · have h1 := R.parent_iterate_antitone s hba'.le
     have h2 := R.parent_iterate_antitone s hb
-    rw [ha'] at h1; rw [ha] at h2
+    rw [ha'] at h1
+    rw [ha] at h2
     exact le_antisymm h1 h2 ▸ R.mem_bag_top v
 
 /-- If `u` and `w` are adjacent and the topmost node for `w` is numbered no later than the topmost
@@ -235,7 +236,8 @@ def toTreeDecomposition : G.TreeDecomposition (Fin (n + 1)) where
   dsimp [toTreeDecomposition]
 
 @[simp] theorem toTreeDecomposition_tree : R.toTreeDecomposition.tree = parentTree R.parent := by
-  dsimp [toTreeDecomposition]; exact R.tree_eq
+  dsimp [toTreeDecomposition]
+  exact R.tree_eq
 
 /-- Build a rooted tree decomposition from the connectivity condition of tree decompositions in
 place of the uniqueness of topmost nodes. -/
@@ -318,11 +320,14 @@ private theorem IsTree.exists_equiv_parentTree [Finite ι] {T : SimpleGraph ι} 
       omega
   -- Number the nodes in this order; the root gets `0`.
   have hcard : Fintype.card ι = Fintype.card ι - 1 + 1 := by
-    have := Fintype.card_pos (α := ι); omega
+    have := Fintype.card_pos (α := ι)
+    omega
   set n := Fintype.card ι - 1
   let e : Fin (n + 1) ≃o ι := monoEquivOfFin ι hcard
   have he0 : e 0 = r := by
-    have h1 : e.symm r ≤ 0 := by rw [← e.le_iff_le, e.apply_symm_apply]; exact hr_le _
+    have h1 : e.symm r ≤ 0 := by
+      rw [← e.le_iff_le, e.apply_symm_apply]
+      exact hr_le _
     simpa using congrArg e (le_antisymm h1 (Fin.zero_le _)).symm
   have he_iff : ∀ i, i = 0 ↔ e i = r := fun i =>
     ⟨fun h => h ▸ he0, fun h => e.injective (h.trans he0.symm)⟩

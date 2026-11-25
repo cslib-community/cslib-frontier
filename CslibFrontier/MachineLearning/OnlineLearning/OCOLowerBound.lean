@@ -90,7 +90,8 @@ theorem khintchine_rademacher_abs_sum (T : ℕ) :
     (2 : ℝ) ^ T * Real.sqrt ((T : ℝ) / 3) ≤
       ∑ σ : Fin T → Bool, |∑ t : Fin T, signVal (σ t)| := by
   by_cases hT : T = 0
-  · subst hT; simp
+  · subst hT
+    simp
   have hTpos : (0 : ℝ) < (T : ℝ) := Nat.cast_pos.mpr (Nat.pos_of_ne_zero hT)
   have h2pos : (0 : ℝ) < (2 : ℝ) ^ T := by positivity
   have hcard : (Fintype.card (Fin T → Bool) : ℝ) = (2 : ℝ) ^ T := by simp
@@ -239,16 +240,19 @@ theorem exists_oco_regret_ge {K : Set E} {x₀ e : E} {D G : ℝ}
     rw [show ∑ t : Fin T, rademacherLinear e G (σ t) (uOf σ) = radSum σ * (G * ⟪e, uOf σ⟫) by
       simp only [rademacherLinear, radSum, Finset.sum_mul]
       exact Finset.sum_congr rfl fun _ _ => by ring]
-    dsimp only [uOf]; split_ifs with hs
+    dsimp only [uOf]
+    split_ifs with hs
     · rw [inner_sub_right, real_inner_smul_right, hee, mul_one, abs_of_nonneg hs]; ring
     · rw [inner_add_right, real_inner_smul_right, hee, mul_one, abs_of_neg (lt_of_not_ge hs)]; ring
   have hsum_rad : ∑ σ : Fin T → Bool, radSum σ = 0 := by
-    simp only [radSum]; rw [Finset.sum_comm]
+    simp only [radSum]
+    rw [Finset.sum_comm]
     exact Finset.sum_eq_zero fun t _ => by
       simpa only [mul_one] using sum_signVal_mul_eq_zero t (fun _ => (1 : ℝ)) fun _ _ => rfl
   have hsum_reg :
-      ∑ σ : Fin T → Bool, ∑ t : Fin T,
-          (rademacherLinear e G (σ t) (L.eval σ t) - rademacherLinear e G (σ t) (uOf σ)) =
+      ∑ σ : Fin T → Bool,
+          ∑ t : Fin T,
+            (rademacherLinear e G (σ t) (L.eval σ t) - rademacherLinear e G (σ t) (uOf σ)) =
         D * G / 2 * ∑ σ : Fin T → Bool, |radSum σ| := by
     rw [Finset.sum_congr rfl fun σ _ => Finset.sum_sub_distrib _ _, Finset.sum_sub_distrib,
       sum_rademacherLinear_eval_eq_zero, zero_sub,

@@ -114,7 +114,8 @@ theorem rw'_inj {f f' : Bool} {w w' : List (Option (Bl K))} {u v : List (Sy M K)
 theorem encW_inj :
     Function.Injective (encW : List (Bool × List (Option (Bl K))) → List (Sy M K)) := by
   refine flatMap_inj (fun _ => by simp [rw']) fun ⟨f, w⟩ ⟨f', w'⟩ u v h => ?_
-  obtain ⟨rfl, rfl, -⟩ := rw'_inj h; rfl
+  obtain ⟨rfl, rfl, -⟩ := rw'_inj h
+  rfl
 
 theorem bar_rw' (f : Bool) (w : List (Option (Bl K))) : (Sy.bar : Sy M K) ∉ rw' f w := by
   simp [rw', fun o => ol_ne_bar (M := M) o]
@@ -177,7 +178,8 @@ theorem runs_U {A : Type*} [CommRing A] [Fintype M] :
   exact (((runs_ps (A := A) (M := M) (K := K)).kstar hne).mul
     ((runs_fi (A := A) (M := M) (K := K)).mul (runs_cm (A := A) (M := M) (K := K)))).congr
     ⟨fun x => (x.passes, x.final, x.cmp), fun y => ⟨y.1, y.2.1, y.2.2⟩,
-      fun _ => rfl, fun _ => rfl⟩ (fun _ _ => rfl) fun _ => by simp
+     fun _ => rfl, fun _ => rfl⟩
+    (fun _ _ => rfl) fun _ => by simp
 
 section Values
 
@@ -214,7 +216,8 @@ theorem emCo_other (m : Bl K → List (NB M K)) {z : Zc K} (h1 : z ≠ lsF)
   unfold emCo
   rw [flatten_ofFn_nil]
   · simp [on, h1]
-  · intro _; simp [on, h1, h2]
+  · intro _
+    simp [on, h1, h2]
 
 theorem emPs_lsT (p : Ps M K) : emPs p lsT = encW (dIn p.1) ++ [Sy.bar] := by
   have h2 (d : Dr K) : (emDr d lsT : List (Sy M K)) = rw' d.flag (some d.head :: d.tail) := by

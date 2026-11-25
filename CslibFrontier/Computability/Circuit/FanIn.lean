@@ -148,7 +148,9 @@ private theorem Program.card_reachableInputs_le_cost
   | empty =>
     simp only [Program.reachableInputs, Program.cost_empty, Nat.add_zero]
     exact Finset.card_le_card_of_injOn Wire.input (fun _ present => by simpa using present)
-      fun _ _ _ _ h => by cases h; rfl
+      fun _ _ _ _ h => by
+        cases h
+        rfl
   | @gate g program line ih =>
     let prior := Finset.univ.filter fun wire : Wire n g => wire.castSucc ∈ frontier
     let opened :=

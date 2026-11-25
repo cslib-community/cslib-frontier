@@ -316,7 +316,8 @@ theorem eval_andreevWindowedCircuit_eq_evalInt (b m r B : ℕ)
       andreevWindowedCircuitEvalInt b m r B w := by
   rw [andreevWindowedCircuit, eval_depthTwo]
   simp only [id, interpretation_andreevWindowedBottomOp]
-  unfold interpretation andreevWindowedTopOp andreevWindowedCircuitEvalInt; dsimp only
+  unfold interpretation andreevWindowedTopOp andreevWindowedCircuitEvalInt
+  dsimp only
   have hsum : (∑ j : Fin (4 * #(andreevPrefixSubsets b r) * B),
       let idx := (andreevWindowedBottomEquiv b r B).symm j
       (andreevWindowedTopWeightInt b m B idx.subset idx.staircase idx.step : ℝ) *
@@ -499,7 +500,8 @@ private theorem cast_andreevTableScore_flipTable (b m : ℕ) (S : Finset (Fin b)
       ((-1 : ℝ) ^ p.toNat) * (1 - 2 * ((xor v p).toNat : ℝ)) = 1 - 2 * (v.toNat : ℝ) := by
     cases p <;> cases v <;> norm_num
   have hscore : (andreevTableScore b m S (andreevFlipTable b m S w) : ℝ) =
-      ∑ c : BitString b, (1 - 2 * ((andreevTable b m w c).toNat : ℝ)) := by
+      ∑ c : BitString b,
+        (1 - 2 * ((andreevTable b m w c).toNat : ℝ)) := by
     simp only [andreevTableScore, Int.cast_sum, Int.cast_mul, Int.cast_sub, Int.cast_one,
       Int.cast_ofNat, Int.cast_natCast]
     refine sum_congr rfl fun c _ => ?_

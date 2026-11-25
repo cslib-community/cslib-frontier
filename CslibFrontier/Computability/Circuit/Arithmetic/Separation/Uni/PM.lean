@@ -240,7 +240,8 @@ theorem gv_iff {P : Mach A M K} {σ : State M K} (hσ : Closed σ) (tr : List P.
           rw [List.map_cons, List.mem_cons, List.mem_map] at hm
           rcases hm with e | ⟨st', hst, e⟩
           · have h0 : (ld st).2 0 = st.2 8 := congrArg (fun r => r.2 0) e
-            have := h3.1; omega
+            have := h3.1
+            omega
           · have h0 : (ld st).2 0 = st'.2 8 := (congrArg (fun r => r.2 0) e).symm
             have hm' : st'.2 8 ∈ tr.map fun st => st.2 8 := List.mem_map_of_mem hst
             rw [h3.2, List.mem_map] at hm'
@@ -279,7 +280,8 @@ theorem Seq.le {P : Mach A M K} {σ : State M K} (hσ : Closed σ) {tr : List P.
     intro st' hst i
     rw [List.length_cons]
     rcases List.mem_cons.1 hst with rfl | hst
-    · have := hσ.env hf i; omega
+    · have := hσ.env hf i
+      omega
     · have := ih (hσ.nxt hf) h st' hst i
       simp only [Mach.nxt] at this; omega
 

@@ -341,10 +341,12 @@ theorem omd_regret_le_sqrt {K : Set E} {ψ : E → ℝ} {gradψ : E → E}
         rw [← neg_sub (x t) u, inner_neg_right] at hs
         linarith
     have hinner := omd_sum_inner_le hμ hpair hsc η hη_pos hη_anti grad x m hx0
-      (fun t ht => hstep t (Nat.lt_succ_of_le ht)) hu (fun t ht => hD t (Nat.lt_succ_of_le ht))
+      (fun t ht => hstep t (Nat.lt_succ_of_le ht)) hu
+      (fun t ht => hD t (Nat.lt_succ_of_le ht))
     have hgrad_sum :
         ∑ t ∈ range (m + 1), η t * (dual (grad t (x t))) ^ 2 / (2 * μ) ≤
-          (Real.sqrt (μ * D) * G / (2 * μ)) * ∑ t ∈ range (m + 1), 1 / Real.sqrt ((t : ℝ) + 1) := by
+          (Real.sqrt (μ * D) * G / (2 * μ)) *
+            ∑ t ∈ range (m + 1), 1 / Real.sqrt ((t : ℝ) + 1) := by
       rw [Finset.mul_sum]
       refine Finset.sum_le_sum fun t ht => ?_
       have hlt := mem_range.mp ht

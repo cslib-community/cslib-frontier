@@ -364,7 +364,8 @@ private theorem slackDual_spec (hb : 0 ≤ b) {D : Dictionary (Fin (n + m)) K}
   set g : Fin (n + m) → K := fun j => if j ∈ D.basis then 0 else D.objCoeff j with hg
   have hgle (j) : g j ≤ 0 := by
     dsimp [g]
-    split_ifs with hj; exacts [le_rfl, hopt j hj]
+    split_ifs with hj
+    exacts [le_rfl, hopt j hj]
   have hvalue (z) : D.value z = D.objConst + ∑ j, g j * z j := by
     rw [Dictionary.value, ← Finset.sum_compl_add_sum D.basis,
       Finset.sum_eq_zero (s := D.basis) fun j hj => by simp only [hg, hj, ↓reduceIte, zero_mul],
@@ -372,7 +373,9 @@ private theorem slackDual_spec (hb : 0 ≤ b) {D : Dictionary (Fin (n + m)) K}
     exact congrArg (D.objConst + ·) (Finset.sum_congr rfl fun j hj => by
       simp only [hg, Finset.mem_compl.1 hj, ↓reduceIte])
   have hy : D.slackDual = fun i => -g (Fin.natAdd n i) :=
-    funext fun i => by simp only [Dictionary.slackDual, hg]; split_ifs <;> simp only [neg_zero]
+    funext fun i => by
+      simp only [Dictionary.slackDual, hg]
+      split_ifs <;> simp only [neg_zero]
   set y := D.slackDual
   have key (x : Fin n → K) : c ⬝ᵥ x =
       D.objConst - y ⬝ᵥ b + ∑ k, g (Fin.castAdd m k) * x k + (y ᵥ* A) ⬝ᵥ x := by

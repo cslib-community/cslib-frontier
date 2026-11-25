@@ -162,7 +162,8 @@ private theorem one_sub_inv_two_pow_le_one (w : ℕ) : 1 - (2⁻¹ : ℝ) ^ w �
 
 private theorem two_pow_eq_two_mul (hw : 1 ≤ w) : (2 : ℝ) ^ w = 2 * 2 ^ (w - 1) := by
   rw [← pow_succ']
-  congr 1; omega
+  congr 1
+  omega
 
 /-- The nearly balanced Tribes on `s w` bits has total influence at most `2 w`. The bound is
 ours. -/

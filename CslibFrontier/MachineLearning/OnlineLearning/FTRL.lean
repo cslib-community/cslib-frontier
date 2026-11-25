@@ -251,7 +251,8 @@ theorem IsFTRL.regret_le_div {R : E → ℝ} {η σ : ℝ} (h : IsFTRL K (fun y 
       (R u - R (x 0)) / η + η / (2 * σ) * ∑ t ∈ range T, L t ^ 2 := by
   have hscale : StrongConvexOn K (η⁻¹ * σ) fun y => R y / η := by
     convert hR.smul (inv_nonneg.mpr hη.le) using 1
-    ext; exact div_eq_inv_mul _ _
+    ext
+    exact div_eq_inv_mul _ _
   have hb := h.regret_le hscale (mul_pos (inv_pos.mpr hη) hσ) hℓ hL hu T
   rwa [show ∑ t ∈ range T, L t ^ 2 / (2 * (η⁻¹ * σ)) = η / (2 * σ) * ∑ t ∈ range T, L t ^ 2 by
     rw [mul_sum]; exact sum_congr rfl fun _ _ => by field_simp, ← sub_div] at hb
@@ -416,7 +417,8 @@ theorem lazyOGD_regret_le {f : ℕ → E → ℝ} (hne : K.Nonempty) (hc : IsCom
   set x := lazyOGD K η grad x₀
   have hψ : StrongConvexOn K η⁻¹ fun y => ‖y - x₀‖ ^ 2 / (2 * η) := by
     convert strongConvexOn_mul_norm_sub_sq hK η⁻¹ x₀ using 1
-    ext; field_simp
+    ext
+    field_simp
   have hb := (isFTRL_lazyOGD (grad := grad) (x₀ := x₀) hne hc hK hη).regret_le hψ
     (inv_pos.mpr hη) (fun _ => (innerₛₗ ℝ _).convexOn hK) (L := fun t => ‖grad t (x t)‖)
     (fun t y _ => by rw [← inner_sub_right]; exact real_inner_le_norm _ _) hu T

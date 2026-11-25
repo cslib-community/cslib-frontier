@@ -115,7 +115,8 @@ theorem isProjection_det_iff_exists_isSubstMatrix {P : MvPolynomial σ K} {m : �
   constructor
   · rintro ⟨ρ, rfl⟩
     exact ⟨Matrix.of fun i j => Sum.elim X (fun a => C a) (ρ (finProdFinEquiv (i, j))),
-      fun i j => ⟨ρ (finProdFinEquiv (i, j)), rfl⟩, (projection_det_genericMatrix ρ).symm⟩
+      fun i j => ⟨ρ (finProdFinEquiv (i, j)), rfl⟩,
+      (projection_det_genericMatrix ρ).symm⟩
   · rintro ⟨M, hM, rfl⟩
     have h := hM.isProjection_det
     rwa [Fintype.card_fin] at h

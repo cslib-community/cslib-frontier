@@ -116,7 +116,8 @@ theorem canon_length {M K : Type} [Fintype K] [DecidableEq K] {n : ℕ}
     have hj : j < n := by omega
     obtain ⟨h1, h2⟩ := ih (j + 1) (by omega)
     have hl : (srt (bsl K) l j).length = l.length := length_srt mem_bsl bsl_nodup l j
-    rw [canon]; simp only [hj, ↓reduceDIte]
+    rw [canon]
+    simp only [hj, ↓reduceDIte]
     refine ⟨by rw [List.length_cons, h1], fun p hp => ?_⟩
     rcases List.mem_cons.mp hp with rfl | hp
     · refine ⟨by rw [cps, dIn_dl, length_encW_recs hj.le, hl], ?_⟩
@@ -214,19 +215,22 @@ theorem MX.total {A M K : Type} [Fintype K] [DecidableEq K] {P : Mach A M K}
       intro w hw
       rcases List.mem_cons.mp hw with rfl | hw
       · exact length_i0 _
-      · obtain ⟨s, hs, rfl⟩ := List.mem_map.mp hw; exact hcw s hs _
+      · obtain ⟨s, hs, rfl⟩ := List.mem_map.mp hw
+        exact hcw s hs _
     exact h2 _ (by simp)
   have e1 (i) : (emX P x (.tp (.rg i) true)).length =
       (x.steps.length + 1) * (x.init.length + 2) := by
     rw [emX_rg_true, length_bws (n := x.init.length + 1) fun w hw => by
       rcases List.mem_append.mp hw with hw | hw
-      · obtain ⟨s, hs, rfl⟩ := List.mem_map.mp hw; exact hcw s hs _
+      · obtain ⟨s, hs, rfl⟩ := List.mem_map.mp hw
+        exact hcw s hs _
       · rw [List.mem_singleton.mp hw]; exact hend i]
     simp
   have e3 : (emX P x (.tp .cp true)).length = (x.steps.length + 1) * (x.init.length + 2) := by
     rw [emX_cp_true, length_bws (n := x.init.length + 1) fun w hw => by
       rcases List.mem_append.mp hw with hw | hw
-      · obtain ⟨r, hr, rfl⟩ := List.mem_map.mp hw; exact hx.len_cn.1 r hr
+      · obtain ⟨r, hr, rfl⟩ := List.mem_map.mp hw
+        exact hx.len_cn.1 r hr
       · rw [List.mem_singleton.mp hw]; simpa using hx.len_cn.2]
     simp [hx.length_eq]
   have e4 : (emX P x (.tp .fr true)).length = x.steps.length * (x.init.length + 2) := by

@@ -169,7 +169,8 @@ theorem select_select {q : Query S n} {Γ : Fin n → SqlType} (hq : q.typeOf = 
   by_cases hC : ∀ r ∈ rs, (c.evalTruth r).toOption.isSome
   · have hAnd : ∀ r ∈ rs, ((c.evalTruth r).toOption.bind
         fun s => (p.evalTruth r).toOption.map (s ⊓ ·)).isSome := fun r hr => by
-      obtain ⟨s, hs⟩ := Option.isSome_iff_exists.mp (hC r hr); simp [hs, ht r hr]
+      obtain ⟨s, hs⟩ := Option.isSome_iff_exists.mp (hC r hr)
+      simp [hs, ht r hr]
     rw [ite_eq_left hC, ite_eq_left hAnd, Option.bind_some,
       hp.filterRows_eq_ok fun r hr => hrs r (List.mem_filter.mp hr).1, Except.toOption_ok,
       List.filter_filter]
@@ -178,7 +179,8 @@ theorem select_select {q : Query S n} {Γ : Fin n → SqlType} (hq : q.typeOf = 
     simp [hs, ht r hr, Truth.inf_eq_true_iff, Bool.and_comm]
   · have hAnd : ¬∀ r ∈ rs, ((c.evalTruth r).toOption.bind
         fun s => (p.evalTruth r).toOption.map (s ⊓ ·)).isSome := fun hall => hC fun r hr => by
-      have := hall r hr; rcases hs : (c.evalTruth r).toOption <;> simp_all
+      have := hall r hr
+      rcases hs : (c.evalTruth r).toOption <;> simp_all
     simp [hC, hAnd]
 
 /-- Selection commutation: two safe `WHERE` clauses may be applied in either order. -/
@@ -346,8 +348,10 @@ theorem select_unionAll (p : Expr n) (q₁ q₂ : Query S n) :
   simp only [eval_select, eval_unionAll, bind_assoc, pure_bind, Except.toOption_bind,
     Expr.toOption_filterRows_append, Except.toOption_pure]
   -- The right side filters `q₁` before evaluating `q₂`; observed in `Option`, binds commute.
-  congr 1; funext rs
-  rw [Option.bind_comm]; simp only [Option.map_eq_bind, Function.comp_def]
+  congr 1
+  funext rs
+  rw [Option.bind_comm]
+  simp only [Option.map_eq_bind, Function.comp_def]
 
 /-- A `SELECT` list distributes over `UNION ALL`. -/
 theorem project_unionAll (es : Fin k → Expr n) (q₁ q₂ : Query S n) :
@@ -356,7 +360,8 @@ theorem project_unionAll (es : Fin k → Expr n) (q₁ q₂ : Query S n) :
   simp only [eval_project, eval_unionAll, bind_assoc, pure_bind, List.mapM_append,
     Except.toOption_bind]
   -- The right side evaluates `q₂` after projecting `q₁`; observed in `Option`, binds commute.
-  congr 1; funext rs
+  congr 1
+  funext rs
   exact Option.bind_comm _ _
 
 /-- `UNION ALL` is associative. -/

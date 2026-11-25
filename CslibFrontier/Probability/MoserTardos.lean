@@ -107,7 +107,8 @@ noncomputable def table : Measure (∀ p : V × ℕ, α p.1) :=
   Measure.infinitePi fun p : V × ℕ => μ p.1
 
 omit [∀ v, IsProbabilityMeasure (μ v)] in
-theorem table_def : table μ = Measure.infinitePi fun p : V × ℕ => μ p.1 := by rw [table]
+theorem table_def : table μ = Measure.infinitePi fun p : V × ℕ => μ p.1 := by
+  rw [table]
 
 instance : IsProbabilityMeasure (table μ) := by
   rw [table_def]
@@ -192,7 +193,8 @@ private theorem table_iInter_checkAt (A : ι → Set (∀ v, α v)) (hAm : ∀ i
 omit [Fintype V] [∀ v, MeasurableSpace (α v)] in
 private theorem check_eq_iInter (A : ι → Set (∀ v, α v)) (S : Finset (ι × ℕ)) :
     {T | Check vbl A S T} = ⋂ p ∈ S, checkAt vbl A S p := by
-  ext T; simp only [Set.mem_ofPred_eq, Set.mem_iInter, checkAt, Set.mem_preimage]
+  ext T
+  simp only [Set.mem_ofPred_eq, Set.mem_iInter, checkAt, Set.mem_preimage]
   exact check_iff vbl
 
 omit [Fintype V] in
@@ -207,7 +209,8 @@ bounds the probability that the structure occurs in the log, as in the paper. -/
 theorem measure_check_eq_prod (A : ι → Set (∀ v, α v)) (hAm : ∀ i, MeasurableSet (A i))
     (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V)) {S : Finset (ι × ℕ)} (hS : Proper vbl S) :
     table μ {T | Check vbl A S T} = ∏ p ∈ S, Measure.pi μ (A p.1) := by
-  rw [check_eq_iInter]; exact table_iInter_checkAt μ vbl A hAm hA hS S subset_rfl
+  rw [check_eq_iInter]
+  exact table_iInter_checkAt μ vbl A hAm hA hS S subset_rfl
 
 /-- **Lemma 2.1(ii)** of [MoserTardos2010]: the probability that a fixed structure `S` occurs as
 the witness structure of a step of some valid log on the table is at most
@@ -351,11 +354,13 @@ theorem run_zero (sel : (∀ p : V × ℕ, α p.1) → List ι → Option ι) (T
 
 theorem run_succ_of_eq_none {sel : (∀ p : V × ℕ, α p.1) → List ι → Option ι}
     {T : ∀ p : V × ℕ, α p.1} {n : ℕ} (h : sel T (run sel T n) = none) :
-    run sel T (n + 1) = run sel T n := by rw [run, h]
+    run sel T (n + 1) = run sel T n := by
+  rw [run, h]
 
 theorem run_succ_of_eq_some {sel : (∀ p : V × ℕ, α p.1) → List ι → Option ι}
     {T : ∀ p : V × ℕ, α p.1} {n : ℕ} {i : ι} (h : sel T (run sel T n) = some i) :
-    run sel T (n + 1) = i :: run sel T n := by rw [run, h]
+    run sel T (n + 1) = i :: run sel T n := by
+  rw [run, h]
 
 /-- Under a valid selection rule, which only selects occurring events, every prefix of the run is
 a valid log. -/
@@ -366,7 +371,9 @@ theorem isLog_run [DecidableEq V] (vbl : ι → Finset V) (A : ι → Set (∀ v
   | 0 => isLog_nil vbl A T
   | n + 1 => by
     cases h : sel T (run sel T n) with
-    | none => rw [run_succ_of_eq_none h]; exact isLog_run vbl A hsel T n
+    | none =>
+      rw [run_succ_of_eq_none h]
+      exact isLog_run vbl A hsel T n
     | some i =>
       rw [run_succ_of_eq_some h, isLog_cons]
       exact ⟨hsel T _ i h, isLog_run vbl A hsel T n⟩
@@ -379,7 +386,8 @@ noncomputable def resamplings [DecidableEq ι] (sel : (∀ p : V × ℕ, α p.1)
 
 theorem resamplings_def [DecidableEq ι] (sel : (∀ p : V × ℕ, α p.1) → List ι → Option ι)
     (i : ι) (T : ∀ p : V × ℕ, α p.1) :
-    resamplings sel i T = ⨆ n, ((run sel T n).count i : ℝ≥0∞) := by rw [resamplings]
+    resamplings sel i T = ⨆ n, ((run sel T n).count i : ℝ≥0∞) := by
+  rw [resamplings]
 
 /-- Under a valid selection rule, the number of resamplings of `A i` is at most the largest number
 of steps labelled `i` in a valid log on the table, a bound that does not depend on the rule. -/
@@ -402,12 +410,14 @@ noncomputable def greedy (A : ι → Set (∀ v, α v)) (T : ∀ p : V × ℕ, �
 
 theorem greedy_eq_some {A : ι → Set (∀ v, α v)} {T : ∀ p : V × ℕ, α p.1} {w : List ι} {i : ι}
     (h : greedy vbl A T w = some i) : current vbl T w ∈ A i := by
-  unfold greedy at h; split_ifs at h with hex
+  unfold greedy at h
+  split_ifs at h with hex
   exact Option.some.inj h ▸ hex.choose_spec
 
 theorem greedy_eq_none {A : ι → Set (∀ v, α v)} {T : ∀ p : V × ℕ, α p.1} {w : List ι}
     (h : greedy vbl A T w = none) (i : ι) : current vbl T w ∉ A i := by
-  unfold greedy at h; split_ifs at h with hex
+  unfold greedy at h
+  split_ifs at h with hex
   exact fun hi => hex ⟨i, hi⟩
 
 end Algorithm

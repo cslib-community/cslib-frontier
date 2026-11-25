@@ -297,7 +297,9 @@ private lemma forall₂_trans {α β γ : Type} {R : α → β → Prop} {S : β
     List.Forall₂ T l₁ l₃ := by
   induction h₁ generalizing l₃ with
   | nil => cases h₂; exact .nil
-  | cons h _ ih => cases h₂ with | cons h' h₂ => exact .cons (H _ _ _ h h') (ih h₂)
+  | cons h _ ih =>
+    cases h₂ with
+    | cons h' h₂ => exact .cons (H _ _ _ h h') (ih h₂)
 
 private lemma exists_of_mem_zipWith {α β γ : Type} {f : α → β → γ} {l₁ : List α} {l₂ : List β}
     {c : γ} (h : c ∈ List.zipWith f l₁ l₂) : ∃ a ∈ l₁, ∃ b ∈ l₂, c = f a b := by

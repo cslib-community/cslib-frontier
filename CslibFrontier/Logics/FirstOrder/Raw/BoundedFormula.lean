@@ -316,7 +316,9 @@ theorem fromRaw_toRaw : ∀ {n} (φ : L.BoundedFormula α n), fromRaw n φ.toRaw
 /-- `toRaw` inverts `fromRaw n` wherever `fromRaw n` is defined. -/
 theorem toRaw_of_fromRaw :
     ∀ {n} {χ : RawFormula} {φ : L.BoundedFormula α n}, fromRaw n χ = some φ → φ.toRaw = χ
-  | _, .falsum, _, h => by cases h; rfl
+  | _, .falsum, _, h => by
+    cases h
+    rfl
   | n, .equal x y, _, h => by
     obtain ⟨v, w, hv, hw, rfl⟩ := Option.map₂_eq_some_iff.1 h
     simp [rawVar_of_varOfRaw hv, rawVar_of_varOfRaw hw]

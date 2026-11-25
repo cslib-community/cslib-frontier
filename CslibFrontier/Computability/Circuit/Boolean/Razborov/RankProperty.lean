@@ -221,7 +221,8 @@ theorem zeroSumMatrix_exactWeight (a : ℕ) :
       have hJ : J.1 = S := eq_of_subset_of_card_le
         (fun i hi => mem_filter.mpr ⟨mem_univ i, hx i (mem_union_right _ hi)⟩) (by rw [hS, J.2])
       refine ⟨Subtype.ext (hI.trans hJ.symm), funext fun i => ?_⟩
-      rw [hI]; cases hxi : x i <;> simp [S, hxi]
+      rw [hI]
+      cases hxi : x i <;> simp [S, hxi]
     · rintro ⟨rfl, rfl⟩
       refine ⟨fun i hi => by simpa using hi, ?_⟩
       have h1 := card_filter_eq_false_eq_card_sub_weight fun i => decide (i ∉ I.1)

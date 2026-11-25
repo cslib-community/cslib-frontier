@@ -225,7 +225,8 @@ theorem card_boxesAt (m t : ℕ) (ht : t ≤ m) (η : OutStr L) (hη : (innerSet
     (V : Finset (Fin L)) (hV : V ∈ boxLevelSets m t η) : (boxesAt η V).card = 9 ^ t := by
   obtain ⟨hVQ, hVc⟩ := mem_powersetCard.1 hV
   have hpi : boxesAt η V = Fintype.piFinset (allowed η V) := by
-    ext; simp [boxesAt, allowed, Fintype.mem_piFinset]
+    ext
+    simp [boxesAt, allowed, Fintype.mem_piFinset]
   rw [hpi, Fintype.card_piFinset]
   simp only [card_allowed η V hVQ, prod_ite_mem_const, one_pow, mul_one,
     card_sdiff_of_subset hVQ, hη, hVc, Nat.sub_sub_self ht]
