@@ -135,22 +135,22 @@ theorem exists_norm_eq_sum_dist_endPoint_le (hk : 1 ≤ k) (A : Finset (Fin k))
   have hk0 : (0 : ℝ) < k := by exact_mod_cast hk
   have hs1 : (k : ℝ) ≤ 3 * A.card := by exact_mod_cast h1
   have hs2 : 3 * (A.card : ℝ) ≤ 2 * k := by exact_mod_cast h2
-  obtain ⟨Q, hQ⟩ : ∃ Q : ℝ, Q = A.card * ((k : ℝ) - A.card) * k := ⟨_, rfl⟩
+  set Q : ℝ := A.card * ((k : ℝ) - A.card) * k
   have hQk : 2 / 9 * (k : ℝ) ^ 3 ≤ Q := by
-    rw [hQ]
-    nlinarith [mul_nonneg hk0.le (sub_nonneg.2 hs1), mul_nonneg hk0.le (sub_nonneg.2 hs2)]
+    have hpos := mul_nonneg hk0.le (mul_nonneg (sub_nonneg.2 hs1) (sub_nonneg.2 hs2))
+    linarith [show (k : ℝ) * ((3 * (A.card : ℝ) - k) * (2 * k - 3 * A.card)) =
+      9 * Q - 2 * (k : ℝ) ^ 3 by dsimp only [Q]; ring]
   have hQ0 : 0 < Q := lt_of_lt_of_le (by positivity) hQk
-  obtain ⟨η, hη⟩ : ∃ η : ℝ, η = 1 / (6 * √k) := ⟨_, rfl⟩
-  have hη0 : 0 < η := hη ▸ by positivity
+  set η : ℝ := 1 / (6 * √k)
+  have hη0 : 0 < η := by positivity
   have hηsq : η ^ 2 = 1 / (36 * k) := by
-    rw [hη, div_pow, mul_pow, Real.sq_sqrt hk0.le]
-    norm_num
+    dsimp only [η]; rw [div_pow, mul_pow, Real.sq_sqrt hk0.le]; norm_num
   have hnormv : ‖hubDir A‖ = √Q := by
-    rw [hQ, ← norm_hubDir_sq, Real.sqrt_sq (norm_nonneg _)]
+    dsimp only [Q]; rw [← norm_hubDir_sq, Real.sqrt_sq (norm_nonneg _)]
   have hnorm : ‖(η / √Q) • hubDir A‖ = η := by
     rw [norm_smul, hnormv, Real.norm_of_nonneg (by positivity)]
     exact div_mul_cancel₀ _ (Real.sqrt_pos.2 hQ0).ne'
-  refine ⟨(η / √Q) • hubDir A, hη ▸ hnorm, ?_⟩
+  refine ⟨(η / √Q) • hubDir A, hnorm, ?_⟩
   -- every end pays at most its wire, plus `η ^ 2`, minus its gain in the direction of the hubs
   have hterm (a b : Fin k) : (if a = b then 0 else dist (endPoint a b)
       (if a ∈ A then (η / √Q) • hubDir A else -((η / √Q) • hubDir A))) ≤
@@ -160,37 +160,34 @@ theorem exists_norm_eq_sum_dist_endPoint_le (hk : 1 ≤ k) (A : Finset (Fin k))
     · simp [hab]
     · rw [ite_eq_right hab, ite_eq_right hab, sub_zero, endPoint_eq]
       refine (dist_half_smul_le (norm_unitDiff hab) _).trans (le_of_eq ?_)
-      split_ifs with ha
-      · rw [real_inner_smul_right, inner_unitDiff, hnorm]
-        ring
-      · rw [inner_neg_right, real_inner_smul_right, inner_unitDiff, norm_neg, hnorm]
-        ring
+      split_ifs <;>
+        simp only [inner_neg_right, real_inner_smul_right, inner_unitDiff, norm_neg, hnorm] <;> ring
   refine (sum_le_sum fun a _ => sum_le_sum fun b _ => hterm a b).trans ?_
   have hsum : ∑ a, ∑ b, η / √Q * (√2)⁻¹ *
       ((if a ∈ A then (1 : ℝ) else -1) * (hubDir A a - hubDir A b)) =
       η / √Q * (√2)⁻¹ * (2 * Q) := by
-    rw [hQ, ← sum_sign_mul_hubDir_sub, mul_sum]
+    rw [show 2 * Q = _ from (sum_sign_mul_hubDir_sub A).symm, mul_sum]
     exact sum_congr rfl fun a _ => by rw [mul_sum]
   simp only [sum_sub_distrib, hsum, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul,
     sum_ite_eq, mem_univ, ite_true]
   -- the gain is at least `k / 9`
   have hgain : k / 9 ≤ η / √Q * (√2)⁻¹ * (2 * Q) := by
     have e1 : η / √Q * (√2)⁻¹ * (2 * Q) = η * √(2 * Q) := by
-      rw [Real.sqrt_mul (by norm_num)]
-      have h2' : √(2 : ℝ) ≠ 0 := by positivity
-      have hq' : √Q ≠ 0 := by positivity
-      field_simp
-      nlinarith [Real.sq_sqrt hQ0.le, Real.sq_sqrt (show (0 : ℝ) ≤ 2 by norm_num)]
+      rw [Real.sqrt_mul (by norm_num) Q]
+      calc η / √Q * (√2)⁻¹ * (2 * Q)
+          = η * (√2 * √2 * (√2)⁻¹) * (√Q * √Q / √Q) := by
+            rw [Real.mul_self_sqrt (by norm_num), Real.mul_self_sqrt hQ0.le]; ring
+        _ = η * (√2 * √Q) := by
+            rw [mul_inv_cancel_right₀ (Real.sqrt_ne_zero'.mpr (by norm_num)),
+              mul_div_cancel_right₀ _ (Real.sqrt_pos.2 hQ0).ne', mul_assoc]
     have e2 : 2 / 3 * k * √k ≤ √(2 * Q) := by
       refine Real.le_sqrt_of_sq_le ?_
       rw [mul_pow, mul_pow, Real.sq_sqrt hk0.le]
-      nlinarith
+      linarith [show (2 / 3 * (k : ℝ)) ^ 2 * k = 4 / 9 * (k : ℝ) ^ 3 by ring]
     rw [e1]
     calc (k : ℝ) / 9 = η * (2 / 3 * k * √k) := by
           have : √(k : ℝ) ≠ 0 := by positivity
-          rw [hη]
-          field_simp
-          norm_num
+          dsimp only [η]; field_simp; norm_num
       _ ≤ _ := mul_le_mul_of_nonneg_left e2 hη0.le
   have hloss : (k : ℝ) * (k - 1) * η ^ 2 ≤ k / 36 := by
     rw [hηsq, show (k : ℝ) * (k - 1) * (1 / (36 * k)) = (k - 1) / 36 by field_simp]
