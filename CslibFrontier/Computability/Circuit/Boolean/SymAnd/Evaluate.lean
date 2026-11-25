@@ -884,32 +884,37 @@ private theorem maskMap_streamEmit (b : Bool) (M : List (List Bool)) :
   | cons a t ih =>
     simp [List.map_cons, streamEmit, encList_cons, ih]
 
+private theorem gates_length_le_encSymAndInstance (x : SymAndInstance) :
+    x.gates.length ≤ (encSymAndInstance x).length := by
+  rw [encSymAndInstance_apply, encSymAndInstanceFields, length_encPair]
+  dsimp only
+  have h1 := length_le_length_encList encBits x.gates
+  omega
+
+private theorem n_le_encSymAndInstance (x : SymAndInstance) :
+    x.n ≤ (encSymAndInstance x).length := by
+  rw [encSymAndInstance_apply, encSymAndInstanceFields, length_encPair]
+  dsimp only
+  have h1 : x.n ≤ (encUnary x.n).length := by simp [encUnary_apply]
+  omega
+
 private theorem computableInO_n_unary :
     ComputableInO (fun x : SymAndInstance => x.n) encSymAndInstance encUnary
       (fun x => (encSymAndInstance x).length) (fun x => (encSymAndInstance x).length) := by
   have h1 := (ComputableInO.fst encUnary (encList encBits)).of_encIn_eq
     (fun x : SymAndInstance => (x.n, x.gates)) (fun x => (encSymAndInstance_apply x).symm)
-  exact h1.mono 1
-    (fun x => by
-      rw [encSymAndInstance_apply]
-      dsimp only [Function.comp_apply, encSymAndInstanceFields]
-      omega)
-    (fun x => by
-      rw [encSymAndInstance_apply]
-      dsimp only [Function.comp_apply, encSymAndInstanceFields]
-      omega)
+  refine h1.mono 1 (fun x => ?_) (fun x => ?_)
+  all_goals
+    rw [encSymAndInstance_apply]
+    dsimp only [Function.comp_apply, encSymAndInstanceFields]
+    omega
 
 private theorem computableInO_n_nat :
     ComputableInO (fun x : SymAndInstance => x.n) encSymAndInstance encNat
       (fun x => (encSymAndInstance x).length) (fun x => (encSymAndInstance x).length) := by
-  have hcomp := ComputableInO.unaryToNat.comp computableInO_n_unary
-  have hle : ∀ x : SymAndInstance, x.n ≤ (encSymAndInstance x).length := fun x => by
-    rw [encSymAndInstance_apply, encSymAndInstanceFields, length_encPair]
-    dsimp only
-    have h1 : x.n ≤ (encUnary x.n).length := by simp [encUnary_apply]
-    omega
-  exact hcomp.mono 2 (fun x => by have := hle x; omega)
-    (fun x => by have := hle x; omega)
+  exact (ComputableInO.unaryToNat.comp computableInO_n_unary).mono 2
+    (fun x => by have := n_le_encSymAndInstance x; omega)
+    (fun x => by have := n_le_encSymAndInstance x; omega)
 
 private theorem computableInO_allMasks :
     ∃ d, ComputableInO (fun x : SymAndInstance => allMasks x.n) encSymAndInstance
@@ -1199,20 +1204,6 @@ private theorem two_pow_mul_log2_pow_le (n s d : ℕ) :
       _ = (s + 2) ^ (d + 1) := by ring
       _ ≤ 2 ^ n + (s + 2) ^ (d + 1) := Nat.le_add_left _ _
       _ ≤ (2 ^ n + (s + 2) ^ (d + 1)) * (n + 2) ^ d := Nat.le_mul_of_pos_right _ h1
-
-private theorem gates_length_le_encSymAndInstance (x : SymAndInstance) :
-    x.gates.length ≤ (encSymAndInstance x).length := by
-  rw [encSymAndInstance_apply, encSymAndInstanceFields, length_encPair]
-  dsimp only
-  have h1 := length_le_length_encList encBits x.gates
-  omega
-
-private theorem n_le_encSymAndInstance (x : SymAndInstance) :
-    x.n ≤ (encSymAndInstance x).length := by
-  rw [encSymAndInstance_apply, encSymAndInstanceFields, length_encPair]
-  dsimp only
-  have h1 : x.n ≤ (encUnary x.n).length := by simp [encUnary_apply]
-  omega
 
 private theorem countMasks_length (x : SymAndInstance) : (countMasks x).length = 2 ^ x.n := by
   rw [countMasks_eq, List.length_map, List.length_range]
@@ -1962,14 +1953,12 @@ private theorem yatesStep_iter_correct {n : ℕ} (hn : 0 < n) (F : Finset (Fin n
           simp only [lt_irrefl, ↓reduceIte] at hi0
           refine ⟨fun j => ?_, fun hmem => hrot_i0 (hi0.1 hmem)⟩
           by_cases hj : j.1 = i
-          · have hjf : j = ⟨i, hi_lt⟩ := Fin.ext hj
-            subst hjf
+          · obtain rfl : j = ⟨i, hi_lt⟩ := Fin.ext hj
             simp [hrot_i_next, hbit, show i < i + 1 by omega]
           · exact yatesPred_congr_other (fun j hj => (hrot_other j hj).1) h hj
         · rintro ⟨h, hni⟩ j
           by_cases hj : j.1 = i
-          · have hjf : j = ⟨i, hi_lt⟩ := Fin.ext hj
-            subst hjf
+          · obtain rfl : j = ⟨i, hi_lt⟩ := Fin.ext hj
             simp [hrot_i0, hni]
           · exact yatesPred_of_succ_other (fun j hj => (hrot_other j hj).1) h hj
       have hiff1 : yatesPred n i k₁ T ↔ yatesPred n (i + 1) k T ∧ (⟨i, hi_lt⟩ : Fin n) ∈ T := by
@@ -1979,14 +1968,12 @@ private theorem yatesStep_iter_correct {n : ℕ} (hn : 0 < n) (F : Finset (Fin n
           simp only [lt_irrefl, ↓reduceIte] at hi1
           refine ⟨fun j => ?_, hi1.2 hrot_i1⟩
           by_cases hj : j.1 = i
-          · have hjf : j = ⟨i, hi_lt⟩ := Fin.ext hj
-            subst hjf
+          · obtain rfl : j = ⟨i, hi_lt⟩ := Fin.ext hj
             simp [hrot_i_next, hbit, show i < i + 1 by omega]
           · exact yatesPred_congr_other (fun j hj => (hrot_other j hj).2) h hj
         · rintro ⟨h, hmem⟩ j
           by_cases hj : j.1 = i
-          · have hjf : j = ⟨i, hi_lt⟩ := Fin.ext hj
-            subst hjf
+          · obtain rfl : j = ⟨i, hi_lt⟩ := Fin.ext hj
             simp [hrot_i1, hmem]
           · exact yatesPred_of_succ_other (fun j hj => (hrot_other j hj).2) h hj
       by_cases hP : yatesPred n (i + 1) k T <;> by_cases hmem : (⟨i, hi_lt⟩ : Fin n) ∈ T <;>
@@ -2045,8 +2032,7 @@ private theorem yatesZeta_countMasks_eq (x : SymAndInstance) :
           (x.gates.map (gateSet x.n)).countP fun T => decide (T ⊆ S) :=
       subsetZeta_listCount_eq_countP (x.gates.map (gateSet x.n))
     rcases Nat.eq_zero_or_pos x.n with hn0 | hn_pos
-    · have hk0 : k = 0 := by rw [hn0, pow_zero] at hk; omega
-      subst hk0
+    · obtain rfl : k = 0 := by rw [hn0, pow_zero] at hk; omega
       simp only [yatesZeta, hn0, Function.iterate_zero_apply, countMasks_eq]
       rw [List.getElem_map]
       simp only [List.getElem_range]
