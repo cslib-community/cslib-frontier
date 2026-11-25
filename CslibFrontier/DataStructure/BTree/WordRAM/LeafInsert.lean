@@ -37,11 +37,6 @@ private def leafInsertPre1 : Code .standard 20 := ram[
   rDst ← rNumK;
   rLim ← rNumK - rSlot ]
 
-private def leafInsertPre2 : Code .standard 20 := ram[
-  rSrc ← rSrc + rDeg;
-  rSrc ← rSrc + rDeg;
-  rSrc ← rSrc - rOne ]
-
 private def leafInsertPost : Code .standard 20 := ram[
   rTmp1 ← rSrc + rSlot;
   *rTmp1 ← rVal;
@@ -59,8 +54,7 @@ private def leafInsertPost : Code .standard 20 := ram[
 def leafInsertCode : Code .standard 20 := ram[
   ⟪leafInsertPre1⟫;
   ⟪shiftLoop⟫;
-  ⟪leafInsertPre2⟫;
-  ⟪shiftLoop⟫;
+  ⟪advanceShift⟫;
   ⟪leafInsertPost⟫ ]
 
 /-- Specification of `leafInsertCode`, realizing `memInsertLeaf base t u m slot k v` in
@@ -94,18 +88,9 @@ theorem leafInsertCode_spec {w base capNodes t u m slot k v : ℕ} {x : Data 20}
   have hlim₂ : x₂.regs rLim = m - slot := hreg₂ rLim (by decide)
   have ho₂ : x₂.regs rOne = 1 := (hreg₂ rOne (by decide)).trans ho
   have hd₂ : x₂.regs rDeg = t := (hreg₂ rDeg (by decide)).trans hdeg
-  have hav_eq : au + 2 + t + t - 1 = au + (2 * t + 1) := by omega
-  let x₃ := ((x₂.set rSrc (au + 2 + t)).set rSrc (au + 2 + t + t)).set rSrc (au + (2 * t + 1))
-  have hp2 : ExecWithin w leafInsertPre2 x₂ x₃ 3 := by
-    unfold leafInsertPre2; dsimp only [x₃]
-    have hf1 : Fits w (au + 2 + t) := hfit.of_le (by omega)
-    have hf2 : Fits w (au + 2 + t + t) := hfit.of_le (by omega)
-    have hf3 : Fits w (au + (2 * t + 1)) := hfit.of_le (by omega)
-    wram_exec [ho₂, hd₂, hsrc₂, hav_eq, hf1, hf2, hf3]
-  obtain ⟨x₄, hs2, hb₄, hmem₄, hreg₄⟩ :=
-    shiftLoop_spec (arrBase := au + (2 * t + 1)) (upper := m) (count := m - slot)
-      (hp2.bounded hb₂) ho₂ rfl hdst₂ hlim₂ (by omega) (hfit.of_le (by omega))
-  have hsrc₄ : x₄.regs rSrc = au + (2 * t + 1) := hreg₄ rSrc (by decide)
+  obtain ⟨x₄, hs2, hb₄, hmem₄, hsrc₄, hreg₄⟩ :=
+    advanceShift_spec (b := au + (2 * t + 1)) hb₂ ho₂ hd₂ hsrc₂ hdst₂ hlim₂ (by omega) (by omega)
+      (hfit.of_le (by omega))
   have ho₄ : x₄.regs rOne = 1 := (hreg₄ rOne (by decide)).trans ho₂
   have hd₄ : x₄.regs rDeg = t := (hreg₄ rDeg (by decide)).trans hd₂
   have hb₄_reg : x₄.regs rBase = base :=
@@ -133,7 +118,6 @@ theorem leafInsertCode_spec {w base capNodes t u m slot k v : ℕ} {x : Data 20}
   have hf_m1 : Fits w (m + 1) := hfit.of_le (by omega)
   have hf0 : Fits w 0 := hfit.of_le (Nat.zero_le _)
   simp only [x₁, Data.set_mem] at hmem₂
-  simp only [x₃, Data.set_mem] at hmem₄
   obtain ⟨y, hp3, hymem, hb_y, hd_y, hz_y, hact_y⟩ :
       ∃ y, ExecWithin w leafInsertPost x₄ y 11 ∧
         y.mem = memInsertLeaf base t u m slot k v x.mem ∧
@@ -157,7 +141,7 @@ theorem leafInsertCode_spec {w base capNodes t u m slot k v : ℕ} {x : Data 20}
         · subst h3; rw [Function.update_self, Function.update_self]
         · rw [Function.update_of_ne h3, Function.update_of_ne h2, Function.update_of_ne h3]
   have hfull : ExecWithin w leafInsertCode x y (36 * t + 22) :=
-    (hp1.seq (hs1.seq (hp2.seq (hs2.seq hp3)))).mono (by omega)
+    (hp1.seq (hs1.seq (hs2.seq hp3))).mono (by omega)
   have hmod : Modifies (Block.mk base (arenaWords t capNodes)).footprint x.mem y.mem := by
     intro addr hnot
     rw [hymem]
@@ -306,12 +290,12 @@ theorem initSingleCode_spec {w base capNodes t k v : ℕ} {x : Data 20}
   exact ⟨y, he, he.bounded hbdd, hymem, hmod, hb_y, hd_y⟩
 
 theorem not_readsWidth_leafInsertCode : ¬leafInsertCode.ReadsWidth := by
-  simp [leafInsertCode, leafInsertPre1, leafInsertPre2, leafInsertPost,
-    Code.ReadsWidth, Op.ReadsWidth, Op.bin, not_readsWidth_shiftLoop]
+  simp [leafInsertCode, leafInsertPre1, leafInsertPost,
+    Code.ReadsWidth, Op.ReadsWidth, Op.bin, not_readsWidth_shiftLoop, not_readsWidth_advanceShift]
 
 theorem isRandFree_leafInsertCode : leafInsertCode.IsRandFree := by
-  simp [leafInsertCode, leafInsertPre1, leafInsertPre2, leafInsertPost,
-    Code.IsRandFree, isRandFree_shiftLoop]
+  simp [leafInsertCode, leafInsertPre1, leafInsertPost,
+    Code.IsRandFree, isRandFree_shiftLoop, isRandFree_advanceShift]
 
 theorem not_readsWidth_overwriteValCode : ¬overwriteValCode.ReadsWidth := by decide
 theorem isRandFree_overwriteValCode : overwriteValCode.IsRandFree := by decide

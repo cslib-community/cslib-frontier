@@ -24,8 +24,9 @@ Internal infrastructure shared privately across the B-tree lookup, split, and in
 * Arena address bounds (`stride_le_arena`, `nodeAddr_add_le_arena`) and slot-count order helpers
   (`slotCount_le`, `keyAt_gt_of_slotCount_not_hit`).
 * Bounded array-copy wrapper `copyArrayCode` (`copyArrayCode_spec`), backward-shift loop
-  `shiftLoop` (`shiftLoop_spec`), within-node key scan `slotScanLoop` (`slotScanLoop_spec`), and
-  combined node-header + key-scan routine `loadAndScan` (`loadAndScan_spec`).
+  `shiftLoop` (`shiftLoop_spec`) and its next-array variant `advanceShift` (`advanceShift_spec`),
+  within-node key scan `slotScanLoop` (`slotScanLoop_spec`), and combined node-header + key-scan
+  routine `loadAndScan` (`loadAndScan_spec`).
 -/
 
 public section
@@ -247,6 +248,50 @@ theorem shiftLoop_spec {w arrBase upper count : ℕ} {x : Data 20}
   have hfull : ExecWithin w shiftLoop x y (9 * count + 3) :=
     (h0.seq hy_loop).mono (by have : x₀.regs rIdx = 0 := rfl; rw [this]; omega)
   exact ⟨y, hfull, hby, hymem, hyreg⟩
+
+private def advanceSrc : Code .standard 20 := ram[
+  rSrc ← rSrc + rDeg;
+  rSrc ← rSrc + rDeg;
+  rSrc ← rSrc - rOne ]
+
+/-- Advance `rSrc` by `2 * rDeg - 1` words, from one key or value array of a node to the next, then
+run `shiftLoop` there. -/
+def advanceShift : Code .standard 20 := ram[
+  ⟪advanceSrc⟫;
+  ⟪shiftLoop⟫ ]
+
+/-- Specification of `advanceShift`: `rSrc` moves from `a` to `b = a + 2 * t - 1` and the array at
+`b` is shifted as by `shiftLoop`. -/
+theorem advanceShift_spec {w a b t upper count : ℕ} {x : Data 20}
+    (hbdd : x.Bounded w)
+    (ho : x.regs rOne = 1) (hdeg : x.regs rDeg = t) (hsrc : x.regs rSrc = a)
+    (hdst : x.regs rDst = upper) (hlim : x.regs rLim = count)
+    (hab : a + 2 * t = b + 1) (hcount : count ≤ upper)
+    (hf : Fits w (b + upper + 1)) :
+    ∃ y, ExecWithin w advanceShift x y (9 * count + 6) ∧
+      y.Bounded w ∧
+      y.mem = shiftArrRight b upper count x.mem ∧
+      y.regs rSrc = b ∧
+      ∀ reg : Fin 20, reg ∉ ([rSrc, rIdx, rTmp1, rTmp2] : List (Fin 20)) →
+        y.regs reg = x.regs reg := by
+  have hab' : a + t + t - 1 = b := by omega
+  let x₁ := ((x.set rSrc (a + t)).set rSrc (a + t + t)).set rSrc b
+  have h1 : ExecWithin w advanceSrc x x₁ 3 := by
+    unfold advanceSrc; dsimp only [x₁]
+    have hf1 : Fits w (a + t) := hf.of_le (by omega)
+    have hf2 : Fits w (a + t + t) := hf.of_le (by omega)
+    have hf3 : Fits w b := hf.of_le (by omega)
+    wram_exec [ho, hdeg, hsrc, hab', hf1, hf2, hf3]
+  obtain ⟨y, h2, hby, hymem, hyreg⟩ :=
+    shiftLoop_spec (arrBase := b) (upper := upper) (count := count) (h1.bounded hbdd)
+      ho rfl hdst hlim hcount (hf.of_le (by omega))
+  refine ⟨y, (h1.seq h2).mono (by omega), hby, hymem, hyreg rSrc (by decide),
+    fun reg hnot => ?_⟩
+  simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hnot
+  obtain ⟨hs, hi, ht1, ht2⟩ := hnot
+  rw [hyreg reg (by simp [hi, ht1, ht2])]
+  dsimp only [x₁]
+  simp only [Data.set_regs_of_ne hs _]
 
 private def slotScanBody : Code .standard 20 := ram[
   rTmp1 ← rSrc + rIdx;
@@ -470,6 +515,8 @@ theorem not_readsWidth_copyArrayCode : ¬copyArrayCode.ReadsWidth := by decide
 theorem isRandFree_copyArrayCode : copyArrayCode.IsRandFree := by decide
 theorem not_readsWidth_shiftLoop : ¬shiftLoop.ReadsWidth := by decide
 theorem isRandFree_shiftLoop : shiftLoop.IsRandFree := by decide
+theorem not_readsWidth_advanceShift : ¬advanceShift.ReadsWidth := by decide
+theorem isRandFree_advanceShift : advanceShift.IsRandFree := by decide
 theorem not_readsWidth_loadAndScan : ¬loadAndScan.ReadsWidth := by decide
 theorem isRandFree_loadAndScan : loadAndScan.IsRandFree := by decide
 
