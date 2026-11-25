@@ -258,8 +258,7 @@ theorem memory_outside (L : Layout) (values : Fin 3 → ℕ → ℤ) (mem : ℕ 
     dsimp only [Layout.endpoint, Layout.hist, Layout.scratch]
     omega
   have hb : L.base ≤ L.packed := by dsimp only [Layout.packed]; omega
-  have hnot : ¬(L.packed ≤ a ∧ a < L.packed + 4 * L.N) := by
-    rcases ha with ha | ha <;> omega
+  have hnot : ¬(L.packed ≤ a ∧ a < L.packed + 4 * L.N) := by rcases ha with ha | ha <;> omega
   simp only [paddingMemory, Padding.memory, hnot, ↓reduceIte]
 
 end Cslib.Algorithms.WordRAM.ThreeSum.ChanHe.NodePacking
