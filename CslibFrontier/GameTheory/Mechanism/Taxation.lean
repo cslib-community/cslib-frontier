@@ -93,11 +93,9 @@ theorem isImplementableOn_univ_iff [DecidableEq ι] {f : (ι → Ω → ℝ) →
 private theorem update_mem [DecidableEq ι] {V : ι → Set (Ω → ℝ)} {b : ι → Ω → ℝ} {i : ι}
     {v : Ω → ℝ} (hb : ∀ j, j ≠ i → b j ∈ V j) (hv : v ∈ V i) :
     ∀ j, Function.update b i v j ∈ V j := fun j => by
-  by_cases hji : j = i
-  · subst hji
-    simpa [Function.update_self] using hv
-  · rw [Function.update_of_ne hji]
-    exact hb j hji
+  rcases eq_or_ne j i with rfl | hji
+  · simpa [Function.update_self] using hv
+  · simpa [Function.update_of_ne hji] using hb j hji
 
 /-! ### Taxation principle (Nisan 2007, Proposition 9.27) -/
 
@@ -128,9 +126,7 @@ theorem isDSICOn_iff_taxation [DecidableEq ι] {M : Mechanism ι Ω} {V : ι →
       have hex : ∃ w ∈ V i, M.outcome (Function.update b i w) =
           M.outcome (Function.update b i v) := ⟨v, hv, rfl⟩
       simp only [p, hex, ↓reduceDIte]
-      have hw : hex.choose ∈ V i := hex.choose_spec.1
-      have hout : M.outcome (Function.update b i hex.choose) =
-          M.outcome (Function.update b i v) := hex.choose_spec.2
+      obtain ⟨hw, hout⟩ := hex.choose_spec
       have h1 := hM i (Function.update b i hex.choose) v (update_mem hb hw) hv
       have h2 := hM i (Function.update b i v) hex.choose (update_mem hb hv) hw
       simp only [utility, Function.update_idem, hout] at h1 h2
@@ -138,20 +134,14 @@ theorem isDSICOn_iff_taxation [DecidableEq ι] {M : Mechanism ι Ω} {V : ι →
     refine ⟨p, hp, ?_⟩
     rintro v hv _ ⟨v', hv', rfl⟩
     rw [← hp v' hv', ← hp v hv]
-    have h := hM i (Function.update b i v') v (update_mem hb hv') hv
-    simpa only [utility, Function.update_idem] using h
+    simpa only [utility, Function.update_idem] using
+      hM i (Function.update b i v') v (update_mem hb hv') hv
   · intro h i b v hb hv
     obtain ⟨p, hp, hmax⟩ := h i b fun j _ => hb j
-    have hbi : b i ∈ V i := hb i
     have hupd : Function.update b i (b i) = b := Function.update_eq_self i b
-    have h1 := hp (b i) hbi
-    have h2 := hp v hv
-    rw [hupd] at h1
-    have ha : M.outcome b ∈ (fun v' => M.outcome (Function.update b i v')) '' V i :=
-      ⟨b i, hbi, congrArg M.outcome hupd⟩
-    have hle := hmax v hv (M.outcome b) ha
-    simp only [utility, h1, h2]
-    exact hle
+    have h1 : M.payment b i = p (M.outcome b) := hupd ▸ hp (b i) (hb i)
+    simpa only [utility, h1, hp v hv] using
+      hmax v hv (M.outcome b) ⟨b i, hb i, congrArg M.outcome hupd⟩
 
 /-- **Taxation principle on unrestricted domains** ([Nisan2007], Proposition 9.27, §9.5.1, p. 226):
 specialization of `isDSICOn_iff_taxation` to `V i = Set.univ`. -/
@@ -191,17 +181,13 @@ theorem isImplementableOn_iff_exists_prices [DecidableEq ι] {f : (ι → Ω →
     have hb0 : ∀ j, j ≠ i → (Function.update b i 0) j ∈ V j := fun j hj => by
       rw [Function.update_of_ne hj]
       exact hb j hj
-    refine ⟨priceOf i (Function.update b i 0), ?_, ?_⟩
-    · intro v _
-      change priceOf i (Function.update (Function.update b i v) i 0)
-        (f (Function.update b i v)) = priceOf i (Function.update b i 0) (f (Function.update b i v))
-      rw [Function.update_idem]
-    · intro v hv a ha
-      have hpeq : priceOf i (Function.update b i 0) = (h i (Function.update b i 0) hb0).choose :=
-        dite_eq_left hb0
-      rw [hpeq]
-      have hp := (h i (Function.update b i 0) hb0).choose_spec v hv a
-      simpa only [Function.update_idem] using hp (by simpa only [Function.update_idem] using ha)
+    refine ⟨priceOf i (Function.update b i 0), fun v _ => by simp only [pay, Function.update_idem],
+      fun v hv a ha => ?_⟩
+    dsimp only [priceOf]
+    rw [dite_eq_left hb0]
+    simpa only [Function.update_idem] using
+      (h i (Function.update b i 0) hb0).choose_spec v hv a
+        (by simpa only [Function.update_idem] using ha)
 
 /-! ### Weak monotonicity (Nisan 2007, Definition 9.28 & Theorem 9.29 necessity) -/
 
@@ -275,17 +261,12 @@ nonnegative. For `k = 1` (2-cycles), this reduces to `IsWeaklyMonotoneOn`. -/
 theorem IsCyclicallyMonotoneOn.isWeaklyMonotoneOn [DecidableEq ι] {f : (ι → Ω → ℝ) → Ω}
     {V : ι → Set (Ω → ℝ)} (hf : IsCyclicallyMonotoneOn f V) : IsWeaklyMonotoneOn f V := by
   intro i b v v' hb hv hv'
-  let seq : Fin 2 → Ω → ℝ := fun t => if t = 0 then v else v'
-  have hc := hf i b hb 1 seq fun t => by
+  have hc := hf i b hb 1 (fun t => if t = 0 then v else v') fun t => by
     fin_cases t
-    · exact hv
-    · exact hv'
-  rw [Fin.sum_univ_two] at hc
-  have hs0 : seq 0 = v := rfl
-  have hs1 : seq 1 = v' := rfl
-  have h01 : (0 : Fin 2) + 1 = 1 := rfl
-  have h10 : (1 : Fin 2) + 1 = 0 := rfl
-  rw [h01, h10, hs0, hs1] at hc
+    exacts [hv, hv']
+  rw [Fin.sum_univ_two, show (0 : Fin 2) + 1 = 1 from rfl,
+    show (1 : Fin 2) + 1 = 0 from rfl] at hc
+  simp only [↓reduceIte, one_ne_zero] at hc
   linarith
 
 private def chainWeight (g : (Ω → ℝ) → Ω) (v₀ : Ω → ℝ) (n : ℕ)
@@ -303,10 +284,8 @@ private theorem chainWeight_cons (g : (Ω → ℝ) → Ω) (v₀ v : Ω → ℝ)
     (u : Fin (n + 1) → Ω → ℝ) :
     chainWeight g v₀ (n + 1) (consSeq v u) =
       (v (g v) - v (g (u 0))) + chainWeight g v₀ n u := by
-  simp only [chainWeight, Fin.sum_univ_succ, consSeq, Fin.castSucc_zero, Fin.cases_zero,
-    Fin.cases_succ, Fin.castSucc_succ]
-  have hlast : Fin.cases (motive := fun _ => Ω → ℝ) v u (Fin.last (n + 1)) = u (Fin.last n) := rfl
-  rw [hlast]
+  simp only [chainWeight, Fin.sum_univ_succ, consSeq, ← Fin.succ_last, Fin.castSucc_zero,
+    Fin.cases_zero, Fin.cases_succ, Fin.castSucc_succ]
   ring
 
 private theorem cycleSum_snoc (g : (Ω → ℝ) → Ω) (v₀ : Ω → ℝ) (n : ℕ)
@@ -319,15 +298,13 @@ private theorem cycleSum_snoc (g : (Ω → ℝ) → Ω) (v₀ : Ω → ℝ) (n :
     simp only [snocSeq, Fin.val_castSucc, s.isLt, ↓reduceDIte, Fin.eta]
   have hlast_eq : snocSeq u v₀ (Fin.last (n + 1)) = v₀ := by
     simp only [snocSeq, Fin.val_last, lt_self_iff_false, ↓reduceDIte]
-  have h0_eq : snocSeq u v₀ 0 = u 0 := hcast 0
-  rw [Fin.sum_univ_castSucc, Fin.last_add_one, hlast_eq, h0_eq]
+  rw [Fin.sum_univ_castSucc, Fin.last_add_one, ← Fin.castSucc_zero, hlast_eq, hcast 0]
   congr 1
   rw [Fin.sum_univ_castSucc, chainWeight]
   congr 1
   · refine Finset.sum_congr rfl fun t _ => ?_
-    rw [Fin.coeSucc_eq_succ, hcast t.castSucc]
-    have hs : t.castSucc.succ = t.succ.castSucc := rfl
-    rw [hs, hcast t.succ]
+    rw [Fin.coeSucc_eq_succ, hcast t.castSucc, show t.castSucc.succ = t.succ.castSucc from rfl,
+      hcast t.succ]
   · rw [Fin.coeSucc_eq_succ, hcast (Fin.last n), Fin.succ_last, hlast_eq]
 
 /-- **Cyclic monotonicity characterizes DSIC implementability** (the Rockafellar–Rochet
@@ -342,20 +319,16 @@ theorem isImplementableOn_iff_isCyclicallyMonotoneOn [DecidableEq ι]
   · intro h i b hb k v hv
     obtain ⟨p, hp⟩ := h i b hb
     set g : (Ω → ℝ) → Ω := fun u => f (Function.update b i u)
-    have hstep : ∀ t : Fin (k + 1),
-        p (g (v t)) - p (g (v (t + 1))) ≤ v t (g (v t)) - v t (g (v (t + 1))) := fun t => by
-      have hlt := hp (v t) (hv t) (g (v (t + 1))) ⟨v (t + 1), hv (t + 1), rfl⟩
-      linarith
-    have hsum := Finset.sum_le_sum fun t (_ : t ∈ Finset.univ) => hstep t
+    have hsum : ∑ t : Fin (k + 1), (p (g (v t)) - p (g (v (t + 1)))) ≤
+        ∑ t : Fin (k + 1), (v t (g (v t)) - v t (g (v (t + 1)))) :=
+      Finset.sum_le_sum fun t _ => by
+        linarith [hp (v t) (hv t) (g (v (t + 1))) ⟨v (t + 1), hv (t + 1), rfl⟩]
     have hshift : ∑ t : Fin (k + 1), p (g (v (t + 1))) = ∑ t : Fin (k + 1), p (g (v t)) := by
-      rw [Fin.sum_univ_castSucc, Fin.last_add_one]
-      have hmid : ∑ t : Fin k, p (g (v (t.castSucc + 1))) = ∑ t : Fin k, p (g (v t.succ)) :=
-        Finset.sum_congr rfl fun t _ => by rw [Fin.coeSucc_eq_succ]
-      rw [hmid, add_comm]
+      conv_lhs => simp only [Fin.sum_univ_castSucc, Fin.last_add_one, Fin.coeSucc_eq_succ]
+      rw [add_comm]
       exact (Fin.sum_univ_succ fun t => p (g (v t))).symm
-    have htel : ∑ t : Fin (k + 1), (p (g (v t)) - p (g (v (t + 1)))) = 0 := by
-      rw [Finset.sum_sub_distrib, hshift, sub_self]
-    linarith
+    rw [Finset.sum_sub_distrib, hshift, sub_self] at hsum
+    exact hsum
   · intro hcyc i b hb
     by_cases hne : (V i).Nonempty
     · obtain ⟨v₀, hv₀⟩ := hne
@@ -377,17 +350,14 @@ theorem isImplementableOn_iff_isCyclicallyMonotoneOn [DecidableEq ι]
         have hc := hcyc i b hb (n + 1) (snocSeq u v₀) hsnoc
         rw [cycleSum_snoc g v₀ n u, hhead] at hc
         linarith
-      refine ⟨fun a => sInf (paths a), fun v hv a ha => ?_⟩
-      rcases ha with ⟨v', hv', rfl⟩
-      have hle : sInf (paths (g v)) - (v (g v) - v (g v')) ≤ sInf (paths (g v')) := by
-        refine le_csInf (hne_paths v' hv') ?_
-        rintro _ ⟨n, u, hu, hhead, rfl⟩
-        have hcons_mem : (v (g v) - v (g v')) + chainWeight g v₀ n u ∈ paths (g v) := by
-          refine ⟨n + 1, consSeq v u, fun t => Fin.cases hv hu t, rfl, ?_⟩
-          rw [chainWeight_cons, hhead]
-        have hcs := csInf_le (hbdd (g v)) hcons_mem
-        linarith
-      linarith
-    · refine ⟨0, fun v hv => absurd ⟨v, hv⟩ hne⟩
+      refine ⟨fun a => sInf (paths a), ?_⟩
+      rintro v hv _ ⟨v', hv', rfl⟩
+      suffices sInf (paths (g v)) - (v (g v) - v (g v')) ≤ sInf (paths (g v')) by linarith
+      refine le_csInf (hne_paths v' hv') ?_
+      rintro _ ⟨n, u, hu, hhead, rfl⟩
+      have hcons : (v (g v) - v (g v')) + chainWeight g v₀ n u ∈ paths (g v) :=
+        ⟨n + 1, consSeq v u, fun t => Fin.cases hv hu t, rfl, by rw [chainWeight_cons, hhead]⟩
+      linarith [csInf_le (hbdd (g v)) hcons]
+    · exact ⟨0, fun v hv => absurd ⟨v, hv⟩ hne⟩
 
 end Cslib.GameTheory.Mechanism

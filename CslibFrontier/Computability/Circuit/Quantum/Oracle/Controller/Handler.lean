@@ -61,11 +61,9 @@ variable {m : ℕ} {κ State : Type} [Fintype κ]
 
 @[ext] theorem ext {s t : DeviceState m κ State} (hρ : s.density = t.density)
     (hs : s.serviceState = t.serviceState) : s = t := by
-  cases s
-  cases t
-  cases hρ
-  cases hs
-  rfl
+  rcases s with ⟨_, _, _⟩
+  rcases t with ⟨_, _, _⟩
+  simp_all
 
 variable [DecidableEq κ]
 
@@ -155,26 +153,16 @@ theorem measure_eq_pure_of_branch (read : (Fin m → Bool) → Outcome)
     (hy : classicalDensityBranch (read ∘ Prod.fst) y s.density = s.density) :
     s.measure read = PMF.pure (y, s) := by
   let p := (POVM.basis.measureDensity s.density s.isDensityMatrix).map (read ∘ Prod.fst)
-  have hmass : p y = 1 := by
+  have hsupp : p.support = {y} := (PMF.apply_eq_one_iff p y).mp <| by
     dsimp only [p]
     rw [map_measureDensity_basis_apply, hy, s.isDensityMatrix.trace_eq_one]
     simp
-  have hsupp := (PMF.apply_eq_one_iff p y).mp hmass
-  unfold measure
-  change p.bindOnSupport _ = _
-  trans p.bindOnSupport (fun _ _ => PMF.pure (y, s))
-  · congr 1
-    funext z hz
-    change z ∈ p.support at hz
-    have hzy : z = y := by simpa only [hsupp, Set.mem_singleton_iff] using hz
-    subst z
-    congr 1
-    apply Prod.ext
-    · rfl
-    · apply DeviceState.ext
-      · simp [hy, normalizeDensity_apply, s.isDensityMatrix.trace_eq_one]
-      · rfl
-  · rw [PMF.bindOnSupport_eq_bind, PMF.bind_const]
+  refine (congrArg p.bindOnSupport (funext fun z => funext fun hz => ?_)).trans
+    (by rw [PMF.bindOnSupport_eq_bind, PMF.bind_const])
+  obtain rfl : z = y := by simpa only [hsupp, Set.mem_singleton_iff] using hz
+  have hnorm : normalizeDensity (classicalDensityBranch (read ∘ Prod.fst) z s.density) =
+      s.density := by simp [hy, normalizeDensity_apply, s.isDensityMatrix.trace_eq_one]
+  exact congrArg PMF.pure (Prod.ext rfl (DeviceState.ext hnorm rfl))
 
 end DeviceState
 
@@ -227,22 +215,12 @@ theorem deviceHandler_reply_length (H : (Fin a → Bool) → Fin b → Bool)
     (result : List Bool × DeviceState m κ State)
     (hresult : result ∈ (deviceHandler H service q s).support) :
     result.1.length ≤ max 1 r := by
-  cases q with
-  | gate code =>
-    rw [deviceHandler_gate, PMF.mem_support_pure_iff] at hresult
-    subst result
-    simp
-  | query =>
-    rw [deviceHandler_query, PMF.mem_support_pure_iff] at hresult
-    subst result
-    simp
-  | measure wire =>
-    rw [deviceHandler_measure] at hresult
-    obtain ⟨p, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hresult
-    simp
-  | service operation word =>
-    rw [deviceHandler_service] at hresult
-    obtain ⟨p, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hresult
+  match q, hresult with
+  | .gate _, hresult | .query, hresult =>
+    simp only [deviceHandler, PMF.mem_support_pure_iff] at hresult
+    simp [hresult]
+  | .measure _, hresult | .service _ _, hresult =>
+    obtain ⟨_, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hresult
     simp
 
 /-- The word interface uses `OracleCodec.wordOracle`; noncanonical words return `[]` without
