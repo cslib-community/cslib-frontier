@@ -6489,6 +6489,7 @@ public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.Ch
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildTables
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.FiniteChildTable
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.Hybrid
+public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.SampledReductionLaw
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.CircuitLowerBound
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Coins
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Domain
