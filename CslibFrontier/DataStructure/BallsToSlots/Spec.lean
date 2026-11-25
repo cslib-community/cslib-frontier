@@ -248,17 +248,26 @@ theorem mem_present_iff_slotOf_isSome (s : SlotAssignment α M) (x : α) :
 @[simp] theorem slotOf_empty (α : Type*) [DecidableEq α] (M : ℕ) (x : α) :
     (empty α M).slotOf x = none := by simp [empty]
 
+private theorem sum_present_eq_sum_occupant {β : Type*} [AddCommMonoid β]
+    (s : SlotAssignment α M) (f : α → Fin M → β) :
+    (∑ x ∈ s.present, match s.slotOf x with | none => 0 | some r => f x r) =
+      ∑ r : Fin M, match s.occupant r with | none => 0 | some x => f x r := by
+  rw [present, Finset.sum_biUnion fun r₁ _ r₂ _ hne =>
+    Finset.disjoint_left.mpr fun x hx₁ hx₂ =>
+      hne (s.injective (Option.mem_toFinset.mp hx₁) (Option.mem_toFinset.mp hx₂))]
+  refine Finset.sum_congr rfl fun r _ => ?_
+  cases h : s.occupant r with
+  | none => simp
+  | some x => simp [(s.slotOf_eq_some_iff x r).mpr h]
+
 theorem card_present_eq_card_occupied (s : SlotAssignment α M) :
     #s.present = #(Finset.univ.filter fun r : Fin M => (s.occupant r).isSome) := by
-  refine Finset.card_bij' (fun x hx => (s.slotOf x).get ((s.mem_present_iff_slotOf_isSome x).mp hx))
-      (fun r hr => (s.occupant r).get (mem_filter.mp hr).2) ?_ ?_ ?_ ?_
-  · intro x hx; have hsome := (s.mem_present_iff_slotOf_isSome x).mp hx
-    simp [(s.slotOf_eq_some_iff x _).mp (Option.eq_some_of_isSome hsome)]
-  · intro r hr; exact (s.mem_present_iff _).mpr ⟨r, Option.eq_some_of_isSome (mem_filter.mp hr).2⟩
-  · intro x hx; have hsome := (s.mem_present_iff_slotOf_isSome x).mp hx
-    exact Option.get_of_mem _ ((s.slotOf_eq_some_iff x _).mp (Option.eq_some_of_isSome hsome))
-  · intro r hr; have hsome := (mem_filter.mp hr).2
-    exact Option.get_of_mem _ ((s.slotOf_eq_some_iff _ r).mpr (Option.eq_some_of_isSome hsome))
+  have h := s.sum_present_eq_sum_occupant fun _ _ => (1 : ℕ)
+  rw [Finset.sum_congr rfl fun x hx => ?_, Finset.sum_const, smul_eq_mul, mul_one] at h
+  · rw [h, Finset.card_filter]
+    exact Finset.sum_congr rfl fun r _ => by cases s.occupant r <;> rfl
+  · obtain ⟨r, hr⟩ := Option.isSome_iff_exists.mp ((s.mem_present_iff_slotOf_isSome x).mp hx)
+    simp [hr]
 
 /-- Occupied balls and free slots partition all `M` slots. -/
 theorem card_present_add_card_freeSlots (s : SlotAssignment α M) :
@@ -445,27 +454,8 @@ noncomputable def totalProbeComplexity {α : Type*} {M : ℕ} (probeSeq : α →
 `s.present`. -/
 theorem totalProbeComplexity_eq_sum_present {α : Type*} [DecidableEq α] {M : ℕ}
     (probeSeq : α → ℕ → Fin M) (s : SlotAssignment α M) :
-    totalProbeComplexity probeSeq s = ∑ x ∈ s.present, ballProbeComplexity probeSeq s x := by
-  unfold totalProbeComplexity
-  rw [← Finset.sum_filter_add_sum_filter_not Finset.univ (fun r : Fin M => (s.occupant r).isSome)]
-  have hzero : (∑ r ∈ Finset.univ.filter (fun r : Fin M => ¬ (s.occupant r).isSome),
-      match s.occupant r with | none => 0 | some x => slotProbeComplexity probeSeq x r) = 0 :=
-    Finset.sum_eq_zero fun r hr => by
-      have hnone := (mem_filter.mp hr).2; cases h : s.occupant r <;> simp [h] at hnone ⊢
-  rw [hzero, add_zero]
-  refine Finset.sum_bij' (fun r hr => (s.occupant r).get (mem_filter.mp hr).2)
-    (fun x hx => (s.slotOf x).get ((s.mem_present_iff_slotOf_isSome x).mp hx)) ?_ ?_ ?_ ?_ ?_
-  · intro r hr; exact (s.mem_present_iff _).mpr ⟨r, Option.eq_some_of_isSome (mem_filter.mp hr).2⟩
-  · intro x hx; have hsome := (s.mem_present_iff_slotOf_isSome x).mp hx
-    simp [(s.slotOf_eq_some_iff x _).mp (Option.eq_some_of_isSome hsome)]
-  · intro r hr; have hsome := (mem_filter.mp hr).2
-    exact Option.get_of_mem _ ((s.slotOf_eq_some_iff _ r).mpr (Option.eq_some_of_isSome hsome))
-  · intro x hx; have hsome := (s.mem_present_iff_slotOf_isSome x).mp hx
-    exact Option.get_of_mem _ ((s.slotOf_eq_some_iff x _).mp (Option.eq_some_of_isSome hsome))
-  · intro r hr
-    obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp (mem_filter.mp hr).2
-    simp only [hx, Option.get_some,
-      ballProbeComplexity_of_slotOf_eq_some _ ((s.slotOf_eq_some_iff x r).mpr hx)]
+    totalProbeComplexity probeSeq s = ∑ x ∈ s.present, ballProbeComplexity probeSeq s x :=
+  (s.sum_present_eq_sum_occupant (slotProbeComplexity probeSeq)).symm
 
 section SwitchingCost
 variable {α : Type*} [DecidableEq α] {M : ℕ}
@@ -617,21 +607,23 @@ theorem dens_sum_totalProbeComplexity_gt_le_of_snapshotBound {ι α β Y : Type*
   have hM_pos : 0 < M_cap := by positivity
   let preOf (b : β) (hb : b ∈ R) (x : activeSet (ops b)) : List (Op α) :=
     (exists_split_last_insert_of_mem_activeSet (hval b hb) x.2).choose
+  have hsplit (b : β) (hb : b ∈ R) (x : activeSet (ops b)) :=
+    (exists_split_last_insert_of_mem_activeSet (hval b hb) x.2).choose_spec
   let B (b : β) : Finset α := if hb : b ∈ R then
     (activeSet (ops b)).attach.biUnion fun x => insert x.1 (activeSet (preOf b hb x)) else ∅
   have hB_sub (b : β) (hb : b ∈ R) : B b ⊆ opsBalls (ops b) := by
-    simp only [B, hb, ↓reduceDIte]; refine Finset.biUnion_subset.mpr fun x _ a ha => ?_
-    obtain ⟨_, heq, _, _, _, _⟩ :=
-      (exists_split_last_insert_of_mem_activeSet (hval b hb) x.2).choose_spec
+    simp only [B, hb, ↓reduceDIte]
+    refine Finset.biUnion_subset.mpr fun x _ a ha => ?_
+    obtain ⟨_, heq, _, _, _, _⟩ := hsplit b hb x
     rcases Finset.mem_insert.mp ha with rfl | ha_pre
     · exact activeSet_subset_opsBalls (ops b) x.2
-    · rw [heq, opsBalls_append]; exact Finset.mem_union_left _ (activeSet_subset_opsBalls _ ha_pre)
+    · rw [heq, opsBalls_append]
+      exact Finset.mem_union_left _ (activeSet_subset_opsBalls _ ha_pre)
   have hB_card (b : β) (hb : b ∈ R) : #(B b) ≤ M * M := by
     simp only [B, hb, ↓reduceDIte]
     refine Finset.card_biUnion_le.trans
       ((Finset.sum_le_sum (g := fun _ => M) fun x _ => ?_).trans ?_)
-    · obtain ⟨_, _, _, _, hlt_pre, _⟩ :=
-        (exists_split_last_insert_of_mem_activeSet (hval b hb) x.2).choose_spec
+    · obtain ⟨_, _, _, _, hlt_pre, _⟩ := hsplit b hb x
       exact (Finset.card_insert_le _ _).trans hlt_pre
     · rw [Finset.sum_const, Finset.card_attach, smul_eq_mul]
       exact Nat.mul_le_mul_right M (card_activeSet_le (hval b hb))
@@ -669,8 +661,7 @@ theorem dens_sum_totalProbeComplexity_gt_le_of_snapshotBound {ι α β Y : Type*
             rw [hscore_restrict b hb θ, div_mul_cancel₀ _ hM_pos.ne'], Finset.expect_sum_comm]
           calc ∑ x ∈ (activeSet (ops b)).attach, 𝔼 θ, (bound (h θ) _ x.1 : ℝ)
               ≤ ∑ _ ∈ (activeSet (ops b)).attach, c := Finset.sum_le_sum fun x _ => by
-                obtain ⟨_, _, _, hx_pre, hlt_pre, _⟩ :=
-                  (exists_split_last_insert_of_mem_activeSet (hval b hb) x.2).choose_spec
+                obtain ⟨_, _, _, hx_pre, hlt_pre, _⟩ := hsplit b hb x
                 exact hexp hlt_pre.le hx_pre
             _ = c * (#(activeSet (ops b)) : ℝ) := by
                 rw [Finset.sum_const, Finset.card_attach, nsmul_eq_mul]; ring
