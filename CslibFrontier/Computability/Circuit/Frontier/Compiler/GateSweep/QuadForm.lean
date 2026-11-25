@@ -578,19 +578,11 @@ theorem exists_eventually_abs_correlation_quadForm_le_gateSweep {r k₀ : ℕ} (
           ← Finset.sum_div]
         field_simp
         ring
-      have hcomb :
-          ((k₀ + 1 : ℝ) * R_in.ncard - D_r * Nat.card (Compiler.InnerGate c) - 1) / (2 : ℝ) ^ k₀ ≤
-          ((k₀ + 1 : ℝ) * R_in.ncard -
-            ∑ i : {i : Fin n // Compiler.Reach c (.input i)},
-              ((Compiler.support c (.input i.1 i.2)).ncard : ℝ)) / (2 : ℝ) ^ k₀ -
-          ((((2 : ℝ) ^ k₀ - k₀ - 2) * Nat.card (Compiler.InnerGate c) +
-            ∑ g : Compiler.InnerGate c,
-              ((Compiler.support c (.gate g)).ncard : ℝ)) / (2 : ℝ) ^ k₀) := by
-        rw [← sub_div]
-        refine div_le_div_of_nonneg_right ?_ hpos2.le
-        dsimp only [D_r]
-        linarith [htot_supp]
-      linarith [hin_lb, hgt_ub, hsum_in, hsum_gt, hcomb]
+      refine le_trans ?_ (sub_le_sub hin_lb hgt_ub)
+      rw [hsum_in, hsum_gt, ← sub_div]
+      refine div_le_div_of_nonneg_right ?_ hpos2.le
+      dsimp only [D_r]
+      linarith [htot_supp]
     -- Bound the numerator using `d_un < θ * n` and `s ≤ (Q_c - ε) * n`.
     have hnum_lb : μ₀ * n - 1 / (2 : ℝ) ^ k₀ ≤
         ((k₀ + 1 : ℝ) * R_in.ncard - D_r * Nat.card (Compiler.InnerGate c) - 1) / (2 : ℝ) ^ k₀ := by
