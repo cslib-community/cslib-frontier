@@ -184,15 +184,30 @@ private theorem sum_uniform_agree (f h : (ι → Bool) → Bool) :
       1 - uniformError f h := by
   have h2 := PMF.toOuterMeasure_toReal_add_compl (PMF.uniformOfFintype (ι → Bool))
     {a | h a = f a}
-  have hc : ({a | h a = f a}ᶜ : Set (ι → Bool)) = {a | h a ≠ f a} := rfl
-  rw [hc, toOuterMeasure_uniformOfFintype_ne, ENNReal.toReal_ofReal (uniformError_nonneg f h)]
-    at h2
+  change ((PMF.uniformOfFintype (ι → Bool)).toOuterMeasure {a | h a = f a}).toReal +
+    ((PMF.uniformOfFintype (ι → Bool)).toOuterMeasure {a | h a ≠ f a}).toReal = 1 at h2
+  rw [toOuterMeasure_uniformOfFintype_ne, ENNReal.toReal_ofReal (uniformError_nonneg f h)] at h2
   have h4 : ∑ a, ((PMF.uniformOfFintype (ι → Bool)) a).toReal * (if h a = f a then 1 else 0) =
       ((PMF.uniformOfFintype (ι → Bool)).toOuterMeasure {a | h a = f a}).toReal := by
     rw [PMF.toOuterMeasure_apply_toReal]
-    refine Finset.sum_congr rfl fun a _ => ?_
-    split_ifs <;> simp_all
+    exact Finset.sum_congr rfl fun a _ => by by_cases ha : h a = f a <;> simp [ha]
   linarith
+
+/-- By Hoeffding's inequality, the empirical agreement count of `h` with `f` on `t` independent
+uniform points deviates from its expectation `t * (1 - uniformError f h)` by at least `t * θ` with
+probability at most `2 * exp (-2 * t * θ²)`. -/
+private theorem toOuterMeasure_agreeCount_dev_le (f h : (ι → Bool) → Bool) {θ : ℝ} (hθ : 0 ≤ θ) :
+    (PMF.uniformOfFintype (Fin t → ι → Bool)).toOuterMeasure
+      {x | (t : ℝ) * θ ≤ |(agreeCount f h x : ℝ) - t * (1 - uniformError f h)|} ≤
+      ENNReal.ofReal (2 * Real.exp (-2 * t * θ ^ 2)) := by
+  rw [← PMF.pi_uniformOfFintype (ι := Fin t) (α := fun _ => ι → Bool)]
+  have hH := PMF.pi_sum_abs_sub_mean_ge_card_mul
+    (fun _ : Fin t => PMF.uniformOfFintype (ι → Bool))
+    (fun _ a => if h a = f a then (1 : ℝ) else 0)
+    (fun _ a _ => by split_ifs <;> norm_num) hθ
+  simp only [Fintype.card_fin, sum_agree_eq, sum_uniform_agree, Finset.sum_const,
+    Finset.card_univ, nsmul_eq_mul] at hH
+  exact (ENNReal.le_ofReal_iff_toReal_le (PMF.toOuterMeasure_ne_top _ _) (by positivity)).2 hH
 
 /-- **Confidence of best-of-`k` selection.** If `A` has error above `ε` with probability at most
 `δ`, then `bestOf A k t` has error above `ε + 2θ` with probability at most
@@ -218,55 +233,36 @@ theorem learns_bestOf [NeZero k] {A : QueryLearner ι Ω} {μ : PMF Ω}
         {s | ε + 2 * θ < uniformError f ((bestOf A k t s).eval f)} ≤
         ENNReal.ofReal (2 * k * Real.exp (-2 * t * θ ^ 2)) := by
     rintro ω - ⟨j₀, hj₀⟩
-    -- the samples on which the agreement estimate of run `j` is off by at least `t θ`
-    let E : Fin k → Set (Fin t → ι → Bool) := fun j => {x | (t : ℝ) * θ ≤
-      |(∑ i, if (A (ω j)).eval f (x i) = f (x i) then (1 : ℝ) else 0) -
-        ∑ _i : Fin t, ∑ a, ((PMF.uniformOfFintype (ι → Bool)) a).toReal *
-          (if (A (ω j)).eval f a = f a then 1 else 0)|}
-    have hmean (j : Fin k) : (∑ _i : Fin t, ∑ a, ((PMF.uniformOfFintype (ι → Bool)) a).toReal *
-        (if (A (ω j)).eval f a = f a then 1 else 0)) =
-          t * (1 - uniformError f ((A (ω j)).eval f)) := by
-      simp only [sum_uniform_agree, Finset.sum_const, Finset.card_univ, Fintype.card_fin,
-        nsmul_eq_mul]
+    let hs : Fin k → (ι → Bool) → Bool := fun j => (A (ω j)).eval f
+    -- the samples on which the agreement estimate of run `j` is off by at least `t * θ`
+    let E (j : Fin k) : Set (Fin t → ι → Bool) :=
+      {x | (t : ℝ) * θ ≤ |(agreeCount f (hs j) x : ℝ) - t * (1 - uniformError f (hs j))|}
     have hsub : (fun x => (ω, x)) ⁻¹'
         {s | ε + 2 * θ < uniformError f ((bestOf A k t s).eval f)} ⊆ ⋃ j, E j := by
       intro x hx
       simp only [Set.mem_preimage, Set.mem_ofPred_eq, eval_bestOf] at hx
       by_contra hnot
-      simp only [Set.mem_iUnion, not_exists, E, Set.mem_ofPred_eq, not_le, hmean,
-        sum_agree_eq] at hnot
-      have h1 := abs_lt.1 (hnot (selectBest f (fun j => (A (ω j)).eval f) x))
+      simp only [Set.mem_iUnion, not_exists, E, Set.mem_ofPred_eq, not_le] at hnot
+      have h1 := abs_lt.1 (hnot (selectBest f hs x))
       have h2 := abs_lt.1 (hnot j₀)
-      have hle : (agreeCount f ((A (ω j₀)).eval f) x : ℝ) ≤
-          agreeCount f ((A (ω (selectBest f (fun j => (A (ω j)).eval f) x))).eval f) x := by
-        exact_mod_cast agreeCount_le_selectBest f (fun j => (A (ω j)).eval f) x j₀
+      have hle : (agreeCount f (hs j₀) x : ℝ) ≤ agreeCount f (hs (selectBest f hs x)) x := by
+        exact_mod_cast agreeCount_le_selectBest f hs x j₀
       have ht : (0 : ℝ) ≤ t := Nat.cast_nonneg t
       have h3 := mul_le_mul_of_nonneg_left hj₀ ht
-      have h4 : (t : ℝ) *
-          uniformError f ((A (ω (selectBest f (fun j => (A (ω j)).eval f) x))).eval f) <
-            t * (ε + 2 * θ) := by
+      have h4 : (t : ℝ) * uniformError f (hs (selectBest f hs x)) < t * (ε + 2 * θ) := by
         linarith
       linarith [lt_of_mul_lt_mul_left h4 ht]
-    have hE (j : Fin k) : (PMF.uniformOfFintype (Fin t → ι → Bool)).toOuterMeasure (E j) ≤
-        ENNReal.ofReal (2 * Real.exp (-2 * t * θ ^ 2)) := by
-      rw [← PMF.pi_uniformOfFintype (ι := Fin t) (α := fun _ => ι → Bool)]
-      have hH := PMF.pi_sum_abs_sub_mean_ge_card_mul
-        (fun _ : Fin t => PMF.uniformOfFintype (ι → Bool))
-        (fun _ a => if (A (ω j)).eval f a = f a then (1 : ℝ) else 0)
-        (fun _ a _ => by by_cases h : (A (ω j)).eval f a = f a <;> simp [h]) hθ
-      rw [Fintype.card_fin] at hH
-      exact (ENNReal.le_ofReal_iff_toReal_le (PMF.toOuterMeasure_ne_top _ _)
-        (by positivity)).2 hH
     rw [PMF.toOuterMeasure_map_apply]
     calc _ ≤ (PMF.uniformOfFintype (Fin t → ι → Bool)).toOuterMeasure (⋃ j, E j) :=
           measure_mono hsub
       _ ≤ ∑ j, (PMF.uniformOfFintype (Fin t → ι → Bool)).toOuterMeasure (E j) :=
           measure_iUnion_fintype_le _ _
-      _ ≤ ∑ _j : Fin k, ENNReal.ofReal (2 * Real.exp (-2 * t * θ ^ 2)) :=
-          Finset.sum_le_sum fun j _ => hE j
+      _ ≤ k • ENNReal.ofReal (2 * Real.exp (-2 * t * θ ^ 2)) :=
+          (Finset.sum_le_card_nsmul _ _ _ fun j _ =>
+            toOuterMeasure_agreeCount_dev_le f (hs j) hθ).trans_eq (by rw [Finset.card_univ,
+              Fintype.card_fin])
       _ = _ := by
-        rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul,
-          ← ENNReal.ofReal_natCast, ← ENNReal.ofReal_mul (Nat.cast_nonneg k)]
+        rw [nsmul_eq_mul, ← ENNReal.ofReal_natCast, ← ENNReal.ofReal_mul (Nat.cast_nonneg k)]
         congr 1
         ring
   calc _ ≤ (PMF.iid μ k).toOuterMeasure preᶜ +
@@ -311,6 +307,8 @@ theorem learns_bestOf_of_weak [NeZero k] {A : QueryLearner ι Ω} {μ : PMF Ω}
     (hk : Real.log (2 / η) ≤ p * k) (ht : 8 * Real.log (4 * k / η) ≤ t * γ ^ 2) :
     (bestOf A k t).Learns (bestOfSeed μ k t) C (1 / 2 - γ / 2) η :=
   (learns_bestOf_of_success hA hp (by linarith : (0 : ℝ) ≤ γ / 4) hη hk
-    (by nlinarith)).mono le_rfl (by linarith) le_rfl
+    (by
+      have : 2 * (t : ℝ) * (γ / 4) ^ 2 = t * γ ^ 2 / 8 := by ring
+      linarith)).mono le_rfl (by linarith) le_rfl
 
 end Cslib.MachineLearning.UniformLearning.QueryLearner
