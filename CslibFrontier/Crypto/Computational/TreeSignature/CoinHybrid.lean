@@ -804,13 +804,6 @@ private def sigWordBound (ck dk cb db cs ds cB dB : ℕ) (depth : ℕ → ℕ) (
       (3 * savedCoinBudget ck dk cb db n)) + 1)) + 1 +
     sigBound cs ds cB dB (3 * savedCoinBudget ck dk cb db n) L)
 
-include hdepth in
-private theorem computableInPolyTime_sigWordBound (ck dk cb db cs ds cB dB : ℕ) :
-    ComputableInPolyTime (fun p : ℕ × ℕ => sigWordBound ck dk cb db cs ds cB dB depth p.1 p.2)
-      (encPair encUnary encUnary) encUnary := by
-  unfold sigWordBound sigBound
-  fun_prop
-
 include hkg hkb hsg hsb hdepth in
 private theorem isOraclePPTOn_signO_aux :
     IsOraclePPTOn (encPair encUnary encBits) encBits
@@ -883,16 +876,11 @@ private theorem isOraclePPTOn_simulateTreeGame_aux {adversary : Forger}
     (hsign.preprocess ((hp.fst'.fst'.prod hp.snd'.fst'.snd').of_enc_eq fun _ => rfl)).bind_with
       ((hq.snd'.prod (.cons' hq.fst'.snd'.fst'.snd' hq.fst'.snd'.snd')).of_enc_eq
         fun _ => rfl).isOraclePPTOn
-  have hbound := computableInPolyTime_sigWordBound (depth := depth) hdepth ck dk cb db cs ds cB dB
-  have hr := ComputableInPolyTime.id' (encIn := encPair encCaller encBits)
-  have hlen := hr.snd'.length_bits_comp
   have hresources : ComputableInPolyTime
       (fun pair : (ℕ × (List Bool × List Bool)) × List Bool =>
         sigWordBound ck dk cb db cs ds cB dB depth pair.1.1 pair.2.length + 2 * pair.2.length + 2)
-      (encPair encCaller encBits) encUnary :=
-    ((((hbound.comp' (hr.fst'.fst'.prod hlen)).unary_add'
-      ((ComputableInPolyTime.const 2).unary_mul' hlen)).unary_add' (.const 2))).of_enc_eq
-      fun _ => rfl
+      (encPair encCaller encBits) encUnary := by
+    unfold sigWordBound sigBound; fun_prop
   have hc := ComputableInPolyTime.id' (encIn := encCaller)
   have hrun := hA.run_interpret_preprocess_open (External := Unit)
     (handler := fun c : ℕ × (List Bool × List Bool) => signHandler S T depth c.1)
