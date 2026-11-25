@@ -151,35 +151,18 @@ theorem card_antisymPairs_add_card_symPairs (r : ℕ) :
 
 /-- There are `r` diagonal pairs `(a, a)` in `Fin r × Fin r`. -/
 theorem card_diagPairs (r : ℕ) : #(diagPairs r) = r := by
-  have hEq : diagPairs r = (univ : Finset (Fin r)).map
-      ⟨fun a => (a, a), fun a b h => (Prod.ext_iff.mp h).1⟩ := by
-    ext ⟨a, d⟩
-    rw [mem_diagPairs, mem_map]
-    constructor
-    · intro (h : a = d)
-      subst h
-      exact ⟨a, mem_univ a, rfl⟩
-    · rintro ⟨b, _, hb⟩
-      have h1 := (Prod.ext_iff.mp hb).1
-      have h2 := (Prod.ext_iff.mp hb).2
-      exact h1.symm.trans h2
-  rw [hEq, card_map, card_univ, Fintype.card_fin]
+  have hEq : diagPairs r = (univ : Finset (Fin r)).diag := by
+    ext
+    simp only [mem_diagPairs, mem_diag, mem_univ, true_and]
+  rw [hEq, diag_card, card_univ, Fintype.card_fin]
 
 /-- Swapping coordinates maps `antisymPairs r` (`p.2 < p.1`) bijectively onto `{p | p.1 < p.2}`. -/
 theorem map_swap_antisymPairs (r : ℕ) :
     (antisymPairs r).map (Equiv.prodComm (Fin r) (Fin r)).toEmbedding =
       univ.filter (fun p : Fin r × Fin r => p.1 < p.2) := by
   ext ⟨a, d⟩
-  rw [mem_map, mem_filter]
-  simp only [mem_univ, true_and]
-  constructor
-  · rintro ⟨⟨a', d'⟩, hlt, hEq⟩
-    rw [mem_antisymPairs] at hlt
-    have h1 : d' = a := (Prod.ext_iff.mp hEq).1
-    have h2 : a' = d := (Prod.ext_iff.mp hEq).2
-    rwa [← h1, ← h2]
-  · intro hlt
-    exact ⟨(d, a), mem_antisymPairs.mpr hlt, rfl⟩
+  simp only [mem_map_equiv, Equiv.prodComm_symm, Equiv.prodComm_apply, Prod.swap_prod_mk,
+    mem_antisymPairs, mem_filter, mem_univ, true_and]
 
 /-- Partitioning `Fin r × Fin r` into `p.2 < p.1`, `p.1 < p.2`, and `p.1 = p.2` gives
 `2 * #(antisymPairs r) + r = r * r`. -/
@@ -249,53 +232,14 @@ theorem card_filter_antisymSlots_eq (Q r : ℕ) (S : Finset (Fin Q)) :
     if s ∈ S then antisymPairs r else symPairs r
   have hbij : #(univ.filter (fun β : AuxLabel Q r => antisymSlots β = S)) =
       #(Fintype.piFinset t) := by
-    refine card_bij (fun β _ => auxLabelEquivSlotPairs Q r β) ?_ ?_ ?_
-    · intro β hβ
-      rw [mem_filter] at hβ
-      rw [Fintype.mem_piFinset]
-      intro s
-      have hs : s ∈ S ↔ β.2 s < β.1 s := by
-        rw [← hβ.2, antisymSlots, mem_filter]
-        simp only [mem_univ, true_and]
-      dsimp only [t, auxLabelEquivSlotPairs, Equiv.coe_fn_mk]
-      split_ifs with hmem
-      · rw [mem_antisymPairs]
-        exact hs.mp hmem
-      · rw [mem_symPairs]
-        exact hmem ∘ hs.mpr
-    · intro β₁ _ β₂ _ hEq
-      exact (auxLabelEquivSlotPairs Q r).injective hEq
-    · intro f hf
-      rw [Fintype.mem_piFinset] at hf
-      refine ⟨(auxLabelEquivSlotPairs Q r).symm f, ?_,
-        (auxLabelEquivSlotPairs Q r).apply_symm_apply f⟩
-      rw [mem_filter]
-      refine ⟨mem_univ _, ?_⟩
-      ext s
-      rw [antisymSlots, mem_filter]
-      simp only [mem_univ, true_and, auxLabelEquivSlotPairs, Equiv.coe_fn_symm_mk]
-      have hfs := hf s
-      dsimp only [t] at hfs
-      split_ifs at hfs with hmem
-      · rw [mem_antisymPairs] at hfs
-        exact iff_of_true hfs hmem
-      · rw [mem_symPairs] at hfs
-        exact iff_of_false hfs hmem
+    refine card_equiv (auxLabelEquivSlotPairs Q r) fun β => ?_
+    simp only [mem_filter, mem_univ, true_and, Fintype.mem_piFinset, Finset.ext_iff,
+      antisymSlots, auxLabelEquivSlotPairs, Equiv.coe_fn_mk, t]
+    refine forall_congr' fun s => ?_
+    split_ifs with hs <;> simp [hs]
   rw [hbij, Fintype.card_piFinset]
-  have hprod : (∏ s : Fin Q, #(t s)) =
-      (∏ s : Fin Q, if s ∈ S then #(antisymPairs r) else #(symPairs r)) := by
-    refine prod_congr rfl fun s _ => ?_
-    dsimp only [t]
-    split_ifs <;> rfl
-  rw [hprod, prod_ite, prod_const, prod_const]
-  have hfilter₁ : univ.filter (fun s : Fin Q => s ∈ S) = S := by
-    ext s
-    simp only [mem_filter, mem_univ, true_and]
-  have hfilter₂ : #(univ.filter (fun s : Fin Q => s ∉ S)) = Q - #S := by
-    have hsum := card_filter_add_card_filter_not (s := (univ : Finset (Fin Q))) (· ∈ S)
-    rw [hfilter₁, card_univ, Fintype.card_fin] at hsum
-    omega
-  rw [hfilter₁, hfilter₂]
+  simp only [t, apply_ite card, prod_ite, prod_const, filter_mem_eq_inter, univ_inter,
+    filter_not, card_sdiff_of_subset (subset_univ S), card_univ, Fintype.card_fin]
 
 /-- **Lemma 4.1 exact binomial fiber count (p. 28)**:
 The number of auxiliary basis labels `β : AuxLabel Q r` with `antisymCount β = j` is
@@ -352,30 +296,25 @@ def binomTailProb (Q r A₀ R : ℕ) : ℚ :=
 /-- Rational cast of `#(antisymPairs r) = r * (r - 1) / 2`. -/
 theorem cast_antisymPairs_eq (r : ℕ) :
     ((r * (r - 1) / 2 : ℕ) : ℚ) = (r : ℚ) ^ 2 * (((r : ℚ) - 1) / (2 * (r : ℚ))) := by
-  rcases r with _ | r
+  rcases r.eq_zero_or_pos with rfl | hr
   · simp
-  · have h2 : (2 : ℕ) * ((r + 1) * (r + 1 - 1) / 2) = (r + 1) * (r + 1 - 1) := by
-      rw [← card_antisymPairs (r + 1), two_mul_card_antisymPairs (r + 1)]
-    have hcast : (2 : ℚ) * (((r + 1) * r / 2 : ℕ) : ℚ) = ((r + 1 : ℕ) : ℚ) * (r : ℚ) := by
-      simpa only [Nat.add_sub_cancel, Nat.cast_mul, Nat.cast_ofNat] using
-        congrArg (fun k : ℕ => (k : ℚ)) h2
-    have hr0 : ((r + 1 : ℕ) : ℚ) ≠ 0 := Nat.cast_ne_zero.mpr (Nat.succ_ne_zero r)
-    simp only [Nat.add_sub_cancel]
-    have hsub : (((r + 1 : ℕ) : ℚ) - 1) = (r : ℚ) := by push_cast; ring
-    rw [hsub]
-    field_simp [hr0]
-    linarith
+  have h2 : ((r * (r - 1) / 2 : ℕ) : ℚ) = ((r * (r - 1) : ℕ) : ℚ) / 2 := by
+    rw [eq_div_iff two_ne_zero]
+    exact_mod_cast Nat.div_mul_cancel (Nat.even_mul_pred_self r).two_dvd
+  rw [h2, Nat.cast_mul, Nat.cast_sub hr]
+  field_simp
+  ring
 
 /-- Rational cast of `#(symPairs r) = r * (r + 1) / 2`. -/
 theorem cast_symPairs_eq (r : ℕ) (hr : 0 < r) :
     ((r * (r + 1) / 2 : ℕ) : ℚ) = (r : ℚ) ^ 2 * (((r : ℚ) + 1) / (2 * (r : ℚ))) := by
-  have h2 : (2 : ℕ) * (r * (r + 1) / 2) = r * (r + 1) := by
-    rw [← card_symPairs r, two_mul_card_symPairs r]
-  have hcast : (2 : ℚ) * ((r * (r + 1) / 2 : ℕ) : ℚ) = (r : ℚ) * ((r : ℚ) + 1) := by
-    exact_mod_cast h2
-  have hr0 : (r : ℚ) ≠ 0 := Nat.cast_ne_zero.mpr hr.ne'
-  field_simp [hr0]
-  linarith
+  have h2 : ((r * (r + 1) / 2 : ℕ) : ℚ) = ((r * (r + 1) : ℕ) : ℚ) / 2 := by
+    rw [eq_div_iff two_ne_zero]
+    exact_mod_cast Nat.div_mul_cancel (Nat.even_mul_succ_self r).two_dvd
+  rw [h2, mul_div_assoc',
+    div_eq_div_iff two_ne_zero (mul_ne_zero two_ne_zero (Nat.cast_ne_zero.2 hr.ne'))]
+  push_cast
+  ring
 
 /-- **Lemma 4.1 rational identity (p. 28)**:
 For `0 < r`, the number of rows `#(measurementIndices Q r A₀ R)` of `measurementMatrix` equals
@@ -393,15 +332,8 @@ theorem card_measurementIndices_cast_eq (Q r A₀ R : ℕ) (hr : 0 < r) :
     rw [← pow_add]
     congr 1
     omega
-  calc
-    (Q.choose j : ℚ) * ((r : ℚ) ^ (2 * j) * (((r : ℚ) - 1) / (2 * (r : ℚ))) ^ j) *
-        ((r : ℚ) ^ (2 * (Q - j)) * (((r : ℚ) + 1) / (2 * (r : ℚ))) ^ (Q - j))
-      = ((r : ℚ) ^ (2 * j) * (r : ℚ) ^ (2 * (Q - j))) *
-          ((Q.choose j : ℚ) * (((r : ℚ) - 1) / (2 * (r : ℚ))) ^ j *
-            (((r : ℚ) + 1) / (2 * (r : ℚ))) ^ (Q - j)) := by ring
-    _ = (r : ℚ) ^ (2 * Q) *
-          ((Q.choose j : ℚ) * (((r : ℚ) - 1) / (2 * (r : ℚ))) ^ j *
-            (((r : ℚ) + 1) / (2 * (r : ℚ))) ^ (Q - j)) := by rw [hpow]
+  rw [← hpow]
+  ring
 
 /-- **Lemma 4.1 and equation (4.8) row bound (p. 28)**:
 If `binomTailProb Q r A₀ R ≤ ε`, then `#(measurementIndices Q r A₀ R) ≤ ε * r ^ (2 * Q)`. -/
@@ -424,39 +356,25 @@ theorem binomTailProb_eq_div (Q r A₀ R : ℕ) (hr : 0 < r) :
 theorem binomTailProb_nonneg {Q r A₀ R : ℕ} (hr : 1 ≤ r) :
     0 ≤ binomTailProb Q r A₀ R := by
   unfold binomTailProb
-  refine sum_nonneg fun j _ => ?_
-  have hr1 : (0 : ℚ) ≤ (r : ℚ) - 1 := by
-    have : (1 : ℚ) ≤ (r : ℚ) := by exact_mod_cast hr
-    linarith
-  positivity
+  have hr1 : (0 : ℚ) ≤ (r : ℚ) - 1 := by rw [sub_nonneg]; exact_mod_cast hr
+  exact sum_nonneg fun j _ => by positivity
 
 /-- When `R = 0`, the interval `[A₀, A₀ + R)` is empty and `binomTailProb Q r A₀ 0 = 1`
 (the full binomial distribution sums to `1`). -/
 theorem binomTailProb_zero_right (Q r A₀ : ℕ) (hr : 0 < r) :
     binomTailProb Q r A₀ 0 = 1 := by
-  have hcard : #(measurementIndices Q r A₀ 0) = r ^ (2 * Q) := by
-    have huniv : measurementIndices Q r A₀ 0 = univ := by
-      ext β
-      simp only [measurementIndices, mem_filter, mem_univ, add_zero, Ico_self, notMem_empty,
-        not_false_eq_true, and_self]
-    rw [huniv, card_univ, card_auxLabel]
-  have hcast := card_measurementIndices_cast_eq Q r A₀ 0 hr
-  rw [hcard] at hcast
-  have hD0 : ((r ^ (2 * Q) : ℕ) : ℚ) ≠ 0 :=
-    Nat.cast_ne_zero.mpr (pow_pos hr (2 * Q)).ne'
-  exact mul_left_cancel₀ hD0 (by linarith)
+  have huniv : measurementIndices Q r A₀ 0 = univ := by
+    ext β
+    simp only [measurementIndices, mem_filter, mem_univ, add_zero, Ico_self, notMem_empty,
+      not_false_eq_true, and_self]
+  rw [binomTailProb_eq_div Q r A₀ 0 hr, huniv, card_univ, card_auxLabel, div_self]
+  exact_mod_cast (pow_pos hr (2 * Q)).ne'
 
 /-- `binomTailProb Q r A₀ R ≤ 1` for `0 < r`. -/
 theorem binomTailProb_le_one (Q r A₀ R : ℕ) (hr : 0 < r) :
     binomTailProb Q r A₀ R ≤ 1 := by
-  have hle : #(measurementIndices Q r A₀ R) ≤ r ^ (2 * Q) :=
-    (card_le_univ _).trans (by rw [card_auxLabel])
-  have hle_q : (#(measurementIndices Q r A₀ R) : ℚ) ≤ ((r ^ (2 * Q) : ℕ) : ℚ) := by
-    exact_mod_cast hle
-  rw [card_measurementIndices_cast_eq Q r A₀ R hr] at hle_q
-  have hD_pos : (0 : ℚ) < ((r ^ (2 * Q) : ℕ) : ℚ) := by
-    exact_mod_cast pow_pos hr (2 * Q)
-  nlinarith
+  rw [binomTailProb_eq_div Q r A₀ R hr, div_le_one (by exact_mod_cast pow_pos hr (2 * Q))]
+  exact_mod_cast (card_le_univ _).trans (by rw [card_auxLabel])
 
 /-! ### Part 3: Total group measurement row bound (Section 4.5, eq. 4.16, p. 32) -/
 
@@ -471,31 +389,16 @@ theorem card_allGroupMeasurementRows_le_two_mul_tau_mul_n {Q r A₀ R h M b n : 
     (htail : binomTailProb Q r A₀ R ≤ τ / ((r : ℚ) * (b : ℚ))) :
     ((r * (h * #(measurementIndices Q r A₀ R)) : ℕ) : ℚ) ≤ 2 * τ * (n : ℚ) := by
   have hcB := card_measurementIndices_le_of_binomTailProb_le hr htail
-  have hr0 : (r : ℚ) ≠ 0 := Nat.cast_ne_zero.mpr hr.ne'
-  have hb0 : (b : ℚ) ≠ 0 := Nat.cast_ne_zero.mpr hb.ne'
-  have hhD_q : ((h : ℚ) * ((r ^ (2 * Q) : ℕ) : ℚ)) ≤ 2 * (b : ℚ) * (n : ℚ) := by
-    have hle : h * r ^ (2 * Q) ≤ 2 * (b * n) := hhD.trans (Nat.mul_le_mul_left 2 hM)
-    have hcast : ((h * r ^ (2 * Q) : ℕ) : ℚ) ≤ ((2 * (b * n) : ℕ) : ℚ) := by
-      exact_mod_cast hle
-    simpa only [Nat.cast_mul, Nat.cast_ofNat, mul_assoc] using hcast
-  push_cast
-  have h1 :
-      (r : ℚ) * ((h : ℚ) * (#(measurementIndices Q r A₀ R) : ℚ)) ≤
-        (r : ℚ) * ((h : ℚ) * (τ / ((r : ℚ) * (b : ℚ)) * ((r ^ (2 * Q) : ℕ) : ℚ))) := by
-    refine mul_le_mul_of_nonneg_left ?_ (Nat.cast_nonneg r)
-    exact mul_le_mul_of_nonneg_left hcB (Nat.cast_nonneg h)
-  have h2 :
-      (r : ℚ) * ((h : ℚ) * (τ / ((r : ℚ) * (b : ℚ)) * ((r ^ (2 * Q) : ℕ) : ℚ))) =
-        (τ / (b : ℚ)) * ((h : ℚ) * ((r ^ (2 * Q) : ℕ) : ℚ)) := by
-    field_simp [hr0, hb0]
-  have h3 :
-      (τ / (b : ℚ)) * ((h : ℚ) * ((r ^ (2 * Q) : ℕ) : ℚ)) ≤
-        (τ / (b : ℚ)) * (2 * (b : ℚ) * (n : ℚ)) := by
-    refine mul_le_mul_of_nonneg_left hhD_q ?_
-    exact div_nonneg hτ (Nat.cast_nonneg b)
-  have h4 : (τ / (b : ℚ)) * (2 * (b : ℚ) * (n : ℚ)) = 2 * τ * (n : ℚ) := by
-    field_simp [hb0]
-  linarith
+  have hr0 : (0 : ℚ) < r := by exact_mod_cast hr
+  have hb0 : (0 : ℚ) < b := by exact_mod_cast hb
+  have hhD_q : ((h * r ^ (2 * Q) : ℕ) : ℚ) ≤ ((2 * (b * n) : ℕ) : ℚ) := by
+    exact_mod_cast hhD.trans (Nat.mul_le_mul_left 2 hM)
+  push_cast at hcB hhD_q ⊢
+  calc (r : ℚ) * (h * #(measurementIndices Q r A₀ R))
+      ≤ r * (h * (τ / (r * b) * r ^ (2 * Q))) := by gcongr
+    _ = τ / b * (h * r ^ (2 * Q)) := by field_simp
+    _ ≤ τ / b * (2 * (b * n)) := by gcongr
+    _ = 2 * τ * n := by field_simp
 
 /-! ### Part 4: Algebraic Section 4 replacement design (Definition 3.1 & Lemma 4.7, pp. 32–34) -/
 
@@ -594,14 +497,10 @@ theorem ReplacementDesign.evalReplacementRow_nodePoint_eq_of_eq_on_varGroup {F :
         (varMeasurementMatrix Q r A₀ R ℚ D.place (scopeVarOf scope)).mulVec x') :
     evalVarReplacementRow Q r A₀ R D.place (scopeVarOf scope) e (nodePoint t) x =
       evalVarReplacementRow Q r A₀ R D.place (scopeVarOf scope) e (nodePoint t) x' := by
-  have hplace_fst_snd : ∀ e' : ScopeIncidence scope,
-      (D.place e').2.1 = D.varAssign (scopeVarOf scope e') :=
-    fun e' => congrArg Prod.fst (D.place_snd e')
-  have hplace_snd_snd : (D.place e).2.2 = D.factorAssign (scopeFactorOf scope e) :=
-    congrArg Prod.snd (D.place_snd e)
   refine evalVarReplacementRow_nodePoint_eq_of_eq_on_varGroup Q r A₀ R D.place
-    (scopeVarOf scope) D.varAssign hplace_fst_snd e t x x' ?_ hmeas
-  rwa [hplace_snd_snd]
+    (scopeVarOf scope) D.varAssign (fun e' => congrArg Prod.fst (D.place_snd e')) e t x x' ?_
+    hmeas
+  rwa [D.place_snd e]
 
 /-- **Lemma 4.7 (Algebraic existence of a Section 4 replacement design, pp. 33–34)**:
 Suppose `1 ≤ n`, `1 ≤ b`, `1 ≤ w`, `2 ≤ r`, `1 ≤ R`, `R < Q`, `0 ≤ τ`, every factor scope
@@ -627,8 +526,8 @@ theorem exists_replacementDesign {F : Type*} [Fintype F]
     (htail : binomTailProb Q r A₀ R ≤ τ / ((r : ℚ) * (b : ℚ))) :
     Nonempty (ReplacementDesign scope Q r A₀ R τ) := by
   classical
-  have hQ_pos : 0 < Q := lt_of_lt_of_le (Nat.zero_lt_of_lt hR) hRQ.le
-  have hr_pos : 0 < r := lt_of_lt_of_le (by decide : 0 < 2) hr
+  have hQ_pos : 0 < Q := by omega
+  have hr_pos : 0 < r := by omega
   have : Nonempty (Fin Q) := ⟨⟨0, hQ_pos⟩⟩
   have : Nonempty (Fin n) := ⟨⟨0, hn⟩⟩
   have : Nonempty (Fin r) := ⟨⟨0, hr_pos⟩⟩
@@ -648,12 +547,9 @@ theorem exists_replacementDesign {F : Type*} [Fintype F]
     incidenceLabel (scopeVarOf scope) (scopeFactorOf scope) a d
   let h : ℕ := 2 * Fintype.card (ScopeIncidence scope) / r ^ (2 * Q)
   have hD_pos : 0 < r ^ (2 * Q) := pow_pos hr_pos (2 * Q)
-  have hu_bound : ∀ y : AuxLabel Q r, #{e : ScopeIncidence scope | u e = y} ≤ h := by
-    intro y
-    have hocc := hocc_inc y
-    rw [hcardB] at hocc
+  have hu_bound : ∀ y : AuxLabel Q r, #{e : ScopeIncidence scope | u e = y} ≤ h := fun y => by
     rw [← Fintype.card_subtype]
-    exact (Nat.le_div_iff_mul_le hD_pos).mpr hocc
+    exact (Nat.le_div_iff_mul_le hD_pos).mpr (hcardB ▸ hocc_inc y)
   let : LinearOrder (ScopeIncidence scope) :=
     LinearOrder.lift' (Fintype.equivFin (ScopeIncidence scope))
       (Fintype.equivFin (ScopeIncidence scope)).injective
