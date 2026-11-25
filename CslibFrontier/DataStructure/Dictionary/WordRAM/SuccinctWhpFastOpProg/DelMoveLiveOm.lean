@@ -46,15 +46,6 @@ open Cslib.DataStructure.Dictionary.WordRAM.Succinct
 
 attribute [local simp] clientResult_pure_whp clientState_pure_whp
 
-/-- `readBktFieldGenProg_spec` as a `CostBoundedStep`. -/
-private theorem CostBoundedStep.readBkt {c U V w n_max base b i : ℕ} {fs : FastState}
-    {s : Memory.State} (henv : WhpLargeEnv c U V w n_max w base) (hb : b < numBucketsWhp n_max)
-    (hi : i < 10) (hrep : FastMemRep base c U V w n_max fs s.mem) :
-    CostBoundedStep w (base + largeSpaceWhp c U V w n_max) s
-      (readBktFieldGenProg (((mkWhpCoreParams c U V w n_max, base), b), i)) s
-      (getBktField fs b i) 2 :=
-  .of (readBktFieldGenProg_spec henv hb hi hrep)
-
 /-- Sub-helper 6.2b (Overmars insert+inc): insert `(fp_live_last, loc_del)` into `omIdx` and
 increment `overmarsInsCount b`. -/
 @[irreducible] private def delMoveOmInsertIncProg :

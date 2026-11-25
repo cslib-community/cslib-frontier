@@ -375,6 +375,16 @@ theorem readBktFieldGenProg_spec {c U V w n_max base b field : ℕ} {fs : FastSt
     field = 9 := by omega
   all_goals assumption
 
+/-- `readBktFieldGenProg_spec` packaged as a `CostBoundedStep`. -/
+theorem CostBoundedStep.readBkt {c U V w n_max base b field : ℕ} {fs : FastState}
+    {s : Memory.State} (henv : WhpLargeEnv c U V w n_max w base)
+    (hb : b < numBucketsWhp n_max) (hfield : field < 10)
+    (hrep : FastMemRep base c U V w n_max fs s.mem) :
+    CostBoundedStep w (base + largeSpaceWhp c U V w n_max) s
+      (readBktFieldGenProg (((mkWhpCoreParams c U V w n_max, base), b), field)) s
+      (getBktField fs b field) 2 :=
+  .of (readBktFieldGenProg_spec henv hb hfield hrep)
+
 /-- Write bucket `b`'s scalar metadata field `field < 10`
 (`d = ((((cp, base), b), field), val)`). -/
 @[expose, irreducible] def writeBktFieldGenProg :

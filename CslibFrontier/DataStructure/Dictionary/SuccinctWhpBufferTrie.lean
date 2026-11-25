@@ -487,13 +487,14 @@ private structure BufTrieInv (cTab bChar : ℕ) (tr : BufTrie) (depth : ℕ → 
     tr.itemLeaf (tr.nodeLeafItem u - 1) = u ∧
     ∃ k < 2 ^ (cTab * bChar), bufWalk bChar tr.trieChild k cTab 0 0 = some u
 
-/-- Updating entry `(cur, ch)` of a two-argument table leaves every other entry unchanged. -/
-private theorem update_update_apply_of_ne {f : ℕ → ℕ → ℕ} {cur ch u v c : ℕ}
-    (h : ¬(v = cur ∧ c = ch)) :
-    Function.update f cur (Function.update (f cur) ch u) v c = f v c := by
-  by_cases hv : v = cur
-  · subst hv; simp [show c ≠ ch from fun hc => h ⟨rfl, hc⟩]
-  · simp [hv]
+/-- Updating entry `(a, b)` of a two-argument function leaves every other entry unchanged. -/
+theorem update_update_apply_of_ne {α β γ : Type*} [DecidableEq α] [DecidableEq β]
+    {f : α → β → γ} {a x : α} {b y : β} {val : γ} (h : ¬(x = a ∧ y = b)) :
+    Function.update f a (Function.update (f a) b val) x y = f x y := by
+  by_cases hx : x = a
+  · subst hx
+    simp [show y ≠ b from fun hy => h ⟨rfl, hy⟩]
+  · simp [hx]
 
 private theorem BufTrieInv.child_lt {cTab bChar : ℕ} {tr : BufTrie} {depth : ℕ → ℕ}
     (hinv : BufTrieInv cTab bChar tr depth) (v c : ℕ) (hnz : tr.trieChild v c ≠ 0) :

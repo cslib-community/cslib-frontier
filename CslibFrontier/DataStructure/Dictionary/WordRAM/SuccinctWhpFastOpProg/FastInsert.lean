@@ -48,33 +48,8 @@ open Cslib.DataStructure.Dictionary.WordRAM.Succinct
 
 attribute [local simp] clientResult_pure_whp clientState_pure_whp
 
-private theorem bind_read_zero {α : Type} {c U V w n_max base C₀ C B : ℕ}
-    {s : Memory.State} {p : Memory.Prog α} {k : α → Memory.Prog ℕ} {a : α}
-    (hp_st : (Memory.spec 0).clientState s p = s)
-    (hp_res : (Memory.spec 0).clientResult s p = a)
-    (hp_mc : memoryCost p s ≤ C)
-    (hp_vp : ValidProg w (base + largeSpaceWhp c U V w n_max) s p)
-    (hk : C₀ + C + memoryCost (k a) s ≤ B ∧
-      ValidProg w (base + largeSpaceWhp c U V w n_max) s (k a) ∧
-      ((Memory.spec 0).clientResult s (k a) = 0 ∧
-        (Memory.spec 0).clientState s (k a) = s)) :
-    C₀ + memoryCost (p >>= k) s ≤ B ∧
-      ValidProg w (base + largeSpaceWhp c U V w n_max) s (p >>= k) ∧
-      ((Memory.spec 0).clientResult s (p >>= k) = 0 ∧
-        (Memory.spec 0).clientState s (p >>= k) = s) := by
-  refine ⟨?_, ?_, ?_⟩
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hp_st, hp_res]
-    have := hk.1
-    omega
-  · refine validProg_bind hp_vp ?_
-    rw [hp_st, hp_res]
-    exact hk.2.1
-  · rw [clientResult_bind, clientState_bind, hp_st, hp_res]
-    exact hk.2.2
-
-private theorem bind_read_some {α : Type} {c U V w n_max base C₀ C B : ℕ}
-    {θ : SeedWhp c U n_max} {fs' : FastState} {s : Memory.State}
+private theorem bind_read_post {α : Type} {c U V w n_max base C₀ C B r : ℕ}
+    {S : Memory.State → Prop} {s : Memory.State}
     {p : Memory.Prog α} {k : α → Memory.Prog ℕ} {a : α}
     (hp_st : (Memory.spec 0).clientState s p = s)
     (hp_res : (Memory.spec 0).clientResult s p = a)
@@ -82,12 +57,12 @@ private theorem bind_read_some {α : Type} {c U V w n_max base C₀ C B : ℕ}
     (hp_vp : ValidProg w (base + largeSpaceWhp c U V w n_max) s p)
     (hk : C₀ + C + memoryCost (k a) s ≤ B ∧
       ValidProg w (base + largeSpaceWhp c U V w n_max) s (k a) ∧
-      ((Memory.spec 0).clientResult s (k a) = 1 ∧
-        FastStateStep base c U V w n_max θ fs' s ((Memory.spec 0).clientState s (k a)))) :
+      ((Memory.spec 0).clientResult s (k a) = r ∧
+        S ((Memory.spec 0).clientState s (k a)))) :
     C₀ + memoryCost (p >>= k) s ≤ B ∧
       ValidProg w (base + largeSpaceWhp c U V w n_max) s (p >>= k) ∧
-      ((Memory.spec 0).clientResult s (p >>= k) = 1 ∧
-        FastStateStep base c U V w n_max θ fs' s ((Memory.spec 0).clientState s (p >>= k))) := by
+      ((Memory.spec 0).clientResult s (p >>= k) = r ∧
+        S ((Memory.spec 0).clientState s (p >>= k))) := by
   refine ⟨?_, ?_, ?_⟩
   · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
     rw [hp_st, hp_res]
@@ -433,7 +408,7 @@ private theorem fastInsertMissGenProg_spec {c U V w n_max base b q_val v_val : �
   simp only [pure_bind]
   by_cases hbad1 : totalLocalCoordsWhp n_max ≤ X ∨ (cf ≤ X ∧ fs.poolFreeTop = 0)
   · rw [ite_eq_left hbad1] at hcp_res ⊢
-    refine bind_read_zero hcp_st hcp_res hcp_mc hcp_vp ?_
+    refine bind_read_post (S := (· = s)) hcp_st hcp_res hcp_mc hcp_vp ?_
     simpa only [zero_ne_one, ↓reduceIte] using pure_zero_opt (by omega)
   · rw [ite_eq_right hbad1] at hcp_res ⊢
     have hX_tl : X < totalLocalCoordsWhp n_max := by omega
@@ -451,14 +426,14 @@ private theorem fastInsertMissGenProg_spec {c U V w n_max base b q_val v_val : �
         (fs.rebStage ≤ 3 ∧
           (bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.oldEp) rKey).isSome)
     · rw [ite_eq_left hbad2] at hcg_res ⊢
-      refine bind_read_zero hcp_st hcp_res hcp_mc hcp_vp ?_
+      refine bind_read_post (S := (· = s)) hcp_st hcp_res hcp_mc hcp_vp ?_
       simp only [↓reduceIte]
       unfold insAfterCapGenProg
       dsimp only
       rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
       simp only [pure_bind]
-      refine bind_read_zero her_st her_res her_mc her_vp ?_
-      refine bind_read_zero hcg_st hcg_res hcg_mc hcg_vp ?_
+      refine bind_read_post (S := (· = s)) her_st her_res her_mc her_vp ?_
+      refine bind_read_post (S := (· = s)) hcg_st hcg_res hcg_mc hcg_vp ?_
       simpa only [zero_ne_one, ↓reduceIte] using pure_zero_opt (by omega)
     · rw [ite_eq_right hbad2] at hcg_res ⊢
       obtain ⟨liveMap, hv_live, _⟩ := hv.live_valid b hb
@@ -473,40 +448,40 @@ private theorem fastInsertMissGenProg_spec {c U V w n_max base b q_val v_val : �
           !bufEverPresent (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp) rKey ∧
           2 * sMaxWhp c n_max ≤ (fs.buf fs.curEp).itemAlloc
       · rw [ite_eq_left hbad3] at hck_res ⊢
-        refine bind_read_zero hcp_st hcp_res hcp_mc hcp_vp ?_
+        refine bind_read_post (S := (· = s)) hcp_st hcp_res hcp_mc hcp_vp ?_
         simp only [↓reduceIte]
         unfold insAfterCapGenProg
         dsimp only
         rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
         simp only [pure_bind]
-        refine bind_read_zero her_st her_res her_mc her_vp ?_
-        refine bind_read_zero hcg_st hcg_res hcg_mc hcg_vp ?_
+        refine bind_read_post (S := (· = s)) her_st her_res her_mc her_vp ?_
+        refine bind_read_post (S := (· = s)) hcg_st hcg_res hcg_mc hcg_vp ?_
         simp only [↓reduceIte]
         unfold insAfterRKeyGenProg
         dsimp only
         rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
         simp only [pure_bind]
-        refine bind_read_zero hrf_st hrf_res hrf_mc hrf_vp ?_
+        refine bind_read_post (S := (· = s)) hrf_st hrf_res hrf_mc hrf_vp ?_
         dsimp only
-        refine bind_read_zero hck_st hck_res hck_mc hck_vp ?_
+        refine bind_read_post (S := (· = s)) hck_st hck_res hck_mc hck_vp ?_
         simpa only [zero_ne_one, ↓reduceIte] using pure_zero_opt (by omega)
       · rw [ite_eq_right hbad3] at hck_res ⊢
-        refine bind_read_some hcp_st hcp_res hcp_mc hcp_vp ?_
+        refine bind_read_post hcp_st hcp_res hcp_mc hcp_vp ?_
         simp only [↓reduceIte]
         unfold insAfterCapGenProg
         dsimp only
         rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
         simp only [pure_bind]
-        refine bind_read_some her_st her_res her_mc her_vp ?_
-        refine bind_read_some hcg_st hcg_res hcg_mc hcg_vp ?_
+        refine bind_read_post her_st her_res her_mc her_vp ?_
+        refine bind_read_post hcg_st hcg_res hcg_mc hcg_vp ?_
         simp only [↓reduceIte]
         unfold insAfterRKeyGenProg
         dsimp only
         rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
         simp only [pure_bind]
-        refine bind_read_some hrf_st hrf_res hrf_mc hrf_vp ?_
+        refine bind_read_post hrf_st hrf_res hrf_mc hrf_vp ?_
         dsimp only
-        refine bind_read_some hck_st hck_res hck_mc hck_vp ?_
+        refine bind_read_post hck_st hck_res hck_mc hck_vp ?_
         simp only [↓reduceIte]
         have hfp_lt : fp < 2 ^ fpBitsWhp n_max := by
           dsimp only [fp, fpOfSalt]
@@ -666,12 +641,12 @@ theorem fastInsertGenProg_spec {c U V w n_max base : ℕ}
   cases hfind : fastFindLoc c U n_max θ fs u with
   | some loc =>
     rw [hfind] at hfl_res hspec
-    refine bind_read_some hmh_st hmh_res hmh_mc.le hmh_vp ?_
-    refine bind_read_some hfs_st hfs_res hfs_mc hfs_vp ?_
+    refine bind_read_post hmh_st hmh_res hmh_mc.le hmh_vp ?_
+    refine bind_read_post hfs_st hfs_res hfs_mc hfs_vp ?_
     unfold fastInsertBodyGenProg
     dsimp only
     simp only [pure_bind]
-    refine bind_read_some hfl_st hfl_res hfl_mc hfl_vp ?_
+    refine bind_read_post hfl_st hfl_res hfl_mc hfl_vp ?_
     simp only [↓reduceIte]
     obtain ⟨hov_res, hov_mc, hov_vp, hov_step⟩ :=
       fastInsertOverwriteGenProg_spec henv hseed hrep hv hb hspec.1 hv_v (v_val := v_val) (s := s)
