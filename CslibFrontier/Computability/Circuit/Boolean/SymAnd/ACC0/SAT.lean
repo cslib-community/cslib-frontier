@@ -128,47 +128,19 @@ private def constTrueWire (n' : ℕ) : Wire n' 2 := Wire.gate ⟨1, by decide⟩
 
 private theorem constProg_trace_false {g : ∀ k, BitString k → Bool} {n' : ℕ}
     (x : BitString n') :
-    (constProg n').trace (Unbounded.extInterpretation g) x (constFalseWire n') = false := by
-  simp only [constProg, constFalseWire]
-  change (Program.gate
-      (Program.gate (Program.empty : Program Unbounded.extSignature n' 0)
-        ⟨Unbounded.ExtOp.ac (.or 0), Fin.elim0⟩)
-      ⟨Unbounded.ExtOp.ac (.and 0), Fin.elim0⟩).trace
-      (Unbounded.extInterpretation g) x (Wire.gate (Fin.last 0)).castSucc = false
-  rw [Program.trace_gate_castSucc, Program.trace_gate_last]
+    (constProg n').trace (Unbounded.extInterpretation g) x (constFalseWire n') = false :=
   rfl
 
 private theorem constProg_trace_true {g : ∀ k, BitString k → Bool} {n' : ℕ}
     (x : BitString n') :
-    (constProg n').trace (Unbounded.extInterpretation g) x (constTrueWire n') = true := by
-  simp only [constProg, constTrueWire]
-  change (Program.gate
-      (Program.gate (Program.empty : Program Unbounded.extSignature n' 0)
-        ⟨Unbounded.ExtOp.ac (.or 0), Fin.elim0⟩)
-      ⟨Unbounded.ExtOp.ac (.and 0), Fin.elim0⟩).trace
-      (Unbounded.extInterpretation g) x (Wire.gate (Fin.last 1)) = true
-  rw [Program.trace_gate_last]
+    (constProg n').trace (Unbounded.extInterpretation g) x (constTrueWire n') = true :=
   rfl
 
 private theorem constProg_wireDepths_le (n' : ℕ) (w : Wire n' 2) :
     (constProg n').wireDepths w ≤ 1 := by
   cases w with
   | input i => simp [Program.wireDepths]
-  | gate j =>
-    fin_cases j
-    · change (Program.gate
-          (Program.gate (Program.empty : Program Unbounded.extSignature n' 0)
-            ⟨Unbounded.ExtOp.ac (.or 0), Fin.elim0⟩)
-          ⟨Unbounded.ExtOp.ac (.and 0), Fin.elim0⟩).depths
-          (Fin.castSucc (Fin.last 0)) ≤ 1
-      rw [Program.depths_gate_castSucc, Program.depths_gate_last]
-      rfl
-    · change (Program.gate
-          (Program.gate (Program.empty : Program Unbounded.extSignature n' 0)
-            ⟨Unbounded.ExtOp.ac (.or 0), Fin.elim0⟩)
-          ⟨Unbounded.ExtOp.ac (.and 0), Fin.elim0⟩).depths (Fin.last 1) ≤ 1
-      rw [Program.depths_gate_last]
-      rfl
+  | gate j => fin_cases j <;> exact le_of_eq rfl
 
 private theorem constProg_code (n' : ℕ) :
     (constProg n').code = [(.ac (.or 0), []), (.ac (.and 0), [])] := by
@@ -924,13 +896,8 @@ private theorem computableInO_anyEval :
     ComputableInPolyTime.ite SymOutParam.computableInPolyTime_eval
       (ComputableInPolyTime.const [true]) (ComputableInPolyTime.const [])
   have hstate_const : ∀ (p : SymOutParam) (l : List ℕ) (j : ℕ),
-      streamState p (fun q : SymOutParam × ℕ => q.1) l j = p := by
-    intro p l j
-    suffices ∀ m : List ℕ, m.foldl (fun s _ => s) p = p from this (l.take j)
-    intro m
-    induction m with
-    | nil => rfl
-    | cons _ _ ih => exact ih
+      streamState p (fun q : SymOutParam × ℕ => q.1) l j = p := fun _ l j =>
+    List.foldl_fixed (l.take j)
   obtain ⟨c, d, hsf⟩ := ComputableInTimeAndSpace.streamFold_pair_list
     (encA := encNat) (encS := encSymOutParam) (encB := encBool)
     (encIn := encPair encSymOutParam (encList encNat))
