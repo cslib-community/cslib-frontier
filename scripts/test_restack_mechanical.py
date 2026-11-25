@@ -31,12 +31,16 @@ GIT_ENV = {
 
 LAKEFILE = 'name = "fixture"\n\n[[lean_lib]]\nname = "CslibFrontier"\n'
 PREAMBLE = "module  -- shake: keep-all --deprecated_module: ignore\n\n"
-ATTRIBUTES = "CslibFrontier.lean merge=leanagg\nreferences.bib merge=bibkeys\n"
+ATTRIBUTES = ("CslibFrontier.lean merge=leanagg\nreferences.bib merge=bibkeys\n"
+              "manual/sources.md merge=sourcesmd\n")
 LIB = "namespace Foo\ndef x := 1\nend Foo\n\nnamespace Bar\ndef y := 2\nend Bar\n"
 # What the run uses from the fixture's `main`: the check, the resolvers and the modules that the
-# bibliography resolver imports.
+# bibliography and sources resolvers import.
 SCRIPTS = ("check_restack.py", "resolve_bib_conflict.py", "resolve_aggregate_conflict.py",
-           "check_hygiene.py", "proof_lengths.py", "upstream.py")
+           "resolve_sources_conflict.py", "sources_format.py", "check_hygiene.py",
+           "proof_lengths.py", "upstream.py")
+# `manual/sources.md` before its conversion to one sentence per line.
+SOURCES = '# Sources\n\n<a id="alpha"></a>\n## alpha\n\nAlpha one. Alpha two. Alpha three.\n'
 
 def aggregate(*names: str) -> str:
     return PREAMBLE + "".join(f"public import CslibFrontier.{name}\n" for name in names)
@@ -182,6 +186,18 @@ class RestackMechanicalTests(unittest.TestCase):
         self.assertEqual(self.git("show", f"{new}:references.bib") + "\n",
                          bib(entry("a"), entry("b"), entry("bb"), entry("c"), entry("e")))
 
+    def test_sources_conflict_with_the_conversion_is_merged_by_sentence(self) -> None:
+        self.on_main({"manual/sources.md": SOURCES})
+        approved = self.feature({"manual/sources.md": SOURCES.replace(
+            "Alpha two.", "Alpha two. Added by the PR.")})
+        self.on_main({"manual/sources.md": SOURCES.replace(". A", ".\nA")})
+        code, out = self.run_script(approved, "--push")
+        new = self.assert_restacked(approved, code, out)
+        self.assertIn("in: manual/sources.md", out)
+        self.assertEqual(self.git("show", f"{new}:manual/sources.md") + "\n", SOURCES.replace(
+            "Alpha two. Alpha three.", "Alpha two.\nAdded by the PR.\nAlpha three.").replace(
+            "Alpha one. ", "Alpha one.\n"))
+
     def test_dry_run_changes_nothing_but_origin_main(self) -> None:
         approved = self.aggregate_conflict()
         fetch_head = self.root / ".git" / "FETCH_HEAD"
@@ -239,6 +255,16 @@ class RestackMechanicalTests(unittest.TestCase):
         self.assertEqual(code, 1, out)
         self.assertIn("left conflicts in references.bib", out)
         self.assertEqual(self.state(), before)
+
+    def test_sentence_changed_on_both_sides_is_refused(self) -> None:
+        self.on_main({"manual/sources.md": SOURCES.replace(". A", ".\nA")})
+        approved = self.feature({"manual/sources.md": SOURCES.replace(". A", ".\nA").replace(
+            "Alpha two.", "Alpha 2.")})
+        self.on_main({"manual/sources.md": SOURCES.replace(". A", ".\nA").replace(
+            "Alpha two.", "Alpha II.")})
+        code, out = self.run_script(approved, "--push")
+        self.assertEqual(code, 1, out)
+        self.assertIn("left conflicts in manual/sources.md", out)
 
     def test_branch_moved_during_the_restack_is_not_overwritten(self) -> None:
         approved = self.aggregate_conflict()
