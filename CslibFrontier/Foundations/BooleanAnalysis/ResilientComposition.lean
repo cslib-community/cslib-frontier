@@ -122,7 +122,8 @@ theorem isUndetermined_composeBlocks_iff {m w : ℕ} (g : BitString m → Bool)
         · obtain ⟨y₀, z₀, hy₀, hz₀, hdiff⟩ := hj
           by_cases h1 : h j y₀ = u j
           · exact ⟨y₀, hy₀, h1⟩
-          · exact ⟨z₀, hz₀, (Bool.eq_not_of_ne (Ne.symm hdiff)).trans (Bool.eq_not_of_ne (Ne.symm h1)).symm⟩
+          · exact ⟨z₀, hz₀,
+              (Bool.eq_not_of_ne (Ne.symm hdiff)).trans (Bool.eq_not_of_ne (Ne.symm h1)).symm⟩
         · exact ⟨fun i => x (finProdFinEquiv (j, i)), fun _ _ => rfl, (hu j hj).symm⟩
       choose v hv_agree hv_val using hexj
       refine ⟨fun k => v (finProdFinEquiv.symm k).1 (finProdFinEquiv.symm k).2, ?_, ?_⟩
