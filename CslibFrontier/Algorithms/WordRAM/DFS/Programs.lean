@@ -264,19 +264,9 @@ private theorem setupCode_spec (G : Graph) {w : ℕ} (hfit : Fits w G.wordBound)
       s.regs compB = kCompAddr 3 G.n G.m := by
   have hm1 : (Data.init G.encodeCSR : Data 28).mem 1 = G.n := rfl
   have hm2 : (Data.init G.encodeCSR : Data 28).mem 2 = G.m := rfl
-  let Post (s : Data 28) : Prop :=
-    s.mem = (Data.init G.encodeCSR : Data 28).mem ∧
-      s.regs outReg = 0 ∧ s.regs nVerts = G.n ∧
-      DfsRegs (kOffAddr 3) (kEdgeAddr 3 G.n) (kVisAddr 3 G.n G.m) (kOrdAddr 3 G.n G.m)
-        (kStkAddr 3 G.n G.m) s ∧
-      s.regs curB = kCurAddr 3 G.n G.m ∧ s.regs revOffB = kRevOffAddr 3 G.n G.m ∧
-      s.regs revEdgeB = kRevEdgeAddr 3 G.n G.m ∧ s.regs ordB = kOrdAddr 3 G.n G.m ∧
-      s.regs compB = kCompAddr 3 G.n G.m
-  change ∃ s, ExecWithin w setupCode (Data.init G.encodeCSR) s 23 ∧ Post s
   unfold setupCode
   wram_exec [Data.init_regs, hm1, hm2]
-  · dsimp only [Post]
-    refine ⟨rfl, by wram_simp; exact Data.init_regs _ _, ?_,
+  · refine ⟨rfl, by wram_simp; exact Data.init_regs _ _, ?_,
       ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, ?_, ?_, ?_, ?_, ?_⟩
     all_goals wram_simp
     all_goals
