@@ -59,7 +59,7 @@ together with two basic binary prefix-free codes in `Cslib.BitString`:
 * `Cslib.BitString.encodeFintype`, `Cslib.BitString.encodeMemFinset`,
   `Cslib.BitString.encodeRestr`: canonical binary encodings, exact lengths, and injectivity for
   finite types, subsets, and restricted maps (`encodeFintype_injective`, `encodeMemFinset_inj`,
-  `encodeRestr_inj`).
+  `encodeRestr_inj`, `encodeRestr_subset_inj`).
 * `Cslib.BitString.decodeEliasGamma_eliasGamma`,
   `Cslib.BitString.injOn_eliasGamma`,
   `Cslib.BitString.isPrefixFree_range_eliasGamma`,
@@ -144,14 +144,11 @@ theorem isPrefixFree_image_append {γ ι : Type*} {D : Set γ}
     (h₁ : IsPrefixFree (enc₁ '' D))
     (h₂ : ∀ x ∈ D, IsPrefixFree (enc₂ '' {y ∈ D | enc₁ y = enc₁ x})) :
     IsPrefixFree ((fun x => enc₁ x ++ enc₂ x) '' D) := by
-  have hbind : IsPrefixFree
-      {w | ∃ u ∈ enc₁ '' D, ∃ v ∈ enc₂ '' {y ∈ D | enc₁ y = u}, w = u ++ v} := by
-    refine h₁.bind_append ?_
-    rintro _ ⟨x, hx, rfl⟩
+  refine (h₁.bind_append (T := fun u => enc₂ '' {y ∈ D | enc₁ y = u}) ?_).anti ?_
+  · rintro _ ⟨x, hx, rfl⟩
     exact h₂ x hx
-  refine hbind.anti ?_
-  rintro _ ⟨x, hx, rfl⟩
-  exact ⟨enc₁ x, ⟨x, hx, rfl⟩, enc₂ x, ⟨x, ⟨hx, rfl⟩, rfl⟩, rfl⟩
+  · rintro _ ⟨x, hx, rfl⟩
+    exact ⟨enc₁ x, ⟨x, hx, rfl⟩, enc₂ x, ⟨x, ⟨hx, rfl⟩, rfl⟩, rfl⟩
 
 /-- Sequential encoding `x ↦ enc₁ x ++ enc₂ x` is injective on `D` whenever `enc₁ '' D` is
 prefix-free and the pair `(enc₁, enc₂)` is injective on `D`. -/
@@ -201,11 +198,9 @@ theorem isPrefixFree_prod_append {α β ι : Type*} {D : Set (α × β)}
 /-- Any set of words of a common fixed length `k` is prefix-free. -/
 theorem isPrefixFree_of_length_eq {ι : Type*} {S : Set (List ι)} {k : ℕ}
     (hlen : ∀ w ∈ S, w.length = k) : IsPrefixFree S := by
-  intro u hu v hv ⟨r, hr⟩
-  have hlen_eq : (u ++ r).length = u.length := by rw [hr, hlen v hv, hlen u hu]
-  rw [List.length_append] at hlen_eq
-  have hr_nil : r = [] := List.eq_nil_of_length_eq_zero (by omega)
-  rw [← hr, hr_nil, List.append_nil]
+  intro u hu v hv hp
+  exact (prefix_append_of_length_eq (v₁ := []) (v₂ := [])
+    ((hlen u hu).trans (hlen v hv).symm) (by simpa using hp)).1
 
 /-! ### Fixed-width binary index code (`finIdxBits`) -/
 
@@ -276,11 +271,9 @@ theorem decodeEliasGamma_eliasGamma {m : ℕ} (hm : 1 ≤ m) :
   have hhalf : (eliasGamma m).length / 2 + 1 = k + 1 := by
     rw [length_eliasGamma]
     omega
-  have hsplit : eliasGamma m =
-      (List.replicate k false ++ [true]) ++ lowBits k m := by
-    simp [eliasGamma, k]
   have hdrop : (eliasGamma m).drop ((eliasGamma m).length / 2 + 1) = lowBits k m := by
-    rw [hhalf, hsplit, List.drop_left' (by simp)]
+    rw [hhalf, eliasGamma, List.drop_append]
+    simp [k]
   have hge : 2 ^ k ≤ m := Nat.pow_log_le_self 2 (by omega)
   have hlt : m < 2 ^ (k + 1) := Nat.lt_pow_succ_log_self Nat.one_lt_two m
   have hdiv : m / 2 ^ k = 1 := by
@@ -324,21 +317,11 @@ theorem isPrefixFree_range_eliasGamma : IsPrefixFree (Set.range eliasGamma) := b
         (eliasGamma m₁)[i]'hi₁ := List.getElem_append_left hi₁
     simpa only [hr] using happ.symm
   rcases lt_trichotomy (Nat.log 2 m₁) (Nat.log 2 m₂) with hlt | heq | hgt
-  · have h₁ := getElem_eliasGamma_self m₁
-    have h₂ := getElem_eliasGamma_lt m₂ hlt
-    have h_eq := hget (Nat.log 2 m₁) (by rw [length_eliasGamma]; omega)
-    rw [h₁, h₂] at h_eq
-    cases h_eq
-  · have hlen : (eliasGamma m₁ ++ r).length = (eliasGamma m₁).length := by
-      rw [hr, length_eliasGamma, length_eliasGamma, heq]
-    rw [List.length_append] at hlen
-    have hr_nil : r = [] := List.eq_nil_of_length_eq_zero (by omega)
-    rw [← hr, hr_nil, List.append_nil]
-  · have h₁ := getElem_eliasGamma_lt m₁ hgt
-    have h₂ := getElem_eliasGamma_self m₂
-    have h_eq := hget (Nat.log 2 m₂) (by rw [length_eliasGamma]; omega)
-    rw [h₁, h₂] at h_eq
-    cases h_eq
+  · have h_eq := hget (Nat.log 2 m₁) (by rw [length_eliasGamma]; omega)
+    simp [getElem_eliasGamma_self, getElem_eliasGamma_lt m₂ hlt] at h_eq
+  · exact (List.append_inj (hr.trans (List.append_nil _).symm) (by simp [heq])).1
+  · have h_eq := hget (Nat.log 2 m₂) (by rw [length_eliasGamma]; omega)
+    simp [getElem_eliasGamma_lt m₁ hgt, getElem_eliasGamma_self] at h_eq
 
 /-- `eliasGamma '' {m : ℕ | 1 ≤ m}` is prefix-free. -/
 theorem isPrefixFree_eliasGamma : IsPrefixFree (eliasGamma '' {m : ℕ | 1 ≤ m}) :=
@@ -389,8 +372,31 @@ noncomputable def encodeRestr {α β : Type*} [Fintype β] (S : Finset α) (f : 
     (encodeRestr S f).length = Nat.clog 2 (Fintype.card β ^ S.card) := by
   classical rw [encodeRestr, length_encodeFintype, Fintype.card_fun, Fintype.card_coe]
 
+theorem length_encodeRestr_bool {α : Type*} (S : Finset α) (f : α → Bool) :
+    (encodeRestr S f).length = S.card := by
+  rw [length_encodeRestr, Fintype.card_bool, Nat.clog_pow _ _ Nat.one_lt_two]
+
+theorem length_encodeRestr_fin_two_pow {α : Type*} (S : Finset α) (w : ℕ)
+    (f : α → Fin (2 ^ w)) :
+    (encodeRestr S f).length = w * S.card := by
+  rw [length_encodeRestr, Fintype.card_fin, ← pow_mul, Nat.clog_pow _ _ Nat.one_lt_two]
+
 theorem encodeRestr_inj {α β : Type*} [Fintype β] {S₁ S₂ : Finset α} {f₁ f₂ : α → β}
     (hS : S₁ = S₂) (heq : encodeRestr S₁ f₁ = encodeRestr S₂ f₂) : ∀ x ∈ S₁, f₁ x = f₂ x := by
   classical subst hS; intro x hx; exact congrFun (encodeFintype_injective heq) ⟨x, hx⟩
+
+/-- Restricted characteristic-code injectivity: equal `encodeRestr` encodings of the indicator
+functions of `A₁ ⊆ S₁` and `A₂ ⊆ S₂` over equal carrier sets `S₁ = S₂` imply `A₁ = A₂`. -/
+theorem encodeRestr_subset_inj {α : Type*} {A₁ A₂ S₁ S₂ : Finset α}
+    [DecidablePred (· ∈ A₁)] [DecidablePred (· ∈ A₂)]
+    (hA₁ : A₁ ⊆ S₁) (hA₂ : A₂ ⊆ S₂) (hS : S₁ = S₂)
+    (heq : encodeRestr S₁ (fun x => decide (x ∈ A₁)) =
+      encodeRestr S₂ (fun x => decide (x ∈ A₂))) :
+    A₁ = A₂ := by
+  have hr := encodeRestr_inj hS heq
+  ext x
+  by_cases hx : x ∈ S₁
+  · exact decide_eq_decide.mp (hr x hx)
+  · exact iff_of_false (fun h => hx (hA₁ h)) (fun h => (hS ▸ hx) (hA₂ h))
 
 end Cslib.BitString

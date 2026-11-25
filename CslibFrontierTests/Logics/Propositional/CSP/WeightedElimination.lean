@@ -12,6 +12,7 @@ import CslibFrontier.Logics.Propositional.CSP.PartitionFunction.Properties
 import CslibFrontier.Logics.Propositional.CSP.FactorTable
 import CslibFrontier.Algorithms.Lean.CSP.VariableElimination
 import CslibFrontier.Algorithms.Lean.CSP.WeightCost
+import CslibFrontier.Algorithms.WordRAM.VariableElimination
 import Mathlib.Logic.Equiv.Fin.Basic
 
 /-!
@@ -23,8 +24,9 @@ Kernel-checked examples exercising:
 2. `FactorTable` evaluation, repeated scopes, empty scopes, and bridges to
    `ExplicitTensorNetwork` and `DescribedNetwork`.
 3. Elimination-order sensitivity on a 6-variable Boolean star (`[0, 1, 2, 3, 4, 5]` vs.
-   `[1, 2, 3, 4, 5, 0]`), comparing exact values and `TimeM` / `peakLiveEntries` /
-   `maxOutScopeLen` / `maxJointScopeLen` / `totalArithOps` resource costs.
+   `[1, 2, 3, 4, 5, 0]`), comparing exact values, `peakLiveEntries` / `maxOutScopeLen` /
+   `maxJointScopeLen` / `totalArithOps`, and Word-RAM `ElimInstance.stepBound` + concrete
+   `Executes` witnesses at width `w = 32`.
 4. Exact signed `ℤ`, modular `ZMod 5`, and cleared-denominator `ℚ` elimination with `enc_structure`
    codec injectivity and bit-length bounds.
 -/
@@ -37,6 +39,8 @@ open Cslib.Logic.PL
 open Cslib.Logic.PL.CSP
 open Cslib.Circuits.Frontier
 open Cslib.Algorithms.Lean.CSP
+open Cslib.Algorithms.WordRAM.VariableElimination
+open Cslib.WordRAM
 open Turing
 open Turing.MultiTapeTM
 
@@ -73,7 +77,7 @@ theorem partitionFunctionOn_satCSP_isolated :
     decide
   rw [hsdiff, Finset.card_singleton, Fintype.card_bool, pow_one] at hcard
   have hpart : satCSP.partitionFunction orWt = 2 := by
-    have h1 := result_eliminateOrderM_ofCSP 2 finTwoEquiv.symm orWt
+    have h1 := result_eliminateOrder_ofCSP 2 finTwoEquiv.symm orWt
       (F := satCSP) (declared := [0, 1]) (order := [0, 1]) (by simp [satCSP_vars])
       Finset.Subset.rfl
     have hvars : ([0, 1] : List ℕ).toFinset = satCSP.vars.toFinset := by
@@ -118,7 +122,7 @@ theorem separator_chain_factorization :
   · exact CSP.partitionFunction_separator chainWt (by decide) (by decide)
   · have hvars : ([0, 1, 2] : List ℕ).toFinset = (sepF1 ++ sepF2).vars.toFinset := by
       decide
-    have h1 := result_eliminateOrderM_ofCSP 2 finTwoEquiv.symm chainWt
+    have h1 := result_eliminateOrder_ofCSP 2 finTwoEquiv.symm chainWt
       (F := sepF1 ++ sepF2) (declared := [0, 1, 2]) (order := [0, 1, 2]) (by rw [hvars])
       Finset.Subset.rfl
     rw [CSP.partitionFunction_eq_partitionFunctionOn, ← hvars, ← h1]
@@ -146,7 +150,7 @@ theorem contraction_edgeTableFactors_exact :
   have hdec : ([0, 1, 2] : List ℕ).toFinset = ({0, 1, 2} : Finset ℕ) := by decide
   simp only [ElimState.eval, ElimState.ofFactors, one_mul] at h2
   rw [hdec] at h2
-  rw [← h2, ← ret_eliminateOrderM]
+  rw [← h2]
   decide
 
 private def sampleExpNet : ExplicitTensorNetwork ℕ :=
@@ -163,7 +167,7 @@ theorem contraction_sampleExpNet_exact :
     decide
   simp only [ElimState.eval, ElimState.ofFactors, one_mul] at h2
   rw [hdec] at h2
-  rw [← h2, ← ret_eliminateOrderM]
+  rw [← h2]
   decide
 
 private def sampleDescNet : DescribedNetwork (List ℕ) :=
@@ -198,7 +202,7 @@ theorem contraction_sampleDescNet_exact :
   simp only [ElimState.eval, ElimState.ofFactors, one_mul] at h2
   rw [hdec] at h2
   change FactorTable.contractionOn 2 fs (Finset.range sampleDescNet.numEdges) = 60
-  rw [← h2, ← ret_eliminateOrderM]
+  rw [← h2]
   decide
 
 example :
@@ -223,19 +227,26 @@ private def starInit : ElimState ℕ ℕ :=
 private def hubFirst : List ℕ := [0, 1, 2, 3, 4, 5]
 private def leavesFirst : List ℕ := [1, 2, 3, 4, 5, 0]
 
+private def starHubInst : ElimInstance :=
+  { domain := 2, declared := [0, 1, 2, 3, 4, 5], order := hubFirst, factors := starFactors }
+
+private def starLeavesInst : ElimInstance :=
+  { domain := 2, declared := [0, 1, 2, 3, 4, 5], order := leavesFirst, factors := starFactors }
+
 theorem star_both_orders_equal_value :
-    (eliminateOrderM 2 hubFirst starInit).ret.result =
-      (eliminateOrderM 2 leavesFirst starInit).ret.result ∧
-    (eliminateOrderM 2 leavesFirst starInit).ret.result = 1800 := by
-  constructor <;> decide
+    (eliminateOrder 2 hubFirst starInit).result =
+      (eliminateOrder 2 leavesFirst starInit).result ∧
+    (eliminateOrder 2 leavesFirst starInit).result = 1800 ∧
+    starHubInst.result = 1800 ∧
+    starLeavesInst.result = 1800 := by
+  decide
 
 theorem star_hubFirst_vs_leavesFirst_cost_gap :
     maxOutScopeLen 2 leavesFirst starInit < maxOutScopeLen 2 hubFirst starInit ∧
     maxJointScopeLen 2 leavesFirst starInit < maxJointScopeLen 2 hubFirst starInit ∧
     peakLiveEntries 2 leavesFirst starInit < peakLiveEntries 2 hubFirst starInit ∧
     totalArithOps 2 leavesFirst starInit < totalArithOps 2 hubFirst starInit ∧
-    (eliminateOrderM 2 leavesFirst starInit).time <
-      (eliminateOrderM 2 hubFirst starInit).time := by
+    starLeavesInst.stepBound < starHubInst.stepBound := by
   decide
 
 theorem star_leavesFirst_bounds :
@@ -245,16 +256,63 @@ theorem star_leavesFirst_bounds :
           2 ^ maxJointScopeLen 2 leavesFirst starInit ∧
     peakLiveEntries 2 leavesFirst starInit ≤
       starInit.live.length *
-        max (maxTableEntries starInit.live) (2 ^ maxOutScopeLen 2 leavesFirst starInit) ∧
-    (eliminateOrderM 2 leavesFirst starInit).time ≤
-      leavesFirst.length * (starInit.live.length + 1) +
-        2 ^ maxJointScopeLen 2 leavesFirst starInit *
-          ((maxJointScopeLen 2 leavesFirst starInit + 1) * leavesFirst.length +
-            (starInit.live.length + leavesFirst.length) *
-              (max (maxScopeLen starInit.live) (maxJointScopeLen 2 leavesFirst starInit) + 1)) :=
+        max (maxTableEntries starInit.live) (2 ^ maxOutScopeLen 2 leavesFirst starInit) :=
   ⟨totalArithOps_le_of_intermediate (by decide) leavesFirst starInit,
-   peakLiveEntries_le (by decide) leavesFirst starInit,
-   time_eliminateOrderM_le (by decide) leavesFirst starInit⟩
+   peakLiveEntries_le (by decide) leavesFirst starInit⟩
+
+theorem star_leavesFirst_wordram_exec_at_32 :
+    Fits 32 starLeavesInst.wordBound ∧
+    InputFits 32 starLeavesInst.encode ∧
+    ∃ r C : ℕ, ∃ prog : Program .exact r,
+      ∃ n, Executes 32 prog (.init starLeavesInst.encode) 1800 n ∧
+        n ≤ C * (starLeavesInst.stepBound + 1) + 1 := by
+  have hfit : Fits 32 starLeavesInst.wordBound := by decide
+  have hin : InputFits 32 starLeavesInst.encode := by decide
+  refine ⟨hfit, hin, ?_⟩
+  obtain ⟨r, C, prog, hcomp⟩ := exists_program_variableElimination
+  obtain ⟨n, hexec, hn⟩ := hcomp starLeavesInst 32 hfit hin
+  have hres : starLeavesInst.result = 1800 := by decide
+  rw [hres] at hexec
+  exact ⟨r, C, prog, n, hexec, hn⟩
+
+theorem satCSP_wordram_partitionFunction_exec_at_32 :
+    let inst := ElimInstance.ofCSP 2 finTwoEquiv.symm orWt satCSP [0, 1] [0, 1]
+    Fits 32 inst.wordBound ∧
+    InputFits 32 inst.encode ∧
+    ∃ r C : ℕ, ∃ prog : Program .exact r,
+      ∃ n, Executes 32 prog (.init inst.encode)
+          (satCSP.partitionFunctionOn orWt ({0, 1} : Finset ℕ)) n ∧
+        n ≤ C * (inst.stepBound + 1) + 1 := by
+  dsimp only
+  let inst := ElimInstance.ofCSP 2 finTwoEquiv.symm orWt satCSP [0, 1] [0, 1]
+  have hfit : Fits 32 inst.wordBound := by decide
+  have hin : InputFits 32 inst.encode := by decide
+  refine ⟨hfit, hin, ?_⟩
+  obtain ⟨r, C, prog, hcomp⟩ := exists_program_csp_partitionFunctionOn
+  obtain ⟨n, hexec, hn⟩ := hcomp 2 finTwoEquiv.symm orWt satCSP [0, 1] [0, 1]
+    (by simp [satCSP_vars]) Finset.Subset.rfl 32 hfit hin
+  have hset : ([0, 1] : List ℕ).toFinset = ({0, 1} : Finset ℕ) := by decide
+  rw [hset] at hexec
+  exact ⟨r, C, prog, n, hexec, hn⟩
+
+private def emptyElimInst : ElimInstance :=
+  { domain := 0, declared := [], order := [], factors := [] }
+
+theorem emptyElimInst_wordram_exec_at_8 :
+    emptyElimInst.result = 1 ∧
+    Fits 8 emptyElimInst.wordBound ∧
+    InputFits 8 emptyElimInst.encode ∧
+    ∃ r C : ℕ, ∃ prog : Program .exact r,
+      ∃ n, Executes 8 prog (.init emptyElimInst.encode) 1 n ∧
+        n ≤ C * (emptyElimInst.stepBound + 1) + 1 := by
+  have hres : emptyElimInst.result = 1 := by decide
+  have hfit : Fits 8 emptyElimInst.wordBound := by decide
+  have hin : InputFits 8 emptyElimInst.encode := by decide
+  refine ⟨hres, hfit, hin, ?_⟩
+  obtain ⟨r, C, prog, hcomp⟩ := exists_program_variableElimination
+  obtain ⟨n, hexec, hn⟩ := hcomp emptyElimInst 8 hfit hin
+  rw [hres] at hexec
+  exact ⟨r, C, prog, n, hexec, hn⟩
 
 end OrderSensitivity
 
@@ -265,7 +323,7 @@ private def intFactors : List (FactorTable ℤ ℕ) :=
     { scope := [1, 2], entries := #[2, -1, 0, 3] } ]
 
 theorem int_elimination_exact_and_bounded :
-    (eliminateOrderM 2 [0, 1, 2] (ElimState.ofFactors intFactors [0, 1, 2])).ret.result = -4 ∧
+    (eliminateOrder 2 [0, 1, 2] (ElimState.ofFactors intFactors [0, 1, 2])).result = -4 ∧
     (eliminateOrder 2 [0, 1, 2] (ElimState.ofFactors intFactors [0, 1, 2])).result.natAbs ≤
       2 ^ 3 * 4 ^ 2 := by
   constructor
@@ -278,7 +336,7 @@ private def modFactors : List (FactorTable (ZMod 5) ℕ) :=
     { scope := [1], entries := #[4, 2] } ]
 
 theorem mod5_elimination_exact_and_bounded :
-    (eliminateOrderM 2 [0, 1] (ElimState.ofFactors modFactors [0, 1])).ret.result = (2 : ZMod 5) ∧
+    (eliminateOrder 2 [0, 1] (ElimState.ofFactors modFactors [0, 1])).result = (2 : ZMod 5) ∧
     0 < liveFieldBits 5
       (eliminateOrder 2 (([0, 1] : List ℕ).take 1) (ElimState.ofFactors modFactors [0, 1])).live ∧
     ∀ k : ℕ,
@@ -319,7 +377,6 @@ theorem rat_cleared_elimination_exact_and_bounded :
     ((eliminateOrder 2 [0, 1] (ElimState.ofFactors ratIntFactors [0, 1])).result : ℚ) /
       ((ratDenoms.prod : ℕ) : ℚ) at hscaled
   have hz : (eliminateOrder 2 [0, 1] (ElimState.ofFactors ratIntFactors [0, 1])).result = 26 := by
-    rw [← ret_eliminateOrderM]
     decide
   rw [hz] at hscaled
   constructor

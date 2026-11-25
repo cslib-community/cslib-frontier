@@ -112,17 +112,14 @@ theorem exists_verifier_of_mem_PromiseBPTIME {Q : PromiseProblem α} {t : ℕ �
     obtain ⟨hhalt, hyes, hno⟩ := hQ a
     have hT : c₁ * t (enc a).length + c₂ ≤ L :=
       le_trans (by nlinarith) hL
-    have heval : ProbComp.eval (machine.runClosed L (enc a)) =
-        (BitString.uniformList L).map fun w => machine.runClosedCoins w (enc a) := by
-      rw [MultiTapePTM.eval_runClosed_eq_map_coins]
-    rw [← machine.eval_runClosed_eq_of_halted _ hT hhalt, heval,
+    rw [← machine.eval_runClosed_eq_of_halted _ hT hhalt,
+      MultiTapePTM.eval_runClosed_eq_map_coins,
       BitString.uniformList_map_apply, ENNReal.two_div_three_le_natCast_div_two_pow_iff] at hyes hno
     refine ⟨fun ha => ?_, fun ha => ?_⟩
     · simpa only [acceptCount, V, decide_eq_true_eq] using hyes ha
     · refine (hno ha).trans (Nat.mul_le_mul_left 3 (Finset.card_le_card fun w hw => ?_))
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and, V, Bool.not_eq_true',
-        decide_eq_false_iff_not] at hw ⊢
-      rw [hw]
-      simp
+      simpa only [Finset.mem_filter, Finset.mem_univ, true_and, V, Bool.not_eq_true',
+        decide_eq_false_iff_not] using
+        ne_of_eq_of_ne (Finset.mem_filter.mp hw).2 (by decide)
 
 end Cslib.Complexity

@@ -52,10 +52,7 @@ theorem bias_gadgetOutputLaw (g : Fin m → Fin m → Bool) (Y : Finset (Fin n �
         chi ℝ (S.map (Function.Embedding.subtype (· ∈ I))) (fun i => g (x i) (y i)) := by
   unfold gadgetOutputLaw
   rw [bias_map]
-  apply sum_congr rfl
-  intro y _
-  congr 1
-  exact chi_restrict I S (fun i => g (x i) (y i))
+  exact sum_congr rfl fun y _ => congrArg _ (chi_restrict I S fun i => g (x i) (y i))
 
 /-- An output atom is the cardinality ratio of its gadget fiber. -/
 theorem gadgetOutputLaw_apply (g : Fin m → Fin m → Bool) (Y : Finset (Fin n → Fin m))
@@ -66,13 +63,11 @@ theorem gadgetOutputLaw_apply (g : Fin m → Fin m → Bool) (Y : Finset (Fin n 
   unfold gadgetOutputLaw
   rw [← _root_.PMF.toOuterMeasure_apply_singleton, _root_.PMF.toOuterMeasure_map_apply,
     PMF.toOuterMeasure_uniformOfFinset_toReal]
-  congr 2
-  congr 1
+  congr 3
   ext y
   simp only [mem_filter, Set.mem_preimage, Set.mem_singleton_iff, mem_gadgetFiber]
-  apply and_congr_right
-  intro _
-  exact ⟨fun h i hi => congrFun h ⟨i, hi⟩, fun h => funext fun i => h i i.property⟩
+  exact and_congr_right fun _ =>
+    ⟨fun h i hi => congrFun h ⟨i, hi⟩, fun h => funext fun i => h i i.property⟩
 
 /-- Pointwise parity bounds prevent leaking, including empty output sets. -/
 theorem nonleaking_of_parity_bias_le (g : Fin m → Fin m → Bool)
@@ -87,11 +82,9 @@ theorem nonleaking_of_parity_bias_le (g : Fin m → Fin m → Bool)
   rw [gadgetOutputLaw_apply] at h
   simp only [Fintype.card_coe] at h
   have hy : (0 : ℝ) < #Y := by exact_mod_cast card_pos.mpr hY
-  have hl := (abs_le.mp h).1
-  have hmul := mul_le_mul_of_nonneg_right hl hy.le
+  have hmul := mul_le_mul_of_nonneg_right (abs_le.mp h).1 hy.le
   rw [pow_succ]
-  field_simp at hmul
-  nlinarith
+  field_simp at hmul; nlinarith
 
 /-- High-order parity estimates bound a fiber, with the exact low-order subset count retained.
 This applies even when `I` has zero or one coordinate. -/
@@ -105,29 +98,22 @@ theorem gadgetFiber_card_le_of_high_order_bias_le (g : Fin m → Fin m → Bool)
       (#{S : Finset I | S.card < t} + 1 : ℝ) * #Y := by
   classical
   let q : ℝ := 1 / (2 * I.card)
-  have hq : 0 ≤ q := by positivity
   have hq1 : q ≤ 1 := by
-    by_cases hi : I.card = 0
+    rcases eq_or_ne I.card 0 with hi | hi
     · simp [q, hi]
-    · have hi1 : (1 : ℝ) ≤ I.card := by exact_mod_cast Nat.one_le_iff_ne_zero.mpr hi
-      dsimp [q]
+    · have : (1 : ℝ) ≤ I.card := by exact_mod_cast Nat.one_le_iff_ne_zero.mpr hi
       exact (div_le_one (by positivity)).mpr (by linarith)
   have hiq : (I.card : ℝ) * q ≤ 1 / 2 := by
-    by_cases hi : I.card = 0
+    rcases eq_or_ne I.card 0 with hi | hi
     · simp [hi]
-    · have hi0 : (0 : ℝ) < I.card := by exact_mod_cast Nat.pos_of_ne_zero hi
-      dsimp [q]
-      apply le_of_eq
-      field_simp
+    · have : (0 : ℝ) < I.card := by exact_mod_cast Nat.pos_of_ne_zero hi
+      exact le_of_eq (by dsimp [q]; field_simp)
   have hm := mul_mass_le_card_add_one_of_high_order_bias_le (gadgetOutputLaw g Y hY I x)
-    ht hq hq1 (by simpa only [Fintype.card_coe] using hiq) hbias (I.restrict β)
+    ht (by positivity) hq1 (by simpa only [Fintype.card_coe] using hiq) hbias (I.restrict β)
   rw [gadgetOutputLaw_apply] at hm
   simp only [Fintype.card_coe] at hm
-  have hbound : 2 ^ #I * (#(gadgetFiber g Y I x β) / (#Y : ℝ)) ≤
-      (#{S : Finset I | S.card < t} + 1 : ℝ) := hm
   have hy : (0 : ℝ) < #Y := by exact_mod_cast card_pos.mpr hY
-  have hmul := mul_le_mul_of_nonneg_right hbound hy.le
-  simpa only [mul_assoc, div_mul_cancel₀ _ (ne_of_gt hy)] using hmul
+  simpa only [mul_assoc, div_mul_cancel₀ _ hy.ne'] using mul_le_mul_of_nonneg_right hm hy.le
 
 /-- A sufficient parity criterion for safety. Conditional high-order estimates are required only
 above an explicit positive integer threshold; the exact number of lower-order parities is paid
@@ -147,24 +133,20 @@ theorem isSafe_of_parity_bias_le (g : Fin m → Fin m → Bool) (σ : ℝ)
         2 * (#{S : Finset I | S.card < t} + 1 : ℝ) * σ ^ #J * #(agreeOn Y J α) ≤ #Y) :
     IsSafe g σ F Y x := by
   classical
-  have hleak (I : Finset (Fin n)) (hI : I ⊆ F) (β : Fin n → Bool) :
-      (#Y : ℝ) ≤ 2 ^ (#I + 1) * #(gadgetFiber g Y I x β) :=
+  have hleak (I) (hI : I ⊆ F) (β) :=
     nonleaking_of_parity_bias_le g Y hY I x (hunconditional I hI) β
-  refine ⟨hleak, ?_⟩
-  intro I hI β
-  by_contra hfail
+  refine ⟨hleak, fun I hI β => by_contra fun hfail => ?_⟩
   obtain ⟨J, α, hJ, hJne, _, hB, hcard⟩ := exists_bayes_card_certificate (hleak I hI β) hfail
-  have hA : (agreeOn Y J α).Nonempty := hB.mono (gadgetFiber_subset g _ I x β)
-  obtain ⟨t, ht, hbias, hcap⟩ := hconditional I hI J hJ hJne α hA
-  have hupper := gadgetFiber_card_le_of_high_order_bias_le g _ hA I x ht hbias β
-  have hmul := mul_le_mul_of_nonneg_left hupper (by positivity : (0 : ℝ) ≤ 2 * σ ^ #J)
-  have hcontr : (#Y : ℝ) < #Y := calc
-    _ < 2 ^ (#I + 1) * #(gadgetFiber g (agreeOn Y J α) I x β) * σ ^ #J := hcard
-    _ = (2 * σ ^ #J) * (2 ^ #I * #(gadgetFiber g (agreeOn Y J α) I x β)) := by
-      rw [pow_succ]; ring
+  obtain ⟨t, ht, hbias, hcap⟩ := hconditional I hI J hJ hJne α
+    (hB.mono (gadgetFiber_subset g _ I x β))
+  have hmul := mul_le_mul_of_nonneg_left
+    (gadgetFiber_card_le_of_high_order_bias_le g _ _ I x ht hbias β)
+    (by positivity : (0 : ℝ) ≤ 2 * σ ^ #J)
+  exact lt_irrefl (#Y : ℝ) <| calc
+    (#Y : ℝ) < 2 ^ (#I + 1) * #(gadgetFiber g (agreeOn Y J α) I x β) * σ ^ #J := hcard
+    _ = (2 * σ ^ #J) * (2 ^ #I * #(gadgetFiber g (agreeOn Y J α) I x β)) := by rw [pow_succ]; ring
     _ ≤ (2 * σ ^ #J) * ((#{S : Finset I | S.card < t} + 1 : ℝ) * #(agreeOn Y J α)) := hmul
     _ = 2 * (#{S : Finset I | S.card < t} + 1 : ℝ) * σ ^ #J * #(agreeOn Y J α) := by ring
     _ ≤ #Y := hcap
-  exact (lt_irrefl _) hcontr
 
 end Cslib.Communication.Lifting

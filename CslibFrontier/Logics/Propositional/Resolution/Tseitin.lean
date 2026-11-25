@@ -91,9 +91,8 @@ theorem Implies.mono {S T : Finset V} {c : Clause E} (h : Implies ends χ S c) (
 private theorem exists_implies_singleton_of_mem_tseitinFormula {c : Clause E}
     (hc : c ∈ CNF.tseitinFormula ends χ) : ∃ v, Implies ends χ {v} c := by
   obtain ⟨v, hv⟩ := CNF.mem_tseitinFormula.1 hc
-  refine ⟨v, fun σ hσ => ?_⟩
-  have h := (CNF.eval_parityOnEq_eq_true_iff _ _ σ).2 (hσ v (mem_singleton_self v))
-  exact (CNF.eval_eq_true_iff σ _).1 h c hv
+  exact ⟨v, fun σ hσ => (CNF.eval_eq_true_iff σ _).1
+    ((CNF.eval_parityOnEq_eq_true_iff _ _ σ).2 (hσ v (mem_singleton_self v))) c hv⟩
 
 omit [Fintype V] in
 /-- The constraints implying the premises of a resolution step together imply the resolvent. -/
@@ -130,23 +129,17 @@ theorem exists_mem_of_mem_edgeCut {S : Finset V} {c : Clause E} (h : Implies end
   refine hmin v hv fun σ hσ => ?_
   by_contra hcσ
   have hσv : parityOn (Multigraph.incidence ends v) σ ≠ χ v := fun hv' =>
-    hcσ <| h σ fun u hu => by
-      by_cases huv : u = v
-      · exact huv ▸ hv'
-      · exact hσ u (mem_erase.2 ⟨huv, hu⟩)
+    hcσ <| h σ fun u hu => if huv : u = v then huv ▸ hv' else hσ u (mem_erase.2 ⟨huv, hu⟩)
   -- flipping `e` satisfies the constraints of `S` and still falsifies `c`
   obtain ⟨l, hl, hσl⟩ := (Clause.eval_eq_true_iff _ c).1 <| h (update σ e !σ e) fun u hu => by
     rw [parityOn_incidence_update_not]
     simp only [Multigraph.mem_incidence_of_ends_eq hvw]
+    have huw : u ≠ w := fun h => mem_compl.1 hw (h ▸ hu)
     by_cases huv : u = v
     · subst huv
-      have hne : u ≠ w := fun h => mem_compl.1 hw (h ▸ hu)
       cases hp : parityOn (Multigraph.incidence ends u) σ <;> cases hχ : χ u <;> simp_all
-    · have huw : u ≠ w := fun h => mem_compl.1 hw (h ▸ hu)
-      simp only [huv, huw, or_self, false_and, decide_false, Bool.false_xor]
-      exact hσ u (mem_erase.2 ⟨huv, hu⟩)
-  have hle : l.1 ≠ e := fun h' => hc l.2 (h' ▸ hl)
-  rw [update_of_ne hle] at hσl
+    · simpa [huv, huw] using hσ u (mem_erase.2 ⟨huv, hu⟩)
+  rw [update_of_ne (show l.1 ≠ e from fun h' => hc l.2 (h' ▸ hl))] at hσl
   exact hcσ ((Clause.eval_eq_true_iff σ c).2 ⟨l, hl, hσl⟩)
 
 /-- If the constraints of `S` imply `c`, but those of `S` without any one of its vertices do not,
@@ -181,27 +174,22 @@ private theorem forall_or_exists_μ (hn : 2 ≤ Fintype.card V) {ls : List (Clau
     (∀ c ∈ ls, 3 * μ ends χ c ≤ Fintype.card V) ∨
       ∃ c ∈ ls, Fintype.card V < 3 * μ ends χ c ∧ 3 * μ ends χ c ≤ 2 * Fintype.card V := by
   induction h with
-  | nil => exact Or.inl (by simp)
-  | @mem ls c _ hc ih =>
-    rcases ih with ih | ⟨d, hd, hd'⟩
-    · obtain ⟨v, hv⟩ := exists_implies_singleton_of_mem_tseitinFormula hc
-      have h1 : μ ends χ c ≤ 1 := (μ_le hv).trans (card_singleton v).le
-      by_cases h3 : 3 * μ ends χ c ≤ Fintype.card V
-      · exact Or.inl fun d hd => (List.mem_cons.1 hd).elim (fun h => h ▸ h3) (ih d)
-      · exact Or.inr ⟨c, List.mem_cons_self, by omega, by omega⟩
-    · exact Or.inr ⟨d, List.mem_cons_of_mem _ hd, hd'⟩
-  | @resolvent ls c₁ c₂ x hp h₁ h₂ _ _ ih =>
-    rcases ih with ih | ⟨d, hd, hd'⟩
-    · obtain ⟨S₁, hS₁, hi₁⟩ := exists_card_eq_μ (implies_univ_of_derives (hp.derives h₁))
-      obtain ⟨S₂, hS₂, hi₂⟩ := exists_card_eq_μ (implies_univ_of_derives (hp.derives h₂))
-      have hle : μ ends χ (c₁.resolvent c₂ x) ≤ μ ends χ c₁ + μ ends χ c₂ :=
-        (μ_le (hi₁.resolvent hi₂ x)).trans ((card_union_le _ _).trans (by omega))
-      have hc₁ := ih c₁ h₁
-      have hc₂ := ih c₂ h₂
-      by_cases h3 : 3 * μ ends χ (c₁.resolvent c₂ x) ≤ Fintype.card V
-      · exact Or.inl fun d hd => (List.mem_cons.1 hd).elim (fun h => h ▸ h3) (ih d)
-      · exact Or.inr ⟨_, List.mem_cons_self, by omega, by omega⟩
-    · exact Or.inr ⟨d, List.mem_cons_of_mem _ hd, hd'⟩
+  | nil => exact .inl (by simp)
+  | @mem _ c _ hc ih =>
+    refine ih.elim (fun ih => ?_) fun ⟨d, hd, hd'⟩ => .inr ⟨d, List.mem_cons_of_mem _ hd, hd'⟩
+    obtain ⟨v, hv⟩ := exists_implies_singleton_of_mem_tseitinFormula hc
+    have := (μ_le hv).trans (card_singleton v).le
+    exact if h3 : 3 * μ ends χ c ≤ Fintype.card V then .inl (List.forall_mem_cons.2 ⟨h3, ih⟩)
+      else .inr ⟨c, List.mem_cons_self, by omega, by omega⟩
+  | @resolvent _ c₁ c₂ x hp h₁ h₂ _ _ ih =>
+    refine ih.elim (fun ih => ?_) fun ⟨d, hd, hd'⟩ => .inr ⟨d, List.mem_cons_of_mem _ hd, hd'⟩
+    obtain ⟨S₁, hS₁, hi₁⟩ := exists_card_eq_μ (implies_univ_of_derives (hp.derives h₁))
+    obtain ⟨S₂, hS₂, hi₂⟩ := exists_card_eq_μ (implies_univ_of_derives (hp.derives h₂))
+    have := (μ_le (hi₁.resolvent hi₂ x)).trans (card_union_le S₁ S₂)
+    have := ih c₁ h₁
+    have := ih c₂ h₂
+    exact if h3 : 3 * μ ends χ _ ≤ Fintype.card V then .inl (List.forall_mem_cons.2 ⟨h3, ih⟩)
+      else .inr ⟨_, List.mem_cons_self, by omega, by omega⟩
 
 /-- **Refutations of Tseitin formulas have wide lines**
 [Ben-Sasson and Wigderson][BenSassonWigderson2001] [Jukna, Chapter 18][Jukna2012]. On a connected
@@ -234,9 +222,8 @@ theorem minBalancedCut_le_of_refutableInWidth (hG : (Multigraph.toSimpleGraph en
     {w : ℕ} (h : (CNF.tseitinFormula ends χ).RefutableInWidth w) :
     Multigraph.minBalancedCut ends ≤ w := by
   obtain ⟨ls, hp, hnil, hw⟩ := h
-  rcases subsingleton_or_nontrivial V with hV | hV
-  · rw [Multigraph.minBalancedCut_eq_zero_of_subsingleton]
-    exact Nat.zero_le w
+  rcases subsingleton_or_nontrivial V with _ | _
+  · simp [Multigraph.minBalancedCut_eq_zero_of_subsingleton]
   · obtain ⟨c, hc, S, h₁, h₂, hS⟩ := exists_card_edgeCut_le_width hG hp hnil
     exact (Multigraph.minBalancedCut_le_card_edgeCut ends h₁.le h₂).trans (hS.trans (hw c hc))
 

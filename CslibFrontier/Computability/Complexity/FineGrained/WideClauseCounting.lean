@@ -114,8 +114,7 @@ theorem exists_modelCounter_unboundedWidth :
         _ ≤ 2 ^ E * ((p + 1) ^ e * Y ^ (d + q * e)) :=
             Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hY1 (by omega)))
         _ = (p + 1) ^ e * (2 ^ E * Y ^ (d + q * e)) := by ring
-    calc _ ≤ 2 ^ E * Y ^ (d + q * e) + (p + 1) ^ e * (2 ^ E * Y ^ (d + q * e)) :=
-          Nat.add_le_add hd hc'
+    calc _ ≤ 2 ^ E * Y ^ (d + q * e) + (p + 1) ^ e * (2 ^ E * Y ^ (d + q * e)) := by gcongr
       _ = (1 + (p + 1) ^ e) * (2 ^ E * Y ^ (d + q * e)) := by ring
       _ ≤ _ := Nat.mul_le_mul (by omega) (Nat.le_succ _)
   · -- space

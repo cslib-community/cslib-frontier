@@ -10,6 +10,7 @@ module
 public import CslibFrontier.GameTheory.Mechanism.Bayesian
 public import CslibFrontier.GameTheory.Mechanism.Vickrey
 import CslibFrontier.GameTheory.Mechanism.OptimalAuction
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Analysis.SpecialFunctions.Integrals.Basic
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
@@ -113,8 +114,7 @@ private theorem unif_Iio {a : ℝ} (ha : 0 ≤ a) :
   rw [measureReal_congr Iio_ae_eq_Iic, unif_Iic ha]
 
 private theorem coeff_pos {n : ℕ} (hn : 2 ≤ n) : 0 < ((n : ℝ) - 1) / n := by
-  have h2 : (2 : ℝ) ≤ n := by exact_mod_cast hn
-  exact div_pos (by linarith) (by linarith)
+  exact div_pos (by cast_linarith [hn]) (by cast_linarith)
 
 private theorem coeff_nonneg (n : ℕ) : 0 ≤ ((n : ℝ) - 1) / n := by
   rcases Nat.eq_zero_or_pos n with rfl | hn
@@ -178,40 +178,28 @@ private theorem interimAllocation_mul (c : ℝ) (hc : 1 < Fintype.card ι → 0 
       rfl
     · rw [indicator_of_notMem h, mechanism_allocation,
         allocation_eq_zero_iff.2 (mt (hwin v).1 h)]
-  have hsm : ∀ j, MeasurableSet (s j) := by
-    intro j
+  have hsm : ∀ j, MeasurableSet (s j) := fun j => by
     simp only [hs]
     split_ifs
-    · exact MeasurableSet.univ
-    · exact measurableSet_lt hmc measurable_const
-    · exact measurableSet_le hmc measurable_const
+    exacts [.univ, measurableSet_lt hmc measurable_const, measurableSet_le hmc measurable_const]
   have hsj : ∀ j, j ≠ i → (volume.restrict (Icc (0 : ℝ) 1)).real (s j) = min (z / c) 1 := by
     intro j hj
     have hcpos : 0 < c := hc (Fintype.one_lt_card_iff.2 ⟨j, i, hj⟩)
     have hzc : 0 ≤ z / c := div_nonneg hz hcpos.le
-    have hlo : Iio (z / c) ⊆ s j := by
-      intro t ht
-      simp only [hs, ite_eq_right hj]
+    have hlo : Iio (z / c) ⊆ s j := fun t ht => by
       have : c * t < z := by
         rw [mem_Iio, lt_div_iff₀ hcpos] at ht
         linarith
+      simp only [hs, ite_eq_right hj]
       split_ifs
-      · exact this
-      · exact this.le
-    have hhi : s j ⊆ Iic (z / c) := by
-      intro t ht
+      exacts [this, this.le]
+    have hhi : s j ⊆ Iic (z / c) := fun t ht => by
       simp only [hs, ite_eq_right hj] at ht
-      have : c * t ≤ z := by
-        split_ifs at ht
-        · exact (show c * t < z from ht).le
-        · exact ht
       rw [mem_Iic, le_div_iff₀ hcpos]
-      linarith
-    refine le_antisymm ?_ ?_
-    · rw [← unif_Iic hzc]
-      exact measureReal_mono hhi
-    · rw [← unif_Iio hzc]
-      exact measureReal_mono hlo
+      split_ifs at ht
+      exacts [by linarith [show c * t < z from ht], by linarith [show c * t ≤ z from ht]]
+    exact le_antisymm ((measureReal_mono hhi).trans_eq (unif_Iic hzc))
+      ((unif_Iio hzc).symm.trans_le (measureReal_mono hlo))
   simp only [Mechanism.interimAllocation]
   rw [hind, integral_indicator_one (MeasurableSet.univ_pi hsm), measureReal_def, Measure.pi_pi,
     ENNReal.toReal_prod, ← Finset.mul_prod_erase _ _ (Finset.mem_univ i)]
@@ -306,9 +294,7 @@ theorem not_isBayesNash_id (hn : 1 < Fintype.card ι) :
   obtain ⟨i⟩ : Nonempty ι := Fintype.card_pos_iff.1 (by omega)
   have hX : ∀ z, 0 ≤ z → mechanism.interimAllocation (fun _ => volume.restrict (Icc (0 : ℝ) 1))
       (fun _ v => v) i z = min z 1 ^ (Fintype.card ι - 1) := fun z hz => by
-    have := interimAllocation_mul (ι := ι) 1 (fun _ => one_pos) i hz
-    simp only [one_mul, div_one] at this
-    exact this
+    simpa only [one_mul, div_one] using interimAllocation_mul (ι := ι) 1 (fun _ => one_pos) i hz
   have h := (hM i 1 ⟨zero_le_one, le_rfl⟩).2 (1 / 2) (by norm_num)
   rw [interimPayment_eq, interimPayment_eq, hX _ (by norm_num), hX _ zero_le_one,
     min_eq_left (by norm_num), min_self, one_pow] at h

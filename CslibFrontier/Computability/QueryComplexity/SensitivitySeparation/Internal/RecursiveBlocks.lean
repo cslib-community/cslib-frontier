@@ -77,18 +77,15 @@ theorem rowLift_nonempty {k r : ℕ} {I : Type} (i : Fin k) (B : Finset I)
 
 /-- Blocks lifted to distinct rows are disjoint. -/
 private theorem rowLift_disjoint_of_ne {k r : ℕ} {I : Type} (i j : Fin k)
-    (B C : Finset I) (hij : i ≠ j) : Disjoint (rowLift (r := r) i B) (rowLift j C) := by
-  apply Finset.disjoint_left.mpr
-  intro p hp hq
-  exact hij (((mem_rowLift i B p).mp hp).1.symm.trans ((mem_rowLift j C p).mp hq).1)
+    (B C : Finset I) (hij : i ≠ j) : Disjoint (rowLift (r := r) i B) (rowLift j C) :=
+  Finset.disjoint_left.mpr fun p hp hq =>
+    hij (((mem_rowLift i B p).mp hp).1.symm.trans ((mem_rowLift j C p).mp hq).1)
 
 /-- Lifts of disjoint child blocks are disjoint, whichever rows they are lifted to. -/
 private theorem rowLift_disjoint {k r : ℕ} {I : Type} (i j : Fin k) (B C : Finset I)
-    (hBC : Disjoint B C) : Disjoint (rowLift (r := r) i B) (rowLift j C) := by
-  apply Finset.disjoint_left.mpr
-  intro p hp hq
-  exact Finset.disjoint_left.mp hBC ((mem_rowLift i B p).mp hp).2
-    ((mem_rowLift j C p).mp hq).2
+    (hBC : Disjoint B C) : Disjoint (rowLift (r := r) i B) (rowLift j C) :=
+  Finset.disjoint_left.mpr fun p hp hq =>
+    Finset.disjoint_left.mp hBC ((mem_rowLift i B p).mp hp).2 ((mem_rowLift j C p).mp hq).2
 
 /-- If the blocks `blocks a` are pairwise disjoint, then the lifts `rowLift a.1 (blocks a.2)`
 indexed by `a : Fin k × K` are pairwise disjoint. -/
@@ -135,13 +132,11 @@ theorem recursiveFamily_rowLift {k r h : ℕ} {I : Type} [DecidableEq ((Fin k ×
     (hB : ∀ q, F q (BitString.flipOn B (fun _ => false)) = true) (i : Fin k) (q : Fin h) :
     recursiveFamily T label F q
       (BitString.flipOn (rowLift i B) (fun _ => false)) = true := by
-  apply (recursiveFamily_eq_true_iff _ _ _ _ _).mpr
-  refine ⟨i, (rowClause_eq_true_iff _ _ _ _ _ _).mpr ⟨?_, ?_⟩⟩
-  · intro c
-    rw [recursiveChild_rowLift_same]
+  rw [recursiveFamily_eq_true_iff]
+  refine ⟨i, (rowClause_eq_true_iff _ _ _ _ _ _).mpr ⟨fun c => ?_, fun j hij => ?_⟩⟩
+  · rw [recursiveChild_rowLift_same]
     exact hB _
-  · intro j hij
-    rw [recursiveChild_rowLift_other _ _ _ _ (T.ne_of_adj hij).symm]
+  · rw [recursiveChild_rowLift_other _ _ _ _ (T.ne_of_adj hij).symm]
     exact hzero _
 
 end Internal

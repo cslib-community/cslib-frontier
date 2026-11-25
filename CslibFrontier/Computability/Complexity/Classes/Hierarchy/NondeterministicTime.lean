@@ -17,8 +17,10 @@ import CslibFrontier.Computability.Complexity.Classes.Time.BoundedExists
 import CslibFrontier.Computability.Complexity.Classes.Time.Verifier
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.FunPropLists
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Exponential
 import CslibFrontier.Tactic.EncLen
 
@@ -179,7 +181,6 @@ private theorem exists_computableInO_accepts (d : ℕ) : ∃ D, ComputableInO
   exact ⟨D, (h.mono_le (fun q => le_of_eq (e q).symm)
     (fun q => le_of_eq (e q).symm)).of_enc_eq fun _ => rfl⟩
 
-attribute [local fun_prop] ComputableInPolyTime.fst' ComputableInPolyTime.snd' in
 /-- The brute force at the end of an interval runs within time exponential in the description,
 the input and the certificate length. -/
 private theorem exists_computableInO_brute (d : ℕ) : ∃ K, ComputableInO
@@ -191,16 +192,8 @@ private theorem exists_computableInO_brute (d : ℕ) : ∃ K, ComputableInO
   obtain ⟨D, hacc⟩ := exists_computableInO_accepts d
   have hpoly : PolyBounded
       (fun q : List Bool × List Bool × List Bool =>
-        (encPair encBits (encPair encBits encBits) q).length) (accBound d D) :=
-    (PolyBounded.of_polynomiallyBounded _
-      (bound := fun n => ((n + 1) ^ D + n + n + 1) ^ 4 * (n + 1) ^ (2 * d + 6))
-      (by fun_prop)).mono fun q => by
-        have hsize : q.1.length ≤ (encPair encBits (encPair encBits encBits) q).length ∧
-            q.2.1.length ≤ (encPair encBits (encPair encBits encBits) q).length ∧
-            q.2.2.length ≤ (encPair encBits (encPair encBits encBits) q).length := by enc_len
-        obtain ⟨h₁, h₂, h₃⟩ := hsize
-        simp only [accBound]
-        gcongr
+        (encPair encBits (encPair encBits encBits) q).length) (accBound d D) := by
+    growth_poly
   have hpacc := hacc.computableInPolyTime hpoly hpoly
   have hℓ : ComputableInPolyTime (fun q : List Bool × List Bool => certLen d q.2.length)
       (encPair encBits encBits) encUnary := by
@@ -228,15 +221,10 @@ private theorem exists_computableInO_verifier (d : ℕ) :
         else cheap d p) S := by
   obtain ⟨D, hacc⟩ := exists_computableInO_accepts d
   obtain ⟨K, hbrute⟩ := exists_computableInO_brute d
-  have hx := ComputableInO.fst encBits encBits
-  have hun : ComputableInO unframe encBits encBits (fun z => z.length) (fun z => z.length) :=
-    ComputableInO.of_linear (.of_unframe fun _ => rfl)
-  have hfr : ComputableInO frame encBits encBits (fun z => z.length) (fun z => z.length) :=
-    ComputableInO.of_linear (.of_frame fun _ => rfl)
-  have hw := hun.comp hx
-  have hbase := hfr.comp hw
   have hE := (ComputableInO.natToUnary.mono_time 1 (T' := fun n => (n + 1) ^ 2)
-    fun n => by nlinarith).comp ((timeConstructible_succ_pow (d + 3)).computableInO.comp hbase)
+    fun n => by nlinarith).comp ((timeConstructible_succ_pow (d + 3)).computableInO.comp
+      (by fun_prop : ComputableInO (fun p : List Bool × List Bool => frame (unframe p.1))
+        (encPair encBits encBits) encBits _ _))
   -- the numeric facts about the tests
   set G := 2 ^ (d + 3)
   have hfacts (p : List Bool × List Bool) : (encPair encBits encBits p).length + 1 ≤ cheap d p ∧
@@ -281,13 +269,10 @@ input, since `n + 1 = 2 ^ ((P + 1) ^ (d + 3))` there. -/
 theorem lazyDiagonal_mem_NTIME (d : ℕ) :
     lazyDiagonal d ∈ NTIME encBits fun n => (n + 1) ^ (6 * d + 14) := by
   obtain ⟨D, K, S, hV⟩ := exists_computableInO_verifier d
-  have hsnoc : ComputableInO (fun x : List Bool => x ++ [false]) encBits encBits
-      (fun x => x.length + x.length) (fun x => x.length + x.length) :=
-    (ComputableInO.of_eq (f := fun x : List Bool => x) (encIn := encBits) (encMid := encBits)
-      fun _ => rfl).append (ComputableInO.const (encMid := encBits) [false]) fun _ => rfl
   have hℓ := ((ComputableInO.natToUnary.mono_time 1 (T' := fun n => (n + 1) ^ 2)
     fun n => by nlinarith).comp ((timeConstructible_succ_pow (d + 2)).computableInO.comp
-      hsnoc)).of_enc_eq (encC := encUnary) (g := fun x : List Bool => certLen d (x.length + 1))
+      (by fun_prop : ComputableInO (fun x : List Bool => x ++ [false]) encBits encBits _ _))
+    ).of_enc_eq (encC := encUnary) (g := fun x : List Bool => certLen d (x.length + 1))
       fun x => by simp [certLen]
   obtain ⟨CD, hCD⟩ := PolynomiallyBounded.exists_le_mul_two_pow (p := fun m => (m + 1) ^ D)
     (by fun_prop)
@@ -296,7 +281,7 @@ theorem lazyDiagonal_mem_NTIME (d : ℕ) :
   set A₂ := (CD + 3) ^ 4 * 2 ^ (6 * d + 14) with hA₂
   set A₃ := 7 * 2 ^ (2 * d + 4) with hA₃
   refine setOf_exists_mem_NTIME hℓ hV (C := 2 + A₃ + 4 * A₁ + A₂ + 2 ^ B₀) fun x v hv => ?_
-  clear hsnoc hℓ hV
+  clear hℓ hV
   simp only [encBits_apply]
   set n := x.length with hn
   have hv' : v.length = (n + 2) ^ (d + 2) := hv
@@ -364,28 +349,19 @@ theorem lazyDiagonal_mem_NTIME (d : ℕ) :
       2 ^ (K * ((encPair encBits encBits (unframe (unframe x), frame (unframe x))).length +
         certLen d (2 * (unframe x).length + 1))) ≤ n + 1 + 2 ^ B₀ := by
     set P := 2 * (unframe x).length + 1 with hP
-    have hE : 2 ^ clock d P ≤ n + 1 := by
-      rw [Nat.size_le, not_lt] at h₁
-      exact h₁
+    have hE : 2 ^ clock d P ≤ n + 1 := not_lt.mp (mt Nat.size_le.mpr h₁)
     have hc := length_unframe_le (unframe x)
-    have hlen : (encPair encBits encBits (unframe (unframe x), frame (unframe x))).length +
-        certLen d P ≤ 3 * (P + 1) ^ (d + 2) := by
+    have hlen : K * ((encPair encBits encBits (unframe (unframe x), frame (unframe x))).length +
+        certLen d P) ≤ 3 * K * (P + 1) ^ (d + 2) := by
+      refine (Nat.mul_le_mul_left K (?_ : _ ≤ 3 * (P + 1) ^ (d + 2))).trans_eq (by ring)
       simp only [length_encPair, encBits_apply, length_frame, certLen]
       have : P + 1 ≤ (P + 1) ^ (d + 2) := Nat.le_self_pow (Nat.succ_ne_zero _) _
       omega
     rcases le_or_gt (3 * K) (P + 1) with hK | hK
-    · have hle : K * ((encPair encBits encBits (unframe (unframe x), frame (unframe x))).length +
-          certLen d P) ≤ clock d P :=
-        calc _ ≤ K * (3 * (P + 1) ^ (d + 2)) := Nat.mul_le_mul_left _ hlen
-          _ = 3 * K * (P + 1) ^ (d + 2) := by ring
-          _ ≤ (P + 1) * (P + 1) ^ (d + 2) := Nat.mul_le_mul_right _ hK
-          _ = clock d P := by rw [clock]; ring
+    · have hle : _ ≤ clock d P :=
+        hlen.trans ((Nat.mul_le_mul_right _ hK).trans_eq (by rw [clock]; ring))
       exact ((Nat.pow_le_pow_right Nat.one_lt_two.le hle).trans hE).trans (Nat.le_add_right _ _)
-    · have hle : K * ((encPair encBits encBits (unframe (unframe x), frame (unframe x))).length +
-          certLen d P) ≤ B₀ :=
-        calc _ ≤ K * (3 * (P + 1) ^ (d + 2)) := Nat.mul_le_mul_left _ hlen
-          _ = 3 * K * (P + 1) ^ (d + 2) := by ring
-          _ ≤ B₀ := by rw [hB₀]; exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hK.le _)
+    · have hle := hlen.trans (hB₀ ▸ Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hK.le _))
       exact (Nat.pow_le_pow_right Nat.one_lt_two.le hle).trans (Nat.le_add_left _ _)
   exact LazyDiagonal.verifier_branch_bound hnM hTℓ hcheap hacc hbrute
 

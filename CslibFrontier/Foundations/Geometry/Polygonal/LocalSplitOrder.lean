@@ -42,16 +42,12 @@ theorem eventually_sbtw_angle_iff {X : Type*} [TopologicalSpace X] {x : X}
     (hh : ContinuousAt h x) (hfg : f x ≠ g x) (hgh : g x ≠ h x) (hfh : f x ≠ h x) :
     ∀ᶠ y in nhds x, sbtw (f y) (g y) (h y) ↔ sbtw (f x) (g x) (h x) := by
   let cut := (-Real.pi + min (f x).toReal (min (g x).toReal (h x).toReal)) / 2
+  have hm := lt_min (Real.Angle.neg_pi_lt_toReal (f x))
+    (lt_min (Real.Angle.neg_pi_lt_toReal (g x)) (Real.Angle.neg_pi_lt_toReal (h x)))
   have hcut : -Real.pi < cut := by
-    have ha := Real.Angle.neg_pi_lt_toReal (f x)
-    have hb := Real.Angle.neg_pi_lt_toReal (g x)
-    have hc := Real.Angle.neg_pi_lt_toReal (h x)
-    have hm := lt_min ha (lt_min hb hc)
     dsimp [cut]
     linarith
   have hmin : cut < min (f x).toReal (min (g x).toReal (h x).toReal) := by
-    have hm := lt_min (Real.Angle.neg_pi_lt_toReal (f x))
-      (lt_min (Real.Angle.neg_pi_lt_toReal (g x)) (Real.Angle.neg_pi_lt_toReal (h x)))
     dsimp [cut]
     linarith
   have hfa : (f x).toReal ∈ Set.Ioo cut (cut + 2 * Real.pi) := by
@@ -86,18 +82,11 @@ theorem eventually_sbtw_angle_iff {X : Type*} [TopologicalSpace X] {x : X}
   have hF := (hcont (f x) hfa).comp hf
   have hG := (hcont (g x) hga).comp hg
   have hH := (hcont (h x) hha).comp hh
-  have hFG : lift (f x) ≠ lift (g x) := by
-    intro heq
-    exact hfg ((hlift _).symm.trans ((congrArg (fun r : ℝ => (r : Real.Angle)) heq).trans
-      (hlift _)))
-  have hGH : lift (g x) ≠ lift (h x) := by
-    intro heq
-    exact hgh ((hlift _).symm.trans ((congrArg (fun r : ℝ => (r : Real.Angle)) heq).trans
-      (hlift _)))
-  have hFH : lift (f x) ≠ lift (h x) := by
-    intro heq
-    exact hfh ((hlift _).symm.trans ((congrArg (fun r : ℝ => (r : Real.Angle)) heq).trans
-      (hlift _)))
+  have hinj {θ θ' : Real.Angle} (heq : lift θ = lift θ') : θ = θ' :=
+    (hlift _).symm.trans ((congrArg (fun r : ℝ => (r : Real.Angle)) heq).trans (hlift _))
+  have hFG : lift (f x) ≠ lift (g x) := fun heq => hfg (hinj heq)
+  have hGH : lift (g x) ≠ lift (h x) := fun heq => hgh (hinj heq)
+  have hFH : lift (f x) ≠ lift (h x) := fun heq => hfh (hinj heq)
   have hFl : cut < lift (f x) := by rw [hat _ hfa]; exact hfa.1
   have hGl : cut < lift (g x) := by rw [hat _ hga]; exact hga.1
   have hHl : cut < lift (h x) := by rw [hat _ hha]; exact hha.1
@@ -128,16 +117,11 @@ theorem sbtw_arg_sub_iff_of_mem_ball {z a b p q r : ℂ} {ρ : ℝ}
   let X := {x : ℂ // x ∈ Metric.ball z ρ}
   let direction (p : ℂ) (x : X) : Real.Angle := (p - x.val).arg
   have hdir (p : ℂ) (hp : p ∈ Metric.sphere z ρ) : Continuous (direction p) := by
-    apply continuous_iff_continuousAt.mpr
-    intro x
-    have hpx : p - x.val ≠ 0 := by
-      intro heq
-      have hmem : p ∈ Metric.ball z ρ := (sub_eq_zero.mp heq).symm ▸ x.property
-      exact Set.disjoint_left.mp Metric.sphere_disjoint_ball hp hmem
-    have hsub : ContinuousAt (fun y : X => p - y.val) x :=
-      continuousAt_const.sub continuousAt_subtype_val
-    have hangle := (Complex.continuousAt_arg_coe_angle hpx).comp (x := x) hsub
-    exact hangle
+    refine continuous_iff_continuousAt.mpr fun x => ?_
+    have hpx : p - x.val ≠ 0 := fun heq =>
+      Set.disjoint_left.mp Metric.sphere_disjoint_ball hp ((sub_eq_zero.mp heq).symm ▸ x.property)
+    exact (Complex.continuousAt_arg_coe_angle hpx).comp (f := fun y : X => p - y.val)
+      (continuousAt_const.sub continuousAt_subtype_val)
   let order (x : X) : Prop := sbtw (direction p x) (direction q x) (direction r x)
   have hlocal : IsLocallyConstant order := by
     apply (IsLocallyConstant.iff_eventually_eq order).mpr

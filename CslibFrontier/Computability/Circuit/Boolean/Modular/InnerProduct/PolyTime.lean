@@ -61,15 +61,14 @@ theorem computableInPolyTime_innerProductInputs {α : Type} {enc : α ↪ List B
       (fun a => (Circuit.wiring signature (innerProductInputs (k a) (w a) (j a))).code)
       enc encCode := by
   have hwb : ComputableInPolyTime w enc encNat := unary_to_binary.comp hw
-  apply Circuit.computableInPolyTime_code_wiring (σ := signature) (encOp := encOp)
-  · fun_prop
-  · let encQ := Circuit.encWithFinUnary enc (fun a => w a + w a)
-    have hk' := hk.comp (Circuit.computableInPolyTime_withFinUnary_fst (id' (encIn := encQ)))
-    have hw' := hwb.comp (Circuit.computableInPolyTime_withFinUnary_fst (id' (encIn := encQ)))
-    have hj' := hj.comp (Circuit.computableInPolyTime_withFinUnary_fst (id' (encIn := encQ)))
-    have hi' := Circuit.computableInPolyTime_withFinUnary_val_binary (id' (encIn := encQ))
-    simp only [val_innerProductInputs]
-    fun_prop
+  refine Circuit.computableInPolyTime_code_wiring (σ := signature) (encOp := encOp)
+    (by fun_prop) ?_
+  let encQ := Circuit.encWithFinUnary enc (fun a => w a + w a)
+  have hk' := hk.comp (Circuit.computableInPolyTime_withFinUnary_fst (id' (encIn := encQ)))
+  have hw' := hwb.comp (Circuit.computableInPolyTime_withFinUnary_fst (id' (encIn := encQ)))
+  have hj' := hj.comp (Circuit.computableInPolyTime_withFinUnary_fst (id' (encIn := encQ)))
+  have hi' := Circuit.computableInPolyTime_withFinUnary_val_binary (id' (encIn := encQ))
+  simp only [val_innerProductInputs]; fun_prop
 
 /-- Emit the code of one blockwise product `(innerProductTerm (k a) (w a) (j a)).code` uniformly
 from binary array count, unary word width, and binary block index. -/
@@ -106,19 +105,14 @@ theorem computableInPolyTime_innerProduct :
     unary_to_binary.comp (fst encUnary encUnary)
   have hw : ComputableInPolyTime (fun p : ℕ × ℕ => p.2) (encPair encUnary encUnary) encNat :=
     unary_to_binary.comp (snd encUnary encUnary)
-  apply computableInPolyTime_sumPairs
-  · fun_prop
-  · exact snd encUnary encUnary
-  · let encQ := Circuit.encWithFinUnary (encPair encUnary encUnary) Prod.fst
-    have hqk : ComputableInPolyTime (fun q : Σ p : ℕ × ℕ, Fin p.1 => q.1.1) encQ encNat :=
-      hk.comp (Circuit.computableInPolyTime_withFinUnary_fst (id' (encIn := encQ)))
-    have hqw : ComputableInPolyTime (fun q : Σ p : ℕ × ℕ, Fin p.1 => q.1.2) encQ encUnary :=
-      (snd encUnary encUnary).comp
-        (Circuit.computableInPolyTime_withFinUnary_fst (id' (encIn := encQ)))
-    have hqwb : ComputableInPolyTime (fun q : Σ p : ℕ × ℕ, Fin p.1 => q.1.2) encQ encNat :=
-      unary_to_binary.comp hqw
-    simpa only [List.map_ofFn, Function.comp_def] using
-      Circuit.computableInPolyTime_ofFn_unary (k := Prod.fst) (fst encUnary encUnary) (by fun_prop)
+  refine computableInPolyTime_sumPairs (by fun_prop) (snd encUnary encUnary) ?_
+  let encQ := Circuit.encWithFinUnary (encPair encUnary encUnary) Prod.fst
+  have hqk := hk.comp (Circuit.computableInPolyTime_withFinUnary_fst (id' (encIn := encQ)))
+  have hqw := (snd encUnary encUnary).comp
+    (Circuit.computableInPolyTime_withFinUnary_fst (id' (encIn := encQ)))
+  have hqwb := unary_to_binary.comp hqw
+  simpa only [List.map_ofFn, Function.comp_def] using
+    Circuit.computableInPolyTime_ofFn_unary (k := Prod.fst) (fst encUnary encUnary) (by fun_prop)
 
 /-- `@[fun_prop]` rule for `innerProduct` in typed circuit compositions. -/
 @[fun_prop] theorem computableCircuitCode_innerProduct {α : Type} {enc : α ↪ List Bool}

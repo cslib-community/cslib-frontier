@@ -12,6 +12,7 @@ public import Mathlib.Order.Filter.AtTopBot.Defs
 public import Mathlib.SetTheory.Cardinal.Finite
 import Mathlib.Algebra.BigOperators.Fin
 import CslibFrontier.Computability.Circuit.Boolean.Hastad
+import CslibFrontier.Computability.Circuit.Simps
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Exponential
 import Mathlib.Tactic.Linarith
@@ -134,12 +135,8 @@ private theorem exists_formula_computes_parity [Finite (Σ l, L.Relations l)] (P
   let sub : Fin (Fintype.card (Atom L n)) → Circuits.Formula Unbounded.signature n := fun j =>
     if (e.symm j).1 = ⟨1, P⟩ then .gate (.and _) fun i => .input ((e.symm j).2 i)
     else constUnbounded (decide (N.RelMap (e.symm j).1.2 (e.symm j).2))
-  have hsubd : ∀ j, (sub j).depth ≤ 1 := fun j => by
-    simp only [sub, constUnbounded]
-    split_ifs <;> simp
-  have hsubs : ∀ j, (sub j).size ≤ 1 := fun j => by
-    simp only [sub, constUnbounded]
-    split_ifs <;> simp
+  have hsubd : ∀ j, (sub j).depth ≤ 1 := fun j => by circuit_bound [sub, constUnbounded]
+  have hsubs : ∀ j, (sub j).size ≤ 1 := fun j => by circuit_bound [sub, constUnbounded]
   refine ⟨.gate .not ![G.bind sub], fun y => ?_, ?_, ?_⟩
   · -- the formula computes parity
     set S : Finset (Fin n) := {i | y i = true}
@@ -175,18 +172,13 @@ private theorem exists_formula_computes_parity [Finite (Σ l, L.Relations l)] (P
     · have := hreal.1 hv
       simp [this]
   · -- depth
-    have h := Circuits.Formula.depth_bind_le hsubd G
-    have hG : G.depth ≤ foDepth φ := depth_toUnbounded_le e φ Fin.elim0
-    simp only [Circuits.Formula.depth_gate, Finset.univ_unique, Finset.sup_singleton,
-      Fin.default_eq_zero, Matrix.cons_val_zero]
-    omega
+    have := depth_toUnbounded_le e φ Fin.elim0
+    circuit_bound
   · -- size
-    have h := Circuits.Formula.size_bind_le hsubs G
-    have hs : G.size ≤ foSize φ * (n + 2) ^ foSize φ := size_toUnbounded_le e φ Fin.elim0
-    have hl : G.leafSize ≤ (n + 2) ^ foSize φ := leafSize_toUnbounded_le e φ Fin.elim0
-    have hpos : 1 ≤ (n + 2) ^ foSize φ := Nat.one_le_pow _ _ (by omega)
-    simp only [Circuits.Formula.size_gate, Fin.sum_univ_one, Matrix.cons_val_zero]
-    nlinarith
+    have := size_toUnbounded_le e φ Fin.elim0
+    have := leafSize_toUnbounded_le e φ Fin.elim0
+    have : 1 ≤ (n + 2) ^ foSize φ := Nat.one_le_pow _ _ (by omega)
+    circuit_bound
 
 /-- **Parity is not first-order definable, with arbitrary numerical relations**
 [FurstSaxeSipser1984], [Ajtai1983], [Immerman1999]. Let `L` be a relational

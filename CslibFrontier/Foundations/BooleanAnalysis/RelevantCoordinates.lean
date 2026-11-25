@@ -75,10 +75,8 @@ theorem one_le_two_pow_mul_influence_of_fourierCoeff_eq_zero (f : (ι → Bool) 
     split_ifs with hiT
     · rfl
     · exact hdeg _ (by rw [card_insert_of_notMem hiT]; omega)
-  have hne : derivative i (fun x => signVal (f x)) ≠ 0 := by
-    intro h0
-    apply hi
-    simp [influence, h0]
+  have hne : derivative i (fun x => signVal (f x)) ≠ 0 :=
+    fun h0 => hi (by simp [influence, h0])
   rw [influence_signVal_eq_dens]
   exact one_le_two_pow_mul_dens_ne_zero_of_fourierCoeff_eq_zero _ hdeg' hne
 

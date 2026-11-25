@@ -145,41 +145,26 @@ theorem query_cube_eq_emulateCubeQuery [DecidableEq D] {i : D → ι} {r : Unit}
     (hrq : (r, q) ∈ (ProbComp.eval ((cube D ι).query i)).support) (σ w : D → Bool) :
     q w = emulateCubeQuery (q σ) (diffCoords σ w) (fun l => i l.1) := by
   suffices ∀ (T : Finset D) (σ : D → Bool), diffCoords σ w = T →
-      q w = emulateCubeQuery (q σ) T (fun l => i l.1) from
-    this (diffCoords σ w) σ rfl
+      q w = emulateCubeQuery (q σ) T (fun l => i l.1) from this _ σ rfl
   intro T
   induction T using Finset.induction with
   | empty =>
     intro σ hT
-    have hσw : σ = w := by
-      funext l
-      by_contra hne
-      have hmem : l ∈ diffCoords σ w := mem_diffCoords.mpr hne
-      rw [hT] at hmem
-      exact Finset.notMem_empty l hmem
-    subst hσw
+    obtain rfl : σ = w := funext fun l => by_contra fun hne =>
+      Finset.notMem_empty l (hT ▸ mem_diffCoords.mpr hne)
     funext l
     simp [emulateCubeQuery]
   | @insert l₀ T' hl₀ ih =>
     intro σ hT
-    have hl₀_mem : l₀ ∈ diffCoords σ w := hT ▸ Finset.mem_insert_self l₀ T'
-    have hne₀ : σ l₀ ≠ w l₀ := mem_diffCoords.mp hl₀_mem
-    let σ' : D → Bool := Function.update σ l₀ (!σ l₀)
-    have hσ' : diffCoords σ' w = T' := by
+    have hne₀ : σ l₀ ≠ w l₀ := mem_diffCoords.mp (hT ▸ Finset.mem_insert_self l₀ T')
+    have hσ' : diffCoords (Function.update σ l₀ (!σ l₀)) w = T' := by
       ext l
-      rw [mem_diffCoords]
-      by_cases hll₀ : l = l₀
-      · subst hll₀
-        simp [σ', Bool.eq_not_of_ne hne₀.symm, hl₀]
-      · have hiff : l ∈ diffCoords σ w ↔ l ∈ insert l₀ T' := by rw [hT]
-        rw [mem_diffCoords, Finset.mem_insert] at hiff
-        simp [σ', hll₀, hiff]
-    rw [ih σ' hσ', show σ' = Function.update σ l₀ (!σ l₀) from rfl, query_update_cube hrq σ l₀]
+      rcases eq_or_ne l l₀ with rfl | hll₀
+      · simp [Bool.eq_not_of_ne hne₀.symm, hl₀]
+      · simpa [hll₀] using mem_diffCoords.symm.trans (Finset.ext_iff.mp hT l)
+    rw [ih _ hσ', query_update_cube hrq σ l₀]
     funext l
-    by_cases hll₀ : l = l₀
-    · subst hll₀
-      simp [emulateCubeQuery, hl₀]
-    · simp [emulateCubeQuery, hll₀]
+    rcases eq_or_ne l l₀ with rfl | hll₀ <;> simp [emulateCubeQuery, *]
 
 end EmulateCube
 
@@ -342,7 +327,7 @@ differs from `K.code s` at a single coordinate `l₀`, so `(a s)` supplies its e
 answer. -/
 theorem isCorrect_indexedScheme : (K.indexedScheme ι).IsCorrect := by
   rw [IndexedScheme.isCorrect_iff]
-  intro x i r q hrq
+  rintro x i r q hrq
   simp only [indexedScheme, ProbComp.eval_map, PMF.mem_support_map_iff, Prod.mk.injEq] at hrq
   obtain ⟨⟨r₀, q₀⟩, h₀, -, rfl⟩ := hrq
   refine Eq.trans ?_ (isCorrect_cube.reconstruct_eq x i h₀)
@@ -351,16 +336,13 @@ theorem isCorrect_indexedScheme : (K.indexedScheme ι).IsCorrect := by
   dsimp only [indexedScheme]
   split_ifs with hw
   · rw [← hw]
-  · set s := K.assign w
-    set l₀ := Classical.choose (Function.ne_iff.mp (Ne.symm hw))
-    have hl₀ : K.code s l₀ ≠ w l₀ := Classical.choose_spec (Function.ne_iff.mp (Ne.symm hw))
-    have hfun : (fun _ : diffCoords (K.code s) w => i l₀) =
-        fun l : diffCoords (K.code s) w => i l.1 := by
-      funext l
-      have hcard : (diffCoords (K.code s) w).card ≤ 1 := K.hammingDist_assign_le_one w
-      have heq : l₀ = l.1 := Finset.card_le_one.mp hcard l₀ (mem_diffCoords.mpr hl₀) l.1 l.2
-      exact congrArg i heq
-    rw [hfun, ← query_cube_eq_emulateCubeQuery h₀ (K.code s) w, answer_cube, answer_cube]
+  · have hl₀ : K.code (K.assign w) (Classical.choose (Function.ne_iff.mp (Ne.symm hw))) ≠ w _ :=
+      Classical.choose_spec (Function.ne_iff.mp (Ne.symm hw))
+    have hfun : (fun _ : diffCoords (K.code (K.assign w)) w =>
+        i (Classical.choose (Function.ne_iff.mp (Ne.symm hw)))) = fun l => i l.1 :=
+      funext fun l => congrArg i (Finset.card_le_one.mp (K.hammingDist_assign_le_one w) _
+        (mem_diffCoords.mpr hl₀) l.1 l.2)
+    rw [hfun, ← query_cube_eq_emulateCubeQuery h₀ (K.code (K.assign w)) w, answer_cube, answer_cube]
 
 /-- Raw exact communication count of `K.indexedScheme ι` (valid even when `D` is empty): `|S|`
 queries of `|D| · |ι|` bits, `|S|` codeword bits, and `(2 ^ |D| - |S|) · |ι|` non-codeword bits. -/
@@ -370,25 +352,21 @@ theorem indexedCommunication_indexedScheme (K : ExactRadiusOneCover S D) (ι : T
       (fun s => Bool × (K.AssignedNeighbour s → ι → Bool)) =
       Fintype.card S * Fintype.card D * Fintype.card ι + Fintype.card S +
         (2 ^ Fintype.card D - Fintype.card S) * Fintype.card ι := by
-  have hQ : Fintype.card (D → ι → Bool) = 2 ^ (Fintype.card D * Fintype.card ι) := by
-    simp only [Fintype.card_fun, Fintype.card_bool, ← pow_mul, Nat.mul_comm (Fintype.card ι)]
   rw [indexedCommunication_of_card_answer S (fun _ => D → ι → Bool)
       (fun s => Bool × (K.AssignedNeighbour s → ι → Bool))
       (aBits := fun s => 1 + Fintype.card (K.AssignedNeighbour s) * Fintype.card ι) (fun s => by
         simp only [Fintype.card_prod, Fintype.card_bool, Fintype.card_fun, ← pow_mul, pow_add,
           pow_one, Nat.mul_comm (Fintype.card ι)])]
-  simp only [hQ, Nat.clog_pow 2 _ (by norm_num)]
+  simp only [Fintype.card_fun, Fintype.card_bool, ← pow_mul, Nat.mul_comm (Fintype.card ι),
+    Nat.clog_pow 2 _ (by norm_num)]
   calc ∑ s : S, (Fintype.card D * Fintype.card ι +
         (1 + Fintype.card (K.AssignedNeighbour s) * Fintype.card ι))
       = ∑ _s : S, (Fintype.card D * Fintype.card ι + 1) +
           (∑ s : S, Fintype.card (K.AssignedNeighbour s)) * Fintype.card ι := by
         rw [Finset.sum_mul, ← Finset.sum_add_distrib]
-        exact Finset.sum_congr rfl fun s _ => by ring
-    _ = Fintype.card S * (Fintype.card D * Fintype.card ι + 1) +
-          (2 ^ Fintype.card D - Fintype.card S) * Fintype.card ι := by
-        rw [Finset.sum_const, Finset.card_univ, smul_eq_mul, K.sum_card_assignedNeighbour]
-    _ = Fintype.card S * Fintype.card D * Fintype.card ι + Fintype.card S +
-          (2 ^ Fintype.card D - Fintype.card S) * Fintype.card ι := by ring
+        exact Finset.sum_congr rfl fun _ _ => by ring
+    _ = _ := by
+        rw [Finset.sum_const, Finset.card_univ, smul_eq_mul, K.sum_card_assignedNeighbour]; ring
 
 /-- **Theorem 1's exact communication count for arbitrary radius-`1` covers**
 [CGKS, Section 3.3, Theorem 1, p. 9][ChorGoldreichKushilevitzSudan1998]: on any nonempty coordinate
@@ -401,19 +379,15 @@ theorem indexedCommunication_indexedScheme_eq (K : ExactRadiusOneCover S D) (ι 
       Fintype.card S +
         (2 ^ Fintype.card D + (Fintype.card D - 1) * Fintype.card S) * Fintype.card ι := by
   rw [K.indexedCommunication_indexedScheme ι]
-  have hle : Fintype.card S ≤ 2 ^ Fintype.card D := K.card_le_two_pow
-  set d := Fintype.card D - 1
-  have hd : Fintype.card D = d + 1 := (Nat.sub_add_cancel hD).symm
-  have hsub : 2 ^ Fintype.card D = Fintype.card S + (2 ^ Fintype.card D - Fintype.card S) :=
-    (Nat.add_sub_of_le hle).symm
+  have hle := K.card_le_two_pow
   calc Fintype.card S * Fintype.card D * Fintype.card ι + Fintype.card S +
         (2 ^ Fintype.card D - Fintype.card S) * Fintype.card ι
-      = Fintype.card S * (d + 1) * Fintype.card ι + Fintype.card S +
-          (2 ^ Fintype.card D - Fintype.card S) * Fintype.card ι := by rw [hd]
+      = Fintype.card S * (Fintype.card D - 1 + 1) * Fintype.card ι + Fintype.card S +
+          (2 ^ Fintype.card D - Fintype.card S) * Fintype.card ι := by
+        rw [Nat.sub_add_cancel hD]
     _ = Fintype.card S + (Fintype.card S + (2 ^ Fintype.card D - Fintype.card S) +
-          d * Fintype.card S) * Fintype.card ι := by ring
-    _ = Fintype.card S + (2 ^ Fintype.card D + d * Fintype.card S) * Fintype.card ι := by
-        rw [← hsub]
+          (Fintype.card D - 1) * Fintype.card S) * Fintype.card ι := by ring
+    _ = _ := by rw [Nat.add_sub_of_le hle]
 
 omit [DecidableEq D] in
 /-- Any `ExactRadiusOneCover` on `d ≥ 1` coordinates yields a `k`-server `IndexedScheme` for
@@ -516,21 +490,15 @@ theorem card_radiusBallQuery (D : Type) [Fintype D] [DecidableEq D] (r : ℕ) (�
       ∑ j ∈ Finset.range (r + 1), (Fintype.card D).choose j * Fintype.card ι ^ j := by
   rw [Fintype.card_congr (RadiusBallQuery.sigmaEquiv D r ι), Fintype.card_sigma]
   simp only [Fintype.card_fun, Fintype.card_coe]
-  let B : Finset (Finset D) := Finset.univ.filter fun T : Finset D => T.card ≤ r
-  have hsum : (∑ T : {T : Finset D // T.card ≤ r}, Fintype.card ι ^ T.1.card) =
-      ∑ T ∈ B, Fintype.card ι ^ T.card :=
-    (Finset.sum_subtype B (fun _ => by simp [B]) (fun T : Finset D => Fintype.card ι ^ T.card)).symm
-  rw [hsum, ← Finset.sum_fiberwise_of_maps_to
-    (g := Finset.card) (t := Finset.range (r + 1))
-    (fun T hT => Finset.mem_range.mpr (Nat.lt_succ_of_le (Finset.mem_filter.mp hT).2))]
+  let B : Finset (Finset D) := Finset.univ.filter (·.card ≤ r)
+  rw [← Finset.sum_subtype B (fun _ => by simp [B]) fun T : Finset D => Fintype.card ι ^ T.card,
+    ← Finset.sum_fiberwise_of_maps_to (g := Finset.card) (t := Finset.range (r + 1))
+      fun T hT => Finset.mem_range.mpr (Nat.lt_succ_of_le (Finset.mem_filter.mp hT).2)]
   refine Finset.sum_congr rfl fun j hj => ?_
-  have hjle : j ≤ r := Nat.lt_succ_iff.mp (Finset.mem_range.mp hj)
-  have hpowerset : B.filter (fun T => T.card = j) = (Finset.univ : Finset D).powersetCard j := by
+  have hpowerset : B.filter (·.card = j) = (Finset.univ : Finset D).powersetCard j := by
     ext T
-    simp only [B, Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_powersetCard,
-      Finset.subset_univ]
-    exact ⟨fun h => h.2, fun h => ⟨h.le.trans hjle, h⟩⟩
-  rw [hpowerset, Finset.sum_congr rfl (fun T hT => by rw [(Finset.mem_powersetCard.mp hT).2]),
+    simpa [B] using fun h => h.le.trans (Nat.lt_succ_iff.mp (Finset.mem_range.mp hj))
+  rw [hpowerset, Finset.sum_congr rfl fun T hT => by rw [(Finset.mem_powersetCard.mp hT).2],
     Finset.sum_const, Finset.card_powersetCard, Finset.card_univ, smul_eq_mul]
 
 /-- **General radius-`r` covering-code PIR scheme**
@@ -631,35 +599,30 @@ theorem hasScheme_of_hammingDist_two_sq [Fintype S] {c : S → D → Bool}
       (Fintype.card S * Fintype.card D * ℓ +
         Fintype.card S * Fintype.card D ^ 2 * ℓ ^ 2) := by
   refine (hasScheme_of_hammingDist_two hc h).mono ?_
-  have hchoose : 2 * (Fintype.card D).choose 2 ≤ Fintype.card D * (Fintype.card D - 1) := by
-    rw [Nat.choose_two_right]
-    exact Nat.mul_div_le _ 2
   obtain ⟨d', hd'⟩ := Nat.exists_eq_add_of_le hD
   obtain ⟨ℓ', hℓ'⟩ := Nat.exists_eq_add_of_le hℓ
   have hinner : Fintype.card D * ℓ + (Fintype.card D).choose 2 * ℓ ^ 2 + 1 ≤
       Fintype.card D ^ 2 * ℓ ^ 2 := by
-    have hmul : 2 * (Fintype.card D * ℓ + (Fintype.card D).choose 2 * ℓ ^ 2 + 1) ≤
-        2 * (Fintype.card D ^ 2 * ℓ ^ 2) := by
-      calc 2 * (Fintype.card D * ℓ + (Fintype.card D).choose 2 * ℓ ^ 2 + 1)
-          = 2 * Fintype.card D * ℓ + (2 * (Fintype.card D).choose 2) * ℓ ^ 2 + 2 := by ring
-        _ ≤ 2 * Fintype.card D * ℓ + Fintype.card D * (Fintype.card D - 1) * ℓ ^ 2 + 2 := by
-            gcongr
-        _ ≤ 2 * (Fintype.card D ^ 2 * ℓ ^ 2) := by
-            have hsub1 : 2 + d' - 1 = d' + 1 := by omega
-            rw [hd', hℓ', hsub1]
-            have hpoly : 2 * ((2 + d') ^ 2 * (1 + ℓ') ^ 2) =
-                (2 * (2 + d') * (1 + ℓ') + (2 + d') * (d' + 1) * (1 + ℓ') ^ 2 + 2) +
-                  (d' ^ 2 * (1 + ℓ') ^ 2 + d' * (5 * ℓ' ^ 2 + 8 * ℓ' + 3) +
-                    6 * ℓ' ^ 2 + 8 * ℓ') := by ring
-            omega
-    omega
+    refine Nat.le_of_mul_le_mul_left ?_ (by decide : 0 < 2)
+    calc 2 * (Fintype.card D * ℓ + (Fintype.card D).choose 2 * ℓ ^ 2 + 1)
+        = 2 * Fintype.card D * ℓ + (2 * (Fintype.card D).choose 2) * ℓ ^ 2 + 2 := by ring
+      _ ≤ 2 * Fintype.card D * ℓ + Fintype.card D * (Fintype.card D - 1) * ℓ ^ 2 + 2 := by
+          have hch : 2 * (Fintype.card D).choose 2 ≤ Fintype.card D * (Fintype.card D - 1) :=
+            Nat.choose_two_right (Fintype.card D) ▸ Nat.mul_div_le _ 2
+          gcongr
+      _ ≤ 2 * (Fintype.card D ^ 2 * ℓ ^ 2) := by
+          rw [hd', hℓ', show 2 + d' - 1 = d' + 1 by omega]
+          have hpoly : 2 * ((2 + d') ^ 2 * (1 + ℓ') ^ 2) =
+              (2 * (2 + d') * (1 + ℓ') + (2 + d') * (d' + 1) * (1 + ℓ') ^ 2 + 2) +
+                (d' ^ 2 * (1 + ℓ') ^ 2 + d' * (5 * ℓ' ^ 2 + 8 * ℓ' + 3) +
+                  6 * ℓ' ^ 2 + 8 * ℓ') := by ring
+          omega
   calc Fintype.card S * (2 * Fintype.card D * ℓ + (Fintype.card D).choose 2 * ℓ ^ 2 + 1)
       = Fintype.card S * Fintype.card D * ℓ +
           Fintype.card S * (Fintype.card D * ℓ + (Fintype.card D).choose 2 * ℓ ^ 2 + 1) := by ring
-    _ ≤ Fintype.card S * Fintype.card D * ℓ +
-          Fintype.card S * (Fintype.card D ^ 2 * ℓ ^ 2) := by gcongr
-    _ = Fintype.card S * Fintype.card D * ℓ +
-          Fintype.card S * Fintype.card D ^ 2 * ℓ ^ 2 := by ring
+    _ ≤ Fintype.card S * Fintype.card D * ℓ + Fintype.card S * (Fintype.card D ^ 2 * ℓ ^ 2) :=
+        Nat.add_le_add_left (Nat.mul_le_mul_left _ hinner) _
+    _ = _ := by ring
 
 end RadiusCover
 
@@ -682,10 +645,7 @@ theorem hasScheme_two_radius_two_of_le_pow_five {n ℓ : ℕ} (h : n ≤ ℓ ^ 5
     HasScheme (Fin n) 2 (20 * ℓ ^ 2 + 20 * ℓ + 2) := by
   have hP := hasScheme_of_hammingDist_two repetitionFive_covers_two (n := n) (ℓ := ℓ)
     (by simpa using h)
-  simp only [Fintype.card_bool, Fintype.card_fin] at hP
-  exact hP.mono (by
-    have hc : (5 : ℕ).choose 2 = 10 := by decide
-    rw [hc]
-    omega)
+  simp only [Fintype.card_bool, Fintype.card_fin, show (5 : ℕ).choose 2 = 10 by decide] at hP
+  exact hP.mono (by omega)
 
 end Cslib.Crypto.Protocols.PIR

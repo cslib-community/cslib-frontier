@@ -283,11 +283,10 @@ theorem sum_expectedReads_le [Fintype P] {program : ProbOracleComp (fun _ : P =>
 /-- A decoder making at most `q` queries reads each position at most `q` times in expectation. -/
 theorem expectedReads_le {program : ProbOracleComp (fun _ : P => Γ) α} {q : ℕ}
     (hq : program.IsQueryBounded q) (y : P → Γ) (j : P) : expectedReads program y j ≤ q := by
-  refine (expectedCost_mono _ (fun q' => ?_) program).trans
-    (expectedCost_le_of_isCostBounded (wordOracle y) hq)
-  cases q' with
-  | inl n => simp [readCost]
-  | inr j' => by_cases h : j' = j <;> simp [readCost, h]
+  refine (expectedCost_mono _ ?_ program).trans (expectedCost_le_of_isCostBounded (wordOracle y) hq)
+  rintro (_ | j')
+  · simp [readCost]
+  by_cases h : j' = j <;> simp [readCost, h]
 
 theorem expectedReads_ne_top {program : ProbOracleComp (fun _ : P => Γ) α} {q : ℕ}
     (hq : program.IsQueryBounded q) (y : P → Γ) (j : P) : expectedReads program y j ≠ ⊤ :=
@@ -321,17 +320,15 @@ theorem isQueryBounded_readAll (Q : Fin q → P) :
     (readAll (Γ := Γ) Q).IsQueryBounded q := by
   induction q with
   | zero => exact .pure _ 0
-  | succ q ih =>
-    simp only [readAll]
-    exact ((IsQueryBounded.query (Q 0)).bind fun a =>
+  | succ _ ih => exact ((IsQueryBounded.query (Q 0)).bind fun _ =>
       (ih (Fin.tail Q)).bind fun _ => .pure _ 0).mono (by omega)
 
 theorem isQueryBounded_nonadaptive (coins : ProbComp R) (Q : R → Fin q → P)
     (output : R → (Fin q → Γ) → Bool) : (nonadaptive coins Q output).IsQueryBounded q := by
-  have h := (IsQueryBounded.sample (spec := fun _ : P => Γ) coins).bind fun r =>
-    (isQueryBounded_readAll (Γ := Γ) (Q r)).bind fun a => .pure (output r a) 0
-  rw [Nat.zero_add, Nat.add_zero] at h
-  exact h
+  unfold nonadaptive
+  simpa only [Nat.zero_add, Nat.add_zero] using
+    (IsQueryBounded.sample (spec := fun _ : P => Γ) coins).bind fun r =>
+      (isQueryBounded_readAll (Γ := Γ) (Q r)).bind fun a => .pure (output r a) 0
 
 @[simp] theorem decodeLaw_readAll (Q : Fin q → P) (y : P → Γ) :
     decodeLaw (readAll Q) y = PMF.pure (y ∘ Q) := by
@@ -376,7 +373,7 @@ theorem expectedReads_query_bind [DecidableEq P] (q' : ℕ ⊕ P)
     (y : P → Γ) (j : P) :
     expectedReads (OracleComp.query q' >>= cont) y j =
       readCost j q' + ∑' a, wordOracle y q' a * expectedReads (cont a) y j := by
-  simp only [expectedReads_eq]
+  rw [expectedReads_eq]
   exact expectedCost_query_bind _ _ _ _
 
 @[simp] theorem expectedReads_sample [DecidableEq P] (program : ProbComp α) (y : P → Γ) (j : P) :
@@ -403,8 +400,7 @@ theorem expectedReads_nonadaptive [DecidableEq P] (coins : ProbComp R) (Q : R �
 
 theorem hasObliviousReads_nonadaptive [DecidableEq P] (coins : ProbComp R) (Q : R → Fin q → P)
     (output : R → (Fin q → Γ) → Bool) : HasObliviousReads (nonadaptive coins Q output) :=
-  hasObliviousReads_iff.mpr fun y y' j => by
-    rw [expectedReads_nonadaptive, expectedReads_nonadaptive]
+  fun _ _ _ => by simp only [expectedReads_nonadaptive]
 
 /-- A non-adaptive decoder each of whose `q` queries is a uniform position reads every position
 `q / |P|` times in expectation, against every received word. -/
@@ -415,13 +411,8 @@ theorem expectedReads_nonadaptive_of_uniform [Fintype P] [Nonempty P] [Decidable
     expectedReads (nonadaptive coins Q output) y j = q / Fintype.card P := by
   have hk (k : Fin q) : ∑' r, ProbComp.eval coins r * (if Q r k = j then 1 else 0) =
       (Fintype.card P : ℝ≥0∞)⁻¹ := by
-    have h := congrArg (fun p : PMF P => p j) (huniform k)
-    simp only [PMF.map_apply, PMF.uniformOfFintype_apply] at h
-    rw [← h]
-    refine tsum_congr fun r => ?_
-    by_cases hr : Q r k = j
-    · simp [hr]
-    · simp [hr, Ne.symm hr]
+    simpa only [PMF.map_apply, PMF.uniformOfFintype_apply, eq_comm (a := j), mul_ite, mul_one,
+      mul_zero] using congrArg (· j) (huniform k)
   rw [expectedReads_nonadaptive]
   simp only [Finset.mul_sum]
   rw [Summable.tsum_finsetSum fun _ _ => CompleteLattice.summable]

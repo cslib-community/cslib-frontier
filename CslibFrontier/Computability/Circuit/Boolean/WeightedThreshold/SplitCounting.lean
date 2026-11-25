@@ -192,11 +192,7 @@ theorem isUpperLevelSet_eval_embedUpdate (c : Circuit signature n 1) (hd : c.dep
         (by have := depths_lt_of_mem_gateSupport c.program hk; omega)
     have hconst (k : Fin c.size) : ∃ b : Bool, k ∈ S → k ∉ U → ∀ u, R k u = b := by
       by_cases hk : k ∈ S ∧ k ∉ U
-      · have hf : ForcedToConst
-            (ltfEval (inputWeight c.program k) (c.program.lines k).op.threshold)
-            (univ.image emb) w := by
-          by_contra hnf; exact hk.2 (mem_filter.mpr ⟨hk.1, hnf⟩)
-        obtain ⟨b, hb⟩ := hf
+      · obtain ⟨b, hb⟩ := Classical.byContradiction fun hnf => hk.2 (mem_filter.mpr ⟨hk.1, hnf⟩)
         exact ⟨b, fun _ _ u => hb (liftAssign emb u)⟩
       · exact ⟨false, fun h₁ h₂ => absurd ⟨h₁, h₂⟩ hk⟩
     choose b hb using hconst
@@ -277,9 +273,7 @@ theorem card_image_eval_embedUpdate_le [DecidableEq κ] (c : Circuit signature n
     · refine mem_range.mpr (Nat.lt_succ_of_le ((card_filter_le _ _).trans_eq ?_))
       simp
   have hle₂ : #(s.image E) ≤ #(P ×ˢ range (2 ^ Fintype.card κ + 1)) :=
-    card_le_card fun e he => by
-      obtain ⟨w, hw, rfl⟩ := mem_image.mp he
-      exact hmem w hw
+    card_le_card (image_subset_iff.mpr hmem)
   have hP : #P ≤ B.card.choose D * (2 ^ Fintype.card κ - 1) ^ D := by
     refine card_biUnion_le.trans ?_
     rw [← card_powersetCard, ← smul_eq_mul, ← sum_const]
@@ -295,7 +289,6 @@ theorem card_image_eval_embedUpdate_le [DecidableEq κ] (c : Circuit signature n
   calc #(s.image f) ≤ #(s.image E) := hle₁
     _ ≤ #(P ×ˢ range (2 ^ Fintype.card κ + 1)) := hle₂
     _ = #P * (2 ^ Fintype.card κ + 1) := by rw [card_product, card_range]
-    _ ≤ B.card.choose D * (2 ^ Fintype.card κ - 1) ^ D * (2 ^ Fintype.card κ + 1) :=
-        Nat.mul_le_mul_right _ hP
+    _ ≤ B.card.choose D * (2 ^ Fintype.card κ - 1) ^ D * (2 ^ Fintype.card κ + 1) := by gcongr
 
 end Cslib.Circuits.Boolean.WeightedThreshold

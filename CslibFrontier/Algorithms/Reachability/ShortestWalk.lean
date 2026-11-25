@@ -89,21 +89,18 @@ theorem IsSrcTgtSeparator.not_isSrcTgtWalk {V : List α} {arc : α → α → Bo
     ¬ IsSrcTgtWalk V arc src tgt p := by
   obtain ⟨-, hsrc, hcl, htgt⟩ := hR
   rintro ⟨hne, hhead, hlast, hmem, hchain⟩
-  have key : ∀ (p : List α) (hne : p ≠ []), p.head hne ∈ R → (∀ z ∈ p, z ∈ V) →
+  have key {p : List α} : ∀ (hne : p ≠ []), p.head hne ∈ R → (∀ z ∈ p, z ∈ V) →
       List.IsChain (fun u v => arc u v = true) p → p.getLast hne ∈ R := by
-    intro p
     induction p with
     | nil => intro hne; exact absurd rfl hne
     | cons a t ih =>
       intro _ ha hmem hchain
-      cases t with
-      | nil => simpa using ha
-      | cons b t =>
-        have hb : b ∈ R := hcl a (by simpa using ha) b (hmem b (by simp)) (hchain.rel)
-        rw [List.getLast_cons (List.cons_ne_nil b t)]
-        exact ih (List.cons_ne_nil b t) (by simpa using hb)
-          (fun z hz => hmem z (List.mem_cons_of_mem a hz)) (List.IsChain.tail hchain)
-  have hR := key p hne (hsrc _ (hmem _ (List.head_mem hne)) hhead) hmem hchain
+      rcases t with _ | ⟨b, t⟩
+      · simpa using ha
+      · exact List.getLast_cons (a := a) (List.cons_ne_nil b t) ▸
+          ih (List.cons_ne_nil b t) (hcl a ha b (hmem b (by simp)) hchain.rel)
+            (fun z hz => hmem z (List.mem_cons_of_mem a hz)) hchain.tail
+  have hR := key hne (hsrc _ (hmem _ (List.head_mem hne)) hhead) hmem hchain
   rw [htgt _ hR] at hlast
   exact Bool.false_ne_true hlast
 
@@ -232,18 +229,13 @@ private theorem complete_step {k : ℕ} {found : List (α × List α)}
     rcases List.eq_nil_or_concat' q with rfl | ⟨L, b, rfl⟩
     · exact absurd rfl hne
     have hLlen : L.length = k + 1 := by simp at hlen hshort; omega
-    have hLne : L ≠ [] := by
-      intro h
-      simp [h] at hLlen
-    have hLchain : List.IsChain (fun u v => arc u v = true) L :=
-      (List.isChain_append.mp hchain).1
-    have hjoin : arc (L.getLast hLne) b = true := by
-      have := (List.isChain_append.mp hchain).2.2
-      exact this _ (by rw [List.getLast?_eq_some_getLast hLne]; rfl) _ (by simp)
+    have hLne : L ≠ [] := List.ne_nil_of_length_pos (by omega)
+    have hjoin : arc (L.getLast hLne) b = true :=
+      (List.isChain_append.mp hchain).2.2 _ (List.getLast?_eq_some_getLast hLne) _ (by simp)
     have hLhead : src (L.head hLne) = true := by
       simpa [List.head_append_of_ne_nil hLne] using hhead
     obtain ⟨e, he, heq⟩ := hC L hLne hLhead
-      ⟨fun z hz => hmem z (List.mem_append_left _ hz), hLchain⟩ hLlen.le
+      ⟨fun z hz => hmem z (List.mem_append_left _ hz), (List.isChain_append.mp hchain).1⟩ hLlen.le
     have hbV : b ∈ V := hmem b (by simp)
     rw [List.getLast_append_singleton]
     by_cases hfound : ∃ e' ∈ found, e'.1 = b
@@ -315,57 +307,36 @@ private theorem inl_of_find?_eq_some {k : ℕ} {found : List (α × List α)} {e
   have := hN q hq
   omega
 
-private theorem bfsLoop_spec :
-    ∀ (fuel k : ℕ) (found : List (α × List α)),
-      Sound V arc src k found → Complete V arc src k found → NoShort V arc src tgt k →
-      V.toFinset.card ≤ (found.map Prod.fst).toFinset.card + fuel →
-      (∀ p, bfsLoop V arc tgt fuel found = .inl p → IsShortestSrcTgtWalk V arc src tgt p) ∧
-      (∀ R, bfsLoop V arc tgt fuel found = .inr R → IsSrcTgtSeparator V arc src tgt R) := by
-  intro fuel
-  induction fuel with
-  | zero =>
-    intro k found hS hC hN hcard
-    rcases hfind : found.find? (fun e => tgt e.1) with _ | e
-    · refine ⟨fun p h => by simp [bfsLoop, hfind] at h, fun R h => ?_⟩
-      simp only [bfsLoop, hfind, Sum.inr.injEq] at h
-      subst h
-      refine separator_of_closed hS hC hfind fun u _ v hv _ => ?_
-      have hsub : (found.map Prod.fst).toFinset ⊆ V.toFinset := by
-        intro a ha
-        rw [List.mem_toFinset] at ha ⊢
-        exact keys_subset hS a ha
-      have heq := Finset.eq_of_subset_of_card_le hsub (by omega)
-      have : v ∈ V.toFinset := List.mem_toFinset.mpr hv
-      rw [← heq] at this
-      exact List.mem_toFinset.mp this
-    · refine ⟨fun p h => ?_, fun R h => by simp [bfsLoop, hfind] at h⟩
-      simp only [bfsLoop, hfind, Sum.inl.injEq] at h
-      exact h ▸ inl_of_find?_eq_some hS hN hfind
-  | succ fuel ih =>
-    intro k found hS hC hN hcard
-    rcases hfind : found.find? (fun e => tgt e.1) with _ | e
-    · by_cases hempty : (bfsNew V arc found).isEmpty = true
-      · refine ⟨fun p h => by simp [bfsLoop, hfind, hempty] at h, fun R h => ?_⟩
-        simp only [bfsLoop, hfind, hempty, ite_true, Sum.inr.injEq] at h
-        subst h
-        refine separator_of_closed hS hC hfind fun u hu v hv harc => ?_
-        by_contra hvnot
-        have hnot : ∀ e ∈ found, e.1 ≠ v := fun e he heq =>
-          hvnot (List.mem_map.mpr ⟨e, he, heq⟩)
-        obtain ⟨e, he, rfl⟩ := List.mem_map.mp hu
-        obtain ⟨w, hw⟩ := exists_mem_bfsNew hv hnot ⟨e, he, harc⟩
-        rw [List.isEmpty_iff] at hempty
-        simp [hempty] at hw
-      · have hloop : bfsLoop V arc tgt (fuel + 1) found =
-            bfsLoop V arc tgt fuel (found ++ bfsNew V arc found) := by
-          simp [bfsLoop, hfind, hempty]
-        rw [hloop]
-        refine ih (k + 1) _ (sound_step hS) (complete_step hC) (noShort_step hC hfind) ?_
-        have := card_step (V := V) (arc := arc) (found := found) (by simpa using hempty)
-        omega
-    · refine ⟨fun p h => ?_, fun R h => by simp [bfsLoop, hfind] at h⟩
-      simp only [bfsLoop, hfind, Sum.inl.injEq] at h
-      exact h ▸ inl_of_find?_eq_some hS hN hfind
+private theorem bfsLoop_spec (fuel k : ℕ) (found : List (α × List α))
+    (hS : Sound V arc src k found) (hC : Complete V arc src k found)
+    (hN : NoShort V arc src tgt k)
+    (hcard : V.toFinset.card ≤ (found.map Prod.fst).toFinset.card + fuel) :
+    (∀ p, bfsLoop V arc tgt fuel found = .inl p → IsShortestSrcTgtWalk V arc src tgt p) ∧
+    (∀ R, bfsLoop V arc tgt fuel found = .inr R → IsSrcTgtSeparator V arc src tgt R) := by
+  fun_induction bfsLoop V arc tgt fuel found generalizing k with
+  | case1 fuel found e hfind =>
+    exact ⟨fun p h => Sum.inl.inj h ▸ inl_of_find?_eq_some hS hN hfind, (fun _ h => nomatch h)⟩
+  | case2 found hfind =>
+    refine ⟨(fun _ h => nomatch h), fun R h => ?_⟩
+    obtain rfl := Sum.inr.inj h
+    refine separator_of_closed hS hC hfind fun _ _ v hv _ => ?_
+    have hsub : (found.map Prod.fst).toFinset ⊆ V.toFinset := fun a ha =>
+      List.mem_toFinset.mpr (keys_subset hS a (List.mem_toFinset.mp ha))
+    have heq := Finset.eq_of_subset_of_card_le hsub (by omega)
+    exact List.mem_toFinset.mp (heq ▸ List.mem_toFinset.mpr hv)
+  | case3 found hfind fuel hempty =>
+    refine ⟨(fun _ h => nomatch h), fun R h => ?_⟩
+    obtain rfl := Sum.inr.inj h
+    refine separator_of_closed hS hC hfind fun u hu v hv harc => ?_
+    by_contra hvnot
+    have hnot : ∀ e ∈ found, e.1 ≠ v := fun e he heq => hvnot (List.mem_map.mpr ⟨e, he, heq⟩)
+    obtain ⟨e, he, rfl⟩ := List.mem_map.mp hu
+    obtain ⟨w, hw⟩ := exists_mem_bfsNew hv hnot ⟨e, he, harc⟩
+    simp [List.isEmpty_iff.mp hempty] at hw
+  | case4 found hfind fuel hempty ih =>
+    refine ih (k + 1) (sound_step hS) (complete_step hC) (noShort_step hC hfind) ?_
+    have := card_step (V := V) (arc := arc) (found := found) (by simpa using hempty)
+    omega
 
 private theorem findWalk_spec :
     (∀ p, findWalk V arc src tgt = .inl p → IsShortestSrcTgtWalk V arc src tgt p) ∧

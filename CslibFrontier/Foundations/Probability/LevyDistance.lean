@@ -78,10 +78,9 @@ theorem measureReal_le_le_integral_comp [IsProbabilityMeasure P] {X : Ω → ℝ
     (hv : ∀ x ≤ v, φ x = 1) : P.real {ω | X ω ≤ v} ≤ ∫ ω, φ (X ω) ∂P := by
   have h := measureReal_le_sub_integral_comp hX hφ h01 v
   have h0 : ∫ x, ((Iic v).indicator 1 x - φ x) ∂P.map X ≤ 0 := integral_nonpos fun x => by
-    simp only [Set.indicator_apply, Set.mem_Iic, Pi.one_apply, Pi.zero_apply]
-    split_ifs with hx
-    · rw [hv x hx, sub_self]
-    · linarith [(h01 x).1]
+    by_cases hx : x ≤ v
+    · simp [hx, hv x hx]
+    · simpa [hx] using (h01 x).1
   linarith
 
 /-- If `0 ≤ φ ≤ 1` and `φ = 0` on `(v, ∞)`, then `E[φ(X)] ≤ Pr[X ≤ v]`. -/
@@ -90,10 +89,9 @@ theorem integral_comp_le_measureReal_le [IsProbabilityMeasure P] {X : Ω → ℝ
     (hv : ∀ x, v < x → φ x = 0) : ∫ ω, φ (X ω) ∂P ≤ P.real {ω | X ω ≤ v} := by
   have h := measureReal_le_sub_integral_comp hX hφ h01 v
   have h0 : 0 ≤ ∫ x, ((Iic v).indicator 1 x - φ x) ∂P.map X := integral_nonneg fun x => by
-    simp only [Set.indicator_apply, Set.mem_Iic, Pi.one_apply, Pi.zero_apply]
-    split_ifs with hx
-    · linarith [(h01 x).2]
-    · rw [hv x (not_le.1 hx), sub_self]
+    by_cases hx : x ≤ v
+    · simpa [hx] using (h01 x).2
+    · simp [hx, hv x (not_le.1 hx)]
   linarith
 
 /-- **Right-continuity of distribution functions**: if `a ≤ Pr[X ≤ v]` for all `v > u`, then
@@ -123,7 +121,6 @@ theorem measureReal_le_le_add_div_pow_of_forall_contDiff (hX : AEMeasurable X P)
       |∫ ω, φ (X ω) ∂P - ∫ ω, φ (Y ω) ∂Q| ≤ C * B) (u : ℝ) {η : ℝ} (hη : 0 < η) :
     P.real {ω | X ω ≤ u} ≤
       Q.real {ω | Y ω ≤ u + η} + 2 ^ (m - 1) * (m + 1) ^ m * B / η ^ m := by
-  have hm : (0 : ℝ) < m + 1 := by positivity
   have hh : 0 < η / (m + 1) := by positivity
   have hw : u + (m + 1) * (η / (m + 1)) = u + η := by field_simp
   have hφ := (contDiff_stepSmoothing m u (η / (m + 1))).continuous
@@ -153,14 +150,12 @@ theorem measureReal_le_le_add_of_forall_contDiff (hX : AEMeasurable X P)
   · rw [zero_pow m.succ_ne_zero] at hB
     rw [add_zero, add_zero]
     refine le_measureReal_le_of_forall_lt hY fun v hv => ?_
-    have h0 : 2 ^ (m - 1) * (m + 1) ^ m * B / (v - u) ^ m ≤ 0 :=
-      div_nonpos_of_nonpos_of_nonneg hB (pow_nonneg (sub_pos.2 hv).le _)
-    have := key _ (sub_pos.2 hv)
-    rw [add_sub_cancel] at this
+    have h0 := div_nonpos_of_nonpos_of_nonneg hB (pow_nonneg (sub_pos.2 hv).le m)
+    have hk := key (v - u) (sub_pos.2 hv)
+    rw [add_sub_cancel] at hk
     linarith
   · refine (key δ hδ).trans (add_le_add le_rfl ?_)
-    rw [div_le_iff₀ (pow_pos hδ m), ← pow_succ']
-    exact hB
+    rwa [div_le_iff₀ (pow_pos hδ m), ← pow_succ']
 
 /-- **From `Cᵐ` tests to the Lévy distance**, lower bound: in the setting of
 `measureReal_le_le_add_of_forall_contDiff`, `Pr[Y ≤ u - δ] - δ ≤ Pr[X ≤ u]` for every `u`

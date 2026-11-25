@@ -112,10 +112,9 @@ noncomputable def truthTableExtension (h : BitString b ↪ F) (f : BooleanFuncti
 degree `m * (2 ^ b - 1)`. -/
 theorem truthTableExtension_mem_reedMuller (h : BitString b ↪ F) (f : BooleanFunction (m * b)) :
     truthTableExtension h f ∈ reedMuller F m (m * (2 ^ b - 1)) := by
-  have := lowDegreeExtension_mem_reedMuller h fun u =>
-    if f (BitString.blocksEquiv.symm u) then (1 : F) else 0
-  rw [BitString.card] at this
-  exact this
+  simpa only [truthTableExtension, BitString.card] using
+    lowDegreeExtension_mem_reedMuller h fun u =>
+      if f (BitString.blocksEquiv.symm u) then (1 : F) else 0
 
 /-- On the grid, the extension of a truth table is the truth table: at the point whose coordinates
 embed the blocks of `x`, it is `1` if `f x` and `0` otherwise. -/
@@ -163,7 +162,8 @@ private theorem le_half_of_agree {N : ℕ} {C E : BooleanFunction N} {ε : ℝ}
     rw [BitString.card] at this
     exact_mod_cast this
   have hpos : (0 : ℝ) < 2 ^ N := by positivity
-  nlinarith
+  have h1 : (1 / 2 + ε) * 2 ^ N ≤ 1 * 2 ^ N := hagree.trans (by linarith only [hN])
+  linarith only [le_of_mul_le_mul_right h1 hpos]
 
 variable [Fintype F] [DecidableEq F]
 
@@ -214,11 +214,8 @@ theorem exists_glPredictor_agree (enc : F ≃ BitString w) (h : BitString b ↪ 
         Equiv.apply_symm_apply]
       rfl
     · simp only [coe_filter, mem_univ, true_and, Set.mem_ofPred_eq] at hx ⊢
-      simp only [glPredictor]
-      rw [show (fun r => C (Fin.append (BitString.pointBits enc
-          ((BitString.pointEquiv enc).symm x)) r)) = pred x by
-        rw [BitString.pointBits_pointEquiv_symm]]
-      rw [hx, Equiv.symm_apply_apply]
+      simp only [glPredictor, BitString.pointBits_pointEquiv_symm,
+        show (fun r => C (Fin.append x r)) = pred x from rfl, hx, target, Equiv.symm_apply_apply]
   rw [hcount]
   have : (#good : ℝ) ≤ 2 ^ (K + 1) *
       #{x | Crypto.GoldreichLevin.candidate (pred x) masks guess = target x} := by
@@ -241,6 +238,16 @@ def reconstructionCost (w b m D K L s q M : ℕ) : ℕ :=
       (lineCost w q m M (D / (m * (2 ^ b - 1))) (m * (2 ^ b - 1)) (glCost w K s)) +
     (2 ^ w * (2 * w + 2) + 1)
 
+/-- The agreement margin makes the mean agreement `q * a / Q` of a line at least `2 * D`. -/
+private theorem two_mul_mul_le {q Q a ε D : ℝ} (hq : 0 ≤ q) (hQ : 0 ≤ Q) {K : ℕ}
+    (hgl : ε * Q ≤ 2 ^ (K + 2) * a) (hmargin : 2 ^ (K + 3) * D ≤ q * ε) : 2 * D * Q ≤ q * a := by
+  refine le_of_mul_le_mul_left (a := (2 : ℝ) ^ (K + 2)) ?_ (by positivity)
+  calc 2 ^ (K + 2) * (2 * D * Q) = 2 ^ (K + 3) * D * Q := by ring
+    _ ≤ q * ε * Q := mul_le_mul_of_nonneg_right hmargin hQ
+    _ = q * (ε * Q) := by ring
+    _ ≤ q * (2 ^ (K + 2) * a) := mul_le_mul_of_nonneg_left hgl hq
+    _ = 2 ^ (K + 2) * (q * a) := by ring
+
 /-- The number of errors left by the line stage, bounded in terms of the agreement margin. -/
 private theorem lineErrors_le {q Q a ε D δ : ℝ} (hq : 1 < q) (hQ : 1 ≤ Q) (ha : 0 < a)
     (hε : 0 < ε) {K : ℕ} (hgl : ε * Q ≤ 2 ^ (K + 2) * a) (_hD : 0 ≤ D)
@@ -253,31 +260,27 @@ private theorem lineErrors_le {q Q a ε D δ : ℝ} (hq : 1 < q) (hQ : 1 ≤ Q) 
   set μ := q * a / Q
   have hμpos : 0 < μ := by positivity
   -- the mean is at least twice `D`
-  have hμ : 2 * D ≤ μ := by
-    have h1 : q * ε * Q ≤ 2 ^ (K + 2) * (q * a) := by nlinarith only [hgl, hq0]
-    have h2 : 2 ^ (K + 3) * D * Q ≤ 2 ^ (K + 2) * (q * a) := by nlinarith only [h1, hmargin, hQ]
-    have h3 : 2 ^ (K + 3) * D * Q = 2 ^ (K + 2) * (2 * D * Q) := by ring
-    rw [h3] at h2
-    have h4 : 2 * D * Q ≤ q * a := le_of_mul_le_mul_left h2 (by positivity)
-    simp only [μ]
-    rw [le_div_iff₀ hQpos]
-    linarith
-  have hμD : μ / 2 ≤ μ - D := by linarith
-  have hsq : μ ^ 2 / 4 ≤ (μ - D) ^ 2 := by nlinarith only [hμD, hμpos]
+  have hμ : 2 * D ≤ μ := (le_div_iff₀ hQpos).2 (two_mul_mul_le hq0.le hQpos.le hgl hmargin)
+  have hμD : μ / 2 ≤ μ - D := by linarith only [hμ]
+  have hsq : μ ^ 2 / 4 ≤ (μ - D) ^ 2 := by
+    simpa only [div_pow, show (2 : ℝ) ^ 2 = 4 by norm_num] using
+      pow_le_pow_left₀ (by positivity) hμD 2
   -- the first term
   have hterm1 : q * a * (Q - 1) / (μ - D) ^ 2 / Q ≤ Q * (2 ^ (K + 4) / (q * ε)) := by
-    have hμD' : 0 < μ - D := by linarith
+    have hμD' : 0 < μ - D := by linarith only [hμpos, hμD]
     rw [div_div, div_le_iff₀ (by positivity)]
     have hμsq : μ ^ 2 * Q ^ 2 = (q * a) ^ 2 := by
       simp only [μ]
       field_simp
-    have key : q * a * (Q - 1) ≤ q * a * Q := by nlinarith only [ha, hq0, hQ]
+    have key : q * a * (Q - 1) ≤ q * a * Q :=
+      mul_le_mul_of_nonneg_left (by linarith only [hQ]) (by positivity)
     have hstep : q * a * Q * 4 ≤ Q * (2 ^ (K + 4) / (q * ε)) * (μ ^ 2 * Q) := by
       rw [show Q * (2 ^ (K + 4) / (q * ε)) * (μ ^ 2 * Q) = 2 ^ (K + 4) * (μ ^ 2 * Q ^ 2) /
         (q * ε) by field_simp, hμsq, le_div_iff₀ (by positivity)]
-      have : (2 : ℝ) ^ (K + 4) = 4 * 2 ^ (K + 2) := by ring
-      rw [this]
-      nlinarith only [hgl, hq0, ha, hε, hQ]
+      calc q * a * Q * 4 * (q * ε) = 4 * q * (q * a) * (ε * Q) := by ring
+        _ ≤ 4 * q * (q * a) * (2 ^ (K + 2) * a) :=
+            mul_le_mul_of_nonneg_left hgl (by positivity)
+        _ = 2 ^ (K + 4) * (q * a) ^ 2 := by ring
     calc q * a * (Q - 1) ≤ q * a * Q := key
       _ = q * a * Q * 4 / 4 := by ring
       _ ≤ Q * (2 ^ (K + 4) / (q * ε)) * (μ ^ 2 * Q) / 4 := by gcongr
@@ -286,14 +289,13 @@ private theorem lineErrors_le {q Q a ε D δ : ℝ} (hq : 1 < q) (hQ : 1 ≤ Q) 
   -- the second term
   have hterm2 : Q * (Q - 1) * δ / (q - 1) / Q ≤ Q * (D / (q - 1)) := by
     rw [div_div, div_le_iff₀ (by positivity)]
-    have : Q * (Q - 1) * δ ≤ Q * Q * D := by
-      have : (Q - 1) * δ ≤ Q * D := by nlinarith only [hδD, hQ, hδ]
-      nlinarith only [this, hQ]
+    have : Q * (Q - 1) * δ ≤ Q * Q * D :=
+      by gcongr; linarith only [hQ]
     calc Q * (Q - 1) * δ ≤ Q * Q * D := this
       _ = Q * (D / (q - 1)) * ((q - 1) * Q) := by field_simp
   rw [add_div]
   calc 1 + (q * a * (Q - 1) / (μ - D) ^ 2 / Q + Q * (Q - 1) * δ / (q - 1) / Q)
-      ≤ 1 + (Q * (2 ^ (K + 4) / (q * ε)) + Q * (D / (q - 1))) := by linarith
+      ≤ 1 + (Q * (2 ^ (K + 4) / (q * ε)) + Q * (D / (q - 1))) := by linarith only [hterm1, hterm2]
     _ = Q * (1 / Q + 2 ^ (K + 4) / (q * ε) + D / (q - 1)) := by
         field_simp
         ring
@@ -308,46 +310,35 @@ private theorem reconstruction_ranges {q d D K m : ℕ} {ε : ℝ} (hq2 : 2 ≤ 
     1 ≤ D ∧ D < q ∧ d + 1 ≤ q - 1 := by
   have hq1 : (1 : ℝ) < q := by exact_mod_cast hq2
   have hD1 : 1 ≤ D := by
-    by_contra hD0
-    push Not at hD0
-    have : Sudan.monomials d D = {(0, 0)} := by
-      rw [Nat.lt_one_iff.1 hD0]
-      ext ⟨a, c⟩
-      simp only [Sudan.mem_monomials, mem_singleton, Prod.mk.injEq]
-      constructor
-      · rintro ⟨ha, hc, -⟩
-        exact ⟨by omega, by omega⟩
-      · rintro ⟨rfl, rfl⟩
-        simp
-    rw [this, card_singleton] at hn
+    by_contra! hD0
+    have : #(Sudan.monomials d D) ≤ 1 := card_le_one.2 fun x hx y hy => by
+      rw [Sudan.mem_monomials] at hx hy
+      ext <;> omega
     omega
   have hDq : D < q := by
-    have : (2 : ℝ) ^ (K + 3) * D ≤ q / 2 := by nlinarith
+    have hqε : (q : ℝ) * ε ≤ q / 2 := by
+      linarith only [mul_le_mul_of_nonneg_left hε1 (by linarith only [hq1] : (0 : ℝ) ≤ q)]
     have h8 : (8 : ℝ) ≤ 2 ^ (K + 3) := by
       calc (8 : ℝ) = 2 ^ 3 := by norm_num
         _ ≤ 2 ^ (K + 3) := pow_le_pow_right₀ (by norm_num) (by omega)
-    have : (D : ℝ) < q := by
-      have hDpos : (0 : ℝ) ≤ D := by positivity
-      nlinarith
+    have h8D : 8 * (D : ℝ) ≤ q / 2 :=
+      (mul_le_mul_of_nonneg_right h8 (Nat.cast_nonneg D)).trans (hmargin.trans hqε)
+    have : (D : ℝ) < q := by linarith only [h8D, hq1]
     exact_mod_cast this
   refine ⟨hD1, hDq, ?_⟩
-  have hDpos : (0 : ℝ) < D := by exact_mod_cast hD1
-  have h6 : 6 * ((d : ℝ) + 1) * (D / (q - 1)) ≤ 1 := by
-    refine le_trans (mul_le_mul_of_nonneg_left ?_ (by positivity)) herr
-    have : (0 : ℝ) ≤ 1 / (q : ℝ) ^ m := by positivity
-    have : (0 : ℝ) ≤ 2 ^ (K + 4) / (q * ε) := by positivity
-    linarith
-  have : 6 * ((d : ℝ) + 1) * D ≤ q - 1 := by
-    rw [mul_div_assoc', div_le_one (by linarith)] at h6
-    exact h6
+  have hpos_sum : (0 : ℝ) ≤ 1 / (q : ℝ) ^ m + 2 ^ (K + 4) / (q * ε) := by positivity
+  have h6 : 6 * ((d : ℝ) + 1) * (D / (q - 1)) ≤ 1 :=
+    (mul_le_mul_of_nonneg_left (by linarith only [hpos_sum])
+      (by positivity)).trans herr
+  have h6' : 6 * ((d : ℝ) + 1) * D ≤ q - 1 := by
+    rwa [mul_div_assoc', div_le_one (by linarith only [hq1])] at h6
   have hD1' : (1 : ℝ) ≤ D := by exact_mod_cast hD1
-  have hd0 : (0 : ℝ) ≤ (d : ℝ) + 1 := by positivity
-  have : ((d : ℝ) + 1) ≤ q - 1 := by nlinarith
-  have : ((d + 1 : ℕ) : ℝ) ≤ ((q - 1 : ℕ) : ℝ) := by
+  have hle : ((d + 1 : ℕ) : ℝ) ≤ ((q - 1 : ℕ) : ℝ) := by
     rw [Nat.cast_sub (by omega)]
     push_cast
-    exact this
-  exact_mod_cast this
+    linarith only [h6', le_mul_of_one_le_right (by positivity : (0 : ℝ) ≤ 6 * ((d : ℝ) + 1)) hD1',
+      Nat.cast_nonneg (α := ℝ) d]
+  exact_mod_cast hle
 
 omit [DecidableEq F] in
 /-- **The reconstruction theorem** [SudanTrevisanVadhan2001]. Let `F` be a field of `q` elements
@@ -398,45 +389,31 @@ theorem complexity_le_of_agree_hardnessEncode (enc : F ≃ BitString w) (h : Bit
   have hε1 : ε ≤ 1 / 2 := le_half_of_agree hagree
   obtain ⟨hD1, hDq, hdq⟩ := reconstruction_ranges hq2 hε hε1 hn hmargin herr
   set Q : ℝ := (q : ℝ) ^ m with hQ_def
-  have hQ : (Fintype.card (Fin m → F) : ℝ) = Q := by
-    rw [Fintype.card_fun, Fintype.card_fin]
-    push_cast
-    rfl
-  have hQ2 : (2 : ℝ) ^ (m * w) = Q := by
-    rw [hQ_def, hqw]
-    push_cast
-    rw [← pow_mul, mul_comm]
+  have hQ : (Fintype.card (Fin m → F) : ℝ) = Q := by simp [Q, q]
+  have hQ2 : (2 : ℝ) ^ (m * w) = Q := by simp [Q, hqw, ← pow_mul, mul_comm]
   have hQ1 : (1 : ℝ) ≤ Q := one_le_pow₀ hq1.le
   set a := (#{x | G x = p x} : ℕ)
   have ha : ε * Q ≤ 2 ^ (K + 2) * a := by rw [← hQ2]; exact hgl
-  have hapos : (0 : ℝ) < a := by
-    have : (0 : ℝ) < ε * Q := by positivity
-    have h2 : (0 : ℝ) < 2 ^ (K + 2) * a := lt_of_lt_of_le this ha
-    exact pos_of_mul_pos_right h2 (by positivity)
+  have hapos : (0 : ℝ) < a :=
+    pos_of_mul_pos_right ((by positivity : (0 : ℝ) < ε * Q).trans_le ha) (by positivity)
   -- the line stage
   have hμ : (D : ℝ) < q * #{y | G y = p y} / q ^ m := by
-    have h2D : 2 ^ (K + 3) * (D : ℝ) * Q ≤ 2 ^ (K + 2) * (q * a) := by
-      have h1 : q * ε * Q ≤ 2 ^ (K + 2) * (q * a) := by nlinarith only [ha, hq1]
-      nlinarith only [h1, hmargin, hQ1]
-    rw [show 2 ^ (K + 3) * (D : ℝ) * Q = 2 ^ (K + 2) * (2 * D * Q) by ring] at h2D
-    have h4 : 2 * (D : ℝ) * Q ≤ q * a := le_of_mul_le_mul_left h2D (by positivity)
     rw [lt_div_iff₀ (by positivity)]
     have hD1' : (1 : ℝ) ≤ D := by exact_mod_cast hD1
-    nlinarith only [h4, hD1', hQ1, ha, hq1]
+    linarith only [two_mul_mul_le (Nat.cast_nonneg q) (by linarith only [hQ1]) ha hmargin,
+      one_le_mul_of_one_le_of_one_le hD1' hQ1]
   obtain ⟨z, hz⟩ := exists_card_lineListDecode_ne_le hd hn hDq hp G hμ
   set C1 := lineListDecode G d D z (p z)
   have herrC1 : ((d : ℝ) + 1) * #{x | C1 x ≠ p x} ≤ Q / 6 := by
     have hbound := lineErrors_le (q := q) (Q := Q) (a := a) (ε := ε) (D := D)
       (δ := ((D - d : ℕ) : ℝ)) hq1 hQ1 hapos hε ha (by positivity) hmargin (by positivity)
       (by exact_mod_cast Nat.sub_le D d)
-    have hz' : (#{x | C1 x ≠ p x} : ℝ) ≤ Q * (1 / Q + 2 ^ (K + 4) / (q * ε) + D / (q - 1)) :=
-      hz.trans hbound
     calc ((d : ℝ) + 1) * #{x | C1 x ≠ p x} ≤
-          ((d : ℝ) + 1) * (Q * (1 / Q + 2 ^ (K + 4) / (q * ε) + D / (q - 1))) := by gcongr
+          ((d : ℝ) + 1) * (Q * (1 / Q + 2 ^ (K + 4) / (q * ε) + D / (q - 1))) := by
+          gcongr; exact hz.trans hbound
       _ = Q / 6 * (6 * ((d : ℝ) + 1) * (1 / Q + 2 ^ (K + 4) / (q * ε) + D / (q - 1))) := by
           ring
-      _ ≤ Q / 6 * 1 := by gcongr
-      _ = Q / 6 := mul_one _
+      _ ≤ Q / 6 := mul_le_of_le_one_right (by positivity) herr
   -- the interpolation nodes
   have hdq' : d + 2 ≤ Fintype.card F := by
     have := Fintype.one_lt_card (α := F)
@@ -471,7 +448,8 @@ theorem complexity_le_of_agree_hardnessEncode (enc : F ≃ BitString w) (h : Bit
       (fun ij : Fin m × Fin w => bitsOf enc (gp ij.1) ij.2) (fun _ => 2 ^ b * (2 * b + 2) + 1)
       (fun ij => Synthesis.selected (fun l => finProdFinEquiv (ij.1, l))
         (fun y => enc (h y) ij.2))
-    simpa [Fintype.card_prod, mul_assoc] using this
+    simpa only [Finset.sum_const, card_univ, Fintype.card_prod, Fintype.card_fin, smul_eq_mul,
+      mul_assoc] using this
   set T₁ := Set.range fun ij : Fin m × Fin w => bitsOf enc (gp ij.1) ij.2
   have hUs := hU (m * b) (inputs (m * b) ∪ T₁) gp fun i j =>
     Set.mem_union_right _ ⟨(i, j), rfl⟩
@@ -487,15 +465,11 @@ theorem complexity_le_of_agree_hardnessEncode (enc : F ≃ BitString w) (h : Bit
     refine hcirc.mono Set.Subset.rfl (Set.singleton_subset_iff.2 ⟨0, funext fun x => ?_⟩)
       hsize
     refine (congrFun (hc _) 0).trans ?_
-    have hgx : (fun i => gp i x) ∈ grid := mem_image.2 ⟨x, mem_univ _, rfl⟩
-    have hUx : U (fun i => gp i x) = if f x then 1 else 0 := by
-      rw [show U (fun i => gp i x) = p (fun i => gp i x) from hV _ hgx]
-      exact truthTableExtension_block h f x
-    simp only [single_apply, Function.comp_id, bitsOf, Equiv.symm_apply_apply]
-    rw [hUx]
-    cases f x
-    · simp
-    · simp
+    have hUx : U (fun i => gp i x) = p (fun i => gp i x) :=
+      hV _ (mem_image.2 ⟨x, mem_univ _, rfl⟩)
+    simp only [single_apply, Function.comp_id, bitsOf, Equiv.symm_apply_apply,
+      hUx, p, gp, truthTableExtension_block]
+    cases f x <;> simp
   have htotal := hemb.trans (hUs.trans hout)
   refine le_trans htotal.complexity_le ?_
   simp only [reconstructionCost, ← hd_def, ← hq_def]
@@ -516,30 +490,36 @@ private theorem bitBlastCost_le (hq : q = 2 ^ w) (_hw : 1 ≤ w) :
   have hw2 : w ≤ w ^ 2 := Nat.le_self_pow (by decide : 2 ≠ 0) w
   have h1 : w * q ^ 2 ≤ w ^ 2 * q ^ 2 := Nat.mul_le_mul_right _ hw2
   have h3 : w ≤ w ^ 2 * q ^ 2 := hw2.trans (Nat.le_mul_of_pos_right _ hq1)
-  nlinarith only [h1, h3]
+  rw [show w * (q ^ 2 * (4 * w + 2) + 1) = 4 * (w ^ 2 * q ^ 2) + 2 * (w * q ^ 2) + w by ring,
+    show 7 * w ^ 2 * q ^ 2 = 7 * (w ^ 2 * q ^ 2) by ring]
+  omega
 
 private theorem kernelVecCost_le (hM : M ≤ q ^ 2) (hq : 1 ≤ q) :
     kernelVecCost q M ≤ 64 * q ^ 5 := by
   unfold kernelVecCost
+  have hq0 : 1 ≤ q ^ 2 := Nat.one_le_pow 2 q hq
   have h1 : q + 1 ≤ 2 * q := by omega
-  have h2 : M + 1 ≤ 2 * q ^ 2 := by nlinarith only [hM, hq]
+  have h2 : M + 1 ≤ 2 * q ^ 2 := by omega
   calc 8 * (q + 1) * (M + 1) ^ 2 ≤ 8 * (2 * q) * (2 * q ^ 2) ^ 2 := by gcongr
     _ = 64 * q ^ 5 := by ring
 
 private theorem interpolantCost_le (hM : M ≤ q ^ 2) (hℓ : ℓ ≤ q) (hq : 1 ≤ q) :
     interpolantCost q M ℓ ≤ 150 * q ^ 6 := by
   have hk := kernelVecCost_le hM hq
+  have hq0 : 1 ≤ q ^ 2 := Nat.one_le_pow 2 q hq
   have hℓ1 : ℓ + 1 ≤ 2 * q := by omega
-  have hM1 : M + 1 ≤ 2 * q ^ 2 := by nlinarith only [hM, hq]
+  have hM1 : M + 1 ≤ 2 * q ^ 2 := by omega
   unfold interpolantCost
   calc
     _ ≤ q * q ^ 2 + (2 * q) * (64 * q ^ 5) + (2 * q) * (2 * q ^ 2) +
         (2 * (2 * q) + 1) + q ^ 2 * (2 * (2 * q) + 1) := by gcongr
+    _ = 128 * q ^ 6 + 9 * q ^ 3 + q ^ 2 + 4 * q + 1 := by ring
     _ ≤ 150 * q ^ 6 := by
-      have hq0 : 1 ≤ q ^ 6 := Nat.one_le_pow _ _ hq
-      nlinarith only [hq0, Nat.le_self_pow (by decide : 6 ≠ 0) q,
-        Nat.pow_le_pow_right hq (show 2 ≤ 6 by decide),
-        Nat.pow_le_pow_right hq (show 3 ≤ 6 by decide)]
+      have hq6 : 1 ≤ q ^ 6 := Nat.one_le_pow 6 q hq
+      have hq16 : q ≤ q ^ 6 := (pow_one q).symm.le.trans (Nat.pow_le_pow_right hq (by decide))
+      have hq26 : q ^ 2 ≤ q ^ 6 := Nat.pow_le_pow_right hq (by decide)
+      have hq36 : q ^ 3 ≤ q ^ 6 := Nat.pow_le_pow_right hq (by decide)
+      omega
 
 private theorem henselCost_le (hM : M ≤ q ^ 2) (hd : d ≤ q) (hq : 1 ≤ q) :
     henselCost q M d ≤ 25 * q ^ 4 := by
@@ -577,103 +557,54 @@ theorem reconstructionCost_le {w b m D K L s q M : ℕ} (hq : q = 2 ^ w) (hw : 1
     (hdq : m * (2 ^ b - 1) + 1 ≤ q) :
     reconstructionCost w b m D K L s q M ≤
       2 ^ 11 * 3 ^ L * m * w ^ 2 * q ^ 9 * 4 ^ K * (s + 1) := by
+  unfold reconstructionCost selfCorrectCost lineCost
+  rw [← hq]
   set d := m * (2 ^ b - 1)
-  have hq1 : 1 ≤ q := by rw [hq]; exact Nat.one_le_two_pow
-  have hq2 : 2 ≤ q := by
-    rw [hq]
-    calc 2 = 2 ^ 1 := by norm_num
-      _ ≤ 2 ^ w := Nat.pow_le_pow_right (by norm_num) hw
-  have hbw : b ≤ w := by
-    rw [hq] at hb
-    exact (Nat.pow_le_pow_iff_right (by norm_num)).1 hb
+  have hq1 : 1 ≤ q := hq ▸ Nat.one_le_two_pow
+  have hbw : b ≤ w := (Nat.pow_le_pow_iff_right (by norm_num)).1 (hq ▸ hb : 2 ^ b ≤ 2 ^ w)
   have hbb := bitBlastCost_le hq hw
-  have hℓ : D / d ≤ q := (Nat.div_le_self D d).trans hD.le
   have hhint : hintDecodeCost q q M (D / d) d ≤ 175 * q ^ 6 := by
-    unfold hintDecodeCost
-    have h1 := interpolantCost_le hM hℓ hq1
+    have h1 := interpolantCost_le hM ((Nat.div_le_self D d).trans hD.le) hq1
     have h2 := henselCost_le hM (by omega : d ≤ q) hq1
     have : q ^ 4 ≤ q ^ 6 := Nat.pow_le_pow_right hq1 (by norm_num)
+    unfold hintDecodeCost
     omega
-  have hgl := glCost_le (K := K) (s := s) hw
   set P := 3 ^ L
   set E := 4 ^ K
-  have hP : 1 ≤ P := Nat.one_le_pow _ _ (by norm_num)
-  have hE : 1 ≤ E := Nat.one_le_pow _ _ (by norm_num)
-  -- the line stage
-  have hline : lineCost w q m M (D / d) d (glCost w K s) ≤
-      1260 * m * w ^ 2 * q ^ 8 + 7 * q * w * E * (s + 1) := by
-    unfold lineCost
-    set H := hintDecodeCost q q M (D / d) d
-    have hinner : (q + 5) * m + 2 + (1 + H) ≤ 180 * m * q ^ 6 := by
-      have hq6 : q + 8 ≤ 4 * q ^ 6 := by
-        nlinarith only [Nat.le_self_pow (by decide : 6 ≠ 0) q, Nat.pow_le_pow_left hq2 6]
-      have a2 : (q + 8) * m ≤ 4 * q ^ 6 * m := Nat.mul_le_mul_right _ hq6
-      have a3 : H ≤ 175 * q ^ 6 * m := hhint.trans (Nat.le_mul_of_pos_right _ hm)
-      nlinarith only [a2, a3, hm]
-    calc ((q + 5) * m + 2 + (1 + H)) * bitBlastCost w + q * glCost w K s
-        ≤ (180 * m * q ^ 6) * (7 * w ^ 2 * q ^ 2) + q * (7 * w * E * (s + 1)) := by gcongr
-      _ = 1260 * m * w ^ 2 * q ^ 8 + 7 * q * w * E * (s + 1) := by ring
-  -- the self-correction stage
-  have hsc : selfCorrectCost w m d L (lineCost w q m M (D / d) d (glCost w K s)) ≤
-      2000 * P * m * w ^ 2 * q ^ 9 * E * (s + 1) := by
-    unfold selfCorrectCost
-    have hpts : m * (P * (d + 1)) + (P * (2 * (d + 1) + 1) + (2 * P - 2)) ≤ 6 * (P * m * q) := by
-      have hPq : P * q ≤ P * m * q :=
-        Nat.mul_le_mul_right q (Nat.le_mul_of_pos_right P hm)
-      have hPm : P ≤ P * m * q :=
-        (Nat.le_mul_of_pos_right P hm).trans (Nat.le_mul_of_pos_right _ hq1)
-      nlinarith only [Nat.mul_le_mul_left (P * m) hdq, Nat.mul_le_mul_left P hdq,
-        hPq, hPm, Nat.sub_le (2 * P) 2]
-    calc (m * (P * (d + 1)) + (P * (2 * (d + 1) + 1) + (2 * P - 2))) * bitBlastCost w +
-          P * (d + 1) * lineCost w q m M (D / d) d (glCost w K s)
-        ≤ (6 * (P * m * q)) * (7 * w ^ 2 * q ^ 2) +
-            P * q * (1260 * m * w ^ 2 * q ^ 8 + 7 * q * w * E * (s + 1)) := by gcongr
-      _ ≤ 2000 * P * m * w ^ 2 * q ^ 9 * E * (s + 1) := by
-          have hq9 : q ^ 3 ≤ q ^ 9 := Nat.pow_le_pow_right hq1 (by norm_num)
-          have hq9' : q ^ 2 ≤ q ^ 9 := Nat.pow_le_pow_right hq1 (by norm_num)
-          have hw1 : w ≤ w ^ 2 := Nat.le_self_pow (by decide : 2 ≠ 0) w
-          have hs : 1 ≤ s + 1 := by omega
-          have hA : (6 * (P * m * q)) * (7 * w ^ 2 * q ^ 2) ≤
-              42 * P * m * w ^ 2 * q ^ 9 * E * (s + 1) := by
-            calc (6 * (P * m * q)) * (7 * w ^ 2 * q ^ 2) = 42 * P * m * w ^ 2 * q ^ 3 * 1 * 1 := by
-                  ring
-              _ ≤ 42 * P * m * w ^ 2 * q ^ 9 * E * (s + 1) := by gcongr
-          have hB : P * q * (1260 * m * w ^ 2 * q ^ 8) ≤
-              1260 * P * m * w ^ 2 * q ^ 9 * E * (s + 1) := by
-            calc P * q * (1260 * m * w ^ 2 * q ^ 8) = 1260 * P * m * w ^ 2 * q ^ 9 * 1 * 1 := by
-                  ring
-              _ ≤ 1260 * P * m * w ^ 2 * q ^ 9 * E * (s + 1) := by gcongr
-          have hC : P * q * (7 * q * w * E * (s + 1)) ≤
-              7 * P * m * w ^ 2 * q ^ 9 * E * (s + 1) := by
-            calc P * q * (7 * q * w * E * (s + 1)) = 7 * P * 1 * w * q ^ 2 * E * (s + 1) := by
-                  ring
-              _ ≤ 7 * P * m * w ^ 2 * q ^ 9 * E * (s + 1) := by gcongr
-          nlinarith only [hA, hB, hC, Nat.zero_le (P * m * w ^ 2 * q ^ 9 * E * (s + 1))]
-  -- the grid point and the output
-  have hcube : m * w * (2 ^ b * (2 * b + 2) + 1) ≤ 5 * P * m * w ^ 2 * q ^ 9 * E * (s + 1) := by
-    have : 2 ^ b * (2 * b + 2) + 1 ≤ 5 * w * q := by nlinarith
-    calc m * w * (2 ^ b * (2 * b + 2) + 1) ≤ m * w * (5 * w * q) := by gcongr
-      _ = 5 * 1 * m * w ^ 2 * q * 1 * 1 := by ring
-      _ ≤ 5 * P * m * w ^ 2 * q ^ 9 * E * (s + 1) := by
-          have hq9 : q ≤ q ^ 9 := (pow_one q).symm.le.trans (Nat.pow_le_pow_right hq1 (by norm_num))
-          gcongr
-          omega
-  have hout : 2 ^ w * (2 * w + 2) + 1 ≤ 5 * P * m * w ^ 2 * q ^ 9 * E * (s + 1) := by
-    rw [← hq]
-    have : q * (2 * w + 2) + 1 ≤ 5 * w ^ 2 * q := by
-      have hw2 : w ≤ w ^ 2 := Nat.le_self_pow (by decide : 2 ≠ 0) w
-      have h1 : w * q ≤ w ^ 2 * q := Nat.mul_le_mul_right _ hw2
-      have h2 : q ≤ w ^ 2 * q := Nat.le_mul_of_pos_left _ (by positivity)
-      have h3 : 1 ≤ w ^ 2 * q := Nat.one_le_iff_ne_zero.2 (by positivity)
-      nlinarith only [h1, h2, h3]
-    calc q * (2 * w + 2) + 1 ≤ 5 * w ^ 2 * q := this
-      _ = 5 * 1 * 1 * w ^ 2 * q * 1 * 1 := by ring
-      _ ≤ 5 * P * m * w ^ 2 * q ^ 9 * E * (s + 1) := by
-          have hq9 : q ≤ q ^ 9 := (pow_one q).symm.le.trans (Nat.pow_le_pow_right hq1 (by norm_num))
-          gcongr
-          omega
-  unfold reconstructionCost
-  nlinarith only [hcube, hsc, hout]
+  have hgl : glCost w K s ≤ 7 * w * E * (s + 1) := glCost_le hw
+  set T := P * m * w ^ 2 * q ^ 9 * E * (s + 1) with hT_def
+  have hT0 : 0 < T := Nat.mul_pos (Nat.mul_pos (Nat.mul_pos (Nat.mul_pos (Nat.mul_pos
+    (Nat.one_le_pow _ _ (by norm_num)) hm) (pow_pos hw 2)) (pow_pos hq1 9))
+    (Nat.one_le_pow _ _ (by norm_num))) s.succ_pos
+  -- each monomial of the expanded bound divides `T`
+  have hT : ∀ X Y, X * Y = T → X ≤ T := fun X Y h => Nat.le_of_dvd hT0 ⟨Y, h.symm⟩
+  calc _ ≤ m * w * (q * (2 * w + 2) + 1) +
+        ((m * (P * q) + (P * (2 * q + 1) + 2 * P)) * (7 * w ^ 2 * q ^ 2) +
+          P * q * (((q + 5) * m + 2 + (1 + 175 * q ^ 6)) * (7 * w ^ 2 * q ^ 2) +
+            q * (7 * w * E * (s + 1)))) + (q * (2 * w + 2) + 1) := by
+        gcongr
+        exact Nat.sub_le _ _
+    _ = 2 * (m * w ^ 2 * q) + 2 * (m * w * q) + m * w + 42 * (P * m * w ^ 2 * q ^ 3) +
+          35 * (P * w ^ 2 * q ^ 3) + 21 * (P * w ^ 2 * q ^ 2) + 7 * (P * m * w ^ 2 * q ^ 4) +
+          1225 * (P * w ^ 2 * q ^ 9) + 7 * (P * w * q ^ 2 * E * (s + 1)) + 2 * (w * q) + 2 * q +
+          1 := by ring
+    _ ≤ 2 * T + 2 * T + T + 42 * T + 35 * T + 21 * T + 7 * T + 1225 * T + 7 * T + 2 * T +
+          2 * T + T := by
+        gcongr
+        · exact hT _ (P * q ^ 8 * E * (s + 1)) (by ring)
+        · exact hT _ (P * w * q ^ 8 * E * (s + 1)) (by ring)
+        · exact hT _ (P * w * q ^ 9 * E * (s + 1)) (by ring)
+        · exact hT _ (q ^ 6 * E * (s + 1)) (by ring)
+        · exact hT _ (m * q ^ 6 * E * (s + 1)) (by ring)
+        · exact hT _ (m * q ^ 7 * E * (s + 1)) (by ring)
+        · exact hT _ (q ^ 5 * E * (s + 1)) (by ring)
+        · exact hT _ (m * E * (s + 1)) (by ring)
+        · exact hT _ (m * w * q ^ 7) (by ring)
+        · exact hT _ (P * m * w * q ^ 8 * E * (s + 1)) (by ring)
+        · exact hT _ (P * m * w ^ 2 * q ^ 8 * E * (s + 1)) (by ring)
+        · exact hT0
+    _ ≤ 2 ^ 11 * T := by omega
+    _ = _ := by rw [hT_def]; ring
 
 end Bound
 
@@ -703,14 +634,9 @@ theorem complexity_le_pow_of_agree_hardnessEncode (enc : F ≃ BitString w)
   have hε1 : ε ≤ 1 / 2 := le_half_of_agree hagree
   obtain ⟨-, hDq, hdq⟩ := reconstruction_ranges hq2 hε hε1 hn hmargin herr
   refine reconstructionCost_le hqw ?_ ?_ ?_ hDq ?_ (by omega)
-  · by_contra hw
-    rw [Nat.lt_one_iff.1 (not_le.1 hw), pow_zero] at hqw
-    omega
-  · by_contra hm
-    rw [Nat.lt_one_iff.1 (not_le.1 hm), zero_mul] at hd
-    omega
-  · have := Fintype.card_le_of_embedding h
-    simpa [BitString] using this
+  · exact Nat.pos_of_ne_zero fun hw => by rw [hw, pow_zero] at hqw; omega
+  · exact Nat.pos_of_ne_zero fun hm => by simp [hm] at hd
+  · simpa [BitString] using Fintype.card_le_of_embedding h
   · calc #(Sudan.monomials (m * (2 ^ b - 1)) D) ≤ #(range (D + 1) ×ˢ range (D + 1)) :=
           card_filter_le _ _
       _ = (D + 1) * (D + 1) := by rw [card_product, card_range]

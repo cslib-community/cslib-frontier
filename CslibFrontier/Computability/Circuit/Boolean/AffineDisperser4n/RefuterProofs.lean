@@ -98,24 +98,12 @@ theorem findPair_eq_none {S : State n} (hS : S.Valid f) {p : ℕ} (h : findPair 
 /-- The children listed by `getChildren`. -/
 theorem mem_getChildren {S : State n} {p : ℕ} {N : ℕ ⊕ ℕ} :
     N ∈ getChildren S p ↔ N ∈ S.children p := by
-  unfold getChildren
-  rcases N with J | e
-  · simp only [List.mem_append, List.mem_filterMap, Finset.mem_sort]
-    constructor
-    · rintro (⟨J', hJ', hJ⟩ | ⟨e', he', he⟩)
-      · split_ifs at hJ with h_mem
-        · cases hJ; exact h_mem
-      · simp at he
-    · intro h
-      exact Or.inl ⟨J, ((SemiCircuit.inl_mem_children _).1 h).1, by simp [h]⟩
-  · simp only [List.mem_append, List.mem_filterMap, Finset.mem_sort]
-    constructor
-    · rintro (⟨J', hJ', hJ⟩ | ⟨e', he', he⟩)
-      · simp at hJ
-      · split_ifs at he with h_mem
-        · cases he; exact h_mem
-    · intro h
-      exact Or.inr ⟨e, ((SemiCircuit.inr_mem_children _).1 h).1, by simp [h]⟩
+  rcases N with J | e <;>
+    simp only [getChildren, List.mem_append, List.mem_filterMap, Finset.mem_sort,
+      Option.ite_none_right_eq_some, Option.some.injEq, Sum.inl.injEq, Sum.inr.injEq,
+      reduceCtorEq, and_false, exists_false, exists_eq_right_right, false_or, or_false]
+  · exact ⟨fun ⟨_, h⟩ => h, fun h => ⟨((SemiCircuit.inl_mem_children _).1 h).1, h⟩⟩
+  · exact ⟨fun ⟨_, h⟩ => h, fun h => ⟨((SemiCircuit.inr_mem_children _).1 h).1, h⟩⟩
 
 /-- `getChildren` lists each child once. -/
 theorem nodup_getChildren (S : State n) (p : ℕ) : (getChildren S p).Nodup := by
@@ -146,25 +134,18 @@ theorem length_getChildren (S : State n) (p : ℕ) : (getChildren S p).length = 
 /-- A parameter of degree at least `1` has a listed child. -/
 theorem exists_getChildren_cons {S : State n} {p : ℕ} (h : 1 ≤ S.deg p) :
     ∃ N l, getChildren S p = N :: l := by
+  have hlen := length_getChildren S p
   rcases hl : getChildren S p with _ | ⟨N, l⟩
-  · have := length_getChildren S p
-    rw [hl] at this
-    simp at this
-    omega
+  · simp only [hl, List.length_nil] at hlen; omega
   · exact ⟨N, l, rfl⟩
 
 /-- A parameter of degree at least `2` has two listed children. -/
 theorem exists_getChildren_cons_cons {S : State n} {p : ℕ} (h : 2 ≤ S.deg p) :
     ∃ N₁ N₂ l, getChildren S p = N₁ :: N₂ :: l := by
+  have hlen := length_getChildren S p
   rcases hl : getChildren S p with _ | ⟨N₁, _ | ⟨N₂, l⟩⟩
-  · have := length_getChildren S p
-    rw [hl] at this
-    simp at this
-    omega
-  · have := length_getChildren S p
-    rw [hl] at this
-    simp at this
-    omega
+  · simp only [hl, List.length_nil] at hlen; omega
+  · simp only [hl, List.length_singleton] at hlen; omega
   · exact ⟨N₁, N₂, l, rfl⟩
 
 
@@ -234,29 +215,23 @@ theorem chooseStep?_spec {S : State n} {c : StepChoice} (h : chooseStep? S = som
                     split_ifs at h with hug
                     cases h
                     exact ⟨hN, h6, h7, h8, h9, hug⟩
-                · simp only [h1, h2, h3, h4, h5, h6, h7, h8, Option.some.injEq] at h
-                  subst h
+                · obtain rfl := Option.some.inj
+                    (by simpa only [h1, h2, h3, h4, h5, h6, h7, h8] using h.symm)
                   exact ⟨hN, h6, h7, h8⟩
-              · simp only [h1, h2, h3, h4, h5, h6, h7, Option.some.injEq] at h
-                subst h
+              · obtain rfl := Option.some.inj
+                  (by simpa only [h1, h2, h3, h4, h5, h6, h7] using h.symm)
                 exact ⟨hN, h6, h7⟩
-            · simp only [h1, h2, h3, h4, h5, h6, Option.some.injEq] at h
-              subst h
+            · obtain rfl := Option.some.inj (by simpa only [h1, h2, h3, h4, h5, h6] using h.symm)
               exact ⟨hN, h6⟩
-          · simp only [h1, h2, h3, h4, h5, Option.some.injEq] at h
-            subst h
+          · obtain rfl := Option.some.inj (by simpa only [h1, h2, h3, h4, h5] using h.symm)
             exact ⟨h1, h2, h3, h4, h5⟩
-        · simp only [h1, h2, h3, h4, Option.some.injEq] at h
-          subst h
+        · obtain rfl := Option.some.inj (by simpa only [h1, h2, h3, h4] using h.symm)
           exact ⟨h1, h2, h3, h4⟩
-      · simp only [h1, h2, h3, Option.some.injEq] at h
-        subst h
+      · obtain rfl := Option.some.inj (by simpa only [h1, h2, h3] using h.symm)
         exact ⟨h1, h2, h3⟩
-    · simp only [h1, h2, Option.some.injEq] at h
-      subst h
+    · obtain rfl := Option.some.inj (by simpa only [h1, h2] using h.symm)
       exact ⟨h1, h2⟩
-  · simp only [h1, Option.some.injEq] at h
-    subst h
+  · obtain rfl := Option.some.inj (by simpa only [h1] using h.symm)
     exact h1
 
 /-! ### Consequences of failed searches -/
@@ -282,10 +257,7 @@ private theorem findD2_eq_none {S : State n} (h : findD2 S = none) :
     ∀ J ∈ S.gates, (∃ K ∈ S.gates, (S.gate K).Reads J) ∨ S.out.Reads J := fun J hJ => by
   have := find?_sort_eq_none h J hJ
   simp only [decide_eq_false_iff_not, not_and, not_not] at this
-  by_cases hK : ∃ K ∈ S.gates, (S.gate K).Reads J
-  · exact Or.inl hK
-  · push Not at hK
-    exact Or.inr (this hK)
+  exact or_iff_not_imp_left.2 fun hK => this (by push Not at hK; exact hK)
 
 private theorem findD3_eq_some {S : State n} {e : ℕ} (h : findD3 S = some e) :
     e ∈ S.eqns ∧ (S.eqn e).terms.card ≤ 2 := by
@@ -294,9 +266,7 @@ private theorem findD3_eq_some {S : State n} {e : ℕ} (h : findD3 S = some e) :
 
 private theorem findD3_eq_none {S : State n} (h : findD3 S = none) :
     ∀ e ∈ S.eqns, 2 < (S.eqn e).terms.card := fun e he => by
-  have := find?_sort_eq_none h e he
-  simp only [decide_eq_false_iff_not, not_le] at this
-  exact this
+  simpa using find?_sort_eq_none h e he
 
 private theorem findD4_eq_some {S : State n} {x e : ℕ} (h : findD4 S = some (x, e)) :
     x ∈ S.unpaired ∧ ¬ S.out.Reads x ∧ e ∈ S.eqns ∧ S.children x = {.inr e} := by
@@ -340,12 +310,8 @@ private theorem findDegeneratePair_eq_some {S : State n} {p : ℕ}
   simpa using hd
 
 private theorem findDegeneratePair_eq_none {S : State n} (hS : S.Valid f)
-    (h : findDegeneratePair S = none) : ¬ S.DegeneratePair := by
-  intro hdp
-  obtain ⟨p, hp, hd⟩ := hdp
-  have := find?_sort_eq_none h p (hS.mem_params_of_paired hp)
-  simp only [decide_eq_false_iff_not] at this
-  exact this ⟨hp, hd⟩
+    (h : findDegeneratePair S = none) : ¬ S.DegeneratePair := fun ⟨p, hp, hd⟩ =>
+  of_decide_eq_false (find?_sort_eq_none h p (hS.mem_params_of_paired hp)) ⟨hp, hd⟩
 
 private theorem findPartnersShareChild_eq_some {S : State n} {p : ℕ}
     (h : findPartnersShareChild S = some p) :
@@ -354,12 +320,8 @@ private theorem findPartnersShareChild_eq_some {S : State n} {p : ℕ}
   simpa using hd
 
 private theorem findPartnersShareChild_eq_none {S : State n} (hS : S.Valid f)
-    (h : findPartnersShareChild S = none) : ¬ S.PartnersShareChild := by
-  intro hpsc
-  obtain ⟨pr, hpr, hsh⟩ := hpsc
-  have := find?_sort_eq_none h pr.fst (hS.pair_mem pr hpr).1
-  simp only [decide_eq_false_iff_not] at this
-  exact this ⟨pr, hpr, rfl, hsh⟩
+    (h : findPartnersShareChild S = none) : ¬ S.PartnersShareChild := fun ⟨pr, hpr, hsh⟩ =>
+  of_decide_eq_false (find?_sort_eq_none h pr.fst (hS.pair_mem pr hpr).1) ⟨pr, hpr, rfl, hsh⟩
 
 private theorem findPairInSystem_eq_some {S : State n} {p : ℕ} (h : findPairInSystem S = some p) :
     S.Paired p ∧ ∃ e ∈ S.eqns, p ∈ (S.eqn e).terms := by
@@ -368,10 +330,8 @@ private theorem findPairInSystem_eq_some {S : State n} {p : ℕ} (h : findPairIn
 
 private theorem findPairInSystem_eq_none {S : State n} (hS : S.Valid f)
     (h : findPairInSystem S = none) {p e : ℕ} (he : e ∈ S.eqns)
-    (hpe : p ∈ (S.eqn e).terms) : ¬ S.Paired p := fun hp => by
-  have := find?_sort_eq_none h p (hS.mem_params_of_paired hp)
-  simp only [decide_eq_false_iff_not] at this
-  exact this ⟨hp, e, he, hpe⟩
+    (hpe : p ∈ (S.eqn e).terms) : ¬ S.Paired p := fun hp =>
+  of_decide_eq_false (find?_sort_eq_none h p (hS.mem_params_of_paired hp)) ⟨hp, e, he, hpe⟩
 
 private theorem findAndOnPair_eq_none {S : State n} (h : findAndOnPair S = none) {G p w : ℕ}
     (hG : G ∈ S.gates) (hna : ¬ IsAffineOp (S.gate G).op) (hl : (S.gate G).left = .node p)
@@ -431,26 +391,23 @@ theorem RefuterStep.spec {S S' : State n} (h : RefuterStep f S S') :
     have := hs.lt
     have := hs.a_le
     omega
-  · have ha := hp.a_eq
-    refine ⟨?_, hp.valid, ?_, ha.le⟩
-    · unfold refuterMeasure
-      have := hp.m_eq
-      have := hp.s_eq
-      omega
-    · have := hp.W_le
-      omega
-  · have ha := hp.a_eq
-    refine ⟨?_, hp.valid, ?_, ha.le⟩
-    · unfold refuterMeasure
-      have hne' : S'.gates.Nonempty := hg ▸ hne
-      rw [dite_eq_left hne, dite_eq_left hne', min'_congr hg hne' hne, hg]
-      have := hp.m_eq
-      have := hp.s_eq
-      omega
-    · have := hp.W_le
-      omega
+  all_goals
+    have ha := hp.a_eq
+    refine ⟨?_, hp.valid, by have := hp.W_le; omega, ha.le⟩
+    unfold refuterMeasure
+    have := hp.m_eq
+    have := hp.s_eq
+  · omega
+  · have hne' : S'.gates.Nonempty := hg ▸ hne
+    rw [dite_eq_left hne, dite_eq_left hne', min'_congr hg hne' hne, hg]
+    omega
 
 /-! #### Deletions and moves -/
+
+private theorem deleteGate_gates_subset (S : State n) (J : ℕ) (ℓ : Lit) :
+    (S.deleteGate J ℓ).gates ⊆ S.gates := by
+  rw [deleteGate_gates]
+  exact Finset.erase_subset _ _
 
 private theorem refuterStep_deleteConstantGate {S : State n} (hS : S.Valid f) {J : ℕ}
     (h : findD1 S = some J) : RefuterStep f S (applyStep S (.deleteConstantGate J)) := by
@@ -462,10 +419,8 @@ private theorem refuterStep_deleteDeadGate {S : State n} (hS : S.Valid f) {J : �
     (h : findD2 S = some J) : RefuterStep f S (applyStep S (.deleteDeadGate J)) := by
   obtain ⟨hJ, hK, hout⟩ := findD2_eq_some h
   refine Or.inl ⟨Reduction.step_of_delete (hS.reduction_deleteGate (ℓ := Lit.const false)
-    ⟨hJ, (fun _ h => by cases h), Or.inr ⟨hK, hout⟩⟩ (fun _ h => by cases h)) hS, ?_⟩
-  change (S.deleteGate J (Lit.const false)).gates ⊆ S.gates
-  rw [deleteGate_gates]
-  exact Finset.erase_subset _ _
+    ⟨hJ, (fun _ h => by cases h), Or.inr ⟨hK, hout⟩⟩ (fun _ h => by cases h)) hS,
+    deleteGate_gates_subset S J _⟩
 
 private theorem refuterStep_deleteShortEqn {S : State n} (hS : S.Valid f) {e : ℕ}
     (h : findD3 S = some e) : RefuterStep f S (applyStep S (.deleteShortEqn e)) := by
@@ -555,11 +510,8 @@ private theorem refuterStep_partnersShareChild {S : State n} (hS : S.Valid f) {p
   have hdeg := Paired.deg_eq_one hndeg hp
   obtain ⟨N, l, hl⟩ := exists_getChildren_cons (S := S) (p := pr'.fst) (by omega)
   have hN : N ∈ S.children pr'.fst := mem_getChildren.1 (by rw [hl]; simp)
-  have hNH : N = H := by
-    have hc := AffineDisperserCore.State.children_eq_singleton hdeg.le hHp
-    rw [hc, Finset.mem_singleton] at hN
-    exact hN
-  subst hNH
+  obtain rfl : N = H := Finset.mem_singleton.1
+    (AffineDisperserCore.State.children_eq_singleton hdeg.le hHp ▸ hN)
   simp only [applyStep, hpr', hl]
   exact Or.inl ⟨Valid.step_partnersShareChild_of hS (findD3_eq_none hD3) hndeg hprm' hHp hHr,
     partnersShareChildStep_gates_subset _ _ _⟩
@@ -582,19 +534,12 @@ private theorem refuterStep_pairInSystem {S : State n} (hS : S.Valid f) {u p : �
     AffineDisperserCore.State.children_eq_singleton hdegp.le
       ((SemiCircuit.inr_mem_children _).2 ⟨he, hpe⟩)
   have hgp : getChildren S p = [.inr e] := by
-    obtain ⟨N, l', hl'⟩ := exists_getChildren_cons (S := S) (p := p) (by omega)
-    have hlen := length_getChildren S p
-    rw [hl', hdegp] at hlen
-    have hl'0 : l' = [] := List.eq_nil_of_length_eq_zero (by simpa using hlen)
-    subst hl'0
-    have hN : N ∈ S.children p := mem_getChildren.1 (by rw [hl']; simp)
-    rw [hcp, Finset.mem_singleton] at hN
-    rw [hl', hN]
-  have hpout : ¬ S.out.Reads p := fun hr => by
-    have : S.out.arg = .node p := hr
-    rw [hout] at this
-    cases this
-    exact hu (hS.mem_params_of_paired hp)
+    obtain ⟨N, hl'⟩ := List.length_eq_one_iff.1 ((length_getChildren S p).trans hdegp)
+    have hN : N ∈ S.children p := mem_getChildren.1 (hl' ▸ List.mem_singleton_self _)
+    obtain rfl := Finset.mem_singleton.1 (by rwa [hcp] at hN)
+    exact hl'
+  have hpout : ¬ S.out.Reads p := fun hr =>
+    hu (Arg.node.inj (hout.symm.trans hr) ▸ hS.mem_params_of_paired hp)
   obtain ⟨hS₂, hpunp, hch, h0, hne0⟩ :=
     Valid.step_pairInSystem_of hS hndeg hnsh hprm hprp he hpe hpout hHr
   simp only [applyStep, hpr, hl, hgp]
@@ -616,20 +561,14 @@ private theorem andOnPairStep_gates_subset (S : State n) (G : ℕ) (pr : ZeroPai
     (S.andOnPairStep G pr p w prw b c Hr K Hw').gates ⊆ S.gates := by
   unfold andOnPairStep
   rcases prw with _ | q
-  · refine (deleteConstraint_gates_subset _ _).trans ?_
-    rw [deleteGate_gates]
-    exact Finset.erase_subset _ _
+  · exact (deleteConstraint_gates_subset _ _).trans (deleteGate_gates_subset _ _ _)
   · dsimp only
     by_cases hb : b = q.bias w
     · rw [ite_eq_left hb]
-      refine (deleteConstraint_gates_subset _ _).trans ?_
-      rw [deleteGate_gates]
-      exact Finset.erase_subset _ _
+      exact (deleteConstraint_gates_subset _ _).trans (deleteGate_gates_subset _ _ _)
     · rw [ite_eq_right hb]
-      refine (deleteConstraint_gates_subset _ _).trans
-        ((deleteConstraint_gates_subset _ _).trans ?_)
-      rw [deleteGate_gates]
-      exact Finset.erase_subset _ _
+      exact (deleteConstraint_gates_subset _ _).trans
+        ((deleteConstraint_gates_subset _ _).trans (deleteGate_gates_subset _ _ _))
 
 private theorem exists_find_reader_gate {S : State n} (hS : S.Valid f) {u G : ℕ}
     (hG : G ∈ S.gates) (hout : S.out.arg = .node u) (hD2 : findD2 S = none) (huG : u ≠ G) :
@@ -715,9 +654,8 @@ private theorem refuterStep_swapAuxIn {S : State n} (hS : S.Valid f) (hD1 : find
   simp only [applyStep, hargs]
   by_cases hsub : (findAffineRep S a).2 ⊆ {b}
   · rw [ite_eq_left hsub]
-    refine Or.inl ⟨Valid.step_deleteGate_affineIn hS hG hab hGa hGb haff hsub, ?_⟩
-    rw [deleteGate_gates]
-    exact Finset.erase_subset _ _
+    exact Or.inl ⟨Valid.step_deleteGate_affineIn hS hG hab hGa hGb haff hsub,
+      deleteGate_gates_subset _ _ _⟩
   · rw [ite_eq_right hsub]
     obtain ⟨y, hyT, hyb⟩ : ∃ y ∈ (findAffineRep S a).2, y ≠ b := by
       by_contra hc
@@ -772,9 +710,7 @@ private theorem refuterStep_pairCreation {S : State n} (hS : S.Valid f) {u : ℕ
   refine Or.inl ⟨Valid.step_pairCreation_of hS hG htne (Or.inl hl) (Or.inr hr)
     (mem_unpaired.2 ⟨ht₁, hu₁⟩) (mem_unpaired.2 ⟨ht₂, hu₂⟩)
     (fun val => by rw [Gate.eval_of_args hl hr]; exact and_form_spec hna _ _) hK' hK'r,
-    (deleteConstraint_gates_subset _ _).trans ?_⟩
-  rw [deleteGate_gates]
-  exact Finset.erase_subset _ _
+    (deleteConstraint_gates_subset _ _).trans (deleteGate_gates_subset _ _ _)⟩
 
 /-- Every choice of `chooseStep?` is a refuter step. -/
 theorem refuterStep_applyStep {S : State n} (hS : S.Valid f) {c : StepChoice}
@@ -821,22 +757,19 @@ theorem refuterLoop_valid {n} {f : BooleanFunction n} {S : State n}
     (refuterLoop S fuel).Valid f ∧
     (refuterLoop S fuel).W + 9 * S.a ≤ S.W + 9 * (refuterLoop S fuel).a ∧
     (refuterLoop S fuel).a ≤ S.a := by
-  induction fuel generalizing S with
-  | zero =>
+  fun_induction refuterLoop S fuel with
+  | case1 S => -- fuel exhausted
     have hnone : chooseStep? S = none := by
       rcases hc : chooseStep? S with _ | c
       · rfl
       · have := (refuterStep_applyStep hS hc).spec.1
         omega
     exact ⟨hnone, hS, le_rfl, le_rfl⟩
-  | succ k ih =>
-    rcases hc : chooseStep? S with _ | c
-    · simp only [refuterLoop, hc]
-      exact ⟨by simp, hS, le_rfl, le_rfl⟩
-    · obtain ⟨hlt, hS', hpot, ha⟩ := (refuterStep_applyStep hS hc).spec
-      obtain ⟨h1, h2, h3, h4⟩ := ih hS' (by omega)
-      simp only [refuterLoop, hc]
-      exact ⟨h1, h2, by omega, by omega⟩
+  | case2 S k c hc ih => -- chooseStep? S = some c: step and recurse
+    obtain ⟨hlt, hS', hpot, ha⟩ := (refuterStep_applyStep hS hc).spec
+    obtain ⟨h1, h2, h3, h4⟩ := ih hS' (by omega)
+    exact ⟨h1, h2, by omega, by omega⟩
+  | case3 S k hc => exact ⟨hc, hS, le_rfl, le_rfl⟩ -- chooseStep? S = none
 
 /-- The refuter finds an input on which any circuit satisfying
 `C.program.cost binaryB2Cost + 9 * d < 4 * n` disagrees with a `d`-affine disperser. -/
@@ -845,10 +778,8 @@ theorem refute_correct_of_cost_lt {n d : ℕ} (C : Circuit (fullSignature 2 Bool
     (hC : C.program.cost binaryB2Cost + 9 * d < 4 * n) :
     C.eval fullInterpretation (@refute n d C f) 0 ≠ f (@refute n d C f) := by
   have hinit : (initialState C).Valid (fun x => C.eval fullInterpretation x 0) :=
-    initialState_valid fun x => by
-      ext i
-      rw [Fin.eq_zero i]
-      rfl
+    initialState_valid fun x => funext fun i => congrArg (C.eval fullInterpretation x)
+      (Fin.eq_zero i)
   obtain ⟨hterm, hval, hpot, -⟩ :=
     refuterLoop_valid hinit (refuterMeasure (initialState C)) le_rfl
   have ha : d < (refuterLoop (initialState C) (refuterMeasure (initialState C))).a := by
@@ -857,10 +788,7 @@ theorem refute_correct_of_cost_lt {n d : ℕ} (C : Circuit (fullSignature 2 Bool
     omega
   obtain ⟨x, hx⟩ := Option.isSome_iff_exists.1 (findCounterexample_isSome C f hf hval hterm ha
     fun u hu => findAffineRep_spec hval.wf hu)
-  have hr : @refute n d C f = x := by
-    unfold refute
-    simp only [hx]
-  rw [hr]
+  simp only [refute, hx]
   exact findCounterexample_spec C f _ hx
 
 /-- The refuter finds an input on which a circuit of size `< 4n - 9d` disagrees with a

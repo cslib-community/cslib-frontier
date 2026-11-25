@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Product.Transfer
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # One charged timestamp initialization for all product tiles
@@ -40,14 +41,10 @@ public theorem exec_initializeDirectory {w L m N Q : ℕ} (x : Data 160)
   let P (k : ℕ) (z : Data 160) : Prop := Parameters L m N Q z ∧
     (∀ j < k, z.mem (stampBase L m N Q + j) = 0) ∧
     (∀ a, a < stampBase L m N Q ∨ memoryEnd L m N Q ≤ a → z.mem a = x.mem a)
-  let start := x.set Reg.index 0
-  have hs : ExecWithin (B := .standard) w (ram[Reg.index ← #0]) x start 1 := by
-    ram_eval [start]
-  have sp : Parameters L m N Q start := hp.set_work Reg.index (by decide) _
-  have hstart : P (start.regs Reg.index) start := ⟨sp, by simp [start], by simp [start]⟩
   have hbody (z : Data 160) (hz : P (z.regs Reg.index) z) (hi : z.regs Reg.index < H) :
       ∃ u, ExecWithin w body z u 3 ∧ P (z.regs Reg.index + 1) u ∧
         u.regs Reg.index = z.regs Reg.index + 1 := by
+    obtain ⟨hzp, hzj, hza⟩ := hz
     have ha : Fits w (stampBase L m N Q + z.regs Reg.index) := allocated_fits hfit (by
       unfold memoryEnd
       dsimp only [H] at hi
@@ -56,42 +53,29 @@ public theorem exec_initializeDirectory {w L m N Q : ℕ} (x : Data 160)
       unfold memoryEnd
       dsimp only [H] at hi
       omega)
-    let u := ((z.set Reg.address (stampBase L m N Q + z.regs Reg.index)).write
-      (stampBase L m N Q + z.regs Reg.index) 0).set Reg.index (z.regs Reg.index + 1)
-    have he : ExecWithin w body z u 3 := by
-      ram_eval [body, u, hz.1.stamps, hz.1.zero, hz.1.one, ha, hn,
-        Reg.address, Reg.stamps, Reg.index, Reg.zero, Reg.one]
-    have up : Parameters L m N Q u :=
-      ((hz.1.set_work Reg.address (by decide) _).write _ _).set_work Reg.index (by decide) _
-    have hnext : u.regs Reg.index = z.regs Reg.index + 1 := by simp [u]
-    refine ⟨u, he, ⟨up, ?_, ?_⟩, hnext⟩
+    refine WP.exists_execWithin ?_
+    wram_exec * [ha, hn]
+    refine ⟨⟨by regs_frame, ?_, ?_⟩, by wram_simp⟩
     · intro j hj
-      change Function.update z.mem (stampBase L m N Q + z.regs Reg.index) 0
-        (stampBase L m N Q + j) = 0
       by_cases h : j = z.regs Reg.index
-      · subst j
-        exact Function.update_self _ _ _
-      · rw [Function.update_of_ne (by omega)]
-        exact hz.2.1 j (by omega)
-    · intro a ha
-      change Function.update z.mem (stampBase L m N Q + z.regs Reg.index) 0 a = _
-      rw [Function.update_of_ne (by
-        unfold memoryEnd at ha
+      · subst h
+        wram_simp
+      · wram_simp
+        exact hzj j (by omega)
+    · intro a ha'
+      have hne : a ≠ stampBase L m N Q + z.regs Reg.index := by
+        unfold memoryEnd at ha'
         dsimp only [H] at hi
-        rcases ha with ha | ha <;> omega)]
-      exact hz.2.2 a ha
-  obtain ⟨y, he, hy, _⟩ := ExecWithin.loop_count P (fun _ hy => hy.1.leaves)
-    hbody (by simp [start]) hstart
-  let z := (y.set Reg.epoch 0).set Reg.index 0
-  have hz : ExecWithin (B := .standard) w (ram[Reg.epoch ← #0; Reg.index ← #0]) y z 2 := by
-    ram_eval [z]
-  refine ⟨z, ?_, (hy.1.set_work Reg.epoch (by decide) _).set_work Reg.index (by decide) _,
-    by simp [z, Reg.epoch, Reg.index], by simp [z], ?_, ?_⟩
-  · apply (hs.seq (he.seq hz)).mono
-    have hzero : start.regs Reg.index = 0 := by simp [start]
-    rw [hzero, Nat.sub_zero]
-    omega
-  · simpa only [z, Data.set_mem, H] using hy.2.1
-  · simpa only [z, Data.set_mem] using hy.2.2
+        rcases ha' with ha' | ha' <;> omega
+      wram_simp [hne]
+      exact hza a ha'
+  refine WP.exists_execWithin ?_
+  unfold initializeDirectory
+  wram_exec
+  wram_call (ExecWithin.loop_count P (fun _ hy => hy.1.leaves) hbody
+    (by wram_simp; exact Nat.zero_le _)
+    ⟨by regs_frame, by wram_simp; simp, fun _ _ => rfl⟩) with y ⟨⟨hyp, hyj, hya⟩, _⟩
+  wram_exec
+  exact ⟨by regs_frame, by wram_simp, by wram_simp, hyj, hya⟩
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.QueriedProduct

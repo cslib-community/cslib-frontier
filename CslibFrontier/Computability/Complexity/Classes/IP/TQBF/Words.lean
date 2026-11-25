@@ -139,16 +139,11 @@ theorem subMod_lt [NeZero p] (a b : ℕ) : subMod p a b < p := Nat.mod_lt _ (NeZ
 
 theorem connectiveMod_lt [NeZero p] (o : ArithQBF.Connective) (a b : ℕ) :
     connectiveMod p o a b < p := by
-  cases o
-  · exact Nat.mod_lt _ (NeZero.pos p)
-  · exact subMod_lt _ _
+  cases o <;> exact Nat.mod_lt _ (NeZero.pos p)
 
 theorem operatorMod_lt [NeZero p] (o : ArithQBF.Operator) (t a b : ℕ) :
     operatorMod p o t a b < p := by
-  cases o
-  · exact subMod_lt _ _
-  · exact Nat.mod_lt _ (NeZero.pos p)
-  · exact Nat.mod_lt _ (NeZero.pos p)
+  cases o <;> exact Nat.mod_lt _ (NeZero.pos p)
 
 theorem hornerMod_lt [NeZero p] (z : ℕ) (l : List ℕ) : hornerMod p z l < p := by
   rw [hornerMod, List.foldl_reverse, Nat.sub_add_cancel NeZero.one_le]
@@ -183,14 +178,10 @@ theorem lookupPt_canonPt {xs : List ℕ} (r : ℕ → ZMod p) {w : ℕ} (hw : w 
   induction xs with
   | nil => exact absurd hw List.not_mem_nil
   | cons x xs ih =>
-    by_cases hx : x = w
-    · subst hx
-      simp [lookupPt, canonPt]
-    · have hw' : w ∈ xs := (List.mem_cons.1 hw).resolve_left (Ne.symm hx)
-      have hb : (x == w) = false := beq_false_of_ne hx
-      have := ih hw'
-      simp only [lookupPt, canonPt, List.map_cons, List.find?_cons, hb] at this ⊢
-      exact this
+    rcases eq_or_ne x w with rfl | hx
+    · simp [lookupPt, canonPt]
+    · simpa only [lookupPt, canonPt, List.map_cons, List.find?_cons, beq_false_of_ne hx] using
+        ih ((List.mem_cons.1 hw).resolve_left hx.symm)
 
 theorem normPt_canonPt [NeZero p] (xs : List ℕ) (r : ℕ → ZMod p) :
     normPt p xs (canonPt xs r) = canonPt xs r := by
@@ -277,10 +268,8 @@ theorem decodeReply_encodeReply {D : ℕ} {l : List ℕ} (hl : ∀ a ∈ l, a < 
     decodeReply p D ((encodeReply p l).take (replyLimit p D)) =
       (List.range (D + 1)).map fun i => l.getD i 0 := by
   have hlength : (encodeReply p l).length ≤ replyLimit p D := by
-    have : (encodeReply p l).length = l.length * width p :=
-      List.length_flatMap_of_forall_length_eq fun a ha =>
-        BitString.length_binaryWord (lt_two_pow_width (hl a ha))
-    rw [this, replyLimit]
+    rw [encodeReply, replyLimit, List.length_flatMap_of_forall_length_eq fun a ha =>
+      BitString.length_binaryWord (lt_two_pow_width (hl a ha))]
     exact Nat.mul_le_mul_right _ hlen
   rw [List.take_of_length_le hlength, decodeReply, BitString.listRows, List.map_map]
   refine List.map_congr_left fun i _ => ?_

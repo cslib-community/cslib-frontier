@@ -98,13 +98,12 @@ theorem closeTo_transcript_linearProbFamily {Y N C : ℕ × F.Desc → Type}
     (i : ℕ × F.Desc) (x : ZMod (F.order i.2)) (y : Y i) (c : C i) :
     CloseTo ((linear (ψ i) (u i) (ι i)).transcript x y c)
       ((F.linearProbFamily ψ u ι i).transcript x y c) (1 / 2 ^ i.1 : ℝ≥0) := by
-  rw [linear_transcript]
   have hrhs : (F.linearProbFamily ψ u ι i).transcript x y c =
       ((ProbComp.eval (F.sampleExp i.1 i.2)).map (Nat.cast : ℕ → ZMod (F.order i.2))).map
         fun r : ZMod (F.order i.2) => (ψ i y r, r + ι i c • x) := by
     simp only [SigmaProtocol.transcript, linearProbFamily, linearProbCommit, ProbComp.eval_map,
       PMF.map_comp, Function.comp_def]
-  rw [hrhs]
+  rw [linear_transcript, hrhs]
   exact (F.closeTo_uniform_sampleExp i.1 i.2).map _
 
 /-- Completeness of `linearProbFamily` ([BonehShoup2023], Theorem 19.12 with Definition 19.3). -/
@@ -139,14 +138,9 @@ theorem closeTo_transcript_linearProbFamily_simulator {Y N C : ℕ × F.Desc →
   have hcoe : (((1 / 2 ^ i.1 : ℝ≥0)) : ℝ≥0∞) = 1 / 2 ^ i.1 := by
     rw [ENNReal.coe_div (pow_ne_zero _ two_ne_zero), ENNReal.coe_one, ENNReal.coe_pow,
       ENNReal.coe_ofNat]
-  have htrans : CloseTo ((linear (ψ i) (u i) (ι i)).transcript x y c)
-      ((F.linearProbFamily ψ u ι i).transcript x y c) (1 / 2 ^ i.1 : ℝ≥0∞) := by
-    rw [← hcoe]
-    exact F.closeTo_transcript_linearProbFamily ψ u ι i x y c
-  have h12 := hreal.closeTo_transcript_of_closeTo (δP := fun i => 1 / 2 ^ i.1) hS hxy htrans
-  have hadd : (1 / 2 ^ i.1 : ℝ≥0∞) + 1 / 2 ^ i.1 = 2 / 2 ^ i.1 := by
-    rw [← ENNReal.add_div, one_add_one_eq_two]
-  rwa [hadd] at h12
+  simpa only [← ENNReal.add_div, one_add_one_eq_two] using
+    hreal.closeTo_transcript_of_closeTo (δP := fun i => 1 / 2 ^ i.1) hS hxy
+      (hcoe ▸ F.closeTo_transcript_linearProbFamily ψ u ι i x y c)
 
 /-- When `sim` realizes a perfect simulator for `linear (ψ i) (u i) (ι i)` up to `1 / 2 ^ n`,
 Attack Game 20.4 distinguishing advantage for `linearProbFamily` over `(setup m).map (m, ·)` is at

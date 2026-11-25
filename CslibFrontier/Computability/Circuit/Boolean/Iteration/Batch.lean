@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.InputTime
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.SharedDictionary
 public import CslibFrontier.Computability.Circuit.Replication
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Algebra.Order.Floor.Ring
 import Mathlib.Tactic.GCongr
 import Mathlib.Tactic.Linarith
@@ -26,7 +27,7 @@ are looked up in one batched dictionary, and each member finishes on its own. Fo
 (`batched_fixed_power`), where
 `batchBudget n s M r L = r * L * s + (n + 1) ^ 3 * (r * L + M / L + 1)`;
 the storage term `M / L` is paid once rather than `r` times. Balancing `L` gives
-`300000 * (r * A + √((n + 1) ^ 3 * 2 ^ n * r * A))` with `A = s + (n + 1) ^ 3`
+`200000 * (r * A + √((n + 1) ^ 3 * 2 ^ n * r * A))` with `A = s + (n + 1) ^ 3`
 (`batched_fixed_power_optimized`).
 
 If each trajectory's first `L` states lie in a finite set `S`, the same construction pays
@@ -37,7 +38,7 @@ may leave `S` later. In particular, an invariant set gives the tradeoff
 
 With a separate `m`-bit time for each member, binary powering with the batched powers costs
 `m * (100000 * batchBudget n s (2 ^ n) r L + 4 * r * n)` (`batched_variable_time`), and
-`m * (300000 * optimizedBatchBudget n s (2 ^ n) r + 4 * r * n)` balanced
+`m * (200000 * optimizedBatchBudget n s (2 ^ n) r + 4 * r * n)` balanced
 (`batched_variable_time_optimized`). These input-time circuits specialize the shared
 binary-powering rule in `Iteration.InputTime` to the batched fixed-power circuits proved here.
 
@@ -158,9 +159,7 @@ private theorem synthesis_batched_power_on (c : Circuit signature n n)
         fun i => Or.inl (Or.inl (hi member i)))
   have hcorrect (member : Fin r) (x : BitString a) (hx : init x member ∈ S) :
       finished member x = f^[T] (init x member) := by
-    have hfit : K < 2 ^ (n + 2) := by
-      simp only [K, Nat.pow_succ]
-      omega
+    have hfit : K < 2 ^ (n + 2) := by simp only [K, Nat.pow_succ]; omega
     apply finishHit_correct f T K _ _ _ _ hfit hT
     · intro j hj
       obtain ⟨h, hh, -⟩ := (decide_eq_true_iff.mp hj : ∃ h, cp h = _ ∧ stored h 0 = true)
@@ -177,17 +176,8 @@ private theorem synthesis_batched_power_on (c : Circuit signature n n)
   have hfam := Synthesis.iUnion (fun member => wires (finished member)) _ hfinish
   refine ⟨finished, hcorrect,
     (hall.trans (hdict.trans hfam)).mono Set.Subset.rfl Set.Subset.rfl ?_⟩
-  simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]
-  have hm : (K + 1) * (4 * ((n + 2) + n + 1)) + K * c.size +
-      200 * (K + 1) * (n + (n + 2) + 1) ^ 2 + fallback.size + 4 * n ≤
-        (2 * L + 1) * (4 * ((n + 2) + n + 1)) + 2 * L * c.size +
-          200 * (2 * L + 1) * (n + (n + 2) + 1) ^ 2 + 40000 * powerBudget n c.size 0 L +
-            4 * n := by
-    simp only [K]
-    omega
-  have := Nat.mul_le_mul_left r hm
-  simp only [K] at this ⊢
-  omega
+  simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul, K, ← add_assoc]
+  gcongr
 
 /-- **Shared-dictionary powers.** Let `cp` be injective checkpoints such that every orbit repeats
 among its first `L` states or reaches a checkpoint in fewer than `2 L` steps, and let
@@ -234,25 +224,29 @@ private theorem batch_construction_cost (n s M N r L : ℕ) (hN : N ≤ 2 ^ n)
   have hMU : M ≤ U := (hM.trans (Nat.div_le_self _ _)).trans hN
   have hd : d ≤ 2 * n + 2 := by
     apply Nat.clog_le_of_le_pow
-    have he : 2 ^ (2 * n + 2) = 4 * U * U := by
+    have he : 2 ^ (2 * n + 2) = 4 * (U * U) := by
       rw [hUdef, show 2 * n + 2 = n + n + 2 by omega, pow_add, pow_add]
       ring
-    rw [he]
-    have hp := Nat.mul_le_mul hrN hLN
-    nlinarith
+    rw [he, show r * (2 * L + 1) = 2 * (r * L) + r by ring]
+    have hp : r * L ≤ U * U := Nat.mul_le_mul hrN hLN
+    have hr1 : r ≤ U * U := hrN.trans (Nat.le_mul_of_pos_right U hU)
+    have hMU2 : M ≤ U * U := hMU.trans (Nat.le_mul_of_pos_right U hU)
+    omega
   have hP : 1 ≤ P := Nat.one_le_pow _ _ (by omega)
   have hn1 : n + 1 ≤ P := by
     simpa only [pow_one] using Nat.pow_le_pow_right (show 0 < n + 1 by omega) (by decide : 1 ≤ 3)
   have hn2 : (n + 1) ^ 2 ≤ P := Nat.pow_le_pow_right (by omega) (by decide)
   -- the shared dictionary
   have hwidth : (d + 1) ^ 2 * (n + (n + 1) + 1) ≤ 18 * P := by
-    have h1 : (d + 1) ^ 2 ≤ 9 * (n + 1) ^ 2 := by
-      have := Nat.pow_le_pow_left (show d + 1 ≤ 3 * (n + 1) by omega) 2
-      nlinarith
+    have h1 : (d + 1) ^ 2 ≤ 9 * (n + 1) ^ 2 :=
+      (Nat.pow_le_pow_left (by omega : d + 1 ≤ 3 * (n + 1)) 2).trans_eq (by ring)
     calc (d + 1) ^ 2 * (n + (n + 1) + 1) ≤ 9 * (n + 1) ^ 2 * (2 * (n + 1)) := by
           gcongr; omega
       _ = 18 * P := by simp only [P]; ring
-  have hrecords : r * (2 * L + 1) + M + 1 ≤ 3 * (r * L) + N / L + 1 := by nlinarith
+  have hrecords : r * (2 * L + 1) + M + 1 ≤ 3 * (r * L) + N / L + 1 := by
+    have hrL := Nat.mul_le_mul_left r hL
+    rw [show r * (2 * L + 1) = 2 * (r * L) + r * 1 by ring]
+    omega
   have hdict : 48 * (r * (2 * L + 1) + M + 1) * (d + 1) ^ 2 * (n + (n + 1) + 1) ≤
       864 * P * (3 * (r * L) + N / L + 1) := by
     calc 48 * (r * (2 * L + 1) + M + 1) * (d + 1) ^ 2 * (n + (n + 1) + 1)
@@ -263,27 +257,40 @@ private theorem batch_construction_cost (n s M N r L : ℕ) (hN : N ≤ 2 ^ n)
   have hmember : (2 * L + 1) * (4 * ((n + 2) + n + 1)) +
       200 * (2 * L + 1) * (n + (n + 2) + 1) ^ 2 + 40000 * (P * (L + 0 + 1)) + 4 * n ≤
         85440 * (L * P) := by
-    have h1 : (2 * L + 1) * (4 * ((n + 2) + n + 1)) ≤ 36 * (L * P) := by
-      have := Nat.mul_le_mul (show 2 * L + 1 ≤ 3 * L by omega)
-        (show 4 * ((n + 2) + n + 1) ≤ 12 * P by omega)
-      nlinarith
+    have h1 : (2 * L + 1) * (4 * ((n + 2) + n + 1)) ≤ 36 * (L * P) :=
+      (Nat.mul_le_mul (by omega : 2 * L + 1 ≤ 3 * L) (by omega : _ ≤ 12 * P)).trans_eq (by ring)
     have h2 : 200 * (2 * L + 1) * (n + (n + 2) + 1) ^ 2 ≤ 5400 * (L * P) := by
       have hs : (n + (n + 2) + 1) ^ 2 ≤ 9 * P := by
-        have := Nat.pow_le_pow_left (show n + (n + 2) + 1 ≤ 3 * (n + 1) by omega) 2
-        nlinarith
-      have := Nat.mul_le_mul (show 2 * L + 1 ≤ 3 * L by omega) hs
-      nlinarith
-    have h3 : 40000 * (P * (L + 0 + 1)) ≤ 80000 * (L * P) := by nlinarith
-    have h4 : 4 * n ≤ 4 * (L * P) := by nlinarith
+        calc (n + (n + 2) + 1) ^ 2 ≤ (3 * (n + 1)) ^ 2 := Nat.pow_le_pow_left (by omega) 2
+          _ ≤ 9 * P := by rw [mul_pow]; exact Nat.mul_le_mul_left _ hn2
+      calc 200 * (2 * L + 1) * (n + (n + 2) + 1) ^ 2 ≤ 200 * (3 * L) * (9 * P) := by gcongr; omega
+        _ = 5400 * (L * P) := by ring
+    have h3 : 40000 * (P * (L + 0 + 1)) ≤ 80000 * (L * P) := by
+      linarith [Nat.le_mul_of_pos_left P hL]
+    have h4 : 4 * n ≤ 4 * (L * P) :=
+      Nat.mul_le_mul_left 4 ((Nat.le_succ n).trans (hn1.trans (Nat.le_mul_of_pos_left P hL)))
     omega
-  have hmembers := Nat.mul_le_mul_left r hmember
-  simp only [powerBudget, Nat.zero_div] at hmembers ⊢
-  change _ ≤ 100000 * (r * L * s + P * (r * L + N / L + 1))
+  have hmem_full : (2 * L + 1) * (4 * ((n + 2) + n + 1)) + 2 * L * s +
+      200 * (2 * L + 1) * (n + (n + 2) + 1) ^ 2 + 40000 * powerBudget n s 0 L + 4 * n ≤
+        40002 * (L * s) + 85440 * (L * P) := by
+    simp only [powerBudget, Nat.zero_div]
+    rw [mul_assoc 2 L s, show 40000 * (L * s + (n + 1) ^ 3 * (L + 0 + 1)) =
+      40000 * (L * s) + 40000 * (P * (L + 0 + 1)) by simp only [P]; ring]
+    omega
+  unfold batchBudget
   change 2 + (r * (2 * L * s) + 48 * (r * (2 * L + 1) + M + 1) * (d + 1) ^ 2 *
-    (n + (n + 1) + 1) + r * ((2 * L + 1) * (4 * ((n + 2) + n + 1)) + 2 * L * s +
-      200 * (2 * L + 1) * (n + (n + 2) + 1) ^ 2 + 40000 * (L * s + P * (L + 0 + 1)) +
-        4 * n)) ≤ _
-  nlinarith [Nat.zero_le (r * L * s), Nat.zero_le (P * (N / L)), Nat.zero_le (r * (L * P))]
+    (n + (n + 1) + 1) + r * _) ≤ 100000 * (r * L * s + P * (r * L + N / L + 1))
+  calc 2 + (r * (2 * L * s) + 48 * (r * (2 * L + 1) + M + 1) * (d + 1) ^ 2 *
+          (n + (n + 1) + 1) + r * ((2 * L + 1) * (4 * ((n + 2) + n + 1)) + 2 * L * s +
+            200 * (2 * L + 1) * (n + (n + 2) + 1) ^ 2 + 40000 * powerBudget n s 0 L + 4 * n))
+      ≤ 2 + (r * (2 * L * s) + 864 * P * (3 * (r * L) + N / L + 1) +
+          r * (40002 * (L * s) + 85440 * (L * P))) := by gcongr
+    _ = 2 + 40004 * (r * L * s) + 88032 * (P * (r * L)) + 864 * (P * (N / L)) + 864 * P := by ring
+    _ ≤ 100000 * (r * L * s + P * (r * L + N / L + 1)) := by
+        rw [show 100000 * (r * L * s + P * (r * L + N / L + 1)) =
+          100000 * (r * L * s) + 100000 * (P * (r * L)) + 100000 * (P * (N / L)) + 100000 * P by
+            ring]
+        omega
 
 /-- **Batched powers on promised prefixes.** If the first `L` states of each input trajectory
 lie in `S`, one shared checkpoint table costs `S.card / L` in the batched tradeoff. The set need
@@ -298,17 +305,18 @@ theorem batched_fixed_power_on_prefixes (c : Circuit signature n n)
         (blockMap (c.eval interpretation)^[T] r) ∧
       out.size ≤ 100000 * batchBudget n c.size S.card r L := by
   classical
+  have hrep (x : BitString (r * n)) : ((c.iterate T).replicate r).eval interpretation x =
+      blockMap (c.eval interpretation)^[T] r x := by
+    rw [Circuit.eval_replicate]
+    funext i
+    simp only [blockMap, Circuit.eval_iterate]
   wlog hLN : L ≤ 2 ^ n generalizing L
   · -- A longer prefix only strengthens the promise, and for a nonempty batch the budget at
     -- `L = 2 ^ n` is at most the budget at `L`.
     have hNL : 2 ^ n < L := not_le.1 hLN
     rcases Nat.eq_zero_or_pos r with rfl | hr
-    · refine ⟨(c.iterate T).replicate 0, fun x _ => ?_, ?_⟩
-      · rw [Circuit.eval_replicate]
-        funext i
-        simp only [blockMap, Circuit.eval_iterate]
-      · rw [Circuit.size_replicate, Nat.zero_mul]
-        exact Nat.zero_le _
+    · exact ⟨(c.iterate T).replicate 0, fun x _ => hrep x,
+        by rw [Circuit.size_replicate, Nat.zero_mul]; exact Nat.zero_le _⟩
     obtain ⟨out, hout, hs⟩ := this (2 ^ n) (Nat.two_pow_pos n) le_rfl
     refine ⟨out, fun x hx => hout fun member i => hx member ⟨i, i.isLt.trans hNL⟩, hs.trans ?_⟩
     have hcard : S.card ≤ 2 ^ n := by simpa using Finset.card_le_univ S
@@ -324,15 +332,12 @@ theorem batched_fixed_power_on_prefixes (c : Circuit signature n n)
     exact Nat.mul_le_mul_left 100000 (Nat.add_le_add h1 h2)
   let f := c.eval interpretation
   by_cases hT : T < 2 * L
-  · refine ⟨(c.iterate T).replicate r, ?_, ?_⟩
-    · intro x _
-      rw [Circuit.eval_replicate]
-      funext i
-      simp only [blockMap, Circuit.eval_iterate]
-    · rw [Circuit.size_replicate, Circuit.size_iterate]
-      have := Nat.mul_le_mul_left r (Nat.mul_le_mul_right c.size hT.le)
-      unfold batchBudget
-      nlinarith [Nat.zero_le ((n + 1) ^ 3 * (r * L + S.card / L + 1))]
+  · refine ⟨(c.iterate T).replicate r, fun x _ => hrep x, ?_⟩
+    rw [Circuit.size_replicate, Circuit.size_iterate]
+    have h1 : r * (T * c.size) ≤ 2 * (r * L * c.size) :=
+      (by gcongr : r * (T * c.size) ≤ r * (2 * L * c.size)).trans_eq (by ring)
+    unfold batchBudget
+    omega
   obtain ⟨H, _, hcard, hcover⟩ := FunctionalGraph.exists_checkpoints_on f S hL
   let cp : Fin H.card → BitString n := fun j => (H.equivFin.symm j).val
   have hcp : Function.Injective cp := fun i j h => H.equivFin.symm.injective (Subtype.ext h)
@@ -377,16 +382,10 @@ theorem batched_fixed_power_on (c : Circuit signature n n) (S : Finset (BitStrin
         (blockMap (c.eval interpretation)^[T] r) ∧
       out.size ≤ 100000 * batchBudget n c.size S.card r L := by
   obtain ⟨out, hout, hs⟩ := batched_fixed_power_on_prefixes c S r T L hrN hL
-  refine ⟨out, ?_, hs⟩
-  intro x hx
-  apply hout
-  intro member i
-  have hiter : ∀ t, (c.eval interpretation)^[t] (BitString.block x member) ∈ S := by
-    intro t
-    induction t with
-    | zero => exact hx member
-    | succ t ih => simpa only [Function.iterate_succ_apply'] using hS _ ih
-  exact hiter i.val
+  refine ⟨out, fun x hx => hout fun member i => ?_, hs⟩
+  induction i.val with
+  | zero => exact hx member
+  | succ t ih => simpa only [Function.iterate_succ_apply'] using hS _ ih
 
 /-- **Batched fixed powers.** For `r ≤ 2 ^ n` and `0 < L`, some circuit of size at most
 `100000 * batchBudget n c.size (2 ^ n) r L` applies `T` steps of `c` to each of `r` independent
@@ -413,17 +412,21 @@ theorem optimizedBatchBudget_one (n s M : ℕ) :
 
 private theorem exists_batchBudget_le_optimizedBatchBudget (n s M r : ℕ) (hr : 0 < r)
     (hM : M ≤ 2 ^ n) :
-    ∃ L : ℕ, 0 < L ∧ (batchBudget n s M r L : ℝ) ≤ 3 * optimizedBatchBudget n s M r := by
+    ∃ L : ℕ, 0 < L ∧ (batchBudget n s M r L : ℝ) ≤ 2 * optimizedBatchBudget n s M r := by
   have hb : (n + 1) ^ 3 ≤ r * (s + (n + 1) ^ 3) := by
     have := Nat.mul_le_mul_right (s + (n + 1) ^ 3) hr
     omega
-  obtain ⟨L, hL, -, h⟩ := exists_le_three_mul_add_sqrt (r * (s + (n + 1) ^ 3)) ((n + 1) ^ 3)
+  obtain ⟨L, hL, -, h⟩ := exists_le_add_add_two_mul_sqrt (r * (s + (n + 1) ^ 3)) ((n + 1) ^ 3)
     M (2 ^ n) (by positivity) hb hM (by positivity)
   refine ⟨L, hL, ?_⟩
   have he : batchBudget n s M r L = r * (s + (n + 1) ^ 3) * L + (n + 1) ^ 3 * (M / L + 1) := by
     unfold batchBudget
     ring
-  simpa [he, optimizedBatchBudget, Nat.cast_add, Nat.cast_pow] using h
+  have hb' : (((n + 1) ^ 3 : ℕ) : ℝ) ≤ (r * (s + (n + 1) ^ 3) : ℕ) := by
+    exact_mod_cast hb
+  simp only [he, optimizedBatchBudget, Nat.cast_add, Nat.cast_mul, Nat.cast_pow, Nat.cast_one]
+    at h hb' ⊢
+  linarith only [h, hb']
 
 /-- **Square-root batched powers on an invariant set.** The balanced shared-storage bound uses
 `S.card` rather than the size of the ambient state space. -/
@@ -434,29 +437,27 @@ theorem batched_fixed_power_on_optimized (c : Circuit signature n n)
       out.ComputesOn interpretation
         {x | ∀ member : Fin r, BitString.block x member ∈ S}
         (blockMap (c.eval interpretation)^[T] r) ∧
-      (out.size : ℝ) ≤ 300000 * optimizedBatchBudget n c.size S.card r := by
-  have hcard : S.card ≤ 2 ^ n := by simpa using Finset.card_le_univ S
+      (out.size : ℝ) ≤ 200000 * optimizedBatchBudget n c.size S.card r := by
+  have hcard : S.card ≤ 2 ^ n := by
+    simpa only [Finset.card_univ, Fintype.card_fun, Fintype.card_fin, Fintype.card_bool] using
+      Finset.card_le_univ S
   obtain ⟨L, hL, hopt⟩ := exists_batchBudget_le_optimizedBatchBudget n c.size S.card r hr
     hcard
   obtain ⟨out, hout, hs⟩ := batched_fixed_power_on c S r T L hS hrN hL
   refine ⟨out, hout, ?_⟩
-  have hs' : (out.size : ℝ) ≤ 100000 * (batchBudget n c.size S.card r L : ℝ) := by
-    exact_mod_cast hs
-  linarith
+  cast_linarith only [hopt, hs]
 
 /-- **Square-root batched fixed powers.** -/
 theorem batched_fixed_power_optimized (c : Circuit signature n n) (r T : ℕ) (hr : 0 < r)
     (hrN : r ≤ 2 ^ n) :
     ∃ out : Circuit signature (r * n) (r * n),
       out.Computes interpretation (blockMap (c.eval interpretation)^[T] r) ∧
-      (out.size : ℝ) ≤ 300000 * optimizedBatchBudget n c.size (2 ^ n) r := by
+      (out.size : ℝ) ≤ 200000 * optimizedBatchBudget n c.size (2 ^ n) r := by
   obtain ⟨L, hL, hopt⟩ := exists_batchBudget_le_optimizedBatchBudget n c.size (2 ^ n) r hr
     le_rfl
   obtain ⟨out, hout, hs⟩ := batched_fixed_power c r T L hrN hL
   refine ⟨out, hout, ?_⟩
-  have hs' : (out.size : ℝ) ≤ 100000 * (batchBudget n c.size (2 ^ n) r L : ℝ) := by
-    exact_mod_cast hs
-  linarith
+  cast_linarith only [hopt, hs]
 
 /-! ### Batched input times -/
 
@@ -479,7 +480,7 @@ theorem batched_variable_time_optimized (c : Circuit signature n n) (r m : ℕ) 
     (hrN : r ≤ 2 ^ n) :
     ∃ out : Circuit signature (r * (n + m)) (r * n),
       out.Computes interpretation (blockMap (inputTimeIterate (c.eval interpretation) m) r) ∧
-      (out.size : ℝ) ≤ m * (300000 * optimizedBatchBudget n c.size (2 ^ n) r + 4 * (r * n)) := by
+      (out.size : ℝ) ≤ m * (200000 * optimizedBatchBudget n c.size (2 ^ n) r + 4 * (r * n)) := by
   obtain ⟨L, hL, hopt⟩ := exists_batchBudget_le_optimizedBatchBudget n c.size (2 ^ n) r hr
     le_rfl
   obtain ⟨out, hout, hs⟩ := batched_variable_time c r m L hrN hL
@@ -487,6 +488,6 @@ theorem batched_variable_time_optimized (c : Circuit signature n n) (r m : ℕ) 
   have hs' : (out.size : ℝ) ≤
       m * (100000 * (batchBudget n c.size (2 ^ n) r L : ℝ) + 4 * (r * n)) := by
     exact_mod_cast hs
-  exact hs'.trans (mul_le_mul_of_nonneg_left (by linarith) (by positivity))
+  exact hs'.trans (mul_le_mul_of_nonneg_left (by linarith only [hopt]) (by positivity))
 
 end Cslib.Circuits.Boolean.Iteration

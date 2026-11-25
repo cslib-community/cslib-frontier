@@ -39,28 +39,23 @@ theorem runFrom_prefix (k : ℕ) (metadata : Metadata) (w : List Bool) (j : ℕ)
     (hj : j ≤ bankCells k metadata) :
     (machine k).runFrom w (metadata, 0, [], 1) j = prefixState k metadata j := by
   rcases metadata with ⟨args, m, r, alphabet, p⟩
-  dsimp only [bankCells] at hj
   induction j with
   | zero => rfl
   | succ j ih =>
-    have hjtotal : j < ((k * 3 + 1) + 1) * r := by omega
-    rw [QueryMachine.runFrom_succ, ih (by omega)]
-    have hhalt : (machine k).halted (prefixState k (args, m, r, alphabet, p) j) = false := by
-      change decide (((k * 3 + 1) + 1) * r ≤ j) = false
-      exact decide_eq_false (by omega)
-    rw [QueryMachine.step, hhalt]
+    have hjtotal : j < ((k * 3 + 1) + 1) * r := by
+      dsimp only [bankCells] at hj
+      omega
+    have hhalt : (machine k).halted (prefixState k (args, m, r, alphabet, p) j) = false :=
+      decide_eq_false (by omega : ¬ ((k * 3 + 1) + 1) * r ≤ j)
+    rw [QueryMachine.runFrom_succ, ih (by omega), QueryMachine.step, hhalt]
     change step k (prefixState k (args, m, r, alphabet, p) j) =
       prefixState k (args, m, r, alphabet, p) (j + 1)
     simp only [step, prefixState, hjtotal, ↓reduceIte]
     by_cases hchild : j < (k * 3 + 1) * r
-    · have hjle : j ≤ (k * 3 + 1) * r := hchild.le
-      have hsuccle : j + 1 ≤ (k * 3 + 1) * r := by omega
-      simp only [hchild, ↓reduceIte, Nat.min_eq_left hjle, Nat.min_eq_left hsuccle,
-        pow_succ, List.replicate_succ']
-    · have hle : (k * 3 + 1) * r ≤ j := by omega
-      have hlesucc : (k * 3 + 1) * r ≤ j + 1 := by omega
-      simp only [hchild, ↓reduceIte, Nat.min_eq_right hle, Nat.min_eq_right hlesucc,
-        List.replicate_succ']
+    · simp only [hchild, ↓reduceIte, Nat.min_eq_left hchild.le,
+        Nat.min_eq_left (by omega : j + 1 ≤ (k * 3 + 1) * r), pow_succ, List.replicate_succ']
+    · simp only [hchild, ↓reduceIte, Nat.min_eq_right (by omega : (k * 3 + 1) * r ≤ j),
+        Nat.min_eq_right (by omega : (k * 3 + 1) * r ≤ j + 1), List.replicate_succ']
 
 /-- The last allocation clock produces exactly the full bank and assignment capacity. -/
 theorem runFrom_complete (k : ℕ) (args : Args) (m r alphabet p : ℕ) (w : List Bool) :
@@ -69,17 +64,14 @@ theorem runFrom_complete (k : ℕ) (args : Args) (m r alphabet p : ℕ) (w : Lis
       ((args, m, r, alphabet, p), ((k * 3 + 1) + 1) * r,
         List.replicate (((k * 3 + 1) + 1) * r) p, alphabet ^ ((k * 3 + 1) * r)) := by
   rw [runFrom_prefix k (args, m, r, alphabet, p) w (((k * 3 + 1) + 1) * r) le_rfl]
-  have hle : (k * 3 + 1) * r ≤ ((k * 3 + 1) + 1) * r :=
-    Nat.mul_le_mul_right r (Nat.le_succ _)
-  simp only [prefixState, Nat.min_eq_right hle]
+  simp only [prefixState, Nat.min_eq_right (Nat.mul_le_mul_right r (Nat.le_succ _))]
 
 /-- Completion is a true halt, including the empty-bank edge case. -/
 theorem halted_complete (k : ℕ) (args : Args) (m r alphabet p : ℕ) (w : List Bool) :
     (machine k).halted ((machine k).runFrom w ((args, m, r, alphabet, p), 0, [], 1)
       (((k * 3 + 1) + 1) * r)) = true := by
   rw [runFrom_complete]
-  change decide (((k * 3 + 1) + 1) * r ≤ ((k * 3 + 1) + 1) * r) = true
-  exact decide_eq_true le_rfl
+  exact decide_eq_true (le_rfl : ((k * 3 + 1) + 1) * r ≤ ((k * 3 + 1) + 1) * r)
 
 /-- Reading the completed generic allocation gives exactly the typed zero-bank initial call. -/
 theorem result_runFrom_complete {p : ℕ} [Fact p.Prime]

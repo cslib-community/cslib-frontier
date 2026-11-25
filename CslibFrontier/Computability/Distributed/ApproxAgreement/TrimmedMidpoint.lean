@@ -12,6 +12,7 @@ public import Mathlib.Algebra.Order.Field.Basic
 public import Mathlib.Algebra.Order.Ring.Abs
 public import Mathlib.Data.Fintype.Card
 public import Mathlib.Data.List.Sort
+import CslibFrontier.Tactic.FinsetCard
 import Mathlib.Data.Multiset.Filter
 import Mathlib.Tactic.Linarith
 
@@ -165,38 +166,28 @@ theorem trimmed_eq_of_perm {xs ys : List K} (h : xs.Perm ys) (t : ℕ) :
 
 /-! ### Order-statistic bounds on `sortLE` -/
 
+/-- If no entry of `l.take m` satisfies `p`, then at most `l.length - m` entries of `l` do. -/
+private lemma countP_le_of_take {α : Type*} {l : List α} {p : α → Bool} {m : ℕ}
+    (h : ∀ x ∈ l.take m, ¬p x) : l.countP p ≤ l.length - m := by
+  have h1 : l.countP p = (l.take m).countP p + (l.drop m).countP p := by
+    rw [← List.countP_append, List.take_append_drop]
+  rw [h1, List.countP_eq_zero.mpr h, zero_add]
+  simpa only [List.length_drop] using List.countP_le_length (l := l.drop m) (p := p)
+
 /-- If at least `xs.length - k` entries of `xs` are `≥ v`, then `(sortLE xs)[k] ≥ v`. -/
 private lemma le_sortLE_getElem {xs : List K} {k : ℕ} {v : K}
     (hk : k < (sortLE xs).length)
     (hcnt : xs.length - k ≤ xs.countP (fun x => decide (v ≤ x))) :
     v ≤ (sortLE xs)[k] := by
   by_contra! hlt
-  have htake_lt : ∀ x ∈ (sortLE xs).take (k + 1), decide (v ≤ x) = false := by
-    intro x hx
-    obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hx
-    rw [List.getElem_take]
-    have hik : i ≤ k := by
+  have h := countP_le_of_take (l := sortLE xs) (p := fun x => decide (v ≤ x)) (m := k + 1)
+    fun x hx => by
+      obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hx
       rw [List.length_take] at hi
-      omega
-    have hi_len : i < (sortLE xs).length := Nat.lt_of_le_of_lt hik hk
-    have hle : (sortLE xs)[i] ≤ (sortLE xs)[k] :=
-      (sortedLE_sortLE xs).getElem_le_getElem_of_le hik
-    simp only [decide_eq_false_iff_not, not_le]
-    exact lt_of_le_of_lt hle hlt
-  have hsplit : sortLE xs = (sortLE xs).take (k + 1) ++ (sortLE xs).drop (k + 1) :=
-    (List.take_append_drop (k + 1) (sortLE xs)).symm
-  have hperm_cnt : xs.countP (fun x => decide (v ≤ x)) =
-      (sortLE xs).countP (fun x => decide (v ≤ x)) :=
-    (perm_sortLE xs).symm.countP_eq _
-  have htake_zero : ((sortLE xs).take (k + 1)).countP (fun x => decide (v ≤ x)) = 0 :=
-    List.countP_eq_zero.mpr fun x hx => by
-      simp only [htake_lt x hx, Bool.false_eq_true, not_false_eq_true]
-  have hdrop_le : ((sortLE xs).drop (k + 1)).countP (fun x => decide (v ≤ x)) ≤
-      xs.length - (k + 1) := by
-    refine List.countP_le_length.trans ?_
-    simp only [List.length_drop, length_sortLE, le_rfl]
-  rw [hperm_cnt, hsplit, List.countP_append, htake_zero, zero_add] at hcnt
-  have hk_lt : k < xs.length := by simpa only [length_sortLE] using hk
+      simp only [List.getElem_take, decide_eq_true_eq, not_le]
+      exact ((sortedLE_sortLE xs).getElem_le_getElem_of_le (by omega)).trans_lt hlt
+  rw [(perm_sortLE xs).countP_eq, length_sortLE] at h
+  rw [length_sortLE] at hk
   omega
 
 /-- If at least `k + 1` entries of `xs` are `≤ v`, then `(sortLE xs)[k] ≤ v`. -/
@@ -205,29 +196,17 @@ private lemma sortLE_getElem_le {xs : List K} {k : ℕ} {v : K}
     (hcnt : k + 1 ≤ xs.countP (fun x => decide (x ≤ v))) :
     (sortLE xs)[k] ≤ v := by
   by_contra! hgt
-  have hdrop_gt : ∀ x ∈ (sortLE xs).drop k, decide (x ≤ v) = false := by
-    intro x hx
-    obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hx
-    rw [List.getElem_drop]
-    have hkj : k + j < (sortLE xs).length := by
-      rw [List.length_drop] at hj
-      omega
-    have hle : (sortLE xs)[k] ≤ (sortLE xs)[k + j] :=
-      (sortedLE_sortLE xs).getElem_le_getElem_of_le (Nat.le_add_right k j)
-    simp only [decide_eq_false_iff_not, not_le]
-    exact lt_of_lt_of_le hgt hle
-  have hsplit : sortLE xs = (sortLE xs).take k ++ (sortLE xs).drop k :=
-    (List.take_append_drop k (sortLE xs)).symm
-  have hperm_cnt : xs.countP (fun x => decide (x ≤ v)) =
-      (sortLE xs).countP (fun x => decide (x ≤ v)) :=
-    (perm_sortLE xs).symm.countP_eq _
-  have hdrop_zero : ((sortLE xs).drop k).countP (fun x => decide (x ≤ v)) = 0 :=
+  have hdrop : ((sortLE xs).drop k).countP (fun x => decide (x ≤ v)) = 0 :=
     List.countP_eq_zero.mpr fun x hx => by
-      simp only [hdrop_gt x hx, Bool.false_eq_true, not_false_eq_true]
-  have htake_le : ((sortLE xs).take k).countP (fun x => decide (x ≤ v)) ≤ k := by
-    refine List.countP_le_length.trans ?_
-    simp only [List.length_take, min_le_iff, le_rfl, true_or]
-  rw [hperm_cnt, hsplit, List.countP_append, hdrop_zero, add_zero] at hcnt
+      obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hx
+      simp only [List.getElem_drop, decide_eq_true_eq, not_le]
+      exact hgt.trans_le ((sortedLE_sortLE xs).getElem_le_getElem_of_le (Nat.le_add_right k j))
+  have h1 : (sortLE xs).countP (fun x => decide (x ≤ v)) =
+      ((sortLE xs).take k).countP (fun x => decide (x ≤ v)) + 0 := by
+    rw [← hdrop, ← List.countP_append, List.take_append_drop]
+  rw [(perm_sortLE xs).countP_eq, add_zero] at h1
+  have := (List.countP_le_length (p := fun x => decide (x ≤ v))).trans
+    (List.length_take_le k (sortLE xs))
   omega
 
 /-- Every surviving entry of `trimmed t xs` lies between `(sortLE xs)[t]` and
@@ -318,29 +297,17 @@ theorem midTrim_eq_endpoints {t : ℕ} {xs : List K} (h2t : 2 * t < xs.length) :
     midTrim t xs =
       ((sortLE xs)[t]'(by rw [length_sortLE]; omega) +
         (sortLE xs)[xs.length - 1 - t]'(by rw [length_sortLE]; omega)) / 2 := by
-  have hne : trimmed t xs ≠ [] := trimmed_ne_nil h2t
-  cases htr : trimmed t xs with
-  | nil => exact absurd htr hne
-  | cons y ys =>
-    simp only [midTrim, htr]
-    have hhead : y = (sortLE xs)[t]'(by rw [length_sortLE]; omega) := by
-      have h0 : (trimmed t xs)[0]'(by rw [htr]; exact Nat.zero_lt_succ _) = y := by simp [htr]
-      rw [← h0]
-      simp only [trimmed, List.getElem_take, List.getElem_drop, Nat.add_zero]
-    have hlast : ys.getLastD y =
-        (sortLE xs)[xs.length - 1 - t]'(by rw [length_sortLE]; omega) := by
-      rw [getLastD_eq_getElem_last y ys]
-      have hlen : (y :: ys).length = xs.length - 2 * t := by
-        rw [← htr, length_trimmed]
-      have hidx : (trimmed t xs)[(y :: ys).length - 1]'(by
-          rw [htr]; exact Nat.sub_lt (Nat.succ_pos _) Nat.one_pos) =
-          (y :: ys)[(y :: ys).length - 1] := by
-        simp only [htr]
-      rw [← hidx]
-      simp only [trimmed, List.getElem_take, List.getElem_drop]
-      congr 1
-      omega
-    rw [hlast, hhead]
+  obtain ⟨y, ys, htr⟩ := List.exists_cons_of_ne_nil (trimmed_ne_nil h2t)
+  have hlen : (y :: ys).length = xs.length - 2 * t := by rw [← htr, length_trimmed]
+  have get (j : ℕ) (hj : j < (y :: ys).length) :
+      (y :: ys)[j] = (sortLE xs)[t + j]'(by rw [length_sortLE]; omega) := by
+    simp only [← htr, trimmed, List.getElem_take, List.getElem_drop]
+  simp only [midTrim, htr]
+  rw [getLastD_eq_getElem_last, get]
+  congr 2
+  · simpa only [List.getElem_cons_zero, Nat.add_zero] using get 0 (Nat.zero_lt_succ _)
+  · congr 1
+    omega
 
 /-- **Convex-hull validity (`midTrim_mem_Icc`):** if `2 * t < xs.length` and at least
 `xs.length - t` entries of `xs` lie in `[lo, hi]`, then `midTrim t xs ∈ [lo, hi]`. -/
@@ -356,6 +323,16 @@ theorem midTrim_mem_Icc {t : ℕ} {xs : List K} {lo hi : K}
   constructor <;> linarith
 
 omit [Field K] [IsStrictOrderedRing K] in
+/-- Two lists sharing more than `2 * t` multiset entries both have more than `2 * t` entries. -/
+private lemma two_mul_lt_length_of_inter {t : ℕ} {xs ys : List K}
+    (hinter : 2 * t < (Multiset.ofList xs ∩ Multiset.ofList ys).card) :
+    2 * t < xs.length ∧ 2 * t < ys.length :=
+  ⟨by simpa only [Multiset.coe_card] using
+      hinter.trans_le (Multiset.card_le_card Multiset.inter_le_left),
+    by simpa only [Multiset.coe_card] using
+      hinter.trans_le (Multiset.card_le_card Multiset.inter_le_right)⟩
+
+omit [Field K] [IsStrictOrderedRing K] in
 /-- Cross-endpoint bound: if `xs` and `ys` share strictly more than `2 * t` multiset entries, then
 the minimum of `trimmed t xs` is at most the maximum of `trimmed t ys`. -/
 private lemma sortLE_min_le_max_of_inter {t : ℕ} {xs ys : List K}
@@ -368,56 +345,27 @@ private lemma sortLE_min_le_max_of_inter {t : ℕ} {xs ys : List K}
       have hle := Multiset.card_le_card
         (Multiset.inter_le_right (s := Multiset.ofList xs) (t := Multiset.ofList ys))
       rw [Multiset.coe_card] at hle; rw [length_sortLE]; omega) := by
-  set M := Multiset.ofList xs ∩ Multiset.ofList ys
-  have hx_len : 2 * t < xs.length := by
-    have hle := Multiset.card_le_card
-      (Multiset.inter_le_left (s := Multiset.ofList xs) (t := Multiset.ofList ys))
-    simpa only [Multiset.coe_card] using lt_of_lt_of_le hinter hle
-  have hy_len : 2 * t < ys.length := by
-    have hle := Multiset.card_le_card
-      (Multiset.inter_le_right (s := Multiset.ofList xs) (t := Multiset.ofList ys))
-    simpa only [Multiset.coe_card] using lt_of_lt_of_le hinter hle
+  obtain ⟨hx_len, hy_len⟩ := two_mul_lt_length_of_inter hinter
   set b₂ := (sortLE ys)[ys.length - 1 - t]'(by rw [length_sortLE]; omega)
-  -- At most `t` elements of `ys` strictly exceed `b₂`.
+  -- At most `t` elements of `ys` strictly exceed `b₂`, so at least `t + 1` elements of
+  -- `xs ∩ ys ≤ xs` satisfy `x ≤ b₂`.
   have hys_gt : (Multiset.ofList ys).countP (fun x => b₂ < x) ≤ t := by
-    have hperm_eq : (Multiset.ofList ys).countP (fun x => b₂ < x) =
-        (sortLE ys).countP (fun x => decide (b₂ < x)) := by
-      rw [Multiset.coe_countP]
-      exact (perm_sortLE ys).symm.countP_eq _
-    rw [hperm_eq]
-    have hsplit :
-        sortLE ys = (sortLE ys).take (ys.length - t) ++ (sortLE ys).drop (ys.length - t) :=
-      (List.take_append_drop (ys.length - t) (sortLE ys)).symm
-    have htake_zero :
-        ((sortLE ys).take (ys.length - t)).countP (fun x => decide (b₂ < x)) = 0 := by
-      refine List.countP_eq_zero.mpr fun x hx => ?_
-      obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hx
-      have hi_le : i ≤ ys.length - 1 - t := by
-        rw [List.length_take, length_sortLE] at hi
-        omega
-      have hle : (sortLE ys)[i]'(by rw [length_sortLE]; omega) ≤ b₂ :=
-        (sortedLE_sortLE ys).getElem_le_getElem_of_le hi_le
-      simp only [List.getElem_take, decide_eq_true_eq, not_lt]
-      exact hle
-    have hdrop_le :
-        ((sortLE ys).drop (ys.length - t)).countP (fun x => decide (b₂ < x)) ≤ t := by
-      refine List.countP_le_length.trans ?_
-      rw [List.length_drop, length_sortLE]
-      omega
-    rw [hsplit, List.countP_append, htake_zero, zero_add]
-    exact hdrop_le
-  -- Hence at most `t` elements of `M ≤ ys` exceed `b₂`, so at least `t + 1` elements of `M ≤ xs`
-  -- satisfy `x ≤ b₂`.
-  have hM_gt : M.countP (fun x => b₂ < x) ≤ t :=
-    (Multiset.countP_le_of_le _ Multiset.inter_le_right).trans hys_gt
-  have hM_part : M.card = M.countP (fun x => x ≤ b₂) + M.countP (fun x => b₂ < x) := by
-    have hpart := Multiset.card_eq_countP_add_countP (fun x => x ≤ b₂) M
-    simpa only [not_le] using hpart
-  have hM_le : t + 1 ≤ M.countP (fun x => x ≤ b₂) := by omega
-  have hxs_le : t + 1 ≤ xs.countP (fun x => decide (x ≤ b₂)) := by
-    have hle := hM_le.trans (Multiset.countP_le_of_le _ Multiset.inter_le_left)
-    simpa only [Multiset.coe_countP] using hle
-  exact sortLE_getElem_le (by rw [length_sortLE]; omega) hxs_le
+    rw [Multiset.coe_countP, ← (perm_sortLE ys).countP_eq]
+    refine (countP_le_of_take (m := ys.length - t) fun x hx => ?_).trans
+      (by rw [length_sortLE]; omega)
+    obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hx
+    rw [List.length_take, length_sortLE] at hi
+    simp only [List.getElem_take, decide_eq_true_eq, not_lt]
+    exact (sortedLE_sortLE ys).getElem_le_getElem_of_le (by omega)
+  have hM := Multiset.card_eq_countP_add_countP (fun x => x ≤ b₂)
+    (Multiset.ofList xs ∩ Multiset.ofList ys)
+  simp only [not_le] at hM
+  have h1 := (Multiset.countP_le_of_le (fun x => b₂ < x)
+    (Multiset.inter_le_right (s := Multiset.ofList xs) (t := Multiset.ofList ys))).trans hys_gt
+  have h2 := Multiset.countP_le_of_le (fun x => x ≤ b₂)
+    (Multiset.inter_le_left (s := Multiset.ofList xs) (t := Multiset.ofList ys))
+  rw [Multiset.coe_countP] at h2
+  exact sortLE_getElem_le (by rw [length_sortLE]; omega) (by omega)
 
 /-- **Trimmed-midpoint contraction (`abs_midTrim_sub_le`):** extreme-endpoint specialization after
 Section 2.2, Lemma 5 of [Dolev, Lynch, Pinter, Stark and Weihl][DolevLynchPinterStarkWeihl1986]
@@ -429,25 +377,12 @@ theorem abs_midTrim_sub_le {t : ℕ} {xs ys : List K} {lo hi : K}
     (hxs : xs.length - t ≤ xs.countP (fun x => decide (lo ≤ x ∧ x ≤ hi)))
     (hys : ys.length - t ≤ ys.countP (fun x => decide (lo ≤ x ∧ x ≤ hi))) :
     |midTrim t xs - midTrim t ys| ≤ (hi - lo) / 2 := by
-  have hx_len : 2 * t < xs.length := by
-    have hle := Multiset.card_le_card
-      (Multiset.inter_le_left (s := Multiset.ofList xs) (t := Multiset.ofList ys))
-    simpa only [Multiset.coe_card] using lt_of_lt_of_le hinter hle
-  have hy_len : 2 * t < ys.length := by
-    have hle := Multiset.card_le_card
-      (Multiset.inter_le_right (s := Multiset.ofList xs) (t := Multiset.ofList ys))
-    simpa only [Multiset.coe_card] using lt_of_lt_of_le hinter hle
+  obtain ⟨hx_len, hy_len⟩ := two_mul_lt_length_of_inter hinter
   rw [midTrim_eq_endpoints hx_len, midTrim_eq_endpoints hy_len]
   obtain ⟨ha₁, hb₁⟩ := sortLE_trim_endpoints_mem_Icc hx_len hxs
   obtain ⟨ha₂, hb₂⟩ := sortLE_trim_endpoints_mem_Icc hy_len hys
-  have hcross₁ : (sortLE xs)[t]'(by rw [length_sortLE]; omega) ≤
-      (sortLE ys)[ys.length - 1 - t]'(by rw [length_sortLE]; omega) :=
-    sortLE_min_le_max_of_inter hinter
-  have hinter_symm : 2 * t < (Multiset.ofList ys ∩ Multiset.ofList xs).card := by
-    rwa [Multiset.inter_comm]
-  have hcross₂ : (sortLE ys)[t]'(by rw [length_sortLE]; omega) ≤
-      (sortLE xs)[xs.length - 1 - t]'(by rw [length_sortLE]; omega) :=
-    sortLE_min_le_max_of_inter hinter_symm
+  have hc₁ := sortLE_min_le_max_of_inter hinter
+  have hc₂ := sortLE_min_le_max_of_inter (xs := ys) (ys := xs) (by rwa [Multiset.inter_comm])
   rw [abs_sub_le_iff]
   constructor <;> linarith
 
@@ -461,22 +396,16 @@ private lemma card_sub_le_countP_map {P : Type*}
     (hval : ∀ p ∈ S, p ∉ F → f p ∈ Set.Icc lo hi) :
     (S.val.map f).card - t ≤ (S.val.map f).countP (fun x => lo ≤ x ∧ x ≤ hi) := by
   classical
-  have hsub : (S \ F).val.map f ≤ S.val.map f :=
-    Multiset.map_le_map (Finset.val_le_iff.mpr Finset.sdiff_subset)
-  have hall : ∀ x ∈ (S \ F).val.map f, lo ≤ x ∧ x ≤ hi := by
-    intro x hx
-    obtain ⟨p, hp, rfl⟩ := Multiset.mem_map.mp hx
-    have hp' := Finset.mem_sdiff.mp hp
-    exact hval p hp'.1 hp'.2
-  have hcnt_hon : ((S \ F).val.map f).countP (fun x => lo ≤ x ∧ x ≤ hi) = (S \ F).card := by
-    rw [Multiset.countP_eq_card_filter, Multiset.filter_eq_self.mpr hall, Multiset.card_map]
-    rfl
+  have hall : ∀ x ∈ (S \ F).val.map f, lo ≤ x ∧ x ≤ hi :=
+    Multiset.forall_mem_map_iff.mpr fun p hp =>
+      hval p (Finset.mem_sdiff.mp hp).1 (Finset.mem_sdiff.mp hp).2
   have hle_cnt : (S \ F).card ≤ (S.val.map f).countP (fun x => lo ≤ x ∧ x ≤ hi) := by
-    rw [← hcnt_hon]
-    exact Multiset.countP_le_of_le _ hsub
-  have hsdiff : S.card - F.card ≤ (S \ F).card := Finset.le_card_sdiff F S
+    have hsub := Multiset.countP_le_of_le (fun x => lo ≤ x ∧ x ≤ hi)
+      (Multiset.map_le_map (f := f) (Finset.val_le_iff.mpr (Finset.sdiff_subset (s := S) (t := F))))
+    rwa [Multiset.countP_eq_card_filter, Multiset.filter_eq_self.mpr hall, Multiset.card_map,
+      ← Finset.card_def] at hsub
   rw [Multiset.card_map, ← Finset.card_def]
-  omega
+  finset_card
 
 /-- **Sender-multiset validity:** if `2 * t < S.card`, `F.card ≤ t`, and every correct sender
 `p ∈ S \ F` reports a value `f p ∈ [lo, hi]`, then `multisetMidTrim t (S.val.map f) ∈ [lo, hi]`. -/
@@ -485,16 +414,11 @@ theorem multisetMidTrim_map_mem_Icc {P : Type*}
     {f : P → K} {lo hi : K} (hval : ∀ p ∈ S, p ∉ F → f p ∈ Set.Icc lo hi) :
     multisetMidTrim t (S.val.map f) ∈ Set.Icc lo hi := by
   have hcnt := card_sub_le_countP_map hF hval
-  obtain ⟨xs, hxs⟩ := Quot.exists_rep (S.val.map f)
-  have hxs' : Multiset.ofList xs = S.val.map f := hxs
-  rw [← hxs', multisetMidTrim_coe]
-  apply midTrim_mem_Icc
-  · have hlen : xs.length = S.card := by
-      have h := congrArg Multiset.card hxs'
-      simpa only [Multiset.coe_card, Multiset.card_map, Finset.card_def] using h
-    omega
-  · rw [← hxs'] at hcnt
-    simpa only [Multiset.coe_card, Multiset.coe_countP, decide_eq_true_eq] using hcnt
+  have hlen : (S.val.map f).card = S.card := Multiset.card_map _ _
+  generalize S.val.map f = s at hcnt hlen ⊢
+  obtain ⟨xs, rfl⟩ := Quot.exists_rep s
+  simp only [Multiset.quot_mk_to_coe'', Multiset.coe_card, Multiset.coe_countP] at hcnt hlen
+  exact midTrim_mem_Icc (by omega) hcnt
 
 /-- **Sender-multiset contraction:** suppose `F.card ≤ t`, two recipients collect values `f₁`, `f₂`
 from sender sets `S₁`, `S₂` with `Fintype.card P + 3 * t < S₁.card + S₂.card` (which holds both
@@ -512,11 +436,7 @@ theorem abs_multisetMidTrim_map_sub_le {P : Type*} [Fintype P]
     |multisetMidTrim t (S₁.val.map f₁) - multisetMidTrim t (S₂.val.map f₂)| ≤ (hi - lo) / 2 := by
   classical
   set H : Finset P := (S₁ ∩ S₂) \ F
-  have hH_card : 2 * t < H.card := by
-    have hiu := Finset.card_union_add_card_inter S₁ S₂
-    have hu : (S₁ ∪ S₂).card ≤ Fintype.card P := Finset.card_le_univ _
-    have hsdiff : (S₁ ∩ S₂).card - F.card ≤ H.card := Finset.le_card_sdiff F (S₁ ∩ S₂)
-    omega
+  have hH_card : 2 * t < H.card := by finset_card
   have hmap_le : ∀ {S : Finset P} {f : P → K},
       H ⊆ S → (∀ p ∈ S, p ∉ F → f p = val p) → H.val.map val ≤ S.val.map f := by
     intro S f hHS hf
@@ -536,17 +456,13 @@ theorem abs_multisetMidTrim_map_sub_le {P : Type*} [Fintype P]
     fun p hp hpF => hf₁ p hp hpF ▸ hval p hpF
   have hcnt₂ := card_sub_le_countP_map hF (S := S₂) (f := f₂) (lo := lo) (hi := hi)
     fun p hp hpF => hf₂ p hp hpF ▸ hval p hpF
-  obtain ⟨xs, hxs⟩ := Quot.exists_rep (S₁.val.map f₁)
-  obtain ⟨ys, hys⟩ := Quot.exists_rep (S₂.val.map f₂)
-  have hxs' : Multiset.ofList xs = S₁.val.map f₁ := hxs
-  have hys' : Multiset.ofList ys = S₂.val.map f₂ := hys
-  rw [← hxs', ← hys', multisetMidTrim_coe, multisetMidTrim_coe]
-  apply abs_midTrim_sub_le
-  · rwa [hxs', hys']
-  · rw [← hxs'] at hcnt₁
-    simpa only [Multiset.coe_card, Multiset.coe_countP, decide_eq_true_eq] using hcnt₁
-  · rw [← hys'] at hcnt₂
-    simpa only [Multiset.coe_card, Multiset.coe_countP, decide_eq_true_eq] using hcnt₂
+  generalize S₁.val.map f₁ = s₁ at hinter hcnt₁ ⊢
+  generalize S₂.val.map f₂ = s₂ at hinter hcnt₂ ⊢
+  obtain ⟨xs, rfl⟩ := Quot.exists_rep s₁
+  obtain ⟨ys, rfl⟩ := Quot.exists_rep s₂
+  simp only [Multiset.quot_mk_to_coe''] at hinter
+  simp only [Multiset.quot_mk_to_coe'', Multiset.coe_card, Multiset.coe_countP] at hcnt₁ hcnt₂
+  exact abs_midTrim_sub_le hinter hcnt₁ hcnt₂
 
 end OrderedField
 

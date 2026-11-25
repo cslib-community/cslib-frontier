@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Weight
 import CslibFrontier.Computability.GenericRAM.Signed.Fits
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Havoc
 
 /-!
 # One cell of the three Convolution-3SUM matrices
@@ -144,7 +145,7 @@ def step : Code .standard 28 := ram[
 
 private theorem step_preserves : ∀ i : Fin 28,
     i.val = 10 ∨ i.val = 11 ∨ (14 ≤ i.val ∧ i.val ≤ 21) ∨ 26 ≤ i.val →
-      step.Preserves i := by decide
+      step.Preserves i := by decide +kernel
 
 private theorem encode_nat (k : ℕ) : encode (k : ℤ) = k + k := by
   simp [encode, two_mul]
@@ -154,11 +155,7 @@ private theorem picked_index {N a b : ℕ} {μ : ℕ → ℤ} {F : ℤ} :
       pick N μ F ((a : ℤ) - b) := by
   by_cases h : a < b
   · simp [h, pick]
-  · have he : (a - b : ℕ) = (a : ℤ) - b := by omega
-    simp only [h, ↓reduceIte, he]
-
-private theorem prepare_preserves : ∀ i : Fin 28,
-    (9 ≤ i.val ∧ i.val ≤ 21) ∨ 26 ≤ i.val → prepare.Preserves i := by decide
+  · simp only [h, ↓reduceIte, show ((a - b : ℕ) : ℤ) = (a : ℤ) - b by omega]
 
 private theorem exec_prepare {w q t : ℕ} {F : ℤ} (x : Data 28)
     (hq : x.regs cell = q) (ht : x.regs side = t) (hf : x.regs filler = encode F)
@@ -166,41 +163,14 @@ private theorem exec_prepare {w q t : ℕ} {F : ℤ} (x : Data 28)
     (hF : GenericRAM.Signed.Fits w F) :
     ∃ y, ExecWithin (w + 2) prepare x y 23 ∧ y.mem = x.mem ∧
       y.regs row = q / t ∧ y.regs col = q % t ∧
-      y.regs saved = encode F ∧ y.regs negFill = encode (-F) ∧
-      ∀ i : Fin 28, (9 ≤ i.val ∧ i.val ≤ 21) ∨ 26 ≤ i.val → y.regs i = x.regs i := by
-  let z := ((((x.set saved (encode F)).set row (q / t)).set col (q % t)).set left 0).set right
-    (encode F)
-  have hp : ExecWithin (w + 2)
-      prepareSetup x z 5 := by
-    ram_eval [prepareSetup, z, hf, hq, ht, hrow, hcol, saved, row, col, cell, side, filler,
-      left, right, Fin.mk.injEq]
-  obtain ⟨u, hu, hur, hum, hureg⟩ := exec_subtract (GenericRAM.Signed.fits_zero hF.1) hF z
-    (by simp +decide [z, left, right, encode])
-    (by simp [z])
-  let y := u.set negFill (encode (-F))
-  have he : ExecWithin (w + 2) prepare x y 23 := by
-    have hc : ExecWithin (B := .standard) (w + 2) (.op (.copy negFill result)) u y 1 := by
-      simpa only [y, hur, GenericRAM.Signed.Arithmetic.eval, zero_sub] using
-        (ExecWithin.copy (B := .standard) (w := w + 2) (x := u) (d := negFill) (s := result))
-    exact hp.seq (hu.seq hc)
-  refine ⟨y, he, hum, ?_, ?_, ?_, ?_,
-    fun i hi => he.regs_eq (prepare_preserves i hi)⟩
-  · have hr := hureg row (Or.inr (by decide))
-    simpa +decide [y, z, row, negFill, left, right, col] using hr
-  · have hc := hureg col (Or.inr (by decide))
-    simpa +decide [y, z, col, negFill, left, right] using hc
-  · have hs := hureg saved (Or.inr (by decide))
-    simpa +decide [y, z, saved, negFill, left, right, row, col] using hs
-  · simp [y]
-
-private theorem ab_preserves : ∀ i : Fin 28,
-    10 ≤ i.val → i.val ≠ 13 → putAB.Preserves i := by decide
-
-private theorem bc_preserves : ∀ i : Fin 28,
-    10 ≤ i.val → i.val ≠ 13 → putBC.Preserves i := by decide
-
-private theorem ac_preserves : ∀ i : Fin 28,
-    10 ≤ i.val → i.val ≠ 12 → i.val ≠ 13 → putAC.Preserves i := by decide
+      y.regs saved = encode F ∧ y.regs negFill = encode (-F) := by
+  refine WP.exists_execWithin ?_
+  unfold prepare prepareSetup
+  wram_exec [hq, ht, hf]
+  wram_call (exec_subtract (GenericRAM.Signed.fits_zero hF.1) hF _
+    (by wram_simp [encode]; decide) (by wram_simp)) framed with v m ⟨hur, hum, _⟩
+  wram_exec [hur, hum]
+  wram_simp [hum, GenericRAM.Signed.Arithmetic.eval, zero_sub]
 
 private theorem exec_AB {w N b d q : ℕ} {μ : ℕ → ℤ} {F : ℤ} (x : Data 28)
     (hcell : x.regs cell = q) (hmat : x.regs matAB = d)
@@ -210,21 +180,18 @@ private theorem exec_AB {w N b d q : ℕ} {μ : ℕ → ℤ} {F : ℤ} (x : Data
     (hμ : ∀ i < N, GenericRAM.Signed.Fits w (μ i))
     (haddr : Fits (w + 2) (b + N)) (hd : Fits (w + 2) (d + q)) :
     ∃ y, ExecWithin (w + 2) putAB x y 30 ∧
-      y.mem = Function.update x.mem (d + q) (encode (pick N μ F q)) ∧
-      ∀ i : Fin 28, 10 ≤ i.val → i.val ≠ 13 → y.regs i = x.regs i := by
-  let z := (x.set index (q + q)).set dest (d + q)
+      y.mem = Function.update x.mem (d + q) (encode (pick N μ F q)) := by
   have hqfit : Fits (w + 2) (q + q) := by
     simpa only [encode_nat] using (encode_fits hq).mono (by omega : w + 1 ≤ w + 2)
-  have hp : ExecWithin (w + 2) setupAB x z 2 := by
-    ram_eval [setupAB, z, hcell, hmat, hqfit, hd, cell, matAB, index, dest, Fin.mk.injEq]
-  obtain ⟨y, hy, hym, -⟩ := exec_weight (d := d + q) false z
-    (by simp +decide [z, index, dest, encode_nat])
-    (by simpa +decide [z, len, index, dest] using hlen)
-    (by simpa +decide [z, base, index, dest] using hbase)
-    (by simpa +decide [z, filler, index, dest] using hfiller)
-    (by simp [z]) hmem hq hF hμ haddr
-  have he : ExecWithin (w + 2) putAB x y 30 := hp.seq hy
-  exact ⟨y, he, hym, fun i hi hne => he.regs_eq (ab_preserves i hi hne)⟩
+  refine WP.exists_execWithin ?_
+  unfold putAB setupAB
+  wram_exec [hcell, hmat]
+  wram_call (exec_weight (d := d + q) false _
+    (by wram_simp [encode_nat]) (by wram_simp [hlen]) (by wram_simp [hbase])
+    (by wram_simp [hfiller]) (by wram_simp) (by wram_simp; exact hmem)
+    hq hF hμ haddr) with y ⟨hym, _⟩
+  wram_simp at hym
+  exact ⟨by omega, hym⟩
 
 private theorem exec_BC {w N b d q r c t s : ℕ} {μ : ℕ → ℤ} {F : ℤ} (x : Data 28)
     (hcell : x.regs cell = q) (hmat : x.regs matBC = d)
@@ -236,38 +203,30 @@ private theorem exec_BC {w N b d q r c t s : ℕ} {μ : ℕ → ℤ} {F : ℤ} (
     (hF : GenericRAM.Signed.Fits w F) (hμ : ∀ i < N, GenericRAM.Signed.Fits w (μ i))
     (haddr : Fits (w + 2) (b + N)) (hd : Fits (w + 2) (d + q)) :
     ∃ y, ExecWithin (w + 2) putBC x y 35 ∧
-      y.mem = Function.update x.mem (d + q) (encode (pick N μ F ((c * t + s : ℕ) - (r : ℤ)))) ∧
-      ∀ i : Fin 28, 10 ≤ i.val → i.val ≠ 13 → y.regs i = x.regs i := by
+      y.mem = Function.update x.mem (d + q) (encode (pick N μ F ((c * t + s : ℕ) - (r : ℤ)))) := by
   let a := c * t + s
-  let ix : ℤ := if a < r then -1 else (a - r : ℕ)
-  let z₀ := (x.set index (c * t)).set index a
-  let z₁ := if a < r then z₀.set index 3 else
-    (z₀.set index (a - r)).set index ((a - r) + (a - r))
-  let z := z₁.set dest (d + q)
   have hfit : Fits (w + 2) (a + a) := by
     simpa only [encode_nat] using (encode_fits hidx).mono (by omega : w + 1 ≤ w + 2)
-  have hmfit : Fits (w + 2) (c * t) := hfit.of_le (by dsimp [a]; omega)
   have h3 : Fits (w + 2) 3 := (show Fits 2 3 from by decide).mono (by omega)
-  have hp : ExecWithin (w + 2) setupBC x z 7 := by
-    by_cases hh : a < r <;>
-      ram_eval [setupBC, z, z₁, z₀, hcell, hmat, hrow, hcol, ht, hs, hmfit, h3, hd, hh, a, cell,
-        matBC, row, col, side, inst, index, dest,
-        Fin.mk.injEq]
-  have hix : GenericRAM.Signed.Fits w ix := by
-    dsimp only [ix]
-    split_ifs
-    · exact ⟨hidx.1, by have := hidx.2.1; have := hidx.2.2; omega, by have := hidx.2.2; omega⟩
-    · exact hidx.of_natAbs_le (by rw [Int.natAbs_natCast]; dsimp [a]; omega)
-  obtain ⟨y, hy, hym, -⟩ := exec_weight (d := d + q) false z
-    (by dsimp [z, z₁, ix]; split_ifs <;> simp +decide [index, dest, encode, two_mul])
-    (by dsimp [z, z₁, z₀]; split_ifs <;> simpa +decide [len, index, dest] using hlen)
-    (by dsimp [z, z₁, z₀]; split_ifs <;> simpa +decide [base, index, dest] using hbase)
-    (by dsimp [z, z₁, z₀]; split_ifs <;> simpa +decide [filler, index, dest] using hfiller)
-    (by simp [z]) (by dsimp [z, z₁, z₀]; split_ifs <;> exact hmem) hix hF hμ haddr
-  have he : ExecWithin (w + 2) putBC x y 35 := hp.seq hy
-  refine ⟨y, he, ?_, fun i hi hne => he.regs_eq (bc_preserves i hi hne)⟩
-  have hzm : z.mem = x.mem := by dsimp [z, z₁, z₀]; split_ifs <;> rfl
-  simpa only [Bool.false_eq_true, ↓reduceIte, ix, a, picked_index, hzm] using hym
+  refine WP.exists_execWithin ?_
+  unfold putBC setupBC
+  wram_exec [hcell, hmat, hrow, hcol, ht, hs]
+  · have hix : GenericRAM.Signed.Fits w (-1 : ℤ) :=
+      ⟨hidx.1, by have := hidx.2.1; have := hidx.2.2; omega, by have := hidx.2.2; omega⟩
+    wram_call (exec_weight (d := d + q) (z := -1) false _
+      (by wram_simp [encode]; decide) (by wram_simp [hlen]) (by wram_simp [hbase])
+      (by wram_simp [hfiller]) (by wram_simp) (by wram_simp; exact hmem)
+      hix hF hμ haddr) with y ⟨hym, _⟩
+    wram_simp at hym
+    exact ⟨by omega, by simpa only [← picked_index, hc, ↓reduceIte, Bool.false_eq_true] using hym⟩
+  · have hix : GenericRAM.Signed.Fits w ((a - r : ℕ) : ℤ) :=
+      hidx.of_natAbs_le (by rw [Int.natAbs_natCast]; dsimp [a]; omega)
+    wram_call (exec_weight (d := d + q) (z := (a - r : ℕ)) false _
+      (by wram_simp [encode_nat, a]) (by wram_simp [hlen]) (by wram_simp [hbase])
+      (by wram_simp [hfiller]) (by wram_simp) (by wram_simp; exact hmem)
+      hix hF hμ haddr) with y ⟨hym, _⟩
+    wram_simp at hym
+    exact ⟨by omega, by simpa only [← picked_index, hc, ↓reduceIte, Bool.false_eq_true] using hym⟩
 
 private theorem exec_AC {w N b d q r c t s : ℕ} {μ : ℕ → ℤ} {F : ℤ} (x : Data 28)
     (hcell : x.regs cell = q) (hmat : x.regs matAC = d)
@@ -283,37 +242,20 @@ private theorem exec_AC {w N b d q r c t s : ℕ} {μ : ℕ → ℤ} {F : ℤ} (
     ∃ y, ExecWithin (w + 2) putAC x y 35 ∧
       y.mem = Function.update x.mem (d + q)
         (encode (-pick N μ (-F) ((r + c) * t + s : ℕ))) ∧
-      y.regs filler = encode F ∧
-      ∀ i : Fin 28, 10 ≤ i.val → i.val ≠ 12 → i.val ≠ 13 → y.regs i = x.regs i := by
+      y.regs filler = encode F := by
   let a := (r + c) * t + s
-  let z := (((((x.set index (r + c)).set index ((r + c) * t)).set index a).set index
-    (a + a)).set dest (d + q)).set filler (encode (-F))
   have hfit : Fits (w + 2) (a + a) := by
     simpa only [encode_nat] using (encode_fits hidx).mono (by omega : w + 1 ≤ w + 2)
-  have hsum : Fits (w + 2) (r + c) := hfit.of_le (by dsimp [a]; nlinarith)
-  have hmul : Fits (w + 2) ((r + c) * t) := hfit.of_le (by dsimp [a]; omega)
-  have hp : ExecWithin (w + 2) setupAC x z 6 := by
-    ram_eval [setupAC, z, hcell, hmat, hrow, hcol, ht, hs, hneg,
-      hsum, hmul, hfit, hd, a, cell, matAC, row, col, side, inst, index, dest,
-      filler, negFill, Fin.mk.injEq]
-  obtain ⟨u, hu, hum, hureg⟩ := exec_weight (d := d + q) (z := (a : ℤ)) true z
-    (by
-      simp +decide only [z, Data.set_regs, Function.update_apply, index, dest, filler,
-        ↓reduceIte]
-      exact (encode_nat a).symm)
-    (by simpa +decide [z, len, index, dest, filler] using hlen)
-    (by simpa +decide [z, base, index, dest, filler] using hbase)
-    (by simp [z]) (by simp +decide [z, dest, filler]) hmem hidx hF hμ haddr
-  let y := u.set filler (encode F)
-  have hus : u.regs saved = encode F := by
-    rw [hureg saved (by decide)]
-    simpa +decide [z, saved, index, dest, filler] using hsaved
-  have hc : ExecWithin (B := .standard) (w + 2) (.op (.copy filler saved)) u y 1 := by
-    simpa only [y, hus] using
-      (ExecWithin.copy (B := .standard) (w := w + 2) (x := u) (d := filler) (s := saved))
-  have he : ExecWithin (w + 2) putAC x y 35 := hp.seq (hu.seq hc)
-  exact ⟨y, he, hum, by simp [y],
-    fun i hi h12 h13 => he.regs_eq (ac_preserves i hi h12 h13)⟩
+  have hrc_le : r + c ≤ a := by dsimp [a]; nlinarith
+  refine WP.exists_execWithin ?_
+  unfold putAC setupAC
+  wram_exec [hcell, hmat, hrow, hcol, ht, hs, hneg]
+  wram_call (exec_weight (d := d + q) (z := (a : ℤ)) true _
+    (by wram_simp [encode_nat, a]) (by wram_simp [hlen]) (by wram_simp [hbase])
+    (by wram_simp) (by wram_simp) (by wram_simp; exact hmem)
+    hidx hF hμ haddr) framed with v m ⟨hum, _⟩
+  wram_exec [hsaved]
+  wram_simp [hum, a]
 
 /-- All index computations, three guarded loads, optional signed negation, stores and argument
 preparation take at most 128 native instructions. The final halt is excluded. Input cells precede
@@ -342,35 +284,47 @@ theorem exec_step {w N b ab bc ac q t s : ℕ} {μ : ℕ → ℤ} {F : ℤ} (x :
   have htpos : 0 < t := Nat.pos_of_ne_zero (by rintro rfl; omega)
   have hrow : q / t < t := Nat.div_lt_of_lt_mul hq
   have hcol : q % t < t := Nat.mod_lt q htpos
+  have hrow_mul : q / t * t ≤ t * t := Nat.mul_le_mul_right t hrow.le
+  have hcol_mul : q % t * t ≤ t * t := Nat.mul_le_mul_right t hcol.le
   have hnat (k : ℕ) (hk : k ≤ 2 * (t * t) + s + 1) : GenericRAM.Signed.Fits w (k : ℤ) :=
     hidx.of_natAbs_le (by rwa [Int.natAbs_natCast])
   have hfits (k : ℕ) (hk : k ≤ 2 * (t * t) + s + 1) : Fits (w + 2) k :=
     ((encode_fits (hnat k hk)).mono (by omega)).of_le (by rw [encode_nat]; omega)
-  obtain ⟨p, hp, hpm, hpr, hpc, hpF, hpnF, hpreg⟩ := exec_prepare x hcell ht hf
-    (hfits _ (by nlinarith)) (hfits _ (by nlinarith)) hF
-  obtain ⟨a, ha, ham, hareg⟩ := exec_AB p
-    (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)
-    (by regs_frame) (by simpa only [hpm] using hmem)
-    (hnat _ (by omega)) hF hμ haddr habfit
-  have hamem : ∀ i < N, a.mem (b + i) = encode (μ i) := by
-    intro i hi
-    rw [ham, Function.update_of_ne (by omega), hpm]
-    exact hmem i hi
-  obtain ⟨v, hv, hvm, hvreg⟩ := exec_BC a
-    (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)
-    (by regs_frame) (by regs_frame) (by regs_frame)
-    hamem (hnat _ (by nlinarith)) hF hμ haddr hbcfit
-  have hvmem : ∀ i < N, v.mem (b + i) = encode (μ i) := by
-    intro i hi
-    rw [hvm, Function.update_of_ne (by omega)]
-    exact hamem i hi
-  obtain ⟨y, hy, hym, hyf, -⟩ := exec_AC v
-    (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)
-    (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)
-    hvmem (hnat _ (by nlinarith)) htpos hnF hμ haddr hacfit
-  have he : ExecWithin (w + 2) step x y 128 :=
-    (hp.seq (ha.seq (hv.seq hy))).mono (by decide : 23 + (30 + (35 + 35)) ≤ 128)
-  refine ⟨y, he, ?_, hyf.trans hf.symm, fun i hi => he.regs_eq (step_preserves i hi)⟩
-  rw [hym, hvm, ham, hpm]
+  obtain ⟨y, he, hym, hyf⟩ : ∃ y, ExecWithin (w + 2) step x y 128 ∧
+      y.mem = Function.update (Function.update (Function.update x.mem
+        (ab + q) (encode (pick N μ F q)))
+        (bc + q) (encode (pick N μ F ((q % t * t + s : ℕ) - ((q / t : ℕ) : ℤ)))))
+        (ac + q) (encode (-pick N μ (-F) ((q / t + q % t) * t + s : ℕ))) ∧
+      y.regs filler = x.regs filler := by
+    refine WP.exists_execWithin ?_
+    unfold step
+    wram_exec
+    wram_call (exec_prepare x hcell ht hf
+      (hfits _ (Nat.le_trans (Nat.div_le_self _ _) (by omega)))
+      (hfits _ (Nat.le_trans (Nat.mod_le _ _) (by omega))) hF)
+      framed with v₁ m₁ ⟨hpm, hpr, hpc, hpF, hpnF⟩
+    refine WP.seq ?_
+    wram_call (exec_AB _ (by wram_simp [hcell]) (by wram_simp [hab]) (by wram_simp [hlen])
+      (by wram_simp [hbase]) (by wram_simp [hf]) (by wram_simp [hpm]; exact hmem)
+      (hnat _ (by omega)) hF hμ haddr habfit) framed with v₂ m₂ ham
+    have hamem : ∀ i < N, m₂ (b + i) = encode (μ i) := fun i hi => by
+      rw [ham, Function.update_of_ne (by omega), hpm]; exact hmem i hi
+    refine WP.seq ?_
+    wram_call (exec_BC (r := q / t) (c := q % t) (t := t) (s := s) _
+      (by wram_simp [hcell]) (by wram_simp [hbc]) (by wram_simp [hpr])
+      (by wram_simp [hpc]) (by wram_simp [ht]) (by wram_simp [hs]) (by wram_simp [hlen])
+      (by wram_simp [hbase]) (by wram_simp [hf]) (by wram_simp; exact hamem)
+      (hnat _ (by omega)) hF hμ haddr hbcfit) framed with v₃ m₃ hvm
+    have hvmem : ∀ i < N, m₃ (b + i) = encode (μ i) := fun i hi => by
+      rw [hvm, Function.update_of_ne (by omega)]; exact hamem i hi
+    wram_call (exec_AC (r := q / t) (c := q % t) (t := t) (s := s) _
+      (by wram_simp [hcell]) (by wram_simp [hac]) (by wram_simp [hpr])
+      (by wram_simp [hpc]) (by wram_simp [ht]) (by wram_simp [hs]) (by wram_simp [hlen])
+      (by wram_simp [hbase]) (by wram_simp [hpF]) (by wram_simp [hpnF])
+      (by wram_simp; exact hvmem)
+      (hnat _ (by rw [Nat.add_mul]; omega)) htpos hnF hμ haddr hacfit) with y ⟨hym, hyf⟩
+    wram_simp at hym
+    exact ⟨by omega, by rw [hym, hvm, ham, hpm], hyf.trans hf.symm⟩
+  exact ⟨y, he, hym, hyf, fun i hi => he.regs_eq (step_preserves i hi)⟩
 
 end Cslib.Algorithms.WordRAM.ThreeSum.Cell

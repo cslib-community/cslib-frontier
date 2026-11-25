@@ -225,9 +225,9 @@ omit [DecidableEq State] in
 /-- Decoding the label of an input gives its wire. -/
 @[simp] theorem wireOf_inputLabel (n T i : ℕ) :
     wireOf (k := k) (State := State) n T (inputLabel i) = i := by
-  have h₁ : inputLabel i % 4 = 1 := by unfold inputLabel; omega
-  have h₂ : inputLabel i / 4 = i := by unfold inputLabel; omega
-  simp [wireOf, h₁, h₂]
+  unfold wireOf inputLabel
+  simp [show (1 + 4 * i) % 4 = 1 by omega,
+    show (1 + 4 * i) / 4 = i by omega]
 
 omit [DecidableEq State] in
 /-- Decoding the label of a position gives its wire. -/
@@ -456,10 +456,9 @@ noncomputable def succinctCNF (x : List Bool) (n T : ℕ) : CNF ℕ :=
 /-- The clause of a number with the fields `j`, `tag` and `p`. -/
 theorem clauseAt_fields (x : List Bool) (n T : ℕ) {j tag : ℕ} (p : ℕ) (hj : j < 4)
     (htag : tag < 4) : clauseAt tm x n T (j + 4 * (tag + 4 * p)) = clauseOf tm x n T j tag p := by
-  have h₁ : (j + 4 * (tag + 4 * p)) % 4 = j := by omega
-  have h₂ : (j + 4 * (tag + 4 * p)) / 4 % 4 = tag := by omega
-  have h₃ : (j + 4 * (tag + 4 * p)) / 16 = p := by omega
-  rw [clauseAt, h₁, h₂, h₃]
+  rw [clauseAt, show (j + 4 * (tag + 4 * p)) % 4 = j by omega,
+    show (j + 4 * (tag + 4 * p)) / 4 % 4 = tag by omega,
+    show (j + 4 * (tag + 4 * p)) / 16 = p by omega]
 
 omit [DecidableEq State] in
 /-- The numbers of the clauses with a payload of `slotBits + colBits + timeBits` bits are below
@@ -564,10 +563,8 @@ theorem satisfiable_succinctCNF_iff_tseitin {n T : ℕ} (hn : n < 2 * T) {x : Li
       (tseitinSatCNF x n (gates tm n T) (outWire k State n T)).Satisfiable := by
   have hcb : 2 * T < 2 ^ colBits T := Nat.lt_size_self _
   have hpay {p : ℕ} (hp : p < 2 ^ colBits T) :
-      p < 2 ^ (slotBits k State + colBits T + timeBits T) := by
-    have : 2 ^ colBits T ≤ 2 ^ (slotBits k State + colBits T + timeBits T) :=
-      Nat.pow_le_pow_right (by norm_num) (by omega)
-    omega
+      p < 2 ^ (slotBits k State + colBits T + timeBits T) :=
+    hp.trans_le (Nat.pow_le_pow_right (by norm_num) (by omega))
   have hout_ok : (Loc.gf (k := k) (State := State) (.out (.one true)) true 7).ColOK T 0 := rfl
   constructor
   · rintro ⟨σ, hσ⟩
@@ -596,8 +593,7 @@ theorem satisfiable_succinctCNF_iff_tseitin {n T : ℕ} (hn : n < 2 * T) {x : Li
             simpa [clauseOf, j.isLt, hg₂] using this
         have hw : n + g = n + (decide (g = 1)).toNat := by
           rcases (show g = 0 ∨ g = 1 by omega) with rfl | rfl <;> rfl
-        rw [hcode, hw, wireLabel_const]
-        exact hc
+        rwa [hcode, hw, wireLabel_const]
       · obtain ⟨t, ht, l, c, hl, hw⟩ := exists_wire_eq (k := k) (State := State) (n := n)
           (Nat.le_of_not_lt hg₂) hg
         have hwn : n + (wire n T t l c - n) = wire n T t l c := by simp only [wire]; omega
@@ -741,11 +737,6 @@ theorem Ref.label_lt {n T t c : ℕ} (hn : n < 2 * T) (ht : t ≤ T) {r : Ref k 
     · simp only [Ref.label, hg, Bool.false_eq_true, ↓reduceIte]
       exact constLabel_lt hT _
 
-omit [DecidableEq State] in
-private theorem mem_tseitinClause {op : Op} {w a b v : ℕ} {s : Bool} {j : Fin 3}
-    (h : (v, s) ∈ tseitinClause op w a b j) : v = w ∨ v = a ∨ v = b := by
-  fin_cases j <;> cases op <;> simp [tseitinClause] at h <;> omega
-
 /-- **Every variable of the formula is below `2 ^ labelBits k State T`**, for `n < 2 T`: labels
 have `labelBits k State T` bits. -/
 theorem lt_two_pow_labelBits_of_mem_vars {n T : ℕ} (hn : n < 2 * T) {x : List Bool}
@@ -756,17 +747,16 @@ theorem lt_two_pow_labelBits_of_mem_vars {n T : ℕ} (hn : n < 2 * T) {x : List 
   obtain ⟨C, hC, s, hvC⟩ := CNF.mem_vars.1 hv
   obtain ⟨idx, -, rfl⟩ := List.mem_map.1 hC
   unfold clauseAt clauseOf at hvC
+  have htaut (h : (v, s) ∈ tautology) : v < 2 ^ labelBits k State T := by
+    simp [tautology] at h
+    omega
   split_ifs at hvC with hj h₀ hp h₁ hp' h₂ h₃
   · rcases mem_tseitinClause hvC with rfl | rfl | rfl
-    · exact constLabel_lt hT _
-    · exact h0
-    · exact h0
-  · simp [tautology] at hvC; omega
-  · simp only [unitClause, List.mem_cons, Prod.mk.injEq, List.not_mem_nil, or_false,
-      or_self] at hvC
-    rw [hvC.1]
+    exacts [constLabel_lt hT _, h0, h0]
+  · exact htaut hvC
+  · obtain ⟨rfl, -⟩ : v = inputLabel (idx / 16) ∧ _ := by simpa [unitClause] using hvC
     exact inputLabel_lt (by omega)
-  · simp [tautology] at hvC; omega
+  · exact htaut hvC
   · split at hvC
     · rename_i l _
       split_ifs at hvC with h
@@ -782,13 +772,11 @@ theorem lt_two_pow_labelBits_of_mem_vars {n T : ℕ} (hn : n < 2 * T) {x : List 
           | exact h0
           | exact Ref.label_lt hn h.1 hra
           | exact Ref.label_lt hn h.1 hrb
-      · simp [tautology] at hvC; omega
-    · simp [tautology] at hvC; omega
-  · simp only [unitClause, List.mem_cons, Prod.mk.injEq, List.not_mem_nil, or_false,
-      or_self] at hvC
-    rw [hvC.1]
+      · exact htaut hvC
+    · exact htaut hvC
+  · obtain ⟨rfl, -⟩ : v = outLabel k State T ∧ _ := by simpa [unitClause] using hvC
     exact posLabel_lt _ (Nat.two_pow_pos _) le_rfl
-  · simp [tautology] at hvC; omega
-  · simp [tautology] at hvC; omega
+  · exact htaut hvC
+  · exact htaut hvC
 
 end Cslib.Circuits.Boolean.Tableau

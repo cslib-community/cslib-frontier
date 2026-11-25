@@ -87,9 +87,8 @@ theorem min_bound {w wa wc : E} (hw : ‖w‖ = 1) (hwa : ‖wa‖ = 1) (hwc : �
   have hww : ⟪w, w⟫ = 1 := by rw [real_inner_self_eq_norm_sq, hw]; norm_num
   have hwawa : ⟪wa, wa⟫ = 1 := by rw [real_inner_self_eq_norm_sq, hwa]; norm_num
   have hwcwc : ⟪wc, wc⟫ = 1 := by rw [real_inner_self_eq_norm_sq, hwc]; norm_num
-  have haw : ⟪wa, w⟫ = b := by rw [real_inner_comm]; exact ha
-  have hcw : ⟪wc, w⟫ = b := by rw [real_inner_comm]; exact hc
-  have hca : ⟪wc, wa⟫ = b := by rw [real_inner_comm]; exact hac
+  have haw : ⟪wa, w⟫ = b := (real_inner_comm w wa).trans ha
+  have hcw : ⟪wc, w⟫ = b := (real_inner_comm w wc).trans hc
   set ra := remainder w wa
   set rc := remainder w wc
   have hra_orth : ⟪w, ra⟫ = 0 := by
@@ -175,20 +174,15 @@ theorem min_bound {w wa wc : E} (hw : ‖w‖ = 1) (hwa : ‖wa‖ = 1) (hwc : �
         inner_remainder_of_orth hrc_orth] at hx
       simp only [Set.mem_ofPred_eq]
       constructor <;> nlinarith [hz.1, hx.2.2.1, hx.2.2.2]
-    · rw [indicator_of_notMem hz]
-      have : {x : E | (z, remainder w x) ∈ S} = ∅ := by
-        ext x
-        simp only [S, Set.mem_ofPred_eq, Set.mem_empty_iff_false, iff_false, not_and]
-        intro h1 h2
-        exact absurd ⟨h1, h2⟩ hz
-      rw [this, measureReal_empty]
+    · have : {x : E | (z, remainder w x) ∈ S} = ∅ :=
+        eq_empty_of_forall_notMem fun x hx => hz ⟨hx.1, hx.2.1⟩
+      rw [indicator_of_notMem hz, this, measureReal_empty]
   calc ∫ z, μ.real {x | (z, remainder w x) ∈ S} ∂gaussianReal 0 1
       ≤ ∫ z, (Ioc 0 t).indicator (fun _ => q) z ∂gaussianReal 0 1 := by
         apply integral_mono_of_nonneg (ae_of_all _ fun z => measureReal_nonneg)
           ((integrable_const q).indicator measurableSet_Ioc) (ae_of_all _ hpt)
     _ = q * (gaussianReal 0 1).real (Ioc 0 t) := by
         rw [integral_indicator_const _ measurableSet_Ioc, smul_eq_mul, mul_comm]
-    _ ≤ 1 / 3 * (gaussianReal 0 1).real (Ioc 0 t) :=
-        mul_le_mul_of_nonneg_right hq3 measureReal_nonneg
+    _ ≤ 1 / 3 * (gaussianReal 0 1).real (Ioc 0 t) := by gcongr
 
 end Cslib.Circuits.Frontier.Switched

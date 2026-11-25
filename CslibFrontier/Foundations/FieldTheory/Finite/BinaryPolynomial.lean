@@ -119,8 +119,7 @@ theorem polyOfBits_eq_zero_iff {l : List Bool} : polyOfBits l = 0 ↔ ∀ b ∈ 
       rw [bitEquiv_symm_false, C_0, zero_add] at h
       exact ⟨rfl, (mul_eq_zero.1 h).resolve_left X_ne_zero⟩
     · rintro ⟨rfl, h⟩
-      rw [h, bitEquiv_symm_false]
-      simp
+      simp [h, bitEquiv_symm_false]
 
 /-- If `true` appears in `l`, then `polyOfBits l` is nonzero. -/
 theorem polyOfBits_ne_zero_of_mem {l : List Bool} (h : true ∈ l) : polyOfBits l ≠ 0 :=
@@ -139,19 +138,15 @@ theorem degree_polyOfBits_lt (l : List Bool) : (polyOfBits l).degree < l.length 
         exact WithBot.bot_lt_coe _
       · rw [degree_mul, degree_X, degree_eq_natDegree h]
         rw [degree_eq_natDegree h] at ih
-        have : (polyOfBits l).natDegree < l.length := by exact_mod_cast ih
-        rw [← Nat.cast_one, ← Nat.cast_add, Nat.cast_lt]
-        omega
+        have : (polyOfBits l).natDegree < l.length := mod_cast ih
+        rw [← Nat.cast_one, ← Nat.cast_add, Nat.cast_lt]; omega
 
 /-- Dropping a top coefficient that is zero does not change the polynomial. -/
 private theorem polyOfBits_take_of_getD {l : List Bool} {m : ℕ} (hl : l.length = m + 1)
     (htop : l.getD m false = false) : polyOfBits (l.take m) = polyOfBits l := by
   conv_rhs => rw [← List.take_append_drop m l]
-  have hdrop : l.drop m = [false] := by
-    rw [List.drop_eq_getElem_cons (by omega), List.drop_eq_nil_of_le (by omega)]
-    rw [List.getD_eq_getElem _ _ (by omega)] at htop
-    rw [htop]
-  rw [hdrop, polyOfBits_append]
+  rw [List.drop_eq_getElem_cons (by omega), List.drop_eq_nil_of_le (by omega),
+    ← List.getD_eq_getElem _ false (by omega), htop, polyOfBits_append]
   simp [bitEquiv_symm_false]
 
 /-- Evaluating `polyOfBits l` at `α` sums `l.getD d false • α ^ d` over `d < l.length`. -/
@@ -280,22 +275,18 @@ private theorem modStep_foldl (l f p a : List Bool) (hp : p.length = l.length)
       ring
     · rw [List.foldl_cons, modStep, h4, map_add, map_mul, mk_polyOfBits_mulXMod l p hp,
         polyOfBits_cons]
-      split_ifs with hb
-      · subst hb
-        rw [polyOfBits_zipWith_xor (by rw [ha, hp]), bitEquiv_symm_true]
-        simp only [map_add, map_mul, map_one]
+      cases b
+      · simp only [Bool.false_eq_true, ↓reduceIte, bitEquiv_symm_false, map_add, map_mul, map_zero]
         ring
-      · rw [Bool.not_eq_true] at hb
-        subst hb
-        rw [bitEquiv_symm_false]
-        simp only [map_add, map_mul, map_zero]
+      · rw [ite_eq_left rfl, polyOfBits_zipWith_xor (by rw [ha, hp]), bitEquiv_symm_true]
+        simp only [map_add, map_mul, map_one]
         ring
 
 private theorem length_modBits (l f : List Bool) : (modBits (l ++ [true]) f).length = l.length := by
   have hlen : (l ++ [true]).length - 1 = l.length := by simp
   unfold modBits
   rw [hlen]
-  exact (modStep_foldl l f _ _ (by simp; omega) (by simp)).2.1
+  exact (modStep_foldl l f _ _ (by simp; omega) List.length_replicate).2.1
 
 /-- Multiply two coefficient words modulo `g` by scanning the bits of `b`. The two live
 words hold successive shifts of `a` modulo `g` and the partial product. For a monic modulus,
@@ -345,8 +336,8 @@ theorem mk_polyOfBits_modBits (l f : List Bool) :
       AdjoinRoot.mk (polyOfBits (l ++ [true])) (polyOfBits f) := by
   have hlen : (l ++ [true]).length - 1 = l.length := by simp
   unfold modBits
-  rw [hlen]
-  rw [(modStep_foldl l f _ _ (by simp; omega) (by simp)).2.2.2, map_add, map_mul, mk_polyOfBits_one]
+  rw [hlen, (modStep_foldl l f _ _ (by simp; omega) List.length_replicate).2.2.2, map_add, map_mul,
+    mk_polyOfBits_one]
   simp
 
 /-- **The divisibility test**: the polynomial with coefficient list `l ++ [true]` divides the one
@@ -419,18 +410,13 @@ theorem isIrreducibleCode_iff (m : ℕ) :
       rintro rfl
       exact hq.ne_zero polyOfCode_zero
     rw [natDegree_polyOfCode hd0, Finset.mem_Ioc] at hdq
-    have hd2 : 2 ≤ d := by
-      have := Nat.pow_log_le_self 2 hd0
-      have : 2 ^ 1 ≤ 2 ^ Nat.log 2 d := Nat.pow_le_pow_right two_pos hdq.1
-      omega
+    have hd2 : 2 ≤ d := (Nat.pow_le_pow_right two_pos hdq.1).trans (Nat.pow_log_le_self 2 hd0)
     have hdm : d < m :=
       calc d < 2 ^ (Nat.log 2 d + 1) := Nat.lt_pow_succ_log_self one_lt_two d
         _ ≤ 2 ^ Nat.log 2 m := Nat.pow_le_pow_right two_pos (by omega)
         _ ≤ m := Nat.pow_log_le_self 2 hm0
     rcases h d hdm with (h | h) | h
-    · omega
-    · omega
-    · exact (any_modBits_bits_iff hd0 _).1 h hdvd
+    exacts [by omega, by omega, (any_modBits_bits_iff hd0 _).1 h hdvd]
   · intro h d hdm
     by_contra hc
     simp only [not_or, not_lt, Bool.not_eq_true] at hc
@@ -441,9 +427,7 @@ theorem isIrreducibleCode_iff (m : ℕ) :
     · rw [natDegree_polyOfCode hd0, Finset.mem_Ioc]
       exact ⟨Nat.log_pos one_lt_two hd2, hdlog⟩
     · by_contra hndvd
-      rw [← any_modBits_bits_iff hd0] at hndvd
-      rw [hndvd] at hany
-      exact Bool.true_eq_false.mp hany
+      exact Bool.true_eq_false.mp (((any_modBits_bits_iff hd0 _).2 hndvd).symm.trans hany)
 
 /-- **The exhaustive search**: the least code `m < B` of an irreducible binary polynomial of degree
 `p`, by trial division (`0` if there is none). -/

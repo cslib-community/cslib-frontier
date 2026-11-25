@@ -106,15 +106,12 @@ theorem IsSolution.relatesInSteps {n : ℕ} {ℓ : ZMod n → L} (h : IsSolution
 theorem IsFlexible.of_consecutive {q : L} {d : ℕ} (hd : Relation.RelatesInSteps R q q d)
     (hd1 : Relation.RelatesInSteps R q q (d + 1)) : IsFlexible R q (d * d) := by
   rcases Nat.lt_or_ge d 2 with h2 | h2
-  · obtain rfl | rfl : d = 0 ∨ d = 1 := by omega
-    · obtain ⟨t', h0, hq⟩ := hd1.succ
-      rw [Relation.RelatesInSteps.zero_iff] at h0
-      subst h0
-      exact fun m _ => IsFlexible.of_loop hq m (Nat.zero_le _)
-    · obtain ⟨t', h0, hq⟩ := hd.succ
-      rw [Relation.RelatesInSteps.zero_iff] at h0
-      subst h0
-      exact fun m _ => IsFlexible.of_loop hq m (Nat.zero_le _)
+  · obtain ⟨t', h0, hq⟩ := (show Relation.RelatesInSteps R q q (0 + 1) by
+      obtain rfl | rfl : d = 0 ∨ d = 1 := by omega
+      exacts [hd1, hd]).succ
+    rw [Relation.RelatesInSteps.zero_iff] at h0
+    subst h0
+    exact fun m _ => IsFlexible.of_loop hq m (Nat.zero_le _)
   intro m hm
   have hF := (frobeniusNumber_iff.1 (frobeniusNumber_pair
     (Nat.coprime_self_add_right.2 (Nat.coprime_one_right d)) h2 (by omega))).2 m (by
@@ -161,19 +158,19 @@ private theorem isFlexible_of_apply_eq {t n : ℕ} [NeZero n] (F : LocalRule ℕ
   have hx₁n : ∀ v, x₁ v < n := fun v => hσn _ (ZMod.val_lt v)
   have hval₁ : ∀ k < n, x₁ (k : ZMod n) = σ k := fun k hk => by
     simp only [hx₁def, ZMod.val_cast_of_lt hk]
-  have e0 : F.apply x₁ (p : ZMod n) = F.apply x₀ (p : ZMod n) := by
-    refine F.toFun_congr fun o ho₁ ho₂ => ?_
-    simp only [window]
-    rw [natCast_add_intCast (by omega), hval₁ _ (by omega), hval _ (by omega)]
-    simp only [hσ]
-    split_ifs <;> omega
-  have e1 : F.apply x₁ ((p' + 1 : ℕ) : ZMod n) = F.apply x₀ (p' : ZMod n) := by
-    refine F.toFun_congr fun o ho₁ ho₂ => ?_
-    simp only [window]
-    rw [natCast_add_intCast (by omega), natCast_add_intCast (by omega), hval₁ _ (by omega),
-      hval _ (by omega)]
-    simp only [hσ]
-    split_ifs <;> omega
+  have e0 : F.apply x₁ (p : ZMod n) = F.apply x₀ (p : ZMod n) :=
+    F.toFun_congr fun o ho₁ ho₂ => by
+      simp only [window]
+      rw [natCast_add_intCast (by omega), hval₁ _ (by omega), hval _ (by omega)]
+      simp only [hσ]
+      split_ifs <;> omega
+  have e1 : F.apply x₁ ((p' + 1 : ℕ) : ZMod n) = F.apply x₀ (p' : ZMod n) :=
+    F.toFun_congr fun o ho₁ ho₂ => by
+      simp only [window]
+      rw [natCast_add_intCast (by omega), natCast_add_intCast (by omega), hval₁ _ (by omega),
+        hval _ (by omega)]
+      simp only [hσ]
+      split_ifs <;> omega
   have h2 := (hF x₁ hx₁ hx₁n).relatesInSteps (p : ZMod n) (p' - p + 1)
   rw [← Nat.cast_add, show p + (p' - p + 1) = p' + 1 by omega, e0, e1, ← hq] at h2
   exact IsFlexible.of_consecutive h1 h2

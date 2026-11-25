@@ -158,15 +158,9 @@ theorem reachFrom_subset_succ (φ : CNF V) (ℓ₀ : Literal V) (n : ℕ) :
 
 private theorem stepReach_congr (φ : CNF V) {s t : Clause V} (h : ∀ m, m ∈ s ↔ m ∈ t) :
     stepReach φ s = stepReach φ t := by
-  have hc : ∀ m, s.contains m = t.contains m := by
-    intro m
-    rw [Bool.eq_iff_iff]
-    simp only [List.contains_iff_mem, h]
-  have ha : ∀ ℓ', (s.any fun ℓ => hasImpEdge φ ℓ ℓ') = (t.any fun ℓ => hasImpEdge φ ℓ ℓ') := by
-    intro ℓ'
-    rw [Bool.eq_iff_iff]
-    simp only [List.any_eq_true, h]
-  simp only [stepReach, hc, ha]
+  simp only [stepReach]
+  refine List.filter_congr fun _ _ => Bool.eq_iff_iff.mpr ?_
+  simp only [Bool.or_eq_true, List.contains_iff_mem, List.any_eq_true, h]
 
 theorem reachFrom_fixed (φ : CNF V) (ℓ₀ : Literal V) :
     stepReach φ (reach φ ℓ₀) = reach φ ℓ₀ := by
@@ -184,16 +178,15 @@ theorem reachFrom_fixed (φ : CNF V) (ℓ₀ : Literal V) :
   have hnext (n : ℕ) (h : (s n).card = (s (n + 1)).card) :
       reachFrom φ ℓ₀ (n + 1) = reachFrom φ ℓ₀ (n + 2) := by
     have hm (m : Literal V) : m ∈ reachFrom φ ℓ₀ n ↔ m ∈ reachFrom φ ℓ₀ (n + 1) := by
-      have hm := Finset.ext_iff.mp (heq n h) m
-      simpa only [s, List.mem_toFinset] using hm
+      simpa only [s, List.mem_toFinset] using Finset.ext_iff.mp (heq n h) m
     simpa only [reachFrom, Function.iterate_succ_apply'] using stepReach_congr φ hm
   have hstab (n : ℕ) (h : (s n).card = (s (n + 1)).card) :
       (s (n + 1)).card = (s (n + 2)).card := by
     simp only [s, hnext n h]
   have hc :=
     Nat.stabilises_of_monotone hmono hbound hstab (n := φ.numVars + φ.numVars + 1) (by omega)
-  have hl := hnext (φ.numVars + φ.numVars) hc.symm
-  simpa only [reach, reachFrom, Function.iterate_succ_apply'] using hl.symm
+  simpa only [reach, reachFrom, Function.iterate_succ_apply'] using
+    (hnext (φ.numVars + φ.numVars) hc.symm).symm
 
 private theorem reachFrom_sound (φ : CNF V) (ℓ₀ : Literal V) :
     ∀ (n : ℕ) {m : Literal V}, m ∈ reachFrom φ ℓ₀ n →
@@ -232,14 +225,10 @@ theorem mem_reach_iff {φ : CNF V} {ℓ₀ : Literal V} (hℓ₀ : ℓ₀.1 ∈ 
   · intro h
     induction h with
     | refl =>
-      have h₀ : ℓ₀ ∈ reachFrom φ ℓ₀ 0 := by
-        simp [reachFrom, mem_lits_iff, hℓ₀]
-      have hmono : ∀ k, ℓ₀ ∈ reachFrom φ ℓ₀ k := by
-        intro k
-        induction k with
-        | zero => exact h₀
-        | succ k ih => exact reachFrom_subset_succ φ ℓ₀ k ih
-      exact hmono _
+      rw [reach]
+      induction φ.numVars + φ.numVars + 1 with
+      | zero => simp [reachFrom, mem_lits_iff, hℓ₀]
+      | succ k ih => exact reachFrom_subset_succ φ ℓ₀ k ih
     | tail _ hbc ih =>
       have hstep : _ ∈ stepReach φ (reach φ ℓ₀) :=
         (mem_stepReach φ _ _).mpr ⟨(mem_vars_of_implies hbc).2, Or.inr ⟨_, ih, hbc⟩⟩
@@ -360,19 +349,14 @@ theorem eval_assignment_of_satisfiable {φ : CNF V} (hw : ∀ c ∈ φ, c.length
   have hnot := mt (CNF.not_satisfiable_iff_of_width_le_two hw).mpr (not_not.mpr hsat)
   push Not at hnot
   obtain ⟨hnil, hnocyc⟩ := hnot
-  have hnocyc' : ∀ x, ¬ (Relation.ReflTransGen φ.Implies (x, true) (x, false) ∧
-      Relation.ReflTransGen φ.Implies (x, false) (x, true)) :=
-    fun x ⟨h₁, h₂⟩ => hnocyc x h₁ h₂
-  have hbase : GoodSet φ [] :=
-    ⟨fun _ h => absurd h List.not_mem_nil,
-      fun _ h => absurd h List.not_mem_nil,
-      fun _ h => absurd h List.not_mem_nil⟩
-  have hgood :
-      GoodSet φ (chosenLiterals φ) ∧
-        ∀ v ∈ φ.vars, (v, true) ∈ chosenLiterals φ ∨ (v, false) ∈ chosenLiterals φ := by
-    obtain ⟨hg, -, hdec⟩ := foldl_chooseStep_good hnocyc' φ.vars [] (fun _ h => h) hbase
-    exact ⟨hg, hdec⟩
-  obtain ⟨hg, hdec⟩ := hgood
+  obtain ⟨hg, -, hdec⟩ :=
+    foldl_chooseStep_good (fun x ⟨h₁, h₂⟩ => hnocyc x h₁ h₂) φ.vars [] (fun _ h => h)
+      ⟨nofun, nofun, nofun⟩
+  rw [← chosenLiterals] at hg hdec
+  have hdec_lit : ∀ ℓ : Literal V, ℓ.1 ∈ φ.vars →
+      ℓ ∈ chosenLiterals φ ∨ ℓ.negate ∈ chosenLiterals φ := by
+    rintro ⟨v, b⟩ hv
+    cases b <;> [exact (hdec v hv).symm; exact hdec v hv]
   have hlits_eval : ∀ m : Literal V, m ∈ chosenLiterals φ → assignment φ m.1 = m.2 := by
     rintro ⟨v, b⟩ hm
     cases b
@@ -385,40 +369,18 @@ theorem eval_assignment_of_satisfiable {φ : CNF V} (hw : ∀ c ∈ φ, c.length
   rcases c with _ | ⟨a, _ | ⟨b, _ | ⟨d, cs⟩⟩⟩
   · exact absurd hc hnil
   · have hav : a.1 ∈ φ.vars := CNF.mem_vars.mpr ⟨[a], hc, a.2, List.mem_singleton_self a⟩
-    have ha_mem : a ∈ chosenLiterals φ := by
-      rcases hdec a.1 hav with ht | hf
-      · rcases a with ⟨v, p⟩
-        cases p
-        · have himp : φ.Implies (v, true) (v, false) :=
-            ⟨[(v, false)], hc, by simp [Std.Sat.Literal.negate], by simp,
-              fun m hm => .inl (by simpa [Std.Sat.Literal.negate] using hm)⟩
-          exact hg.closed (v, true) ht (v, false) himp
-        · exact ht
-      · rcases a with ⟨v, p⟩
-        cases p
-        · exact hf
-        · have himp : φ.Implies (v, false) (v, true) :=
-            ⟨[(v, true)], hc, by simp [Std.Sat.Literal.negate], by simp,
-              fun m hm => .inl (by simpa [Std.Sat.Literal.negate] using hm)⟩
-          exact hg.closed (v, false) hf (v, true) himp
+    have ha_mem : a ∈ chosenLiterals φ :=
+      (hdec_lit a hav).elim id fun hna =>
+        hg.closed a.negate hna a ⟨[a], hc, by simp [negate_negate], by simp,
+          fun m hm => .inl (by simpa [negate_negate] using hm)⟩
     exact (Clause.eval_eq_true_iff _ _).mpr ⟨a, List.mem_singleton_self a, hlits_eval a ha_mem⟩
   · have hav : a.1 ∈ φ.vars := CNF.mem_vars.mpr ⟨[a, b], hc, a.2, by simp⟩
-    by_cases ha_mem : a ∈ chosenLiterals φ
-    · exact (Clause.eval_eq_true_iff _ _).mpr ⟨a, by simp, hlits_eval a ha_mem⟩
-    · have hna_mem : a.negate ∈ chosenLiterals φ := by
-        rcases a with ⟨v, p⟩
-        rcases hdec v hav with ht | hf
-        · cases p
-          · exact ht
-          · exact absurd ht ha_mem
-        · cases p
-          · exact absurd hf ha_mem
-          · exact hf
-      have himp : φ.Implies a.negate b :=
-        ⟨[a, b], hc, by simp [negate_negate], by simp,
+    rcases hdec_lit a hav with ha | hna
+    · exact (Clause.eval_eq_true_iff _ _).mpr ⟨a, by simp, hlits_eval a ha⟩
+    · have hb : b ∈ chosenLiterals φ :=
+        hg.closed a.negate hna b ⟨[a, b], hc, by simp [negate_negate], by simp,
           fun m hm => by simpa [negate_negate] using hm⟩
-      have hb_mem : b ∈ chosenLiterals φ := hg.closed a.negate hna_mem b himp
-      exact (Clause.eval_eq_true_iff _ _).mpr ⟨b, by simp, hlits_eval b hb_mem⟩
+      exact (Clause.eval_eq_true_iff _ _).mpr ⟨b, by simp, hlits_eval b hb⟩
   · simp at hc2
 
 /-- Correctness of the executable `solve` decider. -/

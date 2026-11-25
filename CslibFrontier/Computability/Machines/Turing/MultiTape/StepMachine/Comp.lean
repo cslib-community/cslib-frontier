@@ -89,6 +89,12 @@ def moveOn (n p : ℕ) : SignType → ℕ
   | -1 => p - 1
   | 1 => if p = n + 1 then p else p + 1
 
+/-- Head-movement component `r.2.1` of a `StepMachine.step` result `(state, move, out)`. -/
+abbrev stepMove {σ Out : Type*} (r : σ × SignType × List Out) : SignType := r.2.1
+
+/-- Emitted-symbols component `r.2.2` of a `StepMachine.step` result `(state, move, out)`. -/
+abbrev stepEmit {σ Out : Type*} (r : σ × SignType × List Out) : List Out := r.2.2
+
 /-- The step of `g.comp f` on the symbol `a` under the input head. -/
 def compStep (f : StepMachine σf Bool Bool) (g : StepMachine σg Bool Out) (s : CompState σf σg)
     (a : Option Bool) : CompState σf σg × SignType × List Out :=
@@ -97,11 +103,11 @@ def compStep (f : StepMachine σf Bool Bool) (g : StepMachine σg Bool Out) (s :
     if f.halt s.f then
       -- `f` has halted: the countdown has found the symbol under the head of `g`
       let r := g.step s.g.1 (s.cd.symbol s.g.2)
-      let p := moveOn s.cd.len s.g.2 r.2.1
-      (⟨(r.1, p), .rewindStart, f.init, .start p⟩, 0, r.2.2)
+      let p := moveOn s.cd.len s.g.2 (stepMove r)
+      (⟨(r.1, p), .rewindStart, f.init, .start p⟩, 0, stepEmit r)
     else
       let r := f.step s.f a
-      ({ s with f := r.1, cd := r.2.2.foldl .push s.cd }, r.2.1, [])
+      ({ s with f := r.1, cd := (stepEmit r).foldl .push s.cd }, stepMove r, [])
   | .rewindStart => ({ s with phase := .rewind }, -1, [])
   | .rewind => if a.isNone then ({ s with phase := .run }, 1, []) else (s, -1, [])
 

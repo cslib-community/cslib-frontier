@@ -130,33 +130,21 @@ theorem IsComplexityCore.isPolyTimeCore (h : IsComplexityCore (P enc) A X) :
     fun_prop
   have hBind {b : Bool} {a : β} (ha : a ∈ B b) : indicator A a = b := by
     simp only [B, Set.mem_ofPred_eq, universal_desc, Prod.mk.injEq] at ha
-    obtain ⟨hout, hhalt⟩ := ha
-    have hh : (tm.runFrom (tm.initCfg (enc a)) (c * ((enc a).length + 1) ^ d)).Halted :=
-      Option.isNone_iff_eq_none.mp hhalt
-    rw [(htm a).output_eq_of_halted hh, List.map_singleton, List.singleton_inj] at hout
-    exact eBit.injective hout
-  have hfin (b : Bool) : (B b ∩ X).Finite := by
-    refine isComplexityCore_iff.mp h _ (hBP b) ?_
-    cases b
-    · refine .inr fun a ha => ?_
-      have := hBind ha
-      simp only [indicator] at this
-      simpa using this
-    · refine .inl fun a ha => ?_
-      have := hBind ha
-      simp only [indicator] at this
-      simpa using this
+    rw [(htm a).output_eq_of_halted (Option.isNone_iff_eq_none.mp ha.2), List.map_singleton,
+      List.singleton_inj] at ha
+    exact eBit.injective ha.1
+  have hfin (b : Bool) : (B b ∩ X).Finite :=
+    isComplexityCore_iff.mp h _ (hBP b) <| by
+      cases b
+      · exact .inr fun a ha => by simpa [indicator] using hBind ha
+      · exact .inl fun a ha => by simpa [indicator] using hBind ha
   -- halting within `p` steps means halting within `c (n + 1) ^ d` steps, with the right answer
-  refine ((hfin false).union (hfin true)).subset ?_
-  rintro x ⟨hxX, hx⟩
-  have hle : p (enc x).length ≤ c * ((enc x).length + 1) ^ d := hcd _
-  have hhalt : (tm.runFrom (tm.initCfg (enc x)) (c * ((enc x).length + 1) ^ d)).Halted := by
-    rw [runFrom_eq_of_halt tm _ hle hx]
-    exact hx
+  refine ((hfin false).union (hfin true)).subset fun x ⟨hxX, hx⟩ => ?_
+  have hhalt : (tm.runFrom (tm.initCfg (enc x)) (c * ((enc x).length + 1) ^ d)).Halted :=
+    runFrom_eq_of_halt tm _ (hcd _) hx ▸ hx
   have hmem : x ∈ B (indicator A x) := by
-    simp only [B, Set.mem_ofPred_eq, universal_desc, (htm x).output_eq_of_halted hhalt,
-      List.map_singleton, Prod.mk.injEq, true_and]
-    exact Option.isNone_iff_eq_none.mpr hhalt
+    simpa only [B, Set.mem_ofPred_eq, universal_desc, (htm x).output_eq_of_halted hhalt,
+      List.map_singleton, Prod.mk.injEq, true_and] using Option.isNone_iff_eq_none.mpr hhalt
   cases hb : indicator A x
   · exact .inl ⟨hb ▸ hmem, hxX⟩
   · exact .inr ⟨hb ▸ hmem, hxX⟩
@@ -175,20 +163,18 @@ private theorem IsPolyTimeCore.finite_inter_of_indicator_eq {B : Set β}
       le_trans (hAc.length_le a) (by omega)
   -- decide `B`, answer `b` on `B`, and run the decider of `A` elsewhere
   have hite := hcO.ite (ComputableInO.const (encMid := encBool) b) hAO
-  have heq : (fun x => if c x then b else indicator A x) = indicator A := by
-    funext x
+  have heq : (fun x => if c x then b else indicator A x) = indicator A := funext fun x => by
     split_ifs with hx
     · exact (hBA x ((hcB x).mpr hx)).symm
     · rfl
   rw [heq] at hite
-  obtain ⟨k, ⟨k', State, hfinite, tm, htm⟩, -⟩ := hite
+  obtain ⟨k, ⟨k', State, _, tm, htm⟩, -⟩ := hite
   obtain ⟨c₁, d₁, hcd⟩ := hTc.exists_le
   -- on `B` the combined machine halts within `k (c₁ (n + 1) ^ d₁ + n + 1)` steps
   have hp : PolynomiallyBounded fun n => k * (c₁ * (n + 1) ^ d₁ + n + 1) := by fun_prop
-  refine (h k' State tm (fun a => (htm a).1) _ hp).subset fun x ⟨hxB, hxX⟩ => ⟨hxX, ?_⟩
-  have hcx : c x = true := (hcB x).mp hxB
-  refine ((htm x).runFrom_of_le ?_).1
-  simp only [hcx, ↓reduceIte]
+  refine (h k' State tm (fun a => (htm a).1) _ hp).subset fun x ⟨hxB, hxX⟩ =>
+    ⟨hxX, ((htm x).runFrom_of_le ?_).1⟩
+  simp only [(hcB x).mp hxB, ↓reduceIte]
   have := hcd x
   exact Nat.mul_le_mul_left k (by omega)
 
@@ -196,12 +182,12 @@ private theorem IsPolyTimeCore.finite_inter_of_indicator_eq {B : Set β}
 theorem IsPolyTimeCore.isComplexityCore (h : IsPolyTimeCore enc A X) (hA : IsDecidable A enc) :
     IsComplexityCore (P enc) A X := by
   classical
-  refine isComplexityCore_iff.mpr ?_
-  rintro B hB (hBA | hBA)
+  refine isComplexityCore_iff.mpr fun B hB hBA => ?_
+  rcases hBA with hBA | hBA
   · exact h.finite_inter_of_indicator_eq hA hB (b := true) fun x hx => by
       simp [indicator, hBA hx]
-  · exact h.finite_inter_of_indicator_eq hA hB (b := false) fun x hx => by
-      simp [indicator, show x ∉ A from hBA hx]
+  · exact h.finite_inter_of_indicator_eq hA hB (b := false) fun x hx =>
+      by simp [indicator, show x ∉ A from hBA hx]
 
 /-- **For decidable problems, polynomial complexity cores are the complexity cores for `P`.** -/
 theorem isPolyTimeCore_iff_isComplexityCore (hA : IsDecidable A enc) :

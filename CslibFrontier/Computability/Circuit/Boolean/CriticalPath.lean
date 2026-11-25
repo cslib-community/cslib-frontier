@@ -151,25 +151,15 @@ theorem not_isAndType_or_not_isXorType_of_not_disjoint_criticalPath {n : ℕ}
         C.eval fullInterpretation (Function.update (Function.update ρ x bx) y by_) 0) := by
   obtain ⟨opG, hbot⟩ := C.exists_bottleneck_of_not_disjoint_criticalPath
     fullInterpretation C.fanInAtMost_fullSignature hnoDead hxy hinter
+  have hstep (P : (Bool → Bool → Bool) → Prop)
+      (hP : ∀ f₁ f₂ f₃ : Bool → Bool, P fun a b => f₁ (opG (f₂ a) (f₃ b))) (ρ : Fin n → Bool) :
+      P fun bx by_ =>
+        C.eval fullInterpretation (Function.update (Function.update ρ x bx) y by_) 0 := by
+    obtain ⟨f₁, f₂, f₃, hf⟩ := hbot ρ
+    exact (funext fun bx => funext fun by_ => hf bx by_) ▸ hP f₁ f₂ f₃
   by_cases hAff : SemiCircuit.IsAffineOp opG
-  · left
-    intro ρ
-    obtain ⟨f₁, f₂, f₃, hf⟩ := hbot ρ
-    have hfun : (fun bx by_ =>
-        C.eval fullInterpretation (Function.update (Function.update ρ x bx) y by_) 0) =
-        fun bx by_ => f₁ (opG (f₂ bx) (f₃ by_)) :=
-      funext fun bx => funext fun by_ => hf bx by_
-    rw [hfun]
-    exact not_isAndType_comp_of_isAffineOp hAff f₁ f₂ f₃
-  · right
-    intro ρ
-    obtain ⟨f₁, f₂, f₃, hf⟩ := hbot ρ
-    have hfun : (fun bx by_ =>
-        C.eval fullInterpretation (Function.update (Function.update ρ x bx) y by_) 0) =
-        fun bx by_ => f₁ (opG (f₂ bx) (f₃ by_)) :=
-      funext fun bx => funext fun by_ => hf bx by_
-    rw [hfun]
-    exact not_isXorType_comp_of_not_isAffineOp hAff f₁ f₂ f₃
+  · exact Or.inl (hstep (fun h => ¬ IsAndType h) (not_isAndType_comp_of_isAffineOp hAff))
+  · exact Or.inr (hstep (fun h => ¬ IsXorType h) (not_isXorType_comp_of_not_isAffineOp hAff))
 
 /-- Every `n`-bit Boolean function (`2 ≤ n`) of `B₂`-circuit complexity strictly less than
 `2 * n - 2` either has an isolated coordinate or has two intersecting critical paths in an
@@ -186,54 +176,38 @@ theorem exists_lt_pair_not_isAndType_or_not_isXorType {n : ℕ} (hn : 2 ≤ n)
   obtain ⟨C₀, hC₀comp, hC₀size⟩ :=
     exists_computes_size_eq_complexity (I := fullInterpretation (k := 2)) (f := single f)
   obtain ⟨C, hCnoDead, hCsize, hCeval, -⟩ := C₀.exists_noDeadGates
-  have hfeq : ∀ z : Fin n → Bool, f z = C.eval fullInterpretation z 0 := by
-    intro z
-    have h1 := Circuit.computes_single_iff.mp hC₀comp z
-    have h2 := congrFun (hCeval fullInterpretation z) 0
-    exact (h2.trans h1).symm
+  have hfeq : ∀ z : Fin n → Bool, f z = C.eval fullInterpretation z 0 := fun z =>
+    ((congrFun (hCeval fullInterpretation z) 0).trans
+      (Circuit.computes_single_iff.mp hC₀comp z)).symm
   have hlt : C.size < 2 * n - 2 := by omega
   by_cases hiso : C.HasIsolatedVar
   · obtain ⟨i, hout, hnotOut⟩ := hiso
-    have hindep : ∀ (ρ : Fin n → Bool) (b : Bool), f (Function.update ρ i b) = f ρ := by
-      intro ρ b
+    have hindep (ρ : Fin n → Bool) (b : Bool) : f (Function.update ρ i b) = f ρ := by
       rw [hfeq, hfeq, congrFun (C.eval_update_of_outDeg_input_eq_zero fullInterpretation
         hout hnotOut ρ b) 0]
     by_cases hi0 : i.val = 0
-    · let y : Fin n := ⟨1, by omega⟩
-      have hiy : i < y := by
-        change i.val < 1
-        omega
-      refine ⟨i, y, hiy, Or.inr fun ρ hxor => ?_⟩
-      have hxy : i ≠ y := ne_of_lt hiy
-      have heq0 : f (Function.update (Function.update ρ i false) y false) =
-          f (Function.update (Function.update ρ i true) y false) := by
-        rw [Function.update_comm hxy, Function.update_comm hxy, hindep, hindep]
-      exact hxor.2.1 heq0
-    · let x : Fin n := ⟨0, by omega⟩
-      have hxi : x < i := by
-        change 0 < i.val
-        omega
-      refine ⟨x, i, hxi, Or.inr fun ρ hxor => ?_⟩
-      have heq0 : f (Function.update (Function.update ρ x false) i false) =
-          f (Function.update (Function.update ρ x false) i true) := by
-        rw [hindep, hindep]
-      exact hxor.2.2 heq0
+    · have hiy : i < ⟨1, by omega⟩ := by change i.val < 1; omega
+      refine ⟨i, ⟨1, by omega⟩, hiy, Or.inr fun ρ hxor => hxor.2.1 ?_⟩
+      dsimp only
+      rw [Function.update_comm hiy.ne, Function.update_comm hiy.ne, hindep, hindep]
+    · refine ⟨⟨0, by omega⟩, i, by change 0 < i.val; omega, Or.inr fun ρ hxor => hxor.2.2 ?_⟩
+      dsimp only
+      rw [hindep, hindep]
   · have hnotDisj :
-        ¬ Pairwise fun x y => Disjoint (C.criticalPath x).toFinset (C.criticalPath y).toFinset := by
-      intro hdisj
-      have hge := C.two_mul_sub_two_mul_le_size C.fanInAtMost_fullSignature hCnoDead hiso hdisj
-      omega
+        ¬ Pairwise fun x y => Disjoint (C.criticalPath x).toFinset (C.criticalPath y).toFinset :=
+      fun hdisj => by
+        have := C.two_mul_sub_two_mul_le_size C.fanInAtMost_fullSignature hCnoDead hiso hdisj
+        omega
     unfold Pairwise at hnotDisj
     push Not at hnotDisj
     obtain ⟨x, y, hxy, hinter⟩ := hnotDisj
-    rcases lt_or_gt_of_ne hxy with hltXY | hgtXY
-    · refine ⟨x, y, hltXY, ?_⟩
+    suffices ∀ a b : Fin n, a < b →
+        ¬ Disjoint (C.criticalPath a).toFinset (C.criticalPath b).toFinset → _ by
+      rcases lt_or_gt_of_ne hxy with hltXY | hgtXY
+      · exact this x y hltXY hinter
+      · exact this y x hgtXY fun hd => hinter hd.symm
+    exact fun a b hab hi => ⟨a, b, hab, by
       simpa only [← hfeq] using
-        not_isAndType_or_not_isXorType_of_not_disjoint_criticalPath C hCnoDead hxy hinter
-    · have hinter' : ¬ Disjoint (C.criticalPath y).toFinset (C.criticalPath x).toFinset :=
-        fun hd => hinter hd.symm
-      refine ⟨y, x, hgtXY, ?_⟩
-      simpa only [← hfeq] using
-        not_isAndType_or_not_isXorType_of_not_disjoint_criticalPath C hCnoDead hxy.symm hinter'
+        not_isAndType_or_not_isXorType_of_not_disjoint_criticalPath C hCnoDead hab.ne hi⟩
 
 end Cslib.Circuits.Boolean

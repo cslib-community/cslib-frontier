@@ -295,26 +295,18 @@ theorem good_next [Fintype K] [DecidableEq K] (bits : K ≃+ BitString b)
     htarget hline hmenu.1
   -- Some entry succeeds, so there is a first successful entry.
   obtain ⟨e₀, C, hC, hCclean⟩ := hmenu.2 (acceptedLines a T dirs) P
-  have hsucc₀ : success hk bits scalar menu x e₀ = true := by
-    rw [success, decide_eq_true_iff]
-    refine hC.trans (Nat.mul_le_mul_left 2 (card_le_card fun i hi => ?_))
-    simp only [mem_filter, mem_univ, true_and]
-    exact (hclean e₀ i).mpr (hCclean i hi)
+  have hsucc₀ : success hk bits scalar menu x e₀ = true := decide_eq_true <| hC.trans <|
+    Nat.mul_le_mul_left 2 <| card_le_card fun i hi =>
+      mem_filter.mpr ⟨mem_univ _, (hclean e₀ i).mpr (hCclean i hi)⟩
   obtain ⟨e, he, hmin⟩ := exists_min_image ({e | success hk bits scalar menu x e = true} :
     Finset (Fin r)) id ⟨e₀, by simpa using hsucc₀⟩
   simp only [mem_filter, mem_univ, true_and, id] at he hmin
   have hchosen (e' : Fin r) : chosen hk bits scalar menu x e' = true ↔ e' = e := by
     rw [chosen, decide_eq_true_iff]
-    constructor
-    · rintro ⟨hs, hfirst⟩
-      rcases lt_trichotomy e' e with h | h | h
-      · exact absurd (hmin e' hs) (not_le.mpr h)
-      · exact h
-      · exact absurd he (by rw [hfirst e h]; decide)
+    refine ⟨fun ⟨hs, hfirst⟩ => (hmin e' hs).antisymm' (not_lt.mp fun h => ?_), ?_⟩
+    · simp [hfirst e h] at he
     · rintro rfl
-      refine ⟨he, fun e'' h'' => ?_⟩
-      by_contra hn
-      exact absurd (hmin e'' (by simpa using hn)) (not_le.mpr h'')
+      exact ⟨he, fun e'' h'' => Bool.eq_false_iff.mpr fun hn => (hmin e'' hn).not_gt h''⟩
   have hflag (i : Fin (arity p)) :
       flag hk bits scalar menu x i = clean hk bits scalar menu x e i := by
     rw [Bool.eq_iff_iff, flag, decide_eq_true_iff]
@@ -337,12 +329,8 @@ theorem good_next [Fintype K] [DecidableEq K] (bits : K ≃+ BitString b)
     rw [← hflagbit]
     refine (sort_flag_eq_true_iff (fun record => record ∘ flagKey) p
       (enriched hk bits scalar menu x) j).mpr ?_
-    have hcount : #{i | (enriched hk bits scalar menu x i ∘ flagKey) 0 = true} =
-        #{i | clean hk bits scalar menu x e i = true} := by
-      simp only [Function.comp_apply, flagKey, enriched, Fin.append_left, hflag]
-    rw [hcount]
-    have := he
-    rw [success, decide_eq_true_iff] at this
+    simp only [Function.comp_apply, flagKey, enriched, Fin.append_left, hflag]
+    have := of_decide_eq_true he
     lia
   -- The new state.
   let E : Fin a ⊕ Fin (arity p) ≃ Fin (2 ^ D) := finSumFinEquiv.trans (finCongr hk)
@@ -375,42 +363,30 @@ theorem good_next [Fintype K] [DecidableEq K] (bits : K ≃+ BitString b)
   refine ⟨τ.trans π, dirs', fun m => ?_, fun m => ?_, fun m hm => ?_, fun m m' hm hm' hne => ?_⟩
   · funext jj
     rcases accepted_or_pending (hk := hk) m with ⟨m', rfl⟩ | ⟨j, rfl⟩
-    · simp only [label, next_accepted, Equiv.trans_apply, hτa]
-      exact congrFun (hlabel _) jj
-    · simp only [label, next_pending, Equiv.trans_apply, hτp, hsorted, enriched, labelBit]
-      rw [show Fin.natAdd 1 (Fin.castAdd (ℓ * b + s * (ℓ * b)) jj) =
-          Fin.natAdd 1 (Fin.castAdd (ℓ * b + s * (ℓ * b)) jj) from rfl, Fin.append_right,
-        Fin.append_left]
-      exact congrFun (hlabel _) jj
+    · simp [label, next_accepted, hτa, ← hlabel]
+    · simp [label, next_pending, hτp, hsorted, enriched, labelBit,
+        Fin.append_right, Fin.append_left, ← hlabel]
   · funext β
     rcases accepted_or_pending (hk := hk) m with ⟨m', rfl⟩ | ⟨j, rfl⟩
-    · simp only [target, next_accepted, Equiv.trans_apply, hτa]
-      exact congrFun (htarget _) β
-    · simp only [target, next_pending, Equiv.trans_apply, hτp, hsorted, enriched, targetBit]
-      rw [Fin.append_right, Fin.append_right, Fin.append_left]
-      exact congrFun (htarget _) β
+    · simp [target, next_accepted, hτa, ← htarget]
+    · simp [target, next_pending, hτp, hsorted, enriched, targetBit,
+        Fin.append_right, Fin.append_left, ← htarget]
   · rcases hnew_acc m hm with ⟨m', rfl⟩ | ⟨j, rfl, hj⟩
     · rw [hda]
-      refine ⟨(hline _ m'.isLt).1, fun c => ?_⟩
-      funext β
-      simp only [line, next_accepted, Equiv.trans_apply, hτa]
-      exact congrFun ((hline _ m'.isLt).2 c) β
+      refine ⟨(hline _ m'.isLt).1, fun c => funext fun β => ?_⟩
+      simpa only [line, next_accepted, Equiv.trans_apply, hτa] using
+        congrFun ((hline _ m'.isLt).2 c) β
     · rw [hdp]
-      refine ⟨hmenu.1 e (σ j), fun c => ?_⟩
-      funext β
+      refine ⟨hmenu.1 e (σ j), fun c => funext fun β => ?_⟩
       simp only [line, next_pending, Equiv.trans_apply, hτp, hsorted, enriched, lineBit]
       rw [Fin.append_right, Fin.append_right, Fin.append_right, Equiv.symm_apply_apply, hnew,
         candidate_eq bits scalar menu htarget]
-  · simp only [Equiv.trans_apply]
-    rcases hnew_acc m hm with ⟨m₁, rfl⟩ | ⟨j, rfl, hj⟩ <;>
-      rcases hnew_acc m' hm' with ⟨m₂, rfl⟩ | ⟨j', rfl, hj'⟩
-    · rw [hτa, hτa, hda, hda]
-      exact hdisj _ _ m₁.isLt m₂.isLt hne
-    · rw [hτa, hτp, hda, hdp]
-      exact ((hfront j' hj').1.mono_right (hsub m₁)).symm
-    · rw [hτp, hτa, hdp, hda]
-      exact (hfront j hj).1.mono_right (hsub m₂)
-    · rw [hτp, hτp, hdp, hdp]
-      exact (hfront j hj).2 (σ j') fun h => hne (by rw [σ.injective h])
+  · rcases hnew_acc m hm with ⟨m₁, rfl⟩ | ⟨j, rfl, hj⟩ <;>
+      rcases hnew_acc m' hm' with ⟨m₂, rfl⟩ | ⟨j', rfl, hj'⟩ <;>
+      simp only [Equiv.trans_apply, hτa, hτp, hda, hdp]
+    · exact hdisj _ _ m₁.isLt m₂.isLt hne
+    · exact ((hfront j' hj').1.mono_right (hsub m₁)).symm
+    · exact (hfront j hj).1.mono_right (hsub m₂)
+    · exact (hfront j hj).2 (σ j') fun h => hne (by rw [σ.injective h])
 
 end Cslib.Circuits.Boolean.MassProduction.Scheduler

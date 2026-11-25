@@ -65,6 +65,12 @@ private theorem placed_support (p : Route) (flip : Bool) (z : ℂ) :
   cases flip <;> simp only [placed, Bool.false_eq_true, ↓reduceIte,
     Route.support_translate, Route.support_reverse]
 
+private theorem mem_placed_support {p : Route} {flip : Bool} {z w : ℂ} :
+    w ∈ (placed p flip z).support ↔ w - z ∈ p.support := by
+  rw [placed_support]
+  exact ⟨fun ⟨u, hu, h⟩ => by rwa [← h, add_sub_cancel_left],
+    fun h => ⟨w - z, h, add_sub_cancel _ _⟩⟩
+
 private theorem placed_simple {p : Route} (hp : p.IsSimple) (flip : Bool) (z : ℂ) :
     (placed p flip z).IsSimple := by
   cases flip
@@ -89,22 +95,15 @@ private theorem placed_vector (p : Route) (flip : Bool) (z : ℂ) :
   dsimp only
   have h0 := placed_contact_eval p flip z 0
   have h1 := placed_contact_eval p flip z 1
-  have hvec : ∀ q : Route, ∀ i : Fin q.segments,
+  have hvec (q : Route) (i : Fin q.segments) :
       q.point i.succ - q.point i.castSucc = q.eval i 1 - q.eval i 0 := by
-    intro q i
     simp only [Route.eval, AffineMap.lineMap_apply_one, AffineMap.lineMap_apply_zero]
   rw [hvec]
   cases flip <;> simp only [contactTime, Bool.false_eq_true, ↓reduceIte, sub_zero,
-    sub_self] at h0 h1 ⊢
-  · rw [h1, h0]
+    sub_self] at h0 h1 ⊢ <;> rw [h0, h1] <;>
     simp only [Route.eval, AffineMap.lineMap_apply_one, AffineMap.lineMap_apply_zero,
       add_sub_add_left_eq_sub, Fin.castSucc_zero, Route.germ,
-      Bool.false_eq_true, ↓reduceIte, Route.start]
-  · rw [h0, h1]
-    simp only [Route.eval, AffineMap.lineMap_apply_one, AffineMap.lineMap_apply_zero,
-      add_sub_add_left_eq_sub, Fin.castSucc_zero, Route.germ,
-      Bool.false_eq_true, ↓reduceIte, Route.start,
-      neg_sub]
+      Bool.false_eq_true, ↓reduceIte, Route.start, neg_sub]
 
 private theorem cut_parameters {a b : ℝ} (hab : a ≠ b) {z : ℂ}
     (hz : z ∈ openSegment ℝ (parabolaPoint a) (parabolaPoint b)) {r : ℝ} (hr : 0 < r)
@@ -118,12 +117,10 @@ private theorem cut_parameters {a b : ℝ} (hab : a ≠ b) {z : ℂ}
   have hshift (x : ℝ) (hx : |x| < min (z.re - min a b) (max a b - z.re)) :
       z + (⟨x, x * (a + b)⟩ : ℂ) ∈ openSegment ℝ (parabolaPoint a) (parabolaPoint b) := by
     have hx' := lt_min_iff.mp hx
-    have hxlow := neg_abs_le x
-    have hxhigh := le_abs_self x
-    apply (mem_openChord_iff hab _).mpr
-    constructor
+    refine (mem_openChord_iff hab _).mpr ⟨?_, ?_⟩
     · change min a b < z.re + x ∧ z.re + x < max a b
-      constructor <;> linarith
+      exact ⟨by linarith [neg_abs_le x],
+        by linarith [le_abs_self x]⟩
     · change z.im + x * (a + b) = (a + b) * (z.re + x) - a * b
       nlinarith only [hline]
   have hleft := hshift (-r) (by simpa only [abs_neg, abs_of_pos hr] using hm)
@@ -171,25 +168,22 @@ private theorem choose_geometry {ι : Type*} [Finite ι] (s m : ι → ℝ)
   have hr : 0 < r := by dsimp [r]; positivity
   refine ⟨r, ε, hr, by dsimp [ε]; positivity, ?_, ?_⟩
   · intro i
-    have hi : 1 / m i ≤ ∑ j, 1 / m j :=
-      Finset.single_le_sum (fun j _ => (div_pos zero_lt_one (hm j)).le) (Finset.mem_univ i)
-    have hTi : 1 / m i < T := by dsimp [T]; linarith
+    have hTi : 1 / m i < T := by
+      dsimp [T]
+      linarith [Finset.single_le_sum (fun j _ => (div_pos zero_lt_one (hm j)).le)
+        (Finset.mem_univ i)]
     have hprod := (div_lt_iff₀ (hm i)).mp hTi
-    have hsmall : 1 / (2 * T) < m i := by
-      apply (div_lt_iff₀ (by positivity : 0 < 2 * T)).mpr
-      nlinarith
-    exact (min_le_right _ _).trans_lt hsmall
+    exact (min_le_right _ _).trans_lt
+      ((div_lt_iff₀ (by positivity : 0 < 2 * T)).mpr
+        (by nlinarith))
   · intro i
-    have hi : |s i| ≤ ∑ j, |s j| :=
-      Finset.single_le_sum (fun j _ => abs_nonneg (s j)) (Finset.mem_univ i)
-    have hKi : 1 + |s i| ≤ K := by dsimp [K]; linarith
-    have hrK : r * K ≤ ρ / 4 := by
-      have hh : r ≤ ρ / (4 * K) := min_le_left _ _
-      have := (le_div_iff₀ (by positivity : 0 < 4 * K)).mp hh
-      nlinarith
+    have hKi : 1 + |s i| ≤ K := by
+      dsimp [K]
+      linarith [Finset.single_le_sum (fun j _ => abs_nonneg (s j)) (Finset.mem_univ i)]
+    have hrK := (le_div_iff₀ (by positivity : 0 < 4 * K)).mp (min_le_left _ _ : r ≤ _)
     have hbound := mul_le_mul_of_nonneg_left hKi hr.le
     dsimp [ε]
-    linarith
+    nlinarith
 
 /-- Place the actual finite incident family inside any positive-radius ball. Source cut
 parameters, optional frozen protection, slopes and all geometric conclusions are internal.
@@ -238,10 +232,8 @@ theorem exists_reference_detour_placement {I : FixedRotationInput} (hI : Valid I
   let a : E → ℝ := fun e => (D.route e).start.re
   let b : E → ℝ := fun e => (D.route e).finish.re
   have hshape (e : E) : D.route e = Route.line (parabolaPoint (a e)) (parabolaPoint (b e)) := rfl
-  have hne (e : E) : a e ≠ b e := by
-    intro hab
-    have hn := (Route.isSimple_line_iff _ _).mp (referenceDrawing_simple hI e)
-    exact hn (congrArg parabolaPoint hab)
+  have hne (e : E) : a e ≠ b e := fun hab =>
+    (Route.isSimple_line_iff _ _).mp (referenceDrawing_simple hI e) (congrArg parabolaPoint hab)
   have hopen (e : X) : z ∈ openSegment ℝ (D.route e.val).start (D.route e.val).finish := by
     have hend (tag : Bool) : z ≠ (D.route e.val).endpoint tag := by
       rw [D.endpoint_eq]
@@ -250,41 +242,28 @@ theorem exists_reference_detour_placement {I : FixedRotationInput} (hI : Valid I
     apply mem_openSegment_of_ne_left_right (hend false).symm (hend true).symm
     exact (Route.support_line _ _) ▸ e.property
   let s : X → ℝ := fun e => a e.val + b e.val
-  have hs : Function.Injective s := by
-    intro e f heq
-    apply Subtype.ext
-    by_contra hef
-    exact (referenceDrawing_slope_ne_of_interior_contact hI e.val f.val hef (hopen e) (hopen f)) heq
+  have hs : Function.Injective s := fun e f heq => Subtype.ext <| by_contra fun hef =>
+    referenceDrawing_slope_ne_of_interior_contact hI e.val f.val hef (hopen e) (hopen f) heq
   have hF : ∀ e f : X, F e.val = true → F f.val = true → e = f := by
     intro e f he hf
     by_contra hef
     have hef' : e.val ≠ f.val := fun h => hef (Subtype.ext h)
-    have hez := hopen e
-    have hfz := hopen f
-    rw [openSegment_eq_image_lineMap] at hez hfz
-    obtain ⟨u, hu, hueq⟩ := hez
-    obtain ⟨v, hv, hveq⟩ := hfz
+    simp only [openSegment_eq_image_lineMap] at hopen
+    obtain ⟨u, hu, hueq⟩ := hopen e
+    obtain ⟨v, hv, hveq⟩ := hopen f
     have heval : (D.route e.val).eval 0 u = (D.route f.val).eval 0 v := by
       rw [hshape e.val, hshape f.val, Route.eval_line, Route.eval_line]
       exact hueq.trans hveq.symm
-    obtain ⟨be, bf, hbe, hbf, _⟩ := referenceDrawing_frozen_edge_contacts hI e.val f.val
+    obtain ⟨be, _, hbe, _, _⟩ := referenceDrawing_frozen_edge_contacts hI e.val f.val
       hef' he hf 0 0 ⟨hu.1.le, hu.2.le⟩ ⟨hv.1.le, hv.2.le⟩ heval
     exact (Route.not_atEnd_of_mem_Ioo _ 0 hu be) hbe
   let fixed : Option X := if h : ∃ e : X, F e.val = true then some h.choose else none
   have hfixed (e : X) : fixed = some e ↔ F e.val = true := by
     dsimp only [fixed]
     split_ifs with h
-    · constructor
-      · intro he
-        have hei := Option.some.inj he
-        exact hei ▸ h.choose_spec
-      · intro he
-        exact congrArg some (hF h.choose e h.choose_spec he)
-    · constructor
-      · intro he
-        exact he.elim
-      · intro he
-        exact (h ⟨e, he⟩).elim
+    · exact ⟨fun he => Option.some.inj he ▸ h.choose_spec,
+        fun he => congrArg some (hF h.choose e h.choose_spec he)⟩
+    · exact ⟨fun he => he.elim, fun he => (h ⟨e, he⟩).elim⟩
   let m : X → ℝ := fun e => min (z.re - min (a e.val) (b e.val))
     (max (a e.val) (b e.val) - z.re)
   have hmem (e : X) : z ∈ openSegment ℝ (parabolaPoint (a e.val))
@@ -312,8 +291,7 @@ theorem exists_reference_detour_placement {I : FixedRotationInput} (hI : Valid I
   have hEndR (e : X) (tag : Bool) : (R e).endpoint tag =
       if tag then (⟨r, r * s e⟩ : ℂ) else ⟨-r, -r * s e⟩ := by
     cases tag
-    · exact (hends e).1
-    · exact (hends e).2.1
+    exacts [(hends e).1, (hends e).2.1]
   have htransport (e : X) (tag : Bool) :
       (P e).endpoint tag = z + (R e).endpoint (if flip e then !tag else tag) := by
     change ((if flip e then (R e).reverse else R e).translate z).endpoint tag = _
@@ -327,8 +305,7 @@ theorem exists_reference_detour_placement {I : FixedRotationInput} (hI : Valid I
         (if tag then (if b e.val < a e.val then (⟨-r, -r * s e⟩ : ℂ) else ⟨r, r * s e⟩)
           else (if b e.val < a e.val then (⟨r, r * s e⟩ : ℂ) else ⟨-r, -r * s e⟩)) := by
       cases tag
-      · exact hcutA e
-      · exact hcutB e
+      exacts [hcutA e, hcutB e]
     rw [htransport, hEndR, hc]
     congr 1
     cases tag <;> by_cases hf : b e.val < a e.val <;>
@@ -369,55 +346,38 @@ theorem exists_reference_detour_placement {I : FixedRotationInput} (hI : Valid I
         Route.translate_line, Route.start_line, Route.finish_line]
     exact ⟨hd, by rw [hline, hpointA e, hpointB e]⟩
   refine ⟨r, hr, d, α, β, ?_, hPkeep, ?_, ?_, ?_⟩
-  · intro e
-    exact ⟨hα e, hαβ e, hβ e, hpointA e, hpointB e,
+  · exact fun e => ⟨hα e, hαβ e, hβ e, hpointA e, hpointB e,
       placed_simple (hends e).2.2.1 (flip e) z, hball e⟩
   · intro e f hef
     obtain ⟨w, ⟨he, hf⟩, huniq⟩ := hpair e f hef
-    refine ⟨z + w, ?_, ?_⟩
-    · exact ⟨(placed_support (R e) (flip e) z).symm ▸ Set.mem_image_of_mem _ he,
-        (placed_support (R f) (flip f) z).symm ▸ Set.mem_image_of_mem _ hf⟩
-    · intro v hv
-      obtain ⟨u, hue, huv⟩ := (placed_support (R e) (flip e) z) ▸ hv.1
-      obtain ⟨u', huf, hufv⟩ := (placed_support (R f) (flip f) z) ▸ hv.2
-      have huu : u = u' := add_left_cancel (huv.trans hufv.symm)
-      have hu : u = w := huniq u ⟨hue, huu.symm ▸ huf⟩
-      exact huv.symm.trans (congrArg (fun x => z + x) hu)
+    refine ⟨z + w, ⟨mem_placed_support.mpr (by simpa using he),
+      mem_placed_support.mpr (by simpa using hf)⟩, fun v hv => ?_⟩
+    rw [← add_sub_cancel z v,
+      huniq (v - z) ⟨mem_placed_support.mp hv.1, mem_placed_support.mp hv.2⟩]
   · intro e f hef w hwe hwf
-    obtain ⟨u, hue, hu⟩ := (placed_support (R e) (flip e) z) ▸ hwe
-    obtain ⟨v, hvf, hv⟩ := (placed_support (R f) (flip f) z) ▸ hwf
-    have huv : u = v := add_left_cancel (hu.trans hv.symm)
-    obtain ⟨_, _, t, t', ht, ht', hete, hetf⟩ := hcontact e f hef u hue (huv.symm ▸ hvf)
+    obtain ⟨_, _, t, t', ht, ht', hete, hetf⟩ :=
+      hcontact e f hef (w - z) (mem_placed_support.mp hwe) (mem_placed_support.mp hwf)
     refine ⟨contactIndex (R e) (flip e) z, contactIndex (R f) (flip f) z,
       contactTime (flip e) t, contactTime (flip f) t', ?_, ?_, ?_, ?_, ?_⟩
     · cases flip e <;> dsimp [contactTime] <;> constructor <;> linarith [ht.1, ht.2]
     · cases flip f <;> dsimp [contactTime] <;> constructor <;> linarith [ht'.1, ht'.2]
     · exact (placed_contact_eval (R e) (flip e) z t).trans
-        ((congrArg (fun x => z + x) ((hraw_eval e t).symm.trans hete)).trans hu)
+        (by rw [← hraw_eval, hete, add_sub_cancel])
     · exact (placed_contact_eval (R f) (flip f) z t').trans
-        ((congrArg (fun x => z + x) ((hraw_eval f t').symm.trans hetf)).trans hu)
-    · let ve := (placed (R e) (flip e) z).point (contactIndex (R e) (flip e) z).succ -
-        (placed (R e) (flip e) z).point (contactIndex (R e) (flip e) z).castSucc
-      let vf := (placed (R f) (flip f) z).point (contactIndex (R f) (flip f) z).succ -
-        (placed (R f) (flip f) z).point (contactIndex (R f) (flip f) z).castSucc
-      change ve.re * vf.im - ve.im * vf.re ≠ 0
-      have hve : ve = if flip e then -(R e).germ false else (R e).germ false :=
-        placed_vector (R e) (flip e) z
-      have hvf : vf = if flip f then -(R f).germ false else (R f).germ false :=
-        placed_vector (R f) (flip f) z
+        (by rw [← hraw_eval, hetf, add_sub_cancel])
+    · have hve := placed_vector (R e) (flip e) z
+      have hvf := placed_vector (R f) (flip f) z
+      dsimp only [placed, flip, a, b, D] at hve hvf ⊢
       rw [hve, hvf]
       have hd := hdet e f hef
       change ((R e).germ false).re * ((R f).germ false).im -
         ((R e).germ false).im * ((R f).germ false).re ≠ 0 at hd
-      cases flip e <;> cases flip f <;>
-        simp only [Bool.false_eq_true, ↓reduceIte, Complex.neg_re, Complex.neg_im] <;>
-        intro hzero <;> apply hd <;> nlinarith only [hzero]
+      split_ifs <;> intro hzero <;> apply hd
+      all_goals
+        try simp only [Complex.neg_re, Complex.neg_im] at hzero
+        nlinarith only [hzero]
   · intro e f g hef heg hfg w hwe hwf hwg
-    obtain ⟨u, hue, hu⟩ := (placed_support (R e) (flip e) z) ▸ hwe
-    obtain ⟨v, hvf, hv⟩ := (placed_support (R f) (flip f) z) ▸ hwf
-    obtain ⟨v', hvg, hv'⟩ := (placed_support (R g) (flip g) z) ▸ hwg
-    have huv : u = v := add_left_cancel (hu.trans hv.symm)
-    have huv' : u = v' := add_left_cancel (hu.trans hv'.symm)
-    exact hno3 e f g hef heg hfg u hue (huv.symm ▸ hvf) (huv'.symm ▸ hvg)
+    exact hno3 e f g hef heg hfg (w - z) (mem_placed_support.mp hwe)
+      (mem_placed_support.mp hwf) (mem_placed_support.mp hwg)
 
 end Cslib.Complexity.Graph.RotationRecognition

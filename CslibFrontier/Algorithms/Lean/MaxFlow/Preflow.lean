@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.Lean.MaxFlow.Basic
 public import Mathlib.Data.Finset.Lattice.Fold
 public import Mathlib.Data.Fintype.Card
+import CslibFrontier.Tactic.FinsetCard
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Algebra.BigOperators.Group.Finset.Piecewise
 import Mathlib.Algebra.BigOperators.Ring.Finset
@@ -101,10 +102,9 @@ variable {N}
   (∑ u, (f u v : ℤ)) - ∑ w, (f v w : ℤ)
 
 theorem excess_nonneg (f : N.Preflow) {v : V} (hv : v ≠ N.s) : 0 ≤ f.excess v := by
-  have h := f.out_le_in v hv
+  have h : ((∑ w, f v w : ℕ) : ℤ) ≤ ((∑ u, f u v : ℕ) : ℤ) := by exact_mod_cast f.out_le_in v hv
+  push_cast at h
   unfold excess
-  have h' : ((∑ w, f v w : ℕ) : ℤ) ≤ ((∑ u, f u v : ℕ) : ℤ) := by exact_mod_cast h
-  push_cast at h'
   omega
 
 /-- Residual capacity `c_f(u, v)`: unused capacity on `(u, v)` plus cancellable flow on `(v, u)`. -/
@@ -195,11 +195,7 @@ private theorem le_add_card_of_reflTransGen {r : V → V → Prop} {h : V → �
       · exact ih (Finset.mem_Icc.mpr ⟨hk.1, hky⟩)
       · have := hr x y hxy
         exact Finset.mem_image.mpr ⟨x, Finset.mem_univ _, by omega⟩
-  have hcard := Finset.card_le_card (key u huw)
-  rw [Nat.card_Icc] at hcard
-  have := (Finset.card_image_le (s := Finset.univ) (f := h))
-  rw [Finset.card_univ] at this
-  omega
+  finset_card [key u huw, Nat.card_Icc (h w) (h u)]
 
 theorem IsValidLabeling.le_add_card {f : N.Preflow} {h : V → ℕ} (hh : f.IsValidLabeling h)
     {u w : V} (huw : f.ResReachable u w) : h u + 1 ≤ h w + Fintype.card V :=
@@ -224,20 +220,14 @@ private theorem sum_netIn_eq [DecidableEq V] (g : V → V → ℕ) (U : Finset V
     (∑ v ∈ U, ((∑ u, (g u v : ℤ)) - ∑ w, (g v w : ℤ))) =
       (∑ v ∈ U, ∑ u ∈ Finset.univ \ U, (g u v : ℤ)) -
         ∑ v ∈ U, ∑ w ∈ Finset.univ \ U, (g v w : ℤ) := by
-  have hsplit : ∀ k : V → ℤ, ∑ x, k x = (∑ x ∈ U, k x) + ∑ x ∈ Finset.univ \ U, k x := by
-    intro k
-    rw [← Finset.sum_union Finset.disjoint_sdiff,
-      Finset.union_sdiff_of_subset (Finset.subset_univ U)]
-  rw [Finset.sum_sub_distrib]
-  have h1 : ∑ v ∈ U, ∑ u, (g u v : ℤ) =
-      (∑ v ∈ U, ∑ u ∈ U, (g u v : ℤ)) + ∑ v ∈ U, ∑ u ∈ Finset.univ \ U, (g u v : ℤ) := by
+  have hsplit : ∀ k : V → V → ℤ, ∑ v ∈ U, ∑ x, k v x =
+      (∑ v ∈ U, ∑ x ∈ U, k v x) + ∑ v ∈ U, ∑ x ∈ Finset.univ \ U, k v x := fun k => by
     rw [← Finset.sum_add_distrib]
-    exact Finset.sum_congr rfl fun v _ => hsplit _
-  have h2 : ∑ v ∈ U, ∑ w, (g v w : ℤ) =
-      (∑ v ∈ U, ∑ w ∈ U, (g v w : ℤ)) + ∑ v ∈ U, ∑ w ∈ Finset.univ \ U, (g v w : ℤ) := by
-    rw [← Finset.sum_add_distrib]
-    exact Finset.sum_congr rfl fun v _ => hsplit _
-  have h3 : (∑ v ∈ U, ∑ u ∈ U, (g u v : ℤ)) = ∑ v ∈ U, ∑ w ∈ U, (g v w : ℤ) := Finset.sum_comm
+    exact Finset.sum_congr rfl fun v _ => by
+      rw [← Finset.sum_union Finset.disjoint_sdiff,
+        Finset.union_sdiff_of_subset (Finset.subset_univ U)]
+  rw [Finset.sum_sub_distrib, hsplit (fun v u => (g u v : ℤ)), hsplit (fun v w => (g v w : ℤ))]
+  have hcomm : (∑ v ∈ U, ∑ u ∈ U, (g u v : ℤ)) = ∑ v ∈ U, ∑ w ∈ U, (g v w : ℤ) := Finset.sum_comm
   omega
 
 /-- **Overflowing vertices reach the source** ([CLRS2009], Lemma 26.19): in a preflow, every vertex
@@ -247,30 +237,20 @@ theorem resReachable_source_of_excess_pos (f : N.Preflow) {x : V} (hx : 0 < f.ex
   classical
   by_contra hns
   set U := Finset.univ.filter fun v => f.ResReachable x v with hU
-  have hxU : x ∈ U := by
-    rw [hU, Finset.mem_filter]
-    exact ⟨Finset.mem_univ _, .refl⟩
+  have hxU : x ∈ U := Finset.mem_filter.mpr ⟨Finset.mem_univ _, .refl⟩
   have hsU : N.s ∉ U := by simpa [hU] using hns
-  have hzero : ∀ v ∈ U, ∀ w ∈ Finset.univ \ U, f.resCap v w = 0 := by
-    intro v hv w hw
+  have hzero : ∀ v ∈ U, ∀ w ∈ Finset.univ \ U, f.resCap v w = 0 := fun v hv w hw => by
     by_contra hpos
-    have hv' : f.ResReachable x v := by simpa [hU] using hv
-    have hw' : ¬ f.ResReachable x w := by simpa [hU] using hw
-    exact hw' (hv'.tail (Nat.pos_of_ne_zero hpos))
+    exact (Finset.mem_sdiff.mp hw).2 (Finset.mem_filter.mpr ⟨Finset.mem_univ _,
+      (Finset.mem_filter.mp hv).2.tail (Nat.pos_of_ne_zero hpos)⟩)
   have hsum : (∑ v ∈ U, f.excess v) ≤ 0 := by
     unfold excess
-    rw [sum_netIn_eq f.toFun U]
-    have hin : (∑ v ∈ U, ∑ u ∈ Finset.univ \ U, (f u v : ℤ)) = 0 := by
-      refine Finset.sum_eq_zero fun v hv => Finset.sum_eq_zero fun u hu => ?_
-      have := hzero v hv u hu
-      unfold resCap at this
-      have : f u v = 0 := by omega
-      rw [this, Nat.cast_zero]
-    have hout : 0 ≤ ∑ v ∈ U, ∑ w ∈ Finset.univ \ U, (f v w : ℤ) :=
-      Finset.sum_nonneg fun _ _ => Finset.sum_nonneg fun _ _ => Int.natCast_nonneg _
-    change (∑ v ∈ U, ∑ u ∈ Finset.univ \ U, (f u v : ℤ)) -
-        ∑ v ∈ U, ∑ w ∈ Finset.univ \ U, (f v w : ℤ) ≤ 0
-    omega
+    rw [sum_netIn_eq f.toFun U, Finset.sum_eq_zero fun v hv => Finset.sum_eq_zero fun u hu => by
+      have h0 := hzero v hv u hu
+      unfold resCap at h0
+      exact Nat.cast_eq_zero.mpr (by omega)]
+    exact sub_nonpos.mpr (Finset.sum_nonneg fun _ _ => Finset.sum_nonneg fun _ _ =>
+      Int.natCast_nonneg _)
   have hnonneg : ∀ v ∈ U, 0 ≤ f.excess v := fun v hv =>
     f.excess_nonneg fun h => hsU (h ▸ hv)
   have hle := Finset.single_le_sum hnonneg hxU
@@ -402,11 +382,7 @@ theorem IsValidLabeling.exists_gap {f : N.Preflow} {h : V → ℕ} (hh : f.IsVal
       · exact ⟨N.s, Finset.mem_univ _, hkn ▸ hh.source⟩
       · obtain ⟨v, hv⟩ := hocc k hk0 (by omega)
         exact ⟨v, Finset.mem_univ _, hv⟩
-  have h1 := Finset.card_le_card hsub
-  rw [Finset.card_range] at h1
-  have h2 := Finset.card_image_le (s := (Finset.univ : Finset V)) (f := h)
-  rw [Finset.card_univ] at h2
-  omega
+  finset_card [Finset.card_range (Fintype.card V + 1)]
 
 theorem IsValidLabeling.gapLevel_spec {f : N.Preflow} {h : V → ℕ} (hh : f.IsValidLabeling h) :
     0 < gapLevel h ∧ gapLevel h < Fintype.card V ∧ ∀ v, h v ≠ gapLevel h := by
@@ -417,11 +393,9 @@ theorem IsValidLabeling.gapLevel_spec {f : N.Preflow} {h : V → ℕ} (hh : f.Is
     rw [List.find?_eq_none] at hfind
     exact absurd (decide_eq_true ⟨hk0, hk⟩) (hfind k (List.mem_range.mpr hkn))
   | some j =>
-    have hp' : decide (0 < j ∧ ∀ v, h v ≠ j) = true :=
-      List.find?_some (p := fun k => decide (0 < k ∧ ∀ v, h v ≠ k)) hfind
-    have hp := of_decide_eq_true hp'
-    have hmem := List.mem_range.mp (List.mem_of_find?_eq_some hfind)
-    exact ⟨hp.1, hmem, hp.2⟩
+    obtain ⟨hj0, hj⟩ := of_decide_eq_true
+      (List.find?_some (p := fun k => decide (0 < k ∧ ∀ v, h v ≠ k)) hfind)
+    exact ⟨hj0, List.mem_range.mp (List.mem_of_find?_eq_some hfind), hj⟩
 
 /-- The gap cut of a labeling: the vertices strictly above `gapLevel h`. -/
 @[expose] def gapCut (h : V → ℕ) : Finset V :=
@@ -477,23 +451,13 @@ theorem pushFun_sub_pushFun (f : V → V → ℕ) (u v : V) (δ : ℕ) (x y : V)
     (pushFun f u v δ x y : ℤ) - (pushFun f u v δ y x : ℤ) =
       (f x y : ℤ) - (f y x : ℤ) + (if x = u ∧ y = v then (δ : ℤ) else 0) -
         (if x = v ∧ y = u then (δ : ℤ) else 0) := by
-  have hA' : (y = v ∧ x = u) ↔ (x = u ∧ y = v) := and_comm
-  have hB' : (y = u ∧ x = v) ↔ (x = v ∧ y = u) := and_comm
   unfold pushFun
-  simp only [hA', hB']
-  by_cases hA : x = u ∧ y = v
-  · by_cases hB : x = v ∧ y = u
-    · have hxy : x = y := hA.1.trans hB.2.symm
-      subst hxy
-      simp only [ite_eq_left hA, ite_eq_left hB]
-      omega
-    · simp only [ite_eq_left hA, ite_eq_right hB]
-      omega
-  · by_cases hB : x = v ∧ y = u
-    · simp only [ite_eq_right hA, ite_eq_left hB]
-      omega
-    · simp only [ite_eq_right hA, ite_eq_right hB]
-      omega
+  simp only [show (y = v ∧ x = u) ↔ (x = u ∧ y = v) from and_comm,
+    show (y = u ∧ x = v) ↔ (x = v ∧ y = u) from and_comm]
+  split_ifs with hA hB
+  · have : x = y := hA.1.trans hB.2.symm
+    subst this; omega
+  all_goals omega
 
 theorem sum_pushFun_sub (f : V → V → ℕ) (u v : V) (δ : ℕ) (x : V) :
     (∑ y, (pushFun f u v δ y x : ℤ)) - ∑ y, (pushFun f u v δ x y : ℤ) =
@@ -532,7 +496,8 @@ Section 26.4, procedure `PUSH`). -/
   out_le_in x hx := by
     have key := sum_pushFun_sub f.toFun u v (f.pushAmount u v) x
     have hex := f.excess_nonneg hx
-    have hδ : x = u → (f.pushAmount u v : ℤ) ≤ f.excess x := by grind [pushAmount]
+    have hδ : x = u → (f.pushAmount u v : ℤ) ≤ f.excess x := by
+      rintro rfl; unfold pushAmount; omega
     unfold excess at hex hδ
     have h0 : (0 : ℤ) ≤ (∑ y, (pushFun f u v (f.pushAmount u v) y x : ℤ)) -
         ∑ y, (pushFun f u v (f.pushAmount u v) x y : ℤ) := by
@@ -569,18 +534,14 @@ theorem resCap_push_coe (f : N.Preflow) (u v x y : V) :
 theorem resCap_push_self (f : N.Preflow) {u v : V} (huv : u ≠ v) :
     (f.push u v).resCap u v = f.resCap u v - f.pushAmount u v := by
   have h := f.resCap_push_coe u v u v
-  have hA : u = u ∧ v = v := ⟨rfl, rfl⟩
-  have hB : ¬ (u = v ∧ v = u) := fun h => huv h.1
-  rw [ite_eq_left hA, ite_eq_right hB] at h
+  rw [ite_eq_left ⟨rfl, rfl⟩, ite_eq_right fun h' => huv h'.1] at h
   have := f.pushAmount_le_resCap u v
   omega
 
 theorem resCap_push_swap (f : N.Preflow) {u v : V} (huv : u ≠ v) :
     (f.push u v).resCap v u = f.resCap v u + f.pushAmount u v := by
   have h := f.resCap_push_coe u v v u
-  have hA : ¬ (v = u ∧ u = v) := fun h => huv h.2
-  have hB : v = v ∧ u = u := ⟨rfl, rfl⟩
-  rw [ite_eq_right hA, ite_eq_left hB] at h
+  rw [ite_eq_right fun h' => huv h'.2, ite_eq_left ⟨rfl, rfl⟩] at h
   omega
 
 theorem resCap_push_of_ne (f : N.Preflow) {u v x y : V} (h1 : ¬ (x = u ∧ y = v))
@@ -638,12 +599,10 @@ theorem resNbrs_nonempty (f : N.Preflow) {u : V} (hu : 0 < f.excess u) :
     (f.resNbrs u).Nonempty := by
   by_contra hne
   rw [Finset.not_nonempty_iff_eq_empty] at hne
-  have hz : ∀ w, f w u = 0 := by
-    intro w
-    have hw : w ∉ f.resNbrs u := by grind
+  have hz : ∀ w, f w u = 0 := fun w => by
+    have hw : w ∉ f.resNbrs u := hne ▸ Finset.notMem_empty w
     rw [mem_resNbrs, not_lt] at hw
-    unfold resCap at hw
-    omega
+    unfold resCap at hw; omega
   unfold excess at hu
   have h0 : ∑ w, (f w u : ℤ) = 0 := Finset.sum_eq_zero fun w _ => by simp [hz w]
   have : 0 ≤ ∑ w, (f u w : ℤ) := Finset.sum_nonneg fun _ _ => Int.natCast_nonneg _

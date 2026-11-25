@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.CallableBox.Program
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct.ThinWidth
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Actual translated box-product execution
@@ -74,11 +75,9 @@ theorem exec_core {W b m t N : ℕ}
   have hi' : (State.init (BoxProduct.input true (21 * m) t X Y qs) : State 160).data.Bounded
       (sourceWidth N qs.length) := by
     simpa only [htwo, State.init] using (Data.Bounded.init (r := 160) hi)
-  have hrow : x.mem (b + 3) = N := by
-    rw [hinput 3 (by unfold QueriedProduct.inputEnd; omega)]
-    simp [State.init, Data.init, BoxProduct.input, QueriedProduct.input]
-  have hcount : x.mem (b + 4) = qs.length := by
-    rw [hinput 4 (by unfold QueriedProduct.inputEnd; omega)]
+  obtain ⟨hrow, hcount⟩ : x.mem (b + 3) = N ∧ x.mem (b + 4) = qs.length := by
+    rw [hinput 3 (by unfold QueriedProduct.inputEnd; omega),
+      hinput 4 (by unfold QueriedProduct.inputEnd; omega)]
     simp [State.init, Data.init, BoxProduct.input, QueriedProduct.input]
   obtain ⟨s, hs, smem, smatch, sbound⟩ := exec_setup x hb hrow hcount hfit
   let v := MemoryWindow.view (sourceWidth N qs.length) b s
@@ -95,9 +94,8 @@ theorem exec_core {W b m t N : ℕ}
   have hp' : ExecWithin (sourceWidth N qs.length) (BoxProduct.program true) v p
       (BoxProduct.timeBound (21 * m) m t qs) := by
     simpa only [htwo] using hp
-  have hwindow : Fits W (b + 2 ^ sourceWidth N qs.length) := hfit.of_le (by
-    change b + windowSize N qs.length ≤ _
-    omega)
+  have hwindow : Fits W (b + 2 ^ sourceWidth N qs.length) :=
+    hfit.of_le (by change b + windowSize N qs.length ≤ _; omega)
   obtain ⟨y, hy, ymatch, yframe⟩ := MemoryWindow.execWithin hp'
     (BoxProduct.not_readsWidth true) sbound smatch (setup_fits hfit).1 hwindow
   have hI : Fits W (QueriedProduct.inputEnd m N qs.length + 1) := by
@@ -105,34 +103,22 @@ theorem exec_core {W b m t N : ℕ}
     change (Data.init (BoxProduct.input true (21 * m) t X Y qs) : Data 160).mem 0 < _ at hlen
     rw [Data.init_mem_zero, BoxProduct.input_length] at hlen
     exact hfit.of_le (by change _ ≤ b + 4 * (2 ^ sourceWidth N qs.length) + 1024; omega)
-  let z := (y.set Reg.third 1).set Reg.inputSize (QueriedProduct.inputEnd m N qs.length + 1)
   have yI : y.regs Reg.inputSize = QueriedProduct.inputEnd m N qs.length :=
     (ymatch.regs _).trans pp.inputSize
-  have hz : ExecWithin W includeThreshold y z 2 := by
-    ram_eval [includeThreshold, z, yI, hI, Reg.third, Reg.inputSize,
-      QueriedProduct.Reg.inputSize, Fin.mk.injEq]
-  have yb : y.regs Reg.base = b := ymatch.base_eq
-  have yM : y.regs Reg.modulus = windowSize N qs.length := ymatch.modulus_eq
-  refine ⟨z, (hs.seq (hy.seq hz)).mono (by unfold coreTime; omega), ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · simpa +decide [z, Reg.base, Reg.third, Reg.inputSize, QueriedProduct.Reg.inputSize,
-      Function.update_apply] using yb
-  · simpa +decide [z, Reg.modulus, Reg.third, Reg.inputSize, QueriedProduct.Reg.inputSize,
-      Function.update_apply] using yM
-  · simp [z]
-  · simpa +decide [z, Reg.queryCount, Reg.third, Reg.inputSize, QueriedProduct.Reg.inputSize,
-      QueriedProduct.Reg.queryCount, Function.update_apply] using
-      (ymatch.regs QueriedProduct.Reg.queryCount).trans pp.queryCount
-  · simpa +decide [z, Reg.output, Reg.third, Reg.inputSize, QueriedProduct.Reg.inputSize,
-      QueriedProduct.Reg.output, Function.update_apply] using
-      (ymatch.regs QueriedProduct.Reg.output).trans pp.output
-  · intro i
-    exact (ymatch.mem _).trans (pv i)
-  · intro a ha
-    change y.mem (b + a) % 2 ^ sourceWidth N qs.length = _
-    rw [ymatch.mem, pf a (by omega)]
-    change s.mem (b + a) % 2 ^ sourceWidth N qs.length = _
-    rw [smem, hinput a ha, Nat.mod_eq_of_lt (hi'.2 a)]
-  · intro a ha
-    exact (yframe a ha).trans (congrFun smem a)
+  have yQ : y.regs Reg.queryCount = qs.length :=
+    (ymatch.regs QueriedProduct.Reg.queryCount).trans pp.queryCount
+  have yO : y.regs Reg.output = QueriedProduct.outputBase (21 * m) m N qs.length :=
+    (ymatch.regs QueriedProduct.Reg.output).trans pp.output
+  refine WP.exists_execWithin ?_
+  unfold core includeThreshold
+  wram_call hs
+  wram_call hy
+  wram_exec [yI, hI]
+  wram_simp [yQ, yO]
+  refine ⟨by unfold coreTime; omega, ymatch.base_eq, ymatch.modulus_eq,
+    fun i => (ymatch.mem _).trans (pv i), fun a ha => ?_,
+    fun a ha => (yframe a ha).trans (congrFun smem a)⟩
+  change y.mem (b + a) % 2 ^ sourceWidth N qs.length = _
+  rw [ymatch.mem, pf a (by omega), vinput a ha, hinput a ha]
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.CallableBoxProduct

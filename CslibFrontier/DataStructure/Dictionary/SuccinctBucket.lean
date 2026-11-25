@@ -16,7 +16,6 @@ import CslibFrontier.Foundations.Data.Finset.Expect
 import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Algebra.Order.BigOperators.Expect
 import Mathlib.Data.Rat.Cast.Lemmas
-import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
 public import CslibFrontier.Tactic.WramOmega.Init
@@ -270,10 +269,8 @@ theorem le_two_mul_totalMicroBuckets (n : ℕ) : n ≤ 2 * totalMicroBuckets n :
 
 /-- For every `n : ℕ`, `n ≤ (2 * numMicroPerBucket n) * numBuckets n`. -/
 theorem le_two_mul_numMicro_mul_numBuckets (n : ℕ) :
-    n ≤ (2 * numMicroPerBucket n) * numBuckets n := by
-  have h := le_two_mul_totalMicroBuckets n
-  rw [totalMicroBuckets_eq_mul] at h
-  linarith
+    n ≤ (2 * numMicroPerBucket n) * numBuckets n :=
+  (le_two_mul_totalMicroBuckets n).trans_eq (by rw [totalMicroBuckets_eq_mul]; ring)
 
 /-- `effBucketCap n` is at least `4`. -/
 theorem four_le_effBucketCap (n : ℕ) : 4 ≤ effBucketCap n := by
@@ -367,10 +364,7 @@ theorem slabSize_eq_sq_of_pos {n : ℕ} (hb : 0 < bucketBits n) :
   have h1 : slabSize n = (slabScale n) ^ 2 := by
     unfold slabSize slabBits slabScale
     rw [ite_eq_right hb0, Nat.mul_comm 2 (Dynamic.logLogFactor n), pow_mul]
-  refine ⟨h1, ?_⟩
-  rw [h1]
-  have h2 := two_le_slabScale n
-  nlinarith
+  exact ⟨h1, h1 ▸ Nat.pow_le_pow_left (two_le_slabScale n) 2⟩
 
 /-- When `0 < bucketBits n`, `numBuckets n * (slabScale n) ^ 3 ≤ n`. -/
 theorem numBuckets_mul_slabScale_cubed_le {n : ℕ} (hb : 0 < bucketBits n) :
@@ -417,10 +411,8 @@ theorem globalPtrBits_le_two_mul_slabScale {n : ℕ} (hb : 0 < bucketBits n) :
   have hcube := numBuckets_mul_slabScale_cubed_le hb
   have hscale := two_le_slabScale n
   have hb_pos := numBuckets_pos n
-  have hcube8 : 8 ≤ (slabScale n) ^ 3 :=
-    calc 8 = 2 ^ 3 := by decide
-      _ ≤ (slabScale n) ^ 3 := Nat.pow_le_pow_left hscale 3
-  have hn8 : 8 ≤ n := by nlinarith
+  have hcube8 : 8 ≤ (slabScale n) ^ 3 := Nat.pow_le_pow_left hscale 3
+  have hn8 : 8 ≤ n := hcube8.trans ((Nat.le_mul_of_pos_left _ hb_pos).trans hcube)
   have hmax : max n 4 = n := max_eq_left (by omega)
   have hle2n : n + 1 ≤ 2 * max n 4 := by omega
   have hclog1 : Nat.clog 2 (n + 1) ≤ Nat.clog 2 (max n 4) + 1 := by
@@ -505,8 +497,7 @@ theorem maxFullSlabs_mul_globalPtrBits_le (n : ℕ) :
     have hptr := globalPtrBits_le_two_mul_slabScale hb_pos
     have hdiv_le : n / slabSize n * slabSize n ≤ n := Nat.div_mul_le_self n (slabSize n)
     have h2L_le_sq : 2 * slabScale n ≤ slabSize n := by
-      rw [hslab]
-      nlinarith
+      rw [hslab, sq]; exact Nat.mul_le_mul_right _ hscale
     calc n / slabSize n * globalPtrBits n
         ≤ n / slabSize n * (2 * slabScale n) := by gcongr
       _ ≤ n / slabSize n * slabSize n := by gcongr
@@ -518,10 +509,8 @@ theorem two_mul_numBuckets_mul_globalPtrBits_le_of_pos {n : ℕ} (hb : 0 < bucke
   have hcube := numBuckets_mul_slabScale_cubed_le hb
   have hscale := two_le_slabScale n
   have hptr := globalPtrBits_le_two_mul_slabScale hb
-  have hsq : 4 ≤ (slabScale n) ^ 2 := by nlinarith
-  have h4L_le_cube : 4 * slabScale n ≤ (slabScale n) ^ 3 := by
-    calc 4 * slabScale n ≤ (slabScale n) ^ 2 * slabScale n := by nlinarith
-      _ = (slabScale n) ^ 3 := by ring
+  have h4L_le_cube : 4 * slabScale n ≤ (slabScale n) ^ 3 :=
+    (Nat.mul_le_mul_right _ (Nat.pow_le_pow_left hscale 2)).trans_eq (pow_succ _ 2).symm
   calc 2 * (numBuckets n * globalPtrBits n)
       ≤ 2 * (numBuckets n * (2 * slabScale n)) := by gcongr
     _ = numBuckets n * (4 * slabScale n) := by ring
@@ -798,9 +787,7 @@ theorem expect_microCollCount_le_two_on {U n_max : ℕ}
     exact div_le_div_of_nonneg_right (Nat.cast_le.mpr (card_filter_le _ _)) (by positivity)
   have hle : (#(S.erase u) : ℚ) / (2 ^ totalMicroBits n_max : ℚ) ≤ 2 := by
     rw [div_le_iff₀ (by positivity)]
-    have hcard : #(S.erase u) ≤ 2 * 2 ^ totalMicroBits n_max :=
-      hS.trans (le_two_mul_totalMicroBuckets n_max)
-    exact_mod_cast hcard
+    exact_mod_cast hS.trans (le_two_mul_totalMicroBuckets n_max)
   exact hexp.trans hle
 
 /-- **Expected bucket overflow bound:** under a 3-wise independent hash `H`, for any
@@ -821,13 +808,8 @@ theorem expect_bucketOvfCount_le_one_on {U n_max : ℕ}
   have hh_b : IsKWiseIndependentHash 3 H_b :=
     isKWiseIndependentHash_projLowBits (bucketBits_le_totalMicroBits n_max) hh
   let D : ℕ := 2 * numMicroPerBucket n_max
-  have hD : 1 ≤ D := by
-    dsimp only [D]
-    have := numMicroPerBucket_pos n_max
-    omega
-  have h2D : 2 * D = effBucketCap n_max := by
-    dsimp only [D, effBucketCap]
-    ring
+  have hD : 1 ≤ D := by dsimp only [D]; have := numMicroPerBucket_pos n_max; omega
+  have h2D : 2 * D = effBucketCap n_max := by dsimp only [D, effBucketCap]; ring
   have hSD : #(S.erase u) ≤ D * 2 ^ bucketBits n_max :=
     hS.trans (le_two_mul_numMicro_mul_numBuckets n_max)
   have hovf := expect_feistelXor_overflow_le_on le_rfl hD hh_b S u hSD hq
@@ -839,8 +821,7 @@ theorem expect_bucketOvfCount_le_one_on {U n_max : ℕ}
     rw [h2D]
     dsimp only [bucketOvfCount, feistelBucketHash, feistelMicroHash, H_b]
     simp only [projLowBits_feistelXor]
-  simp only [heq] at hovf
-  exact hovf
+  simpa only [heq] using hovf
 
 /-- **Master expected probe-excess bound:** under a 3-wise independent hash `H`, for any
 `S : Finset (Fin U)` with `#(S.erase u) ≤ n_max` such that `qOf` is quotient-injective on
@@ -861,7 +842,7 @@ theorem expect_probeExcess_le_three_on {U n_max : ℕ}
   unfold probeExcess
   push_cast
   rw [expect_add_distrib]
-  linarith
+  exact (add_le_add h1 h2).trans_eq (by norm_num)
 
 /-- Natural-number sum form of `expect_probeExcess_le_three_on`: the sum of `probeExcess` over all
 seeds `i : ι` is at most `3 * Fintype.card ι`. -/
@@ -923,43 +904,20 @@ theorem tsum_uniform_probeExcess_twoStage_le {ι₁ ι₂ : Type*}
         (if i₁ ∈ G then 3 else 2 * #(S.erase u)) * Fintype.card ι₂ := by
     split_ifs with hi₁
     · exact sum_probeExcess_le_three_mul_card_on hh S u hS (hG i₁ hi₁)
-    · calc (∑ i₂ : ι₂, probeExcess n_max (qOf i₁) H i₂ S u)
-          ≤ ∑ _i₂ : ι₂, (2 * #(S.erase u)) :=
-            sum_le_sum fun i₂ _ => probeExcess_le_two_mul_card (qOf i₁) H i₂ S u
-        _ = (2 * #(S.erase u)) * Fintype.card ι₂ := by
-            rw [sum_const, card_univ, smul_eq_mul, mul_comm]
+    · exact (sum_le_card_nsmul _ _ _ fun i₂ _ => probeExcess_le_two_mul_card (qOf i₁) H i₂ S u
+        ).trans_eq (by rw [card_univ, smul_eq_mul, mul_comm])
   have houter :
       (∑ i₁ : ι₁, (if i₁ ∈ G then 3 else 2 * #(S.erase u))) ≤
         (3 + C_bad) * Fintype.card ι₁ := by
-    have hsplit :
-        (∑ i₁ : ι₁, (if i₁ ∈ G then 3 else 2 * #(S.erase u))) =
-          ∑ i₁ ∈ univ.filter (· ∈ G), 3 +
-            ∑ i₁ ∈ univ.filter (· ∉ G), (2 * #(S.erase u)) := by
-      rw [← sum_ite]
-    have hG_le : ∑ _i₁ ∈ univ.filter (· ∈ G), 3 ≤ 3 * Fintype.card ι₁ := by
-      rw [sum_const, smul_eq_mul, mul_comm]
-      exact Nat.mul_le_mul_left 3 (card_filter_le _ _)
-    have hbad_eq : univ.filter (· ∉ G) = univ \ G := by
-      ext i₁
-      simp [mem_sdiff]
-    have hbad_le : ∑ _i₁ ∈ univ.filter (· ∉ G), (2 * #(S.erase u)) ≤ C_bad * Fintype.card ι₁ := by
-      rw [hbad_eq, sum_const, smul_eq_mul]
-      exact hbad
-    have hdist : (3 + C_bad) * Fintype.card ι₁ =
-        3 * Fintype.card ι₁ + C_bad * Fintype.card ι₁ := Nat.add_mul _ _ _
-    omega
+    rw [sum_ite, sum_const, sum_const, smul_eq_mul, smul_eq_mul, add_mul,
+      show univ.filter (· ∉ G) = univ \ G by ext; simp]
+    exact add_le_add ((Nat.mul_le_mul_right 3 (card_filter_le _ _)).trans_eq (mul_comm _ _)) hbad
   have hprod :
       (∑ p : ι₁ × ι₂, probeExcess n_max (qOf p.1) H p.2 S u) ≤
         (3 + C_bad) * Fintype.card (ι₁ × ι₂) := by
-    rw [Fintype.sum_prod_type]
-    calc (∑ i₁ : ι₁, ∑ i₂ : ι₂, probeExcess n_max (qOf i₁) H i₂ S u)
-        ≤ ∑ i₁ : ι₁, (if i₁ ∈ G then 3 else 2 * #(S.erase u)) * Fintype.card ι₂ :=
-          sum_le_sum fun i₁ _ => hinner i₁
-      _ = (∑ i₁ : ι₁, (if i₁ ∈ G then 3 else 2 * #(S.erase u))) * Fintype.card ι₂ := by
-          rw [← sum_mul]
-      _ ≤ ((3 + C_bad) * Fintype.card ι₁) * Fintype.card ι₂ := by gcongr
-      _ = (3 + C_bad) * Fintype.card (ι₁ × ι₂) := by
-          rw [Fintype.card_prod, mul_assoc]
+    rw [Fintype.sum_prod_type, Fintype.card_prod, ← mul_assoc]
+    exact (sum_le_sum fun i₁ _ => hinner i₁).trans
+      (by rw [← sum_mul]; exact Nat.mul_le_mul_right _ houter)
   calc (∑' p : ι₁ × ι₂,
         (PMF.uniformOfFintype (ι₁ × ι₂)) p *
           (probeExcess n_max (qOf p.1) H p.2 S u : ℝ≥0∞))
@@ -1088,7 +1046,8 @@ theorem localMetaLen_mul_effBucketPosBits_le (n : ℕ) :
       have h2 := numBuckets_mul_effBucketCap_le_four_mul hn
       have h3 := totalMicroBuckets_eq_mul n
       unfold localMetaLen
-      nlinarith
+      rw [Nat.left_distrib, ← mul_left_comm, ← h3]
+      omega
     have hbits := effBucketPosBits_le n
     calc localMetaLen n * effBucketPosBits n
         ≤ (9 * n) * (6 * Dynamic.logLogFactor n) := Nat.mul_le_mul hlen hbits
@@ -1134,30 +1093,12 @@ theorem globalMetaLen_mul_globalPtrBits_le (n : ℕ) :
       have hclog : globalPtrBits n ≤ 3 * Dynamic.logLogFactor n + 1 :=
         Nat.clog_le_of_le_pow hpow
       have hll := Dynamic.one_le_logLogFactor n
-      have h4 : 4 * globalPtrBits n ≤ 20 * Dynamic.logLogFactor n := by omega
-      calc 4 * globalPtrBits n
-          ≤ 20 * Dynamic.logLogFactor n := h4
-        _ = 20 * 1 * Dynamic.logLogFactor n := by ring
-        _ ≤ 20 * n * Dynamic.logLogFactor n := by
-          gcongr
-          exact hn
+      calc 4 * globalPtrBits n ≤ 20 * 1 * Dynamic.logLogFactor n := by omega
+        _ ≤ 20 * n * Dynamic.logLogFactor n := by gcongr; exact hn
     · have hb_pos : 0 < bucketBits n := Nat.pos_of_ne_zero hb
       have hvar := globalMetaVarLen_mul_globalPtrBits_le n
-      have hptr := globalPtrBits_le_two_mul_slabScale hb_pos
-      have hcube := numBuckets_mul_slabScale_cubed_le hb_pos
-      have hscale := two_le_slabScale n
-      have hb_num := numBuckets_pos n
-      have hsq : 4 ≤ (slabScale n) ^ 2 := by nlinarith
-      have h4L : 4 * globalPtrBits n ≤ 2 * n := by
-        calc 4 * globalPtrBits n
-            ≤ 4 * (2 * slabScale n) := by gcongr
-          _ = 2 * (4 * slabScale n) := by ring
-          _ ≤ 2 * ((slabScale n) ^ 2 * slabScale n) := by nlinarith
-          _ = 2 * (1 * (slabScale n) ^ 3) := by ring
-          _ ≤ 2 * (numBuckets n * (slabScale n) ^ 3) := by
-            gcongr
-            exact hb_num
-          _ ≤ 2 * n := Nat.mul_le_mul_left 2 hcube
+      have h2 := two_mul_numBuckets_mul_globalPtrBits_le_of_pos hb_pos
+      have h3 := Nat.le_mul_of_pos_left (globalPtrBits n) (numBuckets_pos n)
       have hll := Dynamic.one_le_logLogFactor n
       calc 4 * globalPtrBits n + globalMetaVarLen n * globalPtrBits n
           ≤ 20 * n := by omega
@@ -1191,21 +1132,16 @@ theorem globalMetaLen_le_of_bucketBits_pos {n : ℕ} (hb : 0 < bucketBits n) :
   have hB1 : 1 ≤ numBuckets n := numBuckets_pos n
   have hcube := numBuckets_mul_slabScale_cubed_le hb
   have hK : slabSize n = (slabScale n) ^ 2 := (slabSize_eq_sq_of_pos hb).1
-  have hS2_16 : 16 ≤ slabSize n := by
-    rw [hK]
-    nlinarith
+  have hS2_16 : 16 ≤ slabSize n := hK ▸ (by decide : 16 ≤ 8 ^ 2).trans (Nat.pow_le_pow_left hS8 2)
   have hdiv : n / slabSize n ≤ n / 16 := by gcongr
   have h5 : 3 + 4 * slabScale n + 2 * (2 * (slabScale n) ^ 2) ≤ 5 * (slabScale n) ^ 2 := by
-    nlinarith
+    have := Nat.mul_le_mul_right (slabScale n) hS8; rw [sq] at *; omega
   have hm5 :
       numBuckets n * (3 + 4 * slabScale n + 2 * (2 * (slabScale n) ^ 2)) ≤
-        5 * (numBuckets n * (slabScale n) ^ 2) := by
-    calc numBuckets n * (3 + 4 * slabScale n + 2 * (2 * (slabScale n) ^ 2))
-        ≤ numBuckets n * (5 * (slabScale n) ^ 2) := Nat.mul_le_mul_left _ h5
-      _ = 5 * (numBuckets n * (slabScale n) ^ 2) := by ring
-  have h4le : 4 ≤ numBuckets n * (slabScale n) ^ 2 := by
-    calc 4 ≤ 1 * 16 := by decide
-      _ ≤ numBuckets n * (slabScale n) ^ 2 := Nat.mul_le_mul hB1 (by nlinarith)
+        5 * (numBuckets n * (slabScale n) ^ 2) :=
+    (Nat.mul_le_mul_left _ h5).trans_eq (by ring)
+  have h4le : 4 ≤ numBuckets n * (slabScale n) ^ 2 :=
+    (by decide : 4 ≤ 1 * 16).trans (Nat.mul_le_mul hB1 (hK ▸ hS2_16))
   have h8 : 8 * (numBuckets n * (slabScale n) ^ 2) ≤ n := by
     calc 8 * (numBuckets n * (slabScale n) ^ 2)
         ≤ slabScale n * (numBuckets n * (slabScale n) ^ 2) :=

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Core
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.MultiGaussian
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Analysis.Real.Pi.Bounds
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.Bounds
 
@@ -71,8 +72,7 @@ theorem vertexCoefficient_pos {d : ℕ} (hd : 3 ≤ d) : 0 < vertexCoefficient d
 
 /-- The layout coefficient `degreeCoefficient d` is positive for `d ≥ 3`. -/
 theorem degreeCoefficient_pos {d : ℕ} (hd : 3 ≤ d) : 0 < degreeCoefficient d := by
-  have hD : (3 : ℝ) ≤ d := by exact_mod_cast hd
-  exact mul_pos (div_pos (by linarith) (by linarith)) (vertexCoefficient_pos hd)
+  exact mul_pos (div_pos (by cast_linarith [hd]) (by cast_linarith)) (vertexCoefficient_pos hd)
 
 /-- In degree three the coefficient `3 arccos (2√2/3) / π ≈ 0.3245` is at most `1/3`, since
 `cos (π/9) ≤ 2√2/3`. -/
@@ -104,13 +104,38 @@ theorem degreeCoefficient_three_le : degreeCoefficient 3 ≤ 1 / 3 := by
 
 end Gaussian
 
+/-- In a saturated compression of budget `d ≥ 3` of a connected multigraph into at least two blocks,
+the quotient has at most `3 d / (2 d - 3) β₁` external edges. -/
+theorem Multigraph.Compression.Saturated.card_external_le_div_mul_cycleRank
+    {V E : Type*} [Finite E] {G : Multigraph V E} {d : ℕ} (hd : 3 ≤ d)
+    {Q : G.Compression d} (hQ : Q.Saturated) (hG : G.toSimpleGraph.Connected)
+    (two : 1 < Nat.card Q.blocks) :
+    (Nat.card Q.external : ℝ) ≤ 3 * d / (2 * d - 3) * G.cycleRank := by
+  have h := Nat.cast_le (α := ℝ).mpr (hQ.mul_card_external_le hG two)
+  push_cast [Nat.cast_sub (by omega : 3 ≤ 2 * d)] at h
+  rw [div_mul_eq_mul_div, le_div_iff₀ (by cast_linarith [hd])]
+  cast_linarith
+
+/-- Since `3 d / (2 d - 3) ≤ 3` for `d ≥ 3`, a saturated quotient has at most `3 β₁` external edges
+and at most `3 β₁` blocks. -/
+theorem Multigraph.Compression.Saturated.card_external_and_blocks_le_three_mul_cycleRank
+    {V E : Type*} [Finite E] {G : Multigraph V E} {d : ℕ} (hd : 3 ≤ d)
+    {Q : G.Compression d} (hQ : Q.Saturated) (hG : G.toSimpleGraph.Connected)
+    (two : 1 < Nat.card Q.blocks) :
+    (Nat.card Q.external : ℝ) ≤ 3 * G.cycleRank ∧
+      (Nat.card Q.blocks : ℝ) ≤ 3 * G.cycleRank := by
+  have hE3 : (Nat.card Q.external : ℝ) ≤ 3 * G.cycleRank := by
+    refine (hQ.card_external_le_div_mul_cycleRank hd hG two).trans
+      (mul_le_mul_of_nonneg_right ?_ (Nat.cast_nonneg _))
+    rw [div_le_iff₀ (by cast_linarith [hd])]
+    cast_linarith
+  exact ⟨hE3, (Nat.cast_le.mpr (hQ.card_blocks_le_card_external hG two)).trans hE3⟩
+
 /-- **Gaussian vertex-score layouts.** For `d ≥ 3`, connected, loopless multigraphs of maximum
 degree `d` have layouts of width `(A_d + o(1)) β₁ + o(|V|)`, where `β₁` is the cycle rank and
 `A_d = (3d / (2d - 3)) · arccos (2 √(d - 1) / d) / π` is `Gaussian.degreeCoefficient d`. -/
 theorem layoutBound_degree {d : ℕ} (hd : 3 ≤ d) :
     LayoutBound d (Gaussian.degreeCoefficient d) := by
-  have hD : (3 : ℝ) ≤ d := by exact_mod_cast hd
-  have hden : (0 : ℝ) < 2 * d - 3 := by linarith
   refine LayoutBound.of_saturated (Gaussian.degreeCoefficient_pos hd).le fun η hη => ?_
   obtain ⟨N₀, hN₀⟩ := Gaussian.exists_width_le_vertexCoefficient (by omega : 2 ≤ d)
     (show 0 < η / 3 by positivity)
@@ -120,17 +145,8 @@ theorem layoutBound_degree {d : ℕ} (hd : 3 ≤ d) :
   obtain ⟨σ, hσ⟩ := hN₀ Q.blocks Q.external Q.quotient Q.quotient_loopless
     Q.quotient_maxDegreeLE big
   refine ⟨σ, hσ.trans ?_⟩
-  have hE : (Nat.card Q.external : ℝ) ≤ 3 * d / (2 * d - 3) * G.cycleRank := by
-    have h := Nat.cast_le (α := ℝ).mpr (hQ.mul_card_external_le hG two)
-    push_cast [Nat.cast_sub (by omega : 3 ≤ 2 * d)] at h
-    rw [div_mul_eq_mul_div, le_div_iff₀ hden]
-    linarith
-  have hE3 : (Nat.card Q.external : ℝ) ≤ 3 * G.cycleRank := by
-    refine hE.trans (mul_le_mul_of_nonneg_right ?_ (Nat.cast_nonneg _))
-    rw [div_le_iff₀ hden]
-    linarith
-  have hV : (Nat.card Q.blocks : ℝ) ≤ 3 * G.cycleRank :=
-    (Nat.cast_le.mpr (hQ.card_blocks_le_card_external hG two)).trans hE3
+  have hE := hQ.card_external_le_div_mul_cycleRank hd hG two
+  have ⟨_, hV⟩ := hQ.card_external_and_blocks_le_three_mul_cycleRank hd hG two
   have hmain := mul_le_mul_of_nonneg_left hE (Gaussian.vertexCoefficient_pos hd).le
   have hslack := mul_le_mul_of_nonneg_left hV (show 0 ≤ η / 3 by positivity)
   unfold Gaussian.degreeCoefficient

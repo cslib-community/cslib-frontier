@@ -59,15 +59,17 @@ def s₁ : RelocationState 2 4 := relocate s₀ 1
 relocation). This adds edge `3 → testPerm 3 = 2`, forming a length-2 chain `1 → 3 → 2`. -/
 def s₂ : RelocationState 2 4 := relocate s₁ 3
 
-theorem valid_s₀ : s₀.Valid := valid_init testPerm
+private theorem hm24 : 2 ≤ 4 := by omega
+
+theorem valid_s₀ : s₀.Valid := valid_init testPerm hm24
 
 theorem valid_s₁ : s₁.Valid := valid_relocate valid_s₀ (by decide) (by decide)
 
 theorem valid_s₂ : s₂.Valid := valid_relocate valid_s₁ (by decide) (by decide)
 
 -- Initial positions and access values in `s₀`:
-example : locate s₀ 0 = 1 := rfl
-example : locate s₀ 1 = 0 := rfl
+example : locate s₀ 0 hm24 = 1 := rfl
+example : locate s₀ 1 hm24 = 0 := rfl
 example : access s₀ 0 = some 1 := rfl
 example : access s₀ 1 = some 0 := rfl
 example : access s₀ 2 = none := rfl
@@ -76,8 +78,8 @@ example : access s₀ 3 = none := rfl
 -- After relocating position `1` in `s₁`, element `0` moves to `3` while element `1` stays at `0`:
 example : outEdge? s₁ 1 = some 3 := rfl
 example : inEdge? s₁ 3 = some 1 := rfl
-example : locate s₁ 0 = 3 := rfl
-example : locate s₁ 1 = 0 := rfl
+example : locate s₁ 0 hm24 = 3 := rfl
+example : locate s₁ 1 hm24 = 0 := rfl
 example : access s₁ 3 = some 0 := rfl
 example : access s₁ 0 = some 1 := rfl
 example : access s₁ 2 = none := rfl
@@ -88,16 +90,16 @@ example : outEdge? s₂ 3 = some 2 := rfl
 example : outEdge? s₂ 2 = none := rfl
 example : startOfChain s₂ 2 = 1 := rfl
 example : endOfChain s₂ 1 = 2 := rfl
-example : locate s₂ 0 = 2 := rfl
-example : locate s₂ 1 = 0 := rfl
+example : locate s₂ 0 hm24 = 2 := rfl
+example : locate s₂ 1 hm24 = 0 := rfl
 example : access s₂ 2 = some 0 := rfl
 example : access s₂ 0 = some 1 := rfl
 
 -- Concrete `realRunSteps` trace on `[1, 3]`:
-example : (realRunSteps s₀ [1, 3]).2 = [some 3, some 2] := rfl
+example : (realRunSteps s₀ [1, 3] hm24).2 = [some 3, some 2] := rfl
 
 -- Concrete `realRunSteps` trace when relocating an empty slot (`2`) then an occupied slot (`1`):
-example : (realRunSteps s₀ [2, 1]).2 = [none, some 3] := rfl
+example : (realRunSteps s₀ [2, 1] hm24).2 = [none, some 3] := rfl
 
 -- Ideal arrays coupled with `s₀`, `s₁`, `s₂` (empty cells: `{2, 3}`, then `{2}`, then none):
 example : stateToIdealArray s₀ 0 = .elem 1 ∧ stateToIdealArray s₀ 1 = .elem 0 ∧
@@ -115,18 +117,18 @@ example (e : Fin 2) : ∃! c : Fin 4, c ∉ s₂.history ∧ access s₂ c = som
 
 /-- Concrete instantiation of Lemma 3.14 (`access_eq_some_iff_locate_eq`) on `s₂` and unconsumed
 position `2`. -/
-example (e : Fin 2) : access s₂ 2 = some e ↔ locate s₂ e = 2 :=
-  access_eq_some_iff_locate_eq valid_s₂ (by decide) e
+example (e : Fin 2) : access s₂ 2 = some e ↔ locate s₂ e hm24 = 2 :=
+  access_eq_some_iff_locate_eq valid_s₂ (by decide) e hm24
 
 /-- Concrete instantiation of Lemma 3.15 (i) (`locate_relocate_of_ne`) on `s₁` relocating `3` for
 element `1`. -/
-example : locate s₂ 1 = locate s₁ 1 :=
-  locate_relocate_of_ne valid_s₁ (by decide) (by decide) (by decide) (by decide)
+example : locate s₂ 1 hm24 = locate s₁ 1 hm24 :=
+  locate_relocate_of_ne valid_s₁ (by decide) (by decide) hm24 (by decide)
 
 /-- Concrete instantiation of Lemma 3.15 (ii) (`relocate_destination_empty`) on `s₁` relocating
 `3` for element `0`. -/
-example : locate s₂ 0 ∉ s₂.history ∧ access s₁ (locate s₂ 0) = none :=
-  relocate_destination_empty valid_s₁ (by decide) (by decide) (e := 0) (by decide) rfl
+example : locate s₂ 0 hm24 ∉ s₂.history ∧ access s₁ (locate s₂ 0 hm24) = none :=
+  relocate_destination_empty valid_s₁ (by decide) (by decide) (e := 0) hm24 rfl
 
 /-- Concrete query sequence `c : Fin 2 → Fin 4` relocating positions `1` then `3`. -/
 def testQueries : Fin 2 → Fin 4 := ![1, 3]
@@ -135,18 +137,20 @@ theorem testQueries_injective : Function.Injective testQueries := by decide
 
 /-- Concrete instantiation of Lemma 3.16 (`eval_realExperiment_eq_idealExperiment`) for
 `m = 2, m' = 4, Q = 2`. -/
-example : (realExperiment 2 4 2 testQueries).eval = (idealExperiment 2 4 2 testQueries).eval :=
-  eval_realExperiment_eq_idealExperiment testQueries_injective (by decide)
+example :
+    (realExperiment 2 4 2 testQueries hm24).eval =
+      (idealExperiment 2 4 2 testQueries hm24).eval :=
+  eval_realExperiment_eq_idealExperiment testQueries_injective (by decide) hm24
 
-/-- Concrete output produced by `realExperiment 2 4 2 testQueries` when the sampled permutation is
-`testPerm`; both relocation steps take the occupied (`some _`) branch. -/
+/-- Concrete output produced by `realExperiment 2 4 2 testQueries hm24` when the sampled permutation
+is `testPerm`; both relocation steps take the occupied (`some _`) branch. -/
 def testOutput : RelocationOutput 2 4 :=
-  ⟨fun e => locate s₀ e, [some 3, some 2]⟩
+  ⟨fun e => locate s₀ e hm24, [some 3, some 2]⟩
 
-/-- The support of `realExperiment 2 4 2 testQueries` (and hence of `idealExperiment`, by
+/-- The support of `realExperiment 2 4 2 testQueries hm24` (and hence of `idealExperiment`, by
 Lemma 3.16) contains `testOutput`, witnessing that the non-empty relocation branch is exercised. -/
 theorem testOutput_mem_support_realExperiment :
-    testOutput ∈ (realExperiment 2 4 2 testQueries).eval.support := by
+    testOutput ∈ (realExperiment 2 4 2 testQueries hm24).eval.support := by
   simp only [realExperiment, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure,
     PMF.mem_support_bind_iff, PMF.mem_support_pure_iff]
   exact ⟨testPerm, Cslib.Probability.PMF.mem_support_uniformOfFintype testPerm, rfl⟩
@@ -165,7 +169,8 @@ theorem not_valid_s₁_dup : ¬ s₁_dup.Valid := by
 -- (Lemmas 3.13 and 3.14) fails:
 example : (2 : Fin 4) ∉ s₁_dup.history ∧ (3 : Fin 4) ∉ s₁_dup.history := by decide
 example : access s₁_dup 2 = some 0 ∧ access s₁_dup 3 = some 0 := ⟨rfl, rfl⟩
-example : locate s₁_dup 0 = 3 ∧ access s₁_dup 2 = some 0 ∧ locate s₁_dup 0 ≠ 2 := by decide
+example :
+    locate s₁_dup 0 hm24 = 3 ∧ access s₁_dup 2 = some 0 ∧ locate s₁_dup 0 hm24 ≠ 2 := by decide
 
 /-! ### Empty Queried Cell Selecting Itself (Experiment 3.2) -/
 
@@ -181,6 +186,6 @@ example : (idealUpdate selfA 1 1).1 1 = .consumed ∧ (idealUpdate selfA 1 1).1 
 
 /-- The real experiment agrees: with the identity permutation on `Fin 2` and `m = 1`, relocating
 the empty position `1` outputs `none`. -/
-example : (realRunSteps (init (m := 1) (1 : Equiv.Perm (Fin 2))) [1]).2 = [none] := rfl
+example : (realRunSteps (init (m := 1) (1 : Equiv.Perm (Fin 2))) [1] (by omega)).2 = [none] := rfl
 
 end CslibTests.Crypto.Protocols.PIR.Preprocessing.Relocation

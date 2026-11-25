@@ -67,10 +67,9 @@ private theorem fixed_of_mem_filter_erase [DecidableEq I] {remaining : Finset I}
       ∀ j ∉ remaining.erase i, observe x j = observe y j := by
   intro x hx y hy j hj
   by_cases hji : j = i
-  · subst j
-    exact (mem_filter.mp hx).2.trans (mem_filter.mp hy).2.symm
+  · exact hji ▸ (mem_filter.mp hx).2.trans (mem_filter.mp hy).2.symm
   · exact hfixed x (mem_filter.mp hx).1 y (mem_filter.mp hy).1 j
-      (fun hjr => hj (mem_erase.mpr ⟨hji, hjr⟩))
+      fun h => hj (mem_erase.mpr ⟨hji, h⟩)
 
 /-- A domain-dependent query for a varying observation yields a tree with no empty branches.
 The output need only be constant on observation fibers inside the supplied finite domain. -/
@@ -90,8 +89,7 @@ theorem exists_of_observations (S : Finset X) (hS : S.Nonempty)
         t.depth ≤ remaining.card ∧ t.leafCount ≤ (T.image observe).card := by
     induction remaining using Finset.strongInductionOn with
     | _ remaining ih =>
-      intro T hTS hT hfixed
-      obtain ⟨x₀, hx₀⟩ := hT
+      intro T hTS ⟨x₀, hx₀⟩ hfixed
       by_cases hconstant : ∀ x ∈ T, observe x = observe x₀
       · exact ⟨.leaf (output x₀), fun x hx =>
           hout x₀ (hTS hx₀) x (hTS hx) (hconstant x hx).symm,
@@ -99,25 +97,18 @@ theorem exists_of_observations (S : Finset X) (hS : S.Nonempty)
       · obtain ⟨x, hx, hne⟩ := by simpa only [not_forall, not_imp] using hconstant
         obtain ⟨q, i, hq, hbranches⟩ := hquery T hTS ⟨x₀, hx₀⟩ ⟨x, hx, x₀, hx₀, hne⟩
         have hi : i ∈ remaining := mem_remaining_of_branches hfixed hbranches
-        have branch (b : Bool) :
-            ∃ t : DecisionTree Q β,
-              (∀ x ∈ T.filter (fun x => observe x i = b),
-                t.eval (fun q => answer q x) = output x) ∧
-              t.depth ≤ (remaining.erase i).card ∧
-              t.leafCount ≤ ((T.filter (fun x => observe x i = b)).image observe).card :=
-          ih (remaining.erase i) (erase_ssubset hi) _
-            ((filter_subset _ _).trans hTS) (hbranches b) (fixed_of_mem_filter_erase hfixed)
+        have branch (b : Bool) := ih (remaining.erase i) (erase_ssubset hi) _
+          ((filter_subset _ _).trans hTS) (hbranches b) (fixed_of_mem_filter_erase hfixed)
         obtain ⟨left, hl, hld, hlc⟩ := branch false
         obtain ⟨right, hr, hrd, hrc⟩ := branch true
-        refine ⟨.node q left right, ?_,
+        refine ⟨.node q left right, fun x hx => ?_,
           (Nat.add_le_add_right (max_le hld hrd) 1).trans_eq (card_erase_add_one hi),
           (Nat.add_le_add hlc hrc).trans_eq (card_image_filter_false_add_true T observe i)⟩
-        intro x hx
         simp only [eval_node, hq x hx]
         cases hb : observe x i
         · exact hl x (mem_filter.mpr ⟨hx, hb⟩)
         · exact hr x (mem_filter.mpr ⟨hx, hb⟩)
   simpa only [card_univ] using build univ S (Subset.refl _) hS
-    (fun _ _ _ _ i hi => (hi (mem_univ i)).elim)
+    fun _ _ _ _ i hi => (hi (mem_univ i)).elim
 
 end Cslib.DecisionTree

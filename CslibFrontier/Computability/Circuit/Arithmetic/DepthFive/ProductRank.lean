@@ -89,8 +89,7 @@ theorem Params.Good.multichoose_mul_le (hp : p.Good) {i j : ℕ} (hi : i ≤ p.k
     mul_div_assoc', le_div_iff₀ (pow_pos (Real.rpow_pos_of_pos hα _) j)]
   calc (p.v.multichoose (p.a - i) : ℝ) * p.u.multichoose (p.b + j) * (p.α ^ p.ρ) ^ j
       = p.v.multichoose (p.a - i) * (p.u.multichoose (p.b + j) * (p.α ^ p.ρ) ^ j) := by ring
-    _ ≤ 2 * p.v.multichoose p.a * p.α ^ i * p.u.multichoose p.b :=
-        mul_le_mul hX hY (by positivity) (by positivity)
+    _ ≤ 2 * p.v.multichoose p.a * p.α ^ i * p.u.multichoose p.b := by gcongr
     _ = 2 * p.D * p.α ^ i := by simp only [D]; push_cast; ring
 
 variable {K σ ι : Type*} [Field K] [Fintype σ] {s : σ → Prop} [DecidablePred s] [Fintype ι]

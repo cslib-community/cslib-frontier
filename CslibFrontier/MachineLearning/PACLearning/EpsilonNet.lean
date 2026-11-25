@@ -14,6 +14,7 @@ import CslibFrontier.MachineLearning.PACLearning.DoubleSample
 import CslibFrontier.Probability.Chernoff
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.Product.MapMeasure
+import CslibFrontier.Tactic.ENNRealToReal
 import Mathlib.Analysis.Complex.ExponentialBounds
 import Mathlib.Analysis.SpecialFunctions.Pow.Real
 import Mathlib.Probability.ProbabilityMassFunction.Constructions
@@ -59,8 +60,8 @@ here.
   `μ^m {S not an ε-net} * 2 ^ ⌈εm/2⌉ ≤ 2 Π_G(2m)` when `8 ≤ εm`.
 - `measure_pi_not_isEpsNet_le_of_growthFunction_le`: the failure probability is at most `δ`
   when `2 Π_G(2m) ≤ δ 2 ^ ⌈εm/2⌉`.
-- `growthFunction_le_of_vcSampleSize_le`: the explicit sample size achieves this when every set
-  shattered by `G` has at most `d` points.
+- `le_of_vcSampleSize_le`, `growthFunction_le_of_vcSampleSize_le`: the explicit sample size
+  achieves this when every set shattered by `G` has at most `d` points.
 - `measure_pi_not_isEpsNet_le_of_vcSampleSize_le`: the ε-net theorem with the explicit sample
   size.
 
@@ -95,34 +96,24 @@ private theorem card_filter_swap_mul_two_pow_le {m k : ℕ} (a b : Fin m → Boo
     (∀ i, (if σ i then b i else a i) = false) ∧
       k ≤ (Finset.univ.filter fun i => (if σ i then a i else b i) = true).card
   rcases Good.eq_empty_or_nonempty with h | ⟨σ₀, hσ₀⟩
-  · rw [h, Finset.card_empty, zero_mul]
-    exact Nat.zero_le _
+  · simp [h]
   obtain ⟨h0, hk⟩ := (Finset.mem_filter.1 hσ₀).2
   have hfilt : (Finset.univ.filter fun i => (if σ₀ i then a i else b i) = true) =
-      Finset.univ.filter fun i => (a i || b i) = true := by
-    refine Finset.filter_congr fun i _ => ?_
-    have := h0 i
-    cases hs : σ₀ i <;> cases ha : a i <;> cases hb : b i <;> simp_all
+      Finset.univ.filter fun i => (a i || b i) = true :=
+    Finset.filter_congr fun i _ => by
+      have := h0 i
+      revert this
+      cases σ₀ i <;> cases a i <;> cases b i <;> decide
   rw [hfilt] at hk
-  have hab : ∀ i, ¬ (a i = true ∧ b i = true) := by
-    intro i ⟨ha, hb⟩
-    have := h0 i
-    cases hs : σ₀ i <;> simp_all
-  -- A compatible swap is forced at every coordinate where `a` or `b` is `true`.
-  set A : Fin m → Finset Bool := fun i =>
-    if a i = true then {true} else if b i = true then {false} else Finset.univ
-  have hsub : Good ⊆ Fintype.piFinset A := by
-    intro σ hσ
-    rw [Fintype.mem_piFinset]
-    intro i
-    have := (Finset.mem_filter.1 hσ).2.1 i
-    simp only [A]
-    cases hs : σ i <;> cases ha : a i <;> cases hb : b i <;> simp_all
-  have hA : ∀ i, (A i).card * 2 ^ (if (a i || b i) = true then 1 else 0) ≤ 2 := by
-    intro i
-    have := hab i
-    simp only [A]
-    cases ha : a i <;> cases hb : b i <;> simp_all
+  -- Count the swaps compatible with the first sample coordinate by coordinate.
+  let A (i : Fin m) : Finset Bool := Finset.univ.filter fun bit =>
+    (if bit then b i else a i) = false
+  have hsub : Good ⊆ Fintype.piFinset A := fun σ hσ =>
+    Fintype.mem_piFinset.2 fun i =>
+      Finset.mem_filter.2 ⟨Finset.mem_univ _, (Finset.mem_filter.1 hσ).2.1 i⟩
+  have hA (i : Fin m) : (A i).card * 2 ^ (if (a i || b i) = true then 1 else 0) ≤ 2 := by
+    cases ha : a i <;> cases hb : b i <;>
+      simp [A, ha, hb, Finset.filter_insert, Finset.filter_singleton]
   calc Good.card * 2 ^ k
       ≤ (Fintype.piFinset A).card *
           2 ^ (Finset.univ.filter fun i => (a i || b i) = true).card := by
@@ -174,21 +165,14 @@ private theorem card_filter_swapSamples_mem_mul_two_pow_le (G : ConceptClass Z B
     intro σ hσ
     obtain ⟨hσG, rfl⟩ := Finset.mem_filter.1 hσ
     obtain ⟨-, h1, h2⟩ := (hw σ hσG).choose_spec
-    have hva : ∀ i, v σ (Fin.castAdd m i) = (hw σ hσG).choose (z.1 i) := fun i => by
+    have hva (i : Fin m) : v σ (Fin.castAdd m i) = (hw σ hσG).choose (z.1 i) := by
       simp only [v, hσG, ↓reduceDIte, x, Fin.append_left]
-    have hvb : ∀ i, v σ (Fin.natAdd m i) = (hw σ hσG).choose (z.2 i) := fun i => by
+    have hvb (i : Fin m) : v σ (Fin.natAdd m i) = (hw σ hσG).choose (z.2 i) := by
       simp only [v, hσG, ↓reduceDIte, x, Fin.append_right]
-    generalize (hw σ hσG).choose = g at h1 h2 hva hvb
-    refine Finset.mem_filter.2 ⟨Finset.mem_univ _, fun i => ?_, ?_⟩
-    · rw [hva, hvb]
-      have := h1 i
-      simp only [fst_swapSamples_apply] at this
-      cases hσi : σ i
-      · simpa [hσi] using this
-      · simpa [hσi] using this
-    · refine h2.trans_eq (congrArg Finset.card (Finset.filter_congr fun i _ => ?_))
-      rw [hva, hvb, snd_swapSamples_apply]
-      cases σ i <;> rfl
+    refine Finset.mem_filter.2 ⟨Finset.mem_univ _, fun i => ?_,
+      h2.trans_eq (congrArg Finset.card (Finset.filter_congr fun i _ => ?_))⟩
+    · simpa only [hva, hvb, fst_swapSamples_apply, apply_ite (hw σ hσG).choose] using h1 i
+    · rw [snd_swapSamples_apply, apply_ite (hw σ hσG).choose, hva, hvb]
   have himg : (Good.image v).card ≤ growthFunction G (m + m) := by
     calc (Good.image v).card = ((Good.image v : Finset _) : Set (Fin (m + m) → Bool)).ncard :=
           (Set.ncard_coe_finset _).symm
@@ -209,13 +193,14 @@ private theorem card_filter_swapSamples_mem_mul_two_pow_le (G : ConceptClass Z B
 @[expose] noncomputable def vcSampleSize (d : ℕ) (ε δ : ℝ) : ℝ :=
   8 / ε * (d * Real.log (48 / ε) + Real.log (4 / δ))
 
-/-- The explicit sample size makes `2 Π_G(2m) ≤ δ 2 ^ ⌈εm/2⌉` (and `8 ≤ εm`) whenever every
-finite set shattered by `G` has at most `d` points. The proof applies Sauer's lemma in the form
-`Π_G(2m) ≤ exp (2m / T) T ^ d` (`growthFunction_le_exp_mul_pow`) at `T = 48 / ε`. -/
-theorem growthFunction_le_of_vcSampleSize_le {G : ConceptClass Z Bool} {d : ℕ}
-    (hG : ∀ W : Finset Z, SetShatters G ↑W → W.card ≤ d) {m : ℕ} {ε δ : ℝ} (hε : 0 < ε)
-    (hε1 : ε ≤ 1) (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hm : vcSampleSize d ε δ ≤ m) :
-    8 ≤ ε * m ∧ 2 * (growthFunction G (m + m) : ℝ) ≤ δ * 2 ^ ⌈ε * m / 2⌉₊ := by
+/-- The sample-size calculation behind `growthFunction_le_of_vcSampleSize_le`: if
+`vcSampleSize d ε δ ≤ m` and `N ≤ exp (2m / (48 / ε)) (48 / ε) ^ d`, then `8 ≤ εm` and
+`2 N ≤ δ 2 ^ ⌈εm/2⌉`. Factored out so multiclass bounds can instantiate it at rescaled confidence
+`δ / k ^ (2 d)`. -/
+theorem le_of_vcSampleSize_le {d m : ℕ} {ε δ N : ℝ} (hε : 0 < ε) (hε1 : ε ≤ 1) (hδ : 0 < δ)
+    (hδ1 : δ ≤ 1) (hm : vcSampleSize d ε δ ≤ m)
+    (hN : N ≤ Real.exp (((m + m : ℕ) : ℝ) / (48 / ε)) * (48 / ε) ^ d) :
+    8 ≤ ε * m ∧ 2 * N ≤ δ * 2 ^ ⌈ε * m / 2⌉₊ := by
   have hT : 1 ≤ 48 / ε := by rw [le_div_iff₀ hε]; linarith
   have hlogT : 0 ≤ Real.log (48 / ε) := Real.log_nonneg hT
   have hlog4 : 1 ≤ Real.log (4 / δ) := by
@@ -226,16 +211,11 @@ theorem growthFunction_le_of_vcSampleSize_le {G : ConceptClass Z Bool} {d : ℕ}
   have hdlog : 0 ≤ (d : ℝ) * Real.log (48 / ε) := mul_nonneg (Nat.cast_nonneg d) hlogT
   have h8 : 8 ≤ ε * m := by linarith
   refine ⟨h8, ?_⟩
-  have hexp : ((m + m : ℕ) : ℝ) / (48 / ε) = ε * m / 24 := by
-    push_cast
-    field_simp
-    ring
+  have hexp : ((m + m : ℕ) : ℝ) / (48 / ε) = ε * m / 24 := by push_cast; field_simp; ring
   have hlog2 : ε * m / 3 ≤ ε * m / 2 * Real.log 2 := by nlinarith [Real.log_two_gt_d9]
   rw [Real.log_div (by norm_num) hδ.ne', show (4 : ℝ) = 2 ^ 2 by norm_num, Real.log_pow] at hm
-  calc 2 * (growthFunction G (m + m) : ℝ)
-      ≤ 2 * (Real.exp (((m + m : ℕ) : ℝ) / (48 / ε)) * (48 / ε) ^ d) := by
-        gcongr
-        exact growthFunction_le_exp_mul_pow hG _ hT
+  calc 2 * N
+      ≤ 2 * (Real.exp (((m + m : ℕ) : ℝ) / (48 / ε)) * (48 / ε) ^ d) := by gcongr
     _ ≤ δ * (2 : ℝ) ^ (ε * m / 2) := by
         rw [hexp, ← Real.log_le_log_iff (by positivity) (by positivity),
           Real.log_mul two_ne_zero (by positivity),
@@ -248,6 +228,16 @@ theorem growthFunction_le_of_vcSampleSize_le {G : ConceptClass Z Bool} {d : ℕ}
         calc (2 : ℝ) ^ (ε * m / 2) ≤ (2 : ℝ) ^ (⌈ε * m / 2⌉₊ : ℝ) :=
               Real.rpow_le_rpow_of_exponent_le (by norm_num) (Nat.le_ceil _)
           _ = 2 ^ ⌈ε * m / 2⌉₊ := Real.rpow_natCast _ _
+
+/-- The explicit sample size makes `2 Π_G(2m) ≤ δ 2 ^ ⌈εm/2⌉` (and `8 ≤ εm`) whenever every
+finite set shattered by `G` has at most `d` points. The proof applies Sauer's lemma in the form
+`Π_G(2m) ≤ exp (2m / T) T ^ d` (`growthFunction_le_exp_mul_pow`) at `T = 48 / ε`. -/
+theorem growthFunction_le_of_vcSampleSize_le {G : ConceptClass Z Bool} {d : ℕ}
+    (hG : ∀ W : Finset Z, SetShatters G ↑W → W.card ≤ d) {m : ℕ} {ε δ : ℝ} (hε : 0 < ε)
+    (hε1 : ε ≤ 1) (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hm : vcSampleSize d ε δ ≤ m) :
+    8 ≤ ε * m ∧ 2 * (growthFunction G (m + m) : ℝ) ≤ δ * 2 ^ ⌈ε * m / 2⌉₊ :=
+  le_of_vcSampleSize_le hε hε1 hδ hδ1 hm
+    (growthFunction_le_exp_mul_pow hG _ (by rw [le_div_iff₀ hε]; linarith))
 
 /-! ### ε-nets -/
 
@@ -296,8 +286,7 @@ private theorem measure_pi_card_lt_le_half (μ : Measure Z) [IsProbabilityMeasur
   rw [hpre, ← Measure.map_apply hgm (Set.toFinite _).measurableSet, hmap,
     PMF.toMeasure_apply_eq_toOuterMeasure]
   set score : Fin m → Bool → ℝ := fun _ b => if b = true then 1 else 0
-  have hscore : ∀ i b, b ∈ q.support → score i b ∈ Set.Icc (0 : ℝ) 1 := by
-    intro i b _
+  have hscore : ∀ i b, b ∈ q.support → score i b ∈ Set.Icc (0 : ℝ) 1 := fun i b _ => by
     cases b <;> simp [score]
   have hqt : q true = μ {z | g z = true} := by
     rw [Measure.toPMF_apply, Measure.map_apply (measurable_of_countable g)
@@ -305,7 +294,7 @@ private theorem measure_pi_card_lt_le_half (μ : Measure Z) [IsProbabilityMeasur
     rfl
   have hεq : ε ≤ (q true).toReal := by
     rw [hqt]
-    exact (ENNReal.ofReal_le_iff_le_toReal (measure_ne_top _ _)).1 hε
+    ennreal_to_real using hε
   have hmean : ε * m ≤ ∑ i : Fin m, ∑ a, (q a).toReal * score i a := by
     simp only [score, Fintype.sum_bool, ite_true, mul_one, Bool.false_eq_true, ite_false,
       mul_zero, add_zero, Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
@@ -330,16 +319,10 @@ private theorem measure_pi_card_lt_le_half (μ : Measure Z) [IsProbabilityMeasur
           rw [Real.exp_neg, inv_lt_comm₀ (Real.exp_pos 1) (by norm_num)]
           norm_num
           linarith [Real.exp_one_gt_d9]
-  have hle := measure_mono (μ := (Cslib.Probability.PMF.pi fun _ : Fin m => q).toOuterMeasure)
-    hsub
-  have hne : (Cslib.Probability.PMF.pi fun _ : Fin m => q).toOuterMeasure
-      {b | ∑ i, score i (b i) ≤ (1 - 1 / 2) * (ε * m)} ≠ ⊤ :=
-    Cslib.Probability.PMF.toOuterMeasure_ne_top _ _
-  refine hle.trans ?_
-  rw [show (1 / 2 : ℝ≥0∞) = ENNReal.ofReal (1 / 2) by
-      rw [ENNReal.ofReal_div_of_pos (by norm_num), ENNReal.ofReal_one, ENNReal.ofReal_ofNat],
-    ENNReal.le_ofReal_iff_toReal_le hne (by norm_num)]
-  exact hch.trans hexp.le
+  refine (measure_mono (μ := (Cslib.Probability.PMF.pi fun _ : Fin m => q).toOuterMeasure)
+    hsub).trans ?_
+  ennreal_to_real
+  linarith [hch, hexp]
 
 /-- Symmetrization: the double-sample event has probability at most `Π_G(2m) / 2 ^ k`. -/
 private theorem measure_doubleSampleEvent_mul_two_pow_le (μ : Measure Z)
@@ -347,27 +330,13 @@ private theorem measure_doubleSampleEvent_mul_two_pow_le (μ : Measure Z)
     (Measure.pi (fun _ : Fin m => μ)).prod (Measure.pi fun _ : Fin m => μ)
         (doubleSampleEvent G m k) * 2 ^ k ≤ growthFunction G (m + m) := by
   classical
-  set ρ := (Measure.pi (fun _ : Fin m => μ)).prod (Measure.pi fun _ : Fin m => μ) with hρ
-  set J := doubleSampleEvent G m k
-  -- Average the indicator of `J` over all `2 ^ m` swaps.
-  have hsum : (2 : ℝ≥0∞) ^ m * ρ J =
-      ∫⁻ z, ((Finset.univ.filter fun σ : Fin m → Bool => swapSamples σ z ∈ J).card : ℝ≥0∞)
-        ∂ρ :=
-    (lintegral_card_filter_swapSamples_mem μ .of_discrete).symm
-  have hpt : ∀ z, ((Finset.univ.filter fun σ : Fin m → Bool => swapSamples σ z ∈ J).card :
-      ℝ≥0∞) * 2 ^ k ≤ growthFunction G (m + m) * 2 ^ m := fun z => by
-    exact_mod_cast card_filter_swapSamples_mem_mul_two_pow_le G k z
-  have key : (2 : ℝ≥0∞) ^ m * (ρ J * 2 ^ k) ≤ 2 ^ m * growthFunction G (m + m) := by
-    calc (2 : ℝ≥0∞) ^ m * (ρ J * 2 ^ k)
-        = (∫⁻ z, ((Finset.univ.filter fun σ : Fin m → Bool => swapSamples σ z ∈ J).card :
-            ℝ≥0∞) ∂ρ) * 2 ^ k := by rw [← hsum, mul_assoc]
-      _ = ∫⁻ z, ((Finset.univ.filter fun σ : Fin m → Bool => swapSamples σ z ∈ J).card :
-            ℝ≥0∞) * 2 ^ k ∂ρ := (lintegral_mul_const _ (measurable_of_countable _)).symm
-      _ ≤ ∫⁻ _z, (growthFunction G (m + m) * 2 ^ m : ℝ≥0∞) ∂ρ := lintegral_mono hpt
-      _ = growthFunction G (m + m) * 2 ^ m := by rw [lintegral_const, measure_univ, mul_one]
-      _ = 2 ^ m * growthFunction G (m + m) := mul_comm _ _
-  exact (ENNReal.mul_le_mul_iff_right (pow_ne_zero _ two_ne_zero)
-    (ENNReal.pow_ne_top ENNReal.ofNat_ne_top)).1 key
+  have hpow_ne_zero : (2 : ℝ≥0∞) ^ k ≠ 0 := pow_ne_zero _ two_ne_zero
+  have hpow_ne_top : (2 : ℝ≥0∞) ^ k ≠ ⊤ := ENNReal.pow_ne_top ENNReal.ofNat_ne_top
+  rw [← ENNReal.le_div_iff_mul_le (.inl hpow_ne_zero) (.inl hpow_ne_top)]
+  refine measure_prod_le_of_card_filter_swapSamples_mem_le μ .of_discrete _ fun z => ?_
+  rw [← ENNReal.mul_le_mul_iff_left hpow_ne_zero hpow_ne_top, mul_assoc,
+    ENNReal.div_mul_cancel hpow_ne_zero hpow_ne_top, mul_comm ((2 : ℝ≥0∞) ^ m)]
+  exact_mod_cast card_filter_swapSamples_mem_mul_two_pow_le G k z
 
 /-- **The ε-net theorem** on a countable domain [ShalevShwartzBenDavid2014, Section 28.3; see
 also BlumerEhrenfeuchtHausslerWarmuth1989]: if `8 ≤ εm`, then `m` i.i.d. samples from `μ` fail to
@@ -394,22 +363,17 @@ theorem measure_pi_not_isEpsNet_mul_two_pow_le (μ : Measure Z) [IsProbabilityMe
     have hlow := measure_pi_card_lt_le_half μ g hgε hm
     rw [← hcompl, prob_compl_eq_one_sub .of_discrete] at hlow
     refine le_trans ?_ (measure_mono hsub)
-    have h1 := tsub_le_iff_right.1 hlow
     refine ENNReal.le_of_add_le_add_left (a := 1 / 2) (by simp) ?_
     rw [ENNReal.add_halves]
-    exact h1
+    exact tsub_le_iff_right.1 hlow
   have hJB : ν B ≤
       2 * ((Measure.pi fun _ : Fin m => μ).prod (Measure.pi fun _ : Fin m => μ) J) :=
     measure_le_two_mul_measure_prod ν ν B .of_discrete hfib
   have hρJ := measure_doubleSampleEvent_mul_two_pow_le μ G m k
   calc ν B * 2 ^ k
       ≤ 2 * ((Measure.pi fun _ : Fin m => μ).prod (Measure.pi fun _ : Fin m => μ) J) *
-          2 ^ k := by
-        gcongr
-    _ = 2 * ((Measure.pi fun _ : Fin m => μ).prod (Measure.pi fun _ : Fin m => μ) J *
-          2 ^ k) :=
-        mul_assoc _ _ _
-    _ ≤ 2 * growthFunction G (m + m) := by gcongr
+          2 ^ k := by gcongr
+    _ ≤ 2 * growthFunction G (m + m) := by rw [mul_assoc]; gcongr
 
 /-- The ε-net theorem in `δ` form: if `8 ≤ εm` and `2 Π_G(2m) ≤ δ 2 ^ ⌈εm/2⌉`, then `m` i.i.d.
 samples fail to be an ε-net with probability at most `δ`. -/

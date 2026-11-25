@@ -83,16 +83,8 @@ theorem eval_publicKeyGame_eq_map_coins (E : Scheme) (adversary : Encryption.Adv
         (publicKeyGameCoins evaluateChoose evaluateEncrypt evaluateGuess bit chooseCoins encCoins
           (n, artifact)) := by
   simp only [publicKeyGame, ProbComp.eval_bind]
-  trans (ProbComp.eval (adversary.choose n (encPublicKey artifact))).bind (fun choice =>
-    (ProbComp.eval (E.encrypt n (artifact.1.getD 0 [])
-      (if bit then Encryption.ChoiceOut.msg₁ choice
-        else Encryption.ChoiceOut.msg₀ choice))).bind (fun ciphertext =>
-      (BitString.uniformList guessCoins).map
-        (evaluateGuess (n, choice.2, false :: ciphertext))))
-  · apply PMF.bind_congr_on_support
-    intro choice hchoice
-    apply PMF.bind_congr_on_support
-    exact hguess choice hchoice
+  refine (PMF.bind_congr_on_support _ _ _ fun choice hchoice =>
+    PMF.bind_congr_on_support _ _ _ (hguess choice hchoice)).trans ?_
   simp only [hchoose, hencrypt, PMF.bind_map, Function.comp_def]
   unfold publicKeyGameCoins
   dsimp only
@@ -105,11 +97,11 @@ parameter, tape, and unary component budgets. -/
     {evaluateEncrypt : (ℕ × List Bool × Bool) → List Bool → List Bool}
     {evaluateGuess : (ℕ × List Bool × List Bool) → List Bool → Bool}
     (hchoose : ComputableInPolyTime (fun (input, tape) => evaluateChoose input tape)
-      (encPair (encPair encUnary encBits) encBits) (encPair (encPair encBool encBool) encBits))
+      encChooseCoinsInput (Encryption.encChoiceOut encBool))
     (hencrypt : ComputableInPolyTime (fun (input, tape) => evaluateEncrypt input tape)
-      (encPair (encPair encUnary (encPair encBits encBool)) encBits) encBits)
+      (encPair (encKeyedInput encBool) encBits) encBits)
     (hguess : ComputableInPolyTime (fun (input, tape) => evaluateGuess input tape)
-      (encPair (encPair encUnary (encPair encBits encBits)) encBits) encBool)
+      (encPair Encryption.encGuessInput encBits) encBool)
     (bit : Bool) {α : Type} {input : α ↪ List Bool} {n chooseCoins encCoins : α → ℕ}
     {artifact : α → List (List Bool) × List (List (List Bool))} {tape : α → List Bool}
     (hn : ComputableInPolyTime n input encUnary)
@@ -141,15 +133,14 @@ theorem modLinkAdversary_choose_support (E : Scheme) (coins depth capacity : ℕ
       choice = ((predecessor.2.getD cut false, false),
         activeLinkState before predecessor challengePk after cut) := by
   simp only [modLinkAdversary, ProbComp.eval_bind, PMF.mem_support_bind_iff] at hchoice
-  obtain ⟨reverseIndex, _, cut, _, hchoice⟩ := hchoice
+  obtain ⟨_, _, cut, _, hchoice⟩ := hchoice
   split at hchoice
-  · rename_i hreverse
-    split at hchoice
+  · split at hchoice
     · rename_i hcut
-      rcases E.chooseLinkAt_support n _ _ cut challengePk choice hchoice with h | h
+      rcases E.chooseLinkAt_support n _ _ cut challengePk choice hchoice with h |
+        ⟨before, predecessor, after, _, _, hkeys, hbit, hchoice⟩
       · exact Or.inl h
-      obtain ⟨before, predecessor, after, hbefore, hafter, hkeys, hbit, hchoice⟩ := h
-      exact Or.inr ⟨before, predecessor, after, cut, by omega, hkeys, hcut, hbit, hchoice⟩
+      · exact Or.inr ⟨before, predecessor, after, cut, by omega, hkeys, hcut, hbit, hchoice⟩
     · simpa only [ProbComp.eval_pure, PMF.mem_support_pure_iff] using Or.inl hchoice
   · simpa only [ProbComp.eval_pure, PMF.mem_support_pure_iff] using Or.inl hchoice
 
@@ -186,18 +177,18 @@ theorem eval_modLinkAdversary_guess_eq_map_coins (E : Scheme)
   · simp [modLinkAdversary, rejectLinkChoice, ProbComp.eval_pure,
       PMF.map, Function.comp_def, guessLinkCoins]
   have hpred := hwidth predecessor (hkeys predecessor (by simp))
-  have hpositive : 1 ≤ depth n * capacity n := by
-    have hd : 1 ≤ depth n := by omega
-    have hc : 1 ≤ capacity n := by omega
-    exact Nat.mul_le_mul hd hc
+  have hd : 1 ≤ depth n := by omega
+  have hc : 1 ≤ capacity n := by omega
+  have hpos : 1 ≤ depth n * capacity n := Nat.mul_le_mul hd hc
   have hsize : ((before.length + after.length + 1) * capacity n - 1) * encCoins +
       (chooseCoins + (encCoins + guessCoins)) =
       Leveled.leveledGuessCoinBudget (depth n) (capacity n) encCoins chooseCoins guessCoins := by
     rw [hlength]
-    have hsum := Nat.sub_add_cancel hpositive
     calc
       _ = ((depth n * capacity n - 1) + 1) * encCoins + chooseCoins + guessCoins := by ring
-      _ = _ := by rw [hsum]; rfl
+      _ = _ := by
+        rw [Nat.sub_add_cancel hpos]
+        rfl
   simpa only [modLinkAdversary, hsize] using
     E.eval_guessLink_active_eq_map_coins (Leveled.publicKeyGame E adversary bit)
       evaluateEncrypt
@@ -206,7 +197,7 @@ theorem eval_modLinkAdversary_guess_eq_map_coins (E : Scheme)
       before predecessor challengePk after cut challenge hcut
       (fun key hkey => hwidth key (hkeys key hkey))
       (fun pk _ message => hencrypt pk message)
-      (fun links _ => Leveled.eval_publicKeyGame_eq_map_coins E adversary evaluateChoose
+      (fun _ _ => Leveled.eval_publicKeyGame_eq_map_coins E adversary evaluateChoose
         evaluateEncrypt evaluateGuess bit n chooseCoins encCoins guessCoins _ (hchoose _)
           (hencrypt _) (fun chosen _ ciphertext _ => hguess chosen.2 ciphertext))
 
@@ -218,11 +209,11 @@ and tape; no validity restriction is needed for this total computational certifi
     {evaluateEncrypt : (ℕ × List Bool × Bool) → List Bool → List Bool}
     {evaluateGuess : (ℕ × List Bool × List Bool) → List Bool → Bool}
     (hchoose : ComputableInPolyTime (fun (input, tape) => evaluateChoose input tape)
-      (encPair (encPair encUnary encBits) encBits) (encPair (encPair encBool encBool) encBits))
+      Leveled.encChooseCoinsInput (Encryption.encChoiceOut encBool))
     (hencrypt : ComputableInPolyTime (fun (input, tape) => evaluateEncrypt input tape)
-      (encPair (encPair encUnary (encPair encBits encBool)) encBits) encBits)
+      (encPair (encKeyedInput encBool) encBits) encBits)
     (hguess : ComputableInPolyTime (fun (input, tape) => evaluateGuess input tape)
-      (encPair (encPair encUnary (encPair encBits encBits)) encBits) encBool)
+      (encPair Encryption.encGuessInput encBits) encBool)
     (bit : Bool) {chooseCoins encCoins capacity : ℕ → ℕ}
     (hchooseCoins : ComputableInPolyTime chooseCoins encUnary encUnary)
     (hencCoins : ComputableInPolyTime encCoins encUnary encUnary)

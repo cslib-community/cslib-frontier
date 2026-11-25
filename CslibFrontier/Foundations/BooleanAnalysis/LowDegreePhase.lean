@@ -116,14 +116,10 @@ theorem card_le_of_forall_exists_agree {H : ℕ} (G : Finset (ι → Bool))
   classical
   -- restricting to `G` is onto
   let restrict : lowDegree F ι H →ₗ[F] (G → F) :=
-    { toFun := fun p x => p.1 x.1
-      map_add' := fun _ _ => rfl
-      map_smul' := fun _ _ => rfl }
+    { toFun p x := p.1 x.1, map_add' _ _ := rfl, map_smul' _ _ := rfl }
   have hsurj : Function.Surjective restrict := fun g => by
     obtain ⟨p, hp, hpx⟩ := hG fun x => if hx : x ∈ G then g ⟨x, hx⟩ else 0
-    refine ⟨⟨p, hp⟩, funext fun x => ?_⟩
-    change p x.1 = g x
-    simpa using hpx x.1 x.2
+    exact ⟨⟨p, hp⟩, funext fun x => (hpx x.1 x.2).trans (dite_eq_left x.2)⟩
   have h := LinearMap.finrank_range_le restrict
   rw [LinearMap.range_eq_top.2 hsurj, finrank_top, Module.finrank_fintype_fun_eq_card,
     Fintype.card_coe] at h
@@ -138,21 +134,17 @@ variable {F : Type*} [Field F] {ι : Type*}
 private theorem monomial_mem_span_phaseChar {ω : F} (hω1 : ω ≠ 1) (S : Finset ι) :
     monomial F S ∈ Submodule.span F (Set.range (phaseChar ω (ι := ι))) := by
   classical
-  have hne : ω - 1 ≠ 0 := sub_ne_zero.2 hω1
   have hfun : monomial F S = ∑ T ∈ S.powerset,
-      ((ω - 1)⁻¹ ^ #S * (-1 : F) ^ #(S \ T)) • phaseChar ω T := by
-    funext x
+      ((ω - 1)⁻¹ ^ #S * (-1 : F) ^ #(S \ T)) • phaseChar ω T := funext fun x => by
     simp only [monomial, Finset.sum_apply, Pi.smul_apply, smul_eq_mul, phaseChar]
     have hsplit : ∏ i ∈ S, bitVal F (x i) =
         ∏ i ∈ S, ((ω - 1)⁻¹ * (ω ^ (x i).toNat + (-1 : F))) :=
       prod_congr rfl fun i _ => by
-        cases x i <;> simp [bitVal, ← sub_eq_add_neg, inv_mul_cancel₀ hne]
+        cases x i <;> simp [bitVal, ← sub_eq_add_neg, inv_mul_cancel₀ (sub_ne_zero.2 hω1)]
     rw [hsplit, prod_mul_distrib, prod_const, prod_add, mul_sum]
-    refine sum_congr rfl fun T _ => ?_
-    rw [prod_const]
-    ring
-  rw [hfun]
-  exact Submodule.sum_mem _ fun T _ => Submodule.smul_mem _ _ (Submodule.subset_span ⟨T, rfl⟩)
+    exact sum_congr rfl fun T _ => by rw [prod_const]; ring
+  exact hfun ▸ Submodule.sum_mem _ fun T _ =>
+    Submodule.smul_mem _ _ (Submodule.subset_span ⟨T, rfl⟩)
 
 end
 
@@ -233,10 +225,8 @@ many inputs as there are sets of at most `n / 2 + D` coordinates. -/
 theorem card_agree_phaseChar_le [DecidableEq F] {ω : F} (hω0 : ω ≠ 0) (hω1 : ω ≠ 1)
     {n D : ℕ} {Q : BitString n → F} (hQ : Q ∈ lowDegree F (Fin n) D) :
     #{x : BitString n | Q x = ω ^ weight x} ≤ #{S : Finset (Fin n) | #S ≤ n / 2 + D} := by
-  have h := card_agree_phaseCharOn_univ_le hω0 hω1 hQ
-  rw [Fintype.card_fin] at h
-  simp only [← phaseChar_univ_eq_pow_weight]
-  exact h
+  simpa only [← phaseChar_univ_eq_pow_weight, Fintype.card_fin] using
+    card_agree_phaseCharOn_univ_le hω0 hω1 hQ
 
 end Field
 

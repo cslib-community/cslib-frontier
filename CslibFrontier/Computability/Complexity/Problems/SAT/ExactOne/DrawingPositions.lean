@@ -43,10 +43,7 @@ def isAuxiliaryVariable : CNF.PositiveExactOneCompile.Variable ℕ → Bool
 /-- The auxiliary role excludes all inherited source-variable names. -/
 theorem isAuxiliaryVariable_iff (v : CNF.PositiveExactOneCompile.Variable ℕ) :
     isAuxiliaryVariable v = true ↔ ∀ n, v ≠ Sum.inl (Sum.inl n) := by
-  rcases v with (v | v) | v
-  · simp [isAuxiliaryVariable]
-  · simp [isAuxiliaryVariable]
-  · simp [isAuxiliaryVariable]
+  rcases v with (v | v) | v <;> simp [isAuxiliaryVariable]
 
 private theorem auxiliary_block_keys (vs : List (CNF.PositiveExactOneCompile.Variable ℕ))
     (f : CNF.PositiveExactOneCompile.Variable ℕ → CNF.PositiveExactOneCompile.Variable ℕ)
@@ -77,13 +74,11 @@ theorem positiveAuxiliaryBlock_keys_nodup (φ : CNF ℕ) (d : Graph.OrthogonalDr
     {i : ℕ} (hi : i < φ.length) :
     ((positiveAuxiliaryBlock φ d i φ[i]).map Prod.fst).Nodup := by
   rw [positiveAuxiliaryBlock_keys]
-  apply List.Nodup.map_on
-  · intro v hv w hw he
-    have hv' := List.mem_filter.mp hv
-    have hw' := List.mem_filter.mp hw
-    exact (profileVariableMap_aux_injective φ hi hi hv'.1 hw'.1
-      ((isAuxiliaryVariable_iff v).mp hv'.2) ((isAuxiliaryVariable_iff w).mp hw'.2) he).2
-  · exact (CNF.nodup_distinctVars (profileFormula (clauseProfile φ[i]))).filter _
+  refine List.Nodup.map_on (fun v hv w hw he => ?_)
+    ((CNF.nodup_distinctVars (profileFormula (clauseProfile φ[i]))).filter _)
+  exact (profileVariableMap_aux_injective φ hi hi (List.mem_filter.mp hv).1
+    (List.mem_filter.mp hw).1 ((isAuxiliaryVariable_iff v).mp (List.mem_filter.mp hv).2)
+    ((isAuxiliaryVariable_iff w).mp (List.mem_filter.mp hw).2) he).2
 
 /-- Different original clause boxes have disjoint fresh-variable key lists. -/
 theorem positiveAuxiliaryBlock_keys_disjoint (φ : CNF ℕ) (d : Graph.OrthogonalDrawing)
@@ -94,28 +89,23 @@ theorem positiveAuxiliaryBlock_keys_disjoint (φ : CNF ℕ) (d : Graph.Orthogona
   intro key hki hkj
   obtain ⟨v, hv, hve⟩ := List.mem_map.mp hki
   obtain ⟨w, hw, hwe⟩ := List.mem_map.mp hkj
-  have hv' := List.mem_filter.mp hv
-  have hw' := List.mem_filter.mp hw
-  exact hij (profileVariableMap_aux_injective φ hi hj hv'.1 hw'.1
-    ((isAuxiliaryVariable_iff v).mp hv'.2) ((isAuxiliaryVariable_iff w).mp hw'.2)
-      (hve.trans hwe.symm)).1
+  exact hij (profileVariableMap_aux_injective φ hi hj (List.mem_filter.mp hv).1
+    (List.mem_filter.mp hw).1 ((isAuxiliaryVariable_iff v).mp (List.mem_filter.mp hv).2)
+    ((isAuxiliaryVariable_iff w).mp (List.mem_filter.mp hw).2) (hve.trans hwe.symm)).1
 
 /-- The global fresh-variable position table has no repeated key. -/
 theorem positiveAuxiliaryPositions_keys_nodup (φ : CNF ℕ) (d : Graph.OrthogonalDrawing) :
     ((positiveAuxiliaryPositions φ d).map Prod.fst).Nodup := by
   rw [positiveAuxiliaryPositions, List.map_flatMap]
-  apply List.nodup_flatMap.mpr
-  constructor
-  · intro ⟨c, i⟩ hc
-    obtain ⟨hi, he⟩ := List.mem_zipIdx' hc
+  refine List.nodup_flatMap.mpr ⟨fun ⟨c, i⟩ hc => ?_, List.pairwise_iff_getElem.mpr ?_⟩
+  · obtain ⟨hi, he⟩ := List.mem_zipIdx' hc
     rw [he]
     exact positiveAuxiliaryBlock_keys_nodup φ d hi
-  · apply List.pairwise_iff_getElem.mpr
-    intro i j hi hj hij
-    have hi' : i < φ.length := by simpa only [List.length_zipIdx] using hi
-    have hj' : j < φ.length := by simpa only [List.length_zipIdx] using hj
+  · intro i j hi hj hij
     simpa only [Function.onFun, List.getElem_zipIdx, Nat.zero_add] using
-      positiveAuxiliaryBlock_keys_disjoint φ d hi' hj' (Nat.ne_of_lt hij)
+      positiveAuxiliaryBlock_keys_disjoint φ d
+        (by simpa only [List.length_zipIdx] using hi)
+        (by simpa only [List.length_zipIdx] using hj) hij.ne
 
 /-- No fresh position-table key can be an inherited source-variable name. -/
 theorem positiveAuxiliaryPositions_ne_source (φ : CNF ℕ) (d : Graph.OrthogonalDrawing)
@@ -133,11 +123,10 @@ theorem positiveAuxiliaryPositions_ne_source (φ : CNF ℕ) (d : Graph.Orthogona
 theorem positivePositionTable_keys_nodup (φ : CNF ℕ) (d : Graph.OrthogonalDrawing) :
     ((positivePositionTable φ d).map Prod.fst).Nodup := by
   rw [positivePositionTable, List.map_append, List.nodup_append]
-  refine ⟨?_, positiveAuxiliaryPositions_keys_nodup φ d, ?_⟩
+  refine ⟨?_, positiveAuxiliaryPositions_keys_nodup φ d, fun v hv w hw he => ?_⟩
   · simp only [positiveSourcePositions, List.map_map, Function.comp_def]
-    exact (CNF.nodup_distinctVars φ).map (fun _ _ h => Sum.inl.inj (Sum.inl.inj h))
-  · intro v hv w hw he
-    simp only [positiveSourcePositions, List.map_map, Function.comp_def, List.mem_map] at hv
+    exact (CNF.nodup_distinctVars φ).map fun _ _ h => Sum.inl.inj (Sum.inl.inj h)
+  · simp only [positiveSourcePositions, List.map_map, Function.comp_def, List.mem_map] at hv
     obtain ⟨n, _, rfl⟩ := hv
     exact positiveAuxiliaryPositions_ne_source φ d hw n he.symm
 
@@ -159,9 +148,9 @@ theorem rawVariable_profile (φ : CNF ℕ) {v : CNF.PositiveExactOneCompile.Vari
   obtain ⟨⟨c, i⟩, hci, hcl⟩ := List.mem_flatMap.mp hcl
   obtain ⟨localClause, hc, rfl⟩ := List.mem_map.mp hcl
   obtain ⟨lit, hlit, he⟩ := List.mem_map.mp hl
-  refine ⟨c, i, hci, lit.1, CNF.mem_distinctVars.mpr (CNF.mem_vars.mpr
-    ⟨localClause, hc, lit.2, hlit⟩), ?_⟩
-  exact congrArg Prod.fst he
+  exact ⟨c, i, hci, lit.1,
+    CNF.mem_distinctVars.mpr (CNF.mem_vars.mpr ⟨localClause, hc, lit.2, hlit⟩),
+    congrArg Prod.fst he⟩
 
 /-- Every private profile variable contributes its prescribed fresh-position entry. -/
 theorem positiveAuxiliaryBlock_entry (φ : CNF ℕ) (d : Graph.OrthogonalDrawing)
@@ -170,14 +159,10 @@ theorem positiveAuxiliaryBlock_entry (φ : CNF ℕ) (d : Graph.OrthogonalDrawing
     ∃ p, (profileVariableMap i (CNF.PositiveExactOneCompile.signedOffset φ i) c w, p) ∈
       positiveAuxiliaryBlock φ d i c := by
   obtain ⟨j, hj, he⟩ := List.mem_iff_getElem.mp hw
-  refine ⟨positiveBoxOrigin φ d i + (clauseGeometry φ d i c).variablePosition j, ?_⟩
-  apply List.mem_filterMap.mpr
-  refine ⟨(w, j), ?_, ?_⟩
-  · exact List.mem_zipIdx_iff_getElem?.mpr (List.getElem?_eq_some_iff.mpr ⟨hj, he⟩)
-  · rcases w with (n | ⟨a, b⟩) | ⟨⟨a, b⟩, s⟩
-    · exact False.elim (ha n rfl)
-    · rfl
-    · rfl
+  refine ⟨positiveBoxOrigin φ d i + (clauseGeometry φ d i c).variablePosition j,
+    List.mem_filterMap.mpr ⟨(w, j), List.mem_zipIdx_iff_getElem?.mpr
+      (List.getElem?_eq_some_iff.mpr ⟨hj, he⟩), ?_⟩⟩
+  rcases w with (n | _) | _ <;> first | exact (ha n rfl).elim | rfl
 
 /-- Every occurring actual output variable has a finite position-table entry. -/
 theorem positivePositionTable_covers (φ : CNF ℕ) (d : Graph.OrthogonalDrawing)
@@ -186,22 +171,23 @@ theorem positivePositionTable_covers (φ : CNF ℕ) (d : Graph.OrthogonalDrawing
     ∃ p, (v, p) ∈ positivePositionTable φ d := by
   obtain ⟨c, i, hci, w, hw, rfl⟩ := rawVariable_profile φ hv
   have hscope := profileVariables_scope (clauseProfile c) w hw
-  rcases w with (j | ⟨a, b⟩) | ⟨⟨a, b⟩, s⟩
+  have haux (ha : ∀ n, w ≠ Sum.inl (Sum.inl n)) :
+      ∃ p, (profileVariableMap i (CNF.PositiveExactOneCompile.signedOffset φ i) c w, p) ∈
+        positivePositionTable φ d :=
+    let ⟨p, hp⟩ := positiveAuxiliaryBlock_entry φ d i c hw ha
+    ⟨p, List.mem_append.mpr (Or.inr (List.mem_flatMap.mpr ⟨(c, i), hci, hp⟩))⟩
+  rcases w with (j | _) | _
   · have hj : j < c.length := hscope.trans_le (profileSource_length_le c)
-    have hvar : (c.getD j (0, true)).1 ∈ φ.vars := by
-      apply CNF.mem_vars.mpr
-      refine ⟨c, List.fst_mem_of_mem_zipIdx hci, (c.getD j (0, true)).2, ?_⟩
+    have hmem : c.getD j (0, true) ∈ c := by
       rw [List.getD_eq_getElem _ _ hj]
       exact List.getElem_mem hj
-    refine ⟨positiveScale • Graph.drawingPosition (SAT.incidenceGraph φ) d
-      (φ.distinctVars.idxOf (c.getD j (0, true)).1) + positiveTranslation, ?_⟩
-    apply List.mem_append.mpr
-    apply Or.inl
-    exact List.mem_map.mpr ⟨(c.getD j (0, true)).1, CNF.mem_distinctVars.mpr hvar, rfl⟩
-  · obtain ⟨p, hp⟩ := positiveAuxiliaryBlock_entry φ d i c hw (by simp)
-    exact ⟨p, List.mem_append.mpr (Or.inr (List.mem_flatMap.mpr ⟨(c, i), hci, hp⟩))⟩
-  · obtain ⟨p, hp⟩ := positiveAuxiliaryBlock_entry φ d i c hw (by simp)
-    exact ⟨p, List.mem_append.mpr (Or.inr (List.mem_flatMap.mpr ⟨(c, i), hci, hp⟩))⟩
+    have hvar : (c.getD j (0, true)).1 ∈ φ.vars :=
+      CNF.mem_vars.mpr ⟨c, List.fst_mem_of_mem_zipIdx hci, (c.getD j (0, true)).2, hmem⟩
+    exact ⟨positiveScale • Graph.drawingPosition (SAT.incidenceGraph φ) d
+      (φ.distinctVars.idxOf (c.getD j (0, true)).1) + positiveTranslation,
+      List.mem_append.mpr (Or.inl (List.mem_map.mpr ⟨_, CNF.mem_distinctVars.mpr hvar, rfl⟩))⟩
+  · exact haux (by simp)
+  · exact haux (by simp)
 
 /-- Every fresh-position record has an actual original-clause owner and a unique local profile
 index. Private source placeholders are excluded from these records. -/
@@ -216,17 +202,14 @@ theorem positiveAuxiliaryPositions_origin (φ : CNF ℕ) (d : Graph.OrthogonalDr
   obtain ⟨⟨c, i⟩, hci, hp⟩ := List.mem_flatMap.mp hp
   obtain ⟨⟨w, j⟩, hwj, he⟩ := List.mem_filterMap.mp hp
   obtain ⟨hjlt, hget⟩ := List.mem_zipIdx' hwj
-  have hwm : w ∈ profileVariables (clauseProfile c) := List.fst_mem_of_mem_zipIdx hwj
+  have hwm := List.fst_mem_of_mem_zipIdx hwj
   have hidx : (profileVariables (clauseProfile c)).idxOf w = j := by
     rw [hget]
     exact (CNF.nodup_distinctVars (profileFormula (clauseProfile c))).idxOf_getElem j hjlt
-  rcases w with (n | ⟨a, b⟩) | ⟨⟨a, b⟩, s⟩
+  rcases w with (n | _) | _
   · simp at he
-  · simp only [Option.some.injEq, Prod.mk.injEq] at he
-    refine ⟨c, i, hci, _, hwm, by simp, he.1.symm, ?_⟩
-    simpa only [hidx] using he.2.symm
-  · simp only [Option.some.injEq, Prod.mk.injEq] at he
-    refine ⟨c, i, hci, _, hwm, by simp, he.1.symm, ?_⟩
-    simpa only [hidx] using he.2.symm
+  all_goals
+    simp only [Option.some.injEq, Prod.mk.injEq] at he
+    exact ⟨c, i, hci, _, hwm, by simp, he.1.symm, by simpa only [hidx] using he.2.symm⟩
 
 end Cslib.Complexity.SAT.ExactOne

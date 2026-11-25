@@ -8,7 +8,10 @@ module
 
 public import CslibFrontier.Foundations.NumberTheory.CRTSign
 public import Mathlib.Data.Fin.VecNotation
-import Mathlib.Tactic
+import Mathlib.Algebra.BigOperators.Fin
+import Mathlib.Tactic.FinCases
+import Mathlib.Tactic.IntervalCases
+import Mathlib.Tactic.NormNum.GCD
 
 /-!
 # CRT sign recovery through ordinary imports

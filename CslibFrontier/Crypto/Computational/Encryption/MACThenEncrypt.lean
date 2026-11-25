@@ -7,6 +7,7 @@ Authors: Karn Seth, Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Crypto.Computational.Encryption.Authenticated.Malleability
 public import CslibFrontier.Crypto.Computational.Encryption.EncryptThenMAC
 public import CslibFrontier.Crypto.Computational.GeneratorReindex
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
@@ -17,6 +18,7 @@ import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Languages.Probabilistic.Oracle.Interaction
+import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation.Handler
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF
@@ -400,33 +402,27 @@ theorem eval_cpaGame_mteToCPAAdversary (E : SymmetricCipher) (M : MACScheme)
         ((macThenEncrypt E M ptLen hptLenPoly hmsgLen hpairLen).cpaGame adversary bit n) := by
   simp only [SymmetricCipher.cpaGame, symmetricCPAGameOn, mteToCPAAdversary,
     GeneratorReindex.parameter_apply_of_strictMono hmono n, beq_self_eq_true, ↓reduceIte,
-    ProbOracleComp.run_bind, ProbOracleComp.run_sample, ProbComp.eval_bind]
+    runWith_norm, pmf_norm]
   have hkeyGen : ProbComp.eval
       ((macThenEncrypt E M ptLen hptLenPoly hmsgLen hpairLen).keyGen n) =
       (ProbComp.eval (E.keyGen (ptLen n))).bind (fun ke =>
         (ProbComp.eval (M.keyGen n)).bind (fun km =>
           PMF.pure (encPair encBits encBits (ke, km)))) := by
-    simp only [macThenEncrypt, ProbComp.eval_bind, ProbComp.eval_pure]
+    simp only [macThenEncrypt, pmf_norm]
   rw [hkeyGen]
-  simp only [PMF.bind_bind, PMF.pure_bind]
+  simp only [pmf_norm]
   refine PMF.bind_congr_on_support _ _ _ fun ke hke => ?_
   refine PMF.bind_congr_on_support _ _ _ fun km hkm => ?_
-  have hsim := ProbOracleComp.run_simulate (mteToCPAHandler M n (ctBound (ptLen n)) km)
-    (adversary n []) (symmetricCPAReplyOn (fun n m₀ m₁ => (m₀.length == n) && (m₁.length == n))
-      E.encrypt (ptLen n) ke bit)
-  simp only [ProbOracleComp.simulate, OracleComp.substitute_eq_interpret] at hsim
-  rw [hsim, ProbOracleComp.eval_run, ProbOracleComp.eval_run]
   congr 2
   funext ⟨⟨⟩, req⟩
   simp only [mteToCPAHandler, symmetricCPAReplyOn]
   by_cases hcond : ((unframe req).length == n && (dropFrame req).length == n) = true
-  · simp only [hcond, ↓reduceIte, ProbOracleComp.run_bind, ProbOracleComp.run_sample,
-      ProbOracleComp.run_map, ProbOracleComp.run_query, ProbComp.eval_bind, ProbComp.eval_map]
+  · simp only [hcond, ↓reduceIte, runWith_norm, pmf_norm]
     simp only [Bool.and_eq_true, beq_iff_eq] at hcond
     rcases hcond with ⟨hm0, hm1⟩
     dsimp only [macThenEncrypt]
     rw [unframe_encPair_encBits, dropFrame_encPair_encBits]
-    simp only [ProbComp.eval_bind]
+    simp only [pmf_norm]
     have htagstep (tag0 : List Bool)
         (htag0 : tag0 ∈ (ProbComp.eval (M.sign km (unframe req))).support)
         (tag1 : List Bool)
@@ -448,9 +444,8 @@ theorem eval_cpaGame_mteToCPAAdversary (E : SymmetricCipher) (M : MACScheme)
       trans (ProbComp.eval (M.sign km (dropFrame req))).bind fun _ =>
         ProbComp.eval (E.encrypt (ptLen n) ke (encPair encBits encBits (unframe req, tag0)))
       · refine PMF.bind_congr_on_support _ _ _ fun tag1 htag1 => ?_
-        simp only [symmetricCPAReplyOn]
         rw [htagstep tag0 htag0 tag1 htag1]
-        simp only [↓reduceIte, Bool.false_eq_true, unframe_encPair_encBits]
+        simp only [↓reduceIte, unframe_encPair_encBits]
         refine (PMF.map_congr_on_support _ _ id fun ct hct => ?_).trans (PMF.map_id _)
         exact List.take_of_length_le
           (hctBound ke hke _ (hpairLen n km hkm _ hm0 tag0 htag0) ct hct)
@@ -462,7 +457,6 @@ theorem eval_cpaGame_mteToCPAAdversary (E : SymmetricCipher) (M : MACScheme)
           ProbComp.eval (E.encrypt (ptLen n) ke (encPair encBits encBits (dropFrame req, tag1)))
       · refine PMF.bind_congr_on_support _ _ _ fun tag0 htag0 => ?_
         refine PMF.bind_congr_on_support _ _ _ fun tag1 htag1 => ?_
-        simp only [symmetricCPAReplyOn]
         rw [htagstep tag0 htag0 tag1 htag1]
         simp only [↓reduceIte, dropFrame_encPair_encBits]
         refine (PMF.map_congr_on_support _ _ id fun ct hct => ?_).trans (PMF.map_id _)
@@ -471,7 +465,7 @@ theorem eval_cpaGame_mteToCPAAdversary (E : SymmetricCipher) (M : MACScheme)
       · exact PMF.bind_const _ _
   · have hcondF : ((unframe req).length == n && (dropFrame req).length == n) = false :=
       Bool.eq_false_iff.mpr hcond
-    simp only [hcondF, Bool.false_eq_true, ↓reduceIte, ProbOracleComp.run_pure]
+    simp only [hcondF, Bool.false_eq_true, ↓reduceIte, runWith_norm, pmf_norm]
 
 /-- **IND-CPA security preserves under MAC-then-Encrypt**: when `ptLen` is strictly monotone and
 computable in polynomial time, every encoded `(msg, tag)` pair on an `n`-bit message has length
@@ -608,19 +602,14 @@ theorem eval_cpaGame_extendCPAAdversary (E : SymmetricCipher) (ctBound : ℕ →
     (hctBound : E.CiphertextLengthLE n (ctBound n)) :
     ProbComp.eval (E.cpaGame (extendCPAAdversary ctBound adversary) bit n) =
       ProbComp.eval (E.extendCipher.cpaGame adversary bit n) := by
-  simp only [cpaGame, symmetricCPAGameOn, extendCPAAdversary, ProbComp.eval_bind]
+  simp only [cpaGame, symmetricCPAGameOn, extendCPAAdversary, runWith_norm, pmf_norm]
   apply PMF.bind_congr_on_support
   intro k hk
-  have hsim := ProbOracleComp.run_simulate (extendCPAHandler n (ctBound n)) (adversary n [])
-    (symmetricCPAReplyOn (fun n m₀ m₁ => (m₀.length == n) && (m₁.length == n)) E.encrypt n k bit)
-  simp only [ProbOracleComp.simulate, OracleComp.substitute_eq_interpret] at hsim
-  rw [hsim, ProbOracleComp.eval_run, ProbOracleComp.eval_run]
   congr 2
   funext ⟨⟨⟩, req⟩
   simp only [extendCPAHandler, symmetricCPAReplyOn]
   by_cases hcond : ((unframe req).length == n && (dropFrame req).length == n) = true
-  · simp only [hcond, ↓reduceIte, ProbOracleComp.run_map, ProbOracleComp.run_query, extendCipher,
-      symmetricCPAReplyOn, ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure, PMF.map_comp]
+  · simp only [hcond, ↓reduceIte, extendCipher, runWith_norm, pmf_norm]
     rw [← PMF.bind_pure_comp]
     apply PMF.bind_congr_on_support
     intro c hc
@@ -628,7 +617,7 @@ theorem eval_cpaGame_extendCPAAdversary (E : SymmetricCipher) (ctBound : ℕ →
     have hmbLen : (if bit then dropFrame req else unframe req).length = n := by
       cases bit <;> simp [hcond]
     simp only [Function.comp_apply, List.take_of_length_le (hctBound k hk _ hmbLen c hc)]
-  · simp only [hcond, Bool.false_eq_true, ↓reduceIte, ProbOracleComp.run_pure]
+  · simp only [hcond, Bool.false_eq_true, ↓reduceIte, runWith_norm, pmf_norm]
 
 /-- Appending and ignoring a constant trailing bit preserves `INDCPA`. -/
 theorem INDCPA.extendCipher {E : SymmetricCipher} (h : E.INDCPA) :
@@ -795,15 +784,18 @@ private theorem malleate_macThenEncrypt_extendCipher_ciphertext
       ∀ msg, msg.length = n →
       ∀ tag ∈ (ProbComp.eval (M.sign km msg)).support,
         (encPair encBits encBits (msg, tag)).length = ptLen n)
-    (n : ℕ) {ke km msg ct : List Bool}
-    (hke : ke ∈ (ProbComp.eval (E.keyGen (ptLen n))).support)
-    (hkm : km ∈ (ProbComp.eval (M.keyGen n)).support)
+    (n : ℕ) {k msg ct : List Bool}
+    (hk : k ∈ (ProbComp.eval ((macThenEncrypt E.extendCipher M ptLen hptLenPoly hmsgLen
+      hpairLen).keyGen n)).support)
     (hmsg : msg.length = n)
     (hct : ct ∈ (ProbComp.eval ((macThenEncrypt E.extendCipher M ptLen hptLenPoly hmsgLen
-      hpairLen).encrypt n (encPair encBits encBits (ke, km)) msg)).support) :
+      hpairLen).encrypt n k msg)).support) :
     (ct.take (ct.length - 1) ++ [true]) ≠ ct ∧
     (macThenEncrypt E.extendCipher M ptLen hptLenPoly hmsgLen hpairLen).decrypt n
-      (encPair encBits encBits (ke, km)) (ct.take (ct.length - 1) ++ [true]) = some msg := by
+      k (ct.take (ct.length - 1) ++ [true]) = some msg := by
+  simp only [macThenEncrypt, SymmetricCipher.extendCipher, ProbComp.eval_bind,
+    ProbComp.eval_pure, PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hk
+  obtain ⟨ke, hke, km, hkm, rfl⟩ := hk
   simp only [macThenEncrypt, SymmetricCipher.extendCipher, ProbComp.eval_bind,
     ProbComp.eval_pure, PMF.mem_support_bind_iff, PMF.mem_support_pure_iff,
     dropFrame_encPair_encBits, unframe_encPair_encBits] at hct
@@ -819,59 +811,22 @@ private theorem malleate_macThenEncrypt_extendCipher_ciphertext
     exact decrypt_macThenEncrypt_extendCipher_append_true E M ptLen hptLenPoly hmsgLen hpairLen n
       hke hkm hmsg htag hc
 
+/-- Replacing the last bit of a word by `true`, on the second component, is polynomial-time. -/
+private theorem computableInPolyTime_flipLastBit :
+    ComputableInPolyTime (fun p : ℕ × List Bool => p.2.take (p.2.length - 1) ++ [true])
+      (encPair encUnary encBits) encBits := by
+  polytime
+
 /-- One-query ciphertext-integrity adversary against `macThenEncrypt E.extendCipher M ptLen ...`:
 encrypts `0^n` and flips the trailing `false` bit of the ciphertext to `true`. -/
 def macThenEncryptExtendCIAdversary (ctBound : ℕ → ℕ) : CIAdversary :=
-  fun n _ => do
-    let ct ← List.take (ctBound n) <$> ProbOracleComp.query ((), List.replicate n false)
-    return ct.take (ct.length - 1) ++ [true]
+  SymmetricCipher.maulCIAdversary (fun _ ct => ct.take (ct.length - 1) ++ [true]) false ctBound
 
 /-- `macThenEncryptExtendCIAdversary` is uniformly strict oracle-PPT. -/
 theorem isOraclePPT_macThenEncryptExtendCIAdversary {ctBound : ℕ → ℕ}
     (hctBound : ComputableInPolyTime ctBound encUnary encUnary) :
-    IsOraclePPT encBits (macThenEncryptExtendCIAdversary ctBound) := by
-  ppt [macThenEncryptExtendCIAdversary]
-
-private theorem ci_oracle_for_macThenEncrypt_extendCipher (E : SymmetricCipher) (M : MACScheme)
-    (ptLen : ℕ → ℕ) (hptLenPoly : ComputableInPolyTime ptLen encUnary encUnary)
-    (hmsgLen : ∀ n, M.msgLen n = n)
-    (hpairLen : ∀ n km, km ∈ (ProbComp.eval (M.keyGen n)).support →
-      ∀ msg, msg.length = n →
-      ∀ tag ∈ (ProbComp.eval (M.sign km msg)).support,
-        (encPair encBits encBits (msg, tag)).length = ptLen n)
-    (ctBound : ℕ → ℕ) (n : ℕ)
-    (hctBound : (macThenEncrypt E.extendCipher M ptLen hptLenPoly hmsgLen
-      hpairLen).CiphertextLengthLE n (ctBound n)) :
-    ProbComp.eval ((macThenEncrypt E.extendCipher M ptLen hptLenPoly hmsgLen
-        hpairLen).ciOneTimeGame
-      (macThenEncryptExtendCIAdversary ctBound) n) = PMF.pure true := by
-  let E' := macThenEncrypt E.extendCipher M ptLen hptLenPoly hmsgLen hpairLen
-  simp only [SymmetricCipher.ciOneTimeGame, macThenEncryptExtendCIAdversary,
-    OracleComp.interpret_bind, OracleComp.interpret_map, OracleComp.interpret_pure,
-    ProbOracleComp.interpret_query, StateT.run_bind, StateT.run_map, StateT.run_pure,
-    ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure,
-    PMF.bind_map, Function.comp_def, PMF.bind_bind, PMF.pure_bind]
-  trans ((ProbComp.eval (E'.keyGen n)).bind fun _ => PMF.pure true)
-  · apply PMF.bind_congr_on_support
-    intro k hk
-    have hk' := hk
-    simp only [macThenEncrypt, SymmetricCipher.extendCipher, ProbComp.eval_bind,
-      ProbComp.eval_pure, PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hk'
-    obtain ⟨ke, hke, km, hkm, rfl⟩ := hk'
-    simp only [SymmetricCipher.oneTimeCIEncryptionOracle, StateT.run, List.isEmpty_nil,
-      List.length_replicate, beq_self_eq_true, Bool.and_self, ↓reduceIte, ProbComp.eval_bind,
-      ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
-    trans ((ProbComp.eval (E'.encrypt n (encPair encBits encBits (ke, km))
-        (List.replicate n false))).bind fun _ => PMF.pure true)
-    · apply PMF.bind_congr_on_support
-      intro ct hct
-      rw [List.take_of_length_le (hctBound _ hk _ List.length_replicate ct hct)]
-      obtain ⟨hne, hdec⟩ := malleate_macThenEncrypt_extendCipher_ciphertext E M ptLen hptLenPoly
-        hmsgLen hpairLen n hke hkm List.length_replicate hct
-      rw [hdec]
-      simp [hne]
-    · simp
-  · simp
+    IsOraclePPT encBits (macThenEncryptExtendCIAdversary ctBound) :=
+  SymmetricCipher.isOraclePPT_maulCIAdversary computableInPolyTime_flipLastBit false hctBound
 
 /-- `macThenEncryptExtendCIAdversary` succeeds with probability `1` in `ciOneTimeGame` against
 `macThenEncrypt E.extendCipher M ptLen ...`. -/
@@ -888,7 +843,9 @@ theorem eval_ciOneTimeGame_macThenEncrypt_extendCipher (E : SymmetricCipher) (M 
     ProbComp.eval ((macThenEncrypt E.extendCipher M ptLen hptLenPoly hmsgLen
         hpairLen).ciOneTimeGame
       (macThenEncryptExtendCIAdversary ctBound) n) = PMF.pure true :=
-  ci_oracle_for_macThenEncrypt_extendCipher E M ptLen hptLenPoly hmsgLen hpairLen ctBound n hctBound
+  SymmetricCipher.eval_ciOneTimeGame_maulCIAdversary _ false ctBound n hctBound fun _ hk _ hct =>
+    (malleate_macThenEncrypt_extendCipher_ciphertext E M ptLen hptLenPoly hmsgLen hpairLen n hk
+      List.length_replicate hct).imp_right fun h => by rw [h]; rfl
 
 /-- `macThenEncrypt E.extendCipher M ptLen ...` fails `OneTimeCiphertextIntegrity` for every
 cipher `E` and MAC `M` satisfying `hmsgLen` and `hpairLen`. -/
@@ -900,20 +857,12 @@ theorem not_oneTimeCiphertextIntegrity_macThenEncrypt_extendCipher (E : Symmetri
       ∀ tag ∈ (ProbComp.eval (M.sign km msg)).support,
         (encPair encBits encBits (msg, tag)).length = ptLen n) :
     ¬ (macThenEncrypt E.extendCipher M ptLen hptLenPoly hmsgLen
-        hpairLen).OneTimeCiphertextIntegrity := by
-  intro hci
-  let E' := macThenEncrypt E.extendCipher M ptLen hptLenPoly hmsgLen hpairLen
-  obtain ⟨ctBound, hctBoundPoly, hctBound⟩ := E'.exists_ciphertext_length_bound_of_length_eq
-  have hneg := hci.negligible (macThenEncryptExtendCIAdversary ctBound)
-    (isOraclePPT_macThenEncryptExtendCIAdversary hctBoundPoly)
-  have hcongr : (fun n => Game.succProbability (ProbComp.eval
-      (E'.ciOneTimeGame (macThenEncryptExtendCIAdversary ctBound) n))) = fun _ => (1 : ℝ≥0) := by
-    funext n
-    rw [eval_ciOneTimeGame_macThenEncrypt_extendCipher E M ptLen hptLenPoly hmsgLen hpairLen
-      ctBound n (hctBound n)]
-    simp [Game.succProbability]
-  rw [hcongr] at hneg
-  exact not_negligible_const one_ne_zero hneg
+        hpairLen).OneTimeCiphertextIntegrity :=
+  SymmetricCipher.not_oneTimeCiphertextIntegrity_of_maul _
+    (maul := fun _ ct => ct.take (ct.length - 1) ++ [true]) computableInPolyTime_flipLastBit false 0
+    fun n _ _ hk _ hct =>
+      (malleate_macThenEncrypt_extendCipher_ciphertext E M ptLen hptLenPoly hmsgLen hpairLen n hk
+        List.length_replicate hct).imp_right fun h => by rw [h]; rfl
 
 /-- `macThenEncrypt E.extendCipher M ptLen ...` fails `CiphertextIntegrity` for every cipher `E`
 and MAC `M` satisfying `hmsgLen` and `hpairLen`. -/
@@ -934,20 +883,13 @@ queries the challenge encryption oracle on `(0^n, 1^n)`, flips the trailing `fal
 returned ciphertext `ct` to `true`, queries the decryption oracle on the distinct ciphertext `ct'`,
 and outputs `true` iff the plaintext equals `1^n`. -/
 def macThenEncryptExtendCCAAdversary (ctBound : ℕ → ℕ) : CCAAdversary :=
-  fun n _ => do
-    let m0 := List.replicate n false
-    let m1 := List.replicate n true
-    let ct ← List.take (ctBound n) <$>
-      ProbOracleComp.query (false, encPair encBits encBits (m0, m1))
-    let ct' := ct.take (ct.length - 1) ++ [true]
-    let dec ← List.take (n + 1) <$> ProbOracleComp.query (true, ct')
-    return (dec == encOption encBits (some m1))
+  SymmetricCipher.maulCCAAdversary (fun _ ct => ct.take (ct.length - 1) ++ [true]) true ctBound
 
 /-- `macThenEncryptExtendCCAAdversary` is uniformly strict oracle-PPT. -/
 theorem isOraclePPT_macThenEncryptExtendCCAAdversary {ctBound : ℕ → ℕ}
     (hctBound : ComputableInPolyTime ctBound encUnary encUnary) :
-    IsOraclePPT encBool (macThenEncryptExtendCCAAdversary ctBound) := by
-  ppt [macThenEncryptExtendCCAAdversary]
+    IsOraclePPT encBool (macThenEncryptExtendCCAAdversary ctBound) :=
+  SymmetricCipher.isOraclePPT_maulCCAAdversary computableInPolyTime_flipLastBit true hctBound
 
 /-- In `ccaOneTimeGame` against `macThenEncrypt E.extendCipher M ptLen ...`,
 `macThenEncryptExtendCCAAdversary` outputs `bit` with probability `1` whenever `bit = true` or
@@ -964,47 +906,10 @@ theorem eval_ccaOneTimeGame_macThenEncrypt_extendCipher (E : SymmetricCipher) (M
       hpairLen).CiphertextLengthLE n (ctBound n)) :
     ProbComp.eval ((macThenEncrypt E.extendCipher M ptLen hptLenPoly hmsgLen
         hpairLen).ccaOneTimeGame
-      (macThenEncryptExtendCCAAdversary ctBound) bit n) = PMF.pure bit := by
-  let E' := macThenEncrypt E.extendCipher M ptLen hptLenPoly hmsgLen hpairLen
-  simp only [SymmetricCipher.ccaOneTimeGame, macThenEncryptExtendCCAAdversary,
-    OracleComp.interpret_bind, OracleComp.interpret_map, OracleComp.interpret_pure,
-    ProbOracleComp.interpret_query, StateT.run_bind, StateT.run_map, StateT.run_pure,
-    ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure,
-    PMF.bind_map, Function.comp_def, PMF.bind_bind, PMF.pure_bind]
-  trans ((ProbComp.eval (E'.keyGen n)).bind fun _ => PMF.pure bit)
-  · apply PMF.bind_congr_on_support
-    intro k hk
-    have hk' := hk
-    simp only [macThenEncrypt, SymmetricCipher.extendCipher, ProbComp.eval_bind,
-      ProbComp.eval_pure, PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hk'
-    obtain ⟨ke, hke, km, hkm, rfl⟩ := hk'
-    have hmbLen : (if bit then List.replicate n true else List.replicate n false).length = n := by
-      cases bit <;> simp
-    simp only [SymmetricCipher.oneTimeCCAOracle, StateT.run,
-      Bool.false_eq_true, ↓reduceIte, List.isEmpty_nil, unframe_encPair_encBits,
-      dropFrame_encPair_encBits,
-      List.length_replicate, beq_self_eq_true, Bool.and_self, ProbComp.eval_bind,
-      ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
-    trans ((ProbComp.eval (E'.encrypt n (encPair encBits encBits (ke, km))
-        (if bit then List.replicate n true else List.replicate n false))).bind fun _ =>
-      PMF.pure bit)
-    · apply PMF.bind_congr_on_support
-      intro ct hct
-      rw [List.take_of_length_le (hctBound _ hk _ hmbLen ct hct)]
-      obtain ⟨hne, hdec⟩ := malleate_macThenEncrypt_extendCipher_ciphertext E M ptLen hptLenPoly
-        hmsgLen hpairLen n hke hkm hmbLen hct
-      have hnc : ([ct].contains (ct.take (ct.length - 1) ++ [true])) = false := by simp [hne]
-      simp only [hnc, Bool.false_eq_true, ↓reduceIte, ProbComp.eval_pure, PMF.pure_bind]
-      rw [hdec]
-      cases bit with
-      | true => simp
-      | false =>
-        have hn1 : 1 ≤ n := hn.resolve_left Bool.false_ne_true
-        cases n with
-        | zero => contradiction
-        | succ m => simp
-    · simp
-  · simp
+      (macThenEncryptExtendCCAAdversary ctBound) bit n) = PMF.pure bit :=
+  SymmetricCipher.eval_ccaOneTimeGame_maulCCAAdversary_eq_pure _ true bit ctBound hn hctBound
+    fun _ hk _ hct => malleate_macThenEncrypt_extendCipher_ciphertext E M ptLen hptLenPoly hmsgLen
+      hpairLen n hk List.length_replicate hct
 
 /-- `macThenEncryptExtendCCAAdversary` achieves exact one-time CCA advantage `1` against
 `macThenEncrypt E.extendCipher M ptLen ...` for every `n ≥ 1`. -/
@@ -1041,31 +946,11 @@ theorem not_oneTimeINDCCA_macThenEncrypt_extendCipher (E : SymmetricCipher)
       ∀ tag ∈ (ProbComp.eval (M.sign km msg)).support,
         (encPair encBits encBits (msg, tag)).length = ptLen n) :
     ¬ (macThenEncrypt E.extendCipher M ptLen hptLenPoly hmsgLen
-        hpairLen).OneTimeINDCCA := by
-  intro hcca
-  let E' := macThenEncrypt E.extendCipher M ptLen hptLenPoly hmsgLen hpairLen
-  obtain ⟨ctBound, hctBoundPoly, hctBound⟩ := E'.exists_ciphertext_length_bound_of_length_eq
-  have hneg := hcca (macThenEncryptExtendCCAAdversary ctBound)
-    (isOraclePPT_macThenEncryptExtendCCAAdversary hctBoundPoly)
-  have ht0 : Filter.Tendsto (fun n => Game.advantage
-      (ProbComp.eval (E'.ccaOneTimeGame (macThenEncryptExtendCCAAdversary ctBound) false n))
-      (ProbComp.eval (E'.ccaOneTimeGame (macThenEncryptExtendCCAAdversary ctBound) true n)))
-      Filter.atTop (nhds 0) := by
-    simpa using hneg 0
-  have ht : Filter.Tendsto (fun n => Game.advantage
-      (ProbComp.eval (E'.ccaOneTimeGame (macThenEncryptExtendCCAAdversary ctBound) false (n + 1)))
-      (ProbComp.eval (E'.ccaOneTimeGame (macThenEncryptExtendCCAAdversary ctBound) true (n + 1))))
-      Filter.atTop (nhds 0) :=
-    ht0.comp (Filter.tendsto_add_atTop_nat 1)
-  have h1 : (fun n => Game.advantage
-      (ProbComp.eval (E'.ccaOneTimeGame (macThenEncryptExtendCCAAdversary ctBound) false (n + 1)))
-      (ProbComp.eval (E'.ccaOneTimeGame (macThenEncryptExtendCCAAdversary ctBound) true (n + 1)))) =
-      fun _ => (1 : ℝ≥0) := by
-    funext n
-    exact advantage_ccaOneTimeGame_macThenEncrypt_extendCipher_eq_one E M ptLen hptLenPoly
-      hmsgLen hpairLen ctBound (Nat.succ_pos n) (hctBound (n + 1))
-  rw [h1] at ht
-  exact one_ne_zero (tendsto_nhds_unique tendsto_const_nhds ht)
+        hpairLen).OneTimeINDCCA :=
+  SymmetricCipher.not_oneTimeINDCCA_of_maul _
+    (maul := fun _ ct => ct.take (ct.length - 1) ++ [true]) computableInPolyTime_flipLastBit true 0
+    fun n _ _ _ hk _ hct => malleate_macThenEncrypt_extendCipher_ciphertext E M ptLen hptLenPoly
+      hmsgLen hpairLen n hk List.length_replicate hct
 
 /-- `macThenEncrypt E.extendCipher M ptLen ...` fails `INDCCA` for every cipher `E` and MAC `M`
 satisfying `hmsgLen` and `hpairLen`. -/

@@ -61,6 +61,8 @@ Adapted from Crypto/Computational/HardCore.lean on the cslib `crypto` branch at
 
 @[expose] public section
 
+attribute [local irreducible] Turing.MultiTapeTM.ComputableInPolyTime
+
 namespace Cslib.Crypto
 
 open Probability Turing.MultiTapeTM
@@ -112,8 +114,8 @@ theorem HardCore.unpredictable {f : List Bool → List Bool} {predicate : List B
 theorem HardCore.of_unpredictable {f : List Bool → List Bool} {predicate : List Bool → Bool}
     (hp : ComputableInPolyTime predicate encBits encBool)
     (h : ∀ adversary : Distinguisher, IsPPT encBool adversary →
-      Negligible (predictionAdvantage f predicate adversary)) : HardCore f predicate := by
-  exact ⟨hp, h⟩
+      Negligible (predictionAdvantage f predicate adversary)) : HardCore f predicate :=
+  ⟨hp, h⟩
 
 /-- The prediction experiment is a uniform PPT program when its ingredients are efficient. -/
 @[program_certificate]
@@ -162,8 +164,7 @@ private theorem ideal_probability (f : List Bool → List Bool) (adversary : Dis
           Pr[adversary n (f (List.ofFn bits) ++ [true])]) / 2) := by
   simp only [pmf_norm, Game.coe_succProbability, distinguishingGame_eq_bind, hardCoreIdeal,
     BitString.uniformList, PMF.bind_apply_toReal]
-  apply Finset.sum_congr rfl
-  intro bits _
+  refine Finset.sum_congr rfl fun bits _ => ?_
   norm_num [PMF.uniformOfFintype_apply, Fintype.sum_bool]
   ring
 
@@ -220,10 +221,8 @@ theorem HardCore.indistinguishable {f : List Bool → List Bool} {predicate : Li
     ComputationallyIndistinguishable (generatorEnsemble (fun seed => f seed ++ [predicate seed]))
       (hardCoreIdeal f) := by
   intro adversary ha
-  have hleft := h.unpredictable _ (isPPT_hardCorePredictor ha false)
-  have hright := h.unpredictable _ (isPPT_hardCorePredictor ha true)
-  apply negligible_of_le (hleft.add_fun hright)
-  intro n
+  refine negligible_of_le ((h.unpredictable _ (isPPT_hardCorePredictor ha false)).add_fun
+    (h.unpredictable _ (isPPT_hardCorePredictor ha true))) fun n => ?_
   simpa only [eval_prgRealGame] using (hardCore_advantage_le f predicate adversary n).trans
     (div_le_self (by positivity) (by norm_num))
 
@@ -249,11 +248,9 @@ theorem HardCore.pseudorandomGenerator {f : List Bool → List Bool} {predicate 
     (hlen : ∀ word, (f word).length = word.length)
     (huniform : ∀ n, (BitString.uniformList n).map f = BitString.uniformList n) :
     PseudorandomGenerator (fun seed => f seed ++ [predicate seed]) (fun n => n + 1) := by
-  have hp := h.polyTime
-  refine PseudorandomGenerator.of_indistinguishable ((by fun_prop)) ?_ Nat.lt_succ_self
-    (h.indistinguishable_of_uniform huniform)
-  intro seed
-  simp [hlen]
+  have := h.polyTime
+  exact PseudorandomGenerator.of_indistinguishable (by fun_prop) (by simp [hlen])
+    Nat.lt_succ_self (h.indistinguishable_of_uniform huniform)
 
 /-- Step of the construction of a generator from a one-way permutation: a one-way permutation with
 a hard-core predicate gives a uniform polynomial-time one-bit PRG.

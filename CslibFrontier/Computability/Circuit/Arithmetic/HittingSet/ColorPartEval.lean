@@ -69,9 +69,8 @@ theorem colorPart_ne_zero [CommSemiring F] (c : σ → Fin r) {G : MvPolynomial 
     · simp [colorWeight, colorOnes, hv1]
     · simpa [colorWeight, Finsupp.single_apply] using fun h => absurd (hc hu hv h) huv
   intro h
-  have hcoeff : (colorPart c G).coeff m = G.coeff m := by
-    simp only [colorPart, coeff_weightedHomogeneousComponent, hw, ↓reduceIte]
-  exact mem_support_iff.1 hm (by rw [← hcoeff, h]; rfl)
+  exact mem_support_iff.1 hm
+    (by simpa [colorPart, coeff_weightedHomogeneousComponent, hw] using congrArg (·.coeff m) h)
 
 private theorem eq_colorOnes_iff (e : Fin r →₀ ℕ) :
     e = colorOnes r ↔ e.support = Finset.univ ∧ ∑ j ∈ e.support, e j = r := by
@@ -116,10 +115,8 @@ private theorem coeff_sum_neg_one_pow_card_smul_aeval [CommRing F]
     simp only [hJ, smul_ite, smul_zero]
     rw [Finset.sum_ite_mem, Finset.univ_inter, ← Finset.sum_smul,
       Finset.sum_powerset_neg_one_pow_card, coeff_monomial]
-    simp only [eq_colorOnes_iff]
-    by_cases h : e.support = Finset.univ
-    · simp [h, Polynomial.coeff_X_pow, eq_comm]
-    · simp [h]
+    by_cases h : e.support = Finset.univ <;>
+      simp [eq_colorOnes_iff, h, Polynomial.coeff_X_pow, eq_comm]
   | add p q hp hq =>
     simp only [map_add, smul_add, Finset.sum_add_distrib, Polynomial.coeff_add, hp, hq]
     rfl
@@ -146,10 +143,9 @@ theorem exists_eval_ne_zero_of_eval_colorPart_ne_zero [CommRing F] [IsDomain F]
       (P J).eval t = eval (fun v => if c v ∈ J then 0 else t * b v) G := by
     rw [← Polynomial.coe_aeval_eq_eval, ← AlgHom.comp_apply, comp_aeval]
     refine congrArg (fun f => eval f G) (funext fun v => ?_)
-    by_cases hv : c v ∈ J
-    · simp only [hv, ↓reduceIte, map_zero]
-    · simp only [hv, ↓reduceIte, map_mul, Polynomial.aeval_C, Polynomial.aeval_X]
-      exact mul_comm _ _
+    by_cases hv : c v ∈ J <;>
+      simp only [hv, ↓reduceIte, map_zero, map_mul, Polynomial.aeval_C, Polynomial.aeval_X]
+    exact mul_comm _ _
   have hQ : ∑ J : Finset (Fin r), (-1 : ℤ) ^ J.card • P J = 0 := by
     refine Polynomial.eq_zero_of_natDegree_lt_card_of_eval_eq_zero' _ Λ (fun t ht => ?_)
       (lt_of_le_of_lt ?_ hΛ)

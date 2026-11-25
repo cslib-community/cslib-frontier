@@ -66,13 +66,11 @@ private theorem choose_twentyone_mul_le (m : ℕ) : (21 * m).choose m ≤ 64 ^ m
       (fun _ _ => Nat.zero_le _) (show m ∈ range (21 * m + 1) by simp; omega)
     have hp := add_pow (1 : ℕ) 20 (21 * m)
     simp only [Nat.cast_id] at hp
-    rw [← hp] at h
-    rw [show 21 * m - m = 20 * m by omega] at h
+    rw [← hp, show 21 * m - m = 20 * m by omega] at h
     simpa only [one_pow, one_mul, show (1 : ℕ) + 20 = 21 by decide, Nat.mul_comm] using h
-  have hbase : 21 ^ 21 ≤ 64 * 20 ^ 20 := by norm_num
-  have hpow := Nat.pow_le_pow_left hbase m
   have hbig : 21 ^ (21 * m) ≤ 64 ^ m * 20 ^ (20 * m) := by
-    simpa only [pow_mul, mul_pow] using hpow
+    simpa only [pow_mul, mul_pow] using
+      Nat.pow_le_pow_left (by norm_num : 21 ^ 21 ≤ 64 * 20 ^ 20) m
   exact Nat.le_of_mul_le_mul_right (hterm.trans hbig) (Nat.pow_pos (by decide))
 
 /-- A band at the improved depth `L=21m` fits under the source's original size condition.
@@ -99,8 +97,7 @@ theorem boxes_ninth_blocks_of_size (k N : ℕ) (hN : D (9 * k) ^ 18 ≤ N) :
         ((boxes (189 * k) (9 * k) k).card : ℝ) ≤
       32 * ((9 * k : ℕ) + 1 : ℝ) * (9 / 20 : ℝ) ^ k * (N : ℝ) ^ 2 := by
   apply boxes_ninth_blocks
-  have h := (bandSize_twentyone_le (9 * k)).trans hN
-  simpa only [show 21 * (9 * k) = 189 * k by omega] using h
+  simpa only [← Nat.mul_assoc] using (bandSize_twentyone_le (9 * k)).trans hN
 
 /-- One encoding of `10 ^ (189 * k)` entries for each of the `numBands (189 * k) (9 * k) N`
 bands retains the same finite saving as the boxes and queries. This counts one of the two
@@ -162,8 +159,7 @@ theorem encodings_ninth_blocks (k N : ℕ) (hN : D (9 * k) ^ 18 ≤ N) :
     calc ((B : ℝ) * (10 : ℝ) ^ (189 * k)) ^ 2
         = (B : ℝ) ^ 2 * ((10 : ℝ) ^ (189 * k)) ^ 2 := mul_pow _ _ _
       _ ≤ (B : ℝ) ^ 2 * ((21 : ℝ) ^ (9 * k) * (N0' : ℝ) ^ 2 *
-          ((D (9 * k) ^ 18 : ℕ) : ℝ) ^ 2 * ((9 / 20 : ℝ) ^ k) ^ 2) :=
-        mul_le_mul_of_nonneg_left hT (by positivity)
+          ((D (9 * k) ^ 18 : ℕ) : ℝ) ^ 2 * ((9 / 20 : ℝ) ^ k) ^ 2) := by gcongr
       _ ≤ (B : ℝ) ^ 2 * ((21 : ℝ) ^ (9 * k) * (N0' : ℝ) ^ 2 *
           (N : ℝ) ^ 2 * ((9 / 20 : ℝ) ^ k) ^ 2) := by gcongr
       _ = ((B : ℝ) ^ 2 * (21 : ℝ) ^ (9 * k) * (N0' : ℝ) ^ 2) *
@@ -176,10 +172,9 @@ theorem encodings_ninth_blocks (k N : ℕ) (hN : D (9 * k) ^ 18 ≤ N) :
 inner dimension. This integer-power inequality needs no logarithm approximation. -/
 theorem decay_sixteenth (k : ℕ) :
     ((9 / 20 : ℝ) ^ k) ^ 16 * (D (9 * k) : ℝ) ≤ 1 := by
-  have hbase : (9 / 20 : ℝ) ^ 16 * (4 : ℝ) ^ 9 ≤ 1 := by norm_num
-  have h := pow_le_pow_left₀ (by positivity) hbase k
-  rw [D, Nat.cast_pow, Nat.cast_ofNat]
-  simpa only [mul_pow, ← pow_mul, Nat.mul_comm, one_pow] using h
+  simpa only [D, Nat.cast_pow, Nat.cast_ofNat, mul_pow, ← pow_mul, Nat.mul_comm, one_pow] using
+    pow_le_pow_left₀ (by positivity)
+      (by norm_num : (9 / 20 : ℝ) ^ 16 * (4 : ℝ) ^ 9 ≤ 1) k
 
 private theorem matrix_words_ninth_blocks (k N : ℕ) (hN : D (9 * k) ^ 18 ≤ N) :
     (N : ℝ) * (D (9 * k) : ℝ) ≤ (9 / 20 : ℝ) ^ k * (N : ℝ) ^ 2 := by
@@ -192,8 +187,7 @@ private theorem matrix_words_ninth_blocks (k N : ℕ) (hN : D (9 * k) ^ 18 ≤ N
     simpa only [mul_pow, ← pow_mul, mul_comm] using hpow
   have hNr : ((D (9 * k) ^ 18 : ℕ) : ℝ) ≤ (N : ℝ) := by exact_mod_cast hN
   calc (N : ℝ) * (D (9 * k) : ℝ)
-      ≤ (N : ℝ) * ((9 / 20 : ℝ) ^ k * ((D (9 * k) ^ 18 : ℕ) : ℝ)) :=
-        mul_le_mul_of_nonneg_left hD (Nat.cast_nonneg _)
+      ≤ (N : ℝ) * ((9 / 20 : ℝ) ^ k * ((D (9 * k) ^ 18 : ℕ) : ℝ)) := by gcongr
     _ ≤ (N : ℝ) * ((9 / 20 : ℝ) ^ k * (N : ℝ)) := by gcongr
     _ = _ := by ring
 
@@ -215,35 +209,24 @@ theorem nativeShape_ninth_blocks (k N Q : ℕ) (hN : D (9 * k) ^ 18 ≤ N)
   have hB : 1 ≤ B := numBands_pos (by omega) hNpos
   have hC : (1 : ℝ) ≤ C := by exact_mod_cast card_boxes_pos (189 * k) (9 * k) k
   have hND : (N : ℝ) * (D (9 * k) : ℝ) ≤ gain := matrix_words_ninth_blocks k N hN
-  have hunit : 1 ≤ gain := by
-    have hpos : 0 < N * D (9 * k) := Nat.mul_pos hNpos (Nat.pow_pos (by decide))
-    have hone : (1 : ℝ) ≤ (N : ℝ) * (D (9 * k) : ℝ) := by exact_mod_cast hpos
-    exact hone.trans hND
+  have hunit : 1 ≤ gain := (show (1 : ℝ) ≤ (N : ℝ) * (D (9 * k) : ℝ) by
+    exact_mod_cast Nat.mul_pos hNpos (Nat.pow_pos (by decide))).trans hND
   have hqueries : (Q : ℝ) * ∑ d ∈ range (k + 1), (alpha (9 * k) d : ℝ) ≤ gain :=
     queries_ninth_blocks k N Q hQ
   have hprefix : (1 : ℝ) ≤ ∑ d ∈ range (k + 1), (alpha (9 * k) d : ℝ) := by
     have h := Finset.single_le_sum (f := fun d => (alpha (9 * k) d : ℝ))
       (fun _ _ => Nat.cast_nonneg _) (show 0 ∈ range (k + 1) by simp)
     simpa only [alpha, Nat.choose_zero_right, pow_zero, Nat.mul_one, Nat.cast_one] using h
-  have hQ' : (Q : ℝ) ≤ gain := by
-    have hstep : (Q : ℝ) ≤ (Q : ℝ) *
-        ∑ d ∈ range (k + 1), (alpha (9 * k) d : ℝ) := by
-      simpa only [mul_one] using mul_le_mul_of_nonneg_left hprefix (Nat.cast_nonneg Q)
-    exact hstep.trans hqueries
+  have hQ' : (Q : ℝ) ≤ gain := (le_mul_of_one_le_right (Nat.cast_nonneg Q) hprefix).trans hqueries
   have henc : (B : ℝ) * (10 : ℝ) ^ (189 * k) ≤ 4 * gain := by
     simpa only [B, gain, mul_assoc, mul_left_comm, mul_comm] using encodings_ninth_blocks k N hN
-  have hspan : (10 : ℝ) ^ (189 * k) ≤ 4 * gain := by
-    have hB' : (1 : ℝ) ≤ B := by exact_mod_cast hB
-    have hstep : (10 : ℝ) ^ (189 * k) ≤ (B : ℝ) * (10 : ℝ) ^ (189 * k) := by
-      simpa only [one_mul] using mul_le_mul_of_nonneg_right hB'
-        (show 0 ≤ (10 : ℝ) ^ (189 * k) by positivity)
-    exact hstep.trans henc
+  have hspan : (10 : ℝ) ^ (189 * k) ≤ 4 * gain :=
+    (le_mul_of_one_le_left (by positivity) (by exact_mod_cast hB)).trans henc
   have htwo : (2 : ℝ) ^ (189 * k) ≤ 4 * gain :=
     (pow_le_pow_left₀ (by norm_num) (by norm_num : (2 : ℝ) ≤ 10) _).trans hspan
   have htables : (B : ℝ) ^ 2 * (C : ℝ) ≤ 32 * ((9 * k : ℕ) + 1 : ℝ) * gain := by
     simpa only [card_tiles, Nat.cast_pow, gain, mul_assoc] using boxes_ninth_blocks_of_size k N hN
-  have htiles : (B : ℝ) ^ 2 ≤ (B : ℝ) ^ 2 * (C : ℝ) := by
-    simpa only [mul_one] using mul_le_mul_of_nonneg_left hC (sq_nonneg (B : ℝ))
+  have htiles : (B : ℝ) ^ 2 ≤ (B : ℝ) ^ 2 * (C : ℝ) := le_mul_of_one_le_right (sq_nonneg _) hC
   have hnonneg : 0 ≤ gain := by dsimp only [gain]; positivity
   have hm : (0 : ℝ) ≤ (9 * k : ℕ) := Nat.cast_nonneg _
   push_cast

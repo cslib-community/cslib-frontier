@@ -104,14 +104,12 @@ private theorem rounded_defect_le
   intro ξ δ F
   have hx : oddExpect (fun x _ => φ.norm (P false x - B false x) ^ 2) ≤ r + c := by
     rw [oddExpect_fst]
-    have h := masked_expect_le_uniform_of_nonneg
-      (fun x => φ.norm (P false x - B false x) ^ 2) (fun _ => sq_nonneg _)
-    linarith only [h, hround false]
+    linarith only [hround false, masked_expect_le_uniform_of_nonneg
+      (fun x => φ.norm (P false x - B false x) ^ 2) fun _ => sq_nonneg _]
   have hz : oddExpect (fun _ z => φ.norm (P true z - B true z) ^ 2) ≤ r + c := by
     rw [oddExpect_snd]
-    have h := masked_expect_le_uniform_of_nonneg
-      (fun z => φ.norm (P true z - B true z) ^ 2) (fun _ => sq_nonneg _)
-    linarith only [h, hround true]
+    linarith only [hround true, masked_expect_le_uniform_of_nonneg
+      (fun z => φ.norm (P true z - B true z) ^ 2) fun _ => sq_nonneg _]
   have htransfer :
       oddExpect (fun x z => φ.norm (P false x * P true z + P true z * P false x) ^ 2) ≤
         9 * (2 * r + 2 * c + a) := by
@@ -160,8 +158,7 @@ private theorem basis_anticomm_oddExpect_le
     expect_nonneg fun p _ => sq_nonneg _
   refine (mul_le_mul_of_nonneg_right dens_oddPairs_le_half hnonneg).trans
     ((mul_le_mul_of_nonneg_left h (by norm_num : 0 ≤ (1 / 2 : ℝ))).trans ?_)
-  have hconst := mul_le_mul_of_nonneg_left hac (show 0 ≤ 2 * chshAnticommConst by
-    exact mul_nonneg (by norm_num) chshAnticommConst_nonneg)
+  have hconst := mul_le_mul_of_nonneg_left hac (mul_nonneg zero_le_two chshAnticommConst_nonneg)
   linarith only [hcons, hconst]
 
 omit [Nonempty (Fin n)] in
@@ -250,8 +247,8 @@ private theorem basis_cross_distance_le
   have h := expect_norm_pauliBraidingBasisObservable_sub_sq_le
     TwoProverGame.chsh id (fun _ => id) b T
   change (𝔼 x, T.state.norm (A x - B x) ^ 2) ≤ _ at h
-  have hd0 : 0 ≤ ((oddPairs (Fin n)).dens : ℝ) := by positivity
-  have hmul := mul_le_mul_of_nonneg_left hcons (mul_nonneg (by norm_num : 0 ≤ (896 : ℝ)) hd0)
+  have hmul := mul_le_mul_of_nonneg_left hcons
+    (by positivity : 0 ≤ 896 * ((oddPairs (Fin n)).dens : ℝ))
   have hhalf := mul_le_mul_of_nonneg_right (dens_oddPairs_le_half (ι := Fin n)) hε
   have hcap := mul_le_mul_of_nonneg_left hhalf (by norm_num : 0 ≤ (896 : ℝ))
   linarith only [h, hmul, hlin, hcap]
@@ -311,9 +308,7 @@ theorem exists_local_pauliFamily_of_pauliBraidingBranchScores
     change (branch 0).quantumWinProb S ≤ 1 at hm
     linarith only [hm, hlin]
   have hlin' : 1 - (branch 0).commutingWinProb T ≤ ε := by
-    dsimp only [T]
-    rw [SeededGame.commutingWinProb_toCommuting]
-    linarith only [hlin]
+    linarith only [hlin, (branch 0).commutingWinProb_toCommuting S]
   have hcons' : 1 - (branch 2).commutingWinProb T ≤ ε := by
     simpa only [T, SeededGame.commutingWinProb_toCommuting] using hcons
   have hac' : Real.cos (π / 8) ^ 2 - (branch 1).commutingWinProb T ≤ ε := by
@@ -326,16 +321,11 @@ theorem exists_local_pauliFamily_of_pauliBraidingBranchScores
     Unitary.map_mem _ ((hQ b).charObs_mem_unitary x)
   have hUV (b b' : Bool) (x y : Fin n → Bool) : Commute (U b x) (V b' y) :=
     commute_kroneckerOne_oneKronecker _ _
-  have hUB (b b' : Bool) (x y : Fin n → Bool) : Commute (U b x) (B b' y) := by
-    apply commute_average_basisObservable
-    intro q a
-    change Commute (kroneckerOne _) (oneKronecker ((S.bob q).effect a))
-    exact commute_kroneckerOne_oneKronecker _ _
-  have hVA (b b' : Bool) (x y : Fin n → Bool) : Commute (V b x) (A b' y) := by
-    apply commute_average_basisObservable
-    intro q a
-    change Commute (oneKronecker _) (kroneckerOne ((S.alice q).effect a))
-    exact (commute_kroneckerOne_oneKronecker _ _).symm
+  have hUB (b b' : Bool) (x y : Fin n → Bool) : Commute (U b x) (B b' y) :=
+    commute_average_basisObservable _ _ _ _ fun _ _ => commute_kroneckerOne_oneKronecker _ _
+  have hVA (b b' : Bool) (x y : Fin n → Bool) : Commute (V b x) (A b' y) :=
+    commute_average_basisObservable _ _ _ _ fun _ _ =>
+      (commute_kroneckerOne_oneKronecker _ _).symm
   have hBA (b : Bool) : 𝔼 x, T.state.norm (B b x - A b x) ^ 2 ≤ c :=
     (expect_sq_distance_comm T.state (B b) (A b)).le.trans (hAB b)
   have hUD (b : Bool) :=
@@ -421,32 +411,26 @@ private theorem quantum_branch_deficits_le
   intro branch
   let T := S.toCommuting
   let upper (i : Fin 3) := if i = 1 then Real.cos (π / 8) ^ 2 else 1
-  have hscore (i : Fin 3) : (branch i).answersWinProb T.answers = (branch i).quantumWinProb S :=
-    (branch i).commutingWinProb_toCommuting S
   have hupper (i : Fin 3) : (branch i).answersWinProb T.answers ≤ upper i := by
-    by_cases hi : i = 1
-    · subst i
-      exact commutingWinProb_pauliBraidingAnticommutation_le T
-    · simp only [upper, hi, ite_false]
-      exact (branch i).answersWinProb_le_one _
+    rcases eq_or_ne i 1 with rfl | hi
+    · exact commutingWinProb_pauliBraidingAnticommutation_le T
+    · simpa only [upper, hi, ite_false] using (branch i).answersWinProb_le_one _
   have hmean : (∑ i, upper i) / 3 = (2 + Real.cos (π / 8) ^ 2) / 3 := by
-    rw [Fin.sum_univ_three]
-    simp only [upper, Fin.reduceEq, ite_true, ite_false]
+    simp only [Fin.sum_univ_three, upper, Fin.reduceEq, ite_true, ite_false]
     ring
   have hfull : (∑ i, upper i) / 3 - ε ≤
-      (pauliBraidingGame n TwoProverGame.chsh id (fun _ => id)).answersWinProb T.answers := by
-    rw [hmean]
-    exact (hwin.trans_eq ((pauliBraidingGame n TwoProverGame.chsh id
-      (fun _ => id)).commutingWinProb_toCommuting S).symm)
-  have hδ (i : Fin 3) : upper i - (branch i).quantumWinProb S ≤ 3 * ε := by
-    rw [← hscore]
-    exact pauliBraidingBranch_deficit_le TwoProverGame.chsh id (fun _ => id) T.answers
-      upper hupper hfull i
+      (pauliBraidingGame n TwoProverGame.chsh id (fun _ => id)).answersWinProb T.answers :=
+    hmean.symm ▸ hwin.trans_eq ((pauliBraidingGame n TwoProverGame.chsh id
+      (fun _ => id)).commutingWinProb_toCommuting S).symm
+  have hδ (i : Fin 3) : upper i - (branch i).quantumWinProb S ≤ 3 * ε :=
+    ((branch i).commutingWinProb_toCommuting S) ▸
+      pauliBraidingBranch_deficit_le TwoProverGame.chsh id (fun _ => id) T.answers
+        upper hupper hfull i
+  refine ⟨?_, by simpa only [upper, Fin.reduceEq, ite_false] using hδ 2,
+    by simpa only [upper, ite_true] using hδ 1⟩
   have hzero := hδ 0
   simp only [upper, Fin.reduceEq, ite_false] at hzero
-  refine ⟨by linarith only [hzero], ?_, ?_⟩
-  · simpa only [upper, Fin.reduceEq, ite_false] using hδ 2
-  · simpa only [upper, ite_true, eq_self] using hδ 1
+  linarith only [hzero]
 
 /-- Near the mean of the branch upper bounds, a projective-basis tensor strategy admits
 local isometries compressing the rounded products and intertwining the individual
