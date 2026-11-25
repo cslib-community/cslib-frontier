@@ -167,12 +167,7 @@ theorem refutableInDegree_two_pigeonhole (h : n < m) :
       · rw [coe_pair, Set.insert_subset_iff, Set.singleton_subset_iff]
         exact ⟨X_mem_cnfIneqs _ _, holePoly_mem_cnfIneqs hii' j⟩
     · simp [phpSummand]
-  · rcases k with i | j | ⟨j, i, i'⟩ | -
-    · simp [phpSummand]
-    · simp [phpSummand]
-    · simp only [phpSummand]
-      split_ifs <;> simp
-    · simp [phpSummand]
+  · rcases k with i | j | ⟨j, i, i'⟩ | - <;> simp only [phpSummand] <;> (try split_ifs) <;> simp
   · rcases k with i | j | ⟨j, i, i'⟩ | -
     · simp only [phpSummand, Summand.degree_def, totalDegree_one, mul_zero, sum_singleton,
         zero_add]
