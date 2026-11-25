@@ -55,16 +55,15 @@ theorem Literal.ofDIMACS_relabelInt (g : ℕ → ℕ) (i : Int) :
     Literal.ofDIMACS (relabelDIMACS g i) = (Literal.ofDIMACS i).map (Prod.map g id) := by
   unfold relabelDIMACS Literal.ofDIMACS
   by_cases hp : 0 < i
-  · simp only [hp, ite_true, Option.map_some]
-    have : (0 : Int) < ((g (i.natAbs - 1) + 1 : ℕ) : Int) := by omega
-    simp only [this, ite_true, Int.natAbs_natCast, Nat.add_sub_cancel, Prod.map]
+  · simp only [hp, ite_true, Option.map_some,
+      show (0 : Int) < ((g (i.natAbs - 1) + 1 : ℕ) : Int) by omega,
+      Int.natAbs_natCast, Nat.add_sub_cancel, Prod.map]
     rfl
   · by_cases hn : i < 0
-    · simp only [hp, hn, ite_false, ite_true, Option.map_some]
-      have h1 : ¬ (0 : Int) < -((g (i.natAbs - 1) + 1 : ℕ) : Int) := by omega
-      have h2 : -((g (i.natAbs - 1) + 1 : ℕ) : Int) < 0 := by omega
-      simp only [h1, h2, ite_false, ite_true, Int.natAbs_neg, Int.natAbs_natCast,
-        Nat.add_sub_cancel, Prod.map]
+    · simp only [hp, hn, ite_false, ite_true, Option.map_some,
+        show ¬ (0 : Int) < -((g (i.natAbs - 1) + 1 : ℕ) : Int) by omega,
+        show -((g (i.natAbs - 1) + 1 : ℕ) : Int) < 0 by omega,
+        Int.natAbs_neg, Int.natAbs_natCast, Nat.add_sub_cancel, Prod.map]
       rfl
     · simp [hp, hn]
 
@@ -84,10 +83,8 @@ theorem Literal.negate_prodMap (l : Literal ℕ) :
 theorem contains_map_prodMap (hg : Function.Injective g) (trail : List (Literal ℕ))
     (l : Literal ℕ) :
     (trail.map (Prod.map g id)).contains (Prod.map g id l) = trail.contains l := by
-  have hinj : Function.Injective (Prod.map g id : Literal ℕ → Literal ℕ) :=
-    hg.prodMap Function.injective_id
   simp only [List.contains_eq_mem, List.mem_map, decide_eq_decide]
-  exact ⟨fun ⟨a, ha, he⟩ => hinj he ▸ ha, fun h => ⟨l, h, rfl⟩⟩
+  exact ⟨fun ⟨_, ha, he⟩ => (hg.prodMap Function.injective_id) he ▸ ha, fun h => ⟨l, h, rfl⟩⟩
 
 /-- Unit propagation along hints is unchanged by an injective renaming of the database and the
 starting literals. -/
@@ -105,23 +102,15 @@ theorem CNF.propagateHints_relabel (hg : Function.Injective g) (db : List (ℕ �
     cases hf : db.find? (·.1 == h) with
     | none => rfl
     | some e =>
-      simp only [Option.map_some]
-      have hfilter : (e.2.relabel g).filter
-          (fun l => !(trail.map (Prod.map g id)).contains (Std.Sat.Literal.negate l)) =
-          (e.2.filter fun l => !trail.contains (Std.Sat.Literal.negate l)).map
-            (Prod.map g id) := by
-        simp only [Clause.relabel, List.filter_map, Function.comp_def, Literal.negate_prodMap,
-          contains_map_prodMap hg]
-      simp only [Clause.residual, hfilter]
+      simp only [Option.map_some, Clause.residual, Clause.relabel, List.filter_map,
+        Function.comp_def, Literal.negate_prodMap, contains_map_prodMap hg]
       cases e.2.filter fun l => !trail.contains (Std.Sat.Literal.negate l) with
       | nil => rfl
       | cons l ls =>
         simp only [List.map_cons]
         have hall : (ls.map (Prod.map g id)).all (· == Prod.map g id l) = ls.all (· == l) := by
           simp only [List.all_map, Function.comp_def]
-          congr 1
-          funext a
-          exact Bool.eq_iff_iff.2 (by simp [hinj.eq_iff])
+          exact congrArg ls.all (funext fun _ => Bool.eq_iff_iff.2 (by simp [hinj.eq_iff]))
         rw [hall]
         cases ls.all (· == l)
         · rfl
@@ -144,8 +133,7 @@ theorem CNF.checkLRATAux_relabel (hg : Function.Injective g) (db : List (ℕ × 
           ((Clause.ofDIMACS c.toList).map Std.Sat.Literal.negate).map (Prod.map g id) := by
         simp [Clause.relabel, Function.comp_def, Literal.negate_prodMap]
       rw [htrail, CNF.propagateHints_relabel hg]
-      congr 1
-      exact ih ((i, Clause.ofDIMACS c.toList) :: db)
+      exact congrArg _ (ih ((i, Clause.ofDIMACS c.toList) :: db))
     | addRat => rfl
     | del ids =>
       simp only [List.map_cons, relabelAction, CNF.checkLRATAux, List.filter_map,
@@ -159,10 +147,10 @@ theorem CNF.checkLRAT_relabel (hg : Function.Injective g) (φ : CNF ℕ)
     (cert : Array LRAT.IntAction) :
     (φ.relabel g).checkLRAT (cert.map (relabelAction g)) = φ.checkLRAT cert := by
   unfold CNF.checkLRAT CNF.lratDB
-  have : (CNF.relabel g φ).zipIdx.map (fun e => (e.2 + 1, e.1)) =
+  have hdb : (CNF.relabel g φ).zipIdx.map (fun e => (e.2 + 1, e.1)) =
       (φ.zipIdx.map fun e => (e.2 + 1, e.1)).map fun e => (e.1, e.2.relabel g) := by
     simp [CNF.relabel, List.zipIdx_map, Function.comp_def]
-  rw [this, Array.toList_map]
+  rw [hdb, Array.toList_map]
   exact CNF.checkLRATAux_relabel hg _ _
 
 end Relabel

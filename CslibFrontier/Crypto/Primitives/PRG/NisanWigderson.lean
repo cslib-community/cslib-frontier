@@ -129,9 +129,8 @@ theorem Design.restrict_apply (i : Fin m) (z : Fin ℓ → α) (k : Fin n) :
 theorem Design.extend_apply_orderEmbOfFin (i : Fin m) (x : Fin n → α) (w : Fin ℓ → α)
     (k : Fin n) : D.extend i x w ((D.block i).orderEmbOfFin (D.card_block i) k) = x k := by
   rw [Design.extend, dite_eq_left (orderEmbOfFin_mem _ _ k)]
-  congr
-  rw [OrderIso.symm_apply_eq]
-  exact Subtype.ext (coe_orderIsoOfFin_apply _ _ k).symm
+  exact congrArg x
+    ((OrderIso.symm_apply_eq _).2 (Subtype.ext (coe_orderIsoOfFin_apply _ _ k).symm))
 
 theorem Design.extend_apply_of_notMem (i : Fin m) (x : Fin n → α) (w : Fin ℓ → α) {k : Fin ℓ}
     (hk : k ∉ D.block i) : D.extend i x w k = w k :=
@@ -141,7 +140,7 @@ theorem Design.extend_apply_of_notMem (i : Fin m) (x : Fin n → α) (w : Fin �
 @[simp]
 theorem Design.restrict_extend (i : Fin m) (x : Fin n → α) (w : Fin ℓ → α) :
     D.restrict i (D.extend i x w) = x := by
-  ext k
+  ext
   simp
 
 /-- Overwriting the `i`-th block of `z` by its own bits gives `z`. -/
@@ -157,9 +156,7 @@ theorem Design.extend_restrict (i : Fin m) (z : Fin ℓ → α) : D.extend i (D.
 theorem Design.extend_extend (i : Fin m) (x y : Fin n → α) (w : Fin ℓ → α) :
     D.extend i y (D.extend i x w) = D.extend i y w := by
   ext k
-  by_cases hk : k ∈ D.block i
-  · simp only [Design.extend, dite_eq_left hk]
-  · simp only [Design.extend, dite_eq_right hk]
+  by_cases hk : k ∈ D.block i <;> simp [Design.extend, hk]
 
 /-- The positions of the `i`-th block lying in the `j`-th block are as many as the elements the
 two blocks share. -/
@@ -169,13 +166,10 @@ theorem Design.card_overlap (i j : Fin m) : #(D.overlap i j) = #(D.block i ∩ D
   ext p
   simp only [Design.overlap, mem_map, mem_filter, mem_univ, true_and, mem_inter,
     RelEmbedding.coe_toEmbedding]
-  constructor
-  · rintro ⟨k, hk, rfl⟩
-    exact ⟨orderEmbOfFin_mem _ _ k, hk⟩
-  · rintro ⟨hi, hj⟩
-    obtain ⟨k, rfl⟩ : p ∈ Set.range ((D.block i).orderEmbOfFin (D.card_block i)) := by
-      simpa using hi
-    exact ⟨k, hj, rfl⟩
+  refine ⟨fun ⟨k, hk, h⟩ => h ▸ ⟨orderEmbOfFin_mem _ _ k, hk⟩, fun ⟨hi, hj⟩ => ?_⟩
+  obtain ⟨k, rfl⟩ : p ∈ Set.range ((D.block i).orderEmbOfFin (D.card_block i)) := by
+    simpa using hi
+  exact ⟨k, hj, rfl⟩
 
 /-- For distinct blocks, at most `a` positions of the `i`-th block lie in the `j`-th block. -/
 theorem Design.card_overlap_le {i j : Fin m} (hij : i ≠ j) : #(D.overlap i j) ≤ a :=
@@ -189,18 +183,16 @@ theorem Design.dependsOn_restrict_extend (i j : Fin m) (w : Fin ℓ → α) :
   ext k
   simp only [Design.restrict_apply, Design.extend]
   split_ifs with h
-  · refine hxy _ ?_
-    simp only [Design.overlap, coe_filter, mem_univ, true_and, Set.mem_ofPred_eq,
-      orderEmbOfFin_orderIsoOfFin_symm, orderEmbOfFin_mem]
+  · exact hxy _ (by
+      simp only [Design.overlap, coe_filter, mem_univ, true_and, Set.mem_ofPred_eq,
+        orderEmbOfFin_orderIsoOfFin_symm, orderEmbOfFin_mem])
   · rfl
 
 /-- The map `(w, x) ↦ (D.extend i x w, D.restrict i w)`, swapping the `i`-th block of `w` with
 `x`, is an involution. -/
 private theorem Design.involutive_extend_restrict (i : Fin m) :
     Function.Involutive fun p : (Fin ℓ → α) × (Fin n → α) =>
-      (D.extend i p.2 p.1, D.restrict i p.1) := by
-  rintro ⟨w, x⟩
-  simp
+      (D.extend i p.2 p.1, D.restrict i p.1) := fun ⟨_, _⟩ => by simp
 
 end Design
 
@@ -260,8 +252,7 @@ theorem predictionExperiment_generator (D : Design ℓ n a m) (f : (Fin n → Bo
   simp only [Generator.predictionExperiment_eq_bind, Generator.outputDist, monad_bind_eq_bind,
     PMF.bind_map]
   rw [D.uniformOfFintype_bind_eq i]
-  simp only [Function.comp_apply, generator_apply, Design.restrict_extend]
-  rfl
+  simp only [Function.comp_apply, generator_apply, Design.restrict_extend]; rfl
 
 /-- **Hardwiring.** Some choice of the seed bits outside the `i`-th block keeps the probability
 that a predictor guesses bit `i` of the generator correctly. -/

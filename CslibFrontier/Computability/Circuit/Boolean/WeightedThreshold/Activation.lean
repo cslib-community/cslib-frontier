@@ -98,12 +98,9 @@ private theorem sum_activationLineWeight_mul (line : Line activationSignature n 
     ∑ a, line.op.weight a * values (line.wires a) =
       ∑ wire, activationLineWeight line wire * values wire := by
   rw [← sum_fiberwise univ line.wires (fun a => line.op.weight a * values (line.wires a))]
-  apply sum_congr rfl
-  intro wire _
+  refine sum_congr rfl fun wire _ => ?_
   rw [activationLineWeight, sum_mul]
-  apply sum_congr rfl
-  intro a ha
-  rw [(mem_filter.mp ha).2]
+  exact sum_congr rfl fun a ha => by rw [(mem_filter.mp ha).2]
 
 /-- An activation line's value splits into its aggregated input and gate contributions. -/
 theorem activationLine_eval_eq (line : Line activationSignature n g)
@@ -113,10 +110,9 @@ theorem activationLine_eval_eq (line : Line activationSignature n g)
       ∑ j, activationLineWeight line (.gate j) * (z j).toNat) := by
   unfold Line.eval activationInterpretation
   dsimp only [Function.comp_apply]
-  congr 1
-  rw [sum_activationLineWeight_mul line (fun wire => (Wire.elim x z wire).toNat)]
-  rw [← (Wire.equiv n g).symm.sum_comp (fun wire =>
-    activationLineWeight line wire * ((Wire.elim x z wire).toNat : ℝ)), Fintype.sum_sum_type]
+  rw [sum_activationLineWeight_mul line (fun wire => (Wire.elim x z wire).toNat),
+    ← (Wire.equiv n g).symm.sum_comp (fun wire =>
+      activationLineWeight line wire * ((Wire.elim x z wire).toNat : ℝ)), Fintype.sum_sum_type]
   rfl
 
 /-- The direct coefficient of an original input in an activation-program gate. -/
@@ -142,9 +138,8 @@ theorem eval_activationGate_eq (p : Program activationSignature n g)
 private theorem activationGateWeight_eq_zero_of_le (p : Program activationSignature n g)
     (gate prior : Fin g) (h : gate ≤ prior) : activationGateWeight p gate prior = 0 := by
   unfold activationGateWeight activationLineWeight
-  apply sum_eq_zero
-  intro a ha
-  exact (not_lt_of_ge h (p.lt_of_lines_wires_eq_gate gate a prior (mem_filter.mp ha).2)).elim
+  exact sum_eq_zero fun a ha =>
+    (not_lt_of_ge h (p.lt_of_lines_wires_eq_gate gate a prior (mem_filter.mp ha).2)).elim
 
 /-- The gates of an activation program with a nonzero aggregated direct-input coefficient. -/
 noncomputable def activationInputGates (p : Program activationSignature n g) : Finset (Fin g) :=
@@ -192,22 +187,19 @@ private theorem masked_activation_step (p : Program activationSignature n g)
   classical
   by_cases hgate : gate ∈ activationInputGates p
   · simp only [hgate, ite_true, BlockKind.Step]
-    refine ⟨activationInputWeight p gate,
+    exact ⟨activationInputWeight p gate,
       fun z t => Function.update z gate ((p.lines gate).op.activate
-        (t + ∑ j, activationGateWeight p gate j * (z j).toNat)), ?_, ?_⟩
-    · intro z
-      exact ((hT gate hgate).comp_monotone (monotone_id.add_const _)).comp
-        (Function.update z gate)
-    · exact masked_activation_succ p gate
+        (t + ∑ j, activationGateWeight p gate j * (z j).toNat)),
+      fun z => ((hT gate hgate).comp_monotone (monotone_id.add_const _)).comp
+        (Function.update z gate),
+      masked_activation_succ p gate⟩
   · simp only [hgate, ite_false, BlockKind.Step]
-    refine ⟨fun _ => 0,
+    exact ⟨fun _ => 0,
       fun z _ => Function.update z gate ((p.lines gate).op.activate
-        (∑ j, activationGateWeight p gate j * (z j).toNat)), ?_, ?_⟩
-    · intro z
-      exact ChangesAtMost.const _
-    · intro x
-      simpa only [activationInputWeight_eq_zero_of_not_mem p hgate, zero_mul, sum_const_zero,
-        zero_add] using masked_activation_succ p gate x
+        (∑ j, activationGateWeight p gate j * (z j).toNat)),
+      fun _ => ChangesAtMost.const _, fun x => by
+        simpa only [activationInputWeight_eq_zero_of_not_mem p hgate, zero_mul, sum_const_zero,
+          zero_add] using masked_activation_succ p gate x⟩
 
 /-- Revealing the gate evaluation of an activation program one gate at a time gives a scalar
 block decomposition with per-gate change bounds `T`. -/
@@ -233,16 +225,14 @@ theorem cost_activationBlockDecomposition (p : Program activationSignature n g)
     (activationBlockDecomposition p readout T hT).cost =
       ∏ j ∈ activationInputGates p, max 1 (4 * T j) := by
   classical
-  simp only [BlockDecomposition.cost, activationBlockDecomposition]
-  rw [← Fin.prod_univ_eq_prod_range]
-  simp only [dite_eq_left, Fin.isLt]
+  simp only [BlockDecomposition.cost, activationBlockDecomposition,
+    ← Fin.prod_univ_eq_prod_range, dite_eq_left, Fin.isLt]
   have hcost (j : Fin g) :
       (BlockKind.oneDim (if j ∈ activationInputGates p then T j else 0)).cost =
         if j ∈ activationInputGates p then max 1 (4 * T j) else 1 := by
     rw [cost_oneDim_eq_max]
-    by_cases h : j ∈ activationInputGates p <;> simp [h]
-  simp only [hcost]
-  rw [Finset.prod_ite_mem, Finset.univ_inter]
+    split_ifs <;> simp
+  simp only [hcost, Finset.prod_ite_mem, Finset.univ_inter]
 
 /-- **C4: mixed activation gate costs.** If an activation program computes `f` through a Boolean
 readout of its gate values, and each input-reading gate `j` has activation changing at most `T j`
@@ -254,9 +244,9 @@ theorem two_pow_lt_of_activations (p : Program activationSignature n g)
     (hreadout : ∀ x, readout (p.eval activationInterpretation x) = f x)
     (hf : ∀ b : Bool, Frontier.RectangleFree {x | f x = b} K) :
     2 ^ n < 4 * K ^ 2 * ∏ j ∈ activationInputGates p, max 1 (4 * T j) := by
-  have h := (activationBlockDecomposition p readout T hT).two_pow_lt_mul_cost
-    (fun b => by simpa only [hreadout] using hf b)
-  simpa only [cost_activationBlockDecomposition] using h
+  simpa only [cost_activationBlockDecomposition] using
+    (activationBlockDecomposition p readout T hT).two_pow_lt_mul_cost
+      fun b => by simpa only [hreadout] using hf b
 
 /-- The C4 mixed-activation bound for a single-output circuit whose output selects a gate. -/
 theorem circuit_two_pow_lt_of_activations (c : Circuit activationSignature n 1)
@@ -268,7 +258,7 @@ theorem circuit_two_pow_lt_of_activations (c : Circuit activationSignature n 1)
     (hf : ∀ b : Bool, Frontier.RectangleFree {x | f x = b} K) :
     2 ^ n < 4 * K ^ 2 * ∏ j ∈ activationInputGates c.program, max 1 (4 * T j) := by
   obtain ⟨gate, hgate⟩ := houtput
-  apply two_pow_lt_of_activations c.program (fun z => z gate) T hT ?_ hf
-  simpa only [Circuit.eval_of_output_eq_gate hgate] using hcomputes
+  exact two_pow_lt_of_activations c.program (fun z => z gate) T hT
+    (by simpa only [Circuit.eval_of_output_eq_gate hgate] using hcomputes) hf
 
 end Cslib.Circuits.Boolean.WeightedThreshold

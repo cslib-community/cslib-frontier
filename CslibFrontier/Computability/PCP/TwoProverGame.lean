@@ -128,15 +128,13 @@ theorem winProb_shared_le_value [Nonempty A] [Nonempty B] {R : Type*} (ρ : PMF 
         {z | G.accepts z.1.1 z.1.2 z.2.1 z.2.2}).toReal ≤ G.value := by
   refine ENNReal.toReal_le_of_le_ofReal G.value_nonneg ?_
   rw [PMF.toOuterMeasure_bind_apply]
-  have hr : ∀ r, (G.questions.map fun q => (q, ha q.1 r, hb q.2 r)).toOuterMeasure
-      {z | G.accepts z.1.1 z.1.2 z.2.1 z.2.2} ≤ ENNReal.ofReal G.value := by
-    intro r
-    rw [PMF.toOuterMeasure_map_apply,
-      ← ENNReal.ofReal_toReal (Cslib.Probability.PMF.toOuterMeasure_ne_top _ _)]
-    exact ENNReal.ofReal_le_ofReal (G.winProb_le_value (fun x => ha x r) (fun y => hb y r))
   calc ∑' r, ρ r * (G.questions.map fun q => (q, ha q.1 r, hb q.2 r)).toOuterMeasure
         {z | G.accepts z.1.1 z.1.2 z.2.1 z.2.2}
-      ≤ ∑' r, ρ r * ENNReal.ofReal G.value := tsum_le_tsum fun r => by gcongr; exact hr r
+      ≤ ∑' r, ρ r * ENNReal.ofReal G.value := tsum_le_tsum fun r => mul_le_mul_right (by
+          rw [PMF.toOuterMeasure_map_apply,
+            ← ENNReal.ofReal_toReal (Cslib.Probability.PMF.toOuterMeasure_ne_top _ _)]
+          exact ENNReal.ofReal_le_ofReal (G.winProb_le_value (fun x => ha x r) (fun y => hb y r)))
+        (ρ r)
     _ = ENNReal.ofReal G.value := by rw [ENNReal.tsum_mul_right, ρ.tsum_coe, one_mul]
 
 end Finite
@@ -158,8 +156,7 @@ theorem winProb_pow [Finite X] [Finite Y] (n : ℕ) (ha : X → A) (hb : Y → B
   have := Cslib.Probability.PMF.toOuterMeasure_pi_forall (fun _ : Fin n => G.questions)
     fun _ => {q | G.accepts q.1 q.2 (ha q.1) (hb q.2)}
   simp only [Finset.prod_const, Finset.card_univ, Fintype.card_fin] at this
-  rw [← ENNReal.toReal_pow, ← this]
-  rfl
+  rw [← ENNReal.toReal_pow, ← this]; rfl
 
 /-- Answering each coordinate independently with an optimal strategy shows that parallel
 repetition cannot lower the value below `value G ^ n`. -/
@@ -255,14 +252,12 @@ theorem toOuterMeasure_accepts_le_value_add {S T : Type*} [Fintype S] [Fintype T
   have hM : M.map (fun w => (w.1, α w.2.1, β w.2.2)) =
       ρ.bind fun r => G.questions.map fun q => (q, α (fA q.1 r), β (fB q.2 r)) := by
     rw [PMF.map_bind]
-    simp only [PMF.map_comp, Function.comp_def]
-    simp only [← PMF.bind_pure_comp, Function.comp_def]
+    simp only [← PMF.bind_pure_comp, PMF.bind_bind, PMF.pure_bind, Function.comp_def]
     exact PMF.bind_comm _ _ _
   have hshared : (M.toOuterMeasure E).toReal ≤ G.value := by
     have h := G.winProb_shared_le_value ρ (fun x r => α (fA x r)) (fun y r => β (fB y r))
     rwa [← hM, PMF.toOuterMeasure_map_apply] at h
-  have habs := Cslib.Probability.PMF.abs_toOuterMeasure_toReal_sub_le_dist L M E
-  rw [dist_comm] at habs
+  have habs := dist_comm L M ▸ Cslib.Probability.PMF.abs_toOuterMeasure_toReal_sub_le_dist L M E
   linarith [le_abs_self ((L.toOuterMeasure E).toReal - (M.toOuterMeasure E).toReal)]
 
 /-- **Strategy extraction** [Holenstein, proof of Lemma 6.5][Holenstein2009], multiplied out so
@@ -278,13 +273,12 @@ theorem winProbOn_insert_le {n : ℕ} (ha : (Fin n → X) → Fin n → A)
       ε) :
     G.winProbOn ha hb (insert j C) ≤ G.winProbOn ha hb C * (G.value + ε) := by
   have hext := G.toOuterMeasure_accepts_le_value_add hε (fun x => ha x j) (fun y => hb y j)
-  rw [PMF.toOuterMeasure_map_apply] at hext
   have hpre : ((fun (x, y) => ((x j, y j), (x, y))) ⁻¹'
       {((x, y), (s, t)) : (X × Y) × ((Fin n → X) × (Fin n → Y)) |
         G.accepts x y (ha s j) (hb t j)}) = G.winsOn ha hb {j} := by
     ext ⟨x, y⟩
     simp [winsOn]
-  rw [hpre] at hext
+  rw [PMF.toOuterMeasure_map_apply, hpre] at hext
   rw [winProbOn, winProbOn, Finset.insert_eq, winsOn_union, Set.inter_comm,
     ← Cslib.Probability.PMF.toOuterMeasure_filter_mul_eq_inter _ _ _ hC, ENNReal.toReal_mul,
     mul_comm]
