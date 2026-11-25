@@ -6527,6 +6527,9 @@ public import CslibFrontier.Crypto.Computational.SIS.MLKEM.PRFSecurity
 public import CslibFrontier.Crypto.Computational.SIS.MLKEM.Security
 public import CslibFrontier.Crypto.Computational.SIS.MLKEM.SeedExpansion
 public import CslibFrontier.Crypto.Computational.SIS.MR07Core
+public import CslibFrontier.Crypto.Computational.SIS.MR07Reduction
+public import CslibFrontier.Crypto.Computational.SIS.MR07Reduction.IncGDD
+public import CslibFrontier.Crypto.Computational.SIS.MR07Reduction.Shorten
 public import CslibFrontier.Crypto.Computational.SIS.MR07Samplers
 public import CslibFrontier.Crypto.Computational.SIS.Module
 public import CslibFrontier.Crypto.Computational.SIS.Module.ApproximateSampling
