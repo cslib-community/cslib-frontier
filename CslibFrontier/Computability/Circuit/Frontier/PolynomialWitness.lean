@@ -724,12 +724,8 @@ private theorem card_filter_evalPoly_mul_two_pow {n p s : ℕ} (X : Set (Fin n))
   let emb₁ : X ↪ Fin n := ⟨Subtype.val, Subtype.val_injective⟩
   let emb₂ : ↥Xᶜ ↪ Fin n := ⟨Subtype.val, Subtype.val_injective⟩
   let μFun (q : Fin s × Fin s) : PolyIdx n (2 * p) :=
-    ⟨(J₁ q.1).1.map emb₁ ∪ (J₂ q.2).1.map emb₂, by
-      calc #((J₁ q.1).1.map emb₁ ∪ (J₂ q.2).1.map emb₂)
-          ≤ #((J₁ q.1).1.map emb₁) + #((J₂ q.2).1.map emb₂) := card_union_le _ _
-        _ = #(J₁ q.1).1 + #(J₂ q.2).1 := by rw [card_map, card_map]
-        _ ≤ p + p := Nat.add_le_add (J₁ q.1).2 (J₂ q.2).2
-        _ = 2 * p := (two_mul p).symm⟩
+    ⟨(J₁ q.1).1.map emb₁ ∪ (J₂ q.2).1.map emb₂, (card_union_le _ _).trans <| by
+      rw [card_map, card_map, two_mul]; exact Nat.add_le_add (J₁ q.1).2 (J₂ q.2).2⟩
   have hμ_inj : Function.Injective μFun := by
     intro q₁ q₂ h
     have hval := congrArg Subtype.val h
@@ -771,12 +767,10 @@ private theorem card_filter_evalPoly_mul_two_pow {n p s : ℕ} (X : Set (Fin n))
       change (BitString.monomial (ZMod 2) ((J₁ j₁).1.map emb₁ ∪ (J₂ j₂).1.map emb₂)) (z (i, k)) = _
       rw [← BitString.monomial_mul]
       rfl
-    have hzX : ∀ x : X, z (i, k) x.1 = a i x := fun x => by
-      change (eCut (z (i, k))).1 x = a i x
-      simp only [z, Equiv.apply_symm_apply]
-    have hzXc : ∀ x : ↥Xᶜ, z (i, k) x.1 = b k x := fun x => by
-      change (eCut (z (i, k))).2 x = b k x
-      simp only [z, Equiv.apply_symm_apply]
+    have hzX (x : X) : z (i, k) x.1 = a i x :=
+      congrFun (congrArg Prod.fst (eCut.apply_symm_apply (a i, b k))) x
+    have hzXc (x : ↥Xᶜ) : z (i, k) x.1 = b k x :=
+      congrFun (congrArg Prod.snd (eCut.apply_symm_apply (a i, b k))) x
     rw [hmul]
     congr 1
     · simp only [BitString.monomial, Finset.prod_map, emb₁, Function.Embedding.coeFn_mk, M₁]
@@ -789,102 +783,37 @@ private theorem card_filter_evalPoly_mul_two_pow {n p s : ℕ} (X : Set (Fin n))
   let eIdx : (Fin s × Fin s) ⊕ Rest ≃ PolyIdx n (2 * p) :=
     (Equiv.sumCongr eRange (Equiv.refl Rest)).trans (Equiv.sumCompl (· ∈ Set.range μ))
   let eCoeff : ((Fin s × Fin s → ZMod 2) × (Rest → ZMod 2)) ≃ (PolyIdx n (2 * p) → ZMod 2) :=
-    { toFun := fun p0 S =>
-        if h : S ∈ Set.range μ then p0.1 (eRange.symm ⟨S, h⟩) else p0.2 ⟨S, h⟩
-      invFun := fun c => (fun q => c (μ q), fun S => c S.1)
-      left_inv := fun ⟨C, cr⟩ => by
-        ext q
-        · simp only [Set.mem_range_self, ↓reduceDIte]
-          have hsymm : eRange.symm ⟨μ q, Set.mem_range_self q⟩ = q :=
-            eRange.symm_apply_apply q
-          rw [hsymm]
-        · simp only [q.2, ↓reduceDIte]
-          exact congrArg cr (Subtype.ext rfl)
-      right_inv := fun c => by
-        funext S
-        by_cases h : S ∈ Set.range μ
-        · simp only [h, ↓reduceDIte]
-          have happ : μ (eRange.symm ⟨S, h⟩) = S :=
-            congrArg Subtype.val (eRange.apply_symm_apply ⟨S, h⟩)
-          rw [happ]
-        · simp only [h, ↓reduceDIte] }
+    (Equiv.sumArrowEquivProdArrow _ _ _).symm.trans (eIdx.arrowCongr (Equiv.refl _))
   have heval_split (C : Fin s × Fin s → ZMod 2) (cr : Rest → ZMod 2) (q : Fin s × Fin s) :
       evalPoly (eCoeff (C, cr)) (z q) =
         (∑ S : Rest, cr S * BitString.monomial (ZMod 2) S.1.1 (z q)) +
           ∑ j₁ : Fin s, ∑ j₂ : Fin s, M₁ q.1 j₁ * C (j₁, j₂) * M₂ q.2 j₂ := by
     simp only [evalPoly]
     rw [← eIdx.sum_comp (fun S => eCoeff (C, cr) S * BitString.monomial (ZMod 2) S.1 (z q)),
-      Fintype.sum_sum_type, add_comm]
-    congr 1
-    · refine Finset.sum_congr rfl fun S _ => ?_
-      have h1 : eIdx (Sum.inr S) = S.1 := rfl
-      have h2 : eCoeff (C, cr) S.1 = cr S := by
-        change (if h : S.1 ∈ Set.range μ then C (eRange.symm ⟨S.1, h⟩) else cr ⟨S.1, h⟩) = cr S
-        simp only [S.2, ↓reduceDIte]
-        exact congrArg cr (Subtype.ext rfl)
-      rw [h1, h2]
-    · rw [Fintype.sum_prod_type]
-      refine Finset.sum_congr rfl fun j₁ _ => Finset.sum_congr rfl fun j₂ _ => ?_
-      have h1 : eIdx (Sum.inl (j₁, j₂)) = μ (j₁, j₂) := rfl
-      have h2 : eCoeff (C, cr) (μ (j₁, j₂)) = C (j₁, j₂) := by
-        have hmem : μ (j₁, j₂) ∈ Set.range μ := Set.mem_range_self (j₁, j₂)
-        change (if h : μ (j₁, j₂) ∈ Set.range μ then C (eRange.symm ⟨μ (j₁, j₂), h⟩)
-          else cr ⟨μ (j₁, j₂), h⟩) = C (j₁, j₂)
-        simp only [hmem, ↓reduceDIte]
-        have hsymm : eRange.symm ⟨μ (j₁, j₂), hmem⟩ = (j₁, j₂) :=
-          eRange.symm_apply_apply (j₁, j₂)
-        rw [hsymm]
-      rw [h1, h2, hmon_μ]
-      ring
+      Fintype.sum_sum_type, add_comm, Fintype.sum_prod_type]
+    simp only [eCoeff, Equiv.trans_apply, Equiv.arrowCongr_apply, Function.comp_apply,
+      Equiv.symm_apply_apply, Equiv.refl_apply, Equiv.sumArrowEquivProdArrow_symm_apply_inl,
+      Equiv.sumArrowEquivProdArrow_symm_apply_inr]
+    refine congrArg₂ (· + ·) rfl (sum_congr rfl fun j₁ _ => sum_congr rfl fun j₂ _ => ?_)
+    rw [show eIdx (Sum.inl (j₁, j₂)) = μ (j₁, j₂) from rfl, hmon_μ]
+    ring
   have hL_bij := bijective_kronecker_bilinear M₁ M₂ ha_rows hb_rows
   have hfiber (cr : Rest → ZMod 2) :
-      #{C : Fin s × Fin s → ZMod 2 | P (fun q => evalPoly (eCoeff (C, cr)) (z q))} =
+      ∑ C : Fin s × Fin s → ZMod 2, ite (P fun q => evalPoly (eCoeff (C, cr)) (z q)) 1 0 =
         #{T : Fin s × Fin s → ZMod 2 | P T} := by
     let R₀ (q : Fin s × Fin s) : ZMod 2 :=
       ∑ S : Rest, cr S * BitString.monomial (ZMod 2) S.1.1 (z q)
     let Φ (C : Fin s × Fin s → ZMod 2) : Fin s × Fin s → ZMod 2 :=
       R₀ + fun q => ∑ j₁ : Fin s, ∑ j₂ : Fin s, M₁ q.1 j₁ * C (j₁, j₂) * M₂ q.2 j₂
-    have hΦ_eq : ∀ C, (fun q => evalPoly (eCoeff (C, cr)) (z q)) = Φ C := fun C =>
-      funext fun q => heval_split C cr q
-    have hΦ_bij : Function.Bijective Φ := (Equiv.addLeft R₀).bijective.comp hL_bij
-    let eΦ := Equiv.ofBijective Φ hΦ_bij
-    rw [← Fintype.card_subtype, ← Fintype.card_subtype]
-    exact Fintype.card_congr
-      { toFun := fun C => ⟨eΦ C.1, by change P (Φ C.1); rw [← hΦ_eq C.1]; exact C.2⟩
-        invFun := fun T => ⟨eΦ.symm T.1, by
-          rw [hΦ_eq]; change P (eΦ (eΦ.symm T.1)); rw [eΦ.apply_symm_apply]; exact T.2⟩
-        left_inv := fun C => Subtype.ext (eΦ.symm_apply_apply C.1)
-        right_inv := fun T => Subtype.ext (eΦ.apply_symm_apply T.1) }
+    let eΦ := Equiv.ofBijective Φ ((Equiv.addLeft R₀).bijective.comp hL_bij)
+    rw [card_filter, ← eΦ.sum_comp fun T => ite (P T) 1 0]
+    exact sum_congr rfl fun C _ =>
+      congrArg (fun T => ite (P T) 1 0) (funext (heval_split C cr))
   have hcount_pair : #{c : PolyIdx n (2 * p) → ZMod 2 | P (fun q => evalPoly c (z q))} =
       2 ^ Fintype.card Rest * #{T : Fin s × Fin s → ZMod 2 | P T} := by
-    have hbij : #{c : PolyIdx n (2 * p) → ZMod 2 | P (fun q => evalPoly c (z q))} =
-        #{p0 : (Fin s × Fin s → ZMod 2) × (Rest → ZMod 2) |
-          P (fun q => evalPoly (eCoeff p0) (z q))} := by
-      rw [← Fintype.card_subtype, ← Fintype.card_subtype]
-      exact Fintype.card_congr
-        { toFun := fun c => ⟨eCoeff.symm c.1, by simpa only [Equiv.apply_symm_apply] using c.2⟩
-          invFun := fun p0 => ⟨eCoeff p0.1, p0.2⟩
-          left_inv := fun c => Subtype.ext (eCoeff.apply_symm_apply c.1)
-          right_inv := fun p0 => Subtype.ext (eCoeff.symm_apply_apply p0.1) }
-    set Sig := (Finset.univ : Finset (Rest → ZMod 2)).sigma
-      fun cr => ({C : Fin s × Fin s → ZMod 2 | P (fun q => evalPoly (eCoeff (C, cr)) (z q))} :
-        Finset _)
-    have hprod_sig : #{p0 : (Fin s × Fin s → ZMod 2) × (Rest → ZMod 2) |
-        P (fun q => evalPoly (eCoeff p0) (z q))} = #Sig := by
-      have h1 : #{p0 : (Fin s × Fin s → ZMod 2) × (Rest → ZMod 2) |
-          P (fun q => evalPoly (eCoeff p0) (z q))} =
-          Fintype.card {p0 : (Fin s × Fin s → ZMod 2) × (Rest → ZMod 2) //
-            P (fun q => evalPoly (eCoeff p0) (z q))} := (Fintype.card_subtype _).symm
-      have h2 : #Sig = Fintype.card Sig := (Fintype.card_coe Sig).symm
-      rw [h1, h2]
-      exact Fintype.card_congr
-        { toFun := fun p0 => ⟨⟨p0.1.2, p0.1.1⟩, mem_sigma.mpr ⟨Finset.mem_univ _,
-            mem_filter.mpr ⟨Finset.mem_univ _, p0.2⟩⟩⟩
-          invFun := fun x => ⟨(x.1.2, x.1.1), (mem_filter.mp (mem_sigma.mp x.2).2).2⟩
-          left_inv := fun ⟨⟨C, cr⟩, _⟩ => rfl
-          right_inv := fun ⟨⟨cr, C⟩, _⟩ => rfl }
-    rw [hbij, hprod_sig, Finset.card_sigma, Finset.sum_congr rfl fun cr _ => hfiber cr,
-      sum_const, card_univ, Fintype.card_fun, ZMod.card, smul_eq_mul]
+    rw [card_filter, ← eCoeff.sum_comp, Fintype.sum_prod_type_right,
+      Finset.sum_congr rfl fun cr _ => hfiber cr, sum_const, card_univ, Fintype.card_fun,
+      ZMod.card, smul_eq_mul]
   have hcard_idx : Fintype.card (PolyIdx n (2 * p)) = s * s + Fintype.card Rest := by
     have := Fintype.card_congr eIdx
     simpa only [Fintype.card_sum, Fintype.card_prod, Fintype.card_fin] using this.symm
