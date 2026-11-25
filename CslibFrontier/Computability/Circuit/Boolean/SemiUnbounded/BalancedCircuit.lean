@@ -305,7 +305,10 @@ private lemma realCtx_split_at {V : Type*} {stay : V → V → Prop}
           (b' = b ∧ ∃ L : RealTree stay pushPop a a', L.size < C.size) ∨
           (a' = a ∧ ∃ R : RealTree stay pushPop b' b, R.size < C.size)) := by
   induction C with
-  | hole _ _ => intro K h1 hle; simp [RealCtx.size] at hle; omega
+  | hole _ _ =>
+    intro K h1 hle
+    simp [RealCtx.size] at hle
+    omega
   | @pushPop u u' v' v x y h rest ih =>
     intro K h1 hle; simp only [RealCtx.size] at hle ⊢
     by_cases hK : K = 1
@@ -341,7 +344,9 @@ lemma growthBound_pos (k : ℕ) : 1 ≤ growthBound k := by
   induction k with | zero => exact le_rfl | succ k ih => simp only [growthBound]; omega
 
 lemma two_mul_growthBound_le (k : ℕ) : 2 * growthBound k ≤ growthBound (k + 2) := by
-  have := growthBound_pos k; simp only [growthBound]; omega
+  have := growthBound_pos k
+  simp only [growthBound]
+  omega
 
 /-- Every two phases (6 rounds) at least double the covered tree size:
 `2 ^ j ≤ growthBound (2 * j)`. -/
@@ -694,8 +699,12 @@ private lemma eval_orP_orQ_sound :
       ihQ u v x y hq (ihP x y hp), fun u v x y h hT => ?_⟩
     rcases (eval_orQ_succ_iff hr u v x y).mp h with ⟨a, b, h1, h2⟩ | ⟨w, h1, h2⟩ | ⟨w, h1, h2⟩
     · exact ihQ u v a b h1 (ihQ a b x y h2 hT)
-    · exact let ⟨Tl⟩ := ihP u w h1; let ⟨Tr⟩ := ihQ w v x y h2 hT; ⟨.trans Tl Tr⟩
-    · exact let ⟨Tl⟩ := ihQ u w x y h1 hT; let ⟨Tr⟩ := ihP w v h2; ⟨.trans Tl Tr⟩
+    · exact let ⟨Tl⟩ := ihP u w h1
+      let ⟨Tr⟩ := ihQ w v x y h2 hT
+      ⟨.trans Tl Tr⟩
+    · exact let ⟨Tl⟩ := ihQ u w x y h1 hT
+      let ⟨Tr⟩ := ihP w v h2
+      ⟨.trans Tl Tr⟩
 
 /-- **Soundness of `balancedCircuit`**: if the output gate evaluates to `true` (at any round
 count `R`), there exists an accepting vertex `v` and a `RealTree` from `start` to `v`. -/
@@ -720,7 +729,9 @@ private lemma eval_orP_orQ_complete :
         | refl _ => exact (eval_orP_zero_iff _ _).mpr (.inl rfl)
         | stay h => exact (eval_orP_zero_iff _ _).mpr (.inr h)
         | pushPop _ sub =>
-          have := sub.size_pos; simp only [RealTree.size, growthBound] at hsz; omega
+          have := sub.size_pos
+          simp only [RealTree.size, growthBound] at hsz
+          omega
         | trans l r =>
           have := l.size_pos; have := r.size_pos
           simp only [RealTree.size, growthBound] at hsz; omega,

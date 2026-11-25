@@ -85,7 +85,10 @@ private theorem monotoneOn_Ici_zero_of_hasDerivAt {f f' : ℝ → ℝ}
     (fun x hx => (hd x hx).continuousAt.continuousWithinAt)
     (fun x hx => (hd x (by rw [interior_Ici] at hx; exact hx.le)).differentiableAt
       |>.differentiableWithinAt)
-    fun x hx => by rw [interior_Ici] at hx; rw [(hd x hx.le).deriv]; exact hnn x hx
+    fun x hx => by
+      rw [interior_Ici] at hx
+      rw [(hd x hx.le).deriv]
+      exact hnn x hx
 
 private theorem nonneg_of_hasDerivAt_Ici_zero {f f' : ℝ → ℝ} (hf0 : f 0 = 0)
     (hd : ∀ x : ℝ, 0 ≤ x → HasDerivAt f (f' x) x) (hnn : ∀ x : ℝ, 0 < x → 0 ≤ f' x)
@@ -236,7 +239,9 @@ theorem bennett_laplace_exponent_eq {b v ε : ℝ} (hb : 0 < b) (hv : 0 < v) (h�
     (Real.log_nonneg (by linarith [show 0 ≤ b * ε / v by positivity])), ?_⟩
   rw [show s * b = Real.log (1 + b * ε / v) by dsimp only [s]; field_simp,
     Real.exp_log (by positivity), klFun_apply]
-  dsimp only [s]; field_simp; ring
+  dsimp only [s]
+  field_simp
+  ring
 
 /-- Bennett's Poisson tail `exp (-(v / b²) klFun (1 + b ε / v))` is bounded above by Bernstein's
 rational tail `exp (-ε² / (2 (v + b ε / 3)))` (`b > 0, v > 0, ε ≥ 0`). -/
@@ -355,11 +360,16 @@ theorem tsum_mul_exp_le_bennett (q : PMF α) (d : α → ℝ) {b v : ℝ}
   · simp
   · let d' (x : α) : ℝ := if x ∈ q.support then d x else 0
     have hd'_le (x : α) : d' x ≤ b := by
-      dsimp only [d']; split_ifs with hx; · exact hupper x hx
+      dsimp only [d']
+      split_ifs with hx
+      · exact hupper x hx
       exact hb.le
     have hmul (f : ℝ → ℝ) (hf : f 0 = 0) :
         (fun x => (q x).toReal * f (d' x)) = fun x => (q x).toReal * f (d x) := by
-      ext x; dsimp only [d']; split_ifs with hx; · rfl
+      ext x
+      dsimp only [d']
+      split_ifs with hx
+      · rfl
       rw [(q.apply_eq_zero_iff x).mpr hx, ENNReal.toReal_zero, zero_mul, zero_mul]
     have hmul1 := hmul (fun z => z) rfl
     have hmul2 := hmul (· ^ 2) (by norm_num)
