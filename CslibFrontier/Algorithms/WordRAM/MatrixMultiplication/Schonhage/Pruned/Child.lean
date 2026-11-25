@@ -73,12 +73,10 @@ theorem exec_loadScanChild {w L f a0 b0 d N k : ℕ} (x : Data registers)
     Nat.mul_le_mul_right _ (by omega)
   obtain ⟨u, hu, humem, huf', huc, hup', hstride', hut, hul', _, hun', huch', _, hureg⟩ :=
     hregs.exec_loadFrame hd hdL.le (hw.of_le (by omega))
-  have fixed (i : Fin registers) (hi : ¬LoadFrameLocal i) : u.regs i = x.regs i :=
-    hureg i hi
   have hus' : u.regs stamps = f + 4 * (L + 1) + 2 * (L + 1) * 10 ^ L := by regs_frame
   have huc' : u.regs count = N := huc.trans hN
   have hut' : u.regs term = k := hut.trans hterm
-  have hue : u.regs epoch = x.regs epoch := fixed epoch (by decide)
+  have hue : u.regs epoch = x.regs epoch := hureg epoch (by decide)
   obtain ⟨v, hv, _, hve, hvc, htable, _, hscanFrame, hvreg⟩ :=
     exec_scan (N := N) (capacity := 10 ^ L) true u input huc'
       (by simpa only [hul', humem] using hinput)
@@ -101,10 +99,9 @@ theorem exec_loadScanChild {w L f a0 b0 d N k : ℕ} (x : Data registers)
   · intro y T htail
     have hcall : ExecWithin w dispatch u y (20 * N + 5 + T + 1) :=
       (hv.seq htail).branch_pos
-        (by simpa only [Cond.holds_lt, hut', (fixed ten (by decide)).trans hregs.ten_eq] using hk)
-    have hum : u.regs mode = 1 := by regs_frame
-    have hu0 : u.regs nil = 0 := by regs_frame
-    have hu1 : u.regs one = 1 := by regs_frame
+        (by simpa only [Cond.holds_lt, hut', (hureg ten (by decide)).trans hregs.ten_eq] using hk)
+    obtain ⟨hum, hu0, hu1⟩ : u.regs mode = 1 ∧ u.regs nil = 0 ∧ u.regs one = 1 := by
+      regs_frame
     have hbranch : ExecWithin w
         (ram[ if mode = nil then [ ⟪enter⟫ ] else [
           if mode = one then [ ⟪dispatch⟫ ] else [ ⟪accumulate⟫ ] ] ]) u y (20 * N + 5 + T + 4) :=
