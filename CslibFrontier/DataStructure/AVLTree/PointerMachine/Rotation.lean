@@ -91,20 +91,17 @@ private theorem repair_frame
       (∀ i, i ≠ 0 → i ≠ 2 → i ≠ 3 → i ≠ 4 → i ≠ 6 → v.ptr i = s.ptr i) ∧
       v.ptr 6 = s.ptr 0 ∧
       (∀ z, z ≠ newAddr → z ≠ oldAddr → middle ≠ some z → v.heap[z]? = s.heap[z]?) := by
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-  · simpa only [Function.update_self] using vp 0 (by simp [layout])
-  · simpa only [vh, uh, List.length_modify] using rl
-  · intro i h1 h2
-    rw [vd i h1 h2, ud i h1 h2, rd]
-  · intro i h0 h2 h3 h4 h6
-    rw [vp i h2, Function.update_of_ne h0, up i h2, Function.update_of_ne h0,
+  refine ⟨by simpa only [Function.update_self] using vp 0 (by simp [layout]),
+    by simpa only [vh, uh, List.length_modify] using rl,
+    fun i h1 h2 => by rw [vd i h1 h2, ud i h1 h2, rd], fun i h0 h2 h3 h4 h6 => ?_, ?_,
+    fun z hn ho hm => ?_⟩
+  · rw [vp i h2, Function.update_of_ne h0, up i h2, Function.update_of_ne h0,
       rp i h0 h2 h3 h4, Function.update_of_ne h6]
   · rw [vp 6 (by simp [layout]), Function.update_of_ne (by simp [layout]),
       up 6 (by simp [layout]), Function.update_of_ne (by simp [layout]),
       rp 6 (by simp [layout]) (by simp [layout]) (by simp [layout]) (by simp [layout]),
       Function.update_self]
-  · intro z hn ho hm
-    rw [vh, List.getElem?_modify_ne _ _ hn.symm, uh, List.getElem?_modify_ne _ _ ho.symm]
+  · rw [vh, List.getElem?_modify_ne _ _ hn.symm, uh, List.getElem?_modify_ne _ _ ho.symm]
     exact rf z hn ho hm
 
 private theorem recomputeHeight_mkNodeAt (right : Bool) (zero maxSucc : M.Op)
