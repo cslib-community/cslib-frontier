@@ -103,11 +103,13 @@ private theorem stage {D : ℕ → WordQueryComp Operation Bool} {bound : ℕ �
         fun ⟨v, hv, hvn⟩ => ⟨v, (hB v (by omega)).mpr hv, hvn⟩⟩]
     change ¬(acc = true ↔ ∃ v ∈ S', v.length = n)
     by_cases hacc : acc = true
-    · rintro h
+    · -- a positive answer: no word of length `n` is added, and `S` has none
+      rintro h
       obtain ⟨v, hv, hvn⟩ := h.mp hacc
       simp only [S', hacc, ite_true] at hv
       exact absurd (hS v hv) (by omega)
-    · exact fun h => hacc (h.mpr ⟨w, by simp [S', hacc], hwn⟩)
+    · -- a negative answer: the unrequested word of length `n` is added
+      exact fun h => hacc (h.mpr ⟨w, by simp [S', hacc], hwn⟩)
 
 /-- **An oracle defeating every query-bounded family.** Given countably many families of
 deterministic word-query programs, where `D i n` makes at most `bound i n` requests against every
