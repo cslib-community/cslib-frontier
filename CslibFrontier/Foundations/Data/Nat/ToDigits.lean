@@ -152,7 +152,8 @@ theorem exists_toDecimal_eq_cons (a : ℤ) :
   unfold toDecimal
   split_ifs
   · exact ⟨_, _, rfl, .inl rfl⟩
-  · exact let ⟨d, ds, h, hd⟩ := Nat.exists_toDecimal_eq_cons a.natAbs; ⟨d, ds, h, .inr hd⟩
+  · obtain ⟨d, ds, h, hd⟩ := Nat.exists_toDecimal_eq_cons a.natAbs
+    exact ⟨d, ds, h, .inr hd⟩
 
 /-- An integer has at least one character. -/
 theorem toDecimal_ne_nil (a : ℤ) : a.toDecimal ≠ [] :=

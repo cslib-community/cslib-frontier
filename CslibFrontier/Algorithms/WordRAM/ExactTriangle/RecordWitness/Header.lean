@@ -113,17 +113,26 @@ theorem exec_finishHeader {W n S g k : ℕ} (x : Data 400)
   unfold finishHeader
   by_cases hlt : B < n - first <;> (
     wram_exec [hroot, hn, hg, hk, h1, hquot, hlt]
-    exact ⟨rfl, by wram_simp [B], by wram_simp [first], by wram_simp; omega, by wram_simp,
-      by wram_simp, by wram_simp, by wram_simp, by wram_simp [first], by wram_simp; omega,
-      fun i hi => by
-        dsimp only [Reg.index, Reg.one, Reg.piece, Reg.divisor] at hi
-        rw [show scanBank WitnessScan.Reg.ab = 345 from rfl,
-          show scanBank WitnessScan.Reg.bc = 346 from rfl,
-          show scanBank WitnessScan.Reg.ac = 347 from rfl,
-          show scanBank WitnessScan.Reg.size = 348 from rfl,
-          show scanBank WitnessScan.Reg.first = 351 from rfl,
-          show scanBank WitnessScan.Reg.length = 352 from rfl]
-        update_simp [Reg.blockLength, Reg.first, Reg.length, Reg.temp]⟩)
+    refine ⟨rfl, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, fun i hi => ?_⟩
+    · wram_simp [B]
+    · wram_simp [first]
+    · wram_simp
+      omega
+    · wram_simp
+    · wram_simp
+    · wram_simp
+    · wram_simp
+    · wram_simp [first]
+    · wram_simp
+      omega
+    · dsimp only [Reg.index, Reg.one, Reg.piece, Reg.divisor] at hi
+      rw [show scanBank WitnessScan.Reg.ab = 345 from rfl,
+        show scanBank WitnessScan.Reg.bc = 346 from rfl,
+        show scanBank WitnessScan.Reg.ac = 347 from rfl,
+        show scanBank WitnessScan.Reg.size = 348 from rfl,
+        show scanBank WitnessScan.Reg.first = 351 from rfl,
+        show scanBank WitnessScan.Reg.length = 352 from rfl]
+      update_simp [Reg.blockLength, Reg.first, Reg.length, Reg.temp])
 
 /-- Complete charged local setup from real scalar and descriptor reads. The computed original
 piece interval and all verifier arguments are conclusions of the actual code. -/

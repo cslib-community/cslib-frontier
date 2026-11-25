@@ -125,7 +125,8 @@ theorem inputState_represents (w r : ℕ) (input : List ℕ) :
 /-- Every pointer in the encoded input names an allocated node. -/
 theorem inputState_valid (w r : ℕ) (input : List ℕ) : (inputState w r input).Valid := by
   refine ⟨fun i a eq => ?_, SearchTree.PointerMachine.encodeHeap_links _ 0 none
-    (by simp [inputState]) fun _ h => by cases h⟩
+    (by simp [inputState])
+    (fun _ h => by cases h)⟩
   simp only [inputState] at eq
   split at eq
   · have rep := (inputState_represents w r input).heap

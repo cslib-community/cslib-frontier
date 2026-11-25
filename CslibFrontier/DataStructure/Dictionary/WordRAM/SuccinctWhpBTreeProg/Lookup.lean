@@ -90,7 +90,9 @@ theorem btreeLookupGenProg_spec {c U V w n_max base sIdx insCount q : ℕ}
       ⟨_, r, hres1, _, _, _, _, _, _, _, hmap1, _, _⟩
   · refine ⟨by rw [clientState_bind, hst, hres0]; rfl,
       by rw [clientResult_bind, hst, hres0, hmap0]; rfl, ?_,
-      validProg_bind hvp (by rw [hst, hres0]; exact validProg_pure _)⟩
+      validProg_bind hvp <| by
+        rw [hst, hres0]
+        exact validProg_pure _⟩
     rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hst, hres0]
     simpa only [↓reduceIte, memoryCost_pure, Nat.add_zero] using hmc
   · refine ⟨?_, ?_, ?_, ?_⟩
@@ -104,8 +106,9 @@ theorem btreeLookupGenProg_spec {c U V w n_max base sIdx insCount q : ℕ}
       omega
     · refine validProg_bind hvp ?_
       simp only [hst, hres1, Nat.one_ne_zero, ↓reduceIte]
-      exact validProg_bind (validWhpProg_laneGetGenProg _)
-        (by rw [clientState_laneGetGenProg]; exact validProg_pure _)
+      refine validProg_bind (validWhpProg_laneGetGenProg _) ?_
+      rw [clientState_laneGetGenProg]
+      exact validProg_pure _
 
 theorem realizes_btreeLookupGen :
     Realizes .exact btreeLookupGenProg

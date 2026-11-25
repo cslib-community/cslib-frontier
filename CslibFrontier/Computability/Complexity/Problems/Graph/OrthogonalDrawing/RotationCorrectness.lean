@@ -99,8 +99,10 @@ theorem rotationCertificate_eq_ofRotation {G : Graph} {d : OrthogonalDrawing}
   symm
   refine (RotationCertificate.ofRotation_eq_iff _ _).mpr
     ⟨length_rotationCertificate G d, fun a => ?_⟩
-  rw [List.getD_eq_getElem _ _
-    (by rw [length_rotationCertificate]; exact (Dart.indexEquiv G a).isLt)]
+  have hi : a.index < (rotationCertificate G d).successor.length := by
+    rw [length_rotationCertificate]
+    exact (Dart.indexEquiv G a).isLt
+  rw [List.getD_eq_getElem _ _ hi]
   simpa only [rotationCertificate, List.getElem_map, List.getElem_range] using
     clockwiseSuccessor_eq_rotate hd a
 

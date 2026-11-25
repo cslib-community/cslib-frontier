@@ -124,8 +124,10 @@ private def selectedRows {d outputLength : Nat}
 private theorem sum_pairIndex {d : Nat} {A : Type*} [AddCommMonoid A]
     (f : Fin (2 ^ (d + 1)) → A) :
     (∑ i, f i) = ∑ i : Fin (2 ^ d), (f (pairIndex i false) + f (pairIndex i true)) :=
-  ((pairEquiv d).sum_comp f).symm.trans <| by
-    simp only [Fintype.sum_prod_type, Fintype.sum_bool, pairEquiv_apply, add_comm]
+  calc
+    (∑ i, f i) = ∑ p, f (pairEquiv d p) := ((pairEquiv d).sum_comp f).symm
+    _ = ∑ i : Fin (2 ^ d), (f (pairIndex i false) + f (pairIndex i true)) := by
+      simp only [Fintype.sum_prod_type, Fintype.sum_bool, pairEquiv_apply, add_comm]
 
 private theorem convertExpandedRows_u {d outputLength : Nat}
     (rows : Fin (2 ^ d) → BitString outputLength) :
@@ -210,11 +212,15 @@ private theorem selectedRows_verifierRows {d outputLength : Nat}
   simp only [xorEquiv_apply, xorIndex_involutive, testBit_xorIndex]
   cases hdelta : (delta : Nat).testBit j
   · have hmul : (fun k => (BitString.equivFin d).symm delta j * allRows rows k) = 0 :=
-      funext fun k => by rw [BitString.equivFin_symm_apply, hdelta]; cases allRows rows k <;> rfl
+      funext fun k => by
+        rw [BitString.equivFin_symm_apply, hdelta]
+        cases allRows rows k <;> rfl
     rw [hmul, add_zero, selectedRows]
     exact Finset.sum_congr rfl fun i _ => by cases (i : Nat).testBit j <;> simp
   · have hmul : (fun k => (BitString.equivFin d).symm delta j * allRows rows k) = allRows rows :=
-      funext fun k => by rw [BitString.equivFin_symm_apply, hdelta]; cases allRows rows k <;> rfl
+      funext fun k => by
+        rw [BitString.equivFin_symm_apply, hdelta]
+        cases allRows rows k <;> rfl
     rw [hmul, ← unselectedRows_eq_selectedRows_add_allRows]
     exact Finset.sum_congr rfl fun i _ => by cases (i : Nat).testBit j <;> simp
 

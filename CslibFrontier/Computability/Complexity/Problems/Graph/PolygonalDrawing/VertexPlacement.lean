@@ -107,8 +107,12 @@ theorem IsEmbedding.exists_vertex_placement {G : Graph} {D : PolygonalDrawing G}
     hg, fun a => ?_, fun e => ?_, fun he => (hsame he).elim⟩
   · obtain ⟨c, hc, he⟩ := hg a
     simp only [direction, he, Complex.real_smul, Complex.arg_real_mul _ hc]
-  · exact (hecount e).trans <| (Nat.mul_le_mul_left _ (hfcount e)).trans_eq <| by
-      rw [← mul_assoc, ← mul_pow]
-      rfl
+  · calc
+      _ ≤ 25 ^ s.card * (F.route e).segments := hecount e
+      _ ≤ 25 ^ s.card * (25 ^ s.card * (D.route e).segments) :=
+        Nat.mul_le_mul_left _ (hfcount e)
+      _ = _ := by
+        rw [← mul_assoc, ← mul_pow]
+        rfl
 
 end Cslib.Complexity.Graph.PolygonalDrawing

@@ -76,7 +76,8 @@ theorem expect_rpow_le_rpow_mul_rpow (s : Finset ι) {f : ι → ℝ} (hf : ∀ 
   have hθ' : 0 < 1 - θ := by linarith
   have h := expect_mul_le_rpow_mul_rpow s (fun i hi => Real.rpow_nonneg (hf i hi) (θ * p))
     (fun i hi => Real.rpow_nonneg (hf i hi) ((1 - θ) * q)) (p := 1 / θ) (q := 1 / (1 - θ))
-    ⟨by simp only [one_div, inv_inv, inv_one]; ring, by positivity, by positivity⟩
+    ⟨by simp only [one_div, inv_inv, inv_one]; ring,
+      by positivity, by positivity⟩
   have hpow {a b : ℝ} (hb : b ≠ 0) :
       𝔼 i ∈ s, (f i ^ (b * a)) ^ (1 / b) = 𝔼 i ∈ s, f i ^ a :=
     expect_congr rfl fun i hi => by
@@ -131,7 +132,9 @@ theorem mul_expect_rpow_le_of_mul_expect_le [Nonempty α] {f : α → ℝ}
   calc
     _ ≤ m * (M / m * e) ^ p := mul_le_mul_of_nonneg_left hpow hm.le
     _ = (m * (M / m) ^ p) * e ^ p := by rw [Real.mul_rpow (zero_le_one.trans hc) he, mul_assoc]
-    _ ≤ (m * (M / m)) * e ^ p := by gcongr; exact Real.rpow_le_self_of_one_le hc hp₁.le
+    _ ≤ (m * (M / m)) * e ^ p := by
+      gcongr
+      exact Real.rpow_le_self_of_one_le hc hp₁.le
     _ = _ := by rw [hmc]
 
 end Fintype

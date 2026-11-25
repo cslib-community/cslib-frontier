@@ -98,7 +98,10 @@ theorem exec_receive_one {w p k A B a b out scratch frames frame : ℕ}
   refine ⟨y, hy, yh, yc, ?_, productValues, ?_⟩
   · intro s j hj
     rw [values s j hj, progressValue_eq_next]
-    exact fun hd => hzero s fun he => by subst s; simp at hd
+    intro hd
+    refine hzero s fun he => ?_
+    subst s
+    simp at hd
   · intro d hd
     have ht := Nat.mul_le_mul_right (4 ^ k * p) t.isLt
     have hsize : 4 ^ (k + 1) * p = 4 * (4 ^ k * p) := by rw [pow_succ]; ring
@@ -147,9 +150,12 @@ theorem exec_receive_two {w p k A B a b out scratch frames frame : ℕ}
   refine ⟨y, (hs.seq hy).mono (by omega), yh, yc, ?_, product₂, ?_⟩
   · intro t j hj
     rw [values₂ t j hj, progressValue_eq_next]
-    exact fun hd => hzero t
-      (fun he => by subst t; simp [Function.update_of_ne (Ne.symm hne)] at hd)
-      (fun he => by subst t; simp at hd)
+    intro hd
+    refine hzero t (fun he => ?_) (fun he => ?_)
+    · subst t
+      simp [Function.update_of_ne (Ne.symm hne)] at hd
+    · subst t
+      simp at hd
   · intro d hd
     have ht₁ := Nat.mul_le_mul_right (4 ^ k * p) t₁.isLt
     have ht₂ := Nat.mul_le_mul_right (4 ^ k * p) t₂.isLt

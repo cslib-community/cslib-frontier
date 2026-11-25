@@ -100,7 +100,9 @@ theorem IsEvenDeltaMatroid.exchange (hR : IsEvenDeltaMatroid R)
     (hx : x ∈ R) (hy : y ∈ R) {i : ι} (hi : x i ≠ y i) :
     ∃ j, j ≠ i ∧ x j ≠ y j ∧ flipOn {i, j} x ∈ R := by
   obtain ⟨j, hj, hf⟩ := hR.isDeltaMatroid.exchange hx hy hi
-  exact ⟨j, fun hji => hR.not_mem_flipOn_singleton hx i (by subst hji; simpa using hf), hj, hf⟩
+  refine ⟨j, fun hji => ?_, hj, hf⟩
+  subst j
+  exact hR.not_mem_flipOn_singleton hx i (by simpa using hf)
 
 omit [DecidableEq ι] in
 /-- Tuples of equal parity cannot disagree at just one coordinate. -/

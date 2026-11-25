@@ -92,10 +92,12 @@ theorem graph_mono {x y : Fin (edgeCount n) → Bool}
   fun _ _ huv => (graph_adj huv.ne).2 (h _ ((graph_adj huv.ne).1 huv))
 
 @[simp] theorem graph_false : graph (n := n) (fun _ => false) = ⊥ := by
-  ext u v; exact ⟨fun huv => by simp [graph_adj huv.ne] at huv, False.elim⟩
+  ext u v
+  exact ⟨fun huv => by simp [graph_adj huv.ne] at huv, False.elim⟩
 
 @[simp] theorem graph_true : graph (n := n) (fun _ => true) = ⊤ := by
-  ext u v; exact ⟨fun huv => huv.ne, fun h => (graph_adj h).2 rfl⟩
+  ext u v
+  exact ⟨fun huv => huv.ne, fun h => (graph_adj h).2 rfl⟩
 
 /-- Clearing a coordinate deletes precisely that edge. -/
 theorem graph_update_false (x : Fin (edgeCount n) → Bool) (i : Fin (edgeCount n)) :

@@ -115,7 +115,8 @@ theorem potential_step (Q : Finset ℕ) (Λ : ℕ) (t : Task) (ts : List Task) :
   · simp [step, potential, work]
   · by_cases he : Task.empty ⟨f + 1, S⟩
     · simp only [step, he, ↓reduceIte, potential, List.map_cons, List.sum_cons]
-      have := work_pos (f + 1); omega
+      have := work_pos (f + 1)
+      omega
     · simp only [step, he, ↓reduceIte, potential, Task.children, List.map_append,
         List.map_cons, List.map_nil, List.sum_append, List.sum_cons, List.sum_nil, work]
       omega

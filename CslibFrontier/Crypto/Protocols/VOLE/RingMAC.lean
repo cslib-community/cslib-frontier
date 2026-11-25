@@ -76,8 +76,10 @@ theorem card_filter_mac_eq_le {n : ℕ} [NeZero n] {x x' : ZMod n} (m m' : ZMod 
     simp only [Finset.mem_filter, Finset.mem_univ, true_and, f, eval_add, eval_mul, eval_C,
       eval_X] at hdelta ⊢
     linear_combination hdelta
-  exact (Finset.card_le_card hsub).trans <| (ZMod.card_filter_eval_eq_zero_le hf).trans <|
-    (Nat.mul_le_mul_right _ natDegree_linear_le).trans_eq (one_mul _)
+  calc _ ≤ _ := Finset.card_le_card hsub
+    _ ≤ f.natDegree * (n / n.minFac) := ZMod.card_filter_eval_eq_zero_le hf
+    _ ≤ 1 * (n / n.minFac) := Nat.mul_le_mul_right _ natDegree_linear_le
+    _ = n / n.minFac := one_mul _
 
 /-- **IT-MAC binding over `ZMod n`** ([HazayYang2024], §5.1, Lemma 3). For opened value vectors
 `x' ≠ x`, a forged opening passes verification under a uniform global key with probability at
@@ -91,13 +93,16 @@ theorem toOuterMeasure_voleVerifyOpening_le_minFac {n k : ℕ} [NeZero n]
       1 / (n.minFac : ℝ≥0∞) := by
   classical
   obtain ⟨i, hi⟩ := Function.ne_iff.mp hne
-  have hsub : {delta : ZMod n | ∀ j, x j * delta + v j = x' j * delta + v' j} ⊆
-      {delta : ZMod n | x i * delta + v i = x' i * delta + v' i} := fun _ h => h i
-  refine ((PMF.uniformOfFintype (ZMod n)).toOuterMeasure.mono hsub).trans ?_
-  exact (PMF.toOuterMeasure_uniformOfFintype_le_div (Nat.minFac_pos n) (by
-    rw [ZMod.card n, one_mul]
-    exact (Nat.mul_le_mul_left _ (card_filter_mac_eq_le (v i) (v' i) hi)).trans
-      (Nat.mul_div_le n n.minFac))).trans_eq (by rw [Nat.cast_one])
+  calc _ ≤ (PMF.uniformOfFintype (ZMod n)).toOuterMeasure
+        {delta : ZMod n | x i * delta + v i = x' i * delta + v' i} := by
+        apply MeasureTheory.measure_mono
+        exact fun _ h => h i
+    _ ≤ ((1 : ℕ) : ℝ≥0∞) / (n.minFac : ℝ≥0∞) :=
+        PMF.toOuterMeasure_uniformOfFintype_le_div (Nat.minFac_pos n) <| by
+          rw [ZMod.card, one_mul]
+          exact (Nat.mul_le_mul_left _ (card_filter_mac_eq_le (v i) (v' i) hi)).trans
+            (Nat.mul_div_le n n.minFac)
+    _ = 1 / (n.minFac : ℝ≥0∞) := by rw [Nat.cast_one]
 
 /-! ### Quadratic root bound -/
 
@@ -115,8 +120,9 @@ theorem card_filter_quadratic_eq_zero_le {n : ℕ} [NeZero n] {a : ZMod n} (b c 
       Finset.univ.filter fun χ : ZMod n => f.eval χ = 0 := fun χ hχ => by
     simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hχ ⊢
     simpa [f] using hχ
-  exact (Finset.card_le_card hsub).trans <| (ZMod.card_filter_eval_eq_zero_le hf).trans <|
-    Nat.mul_le_mul_right _ natDegree_quadratic_le
+  calc _ ≤ _ := Finset.card_le_card hsub
+    _ ≤ f.natDegree * (n / n.minFac) := ZMod.card_filter_eval_eq_zero_le hf
+    _ ≤ 2 * (n / n.minFac) := Nat.mul_le_mul_right _ natDegree_quadratic_le
 
 /-! ### Sharpness -/
 
@@ -133,9 +139,10 @@ theorem ringMacGap_mul_eq_zero_iff {n : ℕ} [NeZero n] (y : ZMod n) :
   have key : n ∣ n / n.minFac * y.val ↔ n.minFac ∣ y.val := by
     simpa [Nat.div_mul_cancel (Nat.minFac_dvd n)] using
       Nat.mul_dvd_mul_iff_left hd (b := n.minFac) (c := y.val)
-  rw [show ringMacGap n * y = ((n / n.minFac * y.val : ℕ) : ZMod n) by
-      rw [ringMacGap, Nat.cast_mul, ZMod.natCast_zmod_val],
-    ZMod.natCast_eq_zero_iff, key, ZMod.castHom_apply, ZMod.cast_eq_val, ZMod.natCast_eq_zero_iff]
+  have hy : ringMacGap n * y = ((n / n.minFac * y.val : ℕ) : ZMod n) := by
+    rw [ringMacGap, Nat.cast_mul, ZMod.natCast_zmod_val]
+  rw [hy, ZMod.natCast_eq_zero_iff, key, ZMod.castHom_apply, ZMod.cast_eq_val,
+    ZMod.natCast_eq_zero_iff]
 
 /-- For `n > 1`, `ringMacGap n` is nonzero. -/
 theorem ringMacGap_ne_zero {n : ℕ} (hn : 1 < n) : ringMacGap n ≠ 0 := by

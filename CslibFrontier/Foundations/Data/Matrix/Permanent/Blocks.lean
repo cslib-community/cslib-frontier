@@ -58,9 +58,10 @@ permanent. -/
 permanent. -/
 theorem permanent_submatrix_equiv_equiv {m' : Type*} [Fintype m'] [DecidableEq m']
     (e₁ e₂ : m' ≃ m) (A : Matrix m m R) : (A.submatrix e₁ e₂).permanent = A.permanent := by
-  rw [show A.submatrix e₁ e₂ = (A.submatrix e₂ e₂).submatrix (e₁.trans e₂.symm) id from by
-      ext i j; simp [submatrix_apply],
-    permanent_permute_cols, permanent_submatrix_equiv]
+  have h : A.submatrix e₁ e₂ = (A.submatrix e₂ e₂).submatrix (e₁.trans e₂.symm) id := by
+    ext i j
+    simp [submatrix_apply]
+  rw [h, permanent_permute_cols, permanent_submatrix_equiv]
 
 /-- Multilinearity of the permanent in a column. -/
 @[simp] theorem permanent_updateCol_add (M : Matrix m m R) (j : m) (u v : m → R) :
@@ -88,11 +89,14 @@ theorem permanent_add_of_row_eq (M M₁ M₂ : Matrix m m R) (r : m)
     (h₂ : ∀ i ≠ r, ∀ j, M₂ i j = M i j) :
     M.permanent = M₁.permanent + M₂.permanent := by
   have hM : M = M.updateRow r (M₁ r + M₂ r) := by
-    ext i j; by_cases hir : i = r <;> simp [hir, hr]
+    ext i j
+    by_cases hir : i = r <;> simp [hir, hr]
   have hM₁ : M₁ = M.updateRow r (M₁ r) := by
-    ext i j; by_cases hir : i = r <;> simp [hir, h₁]
+    ext i j
+    by_cases hir : i = r <;> simp [hir, h₁]
   have hM₂ : M₂ = M.updateRow r (M₂ r) := by
-    ext i j; by_cases hir : i = r <;> simp [hir, h₂]
+    ext i j
+    by_cases hir : i = r <;> simp [hir, h₂]
   conv_lhs => rw [hM]
   rw [permanent_updateRow_add, ← hM₁, ← hM₂]
 
@@ -125,7 +129,9 @@ of the permanents of the diagonal blocks. -/
         ext x
         · simpa using h2 (.inl x)
         · simpa using h2 (.inr x))
-      (fun σ hσ => let ⟨σ₁₂, hσ₁₂⟩ := Set.mem_toFinset.1 (mem_coe.1 hσ); ⟨σ₁₂, mem_univ _, hσ₁₂⟩)
+      (fun σ hσ =>
+        let ⟨σ₁₂, hσ₁₂⟩ := Set.mem_toFinset.1 (mem_coe.1 hσ)
+        ⟨σ₁₂, mem_univ _, hσ₁₂⟩)
       fun ⟨σ₁, σ₂⟩ _ => by
         rw [Fintype.prod_sum_type]
         simp only [Equiv.sumCongr_apply, Sum.map_inr, Sum.map_inl, fromBlocks_apply₁₁,

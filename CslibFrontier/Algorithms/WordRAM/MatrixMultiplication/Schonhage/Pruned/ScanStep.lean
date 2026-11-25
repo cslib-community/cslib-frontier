@@ -60,11 +60,13 @@ theorem exec_suffix {w : ℕ} (child : Bool) (x : Data registers) (q : ℕ)
     wram_call (exec_emit _ (by wram_simp [h1]) (by wram_simp; simpa [shortened] using hs)
       (by wram_simp; exact hl) (by wram_simp; exact hn)) with y ⟨hc, hm, hf⟩
     wram_simp at hc hm
-    refine ⟨by omega, by simp only [shortened, Bool.false_eq_true, ↓reduceIte]; regs_frame,
-      by simpa [shortened] using hc, by simpa [shortened] using hm, fun i hi => ?_⟩
-    simp only [SuffixLocal, not_or] at hi
-    rw [hf i hi.1]
-    wram_simp)
+    refine ⟨by omega, ?_, by simpa [shortened] using hc, by simpa [shortened] using hm,
+      fun i hi => ?_⟩
+    · simp only [shortened, Bool.false_eq_true, ↓reduceIte]
+      regs_frame
+    · simp only [SuffixLocal, not_or] at hi
+      rw [hf i hi.1]
+      wram_simp)
 
 /-- The native child-digit filter, shared by the scan and the accumulation: a selected query
 passes the comparison with digit nine, or else the comparison with the current term, and
@@ -127,9 +129,10 @@ theorem exec_scanDispatch {w : ℕ} (child : Bool) (x : Data registers) (q : ℕ
         simpa [hsel, hseen] using hm
   · obtain rfl : child = true := by cases child <;> simp_all [selected]
     refine ⟨x.set temporary (x.regs temporary),
-      (exec_selectDigit_skip hdigit h9 hsel).mono (by decide),
-      by wram_simp; simp [hsel], by simp [hsel],
+      (exec_selectDigit_skip hdigit h9 hsel).mono (by decide), ?_, by simp [hsel],
       fun _ _ => by simp only [Data.set_regs, Function.update_eq_self]⟩
+    wram_simp
+    simp [hsel]
 
 /-- All scan-step scratch registers; caller pointers, counts and the current epoch are kept. -/
 def ScanStepLocal (i : Fin registers) : Prop :=

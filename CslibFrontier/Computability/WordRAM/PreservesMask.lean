@@ -121,14 +121,18 @@ theorem preservesAll_eq_true_iff (keep : Fin r → Bool) (c : Code B r) :
     | none => simp
     | some d =>
       simp only [Bool.not_eq_true', ne_eq, Option.some.injEq]
-      exact ⟨fun h _ hi heq => by subst heq; simp [hi] at h,
+      exact ⟨fun h _ hi heq => by
+          subst heq
+          simp [hi] at h,
         fun h => Bool.eq_false_iff.mpr fun hd => h d hd rfl⟩
   | seq _ _ ih₁ ih₂ | branch _ _ _ ih₁ ih₂ =>
     simp only [preservesAll, Bool.and_eq_true, Preserves, ih₁, ih₂, forall_and]
   | loop _ _ ih => exact ih
   | rand dst _ =>
     simp only [preservesAll, Preserves, Bool.not_eq_true']
-    exact ⟨fun h _ hi heq => by subst heq; simp [hi] at h,
+    exact ⟨fun h _ hi heq => by
+        subst heq
+        simp [hi] at h,
       fun h => Bool.eq_false_iff.mpr fun hd => h dst hd rfl⟩
 
 /-- Drop-in replacement for `∀ i : Fin r, P i → c.Preserves i := by decide`: evaluates `P` only on

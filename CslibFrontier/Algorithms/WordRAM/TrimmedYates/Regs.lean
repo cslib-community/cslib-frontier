@@ -177,7 +177,8 @@ theorem exec_signedAdd {w B : ℕ} {a b : ℤ} (hfit : Fits w (8 * B + 4))
   have hw3 := width_ge_three_of_fits hfit
   obtain ⟨y, he, hyr, hym, hyf⟩ := Signed.exec_add (r := 47)
     (signedFits_of_natAbs_le hfit ha) (signedFits_of_natAbs_le hfit hb) x hxa hxb
-  exact ⟨y, by rwa [show (w - 2) + 2 = w by omega] at he, hyr, hym, fun i hi => hyf i (Or.inr hi)⟩
+  rw [show (w - 2) + 2 = w by omega] at he
+  exact ⟨y, he, hyr, hym, fun i hi => hyf i (Or.inr hi)⟩
 
 theorem exec_signedSub {w B : ℕ} {a b : ℤ} (hfit : Fits w (8 * B + 4))
     (ha : a.natAbs ≤ B) (hb : b.natAbs ≤ B) (x : Data numRegs)
@@ -189,7 +190,8 @@ theorem exec_signedSub {w B : ℕ} {a b : ℤ} (hfit : Fits w (8 * B + 4))
   have hw3 := width_ge_three_of_fits hfit
   obtain ⟨y, he, hyr, hym, hyf⟩ := Signed.exec_subtract (r := 47)
     (signedFits_of_natAbs_le hfit ha) (signedFits_of_natAbs_le hfit hb) x hxa hxb
-  exact ⟨y, by rwa [show (w - 2) + 2 = w by omega] at he, hyr, hym, fun i hi => hyf i (Or.inr hi)⟩
+  rw [show (w - 2) + 2 = w by omega] at he
+  exact ⟨y, he, hyr, hym, fun i hi => hyf i (Or.inr hi)⟩
 
 theorem exec_signedMul {w B : ℕ} {a b : ℤ} (hfit : Fits w (8 * B + 4))
     (ha : a.natAbs ≤ B) (hb : b.natAbs ≤ B) (hab : (a * b).natAbs ≤ B) (x : Data numRegs)
@@ -202,6 +204,7 @@ theorem exec_signedMul {w B : ℕ} {a b : ℤ} (hfit : Fits w (8 * B + 4))
   obtain ⟨y, he, hyr, hym, hyf⟩ := Signed.exec_multiply (r := 47)
     (signedFits_of_natAbs_le hfit ha) (signedFits_of_natAbs_le hfit hb)
     (signedFits_of_natAbs_le hfit hab) x hxa hxb
-  exact ⟨y, by rwa [show (w - 2) + 2 = w by omega] at he, hyr, hym, fun i hi => hyf i (Or.inr hi)⟩
+  rw [show (w - 2) + 2 = w by omega] at he
+  exact ⟨y, he, hyr, hym, fun i hi => hyf i (Or.inr hi)⟩
 
 end Cslib.Algorithms.WordRAM.TrimmedYates

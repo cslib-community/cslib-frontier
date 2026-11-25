@@ -104,9 +104,13 @@ private theorem enumerates_flatMap {l : List ℕ} (hl : l.Nodup) (hne : l ≠ []
           succIn_getElem hl hil, List.getElem?_eq_none (by omega : l.length ≤ i + 1), h.head]
         rcases S with _ | ⟨t', S⟩
         · simp
-        · obtain ⟨a, l', rfl⟩ := List.exists_cons_of_ne_nil hne; simp
-    · rw [List.getElem_append_right (by simp; omega), List.getElem?_append_right (by simp; omega),
-        ih _ (by simp only [List.length_append, List.length_map] at hi ⊢; omega)]
+        · obtain ⟨a, l', rfl⟩ := List.exists_cons_of_ne_nil hne
+          simp
+    · have hi' : i - (l.map (· :: t)).length < (S.flatMap fun t => l.map (· :: t)).length := by
+        simp only [List.length_append, List.length_map] at hi ⊢
+        omega
+      rw [List.getElem_append_right (by simp; omega),
+        List.getElem?_append_right (by simp; omega), ih _ hi']
       congr 1
       simp only [List.length_map]
       omega
