@@ -185,8 +185,7 @@ private theorem starCone_sum_offDiag_inner_le {V κ : Type*} [Fintype V]
   have hw_norm : ‖w‖ = 1 := by rw [norm_smul, norm_inv, norm_norm, inv_mul_cancel₀ hM_pos.ne']
   let u : κ → EuclideanSpace ℝ V := fun v => ‖b v‖⁻¹ • b v
   have hu_norm (v : κ) (hv : v ∈ s) : ‖u v‖ = 1 := by
-    have hbv : 0 < ‖b v‖ := zero_lt_one.trans_le (hb1 v hv)
-    rw [norm_smul, norm_inv, norm_norm, inv_mul_cancel₀ hbv.ne']
+    rw [norm_smul, norm_inv, norm_norm, inv_mul_cancel₀ (zero_lt_one.trans_le (hb1 v hv)).ne']
   set Q₀ : ℝ := (1 + (k - 1) * q ^ 2) / k
   have hQ₀_pos : 0 < Q₀ := lt_of_lt_of_le hq0 htan_lo
   set x₀ : ℝ := √Q₀
@@ -216,9 +215,7 @@ private theorem starCone_sum_offDiag_inner_le {V κ : Type*} [Fintype V]
         _ = (1 + q) * ∑ z, M z * b v z := by
             rw [← Finset.mul_sum]
             exact congrArg ((1 + q) * ·) (Finset.sum_congr rfl fun z _ => mul_comm _ _)
-    have hinner_eq : ⟪u v, w⟫ = ‖b v‖⁻¹ * (‖M‖⁻¹ * ⟪b v, M⟫) := by
-      rw [real_inner_smul_left, real_inner_smul_right]
-    rw [hinner_eq]
+    rw [real_inner_smul_left, real_inner_smul_right]
     have hxv_pos := hx_pos v hv
     have hcalc : (x v + q / x v) / (1 + q) =
         (‖b v‖ ^ 2 + q * ‖M‖ ^ 2) / ((1 + q) * ‖b v‖ * ‖M‖) := by
@@ -246,10 +243,7 @@ private theorem starCone_sum_offDiag_inner_le {V κ : Type*} [Fintype V]
       simp_rw [EuclideanSpace.real_norm_sq_eq]
       rw [Finset.mul_sum, Finset.sum_comm]
       exact Finset.sum_le_sum fun z _ => hcoord z
-    have hkx₀ : k * x₀ ^ 2 = 1 + (k - 1) * q ^ 2 := by
-      rw [hx₀_sq]
-      dsimp only [Q₀]
-      field_simp
+    have hkx₀ : k * x₀ ^ 2 = 1 + (k - 1) * q ^ 2 := by rw [hx₀_sq]; dsimp only [Q₀]; field_simp
     calc k * x₀ ^ 2
         = ((1 + (k - 1) * q ^ 2) * ‖M‖ ^ 2) / ‖M‖ ^ 2 := by
           rw [hkx₀, mul_div_cancel_right₀ _ hM_sq_pos.ne']
@@ -279,12 +273,8 @@ private theorem starCone_sum_offDiag_inner_le {V κ : Type*} [Fintype V]
       _ ≤ ∑ v ∈ s, ⟪u v, w⟫ := Finset.sum_le_sum hpt
   have hsimp_tang : k * ((x₀ + q / x₀) / (1 + q)) = (1 + (k - 1) * q) / x₀ := by
     have hnum_id : k * (x₀ ^ 2 + q) = (1 + q) * (1 + (k - 1) * q) := by
-      rw [hx₀_sq]
-      dsimp only [Q₀]
-      field_simp
-      ring
-    have h1 : x₀ + q / x₀ = (x₀ ^ 2 + q) / x₀ := by field_simp
-    rw [h1]
+      rw [hx₀_sq]; dsimp only [Q₀]; field_simp; ring
+    rw [show x₀ + q / x₀ = (x₀ ^ 2 + q) / x₀ by field_simp]
     field_simp
     linarith
   rw [hsimp_tang] at hsum_tang
