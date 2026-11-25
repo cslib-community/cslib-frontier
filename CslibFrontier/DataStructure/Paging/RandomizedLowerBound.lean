@@ -142,18 +142,22 @@ private theorem subphase_loop {S M : Finset α} {cost : List α → ℝ}
   | 0, mid, hmid, hfuel, _ => by
     simp only [Nat.cast_zero, zero_mul] at hfuel
     obtain ⟨j, hj⟩ := hU_ne
+    have hstep := hcost.step_nonneg (σ ++ mid) j
+    have heq : σ ++ (mid ++ [j]) = (σ ++ mid) ++ [j] := (List.append_assoc _ _ _).symm
     refine ⟨mid, j, hj, hmid, ?_⟩
-    rw [← List.append_assoc]
-    linarith [hcost.step_nonneg (σ ++ mid) j]
+    rw [heq]
+    linarith
   | fuel + 1, mid, hmid, hfuel, hbase => by
     set u : ℝ := ((S \ M).card : ℝ)
     have hu_pos : 0 < u := Nat.cast_pos.mpr hU_ne.card_pos
     have hu_ge_one : (1 : ℝ) ≤ u := Nat.one_le_cast.mpr hU_ne.card_pos
     by_cases hdone : u⁻¹ ≤ cost (σ ++ mid) - cost σ
     · obtain ⟨j, hj⟩ := hU_ne
+      have hstep := hcost.step_nonneg (σ ++ mid) j
+      have heq : σ ++ (mid ++ [j]) = (σ ++ mid) ++ [j] := (List.append_assoc _ _ _).symm
       refine ⟨mid, j, hj, hmid, ?_⟩
-      rw [← List.append_assoc]
-      linarith [hcost.step_nonneg (σ ++ mid) j]
+      rw [heq]
+      linarith
     · by_cases hP : ∑ x ∈ M, (cost ((σ ++ mid) ++ [x]) - cost (σ ++ mid)) ≤ ε
       · have htot := hcost.one_le_sum_step (σ ++ mid)
         have hsplit : ∑ x ∈ S, (cost ((σ ++ mid) ++ [x]) - cost (σ ++ mid)) =
@@ -171,8 +175,9 @@ private theorem subphase_loop {S M : Finset α} {cost : List α → ℝ}
           have hcalc : ε + (1 - ε) / u - 1 / u = (u - 1) * ε / u := by field_simp; ring
           rw [hcalc]
           exact div_nonneg (mul_nonneg (by linarith) hε.le) hu_pos.le
+        have heq : σ ++ (mid ++ [j]) = (σ ++ mid) ++ [j] := (List.append_assoc _ _ _).symm
         refine ⟨mid, j, hj, hmid, ?_⟩
-        rw [← List.append_assoc]
+        rw [heq]
         linarith
       · push Not at hP
         obtain ⟨i, hi, hi_ge⟩ := exists_elem_ge_avg hM_ne
@@ -180,13 +185,20 @@ private theorem subphase_loop {S M : Finset α} {cost : List α → ℝ}
         have hM_pos : (0 : ℝ) < M.card := Nat.cast_pos.mpr hM_ne.card_pos
         have hi_step : ε / (M.card : ℝ) ≤ cost ((σ ++ mid) ++ [i]) - cost (σ ++ mid) :=
           (div_le_div_of_nonneg_right hP.le hM_pos.le).trans hi_ge
-        have hmid' : ∀ x ∈ mid ++ [i], x ∈ M := fun x hx =>
-          (List.mem_append.mp hx).elim (hmid x) fun hx => List.mem_singleton.mp hx ▸ hi
-        refine subphase_loop hcost hMS hM_ne hU_ne hε σ fuel (mid ++ [i]) hmid' ?_ ?_ <;>
-          rw [← List.append_assoc]
-        · push_cast at hfuel
+        have hmid' : ∀ x ∈ mid ++ [i], x ∈ M := by
+          intro x hx
+          rcases List.mem_append.mp hx with hx | hx
+          · exact hmid x hx
+          · rw [List.mem_singleton.mp hx]
+            exact hi
+        have heq : σ ++ (mid ++ [i]) = (σ ++ mid) ++ [i] := (List.append_assoc _ _ _).symm
+        refine subphase_loop hcost hMS hM_ne hU_ne hε σ fuel (mid ++ [i]) hmid' ?_ ?_
+        · rw [heq]
+          push_cast at hfuel
           linarith
-        · linarith [(by positivity : 0 ≤ ε / (M.card : ℝ))]
+        · rw [heq]
+          have hpos_step : 0 ≤ ε / (M.card : ℝ) := by positivity
+          linarith
 
 /-- **Subphase lemma** ([FiatKarpLubyMcGeochSleatorYoung1991], Section 5): for any prefix `σ` and
 nonempty marked subset `M ⊂ S` (`M ⊆ S`, `(S \ M).Nonempty`), there is a finite sequence of marked
@@ -207,12 +219,18 @@ theorem exists_subphase {S M : Finset α} {cost : List α → ℝ}
     obtain ⟨j, hj, hj_ge⟩ := exists_elem_ge_avg hU_ne (fun x => cost (σ ++ [x]) - cost σ)
     have hu_pos : (0 : ℝ) < (S \ M).card := Nat.cast_pos.mpr hU_ne.card_pos
     refine ⟨[], j, hj, fun _ h => False.elim (List.not_mem_nil h), ?_⟩
-    rw [List.nil_append, inv_eq_one_div]
-    exact (div_le_div_of_nonneg_right hU_sum hu_pos.le).trans hj_ge
+    simp only [List.nil_append]
+    have hdiv :
+        ((S \ M).card : ℝ)⁻¹ ≤ (∑ x ∈ S \ M, (cost (σ ++ [x]) - cost σ)) / (S \ M).card := by
+      rw [inv_eq_one_div]
+      exact div_le_div_of_nonneg_right hU_sum hu_pos.le
+    exact hdiv.trans hj_ge
   · push Not at hP0
     have hex : ∃ i₀ ∈ M, 0 < cost (σ ++ [i₀]) - cost σ := by
       by_contra! hall
-      linarith [Finset.sum_nonpos fun x hx => hall x hx]
+      have : ∑ x ∈ M, (cost (σ ++ [x]) - cost σ) ≤ 0 :=
+        Finset.sum_nonpos fun x hx => hall x hx
+      linarith
     obtain ⟨i₀, hi₀, hε⟩ := hex
     set ε := cost (σ ++ [i₀]) - cost σ
     have hM_pos : (0 : ℝ) < M.card := Nat.cast_pos.mpr hM_ne.card_pos
@@ -253,10 +271,12 @@ private theorem exists_growPhase {k : ℕ} {S : Finset α} {cost : List α → �
       exists_growPhase hcost hS rem M' (σ ++ (mid ++ [j])) hM'_sub hM'_ne (by omega) (by omega)
     refine ⟨(mid ++ [j]) ++ body', M_end, (Finset.subset_insert j M).trans hM'_end,
       hMend_S, hMend_card, ?_, ?_⟩
-    · simp only [List.mem_append, List.mem_singleton]
-      rintro x ((hx | rfl) | hx)
-      · exact hM'_end (Finset.mem_insert_of_mem (hmid x hx))
-      · exact hM'_end (Finset.mem_insert_self _ M)
+    · intro x hx
+      rcases List.mem_append.mp hx with hx | hx
+      · rcases List.mem_append.mp hx with hx | hx
+        · exact hM'_end (Finset.mem_insert_of_mem (hmid x hx))
+        · rw [List.mem_singleton.mp hx]
+          exact hM'_end (Finset.mem_insert_self j M)
       · exact hbody' x hx
     · set u' := k - M.card
       have hu1 : k + 1 - M.card = u' + 1 := by omega
@@ -267,7 +287,9 @@ private theorem exists_growPhase {k : ℕ} {S : Finset α} {cost : List α → �
         rw [harmonic_succ]
         push_cast
         ring
-      rw [hu1, hharm, ← List.append_assoc σ (mid ++ [j])]
+      have heq : σ ++ ((mid ++ [j]) ++ body') = (σ ++ (mid ++ [j])) ++ body' :=
+        (List.append_assoc _ _ _).symm
+      rw [hu1, hharm, heq]
       linarith
 
 /-- **Single-phase nemesis lemma** ([FiatKarpLubyMcGeochSleatorYoung1991], Section 5): from any
@@ -311,7 +333,9 @@ theorem exists_phase {k : ℕ} (hk : 0 < k) {S M_prev : Finset α} {cost : List 
   have hfin_rep : ∀ (n : ℕ) (s : Finset α),
       (problem α k).finalState s (List.replicate n s) = s := by
     intro n s
-    induction n with | zero => rfl | succ _ ih => exact ih
+    induction n with
+    | zero => rfl
+    | succ n ih => exact ih
   set offStates := List.replicate pre.length M_prev ++ (M_next :: List.replicate body.length M_next)
   have hv_tail : (problem α k).ValidSchedule M_prev (x_new :: body)
       (M_next :: List.replicate body.length M_next) := ⟨hstep_x, hv_body⟩
@@ -331,7 +355,9 @@ theorem exists_phase {k : ℕ} (hk : 0 < k) {S M_prev : Finset α} {cost : List 
     change stepCost M_prev x_new M_next +
       (problem α k).scheduleCost M_next body (List.replicate body.length M_next) = 1
     rw [stepCost_of_notMem hx_notM, hcost_off_body, Nat.add_zero]
-  · rw [← List.append_assoc σ (pre ++ [x_new])]
+  · have heq : σ ++ ((pre ++ [x_new]) ++ body) = (σ ++ (pre ++ [x_new])) ++ body :=
+      (List.append_assoc _ _ _).symm
+    rw [heq]
     linarith
 
 /-- Iterating `exists_phase` across `m` phases produces a sequence on which online expected cost
@@ -354,7 +380,9 @@ theorem exists_phases {k : ℕ} (hk : 0 < k) {S M₀ : Finset α} {cost : List �
     · apply (problem α k).validSchedule_append hv₁
       rwa [hfin₁]
     · rw [(problem α k).scheduleCost_append hv₁.length_eq, hfin₁, hcost₁, hcost_rest, Nat.add_comm]
-    · rw [← List.append_assoc]
+    · have heq : σ ++ (phase ++ reqs_rest) = (σ ++ phase) ++ reqs_rest :=
+        (List.append_assoc _ _ _).symm
+      rw [heq]
       push_cast
       linarith
 
