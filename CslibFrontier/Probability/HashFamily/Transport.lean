@@ -51,9 +51,9 @@ theorem postcompose (hh : IsDeltaUniversalHash seed hash ε) (f : Y →+ Z)
   by_cases hd : ∃ d', f d' = d
   · obtain ⟨d', rfl⟩ := hd
     simpa only [← map_sub, hf.eq_iff] using hh x x' hx d'
-  · rw [show {i | f (hash i x) - f (hash i x') = d} = ∅ from
-      Set.eq_empty_iff_forall_notMem.mpr fun i hi => hd ⟨_, (map_sub f _ _).trans hi⟩]
-    simp
+  · have hempty : {i | f (hash i x) - f (hash i x') = d} = ∅ :=
+      Set.eq_empty_iff_forall_notMem.mpr fun i hi => hd ⟨_, (map_sub f _ _).trans hi⟩
+    simp [hempty]
 
 private theorem intCast_val_sub {p q : ℕ} (a b : ZMod p) :
     (((a.val : ℤ) - b.val : ℤ) : ZMod q) = (a.val : ZMod q) - b.val := by

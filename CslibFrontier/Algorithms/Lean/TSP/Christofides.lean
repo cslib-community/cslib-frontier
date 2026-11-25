@@ -198,9 +198,9 @@ theorem cycleCost_shortcutTour_le {δ : Fin n → Fin n → ℕ} (hsymm : ∀ x 
     | cons _ _ => exact List.cons_ne_nil _ _
   rw [shortcutTour, dite_eq_left h]
   refine (cycleCost_dedup_le_of_isEulerCircuit htri hsymm hw hH).trans_eq ?_
-  simp only [List.map_append, List.sum_append, totalWeight, List.map_map]
-  rw [show T.map ((fun e => δ e.1 e.2) ∘ WeightedEdge.endpoints) = T.map WeightedEdge.weight from
-    List.map_congr_left fun e he => (hTw e he).symm]
+  have hTmap : T.map ((fun e => δ e.1 e.2) ∘ WeightedEdge.endpoints) = T.map WeightedEdge.weight :=
+    List.map_congr_left fun e he => (hTw e he).symm
+  simp only [List.map_append, List.sum_append, totalWeight, List.map_map, hTmap]
 
 /-! ### Christofides' bound -/
 

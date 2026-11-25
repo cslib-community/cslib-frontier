@@ -215,9 +215,9 @@ private theorem gateRoundWith_eq
       (hfstep : ∀ S j, fstep S j = Function.update S (reg t j) (g (reg t j) (S (reg t j))))
       (S : State K d r) :
       (List.finRange d).foldl fstep S = fun r => if r ≠ t then g r (S r) else S r := by
-    rw [show fstep = fun S j => Function.update S (reg t j) (g (reg t j) (S (reg t j))) from
-      funext fun S => funext fun j => hfstep S j,
-      foldl_update_reg t g _ (List.nodup_finRange d)]
+    have heq : fstep = fun S j => Function.update S (reg t j) (g (reg t j) (S (reg t j))) :=
+      funext fun S => funext fun j => hfstep S j
+    rw [heq, foldl_update_reg t g _ (List.nodup_finRange d)]
     simp only [mem_map_reg_finRange]
   dsimp only [gateRoundWith]
   rw [fold_step (fun r x => (u : K) • x + childVal t v r)
