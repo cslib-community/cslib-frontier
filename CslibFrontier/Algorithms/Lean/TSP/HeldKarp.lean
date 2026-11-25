@@ -164,17 +164,8 @@ theorem isLeast_walkCosts_of_forall {d : Fin (n + 1) → Fin (n + 1) → W} {S :
     have hiL : i ∉ L := fun h => by simpa [hL] using List.mem_toFinset.2 h
     refine ⟨L ++ [i], ?_, ?_, ?_⟩
     · exact hnd.append (List.nodup_singleton i) (List.disjoint_singleton.2 hiL)
-    · ext y
-      simp only [List.toFinset_append, hL, Finset.mem_union, Finset.mem_erase, List.mem_toFinset,
-        List.mem_singleton]
-      constructor
-      · rintro (⟨-, hy⟩ | rfl)
-        · exact hy
-        · exact hi
-      · intro hy
-        by_cases hyi : y = i
-        · exact Or.inr hyi
-        · exact Or.inl ⟨hyi, hy⟩
+    · rw [List.toFinset_append, hL, List.toFinset_cons, List.toFinset_nil, Finset.union_insert,
+        Finset.union_empty, Finset.insert_erase hi]
     · rw [List.map_append, List.map_singleton, walkCost_append_singleton, hc]
   · rintro c ⟨L, hnd, hL, rfl⟩
     obtain ⟨i, hi, -⟩ := hmem
@@ -185,14 +176,8 @@ theorem isLeast_walkCosts_of_forall {d : Fin (n + 1) → Fin (n + 1) → W} {S :
     have hxL' : x ∉ L' := fun h => by
       simpa using (List.nodup_append.1 hnd).2.2 x h x (List.mem_singleton_self x)
     have hL' : L'.toFinset = S.erase x := by
-      ext y
-      simp only [← hL, List.mem_toFinset, Finset.mem_erase, List.mem_append, List.mem_singleton]
-      constructor
-      · intro hy
-        exact ⟨fun h => hxL' (h ▸ hy), Or.inl hy⟩
-      · rintro ⟨hy, hy' | rfl⟩
-        · exact hy'
-        · exact absurd rfl hy
+      rw [← hL, List.toFinset_append, List.toFinset_cons, List.toFinset_nil, Finset.union_insert,
+        Finset.union_empty, Finset.erase_insert (by simpa using hxL')]
     calc v ≤ f x + d x.succ t := hle x hx
       _ ≤ walkCost d 0 (L'.map Fin.succ) x.succ + d x.succ t :=
           add_le_add ((hf x hx).2 ⟨L', hnd.sublist (List.sublist_append_left _ _), hL', rfl⟩)
