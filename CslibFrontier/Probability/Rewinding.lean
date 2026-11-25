@@ -223,12 +223,10 @@ theorem sq_sub_mul_le_twice [Finite T] {κ : ℝ}
     · exact ⟨mul_nonneg (pass_nonneg _ _ _ _) (pass_nonneg _ _ _ _),
         (mul_le_mul (pass_le_one _ _ _ _) (pass_le_one _ _ _ _) (pass_nonneg _ _ _ _)
           zero_le_one).trans_eq (one_mul 1)⟩
-  have hh (s : S) : 0 ≤ h s ∧ h s ≤ 1 := by
-    refine average_mem_Icc (challenge s) _
-      (fun t => (average_mem_Icc (challenge s) _ (fun t' => (hpair s t t').1)
-        fun t' => (hpair s t t').2).1)
-      fun t => (average_mem_Icc (challenge s) _ (fun t' => (hpair s t t').1)
-        fun t' => (hpair s t t').2).2
+  have hinner (s : S) (t : T) :=
+    average_mem_Icc (challenge s) _ (fun t' => (hpair s t t').1) fun t' => (hpair s t t').2
+  have hh (s : S) : 0 ≤ h s ∧ h s ≤ 1 :=
+    average_mem_Icc (challenge s) _ (fun t => (hinner s t).1) fun t => (hinner s t).2
   have hm : Summable fun s => (first s).toReal := Probability.PMF.summable_toReal first
   have hsum {f : S → ℝ} (f0 : ∀ s, 0 ≤ f s) (f1 : ∀ s, f s ≤ 1) :
       Summable fun s => (first s).toReal * f s :=
@@ -263,9 +261,9 @@ theorem le_add_sqrt_of_sq_sub_mul_le {ε δ κ : ℝ} (hκ0 : 0 ≤ κ) (h : ε 
   by_cases hε : ε ≤ κ
   · exact hε.trans (le_add_of_nonneg_right (Real.sqrt_nonneg _))
   · have hsq : (ε - κ) ^ 2 ≤ δ := by
-      nlinarith [mul_nonneg hκ0 (sub_nonneg.mpr (le_of_not_ge hε))]
-    have := Real.abs_le_sqrt hsq
-    linarith [le_abs_self (ε - κ)]
+      have hnonneg : 0 ≤ κ * (ε - κ) := mul_nonneg hκ0 (sub_nonneg.mpr (le_of_not_ge hε))
+      linarith [show (ε - κ) ^ 2 = (ε ^ 2 - κ * ε) - κ * (ε - κ) by ring]
+    linarith [Real.le_sqrt_of_sq_le hsq]
 
 omit [Fintype T] in
 /-- The bounded-atom rewinding inequality solved for one-run success: `ε ≤ κ + √δ`.
