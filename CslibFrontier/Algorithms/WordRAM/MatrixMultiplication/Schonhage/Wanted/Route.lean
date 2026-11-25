@@ -99,12 +99,10 @@ theorem exec_route {w L m N tab : ℕ} (hm : m ≤ L) (I J : Fin N) (x : Data 96
   have hv : v ≤ N := (Nat.div_le_self _ _).trans J.isLt.le
   have hg : g.val < K0 L m := g.isLt
   have hh : h.val < K0 L m := h.isLt
+  have hp : rank = (MaskTable.pairRank (g, h)).val := by
+    change g.val * K0 L m + h.val = h.val + K0 L m * g.val; ring
   have hrank : rank < 2 ^ L := by
-    have hp : rank = (MaskTable.pairRank (g, h)).val := by
-      change g.val * K0 L m + h.val = h.val + K0 L m * g.val
-      ring
-    rw [hp]
-    exact (MaskTable.pairRank (g, h)).isLt.trans_le (Nat.choose_le_two_pow L m)
+    rw [hp]; exact (MaskTable.pairRank (g, h)).isLt.trans_le (Nat.choose_le_two_pow L m)
   have hmul : g.val * K0 L m ≤ rank := by dsimp [rank]; omega
   have ha : a < 2 ^ L := (MaskTable.selectedMask (g, h)).isLt
   have hr : r ≤ N := (Nat.mod_le _ _).trans I.isLt.le
@@ -121,21 +119,12 @@ theorem exec_route {w L m N tab : ℕ} (hm : m ≤ L) (I J : Fin N) (x : Data 96
   have hfc : Fits w c := hbfit _ (by omega)
   have hfu : Fits w u := hbfit _ (by omega)
   have hfv : Fits w v := hbfit _ (by omega)
-  have hfg : Fits w g.val := hbfit _ (by
-    have hle : g.val ≤ u := Nat.mod_le _ _
-    omega)
-  have hfh : Fits w h.val := hbfit _ (by
-    have hle : h.val ≤ v := Nat.mod_le _ _
-    omega)
+  have hfg : Fits w g.val := hbfit _ (by have hle : g.val ≤ u := Nat.mod_le _ _; omega)
+  have hfh : Fits w h.val := hbfit _ (by have hle : h.val ≤ v := Nat.mod_le _ _; omega)
   have hfgmul : Fits w (g.val * K0 L m) := hbfit _ (by omega)
   have hfrank : Fits w rank := hbfit _ (by omega)
   have hfaddr : Fits w (tab + rank) := hbfit _ (by omega)
-  have hload : x.mem (tab + rank) = a := by
-    convert htable (g, h) using 1
-    congr 1
-    change tab + rank = tab + (h.val + K0 L m * g.val)
-    dsimp [rank]
-    ring
+  have hload : x.mem (tab + rank) = a := by rw [hp]; exact htable (g, h)
   have hpackfit : Fits w (a + r + c + L + 32 * 10 ^ L + 32) := hfit.of_le (by
     change a + r + c + L + 32 * 10 ^ L + 32 ≤
       64 * (L + N + tab + b ^ 2 + 10 ^ L + 2 ^ L + 1)
@@ -162,10 +151,7 @@ theorem exec_route {w L m N tab : ℕ} (hm : m ≤ L) (I J : Fin N) (x : Data 96
   · simp only [RouteLocal, not_or, not_lt] at hi
     rcases hi with ⟨hi16, hrb, hcb, ht⟩
     have hout : ∀ k, packRegisters k ≠ i := fun k hk => by
-      have := k.isLt
-      have hv := congrArg Fin.val hk
-      dsimp [packRegisters] at hv
-      omega
+      have hv := congrArg Fin.val hk; dsimp [packRegisters] at hv; omega
     have h0 := hout depth; have h1 := hout mask; have h2 := hout row
     have h3 := hout col; have h4 := hout temporary
     dsimp only [packRegisters] at h0 h1 h2 h3 h4

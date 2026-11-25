@@ -125,7 +125,6 @@ private theorem exec_phaseCode {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ}
       rw [hgDual_minv, hj₁_unused, ite_eq_right Bool.false_ne_true, sub_self]
     have hb₂ : BaseRegs n bC M y₂ := hb₁.of_eq fun i hi => hr₂ i (by omega)
     have hrj1₂ : y₂.regs rj1 = j₁.val := (hr₂ rj1 (by decide)).trans hrj1₁
-    have hf_cm : Fits w (bC + n * n + 2 * n + j₁.val) := hfit.of_le (by have := j₁.isLt; omega)
     have hcm_j₁ : y₂.mem (bC + n * n + 2 * n + j₁.val) = encodeOptFin (vget s.mate j₁) := by
       simpa only [hgDual_mate] using hSM₂.hcol j₁
     have hstep₃ : ∃ y₃, ExecWithin w (ram[ addr ← baseColMate + rj1; ri0 ← *addr ]) y₂ y₃ 2 ∧
@@ -133,7 +132,8 @@ private theorem exec_phaseCode {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ}
         y₃.mem = y₂.mem ∧
         y₃.regs ri0 = encodeOptFin (vget s.mate j₁) := by
       refine WP.exists_execWithin ?_
-      wram_exec [hb₂.hbaseColMate, hrj1₂, hcm_j₁, hf_cm]
+      have := j₁.isLt
+      wram_exec [hb₂.hbaseColMate, hrj1₂, hcm_j₁]
       exact ⟨fun i hi => by wram_simp, rfl, by wram_simp⟩
     obtain ⟨y₃, he₃, hr₃, hmem₃, hri0₃⟩ := hstep₃
     have hb₃ : BaseRegs n bC M y₃ := hb₂.of_eq fun i hi => hr₃ i (by omega)
@@ -164,8 +164,7 @@ private theorem exec_phaseCode {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ}
       refine ⟨y₄, (he₁.seq (he₂.seq (he₃.seq hbr))).mono (by omega),
         ⟨fun i hi => ?_, fun a ha => (hf₄ a (by omega)).trans (hout₃ a ha),
           .inl ⟨haug₄, ?_, ?_, ?_⟩⟩, ?_⟩
-      · exact ((((hr₄ i hi).trans (hr₃ i (by omega))).trans (hr₂ i (by omega))).trans
-          (hr₁ i (by omega))).trans (hr i hi)
+      · rw [hr₄ i hi, hr₃ i (by omega), hr₂ i (by omega), hr₁ i (by omega), hr i hi]
       · simpa only [← hsend] using hOB'
       · rw [← hsend]
         simpa only [hgDual_mate, hs_mate] using hL'
@@ -206,8 +205,7 @@ private theorem exec_phaseCode {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ}
         ⟨fun i hi => ?_, fun a ha => (hf₄ a (by omega)).trans (hout₃ a ha),
           .inr ⟨haug₄, _, _, fuel', by rw [hgExtend_mate, hgDual_mate, hs_mate],
             hfuel'_eq, hfuel'_pos, hSE, hSM₄, hloop'_eq⟩⟩, ?_⟩
-      · exact ((((hr₄ i (by omega)).trans (hr₃ i (by omega))).trans (hr₂ i (by omega))).trans
-          (hr₁ i (by omega))).trans (hr i hi)
+      · rw [hr₄ i (by omega), hr₃ i (by omega), hr₂ i (by omega), hr₁ i (by omega), hr i hi]
       · simp only [rank, haug0, haug₄, ↓reduceIte, hused_card_eq hSM, hused_card_eq hSM₄]
         rw [hcnt']
         omega
@@ -298,25 +296,19 @@ theorem core_exec {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ}
     have hby : BaseRegs n bC M y := hb.of_eq hr
     have hCy : CostMem bC C y.mem := hC.of_outside fun a ha => hf_k a (by omega)
     have hr_free : r ∉ matchedLeft (mateMatching (sAt (y.regs rr)).mate) := by
-      rw [hL_k, List.mem_toFinset]
-      intro hmem
-      obtain ⟨idx_m, hlt_m, heq_m⟩ := List.mem_iff_getElem.mp hmem
-      rw [List.getElem_take, List.getElem_finRange] at heq_m
-      have h1 : idx_m < y.regs rr := by
-        rw [List.length_take] at hlt_m
-        omega
-      have h2 : idx_m = y.regs rr := congrArg Fin.val heq_m
+      rw [hL_k, List.mem_toFinset, List.mem_take_iff_getElem]
+      rintro ⟨m, hm, heq⟩
+      have : m = y.regs rr := by simpa [r] using congrArg Fin.val heq
       omega
     obtain ⟨y_p, he_p, hr_p, hOB_p, hL_p, hOM_p, hf_p⟩ :=
       exec_phaseCode hCW hOB_k r hr_free y hby hCy hOM_k rfl hfit
     have hrr_p : y_p.regs rr = y.regs rr := hr_p rr (by decide)
     have hone_p : y_p.regs one = 1 := (hr_p one (by decide)).trans hby.hone
-    have hf_next : Fits w (y.regs rr + 1) := hfit.of_le (by omega)
     have hstep_inc : ∃ z,
         ExecWithin w (ram[ rr ← rr + one ] : Code .standard 28) y_p z 1 ∧
         z = y_p.set rr (y.regs rr + 1) := by
       refine WP.exists_execWithin ?_
-      wram_exec [hrr_p, hone_p, hf_next]
+      wram_exec [hrr_p, hone_p]
       rfl
     obtain ⟨z, he_inc, rfl⟩ := hstep_inc
     have hs_succ : sAt (y.regs rr + 1) =
@@ -343,12 +335,11 @@ theorem core_exec {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ}
     ⟨fun i hi => by wram_simp [hr₁ i (by omega)],
       hgOuterBound_start hc_bounds, hL0, hOM₁, hf₁⟩
   have hb₃ : BaseRegs n bC M y₃ := hb.of_eq hr₃
-  have hf_out : Fits w (bC + n * n + 7 * n) := hfit.of_le (by omega)
   have hstep₄ : ∃ y₄,
       ExecWithin w (ram[ *outBase ← rn ] : Code .standard 28) y₃ y₄ 1 ∧
       y₄ = y₃.write (bC + n * n + 7 * n) n := by
     refine WP.exists_execWithin ?_
-    wram_exec [hb₃.houtBase, hb₃.hrn, hf_out]
+    wram_exec [hb₃.houtBase, hb₃.hrn]
     rfl
   obtain ⟨y₄, he₄, rfl⟩ := hstep₄
   have hs_n : sAt n = hgRows c (List.finRange n) s₀ := by
@@ -366,16 +357,11 @@ theorem core_exec {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ}
     nlinarith
   · change (Function.update y₃.mem (bC + n * n + 7 * n) n (bC + n * n + u.val) : ℤ) = _
     rw [Function.update_of_ne (by have := u.isLt; omega), hOM_n.hy u, hs_n]
-    have hy_nonneg := (hs_n ▸ hOB_n).y_bounds u
-    change ((vget (hgRows c (List.finRange n) s₀).y u).toNat : ℤ) =
-      vget (hgRows c (List.finRange n) s₀).y u
-    omega
+    exact Int.toNat_of_nonneg ((hs_n ▸ hOB_n).y_bounds u).1
   · change -(Function.update y₃.mem (bC + n * n + 7 * n) n (bC + n * n + n + v.val) : ℤ) = _
-    rw [Function.update_of_ne (by have := v.isLt; omega), hOM_n.hnz v, hs_n]
-    have hz_nonpos := (hs_n ▸ hOB_n).z_bounds v
-    change -((-vget (hgRows c (List.finRange n) s₀).z v).toNat : ℤ) =
-      vget (hgRows c (List.finRange n) s₀).z v
-    omega
+    rw [Function.update_of_ne (by have := v.isLt; omega), hOM_n.hnz v, hs_n,
+      Int.toNat_of_nonneg (neg_nonneg.mpr ((hs_n ▸ hOB_n).z_bounds v).2), neg_neg]
+    rfl
   · have hu_mem : u ∈ matchedLeft (mateMatching (sAt n).mate) := by
       rw [hs_n, hL_univ]
       exact Finset.mem_univ u

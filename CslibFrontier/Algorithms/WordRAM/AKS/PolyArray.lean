@@ -220,10 +220,7 @@ theorem exec {w : ℕ} (x : Data 9) {a b r : ℕ} (ha : x.regs p = a) (hb : x.re
     have hkr : v k = r := by omega
     rw [hkr] at hfl
     refine ⟨by simp; omega, by rw [hfl]; split_ifs <;> omega, ?_, rfl⟩
-    rw [hfl]
-    split_ifs with h
-    · exact ⟨fun _ => h, fun _ => rfl⟩
-    · exact ⟨fun h' => by simp at h', fun h' => absurd h' h⟩
+    rw [hfl]; split_ifs with h; exacts [iff_of_true (by simp) h, iff_of_false (by simp) h]
 
 end Compare
 

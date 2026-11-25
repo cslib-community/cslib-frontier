@@ -83,9 +83,7 @@ private theorem four_n_maxMag_add_one_le_wordBound (inst : Instance) :
     4 * (inst.n * inst.maxMag) + 1 ≤ inst.wordBound := by
   unfold Instance.wordBound
   have h : 4 * (inst.n * inst.maxMag) ≤ 4 * (inst.n + 1) * inst.maxMag := by
-    calc 4 * (inst.n * inst.maxMag) = 4 * inst.n * inst.maxMag := by ring
-      _ ≤ 4 * (inst.n + 1) * inst.maxMag :=
-        Nat.mul_le_mul_right _ (Nat.mul_le_mul_left 4 (Nat.le_succ _))
+    rw [← mul_assoc]; gcongr; omega
   omega
 
 public section
@@ -178,12 +176,8 @@ theorem sumScaledCostProg_spec {w : ℕ} (inst : Instance) (ws : AuctionWS)
         rw [Nat.add_mul, one_mul]
         exact Nat.add_le_add hacc_le (hC_unsc_le (i₀, j₀))
       have hacc_fit : Fits w (st.acc + C_unsc (i₀, j₀)) := by
-        have hle_max : st.acc + C_unsc (i₀, j₀) ≤ 2 * (inst.n * inst.maxMag) := by
-          calc st.acc + C_unsc (i₀, j₀)
-              ≤ (st.idx + 1) * (2 * ws.M) := hacc_next_le
-            _ ≤ inst.n * (2 * ws.M) := Nat.mul_le_mul_right _ hk'
-            _ ≤ inst.n * (2 * inst.maxMag) := Nat.mul_le_mul_left _ (by omega)
-            _ = 2 * (inst.n * inst.maxMag) := by ring
+        have hle_max : st.acc + C_unsc (i₀, j₀) ≤ 2 * (inst.n * inst.maxMag) :=
+          hacc_next_le.trans ((Nat.mul_le_mul hk' (Nat.mul_le_mul_left 2 hM_le)).trans_eq (by ring))
         exact hw.of_le (by omega)
       have hmul_idx : st.idx * ws.n ≤ ws.n * ws.n :=
         Nat.mul_le_mul_right ws.n (le_of_lt hk)
@@ -246,13 +240,10 @@ theorem sumScaledCostProg_spec {w : ℕ} (inst : Instance) (ws : AuctionWS)
   have hneg_safe : ¬(res.acc < ws.n * ws.M) →
       ws.n * ws.M ≤ res.acc ∧ Fits w (2 * (res.acc - ws.n * ws.M)) := fun hlt => by
     rw [hn] at hlt hacc_le_n ⊢
-    have hd : 2 * (res.acc - inst.n * ws.M) ≤ 4 * (inst.n * inst.maxMag) := by
-      calc 2 * (res.acc - inst.n * ws.M)
-          ≤ 2 * (inst.n * (2 * ws.M)) :=
-            Nat.mul_le_mul_left 2 ((Nat.sub_le _ _).trans hacc_le_n)
-        _ ≤ 2 * (inst.n * (2 * inst.maxMag)) :=
-            Nat.mul_le_mul_left 2 (Nat.mul_le_mul_left _ (by omega))
-        _ = 4 * (inst.n * inst.maxMag) := by ring
+    have hd : 2 * (res.acc - inst.n * ws.M) ≤ 4 * (inst.n * inst.maxMag) :=
+      (Nat.mul_le_mul_left 2 ((Nat.sub_le _ _).trans hacc_le_n)).trans
+        ((Nat.mul_le_mul_left 2 (Nat.mul_le_mul_left _ (Nat.mul_le_mul_left 2 hM_le))).trans_eq
+          (by ring))
     exact ⟨le_of_not_gt hlt, hw.of_le (by omega)⟩
   unfold sumScaledCostProg
   refine ⟨⟨hsafe_it, hf1, hf2, hf_st, hpos_safe, hneg_safe⟩,

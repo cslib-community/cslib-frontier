@@ -191,9 +191,7 @@ theorem sum_le_roundSuccessProbWith (O : (Fin n → Option Bool) → Fin n → O
   · obtain ⟨σ, hσ, rfl⟩ := Finset.mem_image.mp hτ
     rw [Finset.mem_filter] at hσ
     rw [ite_eq_left (by rw [Set.mem_ofPred_eq, succeeds_some]; exact hσ.2)]
-  · split_ifs
-    · exact ENNReal.toReal_nonneg
-    · exact le_rfl
+  · split_ifs <;> simp
 
 /-- **Amplification**: if one round succeeds with probability at least `q > 0` and `c ≤ R q`,
 then `R` rounds all fail with probability at most `e ^ (-c)`. -/
@@ -468,9 +466,8 @@ theorem ampLoopWith_law {φ : CNF (Fin n)} {C Tb w Tc : ℕ} {S : List ℕ}
               Schoening.decDigits_digit_le hx.binary, hyf, hyo⟩ hv₁
             (by rw [Schoening.length_decDigits]; exact hfit)
     have hsteps := Schoening.decSteps_add_count_le ds
-    refine (h.congr_law rfl).mono (fun _ h => h) ?_ ?_
-    · simp only [Nat.add_mul, Nat.one_mul]; omega
-    · simp only [Nat.add_mul, Nat.one_mul]; omega
+    refine (h.congr_law rfl).mono (fun _ h => h) ?_ ?_ <;> simp only [Nat.add_mul, Nat.one_mul] <;>
+      omega
 
 /-- **The round loop of PPZ** from a counter of value `j` has the law `repeatRound φ j`. Each round
 costs `ampRoundTime n E` instructions, amortized: the decrements are paid for by the zero digits of
@@ -637,11 +634,7 @@ theorem fillLoop_spec {w B e : ℕ} (hfit : Fits w (B + e)) :
     funext a
     simp only [Data.set_regs, Function.update_self, Data.set_mem, Data.write_mem,
       Function.update_apply]
-    by_cases h1 : B + (i + 1) ≤ a ∧ a < B + e
-    · simp [h1, show B + i ≤ a ∧ a < B + e by omega]
-    · by_cases h2 : a = B + i
-      · simp [h2, show B + i < B + e by omega]
-      · simp [h1, h2, show ¬(B + i ≤ a ∧ a < B + e) by omega]
+    split_ifs <;> first | rfl | omega
 
 /-- The data after the setup on the input `k :: c :: encode φ`. -/
 def ampSetupData (k c : ℕ) (φ : CNF (Fin n)) : Data 32 :=
@@ -866,11 +859,8 @@ theorem ampTime_le {k : ℕ} (hk : 1 ≤ k) (n c L : ℕ) :
   set X := (2 : ℝ) ^ ((1 - 1 / (k : ℝ)) * n)
   obtain ⟨N, hN⟩ : ∃ N, n + L + 1 = N := ⟨_, rfl⟩
   rw [hN]
-  have hk1 : (1 : ℝ) ≤ k := by exact_mod_cast hk
-  have hX1 : 1 ≤ X := by
-    refine Real.one_le_rpow one_le_two (mul_nonneg ?_ (Nat.cast_nonneg n))
-    rw [sub_nonneg, div_le_one (by linarith)]
-    exact hk1
+  have hX1 : 1 ≤ X := Real.one_le_rpow one_le_two (mul_nonneg (sub_nonneg.mpr
+    (div_le_one_of_le₀ (by exact_mod_cast hk) (Nat.cast_nonneg k))) (Nat.cast_nonneg n))
   -- the number of rounds
   have hR : (ppzRounds k n c : ℝ) ≤ 2 * X * c := by
     simp only [ppzRounds]
@@ -879,28 +869,19 @@ theorem ampTime_le {k : ℕ} (hk : 1 ≤ k) (n c L : ℕ) :
       (Nat.cast_nonneg c)
   -- one round
   have hP : n * (28 * L + 40) + 12 * L + 41 ≤ 41 * N ^ 2 := by
-    have h1 : n + 1 ≤ N := by omega
-    have h2 : L + 1 ≤ N := by omega
-    have h3 : (n + 1) * (L + 1) ≤ N * N := Nat.mul_le_mul h1 h2
-    nlinarith
+    nlinarith [Nat.mul_le_mul (show n + 1 ≤ N by omega) (show L + 1 ≤ N by omega)]
   -- the setup
   have hS : 5 * ppzExp k n + 19 * ppzCounterLen k n c + 63 ≤ 82 * N ^ 2 * (c + 1) := by
     have he := ppzExp_le k n
     have hd : (Nat.digits 2 c).length ≤ c :=
       (Nat.digits_length_le_iff (by decide) _).mpr Nat.lt_two_pow_self
     have h1 : n + 1 ≤ N ^ 2 := by nlinarith
-    have h3 : 5 * ppzExp k n + 19 * ppzCounterLen k n c + 63 ≤ 82 * (n + 1) * (c + 1) := by
-      simp only [ppzCounterLen]
-      nlinarith [Nat.zero_le (n * c)]
-    have h4 : 82 * (n + 1) * (c + 1) ≤ 82 * N ^ 2 * (c + 1) :=
-      Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ h1)
-    omega
+    simp only [ppzCounterLen]
+    nlinarith [Nat.zero_le (n * c), Nat.mul_le_mul_right (c + 1) h1]
   have hexp : (ampTime k n c L : ℝ) =
       (ppzRounds k n c : ℝ) * ((n * (28 * L + 40) + 12 * L + 41 : ℕ) : ℝ) +
         ((5 * ppzExp k n + 19 * ppzCounterLen k n c + 63 : ℕ) : ℝ) := by
     simp only [ampTime]; push_cast; ring
-  have hPr : ((n * (28 * L + 40) + 12 * L + 41 : ℕ) : ℝ) ≤ 41 * (N : ℝ) ^ 2 := by
-    exact_mod_cast hP
   have hSr : ((5 * ppzExp k n + 19 * ppzCounterLen k n c + 63 : ℕ) : ℝ) ≤
       82 * (N : ℝ) ^ 2 * (c + 1) := by
     exact_mod_cast hS
@@ -908,7 +889,7 @@ theorem ampTime_le {k : ℕ} (hk : 1 ≤ k) (n c L : ℕ) :
   have hN0 : (0 : ℝ) ≤ (N : ℝ) ^ 2 := by positivity
   have hT : (ppzRounds k n c : ℝ) * ((n * (28 * L + 40) + 12 * L + 41 : ℕ) : ℝ) ≤
       (2 * X * c) * (41 * (N : ℝ) ^ 2) :=
-    mul_le_mul hR hPr (Nat.cast_nonneg _) (by positivity)
+    mul_le_mul hR (by exact_mod_cast hP) (Nat.cast_nonneg _) (by positivity)
   rw [hexp]
   nlinarith [mul_le_mul_of_nonneg_left hX1 (mul_nonneg hN0 (by linarith : (0 : ℝ) ≤ c + 1)),
     mul_nonneg (mul_nonneg hN0 (by linarith : (0 : ℝ) ≤ X)) hc0]

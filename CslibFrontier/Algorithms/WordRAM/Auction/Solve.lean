@@ -172,22 +172,10 @@ private theorem solveAuctionProg_spec {w maxMag : ℕ} (a : SolveArgs)
     ⟨rfl, rfl, rfl, rfl, by dsimp only [ws₀, s₁]; omega⟩
   have hfit_ws : Fits w (ws₀.outBase + ws₀.n + 1) :=
     hf_fr1.of_le (by dsimp only [ws₀, s₁]; omega)
-  have hscM_le : a.scale * M ≤ a.scale * maxMag := Nat.mul_le_mul_left a.scale hM_le
   have hfit_val : Fits w (ws₀.scale * (2 * ws₀.M)) :=
-    hfit_p.of_le <| by
-      dsimp only [ws₀]
-      calc a.scale * (2 * M) = 2 * (a.scale * M) := by ring
-        _ ≤ 2 * (a.scale * maxMag) := Nat.mul_le_mul_left 2 hscM_le
-        _ ≤ 4 * a.scale * maxMag + 2 * a.eps := by
-          rw [show 4 * a.scale * maxMag = 4 * (a.scale * maxMag) by ring]; omega
+    hfit_p.of_le (by dsimp only [ws₀]; nlinarith [Nat.mul_le_mul_left a.scale hM_le])
   have hfit_core : Fits w (4 * ws₀.scale * ws₀.M + 2 * ws₀.eps) :=
-    hfit_p.of_le <| by
-      dsimp only [ws₀]
-      calc 4 * a.scale * M + 2 * a.eps
-          = 4 * (a.scale * M) + 2 * a.eps := by ring
-        _ ≤ 4 * (a.scale * maxMag) + 2 * a.eps :=
-            Nat.add_le_add_right (Nat.mul_le_mul_left 4 hscM_le) _
-        _ = 4 * a.scale * maxMag + 2 * a.eps := by ring
+    hfit_p.of_le (by dsimp only [ws₀]; gcongr)
   have hfill := fillC_spec ws₀ s₁ hsc
     (by dsimp only [ws₀, base]; rw [hs₀_fr])
     (by dsimp only [ws₀, s₁]; omega)
@@ -201,9 +189,7 @@ private theorem solveAuctionProg_spec {w maxMag : ℕ} (a : SolveArgs)
   have hC_le : ∀ i j : Fin a.n, C_work (i, j) ≤ 2 * ws₀.scale * ws₀.M := fun i j => by
     have hle2M : (cost (i, j) + (M : ℤ)).toNat ≤ 2 * M := by have := hM_ge i j; omega
     dsimp only [C_work, ws₀]
-    calc a.scale * (cost (i, j) + (M : ℤ)).toNat
-        ≤ a.scale * (2 * M) := Nat.mul_le_mul_left _ hle2M
-      _ = 2 * a.scale * M := by ring
+    exact (Nat.mul_le_mul_left _ hle2M).trans_eq (by ring)
   have hcore := auctionCoreProg_spec ws₀ hε hC_le s₃ hws₃ hC_filled hf1 hfit_ws hfit_core
   obtain ⟨hsafe_core, hv_core, hmc_core, hfr_core, ham_core⟩ := hcore
   let s₄ := (Memory.spec 0).clientState s₃ (auctionCoreProg ws₀)

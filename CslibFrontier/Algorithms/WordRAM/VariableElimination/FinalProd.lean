@@ -77,6 +77,58 @@ def finalResultProd (args : FinalProdArgs) : Memory.Prog ℕ :=
   iterate finalProdStep () args.liveLen (args.livePtr, args.scalar) >>= fun res =>
   pure res.2
 
+private theorem mul_getD_zero_le {acc B : ℕ} {f : FactorTable ℕ ℕ}
+    {rest : List (FactorTable ℕ ℕ)} (h : acc * (capFactor f * (rest.map capFactor).prod) ≤ B) :
+    acc * f.entries.getD 0 0 * (rest.map capFactor).prod ≤ B :=
+  (Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ (getD_zero_le_capFactor f))).trans
+    ((Nat.mul_assoc _ _ _).trans_le h)
+
+/-- The conditional entry-`0` read of `finalProdStep` on a descriptor for `f`. -/
+private theorem finalProdBranch_spec {w cur : ℕ} {f : FactorTable ℕ ℕ} {s : Memory.State}
+    (hf : HoldsFactor cur f s) :
+    let br : Memory.Prog ℕ :=
+      if s.mem (cur + 3) = 0 then pure 0 else Memory.read (s.mem (cur + 2))
+    (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s br) ∧
+      (Memory.spec 0).clientState s br = s ∧
+      (Memory.spec 0).clientResult s br = f.entries.getD 0 0 ∧
+      memoryCost br s ≤ 1 := by
+  obtain ⟨-, -, hel, -, hent⟩ := hf
+  dsimp only
+  by_cases hz : s.mem (cur + 3) = 0
+  · rw [ite_eq_left hz]
+    have hsz0 : ¬ (0 < f.entries.size) := by omega
+    exact ⟨validHistory_pure w s 0, rfl, (by simp [Array.getD, hsz0] : f.entries.getD 0 0 = 0).symm,
+      by rw [memoryCost_pure]; omega⟩
+  · rw [ite_eq_right hz]
+    have hsz_pos : 0 < f.entries.size := by omega
+    have hbd := hent.1
+    rw [Array.length_toList] at hbd
+    have h0 := hent.2.get 0 (by rw [Array.length_toList]; exact hsz_pos)
+    simp only [Nat.add_zero, Array.getElem_toList] at h0
+    refine ⟨validHistory_read (by omega), rfl, ?_, (memoryCost_read _ _).le⟩
+    change s.mem (s.mem (cur + 2)) = _
+    simp only [Array.getD, hsz_pos, ↓reduceDIte]
+    exact h0
+
+private theorem finalProdStep_spec {w cur acc : ℕ} {f : FactorTable ℕ ℕ} {s : Memory.State}
+    (hf : HoldsFactor cur f s) :
+    let p := finalProdStep ((), (cur, acc))
+    (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s p) ∧
+      (Memory.spec 0).clientState s p = s ∧
+      (Memory.spec 0).clientResult s p = (cur + 4, acc * f.entries.getD 0 0) ∧
+      memoryCost p s ≤ 3 := by
+  obtain ⟨hv, hst, hres, hcost⟩ := finalProdBranch_spec (w := w) hf
+  have hd := hf.1
+  unfold finalProdStep
+  dsimp only at hv hst hres hcost ⊢
+  rw [clientState_bind_read, clientState_bind_read, clientResult_bind_read, clientResult_bind_read,
+    StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind, hst, hres,
+    memoryCost_bind', memoryCost_read, clientState_read, clientResult_read, memoryCost_bind',
+    memoryCost_read, clientState_read, clientResult_read, memoryCost_bind', hst, hres]
+  exact ⟨validHistory_read_bind (by omega) (validHistory_read_bind (by omega)
+    (validHistory_bind_step hv (by rw [hst]; exact validHistory_pure _ _ _))), rfl, rfl,
+    by rw [memoryCost_pure]; omega⟩
+
 private theorem finalResultProd_aux {w B : ℕ} (hB : Fits w B) {s : Memory.State} :
     ∀ (rem : List (FactorTable ℕ ℕ)) (cur acc : ℕ),
       HoldsFactorList cur rem s →
@@ -87,94 +139,18 @@ private theorem finalResultProd_aux {w B : ℕ} (hB : Fits w B) {s : Memory.Stat
         ((Memory.spec 0).clientResult s p).2 =
           acc * (rem.map fun f => f.entries.getD 0 0).prod ∧
         memoryCost p s ≤ 3 * rem.length
-  | [], cur, acc, _, _ => by
-      dsimp only
-      have h0 : iterate finalProdStep () 0 (cur, acc) = pure (cur, acc) := rfl
-      simp only [List.length_nil]
-      rw [h0]
-      exact ⟨validHistory_pure w s _, rfl,
-        by simp only [List.map_nil, List.prod_nil, Nat.mul_one]; rfl,
-        by simp [memoryCost_pure]⟩
+  | [], _, acc, _, _ => by
+      simp only [List.length_nil, List.map_nil, List.prod_nil, Nat.mul_one, Nat.mul_zero]
+      exact ⟨validHistory_pure w s _, rfl, rfl, (memoryCost_pure _ _).le⟩
   | f :: rest, cur, acc, ⟨hf, hrest⟩, hcap => by
-      dsimp only
-      obtain ⟨hd, _, hel, _, hent⟩ := hf
       simp only [List.map_cons, List.prod_cons] at hcap ⊢
-      have he0_le : f.entries.getD 0 0 ≤ capFactor f := getD_zero_le_capFactor f
-      have hcap' : (acc * f.entries.getD 0 0) * (rest.map capFactor).prod ≤ B := by
-        calc (acc * f.entries.getD 0 0) * (rest.map capFactor).prod
-            ≤ (acc * capFactor f) * (rest.map capFactor).prod :=
-              Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ he0_le)
-          _ = acc * (capFactor f * (rest.map capFactor).prod) := Nat.mul_assoc _ _ _
-          _ ≤ B := hcap
-      obtain ⟨hih_val, hih_st, hih_res, hih_cost⟩ :=
-        finalResultProd_aux hB rest (cur + 4) (acc * f.entries.getD 0 0) hrest hcap'
-      have hr_st (addr : ℕ) : (Memory.spec 0).clientState s (Memory.read addr) = s := rfl
-      have hr_res (addr : ℕ) : (Memory.spec 0).clientResult s (Memory.read addr) = s.mem addr := rfl
-      have hpure_st {α : Type} (x : α) (u : Memory.State) :
-          (Memory.spec 0).clientState u (pure x) = u := rfl
-      have hpure_res {α : Type} (x : α) (u : Memory.State) :
-          (Memory.spec 0).clientResult u (pure x) = x := rfl
-      have hbr_spec :
-          let br : Memory.Prog ℕ :=
-            if s.mem (cur + 3) = 0 then pure 0 else Memory.read (s.mem (cur + 2))
-          (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s br) ∧
-            (Memory.spec 0).clientState s br = s ∧
-            (Memory.spec 0).clientResult s br = f.entries.getD 0 0 ∧
-            memoryCost br s ≤ 1 := by
-        dsimp only
-        by_cases hz : s.mem (cur + 3) = 0
-        · rw [ite_eq_left hz]
-          have hsz0 : ¬ (0 < f.entries.size) := by omega
-          have hget0 : f.entries.getD 0 0 = 0 := by simp [Array.getD, hsz0]
-          exact ⟨validHistory_pure w s 0, rfl, hget0.symm, by rw [memoryCost_pure]; omega⟩
-        · rw [ite_eq_right hz]
-          have hsz_pos : 0 < f.entries.size := by omega
-          have hlt_fr : s.mem (cur + 2) < s.frontier := by
-            have hbd := hent.1
-            rw [Array.length_toList] at hbd
-            omega
-          have hmem0 : s.mem (s.mem (cur + 2)) = f.entries.getD 0 0 := by
-            have h0 := hent.2.get 0 (by rw [Array.length_toList]; exact hsz_pos)
-            simp only [Nat.add_zero, Array.getElem_toList] at h0
-            simp only [Array.getD, hsz_pos, ↓reduceDIte]
-            exact h0
-          exact ⟨validHistory_read hlt_fr, rfl, hmem0, by rw [memoryCost_read]⟩
-      obtain ⟨hbr_val, hbr_st, hbr_res, hbr_cost⟩ := hbr_spec
-      have hstep_val : (Memory.spec w).ValidHistory s
-          ((Memory.spec w).clientHistory s (finalProdStep ((), (cur, acc)))) := by
-        unfold finalProdStep
-        dsimp only
-        refine validHistory_read_bind (by omega) ?_
-        refine validHistory_read_bind (by omega) ?_
-        exact validHistory_bind_step hbr_val (validHistory_pure w _ _)
-      have hstep_st : (Memory.spec 0).clientState s (finalProdStep ((), (cur, acc))) = s := by
-        unfold finalProdStep
-        dsimp only
-        rw [StateTransitionSpec.clientState_bind, hr_st, hr_res,
-          StateTransitionSpec.clientState_bind, hr_st, hr_res,
-          StateTransitionSpec.clientState_bind, hbr_st, hbr_res, hpure_st]
-      have hstep_res : (Memory.spec 0).clientResult s (finalProdStep ((), (cur, acc))) =
-          (cur + 4, acc * f.entries.getD 0 0) := by
-        unfold finalProdStep
-        dsimp only
-        rw [StateTransitionSpec.clientResult_bind, hr_st, hr_res,
-          StateTransitionSpec.clientResult_bind, hr_st, hr_res,
-          StateTransitionSpec.clientResult_bind, hbr_st, hbr_res, hpure_res]
-      have hstep_cost : memoryCost (finalProdStep ((), (cur, acc))) s ≤ 3 := by
-        unfold finalProdStep
-        dsimp only
-        rw [memoryCost_bind', memoryCost_read, hr_st, hr_res,
-          memoryCost_bind', memoryCost_read, hr_st, hr_res,
-          memoryCost_bind', hbr_st, hbr_res, memoryCost_pure, Nat.add_zero]
-        omega
-      simp only [List.length_cons]
-      have hiter_eq : iterate finalProdStep () (rest.length + 1) (cur, acc) =
-          (finalProdStep ((), (cur, acc)) >>= iterate finalProdStep () rest.length) := rfl
-      rw [hiter_eq, StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
-        hstep_st, hstep_res, hih_st, hih_res, Nat.mul_assoc]
-      refine ⟨validHistory_bind_step hstep_val ?_, rfl, rfl, ?_⟩
-      · rw [hstep_st, hstep_res]; exact hih_val
-      · rw [memoryCost_bind', hstep_st, hstep_res]; omega
+      obtain ⟨hv, hst, hres, hcost⟩ := finalProdStep_spec (w := w) (acc := acc) hf
+      obtain ⟨hv', hst', hres', hcost'⟩ :=
+        finalResultProd_aux hB rest (cur + 4) _ hrest (mul_getD_zero_le hcap)
+      rw [List.length_cons, iterate, StateTransitionSpec.clientState_bind,
+        StateTransitionSpec.clientResult_bind, memoryCost_bind', hst, hres, hst', hres',
+        Nat.mul_assoc]
+      exact ⟨validHistory_bind_step hv (by rwa [hst, hres]), rfl, rfl, by omega⟩
 
 theorem finalResultProd_spec {w B : ℕ} {args : FinalProdArgs}
     {es : ElimState ℕ ℕ} {s : Memory.State}
@@ -187,20 +163,12 @@ theorem finalResultProd_spec {w B : ℕ} {args : FinalProdArgs}
       memoryCost (finalResultProd args) s ≤ 3 * args.liveLen := by
   unfold finalResultProd
   rw [hlen, hsc]
-  have hcap0 : es.scalar * (es.live.map capFactor).prod ≤ B :=
-    (Nat.mul_le_mul_right _ (le_max_right 1 es.scalar)).trans hcap
   obtain ⟨hval, hst, hres, hcost⟩ := finalResultProd_aux hB es.live args.livePtr es.scalar
-    hlive hcap0
-  have hpure_st {α : Type} (x : α) (u : Memory.State) :
-      (Memory.spec 0).clientState u (pure x) = u := rfl
-  have hpure_res {α : Type} (x : α) (u : Memory.State) :
-      (Memory.spec 0).clientResult u (pure x) = x := rfl
-  rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
-    hst, hpure_st, hpure_res, hres]
-  refine ⟨validHistory_bind_step hval (by rw [hst]; exact validHistory_pure w s _),
-    rfl, rfl, ?_⟩
-  rw [memoryCost_bind', hst, memoryCost_pure, Nat.add_zero]
-  exact hcost
+    hlive ((Nat.mul_le_mul_right _ (le_max_right 1 es.scalar)).trans hcap)
+  rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind, hst,
+    StateTransitionSpec.clientState_pure, StateTransitionSpec.clientResult_pure, hres,
+    memoryCost_bind', hst, memoryCost_pure, Nat.add_zero]
+  exact ⟨validHistory_bind_step hval (by rw [hst]; exact validHistory_pure w s _), rfl, rfl, hcost⟩
 
 theorem finalResultProd_realizes :
     Realizes .exact finalResultProd WordEncoding.encode WordEncoding.encode
@@ -217,68 +185,30 @@ theorem finalResultProd_realizes :
   obtain ⟨live₀, B, h4, hlen₀, hlive₀, hcap₀, hB⟩ := h
   refine iterationSafe_of_stepInv _ _ w _
     (fun (j : ℕ) (st : ℕ × ℕ) (t : Memory.State) =>
-      t = s ∧
-      ∃ rem,
-        rem.length = j ∧
-        HoldsFactorList st.1 rem s ∧
+      t = s ∧ ∃ rem : List (FactorTable ℕ ℕ), rem.length = j ∧ HoldsFactorList st.1 rem s ∧
         st.2 * (rem.map capFactor).prod ≤ B)
-    (fun j st t ⟨ht_eq, rem, hrem_l, hrem_h, hcap_t⟩ => ?_)
+    (fun j ⟨cur, acc⟩ t ⟨ht_eq, rem, hrem_l, hrem_h, hcap_t⟩ => ?_)
     ⟨rfl, live₀, hlen₀, hlive₀, hcap₀⟩
-  dsimp only
   rcases ht_eq.symm with rfl
   rcases rem with _ | ⟨f, rest⟩
   · cases hrem_l
   simp only [List.length_cons, Nat.add_right_cancel_iff] at hrem_l
   subst hrem_l
   obtain ⟨hf, hrest⟩ := hrem_h
-  obtain ⟨hd, _, hel, _, hent⟩ := hf
   simp only [List.map_cons, List.prod_cons] at hcap_t
-  have hr_st (addr : ℕ) : (Memory.spec 0).clientState s (Memory.read addr) = s := rfl
-  have hr_res (addr : ℕ) : (Memory.spec 0).clientResult s (Memory.read addr) = s.mem addr := rfl
-  have hpure_res {α : Type} (x : α) (u : Memory.State) :
-      (Memory.spec 0).clientResult u (pure x) = x := rfl
-  have hbr_eq :
-      let br : Memory.Prog ℕ :=
-        if s.mem (st.1 + 3) = 0 then pure 0 else Memory.read (s.mem (st.1 + 2))
-      (Memory.spec 0).clientState s br = s ∧
-        (Memory.spec 0).clientResult s br = f.entries.getD 0 0 := by
-    dsimp only
-    by_cases hz : s.mem (st.1 + 3) = 0
-    · rw [ite_eq_left hz]
-      have hsz0 : ¬ (0 < f.entries.size) := by omega
-      have hget0 : f.entries.getD 0 0 = 0 := by simp [Array.getD, hsz0]
-      exact ⟨rfl, hget0.symm⟩
-    · rw [ite_eq_right hz]
-      have hsz_pos : 0 < f.entries.size := by omega
-      have h0 := hent.2.get 0 (by rw [Array.length_toList]; exact hsz_pos)
-      simp only [Nat.add_zero, Array.getElem_toList] at h0
-      simp only [Array.getD, hsz_pos, ↓reduceDIte]
-      exact ⟨rfl, h0⟩
-  obtain ⟨hbr_st, hbr_res⟩ := hbr_eq
-  have he0_le : f.entries.getD 0 0 ≤ capFactor f := getD_zero_le_capFactor f
-  have hcap' : (st.2 * f.entries.getD 0 0) * (rest.map capFactor).prod ≤ B := by
-    calc (st.2 * f.entries.getD 0 0) * (rest.map capFactor).prod
-        ≤ (st.2 * capFactor f) * (rest.map capFactor).prod :=
-          Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ he0_le)
-      _ = st.2 * (capFactor f * (rest.map capFactor).prod) := Nat.mul_assoc _ _ _
-      _ ≤ B := hcap_t
-  have hprod_le : st.2 * f.entries.getD 0 0 ≤ B := by
-    have h1_rest : 1 ≤ (rest.map capFactor).prod :=
-      List.one_le_prod_of_one_le (by simp [one_le_capFactor])
-    exact (Nat.le_mul_of_pos_right _ h1_rest).trans hcap'
-  refine ⟨?_, ?_⟩
-  · refine ⟨hmem.frontier_fits.of_le (by omega), hmem.frontier_fits.of_le (by omega), ?_, ?_⟩
-    · split_ifs
-    · rw [hbr_res]
-      exact ⟨hmem.frontier_fits.of_le (by omega), hB.of_le hprod_le⟩
-  · unfold finalProdStep
-    dsimp only
-    rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
-      hr_st, hr_res,
-      StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
-      hr_st, hr_res,
-      StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
-      hbr_st, hbr_res, hpure_res]
-    exact ⟨rfl, rest, rfl, hrest, hcap'⟩
+  have hcap' := mul_getD_zero_le hcap_t
+  have h1 : 1 ≤ (rest.map capFactor).prod :=
+    List.one_le_prod_of_one_le (by simp [one_le_capFactor])
+  have hprod_le : acc * f.entries.getD 0 0 ≤ B := (Nat.le_mul_of_pos_right _ h1).trans hcap'
+  obtain ⟨-, -, hbr_res, -⟩ := finalProdBranch_spec (w := w) hf
+  obtain ⟨-, hst, hres, -⟩ := finalProdStep_spec (w := w) (acc := acc) hf
+  have hd := hf.1
+  dsimp only at hbr_res ⊢
+  rw [hst, hres]
+  refine ⟨⟨hmem.frontier_fits.of_le (by omega), hmem.frontier_fits.of_le (by omega), ?_, ?_⟩,
+    rfl, rest, rfl, hrest, hcap'⟩
+  · split_ifs
+  · rw [hbr_res]
+    exact ⟨hmem.frontier_fits.of_le (by omega), hB.of_le hprod_le⟩
 
 end Cslib.Algorithms.WordRAM.VariableElimination
