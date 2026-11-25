@@ -289,6 +289,7 @@ public import CslibFrontier.Algorithms.Lean.Yates
 public import CslibFrontier.Algorithms.Lean.ZFunction.Basic
 public import CslibFrontier.Algorithms.Lean.ZFunction.Search
 public import CslibFrontier.Algorithms.LinearAlgebra.BareissElimination
+public import CslibFrontier.Algorithms.LinearAlgebra.ImpulseCertificate
 public import CslibFrontier.Algorithms.LinearAlgebra.LDLCertificate
 public import CslibFrontier.Algorithms.LinearAlgebra.LyapunovCertificate
 public import CslibFrontier.Algorithms.Matching.Edmonds
@@ -7751,6 +7752,7 @@ public import CslibFrontier.Foundations.Analysis.Normed.CoveringNumber
 public import CslibFrontier.Foundations.Analysis.Normed.FiniteNet
 public import CslibFrontier.Foundations.Analysis.Normed.Ring.PowSub
 public import CslibFrontier.Foundations.Analysis.Normed.UnitSphere
+public import CslibFrontier.Foundations.Analysis.ODE.ImpulseBounds
 public import CslibFrontier.Foundations.Analysis.ODE.LinearFlow
 public import CslibFrontier.Foundations.Analysis.ODE.LinearLyapunov
 public import CslibFrontier.Foundations.Analysis.ODE.StateSpace
