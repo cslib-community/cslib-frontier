@@ -21,13 +21,11 @@ The [version before the scope-only rewrite of 2026-11-08](https://github.com/csl
 | Frontier program: ambitious theorems toward the research frontier | [#897](https://github.com/cslib-community/cslib-frontier/issues/897); its tracks are linked below |
 | Optional experiment: formalize unformalized STOC 2027 submission results, subject to independent source-correspondence review | [#2527](https://github.com/cslib-community/cslib-frontier/issues/2527) |
 | Metacomplexity: time-bounded Kolmogorov complexity, partial MCSP, hardness magnification | [#798](https://github.com/cslib-community/cslib-frontier/issues/798), cleanup [#4644](https://github.com/cslib-community/cslib-frontier/issues/4644) |
-| Plain computability: delete the tidy calculus, keeping a machine-level kernel | [#862](https://github.com/cslib-community/cslib-frontier/issues/862), from [#456](https://github.com/cslib-community/cslib-frontier/issues/456) |
+| Plain computability: delete the tidy calculus, keeping a machine-level kernel | [#862](https://github.com/cslib-community/cslib-frontier/issues/862) |
 | Consolidation: duplicates, accurate statements and docs, less churn | [#949](https://github.com/cslib-community/cslib-frontier/issues/949) |
 | Fully homomorphic encryption: follow-ups to the instantiated bootstrapping theorem, then modern schemes | [#2585](https://github.com/cslib-community/cslib-frontier/issues/2585) |
 | Boneh–Shoup cryptography tracks; zero-knowledge architecture | [#640](https://github.com/cslib-community/cslib-frontier/issues/640), [#643](https://github.com/cslib-community/cslib-frontier/issues/643) |
-| Crypto frontier track: Kilian's succinct arguments | [#999](https://github.com/cslib-community/cslib-frontier/issues/999) |
 | OpenAI math TCS results: review Fortnow's rewrites and extract in-scope results | [#1002](https://github.com/cslib-community/cslib-frontier/issues/1002) |
-| A Verso guide with a chapter per area | [#585](https://github.com/cslib-community/cslib-frontier/issues/585) |
 | Randomized Word RAM: broader expected-time rules and simulation bridges | [#1124](https://github.com/cslib-community/cslib-frontier/issues/1124) |
 | Proof automation: predictable polynomial-time certificate search | [#1155](https://github.com/cslib-community/cslib-frontier/issues/1155) |
 | Statistical learning theory: the textbook pillars still missing from the PAC, Rademacher and online layers, and links to cryptography and complexity | [#4920](https://github.com/cslib-community/cslib-frontier/issues/4920); directions under [learning](roadmap/models.md) |
@@ -36,13 +34,13 @@ The [version before the scope-only rewrite of 2026-11-08](https://github.com/csl
 
 Priorities live in this list and in the tiers of [#897](https://github.com/cslib-community/cslib-frontier/issues/897).
 
-1. [Completeness of oblivious transfer](roadmap/cryptography.md#cryptographic-landmarks)
-2. [Håstad's optimal MAX-E3SAT hardness](roadmap/complexity.md#approximation-and-pcp) ([#886](https://github.com/cslib-community/cslib-frontier/issues/886))
+1. [Completeness of oblivious transfer](roadmap/cryptography.md#cryptographic-landmarks) ([#1212](https://github.com/cslib-community/cslib-frontier/issues/1212))
+2. [Håstad's optimal MAX-E3SAT hardness](roadmap/complexity.md#approximation-and-pcp) ([#8364](https://github.com/cslib-community/cslib-frontier/issues/8364))
 3. [Williams's NEXP ⊄ ACC⁰](roadmap/circuits.md) ([#889](https://github.com/cslib-community/cslib-frontier/issues/889))
 4. [Valiant's VNP-completeness of the permanent](roadmap/circuits.md) ([#321](https://github.com/cslib-community/cslib-frontier/issues/321))
 5. [The Kabanets–Impagliazzo theorem](roadmap/circuits.md) ([#891](https://github.com/cslib-community/cslib-frontier/issues/891))
 6. [MIP = NEXP](roadmap/complexity.md#interactive-proofs) ([#892](https://github.com/cslib-community/cslib-frontier/issues/892))
-7. [Regev's worst-case to average-case reduction](roadmap/cryptography.md#cryptographic-landmarks)
+7. [Regev's worst-case to average-case reduction](roadmap/cryptography.md#cryptographic-landmarks) ([#1213](https://github.com/cslib-community/cslib-frontier/issues/1213))
 
 ### Optional landmark projects
 
@@ -58,9 +56,9 @@ The size labels describe prerequisite breadth, not staffing or calendar estimate
   Special cases and reductions are milestones, not the full dichotomy.
 - **QIP = PSPACE — optional, large**: Following [Jain–Ji–Upadhyay–Watrous](https://cs.uwaterloo.ca/~watrous/Papers/QIPequalsPSPACE.pdf), prove both inclusions for polynomial-time quantum interactive proofs with a uniform verifier, unrestricted prover strategies and explicit completeness and soundness gaps.
   The upper bound needs a polynomial-space matrix multiplicative-weights argument with controlled precision; quantum circuit simulation alone does not provide it.
-- **MIP\* = RE — optional, large integration project; exceptional if rebuilt from scratch**: Prove the characterization of RE in [Ji–Natarajan–Vidick–Wright–Yuen, v4](https://arxiv.org/abs/2001.04383v4) as a native class equality, with finite-dimensional tensor-product strategies, their supremum over unbounded finite dimensions and a uniform polynomial-time verifier.
+- **MIP\* = RE — optional, large integration project; exceptional if rebuilt from scratch** ([#6105](https://github.com/cslib-community/cslib-frontier/issues/6105)): Prove the characterization of RE in [Ji–Natarajan–Vidick–Wright–Yuen, v4](https://arxiv.org/abs/2001.04383v4) as a native class equality, with finite-dimensional tensor-product strategies, their supremum over unbounded finite dimensions and a uniform polynomial-time verifier.
   Distinguish classical MIP from commuting-operator models.
-  Start by auditing reuse of the Apache-2.0 [MIPRE formalization](https://github.com/vidick/MIPRE-formalization) rather than duplicating its compression proof.
+  Follow the foundation-first route of [#6149](https://github.com/cslib-community/cslib-frontier/issues/6149); the Apache-2.0 [MIPRE formalization](https://github.com/vidick/MIPRE-formalization) is a reference, not vendored.
 
 ## Areas
 
