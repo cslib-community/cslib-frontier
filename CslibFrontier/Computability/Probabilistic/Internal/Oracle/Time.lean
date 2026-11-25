@@ -674,8 +674,9 @@ theorem bind_sample_right {first : α → WordOracleComp Operation β} {second :
   intro a State oracle s cfg₀ s₁ _
   have hinit : ((ofClosed (Operation := Operation) m₂).initialConfig cfg₀.tapes.output) =
       { tapes := (m₂.initialConfig cfg₀.tapes.output).tapes, channels := fun _ => {} } := rfl
-  rw [hinit, show Cfg.init (ofClosed (Operation := Operation) m₂).initial cfg₀.tapes.output =
-      (m₂.initialConfig cfg₀.tapes.output).tapes from rfl,
+  have hcfg : Cfg.init (ofClosed (Operation := Operation) m₂).initial cfg₀.tapes.output =
+      (m₂.initialConfig cfg₀.tapes.output).tapes := rfl
+  rw [hinit, hcfg,
     runWith_runOracleConfigFrom_ofClosed, runWith_runOracleConfigFrom_ofClosed,
     PMF.map_comp, PMF.map_comp]
   rfl

@@ -497,15 +497,16 @@ theorem succProbability_encForgeGame_encryptThenMAC_le (E : SymmetricCipher) (M 
                M.verify km pair.1 pair.2))) := by
     rw [OracleComp.interpret_bind, StateT.run_bind, ProbOracleComp.run_interpret_sample]
     simp only [pmf_norm]
-    congr 1; funext ke
+    congr 1
+    funext ke
     rw [OracleComp.interpret_map, StateT.run_map]
     simp only [_root_.PMF.monad_map_eq_map, PMF.bind_map, Function.comp_def]
   simp only [hinner]
-  rw [PMF.bind_comm (ProbComp.eval (M.keyGen n)),
-    show (encryptThenMAC E M hctLen).keyGen n = (do
+  have hkg : (encryptThenMAC E M hctLen).keyGen n = (do
       let ke ← E.keyGen n
       let km ← M.keyGen n
-      return encPair encBits encBits (ke, km)) from rfl]
+      return encPair encBits encBits (ke, km)) := rfl
+  rw [PMF.bind_comm (ProbComp.eval (M.keyGen n)), hkg]
   simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
   refine ENNReal.toNNReal_mono (PMF.apply_ne_top _ true) ?_
   rw [PMF.bind_apply, PMF.bind_apply]

@@ -473,9 +473,13 @@ theorem tickToStage3Prog_fastStep {c U V w n_max base : ℕ}
   have h1 := writeHdrStep (fs := fs) henv (by dsimp [hdrRebStage]; decide)
     (henv.fits_const (by decide)) (fun h => by dsimp [hdrRebStage] at h; omega) hseed hrep
     (hdrOff := hdrRebStage) (val := 3)
-  unfold tickToStage3Prog; simp only [pure_bind]
+  unfold tickToStage3Prog
+  simp only [pure_bind]
   exact thenWriteHdr (hdrOff := hdrStageCursor) henv
-    (by dsimp [hdrStageCursor]; decide) (Nat.two_pow_pos w) (fun _ => Nat.zero_le _) h1
+    (by
+      dsimp [hdrStageCursor]
+      decide)
+    (Nat.two_pow_pos w) (fun _ => Nat.zero_le _) h1
 
 /-- Set `(rebCandSalt, rebScanCursor, rebInsCount, rebCollision) := (cand, 0, 0, 0)`
 (`d = (base, cand)`). -/

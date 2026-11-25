@@ -97,9 +97,9 @@ theorem isPrefix_iff_binaryValue {h r : List Bool} (hlen : h.length ≤ r.length
   have hdiv : binaryValue r / 2 ^ (r.length - h.length) = binaryValue (r.take h.length) := by
     have hv : binaryValue (r.drop h.length) < 2 ^ (r.length - h.length) :=
       List.length_drop ▸ binaryValue_lt_two_pow (r.drop h.length)
-    rw [show binaryValue r = binaryValue (r.take h.length ++ r.drop h.length) from
-      congrArg binaryValue (List.take_append_drop h.length r).symm,
-      binaryValue_append, List.length_drop, mul_comm, Nat.mul_add_div hP,
+    have hsplit : binaryValue r = binaryValue (r.take h.length ++ r.drop h.length) :=
+      congrArg binaryValue (List.take_append_drop h.length r).symm
+    rw [hsplit, binaryValue_append, List.length_drop, mul_comm, Nat.mul_add_div hP,
       Nat.div_eq_of_lt hv, add_zero]
   rw [← Nat.le_div_iff_mul_le hP, ← Nat.div_lt_iff_lt_mul hP, hdiv, List.prefix_iff_eq_take]
   exact ⟨fun hp => by rw [← hp]; omega,
