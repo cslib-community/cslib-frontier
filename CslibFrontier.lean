@@ -6452,6 +6452,7 @@ public import CslibFrontier.Crypto.Computational.PseudorandomFunction
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildRouting
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildRoutingLaw
+public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildTableLaw
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildTables
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.Hybrid
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.CircuitLowerBound
