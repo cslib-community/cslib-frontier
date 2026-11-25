@@ -247,8 +247,7 @@ theorem exists_multidigraph_arcDisjoint_eq_outArcs [Finite V] [DecidableEq V] [F
   classical
   have := Fintype.ofFinite V
   obtain ⟨S, hS, P, hP, hcap⟩ := exists_arcCap_eq_cutCapacity (multiNetwork src tgt s t) hst
-  have hcard : (multiNetwork src tgt s t).cutCapacity S = (Multidigraph.outArcs src tgt S).card :=
-    cutCapacity_multiNetwork src tgt s t S
+  have hcard := cutCapacity_multiNetwork src tgt s t S
   let I (u v : V) : Finset (Fin ((multiNetwork src tgt s t).cutCapacity S)) :=
     Finset.univ.filter fun i => (u, v) ∈ (P i).zip (P i).tail
   let A (u v : V) : Finset E := Finset.univ.filter fun e => src e = u ∧ tgt e = v
@@ -332,8 +331,7 @@ private theorem exists_unit_flowPaths (G : Digraph V) [DecidableRel G.Adj] {s t 
       (∀ i, G.IsDipath s t (P i)) ∧ Digraph.ArcDisjoint P ∧
       ∀ i j a b, (a, b) ∈ (P i).zip (P i).tail → (b, a) ∉ (P j).zip (P j).tail := by
   obtain ⟨S, hScut, P, hP, hcap, hanti⟩ := exists_cap_flowPaths (unitNetwork G s t) hst
-  have hk : (unitNetwork G s t).cutCapacity S = (G.outArcs S).card :=
-    cutCapacity_unitNetwork G s t S
+  have hk := cutCapacity_unitNetwork G s t S
   have hadj : ∀ i, ∀ e ∈ (P i).zip (P i).tail, G.Adj e.1 e.2 := fun i e he => by
     have hpos : 0 < (unitNetwork G s t).cap e.1 e.2 :=
       (Digraph.isChain_iff_forall_mem_zip_tail.mp (hP i).2.2.2) e he
