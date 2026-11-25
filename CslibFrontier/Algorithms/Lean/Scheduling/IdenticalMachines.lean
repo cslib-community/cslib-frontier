@@ -260,13 +260,10 @@ theorem IsListSchedule.completion_le {p : Fin n → α} {σ : Fin n → Fin m} (
           simp
       _ ≤ ∑ i, prefixLoad p σ j i := sum_le_sum fun i _ => hσ j i
   have h2 : ∑ k : Fin n with k.val < j.val, p k + p j ≤ ∑ k, p k := by
-    have hsub : (univ.filter fun k : Fin n => (k : ℕ) < j) ∪ {j} ⊆ univ := subset_univ _
-    have hdisj : Disjoint (univ.filter fun k : Fin n => (k : ℕ) < j) {j} := by
-      simp
     calc ∑ k : Fin n with k.val < j.val, p k + p j
         = ∑ k ∈ (univ.filter fun k : Fin n => (k : ℕ) < j) ∪ {j}, p k := by
-          rw [sum_union hdisj, sum_singleton]
-      _ ≤ ∑ k, p k := sum_le_sum_of_subset_of_nonneg hsub fun k _ _ => hp k
+          rw [sum_union (by simp), sum_singleton]
+      _ ≤ ∑ k, p k := sum_le_sum_of_subset_of_nonneg (subset_univ _) fun k _ _ => hp k
   rw [sum_prefixLoad] at h1
   nlinarith
 
@@ -431,9 +428,7 @@ theorem grahamTight_last : grahamTight α m (Fin.last _) = m :=
 
 theorem grahamTight_nonneg (j : Fin (m * (m - 1) + 1)) : 0 ≤ grahamTight α m j := by
   unfold grahamTight
-  split_ifs
-  · exact zero_le_one
-  · exact Nat.cast_nonneg m
+  split_ifs <;> positivity
 
 variable [NeZero m]
 
@@ -457,10 +452,7 @@ private theorem IsListSchedule.load_grahamTight {σ : Fin (m * (m - 1) + 1) → 
   have hbal : ∀ k ≤ m * (m - 1), ∀ i i', c k i ≤ c k i' + 1 := by
     intro k
     induction k with
-    | zero =>
-      intro _ i i'
-      simp only [hc, prefixLoad_zero]
-      omega
+    | zero => simp [hc, prefixLoad_zero]
     | succ k ih =>
       intro hk i i'
       rw [hstep k (by omega), hstep k (by omega)]
@@ -554,12 +546,10 @@ theorem optMakespan_grahamTight : optMakespan m (grahamTight α m) = m := by
 theorem IsListSchedule.makespan_grahamTight {σ : Fin (m * (m - 1) + 1) → Fin m}
     (hσ : IsListSchedule (grahamTight α m) σ) :
     makespan (grahamTight α m) σ = (2 - 1 / m) * optMakespan m (grahamTight α m) := by
-  have hmpos : (0 : α) < m := by exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne m)
-  rw [optMakespan_grahamTight, sub_mul, div_mul_cancel₀ _ hmpos.ne']
-  refine le_antisymm ?_ ((hσ.load_grahamTight).trans (load_le_makespan _ σ _))
+  have hmpos : (0 : α) < m := Nat.cast_pos.mpr (NeZero.pos m)
   have h := hσ.makespan_le_optMakespan grahamTight_nonneg
-  rw [optMakespan_grahamTight, sub_mul, div_mul_cancel₀ _ hmpos.ne'] at h
-  exact h
+  rw [optMakespan_grahamTight, sub_mul, div_mul_cancel₀ _ hmpos.ne'] at h ⊢
+  exact h.antisymm (hσ.load_grahamTight.trans (load_le_makespan _ σ _))
 
 end Tight
 

@@ -175,9 +175,7 @@ theorem constantSum_average_loss_mem_Icc {s₁ s₂ : I → J → ℝ} {c v₁ R
         = ∑ i, p t i * ∑ j, q t j * (s₁ i j + s₂ i j) :=
           sum_congr rfl fun i _ => by rw [← mul_add, ← sum_add_distrib]; simp only [mul_add]
       _ = ∑ i, p t i * ∑ j, q t j * c :=
-          sum_congr rfl fun i _ => by
-            congr 1
-            exact sum_congr rfl fun j _ => by rw [hcs i j]
+          sum_congr rfl fun _ _ => congrArg _ (sum_congr rfl fun _ _ => congrArg _ (hcs _ _))
       _ = c := by simp only [← sum_mul, hq1 t ht, hp1 t ht, one_mul]
   have havg_sum :
       (∑ t ∈ range T, ∑ i, p t i * ∑ j, q t j * s₁ i j) / T +
@@ -259,8 +257,7 @@ private theorem coupledMW_gap_le {M₀ : I → J → ℝ} (hM₀ : ∀ i j, M₀
   let q : ℕ → J → ℝ := prob (mwFactor η₂) ℓ₂
   have hrun_eq : ∀ t,
       run t = (fun i => ∑ j, q t j * M₀ i j, fun j => 1 - ∑ i, p t i * M₀ i j) := fun t => by
-    have hrun : run t = step t (fun s _ => run s) := WellFounded.fix_eq Nat.lt_wfRel.wf step t
-    rw [hrun]
+    rw [show run t = step t (fun s _ => run s) from WellFounded.fix_eq Nat.lt_wfRel.wf step t]
     dsimp only [step]
     rw [prob_congr (ℓ' := ℓ₁) fun s hs => by simp only [ℓ₁, hs, ↓reduceDIte],
       prob_congr (ℓ' := ℓ₂) fun s hs => by simp only [ℓ₂, hs, ↓reduceDIte]]
@@ -300,9 +297,7 @@ private theorem coupledMW_gap_le {M₀ : I → J → ℝ} (hM₀ : ∀ i j, M₀
   have hr₂ := mw_regret_le_sqrt_of_mem_Icc (T := T) (fun s _ => (hinv s).2.1) j
   have hround_sum : ∀ t, (∑ i', p t i' * ℓ₁ t i') + (∑ j', q t j' * ℓ₂ t j') = 1 := fun t => by
     simp only [hℓ₁_eq, hℓ₂_eq, mul_sub, mul_one, sum_sub_distrib]
-    have hswap := sum_mul_sum_comm (p t) (q t) M₀
-    have hq1 : ∑ j', q t j' = 1 := (hinv t).2.2.2.2.2
-    linarith
+    linarith [sum_mul_sum_comm (p t) (q t) M₀, (hinv t).2.2.2.2.2]
   have htot : (∑ t ∈ range T, ∑ i', p t i' * ℓ₁ t i') +
       (∑ t ∈ range T, ∑ j', q t j' * ℓ₂ t j') = T := by
     rw [← sum_add_distrib, sum_congr rfl fun t _ => hround_sum t]
@@ -391,20 +386,20 @@ theorem ciSup_ciInf_eq_ciInf_ciSup (M : I → J → ℝ) :
         exact ⟨Set.mem_iInter.2 hq0, hq1⟩
       have hpair : ∀ (i : I) (j : J),
           ∑ i', p_bar i' * M i' j ≤ ∑ j', q_bar j' * M i j' + C / √(T : ℝ) := fun i j => by
-        have hM_eq : ∀ i' j', M i' j' = 2 * B * M₀ i' j' - B := fun i' j' => by
-          dsimp only [M₀]; field_simp; ring
-        have hlhs : ∑ i', p_bar i' * M i' j = 2 * B * (∑ i', p_bar i' * M₀ i' j) - B := by
-          simp only [hM_eq, mul_sub, sum_sub_distrib, ← sum_mul, hp1, one_mul, mul_sum]
-          congr 1
-          exact sum_congr rfl fun i' _ => by ring
-        have hrhs : ∑ j', q_bar j' * M i j' = 2 * B * (∑ j', q_bar j' * M₀ i j') - B := by
-          simp only [hM_eq, mul_sub, sum_sub_distrib, ← sum_mul, hq1, one_mul, mul_sum]
-          congr 1
-          exact sum_congr rfl fun j' _ => by ring
-        have hmul := mul_le_mul_of_nonneg_left (hle₀ i j) (mul_nonneg zero_le_two hB.le)
-        have hC_eq : 2 * B * (∑ j', q_bar j' * M₀ i j' +
-            2 * (√(log (Fintype.card I)) + √(log (Fintype.card J))) / √(T : ℝ)) =
-            2 * B * (∑ j', q_bar j' * M₀ i j') + C / √(T : ℝ) := by dsimp only [C]; ring
+        have hM_eq (i' : I) (j' : J) : M i' j' = M₀ i' j' * (2 * B) - B := by
+          dsimp only [M₀]
+          field_simp
+          ring
+        have hlhs : ∑ i', p_bar i' * M i' j = (∑ i', p_bar i' * M₀ i' j) * (2 * B) - B := by
+          simp only [hM_eq, mul_sub, ← mul_assoc, sum_sub_distrib, ← sum_mul, hp1, one_mul]
+        have hrhs : ∑ j', q_bar j' * M i j' = (∑ j', q_bar j' * M₀ i j') * (2 * B) - B := by
+          simp only [hM_eq, mul_sub, ← mul_assoc, sum_sub_distrib, ← sum_mul, hq1, one_mul]
+        have hmul := mul_le_mul_of_nonneg_right (hle₀ i j) (mul_nonneg zero_le_two hB.le)
+        have hC_eq : (∑ j', q_bar j' * M₀ i j' +
+            2 * (√(log (Fintype.card I)) + √(log (Fintype.card J))) / √(T : ℝ)) * (2 * B) =
+            (∑ j', q_bar j' * M₀ i j') * (2 * B) + C / √(T : ℝ) := by
+          dsimp only [C]
+          ring
         linarith
       have hsup_inf : (⨆ j : J, ∑ i, sp.weights i * M i j) ≤
           (⨅ i : I, ∑ j, sq.weights j * M i j) + C / √(T : ℝ) := by

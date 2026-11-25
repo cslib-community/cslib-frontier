@@ -109,11 +109,8 @@ theorem evalOne_complementBlock_extend (φ : CNF V) (σ : V → Bool) {i j : ℕ
   unfold complementBlock
   split
   · rfl
-  · rw [evalOne_complementClauses_iff]
-    have hy := extend_auxiliary_zero φ σ hc hl
-    have hconst := extend_auxiliary_constants φ σ i j
-    simp only [extend] at *
-    exact ⟨by rw [hy, Bool.not_not], hconst⟩
+  · rw [evalOne_complementClauses_iff, extend_auxiliary_zero φ σ hc hl]
+    exact ⟨by simp [extend], extend_auxiliary_constants φ σ i j⟩
 
 /-- If every complement block holds, the inherited positive clause has the original
 exact-one value under the assignment read from source variables. -/
@@ -269,34 +266,29 @@ theorem assignments_agree_iff {φ : CNF V} {σ τ : Variable V → Bool}
   · intro h v hv
     obtain ⟨c, hc, b, hl⟩ := CNF.mem_vars.mp hv
     obtain ⟨⟨a, i⟩, ha, hc⟩ := List.mem_flatMap.mp hc
-    have hσblock := (CNF.evalOne_flatMap_eq_true_iff σ φ.zipIdx
-      (fun (c, i) => clauseClauses i c)).mp hσ (a, i) ha
-    have hτblock := (CNF.evalOne_flatMap_eq_true_iff τ φ.zipIdx
-      (fun (c, i) => clauseClauses i c)).mp hτ (a, i) ha
-    have hcompσ := (evalOne_clauseClauses_iff σ i a).mp hσblock |>.2
-    have hcompτ := (evalOne_clauseClauses_iff τ i a).mp hτblock |>.2
-    have hsource (l : Literal V) (j : ℕ) (hl : (l, j) ∈ a.zipIdx) :
-        σ (.inl l.1) = τ (.inl l.1) := by
-      apply h l.1
-      exact CNF.mem_vars.mpr ⟨a, List.fst_mem_of_mem_zipIdx ha, l.2,
-        List.fst_mem_of_mem_zipIdx hl⟩
+    have hsource (l : Literal V) (j : ℕ) (hlj : (l, j) ∈ a.zipIdx) :
+        σ (.inl l.1) = τ (.inl l.1) :=
+      h l.1 (CNF.mem_vars.mpr ⟨a, List.fst_mem_of_mem_zipIdx ha, l.2,
+        List.fst_mem_of_mem_zipIdx hlj⟩)
+    have hagree (l : Literal V) (j : ℕ) (hlj : (l, j) ∈ a.zipIdx) :
+        ∀ u ∈ (complementBlock i j l).vars, σ u = τ u :=
+      complementBlock_assignments_agree σ τ i j l
+        (evalOne_complementBlock_of_formula φ σ hσ (List.mem_zipIdx_iff_getElem?.mp ha)
+          (List.mem_zipIdx_iff_getElem?.mp hlj))
+        (evalOne_complementBlock_of_formula φ τ hτ (List.mem_zipIdx_iff_getElem?.mp ha)
+          (List.mem_zipIdx_iff_getElem?.mp hlj))
+        (hsource l j hlj)
     rcases List.mem_append.mp hc with hc | hc
     · obtain rfl := List.mem_singleton.mp hc
-      obtain ⟨⟨l, j⟩, hlj, he⟩ := List.mem_map.mp hl
-      have hv : v = (positiveLiteral i j l).1 := (congrArg Prod.fst he).symm
-      rw [hv]
-      rcases l with ⟨w, b⟩
+      obtain ⟨⟨⟨w, b⟩, j⟩, hlj, he⟩ := List.mem_map.mp hl
+      obtain rfl : v = (positiveLiteral i j (w, b)).1 := (congrArg Prod.fst he).symm
       cases b with
       | true => exact hsource (w, true) j hlj
       | false =>
-        exact complementBlock_assignments_agree σ τ i j (w, false)
-          (hcompσ ((w, false), j) hlj) (hcompτ ((w, false), j) hlj)
-          (hsource (w, false) j hlj) (auxiliary i j 0) (by
-            simp [complementBlock, complementClauses, forceFalseClauses, CNF.vars])
+        exact hagree (w, false) j hlj (auxiliary i j 0)
+          (by simp [complementBlock, complementClauses, forceFalseClauses, CNF.vars])
     · obtain ⟨⟨l, j⟩, hlj, hc⟩ := List.mem_flatMap.mp hc
-      exact complementBlock_assignments_agree σ τ i j l
-        (hcompσ (l, j) hlj) (hcompτ (l, j) hlj) (hsource l j hlj) v
-        (CNF.mem_vars.mpr ⟨c, hc, b, hl⟩)
+      exact hagree l j hlj v (CNF.mem_vars.mpr ⟨c, hc, b, hl⟩)
 
 /-- Polarity elimination preserves the number of satisfying assignments on occurring variables. -/
 theorem oneModelCount_formula [DecidableEq V] (φ : CNF V) :
@@ -410,9 +402,7 @@ def occurrenceVariables (i j : ℕ) (l : Literal V) : List (Variable V) :=
 theorem nodup_inheritedClause (i : ℕ) (c : Clause V) (hc : (c.map Prod.fst).Nodup) :
     ((c.zipIdx.map fun (l, j) => positiveLiteral i j l).map Prod.fst).Nodup := by
   have hvars : (c.zipIdx.map fun a => a.1.1).Nodup := by
-    have he := congrArg (List.map Prod.fst) (List.zipIdx_map_fst 0 c)
-    simp only [List.map_map, Function.comp_def] at he
-    rw [he]
+    rw [← List.zipIdx_map_fst 0 c, List.map_map] at hc
     exact hc
   have hidx := List.nodup_zipIdx_map_snd c
   change List.Pairwise _ _ at hvars hidx ⊢
