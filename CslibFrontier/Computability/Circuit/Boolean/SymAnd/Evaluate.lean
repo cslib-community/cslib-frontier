@@ -360,12 +360,8 @@ private theorem list_range_filter_unique {N k : ℕ} (hk : k < N) (p : ℕ → B
 private theorem encBool_length_le_two (b : Bool) : (encBool b).length ≤ 2 := by
   cases b <;> enc_len
 
-private theorem encNat_length_le (n : ℕ) : (encNat n).length ≤ n := by
-  rw [encNat_apply, Nat.size_eq_bits_len]
-  exact Nat.size_le_self n
-
 private theorem encNat_length_le_succ (n : ℕ) : (encNat n).length ≤ n + 1 :=
-  (encNat_length_le n).trans (Nat.le_succ n)
+  (length_encNat_le_self n).trans (Nat.le_succ n)
 
 private theorem pow_shift_le {x k d D : ℕ} (hk : 1 ≤ k) (hd : d ≤ D) :
     (x + k) ^ d ≤ k ^ d * (x + 1) ^ D := by
@@ -3361,7 +3357,7 @@ private theorem computableInO_tabulateOut {out : ℕ → Bool} {T S : ℕ → �
     have h_enc := hstep_enc_le x x.gates.length le_rfl
     have hg := gates_length_le_encSymAndInstance x
     have hn_s : (encNat x.gates.length).length + 1 ≤ A := by
-      have := encNat_length_le x.gates.length; omega
+      have := length_encNat_le_self x.gates.length; omega
     have hA_c : A ^ c_s ≤ A ^ C := Nat.pow_le_pow_right (Nat.succ_pos _) (le_max_left _ _)
     have hA_3 : A ^ 3 ≤ A ^ C := Nat.pow_le_pow_right (Nat.succ_pos _) (le_max_right _ _)
     have hA_2 : A ^ 2 ≤ A ^ C := Nat.pow_le_pow_right (Nat.succ_pos _) (by omega)

@@ -84,7 +84,7 @@ example (b : Bool) (pad : List Bool)
     Nat.one_le_two_pow
   refine spaceDiagonal_desc unitNum (answer b) pad _ (Diagonal.tinyDesc_frame_append hpad) ?_
     hhalt hout
-  have hn := length_encNat_le ((List.map eBit (frame (eDesc (desc unitNum eBit
+  have hn := length_encNat_le_self ((List.map eBit (frame (eDesc (desc unitNum eBit
     (answer b))) ++ pad)).length + 1)
   simp only [cfgSpace, simSpace, List.length_map, hlen] at hn ⊢
   change _ + 3 * (2 * (eDesc (desc unitNum eBit (answer b))).length + 5) * 2 *

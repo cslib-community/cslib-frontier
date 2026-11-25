@@ -173,6 +173,14 @@ public lemma length_applyTapes_eq (ts : List Tape) (as : List TapeAct) :
   | nil => rfl
   | cons t ts ih => cases as <;> simp [applyTapes, ih]
 
+-- vendored: public, shared by `Universal/Space.lean` and `Halting/Hardwire.lean`
+/-- A step keeps the number of work tapes. -/
+public lemma length_workTapes_step {d : Desc} {x : List ℕ} {c : SCfg} :
+    (step d x c).1.workTapes.length = c.workTapes.length := by
+  rw [step_eq_stepWith, stepWith]
+  repeat' split
+  all_goals first | rfl | exact length_applyTapes_eq _ _
+
 lemma mem_applyTapes {ts : List Tape} {as : List TapeAct} {t' : Tape}
     (h : t' ∈ applyTapes ts as) : ∃ t ∈ ts, t' = t ∨ ∃ a ∈ as, t' = t.apply a := by
   induction ts generalizing as with
@@ -242,9 +250,8 @@ public lemma inv_iterate (x : List ℕ) (j : ℕ) :
 public lemma length_encIntUnary_le (z : ℤ) : (encIntUnary z).length ≤ z.natAbs + 1 := by
   rw [length_encIntUnary]; split_ifs <;> omega
 
-public lemma length_encNat_le (n : ℕ) : (encNat n).length ≤ n := by
-  simpa [Nat.size_eq_bits_len] using Nat.size_le.mpr (Nat.lt_two_pow_self (n := n))
-
+-- vendored: `length_encNat_le` is `Turing.MultiTapeTM.length_encNat_le_self`
+-- (`Internal/BinarySizeFacts`)
 public lemma length_cells_le {D : ℕ} {l : List (Option ℕ)} (h : ∀ o ∈ l, o.getD 0 ≤ D) :
     (encList eSym l).length ≤ l.length * (2 * D + 3) :=
   (length_encList_le eSym l (b := D + 1) fun o ho => length_eSym_le (h o ho)).trans
@@ -270,7 +277,7 @@ public abbrev cfgBound (D X j : ℕ) : ℕ :=
 lemma length_eCfg_le {D X j : ℕ} {c : SCfg} (h : Inv D X j c) :
     (eCfg c).length ≤ cfgBound D X j := by
   have h₁ := length_eSym_le h.state
-  have h₂ := (length_encNat_le c.inputPos).trans h.inputPos
+  have h₂ := (length_encNat_le_self c.inputPos).trans h.inputPos
   have h₃ := (length_encList_le eTape c.workTapes (b := tapeBound D j) fun t ht =>
     length_eTape_le (h.workTapes t ht)).trans (Nat.mul_le_mul_right _ h.tapes)
   simp only [eCfg_apply, length_encPair, cfgBound]

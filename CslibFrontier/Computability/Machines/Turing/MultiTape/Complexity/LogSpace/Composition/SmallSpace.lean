@@ -910,18 +910,7 @@ public theorem ComputableInTimeAndSpace.comp_space {α β γ : Type} {encIn : α
       (by have := huf_le a; omega)) (hK a)
   · exact final_space_le c K _ _ (hK a)
 
-/-- The binary length of a power. -/
-lemma length_encNat_pow_le (n d : ℕ) : (encNat (n ^ d)).length ≤ d * (encNat n).length + 1 := by
-  simp only [encNat_apply]
-  rw [Nat.size_eq_bits_len, Nat.size_eq_bits_len]
-  refine Nat.size_le.mpr ?_
-  calc n ^ d < (2 ^ n.size) ^ d + 1 :=
-        Nat.lt_succ_of_le (Nat.pow_le_pow_left (Nat.lt_size_self n).le d)
-    _ ≤ 2 ^ (d * n.size + 1) := by
-      rw [show d * n.size + 1 = n.size * d + 1 by ring, pow_succ, ← pow_mul]
-      have := Nat.one_le_two_pow (n := n.size * d)
-      omega
-
+-- vendored: `length_encNat_pow_le` is the shared lemma of `Internal/BinarySizeFacts`
 lemma log_time_le (c M A N S ℓ : ℕ) (h : S + 1 ≤ M * ℓ) :
     c * (A * (N + 1) ^ 2 * (S + 1) ^ 3) ≤ c * M ^ 3 * (A * (N + 1) ^ 2 * ℓ ^ 3) := by
   have h₁ := Nat.pow_le_pow_left h 3

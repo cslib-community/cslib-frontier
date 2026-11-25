@@ -347,7 +347,7 @@ theorem ComputableInO.natToUnary : ComputableInO (fun n : ℕ => n) encNat encUn
       (∑ j ∈ Finset.range (encNat n).length, D * (2 ^ j + 1)) +
         (2 ^ (encNat n).length + 1) + 1 ≤ (2 * ci + 2 * ce + 5 * D + 20) * (n + 1) := by
     have h₁ := two_pow_length_encNat_le n
-    have h₂ := Universal.length_encNat_le n
+    have h₂ := length_encNat_le_self n
     have h₃ := hgeom (encNat n).length
     nlinarith
   refine (ComputableInO.of_bounds (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace hK)

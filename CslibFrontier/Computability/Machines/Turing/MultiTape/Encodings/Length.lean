@@ -21,6 +21,8 @@ certificate, in terms of the input.
 ## Main results
 
 * `Turing.MultiTapeTM.length_encList`: the exact length.
+* `Turing.MultiTapeTM.length_encList_encBool`: a framed list of Booleans has three symbols per
+  entry.
 * `Turing.MultiTapeTM.sum_length_le_length_encList`: the encoded elements are no longer, in total,
   than the encoded list.
 * `Turing.MultiTapeTM.length_encList_set_le`: bound on the encoded length after replacing a list
@@ -40,6 +42,10 @@ theorem length_encList (l : List α) :
   induction l with
   | nil => rfl
   | cons a l ih => simp [ih]
+
+/-- A framed list of Booleans spends three symbols on each entry. -/
+theorem length_encList_encBool (l : List Bool) : (encList encBool l).length = 3 * l.length := by
+  simp [length_encList, encBool_apply, Nat.mul_comm]
 
 /-- Reversing a list preserves the full encoded size, including each element's framing. -/
 @[simp] theorem length_encList_reverse (l : List α) :

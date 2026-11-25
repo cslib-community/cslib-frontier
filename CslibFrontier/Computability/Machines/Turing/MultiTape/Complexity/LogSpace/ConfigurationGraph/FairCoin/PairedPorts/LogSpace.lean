@@ -14,6 +14,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.L
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunPropFinite
 import CslibFrontier.Foundations.Data.List.OfFnGetD
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.ListOption
 import Mathlib.Data.Nat.Size
 
 /-!
@@ -262,21 +263,17 @@ private theorem pair_length_log {α β γ : Type}
         Nat.add_le_add (Nat.add_le_add (Nat.mul_le_mul_left 2 (hCf a)) hL) (hCg a)
     _ = (2 * Cf + Cg + 1) * L := by ring
 
-private theorem length_encOption_bool_le (o : Option Bool) :
-    (encOption encBool o).length ≤ 2 := by
-  cases o <;> simp
-
 private theorem optionBool_length_log {α : Type} {encA : α ↪ List Bool} {f : α → Option Bool}
     (_ : ComputableInLogSpace f encA (encOption encBool)) :
     ∃ C, ∀ a, (encOption encBool (f a)).length ≤ C * (Nat.log2 (encA a).length + 1) :=
-  ⟨2, fun a => (length_encOption_bool_le (f a)).trans
+  ⟨2, fun a => (length_encOption_encBool_le (f a)).trans
     (Nat.le_mul_of_pos_right 2 (Nat.succ_pos _))⟩
 
 private theorem length_encList_optionBool_le :
     ∀ l : List (Option Bool), (encList (encOption encBool) l).length ≤ 5 * l.length
   | [] => by simp
   | o :: os => by
-    have ho := length_encOption_bool_le o
+    have ho := length_encOption_encBool_le o
     have ih := length_encList_optionBool_le os
     rw [encList_cons, List.length_append, length_frame, List.length_cons]
     omega

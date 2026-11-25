@@ -152,7 +152,7 @@ theorem universal_bounds_unary (i : Desc × List ℕ × ℕ) :
   set n := (eInUnary (d, x, t)).length with hn
   have hlen : n = 2 * descLen d + 1 + (2 * (encList encUnary x).length + 1 + t) := by
     simp [hn, descLen]
-  have hL := length_encNat_le t
+  have hL := length_encNat_le_self t
   have hIn : (eIn (d, x, t)).length ≤ 5 * n + 2 := by
     simp only [eIn, length_encPair]
     simp only [descLen] at hlen

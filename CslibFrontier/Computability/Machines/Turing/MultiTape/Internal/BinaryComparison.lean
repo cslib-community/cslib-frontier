@@ -14,6 +14,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DegreePrim
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DegreeComposition
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.Bounds
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.Subtraction
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.WordsRoundTrip
 import Mathlib.Tactic.Linarith
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.ZipTransducer
 
@@ -78,8 +79,6 @@ private lemma run_ltZip (q₀ c : Bool) (u v : List Bool) :
       simp only [ltZip, ofBits, List.foldr_cons, Nat.bit_val, List.nil_append,
         List.cons.injEq, and_true, decide_eq_decide]
       cases a <;> cases b <;> cases c <;> simp <;> omega
-
-private lemma ofBits_bits (n : ℕ) : ofBits n.bits = n := Nat.foldr_bit_bits n
 
 private lemma encBool_natLt (p : ℕ × ℕ) :
     encBool (decide (p.1 < p.2)) = (ltZip false).run false (encNat p.1) (encNat p.2) := by

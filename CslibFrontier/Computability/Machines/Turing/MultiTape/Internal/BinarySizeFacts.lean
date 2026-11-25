@@ -7,6 +7,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.Bits
+import CslibFrontier.Foundations.Data.Nat.BinarySize
 import Mathlib.Data.Nat.Size
 import Mathlib.Tactic.Linarith
 
@@ -21,6 +22,18 @@ namespace Turing.MultiTapeTM
 /-- The length of `encNat` is monotone. -/
 public lemma length_encNat_mono {m n : ℕ} (h : m ≤ n) : (encNat m).length ≤ (encNat n).length := by
   simpa [Nat.size_eq_bits_len] using Nat.size_le_size h
+
+/-- A number is at least as large as its length. -/
+public theorem length_encNat_le_self (n : ℕ) : (encNat n).length ≤ n := by
+  rw [encNat_apply, Nat.size_eq_bits_len]
+  exact Nat.size_le_self n
+
+/-- The binary length of a power is at most the exponent times the binary length of the base,
+plus one. -/
+public theorem length_encNat_pow_le (n d : ℕ) :
+    (encNat (n ^ d)).length ≤ d * (encNat n).length + 1 := by
+  simp only [encNat_apply, Nat.size_eq_bits_len]
+  exact Nat.size_pow_le n d
 
 /-- For positive `n`, the next power of two `2 ^ n.size` is at most `2 * n`. -/
 public theorem two_pow_size_le_two_mul {n : ℕ} (hn : 0 < n) : 2 ^ n.size ≤ 2 * n := by

@@ -24,8 +24,8 @@ encoded input length and linear charged workspace.
 ## Main results
 
 * `Turing.MultiTapeTM.length_encNat_add_le_add`, `.length_encNat_mul_le`: lengths of sums and
-  products in binary. Monotonicity, `Turing.MultiTapeTM.length_encNat_mono`, is in
-  `Internal/BinarySizeFacts`.
+  products in binary. Monotonicity, `Turing.MultiTapeTM.length_encNat_mono`, and the bound
+  `Turing.MultiTapeTM.length_encNat_le_self` are in `Internal/BinarySizeFacts`.
 -/
 
 public section
@@ -34,10 +34,6 @@ namespace Turing.MultiTapeTM
 
 theorem length_encNat_eq_size (n : ℕ) : (encNat n).length = n.size := by
   rw [encNat_apply, Nat.size_eq_bits_len]
-
-/-- A number is at least as large as its length. -/
-theorem length_encNat_le_self (n : ℕ) : (encNat n).length ≤ n := by
-  rw [length_encNat_eq_size]; exact Nat.size_le.mpr Nat.lt_two_pow_self
 
 /-- The binary length of a sum is bounded by the sum of the input lengths plus one. -/
 theorem length_encNat_add_le_add (a b : ℕ) :

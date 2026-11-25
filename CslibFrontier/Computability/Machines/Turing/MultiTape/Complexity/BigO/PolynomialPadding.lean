@@ -180,8 +180,8 @@ theorem computableInO_polynomialPaddingGuard (k : ℕ) :
   refine h.mono 12 (fun x => ?_) fun x => ?_
   all_goals
     have hu := length_unframe_le x
-    have h₁ := Universal.length_encNat_le (unframe x).length
-    have h₂ := Universal.length_encNat_le x.length
+    have h₁ := length_encNat_le_self (unframe x).length
+    have h₂ := length_encNat_le_self x.length
     dsimp only [Function.comp_apply, encBits_apply]
   · have hs := Nat.pow_le_pow_left (Nat.add_le_add_right hu 1) 2
     nlinarith

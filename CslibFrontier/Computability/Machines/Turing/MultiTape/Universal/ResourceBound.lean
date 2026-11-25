@@ -97,7 +97,7 @@ theorem universal_bounds_le {D N J B L : ℕ} (hD : D ≤ B) (hN : N ≤ B) (hL 
     have hfirst : (2 * D + 1) * (D + 1) * (ctxBound D N J + 1) ≤ 180 * (M ^ 4 * J) :=
       (Nat.mul_le_mul (Nat.mul_le_mul (show 2 * D + 1 ≤ 2 * M by omega) hDM)
         (show ctxBound D N J + 1 ≤ 90 * (M ^ 2 * J) by omega)).trans (le_of_eq (by ring))
-    have hbits := length_encNat_le (N + 1)
+    have hbits := length_encNat_le_self (N + 1)
     have hdigits : ((encNat (N + 1)).length + 1) ^ 2 ≤ 4 * M ^ 2 :=
       (Nat.pow_le_pow_left (show (encNat (N + 1)).length + 1 ≤ 2 * M by omega) 2).trans
         (le_of_eq (by ring))
