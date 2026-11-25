@@ -261,22 +261,22 @@ def raw_html_end(lines: list[str], i: int) -> int | None:
 
 def nonblank_opaque_end(lines: list[str], start: int) -> int:
     """Exclusive end line of the contiguous non-blank span from `start`, extended past any fenced
-    code, Type 1–5 HTML or `$$...$$` block opened inside it (and any non-blank lines immediately
-    following that block) so dialect-divergent continuations stay opaque up to a blank line."""
+    code, Type 1–5 HTML, `$$...$$` or multi-line list-item block opened inside it (and any
+    non-blank lines immediately following that block) up to a blank line."""
     end = next((k for k in range(start + 1, len(lines)) if not lines[k].strip()), len(lines))
     k = start
     while k < end:
         sub = fence_end(lines, k) or raw_html_end(lines, k) or display_math_end(lines, k)
         if sub is None and (m := ANY_LIST_ITEM.fullmatch(lines[k])):
-            first = lines[k][len(m.group("marker")):]
-            if first.lstrip(" ").startswith(("`", "~", "<", "$$")):
-                tail = [first, *lines[k + 1:]]
-                if rel := (fence_end(tail, 0) or raw_html_end(tail, 0)
-                           or display_math_end(tail, 0)):
-                    sub = k + rel
-        if sub is not None and sub > end:
-            end = next((n for n in range(sub, len(lines)) if not lines[n].strip()), len(lines))
-        k += 1
+            item_end, _ = list_item_span(lines, k, m)
+            if item_end > k + 1:
+                sub = item_end
+        if sub is not None:
+            if sub > end:
+                end = next((n for n in range(sub, len(lines)) if not lines[n].strip()), len(lines))
+            k = max(k + 1, sub)
+        else:
+            k += 1
     return end
 
 
@@ -301,8 +301,8 @@ def display_math_end(lines: list[str], i: int) -> int | None:
     rest = lines[i][match.end():]
     if "$$" in rest:
         return i + 1 if rest.count("$$") == 1 and rest.rstrip(" \t").endswith("$$") else None
-    close = next((k for k in range(i + 1, len(lines)) if "$$" in lines[k]), len(lines) - 1)
-    return close + 1
+    close = next((k for k in range(i + 1, len(lines)) if "$$" in lines[k]), None)
+    return close + 1 if close is not None else None
 
 
 def delimiter_cells(line: str) -> int:
@@ -341,18 +341,12 @@ def blockquote_end(lines: list[str], i: int) -> int | None:
     return nonblank_opaque_end(lines, i) if re.match(r" {0,3}>", lines[i]) else None
 
 
-def list_item_opaque_end(lines: list[str], i: int, item: re.Match[str],
-                         *, plain: bool = True) -> int | None:
-    """Exclusive end line when list item `lines[i]` has leading spaces/tabs or contains a
-    non-prose block, nested list or indented code, else None."""
+def list_item_span(lines: list[str], i: int, item: re.Match[str]) -> tuple[int, list[str]]:
+    """`(end, inner)` for CommonMark §5.2 list item `lines[i]` with its marker indent stripped."""
     marker = item.group("marker")
     indent = " " * len(marker)
     first = lines[i][len(marker):]
     end = i + 1
-    if first.lstrip(" ").startswith(("`", "~", "<", "$$")):
-        tail = [first, *lines[i + 1:]]
-        if sub_end := (fence_end(tail, 0) or html_block_end(tail, 0) or display_math_end(tail, 0)):
-            end = max(end, i + sub_end)
     while end < len(lines):
         if lines[end].startswith(indent):
             end += 1
@@ -363,11 +357,28 @@ def list_item_opaque_end(lines: list[str], i: int, item: re.Match[str],
                 end = nxt + 1
                 continue
         break
+    if first.lstrip(" ").startswith(("`", "~", "<", "$$")):
+        first_blank = next((k for k in range(i + 1, len(lines)) if not lines[k].strip()),
+                           len(lines))
+        bounded = [first, *(part[len(indent):] if part.startswith(indent) else part
+                            for part in lines[i + 1:max(end, first_blank)])]
+        if sub_end := (fence_end(bounded, 0) or html_block_end(bounded, 0)
+                       or display_math_end(bounded, 0)):
+            end = max(end, i + sub_end)
+    inner = [first, *(part[len(indent):] if part.startswith(indent)
+                      else ("" if not part.strip() else part)
+                      for part in lines[i + 1:end])]
+    return end, inner
+
+
+def list_item_opaque_end(lines: list[str], i: int, item: re.Match[str],
+                         *, plain: bool = True) -> int | None:
+    """Exclusive end line when list item `lines[i]` has leading spaces/tabs or contains a
+    non-prose block, nested list or indented code, else None."""
+    marker = item.group("marker")
+    end, inner = list_item_span(lines, i, item)
     if not plain or len(marker) - len(marker.rstrip(" ")) >= 5:  # CommonMark §5.2 Rule 2
         return end
-    inner = [first,
-             *(part[len(indent):] if part.startswith(indent) else ""
-               for part in lines[i + 1:end])]
     if any(kind == "opaque" or (kind == "prose" and (
                payload[0] != ""
                or any(PANDOC_LIST_MARKER.match(p.lstrip(" ")) for p in payload[1])))

@@ -271,6 +271,22 @@ class CanonicalTest(unittest.TestCase):
         self.assertSplits(
             '<a id="key"></a>\n## key\n\nFirst. Second.\n',
             '<a id="key"></a>', "## key", "", "First.", "Second.")
+        # Closed fences, math blocks and list-item fences inside or at top level do not leak past
+        # their closing delimiter or blank-line list boundary into subsequent paragraphs.
+        for prefix in (
+            "A | B\n--- | ---\nx | y\n```text\nexample\n```",
+            "A | B\n--- | ---\n$$5 | B",
+            "> Quote.\n$$\nx = 1\n$$",
+            "10. ```text\n    example\n    ```",
+            "   - ```text\n     example\n     ```",
+            "- ```text",
+            "- <pre>",
+        ):
+            with self.subTest(prefix=prefix):
+                doc = f"{prefix}\n\nFirst sentence. Second sentence.\n"
+                expected = f"{prefix}\n\nFirst sentence.\nSecond sentence.\n"
+                self.assertEqual(sf.canonical(doc), expected)
+                self.assertEqual(sf.compare(doc, expected), [])
 
     def test_formatting_is_idempotent_and_keeps_the_words(self) -> None:
         text = sf.SOURCES.read_text(encoding="utf-8")
@@ -336,6 +352,18 @@ class CommandTest(unittest.TestCase):
                 status, output = self.run_main("--compare", str(old_tbl), str(new_tbl))
                 self.assertEqual(status, 1)
                 self.assertIn("block 1 differs", output)
+            fenced_old = pathlib.Path(tmp) / "fenced_old.md"
+            fenced_new = pathlib.Path(tmp) / "fenced_new.md"
+            fenced_old.write_text(
+                "A | B\n--- | ---\nx | y\n```text\nexample\n```\n\nFirst sentence. Second sentence.\n",
+                encoding="utf-8",
+            )
+            fenced_new.write_text(
+                "A | B\n--- | ---\nx | y\n```text\nexample\n```\n\nFirst sentence.\nSecond sentence.\n",
+                encoding="utf-8",
+            )
+            status, _ = self.run_main("--compare", str(fenced_old), str(fenced_new))
+            self.assertEqual(status, 0)
 
 
 if __name__ == "__main__":
