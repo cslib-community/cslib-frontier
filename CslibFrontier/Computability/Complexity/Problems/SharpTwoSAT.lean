@@ -228,69 +228,44 @@ private theorem mem_vars_clauseWeightTwoSAT (φ : CNF ℕ) (r w : ℕ) :
         · exact Or.inr ⟨i, hi, Or.inl rfl⟩
         · exact Or.inl ⟨lit.1, List.mem_map.mpr
             ⟨lit, List.mem_flatten.mpr ⟨cl, hclMem, hlit⟩, rfl⟩, rfl⟩
-      · split_ifs at hc with hr0 hr1
-        · simp only [List.mem_singleton] at hc
-          subst hc
-          simp only [List.mem_singleton] at hl
-          cases hl
-          exact Or.inr ⟨i, hi, Or.inl rfl⟩
-        · simp only [List.mem_singleton] at hc
-          subst hc
+      · refine Or.inr ⟨i, hi, ?_⟩
+        split_ifs at hc with hr0 hr1 <;> simp only [List.mem_append, List.mem_cons,
+          List.not_mem_nil, or_false, List.mem_map, List.mem_range] at hc
+        · subst hc
           simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
-          rcases hl with rfl | rfl <;> exact Or.inr ⟨i, hi, Or.inl rfl⟩
-        · simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false, List.mem_map] at hc
-          rcases hc with (rfl | rfl) | ⟨j, hj, rfl⟩
-          · simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
-            rcases hl with rfl | rfl <;> exact Or.inr ⟨i, hi, Or.inl rfl⟩
-          · simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
-            rcases hl with rfl | rfl
-            · exact Or.inr ⟨i, hi, Or.inl rfl⟩
-            · exact Or.inr ⟨i, hi, Or.inr ⟨0, by omega, rfl⟩⟩
-          · rw [List.mem_range] at hj
-            simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
-            rcases hl with rfl | rfl
-            · exact Or.inr ⟨i, hi, Or.inr ⟨j, by omega, rfl⟩⟩
-            · exact Or.inr ⟨i, hi, Or.inr ⟨j + 1, by omega, rfl⟩⟩
-  · rintro (⟨v, hv, rfl⟩ | ⟨i, hi, hzi | ⟨j, hj, rfl⟩⟩)
-    · have hv' : v ∈ φ.distinctVars := CNF.mem_distinctVars.mpr hv
+          subst hl
+          exact Or.inl rfl
+        all_goals
+          rcases hc with (rfl | rfl) | ⟨j, hj, rfl⟩ <;>
+            simp only [List.mem_cons, List.not_mem_nil, or_false] at hl <;> rcases hl with rfl | rfl
+        all_goals first | exact Or.inl rfl | exact Or.inr ⟨0, by omega, rfl⟩ |
+          (refine Or.inr ⟨_, ?_, rfl⟩; omega)
+  · have hgad (i : ℕ) (hi : i < φ.length) (cl : Clause ℕ)
+        (hcl : cl ∈ clauseWeightGadget r (φ[i], i))
+        (l : Literal ℕ) (hl : l ∈ cl) : l.1 ∈ (clauseWeightTwoSAT φ r).vars := by
       rw [clauseWeightTwoSAT, CNF.vars, List.mem_map]
+      exact ⟨l, List.mem_flatten.mpr ⟨cl, List.mem_append_right _ (List.mem_flatMap.mpr ⟨(φ[i], i),
+        List.mem_zipIdx_iff_getElem?.mpr (List.getElem?_eq_some_iff.mpr ⟨hi, rfl⟩), hcl⟩), hl⟩, rfl⟩
+    rintro (⟨v, hv, rfl⟩ | ⟨i, hi, rfl | ⟨j, hj, rfl⟩⟩)
+    · rw [clauseWeightTwoSAT, CNF.vars, List.mem_map]
       refine ⟨(2 * v, true), List.mem_flatten.mpr ⟨[(2 * v, true), (2 * v, false)], ?_,
         List.mem_cons_self ..⟩, rfl⟩
-      exact List.mem_append_left _ (List.mem_map.mpr ⟨v, hv', rfl⟩)
-    · subst hzi
-      have hci : (φ[i], i) ∈ φ.zipIdx :=
-        List.mem_zipIdx_iff_getElem?.mpr (List.getElem?_eq_some_iff.mpr ⟨hi, rfl⟩)
-      rw [clauseWeightTwoSAT, CNF.vars, List.mem_map]
-      by_cases hr0 : r = 0
-      · refine ⟨(zVar r i, false), List.mem_flatten.mpr ⟨[(zVar r i, false)],
-          List.mem_append_right _ (List.mem_flatMap.mpr ⟨(φ[i], i), hci, ?_⟩),
-          List.mem_cons_self ..⟩, rfl⟩
-        simp only [clauseWeightGadget, hr0, ↓reduceIte, List.mem_append, List.mem_singleton,
-          or_true]
-      · refine ⟨(zVar r i, false), List.mem_flatten.mpr
-          ⟨[(zVar r i, true), (zVar r i, false)],
-            List.mem_append_right _ (List.mem_flatMap.mpr ⟨(φ[i], i), hci, ?_⟩),
-            List.mem_cons_of_mem _ (List.mem_cons_self ..)⟩, rfl⟩
-        simp only [clauseWeightGadget, List.mem_append]
-        right
-        by_cases hr1 : r = 1 <;> simp [hr0, hr1]
-    · have hci : (φ[i], i) ∈ φ.zipIdx :=
-        List.mem_zipIdx_iff_getElem?.mpr (List.getElem?_eq_some_iff.mpr ⟨hi, rfl⟩)
-      rw [clauseWeightTwoSAT, CNF.vars, List.mem_map]
-      have hr0 : r ≠ 0 := by omega
+      exact List.mem_append_left _ (List.mem_map.mpr ⟨v, CNF.mem_distinctVars.mpr hv, rfl⟩)
+    · by_cases hr0 : r = 0
+      · exact hgad i hi [(zVar r i, false)] (by simp [clauseWeightGadget, hr0]) _
+          (List.mem_cons_self ..)
+      · exact hgad i hi [(zVar r i, true), (zVar r i, false)]
+          (by by_cases hr1 : r = 1 <;> simp [clauseWeightGadget, hr0, hr1]) (zVar r i, false)
+          (by simp)
+    · have hr0 : r ≠ 0 := by omega
       have hr1 : r ≠ 1 := by omega
       cases j with
       | zero =>
-        refine ⟨(uVar r i 0, false), List.mem_flatten.mpr
-          ⟨[(zVar r i, true), (uVar r i 0, false)],
-            List.mem_append_right _ (List.mem_flatMap.mpr ⟨(φ[i], i), hci, ?_⟩),
-            List.mem_cons_of_mem _ (List.mem_cons_self ..)⟩, rfl⟩
-        simp [clauseWeightGadget, hr0, hr1]
+        exact hgad i hi [(zVar r i, true), (uVar r i 0, false)]
+          (by simp [clauseWeightGadget, hr0, hr1]) (uVar r i 0, false) (by simp)
       | succ k =>
-        refine ⟨(uVar r i (k + 1), false), List.mem_flatten.mpr
-          ⟨[(uVar r i k, true), (uVar r i (k + 1), false)],
-            List.mem_append_right _ (List.mem_flatMap.mpr ⟨(φ[i], i), hci, ?_⟩),
-            List.mem_cons_of_mem _ (List.mem_cons_self ..)⟩, rfl⟩
+        refine hgad i hi [(uVar r i k, true), (uVar r i (k + 1), false)] ?_
+          (uVar r i (k + 1), false) (by simp)
         simp only [clauseWeightGadget, hr0, ↓reduceIte, hr1, List.mem_append, List.mem_cons,
           List.not_mem_nil, or_false, List.mem_map, List.mem_range]
         exact Or.inr (Or.inr ⟨k, by omega, rfl⟩)
