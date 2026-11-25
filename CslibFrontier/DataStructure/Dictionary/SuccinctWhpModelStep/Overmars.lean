@@ -259,6 +259,9 @@ private theorem overmarsStep_post_scan {c U V n_max b cur1 ins1 : ℕ}
     dsimp only [FastState.overmarsSliceIdx]
     exact ⟨fun heq => hbb (sliceIdx_inj (hc.roles_valid b' hb').1 hor_lt heq).1,
       fun heq => hbb (sliceIdx_inj (hc.roles_valid b' hb').2.1 hor_lt heq).1⟩
+  have hreb_eq : ∀ bc < numBucketsWhp n_max,
+      fs1.slices (fs1.rebSliceIdx bc) = fs.slices (fs.rebSliceIdx bc) :=
+    fun bc hbc => Function.update_of_ne (hne_reb_all bc hbc).symm _ _
   by_cases hdone : fs1.bktCount b ≤ fs1.overmarsCursor b
   · rw [ite_eq_left hdone]
     dsimp only [fs1] at hdone
@@ -272,21 +275,15 @@ private theorem overmarsStep_post_scan {c U V n_max b cur1 ins1 : ℕ}
         overmarsActive := Function.update fs1.overmarsActive b 0
         overmarsCursor := Function.update fs1.overmarsCursor b 0
         overmarsInsCount := Function.update fs1.overmarsInsCount b 0 }
-    have hreb_eq : ∀ bc < numBucketsWhp n_max,
-        fsSwap.slices (fsSwap.rebSliceIdx bc) = fs.slices (fs.rebSliceIdx bc) := by
-      intro bc hbc
-      have hridx_eq : fsSwap.rebSliceIdx bc = fs.rebSliceIdx bc := by
-        dsimp only [FastState.rebSliceIdx, FastState.rebRole, fsSwap, fs1]
-        by_cases hbb : bc = b
-        · subst hbb
-          simp only [Function.update_self, Nat.sub_sub, Nat.add_comm (fs.overmarsRole bc)]
-        · simp [hbb]
-      rw [hridx_eq]
-      dsimp only [fsSwap, fs1]
-      exact Function.update_of_ne (hne_reb_all bc hbc).symm _ _
+    have hridx_eq (bc : ℕ) : fsSwap.rebSliceIdx bc = fs1.rebSliceIdx bc := by
+      dsimp only [FastState.rebSliceIdx, FastState.rebRole, fsSwap, fs1]
+      by_cases hbb : bc = b
+      · simp only [hbb, Function.update_self, Nat.sub_sub, Nat.add_comm (fs.overmarsRole b)]
+      · simp only [Function.update_of_ne hbb]
     obtain ⟨hstage, hpreTick⟩ :=
       epochStages_of_rebSlice_eq (θ := θ) (fs := fs) (fs' := fsSwap)
-        rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl hreb_eq
+        rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl
+        (fun bc hbc => (congrArg fs1.slices (hridx_eq bc)).trans (hreb_eq bc hbc))
     refine ⟨?_, ?_, hstage, hpreTick, rfl, rfl, rfl, rfl⟩
     · refine { hc with
         roles_valid := fun b' hb' => by
@@ -320,11 +317,6 @@ private theorem overmarsStep_post_scan {c U V n_max b cur1 ins1 : ℕ}
     rw [Function.update_self] at hdone
     have hcur_lt_b : cur1 < fs.bktCount b := Nat.lt_of_not_le hdone
     rw [Nat.min_eq_right hcur_lt_b.le] at hrel1
-    have hreb_eq : ∀ bc < numBucketsWhp n_max,
-        fs1.slices (fs1.rebSliceIdx bc) = fs.slices (fs.rebSliceIdx bc) := by
-      intro bc hbc
-      dsimp only [fs1, FastState.rebSliceIdx, FastState.rebRole]
-      exact Function.update_of_ne (hne_reb_all bc hbc).symm _ _
     obtain ⟨hstage, hpreTick⟩ :=
       epochStages_of_rebSlice_eq (θ := θ) (fs := fs) (fs' := fs1)
         rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl hreb_eq
