@@ -179,27 +179,21 @@ theorem eval_formula_iff (σ : Variable → Bool) :
         ∀ s, σ (terminal s 0) = σ (terminal s 1) := by
   constructor
   · intro h
-    have hc := CNF.eval_eq_true_iff σ formula |>.1 h
-    have hr : ∀ v i, σ (.copy v i) = σ (.copy v 0) := by
-      intro v
-      apply (Crossover.eval_ring_iff (σ ∘ representative) v).1
-      rw [← CNF.eval_relabel]
-      exact (CNF.eval_eq_true_iff _ _).2 fun c hc' => hc c (ring_mem v c hc')
-    have hp : ∀ s, σ (terminal s 0) = σ (terminal s 1) := by
-      intro s
-      have hchain := (CNF.eval_eq_true_iff σ (chain s)).2 fun c hc' => hc c (chain_mem s c hc')
-      have heq : σ (chainStart s) = σ (chainEnd s) := by
-        fin_cases s <;> exact (hr _ _).trans (hr _ _).symm
-      exact (eval_chain hchain heq).1.trans (eval_chain hchain heq).2.symm
-    refine ⟨?_, hp⟩
-    rw [formula, CNF.eval_append, Bool.and_eq_true] at h
-    rw [eval_mapped σ hp] at h
-    exact h.1
+    have hc := (CNF.eval_eq_true_iff σ formula).1 h
+    have hr (v : Crossover.Internal) : ∀ i, σ (.copy v i) = σ (.copy v 0) :=
+      (Crossover.eval_ring_iff (σ ∘ representative) v).1
+        (CNF.eval_relabel _ _ _ ▸ (CNF.eval_eq_true_iff _ _).2 fun c hc' => hc c (ring_mem v c hc'))
+    have hp (s : Fin 4) : σ (terminal s 0) = σ (terminal s 1) := by
+      have hchain := eval_chain ((CNF.eval_eq_true_iff σ (chain s)).2
+        fun c hc' => hc c (chain_mem s c hc'))
+        (by fin_cases s <;> exact (hr _ _).trans (hr _ _).symm)
+      exact hchain.1.trans hchain.2.symm
+    rw [formula, CNF.eval_append, Bool.and_eq_true, eval_mapped σ hp] at h
+    exact ⟨h.1, hp⟩
   · rintro ⟨h, hp⟩
     rw [formula, CNF.eval_append, Bool.and_eq_true, eval_mapped σ hp]
-    refine ⟨h, ?_⟩
     simp only [terminal] at hp
-    simp [bridges, CNF.eval, Clause.eval, Literal.eval, ← hp]
+    exact ⟨h, by simp [bridges, CNF.eval, Clause.eval, Literal.eval, ← hp]⟩
 
 /-- The explicit unique full assignment, including both lanes on every side. -/
 def canonicalExtension (a b : Bool) : Variable → Bool :=
@@ -207,15 +201,10 @@ def canonicalExtension (a b : Bool) : Variable → Bool :=
 
 /-- The explicit full assignment satisfies the paired-port formula. -/
 theorem eval_canonicalExtension (a b : Bool) : formula.eval (canonicalExtension a b) = true := by
-  apply (eval_formula_iff _).2
-  constructor
-  · have heq : canonicalExtension a b ∘ representative = Crossover.canonicalSplitExtension a b := by
-      funext v
-      cases v <;> rfl
-    rw [heq]
-    exact Crossover.eval_canonicalSplitExtension a b
-  · intro s
-    fin_cases s <;> rfl
+  refine (eval_formula_iff _).2 ⟨?_, fun s => by fin_cases s <;> rfl⟩
+  rw [show canonicalExtension a b ∘ representative = Crossover.canonicalSplitExtension a b from
+    funext fun v => by cases v <;> rfl]
+  exact Crossover.eval_canonicalSplitExtension a b
 
 /-- Both lanes on the left and right carry `a`; both lanes on the top and bottom carry `b`. -/
 theorem terminal_values_canonicalExtension (a b : Bool) :
@@ -234,16 +223,12 @@ theorem eq_canonicalExtension_of_holds {σ : Variable → Bool} (h : formula.eva
   | center => exact congrFun heq .center
   | copy v i => exact congrFun heq (.copy v i)
   | port s l =>
-    have hs : σ (terminal s 0) = canonicalExtension (σ (terminal 0 0))
-        (σ (terminal 2 0)) (terminal s l) := by
+    have hs : σ (terminal s 0) =
+        canonicalExtension (σ (terminal 0 0)) (σ (terminal 2 0)) (terminal s l) := by
       fin_cases s
-      · exact congrFun heq .aLeft
-      · exact congrFun heq .aRight
-      · exact congrFun heq .bTop
-      · exact congrFun heq .bBottom
+      exacts [congrFun heq .aLeft, congrFun heq .aRight, congrFun heq .bTop, congrFun heq .bBottom]
     fin_cases l
-    · exact hs
-    · exact (hp s).symm.trans hs
+    exacts [hs, (hp s).symm.trans hs]
 
 /-- All satisfying terminal values are the horizontal or vertical input value. -/
 theorem terminal_value_of_holds {σ : Variable → Bool} (h : formula.eval σ = true)

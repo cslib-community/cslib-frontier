@@ -78,13 +78,9 @@ theorem decodeLabel_eq_some_iff (enc : D ↪ B) {b : B} {i : D} :
     decodeLabel enc b = some i ↔ enc i = b := by
   unfold decodeLabel
   split_ifs with h
-  · rw [Option.some_inj]
-    constructor
-    · rintro rfl
-      exact enc.left_inv_of_invOfMemRange ⟨b, h⟩
-    · rintro rfl
-      exact enc.right_inv_of_invOfMemRange i
-  · exact ⟨fun h' ↦ h'.elim, fun hi ↦ (h ⟨i, hi⟩).elim⟩
+  · exact Option.some_inj.trans ⟨fun h' => h' ▸ enc.left_inv_of_invOfMemRange ⟨b, h⟩,
+      fun h' => h' ▸ enc.right_inv_of_invOfMemRange i⟩
+  · exact ⟨False.elim, fun hi => (h ⟨i, hi⟩).elim⟩
 
 /-- `decodeLabel enc` recovers the labels of `D`. -/
 @[simp]
@@ -139,26 +135,22 @@ theorem neighbor_extendLabels_of_forall_ne (v : V) {b : B} (hb : ∀ i, enc i �
 theorem toSimpleGraph_extendLabels : (G.extendLabels enc).toSimpleGraph = G.toSimpleGraph := by
   ext u v
   simp only [toSimpleGraph_adj]
-  refine and_congr_right fun huv ↦ ⟨fun ⟨b, hb⟩ ↦ ?_, fun ⟨i, hi⟩ ↦ ⟨enc i, by simpa using hi⟩⟩
+  refine and_congr_right fun huv => ⟨fun ⟨b, hb⟩ => ?_, fun ⟨i, hi⟩ => ⟨enc i, by simpa using hi⟩⟩
   by_cases h : ∃ i, enc i = b
   · obtain ⟨i, rfl⟩ := h
     exact ⟨i, by simpa using hb⟩
-  · push Not at h
-    rw [G.neighbor_extendLabels_of_forall_ne enc u h] at hb
-    exact (huv hb).elim
+  · exact (huv (G.neighbor_extendLabels_of_forall_ne enc u (not_exists.mp h) ▸ hb)).elim
 
 /-- If `B` has at least twice as many elements as `D`, at least half of the edges at every vertex of
 `G.extendLabels enc` are self-loops. -/
 theorem card_le_two_mul_edgeCount_extendLabels [Fintype B] [DecidableEq V]
     (hB : 2 * Fintype.card D ≤ Fintype.card B) (v : V) :
     Fintype.card B ≤ 2 * (G.extendLabels enc).edgeCount v v := by
-  have hsub : (univ.map enc)ᶜ ⊆ ({b | (G.extendLabels enc).neighbor v b = v} : Finset B) := by
-    intro b hb
-    rw [mem_compl, mem_map] at hb
-    rw [mem_filter]
-    exact ⟨mem_univ b,
-      G.neighbor_extendLabels_of_forall_ne enc v fun i hi ↦ hb ⟨i, mem_univ i, hi⟩⟩
-  have hcard := card_le_card hsub
+  have hcard := card_le_card (s := (univ.map enc)ᶜ)
+    (t := {b | (G.extendLabels enc).neighbor v b = v}) fun b hb => by
+      rw [mem_compl, mem_map] at hb
+      exact mem_filter.mpr ⟨mem_univ b,
+        G.neighbor_extendLabels_of_forall_ne enc v fun i hi => hb ⟨i, mem_univ i, hi⟩⟩
   rw [card_compl, card_map, card_univ] at hcard
   rw [edgeCount]
   omega
@@ -177,9 +169,7 @@ def slotSwap (p : V × V) : V × V :=
 /-- Exchanging the ends of an edge twice gives back the slot. -/
 theorem slotSwap_involutive : Function.Involutive (slotSwap G) := by
   rintro ⟨v, w⟩
-  by_cases h : G.Adj v w
-  · simp [slotSwap, h, h.symm]
-  · simp [slotSwap, h]
+  by_cases h : G.Adj v w <;> simp [slotSwap, h, SimpleGraph.adj_comm]
 
 /-- The three labels of the slot graph: `inl ()` for the edge of `G` at a slot, and
 `inr ((), (), false)` and `inr ((), (), true)` for the cycle of the slots of a vertex, forwards and
@@ -261,31 +251,26 @@ theorem reachable_fst_of_reachable_slotGraph {p q : V × V}
   induction h with
   | refl => rfl
   | tail _ hxy ih =>
-    obtain ⟨-, i, rfl⟩ := hxy
-    refine ih.trans ?_
-    rcases i with _ | ⟨_, _, _ | _⟩
+    obtain ⟨-, _ | ⟨_, _, _ | _⟩, rfl⟩ := hxy
     · rw [neighbor_slotGraph_inl, slotSwap]
       split_ifs with hadj
-      · exact hadj.reachable
-      · rfl
-    · rfl
-    · rfl
+      exacts [ih.trans hadj.reachable, ih]
+    · exact ih
+    · exact ih
 
 /-- **The slot graph has the connectivity of the simple graph**: if `σ` has a single cycle, the slot
 `(w, b)` is reachable from `(v, a)` exactly when `w` is reachable from `v` in `G`. -/
 theorem reachable_slotGraph_iff (hσ : ∀ a b, σ.SameCycle a b) {v w a b : V} :
     (slotGraph G σ).toSimpleGraph.Reachable (v, a) (w, b) ↔ G.Reachable v w := by
-  refine ⟨reachable_fst_of_reachable_slotGraph G σ, fun h ↦ ?_⟩
-  have hcycle (u a b : V) : (slotGraph G σ).toSimpleGraph.Reachable (u, a) (u, b) := by
-    obtain ⟨i, rfl⟩ := hσ a b
-    exact reachable_slotGraph_zpow G σ u a i
+  refine ⟨reachable_fst_of_reachable_slotGraph G σ, fun h => ?_⟩
+  have hcycle (u a b : V) : (slotGraph G σ).toSimpleGraph.Reachable (u, a) (u, b) :=
+    let ⟨i, hi⟩ := hσ a b
+    hi ▸ reachable_slotGraph_zpow G σ u a i
   rw [SimpleGraph.reachable_iff_reflTransGen] at h
   induction h generalizing b with
   | refl => exact hcycle v a b
   | @tail x y _ hxy ih =>
-    have hswap : (slotGraph G σ).neighbor (x, y) (.inl ()) = (y, x) := by
-      rw [neighbor_slotGraph_inl, slotSwap, ite_eq_left hxy]
-      rfl
+    have hswap : (slotGraph G σ).neighbor (x, y) (.inl ()) = (y, x) := by simp [slotSwap, hxy]
     exact (@ih y).trans ((hswap ▸ (slotGraph G σ).reachable_neighbor (x, y) (.inl ())).trans
       (hcycle y x b))
 

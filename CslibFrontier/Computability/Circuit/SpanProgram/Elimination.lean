@@ -93,32 +93,24 @@ theorem vecMul_stack (P : MonotoneSpanProgram F (Fin N)) (s : Finset (Fin N))
     W ᵥ* P.stack s = ∑ i ∈ s, (fun row => W (finSigmaFinEquiv ⟨i, row⟩)) ᵥ* P.matrix i := by
   rw [Matrix.vecMul_eq_sum, ← finSigmaFinEquiv.sum_comp, Fintype.sum_sigma]
   simp_rw [stack_apply]
-  rw [← Finset.sum_subset (Finset.subset_univ s)]
-  · exact Finset.sum_congr rfl fun i hi => by simp [hi, Matrix.vecMul_eq_sum]
-  · intro i _ hi
-    simp [hi]
+  rw [← Finset.sum_subset (Finset.subset_univ s) fun i _ hi => by simp [hi]]
+  exact Finset.sum_congr rfl fun i hi => by simp [hi, Matrix.vecMul_eq_sum]
 
 theorem stack_mulVec_eq_zero_iff (P : MonotoneSpanProgram F (Fin N)) (s : Finset (Fin N))
     (v : Fin (P.tailDim + 1) → F) :
     P.stack s *ᵥ v = 0 ↔ ∀ i ∈ s, P.matrix i *ᵥ v = 0 := by
-  have key : ∀ (i : Fin N) (row : Fin (P.rowDim i)),
+  have key (i : Fin N) (row : Fin (P.rowDim i)) :
       (P.stack s *ᵥ v) (finSigmaFinEquiv ⟨i, row⟩) =
         if i ∈ s then (P.matrix i *ᵥ v) row else 0 := by
-    intro i row
     simp only [Matrix.mulVec, stack_apply]
     split_ifs <;> simp
-  constructor
-  · intro h i hi
-    funext row
-    have := congrFun h (finSigmaFinEquiv ⟨i, row⟩)
+  refine ⟨fun h i hi => funext fun row => ?_, fun h => funext fun k => ?_⟩
+  · have := congrFun h (finSigmaFinEquiv ⟨i, row⟩)
     rwa [key, ite_eq_left hi] at this
-  · intro h
-    funext k
-    obtain ⟨⟨i, row⟩, rfl⟩ := finSigmaFinEquiv.surjective k
+  · obtain ⟨⟨i, row⟩, rfl⟩ := finSigmaFinEquiv.surjective k
     rw [key]
     split_ifs with hi
-    · exact congrFun (h i hi) row
-    · rfl
+    exacts [congrFun (h i hi) row, rfl]
 
 /-- The identity matrix with its first column replaced by `v`. For `v 0 = 1` it is invertible
 with top row `e₁`; multiplying a matrix `M` by it on the right replaces the first column of `M`
@@ -132,10 +124,8 @@ theorem det_shearMatrix {d : ℕ} (v : Fin (d + 1) → F) : (shearMatrix v).det 
 
 theorem shearMatrix_zero {d : ℕ} {v : Fin (d + 1) → F} (hv : v 0 = 1) :
     shearMatrix v 0 = Pi.single 0 1 := by
-  funext c
-  refine Fin.cases ?_ (fun c => ?_) c
-  · simp [shearMatrix, hv]
-  · simp [shearMatrix, (Fin.succ_ne_zero c).symm]
+  refine funext fun c => Fin.cases (by simp [shearMatrix, hv]) (fun c => ?_) c
+  simp [shearMatrix, (Fin.succ_ne_zero c).symm]
 
 /-- Multiplying by `shearMatrix v` replaces the first column by the product with `v`. -/
 theorem mulRight_shearMatrix_matrix_zero {Party : Type*} (P : MonotoneSpanProgram F Party)
@@ -159,14 +149,13 @@ and returns the zero vector for every party (`recombination_eq_zero_of_not_accep
 the target `e₁`. -/
 theorem sum_vecMul_recombination (P : MonotoneSpanProgram F (Fin N)) {s : Finset (Fin N)}
     (hs : P.Accepts s) : ∑ i : s, P.recombination s i.1 ᵥ* P.matrix i.1 = P.target := by
-  rw [Finset.sum_coe_sort s fun i => P.recombination s i ᵥ* P.matrix i]
   have h := vecMul_stack P s (Cslib.LinearAlgebra.vecMulSolve (P.stack s) P.target)
-  rw [show (∑ i ∈ s, P.recombination s i ᵥ* P.matrix i) = _ from h.symm]
-  refine Cslib.LinearAlgebra.vecMul_vecMulSolve _ _ ?_
+  rw [Finset.sum_coe_sort s fun i => P.recombination s i ᵥ* P.matrix i,
+    show (∑ i ∈ s, P.recombination s i ᵥ* P.matrix i) = _ from h.symm]
   obtain ⟨w, hw⟩ := (P.accepts_iff_exists_vecMul s).1 hs
   let W' : ((i : Fin N) × Fin (P.rowDim i)) → F := fun p =>
-    if h : p.1 ∈ s then w ⟨p.1, h⟩ p.2 else 0
-  refine ⟨fun k => W' (finSigmaFinEquiv.symm k), ?_⟩
+    if hp : p.1 ∈ s then w ⟨p.1, hp⟩ p.2 else 0
+  refine Cslib.LinearAlgebra.vecMul_vecMulSolve _ _ ⟨fun k => W' (finSigmaFinEquiv.symm k), ?_⟩
   rw [vecMul_stack, ← hw, ← Finset.sum_coe_sort s]
   refine Finset.sum_congr rfl fun i _ => ?_
   congr 1
@@ -177,13 +166,12 @@ theorem sum_vecMul_recombination (P : MonotoneSpanProgram F (Fin N)) {s : Finset
 /-- On a coalition that is not accepted, `recombination` gives every party the zero vector. -/
 theorem recombination_eq_zero_of_not_accepts (P : MonotoneSpanProgram F (Fin N))
     {s : Finset (Fin N)} (hs : ¬ P.Accepts s) (i : Fin N) : P.recombination s i = 0 := by
-  have h : Cslib.LinearAlgebra.vecMulSolve (P.stack s) P.target = 0 := by
-    refine Cslib.LinearAlgebra.vecMulSolve_eq_zero _ _ fun ⟨W, hW⟩ => hs ?_
-    refine (P.accepts_iff_exists_vecMul s).2 ⟨fun i row => W (finSigmaFinEquiv ⟨i.1, row⟩), ?_⟩
-    rw [Finset.sum_coe_sort s fun i => (fun row => W (finSigmaFinEquiv ⟨i, row⟩)) ᵥ* P.matrix i,
-      ← vecMul_stack, hW]
-  funext row
-  exact congrFun h _
+  have h : Cslib.LinearAlgebra.vecMulSolve (P.stack s) P.target = 0 :=
+    Cslib.LinearAlgebra.vecMulSolve_eq_zero _ _ fun ⟨W, hW⟩ => hs <|
+      (P.accepts_iff_exists_vecMul s).2 ⟨fun i row => W (finSigmaFinEquiv ⟨i.1, row⟩), by
+        rw [Finset.sum_coe_sort s fun i =>
+          (fun row => W (finSigmaFinEquiv ⟨i, row⟩)) ᵥ* P.matrix i, ← vecMul_stack, hW]⟩
+  exact funext fun row => congrFun h _
 
 /-- A kernel vector of the matrices of the members of `s` with first entry one, by elimination.
 It exists exactly when `s` is not accepted (`nullVector_zero_eq_one_iff`); when `s` is accepted,
@@ -199,13 +187,11 @@ theorem matrix_mulVec_nullVector (P : MonotoneSpanProgram F (Fin N)) {s : Finset
 /-- The first entry of `nullVector` is one exactly on the coalitions that are not accepted. -/
 theorem nullVector_zero_eq_one_iff (P : MonotoneSpanProgram F (Fin N)) (s : Finset (Fin N)) :
     P.nullVector s 0 = 1 ↔ ¬ P.Accepts s := by
-  constructor
-  · intro h
-    exact P.not_accepts_of_exists_nullVector _ h fun i hi => P.matrix_mulVec_nullVector hi
-  · intro hs
-    obtain ⟨v, hv0, hv⟩ := P.exists_nullVector_of_not_accepts hs
-    exact (Cslib.LinearAlgebra.kernelVecAt_apply_self_eq_one_iff _ _).2
-      ⟨v, (P.stack_mulVec_eq_zero_iff s v).2 hv, by rw [hv0]; exact one_ne_zero⟩
+  refine ⟨fun h => P.not_accepts_of_exists_nullVector _ h fun _ => P.matrix_mulVec_nullVector,
+    fun hs => ?_⟩
+  obtain ⟨v, hv0, hv⟩ := P.exists_nullVector_of_not_accepts hs
+  exact (Cslib.LinearAlgebra.kernelVecAt_apply_self_eq_one_iff _ _).2
+    ⟨v, (P.stack_mulVec_eq_zero_iff s v).2 hv, hv0 ▸ one_ne_zero⟩
 
 /-- On an accepted coalition, `nullVector` is the zero vector. -/
 theorem nullVector_eq_zero_of_accepts (P : MonotoneSpanProgram F (Fin N)) {s : Finset (Fin N)}

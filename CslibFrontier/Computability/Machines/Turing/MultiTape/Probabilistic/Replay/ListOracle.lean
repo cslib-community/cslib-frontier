@@ -66,8 +66,7 @@ theorem oracleReplies_congr {g g' : List Bool → Bool} {fuel : ℕ} (input : Li
   set t' := machine.oracleReplies g' fuel input
   have hlen : t.length = fuel := machine.length_oracleReplies g fuel input
   have hlen' : t'.length = fuel := machine.length_oracleReplies g' fuel input
-  have htake : ∀ i ≤ fuel, t.take i = t'.take i := by
-    intro i hi
+  have htake : ∀ i ≤ fuel, t.take i = t'.take i := fun i hi => by
     induction i with
     | zero => rfl
     | succ i ih =>
@@ -76,8 +75,8 @@ theorem oracleReplies_congr {g g' : List Bool → Bool} {fuel : ℕ} (input : Li
       have hcfg : machine.replayPrefix input t i = machine.replayPrefix input t' i := by
         simp only [replayPrefix, ih]
       have hreq : (machine.pendingRequest (machine.replayPrefix input t i)).length < fuel :=
-        lt_of_le_of_lt ((machine.length_pendingRequest_replayPrefix_le input t i).trans
-          (Nat.min_le_left _ _)) hlt
+        ((machine.length_pendingRequest_replayPrefix_le input t i).trans
+          (Nat.min_le_left _ _)).trans_lt hlt
       have hbit : t[i]'(by omega) = t'[i]'(by omega) := by
         rw [← List.getD_eq_getElem t false, ← List.getD_eq_getElem t' false,
           machine.getD_oracleReplies g fuel input i hlt,
@@ -108,16 +107,9 @@ theorem oracleReplies_succ (g : List Bool → Bool) (fuel : ℕ) (input : List B
     unfold oracleReplies
     rw [take_oracleRepliesFrom, Nat.min_eq_left (Nat.le_succ fuel)]
   have hbit := machine.getD_oracleReplies g (fuel + 1) input fuel (Nat.lt_succ_self fuel)
-  rw [List.getD_eq_getElem _ _ (by omega)] at hbit
-  have hcfg : machine.replayPrefix input (machine.oracleReplies g (fuel + 1) input) fuel =
-      machine.replayConfig input (machine.oracleReplies g fuel input) := by
-    rw [replayPrefix, htake]
-  rw [hcfg] at hbit
-  calc machine.oracleReplies g (fuel + 1) input
-      = (machine.oracleReplies g (fuel + 1) input).take fuel ++
-          [(machine.oracleReplies g (fuel + 1) input)[fuel]'(by omega)] := by
-        rw [← List.take_succ_eq_append_getElem (by omega), List.take_of_length_le (by omega)]
-    _ = _ := by rw [htake, hbit]
+  rw [List.getD_eq_getElem _ _ (by omega), replayPrefix, htake] at hbit
+  rw [← List.take_of_length_le (l := machine.oracleReplies g (fuel + 1) input) hlen.le,
+    List.take_succ_eq_append_getElem (by omega), htake, hbit]
 
 /-- **Iterating the step builds the transcript** of the list oracle. -/
 theorem iterate_listReplyStep (input : List Bool) (ℓ : List (List Bool)) (fuel : ℕ) :

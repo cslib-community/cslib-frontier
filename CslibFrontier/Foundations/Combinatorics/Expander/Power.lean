@@ -90,10 +90,7 @@ private theorem powRot_succ' (rotate : V × D → V × D) (t : ℕ) (v : V) (k :
         Fin.cons (rotate ((powRot rotate t (v, Fin.init k)).1, k (Fin.last t))).2
           (powRot rotate t (v, Fin.init k)).2) := by
   induction t generalizing v with
-  | zero =>
-    refine Prod.ext rfl (funext fun i ↦ ?_)
-    rw [Fin.fin_one_eq_zero i]
-    rfl
+  | zero => exact Prod.ext rfl (funext fun i => Fin.fin_one_eq_zero i ▸ rfl)
   | succ t ih =>
     rw [powRot_succ, ih, powRot_succ rotate t (v, Fin.init k)]
     simp only [Fin.tail_init_eq_init_tail, Fin.cons_snoc_eq_snoc_cons]
@@ -154,14 +151,11 @@ variable [Fintype D]
 /-- The walk operator of `G ^ t` is the `t`-th power of that of `G`. -/
 theorem walk_pow (t : ℕ) : (G.pow t).walk = G.walk ^ t := by
   induction t with
-  | zero => exact LinearMap.ext fun f ↦ funext fun v ↦ by simp [walk_apply]
+  | zero => exact LinearMap.ext fun f => funext fun v => by simp [walk_apply]
   | succ t ih =>
-    refine LinearMap.ext fun f ↦ funext fun v ↦ ?_
-    rw [pow_succ', mul_apply_eq_comp, ← ih, walk_apply, walk_apply]
-    simp only [neighbor_pow_succ, walk_apply]
-    -- a tuple of `t + 1` labels is a first label and a tuple of `t` labels
-    rw [Fin.expect_univ_cons]
-    rfl
+    refine LinearMap.ext fun f => funext fun v => ?_
+    simp only [pow_succ', mul_apply_eq_comp, ← ih, walk_apply, neighbor_pow_succ]
+    exact Fin.expect_univ_cons _
 
 variable [Fintype V]
 
@@ -182,34 +176,32 @@ private theorem mul_pow_le_pow_mul_of_sq_le_mul {a : ℕ → ℝ} (ha : ∀ s, 0
     | zero => rw [mul_comm]
     | succ s ih =>
       rcases (ha (s + 1)).eq_or_lt with h0 | hpos
-      · rw [← h0, mul_zero]
-        exact mul_nonneg (ha 0) (ha _)
+      · simpa only [← h0, mul_zero] using mul_nonneg (ha 0) (ha _)
       · refine le_of_mul_le_mul_left ?_ hpos
-        calc a (s + 1) * (a 1 * a (s + 1)) = a 1 * a (s + 1) ^ 2 := by ring
-          _ ≤ a 1 * (a s * a (s + 2)) := mul_le_mul_of_nonneg_left (h s) (ha 1)
-          _ = a 1 * a s * a (s + 2) := by ring
-          _ ≤ a 0 * a (s + 1) * a (s + 2) := mul_le_mul_of_nonneg_right ih (ha _)
-          _ = a (s + 1) * (a 0 * a (s + 1 + 1)) := by ring
+        calc a (s + 1) * (a 1 * a (s + 1))
+            ≤ a 1 * (a s * a (s + 2)) := by
+              simpa only [show a (s + 1) * (a 1 * a (s + 1)) = a 1 * a (s + 1) ^ 2 by ring] using
+                mul_le_mul_of_nonneg_left (h s) (ha 1)
+          _ ≤ a (s + 1) * (a 0 * a (s + 2)) := by
+              simpa only [mul_assoc, mul_left_comm (a (s + 1))] using
+                mul_le_mul_of_nonneg_right ih (ha (s + 2))
   induction t with
   | zero => simp
   | succ t ih =>
-    calc a 0 * a 1 ^ (t + 1) = a 1 * (a 0 * a 1 ^ t) := by ring
-      _ ≤ a 1 * (a 0 ^ t * a t) := mul_le_mul_of_nonneg_left ih (ha 1)
-      _ = a 0 ^ t * (a 1 * a t) := by ring
-      _ ≤ a 0 ^ t * (a 0 * a (t + 1)) :=
-        mul_le_mul_of_nonneg_left (hmono t) (pow_nonneg (ha 0) t)
-      _ = a 0 ^ (t + 1) * a (t + 1) := by ring
+    calc a 0 * a 1 ^ (t + 1)
+        = a 1 * (a 0 * a 1 ^ t) := by ring
+      _ ≤ a 0 ^ t * (a 1 * a t) :=
+          (mul_le_mul_of_nonneg_left ih (ha 1)).trans_eq (by ring)
+      _ ≤ a 0 ^ (t + 1) * a (t + 1) :=
+          (mul_le_mul_of_nonneg_left (hmono t) (pow_nonneg (ha 0) t)).trans_eq (by ring)
 
 /-- The second moments along the walk from a function are log-convex. -/
 private theorem sq_expect_walk_pow_succ_sq_le (f : V → ℝ) (s : ℕ) :
     (𝔼 v, (G.walk ^ (s + 1)) f v ^ 2) ^ 2 ≤
       (𝔼 v, (G.walk ^ s) f v ^ 2) * 𝔼 v, (G.walk ^ (s + 2)) f v ^ 2 := by
-  have h : 𝔼 v, (G.walk ^ (s + 1)) f v ^ 2 =
-      𝔼 v, (G.walk ^ s) f v * (G.walk ^ (s + 2)) f v := by
+  rw [show 𝔼 v, (G.walk ^ (s + 1)) f v ^ 2 = 𝔼 v, (G.walk ^ s) f v * (G.walk ^ (s + 2)) f v by
     rw [show s + 2 = s + 1 + 1 from rfl, pow_succ' _ (s + 1), pow_succ' _ s]
-    simp only [mul_apply_eq_comp, sq]
-    exact (G.expect_mul_walk_comm _ _).symm
-  rw [h]
+    simpa only [mul_apply_eq_comp, sq] using (G.expect_mul_walk_comm _ _).symm]
   exact expect_mul_sq_le_sq_mul_sq _ _ _
 
 /-- The spectral expansion of `G ^ t` is `λ(G) ^ t`, for `t ≠ 0`
@@ -218,28 +210,21 @@ theorem spectralExpansion_pow {t : ℕ} (ht : t ≠ 0) :
     (G.pow t).spectralExpansion = G.spectralExpansion ^ t := by
   refine (G.spectralExpansion_pow_le t).antisymm ?_
   have hc := (G.pow t).spectralExpansion_nonneg
-  suffices h : G.spectralExpansion ≤ (G.pow t).spectralExpansion ^ (t⁻¹ : ℝ) by
-    calc G.spectralExpansion ^ t ≤ ((G.pow t).spectralExpansion ^ (t⁻¹ : ℝ)) ^ t := by
-          gcongr
-      _ = _ := Real.rpow_inv_natCast_pow hc ht
-  refine spectralExpansion_le (by positivity) fun f hf ↦ ?_
-  -- the second moments along the walk from `f` grow at least geometrically
-  have key := mul_pow_le_pow_mul_of_sq_le_mul (a := fun s ↦ 𝔼 v, (G.walk ^ s) f v ^ 2)
-    (fun s ↦ expect_nonneg fun v _ ↦ sq_nonneg _) (G.sq_expect_walk_pow_succ_sq_le f) t
+  suffices h : G.spectralExpansion ≤ (G.pow t).spectralExpansion ^ (t⁻¹ : ℝ) from
+    (pow_le_pow_left₀ G.spectralExpansion_nonneg h t).trans_eq (Real.rpow_inv_natCast_pow hc ht)
+  refine spectralExpansion_le (by positivity) fun f hf => ?_
+  have key := mul_pow_le_pow_mul_of_sq_le_mul (a := fun s => 𝔼 v, (G.walk ^ s) f v ^ 2)
+    (fun _ => expect_nonneg fun _ _ => sq_nonneg _) (G.sq_expect_walk_pow_succ_sq_le f) t
   have hat := (G.pow t).expect_walk_sq_le_spectralExpansion_sq_mul hf
   simp only [pow_zero, pow_one, one_apply_eq_self] at key
   rw [walk_pow] at hat
-  have h₀ : 0 ≤ 𝔼 v, f v ^ 2 := expect_nonneg fun v _ ↦ sq_nonneg (f v)
+  have h₀ : 0 ≤ 𝔼 v, f v ^ 2 := expect_nonneg fun v _ => sq_nonneg (f v)
   rcases h₀.eq_or_lt with h0 | hpos
-  · rw [← h0, mul_zero]
-    exact h0 ▸ G.expect_walk_sq_le f
-  refine (pow_le_pow_iff_left₀ (expect_nonneg fun v _ ↦ sq_nonneg _) (by positivity) ht).1 ?_
+  · simpa only [← h0, mul_zero] using G.expect_walk_sq_le f
+  refine (pow_le_pow_iff_left₀ (expect_nonneg fun _ _ => sq_nonneg _) (by positivity) ht).1 ?_
   rw [mul_pow, ← pow_mul, mul_comm 2 t, pow_mul, Real.rpow_inv_natCast_pow hc ht]
-  refine le_of_mul_le_mul_left ?_ hpos
-  calc
-    _ ≤ (𝔼 v, f v ^ 2) ^ t * ((G.pow t).spectralExpansion ^ 2 * 𝔼 v, f v ^ 2) :=
-      key.trans (mul_le_mul_of_nonneg_left hat (pow_nonneg h₀ t))
-    _ = _ := by ring
+  exact le_of_mul_le_mul_left (key.trans ((mul_le_mul_of_nonneg_left hat
+    (pow_nonneg h₀ t)).trans_eq (by ring))) hpos
 
 
 end Cslib.RotationMap
