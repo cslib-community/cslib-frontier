@@ -130,10 +130,7 @@ theorem growthFunction_eq_two_pow_of_setShatters {C : ConceptClass α Bool} {W :
   have huniv : restriction C x = Set.univ := by
     refine Set.eq_univ_of_forall fun v => ?_
     obtain ⟨c, hc, hcW⟩ := hW ((Finset.univ.filter fun i => v i = true).image x : Set α)
-      (by
-        intro y hy
-        obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 (Finset.mem_coe.1 hy)
-        exact hxW i)
+      (by rw [Finset.coe_image]; exact Set.image_subset_iff.2 fun i _ => hxW i)
     refine mem_restriction.2 ⟨c, hc, fun i => ?_⟩
     have hmem : x i ∈ c ⁻¹' {true} ∩ ↑W ↔
         x i ∈ ((Finset.univ.filter fun i => v i = true).image x : Set α) := by
@@ -182,9 +179,8 @@ theorem ncard_restriction_le_sum_choose {C : ConceptClass α Bool} {d : ℕ}
       obtain ⟨c, hc, hcu⟩ := h𝒜 u hu
       have hiu : i ∈ u := (Finset.mem_inter.1 (hsu.symm ▸ Finset.mem_singleton_self i)).2
       have hju : j ∈ u := (hcu j).2 (hij ▸ (hcu i).1 hiu)
-      have : j ∈ s ∩ u := Finset.mem_inter.2 ⟨hj, hju⟩
-      rw [hsu] at this
-      exact (Finset.mem_singleton.1 this).symm
+      rw [eq_comm, ← Finset.mem_singleton, ← hsu]
+      exact Finset.mem_inter.2 ⟨hj, hju⟩
     have hW : SetShatters C ↑(s.image x) := by
       intro W' hW'
       obtain ⟨u, hu, hsu⟩ := hs (Finset.filter_subset (fun i => x i ∈ W') s)
@@ -195,13 +191,11 @@ theorem ncard_restriction_le_sum_choose {C : ConceptClass α Bool} {d : ℕ}
         Set.mem_image, Finset.mem_coe]
       constructor
       · rintro ⟨hcy, i, hi, rfl⟩
-        have : i ∈ s ∩ u := Finset.mem_inter.2 ⟨hi, (hcu i).2 hcy⟩
-        rw [hsu] at this
+        have : i ∈ s.filter (fun i => x i ∈ W') := hsu ▸ Finset.mem_inter.2 ⟨hi, (hcu i).2 hcy⟩
         exact (Finset.mem_filter.1 this).2
       · intro hy
         obtain ⟨i, hi, rfl⟩ := Finset.mem_image.1 (Finset.mem_coe.1 (hW' hy))
-        have hit : i ∈ s.filter (fun i => x i ∈ W') := Finset.mem_filter.2 ⟨hi, hy⟩
-        rw [← hsu] at hit
+        have hit : i ∈ s ∩ u := hsu ▸ Finset.mem_filter.2 ⟨hi, hy⟩
         exact ⟨(hcu i).1 (Finset.mem_inter.1 hit).2, i, hi, rfl⟩
     calc #s = #(s.image x) := (Finset.card_image_of_injOn hinj).symm
       _ ≤ d := hC _ hW
