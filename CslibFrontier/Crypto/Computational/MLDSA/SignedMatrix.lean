@@ -47,15 +47,12 @@ private theorem matrix_of_programmed_keyGen (H : Xofs) (s : Level) (seed : Fixed
   have seedEq : keys.publicKey.take 32 = rho := by
     simpa only [rho, G, Xofs.expandKeySeed, Xofs.withMatrixPrefixes_h256] using
       publicSeed_of_keyGen (H := G) hk
-  obtain ⟨r, sk, hr, hpk, _, _⟩ := privateKey_of_keyGen hk
-  have present : G.expandA s (keys.publicKey.take 32) = some sk.A := by
-    rwa [hpk, take_encodePublic]
-  rw [seedEq] at present ⊢
-  change (H.withMatrixPrefixes s rho (programMatrixPrefixes s t A)).expandA s rho = _ at present ⊢
+  obtain ⟨_, sk, _, hpk, _, _⟩ := privateKey_of_keyGen hk
+  have present : G.expandA s rho = some sk.A := by rwa [← seedEq, hpk, take_encodePublic]
+  rw [seedEq]
+  dsimp only [G] at present ⊢
   rw [expandA_programMatrixPrefixes] at present ⊢
-  cases hm : (H.withMatrixPrefixes s rho t).expandA s rho with
-  | none => simp [hm] at present
-  | some B => rfl
+  cases hm : (H.withMatrixPrefixes s rho t).expandA s rho <;> [simp [hm] at present; rfl]
 
 /-- Draw an external uniform coefficient matrix and program the literal SHAKE128 matrix
 addresses derived by Algorithm 6. The joint law of the entire XOF, both byte keys and the
@@ -77,20 +74,17 @@ theorem uniform_keyGen_programMatrixPrefixes (H : Xofs) (s : Level) (seed : Fixe
     let keys ← G.keyGen s seed
     let A ← G.expandA s (keys.publicKey.take 32)
     return (A, keys)
-  let finish (z : Xofs × Option (PublicMatrix s)) := (z.1, read z.1)
-  have eq := congrArg (fun p => PMF.map finish p) (uniform_expandA_programMatrixPrefixes H s rho)
+  have eq := congrArg (PMF.map fun z : Xofs × Option (PublicMatrix s) => (z.1, read z.1))
+    (uniform_expandA_programMatrixPrefixes H s rho)
   rw [PMF.map_comp, PMF.map_comp] at eq
-  refine Eq.trans ?_ eq
-  congr 1
-  funext ⟨t, A⟩
+  refine Eq.trans (congrArg (PMF.map · _) (funext fun ⟨t, A⟩ => ?_)) eq
   let G := H.withMatrixPrefixes s rho (programMatrixPrefixes s t A)
-  change (G, (G.keyGen s seed).map fun keys => (A, keys)) = (G, read G)
   cases hk : G.keyGen s seed with
-  | none => simp [read, hk]
+  | none => simp [G, read, hk]
   | some keys =>
-    have hm := matrix_of_programmed_keyGen H s seed t A keys hk
-    change G.expandA s (keys.publicKey.take 32) = some A at hm
-    simp [read, hk, hm]
+    have hm : G.expandA s (keys.publicKey.take 32) = some A :=
+      matrix_of_programmed_keyGen H s seed t A keys hk
+    simp [G, read, hk, hm]
 
 /-- Public data used to check a final forgery after the signed execution. -/
 structure SignedMatrixTrial (s : Level) where
@@ -171,8 +165,7 @@ theorem uniform_programmedMatrixSetup (H : Xofs) (s : Level) :
     ProbComp.eval_unifFin, PMF.pi_uniformOfFintype, ProbComp.eval_pure,
     matrixSetup, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
   rw [PMF.bind_comm (PMF.uniformOfFintype (PublicMatrix s))]
-  apply congrArg (fun f => (PMF.uniformOfFintype (FixedBytes 32)).bind f)
-  funext seed
+  refine congrArg ((PMF.uniformOfFintype (FixedBytes 32)).bind ·) (funext fun seed => ?_)
   have eq := uniform_keyGen_programMatrixPrefixes H s seed
   dsimp only at eq
   rw [← PMF.uniformOfFintype_prod, PMF.map_bind] at eq
@@ -187,17 +180,13 @@ theorem keyGen_of_mem_programmedMatrixSetup {H G : Xofs} {s : Level} {A B : Publ
       G.expandA s (keys.publicKey.take 32) = some A := by
   simp only [programmedMatrixSetup, ProbComp.eval_bind, ProbComp.eval_pure,
     PMF.mem_support_bind_iff, PMF.mem_support_pure_iff, Prod.mk.injEq] at h
-  obtain ⟨seed, _, t, _, he, hk⟩ := h
-  subst G
+  rcases h with ⟨seed, _, t, _, rfl, hk⟩
   let G := H.withMatrixPrefixes s ((H.expandKeySeed s seed).take 32) (programMatrixPrefixes s t A)
-  change some (B, keys) = (G.keyGen s seed).map _ at hk
   cases hg : G.keyGen s seed with
-  | none => simp [hg] at hk
+  | none => simp [G, hg] at hk
   | some pair =>
-    simp only [hg, Option.map_some, Option.some.injEq, Prod.mk.injEq] at hk
-    obtain ⟨hA, hkeys⟩ := hk
-    subst B
-    subst pair
+    obtain ⟨hB, hkeys⟩ := (by simpa [G, hg] using hk : B = A ∧ keys = pair)
+    subst B pair
     exact ⟨Xofs.withMatrixPrefixes_h256 .., rfl, ⟨seed, hg⟩,
       matrix_of_programmed_keyGen H s seed t A keys hg⟩
 
@@ -263,17 +252,13 @@ private theorem verified_programmedTrial {H : Xofs} {s : Level} {adv : Classical
     (hu : some u ∈ (programmedSigningTrial H s adv A).eval.support) :
     u.matrix = A ∧ u.xofs.expandA s (u.publicKey.take 32) = some A ∧
       ∀ f ∈ u.log, u.xofs.verify s u.publicKey f.message f.context f.signature = some true := by
-  obtain ⟨⟨G, setup⟩, hs, h⟩ := (PMF.mem_support_bind_iff ..).mp
-    (show some u ∈ ((programmedMatrixSetup H s A).eval.bind
-      fun z => (runAtSetup s adv z).eval).support by simpa [programmedSigningTrial] using hu)
-  cases setup with
-  | none => simp [runAtSetup] at h
-  | some pair =>
-    obtain ⟨B, keys⟩ := pair
-    obtain ⟨_, rfl, ⟨seed, hg⟩, hm⟩ := keyGen_of_mem_programmedMatrixSetup hs
+  simp only [programmedSigningTrial, ProbComp.eval_bind, PMF.mem_support_bind_iff] at hu
+  rcases hu with ⟨⟨G, _ | ⟨B, keys⟩⟩, hs, h⟩
+  · simp [runAtSetup] at h
+  · obtain ⟨_, rfl, ⟨seed, hg⟩, hm⟩ := keyGen_of_mem_programmedMatrixSetup hs
     simp only [runAtSetup, ProbComp.eval_bind, ProbComp.eval_pure, PMF.mem_support_bind_iff,
       PMF.mem_support_pure_iff, Option.some.injEq] at h
-    obtain ⟨⟨f, log⟩, hr, rfl⟩ := h
+    rcases h with ⟨⟨f, log⟩, hr, rfl⟩
     rw [eval_runSigningForger] at hr
     exact ⟨rfl, hm, fun _ hf => verify_of_mem_signingTranscript hg hr hf⟩
 
@@ -286,27 +271,20 @@ theorem SignedMatrixTrial.cases_of_win {s : Level} (u : SignedMatrixTrial s)
     u.newDigestWin ∨ u.hashCollision ∨ ModuleSIS.IsSolution (ModuleSIS.hermiteMatrix u.matrix)
       (max (2 * (s.params.γ₁ - s.params.β)) (4 * s.params.γ₂ + 2)) (vectorOfTrial (some u)) := by
   by_cases rep : u.repeatsDigest
-  · right
-    simp only [SignedMatrixTrial.wins, Xofs.winsForgery, Bool.and_eq_true, Bool.not_eq_true'] at win
+  · simp only [SignedMatrixTrial.wins, Xofs.winsForgery, Bool.and_eq_true, Bool.not_eq_true'] at win
     simp only [SignedMatrixTrial.repeatsDigest, List.any_eq_true, beq_iff_eq] at rep
     have verify : u.xofs.verify s u.publicKey u.forgery.message u.forgery.context
         u.forgery.signature = some true := by
       cases hv : u.xofs.verify s u.publicKey u.forgery.message u.forgery.context
         u.forgery.signature <;> simp_all
-    obtain ⟨w, extracted, valid⟩ := extractLoggedDigest_of_verifiedLog hm log
-      (by simpa using win.2) rep verify
-    change u.extracted = some w at extracted
+    obtain ⟨w, extracted, valid⟩ :=
+      extractLoggedDigest_of_verifiedLog hm log (by simpa using win.2) rep verify
     cases w with
-    | collision x y =>
-      left
-      unfold RepeatedDigestWitness.Valid at valid
-      simpa only [SignedMatrixTrial.hashCollision, extracted, decide_eq_true_eq] using valid
-    | msis v =>
-      right
-      unfold RepeatedDigestWitness.Valid at valid
-      simpa only [vectorOfTrial, Option.bind_some, extracted] using valid
-  · left
-    simp [SignedMatrixTrial.newDigestWin, win, Bool.eq_false_iff.mpr rep]
+    | collision x y => exact .inr (.inl (by simpa [SignedMatrixTrial.hashCollision,
+        SignedMatrixTrial.extracted, extracted, RepeatedDigestWitness.Valid] using valid))
+    | msis v => exact .inr (.inr (by simpa [vectorOfTrial, SignedMatrixTrial.extracted,
+        extracted, RepeatedDigestWitness.Valid] using valid))
+  · exact .inl (by simp [SignedMatrixTrial.newDigestWin, win, rep])
 
 /-- Average the three outcomes of `SignedMatrixTrial.cases_of_win` on a uniform right block.
 Both the classical signing program and the retained quantum execution use this counting step. -/
@@ -327,26 +305,19 @@ theorem SignedMatrixTrial.bound_of_verifiedLog {s : Level}
   simp only [← ENNReal.coe_le_coe, ENNReal.coe_add, Game.coe_succProbability_ennreal, PMF.map_bind]
   let U := PMF.uniformOfFintype (PublicMatrix s)
   let rest (r : Option (SignedMatrixTrial s)) := r.any fun u => u.wins && !u.newDigestWin
-  refine le_trans ?_ (add_le_add (le_refl _)
-    (?_ : (U.bind fun A => (run A).map rest) true ≤ _))
-  · apply PMF.bind_apply_le_add_on_support _ true
-    intro A _
-    apply PMF.map_true_le_add
-    intro r _ h
-    cases r with
-    | none => simp at h
-    | some u => cases hn : u.newDigestWin <;> simp_all [rest]
-  · apply PMF.bind_apply_le_add_on_support _ true
-    intro A _
-    apply PMF.map_true_le_add
-    intro r hr h
-    cases r with
-    | none => simp [rest] at h
-    | some u =>
-      obtain ⟨rfl, hm, log⟩ := verified A u hr
-      obtain ⟨hw, hn⟩ := Bool.and_eq_true_iff.mp (show u.wins && !u.newDigestWin from h)
-      simpa only [Option.any_some, decide_eq_true_eq] using
-        (u.cases_of_win hm log hw).resolve_left (by simpa using hn)
+  refine le_trans (PMF.bind_apply_le_add_on_support _ true fun A _ =>
+    PMF.map_true_le_add _ fun
+      | none, _, h => by simp at h
+      | some u, _, h => by cases hn : u.newDigestWin <;> simp_all [rest])
+    (add_le_add le_rfl ((PMF.bind_apply_le_add_on_support _ true fun A _ =>
+      PMF.map_true_le_add _ fun
+        | none, _, h => by simp [rest] at h
+        | some u, hr, h => by
+          obtain ⟨rfl, hm, log⟩ := verified A u hr
+          obtain ⟨hw, hn⟩ := Bool.and_eq_true_iff.mp (show u.wins && !u.newDigestWin from h)
+          simpa only [Option.any_some, decide_eq_true_eq] using
+            (u.cases_of_win hm log hw).resolve_left (by simpa using hn) :
+      (U.bind fun A => (run A).map rest) true ≤ _)))
 
 /-- In the experiment with fresh SHAKE128 matrix prefixes, bound the whole strong forgery
 event by the remaining fresh-digest event, a computed SHAKE256 collision and success of an
