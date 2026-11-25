@@ -57,14 +57,13 @@ theorem mem_ofAdj_edges {vs : List V} {adj : V → V → Bool} {i j : ℕ} :
       ∃ (hi : i < vs.length) (hj : j < vs.length), adj vs[i] vs[j] = true := by
   simp only [ofAdj, List.mem_flatMap, List.mem_map, List.mem_filter, Prod.mk.injEq,
     List.mem_zipIdx_iff_getElem?]
-  constructor
-  · rintro ⟨⟨a, i'⟩, ha, ⟨b, j'⟩, ⟨hb, hadj⟩, rfl, rfl⟩
-    simp only [List.getElem?_eq_some_iff] at ha hb
-    obtain ⟨hi, rfl⟩ := ha
-    obtain ⟨hj, rfl⟩ := hb
-    exact ⟨hi, hj, hadj⟩
-  · rintro ⟨hi, hj, hadj⟩
-    exact ⟨⟨vs[i], i⟩, by simp [hi], ⟨vs[j], j⟩, ⟨by simp [hj], hadj⟩, rfl, rfl⟩
+  refine ⟨?_, fun ⟨hi, hj, hadj⟩ =>
+    ⟨⟨vs[i], i⟩, by simp [hi], ⟨vs[j], j⟩, ⟨by simp [hj], hadj⟩, rfl, rfl⟩⟩
+  rintro ⟨⟨a, i'⟩, ha, ⟨b, j'⟩, ⟨hb, hadj⟩, rfl, rfl⟩
+  simp only [List.getElem?_eq_some_iff] at ha hb
+  obtain ⟨hi, rfl⟩ := ha
+  obtain ⟨hj, rfl⟩ := hb
+  exact ⟨hi, hj, hadj⟩
 
 /-- Adjacency in `ofAdj vs adj`: distinct positions whose entries are adjacent in some
 direction. -/
@@ -73,14 +72,9 @@ theorem ofAdj_adj {vs : List V} {adj : V → V → Bool} {i j : ℕ} :
       i ≠ j ∧ ∃ (hi : i < vs.length) (hj : j < vs.length),
         (adj vs[i] vs[j] || adj vs[j] vs[i]) = true := by
   rw [Graph.toSimpleGraph_adj, mem_ofAdj_edges, mem_ofAdj_edges]
-  constructor
-  · rintro ⟨hne, ⟨hi, hj, h⟩ | ⟨hj, hi, h⟩⟩
-    · exact ⟨hne, hi, hj, by simp [h]⟩
-    · exact ⟨hne, hi, hj, by simp [h]⟩
-  · rintro ⟨hne, hi, hj, h⟩
-    rcases Bool.or_eq_true_iff.1 h with h | h
-    · exact ⟨hne, Or.inl ⟨hi, hj, h⟩⟩
-    · exact ⟨hne, Or.inr ⟨hj, hi, h⟩⟩
+  refine ⟨?_,
+    fun ⟨hne, hi, hj, h⟩ => ⟨hne, (Bool.or_eq_true_iff.1 h).imp (⟨hi, hj, ·⟩) (⟨hj, hi, ·⟩)⟩⟩
+  rintro ⟨hne, ⟨hi, hj, h⟩ | ⟨hj, hi, h⟩⟩ <;> exact ⟨hne, hi, hj, by simp [h]⟩
 
 /-- The cliques of `ofAdj vs adj`: sets of positions whose entries are pairwise adjacent in some
 direction. -/
@@ -90,15 +84,10 @@ theorem mem_Clique_ofAdj_iff {vs : List V} {adj : V → V → Bool} {m : ℕ} :
         ∀ i ∈ S, ∀ j ∈ S, ∀ (hi : i < vs.length) (hj : j < vs.length), i ≠ j →
           (adj vs[i] vs[j] || adj vs[j] vs[i]) = true := by
   rw [mem_Clique_iff]
-  constructor
-  · rintro ⟨S, hS, hclique⟩
-    refine ⟨S, hclique.card_eq, fun i hi => by simpa [ofAdj] using hS i hi,
-      fun i hi j hj hi' hj' hne => ?_⟩
-    obtain ⟨-, hi'', hj'', hadj⟩ := ofAdj_adj.1 (hclique.isClique hi hj hne)
-    exact hadj
-  · rintro ⟨S, hcard, hlt, hadj⟩
-    refine ⟨S, fun i hi => by simpa [ofAdj] using hlt i hi, ⟨fun i hi j hj hne => ?_, hcard⟩⟩
-    exact ofAdj_adj.2 ⟨hne, hlt i hi, hlt j hj, hadj i hi j hj _ _ hne⟩
+  exact ⟨fun ⟨S, hS, hc⟩ => ⟨S, hc.card_eq, fun i hi => by simpa [ofAdj] using hS i hi,
+    fun _ hi _ hj _ _ hne => (ofAdj_adj.1 (hc.isClique hi hj hne)).2.choose_spec.choose_spec⟩,
+    fun ⟨S, hc, hlt, hadj⟩ => ⟨S, fun i hi => by simpa [ofAdj] using hlt i hi,
+      ⟨fun i hi j hj hne => ofAdj_adj.2 ⟨hne, hlt i hi, hlt j hj, hadj i hi j hj _ _ hne⟩, hc⟩⟩⟩
 
 /-- The cliques of `ofAdj vs adj` for an irreflexive test: sets of entries of `vs` that are
 pairwise adjacent in some direction. -/
@@ -109,37 +98,31 @@ theorem mem_Clique_ofAdj_iff_entries {vs : List V} {adj : V → V → Bool}
         ∀ v ∈ T, ∀ w ∈ T, v ≠ w → (adj v w || adj w v) = true := by
   classical
   rw [mem_Clique_ofAdj_iff]
-  constructor
-  · rintro ⟨S, hcard, hlt, hadj⟩
-    refine ⟨S.attach.image fun i => vs[i.1]'(hlt _ i.2), ?_, ?_, ?_⟩
-    · rw [Finset.card_image_of_injective, Finset.card_attach, hcard]
-      intro i j hij
-      by_contra hne
-      have hne' : i.1 ≠ j.1 := fun h => hne (Subtype.ext h)
-      have := hadj i.1 i.2 j.1 j.2 (hlt _ i.2) (hlt _ j.2) hne'
-      simp only at hij
-      rw [hij, hirr, Bool.or_false] at this
-      exact Bool.false_ne_true this
-    · intro v hv
-      obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hv
-      exact List.getElem_mem _
-    · intro v hv w hw hvw
-      obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hv
-      obtain ⟨j, -, rfl⟩ := Finset.mem_image.1 hw
-      exact hadj i.1 i.2 j.1 j.2 _ _ fun h => hvw (by simp [h])
-  · rintro ⟨T, hcard, hmem, hadj⟩
-    have hinj : Set.InjOn (fun v => vs.idxOf v) T := fun v hv w hw h =>
-      (List.idxOf_inj (hmem v hv)).1 h
-    refine ⟨T.image fun v => vs.idxOf v, ?_, ?_, ?_⟩
-    · rw [Finset.card_image_of_injOn hinj, hcard]
-    · intro i hi
+  refine ⟨fun ⟨S, hcard, hlt, hadj⟩ => ⟨S.attach.image fun i => vs[i.1]'(hlt _ i.2), ?_, ?_, ?_⟩,
+    fun ⟨T, hcard, hmem, hadj⟩ => ?_⟩
+  · rw [Finset.card_image_of_injective, Finset.card_attach, hcard]
+    intro i j hij
+    by_contra hne
+    have h := hadj i.1 i.2 j.1 j.2 (hlt _ i.2) (hlt _ j.2) fun e => hne (Subtype.ext e)
+    simp only at hij
+    simp [hij, hirr] at h
+  · intro _ hv
+    obtain ⟨_, -, rfl⟩ := Finset.mem_image.1 hv
+    exact List.getElem_mem _
+  · intro v hv w hw hvw
+    obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hv
+    obtain ⟨j, -, rfl⟩ := Finset.mem_image.1 hw
+    exact hadj i.1 i.2 j.1 j.2 _ _ fun h => hvw (by simp [h])
+  · refine ⟨T.image vs.idxOf, by rw [Finset.card_image_of_injOn
+      (fun v hv _ _ h => (List.idxOf_inj (hmem v hv)).1 h), hcard], ?_, ?_⟩
+    · intro _ hi
       obtain ⟨v, hv, rfl⟩ := Finset.mem_image.1 hi
       exact List.idxOf_lt_length_of_mem (hmem v hv)
-    · intro i hi j hj hi' hj' hij
+    · intro _ hi _ hj _ _ hij
       obtain ⟨v, hv, rfl⟩ := Finset.mem_image.1 hi
       obtain ⟨w, hw, rfl⟩ := Finset.mem_image.1 hj
       rw [List.getElem_idxOf, List.getElem_idxOf]
-      exact hadj v hv w hw fun h => hij (by rw [h])
+      exact hadj v hv w hw fun h => hij (h ▸ rfl)
 
 variable {γ : Type} {encIn : γ ↪ List Bool} {encV : V ↪ List Bool}
 
@@ -153,18 +136,12 @@ theorem computableInPolyTime_ofAdj {vs : γ → List V} {adj : γ → V → V �
   have hz : ComputableInPolyTime (fun a => (vs a).zipIdx) encIn (encList (encPair encV encUnary)) :=
     (ComputableInPolyTime.zipIdx encV).comp hvs
   have hb := ComputableInPolyTime.unary_to_binary
-  have hlen : ComputableInPolyTime (fun a => (vs a).length) encIn encUnary := by
-    fun_prop
-  have hverts : ComputableInPolyTime (fun a => List.range (vs a).length)
-      encIn (encList encNat) := by
-    simpa using (show ComputableInPolyTime (fun a => (List.range (vs a).length).map id)
-      encIn (encList encNat) by fun_prop)
-  have hedges : ComputableInPolyTime (fun a => (vs a).zipIdx.flatMap fun c =>
-      ((vs a).zipIdx.filter fun b => adj a c.1 b.1).map fun b => (c.2, b.2))
-      encIn (encList (encPair encNat encNat)) := by
-    fun_prop
+  have hlen : ComputableInPolyTime (fun a => (vs a).length) encIn encUnary := by fun_prop
   unfold ofAdj
-  exact encGraph_mk_polyTime hverts hedges
+  exact encGraph_mk_polyTime
+    (by simpa using (show ComputableInPolyTime (fun a => (List.range (vs a).length).map id)
+      encIn (encList encNat) by fun_prop))
+    (by fun_prop)
 
 end Graph
 

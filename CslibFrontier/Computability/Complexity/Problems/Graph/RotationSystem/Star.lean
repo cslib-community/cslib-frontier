@@ -60,20 +60,12 @@ open Equiv
 
 private theorem sameCycle_starRotor {n : ℕ} (i j : Fin n) (b c : Bool) :
     (starRotor n).SameCycle (i, b) (j, c) ↔ b = c ∧ (b = false → i = j) := by
-  constructor
-  · intro h
-    have hb : b = c := by
-      have hmap := h.map_of_semiconj (u := Prod.snd) (g := (1 : Perm Bool))
-        (by intro d; rfl)
-      exact Perm.sameCycle_one.mp hmap
-    refine ⟨hb, fun hf => ?_⟩
-    exact congrArg Prod.fst (h.eq_of_left (by rw [hf]; rfl))
-  · rintro ⟨rfl, h⟩
-    cases b
-    · cases h rfl
-      exact .rfl
-    · exact (Perm.sameCycle_finRotate i j).map_of_semiconj
-        (u := fun i => (i, true)) (g := starRotor n) (by intro a; rfl)
+  refine ⟨fun h => ⟨Perm.sameCycle_one.mp (h.map_of_semiconj (u := Prod.snd) (g := 1) fun _ => rfl),
+    fun hf => congrArg Prod.fst (h.eq_of_left (by rw [hf]; rfl))⟩, ?_⟩
+  rintro ⟨rfl, h⟩
+  cases b
+  · exact h rfl ▸ .rfl
+  · exact (Perm.sameCycle_finRotate i j).map_of_semiconj (u := (·, true)) fun _ => rfl
 
 /-- Actual indexed star rotation, with one vertex cycle per endpoint fiber. -/
 @[expose] def starRotation (n : ℕ) : RotationSystem (starGraph n) where
@@ -95,13 +87,10 @@ theorem faceNext_starDartEquiv {n : ℕ} (i : Fin n) (b : Bool) :
     (starRotation n).faceNext (starDartEquiv n (i, b)) =
       starDartEquiv n (if b then i else (finRotate n).symm i, !b) := by
   apply (starRotation n).rotate.injective
-  change (starRotation n).rotate ((starRotation n).rotate.symm
-    (starDartEquiv n (i, b)).reverse) = _
-  rw [Equiv.apply_symm_apply, reverse_starDartEquiv]
+  rw [show (starRotation n).rotate ((starRotation n).faceNext (starDartEquiv n (i, b))) =
+    (starDartEquiv n (i, b)).reverse from Equiv.apply_symm_apply _ _, reverse_starDartEquiv]
   cases b
-  · change starDartEquiv n (i, true) =
-      starDartEquiv n (finRotate n ((finRotate n).symm i), true)
-    rw [Equiv.apply_symm_apply]
+  · exact congrArg (starDartEquiv n ⟨·, true⟩) ((finRotate n).apply_symm_apply i).symm
   · rfl
 
 private def starFaceEquiv (n : ℕ) : Fin n × Bool ≃ Dart (starGraph n) :=
@@ -127,66 +116,45 @@ theorem sameFace_starRotation {n : ℕ} (d e : Dart (starGraph n)) :
 
 /-- A positive star has one actual dart face; the zero star has no dart face. -/
 theorem card_faces_starRotation {n : ℕ} (hn : 0 < n) :
-    Nat.card (starRotation n).Face = 1 := by
-  apply Nat.card_eq_one_iff_unique.mpr
-  constructor
-  · constructor
-    intro a b
-    refine Quotient.inductionOn₂ a b fun d e => ?_
-    exact Quotient.sound (sameFace_starRotation d e)
-  · exact ⟨Quotient.mk _ (starDartEquiv n (⟨0, hn⟩, false))⟩
+    Nat.card (starRotation n).Face = 1 :=
+  Nat.card_eq_one_iff_unique.mpr
+    ⟨⟨Quotient.ind₂ fun d e => Quotient.sound (sameFace_starRotation d e)⟩,
+      ⟨Quotient.mk _ (starDartEquiv n (⟨0, hn⟩, false))⟩⟩
 
 /-- Every indexed endpoint is declared, without a bound on the arity. -/
 theorem starGraph_endpoints_declared (n : ℕ) :
     ∀ v ∈ (starGraph n).incidenceVertices, v ∈ (starGraph n).vertices := by
   intro v hv
-  obtain ⟨edge, he, hv⟩ := List.mem_flatMap.mp hv
+  obtain ⟨_, he, hv⟩ := List.mem_flatMap.mp hv
   obtain ⟨i, _, rfl⟩ := List.mem_map.mp he
   rcases List.mem_cons.mp hv with rfl | hv
   · simpa only [starGraph, List.mem_range] using Nat.lt_succ_of_lt i.isLt
-  · have he := List.mem_singleton.mp hv
-    subst v
-    simp [starGraph]
+  · simp [List.mem_singleton.mp hv, starGraph]
 
 /-- All declared star vertices lie in its center's component. -/
 theorem starGraph_connected (n : ℕ) : ∀ u ∈ (starGraph n).vertices,
     ∀ v ∈ (starGraph n).vertices, Graph.RotationCertificate.SameComponent (starGraph n) u v := by
-  have hcenter : n ∈ (starGraph n).vertices := by simp [starGraph]
   have connect (u : ℕ) (hu : u ∈ (starGraph n).vertices) :
       Graph.RotationCertificate.SameComponent (starGraph n) u n := by
-    by_cases he : u = n
-    · subst u
-      exact .refl hcenter
-    · have hi : u < n := by
-        have hle : u < n + 1 := by
-          simpa only [starGraph, List.mem_range] using hu
-        omega
-      have h := sameComponent_reverse (starGraph_endpoints_declared n)
+    rcases eq_or_ne u n with rfl | he
+    · exact .refl (by simp [starGraph])
+    · have hi : u < n := Nat.lt_of_le_of_ne (Nat.lt_succ_iff.mp (by simpa [starGraph] using hu)) he
+      simpa using sameComponent_reverse (starGraph_endpoints_declared n)
         (starDartEquiv n (⟨u, hi⟩, false))
-      simpa only [reverse_starDartEquiv, vertex_starDartEquiv, Bool.not_false,
-        Bool.false_eq_true, ↓reduceIte]
-        using h
-  intro u hu v hv
-  exact (connect u hu).trans (connect v hv).symm
+  exact fun u hu v hv => (connect u hu).trans (connect v hv).symm
 
 /-- Ordered stars of every arity have componentwise numerical genus zero. The nullary
 center is a point component; positive stars use the complete doubled face orbit. -/
 theorem numericalGenusZero_starRotation (n : ℕ) : (starRotation n).NumericalGenusZero := by
   cases n with
   | zero =>
-    intro root hr
-    have hroot : root = 0 := by
-      have hr' : root < 1 := by simpa [starGraph] using hr
-      omega
-    subst root
+    rintro root hr
+    obtain rfl : root = 0 := by simpa [starGraph] using hr
     simp [starGraph, Dart]
   | succ n =>
     rw [numericalGenusZero_iff_connected_euler (starRotation (n + 1))
-      (starGraph_endpoints_declared _) (starGraph_connected _)
-      (starDartEquiv (n + 1) (0, false))]
-    rw [card_faces_starRotation (Nat.succ_pos n)]
-    simp only [starGraph, List.length_map, List.length_finRange]
-    rw [List.toFinset_card_of_nodup List.nodup_range]
-    simp [Nat.add_assoc]
+      (starGraph_endpoints_declared _) (starGraph_connected _) (starDartEquiv (n + 1) (0, false)),
+      card_faces_starRotation (Nat.succ_pos n)]
+    simp [starGraph, List.toFinset_card_of_nodup List.nodup_range, Nat.add_assoc]
 
 end Cslib.Complexity.Graph.RotationSystem

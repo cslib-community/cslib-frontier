@@ -109,15 +109,8 @@ theorem Op.apply_pop {i : Fin n} {γ : Γ} {σ σ' : Stacks n Γ} :
 @[expose] def Stacks.pair (s₀ s₁ : List Γ) : Stacks 2 Γ := fun i => if i = 0 then s₀ else s₁
 
 theorem Stacks.eq_pair_iff {σ : Stacks 2 Γ} {s₀ s₁ : List Γ} :
-    σ = Stacks.pair s₀ s₁ ↔ σ 0 = s₀ ∧ σ 1 = s₁ := by
-  constructor
-  · rintro rfl
-    exact ⟨rfl, rfl⟩
-  · rintro ⟨h₀, h₁⟩
-    funext i
-    match i with
-    | ⟨0, _⟩ => exact h₀
-    | ⟨1, _⟩ => exact h₁
+    σ = Stacks.pair s₀ s₁ ↔ σ 0 = s₀ ∧ σ 1 = s₁ :=
+  ⟨fun h => ⟨h ▸ rfl, h ▸ rfl⟩, fun ⟨h₀, h₁⟩ => funext fun | ⟨0, _⟩ => h₀ | ⟨1, _⟩ => h₁⟩
 
 theorem Stacks.empty_eq_pair : (Stacks.empty : Stacks 2 Γ) = Stacks.pair [] [] :=
   Stacks.eq_pair_iff.mpr ⟨rfl, rfl⟩
@@ -135,22 +128,18 @@ theorem Op.apply_push_one_pair {γ : Γ} {s₀ s₁ : List Γ} {σ : Stacks 2 Γ
 theorem Op.apply_pop_zero_pair {γ : Γ} {s₀ s₁ : List Γ} {σ : Stacks 2 Γ} :
     (Op.pop 0 γ).Apply (Stacks.pair s₀ s₁) σ ↔ ∃ t, s₀ = γ :: t ∧ σ = Stacks.pair t s₁ := by
   rw [Op.apply_pop]
-  constructor
-  · intro h
-    exact ⟨σ 0, congrFun h 0, Stacks.eq_pair_iff.mpr ⟨rfl, (congrFun h 1).symm⟩⟩
-  · rintro ⟨t, rfl, rfl⟩
-    exact ((Stacks.eq_pair_iff (σ := Function.update (Stacks.pair t s₁) 0
-      (γ :: Stacks.pair t s₁ 0))).mpr ⟨rfl, rfl⟩).symm
+  refine ⟨fun h => ⟨σ 0, congrFun h 0, Stacks.eq_pair_iff.mpr ⟨rfl, (congrFun h 1).symm⟩⟩, ?_⟩
+  rintro ⟨t, rfl, rfl⟩
+  exact ((Stacks.eq_pair_iff
+    (σ := Function.update (Stacks.pair t s₁) 0 (γ :: Stacks.pair t s₁ 0))).mpr ⟨rfl, rfl⟩).symm
 
 theorem Op.apply_pop_one_pair {γ : Γ} {s₀ s₁ : List Γ} {σ : Stacks 2 Γ} :
     (Op.pop 1 γ).Apply (Stacks.pair s₀ s₁) σ ↔ ∃ t, s₁ = γ :: t ∧ σ = Stacks.pair s₀ t := by
   rw [Op.apply_pop]
-  constructor
-  · intro h
-    exact ⟨σ 1, congrFun h 1, Stacks.eq_pair_iff.mpr ⟨(congrFun h 0).symm, rfl⟩⟩
-  · rintro ⟨t, rfl, rfl⟩
-    exact ((Stacks.eq_pair_iff (σ := Function.update (Stacks.pair s₀ t) 1
-      (γ :: Stacks.pair s₀ t 1))).mpr ⟨rfl, rfl⟩).symm
+  refine ⟨fun h => ⟨σ 1, congrFun h 1, Stacks.eq_pair_iff.mpr ⟨(congrFun h 0).symm, rfl⟩⟩, ?_⟩
+  rintro ⟨t, rfl, rfl⟩
+  exact ((Stacks.eq_pair_iff
+    (σ := Function.update (Stacks.pair s₀ t) 1 (γ :: Stacks.pair s₀ t 1))).mpr ⟨rfl, rfl⟩).symm
 
 /-- The kind of a stack operation: a push on stack `i`, a pop from stack `i`, or no stack
 operation. A visibly pushdown alphabet assigns a kind to each letter. -/
@@ -304,7 +293,7 @@ theorem IsVisibly.kind_eq {M : MPDA n State Symbol Γ} {κ : Symbol → OpKind n
     intro μ hμ
     rcases List.mem_cons.mp hμ with rfl | hμ
     · exact hM _ _ _ _ (configLTS_tr.mp htr).1
-    · exact ih μ hμ
+    · exact ih _ hμ
 
 /-- An MPDA accepts a word if it has a run labelled by that word that starts in an initial state
 with all stacks empty and ends in an accepting state with all stacks empty. -/

@@ -91,13 +91,8 @@ variable {ends} in
   obtain ⟨x, y, he⟩ : ∃ x y, ends e = s(x, y) := by obtain ⟨x, y⟩ := ends e; exact ⟨x, y, rfl⟩
   simp only [Graph.incidenceSet, Graph.Inc, toGraph_isLink, he, Sym2.eq_iff, Sym2.mem_iff,
     Set.mem_ofPred_eq]
-  constructor
-  · rintro ⟨z, ⟨rfl, -⟩ | ⟨-, rfl⟩⟩
-    · exact Or.inl rfl
-    · exact Or.inr rfl
-  · rintro (rfl | rfl)
-    · exact ⟨y, Or.inl ⟨rfl, rfl⟩⟩
-    · exact ⟨x, Or.inr ⟨rfl, rfl⟩⟩
+  exact ⟨fun ⟨_, h⟩ => h.elim (fun h => .inl h.1.symm) (fun h => .inr h.2.symm),
+    fun h => h.elim (fun h => ⟨y, .inl ⟨h.symm, rfl⟩⟩) (fun h => ⟨x, .inr ⟨rfl, h.symm⟩⟩)⟩
 
 /-- The simple graph underlying the multigraph `ends`: distinct vertices are adjacent when an edge
 joins them. Self-loops are dropped and parallel edges merged. -/
@@ -176,11 +171,9 @@ theorem coe_edgeCut_eq_toGraph_edgeCut (S : Finset V) :
   obtain ⟨x, y, he⟩ : ∃ x y, ends e = s(x, y) := by obtain ⟨x, y⟩ := ends e; exact ⟨x, y, rfl⟩
   rw [Finset.mem_coe, mem_edgeCut, (show (toGraph ends).IsLink e x y from he).mem_edgeCut_iff]
   simp only [he, Sym2.eq_iff, Finset.mem_coe, Finset.mem_compl]
-  constructor
-  · rintro ⟨v, hv, w, hw, ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩⟩ <;> tauto
-  · rintro (⟨hx, hy⟩ | ⟨hy, hx⟩)
-    · exact ⟨x, hx, y, hy, Or.inl ⟨rfl, rfl⟩⟩
-    · exact ⟨y, hy, x, hx, Or.inr ⟨rfl, rfl⟩⟩
+  exact ⟨by rintro ⟨_, hv, _, hw, ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩⟩ <;> tauto,
+    by rintro (⟨hx, hy⟩ | ⟨hy, hx⟩)
+       exacts [⟨x, hx, y, hy, .inl ⟨rfl, rfl⟩⟩, ⟨y, hy, x, hx, .inr ⟨rfl, rfl⟩⟩]⟩
 
 /-- The edges between a set and its complement are those between the complement and the set. -/
 theorem edgeCut_compl (S : Finset V) : edgeCut ends Sᶜ = edgeCut ends S := by
@@ -249,28 +242,24 @@ theorem connected_toSimpleGraph_iff :
     (toSimpleGraph ends).Connected ↔
       Nonempty V ∧ ∀ S : Finset V, S.Nonempty → S ≠ univ → (edgeCut ends S).Nonempty := by
   classical
-  refine ⟨fun hG => ⟨hG.nonempty, fun S ⟨u, hu⟩ hS => ?_⟩, fun ⟨hV, h⟩ => ?_⟩
+  refine ⟨fun hG => ⟨hG.nonempty, fun S ⟨u, hu⟩ hS => ?_⟩, fun ⟨⟨u⟩, h⟩ => ?_⟩
   · -- a walk from inside `S` to outside crosses the edge cut
-    obtain ⟨w, hw⟩ : ∃ w, w ∉ S := by
-      by_contra! h'
-      exact hS (eq_univ_of_forall h')
-    obtain ⟨p⟩ := hG.preconnected u w
-    obtain ⟨d, -, hd₁, hd₂⟩ := p.exists_boundary_dart (S : Set V) hu hw
+    obtain ⟨w, hw⟩ : ∃ w, w ∉ S := not_forall.1 fun h' => hS (eq_univ_of_forall h')
+    obtain ⟨d, -, hd₁, hd₂⟩ := (hG.preconnected u w).some.exists_boundary_dart (S : Set V) hu hw
     obtain ⟨-, e, he⟩ := toSimpleGraph_adj.1 d.adj
     exact ⟨e, mem_edgeCut.2 ⟨_, hd₁, _, mem_compl.2 hd₂, he⟩⟩
   · -- the vertices reachable from a vertex have no edge leaving them
-    obtain ⟨u⟩ := hV
     refine (SimpleGraph.connected_iff_exists_forall_reachable _).2 ⟨u, fun w => ?_⟩
     let R : Finset V := {w | (toSimpleGraph ends).Reachable u w}
-    suffices hR : R = univ by
-      have hw : w ∈ R := by rw [hR]; exact mem_univ w
-      simpa [R] using hw
-    by_contra hR
-    obtain ⟨e, he⟩ := h R ⟨u, by simp [R]⟩ hR
+    by_contra hw
+    obtain ⟨e, he⟩ := h R ⟨u, by simp [R]⟩ <|
+      fun hR => by
+        have hwR : w ∈ R := hR.symm ▸ mem_univ w
+        exact hw (by simpa [R] using hwR)
     obtain ⟨a, ha, b, hb, hab⟩ := mem_edgeCut.1 he
     have ha' : (toSimpleGraph ends).Reachable u a := by simpa [R] using ha
-    have hne : a ≠ b := fun h => mem_compl.1 hb (h ▸ ha)
-    exact mem_compl.1 hb
-      (by simpa [R] using ha'.trans (toSimpleGraph_adj.2 ⟨hne, e, hab⟩).reachable)
+    have hreach : (toSimpleGraph ends).Reachable u b :=
+      ha'.trans (toSimpleGraph_adj.2 ⟨fun h' : a = b => mem_compl.1 hb (h' ▸ ha), e, hab⟩).reachable
+    exact mem_compl.1 hb (by simpa [R] using hreach)
 
 end Cslib.Multigraph

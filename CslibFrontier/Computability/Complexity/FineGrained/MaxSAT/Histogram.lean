@@ -73,28 +73,22 @@ def optimumFromCounts (counts : List ℕ) : ℕ :=
 /-- Differences of consecutive tail counts give the exact score count. -/
 theorem thresholdCount_sub (F : Instance) (q : ℕ) :
     thresholdCount F q - thresholdCount F (q + 1) = exactCount F q := by
-  have hsub : (Finset.univ.filter (fun x : BitString F.1 => q + 1 ≤ score F x)) ⊆
-      Finset.univ.filter (fun x : BitString F.1 => q ≤ score F x) := by
-    intro x hx
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hx ⊢
-    omega
-  have heq : (Finset.univ.filter (fun x : BitString F.1 => q ≤ score F x)) \
-      (Finset.univ.filter (fun x : BitString F.1 => q + 1 ≤ score F x)) =
-      Finset.univ.filter (fun x : BitString F.1 => score F x = q) := by
+  have heq : (Finset.univ.filter fun x : BitString F.1 => q ≤ score F x) \
+      (Finset.univ.filter fun x : BitString F.1 => q + 1 ≤ score F x) =
+      Finset.univ.filter fun x : BitString F.1 => score F x = q := by
     ext x
     simp only [Finset.mem_sdiff, Finset.mem_filter, Finset.mem_univ, true_and]
     omega
-  simpa only [thresholdCount, exactCount, heq] using
-    (Finset.card_sdiff_of_subset hsub).symm
+  have hsub : (Finset.univ.filter fun x : BitString F.1 => q + 1 ≤ score F x) ⊆
+      Finset.univ.filter fun x : BitString F.1 => q ≤ score F x := fun x hx =>
+    Finset.mem_filter.2 ⟨Finset.mem_univ x, Nat.le_of_succ_le (Finset.mem_filter.1 hx).2⟩
+  simpa only [thresholdCount, exactCount, heq] using (Finset.card_sdiff_of_subset hsub).symm
 
 /-- Adjacent differences preserve the increasing order of score indices. -/
 theorem histogramFromCounts_range (f : ℕ → ℕ) (m : ℕ) :
     histogramFromCounts ((List.range (m + 1)).map f) =
-      (List.range m).map (fun q => f q - f (q + 1)) := by
-  apply List.ext_getElem
-  · simp [histogramFromCounts]
-  · intro i hi hj
-    simp [histogramFromCounts]
+      (List.range m).map (fun q => f q - f (q + 1)) :=
+  List.ext_getElem (by simp [histogramFromCounts]) fun _ _ _ => by simp [histogramFromCounts]
 
 /-- The returned histogram contains every exact assignment count. -/
 theorem histogramFromCounts_thresholdCounts (F : Instance) :
@@ -107,10 +101,9 @@ theorem score_le_optimum (F : Instance) (x : BitString F.1) : score F x ≤ opti
   Finset.le_sup (Finset.mem_univ x)
 
 /-- The optimum is attained by an assignment, including when there are no variables. -/
-theorem exists_score_eq_optimum (F : Instance) : ∃ x : BitString F.1, score F x = optimum F := by
-  obtain ⟨x, _, hx⟩ := Finset.exists_mem_eq_sup (Finset.univ : Finset (BitString F.1))
-    Finset.univ_nonempty (score F)
-  exact ⟨x, hx.symm⟩
+theorem exists_score_eq_optimum (F : Instance) : ∃ x : BitString F.1, score F x = optimum F :=
+  let ⟨x, _, hx⟩ := Finset.exists_mem_eq_sup Finset.univ Finset.univ_nonempty (score F)
+  ⟨x, hx.symm⟩
 
 /-- The optimum is at most the number of clauses. -/
 theorem optimum_le (F : Instance) : optimum F ≤ F.2.length :=
@@ -120,12 +113,8 @@ theorem optimum_le (F : Instance) : optimum F ≤ F.2.length :=
 theorem thresholdCount_pos_iff_le_optimum (F : Instance) (q : ℕ) :
     0 < thresholdCount F q ↔ q ≤ optimum F := by
   rw [thresholdCount_pos_iff]
-  constructor
-  · rintro ⟨x, hx⟩
-    exact hx.trans (score_le_optimum F x)
-  · intro hq
-    obtain ⟨x, hx⟩ := exists_score_eq_optimum F
-    exact ⟨x, hx ▸ hq⟩
+  exact ⟨fun ⟨x, hx⟩ => hx.trans (score_le_optimum F x),
+    fun hq => (exists_score_eq_optimum F).elim fun x hx => ⟨x, hx ▸ hq⟩⟩
 
 /-- Number of naturals below `m` that are at most `q`. -/
 theorem countP_range_le (m q : ℕ) :
@@ -164,16 +153,14 @@ theorem exists_thresholdCounts_algorithm :
         ((encInstance F).length + 1) ^ d)
       (fun F => ((encInstance F).length + 1) ^ d) := by
   obtain ⟨count, A, e, b, hcount, hc⟩ := exists_thresholdCounter
-  have he : count = fun p => thresholdCount p.1 p.2 := funext hcount
-  rw [he] at hc
-  have hm : ComputableInPolyTime (fun F : Instance => F.2.length) encInstance encUnary :=
-    (ComputableInPolyTime.length_list (encList (encPair encNat encBool))).comp
-      (ComputableInPolyTime.snd encUnary encCNF)
-  have hq := ComputableInPolyTime.range.comp
-    (ComputableInPolyTime.unary_add' hm (ComputableInPolyTime.const 2))
+  rw [funext hcount] at hc
   obtain ⟨d, hd⟩ := ComputableInO.polynomial_queries
     (T := fun F => 2 ^ (A * (workSize F + 1) / Nat.sqrt (Nat.log 2 (workSize F + 2))))
-    (e := e) (b := b) hc hq (fun _ => Nat.one_le_two_pow)
+    (e := e) (b := b) hc
+    (ComputableInPolyTime.range.comp (ComputableInPolyTime.unary_add'
+      ((ComputableInPolyTime.length_list (encList (encPair encNat encBool))).comp
+        (ComputableInPolyTime.snd encUnary encCNF)) (.const 2)))
+    (fun _ => Nat.one_le_two_pow)
   exact ⟨A, d, hd⟩
 
 /-- A native algorithm returns all exact score counts, in increasing order from `0` through `m`,
@@ -186,8 +173,7 @@ theorem exists_histogram_algorithm :
   obtain ⟨A, d, hd⟩ := exists_thresholdCounts_algorithm
   obtain ⟨e, he⟩ := hd.polynomial_postprocessing histogramFromCounts_polyTime
     (fun _ => Nat.one_le_two_pow)
-  refine ⟨A, e, he.of_enc_eq fun F => ?_⟩
-  rw [Function.comp_apply, histogramFromCounts_thresholdCounts]
+  exact ⟨A, e, he.of_enc_eq fun F => congrArg _ (histogramFromCounts_thresholdCounts F).symm⟩
 
 /-- A native algorithm returns the exact MAX-SAT optimum at the contraction rate, with
 polynomial space. This is uniform in clause width and in the input's declared variable count. -/
@@ -199,8 +185,7 @@ theorem exists_optimum_algorithm :
   obtain ⟨A, d, hd⟩ := exists_thresholdCounts_algorithm
   obtain ⟨e, he⟩ := hd.polynomial_postprocessing optimumFromCounts_polyTime
     (fun _ => Nat.one_le_two_pow)
-  refine ⟨A, e, he.of_enc_eq fun F => ?_⟩
-  rw [Function.comp_apply, optimumFromCounts_thresholdCounts]
+  exact ⟨A, e, he.of_enc_eq fun F => congrArg _ (optimumFromCounts_thresholdCounts F).symm⟩
 
 /-! ### Sparse fixed-width instances -/
 
@@ -234,12 +219,11 @@ private theorem sparse_algorithm {β : Type} {enc : β ↪ List Bool} {f : Insta
     ComputableInO (fun F : SparseInstance k c => f F.1) (encSparseInstance k c) enc
       (fun F => 2 ^ (A * (8 * ((k + 1) * c) + 14) * (F.numVars + 1) /
         Nat.sqrt (Nat.log 2 (F.numVars + 2))) * ((encSparseInstance k c F).length + 1) ^ d)
-      (fun F => ((encSparseInstance k c F).length + 1) ^ d) := by
-  have h := hf.of_encIn_eq (encD := encSparseInstance k c) Subtype.val (fun _ => rfl)
-  refine h.mono_le (fun F => ?_) (fun _ => le_rfl)
-  apply Nat.mul_le_mul_right
-  apply Nat.pow_le_pow_right (by norm_num : 0 < (2 : ℕ))
-  exact Nat.mul_succ_div_sqrt_log_two_le (sparse_workSize_le F)
+      (fun F => ((encSparseInstance k c F).length + 1) ^ d) :=
+  (hf.of_encIn_eq Subtype.val fun _ => rfl).mono_le
+    (fun F => Nat.mul_le_mul_right _ (Nat.pow_le_pow_right (by norm_num)
+      (Nat.mul_succ_div_sqrt_log_two_le (sparse_workSize_le F))))
+    (fun _ => le_rfl)
 
 /-- Exact score distributions for sparse MAX-`k`-SAT in `2 ^ O(n / √log n) poly(L)` time and
 polynomial space, for fixed width `k` and density `c`. Every one of the `2^n` canonical declared

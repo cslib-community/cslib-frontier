@@ -80,29 +80,20 @@ theorem dist_uniformOfFintype_zmod_units (N : ℕ) [NeZero N] :
       Probability.PMF.mem_support_uniformOfFintype _⟩
   have hmap : (PMF.uniformOfFintype (ZMod N)ˣ).map Units.val =
       PMF.uniformOfFinset S hS := by
-    have hcomp : (Units.val : (ZMod N)ˣ → ZMod N) = Subtype.val ∘ e := rfl
-    rw [hcomp, ← PMF.map_comp, Probability.PMF.uniformOfFintype_map_equiv e,
-      Probability.PMF.uniformOfFintype_finset_map_val]
-  have hfilter : (PMF.uniformOfFintype (ZMod N)).filter E hev = PMF.uniformOfFinset S hS := by
-    refine Probability.PMF.pmf_eq_uniformOfFinset_of_ite_const hS
+    rw [show (Units.val : (ZMod N)ˣ → ZMod N) = Subtype.val ∘ e from rfl, ← PMF.map_comp,
+      Probability.PMF.uniformOfFintype_map_equiv e, Probability.PMF.uniformOfFintype_finset_map_val]
+  have hfilter : (PMF.uniformOfFintype (ZMod N)).filter E hev = PMF.uniformOfFinset S hS :=
+    Probability.PMF.pmf_eq_uniformOfFinset_of_ite_const hS
       (c := (Fintype.card (ZMod N) : ℝ≥0∞)⁻¹ *
-        (∑' a, E.indicator (PMF.uniformOfFintype (ZMod N)) a)⁻¹) fun θ => ?_
-    by_cases hθ : θ ∈ E
-    · simp only [PMF.filter_apply, Set.indicator_of_mem hθ, PMF.uniformOfFintype_apply, S,
-        Finset.mem_filter, Finset.mem_univ, true_and, hθ, ↓reduceIte]
-    · simp only [PMF.filter_apply, Set.indicator_apply, hθ, ↓reduceIte, zero_mul, S,
-        Finset.mem_filter, Finset.mem_univ, true_and]
-  have hcardS : (Finset.univ.filter (· ∈ E)).card = N.totient := by
-    rw [← ZMod.card_units_eq_totient N]
-    exact ((Fintype.card_congr e).trans (Fintype.card_coe S)).symm
+        (∑' a, E.indicator (PMF.uniformOfFintype (ZMod N)) a)⁻¹) fun θ => by
+      by_cases hθ : θ ∈ E <;>
+        simp [PMF.filter_apply, Set.indicator_apply, PMF.uniformOfFintype_apply, S, hθ]
+  have hcardS : S.card = N.totient := by
+    rw [← Fintype.card_coe S, ← Fintype.card_congr e, ZMod.card_units_eq_totient]
   have hcount : (Finset.univ.filter (· ∈ Eᶜ)).card = N - N.totient := by
-    have h := Finset.card_filter_add_card_filter_not
-      (s := (Finset.univ : Finset (ZMod N))) (fun x => x ∈ E)
-    rw [Finset.card_univ, ZMod.card] at h
-    have h2 : Finset.univ.filter (· ∈ Eᶜ) = Finset.univ.filter (fun x => ¬ x ∈ E) := by
-      ext x
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and, Set.mem_compl_iff]
-    rw [h2]
+    have h := Finset.card_filter_add_card_filter_not (s := (Finset.univ : Finset (ZMod N))) (· ∈ E)
+    rw [Finset.card_univ, ZMod.card, hcardS] at h
+    rw [Finset.filter_congr fun _ _ => Set.mem_compl_iff _ _]
     omega
   rw [hmap, ← hfilter, Probability.PMF.dist_filter,
     Probability.PMF.toOuterMeasure_uniformOfFintype_toReal, hcount, ZMod.card]
@@ -113,13 +104,11 @@ theorem Game.advantage_bind_units_le (N : ℕ) [NeZero N] (k : ZMod N → Game) 
     Game.advantage ((PMF.uniformOfFintype (ZMod N)).bind k)
       ((PMF.uniformOfFintype (ZMod N)ˣ).bind fun u => k u) ≤
       ((N - N.totient : ℕ) : ℝ≥0) / N := by
-  have hbind : (PMF.uniformOfFintype (ZMod N)ˣ).bind (fun u => k u) =
-      ((PMF.uniformOfFintype (ZMod N)ˣ).map Units.val).bind k := by
-    rw [PMF.bind_map]
-    rfl
-  rw [← NNReal.coe_le_coe, Game.advantage_eq_nndist, coe_nndist, hbind]
-  refine (PMF.dist_bind_le _ _ k).trans (le_of_eq ?_)
-  rw [dist_uniformOfFintype_zmod_units, NNReal.coe_div, NNReal.coe_natCast, NNReal.coe_natCast]
+  rw [← NNReal.coe_le_coe, Game.advantage_eq_nndist, coe_nndist,
+    show (PMF.uniformOfFintype (ZMod N)ˣ).bind (fun u => k u) =
+      ((PMF.uniformOfFintype (ZMod N)ˣ).map Units.val).bind k from (PMF.bind_map _ _ _).symm]
+  exact (PMF.dist_bind_le _ _ k).trans_eq (by
+    simp only [dist_uniformOfFintype_zmod_units, NNReal.coe_div, NNReal.coe_natCast])
 
 /-- For distinct primes `p` and `q` of at least `n` bits, the non-units modulo `p * q` are strictly
 less than a `4 / 2 ^ n` fraction of the residues. -/
@@ -128,7 +117,9 @@ theorem sub_totient_div_lt {p q n : ℕ} (hp : p.Prime) (hq : q.Prime) (hpq : p 
     ((p * q - (p * q).totient : ℕ) : ℝ≥0) / (p * q : ℕ) < 4 / 2 ^ n := by
   have hpow {x m : ℕ} (hx : x.Prime) (hm : m ≤ x.size) : 2 ^ m ≤ 2 * x := by
     cases m with
-    | zero => rw [pow_zero]; have := hx.two_le; omega
+    | zero =>
+      have := hx.two_le
+      rw [pow_zero]; omega
     | succ m => rw [pow_succ']; exact Nat.mul_le_mul_left 2 (Nat.lt_size.mp hm)
   have h2p := hpow hp hpn
   have h2q := hpow hq hqn
@@ -174,8 +165,7 @@ theorem Game.advantage_sampleModNat_units_le {p q n : ℕ} [NeZero (p * q)] (hp 
 theorem coprime_unitOrOne (N r : ℕ) : (unitOrOne N r).Coprime N := by
   unfold unitOrOne
   split_ifs with h
-  · exact h
-  · exact Nat.coprime_one_left N
+  exacts [h, Nat.coprime_one_left N]
 
 /-- The residue of a unit modulo `N` is kept. -/
 theorem unitOrOne_val_coe_unit {N : ℕ} (u : (ZMod N)ˣ) :

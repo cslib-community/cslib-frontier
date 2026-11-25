@@ -80,12 +80,9 @@ theorem fourierCoeff_piecewise (f : (ι → Bool) → ℝ) (J : Finset ι) (z : 
       ∑ U, (fourierCoeff f U * chi ℝ (U \ J) z) * chi ℝ (U ∩ J) x := by
     rw [← sum_fourierCoeff_mul_chi f (J.piecewise x z)]
     exact sum_congr rfl fun U _ => by rw [chi_piecewise]; ring
-  rw [fourierCoeff]
-  simp only [h, sum_mul, mul_assoc]
-  rw [expect_sum_comm, sum_filter]
-  refine sum_congr rfl fun U _ => ?_
-  simp only [← mul_expect, expect_chi_mul_chi]
-  split_ifs <;> simp
+  simp only [fourierCoeff, h, sum_mul, mul_assoc, expect_sum_comm, sum_filter, ← mul_expect,
+    expect_chi_mul_chi]
+  exact sum_congr rfl fun _ _ => by split_ifs <;> simp
 
 /-- Averaged over the fixed bits, the squared coefficient of a restriction on `S` is the weight of
 `f` on the sets meeting `J` in `S`. -/
@@ -96,16 +93,13 @@ theorem expect_fourierCoeff_piecewise_sq (f : (ι → Bool) → ℝ) (J S : Fins
       𝔼 z, fourierCoeff f U * chi ℝ (U \ J) z * (fourierCoeff f V * chi ℝ (V \ J) z) =
         fourierCoeff f U * fourierCoeff f V * if U \ J = V \ J then 1 else 0 := by
     rw [← expect_chi_mul_chi, mul_expect]
-    exact expect_congr rfl fun z _ => by ring
+    exact expect_congr rfl fun _ _ => by ring
   simp only [fourierCoeff_piecewise, sq, sum_mul_sum, expect_sum_comm, key]
-  refine sum_congr rfl fun U hU => ?_
-  rw [sum_eq_single_of_mem U hU fun V hV hVU => ?_]
-  · simp
-  · -- two sets meeting `J` in the same part differ outside `J`
-    rw [mem_filter] at hU hV
-    have hne : U \ J ≠ V \ J := fun h => hVU (by
-      rw [← sdiff_union_inter V J, ← sdiff_union_inter U J, h, hU.2, hV.2])
-    simp [hne]
+  refine sum_congr rfl fun U hU => (sum_eq_single_of_mem U hU fun V hV hVU => ?_).trans (by simp)
+  -- two sets meeting `J` in the same part differ outside `J`
+  exact mul_eq_zero_of_right _ <| ite_eq_right fun h => hVU <| by
+    rw [← sdiff_union_inter V J, ← sdiff_union_inter U J, h, (mem_filter.1 hU).2,
+      (mem_filter.1 hV).2]
 
 /-- **The expected weight of a restriction above a degree**: averaged over the fixed bits, the
 Fourier weight of the restriction on sets of at least `m` coordinates is the weight of `f` on the
@@ -121,9 +115,7 @@ theorem expect_sum_fourierCoeff_piecewise_sq (f : (ι → Bool) → ℝ) (J : Fi
     _ = ∑ U, ∑ S with m ≤ #S, if U ∩ J = S then fourierCoeff f U ^ 2 else 0 := sum_comm
     _ = ∑ U with m ≤ #(U ∩ J), fourierCoeff f U ^ 2 := by
         rw [sum_filter]
-        refine sum_congr rfl fun U _ => ?_
-        rw [sum_ite_eq]
-        simp
+        exact sum_congr rfl fun _ _ => by simp [sum_ite_eq]
 
 /-! ### Averaging out the coordinates outside a set -/
 
@@ -136,19 +128,16 @@ theorem fourierCoeff_expect_piecewise (f : (ι → Bool) → ℝ) (J S : Finset 
       𝔼 z, fourierCoeff (fun x => f (J.piecewise x z)) S := by
     simp only [fourierCoeff, expect_mul]
     exact expect_comm _ _ _
-  simp only [h, fourierCoeff_piecewise]
-  rw [expect_sum_comm]
-  simp only [← mul_expect, expect_chi, sdiff_eq_empty_iff_subset, mul_ite, mul_one, mul_zero]
+  simp only [h, fourierCoeff_piecewise, expect_sum_comm, ← mul_expect, expect_chi,
+    sdiff_eq_empty_iff_subset, mul_ite, mul_one, mul_zero]
   split_ifs with hS
-  · have hSmem : S ∈ ({U | U ∩ J = S} : Finset (Finset ι)) :=
-      mem_filter.2 ⟨mem_univ S, inter_eq_left.2 hS⟩
-    rw [sum_eq_single_of_mem S hSmem fun U hU hUS => ?_, ite_eq_left hS]
+  · rw [sum_eq_single_of_mem S (mem_filter (p := (· ∩ J = S)).2 ⟨mem_univ S, inter_eq_left.2 hS⟩)
+      fun U hU hUS => ite_eq_right fun hUJ =>
+        hUS ((inter_eq_left.2 hUJ).symm.trans (mem_filter.1 hU).2)]
     -- another set meeting `J` in `S` has elements outside `J`
-    rw [mem_filter] at hU
-    exact ite_eq_right fun hUJ => hUS (by rw [← hU.2, inter_eq_left.2 hUJ])
-  · refine sum_eq_zero fun U hU => ?_
-    rw [mem_filter] at hU
-    exact ite_eq_right fun hUJ => hS (by rw [← hU.2]; exact inter_subset_right)
+    simp [hS]
+  · exact sum_eq_zero fun U hU => ite_eq_right fun hUJ =>
+      hS ((mem_filter.1 hU).2 ▸ inter_subset_right)
 
 /-- **The average over the coordinates outside `J`** is the part of the Fourier expansion on the
 subsets of `J`. -/
@@ -172,9 +161,8 @@ theorem expect_sub_expect_piecewise_sq (f : (ι → Bool) → ℝ) (J : Finset �
 `f`. -/
 theorem expect_expect_piecewise_sq (f : (ι → Bool) → ℝ) (J : Finset ι) :
     𝔼 z, 𝔼 x, f (J.piecewise x z) ^ 2 = 𝔼 x, f x ^ 2 := by
-  have h := expect_sum_fourierCoeff_piecewise_sq f J 0
-  simp only [zero_le, implies_true, filter_true_of_mem, ← expect_sq_eq_sum_fourierCoeff_sq] at h
-  exact h
+  simpa only [zero_le, implies_true, filter_true_of_mem, ← expect_sq_eq_sum_fourierCoeff_sq] using
+    expect_sum_fourierCoeff_piecewise_sq f J 0
 
 /-- The correlation of `f` with its average over the coordinates outside `J` is its Fourier weight
 on the subsets of `J`. -/
