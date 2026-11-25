@@ -103,13 +103,15 @@ private theorem binaryWord_binaryValue {w : ℕ} {u : List Bool} (hu : u.length 
     (binaryValue_binaryWord w (binaryValue u))
 
 private theorem binaryValue_zeroVertex (w : ℕ) : binaryValue (zeroVertex w) = 0 := by
-  simpa [zeroVertex, binaryValue] using binaryValue_replicate_false_append w []
+  have h := binaryValue_replicate_false_append w []
+  simp only [List.append_nil] at h
+  simpa only [zeroVertex, binaryValue, List.foldl_nil] using h
 
 private theorem eq_zeroVertex_iff_binaryValue_eq_zero {w : ℕ} {u : List Bool}
-    (hu : u.length = w) : u = zeroVertex w ↔ binaryValue u = 0 :=
-  ⟨fun h => h ▸ binaryValue_zeroVertex w, fun h =>
-    binaryValue_injective_of_length_eq (hu.trans (length_zeroVertex w).symm)
-      (h.trans (binaryValue_zeroVertex w).symm)⟩
+    (hu : u.length = w) : u = zeroVertex w ↔ binaryValue u = 0 := by
+  refine ⟨fun h => h ▸ binaryValue_zeroVertex w, fun h => ?_⟩
+  exact binaryValue_injective_of_length_eq (hu.trans (length_zeroVertex w).symm)
+    (h.trans (binaryValue_zeroVertex w).symm)
 
 private theorem zeroVertex_three (k m : ℕ) :
     zeroVertex (k + m + m) = zeroVertex k ++ (zeroVertex m ++ zeroVertex m) := by
@@ -130,12 +132,16 @@ private theorem append_three_inj {k m : ℕ} {x₁ z₁ r₁ x₂ z₂ r₂ : Li
     (h : x₁ ++ (z₁ ++ r₁) = x₂ ++ (z₂ ++ r₂)) :
     x₁ = x₂ ∧ z₁ = z₂ ∧ r₁ = r₂ := by
   obtain ⟨hx, hzr⟩ := List.append_inj h (hx₁.trans hx₂.symm)
-  exact ⟨hx, List.append_inj hzr (hz₁.trans hz₂.symm)⟩
+  obtain ⟨hz, hr⟩ := List.append_inj hzr (hz₁.trans hz₂.symm)
+  exact ⟨hx, hz, hr⟩
 
 private theorem exists_append_three {k m : ℕ} {w : List Bool} (hw : w.length = k + m + m) :
-    ∃ x z r, w = x ++ (z ++ r) ∧ x.length = k ∧ z.length = m ∧ r.length = m :=
-  ⟨w.take k, (w.drop k).take m, (w.drop k).drop m, by simp [List.take_append_drop],
-    by simp; omega, by simp; omega, by simp; omega⟩
+    ∃ x z r, w = x ++ (z ++ r) ∧ x.length = k ∧ z.length = m ∧ r.length = m := by
+  refine ⟨w.take k, (w.drop k).take m, (w.drop k).drop m, ?_, ?_, ?_, ?_⟩
+  · simp [List.take_append_drop]
+  · simp only [List.length_take]; omega
+  · simp only [List.length_take, List.length_drop]; omega
+  · simp only [List.length_drop]; omega
 
 /-! ### The combined `SOPL` instance -/
 
@@ -270,9 +276,12 @@ private theorem two_pow_sub_lt (k m : ℕ) : 2 ^ (k + m) - 2 ^ m < 2 ^ (k + m) :
 private theorem plsPpadsPotential_jump_lt {k m B c₁ c₂ : ℕ}
     (hstep : c₁ < c₂) (hB : c₂ < B) :
     (B - c₂) * 2 ^ (k + m) + (2 ^ (k + m) - 2 ^ m) < (B - c₁) * 2 ^ (k + m) := by
-  have := Nat.mul_le_mul_right (2 ^ (k + m)) (show B - c₂ + 1 ≤ B - c₁ by omega)
-  have := two_pow_sub_lt k m
-  linarith [Nat.add_mul (B - c₂) 1 (2 ^ (k + m))]
+  have hle : (B - c₂ + 1) * 2 ^ (k + m) ≤ (B - c₁) * 2 ^ (k + m) :=
+    Nat.mul_le_mul_right _ (by omega)
+  have hadd : (B - c₂) * 2 ^ (k + m) + 2 ^ (k + m) = (B - c₂ + 1) * 2 ^ (k + m) := by
+    rw [Nat.add_mul, Nat.one_mul]
+  have hsub := two_pow_sub_lt k m
+  omega
 
 /-- Every moved vertex under `plsPpadsSucc` has a consistent predecessor, avoids `0 ^ W`, and
 strictly increases `plsPpadsPotential`. -/
@@ -304,48 +313,60 @@ private theorem plsPpadsSucc_spec (hx : x.length = n₁ a) (hz : z.length = n₁
       have hk1T : binaryValue r + 1 < 2 ^ (n₁ a + n₂ a) := by omega
       have hk1M : binaryValue r + 1 ≤ 2 ^ (n₁ a + n₂ a) - 2 ^ n₂ a := by omega
       have hk1_ne : binaryValue r + 1 ≠ 0 := by omega
-      have gadget_tail {v : ℕ} (hv : v < 2 ^ (n₁ a + n₂ a)) :
-          x ++ (binaryWord (n₁ a + n₂ a) v ++ binaryWord (n₁ a + n₂ a) (binaryValue r + 1)) ≠
+      have hr'_len : (binaryWord (n₁ a + n₂ a) (binaryValue r + 1)).length = n₁ a + n₂ a :=
+        length_binaryWord hk1T
+      have gadget_tail {z' : List Bool} (hz' : z'.length = n₁ a + n₂ a) :
+          x ++ (z' ++ binaryWord (n₁ a + n₂ a) (binaryValue r + 1)) ≠
             zeroVertex (plsPpadsWidth n₁ n₂ a) ∧
           (B a - C₁ (a, x)) * 2 ^ (n₁ a + n₂ a) + binaryValue r <
-            plsPpadsPotential n₁ C₁ n₂ B (a, x ++ (binaryWord (n₁ a + n₂ a) v ++
-              binaryWord (n₁ a + n₂ a) (binaryValue r + 1))) := by
-        have hz' := length_binaryWord hv
-        refine ⟨?_, by rw [plsPpadsPotential_append hx hz', binaryValue_binaryWord]; omega⟩
-        rw [ne_eq, append_three_eq_zeroVertex_iff hx hz']
-        intro h0
-        simpa [binaryValue_binaryWord, binaryValue_zeroVertex] using congrArg binaryValue h0.2.2
+            plsPpadsPotential n₁ C₁ n₂ B
+              (a, x ++ (z' ++ binaryWord (n₁ a + n₂ a) (binaryValue r + 1))) := by
+        refine ⟨?_, ?_⟩
+        · rw [ne_eq, append_three_eq_zeroVertex_iff hx hz']
+          intro h0
+          have hv := congrArg binaryValue h0.2.2
+          rw [binaryValue_binaryWord, binaryValue_zeroVertex] at hv
+          exact hk1_ne hv
+        · rw [plsPpadsPotential_append hx hz', binaryValue_binaryWord]
+          omega
       by_cases hαK : binaryValue z < 2 ^ n₂ a
       · simp only [decide_eq_true hαK, ↓reduceIte] at h ⊢
-        have hy_len : (binaryWord (n₂ a) (binaryValue z)).length = n₂ a := length_binaryWord hαK
+        have hy_len : (binaryWord (n₂ a) (binaryValue z)).length = n₂ a :=
+          length_binaryWord hαK
         cases hout : hasOut n₂ P₂ S₂ a (binaryWord (n₂ a) (binaryValue z))
         · simp only [Bool.false_eq_true, ↓reduceIte] at h ⊢
           cases hc : (!decide (binaryWord (n₂ a) (binaryValue z) = zeroVertex (n₂ a)) &&
               !hasIn n₂ P₂ S₂ a (binaryWord (n₂ a) (binaryValue z)))
-          · simp [hout, hc] at h
+          · simp only [hout, hc, Bool.false_eq_true, ↓reduceIte] at h
+            exact absurd rfl h
           · simp only [↓reduceIte]
             simp only [Bool.and_eq_true, Bool.not_eq_true', decide_eq_false_iff_not] at hc
-            have hα_pos : 0 < binaryValue z := Nat.pos_of_ne_zero fun h0 => hc.1 <|
-              (eq_zeroVertex_iff_binaryValue_eq_zero hy_len).mpr
-                (by rw [binaryValue_binaryWord, h0])
-            refine ⟨?_, gadget_tail (by omega)⟩
-            rw [plsPpadsPred_append hx (length_binaryWord (by omega))]
-            dsimp only [plsPpadsPredCore]
+            have hα_pos : 0 < binaryValue z := by
+              have hne := mt (eq_zeroVertex_iff_binaryValue_eq_zero hy_len).mpr hc.1
+              rw [binaryValue_binaryWord] at hne; omega
+            have hz'_len : (binaryWord (n₁ a + n₂ a) (binaryValue z - 1)).length =
+                n₁ a + n₂ a := length_binaryWord (by omega)
+            refine ⟨?_, gadget_tail hz'_len⟩
+            rw [plsPpadsPred_append hx hz'_len]; dsimp only [plsPpadsPredCore]
             simp only [binaryValue_binaryWord, decide_eq_false hk1_ne, Bool.false_eq_true,
               ↓reduceIte, decide_eq_true hk1M, decide_eq_true hstep, Bool.and_self,
               show binaryValue z - 1 + 1 = binaryValue z by omega, decide_eq_true hαK, hc.2,
               hout, Bool.not_false, Nat.add_sub_cancel, binaryWord_binaryValue hz,
               binaryWord_binaryValue hr]
         · simp only [↓reduceIte]
-          have hout' := hout; simp only [hasOut, decide_eq_true_eq] at hout'
+          have hout' := hout
+          simp only [hasOut, decide_eq_true_eq] at hout'
           have hS_len := hS₂ _ hy_len
           have hS_lt : binaryValue (S₂ (a, binaryWord (n₂ a) (binaryValue z))) < 2 ^ n₂ a :=
             (binaryValue_lt_two_pow _).trans_eq (congrArg (2 ^ ·) hS_len)
-          have hS_pos : 0 < binaryValue (S₂ (a, binaryWord (n₂ a) (binaryValue z))) :=
-            Nat.pos_of_ne_zero (mt (eq_zeroVertex_iff_binaryValue_eq_zero hS_len).mpr hout'.2.2)
-          refine ⟨?_, gadget_tail (by omega)⟩
-          rw [plsPpadsPred_append hx (length_binaryWord (by omega))]
-          dsimp only [plsPpadsPredCore]
+          have hS_pos : 0 < binaryValue (S₂ (a, binaryWord (n₂ a) (binaryValue z))) := by
+            have hne := mt (eq_zeroVertex_iff_binaryValue_eq_zero hS_len).mpr hout'.2.2; omega
+          have hz'_len :
+              (binaryWord (n₁ a + n₂ a)
+                (binaryValue (S₂ (a, binaryWord (n₂ a) (binaryValue z))) - 1)).length =
+                n₁ a + n₂ a := length_binaryWord (by omega)
+          refine ⟨?_, gadget_tail hz'_len⟩
+          rw [plsPpadsPred_append hx hz'_len]; dsimp only [plsPpadsPredCore]
           simp only [binaryValue_binaryWord, decide_eq_false hk1_ne, Bool.false_eq_true,
             ↓reduceIte, decide_eq_true hk1M, decide_eq_true hstep, Bool.and_self,
             show binaryValue (S₂ (a, binaryWord (n₂ a) (binaryValue z))) - 1 + 1 =
@@ -355,10 +376,11 @@ private theorem plsPpadsSucc_spec (hx : x.length = n₁ a) (hz : z.length = n₁
       · simp only [decide_eq_false hαK, Bool.false_eq_true, ↓reduceIte] at h ⊢
         by_cases hαTk : binaryValue z < 2 ^ (n₁ a + n₂ a) - binaryValue r
         · simp only [decide_eq_true hαTk, ↓reduceIte]
+          have hz'_len : (binaryWord (n₁ a + n₂ a) (binaryValue z - 1)).length =
+              n₁ a + n₂ a := length_binaryWord (by omega)
           have hα'_lt : binaryValue z - 1 < 2 ^ (n₁ a + n₂ a) - (binaryValue r + 1) := by omega
-          refine ⟨?_, gadget_tail (by omega)⟩
-          rw [plsPpadsPred_append hx (length_binaryWord (by omega))]
-          dsimp only [plsPpadsPredCore]
+          refine ⟨?_, gadget_tail hz'_len⟩
+          rw [plsPpadsPred_append hx hz'_len]; dsimp only [plsPpadsPredCore]
           simp only [binaryValue_binaryWord, decide_eq_false hk1_ne, Bool.false_eq_true,
             ↓reduceIte, decide_eq_true hk1M, decide_eq_true hstep, Bool.and_self,
             show binaryValue z - 1 + 1 = binaryValue z by omega, decide_eq_false hαK,
@@ -372,14 +394,16 @@ private theorem plsPpadsSucc_spec (hx : x.length = n₁ a) (hz : z.length = n₁
       · simp only [↓reduceIte]
         simp only [Bool.and_eq_true, decide_eq_true_eq] at hc
         obtain ⟨hk_eq, hαK⟩ := hc
-        have hNx_len := hN₁ x hx
+        have hNx_len : (N₁ (a, x)).length = n₁ a := hN₁ x hx
         have hxy_len : (x ++ binaryWord (n₂ a) (binaryValue z)).length = n₁ a + n₂ a := by
           simp [hx, length_binaryWord hαK]
         refine ⟨?_, ?_, ?_⟩
         · rw [plsPpadsPred_append hNx_len hxy_len]; dsimp only [plsPpadsPredCore]
+          have hr_restore : binaryWord (n₁ a + n₂ a) (2 ^ (n₁ a + n₂ a) - 2 ^ n₂ a) = r := by
+            rw [← hk_eq, binaryWord_binaryValue hr]
           simp only [binaryValue_zeroVertex, decide_true, ↓reduceIte,
             List.take_left' hx, List.drop_left' hx, decide_eq_true hstep, Bool.and_self,
-            binaryValue_binaryWord, binaryWord_binaryValue hz, ← hk_eq, binaryWord_binaryValue hr]
+            binaryValue_binaryWord, binaryWord_binaryValue hz, hr_restore]
         · rw [ne_eq, append_three_eq_zeroVertex_iff hNx_len hxy_len]
           rintro ⟨hN0, hxy0, -⟩
           have hx0 : x = zeroVertex (n₁ a) := by
@@ -419,16 +443,19 @@ private theorem plsPpadsPred_spec (hx : x.length = n₁ a) (hz : z.length = n₁
       have hx₀_len : (z.take (n₁ a)).length = n₁ a := by simp only [List.length_take, hz]; omega
       have hi₀_len : (z.drop (n₁ a)).length = n₂ a := by simp only [List.length_drop, hz]; omega
       have hi₀_lt : binaryValue (z.drop (n₁ a)) < 2 ^ n₂ a := hi₀_len ▸ binaryValue_lt_two_pow _
-      have hz₀_len := length_binaryWord (hi₀_lt.trans_le hKT)
+      have hz₀_len :
+          (binaryWord (n₁ a + n₂ a) (binaryValue (z.drop (n₁ a)))).length = n₁ a + n₂ a :=
+        length_binaryWord (hi₀_lt.trans_le hKT)
+      have hBx₀ := hB _ hx₀_len
       refine ⟨?_, ?_⟩
       · rw [plsPpadsSucc_append hx₀_len hz₀_len]; dsimp only [plsPpadsSuccCore]
-        have hstep₀' : C₁ (a, x) < C₁ (a, z.take (n₁ a)) := hNx₀ ▸ hstep₀
+        have hstep₀' : C₁ (a, x) < C₁ (a, z.take (n₁ a)) := by rwa [hNx₀] at hstep₀
         simp only [hNx₀, decide_eq_true hstep₀', ↓reduceIte, binaryValue_binaryWord,
           decide_eq_false (Nat.lt_irrefl (2 ^ (n₁ a + n₂ a) - 2 ^ n₂ a)), Bool.false_eq_true,
           decide_true, decide_eq_true hi₀_lt, Bool.and_self, binaryWord_binaryValue hi₀_len,
           List.take_append_drop, (eq_zeroVertex_iff_binaryValue_eq_zero hr).mpr hk0]
       · rw [plsPpadsPotential_append hx₀_len hz₀_len, binaryValue_binaryWord, hk0, ← hNx₀, add_zero]
-        exact plsPpadsPotential_jump_lt hstep₀ (hB _ hx₀_len)
+        exact plsPpadsPotential_jump_lt hstep₀ hBx₀
   · simp only [decide_eq_false hk0, Bool.false_eq_true, ↓reduceIte] at h ⊢
     cases hc : (decide (binaryValue r ≤ 2 ^ (n₁ a + n₂ a) - 2 ^ n₂ a) &&
         decide (C₁ (a, N₁ (a, x)) < C₁ (a, x)))
@@ -438,48 +465,60 @@ private theorem plsPpadsPred_spec (hx : x.length = n₁ a) (hz : z.length = n₁
       obtain ⟨hkM, hstep⟩ := hc
       have hk_sub_lt : binaryValue r - 1 < 2 ^ (n₁ a + n₂ a) - 2 ^ n₂ a := by omega
       have hk_add : binaryValue r - 1 + 1 = binaryValue r := by omega
-      have gadget_pot {v : ℕ} (hv : v < 2 ^ (n₁ a + n₂ a)) :
-          plsPpadsPotential n₁ C₁ n₂ B (a, x ++ (binaryWord (n₁ a + n₂ a) v ++
-              binaryWord (n₁ a + n₂ a) (binaryValue r - 1))) <
+      have gadget_pot {z' : List Bool} (hz' : z'.length = n₁ a + n₂ a) :
+          plsPpadsPotential n₁ C₁ n₂ B
+              (a, x ++ (z' ++ binaryWord (n₁ a + n₂ a) (binaryValue r - 1))) <
             (B a - C₁ (a, x)) * 2 ^ (n₁ a + n₂ a) + binaryValue r := by
-        rw [plsPpadsPotential_append hx (length_binaryWord hv), binaryValue_binaryWord]; omega
+        rw [plsPpadsPotential_append hx hz', binaryValue_binaryWord]; omega
       by_cases hαK : binaryValue z + 1 < 2 ^ n₂ a
       · simp only [decide_eq_true hαK, ↓reduceIte] at h ⊢
-        have hy'_len := length_binaryWord hαK
+        have hy'_len : (binaryWord (n₂ a) (binaryValue z + 1)).length = n₂ a :=
+          length_binaryWord hαK
         cases hin : hasIn n₂ P₂ S₂ a (binaryWord (n₂ a) (binaryValue z + 1))
         · simp only [Bool.false_eq_true, ↓reduceIte] at h ⊢
           cases hout : hasOut n₂ P₂ S₂ a (binaryWord (n₂ a) (binaryValue z + 1))
           · simp only [Bool.not_false, ↓reduceIte]
+            have hz₀_len :
+                (binaryWord (n₁ a + n₂ a) (binaryValue z + 1)).length = n₁ a + n₂ a :=
+              length_binaryWord (hαK.trans_le hKT)
             have hy'_ne0 : binaryWord (n₂ a) (binaryValue z + 1) ≠ zeroVertex (n₂ a) := by
               rw [ne_eq, eq_zeroVertex_iff_binaryValue_eq_zero hy'_len, binaryValue_binaryWord]
               omega
-            refine ⟨?_, gadget_pot (hαK.trans_le hKT)⟩
-            rw [plsPpadsSucc_append hx (length_binaryWord (hαK.trans_le hKT))]
-            dsimp only [plsPpadsSuccCore]
+            refine ⟨?_, gadget_pot hz₀_len⟩
+            rw [plsPpadsSucc_append hx hz₀_len]; dsimp only [plsPpadsSuccCore]
             simp only [decide_eq_true hstep, ↓reduceIte, binaryValue_binaryWord,
               decide_eq_true hk_sub_lt, decide_eq_true hαK, hout, Bool.false_eq_true,
               decide_eq_false hy'_ne0, hin, Bool.not_false, Bool.and_self,
-              Nat.add_sub_cancel, hk_add, binaryWord_binaryValue hz, binaryWord_binaryValue hr]
-          · simp [hin, hout] at h
+              Nat.add_sub_cancel, hk_add, binaryWord_binaryValue hz,
+              binaryWord_binaryValue hr]
+          · simp only [hin, hout, Bool.not_true, Bool.false_eq_true, ↓reduceIte, ite_self] at h
+            exact absurd rfl h
         · simp only [↓reduceIte]
-          have hin' := hin; simp only [hasIn, decide_eq_true_eq] at hin'
+          have hin' := hin
+          simp only [hasIn, decide_eq_true_eq] at hin'
           have hP_len := hP₂ _ hy'_len
           have hP_lt : binaryValue (P₂ (a, binaryWord (n₂ a) (binaryValue z + 1))) < 2 ^ n₂ a :=
             (binaryValue_lt_two_pow _).trans_eq (congrArg (2 ^ ·) hP_len)
-          refine ⟨?_, gadget_pot (hP_lt.trans_le hKT)⟩
-          rw [plsPpadsSucc_append hx (length_binaryWord (hP_lt.trans_le hKT))]
-          dsimp only [plsPpadsSuccCore]
+          have hz₀_len :
+              (binaryWord (n₁ a + n₂ a)
+                (binaryValue (P₂ (a, binaryWord (n₂ a) (binaryValue z + 1))))).length =
+                n₁ a + n₂ a := length_binaryWord (hP_lt.trans_le hKT)
+          refine ⟨?_, gadget_pot hz₀_len⟩
+          rw [plsPpadsSucc_append hx hz₀_len]; dsimp only [plsPpadsSuccCore]
           simp only [decide_eq_true hstep, ↓reduceIte, binaryValue_binaryWord,
             decide_eq_true hk_sub_lt, decide_eq_true hP_lt,
             binaryWord_binaryValue hP_len, hasOut_of_hasIn hin, hin'.1,
-            Nat.add_sub_cancel, hk_add, binaryWord_binaryValue hz, binaryWord_binaryValue hr]
+            Nat.add_sub_cancel, hk_add, binaryWord_binaryValue hz,
+            binaryWord_binaryValue hr]
       · simp only [decide_eq_false hαK, Bool.false_eq_true, ↓reduceIte] at h ⊢
         by_cases hαTk : binaryValue z < 2 ^ (n₁ a + n₂ a) - binaryValue r
         · simp only [decide_eq_true hαTk, ↓reduceIte]
           have hα1_lt : binaryValue z + 1 < 2 ^ (n₁ a + n₂ a) - (binaryValue r - 1) := by omega
-          refine ⟨?_, gadget_pot (by omega)⟩
-          rw [plsPpadsSucc_append hx (length_binaryWord (by omega))]
-          dsimp only [plsPpadsSuccCore]
+          have hz₀_len :
+              (binaryWord (n₁ a + n₂ a) (binaryValue z + 1)).length = n₁ a + n₂ a :=
+            length_binaryWord (by omega)
+          refine ⟨?_, gadget_pot hz₀_len⟩
+          rw [plsPpadsSucc_append hx hz₀_len]; dsimp only [plsPpadsSuccCore]
           simp only [decide_eq_true hstep, ↓reduceIte, binaryValue_binaryWord,
             decide_eq_true hk_sub_lt, decide_eq_false hαK, Bool.false_eq_true,
             decide_eq_true hα1_lt, Nat.add_sub_cancel, hk_add,
@@ -654,15 +693,19 @@ theorem length_plsPpadsSucc
   have := two_pow_le_two_pow_add (n₁ a) (n₂ a)
   have := Nat.two_pow_pos (n₂ a)
   dsimp only [plsPpadsSuccCore]
-  split_ifs with hstep hkM hαK hout hc hαTk hMα <;>
-    simp only [Bool.and_eq_true, decide_eq_true_eq] at *
-  · have := (binaryValue_lt_two_pow _).trans_eq (congrArg (2 ^ ·) (hS₂ _ (length_binaryWord hαK)))
+  split_ifs with hstep hkM hαK hout hc hαTk hMα
+  · simp only [decide_eq_true_eq] at hkM hαK
+    have hS_lt : binaryValue (S₂ (a, binaryWord (n₂ a) (binaryValue z))) < 2 ^ n₂ a :=
+      (binaryValue_lt_two_pow _).trans_eq (congrArg (2 ^ ·) (hS₂ _ (length_binaryWord hαK)))
     exact length_plsPpads_triple hx (length_binaryWord (by omega)) (length_binaryWord (by omega))
-  · exact length_plsPpads_triple hx (length_binaryWord (by omega)) (length_binaryWord (by omega))
+  · simp only [decide_eq_true_eq] at hkM
+    exact length_plsPpads_triple hx (length_binaryWord (by omega)) (length_binaryWord (by omega))
   · exact hw
-  · exact length_plsPpads_triple hx (length_binaryWord (by omega)) (length_binaryWord (by omega))
+  · simp only [decide_eq_true_eq] at hkM hαTk
+    exact length_plsPpads_triple hx (length_binaryWord (by omega)) (length_binaryWord (by omega))
   · exact hw
-  · exact length_plsPpads_triple (hN₁ x hx)
+  · simp only [Bool.and_eq_true, decide_eq_true_eq] at hMα
+    exact length_plsPpads_triple (hN₁ x hx)
       (by simp [hx, length_binaryWord hMα.2]) (length_zeroVertex _)
   · exact hw
   · exact hw
@@ -677,19 +720,25 @@ theorem length_plsPpadsPred
   have hKT : 2 ^ n₂ a ≤ 2 ^ (n₁ a + n₂ a) := two_pow_le_two_pow_add (n₁ a) (n₂ a)
   have hMT : 2 ^ (n₁ a + n₂ a) - 2 ^ n₂ a < 2 ^ (n₁ a + n₂ a) := two_pow_sub_lt (n₁ a) (n₂ a)
   dsimp only [plsPpadsPredCore]
-  split_ifs with hk0 hc0 hkM hαK hin hout hαTk <;>
-    simp only [Bool.and_eq_true, decide_eq_true_eq] at *
-  · have hi₀_len : (z.drop (n₁ a)).length = n₂ a := by simp only [List.length_drop, hz]; omega
-    exact length_plsPpads_triple (by simp only [List.length_take, hz]; omega)
-      (length_binaryWord ((hi₀_len ▸ binaryValue_lt_two_pow _).trans_le hKT))
+  split_ifs with hk0 hc0 hkM hαK hin hout hαTk
+  · have hx₀_len : (z.take (n₁ a)).length = n₁ a := by simp only [List.length_take, hz]; omega
+    have hi₀_len : (z.drop (n₁ a)).length = n₂ a := by simp only [List.length_drop, hz]; omega
+    have hi₀_lt : binaryValue (z.drop (n₁ a)) < 2 ^ n₂ a :=
+      hi₀_len ▸ binaryValue_lt_two_pow (z.drop (n₁ a))
+    exact length_plsPpads_triple hx₀_len (length_binaryWord (hi₀_lt.trans_le hKT))
       (length_binaryWord hMT)
   · exact hw
-  · have := (binaryValue_lt_two_pow _).trans_eq (congrArg (2 ^ ·) (hP₂ _ (length_binaryWord hαK)))
-    exact length_plsPpads_triple hx (length_binaryWord (by omega)) (length_binaryWord (by omega))
-  · exact length_plsPpads_triple hx (length_binaryWord (hαK.trans_le hKT))
+  · simp only [decide_eq_true_eq] at hαK
+    have hP_lt : binaryValue (P₂ (a, binaryWord (n₂ a) (binaryValue z + 1))) < 2 ^ n₂ a :=
+      (binaryValue_lt_two_pow _).trans_eq (congrArg (2 ^ ·) (hP₂ _ (length_binaryWord hαK)))
+    exact length_plsPpads_triple hx (length_binaryWord (hP_lt.trans_le hKT))
+      (length_binaryWord (by omega))
+  · simp only [decide_eq_true_eq] at hαK
+    exact length_plsPpads_triple hx (length_binaryWord (hαK.trans_le hKT))
       (length_binaryWord (by omega))
   · exact hw
-  · exact length_plsPpads_triple hx (length_binaryWord (by omega)) (length_binaryWord (by omega))
+  · simp only [decide_eq_true_eq] at hk0 hαTk
+    exact length_plsPpads_triple hx (length_binaryWord (by omega)) (length_binaryWord (by omega))
   · exact hw
   · exact hw
 
