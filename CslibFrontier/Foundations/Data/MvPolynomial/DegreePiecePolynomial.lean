@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import Mathlib.Algebra.MvPolynomial.Equiv
 public import Mathlib.Basic.Real.Basic
 import CslibFrontier.Foundations.Data.MvPolynomial.Degrees
+import CslibFrontier.Foundations.Data.MvPolynomial.FirstVariable
 import Mathlib.Algebra.MvPolynomial.CommRing
 import Mathlib.Algebra.Order.BigOperators.Ring.Finset
 
@@ -64,11 +65,8 @@ theorem eval₂_degreePiecePolynomial_eq_zero_iff (P : MvPolynomial (Fin (m + 1)
 theorem totalDegree_degreePiecePolynomial_le (P : MvPolynomial (Fin (m + 1)) R) (N k : ℕ) :
     (degreePiecePolynomial P N k).totalDegree ≤ 2 * (P.totalDegree + 1) := by
   let a (j : ℕ) := rename Fin.succ ((finSuccEquiv R m P).coeff j)
-  have ha (j : ℕ) : (a j).totalDegree ≤ P.totalDegree := by
-    apply (totalDegree_rename_le _ _).trans
-    by_cases hj : (finSuccEquiv R m P).coeff j = 0
-    · simp [hj]
-    · exact (Nat.le_add_right _ _).trans (totalDegree_coeff_finSuccEquiv_add_le P j hj)
+  have ha (j : ℕ) : (a j).totalDegree ≤ P.totalDegree :=
+    (totalDegree_rename_le _ _).trans (totalDegree_coeff_finSuccEquiv_le P j)
   have hinverse : (a k * X 0 - 1).totalDegree ≤ P.totalDegree + 1 := by
     have hmul := (totalDegree_mul (a k) (X 0)).trans
       (Nat.add_le_add (ha k) (totalDegree_X_le 0))

@@ -3287,6 +3287,7 @@ public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledBou
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledCoefficients
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledCoordinateLift
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledFeasibility
+public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledFirstCoefficient
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledIndexedFeasibility
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledPositivity
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledPowerSection
@@ -7386,6 +7387,7 @@ public import CslibFrontier.Foundations.Data.MvPolynomial.Determinant
 public import CslibFrontier.Foundations.Data.MvPolynomial.DividedDifferences
 public import CslibFrontier.Foundations.Data.MvPolynomial.DualNumber
 public import CslibFrontier.Foundations.Data.MvPolynomial.FiniteFieldCoefficients
+public import CslibFrontier.Foundations.Data.MvPolynomial.FirstVariable
 public import CslibFrontier.Foundations.Data.MvPolynomial.Hessian
 public import CslibFrontier.Foundations.Data.MvPolynomial.HessianChainRule
 public import CslibFrontier.Foundations.Data.MvPolynomial.HessianRank

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalJacobianEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledBoundedSum
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledCoordinateLift
+import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledFirstCoefficient
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledIndexedFeasibility
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledPositivity
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledPowerSection
@@ -872,5 +873,28 @@ example :
     (n := 1) (m := 1) (by decide) (by decide) P hP (fun _ _ => by simp [P])
     N le_rfl D hD ⟨0, by simp [P]⟩
   exact ⟨k, hk, y, hy, hgrid⟩
+
+-- The coefficient at address 1 retains the trailing coordinate. Address 2 returns zero.
+example :
+    let C₀ : Controlled (fun _ : ℕ => X (0 : Fin 2)) encNat 0 :=
+      Controlled.coordinate (.const 2) (fun _ => 0) (.const 0)
+    let C₁ : Controlled (fun _ : ℕ => X (1 : Fin 2)) encNat 0 :=
+      Controlled.coordinate (.const 2) (fun _ => 1) (.const 1)
+    let Q := (C₀.mul C₁).firstVariableCoefficient (n := fun _ => 1) Decoder.nat (.const 1)
+      id ComputableInPolyTime.id'
+    Q.evaluate (1, 7, [3]) = 3 ∧ Q.evaluate (2, 7, [3]) = 0 := by
+  intro C₀ C₁ Q
+  have hcut (w : ℕ) (hw : w ≤ 2) : Q.cutoff w < 7 := by
+    simp only [Q, Controlled.cutoff_firstVariableCoefficient, C₀, C₁, Controlled.mul,
+      Controlled.coordinate, id_eq]
+    omega
+  have hX : finSuccEquiv ℤ 1 (X (1 : Fin 2)) = Polynomial.C (X (0 : Fin 1)) :=
+    finSuccEquiv_X_succ (j := (0 : Fin 1))
+  constructor
+  · rw [Q.evaluate_eq _ _ _ (by decide) (hcut _ (by decide))]
+    norm_num [evaluation, finSuccEquiv_X_zero, hX, Polynomial.coeff_X_mul, ZMod.val_natCast]
+    decide
+  · rw [Q.evaluate_eq _ _ _ (by decide) (hcut _ (by decide))]
+    norm_num [evaluation, finSuccEquiv_X_zero, hX, Polynomial.coeff_X_mul]
 
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation
