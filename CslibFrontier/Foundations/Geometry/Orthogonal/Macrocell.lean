@@ -62,33 +62,29 @@ theorem mem_segment_translate_iff (v a b : Point) (p : ℝ × ℝ) :
 private theorem consecutivePairs_translate (v : Point) (r : Route) :
     (translate v r).consecutivePairs =
       r.consecutivePairs.map (fun e => (e.1 + v, e.2 + v)) := by
-  simp only [translate, List.consecutivePairs, ← List.map_tail, List.zip_map]
-  rfl
+  simp only [translate, List.consecutivePairs, ← List.map_tail, List.zip_map]; rfl
 
 /-- Membership in a translated support is precisely translated membership. -/
 theorem mem_support_translate_iff (v : Point) (r : Route) (p : ℝ × ℝ) :
     p + realPoint v ∈ support (translate v r) ↔ p ∈ support r := by
   simp only [support, Set.mem_ofPred_eq, consecutivePairs_translate]
   simp only [translate, List.mem_map]
-  constructor
+  refine ⟨?_, ?_⟩
   · rintro (⟨_, ⟨a, ha, rfl⟩, hp⟩ | ⟨_, ⟨e, he, rfl⟩, hp⟩)
     · exact Or.inl ⟨a, ha, add_right_cancel (hp.trans (realPoint_add a v))⟩
     · exact Or.inr ⟨e, he, (mem_segment_translate_iff v _ _ p).1 hp⟩
   · rintro (⟨a, ha, rfl⟩ | ⟨e, he, hp⟩)
     · exact Or.inl ⟨a + v, ⟨a, ha, rfl⟩, (realPoint_add a v).symm⟩
-    · exact Or.inr ⟨(e.1 + v, e.2 + v), ⟨e, he, rfl⟩,
-        (mem_segment_translate_iff v _ _ p).2 hp⟩
+    · exact Or.inr ⟨(e.1 + v, e.2 + v), ⟨e, he, rfl⟩, (mem_segment_translate_iff v _ _ p).2 hp⟩
 
 /-- Translation of a route translates its entire real support. -/
 theorem support_translate (v : Point) (r : Route) :
     support (translate v r) = (fun p => p + realPoint v) '' support r := by
   ext p
-  constructor
-  · intro hp
-    refine ⟨p - realPoint v, ?_, sub_add_cancel _ _⟩
-    exact (mem_support_translate_iff v r _).1 (by simpa only [sub_add_cancel] using hp)
-  · rintro ⟨p, hp, rfl⟩
-    exact (mem_support_translate_iff v r p).2 hp
+  exact ⟨fun hp => ⟨p - realPoint v,
+      (mem_support_translate_iff v r _).1 (by simpa only [sub_add_cancel] using hp),
+      sub_add_cancel _ _⟩,
+    by rintro ⟨p, hp, rfl⟩; exact (mem_support_translate_iff v r p).2 hp⟩
 
 /-- Translation preserves proper axis alignment. -/
 theorem axisAligned_add_iff (v a b : Point) :
@@ -117,25 +113,21 @@ theorem consecutivePairs_length_translate (v : Point) (r : Route) :
 
 /-- Translation preserves endpoint-only contact certificates. -/
 theorem endpointContacts_add_iff (v a b c d : Point) :
-    EndpointContacts (a + v) (b + v) (c + v) (d + v) ↔ EndpointContacts a b c d := by
-  constructor
-  · intro h p hp hq
-    have hh := h (p + realPoint v) ((mem_segment_translate_iff v a b p).2 hp)
-      ((mem_segment_translate_iff v c d p).2 hq)
-    simpa only [realPoint_add, add_left_inj] using hh
-  · intro h p hp hq
-    have hh := h (p - realPoint v)
+    EndpointContacts (a + v) (b + v) (c + v) (d + v) ↔ EndpointContacts a b c d :=
+  ⟨fun h p hp hq => by
+    simpa only [realPoint_add, add_left_inj] using h (p + realPoint v)
+      ((mem_segment_translate_iff v a b p).2 hp) ((mem_segment_translate_iff v c d p).2 hq),
+  fun h p hp hq => by
+    simpa only [sub_eq_iff_eq_add, realPoint_add] using h (p - realPoint v)
       ((mem_segment_translate_iff v a b _).1 (by simpa only [sub_add_cancel] using hp))
-      ((mem_segment_translate_iff v c d _).1 (by simpa only [sub_add_cancel] using hq))
-    simpa only [sub_eq_iff_eq_add, realPoint_add] using hh
+      ((mem_segment_translate_iff v c d _).1 (by simpa only [sub_add_cancel] using hq))⟩
 
 /-- Translation preserves continuous simplicity. -/
 theorem isSimple_translate_iff (v : Point) (r : Route) :
     IsSimple (translate v r) ↔ IsSimple r := by
   have hinj : Function.Injective (fun p : Point => p + v) := fun _ _ h => add_right_cancel h
   simp only [IsSimple, consecutivePairs_translate]
-  simp only [translate, List.nodup_map_iff hinj,
-    List.mem_map, forall_exists_index, and_imp,
+  simp only [translate, List.nodup_map_iff hinj, List.mem_map, forall_exists_index, and_imp,
     forall_apply_eq_imp_iff₂, endpointContacts_add_iff]
   simp only [ne_eq, Prod.mk.injEq, add_left_inj, ← Prod.ext_iff]
 
@@ -156,39 +148,31 @@ private theorem support_subset_convex {s : Set (ℝ × ℝ)} (hs : Convex ℝ s)
     {r : Route} (hr : ∀ a ∈ r, realPoint a ∈ s) : support r ⊆ s := by
   rintro p (⟨a, ha, rfl⟩ | ⟨e, he, hp⟩)
   · exact hr a ha
-  · have he' := List.of_mem_zip he
-    exact hs.segment_subset (hr e.1 he'.1) (hr e.2 (List.mem_of_mem_tail he'.2)) hp
+  · exact hs.segment_subset (hr e.1 (List.of_mem_zip he).1)
+      (hr e.2 (List.mem_of_mem_tail (List.of_mem_zip he).2)) hp
 
 /-- Bounds on the listed vertices control the entire continuous support in an open cell. -/
 theorem support_subset_openCell {r : ℤ} {c : Point} {a : Route}
     (h : ∀ q ∈ a, realPoint q ∈ openCell r c) : support a ⊆ openCell r c := by
-  have heq : openCell r c =
-      Set.Ioo ((2 * r * c.1 : ℤ) : ℝ) ((2 * r * (c.1 + 1) : ℤ) : ℝ) ×ˢ
+  have heq : openCell r c = Set.Ioo ((2 * r * c.1 : ℤ) : ℝ) ((2 * r * (c.1 + 1) : ℤ) : ℝ) ×ˢ
       Set.Ioo ((2 * r * c.2 : ℤ) : ℝ) ((2 * r * (c.2 + 1) : ℤ) : ℝ) := by
-    ext p
-    simp only [openCell, Set.mem_ofPred_eq, Set.mem_prod, Set.mem_Ioo, and_assoc]
+    ext p; simp only [openCell, Set.mem_ofPred_eq, Set.mem_prod, Set.mem_Ioo, and_assoc]
   exact support_subset_convex (heq ▸ (convex_Ioo _ _).prod (convex_Ioo _ _)) h
 
 /-- Bounds on the listed vertices control the entire continuous support in a closed cell. -/
 theorem support_subset_closedCell {r : ℤ} {c : Point} {a : Route}
     (h : ∀ q ∈ a, realPoint q ∈ closedCell r c) : support a ⊆ closedCell r c := by
-  have heq : closedCell r c =
-      Set.Icc ((2 * r * c.1 : ℤ) : ℝ) ((2 * r * (c.1 + 1) : ℤ) : ℝ) ×ˢ
+  have heq : closedCell r c = Set.Icc ((2 * r * c.1 : ℤ) : ℝ) ((2 * r * (c.1 + 1) : ℤ) : ℝ) ×ˢ
       Set.Icc ((2 * r * c.2 : ℤ) : ℝ) ((2 * r * (c.2 + 1) : ℤ) : ℝ) := by
-    ext p
-    simp only [closedCell, Set.mem_ofPred_eq, Set.mem_prod, Set.mem_Icc, and_assoc]
+    ext p; simp only [closedCell, Set.mem_ofPred_eq, Set.mem_prod, Set.mem_Icc, and_assoc]
   exact support_subset_convex (heq ▸ (convex_Icc _ _).prod (convex_Icc _ _)) h
 
 private theorem index_eq_of_open_closed {r i j : ℤ} (hr : 0 < r) {x : ℝ}
     (hi : (2 * r * i : ℤ) < x ∧ x < (2 * r * (i + 1) : ℤ))
     (hj : (2 * r * j : ℤ) ≤ x ∧ x ≤ (2 * r * (j + 1) : ℤ)) : i = j := by
-  have hr' : (0 : ℝ) < r := by exact_mod_cast hr
-  have hij : ¬ i < j := by
-    intro h
-    cast_nlinarith [hi.2, hj.1, h]
-  have hji : ¬ j < i := by
-    intro h
-    cast_nlinarith [hi.1, hj.2, h]
+  have : (0 : ℝ) < r := by exact_mod_cast hr
+  have : ¬ i < j := fun h => by cast_nlinarith [hi.2, hj.1, h]
+  have : ¬ j < i := fun h => by cast_nlinarith [hi.1, hj.2, h]
   omega
 
 /-- A point in one open cell and another closed cell forces equal integer indices. -/
@@ -199,17 +183,14 @@ theorem cell_eq_of_mem_open_closed {r : ℤ} (hr : 0 < r) {c d : Point} {p : ℝ
 
 /-- Distinct cells have no real contact between an open cell and a closed cell. -/
 theorem disjoint_openCell_closedCell {r : ℤ} (hr : 0 < r) {c d : Point} (hcd : c ≠ d) :
-    Disjoint (openCell r c) (closedCell r d) := by
-  rw [Set.disjoint_left]
-  exact fun _ hc hd => hcd (cell_eq_of_mem_open_closed hr hc hd)
+    Disjoint (openCell r c) (closedCell r d) :=
+  Set.disjoint_left.2 fun _ hc hd => hcd (cell_eq_of_mem_open_closed hr hc hd)
 
 /-- Distinct open cells are disjoint in the real plane. -/
 theorem disjoint_openCell {r : ℤ} (hr : 0 < r) {c d : Point} (hcd : c ≠ d) :
-    Disjoint (openCell r c) (openCell r d) := by
-  rw [Set.disjoint_left]
-  intro p hc hd
-  exact hcd (cell_eq_of_mem_open_closed hr hc
-    ⟨hd.1.le, hd.2.1.le, hd.2.2.1.le, hd.2.2.2.le⟩)
+    Disjoint (openCell r c) (openCell r d) :=
+  Set.disjoint_left.2 fun _ hc hd =>
+    hcd (cell_eq_of_mem_open_closed hr hc ⟨hd.1.le, hd.2.1.le, hd.2.2.1.le, hd.2.2.2.le⟩)
 
 /-- Side midpoints, in order left, right, bottom, top. -/
 def cellPort (r : ℤ) (c : Point) (s : Fin 4) : Point :=
@@ -233,14 +214,12 @@ theorem cellPort_eq_cases {r : ℤ} (hr : 0 < r) {c d : Point} {s t : Fin 4}
     (s = 1 ∧ t = 0 ∧ d = c + (1, 0)) ∨
     (s = 2 ∧ t = 3 ∧ d = c + (0, -1)) ∨
     (s = 3 ∧ t = 2 ∧ d = c + (0, 1)) := by
-  rcases c with ⟨cx, cy⟩
-  rcases d with ⟨dx, dy⟩
+  rcases c, d with ⟨⟨cx, cy⟩, ⟨dx, dy⟩⟩
   have hcd' : ¬ (cx = dx ∧ cy = dy) := fun h => hcd (Prod.ext h.1 h.2)
   rw [cellPort_coordinates, cellPort_coordinates, Prod.mk.injEq] at h
   have hx := mul_left_cancel₀ (ne_of_gt hr) h.1
   have hy := mul_left_cancel₀ (ne_of_gt hr) h.2
-  fin_cases s <;> fin_cases t <;>
-    norm_num [unitPort, Prod.ext_iff] at hx hy ⊢ <;> omega
+  fin_cases s <;> fin_cases t <;> norm_num [unitPort, Prod.ext_iff] at hx hy ⊢ <;> omega
 
 /-- The port classification also applies to equality in the real plane. -/
 theorem realPoint_cellPort_eq_cases {r : ℤ} (hr : 0 < r) {c d : Point} {s t : Fin 4}
@@ -257,8 +236,8 @@ theorem mem_openCell_add_origin_iff (r : ℤ) (c : Point) (p : ℝ × ℝ) :
       0 < p.1 ∧ p.1 < (2 * r : ℤ) ∧ 0 < p.2 ∧ p.2 < (2 * r : ℤ) := by
   simp only [openCell, Set.mem_ofPred_eq, realPoint, cellOrigin, Prod.fst_add, Prod.snd_add]
   push_cast
-  constructor <;> rintro ⟨h₁, h₂, h₃, h₄⟩ <;>
-    refine ⟨?_, ?_, ?_, ?_⟩ <;> linarith
+  exact ⟨fun ⟨h₁, h₂, h₃, h₄⟩ => ⟨by linarith, by linarith, by linarith, by linarith⟩,
+    fun ⟨h₁, h₂, h₃, h₄⟩ => ⟨by linarith, by linarith, by linarith, by linarith⟩⟩
 
 /-- Translating a point from the closed local square puts it in the corresponding grid cell. -/
 theorem mem_closedCell_add_origin_iff (r : ℤ) (c : Point) (p : ℝ × ℝ) :
@@ -266,8 +245,8 @@ theorem mem_closedCell_add_origin_iff (r : ℤ) (c : Point) (p : ℝ × ℝ) :
       0 ≤ p.1 ∧ p.1 ≤ (2 * r : ℤ) ∧ 0 ≤ p.2 ∧ p.2 ≤ (2 * r : ℤ) := by
   simp only [closedCell, Set.mem_ofPred_eq, realPoint, cellOrigin, Prod.fst_add, Prod.snd_add]
   push_cast
-  constructor <;> rintro ⟨h₁, h₂, h₃, h₄⟩ <;>
-    refine ⟨?_, ?_, ?_, ?_⟩ <;> linarith
+  exact ⟨fun ⟨h₁, h₂, h₃, h₄⟩ => ⟨by linarith, by linarith, by linarith, by linarith⟩,
+    fun ⟨h₁, h₂, h₃, h₄⟩ => ⟨by linarith, by linarith, by linarith, by linarith⟩⟩
 
 /-- Positive-radius cells have an interior center, at the translated point `(r,r)`. -/
 theorem center_mem_openCell {r : ℤ} (hr : 0 < r) (c : Point) :
