@@ -140,24 +140,12 @@ theorem distColoring_ne {s k n : ℕ} (hkn : k < n) {x : ZMod n → ℕ} (hx : F
   have hyN : ∀ i, y i < n := fun i => hxn _
   have hT := fastThreeColoringRule_toFun hyp hyN hs
   have hT' := fastThreeColoringRule_toFun (fun i => hyp (i + 1)) (fun i => hyN (i + 1)) hs
-  have e0 : (fun i => window x u (((j + 1 : ℕ) : ℤ) * i)) = y := by
-    funext i
-    simp only [window, hy]
-    congr 1
-    push_cast
-    ring
-  have e1 : (fun i => window x (u + ((j + 1 : ℕ) : ZMod n)) (((j + 1 : ℕ) : ℤ) * i)) =
-      fun i => y (i + 1) := by
-    funext i
-    simp only [window, hy]
-    congr 1
-    push_cast
-    ring
+  have e : (fun i => window x u (((j + 1 : ℕ) : ℤ) * i)) = y ∧
+      (fun i => window x (u + ((j + 1 : ℕ) : ZMod n)) (((j + 1 : ℕ) : ℤ) * i)) =
+        fun i => y (i + 1) := by
+    constructor <;> funext i <;> simp only [window, hy] <;> congr 1 <;> push_cast <;> ring
   simp only [Fin.coe_clamp] at hj
-  rw [e0, e1] at hj
-  have := hT.1
-  have := hT.2
-  have := hT'.2
+  rw [e.1, e.2] at hj
   omega
 
 /-! ### Anchors -/
@@ -213,31 +201,27 @@ theorem anchorRule_exists {k n : ℕ} {c : ZMod n → ℕ}
   | succ N ih =>
     intro v hv
     by_cases ha : (anchorRule k).apply c v = true
-    · exact ⟨0, by rw [abs_zero]; exact_mod_cast Nat.zero_le _, by rwa [Int.cast_zero, add_zero]⟩
+    · exact ⟨0, by simp, by rwa [Int.cast_zero, add_zero]⟩
     rw [anchorRule_apply] at ha
     push Not at ha
     obtain ⟨m, hm, hle⟩ := ha
-    have hkN : (k : ℤ) * ((N + 1 : ℕ) : ℤ) = k * N + k := by push_cast; ring
-    have hmk : (m : ℤ) + 1 ≤ k := by omega
-    by_cases h1 : c v < c (v + (m + 1))
-    · have h2 := hc (v - (m + 1)) m hm
-      rw [sub_add_cancel] at h2
-      have h3 := hle h1
-      obtain ⟨e, he, hae⟩ := ih (v - (m + 1)) (by omega)
-      refine ⟨e - (m + 1), ?_, ?_⟩
-      · rw [abs_le] at he ⊢
-        constructor <;> linarith [he.1, he.2]
-      · convert hae using 2
+    -- some node within distance `k` of `v` has a smaller colour
+    obtain ⟨s, hs, hcs⟩ : ∃ s : ℤ, |s| ≤ k ∧ c (v + s) < c v := by
+      by_cases h1 : c v < c (v + (m + 1))
+      · have h2 := hc (v - (m + 1)) m hm
+        rw [sub_add_cancel] at h2
+        have h3 := hle h1
+        refine ⟨-(m + 1), by rw [abs_le]; omega, ?_⟩
         push_cast
-        ring
-    · have h2 := hc v m hm
-      obtain ⟨e, he, hae⟩ := ih (v + (m + 1)) (by omega)
-      refine ⟨e + (m + 1), ?_, ?_⟩
-      · rw [abs_le] at he ⊢
-        constructor <;> linarith [he.1, he.2]
-      · convert hae using 2
+        rw [← sub_eq_add_neg]
+        omega
+      · have h2 := hc v m hm
+        refine ⟨m + 1, by rw [abs_le]; omega, ?_⟩
         push_cast
-        ring
+        omega
+    obtain ⟨e, he, hae⟩ := ih (v + s) (by omega)
+    refine ⟨s + e, (abs_add_le s e).trans (by push_cast; linarith), ?_⟩
+    rwa [Int.cast_add, ← add_assoc]
 
 /-- For a distance-`k` colouring with colours below `C`, every node has an anchor at most
 `2k (C - 1)` steps behind it. -/
@@ -284,13 +268,9 @@ private theorem firstTrue_spec (p : ℕ → Bool) (m : ℕ) (h : ∃ i < m, p i 
 private theorem firstTrue_eq (p : ℕ → Bool) (m : ℕ) {i : ℕ} (hi : p i = true)
     (hlt : ∀ j < i, p j = false) (hex : ∃ j < m, p j = true) : firstTrue p m = i := by
   rcases lt_trichotomy (firstTrue p m) i with h | h | h
-  · have := hlt _ h
-    rw [firstTrue_spec p m hex] at this
-    exact absurd this (by decide)
+  · simpa only [firstTrue_spec p m hex, Bool.true_eq_false] using hlt _ h
   · exact h
-  · have := firstTrue_min p m i h
-    rw [hi] at this
-    exact absurd this (by decide)
+  · simpa only [hi, Bool.true_eq_false] using firstTrue_min p m i h
 
 private theorem firstTrue_congr {p p' : ℕ → Bool} {m : ℕ} (h : ∀ i < m, p i = p' i) :
     firstTrue p m = firstTrue p' m := by
