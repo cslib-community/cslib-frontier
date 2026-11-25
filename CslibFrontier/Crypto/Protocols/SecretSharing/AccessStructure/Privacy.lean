@@ -190,6 +190,8 @@ theorem posteriorPrivate_iff_viewIndist
   · intro h P hP s hs secret₀ secret₁
     ext v
     let μ := uniformOfFinset ({secret₀, secret₁} : Finset Secret) ⟨secret₀, by simp⟩
+    have hμ (m : Secret) (hm : m ∈ ({secret₀, secret₁} : Finset Secret)) : μ m ≠ 0 :=
+      (PMF.mem_support_iff _ _).mp ((mem_support_uniformOfFinset_iff ⟨secret₀, by simp⟩ m).mpr hm)
     by_cases hv : v ∈ (μ.bind (AccessStructure.viewDistOf P share s)).support
     · have key (m : Secret) (hm : m ∈ ({secret₀, secret₁} : Finset Secret)) :
           AccessStructure.viewDistOf P share s m v =
@@ -202,27 +204,15 @@ theorem posteriorPrivate_iff_viewIndist
           PMF.apply_ne_top _ _
         have hmul := congrArg (· * (μ.bind (AccessStructure.viewDistOf P share s)) v) hpost
         rw [ENNReal.div_mul_cancel hne_zero hne_top] at hmul
-        have hμ_zero : μ m ≠ 0 :=
-          (PMF.mem_support_iff _ _).mp
-            ((mem_support_uniformOfFinset_iff ⟨secret₀, by simp⟩ m).mpr hm)
-        exact (ENNReal.mul_right_inj hμ_zero (PMF.apply_ne_top μ m)).mp hmul
+        exact (ENNReal.mul_right_inj (hμ m hm) (PMF.apply_ne_top μ m)).mp hmul
       exact (key secret₀ (by simp)).trans (key secret₁ (by simp)).symm
     · have hzero : (μ.bind (AccessStructure.viewDistOf P share s)) v = 0 :=
         (PMF.apply_eq_zero_iff _ _).mpr hv
       rw [PMF.bind_apply, tsum_eq_zero_iff] at hzero
-      have h0 : AccessStructure.viewDistOf P share s secret₀ v = 0 := by
-        have hmul := hzero secret₀
-        have hμ0 : μ secret₀ ≠ 0 :=
-          (PMF.mem_support_iff _ _).mp
-            ((mem_support_uniformOfFinset_iff ⟨secret₀, by simp⟩ secret₀).mpr (by simp))
-        exact (mul_eq_zero.mp hmul).resolve_left hμ0
-      have h1 : AccessStructure.viewDistOf P share s secret₁ v = 0 := by
-        have hmul := hzero secret₁
-        have hμ1 : μ secret₁ ≠ 0 :=
-          (PMF.mem_support_iff _ _).mp
-            ((mem_support_uniformOfFinset_iff ⟨secret₀, by simp⟩ secret₁).mpr (by simp))
-        exact (mul_eq_zero.mp hmul).resolve_left hμ1
-      exact h0.trans h1.symm
+      have h0 (m : Secret) (hm : m ∈ ({secret₀, secret₁} : Finset Secret)) :
+          AccessStructure.viewDistOf P share s m v = 0 :=
+        (mul_eq_zero.mp (hzero m)).resolve_left (hμ m hm)
+      exact (h0 secret₀ (by simp)).trans (h0 secret₁ (by simp)).symm
   · intro h P hP s hs secretDist v hv
     exact posteriorDist_eq_prior_of_outputIndist secretDist
       (AccessStructure.viewDistOf P share s) (h P hP s hs) v hv
@@ -376,17 +366,12 @@ theorem AccessScheme.mutualInfo_authorized_eq_entropy
       mutualInfo_map joint Prod.snd Prod.fst
     have hR : mutualInfo joint =
         entropy (joint.map Prod.fst) + entropy (joint.map Prod.snd) - entropy joint := by
-      have hid := mutualInfo_map joint Prod.fst Prod.snd
-      rw [show (fun ω : Secret × ((i : s) → Share i.1) => (ω.1, ω.2)) = id from rfl,
-        PMF.map_id] at hid
-      exact hid
+      simpa only [show (fun ω : Secret × ((i : s) → Share i.1) => (ω.1, ω.2)) = id from rfl,
+        PMF.map_id] using mutualInfo_map joint Prod.fst Prod.snd
     rw [hL, hR, entropy_map_of_injective joint Prod.swap_injective]
     ring
   have hsnd : (joint.map Prod.swap).map Prod.snd = secretDist := by
-    have h2 : (joint.map Prod.swap).map Prod.snd = joint.map Prod.fst := by
-      rw [PMF.map_comp]
-      rfl
-    rw [h2]
+    rw [PMF.map_comp]
     exact map_fst_jointSecretView P scheme.share s secretDist
   rw [← hswap_mi, mutualInfo_eq_entropy_map_snd_sub_conditionalEntropy, hsnd,
     scheme.conditionalEntropy_secret_given_view_eq_zero P hs secretDist, sub_zero]
