@@ -87,21 +87,18 @@ private def augment (s : ℕ × C × SelectBestAcc) : C × List (List Bool) :=
 
 private theorem augment_polyTime : ComputableInPolyTime (augment (C := C))
     (encPair encNat (encAcc encC)) (encPair encC (encList encBits)) := by
+  have := computableInPolyTime_augCandidateRows
   unfold augment encAcc
-  exact (by fun_prop : ComputableInPolyTime (fun s : ℕ × C × SelectBestAcc => s.2.1)
-    (encPair encNat (encPair encC encSelectBestAcc)) encC).prod
-      (computableInPolyTime_augCandidateRows.comp (by fun_prop))
+  fun_prop
 
 private def finish (p : (ℕ × C × SelectBestAcc) × ℕ) : C × SelectBestAcc :=
   (p.1.2.1, finishSelectBestStep ((p.1.1, p.1.2.2), p.2))
 
 private theorem finish_polyTime : ComputableInPolyTime (finish (C := C))
     (encPair (encPair encNat (encAcc encC)) encNat) (encAcc encC) := by
+  have := computableInPolyTime_finishSelectBestStep
   unfold finish encAcc
-  exact (by fun_prop : ComputableInPolyTime
-    (fun p : (ℕ × C × SelectBestAcc) × ℕ => p.1.2.1)
-    (encPair (encPair encNat (encPair encC encSelectBestAcc)) encNat) encC).prod
-      (computableInPolyTime_finishSelectBestStep.comp (by fun_prop))
+  fun_prop
 
 private def step (count : C × List (List Bool) → ℕ)
     (s : ℕ × C × SelectBestAcc) : C × SelectBestAcc :=
