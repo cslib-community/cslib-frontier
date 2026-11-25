@@ -3394,15 +3394,8 @@ private theorem collapseRunExec_spec {m B_init B U : ℕ} (hm : 0 < m)
     simp only [collapseRunExec] at he
     have hcard_le : e.2 ≤ C.size := by
       rw [SymAnd.size, ← hW.1, decodeWList, Multiset.card_bind]
-      have h1 : Multiset.card (Multiset.replicate e.2
-          (decodeIdxSet c.1 c.2.size m (Nat.log 2 (c.1 + c.2.size) + 1) e.1)) ≤
-          ((W : Multiset WGate).map fun e' => Multiset.card (Multiset.replicate e'.2
-            (decodeIdxSet c.1 c.2.size m (Nat.log 2 (c.1 + c.2.size) + 1) e'.1))).sum :=
-        Multiset.le_sum_of_mem (Multiset.mem_map_of_mem
-          (fun e' : WGate => Multiset.card (Multiset.replicate e'.2
-            (decodeIdxSet c.1 c.2.size m (Nat.log 2 (c.1 + c.2.size) + 1) e'.1)))
-          (Multiset.mem_coe.2 he))
-      simpa only [Function.comp_apply, Multiset.card_replicate] using h1
+      simp only [Function.comp_def, Multiset.card_replicate]
+      exact Multiset.le_sum_of_mem (Multiset.mem_map_of_mem _ (Multiset.mem_coe.2 he))
     have hB0 : B ≤ (B_init + 2) * (2 * B) ^ 5 ^ 0 := by
       simp only [pow_zero, pow_one]; nlinarith
     exact hcard_le.trans (hs.trans ((Nat.pow_le_pow_right (by decide) hB0).trans hU))
@@ -3418,15 +3411,12 @@ private theorem collapseRunExec_spec {m B_init B U : ℕ} (hm : 0 < m)
       calc _ ≤ B * (3 * B * (B * B)) := by gcongr
         _ = 3 * B ^ 4 := by ring
     let B₁ := 5 * B ^ 5
-    have hB_le_B1 : B ≤ B₁ := by
-      have : B ^ 1 ≤ B ^ 5 := Nat.pow_le_pow_right hB1 (by norm_num)
-      rw [pow_one] at this; dsimp only [B₁]; omega
+    have hB_le_B1 : B ≤ B₁ :=
+      (Nat.le_self_pow (by norm_num) B).trans (Nat.le_mul_of_pos_left _ (by norm_num))
     have hD_le_B1 : C.fanIn * ((2 * (B + 1) - 1) * ((p - 1) * B)) ≤ B₁ :=
       hD_le.trans (by dsimp only [B₁]; gcongr <;> omega)
     have h2B1 : 2 * B₁ ≤ (2 * B) ^ 5 := by
-      calc 2 * (5 * B ^ 5) = 10 * B ^ 5 := by ring
-        _ ≤ 32 * B ^ 5 := Nat.mul_le_mul_right _ (by norm_num)
-        _ = (2 * B) ^ 5 := by ring
+      dsimp only [B₁]; rw [← mul_assoc, mul_pow]; exact Nat.mul_le_mul_right _ (by norm_num)
     have h5pow : (2 * B₁) ^ 5 ^ rest.length ≤ (2 * B) ^ 5 ^ (layer :: rest).length := by
       rw [List.length_cons, pow_succ', pow_mul]
       exact Nat.pow_le_pow_left h2B1 _
