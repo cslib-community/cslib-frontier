@@ -144,6 +144,13 @@ private theorem mul_pow_le_mul_pow {c W d E : ℕ} (hW : 1 ≤ W) (hd : d ≤ E)
     c * W ^ d ≤ c * W ^ E :=
   Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hW hd)
 
+/-- `K a ^ K ≤ K c ^ K W ^ F` when `a ≤ c W ^ E₀` and `E₀ K ≤ F`. -/
+private theorem mul_pow_le_of_le_mul_pow {K a c W E₀ F : ℕ} (hW : 1 ≤ W) (ha : a ≤ c * W ^ E₀)
+    (hF : E₀ * K ≤ F) : K * a ^ K ≤ K * c ^ K * W ^ F :=
+  calc K * a ^ K ≤ K * (c * W ^ E₀) ^ K := Nat.mul_le_mul_left _ (Nat.pow_le_pow_left ha _)
+    _ = K * c ^ K * W ^ (E₀ * K) := by rw [mul_pow, ← pow_mul, Nat.mul_assoc]
+    _ ≤ K * c ^ K * W ^ F := mul_pow_le_mul_pow hW hF
+
 /-- The reduced coefficient lists against `W`. -/
 private theorem rv_le {n W cf df cp dp : ℕ} (hnW : n + 1 ≤ W) :
     n * (2 * n + 3) + cf * (n + 1) ^ df * (2 * (cp * (n + 1) ^ dp) + 3) ≤
@@ -177,15 +184,6 @@ private theorem sum_le_of_le {W a b c₀ d₀ cR E₀ : ℕ} (hW : 1 ≤ W) (ha 
   rw [add_mul, add_mul, Nat.mul_assoc 2]
   omega
 
-/-- The bound on the entries' arguments against `W`. -/
-private theorem zb_le {W n R Rv cR E₀ : ℕ} (hW : 1 ≤ W) (hE : 1 ≤ E₀) (hRv : Rv ≤ cR * W ^ E₀)
-    (hnR : 3 * n + R + 3 ≤ 3 * W) : 3 * n + R + Rv + 3 ≤ (3 + cR) * W ^ E₀ := by
-  have h1 : W ≤ W ^ E₀ :=
-    calc W = W ^ 1 := (pow_one W).symm
-      _ ≤ W ^ E₀ := Nat.pow_le_pow_right hW hE
-  rw [add_mul]
-  omega
-
 /-- The arithmetic of the time of a leaf. -/
 private theorem time_assemble {Td Ti Ts cd dd ci di P X E k W A Zb c₁ c₂ E₀ K₁ K₂ : ℕ}
     (hW : 1 ≤ W) (hP : 1 ≤ P) (hX : 1 ≤ X) (hd : Td ≤ cd * W ^ dd) (hi : Ti ≤ ci * W ^ di)
@@ -193,33 +191,24 @@ private theorem time_assemble {Td Ti Ts cd dd ci di P X E k W A Zb c₁ c₂ E�
     (hk : k + 1 ≤ W) (hA : A + 1 ≤ c₁ * W ^ E₀) (hZ : Zb ≤ c₂ * W ^ E₀) :
     Td + (Ti + Ts) ≤ (2 * (K₁ * c₁ ^ K₁ + 2 * (K₂ * c₂ ^ K₂) + 2) + cd + ci) *
       W ^ (1 + E₀ * (K₁ + K₂) + dd + di) * P * (X + E) := by
-  have hWF1 : W ^ (E₀ * K₁) ≤ W ^ (E₀ * (K₁ + K₂)) :=
-    Nat.pow_le_pow_right hW (by rw [Nat.mul_add]; omega)
-  have hWF2 : W ^ (E₀ * K₂) ≤ W ^ (E₀ * (K₁ + K₂)) :=
-    Nat.pow_le_pow_right hW (by rw [Nat.mul_add]; omega)
+  have hA' : K₁ * (A + 1) ^ K₁ ≤ K₁ * c₁ ^ K₁ * W ^ (E₀ * (K₁ + K₂)) :=
+    mul_pow_le_of_le_mul_pow hW hA (Nat.mul_le_mul_left _ (Nat.le_add_right _ _))
+  have hZ' : K₂ * Zb ^ K₂ ≤ K₂ * c₂ ^ K₂ * W ^ (E₀ * (K₁ + K₂)) :=
+    mul_pow_le_of_le_mul_pow hW hZ (Nat.mul_le_mul_left _ (Nat.le_add_left _ _))
   set F := E₀ * (K₁ + K₂)
   set S := W ^ (1 + F + dd + di)
   set Y := X + E with hY
   have hY1 : 1 ≤ Y := by omega
   have hF1 : 1 ≤ W ^ F := Nat.one_le_pow _ _ (by omega)
-  have hA' : K₁ * (A + 1) ^ K₁ ≤ K₁ * c₁ ^ K₁ * W ^ F :=
-    calc K₁ * (A + 1) ^ K₁ ≤ K₁ * (c₁ * W ^ E₀) ^ K₁ :=
-          Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hA _)
-      _ = K₁ * c₁ ^ K₁ * W ^ (E₀ * K₁) := by rw [mul_pow, ← pow_mul, Nat.mul_assoc]
-      _ ≤ K₁ * c₁ ^ K₁ * W ^ F := Nat.mul_le_mul_left _ hWF1
-  have hZ' : K₂ * X * Zb ^ K₂ ≤ K₂ * c₂ ^ K₂ * X * W ^ F :=
-    calc K₂ * X * Zb ^ K₂ ≤ K₂ * X * (c₂ * W ^ E₀) ^ K₂ :=
-          Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hZ _)
-      _ = K₂ * c₂ ^ K₂ * X * W ^ (E₀ * K₂) := by rw [mul_pow, ← pow_mul]; ring
-      _ ≤ K₂ * c₂ ^ K₂ * X * W ^ F := Nat.mul_le_mul_left _ hWF2
   have hin : K₁ * (A + 1) ^ K₁ + 2 * (K₂ * X * Zb ^ K₂ + E) ≤
       (K₁ * c₁ ^ K₁ + 2 * (K₂ * c₂ ^ K₂) + 2) * Y * W ^ F := by
     have h1 : K₁ * c₁ ^ K₁ * W ^ F ≤ K₁ * c₁ ^ K₁ * W ^ F * Y := Nat.le_mul_of_pos_right _ hY1
-    have h2 : K₂ * c₂ ^ K₂ * X * W ^ F ≤ K₂ * c₂ ^ K₂ * Y * W ^ F :=
-      Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ (by omega))
+    have h2 : K₂ * X * Zb ^ K₂ ≤ K₂ * c₂ ^ K₂ * W ^ F * Y := by
+      rw [Nat.mul_right_comm]
+      exact Nat.mul_le_mul hZ' (by omega)
     have h3 : E ≤ Y * W ^ F := (show E ≤ Y by omega).trans (Nat.le_mul_of_pos_right _ hF1)
     have e : (K₁ * c₁ ^ K₁ + 2 * (K₂ * c₂ ^ K₂) + 2) * Y * W ^ F =
-        K₁ * c₁ ^ K₁ * W ^ F * Y + 2 * (K₂ * c₂ ^ K₂ * Y * W ^ F) + 2 * (Y * W ^ F) := by ring
+        K₁ * c₁ ^ K₁ * W ^ F * Y + 2 * (K₂ * c₂ ^ K₂ * W ^ F * Y) + 2 * (Y * W ^ F) := by ring
     omega
   have hPk : P * (k + 1) + 1 ≤ 2 * P * W := by
     have : P * (k + 1) ≤ P * W := Nat.mul_le_mul_left _ hk
@@ -234,17 +223,13 @@ private theorem time_assemble {Td Ti Ts cd dd ci di P X E k W A Zb c₁ c₂ E�
           Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _
             (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hW (by omega))))
   have hPY : 1 ≤ P * Y := Nat.one_le_iff_ne_zero.mpr (by positivity)
-  have hd' : Td ≤ cd * S * P * Y :=
-    calc Td ≤ cd * S := hd.trans (mul_pow_le_mul_pow hW (by omega))
-      _ ≤ cd * S * (P * Y) := Nat.le_mul_of_pos_right _ hPY
-      _ = cd * S * P * Y := by ring
-  have hi' : Ti ≤ ci * S * P * Y :=
-    calc Ti ≤ ci * S := hi.trans (mul_pow_le_mul_pow hW (by omega))
-      _ ≤ ci * S * (P * Y) := Nat.le_mul_of_pos_right _ hPY
-      _ = ci * S * P * Y := by ring
+  have hd' : Td ≤ cd * S * (P * Y) :=
+    (hd.trans (mul_pow_le_mul_pow hW (by omega))).trans (Nat.le_mul_of_pos_right _ hPY)
+  have hi' : Ti ≤ ci * S * (P * Y) :=
+    (hi.trans (mul_pow_le_mul_pow hW (by omega))).trans (Nat.le_mul_of_pos_right _ hPY)
   have e : (2 * (K₁ * c₁ ^ K₁ + 2 * (K₂ * c₂ ^ K₂) + 2) + cd + ci) * S * P * Y =
-      2 * (K₁ * c₁ ^ K₁ + 2 * (K₂ * c₂ ^ K₂) + 2) * S * P * Y + cd * S * P * Y +
-        ci * S * P * Y := by
+      2 * (K₁ * c₁ ^ K₁ + 2 * (K₂ * c₂ ^ K₂) + 2) * S * P * Y + cd * S * (P * Y) +
+        ci * S * (P * Y) := by
     ring
   omega
 
@@ -255,23 +240,12 @@ private theorem space_assemble {Sd Si Ss cd dd ci di W A Zb c₁ c₂ E₀ K₁ 
     (hES : ES' = K₂ * Zb ^ K₂ + ES) (hESW : ES ≤ W) (hZ : Zb ≤ c₂ * W ^ E₀) :
     Sd + (Si + Ss) ≤ (K₁ * c₁ ^ K₁ + K₂ * c₂ ^ K₂ + cd + ci + 1) *
       W ^ (1 + E₀ * (K₁ + K₂) + dd + di) := by
-  have hWF1 : W ^ (E₀ * K₁) ≤ W ^ (1 + E₀ * (K₁ + K₂) + dd + di) :=
-    Nat.pow_le_pow_right hW (by rw [Nat.mul_add]; omega)
-  have hWF2 : W ^ (E₀ * K₂) ≤ W ^ (1 + E₀ * (K₁ + K₂) + dd + di) :=
-    Nat.pow_le_pow_right hW (by rw [Nat.mul_add]; omega)
-  set F := E₀ * (K₁ + K₂)
-  set S := W ^ (1 + F + dd + di)
-  have hA' : K₁ * (A + 1) ^ K₁ ≤ K₁ * c₁ ^ K₁ * S :=
-    calc K₁ * (A + 1) ^ K₁ ≤ K₁ * (c₁ * W ^ E₀) ^ K₁ :=
-          Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hA _)
-      _ = K₁ * c₁ ^ K₁ * W ^ (E₀ * K₁) := by rw [mul_pow, ← pow_mul, Nat.mul_assoc]
-      _ ≤ K₁ * c₁ ^ K₁ * S := Nat.mul_le_mul_left _ hWF1
-  have hZ' : K₂ * Zb ^ K₂ ≤ K₂ * c₂ ^ K₂ * S :=
-    calc K₂ * Zb ^ K₂ ≤ K₂ * (c₂ * W ^ E₀) ^ K₂ := Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hZ _)
-      _ = K₂ * c₂ ^ K₂ * W ^ (E₀ * K₂) := by rw [mul_pow, ← pow_mul, Nat.mul_assoc]
-      _ ≤ K₂ * c₂ ^ K₂ * S := Nat.mul_le_mul_left _ hWF2
-  have hWS : ES ≤ S :=
-    hESW.trans ((pow_one W).symm.le.trans (Nat.pow_le_pow_right hW (by omega)))
+  have hA' : K₁ * (A + 1) ^ K₁ ≤ K₁ * c₁ ^ K₁ * W ^ (1 + E₀ * (K₁ + K₂) + dd + di) :=
+    mul_pow_le_of_le_mul_pow hW hA (by rw [Nat.mul_add]; omega)
+  have hZ' : K₂ * Zb ^ K₂ ≤ K₂ * c₂ ^ K₂ * W ^ (1 + E₀ * (K₁ + K₂) + dd + di) :=
+    mul_pow_le_of_le_mul_pow hW hZ (by rw [Nat.mul_add]; omega)
+  set S := W ^ (1 + E₀ * (K₁ + K₂) + dd + di)
+  have hWS : ES ≤ S := hESW.trans (Nat.le_self_pow (by omega) W)
   have hd' : Sd ≤ cd * S := hd.trans (mul_pow_le_mul_pow hW (by omega))
   have hi' : Si ≤ ci * S := hi.trans (mul_pow_le_mul_pow hW (by omega))
   have e : (K₁ * c₁ ^ K₁ + K₂ * c₂ ^ K₂ + cd + ci + 1) * S =
@@ -416,8 +390,7 @@ theorem leafCertificate_le
     refine h.trans (Nat.mul_le_mul_right _ ?_)
     omega
   have hWE : W ^ e ≤ W ^ E₀ := Nat.pow_le_pow_right hW1 (by omega)
-  have hW1E : W ≤ W ^ E₀ :=
-    (pow_one W).symm.le.trans (Nat.pow_le_pow_right hW1 (by omega))
+  have hW1E : W ≤ W ^ E₀ := Nat.le_self_pow (by omega) W
   have hEvW : Ev ≤ cR * W ^ E₀ := by
     have h1 : Rv ≤ (cR - cE) * W ^ E₀ := hRvW.trans (Nat.mul_le_mul_left _ hWE)
     have h2 : cE * (ES + 1) ≤ cE * W ^ E₀ := Nat.mul_le_mul_left _ (by omega)
@@ -434,11 +407,8 @@ theorem leafCertificate_le
     rw [hc₁]
     omega
   have hZW : Zb ≤ c₂ * W ^ E₀ := by
-    rw [hc₂, hZb]
-    have h1 : Rv ≤ cR * W ^ E₀ := by
-      have := hRvW.trans (Nat.mul_le_mul_left _ hWE)
-      exact this.trans (Nat.mul_le_mul_right _ (Nat.sub_le _ _))
-    exact zb_le hW1 (by omega) h1 (by omega)
+    rw [hc₂, hZb, add_mul]
+    omega
   have hnW' : (encCall encT x).length + 1 ≤ W := by omega
   have hdt' := (hdt x).trans (mul_pow_le_of_le (c := cd) (d := dd) hnW')
   have hit' := (hit x).trans (mul_pow_le_of_le (c := ci) (d := di) hnW')
