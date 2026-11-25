@@ -190,13 +190,11 @@ private theorem bfsMid_spec (hB : ∀ u v, W u v ≤ B) (hlay : mb + n * n ≤ s
               · rw [Function.update_of_ne (by ek_omega),
                   Function.update_of_ne (by ek_omega)]
                 exact hi_low a ha
-              · have hxv : x.1 ≠ v := fun h => by
-                  have : x = vFin := Fin.ext h; subst this; omega
+              · have hxv : x.1 ≠ v := fun h => by obtain rfl : x = vFin := Fin.ext h; omega
                 rw [Function.update_of_ne (by have := x.2; ek_omega),
                   Function.update_of_ne (by ek_omega)]
                 exact hi_le x hx
-              · have hxv : x.1 ≠ v := fun h => by
-                  have : x = vFin := Fin.ext h; subst this; omega
+              · have hxv : x.1 ≠ v := fun h => by obtain rfl : x = vFin := Fin.ext h; omega
                 rw [Function.update_of_ne (by have := x.2; ek_omega),
                   Function.update_of_ne (by ek_omega)]
                 exact hi_gt x hx
