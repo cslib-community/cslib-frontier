@@ -68,33 +68,28 @@ theorem isSensitiveCoord_threshold_iff (x : BitString n) (i : Fin n) :
   unfold IsSensitiveCoord
   cases hx : x i with
   | true =>
-    have h := weight_update_false hx
+    have := weight_update_false hx
     simp only [Bool.not_true, threshold_apply, ne_eq, decide_eq_decide, Bool.true_eq_false,
       true_and, false_and, or_false]
     omega
   | false =>
-    have h := weight_update_true hx
-    simp only [Bool.not_false, threshold_apply, ne_eq, decide_eq_decide, h, Bool.false_eq_true,
-      true_and, false_and, false_or]
+    simp only [Bool.not_false, threshold_apply, ne_eq, decide_eq_decide, weight_update_true hx,
+      Bool.false_eq_true, true_and, false_and, false_or]
     omega
 
 /-- At an input of weight `j`, the sensitive coordinates of `Th^n_j` are its true bits. -/
 theorem sensitivityAt_threshold_of_weight_eq {x : BitString n} (hx : weight x = j) :
     sensitivityAt (threshold n j) x = j := by
-  have : sensitiveCoords (threshold n j) x = univ.filter fun i => x i = true := by
-    ext i
-    simp [isSensitiveCoord_threshold_iff, hx]
-  rw [sensitivityAt, this, ← weight, hx]
+  rw [sensitivityAt, show sensitiveCoords (threshold n j) x = univ.filter fun i => x i = true by
+    ext; simp [isSensitiveCoord_threshold_iff, hx], ← weight, hx]
 
 /-- At an input of weight `j - 1`, for `j ≥ 1`, the sensitive coordinates of `Th^n_j` are its
 false bits. -/
 theorem sensitivityAt_threshold_of_weight_add_one_eq {x : BitString n}
     (hx : weight x + 1 = j) : sensitivityAt (threshold n j) x = n + 1 - j := by
-  have : sensitiveCoords (threshold n j) x = univ.filter fun i => x i = false := by
-    ext i
-    have h : weight x ≠ j := by omega
-    simp [isSensitiveCoord_threshold_iff, h, hx]
-  rw [sensitivityAt, this, card_filter_eq_false_eq_card_sub_weight, Fintype.card_fin]
+  rw [sensitivityAt, show sensitiveCoords (threshold n j) x = univ.filter fun i => x i = false by
+    ext; simp [isSensitiveCoord_threshold_iff, show weight x ≠ j by omega, hx],
+    card_filter_eq_false_eq_card_sub_weight, Fintype.card_fin]
   omega
 
 end BitString
@@ -113,9 +108,8 @@ theorem certificateComplexityAt_threshold_le (x : BitString n) :
       (n := j) (by rwa [← weight])
     refine (certificateComplexityAt_le (S := S) fun y hy => ?_).trans
       (hcard.le.trans (le_max_left _ _))
-    have hle : #S ≤ weight y := card_le_card fun i hi => by
-      have := (mem_filter.1 (hS hi)).2
-      simp [hy i hi, this]
+    have hle : #S ≤ weight y :=
+      card_le_card fun i hi => by simp [hy i hi, (mem_filter.1 (hS hi)).2]
     simp only [threshold_apply, decide_eq_decide]
     omega
   · obtain ⟨S, hS, hcard⟩ := exists_subset_card_eq (s := univ.filter fun i => x i = false)
@@ -123,9 +117,8 @@ theorem certificateComplexityAt_threshold_le (x : BitString n) :
         rw [card_filter_eq_false_eq_card_sub_weight, Fintype.card_fin]; have := hwy x; omega)
     refine (certificateComplexityAt_le (S := S) fun y hy => ?_).trans
       (hcard.le.trans (le_max_right _ _))
-    have hle : #S ≤ #{i | y i = false} := card_le_card fun i hi => by
-      have := (mem_filter.1 (hS hi)).2
-      simp [hy i hi, this]
+    have hle : #S ≤ #{i | y i = false} :=
+      card_le_card fun i hi => by simp [hy i hi, (mem_filter.1 (hS hi)).2]
     rw [card_filter_eq_false_eq_card_sub_weight, Fintype.card_fin] at hle
     have := hwy y
     simp only [threshold_apply, decide_eq_decide]
@@ -147,10 +140,10 @@ theorem sensitivity_threshold (hj : 1 ≤ j) (hjn : j ≤ n) :
   refine le_antisymm ((QueryComplexity.sensitivity_le_blockSensitivity _).trans
     QueryComplexity.blockSensitivity_threshold_le) (max_le ?_ ?_)
   · obtain ⟨x, hx⟩ := weightLayer_nonempty (n := n) hjn
-    rw [mem_weightLayer] at hx
-    exact (sensitivityAt_threshold_of_weight_eq hx).ge.trans (sensitivityAt_le_sensitivity _ x)
+    exact (sensitivityAt_threshold_of_weight_eq (mem_weightLayer.1 hx)).ge.trans
+      (sensitivityAt_le_sensitivity _ x)
   · obtain ⟨x, hx⟩ := weightLayer_nonempty (n := n) (k := j - 1) (by omega)
-    rw [mem_weightLayer] at hx
+    have := mem_weightLayer.1 hx
     exact (sensitivityAt_threshold_of_weight_add_one_eq (by omega)).ge.trans
       (sensitivityAt_le_sensitivity _ x)
 
@@ -207,30 +200,24 @@ theorem certificateComplexityFor_threshold_one_right_true (hn : 1 ≤ n) :
     certificateComplexityFor (threshold n 1) true = 1 := by
   apply le_antisymm
   · refine Finset.sup_le fun x hx => ?_
-    have hx : threshold n 1 x = true := (mem_filter.1 hx).2
-    rw [threshold_one_right, decide_eq_true_iff] at hx
-    obtain ⟨i, hi⟩ := hx
+    obtain ⟨i, hi⟩ := of_decide_eq_true (threshold_one_right x ▸ (mem_filter.1 hx).2)
     refine (certificateComplexityAt_le (S := {i}) fun y hy => ?_).trans (by simp)
-    rw [threshold_one_right, threshold_one_right, decide_eq_decide]
+    simp only [threshold_one_right, decide_eq_decide]
     exact ⟨fun _ => ⟨i, hi⟩, fun _ => ⟨i, (hy i (mem_singleton_self i)).trans hi⟩⟩
-  · have hx : threshold n 1 (fun _ => true) = true := by
-      rw [threshold_one_right, decide_eq_true_iff]
-      exact ⟨⟨0, hn⟩, rfl⟩
-    refine le_trans ?_ (certificateComplexityAt_le_certificateComplexityFor hx)
-    refine le_certificateComplexityAt fun S hS => ?_
-    rw [Nat.one_le_iff_ne_zero, Ne, card_eq_zero]
-    rintro rfl
-    have := hS (fun _ => false) (by simp)
-    rw [hx, threshold_one_right] at this
-    simp at this
+  · have hx : threshold n 1 (fun _ => true) = true :=
+      (threshold_one_right _).trans (decide_eq_true ⟨⟨0, hn⟩, rfl⟩)
+    refine (le_certificateComplexityAt fun S hS => Nat.one_le_iff_ne_zero.2 ?_).trans
+      (certificateComplexityAt_le_certificateComplexityFor hx)
+    rintro h0
+    have := hS (fun _ => false) (by simp [card_eq_zero.1 h0])
+    simp [hx, threshold_one_right] at this
 
 /-- Certifying the value `0` of the disjunction takes every bit: `C₀(OR_n) = n`. -/
 theorem certificateComplexityFor_threshold_one_right_false :
-    certificateComplexityFor (threshold n 1) false = n := by
-  refine le_antisymm (Finset.sup_le fun x _ => certificateComplexityAt_le_card _ x) ?_
-  have hx : threshold n 1 (fun _ => false) = false := by grind [threshold_one_right]
-  exact certificateComplexityAt_threshold_one_right.ge.trans
-    (certificateComplexityAt_le_certificateComplexityFor hx)
+    certificateComplexityFor (threshold n 1) false = n :=
+  le_antisymm (Finset.sup_le fun x _ => certificateComplexityAt_le_card _ x)
+    (certificateComplexityAt_threshold_one_right.ge.trans
+      (certificateComplexityAt_le_certificateComplexityFor (by grind [threshold_one_right])))
 
 end QueryComplexity
 
@@ -240,12 +227,12 @@ namespace BitString
 
 /-- Parity is sensitive to every bit at every input. -/
 theorem sensitivityAt_parity (x : BitString n) : sensitivityAt (parity n) x = n := by
-  have : (univ.filter fun i => parity n (Function.update x i !x i) ≠ parity n x) = univ := by
-    refine eq_univ_of_forall fun i => mem_filter.2 ⟨mem_univ i, ?_⟩
-    rw [parity, parityOn_update_not (mem_univ i)]
-    cases parityOn univ x <;> decide
-  change #(univ.filter fun i => parity n (Function.update x i !x i) ≠ parity n x) = n
-  rw [this, card_univ, Fintype.card_fin]
+  suffices sensitiveCoords (parity n) x = univ by
+    rw [sensitivityAt, this, card_univ, Fintype.card_fin]
+  refine eq_univ_of_forall fun i => mem_filter.2 ⟨mem_univ i, ?_⟩
+  unfold IsSensitiveCoord
+  rw [parity, parityOn_update_not (mem_univ i)]
+  cases parityOn univ x <;> decide
 
 /-- The sensitivity of parity is its number of coordinates. -/
 theorem sensitivity_parity : sensitivity (parity n) = n :=
