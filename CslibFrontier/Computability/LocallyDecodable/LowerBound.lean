@@ -100,7 +100,9 @@ private theorem conditionalSnd_map_snd {α β γ : Type*} [Finite α] [Finite β
     (PMF.conditionalSnd joint a).map f =
       PMF.conditionalSnd (joint.map fun p => (p.1, f p.2)) a := by
   classical
-  let := Fintype.ofFinite α; let := Fintype.ofFinite β; let := Fintype.ofFinite γ
+  let := Fintype.ofFinite α
+  let := Fintype.ofFinite β
+  let := Fintype.ofFinite γ
   have hfst : (joint.map fun p => (p.1, f p.2)).map Prod.fst = joint.map Prod.fst := by
     rw [_root_.PMF.map_comp]; rfl
   ext c
@@ -427,7 +429,10 @@ theorem DecodingMatching.pow_le_pow [Fintype ι] [DecidableEq ι] [Fintype P] [N
           ((Finset.univ.filter fun i : ι => ∃ e ∈ (M i).edges,
             e ⊆ Finset.univ.filter fun j => s j = true).card : ℝ) =
             ∑ i : ι, if ∃ e ∈ (M i).edges, ∀ j ∈ e, s j = true then (1 : ℝ) else 0 := by
-        rw [Finset.sum_boole]; congr 2; ext i; simp [Finset.subset_iff]
+        rw [Finset.sum_boole]
+        congr 2
+        ext i
+        simp [Finset.subset_iff]
       simp_rw [hcard, Finset.mul_sum]; rw [Finset.sum_comm]
       have hbit (i : ι) : (1 / 2 : ℝ) ≤ ∑ s : P → Bool, (μ s).toReal *
           if ∃ e ∈ (M i).edges, ∀ j ∈ e, s j = true then (1 : ℝ) else 0 := by
@@ -640,7 +645,10 @@ theorem IsLocalDecoder.rpow_le_card_of_nonadaptivePlan [Fintype ι] [Fintype P]
           (Fintype.card P : ℝ) ^ (q - 1)) =
           (q : ℝ) ^ 2 * (4 * Real.logb 2 (Fintype.card Γ)) ^ q * (Fintype.card P : ℝ) ^ (q - 1) by
         rw [show (4 * Real.logb 2 (Fintype.card Γ)) ^ q =
-            (2 : ℝ) ^ q * (2 * Real.logb 2 (Fintype.card Γ)) ^ q by rw [← mul_pow]; congr 1; ring]
+            (2 : ℝ) ^ q * (2 * Real.logb 2 (Fintype.card Γ)) ^ q by
+              rw [← mul_pow]
+              congr 1
+              ring]
         ring] at h2
       exact h2
     exact rpow_le_of_pow_le_pow hq (by positivity) hB (Nat.cast_nonneg _) (Nat.cast_nonneg _) hpoly

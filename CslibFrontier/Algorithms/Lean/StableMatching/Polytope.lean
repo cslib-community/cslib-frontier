@@ -203,7 +203,9 @@ private theorem sum_mul_strictLower_eq {α : Type*} [Fintype α]
     rcases lt_trichotomy (rk a) (rk b) with hlt | heq | hgt
     · have hne : a ≠ b := fun h => (ne_of_lt hlt) (congrArg rk h)
       simp only [not_lt_of_gt hlt, hlt, hne, ↓reduceIte]; ring
-    · obtain rfl := hrk heq; simp only [lt_irrefl, ↓reduceIte]; ring
+    · obtain rfl := hrk heq
+      simp only [lt_irrefl, ↓reduceIte]
+      ring
     · have hne : a ≠ b := fun h => (ne_of_gt hgt) (congrArg rk h)
       simp only [hgt, not_lt_of_gt hgt, hne, ↓reduceIte]; ring
   have hL : (∑ a : α, ∑ b : α, if rk b < rk a then y a * y b else 0) =
@@ -336,7 +338,10 @@ private theorem exists_threshold_receiver (hn : 0 < n) {x : Fin n → Fin n → 
   · have hfilter_univ :
         insert rStar (Finset.univ.filter (fun r' => I.propRank p r' < I.propRank p rStar)) =
           Finset.univ := by
-      ext r'; simp only [hmem_ins, Finset.mem_univ, iff_true]; have := (I.propRank p r').isLt; omega
+      ext r'
+      simp only [hmem_ins, Finset.mem_univ, iff_true]
+      have := (I.propRank p r').isLt
+      omega
     have hsum_one : I.propBetterMass x p rStar + x p rStar = 1 := by
       rw [add_comm, propBetterMass, ← Finset.sum_insert hnot_in, hfilter_univ, hrow p]
     linarith
@@ -434,9 +439,13 @@ theorem stablePolytope_eq_convexHull :
     let mid : Fin m → ℝ := fun k => (e k.castSucc + e k.succ) / 2
     have hw_pos (k : Fin m) : 0 < w k := sub_pos.2 (e.strictMono k.castSucc_lt_succ)
     have hmid_gt (k : Fin m) : e k.castSucc < mid k := by
-      have := e.strictMono k.castSucc_lt_succ; dsimp only [mid]; linarith
+      have := e.strictMono k.castSucc_lt_succ
+      dsimp only [mid]
+      linarith
     have hmid_lt (k : Fin m) : mid k < e k.succ := by
-      have := e.strictMono k.castSucc_lt_succ; dsimp only [mid]; linarith
+      have := e.strictMono k.castSucc_lt_succ
+      dsimp only [mid]
+      linarith
     have hmid_not_B (k : Fin m) : mid k ∉ B := fun hmem => by
       obtain ⟨j, hj⟩ := hmem_e hmem
       have : k.val < j.val := e.lt_iff_lt.1 (hj ▸ hmid_gt k)
@@ -502,7 +511,9 @@ theorem stablePolytope_eq_convexHull :
       have hia_le_ib : ia ≤ ib := e.le_iff_le.1 (by linarith [hx_nn p r, hia, hib])
       have hterm (k : Fin m) : w k * matchingMatrix (μ k) p r =
           if ia.val ≤ k.val ∧ k.val < ib.val then e k.succ - e k.castSucc else 0 := by
-        rw [matchingMatrix]; simp only [hμ_iff k p r]; rw [← hib, ← hia]
+        rw [matchingMatrix]
+        simp only [hμ_iff k p r]
+        rw [← hib, ← hia]
         by_cases hidx : ia.val ≤ k.val ∧ k.val < ib.val
         · have hint : e ia < mid k ∧ mid k < e ib :=
             ⟨lt_of_le_of_lt (e.monotone hidx.1) (hmid_gt k),

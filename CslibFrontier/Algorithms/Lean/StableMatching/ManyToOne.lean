@@ -520,8 +520,12 @@ private def liftCloneFun {M : ManyToOneMatching m n} (hfeas : I.IsFeasible M) (r
 private theorem liftCloneFun_none {M : ManyToOneMatching m n} (hfeas : I.IsFeasible M)
     {r : Fin m} (hMr : M.hospital r = none) :
     I.liftCloneFun hfeas r = none := by
-  unfold liftCloneFun; split; · rfl
-  · rename_i _ hsome; rw [hMr] at hsome; nomatch hsome
+  unfold liftCloneFun
+  split
+  · rfl
+  · rename_i _ hsome
+    rw [hMr] at hsome
+    nomatch hsome
 
 private theorem liftCloneFun_some {M : ManyToOneMatching m n} (hfeas : I.IsFeasible M)
     {r : Fin m} {h : Fin n} (hMr : M.hospital r = some h) :
@@ -530,8 +534,12 @@ private theorem liftCloneFun_some {M : ManyToOneMatching m n} (hfeas : I.IsFeasi
         Nat.lt_of_lt_of_le (I.hospPos_lt_card (ManyToOneMatching.mem_residents.2 hMr))
           (hfeas h)⟩) := by
   unfold liftCloneFun; split
-  · rename_i hnone; rw [hMr] at hnone; nomatch hnone
-  · rename_i h' hsome; obtain rfl := Option.some_injective _ (hsome.symm.trans hMr); rfl
+  · rename_i hnone
+    rw [hMr] at hnone
+    nomatch hnone
+  · rename_i h' hsome
+    obtain rfl := Option.some_injective _ (hsome.symm.trans hMr)
+    rfl
 
 private def liftClone {M : ManyToOneMatching m n} (hM : I.IsStable M) :
     PartialMatching m (n * I.maxQuota) :=

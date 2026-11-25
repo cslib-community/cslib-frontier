@@ -323,10 +323,14 @@ theorem exists_modRegret_univ_eq_sub_one {N : ℕ} (hN : 2 ≤ N) :
     refine ⟨fun _ => by positivity, ?_⟩
     simp only [p, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]
     field_simp
-  · intro _ _ i; dsimp only [ℓ]; split_ifs <;> simp
+  · intro _ _ i
+    dsimp only [ℓ]
+    split_ifs <;> simp
   · apply le_antisymm
     · rw [modRegret_internalRules_le_iff]
-      intro a b; rw [hterm a b]; split_ifs <;> norm_num
+      intro a b
+      rw [hterm a b]
+      split_ifs <;> norm_num
     · have hle := sub_le_modRegret (F := internalRules (Fin N)) p ℓ N ⟨⟨1, by omega⟩, 0, rfl⟩
       rw [sub_loss_update_id, hterm] at hle
       simpa [Fin.ext_iff] using hle

@@ -210,11 +210,15 @@ theorem eq_topTradingCycles_of_ir_pe_sp {M : HousingMechanism n}
       rintro S ⟨ν, hS, hle, j₀, hj₀, hlt⟩
       refine I.inStrictCore_ttc S ⟨ν, hS, fun j hj => ?_, j₀, hj₀, ?_⟩
       · by_cases hji : j = i
-        · subst hji; have h1 := hle j hj; rw [hI'_ttc_rank, hI'_rank] at h1
+        · subst hji
+          have h1 := hle j hj
+          rw [hI'_ttc_rank, hI'_rank] at h1
           exact (Instance.swap_le_iff_of_lt hrk hkr).1 h1
         · simpa only [I', I.updatePref_rank_of_ne π hji] using hle j hj
       · by_cases hji : j₀ = i
-        · subst hji; have h1 := hlt; rw [hI'_ttc_rank, hI'_rank] at h1
+        · subst hji
+          have h1 := hlt
+          rw [hI'_ttc_rank, hI'_rank] at h1
           rwa [Instance.swap_eq_self_of_le hrk hkr
             ((Instance.swap_le_iff_of_lt hrk hkr).1 h1.le)] at h1
         · simpa only [I', I.updatePref_rank_of_ne π hji] using hlt
@@ -304,7 +308,10 @@ private theorem val_ge_of_ne {k : ℕ} (hk : k < n) {i : Fin n} (hi : n - (k + 1
 theorem sdSteps_mem {k : ℕ} {R : Finset (Fin n)} (hk_le : k ≤ n) (hcard : k ≤ R.card) {i : Fin n}
     (hi : n - k ≤ i.val) : I.sdSteps k R i ∈ R := by
   induction k generalizing R with
-  | zero => exfalso; have := i.isLt; omega
+  | zero =>
+    exfalso
+    have := i.isLt
+    omega
   | succ k ih =>
     have hk : k < n := by omega
     let a : Fin n := ⟨n - 1 - k, by omega⟩
@@ -318,7 +325,12 @@ theorem sdSteps_mem {k : ℕ} {R : Finset (Fin n)} (hk_le : k ≤ n) (hcard : k 
 theorem sdSteps_injOn {k : ℕ} {R : Finset (Fin n)} (hk_le : k ≤ n) (hcard : k ≤ R.card) :
     Set.InjOn (I.sdSteps k R) {i : Fin n | n - k ≤ i.val} := by
   induction k generalizing R with
-  | zero => intro x hx; exfalso; have : n ≤ x.val := hx; have := x.isLt; omega
+  | zero =>
+    intro x hx
+    exfalso
+    have : n ≤ x.val := hx
+    have := x.isLt
+    omega
   | succ k ih =>
     intro x hx y hy hxy
     have hk : k < n := by omega
@@ -353,7 +365,11 @@ private theorem eq_sdSteps_of_rank_le {k : ℕ} {R : Finset (Fin n)} (hk_le : k 
     (hle : ∀ i : Fin n, n - k ≤ i.val → I.rank i (ν i) ≤ I.rank i (I.sdSteps k R i)) :
     ∀ i : Fin n, n - k ≤ i.val → ν i = I.sdSteps k R i := by
   induction k generalizing R with
-  | zero => intro i hi; exfalso; have := i.isLt; omega
+  | zero =>
+    intro i hi
+    exfalso
+    have := i.isLt
+    omega
   | succ k ih =>
     intro i hi
     have hk : k < n := by omega
@@ -386,7 +402,10 @@ private theorem rank_sdSteps_le_updatePref {k : ℕ} {R : Finset (Fin n)} (hk_le
     (hcard : k ≤ R.card) (i : Fin n) (hi : n - k ≤ i.val) (π : Equiv.Perm (Fin n)) :
     I.rank i (I.sdSteps k R i) ≤ I.rank i ((I.updatePref i π).sdSteps k R i) := by
   induction k generalizing R with
-  | zero => exfalso; have := i.isLt; omega
+  | zero =>
+    exfalso
+    have := i.isLt
+    omega
   | succ k ih =>
     have hk : k < n := by omega
     let J := I.updatePref i π

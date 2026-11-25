@@ -685,7 +685,9 @@ private theorem toJetTable_measurementFold_eq {n' Q r A₀ R J ℓ k' : ℕ} {τ
         ((data.varGroups.getD t.1 []).getD g.1 []).length = (vGroups_t.getD g.1 []).length from
         hdg_eq, CommonCountingAccum.toJetTable_streamGroupJetSum_eq_sum]
       have hy : ∀ g, ∃ ug, meas g ug = split word g := fun g => ⟨rep g, hrep_meas g⟩
-      dsimp only [fiber]; unfold SharedSummaries.fiberContribution; rw [dite_eq_left hy]
+      dsimp only [fiber]
+      unfold SharedSummaries.fiberContribution
+      rw [dite_eq_left hy]
       refine Finset.prod_congr rfl fun g _ => ?_
       rw [Finset.filter_filter, Finset.sum_filter]
       refine Finset.sum_congr rfl fun ug _ => ?_

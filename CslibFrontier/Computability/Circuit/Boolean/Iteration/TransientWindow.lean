@@ -101,7 +101,9 @@ private theorem le_split (k : ℕ) (hk : k ≤ b) (x y : Fin (2 ^ b)) :
   refine ⟨fun h => ⟨Nat.div_le_div_right h, fun he => by rw [he] at hx; lia⟩, fun ⟨h, he⟩ => ?_⟩
   obtain hlt | hq := h.lt_or_eq
   · exact le_of_not_gt fun hn => hlt.not_ge (Nat.div_le_div_right hn.le)
-  · have := he hq; rw [hq] at hx; lia
+  · have := he hq
+    rw [hq] at hx
+    lia
 
 private theorem synthesis_splitTests (s : Set (BooleanFunction a)) (v : BitString a → Fin (2 ^ b))
     (hv : wires (fun x => (BitString.equivFin b).symm (v x)) ⊆ s)

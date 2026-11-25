@@ -377,7 +377,9 @@ private theorem transformsTapesAt_extendTapes {k k' : ℕ} {Symbol State : Type*
     exact embed_wordsCfgAt e p (some tm.q₀) (fun j => ws (e j)) out (fun _ => rfl) fun _ _ => rfl
   have hrqLast : rq.last = wordsCfgAt input p' none ws' (out ++ emitted) := by
     have hrpLast : rp.last = wordsCfgAt input p' none v (out ++ emitted) := by
-      dsimp only [rp]; rw [runPath_last_eq_runFrom]; exact hrun
+      dsimp only [rp]
+      rw [runPath_last_eq_runFrom]
+      exact hrun
     simp only [rq, RelSeries.last_map, hrpLast, embedHom_apply]
     exact embed_wordsCfgAt e p' none v (out ++ emitted) hv hx
   have hrunQ : (tm.extendTapes e).runFrom (wordsCfgAt input p (some (tm.extendTapes e).q₀) ws out)
@@ -667,7 +669,9 @@ theorem computableInTimeAndSpace_boundedPrefix
         ((((frame u).length + 1) + (min N raw.length + 1) +
           (((frame u).length + min N raw.length + 2) + (min N raw.length + 2))) +
         (cV * ((frame u ++ raw.take N).length + 1) ^ dV + 4)))) ≤ tPoly L := by
-      dsimp only [tPoly, wBound, capBound] at hlen1 hmin hW hpow ⊢; rw [hlenFrame]; omega
+      dsimp only [tPoly, wBound, capBound] at hlen1 hmin hW hpow ⊢
+      rw [hlenFrame]
+      omega
     have hs_le : ((frame u).length + 2 + (K - 1)) +
         ((cU * ((frame u).length + 1) ^ dU + 2 * (frame u).length + 2 * L + 3 * kU + 18 +
           (K - (kU + 1 + 2))) +
@@ -678,7 +682,9 @@ theorem computableInTimeAndSpace_boundedPrefix
             (2 * (min N raw.length + 2 + 1))) + (K - 2)) +
         (cV * ((frame u ++ raw.take N).length + 1) ^ dV +
           2 * ((frame u ++ raw.take N).length + 2) + 2 * kV + 8 + (K - (kV + 2)))))) ≤ sPoly L := by
-      dsimp only [sPoly, wBound, capBound] at hlen1 hmin hW hpow ⊢; rw [hlenFrame]; omega
+      dsimp only [sPoly, wBound, capBound] at hlen1 hmin hW hpow ⊢
+      rw [hlenFrame]
+      omega
     obtain ⟨p', ws', _, hrun, ⟨_, _, _, rfl⟩, hspace⟩ :=
       (hcomp.mono ht_le hs_le) inp 1 ws₀ [] ⟨rfl, rfl, rfl⟩
     rw [List.nil_append] at hrun

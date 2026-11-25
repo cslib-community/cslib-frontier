@@ -699,7 +699,9 @@ theorem card_andreevSharpIndex (b m : ℕ) :
     ring
   have := @Nat.one_le_two_pow b
   obtain ⟨heven1, heven2⟩ := andreevSharp_count_even b m
-  rw [sum_add_distrib] at hsum; rw [andreevSharpRange]; omega
+  rw [sum_add_distrib] at hsum
+  rw [andreevSharpRange]
+  omega
 
 /-- **Size of the sharper circuit**: the bottom gates of `card_andreevSharpIndex` and one top
 gate. -/
@@ -814,7 +816,9 @@ theorem abs_andreevSharpTable_le (idx : AndreevSharpIndex b m) (c : BitString b)
   · simp only [andreevSharpTable]; rw [abs_of_nonneg (by positivity)]
     exact (mul_le_of_le_one_right (by positivity)
       (by exact_mod_cast Bool.toNat_le _)).trans (by linarith)
-  · simp only [andreevSharpTable]; rw [abs_of_nonneg (by positivity)]; linarith
+  · simp only [andreevSharpTable]
+    rw [abs_of_nonneg (by positivity)]
+    linarith
   · simp only [andreevSharpTable, Pi.zero_apply, abs_zero]; positivity
   · exact hB_ite fun _ => Fin.pos i
   · exact hB_ite fun _ => Nat.pos_of_ne_zero fun hb => by have := j.isLt; simp [hb] at this
@@ -842,7 +846,9 @@ theorem abs_andreevSharpThreshold_le (idx : AndreevSharpIndex b m) :
   · have := θ.isLt; omega
   · have := hpos (Fin.pos i); have := ℓ.isLt; omega
   · have := hpos (Fin.pos i); have := ℓ.isLt; omega
-  · have hj := j.isLt; have := hpos (Nat.pos_of_ne_zero fun hb => by simp [hb] at hj); omega
+  · have hj := j.isLt
+    have := hpos (Nat.pos_of_ne_zero fun hb => by simp [hb] at hj)
+    omega
   · have hj := j.isLt
     have : #S * m ≤ b * m := Nat.mul_le_mul_right m ((card_le_univ S).trans_eq (Fintype.card_fin b))
     have := hpos (Nat.pos_of_ne_zero fun hb => by
@@ -1137,7 +1143,9 @@ theorem size_andreevSharpCircuit_of_balanced {b m : ℕ} (h : 2 ^ b = b * m) :
     show (B * (2 * k) + 1) / 2 = B * k by omega] at h2
   have hBk : 1 ≤ B * k := Nat.mul_pos Nat.one_le_two_pow hkpos
   zify [hBk, show 1 ≤ 2 * (B * k) by omega, hkpos, show 1 ≤ B from Nat.one_le_two_pow] at h2
-  rw [hN]; push_cast; linear_combination 8 * h2
+  rw [hN]
+  push_cast
+  linear_combination 8 * h2
 
 /-- **Size for `m = ⌊2 ^ b / b⌋`** (preprint, Theorem 5): with `n = 2 ^ b + b m`,
 `16 · size ≤ 5 (n + b)² + 52 (n + b) + 24`, so `size ≤ (5/16) n² + O(n log n)` since

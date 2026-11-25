@@ -177,7 +177,9 @@ theorem expectedReads_mask (program : ProbOracleComp (fun _ : P => Γ) α) (y : 
   rw [expectedReads_eq, mask, expectedCost_interpret, evalWith_maskHandler]
   have hcost : (fun q' => expectedCost (wordOracle y) (readCost j) (maskHandler H z q')) =
       if j ∈ H then 0 else readCost j := by
-    funext q'; rw [expectedCost_maskHandler]; split_ifs <;> rfl
+    funext q'
+    rw [expectedCost_maskHandler]
+    split_ifs <;> rfl
   rw [hcost]
   split_ifs <;> simp [expectedCost_zero, expectedReads_eq]
 

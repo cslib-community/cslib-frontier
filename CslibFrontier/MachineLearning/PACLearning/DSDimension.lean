@@ -129,7 +129,9 @@ theorem GraphShatters.superset {C C' : ConceptClass α β} {W : Set α}
 
 theorem GraphShatters.nonempty {C : ConceptClass α β} {W : Set α}
     (hW : GraphShatters C W) : C.Nonempty :=
-  let ⟨_, h⟩ := hW; let ⟨c, hc, _⟩ := h ∅ (Set.empty_subset W); ⟨c, hc⟩
+  let ⟨_, h⟩ := hW
+  let ⟨c, hc, _⟩ := h ∅ (Set.empty_subset W)
+  ⟨c, hc⟩
 
 theorem graphShatters_empty {C : ConceptClass α β} (hC : C.Nonempty) :
     GraphShatters C ∅ :=
@@ -384,7 +386,9 @@ theorem DSShatters.superset {C C' : ConceptClass α β} {W : Set α}
 
 theorem DSShatters.nonempty {C : ConceptClass α β} {W : Set α}
     (hW : DSShatters C W) : C.Nonempty :=
-  let ⟨_, hPsub, ⟨_, hfP⟩, _⟩ := hW; let ⟨c, hc, _⟩ := hPsub hfP; ⟨c, hc⟩
+  let ⟨_, hPsub, ⟨_, hfP⟩, _⟩ := hW
+  let ⟨c, hc, _⟩ := hPsub hfP
+  ⟨c, hc⟩
 
 theorem dsShatters_empty {C : ConceptClass α β} (hC : C.Nonempty) :
     DSShatters C ∅ :=
@@ -633,7 +637,11 @@ theorem card_le_of_graphShatters [Fintype β] {C : ConceptClass α β} {W : Fins
     calc 3 ^ d * k ^ (2 * d)
         < 2 ^ (2 * d) * k ^ (2 * d) := Nat.mul_lt_mul_of_pos_right h3lt (by positivity)
       _ ≤ 2 ^ (2 * d) * 2 ^ ((Nat.log 2 k + 1) * (2 * d)) := Nat.mul_le_mul_left _ hkle
-      _ = 2 ^ s := by rw [← pow_add]; congr 1; dsimp only [s]; ring
+      _ = 2 ^ s := by
+        rw [← pow_add]
+        congr 1
+        dsimp only [s]
+        ring
   have h9lt8 : 9 ^ s < 8 ^ s :=
     h9le.trans_lt <|
       (Nat.mul_lt_mul_of_pos_left hcoeff_lt (by positivity)).trans_eq (mul_pow 4 2 s).symm
@@ -803,7 +811,9 @@ theorem card_le_one_of_dsShatters_revealingSetClass [DecidableEq α] {W : Finset
     obtain ⟨_, ⟨B₁, rfl⟩, hB₁⟩ := hPsub hg
     obtain ⟨_, ⟨B₂, rfl⟩, hB₂⟩ := hPsub hg'P
     have hinv : ∀ {B' : Finset α}, revealingConcept B' i.1 = some B → B' = B := fun h => by
-      simp only [revealingConcept] at h; split_ifs at h; exact Option.some.inj h
+      simp only [revealingConcept] at h
+      split_ifs at h
+      exact Option.some.inj h
     have hB₁_eq : B₁ = B := hinv ((congrFun hB₁ i).trans hgi)
     have hB₂_eq : B₂ = B := hinv ((congrFun hB₂ i).trans ((hgj_eq i hji.symm).trans hgi))
     have hgg' : g' = g := by rw [← hB₂, hB₂_eq, ← hB₁_eq, hB₁]

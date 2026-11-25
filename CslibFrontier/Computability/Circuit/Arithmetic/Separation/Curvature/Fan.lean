@@ -100,7 +100,9 @@ theorem thm_cn_segments (hw : IsPrice K w) {Q : Type} (a b : Q → Y) {M : ℕ} 
     have hEq (l : Fin M) : w (if (l : ℕ) < j then b q else a q)
         (if (l : ℕ) < j then b q' else a q') =
         if (l : ℕ) < j then w (b q) (b q') else w (a q) (a q') := by split_ifs <;> rfl
-    simp only [hEq, sum_fin_ite_lt hj]; field_simp; ring
+    simp only [hEq, sum_fin_ite_lt hj]
+    field_simp
+    ring
   · simp only [Sum.elim_inr, ← Finset.mul_sum]
     have h4 := Finset.sum_le_sum fun (l : Fin M) (_ : l ∈ univ) => show
         w (if (l : ℕ) < j then b q else a q) (if (l : ℕ) < j' then b q else a q) ≤
@@ -112,11 +114,15 @@ theorem thm_cn_segments (hw : IsPrice K w) {Q : Type} (a b : Q → Y) {M : ℕ} 
   · simp only [Sum.elim_inl, Sum.elim_inr, id, ← Finset.mul_sum]
     have hEq (l : Fin M) : w (a q) (if (l : ℕ) < j then b q else a q) =
         if (l : ℕ) < j then w (a q) (b q) else 0 := by split_ifs; exacts [rfl, hw.self _]
-    simp only [hEq, sum_fin_ite_lt hj]; field_simp; ring
+    simp only [hEq, sum_fin_ite_lt hj]
+    field_simp
+    ring
   · simp only [Sum.elim_inl, Sum.elim_inr, id, ← Finset.mul_sum]
     have hEq (l : Fin M) : w (b q) (if (l : ℕ) < j then b q else a q) =
         if (l : ℕ) < j then 0 else w (a q) (b q) := by split_ifs; exacts [hw.self _, hw.symm _ _]
-    simp only [hEq, sum_fin_ite_lt hj]; field_simp; ring
+    simp only [hEq, sum_fin_ite_lt hj]
+    field_simp
+    ring
 
 /-! ### The fan -/
 
@@ -301,7 +307,9 @@ theorem z_γ_le (F : IsFan K w x m z D T n d) (hn : 0 < n) (b : Bool) (i : ℕ)
   rw [F.z_γ_last] at h1
   have hi' : (i : ℝ) ≤ (n : ℝ) ^ 2 := by exact_mod_cast hi
   have h4 : |((n ^ 2 : ℕ) : ℝ) - i| ≤ (n : ℝ) ^ 2 := by
-    push_cast; rw [abs_of_nonneg (by linarith)]; linarith [Nat.cast_nonneg (α := ℝ) i]
+    push_cast
+    rw [abs_of_nonneg (by linarith)]
+    linarith [Nat.cast_nonneg (α := ℝ) i]
   have h5 := (F.γ_le hn b (n ^ 2) i le_rfl hi).trans
     (mul_le_mul_of_nonneg_right h4 (F.D_nonneg hn))
   linarith [le_of_mul_le_mul_left h5 (by positivity)]
@@ -597,7 +605,10 @@ theorem thm_cn_i (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT : 2 ≤ T
         w z (x true) := (hd n).fanPot_zero true (k : ℤ) (by rw [e]; positivity) k2
     have g3 : fanP d x T n false (0, k) ≤ ((k : ℝ) + max n 1) / ((max n 1 : ℕ) ^ 2 * T) *
         w z (x false) := (hd n).fanPot_zero false (k : ℤ) (by rw [e]; positivity) k2
-    rw [e, hxx] at g1; rw [e] at g2 g3; rw [Fintype.sum_bool]; push_cast at g1 g2 g3 ⊢
+    rw [e, hxx] at g1
+    rw [e] at g2 g3
+    rw [Fintype.sum_bool]
+    push_cast at g1 g2 g3 ⊢
     have hk' : (k : ℝ) ≤ n := by exact_mod_cast hk.le
     have g4 : ((k : ℝ) + n) / (n ^ 2 * T) ≤ 2 / T * (1 / n) := by
       rw [div_mul_div_comm, div_le_div_iff₀ (by positivity) (by positivity)]
@@ -719,7 +730,10 @@ theorem thm_cn_iv_bound (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (n : �
     | succ S ih =>
       rw [show (n : ℝ) ^ 2 * (fanL d z n b (i + (S + 1 : ℕ)) - fanL d z n b i) =
           n ^ 2 * (fanL d z n b (i + S + 1) - fanL d z n b (i + S))
-            + n ^ 2 * (fanL d z n b (i + S) - fanL d z n b i) by push_cast; rw [← add_assoc]; ring]
+            + n ^ 2 * (fanL d z n b (i + S) - fanL d z n b i) by
+              push_cast
+              rw [← add_assoc]
+              ring]
       refine (abs_add_le _ _).trans ?_
       push_cast; linarith [fanL_step hd n b (i + S)]
   rw [show (n : ℝ) ^ 2 * (fanL d z n b (i + S) ^ 2 - fanL d z n b i ^ 2) =
@@ -750,7 +764,9 @@ theorem thm_cn_iv_telescope (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (h
       have z2 : fanL d z n false 0 = w z (x false) := (hd n).fanLen_zero false
       rw [e] at g1 g2
       rw [Fintype.sum_bool, z1, z2]
-      push_cast; rw [g1, g2]; linarith)
+      push_cast
+      rw [g1, g2]
+      linarith)
   linarith
 
 /-- The next sentence of claim (iv): Square this, use 2L′(L′ − L) ≥ L′² − L², and note that … 1 −
@@ -881,7 +897,9 @@ theorem thm_cn_end (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT : 2 ≤
   set Gc := w z m ^ 2 - (w z (x true) ^ 2 + w z (x false) ^ 2) / 2
   have c0 : N (1, -1 - ((1 : ℕ) : ℤ)) ^ 2 + N (1, 0) ^ 2 ≤
       2 * N (1, -1 - ((0 : ℕ) : ℤ)) ^ 2 + 2 * (θ ^ 2 * Λ₂) := by
-    have h := par (1, -1) (0, 1); norm_num at h ⊢; linarith
+    have h := par (1, -1) (0, 1)
+    norm_num at h ⊢
+    linarith
   have c1 (j : ℕ) : N (1, -1 - ((j + 2 : ℕ) : ℤ)) ^ 2 + N (1, -1 - (j : ℤ)) ^ 2 ≤
       2 * N (1, -1 - ((j + 1 : ℕ) : ℤ)) ^ 2 + 2 * (θ ^ 2 * Λ₂) := by
     have h := par (1, -1 - ((j + 1 : ℕ) : ℤ)) (0, 1)

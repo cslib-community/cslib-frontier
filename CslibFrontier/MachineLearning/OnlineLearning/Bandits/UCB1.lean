@@ -513,7 +513,9 @@ theorem ucb1_expectedPulls_le_add_two [Nonempty ι] (B : StochasticBandit ι) {T
     B.expectedPulls ucb1Policy T i ≤ 8 * log T / B.gap i ^ 2 + 2 := by
   obtain ⟨iStar, hiStar_mean, _⟩ := B.exists_optimal_arm
   have hK2 : 2 ≤ Fintype.card ι := Fintype.one_lt_card_iff.mpr ⟨i, iStar, fun h => by
-    subst h; rw [B.gap_def, hiStar_mean, sub_self] at hgap; exact lt_irrefl 0 hgap⟩
+    subst h
+    rw [B.gap_def, hiStar_mean, sub_self] at hgap
+    exact lt_irrefl 0 hgap⟩
   rcases eq_or_lt_of_le hT with rfl | hT2
   · have hsum := B.sum_expectedPulls_eq ucb1Policy_isMeasurable 1
     have hsingle := single_le_sum (fun j _ => B.expectedPulls_nonneg ucb1Policy 1 j) (mem_univ i)
@@ -575,7 +577,9 @@ theorem ucb1_expectedPulls_le_add_two [Nonempty ι] (B : StochasticBandit ι) {T
         have hfrac : 2 * log t / s_i ≤ (B.gap i / 2) ^ 2 := by
           rw [div_le_iff₀ hsi_pos]
           have hmul : (B.gap i / 2) ^ 2 * (8 * log T / B.gap i ^ 2) = 2 * log T := by
-            have := hgap.ne'; field_simp; ring
+            have := hgap.ne'
+            field_simp
+            ring
           have := mul_le_mul_of_nonneg_left hsi_ge (sq_nonneg (B.gap i / 2))
           linarith
         linarith [(sqrt_le_sqrt hfrac).trans_eq (sqrt_sq (by positivity))]

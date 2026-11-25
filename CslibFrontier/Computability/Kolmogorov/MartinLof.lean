@@ -322,7 +322,9 @@ theorem exists_computable_approx_coinFlips_of_rePred {S : Set (List Bool)} (hS :
   refine ⟨_, _, (primrec_prefixUnionCount.comp hre).to_comp,
     (primrec_two_pow.comp (primrec_prefixUnionMaxLen.comp hre)).to_comp, fun _ => by positivity,
     fun a b hab => by
-      dsimp only; rw [hratio a, hratio b]; exact_mod_cast monotone_reCoverMass e hab, ?_⟩
+      dsimp only
+      rw [hratio a, hratio b]
+      exact_mod_cast monotone_reCoverMass e hab, ?_⟩
   rw [show S = {w | (e.eval (encode w)).Dom} from Set.ext he]
   exact (tendsto_reCoverMass e).congr fun t => (hratio t).symm
 
@@ -1512,7 +1514,10 @@ private theorem card_filter_sum_signVal_ge (n : ℕ) {δ : ℝ} (hδ : 0 ≤ δ)
     _ ≤ ((2 ^ n : ℝ) * Real.exp (s ^ 2 * n / 2)) / Real.exp (s * t) :=
         (le_div_iff₀ (Real.exp_pos _)).mpr hmul
     _ = (2 ^ n : ℝ) * Real.exp (s ^ 2 * n / 2 - s * t) := by rw [mul_div_assoc, Real.exp_sub]
-    _ = (2 ^ n : ℝ) * Real.exp (-2 * δ ^ 2 * n) := by congr 2; dsimp only [s, t]; ring
+    _ = (2 ^ n : ℝ) * Real.exp (-2 * δ ^ 2 * n) := by
+      congr 2
+      dsimp only [s, t]
+      ring
 
 private theorem card_filter_trueCount_le (n : ℕ) {δ : ℝ} (hδ : 0 ≤ δ) :
     ((Finset.univ.filter fun y : Fin n → Bool =>
@@ -1536,7 +1541,9 @@ private theorem card_filter_trueCount_le (n : ℕ) {δ : ℝ} (hδ : 0 ≤ δ) :
     simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_union, A, B] at hy ⊢
     have hSy : |S y| = 2 * |(trueCount y : ℝ) - (n : ℝ) / 2| := by
       rw [show S y = -2 * ((trueCount y : ℝ) - (n : ℝ) / 2) by
-        dsimp only [S]; rw [sum_signVal_eq]; ring, abs_mul, show |(-2 : ℝ)| = 2 by norm_num]
+        dsimp only [S]
+        rw [sum_signVal_eq]
+        ring, abs_mul, show |(-2 : ℝ)| = 2 by norm_num]
     exact le_abs.mp (by linarith)
   have hcard_union : ((Finset.univ.filter fun y : Fin n → Bool =>
       δ * n ≤ |(trueCount y : ℝ) - (n : ℝ) / 2|).card : ℝ) ≤ (A.card : ℝ) + (B.card : ℝ) := by

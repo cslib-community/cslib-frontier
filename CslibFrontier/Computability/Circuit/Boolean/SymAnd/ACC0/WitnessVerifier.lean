@@ -873,7 +873,9 @@ theorem smallACC0WitnessLanguage_mem_NTIME_of_acc0SAT (dD dW : ℕ) {m : ℕ} (h
     (inv_lt_comm₀ (by positivity) hε).mpr <| by
       have : 2 / ε ≤ (Nat.ceil (2 / ε) : ℝ) := Nat.le_ceil _
       have : 1 / ε < 2 / ε := by gcongr; norm_num
-      dsimp only [r_w]; push_cast; linarith [one_div ε]
+      dsimp only [r_w]
+      push_cast
+      linarith [one_div ε]
   refine ⟨r_w, δ, c₀ / 2, hrw_pos, lt_trans hε hεδ, hδ1, by positivity, ?_⟩
   intro q r D c hq hr hD hdepth hq_le
   let padCert : List Bool × List Bool → Σ n, Circuit Unbounded.extSignature n 1 := fun p =>

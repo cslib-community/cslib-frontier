@@ -361,7 +361,9 @@ theorem Realizable.exists_sameHeightRun {M : AuxPDA k Bool StackSym State}
     obtain ⟨pmid, hmidHead, hmidSurf, hmidStack, hmidLen, -, hmidGe⟩ := ih hc'surf
     obtain ⟨_, q₂, act₂, hq₂, htr₂, hpopOp, hs₂⟩ := hpop
     have htop₂' : pmid.last.topSym = some γ := by
-      change pmid.last.stack.head? = _; rw [hmidStack]; rfl
+      change pmid.last.stack.head? = _
+      rw [hmidStack]
+      rfl
     have hq₂' : pmid.last.tapes.state = some q₂ := by rw [← hmidSurf] at hq₂; exact hq₂
     have htr₂' : M.Tr q₂ pmid.last.tapes.inputSymbol pmid.last.tapes.workTapeSymbols
         pmid.last.topSym act₂ := by rw [← hmidSurf] at htr₂; rwa [htop₂']
@@ -397,13 +399,18 @@ theorem Realizable.exists_sameHeightRun {M : AuxPDA k Bool StackSym State}
     rw [show p.head = c₁ by simp [p, hp₁Head]]
     rcases RelSeries.mem_or_mem_of_mem_smash (⟨i, rfl⟩ : p i ∈ p) with ⟨j, hj⟩ | ⟨j, hj⟩
     · rw [← hj, ← hp₁Head]; exact hp₁Ge j
-    · rw [← hj]; have hge := hp₂Ge j; rwa [hp₂Head, hp₁Stack] at hge
+    · rw [← hj]
+      have hge := hp₂Ge j
+      rwa [hp₂Head, hp₁Stack] at hge
 
 private lemma stackOp_pop_length {s s' : List StackSym}
     (h : StackOp.pop.apply? s = some s') : s'.length + 1 = s.length := by
   cases s with
   | nil => cases h
-  | cons _ _ => simp only [StackOp.apply?_pop_cons, Option.some.injEq] at h; subst h; simp
+  | cons _ _ =>
+    simp only [StackOp.apply?_pop_cons, Option.some.injEq] at h
+    subst h
+    simp
 
 /-- Structural split of any `SameHeightRun` of length `d' + 2`: either it hits the base stack
 height at an interior index `0 < j < p.length`, or it consists of a first `push γ`, an interior
@@ -438,7 +445,9 @@ theorem sameHeightRun_split_ge_two {M : AuxPDA k Bool StackSym State} {d' : ℕ}
     push Not at hmid
     have hstrict (j : Fin (p.length + 1)) (hj0 : 0 < j.val) (hjlt : j.val < p.length) :
         p.head.stack.length + 1 ≤ (p j).stack.length := by
-      have := hge j; have := hmid j hj0 hjlt; omega
+      have := hge j
+      have := hmid j hj0 hjlt
+      omega
     have h1lt : 1 < p.length + 1 := by omega
     have hstep1 : M.Step p.head (p ⟨1, h1lt⟩) := p.step ⟨0, by omega⟩
     have h1eq : (p ⟨1, h1lt⟩).stack.length = p.head.stack.length + 1 := by
@@ -456,7 +465,10 @@ theorem sameHeightRun_split_ge_two {M : AuxPDA k Bool StackSym State} {d' : ℕ}
         | stay =>
           rw [hop, StackOp.apply?_stay, Option.some.injEq] at hstack
           subst hstack; simp [h1cfg] at h1eq
-        | pop => have := stackOp_pop_length (hop ▸ hstack); simp only [h1cfg] at h1eq; omega
+        | pop =>
+          have := stackOp_pop_length (hop ▸ hstack)
+          simp only [h1cfg] at h1eq
+          omega
         | push γ =>
           rw [hop, StackOp.apply?_push, Option.some.injEq] at hstack; subst hstack
           exact ⟨γ, by simp [h1cfg], ⟨q, act, hq, htr, hop,
@@ -499,7 +511,9 @@ theorem sameHeightRun_split_ge_two {M : AuxPDA k Bool StackSym State} {d' : ℕ}
       | pop =>
         rw [hop, hpenStack, StackOp.apply?_pop_cons, Option.some.injEq] at hstack; subst hstack
         have htopPen : (p ⟨p.length - 1, hpenlt⟩).surface.topSym = some γ := by
-          change (p ⟨p.length - 1, hpenlt⟩).stack.head? = some γ; rw [hpenStack]; rfl
+          change (p ⟨p.length - 1, hpenlt⟩).stack.head? = some γ
+          rw [hpenStack]
+          rfl
         exact ⟨by simp [hlastCfg], htopPen, q, act, hq, htopPen ▸ htr, hop,
           hlastCfg ▸ surface_apply_eq_applySurfaceTapes act.tape _ p.head.stack⟩
 
@@ -533,7 +547,9 @@ private theorem sameHeightRun_stack_and_realizable {M : AuxPDA k Bool StackSym S
           subst hstack; have := hsame.1; simp [hpLast] at this
         | pop =>
           have := stackOp_pop_length (hop ▸ hstack)
-          have := hsame.1; simp only [hpLast] at this; omega
+          have := hsame.1
+          simp only [hpLast] at this
+          omega
     | d' + 2 =>
       rcases sameHeightRun_split_ge_two p hlen hsame with
         ⟨j, hjpos, hjlt, h1, h2⟩ | ⟨γ, pmid, hmidLen, hmidSame, -, hmidHeadStack, hpush, hpopFn⟩
@@ -856,7 +872,9 @@ private theorem withEmptyStackHalt_project {Symbol : Type*} {input : List Symbol
           fun h => by simp [hcNone] at h, fun _ h => by simp [hcNone] at h⟩
       · refine ⟨q, d + 1, hnoPost, hvis', fun h => by simp [hcDrain] at h,
           fun _ => ⟨hqHalt, by simpa [hout] using hqOut, ?_, ?_⟩, fun _ h => by simp [hcDrain] at h⟩
-        · simp only [RelSeries.last_snoc, hcStack]; rw [hrStack, List.length_cons] at hstEq; omega
+        · simp only [RelSeries.last_snoc, hcStack]
+          rw [hrStack, List.length_cons] at hstEq
+          omega
         · simp only [RelSeries.snoc_length]; omega
     · obtain ⟨hproj, htm⟩ := hrun st hrRun
       have hstep' : M.Step q.last (projectDrainCfg c) := hproj ▸ hstep

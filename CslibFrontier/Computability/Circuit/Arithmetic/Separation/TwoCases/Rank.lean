@@ -168,13 +168,18 @@ private theorem exists_meanSq_eq (hK : ¬ ContractingCase K) (hμ : 2 ≤ μ) :
     have h1 := meanSq_le hw hr
     have h2 := meanSq_le hw (Nat.sub_le μ r)
     have h3 := meanSq_add_le hw (i := r) (j := μ - r) (by omega)
-    rw [hw1, mul_one] at h1 h2; rw [Nat.add_sub_cancel' hr, e] at h3; push_cast [hr] at h2; linarith
+    rw [hw1, mul_one] at h1 h2
+    rw [Nat.add_sub_cancel' hr, e] at h3
+    push_cast [hr] at h2
+    linarith
   refine hK ⟨μ, √(max 1 M), hμ, Real.one_le_sqrt.2 (le_max_left _ _), ?_, fun w hw => ?_⟩
   · rw [Real.sq_sqrt (le_max_of_le_left zero_le_one)]; exact max_lt (by exact_mod_cast hμ) hMμ
   rw [distAtRank, distAtRank, ← Real.sqrt_mul (le_max_of_le_left zero_le_one)]
   refine Real.sqrt_le_sqrt ?_
   rcases (meanSq_nonneg w 1).eq_or_lt with h0 | h1
-  · have := meanSq_le hw le_rfl; rw [← h0] at this ⊢; linarith [meanSq_nonneg w μ]
+  · have := meanSq_le hw le_rfl
+    rw [← h0] at this ⊢
+    linarith [meanSq_nonneg w μ]
   · have h := hM _ (scale w hw h1)
     rw [meanSq_smul, inv_pow, Real.sq_sqrt h1.le, inv_mul_le_iff₀ h1] at h
     exact h.trans ((mul_comm _ _).le.trans (mul_le_mul_of_nonneg_right (le_max_right 1 M) h1.le))
@@ -251,7 +256,9 @@ private theorem Extremal.additive (hx : Extremal K w) {W₁ W₂ W₃ : Mt μ}
   rw [X_union p q (hd 1 2 (by decide))] at e1
   rw [X_union p q (hd 0 2 (by decide))] at e2
   rw [X_union p q (hd 0 1 (by decide))] at e3
-  set A := X p q (S 0); set B := X p q (S 1); set C := X p q (S 2)
+  set A := X p q (S 0)
+  set B := X p q (S 1)
+  set C := X p q (S 2)
   rw [show a + B + A = a + (A + B) by abel,
     show nn w (a + B) (B + C) = w (a + B) (a + C) ^ 2 by rw [nn, add_assoc, add_cancel_left],
     show a + B + (B + C) = a + C by rw [add_assoc, add_cancel_left],
@@ -369,7 +376,9 @@ private theorem Extremal.BB_eq_zero (hx : Extremal K w) (hμ : 3 ≤ μ) (a : Mt
   have r1 (l : Fin μ) : (e l).rank = 1 := by simp [e, rank_X]
   have tr {l l' : Fin μ} (h : l ≠ l') : Transversal ![e l, e l'] :=
     transversal_X₂ (disjoint_singleton.2 h)
-  set i : Fin μ := ⟨0, by omega⟩; set j : Fin μ := ⟨1, by omega⟩; set k : Fin μ := ⟨2, by omega⟩
+  set i : Fin μ := ⟨0, by omega⟩
+  set j : Fin μ := ⟨1, by omega⟩
+  set k : Fin μ := ⟨2, by omega⟩
   have hij : i ≠ j := by simp [i, j, Fin.ext_iff]
   have hik : i ≠ k := by simp [i, k, Fin.ext_iff]
   have hjk : j ≠ k := by simp [j, k, Fin.ext_iff]

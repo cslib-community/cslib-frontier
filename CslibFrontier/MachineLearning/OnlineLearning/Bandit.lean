@@ -247,7 +247,10 @@ theorem blockFullInfo_loss_eq (H : (ℕ → ι → ℝ) → ℕ → ι → ℝ) 
         rw [sum_comm]
         exact sum_congr rfl fun i _ => by simp [blockFullInfo, blockIdx_div hm, mul_sum]
     _ = (m : ℝ) * ∑ i, H (blockAvgLoss m ℓ) τ i * blockAvgLoss m ℓ τ i := by
-        rw [mul_sum]; exact sum_congr rfl fun i _ => by simp only [blockAvgLoss]; field_simp
+        rw [mul_sum]
+        exact sum_congr rfl fun i _ => by
+          simp only [blockAvgLoss]
+          field_simp
 
 /-- Full-information block regret bound [BlumMansour2007AGT, §4.6, p. 94]:
 if `H` achieves external regret at most `R` on `blockAvgLoss m ℓ` over `K` blocks, then
@@ -646,7 +649,10 @@ private theorem mabPlay_block_loss_le [DecidableEq ι] [Nonempty ι] {m K : ℕ}
             sum_nonneg fun j _ => mul_nonneg (hH_nn j) (hℓ _ (blockIdx_lt τ.isLt r) j).1
       _ = (m : ℝ) * ∑ j, H (exploredLoss sched ω ℓ) τ.val j * blockAvgLoss m ℓ τ.val j := by
           rw [sum_comm, mul_sum]
-          exact sum_congr rfl fun j _ => by rw [← mul_sum]; simp only [blockAvgLoss]; field_simp
+          exact sum_congr rfl fun j _ => by
+            rw [← mul_sum]
+            simp only [blockAvgLoss]
+            field_simp
   rw [← sum_sdiff (subset_univ E)]
   linarith
 

@@ -155,7 +155,9 @@ theorem isFTRL_fplLeader (v : α → ι → ℝ) {ε : ℝ} (hε : 0 < ε) (ℓ 
   mem _ := Set.mem_univ _
   isMinOn t b _ := by
     have hscale : ε • ∑ s ∈ range t, ℓ s + u = ε • (∑ s ∈ range t, ℓ s + (1 / ε) • u) := by
-      ext i; simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul]; field_simp
+      ext i
+      simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul]
+      field_simp
     have hobj (a : α) : OCO.ftrlObjective (fun a => (1 / ε) * (v a ⬝ᵥ u))
         (fun s a => v a ⬝ᵥ ℓ s) t a = v a ⬝ᵥ (∑ s ∈ range t, ℓ s + (1 / ε) • u) := by
       rw [OCO.ftrlObjective_def, ← dotProduct_sum, dotProduct_add, dotProduct_smul, smul_eq_mul,
@@ -297,7 +299,10 @@ theorem fpl_stability_step (v : α → ι → ℝ) {ε R : ℝ} (hε : 0 ≤ ε)
     have hpre : S ∩ {u | fplLeader v (ε • ∑ s ∈ range (t + 1), ℓ s + u) = a} =
         (fun u i => u i + δ i) ⁻¹' (S' ∩ A a) := by
       have hc : ∀ u, ε • ∑ s ∈ range (t + 1), ℓ s + u = c₀ + fun j => u j + δ j := fun u => by
-        rw [sum_range_succ, smul_add]; ext i; simp only [Pi.add_apply]; ring
+        rw [sum_range_succ, smul_add]
+        ext i
+        simp only [Pi.add_apply]
+        ring
       ext u
       simp only [S, S', A, hc, Set.mem_inter_iff, Set.mem_preimage, Set.mem_Icc, Pi.le_def,
         Pi.zero_apply, Pi.one_apply, Pi.add_apply, Set.mem_ofPred_eq]
@@ -312,7 +317,9 @@ theorem fpl_stability_step (v : α → ι → ℝ) {ε R : ℝ} (hε : 0 ≤ ε)
   have hh0 (a : α) : 0 ≤ h a := sub_nonneg.mpr (inf'_le (fun b => v b ⬝ᵥ ℓ t) (mem_univ a))
   have hhR (a : α) : h a ≤ R := by
     obtain ⟨b₀, _, hb₀⟩ := exists_mem_eq_inf' univ_nonempty (fun b : α => v b ⬝ᵥ ℓ t)
-    dsimp only [h, m]; rw [hb₀]; exact hspan a b₀
+    dsimp only [h, m]
+    rw [hb₀]
+    exact hspan a b₀
   have hshift_m : ∑ a : α, (fplProb v ε ℓ t a - fplProb v ε ℓ (t + 1) a) * (v a ⬝ᵥ ℓ t) =
       ∑ a : α, (fplProb v ε ℓ t a - fplProb v ε ℓ (t + 1) a) * h a := by
     have h0 : ∑ a : α, (fplProb v ε ℓ t a - fplProb v ε ℓ (t + 1) a) * m = 0 := by
@@ -331,7 +338,9 @@ theorem fpl_stability_step (v : α → ι → ℝ) {ε R : ℝ} (hε : 0 ≤ ε)
     rw [hprob_succ a]
     change (volume (S ∩ A a)).toReal - (volume (S' ∩ A a)).toReal ≤ _
     have hsplit : S ∩ A a = ((S ∩ S') ∩ A a) ∪ ((S \ S') ∩ A a) := by
-      ext u; simp only [Set.mem_inter_iff, Set.mem_union, Set.mem_sdiff]; tauto
+      ext u
+      simp only [Set.mem_inter_iff, Set.mem_union, Set.mem_sdiff]
+      tauto
     have hvol : volume (S ∩ A a) = volume ((S ∩ S') ∩ A a) + volume ((S \ S') ∩ A a) := by
       rw [hsplit]
       exact measure_union (Set.disjoint_left.mpr fun _ h1 h2 => h2.1.2 h1.1.2)
@@ -457,7 +466,9 @@ theorem fpl_regret_le (v : α → ι → ℝ) {ε D R A : ℝ} (hε : 0 < ε) (h
         ∑ t ∈ range T, ∑ a : α, (fplProb v ε ℓ t a - fplProb v ε ℓ (t + 1) a) *
           (v a ⬝ᵥ ℓ t) := by
     simp only [mul_add, sum_add_distrib, ← sum_mul, hsum_μw, one_mul, sum_range]
-    congr 1; simp_rw [mul_sum]; rw [sum_comm]
+    congr 1
+    simp_rw [mul_sum]
+    rw [sum_comm]
     refine sum_congr rfl fun t _ => ?_
     simp only [mul_sub, sum_sub_distrib, sub_mul]
     rw [hmarg t.castSucc (fun a => v a ⬝ᵥ ℓ t.1),
@@ -529,7 +540,9 @@ theorem fpl_experts_regret_le_sqrt {ℓ : ℕ → ι → ℝ} {T : ℕ} (hT : 0 
   have hD (a b : ι) (u : ι → ℝ) (hu : u ∈ Set.Icc (0 : ι → ℝ) 1) :
       Pi.single a (1 : ℝ) ⬝ᵥ u - Pi.single b (1 : ℝ) ⬝ᵥ u ≤ 1 := by
     simp only [single_dotProduct, one_mul]
-    have hb0 : 0 ≤ u b := hu.1 b; have ha1 : u a ≤ 1 := hu.2 a; linarith
+    have hb0 : 0 ≤ u b := hu.1 b
+    have ha1 : u a ≤ 1 := hu.2 a
+    linarith
   have hspan (t : ℕ) (ht : t < T) (a b : ι) :
       Pi.single a (1 : ℝ) ⬝ᵥ ℓ t - Pi.single b (1 : ℝ) ⬝ᵥ ℓ t ≤ 1 := by
     simp only [single_dotProduct, one_mul]; linarith [(hℓ t ht b).1, (hℓ t ht a).2]

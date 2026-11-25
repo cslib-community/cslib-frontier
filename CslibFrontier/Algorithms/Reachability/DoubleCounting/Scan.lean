@@ -99,7 +99,9 @@ private theorem walk_next (edge : Fin N → Fin N → Bool) (target current v : 
     (fuel : ℕ) (tail : List (Fin N)) :
     walk edge target (fuel + 1) current (v :: tail) =
       if edge current v then walk edge target fuel v tail else none := by
-  rw [walk, walkM]; simp only [bind, StateT.bind, readNext, pure, StateT.pure]; split <;> rfl
+  rw [walk, walkM]
+  simp only [bind, StateT.bind, readNext, pure, StateT.pure]
+  split <;> rfl
 
 /-- A replayed walk returns exactly its unused fuel when the destination list forms a path
 to the target within the original fuel. -/
@@ -374,7 +376,9 @@ private theorem contribution_matches (source target : Fin N) (branch : Branch N)
       cases h : branch v <;> simp [guessedLength, transcript, h]
   have hh : decide (∃ v, (contribution target branch v).hit = true) =
       (branch target).isSome := by simp [contribution]
-  unfold aggregate; rw [hh]; simp only [contribution, hcount, hsum, observed]
+  unfold aggregate
+  rw [hh]
+  simp only [contribution, hcount, hsum, observed]
 
 open scoped Classical in
 private theorem tally_spec (edge : Fin N → Fin N → Bool) (source target : Fin N)
@@ -484,7 +488,10 @@ private theorem foldlM_registers_le (g : Fin N → Option Result) (k : ℕ)
     (r : Result) (hr : Fin.foldlM N (fun acc v => (g v).map (add acc)) Result.zero = some r) :
     r.tally.count ≤ N ∧ r.tally.lengthSum ≤ N * k := by
   induction N generalizing r with
-  | zero => simp only [Fin.foldlM_zero, pure, Option.some.injEq] at hr; subst r; simp [Result.zero]
+  | zero =>
+    simp only [Fin.foldlM_zero, pure, Option.some.injEq] at hr
+    subst r
+    simp [Result.zero]
   | succ N ih =>
     rw [Fin.foldlM_succ_last] at hr
     change ((Fin.foldlM N (fun acc v => (g v.castSucc).map (add acc)) Result.zero).bind
@@ -515,7 +522,9 @@ private theorem walkM_clock {σ : Type} (clock : σ → ℕ)
   induction k generalizing current s with
   | zero =>
     rw [walkM, show 2 * 0 + 1 = 1 + 0 by rfl]
-    apply bind_stateM_clock clock 1 0 _ _ hn; intro result _; cases result <;> exact le_rfl
+    apply bind_stateM_clock clock 1 0 _ _ hn
+    intro result _
+    cases result <;> exact le_rfl
   | succ k ih =>
     rw [walkM, show 2 * (k + 1) + 1 = 1 + (1 + (2 * k + 1)) by omega]
     apply bind_stateM_clock clock 1 (1 + (2 * k + 1)) _ _ hn; intro result t
@@ -535,7 +544,9 @@ theorem tallyM_clock {σ : Type} (clock : σ → ℕ)
     (hn : ∀ s, clock (next s).2 ≤ clock s + 1)
     (he : ∀ u v s, clock (edge u v s).2 ≤ clock s + 1) (s : σ) :
     clock (tallyM select next edge source target k s).2 ≤ clock s + N * (2 * k + 2) := by
-  unfold tallyM; apply foldlM_optionT_clock; intro acc v state
+  unfold tallyM
+  apply foldlM_optionT_clock
+  intro acc v state
   have hselect := hs v state
   simp only [OptionT.run, OptionT.mk, candidateM, bind, StateT.bind]
   rcases hc : select v state with ⟨choice, t⟩
@@ -545,7 +556,9 @@ theorem tallyM_clock {σ : Type} (clock : σ → ℕ)
   · simp only [ite_true, bind, StateT.bind]
     have hwalk := walkM_clock clock next edge hn he v source k t
     rcases hw : walkM next edge v k source t with ⟨_, u⟩
-    rw [hw] at hwalk; change clock u ≤ _ at hwalk ⊢; omega
+    rw [hw] at hwalk
+    change clock u ≤ _ at hwalk ⊢
+    omega
 
 /-- The terminal tally check adds no callback action to `tallyM_clock`. Both a rejected scan
 and a successful false membership answer retain the same callback-action bound. -/

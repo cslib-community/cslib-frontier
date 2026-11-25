@@ -152,7 +152,10 @@ private theorem lower_tail_factor_le {ε : ℝ} (hε : 0 ≤ ε) (hε1 : ε ≤ 
     1/162 * ε^13 + 7/243 * ε^14 with hP
   have hD : 0 < 2 * (1 + ε) := by positivity
   have hid : 1 - (1 - τ + 3 / 2 * τ ^ 2) * (1 + x + x ^ 2 / 2 + x ^ 3 * 4 / 18) =
-      P / (2 * (1 + ε)) ^ 5 := by simp only [hx, hP, hτdef]; field_simp; ring
+      P / (2 * (1 + ε)) ^ 5 := by
+        simp only [hx, hP, hτdef]
+        field_simp
+        ring
   have hPnn : 0 ≤ P := by
     rw [hP]
     linarith [pow_le_pow_of_le_one hε hε1 (show 8 ≤ 9 by norm_num),
@@ -217,7 +220,10 @@ theorem dens_mul_lt_sum_sq_sum_mul_signVal_le (a : ι → ℝ) (k : ℕ) {ε : �
   have hτ : τ < 1 / 2 := by rw [hτdef, div_lt_iff₀ (by positivity)]; linarith
   have hrow := expect_exp_mul_sq_sum_mul_signVal_le a ht0 (by rwa [← hSdef, htS])
   rw [← hSdef, htS] at hrow
-  have h1 : 1 - 2 * τ = (1 + ε)⁻¹ := by rw [hτdef]; field_simp; ring
+  have h1 : 1 - 2 * τ = (1 + ε)⁻¹ := by
+    rw [hτdef]
+    field_simp
+    ring
   have h2 : t * (k * (1 + ε) * S) = k * (ε / 2) := by
     rw [show t * (k * (1 + ε) * S) = k * (1 + ε) * (t * S) by ring, htS, hτdef]; field_simp
   calc (dens ({b | k * (1 + ε) * S < ∑ j, (∑ i, a i * signVal (b j i)) ^ 2} :
@@ -229,7 +235,10 @@ theorem dens_mul_lt_sum_sq_sum_mul_signVal_le (a : ι → ℝ) (k : ℕ) {ε : �
         rw [h2, h1, Real.sqrt_inv, inv_inv, exp_nat_mul, mul_pow, div_eq_mul_inv, ← inv_pow,
           ← exp_neg]
     _ ≤ (exp (-(ε ^ 2 / 4 - ε ^ 3 / 6))) ^ k := by gcongr; exact sqrt_one_add_mul_exp_neg_le hε
-    _ = exp (-(k / 2) * (ε ^ 2 / 2 - ε ^ 3 / 3)) := by rw [← exp_nat_mul]; congr 1; ring
+    _ = exp (-(k / 2) * (ε ^ 2 / 2 - ε ^ 3 / 3)) := by
+      rw [← exp_nat_mul]
+      congr 1
+      ring
 
 /-- For the lower tail: `𝔼 exp (-t Y²) ≤ 1 - t ∑ a² + 3 (t ∑ a²)² / 2` for a Rademacher sum `Y`
 and `0 ≤ t`, from `exp (-u) ≤ 1 - u + u² / 2`, `𝔼 Y² = ∑ a²` and `𝔼 Y⁴ ≤ 3 (∑ a²)²`. -/
@@ -291,7 +300,10 @@ theorem dens_sum_sq_sum_mul_signVal_lt_mul_le (a : ι → ℝ) (k : ℕ) {ε : �
         rw [h2, exp_neg, div_inv_eq_mul, exp_nat_mul, mul_pow]
     _ ≤ (exp (-(ε ^ 2 / 4 - ε ^ 3 / 6))) ^ k :=
         pow_le_pow_left₀ (mul_nonneg hA (exp_pos _).le) (lower_tail_factor_le hε hε1.le) k
-    _ = exp (-(k / 2) * (ε ^ 2 / 2 - ε ^ 3 / 3)) := by rw [← exp_nat_mul]; congr 1; ring
+    _ = exp (-(k / 2) * (ε ^ 2 / 2 - ε ^ 3 / 3)) := by
+      rw [← exp_nat_mul]
+      congr 1
+      ring
 
 /-! ### Random sign projections -/
 
@@ -379,7 +391,9 @@ private theorem sum_card_Ioi_mul_two (n : ℕ) :
   · simp
   · have h : ((∑ j ∈ range (n + 1), j : ℕ) : ℝ) * 2 = ((n + 1) * n : ℕ) := by
       exact_mod_cast (Nat.add_sub_cancel n 1 ▸ sum_range_id_mul_two (n + 1))
-    rw [h]; push_cast; ring
+    rw [h]
+    push_cast
+    ring
 
 /-- **The Johnson–Lindenstrauss union bound** [Achlioptas2003]: for `n` points and `0 ≤ ε`, a
 random sign projection keeps every squared pairwise distance in `[1 - ε, 1 + ε]` times its original
@@ -454,7 +468,9 @@ theorem one_sub_rpow_le_dens_forall_norm_signProjection_sq_mem_Icc {n : ℕ}
   have hn1 : (1 : ℝ) ≤ n := by exact_mod_cast Nat.one_le_iff_ne_zero.2 hn
   have he := exp_le_exp_neg_mul_log hε hε' hk
   rw [show (n : ℝ) ^ (-β) = exp (log n) * exp (log n) * exp (-((2 + β) * log n)) by
-      rw [rpow_def_of_pos hn', ← exp_add, ← exp_add]; congr 1; ring, exp_log hn']
+      rw [rpow_def_of_pos hn', ← exp_add, ← exp_add]
+      congr 1
+      ring, exp_log hn']
   have : (n : ℝ) * (n - 1) * exp (-(k / 2) * (ε ^ 2 / 2 - ε ^ 3 / 3)) ≤
       n * n * exp (-((2 + β) * log n)) := by gcongr; linarith
   linarith

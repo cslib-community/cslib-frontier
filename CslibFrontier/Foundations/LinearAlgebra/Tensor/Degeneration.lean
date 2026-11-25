@@ -188,7 +188,9 @@ theorem IsSLDegen.of_restrict_incl [Fintype X'] [Fintype Y'] [Fintype Z'] [Decid
     {f : X → X'} {T : Tensor K X Y Z} {S : Tensor K X' Y' Z'} (β : Matrix Y' Y K)
     (γ : Matrix Z Z' K) (h : restrict (incl f) β γ S = T) : IsSLDegen f 0 T S := by
   refine ⟨β.map C, γ.map C, 0, ?_⟩
-  rw [← map_incl (C : K →+* K[X]) f, ← map_restrict, h]; ext x y z; simp
+  rw [← map_incl (C : K →+* K[X]) f, ← map_restrict, h]
+  ext x y z
+  simp
 
 /-- Raising the order of a degeneration: multiply the decoder by `ε`. -/
 theorem IsDegen.mono [Fintype X'] [Fintype Y'] [Fintype Z'] {h h' : ℕ} {T : Tensor K X Y Z}
@@ -196,7 +198,9 @@ theorem IsDegen.mono [Fintype X'] [Fintype Y'] [Fintype Z'] {h h' : ℕ} {T : Te
   obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hh
   obtain ⟨α, β, γ, E, hE⟩ := hT
   refine ⟨α, β, (Polynomial.X ^ d : K[X]) • γ, E, ?_⟩
-  rw [restrict_smul_decoder, hE]; funext x y z; simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul]
+  rw [restrict_smul_decoder, hE]
+  funext x y z
+  simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul]
   ring
 
 theorem IsSLDegen.mono [Fintype X'] [Fintype Y'] [Fintype Z'] [DecidableEq X'] {f : X → X'}
@@ -205,7 +209,9 @@ theorem IsSLDegen.mono [Fintype X'] [Fintype Y'] [Fintype Z'] [DecidableEq X'] {
   obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hh
   obtain ⟨β, γ, E, hE⟩ := hT
   refine ⟨β, (Polynomial.X ^ d : K[X]) • γ, E, ?_⟩
-  rw [restrict_smul_decoder, hE]; funext x y z; simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul]
+  rw [restrict_smul_decoder, hE]
+  funext x y z
+  simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul]
   ring
 
 /-- Substituting `ε ↦ ε ^ N` in a degeneration witness of order `k` gives a witness of order
@@ -519,7 +525,9 @@ theorem IsSLDegen.slSum_comp {ι κ : Type*} [Finite ι] [DecidableEq ι] [Decid
     {G : ι → Tensor K X Y Z} {S : Tensor K X' Y' Z'} (hT : IsSLDegen f h (Tensor.slSum G) S)
     (e : κ → ι) (he : Function.Injective e) : IsSLDegen f h (Tensor.slSum (G ∘ e)) S := by
   cases nonempty_fintype ι; cases nonempty_fintype X
-  cases nonempty_fintype Y; cases nonempty_fintype Z; classical
+  cases nonempty_fintype Y
+  cases nonempty_fintype Z
+  classical
   obtain ⟨β, γ, E, hE⟩ := hT
   refine ⟨β * incl (Prod.map e id), (incl (Prod.map e id))ᵀ * γ,
     restrict 1 (incl (Prod.map e id)) (incl (Prod.map e id))ᵀ E, ?_⟩
@@ -579,7 +587,10 @@ theorem IsDegen.rank_of_natDegree_le [Finite X] [Finite Y] [Finite Z] {h D r : �
       (Polynomial.X ^ h : K[X]) • T.map C + (Polynomial.X ^ (h + 1) : K[X]) • E)
     (hD : ∀ x y z, (restrict α β γ ((unit r).map C) x y z).natDegree ≤ D) :
     Rank ((D + 1) * r) T := by
-  cases nonempty_fintype X; cases nonempty_fintype Y; cases nonempty_fintype Z; classical
+  cases nonempty_fintype X
+  cases nonempty_fintype Y
+  cases nonempty_fintype Z
+  classical
   obtain ⟨c, hc⟩ := exists_coeff_eq_sum_eval (K := K) h D
   have hT : T = ∑ k : Fin (D + 1), c k •
       (restrict α β γ ((unit r).map C)).map (Polynomial.evalRingHom (k : K)) := by
@@ -592,7 +603,9 @@ theorem IsDegen.rank_of_natDegree_le [Finite X] [Finite Y] [Finite Z] {h D r : �
       ((restrict α β γ ((unit r).map C)).map (Polynomial.evalRingHom (k : K))) (unit r) := by
     let ev := Polynomial.evalRingHom (k : K)
     refine ⟨α.map ev, β.map ev, γ.map ev, ?_⟩
-    rw [map_restrict]; congr 1; funext i j l
+    rw [map_restrict]
+    congr 1
+    funext i j l
     simp only [Tensor.map_apply, unit_apply, Polynomial.coe_evalRingHom]; split_ifs <;> simp
   rw [hT]
   exact Rank.of_isRestriction ((isRestriction_sum_dsum c _).trans (IsRestriction.dsum h₁))
@@ -604,7 +617,10 @@ bound `D` depending only on the degeneration. -/
 theorem IsDegen.exists_rank_tpow [Finite X] [Finite Y] [Finite Z] {h r : ℕ}
     {T : Tensor K X Y Z} (hT : IsDegen h T (unit r)) :
     ∃ D : ℕ, ∀ m : ℕ, Rank ((D * m + 1) * r ^ m) (Tensor.tpow m T) := by
-  cases nonempty_fintype X; cases nonempty_fintype Y; cases nonempty_fintype Z; classical
+  cases nonempty_fintype X
+  cases nonempty_fintype Y
+  cases nonempty_fintype Z
+  classical
   obtain ⟨α, β, γ, E, hw⟩ := hT
   obtain ⟨D, hD⟩ : ∃ D : ℕ, ∀ x y z, (restrict α β γ ((unit r).map C) x y z).natDegree ≤ D :=
     ⟨univ.sup fun p : X × Y × Z => (restrict α β γ ((unit r).map C) p.1 p.2.1 p.2.2).natDegree,

@@ -419,7 +419,9 @@ private theorem isLowerSemicomputable_code_filtered {β : Type*} [Primcodable β
   have hmono (b : β) : Monotone fun n => (num b n : ℝ) / (den b n : ℝ) := fun m n hmn => by
     obtain ⟨t, ht⟩ := codeProgramTable_prefix c hmn
     have ⟨tail, htail⟩ : L b m <+: L b n := by
-      dsimp only [L]; rw [← ht, List.filter_append, List.map_append]; exact List.prefix_append _ _
+      dsimp only [L]
+      rw [← ht, List.filter_append, List.map_append]
+      exact List.prefix_append _ _
     simp only [hval, ← htail, List.map_append, List.sum_append, le_add_iff_nonneg_right]
     exact List.sum_nonneg fun _ hr => by obtain ⟨_, _, rfl⟩ := List.mem_map.mp hr; positivity
   have htend : ∀ b, Tendsto (fun n => (num b n : ℝ) / (den b n : ℝ)) atTop
