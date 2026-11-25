@@ -585,12 +585,14 @@ theorem SmoothConvexLatencies.isSocialOptimum_iff_kkt {d R : ℝ}
       fun _ y _ v hk => sum_apply_update_of_mem (fun m u => (R - latency m u) * u) y v hk
     have hsub : ∀ k, HasDerivAt (fun t => (R - latency k (xS k - t)) * (xS k - t))
         (-(R - latency k (xS k) - xS k * latencyDeriv k (xS k))) 0 := fun k => by
-      simpa only [sub_zero, mul_neg, mul_one, Function.comp_def] using (hasDerivAt_surplusTerm h R k (u := xS k - 0)
-        (by simpa using hopt.1.1 k)).comp 0 ((hasDerivAt_id' (0 : ℝ)).const_sub (xS k))
+      simpa only [sub_zero, mul_neg, mul_one, Function.comp_def] using
+        (hasDerivAt_surplusTerm h R k (u := xS k - 0) (by simpa using hopt.1.1 k)).comp 0
+          ((hasDerivAt_id' (0 : ℝ)).const_sub (xS k))
     have hadd : ∀ k, HasDerivAt (fun t => (R - latency k (xS k + t)) * (xS k + t))
         (R - latency k (xS k) - xS k * latencyDeriv k (xS k)) 0 := fun k => by
-      simpa only [add_zero, mul_one, Function.comp_def] using (hasDerivAt_surplusTerm h R k (u := xS k + 0)
-        (by simpa using hopt.1.1 k)).comp 0 ((hasDerivAt_id' (0 : ℝ)).const_add (xS k))
+      simpa only [add_zero, mul_one, Function.comp_def] using
+        (hasDerivAt_surplusTerm h R k (u := xS k + 0) (by simpa using hopt.1.1 k)).comp 0
+          ((hasDerivAt_id' (0 : ℝ)).const_add (xS k))
     have hswap : ∀ i j, 0 < xS i →
         R - latency j (xS j) - xS j * latencyDeriv j (xS j) ≤
           R - latency i (xS i) - xS i * latencyDeriv i (xS i) := by
@@ -966,10 +968,11 @@ theorem le_mul_deriv_add_of_forall_pos_add {g : ℝ → ℝ} {x g' B C : ℝ}
 
 /-- Finitely many strict lower bounds `c < a q` (for `q` with `P q`), together with `c < R`, leave
 a common positive margin `ε`. -/
-private theorem exists_pos_margin {ι : Type*} [Fintype ι] {P : ι → Prop} {a : ι → ℝ} {c R : ℝ}
+private theorem exists_pos_margin {ι : Type*} [Finite ι] {P : ι → Prop} {a : ι → ℝ} {c R : ℝ}
     (hR : c < R) (ha : ∀ q, P q → c < a q) :
     ∃ ε > 0, c + ε < R ∧ ∀ q, P q → c + ε ≤ a q := by
   classical
+  have := Fintype.ofFinite ι
   let s : Finset ℝ := insert R ((Finset.univ.filter P).image a)
   have hs : s.Nonempty := Finset.insert_nonempty _ _
   have hc : c < s.min' hs := (Finset.lt_min'_iff s hs).2 fun y hy => by
