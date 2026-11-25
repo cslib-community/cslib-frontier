@@ -62,29 +62,22 @@ structure IsEvenDeltaMatroid [Fintype ι] (R : Set (ι → Bool)) : Prop where
 /-- A singleton relation is a delta-matroid. -/
 theorem isDeltaMatroid_singleton (x : ι → Bool) : IsDeltaMatroid {x} where
   nonempty := Set.singleton_nonempty x
-  exchange := by
-    intro u v hu hv i hi
-    obtain rfl := Set.mem_singleton_iff.mp hu
-    obtain rfl := Set.mem_singleton_iff.mp hv
+  exchange := fun _ _ hu hv _ hi => by
+    rw [Set.mem_singleton_iff.mp hu, Set.mem_singleton_iff.mp hv] at hi
     exact (hi rfl).elim
 
 /-- The full Boolean cube is a delta-matroid, using a single-coordinate exchange. -/
 theorem isDeltaMatroid_univ : IsDeltaMatroid (Set.univ : Set (ι → Bool)) where
   nonempty := ⟨fun _ => false, Set.mem_univ _⟩
-  exchange := by
-    intro x y hx hy i hi
-    exact ⟨i, hi, Set.mem_univ _⟩
+  exchange := fun _ _ _ _ i hi => ⟨i, hi, Set.mem_univ _⟩
 
 variable [Fintype ι]
 
 /-- A singleton relation is even, including a singleton of odd parity. -/
 theorem isEvenDeltaMatroid_singleton (x : ι → Bool) : IsEvenDeltaMatroid {x} where
   isDeltaMatroid := isDeltaMatroid_singleton x
-  parity_eq := by
-    intro u v hu hv
-    obtain rfl := Set.mem_singleton_iff.mp hu
-    obtain rfl := Set.mem_singleton_iff.mp hv
-    rfl
+  parity_eq := fun _ _ hu hv => by
+    rw [Set.mem_singleton_iff.mp hu, Set.mem_singleton_iff.mp hv]
 
 /-- Flipping one coordinate negates total parity. -/
 theorem parityOn_univ_flipOn_singleton (x : ι → Bool) (i : ι) :
@@ -99,21 +92,15 @@ theorem parityOn_univ_flipOn_pair (x : ι → Bool) {i j : ι} (hij : i ≠ j) :
 
 /-- Evenness rules out feasible one-coordinate flips. -/
 theorem IsEvenDeltaMatroid.not_mem_flipOn_singleton (hR : IsEvenDeltaMatroid R)
-    (hx : x ∈ R) (i : ι) : flipOn {i} x ∉ R := by
-  intro hf
-  have h := hR.parity_eq hf hx
-  rw [parityOn_univ_flipOn_singleton] at h
-  exact Bool.not_ne_self _ h
+    (hx : x ∈ R) (i : ι) : flipOn {i} x ∉ R := fun hf =>
+  Bool.not_ne_self _ <| (parityOn_univ_flipOn_singleton x i).symm.trans (hR.parity_eq hf hx)
 
 /-- In an even delta-matroid, exchange flips two distinct coordinates on which the tuples differ. -/
 theorem IsEvenDeltaMatroid.exchange (hR : IsEvenDeltaMatroid R)
     (hx : x ∈ R) (hy : y ∈ R) {i : ι} (hi : x i ≠ y i) :
     ∃ j, j ≠ i ∧ x j ≠ y j ∧ flipOn {i, j} x ∈ R := by
   obtain ⟨j, hj, hf⟩ := hR.isDeltaMatroid.exchange hx hy hi
-  refine ⟨j, ?_, hj, hf⟩
-  intro hji
-  subst j
-  exact hR.not_mem_flipOn_singleton hx i (by simpa using hf)
+  exact ⟨j, fun hji => hR.not_mem_flipOn_singleton hx i (by subst hji; simpa using hf), hj, hf⟩
 
 omit [DecidableEq ι] in
 /-- Tuples of equal parity cannot disagree at just one coordinate. -/
@@ -123,30 +110,24 @@ theorem exists_ne_disagree_of_parity_eq
   classical
   by_contra hn
   push Not at hn
-  have hy : y = flipOn {i} x := by
-    funext j
+  have hy : y = flipOn {i} x := funext fun j => by
     by_cases hj : j = i
     · subst j
       rw [flipOn_singleton_self]
       cases hx : x i <;> cases hy : y i <;> simp_all
     · rw [flipOn_singleton_of_ne hj, hn j hj]
-  rw [hy, parityOn_univ_flipOn_singleton] at h
-  exact Bool.not_ne_self _ h.symm
+  exact Bool.not_ne_self _ ((parityOn_univ_flipOn_singleton x i).symm.trans (hy ▸ h.symm))
 
 /-- Every nonempty total-parity fiber is an even delta-matroid.
 The witness is necessary: the odd fiber on the empty coordinate type is empty. -/
 theorem isEvenDeltaMatroid_parityOn_fiber (b : Bool)
     (hne : ∃ x : ι → Bool, parityOn univ x = b) :
     IsEvenDeltaMatroid {x : ι → Bool | parityOn univ x = b} where
-  isDeltaMatroid := {
-    nonempty := hne
-    exchange := by
-      intro x y hx hy i hi
-      obtain ⟨j, hji, hj⟩ := exists_ne_disagree_of_parity_eq (hx.trans hy.symm) hi
-      exact ⟨j, hj, by simpa only [Set.mem_ofPred_eq,
-        parityOn_univ_flipOn_pair x hji.symm] using hx⟩ }
-  parity_eq := by
-    intro x y hx hy
-    exact hx.trans hy.symm
+  isDeltaMatroid :=
+    { nonempty := hne
+      exchange := fun x _ hx hy _ hi =>
+        let ⟨j, hji, hj⟩ := exists_ne_disagree_of_parity_eq (hx.trans hy.symm) hi
+        ⟨j, hj, (parityOn_univ_flipOn_pair x hji.symm).trans hx⟩ }
+  parity_eq := fun _ _ hx hy => hx.trans hy.symm
 
 end Cslib.BitString

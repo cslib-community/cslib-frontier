@@ -84,17 +84,11 @@ def step (Q : Finset ℕ) (Λ : ℕ) (t : Task) (ts : List Task) : List Task × 
 theorem output_step (Q : Finset ℕ) (Λ : ℕ) (t : Task) (ts : List Task) :
     output Q Λ (t :: ts) =
       (step Q Λ t ts).2.toList ++ output Q Λ (step Q Λ t ts).1 := by
-  cases t with
-  | mk f S =>
-    cases f with
-    | zero => simp [output, step, Task.output, nodes]
-    | succ f =>
-      by_cases he : Task.empty ⟨f + 1, S⟩
-      · simp only [Task.empty] at he
-        simp [output, step, Task.empty, he, Task.output, nodes]
-      · simp only [Task.empty] at he
-        simp [output, step, Task.empty, he, Task.output, nodes, Task.children, Task.node,
-          List.append_assoc]
+  rcases t with ⟨_ | f, S⟩
+  · simp [output, step, Task.output, nodes]
+  · by_cases he : S 0 = ∅ ∨ S 1 = ∅ ∨ S 2 = ∅ <;>
+      simp [output, step, Task.empty, he, Task.output, nodes, Task.children, Task.node,
+        List.append_assoc]
 
 /-- Number of transitions for the full ternary tree, counting its zero-fuel leaves. -/
 def work : ℕ → ℕ
@@ -109,9 +103,7 @@ theorem work_pos (f : ℕ) : 1 ≤ work f := by
 theorem work_eq (f : ℕ) : 2 * work f + 1 = 3 ^ (f + 1) := by
   induction f with
   | zero => decide
-  | succ f ih =>
-    simp only [work, pow_succ] at *
-    omega
+  | succ f ih => simp only [work, pow_succ] at *; omega
 
 /-- The sum of the transition budgets of all pending entries. -/
 def potential (ts : List Task) : ℕ := (ts.map fun t => work t.fuel).sum
@@ -119,18 +111,14 @@ def potential (ts : List Task) : ℕ := (ts.map fun t => work t.fuel).sum
 /-- One transition spends at least one unit, including the empty and zero-fuel cases. -/
 theorem potential_step (Q : Finset ℕ) (Λ : ℕ) (t : Task) (ts : List Task) :
     potential (step Q Λ t ts).1 + 1 ≤ potential (t :: ts) := by
-  cases t with
-  | mk f S =>
-    cases f with
-    | zero => simp [step, potential, work]
-    | succ f =>
-      by_cases he : Task.empty ⟨f + 1, S⟩
-      · simp only [step, he, ↓reduceIte, potential, List.map_cons, List.sum_cons]
-        have := work_pos (f + 1)
-        omega
-      · simp only [step, he, ↓reduceIte, potential, Task.children, List.map_append,
-          List.map_cons, List.map_nil, List.sum_append, List.sum_cons, List.sum_nil, work]
-        omega
+  rcases t with ⟨_ | f, S⟩
+  · simp [step, potential, work]
+  · by_cases he : Task.empty ⟨f + 1, S⟩
+    · simp only [step, he, ↓reduceIte, potential, List.map_cons, List.sum_cons]
+      have := work_pos (f + 1); omega
+    · simp only [step, he, ↓reduceIte, potential, Task.children, List.map_append,
+        List.map_cons, List.map_nil, List.sum_append, List.sum_cons, List.sum_nil, work]
+      omega
 
 /-- Each entry's fuel plus the pending suffix gives a bound measured from the stack bottom. -/
 def Bounded (f : ℕ) : List Task → Prop
@@ -144,21 +132,17 @@ theorem bounded_singleton (t : Task) : Bounded t.fuel [t] := by
 /-- The explicit stack requires at most `2f+1` entries, even with zero-fuel entries present. -/
 theorem Bounded.length_le {f : ℕ} {ts : List Task} (h : Bounded f ts) :
     ts.length ≤ 2 * f + 1 := by
-  cases ts with
-  | nil => simp
-  | cons t ts =>
-    simp only [Bounded] at h
-    simp only [List.length_cons]
-    omega
+  rcases ts with _ | ⟨t, ts⟩
+  · simp
+  · simp only [Bounded, List.length_cons] at h ⊢; omega
 
 /-- A native pop/skip or three-child push preserves the same fixed stack capacity. -/
 theorem bounded_step {f : ℕ} (Q : Finset ℕ) (Λ : ℕ) (t : Task) (ts : List Task)
     (h : Bounded f (t :: ts)) : Bounded f (step Q Λ t ts).1 := by
   obtain ⟨hf, hts⟩ := h
-  cases ht : t.fuel with
-  | zero => simpa only [step, ht] using hts
-  | succ g =>
-    by_cases he : t.empty
+  rcases ht : t.fuel with _ | g
+  · simpa only [step, ht] using hts
+  · by_cases he : t.empty
     · simpa only [step, ht, he, ↓reduceIte] using hts
     · simp only [step, ht, he, ↓reduceIte, Task.children, List.cons_append,
         List.nil_append, Bounded, List.length_cons] at *

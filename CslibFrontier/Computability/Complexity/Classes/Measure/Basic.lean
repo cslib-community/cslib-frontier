@@ -134,8 +134,7 @@ theorem two_pow_length_stdWord_le (n : ℕ) : 2 ^ (stdWord n).length ≤ n + 1 :
 /-- The word at a position, in unary, is polynomial-time. -/
 @[fun_prop]
 theorem computableInPolyTime_stdWord : ComputableInPolyTime stdWord encUnary encBits := by
-  unfold stdWord
-  fun_prop
+  unfold stdWord; fun_prop
 
 /-! ### Characteristic sequences -/
 
@@ -158,14 +157,10 @@ theorem getElem_charPrefix_eq_true_iff {A : Set (List Bool)} {n j : ℕ}
 bits record membership in `A`. -/
 theorem charPrefix_eq_iff {A : Set (List Bool)} {l : List Bool} :
     charPrefix A l.length = l ↔ ∀ j (hj : j < l.length), (l[j] = true ↔ stdWord j ∈ A) := by
-  constructor
-  · intro h j hj
-    have hj' : j < (charPrefix A l.length).length := by rwa [length_charPrefix]
-    rw [← getElem_charPrefix_eq_true_iff hj']
+  refine ⟨fun h j hj => ?_, fun h => List.ext_getElem (length_charPrefix A _) fun j hj hj' => ?_⟩
+  · rw [← getElem_charPrefix_eq_true_iff (by rwa [length_charPrefix])]
     simp only [h]
-  · intro h
-    refine List.ext_getElem (length_charPrefix A _) fun j hj hj' => ?_
-    rw [Bool.eq_iff_iff, getElem_charPrefix_eq_true_iff hj, h j hj']
+  · rw [Bool.eq_iff_iff, getElem_charPrefix_eq_true_iff hj, h j hj']
 
 /-- The **cylinder** of `z`: the languages whose characteristic sequence starts with `z`. Lutz's
 cylinders `C_z` [Lutz, Section 3][Lutz1992] also allow unspecified bits; these are the cylinders
@@ -176,9 +171,7 @@ theorem mem_cylinder_iff {z : List Bool} {A : Set (List Bool)} :
     A ∈ cylinder z ↔ charPrefix A z.length = z := Iff.rfl
 
 @[simp]
-theorem cylinder_nil : cylinder [] = Set.univ := by
-  ext A
-  simp [mem_cylinder_iff, charPrefix]
+theorem cylinder_nil : cylinder [] = Set.univ := by ext; simp [mem_cylinder_iff, charPrefix]
 
 /-! ### Martingales -/
 
@@ -206,41 +199,29 @@ characteristic sequence of `A`, in the extended reals, have limit superior `⊤`
 theorem mem_successSet_iff_limsup {d : List Bool → ℝ} {A : Set (List Bool)} :
     A ∈ successSet d ↔ limsup (fun n => (d (charPrefix A n) : EReal)) atTop = ⊤ := by
   rw [← top_le_iff, le_limsup_iff]
-  constructor
-  · intro h y hy
-    rw [frequently_atTop]
-    intro N
-    obtain ⟨m, hm⟩ := h (|y.toReal| + ∑ n ∈ Finset.range N, |d (charPrefix A n)|)
+  refine ⟨fun h y hy => frequently_atTop.2 fun N => ?_, fun h C => ?_⟩
+  · obtain ⟨m, hm⟩ := h (|y.toReal| + ∑ n ∈ Finset.range N, |d (charPrefix A n)|)
     have hsum : 0 ≤ ∑ n ∈ Finset.range N, |d (charPrefix A n)| :=
       Finset.sum_nonneg fun _ _ => abs_nonneg _
-    refine ⟨m, ?_, ?_⟩
-    · by_contra hmN
-      have := Finset.single_le_sum (f := fun n => |d (charPrefix A n)|)
+    refine ⟨m, by_contra fun hmN => ?_, ?_⟩
+    · have := Finset.single_le_sum (f := fun n => |d (charPrefix A n)|)
         (fun _ _ => abs_nonneg _) (Finset.mem_range.mpr (Nat.lt_of_not_le hmN))
-      have := le_abs_self (d (charPrefix A m))
-      have := abs_nonneg y.toReal
-      linarith
-    · calc y ≤ (y.toReal : EReal) := EReal.le_coe_toReal hy.ne
-        _ < d (charPrefix A m) := EReal.coe_lt_coe_iff.mpr
-          (lt_of_le_of_lt (by linarith [le_abs_self y.toReal]) hm)
-  · intro h C
-    obtain ⟨n, hn⟩ := (h C (EReal.coe_lt_top C)).exists
+      linarith [le_abs_self (d (charPrefix A m)), abs_nonneg y.toReal]
+    · exact (EReal.le_coe_toReal hy.ne).trans_lt
+        (EReal.coe_lt_coe_iff.mpr (lt_of_le_of_lt (by linarith [le_abs_self y.toReal]) hm))
+  · obtain ⟨n, hn⟩ := (h C (EReal.coe_lt_top C)).exists
     exact ⟨n, EReal.coe_lt_coe_iff.mp hn⟩
 
 /-- If `d ≤ d'` pointwise, then `d'` succeeds wherever `d` does. -/
 theorem successSet_mono {d d' : List Bool → ℝ} (h : ∀ w, d w ≤ d' w) :
-    successSet d ⊆ successSet d' := fun A hA C => by
-  obtain ⟨n, hn⟩ := hA C
-  exact ⟨n, hn.trans_le (h _)⟩
+    successSet d ⊆ successSet d' :=
+  fun _ hA C => (hA C).imp fun _ hn => hn.trans_le (h _)
 
 /-- A sum of martingales is a martingale. -/
 theorem IsMartingale.add {d d' : List Bool → ℝ} (hd : IsMartingale d) (hd' : IsMartingale d') :
     IsMartingale (d + d') where
   nonneg w := add_nonneg (hd.nonneg w) (hd'.nonneg w)
-  average w := by
-    simp only [Pi.add_apply]
-    rw [hd.average w, hd'.average w]
-    ring
+  average w := by simp only [Pi.add_apply, hd.average w, hd'.average w]; ring
 
 /-- A constant nonnegative function is a martingale. -/
 theorem isMartingale_const {c : ℝ} (hc : 0 ≤ c) : IsMartingale fun _ => c where
@@ -248,7 +229,7 @@ theorem isMartingale_const {c : ℝ} (hc : 0 ≤ c) : IsMartingale fun _ => c wh
   average _ := by ring
 
 theorem successSet_const (c : ℝ) : successSet (fun _ => c) = ∅ := by
-  ext A
+  ext
   simp only [mem_successSet_iff, Set.mem_empty_iff_false, iff_false, not_forall, not_exists,
     not_lt]
   exact ⟨c, fun _ => le_rfl⟩
@@ -296,12 +277,11 @@ precision `r`. -/
 theorem IsPMartingale.add {d d' : List Bool → ℝ} (hd : IsPMartingale d) (hd' : IsPMartingale d') :
     IsPMartingale (d + d') where
   isMartingale := hd.isMartingale.add hd'.isMartingale
-  exists_approx := by
-    obtain ⟨dhat, hc, happ⟩ := hd.exists_approx
-    obtain ⟨dhat', hc', happ'⟩ := hd'.exists_approx
-    refine ⟨fun p => (dhat (p.1 + 2, p.2) + dhat' (p.1 + 2, p.2) + 2) >>> 2, by fun_prop,
-      fun r w => ?_⟩
-    exact abs_shiftRight_add_sub_le (happ (r + 2) w) (happ' (r + 2) w)
+  exists_approx :=
+    let ⟨dhat, hc, happ⟩ := hd.exists_approx
+    let ⟨dhat', hc', happ'⟩ := hd'.exists_approx
+    ⟨fun p => (dhat (p.1 + 2, p.2) + dhat' (p.1 + 2, p.2) + 2) >>> 2, by fun_prop,
+      fun r w => abs_shiftRight_add_sub_le (happ (r + 2) w) (happ' (r + 2) w)⟩
 
 /-! ### Measure zero -/
 
@@ -324,15 +304,13 @@ theorem hasMeasureZeroInE_iff {X : Set (Set (List Bool))} :
 
 /-- p-measure zero implies measure zero in `E`. -/
 theorem HasPMeasureZero.hasMeasureZeroInE {X : Set (Set (List Bool))} (h : HasPMeasureZero X) :
-    HasMeasureZeroInE X := by
-  obtain ⟨d, hd, hX⟩ := h
-  exact ⟨d, hd, Set.inter_subset_left.trans hX⟩
+    HasMeasureZeroInE X :=
+  let ⟨d, hd, hX⟩ := h; ⟨d, hd, Set.inter_subset_left.trans hX⟩
 
 /-- **Subsets of p-measure-zero classes have p-measure zero** [Lutz, Lemma 3.10][Lutz1992]. -/
 theorem HasPMeasureZero.mono {X Y : Set (Set (List Bool))} (hY : HasPMeasureZero Y) (h : X ⊆ Y) :
-    HasPMeasureZero X := by
-  obtain ⟨d, hd, hY⟩ := hY
-  exact ⟨d, hd, h.trans hY⟩
+    HasPMeasureZero X :=
+  let ⟨d, hd, hY⟩ := hY; ⟨d, hd, h.trans hY⟩
 
 theorem hasPMeasureZero_empty : HasPMeasureZero ∅ :=
   ⟨fun _ => ((0 : ℕ) : ℝ), isPMartingale_const 0, Set.empty_subset _⟩
@@ -343,10 +321,9 @@ theorem HasPMeasureZero.union {X Y : Set (Set (List Bool))} (hX : HasPMeasureZer
     (hY : HasPMeasureZero Y) : HasPMeasureZero (X ∪ Y) := by
   obtain ⟨d, hd, hX⟩ := hX
   obtain ⟨d', hd', hY⟩ := hY
-  refine ⟨d + d', hd.add hd', Set.union_subset (hX.trans (successSet_mono fun w => ?_))
-    (hY.trans (successSet_mono fun w => ?_))⟩
-  · simpa using hd'.isMartingale.nonneg w
-  · simpa using hd.isMartingale.nonneg w
+  exact ⟨d + d', hd.add hd',
+    Set.union_subset (hX.trans (successSet_mono fun w => by simpa using hd'.isMartingale.nonneg w))
+      (hY.trans (successSet_mono fun w => by simpa using hd.isMartingale.nonneg w))⟩
 
 /-- **Finite unions of p-measure-zero classes have p-measure zero** [Lutz, Lemma 3.10][Lutz1992].
 -/
@@ -367,7 +344,6 @@ theorem HasMeasureZeroInE.mono {X Y : Set (Set (List Bool))} (hY : HasMeasureZer
 /-- Unions of two classes of measure zero in `E` have measure zero in `E`. -/
 theorem HasMeasureZeroInE.union {X Y : Set (Set (List Bool))} (hX : HasMeasureZeroInE X)
     (hY : HasMeasureZeroInE Y) : HasMeasureZeroInE (X ∪ Y) := by
-  rw [hasMeasureZeroInE_iff, Set.union_inter_distrib_right]
-  exact HasPMeasureZero.union hX hY
+  rw [hasMeasureZeroInE_iff, Set.union_inter_distrib_right]; exact HasPMeasureZero.union hX hY
 
 end Cslib.Complexity.Measure

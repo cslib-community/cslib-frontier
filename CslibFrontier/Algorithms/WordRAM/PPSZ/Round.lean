@@ -100,12 +100,10 @@ theorem impliedCode_isOracleCode {φ : CNF (Fin n)} {C Tb s w : ℕ} {M : ℕ �
   preserves_x := by decide
   preserves_i := by decide
   preserves_j := by decide
-  exec τ v y hf hv hτ := by
-    obtain ⟨z, hz, hzm, hzr⟩ := impliedCode_spec φ τ v s y hf.zero_eq hf.one_eq hf.two_eq hv
-      hf.cBeg_eq (by rw [hf.cEnd_eq, hf.span]) hf.tBase_eq hf.nReg_eq hf.clauses hτ
-      hf.span.le (by rw [hf.rest _ le_rfl, hs])
-      (fun i hi => by rw [hf.rest _ (by omega), hzero i hi]) hw
-    exact ⟨z, hz, hzm, hzr⟩
+  exec τ v y hf hv hτ :=
+    impliedCode_spec φ τ v s y hf.zero_eq hf.one_eq hf.two_eq hv hf.cBeg_eq
+      (by rw [hf.cEnd_eq, hf.span]) hf.tBase_eq hf.nReg_eq hf.clauses hτ hf.span.le
+      (by rw [hf.rest _ le_rfl, hs]) (fun i hi => by rw [hf.rest _ (by omega), hzero i hi]) hw
 
 /-- **The body of a round of PPSZ** (`Cslib.Algorithms.WordRAM.PPZ.roundCoreWith impliedCode`) has
 the law of `Cslib.Complexity.PPSZ.round φ s`, keeps the frame, and leaves every variable set. -/
@@ -205,31 +203,26 @@ theorem roundProgram_spec (s : ℕ) (φ : CNF (Fin n)) {w : ℕ}
       (cfgPartial ((s :: encode φ).length + 1) n) = round φ s := by
   set Tb := (s :: encode φ).length + 1
   obtain ⟨hy, hfr⟩ := roundSetup_exec s φ (hw.of_le (by omega))
-  have hT : 1 ≤ Tb := by omega
-  have hw' : Fits w (Tb + 2 * n) := hw.of_le (by omega)
   have hs : (roundSetupData s φ).mem (Tb + 2 * n) = s := by
     rw [roundSetupData_mem, ite_eq_left_iff.mpr (fun h => absurd (by omega) h)]
-  have hzero : ∀ i < 2 * s, (roundSetupData s φ).mem (Tb + 2 * n + 1 + i) = 0 := fun i _ => by
-    rw [roundSetupData_mem, ite_eq_right_iff.mpr (fun h => by omega), show Tb + 2 * n + 1 + i =
+  have hzero (i : ℕ) (_ : i < 2 * s) : (roundSetupData s φ).mem (Tb + 2 * n + 1 + i) = 0 := by
+    rw [roundSetupData_mem, ite_eq_right_iff.mpr (fun _ => by omega), show Tb + 2 * n + 1 + i =
       ((s :: encode φ).length + 2 * n + 1 + i) + 1 by omega, Data.init_mem_succ,
       List.getD_eq_getElem?_getD, List.getElem?_eq_none (by omega)]
     rfl
-  have hcore := ExecRandLaw.seq_det hy (ExecRandLaw.seq_det_right
+  obtain ⟨hhalt, hcalls, hpost, hlaw⟩ := (ExecRandLaw.seq_det hy (ExecRandLaw.seq_det_right
     (roundCore_law hs hzero (hw.of_le (by omega)) hfr)
     (Q := fun y => (RoundFrame φ 3 Tb (roundSetupData s φ).mem y ∧ ∀ v < n, y.mem (Tb + v) ≤ 1) ∧
       y.regs out = if φ.eval (assignmentAt y.mem Tb n) then 1 else 0)
     fun y ⟨hfy, hby⟩ => by
-      obtain ⟨z, hz, hzm, hfz, hzo⟩ := roundCheck_exec hw' hT hfy hby
-      exact ⟨z, hz, ⟨⟨hfz, by rw [hzm]; exact hby⟩, by rw [hzm]; exact hzo⟩, by simp [hzm]⟩)
-  obtain ⟨hhalt, hcalls, hpost, hlaw⟩ := hcore.program out
+      obtain ⟨z, hz, hzm, hfz, hzo⟩ := roundCheck_exec (hw.of_le (by omega)) (by omega) hfy hby
+      exact ⟨z, hz, ⟨⟨hfz, hzm ▸ hby⟩, hzm ▸ hzo⟩, by simp [hzm]⟩)).program out
     (T' := roundTime s n (s :: encode φ).length)
     (by
-      have hL : (s :: encode φ).length = (encodeClauses φ).length + 2 := by
-        simp [length_encode]
+      have hL : (s :: encode φ).length = (encodeClauses φ).length + 2 := by simp [length_encode]
       have := Nat.mul_le_mul_left n (Nat.add_le_add_right
-        (impliedTime_mono s (show (encodeClauses φ).length ≤ (s :: encode φ).length by omega)) 25)
-      simp only [roundTime]
-      omega)
+        (impliedTime_mono s (by omega : (encodeClauses φ).length ≤ (s :: encode φ).length)) 25)
+      simp only [roundTime]; omega)
     (cfgPartial Tb n) fun _ _ => rfl
   refine ⟨hhalt, hcalls, fun cfg hcfg => ?_, hlaw⟩
   obtain ⟨d, rfl, ⟨-, hb⟩, hd⟩ := hpost cfg hcfg

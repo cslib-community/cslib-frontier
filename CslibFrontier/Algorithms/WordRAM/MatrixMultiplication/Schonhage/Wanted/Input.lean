@@ -61,10 +61,8 @@ theorem input_length {N : ℕ} (L m : ℕ) (qs : List (Fin N × Fin N)) :
 
 /-- Both original coordinates are below the original matrix dimension. -/
 theorem inputPairs_lt {N : ℕ} (qs : List (Fin N × Fin N)) (i : ℕ) (hi : i < qs.length) :
-    (inputPairs qs i).1 < N ∧ (inputPairs qs i).2 < N := by
-  have he := inputPairs_get qs ⟨i, hi⟩
-  rw [he]
-  exact ⟨(qs.get ⟨i, hi⟩).1.isLt, (qs.get ⟨i, hi⟩).2.isLt⟩
+    (inputPairs qs i).1 < N ∧ (inputPairs qs i).2 < N :=
+  inputPairs_get qs ⟨i, hi⟩ ▸ ⟨(qs.get ⟨i, hi⟩).1.isLt, (qs.get ⟨i, hi⟩).2.isLt⟩
 
 /-- The exact initialized row/column word, with address calculations in original list order. -/
 theorem input_word {N : ℕ} (L m : ℕ) (qs : List (Fin N × Fin N)) (i : Fin qs.length)
@@ -84,27 +82,22 @@ theorem input_word {N : ℕ} (L m : ℕ) (qs : List (Fin N × Fin N)) (i : Fin q
 theorem input_fits {w L m N : ℕ} (hm : m ≤ L) (qs : List (Fin N × Fin N))
     (hfit : Fits w (wordBudget L m N qs.length)) : InputFits w (input L m qs) := by
   have hl := local_fits hfit
-  have hend := memoryLimit_eq L m N qs.length
-  have h2 := Nat.zero_le (2 ^ L)
-  have h10 := Nat.zero_le (10 ^ L)
+  have := memoryLimit_eq L m N qs.length
+  have := Nat.zero_le (2 ^ L); have := Nat.zero_le (10 ^ L)
   have hfN : Fits w N := hl.of_le (by omega)
-  refine ⟨?_, ?_⟩
-  · have hi := input_length L m qs
-    apply hl.of_le
-    unfold inputLimit at hi
-    omega
-  · intro v hv
-    simp only [input, List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hv
-    rcases hv with (rfl | rfl | rfl | rfl) | hv
-    · exact hl.of_le (by omega)
-    · exact hl.of_le (by omega)
-    · exact hfN
-    · exact hl.of_le (by omega)
-    · obtain ⟨i, _, hv⟩ := List.mem_flatMap.mp hv
-      obtain ⟨s, rfl⟩ := List.mem_ofFn.mp hv
-      split
-      · exact hfN.of_le (qs.get i).1.isLt.le
-      · exact hfN.of_le (qs.get i).2.isLt.le
+  refine ⟨hl.of_le (by
+      have := input_length L m qs
+      unfold inputLimit at this; omega),
+    fun v hv => ?_⟩
+  simp only [input, List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hv
+  rcases hv with (rfl | rfl | rfl | rfl) | hv
+  · exact hl.of_le (by omega)
+  · exact hl.of_le (by omega)
+  · exact hfN
+  · exact hl.of_le (by omega)
+  · obtain ⟨i, _, hv⟩ := List.mem_flatMap.mp hv
+    obtain ⟨s, rfl⟩ := List.mem_ofFn.mp hv
+    split; exacts [hfN.of_le (qs.get i).1.isLt.le, hfN.of_le (qs.get i).2.isLt.le]
 
 /-- Complete execution from the actual initialized list, with guaranteed input fit and a
 bounded returned state. All auxiliary tables, counts, offsets and codes are computed natively. -/
@@ -127,22 +120,14 @@ theorem exec_input {w L m N : ℕ} (hm : m ≤ L) (qs : List (Fin N × Fin N))
         y.mem a = (State.init (input L m qs) : State 96).data.mem a) := by
   have hfitInput := input_fits hm qs hfit
   let x : Data 96 := (State.init (input L m qs)).data
-  have hL : x.mem 1 = L := by simp [x, State.init, Data.init, input]
-  have hM : x.mem 2 = m := by simp [x, State.init, Data.init, input]
-  have hN : x.mem 3 = N := by simp [x, State.init, Data.init, input]
-  have hQ : x.mem 4 = qs.length := by simp [x, State.init, Data.init, input]
-  have hwords (i : ℕ) (hi : i < qs.length) :
-      x.mem (5 + 2 * i) = (inputPairs qs i).1 ∧
-        x.mem (5 + 2 * i + 1) = (inputPairs qs i).2 := by
-    have hr := input_word L m qs ⟨i, hi⟩ 0
-    have hc := input_word L m qs ⟨i, hi⟩ 1
-    rw [inputPairs_get qs ⟨i, hi⟩]
-    simpa only [Fin.val_zero, Fin.val_one, Nat.add_zero,
-      ↓reduceIte, Fin.isValue, Fin.reduceEq] using And.intro hr hc
-  obtain ⟨y, he, hp, hv, ho, hlast, hf⟩ := exec_program hm (inputPairs qs)
-    (inputPairs_lt qs) x hL hM hN hQ hwords hfit
-  refine ⟨hfitInput, y, he, hp, he.bounded (Data.Bounded.init hfitInput), ?_, ho, hlast, hf⟩
-  intro i
-  simpa only [inputPairs_get] using hv i.val i.isLt
+  obtain ⟨y, he, hp, hv, ho, hlast, hf⟩ := exec_program hm (inputPairs qs) (inputPairs_lt qs) x
+    (by simp [x, State.init, Data.init, input]) (by simp [x, State.init, Data.init, input])
+    (by simp [x, State.init, Data.init, input]) (by simp [x, State.init, Data.init, input])
+    (fun i hi => by
+      rw [inputPairs_get qs ⟨i, hi⟩]
+      simpa only [Fin.val_zero, Fin.val_one, Nat.add_zero, ↓reduceIte, Fin.isValue, Fin.reduceEq]
+        using And.intro (input_word L m qs ⟨i, hi⟩ 0) (input_word L m qs ⟨i, hi⟩ 1)) hfit
+  exact ⟨hfitInput, y, he, hp, he.bounded (Data.Bounded.init hfitInput),
+    fun i => by simpa only [inputPairs_get] using hv i.val i.isLt, ho, hlast, hf⟩
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Wanted

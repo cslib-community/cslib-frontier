@@ -129,11 +129,10 @@ abbrev rQGsBase : Fin numRegs := ⟨55, by decide⟩
 theorem mask_fits_of_valueEnvelope {w d W : ℕ} (h : Fits w (valueEnvelope d W)) :
     Fits w (2 ^ d) := by
   refine h.of_le ?_
-  dsimp only [valueEnvelope]
-  have h28 : 2 ^ d ≤ 8 ^ d := Nat.pow_le_pow_left (by decide) d
-  have h1 : 1 ≤ (W + 1) ^ 2 := Nat.one_le_pow 2 (W + 1) (Nat.succ_pos W)
   have hmul : 2 ^ d ≤ 8 ^ d * (W + 1) ^ 2 :=
-    h28.trans (Nat.le_mul_of_pos_right _ h1)
+    (Nat.pow_le_pow_left (by decide) d).trans
+      (Nat.le_mul_of_pos_right _ (Nat.one_le_pow 2 (W + 1) (Nat.succ_pos W)))
+  dsimp only [valueEnvelope]
   omega
 
 /-! ### Signed integer wrappers at physical width `w` -/
@@ -146,23 +145,15 @@ private theorem width_ge_three_of_fits {w B : ℕ} (hfit : Fits w (8 * B + 4)) :
 private theorem signedFits_of_natAbs_le {w B : ℕ} (hfit : Fits w (8 * B + 4)) {z : ℤ}
     (hz : z.natAbs ≤ B) : GenericRAM.Signed.Fits (w - 2) z := by
   have hw3 := width_ge_three_of_fits hfit
-  have hsub : (w - 2) - 1 = w - 3 := by omega
   have hpow : 2 ^ w = 8 * 2 ^ (w - 3) := by
-    have hw_eq : w = (w - 3) + 3 := by omega
-    conv_lhs => rw [hw_eq, pow_add]
+    conv_lhs => rw [show w = (w - 3) + 3 by omega, pow_add]
     ring
-  have hlt : 8 * B + 4 < 8 * 2 ^ (w - 3) := by rw [← hpow]; exact hfit
-  have hB : B < 2 ^ ((w - 2) - 1) := by rw [hsub]; omega
+  have hB : B < 2 ^ ((w - 2) - 1) := by
+    rw [show (w - 2) - 1 = w - 3 by omega]
+    simp only [Fits] at hfit
+    omega
   have hcast : ((2 ^ ((w - 2) - 1) : ℕ) : ℤ) = (2 : ℤ) ^ ((w - 2) - 1) := by norm_cast
-  refine ⟨by omega, ?_, ?_⟩
-  · by_cases hz0 : 0 ≤ z
-    · omega
-    · have := Int.ofNat_natAbs_of_nonpos (by omega : z ≤ 0)
-      omega
-  · by_cases hz0 : 0 ≤ z
-    · have := Int.eq_natAbs_of_nonneg hz0
-      omega
-    · omega
+  exact ⟨by omega, by omega, by omega⟩
 
 theorem signedAdd_preserves (i : Fin numRegs) :
     9 ≤ i.val → (Signed.add (r := 47)).Preserves i := by
@@ -184,11 +175,9 @@ theorem exec_signedAdd {w B : ℕ} {a b : ℤ} (hfit : Fits w (8 * B + 4))
       y.regs (Signed.result (r := 47)) = Signed.encode (a + b) ∧
       y.mem = x.mem ∧ ∀ i : Fin numRegs, 9 ≤ i.val → y.regs i = x.regs i := by
   have hw3 := width_ge_three_of_fits hfit
-  have hw_eq : (w - 2) + 2 = w := by omega
   obtain ⟨y, he, hyr, hym, hyf⟩ := Signed.exec_add (r := 47)
     (signedFits_of_natAbs_le hfit ha) (signedFits_of_natAbs_le hfit hb) x hxa hxb
-  rw [hw_eq] at he
-  exact ⟨y, he, hyr, hym, fun i hi => hyf i (Or.inr hi)⟩
+  exact ⟨y, by rwa [show (w - 2) + 2 = w by omega] at he, hyr, hym, fun i hi => hyf i (Or.inr hi)⟩
 
 theorem exec_signedSub {w B : ℕ} {a b : ℤ} (hfit : Fits w (8 * B + 4))
     (ha : a.natAbs ≤ B) (hb : b.natAbs ≤ B) (x : Data numRegs)
@@ -198,11 +187,9 @@ theorem exec_signedSub {w B : ℕ} {a b : ℤ} (hfit : Fits w (8 * B + 4))
       y.regs (Signed.result (r := 47)) = Signed.encode (a - b) ∧
       y.mem = x.mem ∧ ∀ i : Fin numRegs, 9 ≤ i.val → y.regs i = x.regs i := by
   have hw3 := width_ge_three_of_fits hfit
-  have hw_eq : (w - 2) + 2 = w := by omega
   obtain ⟨y, he, hyr, hym, hyf⟩ := Signed.exec_subtract (r := 47)
     (signedFits_of_natAbs_le hfit ha) (signedFits_of_natAbs_le hfit hb) x hxa hxb
-  rw [hw_eq] at he
-  exact ⟨y, he, hyr, hym, fun i hi => hyf i (Or.inr hi)⟩
+  exact ⟨y, by rwa [show (w - 2) + 2 = w by omega] at he, hyr, hym, fun i hi => hyf i (Or.inr hi)⟩
 
 theorem exec_signedMul {w B : ℕ} {a b : ℤ} (hfit : Fits w (8 * B + 4))
     (ha : a.natAbs ≤ B) (hb : b.natAbs ≤ B) (hab : (a * b).natAbs ≤ B) (x : Data numRegs)
@@ -212,11 +199,9 @@ theorem exec_signedMul {w B : ℕ} {a b : ℤ} (hfit : Fits w (8 * B + 4))
       y.regs (Signed.result (r := 47)) = Signed.encode (a * b) ∧
       y.mem = x.mem ∧ ∀ i : Fin numRegs, 9 ≤ i.val → y.regs i = x.regs i := by
   have hw3 := width_ge_three_of_fits hfit
-  have hw_eq : (w - 2) + 2 = w := by omega
   obtain ⟨y, he, hyr, hym, hyf⟩ := Signed.exec_multiply (r := 47)
     (signedFits_of_natAbs_le hfit ha) (signedFits_of_natAbs_le hfit hb)
     (signedFits_of_natAbs_le hfit hab) x hxa hxb
-  rw [hw_eq] at he
-  exact ⟨y, he, hyr, hym, fun i hi => hyf i (Or.inr hi)⟩
+  exact ⟨y, by rwa [show (w - 2) + 2 = w by omega] at he, hyr, hym, fun i hi => hyf i (Or.inr hi)⟩
 
 end Cslib.Algorithms.WordRAM.TrimmedYates

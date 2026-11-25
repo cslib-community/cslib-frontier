@@ -58,15 +58,13 @@ theorem expect_mul_le_rpow_mul_rpow (s : Finset ι) {f g : ι → ℝ} (hf : ∀
     (hg : ∀ i ∈ s, 0 ≤ g i) {p q : ℝ} (hpq : p.HolderConjugate q) :
     𝔼 i ∈ s, f i * g i ≤ (𝔼 i ∈ s, f i ^ p) ^ (1 / p) * (𝔼 i ∈ s, g i ^ q) ^ (1 / q) := by
   rcases s.eq_empty_or_nonempty with rfl | hs
-  · simp only [expect_empty]
-    positivity
+  · simp only [expect_empty]; positivity
   · have hN : (0 : ℝ) < s.card := by exact_mod_cast card_pos.2 hs
-    have hH := Real.inner_le_Lp_mul_Lq_of_nonneg s hpq hf hg
     simp only [expect_eq_sum_div_card]
     rw [Real.div_rpow (sum_nonneg fun i hi => Real.rpow_nonneg (hf i hi) _) hN.le,
       Real.div_rpow (sum_nonneg fun i hi => Real.rpow_nonneg (hg i hi) _) hN.le,
       div_mul_div_comm, ← Real.rpow_add hN, hpq.one_div_add_one_div, one_div_one, Real.rpow_one]
-    exact div_le_div_of_nonneg_right hH hN.le
+    exact div_le_div_of_nonneg_right (Real.inner_le_Lp_mul_Lq_of_nonneg s hpq hf hg) hN.le
 
 /-- **Log-convexity of moments** for averages over a finset: for `f` nonnegative on `s`,
 `0 < θ < 1` and `p, q ≥ 0`, `𝔼_s f ^ (θ p + (1 - θ) q) ≤ (𝔼_s f ^ p) ^ θ (𝔼_s f ^ q) ^ (1 - θ)`.
@@ -76,28 +74,17 @@ theorem expect_rpow_le_rpow_mul_rpow (s : Finset ι) {f : ι → ℝ} (hf : ∀ 
     𝔼 i ∈ s, f i ^ (θ * p + (1 - θ) * q) ≤
       (𝔼 i ∈ s, f i ^ p) ^ θ * (𝔼 i ∈ s, f i ^ q) ^ (1 - θ) := by
   have hθ' : 0 < 1 - θ := by linarith
-  have hpq : (1 / θ).HolderConjugate (1 / (1 - θ)) :=
-    { inv_add_inv_eq_inv := by simp only [one_div, inv_inv, inv_one]; ring
-      left_pos := by positivity
-      right_pos := by positivity }
-  have h : 𝔼 i ∈ s, f i ^ (θ * p) * f i ^ ((1 - θ) * q) ≤
-      (𝔼 i ∈ s, (f i ^ (θ * p)) ^ (1 / θ)) ^ (1 / (1 / θ)) *
-        (𝔼 i ∈ s, (f i ^ ((1 - θ) * q)) ^ (1 / (1 - θ))) ^ (1 / (1 / (1 - θ))) :=
-    expect_mul_le_rpow_mul_rpow s (fun i hi => Real.rpow_nonneg (hf i hi) _)
-      (fun i hi => Real.rpow_nonneg (hf i hi) _) hpq
-  have e1 : 𝔼 i ∈ s, f i ^ (θ * p) * f i ^ ((1 - θ) * q) =
-      𝔼 i ∈ s, f i ^ (θ * p + (1 - θ) * q) :=
-    expect_congr rfl fun i hi =>
-      (Real.rpow_add_of_nonneg (hf i hi) (by positivity) (by positivity)).symm
-  have e2 : 𝔼 i ∈ s, (f i ^ (θ * p)) ^ (1 / θ) = 𝔼 i ∈ s, f i ^ p :=
+  have h := expect_mul_le_rpow_mul_rpow s (fun i hi => Real.rpow_nonneg (hf i hi) (θ * p))
+    (fun i hi => Real.rpow_nonneg (hf i hi) ((1 - θ) * q)) (p := 1 / θ) (q := 1 / (1 - θ))
+    ⟨by simp only [one_div, inv_inv, inv_one]; ring, by positivity, by positivity⟩
+  have hpow {a b : ℝ} (hb : b ≠ 0) :
+      𝔼 i ∈ s, (f i ^ (b * a)) ^ (1 / b) = 𝔼 i ∈ s, f i ^ a :=
     expect_congr rfl fun i hi => by
-      rw [← Real.rpow_mul (hf i hi), mul_comm θ p, mul_assoc, mul_one_div_cancel hθ₀.ne',
-        mul_one]
-  have e3 : 𝔼 i ∈ s, (f i ^ ((1 - θ) * q)) ^ (1 / (1 - θ)) = 𝔼 i ∈ s, f i ^ q :=
-    expect_congr rfl fun i hi => by
-      rw [← Real.rpow_mul (hf i hi), mul_comm (1 - θ) q, mul_assoc, mul_one_div_cancel hθ'.ne',
-        mul_one]
-  rwa [e1, e2, e3, one_div_one_div, one_div_one_div] at h
+      rw [← Real.rpow_mul (hf i hi), mul_comm b a, mul_assoc, mul_one_div_cancel hb, mul_one]
+  rw [expect_congr rfl fun i hi =>
+      (Real.rpow_add_of_nonneg (hf i hi) (by positivity) (by positivity)).symm,
+    hpow hθ₀.ne', hpow hθ'.ne', one_div_one_div, one_div_one_div] at h
+  exact h
 
 end Finset
 
@@ -125,9 +112,9 @@ same power of its average. -/
 theorem expect_rpow_le_rpow_expect [Nonempty α] {f : α → ℝ} (hf : ∀ x, 0 ≤ f x) {p : ℝ}
     (hp₀ : 0 < p) (hp₁ : p < 1) :
     (𝔼 x, f x ^ p) ≤ (𝔼 x, f x) ^ p := by
-  have h := expect_rpow_le_rpow_mul_rpow hf (p := 1) (q := 0) hp₀ hp₁ zero_le_one le_rfl
   simpa only [mul_one, mul_zero, add_zero, Real.rpow_one, Real.rpow_zero,
-    Fintype.expect_const, Real.one_rpow] using h
+    Fintype.expect_const, Real.one_rpow] using
+    expect_rpow_le_rpow_mul_rpow hf (p := 1) (q := 0) hp₀ hp₁ zero_le_one le_rfl
 
 /-- A bound on a scaled mean is preserved under a sublinear power when the scale
 on the right is at least the scale on the left. -/
@@ -135,21 +122,16 @@ theorem mul_expect_rpow_le_of_mul_expect_le [Nonempty α] {f : α → ℝ}
     (hf : ∀ x, 0 ≤ f x) {m M e p : ℝ} (hm : 0 < m) (hmM : m ≤ M) (he : 0 ≤ e)
     (hp₀ : 0 < p) (hp₁ : p < 1) (h : m * (𝔼 x, f x) ≤ M * e) :
     m * (𝔼 x, f x ^ p) ≤ M * e ^ p := by
-  let c := M / m
-  have hc : 1 ≤ c := (le_div_iff₀ hm).2 (by simpa only [one_mul] using hmM)
-  have hmc : m * c = M := by dsimp only [c]; field_simp
-  have hav : (𝔼 x, f x) ≤ c * e := by
-    apply le_of_mul_le_mul_left _ hm
-    rw [← mul_assoc, hmc]
-    exact h
+  have hc : 1 ≤ M / m := (le_div_iff₀ hm).2 (by simpa only [one_mul] using hmM)
+  have hmc : m * (M / m) = M := by field_simp
+  have hav : (𝔼 x, f x) ≤ M / m * e :=
+    le_of_mul_le_mul_left (by rwa [← mul_assoc, hmc]) hm
   have hpow := (expect_rpow_le_rpow_expect hf hp₀ hp₁).trans
     (Real.rpow_le_rpow (expect_nonneg fun x _ => hf x) hav hp₀.le)
   calc
-    _ ≤ m * (c * e) ^ p := mul_le_mul_of_nonneg_left hpow hm.le
-    _ = (m * c ^ p) * e ^ p := by rw [Real.mul_rpow (zero_le_one.trans hc) he, mul_assoc]
-    _ ≤ (m * c) * e ^ p := by
-      gcongr
-      exact Real.rpow_le_self_of_one_le hc hp₁.le
+    _ ≤ m * (M / m * e) ^ p := mul_le_mul_of_nonneg_left hpow hm.le
+    _ = (m * (M / m) ^ p) * e ^ p := by rw [Real.mul_rpow (zero_le_one.trans hc) he, mul_assoc]
+    _ ≤ (m * (M / m)) * e ^ p := by gcongr; exact Real.rpow_le_self_of_one_le hc hp₁.le
     _ = _ := by rw [hmc]
 
 end Fintype

@@ -146,25 +146,20 @@ theorem expected_realSampleEntropy_eq_conditionalEntropy {α β : Type*}
   refine sum_congr rfl fun x _ => congrArg (((PMF.uniformOfFintype α) x).toReal * ·) ?_
   dsimp only
   have : Nonempty {a : α // F a = F x} := ⟨⟨x, rfl⟩⟩
-  have hcond := congrArg (fun p : PMF α => PMF.surprisal p x)
-    (PMF.conditionalSnd_uniform_map F (F x))
-  rw [hcond]
+  rw [congrArg (fun p : PMF α => PMF.surprisal p x) (PMF.conditionalSnd_uniform_map F (F x))]
   let clsFin : Fintype {a : α // F a = F x} :=
     @Subtype.fintype α (fun a => F a = F x) (Classical.decPred _) ‹_›
   have hmap : ((@PMF.uniformOfFintype {a : α // F a = F x} clsFin _).map Subtype.val) x =
       (@PMF.uniformOfFintype {a : α // F a = F x} clsFin _) ⟨x, rfl⟩ := by
     rw [PMF.map_apply, tsum_eq_single ⟨x, rfl⟩]
     · simp
-    · intro b hb
-      have hval : x ≠ b.1 := fun h => hb (Subtype.ext h.symm)
-      simp [hval]
+    · exact fun b hb => by simp [show x ≠ b.1 from fun h => hb (Subtype.ext h.symm)]
   rw [realSampleEntropy, PMF.surprisal]
   change Real.logb 2 #(fiberSet F (F x)) =
     -Real.logb 2 (((@PMF.uniformOfFintype {a : α // F a = F x} clsFin _).map Subtype.val) x).toReal
-  rw [hmap, PMF.uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast,
-    Real.logb_inv, neg_neg]
-  congr 2
-  rw [card_fiberSet_eq_fintypeCard, Subsingleton.elim (Subtype.fintype fun a => F a = F x) clsFin]
+  rw [hmap, PMF.uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast, Real.logb_inv,
+    neg_neg, card_fiberSet_eq_fintypeCard,
+    Subsingleton.elim (Subtype.fintype fun a => F a = F x) clsFin]
 
 /-! ### Collision-finding adversaries and canonical sanitization -/
 
@@ -181,11 +176,9 @@ $F^{-1}(F(x))$ (`[HHRVW2020]`, Section 3.2, Definition 3.3, p. 12). -/
 
 theorem isCollisionFinder_sanitizeCollisionFinder {α β : Type*} [DecidableEq β]
     (F : α → β) (A : α → PMF α) : IsCollisionFinder F (sanitizeCollisionFinder F A) := by
-  intro x y hy
+  intro x _ hy
   obtain ⟨x', _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hy
-  split_ifs with h
-  · exact h
-  · rfl
+  split_ifs with h <;> [exact h; rfl]
 
 /-! ### Accessible set expectation and the fiber-escape entropy gap -/
 
@@ -213,15 +206,11 @@ theorem expected_realSampleEntropy_sub_accessibleSetExpectation_ge {α β : Type
         accessibleSetExpectation L := by
   rw [accessibleSetExpectation, ← sum_sub_distrib]
   refine sum_le_sum fun x _ => ?_
-  rw [← mul_sub]
-  refine mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg
-  have ha : (0 : ℝ) < #(L x) := by exact_mod_cast card_pos.mpr ⟨x, hself x⟩
-  have hab : (#(L x) : ℝ) ≤ #(fiberSet F (F x)) := by
-    exact_mod_cast card_le_card (hsub x)
-  have hsdiff : (#(fiberSet F (F x) \ L x) : ℝ) = #(fiberSet F (F x)) - #(L x) := by
-    rw [card_sdiff_of_subset (hsub x), Nat.cast_sub (card_le_card (hsub x))]
-  rw [hsdiff, realSampleEntropy]
-  exact Real.sub_div_le_logb_sub ha hab
+  rw [← mul_sub, card_sdiff_of_subset (hsub x), Nat.cast_sub (card_le_card (hsub x)),
+    realSampleEntropy]
+  exact mul_le_mul_of_nonneg_left (Real.sub_div_le_logb_sub
+    (by exact_mod_cast card_pos.mpr ⟨x, hself x⟩) (by exact_mod_cast card_le_card (hsub x)))
+    ENNReal.toReal_nonneg
 
 /-- Conditional-entropy form of `expected_realSampleEntropy_sub_accessibleSetExpectation_ge`
 (`[HHRVW2020]`, Section 4.2, p. 24). -/
@@ -232,9 +221,9 @@ theorem conditionalEntropy_sub_accessibleSetExpectation_ge {α β : Type*}
     (∑ x : α, ((PMF.uniformOfFintype α) x).toReal *
         ((#(fiberSet F (F x) \ L x) : ℝ) / #(fiberSet F (F x)))) ≤
       PMF.conditionalEntropy ((PMF.uniformOfFintype α).map fun x => (F x, x)) -
-        accessibleSetExpectation L := by
-  rw [← expected_realSampleEntropy_eq_conditionalEntropy F]
-  exact expected_realSampleEntropy_sub_accessibleSetExpectation_ge F L hself hsub
+        accessibleSetExpectation L :=
+  expected_realSampleEntropy_eq_conditionalEntropy F ▸
+    expected_realSampleEntropy_sub_accessibleSetExpectation_ge F L hself hsub
 
 /-! ### Computational accessible-escape game and family interface -/
 
@@ -294,8 +283,7 @@ theorem isWordCollisionFinder_sanitizeWordCollisionFinder (inLen : ℕ → ℕ)
     PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hraw
   obtain ⟨u, _, rfl⟩ := hraw
   split_ifs with h
-  · simp only [Bool.and_eq_true, beq_iff_eq] at h
-    exact h
+  · simpa only [Bool.and_eq_true, beq_iff_eq] using h
   · exact ⟨hz, rfl⟩
 
 theorem isPPT_sanitizeWordCollisionFinder {inLen : ℕ → ℕ}
@@ -312,19 +300,12 @@ theorem isPPT_sanitizeWordCollisionFinder {inLen : ℕ → ℕ}
   let Q := (ℕ × List Bool) × List Bool
   let encL := Turing.MultiTapeTM.encPair Turing.MultiTapeTM.encUnary Turing.MultiTapeTM.encBits
   let encQ : Q ↪ List Bool := Turing.MultiTapeTM.encPair encL Turing.MultiTapeTM.encBits
-  have hfst : Turing.MultiTapeTM.ComputableInPolyTime (fun q : Q => q.1) encQ encL :=
-    Turing.MultiTapeTM.ComputableInPolyTime.fst _ _
-  have hn : Turing.MultiTapeTM.ComputableInPolyTime (fun q : Q => q.1.1) encQ
-      Turing.MultiTapeTM.encUnary := hfst.fst'
-  have hz : Turing.MultiTapeTM.ComputableInPolyTime (fun q : Q => q.1.2) encQ
-      Turing.MultiTapeTM.encBits := hfst.snd'
-  have hraw : Turing.MultiTapeTM.ComputableInPolyTime (fun q : Q => q.2) encQ
-      Turing.MultiTapeTM.encBits := Turing.MultiTapeTM.ComputableInPolyTime.snd _ _
-  have hlenCond := (hraw.trans Turing.MultiTapeTM.ComputableInPolyTime.length_bits).beq
-    (hinLen.comp hn)
-  have hevCond := (heval.comp (hn.prod hraw)).beq (heval.comp hfst)
-  have hpost := (hlenCond.bool_and' hevCond).ite hraw hz
-  exact IsPPTOn.isPPT (hA.on.bind_with (hpost.of_enc_eq fun _ => rfl).isPPTOn)
+  have hfst := Turing.MultiTapeTM.ComputableInPolyTime.fst encL Turing.MultiTapeTM.encBits
+  have hraw := Turing.MultiTapeTM.ComputableInPolyTime.snd encL Turing.MultiTapeTM.encBits
+  have hpost := (((hraw.trans .length_bits).beq (hinLen.comp hfst.fst')).bool_and'
+    ((heval.comp (hfst.fst'.prod hraw)).beq (heval.comp hfst))).ite hraw hfst.snd'
+  exact IsPPTOn.isPPT (hA.on.bind_with
+    (hpost.of_enc_eq (α := Q) (encIn := encQ) fun _ => rfl).isPPTOn)
 
 /-- Because `z ∈ accSet n z`, falling back to `zWord` on non-colliding outputs leaves
 `accessibleEscapeGame` identical as a `ProbComp Bool` program. -/
@@ -337,13 +318,11 @@ theorem accessibleEscapeGame_sanitizeWordCollisionFinder
       (sanitizeWordCollisionFinder inLen evalWord A) n =
       accessibleEscapeGame evalWord inLen accSet A n := by
   simp only [accessibleEscapeGame, sanitizeWordCollisionFinder, bind_assoc, pure_bind]
-  congr 1 with zWord
-  congr 1 with raw
+  congr 1 with zWord; congr 1 with raw
   split_ifs with h
   · rfl
   · simp only [Bool.and_eq_true, beq_iff_eq] at h
-    simp [hself]
-    tauto
+    simp [hself]; tauto
 
 /-- `accSet` witnesses an eventual `1 / denom n` gap between real Shannon conditional entropy and
 accessible average max-entropy against adversary `A` (`[HHRVW2020]`, Section 3.2, Definition 3.9,
@@ -417,13 +396,9 @@ theorem AdversaryInaccessibleEntropyFamily.exists_accessibleSet
     (sanitizeWordCollisionFinder F.inLen F.evalWord A)
     (isPPT_sanitizeWordCollisionFinder F.polyTime_inLen F.polyTime_evalWord hA)
     (isWordCollisionFinder_sanitizeWordCollisionFinder F.inLen F.evalWord A)
-  refine ⟨accSet, hself, hsub, hgap, ?_⟩
-  have heq (n : ℕ) :
-      accessibleEscapeGame F.evalWord F.inLen accSet
-        (sanitizeWordCollisionFinder F.inLen F.evalWord A) n =
-      accessibleEscapeGame F.evalWord F.inLen accSet A n :=
-    accessibleEscapeGame_sanitizeWordCollisionFinder F.evalWord F.inLen accSet A n (hself n)
-  simpa only [heq] using hesc
+  exact ⟨accSet, hself, hsub, hgap, by
+    simpa only [fun n => accessibleEscapeGame_sanitizeWordCollisionFinder F.evalWord F.inLen
+      accSet A n (hself n)] using hesc⟩
 
 /-- A uniform polynomial-time fixed-width function family with one adversary-independent
 accessible-set family `accSet n` exhibiting an eventual `1 / denom n` gap between real conditional

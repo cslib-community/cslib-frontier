@@ -40,10 +40,7 @@ theorem leafIndex_cons {n : ℕ} (lam : Term) (v : Leaf n) :
   simp only [Encoding.leafIndex, finFunctionFinEquiv_apply, Fin.sum_univ_succ,
     Fin.cons_zero, Fin.cons_succ, Fin.val_zero, pow_zero, mul_one, Fin.val_succ,
     pow_succ, mul_sum]
-  congr 1
-  apply sum_congr rfl
-  intro i _
-  ring
+  exact congrArg _ (sum_congr rfl fun _ _ => by ring)
 
 /-- The native prefix/stride update selects exactly the existing mathematical child slice. -/
 theorem slice_strided {n : ℕ} (a : ℕ → ℤ) (p s : ℕ) (lam : Term) :
@@ -52,9 +49,7 @@ theorem slice_strided {n : ℕ} (a : ℕ → ℤ) (p s : ℕ) (lam : Term) :
         (s * 10) * (Encoding.leafIndex v).val) := by
   funext v
   change a (p + s * (Encoding.leafIndex (Fin.cons lam v)).val) = _
-  rw [leafIndex_cons]
-  congr 1
-  ring
+  rw [leafIndex_cons]; exact congrArg a (by ring)
 
 /-- A frame's prefix and stride put every remaining leaf inside the original encoding array. -/
 theorem leafAddress_lt {n p s size : ℕ} (hp : p < s) (hs : s * 10 ^ n = size)
@@ -81,50 +76,28 @@ theorem partialValue_succ {n : ℕ} (a b : Leaf (n + 1) → ℤ)
     partialValue a b S w (k.val + 1) = partialValue a b S w k.val +
       if (Encoding.termDigits k).Contributes (w 0) then
         Pruned.childResult a b S (Encoding.termDigits k) (Fin.tail w) else 0 := by
-  have hfilter :
-      (univ.filter fun i : Fin 10 => i.val < k.val + 1 ∧
-        (Encoding.termDigits i).Contributes (w 0)) =
-      if (Encoding.termDigits k).Contributes (w 0) then
-        insert k (univ.filter fun i : Fin 10 => i.val < k.val ∧
-          (Encoding.termDigits i).Contributes (w 0)) else
-        univ.filter fun i : Fin 10 => i.val < k.val ∧
-          (Encoding.termDigits i).Contributes (w 0) := by
-    ext i
-    by_cases hc : (Encoding.termDigits k).Contributes (w 0)
-    · simp only [mem_filter, mem_univ, true_and, hc, ↓reduceIte, mem_insert]
-      constructor
-      · rintro ⟨hi, hci⟩
-        by_cases he : i = k
-        · exact Or.inl he
-        · exact Or.inr ⟨by have hne := Fin.val_ne_of_ne he; omega, hci⟩
-      · rintro (rfl | ⟨hi, hci⟩)
-        · exact ⟨by omega, hc⟩
-        · exact ⟨by omega, hci⟩
-    · simp only [mem_filter, mem_univ, true_and, hc, ↓reduceIte]
-      constructor
-      · rintro ⟨hi, hci⟩
-        have hne : i ≠ k := fun he => hc (he ▸ hci)
-        exact ⟨by have hv := Fin.val_ne_of_ne hne; omega, hci⟩
-      · exact fun ⟨hi, hci⟩ => ⟨by omega, hci⟩
   unfold partialValue
-  rw [hfilter]
-  split_ifs
-  · rw [sum_insert (by simp)]
-    omega
-  · simp
+  split_ifs with hc
+  · conv_rhs => rw [add_comm, ← sum_insert
+      (f := fun i => Pruned.childResult a b S (Encoding.termDigits i) (Fin.tail w)) (by simp)]
+    refine sum_congr ?_ fun _ _ => rfl
+    ext i; simp only [mem_insert, mem_filter, mem_univ, true_and]
+    exact ⟨fun ⟨h, h'⟩ => if he : i = k then .inl he else
+        .inr ⟨by have := Fin.val_ne_of_ne he; omega, h'⟩,
+      by rintro (rfl | ⟨h, h'⟩); exacts [⟨by omega, hc⟩, ⟨by omega, h'⟩]⟩
+  · rw [add_zero]
+    refine sum_congr ?_ fun _ _ => rfl
+    ext i; simp only [mem_filter, mem_univ, true_and]
+    exact ⟨fun ⟨h, h'⟩ =>
+        ⟨by have := Fin.val_ne_of_ne (fun he : i = k => hc (he ▸ h')); omega, h'⟩,
+      fun ⟨h, h'⟩ => ⟨by omega, h'⟩⟩
 
 /-- After all ten terms, a requested accumulator is the existing pruned result. -/
 theorem partialValue_ten {n : ℕ} (a b : Leaf (n + 1) → ℤ)
     (S : Finset (OutStr (n + 1))) (w : OutStr (n + 1)) (hw : w ∈ S) :
     partialValue a b S w 10 = Pruned.result (n + 1) a b S w := by
-  rw [Pruned.result_succ_apply]
-  simp only [hw, ↓reduceIte]
-  unfold partialValue
-  apply sum_equiv Encoding.termDigits
-  · intro i
-    simp only [mem_filter, mem_univ, true_and, i.isLt]
-  · intro _ _
-    rfl
+  rw [Pruned.result_succ_apply, ite_eq_left hw, partialValue]
+  exact sum_equiv Encoding.termDigits (fun _ => by simp) fun _ _ => rfl
 
 /-- Every child's mathematical result has the bound for its remaining depth, including a
 skipped empty child whose value is zero. -/
@@ -132,14 +105,12 @@ theorem abs_childResult_le {n : ℕ} (a b : Leaf (n + 1) → ℤ) (A B : ℤ)
     (hA : ∀ v, |a v| ≤ A) (hB : ∀ v, |b v| ≤ B)
     (S : Finset (OutStr (n + 1))) (lam : Term) (w : OutStr n) :
     |Pruned.childResult a b S lam w| ≤ 10 ^ n * (A * B) := by
-  have hA0 : 0 ≤ A := (abs_nonneg _).trans (hA fun _ => .P0)
-  have hB0 : 0 ≤ B := (abs_nonneg _).trans (hB fun _ => .P0)
-  unfold Pruned.childResult
-  split_ifs
+  unfold Pruned.childResult; split_ifs
   · exact Pruned.abs_result_le _ _ A B (fun v => hA (Fin.cons lam v))
       (fun v => hB (Fin.cons lam v)) _ _
-  · simp only [Pi.zero_apply, abs_zero]
-    positivity
+  · have := (abs_nonneg _).trans (hA fun _ => .P0)
+    have := (abs_nonneg _).trans (hB fun _ => .P0)
+    simp only [Pi.zero_apply, abs_zero]; positivity
 
 /-- The bound covers all partial sums, not only the final recursively specified output. -/
 theorem abs_partialValue_le {n : ℕ} (a b : Leaf (n + 1) → ℤ) (A B : ℤ)
@@ -148,13 +119,9 @@ theorem abs_partialValue_le {n : ℕ} (a b : Leaf (n + 1) → ℤ) (A B : ℤ)
     |partialValue a b S w k| ≤ 10 ^ (n + 1) * (A * B) := by
   have hA0 : 0 ≤ A := (abs_nonneg _).trans (hA fun _ => .P0)
   have hB0 : 0 ≤ B := (abs_nonneg _).trans (hB fun _ => .P0)
-  let T := (univ : Finset (Fin 10)).filter fun i =>
-    i.val < k ∧ (Encoding.termDigits i).Contributes (w 0)
-  have hcard : T.card ≤ 10 := (card_le_univ _).trans_eq (by simp)
-  calc
-    |partialValue a b S w k| ≤ (T.card : ℤ) * (10 ^ n * (A * B)) :=
-      abs_sum_le_card_mul T (fun i _ => abs_childResult_le a b A B hA hB S _ _)
-    _ ≤ 10 * (10 ^ n * (A * B)) := by gcongr; exact_mod_cast hcard
-    _ = 10 ^ (n + 1) * (A * B) := by ring
+  refine (abs_sum_le_card_mul _ fun _ _ => abs_childResult_le a b A B hA hB S _ _).trans ?_
+  refine (mul_le_mul_of_nonneg_right ?_ (by positivity)).trans_eq
+    (by ring : (10 : ℤ) * (10 ^ n * (A * B)) = 10 ^ (n + 1) * (A * B))
+  exact_mod_cast (card_le_univ _).trans_eq (Fintype.card_fin 10)
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PrunedQuery

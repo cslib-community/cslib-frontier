@@ -104,10 +104,9 @@ theorem hasFIP_iff_wellFounded : G.HasFIP ↔ WellFounded G.Improves := by
   exact ⟨fun h => ⟨fun ⟨γ, hγ⟩ => h γ hγ⟩, fun h γ hγ => h.false ⟨γ, hγ⟩⟩
 
 theorem IsExactPotential.isOrdinalPotential {Φ : (∀ i, S i) → ℝ} (h : G.IsExactPotential Φ) :
-    G.IsOrdinalPotential Φ := by
-  intro s i a
+    G.IsOrdinalPotential Φ := fun s i a => by
   have := h s i a
-  constructor <;> intro hlt <;> linarith
+  constructor <;> intro <;> linarith
 
 theorem IsOrdinalPotential.isGeneralizedOrdinalPotential {Φ : (∀ i, S i) → ℝ}
     (h : G.IsOrdinalPotential Φ) : G.IsGeneralizedOrdinalPotential Φ :=
@@ -121,18 +120,15 @@ theorem IsExactPotential.isGeneralizedOrdinalPotential {Φ : (∀ i, S i) → �
 pure Nash equilibrium of `G` if and only if no unilateral deviation strictly lowers `Φ`, that is,
 if and only if `s` is a pure Nash equilibrium of the game in which every player's cost is `Φ`. -/
 theorem IsOrdinalPotential.isPureNash_iff {Φ : (∀ i, S i) → ℝ} (h : G.IsOrdinalPotential Φ)
-    {s : ∀ i, S i} : G.IsPureNash s ↔ ∀ i (a : S i), Φ s ≤ Φ (Function.update s i a) := by
-  refine forall₂_congr fun i a => ?_
-  rw [← not_lt, ← not_lt, h s i a]
+    {s : ∀ i, S i} : G.IsPureNash s ↔ ∀ i (a : S i), Φ s ≤ Φ (Function.update s i a) :=
+  forall₂_congr fun i a => by rw [← not_lt, ← not_lt, h s i a]
 
 /-- If no unilateral deviation strictly lowers a generalized ordinal potential, the profile is a
 pure Nash equilibrium. -/
 theorem IsGeneralizedOrdinalPotential.isPureNash_of_forall_update_le {Φ : (∀ i, S i) → ℝ}
     (h : G.IsGeneralizedOrdinalPotential Φ) {s : ∀ i, S i}
-    (hs : ∀ i (a : S i), Φ s ≤ Φ (Function.update s i a)) : G.IsPureNash s := by
-  intro i a
-  by_contra hlt
-  exact (hs i a).not_gt (h s i a (lt_of_not_ge hlt))
+    (hs : ∀ i (a : S i), Φ s ≤ Φ (Function.update s i a)) : G.IsPureNash s :=
+  fun i a => not_lt.1 fun hlt => (hs i a).not_gt (h s i a hlt)
 
 /-- A global minimizer of a generalized ordinal potential is a pure Nash equilibrium. -/
 theorem IsGeneralizedOrdinalPotential.isPureNash_of_forall_le {Φ : (∀ i, S i) → ℝ}
@@ -143,11 +139,10 @@ theorem IsGeneralizedOrdinalPotential.isPureNash_of_forall_le {Φ : (∀ i, S i)
 /-- With finitely many profiles, a generalized ordinal potential makes the improvement relation
 well-founded. -/
 theorem IsGeneralizedOrdinalPotential.wellFounded [Finite (∀ i, S i)] {Φ : (∀ i, S i) → ℝ}
-    (h : G.IsGeneralizedOrdinalPotential Φ) : WellFounded G.Improves := by
-  have hsub : Subrelation G.Improves (fun t s => Φ t < Φ s) := by
-    rintro t s ⟨i, a, rfl, hlt⟩
-    exact h s i a hlt
-  exact hsub.wf (Finite.wellFounded_of_trans_of_irrefl _)
+    (h : G.IsGeneralizedOrdinalPotential Φ) : WellFounded G.Improves :=
+  Subrelation.wf (show Subrelation G.Improves fun t s => Φ t < Φ s from
+    fun {_ s} ⟨i, a, he, hlt⟩ => he ▸ h s i a (he ▸ hlt))
+    (Finite.wellFounded_of_trans_of_irrefl _)
 
 /-- [MondererShapley1996], Lemma 2.3, in the generality of the "if" direction of Lemma 2.5: a game
 with finitely many profiles and a generalized ordinal potential has the finite improvement
@@ -171,11 +166,9 @@ theorem HasFIP.exists_reflTransGen_isPureNash (h : G.HasFIP) (s : ∀ i, S i) :
   | _ s ih =>
     by_cases hs : G.IsPureNash s
     · exact ⟨s, .refl, hs⟩
-    · rw [G.isPureNash_iff_forall_not_improves] at hs
-      push Not at hs
-      obtain ⟨t, ht⟩ := hs
-      obtain ⟨u, htu, hu⟩ := ih t ht
-      exact ⟨u, Relation.ReflTransGen.head ht htu, hu⟩
+    · obtain ⟨t, ht⟩ := not_forall.1 (mt G.isPureNash_iff_forall_not_improves.2 hs)
+      obtain ⟨u, htu, hu⟩ := ih t (not_not.1 ht)
+      exact ⟨u, .head (not_not.1 ht) htu, hu⟩
 
 /-- A generalized ordinal potential does not increase along an improvement path: if better-response
 dynamics lead from `s` to `t`, then `Φ t ≤ Φ s`. -/
@@ -184,9 +177,7 @@ theorem IsGeneralizedOrdinalPotential.le_of_reflTransGen {Φ : (∀ i, S i) → 
     (hst : Relation.ReflTransGen (flip G.Improves) s t) : Φ t ≤ Φ s := by
   induction hst with
   | refl => exact le_rfl
-  | tail _ hbc ih =>
-    obtain ⟨i, a, rfl, hlt⟩ := hbc
-    exact (h _ i a hlt).le.trans ih
+  | tail _ hbc ih => obtain ⟨i, a, rfl, hlt⟩ := hbc; exact (h _ i a hlt).le.trans ih
 
 /-- [MondererShapley1996], Corollary 2.2, for generalized ordinal potentials: a game with finitely
 many (and at least one) profiles and a generalized ordinal potential has a pure Nash equilibrium.
@@ -204,25 +195,19 @@ For the "only if" direction we use, in cost form, the construction of Milchtaich
 nonempty improvement path. -/
 theorem hasFIP_iff_exists_isGeneralizedOrdinalPotential [Finite (∀ i, S i)] :
     G.HasFIP ↔ ∃ Φ, G.IsGeneralizedOrdinalPotential Φ := by
-  refine ⟨fun h => ?_, fun ⟨Φ, hΦ⟩ => hΦ.hasFIP⟩
+  refine ⟨fun h => ?_, fun ⟨_, hΦ⟩ => hΦ.hasFIP⟩
   classical
   have : Fintype (∀ i, S i) := Fintype.ofFinite _
   have hwf := (hasFIP_iff_wellFounded.1 h).transGen
-  let D : (∀ i, S i) → Finset (∀ i, S i) := fun s =>
-    Finset.univ.filter fun z => Relation.TransGen G.Improves z s
+  let D (s : ∀ i, S i) := Finset.univ.filter fun z => Relation.TransGen G.Improves z s
   refine ⟨fun s => ((D s).card : ℝ), fun s i a hlt => ?_⟩
   have hstep : G.Improves (Function.update s i a) s := ⟨i, a, rfl, hlt⟩
-  have hss : D (Function.update s i a) ⊂ D s := by
-    rw [Finset.ssubset_iff_of_subset]
-    · refine ⟨Function.update s i a, ?_, ?_⟩
-      · simp only [D, Finset.mem_filter, Finset.mem_univ, true_and]
-        exact .single hstep
-      · simp only [D, Finset.mem_filter, Finset.mem_univ, true_and]
-        intro hself
-        exact @WellFounded.asymmetric _ _ hwf _ _ hself hself
-    · intro z
-      simp only [D, Finset.mem_filter, Finset.mem_univ, true_and]
-      exact fun hz => .tail hz hstep
+  have hss : D (Function.update s i a) ⊂ D s :=
+    (Finset.ssubset_iff_of_subset fun z hz => Finset.mem_filter.2
+      ⟨Finset.mem_univ _, (Finset.mem_filter.1 hz).2.tail hstep⟩).2
+      ⟨Function.update s i a, Finset.mem_filter.2 ⟨Finset.mem_univ _, .single hstep⟩,
+        fun hself => @WellFounded.asymmetric _ _ hwf _ _ (Finset.mem_filter.1 hself).2
+          (Finset.mem_filter.1 hself).2⟩
   change ((D (Function.update s i a)).card : ℝ) < (D s).card
   exact_mod_cast Finset.card_lt_card hss
 
@@ -233,28 +218,21 @@ theorem IsExactPotential.sub_eq_sub [Finite ι] {Φ Ψ : (∀ i, S i) → ℝ}
     Φ s - Ψ s = Φ t - Ψ t := by
   classical
   have : Fintype ι := Fintype.ofFinite ι
-  have hupd : ∀ (u : ∀ i, S i) i (a : S i),
-      Φ (Function.update u i a) - Ψ (Function.update u i a) = Φ u - Ψ u := by
-    intro u i a
-    have h1 := hΦ u i a
-    have h2 := hΨ u i a
-    linarith
-  -- Replace the coordinates of `t` by those of `s` one player at a time.
-  have key : ∀ F : Finset ι,
-      Φ (fun j => if j ∈ F then s j else t j) - Ψ (fun j => if j ∈ F then s j else t j)
-        = Φ t - Ψ t := by
-    intro F
-    induction F using Finset.induction_on with
-    | empty => simp only [Finset.notMem_empty, ite_false]
-    | insert k F hk ih =>
-      have : (fun j => if j ∈ insert k F then s j else t j)
-          = Function.update (fun j => if j ∈ F then s j else t j) k (s k) := by
-        funext j
-        by_cases hj : j = k
-        · subst hj
-          simp only [Finset.mem_insert, true_or, ite_true, Function.update_self]
-        · simp only [Finset.mem_insert, hj, false_or, Function.update_of_ne hj]
-      rw [this, hupd, ih]
-  simpa only [Finset.mem_univ, ite_true] using key Finset.univ
+  suffices ∀ F : Finset ι,
+      Φ (fun j => if j ∈ F then s j else t j) - Ψ (fun j => if j ∈ F then s j else t j) =
+        Φ t - Ψ t by simpa using this Finset.univ
+  intro F
+  induction F using Finset.induction_on with
+  | empty => simp
+  | insert k F hk ih =>
+    have heq : (fun j => if j ∈ insert k F then s j else t j) =
+        Function.update (fun j => if j ∈ F then s j else t j) k (s k) := by
+      funext j
+      rcases eq_or_ne j k with rfl | hj
+      · simp
+      · simp [hj]
+    rw [heq]
+    linarith [hΦ (fun j => if j ∈ F then s j else t j) k (s k),
+      hΨ (fun j => if j ∈ F then s j else t j) k (s k), ih]
 
 end Cslib.GameTheory.CostGame

@@ -28,10 +28,8 @@ open Cslib.DataStructure
   | n + 1 => AVLTree.insert n (inputKeys n)
 
 /-- The canonical input key tree has correct heights, ordering and balance. -/
-theorem inputKeys_valid (n : ℕ) : (inputKeys n).Valid := by
-  induction n with
-  | zero => exact AVLTree.valid_nil
-  | succ n ih => exact AVLTree.valid_insert ih n
+theorem inputKeys_valid (n : ℕ) : (inputKeys n).Valid :=
+  Nat.rec AVLTree.valid_nil (fun n ih => AVLTree.valid_insert ih n) n
 
 /-- Exactly the first `n` addresses occur in the canonical input key tree. -/
 @[simp] theorem elements_inputKeys (n : ℕ) : (inputKeys n).elements = Finset.range n := by
@@ -49,8 +47,7 @@ theorem init_memory_support (input : List ℕ) {r a : ℕ}
   | succ a =>
     rw [Data.init_mem_succ] at nonzero
     by_contra h
-    have bound : input.length ≤ a := by omega
-    exact nonzero (List.getD_eq_default input 0 bound)
+    exact nonzero (List.getD_eq_default input 0 (by omega))
 
 /-- Store each AVL node's key, cached height, and memory value in fields zero, one, and two. -/
 @[expose] def payloadTree (memory : ℕ → ℕ) : AVLTree ℕ → BinaryTree (Fin 3 → ℕ)
@@ -107,44 +104,37 @@ theorem inputState_represents (w r : ℕ) (input : List ℕ) :
   have matched := payloadTree_matches w (Data.init (r := 0) input).mem
     (inputKeys (input.length + 1)) 0
   refine ⟨fun _ => rfl, ?_, matched, inputKeys_valid _,
-    SearchTree.PointerMachine.addressesDistinct_labelTree _ _, ⟨?_, ?_⟩, ?_⟩
-  · simpa [inputState, inputTree] using
-      (SearchTree.PointerMachine.represents_encodeHeap (M := model w) (regs := r + 2)
-        (payloadTree (Data.init (r := 0) input).mem (inputKeys (input.length + 1))) [] [] none)
-  · exact payloadTree_values w (Data.init (r := 0) input).mem (inputKeys (input.length + 1)) 0
-  · intro key nonzero
-    change key ∈ SearchTree.elements (SearchTree.PointerMachine.keys
-      (SearchTree.PointerMachine.labelTree (M := model w) 0
-        (payloadTree (Data.init (r := 0) input).mem (inputKeys (input.length + 1)))))
-    rw [matched.keys]
-    exact init_memory_support input nonzero
-  · simp [inputState]
+    SearchTree.PointerMachine.addressesDistinct_labelTree _ _,
+    ⟨payloadTree_values w (Data.init (r := 0) input).mem (inputKeys (input.length + 1)) 0,
+      fun key nonzero => by
+        rw [show SearchTree.PointerMachine.keys (inputTree w input) =
+          (inputKeys (input.length + 1)).toBinaryTree from matched.keys]
+        exact init_memory_support input nonzero⟩,
+    by simp [inputState]⟩
+  simpa [inputState, inputTree] using
+    SearchTree.PointerMachine.represents_encodeHeap (M := model w) (regs := r + 2)
+      (payloadTree (Data.init (r := 0) input).mem (inputKeys (input.length + 1))) [] [] none
 
 /-- The input heap has one node per input cell, plus its length cell. -/
 @[simp] theorem inputState_heap_length (w r : ℕ) (input : List ℕ) :
     (inputState w r input).heap.length = input.length + 1 := by
   simp only [inputState, SearchTree.PointerMachine.length_encodeHeap]
-  rw [payloadTree_numNodes]
-  rw [← AVLTree.card_elements (inputKeys_valid _).ordered, elements_inputKeys, Finset.card_range]
+  rw [payloadTree_numNodes, ← AVLTree.card_elements (inputKeys_valid _).ordered,
+    elements_inputKeys, Finset.card_range]
 
 /-- Every pointer in the encoded input names an allocated node. -/
 theorem inputState_valid (w r : ℕ) (input : List ℕ) : (inputState w r input).Valid := by
-  constructor
-  · intro i a eq
-    simp only [inputState] at eq
-    split at eq
-    · exact by
-        have rep := (inputState_represents w r input).heap
-        cases h : inputTree w input with
-        | nil => simp [h, SearchTree.PointerMachine.root] at eq
-        | node label l rr =>
-          simp only [h, SearchTree.PointerMachine.root, Option.some.injEq] at eq
-          subst a
-          rw [h] at rep
-          exact (List.getElem?_eq_some_iff.mp rep.1).1
-    · cases eq
-  · exact SearchTree.PointerMachine.encodeHeap_links _ 0 none
-      (by simp [inputState])
-      (by intro a h; cases h)
+  refine ⟨fun i a eq => ?_, SearchTree.PointerMachine.encodeHeap_links _ 0 none
+    (by simp [inputState]) fun _ h => by cases h⟩
+  simp only [inputState] at eq
+  split at eq
+  · have rep := (inputState_represents w r input).heap
+    cases h : inputTree w input with
+    | nil => simp [h, SearchTree.PointerMachine.root] at eq
+    | node _ _ _ =>
+      rw [h] at rep eq
+      cases Option.some.inj eq
+      exact (List.getElem?_eq_some_iff.mp rep.1).1
+  · cases eq
 
 end Cslib.WordRAM.PointerMachine
