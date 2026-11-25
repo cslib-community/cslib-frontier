@@ -262,16 +262,15 @@ private theorem reach_card_le_of_cover (B : ℕ)
       ∃ y, ∃ j < B, M.step^[t] (M.init x) = M.step^[j] (M.init y)) :
     (reach M n).card ≤ 2 ^ n * B := by
   classical
-  have hsub : reach M n ⊆ (Finset.univ ×ˢ Finset.range B).image
-      (fun (x, j) => M.step^[j] (M.init x)) := by
-    intro z hz
-    obtain ⟨x, t, rfl⟩ := (mem_reach M).mp hz
+  refine (Finset.card_le_card (t := (Finset.univ ×ˢ Finset.range B).image
+      fun (x, j) => M.step^[j] (M.init x)) fun z hz => ?_).trans
+    (Finset.card_image_le.trans ?_)
+  · obtain ⟨x, t, rfl⟩ := (mem_reach M).mp hz
     obtain ⟨y, j, hj, he⟩ := hcover x t
-    exact Finset.mem_image.mpr ⟨(y, j),
-      Finset.mem_product.mpr ⟨Finset.mem_univ _, Finset.mem_range.mpr hj⟩, he.symm⟩
-  refine (Finset.card_le_card hsub).trans (Finset.card_image_le.trans ?_)
-  simp only [Finset.card_product, Finset.card_univ, Fintype.card_fun, Fintype.card_fin,
-    Fintype.card_bool, Finset.card_range, le_refl]
+    exact Finset.mem_image.mpr
+      ⟨(y, j), Finset.mem_product.mpr ⟨Finset.mem_univ _, Finset.mem_range.mpr hj⟩, he.symm⟩
+  · simp only [Finset.card_product, Finset.card_univ, Fintype.card_fun, Fintype.card_fin,
+      Fintype.card_bool, Finset.card_range, le_refl]
 
 /-- Under a halting-time bound `t`, at most `2 ^ n * (t + 1)` configurations are reachable. -/
 theorem reach_card_le_time (hM : M.HaltingAbsorbing) (t : ℕ)
@@ -280,8 +279,7 @@ theorem reach_card_le_time (hM : M.HaltingAbsorbing) (t : ℕ)
   refine reach_card_le_of_cover M (t + 1) fun x r => ?_
   obtain ⟨s, hs, hh⟩ := ht x
   rcases le_or_gt r s with hrs | hsr
-  · exact ⟨x, r, by omega, rfl⟩
-  · exact ⟨x, s, by omega, M.iterate_of_halting hM hh hsr.le⟩
+  exacts [⟨x, r, by omega, rfl⟩, ⟨x, s, by omega, M.iterate_of_halting hM hh hsr.le⟩]
 
 omit [Fintype Q] [Fintype Γ] in
 /-- Running `τ * m` steps of a machine with rounds of length `τ` runs `m` rounds. -/
@@ -315,19 +313,13 @@ theorem iterate_card_halting [Fintype Q] [Fintype Γ] (M : Machine Q Γ h)
         M.step^[Fintype.card (Config Q Γ n h)] z = M.step^[t] z := by
   classical
   let H : Config Q Γ n h → Prop := fun z => M.halting z.state
-  have ha : absorb M.step H = M.step := by
-    funext y
+  have ha : absorb M.step H = M.step := funext fun y => by
     simp only [absorb]
     split_ifs with hy
-    · exact (M.step_of_halting hM y hy).symm
-    · rfl
-  refine ⟨?_, fun t ht => ?_⟩
-  · have hiff := absorb_iterate_card_eq_iff M.step H z
-    rwa [ha] at hiff
-  · obtain ⟨t₀, _, hp, hfirst, he⟩ := absorb_iterate_card M.step H z ⟨t, ht⟩
-    have ht₀ : t₀ ≤ t := not_lt.mp fun h => hfirst t h ht
-    rw [ha] at he
-    exact he.trans (M.iterate_of_halting hM hp ht₀).symm
+    exacts [(M.step_of_halting hM y hy).symm, rfl]
+  refine ⟨by simpa only [ha] using absorb_iterate_card_eq_iff M.step H z, fun t ht => ?_⟩
+  obtain ⟨t₀, _, hp, hfirst, he⟩ := absorb_iterate_card M.step H z ⟨t, ht⟩
+  exact (ha ▸ he).trans (M.iterate_of_halting hM hp (not_lt.mp fun h => hfirst t h ht)).symm
 
 /-- The real budget is monotone in the storage count. -/
 theorem optimizedBudget_mono {w s M M' : ℕ} (hM : M ≤ M') :
@@ -360,12 +352,11 @@ theorem inplace_fixed_power (e : Config Q Γ n h → BitString w)
       (∀ x, out.eval interpretation x = e (M.step^[T] (M.init x))) ∧
       out.size ≤ ι.size + 40000 * powerBudget w c.size R L := by
   obtain ⟨d, hd, hs⟩ := fixed_power_encoded M.step (reach M n) e c
-    (fun z hz => step_mem_reach M hz) hstep T L hL
-  refine ⟨d.comp ι, fun x => ?_, ?_⟩
-  · rw [Circuit.eval_comp, hι, hd _ (init_mem_reach M x)]
-  · rw [Circuit.size_comp]
-    have := powerBudget_mono (w := w) (s := c.size) (L := L) hR
-    omega
+    (fun _ => step_mem_reach M) hstep T L hL
+  refine ⟨d.comp ι, fun x => by rw [Circuit.eval_comp, hι, hd _ (init_mem_reach M x)], ?_⟩
+  rw [Circuit.size_comp]
+  have := powerBudget_mono (w := w) (s := c.size) (L := L) hR
+  omega
 
 /-- The square-root form, with any upper bound `R` on the number of reachable configurations. -/
 theorem inplace_fixed_power_optimized (e : Config Q Γ n h → BitString w)

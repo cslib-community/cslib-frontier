@@ -96,9 +96,8 @@ theorem toPoly_sum {ι : Type*} (s : Finset ι) (f : ι → Ineq V) :
 
 /-- The polynomial of an inequality is affine. -/
 theorem totalDegree_toPoly_le (I : Ineq V) : (I.toPoly (R := R)).totalDegree ≤ 1 := by
-  rw [toPoly]
-  refine (totalDegree_sub _ _).trans (max_le ?_ (by rw [totalDegree_C]; omega))
-  refine totalDegree_finsetSum_le fun v _ => ?_
+  refine (totalDegree_sub _ _).trans (max_le (totalDegree_finsetSum_le fun v _ => ?_)
+    (by rw [totalDegree_C]; omega))
   refine (totalDegree_mul _ _).trans ?_
   rw [totalDegree_C, zero_add, X]
   exact (totalDegree_monomial_le _ _).trans (by simp)
@@ -109,17 +108,13 @@ theorem eval_toPoly_toInt (σ : V → Bool) (I : Ineq V) :
   obtain ⟨c, b⟩ := I
   induction c using Finsupp.induction_linear generalizing b with
   | zero =>
-    have h0 : (⟨0, b⟩ : Ineq V).lhs σ = 0 := by
-      rw [lhs_of_coeff_eq_smul σ (J := 0) (c := 0) (by simp), zero_mul]
-    simp [toPoly, h0]
+    simp [toPoly, lhs_of_coeff_eq_smul σ (I := ⟨0, b⟩) (J := 0) (c := 0) (by simp)]
   | add f g hf hg =>
-    have hsplit : (⟨f + g, b⟩ : Ineq V) = ⟨f, b⟩ + ⟨g, 0⟩ := by
-      ext <;> simp
-    rw [hsplit, toPoly_add, map_add, hf, hg, lhs_add, bound_add]
+    rw [show (⟨f + g, b⟩ : Ineq V) = ⟨f, b⟩ + ⟨g, 0⟩ by ext <;> simp, toPoly_add, map_add,
+      hf, hg, lhs_add, bound_add]
     push_cast
     ring
-  | single v a =>
-    simp [toPoly]
+  | single v a => simp [toPoly]
 
 /-- Over a strictly ordered ring, an inequality holds at a `0/1` point exactly when its
 polynomial is nonnegative there. -/
@@ -168,16 +163,11 @@ polynomials and the box constraints. -/
 theorem forall_mem_cnfIneqs_iff {φ : CNF V} {p : MvPolynomial V R → Prop} :
     (∀ f ∈ cnfIneqs φ, p f) ↔
       (∀ c ∈ φ, p c.toIneq.toPoly) ∧ (∀ v, p (X v)) ∧ ∀ v, p (1 - X v) := by
-  constructor
-  · intro h
-    exact ⟨fun c hc => h _ (toPoly_mem_cnfIneqs hc), fun v => h _ (X_mem_cnfIneqs φ v),
-      fun v => h _ (one_sub_X_mem_cnfIneqs φ v)⟩
-  · rintro ⟨hc, hX, h1⟩ _ ⟨I, (⟨c, hc', rfl⟩ | ⟨v, rfl⟩) | ⟨v, rfl⟩, rfl⟩
-    · exact hc c hc'
-    · rw [Ineq.toPoly_nonneg]
-      exact hX v
-    · rw [Ineq.toPoly_leOne]
-      exact h1 v
+  refine ⟨fun h => ⟨fun c hc => h _ (toPoly_mem_cnfIneqs hc),
+    fun v => h _ (X_mem_cnfIneqs φ v), fun v => h _ (one_sub_X_mem_cnfIneqs φ v)⟩, ?_⟩
+  rintro ⟨hc, hX, h1⟩ _ ⟨I, (⟨c, hc', rfl⟩ | ⟨v, rfl⟩) | ⟨v, rfl⟩, rfl⟩
+  exacts [hc c hc', (Ineq.toPoly_nonneg (R := R) v).symm ▸ hX v,
+    (Ineq.toPoly_leOne (R := R) v).symm ▸ h1 v]
 
 omit [DecidableEq V] in
 theorem mem_booleanAxioms {g : MvPolynomial V R} :
@@ -196,32 +186,22 @@ solution exactly when `φ` is satisfiable. -/
 theorem exists_feasible_iff (φ : CNF V) :
     (∃ x : V → R, (∀ f ∈ cnfIneqs φ, 0 ≤ eval x f) ∧ ∀ g ∈ booleanAxioms V R, eval x g = 0) ↔
       φ.Satisfiable := by
-  constructor
-  · rintro ⟨x, hI, hE⟩
-    have h01 (v : V) : x v = 0 ∨ x v = 1 := by
-      have := hE _ (X_sq_sub_X_mem_booleanAxioms v)
-      simp only [map_sub, map_pow, eval_X] at this
-      have : x v * (x v - 1) = 0 := by linear_combination this
-      rcases mul_eq_zero.1 this with h | h
-      · exact Or.inl h
-      · exact Or.inr (by linear_combination h)
+  refine ⟨fun ⟨x, hI, hE⟩ => ?_, fun ⟨σ, hσ⟩ => ⟨fun v => ((σ v).toInt : R), ?_, ?_⟩⟩
+  · have h01 (v : V) : x v = 0 ∨ x v = 1 := by
+      have h := hE _ (X_sq_sub_X_mem_booleanAxioms v)
+      simp only [map_sub, map_pow, eval_X] at h
+      exact (mul_eq_zero.1 (by linear_combination h : x v * (x v - 1) = 0)).imp_right
+        fun h1 => by linear_combination h1
     let σ : V → Bool := fun v => decide (x v = 1)
-    have hx : x = fun v => ((σ v).toInt : R) := by
-      funext v
+    have hx : x = fun v => ((σ v).toInt : R) := funext fun v => by
       rcases h01 v with h | h <;> simp [σ, h]
     refine ⟨σ, (CNF.holds_toIneqs_iff σ φ).1 fun I hI' => ?_⟩
     rw [Ineq.holds_iff_eval_toPoly_nonneg (R := R), ← hx]
-    exact hI _ ⟨I, Or.inl (Or.inl hI'), rfl⟩
-  · rintro ⟨σ, hσ⟩
-    refine ⟨fun v => ((σ v).toInt : R), ?_, ?_⟩
-    · rintro _ ⟨I, hI', rfl⟩
-      rw [← Ineq.holds_iff_eval_toPoly_nonneg]
-      rcases hI' with (hI' | ⟨v, rfl⟩) | ⟨v, rfl⟩
-      · exact (CNF.holds_toIneqs_iff σ φ).2 hσ I hI'
-      · exact Ineq.holds_nonneg σ v
-      · exact Ineq.holds_leOne σ v
-    · rintro _ ⟨v, rfl⟩
-      cases σ v <;> simp [Bool.toInt]
+    exact hI _ ⟨I, .inl (.inl hI'), rfl⟩
+  · rintro _ ⟨I, (hI' | ⟨v, rfl⟩) | ⟨v, rfl⟩, rfl⟩ <;> rw [← Ineq.holds_iff_eval_toPoly_nonneg]
+    exacts [(CNF.holds_toIneqs_iff σ φ).2 hσ I hI', Ineq.holds_nonneg σ v, Ineq.holds_leOne σ v]
+  · rintro _ ⟨v, rfl⟩
+    cases σ v <;> simp [Bool.toInt]
 
 /-- **Soundness for CNF formulas**: a CNF formula whose constraints have a Positivstellensatz
 refutation is unsatisfiable. -/
@@ -237,16 +217,10 @@ theorem eq_zero_of_totalDegree_mul_le_one {g q : MvPolynomial V R} (hg : g ∈ b
     (hq : (q * g).totalDegree ≤ 1) : q * g = 0 := by
   obtain ⟨v, rfl⟩ := hg
   by_contra hne
-  have hq0 : q ≠ 0 := by
-    rintro rfl
-    simp at hne
-  have hg0 : (X v ^ 2 - X v : MvPolynomial V R) ≠ 0 := by
-    rintro h
-    simp [h] at hne
   have hdeg : (X v ^ 2 - X v : MvPolynomial V R).totalDegree = 2 := by
     rw [sub_eq_add_neg, totalDegree_add_eq_left_of_totalDegree_lt] <;>
       simp [totalDegree_X_pow, totalDegree_neg, totalDegree_X]
-  rw [totalDegree_mul_of_isDomain hq0 hg0, hdeg] at hq
+  rw [totalDegree_mul_of_isDomain (left_ne_zero_of_mul hne) (right_ne_zero_of_mul hne), hdeg] at hq
   omega
 
 /-- **The degree-`1` pseudo-expectation of a fractional point**: evaluation at a point, not

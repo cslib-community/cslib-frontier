@@ -132,12 +132,10 @@ def size : Proposition Atom → ℕ
 theorem eval_tseitinDefs_tseitinExtend (v : Atom → Bool) (A : Proposition Atom) :
     A.tseitinDefs.eval (tseitinExtend v) = true := by
   induction A with
-  | atom x => rfl
-  | falsum => rfl
+  | atom | falsum => rfl
   | and A B ihA ihB | or A B ihA ihB | imp A B ihA ihB =>
-    simp only [tseitinDefs, CNF.eval_append, ihA, ihB, Bool.and_true]
-    simp only [CNF.eval_cons, Clause.eval_cons, Literal.eval_mk, tseitinExtend_tseitinVar,
-      CNF.eval_nil, Clause.eval_nil]
+    simp only [tseitinDefs, CNF.eval_append, ihA, ihB, Bool.and_true, CNF.eval_cons,
+      Clause.eval_cons, Literal.eval_mk, tseitinExtend_tseitinVar, CNF.eval_nil, Clause.eval_nil]
     simp only [tseitinExtend, Sum.elim_inr, eval_and_bool, eval_or_bool, eval_imp_bool]
     cases A.eval v <;> cases B.eval v <;> rfl
 
@@ -170,15 +168,13 @@ private theorem eq_tseitinExtend_of_eval_tseitinDefs {σ : Atom ⊕ Proposition 
     · rfl
     · simp [tseitinDefs, CNF.vars] at hy
   | falsum =>
-    have hy : y = falsum.tseitinVar := by simpa [tseitinDefs, CNF.vars, tseitinVar] using hy
-    subst hy
-    rw [eval_tseitinVar_of_eval_tseitinDefs h, tseitinExtend_tseitinVar]
+    obtain rfl : y = falsum.tseitinVar := by simpa [tseitinDefs, CNF.vars, tseitinVar] using hy
+    exact (eval_tseitinVar_of_eval_tseitinDefs h).trans (tseitinExtend_tseitinVar _ _).symm
   | and A B ihA ihB | or A B ihA ihB | imp A B ihA ihB =>
-    have hAB := h
-    simp only [tseitinDefs, CNF.eval_append, Bool.and_eq_true] at hAB
-    obtain ⟨⟨-, hA⟩, hB⟩ := hAB
     have hself : σ (.inr _) = tseitinExtend (σ ∘ Sum.inl) (.inr _) :=
       (eval_tseitinVar_of_eval_tseitinDefs h).trans (tseitinExtend_tseitinVar _ _).symm
+    simp only [tseitinDefs, CNF.eval_append, Bool.and_eq_true] at h
+    obtain ⟨⟨-, hA⟩, hB⟩ := h
     rcases hy with rfl | hy
     · exact hself
     · obtain ⟨c, hc, b, hb⟩ := CNF.mem_vars.1 hy
@@ -198,17 +194,14 @@ theorem eval_tseitinCNF_eq_true_iff (σ : Atom ⊕ Proposition Atom → Bool) (A
     A.tseitinCNF.eval σ = true ↔
       A.eval (σ ∘ Sum.inl) = true ∧
         ∀ y ∈ A.tseitinCNF.vars, σ y = tseitinExtend (σ ∘ Sum.inl) y := by
-  constructor
-  · intro h
-    simp only [tseitinCNF, CNF.eval_cons, Clause.eval_cons, Literal.eval_mk, Clause.eval_nil,
+  refine ⟨fun h => ?_, fun ⟨hA, hagree⟩ => ?_⟩
+  · simp only [tseitinCNF, CNF.eval_cons, Clause.eval_cons, Literal.eval_mk, Clause.eval_nil,
       Bool.or_false, beq_iff_eq, Bool.and_eq_true] at h
-    obtain ⟨hvar, hdefs⟩ := h
-    refine ⟨(eval_tseitinVar_of_eval_tseitinDefs hdefs).symm.trans hvar, fun y hy => ?_⟩
+    refine ⟨(eval_tseitinVar_of_eval_tseitinDefs h.2).symm.trans h.1, fun y hy => ?_⟩
     simp only [tseitinCNF, CNF.vars, List.flatten_cons, List.map_cons, List.cons_append,
       List.nil_append, List.mem_cons] at hy
-    exact eq_tseitinExtend_of_eval_tseitinDefs hdefs hy
-  · rintro ⟨hA, hagree⟩
-    rw [CNF.eval_congr hagree]
+    exact eq_tseitinExtend_of_eval_tseitinDefs h.2 hy
+  · rw [CNF.eval_congr hagree]
     simp [tseitinCNF, eval_tseitinDefs_tseitinExtend, hA]
 
 /-- **Every model of `A` extends to a model of `A.tseitinCNF`**: the value of the Tseitin
@@ -228,19 +221,15 @@ theorem eq_of_eval_tseitinCNF {σ τ : Atom ⊕ Proposition Atom → Bool} {A : 
 
 /-- **The Tseitin transformation preserves satisfiability.** -/
 theorem satisfiable_tseitinCNF_iff (A : Proposition Atom) :
-    A.tseitinCNF.Satisfiable ↔ ∃ v : Atom → Bool, A.eval v = true := by
-  constructor
-  · rintro ⟨σ, hσ⟩
-    exact ⟨σ ∘ Sum.inl, ((eval_tseitinCNF_eq_true_iff σ A).1 hσ).1⟩
-  · rintro ⟨v, hv⟩
-    exact ⟨tseitinExtend v, (eval_tseitinCNF_tseitinExtend v A).trans hv⟩
+    A.tseitinCNF.Satisfiable ↔ ∃ v : Atom → Bool, A.eval v = true :=
+  ⟨fun ⟨σ, hσ⟩ => ⟨σ ∘ Sum.inl, ((eval_tseitinCNF_eq_true_iff σ A).1 hσ).1⟩,
+    fun ⟨v, hv⟩ => ⟨tseitinExtend v, (eval_tseitinCNF_tseitinExtend v A).trans hv⟩⟩
 
 /-! ### Size -/
 
 theorem length_tseitinDefs_le (A : Proposition Atom) : A.tseitinDefs.length ≤ 3 * A.size := by
   induction A with
-  | atom x => simp [tseitinDefs]
-  | falsum => simp [tseitinDefs, size]
+  | atom | falsum => simp [tseitinDefs, size]
   | and A B ihA ihB | or A B ihA ihB | imp A B ihA ihB =>
     simp only [tseitinDefs, List.length_append, List.length_cons, List.length_nil, size]
     omega
@@ -252,23 +241,15 @@ theorem length_tseitinCNF_le (A : Proposition Atom) : A.tseitinCNF.length ≤ 3 
 /-- **Every clause of the Tseitin transformation has at most three literals.** -/
 theorem length_le_three_of_mem_tseitinCNF {A : Proposition Atom}
     {c : Clause (Atom ⊕ Proposition Atom)} (hc : c ∈ A.tseitinCNF) : c.length ≤ 3 := by
-  have defs : ∀ B : Proposition Atom, ∀ c ∈ B.tseitinDefs, c.length ≤ 3 := by
-    intro B
+  have defs : ∀ B : Proposition Atom, ∀ c ∈ B.tseitinDefs, c.length ≤ 3 := fun B => by
     induction B with
-    | atom x => simp [tseitinDefs]
-    | falsum => simp [tseitinDefs]
+    | atom | falsum => simp [tseitinDefs]
     | and A B ihA ihB | or A B ihA ihB | imp A B ihA ihB =>
       intro c hc
       simp only [tseitinDefs, List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hc
       rcases hc with ((rfl | rfl | rfl) | hc) | hc
-      · simp
-      · simp
-      · simp
-      · exact ihA c hc
-      · exact ihB c hc
-  simp only [tseitinCNF, List.mem_cons] at hc
-  rcases hc with rfl | hc
-  · simp
-  · exact defs A c hc
+      exacts [by simp, by simp, by simp, ihA c hc, ihB c hc]
+  rcases List.mem_cons.1 hc with rfl | hc
+  exacts [by simp, defs A c hc]
 
 end Cslib.Logic.PL.Proposition

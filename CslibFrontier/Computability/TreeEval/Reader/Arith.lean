@@ -65,9 +65,7 @@ section Cast
   rw [negMod, ZMod.natCast_mod, ZMod.natCast_sub_mod_eq_neg]
 
 @[simp] theorem cast_powMod (a n : ℕ) : ((powMod p a n : ℕ) : ZMod p) = (a : ZMod p) ^ n := by
-  induction n with
-  | zero => simp [powMod]
-  | succ n ih => simp [powMod, ih, pow_succ]
+  induction n <;> simp [powMod, pow_succ, *]
 
 @[simp] theorem cast_chi [NeZero p] (b : Bool) (x : ℕ) :
     ((chi p b x : ℕ) : ZMod p) = if b then (x : ZMod p) else 1 - x := by
@@ -79,10 +77,7 @@ private theorem addMod_lt (hp : 0 < p) (a b : ℕ) : addMod p a b < p := Nat.mod
 variable [Fact p.Prime]
 
 @[simp] theorem cast_sgnVal (neg : Bool) : ((sgnVal p neg : ℕ) : ZMod p) = Iter.sgn neg := by
-  cases neg
-  · simp [sgnVal, Iter.sgn]
-  · have := (Fact.out : p.Prime).one_lt
-    simp [sgnVal, Iter.sgn, Nat.cast_sub this.le]
+  cases neg <;> simp [sgnVal, Iter.sgn, Nat.cast_sub (Fact.out : p.Prime).one_lt.le]
 
 /-- The unit of round `j` casts to the unit `Iter.zmodUnit p j`, for `j < p - 1`. -/
 theorem cast_unitVal {j : ℕ} (hj : j < p - 1) :
@@ -115,7 +110,7 @@ private theorem Regs.get_set_of_ne (R : Regs) {r r' : Fin 3} (h : r' ≠ r) (l :
 private theorem Regs.get_set (R : Regs) (r r' : Fin 3) (l : List ℕ) :
     (R.set r l).get r' = if r' = r then l else R.get r' := by
   split_ifs with h
-  · subst h; exact R.get_set_self _ _
+  · exact h ▸ R.get_set_self _ _
   · exact R.get_set_of_ne h l
 
 variable {ℓ : ℕ}
@@ -134,8 +129,7 @@ theorem modifyAt_addMod_wf (hp : 0 < p) {acc : List ℕ} (hacc : ∀ v ∈ acc, 
       ∀ v ∈ modifyAt acc i (addMod p a), v < p := by
   refine ⟨by simp [modifyAt], fun v hv => ?_⟩
   rcases List.mem_or_eq_of_mem_set hv with hv | rfl
-  · exact hacc v hv
-  · exact addMod_lt hp _ _
+  exacts [hacc v hv, addMod_lt hp _ _]
 
 theorem toState_scale (R : Regs) (r : Fin 3) (a : ℕ) :
     (R.scale p r a).toState p ℓ = scale r (a : ZMod p) (R.toState p ℓ) := by
@@ -150,9 +144,7 @@ theorem toState_scale (R : Regs) (r : Fin 3) (a : ℕ) :
 omit [Fact p.Prime] in
 theorem Regs.WF.scale (hp : 0 < p) {R : Regs} (hR : R.WF p ℓ) (r : Fin 3) (a : ℕ) :
     (R.scale p r a).WF p ℓ :=
-  hR.set (by simp [(hR r).1]) fun v hv => by
-    obtain ⟨w, -, rfl⟩ := List.mem_map.mp hv
-    exact mulMod_lt hp _ _
+  hR.set (by simp [(hR r).1]) <| List.forall_mem_map.2 fun _ _ => mulMod_lt hp _ _
 
 theorem toState_set_modifyAt (R : Regs) (t : Fin 3) (i : Fin ℓ) (hlen : (R.get t).length = ℓ)
     (g : ℕ → ℕ) :
@@ -160,13 +152,10 @@ theorem toState_set_modifyAt (R : Regs) (t : Fin 3) (i : Fin ℓ) (hlen : (R.get
       Function.update (R.toState p ℓ) t
         (Function.update (R.toState p ℓ t) i (g ((R.get t).getD i 0) : ZMod p)) := by
   funext r j
-  by_cases h : r = t
-  · subst h
-    by_cases hj : j = i
-    · subst hj
-      simp [Regs.toState, modifyAt, List.getD_eq_getElem?_getD, hlen]
-    · have : (i : ℕ) ≠ j := fun e => hj (Fin.ext e.symm)
-      simp [Regs.toState, modifyAt, List.getD_eq_getElem?_getD, this, hj]
+  rcases eq_or_ne r t with rfl | h
+  · rcases eq_or_ne j i with rfl | hj
+    · simp [Regs.toState, modifyAt, List.getD_eq_getElem?_getD, hlen]
+    · simp [Regs.toState, modifyAt, List.getD_eq_getElem?_getD, Fin.val_ne_of_ne hj.symm, hj]
   · simp [Regs.toState, Regs.get_set_of_ne _ h, h]
 
 omit [Fact p.Prime] in
@@ -178,9 +167,7 @@ theorem Regs.WF.set_modifyAt (hp : 0 < p) {R : Regs} (hR : R.WF p ℓ) (t : Fin 
 omit [Fact p.Prime] in
 theorem Regs.WF.subtractSums (hp : 0 < p) {R : Regs} (hR : R.WF p ℓ) (c : ℕ) (t : Fin 3)
     (acc : List ℕ) : (subtractSums p c t acc R).WF p ℓ :=
-  hR.set (by simp [(hR t).1]) fun v hv => by
-    obtain ⟨i, -, rfl⟩ := List.mem_map.mp hv
-    exact addMod_lt hp _ _
+  hR.set (by simp [(hR t).1]) <| List.forall_mem_map.2 fun _ _ => addMod_lt hp _ _
 
 theorem toState_subtractSums (R : Regs) (c : ℕ) (t : Fin 3) (acc : List ℕ)
     (hlen : (R.get t).length = ℓ) :
@@ -232,13 +219,11 @@ theorem cubeEquiv_symm_apply (k : Fin (2 ^ (ℓ + ℓ))) :
       finTwoEquiv x = (k : ℕ).testBit n := by
     rw [Nat.testBit_eq_decide_div_mod_eq, ← hx]
     fin_cases x <;> rfl
-  rcases ι with j | j
-  · simp only [cubeEquiv, Equiv.symm_trans_apply, Equiv.arrowCongr_symm, Equiv.symm_symm,
-      Equiv.arrowCongr_apply, Function.comp_apply, Sum.elim_inl, lowBits]
-    exact key j _ (by simp [finFunctionFinEquiv_symm_apply_val])
-  · simp only [cubeEquiv, Equiv.symm_trans_apply, Equiv.arrowCongr_symm, Equiv.symm_symm,
-      Equiv.arrowCongr_apply, Function.comp_apply, Sum.elim_inr, highBits]
-    exact key (ℓ + j) _ (by simp [finFunctionFinEquiv_symm_apply_val, Nat.add_comm])
+  rcases ι with j | j <;>
+    simp only [cubeEquiv, Equiv.symm_trans_apply, Equiv.arrowCongr_symm, Equiv.symm_symm,
+      Equiv.arrowCongr_apply, Function.comp_apply, Sum.elim_inl, Sum.elim_inr, lowBits, highBits]
+  · exact key j _ (by simp [finFunctionFinEquiv_symm_apply_val])
+  · exact key (ℓ + j) _ (by simp [finFunctionFinEquiv_symm_apply_val, Nat.add_comm])
 
 omit [Fact p.Prime] in
 theorem four_pow_eq (ℓ : ℕ) : 4 ^ ℓ = 2 ^ (ℓ + ℓ) := by rw [← two_mul, pow_mul]; norm_num
