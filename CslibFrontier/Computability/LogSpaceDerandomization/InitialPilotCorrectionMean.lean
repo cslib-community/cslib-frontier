@@ -134,17 +134,13 @@ theorem initialTrueNormalized_mean
     apply expect_equiv (terminalSplit r.terminal.role)
     · intro σ
       simp [splitSource, splitTerminal, terminalSplit, Equiv.piSplitAt_apply, r, coordinate,
-        gridChannel,
-        semanticSide_grid, X, Y]
+        gridChannel, semanticSide_grid, X, Y]
     · intro σ _; exact he σ
-  rw [hmean, mul_expect]
-  rw [hm]
+  rw [hmean, mul_expect, hm]
   change pilotCorrection _ _ _ C 1 x y = _
-  have hc : columnDetector (splitSource D id r hr) (splitTerminal D id r)
-      HP.ϕ HP.ρ HP.J HP.K (rate k) =
-      columnDetector (canonicalChannel id (rate k)) (canonicalChannel id (rate k))
-        HP.ϕ HP.ρ HP.J HP.K (rate k) := by
-    funext G; exact stage_columnDetector_eq_canonical HP D id r hr hD G
-  rw [hc]
+  rw [show columnDetector (splitSource D id r hr) (splitTerminal D id r)
+      HP.ϕ HP.ρ HP.J HP.K (rate k) = _ from
+    funext (stage_columnDetector_eq_canonical HP D id r hr hD)]
+  rfl
 
 end Matrix.HierarchyParams.H4RankEnvironment
