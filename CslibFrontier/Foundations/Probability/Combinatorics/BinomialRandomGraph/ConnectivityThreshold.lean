@@ -554,12 +554,8 @@ private theorem componentGapTerm_le {p : ℕ → I} {n k : ℕ} (hk3 : 3 ≤ k) 
       have h2 : (k.choose 2 : ℝ) * 2 = (k : ℝ) * ((k - 1 : ℕ) : ℝ) := by
         exact_mod_cast (Nat.choose_two_right k ▸
           Nat.div_mul_cancel (Nat.even_mul_pred_self k).two_dvd : k.choose 2 * 2 = k * (k - 1))
-      have hk1 : ((k - 1 : ℕ) : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr (by omega)
-      calc ((k.choose 2 : ℝ) * Real.exp 1 / ((k - 1 : ℕ) : ℝ))
-          = ((k.choose 2 : ℝ) * 2) * Real.exp 1 / (2 * ((k - 1 : ℕ) : ℝ)) := by ring
-        _ = ((k : ℝ) * Real.exp 1 / 2) * (((k - 1 : ℕ) : ℝ) / ((k - 1 : ℕ) : ℝ)) := by
-            rw [h2]; ring
-        _ = (k : ℝ) * Real.exp 1 / 2 := by rw [div_self hk1, mul_one]
+      rw [div_eq_div_iff (Nat.cast_ne_zero.mpr (by omega)) two_ne_zero]
+      linear_combination Real.exp 1 * h2
     rwa [mul_comm (Real.exp 1), hck] at h
   have hq_exp : (1 - (p n : ℝ)) ^ (k * (n - k)) ≤
       Real.exp (-(k * ((n : ℝ) / 2) * (p n : ℝ))) := by
@@ -573,11 +569,8 @@ private theorem componentGapTerm_le {p : ℕ → I} {n k : ℕ} (hk3 : 3 ≤ k) 
   have hpow_comb : ((n : ℝ) * Real.exp 1 / k) ^ k * ((k : ℝ) * Real.exp 1 / 2) ^ (k - 1) *
         (p n : ℝ) ^ (k - 1) =
       ((n : ℝ) * Real.exp 1 / k) * ((n : ℝ) * Real.exp 1 ^ 2 * (p n : ℝ) / 2) ^ (k - 1) := by
-    have hpow : ((n : ℝ) * Real.exp 1 / k) ^ k =
-        ((n : ℝ) * Real.exp 1 / k) * ((n : ℝ) * Real.exp 1 / k) ^ (k - 1) := by
-      conv_lhs => rhs; rw [show k = (k - 1) + 1 by omega]
-      rw [pow_succ']
-    rw [hpow, mul_assoc, mul_assoc ((n : ℝ) * Real.exp 1 / k), ← mul_pow, ← mul_pow]
+    rw [← mul_pow_sub_one (by omega : k ≠ 0), mul_assoc, mul_assoc ((n : ℝ) * Real.exp 1 / k),
+      ← mul_pow, ← mul_pow]
     congr 2
     field_simp [hk0]
   have hexp_split : Real.exp (-(k * ((n : ℝ) / 2) * (p n : ℝ))) =
@@ -657,17 +650,9 @@ private theorem tendsto_componentGap_tail {p : ℕ → I} {c : ℝ}
       rw [← pow_add, show 2 + (k - 3) = k - 1 by omega], ← mul_assoc]
     gcongr
   have hsum_half : ∑ k ∈ Icc 3 (n / 2), (1 / 2 : ℝ) ^ (k - 3) ≤ 2 := by
-    have h1 : ∑ k ∈ Icc 3 (n / 2), (1 / 2 : ℝ) ^ (k - 3) ≤
-        ∑ j ∈ Finset.range (n / 2 + 1), (1 / 2 : ℝ) ^ j := by
-      rw [← Finset.sum_image (f := fun j => (1 / 2 : ℝ) ^ j) fun a ha b hb h => by
-        have := (Finset.mem_Icc.mp ha).1; have := (Finset.mem_Icc.mp hb).1; omega]
-      exact Finset.sum_le_sum_of_subset_of_nonneg (fun j hj => by
-        obtain ⟨k, hk, rfl⟩ := Finset.mem_image.mp hj
-        have := (Finset.mem_Icc.mp hk).2; rw [Finset.mem_range]; omega) (fun _ _ _ => by positivity)
-    refine h1.trans ?_
-    rw [geom_sum_eq (by norm_num)]
-    have : (0 : ℝ) ≤ (1 / 2 : ℝ) ^ (n / 2 + 1) := by positivity
-    norm_num; linarith
+    rw [← Finset.Ico_add_one_right_eq_Icc, Finset.sum_Ico_eq_sum_range]
+    simp only [Nat.add_sub_cancel_left]
+    exact sum_geometric_two_le _
   calc ∑ k ∈ Icc 3 (n / 2), componentGapTerm p n k
       ≤ ∑ k ∈ Icc 3 (n / 2), A n * r n ^ (k - 1) :=
         Finset.sum_le_sum fun k hk =>
