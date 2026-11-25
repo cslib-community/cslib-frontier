@@ -200,6 +200,15 @@ def SemilatticeCoordinationFreeConsistent (P : Type*) [Fintype P] [DecidableEq P
   ∀ (cfg : P → S) (hops : List (P × P)) (p : P),
     (runGossipEmit emit cfg hops).emitted p ⊆ emit (globalMergedState cfg)
 
+/-- The split-brain configuration (`p₁` holds `s₁ ≤ s₂`, every other replica holds `s₂`) merges
+to `s₂`. -/
+private theorem globalMergedState_splitBrain {P S : Type*} [Fintype P] [DecidableEq P]
+    [Nonempty P] [SemilatticeSup S] {p₁ p₂ : P} (hp : p₁ ≠ p₂) {s₁ s₂ : S} (hs : s₁ ≤ s₂) :
+    globalMergedState (fun q => if q = p₁ then s₁ else s₂) = s₂ :=
+  le_antisymm (Finset.sup'_le _ _ fun q _ => by split_ifs; exacts [hs, le_rfl])
+    (by simpa [globalMergedState, hp.symm] using
+      Finset.le_sup' (fun q => if q = p₁ then s₁ else s₂) (Finset.mem_univ p₂))
+
 section IrrevocableCharacterization
 
 variable {P S Fact : Type*} [Fintype P] [DecidableEq P] [SemilatticeSup S] [DecidableEq Fact]
@@ -290,24 +299,9 @@ theorem semilatticeCoordinationFreeConsistent_iff_monotone [Nontrivial P]
   · intro hcfc s₁ s₂ hs f hf
     obtain ⟨p₁, p₂, hp₁₂⟩ := exists_pair_ne P
     -- Split-brain partition: `p₁` holds `s₁` while every peer `q ≠ p₁` (including `p₂`) holds `s₂`.
-    let cfg : P → S := fun q => if q = p₁ then s₁ else s₂
-    have hglobal : globalMergedState cfg = s₂ := by
-      apply le_antisymm
-      · rw [globalMergedState, Finset.sup'_le_iff]
-        intro q _
-        simp only [cfg]
-        split_ifs
-        · exact hs
-        · exact le_rfl
-      · have hp₂ : cfg p₂ ≤ globalMergedState cfg :=
-          Finset.le_sup' cfg (Finset.mem_univ p₂)
-        simpa [cfg, Ne.symm hp₁₂] using hp₂
-    have hsub : (runGossipEmit emit cfg []).emitted p₁ ⊆ emit (globalMergedState cfg) :=
-      hcfc cfg [] p₁
-    rw [hglobal] at hsub
-    have hf_init : f ∈ (runGossipEmit emit cfg []).emitted p₁ := by
-      simpa [runGossipEmit, initIrrevocableState, cfg] using hf
-    exact hsub hf_init
+    have hsub := hcfc (fun q => if q = p₁ then s₁ else s₂) [] p₁
+    rw [globalMergedState_splitBrain hp₁₂ hs] at hsub
+    exact hsub (by simpa [runGossipEmit, initIrrevocableState] using hf)
   · exact Monotone.semilatticeCoordinationFreeConsistent
 
 omit [Fintype P] in
@@ -356,36 +350,26 @@ theorem emitted_eq_global_of_monotone [Nonempty P] {emit : S → Finset Fact}
       (initIrrevocableState emit cfg) hops (globalMergedState cfg)
       (fun q => Finset.le_sup' cfg (Finset.mem_univ q))
       (fun q => hmono (Finset.le_sup' cfg (Finset.mem_univ q))) p
-  · have hhas_p : ∃ src, (src, p) ∈ hops := ⟨p, hcovers p p⟩
-    have hlast : ∀ (l : List (P × P)) (st : IrrevocableReplicaState P S Fact),
+  · have hlast : ∀ (l : List (P × P)) (st : IrrevocableReplicaState P S Fact),
         (∃ src, (src, p) ∈ l) →
         emit ((l.foldl (gossipEmitStep emit) st).replica p) ⊆
           (l.foldl (gossipEmitStep emit) st).emitted p := by
       intro l
       induction l using List.reverseRecOn with
-      | nil =>
-        rintro _ ⟨_, h⟩
-        cases h
+      | nil => rintro _ ⟨_, ⟨⟩⟩
       | append_singleton initH hop ih =>
-        intro st hex
+        rintro st ⟨s₀, hs₀⟩
         obtain ⟨src, dst⟩ := hop
         rw [List.foldl_append, List.foldl_cons, List.foldl_nil]
         by_cases hdp : dst = p
         · subst hdp
           simp only [gossipEmitStep, Function.update_self]
           exact Finset.subset_union_right
-        · have hex_init : ∃ s₀, (s₀, p) ∈ initH := by
-            obtain ⟨s₀, hs₀⟩ := hex
-            rcases List.mem_append.mp hs₀ with hin | hsing
-            · exact ⟨s₀, hin⟩
-            · exact absurd (Prod.mk.inj (List.mem_singleton.mp hsing)).2.symm hdp
-          have hp_ne : p ≠ dst := Ne.symm hdp
-          simp only [gossipEmitStep, Function.update_of_ne hp_ne]
-          exact ih st hex_init
-    have hsub : emit ((runGossipEmit emit cfg hops).replica p) ⊆
-        (runGossipEmit emit cfg hops).emitted p :=
-      hlast hops (initIrrevocableState emit cfg) hhas_p
-    rwa [hrep_eq p] at hsub
+        · simp only [gossipEmitStep, Function.update_of_ne (Ne.symm hdp)]
+          exact ih st ⟨s₀, (List.mem_append.mp hs₀).resolve_right fun h =>
+            hdp (Prod.mk.inj (List.mem_singleton.mp h)).2.symm⟩
+    rw [← hrep_eq p]
+    exact hlast hops (initIrrevocableState emit cfg) ⟨p, hcovers p p⟩
 
 /-- Single-replica degeneracy step (toward #7502, after [AmelootNevenVandenBussche2011], §4
 Example 2, p. 5): on a 1-replica network (`[Subsingleton P]`),
@@ -411,15 +395,8 @@ theorem semilatticeCoordinationFreeConsistent_of_subsingleton [Nonempty P] [Subs
     | cons hop tl ih =>
       intro st hrep hem
       obtain ⟨src, dst⟩ := hop
-      refine ih (gossipEmitStep emit st (src, dst)) (fun q => ?_) (fun q => ?_)
-      · simp only [gossipEmitStep]
-        by_cases hqd : q = dst
-        · subst hqd; simp [hrep q, hrep src]
-        · simp [Function.update_of_ne hqd, hrep q]
-      · simp only [gossipEmitStep]
-        by_cases hqd : q = dst
-        · subst hqd; simp [hrep q, hrep src, hem q]
-        · simp [Function.update_of_ne hqd, hem q]
+      refine ih (gossipEmitStep emit st (src, dst)) (fun q => ?_) (fun q => ?_) <;>
+        simp [gossipEmitStep, Function.update_apply, hrep, hem]
   have hem_eq : (runGossipEmit emit cfg hops).emitted p = emit (cfg p) :=
     hinv hops (initIrrevocableState emit cfg) hcfg_const
       (fun q => congrArg emit (hcfg_const q)) p
@@ -459,20 +436,9 @@ theorem semilatticeObservableConsistent_iff_monotone {P S Out : Type*}
   constructor
   · intro hobs s₁ s₂ hs
     obtain ⟨p₁, p₂, hp₁₂⟩ := exists_pair_ne P
-    let cfg : P → S := fun r => if r = p₁ then s₁ else s₂
-    have hglobal : globalMergedState cfg = s₂ := by
-      apply le_antisymm
-      · rw [globalMergedState, Finset.sup'_le_iff]
-        intro r _
-        simp only [cfg]
-        split_ifs
-        · exact hs
-        · exact le_rfl
-      · have hp₂ : cfg p₂ ≤ globalMergedState cfg :=
-          Finset.le_sup' cfg (Finset.mem_univ p₂)
-        simpa [cfg, Ne.symm hp₁₂] using hp₂
-    have hle := hobs cfg [] p₁
-    simpa [gossipReplicaStates, cfg, hglobal] using hle
+    have hle := hobs (fun r => if r = p₁ then s₁ else s₂) [] p₁
+    rw [globalMergedState_splitBrain hp₁₂ hs] at hle
+    simpa [gossipReplicaStates] using hle
   · exact Monotone.semilatticeObservableConsistent
 
 /-! ### Positive Monotone CRDT Query Instantiations -/
