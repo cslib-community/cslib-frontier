@@ -117,43 +117,26 @@ section SharedCore
 open Classical in
 private theorem card_filter_comp_perm [Fintype V] (σ : Equiv.Perm V) (p : V → Prop) :
     (Finset.univ.filter fun i => p (σ i)).card = (Finset.univ.filter p).card := by
-  let emb : V ↪ V := σ.toEmbedding
-  have hset : (Finset.univ.filter p) = (Finset.univ.filter fun i => p (σ i)).map emb := by
-    ext j
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_map]
-    refine ⟨fun hj => ⟨σ.symm j, ?_, σ.apply_symm_apply j⟩, ?_⟩
-    · simpa only [Equiv.apply_symm_apply] using hj
-    · rintro ⟨i, hi, rfl⟩
-      exact hi
-  rw [hset, Finset.card_map]
+  rw [← Finset.card_map σ.toEmbedding]
+  refine congrArg Finset.card (Finset.ext fun j => ?_)
+  simp only [Finset.mem_map, Finset.mem_filter, Finset.mem_univ, true_and, Equiv.coe_toEmbedding]
+  exact ⟨fun ⟨i, hi, h⟩ => h ▸ hi, fun hj => ⟨σ.symm j, by simpa using hj, σ.apply_symm_apply j⟩⟩
 
 open Classical in
 private theorem card_filter_insert_of_off [Fintype V] {p q : V → Prop} {i : V}
     (hoff : ∀ j, j ≠ i → (p j ↔ q j)) (hnp : ¬ p i) (hq : q i) :
     (Finset.univ.filter q).card = (Finset.univ.filter p).card + 1 := by
-  have hset : Finset.univ.filter q = insert i (Finset.univ.filter p) := by
-    ext j
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_insert]
-    by_cases hj : j = i
-    · subst hj
-      exact iff_of_true hq (Or.inl rfl)
-    · rw [← hoff j hj]
-      exact ⟨Or.inr, fun h => h.resolve_left hj⟩
-  have hnotMem : i ∉ Finset.univ.filter p := by
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and]
-    exact hnp
-  rw [hset, Finset.card_insert_of_notMem hnotMem]
+  have hset : Finset.univ.filter q = insert i (Finset.univ.filter p) := Finset.ext fun j => by
+    by_cases hj : j = i <;> simp [hj, hq, hoff j]
+  rw [hset, Finset.card_insert_of_notMem (by simp [hnp])]
 
 open Classical in
 private theorem card_filter_le_of_off [Fintype V] {p q : V → Prop} {i : V}
     (hoff : ∀ j, j ≠ i → (p j ↔ q j)) (hnp : ¬ p i) :
-    (Finset.univ.filter p).card ≤ (Finset.univ.filter q).card := by
-  refine Finset.card_le_card fun j hj => ?_
-  simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hj ⊢
-  by_cases hji : j = i
-  · subst hji
-    exact absurd hj hnp
-  · exact (hoff j hji).1 hj
+    (Finset.univ.filter p).card ≤ (Finset.univ.filter q).card :=
+  Finset.card_le_card fun j hj => by
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hj ⊢
+    exact if hji : j = i then absurd (hji ▸ hj) hnp else (hoff j hji).1 hj
 
 open Classical in
 private theorem not_or_le_of_single_improve [Fintype V] {a b : A} (hab : a ≠ b)
@@ -184,64 +167,51 @@ private theorem exists_perm_swap_disjoint [Finite V] {s₁ t₁ s₂ t₂ : Fins
   have := Fintype.ofFinite V
   let c₁ : Finset V := Finset.univ \ (s₁ ∪ t₁)
   let c₂ : Finset V := Finset.univ \ (s₂ ∪ t₂)
-  have e₂ : s₂ ≃ t₁ := Fintype.equivOfCardEq (by
-    rw [Fintype.card_coe, Fintype.card_coe, hc₂])
-  have e₁ : t₂ ≃ s₁ := Fintype.equivOfCardEq (by
-    rw [Fintype.card_coe, Fintype.card_coe, hc₁])
+  have e₂ : s₂ ≃ t₁ := Fintype.equivOfCardEq (by simp [hc₂])
+  have e₁ : t₂ ≃ s₁ := Fintype.equivOfCardEq (by simp [hc₁])
   have hc₃ : c₂.card = c₁.card := by
     rw [Finset.card_sdiff_of_subset (Finset.subset_univ _),
       Finset.card_sdiff_of_subset (Finset.subset_univ _),
       Finset.card_union_of_disjoint hd₁, Finset.card_union_of_disjoint hd₂, hc₁, hc₂]
     omega
-  have e₃ : c₂ ≃ c₁ := Fintype.equivOfCardEq (by
-    rw [Fintype.card_coe, Fintype.card_coe, hc₃])
-  have hmem_c₂ : ∀ {i : V}, i ∉ s₂ → i ∉ t₂ → i ∈ c₂ := fun hs ht =>
+  have e₃ : c₂ ≃ c₁ := Fintype.equivOfCardEq (by simp [hc₃])
+  have hmem_c₂ {i : V} (hs : i ∉ s₂) (ht : i ∉ t₂) : i ∈ c₂ :=
     Finset.mem_sdiff.2 ⟨Finset.mem_univ _, fun hu => (Finset.mem_union.1 hu).elim hs ht⟩
   let f : V → V := fun i =>
     if hs : i ∈ s₂ then (e₂ ⟨i, hs⟩ : V)
     else if ht : i ∈ t₂ then (e₁ ⟨i, ht⟩ : V)
     else (e₃ ⟨i, hmem_c₂ hs ht⟩ : V)
-  have hmem_t₁ : ∀ i, f i ∈ t₁ ↔ i ∈ s₂ := by
-    intro i
-    by_cases hs : i ∈ s₂
-    · simp only [f, hs, dite_true, iff_true]
-      exact (e₂ ⟨i, hs⟩).2
-    · by_cases ht : i ∈ t₂
-      · simp only [f, hs, ht, dite_false, dite_true, iff_false]
-        exact Finset.disjoint_left.1 hd₁ (e₁ ⟨i, ht⟩).2
-      · simp only [f, hs, ht, dite_false, iff_false]
-        have hc := (Finset.mem_sdiff.1 (e₃ ⟨i, hmem_c₂ hs ht⟩).2).2
-        exact fun h => hc (Finset.mem_union_right _ h)
-  have hmem_s₁ : ∀ i, f i ∈ s₁ ↔ i ∈ t₂ := by
-    intro i
-    by_cases hs : i ∈ s₂
-    · simp only [f, hs, dite_true]
-      exact iff_of_false (Finset.disjoint_right.1 hd₁ (e₂ ⟨i, hs⟩).2)
+  have hmem_t₁ (i : V) : f i ∈ t₁ ↔ i ∈ s₂ := by
+    dsimp only [f]
+    split_ifs with hs ht
+    · exact iff_of_true (e₂ ⟨i, hs⟩).2 hs
+    · exact iff_of_false (Finset.disjoint_left.1 hd₁ (e₁ ⟨i, ht⟩).2) hs
+    · exact iff_of_false (fun h => (Finset.mem_sdiff.1 (e₃ ⟨i, hmem_c₂ hs ht⟩).2).2
+        (Finset.mem_union_right _ h)) hs
+  have hmem_s₁ (i : V) : f i ∈ s₁ ↔ i ∈ t₂ := by
+    dsimp only [f]
+    split_ifs with hs ht
+    · exact iff_of_false (Finset.disjoint_right.1 hd₁ (e₂ ⟨i, hs⟩).2)
         (Finset.disjoint_left.1 hd₂ hs)
-    · by_cases ht : i ∈ t₂
-      · simp only [f, hs, ht, dite_false, dite_true, iff_true]
-        exact (e₁ ⟨i, ht⟩).2
-      · simp only [f, hs, ht, dite_false, iff_false]
-        have hc := (Finset.mem_sdiff.1 (e₃ ⟨i, hmem_c₂ hs ht⟩).2).2
-        exact fun h => hc (Finset.mem_union_left _ h)
-  have hinj : Function.Injective f := by
-    intro i j hij
+    · exact iff_of_true (e₁ ⟨i, ht⟩).2 ht
+    · exact iff_of_false (fun h => (Finset.mem_sdiff.1 (e₃ ⟨i, hmem_c₂ hs ht⟩).2).2
+        (Finset.mem_union_left _ h)) ht
+  have hinj : Function.Injective f := fun i j hij => by
     by_cases hsi : i ∈ s₂
     · have hsj : j ∈ s₂ := (hmem_t₁ j).1 (hij ▸ (hmem_t₁ i).2 hsi)
       simp only [f, hsi, hsj, dite_true] at hij
       exact congrArg Subtype.val (e₂.injective (Subtype.ext hij))
     · by_cases hti : i ∈ t₂
       · have htj : j ∈ t₂ := (hmem_s₁ j).1 (hij ▸ (hmem_s₁ i).2 hti)
-        have hsj : j ∉ s₂ := fun hsj => Finset.disjoint_left.1 hd₂ hsj htj
+        have hsj : j ∉ s₂ := Finset.disjoint_right.1 hd₂ htj
         simp only [f, hsi, hsj, hti, htj, dite_false, dite_true] at hij
         exact congrArg Subtype.val (e₁.injective (Subtype.ext hij))
       · have hsj : j ∉ s₂ := fun hsj => hsi ((hmem_t₁ i).1 (hij.symm ▸ (hmem_t₁ j).2 hsj))
         have htj : j ∉ t₂ := fun htj => hti ((hmem_s₁ i).1 (hij.symm ▸ (hmem_s₁ j).2 htj))
         simp only [f, hsi, hsj, hti, htj, dite_false] at hij
         exact congrArg Subtype.val (e₃.injective (Subtype.ext hij))
-  have hbij : Function.Bijective f :=
-    (Fintype.bijective_iff_injective_and_card f).2 ⟨hinj, rfl⟩
-  exact ⟨Equiv.ofBijective f hbij, fun i => (hmem_t₁ i).symm, fun i => (hmem_s₁ i).symm⟩
+  exact ⟨Equiv.ofBijective f ((Fintype.bijective_iff_injective_and_card f).2 ⟨hinj, rfl⟩),
+    fun i => (hmem_t₁ i).symm, fun i => (hmem_s₁ i).symm⟩
 
 open Classical in
 /-- Ballot-agnostic core of May's theorem on a distinct pair `(a, b)` covering `A`. -/
@@ -261,132 +231,96 @@ private theorem may_atLeast_iff_card_le [Fintype V] {B : Type*}
       (Finset.univ.filter fun i => pref (P i) b a).card ≤
         (Finset.univ.filter fun i => pref (P i) a b).card := by
   -- Repeated single-voter improvements along a nonempty finset `S`.
-  have hpr_finset : ∀ {P₀ Q : V → B} {u v : A} {S : Finset V},
-      S.Nonempty → (∀ j, j ∉ S → P₀ j = Q j) →
-      (∀ i ∈ S, ¬ pref (P₀ i) u v ∧ pref (Q i) u v) →
-      (F P₀).AtLeast u v → (F Q).Prefers u v := by
-    intro P₀ Q u v S hS hagree himp hF₀
+  have hpr_finset {P₀ Q : V → B} {u v : A} {S : Finset V}
+      (hS : S.Nonempty) (hagree : ∀ j, j ∉ S → P₀ j = Q j)
+      (himp : ∀ i ∈ S, ¬ pref (P₀ i) u v ∧ pref (Q i) u v) (hF₀ : (F P₀).AtLeast u v) :
+      (F Q).Prefers u v := by
     let step : Finset V → V → B := fun t j => if j ∈ t then Q j else P₀ j
-    have hkey : ∀ {t : Finset V}, t.Nonempty → t ⊆ S → (F (step t)).Prefers u v := by
-      intro t ht
+    have hkey {t : Finset V} (ht : t.Nonempty) : t ⊆ S → (F (step t)).Prefers u v := by
       induction ht using Finset.Nonempty.cons_induction with
       | singleton i =>
         intro hiS
-        have hmem : i ∈ S := hiS (Finset.mem_singleton_self i)
-        refine hpr P₀ (step {i}) u v i (fun j hj => ?_) (himp i hmem).1 ?_ hF₀
-        · simp only [step, Finset.mem_singleton, hj, ite_false]
-        · simp only [step, Finset.mem_singleton, ite_true]
-          exact (himp i hmem).2
+        have hi := himp i (hiS (Finset.mem_singleton_self i))
+        exact hpr P₀ (step {i}) u v i (fun j hj => by simp [step, hj]) hi.1 (by simp [step, hi.2])
+          hF₀
       | cons i t hit _ ih =>
         intro hsub
-        have hiS : i ∈ S := hsub (Finset.mem_cons_self i t)
-        have htS : t ⊆ S := fun j hj => hsub (Finset.mem_cons_of_mem hj)
-        have hprev : (F (step t)).AtLeast u v := (F (step t)).atLeast_of_prefers (ih htS)
-        refine hpr (step t) (step (Finset.cons i t hit)) u v i (fun j hj => ?_) ?_ ?_ hprev
-        · simp only [step, Finset.mem_cons, hj, false_or]
-        · simp only [step, hit, ite_false]
-          exact (himp i hiS).1
-        · simp only [step, Finset.mem_cons, true_or, ite_true]
-          exact (himp i hiS).2
-    have hstepS : step S = Q := by
-      funext j
-      by_cases hj : j ∈ S
-      · simp only [step, hj, ite_true]
-      · simp only [step, hj, ite_false, hagree j hj]
-    rw [← hstepS]
-    exact hkey hS Finset.Subset.rfl
+        have hi := himp i (hsub (Finset.mem_cons_self i t))
+        have hprev := (F (step t)).atLeast_of_prefers
+          (ih fun _ hj => hsub (Finset.mem_cons_of_mem hj))
+        exact hpr (step t) (step (Finset.cons i t hit)) u v i
+          (fun j hj => by simp [step, hj]) (by simp [step, hit, hi.1]) (by simp [step, hi.2]) hprev
+    have hstepS : step S = Q := funext fun j => by by_cases hj : j ∈ S <;> simp [step, hj, hagree j]
+    exact hstepS ▸ hkey hS Finset.Subset.rfl
   -- Two profiles with swapped `(a, b)` and `(b, a)` support counts have swapped social rankings.
-  have hswap_counts : ∀ {Q₁ Q₂ : V → B},
-      (Finset.univ.filter fun i => pref (Q₁ i) a b).card =
-        (Finset.univ.filter fun i => pref (Q₂ i) b a).card →
-      (Finset.univ.filter fun i => pref (Q₁ i) b a).card =
-        (Finset.univ.filter fun i => pref (Q₂ i) a b).card →
+  have hswap_counts {Q₁ Q₂ : V → B}
+      (hc₁ : (Finset.univ.filter fun i => pref (Q₁ i) a b).card =
+        (Finset.univ.filter fun i => pref (Q₂ i) b a).card)
+      (hc₂ : (Finset.univ.filter fun i => pref (Q₁ i) b a).card =
+        (Finset.univ.filter fun i => pref (Q₂ i) a b).card) :
       ((F Q₂).AtLeast a b ↔ (F Q₁).AtLeast b a) ∧
         ((F Q₂).AtLeast b a ↔ (F Q₁).AtLeast a b) := by
-    intro Q₁ Q₂ hc₁ hc₂
-    have hd₁ : Disjoint (Finset.univ.filter fun i => pref (Q₁ i) a b)
-        (Finset.univ.filter fun i => pref (Q₁ i) b a) :=
+    have hd (Q : V → B) : Disjoint (Finset.univ.filter fun i => pref (Q i) a b)
+        (Finset.univ.filter fun i => pref (Q i) b a) :=
       Finset.disjoint_left.2 fun i hi₁ hi₂ =>
-        hasymm (Q₁ i) (Finset.mem_filter.1 hi₁).2 (Finset.mem_filter.1 hi₂).2
-    have hd₂ : Disjoint (Finset.univ.filter fun i => pref (Q₂ i) a b)
-        (Finset.univ.filter fun i => pref (Q₂ i) b a) :=
-      Finset.disjoint_left.2 fun i hi₁ hi₂ =>
-        hasymm (Q₂ i) (Finset.mem_filter.1 hi₁).2 (Finset.mem_filter.1 hi₂).2
-    obtain ⟨σ, hσ₁, hσ₂⟩ := exists_perm_swap_disjoint hd₁ hd₂ hc₁ hc₂
-    have hrel : (fun i => relab (Equiv.swap a b) (Q₁ (σ i))) = Q₂ := by
-      funext i
+        hasymm (Q i) (Finset.mem_filter.1 hi₁).2 (Finset.mem_filter.1 hi₂).2
+    obtain ⟨σ, hσ₁, hσ₂⟩ := exists_perm_swap_disjoint (hd Q₁) (hd Q₂) hc₁ hc₂
+    have hrel : (fun i => relab (Equiv.swap a b) (Q₁ (σ i))) = Q₂ := funext fun i => by
       rw [hswap]
       refine hext _ _ ?_ ?_
-      · have := hσ₁ i
-        simp only [Finset.mem_filter, Finset.mem_univ, true_and] at this
-        rw [hrev]
-        exact this.symm
-      · have := hσ₂ i
-        simp only [Finset.mem_filter, Finset.mem_univ, true_and] at this
-        rw [hrev]
-        exact this.symm
+      · simpa only [Finset.mem_filter, Finset.mem_univ, true_and, hrev] using (hσ₁ i).symm
+      · simpa only [Finset.mem_filter, Finset.mem_univ, true_and, hrev] using (hσ₂ i).symm
     have hFQ : F Q₂ = (F Q₁).relabel (Equiv.swap a b) := by
       rw [← hrel]
       exact (hneut (Equiv.swap a b) (Q₁ ∘ σ)).trans (by rw [hanon σ Q₁])
     rw [hFQ]
-    constructor <;>
-      simp only [WeakRanking.relabel_atLeast, Equiv.symm_swap, Equiv.swap_apply_left,
-        Equiv.swap_apply_right]
+    simp only [WeakRanking.relabel_atLeast, Equiv.symm_swap, Equiv.swap_apply_left,
+      Equiv.swap_apply_right, and_self]
   -- Strict majority in either direction forces strict social preference.
-  have hstrict : ∀ {u v : A}, (u = a ∧ v = b ∨ u = b ∧ v = a) →
-      (Finset.univ.filter fun i => pref (P i) v u).card <
-        (Finset.univ.filter fun i => pref (P i) u v).card →
-      (F P).Prefers u v := by
-    intro u v huv hlt hvu
-    let s_uv := Finset.univ.filter fun i => pref (P i) u v
-    let s_vu := Finset.univ.filter fun i => pref (P i) v u
-    have hlt' : s_vu.card < s_uv.card := hlt
+  have hstrict {u v : A} (huv : u = a ∧ v = b ∨ u = b ∧ v = a)
+      (hlt : (Finset.univ.filter fun i => pref (P i) v u).card <
+        (Finset.univ.filter fun i => pref (P i) u v).card) :
+      (F P).Prefers u v := fun hvu => by
+    set s_uv := Finset.univ.filter fun i => pref (P i) u v
+    set s_vu := Finset.univ.filter fun i => pref (P i) v u
     obtain ⟨S, hSsub, hScard⟩ :=
       Finset.exists_subset_card_eq (s := s_uv) (Nat.sub_le s_uv.card s_vu.card)
-    have hSne : S.Nonempty := Finset.card_pos.1 (by omega)
     let P₀ : V → B := fun i => if i ∈ S then rev (P i) else P i
     have hd_P : Disjoint s_uv s_vu :=
       Finset.disjoint_left.2 fun i hi₁ hi₂ =>
         hasymm (P i) (Finset.mem_filter.1 hi₁).2 (Finset.mem_filter.1 hi₂).2
-    have hcnt_uv : (Finset.univ.filter fun i => pref (P₀ i) u v) = s_uv \ S := by
-      ext i
-      simp only [s_uv, P₀, Finset.mem_filter, Finset.mem_sdiff, Finset.mem_univ, true_and]
-      by_cases hi : i ∈ S
-      · simp only [hi, not_true_eq_false, and_false, ite_true, hrev, iff_false]
-        exact hasymm (P i) (Finset.mem_filter.1 (hSsub hi)).2
-      · simp only [hi, not_false_eq_true, and_true, ite_false]
-    have hcnt_vu : (Finset.univ.filter fun i => pref (P₀ i) v u) = s_vu ∪ S := by
-      ext i
-      simp only [s_vu, P₀, Finset.mem_filter, Finset.mem_union, Finset.mem_univ, true_and]
-      by_cases hi : i ∈ S
-      · simp only [hi, or_true, ite_true, hrev, iff_true]
-        exact (Finset.mem_filter.1 (hSsub hi)).2
-      · simp only [hi, or_false, ite_false]
+    have hcnt_uv : (Finset.univ.filter fun i => pref (P₀ i) u v) = s_uv \ S :=
+      Finset.ext fun i => by
+        by_cases hi : i ∈ S
+        · simp [s_uv, P₀, hi, hrev, hasymm (P i) (Finset.mem_filter.1 (hSsub hi)).2]
+        · simp [s_uv, P₀, hi]
+    have hcnt_vu : (Finset.univ.filter fun i => pref (P₀ i) v u) = s_vu ∪ S :=
+      Finset.ext fun i => by
+        by_cases hi : i ∈ S
+        · simp [s_vu, P₀, hi, hrev, (Finset.mem_filter.1 (hSsub hi)).2]
+        · simp [s_vu, P₀, hi]
     have hc_uv : (Finset.univ.filter fun i => pref (P₀ i) u v).card = s_vu.card := by
       rw [hcnt_uv, Finset.card_sdiff_of_subset hSsub, hScard]
       omega
     have hc_vu : (Finset.univ.filter fun i => pref (P₀ i) v u).card = s_uv.card := by
-      have hdS : Disjoint s_vu S := hd_P.symm.mono_right hSsub
-      rw [hcnt_vu, Finset.card_union_of_disjoint hdS, hScard]
+      rw [hcnt_vu, Finset.card_union_of_disjoint (hd_P.symm.mono_right hSsub), hScard]
       omega
     have hP₀_uv : (F P₀).AtLeast u v := by
       rcases huv with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
       · exact (hswap_counts hc_vu.symm hc_uv.symm).1.2 hvu
       · exact (hswap_counts hc_uv.symm hc_vu.symm).2.2 hvu
-    refine hpr_finset hSne (fun j hj => ?_) (fun i hi => ?_) hP₀_uv hvu
-    · simp only [P₀, hj, ite_false]
-    · have hi_uv : pref (P i) u v := (Finset.mem_filter.1 (hSsub hi)).2
-      simp only [P₀, hi, ite_true, hrev]
-      exact ⟨hasymm (P i) hi_uv, hi_uv⟩
+    have hSne : S.Nonempty := Finset.card_pos.1 (by omega)
+    refine hpr_finset hSne (fun j hj => by simp [P₀, hj]) (fun i hi => ?_) hP₀_uv hvu
+    have hi_uv : pref (P i) u v := (Finset.mem_filter.1 (hSsub hi)).2
+    simp only [P₀, hi, ite_true, hrev]
+    exact ⟨hasymm (P i) hi_uv, hi_uv⟩
   rcases lt_trichotomy
       (Finset.univ.filter fun i => pref (P i) b a).card
       (Finset.univ.filter fun i => pref (P i) a b).card
     with hlt | heq | hgt
   · exact iff_of_true ((F P).atLeast_of_prefers (hstrict (Or.inl ⟨rfl, rfl⟩) hlt)) hlt.le
-  · have hsymm := (hswap_counts (Q₁ := P) (Q₂ := P) heq.symm heq).1
-    have hall : (F P).AtLeast a b :=
-      ((F P).total a b).elim id fun hba => hsymm.2 hba
-    exact iff_of_true hall heq.le
+  · exact iff_of_true
+      (((F P).total a b).elim id (hswap_counts (Q₁ := P) (Q₂ := P) heq.symm heq).1.2) heq.le
   · exact iff_of_false (hstrict (Or.inr ⟨rfl, rfl⟩) hgt) (not_le_of_gt hgt)
 
 /-- On a two-element set `{x, y}` (`x ≠ y`), swapping `x` and `y` in any symmetric binary relation
@@ -498,17 +432,14 @@ theorem eq_twoAltMajority [Fintype V] [Fintype A] (h2 : Fintype.card A = 2)
     rw [Ranking.relabel_prefers, Ranking.reverse_prefers, Equiv.symm_swap]
     exact swap_rel_iff_of_cover hxy hcover fun huv => by
       subst huv; exact iff_of_false (r.irrefl _) (r.irrefl _)
-  have hext : ∀ r s : Ranking A,
-      (r.Prefers x y ↔ s.Prefers x y) → (r.Prefers y x ↔ s.Prefers y x) → r = s := by
-    intro r s h1 h2
+  have hext (r s : Ranking A)
+      (h1 : r.Prefers x y ↔ s.Prefers x y) (h2 : r.Prefers y x ↔ s.Prefers y x) : r = s := by
     ext u v
-    by_cases huv : u = v
-    · subst huv; exact iff_of_false (r.irrefl u) (s.irrefl u)
     rcases hcover u with rfl | rfl <;> rcases hcover v with rfl | rfl
-    · exact absurd rfl huv
+    · exact iff_of_false (r.irrefl _) (s.irrefl _)
     · exact h1
     · exact h2
-    · exact absurd rfl huv
+    · exact iff_of_false (r.irrefl _) (s.irrefl _)
   have hiff := may_atLeast_iff_card_le Ranking.Prefers Ranking.reverse
     (fun e r => r.relabel e) F (a := x) (b := y) (fun r _ _ => r.asymm)
     (fun r u v => r.reverse_prefers) hswap hext hanon hneut hpr P
@@ -640,17 +571,14 @@ theorem eq_twoAltMajority [Fintype V] [Fintype A] (h2 : Fintype.card A = 2)
     rw [WeakRanking.relabel_atLeast, WeakRanking.reverse_atLeast, Equiv.symm_swap]
     exact swap_rel_iff_of_cover hxy hcover fun huv => by
       subst huv; exact iff_of_true (R.refl _) (R.refl _)
-  have hext : ∀ R S : WeakRanking A,
-      (R.Prefers x y ↔ S.Prefers x y) → (R.Prefers y x ↔ S.Prefers y x) → R = S := by
-    intro R S h1 h2
+  have hext (R S : WeakRanking A)
+      (h1 : R.Prefers x y ↔ S.Prefers x y) (h2 : R.Prefers y x ↔ S.Prefers y x) : R = S := by
     ext u v
-    by_cases huv : u = v
-    · subst huv; exact iff_of_true (R.refl u) (S.refl u)
     rcases hcover u with rfl | rfl <;> rcases hcover v with rfl | rfl
-    · exact absurd rfl huv
+    · exact iff_of_true (R.refl _) (S.refl _)
     · exact not_iff_not.1 h2
     · exact not_iff_not.1 h1
-    · exact absurd rfl huv
+    · exact iff_of_true (R.refl _) (S.refl _)
   have hiff := may_atLeast_iff_card_le WeakRanking.Prefers WeakRanking.reverse
     (fun e R => R.relabel e) G (a := x) (b := y) (fun R _ _ => R.prefers_asymm)
     (fun R u v => R.reverse_prefers) hswap hext hanon hneut

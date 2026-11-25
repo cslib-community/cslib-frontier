@@ -334,32 +334,32 @@ theorem savageScoringRule_score_gap_eq_bregmanDivergence {G : (Ω → ℝ) → �
 theorem savageScoringRule_isProperOn_iff {P : Set (Ω → ℝ)} (hP : P ⊆ probSimplex Ω)
     {G : (Ω → ℝ) → ℝ} {g : (Ω → ℝ) → Ω → ℝ} :
     (savageScoringRule G g).IsProperOn P ↔
-      ∀ p ∈ P, ∀ q ∈ P, G p + (q - p) ⬝ᵥ g p ≤ G q := by
-  constructor
-  · intro h p hp q hq
-    have := h q hq p hp
-    rwa [savageScoringRule_expectedScore (hP hq).sum_eq_one,
-      savageScoringRule_expectedScore_self (hP hq).sum_eq_one] at this
-  · intro h q hq p hp
-    rw [savageScoringRule_expectedScore (hP hq).sum_eq_one,
-      savageScoringRule_expectedScore_self (hP hq).sum_eq_one]
-    exact h p hp q hq
+      ∀ p ∈ P, ∀ q ∈ P, G p + (q - p) ⬝ᵥ g p ≤ G q :=
+  ⟨fun h p hp q hq => by
+      have h' := h q hq p hp
+      rw [savageScoringRule_expectedScore (hP hq).sum_eq_one,
+        savageScoringRule_expectedScore_self (hP hq).sum_eq_one] at h'
+      exact h',
+    fun h q hq p hp => by
+      rw [savageScoringRule_expectedScore (hP hq).sum_eq_one,
+        savageScoringRule_expectedScore_self (hP hq).sum_eq_one]
+      exact h p hp q hq⟩
 
 /-- `savageScoringRule G g` is strictly proper on `P ⊆ probSimplex Ω` iff `g` is a strict
 subgradient of `G` on `P`. -/
 theorem savageScoringRule_isStrictlyProperOn_iff {P : Set (Ω → ℝ)} (hP : P ⊆ probSimplex Ω)
     {G : (Ω → ℝ) → ℝ} {g : (Ω → ℝ) → Ω → ℝ} :
     (savageScoringRule G g).IsStrictlyProperOn P ↔
-      ∀ p ∈ P, ∀ q ∈ P, q ≠ p → G p + (q - p) ⬝ᵥ g p < G q := by
-  constructor
-  · intro h p hp q hq hqp
-    have := h q hq p hp hqp.symm
-    rwa [savageScoringRule_expectedScore (hP hq).sum_eq_one,
-      savageScoringRule_expectedScore_self (hP hq).sum_eq_one] at this
-  · intro h q hq p hp hpq
-    rw [savageScoringRule_expectedScore (hP hq).sum_eq_one,
-      savageScoringRule_expectedScore_self (hP hq).sum_eq_one]
-    exact h p hp q hq hpq.symm
+      ∀ p ∈ P, ∀ q ∈ P, q ≠ p → G p + (q - p) ⬝ᵥ g p < G q :=
+  ⟨fun h p hp q hq hqp => by
+      have h' := h q hq p hp hqp.symm
+      rw [savageScoringRule_expectedScore (hP hq).sum_eq_one,
+        savageScoringRule_expectedScore_self (hP hq).sum_eq_one] at h'
+      exact h',
+    fun h q hq p hp hpq => by
+      rw [savageScoringRule_expectedScore (hP hq).sum_eq_one,
+        savageScoringRule_expectedScore_self (hP hq).sum_eq_one]
+      exact h p hp q hq hpq.symm⟩
 
 /-- Differentiable sufficient condition for propriety: if `G` is convex on `P ⊆ probSimplex Ω`
 and has Fréchet derivative `dotCLM (g p)` within `P` at every `p ∈ P`, then
@@ -367,10 +367,9 @@ and has Fréchet derivative `dotCLM (g p)` within `P` at every `p ∈ P`, then
 theorem isProperOn_savageScoringRule_of_convexOn {P : Set (Ω → ℝ)} (hP : P ⊆ probSimplex Ω)
     {G : (Ω → ℝ) → ℝ} {g : (Ω → ℝ) → Ω → ℝ} (hG : ConvexOn ℝ P G)
     (hd : ∀ p ∈ P, HasFDerivWithinAt G (dotCLM (g p)) P p) :
-    (savageScoringRule G g).IsProperOn P := by
-  rw [savageScoringRule_isProperOn_iff hP]
-  intro p hp q hq
-  simpa only [dotCLM_apply] using hG.add_le_of_hasFDerivWithinAt hp hq (hd p hp)
+    (savageScoringRule G g).IsProperOn P :=
+  (savageScoringRule_isProperOn_iff hP).2 fun p hp _ hq => by
+    simpa only [dotCLM_apply] using hG.add_le_of_hasFDerivWithinAt hp hq (hd p hp)
 
 /-- Differentiable sufficient condition for strict propriety: if `G` is strictly convex on
 `P ⊆ probSimplex Ω` and has Fréchet derivative `dotCLM (g p)` within `P` at every `p ∈ P`, then
@@ -378,10 +377,9 @@ theorem isProperOn_savageScoringRule_of_convexOn {P : Set (Ω → ℝ)} (hP : P 
 theorem isStrictlyProperOn_savageScoringRule_of_strictConvexOn {P : Set (Ω → ℝ)}
     (hP : P ⊆ probSimplex Ω) {G : (Ω → ℝ) → ℝ} {g : (Ω → ℝ) → Ω → ℝ}
     (hG : StrictConvexOn ℝ P G) (hd : ∀ p ∈ P, HasFDerivWithinAt G (dotCLM (g p)) P p) :
-    (savageScoringRule G g).IsStrictlyProperOn P := by
-  rw [savageScoringRule_isStrictlyProperOn_iff hP]
-  intro p hp q hq hqp
-  simpa only [dotCLM_apply] using hG.add_lt_of_hasFDerivWithinAt hp hq hqp (hd p hp)
+    (savageScoringRule G g).IsStrictlyProperOn P :=
+  (savageScoringRule_isStrictlyProperOn_iff hP).2 fun p hp _ hq hqp => by
+    simpa only [dotCLM_apply] using hG.add_lt_of_hasFDerivWithinAt hp hq hqp (hd p hp)
 
 /-- **Savage / Gneiting–Raftery characterization of proper scoring rules**
 [Savage1971; GneitingRaftery2007]: on a convex subset `P ⊆ probSimplex Ω`, a scoring
@@ -394,24 +392,18 @@ theorem isProperOn_iff_exists_savage {P : Set (Ω → ℝ)} (hP : P ⊆ probSimp
       ∃ G g, ConvexOn ℝ P G ∧
         (∀ p ∈ P, ∀ q ∈ P, G p + (q - p) ⬝ᵥ g p ≤ G q) ∧
         (∀ p ∈ P, ∀ ω, S.score p ω = (savageScoringRule G g).score p ω) := by
-  constructor
-  · intro hS
-    refine ⟨fun p => S.expectedScore p p, S.score, ?_, ?_, ?_⟩
-    · refine convexOn_of_forall_add_le (g := fun p => dotCLM (S.score p)) hPconv fun p hp q hq => ?_
-      simp only [dotCLM_apply, sub_dotProduct, ScoringRule.expectedScore_eq_dotProduct]
+  refine ⟨fun hS => ?_, fun ⟨G, g, _, hsub, heq⟩ q hq p hp => ?_⟩
+  · have hsub : ∀ p ∈ P, ∀ q ∈ P, S.expectedScore p p + (q - p) ⬝ᵥ S.score p ≤
+        S.expectedScore q q := fun p hp q hq => by
       have := hS q hq p hp
-      simp only [ScoringRule.expectedScore_eq_dotProduct] at this
+      simp only [sub_dotProduct, ScoringRule.expectedScore_eq_dotProduct] at this ⊢
       linarith
-    · intro p hp q hq
-      simp only [sub_dotProduct, ScoringRule.expectedScore_eq_dotProduct]
-      have := hS q hq p hp
-      simp only [ScoringRule.expectedScore_eq_dotProduct] at this
-      linarith
-    · intro p _ ω
-      simp only [savageScoringRule_score, ScoringRule.expectedScore_eq_dotProduct]
-      ring
-  · rintro ⟨G, g, -, hsub, heq⟩ q hq p hp
-    rw [ScoringRule.expectedScore_congr (heq p hp) q,
+    exact ⟨fun p => S.expectedScore p p, S.score,
+      convexOn_of_forall_add_le (g := fun p => dotCLM (S.score p)) hPconv
+        (fun p hp q hq => by simpa only [dotCLM_apply] using hsub p hp q hq),
+      hsub, fun p _ ω => by simp only [savageScoringRule_score,
+        ScoringRule.expectedScore_eq_dotProduct]; ring⟩
+  · rw [ScoringRule.expectedScore_congr (heq p hp) q,
       ScoringRule.expectedScore_congr (heq q hq) q]
     exact (savageScoringRule_isProperOn_iff hP).2 hsub q hq p hp
 
@@ -426,24 +418,18 @@ theorem isStrictlyProperOn_iff_exists_savage {P : Set (Ω → ℝ)} (hP : P ⊆ 
       ∃ G g, StrictConvexOn ℝ P G ∧
         (∀ p ∈ P, ∀ q ∈ P, q ≠ p → G p + (q - p) ⬝ᵥ g p < G q) ∧
         (∀ p ∈ P, ∀ ω, S.score p ω = (savageScoringRule G g).score p ω) := by
-  constructor
-  · intro hS
-    have hsub : ∀ p ∈ P, ∀ q ∈ P, q ≠ p →
-        S.expectedScore p p + (q - p) ⬝ᵥ S.score p < S.expectedScore q q := by
-      intro p hp q hq hqp
-      simp only [sub_dotProduct, ScoringRule.expectedScore_eq_dotProduct]
+  refine ⟨fun hS => ?_, fun ⟨G, g, _, hsub, heq⟩ q hq p hp hpq => ?_⟩
+  · have hsub : ∀ p ∈ P, ∀ q ∈ P, q ≠ p →
+        S.expectedScore p p + (q - p) ⬝ᵥ S.score p < S.expectedScore q q := fun p hp q hq hqp => by
       have := hS q hq p hp hqp.symm
-      simp only [ScoringRule.expectedScore_eq_dotProduct] at this
+      simp only [sub_dotProduct, ScoringRule.expectedScore_eq_dotProduct] at this ⊢
       linarith
-    refine ⟨fun p => S.expectedScore p p, S.score,
+    exact ⟨fun p => S.expectedScore p p, S.score,
       strictConvexOn_of_forall_add_lt (g := fun p => dotCLM (S.score p)) hPconv
         (fun p hp q hq hqp => by simpa only [dotCLM_apply] using hsub p hp q hq hqp),
-      hsub, ?_⟩
-    intro p _ ω
-    simp only [savageScoringRule_score, ScoringRule.expectedScore_eq_dotProduct]
-    ring
-  · rintro ⟨G, g, -, hsub, heq⟩ q hq p hp hpq
-    rw [ScoringRule.expectedScore_congr (heq p hp) q,
+      hsub, fun p _ ω => by simp only [savageScoringRule_score,
+        ScoringRule.expectedScore_eq_dotProduct]; ring⟩
+  · rw [ScoringRule.expectedScore_congr (heq p hp) q,
       ScoringRule.expectedScore_congr (heq q hq) q]
     exact (savageScoringRule_isStrictlyProperOn_iff hP).2 hsub q hq p hp hpq
 
@@ -481,54 +467,42 @@ theorem quadraticScore_expectedScore_sub {Ω : Type*} [Fintype Ω] {q p : Ω →
     (hq : ∑ ω, q ω = 1) :
     (quadraticScore Ω).expectedScore q q - (quadraticScore Ω).expectedScore q p =
       ∑ ω, (q ω - p ω) ^ 2 := by
-  have heval : ∀ r : Ω → ℝ, (quadraticScore Ω).expectedScore q r =
-      2 * (∑ ω, q ω * r ω) - ∑ ω, r ω ^ 2 := fun r => by
-    simp only [ScoringRule.expectedScore_apply, quadraticScore_score, mul_sub, sum_sub_distrib]
-    rw [← sum_mul, hq, one_mul, mul_sum]
+  have heval (r : Ω → ℝ) : (quadraticScore Ω).expectedScore q r =
+      2 * (∑ ω, q ω * r ω) - ∑ ω, r ω ^ 2 := by
+    simp only [ScoringRule.expectedScore_apply, quadraticScore_score, mul_sub, sum_sub_distrib,
+      ← sum_mul, hq, one_mul]
+    rw [mul_sum]
     congr 1
-    exact sum_congr rfl fun ω _ => by ring
-  rw [heval q, heval p]
-  have hsq : ∑ ω, (q ω - p ω) ^ 2 =
-      ∑ ω, q ω ^ 2 - 2 * (∑ ω, q ω * p ω) + ∑ ω, p ω ^ 2 := by
-    simp only [sub_sq, sum_add_distrib, sum_sub_distrib, mul_sum]
-    congr 1
-    congr 1
-    exact sum_congr rfl fun ω _ => by ring
-  have hqq : ∑ ω, q ω * q ω = ∑ ω, q ω ^ 2 := sum_congr rfl fun ω _ => (sq _).symm
-  rw [hqq, hsq]
+    exact sum_congr rfl fun _ _ => by ring
+  rw [heval q, heval p,
+    show ∑ ω, q ω * q ω = ∑ ω, q ω ^ 2 from sum_congr rfl fun _ _ => (sq _).symm,
+    show ∑ ω, (q ω - p ω) ^ 2 = ∑ ω, (q ω ^ 2 - 2 * (q ω * p ω) + p ω ^ 2) from
+      sum_congr rfl fun _ _ => by ring]
+  simp only [sum_add_distrib, sum_sub_distrib, ← mul_sum]
   ring
 
 /-- **Strict propriety of the quadratic scoring rule** on the full probability simplex
 [FriedmanResnickSami2007, §27.4.2, pp. 686–687, Exercise 27.7, p. 697; GneitingRaftery2007]. -/
 theorem isStrictlyProper_quadraticScore {Ω : Type*} [Fintype Ω] :
-    (quadraticScore Ω).IsStrictlyProper := by
-  intro q hq p _ hpq
-  have hgap := quadraticScore_expectedScore_sub (p := p) hq.sum_eq_one
-  have hpos : 0 < ∑ ω, (q ω - p ω) ^ 2 := by
-    obtain ⟨ω₀, hω₀⟩ := Function.ne_iff.mp hpq
-    exact sum_pos' (fun ω _ => sq_nonneg _)
-      ⟨ω₀, mem_univ _, sq_pos_of_ne_zero (sub_ne_zero.mpr hω₀.symm)⟩
-  linarith
+    (quadraticScore Ω).IsStrictlyProper := fun q hq p _ hpq => by
+  obtain ⟨ω₀, hω₀⟩ := Function.ne_iff.mp hpq
+  linarith [quadraticScore_expectedScore_sub (p := p) hq.sum_eq_one,
+    sum_pos' (fun ω _ => sq_nonneg (q ω - p ω))
+      ⟨ω₀, mem_univ _, sq_pos_of_ne_zero (sub_ne_zero.mpr hω₀.symm)⟩]
 
 /-- Sharp range bounds for the quadratic scoring rule on `probSimplex Ω`: every score lies in
 `[-1, 1]` (giving `[a - b, a + b]` for the affine version `a + b * quadraticScore`, `b > 0`, as in
 [FriedmanResnickSami2007, Exercise 27.7, p. 697]). -/
 theorem quadraticScore_bounds {Ω : Type*} [Fintype Ω] {p : Ω → ℝ} (hp : IsMixedStrategy p)
     (ω : Ω) : -1 ≤ (quadraticScore Ω).score p ω ∧ (quadraticScore Ω).score p ω ≤ 1 := by
-  have hp_le_one : ∀ i, p i ≤ 1 := fun i => by
-    have hle : p i ≤ ∑ j, p j := single_le_sum (fun j _ => hp.nonneg j) (mem_univ i)
-    linarith [hp.sum_eq_one]
-  constructor
-  · have hsum_le : ∑ i, p i ^ 2 ≤ 1 := by
-      calc ∑ i, p i ^ 2 ≤ ∑ i, p i := sum_le_sum fun i _ => by
-            nlinarith [hp.nonneg i, hp_le_one i]
-        _ = 1 := hp.sum_eq_one
-    simp only [quadraticScore_score]
-    linarith [hp.nonneg ω]
-  · have hsingle : p ω ^ 2 ≤ ∑ i, p i ^ 2 :=
-      single_le_sum (fun i _ => sq_nonneg (p i)) (mem_univ ω)
-    simp only [quadraticScore_score]
-    nlinarith [sq_nonneg (p ω - 1)]
+  have hp_le_one (i : Ω) : p i ≤ 1 :=
+    (single_le_sum (fun j _ => hp.nonneg j) (mem_univ i)).trans_eq hp.sum_eq_one
+  simp only [quadraticScore_score]
+  refine ⟨?_, by
+    nlinarith [single_le_sum (fun i _ => sq_nonneg (p i)) (mem_univ ω), sq_nonneg (p ω - 1)]⟩
+  have hsum_le : ∑ i, p i ^ 2 ≤ 1 :=
+    (sum_le_sum fun i _ => by nlinarith [hp.nonneg i, hp_le_one i]).trans_eq hp.sum_eq_one
+  linarith [hp.nonneg ω]
 
 /-- The **Brier scoring rule** [Brier1950]: `S(p, ω) = -∑ ω', (1_{ω' = ω} - p ω') ^ 2`. -/
 def brierScore (Ω : Type*) [Fintype Ω] [DecidableEq Ω] : ScoringRule Ω where
@@ -544,17 +518,13 @@ theorem brierScore_eq_quadraticScore_sub_one {Ω : Type*} [Fintype Ω] [Decidabl
     (p : Ω → ℝ) (ω : Ω) :
     (brierScore Ω).score p ω = (quadraticScore Ω).score p ω - 1 := by
   simp only [brierScore_score, quadraticScore_score]
-  have h : ∑ ω', ((if ω' = ω then (1 : ℝ) else 0) - p ω') ^ 2 =
-      1 - 2 * p ω + ∑ ω', p ω' ^ 2 := by
-    have h1 : ∑ ω', ((if ω' = ω then (1 : ℝ) else 0) - p ω') ^ 2 =
-        ∑ ω', (if ω' = ω then (1 : ℝ) else 0) -
-          2 * ∑ ω', (if ω' = ω then (1 : ℝ) else 0) * p ω' + ∑ ω', p ω' ^ 2 := by
-      rw [mul_sum, ← sum_sub_distrib, ← sum_add_distrib]
-      refine sum_congr rfl fun ω' _ => ?_
-      split_ifs <;> ring
-    rw [h1]
-    simp
-  linarith
+  have h1 : ∑ ω', ((if ω' = ω then (1 : ℝ) else 0) - p ω') ^ 2 =
+      ∑ ω', ((if ω' = ω then (1 : ℝ) else 0) -
+        2 * ((if ω' = ω then (1 : ℝ) else 0) * p ω') + p ω' ^ 2) :=
+    sum_congr rfl fun _ _ => by split_ifs <;> ring
+  rw [h1, sum_add_distrib, sum_sub_distrib, ← mul_sum]
+  simp only [ite_mul, one_mul, zero_mul, Fintype.sum_ite_eq']
+  ring
 
 /-- **Strict propriety of the Brier scoring rule** on the full probability simplex [Brier1950]. -/
 theorem isStrictlyProper_brierScore {Ω : Type*} [Fintype Ω] [DecidableEq Ω] :
@@ -597,40 +567,27 @@ achieves strictly higher expected log-score than reporting `p`. -/
 theorem logScore_expectedScore_lt {Ω : Type*} [Fintype Ω] {q p : Ω → ℝ} (hq : IsMixedStrategy q)
     (hp : IsMixedStrategy p) (hsupp : ∀ ω, 0 < q ω → 0 < p ω) (hpq : p ≠ q) :
     (logScore Ω).expectedScore q p < (logScore Ω).expectedScore q q := by
-  have hterm : ∀ ω, q ω * Real.log (p ω) - q ω * Real.log (q ω) ≤ p ω - q ω := by
-    intro ω
+  have hterm (ω : Ω) : q ω * Real.log (p ω) - q ω * Real.log (q ω) ≤ p ω - q ω := by
     rcases (hq.nonneg ω).eq_or_lt with hq0 | hqpos
-    · rw [← hq0]
-      simp only [zero_mul, sub_zero]
-      exact hp.nonneg ω
+    · simpa only [← hq0, zero_mul, sub_zero] using hp.nonneg ω
     · have hppos : 0 < p ω := hsupp ω hqpos
       have hlog := Real.log_le_sub_one_of_pos (div_pos hppos hqpos)
       rw [Real.log_div hppos.ne' hqpos.ne'] at hlog
-      have hmul := mul_le_mul_of_nonneg_left hlog hqpos.le
-      have hdiv : q ω * (p ω / q ω - 1) = p ω - q ω := by field_simp [hqpos.ne']
-      linarith
+      linarith [mul_le_mul_of_nonneg_left hlog hqpos.le,
+        show q ω * (p ω / q ω - 1) = p ω - q ω by field_simp [hqpos.ne']]
   obtain ⟨ω₀, hω₀⟩ := Function.ne_iff.mp hpq
   have hstrict : q ω₀ * Real.log (p ω₀) - q ω₀ * Real.log (q ω₀) < p ω₀ - q ω₀ := by
     rcases (hq.nonneg ω₀).eq_or_lt with hq0 | hqpos
-    · have hppos : 0 < p ω₀ := (hp.nonneg ω₀).lt_of_ne' (by rwa [← hq0] at hω₀)
-      rw [← hq0]
-      simp only [zero_mul, sub_zero]
-      exact hppos
+    · simpa only [← hq0, zero_mul, sub_zero] using (hp.nonneg ω₀).lt_of_ne' (hq0 ▸ hω₀)
     · have hppos : 0 < p ω₀ := hsupp ω₀ hqpos
-      have hne1 : p ω₀ / q ω₀ ≠ 1 := by
-        intro h
-        exact hω₀ ((div_eq_one_iff_eq hqpos.ne').mp h)
-      have hlog : Real.log (p ω₀ / q ω₀) < p ω₀ / q ω₀ - 1 := by
-        have hlt := Real.add_one_lt_exp
-          (Real.log_ne_zero_of_pos_of_ne_one (div_pos hppos hqpos) hne1)
-        rw [Real.exp_log (div_pos hppos hqpos)] at hlt
-        linarith
-      rw [Real.log_div hppos.ne' hqpos.ne'] at hlog
-      have hmul := mul_lt_mul_of_pos_left hlog hqpos
-      have hdiv : q ω₀ * (p ω₀ / q ω₀ - 1) = p ω₀ - q ω₀ := by field_simp [hqpos.ne']
-      linarith
-  have hsum_lt : ∑ ω, (q ω * Real.log (p ω) - q ω * Real.log (q ω)) < ∑ ω, (p ω - q ω) :=
-    sum_lt_sum (fun ω _ => hterm ω) ⟨ω₀, mem_univ _, hstrict⟩
+      have hne1 : p ω₀ / q ω₀ ≠ 1 := fun h => hω₀ ((div_eq_one_iff_eq hqpos.ne').mp h)
+      have hlt := Real.add_one_lt_exp
+        (Real.log_ne_zero_of_pos_of_ne_one (div_pos hppos hqpos) hne1)
+      rw [Real.exp_log (div_pos hppos hqpos), Real.log_div hppos.ne' hqpos.ne'] at hlt
+      linarith [mul_lt_mul_of_pos_left (by linarith :
+        Real.log (p ω₀) - Real.log (q ω₀) < p ω₀ / q ω₀ - 1) hqpos,
+        show q ω₀ * (p ω₀ / q ω₀ - 1) = p ω₀ - q ω₀ by field_simp [hqpos.ne']]
+  have hsum_lt := sum_lt_sum (fun ω _ => hterm ω) ⟨ω₀, mem_univ _, hstrict⟩
   simp only [sum_sub_distrib, hp.sum_eq_one, hq.sum_eq_one, sub_self] at hsum_lt
   simp only [ScoringRule.expectedScore_apply, logScore_score]
   linarith
@@ -666,15 +623,13 @@ theorem sphericalScore_eq_savage {Ω : Type*} [Fintype Ω] {p : Ω → ℝ} (hp 
       (savageScoringRule (fun r => Real.sqrt (∑ i, r i ^ 2))
         (fun r i => r i / Real.sqrt (∑ j, r j ^ 2))).score p ω := by
   have hpos := sum_sq_pos_of_isMixedStrategy hp
-  have hsqrt_pos : 0 < Real.sqrt (∑ i, p i ^ 2) := Real.sqrt_pos.mpr hpos
-  simp only [sphericalScore_score, savageScoringRule_score, dotProduct]
-  have hdot : ∑ i, p i * (p i / Real.sqrt (∑ j, p j ^ 2)) = Real.sqrt (∑ i, p i ^ 2) := by
-    have h1 : ∑ i, p i * (p i / Real.sqrt (∑ j, p j ^ 2)) =
-        (∑ i, p i ^ 2) / Real.sqrt (∑ j, p j ^ 2) := by
-      rw [sum_div]
-      exact sum_congr rfl fun i _ => by ring
-    rw [h1, div_eq_iff hsqrt_pos.ne', Real.mul_self_sqrt hpos.le]
-  rw [hdot]
+  simp only [sphericalScore_score, savageScoringRule_score, dotProduct,
+    show ∑ i, p i * (p i / Real.sqrt (∑ j, p j ^ 2)) =
+      (∑ i, p i ^ 2) / Real.sqrt (∑ j, p j ^ 2) by
+      rw [sum_div]; exact sum_congr rfl fun _ _ => by ring]
+  have hdiv : (∑ i, p i ^ 2) / Real.sqrt (∑ j, p j ^ 2) = Real.sqrt (∑ i, p i ^ 2) := by
+    rw [div_eq_iff (Real.sqrt_pos.mpr hpos).ne', Real.mul_self_sqrt hpos.le]
+  rw [hdiv]
   ring
 
 /-- Truthful expected spherical score on `probSimplex Ω` equals the Euclidean norm
@@ -689,11 +644,11 @@ theorem sphericalScore_expectedScore_self {Ω : Type*} [Fintype Ω] {q : Ω → 
 private theorem lagrange_identity {Ω : Type*} [Fintype Ω] (q p : Ω → ℝ) :
     ∑ i, ∑ j, (q i * p j - q j * p i) ^ 2 =
       2 * ((∑ i, q i ^ 2) * (∑ j, p j ^ 2) - (∑ i, q i * p i) ^ 2) := by
-  have hexpand : ∀ i, ∑ j, (q i * p j - q j * p i) ^ 2 =
+  have hexpand (i : Ω) : ∑ j, (q i * p j - q j * p i) ^ 2 =
       q i ^ 2 * (∑ j, p j ^ 2) - 2 * (q i * p i) * (∑ j, q j * p j) +
-        p i ^ 2 * (∑ j, q j ^ 2) := fun i => by
+        p i ^ 2 * (∑ j, q j ^ 2) := by
     rw [mul_sum, mul_sum, mul_sum, ← sum_sub_distrib, ← sum_add_distrib]
-    exact sum_congr rfl fun j _ => by ring
+    exact sum_congr rfl fun _ _ => by ring
   simp only [hexpand, sum_add_distrib, sum_sub_distrib, ← sum_mul, ← mul_sum]
   ring
 
@@ -706,34 +661,25 @@ theorem isStrictlyProper_sphericalScore {Ω : Type*} [Fintype Ω] :
   have hppos := sum_sq_pos_of_isMixedStrategy hp
   have hqsqrt : 0 < Real.sqrt (∑ ω, q ω ^ 2) := Real.sqrt_pos.mpr hqpos
   have hpsqrt : 0 < Real.sqrt (∑ ω, p ω ^ 2) := Real.sqrt_pos.mpr hppos
-  have hnot_prop : ∃ i j, q i * p j - q j * p i ≠ 0 := by
-    by_contra hall
-    push Not at hall
-    apply hpq
-    funext i
+  obtain ⟨i₀, j₀, hij⟩ : ∃ i j, q i * p j - q j * p i ≠ 0 := by
+    by_contra! hall
+    refine hpq (funext fun i => ?_)
     have hsum : ∑ j, q i * p j = ∑ j, q j * p i :=
       sum_congr rfl fun j _ => sub_eq_zero.mp (hall i j)
-    rw [← mul_sum, ← sum_mul, hp.sum_eq_one, hq.sum_eq_one, mul_one, one_mul] at hsum
-    exact hsum.symm
-  obtain ⟨i₀, j₀, hij⟩ := hnot_prop
-  have hlag_pos : 0 < ∑ i, ∑ j, (q i * p j - q j * p i) ^ 2 := by
-    refine sum_pos' (fun i _ => sum_nonneg fun j _ => sq_nonneg _)
-      ⟨i₀, mem_univ _, sum_pos' (fun j _ => sq_nonneg _) ⟨j₀, mem_univ _, sq_pos_of_ne_zero hij⟩⟩
-  have hcs_sq : (∑ ω, q ω * p ω) ^ 2 < (∑ ω, q ω ^ 2) * (∑ ω, p ω ^ 2) := by
-    linarith [lagrange_identity q p]
-  have hdot_nonneg : 0 ≤ ∑ ω, q ω * p ω :=
-    sum_nonneg fun ω _ => mul_nonneg (hq.nonneg ω) (hp.nonneg ω)
-  have hcs : ∑ ω, q ω * p ω < Real.sqrt (∑ ω, q ω ^ 2) * Real.sqrt (∑ ω, p ω ^ 2) := by
-    have hsq_eq : (Real.sqrt (∑ ω, q ω ^ 2) * Real.sqrt (∑ ω, p ω ^ 2)) ^ 2 =
-        (∑ ω, q ω ^ 2) * (∑ ω, p ω ^ 2) := by
-      rw [mul_pow, Real.sq_sqrt hqpos.le, Real.sq_sqrt hppos.le]
-    nlinarith [mul_pos hqsqrt hpsqrt]
-  have heval_p : (sphericalScore Ω).expectedScore q p =
-      (∑ ω, q ω * p ω) / Real.sqrt (∑ ω, p ω ^ 2) := by
-    simp only [ScoringRule.expectedScore_apply, sphericalScore_score, sum_div]
-    exact sum_congr rfl fun ω _ => by ring
-  rw [heval_p, sphericalScore_expectedScore_self hq, div_lt_iff₀ hpsqrt]
-  exact hcs
+    simpa only [← mul_sum, ← sum_mul, hp.sum_eq_one, hq.sum_eq_one, mul_one, one_mul] using
+      hsum.symm
+  have hlag_pos : 0 < ∑ i, ∑ j, (q i * p j - q j * p i) ^ 2 :=
+    sum_pos' (fun _ _ => sum_nonneg fun _ _ => sq_nonneg _)
+      ⟨i₀, mem_univ _, sum_pos' (fun _ _ => sq_nonneg _) ⟨j₀, mem_univ _, sq_pos_of_ne_zero hij⟩⟩
+  have hsq_eq : (Real.sqrt (∑ ω, q ω ^ 2) * Real.sqrt (∑ ω, p ω ^ 2)) ^ 2 =
+      (∑ ω, q ω ^ 2) * (∑ ω, p ω ^ 2) := by
+    rw [mul_pow, Real.sq_sqrt hqpos.le, Real.sq_sqrt hppos.le]
+  rw [show (sphericalScore Ω).expectedScore q p =
+      (∑ ω, q ω * p ω) / Real.sqrt (∑ ω, p ω ^ 2) by
+      simp only [ScoringRule.expectedScore_apply, sphericalScore_score, sum_div]
+      exact sum_congr rfl fun _ _ => by ring,
+    sphericalScore_expectedScore_self hq, div_lt_iff₀ hpsqrt]
+  nlinarith [lagrange_identity q p, mul_pos hqsqrt hpsqrt]
 
 end CanonicalRules
 

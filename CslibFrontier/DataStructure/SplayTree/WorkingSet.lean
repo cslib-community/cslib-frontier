@@ -172,14 +172,14 @@ theorem splaySeqTime_le_static_finger (xs : List α) {t : BinaryTree α} (ht : O
   have hW : subtreeWeight (fingerWeight s f) t ≤ 3 :=
     (subtreeWeight_eq_sum_elements _ ht).symm ▸ sum_fingerWeight_le s f
   have hmain := splaySeqTime_le_fixed_weights (fingerWeight_pos s f) xs ht hxs hW
-  have hterm : ∀ y, Real.logb 2 (3 / fingerWeight s f y) =
+  have hterm (y : α) : Real.logb 2 (3 / fingerWeight s f y) =
       Real.logb 2 3 + 2 * Real.logb 2 ((fingerDist s f y : ℝ) + 1) :=
-    fun y => logb_div_inv_sq (by norm_num) (fingerDist s f y)
+    logb_div_inv_sq (by norm_num) (fingerDist s f y)
   have hlog3 := logb_two_three_le_two
-  have hacc : ∀ l : List α, (l.map fun x => 3 * Real.logb 2 (3 / fingerWeight s f x) + 1).sum ≤
-      7 * l.length + 6 * (l.map fun x => Real.logb 2 ((fingerDist s f x : ℝ) + 1)).sum := by
-    intro l
-    induction l with
+  have hacc : (xs.map fun x => 3 * Real.logb 2 (3 / fingerWeight s f x) + 1).sum ≤
+      7 * xs.length + 6 * (xs.map fun x => Real.logb 2 ((fingerDist s f x : ℝ) + 1)).sum := by
+    clear hmain hxs
+    induction xs with
     | nil => simp
     | cons x l ih =>
       simp only [List.map_cons, List.sum_cons, List.length_cons, Nat.cast_add, Nat.cast_one]
@@ -188,11 +188,10 @@ theorem splaySeqTime_le_static_finger (xs : List α) {t : BinaryTree α} (ht : O
       s.card * (2 + 2 * Real.logb 2 s.card) := by
     rw [← nsmul_eq_mul, ← Finset.sum_const]
     refine Finset.sum_le_sum fun y _ => ?_
-    have hle : (fingerDist s f y : ℝ) + 1 ≤ s.card := by exact_mod_cast fingerDist_lt_card hf y
-    have hlog : Real.logb 2 ((fingerDist s f y : ℝ) + 1) ≤ Real.logb 2 s.card :=
-      Real.logb_le_logb_of_le (by norm_num) (by positivity) hle
+    have hlog := Real.logb_le_logb_of_le (b := 2) (by norm_num) (by positivity)
+      (by exact_mod_cast fingerDist_lt_card hf y : (fingerDist s f y : ℝ) + 1 ≤ s.card)
     linarith [hterm y]
-  linarith [hacc xs]
+  linarith
 
 end StaticFinger
 
@@ -305,8 +304,7 @@ private theorem takeWhile_ne_subset_or (l : List α) {y y' : α} (hy : y ∈ l) 
         rw [takeWhile_ne_cons_self, takeWhile_ne_cons_of_ne hne.symm, List.toFinset_nil,
           List.toFinset_cons]
         exact Or.inr ⟨Finset.empty_subset _, Finset.mem_insert_self _ _⟩
-      · rw [takeWhile_ne_cons_of_ne hay, takeWhile_ne_cons_of_ne hay', List.toFinset_cons,
-          List.toFinset_cons]
+      · simp only [takeWhile_ne_cons_of_ne hay, takeWhile_ne_cons_of_ne hay', List.toFinset_cons]
         rcases ih ((List.mem_cons.mp hy).resolve_left (Ne.symm hay))
             ((List.mem_cons.mp hy').resolve_left (Ne.symm hay')) with ⟨hsub, hm⟩ | ⟨hsub, hm⟩
         · exact Or.inl ⟨Finset.insert_subset_insert a hsub, Finset.mem_insert_of_mem hm⟩
@@ -415,9 +413,8 @@ private theorem splaySeqTime_mtf_telescoping (F : List α) {h R : List α} {t : 
         subtreeWeight_pos (mtfWeight_pos _) (by rintro rfl; simp [elements] at hx)
       refine (Real.logb_le_logb_of_le (b := 2) (by norm_num) (div_pos hWpos hwx)
         (div_le_div_of_nonneg_right hW₀ hwx.le)).trans_eq ?_
-      have hrank : recencyRank x (h ++ x :: F ++ R) = recencyRank x h := by
-        rw [List.append_assoc, List.cons_append, recencyRank_append_cons_self]
-      rw [mtfWeight, hrank, logb_div_inv_sq (by norm_num), Real.logb_self_eq_one (by norm_num)]
+      rw [mtfWeight, List.append_assoc, List.cons_append, recencyRank_append_cons_self,
+        logb_div_inv_sq (by norm_num), Real.logb_self_eq_one (by norm_num)]
     -- Reassignment step: `x` is at the root and receives weight `1`; no other weight increases.
     have hre := potential_reweight_root_le (w := mtfWeight (h ++ x :: F ++ R))
       (w' := mtfWeight (x :: h ++ F ++ R)) (mtfWeight_pos _) ho' (rootKey_splay_of_mem ht hx)
@@ -464,30 +461,25 @@ theorem splaySeqTime_le_working_set (xs : List α) {t : BinaryTree α} (ht : Ord
   have htel := splaySeqTime_mtf_telescoping xs ht hset
   rw [wsAux_nil, sum_map_wsCharge, length_workingSetNumbers] at htel
   obtain ⟨ho_end, he_end⟩ := splaySeq_ordered_and_elements xs ht
+  have hW : subtreeWeight (mtfWeight ([] ++ xs ++ R)) t ≤ 2 := by
+    rw [subtreeWeight_eq_sum_elements _ ht, ← hset, sum_mtfWeight]
+    exact sum_range_inv_sq_le_two _
   -- Initial potential: total weight at most `2`, so every rank is at most `1`.
-  have hΦ₀ : potential (mtfWeight ([] ++ xs ++ R)) t ≤ (elements t).card := by
-    have hW : subtreeWeight (mtfWeight ([] ++ xs ++ R)) t ≤ 2 := by
-      rw [subtreeWeight_eq_sum_elements _ ht, ← hset, sum_mtfWeight]
-      exact sum_range_inv_sq_le_two _
-    have h := potential_le_sum_logb_of_le (mtfWeight_pos _) ht hW
-    rwa [Real.logb_self_eq_one (by norm_num), Finset.sum_const, nsmul_eq_mul, mul_one] at h
+  have hΦ₀ := potential_le_sum_logb_of_le (mtfWeight_pos ([] ++ xs ++ R)) ht hW
+  rw [Real.logb_self_eq_one (by norm_num), Finset.sum_const, nsmul_eq_mul, mul_one] at hΦ₀
+  have hsetₘ : (xs.reverse ++ [] ++ R).toFinset = elements t := by ext z; simp [← hset]
   -- Final potential: every final weight is at least `1/n²`.
-  have hsetₘ : (xs.reverse ++ [] ++ R).toFinset = elements t := by
-    rw [← hset]; ext z
-    simp only [List.mem_toFinset, List.mem_append, List.mem_reverse,
-      List.nil_append, List.append_nil]
   have hΦₘ : -((elements t).card * (2 * Real.logb 2 (elements t).card)) ≤
       potential (mtfWeight (xs.reverse ++ [] ++ R)) (splaySeq xs t).1 := by
-    have h := sum_logb_weight_le_potential (mtfWeight_pos (xs.reverse ++ [] ++ R)) ho_end
-    rw [he_end] at h
-    refine le_trans ?_ h
+    refine le_trans ?_ (he_end ▸ sum_logb_weight_le_potential
+      (mtfWeight_pos (xs.reverse ++ [] ++ R)) ho_end)
     rw [← nsmul_eq_mul, ← neg_nsmul, ← Finset.sum_const]
     refine Finset.sum_le_sum fun y hy => ?_
-    have hy' : y ∈ xs.reverse ++ [] ++ R := by rw [← List.mem_toFinset, hsetₘ]; exact hy
-    have hle : (recencyRank y (xs.reverse ++ [] ++ R) : ℝ) + 1 ≤ (elements t).card := by
-      exact_mod_cast hsetₘ ▸ recencyRank_lt_card hy'
+    have hy' : y ∈ xs.reverse ++ [] ++ R := List.mem_toFinset.mp (hsetₘ.symm ▸ hy)
     have hlog := Real.logb_le_logb_of_le (b := 2) (by norm_num)
-      (by positivity : (0 : ℝ) < (recencyRank y (xs.reverse ++ [] ++ R) : ℝ) + 1) hle
+      (by positivity : (0 : ℝ) < (recencyRank y (xs.reverse ++ [] ++ R) : ℝ) + 1)
+      (by exact_mod_cast hsetₘ ▸ recencyRank_lt_card hy' :
+        (recencyRank y (xs.reverse ++ [] ++ R) : ℝ) + 1 ≤ (elements t).card)
     rw [mtfWeight, one_div, Real.logb_inv, Real.logb_pow]
     push_cast
     linarith
