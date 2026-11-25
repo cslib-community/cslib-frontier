@@ -255,6 +255,29 @@ private theorem normalizeDistinct_eq {c : PBConstr} (h : (c.terms.map termVar).N
     c.normalizeDistinct = c.normalize := by
   simp [normalizeDistinct, normalize, toLinear_of_nodup h]
 
+/-- **A constraint on distinct variables with positive coefficients is in normal form** up to the
+order of its terms: normalization only reverses them. -/
+theorem normalize_of_nodup {c : PBConstr} (h : (c.terms.map termVar).Nodup)
+    (hpos : ∀ t ∈ c.terms, 0 < t.1) : c.normalize = ⟨c.terms.reverse, c.degree⟩ := by
+  have hterm : ∀ t ∈ c.terms, entryTerm (termVar t, termCoeff t) = some t := by
+    rintro ⟨a, v, b⟩ ht
+    have ha := hpos _ ht
+    cases b <;> simp [entryTerm, termCoeff, ha]
+  have hfm : (c.terms.map fun t => (termVar t, termCoeff t)).filterMap entryTerm = c.terms := by
+    rw [List.filterMap_map]
+    exact (List.filterMap_congr (g := some) fun t ht => hterm t ht).trans (by simp)
+  have hmass :
+      negMass (c.terms.map fun t => (termVar t, termCoeff t)).reverse = negSum c.terms := by
+    simp only [negMass, negSum, List.map_reverse, List.sum_reverse, List.map_map]
+    congr 1
+    refine List.map_congr_left fun t ht => ?_
+    obtain ⟨a, v, b⟩ := t
+    cases b <;> simp [termCoeff]
+  rw [← normalizeDistinct_eq h]
+  simp only [normalizeDistinct, fromLinear, List.filterMap_reverse, hfm, hmass]
+  congr 1
+  omega
+
 /-- `Cslib.Logic.PL.PBConstr.add` through `Cslib.Logic.PL.PBConstr.normalizeFast`. -/
 private def addFast (c d : PBConstr) : PBConstr :=
   normalizeFast ⟨c.terms ++ d.terms, c.degree + d.degree⟩
