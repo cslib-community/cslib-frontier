@@ -134,12 +134,9 @@ theorem condMutualInfo_rot_eq [Finite τ] {k : ℕ} (ν : PMF Ω)
   have hCR : condMutualInfo (ν.map fun ω => (T ω, S ω, R ω)) =
       condMutualInfo (ν.map fun ω => (T ω, S ω, (C ω, Y ω))) := by
     refine (condMutualInfo_map_congr ν T S (T := R) (T' := fun ω => (C ω, Y ω))
-      (e := fun r => (rotChoices r, rotReceived r)) ?_ (fun _ _ => rfl)).symm
-    intro r r' h
-    funext j
-    have h1 := congrFun (congrArg Prod.fst h) j
-    have h2 := congrFun (congrArg Prod.snd h) j
-    exact Prod.ext h1 h2
+      (e := fun r => (rotChoices r, rotReceived r)) (fun _ _ h => funext fun j =>
+        Prod.ext (congrFun (congrArg Prod.fst h) j) (congrFun (congrArg Prod.snd h) j))
+      (fun _ _ => rfl)).symm
   rw [hCR, condMutualInfo_map_prodMk_right_eq_add]
   -- Step 1: `I(S; C | T) = 0` from Alice's privacy.
   have hSC : condMutualInfo (ν.map fun ω => (T ω, S ω, C ω)) = 0 := by
@@ -170,18 +167,8 @@ theorem condMutualInfo_rot_eq [Finite τ] {k : ℕ} (ν : PMF Ω)
       refine entropy_map_eq_of_comp ν
         (e := fun tcs : (τ × (Fin k → Bool)) × (Fin k → Bool × Bool) =>
           (tcs.1, tcs.2, fun j => otSelect (tcs.2 j) (tcs.1.2 j)))
-        (fun s t h => by
-          obtain ⟨tc, s⟩ := s
-          obtain ⟨tc', s'⟩ := t
-          simp only [Prod.mk.injEq] at h
-          exact Prod.ext h.1 h.2.1)
-        fun ω hω => by
-          ext : 1
-          · rfl
-          · ext : 1
-            · rfl
-            · funext j
-              exact hCorrect ω hω j
+        (fun _ _ h => Prod.ext (congrArg Prod.fst h :) (congrArg (·.2.1) h :))
+        fun ω hω => Prod.ext rfl (Prod.ext rfl (funext (hCorrect ω hω)))
     rw [hdet]
     ring
   -- Step 3: Show `((T, C), Y)` is `(T, C) × Unif` by flipping `C` to relate `Y` to `U`.
