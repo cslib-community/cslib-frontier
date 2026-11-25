@@ -104,8 +104,7 @@ theorem scheduleCost_true_eq_zero {B : Nat} {reqs : List Unit} {states : List Bo
     | nil => rfl
     | cons b bs =>
       obtain ⟨hstep, hrest⟩ := hv
-      have hb : b = true := hstep rfl
-      subst hb
+      obtain rfl : b = true := hstep rfl
       change stepCost B true r true + _ = 0
       rw [stepCost_true, ih hrest]
 
@@ -352,10 +351,8 @@ private theorem bool_list_cases (L : List Bool) :
     | true => exact Or.inr ⟨0, L, rfl⟩
     | false =>
       rcases ih with h | ⟨d, tail, h⟩
-      · left
-        rw [List.length_cons, List.replicate_succ, ← h]
-      · right
-        exact ⟨d + 1, tail, by rw [List.replicate_succ, List.cons_append, ← h]⟩
+      · exact .inl (by rw [List.length_cons, List.replicate_succ, ← h])
+      · exact .inr ⟨d + 1, tail, by rw [List.replicate_succ, List.cons_append, ← h]⟩
 
 /-- `(2B - 1)(d + 1) ≤ B (d + B)` whenever `d + 1 ≤ B`. -/
 private theorem ski_arith {B d : Nat} (h : d + 1 ≤ B) :
@@ -389,9 +386,7 @@ theorem exists_witness {B : Nat} (hB : 1 ≤ B) (A : DetStrategy (problem B)) :
       rw [hall, hlen]
       have := scheduleCost_replicate_false B full
       rwa [List.length_replicate] at this
-    have hne : full ≠ [] := by
-      rw [Ne, List.replicate_eq_nil_iff]
-      omega
+    have hne : full ≠ [] := by rw [Ne, List.replicate_eq_nil_iff]; omega
     have hvopt := validSchedule_replicate (B := B) (b₀ := false) (b := true) (fun _ => rfl) full
     refine ⟨full, _, hvopt, ?_, ?_⟩ <;> rw [scheduleCost_replicate_true B hne]
     · exact hB
@@ -402,8 +397,7 @@ theorem exists_witness {B : Nat} (hB : 1 ≤ B) (A : DetStrategy (problem B)) :
       simp only [hlen, List.length_append, List.length_replicate, List.length_cons] at this
       omega
     set reqs : List Unit := List.replicate (d + 1) ()
-    have hreqs : reqs = full.take (d + 1) := by
-      rw [List.take_replicate, Nat.min_eq_left hd]
+    have hreqs : reqs = full.take (d + 1) := by rw [List.take_replicate, Nat.min_eq_left hd]
     have hstates : A.states false reqs = List.replicate d false ++ [true] := by
       rw [hreqs, DetStrategy.states_take, hsplit, List.take_append, List.length_replicate,
         List.take_of_length_le (by rw [List.length_replicate]; omega), Nat.add_sub_cancel_left,
@@ -416,13 +410,9 @@ theorem exists_witness {B : Nat} (hB : 1 ≤ B) (A : DetStrategy (problem B)) :
       have hvopt := validSchedule_replicate (B := B) (b₀ := false) (b := false) (fun h => h) reqs
       refine ⟨reqs, _, hvopt, ?_, ?_⟩ <;>
         rw [scheduleCost_replicate_false, List.length_replicate]
-      · omega
-      · rw [hcost, hN]
-        exact ski_arith hdB
+      exacts [by omega, by rw [hcost, hN]; exact ski_arith hdB]
     · -- Buying on day one is cheaper.
-      have hne : reqs ≠ [] := by
-        rw [Ne, List.replicate_eq_nil_iff]
-        omega
+      have hne : reqs ≠ [] := by rw [Ne, List.replicate_eq_nil_iff]; omega
       have hvopt := validSchedule_replicate (B := B) (b₀ := false) (b := true) (fun _ => rfl) reqs
       refine ⟨reqs, _, hvopt, ?_, ?_⟩ <;> rw [scheduleCost_replicate_true B hne]
       · exact hB
