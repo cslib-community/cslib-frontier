@@ -494,7 +494,7 @@ private theorem computableInPolyTime_fieldGates (s : ℕ) :
       have ha1 := ite' hbit
         (binary_add' (const 4) hℓ1B)
         (binary_add' (binary_add' hN' (const 2)) (binary_add' (const 4) hℓ1B))
-      exact ite_decide (unary_eq' hℓU' (const 0))
+      exact ite_decide (unary_decide_eq hℓU' (const 0))
         (const (Op.const true, ([] : List ℕ)))
         ((const Op.and).prod (ha0.cons' (ha1.cons' (const []))))
     exact hbranch
@@ -1800,10 +1800,10 @@ private theorem computableInPolyTime_opEvalMod {α : Type} {enc : α ↪ List Bo
         (binary_add' (binary_add' hx hy) (binary_sub' hp (binary_mod' (binary_mul' hx hy) hp)))
         hp)
   have hcond :=
-    ite_decide (unary_eq' htn (const 0)) (const 0)
-      (ite_decide (unary_eq' htn (const 1)) h1
-        (ite_decide (unary_eq' htn (const 2)) hnot
-          (ite_decide (unary_eq' htn (const 3)) hand hor)))
+    ite_decide (unary_decide_eq htn (const 0)) (const 0)
+      (ite_decide (unary_decide_eq htn (const 1)) h1
+        (ite_decide (unary_decide_eq htn (const 2)) hnot
+          (ite_decide (unary_decide_eq htn (const 3)) hand hor)))
   refine hcond.of_enc_eq fun a => congrArg encNat ?_
   cases hop_a : op a with
   | const v => cases v <;> simp [opEvalMod, Op.toNat]

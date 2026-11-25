@@ -344,7 +344,7 @@ private theorem computable_plantedImage {α : Type} {input : α ↪ List Bool}
   have hrow := ComputableInPolyTime.bitsRowWithInput
     ((hw.comp hn).comp hfst) hsnd (hZ.comp hfst)
   exact ComputableInPolyTime.ite_decide
-    (ComputableInPolyTime.unary_beq' hsnd (hj.comp hfst))
+    (ComputableInPolyTime.unary_beq hsnd (hj.comp hfst))
     (hy.comp hfst) (hf.comp hrow)
 
 private theorem computable_slotCand {α : Type} {input : α ↪ List Bool}

@@ -381,7 +381,7 @@ theorem isPPTOn_prpRealGame {adversary : OracleDistinguisher}
   exact isPPTOn_keyedOracleGame hadversary E.keyLen_polyTime E.blockLen_polyTime
     (fun n key request => E.prpOracle n key request.2)
     (ComputableInPolyTime.ite_decide
-      (ComputableInPolyTime.unary_eq' (hq.trans ComputableInPolyTime.length_bits)
+      (ComputableInPolyTime.unary_decide_eq (hq.trans ComputableInPolyTime.length_bits)
         (hn.trans E.blockLen_polyTime))
       (E.computableInPolyTime_encrypt_comp hn hrest.fst' hq)
       (ComputableInPolyTime.const []))
@@ -403,7 +403,7 @@ theorem isPPTOn_strongPRPRealGame {adversary : StrongPRPDistinguisher}
   exact isPPTOn_keyedOracleGame hadversary E.keyLen_polyTime E.blockLen_polyTime
     (fun n key request => E.strongPRPOracle n key request)
     (ComputableInPolyTime.ite_decide
-      (ComputableInPolyTime.unary_eq' (hq.trans ComputableInPolyTime.length_bits)
+      (ComputableInPolyTime.unary_decide_eq (hq.trans ComputableInPolyTime.length_bits)
         (hn.trans E.blockLen_polyTime))
       (ComputableInPolyTime.ite hrest.snd'.fst'
         (E.computableInPolyTime_decrypt_comp hn hrest.fst' hq)

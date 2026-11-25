@@ -377,7 +377,7 @@ theorem isPPTOn_lamportSign :
       (ComputableInPolyTime.range.comp hmsg_len)
       (computableInPolyTime_lamportSlot hsk hmsg)).encoding_comp
   exact (ComputableInPolyTime.ite'
-    (ComputableInPolyTime.unary_beq'
+    (ComputableInPolyTime.unary_beq
       ((ComputableInPolyTime.length_list encBits).comp hsk)
       (uConstMul 2 hmsg_len))
     hbody (.const [])).isPPTOn
@@ -399,7 +399,7 @@ theorem computableInPolyTime_lamportVerify {f : List Bool → List Bool}
   have hp1 := ComputableInPolyTime.fst encIn encUnary
   have hi := ComputableInPolyTime.snd encIn encUnary
   have hsigWord := ComputableInPolyTime.listGetDWithInput (hsig.comp hp1) hi []
-  have hlenCheck := ComputableInPolyTime.unary_beq'
+  have hlenCheck := ComputableInPolyTime.unary_beq
     (ComputableInPolyTime.length_bits.comp hsigWord) (hmsg_len.comp hp1)
   have hfCheck := (hf.comp hsigWord).beq (computableInPolyTime_lamportSlot hpk hmsg)
   have hall := ComputableInPolyTime.allWithInput (encA := encUnary)
@@ -411,10 +411,10 @@ theorem computableInPolyTime_lamportVerify {f : List Bool → List Bool}
     (ComputableInPolyTime.bool_and.comp (hlenCheck.prod hfCheck))
   exact ComputableInPolyTime.bool_and.comp
     ((ComputableInPolyTime.bool_and.comp
-      ((ComputableInPolyTime.unary_beq'
+      ((ComputableInPolyTime.unary_beq
         ((ComputableInPolyTime.length_list encBits).comp hpk)
         (uConstMul 2 hmsg_len)).prod
-        (ComputableInPolyTime.unary_beq'
+        (ComputableInPolyTime.unary_beq
           ((ComputableInPolyTime.length_list encBits).comp hsig)
           hmsg_len))).prod hall)
 

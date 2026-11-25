@@ -77,7 +77,7 @@ theorem middleSlice_mem_P : (Language.ofSlices middleSlice : Set (List Bool)) �
     ComputableInPolyTime.unary_sub' (ComputableInPolyTime.unary_div' hsucc (.const 2)) hgap
   have hcount : ComputableInPolyTime (fun x : List Bool => x.count true) encBits encUnary :=
     ComputableInPolyTime.bitsCountWithInput ComputableInPolyTime.id' (.const true)
-  exact ComputableInPolyTime.unary_eq' hcount (ComputableInPolyTime.unary_sub' hlen hlevel)
+  exact ComputableInPolyTime.unary_decide_eq hcount (ComputableInPolyTime.unary_sub' hlen hlevel)
 
 /-- **Unconditional separation `P ⊄ AC⁰[2]`**: the middle slice is in `P` and not in AC⁰[2]
 [Razborov1987]. `Cslib.Circuits.Boolean.exists_mem_P_notMem_AC0Mod` combines it with parity for odd

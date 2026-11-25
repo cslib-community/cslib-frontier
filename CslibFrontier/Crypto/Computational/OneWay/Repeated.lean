@@ -257,7 +257,7 @@ theorem isPPT_repeatedInverter {f : List Bool → List Bool} {t : ℕ → ℕ}
         (fun q : _ => if q.2.1.2.length = q.1.slot then []
           else (seeds q.1).getD q.2.1.2.length []) encCall encBits :=
       ComputableInPolyTime.ite_decide
-        (ComputableInPolyTime.unary_eq' (ComputableInPolyTime.length_bits_comp hcreq)
+        (ComputableInPolyTime.unary_decide_eq (ComputableInPolyTime.length_bits_comp hcreq)
           (ha_g.comp hca))
         (.const [])
         (ComputableInPolyTime.listGetDWithInput (hseeds.comp hca)
@@ -292,7 +292,7 @@ theorem isPPT_repeatedInverter {f : List Bool → List Bool} {t : ℕ → ℕ}
       (encPair encAll (encPair (encPair encBits encBits) encUnit)) encBits := by
     have hq_all := ComputableInPolyTime.fst encAll (encPair (encPair encBits encBits) encUnit)
     exact ComputableInPolyTime.ite_decide
-      (ComputableInPolyTime.unary_eq'
+      (ComputableInPolyTime.unary_decide_eq
         (ComputableInPolyTime.length_bits_comp (by polytime))
         (ha_g.comp hq_all))
       (by polytime)

@@ -43,7 +43,7 @@ noncomputable def lengthIdxOne : IndexedSignatureScheme where
     have hrest := ComputableInPolyTime.snd encBits (encPair encUnary encBits)
     have hu := hrest.fst'
     have hmsg := hrest.snd'
-    have hcond := ComputableInPolyTime.unary_beq' hu (.const 0)
+    have hcond := ComputableInPolyTime.unary_beq hu (.const 0)
     have happ := ComputableInPolyTime.bitsAppend hsk hmsg
     exact ((hcond.ite happ (.const (encIn := encIn) (encOut := encBits) [])).of_enc_eq
       fun _ => rfl).isPPTOn
@@ -55,8 +55,8 @@ noncomputable def lengthIdxOne : IndexedSignatureScheme where
     have hu := hrest.fst'
     have hmsgLen := hrest.snd'.fst'.trans ComputableInPolyTime.length_bits
     have hsigLen := hrest.snd'.snd'.trans ComputableInPolyTime.length_bits
-    exact ((ComputableInPolyTime.unary_beq' hu (.const 0)).bool_and'
-      (hsigLen.unary_beq' (hpkLen.unary_add' hmsgLen))).of_enc_eq fun _ => rfl
+    exact ((ComputableInPolyTime.unary_beq hu (.const 0)).bool_and'
+      (hsigLen.unary_beq (hpkLen.unary_add' hmsgLen))).of_enc_eq fun _ => rfl
   verify_sign n keys hkeys u hu msg sig hsig := by
     have hu0 : u = 0 := by omega
     subst hu0
@@ -113,8 +113,8 @@ noncomputable def lengthOneTime : SignatureScheme where
     have hrest := ComputableInPolyTime.snd encBits encRest
     have hmsgLen := hrest.fst'.trans ComputableInPolyTime.length_bits
     have hsigLen := hrest.snd'.trans ComputableInPolyTime.length_bits
-    exact ((hpkLen.unary_beq' hmsgLen).bool_and'
-      (hsigLen.unary_beq' hmsgLen)).of_enc_eq fun _ => rfl
+    exact ((hpkLen.unary_beq hmsgLen).bool_and'
+      (hsigLen.unary_beq hmsgLen)).of_enc_eq fun _ => rfl
   verify_sign n keys hkeys msg hmsg sig hsig := by
     simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hkeys hsig
     subst hkeys

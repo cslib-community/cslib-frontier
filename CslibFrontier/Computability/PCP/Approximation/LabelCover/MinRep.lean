@@ -576,7 +576,7 @@ private theorem isPolyTime_blockWeights {L : Input → List ℕ} {n : ℕ}
   have htest : ComputableInPolyTime
       (fun q : (Input × ℕ) × ℕ => q.2 == (L q.1.1).getD (q.1.2 / n) 0)
       (encPair (encPair input encUnary) encUnary) encBool :=
-    ComputableInPolyTime.unary_beq' (.snd _ _) (hget.comp (.fst _ _))
+    ComputableInPolyTime.unary_beq (.snd _ _) (hget.comp (.fst _ _))
   have hcount : ComputableInPolyTime (fun p : Input × ℕ => (L p.1).count ((L p.1).getD (p.2 / n) 0))
       (encPair input encUnary) encUnary :=
     ComputableInPolyTime.countPWithInput hL₁ htest

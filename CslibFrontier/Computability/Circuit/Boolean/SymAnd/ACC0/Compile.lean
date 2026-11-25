@@ -1380,7 +1380,7 @@ private theorem computableInPolyTime_orTestProdMod :
       have hany := ComputableInPolyTime.anyWithInput
         (test := fun r x => decide (x = r.1.1.1.2.1.1 + r.2))
         (((ComputableInPolyTime.snd _ _).fst'.snd').comp hrq)
-        (ComputableInPolyTime.unary_eq'
+        (ComputableInPolyTime.unary_decide_eq
           (ComputableInPolyTime.snd _ _)
           (ComputableInPolyTime.unary_add.comp
             ((((ComputableInPolyTime.snd _ _).fst'.fst').comp
@@ -1517,7 +1517,7 @@ private theorem computableInPolyTime_evalLayerQMod (m : ℕ) (layer : Option ℕ
       (fun q : (CompileCtx × ℕ) × (List ℕ × ℕ) => q.2.1.any fun x => decide (x = q.2.2))
       encQ encBool :=
     ComputableInPolyTime.anyWithInput (test := fun q x => decide (x = q.2.2)) huSub
-      (ComputableInPolyTime.unary_eq'
+      (ComputableInPolyTime.unary_decide_eq
         (ComputableInPolyTime.snd _ _) (ht.comp (ComputableInPolyTime.fst _ _)))
   have honeM : ComputableInPolyTime (fun q : (CompileCtx × ℕ) × (List ℕ × ℕ) => 1 % q.1.2)
       encQ encNat := ComputableInPolyTime.binary_mod' (ComputableInPolyTime.const 1) hM
@@ -1536,7 +1536,7 @@ private theorem computableInPolyTime_evalLayerQMod (m : ℕ) (layer : Option ℕ
       (test := fun q x => decide (x = q.2.2 / q.1.1.nSlot * q.1.1.nSlot +
         ((q.1.1.gates.getD (q.2.2 % q.1.1.nSlot - q.1.1.n) (0, [])).2.getD 0 0)))
       huSub
-      (ComputableInPolyTime.unary_eq'
+      (ComputableInPolyTime.unary_decide_eq
         (ComputableInPolyTime.snd _ _)
         (ComputableInPolyTime.unary_add.comp
           ((hrOff.comp (ComputableInPolyTime.fst _ _)).prod
@@ -1575,7 +1575,7 @@ private theorem computableInPolyTime_evalLayerQMod (m : ℕ) (layer : Option ℕ
               ((p.1.2.2 % p.1.1.1.nSlot - p.1.1.1.n) * ((m + 1) * (m + 1)) +
                 p.2.1 * (m + 1) + p.2.2)))
           (huSub.comp (ComputableInPolyTime.fst _ _))
-          (ComputableInPolyTime.unary_eq'
+          (ComputableInPolyTime.unary_decide_eq
             (ComputableInPolyTime.snd (encPair encQ (encPair encUnary encUnary)) encUnary)
             (by
               have hf1 := ComputableInPolyTime.fst
@@ -1597,11 +1597,11 @@ private theorem computableInPolyTime_evalLayerQMod (m : ℕ) (layer : Option ℕ
     have hnone := ComputableInPolyTime.ite (ComputableInPolyTime.unary_lt' hs hn) hbitT
       (ComputableInPolyTime.ite (ComputableInPolyTime.unary_lt' hs hnWire)
         (ComputableInPolyTime.ite
-          (ComputableInPolyTime.unary_eq' hgate.fst' (ComputableInPolyTime.const 0)) hnot
+          (ComputableInPolyTime.unary_decide_eq hgate.fst' (ComputableInPolyTime.const 0)) hnot
           (ComputableInPolyTime.ite
-            (ComputableInPolyTime.unary_eq' hgate.fst' (ComputableInPolyTime.const 1)) hand
+            (ComputableInPolyTime.unary_decide_eq hgate.fst' (ComputableInPolyTime.const 1)) hand
             (ComputableInPolyTime.ite
-              (ComputableInPolyTime.unary_eq' hgate.fst' (ComputableInPolyTime.const 2)) hor
+              (ComputableInPolyTime.unary_decide_eq hgate.fst' (ComputableInPolyTime.const 2)) hor
               hmodGate)))
         hbitT)
     exact hnone.of_enc_eq fun q => congrArg encNat <| by
@@ -1617,7 +1617,7 @@ private theorem computableInPolyTime_evalLayerQMod (m : ℕ) (layer : Option ℕ
     have hp := ComputableInPolyTime.unary_div' hrem (ComputableInPolyTime.const (m + 1))
     have hi := ComputableInPolyTime.unary_mod' hrem (ComputableInPolyTime.const (m + 1))
     have hcond := ComputableInPolyTime.bool_and'
-      (ComputableInPolyTime.unary_eq' hp (ComputableInPolyTime.const p₀))
+      (ComputableInPolyTime.unary_decide_eq hp (ComputableInPolyTime.const p₀))
       (ComputableInPolyTime.anyWithInput
         (test := fun (q : (CompileCtx × ℕ) × (List ℕ × ℕ)) (pi : ℕ × ℕ) =>
           decide (pi.1 = (q.2.2 % q.1.1.nSlot - (q.1.1.n + q.1.1.g)) %
@@ -1627,9 +1627,9 @@ private theorem computableInPolyTime_evalLayerQMod (m : ℕ) (layer : Option ℕ
         (ComputableInPolyTime.const (encIn := encQ)
           (encOut := encList (encPair encUnary encUnary)) (relList m))
         (ComputableInPolyTime.bool_and'
-          (ComputableInPolyTime.unary_eq'
+          (ComputableInPolyTime.unary_decide_eq
             (ComputableInPolyTime.snd _ _).fst' (hp.comp (ComputableInPolyTime.fst _ _)))
-          (ComputableInPolyTime.unary_eq'
+          (ComputableInPolyTime.unary_decide_eq
             (ComputableInPolyTime.snd _ _).snd' (hi.comp (ComputableInPolyTime.fst _ _)))))
     have hws := (ComputableInPolyTime.listGetDWithInput hgates hk (0, [])).snd'
     have hcnt := ComputableInPolyTime.countPWithInput
@@ -1640,7 +1640,7 @@ private theorem computableInPolyTime_evalLayerQMod (m : ℕ) (layer : Option ℕ
         (test := fun (p : ((CompileCtx × ℕ) × (List ℕ × ℕ)) × ℕ) (x : ℕ) =>
           decide (x = p.1.2.2 / p.1.1.1.nSlot * p.1.1.1.nSlot + p.2))
         (huSub.comp (ComputableInPolyTime.fst _ _))
-        (ComputableInPolyTime.unary_eq'
+        (ComputableInPolyTime.unary_decide_eq
           (ComputableInPolyTime.snd _ _)
           (ComputableInPolyTime.unary_add.comp
             ((hrOff.comp (ComputableInPolyTime.fst _ _).fst').prod
@@ -1854,7 +1854,7 @@ private theorem computableInPolyTime_mobiusCoeffMod (m : ℕ) (layer : Option �
       have hlenS := (ComputableInPolyTime.length_list encUnary).comp (hS.comp hpq)
       have hlenU := (ComputableInPolyTime.length_list encUnary).comp huSub
       have hsub := ComputableInPolyTime.unary_sub.comp (hlenS.prod hlenU)
-      exact ComputableInPolyTime.unary_eq'
+      exact ComputableInPolyTime.unary_decide_eq
         (ComputableInPolyTime.unary_mod' hsub (ComputableInPolyTime.const 2))
         (ComputableInPolyTime.const 0)
     have hterm := ComputableInPolyTime.ite_decide hpar hvalM hnegM
@@ -2118,7 +2118,7 @@ private theorem computableInPolyTime_restrictAndExpand :
           (test := fun (p : (((CompileCtx × ℕ) × List WGate) × WGate) × ℕ) (t : ℕ) =>
             decide (t % p.1.1.1.1.nSlot = p.2))
           ((ComputableInPolyTime.fst (encPair encQ encWGate) encUnary).snd'.fst')
-          (ComputableInPolyTime.unary_eq'
+          (ComputableInPolyTime.unary_decide_eq
             (ComputableInPolyTime.unary_mod'
               (ComputableInPolyTime.snd (encPair (encPair encQ encWGate) encUnary) encUnary)
               (hnSlot.comp

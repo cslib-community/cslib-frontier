@@ -145,7 +145,7 @@ theorem isPolyTime_deloop [Fintype α] :
   have hdst := ComputableInPolyTime.unary_mul' htwo (Edge.isPolyTime_dst hd)
   have hedge : ComputableInPolyTime (deloopEdge (α := α)) encE encE := by
     unfold deloopEdge
-    exact ComputableInPolyTime.ite' (ComputableInPolyTime.unary_beq' (Edge.isPolyTime_src hd)
+    exact ComputableInPolyTime.ite' (ComputableInPolyTime.unary_beq (Edge.isPolyTime_src hd)
       (Edge.isPolyTime_dst hd))
       (Edge.isPolyTime_mk hsrc (ComputableInPolyTime.unary_add' hsrc (.const 1))
         (hdiag.comp (Edge.isPolyTime_constraint hd)))

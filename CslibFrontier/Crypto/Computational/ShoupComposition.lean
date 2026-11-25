@@ -1047,7 +1047,7 @@ theorem computableInPolyTime_shoupPackMasks {γ : Type} {encIn : γ ↪ List Boo
         shoupChunk (b q.1.1) (s q.1.1) (q.2.rem - 1) q.1.2.2.1)
   have hhk_poly : ComputableInPolyTime hhk encQ encBits :=
     ComputableInPolyTime.ite_decide
-      (ComputableInPolyTime.unary_eq' hrem (.const 0))
+      (ComputableInPolyTime.unary_decide_eq hrem (.const 0))
       (ComputableInPolyTime.bitsRowWithInput hq_b (.const 0) hq_x)
       (hstep.comp (hq_a.prod (ComputableInPolyTime.bitsAppend hnextS
         (ComputableInPolyTime.bitsRowWithInput hq_s (hrem.unary_sub' (.const 1))
@@ -1069,7 +1069,7 @@ theorem computableInPolyTime_shoupPackMasks {γ : Type} {encIn : γ ↪ List Boo
   have hcond : ComputableInPolyTime
       (fun q : (γ × ℕ × List Bool × List Bool) × ShoupPackAcc =>
         decide (q.2.rem - 1 = 0) || shoupIsLastOcc q.1.2.1 (q.2.rem - 1)) encQ encBool :=
-    (ComputableInPolyTime.ite' (ComputableInPolyTime.unary_eq' hrem (.const 0)) (.const true)
+    (ComputableInPolyTime.ite' (ComputableInPolyTime.unary_decide_eq hrem (.const 0)) (.const true)
       (computableInPolyTime_shoupIsLastOcc hq_i hrem)).of_enc_eq fun q =>
         congrArg encBool (by cases decide (q.2.rem - 1 = 0) <;> rfl)
   let iterF : (γ × ℕ × List Bool × List Bool) → ShoupPackAcc → ShoupPackAcc :=

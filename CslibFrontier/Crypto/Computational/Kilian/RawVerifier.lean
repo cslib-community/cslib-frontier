@@ -368,34 +368,6 @@ section MachineComplexity
 variable {α : Type} {H : List Bool → List Bool → List Bool} {V : PCPVerifier α}
   {enc : α ↪ List Bool} {c : ℕ}
 
-private theorem computableInPolyTime_listSumUnary :
-    ComputableInPolyTime List.sum (encList encUnary) encUnary := by
-  have hsum : ∀ l : List ℕ, List.sum l = l.foldl (fun acc u => acc + u) 0 := by
-    intro l
-    have hgen : ∀ acc : ℕ, l.foldl (fun x u => x + u) acc = acc + l.sum := by
-      induction l with
-      | nil => intro acc; simp
-      | cons a l ih =>
-        intro acc
-        simp only [List.foldl_cons, List.sum_cons, ih (acc + a)]
-        omega
-    simpa using (hgen 0).symm
-  have hfold := ComputableInPolyTime.foldlWith_of_bounded_growth
-    (encP := encUnary) (encA := encUnary) (encL := encList encUnary) (encB := encUnary)
-    (encIn := encList encUnary)
-    (par := fun _ => 0) (list := fun l => l) (init := fun _ => 0) (step := fun _ acc u => acc + u)
-    (ComputableInPolyTime.const 0) ComputableInPolyTime.id' (ComputableInPolyTime.const 0)
-    (by fun_prop)
-    (growth := fun l => (encList encUnary l).length)
-    PolyBounded.self
-    (fun l state value hmem => by
-      have hlen := length_le_encList_of_mem encUnary hmem
-      simp only [encUnary_apply, List.length_replicate] at hlen ⊢
-      omega)
-  have heq : (fun l : List ℕ => l.foldl (fun acc u => acc + u) 0) = List.sum :=
-    funext fun l => (hsum l).symm
-  rwa [heq] at hfold
-
 attribute [local irreducible] ComputableInPolyTime in
 /-- `kilianRawProverCap` is computable in polynomial time in unary from `KilianChallengeInput`. -/
 @[program_certificate]
@@ -459,7 +431,7 @@ theorem computableInPolyTime_kilianRawProverCap
       2 * ((V.queries (ch.stmt, ρ)).length *
         (2 * kilianOpeningEncBound ch.key.length (kilianDepth V ch.stmt) + 1)) + 1)
     hρs hterm
-  have hsum := computableInPolyTime_listSumUnary.comp hmap
+  have hsum := ComputableInPolyTime.unary_sum.comp hmap
   unfold kilianRawProverCap
   exact ComputableInPolyTime.unary_add' hprefix hsum
 

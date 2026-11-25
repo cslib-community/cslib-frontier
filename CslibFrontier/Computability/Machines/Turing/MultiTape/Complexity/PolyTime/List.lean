@@ -105,12 +105,6 @@ by
   obtain ⟨d₂, e₂, hright⟩ := hright.exists_degree
   exact (hleft.append hright fun _ => rfl).computableInPolyTime
 
-/-- Read the head of any list encoding with a fixed fallback. -/
-@[fun_prop]
-theorem headD {encL : List α ↪ List Bool} [ListEncoding encA encL] (fallback : α) :
-    ComputableInPolyTime (fun list => list.headD fallback) encL encA :=
-  (ListEncoding.headD (enc₁ := encA) (enc := encL) fallback).computableInPolyTime
-
 /-- Read the head of a computed framed list with a computed fallback, inferring the element
 encoding from the list before checking the fallback or composing with an outer projection. -/
 @[fun_prop, program_certificate hlist]

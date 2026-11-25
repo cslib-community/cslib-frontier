@@ -90,14 +90,11 @@ namespace Cslib.Circuits.Frontier.ContractionSchedule
 
 /-! ### The schedule -/
 
-/-- `⌊log₂ s⌋` in unary from `s` in unary. -/
-private theorem log_polyTime : ComputableInPolyTime (Nat.log 2) encUnary encUnary :=
-  ComputableInPolyTime.binary_log_two.comp ComputableInPolyTime.unary_to_binary
-
 /-- **The taper is polynomial-time**, in unary from the scale and the depth in unary. -/
 theorem taper_polyTime : ComputableInPolyTime (fun q : ℕ × ℕ => taper q.1 q.2)
     (encPair encUnary encUnary) encUnary := by
-  have hlog := log_polyTime.comp (ComputableInPolyTime.fst encUnary encUnary)
+  have hlog :=
+    ComputableInPolyTime.unary_log_two.comp (ComputableInPolyTime.fst encUnary encUnary)
   exact ComputableInPolyTime.binary_to_unary_bounded
     (ComputableInPolyTime.binary_div.comp ((ComputableInPolyTime.unary_to_binary.comp hlog).prod
       (ComputableInPolyTime.binary_two_pow.comp (ComputableInPolyTime.unary_add'
@@ -118,7 +115,8 @@ in unary. -/
 theorem slotBits_polyTime : ComputableInPolyTime (fun q : ℕ × ℕ => slotBits q.1 q.2)
     (encPair encUnary encUnary) encUnary := by
   have hd := ComputableInPolyTime.snd encUnary encUnary
-  have hlog := log_polyTime.comp (ComputableInPolyTime.fst encUnary encUnary)
+  have hlog :=
+    ComputableInPolyTime.unary_log_two.comp (ComputableInPolyTime.fst encUnary encUnary)
   have hterm : ComputableInPolyTime (fun p : (ℕ × ℕ) × ℕ => taper p.1.1 p.2)
       (encPair (encPair encUnary encUnary) encUnary) encNat :=
     ComputableInPolyTime.unary_to_binary.comp (taper_polyTime.comp
@@ -165,7 +163,8 @@ theorem taperStep_polyTime :
 theorem leafSize_polyTime : ComputableInPolyTime leafSize encUnary encUnary :=
   ComputableInPolyTime.binary_to_unary_bounded
     (ComputableInPolyTime.binary_div.comp (ComputableInPolyTime.unary_to_binary.prod
-      (ComputableInPolyTime.binary_sqrt' (ComputableInPolyTime.unary_to_binary.comp log_polyTime))))
+      (ComputableInPolyTime.binary_sqrt'
+        (ComputableInPolyTime.unary_to_binary.comp ComputableInPolyTime.unary_log_two))))
     (ComputableInPolyTime.id' (encIn := encUnary)) fun _ => Nat.div_le_self _ _
 
 /-- **The degree bound is polynomial-time**: `2 ^ (9 ⌊log₂ s⌋ / 10 + 2)` in binary from `s` in

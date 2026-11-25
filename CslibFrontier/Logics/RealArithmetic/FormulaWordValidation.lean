@@ -400,8 +400,8 @@ theorem formulaWordChildIndices_polyTime :
   have hchildren := hspan.optionElimWithInput
     (body := fun p span => [p.2 + 1, p.2 + 1 + span])
     (const []) (cons' hleft (cons' hright (const [])))
-  exact ite_decide (unary_eq' harity (const 1)) (cons' hfirst (const []))
-    (ite_decide (unary_eq' harity (const 2)) hchildren (const []))
+  exact ite_decide (unary_decide_eq harity (const 1)) (cons' hfirst (const []))
+    (ite_decide (unary_decide_eq harity (const 2)) hchildren (const []))
 
 /-- A comparison gate's arithmetic query. -/
 structure FormulaComparisonRequest where
@@ -767,8 +767,8 @@ theorem formulaWordGateValueWithAnswer_polyTime {α : Type} {input : α ↪ List
   have hl := hvalue.comp (id'.prod (listGetD_binary 0 hc (const 0)))
   have hr := hvalue.comp (id'.prod (listGetD_binary 0 hc (const 1)))
   have hlen := (length_list encNat).comp hc
-  have hone := unary_beq' hlen (const 1)
-  have htwo := unary_beq' hlen (const 2)
+  have hone := unary_beq hlen (const 1)
+  have htwo := unary_beq hlen (const 2)
   have hnot := bool_and' hone (bool_not.comp hl)
   have hand := bool_and' htwo (bool_and' hl hr)
   have hor := bool_and' htwo (bool_or' hl hr)

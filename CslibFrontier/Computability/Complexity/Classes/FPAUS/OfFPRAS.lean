@@ -234,7 +234,7 @@ private theorem isPPTOn_nodeEstimate
     (hp : ComputableInPolyTime p input encUnary) (ht : ComputableInPolyTime t input encUnary) :
     IsPPTOn input (encPair encNat encNat) (fun b => R.nodeEstimate A (p b) (t b) (node b)) := by
   have hzero : ComputableInPolyTime (fun b => decide (R.len (node b) = 0)) input encBool :=
-    ComputableInPolyTime.unary_eq' (R.len_polytime.comp hnode) (ComputableInPolyTime.const 0)
+    ComputableInPolyTime.unary_decide_eq (R.len_polytime.comp hnode) (ComputableInPolyTime.const 0)
   have hnil : ComputableInPolyTime (fun b => decide ([] ∈ W (node b))) input encBool :=
     R.nil_mem_polytime.comp hnode
   have hbase : IsPPTOn input (encPair encNat encNat)

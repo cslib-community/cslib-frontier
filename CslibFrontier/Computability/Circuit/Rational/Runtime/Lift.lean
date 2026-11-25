@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Circuit.Rational.Runtime.Lift.Defs
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Iteration
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
 import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
@@ -425,15 +426,6 @@ private theorem listGetD_intBin {l : α → List ℤ} {i : α → ℕ}
     (hi : ComputableInPolyTime i encIn encUnary) (d : ℤ) :
     ComputableInPolyTime (fun x => (l x).getD (i x) d) encIn encIntBin :=
   (listGetD (encA := encIntBin) d).comp (hl.prod hi)
-
-/-- Equality testing of two unary-encoded natural-number functions is computable in polynomial
-time. -/
-@[fun_prop]
-theorem unary_decide_eq {a b : α → ℕ}
-    (ha : ComputableInPolyTime a encIn encUnary)
-    (hb : ComputableInPolyTime b encIn encUnary) :
-    ComputableInPolyTime (fun x => decide (a x = b x)) encIn encBool :=
-  ha.decide_eq' hb
 
 /-- One shift-and-add step of the coefficient recurrence is polynomial-time. -/
 @[fun_prop]

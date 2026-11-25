@@ -639,7 +639,7 @@ private theorem computableInPolyTime_hasCycleFromList :
       (encPair (encPair encUnary (encList encUnary)) encUnary) encBool := by
   unfold hasCycleFromList
   refine anyWithInput (range.comp (by fun_prop)) <|
-    unary_beq' (computableInPolyTime_followParent_iterate.comp (show ComputableInPolyTime
+    unary_beq (computableInPolyTime_followParent_iterate.comp (show ComputableInPolyTime
       (fun q : ((ℕ × List ℕ) × ℕ) × ℕ => ((q.1.1.2, q.1.2), q.2 + 1)) _ _ by fun_prop))
       (by fun_prop)
 
@@ -664,7 +664,7 @@ private theorem computableInPolyTime_cycleMaskWork :
   unfold cycleMaskList
   exact mapWithInput (range.comp workVertexCount_polyTime) <|
     anyWithInput (range.comp (workVertexCount_polyTime.comp (fst _ _))) <|
-      unary_beq' (computableInPolyTime_followParent_iterate.comp (show ComputableInPolyTime
+      unary_beq (computableInPolyTime_followParent_iterate.comp (show ComputableInPolyTime
         (fun r : (ContractWork × ℕ) × ℕ => ((r.1.1.parent, r.1.1.rep), r.2)) _ _ by fun_prop))
         (by fun_prop)
 
@@ -1311,7 +1311,7 @@ private theorem computableInPolyTime_nonRootFilter :
         (List.range q.1.inst.adj.length).filter fun v => v != clampedRoot q.1.inst)
       (encPair encArborescenceDecInstance (encList encUnary)) (encList encUnary) :=
   filterWithInput (range.comp (by fun_prop)) <|
-    bool_not.comp (unary_beq' (by fun_prop)
+    bool_not.comp (unary_beq (by fun_prop)
       (computableInPolyTime_clampedRoot.comp (by fun_prop)))
 
 theorem computableInPolyTime_minArborescenceDecide :
@@ -1370,7 +1370,7 @@ theorem computableInPolyTime_maxBranchingDecide :
     listGetDWithInput (computableInPolyTime_optimumBranchingList.comp (by fun_prop)) (snd _ _) 0
   exact intBin_le' (by fun_prop) <| intBin_sum.comp <|
     mapWithInput
-      (filterWithInput (range.comp (by fun_prop)) (bool_not.comp (unary_beq' hp (snd _ _))))
+      (filterWithInput (range.comp (by fun_prop)) (bool_not.comp (unary_beq hp (snd _ _))))
       (computableInPolyTime_costAt' (by fun_prop) hp (snd _ _))
 
 /-! ### Correctness equivalence and `P` membership -/

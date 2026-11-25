@@ -45,7 +45,7 @@ theorem bitsReplaceRowWithInput {α : Type} {encode : α ↪ List Bool}
   have hfst := fst encode encUnary
   have hsnd := snd encode encUnary
   exact ite_decide
-    (unary_eq' hsnd (hj.comp hfst))
+    (unary_decide_eq hsnd (hj.comp hfst))
     (hx.comp hfst)
     (bitsRowWithInput (hwidth.comp hfst) hsnd (hword.comp hfst))
 

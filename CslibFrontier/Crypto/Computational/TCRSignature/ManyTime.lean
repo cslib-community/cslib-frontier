@@ -268,7 +268,8 @@ theorem isOraclePPT_manyTimeForger (H : KeyedHashFamily) {sigBound : ℕ → ℕ
   have hM : ComputableInPolyTime (fun p : ℕ × List Bool => p.1)
       (encPair encUnary encBits) encUnary := .fst _ _
   have hnIn := (computableInPolyTime_otsParamInv H).comp hM
-  have hcond := ComputableInPolyTime.unary_eq' ((computableInPolyTime_otsParam H).comp hnIn) hM
+  have hcond :=
+    ComputableInPolyTime.unary_decide_eq ((computableInPolyTime_otsParam H).comp hnIn) hM
   let encQ := encPair (encPair encUnary encBits)
     (encPair (encPair encBits encBits) (encFinEnum Unit))
   have hpost : ComputableInPolyTime
