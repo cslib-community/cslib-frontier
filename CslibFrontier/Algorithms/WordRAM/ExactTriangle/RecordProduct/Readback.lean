@@ -126,12 +126,11 @@ theorem producer_readback {m n g p : ℕ} (values : ℕ → ℤ)
     change idx.piece < H at hj
     rw [Nat.add_mul, Nat.one_mul] at hh
     omega
-  have hfull := h
-  obtain ⟨yn, yD, yp, yo, yc, yb, yres, ycnt, yscan, ydesc, yblocks, yframe⟩ := h
+  obtain ⟨yn, yD, yp, yo, yc, yb, yres, ycnt, yscan, ydesc, yblocks, yframe⟩ := id h
   change x.regs 39 = out at yo
   change x.regs 42 = out + (K * H) * (6 + 2 * (n * D m)) at yb
   have hrecEnd : recordBase + 6 + 2 * (n * D m) ≤ x.regs 42 := by
-    have ht := Nat.mul_le_mul_right (6 + 2 * (n * D m)) (Nat.succ_le_of_lt hiCount)
+    have ht := Nat.mul_le_mul_right (6 + 2 * (n * D m)) hiCount
     dsimp only [recordBase]
     rw [yb]
     nlinarith only [ht]
@@ -157,9 +156,9 @@ theorem producer_readback {m n g p : ℕ} (values : ℕ → ℤ)
     nlinarith only [hQ, hrho, Nat.zero_le (3 * K),
       Nat.zero_le (K * H * (6 + 2 * (n * D m)))]
   obtain ⟨hdr, hleft, hright⟩ := PreparationSpec.instance_readback values wAB hp
-    (by intro a b; rfl) hD hDn hg hfull idx hidx
+    (by intro a b; rfl) hD hDn hg h idx hidx
   have hcoord := (output_query_coordinates values wAB hp (by intro a b; rfl)
-    (by omega) hDn hfull idx.residue idx.chunk hk).1
+    (by omega) hDn h idx.residue idx.chunk hk).1
   rw [hcard] at hcoord
   have hc : ∀ j < Q, x.mem (q + 2 * j) < n ∧ x.mem (q + 2 * j + 1) < n := hcoord
   dsimp only
