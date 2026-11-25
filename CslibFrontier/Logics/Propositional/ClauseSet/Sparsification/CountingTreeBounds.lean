@@ -275,9 +275,6 @@ theorem isLeafWord_of_mem_countingLeafWords {θ : ℕ → ℕ} (hθ : ∀ j, 1 �
     (countingTreeRule θ).tree.IsLeafWord ψ w :=
   (mem_countingLeafWords_iff_isLeafWord hθ ψ w).mp hw
 
-private theorem two_le_pow_of_two_le {M : ℕ} (hM : 2 ≤ M) : ∀ j, 1 ≤ j → 2 ≤ M ^ j :=
-  fun _ hj => hM.trans (by simpa using Nat.pow_le_pow_right (by omega) hj)
-
 /-! ### Leaf-count bounds for `countingLeaves` via `CountingBounds` -/
 
 /-- **Appendix A.3 binomial-sum leaf-count bound for `countingLeaves`.**
@@ -297,8 +294,8 @@ theorem length_countingLeaves_pow_le {k M : ℕ} (hM : 2 ≤ M)
   rw [length_countingLeaves_eq_card_toFinset_countingLeafWords]
   exact CountingBranchingRule.card_le_of_isLeafWord (R := countingTreeRule (M ^ ·))
     hM hred hnt hk declared hsupport (countingLeafWords (M ^ ·) ψ).toFinset
-    fun _ hw => isLeafWord_of_mem_countingLeafWords (two_le_pow_of_two_le hM)
-      (List.mem_toFinset.mp hw)
+    fun _ hw => isLeafWord_of_mem_countingLeafWords
+      (fun _ hj => hM.trans (Nat.le_self_pow hj.ne' M)) (List.mem_toFinset.mp hw)
 
 /-- **Leaf-count bound under explicit Appendix A.3 parameter-test hypotheses.**
 When `2 ≤ M`, `1 ≤ B`, and (for `2 ≤ k`) `M` passes the integer budget test of Appendix A.3,
@@ -315,8 +312,8 @@ theorem length_countingLeaves_pow_le_two_pow_of_budget {k M B : ℕ}
   rw [length_countingLeaves_eq_card_toFinset_countingLeafWords]
   exact (CountingBranchingRule.card_le_two_pow_of_isLeafWord (R := countingTreeRule (M ^ ·))
     hM hred hnt hk declared hsupport hB hbudget (countingLeafWords (M ^ ·) ψ).toFinset
-    fun _ hw => isLeafWord_of_mem_countingLeafWords (two_le_pow_of_two_le hM)
-      (List.mem_toFinset.mp hw)).trans (by gcongr)
+    fun _ hw => isLeafWord_of_mem_countingLeafWords
+      (fun _ hj => hM.trans (Nat.le_self_pow hj.ne' M)) (List.mem_toFinset.mp hw)).trans (by gcongr)
 
 /-- **Appendix A.3 `2 ^ (n / B + 1)` leaf-count bound at `countingThresholdBase k B`.**
 For any width `k : ℕ`, inverse error budget `1 ≤ B`, and reduced, nontautological clause set `ψ`
@@ -463,7 +460,8 @@ theorem countingLeaves_nontautological_thresholdBase_spec {k B : ℕ}
           (∀ v, L.occurrences v ≤ 2 * ∑ c ∈ range k, θ c) ∧
           L.card ≤ 2 * (∑ c ∈ range k, θ c) * declared.card + 1 := by
   intro θ ψ₀
-  have hθ := two_le_pow_of_two_le (two_le_countingThresholdBase k B)
+  have hθ : ∀ j, 1 ≤ j → 2 ≤ θ j :=
+    fun _ hj => (two_le_countingThresholdBase k B).trans (Nat.le_self_pow hj.ne' _)
   have hθ1 : ∀ r, 1 ≤ θ r := one_le_of_two_le hθ (Nat.le_refl 1)
   have hk0 := card_le_of_mem_toClauseSet hk
   have hsup0 := support_of_mem_toClauseSet hvars
