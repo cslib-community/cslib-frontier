@@ -537,8 +537,22 @@ class ReviewRecordTests(unittest.TestCase):
         named = post(f"**APPROVE** at {SHA} by rev-a\n\nHOLD owner=maintainer "
                      "until=2026-11-26T00:00Z reason=migration first", "2026-11-25T04:00:00Z")
         self.assertRefused(self.check(named), "HOLD owner=maintainer", "migration first")
-        self.assertEqual(self.check(named, post("HOLD-RELEASED by=maintainer reason=done",
-                                                "2026-11-25T04:10:00Z"))[0], [])
+        for by in ("maintainer", "SamuelSchlesinger"):
+            self.assertEqual(self.check(named, post(f"HOLD-RELEASED by={by} reason=done",
+                                                    "2026-11-25T04:10:00Z"))[0], [])
+        self.assertRefused(self.check(named, post("HOLD-RELEASED by=rev-a reason=done",
+                                                  "2026-11-25T04:10:00Z")), "owner=maintainer")
+
+    def test_records_in_fenced_code_blocks_are_examples_not_records(self) -> None:
+        example = post("Use this form:\n```\nHOLD owner=rev-b until=2026-11-25T08:00Z reason=x\n"
+                       f"CLAIM review head={SHA} by=rev-b until=2026-11-25T05:30Z\n```\n"
+                       "~~~text\nHOLD owner=rev-c until=2026-11-25T08:00Z reason=y\n~~~\n"
+                       "Holding nothing here.", "2026-11-25T04:50:00Z", "example")
+        self.assertEqual(self.check(approve(), example),
+                         ([], ["example: Holding nothing here."]))
+        after = post("```\nnot closed\nHOLD owner=rev-b until=2026-11-25T08:00Z reason=x",
+                     "2026-11-25T04:50:00Z")
+        self.assertEqual(self.check(approve(), after)[0], [])
 
     def test_unexpired_claim_of_another_reviewer_without_a_verdict_refuses(self) -> None:
         claim = post(f"CLAIM review head={SHA} by=rev-b until=2026-11-25T05:30Z",
@@ -569,6 +583,9 @@ class ReviewRecordTests(unittest.TestCase):
                      "2026-11-25T04:40:00Z")
         for verdict, ends in (
                 (approve("2026-11-25T04:50:00Z", by="rev-b"), True),
+                (post(f"**APPROVE** at {SHA} by rev-b. This is agent review.",
+                      "2026-11-25T04:50:00Z"), True),
+                (post(f"**APPROVE** at {SHA} by `rev-b`),", "2026-11-25T04:50:00Z"), True),
                 (post(f"**REQUEST_CHANGES** at `{SHA[:12]}` by `rev-b`", "2026-11-25T04:50:00Z"),
                  True),
                 (post(f"**APPROVE** at {SHA}\n\n`rev-b` (agent) checked the statement.",
@@ -599,7 +616,8 @@ class ReviewRecordTests(unittest.TestCase):
         malformed = post("HOLD owner=rev-b until=tomorrow reason=x", "2026-11-25T04:10:00Z",
                          "malformed")
         prose = post("The hypotheses hold for every n.", "2026-11-25T04:20:00Z", "prose")
-        refusals, advisories = self.check(before, approve(), malformed, prose)
+        plural = post("Holds. None remain; the threshold holds.", "2026-11-25T04:25:00Z")
+        refusals, advisories = self.check(before, approve(), malformed, prose, plural)
         self.assertEqual(refusals, [])
         self.assertEqual(advisories, ["malformed: HOLD owner=rev-b until=tomorrow reason=x",
                                       "prose: The hypotheses hold for every n."])
@@ -669,7 +687,7 @@ class FetchReviewPostsTests(unittest.TestCase):
                    {"id": 3, "state": "PENDING", "body": "draft"},
                    {"id": 4, "html_url": "u4", "submitted_at": "2026-11-25T04:20:00Z",
                     "state": "COMMENTED", "body": None}]
-        outputs = [json.dumps([comments]), json.dumps([reviews[:2], reviews[2:]])]
+        outputs = [json.dumps(comments), json.dumps(reviews[:2]) + json.dumps(reviews[2:])]
         with patch.object(queue_pr.subprocess, "run", side_effect=[
                 subprocess.CompletedProcess([], 0, output, "") for output in outputs]) as run:
             posts = REAL_FETCH_REVIEW_POSTS("o", "r", 12)
@@ -677,17 +695,29 @@ class FetchReviewPostsTests(unittest.TestCase):
                                  queue_pr.ReviewPost("u1", "2026-11-25T04:10:00Z", "late"),
                                  queue_pr.ReviewPost("u4", "2026-11-25T04:20:00Z", "")])
         self.assertEqual([c.args[0] for c in run.call_args_list], [
-            ["gh", "api", "--paginate", "--slurp", "repos/o/r/issues/12/comments?per_page=100"],
-            ["gh", "api", "--paginate", "--slurp", "repos/o/r/pulls/12/reviews?per_page=100"]])
+            ["gh", "api", "--paginate", "repos/o/r/issues/12/comments?per_page=100"],
+            ["gh", "api", "--paginate", "repos/o/r/pulls/12/reviews?per_page=100"]])
+
+    def test_concatenated_pages_from_gh_paginate_are_decoded(self) -> None:
+        for stdout, items in (('[{"a": 1}][{"a": 2}]', [{"a": 1}, {"a": 2}]),
+                              ('[{"a": 1}]\n[]\n[{"a": 3}]\n', [{"a": 1}, {"a": 3}]),
+                              ("[]", [])):
+            with self.subTest(stdout=stdout), patch.object(
+                    queue_pr.subprocess, "run",
+                    return_value=subprocess.CompletedProcess([], 0, stdout, "")):
+                self.assertEqual(queue_pr.gh_rest_items("e"), items)
 
     def test_errors_and_malformed_responses_raise_gh_error(self) -> None:
-        for result in (subprocess.CompletedProcess([], 1, "", "rate limit"),
+        for result in (subprocess.CompletedProcess([], 1, "", "unknown flag: --slurp"),
                        subprocess.CompletedProcess([], 0, "not JSON", ""),
+                       subprocess.CompletedProcess([], 0, "", ""),
+                       subprocess.CompletedProcess([], 0, "[][", ""),
                        subprocess.CompletedProcess([], 0, '{"message": "x"}', ""),
-                       subprocess.CompletedProcess([], 0, "[[1]]", ""),
-                       subprocess.CompletedProcess([], 0, '[[{"created_at": null}]]', ""),
+                       subprocess.CompletedProcess([], 0, '[]{"message": "x"}', ""),
+                       subprocess.CompletedProcess([], 0, "[1]", ""),
+                       subprocess.CompletedProcess([], 0, '[{"created_at": null}]', ""),
                        subprocess.CompletedProcess(
-                           [], 0, '[[{"created_at": "2026-11-25T04:00Z", "body": ""}]]', "")):
+                           [], 0, '[{"created_at": "2026-11-25T04:00Z", "body": ""}]', "")):
             with self.subTest(result=result), \
                  patch.object(queue_pr.subprocess, "run", return_value=result), \
                  self.assertRaises(queue_pr.GhError):
