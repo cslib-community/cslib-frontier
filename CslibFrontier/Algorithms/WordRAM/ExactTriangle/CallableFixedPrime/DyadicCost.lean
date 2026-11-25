@@ -34,11 +34,9 @@ open Filter Cslib.WordRAM Cslib.Matrix Cslib.Algorithms.ExactTriangle
 open Cslib.Algorithms.MatrixMultiplication.Schonhage
 open ParameterChoice
 
-private noncomputable def weightExponent (n F : ℕ) : ℝ :=
-  1 + Real.logb n (F + 1)
+private noncomputable def weightExponent (n F : ℕ) : ℝ := 1 + Real.logb n (F + 1)
 
-private def setupLog (n F : ℕ) : ℕ :=
-  Nat.clog 2 (4 * n + 3 * (n * n) * (2 * F + 1) + 4)
+private def setupLog (n F : ℕ) : ℕ := Nat.clog 2 (4 * n + 3 * (n * n) * (2 * F + 1) + 4)
 
 private noncomputable def upperTime (n F : ℕ) : ℝ :=
   3 * DyadicCost.costCoefficient (weightExponent n F) n * ((n : ℝ) ^ 3 / groups n) +
@@ -52,8 +50,7 @@ noncomputable def dyadicTime (n F : ℕ) : ℕ := ⌈upperTime n F⌉₊ + 16
 private theorem one_le_weightExponent {n : ℕ} (hn : 2 ≤ n) (F : ℕ) :
     1 ≤ weightExponent n F := by
   have hlog : 0 < Real.log (n : ℝ) := Real.log_pos (by exact_mod_cast hn)
-  have hF : 0 ≤ Real.log (F + 1 : ℝ) :=
-    Real.log_nonneg (by exact_mod_cast (by omega : 1 ≤ F + 1))
+  have hF : 0 ≤ Real.log (F + 1 : ℝ) := Real.log_nonneg (by exact_mod_cast (by omega : 1 ≤ F + 1))
   have hdiv := div_nonneg hF hlog.le
   unfold weightExponent Real.logb
   linarith only [hdiv]
