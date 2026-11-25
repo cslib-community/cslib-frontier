@@ -95,26 +95,21 @@ private theorem load_rep (d a : Fin r) (x : Data r)
     AVLTree.PointerMachine.Dictionary.read_correct (M := model w) (.constant 0) .lt id
       (fun _ _ => rfl) (fun _ _ => rfl) start tree avl x.mem rep.heap rep.matched
       rep.valid rep.memory rep.root rfl
-  have done := move_run { t with pc := 0 } (register d) 3 rfl
-  have all := (move_run s 0 (register a) pc).sequence (run.sequence done)
-  refine ⟨_, _, all, by omega, ?_, ?_⟩
-  swap
-  · simpa only [heap, start, Cslib.PointerMachine.State.setData] using Nat.le_succ s.heap.length
-  have value : t.data 3 = x.mem (x.regs a) := by
-    simpa [start, Cslib.PointerMachine.State.setData, rep.registers] using result
-  refine ⟨?_, heap ▸ rep.heap, rep.matched, rep.valid, rep.distinct, rep.memory,
-    root.trans rep.root⟩
-  intro j
+  refine ⟨_, _,
+    (move_run s 0 (register a) pc).sequence (run.sequence (move_run { t with pc := 0 }
+      (register d) 3 rfl)),
+    by omega, ⟨fun j => ?_, heap ▸ rep.heap, rep.matched, rep.valid, rep.distinct, rep.memory,
+      root.trans rep.root⟩,
+    by simpa only [heap, start, Cslib.PointerMachine.State.setData] using Nat.le_succ s.heap.length⟩
   by_cases eq : j = d
   · subst j
-    simpa [Cslib.PointerMachine.State.setData, Data.set] using value
-  · have ne : register j ≠ register d := fun h => eq (register_injective h)
-    have hj0 : register j ≠ 0 := register_ne_scratch j 0 (by decide)
-    have hj1 : register j ≠ 1 := register_ne_scratch j 1 (by decide)
-    have hj3 : register j ≠ 3 := register_ne_scratch j 3 (by decide)
-    simp only [Cslib.PointerMachine.State.setData, Function.update_of_ne ne,
-      Data.set, Function.update_of_ne eq]
-    simpa [start, Cslib.PointerMachine.State.setData, hj0, rep.registers] using frame _ hj1 hj3
+    simpa [start, Cslib.PointerMachine.State.setData, Data.set, rep.registers] using result
+  · simp only [Cslib.PointerMachine.State.setData,
+      Function.update_of_ne (fun h => eq (register_injective h)), Data.set,
+      Function.update_of_ne eq]
+    simpa [start, Cslib.PointerMachine.State.setData,
+      show register j ≠ 0 from register_ne_scratch j 0 (by decide), rep.registers] using
+      frame _ (register_ne_scratch j 1 (by decide)) (register_ne_scratch j 3 (by decide))
 
 private theorem prepare_store (s : Cslib.PointerMachine.State (model w) (layout r))
     (a src : Fin r) (pc : s.pc = 0) :
@@ -156,18 +151,17 @@ private theorem store_rep (a src : Fin r) (x : Data r)
       (fun _ _ => rfl) (fun _ _ => rfl) (fun _ _ => rfl) (fun _ _ => rfl)
       (fun _ _ => rfl) start tree avl x.mem rep.heap rep.matched rep.valid rep.distinct
       rep.memory rep.root rfl
-  have all := (prepare_store s a src pc).sequence run
-  refine ⟨_, tree', _, all, by omega, ?_, result.space.2⟩
-  refine ⟨?_, result.rep, ?_, AVLTree.valid_insert rep.valid _, result.distinct, ?_, result.root⟩
-  · intro j
-    have hj0 : register j ≠ 0 := register_ne_scratch j 0 (by decide)
-    have hj1 : register j ≠ 1 := register_ne_scratch j 1 (by decide)
-    have hj2 : register j ≠ 2 := register_ne_scratch j 2 (by decide)
-    have hj3 : register j ≠ 3 := register_ne_scratch j 3 (by decide)
-    simpa [start, Cslib.PointerMachine.State.setData, hj0, hj3, rep.registers, Data.write]
-      using result.data _ hj1 hj2
-  · simpa only [query] using result.matched
-  · simpa only [query, payload, Data.write, id_eq] using result.stored
+  refine ⟨_, tree', _, (prepare_store s a src pc).sequence run, by omega,
+    ⟨?_, result.rep, by simpa only [query] using result.matched,
+      AVLTree.valid_insert rep.valid _, result.distinct,
+      by simpa only [query, payload, Data.write, id_eq] using result.stored, result.root⟩,
+    result.space.2⟩
+  intro j
+  simpa [start, Cslib.PointerMachine.State.setData,
+    show register j ≠ 0 from register_ne_scratch j 0 (by decide),
+    show register j ≠ 3 from register_ne_scratch j 3 (by decide), rep.registers, Data.write]
+    using result.data _ (register_ne_scratch j 1 (by decide))
+      (register_ne_scratch j 2 (by decide))
 
 /-- Every successful source data operation has a concrete halting pointer-machine routine.
 A write adds at most one stored address; every routine costs at most a fixed linear function
@@ -186,8 +180,7 @@ theorem operation_correct (o : Op .standard r) (x y : Data r)
   | some i =>
     refine ⟨_, tree, avl, 2, scalar_run o i hs s pc,
       scalar_rep o i x y s tree avl rep hs evaluated, le_rfl, by omega, by omega, ?_⟩
-    rw [(scalar_correct o i x y s rep.registers hs evaluated).2.2.1]
-    omega
+    rw [(scalar_correct o i x y s rep.registers hs evaluated).2.2.1]; omega
   | none =>
     cases o with
     | load d a =>

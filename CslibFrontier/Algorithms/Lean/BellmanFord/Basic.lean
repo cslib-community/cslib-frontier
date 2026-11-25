@@ -260,21 +260,15 @@ private theorem sound_relax {d : V → WithTop W} (hd : Sound adj s d) {u v : V}
   intro x y h
   unfold relax at h
   split_ifs at h with hlt
-  · rcases eq_or_ne x v with hxv | hxv
-    · subst hxv
-      rw [Function.update_self] at h
-      have hu : d u ≠ ⊤ := by
-        rintro hu
-        rw [hu, WithTop.top_add] at h
-        exact WithTop.top_ne_coe h
-      obtain ⟨a, ha⟩ := WithTop.ne_top_iff_exists.1 hu
-      obtain ⟨p, hp⟩ := hd u a ha.symm
-      refine ⟨p.snoc huv, ?_⟩
-      rw [walkWeight_snoc, hp]
-      rw [← ha, ← WithTop.coe_add] at h
-      exact_mod_cast h
-    · rw [Function.update_of_ne hxv] at h
-      exact hd x y h
+  · rcases eq_or_ne x v with rfl | hxv
+    · rw [Function.update_self] at h
+      cases hu : d u with
+      | top => simp [hu] at h
+      | coe a =>
+        obtain ⟨p, hp⟩ := hd u a hu
+        rw [hu, ← WithTop.coe_add, WithTop.coe_eq_coe] at h
+        exact ⟨p.snoc huv, by rw [walkWeight_snoc, hp, h]⟩
+    · exact hd x y (by rwa [Function.update_of_ne hxv] at h)
   · exact hd x y h
 
 private theorem sound_scan {d : V → WithTop W} (hd : Sound adj s d) (u : V) :
@@ -437,11 +431,8 @@ theorem bellmanFord_eq_none_iff (hvs : ∀ v, v ∈ vs) :
     bellmanFord adj vs s = none ↔ NegCycleReachable adj s := by
   unfold bellmanFord
   split_ifs with h
-  · simp only [false_iff]
-    exact not_negCycleReachable_of_check hvs h
-  · simp only [true_iff]
-    by_contra hneg
-    exact h (check_distances hvs hneg)
+  · exact iff_of_false (by simp) (not_negCycleReachable_of_check hvs h)
+  · exact iff_of_true rfl (by_contra fun hneg => h (check_distances hvs hneg))
 
 /-- **Shortest paths**: when Bellman–Ford returns estimates, each is the shortest-path weight from
 the source. -/

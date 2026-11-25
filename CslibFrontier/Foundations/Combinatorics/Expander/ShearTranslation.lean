@@ -259,13 +259,9 @@ private theorem one_div_eight_le_norm_stdAddChar_sub_one {a : ZMod n}
   set A := a.valMinAbs with hA
   have hn : (0 : ℝ) < n := by exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne n)
   have hhalf : 2 * |(A : ℝ)| ≤ n := by
-    have h := ZMod.natAbs_valMinAbs_le a
-    have : 2 * A.natAbs ≤ n := by omega
     rw [← Int.cast_abs, ← Int.natCast_natAbs]
-    exact_mod_cast this
-  have hbig : (n : ℝ) < 11 * |(A : ℝ)| := by
-    rw [← Int.cast_abs]
-    exact_mod_cast ha
+    exact_mod_cast (show 2 * A.natAbs ≤ n by have := ZMod.natAbs_valMinAbs_le a; omega)
+  have hbig : (n : ℝ) < 11 * |(A : ℝ)| := by rw [← Int.cast_abs]; exact_mod_cast ha
   have hexp : ZMod.stdAddChar a = Complex.exp (Complex.I * ((2 * Real.pi * A / n : ℝ) : ℂ)) := by
     conv_lhs => rw [← ZMod.coe_valMinAbs a, ← hA, ZMod.stdAddChar_coe]
     congr 1
@@ -274,31 +270,14 @@ private theorem one_div_eight_le_norm_stdAddChar_sub_one {a : ZMod n}
   rw [hexp, Complex.norm_exp_I_mul_ofReal_sub_one, norm_mul, Real.norm_eq_abs,
     Real.norm_eq_abs, abs_two]
   have hsin : 2 / 11 ≤ |Real.sin (2 * Real.pi * A / n / 2)| := by
-    have hx : 2 * Real.pi * A / n / 2 = Real.pi * A / n := by ring
-    have hxabs : |Real.sin (Real.pi * A / n)| = Real.sin (Real.pi * |(A : ℝ)| / n) := by
-      have hle : Real.pi * |(A : ℝ)| / n ≤ Real.pi := by
-        rw [div_le_iff₀ hn]
-        nlinarith [Real.pi_pos, abs_nonneg (A : ℝ)]
-      have hs := Real.sin_nonneg_of_nonneg_of_le_pi (by positivity) hle
-      rcases le_or_gt 0 (A : ℝ) with h | h
-      · rw [abs_of_nonneg h] at hs ⊢
-        exact abs_of_nonneg hs
-      · have e : Real.sin (Real.pi * -(A : ℝ) / n) = -Real.sin (Real.pi * A / n) := by
-          rw [mul_neg, neg_div, Real.sin_neg]
-        rw [abs_of_neg h, e] at hs ⊢
-        exact abs_of_nonpos (by linarith)
-    rw [hx, hxabs]
-    have hle : Real.pi * |(A : ℝ)| / n ≤ Real.pi / 2 := by
-      rw [div_le_iff₀ hn]
-      nlinarith [Real.pi_pos]
-    have := Real.mul_le_sin (by positivity) hle
-    have heq : 2 / Real.pi * (Real.pi * |(A : ℝ)| / n) = 2 * |(A : ℝ)| / n := by
-      field_simp
-    rw [heq] at this
-    have : 2 / 11 ≤ 2 * |(A : ℝ)| / n := by
-      rw [le_div_iff₀ hn]
-      linarith
-    linarith
+    have he : |2 * Real.pi * A / n / 2| = Real.pi * |(A : ℝ)| / n := by
+      rw [abs_div, abs_div, abs_mul, abs_mul, abs_two, abs_of_pos Real.pi_pos, abs_of_pos hn]; ring
+    have hle : Real.pi * |(A : ℝ)| / n ≤ Real.pi / 2 :=
+      (div_le_iff₀ hn).mpr (by nlinarith [Real.pi_pos])
+    rw [Real.abs_sin_eq_sin_abs_of_abs_le_pi (by rw [he]; linarith [Real.pi_pos]), he]
+    have hsin_le := Real.mul_le_sin (by positivity) hle
+    rw [show 2 / Real.pi * (Real.pi * |(A : ℝ)| / n) = 2 * |(A : ℝ)| / n by field_simp] at hsin_le
+    linarith [(le_div_iff₀ hn).mpr (show 2 / 11 * (n : ℝ) ≤ 2 * |(A : ℝ)| by linarith)]
   nlinarith [abs_nonneg (Real.sin (2 * Real.pi * A / n / 2))]
 
 end Frequencies
@@ -387,10 +366,7 @@ private theorem sum_norm_sq_le_pingPong (F : ZMod n × ZMod n → ℂ) (h0 : F 0
     refine sum_norm_sq_le_add_of_subset F fun ξ hξ ↦ ?_
     simp only [hOut, hY, mem_union, mem_filter, mem_univ, true_and] at hξ ⊢
     by_cases hs : IsSmall ξ
-    · refine Or.inl ⟨hs, hξ.le, ?_⟩
-      rintro rfl
-      simp at hξ
-    · exact Or.inr hs
+    exacts [Or.inl ⟨hs, hξ.le, by rintro rfl; simp at hξ⟩, Or.inr hs]
   have hX' : ∑ ξ ∈ univ.filter (fun ξ : ZMod n × ZMod n ↦ |ξ.2.valMinAbs| < |ξ.1.valMinAbs|),
       ‖F ξ‖ ^ 2 ≤ ∑ ξ ∈ X, ‖F ξ‖ ^ 2 + ∑ ξ ∈ Out, ‖F ξ‖ ^ 2 := by
     refine sum_norm_sq_le_add_of_subset F fun ξ hξ ↦ ?_
@@ -434,19 +410,13 @@ theorem sum_norm_sq_le_shearTranslation (f : ZMod n × ZMod n → ℂ) (hf : ∑
     have hw (ξ : ZMod n × ZMod n) (hs : ¬ IsSmall ξ) :
         1 / 8 ≤ ‖ZMod.stdAddChar ξ.1 - 1‖ ^ 2 + ‖ZMod.stdAddChar ξ.2 - 1‖ ^ 2 := by
       unfold IsSmall at hs
-      rcases not_and_or.1 hs with hs | hs
-      · linarith [one_div_eight_le_norm_stdAddChar_sub_one (not_le.1 hs),
-          sq_nonneg ‖ZMod.stdAddChar ξ.2 - 1‖]
-      · linarith [one_div_eight_le_norm_stdAddChar_sub_one (not_le.1 hs),
-          sq_nonneg ‖ZMod.stdAddChar ξ.1 - 1‖]
+      rcases not_and_or.1 hs with hs | hs <;>
+        linarith [one_div_eight_le_norm_stdAddChar_sub_one (not_le.1 hs),
+          sq_nonneg ‖ZMod.stdAddChar ξ.1 - 1‖, sq_nonneg ‖ZMod.stdAddChar ξ.2 - 1‖]
     rw [← ZMod.sum_norm_sq_dftProd_translate, ← ZMod.sum_norm_sq_dftProd_translate,
       ← sum_add_distrib, mul_sum, sum_filter]
     refine sum_le_sum fun ξ _ ↦ ?_
-    have e₁ : ξ.1 * ((1, 0) : ZMod n × ZMod n).1 + ξ.2 * ((1, 0) : ZMod n × ZMod n).2 = ξ.1 := by
-      simp
-    have e₂ : ξ.1 * ((0, 1) : ZMod n × ZMod n).1 + ξ.2 * ((0, 1) : ZMod n × ZMod n).2 = ξ.2 := by
-      simp
-    rw [e₁, e₂]
+    simp only [mul_one, mul_zero, add_zero, zero_add]
     split_ifs with hs
     · positivity
     · have := mul_le_mul_of_nonneg_right (hw ξ hs) (sq_nonneg ‖F ξ‖)
@@ -462,37 +432,28 @@ theorem sum_norm_sq_le_shearTranslation (f : ZMod n × ZMod n → ℂ) (hf : ∑
   have e₂ := sum_norm_sub_sq_pow_four_le f (shearSnd (1 : ZMod n))
   simp only [shearFst_pow, shearSnd_pow, shearFst_symm, shearSnd_symm, Nat.cast_ofNat,
     mul_one] at e₁ e₂
-  have hn : (0 : ℝ) < (n : ℝ) ^ 2 := by
-    have : (0 : ℝ) < n := by exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne n)
-    positivity
+  have hn : (0 : ℝ) < (n : ℝ) ^ 2 := pow_pos (by exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne n)) 2
   simp only [Fin.sum_univ_four, shearTranslationMove, Matrix.cons_val_zero, Matrix.cons_val_one,
     Matrix.cons_val_two, Matrix.cons_val_three, Matrix.head_cons, Matrix.tail_cons,
     Equiv.coe_addRight]
   rw [← mul_le_mul_iff_right₀ hn]
-  have k₁ := mul_le_mul_of_nonneg_left e₁.1 hn.le
-  have k₂ := mul_le_mul_of_nonneg_left e₁.2 hn.le
-  have k₃ := mul_le_mul_of_nonneg_left e₂.1 hn.le
-  have k₄ := mul_le_mul_of_nonneg_left e₂.2 hn.le
-  have p₁ : 0 ≤ (n : ℝ) ^ 2 * ∑ v, ‖f (v + (1, 0)) - f v‖ ^ 2 := by positivity
-  have p₂ : 0 ≤ (n : ℝ) ^ 2 * ∑ v, ‖f (v + (0, 1)) - f v‖ ^ 2 := by positivity
-  linarith
+  linarith [mul_le_mul_of_nonneg_left e₁.1 hn.le, mul_le_mul_of_nonneg_left e₁.2 hn.le,
+    mul_le_mul_of_nonneg_left e₂.1 hn.le, mul_le_mul_of_nonneg_left e₂.2 hn.le,
+    show 0 ≤ (n : ℝ) ^ 2 * ∑ v, ‖f (v + (1, 0)) - f v‖ ^ 2 by positivity,
+    show 0 ≤ (n : ℝ) ^ 2 * ∑ v, ‖f (v + (0, 1)) - f v‖ ^ 2 by positivity]
 
 /-- **The spectral gap of the shear-translation graph**, uniformly in `n`: its second eigenvalue
 is at most `1 - 1 / 4096`. -/
 theorem secondEigenvalue_shearTranslation_le (n : ℕ) [NeZero n] :
     (shearTranslation n).secondEigenvalue ≤ 1 - 1 / 4096 := by
   rcases subsingleton_or_nontrivial (ZMod n × ZMod n) with hV | hV
-  · rw [secondEigenvalue_eq_zero_of_subsingleton]
-    norm_num
-  have h := secondEigenvalue_ofPerms_le (shearTranslationMove n) (c := 1 / 512) fun f hf ↦ ?_
-  · rw [shearTranslation]
-    refine h.trans_eq ?_
-    norm_num
+  · rw [secondEigenvalue_eq_zero_of_subsingleton]; norm_num
+  rw [shearTranslation]
+  refine (secondEigenvalue_ofPerms_le (shearTranslationMove n) (c := 1 / 512)
+    fun f hf ↦ ?_).trans_eq (by norm_num)
   have hsum : ∑ v, (f v : ℂ) = 0 := by
     rw [Fintype.expect_eq_sum_div_card, div_eq_zero_iff] at hf
-    rcases hf with hf | hf
-    · exact_mod_cast hf
-    · exact absurd hf (by positivity)
+    exact_mod_cast hf.resolve_right (by positivity)
   have hP := sum_norm_sq_le_shearTranslation (fun v ↦ (f v : ℂ)) hsum
   simp only [← Complex.ofReal_sub, Complex.norm_real, Real.norm_eq_abs, sq_abs] at hP
   simp only [Fintype.expect_eq_sum_div_card, ← sum_div]

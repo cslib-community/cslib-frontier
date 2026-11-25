@@ -313,17 +313,9 @@ private theorem foldl_greedyStep_subset (indep : Finset α → Bool) (acc : Fins
   induction xs generalizing acc with
   | nil => simp
   | cons x rest ih =>
-    refine (ih (greedyStep indep acc x)).trans ?_
-    intro y hy
-    simp only [Finset.mem_union, List.toFinset_cons, Finset.mem_insert] at hy ⊢
-    rcases hy with hy | hy
-    · simp only [greedyStep] at hy
-      split at hy
-      · rcases Finset.mem_insert.mp hy with rfl | hacc
-        · exact Or.inr (Or.inl rfl)
-        · exact Or.inl hacc
-      · exact Or.inl hy
-    · exact Or.inr (Or.inr hy)
+    refine (ih (greedyStep indep acc x)).trans fun y hy => ?_
+    simp only [Finset.mem_union, List.toFinset_cons, Finset.mem_insert, greedyStep] at hy ⊢
+    split at hy <;> grind
 
 /-- Every element chosen by `greedySelect` belongs to `xs.toFinset` (for any Boolean test). -/
 theorem greedySelect_subset_toFinset (indep : Finset α → Bool) (xs : List α) :
@@ -390,16 +382,11 @@ private theorem foldl_greedyStep_indep_and_max {M : Matroid α} {indep : Finset 
     · have hx_false : indep (insert e acc) = false := by
         cases hbool : indep (insert e acc)
         · rfl
-        · exfalso
-          have hx_in : e ∈ greedyStep indep acc e := by simp [greedyStep, hbool]
-          exact he_not_mem (subset_foldl_greedyStep indep _ rest hx_in)
+        · exact absurd (subset_foldl_greedyStep indep _ rest (by simp [greedyStep, hbool]))
+            he_not_mem
       have hnot : ¬ M.Indep ((insert e acc : Finset α) : Set α) := by grind
-      intro hind_final
-      apply hnot
-      refine hind_final.subset ?_
-      rw [Finset.coe_insert]
-      exact Set.insert_subset_insert (Finset.coe_subset.mpr
-        ((subset_greedyStep indep acc e).trans
+      exact fun hind_final => hnot <| hind_final.subset <| Finset.coe_insert e acc ▸
+        Set.insert_subset_insert (Finset.coe_subset.mpr ((subset_greedyStep indep acc e).trans
           (subset_foldl_greedyStep indep (greedyStep indep acc e) rest)))
     · exact hmax e he_rest he_not_mem
 
@@ -452,8 +439,7 @@ theorem card_le_greedySelect_card {M : Matroid α} {indep : Finset α → Bool}
     (hM : ∀ S : Finset α, indep S = true ↔ M.Indep (S : Set α)) (xs : List α)
     {I : Finset α} (hI : M.Indep (I : Set α)) (hIsub : (I : Set α) ⊆ {x | x ∈ xs}) :
     I.card ≤ (greedySelect indep xs).card := by
-  by_contra hlt
-  push Not at hlt
+  by_contra! hlt
   obtain ⟨e, heI, heG, hind⟩ := (greedySelect_indep hM xs).augment_finset hI hlt
   exact (greedySelect_isBasis' hM xs).insert_not_indep ⟨hIsub heI, heG⟩ hind
 
@@ -463,8 +449,7 @@ theorem card_eq_greedySelect_card_of_isBasis' {M : Matroid α} {indep : Finset �
     {I : Finset α} (hI : M.IsBasis' (I : Set α) {x | x ∈ xs}) :
     I.card = (greedySelect indep xs).card := by
   refine Nat.le_antisymm (card_le_greedySelect_card hM xs hI.indep hI.subset) ?_
-  by_contra hlt
-  push Not at hlt
+  by_contra! hlt
   obtain ⟨e, heG, heI, hind⟩ := hI.indep.augment_finset (greedySelect_indep hM xs) hlt
   exact hI.insert_not_indep ⟨mem_of_mem_greedySelect heG, heI⟩ hind
 
@@ -478,19 +463,14 @@ private theorem foldl_greedyStep_filter_ne {M : Matroid α} {indep : Finset α �
   induction ys generalizing acc with
   | nil => rfl
   | cons y rest ih =>
-    by_cases hyx : y = x
-    · subst hyx
-      have hstep : greedyStep indep acc y = acc := by grind [greedyStep]
+    rcases eq_or_ne y x with rfl | hyx
+    · have hstep : greedyStep indep acc y = acc := by grind [greedyStep]
       simp [List.foldl_cons, hstep, ih acc hx]
-    · have hkeep : (y :: rest).filter (· ≠ x) = y :: rest.filter (· ≠ x) := by
-        simp [hyx]
-      rw [hkeep, List.foldl_cons, List.foldl_cons]
-      refine ih (greedyStep indep acc y) ?_
-      rcases hx with hmem | hdep
-      · exact Or.inl (subset_greedyStep indep acc y hmem)
-      · refine Or.inr (fun hind => hdep (hind.subset ?_))
-        rw [Finset.coe_insert, Finset.coe_insert]
-        exact Set.insert_subset_insert (Finset.coe_subset.mpr (subset_greedyStep indep acc y))
+    · simp only [List.filter_cons, decide_eq_true hyx, ↓reduceIte, List.foldl_cons]
+      refine ih (greedyStep indep acc y) (hx.imp (subset_greedyStep indep acc y ·) fun hdep h =>
+        hdep (h.subset ?_))
+      simpa only [Finset.coe_insert] using
+        Set.insert_subset_insert (Finset.coe_subset.mpr (subset_greedyStep indep acc y))
 
 private theorem foldl_greedyStep_eraseDups {M : Matroid α} {indep : Finset α → Bool}
     (hM : ∀ S : Finset α, indep S = true ↔ M.Indep (S : Set α)) :
@@ -504,13 +484,9 @@ private theorem foldl_greedyStep_eraseDups {M : Matroid α} {indep : Finset α �
       ← foldl_greedyStep_eraseDups hM (rest.filter (· ≠ x))]
     refine foldl_greedyStep_filter_ne hM x rest (greedyStep indep acc x) ?_
     cases hbool : indep (insert x acc)
-    · right
-      simp only [greedyStep, hbool]
-      intro hind
-      have htrue := (hM (insert x acc)).mpr hind
-      simp [hbool] at htrue
-    · left
-      simp [greedyStep, hbool]
+    · exact Or.inr fun hind => Bool.false_ne_true (hbool.symm.trans ((hM (insert x acc)).mpr
+        (by simpa [greedyStep, hbool] using hind)))
+    · exact Or.inl (by simp [greedyStep, hbool])
 termination_by xs => xs.length
 decreasing_by exact Nat.lt_add_one_of_le (List.length_filter_le _ rest)
 
@@ -532,16 +508,13 @@ private theorem exists_split_getElem_filter {xs : List α} (p : α → Bool)
     cases hpa : p a
     · simp only [List.filter_cons, hpa, Bool.false_eq_true, ↓reduceIte] at hj ⊢
       obtain ⟨P, S, hsplit, hlen⟩ := ih hj
-      refine ⟨a :: P, S, congrArg (a :: ·) hsplit, ?_⟩
-      simp [hpa, hlen]
+      exact ⟨a :: P, S, congrArg (a :: ·) hsplit, by simp [hpa, hlen]⟩
     · simp only [List.filter_cons, hpa, ↓reduceIte] at hj ⊢
       cases j with
       | zero => exact ⟨[], rest, rfl, rfl⟩
       | succ j' =>
-        have hj' : j' < (rest.filter p).length := Nat.lt_of_succ_lt_succ hj
-        obtain ⟨P, S, hsplit, hlen⟩ := ih hj'
-        refine ⟨a :: P, S, congrArg (a :: ·) hsplit, ?_⟩
-        simp [hpa, hlen]
+        obtain ⟨P, S, hsplit, hlen⟩ := ih (Nat.lt_of_succ_lt_succ hj)
+        exact ⟨a :: P, S, congrArg (a :: ·) hsplit, by simp [hpa, hlen]⟩
 
 omit [DecidableEq α] in
 private theorem prefix_split_cases :
@@ -635,47 +608,34 @@ theorem gale_dominance_nodup {M : Matroid α} {indep : Finset α → Bool}
       (List.nodup_append.mp hnodup_G).2.2 z hz1 z hz2 rfl
     have hG_eq : G = (g :: S_G).foldl (greedyStep indep) A_P := by
       simp [G, A_P, greedySelect, hxs_G, List.foldl_append]
-    have hfilter_eq : P_G.filter (· ∈ A_P) = P_G.filter (· ∈ G) := by
-      refine List.filter_congr fun z hz => ?_
-      rw [hG_eq]
-      simp only [decide_eq_decide]
-      exact (mem_foldl_greedyStep_of_disjoint indep hdisj A_P hz).symm
-    have hAP_sub : (A_P : Set α) ⊆ {z | z ∈ P_G} := fun z hz => mem_of_mem_greedySelect hz
+    have hPG_nodup : P_G.Nodup := (List.nodup_append.mp hnodup_G).1
+    have hfilter_eq : P_G.filter (· ∈ A_P) = P_G.filter (· ∈ G) :=
+      List.filter_congr fun z hz => by
+        rw [hG_eq, decide_eq_decide]
+        exact (mem_foldl_greedyStep_of_disjoint indep hdisj A_P hz).symm
     have hAP_card : A_P.card = j := by
-      rw [← length_filter_mem_eq_card (List.nodup_append.mp hnodup_G).1 hAP_sub, hfilter_eq,
-        hPG_len]
-    have hy_mem_I : y ∈ I := by
-      have hy_in : y ∈ I_list := List.getElem_mem hj
-      exact (List.mem_filter.mp hy_in).2 |> decide_eq_true_eq.mp
+      rw [← length_filter_mem_eq_card hPG_nodup (fun _ hz => mem_of_mem_greedySelect hz),
+        hfilter_eq, hPG_len]
+    have hy_mem_I : y ∈ I := decide_eq_true_eq.mp (List.mem_filter.mp (List.getElem_mem hj)).2
     set L_J := (P_I ++ [y]).filter (· ∈ I)
     set J := L_J.toFinset
-    have hPG_nodup : P_G.Nodup := (List.nodup_append.mp hnodup_G).1
-    have hPIy_sub_PG : ∀ z ∈ P_I ++ [y], z ∈ P_G := by
-      intro z hz
+    have hPIy_sub_PG : ∀ z ∈ P_I ++ [y], z ∈ P_G := fun z hz => by
       rw [hPG_eq]
       rcases List.mem_append.mp hz with hzI | hzy
       · exact List.mem_append_left _ hzI
-      · simp only [List.mem_singleton] at hzy
-        subst hzy
-        exact List.mem_append_right _ (List.mem_cons_self ..)
-    have hPIy_nodup : (P_I ++ [y]).Nodup := by
-      have hpg' : ((P_I ++ [y]) ++ M_mid).Nodup := by simpa [hPG_eq] using hPG_nodup
-      exact (List.nodup_append.mp hpg').1
+      · exact List.mem_singleton.mp hzy ▸ List.mem_append_right _ (List.mem_cons_self ..)
+    have hPIy_nodup : (P_I ++ [y]).Nodup :=
+      (List.nodup_append.mp (by simpa [hPG_eq] using hPG_nodup : ((P_I ++ [y]) ++ M_mid).Nodup)).1
     have hJ_card : J.card = j + 1 := by
       rw [List.toFinset_card_of_nodup (hPIy_nodup.filter _)]
       simp [List.filter_append, hy_mem_I, hPI_len]
-    have hJ_sub_I : J ⊆ I := by
-      intro z hz
-      have hz' := List.mem_filter.mp (List.mem_toFinset.mp hz)
-      exact decide_eq_true_eq.mp hz'.2
-    have hJ_indep : M.Indep (J : Set α) := hI.subset (Finset.coe_subset.mpr hJ_sub_I)
+    have hJ_indep : M.Indep (J : Set α) := hI.subset <| Finset.coe_subset.mpr fun z hz =>
+      decide_eq_true_eq.mp (List.mem_filter.mp (List.mem_toFinset.mp hz)).2
     have hlt_card : A_P.card < J.card := by omega
     obtain ⟨e, heJ, heAP, hind_ins⟩ :=
       (greedySelect_indep hM P_G).augment_finset hJ_indep hlt_card
-    have he_in_PG : e ∈ P_G := by
-      have he_LJ : e ∈ L_J := List.mem_toFinset.mp heJ
-      exact hPIy_sub_PG e (List.mem_filter.mp he_LJ).1
-    exact (greedySelect_isBasis' hM P_G).insert_not_indep ⟨he_in_PG, heAP⟩ hind_ins
+    exact (greedySelect_isBasis' hM P_G).insert_not_indep
+      ⟨hPIy_sub_PG e (List.mem_filter.mp (List.mem_toFinset.mp heJ)).1, heAP⟩ hind_ins
 
 end Structural
 
@@ -863,20 +823,13 @@ theorem sum_le_greedyMaxIndep [AddCommMonoid β] [LinearOrder β] [IsOrderedAddM
   set IPos := I.filter (fun x => 0 ≤ w x)
   have hle_pos : ∑ x ∈ I, w x ≤ ∑ x ∈ IPos, w x := by
     rw [← Finset.sum_filter_add_sum_filter_not I (fun x => 0 ≤ w x)]
-    have hneg : ∑ x ∈ I.filter (fun x => ¬ 0 ≤ w x), w x ≤ 0 := by
-      refine Finset.sum_nonpos fun x hx => ?_
-      exact le_of_not_ge (Finset.mem_filter.mp hx).2
-    simpa [IPos] using add_le_of_nonpos_right hneg
-  have hIPos_indep : M.Indep (IPos : Set α) :=
-    hI.subset (Finset.coe_subset.mpr (Finset.filter_subset _ _))
-  have hIPos_sub : (IPos : Set α) ⊆ {x | x ∈ xsPos} := by
-    intro x hx
-    have hx' := Finset.mem_filter.mp hx
-    exact List.mem_filter.mpr ⟨hIsub hx'.1, decide_eq_true hx'.2⟩
-  have hxsPos_nonneg : ∀ x ∈ xsPos, 0 ≤ w x := fun x hx =>
-    of_decide_eq_true (List.mem_filter.mp hx).2
-  exact hle_pos.trans
-    (sum_le_greedyMaxBasis_of_indep hM w xsPos hxsPos_nonneg hIPos_indep hIPos_sub)
+    simpa [IPos] using add_le_of_nonpos_right
+      (Finset.sum_nonpos (f := w) fun x hx => le_of_not_ge (Finset.mem_filter.mp hx).2)
+  exact hle_pos.trans <| sum_le_greedyMaxBasis_of_indep hM w xsPos
+    (fun x hx => of_decide_eq_true (List.mem_filter.mp hx).2)
+    (hI.subset (Finset.coe_subset.mpr (Finset.filter_subset _ _)))
+    fun x hx => List.mem_filter.mpr ⟨hIsub (Finset.mem_filter.mp hx).1,
+      decide_eq_true (Finset.mem_filter.mp hx).2⟩
 
 /-! ## Converse and full Rado–Edmonds matroid characterization -/
 
@@ -1021,33 +974,19 @@ theorem augment_of_forall_sum_le_greedyMaxBasis
     (by simp) (by simp) (by simp)
   set G := greedyMaxBasis indep w xs
   have hG_le : ∑ u ∈ G, w u ≤ k * (k + 2) := by
-    have hsplit_G : ∑ u ∈ G, w u =
-        ∑ u ∈ G.filter (· ∈ I), w u + ∑ u ∈ G.filter (· ∉ I), w u :=
-      (Finset.sum_filter_add_sum_filter_not G (· ∈ I) w).symm
-    have hzero : ∑ u ∈ G.filter (· ∉ I), w u = 0 := by
-      refine Finset.sum_eq_zero fun u hu => ?_
-      have hu' := Finset.mem_filter.mp hu
-      rcases hG_inv u hu'.1 with huI | hwu0
-      · exact absurd huI hu'.2
-      · exact hwu0
-    have hsub_I : G.filter (· ∈ I) ⊆ I := fun u hu => (Finset.mem_filter.mp hu).2
-    have hle_I : ∑ u ∈ G.filter (· ∈ I), w u ≤ ∑ u ∈ I, w u :=
-      Finset.sum_le_sum_of_subset hsub_I
-    have hsum_I : ∑ u ∈ I, w u = k * (k + 2) := by
-      have hcongr : ∑ u ∈ I, w u = ∑ _u ∈ I, (k + 2) :=
-        Finset.sum_congr rfl fun u hu => by simp [w, hu]
-      simpa [k] using hcongr
-    omega
-  have hJ_ge : (k + 1) * (k + 1) ≤ ∑ u ∈ J, w u := by
-    have h1 : J.card * (k + 1) ≤ ∑ u ∈ J, w u := by
-      have hsum : ∑ _u ∈ J, (k + 1) ≤ ∑ u ∈ J, w u := by
-        refine Finset.sum_le_sum fun u hu => ?_
-        by_cases huI : u ∈ I <;> simp [w, huI, hu]
-      simpa using hsum
-    exact (Nat.mul_le_mul_right (k + 1) hlt).trans h1
-  have hopt_J : ∑ u ∈ J, w u ≤ ∑ u ∈ G, w u := hopt w J hJ
-  have hcontra : (k + 1) * (k + 1) ≤ k * (k + 2) := hJ_ge.trans (hopt_J.trans hG_le)
-  have hexpand : (k + 1) * (k + 1) = k * (k + 2) + 1 := by grind
+    rw [← Finset.sum_filter_add_sum_filter_not G (· ∈ I) w]
+    have hzero : ∑ u ∈ G.filter (· ∉ I), w u = 0 := Finset.sum_eq_zero fun u hu =>
+      (hG_inv u (Finset.mem_filter.mp hu).1).resolve_left (Finset.mem_filter.mp hu).2
+    rw [hzero, add_zero]
+    refine (Finset.sum_le_sum_of_subset fun u hu => (Finset.mem_filter.mp hu).2).trans_eq ?_
+    simpa [k] using (Finset.sum_congr (s₁ := I) rfl (f := w) (g := fun _ => k + 2) fun u hu => by
+      simp [w, hu])
+  have hJ_ge : (k + 1) * (k + 1) ≤ ∑ u ∈ J, w u :=
+    (Nat.mul_le_mul_right (k + 1) hlt).trans <| by
+      simpa using (Finset.sum_le_sum (s := J) (f := fun _ => k + 1) (g := w) fun u hu => by
+        by_cases huI : u ∈ I <;> simp [w, huI, hu])
+  have := hJ_ge.trans ((hopt w J hJ).trans hG_le)
+  have : (k + 1) * (k + 1) = k * (k + 2) + 1 := by grind
   omega
 
 /-- **Rado–Edmonds Characterization of Matroids** ([Rado1957]; [Edmonds1971], Section 2):

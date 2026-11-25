@@ -94,7 +94,8 @@ theorem reduction_correct_oneArray (hn : 1 ≤ n) {T₁ T₂ T₃ : Finset ℤ}
     (h : Admissible n U T₁ T₂ T₃) :
     HasThreeSetSolution T₁ T₂ T₃ ↔
       ∃ ν ∈ reduction n U T₁ T₂ T₃, Convolution (8 * mPar n U ^ 2) (ν.oneArray U) := by
-  rw [reduction_correct hn le_rfl h, show 8 * mPar n U ^ 2 = 4 * (2 * mPar n U ^ 2) by ring]
+  have he8 : 8 * mPar n U ^ 2 = 4 * (2 * mPar n U ^ 2) := by ring
+  rw [reduction_correct hn le_rfl h, he8]
   refine exists_congr fun ν => and_congr_right fun hν => ?_
   have hν' := h.of_mem hν
   exact Node.conv_iff_convolution hν'.bdd₁ hν'.bdd₂ hν'.bdd₃ _
@@ -107,12 +108,7 @@ variable {n U : ℕ} {x : Fin n → ℤ}
 theorem mem_allNodes_iff {ν : Node} :
     ν ∈ allNodes n U x ↔ ∃ T₁ T₂ T₃, IsInput U x T₁ T₂ T₃ ∧
       ν ∈ reduction n (2 * U) T₁ T₂ T₃ := by
-  simp only [allNodes, List.mem_flatMap]
-  constructor
-  · rintro ⟨⟨T₁, T₂, T₃⟩, hT, hν⟩
-    exact ⟨T₁, T₂, T₃, mem_inputs_iff.mp hT, hν⟩
-  · rintro ⟨T₁, T₂, T₃, hT, hν⟩
-    exact ⟨(T₁, T₂, T₃), mem_inputs_iff.mpr hT, hν⟩
+  simp [allNodes, Prod.exists, mem_inputs_iff]
 
 /-- Frontend bounds meet the recursion's cardinality and magnitude hypotheses. -/
 theorem admissible_of_input (hn : 1 ≤ n) (hx : ∀ i, |x i| ≤ (U : ℤ))
@@ -137,16 +133,15 @@ theorem instances_correct (n U : ℕ) (hn : 1 ≤ n) (x : Fin n → ℤ) (hx : �
     HasSolution x ↔ ∃ y ∈ instances n U x, Convolution (8 * mPar n (2 * U) ^ 2) y :=
   calc HasSolution x
       ↔ ∃ T₁ T₂ T₃, IsInput U x T₁ T₂ T₃ ∧ HasThreeSetSolution T₁ T₂ T₃ :=
-      threeSum_iff_exists_input hx
+        threeSum_iff_exists_input hx
     _ ↔ ∃ T₁ T₂ T₃, IsInput U x T₁ T₂ T₃ ∧ ∃ ν ∈ reduction n (2 * U) T₁ T₂ T₃,
           Convolution (8 * mPar n (2 * U) ^ 2) (ν.oneArray (2 * U)) :=
         exists₃_congr fun _ _ _ => and_congr_right fun hT =>
           reduction_correct_oneArray hn (admissible_of_input hn hx hT)
-    _ ↔ ∃ ν ∈ allNodes n U x, Convolution (8 * mPar n (2 * U) ^ 2) (ν.oneArray (2 * U)) :=
-        ⟨fun ⟨T₁, T₂, T₃, hT, ν, hν, h⟩ => ⟨ν, mem_allNodes_iff.mpr ⟨T₁, T₂, T₃, hT, hν⟩, h⟩,
-          fun ⟨ν, hν, h⟩ =>
-            let ⟨T₁, T₂, T₃, hT, hν'⟩ := mem_allNodes_iff.mp hν
-            ⟨T₁, T₂, T₃, hT, ν, hν', h⟩⟩
+    _ ↔ ∃ ν ∈ allNodes n U x, Convolution (8 * mPar n (2 * U) ^ 2) (ν.oneArray (2 * U)) := by
+        simp only [mem_allNodes_iff]
+        exact ⟨fun ⟨a, b, c, h1, ν, h2, h3⟩ => ⟨ν, ⟨a, b, c, h1, h2⟩, h3⟩,
+          fun ⟨ν, ⟨a, b, c, h1, h2⟩, h3⟩ => ⟨a, b, c, h1, ν, h2, h3⟩⟩
     _ ↔ ∃ y ∈ instances n U x, Convolution (8 * mPar n (2 * U) ^ 2) y := by
         simp only [instances, List.mem_map, exists_exists_and_eq_and]
 
@@ -156,11 +151,10 @@ theorem length_instances_le (n U : ℕ) (x : Fin n → ℤ) :
   set B := (2 * Nat.log 2 n + 2) ^ 5
   calc (instances n U x).length = (allNodes n U x).length := List.length_map _
     _ ≤ (inputs U x).length * B := by
-        unfold allNodes
-        rw [List.length_flatMap]
-        exact (List.sum_le_length_nsmul _ _ fun _ h => by
-          obtain ⟨T, _, rfl⟩ := List.mem_map.mp h
-          exact length_reduction_le ..).trans_eq (by simp [B, smul_eq_mul])
+        rw [allNodes, List.length_flatMap]
+        refine (List.sum_le_length_nsmul _ B fun _ h => ?_).trans_eq (by simp [smul_eq_mul])
+        obtain ⟨_, _, rfl⟩ := List.mem_map.mp h
+        exact length_reduction_le ..
     _ = (2 * labelBits (2 * U) ^ 2 + 2) * B := by rw [length_inputs]
 
 /-- **Entries of the instances**: they have absolute value at most `120U + 40`. -/

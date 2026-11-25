@@ -92,8 +92,8 @@ private theorem runFrom_leaf_loop {p : ℕ} [Fact p.Prime] {st : List Frame} {v 
         simp only [Function.update_self, cast_addMod, cast_ite_sgnVal, this, hS']
         simp [add_comm]
       · have hji : (j : ℕ) ≠ i := fun e => hj (Fin.ext e)
-        simp only [Function.update_self, Function.update_of_ne hj]
-        simp [show (j : ℕ) < i + 1 ↔ (j : ℕ) < i by omega]
+        simp only [Function.update_self, Function.update_of_ne hj,
+          show (j : ℕ) < i + 1 ↔ (j : ℕ) < i by omega]
     · simp [hr]
 
 /-- **The leaf phase**: a call on the leaf at the current path adds `±` its value to the target
@@ -108,11 +108,10 @@ private theorem runFrom_leaf {p : ℕ} [Fact p.Prime] {st : List Frame} {v : Fin
   have hlen : st.length = H := by simpa using Tree.length_of_nodeAt_leaf hv
   obtain ⟨R', h', hR', hS'⟩ := runFrom_leaf_loop hv R hR neg t out ℓ le_rfl
   refine ⟨R', ?_, hR', ?_⟩
-  · rw [ReadMachine.runFrom_succ]
-    have h0 : machine.next T.encode (cfg (ℓ := ℓ) (H := H) p R st (.call neg t) .run out) =
+  · have h0 : machine.next T.encode (cfg (ℓ := ℓ) (H := H) p R st (.call neg t) .run out) =
         cfg (ℓ := ℓ) (H := H) p R st (.call neg t) (.leaf 0) out := by
       simp [ReadMachine.next, machine, step, runStep, hlen]
-    rw [h0, ReadMachine.runFrom_add, h', ReadMachine.runFrom_one]
+    rw [ReadMachine.runFrom_succ, h0, ReadMachine.runFrom_add, h', ReadMachine.runFrom_one]
     simp [ReadMachine.next, machine, step]
   · rw [hS']
     congr 1 with j : 1
@@ -146,33 +145,32 @@ private theorem runFrom_scan_loop {p : ℕ} [Fact p.Prime] {fr : Frame} {st : Li
   intro k hk
   induction k with
   | zero =>
-    refine ⟨List.replicate ℓ 0, rfl, by simp, fun a ha => ?_, fun i => ?_⟩
-    · rw [(List.mem_replicate.mp ha).2]; exact hp
-    · simp [List.getD_eq_getElem?_getD]
+    exact ⟨List.replicate ℓ 0, rfl, by simp, fun a ha => (List.mem_replicate.mp ha).2 ▸ hp,
+      fun i => by simp [List.getD_eq_getElem?_getD]⟩
   | succ k ih =>
     obtain ⟨acc, h', hlen, hlt, hsum⟩ := ih (by omega)
     have hℓ : 0 < ℓ := by grind [tableLength]
     have hbit : T.body.getD (pathOffset ℓ H (path st) + k) false = tableBit f k := by
       rw [List.getD_eq_getElem?_getD, Tree.getElem_body_gate T hf (by omega)]
       rfl
-    refine ⟨_, by rw [ReadMachine.runFrom_add, h', ReadMachine.runFrom_one, next_scan _ _ _
-      (by omega), hbit], ?_, ?_, fun i => ?_⟩
+    refine ⟨_, by
+        rw [ReadMachine.runFrom_add, h', ReadMachine.runFrom_one,
+          next_scan _ _ _ (by omega), hbit],
+      ?_, ?_, fun i => ?_⟩
     · split_ifs <;> simp [modifyAt, hlen]
     · split_ifs
       exacts [(modifyAt_addMod_wf hp hlt _ _).2, hlt]
     · rw [Finset.sum_range_succ, ← hsum i]
       by_cases hb : tableBit f k
-      · by_cases hi : k % ℓ = i
-        · simp [hb, hi, modifyAt, List.getD_eq_getElem?_getD, hlen,
-            show (i : ℕ) < ℓ from i.isLt, BitString.bitVal, add_comm]
-        · simp [hb, hi, modifyAt, List.getD_eq_getElem?_getD]
+      · by_cases hi : k % ℓ = i <;>
+          simp [hb, hi, modifyAt, List.getD_eq_getElem?_getD, hlen, i.isLt, BitString.bitVal,
+            add_comm]
       · simp [hb, BitString.bitVal]
 
 /-- The bit of a table at position `k * ℓ + i`. -/
 theorem tableBit_mul_add (f : Gate ℓ) (k : ℕ) (i : Fin ℓ) :
     tableBit f (k * ℓ + i) = f (lowBits ℓ k) (highBits ℓ k) i := by
-  have hmod : (k * ℓ + i) % ℓ = i := Nat.mul_add_mod_of_lt i.isLt
-  simp only [tableBit, Nat.mul_add_div_fin, hmod, i.isLt, dite_true]
+  simp only [tableBit, Nat.mul_add_div_fin, Nat.mul_add_mod_of_lt i.isLt, i.isLt, dite_true]
 
 /-- **The update of a round**: from phase `1`, the pass over the table of the gate subtracts `±`
 the multilinear extensions of its output bits at the masked registers, in `4^ℓ * ℓ + 2` steps,
@@ -189,14 +187,14 @@ private theorem runFrom_update {p : ℕ} [Fact p.Prime] {fr : Frame} {st : List 
   obtain ⟨acc, h', hlen, -, hsum⟩ :=
     runFrom_scan_loop (p := p) (fr := fr) hf R out (tableLength ℓ) le_rfl
   refine ⟨subtractSums p (sgnVal p fr.neg) fr.target acc R, ?_, hR.subtractSums hp _ _ _, ?_⟩
-  · rw [ReadMachine.runFrom_succ]
-    have h0 : machine.next T.encode (cfg (ℓ := ℓ) (H := H) p R (fr :: st) .ret .run out) =
-        cfg (ℓ := ℓ) (H := H) p R (fr :: st) .ret (.scan 0 (List.replicate ℓ 0)) out := by
-      obtain ⟨j, ph, neg, t⟩ := fr
-      simp only at hph
-      subst hph
+  · obtain ⟨j, _, neg, t⟩ := fr
+    subst hph
+    have h0 :
+        machine.next T.encode (cfg (ℓ := ℓ) (H := H) p R (⟨j, 1, neg, t⟩ :: st) .ret .run out) =
+          cfg (ℓ := ℓ) (H := H) p R (⟨j, 1, neg, t⟩ :: st) .ret
+            (.scan 0 (List.replicate ℓ 0)) out := by
       simp [ReadMachine.next, machine, step, runStep]
-    rw [h0, ReadMachine.runFrom_add, h', ReadMachine.runFrom_one]
+    rw [ReadMachine.runFrom_succ, h0, ReadMachine.runFrom_add, h', ReadMachine.runFrom_one]
     simp [ReadMachine.next, machine, step]
   · rw [toState_subtractSums _ _ _ _ (hR _).1, gateUpdate, cast_sgnVal]
     congr 1 with i : 1
@@ -319,26 +317,21 @@ theorem exists_runFrom_call {p : ℕ} [Fact p.Prime] {d : ℕ} (U : Tree ℓ d) 
   induction U with
   | leaf v =>
     intro st hst st' neg t R out hR hpath
-    have hv : T.nodeAt (path st') = .leaf v := by rw [hpath]; simpa using hst []
+    have hv : T.nodeAt (path st') = .leaf v := by simpa [hpath] using hst []
     obtain ⟨R', h, hR', hS'⟩ := runFrom_leaf hv R hR neg t out
     exact ⟨ℓ + 2, R', h, hR', by rw [hS']; rfl⟩
   | @node d f l r ihl ihr =>
     intro st hst st' neg t R out hR hpath
-    have hg : T.nodeAt (path st') = .gate f := by rw [hpath]; simpa using hst []
-    have hlen : st'.length ≠ H := by
-      have := Tree.length_lt_of_nodeAt_gate hg
-      rw [length_path] at this
-      exact this.ne
-    have hl : CallSpec T p (path st' ++ [false])
-        (proc ((List.range (p - 1)).map (Iter.zmodUnit p)) l) := fun st'' neg t R out hR h =>
-      ihl st'' (fun Q => by rw [h, hpath, List.append_assoc]; simpa using hst (false :: Q))
-        st'' neg t R out hR rfl
-    have hr : CallSpec T p (path st' ++ [true])
-        (proc ((List.range (p - 1)).map (Iter.zmodUnit p)) r) := fun st'' neg t R out hR h =>
-      ihr st'' (fun Q => by rw [h, hpath, List.append_assoc]; simpa using hst (true :: Q))
-        st'' neg t R out hR rfl
-    obtain ⟨n, R', h, hR', hS'⟩ :=
-      exists_runFrom_rounds hg hl hr neg t out (p - 2) 0 R hR (by omega)
+    have hg : T.nodeAt (path st') = .gate f := by simpa [hpath] using hst []
+    have hlen : st'.length ≠ H := by simpa [length_path] using (Tree.length_lt_of_nodeAt_gate hg).ne
+    obtain ⟨n, R', h, hR', hS'⟩ := exists_runFrom_rounds hg
+      (fun st'' neg t R out hR h => ihl st''
+        (fun Q => by simpa [h, hpath, List.append_assoc] using hst (false :: Q))
+        st'' neg t R out hR rfl)
+      (fun st'' neg t R out hR h => ihr st''
+        (fun Q => by simpa [h, hpath, List.append_assoc] using hst (true :: Q))
+        st'' neg t R out hR rfl)
+      neg t out (p - 2) 0 R hR (by omega)
     refine ⟨1 + n, R', by rw [ReadMachine.runFrom_add, ReadMachine.runFrom_one, next_push _ hlen,
       h], hR', ?_⟩
     rw [hS', proc, List.range_eq_range', show p - 1 = p - 2 + 1 by omega]
@@ -408,30 +401,26 @@ private theorem exists_runFrom_test {q : ℕ} :
     ∀ k d, d + k = q → 2 ≤ d → (∀ e, 2 ≤ e → e < d → q % e ≠ 0) →
       ∃ n, machine.runFrom T.encode (primeCfg ℓ H q d) n =
         if q.Prime then cfg (ℓ := ℓ) (H := H) q (zeroRegs ℓ) [] (.call false 2) .run []
-        else primeCfg ℓ H (q + 1) 2 := by
-  intro k
-  induction k with
-  | zero =>
-    intro d hd hd2 hdiv
-    have hprime : q.Prime := Nat.prime_def_lt'.mpr ⟨by omega, fun m hm hlt hdvd =>
-      hdiv m hm (by omega) (Nat.mod_eq_zero_of_dvd hdvd)⟩
+        else primeCfg ℓ H (q + 1) 2
+  | 0, d, hd, _, hdiv => by
     obtain rfl : d = q := by omega
-    refine ⟨1, ?_⟩
-    rw [ReadMachine.runFrom_one]
-    simp [ReadMachine.next, machine, step, hprime]
-  | succ k ih =>
-    intro d hd hd2 hdiv
+    have hprime : d.Prime := Nat.prime_def_lt'.mpr ⟨by omega, fun m hm hlt hdvd =>
+      hdiv m hm hlt (Nat.mod_eq_zero_of_dvd hdvd)⟩
+    exact ⟨1, by
+      rw [ReadMachine.runFrom_one]
+      simp [ReadMachine.next, machine, step, hprime]⟩
+  | k + 1, d, hd, hd2, hdiv => by
     by_cases hmod : q % d = 0
     · have hnot : ¬q.Prime := fun hp =>
         (Nat.prime_def_lt'.mp hp).2 d hd2 (by omega) (Nat.dvd_of_mod_eq_zero hmod)
-      refine ⟨1, ?_⟩
-      rw [ReadMachine.runFrom_one]
-      simp [ReadMachine.next, machine, step, show d < q by omega, hmod, hnot]
-    · obtain ⟨n, hn⟩ := ih (d + 1) (by omega) (by omega) fun e he hlt =>
+      exact ⟨1, by
+        rw [ReadMachine.runFrom_one]
+        simp [ReadMachine.next, machine, step, show d < q by omega, hmod, hnot]⟩
+    · obtain ⟨n, hn⟩ := exists_runFrom_test k (d + 1) (by omega) (by omega) fun e he hlt =>
         if h : e = d then h ▸ hmod else hdiv e he (by omega)
-      refine ⟨1 + n, ?_⟩
-      rw [ReadMachine.runFrom_add, ReadMachine.runFrom_one, ← hn]
-      simp [ReadMachine.next, machine, step, show d < q by omega, hmod]
+      exact ⟨1 + n, by
+        rw [ReadMachine.runFrom_add, ReadMachine.runFrom_one, ← hn]
+        simp [ReadMachine.next, machine, step, show d < q by omega, hmod]⟩
 
 /-- The least prime `p ≥ 2ℓ + 2`. -/
 def primeFor (ℓ : ℕ) : ℕ :=
@@ -447,26 +436,21 @@ theorem le_primeFor (ℓ : ℕ) : 2 * ℓ + 2 ≤ primeFor ℓ :=
 private theorem exists_runFrom_search :
     ∀ k q, q + k = primeFor ℓ → 2 * ℓ + 2 ≤ q → ∃ n, machine.runFrom T.encode
       (primeCfg ℓ H q 2) n =
-        cfg (ℓ := ℓ) (H := H) (primeFor ℓ) (zeroRegs ℓ) [] (.call false 2) .run [] := by
-  intro k
-  induction k with
-  | zero =>
-    intro q hq _
+        cfg (ℓ := ℓ) (H := H) (primeFor ℓ) (zeroRegs ℓ) [] (.call false 2) .run []
+  | 0, q, hq, hq2 => by
     obtain rfl : q = primeFor ℓ := by omega
     obtain ⟨n, hn⟩ := exists_runFrom_test (T := T) (q := primeFor ℓ) (primeFor ℓ - 2) 2
-      (by have := le_primeFor ℓ; omega) le_rfl (fun e he hlt => absurd hlt (by omega))
-    simp only [primeFor_prime ℓ, ↓reduceIte] at hn
-    exact ⟨n, hn⟩
-  | succ k ih =>
-    intro q hq hq2
+      (by omega) le_rfl (fun _ _ hlt => absurd hlt (by omega))
+    exact ⟨n, by simpa only [primeFor_prime ℓ, ↓reduceIte] using hn⟩
+  | k + 1, q, hq, hq2 => by
     have hnot : ¬q.Prime := fun hp => by
       have := Nat.find_min' (Nat.exists_infinite_primes (2 * ℓ + 2)) ⟨hq2, hp⟩
       rw [← primeFor] at this
       omega
     obtain ⟨n, hn⟩ := exists_runFrom_test (T := T) (q := q) (q - 2) 2 (by omega) le_rfl
-      (fun e he hlt => absurd hlt (by omega))
+      (fun _ _ hlt => absurd hlt (by omega))
     simp only [hnot, ↓reduceIte] at hn
-    obtain ⟨n', hn'⟩ := ih (q + 1) (by omega) (by omega)
+    obtain ⟨n', hn'⟩ := exists_runFrom_search k (q + 1) (by omega) (by omega)
     exact ⟨n + n', by rw [ReadMachine.runFrom_add, hn, hn']⟩
 
 private theorem toState_zeroRegs (p : ℕ) : (zeroRegs ℓ).toState p ℓ = 0 := by
@@ -481,13 +465,12 @@ private theorem map_get_eq_ofFn {p : ℕ} [Fact p.Prime] {R : Regs} (hR : R.WF p
   refine List.ext_getElem (by simp [hlen]) fun i h₁ h₂ => ?_
   have hi : i < ℓ := by simpa using h₂
   have hv := congrFun h ⟨i, hi⟩
-  simp only [Regs.toState, embed, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem
-    (show i < (R.get 2).length by omega), Option.getD_some] at hv
+  simp only [Regs.toState, embed, List.getD_eq_getElem?_getD,
+    List.getElem?_eq_getElem (show i < (R.get 2).length by omega), Option.getD_some] at hv
   have hval := congrArg ZMod.val hv
   rw [ZMod.val_natCast, Nat.mod_eq_of_lt (hlt _ (List.getElem_mem _))] at hval
-  simp only [List.getElem_map, List.getElem_ofFn]
-  cases hb : v ⟨i, hi⟩ <;> simp [hb, BitString.bitVal, ZMod.val_one, ZMod.val_zero] at hval ⊢ <;>
-    omega
+  cases hb : v ⟨i, hi⟩ <;>
+    simp [hb, BitString.bitVal, ZMod.val_one, ZMod.val_zero] at hval ⊢ <;> omega
 
 /-- **The read machine evaluates the tree.** On the encoding of an instance it halts, with the
 value of the tree as its output. -/
@@ -495,7 +478,9 @@ theorem exists_run_eq (T : Tree ℓ H) :
     ∃ n s, machine.run T.encode n = ⟨s, List.ofFn T.eval⟩ ∧ machine.halt s = true := by
   have : Fact (primeFor ℓ).Prime := ⟨primeFor_prime ℓ⟩
   have hK : 2 * ℓ < Fintype.card (ZMod (primeFor ℓ)) - 1 := by
-    rw [ZMod.card]; have := le_primeFor ℓ; omega
+    rw [ZMod.card]
+    have := le_primeFor ℓ
+    omega
   obtain ⟨n₁, h₁⟩ := exists_runFrom_search (T := T) (primeFor ℓ - (2 * ℓ + 2)) (2 * ℓ + 2)
     (by have := le_primeFor ℓ; omega) le_rfl
   obtain ⟨n₂, R, h₂, hR, hS⟩ := exists_runFrom_call (T := T) (p := primeFor ℓ) T []
@@ -505,9 +490,8 @@ theorem exists_run_eq (T : Tree ℓ H) :
   refine ⟨ℓ + 1 + (H + 1) + n₁ + n₂ + 1, ⟨ℓ, H, primeFor ℓ, R, [], .ret, .done⟩, ?_, rfl⟩
   rw [ReadMachine.run_add, ReadMachine.run_add, ReadMachine.run_add, run_header, h₁, h₂,
     ReadMachine.runFrom_one]
-  simp only [ReadMachine.next, machine, step, runStep]
-  simp only [Bool.false_eq_true, ↓reduceIte, List.nil_append]
-  rw [map_get_eq_ofFn (v := T.eval) hR (by rw [hS]; simp)]
+  simp only [ReadMachine.next, machine, step, runStep, Bool.false_eq_true, ↓reduceIte,
+    List.nil_append, map_get_eq_ofFn (v := T.eval) hR (by simp [hS])]
 
 end Reader
 

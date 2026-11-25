@@ -82,14 +82,13 @@ theorem div_nsmul_smul_eq_zero_iff {G : Type} [AddCommGroup G] {q l : ℕ} [NeZe
     [Module (ZMod q) G] {g : G} (hlq : l ∣ q)
     (hg : Function.Injective fun c : ZMod q => c • g) (a : ZMod q) :
     (q / l) • (a • g) = 0 ↔ l ∣ a.val := by
-  have hl0 : 0 < l := Nat.pos_of_dvd_of_pos hlq (NeZero.pos q)
-  have hdiv_pos : 0 < q / l := Nat.div_pos (Nat.le_of_dvd (NeZero.pos q) hlq) hl0
   have hzero : (q / l) • (a • g) = (((q / l) * a.val : ℕ) : ZMod q) • g := by
     conv_lhs => rw [← ZMod.natCast_zmod_val a]
     rw [← Nat.cast_smul_eq_nsmul (ZMod q), smul_smul, ← Nat.cast_mul]
   rw [hzero, hg.eq_iff' (zero_smul (ZMod q) g), ZMod.natCast_eq_zero_iff]
   nth_rw 1 [← Nat.div_mul_cancel hlq]
-  exact Nat.mul_dvd_mul_iff_left hdiv_pos
+  exact Nat.mul_dvd_mul_iff_left (Nat.div_pos (Nat.le_of_dvd (NeZero.pos q) hlq)
+    (Nat.pos_of_dvd_of_pos hlq (NeZero.pos q)))
 
 /-- For prime `l ∣ q`, `l` divides `(a * b).val` in `ZMod q` iff `(q / l) • (a • g) = 0` or
 `(q / l) • (b • g) = 0`
@@ -126,8 +125,7 @@ probability `1 / l`. -/
 private theorem uniform_zmod_map_dvd_apply_true {q l : ℕ} [NeZero q] (hlq : l ∣ q) :
     ((PMF.uniformOfFintype (ZMod q)).map
       (fun c : ZMod q => decide (l ∣ c.val))) true = (l : ℝ≥0∞)⁻¹ := by
-  have hl0 : 0 < l := Nat.pos_of_dvd_of_pos hlq (NeZero.pos q)
-  have : NeZero l := ⟨hl0.ne'⟩
+  have : NeZero l := ⟨(Nat.pos_of_dvd_of_pos hlq (NeZero.pos q)).ne'⟩
   have hcomp : (fun c : ZMod q => decide (l ∣ c.val)) =
       (fun r : ZMod l => decide (r = 0)) ∘ (ZMod.castHom hlq (ZMod l)).toAddMonoidHom := by
     funext c
@@ -146,27 +144,25 @@ private theorem eval_ddhRandomExperiment_ddhSmallFactorDistinguisher_apply_true 
       let r : ℝ≥0∞ := (l : ℝ≥0∞)⁻¹
       r * (r * r + (1 - r) * r) + (1 - r) * (r * r + (1 - r) * (1 - r)) := by
   have hl0 : 0 < l := Nat.pos_of_dvd_of_pos hlq (NeZero.pos q)
-  let β : PMF Bool :=
-    (PMF.uniformOfFintype (ZMod q)).map (fun c : ZMod q => decide (l ∣ c.val))
+  let β : PMF Bool := (PMF.uniformOfFintype (ZMod q)).map fun c : ZMod q => decide (l ∣ c.val)
   have hβt : β true = (l : ℝ≥0∞)⁻¹ := uniform_zmod_map_dvd_apply_true hlq
-  have hlt : (l : ℝ≥0∞)⁻¹ ≠ ⊤ := ENNReal.inv_ne_top.mpr (Nat.cast_ne_zero.mpr hl0.ne')
   have hβf : β false = 1 - (l : ℝ≥0∞)⁻¹ :=
-    ENNReal.eq_sub_of_add_eq hlt
+    ENNReal.eq_sub_of_add_eq (ENNReal.inv_ne_top.mpr (Nat.cast_ne_zero.mpr hl0.ne'))
       (by rw [← hβt, add_comm, PMF.apply_true_add_apply_false])
+  have hdec (a b c : ZMod q) :
+      decide ((q / l) • (c • g) = 0 ↔ (q / l) • (a • g) = 0 ∨ (q / l) • (b • g) = 0) =
+        decide (decide (l ∣ c.val) = (decide (l ∣ a.val) || decide (l ∣ b.val))) := by
+    simp only [div_nsmul_smul_eq_zero_iff hlq hg]
+    cases ha : decide (l ∣ a.val) <;> cases hb : decide (l ∣ b.val) <;>
+      cases hc : decide (l ∣ c.val) <;> simp_all
   have heval : ProbComp.eval (ddhRandomExperiment q g (ddhSmallFactorDistinguisher q l)) =
       β.bind fun ba => β.bind fun bb => β.bind fun bc => PMF.pure (decide (bc = (ba || bb))) := by
     simp only [eval_ddhRandomExperiment, ddhSmallFactorDistinguisher, ProbComp.eval_pure,
-      β, PMF.bind_map]
-    congr 1; funext a; congr 1; funext b; congr 1; funext c
-    congr 1
-    simp only [decide_eq_decide, div_nsmul_smul_eq_zero_iff hlq hg]
-    cases ha : decide (l ∣ a.val) <;> cases hb : decide (l ∣ b.val) <;>
-      cases hc : decide (l ∣ c.val) <;> simp_all
+      β, PMF.bind_map, Function.comp_def, hdec]
   rw [heval]
-  simp only [PMF.bind_apply, tsum_fintype, Fintype.sum_bool, PMF.pure_apply,
-    Bool.true_or, Bool.false_or, decide_true, decide_false, Bool.true_eq_false,
-    Bool.false_eq_true, ↓reduceIte, mul_one, mul_zero, add_zero]
-  rw [hβt, hβf]
+  simp only [PMF.bind_apply, tsum_fintype, Fintype.sum_bool, PMF.pure_apply, Bool.true_or,
+    Bool.false_or, decide_true, decide_false, Bool.true_eq_false, Bool.false_eq_true, ↓reduceIte,
+    mul_one, mul_zero, add_zero, hβt, hβf]
   ring
 
 /-- Acceptance probability of `ddhSmallFactorDistinguisher q l` in the random DDH experiment is
@@ -177,15 +173,13 @@ theorem probability_ddhRandomExperiment_ddhSmallFactorDistinguisher {G : Type} [
     Pr[ddhRandomExperiment q g (ddhSmallFactorDistinguisher q l)] =
       1 - ((3 * (l : ℝ) - 2) * ((l : ℝ) - 1)) / (l : ℝ) ^ 3 := by
   have hl0 : 0 < l := Nat.pos_of_dvd_of_pos hlq (NeZero.pos q)
-  rw [show Pr[ddhRandomExperiment q g (ddhSmallFactorDistinguisher q l)] =
-      ((ProbComp.eval (ddhRandomExperiment q g (ddhSmallFactorDistinguisher q l))) true).toReal
-    from rfl, eval_ddhRandomExperiment_ddhSmallFactorDistinguisher_apply_true q l g hlq hg]
-  have hle : (l : ℝ≥0∞)⁻¹ ≤ 1 := by
-    rw [ENNReal.inv_le_one]
-    exact_mod_cast hl0
+  have hle : (l : ℝ≥0∞)⁻¹ ≤ 1 := ENNReal.inv_le_one.mpr (by exact_mod_cast hl0)
   have hlt : (l : ℝ≥0∞)⁻¹ ≠ ⊤ := ENNReal.inv_ne_top.mpr (Nat.cast_ne_zero.mpr hl0.ne')
-  have h1 : (1 - (l : ℝ≥0∞)⁻¹) ≠ ⊤ := ENNReal.sub_ne_top ENNReal.one_ne_top
-  rw [ENNReal.toReal_add (ENNReal.mul_ne_top hlt (ENNReal.add_ne_top.mpr
+  have h1 : 1 - (l : ℝ≥0∞)⁻¹ ≠ ⊤ := ENNReal.sub_ne_top ENNReal.one_ne_top
+  change ((ProbComp.eval (ddhRandomExperiment q g (ddhSmallFactorDistinguisher q l))) true).toReal =
+    _
+  rw [eval_ddhRandomExperiment_ddhSmallFactorDistinguisher_apply_true q l g hlq hg,
+    ENNReal.toReal_add (ENNReal.mul_ne_top hlt (ENNReal.add_ne_top.mpr
       ⟨ENNReal.mul_ne_top hlt hlt, ENNReal.mul_ne_top h1 hlt⟩))
       (ENNReal.mul_ne_top h1 (ENNReal.add_ne_top.mpr
       ⟨ENNReal.mul_ne_top hlt hlt, ENNReal.mul_ne_top h1 h1⟩))]
@@ -195,24 +189,7 @@ theorem probability_ddhRandomExperiment_ddhSmallFactorDistinguisher {G : Type} [
     ENNReal.toReal_sub_of_le hle ENNReal.one_ne_top, ENNReal.toReal_one, ENNReal.toReal_inv,
     ENNReal.toReal_natCast]
   have hlne : (l : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr hl0.ne'
-  field_simp
-  ring
-
-private theorem inv_le_smallFactor_adv_nnreal {l : ℕ} (hl2 : 2 ≤ l) :
-    (l : ℝ≥0)⁻¹ ≤ ((3 * (l : ℝ≥0) - 2) * ((l : ℝ≥0) - 1)) / (l : ℝ≥0) ^ 3 := by
-  have hl_pos : (0 : ℝ) < (l : ℝ) := by exact_mod_cast (by omega : 0 < l)
-  have hl2_r : (2 : ℝ) ≤ (l : ℝ) := by exact_mod_cast hl2
-  have h1_nat : 1 ≤ l := by omega
-  have h2_nat : 2 ≤ 3 * l := by omega
-  have h1 : (1 : ℝ≥0) ≤ l := by exact_mod_cast h1_nat
-  have h2 : (2 : ℝ≥0) ≤ 3 * l := by exact_mod_cast h2_nat
-  rw [← NNReal.coe_le_coe, NNReal.coe_inv, NNReal.coe_natCast, NNReal.coe_div, NNReal.coe_mul,
-    NNReal.coe_sub h2, NNReal.coe_sub h1, NNReal.coe_mul, NNReal.coe_pow]
-  push_cast
-  rw [inv_eq_one_div, div_le_div_iff₀ hl_pos (by positivity)]
-  have hprod : 0 ≤ (l : ℝ) * (2 * (l : ℝ) - 1) * ((l : ℝ) - 2) :=
-    mul_nonneg (mul_nonneg hl_pos.le (by linarith)) (by linarith)
-  linarith
+  field_simp; ring
 
 /-- The exact fixed-group DDH advantage of `ddhSmallFactorDistinguisher q l` for prime `l ∣ q`
 is `(3 * l - 2) * (l - 1) / l ^ 3` ([BonehShoup2023], Exercise 16.2(a), p. 707). Since `l ≥ 1`,
@@ -225,24 +202,21 @@ theorem ddhAdvantage_ddhSmallFactorDistinguisher {G : Type} [AddCommGroup G] [De
     ddhAdvantage q g (ddhSmallFactorDistinguisher q l) =
       ((3 * (l : ℝ≥0) - 2) * ((l : ℝ≥0) - 1)) / (l : ℝ≥0) ^ 3 := by
   apply NNReal.eq
+  have hl2 : (2 : ℝ) ≤ l := by exact_mod_cast hl.two_le
+  have h1 : (1 : ℝ≥0) ≤ l := by exact_mod_cast hl.one_le
+  have h2_nat : 2 ≤ 3 * l := by
+    have := hl.two_le
+    omega
+  have h2 : (2 : ℝ≥0) ≤ 3 * l := by exact_mod_cast h2_nat
   have hreal : Pr[ddhRealExperiment q g (ddhSmallFactorDistinguisher q l)] = 1 := by
     rw [eval_ddhRealExperiment_ddhSmallFactorDistinguisher q l g hl hlq hg,
       PMF.pure_apply_self, ENNReal.toReal_one]
-  have hrand : Pr[ddhRandomExperiment q g (ddhSmallFactorDistinguisher q l)] =
-      1 - ((3 * (l : ℝ) - 2) * ((l : ℝ) - 1)) / (l : ℝ) ^ 3 :=
-    probability_ddhRandomExperiment_ddhSmallFactorDistinguisher q l g hlq hg
-  have hl2 : (2 : ℝ) ≤ (l : ℝ) := by exact_mod_cast hl.two_le
-  have h1_nat : 1 ≤ l := hl.one_le
-  have h2_nat : 2 ≤ 3 * l := by have := hl.two_le; omega
-  have h1 : (1 : ℝ≥0) ≤ l := by exact_mod_cast h1_nat
-  have h2 : (2 : ℝ≥0) ≤ 3 * l := by exact_mod_cast h2_nat
-  have hpos_num : 0 ≤ (3 * (l : ℝ) - 2) * ((l : ℝ) - 1) / (l : ℝ) ^ 3 := by
-    refine div_nonneg (mul_nonneg ?_ ?_) (by positivity) <;> linarith
-  rw [ddhAdvantage, Experiment.coe_advantage, hreal, hrand, sub_sub_cancel,
-    abs_of_nonneg hpos_num, NNReal.coe_div, NNReal.coe_mul, NNReal.coe_sub h2, NNReal.coe_sub h1,
-    NNReal.coe_mul, NNReal.coe_pow]
-  push_cast
-  rfl
+  rw [ddhAdvantage, Experiment.coe_advantage, hreal,
+    probability_ddhRandomExperiment_ddhSmallFactorDistinguisher q l g hlq hg, sub_sub_cancel,
+    abs_of_nonneg (div_nonneg (mul_nonneg (by linarith) (by linarith)) (by positivity)),
+    NNReal.coe_div, NNReal.coe_mul, NNReal.coe_sub h2, NNReal.coe_sub h1, NNReal.coe_mul,
+    NNReal.coe_pow]
+  push_cast; rfl
 
 /-- `ddhSmallFactorDistinguisher q l` achieves fixed-group advantage at least `1 / l`
 for every prime `l ∣ q` ([BonehShoup2023], Exercise 16.2(a), p. 707). -/
@@ -250,8 +224,20 @@ theorem inv_le_ddhAdvantage_ddhSmallFactorDistinguisher {G : Type} [AddCommGroup
     (q l : ℕ) [NeZero q] [Module (ZMod q) G] (g : G)
     (hl : l.Prime) (hlq : l ∣ q) (hg : Function.Injective fun c : ZMod q => c • g) :
     (l : ℝ≥0)⁻¹ ≤ ddhAdvantage q g (ddhSmallFactorDistinguisher q l) := by
-  rw [ddhAdvantage_ddhSmallFactorDistinguisher q l g hl hlq hg]
-  exact inv_le_smallFactor_adv_nnreal hl.two_le
+  have hl_pos : (0 : ℝ) < l := by exact_mod_cast hl.pos
+  have hl2 : (2 : ℝ) ≤ l := by exact_mod_cast hl.two_le
+  have h2_nat : 2 ≤ 3 * l := by
+    have := hl.two_le
+    omega
+  rw [ddhAdvantage_ddhSmallFactorDistinguisher q l g hl hlq hg, ← NNReal.coe_le_coe,
+    NNReal.coe_inv, NNReal.coe_natCast, NNReal.coe_div, NNReal.coe_mul,
+    NNReal.coe_sub (by exact_mod_cast h2_nat),
+    NNReal.coe_sub (by exact_mod_cast hl.one_le), NNReal.coe_mul, NNReal.coe_pow]
+  push_cast
+  rw [inv_eq_one_div, div_le_div_iff₀ hl_pos (by positivity)]
+  have hprod : 0 ≤ (l : ℝ) * (2 * (l : ℝ) - 1) * ((l : ℝ) - 2) :=
+    mul_nonneg (mul_nonneg hl_pos.le (by linarith)) (by linarith)
+  linarith
 
 end FixedGroupSmallFactor
 

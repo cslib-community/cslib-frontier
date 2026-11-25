@@ -333,13 +333,10 @@ theorem eval_prvSimExperiment_eq_bind {α : Query Fn → Type} (S : PrvSimulator
   dsimp only
   by_cases hx : q.input.length = G.inLen q.fn
   · have hstep := hrhs q st hmem hx
-    simp only [hx, hP q st hmem hx, and_self, ↓reduceIte]
-    cases b
-    · simp only [Bool.false_eq_true, ↓reduceIte] at hstep ⊢
-      rw [ProbComp.eval_bind, hstep, PMF.bind_map]
-      rfl
-    · simp only [↓reduceIte] at hstep ⊢
-      rw [ProbComp.eval_bind, hstep, PMF.bind_map]
+    cases b <;>
+      simp only [hx, hP q st hmem hx, and_self, Bool.false_eq_true, ↓reduceIte,
+        ProbComp.eval_bind] at hstep ⊢ <;>
+      rw [hstep, PMF.bind_map] <;>
       rfl
   · simp only [hx, false_and, ↓reduceIte]
 

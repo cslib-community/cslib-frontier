@@ -86,12 +86,11 @@ theorem length_of_mem_support_collisionPairToBatch {guess : ProbComp (CollisionG
 theorem isPPTOn_collisionPairToBatch {I : Type} {encI : I ↪ List Bool} {encM : M ↪ List Bool}
     {A : I → ProbComp (CollisionGuess M)} (hA : IsPPTOn encI (encCollisionGuess encM) A) :
     IsPPTOn encI (encList encM) (fun i => collisionPairToBatch (A i)) := by
-  have hId : ComputableInPolyTime id (encCollisionGuess encM) (encCollisionGuess encM) :=
-    ComputableInPolyTime.id'
-  have hFirst := encCollisionGuess_first_polyTime encM hId
-  have hSecond := encCollisionGuess_second_polyTime encM hId
-  have hCons := ComputableInPolyTime.cons encM
-  exact hA.map (hCons.comp (hFirst.prod (hCons.comp (hSecond.prod (.const [])))))
+  have hId : ComputableInPolyTime id (encCollisionGuess encM) (encCollisionGuess encM) := .id'
+  exact hA.map ((ComputableInPolyTime.cons encM).comp
+    ((encCollisionGuess_first_polyTime encM hId).prod
+      ((ComputableInPolyTime.cons encM).comp
+        ((encCollisionGuess_second_polyTime encM hId).prod (.const [])))))
 
 variable [∀ d, Fintype (K d)] [∀ d, Nonempty (K d)] [DecidableEq M] [∀ d, DecidableEq (Y d)]
 
@@ -152,18 +151,15 @@ theorem multiQueryGame_collisionPairToBatch (setup : ℕ → ProbComp D)
   funext pair
   congr 1
   funext k
-  apply congrArg PMF.pure
-  apply decide_eq_decide.mpr
+  refine congrArg PMF.pure (decide_eq_decide.mpr ?_)
   simp only [List.mem_cons, List.not_mem_nil, or_false]
-  constructor
-  · rintro ⟨m, hm, m', hm', hne, hv, hv', hc⟩
-    rcases hm with rfl | rfl <;> rcases hm' with rfl | rfl
-    · exact (hne rfl).elim
-    · exact ⟨hne, hv, hv', hc⟩
-    · exact ⟨hne.symm, hv', hv, hc.symm⟩
-    · exact (hne rfl).elim
-  · rintro ⟨hne, hv, hv', hc⟩
-    exact ⟨pair.first, .inl rfl, pair.second, .inr rfl, hne, hv, hv', hc⟩
+  refine ⟨?_, fun ⟨hne, hv, hv', hc⟩ =>
+    ⟨pair.first, .inl rfl, pair.second, .inr rfl, hne, hv, hv', hc⟩⟩
+  rintro ⟨m, rfl | rfl, m', rfl | rfl, hne, hv, hv', hc⟩
+  · exact (hne rfl).elim
+  · exact ⟨hne, hv, hv', hc⟩
+  · exact ⟨hne.symm, hv', hv, hc.symm⟩
+  · exact (hne rfl).elim
 
 /-- Multi-query UHF security implies single-pair UHF security by submitting both messages in
 one batch. The wrapper leaves the public setup program unchanged. -/
@@ -207,34 +203,24 @@ theorem IsComputationalUHF.isMultiQueryUHF {encD : D ↪ List Bool} {encM : M �
     {setup : ℕ → ProbComp D} {valid : ℕ → D → M → Bool} {H : ℕ → (d : D) → K d → M → Y d}
     (hH : IsComputationalUHF encD encM setup valid H) (hsetup : IsPPTOn encUnary encD setup) :
     IsMultiQueryUHF encD encM setup valid H := by
-  apply Game.Indistinguishable.of_negligible_succProbability
-  intro A hA
+  refine Game.Indistinguishable.of_negligible_succProbability fun A hA => ?_
   rcases isEmpty_or_nonempty M with hM | ⟨⟨fallback⟩⟩
-  · have hnil (ms : List M) : ms = [] := by
-      cases ms with
-      | nil => rfl
-      | cons m _ => exact (hM.false m).elim
-    have hlose (n : ℕ) : multiQueryGame setup valid H A n = PMF.pure false := by
-      simp only [multiQueryGame, Game.withSetup, ProbComp.eval_bind, hnil, List.not_mem_nil,
-        false_and, exists_false, decide_false, ProbComp.eval_pure, PMF.bind_const]
-    simp [hlose, Game.succProbability]
+  · have hnil (ms : List M) : ms = [] := ms.eq_nil_iff_forall_not_mem.mpr fun m _ => hM.false m
+    simp [multiQueryGame, Game.withSetup, hnil, Game.succProbability]
   obtain ⟨cs, ds, hs⟩ := hsetup.length_le
   obtain ⟨ca, da, ha⟩ := hA.length_le
   let Q (n : ℕ) := ca * (2 * n + 2 + cs * (n + 1) ^ ds) ^ da
-  have hinput : PolynomiallyBounded (fun n => 2 * n + 2 + cs * (n + 1) ^ ds) := by
-    fun_prop
   have hQ : PolynomiallyBounded (fun n => Q n ^ 2) := by
-    exact ((PolynomiallyBounded.const ca).mul (hinput.pow da)).pow 2
-  have hB := hH.negligible_succProbability _ (isPPTOn_collisionPairReduction hA fallback)
-  apply negligible_of_le (hB.polynomiallyBounded_mul hQ)
-  intro n
+    dsimp only [Q]; fun_prop
+  refine negligible_of_le ((hH.negligible_succProbability _
+    (isPPTOn_collisionPairReduction hA fallback)).polynomiallyBounded_mul hQ) fun n => ?_
   have hlen (d : D) (hd : d ∈ (ProbComp.eval (setup n)).support)
       (ms : List M) (hms : ms ∈ (ProbComp.eval (A (n, d))).support) : ms.length ≤ Q n := by
     have hsetupLen := hs n d hd
     have houtputLen := ha (n, d) ms hms
     simp only [length_encPair, encUnary_apply, List.length_replicate] at hsetupLen houtputLen
-    apply (length_le_length_encList _ _).trans (houtputLen.trans ?_)
-    exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (by omega) _)
+    exact (length_le_length_encList _ _).trans (houtputLen.trans
+      (Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (by omega) _)))
   refine (succProbability_multiQueryGame_le_collisionPairReduction setup valid H
     fallback A n hlen).trans (mul_le_mul_left ?_ _)
   rw [Nat.cast_pow]

@@ -261,19 +261,19 @@ private theorem coeff_reconstructPoly {a : ℕ} (ha : 0 < a) (ps : Fin a → F[X
     (reconstructPoly a ps).coeff n = (ps ⟨n % a, Nat.mod_lt n ha⟩).coeff (n / a) := by
   simp only [reconstructPoly, finsetSum_coeff, coeff_X_pow_mul']
   rw [Finset.sum_eq_single_of_mem ⟨n % a, Nat.mod_lt n ha⟩ (Finset.mem_univ _)]
-  · have hsub : n - n % a = a * (n / a) := by have := Nat.div_add_mod n a; omega
+  · have hsub : n - n % a = a * (n / a) := by
+      have := Nat.div_add_mod n a
+      omega
     simp only [Nat.mod_le, ↓reduceIte, ← expand_eq_comp_X_pow, coeff_expand ha, hsub,
       dvd_mul_right, Nat.mul_div_cancel_left _ ha]
   · intro r _ hne
-    split_ifs with hle
-    · rw [← expand_eq_comp_X_pow, coeff_expand ha]
-      split_ifs with hdvd
-      · rcases hdvd with ⟨q, hq⟩
-        have hn : n = a * q + r.val := by omega
-        have hmod : n % a = r.val := by rw [hn, Nat.mul_add_mod, Nat.mod_eq_of_lt r.isLt]
-        exact absurd (Fin.ext hmod.symm) hne
-      · rfl
-    · rfl
+    simp only [← expand_eq_comp_X_pow, coeff_expand ha]
+    split_ifs with hle hdvd
+    · rcases hdvd with ⟨q, hq⟩
+      have hn : n = a * q + r.val := by omega
+      have hmod : n % a = r.val := by rw [hn, Nat.mul_add_mod, Nat.mod_eq_of_lt r.isLt]
+      exact absurd (Fin.ext hmod.symm) hne
+    all_goals rfl
 
 /-- Exact decomposition identity: `p = ∑ r : Fin a, X ^ r * (polyComp a p r).comp (X ^ a)`. -/
 theorem reconstructPoly_polyComp {a : ℕ} (ha : 0 < a) (p : F[X]) :
@@ -398,8 +398,7 @@ theorem foldComp_eval {g ω : F} {a N : ℕ} (hg : g ≠ 0) (ha : (a : F) ≠ 0)
     rw [eval_eq_sum_eval_polyComp ha_pos p]
     refine Finset.sum_congr rfl fun u _ => ?_
     rw [cosetPoint_fiberIdx_pow_eq g ω hN hω j t, cosetPoint_fiberIdx g ω ha_pos j t]
-    simp only [cosetPoint, mul_pow, ← pow_mul, mul_assoc]
-    rw [mul_comm t.val u.val]
+    simp only [cosetPoint, mul_pow, ← pow_mul, mul_assoc, mul_comm t.val u.val]
   have hsum :
       (∑ t : Fin a,
         ((ω ^ N)⁻¹) ^ (r.val * t.val) * p.eval (cosetPoint g ω (a * N) (fiberIdx j t))) =
@@ -457,17 +456,15 @@ theorem reconstruct_foldComp {g ω : F} {a N : ℕ} (hg : g ≠ 0) (ha : (a : F)
     rw [cosetPoint_fiberIdx g ω ha_pos j t, foldComp, foldFiberComp]
     simp only [cosetPoint, mul_inv, mul_pow, Finset.mul_sum]
     refine Finset.sum_congr rfl fun u _ => ?_
-    have hcancel := mul_inv_cancel₀ (pow_ne_zero r.val hx0)
     rw [← pow_mul (ω ^ N) t.val r.val, mul_comm r.val u.val]
     calc _ = ((g * ω ^ j.val) ^ r.val * ((g * ω ^ j.val) ^ r.val)⁻¹) *
             ((a : F)⁻¹ * ((((ω ^ N)⁻¹) ^ (u.val * r.val) * (ω ^ N) ^ (t.val * r.val)) *
               f (fiberIdx j u))) := by ring
-      _ = _ := by rw [hcancel, one_mul]
+      _ = _ := by rw [mul_inv_cancel₀ (pow_ne_zero r.val hx0), one_mul]
   simp only [hterm, ← Finset.mul_sum]
   rw [Finset.sum_comm]
   simp_rw [← Finset.sum_mul, sum_primitiveRoot_mul_inv (isPrimitiveRoot_fiber hN hω) t]
-  simp only [ite_mul, zero_mul, Finset.sum_ite_eq, Finset.mem_univ, ↓reduceIte]
-  rw [← mul_assoc, inv_mul_cancel₀ ha, one_mul]
+  simp [← mul_assoc, inv_mul_cancel₀ ha]
 
 /-- Product-to-fiber bijection `Fin N × Fin a ≃ Fin (a * N)` inverse to `(i % N, i / N)`. -/
 private def fiberIdxEquiv {a N : ℕ} (hN : 0 < N) : Fin N × Fin a ≃ Fin (a * N) where
@@ -525,9 +522,8 @@ theorem exists_mem_reedSolomon_weighted_agree_lift {g ω : F} {a N k : ℕ} [Dec
   have ha_pos : 0 < a := Nat.pos_of_ne_zero fun h => ha (by simp [h])
   choose ps hps_deg hps_eval using fun r => mem_reedSolomon.mp (hv r)
   let c : Fin (a * N) → F := fun i => (reconstructPoly a ps).eval (cosetPoint g ω (a * N) i)
-  have hc_agree : ∀ j : Fin N, (∀ r : Fin a, foldComp g ω f r j = v r j) →
-      ∀ t : Fin a, f (fiberIdx j t) = c (fiberIdx j t) := by
-    intro j hj t
+  have hc_agree (j : Fin N) (hj : ∀ r : Fin a, foldComp g ω f r j = v r j) (t : Fin a) :
+      f (fiberIdx j t) = c (fiberIdx j t) := by
     rw [← reconstruct_foldComp hg ha hN hω f j t]
     simp only [c, eval_reconstructPoly]
     exact Finset.sum_congr rfl fun r _ => by
@@ -535,19 +531,17 @@ theorem exists_mem_reedSolomon_weighted_agree_lift {g ω : F} {a N k : ℕ} [Dec
   refine ⟨c, eval_mem_reedSolomon _ (degree_reconstructPoly_lt ha_pos hps_deg), hc_agree, ?_⟩
   let S : Finset (Fin N) :=
     Finset.univ.filter fun j : Fin N => ∀ r : Fin a, foldComp g ω f r j = v r j
-  have hsub : (S ×ˢ (Finset.univ : Finset (Fin a))).image (fiberIdxEquiv hN) ⊆
-      Finset.univ.filter (fun i => f i = c i) := by
-    intro i hi
-    rcases Finset.mem_image.mp hi with ⟨⟨j, t⟩, hjt, rfl⟩
-    exact Finset.mem_filter.mpr ⟨Finset.mem_univ _,
-      hc_agree j (Finset.mem_filter.mp (Finset.mem_product.mp hjt).1).2 t⟩
   calc ∑ j ∈ S, pushWeight W j
       = ∑ p ∈ S ×ˢ (Finset.univ : Finset (Fin a)), W (fiberIdxEquiv hN p) := by
-        rw [Finset.sum_product]; rfl
-    _ = ∑ i ∈ (S ×ˢ (Finset.univ : Finset (Fin a))).image (fiberIdxEquiv hN), W i := by
-        rw [Finset.sum_image fun p₁ _ p₂ _ h => (fiberIdxEquiv hN).injective h]
-    _ ≤ ∑ i ∈ Finset.univ.filter (fun i => f i = c i), W i :=
-        Finset.sum_le_sum_of_subset hsub
+        rw [Finset.sum_product]
+        rfl
+    _ = ∑ i ∈ (S ×ˢ (Finset.univ : Finset (Fin a))).image (fiberIdxEquiv hN), W i :=
+        (Finset.sum_image fun _ _ _ _ h => (fiberIdxEquiv hN).injective h).symm
+    _ ≤ ∑ i ∈ Finset.univ.filter (fun i => f i = c i), W i := by
+        refine Finset.sum_le_sum_of_subset fun i hi => ?_
+        rcases Finset.mem_image.mp hi with ⟨⟨j, t⟩, hjt, rfl⟩
+        exact Finset.mem_filter.mpr ⟨Finset.mem_univ _,
+          hc_agree j (Finset.mem_filter.mp (Finset.mem_product.mp hjt).1).2 t⟩
 
 end WordFolding
 

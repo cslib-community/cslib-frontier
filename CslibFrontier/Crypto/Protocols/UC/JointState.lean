@@ -200,10 +200,7 @@ theorem toJoint_polyBounded {m n : ℕ} {In Out NetQ NetR SubIn SubOut : Type}
   refine OracleComp.IsCostBounded.interpret (fun r => ?_) ((hρ κ C).2 q s)
   cases r with
   | inl k => exact OracleComp.IsCostBounded.query (Sum.inl k)
-  | inr c =>
-    exact OracleComp.IsCostBounded.query
-      (spec := probOracleSpec (partySpec n (SubSessionInput (Fin m) SubIn) SubOut))
-      (Sum.inr (c.party, ⟨c.session, c.input⟩))
+  | inr c => exact OracleComp.IsCostBounded.query _
 
 /-- Library construction (no cited definition): translate a network query of the `F̂`-hybrid
 execution (`compose ρ.toJoint F̂`) to the corresponding network query of the `m`-session execution

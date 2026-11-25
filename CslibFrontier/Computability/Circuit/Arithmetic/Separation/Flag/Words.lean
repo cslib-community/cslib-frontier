@@ -95,7 +95,8 @@ theorem exists_col_aux (l : Len (U n)) (a : Fin n) (k : ℕ) : ∀ p : ℕ, p + 
   | zero =>
     intro p hp u hua hu1 hu2
     have hT : 0 ≤ l.T p := sum_nonneg fun _ _ => apply_nonneg l _
-    refine ⟨1, 1, fun _ _ _ => rfl, fun _ _ _ => rfl, fun i => ?_, fun i => ?_, ?_, ?_⟩
+    refine ⟨1, 1, fun _ _ _ => rfl, fun _ _ _ => rfl, fun i => ?_, fun i => ?_,
+      (map_one_eq_zero l).trans_le hT, (map_one_eq_zero l).trans_le hT⟩
     · rw [mat_one, Matrix.one_apply]
       by_cases h : i = a
       · subst h
@@ -109,8 +110,6 @@ theorem exists_col_aux (l : Len (U n)) (a : Fin n) (k : ℕ) : ∀ p : ℕ, p + 
       · subst h
         rw [ite_eq_left rfl, hua]
       · rw [ite_eq_right h.ne', hu1 i h]
-    · rw [map_one_eq_zero l]; exact hT
-    · rw [map_one_eq_zero l]; exact hT
   | succ k ih =>
     intro p hp u hua hu1 hu2
     have hpa : p < a.1 := by omega
@@ -118,10 +117,7 @@ theorem exists_col_aux (l : Len (U n)) (a : Fin n) (k : ℕ) : ∀ p : ℕ, p + 
     set j : Fin (n - 1) := ⟨p, hpn⟩ with hj
     have hlo : (lo j).1 = p := rfl
     have hhi : (hi j).1 = p + 1 := rfl
-    have hloa : lo j ≠ a := by
-      intro h
-      rw [← h, hlo] at hpa
-      omega
+    have hloa : lo j ≠ a := Fin.ne_of_val_ne (by rw [hlo]; omega)
     obtain ⟨c, d, hc, hd, hda, hcd, hlc, hld⟩ := ih (p + 1) (by omega)
       (Function.update u (lo j) 0) (by rw [Function.update_of_ne hloa.symm, hua])
       (fun i hi => by
@@ -148,10 +144,8 @@ theorem exists_col_aux (l : Len (U n)) (a : Fin n) (k : ℕ) : ∀ p : ℕ, p + 
       rintro i hi rfl
       rw [Fin.le_def, hlo] at hi
       omega
-    have hrow' : ∀ i : Fin n, (i.1 < p ∨ a ≤ i) → (i.1 < p + 1 ∨ a ≤ i) := by
-      rintro i (h | h)
-      · left; omega
-      · right; exact h
+    have hrow' : ∀ i : Fin n, (i.1 < p ∨ a ≤ i) → (i.1 < p + 1 ∨ a ≤ i) :=
+      fun _ => Or.imp_left Nat.lt_succ_of_lt
     have hd' : ∀ i k : Fin n,
         (i.1 < p ∨ a ≤ i) → mat (x n j * d) i k = (1 : Matrix _ _ F2) i k := by
       intro i k hi
@@ -167,13 +161,8 @@ theorem exists_col_aux (l : Len (U n)) (a : Fin n) (k : ℕ) : ∀ p : ℕ, p + 
       · rw [ite_eq_right h, add_zero]
         have : i.1 ≠ p := fun h2 => h (Fin.ext h2)
         congr 1
-        apply propext
-        constructor
-        · rintro ⟨h1, h2⟩; exact ⟨by omega, h2⟩
-        · rintro ⟨h1, h2⟩; exact ⟨by omega, h2⟩
-    have hld' : l (x n j * d) ≤ l.T p := by
-      have := map_mul_le_add l (x n j) d
-      linarith
+        exact propext (and_congr_left fun _ => ⟨fun _ => by omega, fun _ => by omega⟩)
+    have hld' : l (x n j * d) ≤ l.T p := by linarith [map_mul_le_add l (x n j) d]
     by_cases hu : u (lo j) = 0
     · refine ⟨c * x n j, x n j * d, fun i k hi => ?_, hd', hda', fun i => ?_, ?_, hld'⟩
       · rw [mul_x_apply, hclo, Matrix.one_apply_ne (hrow i hi), ite_self, add_zero,
@@ -182,11 +171,10 @@ theorem exists_col_aux (l : Len (U n)) (a : Fin n) (k : ℕ) : ∀ p : ℕ, p + 
         by_cases h : i = lo j
         · rw [h, Function.update_self, hu]
         · rw [Function.update_of_ne h]
-      · have := map_mul_le_add l c (x n j)
-        linarith
+      · linarith [map_mul_le_add l c (x n j)]
     · have hu' : u (lo j) = 1 := by
-        have : ∀ a : F2, a ≠ 0 → a = 1 := by decide
-        exact this _ hu
+        generalize u (lo j) = b at hu
+        revert b; decide
       refine ⟨c, x n j * d, fun i k hi => hc i k (hrow' i hi), hd', hda', fun i => ?_, ?_, hld'⟩
       · have e : mat (c * (x n j * d)) i a = mat (c * d) i a + mat c i (lo j) * mat d (hi j) a := by
           rw [mat_mul c (x n j * d), mat_mul c d, Matrix.mul_apply, Matrix.mul_apply]

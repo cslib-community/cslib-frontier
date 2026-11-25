@@ -95,8 +95,7 @@ theorem eventually_le_logLowStates_floor {c : ℝ} (hc : 0 < c)
   rw [div_le_iff₀ hp] at a2
   rw [div_le_iff₀ (by positivity)] at a3
   rw [div_le_iff₀ hp2] at a4
-  have b1 : E₀ ≤ E := Nat.le_floor (by linarith)
-  have b2 := hE₀ E b1
+  have b2 := hE₀ E (Nat.le_floor (by linarith))
   have b3 : p ^ 2 * n - 1 ≤ E := by
     have := Nat.lt_floor_add_one (p ^ 2 * (n : ℝ))
     linarith
@@ -106,10 +105,6 @@ theorem eventually_le_logLowStates_floor {c : ℝ} (hc : 0 < c)
     nlinarith
   have b5 : Real.log ((E : ℝ) + 1) ≤ η / 8 * Real.sqrt n :=
     (Real.log_le_log (by positivity) (by linarith [floor_sq_mul_le (p := p) n])).trans a1
-  have b6 : (c - ε) * (p * Real.sqrt n - 1) ≤ (c - ε) * Real.sqrt E :=
-    mul_le_mul_of_nonneg_left b4 (by linarith)
-  have b7 : ε * p * Real.sqrt n ≤ η / 4 * Real.sqrt n :=
-    mul_le_mul_of_nonneg_right hεp (Real.sqrt_nonneg _)
-  nlinarith
+  nlinarith [Real.sqrt_nonneg n]
 
 end Cslib.Circuits.Arithmetic.Separation.Curvature

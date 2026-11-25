@@ -214,10 +214,7 @@ theorem compLeft_injective (D₂ : Diagram Γ b c) : Function.Injective (compLef
 
 theorem compLeft_ne_inr_inr (D₂ : Diagram Γ b c) (x : D₁.Edge) (e : D₂.Inner) :
     compLeft D₁ D₂ x ≠ .inr (Sum.inr e) := by
-  rcases x with i | e' <;> simp only [compLeft] <;> intro h
-  · injection h
-  · injection h with h
-    injection h
+  rcases x with _ | _ <;> rintro ⟨⟩
 
 theorem compRight_injective (D₂ : Diagram Γ b c) (h₁ : Function.Injective D₁.bottom) :
     Function.Injective (compRight D₁ D₂) := by
@@ -225,9 +222,7 @@ theorem compRight_injective (D₂ : Diagram Γ b c) (h₁ : Function.Injective D
   · rw [h₁ (compLeft_injective D₁ D₂ h)]
   · exact absurd h (compLeft_ne_inr_inr D₁ D₂ _ _)
   · exact absurd h.symm (compLeft_ne_inr_inr D₁ D₂ _ _)
-  · injection h with h
-    injection h with h
-    rw [h]
+  · exact congrArg Sum.inr (Sum.inr_injective (Sum.inr_injective h))
 
 theorem tensorLeft_injective (D₂ : Diagram Γ c d) : Function.Injective (tensorLeft D₁ D₂) :=
   ((List.appendIndexEquiv a c).injective.comp Sum.inl_injective).sumMap Sum.inl_injective
@@ -237,14 +232,10 @@ theorem tensorRight_injective (D₂ : Diagram Γ c d) : Function.Injective (tens
 
 theorem tensorLeft_ne_tensorRight (D₂ : Diagram Γ c d) (x : D₁.Edge) (y : D₂.Edge) :
     tensorLeft D₁ D₂ x ≠ tensorRight D₁ D₂ y := by
-  rcases x with i | e <;> rcases y with i' | e' <;> simp only [tensorLeft, tensorRight] <;>
-    intro h
-  · injection h with h
-    exact absurd ((List.appendIndexEquiv a c).injective h) Sum.inl_ne_inr
-  · injection h
-  · injection h
-  · injection h with h
-    injection h
+  rcases x with i | _ <;> rcases y with i' | _
+  · intro h
+    exact Sum.inl_ne_inr ((List.appendIndexEquiv a c).injective (Sum.inl.inj h))
+  all_goals rintro ⟨⟩
 
 /-- The diagram `D` with the wires `l` running down on its left and `r` on its right: one layer of
 a drawing. -/

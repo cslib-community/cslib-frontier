@@ -106,14 +106,12 @@ theorem take_output (taps : List Bool) {k ℓ : ℕ} {state : List Bool}
   | zero => simp
   | succ k ih =>
     obtain ⟨ℓ, rfl⟩ := Nat.exists_eq_add_one_of_ne_zero (by omega : ℓ ≠ 0)
-    cases state with
-    | nil => simp at hk
-    | cons b state =>
-      rw [List.length_cons] at hk
+    rcases state with _ | ⟨b, state⟩
+    · simp at hk
+    · rw [List.length_cons] at hk
       rw [output_succ, step_cons, List.take_succ_cons, List.take_succ_cons,
         ih (by rw [List.length_append]; omega) (by omega),
-        List.take_append_of_le_length (by omega)]
-      rfl
+        List.take_append_of_le_length (by omega), List.headD_cons]
 
 /-- The first `n` output bits of an `n`-bit register are its seed. -/
 theorem take_length_output (taps : List Bool) {ℓ : ℕ} {state : List Bool}
@@ -156,25 +154,20 @@ theorem drop_output_eq_output_take_drop (taps : List Bool) (t ℓ : ℕ) (state 
   · rw [take_drop_output taps h, drop_output]
   · have hlen : ((output taps ℓ state).drop t).length = ℓ - t := by
       rw [List.length_drop, length_output]
-    have hout := output_length taps ((output taps ℓ state).drop t)
-    rw [hlen] at hout
-    rw [List.take_of_length_le (by omega), hout]
+    rw [List.take_of_length_le (by omega), ← hlen, output_length]
 
 /-- The output bit that follows the seed is the feedback bit of the seed. -/
 theorem getD_output_length (taps : List Bool) {ℓ : ℕ} {state : List Bool}
     (h : state.length < ℓ) :
     (output taps ℓ state).getD state.length false = listDot taps state := by
   obtain ⟨ℓ, rfl⟩ := Nat.exists_eq_add_one_of_ne_zero (by omega : ℓ ≠ 0)
-  cases state with
-  | nil => simp [output_succ]
-  | cons b state =>
-    have htake := take_output taps (k := state.length + 1) (ℓ := ℓ)
-      (state := state ++ [listDot taps (b :: state)]) (by simp) (by simpa using h)
-    have hget := congrArg (fun l => l.getD state.length false) htake
+  rcases state with _ | ⟨b, state⟩
+  · simp [output_succ]
+  · have hget := congrArg (fun l => l.getD state.length false)
+      (take_output taps (k := state.length + 1) (ℓ := ℓ)
+        (state := state ++ [listDot taps (b :: state)]) (by simp) (by simpa using h))
     simp only [List.getD_eq_getElem?_getD, List.getElem?_take, Nat.lt_add_one, ↓reduceIte] at hget
-    rw [output_succ, step_cons, List.length_cons, List.getD_cons_succ,
-      List.getD_eq_getElem?_getD, hget]
-    simp
+    simp [output_succ, step_cons, List.getD_eq_getElem?_getD, hget]
 
 /-- The linear recurrence of an `n`-bit register: output bit `t + n` is the feedback bit of
 output bits `t, …, t + n - 1`. -/
@@ -182,11 +175,11 @@ theorem getD_output_add (taps : List Bool) {t ℓ : ℕ} {state : List Bool}
     (h : t + state.length < ℓ) :
     (output taps ℓ state).getD (t + state.length) false =
       listDot taps (((output taps ℓ state).drop t).take state.length) := by
-  rw [take_drop_output taps h.le]
-  have := getD_output_length taps (ℓ := ℓ - t) (state := (step taps)^[t] state)
+  have h' := getD_output_length taps (ℓ := ℓ - t) (state := (step taps)^[t] state)
     (by rw [length_iterate_step]; omega)
-  rw [length_iterate_step, ← drop_output] at this
-  rw [← this, List.getD_eq_getElem?_getD, List.getD_eq_getElem?_getD, List.getElem?_drop]
+  rw [length_iterate_step, ← drop_output] at h'
+  rw [take_drop_output taps h.le, ← h', List.getD_eq_getElem?_getD, List.getD_eq_getElem?_getD,
+    List.getElem?_drop]
 
 /-- Output bit `i ≥ n` of an `n`-bit register is the feedback bit of the last `n` of the first
 `i` output bits. -/
@@ -223,8 +216,7 @@ theorem listDot_drop_take_generator (taps : List Bool) {n ℓ : ℕ} (i : Fin �
       generator taps n ℓ seed i := by
   have h := getD_output taps (i := i) (ℓ := ℓ) (state := List.ofFn seed) (by simpa using hi) i.isLt
   rw [List.length_ofFn] at h
-  rw [Fin.ofFn_take_eq_take_ofFn, ofFn_generator, ← h]
-  rfl
+  rw [Fin.ofFn_take_eq_take_ofFn, ofFn_generator, ← h]; rfl
 
 /-- **A single LFSR is predictable** [Boneh and Shoup, Section 3.8, p. 75][BonehShoup2023], in
 Attack Game 3.2: for every position `i ≥ n`, the predictor guesses output bit `i` of an `n`-bit
@@ -239,8 +231,7 @@ theorem predictionExperiment_predictor (taps : List Bool) {n ℓ : ℕ} (i : Fin
 /-- The predictor has the largest possible advantage `1 / 2` in Attack Game 3.2. -/
 theorem predictionAdvantage_predictor (taps : List Bool) {n ℓ : ℕ} (i : Fin ℓ) (hi : n ≤ i) :
     (generator taps n ℓ).predictionAdvantage i (predictor taps n i) = 1 / 2 := by
-  rw [Generator.predictionAdvantage, predictionExperiment_predictor taps i hi]
-  norm_num
+  rw [Generator.predictionAdvantage, predictionExperiment_predictor taps i hi]; norm_num
 
 /-- The test built from the predictor distinguishes the LFSR output from a uniform string with
 advantage `1 / 2` in Attack Game 3.1. -/

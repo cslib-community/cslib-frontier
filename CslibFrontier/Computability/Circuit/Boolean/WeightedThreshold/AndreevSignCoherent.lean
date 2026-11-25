@@ -276,13 +276,12 @@ theorem two_pow_mul_andreevCubeSplitBound_le (c : Circuit signature (2 ^ b + b *
   have hmain := two_pow_mul_sub_le_mul_sum_andreevCubeSplitCount c hd hcomp q
   unfold andreevCubeSplitBound
   rcases le_or_gt ((2 : ℝ) ^ b - b - 1 - Real.logb 2 (G + 1)) 0 with hn | hn
-  · rw [max_eq_left hn, zero_div, mul_zero]; exact hsum
+  · rwa [max_eq_left hn, zero_div, mul_zero]
   · have hb : (1 : ℝ) ≤ b := by
       rcases Nat.eq_zero_or_pos b with h0 | h0
       · subst h0; simp at hn; linarith
       · exact Nat.one_le_cast.mpr h0
-    rw [max_eq_right hn.le, ← mul_div_assoc, div_le_iff₀ (by linarith), mul_comm _ (_ + _)]
-    exact hmain
+    rwa [max_eq_right hn.le, ← mul_div_assoc, div_le_iff₀ (by linarith), mul_comm _ (_ + _)]
 
 /-! ### Lemma 15: a sign-coherent gate splits few cubes -/
 

@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Combinatorics.Expander.HittingProduct
-import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Data.Finset.Powerset
 import Mathlib.Data.Finset.Basic
 import Mathlib.Data.Nat.Choose.Bounds
@@ -112,26 +111,18 @@ theorem sq_dens_filter_selected_walkAt_mem_le (W : Finset V) (t : ℕ)
   refine h.trans ((mul_le_mul_of_nonneg_right h0
     (prod_nonneg fun i _ => hc (i + 1))).trans_eq ?_)
   rw [mul_comm, ← prod_range_succ']
-  dsimp [c]
-  rw [← prod_filter]
-  have heq : (range (t + 1)).filter (fun i => i ∈ S) = S := by
-    ext i
-    exact ⟨fun h => (mem_filter.mp h).2, fun h => mem_filter.mpr ⟨hS h, h⟩⟩
-  rw [heq, prod_const]
+  dsimp only [c]
+  rw [← prod_filter, filter_mem_eq_inter, inter_eq_right.mpr hS, prod_const]
 
 /-- Selected-time hitting for any subset of the `t + 1` vertex times. -/
 theorem dens_filter_selected_walkAt_mem_le (W : Finset V) (t : ℕ)
     (S : Finset ℕ) (hS : S ⊆ range (t + 1)) :
     (dens {p : V × (Fin t → D) | ∀ i ∈ S, G.walkAt p i ∈ W} : ℝ) ≤
       ((dens W : ℝ) + G.spectralExpansion ^ 2) ^ ((S.card : ℝ) / 2) := by
-  have h := G.sq_dens_filter_selected_walkAt_mem_le W t S hS
   apply (abs_le_of_sq_le_sq' ?_ (by positivity)).2
-  have heq : (((dens W : ℝ) + G.spectralExpansion ^ 2) ^ ((S.card : ℝ) / 2)) ^ 2 =
-      ((dens W : ℝ) + G.spectralExpansion ^ 2) ^ S.card := by
-    rw [← Real.rpow_natCast _ 2, ← Real.rpow_mul (by positivity)]
-    rw [Nat.cast_ofNat, div_mul_cancel₀ _ (by norm_num : (2 : ℝ) ≠ 0), Real.rpow_natCast]
-  rw [heq]
-  exact h
+  rw [← Real.rpow_natCast (_ ^ _) 2, ← Real.rpow_mul (by positivity), Nat.cast_ofNat,
+    div_mul_cancel₀ _ two_ne_zero, Real.rpow_natCast]
+  exact G.sq_dens_filter_selected_walkAt_mem_le W t S hS
 
 /-- The binomial factorial moment of the number of visits. -/
 theorem expect_choose_visitCount_le (W : Finset V) (t m : ℕ) :
@@ -146,7 +137,8 @@ theorem expect_choose_visitCount_le (W : Finset V) (t m : ℕ) :
         ((range (t + 1)).filter fun i => G.walkAt p i ∈ W).powersetCard m := by
       ext S
       simp only [T, mem_filter, mem_powersetCard, subset_iff]
-      aesop
+      exact ⟨fun ⟨⟨h1, h2⟩, h3⟩ => ⟨fun i hi => ⟨h1 hi, h3 i hi⟩, h2⟩,
+        fun ⟨h1, h2⟩ => ⟨⟨fun i hi => (h1 hi).1, h2⟩, fun i hi => (h1 hi).2⟩⟩
     rw [sum_boole, heq, card_powersetCard]
     rfl
   simp only [hcount]
@@ -169,8 +161,7 @@ theorem dens_filter_visitCount_ge_le (W : Finset V) (t m : ℕ) :
         ((dens W : ℝ) + G.spectralExpansion ^ 2) ^ ((m : ℝ) / 2) := by
   refine le_trans ?_ (G.expect_choose_visitCount_le W t m)
   rw [← Fintype.expect_boole]
-  apply expect_le_expect
-  intro p _
+  refine expect_le_expect fun p _ => ?_
   split_ifs with hp
   · exact_mod_cast Nat.choose_pos hp
   · positivity
@@ -180,16 +171,13 @@ theorem dens_filter_visitCount_gt_le (W : Finset V) (t m : ℕ) :
     (dens {p : V × (Fin t → D) | m < G.visitCount W p} : ℝ) ≤
       (Nat.choose (t + 1) m *
         ((dens W : ℝ) + G.spectralExpansion ^ 2) ^ ((m : ℝ) / 2)) / (m + 1) := by
-  apply (le_div_iff₀ (by positivity : (0 : ℝ) < m + 1)).mpr
+  rw [le_div_iff₀ (by positivity)]
   refine le_trans ?_ (G.expect_choose_visitCount_le W t m)
   rw [← Fintype.expect_boole, expect_mul]
-  apply expect_le_expect
-  intro p _
+  refine expect_le_expect fun p _ => ?_
   split_ifs with hp
-  · simp only [one_mul]
-    have h := Nat.choose_le_choose m (Nat.succ_le_of_lt hp)
-    rw [Nat.choose_succ_self_right] at h
-    exact_mod_cast h
+  · simpa [Nat.choose_succ_self_right] using
+      (Nat.cast_le (α := ℝ)).mpr (Nat.choose_le_choose m (Nat.succ_le_of_lt hp))
   · simp
 
 /-- The source's strictly-smaller bound, with the required nondegenerate hypotheses. -/
@@ -211,21 +199,21 @@ theorem dens_filter_visitCount_half_lt (W : Finset V) (t : ℕ)
     (dens {p : V × (Fin t → D) | (t + 1) / 2 < G.visitCount W p} : ℝ) <
       (32 * (dens W : ℝ)) ^ (((t + 1 : ℕ) : ℝ) / 4) := by
   let ρ : ℝ := dens W
-  have hρ : 0 < ρ := by
-    have : 0 < Real.sqrt ρ := lt_of_le_of_lt G.spectralExpansion_nonneg hη
-    exact Real.sqrt_pos.mp this
+  have hρ : 0 < ρ := Real.sqrt_pos.mp (G.spectralExpansion_nonneg.trans_lt hη)
   have hq : ρ + G.spectralExpansion ^ 2 < 2 * ρ := by
-    have hs := Real.sq_sqrt hρ.le
-    have hn := G.spectralExpansion_nonneg
-    nlinarith
+    have hsq : G.spectralExpansion ^ 2 < ρ := by
+      calc G.spectralExpansion ^ 2 < (Real.sqrt ρ) ^ 2 :=
+            pow_lt_pow_left₀ hη G.spectralExpansion_nonneg two_ne_zero
+        _ = ρ := Real.sq_sqrt hρ.le
+    linarith
   by_cases hsmall : ρ ≤ 1 / 32
   · let k := (t + 2) / 2
     have hk : 0 < k := by dsimp [k]; omega
     have hkr : ((t + 1 : ℕ) : ℝ) / 4 ≤ (k : ℝ) / 2 := by
-      have hi : t + 1 ≤ 2 * k := by dsimp [k]; omega
-      cast_linarith [hi]
-    have hevent : (dens {p : V × (Fin t → D) |
-        (t + 1) / 2 < G.visitCount W p} : ℝ) ≤
+      have hi : ((t + 1 : ℕ) : ℝ) ≤ 2 * (k : ℝ) := by
+        exact_mod_cast (show t + 1 ≤ 2 * k by dsimp [k]; omega)
+      linarith
+    have hevent : (dens {p : V × (Fin t → D) | (t + 1) / 2 < G.visitCount W p} : ℝ) ≤
         dens ({p : V × (Fin t → D) | k ≤ G.visitCount W p} : Finset _) := by
       have hsub : ({p : V × (Fin t → D) | (t + 1) / 2 < G.visitCount W p} : Finset _) ⊆
           ({p : V × (Fin t → D) | k ≤ G.visitCount W p} : Finset _) := by
@@ -247,14 +235,11 @@ theorem dens_filter_visitCount_half_lt (W : Finset V) (t : ℕ)
         · positivity
         · positivity
       _ = _ := by
-        have heq : ((2 : ℝ) ^ 4) ^ (((t + 1 : ℕ) : ℝ) / 4) = (2 : ℝ) ^ (t + 1) := by
-          rw [← Real.rpow_natCast (2 : ℝ) 4, ← Real.rpow_mul (by positivity)]
-          norm_num only [Nat.cast_ofNat]
-          rw [show (4 : ℝ) * (((t + 1 : ℕ) : ℝ) / 4) = ((t + 1 : ℕ) : ℝ) by ring,
-            Real.rpow_natCast]
-        calc _ = ((2 : ℝ) ^ 4) ^ (((t + 1 : ℕ) : ℝ) / 4) *
-            (2 * ρ) ^ (((t + 1 : ℕ) : ℝ) / 4) := by rw [heq]
-          _ = _ := by rw [← Real.mul_rpow (by positivity) (by positivity)]; congr 1; ring
+        rw [show (2 : ℝ) ^ (t + 1) = (16 : ℝ) ^ (((t + 1 : ℕ) : ℝ) / 4) by
+          rw [show (16 : ℝ) = (2 : ℝ) ^ (4 : ℝ) by norm_num, ← Real.rpow_mul (by norm_num),
+            show (4 : ℝ) * (((t + 1 : ℕ) : ℝ) / 4) = ((t + 1 : ℕ) : ℝ) by ring, Real.rpow_natCast],
+          ← Real.mul_rpow (by norm_num) (by positivity)]
+        congr 1; ring
   · have hd : (dens {p : V × (Fin t → D) | (t + 1) / 2 < G.visitCount W p} : ℝ) ≤ 1 := by
       exact_mod_cast (dens_le_one (s := {p : V × (Fin t → D) | (t + 1) / 2 < G.visitCount W p}))
     exact hd.trans_lt (Real.one_lt_rpow (by change 1 < 32 * ρ; linarith) (by positivity))

@@ -132,18 +132,13 @@ private theorem bfsMid_spec (hB : ∀ u v, W u v ≤ B) (hlay : mb + n * n ≤ s
       · rw [ite_eq_left hdu, clientResult_bind, clientState_bind, clientResult_pure,
           clientState_pure]
         have hres_u : f.resDist uFin = layer := by
-          by_contra hne
-          rcases lt_trichotomy (f.resDist uFin) layer with hlt | heq | hgt
-          · have h1 : t'.mem (distAddr ⟨n, mb, sb, B⟩ u) = f.resDist uFin :=
-            hd_le uFin (le_of_lt hlt)
-            omega
-          · exact hne heq
-          · by_cases h1 : f.resDist uFin = layer + 1
-            · rcases hd_eq uFin h1 with h | h
-              · have h' : t'.mem (distAddr ⟨n, mb, sb, B⟩ u) = layer + 1 := h; omega
-              · have h' : t'.mem (distAddr ⟨n, mb, sb, B⟩ u) = M := h; omega
-            · have h2 : t'.mem (distAddr ⟨n, mb, sb, B⟩ u) = M := hd_gt uFin (by omega)
-              omega
+          have h1 : f.resDist uFin ≤ layer → t'.mem (distAddr ⟨n, mb, sb, B⟩ u) = f.resDist uFin :=
+            hd_le uFin
+          have h2 : layer + 1 < f.resDist uFin → t'.mem (distAddr ⟨n, mb, sb, B⟩ u) = M :=
+            hd_gt uFin
+          have h3 : f.resDist uFin = layer + 1 → t'.mem (distAddr ⟨n, mb, sb, B⟩ u) = layer + 1 ∨
+              t'.mem (distAddr ⟨n, mb, sb, B⟩ u) = M := hd_eq uFin
+          omega
         have hinn := iterate_invariant_of bfsInnerStep ((⟨n, mb, sb, B⟩, layer), u)
           (fun vrem (v : ℕ) t'' =>
             v + vrem = M ∧
@@ -195,13 +190,11 @@ private theorem bfsMid_spec (hB : ∀ u v, W u v ≤ B) (hlay : mb + n * n ≤ s
               · rw [Function.update_of_ne (by ek_omega),
                   Function.update_of_ne (by ek_omega)]
                 exact hi_low a ha
-              · have hxv : x.1 ≠ v := fun h => by
-                  have : x = vFin := Fin.ext h; subst this; omega
+              · have hxv : x.1 ≠ v := fun h => by obtain rfl : x = vFin := Fin.ext h; omega
                 rw [Function.update_of_ne (by have := x.2; ek_omega),
                   Function.update_of_ne (by ek_omega)]
                 exact hi_le x hx
-              · have hxv : x.1 ≠ v := fun h => by
-                  have : x = vFin := Fin.ext h; subst this; omega
+              · have hxv : x.1 ≠ v := fun h => by obtain rfl : x = vFin := Fin.ext h; omega
                 rw [Function.update_of_ne (by have := x.2; ek_omega),
                   Function.update_of_ne (by ek_omega)]
                 exact hi_gt x hx
@@ -221,8 +214,7 @@ private theorem bfsMid_spec (hB : ∀ u v, W u v ≤ B) (hlay : mb + n * n ≤ s
               · rw [Function.update_of_ne (by have := x.2; ek_omega)]
                   at hpos hlt
                 by_cases hxv : x.1 = v
-                · have hxeq : x = vFin := Fin.ext hxv
-                  subst hxeq
+                · obtain rfl : x = vFin := Fin.ext hxv
                   exact ⟨uFin, by dsimp only [vFin]; rw [Function.update_self],
                     by rw [hres_u, hv_res], hcond.2⟩
                 · rw [Function.update_of_ne (by ek_omega)] at hpos hlt
@@ -236,11 +228,8 @@ private theorem bfsMid_spec (hB : ∀ u v, W u v ≤ B) (hlay : mb + n * n ≤ s
               refine ⟨by omega, hi_low, hi_le, hi_gt, hi_eq, hi_found,
                 fun x hx hpos hx1 => ?_, hi_par⟩
               by_cases hxv : x.1 = v
-              · have hxeq : x = vFin := Fin.ext hxv
-                subst hxeq
-                rcases hi_eq vFin hx1 with h1 | hM'
-                · exact h1
-                · exact absurd ⟨hM', hpos⟩ hcond
+              · obtain rfl : x = vFin := Fin.ext hxv
+                exact (hi_eq _ hx1).resolve_right fun hM' => hcond ⟨hM', hpos⟩
               · exact hi_cur x (by omega) hpos hx1)
           (n := M) (a := 0) (s := t')
           ⟨Nat.zero_add _, ht_low, hd_le, hd_gt, hd_eq, hd_found,
@@ -251,8 +240,7 @@ private theorem bfsMid_spec (hB : ∀ u v, W u v ≤ B) (hlay : mb + n * n ≤ s
         rw [hv_end] at h6
         refine ⟨by omega, h1, h2, h3, h4, fun x hx ⟨u', hu', hru', hrc'⟩ => ?_, h7⟩
         by_cases hu_eq : u'.1 = u
-        · have : u' = uFin := Fin.ext hu_eq
-          subst this
+        · obtain rfl : u' = uFin := Fin.ext hu_eq
           exact h6 x x.2 hrc' hx
         · exact h5 x hx ⟨u', by omega, hru', hrc'⟩
       · rw [ite_eq_right hdu]
@@ -260,8 +248,7 @@ private theorem bfsMid_spec (hB : ∀ u v, W u v ≤ B) (hlay : mb + n * n ≤ s
         refine ⟨by omega, ht_low, hd_le, hd_gt, hd_eq,
           fun x hx ⟨u', hu', hru', hrc'⟩ => ?_, hpar⟩
         by_cases hu_eq : u'.1 = u
-        · have : u' = uFin := Fin.ext hu_eq
-          subst this
+        · obtain rfl : u' = uFin := Fin.ext hu_eq
           have h1 : t'.mem (distAddr ⟨n, mb, sb, B⟩ u) = f.resDist uFin :=
             hd_le uFin (le_of_eq hru')
           omega
@@ -351,8 +338,7 @@ theorem bfsProg_spec (hB : ∀ u v, W u v ≤ B) (hlay : mb + n * n ≤ sb)
       unfold bfsLayerStep
       dsimp only
       rw [clientResult_bind_read, clientState_bind_read, clientResult_bind,
-        clientState_bind, clientResult_pure,
-        clientState_pure]
+        clientState_bind, clientResult_pure, clientState_pure]
       exact ⟨by omega, hm_low, hm_inv⟩)
     (n := M - 1) (a := 0) (s := s2) ⟨Nat.zero_add _, hs2_low, hinv0⟩
   obtain ⟨hsum_end, _, hinv_end⟩ := hlayers

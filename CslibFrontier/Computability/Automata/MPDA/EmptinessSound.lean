@@ -107,13 +107,9 @@ theorem BlockRun.snoc {i : Fin n} {s t' s₁ t : State} {r : List (Γ × State)}
   refine ⟨fun L => ?_, fun σ => ?_⟩
   · obtain ⟨ps, hb, hps⟩ := hv L
     exact ⟨(L + v.length, γ) :: ps, .snoc hb hws, by simp [hps]⟩
-  have hσ : Function.update (Function.update σ i (r.map Prod.fst ++ σ i)) i
-      (γ :: Function.update σ i (r.map Prod.fst ++ σ i) i) =
-      Function.update σ i (((γ, t) :: r).map Prod.fst ++ σ i) := by
-    simp
-  refine (hrun σ).comp _
+  exact (hrun σ).comp _
     (.stepL (s2 := ⟨s₁, Function.update σ i (((γ, t) :: r).map Prod.fst ++ σ i)⟩)
-      (configLTS_tr.mpr ⟨hpush, Op.apply_push.mpr hσ.symm⟩) (hws.configLTS_mTr hwsrun _))
+      (configLTS_tr.mpr ⟨hpush, Op.apply_push.mpr (by simp)⟩) (hws.configLTS_mTr hwsrun _))
 
 variable (M) in
 /-- A run of the MPDA from an initial state with empty stacks to the last state of the list `μ`,
@@ -179,11 +175,9 @@ private theorem RunsTo.pop_aux {K : ℕ} {ν : HoleList n State} {w : List (Symb
   rcases pushes with _ | ⟨⟨p, γ'⟩, ps⟩
   · simp at hsym₀
   obtain ⟨rfl, hps⟩ : γ' = γ ∧ ps.map Prod.snd = r.map Prod.fst := by simpa using hsym₀
-  have hCpost : ∀ c ∈ Cpost, c.stack ≠ i := by
-    intro c hc
+  have hCpost : ∀ c ∈ Cpost, c.stack ≠ i := fun c hc => by
     obtain ⟨h, hh, hch⟩ := List.Forall₂.exists_mem_of_mem hstpost hc
-    rw [hch]
-    exact hpost h hh
+    exact hch ▸ hpost h hh
   refine ⟨s₀, hs₀, Cpre, Cpost, ps, .pop hd hCpost, hstpre, hstpost, hsympre, hsympost, hps,
     hrun.comp _ (.single _ (configLTS_tr.mpr ⟨hb, ?_⟩))⟩
   exact Op.apply_pop.mpr (stacksOf_pop hCpost)
@@ -264,10 +258,7 @@ theorem mem_holeSegments_iff_realizes {i : Fin n} {s t : State} :
   · intro h
     induction h with
     | refl => exact ⟨[], .nil⟩
-    | tail _ hstep ih =>
-      obtain ⟨r, hr⟩ := ih
-      obtain ⟨γ, hγ⟩ := hstep
-      exact ⟨_, .cons hr hγ⟩
+    | tail _ hstep ih => exact ih.elim fun r hr => hstep.elim fun γ hγ => ⟨_, .cons hr hγ⟩
   · rintro ⟨r, hr⟩
     induction hr with
     | nil => exact .refl
@@ -306,12 +297,9 @@ theorem Reachable.exists_runsTo {K : ℕ} {μ : HoleList n State}
       ∃ w, M.RunsTo K μ rs w := by
   induction hμ with
   | @init μ hμ =>
-    intro rs hrs
-    obtain ⟨hholes, s₀, hs₀, hwr⟩ := mem_initialLists.mp hμ
     obtain ⟨holes, last⟩ := μ
-    simp only at hholes hrs
-    subst hholes
-    cases hrs
+    obtain ⟨rfl, s₀, hs₀, hwr⟩ := mem_initialLists.mp hμ
+    rintro _ ⟨⟩
     obtain ⟨v, hv, hvrun⟩ := wellNestedReach_iff.mp ((mem_wellNestedPairs M).mp hwr)
     exact ⟨v, runsTo_init hs₀ hv hvrun⟩
   | @step μ ν _ hν ih =>
@@ -319,17 +307,11 @@ theorem Reachable.exists_runsTo {K : ℕ} {μ : HoleList n State}
     simp only [successors, Finset.mem_union] at hν
     rcases hν with hν | hν
     · -- A new hole.
-      split_ifs at hν with hK
-      swap
-      · simp at hν
-      obtain ⟨i, -, hν⟩ := Finset.mem_biUnion.mp hν
-      obtain ⟨⟨s, s'⟩, hss, rfl⟩ := Finset.mem_image.mp hν
-      obtain ⟨-, hs⟩ := Finset.mem_filter.mp hss
-      simp only at hs
-      subst hs
-      obtain ⟨rs₀, rs₁, rfl, -, hrs₀, hrs₁⟩ := List.Forall₂.split_right hrs
-      rcases hrs₁ with _ | ⟨hr, hnil⟩
-      cases hnil
+      have hK : μ.holes.length < K := by_contra fun hK => by simp [hK] at hν
+      simp only [hK, ↓reduceIte, Finset.mem_biUnion, addHole, Finset.mem_image,
+        Finset.mem_filter] at hν
+      obtain ⟨i, -, ⟨s, s'⟩, ⟨-, rfl : s = μ.last⟩, rfl⟩ := hν
+      obtain ⟨rs₀, _, rfl, -, hrs₀, _ | ⟨hr, ⟨⟩⟩⟩ := List.Forall₂.split_right hrs
       obtain ⟨w, hw⟩ := ih rs₀ hrs₀
       obtain ⟨v, hv⟩ := hr.exists_blockRun
       exact ⟨w ++ v, hw.hole hK hv⟩

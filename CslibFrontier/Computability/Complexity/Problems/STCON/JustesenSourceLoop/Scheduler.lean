@@ -330,9 +330,8 @@ private theorem configurationJustesenSeedSchedulerScan_firstHalting_correct
       edge := by
     funext u v
     have hbits : (Cslib.BitString.equivFin _).symm seed =
-        fun j => frame.request.seed.testBit j.val := by
-      funext j
-      rw [Cslib.BitString.equivFin_symm_apply, hseed]
+        fun j => frame.request.seed.testBit j.val :=
+      funext fun j => by rw [Cslib.BitString.equivFin_symm_apply, hseed]
     simp only [configurationJustesenSubdivisionAdjacent, decide_eq_true_eq, hbits, edge]
     rfl
   simpa only [hedge] using hcorrect
@@ -441,21 +440,15 @@ theorem configurationJustesenSeedScheduler_replay_correct
       (fun f hs hv _ => (hspec f hs hv).exists)
   have hunique :=
     SeedSchedulerMachine.subsingleton_successful_firstHalting setup scan start
-      SourceRoundLoop.reply w (by
-        intro f hs hv _
-        obtain ⟨_, _, unique⟩ := hspec f hs hv
-        intro left hl right hr
-        exact (unique left hl).trans (unique right hr).symm)
+      SourceRoundLoop.reply w fun f hs hv _ _ hl _ hr => (hspec f hs hv).unique hl hr
   obtain ⟨answer, hanswer⟩ := Option.isSome_iff_exists.mp hresult
   obtain ⟨actual, hactual, hpack⟩ := SeedSchedulerMachine.runSeedSchedulerFor_eq_of_firstHalting
     setup (configurationSeedSearchSetup_endpoints_lt_vertexCount ntm c w).1
     (fun _ hp => configurationSeedSearchSetup_originalSourceID_lt_vertexCount ntm c w hp)
     (configurationSeedScheduler_seedLimit ntm c w) scan start SourceRoundLoop.reply w oracle
-    (by
-      intro f hs hv _ trace value hhalt hret
-      exact congrArg (fun x => [x])
-        (configurationJustesenSeedSchedulerScan_firstHalting_eq_reference
-          ntm c w f hs hv trace value hhalt hret))
+    (fun f hs hv _ trace value hhalt hret => congrArg (fun x => [x])
+      (configurationJustesenSeedSchedulerScan_firstHalting_eq_reference
+        ntm c w f hs hv trace value hhalt hret))
     bits answer hfirst hanswer
   obtain ⟨result, hmath, hmin, hleast, hreach⟩ :=
     configurationSeedSchedulerReference_correct ntm c w
@@ -479,10 +472,9 @@ theorem configurationJustesenSeedScheduler_replay_correct
       (configurationJustesenSeedScheduler_replay ntm c w trace)
   have hseed : selected.seed < setup.parameters.search.seedLimit :=
     (configurationSeedScheduler_seedLimit ntm c w).symm ▸ result.seed.isLt
-  refine ⟨selected, bits, hseed, hmin, hleast, hreach, (hhalt bits).mpr hfirst, ?_, ?_⟩
-  · exact (hreply bits).trans (hanswer.trans (congrArg some hselected))
-  · intro other hother hr
-    exact hunique ⟨(hhalt other).mp hother, hreply other ▸ hr⟩ ⟨hfirst, hresult⟩
+  exact ⟨selected, bits, hseed, hmin, hleast, hreach, (hhalt bits).mpr hfirst,
+    (hreply bits).trans (hanswer.trans (congrArg some hselected)), fun other hother hr =>
+      hunique ⟨(hhalt other).mp hother, hreply other ▸ hr⟩ ⟨hfirst, hresult⟩⟩
 
 /-- Every selector prefix of the fixed retained-field scheduler fits in logarithmically
 many bits in the original input length, including replays that reject. -/

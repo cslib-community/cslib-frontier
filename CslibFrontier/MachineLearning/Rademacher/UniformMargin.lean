@@ -91,15 +91,14 @@ theorem empiricalMarginLoss_mono_of_pos {α : Type*} {ρ₁ ρ₂ : ℝ} (hρ₁
 /-- Telescoping sum `∑' n : ℕ, 1 / ((n + 1) * (n + 2)) = 1`. -/
 private theorem hasSum_inv_succ_mul_succ :
     HasSum (fun n : ℕ => (1 : ℝ) / ((n + 1 : ℕ) * (n + 2 : ℕ))) 1 := by
-  rw [hasSum_iff_tendsto_nat_of_nonneg (fun n => by positivity)]
-  have hsum : ∀ N : ℕ, ∑ n ∈ range N, (1 : ℝ) / ((n + 1 : ℕ) * (n + 2 : ℕ)) =
+  rw [hasSum_iff_tendsto_nat_of_nonneg fun _ => by positivity]
+  have hsum (N : ℕ) : ∑ n ∈ range N, (1 : ℝ) / ((n + 1 : ℕ) * (n + 2 : ℕ)) =
       1 - 1 / ((N : ℝ) + 1) := by
-    intro N
-    have heq : ∀ n : ℕ, (1 : ℝ) / ((n + 1 : ℕ) * (n + 2 : ℕ)) =
-        1 / ((n : ℝ) + 1) - 1 / ((n + 1 : ℕ) + 1 : ℝ) := fun n => by
+    have heq (n : ℕ) : (1 : ℝ) / ((n + 1 : ℕ) * (n + 2 : ℕ)) =
+        1 / ((n : ℝ) + 1) - 1 / ((n + 1 : ℕ) + 1 : ℝ) := by
       push_cast
-      have h1 : (n : ℝ) + 1 ≠ 0 := by positivity
-      have h2 : (n : ℝ) + 2 ≠ 0 := by positivity
+      have : (n : ℝ) + 1 ≠ 0 := by positivity
+      have : (n : ℝ) + 2 ≠ 0 := by positivity
       field_simp
       ring
     rw [Finset.sum_congr rfl fun n _ => heq n]
@@ -116,50 +115,34 @@ private theorem toOuterMeasure_iUnion_le_of_telescoping {Ω : Type*} (p : PMF Ω
     (E : ℕ → Set Ω) {δ : ℝ} (hδ : 0 < δ)
     (hE : ∀ n : ℕ, (p.toOuterMeasure (E n)).toReal ≤ δ / ((n + 1 : ℕ) * (n + 2 : ℕ))) :
     (p.toOuterMeasure (⋃ n, E n)).toReal ≤ δ := by
-  have hsub : ∀ n : ℕ, p.toOuterMeasure (E n) ≤
-      ENNReal.ofReal (δ / ((n + 1 : ℕ) * (n + 2 : ℕ))) := fun n =>
-    (ENNReal.le_ofReal_iff_toReal_le (Probability.PMF.toOuterMeasure_ne_top p _)
-      (by positivity)).2 (hE n)
-  have hle : p.toOuterMeasure (⋃ n, E n) ≤
-      ∑' n : ℕ, ENNReal.ofReal (δ / ((n + 1 : ℕ) * (n + 2 : ℕ))) :=
-    (MeasureTheory.measure_iUnion_le E).trans (tsum_le_tsum hsub)
   have hhas : HasSum (fun n : ℕ => δ / ((n + 1 : ℕ) * (n + 2 : ℕ))) δ := by
-    simpa only [div_eq_mul_inv, one_mul, mul_one] using
-      hasSum_inv_succ_mul_succ.mul_left δ
-  have htsum : ∑' n : ℕ, ENNReal.ofReal (δ / ((n + 1 : ℕ) * (n + 2 : ℕ))) =
-      ENNReal.ofReal δ := by
-    rw [← ENNReal.ofReal_tsum_of_nonneg (fun n => by positivity) hhas.summable, hhas.tsum_eq]
-  rw [htsum] at hle
-  exact (ENNReal.le_ofReal_iff_toReal_le (Probability.PMF.toOuterMeasure_ne_top p _) hδ.le).1 hle
+    simpa only [div_eq_mul_inv, one_mul, mul_one] using hasSum_inv_succ_mul_succ.mul_left δ
+  refine (ENNReal.le_ofReal_iff_toReal_le (Probability.PMF.toOuterMeasure_ne_top p _) hδ.le).1 ?_
+  rw [← hhas.tsum_eq, ENNReal.ofReal_tsum_of_nonneg (fun _ => by positivity) hhas.summable]
+  exact (MeasureTheory.measure_iUnion_le E).trans (tsum_le_tsum fun n =>
+    (ENNReal.le_ofReal_iff_toReal_le (Probability.PMF.toOuterMeasure_ne_top p _)
+      (by positivity)).2 (hE n))
 
 /-- Every `ρ ∈ (0, r]` falls into a dyadic interval `(r / 2^(n + 1), r / 2^n]`. -/
 private theorem exists_dyadic_bracket {r ρ : ℝ} (hρ : ρ ∈ Set.Ioc 0 r) :
     ∃ n : ℕ, r / 2 ^ (n + 1) < ρ ∧ ρ ≤ r / 2 ^ n := by
-  have hpos : 0 < ρ := hρ.1
-  have hle : ρ ≤ r := hρ.2
   have hex : ∃ n : ℕ, r / 2 ^ (n + 1) < ρ := by
     obtain ⟨n, hn⟩ := pow_unbounded_of_one_lt (r / ρ) (by norm_num : (1 : ℝ) < 2)
-    refine ⟨n, ?_⟩
-    rw [div_lt_iff₀ (by positivity)]
-    have h1 : r / ρ < 2 ^ (n + 1) := hn.trans_le
-      (pow_le_pow_right₀ (by norm_num) (Nat.le_succ n))
-    rw [div_lt_iff₀ hpos] at h1
-    linarith
+    refine ⟨n, (div_lt_iff₀ (by positivity)).2 ?_⟩
+    have h1 : r / ρ < 2 ^ (n + 1) := hn.trans_le (pow_le_pow_right₀ (by norm_num) (Nat.le_succ n))
+    linarith [(div_lt_iff₀ hρ.1).1 h1]
   classical
   refine ⟨Nat.find hex, Nat.find_spec hex, ?_⟩
   cases hn : Nat.find hex with
-  | zero => simpa using hle
-  | succ k =>
-    have hnot : ¬ r / 2 ^ (k + 1) < ρ := Nat.find_min hex (by omega)
-    exact le_of_not_gt hnot
+  | zero => simpa using hρ.2
+  | succ k => exact le_of_not_gt (Nat.find_min hex (by omega))
 
 /-- Relating the dyadic index `n` to `log₂ (2 r / ρ)` when `ρ ≤ r / 2^n`. -/
 private theorem succ_le_logb_two {r ρ : ℝ} {n : ℕ} (hρ : 0 < ρ)
     (hle : ρ ≤ r / 2 ^ n) : (n : ℝ) + 1 ≤ Real.logb 2 (2 * r / ρ) := by
   have hpow : (2 : ℝ) ^ (n + 1) ≤ 2 * r / ρ := by
     rw [le_div_iff₀ hρ, pow_succ']
-    have h := (le_div_iff₀ (by positivity : (0 : ℝ) < 2 ^ n)).1 hle
-    linarith
+    linarith [(le_div_iff₀ (by positivity : (0 : ℝ) < 2 ^ n)).1 hle]
   have hlog := Real.logb_le_logb_of_le (by norm_num : (1 : ℝ) < 2) (by positivity) hpow
   rwa [Real.logb_pow, Real.logb_self_eq_one (by norm_num : (1 : ℝ) < 2), mul_one,
     Nat.cast_add, Nat.cast_one] at hlog
@@ -168,14 +151,14 @@ private theorem succ_le_logb_two {r ρ : ℝ} {n : ℕ} (hρ : 0 < ρ)
 private theorem log_weight_le {c r ρ δ : ℝ} {n : ℕ} (hc : 0 < c) (hρ : 0 < ρ)
     (hδ : 0 < δ) (hle : ρ ≤ r / 2 ^ n) :
     Real.log (c * ((n + 1 : ℕ) * (n + 2 : ℕ)) / δ) ≤
-      2 * Real.log (Real.logb 2 (2 * r / ρ)) + Real.log (2 * c / δ) := by
-  have hlb : (n : ℝ) + 1 ≤ Real.logb 2 (2 * r / ρ) := succ_le_logb_two hρ hle
+       2 * Real.log (Real.logb 2 (2 * r / ρ)) + Real.log (2 * c / δ) := by
+  have hlb := succ_le_logb_two hρ hle
   have hlb_pos : 0 < Real.logb 2 (2 * r / ρ) := lt_of_lt_of_le (by positivity) hlb
   have hprod : ((n + 1 : ℕ) * (n + 2 : ℕ) : ℝ) ≤ 2 * Real.logb 2 (2 * r / ρ) ^ 2 := by
     push_cast
-    have h1 : (n : ℝ) + 2 ≤ 2 * ((n : ℝ) + 1) := by linarith
     calc ((n : ℝ) + 1) * ((n : ℝ) + 2)
-        ≤ ((n : ℝ) + 1) * (2 * ((n : ℝ) + 1)) := mul_le_mul_of_nonneg_left h1 (by positivity)
+        ≤ ((n : ℝ) + 1) * (2 * ((n : ℝ) + 1)) :=
+          mul_le_mul_of_nonneg_left (by linarith) (by positivity)
       _ = 2 * ((n : ℝ) + 1) ^ 2 := by ring
       _ ≤ 2 * Real.logb 2 (2 * r / ρ) ^ 2 := by gcongr
   have hnum : c * ((n + 1 : ℕ) * (n + 2 : ℕ) : ℝ) / δ ≤

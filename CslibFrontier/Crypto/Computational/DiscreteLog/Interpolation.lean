@@ -192,17 +192,15 @@ theorem computableInPolyTime_lagrangeWeightNat {α : Type} {input : α ↪ List 
         F.encDesc := by fun_prop
     have hj' : ComputableInPolyTime (fun p : ((F.Desc × ℕ × ℕ) × ℕ) × ℕ => p.1.1.2.1) E
         encNat := by fun_prop
-    have hx' : ComputableInPolyTime (fun p : ((F.Desc × ℕ × ℕ) × ℕ) × ℕ => p.1.1.2.2) E
-        encNat := by fun_prop
     have hacc : ComputableInPolyTime (fun p : ((F.Desc × ℕ × ℕ) × ℕ) × ℕ => p.1.2) E
         encNat := by fun_prop
     have hv : ComputableInPolyTime (fun p : ((F.Desc × ℕ × ℕ) × ℕ) × ℕ => p.2) E
         encNat := by fun_prop
     have hq' := F.computableInPolyTime_order.comp hd'
-    have hex := computableInPolyTime_extractNat hd' hj' hx' hv hv
-    exact (ComputableInPolyTime.ite_decide
-      (ComputableInPolyTime.decide_eq' (hv.binary_mod' hq') (hj'.binary_mod' hq'))
-      hacc ((hacc.binary_mul' hex).binary_mod' hq'))
+    exact ComputableInPolyTime.ite_decide
+      (ComputableInPolyTime.decide_eq' (hv.binary_mod' hq') (hj'.binary_mod' hq')) hacc
+      ((hacc.binary_mul' (computableInPolyTime_extractNat hd' hj' (by fun_prop) hv hv)).binary_mod'
+        hq')
   · intro a state value _
     split_ifs
     · exact Nat.le_add_right _ _
@@ -275,25 +273,15 @@ theorem computableInPolyTime_encode_lagrangeCombine {α : Type} {input : α ↪ 
   have hd' : ComputableInPolyTime
       (fun p : ((F.Desc × ℕ × List ℕ) × List Bool) × ℕ × List Bool => p.1.1.1) E F.encDesc := by
     fun_prop
-  have hx' : ComputableInPolyTime
-      (fun p : ((F.Desc × ℕ × List ℕ) × List Bool) × ℕ × List Bool => p.1.1.2.1) E encNat := by
-    fun_prop
-  have hns : ComputableInPolyTime
-      (fun p : ((F.Desc × ℕ × List ℕ) × List Bool) × ℕ × List Bool => p.1.1.2.2) E
-      (encList encNat) := by
-    fun_prop
-  have hacc : ComputableInPolyTime
-      (fun p : ((F.Desc × ℕ × List ℕ) × List Bool) × ℕ × List Bool => p.1.2) E encBits := by
-    fun_prop
-  have hj : ComputableInPolyTime
-      (fun p : ((F.Desc × ℕ × List ℕ) × List Bool) × ℕ × List Bool => p.2.1) E encNat := by
-    fun_prop
-  have hw : ComputableInPolyTime
-      (fun p : ((F.Desc × ℕ × List ℕ) × List Bool) × ℕ × List Bool => p.2.2) E encBits := by
-    fun_prop
-  have hstep := F.computableInPolyTime_add.comp (hd'.prod (hacc.prod
-    (F.computableInPolyTime_smul.comp (hd'.prod
-      ((computableInPolyTime_lagrangeWeightNat hd' hns hj hx').prod hw)))))
+  have hstep : ComputableInPolyTime
+      (fun p : ((F.Desc × ℕ × List ℕ) × List Bool) × ℕ × List Bool =>
+        F.add (p.1.1.1, p.1.2,
+          F.smul (p.1.1.1, lagrangeWeightNat (F.order p.1.1.1) p.1.1.2.2 p.2.1 p.1.1.2.1,
+            p.2.2))) E encBits :=
+    F.computableInPolyTime_add.comp (hd'.prod (ComputableInPolyTime.prod (by fun_prop)
+      (F.computableInPolyTime_smul.comp (hd'.prod
+        ((computableInPolyTime_lagrangeWeightNat hd' (by fun_prop) (by fun_prop)
+          (by fun_prop)).prod (by fun_prop))))))
   -- Invariant: the accumulator encodes a group element, so its length is bounded polynomially.
   have hfold := (ComputableInPolyTime.foldlWith_spec
     (encP := encPair F.encDesc (encPair encNat (encList encNat)))
@@ -319,9 +307,8 @@ theorem computableInPolyTime_encode_lagrangeCombine {α : Type} {input : α ↪ 
     have hmem : value ∈ words a :=
       hprefix.subset (List.mem_append_right _ (List.mem_singleton_self _))
     obtain ⟨s, -, rfl⟩ := List.mem_map.mp hmem
-    refine ⟨g + ((lagrangeWeightNat (F.order (d a)) ((words a).map Prod.fst) s.1 (x a) : ℕ) :
-      ZMod (F.order (d a))) • s.2, ?_⟩
-    simp only [F.smul_encode, F.add_encode]
+    exact ⟨g + ((lagrangeWeightNat (F.order (d a)) ((words a).map Prod.fst) s.1 (x a) : ℕ) :
+      ZMod (F.order (d a))) • s.2, by simp only [F.smul_encode, F.add_encode]⟩
   · rintro a _ _ _ ⟨g, rfl⟩
     simpa using hlen (d a) g
 

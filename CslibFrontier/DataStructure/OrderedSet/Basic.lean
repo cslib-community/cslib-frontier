@@ -60,7 +60,7 @@ def least (s : Finset α) : Option α :=
 /-- `least s` satisfies the optional-minimum contract for `s`. -/
 theorem least_spec (s : Finset α) : LeastResult s (least s) := by
   unfold least
-  split <;> rename_i h
+  split_ifs with h
   · exact ⟨Finset.min'_mem s h, fun b hb => Finset.min'_le s b hb⟩
   · exact Finset.not_nonempty_iff_eq_empty.mp h
 
@@ -68,15 +68,11 @@ theorem least_spec (s : Finset α) : LeastResult s (least s) := by
 theorem LeastResult.eq_least {s : Finset α} {a : Option α} (h : LeastResult s a) :
     a = least s := by
   cases a with
-  | none =>
-    have hs : s = ∅ := h
-    subst hs
-    rfl
+  | none => exact h.symm ▸ rfl
   | some a =>
-    obtain ⟨ha, hle⟩ := h
-    have hs : s.Nonempty := ⟨a, ha⟩
-    rw [least, dite_eq_left hs]
-    exact congrArg some (le_antisymm (hle _ (Finset.min'_mem s hs)) (Finset.min'_le s a ha))
+    rw [least, dite_eq_left ⟨a, h.1⟩]
+    exact congrArg some
+      (le_antisymm (h.2 _ (Finset.min'_mem s ⟨a, h.1⟩)) (Finset.min'_le s a h.1))
 
 /-- `least` agrees with `Finset.min` (`WithTop α` is `Option α`). -/
 @[simp] theorem least_eq_min (s : Finset α) : (least s : WithTop α) = s.min := by
@@ -97,7 +93,7 @@ def greatest (s : Finset α) : Option α :=
 /-- `greatest s` satisfies the optional-maximum contract for `s`. -/
 theorem greatest_spec (s : Finset α) : GreatestResult s (greatest s) := by
   unfold greatest
-  split <;> rename_i h
+  split_ifs with h
   · exact ⟨Finset.max'_mem s h, fun b hb => Finset.le_max' s b hb⟩
   · exact Finset.not_nonempty_iff_eq_empty.mp h
 
@@ -105,15 +101,11 @@ theorem greatest_spec (s : Finset α) : GreatestResult s (greatest s) := by
 theorem GreatestResult.eq_greatest {s : Finset α} {a : Option α} (h : GreatestResult s a) :
     a = greatest s := by
   cases a with
-  | none =>
-    have hs : s = ∅ := h
-    subst hs
-    rfl
+  | none => exact h.symm ▸ rfl
   | some a =>
-    obtain ⟨ha, hle⟩ := h
-    have hs : s.Nonempty := ⟨a, ha⟩
-    rw [greatest, dite_eq_left hs]
-    exact congrArg some (le_antisymm (Finset.le_max' s a ha) (hle _ (Finset.max'_mem s hs)))
+    rw [greatest, dite_eq_left ⟨a, h.1⟩]
+    exact congrArg some
+      (le_antisymm (Finset.le_max' s a h.1) (h.2 _ (Finset.max'_mem s ⟨a, h.1⟩)))
 
 /-- The optional-maximum contract characterizes `greatest`. -/
 theorem greatest_eq_iff {s : Finset α} {a : Option α} : greatest s = a ↔ GreatestResult s a :=

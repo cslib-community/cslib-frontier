@@ -151,19 +151,16 @@ theorem IsPTF.comp_add_comp {κ : Type*} [Fintype κ] [DecidableEq κ] {k : ℕ}
     IsPTF k fun w : κ → Bool => f (z + fun i => w (π i)) := by
   obtain ⟨p, hpdeg, hp⟩ := isPTF_iff.1 hf
   refine isPTF_iff.2 ⟨fun w => p (z + fun i => w (π i)), fun S hS => ?_, fun w => hp _⟩
-  refine fourierCoeff_eq_zero_of_mem_lowDegree (comp_mem_lowDegree (fun i => ?_) ?_) hS
-  · have h (w : κ → Bool) : (z + fun i => w (π i)) i = (z i ^^ w (π i)) := by
-      rw [Pi.add_apply, Bool.add_eq_xor]
-    simp only [h]
-    cases z i
-    · simpa only [Bool.false_xor] using bitVal_mem_lowDegree (R := ℝ) (π i)
-    · have h₁ : (fun w : κ → Bool => bitVal ℝ (true ^^ w (π i))) =
-          1 - fun w : κ → Bool => bitVal ℝ (w (π i)) := by
-        funext w
-        rw [Bool.true_xor, bitVal_not, Pi.sub_apply, Pi.one_apply]
-      rw [h₁]
-      exact one_sub_mem_lowDegree (bitVal_mem_lowDegree (π i))
-  · exact mem_lowDegree_iff_fourierCoeff_eq_zero.2 hpdeg
+  refine fourierCoeff_eq_zero_of_mem_lowDegree (comp_mem_lowDegree (fun i => ?_)
+    (mem_lowDegree_iff_fourierCoeff_eq_zero.2 hpdeg)) hS
+  simp only [Pi.add_apply, Bool.add_eq_xor]
+  cases z i
+  · simpa only [Bool.false_xor] using bitVal_mem_lowDegree (R := ℝ) (π i)
+  · have h₁ : (fun w : κ → Bool => bitVal ℝ (true ^^ w (π i))) =
+        1 - fun w : κ → Bool => bitVal ℝ (w (π i)) :=
+      funext fun w => by rw [Bool.true_xor, bitVal_not, Pi.sub_apply, Pi.one_apply]
+    rw [h₁]
+    exact one_sub_mem_lowDegree (bitVal_mem_lowDegree (π i))
 
 /-- **Threshold functions are linear threshold functions**: `Th^n_j` holds exactly when
 `j - 1 / 2 - weight x` is negative, and the weight has degree one. This covers majority
@@ -224,17 +221,15 @@ theorem IsPTFOn.eq_of_fourierCoeff_eq {T : Finset (Finset ι)} {f g : (ι → Bo
     g = f := by
   obtain ⟨p, hpT, hp⟩ := hf
   have hle (x : ι → Bool) : signVal (g x) * p x ≤ signVal (f x) * p x := by
-    rw [signVal_mul_eq_abs (fun x => (hp x).le) x]
-    exact (le_abs_self _).trans (by rw [abs_mul, abs_signVal, one_mul])
+    simpa only [signVal_mul_eq_abs (fun x => (hp x).le) x, abs_mul, abs_signVal, one_mul] using
+      le_abs_self (signVal (g x) * p x)
   have heq : 𝔼 x, signVal (g x) * p x = 𝔼 x, signVal (f x) * p x := by
-    rw [expect_mul_eq_sum_of_fourierCoeff_eq_zero hpT,
-      expect_mul_eq_sum_of_fourierCoeff_eq_zero hpT]
+    simp only [expect_mul_eq_sum_of_fourierCoeff_eq_zero hpT]
     exact sum_congr rfl fun S hS => by rw [hfg S hS]
   funext x
   by_contra hx
   refine (expect_lt_expect (fun y _ => hle y) ⟨x, mem_univ x, ?_⟩).ne heq
-  rw [Bool.eq_not_of_ne hx, signVal_not, neg_mul]
-  exact neg_lt_self (hp x)
+  simpa only [Bool.eq_not_of_ne hx, signVal_not, neg_mul] using neg_lt_self (hp x)
 
 /-- **Chow's theorem for polynomial threshold functions of degree at most `k`**: such a function
 is determined, among all Boolean functions, by its Fourier coefficients of degree at most `k`; at

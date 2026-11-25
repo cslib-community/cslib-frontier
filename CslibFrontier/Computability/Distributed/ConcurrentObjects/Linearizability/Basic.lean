@@ -470,18 +470,14 @@ theorem procSubhistory_complete [DecidableEq P] (H : History P Op Resp) (p : P) 
   | cons e rest ih =>
     cases e with
     | inv q x op =>
+      have hany : ((procSubhistory rest q).any fun e' => decide (e'.proc = q)) =
+          rest.any fun e' => decide (e'.proc = q) := by
+        simp only [procSubhistory, List.any_filter, Bool.and_self]
       by_cases hqp : q = p
       · subst hqp
-        simp only [complete, procSubhistory_cons, Event.proc_inv, ↓reduceIte]
-        cases hany : rest.any fun e' => decide (e'.proc = q)
-        · have hfil_nil : procSubhistory rest q = [] :=
-            List.filter_eq_nil_iff.mpr fun e' hm ht =>
-              Bool.noConfusion (hany.symm.trans (List.any_eq_true.mpr ⟨e', hm, ht⟩))
-          simp only [Bool.false_eq_true, ↓reduceIte, hfil_nil, List.any_nil, complete_nil, ih]
-        · obtain ⟨e', hmem, heq⟩ := List.any_eq_true.mp hany
-          have hany' : ((procSubhistory rest q).any fun e' => decide (e'.proc = q)) = true :=
-            List.any_eq_true.mpr ⟨e', List.mem_filter.mpr ⟨hmem, heq⟩, heq⟩
-          simp only [hany', ↓reduceIte, procSubhistory_cons, Event.proc_inv, ih]
+        simp only [complete, procSubhistory_cons, Event.proc_inv, ↓reduceIte, hany]
+        cases rest.any fun e' => decide (e'.proc = q) <;>
+          simp only [Bool.false_eq_true, ↓reduceIte, procSubhistory_cons, Event.proc_inv, ih]
       · simp only [complete, procSubhistory_cons, Event.proc_inv, hqp, ↓reduceIte]
         cases rest.any fun e' => decide (e'.proc = q) <;>
           simp only [Bool.false_eq_true, ↓reduceIte, procSubhistory_cons, Event.proc_inv, hqp, ih]
@@ -571,13 +567,9 @@ theorem complete_objSubhistory [DecidableEq P] [DecidableEq Obj] {H : History P 
           apply Bool.eq_iff_iff.mpr
           simp only [List.any_eq_true]
           refine ⟨fun ⟨e, hm, hep⟩ => ⟨e, (List.mem_filter.mp hm).1, hep⟩, fun ⟨e, hm, hep⟩ => ?_⟩
-          have hne : procSubhistory rest p ≠ [] := fun hnil => by
-            have hmp : e ∈ procSubhistory rest p := List.mem_filter.mpr ⟨hm, hep⟩
-            rw [hnil] at hmp
-            exact List.not_mem_nil hmp
-          obtain ⟨res, L₂', hL₂⟩ := isSequential_inv_suffix_resp hseq_p hne
-          have hmem_p : Event.resp p y res ∈ procSubhistory rest p := by
-            rw [hL₂]; exact List.mem_cons_self
+          obtain ⟨res, L₂', hL₂⟩ := isSequential_inv_suffix_resp hseq_p
+            (List.ne_nil_of_mem (List.mem_filter.mpr ⟨hm, hep⟩))
+          have hmem_p : Event.resp p y res ∈ procSubhistory rest p := hL₂ ▸ List.mem_cons_self
           exact ⟨.resp p y res,
             List.mem_filter.mpr ⟨(List.mem_filter.mp hmem_p).1, decide_eq_true rfl⟩,
             decide_eq_true rfl⟩

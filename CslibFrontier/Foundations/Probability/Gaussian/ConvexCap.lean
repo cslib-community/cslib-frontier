@@ -265,10 +265,9 @@ private theorem cone_iff_householder_unitVec3 {x : Fin 3 → ℝ} (hx : x ≠ 0)
   have hux : normSq3 (unitVec3 x) = 1 := normSq3_unitVec3 hnx
   rw [normSq3_householder hux, sq_householder_zero_eq_sq_dot3 hux]
   have hdot : (dot3 (unitVec3 x) y) ^ 2 = (normSq3 x)⁻¹ * (dot3 x y) ^ 2 := by
-    have hsq : ((√(normSq3 x))⁻¹) ^ 2 = (normSq3 x)⁻¹ := by rw [inv_pow, sq_sqrt hnx.le]
     calc (dot3 (unitVec3 x) y) ^ 2
         = ((√(normSq3 x))⁻¹) ^ 2 * (dot3 x y) ^ 2 := by dsimp [unitVec3, dot3]; ring
-      _ = (normSq3 x)⁻¹ * (dot3 x y) ^ 2 := by rw [hsq]
+      _ = (normSq3 x)⁻¹ * (dot3 x y) ^ 2 := by rw [inv_pow, sq_sqrt hnx.le]
   rw [hdot, inv_mul_eq_div, le_div_iff₀ hnx]
   exact ⟨fun h => by linarith only [h], fun h => by linarith only [h]⟩
 
@@ -530,14 +529,10 @@ private theorem p3Measure_prod_cross3_cone_eq {v : Fin 3 → ℝ} (hv : normSq3 
       κ ^ 2 * normSq3 abx.2 * normSq3 (cross3 abx.1.1 abx.1.2) ≤
         (dot3 abx.2 (cross3 abx.1.1 abx.1.2)) ^ 2}
   have hJoint_m : MeasurableSet Joint := by
-    have hc1 := continuous_cross3.comp continuous_fst
-      (X := ((Fin 3 → ℝ) × (Fin 3 → ℝ)) × (Fin 3 → ℝ))
+    have hc1 : Continuous fun abx : ((Fin 3 → ℝ) × (Fin 3 → ℝ)) × (Fin 3 → ℝ) =>
+        cross3 abx.1.1 abx.1.2 := continuous_cross3.comp continuous_fst
     have hdot2 : Continuous fun abx : ((Fin 3 → ℝ) × (Fin 3 → ℝ)) × (Fin 3 → ℝ) =>
-        dot3 abx.2 (cross3 abx.1.1 abx.1.2) := by
-      unfold dot3
-      exact ((((continuous_apply 0).comp continuous_snd).mul ((continuous_apply 0).comp hc1)).add
-        (((continuous_apply 1).comp continuous_snd).mul ((continuous_apply 1).comp hc1))).add
-        (((continuous_apply 2).comp continuous_snd).mul ((continuous_apply 2).comp hc1))
+        dot3 abx.2 (cross3 abx.1.1 abx.1.2) := by unfold dot3; fun_prop
     exact (isClosed_singleton.preimage hc1).measurableSet.compl.inter
       ((isClosed_singleton.preimage continuous_snd).measurableSet.compl.inter
         (isClosed_le ((continuous_const.mul (continuous_normSq3.comp continuous_snd)).mul
@@ -819,15 +814,11 @@ theorem measureReal_stdGaussian_prod_convex_zero_le
   have hcy1_vx : κ ≤ dot3 (cy 1) vx := by simpa [cy, hdot_vx y₁ hspan₁] using hy₁
   have hcy2_vx : κ ≤ dot3 (cy 2) vx := by simpa [cy, hdot_vx y₂ hspan₂] using hy₂
   have hvx_pos : 0 < normSq3 vx := by
-    have hcs : (dot3 (cy 0) vx) ^ 2 ≤ normSq3 (cy 0) * normSq3 vx := by
-      have hid : normSq3 (cy 0) * normSq3 vx - (dot3 (cy 0) vx) ^ 2 =
-          normSq3 (cross3 (cy 0) vx) := by dsimp [dot3, normSq3, cross3]; ring
-      linarith [normSq3_nonneg (cross3 (cy 0) vx)]
-    have hcy0_le : normSq3 (cy 0) ≤ 1 := hnormSq_proj_le y₀ hnorm₀
-    have hle1 : κ ^ 2 ≤ (dot3 (cy 0) vx) ^ 2 := sq_le_sq' (by linarith) hcy0_vx
-    have hle2 : normSq3 (cy 0) * normSq3 vx ≤ 1 * normSq3 vx :=
-      mul_le_mul_of_nonneg_right hcy0_le (normSq3_nonneg vx)
-    linarith [pow_pos hκ0 2]
+    have hid : normSq3 (cy 0) * normSq3 vx - (dot3 (cy 0) vx) ^ 2 =
+        normSq3 (cross3 (cy 0) vx) := by dsimp [dot3, normSq3, cross3]; ring
+    have h0 : normSq3 (cy 0) ≤ 1 := hnormSq_proj_le y₀ hnorm₀
+    linarith [normSq3_nonneg (cross3 (cy 0) vx), pow_pos hκ0 2, sq_le_sq' (by linarith) hcy0_vx,
+      mul_le_mul_of_nonneg_right h0 (normSq3_nonneg vx)]
   let vUnit : Fin 3 → ℝ := unitVec3 vx
   have hvUnit : normSq3 vUnit = 1 := normSq3_unitVec3 hvx_pos
   have hinv_ge_one : 1 ≤ (√(normSq3 vx))⁻¹ :=
@@ -869,24 +860,17 @@ theorem measureReal_stdGaussian_prod_convex_zero_le
           w₀ * w₁ * normSq3 (fun k => cy 0 k - cy 1 k) +
           w₁ * w₂ * normSq3 (fun k => cy 1 k - cy 2 k) +
           w₂ * w₀ * normSq3 (fun k => cy 2 k - cy 0 k) := by dsimp [c, normSq3]; ring
-      have hrhs : 0 ≤ w₀ * w₁ * normSq3 (fun k => cy 0 k - cy 1 k) +
-          w₁ * w₂ * normSq3 (fun k => cy 1 k - cy 2 k) +
-          w₂ * w₀ * normSq3 (fun k => cy 2 k - cy 0 k) :=
-        add_nonneg (add_nonneg
-          (mul_nonneg (mul_nonneg hw₀ hw₁) (normSq3_nonneg _))
-          (mul_nonneg (mul_nonneg hw₁ hw₂) (normSq3_nonneg _)))
-          (mul_nonneg (mul_nonneg hw₂ hw₀) (normSq3_nonneg _))
       rw [hsum, one_mul] at hdiff
-      nlinarith
-    have hid := mul_sq_dot3_cross3_eq (v := vUnit) hca hcb
-    have hcv_sq : κ ^ 2 ≤ (dot3 c vUnit) ^ 2 := sq_le_sq' (by linarith) hc_v
-    have h1 : κ ^ 2 * normSq3 (cross3 (proj3 q₁) (proj3 q₂)) ≤
-        (dot3 c vUnit) ^ 2 * normSq3 (cross3 (proj3 q₁) (proj3 q₂)) :=
-      mul_le_mul_of_nonneg_right hcv_sq (normSq3_nonneg _)
-    rw [← hid] at h1
-    have h2 : normSq3 c * (dot3 vUnit (cross3 (proj3 q₁) (proj3 q₂))) ^ 2 ≤
-        1 * (dot3 vUnit (cross3 (proj3 q₁) (proj3 q₂))) ^ 2 := by gcongr
-    linarith only [h1, h2]
+      linarith [mul_nonneg (mul_nonneg hw₀ hw₁) (normSq3_nonneg (fun k => cy 0 k - cy 1 k)),
+        mul_nonneg (mul_nonneg hw₁ hw₂) (normSq3_nonneg (fun k => cy 1 k - cy 2 k)),
+        mul_nonneg (mul_nonneg hw₂ hw₀) (normSq3_nonneg (fun k => cy 2 k - cy 0 k)),
+        mul_le_mul_of_nonneg_left h0 hw₀, mul_le_mul_of_nonneg_left h1 hw₁,
+        mul_le_mul_of_nonneg_left h2 hw₂]
+    have h1 := mul_le_mul_of_nonneg_right (sq_le_sq' (by linarith) hc_v)
+      (normSq3_nonneg (cross3 (proj3 q₁) (proj3 q₂)))
+    rw [← mul_sq_dot3_cross3_eq (v := vUnit) hca hcb] at h1
+    linarith only [h1, mul_le_mul_of_nonneg_right hc_norm
+      (sq_nonneg (dot3 vUnit (cross3 (proj3 q₁) (proj3 q₂))))]
   calc ((stdGaussian (EuclideanSpace ℝ (Fin d ⊕ Fin 3))).prod
         (stdGaussian (EuclideanSpace ℝ (Fin d ⊕ Fin 3)))).real
         (convexZeroSet (fF y₀) (fF y₁) (fF y₂))

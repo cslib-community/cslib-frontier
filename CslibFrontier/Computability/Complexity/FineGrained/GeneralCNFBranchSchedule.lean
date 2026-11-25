@@ -166,9 +166,8 @@ satisfied by `x` is `1` if `φ.eval x = true` and `0` otherwise. -/
 theorem CNF.countP_eval_toCNF_prop64Leaves [Fintype V] [DecidableEq V]
     (k : ℕ) (φ : CNF V) (x : V → Bool) :
     ((φ.prop64Leaves k).map ClauseSet.toCNF).countP (fun F => F.eval x) =
-      if φ.eval x then 1 else 0 := by
-  unfold CNF.prop64Leaves
-  exact countP_eval_toCNF_countingLeaves_of_sat_iff _
+      if φ.eval x then 1 else 0 :=
+  countP_eval_toCNF_countingLeaves_of_sat_iff _
     (sat_reduce_iff.trans (CNF.sat_toClauseSet_iff φ x))
 
 /-- **Proposition 6.4 leaf width, variable-occurrence, and clause-density bounds:**
@@ -187,28 +186,22 @@ theorem CNF.length_le_of_mem_prop64Leaves [Fintype V] [DecidableEq V]
     (1 ≤ Fintype.card V →
       L.toCNF.length ≤ CNF.prop64LeafClauseRatio k (Fintype.card V) * Fintype.card V) := by
   set M := CNF.prop64ThresholdBase k (Fintype.card V)
-  have hM2 : 2 ≤ M := CNF.two_le_prop64ThresholdBase k (Fintype.card V)
+  have hM2 := CNF.two_le_prop64ThresholdBase k (Fintype.card V)
   have hθ1 : ∀ j, 1 ≤ M ^ j := fun j => Nat.one_le_pow j M (by omega)
   have hsparse : Sparse (M ^ ·) L := sparse_of_mem_countingLeaves_pow hM2 hL
-  have hroot_k : ∀ C ∈ reduce φ.toClauseSet, C.card ≤ k := by
-    intro C hC
+  have hL_k : ∀ C ∈ L, C.card ≤ k := card_le_of_mem_countingLeaves (fun C hC => by
     obtain ⟨c, hc, hcard⟩ := CNF.exists_card_le_of_mem_toClauseSet (reduce_subset _ hC)
-    exact hcard.trans (hk c hc)
-  have hL_k : ∀ C ∈ L, C.card ≤ k := card_le_of_mem_countingLeaves hroot_k hL
-  refine ⟨fun c hc => ClauseSet.length_le_of_mem_toCNF hL_k hc, fun v => ?_, fun hn1 => ?_⟩
-  · rw [ClauseSet.occurrences_toCNF]
-    exact occurrences_le_of_sparse hθ1 hsparse hL_k v
-  · have hlen_eq : L.toCNF.length = L.card := by
-      simp only [ClauseSet.toCNF, List.length_map, Finset.length_toList]
-    have hcard_le : L.card ≤ 2 * (∑ c ∈ range k, M ^ c) * (univ : Finset V).card + 1 :=
-      card_le_of_sparse hθ1 hsparse hL_k univ (fun _ _ _ _ => mem_univ _)
-    rw [hlen_eq]
-    rw [card_univ] at hcard_le
-    unfold CNF.prop64LeafClauseRatio
-    calc L.card
-        ≤ 2 * (∑ c ∈ range k, M ^ c) * Fintype.card V + 1 := hcard_le
-      _ ≤ 2 * (∑ c ∈ range k, M ^ c) * Fintype.card V + Fintype.card V := by gcongr
-      _ = (2 * (∑ c ∈ range k, M ^ c) + 1) * Fintype.card V := by ring
+    exact hcard.trans (hk c hc)) hL
+  refine ⟨fun c hc => ClauseSet.length_le_of_mem_toCNF hL_k hc,
+    fun v => ClauseSet.occurrences_toCNF L v ▸ occurrences_le_of_sparse hθ1 hsparse hL_k v,
+    fun hn1 => ?_⟩
+  have hcard_le : L.card ≤ 2 * (∑ c ∈ range k, M ^ c) * Fintype.card V + 1 := by
+    simpa only [card_univ] using card_le_of_sparse hθ1 hsparse hL_k univ fun _ _ _ _ => mem_univ _
+  simp only [ClauseSet.toCNF, List.length_map, Finset.length_toList, CNF.prop64LeafClauseRatio]
+  calc L.card
+      ≤ 2 * (∑ c ∈ range k, M ^ c) * Fintype.card V + 1 := hcard_le
+    _ ≤ 2 * (∑ c ∈ range k, M ^ c) * Fintype.card V + Fintype.card V := by gcongr
+    _ = (2 * (∑ c ∈ range k, M ^ c) + 1) * Fintype.card V := by ring
 
 /-- **Proposition 6.4 polylogarithmic threshold-base bound (printed pp. 43–44):**
 For any `k ≥ 2`, there exists `C_M ≥ 1` such that for all `n ≥ 2`,
@@ -217,26 +210,20 @@ theorem CNF.exists_prop64ThresholdBase_le_mul_clog_sq {k : ℕ} (hk : 2 ≤ k) :
     ∃ C_M : ℕ, 1 ≤ C_M ∧ ∀ n : ℕ, 2 ≤ n →
       CNF.prop64ThresholdBase k n ≤ C_M * (Nat.clog 2 n) ^ 2 := by
   obtain ⟨A, hA⟩ := exists_countingThresholdBase_le_mul_clog hk
-  refine ⟨max (2 * A) 2, le_trans (by decide : 1 ≤ 2) (le_max_right _ _), fun n hn => ?_⟩
+  refine ⟨max (2 * A) 2, le_trans (by decide) (le_max_right _ _), fun n hn => ?_⟩
   unfold CNF.prop64ThresholdBase
   set lam := Nat.clog 2 n
   have hlam1 : 1 ≤ lam :=
     (Nat.lt_clog_iff_pow_lt one_lt_two).mpr (by omega : 2 ^ 0 < n)
   rcases Nat.eq_zero_or_pos (numGroups n) with hs0 | hs_pos
   · rw [hs0, countingThresholdBase_zero]
-    have h1 : 2 ≤ max (2 * A) 2 := le_max_right _ _
-    have h2 : 1 ≤ lam ^ 2 := Nat.one_le_pow 2 lam hlam1
-    nlinarith
-  · have hs_le_lam : numGroups n ≤ lam :=
-      (Nat.div_le_self _ _).trans (Nat.sqrt_le_self _)
-    have hclog_s : Nat.clog 2 (numGroups n) + 1 ≤ 2 * lam := by
-      have hle : Nat.clog 2 (numGroups n) ≤ lam :=
-        (Nat.clog_le_iff_le_pow one_lt_two).mpr
-          (hs_le_lam.trans (Nat.lt_two_pow_self (n := lam)).le)
-      omega
-    have hM := hA (numGroups n) hs_pos
+    nlinarith [le_max_right (2 * A) 2, Nat.one_le_pow 2 lam hlam1]
+  · have hs_le : numGroups n ≤ lam := (Nat.div_le_self _ _).trans (Nat.sqrt_le_self _)
+    have hle : Nat.clog 2 (numGroups n) ≤ lam := (Nat.clog_le_iff_le_pow one_lt_two).mpr
+      (hs_le.trans (Nat.lt_two_pow_self (n := lam)).le)
+    have hclog_s : Nat.clog 2 (numGroups n) + 1 ≤ 2 * lam := by omega
     calc countingThresholdBase k (numGroups n)
-        ≤ A * numGroups n * (Nat.clog 2 (numGroups n) + 1) := hM
+        ≤ A * numGroups n * (Nat.clog 2 (numGroups n) + 1) := hA _ hs_pos
       _ ≤ A * lam * (2 * lam) := by gcongr
       _ = (2 * A) * lam ^ 2 := by ring
       _ ≤ max (2 * A) 2 * lam ^ 2 := Nat.mul_le_mul_right _ (le_max_left _ _)
@@ -248,30 +235,26 @@ For any `k ≥ 2`, there exists `C_B ≥ 1` such that for all `n ≥ 2`,
 theorem CNF.exists_prop64LeafClauseRatio_le_mul_clog_pow {k : ℕ} (hk : 2 ≤ k) :
     ∃ C_B : ℕ, 1 ≤ C_B ∧ ∀ n : ℕ, 2 ≤ n →
       CNF.prop64LeafClauseRatio k n ≤ C_B * (Nat.clog 2 n) ^ (2 * (k - 1)) := by
-  obtain ⟨C_M, hCM1, hCM⟩ := CNF.exists_prop64ThresholdBase_le_mul_clog_sq hk
+  obtain ⟨C_M, _, hCM⟩ := CNF.exists_prop64ThresholdBase_le_mul_clog_sq hk
   refine ⟨2 * k * C_M ^ (k - 1) + 1, Nat.succ_pos _, fun n hn => ?_⟩
   set lam := Nat.clog 2 n
   set M := CNF.prop64ThresholdBase k n
   have hlam1 : 1 ≤ lam :=
     (Nat.lt_clog_iff_pow_lt one_lt_two).mpr (by omega : 2 ^ 0 < n)
-  have hM1 : 1 ≤ M := le_trans (by decide : 1 ≤ 2) (CNF.two_le_prop64ThresholdBase k n)
+  have hM1 : 1 ≤ M := le_trans (by decide) (CNF.two_le_prop64ThresholdBase k n)
   have hM_bound : M ≤ C_M * lam ^ 2 := hCM n hn
   have hsum_le :
       ∑ c ∈ range k, M ^ c ≤ k * (C_M ^ (k - 1) * lam ^ (2 * (k - 1))) := by
     calc ∑ c ∈ range k, M ^ c
-        ≤ ∑ _c ∈ range k, M ^ (k - 1) := by
-          refine sum_le_sum fun c hc => ?_
-          have hc_lt : c < k := mem_range.mp hc
-          exact Nat.pow_le_pow_right hM1 (by omega)
+        ≤ ∑ _c ∈ range k, M ^ (k - 1) :=
+          sum_le_sum fun c hc => Nat.pow_le_pow_right hM1 (Nat.le_sub_one_of_lt (mem_range.mp hc))
       _ = k * M ^ (k - 1) := by rw [sum_const, card_range, smul_eq_mul]
       _ ≤ k * (C_M * lam ^ 2) ^ (k - 1) := by gcongr
-      _ = k * (C_M ^ (k - 1) * lam ^ (2 * (k - 1))) := by
-          rw [Nat.mul_pow, ← pow_mul]
-  have hpow1 : 1 ≤ lam ^ (2 * (k - 1)) := Nat.one_le_pow _ lam hlam1
+      _ = k * (C_M ^ (k - 1) * lam ^ (2 * (k - 1))) := by rw [Nat.mul_pow, ← pow_mul]
   unfold CNF.prop64LeafClauseRatio
   calc 2 * (∑ c ∈ range k, M ^ c) + 1
       ≤ 2 * (k * (C_M ^ (k - 1) * lam ^ (2 * (k - 1)))) + lam ^ (2 * (k - 1)) :=
-        Nat.add_le_add (Nat.mul_le_mul_left 2 hsum_le) hpow1
+        Nat.add_le_add (Nat.mul_le_mul_left 2 hsum_le) (Nat.one_le_pow _ lam hlam1)
     _ = (2 * k * C_M ^ (k - 1) + 1) * lam ^ (2 * (k - 1)) := by ring
 
 /-! ### 2. Unified Section 6.3 `ReplacementDesign` recovery and `interpolationScale` bounds -/
@@ -351,15 +334,17 @@ theorem CNF.ParityRowBranchExamBound.toRecovery [Fintype V] [DecidableEq V]
       (commonZeroCount (univ : Finset (Fin rows.length)) (φ.parityRowSystem rows) : ℤ) e := by
   obtain ⟨hn_bounds, hbranch, hsum⟩ := h
   choose hF D hexam using hbranch
-  refine ⟨hn_bounds, ⟨hF, D, ?_, fun b => ?_, hexam⟩, hsum⟩
-  · exact CNF.commonZeroCount_parityRowSystem_eq_sum_branch_emod_ediv_design hk rows _ e
-      (fun b => branchAugmentedScope _ e univ (φ.parityRowSystem rows) b) D
-      (fun _ j => Sum.inl ⟨j, mem_univ j⟩)
-  · refine (CNF.natDegree_univariateClearedParityTruncatedSum_branchParityRowSystem_le hk rows _
-      e b (D b) (fun j => Sum.inl ⟨j, mem_univ j⟩) (branchPrecision (Fintype.card V))).trans
-      (Nat.mul_le_mul_left _ ?_)
+  have hprec : rows.length + 2 * (branchPrecision (Fintype.card V) - 1) ≤ 8 * Fintype.card V := by
     unfold branchPrecision
     omega
+  exact ⟨hn_bounds, ⟨hF, D,
+    CNF.commonZeroCount_parityRowSystem_eq_sum_branch_emod_ediv_design hk rows _ e
+      (fun b => branchAugmentedScope _ e univ (φ.parityRowSystem rows) b) D
+      (fun _ j => Sum.inl ⟨j, mem_univ j⟩),
+    fun b => (CNF.natDegree_univariateClearedParityTruncatedSum_branchParityRowSystem_le hk rows _
+      e b (D b) (fun j => Sum.inl ⟨j, mem_univ j⟩) (branchPrecision (Fintype.card V))).trans
+      (Nat.mul_le_mul_left _ hprec),
+    hexam⟩, hsum⟩
 
 /-- **Unified Section 6.3 schedule feasibility, `ReplacementDesign` constant-term recovery,
 degree bound, and `2 ^ (A * interpolationScale n)` examination bound for `CNF.parityRowSystem`:**
@@ -460,11 +445,9 @@ theorem CNF.exists_greedy_parityRowSystem_recovery_and_examBound_of_le_clog_pow
   obtain ⟨A₀, hlen0, hw0, hgreedy⟩ := hgreedy_sched φ hk hcard hB1 hB_le hm
   refine ⟨A₀, hlen0, hw0, fun A γ h0 hA hγ => ?_⟩
   obtain ⟨hcount, hstage⟩ := hgreedy A γ h0 hA hγ
-  refine ⟨hcount, fun i hi => ?_⟩
-  obtain ⟨hlen_i, hstage_e⟩ := hstage i hi
-  refine ⟨hlen_i, ?_⟩
+  refine ⟨hcount, fun i hi => ⟨(hstage i hi).1, ?_⟩⟩
   intro S n' e
-  exact (hstage_e e).toRecovery hk hlen_i
+  exact ((hstage i hi).2 e).toRecovery hk (hstage i hi).1
 
 private noncomputable def nextGreedyStep [Fintype V] [DecidableEq V]
     (φ : CNF V) (P : ℕ) [Nonempty (Fin φ.length)]
@@ -532,28 +515,20 @@ theorem CNF.exists_parityRowSystem_modelCountOn_recovery_and_examBound_of_le_clo
       rw [CNF.commonZeroCount_parityRowSystem_eq_modelCountOn_add]
       suffices #{σ : V → Bool | φ.eval σ = false ∧ PassesTests φ.violations [] σ} = 0 by omega
       rw [card_eq_zero, filter_eq_empty_iff]
-      intro σ _ ⟨hev, _⟩
-      rw [hnil] at hev
-      exact Bool.noConfusion hev
+      rintro σ _ ⟨hev, _⟩
+      exact Bool.noConfusion (hnil ▸ hev)
     refine ⟨[], Nat.zero_le _, hcount_nil, ?_⟩
     intro S n' e
-    have hN_row : N_row ≤ Fintype.card V := (le_max_left _ _).trans hcard
-    have hW_nil : ∀ r ∈ ([] : List (Fin φ.length → Bool)), weight r ≤ D₀ := fun _ hr => by cases hr
-    exact hcount_nil ▸ hrow_rec hk hN_row hm hB_le le_rfl hW_nil (Nat.zero_le _) e
+    exact hcount_nil ▸ hrow_rec hk ((le_max_left _ _).trans hcard) hm hB_le le_rfl
+      (fun _ hr => by cases hr) (Nat.zero_le _) e
   · have : Nonempty (Fin φ.length) := ⟨⟨0, hlen_pos⟩⟩
-    have hN_gr : N_gr ≤ Fintype.card V := (le_max_right _ _).trans hcard
-    obtain ⟨A₀, _, _, hgreedy⟩ := hgreedy_rec φ hk hN_gr hB1 hB_le hm
+    obtain ⟨A₀, _, _, hgreedy⟩ := hgreedy_rec φ hk ((le_max_right _ _).trans hcard) hB1 hB_le hm
     let P := greedyRowListLength B φ.length
     let A := greedyTrajectory φ P A₀
-    let γ : ℕ → Fin P → Fin φ.length × Bool := fun i => nextGreedyStep φ P (A i)
-    have hmin : ∀ i (γ' : Fin P → Fin φ.length × Bool),
-        commonZeroCount univ (φ.parityRowSystem (A i ++ [testRow (γ i)])) ≤
-          commonZeroCount univ (φ.parityRowSystem (A i ++ [testRow γ'])) :=
-      fun i γ' =>
-        (exists_min_image (univ : Finset (Fin P → Fin φ.length × Bool))
-          (fun γ'' => commonZeroCount univ (φ.parityRowSystem (A i ++ [testRow γ''])))
-          univ_nonempty).choose_spec.2 γ' (mem_univ γ')
-    obtain ⟨hcount, hstage⟩ := hgreedy A γ rfl (fun _ => rfl) hmin
+    obtain ⟨hcount, hstage⟩ := hgreedy A (fun i => nextGreedyStep φ P (A i)) rfl (fun _ => rfl)
+      fun i γ' => (exists_min_image (univ : Finset (Fin P → Fin φ.length × Bool))
+        (fun γ'' => commonZeroCount univ (φ.parityRowSystem (A i ++ [testRow γ''])))
+        univ_nonempty).choose_spec.2 γ' (mem_univ γ')
     obtain ⟨hlen_final, hstage_final⟩ := hstage (3 * Fintype.card V) le_rfl
     refine ⟨A (3 * Fintype.card V), hlen_final, hcount, ?_⟩
     intro S n' e

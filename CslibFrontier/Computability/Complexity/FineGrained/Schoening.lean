@@ -335,42 +335,33 @@ theorem inv_le_hit (hk : 3 ≤ k) (d : ℕ) :
             (3 * d + 1) := by
         gcongr
         omega
-  -- Transfer to the reals.
-  have hk1 : (1 : ℝ) ≤ (k : ℝ) - 1 := by
+  -- Transfer to the reals: clear the common denominator `k^{k-3} (k-1)^d (3d+1) k^{2i+d}`.
+  have hpos1 : (0 : ℝ) < (k : ℝ) - 1 := by
     have : (3 : ℝ) ≤ k := by exact_mod_cast hk
     linarith
   have hk0 : (0 : ℝ) < k := by linarith
-  have hcast : ((k - 1 : ℕ) : ℝ) = (k : ℝ) - 1 := by
-    rw [Nat.cast_sub (by omega), Nat.cast_one]
+  have hne : (k : ℝ) - 1 ≠ 0 := hpos1.ne'
   have hreal : ((k : ℝ) - 1) ^ (k - 3) * (k : ℝ) ^ (i + (i + d)) ≤
       ((i + (i + d)).choose i : ℝ) * ((k : ℝ) - 1) ^ (i + d) * (k : ℝ) ^ (k - 3) *
         (3 * d + 1) := by
-    rw [← hcast]
+    rw [← Nat.cast_one, ← Nat.cast_sub (by omega)]
     exact_mod_cast hnat
-  have hpos1 : (0 : ℝ) < ((k : ℝ) - 1) := by linarith
-  rw [div_le_iff₀ (by positivity)]
-  rw [div_pow, div_pow, div_pow, one_pow, one_pow]
-  rw [show ((k : ℝ) - 1) ^ (k - 3) / (k : ℝ) ^ (k - 3) * (1 / ((k : ℝ) - 1) ^ d) =
-      ((k : ℝ) - 1) ^ (k - 3) / ((k : ℝ) ^ (k - 3) * ((k : ℝ) - 1) ^ d) by
-    field_simp]
-  rw [div_le_iff₀ (by positivity)]
-  have hsplit : (k : ℝ) ^ (i + (i + d)) = (k : ℝ) ^ (i + d) * (k : ℝ) ^ i := by
-    rw [← pow_add]
-    congr 1
-    ring
+  have hD : (0 : ℝ) <
+      (k : ℝ) ^ (k - 3) * ((k : ℝ) - 1) ^ d * (3 * d + 1) * (k : ℝ) ^ (i + (i + d)) :=
+    mul_pos (mul_pos (mul_pos (pow_pos hk0 _) (pow_pos hpos1 d)) (by positivity)) (pow_pos hk0 _)
   calc
-    ((k : ℝ) - 1) ^ (k - 3) =
-        ((k : ℝ) - 1) ^ (k - 3) * (k : ℝ) ^ (i + (i + d)) / (k : ℝ) ^ (i + (i + d)) := by
+    _ = ((k : ℝ) - 1) ^ (k - 3) * (k : ℝ) ^ (i + (i + d)) /
+          ((k : ℝ) ^ (k - 3) * ((k : ℝ) - 1) ^ d * (3 * d + 1) * (k : ℝ) ^ (i + (i + d))) := by
+      simp only [div_pow, one_pow]
       field_simp
     _ ≤ ((i + (i + d)).choose i : ℝ) * ((k : ℝ) - 1) ^ (i + d) * (k : ℝ) ^ (k - 3) *
-          (3 * d + 1) / (k : ℝ) ^ (i + (i + d)) := by gcongr
-    _ = ((i + (i + d)).choose i : ℝ) * (1 / (k : ℝ) ^ (i + d)) *
-          (((k : ℝ) - 1) / (k : ℝ)) ^ i * (3 * d + 1) *
-          ((k : ℝ) ^ (k - 3) * ((k : ℝ) - 1) ^ d) := by
-      rw [hsplit, div_pow]
-      have hdd : ((k : ℝ) - 1) ^ (i + d) = ((k : ℝ) - 1) ^ i * ((k : ℝ) - 1) ^ d := pow_add _ _ _
-      rw [hdd]
+          (3 * d + 1) /
+          ((k : ℝ) ^ (k - 3) * ((k : ℝ) - 1) ^ d * (3 * d + 1) * (k : ℝ) ^ (i + (i + d))) :=
+      div_le_div_of_nonneg_right hreal hD.le
+    _ = _ := by
+      simp only [div_pow, one_pow]
       field_simp
+      ring
 
 /-! ### The local search dominates the biased walk -/
 
@@ -407,21 +398,15 @@ theorem hit_le_succeedProb (hk : 1 ≤ k) {φ : CNF V} {σs : V → Bool} (hs : 
   induction t generalizing σ with
   | zero =>
     rw [walk, succeedProb_pure]
-    rcases Nat.eq_zero_or_pos (hammingDist σ σs) with h0 | hpos
-    · rw [hammingDist_eq_zero.mp h0]
-      simp [hs]
-    · obtain ⟨d, hd⟩ := Nat.exists_eq_succ_of_ne_zero hpos.ne'
-      rw [hd, hit_zero_succ]
-      split_ifs <;> norm_num
+    cases hd : hammingDist σ σs with
+    | zero => simp [hammingDist_eq_zero.mp hd, hs]
+    | succ d => rw [hit_zero_succ]; split_ifs <;> norm_num
   | succ t ih =>
     rw [walk]
     cases hfu : firstUnsat φ σ with
     | none =>
-      have hsat : φ.eval σ = true := by
-        rw [CNF.eval_eq_true_iff]
-        intro c hc
-        have := List.find?_eq_none.mp hfu c hc
-        simpa using this
+      have hsat : φ.eval σ = true :=
+        (CNF.eval_eq_true_iff _ _).2 fun c hc => by simpa using List.find?_eq_none.mp hfu c hc
       simp only [succeedProb_pure, hsat, ite_true]
       exact hit_le_one hk _ _
     | some c =>

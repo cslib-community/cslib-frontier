@@ -188,9 +188,7 @@ private theorem iterate_bnStep_spec (hB : ∀ u v, W u v ≤ B) {t : Memory.Stat
     refine ⟨h1.trans hδ₁δ, fun e he => ?_, ?_⟩
     · rcases List.mem_append.mp he with he | he
       · exact h2 e he
-      · rw [List.mem_singleton] at he
-        subst he
-        exact h1.trans hδ₁r
+      · obtain rfl := List.mem_singleton.mp he; exact h1.trans hδ₁r
     · rcases h3 with h3 | ⟨e, he, h3⟩
       · rw [h3, hδ₁]
         split_ifs
@@ -304,18 +302,11 @@ private theorem iterate_augStep_spec (hB : ∀ u v, W u v ≤ B) (f : (Network.m
           (y, x) ∈ pathArcs (buildPath parOf rem (parOf cur))) →
         u1.mem (flowAddr c x.1 y.1) = f x y := by
       intro x y hmem
-      rw [hflow1 x y]
-      rcases hmem with hxy | hyx
-      · obtain ⟨_, hyc⟩ := hdisj x y hxy
-        have h1 : (x, y) ≠ (parOf cur, cur) := fun h => hyc (Prod.mk.inj h).2
-        have h2 : (y, x) ≠ (parOf cur, cur) := fun h => (hdisj x y hxy).1 (Prod.mk.inj h).2
-        rw [ite_eq_right h1, ite_eq_right h2]
-        exact hf_sub x y (Or.inl (by rw [harcs_eq]; exact List.mem_append_left _ hxy))
-      · obtain ⟨hxc, _⟩ := hdisj y x hyx
-        have h1 : (x, y) ≠ (parOf cur, cur) := fun h => hxc (Prod.mk.inj h).2
-        have h2 : (y, x) ≠ (parOf cur, cur) := fun h => (hdisj y x hyx).2 (Prod.mk.inj h).2
-        rw [ite_eq_right h1, ite_eq_right h2]
-        exact hf_sub x y (Or.inr (by rw [harcs_eq]; exact List.mem_append_left _ hyx))
+      obtain ⟨hx, hy⟩ := hmem.elim (hdisj x y) fun h => (hdisj y x h).symm
+      rw [hflow1 x y, ite_eq_right fun e => hy (Prod.mk.inj e).2,
+        ite_eq_right fun e => hx (Prod.mk.inj e).2]
+      rw [harcs_eq] at hf_sub
+      exact hf_sub x y (hmem.imp (List.mem_append_left _) (List.mem_append_left _))
     have hih := iterate_augStep_spec hB f parOf hpar δ hδ rem (parOf cur) u1 (by omega) hp_rem
       hpar1 hf_sub1 x y
     change ((Memory.spec 0).clientState u_st
@@ -399,8 +390,7 @@ private theorem roundStep_spec (hst : src ≠ snk) (hB : ∀ u v, W u v ≤ B)
   · right
     rw [ite_eq_left hreach] at hred_r hred_s
     refine ⟨?_, ?_⟩
-    · rw [hred_r, clientResult_bind, clientResult_bind,
-        clientResult_pure]
+    · rw [hred_r, clientResult_bind, clientResult_bind, clientResult_pure]
     let parOf : Fin n → Fin n := fun x =>
       if h : tb.mem (predAddr c x.1) < n then ⟨tb.mem (predAddr c x.1), h⟩ else x
     have hpar_spec : ∀ x : Fin n, 0 < f.resDist x → f.resDist x < n →
@@ -409,10 +399,8 @@ private theorem roundStep_spec (hst : src ≠ snk) (hB : ∀ u v, W u v ≤ B)
       intro x hx1 hx2
       obtain ⟨u, hu1, hu2, hu3⟩ := hb_par x hx1 hx2
       have hlt : tb.mem (predAddr c x.1) < n := by rw [hu1]; exact u.2
-      have hpu : parOf x = u := by
-        simp only [parOf, dite_eq_left hlt]
-        exact Fin.ext hu1
-      exact ⟨by rw [hpu, hu1], by rw [hpu]; exact hu2, by rw [hpu]; exact hu3⟩
+      obtain rfl : parOf x = u := by simp only [parOf, dite_eq_left hlt]; exact Fin.ext hu1
+      exact ⟨hu1, hu2, hu3⟩
     have hpar : ∀ x : Fin n, 0 < f.resDist x → f.resDist x < n →
         f.resDist (parOf x) + 1 = f.resDist x ∧ 0 < f.resCap (parOf x) x :=
       fun x h1 h2 => (hpar_spec x h1 h2).2
@@ -429,12 +417,8 @@ private theorem roundStep_spec (hst : src ≠ snk) (hB : ∀ u v, W u v ≤ B)
     obtain ⟨hδ1, hδ2, hδ3⟩ := iterate_bnStep_spec hB hWb f hfb parOf hpar hp_mem k snk
       (2 * B) hreach.2 rfl
     set δ := ((Memory.spec 0).clientResult tb (iterate bnStep c k (snk.1, 2 * B))).2
-    have hne : pathArcs p ≠ [] := by
-      intro h
-      have := length_pathArcs_buildPath parOf k snk
-      rw [show buildPath parOf k snk = p from rfl, h] at this
-      simp at this
-      omega
+    have hne : pathArcs p ≠ [] :=
+      List.ne_nil_of_length_pos (hreach.1.trans_eq (length_pathArcs_buildPath parOf k snk).symm)
     have hδ_eq : δ = f.bottleneck p := by
       obtain ⟨e₀, he₀, hbe₀⟩ := f.exists_mem_pathArcs_resCap_eq_bottleneck hne
       refine le_antisymm ((hδ2 e₀ he₀).trans hbe₀.le) ?_
@@ -465,11 +449,9 @@ private theorem roundStep_spec (hst : src ≠ snk) (hB : ∀ u v, W u v ≤ B)
     rw [ite_eq_right hreach] at hred_r hred_s
     have hk : f.resDist snk = n := by
       have hle : f.resDist snk ≤ n := by simpa [Fintype.card_fin] using f.resDist_le_card snk
-      by_contra hne
-      have hpos : 0 < f.resDist snk := by
-        by_contra h0
-        exact hst (f.eq_source_of_resDist_eq_zero (by omega)).symm
-      exact hreach ⟨hpos, by change _ < n; omega⟩
+      have hpos : f.resDist snk ≠ 0 := fun h0 => hst (f.eq_source_of_resDist_eq_zero h0).symm
+      have : ¬(0 < f.resDist snk ∧ f.resDist snk < n) := hreach
+      omega
     rw [clientState_pure] at hred_s
     rw [clientResult_pure] at hred_r
     rw [hred_s]
@@ -779,8 +761,7 @@ private theorem ekProg_flow_spec {n mb sb B : ℕ} (N : Network (Fin n)) (hst : 
     have h := hs1.1 (x.1 * n + y.1) (List.mul_add_lt_sq x.2 y.2)
     have he : flowAddr ⟨n, mb, sb, B⟩ 0 0 + (x.1 * n + y.1) = sb + x.1 * n + y.1 := by
       dsimp only [flowAddr]; ring
-    rw [he] at h
-    exact h
+    rwa [he] at h
   have hloop := iterate_invariant_of roundStep (⟨n, mb, sb, B⟩, (N.s.1, N.t.1))
     (fun rem (sv : ℕ) tt => sv ≤ 1 ∧ MatLoaded n mb N.cap tt ∧
       ∃ (k : ℕ) (flows : ℕ → N.Flow) (paths : ℕ → List (Fin n)),
@@ -854,16 +835,13 @@ private theorem ekProg_flow_spec {n mb sb B : ℕ} (N : Network (Fin n)) (hst : 
   have hst_eq : (Memory.spec 0).clientState st (ekProg (⟨n, mb, sb, B⟩, (N.s.1, N.t.1))) = s2 := by
     unfold ekProg
     dsimp only
-    rw [clientState_bind, clientState_bind,
-      clientState_bind,
-      clientState_iterate_eq_of _ _ (fun _ t' => cutOuterStep_state _ t'),
-      clientState_pure]
+    rw [clientState_bind, clientState_bind, clientState_bind,
+      clientState_iterate_eq_of _ _ (fun _ t' => cutOuterStep_state _ t'), clientState_pure]
   have hres_eq : (Memory.spec 0).clientResult st (ekProg (⟨n, mb, sb, B⟩, (N.s.1, N.t.1))) =
       ((Memory.spec 0).clientResult s2 (iterate cutOuterStep ⟨n, mb, sb, B⟩ n (0, 0))).2 := by
     unfold ekProg
     dsimp only
-    rw [clientResult_bind, clientResult_bind,
-      clientResult_bind, clientResult_pure]
+    rw [clientResult_bind, clientResult_bind, clientResult_bind, clientResult_pure]
   rw [hst_eq, hres_eq]
   rw [hst_eq] at hframe
   refine ⟨hframe, flows k, ?_⟩
@@ -874,9 +852,7 @@ private theorem ekProg_flow_spec {n mb sb B : ℕ} (N : Network (Fin n)) (hst : 
   have hC' : ∀ x : Fin n, (s2.mem (distAddr ⟨n, mb, sb, B⟩ x.1) < n ↔ x ∈ C) := fun x => by
     simp [C]
   have hC : ∀ x : Fin n, (s2.mem (distAddr ⟨n, mb, sb, B⟩ x.1) = n ↔ x ∉ C) := fun x => by
-    rw [← hC' x]
-    have := hle x
-    omega
+    have := hle x; rw [← hC' x]; omega
   have hno : ¬ ∃ p, f.IsAugmentingPath p := by
     rw [f.exists_augmentingPath_iff_resReachable, ← f.resDist_lt_card_iff_resReachable,
       Fintype.card_fin]
@@ -885,12 +861,9 @@ private theorem ekProg_flow_spec {n mb sb B : ℕ} (N : Network (Fin n)) (hst : 
     ext x
     rw [f.mem_reachableCut_iff, ← f.resDist_lt_card_iff_resReachable, Fintype.card_fin,
       ← hdist x, hC' x]
-  have hval : f.value = (N.cutCapacity C : ℤ) := by
-    rw [hC_eq]
-    exact f.value_eq_cutCapacity_reachableCut hno
-  have hmin : N.IsMinCut C := by
-    rw [hC_eq]
-    exact f.isMinCut_of_value_eq_cutCapacity (f.reachableCut_isCut hno)
+  have hval : f.value = (N.cutCapacity C : ℤ) := hC_eq ▸ f.value_eq_cutCapacity_reachableCut hno
+  have hmin : N.IsMinCut C :=
+    hC_eq ▸ f.isMinCut_of_value_eq_cutCapacity (f.reachableCut_isCut hno)
       (f.value_eq_cutCapacity_reachableCut hno)
   have hmax : f.IsMaxFlow := (f.isMaxFlow_iff_not_exists_augmentingPath hst).mpr hno
   have hres : ((Memory.spec 0).clientResult s2 (iterate cutOuterStep ⟨n, mb, sb, B⟩ n (0, 0))).2 =

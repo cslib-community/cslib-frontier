@@ -167,16 +167,12 @@ theorem evalStep_garbleStep {t : ℕ} (h : (Fin (t + 1) → Bool) → L → L) (
   · subst hx
     simp only [ite_true, decide_true, Bool.true_and, oneHot_self, bitOffset_true]
     rw [hyx]
-    cases c' <;> cases c
-    · simp only [Bool.false_eq_true, ite_false, decide_true, bitOffset_true, bitOffset_false,
-        add_zero]
-      abel
-    · simp only [Bool.false_eq_true, ite_false, decide_false, bitOffset_true, bitOffset_false,
-        add_zero]
-      rw [show G j' + Δ + (h j' (G j') + Δ) = G j' + h j' (G j') + (Δ + Δ) by abel,
-        ZModModule.add_self, add_zero]
-    · simp only [ite_true, Bool.true_eq_false, decide_false, bitOffset_false, add_zero]
-    · simp only [ite_true, decide_true, bitOffset_true]
+    cases c'
+    · cases c
+      · simp [bitOffset_true, bitOffset_false, add_comm, add_left_comm]
+      · have hΔ : G j' + Δ + (h j' (G j') + Δ) = G j' + h j' (G j') + (Δ + Δ) := by abel
+        simp [bitOffset_true, bitOffset_false, hΔ, ZModModule.add_self]
+    · cases c <;> simp [bitOffset_true, bitOffset_false]
   · simp only [hx, ite_false, decide_false, Bool.false_and, bitOffset_false, add_zero, hE _ hx]
 
 /-- **Correctness**: on the labels of its input bits and the garbled ciphertexts, the evaluator
@@ -199,15 +195,8 @@ theorem evaluate_garble (H : L → T → L) (tw : (t : ℕ) → (Fin (t + 1) →
   | succ n ih =>
     have hA : (Fin.init fun t => X t + bitOffset Δ (x t)) =
         fun t => Fin.init X t + bitOffset Δ (Fin.init x t) := rfl
-    have hct : Fin.init (garble H tw Δ (n + 1) X).2 = (garble H tw Δ n (Fin.init X)).2 := by
-      simp only [garble, Fin.init_snoc]
-    have hlast : (garble H tw Δ (n + 1) X).2 (Fin.last n) =
-        (garbleStep (hashAt H tw n) (X (Fin.last (n + 1)))
-          (garble H tw Δ n (Fin.init X)).1).2 := by
-      simp only [garble, Fin.snoc_last]
-    simp only [evaluate]
-    rw [hA, hct, ih (Fin.init X) (Fin.init x), hlast, evalStep_garbleStep, Fin.snoc_init_self]
-    rfl
+    simp only [evaluate, garble, Fin.init_snoc, Fin.snoc_last, hA,
+      ih (Fin.init X) (Fin.init x), evalStep_garbleStep, Fin.snoc_init_self]
 
 /-- **Labels of a selected row.** With the labels the evaluator obtains, the product with any
 public table `T` gives, at each output `u`, the label of bit `T x u` with zero-label

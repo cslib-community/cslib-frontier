@@ -48,17 +48,12 @@ namespace Cslib.Polygonal.Route
 
 private theorem sum_adjacent_bool {n : ℕ} (f : Fin (n + 1) → Bool) :
     (∑ i : Fin n, (f i.castSucc + f i.succ)) = f 0 + f (Fin.last n) := by
-  classical
-  have hlast := Fin.sum_univ_castSucc f
-  have hfirst := Fin.sum_univ_succ f
-  rw [Finset.sum_add_distrib,
-    eq_sub_iff_add_eq.mpr hlast.symm,
-    eq_sub_iff_add_eq'.mpr hfirst.symm]
-  simp only [sub_eq_add_neg, BooleanRing.neg_eq]
-  calc
-    _ = ((∑ i, f i) + ∑ i, f i) +
-        (f 0 + f (Fin.last n)) := by ac_rfl
-    _ = _ := by rw [BooleanRing.add_self, zero_add]
+  induction n with
+  | zero => simp [BooleanRing.add_self]
+  | succ n ih =>
+    rw [Fin.sum_univ_castSucc, ← Fin.succ_last]
+    simp only [Fin.succ_castSucc, ih (fun i => f i.castSucc), Fin.castSucc_zero]
+    rw [add_assoc, ← add_assoc (f (Fin.last n).castSucc), BooleanRing.add_self, zero_add]
 
 private theorem sum_segment_endpoints (p : Route) (observe : ℂ → Bool) :
     (∑ i : Fin p.segments, (observe (p.point i.castSucc) + observe (p.point i.succ))) =
@@ -134,13 +129,8 @@ open Classical in
 /-- The sole segment of a straight route contributes its crossing bit. -/
 theorem rayParity_line (a b u z : ℂ) :
     (line a b).rayParity u z = decide (RayCrosses (u * a) (u * b) (u * z)) := by
-  classical
-  unfold Route.rayParity Cslib.Polygonal.rayParity
-  change (∑ i : Fin 1, if RayCrosses (u * (line a b).point i.castSucc)
-    (u * (line a b).point i.succ) (u * z) then (true : Bool) else 0) = _
-  rw [Fin.sum_univ_one]
-  change (if RayCrosses (u * a) (u * b) (u * z) then true else false) = _
-  by_cases h : RayCrosses (u * a) (u * b) (u * z) <;> simp [h]
+  simp only [Route.rayParity, Cslib.Polygonal.rayParity]
+  exact (Fin.sum_univ_one _).trans (by simp [line, Bool.zero_eq_false])
 
 /-- Cutting a straight route into two at an interior point preserves the ray parity of
 the concatenation, including at observations on the cut height. -/
@@ -175,12 +165,18 @@ theorem rayParity_reverse (p : Route) (u z : ℂ) :
     _ = _ := Equiv.sum_comp e (fun i =>
       if RayCrosses (u * p.point i.castSucc) (u * p.point i.succ) (u * z) then true else 0)
 
+private theorem start_concat {p q : Route} (h : p.finish = q.start) :
+    (p.concat q).start = p.start :=
+  endpoint_concat p q h false
+
+private theorem finish_concat {p q : Route} (h : p.finish = q.start) :
+    (p.concat q).finish = q.finish :=
+  endpoint_concat p q h true
+
 private theorem closed_excursion_return_join (p q : Route)
     (hjoin : p.finish = q.start) (hclosed : q.finish = q.start) :
-    (p.concat q).finish = p.reverse.start := by
-  change (p.concat q).endpoint true = p.reverse.endpoint false
-  rw [endpoint_concat p q hjoin, endpoint_reverse]
-  simpa only [endpoint, Bool.not_false, ↓reduceIte] using hclosed.trans hjoin.symm
+    (p.concat q).finish = p.reverse.start :=
+  (finish_concat hjoin).trans ((hclosed.trans hjoin.symm).trans (p.endpoint_reverse false).symm)
 
 /-- Following a connector to a closed route and retracing the connector contributes
 exactly the parity of the closed route. -/
@@ -200,11 +196,9 @@ private theorem right_slice_iff {K : Set ℂ} (hK : Convex ℝ K) {z w : ℂ}
   refine ⟨fun h => ⟨w, hw, hh, h⟩, ?_⟩
   rintro ⟨y, hy, hyim, hyre⟩
   by_contra! hzw
-  have hx : z.re ∈ segment ℝ w.re y.re := by
-    rw [segment_eq_Icc (hzw.trans hyre.le)]
-    exact ⟨hzw, hyre.le⟩
-  rw [segment_eq_image_lineMap] at hx
-  obtain ⟨t, ht, he⟩ := hx
+  have hx : z.re ∈ segment ℝ w.re y.re :=
+    segment_eq_Icc (hzw.trans hyre.le) ▸ ⟨hzw, hyre.le⟩
+  obtain ⟨t, ht, he⟩ := segment_eq_image_lineMap ℝ w.re y.re ▸ hx
   have heq : AffineMap.lineMap w y t = z := by
     apply Complex.ext
     · exact (Complex.reLm.toAffineMap.apply_lineMap w y t).trans he
@@ -279,9 +273,8 @@ theorem rayParity_eq_of_support_subset_convex (p q : Route) {K : Set ℂ}
     {z : ℂ} (hz : z ∉ K) {u : ℂ} : p.rayParity u z = q.rayParity u z := by
   have hjoin : p.finish = q.reverse.start := hf
   have hclose : (p.concat q.reverse).finish = (p.concat q.reverse).start := by
-    change (p.concat q.reverse).endpoint true = (p.concat q.reverse).endpoint false
-    rw [endpoint_concat _ _ hjoin, endpoint_concat _ _ hjoin, endpoint_reverse]
-    exact hs.symm
+    rw [finish_concat hjoin, start_concat hjoin]
+    exact (q.endpoint_reverse true).trans hs.symm
   have hsupport : (p.concat q.reverse).support ⊆ K := by
     rw [support_concat _ _ hjoin, support_reverse]
     exact Set.union_subset hp hq
@@ -293,42 +286,45 @@ theorem rayParity_eq_of_support_subset_convex (p q : Route) {K : Set ℂ}
 private theorem rayParity_sum_lines (p : Route) (u z : ℂ) :
     p.rayParity u z =
       ∑ i : Fin p.segments, (line (p.point i.castSucc) (p.point i.succ)).rayParity u z := by
-  classical
-  unfold Route.rayParity at *
-  change (∑ i : Fin p.segments, if RayCrosses (u * p.point i.castSucc)
-    (u * p.point i.succ) (u * z) then (true : Bool) else 0) = _
-  apply Finset.sum_congr rfl
-  intro i _
-  change _ = (line (p.point i.castSucc) (p.point i.succ)).rayParity u z
-  rw [rayParity_line]
-  by_cases h : RayCrosses (u * p.point i.castSucc) (u * p.point i.succ) (u * z) <;>
-    simp [h, Bool.zero_eq_false]
+  simp only [rayParity_line]
+  rw [Route.rayParity]
+  simp [Cslib.Polygonal.rayParity, Bool.zero_eq_false]
 
 open Pointwise in
-/-- An observation off a route's support admits one radius for simultaneous small changes
-to all its listed points. If the endpoints stay fixed, the new support avoids the observation
-and preserves ray parity there in every direction, even at an old bend height. -/
-theorem exists_pos_rayParity_eq_of_point_dist_lt (p : Route) {z : ℂ} (hz : z ∉ p.support) :
+private theorem exists_pos_rayParity_eq_of_fixed_incident_segments (p : Route) (z : ℂ) :
     ∃ ε : ℝ, 0 < ε ∧ ∀ q : Fin (p.segments + 1) → ℂ,
       q 0 = p.start → q (Fin.last p.segments) = p.finish →
       (∀ i, dist (q i) (p.point i) < ε) →
-      z ∉ (⟨p.bends, q⟩ : Route).support ∧
+      (∀ i : Fin p.segments, z ∈ segment ℝ (p.point i.castSucc) (p.point i.succ) →
+        q i.castSucc = p.point i.castSucc ∧ q i.succ = p.point i.succ) →
+      (∀ i : Fin p.segments,
+        z ∈ segment ℝ (q i.castSucc) (q i.succ) ↔
+          z ∈ segment ℝ (p.point i.castSucc) (p.point i.succ)) ∧
         ∀ u : ℂ, (⟨p.bends, q⟩ : Route).rayParity u z = p.rayParity u z := by
   classical
-  have hcompact : IsCompact p.support := by
-    unfold support
-    apply isCompact_iUnion
-    intro i
+  let avoids (i : Fin p.segments) := z ∉ segment ℝ (p.point i.castSucc) (p.point i.succ)
+  let S := ⋃ i : {i // avoids i}, segment ℝ (p.point i.val.castSucc) (p.point i.val.succ)
+  have hcompact : IsCompact S := isCompact_iUnion fun i => by
     rw [segment_eq_image_lineMap]
     exact isCompact_Icc.image AffineMap.lineMap_continuous
+  have hz : z ∉ S := by
+    intro hz
+    obtain ⟨i, hi⟩ := Set.mem_iUnion.mp hz
+    exact i.property hi
   obtain ⟨ε, hε, hball⟩ := Metric.isOpen_iff.mp hcompact.isClosed.isOpen_compl z hz
-  refine ⟨ε, hε, fun q hs hf hdist => ?_⟩
+  refine ⟨ε, hε, fun q hs hf hdist hfixed => ?_⟩
   let r : Route := ⟨p.bends, q⟩
   let link (u : ℂ) (i : Fin (p.segments + 1)) := (line (p.point i) (q i)).rayParity u z
   have hpieces (i : Fin p.segments) :
-      z ∉ segment ℝ (q i.castSucc) (q i.succ) ∧
+      (z ∈ segment ℝ (q i.castSucc) (q i.succ) ↔
+        z ∈ segment ℝ (p.point i.castSucc) (p.point i.succ)) ∧
       ∀ u : ℂ, (line (p.point i.castSucc) (p.point i.succ)).rayParity u z =
         (line (q i.castSucc) (q i.succ)).rayParity u z + (link u i.castSucc + link u i.succ) := by
+    by_cases hi : z ∈ segment ℝ (p.point i.castSucc) (p.point i.succ)
+    · obtain ⟨hc, hd⟩ := hfixed i hi
+      refine ⟨by rw [hc, hd], fun u => ?_⟩
+      simp only [link, hc, hd, rayParity_line, not_rayCrosses_of_im_eq rfl, decide_false,
+        ← Bool.zero_eq_false, add_zero]
     let a := p.point i.castSucc
     let b := p.point i.succ
     let c := q i.castSucc
@@ -340,14 +336,12 @@ theorem exists_pos_rayParity_eq_of_point_dist_lt (p : Route) {z : ℂ} (hz : z �
       have hdist' : dist x z < ε := by
         rw [dist_comm, dist_eq_norm, ← heq, add_sub_cancel_left]
         simpa only [Metric.mem_ball, dist_zero_right] using hw
-      exact hball (show x ∈ Metric.ball z ε from hdist') (Set.mem_iUnion.mpr ⟨i, hx⟩)
+      exact hball (show x ∈ Metric.ball z ε from hdist') (Set.mem_iUnion.mpr ⟨⟨i, hi⟩, hx⟩)
     have old {x : ℂ} (hx : x ∈ segment ℝ a b) : x ∈ K :=
       ⟨x, hx, 0, Metric.mem_ball_self hε, add_zero x⟩
     have moved {x y : ℂ} (hx : x ∈ segment ℝ a b) (hy : dist y x < ε) : y ∈ K := by
-      refine ⟨x, hx, y - x, ?_, ?_⟩
-      · simpa only [Metric.mem_ball, dist_eq_norm, sub_zero] using hy
-      · change x + (y - x) = y
-        rw [add_comm, sub_add_cancel]
+      exact ⟨x, hx, y - x, by simpa only [Metric.mem_ball, dist_eq_norm, sub_zero] using hy,
+        add_sub_cancel x y⟩
     have ha := old (left_mem_segment ℝ a b)
     have hb := old (right_mem_segment ℝ a b)
     have hc := moved (left_mem_segment ℝ a b) (hdist i.castSucc)
@@ -356,26 +350,17 @@ theorem exists_pos_rayParity_eq_of_point_dist_lt (p : Route) {z : ℂ} (hz : z �
       rw [support_line]
       exact hK.segment_subset hx hy
     let s := (line a c).concat (line c d)
-    have hjoin : s.finish = (line d b).start := by
-      change ((line a c).concat (line c d)).endpoint true = (line d b).endpoint false
-      rw [endpoint_concat _ _ rfl]
-      rfl
-    have hend (side : Bool) : (line a b).endpoint side =
-        (s.concat (line d b)).endpoint side := by
-      rw [endpoint_concat _ _ hjoin]
-      cases side
-      · change (line a b).endpoint false = ((line a c).concat (line c d)).endpoint false
-        rw [endpoint_concat _ _ rfl]
-        rfl
-      · rfl
+    have hjoin : s.finish = (line d b).start := finish_concat rfl
+    have hs : (line a b).start = (s.concat (line d b)).start :=
+      ((start_concat hjoin).trans (start_concat rfl)).symm
     have hsupport : (s.concat (line d b)).support ⊆ K := by
       rw [support_concat _ _ hjoin]
       change ((line a c).concat (line c d)).support ∪ (line d b).support ⊆ K
       rw [support_concat _ _ rfl]
       exact Set.union_subset (Set.union_subset (hline ha hc) (hline hc hd)) (hline hd hb)
-    refine ⟨fun hz => hzK (hK.segment_subset hc hd hz), fun u => ?_⟩
+    refine ⟨iff_of_false (fun hz => hzK (hK.segment_subset hc hd hz)) hi, fun u => ?_⟩
     have h := rayParity_eq_of_support_subset_convex (line a b) (s.concat (line d b))
-      (u := u) (hend false) (hend true) hK (hline ha hb) hsupport hzK
+      (u := u) hs (finish_concat hjoin).symm hK (hline ha hb) hsupport hzK
     rw [rayParity_concat _ _ hjoin] at h
     change (line a b).rayParity u z =
       ((line a c).concat (line c d)).rayParity u z + (line d b).rayParity u z at h
@@ -383,11 +368,7 @@ theorem exists_pos_rayParity_eq_of_point_dist_lt (p : Route) {z : ℂ} (hz : z �
     refine h.trans ?_
     change _ = (line c d).rayParity u z + ((line a c).rayParity u z + (line b d).rayParity u z)
     ac_rfl
-  change z ∉ r.support ∧ ∀ u : ℂ, r.rayParity u z = p.rayParity u z
-  refine ⟨?_, fun u => ?_⟩
-  · intro hz
-    obtain ⟨i, hi⟩ := Set.mem_iUnion.mp hz
-    exact (hpieces i).1 hi
+  refine ⟨fun i => (hpieces i).1, fun u => ?_⟩
   have hlinks : (∑ i : Fin p.segments, (link u i.castSucc + link u i.succ)) = 0 := by
     rw [sum_adjacent_bool]
     change (line p.start (q 0)).rayParity u z +
@@ -406,6 +387,51 @@ theorem exists_pos_rayParity_eq_of_point_dist_lt (p : Route) {z : ℂ} (hz : z �
       rw [Finset.sum_add_distrib, hlinks, add_zero]
       exact (rayParity_sum_lines r u z).symm
 
+/-- If the route endpoints and all segments incident to an observation stay fixed, a single
+positive radius preserves each segment's incidence with that observation and the route's ray
+parity in every direction. A single radius works for all observations in the given finite set. -/
+theorem exists_pos_rayParity_eq_of_fixed_observation_segments (p : Route) (points : Finset ℂ) :
+    ∃ ε : ℝ, 0 < ε ∧ ∀ q : Fin (p.segments + 1) → ℂ,
+      q 0 = p.start → q (Fin.last p.segments) = p.finish →
+      (∀ i, dist (q i) (p.point i) < ε) →
+      (∀ i : Fin p.segments, (∃ z ∈ points, z ∈ segment ℝ (p.point i.castSucc) (p.point i.succ)) →
+        q i.castSucc = p.point i.castSucc ∧ q i.succ = p.point i.succ) →
+      ∀ z ∈ points,
+        (∀ i : Fin p.segments,
+          z ∈ segment ℝ (q i.castSucc) (q i.succ) ↔
+            z ∈ segment ℝ (p.point i.castSucc) (p.point i.succ)) ∧
+        ∀ u : ℂ, (⟨p.bends, q⟩ : Route).rayParity u z = p.rayParity u z := by
+  classical
+  induction points using Finset.induction_on with
+  | empty =>
+    exact ⟨1, one_pos, fun _ _ _ _ _ _ hz => (Finset.notMem_empty _ hz).elim⟩
+  | @insert z points hz ih =>
+    obtain ⟨r, hr, hlocal⟩ := exists_pos_rayParity_eq_of_fixed_incident_segments p z
+    obtain ⟨s, hs, hrest⟩ := ih
+    refine ⟨min r s, lt_min hr hs, fun q hfirst hlast hdist hfixed w hw => ?_⟩
+    rcases Finset.mem_insert.mp hw with rfl | hw
+    · exact hlocal q hfirst hlast (fun i => (hdist i).trans_le (min_le_left _ _))
+        (fun i hi => hfixed i ⟨w, Finset.mem_insert_self _ _, hi⟩)
+    · exact hrest q hfirst hlast (fun i => (hdist i).trans_le (min_le_right _ _))
+        (fun i ⟨v, hv, hi⟩ => hfixed i ⟨v, Finset.mem_insert_of_mem hv, hi⟩) w hw
+
+/-- An observation off a route's support admits one radius for simultaneous small changes
+to all its listed points. If the endpoints stay fixed, the new support avoids the observation
+and preserves ray parity there in every direction, even at an old bend height. -/
+theorem exists_pos_rayParity_eq_of_point_dist_lt (p : Route) {z : ℂ} (hz : z ∉ p.support) :
+    ∃ ε : ℝ, 0 < ε ∧ ∀ q : Fin (p.segments + 1) → ℂ,
+      q 0 = p.start → q (Fin.last p.segments) = p.finish →
+      (∀ i, dist (q i) (p.point i) < ε) →
+      z ∉ (⟨p.bends, q⟩ : Route).support ∧
+        ∀ u : ℂ, (⟨p.bends, q⟩ : Route).rayParity u z = p.rayParity u z := by
+  obtain ⟨ε, hε, h⟩ := exists_pos_rayParity_eq_of_fixed_incident_segments p z
+  refine ⟨ε, hε, fun q hs hf hdist => ?_⟩
+  obtain ⟨hseg, hpar⟩ := h q hs hf hdist
+    (fun i hi => (hz (Set.mem_iUnion.mpr ⟨i, hi⟩)).elim)
+  refine ⟨fun hz' => hz ?_, hpar⟩
+  obtain ⟨i, hi⟩ := Set.mem_iUnion.mp hz'
+  exact Set.mem_iUnion.mpr ⟨i, (hseg i).mp hi⟩
+
 /-- One positive perturbation radius works simultaneously at all finitely many
 observations disjoint from the original route and for every ray direction. -/
 theorem exists_pos_rayParity_eq_of_point_dist_lt_finset (p : Route) (points : Finset ℂ)
@@ -415,18 +441,13 @@ theorem exists_pos_rayParity_eq_of_point_dist_lt_finset (p : Route) (points : Fi
       (∀ i, dist (q i) (p.point i) < ε) → ∀ z ∈ points,
         z ∉ (⟨p.bends, q⟩ : Route).support ∧
         ∀ u : ℂ, (⟨p.bends, q⟩ : Route).rayParity u z = p.rayParity u z := by
-  classical
-  induction points using Finset.induction_on with
-  | empty =>
-    exact ⟨1, one_pos, fun _ _ _ _ _ hz => (Finset.notMem_empty _ hz).elim⟩
-  | @insert z points hz ih =>
-    obtain ⟨r, hr, hlocal⟩ :=
-      p.exists_pos_rayParity_eq_of_point_dist_lt (havoid z (Finset.mem_insert_self _ _))
-    obtain ⟨s, hs, hrest⟩ := ih fun w hw => havoid w (Finset.mem_insert_of_mem hw)
-    refine ⟨min r s, lt_min hr hs, fun q hfirst hlast hdist w hw => ?_⟩
-    rcases Finset.mem_insert.mp hw with rfl | hw
-    · exact hlocal q hfirst hlast (fun i => (hdist i).trans_le (min_le_left _ _))
-    · exact hrest q hfirst hlast (fun i => (hdist i).trans_le (min_le_right _ _)) w hw
+  obtain ⟨ε, hε, h⟩ := p.exists_pos_rayParity_eq_of_fixed_observation_segments points
+  refine ⟨ε, hε, fun q hs hf hdist z hz => ?_⟩
+  obtain ⟨hseg, hpar⟩ := h q hs hf hdist
+    (fun i ⟨w, hw, hi⟩ => (havoid w hw (Set.mem_iUnion.mpr ⟨i, hi⟩)).elim) z hz
+  refine ⟨fun hz' => havoid z hz ?_, hpar⟩
+  obtain ⟨i, hi⟩ := Set.mem_iUnion.mp hz'
+  exact Set.mem_iUnion.mpr ⟨i, (hseg i).mp hi⟩
 
 private noncomputable def parityTriangle (c : ℂ) (r : ℝ) : Route where
   bends := 2
@@ -467,12 +488,8 @@ private theorem parityTriangle_bits (c z : ℂ) {r : ℝ} (hr : 0 < r) :
     change c.re - r + (z.im - (c.im + r)) / (c.im - r - (c.im + r)) *
       (c.re - r - (c.re - r)) = _
     rw [sub_self, mul_zero, add_zero]
-  have ha : a.im ≤ b.im := by
-    dsimp only [a, b]
-    linarith
-  have hb : b.im ≤ d.im := by
-    dsimp only [b, d]
-    linarith
+  have ha : a.im ≤ b.im := by dsimp only [a, b]; linarith
+  have hb : b.im ≤ d.im := by dsimp only [b, d]; linarith
   have hsum : (parityTriangle c r).rayParity 1 z =
       (if RayCrosses a b z then true else 0) +
       (if RayCrosses b d z then true else 0) +
@@ -500,32 +517,8 @@ private theorem parityTriangle_outside {c z : ℂ} {r : ℝ} (hr : 0 < r)
     (hout : r < max |z.re - c.re| |z.im - c.im|) :
     (parityTriangle c r).rayParity 1 z = false := by
   rw [parityTriangle_bits c z hr]
-  by_cases hlo : c.im - r ≤ z.im
-  · by_cases hhi : z.im < c.im + r
-    · have hy : |z.im - c.im| ≤ r := abs_le.mpr ⟨by linarith, by linarith⟩
-      have hside : z.re < c.re - r ∨ c.re + r < z.re := by
-        by_contra! h
-        have hx : |z.re - c.re| ≤ r := abs_le.mpr ⟨by linarith [h.1], by linarith [h.2]⟩
-        exact (not_lt_of_ge (max_le hx hy)) hout
-      by_cases hmid : z.im < c.im
-      · have hmid' : ¬ c.im ≤ z.im := not_le.mpr hmid
-        rcases hside with hx | hx
-        · have h : z.re < c.re + r + 2 * (z.im - c.im) := by linarith
-          simp [hlo, hhi, hmid, hmid', hx, h, Bool.add_eq_xor]
-        · have h : ¬ z.re < c.re + r + 2 * (z.im - c.im) := by linarith
-          have hleft : ¬ z.re < c.re - r := by linarith
-          simp [hlo, hhi, hmid, hmid', hleft, h, Bool.zero_eq_false]
-      · have hmid' : c.im ≤ z.im := le_of_not_gt hmid
-        rcases hside with hx | hx
-        · have h : z.re < c.re + r - 2 * (z.im - c.im) := by linarith
-          simp [hlo, hhi, hmid, hmid', hx, h, Bool.add_eq_xor]
-        · have h : ¬ z.re < c.re + r - 2 * (z.im - c.im) := by linarith
-          have hleft : ¬ z.re < c.re - r := by linarith
-          simp [hlo, hhi, hmid, hmid', hleft, h, Bool.zero_eq_false]
-    · have hmid : ¬ z.im < c.im := by linarith [le_of_not_gt hhi]
-      simp [hhi, hmid, Bool.zero_eq_false]
-  · have hmid : ¬ c.im ≤ z.im := by linarith [lt_of_not_ge hlo]
-    simp [hlo, hmid, Bool.zero_eq_false]
+  rcases lt_max_iff.mp hout with h | h <;> rcases lt_abs.mp h with h | h <;>
+    split_ifs <;> first | rfl | grind
 
 private theorem parityTriangle_support (c : ℂ) {r : ℝ} (hr : 0 < r)
     {z : ℂ} (hz : z ∈ (parityTriangle c r).support) :
@@ -572,24 +565,16 @@ theorem exists_rayParity_isolating_loop (points : Finset ℂ) (c : ℂ)
     | @insert z s _ ih =>
       obtain ⟨r, hr, hrε, hs⟩ := ih
       by_cases hzc : z = c
-      · refine ⟨r, hr, hrε, ?_⟩
-        intro w hw hwc
-        rcases Finset.mem_insert.mp hw with rfl | hw
-        · exact (hwc hzc).elim
-        · exact hs w hw hwc
+      · exact ⟨r, hr, hrε, Finset.forall_mem_insert _ _ _ |>.mpr ⟨fun h => (h hzc).elim, hs⟩⟩
       let d := max |z.re - c.re| |z.im - c.im|
       have hd : 0 < d := by
         by_contra! h
-        have hre := (le_max_left |z.re - c.re| |z.im - c.im|).trans h
-        have him := (le_max_right |z.re - c.re| |z.im - c.im|).trans h
-        exact hzc (Complex.ext
-          (by have := abs_le.mp hre; linarith) (by have := abs_le.mp him; linarith))
+        simp only [d, max_le_iff, abs_nonpos_iff, sub_eq_zero] at h
+        exact hzc (Complex.ext h.1 h.2)
       refine ⟨min r (d / 2), lt_min hr (by linarith), (min_le_left _ _).trans_lt hrε, ?_⟩
       intro w hw hwc
       rcases Finset.mem_insert.mp hw with rfl | hw
-      · exact (min_le_right _ _).trans_lt (by
-          change d / 2 < d
-          linarith)
+      · exact (min_le_right _ _).trans_lt (half_lt_self hd)
       · exact (min_le_left _ _).trans_lt (hs w hw hwc)
   obtain ⟨r, hr, hrε, hpoints⟩ := chooseRadius points
   refine ⟨parityTriangle c r, rfl, rfl, ?_, ?_, ?_, ?_, parityTriangle_center c hr, ?_⟩
@@ -619,8 +604,7 @@ theorem exists_rayParity_isolating_excursion {U : Set ℂ} (hU : IsOpen U)
   have hV : IsOpen V := hU.sdiff hfinite.isClosed
   have hrank : 1 < Module.rank ℝ ℂ := by
     rw [Complex.rank_real_complex]
-    simpa only [Nat.cast_one, Nat.cast_ofNat] using
-      (Nat.cast_lt.mpr (show (1 : ℕ) < 2 by decide) : (↑(1 : ℕ) : Cardinal) < ↑(2 : ℕ))
+    exact_mod_cast Nat.one_lt_two
   have hVconn : IsPathConnected V :=
     isPathConnected_sdiff_finite_of_isOpen hrank hU hconn hfinite
   obtain ⟨ε, hε, hball⟩ := Metric.isOpen_iff.mp hU c hc
@@ -628,49 +612,30 @@ theorem exists_rayParity_isolating_excursion {U : Set ℂ} (hU : IsOpen U)
     exists_rayParity_isolating_loop points c (half_pos hε)
   have hq : q.support ⊆ V := by
     intro z hz
-    have hmax := hbound z hz
-    have hx := (le_max_left _ _).trans_lt hmax
-    have hy := (le_max_right _ _).trans_lt hmax
+    obtain ⟨hx, hy⟩ := max_lt_iff.mp (hbound z hz)
     have hd : dist z c < ε := by
-      rw [dist_eq_norm]
       have hnorm := Complex.norm_le_abs_re_add_abs_im (z - c)
       rw [Complex.sub_re, Complex.sub_im] at hnorm
+      rw [dist_eq_norm]
       linarith only [hx, hy, hnorm]
     refine ⟨hball (Metric.mem_ball.mpr hd), ?_⟩
     intro hz'
     rcases Finset.mem_insert.mp hz' with rfl | hz'
     · exact hcenter hz
     · exact hpoints z hz' hz
-  have hqstart : q.start ∈ q.support := by
-    have hzero : (0 : ℝ) ∈ Set.Icc 0 1 := ⟨le_rfl, zero_le_one⟩
-    have he := q.at_eq_start 0 hzero (by simp [position])
-    exact he ▸ q.at_mem_support 0 hzero
-  have haV : a ∈ V := by
-    refine ⟨ha, ?_⟩
-    simpa only [Finset.mem_coe, Finset.mem_insert, not_or] using (And.intro hac haPoints)
+  have hqstart : q.start ∈ q.support := q.point_mem_support 0
+  have haV : a ∈ V :=
+    ⟨ha, by simpa only [Finset.mem_coe, Finset.mem_insert, not_or] using ⟨hac, haPoints⟩⟩
   obtain ⟨p, hstart, hjoin, hp⟩ :=
     exists_support_subset_of_joinedIn hV (hVconn.joinedIn _ haV _ (hq hqstart))
   have hreturn := closed_excursion_return_join p q hjoin hclosed
-  have hfirst : ((p.concat q).concat p.reverse).start = a := by
-    change ((p.concat q).concat p.reverse).endpoint false = a
-    rw [endpoint_concat _ _ hreturn]
-    change (p.concat q).endpoint false = a
-    rw [endpoint_concat _ _ hjoin]
-    exact hstart
-  have hlast : ((p.concat q).concat p.reverse).finish = a := by
-    change ((p.concat q).concat p.reverse).endpoint true = a
-    rw [endpoint_concat _ _ hreturn]
-    change p.reverse.endpoint true = a
-    rw [endpoint_reverse]
-    exact hstart
-  refine ⟨(p.concat q).concat p.reverse, hfirst, hlast, ?_, ?_, ?_⟩
+  refine ⟨(p.concat q).concat p.reverse, (start_concat hreturn).trans
+    ((start_concat hjoin).trans hstart), (finish_concat hreturn).trans
+    ((p.endpoint_reverse true).trans hstart), ?_, ?_, ?_⟩
   · rw [support_concat _ _ hreturn, support_concat _ _ hjoin, support_reverse]
     exact Set.union_subset (Set.union_subset hp hq) hp
-  · rw [rayParity_closed_excursion p q hjoin hclosed]
-    exact hodd
-  · intro z hz hne
-    rw [rayParity_closed_excursion p q hjoin hclosed]
-    exact heven z hz hne
+  · exact (rayParity_closed_excursion p q hjoin hclosed _ _).trans hodd
+  · exact fun z hz hne => (rayParity_closed_excursion p q hjoin hclosed _ _).trans (heven z hz hne)
 
 /-- Realize a prescribed subset of odd ray-parity observations by one closed polygonal
 route based at an unmarked point. The whole route remains in the open region and avoids
@@ -685,18 +650,10 @@ theorem exists_rayParity_excursion_of_subset {U : Set ℂ} (hU : IsOpen U)
   | empty =>
       refine ⟨line a a, start_line _ _, finish_line _ _, ?_, ?_⟩
       · rw [support_line, segment_same]
-        intro z hz
-        have heq := Set.mem_singleton_iff.mp hz
-        subst z
+        rintro _ rfl
         exact ⟨ha, haPoints⟩
       · intro z _
-        unfold Route.rayParity Cslib.Polygonal.rayParity
-        change (∑ i : Fin 1, if RayCrosses (1 * (line a a).point i.castSucc)
-          (1 * (line a a).point i.succ) (1 * z) then (true : Bool) else 0) = _
-        rw [Fin.sum_univ_one]
-        change (if RayCrosses (1 * a) (1 * a) (1 * z) then (true : Bool) else 0) = _
-        simp only [not_rayCrosses_of_im_eq rfl, ite_false, Finset.notMem_empty,
-          decide_false, Bool.zero_eq_false]
+        simp only [rayParity_line, not_rayCrosses_of_im_eq rfl, Finset.notMem_empty]
   | @insert c odd hc ih =>
       have hcPoints : c ∈ points := hodd (Finset.mem_insert_self _ _)
       have hcU : c ∈ U := hUodd c (Finset.mem_insert_self _ _)
@@ -707,16 +664,8 @@ theorem exists_rayParity_excursion_of_subset {U : Set ℂ} (hU : IsOpen U)
         exists_rayParity_isolating_excursion hU hconn points ha hcU haPoints
           (fun heq => haPoints (heq.symm ▸ hcPoints))
       have hjoin : p.finish = q.start := hpf.trans hqs.symm
-      have hstart : (p.concat q).start = a := by
-        change (p.concat q).endpoint false = a
-        rw [endpoint_concat p q hjoin]
-        exact hps
-      have hfinish : (p.concat q).finish = a := by
-        change (p.concat q).endpoint true = a
-        rw [endpoint_concat p q hjoin]
-        exact hqf
       rw [Finset.insert_eq_of_mem hcPoints] at hq
-      refine ⟨p.concat q, hstart, hfinish, ?_, ?_⟩
+      refine ⟨p.concat q, (start_concat hjoin).trans hps, (finish_concat hjoin).trans hqf, ?_, ?_⟩
       · rw [support_concat p q hjoin]
         exact Set.union_subset hp hq
       · intro z hz
@@ -728,7 +677,8 @@ theorem exists_rayParity_excursion_of_subset {U : Set ℂ} (hU : IsOpen U)
 
 /-- Insert a closed excursion at a join to add the prescribed ray-parity bits in a
 nonzero complex coordinate factor. The new support stays in the union of the original
-support and the punctured region. Both outer endpoints and germs are preserved. -/
+support and the punctured region. Both outer endpoints and germs are preserved, and
+the route retains at least as many segments as the two routes at the join. -/
 theorem exists_concat_add_rayParity {U : Set ℂ} (hU : IsOpen U)
     (hconn : IsPathConnected U) (points odd : Finset ℂ) (hodd : odd ⊆ points)
     (hUodd : ∀ z ∈ odd, z ∈ U) (p q : Route) (hjoin : p.finish = q.start)
@@ -737,7 +687,8 @@ theorem exists_concat_add_rayParity {U : Set ℂ} (hU : IsOpen U)
       (∀ b, r.germ b = (p.concat q).germ b) ∧
       (p.concat q).support ⊆ r.support ∧
       r.support ⊆ (p.concat q).support ∪ (U \ (↑points : Set ℂ)) ∧
-      ∀ z ∈ points, r.rayParity u z = (p.concat q).rayParity u z + decide (z ∈ odd) := by
+      (∀ z ∈ points, r.rayParity u z = (p.concat q).rayParity u z + decide (z ∈ odd)) ∧
+      p.segments + q.segments ≤ r.segments := by
   classical
   let f := Homeomorph.mulLeft₀ u hu
   have hf (z : ℂ) : f z = u * z := rfl
@@ -754,26 +705,16 @@ theorem exists_concat_add_rayParity {U : Set ℂ} (hU : IsOpen U)
       (hconn.image f.continuous) points' odd' hsub huodd
       (Set.mem_image_of_mem f ha) (fun h => haPoints ((Finset.mem_map' embedding).mp h))
   let e := mulComplex u⁻¹ l
-  have hstart : e.start = p.finish := by
-    change e.endpoint false = _
-    rw [endpoint_mulComplex]
-    change u⁻¹ * l.start = _
-    rw [hls, hf, inv_mul_cancel_left₀ hu]
-  have hfinish : e.finish = p.finish := by
-    change e.endpoint true = _
-    rw [endpoint_mulComplex]
-    change u⁻¹ * l.finish = _
-    rw [hlf, hf, inv_mul_cancel_left₀ hu]
+  have hend (b : Bool) (hb : l.endpoint b = f p.finish) : e.endpoint b = p.finish := by
+    rw [endpoint_mulComplex, hb, hf, inv_mul_cancel_left₀ hu]
+  have hstart : e.start = p.finish := hend false hls
+  have hfinish : e.finish = p.finish := hend true hlf
   have hsupport : e.support ⊆ U \ (↑points : Set ℂ) := by
-    intro z hz
-    change z ∈ (mulComplex u⁻¹ l).support at hz
-    rw [support_mulComplex] at hz
-    obtain ⟨w, hw, rfl⟩ := hz
-    obtain ⟨⟨v, hv, heq⟩, hn⟩ := hl hw
-    have heq' : w = u * v := heq.symm
-    change u⁻¹ * w ∈ U \ (↑points : Set ℂ)
-    rw [heq', inv_mul_cancel_left₀ hu]
-    exact ⟨hv, fun h => hn (heq ▸ Finset.mem_map_of_mem embedding h)⟩
+    rw [support_mulComplex]
+    rintro _ ⟨w, hw, rfl⟩
+    obtain ⟨⟨v, hv, rfl⟩, hn⟩ := hl hw
+    simp only [hf, inv_mul_cancel_left₀ hu]
+    exact ⟨hv, fun h => hn (Finset.mem_map_of_mem embedding h)⟩
   have hparity (z : ℂ) (hz : z ∈ points) : e.rayParity u z = decide (z ∈ odd) := by
     have h : e.rayParity u z = l.rayParity 1 (f z) := by
       unfold Route.rayParity Cslib.Polygonal.rayParity
@@ -783,11 +724,8 @@ theorem exists_concat_add_rayParity {U : Set ℂ} (hU : IsOpen U)
     change decide (embedding z ∈ odd.map embedding) = decide (z ∈ odd)
     exact Bool.decide_congr (Finset.mem_map' embedding)
   have he : p.finish = e.start := hstart.symm
-  have hq : (p.concat e).finish = q.start := by
-    change (p.concat e).endpoint true = q.start
-    rw [endpoint_concat p e he]
-    exact hfinish.trans hjoin
-  refine ⟨(p.concat e).concat q, ?_, ?_, ?_, ?_, ?_⟩
+  have hq : (p.concat e).finish = q.start := (finish_concat he).trans (hfinish.trans hjoin)
+  refine ⟨(p.concat e).concat q, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · intro b
     rw [endpoint_concat _ _ hq, endpoint_concat p q hjoin, endpoint_concat p e he]
     cases b <;> rfl
@@ -806,6 +744,8 @@ theorem exists_concat_add_rayParity {U : Set ℂ} (hU : IsOpen U)
     rw [rayParity_concat _ _ hq, rayParity_concat p e he, rayParity_concat p q hjoin,
       hparity z hz]
     ac_rfl
+  · rw [segments_concat, segments_concat]
+    omega
 
 /-- Insert a prescribed parity excursion at an interior point of a straight route.
 The excursion avoids the marked points, and each outer germ remains a positive
@@ -822,7 +762,7 @@ theorem exists_line_add_rayParity {U : Set ℂ} (hU : IsOpen U)
   let m := AffineMap.lineMap a b t
   let p := line a m
   let q := line m b
-  obtain ⟨r, he, hg, hcontains, hsupport, hpar⟩ :=
+  obtain ⟨r, he, hg, hcontains, hsupport, hpar, -⟩ :=
     exists_concat_add_rayParity hU hconn points odd hodd hUodd p q rfl hm.1 hm.2 hu
   have hsegments : (p.concat q).support = segment ℝ a b := by
     let L : ℝ →ᵃ[ℝ] ℂ := AffineMap.lineMap a b
@@ -845,8 +785,6 @@ theorem exists_line_add_rayParity {U : Set ℂ} (hU : IsOpen U)
     cases s
     · exact AffineMap.lineMap_vsub_left a b t
     · exact AffineMap.lineMap_vsub_right a b t
-  · have hcut : (p.concat q).rayParity u z = (line a b).rayParity u z :=
-      rayParity_line_split a b u z ht
-    rw [hpar z hz, hcut]
+  · rw [hpar z hz, rayParity_line_split a b u z ht]
 
 end Cslib.Polygonal.Route

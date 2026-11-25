@@ -207,11 +207,9 @@ private theorem computable_lastLiteral :
       (encFinEnum (Fin 4)) (encFinEnum (Fin 2)) := .of_finite _
   have he : ComputableInPolyTime PairedPorts.spokeElbow
       (encFinEnum (Fin 4)) encPoint := .of_finite _
-  have hr : ComputableInPolyTime (fun p : List Point × Route × Bool => p.2.1)
-      (encPair encRoute (encPair encRoute encBool)) encRoute := by fun_prop
   have hrlen : ComputableInPolyTime (fun p : List Point × Route × Bool => p.2.1.length)
       (encPair encRoute (encPair encRoute encBool)) encUnary :=
-    (ComputableInPolyTime.length_list encPoint).comp hr
+    (ComputableInPolyTime.length_list encPoint).comp (by fun_prop)
   dsimp only [lastLiteral]
   simp only [List.getLastD_eq_getLast?, List.getLast?_eq_head?_reverse, ← List.headD_eq_head?_getD]
   unfold encRoute at *
@@ -258,20 +256,15 @@ private theorem computable_templateClauses {A : Type} [FinEnum A]
         (encPair encPoint rowEncoding) encPoint := by
       unfold rowEncoding encRoute at *
       fun_prop
-    have hroutes : ComputableInPolyTime
-        (fun _ : Point × (Clause A × ℕ) => incidenceRoutes)
-        (encPair encPoint rowEncoding) (encList routeEntry) := .const _
     have hfroutes : ComputableInPolyTime
         (fun p : Point × (Clause A × ℕ) => incidenceRoutes.filter fun e => e.1 == p.2.2)
         (encPair encPoint rowEncoding) (encList routeEntry) :=
-      ComputableInPolyTime.filterWithInput hroutes (by
+      ComputableInPolyTime.filterWithInput (.const _) (by
         unfold rowEncoding routeEntry
         fun_prop)
     unfold rowEncoding routeEntry encPlacedClause Clause.relabel encVariable Prod.map at *
     fun_prop
-  have hlist : ComputableInPolyTime (fun _ : Point => ψ.zipIdx)
-      encPoint (encList rowEncoding) := .const _
-  simpa only [Function.comp_def] using ComputableInPolyTime.mapWithInput hlist hbody
+  simpa only [Function.comp_def] using ComputableInPolyTime.mapWithInput (.const _) hbody
 
 private theorem computable_ordinaryClauses :
     ComputableInPolyTime ordinaryClauses encPoint (encList encPlacedClause) := by
@@ -310,10 +303,8 @@ theorem computableInPolyTime_rawFormula :
 Compact ranks are computed as unary counters and then encoded in binary. -/
 @[fun_prop]
 theorem computableInPolyTime_formula : ComputableInPolyTime formula encCNF encCNF := by
-  have hu := (CNF.isPolyTime_compact encVariable).comp computableInPolyTime_rawFormula
-  have hi : ComputableInPolyTime (fun n : ℕ => n) encUnary encNat :=
-    ComputableInPolyTime.unary_to_binary
-  have hr := (CNF.computableInPolyTime_relabel hi).comp hu
+  have hr := (CNF.computableInPolyTime_relabel ComputableInPolyTime.unary_to_binary).comp
+    ((CNF.isPolyTime_compact encVariable).comp computableInPolyTime_rawFormula)
   have he (ψ : CNF ℕ) : ψ.relabel (fun n : ℕ => n) = ψ := CNF.relabel_id ψ
   change ComputableInPolyTime (fun φ => (rawFormula φ).compact) _ _
   simpa only [Function.comp_def, he, encCNF] using hr

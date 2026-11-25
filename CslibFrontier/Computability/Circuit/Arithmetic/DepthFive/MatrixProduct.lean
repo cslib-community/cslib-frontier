@@ -58,30 +58,19 @@ theorem exists_circuit_list_prod {ν r : ℕ} [NeZero ν] {Λ : Type*} [Fintype 
       (U := Fin (r + 1) → Fin ν) (∑ j, e j) (fun (j, _) => e j)
       (fun (j, q) b v => if v = x j q b then 1 else 0) (fun (j, _, _) => e j)
       (fun (j, a, b) (j', q) => if j' = j then c j a b q else 0)
-      (fun (j, a, b) (j', q) h => by
-        by_cases hj : j' = j
-        · rw [hj]
-        · simp [hj] at h)
+      (fun (j, _, _) (j', _) h => by by_cases hj : j' = j <;> simp_all)
       (fun _ => r) (fun P j => (j, P j.castSucc, P j.succ))
       (fun P => if P 0 = 0 ∧ P (Fin.last r) = 0 then 1 else 0) (fun _ _ => rfl), ?_, ?_⟩
   · rw [Circuit.polynomial_ofFintype, Matrix.list_prod_ofFn_apply]
     refine Finset.sum_congr rfl fun P _ => ?_
-    have hprod : ∀ j : Fin r, (∑ l : Fin r × Λ,
-        C (if l.1 = j then c j (P j.castSucc) (P j.succ) l.2 else 0) *
-          ∏ b, ∑ v, C (if v = x l.1 l.2 b then (1 : K) else 0) * X v) =
-        ∑ q, C (c j (P j.castSucc) (P j.succ) q) * ∏ i, X (x j q i) := fun j => by
-      rw [Fintype.sum_prod_type, Finset.sum_eq_single j]
-      · simp
-      · intro j' _ hj
-        simp [hj]
-      · simp
     by_cases h : P 0 = 0 ∧ P (Fin.last r) = 0
     · simp only [h, and_self, ↓reduceIte, map_one, one_mul, Matrix.of_apply]
-      exact Finset.prod_congr rfl fun j _ => hprod j
+      refine Finset.prod_congr rfl fun j _ => ?_
+      rw [Fintype.sum_prod_type, Finset.sum_eq_single j (fun _ _ hj => by simp [hj]) (by simp)]
+      simp
     · simp [h]
-  · rw [Circuit.size_ofFintype]
-    simp only [Fintype.card_prod, Fintype.card_fin, Fintype.card_pi, Finset.prod_const,
-      Finset.card_univ]
+  · simp only [Circuit.size_ofFintype, Fintype.card_prod, Fintype.card_fin, Fintype.card_pi,
+      Finset.prod_const, Finset.card_univ]
     ring
 
 end Cslib.Circuits.DepthFive

@@ -180,10 +180,8 @@ private theorem synthesis_table {B : Type*} [Fintype B] (pattern : B → Finset 
       cases t with
       | inl c =>
         have heq : test (.inl c) =
-            fun x => decide ((fun i => x (Fin.castAdd l i)) = (BitString.equivFin k).symm c) := by
-          funext x
-          exact Bool.eq_iff_iff.mpr (by
-            rw [decide_eq_true_iff, decide_eq_true_iff, Equiv.eq_symm_apply]; rfl)
+            fun x => decide ((fun i => x (Fin.castAdd l i)) = (BitString.equivFin k).symm c) :=
+          funext fun x => by simp [test, column, ← Equiv.eq_symm_apply]
         rw [heq]
         exact (synthesis_minterm _ _).mono Set.Subset.rfl Set.Subset.rfl (by omega)
       | inr r => exact (synthesis_minterm _ r).mono Set.Subset.rfl Set.Subset.rfl (by omega)
@@ -664,14 +662,10 @@ theorem complexityOn_le_partialBound {n : ℕ} (k l : ℕ) {J : ℕ} (D : Finset
   have hEc := (complexity_indicator_le_card_mul E).trans (Nat.add_le_add_right
     (Nat.mul_le_mul_right (2 * n + 2) ((Nat.le_div_iff_mul_le (Nat.two_pow_pos _)).mpr hE)) 1)
   have hcongr : Set.EqOn (single u) (single fun x => φ (linearMap H x) ^^ decide (x ∈ E))
-      (D : Set (BitString n)) := by
-    intro x hx
-    funext j
-    have hx : x ∈ D := hx
-    by_cases h : φ (linearMap H x) = u x
-    · simp [E, hx, h]
-    · simp only [single_apply, E, mem_filter, hx, true_and]
-      cases hu : u x <;> cases hv : φ (linearMap H x) <;> simp_all
+      (D : Set (BitString n)) := fun x hx => by
+    funext
+    simp only [single_apply, E, mem_filter, mem_coe.mp hx, true_and]
+    cases φ (linearMap H x) <;> cases u x <;> decide
   rw [complexityOn_congr hcongr]
   refine complexityOn_le_complexity.trans ((complexity_xor_le _ _).trans ?_)
   have hcomp : single (fun x => φ (linearMap H x)) = single φ ∘ linearMap H := rfl

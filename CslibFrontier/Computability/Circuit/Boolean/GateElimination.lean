@@ -184,16 +184,11 @@ private theorem exists_eqUpToNeg_of_isConst (h : ℓ.op.IsBinary) {s : Fin (sign
   obtain ⟨op, wires⟩ := ℓ
   obtain ⟨c, hc⟩ := isConst_iff_exists_forall_eq.1 hs
   rcases Op.isBinary_iff.1 h with rfl | rfl <;> rcases fin_two s with rfl | rfl <;>
-    simp only at hc <;> cases c
+    simp only at hc <;> cases c <;>
   -- AND with a false argument is that argument; with a true one, the other argument.
-  exacts [⟨0, false, fun x => by simp [lineFunction, interpretation, hc]⟩,
-    ⟨1, false, fun x => by simp [lineFunction, interpretation, hc]⟩,
-    ⟨1, false, fun x => by simp [lineFunction, interpretation, hc]⟩,
-    ⟨0, false, fun x => by simp [lineFunction, interpretation, hc]⟩,
-    ⟨1, false, fun x => by simp [lineFunction, interpretation, hc]⟩,
-    ⟨0, false, fun x => by simp [lineFunction, interpretation, hc]⟩,
-    ⟨0, false, fun x => by simp [lineFunction, interpretation, hc]⟩,
-    ⟨1, false, fun x => by simp [lineFunction, interpretation, hc]⟩]
+  first
+  | (refine ⟨0, false, fun x => ?_⟩; simp [lineFunction, interpretation, hc]; done)
+  | (refine ⟨1, false, fun x => ?_⟩; simp [lineFunction, interpretation, hc])
 
 /-- A gate whose arguments are constant is constant. -/
 private theorem isConst_of_forall_isConst (h : ∀ s, IsConst (G (ℓ.wires s))) :

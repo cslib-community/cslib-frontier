@@ -383,9 +383,7 @@ theorem exists_satisfies_of_isAcceptingPath {x : ι → U} {γ : ℕ → E → O
     refine N.constraint_congr _ (ys t) x (αs t) _ (fun i hread => ?_) (fun e he => ?_)
       (hcheck t (by omega) ht)
     · -- The inputs read at the vertex are read during its step.
-      have hi' : i ∈ (N.branchingProgram π).newly t := by
-        rw [N.newly_branchingProgram π ht]
-        exact hread
+      have hi' : i ∈ (N.branchingProgram π).newly t := by rwa [N.newly_branchingProgram π ht]
       exact congrFun (hys t (by omega)) ⟨i, hi'⟩
     · -- The vertex is the earlier end of the edge, or the edge is on the frontier before it.
       have hend : lo e = t ∨ lo e < t ∧ t ≤ hi e := by

@@ -104,37 +104,22 @@ private theorem port_injective (v : Vert U C R) : Function.Injective (port N A v
       exact (of_decide_eq_true hc).2 (Sum.inl.inj h) |>.elim
     · have hc := (List.mem_filter.mp (input_mem (rowInputs N A u) j)).2
       exact (of_decide_eq_true hc).2 (Sum.inl.inj h).symm |>.elim
-    · apply congrArg Sum.inr
-      apply Fin.ext
-      have hi := i.isLt
-      have hj := j.isLt
-      change i.val < 1 at hi
-      change j.val < 1 at hj
-      omega
+    · exact congrArg Sum.inr (Subsingleton.elim (α := Fin 1) i j)
   · rintro (i | i) (j | j) h
     · exact congrArg Sum.inl (input_injective _ ((N.branches_nodup).filter _) (Sum.inr.inj h))
     · cases h
     · cases h
-    · apply congrArg Sum.inr
-      apply Fin.ext
-      have hi := i.isLt
-      have hj := j.isLt
-      change i.val < 1 at hi
-      change j.val < 1 at hj
-      omega
+    · exact congrArg Sum.inr (Subsingleton.elim (α := Fin 1) i j)
   · rintro (i | i) (j | j) h
     · exact i.elim0
     · exact i.elim0
     · exact j.elim0
     · apply congrArg Sum.inr
       have hij : decide (i.val = 1) = decide (j.val = 1) := congrArg Prod.snd (Sum.inr.inj h)
-      have hi := i.isLt
-      have hj := j.isLt
-      apply Fin.ext
+      have hi : i.val < 2 := i.isLt
+      have hj : j.val < 2 := j.isLt
       simp only [decide_eq_decide] at hij
-      change i.val < 2 at hi
-      change j.val < 2 at hj
-      omega
+      exact Fin.ext (by omega)
 
 private theorem source_row (u : U) (s : Edge C R → Bool) :
     (((gen (cell N A (.inl u)).generator).graph Prim.interp).Legal
@@ -270,9 +255,7 @@ theorem simulation_abs [Fintype U] [Fintype C] [Fintype R]
 theorem simulation_enc_shared [Fintype U] [Fintype C] [Fintype R]
     (s : Edge C R → Bool) (e : Edge C R) :
     (simulation N A).enc s (.inl e) = s e := by
-  have h := congrFun ((simulation N A).abs_enc s) e
-  rw [simulation_abs] at h
-  exact h
+  simpa only [simulation_abs] using congrFun ((simulation N A).abs_enc s) e
 
 /-- Private canonical directions are exactly the local open simulation's canonical directions. -/
 theorem simulation_enc_private [Fintype U] [Fintype C] [Fintype R]
@@ -379,15 +362,15 @@ private theorem local_portMultiset (v : Vert U C R) :
         ({⟨⟨Sum.inr e, false⟩, (cell N A v).diagram.edgeWeight e⟩} +
           {⟨⟨Sum.inr e, true⟩, (cell N A v).diagram.edgeWeight e⟩}) := by
   have ht (i : Fin (cell N A v).top.length) : ((cell N A v).top.get i).weight = 2 := by
-    rcases v with u | (c | r)
-    · simp [Cell.top, List.get_eq_getElem, Color.weight]
-    · simp [Cell.top, List.get_eq_getElem, Color.weight]
-    · exact i.elim0
+    match v with
+    | .inl _ | .inr (.inl _) => simp [Cell.top, List.get_eq_getElem, Color.weight]
+    | .inr (.inr _) => exact i.elim0
   have hb (i : Fin (cell N A v).bottom.length) : ((cell N A v).bottom.get i).weight = 2 := by
-    rcases v with u | (c | r)
-    · exact congrArg Color.weight (List.mem_singleton.mp (List.get_mem _ i))
-    · exact congrArg Color.weight (List.mem_singleton.mp (List.get_mem _ i))
-    · have hi := List.get_mem (cell N A (.inr (.inr r))).bottom i
+    match v with
+    | .inl _ | .inr (.inl _) =>
+      exact congrArg Color.weight (List.mem_singleton.mp (List.get_mem _ i))
+    | .inr (.inr r) =>
+      have hi := List.get_mem (cell N A (.inr (.inr r))).bottom i
       simp only [Cell.bottom, List.mem_cons, List.not_mem_nil, or_false, or_self] at hi
       exact congrArg Color.weight hi
   rw [localGraph, ConstraintGraph.portMultiset_reorient,

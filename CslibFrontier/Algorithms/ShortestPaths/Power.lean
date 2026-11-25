@@ -70,7 +70,7 @@ theorem one_add_eq_withOneDiag [DecidableEq V] {W : Matrix V V (MinTropical R)}
   · subst h
     simp only [withOneDiag, Matrix.one_apply_eq, ↓reduceIte]
     exact add_eq_left (by simpa using hW i [i] rfl)
-  · simp only [withOneDiag, Matrix.one_apply_ne h, h, ↓reduceIte, zero_add]
+  · simp [withOneDiag, Matrix.one_apply_ne h, h]
 
 variable [Fintype V] [DecidableEq V]
 
@@ -183,9 +183,8 @@ theorem one_add_pow_eq_of_le (hW : NoNegCycle W) {k : ℕ} (hk : Fintype.card V 
 /-- Without negative cycles, `withOneDiag W ^ k` is the shortest-distance matrix of `W` for every
 `k ≥ card V - 1`. -/
 theorem isShortestDistances_withOneDiag_pow (hW : NoNegCycle W) {k : ℕ}
-    (hk : Fintype.card V - 1 ≤ k) : IsShortestDistances W (withOneDiag W ^ k) := by
-  rw [← one_add_eq_withOneDiag hW]
-  exact isShortestDistances_one_add_pow hW hk
+    (hk : Fintype.card V - 1 ≤ k) : IsShortestDistances W (withOneDiag W ^ k) :=
+  one_add_eq_withOneDiag hW ▸ isShortestDistances_one_add_pow hW hk
 
 /-- **Negative-cycle detection.** `W` has no negative cycles iff every diagonal entry of
 `(1 + W) ^ card V` is at least `1`, the tropical `0`. -/

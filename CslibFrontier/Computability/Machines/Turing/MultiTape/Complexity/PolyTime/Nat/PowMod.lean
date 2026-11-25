@@ -129,11 +129,9 @@ theorem ComputableInPolyTime.binary_powMod {α : Type} {input : α ↪ List Bool
     (hexponent : ComputableInPolyTime exponent input encNat)
     (hmodulus : ComputableInPolyTime modulus input encNat) (hpos : ∀ a, 0 < modulus a) :
     ComputableInPolyTime (fun a => base a ^ exponent a % modulus a) input encNat := by
-  have hpred : ComputableInPolyTime (fun a => modulus a - 1) input encNat :=
-    ComputableInPolyTime.binary_sub' hmodulus (ComputableInPolyTime.const 1)
-  have hcomp := BinaryPowMod.computableInPolyTime_powMod_succ.comp
-    (hbase.prod (hexponent.prod hpred))
-  simpa only [Function.comp_def, Nat.sub_add_cancel (hpos _)] using hcomp
+  simpa only [Function.comp_def, Nat.sub_add_cancel (hpos _)] using
+    BinaryPowMod.computableInPolyTime_powMod_succ.comp
+      (hbase.prod (hexponent.prod (ComputableInPolyTime.binary_sub' hmodulus (.const 1))))
 
 /-! ### Total modular exponentiation -/
 
@@ -146,9 +144,7 @@ theorem powMod_of_ne_zero {M : ℕ} (hM : M ≠ 0) (x e : ℕ) : powMod M x e = 
 
 /-- Raising `powMod N g a` to the power `b` modulo `N` is `powMod N g (a * b)`. -/
 theorem powMod_powMod (N g a b : ℕ) : powMod N (powMod N g a) b = powMod N g (a * b) := by
-  by_cases hN : N = 0
-  · simp [powMod, hN]
-  · simp [powMod_of_ne_zero hN, Nat.pow_mod, pow_mul]
+  by_cases hN : N = 0 <;> simp [powMod, hN, Nat.pow_mod, pow_mul]
 
 /-- A power of a unit modulo `N` is a unit modulo `N`. -/
 theorem coprime_powMod {N g : ℕ} (hg : Nat.Coprime g N) (e : ℕ) :
@@ -163,22 +159,17 @@ theorem computableInPolyTime_powMod {α : Type} {input : α ↪ List Bool} {M x 
     (hM : ComputableInPolyTime M input encNat) (hx : ComputableInPolyTime x input encNat)
     (he : ComputableInPolyTime e input encNat) :
     ComputableInPolyTime (fun a => powMod (M a) (x a) (e a)) input encNat := by
-  have hpow := ComputableInPolyTime.binary_powMod hx he
-    (ComputableInPolyTime.binary_add'
-      (ComputableInPolyTime.binary_sub' hM (ComputableInPolyTime.const 1))
-      (ComputableInPolyTime.const 1)) fun _ => Nat.succ_pos _
-  have h := ComputableInPolyTime.ite_decide (condition := fun a => M a = 0)
-    (ComputableInPolyTime.decide_eq' hM (ComputableInPolyTime.const 0))
-    (ComputableInPolyTime.const 1) hpow
   have heq : (fun a => powMod (M a) (x a) (e a)) =
-      fun a => if M a = 0 then 1 else x a ^ e a % (M a - 1 + 1) := by
-    funext a
+      fun a => if M a = 0 then 1 else x a ^ e a % (M a - 1 + 1) := funext fun a => by
     unfold powMod
     split_ifs with h0
     · rfl
-    · rw [Nat.sub_add_cancel (Nat.one_le_iff_ne_zero.mpr h0)]
+    · rw [Nat.sub_add_cancel (Nat.pos_of_ne_zero h0)]
   rw [heq]
-  exact h
+  exact ComputableInPolyTime.ite_decide (condition := fun a => M a = 0)
+    (.decide_eq' hM (.const 0)) (.const 1) <|
+    ComputableInPolyTime.binary_powMod hx he
+      (.binary_add' (.binary_sub' hM (.const 1)) (.const 1)) fun _ => Nat.succ_pos _
 
 end Turing.MultiTapeTM
 

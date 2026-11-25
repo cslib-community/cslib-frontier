@@ -57,16 +57,10 @@ private theorem exec_inputCode {w : ℕ} (inst : Instance) (hw : Fits w inst.wor
   obtain ⟨y₂, he_scan, hb₂, hmem₂, hM_le, hM_ge⟩ := exec_scanMaxCode inst hw y₁ hb₁ hmem₁
   let M := y₂.regs rM
   let C : Fin inst.n × Fin inst.n → ℕ := fun p => (inst.cost p + (M : ℤ)).toNat
-  have hC_cast : ∀ p : Fin inst.n × Fin inst.n, (C p : ℤ) = inst.cost p + (M : ℤ) := by
-    rintro ⟨u, v⟩
-    have := hM_ge u v
-    simp only [C]
-    omega
-  have hC_le : ∀ u v : Fin inst.n, C (u, v) ≤ 2 * M := by
-    intro u v
-    have := hM_ge u v
-    simp only [C]
-    omega
+  have hC_cast : ∀ p : Fin inst.n × Fin inst.n, (C p : ℤ) = inst.cost p + (M : ℤ) :=
+    fun ⟨u, v⟩ => by have := hM_ge u v; simp only [C]; omega
+  have hC_le : ∀ u v : Fin inst.n, C (u, v) ≤ 2 * M :=
+    fun u v => by have := hM_ge u v; simp only [C]; omega
   obtain ⟨y₃, he_fill, hb₃, hC₃⟩ := exec_fillCCode inst hw hM_le hM_ge y₂ hb₂ hmem₂
   have hfit_core :
       Fits w ((2 + inst.n * inst.n) + inst.n * inst.n + 8 * inst.n + 2 * (2 * M) + 2) :=
@@ -76,16 +70,12 @@ private theorem exec_inputCode {w : ℕ} (inst : Instance) (hw : Fits w inst.wor
   have hb₄ : BaseRegs inst.n (2 + inst.n * inst.n) M y₄ := hb₃.of_eq hr₄
   have hC₄ : CostMem (2 + inst.n * inst.n) C y₄.mem := hC₃.of_outside fun a ha => hf₄ a (.inl ha)
   have hm_shift : (hungarian fun p => (C p : ℤ)).matching = (hungarian inst.cost).matching := by
-    have hfun : (fun p => (C p : ℤ)) = (fun p => inst.cost p + (M : ℤ)) := funext hC_cast
-    rw [hfun]
-    exact (hungarian_add_const inst.cost (M : ℤ)).1
+    rw [funext hC_cast]; exact (hungarian_add_const inst.cost (M : ℤ)).1
   have hrm_eq : ∀ u : Fin inst.n,
       y₄.mem ((2 + inst.n * inst.n) + inst.n * inst.n + 7 * inst.n + 1 + u.val) =
-        (inst.assignedCol u).val := by
-    intro u
+        (inst.assignedCol u).val := fun u => by
     obtain ⟨v, hv_mem, hv_in⟩ := hrow_match u
-    rw [hm_shift] at hv_in
-    rw [hv_mem, inst.assignedCol_eq_of_mem hv_in]
+    rw [hv_mem, inst.assignedCol_eq_of_mem (hm_shift ▸ hv_in)]
   obtain ⟨y₆, he_sum, hb₆, hmem₆, hacc₆⟩ :=
     exec_sumCostCode inst hw hM_le hC_cast hC_le y₄ hb₄ hC₄ hrm_eq
   have hout_list : outputList y₆.mem (y₆.regs outBase) = inst.assignment := by
@@ -101,9 +91,7 @@ private theorem exec_inputCode {w : ℕ} (inst : Instance) (hw : Fits w inst.wor
     exact hw.of_le (by unfold Instance.wordBound; nlinarith)
   refine ⟨y₆, (he_setup.seq (he_scan.seq (he_fill.seq (he_core.seq he_sum)))).mono ?_,
     hout_list, hf_final, hacc₆⟩
-  unfold hungarianTime coreTime
-  rw [Nat.add_sub_assoc (by decide : 1 ≤ 52)]
-  nlinarith
+  unfold hungarianTime coreTime; rw [Nat.add_sub_assoc (by decide : 1 ≤ 52)]; nlinarith
 
 /-- **`O(n³)` Word-RAM minimum-cost perfect matching (`ExecutesList`).** On any `n × n` integer
 assignment instance `inst` and word width `w` satisfying `Fits w inst.wordBound`,
@@ -113,9 +101,8 @@ theorem executesList_assignment {w : ℕ} (inst : Instance) (hw : Fits w inst.wo
     ∃ steps, ExecutesList w assignmentProgram (.init inst.encode) inst.assignment steps ∧
       steps ≤ hungarianTime inst.n := by
   obtain ⟨y, ⟨t, ht, hex⟩, hout, hfit, _⟩ := exec_inputCode inst hw
-  refine ⟨t + 1, hout ▸ hex.executesList outBase (by rwa [hout]), ?_⟩
-  unfold hungarianTime at ht ⊢
-  omega
+  exact ⟨t + 1, hout ▸ hex.executesList outBase (by rwa [hout]),
+    by unfold hungarianTime at ht ⊢; omega⟩
 
 /-- **`Program.ComputesListInTime` form of `executesList_assignment`.** -/
 theorem computesListInTime_assignment :
@@ -132,9 +119,7 @@ theorem executes_minCost {w : ℕ} (inst : Instance) (hw : Fits w inst.wordBound
     ∃ steps, Executes w minCostProgram (.init inst.encode) inst.encodedMinCost steps ∧
       steps ≤ hungarianTime inst.n := by
   obtain ⟨y, ⟨t, ht, hex⟩, _, _, hacc⟩ := exec_inputCode inst hw
-  refine ⟨t + 1, hacc ▸ hex.executes acc, ?_⟩
-  unfold hungarianTime at ht ⊢
-  omega
+  exact ⟨t + 1, hacc ▸ hex.executes acc, by unfold hungarianTime at ht ⊢; omega⟩
 
 /-- **`Program.ComputesInTime` form of `executes_minCost`.** -/
 theorem computesInTime_minCost :

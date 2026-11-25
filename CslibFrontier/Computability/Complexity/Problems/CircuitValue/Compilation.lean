@@ -126,13 +126,12 @@ private theorem exists_uniformOutputBits {α : Type} {enc : α ↪ List Bool}
         (hy : encPair enc (encPair encBits encBits) p = List.ofFn y) :
         (circuits N).eval interpretation y 0 =
           (F (p.1, p.2.2)).getD (p.2.1.count true) false := by
-      have hN := congrArg List.length hy
-      simp only [List.length_ofFn] at hN
-      subst N
+      obtain rfl : N = (encPair enc (encPair encBits encBits) p).length := by
+        simpa using (congrArg List.length hy).symm
       have hw : (fun i : Fin (encPair enc (encPair encBits encBits) p).length =>
           (encPair enc (encPair encBits encBits) p)[i]) = y :=
         List.ofFn_injective (List.ofFn_getElem.trans hy)
-      simpa only [hw] using hcorrect p
+      exact hw ▸ hcorrect p
     let r := bitPrefix enc m a j
     let u := List.ofFn x
     have hin : encPair enc (encPair encBits encBits) (a, (selector (m a) j, u)) = r ++ u := by
@@ -162,17 +161,14 @@ theorem exists_uniformCircuitFamily {α : Type} {enc : α ↪ List Bool}
   have hzero := hbits.comp ((ComputableInPolyTime.id' (encIn := enc)).prod
     (ComputableInPolyTime.const 0))
   have hblock : ComputableInPolyTime (fun a => (bits a 0).size) enc encNat := by
-    have h := (ComputableInPolyTime.length_list_binary encGate).comp hzero.fst'
-    convert h using 1
-    funext a
-    exact (Circuit.length_code_fst (bits a 0)).symm
+    convert (ComputableInPolyTime.length_list_binary encGate).comp hzero.fst' using 1
+    exact funext fun a => (Circuit.length_code_fst (bits a 0)).symm
   have hlist : ComputableInPolyTime
       (fun a => (List.range (m a)).map (fun j => (bits a j).code)) enc (encList encCode) :=
     ComputableInPolyTime.mapWithInput (ComputableInPolyTime.range.comp hm) hbits
   have hlistEq (a : α) : (List.range (m a)).map (fun j => (bits a j).code) =
       List.ofFn (fun j : Fin (m a) => (bits a j.val).code) := by
-    apply List.ext_getElem (by simp)
-    intro i hi hj
+    refine List.ext_getElem (by simp) fun _ _ _ => ?_
     simp
   have hcompiled := computableInPolyTime_bundleCode
     (ComputableInPolyTime.unary_to_binary.comp hn) hblock hlist

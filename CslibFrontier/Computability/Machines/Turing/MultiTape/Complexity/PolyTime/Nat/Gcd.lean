@@ -305,40 +305,12 @@ private lemma modEq_modInvStep {a m : ℕ} (hm : 0 < m) (s : (ℕ × ℕ) × (�
   dsimp only [modInvStep, modInvRem0, modInvRem1, modInvCoeff0, modInvCoeff1, modInvNext]
   split_ifs with hr
   · exact ⟨hm₁, hm₂⟩
-  · refine ⟨hm₂, ?_⟩
-    set q := s.1.1 / s.1.2
-    set u := (q * s.2.2) % m
-    set t' := (s.2.1 + m - u) % m
-    have hu_lt : u < m := Nat.mod_lt _ hm
-    have hsub : (s.2.1 + m - u) + u = s.2.1 + m := Nat.sub_add_cancel (by lia)
-    have ht' : t' ≡ s.2.1 + m - u [MOD m] := Nat.mod_modEq _ m
-    have hu : u ≡ q * s.2.2 [MOD m] := Nat.mod_modEq _ m
-    have hsum : a * t' + a * (q * s.2.2) ≡ a * (s.2.1 + m) [MOD m] := by
-      calc a * t' + a * (q * s.2.2)
-          ≡ a * (s.2.1 + m - u) + a * u [MOD m] :=
-            (ht'.mul_left a).add (hu.symm.mul_left a)
-        _ = a * ((s.2.1 + m - u) + u) := (Nat.mul_add a _ _).symm
-        _ = a * (s.2.1 + m) := by rw [hsub]
-    have hmul_q : a * (q * s.2.2) ≡ s.1.2 * q [MOD m] := by
-      calc a * (q * s.2.2)
-          = q * (a * s.2.2) := by ring
-        _ ≡ q * s.1.2 [MOD m] := hm₂.mul_left q
-        _ = s.1.2 * q := Nat.mul_comm q s.1.2
-    have hrhs : a * (s.2.1 + m) ≡ s.1.1 % s.1.2 + s.1.2 * q [MOD m] := by
-      have ham : a * m ≡ 0 [MOD m] :=
-        Nat.modEq_zero_iff_dvd.mpr (dvd_mul_left m a)
-      calc a * (s.2.1 + m)
-          = a * s.2.1 + a * m := Nat.mul_add a s.2.1 m
-        _ ≡ s.1.1 + 0 [MOD m] := hm₁.add ham
-        _ = s.1.1 := Nat.add_zero s.1.1
-        _ = s.1.1 % s.1.2 + s.1.2 * q := (Nat.mod_add_div s.1.1 s.1.2).symm
-    have hboth : a * t' + s.1.2 * q ≡ s.1.1 % s.1.2 + s.1.2 * q [MOD m] := by
-      calc a * t' + s.1.2 * q
-          ≡ a * t' + a * (q * s.2.2) [MOD m] :=
-            (Nat.ModEq.refl (a * t')).add hmul_q.symm
-        _ ≡ a * (s.2.1 + m) [MOD m] := hsum
-        _ ≡ s.1.1 % s.1.2 + s.1.2 * q [MOD m] := hrhs
-    exact Nat.ModEq.add_right_cancel' (s.1.2 * q) hboth
+  · refine ⟨hm₂, (ZMod.natCast_eq_natCast_iff _ _ _).1 ?_⟩
+    have hu : s.1.1 / s.1.2 * s.2.2 % m ≤ s.2.1 + m := (Nat.mod_lt _ hm).le.trans (by lia)
+    have hd := congrArg (Nat.cast : ℕ → ZMod m) (Nat.mod_add_div s.1.1 s.1.2)
+    rw [← ZMod.natCast_eq_natCast_iff] at hm₁ hm₂
+    push_cast [ZMod.natCast_mod, Nat.cast_sub hu, ZMod.natCast_self] at hm₁ hm₂ hd ⊢
+    linear_combination hm₁ - ((s.1.1 / s.1.2 : ℕ) : ZMod m) * hm₂ - hd
 
 private lemma modEq_iterate_modInvStep {a m : ℕ} (hm : 0 < m) (s : (ℕ × ℕ) × (ℕ × ℕ))
     (hm₁ : a * s.2.1 ≡ s.1.1 [MOD m]) (hm₂ : a * s.2.2 ≡ s.1.2 [MOD m]) (i : ℕ) :

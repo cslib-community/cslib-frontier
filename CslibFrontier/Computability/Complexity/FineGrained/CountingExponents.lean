@@ -106,9 +106,7 @@ clause of `φ` has length at most `k`, and `0` otherwise. -/
 /-- `SharpKSAT k` never exceeds `SharpSAT`. -/
 theorem SharpKSAT_le_SharpSAT (k : ℕ) (φ : CNF ℕ) : SharpKSAT k φ ≤ SharpSAT φ := by
   unfold SharpKSAT
-  split_ifs
-  · exact le_rfl
-  · exact Nat.zero_le _
+  split_ifs <;> omega
 
 /-- `SharpKSAT k φ` is at most `2 ^ φ.numVars`. -/
 theorem SharpKSAT_le_two_pow_numVars (k : ℕ) (φ : CNF ℕ) : SharpKSAT k φ ≤ 2 ^ φ.numVars :=
@@ -153,11 +151,10 @@ theorem ite_all_length_le_SharpKSAT {k k' : ℕ} (hk : k ≤ k') (φ : CNF ℕ) 
 theorem polyBounded_length_encNat_SharpSAT :
     PolyBounded (fun φ : CNF ℕ => (encCNF φ).length) (fun φ => (encNat (SharpSAT φ)).length) := by
   refine PolyBounded.of_forall_le 2 1 fun φ => ?_
-  have h1 : (encNat (SharpSAT φ)).length ≤ (encNat (2 ^ φ.numVars)).length :=
-    length_encNat_mono (CNF.modelCount_le_two_pow_numVars φ)
-  have h2 : (encNat (2 ^ φ.numVars)).length = φ.numVars + 1 := by
-    rw [length_encNat_two_pow]
-  have h3 : φ.numVars ≤ (encCNF φ).length := φ.numVars_le_length_vars.trans (SAT.length_vars_le φ)
+  have h1 := length_encNat_mono (CNF.modelCount_le_two_pow_numVars φ)
+  rw [length_encNat_two_pow] at h1
+  have h3 := φ.numVars_le_length_vars.trans (SAT.length_vars_le φ)
+  dsimp only [SharpSAT]
   rw [pow_one]
   omega
 
@@ -246,15 +243,11 @@ theorem count_eq_modelCount (φ : CNF ℕ) : count φ = φ.modelCount := by
       simpa [vs, BitVec.testBit_toNat, BitVec.getLsbD_ofBoolListLE, List.getD_eq_getElem?_getD,
         CNF.mem_distinctVars.mpr hv] using hbit
     · intro h
-      have hmap : vs.map σ = vs.map τ :=
-        List.map_congr_left fun v hv => h v (CNF.mem_distinctVars.mp hv)
-      refine Fin.ext ?_
-      dsimp only
-      rw [hmap]
+      exact Fin.ext (congrArg (fun l => (BitVec.ofBoolListLE l).toNat)
+        (List.map_congr_left fun v hv => h v (CNF.mem_distinctVars.mp hv)))
   · constructor
-    · intro hi
-      refine ⟨bitsAssignment vs i.val, hi, Fin.ext ?_⟩
-      exact toNat_ofBoolListLE_bitsAssignment φ.nodup_distinctVars i.isLt
+    · exact fun hi => ⟨bitsAssignment vs i.val, hi,
+        Fin.ext (toNat_ofBoolListLE_bitsAssignment φ.nodup_distinctVars i.isLt)⟩
     · rintro ⟨σ, hσ, rfl⟩
       refine (CNF.eval_congr fun v hv => ?_).trans hσ
       simp [vs, bitsAssignment, BitVec.testBit_toNat, BitVec.getLsbD_ofBoolListLE,
@@ -301,16 +294,11 @@ theorem SharpSAT_computableInExpTime_one :
     have hacc_le : ((List.range m).countP fun r => φ.eval (bitsAssignment φ.distinctVars r)) ≤ m :=
       List.countP_le_length.trans (by simp)
     have hm_len : (encNat m).length ≤ φ.numVars + 1 := by
-      have h1 := length_encNat_mono hm
-      rw [rounds, φ.length_distinctVars, length_encNat_two_pow] at h1
-      exact h1
-    have hacc_len : (encNat ((List.range m).countP
-        fun r => φ.eval (bitsAssignment φ.distinctVars r))).length ≤ φ.numVars + 1 :=
-      (length_encNat_mono hacc_le).trans hm_len
+      simpa only [rounds, φ.length_distinctVars, length_encNat_two_pow] using
+        length_encNat_mono hm
+    have hacc_len := (length_encNat_mono hacc_le).trans hm_len
     have hbase : (encCNF φ).length + (encList encNat φ.distinctVars).length ≤
-        (encState (init φ)).length := by
-      enc_len [init, encState_apply]
-    have hci1 : (encState (init φ)).length ≤ ci * ((encCNF φ).length + 1) ^ di_len := hinit
+        (encState (init φ)).length := by enc_len [init, encState_apply]
     enc_len [encState_apply, encStateFields, stateBound, Nat.mul_assoc]
   let R (φ : CNF ℕ) : ℕ := (stateBound φ + 1) ^ ds
   have hround (φ : CNF ℕ) (m : ℕ) (hm : m ≤ rounds φ) :
@@ -377,10 +365,9 @@ theorem DecidableInExpTime.KSAT_of_SharpKSAT {k : ℕ} {δ : ℝ} (hδ : 0 ≤ �
       ((ComputableInPolyTime.const 0).prod ComputableInPolyTime.id')
   have hdec := DecidableInExpTime.of_computableInExpTime_polyBounded hδ h
     (polyBounded_length_encNat_SharpKSAT k) hpos
-  have heq : {φ : CNF ℕ | decide (0 < SharpKSAT k φ) = true} = KSAT k := by
-    ext φ
-    simp only [Set.mem_ofPred_eq, decide_eq_true_eq, mem_KSAT_iff_pos_SharpKSAT]
-  rwa [heq] at hdec
+  convert hdec using 1
+  ext φ
+  simp only [Set.mem_ofPred_eq, decide_eq_true_eq, mem_KSAT_iff_pos_SharpKSAT]
 
 /-- Subexponential `#k-SAT` counting gives subexponential `k`-SAT decision. -/
 theorem DecidableInSubexpTime.KSAT_of_SharpKSAT {k : ℕ}
@@ -475,10 +462,9 @@ theorem SharpSETH_iff_tendsto : SharpSETH ↔ Tendsto sharpSatExponent atTop (�
 /-- Decision hardness implies counting hardness (`ETH → SharpETH`); note both hypotheses are
 refuted in this library, while the contrapositive transfer `DecidableInSubexpTime.KSAT_of_SharpKSAT`
 is unconditional. -/
-theorem ETH.sharpETH (h : ETH) : SharpETH := by
-  rw [ETH_iff_satExponent_pos] at h
-  rw [SharpETH_iff_sharpSatExponent_pos]
-  exact h.trans_le (satExponent_le_sharpSatExponent 3)
+theorem ETH.sharpETH (h : ETH) : SharpETH :=
+  SharpETH_iff_sharpSatExponent_pos.mpr
+    ((ETH_iff_satExponent_pos.mp h).trans_le (satExponent_le_sharpSatExponent 3))
 
 /-- Strong decision hardness implies strong counting hardness (`SETH → SharpSETH`); the underlying
 fixed-width transfer `DecidableInExpTime.KSAT_of_SharpKSAT` is unconditional. -/
@@ -531,18 +517,12 @@ theorem DecidableInSubexpTime.KSAT_length_of_ThreeSAT_length (k : ℕ)
       computableInPolyTime_toThreeSAT (ComputableInPolyTime.const [[]])
   refine h3.of_reduction hr (fun φ => ?_) (c := max 1 k) fun φ => ?_
   · dsimp only [reduceWidth]
-    by_cases hw : (φ.all fun c => decide (c.length ≤ k)) = true
-    · simp only [hw, ↓reduceIte, mem_ThreeSAT_toThreeSAT_iff]
-      have hw' : ∀ c ∈ φ, c.length ≤ k := fun c hc =>
-        decide_eq_true_eq.mp (List.all_eq_true.mp hw c hc)
-      exact ⟨fun h => h.2, fun h => ⟨hw', h⟩⟩
-    · simp only [hw, Bool.false_eq_true, ↓reduceIte]
-      have hnot_ksat : φ ∉ KSAT k := fun h =>
-        hw (List.all_eq_true.mpr fun c hc => decide_eq_true (h.1 c hc))
-      have hnot_3sat : ([[]] : CNF ℕ) ∉ ThreeSAT := by
-        rintro ⟨-, σ, hσ⟩
-        exact Bool.false_ne_true hσ
-      exact ⟨fun h => absurd h hnot_ksat, fun h => absurd h hnot_3sat⟩
+    split_ifs with hw
+    · simp only [List.all_eq_true, decide_eq_true_eq] at hw
+      rw [mem_ThreeSAT_toThreeSAT_iff]
+      exact ⟨fun h => h.2, fun h => ⟨hw, h⟩⟩
+    · simp only [List.all_eq_true, decide_eq_true_eq] at hw
+      exact ⟨fun h => absurd h.1 hw, fun ⟨_, _, hσ⟩ => (Bool.false_ne_true hσ).elim⟩
   · dsimp only [reduceWidth]
     split_ifs with hw
     · simp only [List.all_eq_true, decide_eq_true_eq] at hw
@@ -551,7 +531,7 @@ theorem DecidableInSubexpTime.KSAT_length_of_ThreeSAT_length (k : ℕ)
       have hsum_le : (φ.map fun c => max 1 (c.length - 2)).sum ≤ φ.length * max 1 k := by
         refine (List.sum_le_length_nsmul _ (max 1 k) fun n hn => ?_).trans (by simp)
         obtain ⟨c, hc, rfl⟩ := List.mem_map.mp hn
-        have hck := hw c hc
+        have := hw c hc
         omega
       rw [hlen_eq, Nat.mul_comm]
       omega
@@ -564,16 +544,13 @@ refutation: if `ThreeSAT` is decidable in subexponential time in variables, then
 subexponential time in clauses, hence every fixed-width `KSAT k` is decidable in subexponential
 time in clauses and (by sparsification) in variables, contradicting `SETH`. -/
 theorem SETH.eth (h : SETH) : ETH := by
-  by_contra hnot
-  have h3_len : DecidableInSubexpTime ThreeSAT encCNF List.length := by
-    by_contra hnot_len
-    exact hnot (ETH_iff_not_decidableInSubexpTime_length.mpr hnot_len)
+  rw [ETH_iff_not_decidableInSubexpTime_length]
+  intro h3_len
   obtain ⟨k, hk⟩ := h (1 / 2) (by norm_num)
-  have hk_vars : DecidableInSubexpTime (KSAT k) encCNF CNF.numVars :=
-    (DecidableInSubexpTime.KSAT_length_of_ThreeSAT_length k h3_len).numVars_of_length
   have hhalf : (1 : ℝ) - 1 / 2 = 1 / 2 := by norm_num
   rw [hhalf] at hk
-  exact hk (hk_vars (1 / 2) (by norm_num))
+  exact hk ((DecidableInSubexpTime.KSAT_length_of_ThreeSAT_length k h3_len).numVars_of_length
+    (1 / 2) (by norm_num))
 
 /-- **Unrestricted `SAT` exponent**: infimum of `δ ≥ 0` such that `SAT` (with unbounded clause
 width) is decidable within time `2 ^ (δ * n) * poly(L)`. Unlike `SETH`, which takes `⨆ k, s_k` over

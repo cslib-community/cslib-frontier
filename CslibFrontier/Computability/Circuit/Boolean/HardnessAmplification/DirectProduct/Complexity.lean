@@ -83,9 +83,8 @@ theorem complexity_dpDecode_le_of {N k : ℕ}
         #P * (ce + 1) + 1 := by
     intro t
     by_cases ht : t.1 ∈ P
-    · have heq : (fun u => accepts (C' u) P b₀ (X u) t) = fun _ => false := by
-        funext u
-        simp [accepts_eq, ht]
+    · have heq : (fun u => accepts (C' u) P b₀ (X u) t) = fun _ => false :=
+        funext fun u => by simp [accepts_eq, ht]
       rw [heq]
       exact (Synthesis.const (s := inputs N) false).complexity_le.trans (by omega)
     · have heq : (fun u => accepts (C' u) P b₀ (X u) t) = fun u =>

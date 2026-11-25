@@ -87,19 +87,14 @@ theorem two_mul_three_pow_pred_lt_of_two_lt {B : ℕ} (hB : 2 < B) :
     0 < trinomialStepAux B ∧ 2 * 3 ^ (trinomialStepAux B - 1) < B := by
   induction B using Nat.strong_induction_on with
   | _ B ih =>
-    have hle : ¬ B ≤ 2 := not_le.mpr hB
-    rw [trinomialStepAux, ite_eq_right hle]
+    rw [trinomialStepAux, ite_eq_right hB.not_ge]
     refine ⟨Nat.succ_pos _, ?_⟩
     rw [Nat.add_sub_cancel]
     by_cases hB' : (B + 2) / 3 ≤ 2
-    · have h0 : trinomialStepAux ((B + 2) / 3) = 0 := by
-        rw [trinomialStepAux, ite_eq_left hB']
-      rw [h0]
+    · rw [trinomialStepAux, ite_eq_left hB']
       omega
     · obtain ⟨ht', hlt'⟩ := ih ((B + 2) / 3) (by omega) (not_le.mp hB')
-      have hpow : 3 ^ trinomialStepAux ((B + 2) / 3) =
-          3 ^ (trinomialStepAux ((B + 2) / 3) - 1) * 3 := by
-        conv_lhs => rw [← Nat.sub_add_cancel ht', pow_succ]
+      rw [← Nat.sub_one_add_one ht'.ne', pow_succ]
       omega
 
 /-- `2 * 3 ^ trinomialStepAux B` is at most `3 * max B 1`. -/
@@ -109,8 +104,7 @@ theorem two_mul_three_pow_trinomialStepAux_le (B : ℕ) :
   · rw [trinomialStepAux, ite_eq_left hB]
     omega
   · obtain ⟨ht, hlt⟩ := two_mul_three_pow_pred_lt_of_two_lt (not_le.mp hB)
-    have hpow : 3 ^ trinomialStepAux B = 3 ^ (trinomialStepAux B - 1) * 3 := by
-      conv_lhs => rw [← Nat.sub_add_cancel ht, pow_succ]
+    rw [← Nat.sub_one_add_one ht.ne', pow_succ]
     omega
 
 /-- Target bit-width needed to embed `Fin U` and project to `M` bits. -/

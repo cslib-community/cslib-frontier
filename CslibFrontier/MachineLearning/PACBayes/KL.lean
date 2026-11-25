@@ -188,7 +188,7 @@ theorem measure_pi_exists_binaryKL_integral_risk_gt (hℓ : ∀ i, Measurable (�
   have hfint : ∫ i, f i ∂Q = m * ∫ i, binaryKL (empiricalRisk ℓ S i) (trueRisk ℓ D i) ∂Q :=
     integral_const_mul _ _
   rw [div_lt_iff₀ hmR] at hlt
-  nlinarith
+  linarith [mul_le_mul_of_nonneg_left hj hmR.le]
 
 /-- **The Occam form of the PAC-Bayes-kl bound**: taking point-mass posteriors, with probability at
 least `1 - δ` every index `i` with `P {i} > 0` satisfies

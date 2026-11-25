@@ -118,11 +118,8 @@ private theorem length_query_le {φ : CNF ℕ} {answers : List (Literal ℕ)}
     (hv : v ∈ φ.vars) :
     (encCNF (φ ++ units answers ++ [[(v, true)]])).length ≤ queryBound (encCNF φ).length := by
   have hunits := length_encCNF_units_le hanswers
-  have hvars : φ.vars.length ≤ (encCNF φ).length := length_vars_le φ
   have hv' := length_encCNF_unit_le (l := (v, true)) hv
-  have hmul : answers.length * (8 * (encCNF φ).length + 11) ≤
-      (encCNF φ).length * (8 * (encCNF φ).length + 11) :=
-    Nat.mul_le_mul_right _ (hlen.trans hvars)
+  have hmul := Nat.mul_le_mul_right (8 * (encCNF φ).length + 11) (hlen.trans (length_vars_le φ))
   rw [length_encCNF_append, length_encCNF_append, queryBound]
   nlinarith
 
@@ -139,19 +136,13 @@ private theorem satisfiable_foldl_selfReduceStep {D : CNF ℕ → Bool} {φ : CN
   induction l generalizing answers with
   | nil => exact hsat
   | cons v l ih =>
-    have hv := hl v (List.mem_cons_self ..)
     rw [List.length_cons] at hlen
-    refine ih (fun w hw => hl w (List.mem_cons_of_mem _ hw)) _ ?_ ?_ ?_
-    · intro a ha
-      rcases List.mem_append.1 ha with ha | ha
-      · exact hanswers a ha
-      · rw [List.mem_singleton.1 ha]
-        exact hv
-    · rw [selfReduceStep, List.length_append, List.length_singleton]
-      omega
-    · rw [selfReduceStep, show ∀ b, units (answers ++ [(v, b)]) = units answers ++ [[(v, b)]] from
-        fun b => List.map_append .., ← List.append_assoc]
-      exact hstep answers hanswers (by omega) v hv hsat
+    refine ih (fun w hw => hl w (List.mem_cons_of_mem _ hw)) _
+      (List.forall_mem_append.2 ⟨hanswers, List.forall_mem_singleton.2 (hl v List.mem_cons_self)⟩)
+      (by simp [selfReduceStep]; omega) ?_
+    simpa only [selfReduceStep, show ∀ b, units (answers ++ [(v, b)]) = units answers ++ [[(v, b)]]
+      from fun _ => List.map_append .., ← List.append_assoc] using
+      hstep answers hanswers (by omega) v (hl v List.mem_cons_self) hsat
 
 /-- **Search to decision, stepwise.** If each step of the self-reduction of `φ` keeps a
 satisfiable formula satisfiable (the value `D` chooses for the next variable `v` leaves
@@ -164,20 +155,17 @@ theorem verifier_search_of_step {D : CNF ℕ → Bool} {φ : CNF ℕ}
         (φ ++ units answers ++ [[(v, D (φ ++ units answers ++ [[(v, true)]]))]]).Satisfiable)
     (hφ : φ ∈ SAT) : verifier (φ, search D φ) = true := by
   obtain ⟨σ, hσ⟩ := satisfiable_foldl_selfReduceStep hstep φ.vars (fun _ h => h) []
-    (by simp) (by simp) (by rw [show units [] = [] from rfl, List.append_nil]; exact hφ)
+    (by simp) (by simp) (by simpa [SAT, units] using hφ)
   rw [← selfReduce, eval_append_units] at hσ
-  rw [verifier, CNF.eval_congr fun v hv => ?_]
-  · exact hσ.1
-  · have hlt : φ.vars.idxOf v < φ.vars.length := List.idxOf_lt_length_iff.2 hv
-    have hlt' : φ.vars.idxOf v < (selfReduce D φ).length := by
-      simpa [← map_fst_selfReduce D φ] using hlt
-    have hfst : ((selfReduce D φ)[φ.vars.idxOf v]).1 = v := by
-      have := congrArg (·[φ.vars.idxOf v]?) (map_fst_selfReduce D φ)
-      simp only [List.getElem?_map, List.getElem?_eq_getElem hlt', List.getElem?_eq_getElem hlt,
-        Option.map_some, Option.some.injEq] at this
-      rw [this, List.getElem_idxOf hlt]
-    rw [assignment, search, List.getD_eq_getElem _ _ (by simpa using hlt'), List.getElem_map,
-      ← hσ.2 _ (List.getElem_mem hlt'), hfst]
+  refine (CNF.eval_congr fun v hv => ?_).trans hσ.1
+  have hlt : φ.vars.idxOf v < φ.vars.length := List.idxOf_lt_length_iff.2 hv
+  have hlt' : φ.vars.idxOf v < (selfReduce D φ).length := by
+    simpa [← map_fst_selfReduce D φ] using hlt
+  have hfst : ((selfReduce D φ)[φ.vars.idxOf v]).1 = v := by
+    simpa [List.getElem?_eq_getElem hlt', List.getElem?_eq_getElem hlt, List.getElem_idxOf hlt]
+      using congrArg (·[φ.vars.idxOf v]?) (map_fst_selfReduce D φ)
+  rw [assignment, search, List.getD_eq_getElem _ _ (by simpa using hlt'), List.getElem_map,
+    ← hσ.2 _ (List.getElem_mem hlt'), hfst]
 
 /-- **Search to decision.** If `D` decides satisfiability correctly on the formulas of length at
 most `queryBound` of the length of `φ`, and `φ` is satisfiable, the certificate found by the
@@ -185,16 +173,14 @@ self-reduction satisfies `φ`. -/
 theorem verifier_search {D : CNF ℕ → Bool} {φ : CNF ℕ}
     (hD : ∀ ψ, (encCNF ψ).length ≤ queryBound (encCNF φ).length → (D ψ = true ↔ ψ ∈ SAT))
     (hφ : φ ∈ SAT) : verifier (φ, search D φ) = true := by
-  refine verifier_search_of_step (fun answers hanswers hlen v hv hsat => ?_) hφ
+  refine verifier_search_of_step (fun answers hanswers hlen v hv ⟨σ, hσ⟩ => ?_) hφ
   have hquery := hD _ (length_query_le hanswers hlen.le hv)
-  obtain ⟨σ, hσ⟩ := hsat
   rw [CNF.eval_append, Bool.and_eq_true] at hσ
   cases hb : D (φ ++ units answers ++ [[(v, true)]])
   · have hσv : σ v = false := by
-      by_contra hσv
-      rw [Bool.not_eq_false] at hσv
-      rw [hb] at hquery
-      exact Bool.false_ne_true (hquery.2 ⟨σ, by simp [hσ.1, hσ.2, hσv]⟩)
+      apply Bool.eq_false_iff.2 fun hσv => Bool.false_ne_true (hb.symm.trans (hquery.2 ⟨σ, ?_⟩))
+      rw [CNF.eval_append, CNF.eval_append]
+      simp [hσ.1, hσ.2, hσv]
     exact ⟨σ, by simp [hσ.1, hσ.2, hσv]⟩
   · exact hquery.1 hb
 
@@ -217,8 +203,6 @@ theorem computableInPolyTime_search {γ : Type} {encIn : γ ↪ List Bool}
       encBool)
     (hφ : ComputableInPolyTime φ encIn encCNF) :
     ComputableInPolyTime (fun x => search (D x) (φ x)) encIn encBits := by
-  have hvars : ComputableInPolyTime (fun x => (φ x).vars) encIn (encList encNat) :=
-    computableInPolyTime_vars.comp hφ
   have hquery : ComputableInPolyTime (fun p : (γ × List (Literal ℕ)) × ℕ =>
       φ p.1.1 ++ units p.1.2 ++ [[(p.2, true)]])
       (encPair (encPair encIn (encList (encPair encNat encBool))) encNat) encCNF := by
@@ -227,21 +211,16 @@ theorem computableInPolyTime_search {γ : Type} {encIn : γ ↪ List Bool}
   have hstep : ComputableInPolyTime (fun p : (γ × List (Literal ℕ)) × ℕ =>
       selfReduceStep (D p.1.1) (φ p.1.1) p.1.2 p.2)
       (encPair (encPair encIn (encList (encPair encNat encBool))) encNat)
-      (encList (encPair encNat encBool)) := by
-    unfold selfReduceStep
-    exact listAppend' (fst _ _).snd' (cons' ((snd _ _).prod
+      (encList (encPair encNat encBool)) :=
+    listAppend' (fst _ _).snd' (cons' ((snd _ _).prod
       (hD.comp ((fst _ _).fst'.prod hquery))) (const []))
-  have hfold : ComputableInPolyTime (fun x => selfReduce (D x) (φ x)) encIn
-      (encList (encPair encNat encBool)) := by
-    unfold selfReduce
-    refine foldlWithInput_of_bounded_growth (const []) ⟨hvars, hstep, inferInstance,
-      inferInstance⟩ (growth := fun x => 4 * (encCNF (φ x)).length + 5)
-      ⟨((PolyBounded.const 4).mul hφ.polyBounded_length).add (.const 5),
-        fun x answers v hv => ?_⟩
-    have := length_encNat_le_of_mem_vars hv
-    enc_len [selfReduceStep, encList_append, List.append_nil]
-  unfold search
-  exact listToBits.comp (map (snd encNat encBool) |>.comp hfold)
+  refine listToBits.comp ((map (snd encNat encBool)).comp ?_)
+  refine foldlWithInput_of_bounded_growth (const [])
+    ⟨computableInPolyTime_vars.comp hφ, hstep, inferInstance, inferInstance⟩
+    (growth := fun x => 4 * (encCNF (φ x)).length + 5)
+    ⟨((PolyBounded.const 4).mul hφ.polyBounded_length).add (.const 5), fun x answers v hv => ?_⟩
+  have := length_encNat_le_of_mem_vars hv
+  enc_len [selfReduceStep, encList_append, List.append_nil]
 
 /-- **Search reduces to decision for `SAT`**: if `SAT` is in `P`, a polynomial-time function
 finds a satisfying assignment of every satisfiable formula, as a certificate for `SAT.verifier`. -/

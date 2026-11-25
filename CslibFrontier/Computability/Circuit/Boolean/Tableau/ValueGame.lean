@@ -186,10 +186,7 @@ theorem position_eq_cons {c : Claim} {u x : Bool} {r : List Bool}
 /-- A terminal claim is won exactly when it is true. -/
 theorem wins_position_terminal {c : Claim} {r : Bool} (h : Claim.outcome tm c = some r) :
     Wins (update tm encC) (position tm encC c) ↔ r = true := by
-  simp only [position, h]
-  cases r
-  · simp [not_wins_nil]
-  · simp [wins_singleton_iff]
+  cases r <;> simp [position, h, not_wins_nil, wins_singleton_iff]
 
 /-- A non-terminal claim is won as a position of its player: some move wins for the existential
 player, every move for the universal player. -/
@@ -200,9 +197,9 @@ theorem wins_position_nonterminal {c : Claim} (h : Claim.outcome tm c = none) :
         else ∃ b, Wins (update tm encC) (position tm encC (Claim.next tm c b)) := by
   have he : position tm encC c = Claim.player tm c :: false :: encC c := by simp only [position, h]
   rw [he]
-  cases Claim.player tm c
-  · simp only [wins_false_cons_cons_iff, update_position_cons, Bool.false_eq_true, ↓reduceIte]
-  · simp only [wins_true_cons_cons_iff, update_position_cons, ↓reduceIte]
+  cases Claim.player tm c <;>
+    simp only [wins_false_cons_cons_iff, wins_true_cons_cons_iff, update_position_cons,
+      Bool.false_eq_true, ↓reduceIte]
 
 /-- **The circuit-value game computes the tableau**: from a claim about a wire, the existential
 player wins exactly when the claim is true. -/
@@ -281,19 +278,11 @@ theorem wins_position_outWire_iff {x : List Bool} {T : ℕ} (hn : x.length < 2 *
 
 private theorem next_arg_mem {c : Claim} (hne : (Claim.gate tm c).2 ≠ []) (b : Bool) :
     (Claim.next tm c b).wire ∈ (Claim.gate tm c).2 := by
-  obtain ⟨l, hl⟩ : ∃ l, (Claim.gate tm c).2 = l := ⟨_, rfl⟩
   cases b
-  · simp only [Claim.next, Bool.false_eq_true, ↓reduceIte, hl]
-    rw [hl] at hne
-    obtain ⟨a, l, rfl⟩ := List.exists_cons_of_ne_nil hne
-    simp
-  · simp only [Claim.next, ↓reduceIte, hl]
-    rw [hl] at hne
-    have : l.reverse ≠ [] := by simpa using hne
-    obtain ⟨a, l', hl'⟩ := List.exists_cons_of_ne_nil this
-    rw [hl']
-    have : a ∈ l.reverse := by rw [hl']; simp
-    simpa using List.mem_reverse.mp this
+  · obtain ⟨a, l, hl⟩ := List.exists_cons_of_ne_nil hne
+    simp [Claim.next, hl]
+  · obtain ⟨a, l', hl'⟩ := List.exists_cons_of_ne_nil (mt List.reverse_eq_nil_iff.mp hne)
+    simpa [Claim.next, hl'] using List.mem_reverse.mp (by simp [hl'])
 
 /-- At a non-terminal claim about a gate, every move goes to an earlier wire. -/
 theorem next_lt {c : Claim} (ho : Claim.outcome tm c = none)

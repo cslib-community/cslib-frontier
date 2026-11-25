@@ -78,9 +78,8 @@ theorem bufClearStepsGenProg_spec {c U V w n_max base ep k : ℕ}
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
     BufTrieMemRep base c U V w n_max ep tr' s'.mem ∧
     BufEpFrame base c U V w n_max ep s.mem s'.mem := by
-  have hth := henv.2.2.2.1
   obtain ⟨hrt_st, hrt_res, hrt_mc, hrt_vp⟩ := mkBufRtGenProg_spec (c := c) (U := U) (V := V)
-    (w := w) (n_max := n_max) (base := base) (ep := ep) hth s
+    (w := w) (n_max := n_max) (base := base) (ep := ep) henv.2.2.2.1 s
   set rt := mkBufRt c U V w n_max base ep
   obtain ⟨_, hfr_l, hmc_l, hvp_l, hrep_l, hbfr_l⟩ := bufClearLoop_spec henv hep k tr s hrep hclr
   dsimp only
@@ -91,14 +90,11 @@ theorem bufClearStepsGenProg_spec {c U V w n_max base ep k : ℕ}
       (Memory.spec 0).clientState s (bufClearLoopGenProg ((rt, ()), k)) := by
     rw [clientState_bind, hrt_st, hrt_res]
   rw [hs'_eq]
-  refine ⟨hfr_l, ?_, ?_, hrep_l, hbfr_l⟩
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hrt_st, hrt_res, hrt_mc]
-    dsimp only [rt] at hmc_l ⊢
-    omega
-  · refine validProg_bind hrt_vp ?_
-    rw [hrt_st, hrt_res]
-    exact hvp_l
+  refine ⟨hfr_l, ?_, validProg_bind hrt_vp (by rwa [hrt_st, hrt_res]), hrep_l, hbfr_l⟩
+  simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
+  rw [hrt_st, hrt_res, hrt_mc]
+  dsimp only [rt] at hmc_l ⊢
+  omega
 
 theorem realizes_bufClearStepsGen :
     Realizes .exact bufClearStepsGenProg
@@ -112,12 +108,10 @@ theorem realizes_bufClearStepsGen :
   realize
   all_goals
     rcases d with ⟨⟨⟨cp, base⟩, ep⟩, k⟩
-    obtain ⟨c, U, V, w₀, n_max, tr, henv, rfl, hep, hrep, hclr⟩ := h
-    have hth := henv.2.2.2.1
-    have hw_eq := henv.2.2.1
-    subst hw_eq
+    obtain ⟨c, U, V, _, n_max, tr, henv, rfl, hep, hrep, hclr⟩ := h
+    cases henv.2.2.1
     obtain ⟨hrt_st, hrt_res, _, _⟩ := mkBufRtGenProg_spec (c := c) (U := U) (V := V)
-      (w := w) (n_max := n_max) (base := base) (ep := ep) hth s
+      (w := w) (n_max := n_max) (base := base) (ep := ep) henv.2.2.2.1 s
     obtain ⟨hsafe, _, _, _, _, _⟩ := bufClearLoop_spec henv hep k tr s hrep hclr
     simp only [hrt_st, hrt_res] at *
   · exact ⟨c, U, V, w, n_max, henv, rfl⟩

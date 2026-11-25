@@ -87,11 +87,9 @@ for the leveled GSW scheme is native strict PPT. -/
 theorem isPPT_leveledAdversary {budget : ℕ → ℕ}
     (hbudget : ComputableInPolyTime budget encUnary encUnary)
     {adversary : Encryption.Adversary} (hadversary : adversary.IsPPT) :
-    (Leveled.leveledAdversary scheme (fun k => 2 * budget k) secretWidth adversary).IsPPT := by
-  have hdepth : ComputableInPolyTime (fun k => 2 * budget k) encUnary encUnary := by
-    fun_prop
-  exact Leveled.isPPT_leveledAdversary isPPTOn_encrypt hadversary isPPTOn_keyGen
-    hdepth computableInPolyTime_secretWidth
+    (Leveled.leveledAdversary scheme (fun k => 2 * budget k) secretWidth adversary).IsPPT :=
+  Leveled.isPPT_leveledAdversary isPPTOn_encrypt hadversary isPPTOn_keyGen
+    (by fun_prop) computableInPolyTime_secretWidth
 
 /-- Exact concrete-security reduction loss of the leveled GSW scheme to the base GSW scheme
 ([Gentry2009], Section 2, Theorem 4, p. 171, up to a constant factor in the loss;
@@ -175,14 +173,9 @@ theorem exists_leveled_decrypt_circuits :
         (circuits k).eval Boolean.interpretation
             (BitString.ofList ((3 * secretWidth k + 1) + (ciphertextWidth k + 1))
               (sk ++ ciphertext)) 0 =
-          (Leveled.scheme decryptionCircuits budget).decrypt k sk ciphertext := by
-  have hsecret : ComputableInPolyTime secretWidth encUnary encUnary := by
-    have := Parameters.computableInPolyTime_dimension
-    have := computableInPolyTime_width
-    unfold secretWidth
-    fun_prop
-  exact Leveled.exists_uniform_decrypt_circuits decryptionCircuits
-    computableInPolyTime_decryptionCircuits hsecret
+          (Leveled.scheme decryptionCircuits budget).decrypt k sk ciphertext :=
+  Leveled.exists_uniform_decrypt_circuits decryptionCircuits
+    computableInPolyTime_decryptionCircuits computableInPolyTime_secretWidth
 
 /-- Leveled FHE from GSW under decision LWE for this family, with quasi-polynomial modulus.
 One uniformly generated polynomial-size circuit family computes the common decryption algorithm
@@ -235,11 +228,10 @@ theorem exists_leveled_of_decisionLWE
             (Leveled.scheme decryptionCircuits budget).encrypt := by
   have hD := computableInPolyTime_decryptionCircuits
   obtain ⟨circuits, hgen, hsize, hcircuits⟩ := exists_leveled_decrypt_circuits
-  have hdecrypt := (Leveled.computableInPolyTime_scheme_decrypt decryptionCircuits hD
-    (fun _ => 0))
   obtain ⟨hsecret, hciphertext⟩ := Leveled.polynomiallyBounded_widths decryptionCircuits hD
-  refine ⟨circuits, hgen, hsize, fun k sk c hsk hc => hcircuits (fun _ => 0) k sk c hsk hc,
-    hdecrypt, hsecret, hciphertext, fun depth hdepth => ?_⟩
+  refine ⟨circuits, hgen, hsize, hcircuits (fun _ => 0),
+    Leveled.computableInPolyTime_scheme_decrypt decryptionCircuits hD (fun _ => 0),
+    hsecret, hciphertext, fun depth hdepth => ?_⟩
   obtain ⟨budget, hbudget, hle, hcorrect, hpermitted, hwidth, -, -, hkeyGen, hencrypt, -,
       hevaluate, hsecure⟩ :=
     Leveled.exists_scheme_of_polynomiallyBounded decryptionCircuits correct fixedWidth
@@ -275,13 +267,9 @@ theorem fullyHomomorphic_of_decisionLWE_of_circularSecure
         encBits
         (fun (n, pk, C, cts) => (FixedKey.scheme decryptionCircuits).evaluate n pk C cts) ∧
       Encryption.INDCPA (FixedKey.scheme decryptionCircuits).keyGen
-        (FixedKey.scheme decryptionCircuits).encrypt := by
-  obtain ⟨hcorrect, hpermitted, hwidth, hsecret, hciphertext, hsize, hkeyGen, hencrypt,
-      hdecrypt, hevaluate, hsecure⟩ :=
-    FixedKey.fullyHomomorphic decryptionCircuits correct fixedWidth bootstrappable
-      (indCPA_scheme hLWE) hcircular isPPTOn_keyGen isPPTOn_encrypt isPPTOn_evaluate
-      computableInPolyTime_decryptionCircuits
-  exact ⟨hcorrect, hpermitted, hwidth, hsecret, hciphertext, hsize, hkeyGen, hencrypt,
-    hdecrypt, hevaluate, hsecure⟩
+        (FixedKey.scheme decryptionCircuits).encrypt :=
+  FixedKey.fullyHomomorphic decryptionCircuits correct fixedWidth bootstrappable
+    (indCPA_scheme hLWE) hcircular isPPTOn_keyGen isPPTOn_encrypt isPPTOn_evaluate
+    computableInPolyTime_decryptionCircuits
 
 end Cslib.Crypto.Homomorphic.GSW.DepthParameters
