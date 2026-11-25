@@ -1003,13 +1003,13 @@ private theorem exec_migrate_then_inEpoch {U V w base overhead : ℕ}
       push_cast at hc
       exact hc.trans_eq (add_assoc _ _ _)
     · unfold inEpochCharge; push_cast; ring
+  have hcap_eq_N : st'.cap = N_new := hst'_cap
+  have hinit_eq_n : st'.initCount = n := hst'_init
   refine ⟨μ_out, _, hex_seq.congr_dist hmap_data le_rfl, fun q hq => ?_, ?_, ?_⟩
   · dsimp only [μ_out] at hq
     rw [PMF.mem_support_map_iff] at hq
     obtain ⟨θ_new, _, rfl⟩ := hq
     obtain ⟨_, hdec, hzb, hzf, hsp_fin, hzb_reg, hbel_fin, _⟩ := hop_spec θ_new
-    have hcap_eq_N : st'.cap = N_new := hst'_cap
-    have hinit_eq_n : st'.initCount = n := hst'_init
     refine ⟨⟨hcap_eq_N.symm, ?_, hzb_reg, fun _ => ?_⟩, rfl, hdec, fun addr haddr =>
       (hbel_fin addr haddr).trans (((hmid_all θ_new).2.2.2.2.2.2.2 addr haddr).trans
         (hbelow_x addr haddr))⟩
@@ -1033,8 +1033,6 @@ private theorem exec_migrate_then_inEpoch {U V w base overhead : ℕ}
       rw [hid_fn, PMF.map_id]
     exact htr st'.cap hst'_cap
   · rw [htsum_op]
-    have hcap_eq_N : st'.cap = N_new := hst'_cap
-    have hinit_eq_n : st'.initCount = n := hst'_init
     have htsum_pot : (∑' q, μ_out q *
         (resizablePotential U w st'.cap n' st'.initCount base q.data : ℝ≥0∞)) =
         (∑' θ_new, μ_u θ_new * (inEpochPotential U w N_new base (zFin θ_new) : ℝ≥0∞)) +
@@ -2023,20 +2021,16 @@ theorem resizableOpCode_step_expected_amortized {U V w base k_init : ℕ}
         have hst := (hstep_spec t ht).2.2.1 hn'_pos
         rw [ite_eq_left hcap] at hst
         exact hst.2
-      have h_at_st : (ν.bind fun t => (μ_step t).map (fun q => q.latent.seedAt st.cap)) =
-          PMF.uniformOfFintype (QuotHashSeed U st.cap) := by
-        rw [hbind_eq]; exact hinv.2 hn_pos
       have htr : ∀ (C : ℕ), C = st.cap →
           (ν.bind fun t => (μ_step t).map (fun q => q.latent.seedAt C)) =
             PMF.uniformOfFintype (QuotHashSeed U C) := by
-        rintro _ rfl; exact h_at_st
+        rintro _ rfl; rw [hbind_eq]; exact hinv.2 hn_pos
       exact htr st'.cap hcap
     · have hbind_eq : (ν.bind fun t => (μ_step t).map (fun q => q.latent.seedAt st'.cap)) =
           ν.bind (fun _ => PMF.uniformOfFintype (QuotHashSeed U st'.cap)) := by
         refine Cslib.Probability.PMF.bind_congr_on_support ν _ _ fun t ht => ?_
         have hst := (hstep_spec t ht).2.2.1 hn'_pos
-        rw [ite_eq_right hcap] at hst
-        exact hst
+        rwa [ite_eq_right hcap] at hst
       rw [hbind_eq, PMF.bind_const]
   · rw [Cslib.Probability.PMF.tsum_bind_mul]
     have hmap_pot : ∀ t, (∑' q_seq, ((μ_step t).map (t.appendStep o)) q_seq *
