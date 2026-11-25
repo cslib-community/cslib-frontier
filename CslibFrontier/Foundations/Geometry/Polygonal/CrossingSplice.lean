@@ -16,6 +16,7 @@ import CslibFrontier.Foundations.Geometry.Polygonal.CircleChord
 import CslibFrontier.Foundations.Geometry.Polygonal.Concatenate
 import CslibFrontier.Foundations.Geometry.Polygonal.Germs
 import CslibFrontier.Foundations.Geometry.Polygonal.Reverse
+import CslibFrontier.Foundations.Geometry.Polygonal.RouteInterior
 import CslibFrontier.Foundations.Geometry.Polygonal.RouteIntersectionCutEnds
 import CslibFrontier.Foundations.Geometry.Polygonal.Trisection
 import Mathlib.Analysis.Normed.Module.Convex
@@ -115,18 +116,6 @@ private theorem exists_parameter_at_point (p : Route) (a : Fin (p.segments + 1))
     · simp only [position, Fin.val_last, segments, Nat.cast_add, Nat.cast_one]
   · exact ⟨k, 0, ⟨le_rfl, zero_le_one⟩, fun h => lt_irrefl _ h.1,
       AffineMap.lineMap_apply_zero _ _, add_zero _⟩
-
-private theorem exists_point_at_end_parameter {p : Route} (k : Fin p.segments) {u : ℝ}
-    (hu : u ∈ Set.Icc 0 1) (hopen : u ∉ Set.Ioo 0 1) :
-    ∃ a : Fin (p.segments + 1), p.eval k u = p.point a ∧ p.position k u = (a.val : ℝ) := by
-  have he : u ∈ ({0, 1} : Set ℝ) :=
-    Set.Icc_sdiff_Ioo_same (show (0 : ℝ) ≤ 1 from zero_le_one) ▸ ⟨hu, hopen⟩
-  rcases Set.mem_insert_iff.mp he with rfl | he
-  · exact ⟨k.castSucc, AffineMap.lineMap_apply_zero _ _, add_zero _⟩
-  · rw [Set.mem_singleton_iff] at he
-    subst u
-    exact ⟨k.succ, AffineMap.lineMap_apply_one _ _, by simp only [position, Fin.val_succ,
-      Nat.cast_add, Nat.cast_one]⟩
 
 private theorem position_ne_nat_of_mem_Ioo {p : Route} (k : Fin p.segments) {u : ℝ}
     (hu : u ∈ Set.Ioo 0 1) (n : ℕ) : p.position k u ≠ (n : ℝ) := by

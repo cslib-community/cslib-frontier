@@ -12,6 +12,8 @@ public import CslibFrontier.Foundations.Geometry.Polygonal.RouteIntersectionPari
 import CslibFrontier.Foundations.Geometry.FiniteLineAvoidance
 import CslibFrontier.Foundations.Geometry.Polygonal.CrossingSplice
 import CslibFrontier.Foundations.Geometry.Polygonal.Germs
+import CslibFrontier.Foundations.Geometry.Polygonal.RouteInterior
+import Mathlib.Data.Set.Card
 import Mathlib.Logic.Embedding.Basic
 
 /-!
@@ -41,6 +43,14 @@ private noncomputable abbrev segmentSpan (p : Route) (k : Fin p.segments) :=
 private def throughIndex {G : Graph} (D : PolygonalDrawing G) (w : ℂ) :
     DrawingThrough D w ↪ D.SegmentIndex :=
   (Function.Embedding.refl _).sigmaMap fun _ => Function.Embedding.subtype _
+
+private theorem point_notMem_openSegment {G : Graph} {D : PolygonalDrawing G}
+    (hD : D.HasRegularContacts) (e : Fin G.edges.length)
+    (a : Fin ((D.route e).segments + 1)) (l : D.SegmentIndex) :
+    (D.route e).point a ∉ openSegment ℝ (D.segmentStart l) (D.segmentFinish l) := by
+  refine Fin.lastCases ?_ (fun c => (hD.endpoints_avoid_interiors ⟨e, c⟩ l).1) a
+  simpa only [segmentFinish, Route.segments, Fin.succ_last] using
+    (hD.endpoints_avoid_interiors ⟨e, Fin.last (D.route e).bends⟩ l).2
 
 /-- Smooth a given self-crossing while retaining regular contacts throughout the drawing.
 The crossing point is removed, the other routes stay fixed, and the modified route preserves
@@ -194,11 +204,7 @@ theorem HasRegularContacts.exists_regular_splice {G : Graph}
     exact hne (hb₀.trans hb₁.symm)
   have hqAvoid (n : Fin (q.segments + 1)) (k : Fin q.segments) :
       q.point n ∉ openSegment ℝ (q.point k.castSucc) (q.point k.succ) := by
-    apply havoid _ n k
-    intro a l
-    refine Fin.lastCases ?_ (fun c => (hD.endpoints_avoid_interiors ⟨e, c⟩ ⟨e, l⟩).1) a
-    simpa only [segmentStart, segmentFinish, Route.segments, Fin.succ_last] using
-      (hD.endpoints_avoid_interiors ⟨e, Fin.last (D.route e).bends⟩ ⟨e, l⟩).2
+    exact havoid (fun a l => point_notMem_openSegment hD e a ⟨e, l⟩) n k
   have hqMixed :
       ∀ (k l : Fin (E.route e).segments) {s t : ℝ}, s ∈ ({0, 1} : Set ℝ) →
         t ∈ Set.Ioo 0 1 → (E.route e).eval k s ≠ (E.route e).eval l t := by
@@ -318,5 +324,74 @@ theorem HasRegularContacts.exists_regular_splice {G : Graph}
     have hOld := hD.shared_ends_are_vertices ⟨a.1, a'⟩ ⟨b.1, b'⟩ hab
       hs'' ht'' (heA.trans (h.trans heB.symm))
     exact heA ▸ hOld
+
+/-- One can remove all self-crossings from a regular drawing while retaining regularity,
+vertex coordinates, outgoing directions, and the crossing parity of every pair of distinct
+edges. Routes that were already simple stay fixed. Each step deletes a point from the finite
+set of all open segment crossings. -/
+theorem HasRegularContacts.exists_simple_routes {G : Graph} {D : PolygonalDrawing G}
+    (hD : D.HasRegularContacts) :
+    ∃ E : PolygonalDrawing G, E.vertex = D.vertex ∧ E.HasRegularContacts ∧
+      (∀ e, (E.route e).IsSimple) ∧
+      (∀ e, (D.route e).IsSimple → E.route e = D.route e) ∧
+      (∀ e b, ∃ c : ℝ, 0 < c ∧ (E.route e).germ b = c • (D.route e).germ b) ∧
+      ∀ e f, e ≠ f → (E.route e).intersectionParity (E.route f) =
+        (D.route e).intersectionParity (D.route f) := by
+  classical
+  let crossings (E : PolygonalDrawing G) := openSegmentCrossings E.segmentStart E.segmentFinish
+  induction hn : (crossings D).ncard using Nat.strong_induction_on generalizing D with
+  | ind n ih =>
+    by_cases hSelf : ∃ (e : Fin G.edges.length) (i j : Fin (D.route e).segments) (z : ℂ), i < j ∧
+        z ∈ openSegment ℝ ((D.route e).point i.castSucc) ((D.route e).point i.succ) ∧
+        z ∈ openSegment ℝ ((D.route e).point j.castSucc) ((D.route e).point j.succ)
+    · obtain ⟨e, i, j, z, hij, hi, hj⟩ := hSelf
+      obtain ⟨E, hED, hfixed, hG, hP, hsub, hreg⟩ :=
+        hD.exists_regular_splice e i j hij hi hj
+      have hz : z ∈ crossings D :=
+        ⟨⟨e, i⟩, ⟨e, j⟩, fun h => hij.ne (eq_of_heq (Sigma.mk.inj_iff.mp h).2), hi, hj⟩
+      have hlt : (crossings E).ncard < n := by
+        rw [← hn]
+        refine Set.ncard_lt_ncard (Set.ssubset_iff_exists.mpr ⟨fun w hw => (hsub hw).1,
+          z, hz, fun hw => (hsub hw).2 rfl⟩) hD.exists_crossing_neighborhoods.1
+      obtain ⟨F, hFE, hFreg, hsimple, hFfixed, hFG, hFP⟩ := ih _ hlt hreg rfl
+      refine ⟨F, hFE.trans hED, hFreg, hsimple, ?_, ?_, ?_⟩
+      · intro f hf
+        have hne : f ≠ e := by
+          rintro rfl
+          rw [openSegment_eq_image_lineMap] at hi hj
+          obtain ⟨s, hs, heS⟩ := hi
+          obtain ⟨t, ht, heT⟩ := hj
+          exact hij.ne (hf.index_time_eq_of_eval_eq_of_mem_Ioo i j hs
+            (Set.Ioo_subset_Icc_self ht) (heS.trans heT.symm)).1
+        exact (hFfixed f ((hfixed f hne).symm ▸ hf)).trans (hfixed f hne)
+      · intro f b
+        obtain ⟨c, hc, hcg⟩ := hFG f b
+        by_cases hf : f = e
+        · subst f
+          obtain ⟨d, hd, hdg⟩ := hG b
+          exact ⟨c * d, mul_pos hc hd, by rw [hcg, hdg, smul_smul]⟩
+        · exact ⟨c, hc, by simpa only [hfixed f hf] using hcg⟩
+      · intro f g hfg
+        rw [hFP f g hfg]
+        by_cases hf : f = e
+        · subst f
+          exact hP g hfg.symm
+        by_cases hg : g = e
+        · subst g
+          exact (Route.intersectionParity_symm _ _).trans
+            ((hP f hf).trans (Route.intersectionParity_symm _ _))
+        rw [hfixed f hf, hfixed g hg]
+    · refine ⟨D, rfl, hD, ?_, fun _ _ => rfl, fun e b => ⟨1, zero_lt_one, (one_smul ℝ _).symm⟩,
+        fun _ _ _ => rfl⟩
+      intro e
+      apply Route.isSimple_of_disjoint_openSegments (hD.points_injective e)
+        (fun a k => point_notMem_openSegment hD e a ⟨e, k⟩)
+      intro i j hij
+      apply Set.disjoint_left.mpr
+      intro z hi hj
+      apply hSelf
+      rcases lt_or_gt_of_ne hij with h | h
+      · exact ⟨e, i, j, z, h, hi, hj⟩
+      · exact ⟨e, j, i, z, h, hj, hi⟩
 
 end Cslib.Complexity.Graph.PolygonalDrawing
