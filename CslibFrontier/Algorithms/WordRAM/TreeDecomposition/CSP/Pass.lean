@@ -66,6 +66,47 @@ private theorem iterate_one {δ σ : Type} {w : ℕ} (body : δ × σ → Memory
   rw [memoryCost_bind']
   rfl
 
+/-- `nodeStep` reads the root's four tree words and runs the branch `k` they select. When that
+branch is a node program `P` followed by returning the next index, the step ends in the state of
+`P`, its history is valid when that of `P` is, and it costs four reads more than `P`. Callers pass
+`rfl` for `hstep`, which determines `k`. -/
+private theorem nodeStep_branch {w : ℕ} {α : Type} (env : NodeEnv) (cur : ℕ) (s : Memory.State)
+    (htree_lt : env.treePtr + 4 * cur + 3 < s.frontier) {k : ℕ → ℕ → ℕ → ℕ → Memory.Prog ℕ}
+    (hstep : nodeStep (env, cur) = do
+      let tag ← Memory.read (env.treePtr + 4 * cur)
+      let arg ← Memory.read (env.treePtr + 4 * cur + 1)
+      let ch1 ← Memory.read (env.treePtr + 4 * cur + 2)
+      let ch2 ← Memory.read (env.treePtr + 4 * cur + 3)
+      k tag arg ch1 ch2)
+    (P : Memory.Prog α)
+    (hk : k (s.mem (env.treePtr + 4 * cur)) (s.mem (env.treePtr + 4 * cur + 1))
+      (s.mem (env.treePtr + 4 * cur + 2)) (s.mem (env.treePtr + 4 * cur + 3)) =
+        P >>= fun _ => pure (cur + 1))
+    (hv : (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s P)) :
+    (Memory.spec 0).clientState s (nodeStep (env, cur)) = (Memory.spec 0).clientState s P ∧
+    (Memory.spec 0).clientResult s (nodeStep (env, cur)) = cur + 1 ∧
+    (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (nodeStep (env, cur))) ∧
+    memoryCost (nodeStep (env, cur)) s = 4 + memoryCost P s := by
+  have hr_s (x : ℕ) : (Memory.spec 0).clientState s (Memory.read x) = s := rfl
+  have hr_r (x : ℕ) : (Memory.spec 0).clientResult s (Memory.read x) = s.mem x := rfl
+  rw [hstep]
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · iterate 4 rw [StateTransitionSpec.clientState_bind, hr_s, hr_r]
+    rw [hk, StateTransitionSpec.clientState_bind]
+    rfl
+  · iterate 4 rw [StateTransitionSpec.clientResult_bind, hr_s, hr_r]
+    rw [hk, StateTransitionSpec.clientResult_bind]
+    rfl
+  · refine validHistory_read_bind (by omega) ?_
+    refine validHistory_read_bind (by omega) ?_
+    refine validHistory_read_bind (by omega) ?_
+    refine validHistory_read_bind htree_lt ?_
+    rw [hk]
+    exact validHistory_bind_step hv (validHistory_pure w _ _)
+  · iterate 4 rw [memoryCost_bind', memoryCost_read, hr_s, hr_r]
+    rw [hk, memoryCost_bind', memoryCost_pure]
+    omega
+
 /-- The induction step for a node `T` with one child, serialized as
 `encodeNiceTreeAux offset child ++ [tag, v, offset + child.size - 1, 0]`. Given
 `SubtreeFullSpec` for `child`, it suffices that the root's `nodeStep` (`hroot`) is safe and valid,
@@ -265,39 +306,12 @@ private theorem subtree_forget {w : ℕ} (inst : TreeCSPInstance) (hw : Fits w i
         F_lo, inst.counting, child, inst.constraints, inst.vars,
         rfl, hfit_bag_el, by rw [hch1_eq]; exact hdesc_ch, hFlo₁,
         hfit_cPow, by rw [harg_v]; exact hs₁_peak, by rw [harg_v]; exact hfit_cap⟩))⟩
-  have hr_s (x : ℕ) : (Memory.spec 0).clientState s₁ (Memory.read x) = s₁ := rfl
-  have hr_r (x : ℕ) : (Memory.spec 0).clientResult s₁ (Memory.read x) = s₁.mem x := rfl
-  have hst_root : (Memory.spec 0).clientState s₁ (nodeStep (env, cur)) =
-      (Memory.spec 0).clientState s₁ (forgetNodeProg fgArgs) := by
-    unfold nodeStep; dsimp only
-    iterate 4 rw [StateTransitionSpec.clientState_bind, hr_s, hr_r]
-    rw [ite_eq_right ht2_ne0, ite_eq_right ht2_ne1, ite_eq_left htag2,
-      harg_v, hch1_eq, StateTransitionSpec.clientState_bind]
-    rfl
-  have hres_root : (Memory.spec 0).clientResult s₁ (nodeStep (env, cur)) = cur + 1 := by
-    unfold nodeStep; dsimp only
-    iterate 4 rw [StateTransitionSpec.clientResult_bind, hr_s, hr_r]
-    rw [ite_eq_right ht2_ne0, ite_eq_right ht2_ne1, ite_eq_left htag2,
-      StateTransitionSpec.clientResult_bind]
-    rfl
-  have hv_root : (Memory.spec w).ValidHistory s₁
-      ((Memory.spec w).clientHistory s₁ (nodeStep (env, cur))) := by
-    have hlt0 : env.treePtr + 4 * cur < s₁.frontier := lt_of_le_of_lt (by omega) htree_lt
-    have hlt1 : env.treePtr + 4 * cur + 1 < s₁.frontier := lt_of_le_of_lt (by omega) htree_lt
-    have hlt2 : env.treePtr + 4 * cur + 2 < s₁.frontier := lt_of_le_of_lt (by omega) htree_lt
-    unfold nodeStep; dsimp only
-    refine validHistory_read_bind hlt0 ?_
-    refine validHistory_read_bind hlt1 ?_
-    refine validHistory_read_bind hlt2 ?_
-    refine validHistory_read_bind htree_lt ?_
-    rw [ite_eq_right ht2_ne0, ite_eq_right ht2_ne1, ite_eq_left htag2,
-      harg_v, hch1_eq]
-    exact validHistory_bind_step hv_fg (validHistory_pure w _ _)
+  obtain ⟨hst_root, hres_root, hv_root, hc_root⟩ :=
+    nodeStep_branch env cur s₁ htree_lt rfl (forgetNodeProg fgArgs)
+      (by dsimp only [fgArgs]; rw [ite_eq_right ht2_ne0, ite_eq_right ht2_ne1, ite_eq_left htag2,
+        harg_v, hch1_eq]) hv_fg
   have hcost_root : memoryCost (nodeStep (env, cur)) s₁ ≤ perCost := by
-    unfold nodeStep; dsimp only
-    iterate 4 rw [memoryCost_bind', memoryCost_read, hr_s, hr_r]
-    rw [ite_eq_right ht2_ne0, ite_eq_right ht2_ne1, ite_eq_left htag2,
-      harg_v, hch1_eq, memoryCost_bind', memoryCost_pure, Nat.add_zero]
+    rw [hc_root]
     have hfg_mul :
         inst.domainSize ^ LB.length *
             (inst.domainSize * ((bagList child).length * (LB.length + 1) + 1) + 1) ≤
@@ -338,65 +352,6 @@ private theorem subtree_forget {w : ℕ} (inst : TreeCSPInstance) (hw : Fits w i
     simpa only [Nat.mul_add, Nat.mul_one, Nat.add_assoc] using hframe_fg
   · rw [hst_root]
     exact hdesc_fg
-
-private theorem nodeStep_join_branch {w : ℕ} (env : NodeEnv) (cur ch1 ch2 : ℕ)
-    (s : Memory.State)
-    (htree_lt : env.treePtr + 4 * cur + 3 < s.frontier)
-    (hne0 : s.mem (env.treePtr + 4 * cur) ≠ 0)
-    (hne1 : s.mem (env.treePtr + 4 * cur) ≠ 1)
-    (hne2 : s.mem (env.treePtr + 4 * cur) ≠ 2)
-    (hch1_eq : s.mem (env.treePtr + 4 * cur + 2) = ch1)
-    (hch2_eq : s.mem (env.treePtr + 4 * cur + 3) = ch2)
-    (jnArgs : JoinNodeArgs)
-    (hjn : jnArgs = ⟨env.q, env.descBase + 4 * ch1, env.descBase + 4 * ch2,
-      env.descBase + 4 * cur⟩)
-    (hv_jn : (Memory.spec w).ValidHistory s
-      ((Memory.spec w).clientHistory s (joinNodeProg jnArgs))) :
-    (Memory.spec 0).clientState s (iterate nodeStep env 1 cur) =
-      (Memory.spec 0).clientState s (joinNodeProg jnArgs) ∧
-    (Memory.spec 0).clientResult s (iterate nodeStep env 1 cur) = cur + 1 ∧
-    (Memory.spec w).ValidHistory s
-      ((Memory.spec w).clientHistory s (iterate nodeStep env 1 cur)) ∧
-    memoryCost (iterate nodeStep env 1 cur) s ≤ 4 + memoryCost (joinNodeProg jnArgs) s := by
-  subst hjn
-  have hr_s (x : ℕ) : (Memory.spec 0).clientState s (Memory.read x) = s := rfl
-  have hr_r (x : ℕ) : (Memory.spec 0).clientResult s (Memory.read x) = s.mem x := rfl
-  have hlt0 : env.treePtr + 4 * cur < s.frontier := lt_of_le_of_lt (by omega) htree_lt
-  have hlt1 : env.treePtr + 4 * cur + 1 < s.frontier := lt_of_le_of_lt (by omega) htree_lt
-  have hlt2 : env.treePtr + 4 * cur + 2 < s.frontier := lt_of_le_of_lt (by omega) htree_lt
-  have hst : (Memory.spec 0).clientState s (nodeStep (env, cur)) =
-      (Memory.spec 0).clientState s (joinNodeProg ⟨env.q, env.descBase + 4 * ch1,
-        env.descBase + 4 * ch2, env.descBase + 4 * cur⟩) := by
-    unfold nodeStep; dsimp only
-    iterate 4 rw [StateTransitionSpec.clientState_bind, hr_s, hr_r]
-    rw [ite_eq_right hne0, ite_eq_right hne1, ite_eq_right hne2,
-      hch1_eq, hch2_eq, StateTransitionSpec.clientState_bind]
-    rfl
-  have hres : (Memory.spec 0).clientResult s (nodeStep (env, cur)) = cur + 1 := by
-    unfold nodeStep; dsimp only
-    iterate 4 rw [StateTransitionSpec.clientResult_bind, hr_s, hr_r]
-    rw [ite_eq_right hne0, ite_eq_right hne1, ite_eq_right hne2,
-      StateTransitionSpec.clientResult_bind]
-    rfl
-  have hv : (Memory.spec w).ValidHistory s
-      ((Memory.spec w).clientHistory s (nodeStep (env, cur))) := by
-    unfold nodeStep; dsimp only
-    refine validHistory_read_bind hlt0 ?_
-    refine validHistory_read_bind hlt1 ?_
-    refine validHistory_read_bind hlt2 ?_
-    refine validHistory_read_bind htree_lt ?_
-    rw [ite_eq_right hne0, ite_eq_right hne1, ite_eq_right hne2, hch1_eq, hch2_eq]
-    exact validHistory_bind_step hv_jn (validHistory_pure w _ _)
-  have hcost : memoryCost (nodeStep (env, cur)) s ≤
-      4 + memoryCost (joinNodeProg ⟨env.q, env.descBase + 4 * ch1,
-        env.descBase + 4 * ch2, env.descBase + 4 * cur⟩) s := by
-    unfold nodeStep; dsimp only
-    iterate 4 rw [memoryCost_bind', memoryCost_read, hr_s, hr_r]
-    rw [ite_eq_right hne0, ite_eq_right hne1, ite_eq_right hne2,
-      hch1_eq, hch2_eq, memoryCost_bind', memoryCost_pure, Nat.add_zero]
-    omega
-  obtain ⟨hit_st, hit_res, hit_v, hit_c⟩ := iterate_one (w := w) nodeStep env cur s
-  exact ⟨hit_st.trans hst, hit_res.trans hres, hit_v hv, hit_c.trans_le hcost⟩
 
 private theorem subtree_join_step {w : ℕ} (inst : TreeCSPInstance) (hw : Fits w inst.wordBound)
     (left right : NiceTree ℕ) (offset mid cur : ℕ) (s₂ : Memory.State)
@@ -498,10 +453,14 @@ private theorem subtree_join_step {w : ℕ} (inst : TreeCSPInstance) (hw : Fits 
         F_lo, inst.counting, left, right, inst.constraints, inst.vars,
         by rw [hch1_eq]; exact hdesc_l₂, by rw [hch2_eq]; exact hdesc_r,
         hfit_rPow, hs₂_peak, hfit_cap⟩))⟩
-  obtain ⟨hit_root_st, hit_root_res, hv_it_root, hcost_br⟩ :=
-    nodeStep_join_branch env cur (mid - 1) (cur - 1) s₂ htree_lt hne0 hne1 hne2
-      hch1_eq hch2_eq jnArgs rfl hv_jn
+  obtain ⟨hst_root, hres_root, hv_root, hc_root⟩ :=
+    nodeStep_branch env cur s₂ htree_lt rfl (joinNodeProg jnArgs)
+      (by dsimp only [jnArgs]; rw [ite_eq_right hne0, ite_eq_right hne1, ite_eq_right hne2,
+        hch1_eq, hch2_eq]) hv_jn
+  obtain ⟨hit_st, hit_res, hit_v, hit_c⟩ := iterate_one (w := w) nodeStep env cur s₂
+  have hit_root_st := hit_st.trans hst_root
   have hc_it_root : memoryCost (iterate nodeStep env 1 cur) s₂ ≤ perCost := by
+    rw [hit_c, hc_root]
     have hjn_mul :
         inst.domainSize ^ (bagList left).length *
             ((bagList right).length * ((bagList left).length + 1) + 3) ≤
@@ -512,13 +471,13 @@ private theorem subtree_join_step {w : ℕ} (inst : TreeCSPInstance) (hw : Fits 
       have hsq : E * (E + 1) = E ^ 2 + E := by ring
       omega
     have hmul_c := hc_ge (E ^ 2 + E + 4) (by dsimp only [E]; omega)
-    dsimp only [jnArgs, env, subtreeEnv, perCost, E] at hc_jn hcost_br hjn_mul hmul_c ⊢
+    dsimp only [jnArgs, env, subtreeEnv, perCost, E] at hc_jn hjn_mul hmul_c ⊢
     omega
   have hfr_jn' : FrameOutsideRange (env.descBase + 4 * cur) (env.descBase + 4 * (cur + 1)) s₂
       ((Memory.spec 0).clientState s₂ (joinNodeProg jnArgs)) := by
     dsimp only [jnArgs] at hframe_jn
     simpa only [Nat.mul_add, Nat.mul_one, Nat.add_assoc] using hframe_jn
-  refine ⟨hsafe_root, hv_it_root, hit_root_res, ?_, ?_, ?_, hc_it_root⟩
+  refine ⟨hsafe_root, hit_v hv_root, hit_res.trans hres_root, ?_, ?_, ?_, hc_it_root⟩
   · rw [hit_root_st]; exact hfr_jn
   · rw [hit_root_st]; exact hfr_jn'
   · rw [hit_root_st]; exact hdesc_jn
@@ -755,32 +714,11 @@ private theorem subtree_leaf {w : ℕ} (inst : TreeCSPInstance) (hw : Fits w ins
       hfit_total.of_le (by dsimp only [F_lo, env, subtreeEnv, perSpace, E] at *; omega),
       hfit_total.of_le (by dsimp only [F_lo, env, subtreeEnv, perSpace, E] at *; omega),
       Or.inl ⟨htag0, inst.domainSize, inst.constraints, hq, rfl, hcons, hcons_fit⟩⟩
-  have hr_s (x : ℕ) : (Memory.spec 0).clientState s (Memory.read x) = s := rfl
-  have hr_r (x : ℕ) : (Memory.spec 0).clientResult s (Memory.read x) = s.mem x := rfl
-  have hst1 : (Memory.spec 0).clientState s (nodeStep (env, offset)) =
-      (Memory.spec 0).clientState s (leafNodeProg leafArgs) := by
-    unfold nodeStep; dsimp only
-    iterate 4 rw [StateTransitionSpec.clientState_bind, hr_s, hr_r]
-    rw [ite_eq_left htag0, StateTransitionSpec.clientState_bind]
-    rfl
-  have hres1 : (Memory.spec 0).clientResult s (nodeStep (env, offset)) = offset + 1 := by
-    unfold nodeStep; dsimp only
-    iterate 4 rw [StateTransitionSpec.clientResult_bind, hr_s, hr_r]
-    rw [ite_eq_left htag0, StateTransitionSpec.clientResult_bind]
-    rfl
-  have hv1 : (Memory.spec w).ValidHistory s
-      ((Memory.spec w).clientHistory s (nodeStep (env, offset))) := by
-    unfold nodeStep; dsimp only
-    refine validHistory_read_bind (by omega) ?_
-    refine validHistory_read_bind (by omega) ?_
-    refine validHistory_read_bind (by omega) ?_
-    refine validHistory_read_bind (by omega) ?_
-    rw [ite_eq_left htag0]
-    exact validHistory_bind_step hv_lf (validHistory_pure w _ _)
+  obtain ⟨hst1, hres1, hv1, hc1⟩ :=
+    nodeStep_branch env offset s htree_lt rfl (leafNodeProg leafArgs)
+      (by dsimp only [leafArgs]; rw [ite_eq_left htag0]) hv_lf
   have hcost1 : memoryCost (nodeStep (env, offset)) s ≤ 1 * perCost := by
-    unfold nodeStep; dsimp only
-    iterate 4 rw [memoryCost_bind', memoryCost_read, hr_s, hr_r]
-    rw [ite_eq_left htag0, memoryCost_bind', memoryCost_pure, Nat.add_zero]
+    rw [hc1]
     have hmul_nc : 3 * inst.constraints.length ≤
         inst.domainSize ^ E *
           (E ^ 2 + E + 4 + 3 * inst.constraints.length + inst.totalArity * (2 * E + 3)) :=
@@ -859,34 +797,11 @@ private theorem subtree_introduce {w : ℕ} (inst : TreeCSPInstance) (hw : Fits 
         F_lo, inst.counting, child, inst.constraints, inst.vars,
         hwf₁, rfl, hcons₁, hcons_le, by rw [hch1_eq]; exact hdesc_ch, hFlo₁,
         by rw [harg_v]; exact hs₁_peak⟩)⟩
-  have hr_s (x : ℕ) : (Memory.spec 0).clientState s₁ (Memory.read x) = s₁ := rfl
-  have hr_r (x : ℕ) : (Memory.spec 0).clientResult s₁ (Memory.read x) = s₁.mem x := rfl
-  have hst_root : (Memory.spec 0).clientState s₁ (nodeStep (env, cur)) =
-      (Memory.spec 0).clientState s₁ (introNodeProg introArgs) := by
-    unfold nodeStep; dsimp only
-    iterate 4 rw [StateTransitionSpec.clientState_bind, hr_s, hr_r]
-    rw [ite_eq_right hne0, ite_eq_left htag1, harg_v, hch1_eq,
-      StateTransitionSpec.clientState_bind]
-    rfl
-  have hres_root : (Memory.spec 0).clientResult s₁ (nodeStep (env, cur)) = cur + 1 := by
-    unfold nodeStep; dsimp only
-    iterate 4 rw [StateTransitionSpec.clientResult_bind, hr_s, hr_r]
-    rw [ite_eq_right hne0, ite_eq_left htag1, StateTransitionSpec.clientResult_bind]
-    rfl
-  have hv_root : (Memory.spec w).ValidHistory s₁
-      ((Memory.spec w).clientHistory s₁ (nodeStep (env, cur))) := by
-    unfold nodeStep; dsimp only
-    refine validHistory_read_bind (by omega) ?_
-    refine validHistory_read_bind (by omega) ?_
-    refine validHistory_read_bind (by omega) ?_
-    refine validHistory_read_bind (by omega) ?_
-    rw [ite_eq_right hne0, ite_eq_left htag1, harg_v, hch1_eq]
-    exact validHistory_bind_step hv_in (validHistory_pure w _ _)
+  obtain ⟨hst_root, hres_root, hv_root, hc_root⟩ :=
+    nodeStep_branch env cur s₁ htree_lt rfl (introNodeProg introArgs)
+      (by dsimp only [introArgs]; rw [ite_eq_right hne0, ite_eq_left htag1, harg_v, hch1_eq]) hv_in
   have hcost_root : memoryCost (nodeStep (env, cur)) s₁ ≤ perCost := by
-    unfold nodeStep; dsimp only
-    iterate 4 rw [memoryCost_bind', memoryCost_read, hr_s, hr_r]
-    rw [ite_eq_right hne0, ite_eq_left htag1, harg_v, hch1_eq, memoryCost_bind',
-      memoryCost_pure, Nat.add_zero]
+    rw [hc_root]
     have hmul_c :
         inst.domainSize ^ (v :: bagList child).length *
           (2 + 3 * inst.constraints.length +
