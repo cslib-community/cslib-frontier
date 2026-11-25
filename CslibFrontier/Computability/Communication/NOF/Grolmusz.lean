@@ -86,54 +86,36 @@ private theorem prod_bool_eq_decide {α : Type*} [Fintype α] (f : α → Bool) 
     ∏ a, f a = decide (∀ a, f a = true) := by
   classical
   by_cases h : ∀ a, f a = true
-  · rw [decide_eq_true h, Finset.prod_eq_one fun a _ => h a]
-    rfl
+  · exact (Finset.prod_eq_one fun a _ => h a).trans (decide_eq_true h).symm
   · obtain ⟨a, ha⟩ := not_forall.mp h
-    rw [decide_eq_false h, Finset.prod_eq_zero (mem_univ a) (Bool.eq_false_iff.mpr ha)]
-    rfl
+    exact (Finset.prod_eq_zero (mem_univ a) (Bool.eq_false_iff.mpr ha)).trans
+      (decide_eq_false h).symm
 
 /-- In the two-element Boolean ring, where `a - b = a + b`, adjacent sums telescope. -/
 private theorem sum_range_add_succ (f : ℕ → Bool) (m : ℕ) :
     ∑ t ∈ range m, (f t + f (t + 1)) = f 0 + f m := by
   have h := Finset.sum_range_sub f m
   simp only [BooleanRing.sub_eq_add] at h
-  rw [add_comm (f m)] at h
-  rw [← h]
-  exact Finset.sum_congr rfl fun t _ => add_comm _ _
+  rw [add_comm (f 0), ← h]
+  exact Finset.sum_congr rfl fun _ _ => add_comm _ _
 
 /-- One step of the chain: player `t + 1` counts a column exactly when it agrees with exactly one
 of `w t` and `w (t + 1)`. -/
 theorem chainTerm_eq (z : Fin k → Bool) (c₀ : Bool) (c : Fin k → Bool) (t : Fin k) :
     chainTerm z c₀ c t =
       (c₀ && decide (c = chain z t)) + (c₀ && decide (c = chain z (t + 1))) := by
-  have hoff : ∀ l, l ≠ t → chain z (t + 1) l = chain z t l := by
-    intro l hl
-    have : (l : ℕ) ≠ t := fun h => hl (Fin.ext h)
-    simp only [chain]
-    congr 1
-    by_cases h : (l : ℕ) < t
-    · simp [h, Nat.lt_succ_of_lt h]
-    · simp only [h, decide_false, decide_eq_false_iff_not]
-      omega
-  have ht : chain z t t = z t := by simp [chain]
-  have ht' : chain z (t + 1) t = true := by simp [chain]
-  -- Split the agreement with a chain pattern into row `t` and the other rows.
-  have split : ∀ w : Fin k → Bool, c = w ↔ c t = w t ∧ ∀ l, l ≠ t → c l = w l := by
-    intro w
-    constructor
-    · rintro rfl
-      exact ⟨rfl, fun _ _ => rfl⟩
-    · rintro ⟨h₁, h₂⟩
-      funext l
-      by_cases hl : l = t
-      · rw [hl, h₁]
-      · exact h₂ l hl
+  have hoff (l : Fin k) (hl : l ≠ t) : chain z (t + 1) l = chain z t l := by
+    have := mt Fin.ext hl
+    simp only [chain, show ((l : ℕ) < t + 1) ↔ (l : ℕ) < t by omega]
+  have split (w : Fin k → Bool) : c = w ↔ c t = w t ∧ ∀ l, l ≠ t → c l = w l :=
+    ⟨fun h => ⟨h ▸ rfl, fun _ _ => h ▸ rfl⟩, fun ⟨h₁, h₂⟩ => funext fun l =>
+      if hl : l = t then hl ▸ h₁ else h₂ l hl⟩
   have h₁ : (c = chain z (t + 1)) ↔ c t = true ∧ ∀ l, l ≠ t → c l = chain z t l := by
-    rw [split, ht']
+    rw [split, show chain z (t + 1) t = true by simp [chain]]
     exact and_congr_right fun _ => forall_congr' fun l => imp_congr_right fun hl => by
       rw [hoff l hl]
   have h₀ : (c = chain z t) ↔ c t = z t ∧ ∀ l, l ≠ t → c l = chain z t l := by
-    rw [split, ht]
+    rw [split, show chain z t t = z t by simp [chain]]
   simp only [chainTerm, decide_eq_decide.mpr h₀, decide_eq_decide.mpr h₁, Bool.decide_and]
   generalize decide (∀ l, l ≠ t → c l = chain z t l) = P
   cases z t <;> cases c₀ <;> cases c t <;> cases P <;> rfl
@@ -143,19 +125,16 @@ theorem chainTerm_eq (z : Fin k → Bool) (c₀ : Bool) (c : Fin k → Bool) (t 
 theorem sum_chainTerm (z : Fin k → Bool) (c₀ : Bool) (c : Fin k → Bool) (hc : c ≠ z) :
     ∑ t, chainTerm z c₀ c t = c₀ * ∏ l, c l := by
   set E : ℕ → Bool := fun t => c₀ && decide (c = chain z t) with hE
-  have hsum : ∑ t, chainTerm z c₀ c t = ∑ t ∈ range k, (E t + E (t + 1)) := by
-    rw [← Fin.sum_univ_eq_sum_range (fun t => E t + E (t + 1))]
-    exact Finset.sum_congr rfl fun t _ => chainTerm_eq z c₀ c t
-  have h0 : E 0 = false := by
-    have : chain z 0 = z := funext fun l => by simp [chain]
-    simp [hE, this, hc]
-  have hk : E k = c₀ * ∏ l, c l := by
-    have : chain z k = fun _ => true := funext fun l => by simp [chain, l.isLt]
-    rw [prod_bool_eq_decide]
-    simp only [hE, this, Bool.mul_eq_and]
-    congr 1
-  rw [hsum, sum_range_add_succ, h0, hk]
-  exact zero_add _
+  rw [show ∑ t, chainTerm z c₀ c t = ∑ t ∈ range k, (E t + E (t + 1)) from
+      (Finset.sum_congr rfl fun t _ => chainTerm_eq z c₀ c t).trans
+        (Fin.sum_univ_eq_sum_range (fun t => E t + E (t + 1)) k),
+    sum_range_add_succ,
+    show E 0 = 0 from (by
+      simp [hE, show chain z 0 = z from funext fun _ => by simp [chain], hc] : E 0 = false),
+    zero_add, prod_bool_eq_decide]
+  simp only [hE, show chain z k = fun _ => true from funext fun l => by simp [chain, l.isLt],
+    Bool.mul_eq_and]
+  exact congrArg (c₀ && ·) (decide_eq_decide.mpr funext_iff)
 
 /-! ### Player `0`'s patterns -/
 
@@ -170,15 +149,10 @@ theorem missing_spec {n : ℕ} (y : Fin k → BitString n) {S : Finset (Fin n)} 
     ∀ r ∈ S, (fun l => y l r) ≠ missing y S := by
   have h : ∃ z : Fin k → Bool, ∀ r ∈ S, (fun l => y l r) ≠ z := by
     classical
-    have hcard : #(S.image fun r l => y l r) < #(univ : Finset (Fin k → Bool)) := by
-      rw [card_univ, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin]
-      exact card_image_le.trans_lt hS
-    obtain ⟨z, -, hz⟩ := exists_mem_notMem_of_card_lt_card hcard
+    obtain ⟨z, -, hz⟩ := exists_mem_notMem_of_card_lt_card (s := S.image fun r l => y l r)
+      (t := univ) (by simpa using card_image_le.trans_lt hS)
     exact ⟨z, fun r hr h => hz (mem_image.mpr ⟨r, hr, h⟩)⟩
-  unfold missing
-  split
-  · next h' => exact h'.choose_spec
-  · next h' => exact absurd h h'
+  simpa only [missing, dite_eq_left h] using h.choose_spec
 
 /-! ### The protocol -/
 
@@ -264,29 +238,23 @@ compute the generalized inner product of `n`-bit strings with `k (B + 1)` bits. 
 runs of `2 ^ k - 1` consecutive columns. -/
 theorem ecomplexityFun_gip_le_of_le_mul (hn : n ≤ B * (2 ^ k - 1)) :
     Protocol.ecomplexityFun (gip : (Fin (k + 1) → BitString n) → Bool) ≤ (k * (B + 1) : ℕ) := by
-  set s := 2 ^ k - 1 with hs
-  have hsk : s < 2 ^ k := by have := @Nat.one_le_two_pow k; omega
+  set s := 2 ^ k - 1
+  have hsk : s < 2 ^ k := by
+    have := @Nat.one_le_two_pow k
+    omega
   rcases Nat.eq_zero_or_pos s with h0 | hpos
-  · -- No columns at all.
-    have : n = 0 := by rw [h0, mul_zero] at hn; omega
-    subst this
-    refine ecomplexityFun_gip_le_of_block (fun r => r.elim0) fun b => ?_
-    simp
+  · obtain rfl : n = 0 := by
+      rw [h0, mul_zero] at hn
+      omega
+    exact ecomplexityFun_gip_le_of_block Fin.elim0 fun _ => by simp
   · refine ecomplexityFun_gip_le_of_block
-      (fun r => ⟨r / s, (Nat.div_lt_iff_lt_mul hpos).mpr (by have := r.isLt; omega)⟩)
-      fun b => ?_
-    -- The columns of block `b` are `b s + j` for `j < s`.
-    refine lt_of_le_of_lt (b := #(range s))
-      (card_le_card_of_injOn (fun r => (r : ℕ) % s) ?_ ?_) (by rw [card_range]; exact hsk)
-    · intro r _
-      simp only [coe_range, Set.mem_Iio]
-      exact Nat.mod_lt _ hpos
-    · intro r hr r' hr' h
-      simp only [coe_filter, mem_univ, true_and, Set.mem_ofPred_eq, Fin.ext_iff] at hr hr'
-      have hq : (r : ℕ) / s = r' / s := by rw [hr, hr']
-      apply Fin.ext
-      rw [← Nat.div_add_mod (r : ℕ) s, ← Nat.div_add_mod (r' : ℕ) s, hq]
-      exact congrArg _ h
+      (fun r => ⟨r / s, (Nat.div_lt_iff_lt_mul hpos).mpr (by omega)⟩) fun b => ?_
+    refine lt_of_le_of_lt (b := #(range s)) (card_le_card_of_injOn (fun r => (r : ℕ) % s)
+      (fun _ _ => by simpa using Nat.mod_lt _ hpos) fun r hr r' hr' h => ?_)
+      (by simpa using hsk)
+    simp only [coe_filter, mem_univ, true_and, Set.mem_ofPred_eq, Fin.ext_iff] at hr hr'
+    dsimp only at h
+    exact Fin.ext (by rw [← Nat.div_add_mod (r : ℕ) s, ← Nat.div_add_mod (r' : ℕ) s, hr, hr', h])
 
 /-- **Grolmusz's upper bound, explicit form** [Grolmusz1994]: for `k ≥ 1`, `k + 1` players
 compute the generalized inner product of `n`-bit strings with `k (n / (2 ^ k - 1) + 2)` bits,
@@ -294,10 +262,11 @@ compute the generalized inner product of `n`-bit strings with `k (n / (2 ^ k - 1
 theorem ecomplexityFun_gip_le (hk : k ≠ 0) (n : ℕ) :
     Protocol.ecomplexityFun (gip : (Fin (k + 1) → BitString n) → Bool) ≤
       (k * (n / (2 ^ k - 1) + 2) : ℕ) := by
-  have hpos : 0 < 2 ^ k - 1 := by have := Nat.one_lt_two_pow hk; omega
+  have hpos : 0 < 2 ^ k - 1 := by
+    have := Nat.one_lt_two_pow hk
+    omega
   refine ecomplexityFun_gip_le_of_le_mul (B := n / (2 ^ k - 1) + 1) ?_
-  have := Nat.lt_mul_div_succ n hpos
-  rw [mul_comm] at this
-  exact this.le
+  rw [mul_comm]
+  exact (Nat.lt_mul_div_succ n hpos).le
 
 end Cslib.Communication.NOF.Grolmusz

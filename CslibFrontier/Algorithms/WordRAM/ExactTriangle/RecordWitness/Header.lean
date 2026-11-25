@@ -28,14 +28,12 @@ namespace Cslib.Algorithms.WordRAM.ExactTriangle.RecordWitness
 open Cslib.WordRAM
 open Cslib.Algorithms.ExactTriangle
 
-private theorem sqrtBank_injective : Function.Injective sqrtBank := by
-  intro i j h
-  apply Fin.ext
-  simpa only [sqrtBank, Nat.add_left_cancel_iff] using congrArg Fin.val h
+private theorem sqrtBank_injective : Function.Injective sqrtBank := fun _ _ h =>
+  Fin.ext <| by simpa only [sqrtBank, Nat.add_left_cancel_iff] using congrArg Fin.val h
 
 private theorem squareRoot_preserves (i : Fin 400) (hi : i.val < 336 ∨ 342 ≤ i.val) :
-    squareRoot.Preserves i := by
-  exact Code.preserves_rename_of_offset _ _ (fun _ => rfl) i hi
+    squareRoot.Preserves i :=
+  Code.preserves_rename_of_offset _ _ (fun _ => rfl) i hi
 
 /-- Read the original dimension/divisor and this actual six-word record, then reset the
 per-record search state. The record address is computed from the native selected ordinal. -/
@@ -62,11 +60,9 @@ theorem exec_readRecord {W n D g i records heap out : ℕ} (x : Data 400) (v : F
   have hmul : Fits W (i * stride) := hfit.of_le (by dsimp only [r] at hrange; omega)
   have hv1 : x.mem (r + 1) = v 1 := by simpa +decide [r, heq] using hv ⟨1, by decide⟩
   have hv2 : x.mem (r + 1 + 1) = v 2 := by
-    change x.mem (r + 2) = v 2
-    simpa +decide [r, heq] using hv ⟨2, by decide⟩
+    simpa +decide [r, heq, Nat.add_assoc] using hv ⟨2, by decide⟩
   have hv3 : x.mem (r + 1 + 1 + 1) = v 3 := by
-    change x.mem (r + 3) = v 3
-    simpa +decide [r, heq] using hv ⟨3, by decide⟩
+    simpa +decide [r, heq, Nat.add_assoc] using hv ⟨3, by decide⟩
   dsimp only [r, stride] at hmul hv1 hv2 hv3
   unfold readRecord
   wram_exec [hD, hg, hn, hi, hrecords, hout, hv1, hv2, hv3]
@@ -86,11 +82,9 @@ theorem exec_squareRoot {W D : ℕ} (x : Data 400)
     ∃ y, ExecWithin W squareRoot x y (5 * Nat.sqrt D + 7) ∧
       y.regs (sqrtBank NatSqrt.root) = Nat.sqrt D ∧ y.mem = x.mem ∧
       ∀ i : Fin 400, i.val < 336 ∨ 342 ≤ i.val → y.regs i = x.regs i := by
-  obtain ⟨y, hy, hr, -, hm, -⟩ := NatSqrt.exec_rename sqrtBank sqrtBank_injective x (by
-    rw [hD]; exact hfit)
-  refine ⟨y, ?_, ?_, hm, fun i hi => hy.regs_eq (squareRoot_preserves i hi)⟩
-  · simpa only [squareRoot, hD] using hy
-  · simpa only [hD] using hr
+  obtain ⟨y, hy, hr, -, hm, -⟩ := NatSqrt.exec_rename sqrtBank sqrtBank_injective x (hD ▸ hfit)
+  exact ⟨y, by simpa only [squareRoot, hD] using hy, by simpa only [hD] using hr, hm,
+    fun i hi => hy.regs_eq (squareRoot_preserves i hi)⟩
 
 /-- Compute the actual interval and original signed-array pointers after the real root loop.
 All query/output metadata and success/counter initialization are preserved. -/
@@ -113,16 +107,14 @@ theorem exec_finishHeader {W n S g k : ℕ} (x : Data 400)
       ∀ i : Fin 400, i.val < 324 ∨ i = Reg.index ∨ i = Reg.one ∨ i = Reg.piece ∨
         i = Reg.divisor ∨ 392 ≤ i.val → y.regs i = x.regs i := by
   intro B first length
-  have hquot : (S + g - 1) / g = B := by simp only [B, Nat.ceilDiv_eq_add_pred_div]
-  have hsub : Fits W (S + g - 1) := hfit.of_le (by omega)
-  have hB : Fits W B := by rw [← hquot]; exact hsub.of_le (Nat.div_le_self ..)
+  have hquot : (S + g - 1) / g = B := Nat.ceilDiv_eq_add_pred_div S g
+  have hB : Fits W B := hquot ▸ (hfit.of_le (by omega)).of_le (Nat.div_le_self ..)
   have hfirst : Fits W first := hfit.of_le (by change k * B ≤ n at hc; dsimp only [first]; omega)
   unfold finishHeader
-  by_cases hlt : B < n - first
-  · have hl : B = length := (min_eq_left hlt.le).symm
+  by_cases hlt : B < n - first <;> (
     wram_exec [hroot, hn, hg, hk, h1, hquot, hlt]
-    exact ⟨rfl, by wram_simp [B], by wram_simp [first], by wram_simp [hl], by wram_simp,
-      by wram_simp, by wram_simp, by wram_simp, by wram_simp [first], by wram_simp [hl],
+    exact ⟨rfl, by wram_simp [B], by wram_simp [first], by wram_simp; omega, by wram_simp,
+      by wram_simp, by wram_simp, by wram_simp, by wram_simp [first], by wram_simp; omega,
       fun i hi => by
         dsimp only [Reg.index, Reg.one, Reg.piece, Reg.divisor] at hi
         rw [show scanBank WitnessScan.Reg.ab = 345 from rfl,
@@ -131,20 +123,7 @@ theorem exec_finishHeader {W n S g k : ℕ} (x : Data 400)
           show scanBank WitnessScan.Reg.size = 348 from rfl,
           show scanBank WitnessScan.Reg.first = 351 from rfl,
           show scanBank WitnessScan.Reg.length = 352 from rfl]
-        update_simp [Reg.blockLength, Reg.first, Reg.length, Reg.temp]⟩
-  · have hl : n - first = length := (min_eq_right (by omega)).symm
-    wram_exec [hroot, hn, hg, hk, h1, hquot, hlt]
-    exact ⟨rfl, by wram_simp [B], by wram_simp [first], by wram_simp [first, hl], by wram_simp,
-      by wram_simp, by wram_simp, by wram_simp, by wram_simp [first], by wram_simp [first, hl],
-      fun i hi => by
-        dsimp only [Reg.index, Reg.one, Reg.piece, Reg.divisor] at hi
-        rw [show scanBank WitnessScan.Reg.ab = 345 from rfl,
-          show scanBank WitnessScan.Reg.bc = 346 from rfl,
-          show scanBank WitnessScan.Reg.ac = 347 from rfl,
-          show scanBank WitnessScan.Reg.size = 348 from rfl,
-          show scanBank WitnessScan.Reg.first = 351 from rfl,
-          show scanBank WitnessScan.Reg.length = 352 from rfl]
-        update_simp [Reg.blockLength, Reg.first, Reg.length, Reg.temp]⟩
+        update_simp [Reg.blockLength, Reg.first, Reg.length, Reg.temp]⟩)
 
 /-- Complete charged local setup from real scalar and descriptor reads. The computed original
 piece interval and all verifier arguments are conclusions of the actual code. -/

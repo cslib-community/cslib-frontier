@@ -97,12 +97,9 @@ variable {G} {S T : Set V}
 
 /-- A graph is bipartite exactly when it has a proper Boolean colouring. -/
 private theorem isBipartite_iff_exists_bool {W : Type*} {H : SimpleGraph W} :
-    H.IsBipartite ↔ ∃ c : W → Bool, ∀ ⦃u v⦄, H.Adj u v → c u ≠ c v := by
-  constructor
-  · rintro ⟨C⟩
-    exact ⟨finTwoEquiv ∘ C, fun u v h => finTwoEquiv.injective.ne (C.valid h)⟩
-  · rintro ⟨c, hc⟩
-    simpa using (Coloring.mk c fun h => hc h).colorable
+    H.IsBipartite ↔ ∃ c : W → Bool, ∀ ⦃u v⦄, H.Adj u v → c u ≠ c v :=
+  ⟨fun ⟨C⟩ => ⟨finTwoEquiv ∘ C, fun _ _ h => finTwoEquiv.injective.ne (C.valid h)⟩,
+    fun ⟨c, hc⟩ => by simpa using (Coloring.mk c fun h => hc h).colorable⟩
 
 /-- `S` is an odd cycle transversal exactly when some Boolean colouring of `G` is proper on the
 edges with both endpoints outside `S`. -/
@@ -110,24 +107,18 @@ theorem isOddCycleTransversal_iff_exists_bool :
     G.IsOddCycleTransversal S ↔
       ∃ c : V → Bool, ∀ ⦃u v⦄, G.Adj u v → u ∉ S → v ∉ S → c u ≠ c v := by
   rw [IsOddCycleTransversal, isBipartite_iff_exists_bool]
-  constructor
-  · rintro ⟨c, hc⟩
-    classical
-    refine ⟨fun v => if h : v ∈ S then false else c ⟨v, h⟩, fun u v huv hu hv => ?_⟩
-    simp only [hu, hv, ↓reduceDIte]
-    exact hc (u := ⟨u, hu⟩) (v := ⟨v, hv⟩) huv
-  · rintro ⟨c, hc⟩
-    exact ⟨fun v => c v, fun u v huv => hc huv u.2 v.2⟩
+  classical
+  exact ⟨fun ⟨c, hc⟩ => ⟨fun v => if h : v ∈ S then false else c ⟨v, h⟩,
+    fun u v huv hu hv => by simpa [hu, hv] using hc (u := ⟨u, hu⟩) (v := ⟨v, hv⟩) huv⟩,
+    fun ⟨c, hc⟩ => ⟨fun v => c v, fun u v huv => hc huv u.2 v.2⟩⟩
 
 /-- `S` is an odd cycle transversal exactly when every closed walk of odd length visits `S`. -/
 theorem isOddCycleTransversal_iff_forall_odd_walk :
     G.IsOddCycleTransversal S ↔
       ∀ (u : V) (p : G.Walk u u), Odd p.length → ∃ x ∈ p.support, x ∈ S := by
   constructor
-  · rintro hS u p hodd
-    by_contra hp
-    push Not at hp
-    obtain ⟨C⟩ := hS
+  · rintro ⟨C⟩ u p hodd
+    by_contra! hp
     let c : (G.induce Sᶜ).Coloring Bool := recolorOfEquiv _ finTwoEquiv C
     have hlen : (p.induce Sᶜ hp).length = p.length :=
       (Walk.length_map _ _).symm.trans (congrArg Walk.length (Walk.map_induce p hp))
@@ -136,11 +127,9 @@ theorem isOddCycleTransversal_iff_forall_odd_walk :
     rw [IsOddCycleTransversal, isBipartite_iff_forall_walk_even_length]
     intro u p
     by_contra hp
-    rw [Nat.not_even_iff_odd] at hp
-    obtain ⟨x, hx, hxS⟩ := h _ (p.map (Embedding.induce Sᶜ).toHom)
-      ((Walk.length_map (Embedding.induce Sᶜ).toHom p) ▸ hp)
-    have hx' : x ∈ p.support.map (Embedding.induce Sᶜ).toHom := (Walk.support_map _ p) ▸ hx
-    obtain ⟨y, -, rfl⟩ := List.mem_map.mp hx'
+    obtain ⟨_, hx, hxS⟩ := h _ (p.map (Embedding.induce Sᶜ).toHom)
+      ((Walk.length_map _ p).symm ▸ Nat.not_even_iff_odd.mp hp)
+    obtain ⟨y, -, rfl⟩ := List.mem_map.mp ((Walk.support_map _ p) ▸ hx)
     exact y.2 hxS
 
 theorem IsOddCycleTransversal.mono (h : G.IsOddCycleTransversal S) (hST : S ⊆ T) :
@@ -198,10 +187,8 @@ theorem isSeparator_of_proper {W : Set V} {c₀ c σ : V → Bool}
     G.IsSeparator (keepTerminals G W (S ∩ W) σ c₀) (flipTerminals G W (S ∩ W) σ c₀) (W ∪ S) := by
   refine isSeparator_of_forall_adj (fun v => c v == c₀ v) (fun u v huv hu hv => ?_) ?_ ?_
   · simp only [Set.mem_union, not_or] at hu hv
-    have h1 := hc huv hu.2 hv.2
-    have h2 := hc₀ huv hu.1 hv.1
-    revert h1 h2
-    cases c u <;> cases c v <;> cases c₀ u <;> cases c₀ v <;> decide
+    rw [Bool.eq_not_iff.mpr (hc huv hu.2 hv.2), Bool.eq_not_iff.mpr (hc₀ huv hu.1 hv.1)]
+    cases c v <;> cases c₀ v <;> rfl
   · rintro a ⟨-, w, hw, hwD, hwa, hne⟩ ha
     simp only [Set.mem_union, not_or] at ha
     have hwS : w ∉ S := fun h => hwD ⟨h, hw⟩
@@ -230,16 +217,14 @@ theorem proper_of_side {W D X : Set V} {c₀ σ side c : V → Bool}
     (hflip : ∀ v ∈ flipTerminals G W D σ c₀, v ∉ X → side v = false)
     (hcW : ∀ v ∈ W, c v = σ v) (hcW' : ∀ v ∉ W, c v = (c₀ v == side v)) :
     ∀ ⦃u v⦄, G.Adj u v → u ∉ D ∪ X → v ∉ D ∪ X → c u ≠ c v := by
-  -- One endpoint in `W`, the other outside.
-  have hmixed : ∀ ⦃u v⦄, G.Adj u v → u ∈ W → v ∉ W → u ∉ D → v ∉ X → c u ≠ c v := by
-    intro u v huv hu hv huD hvX
+  have hmixed {u v} (huv : G.Adj u v) (hu : u ∈ W) (hv : v ∉ W) (huD : u ∉ D) (hvX : v ∉ X) :
+      c u ≠ c v := by
     rw [hcW u hu, hcW' v hv]
     by_cases h : σ u = c₀ v
     · rw [hflip v ⟨hv, u, hu, huD, huv, h⟩ hvX, h]
       cases c₀ v <;> decide
     · rw [hkeep v ⟨hv, u, hu, huD, huv, h⟩ hvX]
-      revert h
-      cases σ u <;> cases c₀ v <;> decide
+      simpa using h
   intro u v huv hu hv
   simp only [Set.mem_union, not_or] at hu hv
   by_cases huW : u ∈ W <;> by_cases hvW : v ∈ W
@@ -290,20 +275,18 @@ theorem _root_.SimpleGraph.exists_isOddCycleTransversal_card_le_iff {W : Finset 
     obtain ⟨c, hc⟩ := isOddCycleTransversal_iff_exists_bool.mp hS
     refine ⟨S ∩ W, S \ W, c, Finset.inter_subset_right, Finset.sdiff_disjoint,
       fun u v huv _ _ hu hv => hc huv (fun h => hu (Finset.mem_inter.mpr ⟨h, ‹_›⟩))
-        fun h => hv (Finset.mem_inter.mpr ⟨h, ‹_›⟩), ?_, ?_⟩
-    · have hsep := isSeparator_of_proper (S := (S : Set V)) hc₀ hc fun _ _ _ => rfl
-      rw [Finset.coe_inter] at *
-      rwa [Finset.coe_sdiff, Set.union_sdiff_self]
-    · rw [Finset.card_inter_add_card_sdiff]
-      exact hk
+        fun h => hv (Finset.mem_inter.mpr ⟨h, ‹_›⟩), ?_,
+      (Finset.card_inter_add_card_sdiff S W).trans_le hk⟩
+    simpa only [Finset.coe_inter, Finset.coe_sdiff, Set.union_sdiff_self] using
+      isSeparator_of_proper (S := (S : Set V)) hc₀ hc fun _ _ _ => rfl
   · rintro ⟨D, X, σ, -, -, hσ, hX, hk⟩
     obtain ⟨side, hside, hkeep, hflip⟩ := exists_side_of_isSeparator hX
-    refine ⟨D ∪ X, ?_, (Finset.card_union_le D X).trans hk⟩
-    rw [isOddCycleTransversal_iff_exists_bool, Finset.coe_union]
-    exact ⟨fun v => if v ∈ W then σ v else (c₀ v == side v),
-      proper_of_side hc₀ hσ (fun u v huv hu hv => hside huv hu hv) hkeep hflip
-        (fun v hv => by simp only [Finset.mem_coe.mp hv, ↓reduceIte])
-        fun v hv => by simp only [Finset.mem_coe.not.mp hv, ↓reduceIte]⟩
+    refine ⟨D ∪ X, isOddCycleTransversal_iff_exists_bool.mpr ⟨fun v =>
+      if v ∈ W then σ v else (c₀ v == side v), ?_⟩, (Finset.card_union_le D X).trans hk⟩
+    rw [Finset.coe_union]
+    exact proper_of_side hc₀ hσ (fun u v huv hu hv => hside huv hu hv) hkeep hflip
+      (fun v hv => by simp only [Finset.mem_coe.mp hv, ↓reduceIte])
+      fun v hv => by simp only [Finset.mem_coe.not.mp hv, ↓reduceIte]
 
 end OddCycleTransversal
 

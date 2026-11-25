@@ -58,10 +58,9 @@ permanent. -/
 permanent. -/
 theorem permanent_submatrix_equiv_equiv {m' : Type*} [Fintype m'] [DecidableEq m']
     (e₁ e₂ : m' ≃ m) (A : Matrix m m R) : (A.submatrix e₁ e₂).permanent = A.permanent := by
-  have h : A.submatrix e₁ e₂ = (A.submatrix e₂ e₂).submatrix (e₁.trans e₂.symm) id := by
-    ext i j
-    simp [submatrix_apply]
-  rw [h, permanent_permute_cols, permanent_submatrix_equiv]
+  rw [show A.submatrix e₁ e₂ = (A.submatrix e₂ e₂).submatrix (e₁.trans e₂.symm) id from by
+      ext i j; simp [submatrix_apply],
+    permanent_permute_cols, permanent_submatrix_equiv]
 
 /-- Multilinearity of the permanent in a column. -/
 @[simp] theorem permanent_updateCol_add (M : Matrix m m R) (j : m) (u v : m → R) :
@@ -89,20 +88,11 @@ theorem permanent_add_of_row_eq (M M₁ M₂ : Matrix m m R) (r : m)
     (h₂ : ∀ i ≠ r, ∀ j, M₂ i j = M i j) :
     M.permanent = M₁.permanent + M₂.permanent := by
   have hM : M = M.updateRow r (M₁ r + M₂ r) := by
-    ext i j
-    by_cases hir : i = r
-    · subst hir; simp [hr j]
-    · simp [hir]
+    ext i j; by_cases hir : i = r <;> simp [hir, hr]
   have hM₁ : M₁ = M.updateRow r (M₁ r) := by
-    ext i j
-    by_cases hir : i = r
-    · subst hir; simp
-    · simp [hir, h₁ i hir j]
+    ext i j; by_cases hir : i = r <;> simp [hir, h₁]
   have hM₂ : M₂ = M.updateRow r (M₂ r) := by
-    ext i j
-    by_cases hir : i = r
-    · subst hir; simp
-    · simp [hir, h₂ i hir j]
+    ext i j; by_cases hir : i = r <;> simp [hir, h₂]
   conv_lhs => rw [hM]
   rw [permanent_updateRow_add, ← hM₁, ← hM₂]
 
@@ -129,26 +119,17 @@ of the permanents of the diagonal blocks. -/
     Eq.symm <|
       sum_subset (M := R) (subset_univ ((sumCongrHom m n).range : Set (Perm (m ⊕ n))).toFinset) ?_
   · simp_rw [Finset.sum_mul_sum, ← sum_product', univ_product_univ]
-    refine sum_nbij (fun σ => σ.fst.sumCongr σ.snd) ?_ ?_ ?_ ?_
-    · intro σ₁₂ _
-      exact Set.mem_toFinset.mpr ⟨σ₁₂, rfl⟩
-    · intro σ₁ _ σ₂ _ h
-      have h2 : ∀ x, Perm.sumCongr σ₁.fst σ₁.snd x = Perm.sumCongr σ₂.fst σ₂.snd x :=
-        DFunLike.congr_fun h
-      simp only [Sum.map_inr, Sum.map_inl, Perm.sumCongr_apply, Sum.forall, Sum.inl.injEq,
-        Sum.inr.injEq] at h2
-      ext x
-      · exact h2.left x
-      · exact h2.right x
-    · intro σ hσ
-      rw [mem_coe, Set.mem_toFinset] at hσ
-      obtain ⟨σ₁₂, hσ₁₂⟩ := hσ
-      exact ⟨σ₁₂, mem_univ _, by simpa using hσ₁₂⟩
-    · simp only [forall_prop_of_true, Prod.forall, mem_univ]
-      intro σ₁ σ₂
-      rw [Fintype.prod_sum_type]
-      simp_rw [Equiv.sumCongr_apply, Sum.map_inr, Sum.map_inl, fromBlocks_apply₁₁,
-        fromBlocks_apply₂₂]
+    refine sum_nbij (fun σ => σ.fst.sumCongr σ.snd) (fun σ _ => Set.mem_toFinset.mpr ⟨σ, rfl⟩)
+      (fun σ₁ _ σ₂ _ h => by
+        have h2 := DFunLike.congr_fun h
+        ext x
+        · simpa using h2 (.inl x)
+        · simpa using h2 (.inr x))
+      (fun σ hσ => let ⟨σ₁₂, hσ₁₂⟩ := Set.mem_toFinset.1 (mem_coe.1 hσ); ⟨σ₁₂, mem_univ _, hσ₁₂⟩)
+      fun ⟨σ₁, σ₂⟩ _ => by
+        rw [Fintype.prod_sum_type]
+        simp only [Equiv.sumCongr_apply, Sum.map_inr, Sum.map_inl, fromBlocks_apply₁₁,
+          fromBlocks_apply₂₂]
   · rintro σ - hσn
     have h1 : ¬∀ x, ∃ y, Sum.inl y = σ (Sum.inl x) := by
       rw [Set.mem_toFinset] at hσn
@@ -156,9 +137,8 @@ of the permanents of the diagonal blocks. -/
         mt mem_sumCongrHom_range_of_perm_mapsTo_inl hσn
     obtain ⟨a, ha⟩ := not_forall.mp h1
     rcases hx : σ (Sum.inl a) with a2 | b
-    · exact absurd hx.symm ((not_exists.mp ha) a2)
-    · rw [Finset.prod_eq_zero (Finset.mem_univ (Sum.inl a))]
-      rw [hx, fromBlocks_apply₂₁, Matrix.zero_apply]
+    · exact absurd hx.symm (not_exists.mp ha a2)
+    · exact Finset.prod_eq_zero (Finset.mem_univ (Sum.inl a)) (by simp [hx])
 
 /-- The permanent of a `2 × 2` block matrix with the upper-right block equal to zero is the product
 of the permanents of the diagonal blocks. -/

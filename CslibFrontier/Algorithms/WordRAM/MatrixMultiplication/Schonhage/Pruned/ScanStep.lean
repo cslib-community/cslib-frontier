@@ -60,13 +60,11 @@ theorem exec_suffix {w : ℕ} (child : Bool) (x : Data registers) (q : ℕ)
     wram_call (exec_emit _ (by wram_simp [h1]) (by wram_simp; simpa [shortened] using hs)
       (by wram_simp; exact hl) (by wram_simp; exact hn)) with y ⟨hc, hm, hf⟩
     wram_simp at hc hm
-    refine ⟨by omega, ?_, by simpa [shortened] using hc, by simpa [shortened] using hm,
-      fun i hi => ?_⟩
-    · simp only [shortened, Bool.false_eq_true, ↓reduceIte]
-      regs_frame
-    · simp only [SuffixLocal, not_or] at hi
-      rw [hf i hi.1]
-      wram_simp)
+    refine ⟨by omega, by simp only [shortened, Bool.false_eq_true, ↓reduceIte]; regs_frame,
+      by simpa [shortened] using hc, by simpa [shortened] using hm, fun i hi => ?_⟩
+    simp only [SuffixLocal, not_or] at hi
+    rw [hf i hi.1]
+    wram_simp)
 
 /-- The native child-digit filter, shared by the scan and the accumulation: a selected query
 passes the comparison with digit nine, or else the comparison with the current term, and
@@ -76,13 +74,12 @@ theorem exec_selectDigit {w T q : ℕ} {C : Code .standard registers} {x y : Dat
     (hy : ExecWithin w C x y T) :
     ExecWithin w (ram[ if digit = nine then [ ⟪C⟫ ] else [
       if digit = term then [ ⟪C⟫ ] else [ temporary ← temporary ] ] ]) x y (T + 3) := by
+  refine WP.execWithin ?_
   by_cases hfirst : q % 10 = 9
-  · refine WP.execWithin ?_
-    wram_exec [hd, h9, hfirst]
+  · wram_exec [hd, h9, hfirst]
     wram_call hy
     exact ⟨by omega, trivial⟩
   · have hsecond : q % 10 = x.regs term := hsel.resolve_left hfirst
-    refine WP.execWithin ?_
     wram_exec [hd, h9, hfirst, hsecond]
     wram_call hy
     exact ⟨by omega, trivial⟩
@@ -120,25 +117,19 @@ theorem exec_scanDispatch {w : ℕ} (child : Bool) (x : Data registers) (q : ℕ
       (∀ i, ¬SuffixLocal i → y.regs i = x.regs i) := by
   by_cases hsel : selected child (x.regs term) q
   · obtain ⟨y, hy, _, hc, hm, hyr⟩ := exec_suffix child x q hq h1 h10 hs hl hn
-    have he : ExecWithin w (scanDispatch child) x y 14 := by
-      cases child with
-      | false => exact hy.mono (by decide)
-      | true => exact (exec_selectDigit hdigit h9 hsel hy).mono (by decide)
-    refine ⟨y, he, ?_, ?_, hyr⟩
+    refine ⟨y, ?_, ?_, ?_, hyr⟩
+    · cases child
+      · exact hy.mono (by decide)
+      · exact (exec_selectDigit hdigit h9 hsel hy).mono (by decide)
     · by_cases hseen : x.mem (x.regs stamps + shortened child q) = x.regs epoch <;>
         simpa [hsel, hseen] using hc
     · by_cases hseen : x.mem (x.regs stamps + shortened child q) = x.regs epoch <;>
         simpa [hsel, hseen] using hm
-  · have hchild : child = true := by
-      cases child <;> simp_all [selected]
-    subst hchild
-    have he : ExecWithin w (scanDispatch true) x (x.set temporary (x.regs temporary)) 5 :=
-      exec_selectDigit_skip hdigit h9 hsel
-    refine ⟨x.set temporary (x.regs temporary), he.mono (by decide), ?_, ?_, fun i _ => ?_⟩
-    · wram_simp
-      simp [hsel]
-    · simp [hsel]
-    · simp only [Data.set_regs, Function.update_eq_self]
+  · obtain rfl : child = true := by cases child <;> simp_all [selected]
+    refine ⟨x.set temporary (x.regs temporary),
+      (exec_selectDigit_skip hdigit h9 hsel).mono (by decide),
+      by wram_simp; simp [hsel], by simp [hsel],
+      fun _ _ => by simp only [Data.set_regs, Function.update_eq_self]⟩
 
 /-- All scan-step scratch registers; caller pointers, counts and the current epoch are kept. -/
 def ScanStepLocal (i : Fin registers) : Prop :=
@@ -179,12 +170,10 @@ theorem exec_scanStep {w : ℕ} (child : Bool) (x : Data registers) (q : ℕ)
   wram_simp at hc hm
   wram_exec * [hi]
   refine ⟨by wram_simp, by wram_simp [hc], hm, fun i h => ?_⟩
-  simp only [ScanStepLocal, not_or] at h
-  rcases h with ⟨hsuf, hq', hd', hi'⟩
+  rcases (by simpa only [ScanStepLocal, not_or] using h) with ⟨hsuf, hq', hd', hi'⟩
   wram_simp
   rw [hf i hsuf]
-  simp only [SuffixLocal, EmitLocal, not_or] at hsuf
-  rcases hsuf with ⟨⟨had, -⟩, -⟩
+  have had : i ≠ address := fun h => hsuf (Or.inl (Or.inl h))
   wram_simp
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PrunedQuery
