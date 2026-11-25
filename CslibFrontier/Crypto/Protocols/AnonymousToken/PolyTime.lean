@@ -236,8 +236,6 @@ def targetForgerWordOf {Message : Type} {encM : Message ↪ List Bool} (D : Deco
     (A n (encWordPair (spk, ck)))
   return (target n ck tok.payload.message tok.payload.opening, tok.signature)
 
-/-- Compose a polynomial-time keyed target with polynomial-time parameter, key and payload
-components. -/
 private theorem computableInPolyTime_target_comp {α Message : Type} {encM : Message ↪ List Bool}
     {encIn : α ↪ List Bool} {target : ℕ → List Bool → Message → List Bool → List Bool}
     (htarget : ComputableInPolyTime
