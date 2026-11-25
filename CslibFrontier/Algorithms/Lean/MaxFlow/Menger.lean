@@ -1040,43 +1040,31 @@ theorem isVertexConnected_iff_forall_exists_injective_internallyDisjoint [Finite
               (by simpa [G₀, Sym2.eq_swap] using fun hrv => huvnr (hru.trans hrv.symm))
           · exact step huT huv (Ne.symm hwu) (Ne.symm hwv) hru
         obtain ⟨W₀, hW₀, hdisj₀⟩ :=
-          (exists_internallyDisjoint_iff_forall_isVertexSeparator G₀ u v (k - 1)).mpr hsep₀
-        have hG₀le : G₀ ≤ G := G.deleteEdges_le _
-        let W : Fin k → G.Walk u v := fun i =>
-          if h : i.1 < k - 1 then (W₀ ⟨i.1, h⟩).mapLe hG₀le else hadj.toWalk
-        have hWpath : ∀ i, (W i).IsPath := fun i => by
-          dsimp only [W]; split_ifs
-          · exact Walk.IsPath.mk'
-              (by simpa [Walk.support_mapLe_eq_support] using (hW₀ _).support_nodup)
+          (exists_internallyDisjoint_iff_forall_isVertexSeparator G₀ u v (k' + 1)).mpr hsep₀
+        have hinj₀ := injective_of_internallyDisjoint_of_not_adj huv hadj₀ hW₀ hdisj₀
+        let W : Fin (k' + 2) → G.Walk u v := fun i =>
+          Fin.lastCases hadj.toWalk (fun j => (W₀ j).mapLe (G.deleteEdges_le _)) i
+        have hlen (j : Fin (k' + 1)) (h : hadj.toWalk = (W₀ j).mapLe (G.deleteEdges_le _)) :
+            False :=
+          hadj₀ (Walk.adj_of_length_eq_one (by simpa using (congrArg Walk.length h).symm))
+        refine ⟨W, fun i j hij => ?_, fun i => ?_, fun i j hij x hxi hxj => ?_⟩
+        · induction i using Fin.lastCases <;> induction j using Fin.lastCases <;>
+            simp only [W, Fin.lastCases_last, Fin.lastCases_castSucc] at hij ⊢
+          · exact (hlen _ hij).elim
+          · exact (hlen _ hij.symm).elim
+          · exact congrArg _ (hinj₀ (Walk.ext_support
+              (by simpa [Walk.support_mapLe_eq_support] using congrArg Walk.support hij)))
+        · induction i using Fin.lastCases <;>
+            simp only [W, Fin.lastCases_last, Fin.lastCases_castSucc]
           · exact hadj.isPath_toWalk
-        have hWdisj : SimpleGraph.InternallyDisjoint W := by
-          intro i j hij x hxi hxj
-          rcases lt_or_ge i.1 (k - 1) with hi | hi <;> rcases lt_or_ge j.1 (k - 1) with hj | hj
-          · simp only [W, hi, hj, ↓reduceDIte, Walk.support_mapLe_eq_support] at hxi hxj
-            exact hdisj₀ (fun h => hij (Fin.ext (congrArg (@Fin.val (k - 1)) h))) x hxi hxj
-          · simp only [W, Nat.not_lt.mpr hj, ↓reduceDIte, Adj.toWalk] at hxj; simpa using hxj
-          · simp only [W, Nat.not_lt.mpr hi, ↓reduceDIte, Adj.toWalk] at hxi; simpa using hxi
-          · exact absurd (Fin.ext (by omega)) hij
-        have hWinj : Function.Injective W := by
-          have hinj₀ := injective_of_internallyDisjoint_of_not_adj huv hadj₀ hW₀ hdisj₀
-          have hlen : ∀ i : Fin k, i.1 < k - 1 → 2 ≤ (W i).length := fun i hi => by
-            simp only [W, hi, ↓reduceDIte, Walk.length_mapLe]
-            cases hw : W₀ ⟨i.1, hi⟩ with
-            | nil => exact absurd rfl huv
-            | @cons _ _ _ h₁ p => cases p with
-              | nil => exact absurd h₁ hadj₀
-              | cons _ _ => simp [Walk.length_cons]
-          intro i j hij
-          rcases lt_or_ge i.1 (k - 1) with hi | hi <;> rcases lt_or_ge j.1 (k - 1) with hj | hj
-          · simp only [W, hi, hj, ↓reduceDIte] at hij
-            exact Fin.ext (congrArg (@Fin.val (k - 1)) (hinj₀ (Walk.ext_support
-              (by simpa [Walk.support_mapLe_eq_support] using congrArg Walk.support hij))))
-          · have h1 := hlen i hi; rw [hij] at h1
-            simp only [W, Nat.not_lt.mpr hj, ↓reduceDIte, hadj.length_toWalk] at h1; omega
-          · have h1 := hlen j hj; rw [← hij] at h1
-            simp only [W, Nat.not_lt.mpr hi, ↓reduceDIte, hadj.length_toWalk] at h1; omega
-          · exact Fin.ext (by omega)
-        exact ⟨W, hWinj, hWpath, hWdisj⟩
+          · exact (hW₀ _).mapLe _
+        · induction i using Fin.lastCases <;> induction j using Fin.lastCases <;>
+            simp only [W, Fin.lastCases_last, Fin.lastCases_castSucc,
+              Walk.support_mapLe_eq_support] at hxi hxj
+          · exact absurd rfl hij
+          · simpa using hxi
+          · simpa using hxj
+          · exact hdisj₀ (fun h => hij (congrArg _ h)) x hxi hxj
       · have hsep := (isVertexConnected_iff_forall_isVertexSeparator.mp hconn).2 huv
         obtain ⟨W, hW, hdisj⟩ :=
           (exists_internallyDisjoint_iff_forall_isVertexSeparator G u v k).mpr hsep
