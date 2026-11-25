@@ -63,17 +63,12 @@ lemma coeff_mul_support_superset (x y : HahnSeries Γ R) (a : Γ)
     (x * y).coeff a = ∑ ij ∈ Finset.antidiagonal hs ht a,
       x.coeff ij.1 * y.coeff ij.2 := by
   rw [HahnSeries.coeff_mul]
-  apply Finset.sum_subset
-  · intro ij hij
-    rw [Finset.mem_antidiagonal] at hij ⊢
-    exact ⟨hxs hij.1, hyt hij.2.1, hij.2.2⟩
-  · intro ij hij hnot
-    rw [Finset.mem_antidiagonal] at hij
-    by_cases hx : x.coeff ij.1 = 0
-    · simp [hx]
-    by_cases hy : y.coeff ij.2 = 0
-    · simp [hy]
-    exact False.elim (hnot (Finset.mem_antidiagonal.mpr ⟨hx, hy, hij.2.2⟩))
+  refine Finset.sum_subset (fun ij hij => ?_) fun ij hij hnot => ?_
+  · rw [Finset.mem_antidiagonal] at hij ⊢; exact ⟨hxs hij.1, hyt hij.2.1, hij.2.2⟩
+  · rw [Finset.mem_antidiagonal] at hij
+    by_contra hmul
+    exact hnot (Finset.mem_antidiagonal.mpr
+      ⟨left_ne_zero_of_mul hmul, right_ne_zero_of_mul hmul, hij.2.2⟩)
 
 variable {ι : Type*} [Fintype ι] [DecidableEq ι]
 
@@ -88,11 +83,8 @@ omit [AddCommGroup Γ] [IsOrderedAddMonoid Γ] [Fintype ι] [DecidableEq ι] in
 
 omit [AddCommGroup Γ] [IsOrderedAddMonoid Γ] [Fintype ι] [DecidableEq ι] in
 private lemma entry_support (x : HahnSeries Γ (Matrix ι ι R)) (i j : ι) :
-    (entry x i j).support ⊆ x.support := by
-  intro a ha
-  change x.coeff a ≠ 0
-  intro h
-  exact ha (by change x.coeff a i j = 0; rw [h]; rfl)
+    (entry x i j).support ⊆ x.support :=
+  fun a ha h => ha (by change x.coeff a i j = 0; rw [h]; rfl)
 
 /-- Identify a matrix-valued Hahn series with a matrix of scalar Hahn series. -/
 def split : HahnSeries Γ (Matrix ι ι R) →+* Matrix ι ι (HahnSeries Γ R) where
@@ -146,34 +138,29 @@ lemma weyl_mul (a b c e : ZMod d) :
   ext i j
   rw [Matrix.mul_apply, Finset.sum_eq_single (i - b)]
   · simp only [weyl, sub_add_cancel, ite_true, Matrix.smul_apply, smul_eq_mul]
-    have heq : i - b = j + e ↔ i = j + (b + e) := by
-      constructor <;> intro h <;> linear_combination h
+    have heq : i - b = j + e ↔ i = j + (b + e) :=
+      ⟨fun h => by linear_combination h, fun h => by linear_combination h⟩
     by_cases h : i = j + (b + e)
-    · simp only [ite_eq_left (heq.mpr h), ite_eq_left h]
-      rw [← AddChar.map_add_eq_mul, ← AddChar.map_add_eq_mul]
-      congr 1
-      ring
+    · simp only [ite_eq_left (heq.mpr h), ite_eq_left h, ← AddChar.map_add_eq_mul]
+      exact congrArg χ (by ring)
     · simp [heq, h]
-  · intro k hk hne
-    have h : i ≠ k + b := by intro heq; apply hne; rw [heq]; ring
-    simp [weyl, h]
+  · intro k _ hne
+    simp [weyl, show i ≠ k + b from fun heq => hne (by linear_combination -heq)]
   · simp
 
 /-- Right inverse identity for the Weyl matrix `weyl χ a b`. -/
 lemma weyl_inverse_right (a b : ZMod d) :
     weyl χ a b * (χ (-a * b) • weyl χ (-a) (-b)) = 1 := by
   rw [Matrix.mul_smul, weyl_mul, add_neg_cancel, add_neg_cancel, weyl_zero, smul_smul,
-    ← AddChar.map_add_eq_mul]
-  have h : -a * b + -(-a) * b = 0 := by ring
-  rw [h, AddChar.map_zero_eq_one, one_smul]
+    ← AddChar.map_add_eq_mul, show -a * b + -(-a) * b = 0 by ring, AddChar.map_zero_eq_one,
+    one_smul]
 
 /-- Left inverse identity for the Weyl matrix `weyl χ a b`. -/
 lemma weyl_inverse_left (a b : ZMod d) :
     (χ (-a * b) • weyl χ (-a) (-b)) * weyl χ a b = 1 := by
   rw [Matrix.smul_mul, weyl_mul, neg_add_cancel, neg_add_cancel, weyl_zero, smul_smul,
-    ← AddChar.map_add_eq_mul]
-  have h : -a * b + -a * (-b) = 0 := by ring
-  rw [h, AddChar.map_zero_eq_one, one_smul]
+    ← AddChar.map_add_eq_mul, show -a * b + -a * (-b) = 0 by ring, AddChar.map_zero_eq_one,
+    one_smul]
 
 /-- A Weyl matrix with its explicit two-sided inverse. -/
 def weylUnit (a b : ZMod d) : (Matrix (ZMod d) (ZMod d) K)ˣ :=
@@ -184,9 +171,7 @@ def weylUnit (a b : ZMod d) : (Matrix (ZMod d) (ZMod d) K)ˣ :=
 @[simp] lemma weylUnit_val (a b : ZMod d) : (weylUnit χ a b : Matrix _ _ K) = weyl χ a b := rfl
 
 /-- The `(0, 0)` Weyl unit is `1`. -/
-@[simp] lemma weylUnit_zero : weylUnit χ 0 0 = 1 := by
-  apply Units.ext
-  exact weyl_zero χ
+@[simp] lemma weylUnit_zero : weylUnit χ 0 0 = 1 := Units.ext (weyl_zero χ)
 
 end
 end Rational.QuantumMatrices
@@ -213,33 +198,22 @@ theorem fourier_reconstruction (R : Matrix (ZMod d) (ZMod d) K) :
   have heq (a : ZMod d) :
       (∑ b, if i = j + b then fourierCoeff χ R a b * χ (a * i) else 0) =
       fourierCoeff χ R a (i - j) * χ (a * i) := by
-    rw [Finset.sum_eq_single (i - j)]
-    · simp
-    · intro b hb hne
-      rw [ite_eq_right]
-      intro h
-      apply hne
-      linear_combination -h
+    rw [Finset.sum_eq_single (i - j)]; · simp
+    · exact fun b _ hne => ite_eq_right fun h => hne (by linear_combination -h)
     · simp
   simp_rw [heq, fourierCoeff, mul_assoc, Finset.sum_mul]
   rw [← Finset.mul_sum, Finset.sum_comm]
   have hc (k : ZMod d) :
       (∑ a, χ (-a * k) * R k (k - (i - j)) * χ (a * i)) =
       (if i = k then (d : K) else 0) * R k (k - (i - j)) := by
-    calc
-      _ = (∑ a, χ (a * (i - k))) * R k (k - (i - j)) := by
+    rw [show (∑ a, χ (-a * k) * R k (k - (i - j)) * χ (a * i)) =
+      (∑ a, χ (a * (i - k))) * R k (k - (i - j)) by
         rw [Finset.sum_mul]
-        apply Finset.sum_congr rfl
-        intro a ha
-        rw [mul_right_comm, ← AddChar.map_add_eq_mul]
-        congr 2
-        ring
-      _ = _ := by
-        simp only [AddChar.sum_mulShift _ hχ, ZMod.card, sub_eq_zero, Nat.cast_ite, Nat.cast_zero]
-  simp_rw [hc]
-  simp only [ite_mul, zero_mul]
-  rw [Finset.sum_ite_eq]
-  simp [Nat.cast_ne_zero.mpr (NeZero.ne d)]
+        refine Finset.sum_congr rfl fun a _ => ?_
+        rw [mul_right_comm, ← AddChar.map_add_eq_mul]; congr 2; ring]
+    simp only [AddChar.sum_mulShift _ hχ, ZMod.card, sub_eq_zero, Nat.cast_ite, Nat.cast_zero]
+  simp_rw [hc, ite_mul, zero_mul]
+  rw [Finset.sum_ite_eq]; simp [Nat.cast_ne_zero.mpr (NeZero.ne d)]
 
 end
 end Rational.QuantumMatrices
@@ -263,17 +237,15 @@ def monomialUnit (g : Exponents) : (Matrix (ZMod d) (ZMod d) K)ˣ :=
 
 omit [CharZero K] in
 /-- The Weyl monomial unit at exponent `0` is `1`. -/
-lemma monomialUnit_zero : monomialUnit χ 0 = 1 := by
-  simp [monomialUnit]
+lemma monomialUnit_zero : monomialUnit χ 0 = 1 := by simp [monomialUnit]
 
 omit [CharZero K] in
 /-- The product of two Weyl monomial units is a scalar multiple of the unit at their sum. -/
 lemma monomialUnit_mul (g h : Exponents) :
     ∃ c : K, (monomialUnit χ g : Matrix (ZMod d) (ZMod d) K) *
         (monomialUnit χ h : Matrix (ZMod d) (ZMod d) K) =
-      c • (monomialUnit χ (g + h) : Matrix (ZMod d) (ZMod d) K) := by
-  refine ⟨χ (-((ofLex h).1 : ZMod d) * ((ofLex g).2 : ZMod d)), ?_⟩
-  simp [monomialUnit, weyl_mul]
+      c • (monomialUnit χ (g + h) : Matrix (ZMod d) (ZMod d) K) :=
+  ⟨χ (-((ofLex h).1 : ZMod d) * ((ofLex g).2 : ZMod d)), by simp [monomialUnit, weyl_mul]⟩
 
 /-- The Hahn-series subring whose coefficients lie on the Weyl monomial lines. -/
 abbrev divisionSubring := coefficientRing (monomialUnit χ) (monomialUnit_zero χ)
@@ -291,14 +263,9 @@ def lift (R : Matrix (ZMod d) (ZMod d) K) : Ambient (K := K) (d := d) :=
 omit [CharZero K] in
 /-- The Fourier lift of any matrix belongs to `divisionSubring χ`. -/
 lemma lift_mem (R : Matrix (ZMod d) (ZMod d) K) : lift χ R ∈ divisionSubring χ := by
-  apply Subring.sum_mem
-  intro a ha
-  apply Subring.sum_mem
-  intro b hb
+  refine Subring.sum_mem _ fun a _ => Subring.sum_mem _ fun b _ => ?_
   apply single_mem (monomialUnit χ) (monomialUnit_zero χ) (monomialUnit_mul χ)
-  apply Submodule.mem_span_singleton.mpr
-  refine ⟨fourierCoeff χ R a b, ?_⟩
-  simp [monomialUnit]
+  exact Submodule.mem_span_singleton.mpr ⟨fourierCoeff χ R a b, by simp [monomialUnit]⟩
 
 /-- The finite Fourier lift as an element of the division subring. -/
 def liftD (R : Matrix (ZMod d) (ZMod d) K) : divisionSubring χ := ⟨lift χ R, lift_mem χ R⟩

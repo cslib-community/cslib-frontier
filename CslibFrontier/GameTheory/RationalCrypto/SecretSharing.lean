@@ -479,18 +479,13 @@ omit [DecidableEq ι] in
 private theorem exists_pivotal_opponents (i : ι) :
     ∃ S : Finset ι, i ∉ S ∧ S.card + 1 = R.threshold := by
   classical
-  have hi_univ : i ∈ (Finset.univ : Finset ι) := Finset.mem_univ i
-  have herase_card : (Finset.univ.erase i).card = Fintype.card ι - 1 := by
-    rw [Finset.card_erase_of_mem hi_univ, Finset.card_univ]
+  have h1 := R.two_le_threshold
+  have h2 := R.threshold_le_card
   have hle : R.threshold - 1 ≤ (Finset.univ.erase i).card := by
-    rw [herase_card]
-    have h1 := R.two_le_threshold
-    have h2 := R.threshold_le_card
+    rw [Finset.card_erase_of_mem (Finset.mem_univ i), Finset.card_univ]
     omega
   obtain ⟨S, hSub, hScard⟩ := Finset.exists_subset_card_eq hle
-  refine ⟨S, fun hiS => (Finset.notMem_erase i Finset.univ) (hSub hiS), ?_⟩
-  have h1 := R.two_le_threshold
-  omega
+  exact ⟨S, fun hiS => (Finset.notMem_erase i Finset.univ) (hSub hiS), by omega⟩
 
 /-! ### Theorem 1: Halpern–Teague deterministic bounded-round impossibility -/
 
@@ -529,13 +524,10 @@ theorem withhold_weaklyDominates_broadcast (i : ι) :
     have hi : i ∉ S := Finset.notMem_erase i _
     obtain ⟨hlt, heq, hge⟩ := R.outcomeUtility_withhold_vs_broadcast hi
     rcases lt_trichotomy (S.card + 1) R.threshold with h | h | h
-    · obtain ⟨h0, h1⟩ := hlt h
-      rw [h0, h1]
-    · obtain ⟨h0, h1⟩ := heq h
-      rw [h0, h1]
+    · rw [(hlt h).1, (hlt h).2]
+    · rw [(heq h).1, (heq h).2]
       exact R.prefs.uAll_lt_uPlus.le
-    · obtain ⟨h0, h1⟩ := hge (by omega)
-      rw [h0, h1]
+    · rw [(hge (by omega)).1, (hge (by omega)).2]
   · obtain ⟨S, hiS, hScard⟩ := R.exists_pivotal_opponents i
     refine ⟨fun j => decide (j ∈ S), fun _ => Set.mem_univ _, ?_⟩
     have hBS : (broadcastSet fun j => decide (j ∈ S)).erase i = S := by
@@ -696,6 +688,44 @@ private theorem rampPayoffFrom_eq_or_reach (R : ReconstructionGame ι) {T : ℕ}
   rampPayoffFrom_congr_before R q i hbefore 0 (Nat.zero_le M)
     (fun _ hc => absurd hc (Nat.not_lt_zero _))
 
+/-- A round in which nobody broadcasts ends with `uMinus` before the horizon and `uAll` after it. -/
+private theorem rampPayoffFrom_of_roundActive_eq_empty (R : ReconstructionGame ι) {T : ℕ}
+    (q : Fin T → ℝ) {s : ι → Fin (T + 1)} (i : ι) {r : ℕ} (hr : roundActive s r = ∅) :
+    rampPayoffFrom R q s i r = if r < T then R.prefs.uMinus else R.prefs.uAll := by
+  split_ifs with hrT
+  · have hc : ¬ R.threshold ≤ (roundActive s r).card := by
+      rw [hr, Finset.card_empty]
+      linarith [R.two_le_threshold]
+    rw [rampPayoffFrom_lt_neg R q s i hrT hc, hr, learnedSet_empty,
+      SecretSharingPrefs.outcomeUtility_empty]
+    ring
+  · exact rampPayoffFrom_ge R q s i hrT
+
+/-- One-round comparison at round `m < T`: if withholding leaves the active set `S` (`i ∉ S`) and
+participating leaves `insert i S`, then participating is no better, provided the continuation after
+a pivotal participation is at most the pivotal withholding payoff and continuations compare when `i`
+is not needed. -/
+private theorem rampPayoffFrom_insert_le (R : ReconstructionGame ι) {T : ℕ} (q : Fin T → ℝ)
+    {s₀ s₁ : ι → Fin (T + 1)} (i : ι) {m : ℕ} (hm : m < T) {S : Finset ι} (hiS : i ∉ S)
+    (hact0 : roundActive s₀ m = S) (hact1 : roundActive s₁ m = insert i S)
+    (hpiv : rampPayoffFrom R q s₁ i (m + 1) ≤
+      q ⟨m, hm⟩ * R.prefs.uPlus + (1 - q ⟨m, hm⟩) * R.prefs.uMinus)
+    (hcont : R.threshold ≤ S.card →
+      rampPayoffFrom R q s₁ i (m + 1) ≤ rampPayoffFrom R q s₀ i (m + 1)) :
+    rampPayoffFrom R q s₁ i m ≤ rampPayoffFrom R q s₀ i m := by
+  have hcard1 : (roundActive s₁ m).card = S.card + 1 := by
+    rw [hact1, Finset.card_insert_of_notMem hiS]
+  obtain ⟨hlt, heq, hge⟩ := R.outcomeUtility_withhold_vs_broadcast hiS
+  rcases lt_trichotomy (S.card + 1) R.threshold with h | h | h
+  · rw [rampPayoffFrom_lt_neg R q s₀ i hm (by rw [hact0]; omega), hact0, (hlt h).1,
+      rampPayoffFrom_lt_neg R q s₁ i hm (by omega), hact1, (hlt h).2]
+  · rw [rampPayoffFrom_lt_neg R q s₀ i hm (by rw [hact0]; omega), hact0, (heq h).1,
+      rampPayoffFrom_lt_pos R q s₁ i hm (by omega)]
+    exact hpiv
+  · rw [rampPayoffFrom_lt_pos R q s₀ i hm (by rw [hact0]; omega),
+      rampPayoffFrom_lt_pos R q s₁ i hm (by omega)]
+    exact hcont (by omega)
+
 /-- Construct an opponent cutoff profile where every `j ∈ S` plays `val` and all others play `0`,
 overwriting `i` later via `Function.update`. -/
 private def pivotalCutoffProfile {T : ℕ} (S : Finset ι) (val : Fin (T + 1)) :
@@ -737,6 +767,18 @@ theorem hasBackwardInductionDominance_gradualReleaseGame (R : ReconstructionGame
   set Rset : ∀ _ : ι, Set (Fin (T + 1)) := fun _ => { r | r.val ≤ m + 1 }
   let mFin : Fin (T + 1) := ⟨m, by omega⟩
   let mSuccFin : Fin (T + 1) := ⟨m + 1, by omega⟩
+  have hpiv : ∀ m' (hm' : m' < T), (if m' + 1 < T then R.prefs.uMinus else R.prefs.uAll) <
+      q ⟨m', hm'⟩ * R.prefs.uPlus + (1 - q ⟨m', hm'⟩) * R.prefs.uMinus := by
+    intro m' hm'
+    split_ifs with hm1
+    · nlinarith [R.prefs.uMinus_lt_uPlus, hq_pos ⟨m', hm'⟩]
+    · have hT_lt : T - 1 < T := Nat.sub_lt (by omega) zero_lt_one
+      have hm_eq : ⟨m', hm'⟩ = (⟨T - 1, hT_lt⟩ : Fin T) := by
+        ext
+        dsimp
+        omega
+      rw [hm_eq, hq_last (by omega)]
+      linarith [R.prefs.uAll_lt_uPlus]
   refine ⟨fun i => ⟨fun s hs => ?_, ?_⟩, fun i r hr => ?_⟩
   · -- Part 1a: `m` is at least as good as `m + 1` against all `s ∈ Rset`.
     set s₀ := Function.update s i mFin
@@ -766,64 +808,19 @@ theorem hasBackwardInductionDominance_gradualReleaseGame (R : ReconstructionGame
         rcases eq_or_ne j i with rfl | hne
         · simp [s₁, roundActive, mSuccFin, S]
         · simp [s₁, roundActive, S, hne]
-      have hnext_empty : roundActive s₁ (m + 1) = ∅ := by
+      have hnext : ∀ a : Fin (T + 1), a.val ≤ m + 1 →
+          rampPayoffFrom R q (Function.update s i a) i (m + 1) =
+            if m + 1 < T then R.prefs.uMinus else R.prefs.uAll := fun a ha => by
+        refine rampPayoffFrom_of_roundActive_eq_empty R q i ?_
         ext j
         simp only [roundActive, Finset.mem_filter, Finset.mem_univ, true_and,
           Finset.notMem_empty, iff_false, not_lt]
         rcases eq_or_ne j i with rfl | hne
-        · simp [s₁, mSuccFin]
-        · simpa [s₁, Function.update_of_ne hne, Rset] using hs j
-      have hnext_payoff : rampPayoffFrom R q s₁ i (m + 1) =
-          if m + 1 < T then R.prefs.uMinus else R.prefs.uAll := by
-        split_ifs with hm1
-        · have hc_emp : ¬ R.threshold ≤ (roundActive s₁ (m + 1)).card := by
-            rw [hnext_empty, Finset.card_empty]
-            linarith [R.two_le_threshold]
-          rw [rampPayoffFrom_lt_neg R q s₁ i hm1 hc_emp, hnext_empty, learnedSet_empty,
-            SecretSharingPrefs.outcomeUtility_empty]
-          ring
-        · exact rampPayoffFrom_ge R q s₁ i hm1
-      obtain ⟨hlt, heq, hge⟩ := R.outcomeUtility_withhold_vs_broadcast hiS
-      have hqm_pos : 0 < q ⟨m, hm⟩ := hq_pos ⟨m, hm⟩
-      rcases lt_trichotomy (S.card + 1) R.threshold with h | h | h
-      · have hc0 : ¬ R.threshold ≤ (roundActive s₀ m).card := by rw [hact0]; omega
-        have hc1 : ¬ R.threshold ≤ (roundActive s₁ m).card := by
-          rw [hact1, Finset.card_insert_of_notMem hiS]; omega
-        obtain ⟨hu0, hu1⟩ := hlt h
-        rw [rampPayoffFrom_lt_neg R q s₀ i hm hc0, hact0, hu0,
-          rampPayoffFrom_lt_neg R q s₁ i hm hc1, hact1, hu1]
-      · have hc0 : ¬ R.threshold ≤ (roundActive s₀ m).card := by rw [hact0]; omega
-        have hc1 : R.threshold ≤ (roundActive s₁ m).card := by
-          rw [hact1, Finset.card_insert_of_notMem hiS]; omega
-        obtain ⟨hu0, _⟩ := heq h
-        rw [rampPayoffFrom_lt_neg R q s₀ i hm hc0, hact0, hu0,
-          rampPayoffFrom_lt_pos R q s₁ i hm hc1, hnext_payoff]
-        split_ifs with hm1
-        · nlinarith [R.prefs.uMinus_lt_uPlus]
-        · have hm_eq : ⟨m, hm⟩ = (⟨T - 1, Nat.sub_lt (by omega) zero_lt_one⟩ : Fin T) := by
-            ext; dsimp; omega
-          rw [hm_eq, hq_last (by omega)]
-          linarith [R.prefs.uAll_lt_uPlus]
-      · have hc0 : R.threshold ≤ (roundActive s₀ m).card := by rw [hact0]; omega
-        have hc1 : R.threshold ≤ (roundActive s₁ m).card := by
-          rw [hact1, Finset.card_insert_of_notMem hiS]; omega
-        rw [rampPayoffFrom_lt_pos R q s₀ i hm hc0, rampPayoffFrom_lt_pos R q s₁ i hm hc1]
-        have hnext0_empty : roundActive s₀ (m + 1) = ∅ := by
-          ext j
-          simp only [roundActive, Finset.mem_filter, Finset.mem_univ, true_and,
-            Finset.notMem_empty, iff_false, not_lt]
-          rcases eq_or_ne j i with rfl | hne
-          · simp [s₀, mFin]
-          · simpa [s₀, Function.update_of_ne hne, Rset] using hs j
-        rw [hnext_payoff]
-        split_ifs with hm1
-        · have hc0_emp : ¬ R.threshold ≤ (roundActive s₀ (m + 1)).card := by
-            rw [hnext0_empty, Finset.card_empty]
-            linarith [R.two_le_threshold]
-          rw [rampPayoffFrom_lt_neg R q s₀ i hm1 hc0_emp, hnext0_empty, learnedSet_empty,
-            SecretSharingPrefs.outcomeUtility_empty]
-          linarith
-        · rw [rampPayoffFrom_ge R q s₀ i hm1]
+        · simpa using ha
+        · simpa [Function.update_of_ne hne, Rset] using hs j
+      refine rampPayoffFrom_insert_le R q i hm hiS hact0 hact1
+        ((hnext mSuccFin le_rfl).trans_le (hpiv m hm).le)
+        fun _ => (hnext mSuccFin le_rfl).trans_le (hnext mFin (Nat.le_succ m)).ge
   · -- Part 1b: Strict inequality witness for `m` vs `m + 1` in `Rset`.
     obtain ⟨S, hiS, hScard⟩ := R.exists_pivotal_opponents i
     let s := pivotalCutoffProfile S mSuccFin
@@ -861,27 +858,16 @@ theorem hasBackwardInductionDominance_gradualReleaseGame (R : ReconstructionGame
       rw [hact1, Finset.card_insert_of_notMem hiS]; omega
     rw [rampPayoffFrom_lt_neg R q s₀ i hm hc0, hact0, hu0,
       rampPayoffFrom_lt_pos R q s₁ i hm hc1]
-    have hqm_pos : 0 < q ⟨m, hm⟩ := hq_pos ⟨m, hm⟩
-    by_cases hm1 : m + 1 < T
-    · have hnext1_empty : roundActive s₁ (m + 1) = ∅ := by
-        ext j
-        rcases eq_or_ne j i with rfl | hne
-        · simp [s₁, roundActive, mSuccFin]
-        · simp only [s₁, roundActive, Finset.mem_filter, Finset.mem_univ, true_and,
-            Function.update_of_ne hne, s, pivotalCutoffProfile, Finset.notMem_empty, iff_false,
-            not_lt]
-          split_ifs <;> simp [mSuccFin]
-      have hc1_emp : ¬ R.threshold ≤ (roundActive s₁ (m + 1)).card := by
-        rw [hnext1_empty, Finset.card_empty]
-        linarith [R.two_le_threshold]
-      rw [rampPayoffFrom_lt_neg R q s₁ i hm1 hc1_emp, hnext1_empty, learnedSet_empty,
-        SecretSharingPrefs.outcomeUtility_empty]
-      nlinarith [R.prefs.uMinus_lt_uPlus]
-    · rw [rampPayoffFrom_ge R q s₁ i hm1]
-      have hm_eq : ⟨m, hm⟩ = (⟨T - 1, Nat.sub_lt (by omega) zero_lt_one⟩ : Fin T) := by
-        ext; dsimp; omega
-      rw [hm_eq, hq_last (by omega)]
-      linarith [R.prefs.uAll_lt_uPlus]
+    have hnext1_empty : roundActive s₁ (m + 1) = ∅ := by
+      ext j
+      rcases eq_or_ne j i with rfl | hne
+      · simp [s₁, roundActive, mSuccFin]
+      · simp only [s₁, roundActive, Finset.mem_filter, Finset.mem_univ, true_and,
+          Function.update_of_ne hne, s, pivotalCutoffProfile, Finset.notMem_empty, iff_false,
+          not_lt]
+        split_ifs <;> simp [mSuccFin]
+    rw [rampPayoffFrom_of_roundActive_eq_empty R q i hnext1_empty]
+    exact hpiv m hm
   · -- Part 2: No `r ≤ m` is weakly dominated on `Rset`.
     rintro ⟨r', hr'_mem, hdom⟩
     have hle := hdom.1
@@ -897,42 +883,27 @@ theorem hasBackwardInductionDominance_gradualReleaseGame (R : ReconstructionGame
       · dsimp [rSucc]; omega
       · simp
     have hcmp := hle s hs_mem
-    have hall_r : ∀ c < r.val, R.threshold ≤ (roundActive (Function.update s i r) c).card := by
-      intro c hc
-      rw [roundActive_update_pivotal_lt (a := r) (val := rSucc) hc (by dsimp [rSucc]; omega),
-        Finset.card_insert_of_notMem hiS]
-      omega
-    have hact_r : roundActive (Function.update s i r) r.val = S :=
-      roundActive_update_pivotal_self hiS (a := r) (val := rSucc) (by dsimp [rSucc]; omega)
     obtain ⟨_, heq, _⟩ := R.outcomeUtility_withhold_vs_broadcast hiS
     obtain ⟨huS, _⟩ := heq hScard
-    have hpay_r : (R.gradualReleaseGame T q).payoff i (Function.update s i r) =
-        q ⟨r.val, hrT⟩ * R.prefs.uPlus + (1 - q ⟨r.val, hrT⟩) * R.prefs.uMinus := by
-      unfold gradualReleaseGame
-      dsimp only
-      rw [rampPayoffFrom_zero_eq_at R q _ i hall_r]
-      have hc : ¬ R.threshold ≤ (roundActive (Function.update s i r) r.val).card := by
-        rw [hact_r]; omega
-      rw [rampPayoffFrom_lt_neg R q _ i hrT hc, hact_r, huS]
-    rcases lt_trichotomy r'.val r.val with hlt_r' | heq_r' | hgt_r'
-    · have hr'T : r'.val < T := by omega
-      have hall_r' :
-          ∀ c < r'.val, R.threshold ≤ (roundActive (Function.update s i r') c).card := by
+    have hpay : ∀ a : Fin (T + 1), ∀ ha : a.val < T, a.val ≤ r.val →
+        (R.gradualReleaseGame T q).payoff i (Function.update s i a) =
+          q ⟨a.val, ha⟩ * R.prefs.uPlus + (1 - q ⟨a.val, ha⟩) * R.prefs.uMinus := by
+      intro a ha har
+      have hall : ∀ c < a.val, R.threshold ≤ (roundActive (Function.update s i a) c).card := by
         intro c hc
-        rw [roundActive_update_pivotal_lt (a := r') (val := rSucc) hc (by dsimp [rSucc]; omega),
+        rw [roundActive_update_pivotal_lt (a := a) (val := rSucc) hc (by dsimp [rSucc]; omega),
           Finset.card_insert_of_notMem hiS]
         omega
-      have hact_r' : roundActive (Function.update s i r') r'.val = S :=
-        roundActive_update_pivotal_self hiS (a := r') (val := rSucc) (by dsimp [rSucc]; omega)
-      have hpay_r' : (R.gradualReleaseGame T q).payoff i (Function.update s i r') =
-          q ⟨r'.val, hr'T⟩ * R.prefs.uPlus + (1 - q ⟨r'.val, hr'T⟩) * R.prefs.uMinus := by
-        unfold gradualReleaseGame
-        dsimp only
-        rw [rampPayoffFrom_zero_eq_at R q _ i hall_r']
-        have hc : ¬ R.threshold ≤ (roundActive (Function.update s i r') r'.val).card := by
-          rw [hact_r']; omega
-        rw [rampPayoffFrom_lt_neg R q _ i hr'T hc, hact_r', huS]
-      rw [hpay_r, hpay_r'] at hcmp
+      have hact : roundActive (Function.update s i a) a.val = S :=
+        roundActive_update_pivotal_self hiS (a := a) (val := rSucc) (by dsimp [rSucc]; omega)
+      unfold gradualReleaseGame
+      dsimp only
+      rw [rampPayoffFrom_zero_eq_at R q _ i hall,
+        rampPayoffFrom_lt_neg R q _ i ha (by rw [hact]; omega), hact, huS]
+    rw [hpay r hrT le_rfl] at hcmp
+    rcases lt_trichotomy r'.val r.val with hlt_r' | heq_r' | hgt_r'
+    · have hr'T : r'.val < T := by omega
+      rw [hpay r' hr'T hlt_r'.le] at hcmp
       have hq_lt : q ⟨r'.val, hr'T⟩ < q ⟨r.val, hrT⟩ := hq_mono hlt_r'
       nlinarith [R.prefs.uMinus_lt_uPlus]
     · have hrr' : r' = r := Fin.ext heq_r'
@@ -959,29 +930,16 @@ theorem hasBackwardInductionDominance_gradualReleaseGame (R : ReconstructionGame
               simp only [roundActive, Finset.mem_filter, Finset.mem_univ, true_and,
                 Function.update_of_ne hne, s, pivotalCutoffProfile] at hj
               split_ifs at hj with hjS <;> dsimp [rSucc] at hj <;> omega
-          have hcard_lt :
-              ¬ R.threshold ≤ (roundActive (Function.update s i r') (r.val + 1)).card := by
-            have hle1 : (roundActive (Function.update s i r') (r.val + 1)).card ≤ 1 :=
-              (Finset.card_le_card hsub).trans (by simp)
-            linarith [R.two_le_threshold]
-          have hinot : i ∉ R.learnedSet (roundActive (Function.update s i r') (r.val + 1)) := by
-            rw [mem_learnedSet_iff]
-            have hins : insert i (roundActive (Function.update s i r') (r.val + 1)) ⊆ {i} :=
-              Finset.insert_subset (Finset.mem_singleton_self i) hsub
-            have hle1 : (insert i (roundActive (Function.update s i r') (r.val + 1))).card ≤ 1 :=
-              (Finset.card_le_card hins).trans (by simp)
-            linarith [R.two_le_threshold]
-          rw [rampPayoffFrom_lt_neg R q _ i hr1T hcard_lt, R.prefs.outcomeUtility_of_not_mem hinot]
+          have hle1 := (Finset.card_le_card (Finset.insert_subset (Finset.mem_singleton_self i)
+            hsub)).trans (Finset.card_singleton i).le
+          have hle0 := Finset.card_le_card (Finset.subset_insert i
+            (roundActive (Function.update s i r') (r.val + 1)))
+          have h2 := R.two_le_threshold
+          rw [rampPayoffFrom_lt_neg R q _ i hr1T (by omega),
+            R.prefs.outcomeUtility_of_not_mem (by rw [mem_learnedSet_iff]; omega)]
           linarith
         · rw [rampPayoffFrom_ge R q _ i hr1T]
-      rw [hpay_r] at hcmp
-      have hqr_pos : 0 < q ⟨r.val, hrT⟩ := hq_pos ⟨r.val, hrT⟩
-      split_ifs at hpay_r' with hr1T
-      · nlinarith [R.prefs.uMinus_lt_uPlus]
-      · have hr_eq : ⟨r.val, hrT⟩ = (⟨T - 1, Nat.sub_lt (by omega) zero_lt_one⟩ : Fin T) := by
-          ext; dsimp; omega
-        rw [hr_eq, hq_last (by omega)] at hcmp
-        linarith [R.prefs.uAll_lt_uPlus]
+      linarith [hpiv r.val hrT]
 
 /-- **Halpern–Teague bounded-round `IDoWDS` impossibility (`T`-round gradual release)**
 ([HalpernTeague2004]; [DodisRabin2007], Section 8.5.2(a)): in any `T`-round `(t, n)`
@@ -1030,6 +988,10 @@ theorem payoff_knownHorizonGame_eq_uMinus_of_mem_idowdsIter_one (R : Reconstruct
     {s : ι → Fin (T + 1)} (hs : ∀ j, s j ∈ (R.knownHorizonGame T).idowdsIter 1 j) (i : ι) :
     (R.knownHorizonGame T).payoff i s = R.prefs.uMinus := by
   let qK : Fin T → ℝ := fun m => if m.val + 1 = T then 1 else 0
+  have hm : T - 1 < T := by omega
+  have hq1 : qK ⟨T - 1, hm⟩ = 1 := by
+    simp only [qK]
+    rw [ite_eq_left (by omega)]
   have hnot_last : ∀ j, (s j).val ≤ T - 1 := by
     intro j
     have hmem : ¬ (R.knownHorizonGame T).IsWeaklyDominatedOn
@@ -1056,13 +1018,7 @@ theorem payoff_knownHorizonGame_eq_uMinus_of_mem_idowdsIter_one (R : Reconstruct
         dsimp only
         change rampPayoffFrom R qK s₁ j 0 ≤ rampPayoffFrom R qK s₀ j 0
         rw [he0, he1]
-        have hm : T - 1 < T := by omega
         have hlast_false : ¬ (T - 1 + 1 < T) := by omega
-        have hq1 : qK ⟨T - 1, hm⟩ = 1 := by
-          dsimp [qK]
-          split_ifs with h
-          · rfl
-          · omega
         set S := (roundActive s' (T - 1)).erase j
         have hjS : j ∉ S := Finset.notMem_erase j _
         have hact0 : roundActive s₀ (T - 1) = S := by
@@ -1073,32 +1029,15 @@ theorem payoff_knownHorizonGame_eq_uMinus_of_mem_idowdsIter_one (R : Reconstruct
           ext l; rcases eq_or_ne l j with rfl | hne
           · simp [s₁, roundActive, Fin.last, S, hm]
           · simp [s₁, roundActive, S, hne]
-        obtain ⟨hlt, heq, hge⟩ := R.outcomeUtility_withhold_vs_broadcast hjS
-        rcases lt_trichotomy (S.card + 1) R.threshold with h | h | h
-        · have hc0 : ¬ R.threshold ≤ (roundActive s₀ (T - 1)).card := by rw [hact0]; omega
-          have hc1 : ¬ R.threshold ≤ (roundActive s₁ (T - 1)).card := by
-            rw [hact1, Finset.card_insert_of_notMem hjS]; omega
-          obtain ⟨hu0, hu1⟩ := hlt h
-          rw [rampPayoffFrom_lt_neg R qK s₀ j hm hc0, hact0, hu0,
-            rampPayoffFrom_lt_neg R qK s₁ j hm hc1, hact1, hu1]
-        · have hc0 : ¬ R.threshold ≤ (roundActive s₀ (T - 1)).card := by rw [hact0]; omega
-          have hc1 : R.threshold ≤ (roundActive s₁ (T - 1)).card := by
-            rw [hact1, Finset.card_insert_of_notMem hjS]; omega
-          obtain ⟨hu0, _⟩ := heq h
-          rw [rampPayoffFrom_lt_neg R qK s₀ j hm hc0, hact0, hu0, hq1,
-            rampPayoffFrom_lt_pos R qK s₁ j hm hc1, rampPayoffFrom_ge R qK s₁ j hlast_false]
+        refine rampPayoffFrom_insert_le R qK j hm hjS hact0 hact1 ?_ fun _ => ?_
+        · rw [rampPayoffFrom_ge R qK s₁ j hlast_false, hq1]
           linarith [R.prefs.uAll_lt_uPlus]
-        · have hc0 : R.threshold ≤ (roundActive s₀ (T - 1)).card := by rw [hact0]; omega
-          have hc1 : R.threshold ≤ (roundActive s₁ (T - 1)).card := by
-            rw [hact1, Finset.card_insert_of_notMem hjS]; omega
-          rw [rampPayoffFrom_lt_pos R qK s₀ j hm hc0, rampPayoffFrom_ge R qK s₀ j hlast_false,
-            rampPayoffFrom_lt_pos R qK s₁ j hm hc1, rampPayoffFrom_ge R qK s₁ j hlast_false]
+        · rw [rampPayoffFrom_ge R qK s₁ j hlast_false, rampPayoffFrom_ge R qK s₀ j hlast_false]
     · obtain ⟨S, hjS, hScard⟩ := R.exists_pivotal_opponents j
       let sp := pivotalCutoffProfile S (Fin.last T)
       refine ⟨sp, fun _ => by rw [PayoffGame.idowdsIter_zero]; exact Set.mem_univ _, ?_⟩
       set s₀ := Function.update sp j ⟨T - 1, by omega⟩
       set s₁ := Function.update sp j (Fin.last T)
-      have hm : T - 1 < T := by omega
       have hall0 : ∀ c < T - 1, R.threshold ≤ (roundActive s₀ c).card := by
         intro c hc
         rw [roundActive_update_pivotal_lt (a := ⟨T - 1, by omega⟩) (val := Fin.last T) hc
@@ -1125,11 +1064,6 @@ theorem payoff_knownHorizonGame_eq_uMinus_of_mem_idowdsIter_one (R : Reconstruct
       have hc0 : ¬ R.threshold ≤ (roundActive s₀ (T - 1)).card := by rw [hact0]; omega
       have hc1 : R.threshold ≤ (roundActive s₁ (T - 1)).card := by
         rw [hact1, Finset.card_insert_of_notMem hjS]; omega
-      have hq1 : qK ⟨T - 1, hm⟩ = 1 := by
-        dsimp [qK]
-        split_ifs with h
-        · rfl
-        · omega
       rw [rampPayoffFrom_lt_neg R qK s₀ j hm hc0, hact0, hu0, hq1,
         rampPayoffFrom_lt_pos R qK s₁ j hm hc1, rampPayoffFrom_ge R qK s₁ j (by omega)]
       linarith [R.prefs.uAll_lt_uPlus]
@@ -1143,29 +1077,19 @@ theorem payoff_knownHorizonGame_eq_uMinus_of_mem_idowdsIter_one (R : Reconstruct
   | zero =>
     have hrm : r = T - 1 := by omega
     subst hrm
-    have hm : T - 1 < T := by omega
     have hempty : roundActive s (T - 1) = ∅ := by
       ext j
       simp only [roundActive, Finset.mem_filter, Finset.mem_univ, true_and,
         Finset.notMem_empty, iff_false, not_lt]
       exact hnot_last j
-    have hc_emp : ¬ R.threshold ≤ (roundActive s (T - 1)).card := by
-      rw [hempty, Finset.card_empty]
-      linarith [R.two_le_threshold]
-    rw [rampPayoffFrom_lt_neg R qK s i hm hc_emp, hempty, learnedSet_empty,
-      SecretSharingPrefs.outcomeUtility_empty]
-    ring
+    rw [rampPayoffFrom_of_roundActive_eq_empty R qK i hempty, ite_eq_left hm]
   | succ d ih =>
     have hrT : r < T := by omega
     have hr_not_last : r + 1 ≠ T := by omega
     by_cases hcard : R.threshold ≤ (roundActive s r).card
     · rw [rampPayoffFrom_lt_pos R qK s i hrT hcard]
       exact ih (r + 1) (by omega) (by omega)
-    · have hq0 : qK ⟨r, hrT⟩ = 0 := by
-        dsimp [qK]
-        split_ifs with h
-        · exact absurd h hr_not_last
-        · rfl
+    · have hq0 : qK ⟨r, hrT⟩ = 0 := ite_eq_right hr_not_last
       rw [rampPayoffFrom_lt_neg R qK s i hrT hcard, hq0]
       ring
 
@@ -1424,6 +1348,20 @@ private theorem summable_reachProb_mul_q {p : ℝ} {q : ℕ → ℝ} (hp0 : 0 < 
     (fun r => mul_nonneg (reachProb_nonneg hp1 hq1 r) (hq0 r))
     (fun r => mul_le_of_le_one_right (reachProb_nonneg hp1 hq1 r) (hq1 r))
 
+private theorem summable_geometricExpectedUtility_term (prefs : SecretSharingPrefs) {p : ℝ}
+    {q : ℕ → ℝ} (hp0 : 0 < p) (hp1 : p ≤ 1) (hq0 : ∀ r, 0 ≤ q r) (hq1 : ∀ r, q r ≤ 1) :
+    Summable fun r => reachProb p q r *
+      ((1 - q r) * p * prefs.uAll + q r * (p * prefs.uPlus + (1 - p) * prefs.uMinus)) := by
+  have hrewrite : (fun r => reachProb p q r *
+      ((1 - q r) * p * prefs.uAll + q r * (p * prefs.uPlus + (1 - p) * prefs.uMinus))) =
+      fun r => reachProb p q r * ((1 - q r) * p + q r) * prefs.uAll -
+        (prefs.uAll - (p * prefs.uPlus + (1 - p) * prefs.uMinus)) * (reachProb p q r * q r) := by
+    funext r
+    ring
+  rw [hrewrite]
+  exact ((hasSum_reachProb_termination hp0 hp1 hq0 hq1).mul_right prefs.uAll).summable.sub
+    ((summable_reachProb_mul_q hp0 hp1 hq0 hq1).mul_left _)
+
 /-- **Exact telescoping utility gap identity**: for `p ∈ (0, 1]` and `q r ∈ [0, 1]`, the expected
 utility shortfall below `uAll` factors as the per-round incentive margin `uAll - (p uPlus +
 (1 - p) uMinus)` times `∑' r, reachProb p q r * q r`. -/
@@ -1433,17 +1371,7 @@ theorem uAll_sub_geometricExpectedUtility (prefs : SecretSharingPrefs) {p : ℝ}
       (prefs.uAll - (p * prefs.uPlus + (1 - p) * prefs.uMinus)) *
         ∑' r : ℕ, reachProb p q r * q r := by
   have h1 := (hasSum_reachProb_termination hp0 hp1 hq0 hq1).mul_right prefs.uAll
-  have hs_q := summable_reachProb_mul_q hp0 hp1 hq0 hq1
-  have hs_term : Summable fun r => reachProb p q r *
-      ((1 - q r) * p * prefs.uAll + q r * (p * prefs.uPlus + (1 - p) * prefs.uMinus)) := by
-    have hrewrite : (fun r => reachProb p q r *
-        ((1 - q r) * p * prefs.uAll + q r * (p * prefs.uPlus + (1 - p) * prefs.uMinus))) =
-        fun r => reachProb p q r * ((1 - q r) * p + q r) * prefs.uAll -
-          (prefs.uAll - (p * prefs.uPlus + (1 - p) * prefs.uMinus)) *
-            (reachProb p q r * q r) := by
-      funext r; ring
-    rw [hrewrite]
-    exact h1.summable.sub (hs_q.mul_left _)
+  have hs_term := summable_geometricExpectedUtility_term prefs hp0 hp1 hq0 hq1
   have hu : prefs.uAll = ∑' r : ℕ, reachProb p q r * ((1 - q r) * p + q r) * prefs.uAll := by
     simpa only [one_mul] using h1.tsum_eq.symm
   calc
@@ -1868,12 +1796,9 @@ theorem payoff_honestProfile (i : ι) :
   have hgen : ∀ r, proto.genuineStagePayoff honestProfile r i = proto.prefs.uAll := by
     intro r
     unfold genuineStagePayoff
-    rw [hdist, Finset.sum_eq_single (fun _ : ι => true)]
-    · simp
-    · intro b _ hbne
-      simp [PMF.pure_apply, hbne]
-    · intro hnot
-      exact absurd (Finset.mem_univ _) hnot
+    rw [hdist, Fintype.sum_eq_single (fun _ : ι => true) fun b hbne => by
+      simp [PMF.pure_apply, hbne]]
+    simp
   rw [toPayoffGame_payoff]
   simp only [hcont, hgen]
   have hmatch : (∑' r : ℕ, reachProb proto.stopProb (fun _ => 0) r *
@@ -1890,25 +1815,21 @@ private theorem stage_le_of_eq (d : PMF (ι → Bool)) {L : (ι → Bool) → Fi
     ∑ b : ι → Bool, (d b).toReal * proto.prefs.outcomeUtility (L b) i ≤
       (d (fun _ => true)).toReal * proto.prefs.uAll +
         (1 - (d (fun _ => true)).toReal) * proto.prefs.uPlus := by
-  have hsum_one : ∑ b : ι → Bool, (d b).toReal = 1 := sum_toReal d
-  have hall_split : ∑ b : ι → Bool, (d b).toReal *
-      proto.prefs.outcomeUtility (L b) i ≤
-      (d (fun _ => true)).toReal * proto.prefs.uAll +
-        ∑ b ∈ Finset.univ.erase (fun _ : ι => true), (d b).toReal * proto.prefs.uPlus := by
-    rw [← Finset.add_sum_erase Finset.univ _ (Finset.mem_univ (fun _ : ι => true))]
-    gcongr with b hb
-    · rw [hL, SecretSharingPrefs.outcomeUtility_univ]
-    · exact proto.prefs.outcomeUtility_le_uPlus _ i
   have herase_sum : ∑ b ∈ Finset.univ.erase (fun _ : ι => true), (d b).toReal =
       1 - (d (fun _ => true)).toReal := by
     have := Finset.add_sum_erase Finset.univ (fun b => (d b).toReal)
       (Finset.mem_univ (fun _ : ι => true))
-    linarith
-  calc
-    ∑ b : ι → Bool, (d b).toReal * proto.prefs.outcomeUtility (L b) i
-      ≤ (d (fun _ => true)).toReal * proto.prefs.uAll +
-          ∑ b ∈ Finset.univ.erase (fun _ : ι => true), (d b).toReal * proto.prefs.uPlus :=
-        hall_split
+    linarith [sum_toReal d]
+  calc ∑ b : ι → Bool, (d b).toReal * proto.prefs.outcomeUtility (L b) i
+      = (d (fun _ => true)).toReal * proto.prefs.outcomeUtility (L (fun _ => true)) i +
+          ∑ b ∈ Finset.univ.erase (fun _ : ι => true),
+            (d b).toReal * proto.prefs.outcomeUtility (L b) i :=
+        (Finset.add_sum_erase Finset.univ _ (Finset.mem_univ (fun _ : ι => true))).symm
+    _ ≤ (d (fun _ => true)).toReal * proto.prefs.uAll +
+          ∑ b ∈ Finset.univ.erase (fun _ : ι => true), (d b).toReal * proto.prefs.uPlus := by
+        rw [hL, SecretSharingPrefs.outcomeUtility_univ]
+        gcongr with b hb
+        exact proto.prefs.outcomeUtility_le_uPlus _ i
     _ = (d (fun _ => true)).toReal * proto.prefs.uAll +
           (1 - (d (fun _ => true)).toReal) * proto.prefs.uPlus := by
         rw [← Finset.sum_mul, herase_sum]
@@ -1989,40 +1910,7 @@ private theorem evalHorizon_le_geometricExpectedUtility {d : ℕ → PMF (ι →
     have h1q : (d r (fun _ => true)).toReal = 1 - q r := by simp [q]
     rw [h1q] at hgen
     nlinarith
-  have hreach_sum := summable_reachProb hp0 hp1 hq0 hq1
-  let B : ℝ := |proto.prefs.uPlus| + |proto.prefs.uAll| + |proto.prefs.uMinus| + 1
-  have hM_le_B : |proto.prefs.uMinus| ≤ B := by
-    dsimp [B]; linarith [abs_nonneg proto.prefs.uPlus, abs_nonneg proto.prefs.uAll]
-  have hA_le_B : |proto.prefs.uAll| ≤ B := by
-    dsimp [B]; linarith [abs_nonneg proto.prefs.uPlus, abs_nonneg proto.prefs.uMinus]
-  have hP_le_B : |proto.prefs.uPlus| ≤ B := by
-    dsimp [B]; linarith [abs_nonneg proto.prefs.uAll, abs_nonneg proto.prefs.uMinus]
-  have hsum_rhs : Summable fun r => reachProb proto.stopProb q r *
-      ((1 - q r) * proto.stopProb * proto.prefs.uAll +
-        q r * (proto.stopProb * proto.prefs.uPlus +
-          (1 - proto.stopProb) * proto.prefs.uMinus)) := by
-    refine Summable.of_norm_bounded (hreach_sum.mul_right (3 * B)) fun r => ?_
-    rw [Real.norm_eq_abs, abs_mul, abs_of_nonneg (reachProb_nonneg hp1 hq1 r)]
-    refine mul_le_mul_of_nonneg_left ?_ (reachProb_nonneg hp1 hq1 r)
-    have hqr0 := hq0 r
-    have hqr1 := hq1 r
-    have h1 : |(1 - q r) * proto.stopProb * proto.prefs.uAll| ≤ B := by
-      rw [abs_mul, abs_mul, abs_of_nonneg (by linarith), abs_of_pos hp0]
-      have hc : (1 - q r) * proto.stopProb ≤ 1 := by nlinarith
-      exact (mul_le_mul_of_nonneg_right hc (abs_nonneg _)).trans (by rw [one_mul]; exact hA_le_B)
-    have h2 : |q r * (proto.stopProb * proto.prefs.uPlus)| ≤ B := by
-      rw [← mul_assoc, abs_mul, abs_mul, abs_of_nonneg hqr0, abs_of_pos hp0]
-      have hc : q r * proto.stopProb ≤ 1 := by nlinarith
-      exact (mul_le_mul_of_nonneg_right hc (abs_nonneg _)).trans (by rw [one_mul]; exact hP_le_B)
-    have h3 : |q r * ((1 - proto.stopProb) * proto.prefs.uMinus)| ≤ B := by
-      rw [← mul_assoc, abs_mul, abs_mul, abs_of_nonneg hqr0, abs_of_nonneg (by linarith)]
-      have hc : q r * (1 - proto.stopProb) ≤ 1 := by nlinarith
-      exact (mul_le_mul_of_nonneg_right hc (abs_nonneg _)).trans (by rw [one_mul]; exact hM_le_B)
-    have h23 : |q r * (proto.stopProb * proto.prefs.uPlus +
-        (1 - proto.stopProb) * proto.prefs.uMinus)| ≤ 2 * B := by
-      rw [mul_add]
-      exact (abs_add_le _ _).trans (by linarith)
-    exact (abs_add_le _ _).trans (by linarith)
+  have hsum_rhs := summable_geometricExpectedUtility_term proto.prefs hp0 hp1 hq0 hq1
   exact (proto.summable_evalHorizon d d L i).tsum_le_tsum hterm_le hsum_rhs
 
 private theorem evalHorizon_tsum_le_of_pointwise
@@ -2184,8 +2072,7 @@ theorem IsJointCoalitionProofUpTo.toPayoffGame {proto : GeometricProtocol ι Pay
     proto.toPayoffGame.IsCoalitionProofUpTo k honestProfile := by
   intro C hC τ i hiC
   have hC_ne : C ≠ Finset.univ := fun heq => by
-    have := congrArg Finset.card heq
-    rw [Finset.card_univ] at this
+    rw [heq, Finset.card_univ] at hC
     omega
   exact (proto.payoff_piecewise_le_coalitionPayoff hC_ne τ hiC).trans
     (h C hC (CoalitionStrategy.ofProfile C τ) i hiC)
@@ -2243,9 +2130,7 @@ theorem coalitionPayoff_const_false {C : Finset ι} (hC_ne : C.Nonempty) (hC_uni
     have hfn : (fun (v : (j : C) → Share j.1) (j : ι) =>
         if hj : j ∈ C then false else true) = fun _ => bC := by
       funext v j
-      by_cases hj : j ∈ C
-      · simp [bC, hj]
-      · simp [bC, hj]
+      by_cases hj : j ∈ C <;> simp [bC, hj]
     rw [hfn]
     exact PMF.map_const _ bC
   have hbC_ne : bC ≠ (fun _ => true) := by
@@ -2270,11 +2155,7 @@ theorem coalitionPayoff_const_false {C : Finset ι} (hC_ne : C.Nonempty) (hC_uni
     ext m
     rw [mem_learnedFromCoalition_iff, hB]
     by_cases hm : m ∈ C
-    · have hunion : C ∪ (Finset.univ \ C) = Finset.univ := by
-        ext x
-        simp only [Finset.mem_union, Finset.mem_sdiff, Finset.mem_univ, true_and, iff_true]
-        exact em (x ∈ C)
-      simp [hm, hunion, proto.univ_authorized]
+    · simp [hm, Finset.union_sdiff_of_subset (Finset.subset_univ C), proto.univ_authorized]
     · have hm_mem : m ∈ Finset.univ \ C := Finset.mem_sdiff.mpr ⟨Finset.mem_univ m, hm⟩
       simp [hm, Finset.insert_eq_of_mem hm_mem, hOut]
   have hu : proto.prefs.outcomeUtility (proto.learnedFromCoalition C bC) i = proto.prefs.uPlus := by
@@ -2283,12 +2164,8 @@ theorem coalitionPayoff_const_false {C : Finset ι} (hC_ne : C.Nonempty) (hC_uni
   have hgen0 : proto.coalitionGenuineStagePayoff C (fun _ _ _ => false) 0 i =
       proto.prefs.uPlus := by
     unfold coalitionGenuineStagePayoff
-    rw [hdist, Finset.sum_eq_single bC]
-    · simp [hu]
-    · intro b _ hbne
-      simp [PMF.pure_apply, hbne]
-    · intro hnot
-      exact absurd (Finset.mem_univ _) hnot
+    rw [hdist, Fintype.sum_eq_single bC fun b hbne => by simp [PMF.pure_apply, hbne]]
+    simp [hu]
   rw [coalitionPayoff_eq, tsum_eq_single 0]
   · simp [reachProb_zero, hcont, hgen0]
   · intro r hr
@@ -2314,8 +2191,7 @@ theorem honestProfile_isJointCoalitionProofUpTo_iff {t : ℕ} (ht : 1 ≤ t)
   obtain ⟨C, _, hCcard⟩ := Finset.exists_subset_card_eq hsub_le
   have hC_ne : C.Nonempty := Finset.card_pos.mp (by omega)
   have hC_univ : C ≠ Finset.univ := fun heq => by
-    have := congrArg Finset.card heq
-    rw [Finset.card_univ] at this
+    rw [heq, Finset.card_univ] at hCcard
     omega
   have hOut : ¬ proto.scheme.access.authorized (Finset.univ \ C) := by
     rw [hacc, AccessStructure.threshold_authorized_iff, Finset.card_sdiff]

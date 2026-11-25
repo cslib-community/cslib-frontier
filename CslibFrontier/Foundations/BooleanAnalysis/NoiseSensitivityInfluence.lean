@@ -89,23 +89,20 @@ probability `Pr_c [φ c]` that `φ` holds at a uniformly random `c`. -/
 theorem expect_comp_eq_bernoulliAverage {κ : Type*} [Fintype κ] [Nonempty κ] (φ : κ → Bool)
     (h : (ι → Bool) → ℝ) :
     𝔼 π : ι → κ, h (fun i => φ (π i)) = bernoulliAverage (dens {c | φ c} : ℝ) h := by
-  have hh (y : ι → Bool) : h y = ∑ a, h a * ∏ i, (if y i = a i then (1 : ℝ) else 0) := by
-    simp only [prod_boole, mem_univ, forall_const, ← funext_iff, mul_ite, mul_one, mul_zero]
-    rw [Fintype.sum_ite_eq]
-  have hc (b : Bool) :
-      𝔼 c, (if φ c = b then (1 : ℝ) else 0) =
-        if b then (dens {c | φ c} : ℝ) else 1 - dens {c | φ c} := by
+  have hc (b : Bool) : 𝔼 c, (if φ c = b then (1 : ℝ) else 0) =
+      if b then (dens {c | φ c} : ℝ) else 1 - dens {c | φ c} := by
     have h1 := Fintype.expect_boole (𝕜 := ℝ) fun c => φ c = true
     cases b
-    · have h2 : 𝔼 c : κ, (if φ c = false then (1 : ℝ) else 0) =
-          𝔼 c : κ, (1 - if φ c = true then (1 : ℝ) else 0) :=
-        expect_congr rfl fun c _ => by cases φ c <;> norm_num
-      rw [h2, expect_sub_distrib, h1, Fintype.expect_const]
+    · rw [expect_congr rfl fun c _ => show (if φ c = false then (1 : ℝ) else 0) =
+          1 - if φ c = true then 1 else 0 by cases φ c <;> norm_num,
+        expect_sub_distrib, h1, Fintype.expect_const]
       rfl
     · exact h1
   calc 𝔼 π : ι → κ, h (fun i => φ (π i))
       = 𝔼 π : ι → κ, ∑ a, h a * ∏ i, (if φ (π i) = a i then (1 : ℝ) else 0) :=
-        expect_congr rfl fun π _ => hh _
+        expect_congr rfl fun _ _ => by
+          simp only [prod_boole, mem_univ, forall_const, ← funext_iff, mul_ite, mul_one, mul_zero]
+          rw [Fintype.sum_ite_eq]
     _ = ∑ a, h a * ∏ i, 𝔼 c, (if φ c = a i then (1 : ℝ) else 0) := by
         rw [expect_sum_comm]
         exact sum_congr rfl fun a _ => by
@@ -120,9 +117,7 @@ private theorem comp_update_not {m : ℕ} (w : Fin m → Bool) (π : ι → Fin 
       (fun i => w (π i)) + fun i => decide (π i = j) := by
   funext i
   rw [Pi.add_apply, Bool.add_eq_xor]
-  by_cases h : π i = j
-  · simp only [h, Function.update_self, decide_true, Bool.xor_true]
-  · simp only [h, Function.update_of_ne h, decide_false, Bool.xor_false]
+  by_cases h : π i = j <;> simp [h]
 
 /-- **Noise sensitivity as average influence** [O'Donnell, proof of Theorem 5.35][ODonnell2014]:
 the noise sensitivity of `f` at `1 / m` is the average, over uniformly random strings `z` and maps
@@ -137,28 +132,19 @@ theorem noiseSensitivity_inv_eq_expect_totalInfluence (f : (ι → Bool) → Boo
   · simp only [Nat.cast_zero, inv_zero, noiseSensitivity_zero, zero_mul]
   have : NeZero m := ⟨hm.ne'⟩
   -- The probability that the noise `P` changes the value of `f` at a uniformly random point.
-  set H : (ι → Bool) → ℝ := fun P => 𝔼 x, if f x ≠ f (x + P) then 1 else 0 with hH
-  have hNS : noiseSensitivity (m : ℝ)⁻¹ f = bernoulliAverage (m : ℝ)⁻¹ H :=
-    (bernoulliAverage_expect_comm univ _ fun P x => if f x ≠ f (x + P) then (1 : ℝ) else 0).symm
-  -- The preimage of a block of a uniformly random map is a mask of rate `1 / m`.
-  have hblock (j : Fin m) :
-      𝔼 π : ι → Fin m, H (fun i => decide (π i = j)) = bernoulliAverage (m : ℝ)⁻¹ H := by
-    rw [expect_comp_eq_bernoulliAverage (fun c : Fin m => decide (c = j)) H]
-    congr 1
-    simp [filter_eq', dens_singleton]
+  set H : (ι → Bool) → ℝ := fun P => 𝔼 x, if f x ≠ f (x + P) then 1 else 0
   -- The influence of block `j` on `g_{z, π}` is the probability that negating it changes `f`.
   have hinf (z : ι → Bool) (π : ι → Fin m) :
       totalInfluence (fun w : Fin m → Bool => signVal (f (z + fun i => w (π i)))) =
         ∑ j, 𝔼 w : Fin m → Bool, (if f (z + fun i => w (π i)) ≠
-          f ((z + fun i => w (π i)) + fun i => decide (π i = j)) then 1 else 0) := by
-    refine sum_congr rfl fun j _ => ?_
-    rw [influence_signVal]
-    refine expect_congr rfl fun w _ => ?_
-    rw [comp_update_not, ← add_assoc]
-    by_cases h : f ((z + fun i => w (π i)) + fun i => decide (π i = j)) =
-      f (z + fun i => w (π i))
-    · simp only [h, ne_eq, not_true_eq_false, ↓reduceIte]
-    · simp only [h, Ne.symm h, ne_eq, not_false_eq_true, ↓reduceIte]
+          f ((z + fun i => w (π i)) + fun i => decide (π i = j)) then 1 else 0) :=
+    sum_congr rfl fun j _ => by
+      rw [influence_signVal]
+      refine expect_congr rfl fun w _ => ?_
+      rw [comp_update_not, ← add_assoc]
+      by_cases h : f ((z + fun i => w (π i)) + fun i => decide (π i = j)) =
+          f (z + fun i => w (π i)) <;>
+        simp only [h, Ne.symm, ne_eq, not_true_eq_false, not_false_eq_true, ↓reduceIte]
   -- Averaging over `z` first, the translate `z + w ∘ π` of `z` is uniformly random.
   have htrans (π : ι → Fin m) :
       𝔼 z : ι → Bool, totalInfluence
@@ -168,8 +154,16 @@ theorem noiseSensitivity_inv_eq_expect_totalInfluence (f : (ι → Bool) → Boo
     refine sum_congr rfl fun j _ => ?_
     rw [expect_comm]
     refine (expect_congr rfl fun w _ => ?_).trans (Fintype.expect_const _)
-    exact Fintype.expect_equiv (Equiv.addRight fun i => w (π i)) _ _ fun z => rfl
+    exact Fintype.expect_equiv (Equiv.addRight fun i => w (π i)) _ _ fun _ => rfl
+  have hNS : noiseSensitivity (m : ℝ)⁻¹ f = bernoulliAverage (m : ℝ)⁻¹ H :=
+    (bernoulliAverage_expect_comm univ _ fun P x => if f x ≠ f (x + P) then (1 : ℝ) else 0).symm
   rw [hNS, expect_comm, expect_congr rfl fun π _ => htrans π, expect_sum_comm]
+  -- The preimage of a block of a uniformly random map is a mask of rate `1 / m`.
+  have hblock (j : Fin m) :
+      𝔼 π : ι → Fin m, H (fun i => decide (π i = j)) = bernoulliAverage (m : ℝ)⁻¹ H := by
+    rw [expect_comp_eq_bernoulliAverage (fun c : Fin m => decide (c = j)) H]
+    congr 1
+    simp [filter_eq', dens_singleton]
   simp only [hblock, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]
   field_simp
 
@@ -184,24 +178,22 @@ theorem noiseSensitivity_le_div_of_totalInfluence_le {δ A : ℝ} (hδ : 0 < δ)
     (hA : ∀ (z : ι → Bool) (π : ι → Fin ⌊δ⁻¹⌋₊),
       totalInfluence (fun w : Fin ⌊δ⁻¹⌋₊ → Bool => signVal (f (z + fun i => w (π i)))) ≤ A) :
     noiseSensitivity δ f ≤ A / ⌊δ⁻¹⌋₊ := by
-  set m := ⌊δ⁻¹⌋₊ with hm
-  have h2 : (2 : ℝ) ≤ δ⁻¹ := by rw [le_inv_comm₀ two_pos hδ]; linarith
-  have hm2 : 2 ≤ m := Nat.le_floor (by exact_mod_cast h2)
+  set m := ⌊δ⁻¹⌋₊
+  have hm2 : 2 ≤ m := Nat.le_floor (by rw [Nat.cast_ofNat, le_inv_comm₀ two_pos hδ]; linarith)
   have hmpos : (0 : ℝ) < m := by exact_mod_cast (show 0 < m by omega)
-  have hmδ : (m : ℝ) ≤ δ⁻¹ := Nat.floor_le (inv_nonneg.2 hδ.le)
   have : NeZero m := ⟨by omega⟩
-  have hδm : δ ≤ (m : ℝ)⁻¹ := by rw [le_inv_comm₀ hδ hmpos]; exact hmδ
-  have hm' : (m : ℝ)⁻¹ ≤ 1 / 2 := by
-    rw [one_div]
-    exact inv_anti₀ two_pos (by exact_mod_cast hm2)
-  calc noiseSensitivity δ f ≤ noiseSensitivity (m : ℝ)⁻¹ f := noiseSensitivity_mono hδm hm' f
+  have hδm : δ ≤ (m : ℝ)⁻¹ := (le_inv_comm₀ hδ hmpos).2 (Nat.floor_le (inv_nonneg.2 hδ.le))
+  calc noiseSensitivity δ f
+      ≤ noiseSensitivity (m : ℝ)⁻¹ f :=
+        noiseSensitivity_mono hδm (one_div (2 : ℝ) ▸ inv_anti₀ two_pos (by exact_mod_cast hm2)) f
     _ = (m : ℝ)⁻¹ * 𝔼 z : ι → Bool, 𝔼 π : ι → Fin m,
         totalInfluence fun w : Fin m → Bool => signVal (f (z + fun i => w (π i))) :=
       noiseSensitivity_inv_eq_expect_totalInfluence f m
-    _ ≤ (m : ℝ)⁻¹ * A := by
-      refine mul_le_mul_of_nonneg_left ?_ (inv_nonneg.2 hmpos.le)
-      exact expect_le univ_nonempty fun z _ => expect_le univ_nonempty fun π _ => hA z π
-    _ = A / m := by rw [inv_mul_eq_div]
+    _ ≤ A / m := by
+      rw [div_eq_inv_mul]
+      exact mul_le_mul_of_nonneg_left
+        (expect_le univ_nonempty fun z _ => expect_le univ_nonempty fun π _ => hA z π)
+        (inv_nonneg.2 hmpos.le)
 
 /-- **Noise sensitivity from total influence** [O'Donnell, Theorem 5.35][ODonnell2014]: let `B` be
 a class of Boolean functions, `B n` on `n` bits, closed under negating, identifying and adding

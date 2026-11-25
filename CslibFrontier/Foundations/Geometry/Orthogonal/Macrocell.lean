@@ -117,17 +117,14 @@ theorem consecutivePairs_length_translate (v : Point) (r : Route) :
 
 /-- Translation preserves endpoint-only contact certificates. -/
 theorem endpointContacts_add_iff (v a b c d : Point) :
-    EndpointContacts (a + v) (b + v) (c + v) (d + v) ↔ EndpointContacts a b c d := by
-  constructor
-  · intro h p hp hq
-    have hh := h (p + realPoint v) ((mem_segment_translate_iff v a b p).2 hp)
-      ((mem_segment_translate_iff v c d p).2 hq)
-    simpa only [realPoint_add, add_left_inj] using hh
-  · intro h p hp hq
-    have hh := h (p - realPoint v)
+    EndpointContacts (a + v) (b + v) (c + v) (d + v) ↔ EndpointContacts a b c d :=
+  ⟨fun h p hp hq => by
+    simpa only [realPoint_add, add_left_inj] using h (p + realPoint v)
+      ((mem_segment_translate_iff v a b p).2 hp) ((mem_segment_translate_iff v c d p).2 hq),
+  fun h p hp hq => by
+    simpa only [sub_eq_iff_eq_add, realPoint_add] using h (p - realPoint v)
       ((mem_segment_translate_iff v a b _).1 (by simpa only [sub_add_cancel] using hp))
-      ((mem_segment_translate_iff v c d _).1 (by simpa only [sub_add_cancel] using hq))
-    simpa only [sub_eq_iff_eq_add, realPoint_add] using hh
+      ((mem_segment_translate_iff v c d _).1 (by simpa only [sub_add_cancel] using hq))⟩
 
 /-- Translation preserves continuous simplicity. -/
 theorem isSimple_translate_iff (v : Point) (r : Route) :
@@ -156,8 +153,8 @@ private theorem support_subset_convex {s : Set (ℝ × ℝ)} (hs : Convex ℝ s)
     {r : Route} (hr : ∀ a ∈ r, realPoint a ∈ s) : support r ⊆ s := by
   rintro p (⟨a, ha, rfl⟩ | ⟨e, he, hp⟩)
   · exact hr a ha
-  · have he' := List.of_mem_zip he
-    exact hs.segment_subset (hr e.1 he'.1) (hr e.2 (List.mem_of_mem_tail he'.2)) hp
+  · exact hs.segment_subset (hr e.1 (List.of_mem_zip he).1)
+      (hr e.2 (List.mem_of_mem_tail (List.of_mem_zip he).2)) hp
 
 /-- Bounds on the listed vertices control the entire continuous support in an open cell. -/
 theorem support_subset_openCell {r : ℤ} {c : Point} {a : Route}
@@ -199,9 +196,8 @@ theorem cell_eq_of_mem_open_closed {r : ℤ} (hr : 0 < r) {c d : Point} {p : ℝ
 
 /-- Distinct cells have no real contact between an open cell and a closed cell. -/
 theorem disjoint_openCell_closedCell {r : ℤ} (hr : 0 < r) {c d : Point} (hcd : c ≠ d) :
-    Disjoint (openCell r c) (closedCell r d) := by
-  rw [Set.disjoint_left]
-  exact fun _ hc hd => hcd (cell_eq_of_mem_open_closed hr hc hd)
+    Disjoint (openCell r c) (closedCell r d) :=
+  Set.disjoint_left.2 fun _ hc hd => hcd (cell_eq_of_mem_open_closed hr hc hd)
 
 /-- Distinct open cells are disjoint in the real plane. -/
 theorem disjoint_openCell {r : ℤ} (hr : 0 < r) {c d : Point} (hcd : c ≠ d) :
@@ -257,8 +253,8 @@ theorem mem_openCell_add_origin_iff (r : ℤ) (c : Point) (p : ℝ × ℝ) :
       0 < p.1 ∧ p.1 < (2 * r : ℤ) ∧ 0 < p.2 ∧ p.2 < (2 * r : ℤ) := by
   simp only [openCell, Set.mem_ofPred_eq, realPoint, cellOrigin, Prod.fst_add, Prod.snd_add]
   push_cast
-  constructor <;> rintro ⟨h₁, h₂, h₃, h₄⟩ <;>
-    refine ⟨?_, ?_, ?_, ?_⟩ <;> linarith
+  exact ⟨fun ⟨h₁, h₂, h₃, h₄⟩ => ⟨by linarith, by linarith, by linarith, by linarith⟩,
+    fun ⟨h₁, h₂, h₃, h₄⟩ => ⟨by linarith, by linarith, by linarith, by linarith⟩⟩
 
 /-- Translating a point from the closed local square puts it in the corresponding grid cell. -/
 theorem mem_closedCell_add_origin_iff (r : ℤ) (c : Point) (p : ℝ × ℝ) :
@@ -266,8 +262,8 @@ theorem mem_closedCell_add_origin_iff (r : ℤ) (c : Point) (p : ℝ × ℝ) :
       0 ≤ p.1 ∧ p.1 ≤ (2 * r : ℤ) ∧ 0 ≤ p.2 ∧ p.2 ≤ (2 * r : ℤ) := by
   simp only [closedCell, Set.mem_ofPred_eq, realPoint, cellOrigin, Prod.fst_add, Prod.snd_add]
   push_cast
-  constructor <;> rintro ⟨h₁, h₂, h₃, h₄⟩ <;>
-    refine ⟨?_, ?_, ?_, ?_⟩ <;> linarith
+  exact ⟨fun ⟨h₁, h₂, h₃, h₄⟩ => ⟨by linarith, by linarith, by linarith, by linarith⟩,
+    fun ⟨h₁, h₂, h₃, h₄⟩ => ⟨by linarith, by linarith, by linarith, by linarith⟩⟩
 
 /-- Positive-radius cells have an interior center, at the translated point `(r,r)`. -/
 theorem center_mem_openCell {r : ℤ} (hr : 0 < r) (c : Point) :

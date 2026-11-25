@@ -130,31 +130,29 @@ private theorem range_eq_of (ht : 2 ≤ t) (lo hi : α) :
     rw [range_leaf, toList_leaf]
     exact SortedAssoc.idRun_rangeM (by simpa using hs) lo hi
   | .node first [], hp, hs, ho => by
-    have hf : Occupied t first := ho first (by simp)
-    rw [range_node_nil,
-      range_eq_of ht lo hi first hp.first (by simpa using hs) fun c hc => hf.of_mem_children hc]
+    rw [range_node_nil, range_eq_of ht lo hi first hp.first (by simpa using hs)
+      fun c hc => (ho first (by simp)).of_mem_children hc]
     simp
   | .node first ((s, c) :: rest), hp, hs, ho => by
-    have hf : Occupied t first := ho first (by simp)
-    have hc : Occupied t c := ho c (by simp)
     have hs' := hs
     rw [toList_node_cons, List.isSortedAssoc_append_iff] at hs'
     rw [range_node_cons, toList_node_cons, SortedAssoc.range_append]
     congr 1
     · by_cases h₁ : s ≤ lo
       · simp only [h₁, ↓reduceIte]
-        exact (SortedAssoc.range_eq_nil_iff.2 fun p hp' => Or.inl (lt_of_lt_of_le
+        exact (SortedAssoc.range_eq_nil_iff.2 fun _ hp' => Or.inl (lt_of_lt_of_le
           (hp.lt_of_mem_first (e := (s, c)) List.mem_cons_self hp') h₁)).symm
       · simp only [h₁, ↓reduceIte]
-        exact range_eq_of ht lo hi first hp.first hs'.1 fun d hd => hf.of_mem_children hd
+        exact range_eq_of ht lo hi first hp.first hs'.1
+          fun d hd => (ho first (by simp)).of_mem_children hd
     · by_cases h₂ : s ≤ hi
       · simp only [h₂, ↓reduceIte]
         exact range_eq_of ht lo hi (.node c rest) hp.tail hs'.2.1 fun d hd => ho d (by
           simp only [children_node, List.map_cons, List.mem_cons] at hd ⊢
           exact Or.inr hd)
       · simp only [h₂, ↓reduceIte]
-        exact (SortedAssoc.range_eq_nil_iff.2 fun q hq => Or.inr (lt_of_lt_of_le
-          (lt_of_not_ge h₂) (hp.le_of_mem_tail hs (hc.size_pos ht) hq))).symm
+        exact (SortedAssoc.range_eq_nil_iff.2 fun _ hq => Or.inr (lt_of_lt_of_le (lt_of_not_ge h₂)
+          (hp.le_of_mem_tail hs ((ho c (by simp)).size_pos ht) hq))).symm
 termination_by tr => sizeOf tr
 
 /-- Model equation of range restriction on well-formed trees. -/
@@ -168,20 +166,18 @@ theorem Occupied.ne_nil_of_mem_leaves (ht : 2 ≤ t) (ho : Occupied t tr) :
     ∀ l ∈ tr.leaves, l ≠ [] := by
   induction tr with
   | leaf entries =>
-    intro l hl
+    rintro l hl
+    obtain rfl : l = entries := by simpa [leaves_leaf] using hl
     have := ho.le_width
-    simp only [leaves_leaf, List.mem_singleton] at hl
     simp only [width_leaf] at this
-    subst hl
     exact List.ne_nil_of_length_pos (by omega)
   | node first rest ih₁ ih₂ =>
     intro l hl
     simp only [leaves_node, leavesRest_eq_flatMap, List.mem_append, List.mem_flatMap] at hl
     rcases hl with hl | ⟨e, he, hl⟩
     · exact ih₁ ho.first l hl
-    · exact ih₂ e he (ho.of_mem_children (by
-        simp only [children_node, List.mem_cons, List.mem_map]
-        exact Or.inr ⟨e, he, rfl⟩)) l hl
+    · exact ih₂ e he
+        (ho.of_mem_children (List.mem_cons_of_mem _ (List.mem_map_of_mem he))) l hl
 
 /-- On a well-formed tree, the output of a range query is the restriction of a contiguous run of
 leaves in which every leaf contributes and every leaf other than the first and last is returned
@@ -196,17 +192,15 @@ theorem range_eq_flatten_run (h : IsWF t tr) (lo hi : α) :
   · exact SortedAssoc.exists_run_range_flatten h.sorted hne lo hi
   · cases tr with
     | leaf entries =>
-      have he : entries = [] := by simpa using hne
-      subst he
+      obtain rfl : entries = [] := by simpa using hne
       exact ⟨[[]], [], [], by simp, by simp, by simp, by simp⟩
     | node first rest =>
       refine absurd (fun l hl => ?_) hne
       simp only [leaves_node, leavesRest_eq_flatMap, List.mem_append, List.mem_flatMap] at hl
       rcases hl with hl | ⟨e, he, hl⟩
       · exact (h.occupied_of_mem_children first (by simp)).ne_nil_of_mem_leaves h.two_le l hl
-      · exact (h.occupied_of_mem_children e.child (by
-          simp only [children_node, List.mem_cons, List.mem_map]
-          exact Or.inr ⟨e, he, rfl⟩)).ne_nil_of_mem_leaves h.two_le l hl
+      · exact (h.occupied_of_mem_children e.child
+          (List.mem_cons_of_mem _ (List.mem_map_of_mem he))).ne_nil_of_mem_leaves h.two_le l hl
 
 end Pure
 

@@ -325,39 +325,30 @@ theorem exists_modRegret_univ_eq_sub_one {N : ℕ} (hN : 2 ≤ N) :
     field_simp
   · intro _ _ i
     dsimp only [ℓ]
-    split_ifs with h
-    · exact Or.inl rfl
-    · exact Or.inr rfl
+    split_ifs <;> simp
   · apply le_antisymm
     · rw [modRegret_internalRules_le_iff]
       intro a b
       rw [hterm a b]
       split_ifs <;> norm_num
-    · let a₁ : Fin N := ⟨1, by omega⟩
-      have ha₁ : a₁ ≠ 0 := by simp only [a₁, ne_eq, Fin.ext_iff, Fin.val_zero, one_ne_zero,
-        not_false_eq_true]
-      have hle := sub_le_modRegret (F := internalRules (Fin N)) p ℓ N ⟨a₁, 0, rfl⟩
-      rw [sub_loss_update_id, hterm a₁ 0] at hle
-      simpa only [ha₁, ↓reduceIte, sub_zero] using hle
+    · have hle := sub_le_modRegret (F := internalRules (Fin N)) p ℓ N ⟨⟨1, by omega⟩, 0, rfl⟩
+      rw [sub_loss_update_id, hterm] at hle
+      simpa [Fin.ext_iff] using hle
   · rw [modRegret_univ_eq_sum_sup]
-    have hsup : ∀ i : Fin N,
+    have hsup (i : Fin N) :
         univ.sup' univ_nonempty (fun j => ∑ t ∈ range N, p t i * (ℓ t i - ℓ t j)) =
-          if i = 0 then 0 else 1 := fun i => by
+          if i = 0 then 0 else 1 := by
       apply le_antisymm
       · refine Finset.sup'_le _ _ fun j _ => ?_
-        rw [hterm i j]
+        rw [hterm]
         split_ifs <;> norm_num
-      · have h0 := le_sup' (fun j => ∑ t ∈ range N, p t i * (ℓ t i - ℓ t j)) (mem_univ (0 : Fin N))
-        rw [hterm i 0] at h0
-        simpa only [↓reduceIte, sub_zero] using h0
-    simp only [hsup]
-    rw [← add_sum_erase _ _ (mem_univ (0 : Fin N))]
-    simp only [↓reduceIte, zero_add]
-    have herase : ∑ i ∈ univ.erase (0 : Fin N), (if i = 0 then (0 : ℝ) else 1) =
-        ∑ _i ∈ univ.erase (0 : Fin N), (1 : ℝ) :=
-      sum_congr rfl fun i hi => by simp only [ne_of_mem_erase hi, ↓reduceIte]
-    rw [herase, sum_const, card_erase_of_mem (mem_univ _), card_univ, Fintype.card_fin,
-      nsmul_eq_mul, mul_one, Nat.cast_sub (by omega), Nat.cast_one]
+      · have h0 :=
+          le_sup' (fun j => ∑ t ∈ range N, p t i * (ℓ t i - ℓ t j)) (mem_univ (0 : Fin N))
+        rwa [hterm, ite_eq_left rfl, sub_zero] at h0
+    simp only [hsup, ← add_sum_erase _ _ (mem_univ (0 : Fin N)), ↓reduceIte, zero_add]
+    rw [sum_congr rfl fun i hi => ite_eq_right (ne_of_mem_erase hi), sum_const,
+      card_erase_of_mem (mem_univ _), card_univ, Fintype.card_fin, nsmul_eq_mul, mul_one,
+      Nat.cast_sub (by omega), Nat.cast_one]
 
 /-! ### Exercise 4.2: Unbounded swap-to-external regret ratio for `N = 3` -/
 
@@ -400,55 +391,42 @@ private theorem sum_range_six_mul_of_periodic {g : ℕ → ℝ} (hg : ∀ t, g (
 
 private theorem ex42Play_binary (t : ℕ) (i : Fin 3) :
     ex42Play t i = 0 ∨ ex42Play t i = 1 := by
-  have hmod : t % 6 < 6 := Nat.mod_lt t (by decide)
-  generalize hq : t % 6 = q at hmod
   unfold ex42Play
-  rw [hq]
-  interval_cases q <;> fin_cases i <;> simp
+  have := Nat.mod_lt t (by decide : 0 < 6)
+  interval_cases t % 6 <;> fin_cases i <;> simp
 
 private theorem ex42Play_nonneg (t : ℕ) (i : Fin 3) : 0 ≤ ex42Play t i := by
   rcases ex42Play_binary t i with h0 | h1 <;> linarith
 
 private theorem ex42Play_sum (t : ℕ) : ∑ i : Fin 3, ex42Play t i = 1 := by
-  have hmod : t % 6 < 6 := Nat.mod_lt t (by decide)
-  generalize hq : t % 6 = q at hmod
   unfold ex42Play
-  rw [hq]
-  interval_cases q <;> norm_num [Fin.sum_univ_three]
+  have := Nat.mod_lt t (by decide : 0 < 6)
+  interval_cases t % 6 <;> norm_num [Fin.sum_univ_three]
 
 private theorem ex42Loss_binary (t : ℕ) (i : Fin 3) :
     ex42Loss t i = 0 ∨ ex42Loss t i = 1 := by
-  have hmod : t % 6 < 6 := Nat.mod_lt t (by decide)
-  generalize hq : t % 6 = q at hmod
   unfold ex42Loss
-  rw [hq]
-  interval_cases q <;> fin_cases i <;> simp
+  have := Nat.mod_lt t (by decide : 0 < 6)
+  interval_cases t % 6 <;> fin_cases i <;> simp
 
 private theorem ex42Loss_nonneg (t : ℕ) (i : Fin 3) : 0 ≤ ex42Loss t i := by
   rcases ex42Loss_binary t i with h0 | h1 <;> linarith
 
 private theorem ex42_learner_six_mul (m : ℕ) :
     ∑ t ∈ range (6 * m), ∑ i : Fin 3, ex42Play t i * ex42Loss t i = 3 * (m : ℝ) := by
-  rw [sum_range_six_mul_of_periodic (fun t => by simp only [ex42Play_add_six, ex42Loss_add_six])]
-  have h6 : (∑ r ∈ range 6, ∑ i : Fin 3, ex42Play r i * ex42Loss r i) = 3 := by
-    norm_num [sum_range_succ, Fin.sum_univ_three, ex42Play, ex42Loss]
-  rw [h6]
+  rw [sum_range_six_mul_of_periodic fun t => by simp only [ex42Play_add_six, ex42Loss_add_six]]
+  norm_num [sum_range_succ, Fin.sum_univ_three, ex42Play, ex42Loss]
   ring
 
 private theorem ex42_action_six_mul (m : ℕ) (j : Fin 3) :
     ∑ t ∈ range (6 * m), ex42Loss t j = 3 * (m : ℝ) := by
-  rw [sum_range_six_mul_of_periodic (fun t => by simp only [ex42Loss_add_six])]
-  have h6 : (∑ r ∈ range 6, ex42Loss r j) = 3 := by
-    fin_cases j <;> norm_num [sum_range_succ, ex42Loss]
-  rw [h6]
-  ring
+  rw [sum_range_six_mul_of_periodic fun t => congrFun (ex42Loss_add_six t) j]
+  fin_cases j <;> norm_num [sum_range_succ, ex42Loss] <;> ring
 
 private theorem ex42_shift_six_mul (m : ℕ) :
     ∑ t ∈ range (6 * m), ∑ i : Fin 3, ex42Play t i * ex42Loss t (![1, 2, 0] i) = 0 := by
-  rw [sum_range_six_mul_of_periodic (fun t => by simp only [ex42Play_add_six, ex42Loss_add_six])]
-  have h6 : (∑ r ∈ range 6, ∑ i : Fin 3, ex42Play r i * ex42Loss r (![1, 2, 0] i)) = 0 := by
-    norm_num [sum_range_succ, Fin.sum_univ_three, ex42Play, ex42Loss]
-  rw [h6, mul_zero]
+  rw [sum_range_six_mul_of_periodic fun t => by simp only [ex42Play_add_six, ex42Loss_add_six]]
+  norm_num [sum_range_succ, Fin.sum_univ_three, ex42Play, ex42Loss]
 
 /-- **Zero external regret with arbitrarily large swap regret for `N = 3`**
 [BlumMansour2007AGT, Exercise 4.2, p. 101]: for every `m : ℕ`, over `T = 6 * m` rounds on `Fin 3`
@@ -697,38 +675,25 @@ theorem exists_nonpos_external_regret_dominated_weight {ε : ℝ}
       simp only [ℓ, he, ↓reduceIte, show ¬ (2 : Fin 3) = 0 by decide,
         show ¬ (2 : Fin 3) = 1 by decide] <;>
       linarith
-  · rw [modRegret_range_const (fun t _ => hp_sum t), sub_nonpos]
-    have h0_odd : ∀ k : ℕ, (2 * k + 1) % 2 = 1 := fun k => by omega
+  · have h0_odd (k : ℕ) : (2 * k + 1) % 2 = 1 := by omega
     have hloss : ∑ t ∈ range (2 * m), ∑ i : Fin 3, p t i * ℓ t i = (m : ℝ) * (ε + 0) :=
       hpair _ ε 0
         (fun k => by norm_num [p, ℓ, Nat.mul_mod_right, Fin.sum_univ_three])
         (fun k => by norm_num [p, ℓ, h0_odd k, Fin.sum_univ_three])
-    have hc0 : ∑ t ∈ range (2 * m), ℓ t 0 = (m : ℝ) * (0 + (1 - ε)) :=
-      hpair (fun t => ℓ t 0) 0 (1 - ε)
-        (fun k => by simp only [ℓ, Nat.mul_mod_right, ↓reduceIte])
-        (fun k => by simp only [ℓ, h0_odd k, one_ne_zero, ↓reduceIte])
-    have hc1 : ∑ t ∈ range (2 * m), ℓ t 1 = (m : ℝ) * (1 + 0) :=
-      hpair (fun t => ℓ t 1) 1 0
-        (fun k => by simp only [ℓ, Nat.mul_mod_right, ↓reduceIte, one_ne_zero])
-        (fun k => by simp only [ℓ, h0_odd k, one_ne_zero, ↓reduceIte])
-    have hc2 : ∑ t ∈ range (2 * m), ℓ t 2 = (m : ℝ) * (ε + 1) :=
-      hpair (fun t => ℓ t 2) ε 1
-        (fun k => by simp only [ℓ, Nat.mul_mod_right, ↓reduceIte,
-          show ¬ (2 : Fin 3) = 0 by decide, show ¬ (2 : Fin 3) = 1 by decide])
-        (fun k => by simp only [ℓ, h0_odd k, one_ne_zero, ↓reduceIte,
-          show ¬ (2 : Fin 3) = 0 by decide, show ¬ (2 : Fin 3) = 1 by decide])
-    rw [hloss]
+    rw [modRegret_range_const (fun t _ => hp_sum t), sub_nonpos, hloss]
     refine le_minCumLoss_iff.mpr fun i => ?_
+    have hli : ∑ t ∈ range (2 * m), ℓ t i = (m : ℝ) * (ℓ 0 i + ℓ 1 i) :=
+      hpair (fun t => ℓ t i) (ℓ 0 i) (ℓ 1 i)
+        (fun k => by simp [ℓ, Nat.mul_mod_right])
+        (fun k => by simp [ℓ, h0_odd k])
+    rw [hli]
     have hm : (0 : ℝ) ≤ m := Nat.cast_nonneg m
-    rcases show i = 0 ∨ i = 1 ∨ i = 2 by omega with rfl | rfl | rfl
-    · rw [hc0]; nlinarith
-    · rw [hc1]; nlinarith
-    · rw [hc2]; nlinarith
-  · have h0_odd : ∀ k : ℕ, (2 * k + 1) % 2 = 1 := fun k => by omega
-    have hw := hpair (fun t => p t 2) 1 0
-      (fun k => by simp only [p, Nat.mul_mod_right, ↓reduceIte])
-      (fun k => by simp only [p, h0_odd k, one_ne_zero, ↓reduceIte,
-        show ¬ (2 : Fin 3) = 1 by decide])
+    fin_cases i <;> simp [ℓ] <;> nlinarith
+  · have h0_odd (k : ℕ) : (2 * k + 1) % 2 = 1 := by omega
+    have hw : ∑ t ∈ range (2 * m), p t 2 = (m : ℝ) * (1 + 0) :=
+      hpair (fun t => p t 2) 1 0
+        (fun k => by simp [p, Nat.mul_mod_right])
+        (fun k => by simp [p, h0_odd k])
     linarith
 
 end Cslib.MachineLearning.OnlineLearning.Experts

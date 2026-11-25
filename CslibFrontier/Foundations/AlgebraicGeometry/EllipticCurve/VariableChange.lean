@@ -49,23 +49,14 @@ theorem variableChange_equation_iff (C : VariableChange F) (W : WeierstrassCurve
     (x y : F) :
     (C • W).toAffine.Equation x y ↔
       W.toAffine.Equation (C.u ^ 2 * x + C.r) (C.u ^ 3 * y + C.u ^ 2 * C.s * x + C.t) := by
+  have hu : (C.u : F) ≠ 0 := C.u.ne_zero
   simp only [Affine.equation_iff]
-  change y ^ 2 + (C • W).a₁ * x * y + (C • W).a₃ * y =
-      x ^ 3 + (C • W).a₂ * x ^ 2 + (C • W).a₄ * x + (C • W).a₆ ↔
-    (C.u ^ 3 * y + C.u ^ 2 * C.s * x + C.t) ^ 2 +
-        W.a₁ * (C.u ^ 2 * x + C.r) * (C.u ^ 3 * y + C.u ^ 2 * C.s * x + C.t) +
-        W.a₃ * (C.u ^ 3 * y + C.u ^ 2 * C.s * x + C.t) =
-      (C.u ^ 2 * x + C.r) ^ 3 + W.a₂ * (C.u ^ 2 * x + C.r) ^ 2 +
-        W.a₄ * (C.u ^ 2 * x + C.r) + W.a₆
+  dsimp only [WeierstrassCurve.toAffine]
   simp only [variableChange_a₁, variableChange_a₂, variableChange_a₃, variableChange_a₄,
     variableChange_a₆, Units.val_inv_eq_inv_val]
-  have hu : (C.u : F) ≠ 0 := C.u.ne_zero
-  constructor <;> intro h
-  · have h6 := congr_arg ((C.u : F) ^ 6 * ·) h
-    field_simp at h6
-    linear_combination h6
-  · field_simp
-    linear_combination h
+  refine ⟨fun h => ?_, fun h => by field_simp; linear_combination h⟩
+  have h6 := congr_arg ((C.u : F) ^ 6 * ·) h
+  field_simp at h6; linear_combination h6
 
 private lemma variableChange_polynomialY (C : VariableChange F) (W : WeierstrassCurve F)
     (x y : F) :
@@ -73,14 +64,11 @@ private lemma variableChange_polynomialY (C : VariableChange F) (W : Weierstrass
       (C.u : F)⁻¹ ^ 3 *
         W.toAffine.polynomialY.evalEval (C.u ^ 2 * x + C.r)
           (C.u ^ 3 * y + C.u ^ 2 * C.s * x + C.t) := by
-  simp only [Affine.evalEval_polynomialY]
-  change 2 * y + (C • W).a₁ * x + (C • W).a₃ =
-    (C.u : F)⁻¹ ^ 3 * (2 * (C.u ^ 3 * y + C.u ^ 2 * C.s * x + C.t) +
-      W.a₁ * (C.u ^ 2 * x + C.r) + W.a₃)
-  simp only [variableChange_a₁, variableChange_a₃, Units.val_inv_eq_inv_val]
   have hu : (C.u : F) ≠ 0 := C.u.ne_zero
-  field_simp
-  ring
+  simp only [Affine.evalEval_polynomialY]
+  dsimp only [WeierstrassCurve.toAffine]
+  simp only [variableChange_a₁, variableChange_a₃, Units.val_inv_eq_inv_val]
+  field_simp; ring
 
 private lemma variableChange_polynomialX (C : VariableChange F) (W : WeierstrassCurve F)
     (x y : F) :
@@ -90,16 +78,11 @@ private lemma variableChange_polynomialX (C : VariableChange F) (W : Weierstrass
             (C.u ^ 3 * y + C.u ^ 2 * C.s * x + C.t) +
           C.s * W.toAffine.polynomialY.evalEval (C.u ^ 2 * x + C.r)
             (C.u ^ 3 * y + C.u ^ 2 * C.s * x + C.t)) := by
-  simp only [Affine.evalEval_polynomialX, Affine.evalEval_polynomialY]
-  change (C • W).a₁ * y - (3 * x ^ 2 + 2 * (C • W).a₂ * x + (C • W).a₄) =
-    (C.u : F)⁻¹ ^ 4 * ((W.a₁ * (C.u ^ 3 * y + C.u ^ 2 * C.s * x + C.t) -
-      (3 * (C.u ^ 2 * x + C.r) ^ 2 + 2 * W.a₂ * (C.u ^ 2 * x + C.r) + W.a₄)) +
-      C.s * (2 * (C.u ^ 3 * y + C.u ^ 2 * C.s * x + C.t) +
-        W.a₁ * (C.u ^ 2 * x + C.r) + W.a₃))
-  simp only [variableChange_a₁, variableChange_a₂, variableChange_a₄, Units.val_inv_eq_inv_val]
   have hu : (C.u : F) ≠ 0 := C.u.ne_zero
-  field_simp
-  ring
+  simp only [Affine.evalEval_polynomialX, Affine.evalEval_polynomialY]
+  dsimp only [WeierstrassCurve.toAffine]
+  simp only [variableChange_a₁, variableChange_a₂, variableChange_a₄, Units.val_inv_eq_inv_val]
+  field_simp; ring
 
 /-- An affine point `(x, y)` is nonsingular on `C • W` if and only if
 `(C.u ^ 2 * x + C.r, C.u ^ 3 * y + C.u ^ 2 * C.s * x + C.t)` is nonsingular on `W`. -/
@@ -112,18 +95,15 @@ theorem variableChange_nonsingular_iff (C : VariableChange F) (W : WeierstrassCu
     variableChange_polynomialY]
   refine and_congr_right fun _ ↦ ?_
   by_cases hY : W.toAffine.polynomialY.evalEval (↑C.u ^ 2 * x + C.r)
-      (↑C.u ^ 3 * y + ↑C.u ^ 2 * C.s * x + C.t) = 0 <;>
-    simp [hY]
+      (↑C.u ^ 3 * y + ↑C.u ^ 2 * C.s * x + C.t) = 0 <;> simp [hY]
 
 private lemma variableChange_negY (C : VariableChange F) (W : WeierstrassCurve F) (x y : F) :
     C.u ^ 3 * (C • W).toAffine.negY x y + C.u ^ 2 * C.s * x + C.t =
       W.toAffine.negY (C.u ^ 2 * x + C.r) (C.u ^ 3 * y + C.u ^ 2 * C.s * x + C.t) := by
-  change C.u ^ 3 * (-y - (C • W).a₁ * x - (C • W).a₃) + C.u ^ 2 * C.s * x + C.t =
-    -(C.u ^ 3 * y + C.u ^ 2 * C.s * x + C.t) - W.a₁ * (C.u ^ 2 * x + C.r) - W.a₃
-  simp only [variableChange_a₁, variableChange_a₃, Units.val_inv_eq_inv_val]
   have hu : (C.u : F) ≠ 0 := C.u.ne_zero
-  field_simp
-  ring
+  dsimp only [Affine.negY, WeierstrassCurve.toAffine]
+  simp only [variableChange_a₁, variableChange_a₃, Units.val_inv_eq_inv_val]
+  field_simp; ring
 
 private lemma variableChange_eq_and_negY_iff (C : VariableChange F) (W : WeierstrassCurve F)
     (x₁ x₂ y₁ y₂ : F) :
@@ -133,15 +113,10 @@ private lemma variableChange_eq_and_negY_iff (C : VariableChange F) (W : Weierst
             (C.u ^ 3 * y₂ + C.u ^ 2 * C.s * x₂ + C.t)) ↔
       (x₁ = x₂ ∧ y₁ = (C • W).toAffine.negY x₂ y₂) := by
   have hu : (C.u : F) ≠ 0 := C.u.ne_zero
-  constructor
-  · rintro ⟨hx, hy⟩
-    have hx' : x₁ = x₂ := mul_left_cancel₀ (pow_ne_zero 2 hu) (add_right_cancel hx)
-    refine ⟨hx', ?_⟩
-    subst hx'
-    rw [← variableChange_negY] at hy
-    exact mul_left_cancel₀ (pow_ne_zero 3 hu) (add_right_cancel (add_right_cancel hy))
-  · rintro ⟨rfl, hy⟩
-    exact ⟨rfl, by rw [hy, variableChange_negY]⟩
+  refine ⟨fun ⟨hx, hy⟩ => ?_, fun ⟨rfl, hy⟩ => ⟨rfl, by rw [hy, variableChange_negY]⟩⟩
+  obtain rfl : x₁ = x₂ := mul_left_cancel₀ (pow_ne_zero 2 hu) (add_right_cancel hx)
+  exact ⟨rfl, mul_left_cancel₀ (pow_ne_zero 3 hu)
+    (add_right_cancel (add_right_cancel (hy.trans (variableChange_negY C W x₁ y₂).symm)))⟩
 
 private lemma variableChange_slope [DecidableEq F] (C : VariableChange F) (W : WeierstrassCurve F)
     {x₁ x₂ y₁ y₂ : F} (h₁ : (C • W).toAffine.Equation x₁ y₁)
@@ -162,27 +137,18 @@ private lemma variableChange_slope [DecidableEq F] (C : VariableChange F) (W : W
     rw [Affine.slope_of_Y_ne_eq_evalEval rfl hy, Affine.slope_of_Y_ne_eq_evalEval rfl hy',
       variableChange_polynomialX, variableChange_polynomialY, Units.val_inv_eq_inv_val]
     have hpy : W.toAffine.polynomialY.evalEval (C.u ^ 2 * x₁ + C.r)
-        (C.u ^ 3 * y₁ + C.u ^ 2 * C.s * x₁ + C.t) ≠ 0 := by
-      rw [Affine.evalEval_polynomialY]
-      intro h0
-      apply hy'
-      change C.u ^ 3 * y₁ + C.u ^ 2 * C.s * x₁ + C.t =
-        -(C.u ^ 3 * y₁ + C.u ^ 2 * C.s * x₁ + C.t) - W.a₁ * (C.u ^ 2 * x₁ + C.r) - W.a₃
-      change 2 * (C.u ^ 3 * y₁ + C.u ^ 2 * C.s * x₁ + C.t) +
-        W.a₁ * (C.u ^ 2 * x₁ + C.r) + W.a₃ = 0 at h0
-      linear_combination h0
-    generalize W.toAffine.polynomialX.evalEval _ _ = px
-    generalize W.toAffine.polynomialY.evalEval _ _ = py at hpy ⊢
-    field_simp
-    ring
+        (C.u ^ 3 * y₁ + C.u ^ 2 * C.s * x₁ + C.t) ≠ 0 := fun h0 => hy' <| by
+      rw [Affine.evalEval_polynomialY] at h0
+      dsimp only [Affine.negY, WeierstrassCurve.toAffine] at h0 ⊢; linear_combination h0
+    generalize W.toAffine.polynomialX.evalEval _ _ = px,
+      W.toAffine.polynomialY.evalEval _ _ = py at hpy ⊢
+    field_simp; ring
   · have hx' : (C.u : F) ^ 2 * x₁ + C.r ≠ C.u ^ 2 * x₂ + C.r :=
       fun h ↦ hx (mul_left_cancel₀ (pow_ne_zero 2 hu) (add_right_cancel h))
-    rw [Affine.slope_of_X_ne hx, Affine.slope_of_X_ne hx', Units.val_inv_eq_inv_val]
-    have hd1 : x₁ - x₂ ≠ 0 := sub_ne_zero_of_ne hx
-    have hsub : (↑C.u ^ 2 * x₁ + C.r) - (↑C.u ^ 2 * x₂ + C.r) = ↑C.u ^ 2 * (x₁ - x₂) := by ring
-    rw [hsub]
-    field_simp
-    ring
+    rw [Affine.slope_of_X_ne hx, Affine.slope_of_X_ne hx', Units.val_inv_eq_inv_val,
+      show (↑C.u ^ 2 * x₁ + C.r) - (↑C.u ^ 2 * x₂ + C.r) = ↑C.u ^ 2 * (x₁ - x₂) by ring]
+    have := sub_ne_zero_of_ne hx
+    field_simp; ring
 
 /-- The additive group equivalence `(C • W).toAffine.Point ≃+ W.toAffine.Point` sending
 `(x, y) ↦ (C.u ^ 2 * x + C.r, C.u ^ 3 * y + C.u ^ 2 * C.s * x + C.t)` and `0 ↦ 0`. -/

@@ -114,9 +114,8 @@ theorem multiplicationMatrix_trace_pow (d : ℕ) (hd : 1 ≤ d)
         residue (d + 1) r (v ^ k * jacobian (d + 1) r) := by
   classical
   rw [← map_pow]
-  change (Algebra.leftMulMatrix (normalBasis _ r _) (projection (d + 1) r (v ^ k))).trace = _
-  rw [← Algebra.trace_eq_matrix_trace]
-  exact trace_eq_residue d hd r hr (v ^ k)
+  exact (Algebra.trace_eq_matrix_trace (normalBasis _ r _)
+    (projection (d + 1) r (v ^ k))).symm.trans (trace_eq_residue d hd r hr (v ^ k))
 
 /-- Source matrix power traces specialize to the same finite residue formula. No change of
 basis between source and specialized quotient presentations is needed. -/
@@ -141,19 +140,16 @@ theorem isRoot_charpoly_multiplicationMatrix_of_aeval_eq (hell : 1 ≤ ell)
     (v : MvPolynomial (Fin n) S) (x : Fin n → S) (hx : ∀ i, aeval x (r i) = x i ^ ell) :
     (multiplicationMatrix hell r hr v).charpoly.IsRoot (aeval x v) := by
   classical
-  have hker : relationIdeal ell r ≤ RingHom.ker (aeval x).toRingHom := by
-    apply Ideal.span_le.mpr
+  have hker : relationIdeal ell r ≤ RingHom.ker (aeval x).toRingHom := Ideal.span_le.mpr <| by
     rintro _ ⟨i, rfl⟩
     change aeval x (X i ^ ell - r i) = 0
     simp only [map_sub, map_pow, aeval_X, hx, sub_self]
-  let ev := Ideal.Quotient.liftₐ (relationIdeal ell r) (aeval x) (fun _ h => hker h)
+  let ev := Ideal.Quotient.liftₐ (relationIdeal ell r) (aeval x) fun _ h => hker h
   have hev : ev (projection ell r v) = aeval x v :=
-    congrArg (fun f : MvPolynomial (Fin n) S →ₐ[S] S => f v)
-      (Ideal.Quotient.liftₐ_comp (relationIdeal ell r) (aeval x) (fun _ h => hker h))
-  have hc : Polynomial.aeval (projection ell r v) (multiplicationMatrix hell r hr v).charpoly = 0 :=
-    Algebra.aeval_charpoly_leftMulMatrix (normalBasis hell r hr) (projection ell r v)
-  rw [Polynomial.IsRoot.def, ← Polynomial.coe_aeval_eq_eval, ← hev,
-    Polynomial.aeval_algHom_apply, hc, map_zero]
+    DFunLike.congr_fun
+      (Ideal.Quotient.liftₐ_comp (relationIdeal ell r) (aeval x) fun _ h => hker h) v
+  rw [Polynomial.IsRoot.def, ← Polynomial.coe_aeval_eq_eval, ← hev, Polynomial.aeval_algHom_apply,
+    multiplicationMatrix, AlgHom.comp_apply, Algebra.aeval_charpoly_leftMulMatrix, map_zero]
 
 /-- A simple characteristic root of the multiplication matrix is the value of the
 multiplier at a common zero of the normalized relations over the coefficient field. -/

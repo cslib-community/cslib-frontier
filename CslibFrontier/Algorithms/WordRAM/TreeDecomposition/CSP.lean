@@ -98,18 +98,17 @@ theorem exists_program_csp_treeDecomposition :
   obtain ⟨r, C, pc, prog, _, _, hexec⟩ :=
     runTreeCSPProg_realizes.exists_standard_init_program_state_from_words (0 : Fin 1)
   refine ⟨r, C, prog, fun inst w hw hin => ?_⟩
-  have hf_len : Fits w (inst.encode.length + 1) :=
-    hw.of_le (by unfold TreeCSPInstance.wordBound; dsimp only; omega)
   obtain ⟨hval, hres, hcost⟩ := runTreeCSPProg_spec inst hw
   obtain ⟨y, n, hruns, hhalt, _, _, hn_le⟩ :=
-    hexec w () inst.encode (fun i => Fin.elim0 i) (Nat.zero_le _) hf_len hin
-      ⟨inst, rfl, hw⟩ hval
+    hexec w () inst.encode (fun j => Fin.elim0 j) (Nat.zero_le _)
+      (hw.of_le <| by
+        unfold TreeCSPInstance.wordBound
+        dsimp only
+        omega)
+      hin ⟨inst, rfl, hw⟩ hval
   rw [clientResult_width, hres] at hhalt
-  refine ⟨n + 1, ⟨⟨pc, y⟩, n, hruns, hhalt, rfl⟩, ?_⟩
-  have hmul : C * (memoryCost (runTreeCSPProg ()) (Memory.State.init inst.encode) + 0 + 1) + 1 ≤
-      C * (inst.stepBound + 1) + 1 :=
-    Nat.add_le_add_right (Nat.mul_le_mul_left C (by omega)) 1
-  exact hn_le.trans hmul
+  exact ⟨n + 1, ⟨⟨pc, y⟩, n, hruns, hhalt, rfl⟩,
+    hn_le.trans (Nat.add_le_add_right (Nat.mul_le_mul_left C (by omega)) 1)⟩
 
 /-- Uniform exact-basis Word-RAM computability certificate for `TreeCSPInstance.result`. -/
 theorem uniformComputableInTime_csp_treeDecomposition :
@@ -143,19 +142,16 @@ theorem exists_program_cspDecide_nice :
             Executes w prog (.init inst.encode) (if CSP.Satisfiable sem F then 1 else 0) steps ∧
             steps ≤ C * (cspNiceStepBound q N.size k F.vars.length F.length + 1) + 1 := by
   obtain ⟨r, C, prog, hcomp⟩ := exists_program_csp_treeDecomposition
-  refine ⟨r, C, prog, fun {Rel V _ q m k} hq e sem F N hk w hw => ?_⟩
+  refine ⟨r, C, prog, fun {_ _} [_] {q _ _} hq e sem F N hk w hw => ?_⟩
   let inst := TreeCSPInstance.ofNice false q hq e sem F N
   obtain ⟨steps, hexec, hsteps⟩ := hcomp inst w hw (inputFits_encode inst hw)
   have hres : inst.result = if CSP.Satisfiable sem F then 1 else 0 := by
-    dsimp only [inst]
-    rw [TreeCSPInstance.ofNice, TreeCSPInstance.result_ofNiceTree_decide]
-    have hiff : cspDecideNiceTree q hq sem F N.tree = true ↔ CSP.Satisfiable sem F :=
-      cspDecideNice_eq_true_iff hq sem N
-    simp only [hiff]
+    dsimp only [inst, TreeCSPInstance.ofNice]
+    rw [TreeCSPInstance.result_ofNiceTree_decide]
+    exact if_congr (cspDecideNice_eq_true_iff hq sem N) rfl rfl
   rw [hres] at hexec
-  have hbound := TreeCSPInstance.stepBound_ofNice_le hq false e sem F N hk
-  exact ⟨steps, hexec, hsteps.trans (Nat.add_le_add_right
-    (Nat.mul_le_mul_left C (Nat.add_le_add_right hbound 1)) 1)⟩
+  exact ⟨steps, hexec, hsteps.trans (Nat.add_le_add_right (Nat.mul_le_mul_left C
+    (Nat.add_le_add_right (TreeCSPInstance.stepBound_ofNice_le hq false e sem F N hk) 1)) 1)⟩
 
 /-- **FPT Word-RAM CSP Model Counting (Nice Tree Decomposition).** One fixed exact-basis Word-RAM
 program computes `CSP.modelCount sem F` in `≤ C * (cspNiceStepBound ... + 1) + 1` instructions at
@@ -175,13 +171,12 @@ theorem exists_program_cspCount_nice :
               (@CSP.modelCount _ _ (Fin q) _ inferInstance ⟨⟨0, hq⟩⟩ sem F) steps ∧
             steps ≤ C * (cspNiceStepBound q N.size k F.vars.length F.length + 1) + 1 := by
   obtain ⟨r, C, prog, hcomp⟩ := exists_program_csp_treeDecomposition
-  refine ⟨r, C, prog, fun {Rel V _ q m k} hq e sem F N hk w hw => ?_⟩
+  refine ⟨r, C, prog, fun {_ _} [_] {q _ _} hq e sem F N hk w hw => ?_⟩
   let inst := TreeCSPInstance.ofNice true q hq e sem F N
   obtain ⟨steps, hexec, hsteps⟩ := hcomp inst w hw (inputFits_encode inst hw)
   rw [TreeCSPInstance.result_ofNice_count hq e sem F N] at hexec
-  have hbound := TreeCSPInstance.stepBound_ofNice_le hq true e sem F N hk
-  exact ⟨steps, hexec, hsteps.trans (Nat.add_le_add_right
-    (Nat.mul_le_mul_left C (Nat.add_le_add_right hbound 1)) 1)⟩
+  exact ⟨steps, hexec, hsteps.trans (Nat.add_le_add_right (Nat.mul_le_mul_left C
+    (Nat.add_le_add_right (TreeCSPInstance.stepBound_ofNice_le hq true e sem F N hk) 1)) 1)⟩
 
 open Classical in
 /-- **FPT Word-RAM CSP Decision (Rooted Tree Decomposition).** One fixed exact-basis Word-RAM
@@ -200,20 +195,16 @@ theorem exists_program_cspDecide_rooted :
             Executes w prog (.init inst.encode) (if CSP.Satisfiable sem F then 1 else 0) steps ∧
             steps ≤ C * (cspRootedStepBound q m k F.vars.length F.length + 1) + 1 := by
   obtain ⟨r, C, prog, hcomp⟩ := exists_program_csp_treeDecomposition
-  refine ⟨r, C, prog, fun {Rel V _ q m n k} hq e sem F R hk w hw => ?_⟩
+  refine ⟨r, C, prog, fun {_ _} [_] {q _ _ _} hq e sem F R hk w hw => ?_⟩
   let inst := TreeCSPInstance.ofRooted false q hq e sem F R
   obtain ⟨steps, hexec, hsteps⟩ := hcomp inst w hw (inputFits_encode inst hw)
   have hres : inst.result = if CSP.Satisfiable sem F then 1 else 0 := by
-    dsimp only [inst]
-    rw [TreeCSPInstance.ofRooted, TreeCSPInstance.ofNice, TreeCSPInstance.result_ofNiceTree_decide]
-    have hiff : cspDecideNiceTree q hq sem F R.toNiceTreePruned.tree = true ↔
-        CSP.Satisfiable sem F :=
-      cspDecideNice_eq_true_iff hq sem R.toNiceTreePruned
-    simp only [hiff]
+    dsimp only [inst, TreeCSPInstance.ofRooted, TreeCSPInstance.ofNice]
+    rw [TreeCSPInstance.result_ofNiceTree_decide]
+    exact if_congr (cspDecideNice_eq_true_iff hq sem R.toNiceTreePruned) rfl rfl
   rw [hres] at hexec
-  have hbound := TreeCSPInstance.stepBound_ofRooted_le hq false e sem F R hk
-  exact ⟨steps, hexec, hsteps.trans (Nat.add_le_add_right
-    (Nat.mul_le_mul_left C (Nat.add_le_add_right hbound 1)) 1)⟩
+  exact ⟨steps, hexec, hsteps.trans (Nat.add_le_add_right (Nat.mul_le_mul_left C
+    (Nat.add_le_add_right (TreeCSPInstance.stepBound_ofRooted_le hq false e sem F R hk) 1)) 1)⟩
 
 /-- **FPT Word-RAM CSP Model Counting (Rooted Tree Decomposition).** One fixed exact-basis
 Word-RAM program computes `CSP.modelCount sem F` over any `RootedTreeDecomposition` via
@@ -233,12 +224,11 @@ theorem exists_program_cspCount_rooted :
               (@CSP.modelCount _ _ (Fin q) _ inferInstance ⟨⟨0, hq⟩⟩ sem F) steps ∧
             steps ≤ C * (cspRootedStepBound q m k F.vars.length F.length + 1) + 1 := by
   obtain ⟨r, C, prog, hcomp⟩ := exists_program_csp_treeDecomposition
-  refine ⟨r, C, prog, fun {Rel V _ q m n k} hq e sem F R hk w hw => ?_⟩
+  refine ⟨r, C, prog, fun {_ _} [_] {q _ _ _} hq e sem F R hk w hw => ?_⟩
   let inst := TreeCSPInstance.ofRooted true q hq e sem F R
   obtain ⟨steps, hexec, hsteps⟩ := hcomp inst w hw (inputFits_encode inst hw)
   rw [TreeCSPInstance.result_ofRooted_count hq e sem F R] at hexec
-  have hbound := TreeCSPInstance.stepBound_ofRooted_le hq true e sem F R hk
-  exact ⟨steps, hexec, hsteps.trans (Nat.add_le_add_right
-    (Nat.mul_le_mul_left C (Nat.add_le_add_right hbound 1)) 1)⟩
+  exact ⟨steps, hexec, hsteps.trans (Nat.add_le_add_right (Nat.mul_le_mul_left C
+    (Nat.add_le_add_right (TreeCSPInstance.stepBound_ofRooted_le hq true e sem F R hk) 1)) 1)⟩
 
 end Cslib.Algorithms.WordRAM.TreeDecomposition

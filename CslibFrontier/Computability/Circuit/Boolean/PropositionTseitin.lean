@@ -109,15 +109,16 @@ theorem isCodeFrom_deMorganCode (A : Proposition (Fin n)) (k : ℕ) :
     rw [Program.isCodeFrom_append, Program.isCodeFrom_append]
     refine ⟨⟨ihA k, ihB _⟩, ?_⟩
     first
-      | exact ⟨⟨rfl, fun i hi => by
-          simp only [List.mem_cons, List.not_mem_nil, or_false] at hi
-          simp only [List.length_append]; omega⟩, trivial⟩
-      | exact ⟨⟨rfl, fun i hi => by
-          simp only [List.mem_cons, List.not_mem_nil, or_false] at hi
-          simp only [List.length_append]; omega⟩,
-          ⟨rfl, fun i hi => by
-          simp only [List.mem_cons, List.not_mem_nil, or_false] at hi
-          simp only [List.length_append]; omega⟩, trivial⟩
+      | exact ⟨⟨rfl, by
+          simp only [List.mem_cons, List.not_mem_nil, or_false, List.length_append]
+          rintro _ (rfl | rfl) <;> omega⟩, trivial⟩
+      | exact ⟨⟨rfl, by
+          simp only [List.mem_singleton, List.length_append]
+          rintro _ rfl
+          omega⟩,
+        ⟨rfl, by
+          simp only [List.mem_cons, List.not_mem_nil, or_false, List.length_append]
+          rintro _ (rfl | rfl) <;> omega⟩, trivial⟩
 
 /-- The value of a gate appended after the gates `gates`. -/
 private theorem getD_evalCode_append_singleton (x : List Bool) (gates : List (Op × List ℕ))
@@ -138,11 +139,11 @@ theorem getD_evalCode_deMorganCode (A : Proposition (Fin n)) (x : List Bool) (hx
       A.eval fun i : Fin n => x.getD i false := by
   induction A generalizing pre with
   | atom i =>
-    simp only [deMorganCode, List.append_nil, eval_atom_bool]
-    exact getD_evalCode_of_lt _ _ _ _ (by omega)
+    simpa only [deMorganCode, List.append_nil, eval_atom_bool] using
+      getD_evalCode_of_lt _ _ _ _ (by omega)
   | falsum =>
-    simp only [deMorganCode, eval_falsum_bool]
-    rw [getD_evalCode_append_singleton _ _ _ (by omega)]
+    dsimp only [deMorganCode]
+    rw [eval_falsum_bool, getD_evalCode_append_singleton _ _ _ (by omega)]
     rfl
   | and A B ihA ihB | or A B ihA ihB | imp A B ihA ihB =>
     have hlt_a := output_deMorganCode_lt A pre.length
@@ -153,42 +154,33 @@ theorem getD_evalCode_deMorganCode (A : Proposition (Fin n)) (x : List Bool) (hx
     simp only [deMorganCode, ← List.append_assoc, eval_and_bool, eval_or_bool, eval_imp_bool]
     generalize A.deMorganCode pre.length = a at *
     generalize B.deMorganCode (pre.length + a.gates.length) = b at *
-    -- the values of the arguments after the gates of both arguments
     have hva' : (evalCode interpretation false x (pre ++ a.gates ++ b.gates)).getD a.output false =
         A.eval fun i : Fin n => x.getD i false := by
-      rw [Cslib.Circuits.Boolean.getD_evalCode_append_of_lt
+      rwa [Cslib.Circuits.Boolean.getD_evalCode_append_of_lt
         (by simp only [List.length_append]; omega)]
-      exact hva
     first
       | (rw [getD_evalCode_append_singleton _ _ _ (by simp only [List.length_append]; omega)]
-         clear ihA ihB hva
-         simp_all [interpretation])
+         clear ihA ihB hva; simp_all [interpretation])
       | (rw [show ∀ (l : List (Op × List ℕ)) (g₁ g₂ : Op × List ℕ),
            l ++ [g₁, g₂] = l ++ [g₁] ++ [g₂] from fun _ _ _ => by simp]
          have hnot := getD_evalCode_append_singleton x (pre ++ a.gates ++ b.gates)
-           (Op.not, [a.output])
-           (w := n + pre.length + a.gates.length + b.gates.length)
+           (Op.not, [a.output]) (w := n + pre.length + a.gates.length + b.gates.length)
            (by simp only [List.length_append]; omega)
          have hb₂ : (evalCode interpretation false x
-             (pre ++ a.gates ++ b.gates ++ [(Op.not, [a.output])])).getD
-             b.output false = B.eval fun i : Fin n => x.getD i false := by
-           rw [Cslib.Circuits.Boolean.getD_evalCode_append_of_lt
+             (pre ++ a.gates ++ b.gates ++ [(Op.not, [a.output])])).getD b.output false =
+             B.eval fun i : Fin n => x.getD i false := by
+           rwa [Cslib.Circuits.Boolean.getD_evalCode_append_of_lt
              (by simp only [List.length_append]; omega)]
-           exact hvb
          rw [getD_evalCode_append_singleton _ _ _
            (by simp only [List.length_append, List.length_singleton]; omega)]
-         clear ihA ihB hva hvb
-         simp_all [interpretation])
+         clear ihA ihB hva hvb; simp_all [interpretation])
 
 /-- **The output of the gate list of a proposition is its value.** -/
 theorem evalOutput_deMorganCode (A : Proposition (Fin n)) (v : Fin n → Bool) :
     evalOutput (List.ofFn v) (A.deMorganCode 0).gates (A.deMorganCode 0).output = A.eval v := by
-  have := getD_evalCode_deMorganCode A (List.ofFn v) (by simp) []
-  simp only [List.nil_append, List.length_nil] at this
-  rw [evalOutput, this]
-  congr 1
-  funext i
-  simp
+  have h := getD_evalCode_deMorganCode A (List.ofFn v) (by simp) []
+  simp only [evalOutput, List.nil_append, List.length_nil] at h ⊢
+  exact h.trans (congrArg A.eval (funext fun i => by simp))
 
 /-- **The two Tseitin transformations agree on the atoms.** For a proposition `A` over `Fin n` and
 a valuation `v` of its atoms, the Tseitin transformation `A.tseitinCNF` has a model whose
@@ -199,21 +191,15 @@ theorem exists_eval_tseitinCNF_iff_satisfiable_tseitinSatCNF (A : Proposition (F
     (∃ σ, A.tseitinCNF.eval σ = true ∧ σ ∘ Sum.inl = v) ↔
       (tseitinSatCNF (List.ofFn v) n (A.deMorganCode 0).gates
         (A.deMorganCode 0).output).Satisfiable := by
-  have hcircuit : (tseitinSatCNF (List.ofFn v) n (A.deMorganCode 0).gates
-      (A.deMorganCode 0).output).Satisfiable ↔ A.eval v = true := by
-    rw [satisfiable_tseitinSatCNF_iff (isCodeFrom_deMorganCode A 0) (by simp)
-      (by simpa using output_deMorganCode_lt A 0)]
-    constructor
-    · rintro ⟨y, hy, hpre, hout⟩
-      obtain rfl := hpre.eq_of_length (by simp [hy])
-      rwa [evalOutput_deMorganCode] at hout
-    · intro h
-      exact ⟨List.ofFn v, by simp, List.prefix_refl _, by rwa [evalOutput_deMorganCode]⟩
-  rw [hcircuit]
-  constructor
+  rw [satisfiable_tseitinSatCNF_iff (isCodeFrom_deMorganCode A 0) (by simp)
+    (by simpa using output_deMorganCode_lt A 0)]
+  refine ⟨?_, ?_⟩
   · rintro ⟨σ, hσ, rfl⟩
-    exact ((eval_tseitinCNF_eq_true_iff σ A).1 hσ).1
-  · intro h
-    exact ⟨tseitinExtend v, (eval_tseitinCNF_tseitinExtend v A).trans h, rfl⟩
+    exact ⟨List.ofFn _, by simp, List.prefix_refl _,
+      (evalOutput_deMorganCode A _).trans ((eval_tseitinCNF_eq_true_iff σ A).1 hσ).1⟩
+  · rintro ⟨y, hy, hpre, hout⟩
+    obtain rfl := hpre.eq_of_length (by simp [hy])
+    rw [evalOutput_deMorganCode] at hout
+    exact ⟨tseitinExtend v, (eval_tseitinCNF_tseitinExtend v A).trans hout, rfl⟩
 
 end Cslib.Logic.PL.Proposition

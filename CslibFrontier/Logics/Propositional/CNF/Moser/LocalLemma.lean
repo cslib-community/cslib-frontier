@@ -120,10 +120,8 @@ theorem measureReal_violated {k : ℕ} {φ : CNF (Fin n)} (hφ : φ.IsExactDisti
     (i : Fin φ.length) :
     (Measure.pi (fairCoin (n := n))).real (violated φ i) = 2⁻¹ ^ k := by
   have hi := hφ _ (getElem_mem_fin i)
-  have hfc : fairCoin (n := n) =
-      fun _ => (Cslib.Probability.PMF.uniformOfFintype Bool).toMeasure := rfl
-  rw [hfc, ← MoserTardos.toReal_toOuterMeasure_pi_eq_measureReal _
-      (measurableSet_violated φ i),
+  unfold fairCoin
+  rw [← MoserTardos.toReal_toOuterMeasure_pi_eq_measureReal _ (measurableSet_violated φ i),
     violated, Clause.toOuterMeasure_pi_setOf_eval_eq_false hi.2, hi.1]
   simp
 
@@ -147,15 +145,14 @@ theorem firstViolatedRule_eq_none {φ : CNF (Fin n)}
   rw [CNF.eval_eq_true_iff]
   intro c hc
   obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hc
-  have hfi := List.find?_eq_none.1 h ⟨i, hi⟩ (List.mem_finRange _)
-  simpa using hfi
+  simpa using List.find?_eq_none.1 h ⟨i, hi⟩ (List.mem_finRange _)
 
 theorem firstViolatedRule_notMem_violated {φ : CNF (Fin n)}
     {T : ∀ p : Fin n × ℕ, (fun _ : Fin n => Bool) p.1} {w : List (Fin φ.length)}
     (h : firstViolatedRule φ T w = none) (i : Fin φ.length) :
     MoserTardos.current (clauseVbl φ) T w ∉ violated φ i := by
-  have hev := (CNF.eval_eq_true_iff _ φ).1 (firstViolatedRule_eq_none h) φ[i] (getElem_mem_fin i)
-  simpa [violated] using hev
+  simpa [violated] using
+    (CNF.eval_eq_true_iff _ φ).1 (firstViolatedRule_eq_none h) φ[i] (getElem_mem_fin i)
 
 private theorem exp_mul_inv_pow_le {k d : ℕ} {r : ℝ}
     (hlll : Real.exp 1 * (d + 1) ≤ r * 2 ^ k) :
@@ -179,9 +176,7 @@ private theorem ae_eval_of_ae_notMem_violated (φ : CNF (Fin n))
   filter_upwards [hae] with T ⟨N, hN⟩
   refine ⟨N, (CNF.eval_eq_true_iff _ φ).2 fun c hc => ?_⟩
   obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hc
-  have hvi := hN ⟨i, hi⟩
-  simp only [violated, Set.mem_ofPred_eq, Bool.not_eq_false] at hvi
-  exact hvi
+  simpa [violated] using hN ⟨i, hi⟩
 
 end Setup
 
@@ -273,10 +268,7 @@ instance (c d : Clause (Fin n)) : Decidable (Conflicts c d) :=
   inferInstanceAs (Decidable (∃ l ∈ c, (l.1, !l.2) ∈ d))
 
 theorem conflicts_comm (c d : Clause (Fin n)) : Conflicts c d ↔ Conflicts d c := by
-  constructor <;>
-  · rintro ⟨l, hl, hnl⟩
-    refine ⟨(l.1, !l.2), hnl, ?_⟩
-    simpa using hl
+  constructor <;> exact fun ⟨l, hl, hnl⟩ => ⟨(l.1, !l.2), hnl, by simpa using hl⟩
 
 /-- The number of other clauses in `φ` conflicting with clause `i`. -/
 @[expose] def conflictDegree (φ : CNF (Fin n)) (i : Fin φ.length) : ℕ :=
@@ -287,39 +279,27 @@ theorem conflicts_comm (c d : Clause (Fin n)) : Conflicts c d ↔ Conflicts d c 
 theorem not_lopsidependent_of_not_conflicts (φ : CNF (Fin n)) {i j : Fin φ.length}
     (hc : ¬Conflicts φ[i] φ[j]) :
     ¬MoserTardos.Lopsidependent (clauseVbl φ) (violated φ) i j := by
-  rw [MoserTardos.lopsidependent_iff]
-  rintro ⟨f, g, hfg, hfi, hgj, hhor⟩
-  have haux : ∀ {a b : Fin φ.length} {fa ga : Fin n → Bool},
-      (∀ v, v ∉ clauseVbl φ a ∩ clauseVbl φ b → fa v = ga v) →
-      ¬Conflicts φ[a] φ[b] →
-      fa ∈ violated φ a → ga ∈ violated φ b → ga ∈ violated φ a := by
-    intro a b fa ga hfg' hab hfa hgb
+  have haux {a b : Fin φ.length} {fa ga : Fin n → Bool}
+      (hfg : ∀ v, v ∉ clauseVbl φ a ∩ clauseVbl φ b → fa v = ga v)
+      (hab : ¬Conflicts φ[a] φ[b]) (hfa : fa ∈ violated φ a) (hgb : ga ∈ violated φ b) :
+      ga ∈ violated φ a := by
     by_contra hga
-    simp only [violated, Set.mem_ofPred_eq, Bool.not_eq_false] at hfa hgb hga
-    rw [Clause.eval_eq_true_iff] at hga
+    simp only [violated, Set.mem_ofPred_eq, Bool.not_eq_false, Clause.eval_eq_true_iff] at hga
     obtain ⟨l, hla, hlga⟩ := hga
-    have hlfa : fa l.1 = !l.2 := (Clause.eval_eq_false_iff fa φ[a]).1 hfa l hla
-    have hneq : fa l.1 ≠ ga l.1 := by
-      rw [hlfa, hlga]
-      cases l.2 <;> simp
-    have hinter : l.1 ∈ clauseVbl φ a ∩ clauseVbl φ b := by
+    have hlfa := (Clause.eval_eq_false_iff fa φ[a]).1 hfa l hla
+    have hvb : l.1 ∈ clauseVbl φ b := (mem_inter.1 (by
       by_contra hni
-      exact hneq (hfg' l.1 hni)
-    have hvb : l.1 ∈ clauseVbl φ b := (mem_inter.1 hinter).2
-    simp only [clauseVbl, List.mem_toFinset, vbl, List.mem_map] at hvb
-    obtain ⟨m, hmb, hml⟩ := hvb
-    have hmg : ga m.1 = !m.2 := (Clause.eval_eq_false_iff ga φ[b]).1 hgb m hmb
-    have hm_eq : m = (l.1, !l.2) := by
-      refine Prod.ext hml ?_
-      have : ga l.1 = l.2 := hlga
-      rw [← hml] at this
-      rw [this] at hmg
-      cases hm2 : m.2 <;> cases hl2 : l.2 <;> simp [hm2, hl2] at hmg ⊢
-    exact hab ⟨l, hla, hm_eq ▸ hmb⟩
-  rcases hhor with hfj | hgi
-  · refine hfj (haux (fun v hv => (hfg v ?_).symm)
-      (fun h => hc ((conflicts_comm _ _).1 h)) hgj hfi)
-    rwa [inter_comm]
+      have := hfg l.1 hni
+      rw [hlfa, hlga] at this; cases l.2 <;> simp at this)).2
+    obtain ⟨m, hmb, hml⟩ := List.mem_map.1 (List.mem_toFinset.1 hvb)
+    have hmg := (Clause.eval_eq_false_iff ga φ[b]).1 hgb m hmb
+    exact hab ⟨l, hla, (show m = (l.1, !l.2) from Prod.ext hml (by
+      rw [← hml] at hlga; rw [hlga] at hmg
+      cases hm2 : m.2 <;> cases hl2 : l.2 <;> simp [hm2, hl2] at hmg ⊢)) ▸ hmb⟩
+  rw [MoserTardos.lopsidependent_iff]
+  rintro ⟨f, g, hfg, hfi, hgj, hfj | hgi⟩
+  · exact hfj (haux (fun v hv => (hfg v (inter_comm (clauseVbl φ j) (clauseVbl φ i) ▸ hv)).symm)
+      (mt (conflicts_comm _ _).1 hc) hgj hfi)
   · exact hgi (haux hfg hc hfi hgj)
 
 private def conflictNbhd (φ : CNF (Fin n)) (i : Fin φ.length) : Finset (Fin φ.length) :=
@@ -327,10 +307,9 @@ private def conflictNbhd (φ : CNF (Fin n)) (i : Fin φ.length) : Finset (Fin φ
 
 private theorem mem_conflictNbhd (φ : CNF (Fin n)) (i j : Fin φ.length) (hji : j ≠ i)
     (hlop : MoserTardos.Lopsidependent (clauseVbl φ) (violated φ) i j) :
-    j ∈ conflictNbhd φ i := by
-  refine mem_filter.2 ⟨mem_univ _, hji, ?_⟩
-  by_contra hc
-  exact not_lopsidependent_of_not_conflicts φ hc hlop
+    j ∈ conflictNbhd φ i :=
+  mem_filter.2 ⟨mem_univ _, hji,
+    Classical.byContradiction fun hc => not_lopsidependent_of_not_conflicts φ hc hlop⟩
 
 private theorem conflictNbhd_card_le {d : ℕ} {φ : CNF (Fin n)}
     (hdeg : ∀ i : Fin φ.length, conflictDegree φ i ≤ d) (i : Fin φ.length) :

@@ -94,9 +94,7 @@ private theorem finiteAppend {α : Type} {enc : α ↪ List Bool} {S : α → �
   induction n with
   | zero => exact (budget_const []).of_enc_eq fun _ => rfl
   | succ n ih =>
-    have ht := ih (f := fun i => f i.succ) (fun i => hf i.succ)
-    refine (append_budget (hf 0) ht).of_enc_eq ?_
-    intro a
+    refine (append_budget (hf 0) (ih fun i => hf i.succ)).of_enc_eq fun a => ?_
     simp only [List.ofFn_succ, List.flatten_cons]
 
 /-- Binary width metadata pays the fixed-width head word, including at tape count zero. -/
@@ -116,14 +114,11 @@ private theorem cellWord_inSpace : ComputableInSpace cellWord encNat (encList en
     (fun n => (encNat n).length) := by
   have hn : ComputableInSpace (fun n : ℕ => n) encNat encNat
       (fun n => (encNat n).length) := of_inO ComputableInDegree.id'.inO_one
-  have ho := budget_const (Bs := fun a => (encNat a).length) (encIn := encNat) (encB := encNat) 1
-  have ht := budget_const (Bs := fun a => (encNat a).length) (encIn := encNat) (encB := encNat) 2
-  refine (budget_ite (budget_natEq hn ho)
+  refine (budget_ite (budget_natEq hn (budget_const 1))
     (budget_const (encB := encList encBool) [true, false])
-    (budget_ite (budget_natEq hn ht)
+    (budget_ite (budget_natEq hn (budget_const 2))
       (budget_const (encB := encList encBool) [true, true])
-      (budget_const (encB := encList encBool) [false, false]))).of_enc_eq ?_
-  intro n
+      (budget_const (encB := encList encBool) [false, false]))).of_enc_eq fun n => ?_
   by_cases h1 : n = 1 <;> by_cases h2 : n = 2 <;> simp [cellWord, cellOfCode, h1, h2, encodeCell]
 
 private theorem length_windowWord (cells : List ℕ) :
@@ -229,15 +224,11 @@ theorem serialize_inSpace (e : Q ≃ Fin s) :
     have hm : (encList encBool ((payload e a.1 a.2.2).map (fun bit => a.2.1 && bit))).length =
         (encList encBool (payload e a.1 a.2.2)).length := by
       simp [length_encList, List.map_map, Function.comp_def, encBool_apply]
-    have htaglen : (encBool a.2.1).length = 1 := rfl
-    simp only [hm, htaglen]
+    simp only [hm, show (encBool a.2.1).length = 1 from rfl]
     have hmax : listMax (fun p : Bool => (encPair encBool encBool (a.2.1, p)).length)
-        (payload e a.1 a.2.2) ≤ 4 := by
-      apply listMax_le
-      intro bit hbit
-      simp [encBool_apply]
+        (payload e a.1 a.2.2) ≤ 4 := listMax_le fun _ _ => by simp [encBool_apply]
     have hc' := hc a
-    dsimp only [encArgs] at ⊢
+    dsimp only [encArgs]
     nlinarith
   exact (budget_ite valid_inSpace (budget_cons htag hmap')
     (budget_const [])).of_enc_eq fun _ => rfl
@@ -261,24 +252,15 @@ private theorem windowWord_encode {b : ℕ} (cells : List ℕ)
     windowWord cells = List.ofFn
       (blocksEquiv.symm fun port : Fin 3 => blocksEquiv.symm fun r : Fin b =>
         encodeCell (cellOfCode (cells.getD (port.val * b + r.val) 0))) := by
-  rw [ofFn_blocksEquiv_symm]
   simp only [ofFn_blocksEquiv_symm]
-  have hlist : List.ofFn (fun i : Fin (3 * b) => cells.getD i 0) = cells :=
-    List.ofFn_getD_eq_of_length 0 hlen
-  have hflat : windowWord cells =
-      (List.ofFn fun i : Fin (3 * b) => cellWord (cells.getD i 0)).flatten := by
-    have hmap := List.map_ofFn (f := fun i : Fin (3 * b) => cells.getD i 0) (g := cellWord)
-    rw [hlist] at hmap
-    simp only [Function.comp_def] at hmap
-    rw [← hmap]
-    rfl
-  rw [hflat, List.ofFn_mul, List.flatten_flatten, List.map_ofFn]
+  conv_lhs => rw [← List.ofFn_getD_eq_of_length 0 hlen]
+  rw [windowWord, List.flatMap_def, List.map_ofFn, List.ofFn_mul, List.flatten_flatten,
+    List.map_ofFn]
   rfl
 
 private theorem ofFn_append {m n : ℕ} (x : Fin m → Bool) (y : Fin n → Bool) :
     List.ofFn (Fin.append x y) = List.ofFn x ++ List.ofFn y := by
-  rw [List.ofFn_add]
-  simp
+  simp [List.ofFn_add]
 
 omit [Finite Q] in
 /-- Canonical window buffers serialize exactly as the existing positive-width codec. Head
@@ -287,27 +269,22 @@ theorem payload_eq_encodePayload (e : Q ≃ Fin s) {b : ℕ} [NeZero b]
     (raw : RawResult k Q) (hvalid : valid (b, true, raw) = true) :
     payload e b raw = List.ofFn (encodePayload e (raw.toView b)) := by
   rcases raw with ⟨control, residues, track, cells⟩
-  have hlen (i : Fin k) : (cells i).length = 3 * b := by
-    have h := List.all_eq_true.mp hvalid _ (List.mem_ofFn.mpr ⟨i, rfl⟩)
-    exact of_decide_eq_true h
+  have hlen (i : Fin k) : (cells i).length = 3 * b :=
+    of_decide_eq_true (List.all_eq_true.mp hvalid _ (List.mem_ofFn.mpr ⟨i, rfl⟩))
   have hh : (List.ofFn fun h : Fin (k + 1) =>
       word b (residues (finSuccEquiv k h) % b)).flatten =
       List.ofFn (encodeHeads (fun h => (residues h : ZMod b))) := by
     rw [encodeHeads, ofFn_blocksEquiv_symm]
-    apply congrArg List.flatten
-    apply congrArg List.ofFn
-    funext i
-    exact word_encodeResidue (residues (finSuccEquiv k i))
+    exact congrArg List.flatten
+      (congrArg List.ofFn (funext fun i => word_encodeResidue (residues (finSuccEquiv k i))))
   have hw : (List.ofFn fun tape : Fin k => windowWord (cells tape)).flatten =
       List.ofFn (encodeWindows (b := b) (fun h d r =>
         cellOfCode ((cells h).getD (d.val * b + r.val) 0))) := by
     unfold windowBits
     rw [encodeWindows, ofFn_blocksEquiv_symm]
-    apply congrArg List.flatten
-    apply congrArg List.ofFn
-    funext i
-    have hmod (r : Fin b) : r.val % b = r.val := Nat.mod_eq_of_lt r.isLt
-    simpa only [ZMod.val_natCast, hmod] using windowWord_encode (cells i) (hlen i)
+    refine congrArg List.flatten (congrArg List.ofFn (funext fun i => ?_))
+    simpa only [ZMod.val_natCast, fun r : Fin b => Nat.mod_eq_of_lt r.isLt] using
+      windowWord_encode (cells i) (hlen i)
   unfold payloadBits
   simp only [payload, RawResult.toView, encodePayload, ofFn_append, List.append_assoc]
   rw [hh, hw]

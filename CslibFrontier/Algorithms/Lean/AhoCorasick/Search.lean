@@ -202,12 +202,10 @@ omit [DecidableEq α] in
 private theorem length_le_maxLength {P : List (List α)} {p : List α} (hp : p ∈ P) :
     p.length ≤ maxLength P := by
   induction P with
-  | nil => exact absurd hp List.not_mem_nil
+  | nil => cases hp
   | cons q P ih =>
-    simp only [maxLength, List.foldr_cons] at ih ⊢
-    rcases List.mem_cons.mp hp with rfl | hp
-    · exact Nat.le_max_left _ _
-    · exact Nat.le_trans (ih hp) (Nat.le_max_right _ _)
+    exact (List.mem_cons.mp hp).elim (fun h => h ▸ Nat.le_max_left _ _) fun hp =>
+      (ih hp).trans (Nat.le_max_right _ _)
 
 /-- The pattern matching machine of `P`, built level by level (`[AhoCorasick1975]`,
 Algorithm 3). -/
@@ -265,73 +263,53 @@ private theorem level_spec {P : List (List α)} {d : ℕ} (hd : 1 ≤ d) :
       ∀ p ∈ ps, (h : d < p.length) → (level P d ps M).AgreesAt P (p.take (d + 1)) := by
   intro ps
   induction ps with
-  | nil =>
-    intro M _ _
-    exact ⟨fun w hw => hw, fun p hp => absurd hp List.not_mem_nil⟩
+  | nil => exact fun _ _ _ => ⟨fun _ h => h, fun _ hp => absurd hp List.not_mem_nil⟩
   | cons q ps ih =>
     intro M hps hM
-    have hqP : q ∈ P := hps q List.mem_cons_self
     have hpsP : ∀ p ∈ ps, p ∈ P := fun p hp => hps p (List.mem_cons_of_mem q hp)
     rw [level]
     split_ifs with hq
-    · obtain ⟨hstep, _⟩ := step_spec hd hM hqP hq
-      rw [hstep]
+    · rw [(step_spec hd hM (hps q List.mem_cons_self) hq).1]
       set v := q.take (d + 1)
-      set M1 := M.set P v (failure P v)
       have hvlen : v.length = d + 1 := List.length_take_of_le hq
-      have hvne : v ≠ [] := fun h0 => by rw [h0, List.length_nil] at hvlen; omega
+      have hvne : v ≠ [] := fun h0 => by simp [h0] at hvlen
       have hflt := length_failure_lt P hvne
-      have hM1v : M1.AgreesAt P v :=
-        agreesAt_set hvne (hM _ (isNode_failure P v) (by omega)).2
-      have hpres : ∀ w, M.AgreesAt P w → M1.AgreesAt P w := fun w hw => by
-        by_cases hwv : w = v
-        · rw [hwv]; exact hM1v
-        · exact agreesAt_set_of_ne hwv hw
-      have hM1 : AgreesUpTo P M1 d := fun w hw hwl => hpres w (hM w hw hwl)
-      obtain ⟨ih1, ih2⟩ := ih M1 hpsP hM1
-      refine ⟨fun w hw => ih1 w (hpres w hw), fun p hp hpd => ?_⟩
-      rcases List.mem_cons.mp hp with rfl | hp
-      · exact ih1 _ hM1v
-      · exact ih2 p hp hpd
+      have hM1v := agreesAt_set hvne (hM _ (isNode_failure P v) (by omega)).2
+      have hpres (w) (hw : M.AgreesAt P w) : (M.set P v (failure P v)).AgreesAt P w :=
+        if hwv : w = v then hwv ▸ hM1v else agreesAt_set_of_ne hwv hw
+      obtain ⟨ih1, ih2⟩ := ih _ hpsP fun w hw hwl => hpres w (hM w hw hwl)
+      exact ⟨fun w hw => ih1 w (hpres w hw),
+        List.forall_mem_cons.mpr ⟨fun _ => ih1 _ hM1v, ih2⟩⟩
     · obtain ⟨ih1, ih2⟩ := ih M hpsP hM
-      refine ⟨ih1, fun p hp hpd => ?_⟩
-      rcases List.mem_cons.mp hp with rfl | hp
-      · exact absurd hpd hq
-      · exact ih2 p hp hpd
+      exact ⟨ih1, List.forall_mem_cons.mpr ⟨fun hpd => absurd hpd hq, ih2⟩⟩
 
 private theorem agreesUpTo_level {P : List (List α)} {d : ℕ} (hd : 1 ≤ d) {M : Machine α}
     (hM : AgreesUpTo P M d) : AgreesUpTo P (level P d P M) (d + 1) := by
-  obtain ⟨h1, h2⟩ := level_spec hd P M (fun p hp => hp) hM
+  obtain ⟨h1, h2⟩ := level_spec hd P M (fun _ hp => hp) hM
   intro w hw hwl
   by_cases hwd : w.length ≤ d
   · exact h1 w (hM w hw hwd)
   · rcases hw with rfl | ⟨p, hp, hwp⟩
-    · rw [List.length_nil] at hwd; omega
+    · simp at hwd
     · have hwlen : w.length = d + 1 := by omega
-      have hpd : d < p.length := by have := hwp.length_le; omega
-      have hwt : w = p.take (d + 1) := by rw [← hwlen]; exact List.prefix_iff_eq_take.mp hwp
-      rw [hwt]
-      exact h2 p hp hpd
+      have := hwp.length_le
+      rw [List.prefix_iff_eq_take.mp hwp, hwlen]
+      exact h2 p hp (by omega)
 
 private theorem agreesUpTo_buildLoop {P : List (List α)} :
     ∀ (n d : ℕ) (M : Machine α), 1 ≤ d → AgreesUpTo P M d →
-      AgreesUpTo P (buildLoop P n d M) (d + n) := by
-  intro n
-  induction n with
-  | zero => intro d M _ hM; exact hM
-  | succ n ih =>
-    intro d M hd hM
-    simp only [buildLoop]
-    have := ih (d + 1) _ (by omega) (agreesUpTo_level hd hM)
-    rwa [Nat.add_assoc, Nat.add_comm 1 n] at this
+      AgreesUpTo P (buildLoop P n d M) (d + n)
+  | 0, _, _, _, hM => hM
+  | n + 1, d, M, hd, hM => by
+    simpa only [buildLoop, Nat.add_assoc, Nat.add_comm 1 n] using
+      agreesUpTo_buildLoop n (d + 1) _ (by omega) (agreesUpTo_level hd hM)
 
 /-- Correctness of Algorithm 3 (`[AhoCorasick1975]`, Lemmas 1 and 2, Theorem 1): the constructed
 failure and output functions are those of `P` on every state. -/
 theorem isValid_build (P : List (List α)) : (build P).IsValid P := by
-  have h := agreesUpTo_buildLoop (P := P) (maxLength P - 1) 1 (initMachine P) (Nat.le_refl 1)
-    (agreesUpTo_initMachine P)
   intro w hw
-  refine h w hw ?_
+  refine agreesUpTo_buildLoop (maxLength P - 1) 1 (initMachine P) le_rfl
+    (agreesUpTo_initMachine P) w hw ?_
   rcases hw with rfl | ⟨p, hp, hwp⟩
   · exact Nat.zero_le _
   · have := hwp.length_le

@@ -137,21 +137,14 @@ theorem consistent_anti {P Q : List (α × Bool)} (h : P <+: Q) :
 theorem consistent_append_singleton (P : List (α × Bool)) (y : α) (b : Bool) :
     consistent G eval (P ++ [(y, b)]) = (consistent G eval P).filter fun g => eval g y = b := by
   ext g
-  simp only [mem_consistent, mem_filter, List.mem_append, List.mem_singleton]
-  constructor
-  · rintro ⟨hg, h⟩
-    exact ⟨⟨hg, fun q hq => h q (Or.inl hq)⟩, h _ (Or.inr rfl)⟩
-  · rintro ⟨⟨hg, h⟩, hy⟩
-    refine ⟨hg, fun q hq => hq.elim (h q) fun e => ?_⟩
-    subst e
-    exact hy
+  simp only [mem_consistent, mem_filter, List.mem_append, List.mem_singleton,
+    or_imp, forall_and, forall_eq, and_assoc]
 
 /-- If no description is consistent with `P`, every description in `G` errs on a sample of `P`. -/
 theorem exists_mem_ne_of_consistent_eq_empty {P : List (α × Bool)}
     (h : consistent G eval P = ∅) {g : β} (hg : g ∈ G) : ∃ q ∈ P, eval g q.1 ≠ q.2 := by
   by_contra! hall
-  have hmem : g ∈ consistent G eval P := mem_consistent.2 ⟨hg, hall⟩
-  simp [h] at hmem
+  exact notMem_empty g (h ▸ mem_consistent.2 ⟨hg, hall⟩)
 
 end Consistent
 
@@ -205,9 +198,7 @@ theorem greedy_succ (k : ℕ) (P : List (α × Bool)) :
     (greedy O f cands k P).length = P.length + k := by
   induction k generalizing P with
   | zero => rfl
-  | succ k ih =>
-    rw [greedy_succ, ih, step, List.length_append, List.length_singleton]
-    omega
+  | succ k ih => simp [greedy_succ, ih, step]; omega
 
 /-- The greedy extends its initial samples. -/
 theorem prefix_greedy (k : ℕ) (P : List (α × Bool)) : P <+: greedy O f cands k P := by
@@ -221,11 +212,8 @@ theorem forall_mem_greedy_snd_eq {P : List (α × Bool)} (hP : ∀ q ∈ P, q.2 
   induction k generalizing P with
   | zero => exact hP
   | succ k ih =>
-    refine ih fun q hq => ?_
-    rw [step, List.mem_append, List.mem_singleton] at hq
-    rcases hq with hq | rfl
-    · exact hP q hq
-    · rfl
+    exact ih (by simpa only [step, List.mem_append, List.mem_singleton, or_imp,
+      forall_and, forall_eq, and_true] using hP)
 
 variable {O f cands}
 
@@ -250,12 +238,9 @@ theorem consistent_step_eq_empty_or (ho : IsThresholdOracle G eval ℓ O)
     (hP : #(consistent G eval P) ^ ℓ < 2 ^ (u + 2)) :
     consistent G eval (step O f cands u P) = ∅ ∨ O (step O f cands u P) u = true := by
   rcases (consistent G eval P).eq_empty_or_nonempty with he | hne
-  · left
-    rw [← subset_empty, ← he]
-    exact consistent_anti (List.prefix_append _ _)
-  right
+  · exact .inl (subset_empty.1 (he ▸ consistent_anti (List.prefix_append _ _)))
   obtain ⟨x, hx, hcount⟩ := hgood _ (consistent_subset P) hne
-  refine apply_step_eq_true ⟨x, hx, ho.apply_eq_true_of_lt ?_⟩
+  refine .inr (apply_step_eq_true ⟨x, hx, ho.apply_eq_true_of_lt ?_⟩)
   rw [consistent_append_singleton]
   have hsplit : #{g ∈ consistent G eval P | eval g x = f x} +
       #{g ∈ consistent G eval P | eval g x ≠ f x} = #(consistent G eval P) :=
@@ -264,8 +249,7 @@ theorem consistent_step_eq_empty_or (ho : IsThresholdOracle G eval ℓ O)
   set c := #(consistent G eval P)
   have h16 : 16 * a ≤ 15 * c := by omega
   have hpow : 16 ^ ℓ * a ^ ℓ ≤ 15 ^ ℓ * c ^ ℓ := by
-    rw [← mul_pow, ← mul_pow]
-    exact Nat.pow_le_pow_left h16 ℓ
+    simpa only [mul_pow] using Nat.pow_le_pow_left h16 ℓ
   refine lt_of_mul_lt_mul_left ?_ (Nat.zero_le (16 ^ ℓ))
   calc 16 ^ ℓ * ((u + 1) * a ^ ℓ) = (u + 1) * (16 ^ ℓ * a ^ ℓ) := by ring
     _ ≤ (u + 1) * (15 ^ ℓ * c ^ ℓ) := Nat.mul_le_mul_left _ hpow
@@ -281,19 +265,15 @@ theorem consistent_greedy_succ_eq_empty (ho : IsThresholdOracle G eval ℓ O)
     ∀ (k : ℕ) (P : List (α × Bool)), 4 * (k + 1) * 15 ^ ℓ ≤ 16 ^ ℓ →
       #(consistent G eval P) ^ ℓ < 2 ^ (k + 2) →
         consistent G eval (greedy O f cands (k + 1) P) = ∅
-  | 0, P, hℓ, hP => by
-    rw [greedy_succ, greedy_zero]
-    rcases consistent_step_eq_empty_or ho hgood hℓ hP with h | h
-    · exact h
-    · exact ho.consistent_eq_empty h
+  | 0, P, hℓ, hP =>
+    (consistent_step_eq_empty_or ho hgood hℓ hP).elim id ho.consistent_eq_empty
   | k + 1, P, hℓ, hP => by
     rw [greedy_succ]
-    have hℓ' : 4 * (k + 1) * 15 ^ ℓ ≤ 16 ^ ℓ :=
-      le_trans (Nat.mul_le_mul_right _ (Nat.mul_le_mul_left 4 (Nat.le_succ _))) hℓ
-    rcases consistent_step_eq_empty_or ho hgood hℓ hP with h | h
-    · rw [← subset_empty, ← h]
-      exact consistent_anti (prefix_greedy _ _ _ _ _)
-    · exact consistent_greedy_succ_eq_empty ho hgood k _ hℓ' (ho.card_pow_lt h)
+    refine (consistent_step_eq_empty_or ho hgood hℓ hP).elim
+      (fun h => subset_empty.1 (h ▸ consistent_anti (prefix_greedy _ _ _ _ _))) fun h =>
+        consistent_greedy_succ_eq_empty ho hgood k _
+          (le_trans (Nat.mul_le_mul_right _ (Nat.mul_le_mul_left 4 (Nat.le_succ _))) hℓ)
+          (ho.card_pow_lt h)
 
 /-- **The greedy refutes every description.** If `#G ≤ 2 ^ L`, every nonempty subfamily of `G`
 is refuted on a sixteenth of its members by some candidate, and `4 (L ℓ + 1) 15 ^ ℓ ≤ 16 ^ ℓ`,
@@ -305,9 +285,8 @@ theorem consistent_greedy_eq_empty (ho : IsThresholdOracle G eval ℓ O)
     consistent G eval (greedy O f cands (L * ℓ + 1) []) = ∅ := by
   refine consistent_greedy_succ_eq_empty ho hgood (L * ℓ) [] hℓ ?_
   rw [consistent_nil]
-  calc #G ^ ℓ ≤ (2 ^ L) ^ ℓ := Nat.pow_le_pow_left hG ℓ
-    _ = 2 ^ (L * ℓ) := (pow_mul 2 L ℓ).symm
-    _ < 2 ^ (L * ℓ + 2) := Nat.pow_lt_pow_right (by decide) (by omega)
+  exact (Nat.pow_le_pow_left hG ℓ).trans_lt
+    (pow_mul 2 L ℓ ▸ Nat.pow_lt_pow_right (by decide) (by omega))
 
 end Greedy
 
@@ -359,10 +338,8 @@ theorem isLarge_of_card (h : 2 ^ (u + 1) ≤ #T) : IsLarge u T :=
     (by rw [BitString.card]; exact Nat.pow_lt_pow_right (by decide) (Nat.lt_succ_self u))
 
 /-- Sets large at threshold `u` have at least `2 ^ u / (u + 1)` strings. -/
-theorem IsLarge.two_pow_le (h : IsLarge u T) : 2 ^ u ≤ (u + 1) * #T := by
-  obtain ⟨seeds, hc⟩ := h
-  have hle := hc.card_le_mul
-  rwa [BitString.card] at hle
+theorem IsLarge.two_pow_le (h : IsLarge u T) : 2 ^ u ≤ (u + 1) * #T :=
+  let ⟨_, hc⟩ := h; BitString.card ▸ hc.card_le_mul
 
 /-- At threshold `0`, the large sets are the nonempty ones. -/
 theorem isLarge_zero_iff : IsLarge 0 T ↔ T.Nonempty :=
@@ -387,16 +364,11 @@ def hashOracle (G : Finset (BitString L)) (eval : BitString L → α → Bool) (
 oracle. -/
 theorem isThresholdOracle_hashOracle (G : Finset (BitString L)) (eval : BitString L → α → Bool)
     {ℓ : ℕ} (hℓ : 0 < ℓ) : IsThresholdOracle G eval ℓ (hashOracle G eval ℓ) where
-  card_pow_lt h := by
-    rw [hashOracle_eq_true] at h
-    by_contra! hle
-    exact h (isLarge_of_card (by rwa [BitString.card_blockPower]))
-  apply_eq_true_of_lt h := by
-    rw [hashOracle_eq_true]
-    intro hl
-    have hle := hl.two_pow_le
-    rw [BitString.card_blockPower] at hle
-    exact not_le.2 h hle
+  card_pow_lt h :=
+    not_le.1 fun hle =>
+      (hashOracle_eq_true.1 h) (isLarge_of_card (by rwa [BitString.card_blockPower]))
+  apply_eq_true_of_lt h :=
+    hashOracle_eq_true.2 fun hl => h.not_ge (BitString.card_blockPower _ _ ▸ hl.two_pow_le)
   consistent_eq_empty h := by
     rwa [hashOracle_eq_true, isLarge_zero_iff, not_nonempty_iff_eq_empty,
       BitString.blockPower_eq_empty_iff hℓ.ne'] at h
@@ -436,13 +408,11 @@ theorem isAntiChecker_greedy {n s : ℕ} (hn : 0 < n) {f : BooleanFunction n}
     (fun _ hG' hne => (exists_card_le_sixteen_mul_validCertificates hn le_rfl hf hne hG').imp
       fun x hx => ⟨BitString.mem_enum n x, hx⟩)
     (card_validCertificates_le n s) (four_mul_mul_add_one_mul_fifteen_pow_le_sixteen_pow _)
-  intro g hg
-  rw [← image_validCertificates] at hg
-  obtain ⟨w, hw, rfl⟩ := hg
+  rintro g hg
+  obtain ⟨w, hw, rfl⟩ := image_validCertificates n s ▸ hg
   obtain ⟨q, hq, hne⟩ := exists_mem_ne_of_consistent_eq_empty hempty (mem_coe.1 hw)
-  refine ⟨q.1, ?_, ?_⟩
-  · exact List.mem_map.2 ⟨q, hq, rfl⟩
-  · rwa [forall_mem_greedy_snd_eq _ f _ (P := []) (by simp) _ q hq] at hne
+  exact ⟨q.1, List.mem_map.2 ⟨q, hq, rfl⟩,
+    forall_mem_greedy_snd_eq _ f _ (P := []) (by simp) _ q hq ▸ hne⟩
 
 /-- **The greedy anti-checker for circuits.** If `f` needs more gates than `n` circuits with at
 most `s` gates and a circuit for their strict majority, then every circuit with at most `s` gates

@@ -95,11 +95,9 @@ section Word
 
 /-- `0 ≤ ⌊k / √2⌋ ≤ k`, so the greedy word over `{⌊k / √2⌋, -k}` is `k`-unbiased. -/
 theorem floor_div_sqrt_two_mem_Icc (k : ℕ) : 0 ≤ ⌊(k : ℝ) / √2⌋ ∧ ⌊(k : ℝ) / √2⌋ ≤ k := by
-  have hs : 1 ≤ √2 := Real.one_le_sqrt.mpr one_le_two
   refine ⟨Int.floor_nonneg.mpr (by positivity), Int.floor_le_iff.mpr ?_⟩
   push_cast
-  calc (k : ℝ) / √2 ≤ k := div_le_self (Nat.cast_nonneg k) hs
-    _ < k + 1 := lt_add_one _
+  exact (div_le_self (Nat.cast_nonneg k) (Real.one_le_sqrt.mpr one_le_two)).trans_lt (lt_add_one _)
 
 /-- **The word of LST Lemma 15** (proof of Lemma 15, p. 12, following the proof of Lemma 13,
 p. 10): the greedy word of length `d` over the alphabet `{⌊k / √2⌋, -k}`, whose `i`-th letter
@@ -170,10 +168,7 @@ theorem productDepth_subst (ρ : Fin n → Option (Fin m)) (F : SPFormula K n) :
 theorem polynomial_subst [CommSemiring K] (ρ : Fin n → Option (Fin m)) (F : SPFormula K n) :
     (subst ρ F).polynomial = aeval (fun i => (ρ i).elim 0 X) F.polynomial := by
   rw [aeval_polynomial, algebraMap_eq, polynomial, subst, Formula.eval_bind]
-  congr 1 with i : 1
-  rcases ρ i with _ | j
-  · exact polynomial_zero
-  · rfl
+  congr 1 with i : 1; cases ρ i <;> [exact polynomial_zero; rfl]
 
 /-- **Substitution keeps set-multilinearity**: if every variable is replaced by a variable of
 the same block or by `0`, a formula set-multilinear on `S` stays set-multilinear on `S`. -/
@@ -184,19 +179,13 @@ theorem IsSetMultilinear.subst {blk : Fin n → Fin d} {blk' : Fin m → Fin d}
   induction hF with
   | input i =>
     rcases h : ρ i with _ | j
-    · rw [subst_input, h]
-      exact isSetMultilinear_zero _
-    · rw [subst_input, h, ← hρ i j h]
-      exact .input j
+    · rw [subst_input, h]; exact isSetMultilinear_zero _
+    · rw [subst_input, h, ← hρ i j h]; exact .input j
   | const a =>
-    have h : SPFormula.subst ρ (SPFormula.const a : SPFormula K n) = SPFormula.const a := by
-      rw [subst_gate]
-      congr 1 with j : 1
-      exact j.elim0
-    rw [h]
-    exact .const a
-  | add c F S _ ih => exact .add c _ S ih
-  | mul F T hT _ ih => exact .mul _ T hT ih
+    exact (show SPFormula.subst ρ (.const a) = .const a from
+      congrArg (Formula.gate _) (funext fun j : Fin 0 => j.elim0)).symm ▸ .const a
+  | add c _ S _ ih => exact .add c _ S ih
+  | mul _ T hT _ ih => exact .mul _ T hT ih
 
 end SPFormula
 
@@ -244,53 +233,35 @@ theorem IsSetMultilinear.two_rpow_le_nodeCount_of_imm (e : Fin N → Fin d × Fi
   set ρ := immSubst K w e f
   set blk' : Fin (Fintype.card (WordVar w)) → Fin d := fun j => (f.symm j).1
   set G := SPFormula.subst ρ F
-  -- The substitution respects the blocks.
   have hρ : ∀ v j, ρ v = some j → blk' j = (e v).1 := by
     intro v j hv
-    simp only [ρ, immSubst] at hv
     rcases h : wordSubst w 0 n K (e v) with x | a
-    · rw [h] at hv
-      obtain rfl := (Option.some.inj hv).symm
-      simp only [blk', Equiv.symm_apply_apply]
-      exact wordSubst_eq_inl h
-    · rw [h] at hv
-      exact absurd hv (by simp)
+    · obtain rfl : f x = j :=
+        Option.some.inj (by simpa only [ρ, immSubst, h, Sum.elim_inl] using hv)
+      simp [blk', wordSubst_eq_inl h]
+    · simp [ρ, immSubst, h] at hv
   have hG : G.IsSetMultilinear blk' Finset.univ := hF.subst hρ
-  -- The substituted formula computes the word polynomial, renamed.
   have hGP : G.polynomial = rename f (wordPoly K w 0) := by
-    have hτ : 0 < 2 ^ (∑ i, w i).natAbs := Nat.two_pow_pos _
-    rw [← projection_wordSubst_imm (isUnbiased_sqrtTwoWord k d) hn hτ, ← hFP, polynomial_subst]
-    change _ = ((rename f).comp ((projection (wordSubst w 0 n K)).comp
-      (rename e))) F.polynomial
-    congr 1
-    refine algHom_ext fun v => ?_
-    simp only [aeval_X, AlgHom.comp_apply, rename_X, projection_X, ρ,
-      immSubst]
+    rw [polynomial_subst, ← projection_wordSubst_imm (isUnbiased_sqrtTwoWord k d) hn
+      (Nat.two_pow_pos _), ← hFP]
+    change _ = ((rename f).comp ((projection (wordSubst w 0 n K)).comp (rename e))) F.polynomial
+    congr 1; ext v
     rcases h : wordSubst w 0 n K (e v) with x | a
-    · simp
-    · obtain rfl := wordSubst_eq_inr h
-      simp
-  -- Block `i` of the renamed variables has `2 ^ |w i|` variables.
-  have hblk : ∀ i, Fintype.card {x // blk' x = i} = 2 ^ (w i).natAbs := by
-    intro i
+    · simp [ρ, immSubst, h]
+    · simp [ρ, immSubst, h, wordSubst_eq_inr h]
+  have hblk (i : Fin d) : Fintype.card {x // blk' x = i} = 2 ^ (w i).natAbs := by
     rw [Fintype.card_congr ((f.symm.subtypeEquiv fun _ => Iff.rfl).trans (Equiv.sigmaSubtype i)),
       Fintype.card_fin]
   have hup := hG.relRank_polynomial_le_univ hblk hk (sqrtTwoWord_eq_or k) hΔ
     (by simpa [G] using hFΔ)
   rw [hGP, relRank_rename (blk := Sigma.fst) f (fun _ => by simp [blk']),
     relRank_wordPoly (Nat.two_pow_pos _), nodeCount_subst] at hup
-  -- Combine the two bounds.
-  have hsum : (2 : ℝ) ^ (-(k : ℝ) / 2) ≤ 2 ^ (-((∑ i, w i).natAbs : ℝ) / 2) := by
-    refine Real.rpow_le_rpow_of_exponent_le one_le_two ?_
-    cast_linarith [natAbs_sum_sqrtTwoWord_le k d]
+  have hsum : (2 : ℝ) ^ (-(k : ℝ) / 2) ≤ 2 ^ (-((∑ i, w i).natAbs : ℝ) / 2) :=
+    Real.rpow_le_rpow_of_exponent_le one_le_two (by cast_linarith [natAbs_sum_sqrtTwoWord_le k d])
   set D := (d : ℝ) ^ (1 / (2 ^ Δ - 1 : ℝ))
   have hsplit : (2 : ℝ) ^ ((k : ℝ) * (D / 20 - 1 / 2)) * 2 ^ (-(k * D / 20)) =
-      2 ^ (-(k : ℝ) / 2) := by
-    rw [← Real.rpow_add two_pos]
-    congr 1
-    ring
-  have hx : (0 : ℝ) < 2 ^ (-(k * D / 20)) := Real.rpow_pos_of_pos two_pos _
-  exact le_of_mul_le_mul_right (hsplit.trans_le (hsum.trans hup)) hx
+      2 ^ (-(k : ℝ) / 2) := by rw [← Real.rpow_add two_pos]; congr 1; ring
+  exact le_of_mul_le_mul_right (hsplit.trans_le (hsum.trans hup)) (Real.rpow_pos_of_pos two_pos _)
 
 end SPFormula
 
@@ -326,10 +297,10 @@ theorem productDepth_immFormula_le [Zero K] [One K] :
 
 /-- The sum over paths is set-multilinear on all blocks of `IMM_{n,d}`. -/
 theorem isSetMultilinear_immFormula [Zero K] [One K] :
-    (immFormula K n d).IsSetMultilinear (fun v => (immVarEquiv n d v).1) Finset.univ := by
-  refine .add _ _ _ fun j => isSetMultilinear_mul_iff.2
-    ⟨fun i => {i}, fun i i' h => Finset.disjoint_singleton.2 h, fun i => ?_, by simp⟩
-  exact isSetMultilinear_input_iff.2 (by simp)
+    (immFormula K n d).IsSetMultilinear (fun v => (immVarEquiv n d v).1) Finset.univ :=
+  .add _ _ _ fun _ => isSetMultilinear_mul_iff.2
+    ⟨fun i => {i}, fun _ _ h => Finset.disjoint_singleton.2 h,
+      fun _ => isSetMultilinear_input_iff.2 (by simp), by simp⟩
 
 /-- The sum over paths computes `IMM_{n,d}` on the numbered variables. -/
 theorem rename_polynomial_immFormula [CommSemiring K] :

@@ -59,11 +59,9 @@ theorem ncard_neighborSet_toSimpleGraph_le [Finite E] (G : Multigraph V E) (v : 
   refine (ncard_le_ncard (t := G.otherEnd v '' G.incidenceSet v) fun w hw => ?_).trans
     (ncard_image_le (toFinite _))
   obtain ⟨hne, e, he⟩ := toSimpleGraph_adj.mp hw
-  refine ⟨e, ?_, ?_⟩ <;> rcases Sym2.eq_iff.mp he with ⟨hs, ht⟩ | ⟨hs, ht⟩
-  · exact Or.inl hs
-  · exact Or.inr ht
-  · simp [otherEnd, hs, ht]
-  · simp [otherEnd, hs, Ne.symm hne]
+  rcases Sym2.eq_iff.mp he with ⟨hs, ht⟩ | ⟨hs, ht⟩
+  · exact ⟨e, .inl hs, by simp [otherEnd, hs, ht]⟩
+  · exact ⟨e, .inr ht, by simp [otherEnd, hs, hne.symm]⟩
 
 /-- **The underlying simple graph has no larger degrees.** Every neighbour of `v` in the
 underlying simple graph is the other end of an edge at `v`. -/
@@ -81,11 +79,8 @@ theorem ncard_touching_le [Finite E] [Finite V] {d : ℕ} (hd : G.MaxDegreeLE d)
   have heq : G.touching S = ⋃ v ∈ S.toFinset, G.incidenceSet v := by
     ext e
     simp only [mem_touching, mem_toFinset, mem_iUnion, mem_incidenceSet, exists_prop]
-    constructor
-    · rintro (h | h)
-      exacts [⟨_, h, Or.inl rfl⟩, ⟨_, h, Or.inr rfl⟩]
-    · rintro ⟨v, hv, rfl | rfl⟩
-      exacts [Or.inl hv, Or.inr hv]
+    exact ⟨fun | .inl h => ⟨_, h, .inl rfl⟩ | .inr h => ⟨_, h, .inr rfl⟩,
+      fun ⟨_, hv, h⟩ => h.elim (· ▸ .inl hv) (· ▸ .inr hv)⟩
   rw [heq, ncard_eq_toFinset_card' S]
   calc _ ≤ ∑ v ∈ S.toFinset, (G.incidenceSet v).ncard := Finset.set_ncard_biUnion_le _ _
     _ ≤ ∑ _v ∈ S.toFinset, d := Finset.sum_le_sum fun v _ => hd v

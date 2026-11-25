@@ -51,9 +51,7 @@ private theorem interpret_liftProver {n : ℕ} {α : Type}
     OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
       (fun _ => PMF.pure c.senderView)) program := by
   rw [liftProver, OracleComp.interpret_interpret]
-  congr 1 with q : 1
-  rcases q with q | q <;>
-    simp [OracleComp.sumHandler, ProbOracleComp.query]
+  congr 1 with (_ | _) <;> simp [OracleComp.sumHandler, ProbOracleComp.query]
 
 /-- The actual malicious sender, including initialization, private coins and repeated setup reads,
 uses only its two vectors. Its first message is fixed before weights, and its complete adaptive
@@ -110,34 +108,29 @@ theorem circuitVerify_sample_iff (C : Circuit (arithSignature F) (p + k) m)
   rw [circuitVerify, decide_eq_true_eq]
   apply and_congr
   · let rows : (Fin p ⊕ Fin C.size ⊕ Fin m) ≃ Fin (p + (C.size + m)) :=
-      (Equiv.sumCongr (Equiv.refl _) finSumFinEquiv).trans finSumFinEquiv
+      (Equiv.sumCongr (.refl _) finSumFinEquiv).trans finSumFinEquiv
     change (∀ i, (circuitLinearCoeffs C *ᵥ
       voleAdjustReceiver (Fin.init (voleSample u v delta).w) first.1 delta) (rows.symm i) =
       circuitLinearTargets C statement.1 statement.2 (rows.symm i) * delta +
         first.2 (rows.symm i)) ↔ _
-    have hlinear (row : Fin p ⊕ Fin C.size ⊕ Fin m) :
+    have hlin (row : Fin p ⊕ Fin C.size ⊕ Fin m) :
         (circuitLinearCoeffs C *ᵥ
           voleAdjustReceiver (Fin.init (voleSample u v delta).w) first.1 delta) row =
         (circuitLinearCoeffs C *ᵥ (Fin.init u + first.1)) row * delta +
           (circuitLinearCoeffs C *ᵥ Fin.init v) row :=
       circuitLinear_adjusted C _ (valid_voleSample u v delta) first.1 row
-    simp only [hlinear]
-    constructor
-    · intro h row
-      simpa only [Equiv.symm_apply_apply] using h (rows row)
-    · intro h i
-      exact h (rows.symm i)
+    simp only [hlin]
+    exact ⟨fun h row => by simpa only [Equiv.symm_apply_apply] using h (rows row),
+      fun h i => h (rows.symm i)⟩
   · have hadjust : voleAdjustReceiver (Fin.init (voleSample u v delta).w) first.1 delta =
         fun j => (Fin.init u + first.1) j * delta + v j.castSucc := by
-      funext j
+      ext j
       simp only [voleAdjustReceiver, Fin.init, voleSample, Pi.add_apply]
       ring
-    rw [maskedMulCheckValue]
-    simp only [VOLECorrelation.receiverView]
-    simp only [voleSample] at hadjust ⊢
+    simp only [maskedMulCheckValue, VOLECorrelation.receiverView, voleSample] at hadjust ⊢
     rw [hadjust]
     change _ + (u (Fin.last _) * delta + v (Fin.last _)) = _ ↔ _
-    constructor <;> intro h <;> linear_combination h
+    exact ⟨fun h => by linear_combination h, fun h => by linear_combination h⟩
 
 
 end Ring
@@ -168,9 +161,8 @@ theorem toOuterMeasure_circuitVerify_le (C : Circuit (arithSignature F) (p + k) 
       circuitLinearTargets C statement.1 statement.2
   · have hmul : ∃ i : CircuitMulGate C,
         a (circuitMulInput C i 0) * a (circuitMulInput C i 1) ≠ a (circuitMulOutput C i) := by
-      by_contra h
-      push Not at h
-      exact hfalse (exists_witness_of_circuitChecks C statement.1 statement.2 a hlinear h)
+      contrapose! hfalse
+      exact exists_witness_of_circuitChecks C statement.1 statement.2 a hlinear hfalse
     have hbound := toOuterMeasure_voleMulCheck_batch_le
       (fun i => a (circuitMulInput C i 0)) (fun i => a (circuitMulInput C i 1))
       (fun i => a (circuitMulOutput C i)) (fun i => v (circuitMulInput C i 0).castSucc)
@@ -186,38 +178,24 @@ theorem toOuterMeasure_circuitVerify_le (C : Circuit (arithSignature F) (p + k) 
     change ((PMF.uniformOfFintype F).map _).toOuterMeasure {true} ≤
       ((PMF.uniformOfFintype F).map _).toOuterMeasure {true}
     rw [PMF.toOuterMeasure_map_apply, PMF.toOuterMeasure_map_apply]
-    apply MeasureTheory.measure_mono
-    intro delta hdelta
-    exact decide_eq_true ((circuitVerify_sample_iff C statement u v first r ab delta).mp hdelta).2
-  · have hsmall : (do
-        let r ← PMF.uniformOfFintype (CircuitMulGate C → F)
-        let ab ← reply r
-        let delta ← PMF.uniformOfFintype F
-        return circuitVerify C statement (voleSample u v delta).receiverView first r ab
-      ).toOuterMeasure {true} ≤ (Fintype.card F : ℝ≥0∞)⁻¹ := by
-      simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
-      apply PMF.toOuterMeasure_bind_le
-      intro r
-      apply PMF.toOuterMeasure_bind_le
-      intro ab
-      let rows : (Fin p ⊕ Fin C.size ⊕ Fin m) ≃ Fin (p + (C.size + m)) :=
-        (Equiv.sumCongr (Equiv.refl _) finSumFinEquiv).trans finSumFinEquiv
-      have hne : circuitLinearTargets C statement.1 statement.2 ∘ rows.symm ≠
-          (circuitLinearCoeffs C *ᵥ a) ∘ rows.symm := by
-        intro h
-        apply hlinear
-        funext row
-        simpa using (congrFun h (rows row)).symm
-      refine le_trans ?_ (toOuterMeasure_voleVerifyOpening_le
-        (v := (circuitLinearCoeffs C *ᵥ Fin.init v) ∘ rows.symm)
-        (v' := first.2 ∘ rows.symm) hne)
-      change ((PMF.uniformOfFintype F).map _).toOuterMeasure {true} ≤ _
-      rw [PMF.toOuterMeasure_map_apply]
-      apply MeasureTheory.measure_mono
-      intro delta hdelta i
-      exact ((circuitVerify_sample_iff C statement u v first r ab delta).mp hdelta).1
-        (rows.symm i)
-    exact hsmall.trans (le_add_right le_rfl)
+    exact MeasureTheory.measure_mono fun delta hdelta =>
+      decide_eq_true ((circuitVerify_sample_iff C statement u v first r ab delta).mp hdelta).2
+  · refine le_trans ?_ (le_add_right le_rfl)
+    simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
+    refine PMF.toOuterMeasure_bind_le _ _ _ fun r =>
+      PMF.toOuterMeasure_bind_le _ _ _ fun ab => ?_
+    let rows : (Fin p ⊕ Fin C.size ⊕ Fin m) ≃ Fin (p + (C.size + m)) :=
+      (Equiv.sumCongr (.refl _) finSumFinEquiv).trans finSumFinEquiv
+    have hne : circuitLinearTargets C statement.1 statement.2 ∘ rows.symm ≠
+        (circuitLinearCoeffs C *ᵥ a) ∘ rows.symm := fun h =>
+      hlinear (funext fun row => by simpa using (congrFun h (rows row)).symm)
+    refine le_trans ?_ (toOuterMeasure_voleVerifyOpening_le
+      (v := (circuitLinearCoeffs C *ᵥ Fin.init v) ∘ rows.symm)
+      (v' := first.2 ∘ rows.symm) hne)
+    change ((PMF.uniformOfFintype F).map _).toOuterMeasure {true} ≤ _
+    rw [PMF.toOuterMeasure_map_apply]
+    exact MeasureTheory.measure_mono fun delta hdelta i =>
+      ((circuitVerify_sample_iff C statement u v first r ab delta).mp hdelta).1 (rows.symm i)
 
 
 /-- Information-theoretic soundness for the public circuit language in the actual cached VOLE
@@ -232,14 +210,8 @@ theorem circuitCheck_sound (C : Circuit (arithSignature F) (p + k) m) :
   intro statement hfalse α P
   rw [circuitCheck_eval_execute]
   simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
-  apply PMF.toOuterMeasure_bind_le
-  intro u
-  apply PMF.toOuterMeasure_bind_le
-  intro v
-  apply PMF.toOuterMeasure_bind_le
-  intro st
-  apply PMF.toOuterMeasure_bind_le
-  intro first
+  refine PMF.toOuterMeasure_bind_le _ _ _ fun u => PMF.toOuterMeasure_bind_le _ _ _ fun v =>
+    PMF.toOuterMeasure_bind_le _ _ _ fun st => PMF.toOuterMeasure_bind_le _ _ _ fun first => ?_
   let senderLaw {β : Type} := OracleComp.interpret (m := PMF) (α := β)
     (OracleComp.sumHandler ProbComp.unifOracle (fun _ : Unit => PMF.pure (u, v)))
   have hbound := toOuterMeasure_circuitVerify_le C statement hfalse u v first.1

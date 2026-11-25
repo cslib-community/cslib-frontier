@@ -128,8 +128,7 @@ theorem IsStrictUpperTriangular.inv_one_sub_correction_mulVec [DecidableEq V] [L
 /-- The row sums of a corrected matrix: `(C - E + E C) 1 = C 1 - E (1 - C 1)`. -/
 theorem correction_mulVec_one [Ring R] (C E : Matrix V V R) :
     (C - E + E * C) *ᵥ 1 = C *ᵥ 1 - E *ᵥ (1 - C *ᵥ 1) := by
-  rw [add_mulVec, sub_mulVec, ← mulVec_mulVec, mulVec_sub]
-  abel
+  rw [add_mulVec, sub_mulVec, ← mulVec_mulVec, mulVec_sub]; abel
 
 /-- **Corrections do not increase row sums.** If `E ≥ 0` and the rows of `C` sum to at most one,
 then each row of `C - E + E C` sums to at most the corresponding row of `C`. This says nothing
@@ -138,8 +137,7 @@ chosen [OpenAI2026LogSpace, Lemma 4.4]. -/
 theorem correction_mulVec_one_le [Ring R] [PartialOrder R] [IsOrderedRing R]
     {C E : Matrix V V R} (hE : ∀ i j, 0 ≤ E i j) (hC : C *ᵥ 1 ≤ 1) :
     (C - E + E * C) *ᵥ 1 ≤ C *ᵥ 1 := by
-  rw [correction_mulVec_one]
-  exact sub_le_self _ (mulVec_nonneg hE (sub_nonneg.mpr hC))
+  rw [correction_mulVec_one]; exact sub_le_self _ (mulVec_nonneg hE (sub_nonneg.mpr hC))
 
 end Correction
 
@@ -182,14 +180,12 @@ theorem copySplit_mul_copyWeight [Fintype V] [DecidableEq V] [Fintype ι] [Semir
     copySplit r s D * copyWeight r = copyWeight r * D := by
   ext ⟨x, i⟩ z
   have hL : (copySplit r s D * copyWeight r) (x, i) z = r i x * D x z * ∑ j, s x z j * r j z := by
-    rw [Matrix.mul_apply, Fintype.sum_prod_type, Fintype.sum_eq_single z fun y hy => ?_,
-      Finset.mul_sum]
-    · simp [copySplit, copyWeight, mul_assoc]
-    · simp [copyWeight, hy]
+    rw [Matrix.mul_apply, Fintype.sum_prod_type,
+      Fintype.sum_eq_single z fun _ hy => by simp [copyWeight, hy], Finset.mul_sum]
+    simp [copySplit, copyWeight, mul_assoc]
   have hR : (copyWeight r * D) (x, i) z = r i x * D x z := by
-    rw [Matrix.mul_apply, Fintype.sum_eq_single x fun y hy => ?_]
-    · simp [copyWeight]
-    · simp [copyWeight, Ne.symm hy]
+    rw [Matrix.mul_apply, Fintype.sum_eq_single x fun _ hy => by simp [copyWeight, hy.symm]]
+    simp [copyWeight]
   rw [hL, hR]
   by_cases hD : D x z = 0
   · simp [hD]
@@ -209,9 +205,9 @@ corrected and copied again. Only the order of the parents matters: an entry from
 theorem copySplit_isStrictUpperTriangular [LT V] [LT ι] [MulZeroClass R] {r : ι → V → R}
     {s : V → V → ι → R} {D : Matrix V V R} (hD : D.IsStrictUpperTriangular) :
     ((copySplit r s D).submatrix ofLex ofLex).IsStrictUpperTriangular := by
-  intro a b hab
-  simp only [submatrix_apply, copySplit, of_apply]
-  rw [hD fun h => hab (Prod.Lex.lt_iff.2 (Or.inl h)), mul_zero, zero_mul]
+  intro _ _ hab
+  simp only [submatrix_apply, copySplit, of_apply,
+    hD fun h => hab (Prod.Lex.lt_iff.2 (Or.inl h)), mul_zero, zero_mul]
 
 /-- **Copies keep row sums at most one** when the weights lie in `[0, 1]`, `D` is nonnegative
 with row sums at most one, and the proportions of each entry sum to at most one. Together with
@@ -223,12 +219,11 @@ theorem copySplit_mulVec_one_le [Fintype V] [Fintype ι] [Semiring R] [PartialOr
   rintro ⟨x, i⟩
   have hrow : ∑ b : V × ι, copySplit r s D (x, i) b ≤ r i x * ∑ y, D x y := by
     rw [Fintype.sum_prod_type, Finset.mul_sum]
-    refine Finset.sum_le_sum fun y _ => ?_
-    simp only [copySplit, of_apply, ← Finset.mul_sum]
-    exact mul_le_of_le_one_right (mul_nonneg (hr0 i x) (hD0 x y)) (hs1 x y)
-  have hDx : ∑ y, D x y ≤ 1 := by simpa [mulVec, dotProduct] using hD1 x
-  simpa [mulVec, dotProduct] using
-    (hrow.trans (mul_le_of_le_one_right (hr0 i x) hDx)).trans (hr1 i x)
+    exact Finset.sum_le_sum fun y _ => by
+      simp only [copySplit, of_apply, ← Finset.mul_sum]
+      exact mul_le_of_le_one_right (mul_nonneg (hr0 i x) (hD0 x y)) (hs1 x y)
+  simpa [mulVec, dotProduct] using (hrow.trans (mul_le_of_le_one_right (hr0 i x)
+    (by simpa [mulVec, dotProduct] using hD1 x))).trans (hr1 i x)
 
 end Copy
 
@@ -268,16 +263,9 @@ theorem mul_copyProjection [Ring R]
       rw [one_add_mul_one_sub_eq_one_sub, sub_sub_cancel]
     have hB : (1 - C l) * copyProjection P l = rewardTransport P E l * (1 - C 0) := by
       rw [Matrix.sub_mul, Matrix.one_mul, ih, sub_sub_cancel]
-    calc C (l + 1) * copyProjection P (l + 1)
-        = P l * (C l - E l + E l * C l) * copyProjection P l := by
-          rw [copyProjection, ← Matrix.mul_assoc, h]
-      _ = P l * copyProjection P l - P l * (1 + E l) * ((1 - C l) * copyProjection P l) := by
-          rw [hD]
-          simp only [Matrix.mul_sub, Matrix.sub_mul, Matrix.mul_one, Matrix.one_mul,
-            Matrix.mul_assoc]
-      _ = copyProjection P (l + 1) - rewardTransport P E (l + 1) * (1 - C 0) := by
-          rw [hB]
-          simp only [copyProjection, rewardTransport, Matrix.mul_assoc]
+    rw [copyProjection, ← Matrix.mul_assoc, h, hD, Matrix.mul_sub, Matrix.mul_one, Matrix.sub_mul,
+      Matrix.mul_assoc (P l), Matrix.mul_assoc (1 + E l), hB]
+    simp only [rewardTransport, Matrix.mul_assoc]
 
 /-- **The transported reward.** If `p` solves `(1 - C 0) p = e`, the stage-`l` reward is
 `B l e = Pc l p - C l (Pc l p)`: the projected solution minus what the remaining transitions
@@ -303,9 +291,7 @@ theorem copyProjection_mulVec_primary [Semiring R] {z : ∀ l, V l}
     (copyProjection P l *ᵥ p) (z l) = p (z 0) := by
   induction l with
   | zero => simp [copyProjection]
-  | succ l ih =>
-    rw [copyProjection, ← mulVec_mulVec]
-    simp [mulVec, dotProduct, hz, ite_mul, ← ih]
+  | succ l ih => rw [copyProjection, ← mulVec_mulVec]; simp [mulVec, dotProduct, hz, ite_mul, ← ih]
 
 section Order
 
@@ -321,27 +307,24 @@ private theorem mul_nonneg_entries {m n o : Type*} [Fintype n] {A : Matrix m n R
   Finset.sum_nonneg fun j _ => mul_nonneg (hA i j) (hB j k)
 
 theorem copyProjection_nonneg (hP : ∀ l i j, 0 ≤ P l i j) (l : ℕ) :
-    ∀ i j, 0 ≤ copyProjection P l i j := by
-  induction l with
-  | zero => exact one_apply_nonneg
-  | succ l ih => exact mul_nonneg_entries (hP l) ih
+    ∀ i j, 0 ≤ copyProjection P l i j :=
+  match l with
+  | 0 => one_apply_nonneg
+  | l + 1 => mul_nonneg_entries (hP l) (copyProjection_nonneg hP l)
 
 /-- The cumulative projection of substochastic projections is substochastic. -/
 theorem copyProjection_mulVec_one_le (hP : ∀ l i j, 0 ≤ P l i j) (hP1 : ∀ l, P l *ᵥ 1 ≤ 1)
     (l : ℕ) : copyProjection P l *ᵥ 1 ≤ 1 := by
   induction l with
   | zero => simp [copyProjection]
-  | succ l ih =>
-    rw [copyProjection, ← mulVec_mulVec]
-    exact mulVec_le_one (hP l) (hP1 l) ih
+  | succ l ih => rw [copyProjection, ← mulVec_mulVec]; exact mulVec_le_one (hP l) (hP1 l) ih
 
 theorem rewardTransport_nonneg (hP : ∀ l i j, 0 ≤ P l i j) (hE : ∀ l i j, 0 ≤ E l i j)
-    (l : ℕ) : ∀ i j, 0 ≤ rewardTransport P E l i j := by
-  induction l with
-  | zero => exact one_apply_nonneg
-  | succ l ih =>
-    exact mul_nonneg_entries (mul_nonneg_entries (hP l)
-      (fun i j => add_nonneg (one_apply_nonneg i j) (hE l i j))) ih
+    (l : ℕ) : ∀ i j, 0 ≤ rewardTransport P E l i j :=
+  match l with
+  | 0 => one_apply_nonneg
+  | l + 1 => mul_nonneg_entries (mul_nonneg_entries (hP l)
+      fun i j => add_nonneg (one_apply_nonneg i j) (hE l i j)) (rewardTransport_nonneg hP hE l)
 
 /-- The stage rewards are nonnegative when the projections, the corrections and the initial reward
 are [OpenAI2026LogSpace, Proposition 4.7]. -/
@@ -359,12 +342,10 @@ include hP hP1 hC hstep hp hp0 hp1
 see `Matrix.rewardTransport_mulVec_nonneg`. -/
 theorem rewardTransport_mulVec_le (l : ℕ) :
     rewardTransport P E l *ᵥ e ≤ copyProjection P l *ᵥ p ∧
-      copyProjection P l *ᵥ p ≤ 1 := by
-  have hPc0 : 0 ≤ copyProjection P l *ᵥ p := mulVec_nonneg (copyProjection_nonneg hP l) hp0
-  refine ⟨?_, mulVec_le_one (copyProjection_nonneg hP l)
-    (copyProjection_mulVec_one_le hP hP1 l) hp1⟩
-  rw [rewardTransport_mulVec hstep hp]
-  exact sub_le_self _ (mulVec_nonneg (hC l) hPc0)
+      copyProjection P l *ᵥ p ≤ 1 :=
+  ⟨by rw [rewardTransport_mulVec hstep hp]
+      exact sub_le_self _ (mulVec_nonneg (hC l) (mulVec_nonneg (copyProjection_nonneg hP l) hp0)),
+    mulVec_le_one (copyProjection_nonneg hP l) (copyProjection_mulVec_one_le hP hP1 l) hp1⟩
 
 /-- **The stage error.** Along primary copies `z l`, the stage-`l` reward underestimates the
 solution at `z 0` by at most the row sum of `C l` at `z l`
@@ -372,13 +353,11 @@ solution at `z 0` by at most the row sum of `C l` at `z l`
 theorem sub_rewardTransport_mulVec_mem_Icc {z : ∀ l, V l}
     (hz : ∀ l w, P l (z (l + 1)) w = if w = z l then 1 else 0) (l : ℕ) :
     p (z 0) - (rewardTransport P E l *ᵥ e) (z l) ∈ Set.Icc 0 (∑ y, C l (z l) y) := by
-  have hPc0 : 0 ≤ copyProjection P l *ᵥ p := mulVec_nonneg (copyProjection_nonneg hP l) hp0
-  have hPc1 : copyProjection P l *ᵥ p ≤ 1 :=
-    (rewardTransport_mulVec_le hP hP1 hC hstep hp hp0 hp1 l).2
   rw [rewardTransport_mulVec hstep hp, Pi.sub_apply, copyProjection_mulVec_primary hz,
     sub_sub_cancel]
-  exact ⟨mulVec_nonneg (hC l) hPc0 _, Finset.sum_le_sum fun y _ =>
-    mul_le_of_le_one_right (hC l _ y) (hPc1 y)⟩
+  exact ⟨mulVec_nonneg (hC l) (mulVec_nonneg (copyProjection_nonneg hP l) hp0) _,
+    Finset.sum_le_sum fun y _ => mul_le_of_le_one_right (hC l _ y)
+      ((rewardTransport_mulVec_le hP hP1 hC hstep hp hp0 hp1 l).2 y)⟩
 
 /-- **The stage error, by counting.** If the entries of `C l` are at most `ε` and its nonzero
 columns lie in `A`, the stage-`l` reward along primary copies underestimates the solution by at
@@ -408,20 +387,18 @@ theorem sub_rewardTransport_mulVec_le_pow [Field R] [LinearOrder R] [IsStrictOrd
     (l : ℕ) :
     0 ≤ p (z 0) - (rewardTransport P E l *ᵥ e) (z l) ∧
       p (z 0) - (rewardTransport P E l *ᵥ e) (z l) ≤ n * ((2 : R) ^ c)⁻¹ ^ l := by
-  refine ⟨(sub_rewardTransport_mulVec_mem_Icc hP hP1 hC hstep hp hp0 hp1 hz l).1, ?_⟩
-  refine (sub_rewardTransport_mulVec_le_card_mul hP hP1 hC hstep hp hp0 hp1 hz l (hε l)
-    (hA l)).trans ?_
+  refine ⟨(sub_rewardTransport_mulVec_mem_Icc hP hP1 hC hstep hp hp0 hp1 hz l).1,
+    (sub_rewardTransport_mulVec_le_card_mul hP hP1 hC hstep hp hp0 hp1 hz l (hε l) (hA l)).trans <|
+      ?_⟩
   rw [nsmul_eq_mul]
-  calc ((A l).card : R) * ((2 : R) ^ (c + 1))⁻¹ ^ l
-      ≤ (2 ^ l * n : ℕ) * ((2 : R) ^ (c + 1))⁻¹ ^ l :=
-        mul_le_mul_of_nonneg_right (by exact_mod_cast hAn l)
-          (pow_nonneg (inv_nonneg.mpr (pow_nonneg zero_le_two _)) _)
-    _ = n * ((2 : R) ^ c)⁻¹ ^ l := by
-        have h2 : (2 : R) ^ l ≠ 0 := pow_ne_zero _ two_ne_zero
-        push_cast
-        rw [pow_succ, mul_inv, mul_pow, inv_pow (2 : R), mul_comm ((2 : R) ^ l), mul_assoc,
-          ← mul_assoc ((2 : R) ^ l), mul_comm ((2 : R) ^ l), mul_assoc _ ((2 : R) ^ l),
-          mul_inv_cancel₀ h2, mul_one]
+  refine (mul_le_mul_of_nonneg_right
+    (by exact_mod_cast hAn l : ((A l).card : R) ≤ ((2 ^ l * n : ℕ) : R))
+    (pow_nonneg (inv_nonneg.mpr (pow_nonneg zero_le_two _)) _)).trans_eq ?_
+  have h2 : (2 : R) ^ l ≠ 0 := pow_ne_zero _ two_ne_zero
+  push_cast
+  rw [pow_succ, mul_inv, mul_pow, inv_pow (2 : R), mul_comm ((2 : R) ^ l), mul_assoc,
+    ← mul_assoc ((2 : R) ^ l), mul_comm ((2 : R) ^ l), mul_assoc _ ((2 : R) ^ l),
+    mul_inv_cancel₀ h2, mul_one]
 
 end Hierarchy
 

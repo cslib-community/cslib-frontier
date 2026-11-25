@@ -103,10 +103,8 @@ theorem blockRank_mono_right [Finite n] (S : Set m) {T T' : Set n} (h : T' ⊆ T
 
 /-- Deleting rows does not increase the rank of a block. -/
 theorem blockRank_mono_left [Finite n] {S S' : Set m} (T : Set n) (h : S' ⊆ S) :
-    M.blockRank S' T ≤ M.blockRank S T := by
-  refine Submodule.finrank_mono (span_mono ?_)
-  rintro _ ⟨i, rfl⟩
-  exact ⟨⟨i, h i.2⟩, rfl⟩
+    M.blockRank S' T ≤ M.blockRank S T :=
+  Submodule.finrank_mono (span_mono (by rintro _ ⟨i, rfl⟩; exact ⟨⟨i, h i.2⟩, rfl⟩))
 
 /-- A sub-block has at most the rank of the block. -/
 theorem blockRank_mono [Finite n] {S S' : Set m} {T T' : Set n} (hS : S' ⊆ S) (hT : T' ⊆ T) :
@@ -116,8 +114,8 @@ theorem blockRank_mono [Finite n] {S S' : Set m} {T T' : Set n} (hS : S' ⊆ S) 
 /-- The rank of a block is at most the number of its rows. -/
 theorem blockRank_le_ncard [Finite m] (S : Set m) (T : Set n) : M.blockRank S T ≤ S.ncard := by
   have := Fintype.ofFinite S
-  calc M.blockRank S T ≤ Fintype.card S := finrank_range_le_card _
-    _ = S.ncard := by rw [← Nat.card_eq_fintype_card, Nat.card_coe_set_eq]
+  exact (finrank_range_le_card _).trans_eq
+    (by rw [← Nat.card_eq_fintype_card, Nat.card_coe_set_eq])
 
 /-- Deleting the rows outside `S'` lowers the rank of a block by at most their number. -/
 theorem blockRank_le_add_ncard_sdiff [Finite m] [Finite n] {S S' : Set m} (T : Set n)
@@ -126,14 +124,11 @@ theorem blockRank_le_add_ncard_sdiff [Finite m] [Finite n] {S S' : Set m} (T : S
       range (M.submatrix ((↑) : S' → m) ((↑) : T → n)).row ∪
         range (M.submatrix ((↑) : ↥(S \ S') → m) ((↑) : T → n)).row := by
     ext v
-    constructor
-    · rintro ⟨⟨i, hi⟩, rfl⟩
-      by_cases hi' : i ∈ S'
-      · exact Or.inl ⟨⟨i, hi'⟩, rfl⟩
-      · exact Or.inr ⟨⟨i, hi, hi'⟩, rfl⟩
-    · rintro (⟨i, rfl⟩ | ⟨i, rfl⟩)
-      · exact ⟨⟨i, h i.2⟩, rfl⟩
-      · exact ⟨⟨i, i.2.1⟩, rfl⟩
+    refine ⟨?_, by rintro (⟨i, rfl⟩ | ⟨i, rfl⟩); exacts [⟨⟨i, h i.2⟩, rfl⟩, ⟨⟨i, i.2.1⟩, rfl⟩]⟩
+    rintro ⟨⟨i, hi⟩, rfl⟩
+    by_cases hi' : i ∈ S'
+    · exact Or.inl ⟨⟨i, hi'⟩, rfl⟩
+    · exact Or.inr ⟨⟨i, hi, hi'⟩, rfl⟩
   have h₁ := Submodule.finrank_add_le_finrank_add_finrank
     (span K (range (M.submatrix ((↑) : S' → m) ((↑) : T → n)).row))
     (span K (range (M.submatrix ((↑) : ↥(S \ S') → m) ((↑) : T → n)).row))
@@ -145,9 +140,9 @@ theorem blockRank_le_add_ncard_sdiff [Finite m] [Finite n] {S S' : Set m} (T : S
 /-- Blocks that agree entrywise have the same rank. -/
 theorem blockRank_congr {M M' : Matrix m n K} {S : Set m} {T : Set n}
     (h : ∀ i ∈ S, ∀ j ∈ T, M i j = M' i j) : M.blockRank S T = M'.blockRank S T := by
-  have : M.submatrix ((↑) : S → m) ((↑) : T → n) = M'.submatrix (↑) (↑) :=
-    Matrix.ext fun i j => h i i.2 j j.2
-  rw [blockRank, blockRank, this]
+  rw [blockRank, blockRank,
+    show M.submatrix ((↑) : S → m) ((↑) : T → n) = M'.submatrix (↑) (↑) from
+      Matrix.ext fun i j => h i i.2 j j.2]
 
 /-- Row rank equals column rank: transposing a matrix transposes its blocks. -/
 theorem blockRank_transpose [Finite m] [Finite n] (S : Set m) (T : Set n) :
@@ -167,14 +162,10 @@ theorem blockRank_submatrix {f : m' → m} {g : n' → n} (hf : Function.Injecti
       (L : (↥(g '' T) → K) →ₗ[K] (T → K)) ''
         range (M.submatrix ((↑) : ↥(f '' S) → m) ((↑) : ↥(g '' T) → n)).row := by
     ext v
-    constructor
-    · rintro ⟨i, rfl⟩
-      exact ⟨_, ⟨eS i, rfl⟩, rfl⟩
-    · rintro ⟨_, ⟨i', rfl⟩, rfl⟩
-      refine ⟨eS.symm i', funext fun j => ?_⟩
-      change M (f (eS.symm i')) (g j) = M i' (eT j)
-      rw [show f (eS.symm i') = i' from congrArg Subtype.val (eS.apply_symm_apply i')]
-      rfl
+    refine ⟨fun ⟨i, hv⟩ => ⟨_, ⟨eS i, rfl⟩, hv⟩, ?_⟩
+    rintro ⟨_, ⟨i', rfl⟩, rfl⟩
+    exact ⟨eS.symm i', funext fun j =>
+      congrArg (M · (g j)) (congrArg Subtype.val (eS.apply_symm_apply i'))⟩
   rw [blockRank, blockRank, hrange, span_image]
   exact L.finrank_map_eq _
 
@@ -188,31 +179,27 @@ theorem add_blockRank_le_of_disjoint [Finite n] {S S₁ S₂ : Set m} {T T₁ T�
     M.blockRank S₁ T + M.blockRank S₂ T ≤ M.blockRank S T := by
   set V₁ := span K (range (M.submatrix ((↑) : S₁ → m) ((↑) : T → n)).row)
   set V₂ := span K (range (M.submatrix ((↑) : S₂ → m) ((↑) : T → n)).row)
-  -- The rows of a block vanishing off `B` span vectors vanishing off `B`.
-  have hsupp (A : Set m) (B : Set n) (hM : ∀ i ∈ A, ∀ j ∈ T, j ∉ B → M i j = 0) :
-      ∀ v ∈ span K (range (M.submatrix ((↑) : A → m) ((↑) : T → n)).row), ∀ j : T,
-        (j : n) ∉ B → v j = 0 := by
-    intro v hv j hj
+  have hsupp (A : Set m) (B : Set n) (hM : ∀ i ∈ A, ∀ j ∈ T, j ∉ B → M i j = 0)
+      (v : T → K) (hv : v ∈ span K (range (M.submatrix ((↑) : A → m) ((↑) : T → n)).row))
+      (j : T) (hj : (j : n) ∉ B) : v j = 0 := by
     induction hv using Submodule.span_induction with
     | mem x hx =>
       obtain ⟨i, rfl⟩ := hx
       exact hM i i.2 j j.2 hj
     | zero => rfl
-    | add x y _ _ hx hy => simp [hx, hy]
-    | smul a x _ hx => simp [hx]
-  have hinf : V₁ ⊓ V₂ = ⊥ := by
-    refine eq_bot_iff.mpr fun v ⟨hv₁, hv₂⟩ => (Submodule.mem_bot K).mpr (funext fun j => ?_)
-    by_cases hj : (j : n) ∈ T₁
-    · exact hsupp S₂ T₂ hM₂ v hv₂ j fun hj' => hT.ne_of_mem hj hj' rfl
-    · exact hsupp S₁ T₁ hM₁ v hv₁ j hj
+    | add _ _ _ _ hx hy => simp [hx, hy]
+    | smul _ _ _ hx => simp [hx]
+  have hinf : V₁ ⊓ V₂ = ⊥ := eq_bot_iff.mpr fun v ⟨hv₁, hv₂⟩ =>
+    (Submodule.mem_bot K).mpr <| funext fun j => by
+      by_cases hj : (j : n) ∈ T₁
+      · exact hsupp S₂ T₂ hM₂ v hv₂ j fun hj' => hT.ne_of_mem hj hj' rfl
+      · exact hsupp S₁ T₁ hM₁ v hv₁ j hj
   have hsum := Submodule.finrank_sup_add_finrank_inf_eq V₁ V₂
   rw [hinf, finrank_bot, add_zero] at hsum
   rw [blockRank, blockRank, ← hsum]
-  refine Submodule.finrank_mono (sup_le (span_mono ?_) (span_mono ?_))
-  · rintro _ ⟨i, rfl⟩
-    exact ⟨⟨i, h₁ i.2⟩, rfl⟩
-  · rintro _ ⟨i, rfl⟩
-    exact ⟨⟨i, h₂ i.2⟩, rfl⟩
+  exact Submodule.finrank_mono (sup_le
+    (span_mono (by rintro _ ⟨i, rfl⟩; exact ⟨⟨i, h₁ i.2⟩, rfl⟩))
+    (span_mono (by rintro _ ⟨i, rfl⟩; exact ⟨⟨i, h₂ i.2⟩, rfl⟩)))
 
 end BlockRank
 
@@ -268,22 +255,18 @@ theorem dotProduct_mulVec_self_eq_add {R : Type*} [CommRing R] [Fintype ι] (Q :
         Xᶜ.domRestrict v ⬝ᵥ Q.submatrix ((↑) : ↥Xᶜ → ι) ((↑) : ↥Xᶜ → ι) *ᵥ Xᶜ.domRestrict v +
           X.domRestrict v ⬝ᵥ (Q + Qᵀ).submatrix ((↑) : X → ι) ((↑) : ↥Xᶜ → ι) *ᵥ
             Xᶜ.domRestrict v := by
-  -- Split every sum over `ι` into the indices in `X` and those outside.
   have hsplit (f : ι → R) : ∑ i, f i = ∑ i : X, f i + ∑ i : ↥Xᶜ, f i :=
     (Fintype.sum_subtype_add_sum_subtype (· ∈ X) f).symm
-  have hL : v ⬝ᵥ Q *ᵥ v = ∑ i, ∑ j, v i * Q i j * v j := by
-    simp only [dotProduct, mulVec, Finset.mul_sum, mul_assoc]
-  -- The transposed half of the polar block is the sum from outside `X` into `X`.
   have hswap : ∑ i : X, ∑ j : ↥Xᶜ, v i * Q j i * v j =
-      ∑ j : ↥Xᶜ, ∑ i : X, v j * Q j i * v i := by
-    rw [Finset.sum_comm]
-    exact Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ => by ring
-  rw [hL]
-  simp only [hsplit, Finset.sum_add_distrib]
-  simp only [dotProduct, mulVec, submatrix_apply, Matrix.add_apply, transpose_apply,
-    Set.domRestrict_apply, Finset.mul_sum, mul_add, add_mul, Finset.sum_add_distrib, ← mul_assoc]
-  rw [hswap]
-  ring
+      ∑ j : ↥Xᶜ, ∑ i : X, v j * Q j i * v i :=
+    Finset.sum_comm.trans <| Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ => by ring
+  calc v ⬝ᵥ Q *ᵥ v = ∑ i, ∑ j, v i * Q i j * v j := by
+        simp only [dotProduct, mulVec, Finset.mul_sum, mul_assoc]
+    _ = _ := by
+        simp only [hsplit, dotProduct, mulVec, submatrix_apply, Matrix.add_apply, transpose_apply,
+          Set.domRestrict_apply, Finset.mul_sum, mul_add, add_mul, Finset.sum_add_distrib,
+          ← mul_assoc, hswap]
+        ring
 
 /-- The square matrix that carries `R` on the rows `f` and the columns `g`, and vanishes
 elsewhere. For injective `f` and `g` its quadratic form is the bilinear form of `R`
@@ -333,12 +316,9 @@ theorem dotProduct_mulVec_self_eq_of_submatrix {S : Type*} [CommSemiring S] [Fin
     (hM : ∀ i j, i ∉ Set.range f ∨ j ∉ Set.range g → M i j = 0) (v : ι → S) :
     v ⬝ᵥ M *ᵥ v = (v ∘ f) ⬝ᵥ R *ᵥ (v ∘ g) := by
   simp only [dotProduct, mulVec, Function.comp_apply]
-  symm
-  refine Fintype.sum_of_injective f hf _ _ (fun i hi => ?_) fun a => ?_
-  · simp [hM i _ (Or.inl hi)]
-  · congr 1
-    refine Fintype.sum_of_injective g hg _ _ (fun j hj => by simp [hM _ j (Or.inr hj)])
-      fun b => ?_
-    rw [← hMR, submatrix_apply]
+  refine (Fintype.sum_of_injective f hf _ _ (fun i hi => by simp [hM i _ (Or.inl hi)])
+    fun a => congrArg (v (f a) * ·) ?_).symm
+  exact Fintype.sum_of_injective g hg _ _ (fun j hj => by simp [hM _ j (Or.inr hj)])
+    fun b => by rw [← hMR, submatrix_apply]
 
 end Matrix

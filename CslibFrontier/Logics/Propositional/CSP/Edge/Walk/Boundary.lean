@@ -68,27 +68,20 @@ theorem boundaryIndex_spec [DecidableEq V] {w : Walk F} (hw : w.IsWalk) (vs : Li
         ∀ o ∈ (w.take (boundaryIndex w vs)).edges, o.var ∉ vs := by
   have hsome : ∃ s ∈ w.steps, vs.contains s.2.var = true := by
     by_contra hn
-    have hout : ∀ s ∈ w.steps, s.2.var ∉ vs := by
-      intro s hs hv
-      exact hn ⟨s, hs, List.contains_iff_mem.mpr hv⟩
     obtain ⟨o, ho, hv⟩ := hex
-    exact hw.1.forall_ports (P := fun v => v ∉ vs) hstart hout o ho hv
+    exact hw.1.forall_ports (P := (· ∉ vs)) hstart
+      (fun s hs hv' => hn ⟨s, hs, List.contains_iff_mem.mpr hv'⟩) o ho hv
   have hk : boundaryIndex w vs < w.steps.length := List.findIdx_lt_length.mpr hsome
-  have hin : w.steps[boundaryIndex w vs].2.var ∈ vs := by
-    apply List.contains_iff_mem.mp
-    exact List.findIdx_getElem
-      (p := fun s : Occurrence F × Occurrence F => vs.contains s.2.var) (w := hk)
-  refine ⟨hk, hin, (hw.take (boundaryIndex w vs)).1.forall_ports
-    (P := fun v => v ∉ vs) hstart ?_⟩
+  have hin : w.steps[boundaryIndex w vs].2.var ∈ vs :=
+    List.contains_iff_mem.mp (List.findIdx_getElem
+      (p := fun s : Occurrence F × Occurrence F => vs.contains s.2.var) (w := hk))
+  refine ⟨hk, hin, (hw.take (boundaryIndex w vs)).1.forall_ports (P := (· ∉ vs)) hstart ?_⟩
   intro s hs
   obtain ⟨j, hj, he⟩ := List.mem_iff_getElem.mp hs
-  have hjk : j < boundaryIndex w vs := by
-    have hh := List.length_take_le (boundaryIndex w vs) w.steps
-    exact lt_of_lt_of_le hj hh
-  have hh := List.not_of_lt_findIdx
-    (p := fun s : Occurrence F × Occurrence F => vs.contains s.2.var) hjk
   simp only [take, List.getElem_take] at he
-  rw [he] at hh
-  simpa using hh
+  have hh := List.not_of_lt_findIdx
+    (p := fun s : Occurrence F × Occurrence F => vs.contains s.2.var)
+    (lt_of_lt_of_le hj (List.length_take_le _ _))
+  simpa [he] using hh
 
 end Cslib.Logic.PL.CSP.Walk

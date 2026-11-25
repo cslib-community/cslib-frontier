@@ -116,7 +116,7 @@ theorem Circuit.aeval_polynomial {R : Type*} [CommSemiring R] [Algebra K R]
     aeval x (c.polynomial j) = c.eval (arithInterpretationWith K (algebraMap K R)) x j := by
   let h : Homomorphism (arithInterpretationWith K (C : K → MvPolynomial (Fin n) K))
       (arithInterpretationWith K (algebraMap K R)) :=
-    ⟨aeval x, fun op args => by cases op <;> simp [arithInterpretationWith]⟩
+    ⟨aeval x, fun op _ => by cases op <;> simp [arithInterpretationWith]⟩
   refine (congrFun (c.map_eval h X) j).trans ?_
   congr 1 with i : 1
   exact aeval_X x i
@@ -213,8 +213,7 @@ theorem IsProjection.refl (P : MvPolynomial σ K) : IsProjection P P :=
 /-- A projection of a projection is a projection. -/
 theorem IsProjection.trans {P : MvPolynomial υ K} {Q : MvPolynomial σ K} {R : MvPolynomial τ K}
     (hPQ : IsProjection P Q) (hQR : IsProjection Q R) : IsProjection P R := by
-  obtain ⟨ρ, rfl⟩ := hPQ
-  obtain ⟨ρ', rfl⟩ := hQR
+  rcases hPQ, hQR with ⟨⟨ρ, rfl⟩, ⟨ρ', rfl⟩⟩
   exact ⟨_, (projection_projection ρ ρ' R).symm⟩
 
 /-- Projections do not raise the total degree. -/
@@ -241,8 +240,7 @@ theorem IsPProjection.refl (f : PolynomialFamily K) : f.IsPProjection f :=
 /-- A p-projection of a p-projection is a p-projection. -/
 theorem IsPProjection.trans {f g h : PolynomialFamily K} (hfg : f.IsPProjection g)
     (hgh : g.IsPProjection h) : f.IsPProjection h := by
-  obtain ⟨t, ht, hf⟩ := hfg
-  obtain ⟨t', ht', hg⟩ := hgh
+  rcases hfg, hgh with ⟨⟨t, ht, hf⟩, ⟨t', ht', hg⟩⟩
   exact ⟨fun n => t' (t n), ht'.comp ht, fun n => (hf n).trans (hg (t n))⟩
 
 end PolynomialFamily
@@ -305,11 +303,9 @@ theorem VP.of_isPProjection {f g : PolynomialFamily K} (hg : g ∈ VP K)
   obtain ⟨⟨hgvars, hgdeg⟩, c, hc, hcg⟩ := hg
   obtain ⟨t, ht, hproj⟩ := hfg
   choose ρ hρ using hproj
-  refine ⟨⟨hvars, (hgdeg.comp ht).mono_of_le fun n => ?_⟩,
+  refine ⟨⟨hvars, (hgdeg.comp ht).mono_of_le fun n => hρ n ▸ totalDegree_projection_le _ _⟩,
     fun n => (c (t n)).comp (projectionCircuit (ρ n)),
     ((hgvars.comp ht).add (hc.comp ht)).mono_of_le fun n => ?_, fun n => ?_⟩
-  · rw [← hρ n]
-    exact totalDegree_projection_le _ _
   · rw [Circuit.size_comp]
     exact Nat.add_le_add_right (size_projectionCircuit_le _) _
   · rw [polynomial_comp_projectionCircuit, hcg, hρ]
@@ -335,21 +331,19 @@ noncomputable def powTwoPowFamily (K : Type u) [CommSemiring K] : PolynomialFami
 /-- Repeated squaring computes `X ^ 2 ^ n` with at most `n` gates. -/
 theorem exists_circuit_pow_two_pow (n : ℕ) : ∃ c : Circuit (arithSignature K) 1 1,
     c.polynomial 0 = (powTwoPowFamily K).poly n ∧ c.size ≤ n := by
-  have h : ∀ t, Synthesis (arithInterpretationWith K C) (inputs 1)
-      {fun x : Fin 1 → MvPolynomial (Fin 1) K => x 0 ^ 2 ^ t} t := by
-    intro t
-    induction t with
-    | zero =>
-      simpa using Synthesis.of_mem (I := arithInterpretationWith K C)
-        (show (fun x : Fin 1 → MvPolynomial (Fin 1) K => x 0) ∈ inputs 1 from ⟨0, rfl⟩)
-    | succ t ih =>
-      have hsq : (fun x : Fin 1 → MvPolynomial (Fin 1) K => x 0 ^ 2 ^ (t + 1)) =
-          fun x => x 0 ^ 2 ^ t * x 0 ^ 2 ^ t := by
-        funext x
-        rw [pow_succ, pow_mul, sq]
-      rw [hsq]
-      exact ih.trans (Synthesis.arith_mul (Set.mem_union_right _ rfl) (Set.mem_union_right _ rfl))
-  exact (h n).exists_circuit_polynomial
+  suffices ∀ t, Synthesis (arithInterpretationWith K C) (inputs 1)
+      {fun x : Fin 1 → MvPolynomial (Fin 1) K => x 0 ^ 2 ^ t} t from
+    (this n).exists_circuit_polynomial
+  intro t
+  induction t with
+  | zero =>
+    simpa using Synthesis.of_mem (I := arithInterpretationWith K C)
+      (⟨0, rfl⟩ : (fun x : Fin 1 → MvPolynomial (Fin 1) K => x 0) ∈ inputs 1)
+  | succ t ih =>
+    have hsq : (fun x : Fin 1 → MvPolynomial (Fin 1) K => x 0 ^ 2 ^ (t + 1)) =
+        fun x => x 0 ^ 2 ^ t * x 0 ^ 2 ^ t := funext fun x => by rw [pow_succ, pow_mul, sq]
+    exact hsq ▸ ih.trans
+      (Synthesis.arith_mul (Set.mem_union_right _ rfl) (Set.mem_union_right _ rfl))
 
 /-- **VP bounds the degree.** Over a nontrivial `K`, the family `X ^ 2 ^ n` has circuits with `n`
 gates (`exists_circuit_pow_two_pow`) but is not in `VP`: its degree `2 ^ n` is not polynomially

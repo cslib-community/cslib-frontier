@@ -305,10 +305,10 @@ theorem encodeOracle_apply {ι : Type} {E : ι → Type} {σ : Type}
     (c : I.Channel) (w : List Bool) (s : σ) :
     I.encodeOracle oracle (c, w) s =
       (oracle (I.decodeQuery c w) s).map fun x => (I.reply (I.decodeQuery c w) x.1, x.2) := by
-  have hreq : (c, I.requestNormalize c w) = I.toOracleCodec.encodeQuery (I.decodeQuery c w) :=
-    Prod.ext (I.request_decodeQuery c w).1.symm (I.request_decodeQuery c w).2.symm
   dsimp only [encodeOracle]
-  rw [hreq, OracleCodec.wordOracle_encodeQuery]
+  rw [show (c, I.requestNormalize c w) = I.toOracleCodec.encodeQuery (I.decodeQuery c w) from
+    Prod.ext (I.request_decodeQuery c w).1.symm (I.request_decodeQuery c w).2.symm,
+    OracleCodec.wordOracle_encodeQuery]
   rfl
 
 /-- Library infrastructure (no cited result): on every canonical query request
@@ -320,12 +320,8 @@ theorem encodeOracle_eq_wordOracle {ι : Type} {E : ι → Type} {σ : Type}
     (I : WordInterface E) (oracle : (q : ι) → StateT σ PMF (E q)) (q : ι) :
     I.encodeOracle oracle (I.channel q, I.request q) =
       I.toOracleCodec.wordOracle oracle (I.channel q, I.request q) := by
-  have hnorm : I.requestNormalize (I.channel q) (I.request q) = I.request q := by
-    have h := (I.request_decodeQuery (I.channel q) (I.request q)).2
-    rw [I.decodeQuery_request] at h
-    exact h.symm
   dsimp only [encodeOracle]
-  rw [hnorm]
+  rw [← (I.request_decodeQuery (I.channel q) (I.request q)).2, I.decodeQuery_request]
 
 /-- Library infrastructure (no cited result): the encoded oracle of a sum interface routes left and
 right channel requests to the respective component encoded oracles. -/
@@ -337,12 +333,8 @@ theorem encodeOracle_sum {ι₁ ι₂ : Type} {E₁ : ι₁ → Type} {E₂ : ι
         (fun c₂ => I₂.encodeOracle o₂ (c₂, cw.2)) cw.1 := by
   funext cw s
   rcases cw with ⟨c | c, w⟩
-  · rw [(I₁.sum I₂).encodeOracle_apply (OracleComp.sumHandler o₁ o₂) (Sum.inl c) w s,
-      Sum.elim_inl, I₁.encodeOracle_apply o₁ c w s]
-    rfl
-  · rw [(I₁.sum I₂).encodeOracle_apply (OracleComp.sumHandler o₁ o₂) (Sum.inr c) w s,
-      Sum.elim_inr, I₂.encodeOracle_apply o₂ c w s]
-    rfl
+  · rw [(I₁.sum I₂).encodeOracle_apply _ (.inl c), Sum.elim_inl, I₁.encodeOracle_apply]; rfl
+  · rw [(I₁.sum I₂).encodeOracle_apply _ (.inr c), Sum.elim_inr, I₂.encodeOracle_apply]; rfl
 
 /-- Library infrastructure: lower a single typed query to its channel request with reply
 truncation to `limit` bits and decoding. -/
@@ -365,14 +357,9 @@ theorem runWith_lowerQuery {ι : Type} {E : ι → Type} {σ : Type}
   rw [I.decodeQuery_request] at hq
   subst hq
   simp only [PMF.map_comp, Function.comp_def]
-  have hid :
-      (oracle q s).map
-          (fun x : E q × σ => (I.decodeReply q (List.take limit (I.reply q x.1)), x.2)) =
-        (oracle q s).map id := by
-    refine Probability.PMF.map_congr_on_support (oracle q s) _ id fun x hx => ?_
-    rw [List.take_of_length_le (hfit q s x hx), I.decodeReply_reply]
-    rfl
-  exact hid.trans (PMF.map_id _)
+  exact (Probability.PMF.map_congr_on_support (oracle q s)
+    (fun x : E q × σ => (I.decodeReply q (List.take limit (I.reply q x.1)), x.2)) id fun x hx => by
+      rw [List.take_of_length_le (hfit q s x hx), I.decodeReply_reply]; rfl).trans (PMF.map_id _)
 
 end WordInterface
 
@@ -411,16 +398,11 @@ index `Fin n` in polynomial time. -/
 theorem computable_partyIndex {n : ℕ} [NeZero n] {In Out : Type}
     (input : WordPort In Out) :
     ComputableInPolyTime (fun w => ((WordPort.party (n := n) input).queryDecoder.decode w).1)
-      encBits (encFinite (Fin n)) := by
-  have hdec : ComputableInPolyTime (WordPort.party (n := n) input).queryDecoder.decode
-      encBits (encPair (encFinEnum (Fin n)) input.query) :=
-    (WordPort.party (n := n) input).queryDecoder.computableInPolyTime
-  have hfst : ComputableInPolyTime
-      (fun w => ((WordPort.party (n := n) input).queryDecoder.decode w).1)
-      encBits (encFinEnum (Fin n)) :=
-    (ComputableInPolyTime.fst (encFinEnum (Fin n)) input.query).comp hdec
-  exact (ComputableInPolyTime.of_finite (id : Fin n → Fin n)
-    (encIn := encFinEnum (Fin n)) (encOut := encFinite (Fin n))).comp hfst
+      encBits (encFinite (Fin n)) :=
+  (ComputableInPolyTime.of_finite (id : Fin n → Fin n)
+    (encIn := encFinEnum (Fin n)) (encOut := encFinite (Fin n))).comp
+    ((ComputableInPolyTime.fst (encFinEnum (Fin n)) input.query).comp
+      (WordPort.party (n := n) input).queryDecoder.computableInPolyTime)
 
 end WordPort
 
@@ -473,22 +455,12 @@ theorem isOraclePPTOn_lowerWith_query {ι α : Type} {E : ι → Type}
     IsOraclePPTOn input encBits (fun a =>
       I.reply (query a) <$>
         ProbOracleComp.lowerWith I (limit a) (ProbOracleComp.query (query a))) := by
-  have heq :
-      (fun a => I.reply (query a) <$>
-          ProbOracleComp.lowerWith I (limit a) (ProbOracleComp.query (query a))) =
-        fun a => I.replyNormalize (I.channel (query a)) <$>
-          (List.take (limit a) <$>
-            ProbOracleComp.query (spec := fun _ : I.Channel × List Bool => List Bool)
-              (I.channel (query a), I.request (query a))) := by
-    funext a
-    simp only [ProbOracleComp.lowerWith, ProbOracleComp.simulate_query, lowerQuery,
-      Functor.map_map, I.reply_decodeReply]
-  rw [heq]
-  refine (IsOraclePPTOn.query_take_with hchannel hrequest hlimit).map_with
-    (f := fun a reply => I.replyNormalize (I.channel (query a)) reply) ?_
-  exact I.computable_replyNormalize.comp
-    ((hchannel.comp (ComputableInPolyTime.fst input encBits)).prod
-      (ComputableInPolyTime.snd input encBits))
+  simp only [ProbOracleComp.lowerWith, ProbOracleComp.simulate_query, lowerQuery,
+    Functor.map_map, I.reply_decodeReply]
+  exact (IsOraclePPTOn.query_take_with hchannel hrequest hlimit).map_with
+    (I.computable_replyNormalize.comp
+      ((hchannel.comp (ComputableInPolyTime.fst input encBits)).prod
+        (ComputableInPolyTime.snd input encBits)))
 
 /-- Library infrastructure (no cited result): a lowered, re-encoded decoded query
 `I.decodeQuery (ch a) (word a)` is uniform strict oracle PPT when its channel, request word, and
@@ -503,16 +475,10 @@ theorem isOraclePPTOn_lowerWith_decodeQuery {ι α : Type} {E : ι → Type}
       I.reply (I.decodeQuery (ch a) (word a)) <$>
         ProbOracleComp.lowerWith I (limit a)
           (ProbOracleComp.query (I.decodeQuery (ch a) (word a)))) := by
-  refine I.isOraclePPTOn_lowerWith_query
-    (query := fun a => I.decodeQuery (ch a) (word a)) (limit := limit) ?_ ?_ hlimit
-  · have heq : (fun a => I.channel (I.decodeQuery (ch a) (word a))) = ch :=
-      funext fun a => (I.request_decodeQuery (ch a) (word a)).1
-    rwa [heq]
-  · have heq : (fun a => I.request (I.decodeQuery (ch a) (word a))) =
-        fun a => I.requestNormalize (ch a) (word a) :=
-      funext fun a => (I.request_decodeQuery (ch a) (word a)).2
-    rw [heq]
-    exact I.computable_requestNormalize.comp (hch.prod hword)
+  refine I.isOraclePPTOn_lowerWith_query ?_ ?_ hlimit
+  · simpa only [fun a => (I.request_decodeQuery (ch a) (word a)).1] using hch
+  · simpa only [Function.comp_def, ← fun a => (I.request_decodeQuery (ch a) (word a)).2] using
+      I.computable_requestNormalize.comp (hch.prod hword)
 
 end Crypto.Protocols.UC.WordInterface
 

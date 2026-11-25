@@ -275,18 +275,13 @@ theorem member_iff_contains {t : Tree d} (ht : t.Valid) (x : ℕ) :
   induction d generalizing x with
   | zero =>
     cases t with
-    | leaf b =>
-      cases b with
-      | none => simp [member, Contains]
-      | some b => cases b; simp [member, Contains]
+    | leaf b => rcases b with _ | ⟨m, M⟩ <;> simp [member, Contains]
   | succ d ih =>
     cases t with
     | node b s c =>
-      cases b with
-      | none => simp [member, Contains]
-      | some b =>
-        obtain ⟨m, M⟩ := b
-        by_cases hm : x = m
+      rcases b with _ | ⟨m, M⟩
+      · simp [member, Contains]
+      · by_cases hm : x = m
         · simp [member, Contains, hm]
         · by_cases hi : x / universeSize d < universeSize d
           · let i : Fin (universeSize d) := ⟨x / universeSize d, hi⟩
@@ -295,21 +290,14 @@ theorem member_iff_contains {t : Tree d} (ht : t.Valid) (x : ℕ) :
             · intro hx
               refine ⟨m, M, rfl, Or.inr ⟨i, x % universeSize d, hx, ?_⟩⟩
               simpa only [i, Nat.mul_comm] using (Nat.div_add_mod x (universeSize d)).symm
-            · rintro ⟨m', M', he, hm' | ⟨j, y, hy, hxy⟩⟩
-              · cases he
-                exact False.elim (hm hm')
-              · have hylt := (ht.2.2.1 j).contains_lt hy
-                have hcoord := cluster_coordinates (i := j.val) (universeSize_pos d) hylt
-                have hhigh : x / universeSize d = j.val := by grind
-                have hlow : x % universeSize d = y := by grind
-                have hij : i = j := Fin.ext hhigh
-                simpa only [hij, hlow] using hy
-          · have hx : ¬(Tree.node (some (m, M)) s c).Contains x := by
-              intro hx
-              have hb := ht.contains_lt hx
-              apply hi
-              exact (Nat.div_lt_iff_lt_mul (universeSize_pos d)).mpr hb
-            simp [member, hm, hi, hx]
+            · rintro ⟨_, _, ⟨⟩, rfl | ⟨j, y, hy, rfl⟩⟩
+              · exact (hm rfl).elim
+              · have hcoord := cluster_coordinates (i := j.val) (universeSize_pos d)
+                  ((ht.2.2.1 j).contains_lt hy)
+                simpa only [show i = j from Fin.ext hcoord.1, hcoord.2] using hy
+          · simp only [member, hm, hi, ↓reduceIte, ↓reduceDIte, Bool.false_eq_true, false_iff]
+            exact fun hx =>
+              hi ((Nat.div_lt_iff_lt_mul (universeSize_pos d)).mpr (ht.contains_lt hx))
 
 end Tree
 

@@ -57,33 +57,24 @@ theorem discreteGaussian_zero_norm_ge_le (s : ℝ) (hs : 0 < s) (R : ℝ) (hR : 
   have ht : s < 2 * s := by linarith
   have h := discreteGaussian_norm_ge_le L s hs (2 * s) ht 0 R hR
   simp only [sub_zero] at h
-  apply h.trans
-  apply ENNReal.ofReal_le_ofReal
-  calc
-    _ ≤ Real.exp (-Real.pi * (1 / s ^ 2 - 1 / (2 * s) ^ 2) * R ^ 2) *
-        ((2 * s) / s) ^ finrank ℝ E :=
-      mul_le_mul_of_nonneg_left (gaussianMass_zero_div_le L s hs (2 * s) ht.le)
-        (Real.exp_pos _).le
-    _ = 2 ^ finrank ℝ E * Real.exp (-3 * Real.pi * R ^ 2 / (4 * s ^ 2)) := by
-      have hw : (2 * s) / s = 2 := by field_simp
-      rw [hw, mul_comm]
-      congr 2
-      field_simp
-      ring
+  refine h.trans (ENNReal.ofReal_le_ofReal ?_)
+  refine (mul_le_mul_of_nonneg_left (gaussianMass_zero_div_le L s hs (2 * s) ht.le)
+    (Real.exp_pos _).le).trans_eq ?_
+  rw [show (2 * s) / s = 2 by field_simp, mul_comm]
+  congr 2
+  field_simp
+  ring
 
 private theorem two_pow_mul_exp_lt_quarter_pow (n : ℕ) (hn : 0 < n) :
     (2 : ℝ) ^ n * Real.exp (-3 * Real.pi * n / 4) < (1 / 4 : ℝ) ^ n := by
-  have hpi : 4 * Real.log 2 < Real.pi := by
-    linarith [Real.log_two_lt_d9, Real.pi_gt_three]
+  have hpi : 4 * Real.log 2 < Real.pi := by linarith [Real.log_two_lt_d9, Real.pi_gt_three]
   have he : (2 : ℝ) * Real.exp (-3 * Real.pi / 4) < 1 / 4 := by
-    have h : Real.log 2 - 3 * Real.pi / 4 < -2 * Real.log 2 := by linarith
-    have hh := Real.exp_lt_exp.mpr h
-    rw [Real.exp_sub, Real.exp_log (by norm_num : (0 : ℝ) < 2)] at hh
-    have hr : Real.exp (-2 * Real.log 2) = (1 / 4 : ℝ) := by
-      rw [show -2 * Real.log 2 = -((2 : ℕ) * Real.log 2) by ring, Real.exp_neg,
-        Real.exp_nat_mul, Real.exp_log (by norm_num : (0 : ℝ) < 2)]
-      norm_num
-    rw [hr] at hh
+    have hh := Real.exp_lt_exp.mpr
+      (show Real.log 2 - 3 * Real.pi / 4 < -2 * Real.log 2 by linarith)
+    rw [Real.exp_sub, Real.exp_log (by norm_num : (0 : ℝ) < 2),
+      show -2 * Real.log 2 = -((2 : ℕ) * Real.log 2) by ring, Real.exp_neg,
+      Real.exp_nat_mul, Real.exp_log (by norm_num : (0 : ℝ) < 2)] at hh
+    norm_num at hh
     simpa only [neg_mul, neg_div, Real.exp_neg, div_eq_mul_inv] using hh
   have hp := pow_lt_pow_left₀ he (by positivity : (0 : ℝ) ≤ 2 * Real.exp (-3 * Real.pi / 4)) hn.ne'
   rw [mul_pow, ← Real.exp_nat_mul] at hp
@@ -98,41 +89,32 @@ theorem discreteGaussian_zero_norm_gt_sqrt_lt (s : ℝ) (hs : 0 < s) :
       {z : L | s * Real.sqrt (finrank ℝ E) < ‖(z : E)‖} <
         ENNReal.ofReal ((1 / 4 : ℝ) ^ finrank ℝ E) := by
   by_cases hn : finrank ℝ E = 0
-  · have : Subsingleton E := (finrank_zero_iff).mp hn
-    have hempty : {z : L | s * Real.sqrt (finrank ℝ E) < ‖(z : E)‖} = ∅ := by
-      ext z
-      change (s * Real.sqrt (finrank ℝ E) < ‖(z : E)‖) ↔ False
-      rw [Subsingleton.elim (z : E) 0, hn]
-      simp
+  · have : Subsingleton E := finrank_zero_iff.mp hn
+    have hempty : {z : L | s * Real.sqrt (finrank ℝ E) < ‖(z : E)‖} = ∅ :=
+      Set.eq_empty_of_forall_notMem fun z hz => by
+        rw [Set.mem_ofPred_eq, Subsingleton.elim (z : E) 0, hn] at hz
+        norm_num at hz
     rw [hempty, measure_empty, hn]
     norm_num
-  · have hnpos : 0 < finrank ℝ E := Nat.pos_of_ne_zero hn
-    have h := discreteGaussian_zero_norm_ge_le L s hs
+  · have h := discreteGaussian_zero_norm_ge_le L s hs
       (s * Real.sqrt (finrank ℝ E)) (by positivity)
-    have heq : -3 * Real.pi * (s * Real.sqrt (finrank ℝ E)) ^ 2 / (4 * s ^ 2) =
-        -3 * Real.pi * finrank ℝ E / 4 := by
-      rw [mul_pow, Real.sq_sqrt (Nat.cast_nonneg _)]
-      field_simp
-    rw [heq] at h
+    rw [show -3 * Real.pi * (s * Real.sqrt (finrank ℝ E)) ^ 2 / (4 * s ^ 2) =
+        -3 * Real.pi * finrank ℝ E / 4 by
+          rw [mul_pow, Real.sq_sqrt (Nat.cast_nonneg _)]; field_simp] at h
     have hsubset : {z : L | s * Real.sqrt (finrank ℝ E) < ‖(z : E)‖} ⊆
-        {z : L | s * Real.sqrt (finrank ℝ E) ≤ ‖(z : E)‖} := by
-      intro z hz
-      change s * Real.sqrt (finrank ℝ E) < ‖(z : E)‖ at hz
-      change s * Real.sqrt (finrank ℝ E) ≤ ‖(z : E)‖
-      exact le_of_lt hz
-    apply lt_of_le_of_lt ((discreteGaussian L s hs 0).toOuterMeasure.mono hsubset)
-    apply lt_of_le_of_lt h
+        {z : L | s * Real.sqrt (finrank ℝ E) ≤ ‖(z : E)‖} := fun _ hz => le_of_lt
+      (show s * Real.sqrt (finrank ℝ E) < _ from hz)
+    refine (((discreteGaussian L s hs 0).toOuterMeasure.mono hsubset).trans h).trans_lt ?_
     exact (ENNReal.ofReal_lt_ofReal_iff (by positivity)).mpr
-      (two_pow_mul_exp_lt_quarter_pow (finrank ℝ E) hnpos)
+      (two_pow_mul_exp_lt_quarter_pow (finrank ℝ E) (Nat.pos_of_ne_zero hn))
 
 private theorem discreteGaussian_nonzero_toReal
     (M : Submodule ℤ E) [DiscreteTopology M] (s : ℝ) (hs : 0 < s) :
     ((discreteGaussian M s hs 0).toOuterMeasure {z : M | z ≠ 0}).toReal =
       1 - 1 / gaussianMass M s 0 := by
   let p := discreteGaussian M s hs 0
-  have hevent : {z : M | z ≠ 0} = ({0} : Set M)ᶜ := rfl
-  rw [hevent, ← PMF.toMeasure_apply_eq_toOuterMeasure_apply p
-    (measurableSet_singleton 0).compl]
+  rw [show {z : M | z ≠ 0} = ({0} : Set M)ᶜ from rfl,
+    ← PMF.toMeasure_apply_eq_toOuterMeasure_apply p (measurableSet_singleton 0).compl]
   change p.toMeasure.real ({0} : Set M)ᶜ = _
   rw [probReal_compl_eq_one_sub (measurableSet_singleton 0), Measure.real,
     PMF.toMeasure_apply_singleton p 0 (measurableSet_singleton 0)]
@@ -152,23 +134,18 @@ theorem gaussianMass_dual_sub_one_le_of_gap (s : ℝ) (hs : 0 < s) (a : ℝ) (ha
   have : IsZLattice ℝ D := isZLattice_dualSubmodule L
   have hs' : 0 < 1 / s := one_div_pos.mpr hs
   have htail := discreteGaussian_zero_norm_ge_le D (1 / s) hs' a ha.le
-  have hexp : -3 * Real.pi * a ^ 2 / (4 * (1 / s) ^ 2) =
-      -3 * Real.pi * s ^ 2 * a ^ 2 / 4 := by
-    field_simp
-  rw [hexp] at htail
-  have hsubset : {w : D | w ≠ 0} ⊆ {w : D | a ≤ ‖(w : E)‖} := fun w hw ↦ hgap w hw
-  have hprob := ((discreteGaussian D (1 / s) hs' 0).toOuterMeasure.mono hsubset).trans
-    (htail.trans (ENNReal.ofReal_le_ofReal hwidth))
-  have hreal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hprob
-  rw [OuterMeasure.measureOf_eq_coe, discreteGaussian_nonzero_toReal D (1 / s) hs',
-    ENNReal.toReal_ofReal (by positivity)] at hreal
+  rw [show -3 * Real.pi * a ^ 2 / (4 * (1 / s) ^ 2) = -3 * Real.pi * s ^ 2 * a ^ 2 / 4 by
+    field_simp] at htail
+  have hsubset : {w : D | w ≠ 0} ⊆ {w : D | a ≤ ‖(w : E)‖} := fun w hw => hgap w hw
+  have hreal := ENNReal.toReal_mono ENNReal.ofReal_ne_top
+    (((discreteGaussian D (1 / s) hs' 0).toOuterMeasure.mono hsubset).trans
+      (htail.trans (ENNReal.ofReal_le_ofReal hwidth)))
   have hm : 0 < gaussianMass D (1 / s) 0 := gaussianMass_pos D (1 / s) hs' 0
-  have he : 0 < 1 + ε := by positivity
-  have hr : 1 - 1 / gaussianMass D (1 / s) 0 =
-      (gaussianMass D (1 / s) 0 - 1) / gaussianMass D (1 / s) 0 := by
-    field_simp
-  rw [hr] at hreal
-  have hmul := (div_le_div_iff₀ hm he).mp hreal
+  rw [OuterMeasure.measureOf_eq_coe, discreteGaussian_nonzero_toReal D (1 / s) hs',
+    ENNReal.toReal_ofReal (by positivity),
+    show 1 - 1 / gaussianMass D (1 / s) 0 =
+      (gaussianMass D (1 / s) 0 - 1) / gaussianMass D (1 / s) 0 by field_simp] at hreal
+  have hmul := (div_le_div_iff₀ hm (by positivity)).mp hreal
   change gaussianMass D (1 / s) 0 - 1 ≤ ε
   nlinarith
 

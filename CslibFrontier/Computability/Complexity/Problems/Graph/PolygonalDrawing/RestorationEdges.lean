@@ -52,9 +52,9 @@ theorem IsEmbedding.restoredRoute_edge_contacts {G : Graph} {u v : ℕ}
     fun h => heg ((contractedIndex G u v).injective h)
   have htarget (e : Fin G.2.length) (side : Bool)
       (h : Dart.vertex (G := G) (e, side) = u ∨ Dart.vertex (e, side) = v) :
-      Dart.vertex (contractedIndex G u v e, side) = v := by
-    apply (contractionLift_vertex_eq_iff G u v _).mpr
-    simpa only [contractionLift_vertex_contractedIndex] using h
+      Dart.vertex (contractedIndex G u v e, side) = v :=
+    (contractionLift_vertex_eq_iff G u v _).mpr
+      (by simpa only [contractionLift_vertex_contractedIndex] using h)
   have hmixed (e g : Fin G.2.length) (hne : e ≠ g) (side : Bool)
       (hactive : Dart.vertex (G := G) (e, side) = u ∨ Dart.vertex (e, side) = v)
       (k : Fin (D.outsideRoute v ρ (contractedIndex G u v g)).segments)
@@ -62,7 +62,7 @@ theorem IsEmbedding.restoredRoute_edge_contacts {G : Graph} {u v : ℕ}
       (hEq : AffineMap.lineMap (D.restoredVertex a b (Dart.vertex (G := G) (e, side)))
         (D.cutPort ρ (contractedIndex G u v e, side)) σ =
           (D.outsideRoute v ρ (contractedIndex G u v g)).eval k τ) : False := by
-    obtain ⟨_, tag, hdart, _⟩ := hD.spoke_outsideRoute_contact v hρ hcut
+    obtain ⟨_, _, hdart, _⟩ := hD.spoke_outsideRoute_contact v hρ hcut
       (D.restoredVertex_mem_ball huv ha hb _ hactive) _ (htarget e side hactive) _ k hσ hτ hEq
     exact hne ((contractedIndex G u v).injective (congrArg Prod.fst hdart))
   rcases D.restoredRoute_trace_cases huv ρ a b e i hs with
@@ -72,35 +72,28 @@ theorem IsEmbedding.restoredRoute_edge_contacts {G : Graph} {u v : ℕ}
     · have hEq := heval.symm.trans (heq.trans hgeval)
       obtain ⟨side, tag, hat, hgat, hv⟩ :=
         hD.outsideRoute_edge_contacts v hρ hlen _ _ hedge k l hs ht hEq
-      have hvne : Dart.vertex (contractedIndex G u v e, side) ≠ v := by
-        intro hv'
-        have hgv := hv.symm.trans hv'
+      have hvne : Dart.vertex (contractedIndex G u v e, side) ≠ v := fun hv' => by
         have hport := (D.outsideRoute v ρ (contractedIndex G u v e)).at_eq_endpoint k hs side hat
         have hgport := (D.outsideRoute v ρ (contractedIndex G u v g)).at_eq_endpoint l ht tag hgat
         rw [D.endpoint_outsideRoute, ite_eq_left hv'] at hport
-        rw [D.endpoint_outsideRoute, ite_eq_left hgv] at hgport
-        have hp := hport.symm.trans (hEq.trans hgport)
-        exact hedge (congrArg Prod.fst (hD.cutPort_injective hρ _ _ hv hp))
-      have hinactive (e : Fin G.2.length) (side : Bool)
-          (hn : Dart.vertex (contractedIndex G u v e, side) ≠ v) :
-          ¬(Dart.vertex (G := G) (e, side) = u ∨ Dart.vertex (e, side) = v) :=
-        fun h => hn (htarget e side h)
-      have heactive := hinactive e side hvne
-      have hgactive := hinactive g tag (fun h => hvne (hv.trans h))
+        rw [D.endpoint_outsideRoute, ite_eq_left (hv.symm.trans hv')] at hgport
+        exact hedge (congrArg Prod.fst
+          (hD.cutPort_injective hρ _ _ hv (hport.symm.trans (hEq.trans hgport))))
+      have heactive := mt (htarget e side) hvne
+      have hgactive := mt (htarget g tag) fun h => hvne (hv.trans h)
       have hupdate (e : Fin G.2.length) (side : Bool)
           (hn : ¬(Dart.vertex (G := G) (e, side) = u ∨ Dart.vertex (e, side) = v)) :
           Dart.vertex (contractedIndex G u v e, side) = Dart.vertex (G := G) (e, side) := by
-        rw [vertex_contractedIndex, Function.update_of_ne (fun h => hn (Or.inl h))]
+        rw [vertex_contractedIndex, Function.update_of_ne fun h => hn (Or.inl h)]
         rfl
       exact ⟨side, tag, D.restoredRoute_atEnd_of_exterior ρ a b e i k s side hpos hat heactive,
         D.restoredRoute_atEnd_of_exterior ρ a b g j l t tag hgpos hgat hgactive,
         (hupdate e side heactive).symm.trans (hv.trans (hupdate g tag hgactive))⟩
-    · exact False.elim (hmixed g e heg.symm tag hgactive k hτ hs
-        (hgeval.symm.trans (heq.symm.trans heval)))
+    · exact (hmixed g e heg.symm tag hgactive k hτ hs
+        (hgeval.symm.trans (heq.symm.trans heval))).elim
   · rcases D.restoredRoute_trace_cases huv ρ a b g j ht with
       ⟨l, hgeval, _⟩ | ⟨tag, τ, hτ, hgactive, hgeval, hgat⟩
-    · exact False.elim (hmixed e g heg side hactive l hσ ht
-        (heval.symm.trans (heq.trans hgeval)))
+    · exact (hmixed e g heg side hactive l hσ ht (heval.symm.trans (heq.trans hgeval))).elim
     · let d : {d : Dart (contractLastEdgeGraph G u v) // d.vertex = v} :=
         ⟨(contractedIndex G u v e, side), htarget e side hactive⟩
       let c : {d : Dart (contractLastEdgeGraph G u v) // d.vertex = v} :=
@@ -113,15 +106,13 @@ theorem IsEmbedding.restoredRoute_edge_contacts {G : Graph} {u v : ℕ}
         simpa only [d, c, contractionLift_vertex_contractedIndex] using
           heval.symm.trans (heq.trans hgeval)
       obtain ⟨hσ0, hτ0⟩ := hD.split_spoke_contact hρ ha hb f hsep hpa hpb d c hdc hσ hτ hEq
-      have hvertex : (contractionLift G u v c.val).vertex = Dart.vertex (G := G) (e, side) := by
-        have hc : AffineMap.lineMap (D.restoredVertex a b (contractionLift G u v c.val).vertex)
-            (D.cutPort ρ c.val) τ = D.restoredVertex a b (Dart.vertex (G := G) (e, side)) := by
-          have h := hEq.symm
-          simpa only [hσ0, AffineMap.lineMap_apply_zero, d,
-            contractionLift_vertex_contractedIndex] using h
-        exact (D.split_spoke_vertex_contact huv ρ a b f hsep hpa hpb c _ hactive hτ hc).2
-      exact ⟨side, tag, hat hσ0, hgat hτ0, by
-        simpa only [c, contractionLift_vertex_contractedIndex] using hvertex.symm⟩
+      have hc : AffineMap.lineMap (D.restoredVertex a b (contractionLift G u v c.val).vertex)
+          (D.cutPort ρ c.val) τ = D.restoredVertex a b (Dart.vertex (G := G) (e, side)) := by
+        simpa only [hσ0, AffineMap.lineMap_apply_zero, d,
+          contractionLift_vertex_contractedIndex] using hEq.symm
+      have hv := (D.split_spoke_vertex_contact huv ρ a b f hsep hpa hpb c _ hactive hτ hc).2
+      exact ⟨side, tag, hat hσ0, hgat hτ0,
+        by simpa only [c, contractionLift_vertex_contractedIndex] using hv.symm⟩
 
 /-- The selected connector meets a retained restored edge only at its corresponding
 original endpoint. It never touches the unchanged exterior pieces. -/
@@ -147,23 +138,20 @@ theorem IsEmbedding.restoredRoute_connector_contacts {G : Graph} {u v : ℕ}
   rw [Route.eval_line] at heq
   rcases D.restoredRoute_trace_cases huv ρ a b e i hs with
     ⟨k, heval, _⟩ | ⟨side, σ, hσ, hactive, heval, hat⟩
-  · have hin := (convex_ball (D.vertex v) ρ).lineMap_mem ha hb ht
-    exact False.elim (hD.outsideRoute_not_mem_ball v hρ hcut _ k hs
-      ((heval.symm.trans heq).symm ▸ hin))
-  · have hv : Dart.vertex (contractedIndex G u v e, side) = v := by
-      apply (contractionLift_vertex_eq_iff G u v _).mpr
-      simpa only [contractionLift_vertex_contractedIndex] using hactive
-    let d : {d : Dart (contractLastEdgeGraph G u v) // d.vertex = v} :=
-      ⟨(contractedIndex G u v e, side), hv⟩
+  · exact (hD.outsideRoute_not_mem_ball v hρ hcut _ k hs
+      ((heval.symm.trans heq).symm ▸ (convex_ball (D.vertex v) ρ).lineMap_mem ha hb ht)).elim
+  · let d : {d : Dart (contractLastEdgeGraph G u v) // d.vertex = v} :=
+      ⟨(contractedIndex G u v e, side), (contractionLift_vertex_eq_iff G u v _).mpr
+        (by simpa only [contractionLift_vertex_contractedIndex] using hactive)⟩
     have hEq : AffineMap.lineMap (D.restoredVertex a b (contractionLift G u v d.val).vertex)
         (D.cutPort ρ d.val) σ = AffineMap.lineMap a b t := by
       simpa only [d, contractionLift_vertex_contractedIndex] using heval.symm.trans heq
     obtain ⟨hσ0, hu | hv⟩ := D.split_spoke_connector_contact ρ a b f hsep hpa hpb d hσ ht hEq
     · exact ⟨side, false, hat hσ0, (Route.atEnd_line_iff a b j t false).mpr hu.2, by
-        simpa only [d, contractionLift_vertex_contractedIndex, Bool.false_eq_true,
-          ↓reduceIte] using hu.1⟩
-    · exact ⟨side, true, hat hσ0, (Route.atEnd_line_iff a b j t true).mpr hv.2, by
-        simpa only [d, contractionLift_vertex_contractedIndex, ↓reduceIte] using hv.1⟩
+        simpa only [d, contractionLift_vertex_contractedIndex, Bool.false_eq_true, ↓reduceIte] using
+          hu.1⟩
+    · exact ⟨side, true, hat hσ0, (Route.atEnd_line_iff a b j t true).mpr hv.2,
+        by simpa only [d, contractionLift_vertex_contractedIndex, ↓reduceIte] using hv.1⟩
 
 /-- A declared point on the new connector is exactly one of its original named ends. -/
 theorem connector_vertex_contacts {G : Graph} {u v : ℕ}
@@ -177,17 +165,10 @@ theorem connector_vertex_contacts {G : Graph} {u v : ℕ}
   rw [Route.eval_line] at heq
   have hin := (convex_closedBall (D.vertex v) ρ).lineMap_mem
     (Metric.ball_subset_closedBall ha) (Metric.ball_subset_closedBall hb) ht
-  rcases D.restoredVertex_active_of_mem_closedBall hpoints a b w hw (heq ▸ hin) with hwu | hwv
-  · have ht0 : t = 0 := by
-      apply AffineMap.lineMap_injective ℝ hab
-      have h := heq.trans (congrArg (D.restoredVertex a b) hwu)
-      simpa only [restoredVertex, ↓reduceIte, AffineMap.lineMap_apply_zero] using h
-    exact ⟨false, (Route.atEnd_line_iff a b i t false).mpr ht0, hwu.symm⟩
-  · have ht1 : t = 1 := by
-      apply AffineMap.lineMap_injective ℝ hab
-      have h := heq.trans (congrArg (D.restoredVertex a b) hwv)
-      simpa only [restoredVertex, ite_eq_right huv.symm, ↓reduceIte,
-        AffineMap.lineMap_apply_one] using h
-    exact ⟨true, (Route.atEnd_line_iff a b i t true).mpr ht1, hwv.symm⟩
+  rcases D.restoredVertex_active_of_mem_closedBall hpoints a b w hw (heq ▸ hin) with rfl | rfl
+  · exact ⟨false, (Route.atEnd_line_iff a b i t false).mpr
+      (AffineMap.lineMap_injective ℝ hab (by simpa [restoredVertex] using heq)), rfl⟩
+  · exact ⟨true, (Route.atEnd_line_iff a b i t true).mpr
+      (AffineMap.lineMap_injective ℝ hab (by simpa [restoredVertex, huv.symm] using heq)), rfl⟩
 
 end Cslib.Complexity.Graph.PolygonalDrawing

@@ -120,7 +120,7 @@ variable {G} (H : ∀ v, RotationMap (G.Cloud v) D)
 cloud. -/
 private theorem neighbor_cloudGraph {v : V} (x : G.Cloud v) (i : D) :
     (G.cloudGraph H).neighbor x.1 i = ((H v).neighbor x i).1 := by
-  obtain ⟨x, rfl⟩ := x
+  obtain ⟨_, rfl⟩ := x
   rfl
 
 /-- The neighbors of a half-edge in the cloud graph are in its cloud. -/
@@ -192,10 +192,9 @@ turns a labelling satisfying `G` into one satisfying `G.degreeReduce H`. -/
 theorem satisfiable_degreeReduce (h : G.Satisfiable) :
     (G.degreeReduce H).toConstraintGraph.Satisfiable := by
   obtain ⟨σ, hσ⟩ := h
-  refine ⟨σ ∘ G.endpoint, ?_⟩
-  rintro ⟨p, i | i⟩
-  · exact (satisfies_degreeReduce_comp_endpoint_inl H).2 (hσ p.1)
-  · exact satisfies_degreeReduce_comp_endpoint_inr H σ p i
+  exact ⟨σ ∘ G.endpoint, fun
+    | ⟨p, .inl _⟩ => (satisfies_degreeReduce_comp_endpoint_inl H).2 (hσ p.1)
+    | ⟨p, .inr i⟩ => satisfies_degreeReduce_comp_endpoint_inr H σ p i⟩
 
 section Count
 
@@ -214,19 +213,16 @@ theorem card_unsatEdges_degreeReduce_comp_endpoint_le (σ : V → α) :
       2 * #(G.unsatEdges σ) := by
   classical
   rw [mul_comm, ← Fintype.card_bool, ← card_univ, ← card_product]
-  refine card_le_card_of_injOn Prod.fst (fun q hq ↦ ?_) fun q hq q' hq' h ↦ ?_
-  · obtain ⟨p, i | i⟩ := q
-    · rw [mem_coe, mem_unsatEdges, satisfies_degreeReduce_comp_endpoint_inl] at hq
-      simpa using hq
-    · rw [mem_coe, mem_unsatEdges] at hq
-      exact absurd (satisfies_degreeReduce_comp_endpoint_inr H σ p i) hq
-  · obtain ⟨p, i | i⟩ := q
-    · obtain ⟨p', i' | i'⟩ := q'
-      · exact Prod.ext h rfl
-      · rw [mem_coe, mem_unsatEdges] at hq'
-        exact absurd (satisfies_degreeReduce_comp_endpoint_inr H σ p' i') hq'
-    · rw [mem_coe, mem_unsatEdges] at hq
-      exact absurd (satisfies_degreeReduce_comp_endpoint_inr H σ p i) hq
+  have hinr {p i} (hq : (p, Sum.inr i) ∈ (G.degreeReduce H).toConstraintGraph.unsatEdges
+      (σ ∘ G.endpoint)) : False :=
+    (mem_unsatEdges.1 hq) (satisfies_degreeReduce_comp_endpoint_inr H σ p i)
+  refine card_le_card_of_injOn Prod.fst
+    (fun | ⟨p, .inl _⟩, hq => ?_ | ⟨_, .inr _⟩, hq => (hinr hq).elim)
+    fun | ⟨_, .inl _⟩, _, ⟨_, .inl _⟩, _, h => Prod.ext h rfl
+        | ⟨_, .inl _⟩, _, ⟨_, .inr _⟩, hq', _ => (hinr hq').elim
+        | ⟨_, .inr _⟩, hq, _, _, _ => (hinr hq).elim
+  rw [mem_coe, mem_unsatEdges, satisfies_degreeReduce_comp_endpoint_inl] at hq
+  simpa using hq
 
 /-- **Degree reduction divides the value by at least `1 + |D|`** [Dinur, Section 3.1][Dinur2005]:
 labelling the half-edges by the labels of their vertices violates the edge-links of the violated
@@ -237,18 +233,17 @@ theorem one_add_card_mul_unsatVal_degreeReduce_le [Nonempty α] :
   rw [← hσ]
   refine (mul_le_mul_of_nonneg_left ((G.degreeReduce H).toConstraintGraph.unsatVal_le
     (σ ∘ G.endpoint)) (by positivity)).trans ?_
-  have h := card_unsatEdges_degreeReduce_comp_endpoint_le H σ
   rcases (Fintype.card E).eq_zero_or_pos with hE | hE
   · have : IsEmpty E := Fintype.card_eq_zero_iff.1 hE
     simp [unsatFrac]
   rw [unsatFrac, unsatFrac, card_darts_degreeReduce, mul_div_assoc', div_le_div_iff₀
     (by positivity) (by positivity)]
-  push_cast
   have h' : (#((G.degreeReduce H).toConstraintGraph.unsatEdges (σ ∘ G.endpoint)) : ℝ) ≤
-      2 * #(G.unsatEdges σ) := by exact_mod_cast h
-  have hE' : (0 : ℝ) < Fintype.card E := by exact_mod_cast hE
-  nlinarith [mul_le_mul_of_nonneg_right h' (by positivity : (0 : ℝ) ≤ (1 + Fintype.card D) *
-    Fintype.card E)]
+      2 * #(G.unsatEdges σ) := by
+    exact_mod_cast card_unsatEdges_degreeReduce_comp_endpoint_le H σ
+  push_cast
+  exact (mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left h' (by positivity))
+    (by positivity)).trans_eq (by ring)
 
 /-- **The edge charge**: an edge violated by a labelling `σ` of the vertices either has a
 half-edge whose label under `A` differs from that of its vertex, or its edge-links are violated by
@@ -264,9 +259,8 @@ private theorem card_unsatEdges_le_card_filter_isLeft_add [DecidableEq α] (A : 
   rw [mem_union, mem_image, mem_image]
   by_cases h₀ : A (e, false) = σ (G.src e)
   · by_cases h₁ : A (e, true) = σ (G.dst e)
-    · refine Or.inl ⟨((e, false), .inl ()), ?_, rfl⟩
-      rw [mem_filter, mem_unsatEdges, satisfies_degreeReduce_inl]
-      exact ⟨by rwa [h₀, h₁], rfl⟩
+    · exact Or.inl ⟨((e, false), .inl ()), mem_filter.2
+        ⟨mem_unsatEdges.2 (by rwa [satisfies_degreeReduce_inl, h₀, h₁]), rfl⟩, rfl⟩
     · exact Or.inr ⟨(e, true), by simpa using h₁, rfl⟩
   · exact Or.inr ⟨(e, false), by simpa using h₀, rfl⟩
 
@@ -296,15 +290,14 @@ private theorem card_filter_ne_endpoint_eq_sum [DecidableEq α] (A : E × Bool �
   rw [card_eq_sum_card_fiberwise (f := G.endpoint) (t := univ.image G.endpoint)
     fun p _ ↦ mem_image_of_mem _ (mem_univ p)]
   push_cast
-  refine sum_congr rfl fun v _ ↦ ?_
-  norm_cast
-  refine (card_bij (fun x _ ↦ x.1) (fun x hx ↦ ?_) (fun x _ y _ h ↦ Subtype.ext h)
-    fun p hp ↦ ?_).symm
-  · simp only [mem_filter, mem_univ, true_and] at hx ⊢
-    rw [x.2]
-    exact ⟨hx, rfl⟩
-  · simp only [mem_filter, mem_univ, true_and] at hp
-    exact ⟨⟨p, hp.2⟩, by simpa [hp.2] using hp.1, rfl⟩
+  refine sum_congr rfl fun v _ ↦ mod_cast (card_bij (fun x _ ↦ x.1)
+    (fun x hx ↦ by
+      simp only [mem_filter, mem_univ, true_and] at hx ⊢
+      rw [x.2]
+      exact ⟨hx, rfl⟩)
+    (fun _ _ _ _ ↦ Subtype.ext) fun p hp ↦ ?_).symm
+  simp only [mem_filter, mem_univ, true_and] at hp
+  exact ⟨⟨p, hp.2⟩, by simpa [hp.2] using hp.1, rfl⟩
 
 /-- **The cloud charge**: if the multigraphs on the clouds have spectral expansion at most `μ` and
 `σ v` is a most frequent label of the cloud of every vertex `v`, then the cloud-links violated by
@@ -321,7 +314,7 @@ private theorem mul_card_filter_ne_le_card_filter_isRight [DecidableEq α]
   their embedding into the cloud-links. -/
   set Dis : ∀ v, Finset (G.Cloud v × D) := fun v ↦ {r | A r.1.1 ≠ A ((H v).neighbor r.1 r.2).1}
   set f : ∀ v, G.Cloud v × D → (E × Bool) × (Unit ⊕ D) := fun _ r ↦ (r.1.1, .inr r.2)
-  have hf (v : V) : Function.Injective (f v) := fun r r' h ↦ by
+  have hf (v : V) : Function.Injective (f v) := fun _ _ h ↦ by
     simp only [f, Prod.mk.injEq, Sum.inr.injEq] at h
     exact Prod.ext (Subtype.ext h.1) h.2
   /- In each cloud, the disagreeing darts are many. -/
@@ -330,18 +323,14 @@ private theorem mul_card_filter_ne_le_card_filter_isRight [DecidableEq α]
     gcongr
     linarith [hH v]
   /- The disagreeing darts of different clouds give different violated cloud-links. -/
-  have hdisj : (T : Set V).PairwiseDisjoint fun v ↦ (Dis v).image (f v) := by
-    intro v _ w _ hvw
-    refine disjoint_left.2 fun q hq hq' ↦ hvw ?_
-    simp only [mem_image] at hq hq'
-    obtain ⟨r, -, rfl⟩ := hq
-    obtain ⟨r', -, h⟩ := hq'
-    exact r.1.2.symm.trans ((congrArg (fun q ↦ G.endpoint q.1) h).symm.trans r'.1.2)
+  have hdisj : (T : Set V).PairwiseDisjoint fun v ↦ (Dis v).image (f v) :=
+    fun _ _ _ _ hvw ↦ disjoint_left.2 fun q hq hq' ↦ by
+      obtain ⟨r, -, rfl⟩ := mem_image.1 hq
+      obtain ⟨r', -, h⟩ := mem_image.1 hq'
+      exact hvw (r.1.2.symm.trans ((congrArg (fun q ↦ G.endpoint q.1) h).symm.trans r'.1.2))
   have hsub : T.biUnion (fun v ↦ (Dis v).image (f v)) ⊆
-      {q ∈ (G.degreeReduce H).toConstraintGraph.unsatEdges A | q.2.isRight} := by
-    intro q hq
-    simp only [mem_biUnion, mem_image] at hq
-    obtain ⟨v, -, r, hr, rfl⟩ := hq
+      {q ∈ (G.degreeReduce H).toConstraintGraph.unsatEdges A | q.2.isRight} := fun q hq ↦ by
+    obtain ⟨v, -, r, hr, rfl⟩ := by simpa only [mem_biUnion, mem_image] using hq
     rw [mem_filter, mem_unsatEdges, satisfies_degreeReduce_inr, neighbor_cloudGraph H r.1]
     exact ⟨by simpa [Dis] using hr, rfl⟩
   calc (1 - μ) * Fintype.card D * #{p | A p ≠ σ (G.endpoint p)}
@@ -424,13 +413,11 @@ theorem satisfiable_degreeReduce_iff [Fintype E] [DecidableEq V] [Fintype D] [No
     (G.degreeReduce H).toConstraintGraph.Satisfiable ↔ G.Satisfiable := by
   refine ⟨fun h ↦ ?_, satisfiable_degreeReduce H⟩
   rw [← unsatVal_eq_zero_iff] at h ⊢
-  have hc : 0 < min 1 ((1 - μ) * Fintype.card D) / (2 * (1 + Fintype.card D)) := by
-    have : (0 : ℝ) < Fintype.card D := by exact_mod_cast Fintype.card_pos
-    have : 0 < 1 - μ := by linarith
-    exact div_pos (lt_min one_pos (by positivity)) (by positivity)
-  have := le_unsatVal_degreeReduce H hH
-  rw [h] at this
-  exact le_antisymm (nonpos_of_mul_nonpos_right this hc) G.unsatVal_nonneg
+  have hD : (0 : ℝ) < Fintype.card D := by exact_mod_cast Fintype.card_pos
+  have hc : 0 < min 1 ((1 - μ) * Fintype.card D) / (2 * (1 + Fintype.card D)) :=
+    div_pos (lt_min one_pos (mul_pos (sub_pos.2 hμ) hD)) (by positivity)
+  exact le_antisymm (nonpos_of_mul_nonpos_right (h ▸ le_unsatVal_degreeReduce H hH) hc)
+    G.unsatVal_nonneg
 
 end ConstraintGraph
 

@@ -105,15 +105,15 @@ private theorem map_snd_strong (ext : Input → Seed → Output) (source : PMF I
 
 /-- **Strong extractors are extractors**: discarding the revealed seed cannot increase statistical
 distance. -/
-theorem IsStrongExtractor.isExtractor (h : IsStrongExtractor ext k ε) : IsExtractor ext k ε := by
-  intro source hsource
-  have huniform : (PMF.uniformOfFintype (Seed × Output)).map Prod.snd =
-      PMF.uniformOfFintype Output := by
-    rw [← uniformOfFintype_prod, PMF.map_bind]
-    simp only [PMF.map_comp, Function.comp_def]
-    exact PMF.bind_const _ _ |>.trans (PMF.map_id _)
-  rw [← map_snd_strong, ← huniform]
-  exact (dist_map_le _ _ Prod.snd).trans (h source hsource)
+theorem IsStrongExtractor.isExtractor (h : IsStrongExtractor ext k ε) : IsExtractor ext k ε :=
+  fun source hsource => by
+    have huniform : (PMF.uniformOfFintype (Seed × Output)).map Prod.snd =
+        PMF.uniformOfFintype Output := by
+      rw [← uniformOfFintype_prod, PMF.map_bind]
+      simp only [PMF.map_comp, Function.comp_def]
+      exact (PMF.bind_const _ _).trans (PMF.map_id _)
+    rw [← map_snd_strong, ← huniform]
+    exact (dist_map_le _ _ Prod.snd).trans (h source hsource)
 
 variable [Fintype Input]
 
@@ -122,24 +122,21 @@ output within `δ + ε` of uniform. -/
 theorem IsExtractor.dist_le_of_isSource (h : IsExtractor ext k ε) {source : PMF Input}
     {δ : ℝ≥0} (hsource : IsSource source k δ) :
     dist (source.bind fun x => (PMF.uniformOfFintype Seed).map fun s => ext x s)
-      (PMF.uniformOfFintype Output) ≤ δ + ε := by
-  obtain ⟨close, hclose, hdist⟩ := hsource
-  refine (dist_triangle _
-    (close.bind fun x => (PMF.uniformOfFintype Seed).map fun s => ext x s) _).trans
-    (add_le_add ?_ (h close hclose))
-  exact (dist_bind_le source close _).trans hdist
+      (PMF.uniformOfFintype Output) ≤ δ + ε :=
+  let ⟨close, hclose, hdist⟩ := hsource
+  (dist_triangle _ (close.bind fun x => (PMF.uniformOfFintype Seed).map fun s => ext x s) _).trans
+    (add_le_add ((dist_bind_le source close _).trans hdist) (h close hclose))
 
 /-- **Strong extraction from `(k, δ)`-sources.** A strong `(k, ε)`-extractor applied to a
 `(k, δ)`-source gives a seed and output within `δ + ε` of a uniform pair. -/
 theorem IsStrongExtractor.dist_le_of_isSource (h : IsStrongExtractor ext k ε)
     {source : PMF Input} {δ : ℝ≥0} (hsource : IsSource source k δ) :
     dist (source.bind fun x => (PMF.uniformOfFintype Seed).map fun s => (s, ext x s))
-      (PMF.uniformOfFintype (Seed × Output)) ≤ δ + ε := by
-  obtain ⟨close, hclose, hdist⟩ := hsource
-  refine (dist_triangle _
-    (close.bind fun x => (PMF.uniformOfFintype Seed).map fun s => (s, ext x s)) _).trans
-    (add_le_add ?_ (h close hclose))
-  exact (dist_bind_le source close _).trans hdist
+      (PMF.uniformOfFintype (Seed × Output)) ≤ δ + ε :=
+  let ⟨close, hclose, hdist⟩ := hsource
+  (dist_triangle _
+      (close.bind fun x => (PMF.uniformOfFintype Seed).map fun s => (s, ext x s)) _).trans
+    (add_le_add ((dist_bind_le source close _).trans hdist) (h close hclose))
 
 /-! ### Seedless extraction is impossible -/
 

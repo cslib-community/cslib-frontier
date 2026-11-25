@@ -120,12 +120,10 @@ private theorem pyramid_unblocked_column {h : ℕ} {P : Finset (PyramidVertex h)
   obtain ⟨k, j, hkj⟩ := v
   induction k with
   | zero =>
-    refine .source (fun u hu => ?_) (fun hv => lt_irrefl _ (hP _ hv rfl))
-    simp only [pyramid_adj] at hu
-    omega
+    exact .source (by simp [pyramid_adj]) fun hv => lt_irrefl _ (hP _ hv rfl)
   | succ k ih =>
     refine .step (u := ⟨k, j, by omega⟩) (ih (by omega) fun w hw hwj => ?_)
-      (pyramid_adj.2 ⟨rfl, .inl rfl⟩) (fun hv => lt_irrefl _ (hP _ hv rfl))
+      (pyramid_adj.2 ⟨rfl, .inl rfl⟩) fun hv => lt_irrefl _ (hP _ hv rfl)
     have := hP w hw hwj
     dsimp only at this ⊢
     omega
@@ -137,12 +135,10 @@ private theorem pyramid_unblocked_diagonal {h : ℕ} {P : Finset (PyramidVertex 
   obtain ⟨k, j, hkj⟩ := v
   induction k generalizing j with
   | zero =>
-    refine .source (fun u hu => ?_) (fun hv => lt_irrefl _ (hP _ hv rfl))
-    simp only [pyramid_adj] at hu
-    omega
+    exact .source (by simp [pyramid_adj]) fun hv => lt_irrefl _ (hP _ hv rfl)
   | succ k ih =>
     refine .step (u := ⟨k, j + 1, by omega⟩) (ih (j + 1) (by omega) fun w hw hwj => ?_)
-      (pyramid_adj.2 ⟨rfl, .inr rfl⟩) (fun hv => lt_irrefl _ (hP _ hv rfl))
+      (pyramid_adj.2 ⟨rfl, .inr rfl⟩) fun hv => lt_irrefl _ (hP _ hv rfl)
     have := hP w hw (by dsimp only at hwj ⊢; omega)
     dsimp only at this ⊢
     omega
@@ -160,25 +156,16 @@ private theorem forcesPebbles_pyramid_aux {h : ℕ} (k j : ℕ) (hkj : k + 1 + j
     let z : PyramidVertex h := ⟨k + 1, j + 1, by omega⟩
     rw [show k + 1 + 3 = k + 3 + 1 by omega]
     refine ForcesPebbles.step (y := y) (z := z) (Ry := y.below) (Rz := z.below)
-      (pyramid_adj.2 ⟨rfl, .inl rfl⟩) (pyramid_adj.2 ⟨rfl, .inr rfl⟩) (fun u hu => ?_)
-      (fun w hw => ?_) (fun w hw => ?_) (fun P hP => ?_) (fun P hP => ?_) (ih j _) (ih (j + 1) _)
-    · simp only [pyramid_adj] at hu
-      simp only [PyramidVertex.ext_iff, y, z]
-      omega
-    · simp only [PyramidVertex.mem_below, y] at hw ⊢
-      omega
-    · simp only [PyramidVertex.mem_below, z] at hw ⊢
-      omega
-    · by_contra hcon
-      refine hP (pyramid_unblocked_column y fun w hw hwj => ?_)
-      by_contra hlt
-      refine hcon ⟨w, hw, ?_, ?_⟩ <;> simp only [PyramidVertex.mem_below, y, z] at hwj hlt ⊢ <;>
-        omega
-    · by_contra hcon
-      refine hP (pyramid_unblocked_diagonal z fun w hw hwj => ?_)
-      by_contra hlt
-      refine hcon ⟨w, hw, ?_, ?_⟩ <;> simp only [PyramidVertex.mem_below, y, z] at hwj hlt ⊢ <;>
-        omega
+      (pyramid_adj.2 ⟨rfl, .inl rfl⟩) (pyramid_adj.2 ⟨rfl, .inr rfl⟩)
+      (fun u hu => by simp only [pyramid_adj, PyramidVertex.ext_iff, y, z] at hu ⊢; omega)
+      (fun w hw => by simp only [PyramidVertex.mem_below, y] at hw ⊢; omega)
+      (fun w hw => by simp only [PyramidVertex.mem_below, z] at hw ⊢; omega)
+      (fun P hP => by_contra fun hcon => hP <| pyramid_unblocked_column y fun w hw hwj =>
+        by_contra fun hlt => hcon ⟨w, hw, ?_, ?_⟩)
+      (fun P hP => by_contra fun hcon => hP <| pyramid_unblocked_diagonal z fun w hw hwj =>
+        by_contra fun hlt => hcon ⟨w, hw, ?_, ?_⟩)
+      (ih j _) (ih (j + 1) _) <;>
+      simp only [PyramidVertex.mem_below, y, z] at hwj hlt ⊢ <;> omega
 
 /-- Cook's path-blocking argument: every vertex `v` of `Π_h` above the sources forces
 `v.level + 2` pebbles on the sub-pyramid below it. -/

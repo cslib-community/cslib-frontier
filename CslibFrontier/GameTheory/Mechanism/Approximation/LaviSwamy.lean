@@ -116,8 +116,7 @@ theorem expectedVal_sub (p : PMF Ω) (g₁ g₂ : Ω → ℝ) :
 
 theorem expectedVal_mul_const (p : PMF Ω) (g : Ω → ℝ) (c : ℝ) :
     expectedVal p (fun ω => g ω * c) = expectedVal p g * c := by
-  simp only [expectedVal, Finset.sum_mul]
-  refine Finset.sum_congr rfl fun ω _ => by ring
+  simp only [expectedVal, Finset.sum_mul, mul_assoc]
 
 theorem expectedVal_sum {ι : Type*} [Fintype ι] (p : PMF Ω) (g : ι → Ω → ℝ) :
     expectedVal p (fun ω => ∑ i : ι, g i ω) = ∑ i : ι, expectedVal p (g i) := by
@@ -132,7 +131,7 @@ theorem expectedVal_dotProduct [Fintype κ] (p : PMF Ω) (embed : Ω → κ → 
   simp only [expectedVal, dotProduct, Finset.sum_apply, Pi.smul_apply, smul_eq_mul,
     Finset.mul_sum]
   rw [Finset.sum_comm]
-  refine Finset.sum_congr rfl fun k _ => Finset.sum_congr rfl fun ω _ => by ring
+  exact Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ => by ring
 
 /-- Convert a real probability vector on a finite type into a `PMF`. -/
 noncomputable def pmfOfRealWeights (μ : Ω → ℝ) (hnonneg : ∀ ω, 0 ≤ μ ω)
@@ -169,49 +168,30 @@ verified against primary PDF): if every real weight vector `w : κ → ℝ` admi
 theorem exists_convex_decomposition_of_integralityGap (embed : Ω → κ → ℝ) {x : κ → ℝ} {α : ℝ}
     (hgap : ∀ w : κ → ℝ, ∃ ω : Ω, (w ⬝ᵥ x) / α ≤ w ⬝ᵥ embed ω) :
     ∃ p : PMF Ω, ∑ ω : Ω, (p ω).toReal • embed ω = (1 / α) • x := by
-  let A : Matrix (κ ⊕ Unit) Ω ℝ := fun r ω =>
-    match r with
-    | Sum.inl k => embed ω k
-    | Sum.inr () => 1
-  let b : κ ⊕ Unit → ℝ := fun r =>
-    match r with
-    | Sum.inl k => (1 / α) * x k
-    | Sum.inr () => 1
-  have hsol : ∃ μ : Ω → ℝ, 0 ≤ μ ∧ A *ᵥ μ = b := by
-    rw [Matrix.exists_nonneg_mulVec_eq_iff A b]
+  let A : Matrix (κ ⊕ Unit) Ω ℝ := Sum.elim (fun k ω => embed ω k) (fun _ _ => 1)
+  let b : κ ⊕ Unit → ℝ := Sum.elim ((1 / α) • x) (fun _ => 1)
+  obtain ⟨μ, hμ_nonneg, hAμ⟩ : ∃ μ : Ω → ℝ, 0 ≤ μ ∧ A *ᵥ μ = b := by
+    rw [Matrix.exists_nonneg_mulVec_eq_iff]
     intro y hy
-    let w : κ → ℝ := fun k => -y (Sum.inl k)
-    let z : ℝ := y (Sum.inr ())
-    obtain ⟨ω₀, hω₀⟩ := hgap w
-    have hω₀_ge : 0 ≤ (y ᵥ* A) ω₀ := hy ω₀
-    have hvec : (y ᵥ* A) ω₀ = z - w ⬝ᵥ embed ω₀ := by
-      simp only [vecMul, dotProduct, Fintype.sum_sum_type, Finset.univ_unique,
-        Finset.sum_singleton, PUnit.default_eq_unit, A, w, z, mul_one, neg_mul,
-        Finset.sum_neg_distrib]
-      ring
-    have hdot : y ⬝ᵥ b = z - (w ⬝ᵥ x) / α := by
-      simp only [dotProduct, Fintype.sum_sum_type, Finset.univ_unique, Finset.sum_singleton,
-        PUnit.default_eq_unit, b, w, z, mul_one]
-      have hsum : ∑ k : κ, y (Sum.inl k) * ((1 / α) * x k) =
-          -(∑ k : κ, (-y (Sum.inl k)) * x k) / α := by
-        rw [← Finset.sum_neg_distrib, Finset.sum_div]
-        refine Finset.sum_congr rfl fun k _ => by ring
-      rw [hsum]
-      ring
-    rw [hvec] at hω₀_ge
-    rw [hdot]
+    obtain ⟨ω₀, hω₀⟩ := hgap (fun k => -y (.inl k))
+    have hω₀_ge : 0 ≤ ∑ k, y (.inl k) * embed ω₀ k + y (.inr ()) := by
+      simpa only [Pi.zero_apply, vecMul, dotProduct, Fintype.sum_sum_type, Finset.univ_unique,
+        Finset.sum_singleton, PUnit.default_eq_unit, A, Sum.elim_inl, Sum.elim_inr, mul_one]
+        using hy ω₀
+    have hsum : ∑ k : κ, y (.inl k) * (1 / α * x k) =
+        (∑ k : κ, y (.inl k) * x k) / α := by
+      rw [Finset.sum_div]
+      exact Finset.sum_congr rfl fun _ _ => by ring
+    simp only [dotProduct, Fintype.sum_sum_type, Finset.univ_unique, Finset.sum_singleton,
+      PUnit.default_eq_unit, b, Sum.elim_inl, Sum.elim_inr, Pi.smul_apply, smul_eq_mul,
+      mul_one, hsum]
+    simp only [dotProduct, neg_mul, Finset.sum_neg_distrib, neg_div] at hω₀
     linarith
-  obtain ⟨μ, hμ_nonneg, hAμ⟩ := hsol
   have hsum : ∑ ω : Ω, μ ω = 1 := by
-    have h := congr_fun hAμ (Sum.inr ())
-    simpa only [mulVec, dotProduct, A, b, one_mul] using h
-  refine ⟨pmfOfRealWeights μ hμ_nonneg hsum, ?_⟩
-  funext k
-  have hk := congr_fun hAμ (Sum.inl k)
-  simp only [mulVec, dotProduct, A, b] at hk
-  simp only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul, pmfOfRealWeights_toReal]
-  rw [← hk]
-  refine Finset.sum_congr rfl fun ω _ => mul_comm _ _
+    simpa only [mulVec, dotProduct, A, b, Sum.elim_inr, one_mul] using congr_fun hAμ (.inr ())
+  refine ⟨pmfOfRealWeights μ hμ_nonneg hsum, funext fun k => ?_⟩
+  simpa only [mulVec, dotProduct, A, b, Sum.elim_inl, Finset.sum_apply, Pi.smul_apply,
+    smul_eq_mul, pmfOfRealWeights_toReal, mul_comm _ (μ _)] using congr_fun hAμ (.inl k)
 
 omit [Fintype Ω] in
 /-- The scaled fractional point `(1 / α) • x` lies in `convexHull ℝ (Set.range embed)` whenever
@@ -221,14 +201,12 @@ theorem scaled_mem_convexHull_of_integralityGap [Finite Ω] (embed : Ω → κ �
     (1 / α) • x ∈ convexHull ℝ (Set.range embed) := by
   have := Fintype.ofFinite Ω
   obtain ⟨p, hp⟩ := exists_convex_decomposition_of_integralityGap embed hgap
-  have hcm : Finset.univ.centerMass (fun ω : Ω => (p ω).toReal) embed = (1 / α) • x := by
-    rw [← hp]
-    simp only [Finset.centerMass, Cslib.Probability.PMF.sum_toReal, inv_one, one_smul]
-  rw [← hcm]
-  exact Finset.centerMass_mem_convexHull (s := Set.range embed) (t := Finset.univ)
-    (fun ω _ => ENNReal.toReal_nonneg)
-    (by rw [Cslib.Probability.PMF.sum_toReal]; exact zero_lt_one)
-    (fun ω _ => Set.mem_range_self ω)
+  simpa only [Finset.centerMass, Cslib.Probability.PMF.sum_toReal, inv_one, one_smul, hp] using
+    Finset.centerMass_mem_convexHull (s := Set.range embed) (t := Finset.univ)
+      (w := fun ω : Ω => (p ω).toReal)
+      (fun _ _ => ENNReal.toReal_nonneg)
+      ((Cslib.Probability.PMF.sum_toReal p).symm ▸ zero_lt_one)
+      (fun ω _ => Set.mem_range_self ω)
 
 omit [Fintype Ω] in
 /-- **Clamping negative weights** ([LaviSwamy2011]; [NisanRoughgardenTardosVazirani2007],
@@ -243,24 +221,20 @@ theorem integralityGap_of_nonneg_approx [DecidableEq κ] {embed : Ω → κ → 
     ∀ w : κ → ℝ, ∃ ω : Ω, (w ⬝ᵥ x) / α ≤ w ⬝ᵥ embed ω := by
   intro w
   let wPos : κ → ℝ := fun k => max 0 (w k)
-  have hwPos_nonneg : 0 ≤ wPos := fun k => le_max_left 0 (w k)
-  obtain ⟨ω, hω⟩ := hnonneg wPos hwPos_nonneg
+  obtain ⟨ω, hω⟩ := hnonneg wPos fun k => le_max_left 0 (w k)
   obtain ⟨ω', hω'⟩ := hdown ω (Finset.univ.filter fun k : κ => 0 ≤ w k)
   refine ⟨ω', ?_⟩
-  have h1 : w ⬝ᵥ x ≤ wPos ⬝ᵥ x := by
-    refine Finset.sum_le_sum fun k _ => ?_
-    exact mul_le_mul_of_nonneg_right (le_max_right 0 (w k)) (hx k)
-  have h2 : wPos ⬝ᵥ embed ω = w ⬝ᵥ embed ω' := by
-    refine Finset.sum_congr rfl fun k _ => ?_
-    rw [hω' k]
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, wPos]
-    split_ifs with hk
-    · rw [max_eq_right hk]
-    · rw [max_eq_left (le_of_not_ge hk), zero_mul, mul_zero]
-  calc
-    (w ⬝ᵥ x) / α ≤ (wPos ⬝ᵥ x) / α := div_le_div_of_nonneg_right h1 hα.le
+  calc (w ⬝ᵥ x) / α
+    _ ≤ (wPos ⬝ᵥ x) / α := div_le_div_of_nonneg_right
+          (Finset.sum_le_sum fun k _ => mul_le_mul_of_nonneg_right (le_max_right 0 (w k)) (hx k))
+          hα.le
     _ ≤ wPos ⬝ᵥ embed ω := hω
-    _ = w ⬝ᵥ embed ω' := h2
+    _ = w ⬝ᵥ embed ω' := Finset.sum_congr rfl fun k _ => by
+          rw [hω' k]
+          simp only [Finset.mem_filter, Finset.mem_univ, true_and, wPos]
+          split_ifs with hk
+          · rw [max_eq_right hk]
+          · rw [max_eq_left (le_of_not_ge hk), zero_mul, mul_zero]
 
 end Decomposition
 
@@ -420,9 +394,8 @@ theorem laviSwamyDet_isTruthfulInExpectation {P : Set (κ → ℝ)} {embed : Ω 
   intro b _ i v _
   simp only [RandomizedLinearMechanism.expectedUtility, laviSwamyDet, expectedVal_sub,
     expectedVal_const, decompDist_expectedVal_dotProduct]
-  have hvcg := fracVcg_dsic_ineq hx ho b i v
-  have hinv : 0 ≤ 1 / α := div_nonneg zero_le_one hα.le
-  nlinarith
+  linarith [mul_le_mul_of_nonneg_left (fracVcg_dsic_ineq hx ho b i v)
+    (div_nonneg zero_le_one hα.le)]
 
 /-- **Exact expected welfare identity for `laviSwamyDet`**: expected welfare equals
 `(1 / α)` times the optimal fractional welfare. -/
@@ -475,16 +448,11 @@ private theorem laviSwamyExPost_expectedPayment_eq {P : Set (κ → ℝ)} {embed
     have hne : b i ⬝ᵥ xStar b ≠ 0 := hpos.ne'
     field_simp
   · rw [expectedVal_const]
-    have hge0 : 0 ≤ b i ⬝ᵥ xStar b :=
-      dotProduct_nonneg_of_nonneg (hb i) (hP_nonneg _ (hx b).1)
-    have hzero : b i ⬝ᵥ xStar b = 0 := le_antisymm (le_of_not_gt hpos) hge0
-    have hp_ge : 0 ≤ fracVcgPayment xStar othersMax b i := fracVcgPayment_nonneg hx ho b i
-    have hp_le : fracVcgPayment xStar othersMax b i ≤ 0 := by
-      have := fracVcgPayment_le_val hx ho i
-        (dotProduct_nonneg_of_nonneg (hb i) (hP_nonneg _ (ho.1 i b).1))
-      linarith
-    have hp0 : fracVcgPayment xStar othersMax b i = 0 := le_antisymm hp_le hp_ge
-    rw [hp0, mul_zero]
+    have hge0 := dotProduct_nonneg_of_nonneg (hb i) (hP_nonneg _ (hx b).1)
+    have hp_ge := fracVcgPayment_nonneg hx ho b i
+    have hp_le := fracVcgPayment_le_val hx ho i
+      (dotProduct_nonneg_of_nonneg (hb i) (hP_nonneg _ (ho.1 i b).1))
+    rw [show fracVcgPayment xStar othersMax b i = 0 by linarith, mul_zero]
 
 /-- **Truthfulness in expectation of `laviSwamyExPost`** on nonnegative linear valuation profiles
 ([LaviSwamy2011]; [NisanRoughgardenTardosVazirani2007], Chapter 12, Lemma 12.16, locator not
@@ -495,19 +463,13 @@ theorem laviSwamyExPost_isTruthfulInExpectationOn {P : Set (κ → ℝ)} {embed 
     (hgap : VerifiesIntegralityGap P embed α) (hP_nonneg : ∀ x ∈ P, 0 ≤ x) :
     (laviSwamyExPost hx othersMax hgap).IsTruthfulInExpectationOn embed nonnegValProfiles := by
   intro b hb i v hv
-  simp only [RandomizedLinearMechanism.expectedUtility, expectedVal_sub]
-  change expectedVal (decompDist hx hgap b) (fun ω => v ⬝ᵥ embed ω) -
-      expectedVal (decompDist hx hgap b)
-        (fun ω => (laviSwamyExPost hx othersMax hgap).payment b ω i) ≤
-    expectedVal (decompDist hx hgap (Function.update b i v)) (fun ω => v ⬝ᵥ embed ω) -
-      expectedVal (decompDist hx hgap (Function.update b i v))
-        (fun ω => (laviSwamyExPost hx othersMax hgap).payment (Function.update b i v) ω i)
-  rw [laviSwamyExPost_expectedPayment_eq hx ho hgap hP_nonneg hb i,
+  have hout : (laviSwamyExPost hx othersMax hgap).outcomeDist = decompDist hx hgap := rfl
+  simp only [RandomizedLinearMechanism.expectedUtility, expectedVal_sub, hout,
+    laviSwamyExPost_expectedPayment_eq hx ho hgap hP_nonneg hb i,
     laviSwamyExPost_expectedPayment_eq hx ho hgap hP_nonneg hv i,
-    decompDist_expectedVal_dotProduct, decompDist_expectedVal_dotProduct]
-  have hvcg := fracVcg_dsic_ineq hx ho b i v
-  have hinv : 0 ≤ 1 / α := div_nonneg zero_le_one hα.le
-  nlinarith
+    decompDist_expectedVal_dotProduct]
+  linarith [mul_le_mul_of_nonneg_left (fracVcg_dsic_ineq hx ho b i v)
+    (div_nonneg zero_le_one hα.le)]
 
 /-- **Ex-post individual rationality of `laviSwamyExPost`** on nonnegative valuation profiles
 when integral outcomes are nonnegative (`0 ≤ embed ω`). -/
@@ -519,17 +481,14 @@ theorem laviSwamyExPost_isExPostIROn {P : Set (κ → ℝ)} {embed : Ω → κ �
     (laviSwamyExPost hx othersMax hgap).IsExPostIROn embed nonnegValProfiles := by
   intro b hb i ω
   simp only [laviSwamyExPost, sub_nonneg]
-  have hval_nonneg : 0 ≤ b i ⬝ᵥ embed ω := dotProduct_nonneg_of_nonneg (hb i) (hembed_nonneg ω)
+  have hval := dotProduct_nonneg_of_nonneg (hb i) (hembed_nonneg ω)
   split_ifs with hpos
-  · have hratio : fracVcgPayment xStar othersMax b i / (b i ⬝ᵥ xStar b) ≤ 1 := by
-      rw [div_le_one hpos]
-      exact fracVcgPayment_le_val hx ho i
-        (dotProduct_nonneg_of_nonneg (hb i) (hP_nonneg _ (ho.1 i b).1))
-    calc
-      (b i ⬝ᵥ embed ω) * (fracVcgPayment xStar othersMax b i / (b i ⬝ᵥ xStar b))
-          ≤ (b i ⬝ᵥ embed ω) * 1 := mul_le_mul_of_nonneg_left hratio hval_nonneg
+  · calc (b i ⬝ᵥ embed ω) * (fracVcgPayment xStar othersMax b i / (b i ⬝ᵥ xStar b))
+      _ ≤ (b i ⬝ᵥ embed ω) * 1 := mul_le_mul_of_nonneg_left ((div_le_one hpos).mpr
+            (fracVcgPayment_le_val hx ho i
+              (dotProduct_nonneg_of_nonneg (hb i) (hP_nonneg _ (ho.1 i b).1)))) hval
       _ = b i ⬝ᵥ embed ω := mul_one _
-  · exact hval_nonneg
+  · exact hval
 
 /-- **Ex-post no positive transfers (NPT) of `laviSwamyExPost`** on nonnegative valuation profiles
 when integral outcomes are nonnegative. -/
@@ -583,37 +542,26 @@ theorem exists_laviSwamyExPost_of_isCompact {P : Set (κ → ℝ)} {embed : Ω �
       (∀ b : ι → κ → ℝ, ∀ x ∈ P, (1 / α) * (∑ i : ι, b i ⬝ᵥ x) ≤ M.expectedWelfare embed b) ∧
       (∀ b : ι → κ → ℝ, ∀ ω : Ω,
         (1 / α) * (∑ i : ι, b i ⬝ᵥ embed ω) ≤ M.expectedWelfare embed b) := by
-  have hsum_dot : ∀ (s : Finset ι) (f : ι → κ → ℝ) (y : κ → ℝ),
-      (∑ i ∈ s, f i) ⬝ᵥ y = ∑ i ∈ s, f i ⬝ᵥ y := fun s f y => by
+  have hsum_dot (s : Finset ι) (f : ι → κ → ℝ) (y : κ → ℝ) :
+      (∑ i ∈ s, f i) ⬝ᵥ y = ∑ i ∈ s, f i ⬝ᵥ y := by
     simp only [dotProduct, Finset.sum_apply, Finset.sum_mul]
     exact Finset.sum_comm
-  have hcont : ∀ w : κ → ℝ, Continuous fun x : κ → ℝ => w ⬝ᵥ x := fun w => by
-    classical
-    unfold dotProduct
-    refine Finset.induction (by simp only [Finset.sum_empty]; exact continuous_const)
-      (fun k s hks ih => ?_) Finset.univ
-    simp only [Finset.sum_insert hks]
-    exact (continuous_const.mul (continuous_apply k)).add ih
-  have hex : ∀ w : κ → ℝ, ∃ x ∈ P, ∀ y ∈ P, w ⬝ᵥ y ≤ w ⬝ᵥ x := fun w => by
-    obtain ⟨x, hxP, hxmax⟩ := hP_compact.exists_isMaxOn hP_ne (hcont w).continuousOn
-    exact ⟨x, hxP, fun y hy => hxmax hy⟩
+  have hcont (w : κ → ℝ) : Continuous fun x : κ → ℝ => w ⬝ᵥ x :=
+    continuous_finsetSum _ fun k _ => continuous_const.mul (continuous_apply k)
+  have hex (w : κ → ℝ) : ∃ x ∈ P, ∀ y ∈ P, w ⬝ᵥ y ≤ w ⬝ᵥ x :=
+    let ⟨x, hxP, hxmax⟩ := hP_compact.exists_isMaxOn hP_ne (hcont w).continuousOn
+    ⟨x, hxP, fun _ hy => hxmax hy⟩
   choose opt hoptP hoptMax using hex
   let xStar : (ι → κ → ℝ) → κ → ℝ := fun b => opt (∑ i : ι, b i)
   let othersMax : ι → (ι → κ → ℝ) → κ → ℝ := fun i b =>
     opt (∑ j ∈ Finset.univ.erase i, b j)
-  have hx : IsFracWelfareMax P xStar := by
-    intro b
-    refine ⟨hoptP _, fun y hy => ?_⟩
-    have h := hoptMax (∑ i : ι, b i) y hy
-    simpa only [hsum_dot] using h
-  have ho : IsOthersFracWelfareMax P othersMax := by
-    refine ⟨fun i b => ⟨hoptP _, fun y hy => ?_⟩, fun i b v => ?_⟩
-    · have h := hoptMax (∑ j ∈ Finset.univ.erase i, b j) y hy
-      simpa only [hsum_dot] using h
-    · simp only [othersMax]
-      congr 1
-      refine Finset.sum_congr rfl fun j hj => ?_
-      rw [Function.update_of_ne (Finset.ne_of_mem_erase hj)]
+  have hx : IsFracWelfareMax P xStar := fun b =>
+    ⟨hoptP _, fun y hy => by simpa only [hsum_dot] using hoptMax (∑ i : ι, b i) y hy⟩
+  have ho : IsOthersFracWelfareMax P othersMax :=
+    ⟨fun i b => ⟨hoptP _, fun y hy => by
+      simpa only [hsum_dot] using hoptMax (∑ j ∈ Finset.univ.erase i, b j) y hy⟩,
+     fun i b v => congrArg opt (Finset.sum_congr rfl fun j hj =>
+       Function.update_of_ne (Finset.ne_of_mem_erase hj) v b)⟩
   have hembed_nonneg : ∀ ω, 0 ≤ embed ω := fun ω => hP_nonneg _ (hembed ω)
   refine ⟨laviSwamyExPost hx othersMax hgap,
     laviSwamyExPost_isTruthfulInExpectationOn hα hx ho hgap hP_nonneg,

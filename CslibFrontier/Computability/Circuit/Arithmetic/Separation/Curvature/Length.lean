@@ -115,63 +115,49 @@ theorem isHomogeneous_homogenization (hN : CrossingLength N) :
   rcases Nat.eq_zero_or_pos m with rfl | hm
   · have h1 := hT ((0 : ℕ) • h)
     simp only [zero_smul, smul_zero, hN.zero, zero_div] at h1
-    rw [Nat.cast_zero, zero_mul, zero_smul]
-    exact tendsto_nhds_unique h1 tendsto_const_nhds
+    simpa only [Nat.cast_zero, zero_mul, zero_smul] using tendsto_nhds_unique h1 tendsto_const_nhds
   · have h2 : Tendsto (fun S : ℕ => (m : ℝ) * (N ((S * m) • h) / (S * m : ℕ))) atTop
         (𝓝 (m * hN.homogenization h)) :=
       ((hT h).comp (tendsto_id.atTop_mul_const' hm)).const_mul _
     refine tendsto_nhds_unique (hT (m • h)) (h2.congr fun S => ?_)
-    have hm' : (m : ℝ) ≠ 0 := by exact_mod_cast hm.ne'
-    rw [mul_smul]
-    push_cast
-    rcases Nat.eq_zero_or_pos S with rfl | hS
-    · simp
-    · have hS' : (S : ℝ) ≠ 0 := by exact_mod_cast hS.ne'
-      field_simp
+    rw [mul_smul, Nat.cast_mul, mul_comm (S : ℝ), ← mul_div_assoc,
+      mul_div_mul_left _ _ (by exact_mod_cast hm.ne')]
 
 /-- The homogenization of a crossing length is a crossing length. -/
 theorem crossingLength_homogenization (hN : CrossingLength N) :
     CrossingLength hN.homogenization := by
   have hT := hN.tendsto_homogenization
-  refine ⟨?_, ?_, ?_, ?_, ?_⟩
-  · exact fun h => ge_of_tendsto' (hT h) fun S => div_nonneg (hN.nonneg _) (Nat.cast_nonneg _)
-  · simpa using hN.isHomogeneous_homogenization 0 0
-  · intro h
-    refine tendsto_nhds_unique (hT (-h)) ((hT h).congr fun S => ?_)
-    rw [smul_neg, hN.neg]
-  · intro h h'
-    refine le_of_tendsto_of_tendsto' (hT (h + h')) ((hT h).add (hT h')) fun S => ?_
-    rw [smul_add, ← add_div]
-    exact div_le_div_of_nonneg_right (hN.add _ _) (Nat.cast_nonneg _)
-  · intro X V Y U n n' k k' τ hτ
-    -- (Q) for `N(S • ·)/S` is (Q) for `N` at the points `S • ·`, divided by `S²`
-    have hl := (((hT (X - V)).pow 2).add ((hT (Y - U)).pow 2)).const_mul 2
-    have hr := (((((hT (X - V)).mul ((((hT (X - n)).add (hT (V - n'))).add (hT (X - k))).add
-      (hT (V - k')))).add ((hT (Y - U)).mul ((((hT (Y - n)).add (hT (U - n'))).add
-      (hT (U - k))).add (hT (Y - k')))))).add ((((hT (X - V)).pow 2).add
-      ((hT (Y - U)).pow 2)).const_mul τ)).add ((((hT (n - n')).pow 2).add
-      ((hT (k - k')).pow 2)).div_const (2 * τ))
-    refine le_of_tendsto_of_tendsto' hl hr fun S => ?_
-    have h := hN.crossing (S • X) (S • V) (S • Y) (S • U) (S • n) (S • n') (S • k) (S • k') τ hτ
-    simp only [← smul_sub] at h
-    rcases Nat.eq_zero_or_pos S with rfl | hS
-    · simp
-    · have hS' : (0 : ℝ) < S := by exact_mod_cast hS
-      have h2 := div_le_div_of_nonneg_right h (show 0 ≤ (S : ℝ) ^ 2 by positivity)
-      refine le_trans (le_of_eq ?_) (h2.trans (le_of_eq ?_)) <;> field_simp
+  refine ⟨fun h => ge_of_tendsto' (hT h) fun S => div_nonneg (hN.nonneg _) (Nat.cast_nonneg _),
+    by simpa using hN.isHomogeneous_homogenization 0 0,
+    fun h => tendsto_nhds_unique (hT (-h)) ((hT h).congr fun S => by rw [smul_neg, hN.neg]),
+    fun h h' => le_of_tendsto_of_tendsto' (hT (h + h')) ((hT h).add (hT h')) fun S => by
+      rw [smul_add, ← add_div]
+      exact div_le_div_of_nonneg_right (hN.add _ _) (Nat.cast_nonneg _),
+    fun X V Y U n n' k k' τ hτ => ?_⟩
+  have hl := (((hT (X - V)).pow 2).add ((hT (Y - U)).pow 2)).const_mul 2
+  have hr := (((((hT (X - V)).mul ((((hT (X - n)).add (hT (V - n'))).add (hT (X - k))).add
+    (hT (V - k')))).add ((hT (Y - U)).mul ((((hT (Y - n)).add (hT (U - n'))).add
+    (hT (U - k))).add (hT (Y - k')))))).add ((((hT (X - V)).pow 2).add
+    ((hT (Y - U)).pow 2)).const_mul τ)).add ((((hT (n - n')).pow 2).add
+    ((hT (k - k')).pow 2)).div_const (2 * τ))
+  refine le_of_tendsto_of_tendsto' hl hr fun S => ?_
+  have h := hN.crossing (S • X) (S • V) (S • Y) (S • U) (S • n) (S • n') (S • k) (S • k') τ hτ
+  simp only [← smul_sub] at h
+  rcases Nat.eq_zero_or_pos S with rfl | hS
+  · simp
+  · have hS' : (0 : ℝ) < S := by exact_mod_cast hS
+    have h2 := div_le_div_of_nonneg_right h (sq_nonneg (S : ℝ))
+    refine le_trans (le_of_eq ?_) (h2.trans (le_of_eq ?_)) <;> field_simp
 
 /-- The homogenization lies below the crossing length. -/
 theorem homogenization_le (hN : CrossingLength N) (h : ℤ × ℤ) : hN.homogenization h ≤ N h := by
-  rw [homogenization]
-  simpa using (hN.subadditive h).lim_le_div (hN.bddBelow_div h) one_ne_zero
+  simpa [homogenization] using (hN.subadditive h).lim_le_div (hN.bddBelow_div h) one_ne_zero
 
 /-- The homogenization lies above every `c` with `c S ≤ N(S • h)` for all `S > 0`. -/
 theorem le_homogenization (hN : CrossingLength N) {h : ℤ × ℤ} {c : ℝ}
-    (hc : ∀ S : ℕ, 0 < S → c * S ≤ N (S • h)) : c ≤ hN.homogenization h := by
-  refine ge_of_tendsto (hN.tendsto_homogenization h) ?_
-  filter_upwards [eventually_gt_atTop 0] with S hS
-  rw [le_div_iff₀ (by exact_mod_cast hS)]
-  exact hc S hS
+    (hc : ∀ S : ℕ, 0 < S → c * S ≤ N (S • h)) : c ≤ hN.homogenization h :=
+  ge_of_tendsto (hN.tendsto_homogenization h) <|
+    (eventually_gt_atTop 0).mono fun S hS => (le_div_iff₀ (by exact_mod_cast hS)).2 (hc S hS)
 
 end CrossingLength
 
@@ -216,12 +202,8 @@ theorem bounded (u v : ℤ × ℤ) : (translateDist W u v).Bounded := by
 theorem rms_translateDist (u v : ℤ × ℤ) : (translateDist W u v).rms = meanLength W (u - v) := by
   have h1 : translateDist W u v =
       fun n b i k => translateDist W 0 (u - v) n b (i + v.1) (k + v.2) := by
-    funext n b i k
-    rw [translateDist, H.symm, translateDist, add_zero]
-    congr 1
-    ext <;> simp
-  rw [h1, rms_shift (H.bounded _ _)]
-  rfl
+    funext n b i k; rw [translateDist, H.symm, translateDist, add_zero]; congr 1; ext <;> simp
+  rw [h1, rms_shift (H.bounded _ _)]; rfl
 
 theorem rms_translateDist' (u v : ℤ × ℤ) :
     (translateDist W u v).rms = meanLength W (v - u) := by
@@ -232,26 +214,21 @@ theorem rms_translateDist' (u v : ℤ × ℤ) :
 
 theorem meanLength_zero : meanLength W 0 = 0 := by
   have : translateDist W 0 0 * translateDist W 0 0 = fun _ _ _ _ => (0 : ℝ) := by
-    funext n b i k
-    simp [translateDist, H.self]
+    funext n b i k; simp [translateDist, H.self]
   rw [meanLength, rms, this, mean_const, Real.sqrt_zero]
 
 /-- By translation invariance the root mean square is even. -/
 theorem meanLength_neg (h : ℤ × ℤ) : meanLength W (-h) = meanLength W h := by
-  rw [← zero_sub, ← H.rms_translateDist 0 h]
-  rfl
+  rw [← zero_sub, ← H.rms_translateDist 0 h]; rfl
 
 /-- By translation invariance and Minkowski's inequality the root mean square is subadditive. -/
 theorem meanLength_add (h h' : ℤ × ℤ) :
     meanLength W (h + h') ≤ meanLength W h + meanLength W h' := by
-  have h1 : (translateDist W 0 (h + h')).rms ≤
-      (translateDist W 0 h + translateDist W h (h + h')).rms :=
-    rms_mono (H.bounded _ _) ((H.bounded _ _).add (H.bounded _ _))
-      (fun n b i k => H.nonneg _ _ _ _)
-      (Eventually.of_forall fun n b i _ k _ => H.triangle _ _ _ _ _)
-  have h2 := rms_add_le (H.bounded 0 h) (H.bounded h (h + h'))
-  rw [H.rms_translateDist' h, add_sub_cancel_left] at h2
-  exact h1.trans h2
+  refine (rms_mono (H.bounded 0 (h + h')) ((H.bounded 0 h).add (H.bounded h (h + h')))
+    (fun _ _ _ _ => H.nonneg _ _ _ _)
+    (Eventually.of_forall fun _ _ _ _ _ _ => H.triangle _ _ _ _ _)).trans ?_
+  simpa only [meanLength, H.rms_translateDist' h, add_sub_cancel_left] using
+    rms_add_le (H.bounded 0 h) (H.bounded h (h + h'))
 
 /-- By the inequality of Cauchy and Schwarz the root mean square satisfies (Q). -/
 theorem meanLength_crossing (X V Y U m m' k k' : ℤ × ℤ) (τ : ℝ) (hτ : 0 < τ) :
@@ -270,10 +247,9 @@ theorem meanLength_crossing (X V Y U m m' k k' : ℤ × ℤ) (τ : ℝ) (hτ : 0
         + (d Y U * d Y m + d Y U * d U m' + d Y U * d U k + d Y U * d Y k')
         + τ • (d X V * d X V + d Y U * d Y U)
         + (1 / (2 * τ)) • (d m m' * d m m' + d k k' * d k k')) := by
-    apply mean_le
+    refine mean_le ?_ ?_ fun n b i j => ?_
     · repeat' first | exact hbm _ _ _ _ | apply Bounded.smul | apply Bounded.add
     · repeat' first | exact hbm _ _ _ _ | apply Bounded.smul | apply Bounded.add
-    intro n b i j
     simp only [Pi.add_apply, Pi.mul_apply, Pi.smul_apply, smul_eq_mul, d, translateDist]
     have h := H.crossing n b ((i, j) + X) ((i, j) + V) ((i, j) + Y) ((i, j) + U) ((i, j) + m)
       ((i, j) + m') ((i, j) + k) ((i, j) + k') _ _ τ (H.nonneg n b ((i, j) + X) ((i, j) + V))
@@ -281,32 +257,17 @@ theorem meanLength_crossing (X V Y U m m' k k' : ℤ × ℤ) (τ : ℝ) (hτ : 0
     rw [one_div, inv_mul_eq_div]
     simp only [pow_two] at h
     linarith
-  have e1 : mean ((2 : ℝ) • (d X V * d X V + d Y U * d Y U)) =
-      2 * (meanLength W (X - V) ^ 2 + meanLength W (Y - U) ^ 2) := by
-    rw [mean_smul, mean_add, ← rms_sq (hb _ _), ← rms_sq (hb _ _), H.rms_translateDist,
-      H.rms_translateDist]
-    all_goals repeat' first | exact hbm _ _ _ _ | apply Bounded.add
-  have e2 : mean (d X V * d X m + d X V * d V m' + d X V * d X k + d X V * d V k'
-        + (d Y U * d Y m + d Y U * d U m' + d Y U * d U k + d Y U * d Y k')
-        + τ • (d X V * d X V + d Y U * d Y U)
-        + (1 / (2 * τ)) • (d m m' * d m m' + d k k' * d k k')) =
-      mean (d X V * d X m) + mean (d X V * d V m') + mean (d X V * d X k)
-        + mean (d X V * d V k') + (mean (d Y U * d Y m) + mean (d Y U * d U m')
-        + mean (d Y U * d U k) + mean (d Y U * d Y k'))
-        + τ * (meanLength W (X - V) ^ 2 + meanLength W (Y - U) ^ 2)
-        + 1 / (2 * τ) * (meanLength W (m - m') ^ 2 + meanLength W (k - k') ^ 2) := by
-    rw [mean_add, mean_add, mean_add, mean_add, mean_add, mean_add, mean_add, mean_add,
-      mean_add, mean_smul, mean_smul, mean_add, mean_add, ← rms_sq (hb _ _), ← rms_sq (hb _ _),
-      ← rms_sq (hb _ _), ← rms_sq (hb _ _), H.rms_translateDist, H.rms_translateDist,
-      H.rms_translateDist, H.rms_translateDist]
-    all_goals repeat' first | exact hbm _ _ _ _ | apply Bounded.smul | apply Bounded.add
-  rw [e1, e2, one_div, inv_mul_eq_div] at key
-  have cs : ∀ a b c e : ℤ × ℤ,
-      mean (d a b * d c e) ≤ meanLength W (a - b) * meanLength W (c - e) := fun a b c e => by
-    rw [← H.rms_translateDist, ← H.rms_translateDist]
-    exact mean_mul_le (hb _ _) (hb _ _)
-  linarith [cs X V X m, cs X V V m', cs X V X k, cs X V V k', cs Y U Y m, cs Y U U m',
-    cs Y U U k, cs Y U Y k']
+  rw [mean_smul, mean_add, mean_add, mean_add, mean_add, mean_add, mean_add, mean_add, mean_add,
+    mean_add, mean_add, mean_smul, mean_smul, mean_add, mean_add,
+    ← rms_sq (hb X V), ← rms_sq (hb Y U), ← rms_sq (hb m m'), ← rms_sq (hb k k'),
+    H.rms_translateDist, H.rms_translateDist, H.rms_translateDist, H.rms_translateDist,
+    one_div, inv_mul_eq_div] at key
+  · have cs : ∀ a b c e : ℤ × ℤ,
+        mean (d a b * d c e) ≤ meanLength W (a - b) * meanLength W (c - e) := fun _ _ _ _ => by
+      rw [← H.rms_translateDist, ← H.rms_translateDist]; exact mean_mul_le (hb _ _) (hb _ _)
+    linarith [cs X V X m, cs X V V m', cs X V X k, cs X V V k',
+      cs Y U Y m, cs Y U U m', cs Y U U k, cs Y U Y k']
+  all_goals repeat' first | exact hbm _ _ _ _ | apply Bounded.smul | apply Bounded.add
 
 /-- The root mean square of a family of crossing metrics is a crossing length. -/
 theorem crossingLength : CrossingLength (meanLength W) where

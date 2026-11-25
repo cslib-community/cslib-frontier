@@ -121,18 +121,14 @@ theorem computableInPolyTime_thresholdCircuit :
   have hF : ComputableInPolyTime (fun p : Query => p.1) encQuery encInstance :=
     fst encInstance encUnary
   have hn := hF.fst'
-  have hm := (length_list clauseEncoding).comp hF.snd'
   have hq : ComputableInPolyTime (fun p : Query => p.2) encQuery encUnary :=
     snd encInstance encUnary
   have hcode := computableInPolyTime_compCode (unary_to_binary.comp hn)
-    (computableInPolyTime_linearThresholdCircuit.comp (hm.prod hq))
+    (computableInPolyTime_linearThresholdCircuit.comp
+      (((length_list clauseEncoding).comp hF.snd').prod hq))
     (computableInPolyTime_scoreCircuit.comp hF)
-  have h := hn.prod hcode
-  apply h.of_enc_eq
-  intro p
-  rw [Boolean.encCircuit_apply]
-  congr 1
-  simp only [Function.comp_apply, compCode_code, thresholdCircuit]
+  refine (hn.prod hcode).of_enc_eq fun p => ?_
+  simp [Boolean.encCircuit_apply, compCode_code, thresholdCircuit]
 
 private def compiledFormula (p : Query) : CNF ℕ :=
   Compiler.toCNF (thresholdCircuit p.1 p.2) interpretation (fun _ b => b)
@@ -189,10 +185,8 @@ theorem exists_thresholdCounter :
       compiledFormula_polyTime countShift_polyTime (fun p => workSize p.1)
       compiledFormula_width compiledFormula_density compiledFormula_vars
   refine ⟨count, A, e, b, fun p => ?_, hinO⟩
-  rw [hspec]
-  change 2 ^ Compiler.freeShift (thresholdCircuit p.1 p.2) interpretation (fun _ b => b) *
-    (Compiler.toCNF (thresholdCircuit p.1 p.2) interpretation (fun _ b => b)).modelCount = _
-  rw [← Compiler.acceptCount_eq_two_pow_freeShift_mul_modelCount,
+  rw [hspec, countShift, compiledFormula,
+    ← Compiler.acceptCount_eq_two_pow_freeShift_mul_modelCount,
     ← Circuit.satCount_eq_acceptCount, satCount_thresholdCircuit]
 
 end Cslib.Complexity.MaxSAT

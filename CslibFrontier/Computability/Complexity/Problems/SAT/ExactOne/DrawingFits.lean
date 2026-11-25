@@ -44,13 +44,11 @@ private def Rect (W H : ℕ) (p : Point) : Prop :=
 
 private theorem getD_property {A : Type*} (P : A → Prop) (xs : List A) (fallback : A)
     (hf : P fallback) (hxs : ∀ x ∈ xs, P x) (i : ℕ) : P (xs.getD i fallback) := by
-  induction xs generalizing i with
-  | nil => simpa using hf
-  | cons a xs ih =>
-    cases i with
-    | zero => exact hxs a List.mem_cons_self
-    | succ i =>
-      exact ih (fun x hx => hxs x (List.mem_cons_of_mem _ hx)) i
+  by_cases hi : i < xs.length
+  · rw [List.getD_eq_getElem _ _ hi]
+    exact hxs _ (List.getElem_mem hi)
+  · rw [List.getD_eq_default _ _ (not_lt.mp hi)]
+    exact hf
 
 private theorem zero_rect (W H : ℕ) : Rect W H (0, 0) := by simp [Rect]
 
@@ -58,20 +56,6 @@ private theorem input_position_bounds {d : Graph.OrthogonalDrawing} {W H : ℕ}
     (hd : Graph.drawingFits d W H) (G : Graph) (v : ℕ) :
     Rect W H (Graph.drawingPosition G d v) :=
   getD_property _ d.1 (0, 0) (zero_rect W H) hd.1 _
-
-private theorem input_route_bounds {d : Graph.OrthogonalDrawing} {W H : ℕ}
-    (hd : Graph.drawingFits d W H) (i : ℕ) :
-    ∀ q ∈ d.2.getD i [], Rect W H q :=
-  getD_property _ d.2 [] (by simp) hd.2 i
-
-private theorem sourceRoute_points_bounds {d : Graph.OrthogonalDrawing} {W H : ℕ}
-    (hd : Graph.drawingFits d W H) (G : Graph) (i : ℕ) :
-    ∀ q ∈ sourceRoute G d i, Rect W H q := by
-  unfold sourceRoute
-  split
-  · exact input_route_bounds hd i
-  · intro q hq
-    exact input_route_bounds hd i q (List.mem_reverse.mp hq)
 
 private theorem collar_outer_bounds (side : Fin 4) :
     Rect 540000 540000 (collarOuterPort side) := by
@@ -87,38 +71,28 @@ private theorem collarPoint_bounds (reflected : Bool) {q : Point}
     (hq : Rect 180000 180000 q) : Rect 540000 540000 (collarPoint reflected q) := by
   cases reflected <;> dsimp [Rect, collarPoint, collarOffset, mirrorPoint] at * <;> omega
 
-private theorem prefix_variable_bounds (p : ClauseProfile) :
-    ∀ q ∈ (profilePrefixGeometry p).variablePositions, Rect 180000 180000 q := by
-  intro q hq
-  obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hq
-  have h := profile_prefix_variable_bounds p ⟨i, hi⟩
-  simpa only [Rect, Nat.cast_ofNat, LocalGeometry.variablePosition,
-    List.getD_eq_getElem _ _ hi] using h
-
-private theorem prefix_clause_bounds (p : ClauseProfile) :
-    ∀ q ∈ (profilePrefixGeometry p).clausePositions, Rect 180000 180000 q := by
-  intro q hq
-  obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hq
-  have h := profile_prefix_clause_bounds p ⟨i, hi⟩
-  simpa only [Rect, Nat.cast_ofNat, LocalGeometry.clausePosition,
-    List.getD_eq_getElem _ _ hi] using h
-
 private theorem local_variable_bounds (p : ClauseProfile) (s : PortAssignment) (v : ℕ) :
     Rect 540000 540000
       ((collaredPrefixGeometry (profilePrefixGeometry p) s).variablePosition v) := by
-  apply getD_property _ _ _ (zero_rect _ _)
-  intro q hq
-  obtain ⟨⟨a, i⟩, ha, rfl⟩ := List.mem_map.mp hq
+  refine getD_property _ _ _ (zero_rect _ _) ?_ v
+  intro _ hq
+  obtain ⟨⟨a, _⟩, ha, rfl⟩ := List.mem_map.mp hq
   split_ifs
   · exact collar_outer_bounds _
-  · exact collarPoint_bounds _ (prefix_variable_bounds p a (List.fst_mem_of_mem_zipIdx ha))
+  · obtain ⟨j, hj, rfl⟩ := List.mem_iff_getElem.mp (List.fst_mem_of_mem_zipIdx ha)
+    exact collarPoint_bounds _ (by
+      simpa only [Rect, Nat.cast_ofNat, LocalGeometry.variablePosition,
+        List.getD_eq_getElem _ _ hj] using profile_prefix_variable_bounds p ⟨j, hj⟩)
 
 private theorem local_clause_bounds (p : ClauseProfile) (s : PortAssignment) (i : ℕ) :
     Rect 540000 540000 ((collaredPrefixGeometry (profilePrefixGeometry p) s).clausePosition i) := by
-  apply getD_property _ _ _ (zero_rect _ _)
-  intro q hq
+  refine getD_property _ _ _ (zero_rect _ _) ?_ i
+  intro _ hq
   obtain ⟨a, ha, rfl⟩ := List.mem_map.mp hq
-  exact collarPoint_bounds _ (prefix_clause_bounds p a ha)
+  obtain ⟨j, hj, rfl⟩ := List.mem_iff_getElem.mp ha
+  exact collarPoint_bounds _ (by
+    simpa only [Rect, Nat.cast_ofNat, LocalGeometry.clausePosition,
+      List.getD_eq_getElem _ _ hj] using profile_prefix_clause_bounds p ⟨j, hj⟩)
 
 private theorem local_route_bounds (p : ClauseProfile) (s : PortAssignment)
     {e : LocalIncidence}
@@ -144,94 +118,60 @@ private theorem translation_bounds : Rect 540000 540000 positiveTranslation := b
   unfold Rect
   decide +kernel
 
-private theorem cut_offset_bounds (a b : Point) :
-    Rect 540000 540000 (positiveRadius • direction a b + positiveTranslation) := by
-  rcases direction_unit a b with h | h | h | h <;> rw [h] <;>
-    norm_num [Rect, positiveRadius, positiveTranslation, Prod.smul_mk]
-
-private theorem cutStart_points_bounds {W H : ℕ} {r : Route}
-    (hr : ∀ q ∈ r, Rect W H q) :
-    ∀ q ∈ cutStart positiveScale positiveRadius r,
-      Rect (positiveScale * (W + 1)) (positiveScale * (H + 1)) (q + positiveTranslation) := by
-  cases r with
-  | nil => simp [cutStart, dilateRoute]
-  | cons a r =>
-    cases r with
-    | nil =>
-      intro q hq
-      have he : q = positiveScale • a := by simpa [cutStart, dilateRoute] using hq
-      rw [he]
-      exact placed_point_bounds (hr a List.mem_cons_self) translation_bounds
-    | cons b r =>
-      intro q hq
-      change q ∈ cutPoint positiveScale positiveRadius a b :: dilateRoute positiveScale (b :: r)
-        at hq
-      rcases List.mem_cons.mp hq with rfl | hq
-      · simpa only [cutPoint, add_assoc] using
-          placed_point_bounds (hr a List.mem_cons_self) (cut_offset_bounds a b)
-      · obtain ⟨x, hx, rfl⟩ := List.mem_map.mp hq
-        exact placed_point_bounds (hr x (List.mem_cons_of_mem _ hx)) translation_bounds
-
 /-- Every point of the actual inherited exterior route fits the enlarged source rectangle. -/
 theorem positiveExterior_points_fits {φ : CNF ℕ} {d : Graph.OrthogonalDrawing} {W H : ℕ}
     (hd : Graph.drawingFits d W H) (i j : ℕ) :
     ∀ q ∈ positiveExterior φ d i j,
       0 ≤ q.1 ∧ q.1 ≤ positiveScale * (W + 1) ∧
         0 ≤ q.2 ∧ q.2 ≤ positiveScale * (H + 1) := by
-  intro q hq
-  obtain ⟨x, hx, rfl⟩ := List.mem_map.mp hq
-  exact cutStart_points_bounds (sourceRoute_points_bounds hd _ _) x hx
+  have hr : ∀ q ∈ sourceRoute (SAT.incidenceGraph φ) d (sourceEdgeIndex φ i j), Rect W H q := by
+    have hin := getD_property _ d.2 [] (by simp) hd.2 (sourceEdgeIndex φ i j)
+    unfold sourceRoute
+    split
+    · exact hin
+    · exact fun q hq => hin q (List.mem_reverse.mp hq)
+  intro _ hq
+  obtain ⟨q, hq', rfl⟩ := List.mem_map.mp hq
+  change q ∈ cutStart positiveScale positiveRadius
+    (sourceRoute (SAT.incidenceGraph φ) d (sourceEdgeIndex φ i j)) at hq'
+  match hsrc : sourceRoute (SAT.incidenceGraph φ) d (sourceEdgeIndex φ i j) with
+  | [] => simp [hsrc, cutStart, dilateRoute] at hq'
+  | [a] =>
+    rw [hsrc] at hq' hr
+    obtain rfl : q = positiveScale • a := by simpa [cutStart, dilateRoute] using hq'
+    exact placed_point_bounds (hr a List.mem_cons_self) translation_bounds
+  | a :: b :: r =>
+    rw [hsrc] at hq' hr
+    change q ∈ cutPoint positiveScale positiveRadius a b ::
+      dilateRoute positiveScale (b :: r) at hq'
+    rcases List.mem_cons.mp hq' with rfl | hq'
+    · have hcut : Rect 540000 540000 (positiveRadius • direction a b + positiveTranslation) := by
+        rcases direction_unit a b with h | h | h | h <;>
+          rw [h] <;> norm_num [Rect, positiveRadius, positiveTranslation, Prod.smul_mk]
+      rw [show cutPoint positiveScale positiveRadius a b + positiveTranslation =
+          positiveScale • a + (positiveRadius • direction a b + positiveTranslation) by
+        simp [cutPoint, add_assoc]]
+      exact placed_point_bounds (hr a List.mem_cons_self) hcut
+    · obtain ⟨x, hx, rfl⟩ := List.mem_map.mp hq'
+      exact placed_point_bounds (hr x (List.mem_cons_of_mem _ hx)) translation_bounds
 
 private theorem actual_variablePoint_bounds {φ : CNF ℕ} {d : Graph.OrthogonalDrawing}
     {W H : ℕ} (hd : Graph.drawingFits d W H) (v : CNF.PositiveExactOneCompile.Variable ℕ) :
     Rect (positiveScale * (W + 1)) (positiveScale * (H + 1)) (positiveVariablePoint φ d v) := by
-  apply getD_property _ _ _ (zero_rect _ _)
-  intro q hq
-  obtain ⟨⟨w, q⟩, htable, rfl⟩ := List.mem_map.mp hq
+  refine getD_property _ _ _ (zero_rect _ _) ?_ _
+  intro _ hq
+  obtain ⟨⟨_, q⟩, htable, rfl⟩ := List.mem_map.mp hq
   rcases List.mem_append.mp htable with hsource | haux
-  · obtain ⟨n, _, he⟩ := List.mem_map.mp hsource
-    have hq := congrArg Prod.snd he
-    rw [← hq]
-    exact placed_point_bounds (input_position_bounds hd _ _) translation_bounds
-  · obtain ⟨⟨c, i⟩, _, hentry⟩ := List.mem_flatMap.mp haux
-    obtain ⟨⟨w, j⟩, _, he⟩ := List.mem_filterMap.mp hentry
-    rcases w with (_ | _) | _
+  · obtain ⟨_, _, he⟩ := List.mem_map.mp hsource
+    exact congrArg Prod.snd he ▸ placed_point_bounds (input_position_bounds hd _ _)
+      translation_bounds
+  · obtain ⟨⟨c, _⟩, _, hentry⟩ := List.mem_flatMap.mp haux
+    obtain ⟨⟨(_ | _) | _, _⟩, _, he⟩ := List.mem_filterMap.mp hentry
     · simp at he
     all_goals
-      have heq := congrArg (Option.map Prod.snd) he
-      simp only [Option.map_some, Option.some.injEq] at heq
-      rw [← heq]
+      obtain ⟨-, rfl⟩ := Prod.mk.inj (Option.some.inj he)
       exact placed_point_bounds (input_position_bounds hd _ _)
         (local_variable_bounds (clauseProfile c) _ _)
-
-private theorem actual_clausePoint_bounds {φ : CNF ℕ} {d : Graph.OrthogonalDrawing}
-    {W H : ℕ} (hd : Graph.drawingFits d W H) {pc : PositivePlacedClause}
-    (hpc : pc ∈ positivePlacedClauses φ d) :
-    Rect (positiveScale * (W + 1)) (positiveScale * (H + 1)) pc.point := by
-  obtain ⟨⟨c, i⟩, _, hpc⟩ := List.mem_flatMap.mp hpc
-  obtain ⟨⟨a, j⟩, _, rfl⟩ := List.mem_map.mp hpc
-  exact placed_point_bounds (input_position_bounds hd _ _)
-    (local_clause_bounds (clauseProfile c) _ _)
-
-private theorem actual_incidenceRoute_bounds {φ : CNF ℕ} {d : Graph.OrthogonalDrawing}
-    {W H : ℕ} (hd : Graph.drawingFits d W H) (i : ℕ) (c : Clause ℕ) {e : LocalIncidence}
-    (he : e ∈ (clauseGeometry φ d i c).incidenceRoutes) :
-    ∀ q ∈ positiveIncidenceRoute φ d i c e,
-      Rect (positiveScale * (W + 1)) (positiveScale * (H + 1)) q := by
-  have hlocal : ∀ q ∈ translate (positiveBoxOrigin φ d i) e.route,
-      Rect (positiveScale * (W + 1)) (positiveScale * (H + 1)) q := by
-    intro q hq
-    obtain ⟨x, hx, rfl⟩ := List.mem_map.mp hq
-    rw [add_comm x]
-    exact placed_point_bounds (input_position_bounds hd _ _)
-      (local_route_bounds (clauseProfile c) _ he x hx)
-  unfold positiveIncidenceRoute
-  split
-  · intro q hq
-    rcases List.mem_append.mp hq with hq | hq
-    · exact hlocal q hq
-    · exact positiveExterior_points_fits hd _ _ q (List.mem_of_mem_tail hq)
-  · exact hlocal
 
 /-- The actual emitted drawing expands both source grid sides by only a fixed factor. This
 holds for every finite input drawing, including malformed inputs handled by default lookups. -/
@@ -245,12 +185,27 @@ theorem positiveDrawing_fits (φ : CNF ℕ) {d : Graph.OrthogonalDrawing} {W H :
     · obtain ⟨v, _, rfl⟩ := List.mem_map.mp hv
       exact actual_variablePoint_bounds hd v
     · obtain ⟨pc, hpc, rfl⟩ := List.mem_map.mp hc
-      exact actual_clausePoint_bounds hd hpc
+      obtain ⟨⟨c, _⟩, _, hpc⟩ := List.mem_flatMap.mp hpc
+      obtain ⟨⟨_, _⟩, _, rfl⟩ := List.mem_map.mp hpc
+      exact placed_point_bounds (input_position_bounds hd _ _)
+        (local_clause_bounds (clauseProfile c) _ _)
   · intro r hr q hq
     obtain ⟨pc, hpc, hr⟩ := List.mem_flatMap.mp hr
     obtain ⟨⟨c, i⟩, _, hpc⟩ := List.mem_flatMap.mp hpc
-    obtain ⟨⟨a, j⟩, _, rfl⟩ := List.mem_map.mp hpc
+    obtain ⟨⟨_, _⟩, _, rfl⟩ := List.mem_map.mp hpc
     obtain ⟨e, he, rfl⟩ := List.mem_map.mp hr
-    exact actual_incidenceRoute_bounds hd i c (List.mem_filter.mp he).1 q hq
+    have hlocal : ∀ q ∈ translate (positiveBoxOrigin φ d i) e.route,
+        Rect (positiveScale * (W + 1)) (positiveScale * (H + 1)) q := by
+      intro _ h
+      obtain ⟨x, hx, rfl⟩ := List.mem_map.mp h
+      rw [add_comm x]
+      exact placed_point_bounds (input_position_bounds hd _ _)
+        (local_route_bounds (clauseProfile c) _ (List.mem_filter.mp he).1 x hx)
+    unfold positiveIncidenceRoute at hq
+    split at hq
+    · rcases List.mem_append.mp hq with hq | hq
+      · exact hlocal q hq
+      · exact positiveExterior_points_fits hd _ _ q (List.mem_of_mem_tail hq)
+    · exact hlocal q hq
 
 end Cslib.Complexity.SAT.ExactOne

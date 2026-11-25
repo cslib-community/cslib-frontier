@@ -108,13 +108,9 @@ theorem IsHeuristicScheme.correct_of_lt {L : DistProblem} {A : List Bool × ℕ 
     (hx : ((k + 1 : ℕ) : ℝ≥0∞)⁻¹ < L.ens.dist x.length x) :
     A (x, k) = true ↔ x ∈ L.lang := by
   by_contra hne
-  have hle : L.ens.dist x.length x ≤
-      (L.ens.dist x.length).toOuterMeasure {y | ¬(A (y, k) = true ↔ y ∈ L.lang)} := by
-    rw [← PMF.toOuterMeasure_apply_singleton]
-    exact PMF.toOuterMeasure_mono _ fun y hy => by
-      obtain ⟨rfl, -⟩ := hy
-      exact hne
-  exact absurd (hle.trans (hA.error_le x.length k)) (not_le.mpr hx)
+  refine not_le.mpr hx ((?_ : L.ens.dist x.length x ≤ _).trans (hA.error_le x.length k))
+  rw [← PMF.toOuterMeasure_apply_singleton]
+  exact PMF.toOuterMeasure_mono _ fun _ ⟨rfl, _⟩ => hne
 
 /-- **An errorless scheme answers heavy instances.** Run with confidence parameter `k`, it fails
 with probability at most `1/(k+1)` on each length. So it answers every instance of larger
@@ -124,17 +120,14 @@ theorem IsErrorlessScheme.correct_of_lt {L : DistProblem} {A : List Bool × ℕ 
     (hx : ((k + 1 : ℕ) : ℝ≥0∞)⁻¹ < L.ens.dist x.length x) :
     ∃ b, A (x, k) = some b ∧ (b = true ↔ x ∈ L.lang) := by
   have hsupp : x ∈ (L.ens.dist x.length).support :=
-    (PMF.mem_support_iff _ _).mpr (lt_of_le_of_lt zero_le hx).ne'
+    (PMF.mem_support_iff _ _).mpr (zero_le.trans_lt hx).ne'
   cases hAx : A (x, k) with
   | some b => exact ⟨b, rfl, hA.correct _ x k b hsupp hAx⟩
   | none =>
-    have hle : L.ens.dist x.length x ≤
-        (L.ens.dist x.length).toOuterMeasure {y | A (y, k) = none} := by
-      rw [← PMF.toOuterMeasure_apply_singleton]
-      exact PMF.toOuterMeasure_mono _ fun y hy => by
-        obtain ⟨rfl, -⟩ := hy
-        exact hAx
-    exact absurd (hle.trans (hA.failure_le x.length k)) (not_le.mpr hx)
+    refine absurd ((?_ : L.ens.dist x.length x ≤ _).trans (hA.failure_le x.length k))
+      (not_le.mpr hx)
+    rw [← PMF.toOuterMeasure_apply_singleton]
+    exact PMF.toOuterMeasure_mono _ fun _ ⟨rfl, _⟩ => hAx
 
 end DistProblem
 
@@ -240,16 +233,12 @@ theorem ensemble_dist_frame_append (u : List Bool) (m : ℕ) :
     ensemble.dist (frame u ++ List.replicate m true).length (frame u ++ List.replicate m true) =
       (2 ^ (2 * u.length + 1) : ℝ≥0∞)⁻¹ := by
   have hv : parser.valid (frame u ++ List.replicate m true) = true := valid_frame_append _ _
-  have hc : parser.collapse (frame u ++ List.replicate m true) =
-      frame u ++ List.replicate m true := by
-    rw [HeaderParser.collapse_of_valid _ hv]
-    change header _ ++ List.replicate (_ - (header _).length) true = _
-    rw [header_frame_append, List.length_append, List.length_replicate, Nat.add_sub_cancel_left]
   have h := parser.ensemble_dist_collapse hv
-  rw [hc] at h
-  rw [ensemble, h]
-  change (2 ^ (header _).length : ℝ≥0∞)⁻¹ = _
-  rw [header_frame_append, length_frame]
+  rw [HeaderParser.collapse_of_valid _ hv] at h
+  change parser.ensemble.dist _ (header _ ++ List.replicate (_ - (header _).length) true) =
+    (2 ^ (header _).length : ℝ≥0∞)⁻¹ at h
+  simpa only [ensemble, header_frame_append, List.length_append, List.length_replicate,
+    Nat.add_sub_cancel_left, length_frame] using h
 
 end PaddedFrame
 
@@ -270,11 +259,8 @@ theorem expPaddedNPEasy_of_DistNP_subset_HeurP (h : DistNP ⊆ HeurP) : ExpPadde
   refine ENNReal.inv_le_inv' ?_
   simp only [List.length_append, length_frame, List.length_replicate, Polynomial.eval_mul,
     Polynomial.eval_pow, Polynomial.eval_X, Polynomial.eval_ofNat]
-  have h2 : 2 ^ (2 * u.length + 1) ≤ 2 * (2 * u.length + 1 + m) ^ 2 := by
-    have hsq : 2 ^ (2 * u.length + 1) = 2 * (2 ^ u.length) ^ 2 := by ring
-    rw [hsq]
-    exact Nat.mul_le_mul_left 2 (Nat.pow_le_pow_left (hm.trans (by omega)) 2)
-  exact_mod_cast h2
+  exact_mod_cast (show 2 ^ (2 * u.length + 1) = 2 * (2 ^ u.length) ^ 2 by ring).trans_le
+    (Nat.mul_le_mul_left 2 (Nat.pow_le_pow_left (hm.trans (by omega)) 2))
 
 /-- **If `DistNP ⊆ HeurP`, then `NE ⊆ E`** [Ben-David, Chor, Goldreich and
 Luby][BenDavidChorGoldreichLuby1992]. -/

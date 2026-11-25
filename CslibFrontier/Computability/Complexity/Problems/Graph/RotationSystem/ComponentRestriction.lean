@@ -48,20 +48,18 @@ theorem componentGraph_edges_length_lt {G : Graph}
     (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) {a b : Dart G}
     (hsep : ¬SameComponent G a.vertex b.vertex) (root : ℕ) :
     (G.componentGraph root).edges.length < G.edges.length := by
-  have hmiss : ∃ d : Dart G, ¬SameComponent G root d.vertex := by
-    by_cases ha : SameComponent G root a.vertex
-    · exact ⟨b, fun hb => hsep (ha.symm.trans hb)⟩
-    · exact ⟨a, ha⟩
-  obtain ⟨d, hd⟩ := hmiss
+  classical
+  obtain ⟨d, hd⟩ : ∃ d : Dart G, ¬SameComponent G root d.vertex :=
+    if ha : SameComponent G root a.vertex then ⟨b, fun hb => hsep (ha.symm.trans hb)⟩
+    else ⟨a, ha⟩
   have hnot : d.1 ∉ G.componentEdgeSet root := fun h =>
     hd ((G.mem_componentVertexSet_dart root hG d).mp
       ((G.mem_componentEdgeSet_iff root hG d.1 d.2).mp h))
-  have hproper : G.componentEdgeSet root ⊂ Finset.univ :=
-    Finset.ssubset_univ_iff.mpr (fun h => hnot (h ▸ Finset.mem_univ d.1))
   change (List.ofFn fun i : Fin (G.componentEdgeSet root).card =>
     G.edges[(G.componentEdgeSet root).orderEmbOfFin rfl i]).length < G.edges.length
   simpa only [List.length_ofFn, Finset.card_univ, Fintype.card_fin] using
-    Finset.card_lt_card hproper
+    Finset.card_lt_card (s := G.componentEdgeSet root)
+      (Finset.ssubset_univ_iff.mpr fun h => hnot (h.symm ▸ Finset.mem_univ _))
 
 /-- Each position in the component edge list is the corresponding original occurrence. -/
 @[expose] noncomputable def componentEdgeEquiv (G : Graph) (root : ℕ) :
@@ -74,8 +72,7 @@ theorem edge_componentEdgeEquiv (G : Graph) (root : ℕ)
     (G.componentGraph root).edges[i] = G.edges[(G.componentEdgeEquiv root i).val] := by
   change (List.ofFn fun j : Fin (G.componentEdgeSet root).card =>
     G.edges[(G.componentEdgeSet root).orderEmbOfFin rfl j])[i.val] = _
-  rw [List.getElem_ofFn]
-  rfl
+  rw [List.getElem_ofFn]; rfl
 
 /-- Restricting a graph to a component preserves the endpoint at each indexed end. -/
 theorem vertex_componentEdgeEquiv (G : Graph) (root : ℕ)
@@ -96,14 +93,13 @@ theorem componentGraph_endpoints_declared (G : Graph) (root : ℕ)
     rw [G.mem_componentGraph_vertices, G.vertex_componentEdgeEquiv root d.1 d.2]
     exact (G.mem_componentEdgeSet_iff root hG _ d.2).mp (G.componentEdgeEquiv root d.1).property
   intro v hv
-  change v ∈ (G.componentGraph root).edges.flatMap (fun p => [p.1, p.2]) at hv
   obtain ⟨p, hp, hv⟩ := List.mem_flatMap.mp hv
-  obtain ⟨i, hi⟩ := List.mem_iff_get.mp hp
-  change (G.componentGraph root).edges[i] = p at hi
-  subst p
+  obtain ⟨i, rfl⟩ := List.mem_iff_get.mp hp
+  change v ∈ [((G.componentGraph root).edges[i]).1, ((G.componentGraph root).edges[i]).2] at hv
   rw [Dart.edge_eq_vertices] at hv
-  simp only [List.mem_cons, List.not_mem_nil, or_false] at hv
-  exact hv.elim (fun h => h.symm ▸ hend (i, false)) (fun h => h.symm ▸ hend (i, true))
+  rcases (by simpa using hv : v = _ ∨ v = _) with rfl | rfl
+  · exact hend (i, false)
+  · exact hend (i, true)
 
 private theorem mem_componentEdgeSet_iff_component {G : Graph} (root : ℕ)
     (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (d : Dart G) :

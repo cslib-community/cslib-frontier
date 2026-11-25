@@ -124,23 +124,15 @@ theorem abs_dotProduct_weightedMatching_le (w : V → ℝ) (σ : Equiv.Perm V)
 /-- The weighted norm lies between zero and the ordinary squared norm. -/
 theorem diagonal_form_bounds (w : V → ℝ) (hw0 : ∀ v, 0 ≤ w v) (hw1 : ∀ v, w v ≤ 1)
     (x : V → ℝ) : 0 ≤ x ⬝ᵥ diagonal w *ᵥ x ∧ x ⬝ᵥ diagonal w *ᵥ x ≤ x ⬝ᵥ x := by
-  simp only [dotProduct, mulVec_diagonal]
-  constructor
-  · exact sum_nonneg fun v _ => by nlinarith [mul_nonneg (hw0 v) (sq_nonneg (x v))]
-  · apply sum_le_sum
-    intro v _
-    nlinarith [mul_nonneg (sub_nonneg.mpr (hw1 v)) (sq_nonneg (x v))]
+  simp only [dotProduct, mulVec_diagonal, mul_left_comm _ (w _), ← sq]
+  exact ⟨sum_nonneg fun v _ => mul_nonneg (hw0 v) (sq_nonneg _),
+    sum_le_sum fun v _ => mul_le_of_le_one_left (sq_nonneg _) (hw1 v)⟩
 
 /-- The degree quadratic form is `3 ‖x‖²` minus the weighted norm. -/
 theorem coreDegree_form (w : V → ℝ) (x : V → ℝ) :
     x ⬝ᵥ coreDegree w *ᵥ x = 3 * (x ⬝ᵥ x) - x ⬝ᵥ diagonal w *ᵥ x := by
-  simp only [coreDegree, dotProduct, mulVec_diagonal, mul_sub, sub_mul,
-    sum_sub_distrib]
-  congr 1
-  rw [mul_sum]
-  apply sum_congr rfl
-  intro v _
-  ring
+  simp only [coreDegree, dotProduct, mulVec_diagonal, mul_sub, sub_mul, sum_sub_distrib,
+    mul_left_comm _ (3 : ℝ), ← mul_sum]
 
 /-- Expanding the pencil quadratic form isolates its three scalar perturbation terms. -/
 theorem pencil_form (B : Matrix V V ℝ) (w : V → ℝ) (σ : Equiv.Perm V)
@@ -160,20 +152,15 @@ theorem pencil_lower_bound (B : Matrix V V ℝ) (w : V → ℝ) (σ : Equiv.Perm
       x ⬝ᵥ pencil B w σ q c s δ *ᵥ x := by
   obtain ⟨hp0, hp1⟩ := diagonal_form_bounds w hw0 hw1 x
   have hm := (abs_dotProduct_weightedMatching_le w σ hw0 hwσ x).trans hp1
-  have hcp : |c * (x ⬝ᵥ diagonal w *ᵥ x)| ≤ x ⬝ᵥ x := by
-    rw [abs_mul, abs_of_nonneg hp0]
-    simpa only [one_mul] using mul_le_mul hc hp1 hp0 zero_le_one
-  have hsm : |s * (x ⬝ᵥ weightedMatching w σ *ᵥ x)| ≤ x ⬝ᵥ x := by
-    rw [abs_mul]
-    simpa only [one_mul] using mul_le_mul hs hm (abs_nonneg _) zero_le_one
-  have hpert := mul_le_mul_of_nonneg_left (add_le_add (neg_le_of_abs_le hcp)
-    (neg_le_of_abs_le hsm)) hq
-  have hdeg : x ⬝ᵥ coreDegree w *ᵥ x ≤ 3 * (x ⬝ᵥ x) := by
-    rw [coreDegree_form]
-    linarith
-  have hd := mul_le_mul_of_nonneg_left hdeg hδ
-  rw [pencil_form]
-  nlinarith
+  have hcp : -(x ⬝ᵥ x) ≤ c * (x ⬝ᵥ diagonal w *ᵥ x) :=
+    neg_le_of_abs_le <| (abs_mul _ _).trans_le <| by
+      rw [abs_of_nonneg hp0]
+      simpa using mul_le_mul hc hp1 hp0 zero_le_one
+  have hsm : -(x ⬝ᵥ x) ≤ s * (x ⬝ᵥ weightedMatching w σ *ᵥ x) :=
+    neg_le_of_abs_le <| (abs_mul _ _).trans_le <| by
+      simpa using mul_le_mul hs hm (abs_nonneg _) zero_le_one
+  rw [pencil_form, coreDegree_form]
+  nlinarith [mul_le_mul_of_nonneg_left (add_le_add hcp hsm) hq]
 
 /-- A symmetric core gives a symmetric matching pencil. -/
 theorem pencil_isSymm {B : Matrix V V ℝ} (hB : B.IsSymm) (w : V → ℝ)
@@ -197,25 +184,18 @@ theorem laplacianPencil_injective {L : Matrix V V ℝ} (hL : L.IsSymm)
   apply Matrix.mulVec_injective_of_pos_on_orthogonal
     (pencil_isSymm hL w σ hσ hwσ q c (-1) δ) (e := 1)
   · intro x hx hx0
-    have hnorm0 : 0 ≤ x ⬝ᵥ x := sum_nonneg fun v _ => mul_self_nonneg (x v)
-    have hnorm : 0 < x ⬝ᵥ x := lt_of_le_of_ne hnorm0
-      (Ne.symm (mt dotProduct_self_eq_zero.mp hx0))
-    have hlo := pencil_lower_bound L w σ hw0 hw1 hwσ hq.le hc
-      (by norm_num : |(-1 : ℝ)| ≤ 1) hδ x
-    have := hgap x hx
-    have := mul_pos (sub_pos.mpr hbudget) hnorm
-    nlinarith
+    have hnorm : 0 < x ⬝ᵥ x :=
+      (sum_nonneg fun v _ => mul_self_nonneg (x v)).lt_of_ne' (mt dotProduct_self_eq_zero.mp hx0)
+    have hlo := pencil_lower_bound L w σ hw0 hw1 hwσ hq.le hc (by norm_num : |(-1 : ℝ)| ≤ 1) hδ x
+    nlinarith [hgap x hx, mul_pos (sub_pos.mpr hbudget) hnorm]
   · have hp : (1 : V → ℝ) ⬝ᵥ diagonal w *ᵥ (1 : V → ℝ) = ∑ v, w v := by
       simp [dotProduct, mulVec_diagonal]
-    have hm : (1 : V → ℝ) ⬝ᵥ weightedMatching w σ *ᵥ (1 : V → ℝ) = ∑ v, w v := by
-      simp [dotProduct]
+    have hm : (1 : V → ℝ) ⬝ᵥ weightedMatching w σ *ᵥ (1 : V → ℝ) = ∑ v, w v := by simp [dotProduct]
     have hd : 0 ≤ (1 : V → ℝ) ⬝ᵥ coreDegree w *ᵥ (1 : V → ℝ) := by
       simp only [coreDegree, dotProduct, mulVec_diagonal, Pi.one_apply, mul_one, one_mul]
       exact sum_nonneg fun v _ => by linarith [hw1 v]
     rw [pencil_form, hLone, dotProduct_zero, hp, hm]
-    have := mul_pos hq (mul_pos (sub_pos.mpr hc1) hwpos)
-    have := mul_nonneg hδ hd
-    nlinarith
+    nlinarith [mul_pos hq (mul_pos (sub_pos.mpr hc1) hwpos), mul_nonneg hδ hd]
 
 /-- A signless core gap larger than the same budget makes either parity pencil nonsingular.
 Unlike the Laplacian branch, positivity is assumed on the entire vector space. -/
@@ -226,19 +206,12 @@ theorem signlessPencil_injective (Q : Matrix V V ℝ) (w : V → ℝ) (σ : Equi
     (hbudget : 2 * q + 3 * δ < ν) :
     Function.Injective (pencil Q w σ q c s δ).mulVec := by
   intro x y hxy
-  apply sub_eq_zero.mp
   by_contra hne
-  let z := x - y
-  have hz : pencil Q w σ q c s δ *ᵥ z = 0 := by
-    change pencil Q w σ q c s δ *ᵥ (x - y) = 0
-    rw [mulVec_sub, hxy, sub_self]
-  have hnorm0 : 0 ≤ z ⬝ᵥ z := sum_nonneg fun v _ => mul_self_nonneg (z v)
-  have hnorm : 0 < z ⬝ᵥ z := lt_of_le_of_ne hnorm0
-    (Ne.symm (mt dotProduct_self_eq_zero.mp hne))
-  have hlo := pencil_lower_bound Q w σ hw0 hw1 hwσ hq hc hs hδ z
-  rw [hz, dotProduct_zero] at hlo
-  have := hgap z
-  have := mul_pos (sub_pos.mpr hbudget) hnorm
-  nlinarith
+  have hz0 : x - y ≠ 0 := sub_ne_zero.mpr hne
+  have hnorm : 0 < (x - y) ⬝ᵥ (x - y) :=
+    (sum_nonneg fun v _ => mul_self_nonneg _).lt_of_ne' (mt dotProduct_self_eq_zero.mp hz0)
+  have hlo := pencil_lower_bound Q w σ hw0 hw1 hwσ hq hc hs hδ (x - y)
+  rw [mulVec_sub (pencil Q w σ q c s δ), hxy, sub_self, dotProduct_zero] at hlo
+  nlinarith [hgap (x - y), mul_pos (sub_pos.mpr hbudget) hnorm]
 
 end Cslib.MatchingPencil

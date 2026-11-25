@@ -112,11 +112,10 @@ has the tweak `8 g + 2 rowIndex ρ + a`, which is below `2 ^ k`. -/
 theorem slotTweak_injective (k : ℕ) (f : ValidCircuit) (hk : 8 * f.1.q ≤ 2 ^ k) :
     Function.Injective (slotTweak (toCircuit f).topology k) := by
   have hbound : ∀ p : Slot (toCircuit f).topology,
-      8 * p.1.1 + 2 * rowIndex p.1.2 + p.2 < 2 ^ k := by
-    rintro ⟨⟨g, ρ⟩, a⟩
-    have hg : g.val < f.1.q := size_toCircuit f ▸ g.isLt
-    have hρ := rowIndex_lt_four (arity_topology_toCircuit f g) ρ
-    have ha : a.val < 2 := a.isLt.trans_eq (arity_topology_toCircuit f g)
+      8 * p.1.1 + 2 * rowIndex p.1.2 + p.2 < 2 ^ k := fun ⟨⟨g, ρ⟩, a⟩ => by
+    have : g.val < f.1.q := size_toCircuit f ▸ g.isLt
+    have := rowIndex_lt_four (arity_topology_toCircuit f g) ρ
+    have : a.val < 2 := a.isLt.trans_eq (arity_topology_toCircuit f g)
     dsimp only; omega
   rintro ⟨⟨g, ρ⟩, a⟩ ⟨⟨g', ρ'⟩, a'⟩ h
   have h' := congrArg List.ofFn h
@@ -124,10 +123,10 @@ theorem slotTweak_injective (k : ℕ) (f : ValidCircuit) (hk : 8 * f.1.q ≤ 2 ^
   dsimp only [tweak] at h'
   have heq := BitString.lowBits_injective_of_lt (hbound ⟨⟨g, ρ⟩, a⟩) (hbound ⟨⟨g', ρ'⟩, a'⟩) h'
   dsimp only at heq
-  have hρ := rowIndex_lt_four (arity_topology_toCircuit f g) ρ
-  have hρ' := rowIndex_lt_four (arity_topology_toCircuit f g') ρ'
-  have ha : a.val < 2 := a.isLt.trans_eq (arity_topology_toCircuit f g)
-  have ha' : a'.val < 2 := a'.isLt.trans_eq (arity_topology_toCircuit f g')
+  have := rowIndex_lt_four (arity_topology_toCircuit f g) ρ
+  have := rowIndex_lt_four (arity_topology_toCircuit f g') ρ'
+  have : a.val < 2 := a.isLt.trans_eq (arity_topology_toCircuit f g)
+  have : a'.val < 2 := a'.isLt.trans_eq (arity_topology_toCircuit f g')
   obtain rfl : g = g' := Fin.ext (by omega)
   obtain rfl := rowIndex_injective_of_eq_two (arity_topology_toCircuit f g)
     (show rowIndex ρ = rowIndex ρ' by omega)
@@ -150,14 +149,14 @@ private theorem simIndex_bijective (τ : Circuit.Topology n m s) (hτ : ∀ g, �
     · exact congrArg Sum.inl (Wire.toNat_injective h)
     · have := w.toNat_lt; omega
     · have := w'.toNat_lt; omega
-    · have hi := rowIndex_lt_four (hτ g) ρ
-      have hi' := rowIndex_lt_four (hτ g') ρ'
+    · have := rowIndex_lt_four (hτ g) ρ
+      have := rowIndex_lt_four (hτ g') ρ'
       obtain rfl : g = g' := Fin.ext (by omega)
       obtain rfl := rowIndex_injective_of_eq_two (hτ g) (show rowIndex ρ = rowIndex ρ' by omega)
       rfl
   · rw [Fintype.card_sum, Fintype.card_congr (Wire.equivFin n s), Fintype.card_fin,
       Fintype.card_sigma]
-    simp [hτ, Finset.sum_const, Finset.card_univ]
+    simp [hτ]
 
 /-- **The simulator's coins are uniform labels.** For a topology of binary gates, the wire labels
 and filler rows read from uniform coins are uniform and independent. -/
@@ -171,13 +170,11 @@ theorem uniformList_map_simCoins (k : ℕ) (τ : Circuit.Topology n m s)
   let E : (Wire n s ⊕ Row τ → BitString (k + 2)) ≃
       (Wire n s → BitString (k + 1) × Bool) × (Row τ → BitString (k + 1) × Bool) :=
     (Equiv.sumArrowEquivProdArrow _ _ _).trans (Equiv.prodCongr
-      (Equiv.arrowCongr (Equiv.refl _) (labelEquiv k))
-      (Equiv.arrowCongr (Equiv.refl _) (labelEquiv k)))
+      (Equiv.arrowCongr (.refl _) (labelEquiv k)) (Equiv.arrowCongr (.refl _) (labelEquiv k)))
   have h : (fun coins => ((simWireLabels k coins : Wire n s → _), simFillerRows k τ coins)) =
-      (E : _ → _) ∘
-        fun coins i => BitString.ofList (k + 2) (BitString.listRow (k + 2) (e i) coins) := by
-    funext coins
-    rfl
+      (E : _ → _) ∘ fun coins i =>
+        BitString.ofList (k + 2) (BitString.listRow (k + 2) (e i) coins) := by
+    funext coins; rfl
   rw [h, ← PMF.map_comp, simCoinLen, BitString.uniformList_map_listRow_equiv e (k + 2)]
   exact PMF.uniformOfFintype_map_equiv E
 
@@ -228,19 +225,15 @@ words of its input labels in order, and its decoding bits. -/
 
 /-- Row `i < 4` of a binary gate has number `i`. -/
 theorem rowIndex_testBit_of_eq_two {r i : ℕ} (hr : r = 2) (hi : i < 4) :
-    rowIndex (fun a : Fin r => i.testBit (r - 1 - a)) = i := by
-  subst hr
-  exact rowIndex_testBit hi
+    rowIndex (fun a : Fin r => i.testBit (r - 1 - a)) = i :=
+  hr ▸ rowIndex_testBit hi
 
 /-- Row `i < 4` of a binary gate has the colours `colours` exactly when `i` is their number. -/
 private theorem testBit_eq_iff_of_eq_two {r i : ℕ} (hr : r = 2) (hi : i < 4)
     (colours : Fin r → Bool) :
-    (fun a : Fin r => i.testBit (r - 1 - a)) = colours ↔ i = rowIndex colours := by
-  constructor
-  · rintro rfl
-    exact (rowIndex_testBit_of_eq_two hr hi).symm
-  · rintro rfl
-    exact testBit_rowIndex_of_eq_two hr colours
+    (fun a : Fin r => i.testBit (r - 1 - a)) = colours ↔ i = rowIndex colours :=
+  ⟨fun h => h ▸ (rowIndex_testBit_of_eq_two hr hi).symm,
+    fun h => h ▸ testBit_rowIndex_of_eq_two hr colours⟩
 
 /-- Row `i` of gate `g` of the typed simulated table, as a word, is `simRow`. -/
 private theorem labelBits_simulateWith (k : ℕ) (f : ValidCircuit) (y : Fin f.1.m → Bool)
@@ -251,23 +244,19 @@ private theorem labelBits_simulateWith (k : ℕ) (f : ValidCircuit) (y : Fin f.1
       simRow family k f.1.topo coins (g.cast (size_toCircuit f)) i := by
   have harity := arity_topology_toCircuit f g
   have hw₀ : ((toCircuit f).topology.wires g ⟨0, by omega⟩).toNat =
-      f.1.A (g.cast (size_toCircuit f)) - 1 := by
-    rw [toNat_wires_toCircuit]; rfl
+      f.1.A (g.cast (size_toCircuit f)) - 1 := by rw [toNat_wires_toCircuit]; rfl
   have hw₁ : ((toCircuit f).topology.wires g ⟨1, by omega⟩).toNat =
-      f.1.B (g.cast (size_toCircuit f)) - 1 := by
-    rw [toNat_wires_toCircuit]; rfl
-  simp only [simulateWith, rowOf, simFillerRows, slotTweak]
-  simp only [rowIndex_testBit_of_eq_two harity hi]
-  simp only [testBit_eq_iff_of_eq_two harity hi, rowIndex_of_eq_two harity]
+      f.1.B (g.cast (size_toCircuit f)) - 1 := by rw [toNat_wires_toCircuit]; rfl
+  simp only [simulateWith, rowOf, simFillerRows, slotTweak, rowIndex_testBit_of_eq_two harity hi,
+    testBit_eq_iff_of_eq_two harity hi, rowIndex_of_eq_two harity]
   rw [← Fin.sum_congr' _ harity.symm, Fin.sum_univ_two]
   have hc₀ : (Fin.cast harity.symm 0 : Fin ((toCircuit f).topology.arity g)) = ⟨0, by omega⟩ :=
     Fin.ext rfl
   have hc₁ : (Fin.cast harity.symm 1 : Fin ((toCircuit f).topology.arity g)) = ⟨1, by omega⟩ :=
     Fin.ext rfl
   simp only [hc₀, hc₁, simRow, topo, simWireLabels, labelOfWord_snd, hw₀, hw₁, Wire.toNat_gate,
-    Fin.val_cast]
-  rw [apply_ite labelBits]
-  refine ite_congr rfl (fun _ => ?_) (fun _ => ?_)
+    Fin.val_cast, apply_ite labelBits]
+  refine ite_congr rfl (fun _ => ?_) fun _ => ?_
   · rw [labelBits_add, labelBits_add, ← labelWord_ofFn, ← labelWord_ofFn, ofFn_ofList_tweak,
       ofFn_ofList_tweak, labelBits_labelOfWord (length_simLabel _ _ _),
       ofFn_labelOfWord_fst (length_simLabel _ _ _), ofFn_labelOfWord_fst (length_simLabel _ _ _)]
@@ -282,24 +271,19 @@ theorem simViewWord_eq (k : ℕ) (f : ValidCircuit) (y coins : List Bool) :
       (simulateWith (toCircuit f).topology (PRF.label (PRF.atLevel family (k + 1)))
         (slotTweak _ k) (BitString.ofList f.1.m y) (simWireLabels k coins)
         (simFillerRows k _ coins)) := by
-  have hrow : ∀ (g : Fin (toCircuit f).size) (i : Fin 4),
-      labelBits ((simulateWith (toCircuit f).topology (PRF.label (PRF.atLevel family (k + 1)))
-        (slotTweak _ k) (BitString.ofList f.1.m y) (simWireLabels k coins)
-        (simFillerRows k _ coins)).table (rowOf _ g i)) =
-      simRow family k f.1.topo coins (g.cast (size_toCircuit f)) i :=
-    fun g i => labelBits_simulateWith family k f _ coins g i.isLt
+  have hrow (g : Fin (toCircuit f).size) (i : Fin 4) :=
+    labelBits_simulateWith family k f (BitString.ofList f.1.m y) coins g i.isLt
   simp only [simViewWord, viewWord, encodeFn, encodeBody, PrvView.mk.injEq]
   refine ⟨?_, ?_, ?_⟩
   · simp only [gateWord_toCircuit, hrow]
     congr 2
     · simp only [topo, size_toCircuit]
     · simp only [topo]
-      rw [List.ofFn_congr (size_toCircuit f)]
-      rfl
+      rw [List.ofFn_congr (size_toCircuit f)]; rfl
   · simp only [simulateWith, simWireLabels, labelBits_labelOfWord (length_simLabel _ _ _),
       Wire.toNat_input, topo]
   · apply List.ext_getElem (by simp [topo])
-    intro o h₁ h₂
+    intro o _ h₂
     have ho := toNat_outputs_toCircuit f ⟨o, by simpa using h₂⟩
     simp only [List.getElem_ofFn, simulateWith, simWireLabels, labelOfWord_snd, Circuit.topology,
       ho, BitString.ofList, Bool.add_eq_xor, topo]
@@ -313,20 +297,20 @@ theorem eval_simWord (k : ℕ) (f : ValidCircuit) (y : List Bool) :
         (slotTweak _ k) (BitString.ofList f.1.m y))).map (viewWord k _) := by
   have hcoins : simCoinLen k f.1.n f.1.q = simCoinLen k f.1.n (toCircuit f).size := by
     rw [size_toCircuit]
-  have hsim := uniformList_map_simCoins k (toCircuit f).topology (arity_topology_toCircuit f)
   have hview : simViewWord family k y f.1.topo =
       (fun p : (Wire f.1.n (toCircuit f).size → BitString (k + 1) × Bool) ×
           (Row (toCircuit f).topology → BitString (k + 1) × Bool) =>
         viewWord k _ (simulateWith (toCircuit f).topology (PRF.label (PRF.atLevel family (k + 1)))
           (slotTweak _ k) (BitString.ofList f.1.m y) p.1 p.2)) ∘
-        (fun coins => (simWireLabels k coins, simFillerRows k _ coins)) :=
+        fun coins => (simWireLabels k coins, simFillerRows k _ coins) :=
     funext fun coins => simViewWord_eq family k f y coins
   change ProbComp.eval (do
       let coins ← BitString.sampleList (simCoinLen k f.1.n f.1.q)
       return simViewWord family k y f.1.topo coins) = _
   simp only [simulate, bind_pure_comp, ProbComp.eval_map, ProbComp.eval_bind,
     ProbComp.eval_uniform, BitString.eval_sampleList, hcoins]
-  rw [hview, ← PMF.map_comp, hsim, ← Cslib.Probability.PMF.uniformOfFintype_prod]
+  rw [hview, ← PMF.map_comp, uniformList_map_simCoins k _ (arity_topology_toCircuit f),
+    ← Cslib.Probability.PMF.uniformOfFintype_prod]
   simp only [PMF.map_bind, PMF.map_comp, Function.comp_def]
 
 /-- **Simulated views decode to the output.** For every valid topology `t`, every output `y` of
@@ -342,18 +326,10 @@ theorem decodeWord_evalWord_simViewWord (k : ℕ) (t : ValidTopo) {y : List Bool
   rw [evalWord_encodeFn family k (mTopoInv t) _ _ _ (evalStep_simulateWith _ _ _ _ _ _),
     decodeWord_ofFn]
   congr 1
-  have hdec : decode (simulateWith (toCircuit (mTopoInv t)).topology
-      (PRF.label (PRF.atLevel family (k + 1))) (slotTweak _ k)
-      (BitString.ofList (mTopoInv t).1.m y) (simWireLabels k coins)
-      (simFillerRows k _ coins)).decoding
-      (fun o => simWireLabels k coins ((toCircuit (mTopoInv t)).outputs o)) =
-      BitString.ofList (mTopoInv t).1.m y := by
-    funext o
-    have ho : (toCircuit (mTopoInv t)).topology.outputs o = (toCircuit (mTopoInv t)).outputs o :=
-      rfl
-    simp only [decode, simulateWith, ho]
-    rw [← add_assoc, BooleanRing.add_self, zero_add]
-  rw [hdec, BitString.ofFn_ofList (n := (mTopoInv t).1.m) hy]
+  refine Eq.trans (congrArg List.ofFn (funext fun o => ?_))
+    (BitString.ofFn_ofList (n := (mTopoInv t).1.m) hy)
+  have ho : (toCircuit (mTopoInv t)).topology.outputs o = (toCircuit (mTopoInv t)).outputs o := rfl
+  simp only [decode, simulateWith, ho, ← add_assoc, BooleanRing.add_self, zero_add]
 
 /-! ### Efficiency -/
 
@@ -367,14 +343,12 @@ variable {family}
 private theorem simLabel_min (k : ℕ) (coins : List Bool) (v : ℕ) :
     simLabel k coins (min coins.length v) = simLabel k coins v := by
   rcases le_total coins.length v with h | h
-  · rw [min_eq_left h]
-    have hbeyond (u : ℕ) (hu : coins.length ≤ u) :
+  · have hbeyond {u : ℕ} (hu : coins.length ≤ u) :
         simLabel k coins u = List.replicate (k + 2) false := by
       simp only [simLabel, BitString.listRow]
-      rw [List.drop_eq_nil_of_le (by nlinarith), List.nil_append,
-        List.take_of_length_le (by simp)]
-    rw [hbeyond _ le_rfl, hbeyond _ h]
-  · rw [min_eq_right h]
+      rw [List.drop_eq_nil_of_le (by nlinarith), List.nil_append, List.take_of_length_le (by simp)]
+    rw [min_eq_left h, hbeyond le_rfl, hbeyond h]
+  · exact congrArg (simLabel k coins) (min_eq_right h)
 
 /-- Row `i` of gate `g` of the simulated table, from the 0-indexed argument wires `a` and `b`. -/
 private def simRowData (k n q : ℕ) (coins : List Bool) (a b g i : ℕ) : List Bool :=
@@ -464,19 +438,17 @@ private theorem simTopoData_polyTime :
 private theorem simGateCount_polyTime :
     ComputableInPolyTime (fun x : ℕ × List Bool × ValidTopo => x.2.2.1.gateList.length)
       encSimInput encUnary :=
-  (ComputableInPolyTime.length_list _).comp
-    simTopoData_polyTime.snd'.snd'
+  (ComputableInPolyTime.length_list _).comp simTopoData_polyTime.snd'.snd'
 
 private theorem simCoinLen_polyTime :
     ComputableInPolyTime (fun x : ℕ × List Bool × ValidTopo =>
       simCoinLen x.1 x.2.2.1.n x.2.2.1.gateList.length) encSimInput encUnary := by
   have hk : ComputableInPolyTime (fun x : ℕ × List Bool × ValidTopo => x.1) encSimInput
-      encUnary := ComputableInPolyTime.fst _ _
+      encUnary := .fst _ _
   have hn : ComputableInPolyTime (fun x : ℕ × List Bool × ValidTopo => x.2.2.1.n) encSimInput
       encUnary := simTopoData_polyTime.fst'
   have hq := simGateCount_polyTime
-  unfold simCoinLen
-  polytime
+  unfold simCoinLen; polytime
 
 include hf in
 private theorem simViewWord_polyTime :
@@ -529,9 +501,7 @@ theorem isPPTOn_simWord :
       pure (simViewWord family x.1 x.2.1 x.2.2.1 coins)) :=
     (isPPTOn_sampleList.preprocess simCoinLen_polyTime).bind_with
       (simViewWord_polyTime hf).isPPTOn
-  refine h.congr ?_
-  rintro ⟨k, y, t⟩
-  simp only [simWord, Topo.length_gateList]
+  exact h.congr fun ⟨k, y, t⟩ => by simp only [simWord, Topo.length_gateList]
 
 end Efficiency
 
