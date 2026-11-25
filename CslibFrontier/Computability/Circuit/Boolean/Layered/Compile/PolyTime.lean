@@ -120,6 +120,24 @@ theorem computableInPolyTime_finish {inputCount gateCount gateIndex : α → ℕ
     simpa only [finish, Function.comp_def] using
       computableInPolyTime_nodeNand.comp (hfirst.prod hsecond)
 
+/-- Map over gate indices `0, …, gates.length - 1`, choosing between an active-layer node and a
+fallback node according to whether the gate's wire depth equals `level`. -/
+private theorem computableInPolyTime_mapActiveGate {inputCount level : α → ℕ}
+    {gates : α → List (Op × List ℕ)} {depths : α → List ℕ} {onActive onIdle : α → ℕ → Node}
+    (hn : ComputableInPolyTime inputCount input encUnary)
+    (hgates : ComputableInPolyTime gates input (encList encGate))
+    (hdepths : ComputableInPolyTime depths input (encList encUnary))
+    (hlevel : ComputableInPolyTime level input encUnary)
+    (hon : ComputableInPolyTime (fun p : α × ℕ => onActive p.1 p.2) (encPair input encUnary)
+      encNode)
+    (hoff : ComputableInPolyTime (fun p : α × ℕ => onIdle p.1 p.2) (encPair input encUnary)
+      encNode) :
+    ComputableInPolyTime (fun a => (List.range (gates a).length).map fun j =>
+        if (depths a).getD (inputCount a + j) 0 = level a then onActive a j else onIdle a j)
+      input (encList encNode) := by
+  apply mapWithInput (range.comp ((length_list encGate).comp hgates))
+  exact (decide_eq' (encB := encUnary) (by fun_prop) (by fun_prop)).ite_decide hon hoff
+
 /-- Generate a preparation layer, charging the complete framed node list. -/
 @[fun_prop]
 theorem computableInPolyTime_prepareLayer {inputCount level : α → ℕ}
@@ -131,34 +149,14 @@ theorem computableInPolyTime_prepareLayer {inputCount level : α → ℕ}
     ComputableInPolyTime
       (fun a => prepareLayer (inputCount a) (gates a) (depths a) (level a))
       input (encList encNode) := by
-  have hcount := (length_list encGate).comp hgates
-  have hread : ComputableInPolyTime
-      (fun p : α × ℕ => (gates p.1).getD p.2 (.const false, []))
-      (encPair input encUnary) encGate := by fun_prop
-  have hactive : ComputableInPolyTime
-      (fun p : α × ℕ => decide ((depths p.1).getD (inputCount p.1 + p.2) 0 = level p.1))
-      (encPair input encUnary) encBool := by
-    apply decide_eq' (encB := encUnary) <;> fun_prop
   have hmain : ComputableInPolyTime (fun a =>
       (List.range (inputCount a + (gates a).length)).map (carry (depths a) (level a)))
       input (encList encNode) := by
     apply mapWithInput (range.comp (by fun_prop))
     apply computableInPolyTime_carry <;> fun_prop
-  have hfirst : ComputableInPolyTime (fun a => (List.range (gates a).length).map fun j =>
-      if (depths a).getD (inputCount a + j) 0 = level a then
-        prepareFirst ((gates a).getD j (.const false, [])) else Node.const false)
-      input (encList encNode) := by
-    apply mapWithInput (range.comp hcount)
-    exact hactive.ite_decide (computableInPolyTime_prepareFirst hread)
-      (const (Node.const false))
-  have hsecond : ComputableInPolyTime (fun a => (List.range (gates a).length).map fun j =>
-      if (depths a).getD (inputCount a + j) 0 = level a then
-        prepareSecond ((gates a).getD j (.const false, [])) else Node.const false)
-      input (encList encNode) := by
-    apply mapWithInput (range.comp hcount)
-    exact hactive.ite_decide (computableInPolyTime_prepareSecond hread)
-      (const (Node.const false))
-  exact listAppend' (listAppend' hmain hfirst) hsecond
+  refine listAppend' (listAppend' hmain ?_) ?_
+  · exact computableInPolyTime_mapActiveGate hn hgates hdepths hlevel (by fun_prop) (by fun_prop)
+  · exact computableInPolyTime_mapActiveGate hn hgates hdepths hlevel (by fun_prop) (by fun_prop)
 
 /-- Generate a finishing layer, including copies and all cleared scratch slots. -/
 @[fun_prop]
@@ -171,36 +169,15 @@ theorem computableInPolyTime_finishLayer {inputCount level : α → ℕ}
     ComputableInPolyTime
       (fun a => finishLayer (inputCount a) (gates a) (depths a) (level a))
       input (encList encNode) := by
-  have hcount := (length_list encGate).comp hgates
-  have hread : ComputableInPolyTime
-      (fun p : α × ℕ => (gates p.1).getD p.2 (.const false, []))
-      (encPair input encUnary) encGate := by fun_prop
-  have hactive : ComputableInPolyTime
-      (fun p : α × ℕ => decide ((depths p.1).getD (inputCount p.1 + p.2) 0 = level p.1))
-      (encPair input encUnary) encBool := by
-    apply decide_eq' (encB := encUnary) <;> fun_prop
   have hinputs : ComputableInPolyTime
       (fun a => (List.range (inputCount a)).map Node.copy) input (encList encNode) := by
     apply mapWithInput (range.comp hn)
     exact computableInPolyTime_nodeCopy.comp (unary_to_binary.comp (snd input encUnary))
-  have hfinish : ComputableInPolyTime
-      (fun p : α × ℕ => finish (inputCount p.1) (gates p.1).length p.2
-        ((gates p.1).getD p.2 (.const false, [])).1) (encPair input encUnary) encNode :=
-    computableInPolyTime_finish (by fun_prop) (by fun_prop) (by fun_prop) hread.fst'
-  have hcarry : ComputableInPolyTime
-      (fun p : α × ℕ => carry (depths p.1) (level p.1) (inputCount p.1 + p.2))
-      (encPair input encUnary) encNode :=
-    computableInPolyTime_carry (by fun_prop) (by fun_prop) (by fun_prop)
-  have hg : ComputableInPolyTime (fun a => (List.range (gates a).length).map fun j =>
-      if (depths a).getD (inputCount a + j) 0 = level a then
-        finish (inputCount a) (gates a).length j ((gates a).getD j (.const false, [])).1
-      else carry (depths a) (level a) (inputCount a + j)) input (encList encNode) := by
-    apply mapWithInput (range.comp hcount)
-    exact hactive.ite_decide hfinish hcarry
   have hscratch : ComputableInPolyTime
       (fun a => List.replicate (2 * (gates a).length) (Node.const false))
       input (encList encNode) := by fun_prop
-  exact listAppend' (listAppend' hinputs hg) hscratch
+  refine listAppend' (listAppend' hinputs ?_) hscratch
+  exact computableInPolyTime_mapActiveGate hn hgates hdepths hlevel (by fun_prop) (by fun_prop)
 
 /-- Generate both microlevels at every computed unary depth, charging their full encoding. -/
 @[fun_prop]
