@@ -3730,25 +3730,11 @@ private theorem compileSymAndFixed_spec (d : ℕ) {m : ℕ} (hm : 0 < m)
       ((towerS c.2.program m ℓ d).map SLayer.lift) B₀) hRep hE
   have hcompile_eq : compileSymAndFixed d m c =
       (restrictAndExpand ctx U resExec.1, ⟨2 ^ (2 * ℓ + 2), resExec.2⟩) := by
-    dsimp only [compileSymAndFixed, compileWithBudget, resExec, W₀, U]
-    change (restrictAndExpand ctx (2 ^ budgetExp d m c)
-          (collapseRunExec m ctx (2 ^ budgetExp d m c) (layerSpec d m)
-            (min (3 * ((m + 1) ^ 2 + (Nat.log 2 (ctx.n + ctx.g) + 1) + 1))
-              (2 ^ budgetExp d m c))
-            ((List.range ctx.nSeed).map fun r =>
-              ([r * ctx.nSlot + min (c.2.code.2.getD 0 0) (ctx.n + ctx.g)], 1))).1,
-        ({ thresh := 2 ^ ctx.w,
-           mods :=
-             (collapseRunExec m ctx (2 ^ budgetExp d m c) (layerSpec d m)
-               (min (3 * ((m + 1) ^ 2 + (Nat.log 2 (ctx.n + ctx.g) + 1) + 1))
-                 (2 ^ budgetExp d m c))
-               ((List.range ctx.nSeed).map fun r =>
-                 ([r * ctx.nSlot + min (c.2.code.2.getD 0 0) (ctx.n + ctx.g)], 1))).2 } :
-          SymOutParam)) = _
     have hB0_eq : min (3 * ((m + 1) ^ 2 + (Nat.log 2 (ctx.n + ctx.g) + 1) + 1))
         (2 ^ budgetExp d m c) = B₀ := by
       rw [hctx_n, hctx_g]
       exact Nat.min_eq_left hB₀_U
+    dsimp only [compileSymAndFixed, compileWithBudget, resExec, W₀, U]
     rw [hB0_eq, hctx_w]
   have hsym_eq : (compileSymAndFixed_n d m c ▸
         (compileSymAndFixed d m c).1.toSymAnd (compileSymAndFixed d m c).2.eval) =
@@ -3922,20 +3908,16 @@ theorem computableInO_compileSymAndFixed (d m : ℕ) :
     have hE1 : 1 ≤ E := Nat.succ_pos _
     have hL1 : 1 ≤ L ^ (K + 1) := Nat.one_le_pow _ _ (by dsimp only [L]; omega)
     have hb_le : b ≤ A₀ ^ (K + 1) * L ^ (K + 1) := hbud_le c
-    have hdcC : dc ≤ C := by
-      dsimp only [C]
-      have : dc * 1 ≤ (dc + 2) * (4 * A₀ ^ (K + 1) + 4) := Nat.mul_le_mul (by omega) (by omega)
-      omega
+    have hC : dc + 4 * A₀ ^ (K + 1) + dc * A₀ ^ (K + 1) ≤ C := by
+      have : (dc + 2) * (4 * A₀ ^ (K + 1) + 4) =
+          4 * (dc * A₀ ^ (K + 1)) + 4 * dc + 8 * A₀ ^ (K + 1) + 8 := by ring
+      dsimp only [C]; omega
+    have hdcC : dc ≤ C := by omega
     have h2b_le : 2 ^ (4 * b) ≤ 2 ^ (C * L ^ (K + 1)) := by
       refine Nat.pow_le_pow_right (by decide) ?_
-      have hC1 : 4 * A₀ ^ (K + 1) ≤ C := by
-        dsimp only [C]
-        have : 1 * (4 * A₀ ^ (K + 1) + 4) ≤ (dc + 2) * (4 * A₀ ^ (K + 1) + 4) :=
-          Nat.mul_le_mul_right _ (by omega)
-        omega
       calc 4 * b ≤ 4 * (A₀ ^ (K + 1) * L ^ (K + 1)) := Nat.mul_le_mul_left 4 hb_le
         _ = (4 * A₀ ^ (K + 1)) * L ^ (K + 1) := by ring
-        _ ≤ C * L ^ (K + 1) := Nat.mul_le_mul_right _ hC1
+        _ ≤ C * L ^ (K + 1) := Nat.mul_le_mul_right _ (by omega)
     have hpair_len : (encPair (Unbounded.encExtCircuit 1) encUnary (c, 2 ^ b)).length + 1 ≤
         4 * (E * 2 ^ b) := by
       rw [length_encPair, encUnary_apply, List.length_replicate]
@@ -3948,15 +3930,10 @@ theorem computableInO_compileSymAndFixed (d m : ℕ) :
       have h2dc : (2 ^ b) ^ dc ≤ 2 ^ (C * L ^ (K + 1)) := by
         rw [← pow_mul]
         refine Nat.pow_le_pow_right (by decide) ?_
-        have hC2 : dc * A₀ ^ (K + 1) ≤ C := by
-          dsimp only [C]
-          have : dc * A₀ ^ (K + 1) ≤ (dc + 2) * (4 * A₀ ^ (K + 1) + 4) :=
-            Nat.mul_le_mul (by omega) (by omega)
-          omega
         calc b * dc = dc * b := mul_comm _ _
           _ ≤ dc * (A₀ ^ (K + 1) * L ^ (K + 1)) := Nat.mul_le_mul_left _ hb_le
           _ = (dc * A₀ ^ (K + 1)) * L ^ (K + 1) := by ring
-          _ ≤ C * L ^ (K + 1) := Nat.mul_le_mul_right _ hC2
+          _ ≤ C * L ^ (K + 1) := Nat.mul_le_mul_right _ (by omega)
       calc _ ≤ (4 * (E * 2 ^ b)) ^ dc := Nat.pow_le_pow_left hpair_len dc
         _ = 4 ^ dc * (E ^ dc * (2 ^ b) ^ dc) := by rw [Nat.mul_pow, Nat.mul_pow]
         _ ≤ 4 ^ dc * target := Nat.mul_le_mul_left _ (Nat.mul_le_mul hEdc h2dc)
@@ -3967,27 +3944,17 @@ theorem computableInO_compileSymAndFixed (d m : ℕ) :
       ((Nat.le_succ _).trans (Nat.le_self_pow (by dsimp only [C]; omega) E)).trans
         (Nat.le_mul_of_pos_right _ (Nat.two_pow_pos _))
     have hb_pow : (b + 1) * (2 ^ b + (b + 1) ^ 2) ≤ 4 * target := by
-      have hb2 : b + 1 ≤ 2 ^ (b + 1) := Nat.lt_two_pow_self.le
-      have hb2sq : (b + 1) ^ 2 ≤ (2 ^ (b + 1)) ^ 2 := Nat.pow_le_pow_left hb2 2
-      have hsum : 2 ^ b + (b + 1) ^ 2 ≤ 2 * (2 ^ (b + 1)) ^ 2 := by
-        have : 2 ^ b ≤ (2 ^ (b + 1)) ^ 2 := by
-          rw [← pow_mul]
-          exact Nat.pow_le_pow_right (by decide) (by omega)
-        omega
-      have hmul : (b + 1) * (2 ^ b + (b + 1) ^ 2) ≤ 2 ^ (b + 1) * (2 * (2 ^ (b + 1)) ^ 2) :=
-        Nat.mul_le_mul hb2 hsum
-      have heq : 2 ^ (b + 1) * (2 * (2 ^ (b + 1)) ^ 2) = 16 * 2 ^ (3 * b) := by ring
-      have h2t : 2 ^ (4 * b) ≤ target :=
-        h2b_le.trans (Nat.le_mul_of_pos_left _ (Nat.one_le_pow _ _ hE1))
+      have hb2 : b + 1 ≤ 2 ^ b := Nat.lt_two_pow_self
       have hb6 : 4 ≤ b := by
         dsimp only [b, budgetExp]
         have hB : 4 ≤ 3 * ((m + 1) ^ 2 + (Nat.log 2 (c.1 + c.2.size) + 1) + 1) + 2 := by omega
         exact hB.trans (Nat.le_mul_of_pos_right _ (Nat.pos_of_ne_zero (pow_ne_zero _ (by omega))))
-      have h16' : 16 * 2 ^ (3 * b) = 2 ^ (3 * b + 4) := by ring
-      have hle1 : 2 ^ (3 * b + 4) ≤ 2 ^ (4 * b) := Nat.pow_le_pow_right (by decide) (by omega)
-      calc (b + 1) * (2 ^ b + (b + 1) ^ 2) ≤ 2 ^ (3 * b + 4) := by rw [← h16', ← heq]; exact hmul
-        _ ≤ 2 ^ (4 * b) := hle1
-        _ ≤ target := h2t
+      calc (b + 1) * (2 ^ b + (b + 1) ^ 2) ≤ 2 ^ b * (2 ^ b + (2 ^ b) ^ 2) := by gcongr
+        _ ≤ 2 ^ b * ((2 ^ b) ^ 2 + (2 ^ b) ^ 2) :=
+          Nat.mul_le_mul_left _ (Nat.add_le_add_right (Nat.le_self_pow two_ne_zero _) _)
+        _ = 2 ^ (3 * b + 1) := by ring
+        _ ≤ 2 ^ (4 * b) := Nat.pow_le_pow_right (by decide) (by omega)
+        _ ≤ target := h2b_le.trans (Nat.le_mul_of_pos_left _ (Nat.one_le_pow _ _ hE1))
         _ ≤ 4 * target := Nat.le_mul_of_pos_left _ (by decide)
     have hpad_t : pad ≤ 4 * target := hpad_le.trans hb_pow
     have h4pow_le : 4 ^ dc ≤ 4 ^ (dc + 1) := Nat.pow_le_pow_right (by decide) (Nat.le_succ _)
