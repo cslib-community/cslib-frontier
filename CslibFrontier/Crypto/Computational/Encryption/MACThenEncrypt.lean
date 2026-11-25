@@ -296,33 +296,12 @@ theorem isOraclePPT_mteToCPAAdversary (M : MACScheme) (ptLen ctBound : ℕ → �
   let ECaller := encPair encUnary encBits
   let EStateCaller := encPair ECaller encBits
   let EHandlerIn := encPair EStateCaller (encPair (encFinEnum Unit) encBits)
-  have hcond : ComputableInPolyTime
-      (fun p : ((ℕ × List Bool) × List Bool) × (Unit × List Bool) =>
-        ((unframe p.2.2).length == GeneratorReindex.parameter ptLen p.1.1.1) &&
-          ((dropFrame p.2.2).length == GeneratorReindex.parameter ptLen p.1.1.1))
-      EHandlerIn encBool :=
-    (by dsimp only [EHandlerIn, EStateCaller, ECaller]; fun_prop :
-      ComputableInPolyTime _ EHandlerIn encBool)
-  have hyes : IsOraclePPTOn EHandlerIn encBits
-      (fun p : ((ℕ × List Bool) × List Bool) × (Unit × List Bool) => do
-        let tag0 ← ProbOracleComp.sample (M.sign p.1.2 (unframe p.2.2))
-        let tag1 ← ProbOracleComp.sample (M.sign p.1.2 (dropFrame p.2.2))
-        let p0 := encPair encBits encBits (unframe p.2.2, tag0)
-        let p1 := encPair encBits encBits (dropFrame p.2.2, tag1)
-        List.take (ctBound p.1.1.1) <$>
-          ProbOracleComp.query ((), encPair encBits encBits (p0, p1))) := by
-    dsimp only [EHandlerIn, EStateCaller, ECaller]
-    ppt
-  have hno : IsOraclePPTOn EHandlerIn encBits
-      (fun _ : ((ℕ × List Bool) × List Bool) × (Unit × List Bool) =>
-        (pure [] : WordOracleComp Unit (List Bool))) :=
-    (ComputableInPolyTime.const ([] : List Bool)).isOraclePPTOn (Operation := Unit)
   have hhandler : IsOraclePPTOn EHandlerIn encBits
       (fun p : ((ℕ × List Bool) × List Bool) × (Unit × List Bool) =>
         mteToCPAHandler M (GeneratorReindex.parameter ptLen p.1.1.1) (ctBound p.1.1.1)
           p.1.2 p.2) := by
-    unfold mteToCPAHandler
-    exact IsOraclePPTOn.cond hcond hyes hno
+    dsimp only [EHandlerIn, EStateCaller, ECaller]
+    ppt [mteToCPAHandler]
   have hprepare : ComputableInPolyTime
       (fun p : (ℕ × List Bool) × List Bool =>
         (GeneratorReindex.parameter ptLen p.1.1, ([] : List Bool)))
@@ -553,45 +532,22 @@ theorem isOraclePPT_extendCPAAdversary {ctBound : ℕ → ℕ}
     (hctBound : ComputableInPolyTime ctBound encUnary encUnary)
     {adversary : OracleDistinguisher} (hadversary : IsOraclePPT encBool adversary) :
     IsOraclePPT encBool (extendCPAAdversary ctBound adversary) := by
-  let EIn := encPair (encPair encUnary encBits) (encPair (encFinEnum Unit) encBits)
-  have hcond : ComputableInPolyTime
-      (fun p : (ℕ × List Bool) × (Unit × List Bool) =>
-        ((unframe p.2.2).length == p.1.1) && ((dropFrame p.2.2).length == p.1.1))
-      EIn encBool :=
-    (by fun_prop : ComputableInPolyTime _ EIn encBool)
-  have hquery : IsOraclePPTOn EIn encBits
-      (fun p : (ℕ × List Bool) × (Unit × List Bool) =>
-        (· ++ [false]) <$>
-          (List.take (ctBound p.1.1) <$> ProbOracleComp.query ((), p.2.2))) := by
-    ppt
-  have hno : IsOraclePPTOn EIn encBits
-      (fun _ : (ℕ × List Bool) × (Unit × List Bool) =>
-        (pure [] : WordOracleComp Unit (List Bool))) :=
-    (ComputableInPolyTime.const ([] : List Bool)).isOraclePPTOn (Operation := Unit)
-  have hhandler : IsOraclePPTOn EIn encBits
-      (fun p : (ℕ × List Bool) × (Unit × List Bool) =>
-        extendCPAHandler p.1.1 (ctBound p.1.1) p.2) := by
-    unfold extendCPAHandler
-    exact IsOraclePPTOn.cond hcond hquery hno
-  have hres : ComputableInPolyTime
-      (fun pair : (ℕ × List Bool) × List Bool => ctBound pair.1.1 + 1)
-      (encPair (encPair encUnary encBits) encBits) encUnary :=
-    ComputableInPolyTime.unary_add' (hctBound.comp (by fun_prop)) (ComputableInPolyTime.const 1)
-  exact hadversary.interpret_preprocess_open'
+  refine hadversary.interpret_preprocess_open' (operationEncoding := encFinEnum Unit)
+    (handler := fun caller => extendCPAHandler caller.1 (ctBound caller.1))
     (prepare := fun caller : ℕ × List Bool => (caller.1, ([] : List Bool)))
     (resources := fun caller _ => ctBound caller.1 + 1)
-    (by fun_prop) hhandler hres fun caller request reply hreply => by
-      unfold extendCPAHandler at hreply
-      dsimp only at hreply
-      split_ifs at hreply with hlenEq
-      · obtain ⟨raw, hraw, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hreply
-        obtain ⟨ct, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hraw
-        have htake : (List.take (ctBound caller.1) ct).length ≤ ctBound caller.1 :=
-          List.length_take_le _ _
-        simp only [List.length_append, List.length_singleton]
-        lia
-      · cases OracleComp.eq_of_mem_supportWith_pure hreply
-        simp
+    (by fun_prop) (by ppt [extendCPAHandler]) (by polytime) fun caller request reply hreply => ?_
+  unfold extendCPAHandler at hreply
+  dsimp only at hreply
+  split_ifs at hreply with hlenEq
+  · obtain ⟨raw, hraw, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hreply
+    obtain ⟨ct, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hraw
+    have htake : (List.take (ctBound caller.1) ct).length ≤ ctBound caller.1 :=
+      List.length_take_le _ _
+    simp only [List.length_append, List.length_singleton]
+    lia
+  · cases OracleComp.eq_of_mem_supportWith_pure hreply
+    simp
 
 /-- When `ctBound n` bounds `E` ciphertexts on `n`-bit plaintexts, `E.cpaGame` running
 `extendCPAAdversary ctBound adversary` has the exact same distribution as `E.extendCipher.cpaGame`
@@ -659,21 +615,10 @@ theorem isOraclePPT_extendOneTimeCPAAdversary {ctBound : ℕ → ℕ}
     (hctBound : ComputableInPolyTime ctBound encUnary encUnary)
     {adversary : OracleDistinguisher} (hadversary : IsOraclePPT encBool adversary) :
     IsOraclePPT encBool (extendOneTimeCPAAdversary ctBound adversary) := by
-  have h := isOraclePPT_oneTimeFilter
+  unfold extendOneTimeCPAAdversary extendOneTimeCPAHandler
+  simpa only [Bool.and_assoc] using isOraclePPT_oneTimeFilter
     (accept := fun n req => (unframe req).length == n && (dropFrame req).length == n)
     (post := (· ++ [false])) (by fun_prop) hctBound (by fun_prop) hadversary
-  have heq : ∀ n, extendOneTimeCPAHandler n (ctBound n) =
-      fun request alreadyQueried =>
-        if !alreadyQueried &&
-            ((unframe request.2).length == n && (dropFrame request.2).length == n) then
-          (fun ct => (ct ++ [false], true)) <$>
-            (List.take (ctBound n) <$> ProbOracleComp.query ((), request.2))
-        else
-          pure ([], alreadyQueried) := by
-    intro n; funext request alreadyQueried
-    simp only [extendOneTimeCPAHandler, Bool.and_assoc]
-  unfold extendOneTimeCPAAdversary
-  simpa only [heq] using h
 
 /-- Equivalence between `E.cpaOneTimeGame` running `extendOneTimeCPAAdversary` and
 `E.extendCipher.cpaOneTimeGame` running `adversary`. -/
