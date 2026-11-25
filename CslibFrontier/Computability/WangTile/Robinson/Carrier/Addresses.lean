@@ -503,40 +503,23 @@ private theorem axis_step (axis : AddressAxis) (level along transverse : Nat)
         simp [primaryCarrier, orientedNat, isHorizontalCarrier,
           isVerticalCarrier, owner] at firstPrimary
   | some depth =>
-      have firstData :=
-        (primaryCarrier_iff_of_owner axis owner).1 firstPrimary
-      have secondData :=
-        (primaryCarrier_iff_of_owner axis owner).1 secondPrimary
-      have sameCenter := frameCenter_succ_of_inFrame_not_boundary
-        firstData.1 firstData.2
+      have firstData := (primaryCarrier_iff_of_owner axis owner).1 firstPrimary
+      have sameCenter := frameCenter_succ_of_inFrame_not_boundary firstData.1 firstData.2
+      rw [roleAt_eq_of_primary axis firstPrimary, roleAt_eq_of_primary axis secondPrimary]
       cases transverseBoundary : onFrameBoundary depth transverse with
       | true =>
-          have firstCrossing :
-              crossingCarrier axis level along transverse = false := by
-            cases crossing : crossingCarrier axis level along transverse with
-            | false => rfl
-            | true =>
-                have interior := transverseInterior_of_mutual_carriers
-                  axis owner firstPrimary crossing
-                simp [transverseBoundary] at interior
-          have secondCrossing : crossingCarrier axis level (along + 1)
-              transverse = false := by
-            cases crossing : crossingCarrier axis level (along + 1) transverse with
-            | false => rfl
-            | true =>
-                have interior := transverseInterior_of_mutual_carriers
-                  axis owner secondPrimary crossing
-                simp [transverseBoundary] at interior
-          have firstRole := roleAt_eq_of_primary axis firstPrimary
-          have secondRole := roleAt_eq_of_primary axis secondPrimary
-          simp only [firstCrossing, Bool.false_eq_true, ↓reduceIte] at firstRole
-          simp only [secondCrossing, Bool.false_eq_true, ↓reduceIte] at secondRole
-          rw [firstRole, secondRole, axisStepAt_primary,
-            axisOutgoing_primary,
-            sourceAt_eq_zero_of_transverseBoundary axis owner
-              transverseBoundary,
-            sourceAt_eq_zero_of_transverseBoundary axis owner
-              transverseBoundary]
+          have firstCrossing : crossingCarrier axis level along transverse = false :=
+            Bool.eq_false_iff.2 fun crossing => by
+              simpa [transverseBoundary] using
+                transverseInterior_of_mutual_carriers axis owner firstPrimary crossing
+          have secondCrossing : crossingCarrier axis level (along + 1) transverse = false :=
+            Bool.eq_false_iff.2 fun crossing => by
+              simpa [transverseBoundary] using
+                transverseInterior_of_mutual_carriers axis owner secondPrimary crossing
+          simp only [firstCrossing, secondCrossing, Bool.false_eq_true, ↓reduceIte]
+          rw [axisStepAt_primary, axisOutgoing_primary,
+            sourceAt_eq_zero_of_transverseBoundary axis owner transverseBoundary,
+            sourceAt_eq_zero_of_transverseBoundary axis owner transverseBoundary]
       | false =>
           cases firstCrossing : crossingCarrier axis level along transverse with
           | false =>
@@ -544,53 +527,37 @@ private theorem axis_step (axis : AddressAxis) (level along transverse : Nat)
                 axis owner transverseBoundary firstCrossing
               have firstSource := sourceAt_eq_of_transverseInterior
                 (along := along) axis owner transverseBoundary
-              have firstRole := roleAt_eq_of_primary axis firstPrimary
-              simp only [firstCrossing, Bool.false_eq_true, ↓reduceIte] at firstRole
               cases secondCrossing :
                   crossingCarrier axis level (along + 1) transverse with
               | false =>
-                  have secondSource := sourceAt_eq_of_transverseInterior
-                    (along := along + 1) axis owner transverseBoundary
-                  have secondRole := roleAt_eq_of_primary axis secondPrimary
-                  simp only [secondCrossing, Bool.false_eq_true, ↓reduceIte] at secondRole
-                  rw [firstRole, secondRole, axisStepAt_primary,
-                    axisOutgoing_primary, firstSource, secondSource,
+                  simp only [Bool.false_eq_true, ↓reduceIte]
+                  rw [axisStepAt_primary, axisOutgoing_primary, firstSource,
+                    sourceAt_eq_of_transverseInterior (along := along + 1) axis owner
+                      transverseBoundary,
                     axisSource_succ_of_not_free firstFree sameCenter]
               | true =>
-                  have secondPoint := pointAt_eq_of_mutual_carriers
-                    axis owner secondPrimary secondCrossing
-                  have secondRole := roleAt_eq_of_primary axis secondPrimary
-                  simp only [secondCrossing, ↓reduceIte] at secondRole
-                  rw [firstRole, secondRole, axisStepAt_active,
-                    axisOutgoing_primary, firstSource, secondPoint,
-                    axisSuccessor_oriented,
-                    axisCoordinate_succ_of_not_free firstFree sameCenter]
+                  simp only [Bool.false_eq_true, ↓reduceIte]
+                  rw [axisStepAt_active, axisOutgoing_primary, firstSource,
+                    pointAt_eq_of_mutual_carriers axis owner secondPrimary secondCrossing,
+                    axisSuccessor_oriented, axisCoordinate_succ_of_not_free firstFree sameCenter]
           | true =>
               have firstFree := free_eq_true_of_mutual_carriers
                 axis owner firstPrimary firstCrossing
               have firstPoint := pointAt_eq_of_mutual_carriers
                 axis owner firstPrimary firstCrossing
-              have firstRole := roleAt_eq_of_primary axis firstPrimary
-              simp only [firstCrossing, ↓reduceIte] at firstRole
               cases secondCrossing :
                   crossingCarrier axis level (along + 1) transverse with
               | false =>
-                  have secondSource := sourceAt_eq_of_transverseInterior
-                    (along := along + 1) axis owner transverseBoundary
-                  have secondRole := roleAt_eq_of_primary axis secondPrimary
-                  simp only [secondCrossing, Bool.false_eq_true, ↓reduceIte] at secondRole
-                  rw [firstRole, secondRole, axisStepAt_primary,
-                    axisOutgoing_active, firstPoint, secondSource,
+                  simp only [Bool.false_eq_true, ↓reduceIte]
+                  rw [axisStepAt_primary, axisOutgoing_active, firstPoint,
+                    sourceAt_eq_of_transverseInterior (along := along + 1) axis owner
+                      transverseBoundary,
                     axisSource_succ_of_free firstFree sameCenter]
               | true =>
-                  have secondPoint := pointAt_eq_of_mutual_carriers
-                    axis owner secondPrimary secondCrossing
-                  have secondRole := roleAt_eq_of_primary axis secondPrimary
-                  simp only [secondCrossing, ↓reduceIte] at secondRole
-                  rw [firstRole, secondRole, axisStepAt_active,
-                    axisOutgoing_active, firstPoint, secondPoint,
-                    axisSuccessor_oriented,
-                    axisCoordinate_succ_of_free firstFree sameCenter]
+                  simp only [↓reduceIte]
+                  rw [axisStepAt_active, axisOutgoing_active, firstPoint,
+                    pointAt_eq_of_mutual_carriers axis owner secondPrimary secondCrossing,
+                    axisSuccessor_oriented, axisCoordinate_succ_of_free firstFree sameCenter]
 
 /-- Replacing an active hierarchy role by the corner marker preserves the
 axis-neutral addressing step. -/
@@ -604,14 +571,9 @@ private theorem axis_step_of_erased_roles
     (secondCarrier : roleIsPrimaryCarrier axis secondRole = true) :
     AxisStepAt axis level along transverse firstRole secondRole := by
   have firstPrimary : primaryCarrier axis level along transverse = true := by
-    rw [← roleAt_isPrimaryCarrier, ← firstRoleEq,
-      eraseCorner_isPrimaryCarrier]
-    exact firstCarrier
-  have secondPrimary :
-      primaryCarrier axis level (along + 1) transverse = true := by
-    rw [← roleAt_isPrimaryCarrier, ← secondRoleEq,
-      eraseCorner_isPrimaryCarrier]
-    exact secondCarrier
+    rwa [← roleAt_isPrimaryCarrier, ← firstRoleEq, eraseCorner_isPrimaryCarrier]
+  have secondPrimary : primaryCarrier axis level (along + 1) transverse = true := by
+    rwa [← roleAt_isPrimaryCarrier, ← secondRoleEq, eraseCorner_isPrimaryCarrier]
   have step := axis_step axis level along transverse firstPrimary secondPrimary
   rw [← firstRoleEq, ← secondRoleEq] at step
   cases axis <;> cases firstRole <;> cases secondRole <;>
