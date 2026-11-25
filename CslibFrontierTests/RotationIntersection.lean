@@ -169,10 +169,8 @@ private theorem torusAlternates :
 
 private theorem torusOdd : torusRotation.intersectionParity firstLoop secondLoop = true := by
   classical
-  unfold RotationSystem.intersectionParity
-  change (∑ _ : Fin 1, ∑ _ : Fin 1,
-    decide (torusRotation.Alternates (0, false) (0, true) (1, false) (1, true))) = true
-  simp only [Fin.sum_univ_one]
+  rw [torusRotation.intersectionParity_eq_decide_alternates_of_unique_shared_passages
+    firstLoop secondLoop (0 : Fin 1) (0 : Fin 1) (fun i j _ => ⟨Fin.eq_zero i, Fin.eq_zero j⟩)]
   exact decide_eq_true_eq.mpr torusAlternates
 
 -- The torus also refutes face-boundary exactness without its numerical genus hypothesis.

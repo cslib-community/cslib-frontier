@@ -331,6 +331,35 @@ the actual rotation. Distinct visits and arbitrary local pairing choices are cou
   ∑ j : Fin Q.count, ∑ i : Fin P.count, decide (r.Alternates
     (P.dart i false) (P.dart i true) (Q.dart j false) (Q.dart j true))
 
+open Classical in
+/-- When only one pair of passages can share a vertex, its alternation bit gives the
+entire intersection parity. -/
+theorem intersectionParity_eq_decide_alternates_of_unique_shared_passages
+    {x y : Fin G.edges.length → Bool} (P : ClosedPassages G x) (Q : ClosedPassages G y)
+    (i₀ : Fin P.count) (j₀ : Fin Q.count)
+    (hunique : ∀ i j, (P.dart i false).vertex = (Q.dart j false).vertex → i = i₀ ∧ j = j₀) :
+    r.intersectionParity P Q = decide (r.Alternates
+      (P.dart i₀ false) (P.dart i₀ true) (Q.dart j₀ false) (Q.dart j₀ true)) := by
+  have hpair (i : Fin P.count) (j : Fin Q.count)
+      (h : r.Alternates (P.dart i false) (P.dart i true) (Q.dart j false) (Q.dart j true)) :
+      i = i₀ ∧ j = j₀ := by
+    obtain ⟨_, _, _, _, _, _, _, _, hv, _⟩ := h
+    exact hunique i j hv
+  unfold intersectionParity
+  rw [Finset.sum_eq_single j₀, Finset.sum_eq_single i₀]
+  · intro i _ hi
+    apply decide_eq_false
+    intro h
+    exact hi (hpair i j₀ h).1
+  · simp
+  · intro j _ hj
+    apply Finset.sum_eq_zero
+    intro i _
+    apply decide_eq_false
+    intro h
+    exact hj (hpair i j h).2
+  · simp
+
 /-- Face-boundary support has even total intersection with every edge-disjoint closed
 passage system, independently of genus. Adjacent face colors agree on the second support;
 its exactly-once dart enumeration makes every endpoint contribution occur twice. -/

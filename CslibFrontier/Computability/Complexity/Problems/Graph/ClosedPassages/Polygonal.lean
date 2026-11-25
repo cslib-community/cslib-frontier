@@ -7,6 +7,7 @@ Authors: Erik Demaine, OpenAI
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.IntersectionParity
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.RegularContacts
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.IntersectionParity
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Realization.Basic
@@ -33,6 +34,8 @@ are allowed.
 
 * `ClosedPassages.intersectionParity_eq_sum_route_intersectionParity` identifies the parity of
   alternating passage pairs with the indexed crossing parity between their edge supports.
+* `ClosedPassages.decide_alternates_eq_sum_crossings_of_unique_shared_passages` restricts
+  the crossing sum to the four incident edge pairs in an independently even drawing.
 * `ClosedPassages.not_alternates_of_unique_shared_passages` rules out alternation when only one
   pair of passages shares a vertex and all crossing counts across the supports are even.
 -/
@@ -381,6 +384,88 @@ theorem intersectionParity_eq_sum_route_intersectionParity {G : Graph}
   simpa only [← Bool.zero_eq_false, ← add_assoc, BooleanRing.add_self, zero_add, add_zero] using
     congrArg (edgeParity + ·) cancel
 
+open Classical in
+/-- In an independently even drawing, if only one pair of passages can share a vertex,
+its alternation bit counts the crossings between the two edges of each passage. -/
+theorem decide_alternates_eq_sum_crossings_of_unique_shared_passages {G : Graph}
+    {x y : Fin G.edges.length → Bool} (P : ClosedPassages G x) (Q : ClosedPassages G y)
+    {D : PolygonalDrawing G} {r : RotationSystem G}
+    (hR : D.Realizes r) (hreg : D.HasRegularContacts)
+    (hsimple : ∀ e, (D.route e).IsSimple)
+    (hvertices : Set.InjOn D.vertex {v | v ∈ G.vertices})
+    (hdeclared : ∀ d : Dart G, d.vertex ∈ G.vertices)
+    (hedges : ∀ e, x e = true → y e = true → False) (heven : D.EvenCrossings (fun _ => False))
+    (i₀ : Fin P.count) (j₀ : Fin Q.count)
+    (hunique : ∀ i j, (P.dart i false).vertex = (Q.dart j false).vertex → i = i₀ ∧ j = j₀) :
+    decide (r.Alternates (P.dart i₀ false) (P.dart i₀ true) (Q.dart j₀ false) (Q.dart j₀ true)) =
+      ∑ f ∈ {(Q.dart j₀ false).1, (Q.dart j₀ true).1},
+        ∑ e ∈ {(P.dart i₀ false).1, (P.dart i₀ true).1},
+          (D.route e).intersectionParity (D.route f) := by
+  let leftEdges : Finset (Fin G.edges.length) := {(P.dart i₀ false).1, (P.dart i₀ true).1}
+  let rightEdges : Finset (Fin G.edges.length) := {(Q.dart j₀ false).1, (Q.dart j₀ true).1}
+  have findPort {z : Fin G.edges.length → Bool} (R : ClosedPassages G z)
+      (d : Dart G) (hd : z d.1 = true) :
+      ∃ k b, R.dart k b = d ∧ (R.dart k false).vertex = d.vertex := by
+    obtain ⟨⟨k, b⟩, hk⟩ := R.ports.surjective ⟨d, hd⟩
+    have hport : R.dart k b = d := congrArg Subtype.val hk
+    refine ⟨k, b, hport, ?_⟩
+    rw [← hport]
+    cases b
+    · rfl
+    · exact R.vertex_eq k
+  have noCrossing {e f : Fin G.edges.length} (hx : x e = true) (hy : y f = true)
+      (houtside : e ∉ leftEdges ∨ f ∉ rightEdges) :
+      (D.route e).intersectionParity (D.route f) = false := by
+    apply heven e f (fun h => hedges e hx (h ▸ hy)) (.inl ?_)
+    intro s t h
+    obtain ⟨i, u, hP, hvi⟩ := findPort P (e, s) hx
+    obtain ⟨j, w, hQ, hvj⟩ := findPort Q (f, t) hy
+    obtain ⟨rfl, rfl⟩ := hunique i j (hvi.trans (h.trans hvj.symm))
+    have hx' : e ∈ leftEdges := by
+      have he : _ = e := congrArg Prod.fst hP
+      rw [← he]
+      cases u <;> simp [leftEdges]
+    have hy' : f ∈ rightEdges := by
+      have hf : _ = f := congrArg Prod.fst hQ
+      rw [← hf]
+      cases w <;> simp [rightEdges]
+    exact houtside.elim (fun hne => hne hx') (fun hne => hne hy')
+  have supported {z : Fin G.edges.length → Bool} (R : ClosedPassages G z)
+      (k : Fin R.count) {e : Fin G.edges.length}
+      (he : e ∈ ({(R.dart k false).1, (R.dart k true).1} : Finset _)) : z e = true := by
+    rcases Finset.mem_insert.mp he with rfl | h
+    · exact R.supported k false
+    · rw [Finset.mem_singleton] at h
+      simpa only [h] using R.supported k true
+  have inner (f : Fin G.edges.length) (hf : y f = true) :
+      (∑ e, x e * (D.route e).intersectionParity (D.route f)) =
+        ∑ e ∈ leftEdges, (D.route e).intersectionParity (D.route f) := by
+    calc
+      _ = ∑ e ∈ leftEdges, x e * (D.route e).intersectionParity (D.route f) :=
+        (Finset.sum_subset (Finset.subset_univ leftEdges) fun e _ he => by
+          cases h : x e
+          · simp only [← Bool.zero_eq_false, zero_mul]
+          · simp only [noCrossing h hf (.inl he), ← Bool.zero_eq_false, mul_zero]).symm
+      _ = _ := Finset.sum_congr rfl fun e he => by
+        rw [show x e = (1 : Bool) from supported P i₀ he, one_mul]
+  rw [← r.intersectionParity_eq_decide_alternates_of_unique_shared_passages P Q i₀ j₀ hunique,
+    P.intersectionParity_eq_sum_route_intersectionParity Q hR hreg hsimple
+      hvertices hdeclared hedges]
+  calc
+    _ = ∑ f ∈ rightEdges, y f * ∑ e, x e * (D.route e).intersectionParity (D.route f) :=
+      (Finset.sum_subset (Finset.subset_univ rightEdges) fun f _ hf => by
+        cases h : y f
+        · simp only [← Bool.zero_eq_false, zero_mul]
+        · apply mul_eq_zero_of_right
+          apply Finset.sum_eq_zero
+          intro e _
+          cases hx : x e
+          · simp only [← Bool.zero_eq_false, zero_mul]
+          · simp only [noCrossing hx h (.inr hf), ← Bool.zero_eq_false, mul_zero]).symm
+    _ = _ := Finset.sum_congr rfl fun f hf => by
+      have hy := supported Q j₀ hf
+      rw [inner f hy, show y f = (1 : Bool) from hy, one_mul]
+
 /-- If two edge-disjoint closed passage systems meet at just one pair of passages,
 that pair cannot alternate when every crossing count between the two edge supports is even. -/
 theorem not_alternates_of_unique_shared_passages {G : Graph}
@@ -411,25 +496,8 @@ theorem not_alternates_of_unique_shared_passages {G : Graph}
       · rw [← Bool.zero_eq_false, zero_mul]
       · rw [heven e f he hf, ← Bool.zero_eq_false, mul_zero]
   intro halt
-  have hpair (i : Fin P.count) (j : Fin Q.count)
-      (h : r.Alternates (P.dart i false) (P.dart i true) (Q.dart j false) (Q.dart j true)) :
-      i = i₀ ∧ j = j₀ := by
-    obtain ⟨_, _, _, _, _, _, _, _, hv, _⟩ := h
-    exact hunique i j hv
-  unfold RotationSystem.intersectionParity at hzero
-  rw [Finset.sum_eq_single j₀, Finset.sum_eq_single i₀, decide_eq_true halt] at hzero
-  · cases hzero
-  · intro i _ hi
-    apply decide_eq_false
-    intro h
-    exact hi (hpair i j₀ h).1
-  · simp
-  · intro j _ hj
-    apply Finset.sum_eq_zero
-    intro i _
-    apply decide_eq_false
-    intro h
-    exact hj (hpair i j h).2
-  · simp
+  rw [r.intersectionParity_eq_decide_alternates_of_unique_shared_passages P Q i₀ j₀ hunique,
+    decide_eq_true halt] at hzero
+  cases hzero
 
 end Cslib.Complexity.Graph.ClosedPassages
