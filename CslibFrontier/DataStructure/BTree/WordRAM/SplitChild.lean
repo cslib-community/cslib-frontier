@@ -151,11 +151,41 @@ private theorem splitChildPost_spec {w base capNodes t u m slot c cnt : ℕ}
     rw [← hac_def]; simp only [nodeAddr, nodeStride]; omega
   have hcap_le : capNodes ≤ capNodes * nodeStride t :=
     Nat.le_mul_of_pos_right _ (by simp only [nodeStride]; omega)
-  -- Word-size bounds from which `fits` derives every address the program computes.
-  have hf_u : Fits w (base + u * (6 * t) + 2) := hfit.of_le (by omega)
-  have hf_us : Fits w (au + 2 + 4 * t + slot) := hfit.of_le (by omega)
-  have hf_c : Fits w (base + c * (6 * t) + 2) := hfit.of_le (by omega)
-  have hf_cv : Fits w (ac + 2 + 3 * t) := hfit.of_le (by omega)
+  have hf_umul : Fits w (u * (6 * t)) := hfit.of_le (by omega)
+  have hf_ub0 : Fits w (base + u * (6 * t)) := hfit.of_le (by omega)
+  have hf_ub1 : Fits w (base + u * (6 * t) + 1) := hfit.of_le (by omega)
+  have hf_ub2 : Fits w (base + u * (6 * t) + 1 + 1) := hfit.of_le (by omega)
+  have hf_au : Fits w au := hfit.of_le (by omega)
+  have hf_au1 : Fits w (au + 1) := hfit.of_le (by omega)
+  have hf_au2 : Fits w (au + 2) := hfit.of_le (by omega)
+  have hf_au2' : Fits w (au + 1 + 1) := hfit.of_le (by omega)
+  have hf_auks : Fits w (au + 2 + slot) := hfit.of_le (by omega)
+  have hf_aut1 : Fits w (au + t) := hfit.of_le (by omega)
+  have hf_aut2 : Fits w (au + t + t) := hfit.of_le (by omega)
+  have hf_aut21 : Fits w (au + t + t + 1) := hfit.of_le (by omega)
+  have hf_au2t1 : Fits w (au + (2 * t + 1)) := hfit.of_le (by omega)
+  have hf_auvs : Fits w (au + (2 * t + 1) + slot) := hfit.of_le (by omega)
+  have hf_aut3 : Fits w (au + t + t + t) := hfit.of_le (by omega)
+  have hf_aut4 : Fits w (au + t + t + t + t) := hfit.of_le (by omega)
+  have hf_au4t : Fits w (au + 4 * t) := hfit.of_le (by omega)
+  have hf_aucs : Fits w (au + 4 * t + slot) := hfit.of_le (by omega)
+  have hf_aucs10 : Fits w (au + 4 * t + slot + 1) := hfit.of_le (by omega)
+  have hf_aucs1 : Fits w (au + 4 * t + (slot + 1)) := hfit.of_le (by omega)
+  have hf_cmul : Fits w (c * (6 * t)) := hfit.of_le (by omega)
+  have hf_cb0 : Fits w (base + c * (6 * t)) := hfit.of_le (by omega)
+  have hf_cb1 : Fits w (base + c * (6 * t) + 1) := hfit.of_le (by omega)
+  have hf_cb2 : Fits w (base + c * (6 * t) + 1 + 1) := hfit.of_le (by omega)
+  have hf_ac : Fits w ac := hfit.of_le (by omega)
+  have hf_ac1 : Fits w (ac + 1) := hfit.of_le (by omega)
+  have hf_ac2 : Fits w (ac + 1 + 1) := hfit.of_le (by omega)
+  have hf_ack0 : Fits w (ac + 1 + 1 + (t - 1)) := hfit.of_le (by omega)
+  have hf_ack : Fits w (ac + 2 + (t - 1)) := hfit.of_le (by omega)
+  have hf_act1 : Fits w (ac + t) := hfit.of_le (by omega)
+  have hf_act2 : Fits w (ac + t + t) := hfit.of_le (by omega)
+  have hf_act21 : Fits w (ac + t + t + 1) := hfit.of_le (by omega)
+  have hf_ac2t1 : Fits w (ac + (2 * t + 1)) := hfit.of_le (by omega)
+  have hf_acv : Fits w (ac + (2 * t + 1) + (t - 1)) := hfit.of_le (by omega)
+  have hf_tm1 : Fits w (t - 1) := hfit.of_le (by omega)
   have hf_m1 : Fits w (m + 1) := hfit.of_le (by omega)
   have hf_cnt1 : Fits w (cnt + 1) := hfit.of_le (by simp only [arenaWords]; omega)
   have hf_b1 : Fits w (base + 1) := hfit.of_le (by simp only [arenaWords]; omega)
@@ -170,7 +200,12 @@ private theorem splitChildPost_spec {w base capNodes t u m slot c cnt : ℕ}
   apply WP.exists_execWithin
   wram_exec [ho₇, hb₇_reg, hd₇, hst₇, hcur₇, hnk₇, hsl₇, hch₇, hcnt₇,
     hna_c, hna_u, hack_eq, hau2_eq, h2tc_eq, h2tu_eq, h4tu_eq, hcs1_eq,
-    hv_ne_ks, hk_med, hv_med]
+    hv_ne_ks, hk_med, hv_med,
+    hf_cmul, hf_cb0, hf_cb1, hf_cb2, hf_ac, hf_ac1, hf_ac2, hf_ack0, hf_ack,
+    hf_act1, hf_act2, hf_act21, hf_ac2t1, hf_acv,
+    hf_umul, hf_ub0, hf_ub1, hf_ub2, hf_au, hf_au1, hf_au2, hf_au2', hf_auks,
+    hf_aut1, hf_aut2, hf_aut21, hf_au2t1, hf_auvs, hf_aut3, hf_aut4, hf_au4t,
+    hf_aucs, hf_aucs10, hf_aucs1, hf_tm1, hf_m1, hf_cnt1, hf_b1]
   wram_simp [hz₇, ho₇, hb₇_reg, hd₇, hst₇, hcur₇, hsl₇, hch₇]
   simp only [memSplitChild, hau_def, hmem₇_eq]
 
@@ -195,17 +230,24 @@ private theorem splitChildShifts_spec {w base capNodes t u m slot : ℕ} {x₁ :
     hau_def ▸ nodeAddr_add_le_arena (base := base) hu_cap (o := 6 * t) le_rfl
   have hna_u : base + u * (6 * t) + 1 + 1 = au := by
     rw [← hau_def]; simp only [nodeAddr, nodeStride]; omega
-  -- Word-size bounds from which `fits` derives every address the program computes.
-  have hf_u : Fits w (base + u * (6 * t) + 2) := hfit.of_le (by omega)
-  have hf_us : Fits w (au + 2 + 4 * t) := hfit.of_le (by omega)
-  have hf_m1 : Fits w (m + 1) := hfit.of_le (by omega)
+  have hf_umul : Fits w (u * (6 * t)) := hfit.of_le (by
+    rw [← hau_def] at hau_le; simp only [nodeAddr, nodeStride] at hau_le; omega)
+  have hf_ub0 : Fits w (base + u * (6 * t)) := hfit.of_le (by
+    rw [← hau_def] at hau_le; simp only [nodeAddr, nodeStride] at hau_le; omega)
+  have hf_ub1 : Fits w (base + u * (6 * t) + 1) := hfit.of_le (by
+    rw [← hau_def] at hau_le; simp only [nodeAddr, nodeStride] at hau_le; omega)
+  have hf_au : Fits w au := hfit.of_le (by omega)
+  have hf_au1 : Fits w (au + 1) := hfit.of_le (by omega)
+  have hf_au2 : Fits w (au + 2) := hfit.of_le (by omega)
+  have hf_ms : Fits w (m - slot) := hfit.of_le (by omega)
   let x₂ : Data 20 :=
     (((((((x₁.set rSrc (u * (6 * t))).set rSrc (base + u * (6 * t))).set rSrc
       (base + u * (6 * t) + 1)).set rSrc au).set rSrc (au + 1)).set rSrc
       (au + 2)).set rDst m).set rLim (m - slot)
   have hp1 : ExecWithin w splitChildPre1 x₁ x₂ 8 := by
     unfold splitChildPre1; dsimp only [x₂]
-    wram_exec [ho₁, hb₁_reg, hst₁, hcur₁, hnk₁, hsl₁, hna_u]
+    wram_exec [ho₁, hb₁_reg, hst₁, hcur₁, hnk₁, hsl₁, hna_u,
+      hf_umul, hf_ub0, hf_ub1, hf_au, hf_au1, hf_au2, hf_ms]
   obtain ⟨x₃, hs1, hb₃, hmem₃, hreg₃⟩ :=
     shiftLoop_spec (arrBase := au + 2) (upper := m) (count := m - slot)
       (hp1.bounded hb₁) ho₁ rfl rfl rfl (by omega) (hfit.of_le (by omega))
@@ -219,7 +261,10 @@ private theorem splitChildShifts_spec {w base capNodes t u m slot : ℕ} {x₁ :
     ((x₃.set rSrc (au + 2 + t)).set rSrc (au + 2 + t + t)).set rSrc (au + (2 * t + 1))
   have hp2 : ExecWithin w splitChildPre2 x₃ x₄ 3 := by
     unfold splitChildPre2; dsimp only [x₄]
-    wram_exec [ho₃, hd₃, hsrc₃, hav_eq]
+    have hf1 : Fits w (au + 2 + t) := hfit.of_le (by omega)
+    have hf2 : Fits w (au + 2 + t + t) := hfit.of_le (by omega)
+    have hf3 : Fits w (au + (2 * t + 1)) := hfit.of_le (by omega)
+    wram_exec [ho₃, hd₃, hsrc₃, hav_eq, hf1, hf2, hf3]
   obtain ⟨x₅, hs2, hb₅, hmem₅, hreg₅⟩ :=
     shiftLoop_spec (arrBase := au + (2 * t + 1)) (upper := m) (count := m - slot)
       (hp2.bounded hb₃) ho₃ rfl hdst₃ hlim₃ (by omega) (hfit.of_le (by omega))
@@ -235,7 +280,11 @@ private theorem splitChildShifts_spec {w base capNodes t u m slot : ℕ} {x₁ :
       (au + 4 * t)).set rDst (m + 1)
   have hp3 : ExecWithin w splitChildPre3 x₅ x₆ 4 := by
     unfold splitChildPre3; dsimp only [x₆]
-    wram_exec [ho₅, hd₅, hsrc₅, hnk₅, hac4_eq]
+    have hf1 : Fits w (au + (2 * t + 1) + t) := hfit.of_le (by omega)
+    have hf2 : Fits w (au + (2 * t + 1) + t + t) := hfit.of_le (by omega)
+    have hf3 : Fits w (au + 4 * t) := hfit.of_le (by omega)
+    have hf4 : Fits w (m + 1) := hfit.of_le (by omega)
+    wram_exec [ho₅, hd₅, hsrc₅, hnk₅, hac4_eq, hf1, hf2, hf3, hf4]
   obtain ⟨x₇, hs3, hb₇, hmem₇, hreg₇⟩ :=
     shiftLoop_spec (arrBase := au + 4 * t) (upper := m + 1) (count := m - slot)
       (hp3.bounded hb₅) ho₅ rfl rfl hlim₅ (by omega) (hfit.of_le (by omega))

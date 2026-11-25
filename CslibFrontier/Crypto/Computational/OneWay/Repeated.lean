@@ -158,9 +158,16 @@ private theorem slotInverter_toTyped_one_eq_interpret {f : List Bool → List Bo
             pure (if request.2.length = g then [] else xs.getD request.2.length [], ())))
         (adversary n (encList encBits ys))).run () =
         (fun x => (x, ())) <$> (adversary n (encList encBits ys)).run
-          (fun q => pure (if q.2.length = g then [] else xs.getD q.2.length [])) :=
-      ProbOracleComp.runState_lift (adversary n (encList encBits ys))
-        (fun q : Unit × List Bool => pure (if q.2.length = g then [] else xs.getD q.2.length [])) ()
+          (fun q => pure (if q.2.length = g then [] else xs.getD q.2.length [])) := by
+      have hstate : (OracleComp.interpret
+          (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
+            (fun (request : Unit × List Bool) (_ : Unit) =>
+              pure (if request.2.length = g then [] else xs.getD request.2.length [], ())))
+          (adversary n (encList encBits ys))) =
+          ProbOracleComp.runState (adversary n (encList encBits ys))
+            (fun q => StateT.lift (pure (if q.2.length = g then [] else xs.getD q.2.length []))) :=
+        rfl
+      rw [hstate, ProbOracleComp.runState_lift]
     rw [hl]
     simp only [ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure, PMF.bind_map,
       Function.comp_def]
@@ -191,42 +198,81 @@ theorem isPPT_repeatedInverter {f : List Bool → List Bool} {t : ℕ → ℕ}
     (hf : ComputableInPolyTime f encBits encBits) (ht : ComputableInPolyTime t encUnary encUnary)
     {adversary : RevealInverter} (hadversary : IsOraclePPT (encPair encBits encBits) adversary) :
     IsPPT encBits (repeatedInverter f t adversary) := by
-  let encNYG := encPair (encPair encUnary encBits) encUnary
+  let encNY := encPair encUnary encBits
+  let encNYG := encPair encNY encUnary
+  let encF := encPair encNYG (encList encBits)
   let encAll := encInverterCtx
+  have ht_ny : ComputableInPolyTime (fun p : ℕ × List Bool => t p.1) encNY encUnary :=
+    ht.comp (by polytime)
+  have hg : IsPPTOn encNY encUnary (fun p : ℕ × List Bool => ProbComp.sampleDyadicIndex (t p.1)) :=
+    isPPTOn_sampleDyadicIndex ht_ny
+  have hfront : IsPPTOn encNYG (encList encBits)
+      (fun p => OracleComp.replicate p.2 (BitString.sampleList p.1.1)) :=
+    (isPPTOn_sampleList.preprocess (by polytime)).replicate (by polytime)
+  have hback_count : ComputableInPolyTime
+      (fun p : ((ℕ × List Bool) × ℕ) × List (List Bool) => t p.1.1.1 - p.1.2 - 1) encF encUnary :=
+    ComputableInPolyTime.unary_sub'
+      (ComputableInPolyTime.unary_sub' (ht.comp (by polytime)) (by polytime)) (.const 1)
+  have hback : IsPPTOn encF (encList encBits)
+      (fun p => OracleComp.replicate (t p.1.1.1 - p.1.2 - 1) (BitString.sampleList p.1.1.1)) :=
+    (isPPTOn_sampleList.preprocess (by polytime)).replicate hback_count
   let sampleCtx (p : (ℕ × List Bool) × ℕ) : ProbComp InverterCtx := do
     let front ← OracleComp.replicate p.2 (BitString.sampleList p.1.1)
     let back ← OracleComp.replicate (t p.1.1 - p.2 - 1) (BitString.sampleList p.1.1)
     return ⟨p.1.1, p.1.2, p.2, front, back⟩
-  have hctx : IsPPTOn encNYG encAll sampleCtx :=
-    ((isPPTOn_sampleList.preprocess (by fun_prop)).replicate (by fun_prop)).bind_with
-      (((isPPTOn_sampleList.preprocess (by fun_prop)).replicate (by fun_prop)).bind_with
-        (encInverterCtx_mk_polyTime (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
-          (by fun_prop)).isPPTOn)
+  have hctx : IsPPTOn encNYG encAll sampleCtx := by
+    refine IsPPTOn.bind_with hfront ?_
+    refine IsPPTOn.bind_with hback ?_
+    exact (encInverterCtx_mk_polyTime (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
+      (by fun_prop)).isPPTOn
   let prepare (ctx : InverterCtx) : ℕ × List Bool :=
     (ctx.secParam, encList encBits (ctx.front.map f ++ ctx.challenge :: ctx.back.map f))
+  have ha_n : ComputableInPolyTime InverterCtx.secParam encAll encUnary := by fun_prop
+  have ha_y : ComputableInPolyTime InverterCtx.challenge encAll encBits := by fun_prop
+  have ha_g : ComputableInPolyTime InverterCtx.slot encAll encUnary := by fun_prop
+  have ha_front : ComputableInPolyTime InverterCtx.front encAll (encList encBits) := by fun_prop
+  have ha_back : ComputableInPolyTime InverterCtx.back encAll (encList encBits) := by fun_prop
   have hmap_f : ∀ {l : InverterCtx → List (List Bool)},
       ComputableInPolyTime l encAll (encList encBits) →
       ComputableInPolyTime (fun ctx => (l ctx).map f) encAll (encList encBits) := fun hl =>
     ComputableInPolyTime.mapWithInput hl (hf.comp (ComputableInPolyTime.snd encAll encBits))
   have hprepare : ComputableInPolyTime prepare encAll (encPair encUnary encBits) :=
-    ComputableInPolyTime.prod (by fun_prop) (ComputableInPolyTime.encoding_comp
-      (ComputableInPolyTime.listAppend' (hmap_f (by fun_prop))
-        (ComputableInPolyTime.cons' (by fun_prop) (hmap_f (by fun_prop)))))
+    ha_n.prod (ComputableInPolyTime.encoding_comp (ComputableInPolyTime.listAppend'
+      (hmap_f ha_front) (ComputableInPolyTime.cons' ha_y (hmap_f ha_back))))
   let seeds (ctx : InverterCtx) : List (List Bool) :=
     ctx.front ++ [] :: ctx.back
+  have hseeds : ComputableInPolyTime seeds encAll (encList encBits) :=
+    ComputableInPolyTime.listAppend' ha_front (ComputableInPolyTime.cons' (.const []) ha_back)
   let handler (ctx : InverterCtx)
       (request : Unit × List Bool) (_ : Unit) : ProbComp (List Bool × Unit) :=
     pure (if request.2.length = ctx.slot then []
       else (seeds ctx).getD request.2.length [], ())
   have hhandler : IsPPTOn (encHandlerCall encAll encUnit encUnit) (encPair encBits encUnit)
       (fun ⟨ctx, request, s⟩ => handler ctx request s) := by
-    refine ComputableInPolyTime.isPPTOn (ComputableInPolyTime.prod ?_ (.const ()))
-    dsimp only [encHandlerCall]
-    fun_prop
+    let encCall := encHandlerCall encAll encUnit encUnit
+    have hca : ComputableInPolyTime (fun q : _ => q.1) encCall encAll :=
+      ComputableInPolyTime.fst encAll (encPair (encPair encUnit encBits) encUnit)
+    have hcreq : ComputableInPolyTime (fun q : _ => q.2.1.2) encCall encBits := by polytime
+    have hans : ComputableInPolyTime
+        (fun q : _ => if q.2.1.2.length = q.1.slot then []
+          else (seeds q.1).getD q.2.1.2.length []) encCall encBits :=
+      ComputableInPolyTime.ite_decide
+        (ComputableInPolyTime.unary_eq' (ComputableInPolyTime.length_bits_comp hcreq)
+          (ha_g.comp hca))
+        (.const [])
+        (ComputableInPolyTime.listGetDWithInput (hseeds.comp hca)
+          (ComputableInPolyTime.length_bits_comp hcreq) [])
+    exact (hans.prod (.const ())).isPPTOn
+  have hresources : ComputableInPolyTime
+      (fun pair : InverterCtx × List Bool => (encList encBits (seeds pair.1)).length)
+      (encPair encAll encBits) encUnary :=
+    ComputableInPolyTime.length_bits_comp
+      (ComputableInPolyTime.encoding_comp
+        (hseeds.comp (ComputableInPolyTime.fst encAll encBits)))
   have hrun := hadversary.run_interpret_preprocess
     (operationEncoding := encUnit) (stateEncoding := encUnit)
     (handler := handler) (resources := fun ctx _ => (encList encBits (seeds ctx)).length)
-    hprepare hhandler (.const ()) (fun _ _ => True) (fun _ => trivial) (by fun_prop)
+    hprepare hhandler (.const ()) (fun _ _ => True) (fun _ => trivial) hresources
     (fun ctx request _ _ result hres => by
       dsimp only [handler] at hres
       simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hres
@@ -240,6 +286,17 @@ theorem isPPT_repeatedInverter {f : List Bool → List Bool} {t : ℕ → ℕ}
         | none => simp
         | some v =>
           simpa using length_le_encList_of_mem encBits (List.mem_of_getElem? hget))
+  have hpost : ComputableInPolyTime
+      (fun q : InverterCtx × ((List Bool × List Bool) × Unit) =>
+        if q.2.1.1.length = q.1.slot then q.2.1.2 else [])
+      (encPair encAll (encPair (encPair encBits encBits) encUnit)) encBits := by
+    have hq_all := ComputableInPolyTime.fst encAll (encPair (encPair encBits encBits) encUnit)
+    exact ComputableInPolyTime.ite_decide
+      (ComputableInPolyTime.unary_eq'
+        (ComputableInPolyTime.length_bits_comp (by polytime))
+        (ha_g.comp hq_all))
+      (by polytime)
+      (.const [])
   let body : ℕ → List Bool → ProbComp (List Bool) := fun n y => do
     let g ← ProbComp.sampleDyadicIndex (t n)
     if g < t n then do
@@ -250,10 +307,11 @@ theorem isPPT_repeatedInverter {f : List Bool → List Bool} {t : ℕ → ℕ}
       return if res.1.1.length = ctx.slot then res.1.2 else []
     else return []
   have hbody : IsPPT encBits body :=
-    ((isPPTOn_sampleDyadicIndex (by fun_prop)).bind_with (IsPPTOn.ite (by fun_prop)
+    (hg.bind_with (IsPPTOn.ite
+      (ComputableInPolyTime.unary_lt' (by polytime) (ht_ny.comp (by polytime)))
       (hctx.bind (hrun.bind_with
         (second := fun ctx res => pure (if res.1.1.length = ctx.slot then res.1.2 else []))
-        (ComputableInPolyTime.isPPTOn (by fun_prop))))
+        hpost.isPPTOn))
       (ComputableInPolyTime.const []).isPPTOn)).isPPT
   refine hbody.congr fun n y => ?_
   simp only [body, repeatedInverter, ProbComp.eval_bind]

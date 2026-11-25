@@ -389,35 +389,44 @@ theorem directCore_le
     have hcW : c * (ES + 1) ≤ c * W ^ 2 := by
       rw [sq]; exact Nat.mul_le_mul_left _ ((show ES + 1 ≤ W by omega).trans (Nat.le_mul_self W))
     nlinarith only [hproj, hnW, hcW]
-  obtain ⟨K, hK⟩ : ∃ K, K = ct + cs + c₁ + dt + ds + 2 * K₁ := ⟨_, rfl⟩
-  rw [← hK]
   have hpoly : K₁ * ((DescribedNetwork.encInput (encPair encUnary (encList encNat)) encT
-      ((P, fl), G)).length + c * (ES + 1) + n * (2 * n + 3) + 1) ^ K₁ ≤ c₁ * W ^ K := by
-    refine le_trans ?_ (mul_pow_le hW1 (show 2 * K₁ ≤ K by omega))
+      ((P, fl), G)).length + c * (ES + 1) + n * (2 * n + 3) + 1) ^ K₁ ≤
+      c₁ * W ^ (2 * K₁) := by
     rw [hc₁, pow_mul, Nat.mul_assoc, ← Nat.mul_pow]
     exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hA _)
-  have hit := hit (P, fl, r, G)
-  have his := his (P, fl, r, G)
-  rw [← hn] at hit his
-  have hWK {f a d : ℕ} (h : f ≤ a * (n + 1) ^ d) (hd : d ≤ K) : f ≤ a * W ^ K :=
-    h.trans ((Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hnW _)).trans (mul_pow_le hW1 hd))
+  have hit' : (NativeCertificate.ofPolyTime (sumInput_polyTime (encT := encT))).time
+      (P, fl, r, G) ≤ ct * W ^ dt := by
+    have h := hit (P, fl, r, G)
+    rw [← hn] at h
+    exact h.trans (Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hnW _))
+  have his' : (NativeCertificate.ofPolyTime (sumInput_polyTime (encT := encT))).space
+      (P, fl, r, G) ≤ cs * W ^ ds := by
+    have h := his (P, fl, r, G)
+    rw [← hn] at h
+    exact h.trans (Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hnW _))
+  obtain ⟨K, hK⟩ : ∃ K, K = ct + cs + c₁ + dt + ds + 2 * K₁ := ⟨_, rfl⟩
+  rw [← hK]
+  have hct : ct * W ^ dt ≤ ct * W ^ K := mul_pow_le hW1 (by omega)
+  have hcs : cs * W ^ ds ≤ cs * W ^ K := mul_pow_le hW1 (by omega)
+  have hc1 : c₁ * W ^ (2 * K₁) ≤ c₁ * W ^ K := mul_pow_le hW1 (by omega)
   have hsum : ct * W ^ K + cs * W ^ K + c₁ * W ^ K ≤ K * W ^ K := by
     rw [← Nat.add_mul, ← Nat.add_mul]; exact Nat.mul_le_mul_right _ (by omega)
+  have hP1 : 1 ≤ 2 ^ G.numEdges * (G.vertices.length + 1) + 1 := by omega
   constructor
   · rw [directCore_time]
-    calc _ ≤ ct * W ^ K + (2 ^ G.numEdges * (G.vertices.length + 1) + 1) *
-          (c₁ * W ^ K + 2 * E) :=
-          Nat.add_le_add (hWK hit (by omega))
-            (hT.trans (Nat.mul_le_mul_left _ (Nat.add_le_add_right hpoly _)))
+    calc _ ≤ ct * W ^ dt + (2 ^ G.numEdges * (G.vertices.length + 1) + 1) *
+          (c₁ * W ^ (2 * K₁) + 2 * E) :=
+          Nat.add_le_add hit' (hT.trans (Nat.mul_le_mul_left _ (Nat.add_le_add_right hpoly _)))
       _ ≤ (2 ^ G.numEdges * (G.vertices.length + 1) + 1) *
           (ct * W ^ K + (c₁ * W ^ K + 2 * E)) := by
           rw [Nat.mul_add _ (ct * W ^ K)]
-          exact Nat.add_le_add_right (Nat.le_mul_of_pos_left _ (by omega)) _
+          refine Nat.add_le_add ((hct.trans (Nat.le_mul_of_pos_left _ hP1))) ?_
+          exact Nat.mul_le_mul_left _ (by omega)
       _ ≤ _ := Nat.mul_le_mul_left _ (by omega)
   · rw [directCore_space]
-    have := Nat.add_le_add (hWK his (show ds ≤ K by omega))
-      (hS.trans (Nat.add_le_add_right hpoly _))
-    omega
+    calc _ ≤ cs * W ^ ds + (c₁ * W ^ (2 * K₁) + ES) :=
+          Nat.add_le_add his' (hS.trans (Nat.add_le_add_right hpoly _))
+      _ ≤ _ := by omega
 
 /-- **Direct summation on admissible inputs** takes time `K (n + 1) ^ K 2 ^ (K s)` and space
 `K (n + 1) ^ K`, at the modulus of the number of edges, for `K` depending only on the constants:
@@ -433,7 +442,7 @@ theorem exists_directCore_le
           K * ((encInput encT (P, FastContraction.modulus G.numEdges, r, G)).length + 1) ^ K := by
   obtain ⟨K₀, hK₀⟩ := directCore_le (entry := entry) ce
   obtain ⟨c₀, hc₀⟩ : ∃ c₀, c₀ = C * 3 ^ C + 1 := ⟨_, rfl⟩
-  obtain ⟨K, hK⟩ : ∃ K, K = 8 * (K₀ * (c₀ + 1) ^ K₀ + c₀ + 1) + (C + 1) * K₀ + 2 * C + 3 :=
+  obtain ⟨K, hK⟩ : ∃ K, K = 4 * (K₀ * (c₀ + 1) ^ K₀ + c₀ + 1) * 2 + K₀ * (C + 1) + C + 3 :=
     ⟨_, rfl⟩
   refine ⟨K, fun s P r G hA => ?_⟩
   obtain ⟨-, hsm, hmC, -, hent⟩ := hA
@@ -466,47 +475,64 @@ theorem exists_directCore_le
       (Nat.mul_le_mul_left _ (ceilNineTenths_le_self s)))
   obtain ⟨hT, hS⟩ := hK₀ P (FastContraction.modulus G.numEdges) r G E ES hbnd
   rw [← hn] at hT hS
-  -- Arithmetic, with `X = n + 1` and `Y = 2 ^ (C s)`.
+  -- Arithmetic.
+  have hn1 : 1 ≤ n + 1 := by omega
+  have hWES : n + ES + 1 ≤ (c₀ + 1) * (n + 1) ^ (C + 1) := by
+    have h1 : n + 1 ≤ (n + 1) ^ (C + 1) := by
+      calc n + 1 = (n + 1) ^ 1 := (pow_one _).symm
+        _ ≤ (n + 1) ^ (C + 1) := Nat.pow_le_pow_right hn1 (by omega)
+    have h2 : ES ≤ c₀ * (n + 1) ^ (C + 1) := by
+      rw [hES]; exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hn1 (by omega))
+    rw [Nat.add_mul, one_mul]; omega
+  obtain ⟨A₀, hA₀⟩ : ∃ A₀, A₀ = K₀ * (c₀ + 1) ^ K₀ := ⟨_, rfl⟩
   obtain ⟨X, hX⟩ : ∃ X, X = n + 1 := ⟨_, rfl⟩
   obtain ⟨Y, hY⟩ : ∃ Y, Y = 2 ^ (C * s) := ⟨_, rfl⟩
-  obtain ⟨A₀, hA₀⟩ : ∃ A₀, A₀ = K₀ * (c₀ + 1) ^ K₀ := ⟨_, rfl⟩
   obtain ⟨e, he⟩ : ∃ e, e = (C + 1) * K₀ + C := ⟨_, rfl⟩
-  rw [← hX] at hE hES ⊢
+  rw [← hX] at hn1 hWES hE hES ⊢
   rw [← hY] at hE
-  have hX1 : 1 ≤ X := by omega
+  have hX1 : 1 ≤ X := hn1
   have hY1 : 1 ≤ Y := hY ▸ Nat.one_le_two_pow
-  have hXC : X ^ C ≤ X ^ e := Nat.pow_le_pow_right hX1 (by omega)
-  have hpoly : K₀ * (n + ES + 1) ^ K₀ ≤ A₀ * X ^ e := by
-    have hWES : n + ES + 1 ≤ (c₀ + 1) * X ^ (C + 1) := by
-      have := Nat.le_self_pow (by omega : C + 1 ≠ 0) X
-      have := Nat.mul_le_mul_left c₀ (Nat.pow_le_pow_right hX1 (by omega : C ≤ C + 1))
-      rw [Nat.add_mul, one_mul]; omega
-    rw [hA₀, Nat.mul_assoc]
-    refine Nat.mul_le_mul_left _ ((Nat.pow_le_pow_left hWES _).trans ?_)
-    rw [Nat.mul_pow, ← pow_mul]
-    exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hX1 (by omega))
-  have hKc : 2 * (A₀ + 2 * c₀) ≤ K := by omega
-  have hKe : e + 1 ≤ K := by omega
+  have hpoly : K₀ * (n + ES + 1) ^ K₀ ≤ A₀ * X ^ ((C + 1) * K₀) := by
+    rw [hA₀, pow_mul, Nat.mul_assoc, ← Nat.mul_pow]
+    exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hWES _)
+  have hXe1 : X ^ ((C + 1) * K₀) ≤ X ^ e := Nat.pow_le_pow_right hX1 (by omega)
+  have hXe2 : X ^ C ≤ X ^ e := Nat.pow_le_pow_right hX1 (by omega)
+  -- The number of assignments and vertices.
+  have hk : G.vertices.length + 1 ≤ X := by omega
+  have hm : 2 ^ G.numEdges ≤ Y := hY ▸ Nat.pow_le_pow_right (by norm_num) hmC
+  have hcount : 2 ^ G.numEdges * (G.vertices.length + 1) + 1 ≤ 2 * (Y * X) := by
+    have := Nat.mul_le_mul hm hk
+    have : 1 ≤ Y * X := Nat.one_le_iff_ne_zero.mpr (by positivity)
+    omega
+  have hinner : K₀ * (n + ES + 1) ^ K₀ + 2 * E ≤ (A₀ + 2 * c₀) * X ^ e * Y := by
+    have h1 : A₀ * X ^ ((C + 1) * K₀) ≤ A₀ * X ^ e * Y :=
+      (Nat.mul_le_mul_left _ hXe1).trans (Nat.le_mul_of_pos_right _ hY1)
+    have h2 : 2 * E ≤ 2 * c₀ * X ^ e * Y := by
+      rw [hE, Nat.mul_assoc 2 c₀, Nat.mul_assoc, Nat.mul_assoc, Nat.mul_assoc]
+      exact Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ (Nat.mul_le_mul_right _ hXe2))
+    have e3 : (A₀ + 2 * c₀) * X ^ e * Y = A₀ * X ^ e * Y + 2 * c₀ * X ^ e * Y := by ring
+    omega
+  have hCc : C ≤ c₀ := by
+    have : C ≤ C * 3 ^ C := Nat.le_mul_of_pos_right _ (by positivity)
+    omega
+  have hKc : 2 * (A₀ + 2 * c₀) ≤ K := by rw [hK, ← hA₀]; omega
+  have hKe : e + 1 ≤ K := by
+    have : (C + 1) * K₀ = K₀ * (C + 1) := Nat.mul_comm _ _
+    rw [hK, he]; omega
+  have hKY : Y * Y ≤ 2 ^ (K * s) := by
+    have h2C : 2 * C ≤ K := by rw [hK]; omega
+    rw [hY, ← pow_add]
+    refine Nat.pow_le_pow_right (by norm_num) ?_
+    calc C * s + C * s = 2 * C * s := by ring
+      _ ≤ K * s := Nat.mul_le_mul_right _ h2C
   constructor
-  · -- The number of assignments and vertices.
-    have hcount : 2 ^ G.numEdges * (G.vertices.length + 1) + 1 ≤ 2 * (Y * X) := by
-      have := Nat.mul_le_mul (hY ▸ Nat.pow_le_pow_right two_pos hmC : 2 ^ G.numEdges ≤ Y)
-        (show G.vertices.length + 1 ≤ X by omega)
-      have := Nat.mul_le_mul hY1 hX1
-      omega
-    have hinner : K₀ * (n + ES + 1) ^ K₀ + 2 * E ≤ (A₀ + 2 * c₀) * X ^ e * Y := by
-      have := Nat.le_mul_of_pos_right (A₀ * X ^ e) hY1
-      have : E ≤ c₀ * X ^ e * Y := hE ▸ Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ hXC)
-      have : (A₀ + 2 * c₀) * X ^ e * Y = A₀ * X ^ e * Y + 2 * (c₀ * X ^ e * Y) := by ring
-      omega
-    have hKY : Y * Y ≤ 2 ^ (K * s) := by
-      rw [hY, ← pow_add, ← two_mul, ← Nat.mul_assoc]
-      exact Nat.pow_le_pow_right two_pos (Nat.mul_le_mul_right _ (by omega))
-    calc _ ≤ 2 * (Y * X) * ((A₀ + 2 * c₀) * X ^ e * Y) := hT.trans (Nat.mul_le_mul hcount hinner)
+  · calc _ ≤ 2 * (Y * X) * ((A₀ + 2 * c₀) * X ^ e * Y) := hT.trans (Nat.mul_le_mul hcount hinner)
       _ = 2 * (A₀ + 2 * c₀) * X ^ (e + 1) * (Y * Y) := by rw [pow_succ]; ring
       _ ≤ K * X ^ K * 2 ^ (K * s) := by gcongr
-  · have := Nat.mul_le_mul_left c₀ hXC
-    calc _ ≤ (A₀ + c₀) * X ^ e := by rw [Nat.add_mul]; omega
+  · have h1 : ES ≤ c₀ * X ^ e := hES ▸ Nat.mul_le_mul_left _ hXe2
+    calc _ ≤ A₀ * X ^ e + c₀ * X ^ e :=
+          hS.trans (Nat.add_le_add (hpoly.trans (Nat.mul_le_mul_left _ hXe1)) h1)
+      _ = (A₀ + c₀) * X ^ e := by ring
       _ ≤ K * X ^ K := Nat.mul_le_mul (by omega) (Nat.pow_le_pow_right hX1 (by omega))
 
 /-! ### Polynomial-time entry procedures and tables -/

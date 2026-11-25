@@ -86,6 +86,9 @@ private theorem exec_condAddCode {w n bC M : ℕ}
     have hck : y.mem (bT + y.regs idx) = cur k₀ := by
       rw [hf _ (by omega)]
       exact hcur k₀
+    have hf1 : Fits w (bF + y.regs idx) := hfitF.of_le (by omega)
+    have hf2 : Fits w (bT + y.regs idx) := hfitT.of_le (by omega)
+    have hf3 : Fits w (y.regs idx + 1) := hfitN.of_le (by omega)
     have hta : targetBase ≠ addr := fun h => by subst h; simp at ht_lt
     have htv : targetBase ≠ val := fun h => by subst h; simp at ht_lt
     have hstep : ∃ z, ExecWithin w (condAddBody flagBase targetBase) y z 9 ∧
@@ -95,17 +98,21 @@ private theorem exec_condAddCode {w n bC M : ℕ}
       refine WP.exists_execWithin ?_
       unfold condAddBody
       by_cases ht : flag k₀ = true
-      · have heq_e : cur k₀ + delta = e (y.regs idx) := by
+      · have ht_val : (if flag k₀ = true then 1 else 0) = 1 := ite_eq_left ht
+        have heq_e : cur k₀ + delta = e (y.regs idx) := by
           simp only [e, hlt, dite_true]
           exact (ite_eq_left ht).symm
         have hf4 : Fits w (cur k₀ + delta) := hfitAdd k₀ ht
-        wram_exec [hbF_y, hbT_y, hta, htv, hby.hone, hby.hzero, hdel_y, hfk, ht, hck]
+        wram_exec [hbF_y, hbT_y, hta, htv, hby.hone, hby.hzero, hdel_y,
+          hfk, ht_val, hck, hf1, hf2, hf3, hf4]
         exact ⟨by wram_simp [hta, htv, hbT_y, heq_e], fun i hi => by wram_simp [hr i hi],
           by wram_simp⟩
-      · have heq_e : cur k₀ = e (y.regs idx) := by
+      · have ht_val : (if flag k₀ = true then 1 else 0) = 0 := ite_eq_right ht
+        have heq_e : cur k₀ = e (y.regs idx) := by
           simp only [e, hlt, dite_true]
           exact (ite_eq_right ht).symm
-        wram_exec [hbF_y, hbT_y, hta, htv, hby.hone, hby.hzero, hdel_y, hfk, ht, hck]
+        wram_exec [hbF_y, hbT_y, hta, htv, hby.hone, hby.hzero, hdel_y,
+          hfk, ht_val, hck, hf1, hf2, hf3]
         exact ⟨by wram_simp [hta, htv, hbT_y, hck, heq_e], fun i hi => by wram_simp [hr i hi],
           by wram_simp⟩
     obtain ⟨z, he, hmz, hrz, hiz⟩ := hstep
@@ -221,6 +228,9 @@ private theorem exec_dualMinvCode {w n bC M W : ℕ} {c : Fin n × Fin n → ℤ
       exact hminv_x j
     have hmb := hSI.minv_bounds j
     have hdb := hSI.minv_bounds j₁
+    have hf1 : Fits w (bC + n * n + 3 * n + y.regs idx) := hfit.of_le (by omega)
+    have hf2 : Fits w (d + y.regs idx) := hfit.of_le (by omega)
+    have hf3 : Fits w (y.regs idx + 1) := hfit.of_le (by omega)
     have hstep : ∃ z, ExecWithin w dualMinvBody y z 9 ∧
         z.mem = Function.update y.mem (d + y.regs idx) (e (y.regs idx)) ∧
         (∀ i : Fin 28, i.val < 21 → z.regs i = x.regs i) ∧
@@ -228,13 +238,16 @@ private theorem exec_dualMinvCode {w n bC M W : ℕ} {c : Fin n × Fin n → ℤ
       refine WP.exists_execWithin ?_
       unfold dualMinvBody
       by_cases hu : vget s.used j = true
-      · have heq_e : (vget s.minv j).toNat = e (y.regs idx) := by
+      · have hu_val : (if vget s.used j = true then 1 else 0) = 1 := ite_eq_left hu
+        have heq_e : (vget s.minv j).toNat = e (y.regs idx) := by
           simp only [e, hlt, dite_true]
           change _ = (vget (hgDual s (vget s.minv j₁)).minv j).toNat
           rw [hgDual_minv, ite_eq_left hu]
-        wram_exec [hby.hbaseUsed, hby.hbaseMinv, hby.hone, hby.hzero, hdel_y, hu_j, hu, hm_j]
+        wram_exec [hby.hbaseUsed, hby.hbaseMinv, hby.hone, hby.hzero, hdel_y,
+          hu_j, hu_val, hm_j, hf1, hf2, hf3]
         exact ⟨by wram_simp [d, heq_e], fun i hi => by wram_simp [hr i hi], by wram_simp⟩
       · have huf : vget s.used j = false := Bool.eq_false_iff.mpr hu
+        have hu_val : (if vget s.used j = true then 1 else 0) = 0 := ite_eq_right hu
         have hle_m : (vget s.minv j₁).toNat ≤ (vget s.minv j).toNat := by
           have := hmin j huf
           omega
@@ -244,8 +257,9 @@ private theorem exec_dualMinvCode {w n bC M W : ℕ} {c : Fin n × Fin n → ℤ
           rw [hgDual_minv, ite_eq_right hu]
           have := hmin j huf
           omega
+        have hf4 : Fits w ((vget s.minv j).toNat - (vget s.minv j₁).toNat) := hfit.of_le (by omega)
         wram_exec [hby.hbaseUsed, hby.hbaseMinv, hby.hone, hby.hzero, hdel_y,
-          hu_j, huf, hm_j, hle_m]
+          hu_j, hu_val, hm_j, hle_m, hf1, hf2, hf3, hf4]
         exact ⟨by wram_simp [d, heq_e], fun i hi => by wram_simp [hr i hi], by wram_simp⟩
     obtain ⟨z, he, hmz, hrz, hiz⟩ := hstep
     obtain ⟨hm', hf'⟩ := prefix_write_step hm hf hmz

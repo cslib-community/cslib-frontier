@@ -62,29 +62,48 @@ private theorem exec_rowMinCode {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ}
     have hz_y : y.regs zero = 0 := (hr zero (by decide)).trans hb.hzero
     have ho_y : y.regs one = 1 := (hr one (by decide)).trans hb.hone
     have hmul_lt : u.val * n + y.regs idx2 < n * n := Cslib.Matrix.pairIndex_lt (u, v)
+    have hf1 : Fits w (u.val * n) := hfit.of_le (by omega)
+    have hf2 : Fits w (u.val * n + y.regs idx2) := hfit.of_le (by omega)
+    have hf3 : Fits w (bC + (u.val * n + u.val)) :=
+      hfit.of_le (by have : u.val * n + u.val < n * n := Cslib.Matrix.pairIndex_lt (u, u); omega)
+    have hf3' : Fits w (bC + (u.val * n + y.regs idx2)) := hfit.of_le (by omega)
+    have hf4 : Fits w (y.regs idx2 + 1) := hfit.of_le (by omega)
     have hload : y.mem (bC + (u.val * n + y.regs idx2)) = C (u, v) := by
       rw [hmem]
       exact hC u v
-    have hCv := hCW u v
     have htk := List.take_succ_finRange hlt
     refine WP.exists_execWithin ?_
     unfold rowMinBody
-    wram_exec [hidx, hrn_y, hbC_y, hz_y, ho_y, hload]
-    all_goals
-      refine ⟨⟨fun i hi => by wram_simp [hr i hi], hmem, by wram_simp; omega, ?_⟩, by wram_simp⟩
-      wram_simp
-      rw [htk, List.foldl_append, List.foldl_cons, List.foldl_nil, ← haccEq]
-      dsimp only [c, v] at hc ⊢
-      simp only [min_def]
-      split_ifs <;> omega
+    by_cases hcmp : C (u, v) < y.regs acc
+    · wram_exec [hidx, hrn_y, hbC_y, hz_y, ho_y, hload, hcmp, hf1, hf2, hf3', hf4]
+      refine ⟨⟨fun i hi => by wram_simp [hr i hi], hmem, ?_, ?_⟩, by wram_simp⟩
+      · wram_simp
+        exact hCW u v
+      · wram_simp
+        rw [htk, List.foldl_append, List.foldl_cons, List.foldl_nil, ← haccEq]
+        dsimp only [c, v] at hcmp ⊢
+        simp only [min_def]
+        split_ifs <;> omega
+    · wram_exec [hidx, hrn_y, hbC_y, hz_y, ho_y, hload, hcmp, hf1, hf2, hf3', hf4]
+      refine ⟨⟨fun i hi => by wram_simp [hr i hi], hmem, ?_, ?_⟩, by wram_simp⟩
+      · wram_simp
+        exact haccW
+      · wram_simp
+        rw [htk, List.foldl_append, List.foldl_cons, List.foldl_nil, ← haccEq]
+        dsimp only [c, v] at hcmp ⊢
+        simp only [min_def]
+        split_ifs <;> omega
   have hmul_uu : u.val * n + u.val < n * n := Cslib.Matrix.pairIndex_lt (u, u)
+  have hf1 : Fits w (u.val * n) := hfit.of_le (by omega)
+  have hf2 : Fits w (u.val * n + u.val) := hfit.of_le (by omega)
+  have hf3 : Fits w (bC + (u.val * n + u.val)) := hfit.of_le (by omega)
   have hload0 : x.mem (bC + (u.val * n + u.val)) = C (u, u) := hC u u
   have hs₀ : ∃ s₀, ExecWithin w
       (ram[ addr ← idx * rn; addr ← addr + idx; addr ← baseC + addr; acc ← *addr; idx2 ← #0 ] :
         Code .standard 28)
       x s₀ 5 ∧ P 0 s₀ ∧ s₀.regs idx2 = 0 := by
     refine WP.exists_execWithin ?_
-    wram_exec [hu, hb.hrn, hb.hbaseC, hload0]
+    wram_exec [hu, hb.hrn, hb.hbaseC, hload0, hf1, hf2, hf3]
     exact ⟨⟨fun i hi => by wram_simp, rfl, by wram_simp; exact hCW u u,
       by wram_simp; simp [c]⟩, by wram_simp⟩
   obtain ⟨s₀, hes₀, hPs₀, hidxs₀⟩ := hs₀
@@ -137,6 +156,8 @@ private theorem exec_initYCode {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ}
     have hidx₁ : y₁.regs idx = y.regs idx := hr₁ idx (by decide)
     have hone₁ : y₁.regs one = 1 :=
       ((hr₁ one (by decide)).trans (hr one (by decide))).trans hb.hone
+    have hf_addr : Fits w (d + y.regs idx) := hfit.of_le (by omega)
+    have hf_next : Fits w (y.regs idx + 1) := hfit.of_le (by omega)
     have hej : y₁.regs acc = e (y.regs idx) := by
       simp only [e, hlt, dite_true]
       exact hacc₁
@@ -145,7 +166,7 @@ private theorem exec_initYCode {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ}
         z = ((y₁.set addr (d + y.regs idx)).write (d + y.regs idx) (e (y.regs idx))).set idx
           (y.regs idx + 1) := by
       refine WP.exists_execWithin ?_
-      wram_exec [hbY₁, hidx₁, hone₁, hej]
+      wram_exec [hbY₁, hidx₁, hone₁, hej, hf_addr, hf_next]
       rfl
     obtain ⟨z, he₂, rfl⟩ := hstep₂
     have hmem_z : (((y₁.set addr (d + y.regs idx)).write (d + y.regs idx) (e (y.regs idx))).set idx
@@ -262,7 +283,15 @@ private theorem exec_initMinvCode {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ
     have hy_r : y.mem (bC + n * n + r.val) = (vget y₀ r).toNat := by
       rw [hf _ (by omega)]
       exact hOM.hy r
-    have hr_lt := r.isLt
+    have hf1 : Fits w (r.val * n) := hfit.of_le (by omega)
+    have hf2 : Fits w (r.val * n + y.regs idx) := hfit.of_le (by omega)
+    have hf3 : Fits w (bC + (r.val * n + y.regs idx)) := hfit.of_le (by omega)
+    have hf4 : Fits w (bC + n * n + n + y.regs idx) := hfit.of_le (by omega)
+    have hf5 : Fits w (C (r, j) + (-vget z₀ j).toNat) := hfit.of_le (by omega)
+    have hf6 : Fits w (bC + n * n + r.val) := hfit.of_le (by have := r.isLt; omega)
+    have hf7 : Fits w (C (r, j) + (-vget z₀ j).toNat - (vget y₀ r).toNat) := hfit.of_le (by omega)
+    have hf8 : Fits w (d + y.regs idx) := hfit.of_le (by omega)
+    have hf9 : Fits w (y.regs idx + 1) := hfit.of_le (by omega)
     have hej : C (r, j) + (-vget z₀ j).toNat - (vget y₀ r).toNat = e (y.regs idx) := by
       simp only [e, hlt, dite_true]
       exact hred_eq
@@ -273,7 +302,7 @@ private theorem exec_initMinvCode {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ
       refine WP.exists_execWithin ?_
       unfold initMinvBody
       wram_exec [hrr_y, hby.hrn, hby.hbaseC, hby.hbaseNZ, hby.hbaseY, hby.hbaseMinv, hby.hone,
-        hC_rj, hnz_j, hy_r, hle_sub]
+        hC_rj, hnz_j, hy_r, hle_sub, hf1, hf2, hf3, hf4, hf5, hf6, hf7, hf8, hf9]
       refine ⟨?_, fun i hi => by wram_simp [hr i hi], by wram_simp⟩
       wram_simp [d, hej]
     obtain ⟨z, he, hmz, hrz, hiz⟩ := hstep
@@ -357,7 +386,11 @@ theorem exec_initPhaseCode {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ}
     fun a ha => (hf₅ a (by omega)).trans (hout₄ a ha)
   refine ⟨_, (he₁.seq (he₂.seq (he₃.seq (he₄.seq (he₅.seq he₆))))).mono (by omega),
     fun i hi => ?_, by wram_simp, ?_, hout₅⟩
-  · wram_simp [hr₅ i (by omega), hr₄ i (by omega), hr₂ i (by omega), hr₁ i (by omega)]
+  · have h5 := hr₅ i (by omega)
+    have h4 := hr₄ i (by omega)
+    have h2 := hr₂ i (by omega)
+    have h1 := hr₁ i (by omega)
+    wram_simp [h5, h4, h2, h1]
   · refine ⟨⟨fun i => ?_, fun j => ?_, fun j => ?_, fun j i hm => ?_, fun i hm => ?_⟩,
       fun j => ?_, fun i => ?_, fun j => ?_, fun j => ?_⟩
     · change y₅.mem _ = _

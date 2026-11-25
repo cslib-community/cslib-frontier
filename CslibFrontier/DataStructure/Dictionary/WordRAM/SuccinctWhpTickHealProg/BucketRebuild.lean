@@ -434,13 +434,18 @@ private theorem buildBktSliceLoop_safe_and_frame {c U V w n_max base b salt : �
     set s1 := (Memory.spec 0).clientState s
       (buildBktSliceStepProg ((((cp, base), (rt, hrt)), (b, salt)), l₀))
     obtain ⟨hsafe_r, hseed_r, hoth_r⟩ := ih (l₀ + 1) sl1 mf1 s1 (by omega) hseed1 hrep1 hv1
-    unfold buildBktSliceLoopProg at hseed_r hoth_r ⊢
-    dsimp only [iterate]
-    rw [clientState_bind, hres1]
-    refine ⟨⟨hpre, ?_⟩, hseed_r, fun sIdx hsIdx hne sl₂ hr₂ =>
-      hoth_r sIdx hsIdx hne sl₂ (hoth1 sIdx hsIdx hne sl₂ hr₂)⟩
-    rw [clientState_width, clientResult_width, hres1]
-    exact hsafe_r
+    refine ⟨⟨hpre, ?_⟩, ?_, ?_⟩
+    · rw [clientState_width, clientResult_width, hres1]
+      exact hsafe_r
+    · unfold buildBktSliceLoopProg at hseed_r ⊢
+      dsimp only [iterate]
+      rw [clientState_bind, hres1]
+      exact hseed_r
+    · intro sIdx hsIdx hne sl₂ hr₂
+      unfold buildBktSliceLoopProg at hoth_r ⊢
+      dsimp only [iterate]
+      rw [clientState_bind, hres1]
+      exact hoth_r sIdx hsIdx hne sl₂ (hoth1 sIdx hsIdx hne sl₂ hr₂)
 
 private theorem buildBktSliceLoop_spec {c U V w n_max base b salt cnt : ℕ}
     {θ : SeedWhp c U n_max} {qArr : ℕ → ℕ} {backPtr : ℕ → ℕ → ℕ} {s₀ : Memory.State}
@@ -564,12 +569,18 @@ private theorem buildBktSliceLoop_spec {c U V w n_max base b salt cnt : ℕ}
     dsimp only [iterate]
     have hdiv3 : (3 * b) / 3 = b := by omega
     have hmod3 : (3 * b) % 3 = 0 := by omega
-    rw [clientState_bind, hs1.1, hs1.2.1]
-    exact ⟨hfr_r.trans hfr_bi, validProg_bind hs1.2.2 (by rw [hs1.1, hs1.2.1]; exact hvp_r),
-      hrep_r, fun sIdx' hsIdx' hne sl₂ hr₂ =>
-        hoth_r sIdx' hsIdx' hne sl₂ (hoth_bi sIdx' hsIdx' hne sl₂ hr₂),
-      fun idx hidx h10 h11 => (hbm_r idx hidx h10 h11).trans
-        (hbm_bi idx hidx (by rw [hdiv3, hmod3]; omega) (by rw [hdiv3, hmod3]; omega)), hout_r⟩
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
+    · rw [clientState_bind, hs1.1, hs1.2.1]; exact hfr_r.trans hfr_bi
+    · refine validProg_bind hs1.2.2 ?_; rw [hs1.1, hs1.2.1]; exact hvp_r
+    · rw [clientState_bind, hs1.1, hs1.2.1]; exact hrep_r
+    · intro sIdx' hsIdx' hne sl₂ hr₂
+      rw [clientState_bind, hs1.1, hs1.2.1]
+      exact hoth_r sIdx' hsIdx' hne sl₂ (hoth_bi sIdx' hsIdx' hne sl₂ hr₂)
+    · intro idx hidx h10 h11
+      rw [clientState_bind, hs1.1, hs1.2.1, hbm_r idx hidx h10 h11]
+      exact hbm_bi idx hidx (by rw [hdiv3, hmod3]; omega) (by rw [hdiv3, hmod3]; omega)
+    · intro a ha
+      rw [clientState_bind, hs1.1, hs1.2.1]; exact hout_r a ha
 
 /-- Single bucket step of `buildAllBucketsOuterLoopProg`. -/
 @[irreducible] def buildAllBucketsOuterStepProg :
@@ -857,13 +868,28 @@ theorem buildAllBucketsOuterLoop_spec {c U V w n_max base : ℕ}
       intro sIdx hsIdx
       by_cases heq3 : sIdx = 3 * b₀
       · subst heq3
+        have hlt1 : (3 * b₀) / 3 < b₀ + 1 := by omega
+        rw [ite_eq_left hlt1]
         dsimp only [targetSlice]
-        rw [ite_eq_left (by omega), show (3 * b₀) / 3 = b₀ by omega, show (3 * b₀) % 3 = 0 by omega,
-          ite_eq_left ⟨hb_lt, rfl⟩]
+        have hd : (3 * b₀) / 3 = b₀ := by omega
+        have hm : (3 * b₀) % 3 = 0 := by omega
+        rw [hd, hm, ite_eq_left ⟨hb_lt, rfl⟩]
         exact hin_rep
       · have hp := hin_oth sIdx hsIdx heq3 _ (hprev sIdx hsIdx)
-        dsimp only [targetSlice] at hp ⊢
-        split_ifs at hp ⊢ <;> first | exact hp | omega
+        by_cases hlt0 : sIdx / 3 < b₀
+        · have hlt1 : sIdx / 3 < b₀ + 1 := by omega
+          rw [ite_eq_left hlt0] at hp; rw [ite_eq_left hlt1]; exact hp
+        · by_cases hlt1 : sIdx / 3 < b₀ + 1
+          · have hdb : sIdx / 3 = b₀ := by omega
+            have hmr : sIdx % 3 ≠ 0 := by omega
+            rw [ite_eq_right hlt0] at hp
+            rw [ite_eq_left hlt1]
+            dsimp only [targetSlice]
+            rw [hdb, ite_eq_right (fun h => hmr h.2)]
+            exact hp
+          · rw [ite_eq_right hlt0] at hp
+            rw [ite_eq_right hlt1]
+            exact hp
     have hsalt1 : ∀ b < M,
         readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w s_in.mem (16 * b + 1) =
           salts b := fun b hb =>
@@ -874,9 +900,15 @@ theorem buildAllBucketsOuterLoop_spec {c U V w n_max base : ℕ}
     rw [hadd] at hrep_r
     unfold buildAllBucketsOuterLoopProg at hfr_r hvp_r hrep_r hsalt_r hout_r ⊢
     dsimp only [iterate]
-    rw [clientState_bind, hs1.1, hs1.2.1]
-    exact ⟨hfr_r.trans hin_fr, validProg_bind hs1.2.2 (by rw [hs1.1, hs1.2.1]; exact hvp_r),
-      hrep_r, hsalt_r, hout_r⟩
+    refine ⟨?_, ?_, ?_, ?_, ?_⟩
+    · rw [clientState_bind, hs1.1, hs1.2.1]; exact hfr_r.trans hin_fr
+    · refine validProg_bind hs1.2.2 ?_; rw [hs1.1, hs1.2.1]; exact hvp_r
+    · intro sIdx hsIdx
+      rw [clientState_bind, hs1.1, hs1.2.1]; exact hrep_r sIdx hsIdx
+    · intro b hb
+      rw [clientState_bind, hs1.1, hs1.2.1]; exact hsalt_r b hb
+    · intro a ha
+      rw [clientState_bind, hs1.1, hs1.2.1]; exact hout_r a ha
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
 

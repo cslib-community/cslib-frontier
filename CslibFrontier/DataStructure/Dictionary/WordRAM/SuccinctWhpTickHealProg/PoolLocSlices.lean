@@ -55,19 +55,6 @@ open Cslib.DataStructure.Dictionary.SuccinctWhp
 open Cslib.DataStructure.Dictionary.WordRAM.BitPackedArray
 open Cslib.DataStructure.Dictionary.WordRAM.Succinct
 
-/-- Unrolls one iteration of `iterate` whose first body run satisfies `StepSpec`. -/
-private theorem iterate_succ_of_stepSpec {γ : Type} {w F : ℕ} {step : γ × ℕ → Memory.Prog ℕ}
-    {cfg : γ} {rem p₀ : ℕ} {s s₁ : Memory.State}
-    (h : StepSpec w F s (step (cfg, p₀)) s₁ (p₀ + 1))
-    (hvp : ValidProg w F s₁ (iterate step cfg rem (p₀ + 1))) :
-    (Memory.spec 0).clientState s (iterate step cfg (rem + 1) p₀) =
-        (Memory.spec 0).clientState s₁ (iterate step cfg rem (p₀ + 1)) ∧
-      ValidProg w F s (iterate step cfg (rem + 1) p₀) := by
-  dsimp only [iterate]
-  refine ⟨?_, validProg_bind h.2.2 ?_⟩
-  · rw [clientState_bind, h.1, h.2.1]
-  · rw [h.1, h.2.1]; exact hvp
-
 /-! ## Phase D1: `fillPoolOwnerLoopProg` (populate `offPoolOwner[poolIdx]`) -/
 
 /-- Single pool-slot step of `fillPoolOwnerLoopProg`. -/
@@ -274,21 +261,23 @@ theorem fillPoolOwnerLoop_spec {c U V w n_max base : ℕ} {fbStart : ℕ → ℕ
     set p1 := fillPoolOwnerStepProg ((rt, bp M), p₀)
     set m1 := writePacked (base + offPoolOwner c U V w n_max) (globalPtrBits n_max) w s.mem
       p₀ (findOwner p₀)
-    have hk_of : p₀ < bp M → csrBucketOfIdx bp p₀ M < M ∧ bp (csrBucketOfIdx bp p₀ M) ≤ p₀ ∧
-        p₀ - bp (csrBucketOfIdx bp p₀ M) < cb := fun hlt => by
-      obtain ⟨hb_i, hlo_i, hhi_i⟩ := csrBucketOfIdx_spec hbp0 hbp_le_step M le_rfl p₀ hlt
-      have h1 := hbp_adj _ hb_i
-      have h2 := hback_cb _ hb_i
-      refine ⟨hb_i, hlo_i, ?_⟩
-      change buildBackPrefix M cf fbStart (csrBucketOfIdx bp p₀ M) ≤ p₀ at hlo_i
-      dsimp only [bp, cf, cb] at h1 h2 hlo_i hhi_i ⊢
-      omega
     have hown_pow : findOwner p₀ < 2 ^ globalPtrBits n_max := by
       dsimp only [findOwner]
-      split_ifs with hlt
-      · obtain ⟨hb_i, -, hk_cb⟩ := hk_of hlt
+      by_cases hlt : p₀ < bp M
+      · obtain ⟨hb_i, hlo_i, hhi_i⟩ := csrBucketOfIdx_spec hbp0 hbp_le_step M le_rfl p₀ hlt
+        have hk_cb : p₀ - bp (csrBucketOfIdx bp p₀ M) < cb := by
+          have h1 : bp (csrBucketOfIdx bp p₀ M + 1) =
+              bp (csrBucketOfIdx bp p₀ M) +
+                ((fbStart (csrBucketOfIdx bp p₀ M + 1) - fbStart (csrBucketOfIdx bp p₀ M)) - cf) :=
+            hbp_adj _ hb_i
+          have h2 : (fbStart (csrBucketOfIdx bp p₀ M + 1) - fbStart (csrBucketOfIdx bp p₀ M)) - cf <
+              cb := hback_cb _ hb_i
+          change buildBackPrefix M cf fbStart (csrBucketOfIdx bp p₀ M) ≤ p₀ at hlo_i
+          dsimp only [bp, cf, cb] at h1 h2 hlo_i hhi_i ⊢
+          omega
+        rw [ite_eq_left hlt]
         exact lt_two_pow_globalPtrBits_of_le_n_max ((mul_add_lt_mul_bound hb_i hk_cb).le.trans hMcb)
-      · exact Nat.two_pow_pos _
+      · rw [ite_eq_right hlt]; exact Nat.two_pow_pos _
     have hs1 : StepSpec w (base + largeSpaceWhp c U V w n_max) s p1
         { mem := m1, frontier := s.frontier } (p₀ + 1) := by
       dsimp only [p1]; unfold fillPoolOwnerStepProg
@@ -297,18 +286,32 @@ theorem fillPoolOwnerLoop_spec {c U V w n_max base : ℕ} {fbStart : ℕ → ℕ
       by_cases hlt : p₀ < bp M
       · obtain ⟨_, hsb_st, hsb_res, hsb_vp⟩ :=
           scanBucketLoop_invariant (target := p₀) henv (Or.inr ⟨rfl, rfl⟩) (s := s)
-        rw [csrBucketOfIdx_congr hbp_s] at hsb_res
-        obtain ⟨hb_i, hlo_i, hk_cb⟩ := hk_of hlt
+        have hsb_b : csrBucketOfIdx (fun x => readPacked (base + offBktMeta c U V w n_max)
+            (globalPtrBits n_max) w s.mem (2 * x)) p₀ M = csrBucketOfIdx bp p₀ M :=
+          csrBucketOfIdx_congr hbp_s
+        rw [hsb_b] at hsb_res
         set b_i := csrBucketOfIdx bp p₀ M
+        obtain ⟨hb_i, hlo_i, hhi_i⟩ := csrBucketOfIdx_spec hbp0 hbp_le_step M le_rfl p₀ hlt
+        have hk_cb : p₀ - bp b_i < cb := by
+          have h1 : bp (b_i + 1) = bp b_i + ((fbStart (b_i + 1) - fbStart b_i) - cf) :=
+            hbp_adj b_i hb_i
+          have h2 : (fbStart (b_i + 1) - fbStart b_i) - cf < cb := hback_cb b_i hb_i
+          have hlo' : bp b_i ≤ p₀ := hlo_i
+          have hhi' : p₀ < bp (b_i + 1) := hhi_i
+          dsimp only [b_i, bp, cf, cb] at h1 h2 hlo' hhi' ⊢
+          omega
         have h2bi : 2 * b_i < 16 * M :=
           (Nat.mul_lt_mul_of_pos_left hb_i two_pos).trans_le (Nat.mul_le_mul_right _ (by decide))
         have hown_eq : findOwner p₀ = b_i * cb + (p₀ - bp b_i) := ite_eq_left hlt
+        have hsb_step : StepSpec w (base + largeSpaceWhp c U V w n_max) s _ s
+            (numBucketsWhp n_max, b_i) :=
+          ⟨hsb_st, hsb_res, hsb_vp⟩
         simp only [hlt, ↓reduceIte]
-        refine (show StepSpec w _ s _ s (numBucketsWhp n_max, b_i) from
-          ⟨hsb_st, hsb_res, hsb_vp⟩).bind ?_
+        refine hsb_step.bind ?_
         simp only [show b_i < numBucketsWhp n_max from hb_i, ↓reduceIte]
         refine (StepSpec.readPackedGen_eq hw h2bi hbm_b (hbp_s b_i hb_i.le)).bind ?_
-        simp only [hlo_i, show p₀ - bp b_i < capBackWhp n_max from hk_cb, ↓reduceIte]
+        simp only [show bp b_i ≤ p₀ from hlo_i,
+          show p₀ - bp b_i < capBackWhp n_max from hk_cb, ↓reduceIte]
         dsimp only [m1]; rw [hown_eq]
         exact (StepSpec.writePackedGen hw hgk hp_lt hpo_b).bind (StepSpec.pure _ _)
       · have hown0 : findOwner p₀ = 0 := ite_eq_right hlt
@@ -329,10 +332,15 @@ theorem fillPoolOwnerLoop_spec {c U V w n_max base : ℕ} {fbStart : ℕ → ℕ
       intro a ha; dsimp only [s1, m1]
       rw [writePacked_outside hw _ hp_lt _ (by omega)]; exact hout a ha
     obtain ⟨hf_r, hvp_r, hp_r, hout_r⟩ := ih (p₀ + 1) s1 (by omega) hprev1 hout1
+    have hadd : p₀ + 1 + rem = p₀ + (rem + 1) := by omega
+    rw [hadd] at hp_r
     unfold fillPoolOwnerLoopProg at hf_r hvp_r hp_r hout_r ⊢
-    obtain ⟨hst, hvp⟩ := iterate_succ_of_stepSpec hs1 hvp_r
-    dsimp only; rw [hst]
-    exact ⟨hf_r, hvp, fun idx hidx => hp_r idx (by omega), hout_r⟩
+    dsimp only [iterate]
+    refine ⟨?_, ?_, ?_, ?_⟩
+    · rw [clientState_bind, hs1.1, hs1.2.1]; exact hf_r
+    · refine validProg_bind hs1.2.2 ?_; rw [hs1.1, hs1.2.1]; exact hvp_r
+    · intro idx hidx; rw [clientState_bind, hs1.1, hs1.2.1]; exact hp_r idx hidx
+    · intro a ha; rw [clientState_bind, hs1.1, hs1.2.1]; exact hout_r a ha
 
 /-! ## Phase D2: `fillFreeStackLoopProg` (populate `offPoolFreeStack[j]`) -/
 
@@ -504,13 +512,18 @@ theorem fillFreeStackLoop_spec {c U V w n_max base totalBack : ℕ}
       · rw [readPacked_writePacked_of_ne hw _ (by omega)]; exact hprev idx hlt
       · exact readPacked_writePacked_self _ _ _ _ _ hv_pow
     obtain ⟨hf_r, hvp_r, hp_r, hout_r⟩ := ih (j₀ + 1) s1 (by omega) hprev1
+    have hadd : j₀ + 1 + rem = j₀ + (rem + 1) := by omega
+    rw [hadd] at hp_r
     unfold fillFreeStackLoopProg at hf_r hvp_r hp_r hout_r ⊢
-    obtain ⟨hst, hvp⟩ := iterate_succ_of_stepSpec hs1 hvp_r
-    dsimp only; rw [hst]
-    refine ⟨hf_r, hvp, fun idx hidx => hp_r idx (by omega), fun a ha => ?_⟩
-    rw [hout_r a ha]
-    dsimp only [ps] at hj_lt hps_end
-    exact writePacked_outside hw _ hj_lt _ (by omega)
+    dsimp only [iterate]
+    refine ⟨?_, ?_, ?_, ?_⟩
+    · rw [clientState_bind, hs1.1, hs1.2.1]; exact hf_r
+    · refine validProg_bind hs1.2.2 ?_; rw [hs1.1, hs1.2.1]; exact hvp_r
+    · intro idx hidx; rw [clientState_bind, hs1.1, hs1.2.1]; exact hp_r idx hidx
+    · intro a ha
+      rw [clientState_bind, hs1.1, hs1.2.1, hout_r a ha]
+      dsimp only [ps] at hj_lt hps_end
+      exact writePacked_outside hw _ hj_lt _ (by omega)
 
 /-! ## Phase D3: `fillLocStateOuterLoopProg` (populate `offLocState`) -/
 
@@ -682,17 +695,28 @@ private theorem fillLocStateInnerLoop_spec {c U V w n_max base b cnt : ℕ}
       · rw [readPacked_writePacked_of_ne hw _ (by omega)]; exact hprev loc hlt
       · exact readPacked_writePacked_self _ _ _ _ _ hv_pow
     obtain ⟨hf_r, hvp_r, hp_r, hoth_r, hout_r⟩ := ih (l₀ + 1) s1 (by omega) hprev1
+    have hadd : l₀ + 1 + rem = l₀ + (rem + 1) := by omega
+    rw [hadd] at hp_r
     unfold fillLocStateInnerLoopProg at hf_r hvp_r hp_r hoth_r hout_r ⊢
-    obtain ⟨hst, hvp⟩ := iterate_succ_of_stepSpec hs1 hvp_r
-    dsimp only; rw [hst]
-    refine ⟨hf_r, hvp, fun loc hloc => hp_r loc (by omega), fun b' hb' hne loc hloc => ?_,
-      fun a ha => ?_⟩
-    · rw [hoth_r b' hb' hne loc hloc]
-      have hd : ∀ x y, y < totalLoc → (x * totalLoc + y) / totalLoc = x := fun x y hy => by
-        rw [mul_comm, Nat.mul_add_div (by omega), Nat.div_eq_of_lt hy, Nat.add_zero]
-      exact readPacked_writePacked_of_ne hw _
-        (fun heq => hne (by rw [← hd b' loc hloc, heq, hd b l₀ hl_lt])) _
-    · rw [hout_r a ha]
+    dsimp only [iterate]
+    refine ⟨?_, ?_, ?_, ?_, ?_⟩
+    · rw [clientState_bind, hs1.1, hs1.2.1]; exact hf_r
+    · refine validProg_bind hs1.2.2 ?_; rw [hs1.1, hs1.2.1]; exact hvp_r
+    · intro loc hloc
+      rw [clientState_bind, hs1.1, hs1.2.1]; exact hp_r loc hloc
+    · intro b' hb' hne loc hloc
+      rw [clientState_bind, hs1.1, hs1.2.1, hoth_r b' hb' hne loc hloc]
+      have hne_idx : b' * totalLoc + loc ≠ b * totalLoc + l₀ := by
+        intro heq
+        have htl_pos : 0 < totalLoc := by omega
+        have hd1 : (b' * totalLoc + loc) / totalLoc = b' := by
+          rw [mul_comm, Nat.mul_add_div htl_pos, Nat.div_eq_of_lt hloc, Nat.add_zero]
+        have hd2 : (b * totalLoc + l₀) / totalLoc = b := by
+          rw [mul_comm, Nat.mul_add_div htl_pos, Nat.div_eq_of_lt hl_lt, Nat.add_zero]
+        exact hne (by rw [← hd1, heq, hd2])
+      exact readPacked_writePacked_of_ne hw _ hne_idx _
+    · intro a ha
+      rw [clientState_bind, hs1.1, hs1.2.1, hout_r a ha]
       dsimp only [M, totalLoc] at hidx hls_end
       exact writePacked_outside hw _ hidx _ (by omega)
 
@@ -863,10 +887,16 @@ theorem fillLocStateOuterLoop_spec {c U V w n_max base : ℕ} {fbStart : ℕ →
         base + offBktMeta c U V w n_max ≤ a) → s_in.mem a = s₀.mem a :=
       fun a ha => (hin_out a ha).trans (hout a ha)
     obtain ⟨hf_r, hvp_r, hp_r, hout_r⟩ := ih (b₀ + 1) s_in (by omega) hprev1 hout1
+    have hadd : b₀ + 1 + rem = b₀ + (rem + 1) := by omega
+    rw [hadd] at hp_r
     unfold fillLocStateOuterLoopProg at hf_r hvp_r hp_r hout_r ⊢
-    obtain ⟨hst, hvp⟩ := iterate_succ_of_stepSpec hs1 hvp_r
-    dsimp only; rw [hst]
-    exact ⟨hf_r.trans hin_f, hvp, fun b hb => hp_r b (by omega), hout_r⟩
+    dsimp only [iterate]
+    refine ⟨?_, ?_, ?_, ?_⟩
+    · rw [clientState_bind, hs1.1, hs1.2.1]; exact hf_r.trans hin_f
+    · refine validProg_bind hs1.2.2 ?_; rw [hs1.1, hs1.2.1]; exact hvp_r
+    · intro b hb loc hloc
+      rw [clientState_bind, hs1.1, hs1.2.1]; exact hp_r b hb loc hloc
+    · intro a ha; rw [clientState_bind, hs1.1, hs1.2.1]; exact hout_r a ha
 
 /-! ## Phase E1: `resetAllSlicesLoopProg` (reset all `3 * M` slices to `zeroBTreeSlice`) -/
 
@@ -997,14 +1027,22 @@ theorem resetAllSlicesLoop_spec {c U V w n_max base : ℕ}
       · exact hoth1 sIdx (hlt.trans hs_lt) (by omega) zeroBTreeSlice (hprev sIdx hlt)
       · exact hrep1
     obtain ⟨hfr_r, hvp_r, hrep_r, hbm_r, hout_r⟩ := ih (s₀ + 1) s1 (by omega) hprev1
+    have hadd : s₀ + 1 + rem = s₀ + (rem + 1) := by omega
+    rw [hadd] at hrep_r
     unfold resetAllSlicesLoopProg at hfr_r hvp_r hrep_r hbm_r hout_r ⊢
-    obtain ⟨hst, hvp⟩ := iterate_succ_of_stepSpec hs1_eq hvp_r
-    dsimp only; rw [hst]
-    refine ⟨hfr_r.trans hfr1, hvp, fun sIdx hsIdx => hrep_r sIdx (by omega),
-      fun idx hidx hmod => ?_, fun a ha => (hout_r a ha).trans (hout1 a ha)⟩
-    rw [hbm_r idx hidx hmod]
-    have hrole : s₀ % 3 < 3 := Nat.mod_lt _ (by decide)
-    exact hbm1 idx hidx (by omega) (by omega)
+    dsimp only [iterate]
+    refine ⟨?_, ?_, ?_, ?_, ?_⟩
+    · rw [clientState_bind, hs1_eq.1, hs1_eq.2.1]; exact hfr_r.trans hfr1
+    · refine validProg_bind hs1_eq.2.2 ?_; rw [hs1_eq.1, hs1_eq.2.1]; exact hvp_r
+    · intro sIdx hsIdx
+      rw [clientState_bind, hs1_eq.1, hs1_eq.2.1]; exact hrep_r sIdx hsIdx
+    · intro idx hidx hmod
+      rw [clientState_bind, hs1_eq.1, hs1_eq.2.1, hbm_r idx hidx hmod]
+      have hrole : s₀ % 3 < 3 := Nat.mod_lt _ (by decide)
+      exact hbm1 idx hidx (by omega) (by omega)
+    · intro a ha
+      rw [clientState_bind, hs1_eq.1, hs1_eq.2.1, hout_r a ha]
+      exact hout1 a ha
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
 

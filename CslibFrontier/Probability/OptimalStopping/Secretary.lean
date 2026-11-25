@@ -97,8 +97,22 @@ private def insertLast {n : ℕ} (v : Fin (n + 1)) (τ : Equiv.Perm (Fin n)) :
 private theorem insertLast_injective {n : ℕ} (v : Fin (n + 1)) (τ : Equiv.Perm (Fin n)) :
     Function.Injective (insertLast v τ) := by
   intro a b h
-  cases a using Fin.lastCases <;> cases b using Fin.lastCases <;>
-    simp_all [insertLast, Fin.succAbove_ne, Fin.ne_succAbove]
+  induction a using Fin.lastCases with
+  | last =>
+    induction b using Fin.lastCases with
+    | last => rfl
+    | cast j =>
+      simp only [insertLast, Fin.lastCases_last, Fin.lastCases_castSucc] at h
+      exact absurd h.symm (Fin.succAbove_ne v (τ j))
+  | cast i =>
+    induction b using Fin.lastCases with
+    | last =>
+      simp only [insertLast, Fin.lastCases_last, Fin.lastCases_castSucc] at h
+      exact absurd h (Fin.succAbove_ne v (τ i))
+    | cast j =>
+      simp only [insertLast, Fin.lastCases_castSucc, Fin.succAbove_right_inj,
+        EmbeddingLike.apply_eq_iff_eq] at h
+      rw [h]
 
 private noncomputable def insertPerm {n : ℕ} (v : Fin (n + 1)) (τ : Equiv.Perm (Fin n)) :
     Equiv.Perm (Fin (n + 1)) :=
@@ -112,11 +126,19 @@ first `n`. -/
 private theorem insertPerm_bijective (n : ℕ) :
     Function.Bijective (fun p : Fin (n + 1) × Equiv.Perm (Fin n) => insertPerm p.1 p.2) := by
   rw [Fintype.bijective_iff_injective_and_card]
-  refine ⟨fun ⟨v, τ⟩ ⟨w, ρ⟩ h => ?_, by simp [Fintype.card_perm, Nat.factorial_succ]⟩
-  obtain rfl : v = w := by simpa [insertPerm_apply, insertLast] using Equiv.congr_fun h (.last n)
-  obtain rfl : τ = ρ := Equiv.ext fun j => by
-    simpa [insertPerm_apply, insertLast] using Equiv.congr_fun h j.castSucc
-  rfl
+  refine ⟨fun ⟨v, τ⟩ ⟨w, ρ⟩ h => ?_, ?_⟩
+  · have hv : v = w := by
+      have := congrArg (fun σ : Equiv.Perm (Fin (n + 1)) => σ (Fin.last n)) h
+      simpa [insertPerm_apply, insertLast] using this
+    subst hv
+    have hτ : τ = ρ := by
+      ext j
+      have := congrArg (fun σ : Equiv.Perm (Fin (n + 1)) => σ j.castSucc) h
+      simp only [insertPerm_apply, insertLast, Fin.lastCases_castSucc,
+        Fin.succAbove_right_inj] at this
+      rw [this]
+    rw [hτ]
+  · simp [Fintype.card_perm, Nat.factorial_succ]
 
 private theorem relRank_insertPerm_castSucc {n : ℕ} (v : Fin (n + 1)) (τ : Equiv.Perm (Fin n))
     (j : Fin n) : relRank (insertPerm v τ) j.castSucc = relRank τ j := by
@@ -219,17 +241,21 @@ theorem relRank_eq_zero_iff {n : ℕ} (σ : Equiv.Perm (Fin n)) (i : Fin n) :
 /-- An arrival is the best overall exactly when it is the best so far and no later arrival is. -/
 theorem isMax_iff_relRank {n : ℕ} (σ : Equiv.Perm (Fin n)) (i : Fin n) :
     (∀ j, σ j ≤ σ i) ↔ relRank σ i = 0 ∧ ∀ j, i < j → relRank σ j ≠ 0 := by
-  have hmax : ∀ i, (∀ j, σ j ≤ σ i) → relRank σ i = 0 := fun i h =>
-    (relRank_eq_zero_iff σ i).mpr fun j hj => (h j).lt_of_ne (σ.injective.ne hj.ne)
   constructor
-  · exact fun h => ⟨hmax i h, fun j hij hj => (h j).not_gt ((relRank_eq_zero_iff σ j).mp hj i hij)⟩
+  · intro h
+    refine ⟨(relRank_eq_zero_iff σ i).mpr fun j hj =>
+        lt_of_le_of_ne (h j) (fun he => hj.ne (σ.injective he)), fun j hij hj => ?_⟩
+    have := (relRank_eq_zero_iff σ j).mp hj i hij
+    exact absurd (h j) (not_le.mpr this)
   · rintro ⟨hi, hlater⟩
     have : Nonempty (Fin n) := ⟨i⟩
     obtain ⟨b, hb⟩ := Finite.exists_max σ
+    have hb0 : relRank σ b = 0 := (relRank_eq_zero_iff σ b).mpr fun j hj =>
+      lt_of_le_of_ne (hb j) (fun he => hj.ne (σ.injective he))
     rcases lt_trichotomy i b with hib | rfl | hbi
-    · exact absurd (hmax b hb) (hlater b hib)
+    · exact absurd hb0 (hlater b hib)
     · exact hb
-    · exact absurd ((relRank_eq_zero_iff σ i).mp hi b hbi) (hb i).not_gt
+    · exact absurd (hb i) (not_le.mpr ((relRank_eq_zero_iff σ i).mp hi b hbi))
 
 private theorem zero_mem_drop_relRanks_iff {n : ℕ} (σ : Equiv.Perm (Fin n)) (k : ℕ) :
     0 ∈ (relRanks σ).drop (k + 1) ↔ ∃ j : Fin n, k < j ∧ relRank σ j = 0 := by
@@ -253,8 +279,13 @@ theorem payoff_winReward {n : ℕ} (rule : Rule) (σ : Equiv.Perm (Fin n)) :
   · have hk : k < n := by
       simpa [relRanks] using stopIndex_lt rule [] (relRanks σ) h
     have hwin : Wins rule σ ↔ ∀ j, σ j ≤ σ ⟨k, hk⟩ := by
-      simp only [Wins, h, Option.some.injEq]
-      exact ⟨fun ⟨i, hi, hmax⟩ => by subst hi; exact hmax, fun hmax => ⟨_, rfl, hmax⟩⟩
+      constructor
+      · rintro ⟨i, hi, hmax⟩
+        rw [h, Option.some.injEq] at hi
+        have : i = ⟨k, hk⟩ := Fin.ext hi.symm
+        rw [← this]; exact hmax
+      · intro hmax
+        exact ⟨⟨k, hk⟩, by simp [h], hmax⟩
     have hhead : ((relRanks σ).take (k + 1)).reverse.head? = some (relRank σ ⟨k, hk⟩) := by
       rw [List.head?_reverse, List.getLast?_take]
       simp [relRanks, hk]
@@ -331,16 +362,6 @@ private theorem tsum_rankLaws_noRecord (k m : ℕ) (hk : k ≠ 0) :
       push_cast at this
       exact this
 
-/-- Hiring arrival `k` of `n` when it is the best so far wins with probability `(k + 1) / n`. -/
-private theorem tsum_winReward_cons_zero {n k m : ℕ} (hk : k + (m + 1) = n) (past : List ℕ) :
-    ∑' xs, jointLaw (rankLaws (k + 1) m) xs * winReward (0 :: past) xs =
-      ENNReal.ofReal ((k + 1 : ℝ) / n) := by
-  simp only [winReward, List.head?_cons, true_and]
-  rw [tsum_rankLaws_noRecord (k + 1) m (Nat.succ_ne_zero k), ← hk]
-  congr 1
-  push_cast
-  ring
-
 /-- The success probability of the cutoff rule `cutoffRule (s + 1)` with `n` candidates:
 `s/n · ∑_{i=s}^{n-1} 1/i` for `s ≥ 1`, and `1/n` for `s = 0`. -/
 noncomputable def cutoffValue (n s : ℕ) : ℝ :=
@@ -397,14 +418,22 @@ private theorem tsum_payoff_cutoffRule (n s : ℕ) :
         (b := ENNReal.ofReal (cutoffValue n (k + 1)))]
       · rw [ofReal_avg k (by positivity) (cutoffValue_nonneg _ _), max_eq_left hks,
           ← cutoffValue_succ (by omega)]
-      · simpa using tsum_winReward_cons_zero hk past
+      · simp only [decide_true, ite_true, winReward, List.head?_cons, true_and]
+        rw [tsum_rankLaws_noRecord (k + 1) m (Nat.succ_ne_zero k)]
+        congr 2
+        · push_cast; ring_nf
+        · rw [← hk]; push_cast; ring
       · intro x hx
         simp only [hx, decide_false, Bool.false_eq_true, ite_false]
         rw [ih (k + 1) (by omega) (x :: past) (by simp [hpast]), max_eq_left (by omega)]
     · have hrule : ∀ x, cutoffRule (s + 1) (x :: past) = false := by
         intro x; simp [cutoffRule, hpast]; omega
       simp only [hrule, Bool.false_eq_true, ite_false]
-      simp only [fun x => ih (k + 1) (by omega) (x :: past) (by simp [hpast])]
+      have hconst : ∀ x, ∑' xs, jointLaw (rankLaws (k + 1) m) xs *
+          payoff (cutoffRule (s + 1)) winReward (x :: past) xs =
+            ENNReal.ofReal (cutoffValue n (max (k + 1) s)) :=
+        fun x => ih (k + 1) (by omega) (x :: past) (by simp [hpast])
+      simp only [hconst]
       rw [tsum_pmf_mul_const, max_eq_right (by omega), max_eq_right (by omega)]
 
 /-- The cutoff rule `cutoffRule (s + 1)` wins with probability `cutoffValue n s`. -/
@@ -485,8 +514,13 @@ private theorem valueFrom_rankLaws (n : ℕ) :
     have hstop : ∀ x, ∑' xs, jointLaw (rankLaws (k + 1) m) xs * winReward (x :: past) xs =
         if x = 0 then ENNReal.ofReal ((k + 1 : ℝ) / n) else 0 := by
       intro x
-      split_ifs with hx
-      · exact hx ▸ tsum_winReward_cons_zero hk past
+      by_cases hx : x = 0
+      · subst hx
+        simp only [winReward, List.head?_cons, true_and, ite_true]
+        rw [tsum_rankLaws_noRecord (k + 1) m (Nat.succ_ne_zero k)]
+        congr 2
+        · push_cast; ring_nf
+        · rw [← hk]; push_cast; ring
       · simp [winReward, hx]
     have hcont : ∀ x, valueFrom winReward (rankLaws (k + 1) m) (x :: past) =
         ENNReal.ofReal (cutoffValue n (max (k + 1) s)) := fun x => ih (k + 1) (by omega) (x :: past)
@@ -499,22 +533,37 @@ private theorem valueFrom_rankLaws (n : ℕ) :
       by_cases hks : s ≤ k
       · -- Past the optimal cutoff, hiring a best-so-far beats waiting.
         have hle : cutoffValue n (k + 1) ≤ (k + 1) / n := by
-          simp only [cutoffValue, Nat.succ_ne_zero k, ↓reduceIte]
-          push_cast
-          exact mul_le_of_le_one_right (by positivity) ((Finset.sum_le_sum_of_subset_of_nonneg
-            (Finset.Ico_subset_Ico (by omega) le_rfl) fun i _ _ => by positivity).trans
-            (sum_optimalCutoff_le n))
+          by_cases hkn : n ≤ k + 1
+          · rw [cutoffValue_of_le hkn]; positivity
+          · unfold cutoffValue
+            simp only [Nat.succ_ne_zero k, ↓reduceIte]
+            have hsum : ∑ i ∈ Finset.Ico (k + 1) n, (1 : ℝ) / i ≤ 1 :=
+              (Finset.sum_le_sum_of_subset_of_nonneg
+                (Finset.Ico_subset_Ico (by omega) le_rfl)
+                (fun i _ _ => by positivity)).trans (sum_optimalCutoff_le n)
+            push_cast
+            calc ((k : ℝ) + 1) / n * ∑ i ∈ Finset.Ico (k + 1) n, (1 : ℝ) / i
+                ≤ ((k : ℝ) + 1) / n * 1 := by gcongr
+              _ = ((k : ℝ) + 1) / n := mul_one _
         rw [max_eq_left (by omega : s ≤ k + 1), max_eq_left hle, max_eq_left hks]
         exact (cutoffValue_succ (show k < n by omega)).symm
       · -- Before the optimal cutoff, waiting beats hiring.
         push Not at hks
         have hge : ((k : ℝ) + 1) / n ≤ cutoffValue n s := by
+          have hsn : s < n := by
+            by_contra hsn
+            push Not at hsn
+            have := lt_sum_of_lt_optimalCutoff (n := n) (r := s) (by omega) (by omega)
+            rw [Finset.Ico_eq_empty_of_le hsn, Finset.sum_empty] at this
+            exact absurd this (by norm_num)
           have h1 := lt_sum_of_lt_optimalCutoff (n := n) (r := s) (by omega) (by omega)
-          simp only [cutoffValue, show s ≠ 0 by omega, ↓reduceIte]
+          unfold cutoffValue
+          simp only [show s ≠ 0 by omega, ↓reduceIte]
+          have hn : (0 : ℝ) < n := by exact_mod_cast (show 0 < n by omega)
           calc ((k : ℝ) + 1) / n ≤ (s : ℝ) / n := by
                 gcongr; exact_mod_cast (show k + 1 ≤ s by omega)
-            _ ≤ (s : ℝ) / n * ∑ i ∈ Finset.Ico s n, (1 : ℝ) / i :=
-                le_mul_of_one_le_right (by positivity) h1.le
+            _ = (s : ℝ) / n * 1 := (mul_one _).symm
+            _ ≤ (s : ℝ) / n * ∑ i ∈ Finset.Ico s n, (1 : ℝ) / i := by gcongr
         rw [max_eq_right (by omega : k + 1 ≤ s), max_eq_right hge, max_eq_right hks.le]
         field_simp
         ring

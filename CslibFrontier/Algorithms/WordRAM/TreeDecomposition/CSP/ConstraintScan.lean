@@ -52,25 +52,6 @@ open Cslib.WordRAM.Realization
 
 /-! ### Constraint-list scans for `leaf` and `introduce` nodes -/
 
-/-- The header words, scope, table and remaining constraints of a serialized constraint list
-`ct :: rest` stored at `cur`. -/
-private theorem holdsIn_constraint_cons {q cur : ℕ} {ct : ConstraintTable q}
-    {rest : List (ConstraintTable q)} {s : Memory.State}
-    (h : HoldsIn cur ((ct :: rest).flatMap ConstraintTable.encode) s) :
-    s.mem cur = ct.scope.length ∧ s.mem (cur + 1) = ct.table.length ∧
-      HoldsIn (cur + 2) ct.scope s ∧ HoldsIn (cur + 2 + ct.scope.length) ct.table s ∧
-      HoldsIn (cur + 2 + ct.scope.length + ct.table.length)
-        (rest.flatMap ConstraintTable.encode) s := by
-  have hsplit : ([ct.scope.length, ct.table.length] ++ ct.scope ++ ct.table) ++
-        rest.flatMap ConstraintTable.encode =
-      ct.scope.length :: ct.table.length ::
-        (ct.scope ++ (ct.table ++ rest.flatMap ConstraintTable.encode)) := by
-    simp [List.append_assoc]
-  rw [List.flatMap_cons, ConstraintTable.encode, hsplit, HoldsIn.cons_iff, HoldsIn.cons_iff,
-    HoldsIn.append_iff, HoldsIn.append_iff] at h
-  obtain ⟨-, h0, -, h1, hscope, htbl, hrest⟩ := h
-  exact ⟨h0, h1, hscope, htbl, hrest⟩
-
 private def checkLeafStep (env : Unit × SubScanState) : Memory.Prog SubScanState := do
   let st := env.2
   let scopeLen ← Memory.read st.cur
@@ -114,27 +95,50 @@ theorem checkLeafConstraintsProg_spec {w q : ℕ} (hq : 0 < q) (args : ℕ × �
       memoryCost (iterate checkLeafStep () rem.length ⟨cur, ok⟩) s ≤ 3 * rem.length by
     have hrun := this cs args.1 1 hcs (.inr rfl)
     rw [hlen] at hrun
-    obtain ⟨hv, hr, hc⟩ := hrun
-    unfold checkLeafConstraintsProg
-    refine ⟨validHistory_bind_step hv (validHistory_pure w _ _),
-      checkLeafConstraintsProg_state args s, ?_, ?_⟩
-    · rw [StateTransitionSpec.clientResult_bind, hr]
+    refine ⟨?_, checkLeafConstraintsProg_state args s, ?_, ?_⟩
+    · unfold checkLeafConstraintsProg
+      exact validHistory_bind_step hrun.1 (validHistory_pure w _ _)
+    · unfold checkLeafConstraintsProg
+      rw [StateTransitionSpec.clientResult_bind, hrun.2.1]
       cases cs.all fun ct => !decide (ct.scope = []) || ct.eval (fun _ => 0) <;> rfl
-    · rw [memoryCost_bind', memoryCost_pure, Nat.add_zero]
-      exact hc
+    · unfold checkLeafConstraintsProg
+      rw [memoryCost_bind', memoryCost_pure, Nat.add_zero]
+      exact hrun.2.2
   intro rem
   induction rem with
   | nil =>
     intro cur ok _ hok
-    refine ⟨validHistory_pure w s _, ?_, by simp [iterate]⟩
+    have h0 : iterate checkLeafStep () 0 ⟨cur, ok⟩ = pure ⟨cur, ok⟩ := rfl
+    rw [List.length_nil, h0]
+    refine ⟨validHistory_pure w s _, ?_, by simp [memoryCost_pure]⟩
     rcases hok with rfl | rfl <;> rfl
   | cons ct rest ih =>
     intro cur ok hcur hok
-    obtain ⟨hm_sl, hm_tl, -, htbl_h, hrest_h⟩ := holdsIn_constraint_cons hcur
+    rw [List.flatMap_cons, ConstraintTable.encode] at hcur
+    have hcons_split :
+        ([ct.scope.length, ct.table.length] ++ ct.scope ++ ct.table) ++
+          rest.flatMap ConstraintTable.encode =
+        ct.scope.length :: ct.table.length ::
+          (ct.scope ++ (ct.table ++ rest.flatMap ConstraintTable.encode)) := by
+      simp [List.append_assoc]
+    rw [hcons_split, HoldsIn.cons_iff] at hcur
+    obtain ⟨_, hm_sl, hcur1⟩ := hcur
+    rw [HoldsIn.cons_iff] at hcur1
+    obtain ⟨_, hm_tl, hcur2⟩ := hcur1
+    rw [HoldsIn.append_iff] at hcur2
+    obtain ⟨_, hcur3⟩ := hcur2
+    rw [HoldsIn.append_iff] at hcur3
+    obtain ⟨htbl_h, hrest_h⟩ := hcur3
     have htl_pos : 0 < ct.table.length := by
       rw [ct.table_len]
       exact Nat.one_le_pow _ _ hq
-    have hm_t0 : s.mem (cur + 2 + ct.scope.length) = ct.table[0] := htbl_h.get 0 htl_pos
+    have h0_lt : cur < s.frontier := by have := htbl_h.1; omega
+    have h1_lt : cur + 1 < s.frontier := by have := htbl_h.1; omega
+    have ht0_lt : cur + 2 + ct.scope.length < s.frontier := by have := htbl_h.1; omega
+    have hm_t0 : s.mem (cur + 2 + ct.scope.length) = ct.table[0] := by
+      have haddr : cur + 2 + ct.scope.length = cur + 1 + 1 + ct.scope.length + 0 := by omega
+      rw [haddr]
+      exact htbl_h.get 0 htl_pos
     let ok' := if ct.scope.length = 0 then (if ct.table[0] = 1 then ok else 0) else ok
     have hok' : ok' = 0 ∨ ok' = 1 := by
       dsimp only [ok']
@@ -143,24 +147,32 @@ theorem checkLeafConstraintsProg_spec {w q : ℕ} (hq : 0 < q) (args : ℕ × �
         ⟨cur + 2 + ct.scope.length + ct.table.length, ok'⟩ := by
       unfold checkLeafStep
       dsimp only
-      rw [clientResult_bind_read, hm_sl, clientResult_bind_read, hm_tl, clientResult_bind_read,
-        hm_t0]
+      have hr_s (x : ℕ) : (Memory.spec 0).clientState s (Memory.read x) = s := rfl
+      have hr_r (x : ℕ) : (Memory.spec 0).clientResult s (Memory.read x) = s.mem x := rfl
+      rw [StateTransitionSpec.clientResult_bind, hr_s, hr_r, hm_sl,
+        StateTransitionSpec.clientResult_bind, hr_s, hr_r, hm_tl,
+        StateTransitionSpec.clientResult_bind, hr_s, hr_r, hm_t0]
       rfl
     have hv_step : (Memory.spec w).ValidHistory s
         ((Memory.spec w).clientHistory s (checkLeafStep ((), ⟨cur, ok⟩))) := by
-      have := htbl_h.1
       unfold checkLeafStep
       dsimp only
-      refine validHistory_read_bind (by omega) ?_
+      refine validHistory_read_bind h0_lt ?_
       rw [hm_sl]
-      refine validHistory_read_bind (by omega) ?_
+      refine validHistory_read_bind h1_lt ?_
       rw [hm_tl]
-      exact validHistory_read_bind (by omega) (validHistory_pure w s _)
+      exact validHistory_read_bind ht0_lt (validHistory_pure w s _)
     have hc_step : memoryCost (checkLeafStep ((), ⟨cur, ok⟩)) s ≤ 3 := by
+      have hr_s (x : ℕ) : (Memory.spec 0).clientState s (Memory.read x) = s := rfl
+      have hr_r (x : ℕ) : (Memory.spec 0).clientResult s (Memory.read x) = s.mem x := rfl
       unfold checkLeafStep
       dsimp only
-      exact memoryCost_read_bind_le fun _ _ => memoryCost_read_bind_le fun _ _ =>
-        memoryCost_read_bind_le fun _ _ => (memoryCost_pure _ _).le
+      rw [memoryCost_bind', memoryCost_read, hr_s, hr_r, hm_sl,
+        memoryCost_bind', memoryCost_read, hr_s, hr_r, hm_tl,
+        memoryCost_bind', memoryCost_read, hr_s, hr_r, memoryCost_pure]
+    have hrest_ptr : cur + 1 + 1 + ct.scope.length + ct.table.length =
+        cur + 2 + ct.scope.length + ct.table.length := by omega
+    rw [hrest_ptr] at hrest_h
     obtain ⟨hv_rem, hr_rem, hc_rem⟩ := ih _ ok' hrest_h hok'
     simp only [List.length_cons, List.all_cons]
     have hiter_eq : iterate checkLeafStep () (rest.length + 1) ⟨cur, ok⟩ =
@@ -228,9 +240,21 @@ theorem checkLeafConstraintsProg_realizes :
       rw [← heq]
       exact List.drop_eq_getElem_cons hidx_lt
     let ct := cs[d.2 - (j + 1)]
-    rw [hdrop_cons] at hcur_h hcur_end
-    obtain ⟨hm_sl, hm_tl, -, -, hrest_h⟩ := holdsIn_constraint_cons hcur_h
-    rw [List.flatMap_cons, ConstraintTable.encode] at hcur_end
+    rw [hdrop_cons, List.flatMap_cons, ConstraintTable.encode] at hcur_h hcur_end
+    have hcons_split :
+        ([ct.scope.length, ct.table.length] ++ ct.scope ++ ct.table) ++
+          (cs.drop (d.2 - j)).flatMap ConstraintTable.encode =
+        ct.scope.length :: ct.table.length ::
+          (ct.scope ++ (ct.table ++ (cs.drop (d.2 - j)).flatMap ConstraintTable.encode)) := by
+      simp [ct, List.append_assoc]
+    rw [hcons_split, HoldsIn.cons_iff] at hcur_h
+    obtain ⟨_, hm_sl, hcur1⟩ := hcur_h
+    rw [HoldsIn.cons_iff] at hcur1
+    obtain ⟨_, hm_tl, hcur2⟩ := hcur1
+    rw [HoldsIn.append_iff] at hcur2
+    obtain ⟨_, hcur3⟩ := hcur2
+    rw [HoldsIn.append_iff] at hcur3
+    obtain ⟨_, hrest_h⟩ := hcur3
     have htl_pos : 0 < ct.table.length := by
       rw [ct.table_len]; exact Nat.one_le_pow _ _ hq
     simp only [List.length_append, List.length_cons, List.length_nil] at hcur_end
@@ -266,7 +290,9 @@ theorem checkLeafConstraintsProg_realizes :
         StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_bind]
       change HoldsIn (st.cur + 2 + t.mem st.cur + t.mem (st.cur + 1)) _ t
       rw [hm_sl, hm_tl]
-      exact hrest_h
+      have hptr : st.cur + 1 + 1 + ct.scope.length + ct.table.length =
+          st.cur + 2 + ct.scope.length + ct.table.length := by omega
+      rwa [hptr] at hrest_h
 
 private structure IntroConsEnv where
   q : ℕ
@@ -344,15 +370,19 @@ private theorem checkIntroStep_eval (e : IntroConsEnv) (st : SubScanState) (t : 
     let ok' := if isSub = 1 ∧ hasV = 1 then (if sat = 1 then st.found else 0) else st.found
     (Memory.spec 0).clientState t (checkIntroStep (e, st)) = t ∧
     (Memory.spec 0).clientResult t (checkIntroStep (e, st)) = ⟨tblPtr + tblLen, ok'⟩ := by
+  have hr_st (x : ℕ) : (Memory.spec 0).clientState t (Memory.read x) = t := rfl
+  have hr_res (x : ℕ) : (Memory.spec 0).clientResult t (Memory.read x) = t.mem x := rfl
   unfold checkIntroStep
   dsimp only
-  rw [clientState_bind_read, clientResult_bind_read, clientState_bind_read, clientResult_bind_read,
+  rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind, hr_st, hr_res,
+    StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind, hr_st, hr_res,
     StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
     subsetBagProg_state,
     StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
     bagMemProg_state,
     StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
-    radixProjProg_state]
+    radixProjProg_state,
+    StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind, hr_st, hr_res]
   exact ⟨rfl, rfl⟩
 
 /-- `checkIntroConstraintsProg` is read-only and leaves memory unchanged. -/
@@ -400,25 +430,43 @@ theorem checkIntroConstraintsProg_spec {w : ℕ} (args : IntroConsArgs) (hq : 0 
           (rem.map fun ct => ct.scope.length).sum * (2 * args.bagLen + 3) by
     have hrun := this cs args.consRawPtr 1 hcs (.inr rfl)
     rw [hcs_len] at hrun
-    obtain ⟨hv, hr, hc⟩ := hrun
-    unfold checkIntroConstraintsProg
-    refine ⟨validHistory_bind_step hv (validHistory_pure w _ _),
-      checkIntroConstraintsProg_state args s, ?_, ?_⟩
-    · rw [StateTransitionSpec.clientResult_bind, hr]
+    refine ⟨?_, checkIntroConstraintsProg_state args s, ?_, ?_⟩
+    · unfold checkIntroConstraintsProg
+      exact validHistory_bind_step hrun.1 (validHistory_pure w _ _)
+    · unfold checkIntroConstraintsProg
+      rw [StateTransitionSpec.clientResult_bind, hrun.2.1]
       cases cs.all fun ct =>
         !(decide (ct.scope.toFinset ⊆ LB.toFinset) && decide (args.v ∈ ct.scope)) ||
           ct.eval (ofRadix args.q LB args.m) <;> rfl
-    · rw [memoryCost_bind', memoryCost_pure, Nat.add_zero]
-      exact hc
+    · unfold checkIntroConstraintsProg
+      rw [memoryCost_bind', memoryCost_pure, Nat.add_zero]
+      exact hrun.2.2
   intro rem
   induction rem with
   | nil =>
     intro cur ok _ hok
-    refine ⟨validHistory_pure w s _, ?_, by simp [iterate]⟩
+    have h0 : iterate checkIntroStep env 0 ⟨cur, ok⟩ = pure ⟨cur, ok⟩ := rfl
+    rw [List.length_nil, h0]
+    refine ⟨validHistory_pure w s _, ?_, by simp [memoryCost_pure]⟩
     rcases hok with rfl | rfl <;> rfl
   | cons ct rest ih =>
     intro cur ok hcur hok
-    obtain ⟨hm_sl, hm_tl, hscope_h, htbl_h, hrest_h⟩ := holdsIn_constraint_cons hcur
+    rw [List.flatMap_cons, ConstraintTable.encode] at hcur
+    have hcons_split :
+        ([ct.scope.length, ct.table.length] ++ ct.scope ++ ct.table) ++
+          rest.flatMap ConstraintTable.encode =
+        ct.scope.length :: ct.table.length ::
+          (ct.scope ++ (ct.table ++ rest.flatMap ConstraintTable.encode)) := by
+      simp [List.append_assoc]
+    rw [hcons_split, HoldsIn.cons_iff] at hcur
+    obtain ⟨_, hm_sl, hcur1⟩ := hcur
+    rw [HoldsIn.cons_iff] at hcur1
+    obtain ⟨_, hm_tl, hcur2⟩ := hcur1
+    have hcur11 : cur + 1 + 1 = cur + 2 := by omega
+    rw [hcur11, HoldsIn.append_iff] at hcur2
+    obtain ⟨hscope_h, hcur3⟩ := hcur2
+    rw [HoldsIn.append_iff] at hcur3
+    obtain ⟨htbl_h, hrest_h⟩ := hcur3
     have h0_lt : cur < s.frontier := by have := htbl_h.1; omega
     have h1_lt : cur + 1 < s.frontier := by have := htbl_h.1; omega
     obtain ⟨hv_sub, hst_sub, hr_sub, hc_sub⟩ :=
@@ -473,15 +521,17 @@ theorem checkIntroConstraintsProg_spec {w : ℕ} (args : IntroConsArgs) (hq : 0 
       exact validHistory_read_bind hsat_addr (validHistory_pure w s _)
     have hc_step : memoryCost (checkIntroStep (env, ⟨cur, ok⟩)) s ≤
         3 + ct.scope.length * (2 * args.bagLen + 3) := by
+      have hr_s (x : ℕ) : (Memory.spec 0).clientState s (Memory.read x) = s := rfl
+      have hr_r (x : ℕ) : (Memory.spec 0).clientResult s (Memory.read x) = s.mem x := rfl
       dsimp only at hc_sub hc_bm hc_rp
       unfold checkIntroStep
       dsimp only [env]
-      rw [memoryCost_bind', memoryCost_read, clientState_read, clientResult_read, hm_sl,
-        memoryCost_bind', memoryCost_read, clientState_read, clientResult_read, hm_tl,
+      rw [memoryCost_bind', memoryCost_read, hr_s, hr_r, hm_sl,
+        memoryCost_bind', memoryCost_read, hr_s, hr_r, hm_tl,
         memoryCost_bind', hst_sub, hr_sub,
         memoryCost_bind', hst_bm, hr_bm,
         memoryCost_bind', hst_rp, hr_rp,
-        memoryCost_bind', memoryCost_read, clientState_read, clientResult_read, memoryCost_pure]
+        memoryCost_bind', memoryCost_read, hr_s, hr_r, memoryCost_pure]
       have hring :
           ct.scope.length * (args.bagLen + 1) + ct.scope.length +
             ct.scope.length * (args.bagLen + 1) =
@@ -554,9 +604,23 @@ theorem checkIntroConstraintsProg_realizes :
       rw [← heq]
       exact List.drop_eq_getElem_cons hidx_lt
     let ct := cs[d.numCons - (j + 1)]
-    rw [hdrop_cons] at hcur_h hcur_end
-    obtain ⟨hm_sl, hm_tl, -, -, hrest_h⟩ := holdsIn_constraint_cons hcur_h
-    rw [List.flatMap_cons, ConstraintTable.encode] at hcur_end
+    rw [hdrop_cons, List.flatMap_cons, ConstraintTable.encode] at hcur_h hcur_end
+    have hcons_split :
+        ([ct.scope.length, ct.table.length] ++ ct.scope ++ ct.table) ++
+          (cs.drop (d.numCons - j)).flatMap ConstraintTable.encode =
+        ct.scope.length :: ct.table.length ::
+          (ct.scope ++ (ct.table ++ (cs.drop (d.numCons - j)).flatMap ConstraintTable.encode)) :=
+      by
+      simp [ct, List.append_assoc]
+    rw [hcons_split, HoldsIn.cons_iff] at hcur_h
+    obtain ⟨_, hm_sl, hcur1⟩ := hcur_h
+    rw [HoldsIn.cons_iff] at hcur1
+    obtain ⟨_, hm_tl, hcur2⟩ := hcur1
+    have hcur11 : st.cur + 1 + 1 = st.cur + 2 := by omega
+    rw [hcur11, HoldsIn.append_iff] at hcur2
+    obtain ⟨hscope_h, hcur3⟩ := hcur2
+    rw [HoldsIn.append_iff] at hcur3
+    obtain ⟨_, hrest_h⟩ := hcur3
     simp only [List.length_append, List.length_cons, List.length_nil] at hcur_end
     have hfit_cur1 : Fits w (st.cur + 1) := hfit_end.of_le (by dsimp only [endPtr] at *; omega)
     have hfit_cur2 : Fits w (st.cur + 2) := hfit_end.of_le (by dsimp only [endPtr] at *; omega)

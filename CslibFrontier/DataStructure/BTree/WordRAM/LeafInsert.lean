@@ -82,14 +82,10 @@ theorem leafInsertCode_spec {w base capNodes t u m slot k v : ℕ} {x : Data 20}
   have hsrc_au : x.regs rSrc = au + 2 := hau_def ▸ hsrc
   have hau_le : au + 6 * t ≤ base + arenaWords t capNodes :=
     hau_def ▸ nodeAddr_add_le_arena (base := base) hu_cap (o := 6 * t) le_rfl
-  -- Word-size bounds from which `fits` derives every address the program computes.
-  have hf_u : Fits w (au + 2 + 5 * t) := hfit.of_le (by omega)
-  have hf_m1 : Fits w (m + 1) := hfit.of_le (by omega)
-  have hf_ks : Fits w (au + 2 + slot) := hfit.of_le (by omega)
-  have hf_vs : Fits w (au + (2 * t + 1) + slot) := hfit.of_le (by omega)
+  have hf_ms : Fits w (m - slot) := hfit.of_le (by omega)
   let x₁ := (x.set rDst m).set rLim (m - slot)
   have hp1 : ExecWithin w leafInsertPre1 x x₁ 2 := by
-    unfold leafInsertPre1; dsimp only [x₁]; wram_exec [hnk, hslot_reg]
+    unfold leafInsertPre1; dsimp only [x₁]; wram_exec [hnk, hslot_reg, hf_ms]
   obtain ⟨x₂, hs1, hb₂, hmem₂, hreg₂⟩ :=
     shiftLoop_spec (arrBase := au + 2) (upper := m) (count := m - slot)
       (hp1.bounded hbdd) ho hsrc_au rfl rfl (by omega) (hfit.of_le (by omega))
@@ -102,7 +98,10 @@ theorem leafInsertCode_spec {w base capNodes t u m slot k v : ℕ} {x : Data 20}
   let x₃ := ((x₂.set rSrc (au + 2 + t)).set rSrc (au + 2 + t + t)).set rSrc (au + (2 * t + 1))
   have hp2 : ExecWithin w leafInsertPre2 x₂ x₃ 3 := by
     unfold leafInsertPre2; dsimp only [x₃]
-    wram_exec [ho₂, hd₂, hsrc₂, hav_eq]
+    have hf1 : Fits w (au + 2 + t) := hfit.of_le (by omega)
+    have hf2 : Fits w (au + 2 + t + t) := hfit.of_le (by omega)
+    have hf3 : Fits w (au + (2 * t + 1)) := hfit.of_le (by omega)
+    wram_exec [ho₂, hd₂, hsrc₂, hav_eq, hf1, hf2, hf3]
   obtain ⟨x₄, hs2, hb₄, hmem₄, hreg₄⟩ :=
     shiftLoop_spec (arrBase := au + (2 * t + 1)) (upper := m) (count := m - slot)
       (hp2.bounded hb₂) ho₂ rfl hdst₂ hlim₂ (by omega) (hfit.of_le (by omega))
@@ -123,6 +122,16 @@ theorem leafInsertCode_spec {w base capNodes t u m slot k v : ℕ} {x : Data 20}
     (hreg₄ rSlot (by decide)).trans ((hreg₂ rSlot (by decide)).trans hslot_reg)
   have hak_back : au + (2 * t + 1) - t - t + 1 = au + 2 := by omega
   have hau1_back : au + 2 - 1 = au + 1 := by omega
+  have hf_vs : Fits w (au + (2 * t + 1) + slot) := hfit.of_le (by omega)
+  have hf_sub1 : Fits w (au + (2 * t + 1) - t) := hfit.of_le (by omega)
+  have hf_sub2 : Fits w (au + (2 * t + 1) - t - t) := hfit.of_le (by omega)
+  have hf_sub21 : Fits w (au + (2 * t + 1) - t - t + 1) := hfit.of_le (by omega)
+  have hf_au2 : Fits w (au + 2) := hfit.of_le (by omega)
+  have hf_ks : Fits w (au + 2 + slot) := hfit.of_le (by omega)
+  have hf_au2m1 : Fits w (au + 2 - 1) := hfit.of_le (by omega)
+  have hf_au1 : Fits w (au + 1) := hfit.of_le (by omega)
+  have hf_m1 : Fits w (m + 1) := hfit.of_le (by omega)
+  have hf0 : Fits w 0 := hfit.of_le (Nat.zero_le _)
   simp only [x₁, Data.set_mem] at hmem₂
   simp only [x₃, Data.set_mem] at hmem₄
   obtain ⟨y, hp3, hymem, hb_y, hd_y, hz_y, hact_y⟩ :
@@ -132,7 +141,8 @@ theorem leafInsertCode_spec {w base capNodes t u m slot k v : ℕ} {x : Data 20}
         y.regs rActive = 0 := by
     unfold leafInsertPost
     apply WP.exists_execWithin
-    wram_exec [ho₄, hd₄, hsrc₄, hk₄, hv₄, hnk₄, hsl₄, hak_back, hau1_back]
+    wram_exec [ho₄, hd₄, hsrc₄, hk₄, hv₄, hnk₄, hsl₄, hak_back, hau1_back,
+      hf_vs, hf_sub1, hf_sub2, hf_sub21, hf_au2, hf_ks, hf_au2m1, hf_au1, hf_m1, hf0]
     wram_simp [hb₄_reg, hd₄, hz₄]
     simp only [memInsertLeaf, hau_def, ← hmem₂, ← hmem₄]
     funext a
@@ -193,8 +203,21 @@ theorem overwriteValCode_spec {w base capNodes t u slot v : ℕ} {x : Data 20}
   have hna_u : base + u * (6 * t) + 1 + 1 = au := by
     rw [← hau_def]; simp only [nodeAddr, nodeStride]; omega
   have h2t_u : au + t + t + 1 = au + (2 * t + 1) := by omega
-  have hf_u : Fits w (base + u * (6 * t) + 2) := hfit.of_le (by omega)
-  have hf_vs : Fits w (au + (2 * t + 1) + slot) := hfit.of_le (by omega)
+  have hf_umul : Fits w (u * (6 * t)) := hfit.of_le (by
+    rw [← hau_def] at hau_le; simp only [nodeAddr, nodeStride] at hau_le; omega)
+  have hf_ub0 : Fits w (base + u * (6 * t)) := hfit.of_le (by
+    rw [← hau_def] at hau_le; simp only [nodeAddr, nodeStride] at hau_le; omega)
+  have hf_ub1 : Fits w (base + u * (6 * t) + 1) := hfit.of_le (by
+    rw [← hau_def] at hau_le; simp only [nodeAddr, nodeStride] at hau_le; omega)
+  have hf_ub2 : Fits w (base + u * (6 * t) + 1 + 1) := hfit.of_le (by
+    rw [← hau_def] at hau_le; simp only [nodeAddr, nodeStride] at hau_le; omega)
+  have hf_au : Fits w au := hfit.of_le (by omega)
+  have hf_aut1 : Fits w (au + t) := hfit.of_le (by omega)
+  have hf_aut2 : Fits w (au + t + t) := hfit.of_le (by omega)
+  have hf_aut21 : Fits w (au + t + t + 1) := hfit.of_le (by omega)
+  have hf_au2t1 : Fits w (au + (2 * t + 1)) := hfit.of_le (by omega)
+  have hf_auvs : Fits w (au + (2 * t + 1) + slot) := hfit.of_le (by omega)
+  have hf0 : Fits w 0 := hfit.of_le (Nat.zero_le _)
   obtain ⟨y, he, hymem, hz_y, hb_y, hd_y, hact_y⟩ :
       ∃ y, ExecWithin w overwriteValCode x y 10 ∧
         y.mem = memOverwriteVal base t u slot v x.mem ∧
@@ -202,7 +225,8 @@ theorem overwriteValCode_spec {w base capNodes t u slot v : ℕ} {x : Data 20}
         y.regs rActive = 0 := by
     unfold overwriteValCode
     apply WP.exists_execWithin
-    wram_exec [ho, hbase, hdeg, hstride, hcur, hslot_reg, hval, hna_u, h2t_u]
+    wram_exec [ho, hbase, hdeg, hstride, hcur, hslot_reg, hval, hna_u, h2t_u,
+      hf_umul, hf_ub0, hf_ub1, hf_ub2, hf_au, hf_aut1, hf_aut2, hf_aut21, hf_au2t1, hf_auvs, hf0]
     wram_simp [hbase, hdeg]
     simp only [memOverwriteVal, hau_def]
   have hmod : Modifies (Block.mk base (arenaWords t capNodes)).footprint x.mem y.mem := by
@@ -249,15 +273,24 @@ theorem initSingleCode_spec {w base capNodes t k v : ℕ} {x : Data 20}
       (o := 6 * t) le_rfl
   have h2t1_eq : a0 + t + t + 1 = a0 + (2 * t + 1) := by omega
   have ha02_eq : a0 + 1 + 1 = a0 + 2 := by omega
-  have hf_b : Fits w (base + 1 + 1) := hfit.of_le (by omega)
-  have hf_a0 : Fits w (a0 + (2 * t + 1)) := hfit.of_le (by omega)
+  have hf_b1 : Fits w (base + 1) := hfit.of_le (by simp only [arenaWords]; omega)
+  have hf_b11 : Fits w (base + 1 + 1) := hfit.of_le (by simp only [arenaWords]; omega)
+  have hf_a0 : Fits w a0 := hfit.of_le (by omega)
+  have hf_a01 : Fits w (a0 + 1) := hfit.of_le (by omega)
+  have hf_a011 : Fits w (a0 + 1 + 1) := hfit.of_le (by omega)
+  have hf_a02 : Fits w (a0 + 2) := hfit.of_le (by omega)
+  have hf_a0t : Fits w (a0 + t) := hfit.of_le (by omega)
+  have hf_a02t : Fits w (a0 + t + t) := hfit.of_le (by omega)
+  have hf_a02t10 : Fits w (a0 + t + t + 1) := hfit.of_le (by omega)
+  have hf_a02t1 : Fits w (a0 + (2 * t + 1)) := hfit.of_le (by omega)
   obtain ⟨y, he, hymem, hb_y, hd_y⟩ :
       ∃ y, ExecWithin w initSingleCode x y 14 ∧
         y.mem = memInitSingle base t k v x.mem ∧
         y.regs rBase = base ∧ y.regs rDeg = t := by
     unfold initSingleCode
     apply WP.exists_execWithin
-    wram_exec [hz, ho, hbase, hdeg, hkey, hval, ha0_eq, h2t1_eq, ha02_eq]
+    wram_exec [hz, ho, hbase, hdeg, hkey, hval, ha0_eq, h2t1_eq, ha02_eq,
+      hf_b1, hf_b11, hf_a0, hf_a01, hf_a011, hf_a02, hf_a0t, hf_a02t, hf_a02t10, hf_a02t1]
     wram_simp [hbase, hdeg]
     simp only [memInitSingle, ha0_def]
   have hmod : Modifies (Block.mk base (arenaWords t capNodes)).footprint x.mem y.mem := by

@@ -277,11 +277,16 @@ private theorem maxR_spec {s : Store α β H} {fuel : ℕ} {root : Option H} {tr
       | zero => omega
       | succ fuel =>
         obtain ⟨hdf, hdr⟩ := (denotes_some_node_iff s h first rest).mp hd
+        have hchildren : ∀ c ∈ (BTree.node first rest).children, ∀ r,
+            Denotes s r c → c.height ≤ fuel →
+            eval s (maxR fuel r) = BTree.max? c ∧ countQueries s (maxR fuel r) ≤ c.height := by
+          intro c hc r hdc hcf
+          simp only [BTree.children_node, List.mem_cons, List.mem_map] at hc
+          rcases hc with rfl | ⟨e, he, rfl⟩
+          · exact ih₁ hdc hcf
+          · exact ih₂ e he hdc hcf
         simp only [maxR, eval_bind, eval_readNode, countQueries_bind, countQueries_readNode]
-        refine maxScan_spec hdf hdr (fun c hc r hdc hcf => ?_) hf
-        simp only [BTree.children_node, List.mem_cons, List.mem_map] at hc
-        rcases hc with rfl | ⟨e, he, rfl⟩
-        exacts [ih₁ hdc hcf, ih₂ e he hdc hcf]
+        exact maxScan_spec hdf hdr hchildren hf
 
 /-- `maxR` evaluates to `BTree.max?` whenever `root` denotes `tr` and `tr.height ≤ fuel`. -/
 theorem eval_maxR {s : Store α β H} {fuel : ℕ} {root : Option H} {tr : BTree α β}
@@ -563,11 +568,17 @@ private theorem lookupR_spec {s : Store α β H} {fuel : ℕ} {k : α} {root : O
       | zero => omega
       | succ fuel =>
         obtain ⟨hdf, hdr⟩ := (denotes_some_node_iff s h first rest).mp hd
+        have hchildren : ∀ c ∈ (BTree.node first rest).children, ∀ r,
+            Denotes s r c → c.height ≤ fuel →
+            eval s (lookupR fuel k r) = BTree.lookup k c ∧
+              countQueries s (lookupR fuel k r) ≤ c.height := by
+          intro c hc r hdc hcf
+          simp only [BTree.children_node, List.mem_cons, List.mem_map] at hc
+          rcases hc with rfl | ⟨e, he, rfl⟩
+          · exact ih₁ hdc hcf
+          · exact ih₂ e he hdc hcf
         simp only [lookupR, eval_bind, eval_readNode, countQueries_bind, countQueries_readNode]
-        refine lookupScan_spec hdf hdr (fun c hc r hdc hcf => ?_) hf
-        simp only [BTree.children_node, List.mem_cons, List.mem_map] at hc
-        rcases hc with rfl | ⟨e, he, rfl⟩
-        exacts [ih₁ hdc hcf, ih₂ e he hdc hcf]
+        exact lookupScan_spec hdf hdr hchildren hf
 
 /-- `lookupR` evaluates to `BTree.lookup` whenever `root` denotes `tr` and `tr.height ≤ fuel`. -/
 theorem eval_lookupR {s : Store α β H} {fuel : ℕ} {root : Option H} {tr : BTree α β}
@@ -654,11 +665,17 @@ private theorem predR_spec {s : Store α β H} {fuel : ℕ} {k : α} {root : Opt
       | zero => omega
       | succ fuel =>
         obtain ⟨hdf, hdr⟩ := (denotes_some_node_iff s h first rest).mp hd
+        have hchildren : ∀ c ∈ (BTree.node first rest).children, ∀ r,
+            Denotes s r c → c.height ≤ fuel →
+            eval s (predR fuel k r) = BTree.pred? k c ∧
+              countQueries s (predR fuel k r) ≤ c.height := by
+          intro c hc r hdc hcf
+          simp only [BTree.children_node, List.mem_cons, List.mem_map] at hc
+          rcases hc with rfl | ⟨e, he, rfl⟩
+          · exact ih₁ hdc hcf
+          · exact ih₂ e he hdc hcf
         simp only [predR, eval_bind, eval_readNode, countQueries_bind, countQueries_readNode]
-        refine predScan_spec hdf hdr (fun c hc r hdc hcf => ?_) hf
-        simp only [BTree.children_node, List.mem_cons, List.mem_map] at hc
-        rcases hc with rfl | ⟨e, he, rfl⟩
-        exacts [ih₁ hdc hcf, ih₂ e he hdc hcf]
+        exact predScan_spec hdf hdr hchildren hf
 
 /-- `predR` evaluates to `BTree.pred?` whenever `root` denotes `tr` and `tr.height ≤ fuel`. -/
 theorem eval_predR {s : Store α β H} {fuel : ℕ} {root : Option H} {tr : BTree α β}
@@ -733,11 +750,17 @@ private theorem succR_spec {s : Store α β H} {fuel : ℕ} {k : α} {root : Opt
       | zero => omega
       | succ fuel =>
         obtain ⟨hdf, hdr⟩ := (denotes_some_node_iff s h first rest).mp hd
+        have hchildren : ∀ c ∈ (BTree.node first rest).children, ∀ r,
+            Denotes s r c → c.height ≤ fuel →
+            eval s (succR fuel k r) = BTree.succ? k c ∧
+              countQueries s (succR fuel k r) ≤ c.height := by
+          intro c hc r hdc hcf
+          simp only [BTree.children_node, List.mem_cons, List.mem_map] at hc
+          rcases hc with rfl | ⟨e, he, rfl⟩
+          · exact ih₁ hdc hcf
+          · exact ih₂ e he hdc hcf
         simp only [succR, eval_bind, eval_readNode, countQueries_bind, countQueries_readNode]
-        refine succScan_spec hdf hdr (fun c hc r hdc hcf => ?_) hf
-        simp only [BTree.children_node, List.mem_cons, List.mem_map] at hc
-        rcases hc with rfl | ⟨e, he, rfl⟩
-        exacts [ih₁ hdc hcf, ih₂ e he hdc hcf]
+        exact succScan_spec hdf hdr hchildren hf
 
 /-- `succR` evaluates to `BTree.succ?` whenever `root` denotes `tr` and `tr.height ≤ fuel`. -/
 theorem eval_succR {s : Store α β H} {fuel : ℕ} {root : Option H} {tr : BTree α β}
@@ -817,12 +840,18 @@ private theorem rankR_spec {s : RankedStore α β H} {fuel : ℕ} {k : α} {root
       | zero => omega
       | succ fuel =>
         obtain ⟨hdf, hszf, hdr⟩ := (denotesRanked_some_node_iff s h first rest).mp hd
+        have hchildren : ∀ c ∈ (BTree.node first rest).children, ∀ r,
+            DenotesRanked s r c → c.height ≤ fuel →
+            eval s (rankR fuel k r) = BTree.rank k c ∧
+              countQueries s (rankR fuel k r) ≤ c.height := by
+          intro c hc r hdc hcf
+          simp only [BTree.children_node, List.mem_cons, List.mem_map] at hc
+          rcases hc with rfl | ⟨e, he, rfl⟩
+          · exact ih₁ hdc hcf
+          · exact ih₂ e he hdc hcf
         simp only [rankR, eval_bind, eval_readRankedNode, countQueries_bind,
           countQueries_readRankedNode]
-        refine rankScan_spec hdf hszf hdr (fun c hc r hdc hcf => ?_) hf
-        simp only [BTree.children_node, List.mem_cons, List.mem_map] at hc
-        rcases hc with rfl | ⟨e, he, rfl⟩
-        exacts [ih₁ hdc hcf, ih₂ e he hdc hcf]
+        exact rankScan_spec hdf hszf hdr hchildren hf
 
 /-- `rankR` evaluates to `BTree.rank` whenever `root` denotes `tr` in `RankedStore` `s` and
 `tr.height ≤ fuel`. -/

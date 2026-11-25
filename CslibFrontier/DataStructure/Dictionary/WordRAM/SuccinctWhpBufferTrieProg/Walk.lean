@@ -75,12 +75,6 @@ private theorem memoryCost_bufWalkStepProg (p : BufRt × (ℕ × (ℕ × ℕ))) 
 private theorem memoryCost_bufWalkStepProg_pos (p : BufRt × (ℕ × (ℕ × ℕ))) (s : Memory.State) :
     1 ≤ memoryCost (bufWalkStepProg p) s := by simp
 
-private theorem idx_lt_trieChildEntriesWhp {c n_max cur ch : ℕ}
-    (hcur : cur < maxTrieNodesWhp c n_max) (hch : ch < 2 ^ bCharWhp n_max) :
-    cur * 2 ^ bCharWhp n_max + ch < trieChildEntriesWhp c n_max :=
-  (Nat.add_lt_add_left hch _).trans_le (by
-    rw [← Nat.add_one_mul]; exact Nat.mul_le_mul_right _ hcur)
-
 private theorem realizes_bufWalkStep :
     Realizes .exact bufWalkStepProg
       (WordEncoding.encode (α := BufRt × (ℕ × (ℕ × ℕ))))
@@ -105,7 +99,16 @@ private theorem realizes_bufWalkStep :
     have hch_lt : r_cur &&& (2 ^ bCharWhp n_max - 1) < 2 ^ bCharWhp n_max := by
       rw [Nat.and_two_pow_sub_one_eq_mod]
       exact Nat.mod_lt _ (Nat.two_pow_pos _)
-    have hidx_lt := idx_lt_trieChildEntriesWhp hcur hch_lt
+    have hprod_le : cur * 2 ^ bCharWhp n_max ≤ trieChildEntriesWhp c n_max := by
+      unfold trieChildEntriesWhp
+      exact Nat.mul_le_mul_right _ hcur.le
+    have hidx_lt : cur * 2 ^ bCharWhp n_max + (r_cur &&& (2 ^ bCharWhp n_max - 1)) <
+        trieChildEntriesWhp c n_max := by
+      unfold trieChildEntriesWhp
+      calc cur * 2 ^ bCharWhp n_max + (r_cur &&& (2 ^ bCharWhp n_max - 1))
+          < cur * 2 ^ bCharWhp n_max + 2 ^ bCharWhp n_max := Nat.add_lt_add_left hch_lt _
+        _ = (cur + 1) * 2 ^ bCharWhp n_max := by ring
+        _ ≤ maxTrieNodesWhp c n_max * 2 ^ bCharWhp n_max := Nat.mul_le_mul_right _ hcur
     first
     | exact henv.fits_const (by decide)
     | exact henv.fits_of_le_n_max (hidx_lt.le.trans htc_n)
@@ -177,7 +180,12 @@ theorem bufWalkLoop_spec {c U V w n_max base ep : ℕ} {tr : BufTrie} {s : Memor
       exact Nat.and_two_pow_sub_one_eq_mod r_cur (bCharWhp n_max)
     have hch_lt : ch < 2 ^ bCharWhp n_max := Nat.mod_lt _ (Nat.two_pow_pos _)
     set idx := cur * 2 ^ bCharWhp n_max + ch
-    have hidx_lt : idx < trieChildEntriesWhp c n_max := idx_lt_trieChildEntriesWhp hcur_max hch_lt
+    have hidx_lt : idx < trieChildEntriesWhp c n_max := by
+      unfold trieChildEntriesWhp
+      calc cur * 2 ^ bCharWhp n_max + ch
+          < cur * 2 ^ bCharWhp n_max + 2 ^ bCharWhp n_max := Nat.add_lt_add_left hch_lt _
+        _ = (cur + 1) * 2 ^ bCharWhp n_max := by ring
+        _ ≤ maxTrieNodesWhp c n_max * 2 ^ bCharWhp n_max := Nat.mul_le_mul_right _ hcur_max
     set r_nxt := r_cur / 2 ^ bCharWhp n_max with hr_def
     have hr_eq : r_cur >>> brBChar rt = r_nxt := by
       dsimp only [rt, mkBufRt, brBChar, r_nxt]
@@ -215,7 +223,9 @@ theorem bufWalkLoop_spec {c U V w n_max base ep : ℕ} {tr : BufTrie} {s : Memor
     have hcur_nxt : stepRes.2.1 < tr.nodeAlloc := by
       dsimp only [stepRes]
       split_ifs with ha0 hn0
-      exacts [halloc, halloc, hchild cur ch hn0]
+      · exact halloc
+      · exact halloc
+      · exact hchild cur ch hn0
     obtain ⟨hsafe_r, hst_r, hmc_r, hvp_r, ha0_r, ha1_r⟩ :=
       ih stepRes.1 stepRes.2.1 stepRes.2.2 hcur_nxt
     have hst_all : (Memory.spec 0).clientState s

@@ -223,8 +223,17 @@ lemma space_le (c cI cF cQ K SI SF s l li le : ℕ) (hli : li ≤ l) (hle : le �
     c * (cI * (SI + (li + li) + 1) + cF * (le + SF + 1) + 2 * K * (s + (4 * cQ + 4 * l + 6) + 1) +
       (4 * cQ + 4 * l + 6) + 1) ≤
     c * (3 * cI + cF * (2 * cQ + 3) + (2 * K + 1) * (4 * cQ + 7) + 1) * (SI + SF + s + l + 1) := by
-  simpa only [one_mul, zero_add, add_assoc] using
-    time_le c cI cF cQ K SI SF s l 0 1 li le le_rfl hli hle
+  have hR := round_le cQ K s l
+  have h₁ : cI * (SI + (li + li) + 1) ≤ cI * SI + 2 * cI * (s + l + 1) := by nlinarith
+  have h₂ : cF * (le + SF + 1) ≤ cF * SF + cF * (2 * cQ + 3) * (s + l + 1) := by
+    have : le + 1 ≤ (2 * cQ + 3) * (s + l + 1) := by nlinarith
+    have := Nat.mul_le_mul_left cF this
+    rw [Nat.mul_assoc]
+    linarith [show cF * (le + SF + 1) = cF * SF + cF * (le + 1) by ring]
+  refine le_trans (Nat.mul_le_mul_left c ?_) (le_of_eq (Nat.mul_assoc _ _ _).symm)
+  calc _ ≤ cI * SI + 2 * cI * (s + l + 1) + (cF * SF + cF * (2 * cQ + 3) * (s + l + 1)) +
+        (2 * K + 1) * (4 * cQ + 7) * (s + l + 1) := by linarith
+    _ ≤ _ := by ring_nf; omega
 
 /-- Reads one bit and emits it. -/
 def bitReader : InputReader Bool Unit := ⟨(), fun _ b => (none, some b)⟩
@@ -285,7 +294,11 @@ public theorem ComputableTidilyInTimeAndSpace.multiPassFold_translate {Q E σ γ
           ((encIn x).length + 1) * (tMax x + lMax x + 1))))
       (fun x => c * (SI x + SF (passState (init x) next passEnd (tr.events (encIn x))
         (passes x + 1)) + sMax x + lMax x + 1)) := by
-  obtain ⟨cQ, hcQ⟩ := Finite.exists_le fun q => (encQ q).length
+  obtain ⟨cQ, hcQ⟩ : ∃ cQ, ∀ q, (encQ q).length ≤ cQ := by
+    rcases isEmpty_or_nonempty Q with hQ | hQ
+    · exact ⟨0, fun q => isEmptyElim q⟩
+    · obtain ⟨q, hq⟩ := Finite.exists_max fun q => (encQ q).length
+      exact ⟨_, hq⟩
   -- the parts on the states with the translator
   have hpre : ComputableInO (fun s : σ => (tr.q₀, s)) encS (encPair encQ encS)
       (fun s => (encS s).length + (encS s).length)
@@ -326,6 +339,12 @@ public theorem ComputableTidilyInTimeAndSpace.multiPassFold_translate {Q E σ γ
       (encPair encQ encS (q, s)).length ≤ 2 * cQ + 1 + lMax x := by
     have := hcQ q
     enc_len
+  have hK2 (a b : ℕ) (hab : a + b ≤ K) (X : ℕ) : a * X + b * X ≤ 2 * K * X := by
+    rw [← Nat.add_mul]
+    exact Nat.mul_le_mul_right X (by omega)
+  have hK3 (a b c : ℕ) (habc : a + b + c ≤ K) (X : ℕ) : a * X + b * X + c * X ≤ 2 * K * X := by
+    rw [← Nat.add_mul, ← Nat.add_mul]
+    exact Nat.mul_le_mul_right X (by omega)
   let st (x : γ) (i j : ℕ) : σ :=
     streamState (passState (init x) next passEnd (tr.events (encIn x)) i) next
       (tr.events (encIn x)) j
@@ -348,10 +367,8 @@ public theorem ComputableTidilyInTimeAndSpace.multiPassFold_translate {Q E σ γ
     beta_reduce at he ⊢
     simp only [length_encPair, encBool_apply, List.length_singleton] at hl he ⊢
     have hB : B x = 4 * cQ + 4 * lMax x + 6 := rfl
-    calc _ ≤ cN * (fMax x + B x + 1) + cE * (fMax x + B x + 1) := by
-          gcongr cN * ?_ + cE * ?_ <;> omega
-      _ = (cN + cE) * (fMax x + B x + 1) := by ring
-      _ ≤ 2 * K * (fMax x + B x + 1) := Nat.mul_le_mul_right _ (by omega)
+    exact (Nat.add_le_add (Nat.mul_le_mul_left cN (m := fMax x + B x + 1) (by omega))
+      (Nat.mul_le_mul_left cE (m := fMax x + B x + 1) (by omega))).trans (hK2 _ _ (by omega) _)
   have hend_bound {FPE FPN FC : σ → ℕ} {fMax : γ → ℕ}
       (hfEnd : ∀ x, ∀ i ≤ passes x,
         FPE (st x i (tr.events (encIn x)).length) + FPN (st x i (tr.events (encIn x)).length) +
@@ -372,10 +389,11 @@ public theorem ComputableTidilyInTimeAndSpace.multiPassFold_translate {Q E σ γ
     have h₂ := hps x (i + 1) (by omega)
     have he := hfEnd x i hi
     have hB : B x = 4 * cQ + 4 * lMax x + 6 := rfl
-    calc _ ≤ cPE * (fMax x + B x + 1) + cPN * (fMax x + B x + 1) + cC * (fMax x + B x + 1) := by
-          gcongr cPE * ?_ + cPN * ?_ + cC * ?_ <;> omega
-      _ = (cPE + cPN + cC) * (fMax x + B x + 1) := by ring
-      _ ≤ 2 * K * (fMax x + B x + 1) := Nat.mul_le_mul_right _ (by omega)
+    exact (Nat.add_le_add (Nat.add_le_add
+      (Nat.mul_le_mul_left cPE (m := fMax x + B x + 1) (by omega))
+      (Nat.mul_le_mul_left cPN (m := fMax x + B x + 1) (by omega)))
+      (Nat.mul_le_mul_left cC (m := fMax x + B x + 1) (by omega))).trans
+      (hK3 _ _ _ (by omega) _)
   refine Exists.elim (ComputableTidilyInTimeAndSpace.multiPassFold (r := bitReader)
     (tok := fun b => [b]) (encA := encBool) (fun _ => List.cons_ne_nil _ _)
     (fun a rest => by simp [bitReader, InputReader.read]) (fun x => encIn x) (fun x => by simp)
@@ -392,16 +410,24 @@ public theorem ComputableTidilyInTimeAndSpace.multiPassFold_translate {Q E σ γ
     simp only [Translator.passState_lift, Translator.streamState_lift, List.take_length,
       encBits_apply, streamEmit_const_nil, List.nil_append]
     rfl
-  case refine_3 | refine_4 =>
+  case refine_3 =>
     intro x i hi j hj
     rw [Translator.passState_lift, Translator.streamState_lift]
-    first | exact hround_bound htMax x i hi j hj | exact hround_bound hsMax x i hi j hj
-  case refine_5 | refine_6 =>
+    exact hround_bound htMax x i hi j hj
+  case refine_4 =>
+    intro x i hi j hj
+    rw [Translator.passState_lift, Translator.streamState_lift]
+    exact hround_bound hsMax x i hi j hj
+  case refine_5 =>
     intro x i hi
     rw [Translator.passState_lift, Translator.streamState_lift, List.take_length,
       Translator.passState_lift]
-    simp only [st, Translator.events, passState] at hend_bound
-    first | exact hend_bound htEnd x i hi | exact hend_bound hsEnd x i hi
+    simpa only [st, Translator.events, passState, Function.comp_apply] using hend_bound htEnd x i hi
+  case refine_6 =>
+    intro x i hi
+    rw [Translator.passState_lift, Translator.streamState_lift, List.take_length,
+      Translator.passState_lift]
+    simpa only [st, Translator.events, passState, Function.comp_apply] using hend_bound hsEnd x i hi
   case refine_7 =>
     intro x i hi j hj
     rw [Translator.passState_lift, Translator.streamState_lift]
