@@ -655,6 +655,16 @@ theorem fbStart_mono_of_adj {M : ℕ} {f : ℕ → ℕ} (hadj : ∀ b < M, f b �
     · exact le_rfl
     · exact (ih (by omega) (by omega)).trans (hadj b (by omega))
 
+private theorem csr_slot_bucket_unique {M i b₁ b₂ : ℕ} {f : ℕ → ℕ}
+    (hmono : ∀ a b, a ≤ b → b ≤ M → f a ≤ f b)
+    (hb₁ : b₁ < M) (hb₂ : b₂ < M)
+    (hlo₁ : f b₁ ≤ i) (hhi₁ : i < f (b₁ + 1))
+    (hlo₂ : f b₂ ≤ i) (hhi₂ : i < f (b₂ + 1)) : b₁ = b₂ := by
+  rcases lt_trichotomy b₁ b₂ with hlt | heq | hgt
+  · exact (hhi₁.not_ge ((hmono _ _ hlt hb₂.le).trans hlo₂)).elim
+  · exact heq
+  · exact (hhi₂.not_ge ((hmono _ _ hgt hb₁.le).trans hlo₁)).elim
+
 private theorem csrScanRange_props (qArr : ℕ → ℕ) (lo q_val len : ℕ) :
     let f1 := csrScanRange qArr lo q_val len
     (f1 = 0 ↔ ∀ i, lo ≤ i → i < lo + len → qArr i ≠ q_val) ∧
@@ -698,16 +708,22 @@ theorem csrShiftUp_apply (N cnt : ℕ) (hcnt : cnt ≤ N) (qArr vArr : ℕ → �
     simp only [Function.update_apply, ih (by omega)]
     split_ifs <;> subst_vars <;> first | exact ⟨rfl, rfl⟩ | omega
 
-private theorem csrAdjustStarts_apply (b : ℕ) (dec : Bool) (cnt : ℕ) (f : ℕ → ℕ) (x : ℕ) :
-    csrAdjustStarts b dec cnt f x =
-      if b + 1 ≤ x ∧ x < b + 1 + cnt then
-        (if dec then f x - 1 else f x + 1)
-      else f x := by
-  induction cnt generalizing x with
-  | zero => simp [csrAdjustStarts]
-  | succ cnt ih =>
-    simp only [csrAdjustStarts, Function.update_apply, ih]
-    split_ifs <;> subst_vars <;> omega
+private theorem csrAdjustStarts_apply {b M : ℕ} (hb : b < M) (dec : Bool)
+    (f : ℕ → ℕ) (x : ℕ) :
+    csrAdjustStarts b dec (M - b) f x =
+      if b + 1 ≤ x ∧ x ≤ M then (if dec then f x - 1 else f x + 1) else f x := by
+  have hlim : b + 1 + (M - b) = M + 1 := by
+    rw [Nat.add_right_comm, Nat.add_sub_of_le hb.le]
+  simp only [adjust (M - b), hlim, Nat.lt_succ_iff]
+where
+  adjust (cnt : ℕ) :
+      csrAdjustStarts b dec cnt f x =
+        if b + 1 ≤ x ∧ x < b + 1 + cnt then (if dec then f x - 1 else f x + 1) else f x := by
+    induction cnt generalizing x with
+    | zero => simp [csrAdjustStarts]
+    | succ cnt ih =>
+      simp only [csrAdjustStarts, Function.update_apply, ih]
+      split_ifs <;> subst_vars <;> omega
 
 /-- Exact bucket-slice bijection for `ValidCsrState`: for every `b : Fin (numBucketsWhp n_max)`,
 `(Dictionary.dom dict).filter (feistelBucket = b)` has cardinality
@@ -826,16 +842,9 @@ theorem csrDelete_spec {U V n_max : ℕ} {h1 : ℕ → ℕ} {csr : CsrState} {di
     have hi₀_lt_N : i₀ < N := hhi_0.trans_le (hmono (b + 1) M (by omega) le_rfl)
     set sh := csrShiftDown i₀ (N - 1 - i₀) (csr.qArr, csr.vArr)
     set fb' := csrAdjustStarts b true (M - b) csr.fbStart
-    have hMb : b + 1 + (M - b) = M + 1 := by
-      dsimp only [M, b] at hb_lt ⊢
-      omega
-    have hfb'_eq :
-        ∀ x, fb' x = if b + 1 ≤ x ∧ x ≤ M then csr.fbStart x - 1 else csr.fbStart x := by
-      intro x
-      change csrAdjustStarts b true (M - b) csr.fbStart x = _
-      rw [csrAdjustStarts_apply, hMb]
-      simp only [↓reduceIte]
-      split_ifs <;> omega
+    have hfb'_eq (x : ℕ) :
+        fb' x = if b + 1 ≤ x ∧ x ≤ M then csr.fbStart x - 1 else csr.fbStart x := by
+      simpa only [↓reduceIte] using csrAdjustStarts_apply hb_lt true csr.fbStart x
     have hsh_eq : ∀ x < N - 1,
         sh.1 x = csr.qArr (if x < i₀ then x else x + 1) ∧
         sh.2 x = csr.vArr (if x < i₀ then x else x + 1) := by
@@ -932,12 +941,9 @@ theorem csrDelete_spec {U V n_max : ℕ} {h1 : ℕ → ℕ} {csr : CsrState} {di
         · rintro ⟨i, hi_lo, hi_hi, hq_i, hv_i⟩
           have hi_ne_i₀ : i ≠ i₀ := by
             intro h; rw [h] at hi_lo hi_hi hq_i
-            by_cases hbx_eq : bx = b
-            · exact hxu (Fin.ext (eq_of_feistelBucket_eq_of_keyQuotient_eq hbx_eq
-                (hq_i.symm.trans hq_0)))
-            · rcases lt_or_gt_of_ne hbx_eq with hlt | hgt
-              · have := hmono (bx + 1) b (by omega) (by omega); omega
-              · have := hmono (b + 1) bx (by omega) (by omega); omega
+            have hbx := csr_slot_bucket_unique hmono hbx_lt hb_lt hi_lo hi_hi hlo_0 hhi_0
+            exact hxu (Fin.ext (eq_of_feistelBucket_eq_of_keyQuotient_eq hbx
+              (hq_i.symm.trans hq_0)))
           let i' := if i < i₀ then i else i - 1
           have hi'_in : fb' bx ≤ i' ∧ i' < fb' (bx + 1) ∧
               (if i' < i₀ then i' else i' + 1) = i := by
@@ -1059,12 +1065,9 @@ theorem csrInsert_spec {U V n_max : ℕ} (hnU : n_max ≤ U) {h1 : ℕ → ℕ} 
         have hni : ∀ i, csr.fbStart bx ≤ i → i < csr.fbStart (bx + 1) →
             csr.qArr i = keyQuotient (bWhp n_max) x.val → i ≠ i₀ := by
           rintro i hlo hhi hqi rfl
-          by_cases hbx : bx = b
-          · exact hxu (Fin.ext (eq_of_feistelBucket_eq_of_keyQuotient_eq hbx
-              (hqi.symm.trans hq_0)))
-          · rcases lt_or_gt_of_ne hbx with hlt | hgt
-            · have := hmono (bx + 1) b (by omega) (by omega); omega
-            · have := hmono (b + 1) bx (by omega) (by omega); omega
+          have hbx := csr_slot_bucket_unique hmono hbx_lt hb_lt hlo hhi hlo_0 hhi_0
+          exact hxu (Fin.ext (eq_of_feistelBucket_eq_of_keyQuotient_eq hbx
+            (hqi.symm.trans hq_0)))
         exact exists_congr fun i => and_congr_right fun hlo => and_congr_right fun hhi =>
           and_congr_right fun hqi => by simp only [Function.update_of_ne (hni i hlo hhi hqi)]
   · have hf0 : f1 = 0 := by simpa using hfnz
@@ -1082,16 +1085,10 @@ theorem csrInsert_spec {U V n_max : ℕ} (hnU : n_max ≤ U) {h1 : ℕ → ℕ} 
     set q' := Function.update sh.1 hi q
     set v' := Function.update sh.2 hi v
     set fb' := csrAdjustStarts b false (M - b) csr.fbStart
-    have hMb : b + 1 + (M - b) = M + 1 := by
-      dsimp only [M, b] at hb_lt ⊢
-      omega
-    have hfb'_eq :
-        ∀ x, fb' x = if b + 1 ≤ x ∧ x ≤ M then csr.fbStart x + 1 else csr.fbStart x := by
-      intro x
-      change csrAdjustStarts b false (M - b) csr.fbStart x = _
-      rw [csrAdjustStarts_apply, hMb]
-      simp only [Bool.false_eq_true, ↓reduceIte]
-      split_ifs <;> omega
+    have hfb'_eq (x : ℕ) :
+        fb' x = if b + 1 ≤ x ∧ x ≤ M then csr.fbStart x + 1 else csr.fbStart x := by
+      simpa only [Bool.false_eq_true, ↓reduceIte] using
+        csrAdjustStarts_apply hb_lt false csr.fbStart x
     have hqv'_eq : ∀ x ≤ N,
         (x < hi → q' x = csr.qArr x ∧ v' x = csr.vArr x) ∧
         (x = hi → q' x = q ∧ v' x = v) ∧
@@ -1360,11 +1357,7 @@ theorem csrBucketOfIdx_eq_of_in_range {M : ℕ} {fbStart : ℕ → ℕ}
   have hmono := fbStart_mono_of_adj hadj
   have hi_M : i < fbStart M := hhi.trans_le (hmono (b + 1) M (by omega) le_rfl)
   obtain ⟨hb'_lt, hlo', hhi'⟩ := csrBucketOfIdx_spec h0 hadj M le_rfl i hi_M
-  set b' := csrBucketOfIdx fbStart i M
-  rcases lt_trichotomy b' b with hlt | heq | hgt
-  · have := hmono (b' + 1) b (by omega) (by omega); omega
-  · exact heq
-  · have := hmono (b + 1) b' (by omega) (by omega); omega
+  exact csr_slot_bucket_unique hmono hb'_lt hb hlo' hhi' hlo hhi
 
 /-- **Exact soundness and completeness of `checkGoodSeedOnState`**:
 for any `ValidCsrState`, `(checkGoodSeedOnState c U n_max θ csr).1 = true ↔
