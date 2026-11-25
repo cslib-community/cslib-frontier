@@ -86,10 +86,10 @@ theorem makespan_comp_perm (p : Fin n → α) (σ : Fin n → Fin m) (e : Equiv.
 theorem optMakespan_comp_perm (p : Fin n → α) (e : Equiv.Perm (Fin n)) :
     optMakespan m (p ∘ e) = optMakespan m p := by
   refine le_antisymm ?_ ?_
-  · obtain ⟨σ, hσ⟩ := exists_makespan_eq_optMakespan (m := m) p
+  · obtain ⟨σ, hσ⟩ := exists_makespan_eq_optMakespan m p
     rw [← hσ, ← makespan_comp_perm p σ e]
     exact optMakespan_le _ _
-  · obtain ⟨σ, hσ⟩ := exists_makespan_eq_optMakespan (m := m) (p ∘ e)
+  · obtain ⟨σ, hσ⟩ := exists_makespan_eq_optMakespan m (p ∘ e)
     rw [← hσ]
     calc optMakespan m p ≤ makespan p (σ ∘ e.symm) := optMakespan_le _ _
       _ = makespan (p ∘ e) σ := by
@@ -281,7 +281,7 @@ theorem IsListSchedule.card_mul_makespan_le_of_antitone {p : Fin n → α} {σ :
 theorem IsListSchedule.makespan_le_optMakespan_of_antitone {p : Fin n → α} {σ : Fin n → Fin m}
     (hσ : IsListSchedule p σ) (hp : ∀ j, 0 ≤ p j) (hanti : Antitone p) :
     makespan p σ ≤ (4 / 3 - 1 / (3 * m)) * optMakespan m p := by
-  obtain ⟨τ, hτ⟩ := exists_makespan_eq_optMakespan (m := m) p
+  obtain ⟨τ, hτ⟩ := exists_makespan_eq_optMakespan m p
   have h := hσ.card_mul_makespan_le_of_antitone hp hanti τ
   rw [hτ] at h
   have hmpos : (0 : α) < 3 * m := by

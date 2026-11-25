@@ -433,7 +433,7 @@ theorem IsIdentical.optMakespan_eq_scheduling [NeZero m] {G : LoadBalancingGame 
     (hId : G.IsIdentical) :
     G.optMakespan = Cslib.Algorithms.Lean.Scheduling.optMakespan m G.weight := by
   refine le_antisymm ?_ ?_
-  · obtain ⟨A, hA⟩ := Cslib.Algorithms.Lean.Scheduling.exists_makespan_eq_optMakespan (m := m)
+  · obtain ⟨A, hA⟩ := Cslib.Algorithms.Lean.Scheduling.exists_makespan_eq_optMakespan m
       G.weight
     rw [← hA, ← hId.makespan_eq_scheduling A]
     exact G.optMakespan_le A
