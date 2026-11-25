@@ -13,11 +13,12 @@ import CslibFrontier.Foundations.Data.Finset.Expect
 
 /-! # Tests for the Level-1 Inequality and Hoeffding's bound for signs
 
-The conjunction of two bits, read as `0` or `1`, has mean `1 / 4`, so the Level-1 Inequality
-bounds its degree-one weight by `16 (1 / 4) ^ 2 ln 4 = ln 4`; its actual weight is
+The conjunction of two bits, read as `0` or `1`, takes values in `[0, 1]` and has mean
+`𝔼 |f| = 1 / 4`, so the Level-1 Inequality for `[-1, 1]`-valued functions bounds its degree-one
+weight by `16 (1 / 4) ^ 2 ln 4 = ln 4`; its actual weight is
 `2 (1 / 4) ^ 2 = 1 / 8`. This instance only exercises the statement, since `ln 4` exceeds the
-trivial bound `α (1 - α)`. The conjunction of seven bits has mean `α = 1 / 128`, where the
-inequality's `7 ln 2 / 1024` is below the trivial `127 / 16384`. Minus half the two-bit
+trivial bound `α (1 - α)`; for `{0, 1}`-valued functions the sharp Level-1 Inequality and its
+seven-bit client are in `CslibFrontierTests.BooleanAnalysisLevelK`. Minus half the two-bit
 conjunction takes values in `[-1 / 2, 0]` and has `𝔼 |f| = 1 / 8`, so the `[-1, 1]` form bounds
 its weight by `ln 8 / 4`. Hoeffding's bound for four unweighted signs bounds the strings with
 `|x₀ + x₁ + x₂ + x₃| ≥ 4`, of which there are two, by
@@ -35,34 +36,22 @@ theorem expect_bitVal_and₂ : 𝔼 x : Fin 2 → Bool, bitVal ℝ (x 0 && x 1) 
   simp only [Fin.expect_univ_cons, Fintype.expect_bool, Fintype.expect_unique]
   norm_num
 
+/-- A bit read as `0` or `1` is its own absolute value. -/
+theorem abs_bitVal (b : Bool) : |bitVal ℝ b| = bitVal ℝ b := by
+  cases b <;> simp
+
+/-- A bit read as `0` or `1` lies in `[-1, 1]`. -/
+theorem abs_bitVal_le_one (b : Bool) : |bitVal ℝ b| ≤ 1 := by
+  cases b <;> simp
+
 /-- The Level-1 Inequality for the conjunction of two bits: `W¹ ≤ ln 4`. -/
 example : levelWeight 1 (fun x : Fin 2 → Bool => bitVal ℝ (x 0 && x 1)) ≤ log 4 := by
-  have h := levelWeight_one_bitVal_le (fun x : Fin 2 → Bool => x 0 && x 1)
-    (by rw [expect_bitVal_and₂]; norm_num)
-  rw [expect_bitVal_and₂] at h
+  have h := levelWeight_one_le_of_abs_le_one
+    (f := fun x : Fin 2 → Bool => bitVal ℝ (x 0 && x 1)) (fun x => abs_bitVal_le_one _)
+    (by simp only [abs_bitVal, expect_bitVal_and₂]; norm_num)
+  simp only [abs_bitVal, expect_bitVal_and₂] at h
   norm_num at h
   exact h
-
-/-- The conjunction of seven bits. -/
-def and₇ (x : Fin 7 → Bool) : Bool :=
-  decide (x = fun _ => true)
-
-/-- The conjunction of seven bits, read as `0` or `1`, has mean `1 / 128`. -/
-theorem expect_bitVal_and₇ : 𝔼 x, bitVal ℝ (and₇ x) = 1 / 128 := by
-  have h (x : Fin 7 → Bool) : bitVal ℝ (and₇ x) = if (fun _ => true) = x then 1 else 0 := by
-    by_cases hx : x = fun _ => true <;> simp [and₇, hx, eq_comm]
-  simp only [h]
-  norm_num
-
-/-- At `α = 1 / 128` the Level-1 Inequality beats the trivial bound `W¹[f] ≤ α (1 - α)`: it gives
-`16 α ^ 2 ln (1 / α) = 7 ln 2 / 1024 < 7 / 1024 < 127 / 16384`. -/
-example : levelWeight 1 (fun x => bitVal ℝ (and₇ x)) < 1 / 128 * (1 - 1 / 128) := by
-  have h := levelWeight_one_bitVal_le and₇ (by rw [expect_bitVal_and₇]; norm_num)
-  rw [expect_bitVal_and₇, inv_div, div_one, show (128 : ℝ) = 2 ^ 7 by norm_num, log_pow] at h
-  have := log_lt_sub_one_of_pos (by norm_num : (0 : ℝ) < 2) (by norm_num)
-  push_cast at h
-  generalize levelWeight 1 (fun x => bitVal ℝ (and₇ x)) = W at h ⊢
-  linarith
 
 /-- Minus half the conjunction of two bits has `𝔼 |f| = 1 / 8`. -/
 theorem expect_abs_neg_half_bitVal_and₂ :

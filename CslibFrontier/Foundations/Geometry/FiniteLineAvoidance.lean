@@ -30,6 +30,7 @@ of distinct final points containing a moved point is noncollinear.
 `Cslib.NoTripleLineContact` says that three distinct supporting lines can meet only at
 one of their defining points when at least one line has a moved endpoint. The perturbation
 also ensures this property for the final configuration.
+`segment_inter_subsingleton_of_affineSpan_ne` bounds intersections on distinct supports.
 -/
 
 public section
@@ -127,6 +128,31 @@ only at one of their endpoints if at least one line uses a moved point. -/
     (∀ i, z ∈ affineSpan ℝ ({a i, b i} : Set ℂ)) →
     ∃ i, z = a i ∨ z = b i
 
+/-- The closed segment lies on the affine line through its endpoints. -/
+private theorem segment_subset_affineSpan_pair (a b : ℂ) :
+    segment ℝ a b ⊆ ↑(affineSpan ℝ ({a, b} : Set ℂ)) := by
+  rw [segment_eq_image_lineMap]
+  rintro _ ⟨t, _, rfl⟩
+  exact AffineMap.lineMap_mem_affineSpan_pair t _ _
+
+/-- Distinct affine spans of point pairs in the plane intersect in at most one point. -/
+private theorem affineSpan_pair_inter_subsingleton {a b c d : ℂ}
+    (hne : affineSpan ℝ ({a, b} : Set ℂ) ≠ affineSpan ℝ ({c, d} : Set ℂ)) :
+    ((↑(affineSpan ℝ ({a, b} : Set ℂ)) : Set ℂ) ∩
+      ↑(affineSpan ℝ ({c, d} : Set ℂ))).Subsingleton := by
+  intro x hx y hy
+  by_contra hxy
+  exact hne ((affineSpan_pair_eq_of_mem_of_mem_of_ne hx.1 hy.1 hxy).symm.trans
+    (affineSpan_pair_eq_of_mem_of_mem_of_ne hx.2 hy.2 hxy))
+
+/-- Segments on distinct supporting lines share at most one point. -/
+theorem segment_inter_subsingleton_of_affineSpan_ne {a b c d : ℂ}
+    (hne : affineSpan ℝ ({a, b} : Set ℂ) ≠ affineSpan ℝ ({c, d} : Set ℂ)) :
+    (segment ℝ a b ∩ segment ℝ c d).Subsingleton := by
+  exact (affineSpan_pair_inter_subsingleton hne).anti
+    (Set.inter_subset_inter (segment_subset_affineSpan_pair a b)
+      (segment_subset_affineSpan_pair c d))
+
 private noncomputable def pointPairLine {S : Set ℂ} (p : S × S) : AffineSubspace ℝ ℂ :=
   affineSpan ℝ ({p.1.val, p.2.val} : Set ℂ)
 
@@ -139,11 +165,7 @@ private theorem lineCrossings_finite {S : Set ℂ} (hS : S.Finite) :
   let _ := hS.fintype
   apply Set.finite_iUnion
   intro p
-  apply Set.Subsingleton.finite
-  intro x hx y hy
-  by_contra hne
-  exact p.property ((affineSpan_pair_eq_of_mem_of_mem_of_ne hx.1 hy.1 hne).symm.trans
-    (affineSpan_pair_eq_of_mem_of_mem_of_ne hx.2 hy.2 hne))
+  exact (affineSpan_pair_inter_subsingleton p.property).finite
 
 private theorem NoTripleLineContact.insert_point {points moved : Set ℂ}
     (h : NoTripleLineContact points moved)
