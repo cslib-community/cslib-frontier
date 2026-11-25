@@ -12,6 +12,7 @@ public import Mathlib.Algebra.BigOperators.Fin
 public import Mathlib.Algebra.BigOperators.Intervals
 public import Mathlib.Algebra.Module.Defs
 public import Mathlib.Order.Interval.Finset.Fin
+import Mathlib.Algebra.BigOperators.Module
 import Mathlib.Tactic.Abel
 
 /-!
@@ -51,24 +52,33 @@ theorem sum_univ_smul_by_parts_prefix {R M : Type*} [Ring R] [AddCommGroup M] [M
     ∑ i, a i • b i =
       (∑ i, a i) • b (Fin.last n) +
         ∑ i : Fin n, (∑ j ∈ Iic i.castSucc, a j) • (b i.castSucc - b i.succ) := by
-  let entry (i : Fin (n + 1)) := (∑ j ∈ Iio i, a j) • b i
-  let exit (i : Fin (n + 1)) := (∑ j ∈ Iic i, a j) • b i
-  have hwithin (i : Fin (n + 1)) : exit i - entry i = a i • b i := by
-    simp only [entry, exit, ← sub_smul]
-    rw [← Finset.insert_Iio, Finset.sum_insert (by simp), add_sub_cancel_right]
-  have hacross (i : Fin n) :
-      entry i.succ - exit i.castSucc = (∑ j ∈ Iic i.castSucc, a j) • (b i.succ - b i.castSucc) := by
-    have hI : Iio i.succ = Iic i.castSucc := by
-      ext j
-      simp [Fin.lt_def, Fin.le_def]
-    simp only [entry, exit, hI, smul_sub]
-  have h := Fin.sum_univ_adjacent_differences entry exit
-  simp only [hwithin, hacross] at h
-  have hlo : Iio (0 : Fin (n + 1)) = ∅ := by ext i; simp
-  have hhi : Iic (Fin.last n) = univ := eq_univ_of_forall fun i => mem_Iic.mpr i.le_last
-  simp only [entry, exit, hlo, hhi, sum_empty, zero_smul, sub_zero] at h
-  rw [eq_sub_of_add_eq h, sub_eq_add_neg, ← Finset.sum_neg_distrib]
-  simp only [← smul_neg, neg_sub]
+  let f (i : ℕ) := a (Fin.ofNat (n + 1) i)
+  let g (i : ℕ) := b (Fin.ofNat (n + 1) i)
+  have hofNat (i : Fin (n + 1)) : Fin.ofNat (n + 1) i.val = i :=
+    Fin.natCast_eq_mk i.isLt
+  have hprefix (k : Fin (n + 1)) :
+      (∑ i ∈ range (k.val + 1), f i) = ∑ i ∈ Iic k, a i := by
+    rw [Nat.range_succ_eq_Iic, ← map_valEmbedding_Iic, sum_map]
+    exact sum_congr rfl fun i _ => congrArg a (Fin.natCast_eq_mk i.isLt)
+  have htotal : ∑ i ∈ range (n + 1), f i = ∑ i, a i := by
+    rw [← Fin.sum_univ_eq_sum_range]
+    simp only [f, hofNat]
+  have hlast : g n = b (Fin.last n) := congrArg b (Fin.natCast_eq_mk (Nat.lt_succ_self n))
+  calc
+    ∑ i, a i • b i = ∑ i ∈ range (n + 1), f i • g i := by
+      rw [← Fin.sum_univ_eq_sum_range]
+      simp only [f, g, hofNat]
+    _ = _ := by
+      rw [sum_range_by_parts' f g, Nat.add_sub_cancel, htotal, hlast, sub_eq_add_neg,
+        ← sum_neg_distrib, ← Fin.sum_univ_eq_sum_range _ n]
+      congr 1
+      refine sum_congr rfl fun i _ => ?_
+      have hcast : Fin.ofNat (n + 1) i.val = i.castSucc := Fin.natCast_eq_mk i.castSucc.isLt
+      have hsucc : Fin.ofNat (n + 1) (i.val + 1) = i.succ := Fin.natCast_eq_mk i.succ.isLt
+      have hi := hprefix i.castSucc
+      simp only [Fin.val_castSucc] at hi
+      rw [hi]
+      simp only [g, hcast, hsucc, ← smul_neg, neg_sub]
 
 /-- Summation by parts on a finite vector using tail sums and successive differences. -/
 theorem sum_univ_smul_by_parts_tail {R M : Type*} [Ring R] [AddCommGroup M] [Module R M]
