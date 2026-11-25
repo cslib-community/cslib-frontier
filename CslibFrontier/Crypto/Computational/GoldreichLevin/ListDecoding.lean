@@ -611,8 +611,12 @@ theorem prunedCandidates_good_of_accurate (predictor : BitString n → Bool) {pr
     (prunedCandidates predictor (2 * precision + 3) (4 * precision) masks samples).card ≤
       precision ^ 2 := by
   have hp : (0 : ℝ) < precision := Nat.cast_pos.mpr hprec
-  have hm : 0 < pruneSampleCount n precision := pruneSampleCount_pos n hprec
-  have hm' : (0 : ℝ) < pruneSampleCount n precision := Nat.cast_pos.mpr hm
+  have hm' : (0 : ℝ) < pruneSampleCount n precision :=
+    Nat.cast_pos.mpr (pruneSampleCount_pos n hprec)
+  have h4p : (0 : ℝ) < 4 * precision := by positivity
+  have hring : 4 * (precision : ℝ) * (1 / 2 + 3 / (4 * precision)) = 2 * precision + 3 := by
+    field_simp
+    ring
   have hfrac1 : 1 / (precision : ℝ) - 1 / (4 * (precision : ℝ)) = 3 / (4 * (precision : ℝ)) := by
     ring
   have hfrac2 :
@@ -626,57 +630,25 @@ theorem prunedCandidates_good_of_accurate (predictor : BitString n → Bool) {pr
     rw [mem_prunedCandidates]
     refine ⟨hcand, ?_⟩
     have hacc := (abs_lt.mp (hsamples x hcand)).1
-    have hlow :
-        ((2 * precision + 3 : ℕ) : ℝ) ≤
-          ((4 * precision : ℕ) : ℝ) *
-            ((empiricalHits predictor samples x : ℝ) / pruneSampleCount n precision) := by
-      push_cast
-      have hdiv :
-          1 / 2 + 3 / (4 * (precision : ℝ)) ≤
-            (empiricalHits predictor samples x : ℝ) / pruneSampleCount n precision := by
-        linarith
-      have hmul := mul_le_mul_of_nonneg_left hdiv (show (0 : ℝ) ≤ 4 * precision by positivity)
-      have hring :
-          (4 * (precision : ℝ)) * (1 / 2 + 3 / (4 * (precision : ℝ))) =
-            2 * (precision : ℝ) + 3 := by
-        field_simp
-        ring
+    have hdiv : (1 / 2 + 3 / (4 * (precision : ℝ))) * pruneSampleCount n precision ≤
+        empiricalHits predictor samples x := by
+      rw [← le_div_iff₀ hm']
       linarith
-    have hcross :
-        (pruneSampleCount n precision : ℝ) * (2 * precision + 3 : ℕ) ≤
-          (4 * precision : ℕ) * (empiricalHits predictor samples x : ℝ) := by
-      have hmul := mul_le_mul_of_nonneg_left hlow hm'.le
-      have hcancel :
-          (pruneSampleCount n precision : ℝ) *
-              (((4 * precision : ℕ) : ℝ) *
-                ((empiricalHits predictor samples x : ℝ) / pruneSampleCount n precision)) =
-            (4 * precision : ℕ) * (empiricalHits predictor samples x : ℝ) := by
-        field_simp
-      linarith
-    exact_mod_cast hcross
+    have hmul := mul_le_mul_of_nonneg_left hdiv h4p.le
+    rw [← mul_assoc, hring] at hmul
+    exact_mod_cast (mul_comm _ _).trans_le hmul
   have h2 : ∀ x ∈ prunedCandidates predictor (2 * precision + 3) (4 * precision) masks samples,
       1 / 2 + 1 / (2 * (precision : ℝ)) ≤ agreement predictor x := by
     intro x hx
     rw [mem_prunedCandidates] at hx
-    rcases hx with ⟨hcand, hthresh⟩
-    have hacc := (abs_lt.mp (hsamples x hcand)).2
-    have hthresh' :
-        (pruneSampleCount n precision : ℝ) * ((2 * precision + 3 : ℕ) : ℝ) ≤
-          ((4 * precision : ℕ) : ℝ) * (empiricalHits predictor samples x : ℝ) := by
-      exact_mod_cast hthresh
-    have hdiv :
-        1 / 2 + 3 / (4 * (precision : ℝ)) ≤
-          (empiricalHits predictor samples x : ℝ) / pruneSampleCount n precision := by
-      rw [le_div_iff₀ hm']
-      have h4p : (0 : ℝ) < 4 * (precision : ℝ) := by positivity
-      rw [← mul_le_mul_iff_right₀ h4p]
-      have hring :
-          (1 / 2 + 3 / (4 * (precision : ℝ))) * (pruneSampleCount n precision : ℝ) *
-              (4 * (precision : ℝ)) =
-            (pruneSampleCount n precision : ℝ) * (2 * (precision : ℝ) + 3) := by
-        field_simp
-        ring
-      push_cast at hthresh'
+    have hacc := (abs_lt.mp (hsamples x hx.1)).2
+    have hthresh : (pruneSampleCount n precision : ℝ) * (2 * precision + 3) ≤
+        4 * precision * empiricalHits predictor samples x := by
+      exact_mod_cast hx.2
+    have hdiv : 1 / 2 + 3 / (4 * (precision : ℝ)) ≤
+        (empiricalHits predictor samples x : ℝ) / pruneSampleCount n precision := by
+      rw [le_div_iff₀ hm', ← mul_le_mul_iff_right₀ h4p]
+      have hm_ring := congrArg (· * (pruneSampleCount n precision : ℝ)) hring
       linarith
     linarith
   have h3 :
