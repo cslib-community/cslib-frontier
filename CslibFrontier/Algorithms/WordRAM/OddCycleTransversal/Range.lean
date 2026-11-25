@@ -46,7 +46,7 @@ open StateTransitionSpec (clientResult_bind clientState_bind clientResult_pure c
 
 /-! ### Client reduction and frame helpers for `Memory.Prog` -/
 
-attribute [local client_simps] runClient_read runClient_write clientState_map
+attribute [local client_simps] runClient_read runClient_write StateTransitionSpec.clientState_map
 
 /-- Graph dimension `n` encoded in a `((n, m), k)` step-argument tuple. -/
 abbrev GraphStepArgs.n (d : (ℕ × ℕ) × ℕ) : ℕ := d.1.1

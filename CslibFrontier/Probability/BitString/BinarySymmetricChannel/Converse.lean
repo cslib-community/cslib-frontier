@@ -122,21 +122,16 @@ private theorem map_snd_uniformOfFintype_bind_bsc [DecidableEq ι] (p : I) :
     ((Probability.PMF.uniformOfFintype (ι → Bool)).bind fun x => (bsc p x).map (x, ·)).map
       Prod.snd = Probability.PMF.uniformOfFintype (ι → Bool) := by
   classical
-  have hmap : ∀ x : ι → Bool, ((bsc p x).map (x, ·)).map Prod.snd = bsc p x := fun x => by
-    rw [PMF.map_comp]
-    exact PMF.map_id _
-  rw [PMF.map_bind]
-  simp only [hmap]
+  have hmap (x : ι → Bool) : ((bsc p x).map (x, ·)).map Prod.snd = bsc p x :=
+    (PMF.map_comp ..).trans (PMF.map_id _)
+  simp only [PMF.map_bind, hmap]
   ext y
   rw [PMF.bind_apply, tsum_fintype]
-  simp only [Probability.PMF.uniformOfFintype_apply]
-  rw [← Finset.mul_sum]
-  conv_rhs => rw [← mul_one ((Fintype.card (ι → Bool) : ENNReal)⁻¹)]
-  congr 1
-  simp only [bsc_apply]
-  rw [Fintype.sum_equiv (Equiv.addRight y) (fun x => bscNoise p (x + y)) (bscNoise p)
-    (fun x => rfl)]
-  simpa only [tsum_fintype] using (bscNoise (ι := ι) p).tsum_coe
+  simp only [Probability.PMF.uniformOfFintype_apply, ← Finset.mul_sum, bsc_apply]
+  rw [Fintype.sum_equiv (Equiv.addRight y) (fun x => bscNoise p (x + y)) (bscNoise p) fun _ => rfl]
+  have h1 := (bscNoise (ι := ι) p).tsum_coe
+  rw [tsum_fintype] at h1
+  rw [h1, mul_one]
 
 /-- On a uniformly random input, `n` uses of `BSC_p` carry exactly `n (1 - h₂(p))` bits, so the
 bound `Cslib.BitString.mutualInfo_bind_bsc_le` is attained: `1 - h₂(p)` is the capacity of `BSC_p`
@@ -147,13 +142,11 @@ theorem mutualInfo_uniformOfFintype_bind_bsc [DecidableEq ι] (p : I) :
       Fintype.card ι * (1 - Real.binEntropy p / Real.log 2) := by
   classical
   have hcond := conditionalEntropy_bind_pair (Probability.PMF.uniformOfFintype (ι → Bool))
-    (fun x => bsc p x)
+    fun x => bsc p x
   simp only [entropy_bsc, ← Finset.sum_mul, sum_toReal, one_mul] at hcond
-  rw [mutualInfo_eq_entropy_map_snd_sub_conditionalEntropy, map_snd_uniformOfFintype_bind_bsc]
-  have hU : entropy (Probability.PMF.uniformOfFintype (ι → Bool)) = Fintype.card ι := by
-    rw [entropy_uniform, Fintype.card_fun, Fintype.card_bool, Nat.cast_pow, Nat.cast_two,
-      Real.logb_two_pow]
-  rw [hU, hcond, mul_sub, mul_one]
+  rw [mutualInfo_eq_entropy_map_snd_sub_conditionalEntropy, map_snd_uniformOfFintype_bind_bsc,
+    entropy_uniform, Fintype.card_fun, Fintype.card_bool, Nat.cast_pow, Nat.cast_two,
+    Real.logb_two_pow, hcond, mul_sub, mul_one]
 
 /-! ### The converse -/
 
@@ -167,33 +160,22 @@ theorem logb_card_le_add_fano [Fintype M] [Nonempty M] (p : I) (E : M → ι →
         Real.binEntropy (𝔼 m, decodingError p E D m) / Real.log 2 +
           (𝔼 m, decodingError p E D m) * Real.logb 2 (Fintype.card M - 1) := by
   classical
+  set J := (Probability.PMF.uniformOfFintype M).bind fun m => (bsc p (E m)).map (m, ·)
   -- the probability that `D` misdecodes a uniform message is the average error
-  have hPe : ((((Probability.PMF.uniformOfFintype M).bind fun m =>
-      (bsc p (E m)).map (m, ·)).map Prod.swap).toOuterMeasure {z | D z.1 ≠ z.2}).toReal =
-        𝔼 m, decodingError p E D m := by
+  have hPe : ((J.map Prod.swap).toOuterMeasure {z | D z.1 ≠ z.2}).toReal =
+      𝔼 m, decodingError p E D m := by
     rw [PMF.toOuterMeasure_map_apply, PMF.toOuterMeasure_bind_apply, tsum_fintype]
-    simp only [PMF.toOuterMeasure_map_apply, Probability.PMF.uniformOfFintype_apply]
-    rw [← Finset.mul_sum, ENNReal.toReal_mul,
-      ENNReal.toReal_sum (fun m _ => toOuterMeasure_ne_top _ _), Finset.expect_eq_sum_div_card,
-      Finset.card_univ, ENNReal.toReal_inv, ENNReal.toReal_natCast, inv_mul_eq_div]
-    simp only [decodingError_def]
+    simp only [PMF.toOuterMeasure_map_apply, Probability.PMF.uniformOfFintype_apply,
+      ← Finset.mul_sum, ENNReal.toReal_mul, ENNReal.toReal_sum fun _ _ => toOuterMeasure_ne_top _ _,
+      Finset.expect_eq_sum_div_card, Finset.card_univ, ENNReal.toReal_inv, ENNReal.toReal_natCast,
+      inv_mul_eq_div, decodingError_def]
     rfl
-  have hI := mutualInfo_bind_bsc_le p (Probability.PMF.uniformOfFintype M) E
-  have hF := conditionalEntropy_le_binEntropy_add_mul_logb
-    (((Probability.PMF.uniformOfFintype M).bind fun m => (bsc p (E m)).map (m, ·)).map Prod.swap) D
-  rw [hPe] at hF
-  set J := (Probability.PMF.uniformOfFintype M).bind fun m => (bsc p (E m)).map (m, ·) with hJ
-  have hswap : entropy (J.map Prod.swap) = entropy J :=
-    entropy_map_of_injective J Prod.swap_injective
-  have hfst : (J.map Prod.swap).map Prod.fst = J.map Prod.snd := by
-    rw [PMF.map_comp]
-    rfl
-  have hM : entropy (J.map Prod.fst) = Real.logb 2 (Fintype.card M) := by
-    rw [hJ, map_fst_bind_pair, entropy_uniform]
+  have hF := hPe ▸ conditionalEntropy_le_binEntropy_add_mul_logb (J.map Prod.swap) D
+  rw [conditionalEntropy, entropy_map_of_injective J Prod.swap_injective, PMF.map_comp] at hF
+  change entropy J - entropy (J.map Prod.snd) ≤ _ at hF
   have hI' := mutualInfo_eq_entropy_map_snd_sub_conditionalEntropy J
-  rw [conditionalEntropy, hswap, hfst] at hF
-  rw [conditionalEntropy, hM] at hI'
-  linarith
+  rw [conditionalEntropy, map_fst_bind_pair, entropy_uniform] at hI'
+  linarith [mutualInfo_bind_bsc_le p (Probability.PMF.uniformOfFintype M) E]
 
 /-- **The weak converse for `BSC_p`** [Cover and Thomas, Theorem 7.9.1][CoverThomas2006]: every code
 `E : M → (ι → Bool)` with a decoder `D` and average error probability `Pe` satisfies
@@ -203,21 +185,18 @@ theorem one_sub_expect_decodingError_mul_logb_card_le [Fintype M] [Nonempty M] (
     (E : M → ι → Bool) (D : (ι → Bool) → M) :
     (1 - 𝔼 m, decodingError p E D m) * Real.logb 2 (Fintype.card M) ≤
       Fintype.card ι * (1 - Real.binEntropy p / Real.log 2) + 1 := by
-  have h := logb_card_le_add_fano p E D
   set Pe := 𝔼 m, decodingError p E D m
-  have hPe0 : 0 ≤ Pe := Finset.expect_nonneg fun m _ => by
+  have hPe0 : 0 ≤ Pe := Finset.expect_nonneg fun _ _ => by
     rw [decodingError_def]
     exact ENNReal.toReal_nonneg
-  have hh : Real.binEntropy Pe / Real.log 2 ≤ 1 := by
-    rw [div_le_one (Real.log_pos one_lt_two)]
-    exact Real.binEntropy_le_log_two
-  have hcard : (1 : ℝ) ≤ Fintype.card M := by exact_mod_cast Fintype.card_pos
+  have hh : Real.binEntropy Pe / Real.log 2 ≤ 1 :=
+    (div_le_one (Real.log_pos one_lt_two)).mpr Real.binEntropy_le_log_two
+  have hcard : (1 : ℝ) ≤ Fintype.card M := mod_cast Fintype.card_pos
   have hlog : Real.logb 2 (Fintype.card M - 1) ≤ Real.logb 2 (Fintype.card M) := by
     rcases eq_or_lt_of_le hcard with h1 | h1
-    · rw [← h1, sub_self, Real.logb_zero, Real.logb_one]
+    · simp [← h1]
     · exact Real.logb_le_logb_of_le one_lt_two (by linarith) (by linarith)
-  have := mul_le_mul_of_nonneg_left hlog hPe0
-  linarith
+  linarith [logb_card_le_add_fano p E D, mul_le_mul_of_nonneg_left hlog hPe0]
 
 /-- **Above capacity the error is bounded away from zero**, finite form: if
 `R > 1 - h₂(p)`, a code has `log₂ |M| ≥ R n` messages and `n ≥ 2 / (R - (1 - h₂(p)))`, then its
@@ -229,21 +208,16 @@ theorem le_expect_decodingError_of_lt_rate [Fintype M] [Nonempty M] (p : I) {R :
     (E : M → ι → Bool) (D : (ι → Bool) → M) :
     (R - (1 - Real.binEntropy p / Real.log 2)) / (2 * R) ≤ 𝔼 m, decodingError p E D m := by
   have h := one_sub_expect_decodingError_mul_logb_card_le p E D
-  set C := 1 - Real.binEntropy p / Real.log 2 with hC
   set Pe := 𝔼 m, decodingError p E D m
-  set n : ℝ := (Fintype.card ι : ℝ)
-  have hC0 : 0 ≤ C := by
-    rw [hC, sub_nonneg, div_le_one (Real.log_pos one_lt_two)]
-    exact Real.binEntropy_le_log_two
+  have hC0 : 0 ≤ 1 - Real.binEntropy p / Real.log 2 :=
+    sub_nonneg.mpr <| (div_le_one (Real.log_pos one_lt_two)).mpr Real.binEntropy_le_log_two
   have hR0 : 0 < R := hC0.trans_lt hR
   rw [div_le_iff₀ (by positivity)]
   by_cases hPe1 : Pe ≤ 1
-  · have h1 : (1 - Pe) * (R * n) ≤ (1 - Pe) * Real.logb 2 (Fintype.card M) := by gcongr
-    have hn0 : 0 < n := pos_of_mul_pos_right (by linarith) (sub_pos.mpr hR).le
-    refine le_of_mul_le_mul_right ?_ hn0
-    linarith
-  · have := mul_pos (sub_pos.mpr (not_le.mp hPe1)) hR0
-    linarith
+  · refine le_of_mul_le_mul_right ?_
+      (pos_of_mul_pos_right (by linarith) (sub_pos.mpr hR).le : (0 : ℝ) < Fintype.card ι)
+    linarith [mul_le_mul_of_nonneg_left hM (sub_nonneg.mpr hPe1)]
+  · linarith [mul_lt_mul_of_pos_right (not_le.mp hPe1) (by positivity : 0 < 2 * R)]
 
 open Filter in
 /-- **Shannon's noisy-channel coding theorem for the binary symmetric channel, weak converse**, in
@@ -259,13 +233,8 @@ theorem eventually_le_expect_decodingError (p : I) {R : ℝ}
   filter_upwards [eventually_ge_atTop N] with n hn E D
   have : Nonempty (Fin (2 ^ ⌈R * n⌉₊)) := ⟨⟨0, by positivity⟩⟩
   refine le_expect_decodingError_of_lt_rate p hR ?_ ?_ E D
-  · rw [Fintype.card_fin, Fintype.card_fin, Nat.cast_pow, Nat.cast_two, Real.logb_two_pow]
-    exact Nat.le_ceil _
-  · rw [Fintype.card_fin]
-    have hRC := sub_pos.mpr hR
-    have h2 : 2 / (R - (1 - Real.binEntropy p / Real.log 2)) ≤ n :=
-      hN.trans (by exact_mod_cast hn)
-    rw [div_le_iff₀ hRC] at h2
-    linarith
+  · simpa [Real.logb_two_pow] using Nat.le_ceil _
+  · simpa [Fintype.card_fin, div_le_iff₀ (sub_pos.mpr hR), mul_comm] using
+      hN.trans (Nat.cast_le.mpr hn)
 
 end Cslib.BitString

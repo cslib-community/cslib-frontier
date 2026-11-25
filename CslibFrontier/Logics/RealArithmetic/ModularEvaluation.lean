@@ -96,19 +96,17 @@ private theorem evalTokenStep_bounds {p : ℕ} (hp : 0 < p) (point : List ℕ)
     (token : TermToken) {stack result : List ℕ}
     (hs : ∀ x ∈ stack, x < p) (h : evalTokenStep p point token stack = some result) :
     result.length ≤ stack.length + 1 ∧ ∀ x ∈ result, x < p := by
-  rcases token with z | (i | (_ | _))
+  rcases token with z | i | _ | _
   · cases h
-    have hz := (Int.toNat_lt (n := p) (Int.emod_nonneg z (by omega : (p : ℤ) ≠ 0))).2
-      (Int.emod_lt_of_pos z (by omega))
-    exact ⟨le_rfl, List.forall_mem_cons.mpr ⟨hz, hs⟩⟩
+    exact ⟨le_rfl, List.forall_mem_cons.mpr
+      ⟨(Int.toNat_lt (Int.emod_nonneg z (by omega))).2 (Int.emod_lt_of_pos z (by omega)), hs⟩⟩
   · cases h
     exact ⟨le_rfl, List.forall_mem_cons.mpr ⟨Nat.mod_lt _ hp, hs⟩⟩
   all_goals
     rcases stack with _ | ⟨l, _ | ⟨r, rest⟩⟩ <;> cases h
-    refine ⟨?_, List.forall_mem_cons.mpr ⟨Nat.mod_lt _ hp, ?_⟩⟩
-    · simp only [List.length_cons]
-      omega
-    · exact (List.forall_mem_cons.mp (List.forall_mem_cons.mp hs).2).2
+    exact ⟨by simp only [List.length_cons]; omega,
+      List.forall_mem_cons.mpr ⟨Nat.mod_lt _ hp,
+        (List.forall_mem_cons.mp (List.forall_mem_cons.mp hs).2).2⟩⟩
 
 /-- Each successful suffix of the prefix stream grows the stack by at most one entry per token.
 For positive `p`, every entry stays below `p` if the initial entries do. -/
@@ -121,14 +119,10 @@ theorem evalTokenStack_bounds {p : ℕ} (hp : 0 < p) (point : List ℕ)
     cases h
     exact ⟨le_rfl, hs⟩
   | cons token tokens ih =>
-    change (evalTokenStack p point tokens stack).bind (evalTokenStep p point token) =
-      some result at h
-    obtain ⟨intermediate, hintermediate, hstep⟩ := Option.bind_eq_some_iff.mp h
-    obtain ⟨hlen, hentries⟩ := ih hintermediate
+    obtain ⟨mid, hmid, hstep⟩ := Option.bind_eq_some_iff.mp h
+    obtain ⟨hlen, hentries⟩ := ih hmid
     obtain ⟨hlen', hentries'⟩ := evalTokenStep_bounds hp point token hentries hstep
-    refine ⟨?_, hentries'⟩
-    simp only [List.length_cons]
-    omega
+    exact ⟨by simp only [List.length_cons]; omega, hentries'⟩
 
 private theorem length_add_mul {n : ℕ} (l r : Term n) :
     let bound := (encTerm n l).length + (encTerm n r).length + 1
@@ -161,17 +155,14 @@ theorem toPolynomial_bounds {n : ℕ} (t : Term n) :
   | add l r hl hr =>
     have hlen := (length_add_mul l r).1
     let b := (encTerm n l).length + (encTerm n r).length
-    have hl' : (2 : ℕ) ^ (encTerm n l).length ≤ 2 ^ b :=
-      Nat.pow_le_pow_right (by decide) (Nat.le_add_right _ _)
-    have hr' : (2 : ℕ) ^ (encTerm n r).length ≤ 2 ^ b :=
-      Nat.pow_le_pow_right (by decide) (Nat.le_add_left _ _)
-    refine ⟨(totalDegree_add _ _).trans
-      (max_le (hl.1.trans (by omega)) (hr.1.trans (by omega))), ?_⟩
-    refine (coeffNorm1_add_le _ _).trans ?_
-    calc
-      _ ≤ 2 ^ b + 2 ^ b := Nat.add_le_add (hl.2.trans hl') (hr.2.trans hr')
-      _ = 2 ^ (b + 1) := by rw [pow_succ, mul_two]
-      _ ≤ _ := Nat.pow_le_pow_right (by decide) hlen
+    refine ⟨(totalDegree_add _ _).trans (max_le (by omega) (by omega)),
+      (coeffNorm1_add_le _ _).trans ?_⟩
+    calc _ ≤ 2 ^ b + 2 ^ b := Nat.add_le_add
+          (hl.2.trans (Nat.pow_le_pow_right (by decide) (Nat.le_add_right _ _)))
+          (hr.2.trans (Nat.pow_le_pow_right (by decide) (Nat.le_add_left _ _)))
+      _ ≤ _ := by
+        rw [← mul_two, ← pow_succ]
+        exact Nat.pow_le_pow_right (by decide) hlen
   | mul l r hl hr =>
     have hlen := (length_add_mul l r).2
     refine ⟨(totalDegree_mul _ _).trans ((Nat.add_le_add hl.1 hr.1).trans (by omega)), ?_⟩

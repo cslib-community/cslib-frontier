@@ -95,13 +95,11 @@ private theorem reg_injective (t : Fin (d + 1)) : Function.Injective (reg t) := 
 /-- The children's registers are exactly the registers other than the target. -/
 private theorem mem_map_reg_finRange {t r : Fin (d + 1)} :
     r ∈ (List.finRange d).map (reg t) ↔ r ≠ t := by
-  refine ⟨?_, fun hr => ?_⟩
-  · simp only [List.mem_map, List.mem_finRange, true_and]
-    rintro ⟨j, rfl⟩
-    exact reg_ne t j
-  · have h0 : r - t ≠ 0 := sub_ne_zero.mpr hr
-    refine List.mem_map.mpr ⟨(r - t).pred h0, List.mem_finRange _, ?_⟩
-    simp [reg]
+  refine ⟨?_, fun hr => List.mem_map.mpr
+    ⟨(r - t).pred (sub_ne_zero.mpr hr), List.mem_finRange _, by simp [reg]⟩⟩
+  rintro hr
+  obtain ⟨j, -, rfl⟩ := List.mem_map.mp hr
+  exact reg_ne t j
 
 /-- The value of the child whose register is `r`, and `0` at the target register. -/
 def childVal (t : Fin (d + 1)) (v : Fin d → Fin ℓ → K) (r : Fin (d + 1)) : Fin ℓ → K :=
@@ -194,12 +192,10 @@ private theorem foldl_update_reg (t : Fin (d + 1)) (g : Fin (d + 1) → (Fin ℓ
     obtain ⟨hj, hl⟩ := List.nodup_cons.mp hl
     rw [List.foldl_cons, ih hl]
     funext r
-    by_cases hr : r = reg t j
-    · subst hr
-      have hn : reg t j ∉ l.map (reg t) := by
-        rw [List.mem_map]
-        rintro ⟨k, hk, hkj⟩
-        exact hj (reg_injective t hkj ▸ hk)
+    rcases eq_or_ne r (reg t j) with rfl | hr
+    · have hn : reg t j ∉ l.map (reg t) := fun h =>
+        let ⟨_, hk, hkj⟩ := List.mem_map.mp h
+        hj (reg_injective t hkj ▸ hk)
       simp [hn]
     · simp [List.mem_cons, hr]
 
@@ -212,36 +208,25 @@ private theorem gateRoundWith_eq
     (f : Gate d ℓ) (c : K) (t : Fin (d + 1)) (u : Kˣ) (S : State K d r) :
     gateRoundWith E p f c t u S = Function.update S t fun i =>
       S t i - c * E f (fun j k => (u : K) * S (reg t j) k + v j k) i := by
-  have hnd := List.nodup_finRange d
-  have e1 (S : State K d r) :
-      (List.finRange d).foldl (fun S j => p j 1 (reg t j) (scale (reg t j) (u : K) S)) S =
-        fun r => if r ≠ t then (u : K) • S r + childVal t v r else S r := by
-    have h1 : (fun S j => p j 1 (reg t j) (scale (reg t j) (u : K) S)) =
-        fun (S : State K d r) j => Function.update S (reg t j)
-          ((fun r x => (u : K) • x + childVal t v r) (reg t j) (S (reg t j))) := by
-      funext S j
-      simp [hp, scale]
-    rw [h1, foldl_update_reg t (fun r x => (u : K) • x + childVal t v r) _ hnd]
+  have fold_step (g : Fin (d + 1) → (Fin r → K) → Fin r → K)
+      (fstep : State K d r → Fin d → State K d r)
+      (hfstep : ∀ S j, fstep S j = Function.update S (reg t j) (g (reg t j) (S (reg t j))))
+      (S : State K d r) :
+      (List.finRange d).foldl fstep S = fun r => if r ≠ t then g r (S r) else S r := by
+    rw [show fstep = fun S j => Function.update S (reg t j) (g (reg t j) (S (reg t j))) from
+      funext fun S => funext fun j => hfstep S j,
+      foldl_update_reg t g _ (List.nodup_finRange d)]
     simp only [mem_map_reg_finRange]
-  have e3 (S : State K d r) :
-      (List.finRange d).foldl
-          (fun S j => scale (reg t j) ((u⁻¹ : Kˣ) : K) (p j (-1) (reg t j) S)) S =
-        fun r => if r ≠ t then ((u⁻¹ : Kˣ) : K) • (S r - childVal t v r) else S r := by
-    have h3 : (fun S j => scale (reg t j) ((u⁻¹ : Kˣ) : K) (p j (-1) (reg t j) S)) =
-        fun (S : State K d r) j => Function.update S (reg t j)
-          ((fun r x => ((u⁻¹ : Kˣ) : K) • (x - childVal t v r)) (reg t j) (S (reg t j))) := by
-      funext S j
-      simp [hp, scale, sub_eq_add_neg]
-    rw [h3, foldl_update_reg t (fun r x => ((u⁻¹ : Kˣ) : K) • (x - childVal t v r)) _ hnd]
-    simp only [mem_map_reg_finRange]
-  have harg (t : Fin (d + 1)) :
-      (fun j => (u : K) • S (reg t j) + v j) =
-        (fun j k => (u : K) * S (reg t j) k + v j k) := rfl
   dsimp only [gateRoundWith]
-  rw [e1, e3]
+  rw [fold_step (fun r x => (u : K) • x + childVal t v r)
+      (fun S j => p j 1 (reg t j) (scale (reg t j) (u : K) S)) (fun S j => by simp [hp, scale]),
+    fold_step (fun r x => ((u⁻¹ : Kˣ) : K) • (x - childVal t v r))
+      (fun S j => scale (reg t j) ((u⁻¹ : Kˣ) : K) (p j (-1) (reg t j) S))
+      (fun S j => by simp [hp, scale, sub_eq_add_neg])]
   funext r i
-  by_cases hr : r = t
-  · subst hr
+  rcases eq_or_ne r t with rfl | hr
+  · have harg : (fun j => (u : K) • S (reg r j) + v j) =
+        (fun j k => (u : K) * S (reg r j) k + v j k) := rfl
     simp [gateUpdateWith, reg_ne, harg]
   · simp [gateUpdateWith, hr]
 
@@ -284,8 +269,7 @@ theorem procWith_eq [DecidableEq K]
   | node f ch ih =>
     rw [procWith, foldl_gateRoundWith_eq E (v := fun j => e (ch j).eval) fun j => ih j]
     congr 1 with i : 1
-    rw [← List.sum_toFinset _ hnd, show us.toFinset = Finset.univ by ext; simp [hmem]]
-    rw [hE]
+    rw [← List.sum_toFinset _ hnd, show us.toFinset = Finset.univ by ext; simp [hmem], hE]
     simp [Tree.eval]
 
 /-- **Correctness of the Cook–Mertz procedure for fan-in `d`.** If `us` enumerates the units of
@@ -300,10 +284,9 @@ theorem proc_eq {us : List Kˣ} (hnd : us.Nodup) (hmem : ∀ u, u ∈ us)
   apply procWith_eq embed (fun f x i => eval (fun q => x q.1 q.2) (gatePoly f i))
     (fun f v τ i => ?_) hnd hmem
   have hdeg : (gatePoly (K := K) f i).totalDegree < Fintype.card K - 1 :=
-    (totalDegree_multilinearExtension_le _).trans_lt <| by simpa using hK
-  have hsum := FiniteField.sum_units_eval_mul_add hdeg
-    (fun q => τ q.1 q.2) (fun q => bitVal K (v q.1 q.2))
-  simpa only [gatePoly, eval_multilinearExtension, embed] using hsum
+    (totalDegree_multilinearExtension_le _).trans_lt (by simpa using hK)
+  simpa only [gatePoly, eval_multilinearExtension, embed] using
+    FiniteField.sum_units_eval_mul_add hdeg (fun q => τ q.1 q.2) (fun q => bitVal K (v q.1 q.2))
 
 /-- Started from zero registers, the procedure leaves the value of the tree in the target
 register. -/

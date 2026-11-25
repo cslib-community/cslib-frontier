@@ -139,10 +139,8 @@ theorem mistakesFrom_le_length (A : OnlineLearner α β) (h S : List (α × β))
   induction S generalizing h with
   | nil => simp
   | cons p S ih =>
-    obtain ⟨x, y⟩ := p
-    rw [mistakesFrom_cons]
-    have := ih (h ++ [(x, y)])
-    simp only [List.length_cons]
+    have := ih (h ++ [(p.1, p.2)])
+    simp only [mistakesFrom, List.length_cons]
     split <;> omega
 
 theorem mistakes_le_length (A : OnlineLearner α β) (S : List (α × β)) :
@@ -156,8 +154,8 @@ theorem mistakesFrom_append (A : OnlineLearner α β) (h S S' : List (α × β))
   | nil => simp
   | cons p S ih =>
     obtain ⟨x, y⟩ := p
-    rw [List.cons_append, mistakesFrom_cons, mistakesFrom_cons, ih]
-    simp only [List.append_assoc, List.singleton_append, Nat.add_assoc]
+    simp only [List.cons_append, mistakesFrom_cons, ih, List.append_assoc, List.nil_append,
+      Nat.add_assoc]
 
 /-- The mistakes of a fixed classifier `c`, as a learner that ignores its history, are the
 examples it labels wrongly. -/
@@ -202,18 +200,13 @@ end Mistakes
 theorem mem_versionSpace {C : ConceptClass α β} {S : List (α × β)} {c : α → β} :
     c ∈ versionSpace C S ↔ c ∈ C ∧ ∀ p ∈ S, c p.1 = p.2 := Iff.rfl
 
-@[simp] theorem versionSpace_nil (C : ConceptClass α β) : versionSpace C [] = C := by
-  ext c; simp [versionSpace]
+@[simp] theorem versionSpace_nil (C : ConceptClass α β) : versionSpace C [] = C :=
+  Set.ext fun _ => by simp [versionSpace]
 
 theorem versionSpace_append (C : ConceptClass α β) (S T : List (α × β)) :
     versionSpace C (S ++ T) = versionSpace (versionSpace C S) T := by
   ext c
-  simp only [versionSpace, Set.mem_ofPred_eq, List.mem_append]
-  constructor
-  · rintro ⟨hc, h⟩
-    exact ⟨⟨hc, fun p hp => h p (Or.inl hp)⟩, fun p hp => h p (Or.inr hp)⟩
-  · rintro ⟨⟨hc, h1⟩, h2⟩
-    exact ⟨hc, fun p hp => hp.elim (h1 p) (h2 p)⟩
+  simp only [versionSpace, Set.mem_ofPred_eq, List.mem_append, or_imp, forall_and, and_assoc]
 
 theorem versionSpace_cons (C : ConceptClass α β) (p : α × β) (S : List (α × β)) :
     versionSpace C (p :: S) = versionSpace (versionSpace C [p]) S :=
@@ -272,8 +265,7 @@ theorem mistakeBound_mono (A : OnlineLearner α β) {C C' : ConceptClass α β} 
 /-- The empty class has no realizable sequence, so every learner has mistake bound `0` on it.
 Littlestone's convention `M_A(∅) = -1` is not used. -/
 @[simp] theorem mistakeBound_empty (A : OnlineLearner α β) : mistakeBound A ∅ = 0 :=
-  nonpos_iff_eq_zero.mp <| mistakeBound_le_iff.mpr fun _ hS => (hS.mono le_rfl).elim
-    fun _ h => (versionSpace_subset ∅ _ h).elim
+  nonpos_iff_eq_zero.mp <| mistakeBound_le_iff.mpr fun _ ⟨_, hc, _⟩ => hc.elim
 
 theorem optimalMistakeBound_le (A : OnlineLearner α β) (C : ConceptClass α β) :
     optimalMistakeBound C ≤ mistakeBound A C := iInf_le _ A
@@ -364,12 +356,10 @@ theorem Adversary.transcript_ofList (A : OnlineLearner α β) (S : List (α × �
   induction t with
   | zero => rfl
   | succ t ih =>
-    have ih := ih (by omega)
-    have hlen : (S.take t).length = t := by rw [List.length_take]; omega
-    rw [Adversary.transcript_succ, ih, List.take_add_one,
-      List.getElem?_eq_getElem (by omega : t < S.length)]
-    simp only [Adversary.ofList, hlen, List.getD_eq_getElem?_getD,
-      List.getElem?_eq_getElem (by omega : t < S.length), Option.getD_some, Option.toList_some]
+    have hlt : t < S.length := by omega
+    rw [Adversary.transcript_succ, ih hlt.le, List.take_add_one, List.getElem?_eq_getElem hlt]
+    simp only [Adversary.ofList, List.length_take_of_le hlt.le, List.getD_eq_getElem?_getD,
+      List.getElem?_eq_getElem hlt, Option.getD_some, Option.toList_some, Prod.mk.eta]
 
 /-- Adaptive adversaries are no stronger than realizable sequences: the mistake bound of a
 deterministic learner is the supremum, over adversaries `B` and horizons `t`, of its mistakes on

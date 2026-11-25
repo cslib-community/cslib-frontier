@@ -416,17 +416,17 @@ theorem actualSelectedSecondSignal_noise_le_dyadic
       (ε * (64 : ℝ)⁻¹ ^ dyadicSlack m i) ^ 4 := by
   have hden : (1 : ℝ) < 155648 * (J + 1) * (4 : ℝ) ^ 4 := by
     have : (0 : ℝ) ≤ J := Nat.cast_nonneg J
-    nlinarith
+    linarith
   have hr : 0 < 1 - 1 / (155648 * (J + 1) * (4 : ℝ) ^ 4) :=
     sub_pos.mpr ((div_lt_one (by linarith)).mpr hden)
   have hp := spectralWalkLength_payment hr (sub_lt_self _ (by positivity))
     (by positivity : 0 ≤ ζ ^ 4 * 512 * HP.K) hε (dyadicSlack m i) (steps (i + 1)) hsteps
-  have hp' : ζ ^ 4 * (32 * (1 - 1 / (155648 * (J + 1) * (4 : ℝ) ^ 4)) ^
-      (2 * steps (i + 1)) * (16 * HP.K)) ≤
-      (ε * (64 : ℝ)⁻¹ ^ dyadicSlack m i) ^ 4 := by nlinarith only [hp]
   exact (actualSelectedSecondSignal_noise_le HP hK D R Horizon ks k kt husage
     hks ss st A F steps ζ G i).trans
-      hp'
+    ((show ζ ^ 4 * (32 * (1 - 1 / (155648 * (J + 1) * (4 : ℝ) ^ 4)) ^
+        (2 * steps (i + 1)) * (16 * HP.K)) =
+      (ζ ^ 4 * 512 * HP.K) * (1 - 1 / (155648 * (J + 1) * (4 : ℝ) ^ 4)) ^
+        (2 * steps (i + 1)) by ring).trans_le hp)
 
 end
 end Matrix.HierarchyParams.H4RankEnvironment.NormalizedMoments

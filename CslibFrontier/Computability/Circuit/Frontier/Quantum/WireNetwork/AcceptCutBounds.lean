@@ -71,16 +71,11 @@ private theorem exists_quantumAcceptProb_affine_mul {n N : ℕ}
       quantumAcceptProb C q_out e x₀ x =
         ∑ yA : ↥A → Bool, (if yA q_act = true then (1 : ℝ) else 0) *
           ‖(evalAct L : Matrix _ _ ℂ) yA (A.domRestrict (Quantum.glue e x x₀))‖ ^ 2 := by
-    rw [quantumAcceptProb, Quantum.measureProb]
-    have hfilt_sum : (∑ y ∈ Finset.univ.filter (fun y : Fin N → Bool => y q_out = true),
-        ‖(C.run (Quantum.glue e x x₀)).ofLp y‖ ^ 2) =
-        ∑ y : Fin N → Bool, (if y q_out = true then (1 : ℝ) else 0) *
-          ‖(C.matrix : Matrix _ _ ℂ) y (Quantum.glue e x x₀)‖ ^ 2 := by
-      rw [Finset.sum_filter]
-      refine Finset.sum_congr rfl fun y _ => ?_
-      rw [run_ofLp_eq_matrix_apply C _ y]
-      split_ifs <;> ring
-    rw [hfilt_sum]
+    rw [quantumAcceptProb, Quantum.measureProb, Finset.sum_filter, Finset.sum_congr rfl fun y _ =>
+      show (if y q_out = true then ‖(C.run (Quantum.glue e x x₀)).ofLp y‖ ^ 2 else 0) =
+        (if y q_out = true then (1 : ℝ) else 0) *
+          ‖(C.matrix : Matrix _ _ ℂ) y (Quantum.glue e x x₀)‖ ^ 2 by
+        rw [run_ofLp_eq_matrix_apply C _ y]; split_ifs <;> ring]
     simp_rw [hsplit _ (Quantum.glue e x x₀), norm_mul, mul_pow]
     have hsum_split : (∑ y : Fin N → Bool,
         (if y q_out = true then (1 : ℝ) else 0) *
@@ -99,52 +94,34 @@ private theorem exists_quantumAcceptProb_affine_mul {n N : ℕ}
       let fAc (yAc : {q : Fin N // q ∉ A} → Bool) : ℝ :=
         ∏ q : {q : Fin N // q ∉ A}, ‖(inactU q : Matrix Bool Bool ℂ) (yAc q) (x₀ q.1)‖ ^ 2
       let eqvN : (Fin N → Bool) ≃ (↥A → Bool) × ({q : Fin N // q ∉ A} → Bool) :=
-        (Equiv.piEquivPiSubtypeProd (· ∈ A) fun _ => Bool).trans
-          (Equiv.prodCongr (Equiv.refl _)
-            (Equiv.arrowCongr
-              { toFun := fun q => ⟨q.1, q.2⟩
-                invFun := fun q => ⟨q.1, q.2⟩
-                left_inv := fun _ => rfl
-                right_inv := fun _ => rfl } (Equiv.refl Bool)))
-      refine (Fintype.sum_equiv eqvN _ (fun p => fA p.1 * fAc p.2) fun y => ?_).trans ?_
-      · have heqv1 : (eqvN y).1 = A.domRestrict y := rfl
-        have heqv2 : (eqvN y).2 = fun q => y q.1 := rfl
-        have hyq : y q_out = (A.domRestrict y) q_act := rfl
-        have hprod_norm :
-            ‖∏ q : {q : Fin N // q ∉ A},
-              (inactU q : Matrix Bool Bool ℂ) (y q.1) (Quantum.glue e x x₀ q.1)‖ ^ 2 =
-            ∏ q : {q : Fin N // q ∉ A},
-              ‖(inactU q : Matrix Bool Bool ℂ) (y q.1) (x₀ q.1)‖ ^ 2 := by
-          have heq_p : (∏ q : {q : Fin N // q ∉ A},
-                (inactU q : Matrix Bool Bool ℂ) (y q.1) (Quantum.glue e x x₀ q.1)) =
-              ∏ q : {q : Fin N // q ∉ A},
-                (inactU q : Matrix Bool Bool ℂ) (y q.1) (x₀ q.1) :=
-            Finset.prod_congr (M := ℂ) rfl fun q _ =>
-              congrArg _ (Quantum.glue_of_not e x x₀ fun i hi => q.2 (heA ⟨i, hi⟩))
-          rw [heq_p, norm_prod, Finset.prod_pow]
-        dsimp only [fA, fAc]
-        rw [heqv1, heqv2, hyq, hprod_norm]
-        ring
-      · rw [Fintype.sum_prod_type, ← Finset.sum_mul_sum]
+        Equiv.piEquivPiSubtypeProd (· ∈ A) fun _ => Bool
+      refine (Fintype.sum_equiv eqvN _ (fun p => fA p.1 * fAc p.2) fun y => ?_).trans
+        (by rw [Fintype.sum_prod_type, ← Finset.sum_mul_sum])
+      have heq_p : (∏ q : {q : Fin N // q ∉ A},
+            (inactU q : Matrix Bool Bool ℂ) (y q.1) (Quantum.glue e x x₀ q.1)) =
+          ∏ q : {q : Fin N // q ∉ A}, (inactU q : Matrix Bool Bool ℂ) (y q.1) (x₀ q.1) :=
+        Finset.prod_congr (M := ℂ) rfl fun q _ =>
+          congrArg _ (Quantum.glue_of_not e x x₀ fun i hi => q.2 (heA ⟨i, hi⟩))
+      dsimp only [fA, fAc]
+      rw [show (eqvN y).1 = A.domRestrict y from rfl, show (eqvN y).2 = (fun q => y q.1) from rfl,
+        show y q_out = (A.domRestrict y) q_act from rfl, heq_p, norm_prod, Finset.prod_pow]
+      ring
     have hinact_one : (∑ yAc : {q : Fin N // q ∉ A} → Bool,
         ∏ q : {q : Fin N // q ∉ A},
           ‖(inactU q : Matrix Bool Bool ℂ) (yAc q) (x₀ q.1)‖ ^ 2) = 1 := by
-      let fQ (q : {q : Fin N // q ∉ A}) (b : Bool) : ℝ :=
-        ‖(inactU q : Matrix Bool Bool ℂ) b (x₀ q.1)‖ ^ 2
-      refine (Fintype.prod_sum fQ).symm.trans (Finset.prod_eq_one fun q _ => ?_)
-      dsimp only [fQ]
-      have hu := Matrix.mem_unitaryGroup_iff'.mp (inactU q).2
-      have hcol := congrArg Complex.re (congrFun (congrFun hu (x₀ q.1)) (x₀ q.1))
+      refine (Fintype.prod_sum fun q b =>
+        ‖(inactU q : Matrix Bool Bool ℂ) b (x₀ q.1)‖ ^ 2).symm.trans
+        (Finset.prod_eq_one fun q _ => ?_)
+      have hcol := congrArg Complex.re
+        (congrFun (congrFun (Matrix.mem_unitaryGroup_iff'.mp (inactU q).2) (x₀ q.1)) (x₀ q.1))
       rw [Matrix.mul_apply, Matrix.one_apply] at hcol
       simp only [↓reduceIte, Complex.one_re, Fintype.sum_bool] at hcol
-      rw [Fintype.sum_bool]
-      have hnorm_re (b : Bool) :
-          ‖(inactU q : Matrix Bool Bool ℂ) b (x₀ q.1)‖ ^ 2 =
-            (star ((inactU q : Matrix Bool Bool ℂ)) (x₀ q.1) b *
-              (inactU q : Matrix Bool Bool ℂ) b (x₀ q.1)).re := by
+      have hnorm_re (b : Bool) : ‖(inactU q : Matrix Bool Bool ℂ) b (x₀ q.1)‖ ^ 2 =
+          (star ((inactU q : Matrix Bool Bool ℂ)) (x₀ q.1) b *
+            (inactU q : Matrix Bool Bool ℂ) b (x₀ q.1)).re := by
         simp only [Matrix.star_apply, RCLike.star_def]
         rw [mul_comm, Complex.mul_conj, Complex.normSq_eq_norm_sq, Complex.ofReal_re]
-      rw [hnorm_re false, hnorm_re true, ← Complex.add_re, hcol]
+      rw [Fintype.sum_bool, hnorm_re false, hnorm_re true, ← Complex.add_re, hcol]
     rw [hsum_split, hinact_one, mul_one]
   obtain ⟨Φ, Ψ, hamp⟩ := amplitude_cut_factorization G inVert outVert F
     hcontract hloc_in hloc_out hloc_edge P
@@ -192,18 +169,17 @@ private theorem exists_quantumAcceptProb_affine_mul {n N : ℕ}
       refine Finset.sum_congr rfl fun yA _ => ?_
       have h1 := hamp (A.domRestrict (Quantum.glue e (glueX (a, b)) x₀)) yA
       rw [hdom_XP a b, hdom_XPc a b] at h1
-      set z_amp : ℂ :=
-        (evalAct L : Matrix _ _ ℂ) yA (A.domRestrict (Quantum.glue e (glueX (a, b)) x₀))
-      have hnorm_sq : ‖z_amp‖ ^ 2 = (z_amp * star z_amp).re := by
-        rw [RCLike.star_def, Complex.mul_conj, Complex.normSq_eq_norm_sq, Complex.ofReal_re]
-      rw [hw_prod yA, hnorm_sq, h1, ← Complex.re_ofReal_mul]
-      congr 1
-      dsimp only [YP, Ecut]
+      rw [hw_prod yA, show ‖(evalAct L : Matrix _ _ ℂ) yA
+          (A.domRestrict (Quantum.glue e (glueX (a, b)) x₀))‖ ^ 2 =
+          ((evalAct L : Matrix _ _ ℂ) yA (A.domRestrict (Quantum.glue e (glueX (a, b)) x₀)) *
+            star ((evalAct L : Matrix _ _ ℂ) yA
+              (A.domRestrict (Quantum.glue e (glueX (a, b)) x₀)))).re by
+          rw [RCLike.star_def, Complex.mul_conj, Complex.normSq_eq_norm_sq, Complex.ofReal_re],
+        h1, ← Complex.re_ofReal_mul]
+      congr 1; dsimp only [YP, Ecut]
       rw [star_sum, Finset.sum_mul_sum, ← Fintype.sum_prod_type', Complex.ofReal_mul,
         Finset.mul_sum]
-      refine Finset.sum_congr rfl fun p _ => ?_
-      rw [star_mul']
-      ring
+      exact Finset.sum_congr rfl fun p _ => by rw [star_mul']; ring
     rw [hstep1]
     simp_rw [← Complex.re_sum]
     rw [Finset.sum_comm, Complex.re_sum, Complex.re_sum]
@@ -224,18 +200,16 @@ private theorem exists_quantumAcceptProb_affine_mul {n N : ℕ}
     have hc : Fintype.card κ = 2 * 4 ^ (G.edgeCut P).ncard + 1 := by
       simp only [κ, Fintype.card_sum, Fintype.card_prod, Fintype.card_fun, Fintype.card_bool,
         Fintype.card_unit, hE]
-      rw [← pow_add, ← two_mul, pow_mul]
-      ring
-    have h1 : 1 ≤ 4 ^ (G.edgeCut P).ncard := Nat.one_le_pow _ 4 (by norm_num)
+      rw [← pow_add, ← two_mul, pow_mul]; ring
+    have := Nat.one_le_pow (G.edgeCut P).ncard 4 (by norm_num)
     omega
   · rw [Matrix.mul_apply, Fintype.sum_sum_type]
     simp only [Fintype.sum_unique, U_mat, V_mat, mul_one]
-    have hmul_sum : (∑ x : ((Ecut → Bool) × (Ecut → Bool)) × Bool,
+    rw [show (∑ x : ((Ecut → Bool) × (Ecut → Bool)) × Bool,
         α_coef * realCutLeft A_pair a x * realCutRight B_pair x b) =
-        α_coef * (realCutLeft A_pair * realCutRight B_pair) a b := by
-      rw [Matrix.mul_apply, Finset.mul_sum]
-      exact Finset.sum_congr rfl fun _ _ => by ring
-    rw [hmul_sum, realCutLeft_mul_realCutRight_apply, ← hprob_re]
+        α_coef * (realCutLeft A_pair * realCutRight B_pair) a b by
+      rw [Matrix.mul_apply, Finset.mul_sum]; exact Finset.sum_congr rfl fun _ _ => by ring,
+      realCutLeft_mul_realCutRight_apply, ← hprob_re]
 
 open Classical in
 /-- Single-cut `BQP` correlation inequality for a `CappedWireNet`: across any vertex cut `P` of `G`
@@ -274,9 +248,8 @@ private theorem sq_quantumCorrelation_mul_le_of_capped {n N : ℕ}
     refine (Finset.sum_le_sum fun a _ => Finset.sum_le_sum fun b _ => ?_).trans_eq
       (sum_prod_subtype_compl_one X)
     rw [hUV]
-    have h0 := quantumAcceptProb_nonneg C q_out e x₀ (glueX (a, b))
-    have h1 := quantumAcceptProb_le_one C q_out e x₀ (glueX (a, b))
-    nlinarith
+    nlinarith [quantumAcceptProb_nonneg C q_out e x₀ (glueX (a, b)),
+      quantumAcceptProb_le_one C q_out e x₀ (glueX (a, b))]
   have hcorr_sum : quantumCorrelation {x | BitString.quadForm Q x}
         (quantumAcceptProb C q_out e x₀) * (2 : ℝ) ^ n =
       -(∑ a : X → Bool, ∑ b : ↥Xᶜ → Bool,
@@ -286,41 +259,25 @@ private theorem sq_quantumCorrelation_mul_le_of_capped {n N : ℕ}
     simp_rw [← Finset.sum_neg_distrib]
     rw [← Fintype.sum_prod_type']
     refine Fintype.sum_equiv (Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => Bool) _ _ fun x => ?_
-    have hgx : glueX ((Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => Bool) x) = x :=
-      (Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => Bool).symm_apply_apply x
-    simp only [Communication.signMatrix_apply, hUV, hgx, mem_ofPred_eq]
-    by_cases hqx : BitString.quadForm Q x = true
-    · simp only [hqx, ↓reduceIte]; ring
-    · simp only [Bool.not_eq_true] at hqx
-      simp only [hqx, Bool.false_eq_true, ↓reduceIte]; ring
+    simp only [Communication.signMatrix_apply, hUV, mem_ofPred_eq, Prod.mk.eta, glueX,
+      (Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => Bool).symm_apply_apply]
+    by_cases hqx : BitString.quadForm Q x = true <;> simp [hqx]
   have hfrob := Communication.sq_sum_mul_signMatrix_quadForm_le_card_of_mul Q X U_mat V_mat
   rw [Fintype.card_fin] at hfrob
   have hcard_κ : (Fintype.card κ : ℝ) ≤ 4 * (4 : ℝ) ^ (G.edgeCut P).ncard := by
-    have hr : (Fintype.card κ : ℝ) ≤ 3 * (4 : ℝ) ^ (G.edgeCut P).ncard := by
-      exact_mod_cast hcard_nat
+    have : (Fintype.card κ : ℝ) ≤ 3 * (4 : ℝ) ^ (G.edgeCut P).ncard := by exact_mod_cast hcard_nat
     linarith [pow_nonneg (by norm_num : (0 : ℝ) ≤ 4) (G.edgeCut P).ncard]
-  have hsq_corr : (quantumCorrelation {x | BitString.quadForm Q x}
-        (quantumAcceptProb C q_out e x₀) * (2 : ℝ) ^ n) ^ 2 =
-      (∑ a, ∑ b, Communication.signMatrix ℝ (fun a' b' => BitString.quadForm Q (glueX (a', b')))
-        a b * (U_mat * V_mat) a b) ^ 2 := by
-    rw [hcorr_sum, neg_sq]
-    rfl
-  have hmult : (quantumCorrelation {x | BitString.quadForm Q x}
-        (quantumAcceptProb C q_out e x₀)) ^ 2 *
-        (2 : ℝ) ^ (Q + Qᵀ).cutRank X * ((2 : ℝ) ^ n) ^ 2 ≤
-      4 * (4 : ℝ) ^ (G.edgeCut P).ncard * ((2 : ℝ) ^ n) ^ 2 := by
-    calc (quantumCorrelation {x | BitString.quadForm Q x}
-            (quantumAcceptProb C q_out e x₀)) ^ 2 *
-            (2 : ℝ) ^ (Q + Qᵀ).cutRank X * ((2 : ℝ) ^ n) ^ 2
-        = (quantumCorrelation {x | BitString.quadForm Q x}
-            (quantumAcceptProb C q_out e x₀) * (2 : ℝ) ^ n) ^ 2 *
-            (2 : ℝ) ^ (Q + Qᵀ).cutRank X := by ring
-      _ ≤ (Fintype.card κ : ℝ) * (2 : ℝ) ^ n * ∑ a, ∑ b, (U_mat * V_mat) a b ^ 2 := by
-          rw [hsq_corr]; exact hfrob
-      _ ≤ (4 * (4 : ℝ) ^ (G.edgeCut P).ncard) * (2 : ℝ) ^ n * (2 : ℝ) ^ n :=
-          by gcongr
-      _ = 4 * (4 : ℝ) ^ (G.edgeCut P).ncard * ((2 : ℝ) ^ n) ^ 2 := by ring
-  exact le_of_mul_le_mul_right hmult (by positivity)
+  refine le_of_mul_le_mul_right (a := ((2 : ℝ) ^ n) ^ 2) ?_ (by positivity)
+  calc (quantumCorrelation {x | BitString.quadForm Q x}
+          (quantumAcceptProb C q_out e x₀)) ^ 2 *
+          (2 : ℝ) ^ (Q + Qᵀ).cutRank X * ((2 : ℝ) ^ n) ^ 2
+      = (quantumCorrelation {x | BitString.quadForm Q x}
+          (quantumAcceptProb C q_out e x₀) * (2 : ℝ) ^ n) ^ 2 *
+          (2 : ℝ) ^ (Q + Qᵀ).cutRank X := by ring
+    _ ≤ (Fintype.card κ : ℝ) * (2 : ℝ) ^ n * ∑ a, ∑ b, (U_mat * V_mat) a b ^ 2 := by
+        rw [hcorr_sum, neg_sq]; exact hfrob
+    _ ≤ (4 * (4 : ℝ) ^ (G.edgeCut P).ncard) * (2 : ℝ) ^ n * (2 : ℝ) ^ n := by gcongr
+    _ = 4 * (4 : ℝ) ^ (G.edgeCut P).ncard * ((2 : ℝ) ^ n) ^ 2 := by ring
 
 open Classical in
 /-- Single-cut `UQP` sign-rank bound: if `quantumAcceptProb C q_out e x₀ x > θ ↔ f x = true`, then

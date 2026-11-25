@@ -154,6 +154,19 @@ theorem valuesIndex_val {n k : ℕ} (xs : Fin k → Fin n) :
     rw [Fin.val_succ, pow_succ]
     ring
 
+private theorem sum_elim_val {α : Type w} {n k : ℕ} (σ : α → Fin n) (xs : Fin k → Fin n) :
+    Sum.elim (fun x => (σ x : ℕ)) (fun j => (xs j : ℕ)) = fun x => Fin.val (Sum.elim σ xs x) := by
+  funext x; cases x <;> rfl
+
+private theorem fin_snoc_val {n k : ℕ} (xs : Fin k → Fin n) (x : Fin n) :
+    Fin.snoc (α := fun _ => ℕ) (fun j => (xs j : ℕ)) (x : ℕ) =
+      fun j => Fin.val (Fin.snoc (α := fun _ => Fin n) xs x j) := by
+  funext i; exact Fin.lastCases (by simp) (fun j => by simp) i
+
+private theorem option_elim_val {α : Type w} {n : ℕ} (σ : α → Fin n) (x : Fin n) :
+    (Option.elim · (x : ℕ) fun y => (σ y : ℕ)) = fun y => Fin.val (Option.elim y x σ) := by
+  funext y; cases y <;> rfl
+
 section Correctness
 
 variable (v : Vocabulary L) {a : EncodedStructure}
@@ -197,14 +210,10 @@ private theorem foEval_eq_true_iff {α : Type w} (σ : α → Fin a.1) {k : ℕ}
   induction φ with
   | falsum => simp [foEval, BoundedFormula.Realize]
   | equal s t =>
-    have hσ : Sum.elim (fun x => (σ x : ℕ)) (fun j => (xs j : ℕ)) =
-        fun x => Fin.val (Sum.elim σ xs x) := by funext x; cases x <;> rfl
-    simp only [foEval, hσ, termValue_eq, beq_iff_eq, Fin.val_inj,
+    simp only [foEval, sum_elim_val, termValue_eq, beq_iff_eq, Fin.val_inj,
       BoundedFormula.Realize]
   | rel r ts =>
-    have hσ : Sum.elim (fun x => (σ x : ℕ)) (fun j => (xs j : ℕ)) =
-        fun x => Fin.val (Sum.elim σ xs x) := by funext x; cases x <;> rfl
-    simp only [foEval, hσ, termValue_eq, relBit_eq_true_iff v hinput,
+    simp only [foEval, sum_elim_val, termValue_eq, relBit_eq_true_iff v hinput,
       BoundedFormula.Realize]
   | imp φ ψ ihφ ihψ =>
     simp only [foEval, Bool.or_eq_true, Bool.not_eq_true', ← Bool.not_eq_true, ihφ, ihψ,
@@ -212,17 +221,8 @@ private theorem foEval_eq_true_iff {α : Type w} (σ : α → Fin a.1) {k : ℕ}
     tauto
   | all φ ih =>
     simp only [foEval, List.all_eq_true, List.mem_range, BoundedFormula.realize_all]
-    constructor
-    · intro h x
-      apply (ih (Fin.snoc xs x)).mp
-      convert h x x.isLt using 1
-      congr 1 with i : 1
-      exact (Fin.lastCases (by simp) (fun j => by simp) i)
-    · intro h x hx
-      have := (ih (Fin.snoc xs ⟨x, hx⟩)).mpr (h ⟨x, hx⟩)
-      convert this using 1
-      congr 1 with i : 1
-      exact (Fin.lastCases (by simp) (fun j => by simp) i)
+    exact ⟨fun h x => (ih (Fin.snoc xs x)).mp (fin_snoc_val xs x ▸ h x x.isLt),
+      fun h x hx => fin_snoc_val xs ⟨x, hx⟩ ▸ (ih (Fin.snoc xs ⟨x, hx⟩)).mpr (h ⟨x, hx⟩)⟩
 
 /-- The bounded evaluator agrees with the semantics of every well-formed, possibly nested LFP
 formula. Relation variables are interpreted by the supplied truth-table stack. -/
@@ -252,25 +252,12 @@ private theorem eval_correct {Γ : List ℕ} {α : Type w}
       and_congr (ihφ hφ tables σ) (ihψ hψ tables σ)
   | ex φ ih =>
     simp only [eval, List.any_eq_true, List.mem_range, Operator.Formula.realize_ex]
-    constructor
-    · rintro ⟨x, hx, heval⟩
-      refine ⟨⟨x, hx⟩, (ih hφ tables (Option.elim · ⟨x, hx⟩ σ)).mp ?_⟩
-      convert heval using 1
-      congr 1 with y : 1
-      cases y <;> rfl
-    · rintro ⟨x, hx⟩
-      refine ⟨x, x.isLt, ?_⟩
-      have := (ih hφ tables (Option.elim · x σ)).mpr hx
-      convert this using 1
-      congr 1 with y : 1
-      cases y <;> rfl
+    exact ⟨fun ⟨x, hx, heval⟩ =>
+        ⟨⟨x, hx⟩, (ih hφ tables _).mp (option_elim_val σ ⟨x, hx⟩ ▸ heval)⟩,
+      fun ⟨x, hx⟩ => ⟨x, x.isLt, option_elim_val σ x ▸ (ih hφ tables _).mpr hx⟩⟩
   | @op Γ α k body ts ih =>
     have hop : Operator.Formula.op k body ts = lfp (body 0) ts := by
-      unfold lfp
-      congr 1 with i : 1
-      have hi : i = 0 := Subsingleton.elim i 0
-      subst i
-      rfl
+      unfold lfp; congr 1 with i : 1; rw [Subsingleton.elim i 0]
     rw [hop] at hφ ⊢
     obtain ⟨hbody, hpos⟩ := (wellFormed_lfp (body 0) ts).mp hφ
     let tableStep := fun table : List Bool =>
@@ -281,12 +268,8 @@ private theorem eval_correct {Γ : List ℕ} {α : Type w}
           step (body 0) (relations Γ a.1 tables) σ (tableRelation a.1 k table) := by
       ext xs
       change (tableStep table).getD (tupleIndex xs) false = true ↔ _
-      rw [show tableStep table = tableOf a.1 k (fun ys =>
-        eval v (body 0) a (table :: tables) (Sum.elim (fun x => (σ x : ℕ)) ys)) from rfl,
-        getD_tableOf]
-      have hσ : Sum.elim (fun x => (σ x : ℕ)) (fun j => (xs j : ℕ)) =
-          fun x => Fin.val (Sum.elim σ xs x) := by funext x; cases x <;> rfl
-      rw [hσ, ih 0 hbody (table :: tables) (Sum.elim σ xs)]
+      rw [show tableStep table = _ from rfl, getD_tableOf, sum_elim_val,
+        ih 0 hbody (table :: tables) (Sum.elim σ xs)]
       exact iff_of_eq (congrArg
         (fun ρ : Operator.RelEnv (k :: Γ) (Fin a.1) =>
           (body 0).Realize interpretation ρ (Sum.elim σ xs))
@@ -303,11 +286,10 @@ private theorem eval_correct {Γ : List ℕ} {α : Type w}
       (valuesIndex a.1 (fun j => termValue a.1 (fun x => (σ x : ℕ)) (ts j))) false = true ↔ _
     simp only [termValue_eq, valuesIndex_val]
     change (fun j => (ts j).realize σ) ∈ tableRelation a.1 k (tableStep^[a.1 ^ k] []) ↔ _
-    rw [hiter]
-    have hfinite := iterate_card_pow_eq_lfp (body 0) hpos (relations Γ a.1 tables) σ
-    rw [show (step (body 0) (relations Γ a.1 tables) σ)^[a.1 ^ k] ∅ =
+    rw [hiter, show (step (body 0) (relations Γ a.1 tables) σ)^[a.1 ^ k] ∅ =
       (stepHom (body 0) hpos (relations Γ a.1 tables) σ).lfp by
-        simpa only [Fintype.card_fin] using hfinite]
+        simpa only [Fintype.card_fin] using
+          iterate_card_pow_eq_lfp (body 0) hpos (relations Γ a.1 tables) σ]
 
 end Correctness
 

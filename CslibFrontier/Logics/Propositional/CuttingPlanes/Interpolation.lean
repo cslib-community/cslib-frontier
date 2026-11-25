@@ -108,17 +108,15 @@ variable {X Y Z : Type*}
 all variables, is the cylinder over its solution set. -/
 theorem setOf_holds_relabel_inl (E : Ineq (X ⊕ Y)) :
     {σ : X ⊕ (Y ⊕ Z) → Bool | (E.relabel (Sum.map id Sum.inl)).Holds σ} =
-      leftCylinder {σ | E.Holds σ} := by
-  ext σ
-  simp [leftCylinder]
+      leftCylinder {σ | E.Holds σ} :=
+  Set.ext fun _ => by simp [leftCylinder]
 
 /-- The solution set of an inequality over the shared variables and those of `Γ_B`, renamed into
 all variables, is the cylinder over its solution set. -/
 theorem setOf_holds_relabel_inr (E : Ineq (X ⊕ Z)) :
     {σ : X ⊕ (Y ⊕ Z) → Bool | (E.relabel (Sum.map id Sum.inr)).Holds σ} =
-      rightCylinder {σ | E.Holds σ} := by
-  ext σ
-  simp [rightCylinder]
+      rightCylinder {σ | E.Holds σ} :=
+  Set.ext fun _ => by simp [rightCylinder]
 
 /-- **Cutting planes refutations are semantic refutations** [Krajíček, Section 6][Krajicek1997].
 The solution sets of the lines of a cutting planes refutation of `Γ_A(x, y) ∪ Γ_B(x, z)`, read
@@ -155,11 +153,9 @@ variable {n : ℕ} {Y Z : Type*}
 the number of terms in absolute value. -/
 private theorem abs_sum_mul_toInt_le {ι : Type*} [Fintype ι] {a : ι → ℤ} {M : ℕ}
     (ha : ∀ i, |a i| ≤ M) (σ : ι → Bool) : |∑ i, a i * (σ i).toInt| ≤ M * Fintype.card ι := by
-  refine (abs_sum_le_sum_abs _ _).trans ?_
-  have : ∀ i ∈ (univ : Finset ι), |a i * (σ i).toInt| ≤ M := fun i _ => by
-    rw [abs_mul]
+  have h : ∀ i ∈ (univ : Finset ι), |a i * (σ i).toInt| ≤ M := fun i _ => by
     cases σ i <;> simp [ha i]
-  simpa [mul_comm] using sum_le_sum this
+  exact (abs_sum_le_sum_abs _ _).trans (by simpa [mul_comm] using sum_le_sum h)
 
 private theorem abs_list_sum_le {ι : Type*} (h : ι → ℤ) {M : ℕ} (hh : ∀ i, |h i| ≤ M)
     (l : List ι) : |(l.map h).sum| ≤ M * l.length := by
@@ -167,9 +163,7 @@ private theorem abs_list_sum_le {ι : Type*} (h : ι → ℤ) {M : ℕ} (hh : �
   | nil => simp
   | cons i l ih =>
     rw [List.map_cons, List.sum_cons, List.length_cons]
-    refine (abs_add_le _ _).trans ?_
-    push_cast
-    linarith [hh i]
+    exact (abs_add_le _ _).trans (by push_cast; linarith [hh i])
 
 /-- `(v, q, r)` satisfies an inequality over all variables. -/
 private theorem holds_sum_elim_sum_elim_iff [Fintype Y] [Fintype Z] (I : Ineq (Fin n ⊕ (Y ⊕ Z)))
@@ -179,7 +173,7 @@ private theorem holds_sum_elim_sum_elim_iff [Fintype Y] [Fintype Z] (I : Ineq (F
         (r z).toInt) + ∑ y, I.coeff (.inr (.inl y)) * (q y).toInt := by
   rw [Ineq.Holds, Ineq.lhs_eq_sum, Fintype.sum_sum_type, Fintype.sum_sum_type]
   simp only [Sum.elim_inl, Sum.elim_inr]
-  constructor <;> intro h <;> linarith
+  constructor <;> intro <;> linarith
 
 /-- `(u, q)` satisfies an inequality over the shared variables and those of `Γ_A`. -/
 private theorem holds_sum_elim_iff [Fintype Y] (E : Ineq (Fin n ⊕ Y)) (u : Fin n → Bool)
@@ -201,20 +195,15 @@ theorem ecomplexity_memRight_holds_le [Fintype Y] [Finite Z] (I : Ineq (Fin n �
       Nat.clog 2 (2 * M * Fintype.card Y + 1) + 1 := by
   classical
   have := Fintype.ofFinite Z
-  refine Protocol.ecomplexity_decides_le.trans ?_
-  set K : ℕ := M * Fintype.card Y with hK
+  let K : ℕ := M * Fintype.card Y
   have h := Protocol.ecomplexityFun_le_clog_card_finset_succ (Finset.Icc (-(K : ℤ)) K)
     (fun a : (Fin n → Bool) × (Y → Bool) => ∑ y, I.coeff (.inr (.inl y)) * (a.2 y).toInt)
     (fun a => Finset.mem_Icc.2 (abs_le.1 (abs_sum_mul_toInt_le hM a.2)))
     (fun w (b : (Fin n → Bool) × (Z → Bool)) => decide (I.bound ≤
       (∑ i, I.coeff (.inl i) * (b.1 i).toInt + ∑ z, I.coeff (.inr (.inr z)) * (b.2 z).toInt) + w))
-  have hcard : (Finset.Icc (-(K : ℤ)) K).card = 2 * M * Fintype.card Y + 1 := by
-    rw [Int.card_Icc]
-    have : (2 * M * Fintype.card Y + 1 : ℕ) = 2 * K + 1 := by rw [hK]; ring
-    rw [this]
-    omega
-  rw [hcard] at h
-  refine le_of_eq_of_le ?_ h
+  rw [show (Finset.Icc (-(K : ℤ)) K).card = 2 * M * Fintype.card Y + 1 by
+    rw [Int.card_Icc, Nat.mul_assoc]; omega] at h
+  refine Protocol.ecomplexity_decides_le.trans (le_of_eq_of_le ?_ h)
   congr 1 with a b : 2
   simp only [MemRight, Set.mem_ofPred_eq, holds_sum_elim_sum_elim_iff]
 
@@ -239,42 +228,30 @@ theorem ecomplexity_search_holds_le [Finite Y] (E : Ineq (Fin n ⊕ Y)) {M₀ : 
     cases a.1 i <;> simp [hM₀ i]
   have hcmp : ∀ l : List (Fin n), l.length ≤ n → ∃ p : Protocol _ _ Bool,
       p.depth ≤ Nat.clog 2 (2 * M₀ * n + 1) + 1 ∧
-        ∀ a b, p.run a b = true ↔ (l.map (g b)).sum < (l.map (f a)).sum := by
-    intro l hl
-    set K : ℕ := M₀ * n with hK
-    have hmem : ∀ a, (l.map (f a)).sum ∈ Finset.Icc (-(K : ℤ)) K := fun a => by
-      refine Finset.mem_Icc.2 (abs_le.1 ((abs_list_sum_le _ (hf a) l).trans ?_))
-      rw [hK]; push_cast
-      exact mul_le_mul_of_nonneg_left (by exact_mod_cast hl) (Nat.cast_nonneg _)
+        ∀ a b, p.run a b = true ↔ (l.map (g b)).sum < (l.map (f a)).sum := fun l hl => by
+    let K : ℕ := M₀ * n
+    have hmem : ∀ a, (l.map (f a)).sum ∈ Finset.Icc (-(K : ℤ)) K := fun a =>
+      Finset.mem_Icc.2 <| abs_le.1 <| (abs_list_sum_le _ (hf a) l).trans <| by
+        push_cast [K]
+        exact mul_le_mul_of_nonneg_left (by exact_mod_cast hl) (Nat.cast_nonneg _)
     have h := Protocol.ecomplexityFun_le_clog_card_finset_succ (Finset.Icc (-(K : ℤ)) K)
       (fun a => (l.map (f a)).sum) hmem fun w b => decide ((l.map (g b)).sum < w)
-    have hcard : (Finset.Icc (-(K : ℤ)) K).card = 2 * M₀ * n + 1 := by
-      rw [Int.card_Icc]
-      have : (2 * M₀ * n + 1 : ℕ) = 2 * K + 1 := by rw [hK]; ring
-      rw [this]
-      omega
-    rw [hcard] at h
+    rw [show (Finset.Icc (-(K : ℤ)) K).card = 2 * M₀ * n + 1 by
+      rw [Int.card_Icc, Nat.mul_assoc]; omega] at h
     obtain ⟨p, hp, hd⟩ := Protocol.ecomplexityFun_le_iff.1 (by exact_mod_cast h)
-    refine ⟨p, hd, fun a b => ?_⟩
-    rw [hp]
-    simp
+    exact ⟨p, hd, fun a b => by simp [hp]⟩
   obtain ⟨p, hd, hp⟩ := Protocol.exists_search_lt f g n _ hcmp (List.finRange n) (by simp)
   rw [List.length_finRange] at hd
   refine (Protocol.ecomplexity_le_depth (p := p) ?_).trans (by exact_mod_cast hd)
   intro a _ b _ h₁ h₂
   simp only [Set.mem_ofPred_eq, holds_sum_elim_iff] at h₁ h₂
-  have hlt : ((List.finRange n).map (g b)).sum < ((List.finRange n).map (f a)).sum := by
-    simp only [f, g, ← Fin.sum_univ_def]
-    linarith
-  obtain ⟨i, hi, hgi⟩ := hp a b hlt
+  obtain ⟨i, hi, hgi⟩ := hp a b (by simp only [f, g, ← Fin.sum_univ_def]; linarith)
   exact ⟨i, hi, hR _ _ _ hgi⟩
 
 /-- A drop in the contribution of a shared variable is a coordinate where the inputs differ. -/
 private theorem differsAt_of_mul_toInt_lt {a : ℤ} {u v : Fin n → Bool} {i : Fin n}
-    (h : a * (v i).toInt < a * (u i).toInt) : DiffersAt u v i := by
-  intro he
-  rw [he] at h
-  exact lt_irrefl _ h
+    (h : a * (v i).toInt < a * (u i).toInt) : DiffersAt u v i :=
+  fun he => lt_irrefl _ (he ▸ h)
 
 /-- With a nonnegative coefficient, a drop in the contribution of a shared variable is a
 coordinate where it is one for Alice and zero for Bob. -/

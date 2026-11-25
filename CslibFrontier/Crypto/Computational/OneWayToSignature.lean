@@ -165,9 +165,7 @@ private theorem isPPTOn_sigToOwfForgerBody (S : SignatureScheme)
   unfold sigToOwfForgerBody
   have hidx : IsPPTOn (encPair encUnary encBits) encUnary
       (fun p : ℕ × List Bool => sampleDyadicIndex (schedule (p.1 + 1))) :=
-    isPPTOn_sampleDyadicIndex (hsched.comp
-      (ComputableInPolyTime.unary_add.comp
-        ((ComputableInPolyTime.fst encUnary encBits).prod (.const 1))))
+    isPPTOn_sampleDyadicIndex (by fun_prop)
   have hprep_cand : ComputableInPolyTime
       (fun q : (ℕ × List Bool) × ℕ => (q.2, encPair encUnary encBits (q.1.1, q.1.2)))
       (encPair (encPair encUnary encBits) encUnary) (encPair encUnary encBits) :=
@@ -179,10 +177,8 @@ private theorem isPPTOn_sigToOwfForgerBody (S : SignatureScheme)
     hadversary.on.preprocess hprep_cand
   have hn : ComputableInPolyTime
       (fun r : ((ℕ × List Bool) × ℕ) × List Bool => r.1.1.1)
-      (encPair (encPair (encPair encUnary encBits) encUnary) encBits) encUnary :=
-    (ComputableInPolyTime.fst encUnary encBits).comp
-      ((ComputableInPolyTime.fst (encPair encUnary encBits) encUnary).comp
-        (ComputableInPolyTime.fst (encPair (encPair encUnary encBits) encUnary) encBits))
+      (encPair (encPair (encPair encUnary encBits) encUnary) encBits) encUnary := by
+    fun_prop
   have hsk : ComputableInPolyTime
       (fun r : ((ℕ × List Bool) × ℕ) × List Bool => (evaluate r.1.1.1 r.2).2)
       (encPair (encPair (encPair encUnary encBits) encUnary) encBits) encBits :=
@@ -213,8 +209,7 @@ theorem SignatureScheme.OneTimeEUFCMA.exists_oneWay {S : SignatureScheme}
   let f (seed : List Bool) : List Bool :=
     encPair encUnary encBits (param seed.length, (evaluate (param seed.length) seed).1)
   have hsched : ComputableInPolyTime schedule encUnary encUnary := by
-    dsimp only [schedule]
-    fun_prop
+    dsimp only [schedule]; fun_prop
   have hparam_unary : ComputableInPolyTime param encUnary encUnary :=
     GeneratorReindex.isPolyTime_parameter hsched .id'
   have hparam : ComputableInPolyTime (fun seed : List Bool => param seed.length)
@@ -445,8 +440,7 @@ theorem lamportVerify_lamportSign (f : List Bool → List Bool) (n : ℕ)
     have := Bool.toNat_le (msg.getD i false)
     omega
   have h2i' : 2 * i + (msg.getD i false).toNat < skWords.length := by
-    rw [List.length_map] at h2i
-    exact h2i
+    rwa [List.length_map] at h2i
   have hi_range : i < (List.range n).length := by simpa using hi
   rw [List.getD_eq_getElem _ _ (by simpa using hi_range), List.getElem_map, List.getElem_range,
     List.getD_eq_getElem _ _ h2i, List.getElem_map, List.getD_eq_getElem _ _ h2i']
@@ -498,10 +492,8 @@ private theorem lamportSign_eq_of_agreeAt {n j : ℕ} (hj : j < 2 * n)
       List.getElem_cons_drop, List.take_append_drop]
   have htake_len : (w.take j).length = j := List.length_take_of_le (by omega)
   have hlen2 : (w.take j ++ [] :: w.drop (j + 1)).length = 2 * n := by
-    have hlen1 : (w.take j ++ w.getD j [] :: w.drop (j + 1)).length = 2 * n := by
-      rw [← hsplit, hw]
-    simp only [List.length_append, List.length_cons] at hlen1 ⊢
-    exact hlen1
+    simp only [List.length_append, List.length_cons, List.length_drop, htake_len, hw]
+    omega
   simp only [lamportSign, frames_encList_bits, hw, hlen2]
   split_ifs with hreq
   · have hreq_len : req.length = n := by
@@ -610,7 +602,7 @@ theorem isPPT_lamportInverter {f : List Bool → List Bool}
   have hrun_base := (lamportScheme f hf).isPPTOn_run_oneTimeSigningOracle hadversary
   have hj : IsPPTOn (encPair encUnary encBits) encUnary
       (fun p : ℕ × List Bool => sampleDyadicIndex (2 * p.1)) :=
-    isPPTOn_sampleDyadicIndex (uConstMul 2 (ComputableInPolyTime.fst encUnary encBits))
+    isPPTOn_sampleDyadicIndex (by fun_prop)
   have hkeys := isPPTOn_lamportSimKeys hf
   let encQ := encPair (encPair encUnary encBits) encUnary
   let encCallIn := encPair encQ (encPair encBits encBits)
@@ -715,8 +707,7 @@ private theorem lamport_pointwise_le {f : List Bool → List Bool}
         exact (lamportScheme f hf).length_le_one_of_mem_support_run_oneTimeSigningOracle n
           (encList encBits w) (adversary n pk) hsupp
       have hwin' := hwin
-      dsimp only [win] at hwin'
-      simp only [Bool.and_eq_true, beq_iff_eq] at hwin'
+      simp only [win, Bool.and_eq_true, beq_iff_eq] at hwin'
       obtain ⟨⟨hmsg_len, hnot_mem⟩, hver⟩ := hwin'
       obtain ⟨i, hi, hagree⟩ := exists_unqueried_index hn hmsg_len hqlen hnot_mem
       let jStar := 2 * i + (out.1.1.getD i false).toNat
@@ -805,9 +796,8 @@ theorem succProbability_eufOneTimeGame_lamport_le {f : List Bool → List Bool}
         inverterAt, BitString.eval_sampleList, eval_sampleDyadicIndex]
       rw [PMF.bind_comm]
       rfl
-    have htrial_eq : ∀ j < 2 * n,
+    have htrial_eq (j : ℕ) (hj : j < 2 * n) :
         μ.bind (fun w => (runWith (pkOf w) (dummySkOf w j)).map (invWin w j)) = trial j := by
-      intro j hj
       dsimp only [μ, trial, inverterAt]
       rw [eval_replicate_split (BitString.sampleList n) hj]
       simp only [hj, ↓reduceIte, BitString.eval_sampleList, lamportSimKeys, ProbComp.eval_bind,
@@ -850,24 +840,16 @@ theorem succProbability_eufOneTimeGame_lamport_le {f : List Bool → List Bool}
     have hmono := ENNReal.toNNReal_mono hsum_ne_top htotal_ennreal
     rwa [ENNReal.toNNReal_sum fun j _ => PMF.apply_ne_top _ _] at hmono
   · obtain rfl : n = 0 := by omega
-    have hvalid0 : valid 0 [] = true := hvalid [] rfl
     have hinv0 :
         ProbComp.eval (inversionGameOn f valid (lamportInverter f hf adversary) 0) =
           PMF.pure true := by
       simp only [inversionGameOn, lamportInverter, Nat.mul_zero, Nat.not_lt_zero, ↓reduceIte,
         ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList,
-        BitString.uniformList_zero, PMF.pure_bind, PMF.bind_const, hvalid0, beq_self_eq_true,
+        BitString.uniformList_zero, PMF.pure_bind, PMF.bind_const, hvalid [] rfl, beq_self_eq_true,
         Bool.and_self]
-    have hle1 :
-        Game.succProbability (ProbComp.eval ((lamportScheme f hf).eufOneTimeGame adversary 0)) ≤
-          1 := by
-      unfold Game.succProbability
-      exact (ENNReal.toNNReal_mono ENNReal.one_ne_top (PMF.coe_le_one _ true)).trans_eq
-        ENNReal.toNNReal_one
-    rw [hinv0]
-    simp only [Game.succProbability, PMF.pure_apply_self, ENNReal.toNNReal_one, mul_one,
+    simp only [hinv0, Game.succProbability, PMF.pure_apply_self, ENNReal.toNNReal_one, mul_one,
       Nat.mul_zero]
-    exact hle1.trans (by exact_mod_cast dyadicSize_pos 0)
+    exact (Game.succProbability_le_one _).trans (by exact_mod_cast dyadicSize_pos 0)
 
 /-- **One-time security of the basic Lamport signature scheme `S_L`** ([BonehShoup2023],
 Section 14.1, pp. 584–585; Theorem 14.1, p. 584 is the one-bit case; general security follows from

@@ -57,7 +57,7 @@ theorem live_transition {a : Arena} {w : ℕ} {target : List Node}
   have hwork : 1 ≤ (Cursor.mk (e :: es) ns).work :=
     Nat.le_add_right_of_le (Math.work_pos e.fuel)
   have htable : a.table + ns.length < a.floor := by
-    have hb := h.tableBudget; have hh := ha.2.2.1
+    have hb := h.tableBudget; have := ha.2.2.1
     change ns.length + (Cursor.mk (e :: es) ns).work ≤ a.outputCapacity at hb; omega
   have hheap : p.regs heap ≤ a.ceiling :=
     ph ▸ (Nat.le_add_right _ _).trans h.heapBudget
@@ -91,27 +91,22 @@ theorem live_transition {a : Arena} {w : ℕ} {target : List Node}
   have hbody := body_live hp hl hc.2.2.2.2.2.2.2.2.2.1 hf hn hv hy
   have vsStored := em.stored ha hc (oldStored e (by simp)) (h.around e (by simp))
     (oldEnds e (by simp)) htablep
-  have newStored : ∀ d ∈ s.pending, d.Stored v.mem := fun d hd => by
-    rcases List.mem_append.mp hd with hd | hd
-    · exact em.children_stored vsStored d hd
-    · exact em.stored ha hc (oldStored d (List.mem_cons_of_mem e hd))
-        (h.around d (List.mem_cons_of_mem e hd)) (oldEnds d (List.mem_cons_of_mem e hd)) htablep
-  have newAround : ∀ d ∈ s.pending, d.Around a.stack (a.floor - a.stack) := fun d hd => by
-    rcases List.mem_append.mp hd with hd | hd
-    · exact em.children_around (h.around e (by simp)) (by omega) d hd
-    · exact h.around d (List.mem_cons_of_mem e hd)
+  have newStored : ∀ d ∈ s.pending, d.Stored v.mem := fun d hd =>
+    (List.mem_append.mp hd).elim (em.children_stored vsStored d) fun hd =>
+      em.stored ha hc (oldStored d (.tail e hd)) (h.around d (.tail e hd))
+        (oldEnds d (.tail e hd)) htablep
+  have newAround : ∀ d ∈ s.pending, d.Around a.stack (a.floor - a.stack) := fun d hd =>
+    (List.mem_append.mp hd).elim (em.children_around (h.around e (by simp)) (by omega) d)
+      fun hd => h.around d (.tail e hd)
   have newEnds : ∀ d ∈ s.pending, ∀ j, d.source j + (d.data j).length ≤ v.regs heap :=
-    fun d hd j => by
-      rcases List.mem_append.mp hd with hd | hd
-      · exact em.children_ends hl (oldEnds e (by simp)) d hd j
-      · exact (oldEnds d (List.mem_cons_of_mem e hd) j).trans em.heap_mono
+    fun d hd j => (List.mem_append.mp hd).elim (em.children_ends hl (oldEnds e (by simp)) d · j)
+      fun hd => (oldEnds d (.tail e hd) j).trans em.heap_mono
   have houtput := em.output hc ns oldOutput pc oldBounds htable hfloor
   have yh : y.regs heap = v.regs heap := yreg _ (by decide) (by decide)
   have heapAllocation : v.regs heap ≤ p.regs heap + allocationSize a.n a.m a.N := by
-    rw [em.heap_eq]; apply allocation_le
-    · exact fun j => (hl.2.2 j).trans_le ((h.valid e (by simp)).length_le j)
-    · exact hc.2.2.2.1.le
-    · simpa only [hc.1] using em.upper
+    rw [em.heap_eq]
+    exact allocation_le _ _ _ _ _ (fun j => (hl.2.2 j).trans_le ((h.valid e (by simp)).length_le j))
+      hc.2.2.2.1.le (by simpa only [hc.1] using em.upper)
   have newBounds (i : Fin s.emitted.length) :
       a.floor ≤ s.emitted[i.val].1 ∧ s.emitted[i.val].1 + 4 * a.N ≤ y.regs heap := by
     rw [yh, em.heap_eq]
@@ -137,20 +132,17 @@ theorem live_transition {a : Arena} {w : ℕ} {target : List Node}
       em.prefix_preserved _ (by have := ha.1; have := ha.2.1; omega)
         (by have := hc.2.2.2.2.2.2.1; have := ha.1; have := ha.2.1; omega)]
     exact oldBitmap q hq
-  · intro d hd
-    rcases List.mem_append.mp hd with hd | hd
-    · exact em.children_valid (h.valid e (by simp)) d hd
-    · exact h.valid d (List.mem_cons_of_mem e hd)
+  · exact fun d hd => (List.mem_append.mp hd).elim (em.children_valid (h.valid e (by simp)) d)
+      fun hd => h.valid d (.tail e hd)
   · rw [yh]; rw [ph] at heapAllocation
-    have hb := h.heapBudget
-    have hd := Nat.mul_le_mul_right (allocationSize a.n a.m a.N) hdec
+    have := h.heapBudget; have hd := Nat.mul_le_mul_right (allocationSize a.n a.m a.N) hdec
     rw [Nat.add_mul, Nat.one_mul] at hd; omega
   · rw [yreg outputCount (by decide) (by decide), em.count, pc]
     simp only [s, List.length_append, List.length_singleton, Bool.toNat_true]
   · have hb := h.tableBudget
     change ns.length + (Cursor.mk (e :: es) ns).work ≤ a.outputCapacity at hb
     change (ns ++ [_]).length + s.work ≤ a.outputCapacity
-    simp only [List.length_append, List.length_singleton]; omega
+    rw [List.length_append, List.length_singleton]; omega
   · have he := Math.output_step (Nat.primesLE a.m) a.Λ e.task (es.map Entry.task)
     rw [mathStep] at he
     simpa only [s, List.map_append, List.map_singleton, List.map_cons, Option.toList_some,

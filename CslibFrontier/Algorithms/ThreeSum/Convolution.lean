@@ -104,45 +104,34 @@ theorem weightAC_eq_pick {t : ℕ} (N s : ℕ) (x : ℕ → ℤ) (fill : ℤ) (a
   rw [pick_nat]
   split_ifs <;> simp [weightAC, *]
 
+private theorem pick_bounds {N : ℕ} {x : ℕ → ℤ} {U : ℤ} (hU : 0 ≤ U)
+    (hx : ∀ i < N, |x i| ≤ U) (z : ℤ) :
+    (|pick N x (2 * U + 1) z| ≤ 2 * U + 1 ∧ |pick N x (-(2 * U + 1)) z| ≤ 2 * U + 1) ∧
+    (-U ≤ pick N x (2 * U + 1) z ∧ -U ≤ -pick N x (-(2 * U + 1)) z) := by
+  unfold pick
+  split_ifs with h
+  · have h1 := hx z.toNat (by omega)
+    have h2 := abs_le.mp h1
+    exact ⟨⟨h1.trans (by omega), h1.trans (by omega)⟩, ⟨h2.1, by omega⟩⟩
+  · have hf : |2 * U + 1| = 2 * U + 1 := abs_of_nonneg (by omega)
+    exact ⟨⟨hf.le, by rw [abs_neg]; exact hf.le⟩, by omega, by omega⟩
+
 /-- Every edge is either an input entry up to sign, or the filler. -/
 theorem weights_abs_le {t N s : ℕ} {x : ℕ → ℤ} {U : ℤ} (hU : 0 ≤ U)
     (hx : ∀ i < N, |x i| ≤ U) (a b c : Fin t) :
     |weightAB N x (2 * U + 1) a b| ≤ 2 * U + 1 ∧
     |weightBC N s x (2 * U + 1) b c| ≤ 2 * U + 1 ∧
     |weightAC N s x (2 * U + 1) a c| ≤ 2 * U + 1 := by
-  have hf : |2 * U + 1| = 2 * U + 1 := abs_of_nonneg (by omega)
-  refine ⟨?_, ?_, ?_⟩
-  · unfold weightAB
-    split_ifs with h
-    · exact (hx _ h).trans (by omega)
-    · exact hf.le
-  · unfold weightBC
-    split_ifs with h
-    · exact (hx _ h.2).trans (by omega)
-    · exact hf.le
-  · unfold weightAC
-    split_ifs with h
-    · simpa only [abs_neg] using (hx _ h).trans (by omega : U ≤ 2 * U + 1)
-    · exact hf.le
+  rw [weightAB_eq_pick, weightBC_eq_pick, weightAC_eq_pick, abs_neg]
+  exact ⟨(pick_bounds hU hx _).1.1, (pick_bounds hU hx _).1.1, (pick_bounds hU hx _).1.2⟩
 
 private theorem weights_neg_le {t N s : ℕ} {x : ℕ → ℤ} {U : ℤ} (hU : 0 ≤ U)
     (hx : ∀ i < N, |x i| ≤ U) (a b c : Fin t) :
     -U ≤ weightAB N x (2 * U + 1) a b ∧
     -U ≤ weightBC N s x (2 * U + 1) b c ∧
     -U ≤ weightAC N s x (2 * U + 1) a c := by
-  refine ⟨?_, ?_, ?_⟩
-  · unfold weightAB
-    split_ifs with h
-    · exact (abs_le.mp (hx _ h)).1
-    · omega
-  · unfold weightBC
-    split_ifs with h
-    · exact (abs_le.mp (hx _ h.2)).1
-    · omega
-  · unfold weightAC
-    split_ifs with h
-    · exact neg_le_neg (abs_le.mp (hx _ h)).2
-    · omega
+  rw [weightAB_eq_pick, weightBC_eq_pick, weightAC_eq_pick]
+  exact ⟨(pick_bounds hU hx _).2.1, (pick_bounds hU hx _).2.1, (pick_bounds hU hx _).2.2⟩
 
 /-- The explicit reduction is correct for every input size, including zero.
 There are `2*t` instances and exactly `t` vertices in each of their three parts. -/

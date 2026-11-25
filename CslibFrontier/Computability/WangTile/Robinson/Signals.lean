@@ -84,49 +84,40 @@ private def northPhase : Quadrant → Quadrant
 
 private theorem phase_east (P : QuarterPlane) (x y : ℤ) :
     (P.quarter (x + 1) y).quadrant = eastPhase (P.quarter x y).quadrant := by
-  have h := (subdivideTileAt_horizontal_iff
-    (Robinson.tile (components (P.quarter x y).index))
-    (Robinson.tile (components (P.quarter (x + 1) y).index))
+  have h := (subdivideTileAt_horizontal_iff _ _
     (P.quarter x y).quadrant (P.quarter (x + 1) y).quadrant).mp (P.horizontal x y)
-  cases hl : (P.quarter x y).quadrant <;>
-    cases hr : (P.quarter (x + 1) y).quadrant <;> simp_all [eastPhase]
+  cases hl : (P.quarter x y).quadrant <;> cases hr : (P.quarter (x + 1) y).quadrant <;>
+    simp_all [eastPhase]
 
 private theorem phase_north (P : QuarterPlane) (x y : ℤ) :
     (P.quarter x (y + 1)).quadrant = northPhase (P.quarter x y).quadrant := by
-  have h := (subdivideTileAt_vertical_iff
-    (Robinson.tile (components (P.quarter x y).index))
-    (Robinson.tile (components (P.quarter x (y + 1)).index))
+  have h := (subdivideTileAt_vertical_iff _ _
     (P.quarter x y).quadrant (P.quarter x (y + 1)).quadrant).mp (P.vertical x y)
-  cases hl : (P.quarter x y).quadrant <;>
-    cases hr : (P.quarter x (y + 1)).quadrant <;> simp_all [northPhase]
+  cases hl : (P.quarter x y).quadrant <;> cases hr : (P.quarter x (y + 1)).quadrant <;>
+    simp_all [northPhase]
 
 private theorem exists_origin (P : QuarterPlane) :
     ∃ x y : ℤ, (P.quarter x y).quadrant = .southwest := by
   have he := phase_east P 0 0
-  have hn := phase_north P 0 0
-  have hen := phase_north P 1 0
   cases h : (P.quarter 0 0).quadrant with
   | southwest => exact ⟨0, 0, h⟩
   | southeast => exact ⟨1, 0, by simpa [h, eastPhase] using he⟩
-  | northwest => exact ⟨0, 1, by simpa [h, northPhase] using hn⟩
+  | northwest => exact ⟨0, 1, by simpa [h, northPhase] using phase_north P 0 0⟩
   | northeast =>
-    have h₁ : (P.quarter 1 0).quadrant = .northwest := by
-      simpa [h, eastPhase] using he
-    exact ⟨1, 1, by simpa [h₁, northPhase] using hen⟩
+    have h₁ : (P.quarter 1 0).quadrant = .northwest := by simpa [h, eastPhase] using he
+    exact ⟨1, 1, by simpa [h₁, northPhase] using phase_north P 1 0⟩
 
 private theorem internal_horizontal {a b : QuarterIndex}
     (hphase : a.quadrant.xBit = false)
     (hmatch : (quarterTile a).right = (quarterTile b).left) : a.index = b.index := by
-  have h := (subdivideTileAt_horizontal_iff (Robinson.tile (components a.index))
-    (Robinson.tile (components b.index)) a.quadrant b.quadrant).mp hmatch
+  have h := (subdivideTileAt_horizontal_iff _ _ a.quadrant b.quadrant).mp hmatch
   cases ha : a.quadrant <;> cases hb : b.quadrant <;>
     simp_all [Quadrant.xBit, tile_components_injective.eq_iff]
 
 private theorem internal_vertical {a b : QuarterIndex}
     (hphase : a.quadrant.yBit = false)
     (hmatch : (quarterTile a).top = (quarterTile b).bottom) : a.index = b.index := by
-  have h := (subdivideTileAt_vertical_iff (Robinson.tile (components a.index))
-    (Robinson.tile (components b.index)) a.quadrant b.quadrant).mp hmatch
+  have h := (subdivideTileAt_vertical_iff _ _ a.quadrant b.quadrant).mp hmatch
   cases ha : a.quadrant <;> cases hb : b.quadrant <;>
     simp_all [Quadrant.yBit, tile_components_injective.eq_iff]
 
@@ -136,21 +127,17 @@ private theorem block_spec (P : QuarterPlane) {x y : ℤ}
     P.quarter (x + 1) y = ⟨(P.quarter x y).index, .southeast⟩ ∧
     P.quarter x (y + 1) = ⟨(P.quarter x y).index, .northwest⟩ ∧
     P.quarter (x + 1) (y + 1) = ⟨(P.quarter x y).index, .northeast⟩ := by
-  have he : (P.quarter (x + 1) y).quadrant = .southeast :=
-    (phase_east P x y).trans (by rw [hphase]; rfl)
-  have hn : (P.quarter x (y + 1)).quadrant = .northwest :=
-    (phase_north P x y).trans (by rw [hphase]; rfl)
-  have hen : (P.quarter (x + 1) (y + 1)).quadrant = .northeast :=
-    (phase_east P x (y + 1)).trans (by rw [hn]; rfl)
-  have hie := internal_horizontal (by rw [hphase]; rfl) (P.horizontal x y)
-  have hin := internal_vertical (by rw [hphase]; rfl) (P.vertical x y)
-  have hien := internal_horizontal (by rw [hn]; rfl) (P.horizontal x (y + 1))
-  have eq (q : QuarterIndex) (i : Index) (r : Quadrant)
-      (hi : q.index = i) (hr : q.quadrant = r) : q = ⟨i, r⟩ := by
+  have he : (P.quarter (x + 1) y).quadrant = .southeast := by simp [phase_east, hphase, eastPhase]
+  have hn : (P.quarter x (y + 1)).quadrant = .northwest := by simp [phase_north, hphase, northPhase]
+  have hen : (P.quarter (x + 1) (y + 1)).quadrant = .northeast := by
+    simp [phase_east, hn, eastPhase]
+  have hie := internal_horizontal (by simp [hphase, Quadrant.xBit]) (P.horizontal x y)
+  have hin := internal_vertical (by simp [hphase, Quadrant.yBit]) (P.vertical x y)
+  have hien := internal_horizontal (by simp [hn, Quadrant.xBit]) (P.horizontal x (y + 1))
+  have eq {q : QuarterIndex} {i r} (hi : q.index = i) (hr : q.quadrant = r) : q = ⟨i, r⟩ := by
     cases q
     simp_all
-  exact ⟨eq _ _ _ rfl hphase, eq _ _ _ hie.symm he,
-    eq _ _ _ hin.symm hn, eq _ _ _ (hien.symm.trans hin.symm) hen⟩
+  exact ⟨eq rfl hphase, eq hie.symm he, eq hin.symm hn, eq (hien.symm.trans hin.symm) hen⟩
 
 /-- An exact regrouping of a quarter plane into matching corrected parent tiles. -/
 structure Regrouped (Q : QuarterPlane) where
@@ -525,10 +512,8 @@ theorem quarter_at {Q : QuarterPlane} (R : QuarterPlane.Regrouped Q)
     Q.quarter (R.origin.1 + 2 * a + x) (R.origin.2 + 2 * b + y) =
       ⟨R.parent.index (a + (x / 2 : ℕ)) (b + (y / 2 : ℕ)),
         quadrantAt x y⟩ := by
-  have hx : R.origin.1 + 2 * a + x =
-      R.origin.1 + 2 * (a + (x / 2 : ℕ)) + (x % 2 : ℕ) := by omega
-  have hy : R.origin.2 + 2 * b + y =
-      R.origin.2 + 2 * (b + (y / 2 : ℕ)) + (y % 2 : ℕ) := by omega
+  have hx : R.origin.1 + 2 * a + x = R.origin.1 + 2 * (a + (x / 2 : ℕ)) + (x % 2 : ℕ) := by omega
+  have hy : R.origin.2 + 2 * b + y = R.origin.2 + 2 * (b + (y / 2 : ℕ)) + (y % 2 : ℕ) := by omega
   have blocks := R.blocks (a + (x / 2 : ℕ)) (b + (y / 2 : ℕ))
   rw [hx, hy]
   rcases Nat.mod_two_eq_zero_or_one x with hx | hx <;>
@@ -567,33 +552,19 @@ theorem validGrid {P : Plane scaffold.tiles} (D : DecodedPlane P)
     ValidSignalGrid (fun i j => R.parent.index (a + i) (b + j))
       (fun x y => (D.siteGrid R a b x y).shade)
       (fun x y => (D.siteGrid R a b x y).signal) := by
-  have quarter x y :
-      (D.siteGrid R a b x y).quarter =
-        ⟨R.parent.index (a + (x / 2 : ℕ)) (b + (y / 2 : ℕ)),
-          quadrantAt x y⟩ :=
-    R.quarter_at a b x y
-  refine ⟨⟨?_, ?_, ?_⟩, ?_, ?_, ?_⟩
-  · intro x y
-    have h := D.shadeAllowed (R.origin.1 + 2 * a + x) (R.origin.2 + 2 * b + y)
-    change Robinson.locallyAllowed (D.siteGrid R a b x y).quarter
-      (D.siteGrid R a b x y).shade = true at h
-    rwa [quarter] at h
-  · intro x y
-    simpa [siteGrid, Nat.cast_add, Nat.cast_one, add_assoc] using
+  refine ⟨⟨fun x y => ?_, fun x y => ?_, fun x y => ?_⟩,
+    fun x y => ?_, fun x y => ?_, fun x y => ?_⟩
+  · simpa only [siteGrid, quarterPlane, ← R.quarter_at] using
+      D.shadeAllowed (R.origin.1 + 2 * a + x) (R.origin.2 + 2 * b + y)
+  · simpa [siteGrid, add_assoc] using
       (D.horizontal (R.origin.1 + 2 * a + x) (R.origin.2 + 2 * b + y)).2.1
-  · intro x y
-    simpa [siteGrid, Nat.cast_add, Nat.cast_one, add_assoc] using
+  · simpa [siteGrid, add_assoc] using
       (D.vertical (R.origin.1 + 2 * a + x) (R.origin.2 + 2 * b + y)).2.1
-  · intro x y
-    have h := D.signalAllowed (R.origin.1 + 2 * a + x) (R.origin.2 + 2 * b + y)
-    change signalsAllowed (D.siteGrid R a b x y).quarter
-      (D.siteGrid R a b x y).shade (D.siteGrid R a b x y).signal = true at h
-    rwa [quarter] at h
-  · intro x y
-    simpa [siteGrid, Nat.cast_add, Nat.cast_one, add_assoc] using
+  · simpa only [siteGrid, quarterPlane, ← R.quarter_at] using
+      D.signalAllowed (R.origin.1 + 2 * a + x) (R.origin.2 + 2 * b + y)
+  · simpa [siteGrid, add_assoc] using
       (D.horizontal (R.origin.1 + 2 * a + x) (R.origin.2 + 2 * b + y)).2.2
-  · intro x y
-    simpa [siteGrid, Nat.cast_add, Nat.cast_one, add_assoc] using
+  · simpa [siteGrid, add_assoc] using
       (D.vertical (R.origin.1 + 2 * a + x) (R.origin.2 + 2 * b + y)).2.2
 
 end DecodedPlane

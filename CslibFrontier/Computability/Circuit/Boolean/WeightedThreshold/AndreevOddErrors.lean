@@ -322,13 +322,11 @@ theorem andreevTruncatedVote_eq_subcubeEval {b m r R : ℕ} (hr : r ≤ b)
       rw [← pow_succ', Nat.sub_add_cancel (by omega : 1 ≤ b - r)]
     simp only [hrb, ↓reduceIte]
     by_cases hs : s ≤ 0
-    · have h1 : 2 ^ r * s ≤ 0 := mul_nonpos_of_nonneg_of_nonpos hq.le hs
+    · have h1 := mul_nonpos_of_nonneg_of_nonpos hq.le hs
       simp only [h1, decide_true, decide_eq_true_eq]
       linarith
-    · have hs2 : 2 ≤ s := by omega
-      have : 2 * 2 ^ r ≤ 2 ^ r * s := by nlinarith
-      have hnot : ¬ 2 ^ r * s ≤ 0 := by nlinarith
-      simp only [hnot, decide_false, decide_eq_false_iff_not, not_lt]
+    · have : 2 * 2 ^ r ≤ 2 ^ r * s := by nlinarith [show 2 ≤ s by omega]
+      simp only [show ¬ 2 ^ r * s ≤ 0 by linarith, decide_false, decide_eq_false_iff_not, not_lt]
       linarith
   · -- `L = 1`, so `s = ±1`.
     have hs : s = 1 ∨ s = -1 := by
@@ -336,11 +334,10 @@ theorem andreevTruncatedVote_eq_subcubeEval {b m r R : ℕ} (hr : r ≤ b)
       omega
     simp only [lt_irrefl, ↓reduceIte]
     rcases hs with h | h <;> rw [h] at hw ⊢
-    · have : ¬ (2 : ℤ) ^ r * 1 ≤ 0 := by linarith
-      simp only [this, decide_false, decide_eq_false_iff_not, not_lt]
+    · simp only [show ¬ (2 : ℤ) ^ r * 1 ≤ 0 by linarith, decide_false, decide_eq_false_iff_not,
+        not_lt]
       linarith
-    · have : (2 : ℤ) ^ r * -1 ≤ 0 := by linarith
-      simp only [this, decide_true, decide_eq_true_eq]
+    · simp only [show (2 : ℤ) ^ r * -1 ≤ 0 by linarith, decide_true, decide_eq_true_eq]
       linarith
 
 /-! ### The truncation errors are orthogonal -/
@@ -631,11 +628,8 @@ theorem card_andreevTruncatedVote_ne_subcubeEval_le_exp {b r : ℕ} (hr : r ≤ 
   set v := andreevVarianceProxy b m
   have hv : 1 ≤ v := one_le_andreevVarianceProxy b m
   have hq : (0 : ℝ) < 2 ^ r := by positivity
-  have hqv : (2 : ℝ) ^ r ≤ v := by
-    have : (2 : ℝ) ^ r ≤ 2 ^ b := pow_le_pow_right₀ (by norm_num) hr
-    have : (0 : ℝ) ≤ b * m / 4 := by positivity
-    simp only [v, andreevVarianceProxy]
-    linarith
+  have hqv : (2 : ℝ) ^ r ≤ v :=
+    (pow_le_pow_right₀ (by norm_num) hr).trans (le_add_of_nonneg_right (by positivity))
   have hn : (0 : ℝ) < 2 ^ (2 ^ b + b * m) := by positivity
   by_cases hR : 32 * v ≤ ((R : ℝ) + 1) ^ 2
   · -- Large radius: the sharp form, with `z = (R + 1)² / (16 v) ≥ 2`.
@@ -648,15 +642,8 @@ theorem card_andreevTruncatedVote_ne_subcubeEval_le_exp {b r : ℕ} (hr : r ≤ 
         (by positivity)
     refine (card_andreevTruncatedVote_ne_subcubeEval_le hr m R).trans
       (mul_le_mul_of_nonneg_left ?_ hn.le)
-    have hsharp : ((R : ℝ) + 1) ^ 2 + 8 * v = 8 * v * (2 * z + 1) := by
-      simp only [z]
-      field_simp
-      ring
-    have hexp : ((R : ℝ) + 1) ^ 2 / (8 * v) = 2 * z := by
-      simp only [z]
-      field_simp
-      ring
-    rw [hsharp, hexp]
+    rw [show ((R : ℝ) + 1) ^ 2 + 8 * v = 8 * v * (2 * z + 1) by simp only [z]; field_simp; ring,
+      show ((R : ℝ) + 1) ^ 2 / (8 * v) = 2 * z by simp only [z]; field_simp; ring]
     have h1 := two_mul_add_one_mul_exp_neg_le hz
     have h2 : exp (-z) ≤ exp (-((R : ℝ) ^ 2 / (16 * v))) := exp_le_exp.mpr (by linarith)
     have h3 : 2 * ((2 : ℝ) ^ r - 1) / ((2 : ℝ) ^ r) ^ 2 ≤ 2 / 2 ^ r := by
@@ -717,21 +704,14 @@ theorem two_pow_mul_sub_le_card_andreevTruncatedVote_eq_andreev {b r : ℕ} (hr 
       (#{w : BitString (2 ^ b + b * m) | andreevTruncatedVote b m r R w = andreev b m w} : ℝ) := by
   have hvote := two_pow_mul_le_card_andreevSubcubeEval_eq_andreev hr m
   have hne := card_andreevTruncatedVote_ne_subcubeEval_le_exp hr.le m R
-  have hsplit : #{w : BitString (2 ^ b + b * m) | andreevSubcubeEval b m r w = andreev b m w} ≤
-      #{w : BitString (2 ^ b + b * m) | andreevTruncatedVote b m r R w = andreev b m w} +
-        #{w : BitString (2 ^ b + b * m) |
-          andreevTruncatedVote b m r R w ≠ andreevSubcubeEval b m r w} := by
-    refine (card_le_card fun w hw => ?_).trans (card_union_le _ _)
-    simp only [mem_filter, mem_univ, true_and, mem_union] at hw ⊢
-    by_cases h : andreevTruncatedVote b m r R w = andreevSubcubeEval b m r w
-    · exact Or.inl (h.trans hw)
-    · exact Or.inr h
-  have hsplit' : (#{w : BitString (2 ^ b + b * m) |
+  have hsplit : (#{w : BitString (2 ^ b + b * m) |
       andreevSubcubeEval b m r w = andreev b m w} : ℝ) ≤
       #{w : BitString (2 ^ b + b * m) | andreevTruncatedVote b m r R w = andreev b m w} +
         #{w : BitString (2 ^ b + b * m) |
           andreevTruncatedVote b m r R w ≠ andreevSubcubeEval b m r w} := by
-    exact_mod_cast hsplit
+    refine mod_cast (card_le_card fun w hw => ?_).trans (card_union_le _ _)
+    simp only [mem_filter, mem_univ, true_and, mem_union] at hw ⊢
+    exact (em _).imp (·.trans hw) id
   nlinarith
 
 /-! ### Choosing the radius -/

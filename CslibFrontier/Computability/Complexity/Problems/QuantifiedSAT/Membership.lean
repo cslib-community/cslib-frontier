@@ -128,26 +128,26 @@ private theorem verifier_spec (i : ℕ) (p : Polynomial ℕ)
   · simp only [verifier, ha, decide_false, Bool.false_and, Bool.false_eq_true,
       alternation_const, false_and]
 
-/-- Grouped existential-first quantified SAT is in its level of the polynomial hierarchy,
-including level zero. The verifier has native polynomial-time computation evidence. -/
-theorem mem_SigmaP (i : ℕ) : SigmaSAT i ∈ SigmaP i encPrenexQBF := by
+private theorem exists_verifier (i : ℕ) (q : Bool) :
+    ∃ (ps : List (Polynomial ℕ)) (V : PrenexQBF × List Bool → Bool),
+      ps.length = i ∧ ComputableInPolyTime V (encPair encPrenexQBF encBits) encBool ∧
+        IsAlternatingVerifier encPrenexQBF q ps V
+          {a | a.WellFormed i ∧ (a.formula q).eval (fun _ => false) = true} := by
   have hlen : ComputableInPolyTime (fun a : PrenexQBF => a.blocks.flatten.length)
       encPrenexQBF encUnary := by fun_prop
   obtain ⟨p, hp⟩ := hlen.polyBounded.exists_polynomial
   refine ⟨List.replicate i p, verifier i p, List.length_replicate,
     verifier_polyTime i p, fun a => ?_⟩
-  simp only [List.map_replicate]
-  exact (verifier_spec i p hp true a).symm
+  simpa only [List.map_replicate, Set.mem_ofPred_eq] using (verifier_spec i p hp q a).symm
+
+/-- Grouped existential-first quantified SAT is in its level of the polynomial hierarchy,
+including level zero. The verifier has native polynomial-time computation evidence. -/
+theorem mem_SigmaP (i : ℕ) : SigmaSAT i ∈ SigmaP i encPrenexQBF :=
+  exists_verifier i true
 
 /-- Grouped universal-first quantified SAT is in its level of the polynomial hierarchy,
 including level zero. -/
-theorem mem_PiP (i : ℕ) : PiSAT i ∈ PiP i encPrenexQBF := by
-  have hlen : ComputableInPolyTime (fun a : PrenexQBF => a.blocks.flatten.length)
-      encPrenexQBF encUnary := by fun_prop
-  obtain ⟨p, hp⟩ := hlen.polyBounded.exists_polynomial
-  refine ⟨List.replicate i p, verifier i p, List.length_replicate,
-    verifier_polyTime i p, fun a => ?_⟩
-  simp only [List.map_replicate]
-  exact (verifier_spec i p hp false a).symm
+theorem mem_PiP (i : ℕ) : PiSAT i ∈ PiP i encPrenexQBF :=
+  exists_verifier i false
 
 end Cslib.Complexity.PrenexQBF

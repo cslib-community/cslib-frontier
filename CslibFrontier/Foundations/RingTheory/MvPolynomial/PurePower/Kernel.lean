@@ -86,8 +86,8 @@ private theorem purePower_difference_matrix (x : Fin n → A) (d : ℕ) (hd : 1 
         simp only [W, ↓reduceIte, Matrix.diagonal_apply_eq]
         ring
       rw [heq]
-      apply (totalDegree_sub _ _).trans_lt
-      exact max_lt_iff.mpr ⟨purePowerDifference_lower_degree _ _ hd, by omega⟩
+      exact (totalDegree_sub _ _).trans_lt (max_lt (purePowerDifference_lower_degree _ _ hd)
+        (by omega))
     · simp only [W, hij, ↓reduceIte, zero_sub, Matrix.diagonal_apply_ne _ hij,
         sub_zero, totalDegree_neg]
       omega
@@ -137,13 +137,11 @@ theorem purePower_reproducing_kernel (x : Fin n → A) (d : ℕ) (hd : 1 ≤ d)
       simpa only [Nat.add_sub_cancel, Fintype.card_fin] using totalDegree_det_le W d hdegree)]
     have hN (i j : Fin n) :
         (Matrix.diagonal (fun j => (X j : MvPolynomial (Fin n) A) ^ d) i j).totalDegree ≤ d := by
-      by_cases hij : i = j
-      · subst j
-        rw [Matrix.diagonal_apply_eq]
-        exact (totalDegree_pow _ _).trans (by
+      rw [Matrix.diagonal_apply]
+      split_ifs
+      · exact (totalDegree_pow _ _).trans (by
           simpa only [Nat.mul_one] using Nat.mul_le_mul_left d (totalDegree_X_le (R := A) i))
-      · simp only [Matrix.diagonal_apply_ne _ hij, totalDegree_zero]
-        omega
+      · simp
     have he : n * d ≤ top.degree := by
       simp [top, Finsupp.degree_eq_sum]
     have hc := coeff_det_eq_of_totalDegree_sub_lt W (Matrix.diagonal (fun j => X j ^ d))
@@ -154,23 +152,15 @@ theorem purePower_reproducing_kernel (x : Fin n → A) (d : ℕ) (hd : 1 ≤ d)
       rfl
     change W.det.coeff top = 1
     simp only [hc, Matrix.det_diagonal, hp, coeff_monomial, ↓reduceIte]
-  have hann (j : Fin n) : W.det * (C (x j) - X j) ∈ relationIdeal (d + 1) r := by
-    apply determinant_annihilates_mod_ideal W _ _ (fun i => ?_) j
-    rw [hrow]
-    apply (relationIdeal (d + 1) r).neg_mem
-    exact Ideal.subset_span ⟨i, rfl⟩
-  refine ⟨W.det, ?_, ?_⟩
-  · intro q
-    apply polynomial_kernel_reproduces (linear hell r hr') W.det x hnormal ?_ q
-    intro i v
+  have hann (j : Fin n) : W.det * (C (x j) - X j) ∈ relationIdeal (d + 1) r :=
+    determinant_annihilates_mod_ideal W _ _ (fun i => by
+      rw [hrow]; exact (relationIdeal (d + 1) r).neg_mem (Ideal.subset_span ⟨i, rfl⟩)) j
+  refine ⟨W.det, fun q => ?_, ?_⟩
+  · refine polynomial_kernel_reproduces (linear hell r hr') W.det x hnormal (fun i v => ?_) q
     apply linear_mem_ideal hell r hr'
-    have hh := (relationIdeal (d + 1) r).mul_mem_left v (hann i)
-    have heq : W.det * v * (X i - C (x i)) = -(v * (W.det * (C (x i) - X i))) := by ring
-    rw [heq]
-    exact (relationIdeal (d + 1) r).neg_mem hh
+    rw [show W.det * v * (X i - C (x i)) = -(v * (W.det * (C (x i) - X i))) by ring]
+    exact (relationIdeal (d + 1) r).neg_mem ((relationIdeal (d + 1) r).mul_mem_left v (hann i))
   · rw [RingHom.map_det]
-    congr 1
-    ext i j
-    exact hdiag i j
+    exact congrArg det (Matrix.ext hdiag)
 
 end MvPolynomial.PurePower

@@ -21,8 +21,8 @@ counts the edges of a level and the chambers of the level `0`, shows that the no
 a load on pairs is monotone, and writes the end segments `Tower.nEnd` by the edges and their two
 ends.
 
-From *VP ≠ VNP over every field* [AnthropicVPVNP2026], modules `Nc.Tow.Load4`, `Nc.Tow.Load3` and
-`Nc.Tow.Load2`.
+From *VP ≠ VNP over every field* [AnthropicVPVNP2026], modules `Nc.Tow.Load4`, `Nc.Tow.Load3`,
+`Nc.Tow.Load2` and `Nc.Tow.Cards`.
 
 ## Main definitions
 
@@ -30,18 +30,23 @@ From *VP ≠ VNP over every field* [AnthropicVPVNP2026], modules `Nc.Tow.Load4`,
 
 ## Main results
 
+* `Cslib.CoveringTower.Tower.sum_ite_incidentSum`: the sums at the chambers with a property, by
+  the edges and their ends.
 * `Cslib.CoveringTower.Tower.sum_incidentSum`: the sums at all chambers are twice the load.
 * `Cslib.CoveringTower.Tower.incidentSum_le`, `Cslib.CoveringTower.Tower.sum_incidentSum_le`:
   the bounds by the norm of the load.
 * `Cslib.CoveringTower.Tower.two_mul_card_Ed`, `Cslib.CoveringTower.Tower.card_X_zero`: the
   numbers of edges and of chambers.
+* `Cslib.CoveringTower.Tower.card_X_le`, `Cslib.CoveringTower.Tower.card_Ed_le`,
+  `Cslib.CoveringTower.Tower.card_V_le`, `Cslib.CoveringTower.Tower.card_V_mul_card_Nr_le`:
+  bounds for the numbers of chambers, edges and vertices by the chambers of the level `0`.
 * `Cslib.CoveringTower.Tower.NN2_mono`, `Cslib.CoveringTower.Tower.nEnd_eq`: loads on pairs.
 
 ## References
 
 * [Anthropic, *VP ≠ VNP over every field*, paper and Lean formalization][AnthropicVPVNP2026],
-  Theorem H.2 (proof: "One stage" and "Bounds", p. 47); modules `Nc.Tow.Load4`, `Nc.Tow.Load3`,
-  `Nc.Tow.Load2`
+  Theorem H.2 (proof: "One stage" and "Bounds", p. 47; "For (d)", p. 48); modules
+  `Nc.Tow.Load4`, `Nc.Tow.Load3`, `Nc.Tow.Load2`, `Nc.Tow.Cards`
 -/
 
 public section
@@ -57,14 +62,21 @@ variable (T) in
 @[expose] def incidentSum (n : T.Ed j → ℕ) (c : T.X j) : ℕ :=
   ∑ e ∈ univ.filter fun e => T.e0 e = c ∨ T.e1 e = c, n e
 
+/-- The sums at the chambers with a property, by the edges: every edge counts once for each of
+its ends with the property. -/
+theorem sum_ite_incidentSum (p : T.X j → Prop) [DecidablePred p] (n : T.Ed j → ℕ) :
+    ∑ c, (if p c then T.incidentSum n c else 0) =
+      ∑ e, ((if p (T.e0 e) then n e else 0) + if p (T.e1 e) then n e else 0) := by
+  simp only [incidentSum, sum_filter, ite_sum_zero, ← ite_and]
+  rw [sum_comm]
+  refine sum_congr rfl fun e _ => ?_
+  have hne := T.e_ne e
+  rw [Fintype.sum_eq_add _ _ hne fun c hc => by grind]
+  simp [hne]
+
 /-- Every edge has two ends, so the sums at all chambers add up to twice the load. -/
 theorem sum_incidentSum (n : T.Ed j → ℕ) : ∑ c, T.incidentSum n c = 2 * ∑ e, n e := by
-  simp only [incidentSum, sum_filter]
-  rw [sum_comm, mul_sum]
-  refine sum_congr rfl fun e _ => ?_
-  rw [← sum_filter, sum_const, smul_eq_mul,
-    show univ.filter (fun c => T.e0 e = c ∨ T.e1 e = c) = {T.e0 e, T.e1 e} by ext; simp [eq_comm],
-    card_pair (T.e_ne e), mul_comm]
+  simpa [two_mul, sum_add_distrib] using sum_ite_incidentSum (T := T) (fun _ => True) n
 
 /-- The edges of all types at a chamber of a level `j ≤ J`. -/
 private theorem card_incident_le (hj : j ≤ J) (c : T.X j) :
@@ -85,6 +97,29 @@ theorem card_X_zero (hj : j ≤ J) : Fintype.card (T.X 0) = D ^ j * Fintype.card
   induction j with
   | zero => simp
   | succ j ih => rw [ih (by omega), T.card_X j (by omega), pow_succ, mul_assoc]
+
+/-- The levels shrink: a level `j ≤ J` has at most as many chambers as the level `0`. -/
+theorem card_X_le (hD : 0 < D) (hj : j ≤ J) : Fintype.card (T.X j) ≤ Fintype.card (T.X 0) :=
+  (card_X_zero hj).symm ▸ Nat.le_mul_of_pos_left _ (Nat.pow_pos hD)
+
+/-- A level `j ≤ J` has at most `h r` edges for every chamber of the level `0`. -/
+theorem card_Ed_le (hD : 0 < D) (hj : j ≤ J) :
+    Fintype.card (T.Ed j) ≤ h * r * Fintype.card (T.X 0) := by
+  have := two_mul_card_Ed (T := T) hj
+  have := Nat.mul_le_mul_left (h * r) (card_X_le (T := T) hD hj)
+  rw [mul_assoc] at this
+  omega
+
+/-- A level `j ≤ J` has at most as many vertices of a type as the level `0` has chambers. -/
+theorem card_V_le (hD : 0 < D) (hb : 0 < b) (hj : j ≤ J) (i : Fin h) :
+    Fintype.card (T.V j i) ≤ Fintype.card (T.X 0) :=
+  (Nat.le_mul_of_pos_right _ hb).trans ((T.card_V hj i).trans_le (card_X_le hD hj))
+
+/-- The near pairs at the vertices of a type are edges of the other types. -/
+theorem card_V_mul_card_Nr_le (hj : j ≤ J) (i : Fin h) :
+    Fintype.card (T.V j i) * Fintype.card T.Nr ≤ Fintype.card (T.Ed j) := by
+  rw [← Fintype.card_prod, ← Fintype.card_congr (T.nr hj i)]
+  exact Fintype.card_subtype_le _
 
 /-- The sum at a chamber of a level `j ≤ J` is bounded by the norm of the load. -/
 theorem incidentSum_le (hj : j ≤ J) (n : T.Ed j → ℕ) (c : T.X j) :

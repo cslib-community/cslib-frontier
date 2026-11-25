@@ -33,10 +33,8 @@ theorem arg_mem_half_turn {z : ℂ} (hz : z.im ≠ 0) :
     else z.arg ∈ Set.Ioo 0 Real.pi := by
   split_ifs with h
   · exact ⟨Complex.neg_pi_lt_arg z, Complex.arg_neg_iff.mpr h⟩
-  · refine ⟨lt_of_le_of_ne (Complex.arg_nonneg_iff.mpr (le_of_not_gt h)) ?_,
-      Complex.arg_lt_pi_iff.mpr (Or.inr hz)⟩
-    intro hzero
-    exact hz (Complex.arg_eq_zero_iff.mp hzero.symm).2
+  · exact ⟨lt_of_le_of_ne (Complex.arg_nonneg_iff.mpr (not_lt.mp h))
+      fun h0 => hz (Complex.arg_eq_zero_iff.mp h0.symm).2, Complex.arg_lt_pi_iff.mpr (.inr hz)⟩
 
 /-- The real representative of a nonhorizontal ray lies inside one full turn. -/
 theorem turnArg_mem {z : ℂ} (hz : z.im ≠ 0) :
@@ -44,10 +42,10 @@ theorem turnArg_mem {z : ℂ} (hz : z.im ≠ 0) :
   have h := arg_mem_half_turn hz
   unfold turnArg
   split_ifs with hneg
-  · rw [ite_eq_left hneg] at h
-    constructor <;> linarith [h.1, h.2, Real.pi_pos]
-  · rw [ite_eq_right hneg] at h
-    exact ⟨h.1, h.2.trans (by linarith [Real.pi_pos])⟩
+  · simp only [hneg, ↓reduceIte] at h
+    exact ⟨by linarith only [h.1, Real.pi_pos], by linarith only [h.2]⟩
+  · simp only [hneg, ↓reduceIte] at h
+    exact ⟨h.1, by linarith only [h.2, Real.pi_pos]⟩
 
 /-- Changing the cut does not change the actual direction as a circular angle. -/
 @[simp] theorem turnArg_coe_angle (z : ℂ) :
@@ -61,28 +59,20 @@ theorem arg_lt_arg_iff_det_pos {u v : ℂ} (hu : u.im ≠ 0) (hv : v.im ≠ 0)
     u.arg < v.arg ↔ 0 < u.re * v.im - u.im * v.re := by
   have hu0 : u ≠ 0 := fun h => hu (congrArg Complex.im h)
   have hv0 : v ≠ 0 := fun h => hv (congrArg Complex.im h)
-  have huarg := arg_mem_half_turn hu
-  have hvarg := arg_mem_half_turn hv
   have hspan : u.arg - v.arg ∈ Set.Ioc (-Real.pi) Real.pi := by
+    have huarg := arg_mem_half_turn hu
+    have hvarg := arg_mem_half_turn hv
     by_cases hneg : u.im < 0
-    · rw [ite_eq_left hneg] at huarg
-      rw [ite_eq_left (hsame.mp hneg)] at hvarg
-      constructor <;> linarith [huarg.1, huarg.2, hvarg.1, hvarg.2]
-    · rw [ite_eq_right hneg] at huarg
-      rw [ite_eq_right (fun h => hneg (hsame.mpr h))] at hvarg
-      constructor <;> linarith [huarg.1, huarg.2, hvarg.1, hvarg.2]
+    · simp only [hneg, hsame.mp hneg, ↓reduceIte] at huarg hvarg
+      exact ⟨by linarith only [huarg.1, hvarg.2], by linarith only [huarg.2, hvarg.1]⟩
+    · simp only [hneg, mt hsame.mpr hneg, ↓reduceIte] at huarg hvarg
+      exact ⟨by linarith only [huarg.1, hvarg.2], by linarith only [huarg.2, hvarg.1]⟩
   have hdiv : (u / v).arg = u.arg - v.arg := by
-    have h := congrArg Real.Angle.toReal (Complex.arg_div_coe_angle hu0 hv0)
-    rw [Complex.arg_coe_angle_toReal_eq_arg, ← Real.Angle.coe_sub,
-      Real.Angle.toReal_coe_eq_self_iff_mem_Ioc.mpr hspan] at h
-    exact h
-  have hnorm : 0 < Complex.normSq v := Complex.normSq_pos.mpr hv0
-  calc
-    u.arg < v.arg ↔ (u / v).arg < 0 := by rw [hdiv, sub_lt_zero]
-    _ ↔ (u / v).im < 0 := Complex.arg_neg_iff
-    _ ↔ 0 < u.re * v.im - u.im * v.re := by
-      rw [Complex.div_im, ← sub_div, div_lt_iff₀ hnorm, zero_mul]
-      constructor <;> intro h <;> linarith
+    simpa only [Complex.arg_coe_angle_toReal_eq_arg, ← Real.Angle.coe_sub,
+      Real.Angle.toReal_coe_eq_self_iff_mem_Ioc.mpr hspan] using
+      congrArg Real.Angle.toReal (Complex.arg_div_coe_angle hu0 hv0)
+  rw [← sub_lt_zero, ← hdiv, Complex.arg_neg_iff, Complex.div_im, ← sub_div,
+    div_lt_iff₀ (Complex.normSq_pos.mpr hv0), zero_mul, sub_lt_zero, ← sub_pos]
 
 /-- Comparison from the positive horizontal cut: upper rays precede lower rays,
 and within either half-plane the determinant gives the order. -/
@@ -95,17 +85,12 @@ theorem turnArg_lt_iff {u v : ℂ} (hu : u.im ≠ 0) (hv : v.im ≠ 0) :
   by_cases hun : u.im < 0 <;> by_cases hvn : v.im < 0
   · simpa [turnArg, hun, hvn, not_lt_of_ge hun.le] using
       arg_lt_arg_iff_det_pos hu hv (iff_of_true hun hvn)
-  · rw [ite_eq_left hun] at hua
-    rw [ite_eq_right hvn] at hva
-    have hlt : ¬u.arg + 2 * Real.pi < v.arg := by
-      linarith [hua.1, hva.2]
-    simp [turnArg, hun, hvn, hlt, not_lt_of_ge hun.le]
-  · rw [ite_eq_right hun] at hua
-    rw [ite_eq_left hvn] at hva
-    have hup : 0 < u.im := lt_of_le_of_ne (le_of_not_gt hun) hu.symm
-    have hlt : u.arg < v.arg + 2 * Real.pi := by
-      linarith [hua.2, hva.1]
-    simp [turnArg, hun, hvn, hup, hlt]
+  · simp only [hun, hvn, ↓reduceIte] at hua hva
+    simp [turnArg, hun, hvn, show ¬u.arg + 2 * Real.pi < v.arg by linarith only [hua.1, hva.2],
+      not_lt_of_ge hun.le]
+  · simp only [hun, hvn, ↓reduceIte] at hua hva
+    simp [turnArg, hun, hvn, lt_of_le_of_ne (not_lt.mp hun) hu.symm,
+      show u.arg < v.arg + 2 * Real.pi by linarith only [hua.2, hva.1]]
   · simpa [turnArg, hun, hvn] using
       arg_lt_arg_iff_det_pos hu hv (iff_of_false hun hvn)
 

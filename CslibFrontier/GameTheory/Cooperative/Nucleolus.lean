@@ -878,20 +878,13 @@ private theorem countGe_all_eq_proper [Fintype A] [DecidableEq A] (G : Cooperati
       (Finset.univ.filter fun S : Finset A => ¬ (S.Nonempty ∧ S ≠ Finset.univ) ∧ r ≤ 0) := by
     ext S
     simp only [Finset.mem_filter, Finset.mem_union, Finset.mem_univ, true_and]
-    constructor
-    · intro hr
-      by_cases hP : S.Nonempty ∧ S ≠ Finset.univ
-      · exact Or.inl ⟨hP, hr⟩
-      · exact Or.inr ⟨hP, (hzero S hP) ▸ hr⟩
-    · rintro (⟨_, hr⟩ | ⟨hP, hr0⟩)
-      · exact hr
-      · exact (hzero S hP).symm ▸ hr0
+    by_cases hP : S.Nonempty ∧ S ≠ Finset.univ
+    · tauto
+    · rw [hzero S hP]; tauto
   have hdisj : Disjoint
       (Finset.univ.filter fun S : Finset A => (S.Nonempty ∧ S ≠ Finset.univ) ∧ r ≤ G.excess S z)
-      (Finset.univ.filter fun S : Finset A => ¬ (S.Nonempty ∧ S ≠ Finset.univ) ∧ r ≤ 0) := by
-    rw [Finset.disjoint_filter]
-    intro S _ h1 h2
-    exact h2.1 h1.1
+      (Finset.univ.filter fun S : Finset A => ¬ (S.Nonempty ∧ S ≠ Finset.univ) ∧ r ≤ 0) :=
+    Finset.disjoint_filter.2 fun _ _ h1 h2 => h2.1 h1.1
   have hbij : (Finset.univ.filter fun S : Finset A =>
         (S.Nonempty ∧ S ≠ Finset.univ) ∧ r ≤ G.excess S z).card =
       countGe (fun S : {S : Finset A // S ∈ properNonemptyCoalitions A} => G.excess S.1 z) r := by
@@ -916,25 +909,9 @@ theorem sortExcess_lex_lt_iff_proper [Fintype A] [DecidableEq A] (G : Cooperativ
   have hcx := countGe_all_eq_proper G hx
   have hcy := countGe_all_eq_proper G hy
   simp only [sortExcess, sortProperExcess, sortDesc_lex_lt_iff_countGe]
-  constructor
-  · rintro ⟨r, hlt, heq⟩
-    refine ⟨r, ?_, fun t ht => ?_⟩
-    · have hx' := hcx r
-      have hy' := hcy r
-      omega
-    · have hx' := hcx t
-      have hy' := hcy t
-      have := heq t ht
-      omega
-  · rintro ⟨r, hlt, heq⟩
-    refine ⟨r, ?_, fun t ht => ?_⟩
-    · have hx' := hcx r
-      have hy' := hcy r
-      omega
-    · have hx' := hcx t
-      have hy' := hcy t
-      have := heq t ht
-      omega
+  constructor <;> rintro ⟨r, hlt, heq⟩ <;>
+    exact ⟨r, by have := hcx r; have := hcy r; omega,
+      fun t ht => by have := hcx t; have := hcy t; have := heq t ht; omega⟩
 
 theorem sortExcess_lex_le_iff_proper [Fintype A] [DecidableEq A] (G : CooperativeGame A)
     {x y : A → ℝ} (hx : x ∈ G.preimputations) (hy : y ∈ G.preimputations) :
@@ -1204,6 +1181,21 @@ supported on agents where individual rationality `G.val {j} = x j` is tight. -/
     (x : A → ℝ) (t : ℝ) : Finset (Finset A) :=
   (properNonemptyCoalitions A).filter fun S => t ≤ G.excess S x
 
+/-- Excess along the ray `x + ε • d`. -/
+private theorem excess_add_smul (G : CooperativeGame A) (S : Finset A) (x d : A → ℝ) (ε : ℝ) :
+    G.excess S (x + ε • d) = G.excess S x - ε * ∑ j ∈ S, d j := by
+  simp only [excess, Pi.add_apply, Pi.smul_apply, smul_eq_mul, Finset.sum_add_distrib,
+    ← Finset.mul_sum]
+  ring
+
+/-- A weight vanishing off `ℬ` has the same sum over `{S | j ∈ S}` and `{S ∈ ℬ | j ∈ S}`. -/
+private theorem sum_filter_mem_eq_of_eq_zero [Fintype A] [DecidableEq A]
+    {ℬ : Finset (Finset A)} (j : A) {f : Finset A → ℝ} (hf : ∀ S ∉ ℬ, f S = 0) :
+    ∑ S ∈ ℬ with j ∈ S, f S = ∑ S with j ∈ S, f S :=
+  Finset.sum_subset
+    (fun _ hS => Finset.mem_filter.2 ⟨Finset.mem_univ _, (Finset.mem_filter.1 hS).2⟩)
+    fun S hS hnot => hf S fun h => hnot (Finset.mem_filter.2 ⟨h, (Finset.mem_filter.1 hS).2⟩)
+
 private theorem kohlberg_forward [Fintype A] [DecidableEq A] (G : CooperativeGame A)
     {K : Set (A → ℝ)} {x : A → ℝ} (hx_pre : x ∈ G.preimputations)
     (hx_opt : G.IsLexMinimizerOn K x) (I : Finset A)
@@ -1246,38 +1238,22 @@ private theorem kohlberg_forward [Fintype A] [DecidableEq A] (G : CooperativeGam
             hT'.2 (Finset.mem_filter.2 ⟨hT'.1, h⟩)
           exact (lt_of_not_ge hnot).trans_le ht_min_ge
         let den : ℝ := 2 * (1 + ∑ j : A, |d j|)
-        have hden_pos : 0 < den := by
-          have hs : 0 ≤ ∑ j : A, |d j| := Finset.sum_nonneg fun j _ => abs_nonneg _
-          dsimp only [den]
-          linarith
+        have hS_nn : 0 ≤ ∑ j : A, |d j| := Finset.sum_nonneg fun j _ => abs_nonneg _
+        have hden_pos : 0 < den := by dsimp only [den]; linarith
         refine ⟨(t_min - T_max) / den, div_pos (sub_pos.2 hT_lt) hden_pos,
           fun S hSP hSℬ ε hε0 hε1 => ?_⟩
         have hST_le : G.excess S x ≤ T_max :=
           Finset.le_sup' (fun S => G.excess S x) (Finset.mem_sdiff.2 ⟨hSP, hSℬ⟩)
-        have hex_sub : G.excess S (x + ε • d) = G.excess S x - ε * ∑ j ∈ S, d j := by
-          simp only [excess, Pi.add_apply, Pi.smul_apply, smul_eq_mul, Finset.sum_add_distrib,
-            ← Finset.mul_sum]
-          ring
-        have hsum_abs : -(∑ j : A, |d j|) ≤ ∑ j ∈ S, d j := by
-          have habs : |∑ j ∈ S, d j| ≤ ∑ j : A, |d j| :=
-            (Finset.abs_sum_le_sum_abs _ _).trans
-              (Finset.sum_le_sum_of_subset_of_nonneg (Finset.subset_univ S)
-                fun j _ _ => abs_nonneg (d j))
-          exact neg_le_of_abs_le habs
-        have hmul_bound : ε * (∑ j : A, |d j|) ≤ (t_min - T_max) / 2 := by
-          have h1 : ε ≤ (t_min - T_max) / den := hε1
-          have h2 : ε * (∑ j : A, |d j|) ≤ ((t_min - T_max) / den) * (1 + ∑ j : A, |d j|) := by
-            refine mul_le_mul h1 (le_add_of_nonneg_of_le zero_le_one le_rfl)
-              (Finset.sum_nonneg fun j _ => abs_nonneg _) (div_pos (sub_pos.2 hT_lt) hden_pos).le
-          have hid : ((t_min - T_max) / den) * (1 + ∑ j : A, |d j|) = (t_min - T_max) / 2 := by
-            dsimp only [den]
-            have h1_pos : (0 : ℝ) < 1 + ∑ j : A, |d j| := by
-              have hnn : 0 ≤ ∑ j : A, |d j| :=
-                Finset.sum_nonneg (s := Finset.univ) fun (j : A) _ => abs_nonneg (d j)
-              linarith
-            field_simp [h1_pos.ne']
-          linarith
-        nlinarith [mul_le_mul_of_nonneg_left hsum_abs hε0.le]
+        have hsum_abs : -(∑ j : A, |d j|) ≤ ∑ j ∈ S, d j :=
+          neg_le_of_abs_le ((Finset.abs_sum_le_sum_abs _ _).trans
+            (Finset.sum_le_sum_of_subset_of_nonneg (Finset.subset_univ S)
+              fun j _ _ => abs_nonneg (d j)))
+        have hid : ((t_min - T_max) / den) * (1 + ∑ j : A, |d j|) = (t_min - T_max) / 2 := by
+          dsimp only [den]
+          field_simp [(by linarith : (0 : ℝ) < 1 + ∑ j : A, |d j|).ne']
+        rw [G.excess_add_smul]
+        nlinarith [mul_le_mul_of_nonneg_left hsum_abs hε0.le,
+          mul_le_mul_of_nonneg_right hε1 (by linarith : (0 : ℝ) ≤ 1 + ∑ j : A, |d j|)]
       · refine ⟨1, zero_lt_one, fun S hSP hSℬ => ?_⟩
         exact absurd ⟨S, Finset.mem_sdiff.2 ⟨hSP, hSℬ⟩⟩ hrem
     obtain ⟨ε₁, hε₁, hε₁_lt⟩ := hgap
@@ -1288,10 +1264,7 @@ private theorem kohlberg_forward [Fintype A] [DecidableEq A] (G : CooperativeGam
     let r₀ := G.excess S₀ x
     have hr₀_ge : t_min ≤ r₀ := Finset.inf'_le (fun S => G.excess S x) hS₀
     have hlt_S₀ : G.excess S₀ (x + ε • d) < r₀ := by
-      have hex_sub : G.excess S₀ (x + ε • d) = G.excess S₀ x - ε * ∑ j ∈ S₀, d j := by
-        simp only [excess, Pi.add_apply, Pi.smul_apply, smul_eq_mul, Finset.sum_add_distrib,
-          ← Finset.mul_sum]
-        ring
+      rw [G.excess_add_smul]
       nlinarith [mul_pos hε0 hd_pos]
     let u' : {S : Finset A // S ∈ properNonemptyCoalitions A} → ℝ :=
       fun S => G.excess S.1 (x + ε • d)
@@ -1300,13 +1273,8 @@ private theorem kohlberg_forward [Fintype A] [DecidableEq A] (G : CooperativeGam
         ∀ S : {S : Finset A // S ∈ properNonemptyCoalitions A}, t' ≤ u' S → t' ≤ u S := by
       intro t' ht' S hSt'
       by_cases hSℬ : S.1 ∈ ℬ
-      · have hex_le : G.excess S.1 (x + ε • d) ≤ G.excess S.1 x := by
-          have hex_sub : G.excess S.1 (x + ε • d) = G.excess S.1 x - ε * ∑ j ∈ S.1, d j := by
-            simp only [excess, Pi.add_apply, Pi.smul_apply, smul_eq_mul,
-              Finset.sum_add_distrib, ← Finset.mul_sum]
-            ring
-          nlinarith [mul_nonneg hε0.le (hd_ℬ S.1 hSℬ)]
-        exact hSt'.trans hex_le
+      · exact hSt'.trans (show G.excess S.1 (x + ε • d) ≤ G.excess S.1 x by
+          rw [G.excess_add_smul]; nlinarith [mul_nonneg hε0.le (hd_ℬ S.1 hSℬ)])
       · exact absurd (ht'.trans hSt') (not_le.2 (hε₁_lt S.1 S.2 hSℬ ε hε0 (min_le_right _ _)))
     have hprop_lt : toLex (G.sortProperExcess (x + ε • d)) < toLex (G.sortProperExcess x) :=
       sortDesc_lex_lt_of_tail_pres r₀ (fun t' ht' => hmem_of_ge t' (hr₀_ge.trans ht'))
@@ -1383,14 +1351,8 @@ private theorem kohlberg_forward [Fintype A] [DecidableEq A] (G : CooperativeGam
               ∑ S : {S : Finset A // S ∈ ℬ}, (if j ∈ S.1 then w S.1 else 0) :=
             Finset.sum_congr rfl fun S _ => by simp [w, S.2]
           rw [hsub_w, ← Finset.sum_subtype ℬ (fun _ => Iff.rfl)
-            (fun S => if j ∈ S then w S else 0)]
-          rw [← Finset.sum_filter]
-          refine Finset.sum_subset ?_ fun S hS hnot => ?_
-          · intro S hS
-            exact Finset.mem_filter.2 ⟨Finset.mem_univ _, (Finset.mem_filter.1 hS).2⟩
-          · have hjS : j ∈ S := (Finset.mem_filter.1 hS).2
-            have hSℬ : S ∉ ℬ := fun h => hnot (Finset.mem_filter.2 ⟨h, hjS⟩)
-            simp [w, hSℬ]
+            (fun S => if j ∈ S then w S else 0), ← Finset.sum_filter]
+          exact sum_filter_mem_eq_of_eq_zero j fun S hSℬ => by simp [w, hSℬ]
         have hneg : ∑ S : {S : Finset A // S ∈ ℬ},
             (if j ∈ S.1 then -y (.inr (.inr (.inr S))) else 0) =
             -∑ S : {S : Finset A // S ∈ ℬ},
@@ -1439,18 +1401,9 @@ private theorem kohlberg_forward [Fintype A] [DecidableEq A] (G : CooperativeGam
         ((∑ S₀ ∈ ℬ.attach, (if j ∈ S₀.1 then (1 : ℝ) else 0)) +
           ∑ S₀ ∈ ℬ.attach, ∑ S with j ∈ S, ws S₀.1 S₀.2 S) / C := by
       have hw_eq : (∑ S with j ∈ S, w S) =
-          ∑ S ∈ ℬ with j ∈ S, (1 + ∑ S₀ ∈ ℬ.attach, ws S₀.1 S₀.2 S) / C := by
-        calc
-          (∑ S with j ∈ S, w S)
-              = ∑ S ∈ ℬ with j ∈ S, w S := by
-                refine (Finset.sum_subset ?_ fun S hS hnot => ?_).symm
-                · intro S hS
-                  exact Finset.mem_filter.2 ⟨Finset.mem_univ _, (Finset.mem_filter.1 hS).2⟩
-                · have hSℬ : S ∉ ℬ := fun h =>
-                    hnot (Finset.mem_filter.2 ⟨h, (Finset.mem_filter.1 hS).2⟩)
-                  simp [w, hSℬ]
-          _ = ∑ S ∈ ℬ with j ∈ S, (1 + ∑ S₀ ∈ ℬ.attach, ws S₀.1 S₀.2 S) / C :=
-                Finset.sum_congr rfl fun S hS => by simp [w, (Finset.mem_filter.1 hS).1]
+          ∑ S ∈ ℬ with j ∈ S, (1 + ∑ S₀ ∈ ℬ.attach, ws S₀.1 S₀.2 S) / C :=
+        (sum_filter_mem_eq_of_eq_zero j fun S hSℬ => by simp [w, hSℬ]).symm.trans
+          (Finset.sum_congr rfl fun S hS => by simp [w, (Finset.mem_filter.1 hS).1])
       rw [hw_eq]
       simp only [div_eq_mul_inv, ← Finset.sum_mul]
       congr 1
@@ -1458,13 +1411,7 @@ private theorem kohlberg_forward [Fintype A] [DecidableEq A] (G : CooperativeGam
       congr 1
       · rw [Finset.sum_attach ℬ (fun S => if j ∈ S then (1 : ℝ) else 0), Finset.sum_filter]
       · rw [Finset.sum_comm]
-        refine Finset.sum_congr rfl fun S₀ _ => ?_
-        refine Finset.sum_subset ?_ fun S hS hnot => ?_
-        · intro S hS
-          exact Finset.mem_filter.2 ⟨Finset.mem_univ _, (Finset.mem_filter.1 hS).2⟩
-        · have hSℬ : S ∉ ℬ := fun h =>
-            hnot (Finset.mem_filter.2 ⟨h, (Finset.mem_filter.1 hS).2⟩)
-          exact hws_zero S₀.1 S₀.2 S hSℬ
+        exact Finset.sum_congr rfl fun S₀ _ => sum_filter_mem_eq_of_eq_zero j (hws_zero S₀.1 S₀.2)
     have hsum_row : (∑ S₀ ∈ ℬ.attach, us S₀.1 S₀.2 j) +
         ((∑ S₀ ∈ ℬ.attach, (if j ∈ S₀.1 then (1 : ℝ) else 0)) +
           ∑ S₀ ∈ ℬ.attach, ∑ S with j ∈ S, ws S₀.1 S₀.2 S) = C := by
@@ -1522,57 +1469,33 @@ private theorem kohlberg_backward [Fintype A] [DecidableEq A] (G : CooperativeGa
       have hS₀ℬ : S₀ ∈ ℬ := Finset.mem_filter.2 ⟨hS₀_prop, hS₀eq.symm.ge⟩
       obtain ⟨w, u, hw_pos, hw_zero, hu_nn, hu_move, hrow⟩ := hbal r ⟨S₀, hS₀ℬ⟩
       have hidentity : (∑ j : A, u j * d j) + ∑ S ∈ ℬ, w S * (∑ j ∈ S, d j) = 0 := by
-        have hws_all : ∑ S ∈ ℬ, w S * (∑ j ∈ S, d j) = ∑ S : Finset A, w S * (∑ j ∈ S, d j) := by
-          refine Finset.sum_subset (Finset.subset_univ ℬ) fun S _ hSℬ => ?_
-          rw [hw_zero S hSℬ, zero_mul]
+        have hws_all : ∑ S ∈ ℬ, w S * (∑ j ∈ S, d j) = ∑ S : Finset A, w S * (∑ j ∈ S, d j) :=
+          Finset.sum_subset (Finset.subset_univ ℬ) fun S _ hSℬ => by rw [hw_zero S hSℬ, zero_mul]
         have hswap : (∑ S : Finset A, w S * (∑ j ∈ S, d j)) =
             ∑ j : A, (∑ S with j ∈ S, w S) * d j := by
-          have hl : (∑ S : Finset A, w S * (∑ j ∈ S, d j)) =
-              ∑ S : Finset A, ∑ j : A, if j ∈ S then w S * d j else 0 := by
-            refine Finset.sum_congr rfl fun S _ => ?_
-            rw [Finset.mul_sum, ← Finset.sum_filter]
-            refine Finset.sum_congr (Finset.ext fun j => by simp) fun _ _ => rfl
-          have hr : (∑ j : A, (∑ S with j ∈ S, w S) * d j) =
-              ∑ j : A, ∑ S : Finset A, if j ∈ S then w S * d j else 0 := by
-            refine Finset.sum_congr rfl fun j _ => ?_
-            rw [Finset.sum_filter, Finset.sum_mul]
-            refine Finset.sum_congr rfl fun S _ => by split_ifs <;> simp
-          rw [hl, hr, Finset.sum_comm]
-        rw [hws_all, hswap, ← Finset.sum_add_distrib]
-        calc
-          ∑ j : A, (u j * d j + (∑ S with j ∈ S, w S) * d j)
-              = ∑ j : A, (u j + ∑ S with j ∈ S, w S) * d j :=
-                Finset.sum_congr rfl fun j _ => by ring
-          _ = ∑ j : A, d j := Finset.sum_congr rfl fun j _ => by rw [hrow j, one_mul]
-          _ = 0 := hd_sum
+          simp only [Finset.mul_sum, Finset.sum_mul]
+          exact Finset.sum_comm' fun S j => by simp
+        rw [hws_all, hswap, ← Finset.sum_add_distrib, ← hd_sum]
+        exact Finset.sum_congr rfl fun j _ => by rw [← add_mul, hrow j, one_mul]
       have hu_nonneg : 0 ≤ ∑ j : A, u j * d j :=
         Finset.sum_nonneg fun j _ => hu_move y hyK j
       have hw_nonpos : ∑ S ∈ ℬ, w S * (∑ j ∈ S, d j) ≤ 0 := by linarith
+      -- Coalitions with excess above `r = max_D excess` do not change total payoff.
+      have hd0_of_lt : ∀ S ∈ properNonemptyCoalitions A, r < G.excess S x → ∑ j ∈ S, d j = 0 :=
+        fun S hS hr => not_not.1 fun hne => not_le.2 hr
+          (Finset.le_sup' (fun T => G.excess T x) (Finset.mem_filter.2 ⟨hS, hne⟩))
       let ℬeq : Finset (Finset A) := ℬ.filter fun S => G.excess S x = r
       have hℬeq_sum : ∑ S ∈ ℬeq, w S * (∑ j ∈ S, d j) = ∑ S ∈ ℬ, w S * (∑ j ∈ S, d j) := by
         refine Finset.sum_subset (Finset.filter_subset _ _) fun S hSℬ hnot => ?_
-        have hSprop : S ∈ properNonemptyCoalitions A := (Finset.mem_filter.1 hSℬ).1
-        have hr_le : r ≤ G.excess S x := (Finset.mem_filter.1 hSℬ).2
-        have hne_r : G.excess S x ≠ r := fun heq => hnot (Finset.mem_filter.2 ⟨hSℬ, heq⟩)
-        have hr_lt : r < G.excess S x := lt_of_le_of_ne hr_le hne_r.symm
-        have hSnotD : S ∉ D := fun hSD =>
-          not_le.2 hr_lt (Finset.le_sup' (fun T => G.excess T x) hSD)
-        have hd0 : ∑ j ∈ S, d j = 0 := not_not.1 fun hne =>
-          hSnotD (Finset.mem_filter.2 ⟨hSprop, hne⟩)
-        rw [hd0, mul_zero]
-      have hℬeq_nonpos : ∑ S ∈ ℬeq, w S * (∑ j ∈ S, d j) ≤ 0 := by rwa [hℬeq_sum]
+        rw [hd0_of_lt S (Finset.mem_filter.1 hSℬ).1 (lt_of_le_of_ne (Finset.mem_filter.1 hSℬ).2
+          fun heq => hnot (Finset.mem_filter.2 ⟨hSℬ, heq.symm⟩)), mul_zero]
       have hex_neg : ∃ S' ∈ ℬeq, ∑ j ∈ S', d j < 0 := by
-        by_contra hnone
-        push Not at hnone
+        by_contra! hnone
         have hall_nn : ∀ S ∈ ℬeq, 0 ≤ w S * (∑ j ∈ S, d j) := fun S hS =>
           mul_nonneg (hw_pos S (Finset.mem_filter.1 hS).1).le (hnone S hS)
-        have hzero_all := (Finset.sum_eq_zero_iff_of_nonneg hall_nn).1
-          (le_antisymm hℬeq_nonpos (Finset.sum_nonneg hall_nn))
-        have hS₀_ℬeq : S₀ ∈ ℬeq := Finset.mem_filter.2 ⟨hS₀ℬ, hS₀eq.symm⟩
-        have hmul0 := hzero_all S₀ hS₀_ℬeq
-        rcases mul_eq_zero.1 hmul0 with hw0 | hd0
-        · exact (hw_pos S₀ hS₀ℬ).ne' hw0
-        · exact hS₀_ne hd0
+        exact mul_ne_zero (hw_pos S₀ hS₀ℬ).ne' hS₀_ne ((Finset.sum_eq_zero_iff_of_nonneg hall_nn).1
+          (le_antisymm (by rwa [hℬeq_sum]) (Finset.sum_nonneg hall_nn)) S₀
+          (Finset.mem_filter.2 ⟨hS₀ℬ, hS₀eq.symm⟩))
       obtain ⟨S', hS'eq, hd_lt⟩ := hex_neg
       have hS'ℬ : S' ∈ ℬ := (Finset.mem_filter.1 hS'eq).1
       have hS'prop : S' ∈ properNonemptyCoalitions A := (Finset.mem_filter.1 hS'ℬ).1
@@ -1592,20 +1515,9 @@ private theorem kohlberg_backward [Fintype A] [DecidableEq A] (G : CooperativeGa
           ∀ S : {S : Finset A // S ∈ properNonemptyCoalitions A},
             t ≤ u_prop S → t ≤ v_prop S := by
         intro t ht S hSt
-        have hr_lt : r < G.excess S.1 x := hr_lt_r₀.trans_le (ht.trans hSt)
-        have hSnotD : S.1 ∉ D := fun hSD =>
-          not_le.2 hr_lt (Finset.le_sup' (fun T => G.excess T x) hSD)
-        have hd0 : ∑ j ∈ S.1, d j = 0 := not_not.1 fun hne =>
-          hSnotD (Finset.mem_filter.2 ⟨S.2, hne⟩)
-        have hex_eq : G.excess S.1 y = G.excess S.1 x := by
-          have hsum : ∑ j ∈ S.1, y j = ∑ j ∈ S.1, x j := by
-            have := hd0
-            simp only [d, Finset.sum_sub_distrib, sub_eq_zero] at this
-            exact this
-          simp only [excess, hsum]
-        dsimp only [v_prop]
-        rw [hex_eq]
-        exact hSt
+        have hd0 := hd0_of_lt S.1 S.2 (hr_lt_r₀.trans_le (ht.trans hSt))
+        simp only [d, Finset.sum_sub_distrib, sub_eq_zero] at hd0
+        simpa only [u_prop, v_prop, excess, hd0] using hSt
       have hprop_lt : toLex (G.sortProperExcess x) < toLex (G.sortProperExcess y) :=
         sortDesc_lex_lt_of_tail_pres r₀ hmem_of_ge (s₀ := ⟨S', hS'prop⟩) le_rfl
           (by dsimp only [u_prop]; rwa [hS'ex])
@@ -1682,14 +1594,10 @@ theorem isNucleolus_iff_kohlberg [Fintype A] [DecidableEq A] (G : CooperativeGam
         by_cases hdj : 0 ≤ d j
         · exact le_add_of_le_of_nonneg (hx.2 j) (mul_nonneg hε_pos.le hdj)
         · have hdj_lt : d j < 0 := lt_of_not_ge hdj
-          have hnotI : j ∉ I := fun hjI => hdj (hd_I j hjI)
-          have hne : x j ≠ G.val {j} := fun heq =>
-            hnotI (Finset.mem_filter.2 ⟨Finset.mem_univ _, heq⟩)
-          have hlt : G.val {j} < x j := lt_of_le_of_ne (hx.2 j) hne.symm
-          have hjJ : j ∈ J := Finset.mem_filter.2 ⟨Finset.mem_univ _, hlt, hdj_lt⟩
-          have hbound : ε ≤ (x j - G.val {j}) / (-d j) := hε_le.trans (hε₀_le j hjJ)
-          have hneg_pos : 0 < -d j := neg_pos.2 hdj_lt
-          have hmul : ε * (-d j) ≤ x j - G.val {j} := (le_div_iff₀ hneg_pos).1 hbound
+          have hlt : G.val {j} < x j := lt_of_le_of_ne (hx.2 j) fun heq =>
+            hdj (hd_I j (Finset.mem_filter.2 ⟨Finset.mem_univ _, heq.symm⟩))
+          have hmul : ε * (-d j) ≤ x j - G.val {j} := (le_div_iff₀ (neg_pos.2 hdj_lt)).1
+            (hε_le.trans (hε₀_le j (Finset.mem_filter.2 ⟨Finset.mem_univ _, hlt, hdj_lt⟩)))
           linarith
     obtain ⟨w, u, hw_pos, hw_zero, hu_nn, hu_zero, hrow⟩ :=
       kohlberg_forward G hx.1 hx_opt I hmove (fun _ hy => hy.1) hℬ
@@ -1975,13 +1883,8 @@ private theorem dummy_pos_contradiction [Fintype A] [DecidableEq A] {G : Coopera
         simp only [excess, hsingle, Finset.sum_singleton, hd.val_singleton, zero_sub]
       linarith
     · let S := T.erase i
-      have hS_ne : S.Nonempty := by
-        by_contra hnone
-        have hS_empty : S = ∅ := Finset.not_nonempty_iff_eq_empty.1 hnone
-        apply hsingle
-        have hT_eq : insert i S = T := Finset.insert_erase hiT
-        simp only [hS_empty, Finset.insert_empty] at hT_eq
-        exact hT_eq.symm
+      have hS_ne : S.Nonempty :=
+        (Finset.erase_nonempty hiT).2 ((Finset.nontrivial_iff_ne_singleton hiT).2 hsingle)
       have hS_Pw : S ∈ P_without := Finset.mem_filter.2
         ⟨mem_properNonemptyCoalitions.2
           ⟨hS_ne, fun heq => Finset.notMem_erase i T (show i ∈ S from heq ▸ Finset.mem_univ i)⟩,
@@ -2074,29 +1977,18 @@ theorem prenucleolus_isDummyAgent [Fintype A] [DecidableEq A] {G : CooperativeGa
         have ht_le : t ≤ G.excess S x := (Finset.mem_filter.1 hSℬ).2
         exact absurd (ht_le.trans hle_M) (not_le.2 hM_lt_T₀)
       have hsum_all : (∑ S : Finset A, w S) = 1 := by
-        have h1 := hw_sum i
-        rw [← h1]
+        rw [← hw_sum i]
         refine (Finset.sum_subset (Finset.filter_subset _ _) fun S _ hnot => ?_).symm
         have hS_not_ℬ : S ∉ G.upperLevel x t := fun hSℬ =>
           hnot (Finset.mem_filter.2 ⟨Finset.mem_univ _, hi_mem_all S hSℬ⟩)
         exact hw_zero S hS_not_ℬ
-      have hnot_univ : T₀ ≠ Finset.univ := (mem_properNonemptyCoalitions.1 hT₀prop).2
-      have hex_j : ∃ j : A, j ∉ T₀ := by
-        by_contra hall
-        push Not at hall
-        apply hnot_univ
-        ext j
-        simp [hall j]
-      obtain ⟨j, hjT₀⟩ := hex_j
-      have hj_sum : ∑ S with j ∈ S, w S = 1 := hw_sum j
-      have hw_nn : ∀ S : Finset A, 0 ≤ w S := fun S => by
-        by_cases hS : S ∈ G.upperLevel x t
-        · exact (hw_pos S hS).le
-        · rw [hw_zero S hS]
+      obtain ⟨j, hjT₀⟩ : ∃ j : A, j ∉ T₀ := by
+        by_contra! hall
+        exact (mem_properNonemptyCoalitions.1 hT₀prop).2 (Finset.eq_univ_iff_forall.2 hall)
+      have hw_nn : ∀ S : Finset A, 0 ≤ w S := fun S =>
+        (em _).elim (fun hS => (hw_pos S hS).le) fun hS => (hw_zero S hS).ge
       have hmiss_zero : (∑ S with j ∉ S, w S) = 0 := by
-        have hsplit : (∑ S with j ∈ S, w S) + (∑ S with j ∉ S, w S) = ∑ S : Finset A, w S := by
-          rw [Finset.sum_filter_add_sum_filter_not]
-        linarith
+        linarith [hw_sum j, Finset.sum_filter_add_sum_filter_not Finset.univ (fun S => j ∈ S) w]
       have hwT₀_zero : w T₀ = 0 := (Finset.sum_eq_zero_iff_of_nonneg fun S _ => hw_nn S).1
         hmiss_zero T₀ (Finset.mem_filter.2 ⟨Finset.mem_univ T₀, hjT₀⟩)
       exact absurd (hw_pos T₀ (Finset.mem_filter.2 ⟨hT₀prop, le_rfl⟩)) (by linarith)

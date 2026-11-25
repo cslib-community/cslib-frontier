@@ -117,44 +117,27 @@ theorem Valid.addPair_W_eq {S : State n} (_hS : S.Valid f) {pr : ZeroPair}
         have hu1m : u ∈ S₁.unpaired := mem_unpaired.2 ⟨by rw [addPair_params]; exact hu, hup1⟩
         have hu0m : u ∈ S.unpaired := mem_unpaired.2 ⟨hu, hup⟩
         rw [wt_of_mem hu1m, wt_of_mem hu0m, SemiCircuit.deg, SemiCircuit.deg, addPair_children]
+  have hwt (u : ℕ) (hu : u ∈ S.params) : S₁.wt u + loss u = S.wt u := by
+    by_cases hu1 : u = pr.fst
+    · subst hu1
+      have hp1 : S₁.Paired pr.fst := ⟨pr, Finset.mem_insert_self _ _, Or.inl rfl⟩
+      dsimp only [loss]
+      rw [wt_of_paired hp1, wt_of_mem h.fst_unpaired,
+        show config.weight (S.deg pr.fst) = weight (S.deg pr.fst) from rfl,
+        weight_of_one_le h1, ite_eq_left rfl, ite_eq_right h.ne]
+    · by_cases hu2 : u = pr.snd
+      · subst hu2
+        have hp2 : S₁.Paired pr.snd := ⟨pr, Finset.mem_insert_self _ _, Or.inr rfl⟩
+        dsimp only [loss]
+        rw [wt_of_paired hp2, wt_of_mem h.snd_unpaired,
+          show config.weight (S.deg pr.snd) = weight (S.deg pr.snd) from rfl,
+          weight_of_one_le h2, ite_eq_right hu1, ite_eq_left rfl]
+      · dsimp only [loss]
+        rw [ite_eq_right hu1, ite_eq_right hu2, add_zero, hwt_same u hu hu1 hu2, add_zero]
   have hle1 := W_add_le (S := S) (S' := S₁) (N := S.params) le_rfl (by rw [addPair_params])
-    loss (fun _ => 0) fun u hu => by
-      simp only [add_zero]
-      by_cases hu1 : u = pr.fst
-      · subst hu1
-        have hp1 : S₁.Paired pr.fst := ⟨pr, Finset.mem_insert_self _ _, Or.inl rfl⟩
-        dsimp only [loss]
-        rw [wt_of_paired hp1, wt_of_mem h.fst_unpaired,
-          show config.weight (S.deg pr.fst) = weight (S.deg pr.fst) from rfl,
-          weight_of_one_le h1, ite_eq_left rfl, ite_eq_right h.ne]
-      · by_cases hu2 : u = pr.snd
-        · subst hu2
-          have hp2 : S₁.Paired pr.snd := ⟨pr, Finset.mem_insert_self _ _, Or.inr rfl⟩
-          dsimp only [loss]
-          rw [wt_of_paired hp2, wt_of_mem h.snd_unpaired,
-            show config.weight (S.deg pr.snd) = weight (S.deg pr.snd) from rfl,
-            weight_of_one_le h2, ite_eq_right hu1, ite_eq_left rfl]
-        · dsimp only [loss]
-          rw [ite_eq_right hu1, ite_eq_right hu2, add_zero, hwt_same u hu hu1 hu2, add_zero]
+    loss (fun _ => 0) fun u hu => (hwt u hu).le
   have hle2 := W_add_le (S := S₁) (S' := S) (N := S.params) (by rw [addPair_params]) le_rfl
-    (fun _ => 0) loss fun u hu => by
-      simp only [add_zero]
-      by_cases hu1 : u = pr.fst
-      · subst hu1
-        dsimp only [loss]
-        rw [wt_of_mem h.fst_unpaired,
-          show config.weight (S.deg pr.fst) = weight (S.deg pr.fst) from rfl,
-          weight_of_one_le h1, ite_eq_left rfl, ite_eq_right h.ne]
-        omega
-      · by_cases hu2 : u = pr.snd
-        · subst hu2
-          dsimp only [loss]
-          rw [wt_of_mem h.snd_unpaired,
-            show config.weight (S.deg pr.snd) = weight (S.deg pr.snd) from rfl,
-            weight_of_one_le h2, ite_eq_right hu1, ite_eq_left rfl]
-          omega
-        · dsimp only [loss]
-          rw [ite_eq_right hu1, ite_eq_right hu2, add_zero, hwt_same u hu hu1 hu2, add_zero]
+    (fun _ => 0) loss fun u hu => (hwt u hu).ge
   have hs1 : S₁.s = S.s := addPair_size S pr
   have hq1 : S₁.q = S.q + 1 := addPair_q h
   dsimp only [S₁] at hle1 hle2 hs1 hq1

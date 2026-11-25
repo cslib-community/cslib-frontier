@@ -102,8 +102,8 @@ theorem uniform_transcriptWithHedges (C : QuantumSigningForger) (H : Xofs) (s : 
 /-- The 256-bit hedge space supplies a distinct hedge for each of at most `2^256` slots. -/
 theorem hedgeEmbedding_nonempty {n : ℕ} (hn : n ≤ 2 ^ 256) :
     Nonempty (Fin n ↪ FixedBytes 32) :=
-  Function.Embedding.nonempty_of_card_le (by
-    simpa only [Fintype.card_fin, FixedBytes.card] using hn)
+  Function.Embedding.nonempty_of_card_le
+    (by simpa only [Fintype.card_fin, FixedBytes.card] using hn)
 
 private noncomputable def withTrialSetup {α κ : Type} (H : Xofs) (s : Level)
     (publicKey : κ → List Byte) (keys : Option κ)
@@ -149,7 +149,7 @@ private theorem uniform_fixedHedgeGame (C : QuantumSigningForger) (s : Level) (b
       C.fixedHedgeGame s base a b score (List.ofFn t)) =
       ((base.uniformPrefixes a b).bind (C.matrixTrial s)).map (·.any score) := by
   let eval := fun z => (C.runAtSetup s z).map (·.any score)
-  have eq := congrArg (fun p => PMF.bind p eval) (uniformPrefixes_matrixSetup base s ha hb)
+  have eq := congrArg (PMF.bind · eval) (uniformPrefixes_matrixSetup base s ha hb)
   simp only [PMF.bind_bind, PMF.bind_map, Function.comp_def] at eq
   simp only [matrixTrial, PMF.monad_bind_eq_bind, PMF.map_bind]
   rw [show (fun H => (matrixSetup H s).bind fun z => (C.runAtSetup s z).map (·.any score)) =
@@ -158,13 +158,11 @@ private theorem uniform_fixedHedgeGame (C : QuantumSigningForger) (s : Level) (b
   pmf_swap with H
   pmf_swap with seed
   dsimp only [eval]
-  cases hg : H.keyGen s seed with
-  | none => simp [runAtSetup]
-  | some keys =>
-    cases hm : H.expandA s (keys.publicKey.take 32) with
-    | none => simp [runAtSetup, hm]
-    | some A =>
-      have law := congrArg (PMF.map fun (f, log) => score ⟨H, A, keys.publicKey, f, log⟩)
+  rcases hg : H.keyGen s seed with _ | keys
+  · simp [runAtSetup]
+  · rcases hm : H.expandA s (keys.publicKey.take 32) with _ | A
+    · simp [runAtSetup, hm]
+    · have law := congrArg (PMF.map fun (f, log) => score ⟨H, A, keys.publicKey, f, log⟩)
         (C.uniform_transcriptWithHedges H s keys hn)
       simpa [hm, runAtSetup, PMF.map_comp, Function.comp_def, PMF.map_bind] using law
 
@@ -181,11 +179,10 @@ theorem dist_matrixTrial_distinctHedges (C : QuantumSigningForger) (s : Level)
     simpa only [Fintype.card_fin, FixedBytes.card] using hsize
   let _ := Function.Embedding.nonempty_of_card_le hcard
   rw [← C.uniform_fixedHedgeGame s base ha hb hn score, dist_comm]
-  have d := dist_uniform_embedding_to_fun hcard
-  have h := (PMF.dist_bind_le _ _
-    (fun t => C.fixedHedgeGame s base a b score (List.ofFn t))).trans d
   simpa only [distinctHedgeGame, PMF.bind_map, Function.comp_def, Fintype.card_fin, FixedBytes.card,
-    Nat.cast_pow, Nat.cast_ofNat, ← pow_succ'] using h
+    Nat.cast_pow, Nat.cast_ofNat, ← pow_succ'] using
+    (PMF.dist_bind_le _ _ (fun t => C.fixedHedgeGame s base a b score (List.ofFn t))).trans
+      (dist_uniform_embedding_to_fun hcard)
 
 end Cslib.Crypto.MLDSA.FIPS204.QuantumSigningForger
 

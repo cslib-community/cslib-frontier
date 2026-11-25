@@ -290,9 +290,8 @@ theorem naorReingoldWordEval_eq_encode (d : F.Desc) {n : ℕ} (α₀ : ℕ)
   rw [naorReingoldWordEval, F.smul_encode, naorReingoldProdNat_cast, naorReingoldEval,
     naorReingoldExp]
   congr 2
-  have hzip : (List.ofFn α).zip (List.ofFn x) = List.ofFn (fun i : Fin n => (α i, x i)) := by
-    refine List.ext_getElem (by simp) fun i h₁ h₂ => ?_
-    simp
+  have hzip : (List.ofFn α).zip (List.ofFn x) = List.ofFn (fun i : Fin n => (α i, x i)) :=
+    List.ext_getElem (by simp) fun _ _ _ => by simp
   rw [hzip, List.map_ofFn, Fin.prod_univ_def, List.prod_ofFn]
   rfl
 
@@ -312,15 +311,13 @@ theorem computableInPolyTime_naorReingoldProdNat :
     (growth := fun input => (encList (encPair encNat encBool) input.2).length)
     (ComputableInPolyTime.snd _ _).polyBounded_length ?_
   intro input state value hmem
-  have hval : value.1.size ≤ (encList (encPair encNat encBool) input.2).length := by
-    rw [← Nat.size_eq_bits_len, ← encNat_apply]
-    have h1 : (encNat value.1).length ≤ (encPair encNat encBool value).length := by
-      enc_len
-    exact h1.trans (length_le_encList_of_mem (encPair encNat encBool) hmem)
   rcases value with ⟨v, _ | _⟩
   · simp
   · simp only [↓reduceIte, encNat_apply, Nat.size_eq_bits_len]
-    exact (Nat.size_mul_le state v).trans (Nat.add_le_add_left hval _)
+    refine (Nat.size_mul_le state v).trans (Nat.add_le_add_left ?_ _)
+    rw [← Nat.size_eq_bits_len, ← encNat_apply]
+    exact (by enc_len : (encNat v).length ≤ (encPair encNat encBool (v, true)).length).trans
+      (length_le_encList_of_mem (encPair encNat encBool) hmem)
 
 /-- `naorReingoldWordSuffix` is computable in polynomial time. -/
 theorem computableInPolyTime_naorReingoldWordSuffix :
@@ -328,36 +325,23 @@ theorem computableInPolyTime_naorReingoldWordSuffix :
       (fun input : F.Desc × List Bool × List ℕ × List Bool =>
         F.naorReingoldWordSuffix input.1 input.2.1 input.2.2.1 input.2.2.2)
       (encPair F.encDesc (encPair encBits (encPair (encList encNat) encBits))) encBits := by
-  have hd : ComputableInPolyTime
-      (fun input : F.Desc × List Bool × List ℕ × List Bool => input.1)
-      (encPair F.encDesc (encPair encBits (encPair (encList encNat) encBits))) F.encDesc := by
-    fun_prop
-  have hu : ComputableInPolyTime
-      (fun input : F.Desc × List Bool × List ℕ × List Bool => input.2.1)
-      (encPair F.encDesc (encPair encBits (encPair (encList encNat) encBits))) encBits := by
-    fun_prop
-  have hαs : ComputableInPolyTime
-      (fun input : F.Desc × List Bool × List ℕ × List Bool => input.2.2.1)
-      (encPair F.encDesc (encPair encBits (encPair (encList encNat) encBits)))
-      (encList encNat) := by
-    fun_prop
-  have hxs : ComputableInPolyTime
-      (fun input : F.Desc × List Bool × List ℕ × List Bool => input.2.2.2)
-      (encPair F.encDesc (encPair encBits (encPair (encList encNat) encBits)))
-      (encList encBool) :=
-    ComputableInPolyTime.bitsToList.comp (by fun_prop)
   have hzip : ComputableInPolyTime
       (fun input : F.Desc × List Bool × List ℕ × List Bool => input.2.2.1.zip input.2.2.2)
       (encPair F.encDesc (encPair encBits (encPair (encList encNat) encBits)))
       (encList (encPair encNat encBool)) :=
-    (ComputableInPolyTime.zip encNat encBool).comp (hαs.prod hxs)
+    (ComputableInPolyTime.zip encNat encBool).comp
+      ((by fun_prop : ComputableInPolyTime _ _ (encList encNat)).prod
+        (ComputableInPolyTime.bitsToList.comp (by fun_prop)))
   have hprod : ComputableInPolyTime
       (fun input : F.Desc × List Bool × List ℕ × List Bool =>
         naorReingoldProdNat 1 (input.2.2.1.zip input.2.2.2))
       (encPair F.encDesc (encPair encBits (encPair (encList encNat) encBits))) encNat :=
-    computableInPolyTime_naorReingoldProdNat.comp
-      ((ComputableInPolyTime.const 1).prod hzip)
-  exact F.computableInPolyTime_smul.comp (hd.prod (hprod.prod hu))
+    computableInPolyTime_naorReingoldProdNat.comp ((ComputableInPolyTime.const 1).prod hzip)
+  have hd : ComputableInPolyTime
+      (fun input : F.Desc × List Bool × List ℕ × List Bool => input.1)
+      (encPair F.encDesc (encPair encBits (encPair (encList encNat) encBits))) F.encDesc := by
+    fun_prop
+  exact F.computableInPolyTime_smul.comp (hd.prod (hprod.prod (by fun_prop)))
 
 /-- `naorReingoldWordEval` is computable in polynomial time. -/
 theorem computableInPolyTime_naorReingoldWordEval :
@@ -369,34 +353,21 @@ theorem computableInPolyTime_naorReingoldWordEval :
       (fun input : F.Desc × ℕ × List ℕ × List Bool => input.1)
       (encPair F.encDesc (encPair encNat (encPair (encList encNat) encBits))) F.encDesc := by
     fun_prop
-  have hα₀ : ComputableInPolyTime
-      (fun input : F.Desc × ℕ × List ℕ × List Bool => input.2.1)
-      (encPair F.encDesc (encPair encNat (encPair (encList encNat) encBits))) encNat := by
-    fun_prop
-  have hαs : ComputableInPolyTime
-      (fun input : F.Desc × ℕ × List ℕ × List Bool => input.2.2.1)
-      (encPair F.encDesc (encPair encNat (encPair (encList encNat) encBits))) (encList encNat) := by
-    fun_prop
-  have hxs : ComputableInPolyTime
-      (fun input : F.Desc × ℕ × List ℕ × List Bool => input.2.2.2)
-      (encPair F.encDesc (encPair encNat (encPair (encList encNat) encBits)))
-      (encList encBool) :=
-    ComputableInPolyTime.bitsToList.comp (by fun_prop)
   have hzip : ComputableInPolyTime
       (fun input : F.Desc × ℕ × List ℕ × List Bool => input.2.2.1.zip input.2.2.2)
       (encPair F.encDesc (encPair encNat (encPair (encList encNat) encBits)))
       (encList (encPair encNat encBool)) :=
-    (ComputableInPolyTime.zip encNat encBool).comp (hαs.prod hxs)
+    (ComputableInPolyTime.zip encNat encBool).comp
+      ((by fun_prop : ComputableInPolyTime _ _ (encList encNat)).prod
+        (ComputableInPolyTime.bitsToList.comp (by fun_prop)))
   have hprod : ComputableInPolyTime
       (fun input : F.Desc × ℕ × List ℕ × List Bool =>
         naorReingoldProdNat input.2.1 (input.2.2.1.zip input.2.2.2))
       (encPair F.encDesc (encPair encNat (encPair (encList encNat) encBits))) encNat :=
-    computableInPolyTime_naorReingoldProdNat.comp (hα₀.prod hzip)
-  have hgen : ComputableInPolyTime
-      (fun input : F.Desc × ℕ × List ℕ × List Bool => F.encode input.1 (F.generator input.1))
-      (encPair F.encDesc (encPair encNat (encPair (encList encNat) encBits))) encBits :=
-    F.computableInPolyTime_generator.comp hd
-  exact F.computableInPolyTime_smul.comp (hd.prod (hprod.prod hgen))
+    computableInPolyTime_naorReingoldProdNat.comp
+      ((by fun_prop : ComputableInPolyTime _ _ encNat).prod hzip)
+  exact F.computableInPolyTime_smul.comp
+    (hd.prod (hprod.prod (F.computableInPolyTime_generator.comp hd)))
 
 /-! ### Naor–Reingold PRF prefix hybrids and security reduction (Exercise 10.4(b)) -/
 
@@ -415,9 +386,8 @@ theorem naorReingoldSuffixExp_zero (d : F.Desc) {n : ℕ}
 @[simp]
 theorem naorReingoldSuffixExp_self (d : F.Desc) {n : ℕ}
     (α : Fin n → ZMod (F.order d)) (x : BitString n) :
-    F.naorReingoldSuffixExp d n α x = 1 := by
-  refine Finset.prod_eq_one fun i _ => ?_
-  simp [Nat.not_le.mpr i.isLt]
+    F.naorReingoldSuffixExp d n α x = 1 :=
+  Finset.prod_eq_one fun i _ => by simp [Nat.not_le.mpr i.isLt]
 
 /-- Splitting `naorReingoldSuffixExp` at depth `k < n` into the `k`-th bit factor and the depth
 `k + 1` suffix. -/
@@ -433,25 +403,17 @@ theorem naorReingoldSuffixExp_eq_mul_succ (d : F.Desc) {n k : ℕ} (hk : k < n)
     rw [← Finset.mul_prod_erase Finset.univ _ (Finset.mem_univ (⟨k, hk⟩ : Fin n))]
     simp only [Nat.add_one_le_iff, lt_self_iff_false, false_and, ↓reduceIte, one_mul]
     refine Finset.prod_congr rfl fun i hi => ?_
-    have hne : i.1 ≠ k := by
-      intro heq
-      exact (Finset.mem_erase.mp hi).1 (Fin.ext heq)
-    by_cases hlt : k < i.1
-    · simp [hlt, Nat.le_of_lt hlt]
-    · have hnotle : ¬k ≤ i.1 := fun hle => hlt (Nat.lt_of_le_of_ne hle hne.symm)
-      simp [hlt, hnotle]
+    have hne : i.1 ≠ k := Fin.val_ne_of_ne (Finset.mem_erase.mp hi).1
+    by_cases hlt : k < i.1 <;> simp [hlt, show k ≤ i.1 ↔ k < i.1 by omega]
 
 /-- Updating `α` at `⟨k, hk⟩` does not affect `naorReingoldSuffixExp` at depth `k + 1`. -/
 theorem naorReingoldSuffixExp_succ_update (d : F.Desc) {n k : ℕ} (hk : k < n)
     (α : Fin n → ZMod (F.order d)) (a : ZMod (F.order d)) (x : BitString n) :
     F.naorReingoldSuffixExp d (k + 1) (Function.update α ⟨k, hk⟩ a) x =
       F.naorReingoldSuffixExp d (k + 1) α x := by
-  unfold naorReingoldSuffixExp
   refine Finset.prod_congr rfl fun i _ => ?_
   by_cases h : k + 1 ≤ i.1
-  · have hne : i ≠ ⟨k, hk⟩ := by
-      fin_index
-    simp [hne]
+  · simp [show i ≠ ⟨k, hk⟩ by fin_index]
   · simp [h]
 
 /-- Hybrid function at depth `k`: look up the `k`-bit prefix in `B : BitString k → ZMod (F.order d)`
@@ -516,11 +478,8 @@ theorem naorReingoldHybridGame_self (d : F.Desc) (n : ℕ)
     F.naorReingoldHybridGame d n n adv = F.naorReingoldIdealGame d n adv := by
   simp only [naorReingoldHybridGame, naorReingoldIdealGame, PMF.monad_bind_eq_bind]
   congr 1 with B : 1
-  have hfn (α : Fin n → ZMod (F.order d)) :
-      F.naorReingoldHybridEval d n B α = fun x => B x • F.generator d := by
-    funext x
-    simp [naorReingoldHybridEval]
-  simp_rw [hfn, PMF.bind_const]
+  simp_rw [show ∀ α, F.naorReingoldHybridEval d n B α = fun x => B x • F.generator d from
+    fun _ => funext fun _ => by simp [naorReingoldHybridEval], PMF.bind_const]
 
 /-- Evaluating the level-`k` child table `T : BitString k → F.Carrier d × F.Carrier d` followed by
 the depth-`(k + 1)` suffix exponent product. -/
@@ -573,10 +532,7 @@ theorem multiDDHRealTupleLaw_naorReingoldLevelTest (d : F.Desc) {n : ℕ} (k : �
       F.naorReingoldSuffixExp_eq_mul_succ d hk (Function.update α ⟨k, hk⟩ α_k) x,
       F.naorReingoldSuffixExp_succ_update d hk α α_k x]
     simp only [Function.update_self]
-    rcases Bool.eq_false_or_eq_true (x ⟨k, hk⟩) with hxk | hxk
-    · simp only [hxk, ↓reduceIte, smul_smul]
-      exact congrArg (· • F.generator d) (by ring)
-    · simp [hxk, smul_smul, mul_comm]
+    cases x ⟨k, hk⟩ <;> simp [smul_smul, mul_comm, mul_left_comm]
   simp_rw [hfn]
   symm
   exact PMF.bind_uniformOfFintype_update (⟨k, hk⟩ : Fin n) _
@@ -651,27 +607,15 @@ theorem advantage_naorReingold_le_sum (d : F.Desc) (n : ℕ)
           ((F.ddhRandomTupleLaw d).bind (F.naorReingoldHopDDHDistinguisher d n k adv))) +
         n * (F.order d : ℝ≥0)⁻¹ := by
   rw [← F.naorReingoldHybridGame_zero d n adv, ← F.naorReingoldHybridGame_self d n adv]
-  refine (Game.advantage_hybrid_le_sum (F.naorReingoldHybridGame d n · adv) n).trans ?_
-  have hsum :
-      (∑ k ∈ Finset.range n,
-        (Game.advantage
-          ((F.ddhRealTupleLaw d).bind (F.naorReingoldHopDDHDistinguisher d n k adv))
-          ((F.ddhRandomTupleLaw d).bind (F.naorReingoldHopDDHDistinguisher d n k adv)) +
-          (F.order d : ℝ≥0)⁻¹)) =
-      (∑ k ∈ Finset.range n,
-        Game.advantage
-          ((F.ddhRealTupleLaw d).bind (F.naorReingoldHopDDHDistinguisher d n k adv))
-          ((F.ddhRandomTupleLaw d).bind (F.naorReingoldHopDDHDistinguisher d n k adv))) +
-        n * (F.order d : ℝ≥0)⁻¹ := by
-    rw [Finset.sum_add_distrib, Finset.sum_const, Finset.card_range, nsmul_eq_mul]
-  rw [← hsum]
-  refine Finset.sum_le_sum fun k hk => ?_
-  have hlt : k < n := Finset.mem_range.mp hk
-  have heq : F.naorReingoldHopDDHDistinguisher d n k adv =
-      F.naorReingoldLevelDDHDistinguisher d k hlt adv := by
-    funext t
-    simp [naorReingoldHopDDHDistinguisher, hlt]
-  rw [heq]
-  exact F.advantage_naorReingoldHybridGame_succ_le d k hlt adv
+  refine (Game.advantage_hybrid_le_sum (F.naorReingoldHybridGame d n · adv) n).trans
+    ((Finset.sum_le_sum (g := fun k => Game.advantage
+      ((F.ddhRealTupleLaw d).bind (F.naorReingoldHopDDHDistinguisher d n k adv))
+      ((F.ddhRandomTupleLaw d).bind (F.naorReingoldHopDDHDistinguisher d n k adv)) +
+      (F.order d : ℝ≥0)⁻¹) fun k hk => ?_).trans_eq ?_)
+  · have hlt : k < n := Finset.mem_range.mp hk
+    rw [show F.naorReingoldHopDDHDistinguisher d n k adv =
+      F.naorReingoldLevelDDHDistinguisher d k hlt adv from funext fun _ => dite_eq_left hlt]
+    exact F.advantage_naorReingoldHybridGame_succ_le d k hlt adv
+  · rw [Finset.sum_add_distrib, Finset.sum_const, Finset.card_range, nsmul_eq_mul]
 
 end Cslib.Crypto.PrimeOrderGroupFamily

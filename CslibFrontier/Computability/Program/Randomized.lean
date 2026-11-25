@@ -213,12 +213,9 @@ private theorem run_loop_iter {p : List F.Instr} {pc bodyPC exitPC T : ℕ} {x :
   rw [runBody hbody (fun y hy => Nat.le_of_succ_le (room y hy))]
   refine OracleComp.bind_congr_on_support fun y hy => ?_
   have := room y hy
-  have rem : k - y.2 = (k - y.2 - 1) + 1 := by omega
-  rw [rem, runRand_step_jump R back]
-  have hRest : ∀ z ∈ (ml y.1).support, z.2 ≤ k - y.2 - 1 := by
-    intro z hz
-    have := bound hy hz
-    omega
+  rw [show k - y.2 = (k - y.2 - 1) + 1 by omega, runRand_step_jump R back]
+  have hRest : ∀ z ∈ (ml y.1).support, z.2 ≤ k - y.2 - 1 := fun z hz => by
+    have := bound hy hz; omega
   rw [runRest y hy hRest]
   refine OracleComp.bind_congr_on_support fun z hz => ?_
   have := bound hy hz
@@ -255,10 +252,8 @@ theorem ExecRand.runRand_assemble {evalRand} {F : FlatMachine.{u, v, w, i} I}
       omega
     rw [ih₁ hp.append_left hT₁, bind_assoc]
     refine OracleComp.bind_congr_on_support fun z₁ hz₁ => ?_
-    have hT₂ : ∀ z₂ ∈ (m₂ z₁.1).support, z₂.2 ≤ T - z₁.2 := by
-      intro z₂ hz₂
-      have := bound hz₁ hz₂
-      omega
+    have hT₂ : ∀ z₂ ∈ (m₂ z₁.1).support, z₂.2 ≤ T - z₁.2 := fun z₂ hz₂ => by
+      have := bound hz₁ hz₂; omega
     have hc₂ : Contains p (pc + c₁.size) (c₂.assemble F (pc + c₁.size)) := by
       simpa using hp.append_right
     rw [ih₂ z₁ hz₁ hc₂ hT₂, bind_assoc]
@@ -282,12 +277,11 @@ theorem ExecRand.runRand_assemble {evalRand} {F : FlatMachine.{u, v, w, i} I}
     rw [ih hp.cons_tail.append_left hTm, ← bind_pure_comp, bind_assoc]
     refine OracleComp.bind_congr_on_support fun z hz => ?_
     have := hm z hz
-    have hrem : k - z.2 = (k + 1 - (z.2 + 2)) + 1 := by omega
     have hj : p[pc + 1 + neg.size]? = some (F.goto (pc + neg.size + pos.size + 2)) := by
       simpa using (hp.cons_tail.append_right (q₁ := neg.assemble F (pc + 1))).head
     simp only [pure_bind, Code.size]
-    rw [hrem, runRand_step_jump R hj]
-    rw [show pc + neg.size + pos.size + 2 = pc + (neg.size + pos.size + 2) by omega]
+    rw [show k - z.2 = (k + 1 - (z.2 + 2)) + 1 by omega, runRand_step_jump R hj,
+      show pc + neg.size + pos.size + 2 = pc + (neg.size + pos.size + 2) by omega]
   | @loop_exit cond body x hc =>
     have h2 : 2 ≤ T := hT (x, 2) rfl
     obtain ⟨k, rfl⟩ : ∃ k, T = k + 2 := ⟨T - 2, by omega⟩

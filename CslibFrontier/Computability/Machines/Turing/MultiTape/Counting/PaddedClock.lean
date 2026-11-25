@@ -238,11 +238,9 @@ theorem haltsWithin_acceptCount_machine (M : MultiTapePTM k Bool State) (r n : �
     have hpos : clock pos = some true := by simpa using hclock 0 (Nat.succ_pos n)
     have hnext (bit : Bool) := ih ((M.withCoin bit).toTM.step c) (pos + 1)
       (fun i hi => by
-        have := hclock (i + 1) (by omega)
-        rwa [Nat.cast_add, Nat.cast_one, add_comm (i : ℤ) 1, ← add_assoc] at this)
-      (by
-        have := hstop
-        rwa [Nat.cast_add, Nat.cast_one, add_comm (n : ℤ) 1, ← add_assoc] at this)
+        simpa only [Nat.cast_add, Nat.cast_one, add_comm (i : ℤ) 1, ← add_assoc] using
+          hclock (i + 1) (by omega))
+      (by simpa only [Nat.cast_add, Nat.cast_one, add_comm (n : ℤ) 1, ← add_assoc] using hstop)
     obtain ⟨g, hact, hg⟩ := actions_config_of_clock (r := r) M c clock pos hpos
     refine ⟨.step (by simp [hact]) fun index => ?_, ?_⟩
     · have hmem : ((machine M r).actions (config r c clock pos))[index] ∈

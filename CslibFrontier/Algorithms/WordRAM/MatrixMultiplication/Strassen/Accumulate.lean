@@ -65,21 +65,12 @@ theorem exec_accumulate {w q t A B : ℕ} (subtract : Bool) (x : Data 64) (u v :
   have hzl : (z.comap f).regs Signed.ArrayArithmetic.Reg.length = q := by
     simp [hz, f, Data.comap, Reg.length, Signed.ArrayArithmetic.Reg.length]
   have hzm : (z.comap f).mem = x.mem := by simpa only [hz, Data.comap_mem, Data.set_mem] using hsm
-  have hdisjB : (z.comap f).regs Signed.ArrayArithmetic.Reg.inputB + q ≤
-      (z.comap f).regs Signed.ArrayArithmetic.Reg.output ∨
-      (z.comap f).regs Signed.ArrayArithmetic.Reg.output + q ≤
-      (z.comap f).regs Signed.ArrayArithmetic.Reg.inputB ∨
-      (z.comap f).regs Signed.ArrayArithmetic.Reg.inputB =
-      (z.comap f).regs Signed.ArrayArithmetic.Reg.output := by
-    rw [hzb, hzo]
-    rcases hsep with h | h
-    · exact Or.inl (by omega)
-    · exact Or.inr (Or.inl (by omega))
   wram_call (Signed.ArrayArithmetic.exec subtract (z.comap f) u v hzl hbound hu hv
       (fun j hj => by rw [hzm, hza]; exact hout j hj)
       (fun j hj => by rw [hzm, hzb]; exact hprod j hj)
       (by rw [hza]; fits [hquarter]) (by rw [hzb]; fits) (by rw [hzo]; fits [hquarter])
-      (Or.inr (Or.inr (hza.trans hzo.symm))) hdisjB) renamed (Fin.castLE_injective _)
+      (Or.inr (Or.inr (hza.trans hzo.symm))) (by rw [hzb, hzo]; omega))
+    renamed (Fin.castLE_injective _)
     with y ⟨⟨values, frame, _⟩, hframe⟩
   refine ⟨by omega, fun j hj => by simpa only [hzo] using values j hj,
     fun a ha => (frame a (by simpa only [hzo] using ha)).trans (congrFun hzm a), ?_⟩

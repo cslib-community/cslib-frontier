@@ -158,13 +158,9 @@ private theorem runFrom_sweep (n : ℕ) (x : ℤ) (W S : ℤ → Option Symbol)
   | zero =>
     rw [runFrom_one, step_cfg (w₀ := none) (w₁ := none) (d := -1) (q' := some .home)
       (by simp [clearShadowed, by simpa using hn])]
-    congr 1
-    · funext y
-      rw [Option.elim_none, ite_eq_right (by omega)]
-    · funext y
-      rw [Option.elim_none, ite_eq_right (by omega)]
-    · simp only [SignType.coe_neg_one, Nat.cast_zero]
-      omega
+    congr 1 <;> try (funext y; rw [Option.elim_none, ite_eq_right (by omega)])
+    simp only [SignType.coe_neg_one, Nat.cast_zero]
+    omega
   | succ n ih =>
     obtain ⟨m, hm⟩ := Option.ne_none_iff_exists'.1 (by simpa using hS 0 (by omega))
     rw [runFrom, Function.iterate_succ_apply, ← runFrom,
@@ -181,19 +177,14 @@ private theorem runFrom_sweep (n : ℕ) (x : ℤ) (W S : ℤ → Option Symbol)
         omega)]
     simp only [SignType.coe_one]
     congr 1
-    · funext y
+    any_goals
+      funext y
       by_cases hy : y = x
       · subst hy
         simp [hm]
       · simp only [Function.update_of_ne hy]
         split_ifs <;> first | rfl | omega
-    · funext y
-      by_cases hy : y = x
-      · subst hy
-        simp
-      · simp only [Function.update_of_ne hy]
-        split_ifs <;> first | rfl | omega
-    · omega
+    omega
 
 /-- In state `home`, the heads move left over blank work-tape cells to the mark, which is erased,
 and the machine halts. -/

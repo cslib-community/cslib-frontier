@@ -110,12 +110,8 @@ theorem exists_runFrom_nodeAt_bounded {k q s p r m : ℕ} {Q : Type} [Finite Q] 
         rw [ite_eq_left htag, ite_eq_left hz]
       refine ⟨0, InitialVector.values M e ((2 ^ m) ^ ((k * 3 + 1) * r), m, r),
         ?_, ?_, ?_, ?_⟩
-      · change (machine M e).halted (initial M e (address, params)) = true
-        rw [hstart]
-        rfl
-      · change answer (initial M e (address, params)) = _
-        rw [hstart]
-        rfl
+      · exact hstart ▸ rfl
+      · exact hstart ▸ rfl
       · intro j
         rw [hnode]
         change _ = Packed.gateExtension h (Packed.packBits hb) (Packed.unpackBits hb)
@@ -125,13 +121,11 @@ theorem exists_runFrom_nodeAt_bounded {k q s p r m : ℕ} {Q : Type} [Finite Q] 
         exact InitialVector.values_gateExtension_zero M e w _ b
           (scheduleOfNat k q σ) hcapacity hb h hh x j
       · intro t ht
-        have htzero : t = 0 := by omega
-        subst t
+        obtain rfl : t = 0 := by omega
         have hsource := source_encoding_le M e ((2 ^ m) ^ ((k * 3 + 1) * r)) b
           hcapacity hb hsp
         change (encState ((machine M e).runFrom w (initial M e (address, params)) 0)).length ≤ _
-        rw [QueryMachine.runFrom_zero, hstart]
-        rw [allowance, hprepare]
+        rw [QueryMachine.runFrom_zero, hstart, allowance, hprepare]
         dsimp only [GateVector.callerSpace, QueryGate.gateParams]
         omega
     · have hle : index ≤ q := ImplicitPath.walk_le k σ q (path.map Fin.val)
@@ -175,23 +169,17 @@ theorem exists_runFrom_nodeAt_bounded {k q s p r m : ℕ} {Q : Type} [Finite Q] 
       change ((if ImplicitNode.classify k address = 2 then _ else .inl (0, [])) : State k Q) = _
       rw [ite_eq_right htag]
     refine ⟨0, [], ?_, ?_, ?_, ?_⟩
-    · change (machine M e).halted (initial M e (address, params)) = true
-      rw [hstart]
-      rfl
-    · change answer (initial M e (address, params)) = _
-      rw [hstart]
-      rfl
+    · exact hstart ▸ rfl
+    · exact hstart ▸ rfl
     · intro j
       rw [encodedTree, tree, Descending.nodeAt_tree]
       simp only [Descending.lookup, hdepth, ↓reduceIte]
       by_cases heq : path.length = q <;> simp [heq]
     · intro t ht
-      have htzero : t = 0 := by omega
-      subst t
+      obtain rfl : t = 0 := by omega
       change (encState ((machine M e).runFrom w (initial M e (address, params)) 0)).length ≤ _
-      rw [QueryMachine.runFrom_zero, hstart]
-      have hempty : (encState (.inl (0, []) : State k Q)).length = 2 := rfl
-      rw [hempty]
+      rw [QueryMachine.runFrom_zero, hstart,
+        show (encState (.inl (0, []) : State k Q)).length = 2 from rfl]
       dsimp only [allowance]
       omega
 

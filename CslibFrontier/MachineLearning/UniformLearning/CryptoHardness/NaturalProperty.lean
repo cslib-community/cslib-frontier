@@ -100,8 +100,7 @@ theorem notMem_lowAgreement {A : QueryLearner ι Ω}
   have hbad := ENNReal.toReal_le_of_le_ofReal hδ (learns_iff.1 hA f hf)
   rw [Cslib.Probability.PMF.toOuterMeasure_uniformOfFintype_toReal] at hbad
   have hδ' : (dens {ω | ε < uniformError f ((A ω).eval f)} : ℝ) ≤ δ := by
-    rw [Finset.nnratCast_dens]
-    exact hbad
+    rwa [Finset.nnratCast_dens]
   have := le_expect_dens_eq (fun _ : Ω => f) (fun ω => (A ω).eval f) hε hδ'
   simp only [lowAgreement, Set.mem_ofPred_eq, not_lt]
   refine this.trans_eq (expect_congr rfl fun ω _ => ?_)
@@ -119,8 +118,7 @@ theorem sub_le_dens_lowAgreement {A : QueryLearner ι Ω} {q : ℕ} (hA : A.Quer
     have h : 𝔼 g, X g = 𝔼 ω, 𝔼 z, (dens {g | A.agrees ω z g = true} : ℝ) := by
       simp only [X, ← Fintype.expect_boole]
       rw [expect_comm]
-      refine expect_congr rfl fun ω _ => ?_
-      rw [expect_comm]
+      exact expect_congr rfl fun ω _ => expect_comm ..
     rw [h]
     exact expect_le univ_nonempty fun ω _ => expect_dens_agrees_le hA ω
   -- pointwise, `θ` is at most the agreement plus the indicator of the property
@@ -231,8 +229,7 @@ theorem isNatural_PPoly_lowAgreement {A : ∀ n, QueryLearner (Fin n) (Ω n)} {q
   refine ⟨_, fun n => le_rfl, ⟨c, ?_⟩, ?_⟩
   · -- largeness
     filter_upwards [hgap] with n hn
-    have hθ : (1 - δ n) * (1 - ε n) ≤ 1 := by
-      nlinarith [hε n, hδ n]
+    have hθ : (1 - δ n) * (1 - ε n) ≤ 1 := by nlinarith [hε n, hδ n]
     obtain ⟨B, hBq, hB⟩ := (hA n).exists_queriesAtMost
     have hagr (ω : Ω n) (z : BitString n) (g : BooleanFunction n) :
         B.agrees ω z g = (A n).agrees ω z g := by
@@ -244,8 +241,7 @@ theorem isNatural_PPoly_lowAgreement {A : ∀ n, QueryLearner (Fin n) (Ω n)} {q
     rw [← hAB, Fintype.card_fin] at hd
     have hset : (A n).lowAgreement ((1 - δ n) * (1 - ε n)) =
         ↑({g | g ∈ (A n).lowAgreement ((1 - δ n) * (1 - ε n))} : Finset (BooleanFunction n)) := by
-      ext g
-      simp
+      ext; simp
     rw [hset, Set.ncard_coe_finset]
     rw [Finset.nnratCast_dens, Fintype.card_fun, Fintype.card_bool, Fintype.card_fun,
       Fintype.card_fin, Fintype.card_bool] at hd

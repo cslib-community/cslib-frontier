@@ -499,10 +499,12 @@ private theorem evalGate_take (k : ℕ) (f : ValidCircuit)
       (List.ofFn fun v : Fin (f.1.n + (toCircuit f).size) =>
           labelBits (A (Wire.ofNat v v.isLt))).take (f.1.n + g + 1) := by
   have harity := arity_topology_toCircuit f g
-  have hA₁ := f.2.one_le_A (g.cast (size_toCircuit f))
-  have hAB := f.2.A_lt_B (g.cast (size_toCircuit f))
-  have hBg := f.2.B_lt_gate (g.cast (size_toCircuit f))
-  simp only [topo, Fin.val_cast] at hA₁ hAB hBg
+  let g' := g.cast (size_toCircuit f)
+  have hg' : (g' : ℕ) = g := rfl
+  have hA₁ := f.2.one_le_A g'
+  have hAB := f.2.A_lt_B g'
+  have hBg := f.2.B_lt_gate g'
+  simp only [topo] at hA₁ hAB hBg
   have hblock (g₀ : Fin (toCircuit f).size) :
       ((List.ofFn fun a => BitString.lowBits (wireWidth f.1.n (toCircuit f).size)
           (((toCircuit f).topology.wires g₀ a).toNat + 1)).flatten ++
@@ -515,22 +517,20 @@ private theorem evalGate_take (k : ℕ) (f : ValidCircuit)
   have hgate := BitString.listRow_flatten_ofFn _ hblock g
   have hwires : (List.ofFn fun a => BitString.lowBits (wireWidth f.1.n (toCircuit f).size)
       (((toCircuit f).topology.wires g a).toNat + 1)).flatten =
-      BitString.lowBits (wireWidth f.1.n (toCircuit f).size) (f.1.A (g.cast (size_toCircuit f))) ++
-        BitString.lowBits (wireWidth f.1.n (toCircuit f).size)
-          (f.1.B (g.cast (size_toCircuit f))) := by
+      BitString.lowBits (wireWidth f.1.n (toCircuit f).size) (f.1.A g') ++
+        BitString.lowBits (wireWidth f.1.n (toCircuit f).size) (f.1.B g') := by
     rw [show (List.ofFn fun a => BitString.lowBits (wireWidth f.1.n (toCircuit f).size)
         (((toCircuit f).topology.wires g a).toNat + 1)) =
       (List.ofFn fun a => ((toCircuit f).topology.wires g a).toNat).map
         (fun v => BitString.lowBits (wireWidth f.1.n (toCircuit f).size) (v + 1)) by
         rw [List.map_ofFn]; rfl, ofFn_toNat_wires_toCircuit]
-    simp [Nat.sub_add_cancel hA₁, Nat.sub_add_cancel (hA₁.trans hAB.le)]
+    simp [g', Nat.sub_add_cancel hA₁, Nat.sub_add_cancel (hA₁.trans hAB.le)]
   rw [hwires] at hgate
   rw [evalGate, encodeBody, hgate]
   obtain ⟨hp₁, hp₂, hp₃⟩ := gate_parts
     (rows := (List.ofFn fun i : Fin (2 ^ (toCircuit f).topology.arity g) =>
       labelBits (table (rowOf _ g i))).flatten)
-    (BitString.length_lowBits _ (f.1.A (g.cast (size_toCircuit f))))
-    (BitString.length_lowBits _ (f.1.B (g.cast (size_toCircuit f))))
+    (BitString.length_lowBits _ (f.1.A g')) (BitString.length_lowBits _ (f.1.B g'))
   have hsize : (f.1.n + (toCircuit f).size) < 2 ^ wireWidth f.1.n (toCircuit f).size :=
     Nat.lt_size_self _
   have hgs := g.isLt
@@ -540,21 +540,18 @@ private theorem evalGate_take (k : ℕ) (f : ValidCircuit)
           labelBits (A (Wire.ofNat v v.isLt))).take (f.1.n + g)).length
         (BitString.lowBits (wireWidth f.1.n (toCircuit f).size) a).reverse = a := by
     rw [BitString.boundedBinaryValue_eq, ← ofBits_reverse, List.reverse_reverse,
-      ofBits_lowBits hw, List.length_take, List.length_ofFn]
-    omega
+      ofBits_lowBits hw, List.length_take, List.length_ofFn]; omega
   rw [hp₁, hp₂, hp₃, hval _ (by omega) (by omega), hval _ (by omega) (by omega),
     getD_take_labels A (by omega) (by omega), getD_take_labels A (by omega) (by omega)]
   simp only [getD_labelBits, take_labelBits]
-  have hwa : (toCircuit f).topology.wires g ⟨0, by omega⟩ =
-      Wire.ofNat (f.1.A (g.cast (size_toCircuit f)) - 1) (by omega) :=
+  set wa : Wire f.1.n (toCircuit f).size := Wire.ofNat (f.1.A g' - 1) (by omega)
+  set wb : Wire f.1.n (toCircuit f).size := Wire.ofNat (f.1.B g' - 1) (by omega)
+  have hwa : (toCircuit f).topology.wires g ⟨0, by omega⟩ = wa :=
     Wire.toNat_injective (by rw [toNat_wires_toCircuit, Wire.toNat_ofNat]; rfl)
-  have hwb : (toCircuit f).topology.wires g ⟨1, by omega⟩ =
-      Wire.ofNat (f.1.B (g.cast (size_toCircuit f)) - 1) (by omega) :=
+  have hwb : (toCircuit f).topology.wires g ⟨1, by omega⟩ = wb :=
     Wire.toNat_injective (by rw [toNat_wires_toCircuit, Wire.toNat_ofNat]; rfl)
-  have hindex : rowIndex (fun a => (A ((toCircuit f).topology.wires g a)).2) =
-      (if (A (Wire.ofNat (f.1.A (g.cast (size_toCircuit f)) - 1) (by omega))).2 then 2 else 0) +
-        (if (A (Wire.ofNat (f.1.B (g.cast (size_toCircuit f)) - 1)
-            (by omega))).2 then 1 else 0) := by
+  set idx := (if (A wa).2 then 2 else 0) + (if (A wb).2 then 1 else 0)
+  have hindex : rowIndex (fun a => (A ((toCircuit f).topology.wires g a)).2) = idx := by
     rw [rowIndex_of_eq_two harity, hwa, hwb]
   have hrowOf : rowOf (toCircuit f).topology g
       (rowIndex (fun a => (A ((toCircuit f).topology.wires g a)).2)) =
@@ -565,17 +562,11 @@ private theorem evalGate_take (k : ℕ) (f : ValidCircuit)
   rw [sum_fin_of_eq_two harity, show ∀ x y : BitString (k + 1) × Bool, x - y = x + y from
     fun x y => Prod.ext (BitString.sub_eq_add _ _) (BooleanRing.sub_eq_add _ _)] at hgateA
   simp only [slotTweak, hwa, hwb, hindex] at hgateA
-  have hi : (if (A (Wire.ofNat (f.1.A (g.cast (size_toCircuit f)) - 1)
-      (by omega))).2 then 2 else 0) +
-      (if (A (Wire.ofNat (f.1.B (g.cast (size_toCircuit f)) - 1) (by omega))).2 then 1 else 0) <
-        2 ^ (toCircuit f).topology.arity g := by
+  have hi : idx < 2 ^ (toCircuit f).topology.arity g := by
     rw [harity]
-    cases (A (Wire.ofNat (f.1.A (g.cast (size_toCircuit f)) - 1) (by omega))).2 <;>
-      cases (A (Wire.ofNat (f.1.B (g.cast (size_toCircuit f)) - 1) (by omega))).2 <;> simp
-  rw [show (if (A (Wire.ofNat (f.1.A (g.cast (size_toCircuit f)) - 1)
-      (by omega))).2 then 2 else 0) +
-      (if (A (Wire.ofNat (f.1.B (g.cast (size_toCircuit f)) - 1) (by omega))).2 then 1 else 0) =
-        (⟨_, hi⟩ : Fin (2 ^ (toCircuit f).topology.arity g)).val from rfl,
+    dsimp only [idx]
+    cases (A wa).2 <;> cases (A wb).2 <;> decide
+  rw [show idx = (⟨idx, hi⟩ : Fin (2 ^ (toCircuit f).topology.arity g)).val from rfl,
     BitString.listRow_flatten_ofFn _ fun _ => length_labelBits _]
   simp only
   rw [← hindex, hrowOf, ← ofFn_ofList_tweak k g _ 0, ← ofFn_ofList_tweak k g _ 1,

@@ -140,9 +140,7 @@ private theorem exists_cap_flowPaths (N : Network V) (hst : N.s ≠ N.t) :
   · intro hab hba
     have h1 := (hP (Fin.cast hk.symm i)).2.2.2 _ (pathArcs_eq_zip_tail _ ▸ hab)
     have h2 := (hP (Fin.cast hk.symm j)).2.2.2 _ (pathArcs_eq_zip_tail _ ▸ hba)
-    rcases f₀.cancel_eq_zero_or a b with h | h
-    · rw [show f₀.cancel.toFun a b = 0 from h] at h1; exact lt_irrefl 0 h1
-    · rw [show f₀.cancel.toFun b a = 0 from h] at h2; exact lt_irrefl 0 h2
+    exact (f₀.cancel_eq_zero_or a b).elim h1.ne' h2.ne'
 
 omit [Fintype V] [DecidableEq V] in
 /-- **Weak duality for capacity-constrained paths**: if `k` simple `s`–`t` paths use each arc
@@ -224,10 +222,7 @@ private theorem cutCapacity_multiNetwork [Fintype V] [DecidableEq V] [Fintype E]
   have hunion : Multidigraph.outArcs src tgt S =
       S.biUnion fun u => (Finset.univ \ S).biUnion fun v =>
         Finset.univ.filter fun e => src e = u ∧ tgt e = v := by
-    ext e; simp only [Multidigraph.mem_outArcs, Finset.mem_biUnion, Finset.mem_sdiff,
-      Finset.mem_univ, true_and, Finset.mem_filter]
-    exact ⟨fun ⟨hs, ht⟩ => ⟨src e, hs, tgt e, ht, rfl, rfl⟩,
-      fun ⟨_, hu, _, hv, h1, h2⟩ => ⟨h1 ▸ hu, h2 ▸ hv⟩⟩
+    ext e; simp [Multidigraph.mem_outArcs]
   rw [hunion, Finset.card_biUnion]
   · simp only [Network.cutCapacity, multiNetwork]
     refine Finset.sum_congr rfl fun _ _ => (Finset.card_biUnion fun _ _ _ _ hne =>
@@ -252,24 +247,20 @@ theorem exists_multidigraph_arcDisjoint_eq_outArcs [Finite V] [DecidableEq V] [F
   classical
   have := Fintype.ofFinite V
   obtain ⟨S, hS, P, hP, hcap⟩ := exists_arcCap_eq_cutCapacity (multiNetwork src tgt s t) hst
-  have hcard : (multiNetwork src tgt s t).cutCapacity S = (Multidigraph.outArcs src tgt S).card :=
-    cutCapacity_multiNetwork src tgt s t S
+  have hcard := cutCapacity_multiNetwork src tgt s t S
   let I (u v : V) : Finset (Fin ((multiNetwork src tgt s t).cutCapacity S)) :=
     Finset.univ.filter fun i => (u, v) ∈ (P i).zip (P i).tail
   let A (u v : V) : Finset E := Finset.univ.filter fun e => src e = u ∧ tgt e = v
   let pick (u v : V) i (hi : i ∈ I u v) : E :=
     ((A u v).equivFin.symm (Fin.castLE (hcap u v) ((I u v).equivFin ⟨i, hi⟩))).1
   have hpick_st : ∀ u v i (hi : i ∈ I u v), src (pick u v i hi) = u ∧ tgt (pick u v i hi) = v :=
-    fun u v i hi => by
-      have hm := ((A u v).equivFin.symm (Fin.castLE (hcap u v) ((I u v).equivFin ⟨i, hi⟩))).2
-      simp only [A, Finset.mem_filter, Finset.mem_univ, true_and] at hm; exact hm
+    fun u v i hi => (Finset.mem_filter.mp
+      ((A u v).equivFin.symm (Fin.castLE (hcap u v) ((I u v).equivFin ⟨i, hi⟩))).2).2
   have hpick_inj : ∀ u₁ v₁ i₁ hi₁ u₂ v₂ i₂ hi₂,
       pick u₁ v₁ i₁ hi₁ = pick u₂ v₂ i₂ hi₂ → i₁ = i₂ := by
     intro u₁ v₁ i₁ hi₁ u₂ v₂ i₂ hi₂ heq
-    obtain ⟨hs₁, ht₁⟩ := hpick_st u₁ v₁ i₁ hi₁
-    obtain ⟨hs₂, ht₂⟩ := hpick_st u₂ v₂ i₂ hi₂
-    obtain rfl : u₁ = u₂ := hs₁.symm.trans (heq ▸ hs₂)
-    obtain rfl : v₁ = v₂ := ht₁.symm.trans (heq ▸ ht₂)
+    obtain rfl : u₁ = u₂ := (hpick_st _ _ _ hi₁).1.symm.trans (heq ▸ (hpick_st _ _ _ hi₂).1)
+    obtain rfl : v₁ = v₂ := (hpick_st _ _ _ hi₁).2.symm.trans (heq ▸ (hpick_st _ _ _ hi₂).2)
     exact congrArg Subtype.val <| (((A u₁ v₁).equivFin.symm.injective.comp
       (Fin.castLE_injective (hcap u₁ v₁))).comp (I u₁ v₁).equivFin.injective) (Subtype.ext heq)
   let Q₀ (i : Fin ((multiNetwork src tgt s t).cutCapacity S)) : List E :=
@@ -340,8 +331,7 @@ private theorem exists_unit_flowPaths (G : Digraph V) [DecidableRel G.Adj] {s t 
       (∀ i, G.IsDipath s t (P i)) ∧ Digraph.ArcDisjoint P ∧
       ∀ i j a b, (a, b) ∈ (P i).zip (P i).tail → (b, a) ∉ (P j).zip (P j).tail := by
   obtain ⟨S, hScut, P, hP, hcap, hanti⟩ := exists_cap_flowPaths (unitNetwork G s t) hst
-  have hk : (unitNetwork G s t).cutCapacity S = (G.outArcs S).card :=
-    cutCapacity_unitNetwork G s t S
+  have hk := cutCapacity_unitNetwork G s t S
   have hadj : ∀ i, ∀ e ∈ (P i).zip (P i).tail, G.Adj e.1 e.2 := fun i e he => by
     have hpos : 0 < (unitNetwork G s t).cap e.1 e.2 :=
       (Digraph.isChain_iff_forall_mem_zip_tail.mp (hP i).2.2.2) e he
@@ -362,11 +352,9 @@ private theorem card_multidigraph_outArcs_arcSrc_arcTgt (G : Digraph V) [Decidab
       (G.outArcs S).card := by
   have himg : (Multidigraph.outArcs (Multidigraph.arcSrc G) (Multidigraph.arcTgt G) S).map
       ⟨Subtype.val, Subtype.val_injective⟩ = G.outArcs S := by
-    ext e
-    simp only [Finset.mem_map, Function.Embedding.coeFn_mk, Multidigraph.mem_outArcs,
-      Digraph.mem_outArcs, Subtype.exists]
-    exact ⟨fun ⟨a, hadj, ⟨hs, ht⟩, hEq⟩ => hEq ▸ ⟨hs, ht, hadj⟩,
-      fun ⟨hs, ht, hadj⟩ => ⟨e, hadj, ⟨hs, ht⟩, rfl⟩⟩
+    ext ⟨a, b⟩
+    simp [Multidigraph.mem_outArcs, Digraph.mem_outArcs, Multidigraph.arcSrc, Multidigraph.arcTgt,
+      and_assoc]
   rw [← himg, Finset.card_map]
 
 /-- **Menger's theorem, directed arc-disjoint form, with a matching cut** ([Menger1927];
@@ -385,14 +373,11 @@ theorem exists_arcDisjoint_eq_outArcs (G : Digraph V) [DecidableRel G.Adj] {s t 
   · have hQi := hQ (Fin.cast hcard.symm i)
     exact ⟨hQi.2.1, rfl, hQi.getLast?_vertices,
       Multidigraph.toDigraph_arcSrc_arcTgt G ▸ hQi.isChain_toDigraph⟩
-  · have hz₁ := (hQ (Fin.cast hcard.symm i)).zip_tail_vertices
-    have hz₂ := (hQ (Fin.cast hcard.symm j)).zip_tail_vertices
-    rw [hz₁, List.mem_map] at hei
-    rw [hz₂, List.mem_map] at hej
+  · rw [(hQ _).zip_tail_vertices, List.mem_map] at hei
+    rw [(hQ _).zip_tail_vertices, List.mem_map] at hej
     obtain ⟨a₁, ha₁, rfl⟩ := hei
     obtain ⟨a₂, ha₂, haEq⟩ := hej
-    have hEq : a₁ = a₂ := Subtype.ext haEq.symm
-    exact hdisj ((Fin.cast_injective _).ne hij) ha₁ (hEq ▸ ha₂)
+    exact hdisj ((Fin.cast_injective _).ne hij) ha₁ (Subtype.ext haEq.symm ▸ ha₂)
 
 omit [Fintype V] [DecidableEq V] in
 /-- **Menger's theorem, directed arc-disjoint form** ([Menger1927]; [Schrijver2017], §4.1,
@@ -537,9 +522,8 @@ theorem exists_internallyDisjoint_eq_isVertexCut [Finite V] (G : Digraph V) {s t
   have hst' : (splitNetwork G s t).s ≠ (splitNetwork G s t).t := by simp [splitNetwork]
   obtain ⟨f, -, hf, -, -⟩ := Network.exists_maxFlow_eq_minCut (splitNetwork G s t) hst'
   have hno := (f.isMaxFlow_iff_not_exists_augmentingPath hst').mp hf
-  have hRcut := f.reachableCut_isCut hno
-  have hsR : (s, true) ∈ f.reachableCut := hRcut.1
-  have htR : (t, false) ∉ f.reachableCut := hRcut.2
+  obtain ⟨hsR, htR⟩ : (s, true) ∈ f.reachableCut ∧ (t, false) ∉ f.reachableCut :=
+    f.reachableCut_isCut hno
   have hval := f.value_eq_cutCapacity_reachableCut hno
   have hprop : ∀ u v, G.Adj u v → (u, true) ∈ f.reachableCut → (v, false) ∈ f.reachableCut := by
     intro u v huv hu
@@ -587,24 +571,16 @@ theorem exists_internallyDisjoint_eq_isVertexCut [Finite V] (G : Digraph V) {s t
         show ∑ u, f (u, true) (v, false) = ∑ w, f (v, true) (w, false)
         rw [split_inflow f hvt, split_outflow f hvs] }
   have hgval : g.value = f.value := by
-    have hout : ∑ y, (f (s, true) y : ℤ) = ∑ w, (f (s, true) (w, false) : ℤ) := by
-      rw [sum_split (fun y => (f (s, true) y : ℤ))]; simp [split_flow_same]
-    have hin : ∑ x, (f x (s, true) : ℤ) = 0 := by
-      norm_cast; rw [sum_split (f · (s, true))]
-      simp [split_flow_same, split_flow_ft_ne f (fun h => h.2.1 h.1)]
-    have hin' : ∑ u, (f (u, true) (s, false) : ℤ) = 0 := by
-      have h := split_inflow f hst; rw [split_flow_ft_ne f (fun h => h.2.1 rfl)] at h
-      exact_mod_cast h
+    have hin := split_inflow f hst; rw [split_flow_ft_ne f (fun h => h.2.1 rfl)] at hin
     change (∑ w, (f (s, true) (w, false) : ℤ)) - ∑ u, (f (u, true) (s, false) : ℤ) =
       (∑ y, (f (s, true) y : ℤ)) - ∑ x, (f x (s, true) : ℤ)
-    rw [hout, hin, hin']
+    rw [sum_split (fun y => (f (s, true) y : ℤ)), sum_split (fun x => (f x (s, true) : ℤ))]
+    simp [split_flow_same, split_flow_ft_ne f (fun h => h.2.1 h.1), ← Nat.cast_sum, hin]
   obtain ⟨P, hP, hcount⟩ := g.exists_flowPaths
   have hPdi : ∀ i, G.IsDipath s t (P i) := fun i =>
     ⟨(hP i).1, (hP i).2.1, (hP i).2.2.1, Digraph.isChain_iff_forall_mem_zip_tail.mpr fun e he =>
-      by_contra fun hne => by
-        have h1 : 0 < f (e.1, true) (e.2, false) :=
-          (hP i).2.2.2 e (pathArcs_eq_zip_tail _ ▸ he)
-        rw [split_flow_tf_zero f hne] at h1; exact lt_irrefl 0 h1⟩
+      by_contra fun hne => ((hP i).2.2.2 e (pathArcs_eq_zip_tail _ ▸ he)).ne'
+        (split_flow_tf_zero f hne)⟩
   have hPdisj : Digraph.InternallyDisjoint s t P := by
     intro i j hij v hvi hvj; by_contra hv; rw [not_or] at hv
     have hle := card_filter_mem_le_sum P v
@@ -703,17 +679,16 @@ private theorem unwrap_extDigraph_dipath {G : Digraph V} {A B : Set V} {p : List
     ∃ Q : List V, p = Sum.inl true :: (Q.map Sum.inr ++ [Sum.inl false]) ∧
       ∃ a ∈ A, ∃ b ∈ B, G.IsDipath a b Q := by
   obtain ⟨hnd, hhead, hlast, hchain⟩ := hp
-  rcases p with _ | ⟨_, _ | ⟨_ | a, r'⟩⟩
+  rcases p with _ | ⟨x, p⟩
   · simp at hhead
-  · simp only [List.head?_cons, Option.some.injEq] at hhead; subst hhead; simp at hlast
-  · simp only [List.head?_cons, Option.some.injEq] at hhead; subst hhead
-    rw [List.isChain_cons_cons] at hchain
-    exact absurd hchain.1 (by cases ‹Bool› <;> simp [extDigraph])
-  · simp only [List.head?_cons, Option.some.injEq] at hhead; subst hhead
-    rw [List.isChain_cons_cons] at hchain
-    obtain ⟨Q, hQeq, hQnd, hQhead, ⟨b, hbB, hQlast⟩, hQchain⟩ :=
-      unwrap_extDigraph_mid (List.nodup_cons.mp hnd).2 (by simpa using hlast) hchain.2 rfl
-    exact ⟨Q, by simp [hQeq], a, hchain.1, b, hbB, hQnd, hQhead, hQlast, hQchain⟩
+  obtain rfl : x = Sum.inl true := by simpa using hhead
+  rcases p with _ | ⟨_ | a, r'⟩
+  · simp at hlast
+  all_goals rw [List.isChain_cons_cons] at hchain
+  · exact absurd hchain.1 (by cases ‹Bool› <;> simp [extDigraph])
+  obtain ⟨Q, hQeq, hQnd, hQhead, ⟨b, hbB, hQlast⟩, hQchain⟩ :=
+    unwrap_extDigraph_mid (List.nodup_cons.mp hnd).2 (by simpa using hlast) hchain.2 rfl
+  exact ⟨Q, by simp [hQeq], a, hchain.1, b, hbB, hQnd, hQhead, hQlast, hQchain⟩
 
 /-- **Menger's theorem, directed `A`–`B` vertex-disjoint form, with a matching separator**
 ([Menger1927]; [Schrijver2017], §4.1, Theorem 4.1): in a finite digraph, for any vertex sets
@@ -736,27 +711,21 @@ theorem exists_vertexDisjoint_eq_isSeparator [Finite V] (G : Digraph V) (A B : S
     rw [← Finset.card_map ⟨Sum.inr, Sum.inr_injective⟩, hmap, hTm]
   have hYsep : G.IsSeparator A B ↑Y := by
     intro u hu v hv p ⟨hpnd, hps, hpt, hpchain⟩
-    let p' : List (Bool ⊕ V) := Sum.inl true :: (p.map Sum.inr ++ [Sum.inl false])
-    have hpne : p ≠ [] := fun h => by rw [h] at hps; simp at hps
+    rcases p with _ | ⟨x, xs⟩
+    · simp at hps
+    obtain rfl : x = u := by simpa using hps
+    let p' : List (Bool ⊕ V) := Sum.inl true :: ((x :: xs).map Sum.inr ++ [Sum.inl false])
     have hp'nd : p'.Nodup := List.nodup_cons.mpr
       ⟨by simp, List.nodup_append.mpr ⟨hpnd.map Sum.inr_injective, List.nodup_singleton _,
         fun _ h₁ _ h₂ => by obtain ⟨_, _, rfl⟩ := List.mem_map.mp h₁; simp_all⟩⟩
-    have hp'chain : p'.IsChain (extDigraph G A B).Adj := by
-      have htail := isChain_extDigraph_append (G := G) (A := A) hpne hpt hpchain hv
-      rcases p with _ | ⟨x, xs⟩
-      · exact absurd rfl hpne
-      · obtain rfl : x = u := by simpa using hps
-        exact List.isChain_cons_cons.mpr ⟨hu, htail⟩
-    have hp'last : p'.getLast? = some (Sum.inl false) := by
-      change (Sum.inl true :: (p.map Sum.inr ++ [Sum.inl false])).getLast? = some (Sum.inl false)
-      rw [List.getLast?_cons_of_ne_nil (by simp), List.getLast?_append]; simp
-    obtain ⟨z, hz, hzT⟩ := hTcut.2.2 p' ⟨hp'nd, rfl, hp'last, hp'chain⟩
-    rcases List.mem_cons.mp hz with rfl | hz'
+    have hp'chain : p'.IsChain (extDigraph G A B).Adj := List.isChain_cons_cons.mpr
+      ⟨hu, isChain_extDigraph_append (List.cons_ne_nil _ _) hpt hpchain hv⟩
+    obtain ⟨z, hz, hzT⟩ := hTcut.2.2 p' ⟨hp'nd, rfl, by simp [p', List.getLast?_cons], hp'chain⟩
+    simp only [p', List.mem_cons, List.mem_append, List.mem_map, List.mem_nil_iff, or_false] at hz
+    rcases hz with rfl | ⟨w, hwp, rfl⟩ | rfl
     · exact absurd hzT hTcut.1
-    · rcases List.mem_append.mp hz' with hzmap | hzlast
-      · obtain ⟨w, hwp, rfl⟩ := List.mem_map.mp hzmap
-        exact ⟨w, hwp, Finset.mem_coe.mpr (Finset.mem_filter.mpr ⟨Finset.mem_univ _, hzT⟩)⟩
-      · rw [List.mem_singleton] at hzlast; subst hzlast; exact absurd hzT hTcut.2.1
+    · exact ⟨w, List.mem_cons.mpr hwp, by simpa [Y] using hzT⟩
+    · exact absurd hzT hTcut.2.1
   refine ⟨m, Q, fun i => ⟨a i, ha i, b i, hb i, hQ i⟩, fun i j hij v hvi hvj => ?_, Y, hYsep,
     hYcard⟩
   rcases hdisj₀ hij (Sum.inr v) (by simp [hQeq i, hvi]) (by simp [hQeq j, hvj]) with h | h <;>
@@ -832,8 +801,7 @@ theorem exists_edgeDisjoint_eq_not_reachable [Finite V] (G : SimpleGraph V) {u v
     obtain ⟨a, ha, rfl⟩ := List.mem_map.mp hei; obtain ⟨b, hb, hab⟩ := List.mem_map.mp hej
     rcases Sym2.eq_iff.mp hab with ⟨h1, h2⟩ | ⟨h1, h2⟩
     · exact hdisj hij a ha (Prod.ext h1 h2 ▸ hb)
-    · have hba : b = (a.2, a.1) := Prod.ext h1 h2
-      exact hanti i j a.1 a.2 ha (hba ▸ hb)
+    · exact hanti i j a.1 a.2 ha ((Prod.ext h1 h2 : b = (a.2, a.1)) ▸ hb)
   let C : Finset (Sym2 V) := ((toDigraph G).outArcs S).image fun e => s(e.1, e.2)
   have hCreach : ¬ (G.deleteEdges ↑C).Reachable u v :=
     not_reachable_deleteEdges_of_forall_adj (S := ↑S) hu hv fun x hx y hxy hy =>
@@ -1030,13 +998,11 @@ theorem isVertexConnected_iff_forall_exists_injective_internallyDisjoint [Finite
           by_contra! hTlt
           have hcardV : k < Fintype.card V := by
             simpa [ENat.card_eq_coe_fintype_card] using hconn.card_gt
-          have hne : (insert u (insert v T) : Finset V) ≠ Finset.univ := fun heq => by
-            have := (Finset.card_insert_le u (insert v T)).trans
-              (Nat.succ_le_succ (Finset.card_insert_le v T))
-            rw [heq, Finset.card_univ] at this; omega
-          obtain ⟨w, -, hwins⟩ := Finset.exists_of_ssubset (Finset.ssubset_univ_iff.mpr hne)
-          simp only [Finset.mem_insert, not_or] at hwins
-          obtain ⟨hwu, hwv, hwT⟩ := hwins
+          obtain ⟨w, -, hwins⟩ := Finset.exists_mem_notMem_of_card_lt_card (t := Finset.univ)
+              (s := insert u (insert v T)) <| by
+            have := Finset.card_insert_le v T; have := Finset.card_insert_le u (insert v T)
+            rw [Finset.card_univ]; omega
+          obtain ⟨hwu, hwv, hwT⟩ : w ≠ u ∧ w ≠ v ∧ w ∉ T := by simpa using hwins
           obtain ⟨huT, hvT, huvnr⟩ := isVertexSeparator_iff_not_reachable_induce.mp hT
           have step {a b : V} (haT : a ∉ T) (hab : a ≠ b) (haw : a ≠ w) (hbw : b ≠ w)
               (hnr : ¬ ((G.deleteEdges {s(a, b)}).induce (T : Set V)ᶜ).Reachable
@@ -1049,43 +1015,31 @@ theorem isVertexConnected_iff_forall_exists_injective_internallyDisjoint [Finite
               (by simpa [G₀, Sym2.eq_swap] using fun hrv => huvnr (hru.trans hrv.symm))
           · exact step huT huv (Ne.symm hwu) (Ne.symm hwv) hru
         obtain ⟨W₀, hW₀, hdisj₀⟩ :=
-          (exists_internallyDisjoint_iff_forall_isVertexSeparator G₀ u v (k - 1)).mpr hsep₀
-        have hG₀le : G₀ ≤ G := G.deleteEdges_le _
-        let W : Fin k → G.Walk u v := fun i =>
-          if h : i.1 < k - 1 then (W₀ ⟨i.1, h⟩).mapLe hG₀le else hadj.toWalk
-        have hWpath : ∀ i, (W i).IsPath := fun i => by
-          dsimp only [W]; split_ifs
-          · exact Walk.IsPath.mk'
-              (by simpa [Walk.support_mapLe_eq_support] using (hW₀ _).support_nodup)
+          (exists_internallyDisjoint_iff_forall_isVertexSeparator G₀ u v (k' + 1)).mpr hsep₀
+        have hinj₀ := injective_of_internallyDisjoint_of_not_adj huv hadj₀ hW₀ hdisj₀
+        let W : Fin (k' + 2) → G.Walk u v := fun i =>
+          Fin.lastCases hadj.toWalk (fun j => (W₀ j).mapLe (G.deleteEdges_le _)) i
+        have hlen (j : Fin (k' + 1)) (h : hadj.toWalk = (W₀ j).mapLe (G.deleteEdges_le _)) :
+            False :=
+          hadj₀ (Walk.adj_of_length_eq_one (by simpa using (congrArg Walk.length h).symm))
+        refine ⟨W, fun i j hij => ?_, fun i => ?_, fun i j hij x hxi hxj => ?_⟩
+        · induction i using Fin.lastCases <;> induction j using Fin.lastCases <;>
+            simp only [W, Fin.lastCases_last, Fin.lastCases_castSucc] at hij ⊢
+          · exact (hlen _ hij).elim
+          · exact (hlen _ hij.symm).elim
+          · exact congrArg _ (hinj₀ (Walk.ext_support
+              (by simpa [Walk.support_mapLe_eq_support] using congrArg Walk.support hij)))
+        · induction i using Fin.lastCases <;>
+            simp only [W, Fin.lastCases_last, Fin.lastCases_castSucc]
           · exact hadj.isPath_toWalk
-        have hWdisj : SimpleGraph.InternallyDisjoint W := by
-          intro i j hij x hxi hxj
-          rcases lt_or_ge i.1 (k - 1) with hi | hi <;> rcases lt_or_ge j.1 (k - 1) with hj | hj
-          · simp only [W, hi, hj, ↓reduceDIte, Walk.support_mapLe_eq_support] at hxi hxj
-            exact hdisj₀ (fun h => hij (Fin.ext (congrArg (@Fin.val (k - 1)) h))) x hxi hxj
-          · simp only [W, Nat.not_lt.mpr hj, ↓reduceDIte, Adj.toWalk] at hxj; simpa using hxj
-          · simp only [W, Nat.not_lt.mpr hi, ↓reduceDIte, Adj.toWalk] at hxi; simpa using hxi
-          · exact absurd (Fin.ext (by omega)) hij
-        have hWinj : Function.Injective W := by
-          have hinj₀ := injective_of_internallyDisjoint_of_not_adj huv hadj₀ hW₀ hdisj₀
-          have hlen : ∀ i : Fin k, i.1 < k - 1 → 2 ≤ (W i).length := fun i hi => by
-            simp only [W, hi, ↓reduceDIte, Walk.length_mapLe]
-            cases hw : W₀ ⟨i.1, hi⟩ with
-            | nil => exact absurd rfl huv
-            | @cons _ _ _ h₁ p => cases p with
-              | nil => exact absurd h₁ hadj₀
-              | cons _ _ => simp [Walk.length_cons]
-          intro i j hij
-          rcases lt_or_ge i.1 (k - 1) with hi | hi <;> rcases lt_or_ge j.1 (k - 1) with hj | hj
-          · simp only [W, hi, hj, ↓reduceDIte] at hij
-            exact Fin.ext (congrArg (@Fin.val (k - 1)) (hinj₀ (Walk.ext_support
-              (by simpa [Walk.support_mapLe_eq_support] using congrArg Walk.support hij))))
-          · have h1 := hlen i hi; rw [hij] at h1
-            simp only [W, Nat.not_lt.mpr hj, ↓reduceDIte, hadj.length_toWalk] at h1; omega
-          · have h1 := hlen j hj; rw [← hij] at h1
-            simp only [W, Nat.not_lt.mpr hi, ↓reduceDIte, hadj.length_toWalk] at h1; omega
-          · exact Fin.ext (by omega)
-        exact ⟨W, hWinj, hWpath, hWdisj⟩
+          · exact (hW₀ _).mapLe _
+        · induction i using Fin.lastCases <;> induction j using Fin.lastCases <;>
+            simp only [W, Fin.lastCases_last, Fin.lastCases_castSucc,
+              Walk.support_mapLe_eq_support] at hxi hxj
+          · exact absurd rfl hij
+          · simpa using hxi
+          · simpa using hxj
+          · exact hdisj₀ (fun h => hij (congrArg _ h)) x hxi hxj
       · have hsep := (isVertexConnected_iff_forall_isVertexSeparator.mp hconn).2 huv
         obtain ⟨W, hW, hdisj⟩ :=
           (exists_internallyDisjoint_iff_forall_isVertexSeparator G u v k).mpr hsep

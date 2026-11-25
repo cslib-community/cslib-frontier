@@ -278,37 +278,28 @@ theorem words_fit (p : NodeParameters w keys) (hn : 2 ≤ n)
     (hsorted : StrictMono keys) (hbound : ∀ i, keys i < 2 ^ w)
     (hnB : n ≤ branching w) (hw : 9 ≤ Nat.log 2 w) : ∀ i, Fits w (p.words i) := by
   have hpack := p.packed_width hnB hw
-  have hn0 : 0 < n := by omega
-  have hfield : p.b + 1 ≤ (p.b + 1) * n := by
-    exact Nat.le_mul_of_pos_right _ hn0
-  have hbw : p.b + 1 < w := by omega
+  have hfield : p.b + 1 ≤ (p.b + 1) * n := Nat.le_mul_of_pos_right _ (by omega)
   have hwidth : (p.b + 1) * n ≤ w := by omega
-  have hbfit : Fits w p.b := (Nat.lt_two_pow_self).trans_le
-    (Nat.pow_le_pow_right (by decide) (by omega : p.b ≤ w))
-  have hDfit : Fits w p.D := p.D_lt.trans_le
-    (Nat.pow_le_pow_right (by decide) (by omega))
+  have hp {a : ℕ} (h : a ≤ w) : 2 ^ a ≤ 2 ^ w := Nat.pow_le_pow_right (by decide) h
+  have hbfit : Fits w p.b := Nat.lt_two_pow_self.trans_le (hp (by omega))
+  have hDfit : Fits w p.D := p.D_lt.trans_le (hp (by omega))
   have hdigits (i : Fin 3) : Fits w (p.digits i) := (p.digits_lt i).trans
     (Multiword.radix_fits (by omega))
-  have hcopies : Fits w p.copies := (queryMultiplier_lt p.b n).trans_le
-    (Nat.pow_le_pow_right (by decide) hwidth)
-  have hpacked : Fits w p.packed := (packedNode_lt _ (fun i _ => p.sketches_lt i)).trans_le
-    (Nat.pow_le_pow_right (by decide) hwidth)
+  have hcopies : Fits w p.copies := (queryMultiplier_lt p.b n).trans_le (hp hwidth)
+  have hpacked : Fits w p.packed :=
+    (packedNode_lt _ (fun i _ => p.sketches_lt i)).trans_le (hp hwidth)
   have hcomp : Fits w p.packedComplement := (packedNode_lt _ (fun i _ =>
       show 2 ^ p.b - 1 - p.sketches i < 2 ^ p.b by have := Nat.two_pow_pos p.b; omega)).trans_le
-    (Nat.pow_le_pow_right (by decide) hwidth)
-  have hguards : Fits w p.guards := (packedNode_lt (fun _ => 0)
-    (fun _ _ => Nat.two_pow_pos _)).trans_le (Nat.pow_le_pow_right (by decide) hwidth)
-  have hmidexp : (p.b + 1) * (n - 1) < w := by
-    have hlt := Nat.mul_lt_mul_of_pos_left (show n - 1 < n by omega)
-      (show 0 < p.b + 1 by omega)
-    omega
-  have hmiddle : Fits w p.middle := Nat.pow_lt_pow_right (by decide) hmidexp
-  have hradix : Fits w p.radix := Nat.pow_lt_pow_right (by decide) hbw
-  have hmax : Fits w p.maximum := (show 2 ^ p.b - 1 < 2 ^ p.b by
-    have := Nat.two_pow_pos p.b; omega).trans_le
-      (Nat.pow_le_pow_right (by decide) (by omega))
+    (hp hwidth)
+  have hguards : Fits w p.guards :=
+    (packedNode_lt (fun _ => 0) (fun _ _ => Nat.two_pow_pos _)).trans_le (hp hwidth)
+  have hmiddle : Fits w p.middle := Nat.pow_lt_pow_right (by decide)
+    ((Nat.mul_lt_mul_of_pos_left (by omega : n - 1 < n) (by omega)).trans_le hwidth)
+  have hradix : Fits w p.radix := Nat.pow_lt_pow_right (by decide) (by omega)
+  have hmax : Fits w p.maximum :=
+    (Nat.sub_one_lt (Nat.two_pow_pos p.b).ne').trans_le (hp (by omega))
   have hrfit : Fits w p.r := (p.r_le.trans (by omega : n - 1 ≤ n)).trans_lt
-    ((p.count_lt_radix hsorted hbound).trans_le (Nat.pow_le_pow_right (by decide) (by omega)))
+    ((p.count_lt_radix hsorted hbound).trans_le (hp (by omega)))
   have hoffset : Fits w (w - 2 * (w / 2)) :=
     (Nat.sub_le _ _).trans_lt Nat.lt_two_pow_self
   intro i

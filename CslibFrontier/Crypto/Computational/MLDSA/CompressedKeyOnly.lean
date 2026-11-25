@@ -95,9 +95,8 @@ variable {P}
 theorem publicKeyHighTerm_add_lowPart [NeZero P.q] (d : ℕ) (pk : PublicKey P) :
     publicKeyHighTerm P d pk + publicKeyLowPart P d pk = pk.t := by
   funext i j
-  have h := congrFun (congrFun (power2RoundVec_reconstruct (d := d) pk.t) i) j
-  simp only [publicKeyHighTerm, publicKeyLowPart, Pi.add_apply]
-  simpa only [Int.cast_add, Int.cast_mul, Int.cast_natCast] using h
+  simpa only [publicKeyHighTerm, publicKeyLowPart, Pi.add_apply, Int.cast_add, Int.cast_mul,
+    Int.cast_natCast] using congrFun (congrFun (power2RoundVec_reconstruct (d := d) pk.t) i) j
 
 variable (P)
 
@@ -117,10 +116,8 @@ theorem compressedVerifierCommitment_eq_verifierCommitment_add_lowPart [NeZero P
     compressedVerifierCommitment P d pk z c =
       verifierCommitment P pk z c + fun i => negacyclicMul c (publicKeyLowPart P d pk i) := by
   funext i
-  have ht := congrFun (publicKeyHighTerm_add_lowPart d pk) i
-  simp only [Pi.add_apply] at ht
   simp only [compressedVerifierCommitment, verifierCommitment, Pi.add_apply, Pi.sub_apply]
-  rw [← ht, negacyclicMul_add]
+  rw [← congrFun (publicKeyHighTerm_add_lowPart d pk) i, Pi.add_apply, negacyclicMul_add]
   ring
 
 variable (P)
@@ -162,13 +159,11 @@ theorem selfTargetMap_compressedForgeryLowPart [NeZero P.q] (d : ℕ) (pk : Publ
         (compressedVerifierCommitment P d pk σ.z σ.c i j) * (2 * P.γ₂ : ℕ) : ℤ) :
           ZMod P.q) := by
   funext i j
-  have ht := congrFun (publicKeyHighTerm_add_lowPart d pk) i
-  simp only [Pi.add_apply] at ht
   rw [useHint_mul_eq_add_hintResidual]
   simp only [selfTargetMap, compressedForgeryLowPart, verifierCommitment,
     compressedVerifierCommitment, Pi.add_apply, Pi.sub_apply]
-  rw [← ht, negacyclicMul_add]
-  simp only [Pi.add_apply]
+  rw [← congrFun (publicKeyHighTerm_add_lowPart d pk) i, Pi.add_apply, negacyclicMul_add,
+    Pi.add_apply]
   ring
 
 /-- The high bits of the full self-target product of the corrected witness are exactly the
@@ -201,33 +196,20 @@ theorem isSelfTargetSolution_of_compressedVerify (hP : P.Valid) (hγq : 4 * P.γ
   have : NeZero P.q := ⟨by have := hP.one_lt_q; omega⟩
   simp only [compressedVerify, Bool.and_eq_true, decide_eq_true_eq] at h
   obtain ⟨⟨hz, hc⟩, hH⟩ := h
-  simp only [IsSelfTargetSolution, SelfTargetCandidate.ofCompressedForgery,
-    compressedSelfTargetRadius]
-  refine ⟨fun i j => ?_, fun i j => ?_, hc, ?_⟩
+  refine ⟨fun i j => ?_, fun i j => ?_, hc,
+    by simpa only [selfTargetHash, SelfTargetCandidate.ofCompressedForgery,
+      highBits_selfTargetMap_compressedForgeryLowPart hP hγq] using hH⟩
   · have hres := abs_hintResidual_valMinAbs_le hP.γ₂_pos hP.two_mul_γ₂_dvd hγq
       (σ.h i j) (compressedVerifierCommitment P d pk σ.z σ.c i j)
-    have ht₀ : ∀ j', |(publicKeyLowPart P d pk i j').valMinAbs| ≤ 2 ^ (d - 1) :=
-      fun j' => by
-        unfold publicKeyLowPart
-        exact (ZMod.abs_valMinAbs_intCast_le _).trans
-          (abs_power2RoundVec_low_le (q := P.q) hd pk.t i j')
-    have hct₀ := abs_valMinAbs_negacyclicMul_le (s := publicKeyLowPart P d pk i) hc ht₀ j
-    have hmax :
-        ((2 * P.γ₂ + 1 + P.τ * 2 ^ (d - 1) : ℕ) : ℤ) ≤
-          ((max (P.γ₁ - P.β) (2 * P.γ₂ + 1 + P.τ * 2 ^ (d - 1)) : ℕ) : ℤ) := by
-      exact_mod_cast (le_max_right (P.γ₁ - P.β)
-        (2 * P.γ₂ + 1 + P.τ * 2 ^ (d - 1)))
-    exact (abs_valMinAbs_add_le _ _).trans ((add_le_add hres hct₀).trans hmax)
+    have hct₀ := abs_valMinAbs_negacyclicMul_le (s := publicKeyLowPart P d pk i) hc
+      (fun j' => (ZMod.abs_valMinAbs_intCast_le _).trans
+        (abs_power2RoundVec_low_le (q := P.q) hd pk.t i j')) j
+    exact (abs_valMinAbs_add_le _ _).trans ((add_le_add hres hct₀).trans
+      (mod_cast le_max_right (P.γ₁ - P.β) (2 * P.γ₂ + 1 + P.τ * 2 ^ (d - 1))))
   · have hz' := hz i j
-    have hβγ : P.β ≤ P.γ₁ := by
-      have hnonneg : (0 : ℤ) ≤ |(σ.z i j).valMinAbs| := abs_nonneg _
-      omega
-    have hle : |(σ.z i j).valMinAbs| ≤ (P.γ₁ - P.β : ℕ) := by
-      exact_mod_cast le_of_lt hz'
-    exact hle.trans (by
-      exact_mod_cast (le_max_left (P.γ₁ - P.β)
-        (2 * P.γ₂ + 1 + P.τ * 2 ^ (d - 1))))
-  · simpa only [selfTargetHash, highBits_selfTargetMap_compressedForgeryLowPart hP hγq] using hH
+    have : P.β ≤ P.γ₁ := by have := abs_nonneg (σ.z i j).valMinAbs; omega
+    exact (show |(σ.z i j).valMinAbs| ≤ (P.γ₁ - P.β : ℕ) from mod_cast hz'.le).trans
+      (mod_cast le_max_left (P.γ₁ - P.β) (2 * P.γ₂ + 1 + P.τ * 2 ^ (d - 1)))
 
 /-! ### Compressed key-only games and reductions -/
 

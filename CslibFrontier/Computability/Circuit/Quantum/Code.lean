@@ -202,20 +202,10 @@ theorem eval_toPlacedGate_hadamard_ket {t : ℕ} {g : PlacedGate m}
       (((Real.sqrt 2)⁻¹ : ℝ) : ℂ)) • ket (Function.update x ⟨t, ht⟩ c) := by
   simp only [toPlacedGate?, ht, ↓reduceDIte, Option.some.injEq] at hg
   subst hg
-  have hupd (y : Fin m → Bool) (c : Bool) : y = Function.update x ⟨t, ht⟩ c ↔
-      y ⟨t, ht⟩ = c ∧ ∀ j ≠ ⟨t, ht⟩, y j = x j := by
-    constructor
-    · rintro rfl
-      exact ⟨Function.update_self .., fun j hj => Function.update_of_ne hj ..⟩
-    · rintro ⟨h₁, h₂⟩
-      funext j
-      by_cases hj : j = ⟨t, ht⟩
-      · rw [hj, h₁, Function.update_self]
-      · rw [h₂ j hj, Function.update_of_ne hj]
   ext y
   rw [PlacedGate.eval_ket_apply, PlacedGate.matrix_apply, Fintype.sum_bool]
   simp only [WithLp.ofLp_add, WithLp.ofLp_smul, Pi.add_apply, Pi.smul_apply, ket_apply,
-    smul_eq_mul, mul_ite, mul_one, mul_zero, hupd]
+    smul_eq_mul, mul_ite, mul_one, mul_zero, Function.eq_update_iff]
   have hcond : (∀ j, (¬∃ i, (⟨![⟨t, ht⟩], fun i j _ => Subsingleton.elim i j⟩ : Fin 1 ↪ Fin m) i =
       j) → y j = x j) ↔ ∀ j ≠ ⟨t, ht⟩, y j = x j := by
     refine forall_congr' fun j => ⟨fun h hj => h ?_, fun h hj => h ?_⟩

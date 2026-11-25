@@ -93,10 +93,8 @@ private def pairUp : List α → List (α × α)
 private theorem endpoints_pairUp : ∀ {l : List α}, Even l.length → endpoints (pairUp l) = l
   | [], _ => rfl
   | [_], h => absurd h (by simp)
-  | a :: b :: l, h => by
-    have hl : Even l.length := by
-      obtain ⟨k, hk⟩ := h
-      exact ⟨k - 1, by simp only [List.length_cons] at hk; omega⟩
+  | a :: b :: l, ⟨k, hk⟩ => by
+    have hl : Even l.length := ⟨k - 1, by simp only [List.length_cons] at hk; omega⟩
     simp only [pairUp, endpoints, endpoints_pairUp hl]
 
 /-- The two alternating matchings of a closed walk through `x :: L ++ [z]` together cost as much as
@@ -107,12 +105,10 @@ private theorem sum_pairUp_add_sum_pairUp (δ : α → α → ℕ) :
           ((pairUp (L ++ [z])).map fun e => δ e.1 e.2).sum =
         (List.zipWith δ (x :: L) (L ++ [z])).sum
   | _, _, [], h => absurd h (by simp)
-  | x, z, [b], _ => by simp [pairUp]
-  | x, z, b :: c :: L, h => by
-    have hL : Odd L.length := by
-      obtain ⟨k, hk⟩ := h
-      exact ⟨k - 1, by simp only [List.length_cons] at hk; omega⟩
-    have ih := sum_pairUp_add_sum_pairUp δ c z L hL
+  | _, _, [_], _ => by simp [pairUp]
+  | x, z, b :: c :: L, ⟨k, hk⟩ => by
+    have ih := sum_pairUp_add_sum_pairUp δ c z L
+      ⟨k - 1, by simp only [List.length_cons] at hk; omega⟩
     simp only [pairUp, List.cons_append, List.map_cons, List.sum_cons,
       List.zipWith_cons_cons] at ih ⊢
     omega
@@ -179,26 +175,21 @@ theorem endpoints_minPerfectMatching_perm (δ : α → α → ℕ) {k : ℕ} {O 
     (hk : O.length ≤ 2 * k) (heven : Even O.length) :
     (endpoints (minPerfectMatching δ k O)).Perm O := by
   induction k generalizing O with
-  | zero =>
-    rw [List.eq_nil_of_length_eq_zero (by omega : O.length = 0)]
-    rfl
+  | zero => rw [List.eq_nil_of_length_eq_zero (by omega : O.length = 0)]; rfl
   | succ k ih =>
     cases O with
     | nil => rfl
     | cons a L =>
       have hL : L ≠ [] := by grind
-      obtain ⟨M₀, hM₀mem, hM₀⟩ :
-          ∃ M₀ ∈ L.map fun b => (a, b) :: minPerfectMatching δ k (L.erase b),
-            minPerfectMatching δ (k + 1) (a :: L) = M₀ :=
-        ⟨_, List.getD_argmin_mem (by simpa using hL) [], rfl⟩
-      obtain ⟨b, hb, rfl⟩ := List.mem_map.1 hM₀mem
-      rw [hM₀]
-      have hlen : (L.erase b).length + 1 = L.length := List.length_erase_add_one hb
-      have := ih (O := L.erase b) (by simp only [List.length_cons] at hk; omega)
-        (by
-          obtain ⟨j, hj⟩ := heven
-          exact ⟨j - 1, by simp only [List.length_cons] at hj; omega⟩)
-      exact ((this.cons b).trans (List.perm_cons_erase hb).symm).cons a
+      obtain ⟨b, hb, hM₀⟩ := List.mem_map.1
+        (List.getD_argmin_mem (f := fun M : List (α × α) => (M.map fun e => δ e.1 e.2).sum)
+          (by simpa using hL) [])
+      rw [show minPerfectMatching δ (k + 1) (a :: L) = _ from hM₀.symm]
+      have hlen := List.length_erase_add_one hb
+      obtain ⟨j, hj⟩ := heven
+      exact (((ih (by simp only [List.length_cons] at hk; omega)
+        ⟨j - 1, by simp only [List.length_cons] at hj; omega⟩).cons b).trans
+        (List.perm_cons_erase hb).symm).cons a
 
 omit [DecidableEq α] in
 /-- A vertex of a matching splits off its edge, oriented from that vertex. -/
@@ -227,18 +218,15 @@ theorem sum_minPerfectMatching_le {δ : α → α → ℕ} (hsymm : ∀ x y, δ 
   fun_induction minPerfectMatching δ k O generalizing M with
   | case1 | case2 => simp
   | case3 k a L ih =>
-    obtain ⟨b, N, hperm, hw⟩ :=
-      exists_perm_cons_cons hsymm (hM.symm.subset List.mem_cons_self)
+    obtain ⟨b, N, hperm, hw⟩ := exists_perm_cons_cons hsymm (hM.symm.subset List.mem_cons_self)
     have hbN : (b :: endpoints N).Perm L := (hperm.symm.trans hM).cons_inv
     have hb : b ∈ L := hbN.subset List.mem_cons_self
-    have hN : (endpoints N).Perm (L.erase b) :=
-      (hbN.trans (List.perm_cons_erase hb)).cons_inv
-    have hlen : (L.erase b).length + 1 = L.length := List.length_erase_add_one hb
-    have hih := ih b (by simp only [List.length_cons] at hk; omega) hN
+    have hlen := List.length_erase_add_one hb
+    have hih := ih b (by simp only [List.length_cons] at hk; omega)
+      ((hbN.trans (List.perm_cons_erase hb)).cons_inv)
     have hle := List.getD_argmin_le (f := fun M => (M.map fun e => δ e.1 e.2).sum)
       (List.mem_map_of_mem (f := fun b => (a, b) :: minPerfectMatching δ k (L.erase b)) hb) []
-    refine hle.trans ?_
-    simp only [List.map_cons, List.sum_cons]
+    simp only [List.map_cons, List.sum_cons] at hle
     omega
 
 end Cslib.Algorithms.Lean.TSP

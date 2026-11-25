@@ -77,17 +77,13 @@ theorem exists_split (hσ : ∀ op, σ.Arity op ≤ 2) {L : ℕ} (hL : 2 ≤ L) 
     omega
   | gate op args ih =>
     rw [leafSize_gate] at hH
-    have hne : (univ : Finset (Fin (σ.Arity op))).Nonempty := by
-      by_contra h
-      rw [not_nonempty_iff_eq_empty.1 h, sum_empty] at hH
-      omega
-    -- the argument with the most leaves has at least half of them
+    have hne : (univ : Finset (Fin (σ.Arity op))).Nonempty :=
+      nonempty_of_ne_empty fun h => by rw [h, sum_empty] at hH; omega
     obtain ⟨a, -, ha⟩ := exists_max_image univ (fun j => (args j).leafSize) hne
     have hhalf : ∑ j, (args j).leafSize ≤ 2 * (args a).leafSize :=
-      (sum_le_card_nsmul univ _ _ fun j _ => ha j (mem_univ j)).trans (by
+      (sum_le_card_nsmul univ _ _ fun j _ => ha j (mem_univ j)).trans <| by
         rw [card_univ, Fintype.card_fin, smul_eq_mul]
-        exact Nat.mul_le_mul_right _ (hσ op))
-    -- stop at it, or keep walking
+        exact Nat.mul_le_mul_right _ (hσ op)
     obtain ⟨G, C, hC, h₁, h₂, hls⟩ : ∃ (G : Formula σ n) (C : Formula σ (n + 1)),
         C.substLast G = args a ∧ L < 3 * G.leafSize ∧ 3 * G.leafSize ≤ 2 * L ∧
         ∀ K, (C.substLast K).leafSize + G.leafSize = (args a).leafSize + K.leafSize := by
@@ -104,12 +100,8 @@ theorem exists_split (hσ : ∀ op, σ.Arity op ≤ 2) {L : ℕ} (hL : 2 ≤ L) 
       · simp [Function.update_of_ne hj]
     · have hsum : (fun j => ((Function.update (fun j => (args j).lift) a C j).substLast
             K).leafSize) =
-          Function.update (fun j => (args j).leafSize) a (C.substLast K).leafSize := by
-        funext j
-        by_cases hj : j = a
-        · subst hj
-          simp
-        · simp [Function.update_of_ne hj]
+          Function.update (fun j => (args j).leafSize) a (C.substLast K).leafSize :=
+        funext fun j => if hj : j = a then by subst hj; simp else by simp [Function.update_of_ne hj]
       rw [gate_substLast, leafSize_gate, leafSize_gate, hsum, sum_update_of_mem (mem_univ a),
         sum_eq_add_sum_sdiff_singleton_of_mem (mem_univ a) fun j => (args j).leafSize]
       have := hls K
@@ -150,13 +142,9 @@ private theorem exists_depthWith_eq_zero (F : Formula signature n) (hF : F.leafS
     rcases Nat.le_one_iff_eq_zero_or_eq_one.1 hF with h₀ | h₁
     · exact ⟨const ((gate op args).eval interpretation fun _ => false),
         fun x => eval_eq_of_leafSize_eq_zero h₀ interpretation (fun _ => false) x, by simp⟩
-    -- one argument has the leaf, and the others compute constants
     rw [leafSize_gate] at h₁
     obtain ⟨b, -, hb⟩ := exists_ne_zero_of_sum_ne_zero (h₁ ▸ one_ne_zero)
     rw [sum_eq_add_sum_sdiff_singleton_of_mem (mem_univ b)] at h₁
-    have hrest' : ∑ j ∈ univ \ {b}, (args j).leafSize = 0 := by omega
-    have hrest : ∀ j ≠ b, (args j).leafSize = 0 := fun j hj =>
-      sum_eq_zero_iff.1 hrest' j (by simp [hj])
     obtain ⟨G, hG, hd⟩ := ih b (by omega)
     refine ⟨postcomp G fun v => interpretation op
       (Function.update (fun j => (args j).eval interpretation fun _ => false) b v),
@@ -167,7 +155,9 @@ private theorem exists_depthWith_eq_zero (F : Formula signature n) (hF : F.leafS
     · subst hj
       simp
     · rw [Function.update_of_ne hj]
-      exact eval_eq_of_leafSize_eq_zero (hrest j hj) interpretation _ x
+      exact eval_eq_of_leafSize_eq_zero
+        (sum_eq_zero_iff.1 (by omega : ∑ k ∈ univ \ {b}, (args k).leafSize = 0) j (by simp [hj]))
+        interpretation _ x
 
 /-- Balancing with `2 k` levels of AND and OR gates when `L ≤ (3 / 2) ^ k`. -/
 private theorem exists_depthWith_le_two_mul (k : ℕ) (F : Formula signature n)
@@ -175,23 +165,17 @@ private theorem exists_depthWith_le_two_mul (k : ℕ) (F : Formula signature n)
     ∃ G : Formula signature n, (∀ x, G.eval interpretation x = F.eval interpretation x) ∧
       G.depthWith binaryCost ≤ 2 * k := by
   induction k generalizing F with
-  | zero =>
-    obtain ⟨G, hG, hd⟩ := exists_depthWith_eq_zero F (by simpa using hF)
-    exact ⟨G, hG, hd.le⟩
+  | zero => exact (exists_depthWith_eq_zero F (by simpa using hF)).imp fun _ ⟨hG, hd⟩ => ⟨hG, hd.le⟩
   | succ k ih =>
     by_cases hL : F.leafSize ≤ 1
-    · obtain ⟨G, hG, hd⟩ := exists_depthWith_eq_zero F hL
-      exact ⟨G, hG, by omega⟩
+    · exact (exists_depthWith_eq_zero F hL).imp fun _ ⟨hG, hd⟩ => ⟨hG, by omega⟩
     obtain ⟨G, C, hC, h₁, h₂, hls⟩ := exists_split Boolean.arity_le_two
       (L := F.leafSize) (by omega) F (by omega)
-    -- a third of the leaves less is small enough for `k`
-    have shrink : ∀ m, 3 * m ≤ 2 * F.leafSize → 2 ^ k * m ≤ 3 ^ k := fun m hm => by
-      refine Nat.le_of_mul_le_mul_left (?_ : 3 * (2 ^ k * m) ≤ 3 * 3 ^ k) (by decide)
-      calc 3 * (2 ^ k * m) = 2 ^ k * (3 * m) := by ring
-        _ ≤ 2 ^ k * (2 * F.leafSize) := Nat.mul_le_mul_left _ hm
-        _ = 2 ^ (k + 1) * F.leafSize := by ring
-        _ ≤ 3 ^ (k + 1) := hF
-        _ = 3 * 3 ^ k := by ring
+    have shrink (m : ℕ) (hm : 3 * m ≤ 2 * F.leafSize) : 2 ^ k * m ≤ 3 ^ k :=
+      Nat.le_of_mul_le_mul_left (c := 3) (by
+        calc 3 * (2 ^ k * m) = 2 ^ k * (3 * m) := by ring
+          _ ≤ 2 ^ k * (2 * F.leafSize) := Nat.mul_le_mul_left _ hm
+          _ ≤ 3 * 3 ^ k := by rw [pow_succ, mul_assoc, pow_succ'] at hF; exact hF) (by decide)
     have hfill (c : Bool) : 2 ^ k * (C.substLast (const c)).leafSize ≤ 3 ^ k :=
       shrink _ (by have := hls (const c); simp only [leafSize_const] at this; omega)
     obtain ⟨G', hG', hGd⟩ := ih G (shrink _ h₂)
@@ -211,13 +195,12 @@ theorem exists_formula_depthWith_le_four_mul_clog (F : Formula signature n) :
     ∃ G : Formula signature n, (∀ x, G.eval interpretation x = F.eval interpretation x) ∧
       G.depthWith binaryCost ≤ 4 * Nat.clog 2 F.leafSize := by
   set j := Nat.clog 2 F.leafSize
-  obtain ⟨G, hG, hd⟩ := exists_depthWith_le_two_mul (2 * j) F (by
-    calc 2 ^ (2 * j) * F.leafSize ≤ 2 ^ (2 * j) * 2 ^ j :=
-          Nat.mul_le_mul_left _ (Nat.le_pow_clog (by decide) _)
-      _ = 8 ^ j := by rw [← pow_add, show 2 * j + j = 3 * j by ring, pow_mul]; rfl
-      _ ≤ 9 ^ j := Nat.pow_le_pow_left (by decide) j
-      _ = 3 ^ (2 * j) := by rw [pow_mul]; rfl)
-  exact ⟨G, hG, hd.trans (by omega)⟩
+  refine (exists_depthWith_le_two_mul (2 * j) F ?_).imp fun _ ⟨hG, hd⟩ => ⟨hG, by omega⟩
+  calc 2 ^ (2 * j) * F.leafSize ≤ 2 ^ (2 * j) * 2 ^ j :=
+        Nat.mul_le_mul_left _ (Nat.le_pow_clog (by decide) _)
+    _ = 8 ^ j := by rw [← pow_add, show 2 * j + j = 3 * j by ring, pow_mul]; rfl
+    _ ≤ 9 ^ j := Nat.pow_le_pow_left (by decide) j
+    _ = 3 ^ (2 * j) := by rw [pow_mul]; rfl
 
 /-- A De Morgan formula with at most `d` AND and OR gates on every path has at most `2 ^ d`
 leaves. -/

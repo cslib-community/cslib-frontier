@@ -84,29 +84,25 @@ theorem input_readback {L : ℕ} (m t : ℕ) (qs : List (OutStr L))
   dsimp only
   have hfive (n : ℕ) : 1 + (1 + (1 + (1 + (1 + n)))) = 5 + n := by omega
   refine ⟨by simp [State.init, Data.init, input], by simp [State.init, Data.init, input],
-    by simp [State.init, Data.init, input], by simp [State.init, Data.init, input], ?_, ?_, ?_⟩
-  · intro i
-    have h := Data.init_realizes_append (r := registers) [L, m, t, qs.length]
-      (List.ofFn (fun j => Signed.encode (a j)))
-      (List.ofFn (fun j => Signed.encode (b j)) ++ qs.map (fun η => (PrunedQuery.queryIndex η).val))
-    have hr := h ⟨i.val, by simp⟩
-    simpa [State.init, input, Block.read, List.append_assoc] using hr
-  · intro i
-    have h := Data.init_realizes_append (r := registers)
-      ([L, m, t, qs.length] ++ List.ofFn (fun j => Signed.encode (a j)))
-      (List.ofFn (fun j => Signed.encode (b j)))
-      (qs.map (fun η => (PrunedQuery.queryIndex η).val))
-    have hr := h ⟨i.val, by simp⟩
-    simpa [State.init, input, Block.read, List.append_assoc, Nat.add_assoc,
-      Nat.add_comm, Nat.add_left_comm, hfive] using hr
-  · intro i
-    have h := Data.init_realizes_append (r := registers)
-      ([L, m, t, qs.length] ++ List.ofFn (fun j => Signed.encode (a j)) ++
-        List.ofFn (fun j => Signed.encode (b j)))
-      (qs.map (fun η => (PrunedQuery.queryIndex η).val)) []
-    have hr := h ⟨i.val, by simp⟩
-    simpa [State.init, input, Block.read, queryBase, List.append_assoc,
-      Nat.add_assoc, Nat.add_comm, Nat.add_left_comm, two_mul, hfive] using hr
+    by simp [State.init, Data.init, input], by simp [State.init, Data.init, input],
+    fun i => ?_, fun i => ?_, fun i => ?_⟩
+  · simpa [State.init, input, Block.read, List.append_assoc] using
+      Data.init_realizes_append (r := registers) [L, m, t, qs.length]
+        (List.ofFn fun j => Signed.encode (a j))
+        (List.ofFn (fun j => Signed.encode (b j)) ++
+          qs.map fun η => (PrunedQuery.queryIndex η).val) ⟨i.val, by simp⟩
+  · simpa [State.init, input, Block.read, List.append_assoc, Nat.add_assoc, Nat.add_comm,
+      Nat.add_left_comm, hfive] using
+      Data.init_realizes_append (r := registers)
+        ([L, m, t, qs.length] ++ List.ofFn fun j => Signed.encode (a j))
+        (List.ofFn fun j => Signed.encode (b j))
+        (qs.map fun η => (PrunedQuery.queryIndex η).val) ⟨i.val, by simp⟩
+  · simpa [State.init, input, Block.read, queryBase, List.append_assoc, Nat.add_assoc,
+      Nat.add_comm, Nat.add_left_comm, two_mul, hfive] using
+      Data.init_realizes_append (r := registers)
+        ([L, m, t, qs.length] ++ List.ofFn (fun j => Signed.encode (a j)) ++
+          List.ofFn fun j => Signed.encode (b j))
+        (qs.map fun η => (PrunedQuery.queryIndex η).val) [] ⟨i.val, by simp⟩
 
 /-- Original scalar and source envelopes admit the complete physical input. -/
 theorem input_fits {w L m t A B : ℕ} (qs : List (OutStr L))
@@ -118,14 +114,14 @@ theorem input_fits {w L m t A B : ℕ} (qs : List (OutStr L))
   have hT : 10 ^ L ≤ (L + 1) * 10 ^ L := Nat.le_mul_of_pos_left _ (by omega)
   constructor
   · rw [length_input]
-    exact haddr.of_le (by unfold originalAddressBound; omega)
+    refine haddr.of_le ?_
+    unfold originalAddressBound
+    omega
   · intro v hv
     simp only [input, List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hv
-    rcases hv with (((rfl | rfl | rfl | rfl) | hv) | hv) | hv
-    · exact haddr.of_le (by unfold originalAddressBound; omega)
-    · exact haddr.of_le (by unfold originalAddressBound; omega)
-    · exact haddr.of_le (by unfold originalAddressBound; omega)
-    · exact haddr.of_le (by unfold originalAddressBound; omega)
+    rcases hv with ((hv | hv) | hv) | hv
+    · rcases hv with rfl | rfl | rfl | rfl <;> refine haddr.of_le ?_ <;>
+        unfold originalAddressBound <;> omega
     · obtain ⟨i, rfl⟩ := List.mem_ofFn.mp hv
       exact (Signed.encode_fits (hmag.of_natAbs_le ((ha i).trans
         (by unfold BoxQuery.magnitudeBound; omega)))).mono (by omega)
@@ -133,18 +129,17 @@ theorem input_fits {w L m t A B : ℕ} (qs : List (OutStr L))
       exact (Signed.encode_fits (hmag.of_natAbs_le ((hb i).trans
         (by unfold BoxQuery.magnitudeBound; omega)))).mono (by omega)
     · obtain ⟨η, _, rfl⟩ := List.mem_map.mp hv
-      exact haddr.of_le (by
-        have := (PrunedQuery.queryIndex η).isLt
-        unfold originalAddressBound
-        omega)
+      refine haddr.of_le ?_
+      have := (PrunedQuery.queryIndex η).isLt
+      unfold originalAddressBound
+      omega
 
 /-- Original bounds cover the unchanged complete shared-table constructor. -/
 theorem constructor_address_le (L m t N : ℕ) (hm : m ≤ L) :
     100 * (directoryBase L N + 5 + (5 + 10 ^ L) + L + m + t +
       (m - t + 1) * 10 ^ L + 10) ≤ originalAddressBound L m t N := by
-  have hS : (m - t + 1) * 10 ^ L ≤ (L + 1) * 10 ^ L :=
-    Nat.mul_le_mul_right _ (by omega)
-  have hT : 10 ^ L ≤ (L + 1) * 10 ^ L := Nat.le_mul_of_pos_left _ (by omega)
+  have := Nat.mul_le_mul_right (10 ^ L) (by omega : m - t + 1 ≤ L + 1)
+  have := Nat.le_mul_of_pos_left (10 ^ L) (by omega : 0 < L + 1)
   unfold directoryBase queryBase originalAddressBound
   omega
 

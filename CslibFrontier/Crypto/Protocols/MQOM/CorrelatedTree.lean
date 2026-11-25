@@ -100,25 +100,7 @@ theorem ancestorNode_eq_div_pow (node level : Nat) :
     ancestorNode node level = node / 2 ^ level := by
   induction level with
   | zero => simp only [ancestorNode_zero, pow_zero, Nat.div_one]
-  | succ level ih =>
-    rw [ancestorNode, ih, Nat.div_div_eq_div_mul, Nat.pow_succ]
-
-private theorem ancestorNode_add (node first second : Nat) :
-    ancestorNode node (first + second) = ancestorNode (ancestorNode node first) second := by
-  simp only [ancestorNode_eq_div_pow, pow_add, Nat.div_div_eq_div_mul]
-
-private theorem ancestorNode_le_div_two (node level : Nat) (hlevel : 0 < level) :
-    ancestorNode node level ≤ node / 2 := by
-  cases level with
-  | zero => omega
-  | succ level =>
-    rw [ancestorNode]
-    exact Nat.div_le_div_right (ancestorNode_le node level)
-
-private theorem two_pow_height_le_leafNode {height : Nat} (leaf : LeafIndex height) :
-    2 ^ height ≤ leafNode leaf := by
-  simp only [leafNode]
-  omega
+  | succ level ih => rw [ancestorNode, ih, Nat.div_div_eq_div_mul, Nat.pow_succ]
 
 theorem leafNode_lt {height : Nat} (leaf : LeafIndex height) :
     leafNode leaf < 2 * 2 ^ height := by
@@ -134,125 +116,64 @@ theorem hiddenNode_succ {height : Nat} (leaf : LeafIndex height) (level : Fin he
     hiddenNode leaf level.succ = hiddenNode leaf (Fin.castSucc level) / 2 := rfl
 
 theorem hiddenNode_lt {height : Nat} (leaf : LeafIndex height)
-    (level : Fin (height + 1)) : hiddenNode leaf level < 2 * 2 ^ height := by
-  exact (ancestorNode_le (leafNode leaf) level).trans_lt (leafNode_lt leaf)
+    (level : Fin (height + 1)) : hiddenNode leaf level < 2 * 2 ^ height :=
+  (ancestorNode_le (leafNode leaf) level).trans_lt (leafNode_lt leaf)
 
-private theorem hiddenNode_two_le {height : Nat} (leaf : LeafIndex height) (level : Fin height) :
-    2 ≤ hiddenNode leaf (Fin.castSucc level) := by
-  simp only [hiddenNode, ancestorNode_eq_div_pow]
-  apply (Nat.le_div_iff_mul_le (Nat.two_pow_pos level)).2
-  rw [← Nat.pow_succ']
-  exact (Nat.pow_le_pow_right (by decide) (Nat.succ_le_iff.mpr level.isLt)).trans
-    (two_pow_height_le_leafNode leaf)
+private theorem siblingNode_cases {height : Nat} (leaf : LeafIndex height) (level : Fin height) :
+    2 ≤ hiddenNode leaf (Fin.castSucc level) ∧
+      ∃ k, (hiddenNode leaf (Fin.castSucc level) = 2 * k ∧ siblingNode leaf level = 2 * k + 1) ∨
+        (hiddenNode leaf (Fin.castSucc level) = 2 * k + 1 ∧ siblingNode leaf level = 2 * k) := by
+  refine ⟨?_, ?_⟩
+  · simp only [hiddenNode, ancestorNode_eq_div_pow, Nat.le_div_iff_mul_le (Nat.two_pow_pos _),
+      ← Nat.pow_succ']
+    exact (Nat.pow_le_pow_right (by decide) (Nat.succ_le_iff.mpr level.isLt)).trans
+      (Nat.le_add_right _ _)
+  · rcases Nat.even_or_odd (hiddenNode leaf (Fin.castSucc level)) with ⟨k, hk⟩ | ⟨k, hk⟩
+    · refine ⟨k, .inl ⟨by omega, ?_⟩⟩
+      rw [siblingNode, Nat.xor_one_of_even ⟨k, hk⟩]
+      omega
+    · refine ⟨k, .inr ⟨hk, ?_⟩⟩
+      rw [siblingNode, Nat.xor_one_of_odd ⟨k, hk⟩]
+      omega
 
 /-- A sibling-path index is nonzero, as required by the source tree array. -/
 theorem siblingNode_pos {height : Nat} (leaf : LeafIndex height) (level : Fin height) :
     0 < siblingNode leaf level := by
-  have hnode := hiddenNode_two_le leaf level
-  simp only [siblingNode]
-  generalize hiddenNode leaf (Fin.castSucc level) = node at hnode ⊢
-  rcases Nat.even_or_odd node with he | ho
-  · rw [Nat.xor_one_of_even he]
-    omega
-  · rw [Nat.xor_one_of_odd ho]
-    omega
+  obtain ⟨_, _, ⟨_, _⟩ | ⟨_, _⟩⟩ := siblingNode_cases leaf level <;> omega
 
 /-- A sibling-path index is at most the final source tree-array index `2N - 1`. -/
 theorem siblingNode_lt {height : Nat} (leaf : LeafIndex height) (level : Fin height) :
     siblingNode leaf level < 2 * 2 ^ height := by
-  have hnode := hiddenNode_lt leaf (Fin.castSucc level)
-  simp only [siblingNode]
-  generalize hiddenNode leaf (Fin.castSucc level) = node at hnode ⊢
-  rcases Nat.even_or_odd node with he | ho
-  · rw [Nat.xor_one_of_even he]
-    obtain ⟨k, rfl⟩ := he
-    omega
-  · rw [Nat.xor_one_of_odd ho]
-    omega
+  have := hiddenNode_lt leaf (Fin.castSucc level)
+  obtain ⟨_, _, ⟨_, _⟩ | ⟨_, _⟩⟩ := siblingNode_cases leaf level <;> omega
 
 /-- The revealed node and the hidden node are the two children of the same parent. -/
 theorem siblingNode_parent {height : Nat} (leaf : LeafIndex height) (level : Fin height) :
     siblingNode leaf level / 2 = hiddenNode leaf (Fin.castSucc level) / 2 := by
-  simp only [siblingNode]
-  generalize hiddenNode leaf (Fin.castSucc level) = node
-  rcases Nat.even_or_odd node with he | ho
-  · rw [Nat.xor_one_of_even he]
-    obtain ⟨k, rfl⟩ := he
-    omega
-  · rw [Nat.xor_one_of_odd ho]
-    obtain ⟨k, rfl⟩ := ho
-    omega
+  obtain ⟨_, _, ⟨_, _⟩ | ⟨_, _⟩⟩ := siblingNode_cases leaf level <;> omega
 
 /-- After revealing the sibling, the source loop moves the hidden node to their common parent. -/
 theorem siblingNode_parent_eq_hiddenNode_succ {height : Nat} (leaf : LeafIndex height)
     (level : Fin height) : siblingNode leaf level / 2 = hiddenNode leaf level.succ := by
   rw [siblingNode_parent, hiddenNode_succ]
 
-private theorem siblingNode_ne_hiddenNode_sameLevel {height : Nat} (leaf : LeafIndex height)
-    (level : Fin height) : siblingNode leaf level ≠ hiddenNode leaf (Fin.castSucc level) := by
-  simp only [siblingNode]
-  generalize hiddenNode leaf (Fin.castSucc level) = node
-  rcases Nat.even_or_odd node with he | ho
-  · rw [Nat.xor_one_of_even he]
-    obtain ⟨k, rfl⟩ := he
-    omega
-  · rw [Nat.xor_one_of_odd ho]
-    obtain ⟨k, rfl⟩ := ho
-    omega
-
 private theorem hiddenNode_le_div_two_of_lt {height : Nat} (leaf : LeafIndex height)
     {lower higher : Fin (height + 1)} (hlevel : lower < higher) :
     hiddenNode leaf higher ≤ hiddenNode leaf lower / 2 := by
-  change ancestorNode (leafNode leaf) higher ≤ ancestorNode (leafNode leaf) lower / 2
-  obtain ⟨difference, hdifference⟩ := Nat.exists_eq_add_of_lt hlevel
-  rw [hdifference,
-    show (lower : Nat) + difference + 1 = lower + (difference + 1) by omega,
-    ancestorNode_add]
-  exact ancestorNode_le_div_two _ _ (by omega)
-
-private theorem hiddenNode_div_two_lt_siblingNode {height : Nat} (leaf : LeafIndex height)
-    (level : Fin height) :
-    hiddenNode leaf (Fin.castSucc level) / 2 < siblingNode leaf level := by
-  have hnode := hiddenNode_two_le leaf level
-  simp only [siblingNode]
-  generalize hiddenNode leaf (Fin.castSucc level) = node at hnode ⊢
-  rcases Nat.even_or_odd node with he | ho
-  · rw [Nat.xor_one_of_even he]
-    obtain ⟨k, rfl⟩ := he
-    omega
-  · rw [Nat.xor_one_of_odd ho]
-    obtain ⟨k, rfl⟩ := ho
-    omega
-
-private theorem siblingNode_le_hiddenNode_add_one {height : Nat} (leaf : LeafIndex height)
-    (level : Fin height) :
-    siblingNode leaf level ≤ hiddenNode leaf (Fin.castSucc level) + 1 := by
-  simp only [siblingNode]
-  generalize hiddenNode leaf (Fin.castSucc level) = node
-  rcases Nat.even_or_odd node with he | ho
-  · rw [Nat.xor_one_of_even he]
-  · rw [Nat.xor_one_of_odd ho]
-    omega
+  simp only [hiddenNode, ancestorNode_eq_div_pow, Nat.div_div_eq_div_mul, ← Nat.pow_succ]
+  exact Nat.div_le_div_left (Nat.pow_le_pow_right (by decide) hlevel) (Nat.two_pow_pos _)
 
 /-- No sibling-path entry is the challenged leaf or any node on its hidden path. -/
 theorem siblingNode_ne_hiddenNode {height : Nat} (leaf : LeafIndex height)
     (level : Fin height) (hiddenLevel : Fin (height + 1)) :
     siblingNode leaf level ≠ hiddenNode leaf hiddenLevel := by
-  rcases lt_trichotomy (Fin.castSucc level) hiddenLevel with hlt | heq | hgt
-  · apply Nat.ne_of_gt
-    exact (hiddenNode_le_div_two_of_lt leaf hlt).trans_lt
-      (hiddenNode_div_two_lt_siblingNode leaf level)
-  · subst hiddenLevel
-    exact siblingNode_ne_hiddenNode_sameLevel leaf level
-  · apply Nat.ne_of_lt
-    have hhidden := hiddenNode_le_div_two_of_lt leaf hgt
-    have hdouble :
-        2 * hiddenNode leaf (Fin.castSucc level) ≤ hiddenNode leaf hiddenLevel := by
-      have := (Nat.le_div_iff_mul_le (by decide : 0 < 2)).1 hhidden
-      omega
-    have hnode := hiddenNode_two_le leaf level
-    have hsibling := siblingNode_le_hiddenNode_add_one leaf level
-    omega
+  obtain ⟨h2, _, hpar⟩ := siblingNode_cases leaf level
+  rcases lt_trichotomy (Fin.castSucc level) hiddenLevel with hlt | rfl | hgt
+  · have := hiddenNode_le_div_two_of_lt leaf hlt
+    rcases hpar with ⟨_, _⟩ | ⟨_, _⟩ <;> omega
+  · rcases hpar with ⟨_, _⟩ | ⟨_, _⟩ <;> omega
+  · have := (Nat.le_div_iff_mul_le (by decide : 0 < 2)).1 (hiddenNode_le_div_two_of_lt leaf hgt)
+    rcases hpar with ⟨_, _⟩ | ⟨_, _⟩ <;> omega
 
 /-! ### Validation-oracle transcripts -/
 

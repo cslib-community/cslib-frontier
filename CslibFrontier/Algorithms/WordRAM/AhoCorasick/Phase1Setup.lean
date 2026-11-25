@@ -131,25 +131,7 @@ private theorem exec_setupCode (inp : Input) (w : ℕ) (hw : Fits w inp.wordBoun
       hf_tm, htm_eq.symm, hf_oh, hoh_eq.symm, hf_on, hon_eq.symm, hf_qb, hqb_eq.symm,
       hf_ob, hob_eq.symm]
     refine ⟨?_, by wram_simp, by wram_simp⟩
-    exact
-      { h_sigma := by wram_simp [hsig1]
-        h_numPat := by wram_simp [hnp1]
-        h_totPat := by wram_simp [htp1]
-        h_textLen := by wram_simp [htl1]
-        h_maxS := by wram_simp [hms1]
-        h_patBase := by wram_simp [hpb1]
-        h_textBase := by wram_simp
-        h_trieBase := by wram_simp
-        h_deltaBase := by wram_simp
-        h_failBase := by wram_simp
-        h_depthBase := by wram_simp
-        h_termBase := by wram_simp
-        h_outHeadBase := by wram_simp
-        h_outNextBase := by wram_simp
-        h_out := by wram_simp
-        h_queueBase := by wram_simp
-        h_zero := by wram_simp [hz1]
-        h_one := by wram_simp [ho1] }
+    constructor <;> wram_simp <;> assumption
   obtain ⟨x₀, he₂, hL₀, hr1₀, hmem0⟩ := h2
   exact ⟨x₀, he₁.seq he₂, hL₀, hr1₀, hmem0.trans hmem1⟩
 

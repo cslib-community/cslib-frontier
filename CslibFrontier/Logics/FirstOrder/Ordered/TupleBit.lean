@@ -85,16 +85,16 @@ private theorem realize_parameters (e B : (language L).Term α) (v : α → Fin 
   fo_simp [parameters, Fin.le_def, and_assoc]
   constructor
   · rintro ⟨he, hB, u, hs, hc⟩
-    refine ⟨by lia, hB, ?_⟩
-    have := (u 1).isLt
-    nlinarith [show (B.realize v).val ^ 3 =
-      (B.realize v).val * (B.realize v).val * (B.realize v).val by ring]
+    refine ⟨by omega, hB, ?_⟩
+    calc (B.realize v).val ^ 3
+        = (B.realize v).val * (B.realize v).val * (B.realize v).val := by ring
+      _ = (u 1).val := by rw [hs, hc]
+      _ < n := (u 1).isLt
   · rintro ⟨he, hB, hc⟩
     have hpos : 0 < (B.realize v).val := hB ▸ Nat.two_pow_pos _
-    have hs : (B.realize v).val ^ 2 < n := by
-      have hle := Nat.pow_le_pow_right hpos (show 2 ≤ 3 by decide)
-      exact lt_of_le_of_lt hle hc
-    exact ⟨by lia, hB, ![⟨_, hs⟩, ⟨_, hc⟩], by dsimp; ring, by dsimp; ring⟩
+    have hs : (B.realize v).val ^ 2 < n :=
+      lt_of_le_of_lt (Nat.pow_le_pow_right hpos (by decide)) hc
+    exact ⟨by omega, hB, ![⟨_, hs⟩, ⟨_, hc⟩], by dsimp; ring, by dsimp; ring⟩
 
 private theorem radixFormula_sound {k : ℕ} (v : Fin 2 × Fin k → Fin n)
     (hf : (radixFormula L k).Realize v) :
@@ -104,16 +104,11 @@ private theorem radixFormula_sound {k : ℕ} (v : Fin 2 × Fin k → Fin n)
   let t (i : Fin 2) : (language L).Term
       ((Fin 2 × Fin k) ⊕ (Fin 2 ⊕ (Fin 7 ⊕ (Fin 2 × Fin (7 * k))))) :=
     .var (.inr (.inl i))
-  have hB : 1 < (w (.inl 1)).val := by
-    rw [hBe]
-    exact one_lt_pow₀ (by decide) (by lia)
+  have hB : 1 < (w (.inl 1)).val := hBe ▸ one_lt_pow₀ (by decide) (by omega)
   rw [Radix.realize_cardinality (t 1) _ (Sum.elim v w) hB hBn] at hN
   fo_simp [t] at hN
-  have hn : 1 ≤ Nat.ofDigits (w (.inl 1)).val
-      (List.ofFn fun i => (w (.inr (.inl i))).val) := by
-    rw [hN.2]
-    have := Fact.out (p := 2 ≤ n)
-    lia
+  have hn : 1 ≤ Nat.ofDigits (w (.inl 1)).val (List.ofFn fun i => (w (.inr (.inl i))).val) :=
+    hN.2.symm ▸ Nat.le_trans (by decide : 1 ≤ 2) (Fact.out (p := 2 ≤ n))
   rw [Radix.realize_convert (t 1)
     (fun i => .var (.inr (.inr (.inl i)))) _ _ (Sum.elim v w) hB hBn hn] at hX hY
   fo_simp [t, hN.2, ofDigits_rev (fun i => v (0, i)), ofDigits_rev (fun i => v (1, i))] at hX hY
@@ -126,9 +121,10 @@ private theorem radixFormula_complete {k : ℕ} (v : Fin 2 × Fin k → Fin n) (
     (radixFormula L k).Realize v := by
   obtain ⟨e, he, hc, hncap⟩ := Nat.exists_binary_radix hn
   let B := 2 ^ e
-  have hB : 1 < B := one_lt_pow₀ (by decide) (by lia)
-  have hbase := Nat.pow_le_pow_right (Nat.zero_lt_of_lt hB) (show 1 ≤ 3 by decide)
-  have hBn : B < n := lt_of_le_of_lt (by simpa only [pow_one] using hbase) hc
+  have hB : 1 < B := one_lt_pow₀ (by decide) (by omega)
+  have hBn : B < n :=
+    lt_of_le_of_lt (by simpa only [pow_one] using
+      Nat.pow_le_pow_right (Nat.zero_lt_of_lt hB) (show 1 ≤ 3 by decide)) hc
   let bf : Fin n := ⟨B, hBn⟩
   let ef : Fin n := ⟨e, lt_trans Nat.lt_two_pow_self hBn⟩
   obtain ⟨N, hN, hNv⟩ := Radix.exists_word bf hncap
@@ -160,19 +156,15 @@ private theorem radixFormula_complete {k : ℕ} (v : Fin 2 × Fin k → Fin n) (
           Nat.ofDigits B (List.ofFn fun i => (w (.inr (.inr (j, i)))).val)
         simp only [hwZ, hNv, ofDigits_rev (fun i => v (j, i)), hZv]
     · change 1 ≤ Nat.ofDigits B (List.ofFn fun i => (N i).val)
-      rw [hNv]
-      lia
+      omega
   fo_simp [radixFormula, and_assoc]
-  refine ⟨w, ?_, ?_, ?_, ?_, ?_⟩
-  · exact (realize_parameters (t 0) (t 1) (Sum.elim v w)).mpr ⟨he, rfl, hc⟩
-  · exact (Radix.realize_cardinality (t 1) _ (Sum.elim v w) hB hc).mpr ⟨hN, hNv⟩
-  · exact hconv 0 hX hXv fun _ => rfl
-  · exact hconv 1 hY hYv fun _ => rfl
-  · apply (Radix.realize_bitIndex (t 1) (t 0)
-      _ _ (Sum.elim v w) he rfl hc hX hY).mpr
-    change (Nat.ofDigits B (List.ofFn fun i => (X i).val)).testBit
-      (Nat.ofDigits B (List.ofFn fun i => (Y i).val)) = true
-    simpa only [hXv, hYv] using hb
+  refine ⟨w, (realize_parameters (t 0) (t 1) (Sum.elim v w)).mpr ⟨he, rfl, hc⟩,
+    (Radix.realize_cardinality (t 1) _ (Sum.elim v w) hB hc).mpr ⟨hN, hNv⟩,
+    hconv 0 hX hXv fun _ => rfl, hconv 1 hY hYv fun _ => rfl, ?_⟩
+  apply (Radix.realize_bitIndex (t 1) (t 0) _ _ (Sum.elim v w) he rfl hc hX hY).mpr
+  change (Nat.ofDigits B (List.ofFn fun i => (X i).val)).testBit
+    (Nat.ofDigits B (List.ofFn fun i => (Y i).val)) = true
+  simpa only [hXv, hYv] using hb
 
 /-- Finite disjunction BIT formula for small source sizes `2 ≤ n ≤ 8`. -/
 noncomputable def smallFormula (L : Language) (k : ℕ) :
@@ -193,7 +185,7 @@ private theorem smallFormula_sound {k : ℕ} (v : Fin 2 × Fin k → Fin n)
   split_ifs at hf with hb
   · fo_simp [and_assoc] at hf
     obtain ⟨hn, hx, hy⟩ := hf
-    have hn' : n = a.val + 2 := by have := Fact.out (p := 2 ≤ n); lia
+    have hn' : n = a.val + 2 := by have := Fact.out (p := 2 ≤ n); omega
     subst n
     have hx' : (fun i => v (0, i)) = x := funext fun i => Fin.ext (hx i)
     have hy' : (fun i => v (1, i)) = y := funext fun i => Fin.ext (hy i)
@@ -204,8 +196,8 @@ private theorem smallFormula_complete {k : ℕ} (v : Fin 2 × Fin k → Fin n) (
     (hb : (lexRank (fun i => v (0, i))).testBit (lexRank (fun i => v (1, i))) = true) :
     (smallFormula L k).Realize v := by
   have hn2 := Fact.out (p := 2 ≤ n)
-  let a : Fin 7 := ⟨n - 2, by lia⟩
-  have ha : a.val + 2 = n := by dsimp [a]; lia
+  let a : Fin 7 := ⟨n - 2, by omega⟩
+  have ha : a.val + 2 = n := by dsimp [a]; omega
   let x (p : Fin 2) (i : Fin k) : Fin (a.val + 2) := (v (p, i)).cast ha.symm
   have hx (p : Fin 2) : lexRank (x p) = lexRank (fun i => v (p, i)) := by
     simp only [lexRank_apply, x, Fin.val_cast, ha]
@@ -214,7 +206,7 @@ private theorem smallFormula_complete {k : ℕ} (v : Fin 2 × Fin k → Fin n) (
   fo_simp [smallFormula]
   refine ⟨a, x 0, x 1, ?_⟩
   fo_simp [hb']
-  exact ⟨⟨by lia, fun _ => rfl⟩, fun _ => rfl⟩
+  exact ⟨⟨by omega, fun _ => rfl⟩, fun _ => rfl⟩
 
 end TupleBit
 
@@ -242,14 +234,12 @@ theorem realize_tupleBit (v : Fin 2 × Fin k → Fin n) :
     · intro hb
       by_cases hn : n ≤ 8
       · exact Or.inl (TupleBit.smallFormula_complete v hn hb)
-      · exact Or.inr (TupleBit.radixFormula_complete v (by lia) hb)
+      · exact Or.inr (TupleBit.radixFormula_complete v (by omega) hb)
 
 /-- A bit index beyond the represented number's binary extent is rejected. -/
 theorem not_realize_tupleBit_of_lt (v : Fin 2 × Fin k → Fin n)
     (h : lexRank (fun i => v (0, i)) < 2 ^ lexRank (fun i => v (1, i))) :
-    ¬(tupleBit L k).Realize v := by
-  intro hb
-  have := Nat.ge_two_pow_of_testBit ((realize_tupleBit v).mp hb)
-  lia
+    ¬(tupleBit L k).Realize v :=
+  fun hb => absurd (Nat.ge_two_pow_of_testBit ((realize_tupleBit v).mp hb)) (not_le_of_gt h)
 
 end Cslib.Logic.FO.Ordered

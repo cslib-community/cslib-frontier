@@ -140,9 +140,15 @@ private theorem cutSign_of_not {D : Finset E} (h : ¬ ∃ U, IsSmallCut ends D U
   simp only [cutSign, h, dite_false]
 
 private theorem exists_of_cutSign_ne_zero {D : Finset E} (h : (cutSign ends χ D : K) ≠ 0) :
-    ∃ U, IsSmallCut ends D U := by
-  by_contra h'
-  exact h (cutSign_of_not h')
+    ∃ U, IsSmallCut ends D U :=
+  Classical.byContradiction fun h' => h (cutSign_of_not h')
+
+/-- The symmetric difference of two sets of fewer than a third of the vertices has at most two
+thirds of the vertices. -/
+private theorem three_mul_card_symmDiff_le {U₁ U₂ : Finset V} (h₁ : 3 * #U₁ < Fintype.card V)
+    (h₂ : 3 * #U₂ < Fintype.card V) : 3 * #(U₁ ∆ U₂) ≤ 2 * Fintype.card V := by
+  have := card_symmDiff_le U₁ U₂
+  omega
 
 /-- On a connected multigraph, two sets of fewer than a third of the vertices with the same edge
 cut are equal. -/
@@ -153,12 +159,9 @@ private theorem eq_of_isSmallCut (hG : (Multigraph.toSimpleGraph ends).Connected
     rw [Multigraph.edgeCut_symmDiff, h₁.2, h₂.2, symmDiff_self, bot_eq_empty]
   rcases Multigraph.eq_empty_or_eq_univ_of_edgeCut_eq_empty hG hU with h | h
   · exact symmDiff_eq_empty.1 h
-  · have hcard : Fintype.card V ≤ #U₁ + #U₂ := by
-      rw [← card_univ, ← h]
-      exact card_symmDiff_le U₁ U₂
-    have := h₁.1
-    have := h₂.1
-    omega
+  · have := three_mul_card_symmDiff_le h₁.1 h₂.1
+    rw [h, card_univ] at this
+    exact absurd h₁.1 (by omega)
 
 private theorem cutSign_of_isSmallCut (hG : (Multigraph.toSimpleGraph ends).Connected)
     {D : Finset E} {U : Finset V} (hU : IsSmallCut ends D U) :
@@ -182,23 +185,17 @@ private theorem cutSign_symmDiff (hG : (Multigraph.toSimpleGraph ends).Connected
   · obtain ⟨U₁, h₁⟩ := h₁
     have hcut : Multigraph.edgeCut ends (U₁ ∆ U₂) = D₁ ∆ D₂ := by
       rw [Multigraph.edgeCut_symmDiff, h₁.2, h₂.2]
-    have hsmall : 3 * #(U₁ ∆ U₂) < Fintype.card V := by
-      refine Multigraph.three_mul_card_lt_of_card_edgeCut_lt (hcut ▸ hD) ?_
-      have := card_symmDiff_le U₁ U₂
-      have := h₁.1
-      have := h₂.1
-      omega
+    have hsmall : 3 * #(U₁ ∆ U₂) < Fintype.card V :=
+      Multigraph.three_mul_card_lt_of_card_edgeCut_lt (hcut ▸ hD)
+        (three_mul_card_symmDiff_le h₁.1 h₂.1)
     rw [cutSign_of_isSmallCut hG ⟨hsmall, hcut⟩, cutSign_of_isSmallCut hG h₁, parityOn_symmDiff,
       boolSign_xor]
   · rw [cutSign_of_not h₁, zero_mul]
-    refine cutSign_of_not fun ⟨U, hU⟩ => h₁ ⟨U ∆ U₂, ?_, ?_⟩
-    · refine Multigraph.three_mul_card_lt_of_card_edgeCut_lt (ends := ends) ?_ ?_
-      · rwa [Multigraph.edgeCut_symmDiff, hU.2, h₂.2, symmDiff_symmDiff_cancel_right]
-      · have := card_symmDiff_le U U₂
-        have := hU.1
-        have := h₂.1
-        omega
-    · rw [Multigraph.edgeCut_symmDiff, hU.2, h₂.2, symmDiff_symmDiff_cancel_right]
+    refine cutSign_of_not fun ⟨U, hU⟩ => ?_
+    have hcut : Multigraph.edgeCut ends (U ∆ U₂) = D₁ := by
+      rw [Multigraph.edgeCut_symmDiff, hU.2, h₂.2, symmDiff_symmDiff_cancel_right]
+    exact h₁ ⟨U ∆ U₂, Multigraph.three_mul_card_lt_of_card_edgeCut_lt (ends := ends)
+      (hcut ▸ hD₁) (three_mul_card_symmDiff_le hU.1 h₂.1), hcut⟩
 
 end Cut
 
@@ -213,12 +210,9 @@ private theorem toSign_X (i : E) : (toSign (X i) : MvPolynomial E K) = C 2⁻¹ 
 
 private theorem totalDegree_toSign_le (p : MvPolynomial E K) :
     (toSign p).totalDegree ≤ p.totalDegree := by
-  refine totalDegree_aeval_le (fun i => ?_) p
-  refine (totalDegree_mul _ _).trans ?_
+  refine totalDegree_aeval_le (fun i => (totalDegree_mul _ _).trans ?_) p
   rw [totalDegree_C, zero_add]
-  refine (totalDegree_sub _ _).trans ?_
-  rw [totalDegree_one, totalDegree_X]
-  exact max_le (Nat.zero_le 1) le_rfl
+  exact (totalDegree_sub _ _).trans (by rw [totalDegree_one, totalDegree_X]; omega)
 
 private theorem C_inv_two_mul_two (h2 : (2 : K) ≠ 0) :
     (C 2⁻¹ : MvPolynomial E K) * 2 = 1 := by
@@ -266,15 +260,9 @@ private theorem signFunctional_prod_X (T t : Finset E) :
   induction t using Finset.induction_on generalizing T with
   | empty => rw [prod_empty, signFunctional_one, ← bot_eq_empty, bot_symmDiff]
   | insert i t hi ih =>
-    have hins : insert i t = {i} ∆ t := by
-      ext j
-      by_cases hj : j = i
-      · subst hj
-        simp [Finset.mem_symmDiff, hi]
-      · simp [Finset.mem_symmDiff, hj]
-    rw [prod_insert hi, signFunctional_X_mul, ih, hins]
-    congr 1
-    rw [symmDiff_comm T {i}, symmDiff_left_comm, ← symmDiff_assoc]
+    rw [prod_insert hi, signFunctional_X_mul, ih, insert_eq,
+      ← symmDiff_eq_union (disjoint_singleton_left.2 hi), symmDiff_comm T {i}, symmDiff_left_comm,
+      ← symmDiff_assoc]
 
 /-- **Re-basing.** Let every monomial of `q` have at most `k` variables of odd degree, where
 `k + 1 ≤ d` and `2 d < e(G)`. If the sign functionals at all sets of at most `d` edges vanish on
@@ -297,22 +285,16 @@ private theorem signFunctional_eq_zero (hG : (Multigraph.toSimpleGraph ends).Con
       have hsplit : m.oddSupport ∆ T = m.oddSupport ∆ m₀.oddSupport ∆ (m₀.oddSupport ∆ T) := by
         rw [symmDiff_assoc, symmDiff_symmDiff_cancel_left]
       rw [hsplit]
-      refine cutSign_symmDiff hG hU₀ (by omega) ?_
-      rw [← hsplit]
-      omega
+      exact cutSign_symmDiff hG hU₀ (by omega) (by rw [← hsplit]; omega)
     have hsum : signFunctional ends χ T q =
         signFunctional ends χ m₀.oddSupport q * cutSign ends χ (m₀.oddSupport ∆ T) := by
-      conv_lhs => rw [q.as_sum]
-      conv_rhs => rw [q.as_sum]
-      rw [map_sum, map_sum, sum_mul]
+      rw [q.as_sum, map_sum, map_sum, sum_mul]
       refine sum_congr rfl fun m hm => ?_
       rw [signFunctional_monomial, signFunctional_monomial, key m hm, mul_assoc]
     rw [hsum, h0 _ ((hq m₀ hm₀).trans (by omega)), zero_mul]
-  · simp only [not_exists, not_and, ne_eq, not_not] at hex
-    conv_lhs => rw [q.as_sum]
-    rw [map_sum]
-    refine sum_eq_zero fun m hm => ?_
-    rw [signFunctional_monomial, hex m hm, mul_zero]
+  · push Not at hex
+    rw [q.as_sum, map_sum]
+    exact sum_eq_zero fun m hm => by rw [signFunctional_monomial, hex m hm, mul_zero]
 
 private theorem signFunctional_toSign_X_mul (T : Finset E) (e : E) (p : MvPolynomial E K) :
     signFunctional ends χ T (toSign (X e * p)) =
@@ -367,15 +349,10 @@ private theorem signFunctional_toSign_exclude (h2 : (2 : K) ≠ 0)
   have hn : 2 ≤ Fintype.card V := by
     by_contra hn
     have : Subsingleton V := Fintype.card_le_one_iff_subsingleton.1 (by omega)
-    rw [Multigraph.minBalancedCut_eq_zero_of_subsingleton] at he
-    exact lt_irrefl 0 he
-  have hv : IsSmallCut ends B {v} := by
-    refine ⟨Multigraph.three_mul_card_lt_of_card_edgeCut_lt (ends := ends) ?_ ?_, ?_⟩
-    · rw [Multigraph.edgeCut_singleton, hBv]
-      omega
-    · rw [card_singleton]
-      omega
-    · rw [Multigraph.edgeCut_singleton, hBv]
+    simp [Multigraph.minBalancedCut_eq_zero_of_subsingleton] at he
+  have hcutv : Multigraph.edgeCut ends {v} = B := by rw [Multigraph.edgeCut_singleton, hBv]
+  have hv : IsSmallCut ends B {v} := ⟨Multigraph.three_mul_card_lt_of_card_edgeCut_lt
+    (ends := ends) (by rw [hcutv]; omega) (by rw [card_singleton]; omega), hcutv⟩
   -- pairing `t` with `B \ t` flips the sign of the term
   have hflip : ∀ t ∈ B.powerset,
       (∏ i ∈ B \ t, (boolSign (y i) : K)) * cutSign ends χ ((B \ t) ∆ T) =
@@ -402,11 +379,8 @@ private theorem signFunctional_toSign_exclude (h2 : (2 : K) ≠ 0)
         cutSign_of_isSmallCut hG hv, parityOn_singleton]
     have hpar : (∏ i ∈ B, (boolSign (y i) : K)) * boolSign (χ v) = -1 := by
       rw [prod_boolSign, ← boolSign_xor]
-      have : (parityOn B y ^^ χ v) = true := by
-        revert hy
-        cases parityOn B y <;> cases χ v <;> simp
-      rw [this]
-      rfl
+      revert hy
+      cases parityOn B y <;> cases χ v <;> simp [boolSign]
     rw [hprod, hsign]
     linear_combination (∏ i ∈ t, (boolSign (y i) : K)) * cutSign ends χ (t ∆ T) * hpar
   set S := ∑ t ∈ B.powerset, (∏ i ∈ t, (boolSign (y i) : K)) * cutSign ends χ (t ∆ T) with hSdef
@@ -415,9 +389,8 @@ private theorem signFunctional_toSign_exclude (h2 : (2 : K) ≠ 0)
     refine sum_nbij' (B \ ·) (B \ ·) (fun t _ => mem_powerset.2 Finset.sdiff_subset)
       (fun t _ => mem_powerset.2 Finset.sdiff_subset)
       (fun t ht => Finset.sdiff_sdiff_eq_self (mem_powerset.1 ht))
-      (fun t ht => Finset.sdiff_sdiff_eq_self (mem_powerset.1 ht)) ?_
-    intro t ht
-    rw [hflip t ht, neg_neg]
+      (fun t ht => Finset.sdiff_sdiff_eq_self (mem_powerset.1 ht))
+      fun t ht => by rw [hflip t ht, neg_neg]
   have h2S : (2 : K) * S = 0 := by linear_combination hS
   exact (mul_eq_zero.1 h2S).resolve_left h2
 
@@ -454,9 +427,7 @@ theorem minBalancedCut_le_two_mul_of_pc_refutableInDegree (h2 : (2 : K) ≠ 0)
   obtain ⟨ls, hls, h1, hdeg⟩ := h
   have hF : ∀ f ∈ (CNF.tseitinFormula ends χ).toBoolPolys K ++ boolAxioms E K,
       f.totalDegree ≤ d → f ∈ invariant K ends χ d := by
-    intro f hf hfd
-    rw [mem_invariant]
-    intro T hT
+    intro f hf hfd T hT
     rcases List.mem_append.1 hf with hf | hf
     · obtain ⟨c, hc, rfl⟩ := List.mem_map.1 hf
       obtain ⟨v, hv⟩ := CNF.mem_tseitinFormula.1 hc
@@ -468,9 +439,7 @@ theorem minBalancedCut_le_two_mul_of_pc_refutableInDegree (h2 : (2 : K) ≠ 0)
       exact signFunctional_toSign_boolAxiom h2 T e
   have hX : ∀ e, ∀ p ∈ invariant K ends χ d, (X e * p).totalDegree ≤ d →
       X e * p ∈ invariant K ends χ d := by
-    intro e p hp hpd
-    rw [mem_invariant] at hp ⊢
-    intro T hT
+    intro e p hp hpd T hT
     by_cases hp0 : p = 0
     · rw [hp0, mul_zero, map_zero, map_zero]
     have hdeg' : p.totalDegree + 1 ≤ d := by
@@ -482,12 +451,10 @@ theorem minBalancedCut_le_two_mul_of_pc_refutableInDegree (h2 : (2 : K) ≠ 0)
     rw [signFunctional_toSign_X_mul, hzero T (by omega),
       hzero _ ((card_symmDiff_le T {e}).trans (by rw [card_singleton]; omega)), sub_self,
       mul_zero]
-  have hmem := hls.mem_of_degree_le hdeg _ hF hX 1 h1
-  rw [mem_invariant] at hmem
   have hne : Nonempty V := hG.nonempty
   have hsmall : IsSmallCut ends ∅ (∅ : Finset V) :=
-    ⟨by rw [card_empty, mul_zero]; exact Fintype.card_pos, Multigraph.edgeCut_empty ends⟩
-  have h0 := hmem ∅ (by rw [card_empty]; exact Nat.zero_le d)
+    ⟨by simpa using Fintype.card_pos, Multigraph.edgeCut_empty ends⟩
+  have h0 := hls.mem_of_degree_le hdeg _ hF hX 1 h1 ∅ (Nat.zero_le d)
   rw [map_one, signFunctional_one, cutSign_of_isSmallCut hG hsmall, parityOn_empty] at h0
   exact one_ne_zero h0
 

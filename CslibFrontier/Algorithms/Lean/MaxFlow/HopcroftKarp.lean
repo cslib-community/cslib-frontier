@@ -434,10 +434,7 @@ private theorem bfsInit_nodup (ml : Vector Bool m) (l : List (Fin m))
     split_ifs with hx
     · exact ih p hl hp fun y hy => hdisj y (List.mem_cons_of_mem _ hy)
     · have hp' : (p.2 ++ [x]).Nodup :=
-        List.nodup_append.mpr ⟨hp, List.nodup_singleton x, fun a ha b hb hab => by
-          obtain rfl := List.mem_singleton.mp hb
-          subst hab
-          exact hdisj a List.mem_cons_self ha⟩
+        List.concat_eq_append ▸ hp.concat (hdisj x List.mem_cons_self)
       refine ih _ hl hp' fun y hy h => ?_
       rcases List.mem_append.mp h with h | h
       · exact hdisj y (List.mem_cons_of_mem _ hy) h
@@ -481,14 +478,8 @@ private theorem hkBfsStep_inv {j : ℕ} {u : Fin m} (hu : u ∈ altLeft G (mateM
           rcases Nat.lt_or_eq_of_le hi with hlt | rfl
           · exact absurd ((hs.exact w i (by omega)).mpr hwi) (by simp [hd])
           · exact hwi
-        have hw_not_next : w ∉ s.next := fun h => by
-          have h' := (hs.next_iff w).mpr h
-          simp [hd] at h'
-        have hnd' : (s.next ++ [w]).Nodup :=
-          List.nodup_append.mpr ⟨hs.nodup, List.nodup_singleton w, fun a ha b hb hab => by
-            obtain rfl := List.mem_singleton.mp hb
-            subst hab
-            exact hw_not_next ha⟩
+        have hw_not_next : w ∉ s.next := fun h => by simpa [hd] using (hs.next_iff w).mpr h
+        have hnd' : (s.next ++ [w]).Nodup := List.concat_eq_append ▸ hs.nodup.concat hw_not_next
         refine ⟨fun x i hi => ?_, fun x i hx => ?_, fun x => ?_,
           fun x hx => (List.mem_append.mp hx).elim (hs.next_layer x)
             fun hx => List.mem_singleton.mp hx ▸ hwl,

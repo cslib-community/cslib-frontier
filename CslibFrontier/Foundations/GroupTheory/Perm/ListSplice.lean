@@ -27,6 +27,10 @@ open Equiv
 
 variable {α : Type*} [DecidableEq α]
 
+private theorem formPerm_append_comm {u v : List α} (h : (u ++ v).Nodup) :
+    (u ++ v).formPerm = (v ++ u).formPerm :=
+  List.formPerm_eq_of_isRotated h List.isRotated_append
+
 /-- Joining the outgoing successors of the last points concatenates the directed words.
 Only the last left point must be absent from the right word; no ambient finiteness is needed. -/
 theorem formPerm_append_of_last_notMem (left right : List α) (hl : left ≠ []) (hr : right ≠ [])
@@ -59,22 +63,15 @@ theorem formPerm_split_adjacent_pair (left right : List α) (a b : α) (hl : lef
     ((left ++ [a, b]) ++ right).formPerm =
       (left ++ right).formPerm * Equiv.swap a b * Equiv.swap (left.getLast hl) b := by
   have hrot : ((right ++ left) ++ [a, b]).Nodup := by
-    simpa only [List.append_assoc] using
-      (List.perm_append_comm (l₁ := left ++ [a, b]) (l₂ := right)).nodup_iff.mp hn
+    simpa only [List.append_assoc] using List.perm_append_comm.nodup_iff.mp hn
   have hsplit := List.nodup_append'.mp hrot
   have hrest : right ++ left ≠ [] := by simp [hl]
-  have hnot : (right ++ left).getLast hrest ∉ [a, b] := by
-    intro hm
-    exact List.disjoint_left.mp hsplit.2.2 (List.getLast_mem _) hm
-  have hword : ((left ++ [a, b]) ++ right).formPerm =
-      ((right ++ left) ++ [a, b]).formPerm := by
-    simpa only [List.append_assoc] using
-      List.formPerm_eq_of_isRotated hn (List.isRotated_append (l := left ++ [a, b]))
-  rw [hword, formPerm_append_of_last_notMem _ _ hrest (by simp) hnot,
-    List.formPerm_pair, List.getLast_append_of_ne_nil _ hl]
-  have hrem := List.formPerm_eq_of_isRotated hsplit.1
-    (List.isRotated_append (l := right) (l' := left))
-  simp only [hrem, List.getLast_cons_cons, List.getLast_singleton]
+  have hword : ((left ++ [a, b]) ++ right).formPerm = ((right ++ left) ++ [a, b]).formPerm := by
+    simpa only [List.append_assoc] using formPerm_append_comm hn
+  rw [hword, formPerm_append_of_last_notMem _ _ hrest (by simp)
+      (List.disjoint_left.mp hsplit.2.2 (List.getLast_mem _)),
+    formPerm_append_comm hsplit.1, List.formPerm_pair, List.getLast_append_of_ne_nil _ hl,
+    List.getLast_cons_cons, List.getLast_singleton]
 
 -- After deleting one letter, its predecessor continues with its old successor.
 private theorem formPerm_skip_letter (left right : List α) (b x y : α)

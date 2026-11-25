@@ -26,7 +26,9 @@ the convention does not matter: `Cslib.Circuits.Arithmetic.mem_VP_iff` character
 
 A polynomial is *affine* (`IsAffine`) when it is a constant or `a * X i + b`, and `P` is an *affine
 projection* of `Q` (`IsAffineProjection`) when `P` arises from `Q` by substituting an affine
-polynomial for every variable. Substituting affine polynomials into a circuit costs at most four
+polynomial for every variable. Affine polynomials have total degree at most `1`
+(`IsAffine.totalDegree_le`), and substituting affine polynomials into one gives an affine
+polynomial (`IsAffine.aeval`). Substituting affine polynomials into a circuit costs at most four
 gates for each input, hence at most a factor five (`ComputedWithin.of_isAffineProjection`).
 
 ## Main definitions
@@ -45,6 +47,8 @@ gates for each input, hence at most a factor five (`ComputedWithin.of_isAffinePr
   `Cslib.Circuits.Arithmetic.ComputedWithin.sum`, `Cslib.Circuits.Arithmetic.ComputedWithin.prod`,
   `Cslib.Circuits.Arithmetic.ComputedWithin.rename`, `Cslib.Circuits.Arithmetic.ComputedWithin.map`:
   closure properties.
+* `Cslib.Circuits.Arithmetic.IsAffine.totalDegree_le`, `Cslib.Circuits.Arithmetic.IsAffine.aeval`:
+  affine polynomials have degree at most `1` and are closed under affine substitutions.
 * `Cslib.Circuits.Arithmetic.ComputedWithin.of_isAffineProjection`: affine projections cost at
   most a factor five.
 * `Cslib.Circuits.Arithmetic.mem_VP_iff`: `VP` in terms of `ComputedWithin`.
@@ -254,6 +258,25 @@ end ComputedWithin
 /-- `P` is *affine*: a constant, or a constant multiple of a variable plus a constant. -/
 @[expose] def IsAffine (P : MvPolynomial σ K) : Prop :=
   (∃ b, P = C b) ∨ ∃ i a b, P = C a * X i + C b
+
+/-- An affine polynomial has total degree at most `1`. -/
+theorem IsAffine.totalDegree_le {P : MvPolynomial σ K} (hP : IsAffine P) : P.totalDegree ≤ 1 := by
+  rcases hP with ⟨b, rfl⟩ | ⟨i, a, b, rfl⟩
+  · simp
+  · refine (totalDegree_add _ _).trans (max_le ?_ (by simp))
+    rw [C_mul_X_eq_monomial]
+    exact (totalDegree_monomial_le _ _).trans (by simp)
+
+/-- Substituting affine polynomials into an affine polynomial gives an affine polynomial. -/
+theorem IsAffine.aeval {P : MvPolynomial τ K} (hP : IsAffine P) {ρ : τ → MvPolynomial σ K}
+    (hρ : ∀ i, IsAffine (ρ i)) : IsAffine (aeval ρ P) := by
+  rcases hP with ⟨b, rfl⟩ | ⟨i, a, b, rfl⟩
+  · exact .inl ⟨b, aeval_C _ _⟩
+  have h : MvPolynomial.aeval ρ (C a * X i + C b) = C a * ρ i + C b := by
+    simp only [map_add, map_mul, aeval_C, aeval_X, algebraMap_eq]
+  rcases hρ i with ⟨b', hb'⟩ | ⟨j, a', b', hb'⟩
+  · exact .inl ⟨a * b' + b, by rw [h, hb', C_add, C_mul]⟩
+  · exact .inr ⟨j, a * a', a * b' + b, by rw [h, hb', C_add, C_mul, C_mul]; ring⟩
 
 /-- `P` is an *affine projection* of `Q`: substituting an affine polynomial for every variable of
 `Q` gives `P`. -/

@@ -106,12 +106,9 @@ theorem eval_runClosedConfigFrom_succ_of_step (N : MultiTapePTM k' Symbol S')
       ProbComp.eval (N.runClosedConfigFrom fuel c') := by
   rw [eval_runClosedConfigFrom_eq_map_coins, eval_runClosedConfigFrom_eq_map_coins,
     BitString.uniformList_succ, PMF.map_bind]
-  simp only [PMF.map_comp, Function.comp_def]
-  have hcons (bit : Bool) (coins : List Bool) :
-      N.runClosedConfigFromCoins (bit :: coins) c = N.runClosedConfigFromCoins coins c' := by
-    change N.runClosedConfigFromCoins coins ((N.withCoin bit).step c) = _
-    rw [h]
-  simp only [hcons, PMF.bind_const]
+  simp only [PMF.map_comp, Function.comp_def, show ∀ bit coins,
+    N.runClosedConfigFromCoins (bit :: coins) c = N.runClosedConfigFromCoins coins c' from
+      fun bit coins => congrArg (N.runClosedConfigFromCoins coins) (h bit), PMF.bind_const]
 
 
 end Simulation
@@ -228,22 +225,18 @@ private theorem workTapeSymbols_embed₁ (c : Cfg k₁ Bool S₁ input) (i : Fin
 private theorem apply_trackAction (c : Cfg k₁ Bool S₁ input) (hc : c.state.isSome = true)
     (a : Turing.Action k₁ Bool S₁) :
     (trackAction (k₂ := k₂) (outClass c.output) a).apply (embed₁ k₂ c) = embed₁ k₂ (a.apply c) := by
-  have hnone : c.state.isNone = false := by simpa [Option.isNone_iff_eq_none,
-    Option.isSome_iff_ne_none] using hc
-  refine Cfg.ext ?_ rfl ?_ ?_ ?_
-  · simp [trackAction, embed₁, outClass_append]
-  · apply funext_layout
-    · intro i
-      simp [trackAction, embed₁, Turing.Action.apply_workTapes]
-    · intro j
-      simp [trackAction, embed₁, Turing.Action.apply_workTapes]
-    · simp only [trackAction, embed₁, flagOf, Turing.Action.apply_workTapes, layout_flagTape,
-        hnone, Bool.false_eq_true, false_and, ite_false, Turing.Action.apply_state,
-        Turing.Action.apply_output, outClass_append, outClass_eq_some_true]
-      split_ifs <;> rfl
+  have hnone : c.state.isNone = false := by
+    simpa [Option.isNone_iff_eq_none, Option.isSome_iff_ne_none] using hc
+  refine Cfg.ext (by simp [trackAction, embed₁, outClass_append]) rfl ?_ ?_
+    (by simp [trackAction, embed₁])
+  · refine funext_layout (fun _ => by simp [trackAction, embed₁, Turing.Action.apply_workTapes])
+      (fun _ => by simp [trackAction, embed₁, Turing.Action.apply_workTapes]) ?_
+    simp only [trackAction, embed₁, flagOf, Turing.Action.apply_workTapes, layout_flagTape,
+      hnone, Bool.false_eq_true, false_and, ite_false, Turing.Action.apply_state,
+      Turing.Action.apply_output, outClass_append, outClass_eq_some_true]
+    split_ifs <;> rfl
   · apply funext_layout <;> simp only [trackAction, embed₁, Turing.Action.apply_workTapePos,
       layout_tape₁, layout_tape₂, layout_flagTape] <;> (try split_ifs) <;> simp
-  · simp [trackAction, embed₁]
 
 /-- Lift a map of tapes to configurations without oracle channels. -/
 private def liftCfg {k k' : ℕ} {S S' : Type} (f : Cfg k Bool S input → Cfg k' Bool S' input)
@@ -258,16 +251,15 @@ private theorem step_track (first : MultiTapePTM k₁ Bool S₁) (bit : Bool)
   cases hs : c.tapes.state with
   | none => simp [MultiTapeMachine.step, liftCfg, embed₁, hs]
   | some q =>
-    have hans : (liftCfg (embed₁ k₂) c).answerSymbols = c.answerSymbols := Subsingleton.elim _ _
-    have hwork : (fun i => (liftCfg (embed₁ k₂) c).tapes.workTapeSymbols (tape₁ k₂ i)) =
-        c.tapes.workTapeSymbols := funext fun i => workTapeSymbols_embed₁ c.tapes i
     have hstate : (liftCfg (embed₁ k₂) c).tapes.state = some (q, outClass c.tapes.output) := by
       simp [liftCfg, embed₁, hs]
-    have hinput : (liftCfg (embed₁ k₂) c).tapes.inputSymbol = c.tapes.inputSymbol := rfl
-    simp only [MultiTapeMachine.step, hstate, hs, withCoin, track, hans, hwork, hinput]
+    simp only [MultiTapeMachine.step, hstate, hs, withCoin, track,
+      Subsingleton.elim (liftCfg (embed₁ k₂) c).answerSymbols c.answerSymbols,
+      show (fun i => (liftCfg (embed₁ k₂) c).tapes.workTapeSymbols (tape₁ k₂ i)) =
+        c.tapes.workTapeSymbols from funext (workTapeSymbols_embed₁ c.tapes),
+      show (liftCfg (embed₁ k₂) c).tapes.inputSymbol = c.tapes.inputSymbol from rfl]
     cases first.tr q c.tapes.inputSymbol c.tapes.workTapeSymbols c.answerSymbols bit with
-    | step a querySymbol move =>
-      exact apply_trackAction c.tapes (by simp [hs]) a
+    | step a _ _ => exact apply_trackAction c.tapes (by simp [hs]) a
     | query op _ => exact op.elim
 
 /-! ### The second phase -/
@@ -348,16 +340,15 @@ private theorem step_cont_embed₂ (second : MultiTapePTM k₂ Bool S₂) (bit :
   cases hs : c.tapes.state with
   | none => simp [MultiTapeMachine.step, liftCfg, embed₂, hs]
   | some q =>
-    have hans : (liftCfg (embed₂ W P F) c).answerSymbols = c.answerSymbols :=
-      Subsingleton.elim _ _
-    have hwork : (fun j => (liftCfg (embed₂ W P F) c).tapes.workTapeSymbols (tape₂ k₁ j)) =
-        c.tapes.workTapeSymbols := funext fun j => by simp [liftCfg, embed₂, Cfg.workTapeSymbols]
     have hstate : (liftCfg (embed₂ W P F) c).tapes.state = some (.inr q) := by
       simp [liftCfg, embed₂, hs]
-    have hinput : (liftCfg (embed₂ W P F) c).tapes.inputSymbol = c.tapes.inputSymbol := rfl
-    simp only [MultiTapeMachine.step, hstate, hs, withCoin, cont, hans, hwork, hinput]
+    simp only [MultiTapeMachine.step, hstate, hs, withCoin, cont,
+      Subsingleton.elim (liftCfg (embed₂ W P F) c).answerSymbols c.answerSymbols,
+      show (fun j => (liftCfg (embed₂ W P F) c).tapes.workTapeSymbols (tape₂ k₁ j)) =
+        c.tapes.workTapeSymbols from funext fun _ => by simp [liftCfg, embed₂, Cfg.workTapeSymbols],
+      show (liftCfg (embed₂ W P F) c).tapes.inputSymbol = c.tapes.inputSymbol from rfl]
     cases second.tr q c.tapes.inputSymbol c.tapes.workTapeSymbols c.answerSymbols bit with
-    | step a querySymbol move => exact apply_secondAction W P F c.tapes a
+    | step a _ _ => exact apply_secondAction W P F c.tapes a
     | query op _ => exact op.elim
 
 private theorem step_cont_check (second : MultiTapePTM k₂ Bool S₂) (bit : Bool)
@@ -400,28 +391,20 @@ private theorem eval_cont_rewind (second : MultiTapePTM k₂ Bool S₂) (out : L
           out) })
   | 0, pos, hpos, _ => by
     obtain rfl : pos = 0 := Fin.ext hpos
-    rw [eval_runClosedConfigFrom_succ_of_step _ fun bit => step_cont_rewind W P F second bit 0 out]
-    have hsym : (ctrl (k₂ := k₂) (S₂ := S₂) W P F (some true) (0 : Fin (input.length + 2))
-        out).inputSymbol = none := by
-      simp [Cfg.inputSymbol, ctrl]
-    have hmove : moveInputPos (0 : Fin (input.length + 2)) 1 = 1 := by
-      apply Fin.ext
-      simp [moveInputPos]
-    rw [hsym]
+    rw [eval_runClosedConfigFrom_succ_of_step _ fun bit => step_cont_rewind W P F second bit 0 out,
+      show (ctrl (k₂ := k₂) (S₂ := S₂) W P F (some true) (0 : Fin (input.length + 2))
+        out).inputSymbol = none by simp [Cfg.inputSymbol, ctrl]]
     dsimp only
-    rw [hmove]
+    rw [show moveInputPos (0 : Fin (input.length + 2)) 1 = 1 from Fin.ext (by simp [moveInputPos])]
   | q + 1, pos, hpos, hq => by
     rw [show m + (q + 1 + 1) = m + (q + 1) + 1 from rfl,
-      eval_runClosedConfigFrom_succ_of_step _ fun bit => step_cont_rewind W P F second bit pos out]
-    have hsym : (ctrl (k₂ := k₂) (S₂ := S₂) W P F (some true) pos out).inputSymbol =
-        some input[q] := inputSymbolInner q (by simp [ctrl, hpos]; omega) (by omega)
-    have hne : pos ≠ 0 := fun h => by simp [h] at hpos
-    rw [hsym]
+      eval_runClosedConfigFrom_succ_of_step _ fun bit => step_cont_rewind W P F second bit pos out,
+      show (ctrl (k₂ := k₂) (S₂ := S₂) W P F (some true) pos out).inputSymbol = some input[q] from
+        inputSymbolInner q (by simp [ctrl, hpos]; omega) (by omega)]
     dsimp only
     exact eval_cont_rewind second out m q _
-      (by
-        rw [show (-1 : SignType) = .neg from rfl, moveInputPos_neg_of_ne_left pos hne]
-        simp [hpos])
+      (by rw [show (-1 : SignType) = .neg from rfl,
+            moveInputPos_neg_of_ne_left pos (fun h => by simp [h] at hpos)]; simp [hpos])
       (by omega)
 
 /-- If the flag is set, the second phase accepts in one step. -/
@@ -595,39 +578,31 @@ private theorem reachable_ctrl_step (bit : Bool) (coins : List Bool) (W : Fin k�
   | false =>
     rw [step_cont_check]
     split_ifs
-    · exact Or.inr (Or.inr (Or.inl ⟨coins, W, F, pos, _, rfl⟩))
-    · refine Or.inr (Or.inl ⟨coins, W, F, true, _, rfl, fun _ => ?_⟩)
+    · exact .inr (.inr (.inl ⟨coins, W, F, pos, _, rfl⟩))
+    · refine .inr (.inl ⟨coins, W, F, true, _, rfl, fun _ => ?_⟩)
       have := val_moveInputPos_eq pos (-1)
       have := pos.isLt
-      simp only [SignType.cast] at *
-      omega
+      simp only [SignType.cast] at *; omega
   | true =>
     rw [step_cont_rewind]
     by_cases h0 : pos = 0
     · subst h0
-      have hsym : (ctrl (k₂ := k₂) (S₂ := S₂) W (reach first input coins).tapes.workTapePos F
-          (some true) (0 : Fin (input.length + 2)) []).inputSymbol = none := by
-        simp [Cfg.inputSymbol, ctrl]
-      have hmove : moveInputPos (0 : Fin (input.length + 2)) 1 = 1 := by
-        apply Fin.ext
-        simp [moveInputPos]
-      rw [hsym]
+      rw [show (ctrl (k₂ := k₂) (S₂ := S₂) W (reach first input coins).tapes.workTapePos F
+        (some true) (0 : Fin (input.length + 2)) []).inputSymbol = none by
+          simp [Cfg.inputSymbol, ctrl]]
       dsimp only
-      rw [hmove]
-      exact Or.inr (Or.inr (Or.inr ⟨coins, W, F, [], rfl⟩))
+      rw [show moveInputPos (0 : Fin (input.length + 2)) 1 = 1 from
+        Fin.ext (by simp [moveInputPos])]
+      exact .inr (.inr (.inr ⟨coins, W, F, [], rfl⟩))
     · have hp := hpos rfl
-      have hval : pos.val = 1 + (pos.val - 1) := by
-        have : pos.val ≠ 0 := fun h => h0 (Fin.ext h)
-        omega
-      have hsym : (ctrl (k₂ := k₂) (S₂ := S₂) W (reach first input coins).tapes.workTapePos F
-          (some true) pos []).inputSymbol = some input[pos.val - 1] :=
-        inputSymbolInner _ hval (by omega)
-      rw [hsym]
+      have hne : pos.val ≠ 0 := fun h => h0 (Fin.ext h)
+      rw [show (ctrl (k₂ := k₂) (S₂ := S₂) W (reach first input coins).tapes.workTapePos F
+        (some true) pos []).inputSymbol = some input[pos.val - 1] from
+          inputSymbolInner _ (by simp [ctrl]; omega) (by omega)]
       dsimp only
-      refine Or.inr (Or.inl ⟨coins, W, F, true, _, rfl, fun _ => ?_⟩)
+      refine .inr (.inl ⟨coins, W, F, true, _, rfl, fun _ => ?_⟩)
       rw [show (-1 : SignType) = .neg from rfl, moveInputPos_neg_of_ne_left pos h0]
-      simp only
-      omega
+      simp only; omega
 
 private theorem reachable_step (bit : Bool) {c} (hc : Reachable first second input c) :
     Reachable first second input (((first.orElse second).withCoin bit).step c) := by
@@ -636,17 +611,14 @@ private theorem reachable_step (bit : Bool) {c} (hc : Reachable first second inp
   · by_cases hrun : (reach first input coins).tapes.state = none
     · rw [Sequential.left_halted _ _ (by simp [liftCfg, embed₁, hrun])]
       exact reachable_ctrl_step first second input bit coins _ _ false _ (by simp)
-    · left
-      refine ⟨coins ++ [bit], ?_⟩
-      rw [orElse, step_withCoin_seq_left _ _ _ _ (by simpa [liftCfg, embed₁] using hrun),
-        step_track, reach_append]
+    · exact .inl ⟨coins ++ [bit], by
+        rw [orElse, step_withCoin_seq_left _ _ _ _ (by simpa [liftCfg, embed₁] using hrun),
+          step_track, reach_append]⟩
   · exact reachable_ctrl_step first second input bit coins W F b pos hpos
-  · right; right; left
-    refine ⟨coins, W, F, pos, out, ?_⟩
-    simp [MultiTapeMachine.step, Sequential.right, Cfg.mapState, ctrl]
-  · right; right; right
-    refine ⟨coins, W, F, coins₂ ++ [bit], ?_⟩
-    rw [orElse, step_withCoin_seq_right, step_cont_embed₂, reach_append]
+  · exact .inr (.inr (.inl ⟨coins, W, F, pos, out,
+      by simp [MultiTapeMachine.step, Sequential.right, Cfg.mapState, ctrl]⟩))
+  · exact .inr (.inr (.inr ⟨coins, W, F, coins₂ ++ [bit],
+      by rw [orElse, step_withCoin_seq_right, step_cont_embed₂, reach_append]⟩))
 
 private theorem reachable_runClosedConfigFromCoins (coins : List Bool) :
     ∀ c, Reachable first second input c →
@@ -677,18 +649,11 @@ private theorem workTapePos_mem_window_of_reachable {s₁ s₂ : ℕ}
   have h₂ (coins : List Bool) (j : Fin k₂) :
       (reach second input coins).tapes.workTapePos j ∈ window (max s₁ s₂) :=
     hmono (workTapePos_runClosedCoins_mem_window second hs₂ coins j) (le_max_right _ _)
+  revert i
   rcases hc with ⟨coins, rfl⟩ | ⟨coins, W, F, b, pos, rfl, -⟩ | ⟨coins, W, F, pos, out, rfl⟩ |
-    ⟨coins, W, F, coins₂, rfl⟩
-  · revert i
-    refine forall_layout ?_ ?_ ?_ <;>
-      simp [Sequential.left, Cfg.mapState, liftCfg, embed₁, h₁, hzero]
-  · revert i
-    refine forall_layout ?_ ?_ ?_ <;> simp [Sequential.right, Cfg.mapState, ctrl, h₁, hzero]
-  · revert i
-    refine forall_layout ?_ ?_ ?_ <;> simp [Sequential.right, Cfg.mapState, ctrl, h₁, hzero]
-  · revert i
-    refine forall_layout ?_ ?_ ?_ <;>
-      simp [Sequential.right, Cfg.mapState, liftCfg, embed₂, h₁, h₂, hzero]
+    ⟨coins, W, F, coins₂, rfl⟩ <;> refine forall_layout ?_ ?_ ?_ <;>
+    simp [Sequential.left, Sequential.right, Cfg.mapState, liftCfg, embed₁, embed₂, ctrl,
+      h₁, h₂, hzero]
 
 end OrElse
 

@@ -205,10 +205,8 @@ theorem editDist_comap_equiv [Finite V] {W : Type*} [Finite W] (e : V ≃ W) (G 
 sets. -/
 theorem editDist_eq_card [Fintype V] [DecidableEq V] (G H : SimpleGraph V) [DecidableRel G.Adj]
     [DecidableRel H.Adj] : editDist G H = #(symmDiff G.edgeFinset H.edgeFinset) := by
-  have he : (symmDiff G H).edgeSet = ↑(symmDiff G.edgeFinset H.edgeFinset) := by
-    rw [Finset.coe_symmDiff, SimpleGraph.coe_edgeFinset, SimpleGraph.coe_edgeFinset,
-      SimpleGraph.edgeSet_symmDiff]
-  rw [editDist, Nat.card_coe_set_eq, he, Set.ncard_coe_finset]
+  rw [editDist, Nat.card_coe_set_eq, SimpleGraph.edgeSet_symmDiff, ← SimpleGraph.coe_edgeFinset,
+    ← SimpleGraph.coe_edgeFinset, ← Finset.coe_symmDiff, Set.ncard_coe_finset]
 
 /-- Deleting a set `s` of edges of `G` changes exactly the pairs in `s`. -/
 theorem editDist_deleteEdges [Fintype V] (G : SimpleGraph V) [DecidableRel G.Adj]
@@ -243,10 +241,8 @@ variable {G : SimpleGraph V} [DecidableRel G.Adj] {P : SimpleGraph V → Prop}
 /-- An `ε`-far graph is `ε n²`-delete-far: at least `ε n²` edges must be deleted to reach the
 property. -/
 theorem IsFar.deleteFar {ε : ℝ} (h : IsFar G P ε) :
-    G.DeleteFar P (ε * (Fintype.card V ^ 2 : ℕ)) := fun s hs hP => by
-  have h₁ := h _ hP
-  rw [editDist_deleteEdges G hs] at h₁
-  exact h₁.le
+    G.DeleteFar P (ε * (Fintype.card V ^ 2 : ℕ)) := fun _ hs hP =>
+  (editDist_deleteEdges G hs ▸ h _ hP).le
 
 /-- A graph `ε`-far from triangle-free is `ε`-far from triangle-free in the sense of Mathlib's
 triangle removal lemma. -/
@@ -261,24 +257,20 @@ theorem isFar_of_deleteFar (hP : ∀ ⦃H H' : SimpleGraph V⦄, H ≤ H' → P 
     (h : G.DeleteFar P r) (hr : ε * (Fintype.card V ^ 2 : ℕ) < r) : IsFar G P ε := by
   intro H hH
   classical
-  have hdel : P (G.deleteEdges (G.edgeFinset \ H.edgeFinset : Finset (Sym2 V))) := by
-    refine hP (fun u v huv => ?_) hH
-    rw [SimpleGraph.deleteEdges_adj] at huv
-    obtain ⟨hG, hn⟩ := huv
-    by_contra hH'
-    exact hn (by simp [hG, hH'])
-  have h₁ := h Finset.sdiff_subset hdel
-  have h₂ : #(G.edgeFinset \ H.edgeFinset) ≤ editDist G H := by
+  have h₁ := h (s := G.edgeFinset \ H.edgeFinset) Finset.sdiff_subset <| hP (fun u v huv => by
+    obtain ⟨hG, hn⟩ := SimpleGraph.deleteEdges_adj.mp huv
+    exact Classical.byContradiction fun hH' => hn (by simp [hG, hH'])) hH
+  have h₂ : (#(G.edgeFinset \ H.edgeFinset) : ℝ) ≤ editDist G H := by
     rw [editDist_eq_card]
-    exact Finset.card_le_card fun e he => Finset.mem_symmDiff.mpr (Or.inl (Finset.mem_sdiff.mp he))
-  have h₃ : (#(G.edgeFinset \ H.edgeFinset) : ℝ) ≤ editDist G H := by exact_mod_cast h₂
+    exact_mod_cast Finset.card_le_card fun _ he =>
+      Finset.mem_symmDiff.mpr (.inl (Finset.mem_sdiff.mp he))
   linarith
 
 /-- On a nonempty vertex set, being `ε'`-far from triangle-free in the sense of Mathlib implies
 being `ε`-far from triangle-free for every `ε < ε'`. -/
 theorem isFar_of_farFromTriangleFree [Nonempty V] {ε ε' : ℝ} (h : G.FarFromTriangleFree ε')
     (hεε' : ε < ε') : IsFar G (fun H => H.CliqueFree 3) ε := by
-  refine isFar_of_deleteFar (fun H H' hle hH' => hH'.anti hle) h ?_
+  refine isFar_of_deleteFar (fun _ _ hle hH' => hH'.anti hle) h ?_
   have hn : (0 : ℝ) < (Fintype.card V ^ 2 : ℕ) := by
     have := Fintype.card_pos (α := V)
     positivity

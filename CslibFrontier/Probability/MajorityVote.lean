@@ -48,17 +48,11 @@ theorem card_filter_card_filter_le_of_err_lt_half {Ω : Type*} [Fintype Ω] [Dec
       (Finset.univ.filter fun i => ω i ∈ G).card ≤ r).card : ℝ) ≤
       (4 * ε * (1 - ε)) ^ r * (Fintype.card Ω : ℝ) ^ (2 * r) := by
   rcases r.eq_zero_or_pos with rfl | hr_pos
-  · have hcard : (Finset.univ.filter fun ω : Fin (2 * 0) → Ω =>
-        (Finset.univ.filter fun i => ω i ∈ G).card ≤ 0).card ≤ 1 :=
-      (Finset.card_filter_le _ _).trans (by simp)
-    simp only [Nat.mul_zero, pow_zero, mul_one]
-    exact_mod_cast hcard
+  · simp only [Nat.mul_zero, pow_zero, mul_one]
+    exact_mod_cast (Finset.card_filter_le _ _).trans (by simp)
   rcases isEmpty_or_nonempty Ω with hEmpty | hNonempty
   · have : IsEmpty (Fin (2 * r) → Ω) := ⟨fun f => hEmpty.false (f ⟨0, by omega⟩)⟩
-    have hcard0 : (Finset.univ.filter fun ω : Fin (2 * r) → Ω =>
-        (Finset.univ.filter fun i => ω i ∈ G).card ≤ r).card = 0 :=
-      Nat.eq_zero_of_le_zero ((Finset.card_filter_le _ _).trans (by simp))
-    rw [hcard0, Nat.cast_zero]
+    simp only [Finset.univ_eq_empty, Finset.filter_empty, Finset.card_empty, Nat.cast_zero]
     exact mul_nonneg (pow_nonneg (by nlinarith) r) (by positivity)
   classical
   set N := Fintype.card Ω
@@ -69,19 +63,17 @@ theorem card_filter_card_filter_le_of_err_lt_half {Ω : Type*} [Fintype Ω] [Dec
     have h1 : ((Probability.PMF.uniformOfFintype Ω).map bad) true =
         (Probability.PMF.uniformOfFintype Ω).toOuterMeasure {x | x ∉ G} := by
       rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
-      congr 1
-      ext x
+      congr 1 with x
       simp [bad]
     rw [h1, Probability.PMF.toOuterMeasure_uniformOfFintype_toReal]
     rfl
-  have hcard_compl : (Finset.univ.filter (· ∉ G)).card + G.card = N := by
+  have hcard_compl : ((Finset.univ.filter (· ∉ G)).card : ℝ) + G.card = N := by
     have h := Finset.card_filter_add_card_filter_not (s := (Finset.univ : Finset Ω)) (· ∈ G)
     rw [Finset.filter_mem_eq_inter, Finset.univ_inter, Finset.card_univ] at h
+    norm_cast
     omega
   have hq_le : (((Probability.PMF.uniformOfFintype Ω).map bad) true).toReal ≤ ε := by
     rw [hq_eq, div_le_iff₀ hN_pos]
-    have hcomplR : ((Finset.univ.filter (· ∉ G)).card : ℝ) + G.card = N := by
-      exact_mod_cast hcard_compl
     linarith
   have hiid := Probability.PMF.iid_card_ge_le hq_le hε₁.le r
   rw [Probability.PMF.iid_map, Probability.PMF.iid_uniformOfFintype,

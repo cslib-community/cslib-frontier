@@ -359,8 +359,7 @@ theorem eval_fieldCircuit (hm : Nat.size x.length ≤ s + cb + tb) (idx : ℕ)
   have hout : ((fieldCircuit (n := n) (T := T) hm).outputs w).toNat = w := by
     have h := congrArg Prod.snd (code_fieldCircuit (n := n) (T := T) hm)
     simp only [Circuit.code] at h
-    have := congrArg (fun l => l[w.val]?) h
-    simpa using this
+    simpa using congrArg (fun l => l[w.val]?) h
   rw [Circuit.eval_eq_evalOutput, code_fieldCircuit, hout, evalOutput]
   exact getD_evalCode_fieldGates hm idx (by simpa [aWidth] using w.isLt)
 
@@ -375,8 +374,7 @@ variable {s cb tb : ℕ} {x : List Bool} {n T : ℕ}
 theorem fieldVal_constW (idx : ℕ) (b : Bool) :
     fieldVal s cb tb x n T idx (constW (4 + (s + cb + tb)) b) = b := by
   cases b
-  · exact fieldVal_false idx
-  · exact fieldVal_true idx
+  exacts [fieldVal_false idx, fieldVal_true idx]
 
 theorem fieldVal_bitW (idx : ℕ) {off w q : ℕ} (h : off + w ≤ 4 + (s + cb + tb)) :
     fieldVal s cb tb x n T idx (bitW (4 + (s + cb + tb)) off w q) =
@@ -416,11 +414,8 @@ theorem div_mod_eq_timeOf {idx : ℕ} (hidx : idx < 2 ^ (4 + (s + cb + tb))) :
   have h₁ : idx / 2 ^ (4 + s + cb) = timeOf s cb (idx / 16) := by
     rw [timeOf, Nat.pow_add, Nat.pow_add, ← Nat.div_div_eq_div_mul, ← Nat.div_div_eq_div_mul]
   rw [h₁, Nat.mod_eq_of_lt]
-  rw [← h₁]
-  apply Nat.div_lt_of_lt_mul
-  rw [← Nat.pow_add]
-  calc idx < 2 ^ (4 + (s + cb + tb)) := hidx
-    _ = 2 ^ (4 + s + cb + tb) := by congr 1; omega
+  rw [← h₁, Nat.div_lt_iff_lt_mul (Nat.two_pow_pos _), ← Nat.pow_add]
+  exact hidx.trans_eq (by congr 1; omega)
 
 theorem fieldVal_borrowC (idx : ℕ) {q : ℕ} (hq : q ≤ s + cb + tb) :
     fieldVal s cb tb x n T idx (chainW (4 + (s + cb + tb)) (s + cb + tb) 0 q) =
@@ -537,10 +532,8 @@ theorem fieldVal_keyWire_chain (idx : ℕ) {k : ℕ} (hk : k < 14) (hP : 1 ≤ s
       chainVal (chain s cb tb x.length n T k) idx (s + cb + tb) := by
   have h := fieldVal_chain (x := x) (n := n) (T := T) idx hk
     (show s + cb + tb - 1 < s + cb + tb by omega)
-  rw [Nat.sub_add_cancel hP] at h
-  simp only [keyWire, show ¬ 4 + s + k < 4 + s by omega, ↓reduceIte,
-    show 4 + s + k - (4 + s) = k by omega]
-  exact h
+  simpa only [keyWire, show ¬ 4 + s + k < 4 + s by omega, ↓reduceIte,
+    show 4 + s + k - (4 + s) = k by omega, Nat.sub_add_cancel hP] using h
 
 /-- **The key read by the constant stage is the key of the fields** of the clause number. -/
 theorem ofBits_keyWire {idx : ℕ} (hidx : idx < 2 ^ (4 + (s + cb + tb))) (hs : 1 ≤ s)
@@ -563,26 +556,21 @@ theorem ofBits_keyWire {idx : ℕ} (hidx : idx < 2 ^ (4 + (s + cb + tb))) (hs : 
   have hc : colOf s cb (idx / 16) < 2 ^ cb := Nat.mod_lt _ (Nat.two_pow_pos _)
   have ht : timeOf s cb (idx / 16) < 2 ^ tb := by
     rw [← div_mod_eq_timeOf hidx]; exact Nat.mod_lt _ (Nat.two_pow_pos _)
-  have hp : idx / 16 < 2 ^ (s + cb + tb) := by
-    apply Nat.div_lt_of_lt_mul
-    calc idx < 2 ^ (4 + (s + cb + tb)) := hidx
-      _ = 16 * 2 ^ (s + cb + tb) := by rw [Nat.pow_add]
+  have hp : idx / 16 < 2 ^ (s + cb + tb) :=
+    Nat.div_lt_of_lt_mul (hidx.trans_eq (by rw [Nat.pow_add]))
   have h1 : 1 < 2 ^ (s + cb + tb) := Nat.one_lt_two_pow (by omega)
   have hcv (gt : Bool) (K : ℕ) (e : Bool) (hK : K < 2 ^ (s + cb + tb)) :
       cmp gt (idx / 2 ^ (4 + s) % 2 ^ cb % 2 ^ (s + cb + tb)) (K % 2 ^ (s + cb + tb)) e =
         cmp gt (colOf s cb (idx / 16)) K e := by
-    rw [div_mod_eq_colOf]
-    exact cmp_mod_of_lt (by omega) hK
+    rw [div_mod_eq_colOf]; exact cmp_mod_of_lt (by omega) hK
   have htv (gt : Bool) (K : ℕ) (e : Bool) (hK : K < 2 ^ (s + cb + tb)) :
       cmp gt (idx / 2 ^ (4 + s + cb) % 2 ^ tb % 2 ^ (s + cb + tb)) (K % 2 ^ (s + cb + tb)) e =
         cmp gt (timeOf s cb (idx / 16)) K e := by
-    rw [div_mod_eq_timeOf hidx]
-    exact cmp_mod_of_lt (by omega) hK
+    rw [div_mod_eq_timeOf hidx]; exact cmp_mod_of_lt (by omega) hK
   have hpv (gt : Bool) (K : ℕ) (e : Bool) (hK : K < 2 ^ (s + cb + tb)) :
       cmp gt (idx / 2 ^ 4 % 2 ^ (s + cb + tb) % 2 ^ (s + cb + tb)) (K % 2 ^ (s + cb + tb)) e =
         cmp gt (idx / 16) K e := by
-    rw [Nat.mod_mod]
-    exact cmp_mod_of_lt hp hK
+    rw [Nat.mod_mod]; exact cmp_mod_of_lt hp hK
   have hc0 : bitAt (fun i : Fin (4 + s + 14) =>
       fieldVal s cb tb x n T idx (keyWire s cb tb i)) (4 + s) =
       chainVal (chain s cb tb x.length n T 0) idx (s + cb + tb) := by

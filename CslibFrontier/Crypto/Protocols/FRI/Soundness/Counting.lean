@@ -48,9 +48,7 @@ private theorem friSmoothOracleFilterWeight_le [DecidableEq F] (params : FRISmoo
     friSmoothOracleFilterWeight params stmt pref i hi π j ≤
       friSmoothPreWeight params stmt pref i hi j := by
   unfold friSmoothOracleFilterWeight
-  split_ifs
-  · exact le_rfl
-  · exact Nat.zero_le _
+  split_ifs <;> omega
 
 private theorem friSmoothNextWeight_le_of [DecidableEq F] (params : FRISmoothParams F)
     (stmt : OracleTable params.d F)
@@ -211,7 +209,7 @@ private theorem card_filter_friSmoothPrefixPasses_step_split [DecidableEq F]
     rw [mod_eq_iff_exists_fiberIdx (lt_of_lt_of_le (by omega) (params.two_le_arity kr)) j.isLt,
       exists_and_right]
   rw [hunion]
-  refine Finset.card_biUnion fun t₁ _ t₂ _ hne => Finset.disjoint_left.mpr fun s hs₁ hs₂ =>
+  exact Finset.card_biUnion fun t₁ _ t₂ _ hne => Finset.disjoint_left.mpr fun s hs₁ hs₂ =>
     hne <| Fin.ext <| Nat.eq_of_mul_eq_mul_right (Nat.pow_pos (by omega)) <|
       Nat.add_left_cancel ((Finset.mem_filter.mp hs₁).2.1.symm.trans (Finset.mem_filter.mp hs₂).2.1)
 
@@ -239,34 +237,23 @@ theorem card_filter_friSmoothPrefixPasses_eq [DecidableEq F] (params : FRISmooth
         simp [hdom0, Nat.mod_eq_of_lt s.isLt, Fin.ext_iff, j₀]
       simp only [Finset.mem_filter, Finset.mem_univ, true_and, hmod, friSmoothPrefixPasses,
         Nat.not_lt_zero, false_implies, implies_true, and_true]
-      split_ifs with hok
-      · rw [Finset.mem_singleton]
-        exact ⟨fun ⟨hs, _⟩ => hs, fun hs => ⟨hs, hs ▸ hok⟩⟩
-      · simp only [Finset.notMem_empty, iff_false, not_and]
-        exact fun hs h => hok (hs ▸ h)
+      by_cases hok : prefOracle pref 0 j₀ = stmt j₀ <;> simp +contextual [hok]
     rw [hset]
-    simp only [friSmoothOracleFilterWeight, friSmoothTargetWord, friSmoothPreWeight,
-      restrictOracle]
-    by_cases hok : prefOracle pref 0 j₀ = stmt j₀ <;> simp [hok, j₀]
+    by_cases hok : prefOracle pref 0 j₀ = stmt j₀ <;>
+      simp [friSmoothOracleFilterWeight, friSmoothTargetWord, friSmoothPreWeight, restrictOracle,
+        hok, j₀]
   | k + 1, hi, j => by
     simp only [friSmoothOracleFilterWeight]
     split_ifs with hmatch
-    · have hfilt : (Finset.univ.filter fun s : Fin (2 ^ params.d) =>
-          s.val % params.domainSize (k + 1) = j.val ∧
-            friSmoothPrefixPasses params stmt pref (k + 1) s) =
-          Finset.univ.filter fun s : Fin (2 ^ params.d) =>
-            s.val % params.domainSize (k + 1) = j.val ∧
-              friSmoothPrefixPasses params stmt pref k s := by
-        ext s
-        simp only [Finset.mem_filter, Finset.mem_univ, true_and]
-        exact and_congr_right fun hs =>
-          (friSmoothPrefixPasses_succ_iff params stmt pref hi j hs).trans (by simp [hmatch])
-      rw [hfilt, card_filter_friSmoothPrefixPasses_step_split params stmt pref hi j]
+    · rw [Finset.filter_congr (q := fun s => s.val % params.domainSize (k + 1) = j.val ∧
+          friSmoothPrefixPasses params stmt pref k s) fun s _ => and_congr_right fun hs =>
+          (friSmoothPrefixPasses_succ_iff params stmt pref hi j hs).trans (by simp [hmatch]),
+        card_filter_friSmoothPrefixPasses_step_split params stmt pref hi j]
       exact Finset.sum_congr rfl fun t _ =>
         card_filter_friSmoothPrefixPasses_eq params stmt pref k (Nat.le_of_succ_le hi) _
     · rw [Finset.card_eq_zero, Finset.filter_eq_empty_iff]
-      rintro s _ ⟨hs, hp⟩
-      exact hmatch ((friSmoothPrefixPasses_succ_iff params stmt pref hi j hs).mp hp).2
+      exact fun s _ ⟨hs, hp⟩ =>
+        hmatch ((friSmoothPrefixPasses_succ_iff params stmt pref hi j hs).mp hp).2
 
 
 end SmoothWeightBounds

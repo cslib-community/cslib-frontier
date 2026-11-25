@@ -110,18 +110,17 @@ private theorem mat_blk' (t : U a × Matrix (Fin a) (Fin b) F2 × U b) : mat (bl
     wl a b * mat t.1 * (wl a b)ᵀ + wl a b * t.2.1 * (wr a b)ᵀ + wr a b * mat t.2.2 * (wr a b)ᵀ := by
   obtain ⟨A, M, C⟩ := t
   -- a sandwich vanishes when the middle factor does, and collapses when it is the identity
-  have z : ∀ {k k' : ℕ} (W : Matrix (Fin (a + b)) (Fin k) F2)
-      (V : Matrix (Fin (a + b)) (Fin k') F2), Wᵀ * V = 0 →
-      ∀ {c d : ℕ} (P : Matrix (Fin (a + b)) (Fin c) F2) (Q : Matrix (Fin d) (Fin (a + b)) F2)
-        (X : Matrix (Fin c) (Fin k) F2) (Y : Matrix (Fin k') (Fin d) F2),
-        P * X * Wᵀ * (V * Y * Q) = 0 := fun W V hWV _ _ P Q X Y => by
-    rw [mul_sandwich, hWV]
+  have z {k k' : ℕ} (W : Matrix (Fin (a + b)) (Fin k) F2) (V : Matrix (Fin (a + b)) (Fin k') F2)
+      (h : Wᵀ * V = 0) {c d : ℕ} (P : Matrix (Fin (a + b)) (Fin c) F2)
+      (Q : Matrix (Fin d) (Fin (a + b)) F2) (X : Matrix (Fin c) (Fin k) F2)
+      (Y : Matrix (Fin k') (Fin d) F2) : P * X * Wᵀ * (V * Y * Q) = 0 := by
+    rw [mul_sandwich, h]
     simp
-  have e : ∀ {k : ℕ} (W : Matrix (Fin (a + b)) (Fin k) F2), Wᵀ * W = 1 →
-      ∀ {c d : ℕ} (P : Matrix (Fin (a + b)) (Fin c) F2) (Q : Matrix (Fin d) (Fin (a + b)) F2)
-        (X : Matrix (Fin c) (Fin k) F2) (Y : Matrix (Fin k) (Fin d) F2),
-        P * X * Wᵀ * (W * Y * Q) = P * (X * Y) * Q := fun W hW _ _ P Q X Y => by
-    rw [mul_sandwich, hW, Matrix.mul_one]
+  have e {k : ℕ} (W : Matrix (Fin (a + b)) (Fin k) F2) (h : Wᵀ * W = 1)
+      {c d : ℕ} (P : Matrix (Fin (a + b)) (Fin c) F2) (Q : Matrix (Fin d) (Fin (a + b)) F2)
+      (X : Matrix (Fin c) (Fin k) F2) (Y : Matrix (Fin k) (Fin d) F2) :
+      P * X * Wᵀ * (W * Y * Q) = P * (X * Y) * Q := by
+    rw [mul_sandwich, h, Matrix.mul_one]
   have s1 : wl a b * (wl a b)ᵀ = wl a b * (1 : Matrix (Fin a) (Fin a) F2) * (wl a b)ᵀ := by
     rw [Matrix.mul_one]
   have s2 : wr a b * (wr a b)ᵀ = wr a b * (1 : Matrix (Fin b) (Fin b) F2) * (wr a b)ᵀ := by
@@ -141,34 +140,26 @@ theorem blk_injective : Function.Injective
     (blk : U a × Matrix (Fin a) (Fin b) F2 × U b → U (a + b)) := by
   intro s t hst
   have h := congrArg mat hst
-  rw [mat_blk', mat_blk'] at h
-  have k1 : ∀ t : U a × Matrix (Fin a) (Fin b) F2 × U b,
-      (wl a b)ᵀ * (wl a b * mat t.1 * (wl a b)ᵀ + wl a b * t.2.1 * (wr a b)ᵀ +
-        wr a b * mat t.2.2 * (wr a b)ᵀ) * wl a b = mat t.1 := by
-    intro t
-    simp only [Matrix.add_mul, Matrix.mul_add, Matrix.mul_assoc, wi_t_mul, wi_rl, Matrix.mul_zero,
-      Matrix.mul_one, add_zero]
-    rw [← Matrix.mul_assoc, wi_t_mul, Matrix.one_mul]
-  have k2 : ∀ t : U a × Matrix (Fin a) (Fin b) F2 × U b,
-      (wl a b)ᵀ * (wl a b * mat t.1 * (wl a b)ᵀ + wl a b * t.2.1 * (wr a b)ᵀ +
-        wr a b * mat t.2.2 * (wr a b)ᵀ) * wr a b = t.2.1 := by
-    intro t
-    simp only [Matrix.add_mul, Matrix.mul_add, Matrix.mul_assoc, wi_t_mul, wi_lr, Matrix.mul_zero,
-      Matrix.mul_one, zero_add]
-    rw [← Matrix.mul_assoc, ← Matrix.mul_assoc, wi_t_mul, wi_lr, Matrix.one_mul, Matrix.zero_mul,
-      add_zero]
-  have k3 : ∀ t : U a × Matrix (Fin a) (Fin b) F2 × U b,
-      (wr a b)ᵀ * (wl a b * mat t.1 * (wl a b)ᵀ + wl a b * t.2.1 * (wr a b)ᵀ +
-        wr a b * mat t.2.2 * (wr a b)ᵀ) * wr a b = mat t.2.2 := by
-    intro t
-    simp only [Matrix.add_mul, Matrix.mul_add, Matrix.mul_assoc, wi_t_mul, wi_lr, Matrix.mul_zero,
-      Matrix.mul_one, zero_add]
-    rw [← Matrix.mul_assoc, ← Matrix.mul_assoc, wi_t_mul, wi_rl, Matrix.one_mul, Matrix.zero_mul,
-      zero_add]
+  have proj (t : U a × Matrix (Fin a) (Fin b) F2 × U b) :
+      ((wl a b)ᵀ * mat (blk t) * wl a b = mat t.1) ∧
+      ((wl a b)ᵀ * mat (blk t) * wr a b = t.2.1) ∧
+      ((wr a b)ᵀ * mat (blk t) * wr a b = mat t.2.2) := by
+    refine ⟨?_, ?_, ?_⟩ <;> rw [mat_blk']
+    · simp only [Matrix.add_mul, Matrix.mul_add, Matrix.mul_assoc, wi_t_mul, wi_rl, Matrix.mul_zero,
+        Matrix.mul_one, add_zero]
+      rw [← Matrix.mul_assoc, wi_t_mul, Matrix.one_mul]
+    · simp only [Matrix.add_mul, Matrix.mul_add, Matrix.mul_assoc, wi_t_mul, wi_lr, Matrix.mul_zero,
+        Matrix.mul_one, zero_add]
+      rw [← Matrix.mul_assoc, ← Matrix.mul_assoc, wi_t_mul, wi_lr, Matrix.one_mul,
+        Matrix.zero_mul, add_zero]
+    · simp only [Matrix.add_mul, Matrix.mul_add, Matrix.mul_assoc, wi_t_mul, wi_lr, Matrix.mul_zero,
+        Matrix.mul_one, zero_add]
+      rw [← Matrix.mul_assoc, ← Matrix.mul_assoc, wi_t_mul, wi_rl, Matrix.one_mul,
+        Matrix.zero_mul, zero_add]
   refine Prod.ext (mat_inj ?_) (Prod.ext ?_ (mat_inj ?_))
-  · rw [← k1 s, ← k1 t, h]
-  · rw [← k2 s, ← k2 t, h]
-  · rw [← k3 s, ← k3 t, h]
+  · rw [← (proj s).1, ← (proj t).1, h]
+  · rw [← (proj s).2.1, ← (proj t).2.1, h]
+  · rw [← (proj s).2.2, ← (proj t).2.2, h]
 
 theorem two_mul_tri (n : ℕ) : 2 * (n * (n - 1) / 2) = n * (n - 1) :=
   Nat.mul_div_cancel' (Nat.even_mul_pred_self n).two_dvd
@@ -179,24 +170,22 @@ theorem tri_add (a b : ℕ) : (a + b) * (a + b - 1) / 2 = a * (a - 1) / 2 + a * 
   have h2 := two_mul_tri b
   have h3 := two_mul_tri (a + b)
   have h4 : (a + b) * (a + b - 1) = a * (a - 1) + 2 * (a * b) + b * (b - 1) := by
-    rcases a with - | a
+    rcases a with _ | a
     · simp
-    · rcases b with - | b
+    · rcases b with _ | b
       · simp
-      · simp only [Nat.add_sub_cancel, show a + 1 + (b + 1) - 1 = a + b + 1 by omega]
+      · rw [show a + 1 + (b + 1) - 1 = a + b + 1 by omega, Nat.add_sub_cancel, Nat.add_sub_cancel]
         ring
   omega
 
 theorem blk_bijective : Function.Bijective
     (blk : U a × Matrix (Fin a) (Fin b) F2 × U b → U (a + b)) := by
-  rw [Fintype.bijective_iff_injective_and_card]
-  refine ⟨blk_injective, ?_⟩
+  refine (Fintype.bijective_iff_injective_and_card _).2 ⟨blk_injective, ?_⟩
   have hM : Fintype.card (Matrix (Fin a) (Fin b) F2) = 2 ^ (a * b) := by
-    rw [show Fintype.card (Matrix (Fin a) (Fin b) F2) = Fintype.card (Fin a → Fin b → F2) from rfl]
+    change Fintype.card (Fin a → Fin b → F2) = _
     simp [← pow_mul, mul_comm]
   rw [Fintype.card_prod, Fintype.card_prod, hM, Cslib.SLTower.card_U, Cslib.SLTower.card_U,
-      Cslib.SLTower.card_U,
-    tri_add, pow_add, pow_add]
+    Cslib.SLTower.card_U, tri_add, pow_add, pow_add]
   ring
 
 end Cslib.Circuits.Arithmetic.Separation.Flag

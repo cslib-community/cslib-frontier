@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSyst
 import CslibFrontier.Computability.Complexity.Problems.Graph.ClosedPassages.CutVertex
 import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Connectivity.Connected
 import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Connectivity.VertexConnectivity
+import Mathlib.Data.Finset.Max
 
 /-!
 # Order of incident components from crossing parity
@@ -25,6 +26,8 @@ and rules out interleaving one component of a separating pair with its complemen
 * `exists_consecutive_component_darts` finds a consecutive class in one vertex's port order.
 * `not_alternates_of_component_after_deleting_pair` forbids interleaving with the complement
   of a chosen component, even if the two outside darts enter different components.
+* `exists_separating_component_rank_interval` identifies the first and last darts of that
+  component when the cycle is cut at an outside dart.
 -/
 
 public section
@@ -42,6 +45,13 @@ private theorem regular_edge_endpoints_ne {G : Graph} {D : PolygonalDrawing G}
   change (D.route e).point 0 = (D.route e).point (Fin.last (D.route e).segments) at hend
   have hval := congrArg Fin.val (hreg.points_injective e hend)
   exact Nat.succ_ne_zero _ hval.symm
+
+private theorem regular_dart_endpoints_ne {G : Graph} {D : PolygonalDrawing G}
+    (hreg : D.HasRegularContacts) (d : Dart G) : d.reverse.vertex ≠ d.vertex := by
+  obtain ⟨e, tag⟩ := d
+  cases tag
+  · exact (regular_edge_endpoints_ne hreg e).symm
+  · exact regular_edge_endpoints_ne hreg e
 
 private theorem not_alternates_of_passages_meeting_at {G : Graph}
     {D : PolygonalDrawing G} {r : RotationSystem G} {v : ℕ}
@@ -162,6 +172,79 @@ theorem not_alternates_of_component_after_deleting_pair {G : Graph}
   exact not_alternates_of_disjoint_induced_paths hR hreg hsimple hvertices hdeclared heven
     hvS hvT hST ha haS hbS ⟨_, hcW, rfl⟩ ⟨_, hdW, rfl⟩ hP hQ
 
+/-- Darts into one separating component form a single interval starting from any outside
+cut dart. The outside darts must reach the other separator after deleting the current
+vertex. The interval endpoints are actual darts, including when the component has
+only one incident dart. -/
+theorem exists_separating_component_rank_interval {G : Graph}
+    {D : PolygonalDrawing G} {r : RotationSystem G} {v : ℕ}
+    (hR : D.Realizes r) (hreg : D.HasRegularContacts)
+    (hsimple : ∀ e, (D.route e).IsSimple)
+    (hvertices : Set.InjOn D.vertex {w | w ∈ G.vertices})
+    (hdeclared : ∀ e : Dart G, e.vertex ∈ G.vertices)
+    (heven : ∀ (e f : Fin G.edges.length), e ≠ f →
+      (∀ i j : Bool, Dart.vertex (G := G) (e, i) = Dart.vertex (f, j) →
+        Dart.vertex (e, i) = v) → (D.route e).intersectionParity (D.route f) = false)
+    (u : {w : ℕ // w ≠ v})
+    (C : ((G.toSimpleGraph.induce {w | w ≠ v}).induce {w | w ≠ u}).ConnectedComponent)
+    (o w : Dart G) (ho : o.vertex = v) (hw : w.vertex = v)
+    (hoC : o.reverse.vertex ∉ Subtype.val '' (Subtype.val '' C.supp))
+    (hwC : w.reverse.vertex ∈ Subtype.val '' (Subtype.val '' C.supp))
+    (hreach : ∀ d : Dart G, d.vertex = v →
+      d.reverse.vertex ∉ Subtype.val '' (Subtype.val '' C.supp) →
+      ∀ hd : d.reverse.vertex ≠ v,
+        (G.toSimpleGraph.induce {w | w ≠ v}).Reachable ⟨d.reverse.vertex, hd⟩ u) :
+    ∃ a b : Dart G, a.vertex = v ∧ b.vertex = v ∧
+      a.reverse.vertex ∈ Subtype.val '' (Subtype.val '' C.supp) ∧
+      b.reverse.vertex ∈ Subtype.val '' (Subtype.val '' C.supp) ∧
+      ∀ d : Dart G, d.vertex = v →
+        (d.reverse.vertex ∈ Subtype.val '' (Subtype.val '' C.supp) ↔
+          r.rotationDistance o a ≤ r.rotationDistance o d ∧
+            r.rotationDistance o d ≤ r.rotationDistance o b) := by
+  classical
+  let enters (d : Dart G) : Prop :=
+    d.reverse.vertex ∈ Subtype.val '' (Subtype.val '' C.supp)
+  let S := Finset.univ.filter fun d : Dart G => d.vertex = v ∧ enters d
+  let rank := r.rotationDistance o
+  have hmem (d : Dart G) : d ∈ S ↔ d.vertex = v ∧ enters d := by simp [S]
+  have hS : S.Nonempty := ⟨w, (hmem w).mpr ⟨hw, hwC⟩⟩
+  obtain ⟨a, has, hmin⟩ := S.exists_min_image rank hS
+  obtain ⟨b, hbs, hmax⟩ := S.exists_max_image rank hS
+  obtain ⟨ha, haC⟩ := (hmem a).mp has
+  obtain ⟨hb, hbC⟩ := (hmem b).mp hbs
+  refine ⟨a, b, ha, hb, haC, hbC, fun d hd => ⟨fun hc => ?_, ?_⟩⟩
+  · exact ⟨hmin d ((hmem d).mpr ⟨hd, hc⟩), hmax d ((hmem d).mpr ⟨hd, hc⟩)⟩
+  · rintro ⟨hl, hr⟩
+    -- An outside dart strictly between the extrema would alternate with the cut dart.
+    by_contra hdC
+    have hoa := ho.trans ha.symm
+    have hob := ho.trans hb.symm
+    have hod := ho.trans hd.symm
+    have had : a ≠ d := fun he => hdC (he ▸ haC)
+    have hbd : b ≠ d := fun he => hdC (he ▸ hbC)
+    have hlt : rank a < rank d :=
+      lt_of_le_of_ne hl (fun he => had ((r.rotationDistance_eq_iff_eq o a d hoa hod).mp he))
+    have hgt : rank d < rank b :=
+      lt_of_le_of_ne hr (fun he => hbd ((r.rotationDistance_eq_iff_eq o d b hod hob).mp he).symm)
+    have hao : a ≠ o := fun he => hoC (he ▸ haC)
+    have hbo : b ≠ o := fun he => hoC (he ▸ hbC)
+    have hod' : o ≠ d := fun he => by
+      have hzero : rank o = 0 := r.rotationDistance_self o
+      rw [← he, hzero] at hlt
+      exact Nat.not_lt_zero _ hlt
+    have haInside := (r.mem_rotationInterval_iff_lt_distance o a d hoa hod
+      hao.symm had hod').mpr hlt
+    have hbOutside : b ∉ r.rotationInterval o d :=
+      fun he => (not_lt_of_ge hgt.le)
+        ((r.mem_rotationInterval_iff_lt_distance o b d hob hod hbo.symm hbd hod').mp he)
+    have ho' : o.reverse.vertex ≠ v := ho ▸ regular_dart_endpoints_ne hreg o
+    have hd' : d.reverse.vertex ≠ v := hd ▸ regular_dart_endpoints_ne hreg d
+    apply not_alternates_of_component_after_deleting_pair hR hreg hsimple hvertices
+      hdeclared heven u C ha haC hbC hoC hdC ho' hd'
+      (hreach o ho hoC ho') (hreach d hd hdC hd')
+    exact ⟨fun he => (ne_of_lt (hlt.trans hgt)) (congrArg rank he), hod', hao, had, hbo, hbd,
+      ha.trans hb.symm, hod, hoa.symm, iff_of_true haInside hbOutside⟩
+
 /-- At a vertex `v`, a pair of darts into one component of the vertex-deleted graph cannot
 alternate with a pair into another component. Crossings are assumed even for distinct edges
 that share no endpoint other than `v`, as in an independently even drawing at an even vertex. -/
@@ -227,10 +310,7 @@ theorem exists_consecutive_component_darts {G : Graph}
     else none
   have avoid (d : Dart G) (hd : d.vertex = v) : d.reverse.vertex ≠ v := by
     rw [← hd]
-    rcases d with ⟨e, b⟩
-    cases b
-    · exact (regular_edge_endpoints_ne hreg e).symm
-    · exact regular_edge_endpoints_ne hreg e
+    exact regular_dart_endpoints_ne hreg d
   have same (d e : Dart G) (hd : d.reverse.vertex ≠ v) (he : e.reverse.vertex ≠ v) :
       color d = color e ↔ K.Reachable ⟨d.reverse.vertex, hd⟩ ⟨e.reverse.vertex, he⟩ := by
     simp only [color, dite_eq_left hd, dite_eq_left he, Option.some.injEq]

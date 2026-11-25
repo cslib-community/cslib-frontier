@@ -7,8 +7,11 @@ Authors: Samuel Schlesinger, Erik Demaine
 module
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildChallenge
+import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildReductionLaw
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildRoutingPPT
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildTableLaw
+import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.SampledReductionLaw
 import Mathlib.Data.Set.Finite.List
 
 /-!
@@ -260,3 +263,112 @@ example :
   simp only [encodedCascadeChildRouter, cascadeChildRouter, bind_pure_comp,
     OracleComp.interpret_map, StateT.run_map, ProbOracleComp.interpret_query]
   simp [StateT.run, cascadeChildRoute, boundedWords, Functor.map_map]
+
+-- Skipping channel zero cannot allocate channel one. Once zero is assigned, channel one
+-- can be used and its subsequent calls leave the cursor unchanged.
+example (table : Fin 2 → BitString 1 → BitString 2) :
+    cascadeChildFiniteOracle table (1, [true]) 0 = PMF.pure ([], 0) ∧
+      cascadeChildFiniteOracle table (1, [true]) 1 =
+        PMF.pure (List.ofFn (table 1 (BitString.ofList 1 [true])), 2) ∧
+      cascadeChildFiniteOracle table (1, [true]) 2 =
+        PMF.pure (List.ofFn (table 1 (BitString.ofList 1 [true])), 2) :=
+  ⟨rfl, rfl, rfl⟩
+
+private theorem visitBothParents_isQueryBounded : visitBothParents.IsQueryBounded 4 :=
+  (ProbOracleComp.IsQueryBounded.query _).bind fun _ =>
+    (ProbOracleComp.IsQueryBounded.query _).bind fun _ =>
+      (ProbOracleComp.IsQueryBounded.query _).bind fun _ =>
+        (ProbOracleComp.IsQueryBounded.query _).bind fun _ => .pure _ 0
+
+example :
+    let source := PMF.uniformOfFintype (BitString 1 → BitString 2)
+    let router := cascadeChildRouter (boundedWords 2) (fun _ => 1) toggle 2 1 visitBothParents
+    (ProbOracleComp.runWith (cascadeChildChannelOracle source) router []).map Prod.fst =
+      (PMF.pi (fun _ : Fin 4 => source)).bind fun table =>
+        (ProbOracleComp.runWith (cascadeChildFiniteOracle table) router 0).map Prod.fst :=
+  runWith_cascadeChildChannelOracle_eq_finite
+    (PMF.uniformOfFintype (BitString 1 → BitString 2))
+    (isQueryBounded_cascadeChildRouter (boundedWords 2) (fun _ => 1) toggle 2 1
+      visitBothParents_isQueryBounded)
+
+-- Four admissible channels in a sampling range of eight.
+example :
+    let real := PMF.pure (fun _ : BitString 1 => BitString.ofList 2 [true, false])
+    let ideal := PMF.uniformOfFintype (BitString 1 → BitString 2)
+    let router := cascadeChildRouter (boundedWords 2) (fun _ => 1) toggle 2 1 visitBothParents
+    Game.advantage
+        ((ProbOracleComp.runWith (cascadeChildChannelOracle real) router []).map Prod.fst)
+        ((ProbOracleComp.runWith (cascadeChildChannelOracle ideal) router []).map Prod.fst) =
+      8 * Game.advantage
+        (cascadeChildChallengeGame 4 8 real ideal real router)
+        (cascadeChildChallengeGame 4 8 real ideal ideal router) :=
+  advantage_cascadeChildChannelOracle_eq _ _
+    (isQueryBounded_cascadeChildRouter (boundedWords 2) (fun _ => 1) toggle 2 1
+      visitBothParents_isQueryBounded) (by decide)
+
+-- Every sampled channel is padding when the query budget is zero.
+example (source : PMF (BitString 1 → BitString 2)) :
+    cascadeChildChallengeGame 0 8 source source source (pure true) = PMF.pure false := by
+  simp [cascadeChildChallengeGame]
+
+-- A skipped first-use channel cannot forward even when it is the selected channel.
+example :
+    cascadeChildChallengeHandler toggle 1 2 2 1 [] (1, [true]) ⟨0, []⟩ =
+      pure ([], ⟨0, []⟩) := rfl
+
+-- The challenge receives the normalized block and only the first two reply bits are used.
+example :
+    cascadeChildChallengeHandler toggle 1 2 2 1 [] (1, []) ⟨1, []⟩ = (do
+      let reply ← ProbOracleComp.query ((), [false])
+      return (reply.take 2, ⟨2, []⟩)) := rfl
+
+-- An earlier channel reuses its cached answer on two representations of the same block.
+example :
+    let state : CascadeChildChallengeState := ⟨1, [((0, [false]), [true, true])]⟩
+    cascadeChildChallengeHandler toggle 1 2 2 1 [] (0, []) state =
+      pure ([true, true], state) := rfl
+
+-- A later channel uses its own key row without calling the challenge oracle.
+example :
+    cascadeChildChallengeHandler toggle 1 2 2 0 [true, true, true, false]
+        (1, [true]) ⟨1, []⟩ =
+      pure ([false, true], ⟨2, []⟩) := rfl
+
+example : cascadeChildChallengeProgram toggle 1 2 0 0 (pure true) = pure false := rfl
+
+example :
+    let router := cascadeChildRouter (boundedWords 2) (fun _ => 1) toggle 2 1 visitBothParents
+    (cascadeChildChallengeProgram toggle 1 2 4 3 router).IsQueryBounded 4 :=
+  isQueryBounded_cascadeChildChallengeProgram toggle 1 2 4 3
+    (isQueryBounded_cascadeChildRouter (boundedWords 2) (fun _ => 1) toggle 2 1
+      visitBothParents_isQueryBounded)
+
+-- The adaptive client can observe an ideal row before visiting the challenge channel.
+example :
+    let keys := [true, false, false, true, false, false]
+    let challenge (_ : BitString 1) := BitString.ofList 2 [true, true]
+    let router := cascadeChildRouter (boundedWords 2) (fun _ => 1) toggle 2 1 visitBothParents
+    OracleComp.evalWith (OracleComp.sumHandler ProbComp.unifOracle
+        (fun req : Unit × List Bool => PMF.pure (randomFunctionOracle 1 challenge req.2)))
+        (cascadeChildChallengeAtProgram toggle 1 2 3 1 keys router) =
+      (PMF.uniformOfFintype (Fin 3 × BitString 1 → BitString 2)).bind fun ideal =>
+        let table (channel : Fin 3) (block : BitString 1) :=
+          if channel < 1 then ideal (channel, block)
+          else if channel = 1 then challenge block
+          else BitString.ofList 2 (toggle (BitString.listRow 2 channel.val keys) (List.ofFn block))
+        (ProbOracleComp.runWith (cascadeChildFiniteOracle table) router 0).map Prod.fst :=
+  evalWith_cascadeChildChallengeAtProgram_eq_eager toggle
+    (fun key block hk _ => by unfold toggle; split <;> simpa using hk) (1 : Fin 3) _ _ _
+
+-- The wrapper samples eight indices for four channels of an adaptive client.
+example :
+    let router := cascadeChildRouter (boundedWords 2) (fun _ => 1) toggle 2 1 visitBothParents
+    let source := PMF.pure (fun _ : BitString 1 => BitString.ofList 2 [true, false])
+    (source.bind fun challenge =>
+      OracleComp.evalWith (OracleComp.sumHandler ProbComp.unifOracle
+        (fun req : Unit × List Bool => PMF.pure (randomFunctionOracle 1 challenge req.2)))
+        (cascadeChildChallengeProgram toggle 1 2 4 3 router)) =
+      cascadeChildChallengeGame 4 8 (cascadeKeyedChildFunctionLaw toggle 1 2)
+        (PMF.uniformOfFintype (BitString 1 → BitString 2)) source router :=
+  bind_evalWith_cascadeChildChallengeProgram_eq_game toggle
+    (fun key block hk _ => by unfold toggle; split <;> simpa using hk) 4 3 _ _

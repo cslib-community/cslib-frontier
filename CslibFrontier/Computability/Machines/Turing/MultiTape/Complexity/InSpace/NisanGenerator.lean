@@ -74,33 +74,26 @@ private theorem seedOfNat_injOn (n k : ℕ) :
     Set.InjOn (seedOfNat n k) (Finset.range (2 ^ (n + k * (3 * n - 1)))) := by
   intro z hz z' hz' heq
   simp only [Finset.coe_range, Set.mem_Iio] at hz hz'
-  apply Nat.eq_of_testBit_eq
-  intro i
+  refine Nat.eq_of_testBit_eq fun i => ?_
   by_cases hi : i < n + k * (3 * n - 1)
   · by_cases hin : i < n
     · exact congrFun (congrArg Prod.fst heq) ⟨i, hin⟩
     · have hpos : 0 < 3 * n - 1 := by
-        rcases Nat.eq_zero_or_pos n with rfl | h
+        rcases n with _ | n
         · simp at hi
         · omega
-      obtain ⟨m, hm⟩ : ∃ m, m = 3 * n - 1 := ⟨_, rfl⟩
-      rw [← hm] at hpos hi
-      have hℓ : (i - n) / m < k := by
-        rw [Nat.div_lt_iff_lt_mul hpos]
-        omega
+      set m := 3 * n - 1 with hm
+      have hℓ : (i - n) / m < k := (Nat.div_lt_iff_lt_mul hpos).mpr (by omega)
       have hdm := Nat.div_add_mod (i - n) m
       have hr := Nat.mod_lt (i - n) hpos
       have hseed := congrFun (congrArg Prod.snd heq) ⟨(i - n) / m, hℓ⟩
-      simp only [seedOfNat, hashSeedOfNat, Prod.mk.injEq] at hseed
+      simp only [seedOfNat, hashSeedOfNat, Prod.mk.injEq, ← hm] at hseed
+      have hmul := Nat.mul_comm ((i - n) / m) m
       by_cases hr' : (i - n) % m < n + n - 1
-      · have := congrFun hseed.1 ⟨_, hr'⟩
-        simp only [← hm] at this
-        rwa [show n + (i - n) / m * m + (i - n) % m = i by
-          rw [Nat.mul_comm]; omega] at this
-      · have := congrFun hseed.2 ⟨(i - n) % m - (n + n - 1), by omega⟩
-        simp only [← hm] at this
-        rwa [show n + (i - n) / m * m + (n + n - 1) + ((i - n) % m - (n + n - 1)) = i by
-          rw [Nat.mul_comm]; omega] at this
+      · have hi' : n + (i - n) / m * m + (i - n) % m = i := by omega
+        simpa only [hi'] using congrFun hseed.1 ⟨_, hr'⟩
+      · have hi' : n + (i - n) / m * m + (n + n - 1) + ((i - n) % m - (n + n - 1)) = i := by omega
+        simpa only [hi'] using congrFun hseed.2 ⟨(i - n) % m - (n + n - 1), by omega⟩
   · have hle : 2 ^ (n + k * (3 * n - 1)) ≤ 2 ^ i := Nat.pow_le_pow_right two_pos (by omega)
     rw [Nat.testBit_lt_two_pow (hz.trans_le hle), Nat.testBit_lt_two_pow (hz'.trans_le hle)]
 
@@ -142,9 +135,7 @@ private theorem testBit_blockNat (n k z b : ℕ) (hb : b < 2 ^ k) :
   refine (List.foldl_hom (fun x : ℕ => fun i : Fin n => x.testBit i) fun x ℓ => ?_).symm
   dsimp only
   split
-  · funext i
-    rw [testBit_toeplitzHashNat]
-    rfl
+  · exact funext fun i => by rw [testBit_toeplitzHashNat]; rfl
   · rfl
 
 /-- **`bitGeneratorNat` is a bit of Nisan's generator**: on the seed held in the bits of `z`, it
@@ -216,8 +207,8 @@ private theorem size_foldl_le (n k z b : ℕ) (l : List ℕ) (x : ℕ) (hx : x.s
   induction l generalizing x with
   | nil => exact hx
   | cons ℓ l ih =>
-    rw [List.foldl_cons]
-    apply ih
+    refine ih _ ?_
+    dsimp only
     split
     · exact Nat.size_le.mpr (toeplitzHashNat_lt_two_pow_size _ _ _ _)
     · exact hx
@@ -232,15 +223,12 @@ private theorem blockStep_inSpace :
   have hb := encBlockState_b_budget h
   have hl := encBlockState_level_budget h
   have hx := encBlockState_block_budget h
-  have hone : ComputableInSpace (fun _ : BlockState => 1) encBlockState encNat
-      fun s => (encBlockState s).length := budget_const 1
-  have hthree : ComputableInSpace (fun _ : BlockState => 3) encBlockState encNat
-      fun s => (encBlockState s).length := budget_const 3
-  have ho := budget_natAdd hn (budget_natMul hl (budget_natSub (budget_natMul hthree hn) hone))
   have hhash := budget_comp_lin computableInSpace_toeplitzHashNat (BigOLe.refl _)
-    (encToeplitzHashArgs_mk_budget hn hz ho hx)
+    (encToeplitzHashArgs_mk_budget hn hz
+      (budget_natAdd hn (budget_natMul hl
+        (budget_natSub (budget_natMul (budget_const 3) hn) (budget_const 1)))) hx)
   have hbit := budget_comp_lin natTestBit (linear_mul 32)
-    (budget_prod hb (budget_natSub (budget_natSub hk hone) hl))
+    (budget_prod hb (budget_natSub (budget_natSub hk (budget_const 1)) hl))
   exact encBlockState_mk_budget hn hk hz hb (budget_natSucc hl) (budget_ite hbit hhash hx)
 
 /-- **A bit of Nisan's generator in linear space**: `bitGeneratorNat n k z j` is computable within
@@ -261,18 +249,12 @@ theorem computableInSpace_bitGeneratorNat :
       rw [iterate_blockStep]
       have h1 := length_encNat_mono ht
       have h2 := length_encNat_mono (Nat.div_le_self q.j q.n)
-      have h3 : (encNat ((List.range t).foldl (fun x ℓ => if (q.j / q.n).testBit (q.k - 1 - ℓ) then
-          toeplitzHashNat q.n q.z (q.n + ℓ * (3 * q.n - 1)) x else x) q.z)).length ≤
-          (encNat q.z).length := by
-        simp only [length_encNat_eq_size]
-        exact size_foldl_le _ _ _ _ _ _ le_rfl
+      have h3 := size_foldl_le q.n q.k q.z (q.j / q.n) (List.range t) q.z le_rfl
       simp only [encBlockState_apply, encBlockStateFields, encNisanBitArgs_apply,
-        encNisanBitArgsFields, length_encPair]
+        encNisanBitArgsFields, length_encPair, length_encNat_eq_size] at h1 h2 ⊢
       omega) (linear_mul 4)
-  have hblock := encBlockState_block_budget hloop
   refine (budget_comp_lin natTestBit (linear_mul 32)
-    (budget_prod hblock (budget_natMod hj hn))).of_enc_eq fun q => ?_
-  rw [iterate_blockStep]
-  rfl
+    (budget_prod (encBlockState_block_budget hloop) (budget_natMod hj hn))).of_enc_eq fun q => ?_
+  rw [iterate_blockStep]; rfl
 
 end Cslib.Crypto.PRG.Nisan

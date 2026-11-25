@@ -89,10 +89,10 @@ private lemma evaluate_reflects_units (ev : P →+* K) (x : Regular ev)
   obtain ⟨a, b, rfl⟩ := IsLocalization.exists_mk'_eq (denominators ev) x
   have heq : ev a = ev b * evaluate ev (IsLocalization.mk' (Regular ev) a b) :=
     (IsLocalization.lift_mk'_spec _ a _ b).mp rfl
-  have ha : ev a ≠ 0 := by rw [heq]; exact mul_ne_zero b.property hx.ne_zero
-  let a' : denominators ev := ⟨a, ha⟩
-  apply isUnit_iff_exists_inv.mpr
-  exact ⟨IsLocalization.mk' (Regular ev) (b : P) a', IsLocalization.mk'_mul_mk'_eq_one a' b⟩
+  let a' : denominators ev :=
+    ⟨a, show ev a ≠ 0 by rw [heq]; exact mul_ne_zero b.property hx.ne_zero⟩
+  exact isUnit_iff_exists_inv.mpr
+    ⟨IsLocalization.mk' (Regular ev) (b : P) a', IsLocalization.mk'_mul_mk'_eq_one a' b⟩
 
 /-- Embed the regular localization into a field containing its numerator ring. -/
 def intoField (ev : P →+* K) (j : P →+* E) (hj : Function.Injective j) :
@@ -109,21 +109,16 @@ def intoField (ev : P →+* K) (j : P →+* E) (hj : Function.Injective j) :
 
 /-- The embedding `intoField ev j hj` of `Regular ev` into `E` is injective. -/
 lemma intoField_injective (ev : P →+* K) (j : P →+* E) (hj : Function.Injective j) :
-    Function.Injective (intoField ev j hj) := by
-  apply (IsLocalization.lift_injective_iff _).mpr
-  intro x y
-  constructor
-  · intro h
-    simpa only [intoField_algebraMap] using congrArg (intoField ev j hj) h
-  · intro h
-    rw [hj h]
+    Function.Injective (intoField ev j hj) :=
+  (IsLocalization.lift_injective_iff _).mpr fun _ _ =>
+    ⟨fun h => by simpa only [intoField_algebraMap] using congrArg (intoField ev j hj) h,
+      fun h => by rw [hj h]⟩
 
 variable {ι : Type*} [Fintype ι] [DecidableEq ι]
 private lemma matrix_reflects_units (ev : P →+* K) (A : Matrix ι ι (Regular ev))
-    (hA : IsUnit ((evaluate ev).mapMatrix A)) : IsUnit A := by
-  rw [Matrix.isUnit_iff_isUnit_det] at hA ⊢
-  apply evaluate_reflects_units ev
-  rwa [RingHom.map_det]
+    (hA : IsUnit ((evaluate ev).mapMatrix A)) : IsUnit A :=
+  Matrix.isUnit_iff_isUnit_det _ |>.mpr <|
+    evaluate_reflects_units ev _ <| by rwa [RingHom.map_det, ← Matrix.isUnit_iff_isUnit_det]
 
 end
 end Rational.LocalSpecialization
@@ -200,20 +195,16 @@ theorem formula_invertible_witness {n d : ℕ} (hd : 0 < d) (f : Formula n)
   let e := Matrix.reindexRingEquiv ℂ (ZMod.finEquiv d).toEquiv
   let j : Matrix (Fin d) (Fin d) ℚ →+* Matrix (ZMod d) (ZMod d) ℂ :=
     e.toRingHom.comp (algebraMap ℚ ℂ).mapMatrix
-  have hj : Function.Injective j := e.injective.comp (Matrix.map_injective (algebraMap ℚ
-    ℂ).injective)
-  have ha' : f.Eval (algebraMap ℚ _) (fun i => j (W i)) (j a) := ha.map_algebraMap j
-  have ha0' : j a ≠ 0 := by
-    intro hz
-    exact ha0 (hj (hz.trans (map_zero j).symm))
+  have hj : Function.Injective j :=
+    e.injective.comp (Matrix.map_injective (algebraMap ℚ ℂ).injective)
   have hζ := Complex.isPrimitiveRoot_exp d (NeZero.ne d)
   let χ := AddChar.zmodChar d hζ.pow_eq_one
-  have hχ : χ.IsPrimitive := AddChar.zmodChar_primitive_of_primitive_root d hζ
-  obtain ⟨b, hb, hbu⟩ := QuantumLift.formula_invertible_value χ hχ f
-    (fun i => j (W i)) (j a) ha' ha0'
+  obtain ⟨b, hb, hbu⟩ := QuantumLift.formula_invertible_value χ
+    (AddChar.zmodChar_primitive_of_primitive_root d hζ) f
+    (fun i => j (W i)) (j a) (ha.map_algebraMap j) ((map_ne_zero_iff j hj).mpr ha0)
   let r := Matrix.reindexRingEquiv (HahnSeries QuantumLift.Exponents ℂ) (ZMod.finEquiv
     d).toEquiv.symm
-  refine ⟨fun i => r (QuantumLift.representation χ (QuantumLift.liftD χ (j (W i)))), r b,
+  exact ⟨fun i => r (QuantumLift.representation χ (QuantumLift.liftD χ (j (W i)))), r b,
     hb.map_algebraMap r.toRingHom, hbu.map r⟩
 
 end
@@ -295,14 +286,13 @@ lemma determinant_ne_zero (χ : AddChar (ZMod M) K) (hχ : χ.IsPrimitive)
     (hMN : M = N + 2 * (n + 1) ^ 3 * B) (hM : B * (2 * (n + 1) ^ 3 * B) < M) (hd : 0 < d)
     (X : Fin n → Matrix (Fin d) (Fin d) (LaurentReduction.F E))
     (hX : IsUnit (L.map (Affine.eval (algebraMap ℚ _) X))) :
-    determinant χ N L ≠ 0 := by
-  apply PencilDeformation.det_ne_zero χ hχ φ (fun i : Fin (n + 1) => (i.val : K))
-    (by intro i j h; apply Fin.ext; change (i.val : K) = (j.val : K) at h; exact
-      Nat.cast_injective h) (coefficients L) B d
-      (by omega) hq hqB hN hMN hM hd (Fin.cases 1 X)
-  apply Rectangular.blockEval_injective_of_isUnit
-  rw [block_eq]
-  exact hX.map (Matrix.compRingEquiv (Fin q) (Fin d) (LaurentReduction.F E))
+    determinant χ N L ≠ 0 :=
+  PencilDeformation.det_ne_zero χ hχ φ (fun i : Fin (n + 1) => (i.val : K))
+    (fun _ _ h => Fin.ext (Nat.cast_injective h)) (coefficients L) B d
+    (by omega) hq hqB hN hMN hM hd (Fin.cases 1 X) <|
+    Rectangular.blockEval_injective_of_isUnit _ _ <| by
+      rw [block_eq]
+      exact hX.map (Matrix.compRingEquiv (Fin q) (Fin d) (LaurentReduction.F E))
 
 
 /-- The total degree of `determinant χ N L` is at most `3 * q * M ^ 2`. -/

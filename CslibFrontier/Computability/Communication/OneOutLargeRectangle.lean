@@ -89,32 +89,31 @@ theorem toOuterMeasure_injective_le_hybrid :
   refine sum_le_sum fun x _ => mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg
   by_cases hx : Function.Injective x
   · have hforce (y : Fin k → Y) : p.labelLeaves.CanForce true (hybridGoal p k x y) :=
-      p.labelLeaves.canForce_mono true (fun w hw => by simpa [hybridGoal] using hw)
+      p.labelLeaves.canForce_mono true (fun _ hw => by simpa [hybridGoal] using hw)
         (canForce_aliceProjection p ⟨x, hx⟩)
-    simp only [Set.mem_ofPred_eq, hx, hforce, ite_true, mul_one, sum_toReal, le_refl]
+    simp only [Set.mem_ofPred_eq, hx, ite_true, hforce, mul_one, sum_toReal]
+    exact le_rfl
   · simp only [Set.mem_ofPred_eq, hx, ite_false]
-    exact sum_nonneg fun y _ => mul_nonneg ENNReal.toReal_nonneg (by split_ifs <;> norm_num)
+    exact sum_nonneg fun _ _ => mul_nonneg ENNReal.toReal_nonneg (by split_ifs <;> norm_num)
 
 /-- First hybrid: on a distinct tuple, Bob forces the complement of `L_0` by following his
 messages in `p`, so Alice cannot force `L_0` by determinacy. -/
 theorem hybrid_zero_le :
     hybrid μ ν p 0 ≤ 1 - ((iid ν k).toOuterMeasure {y | Function.Injective y}).toReal := by
   classical
-  have hcompl := toOuterMeasure_toReal_add_compl (iid ν k) {y | Function.Injective y}
   rw [show 1 - ((iid ν k).toOuterMeasure {y | Function.Injective y}).toReal =
-    ((iid ν k).toOuterMeasure {y | Function.Injective y}ᶜ).toReal by linarith,
+    ((iid ν k).toOuterMeasure {y | Function.Injective y}ᶜ).toReal by
+      linarith [toOuterMeasure_toReal_add_compl (iid ν k) {y | Function.Injective y}],
     toOuterMeasure_toReal_eq_sum_ite, hybrid]
   refine sum_mul_le _ _ _ fun x => sum_le_sum fun y _ =>
     mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg
   by_cases hy : Function.Injective y
   · have hgoal : hybridGoal p 0 x y =
-        fun w => ¬ y (p.leafOutput w).index ∈ bobProjection p w := by
-      funext w
+        fun w => ¬ y (p.leafOutput w).index ∈ bobProjection p w := funext fun _ => by
       simp [hybridGoal]
-    have hnot : ¬ p.labelLeaves.CanForce true
-        (fun w => ¬ y (p.leafOutput w).index ∈ bobProjection p w) := fun h =>
-      (p.labelLeaves.canForce_not_iff false _).mp h (canForce_bobProjection p ⟨y, hy⟩)
-    simp [hgoal, hnot, hy]
+    have hnot : ¬ p.labelLeaves.CanForce true (hybridGoal p 0 x y) := fun h =>
+      (p.labelLeaves.canForce_not_iff false _).mp (hgoal ▸ h) (canForce_bobProjection p ⟨y, hy⟩)
+    simp [hnot, hy]
   · simp only [Set.mem_compl_iff, Set.mem_ofPred_eq, hy, not_false_eq_true, ite_true]
     split_ifs <;> norm_num
 
@@ -124,15 +123,13 @@ theorem exists_hybrid_step (hk : 0 < k)
     (hμ : ∀ a, (μ a).toReal ≤ ((k : ℝ) ^ 2)⁻¹) (hν : ∀ b, (ν b).toReal ≤ ((k : ℝ) ^ 2)⁻¹) :
     ∃ i : Fin k, ((k : ℝ) ^ 2)⁻¹ ≤ hybrid μ ν p (i + 1) - hybrid μ ν p i := by
   have hpair := iid_injective_pair_ge μ ν k hk hμ hν
-  have hlast := toOuterMeasure_injective_le_hybrid μ ν p
-  have hfirst := hybrid_zero_le μ ν p
   have hk' : (k : ℝ) ≠ 0 := by exact_mod_cast hk.ne'
-  have hsum : ∑ _i ∈ range k, ((k : ℝ) ^ 2)⁻¹ ≤
-      ∑ i ∈ range k, (hybrid μ ν p (i + 1) - hybrid μ ν p i) := by
-    rw [sum_range_sub (hybrid μ ν p), sum_const, card_range, nsmul_eq_mul]
-    have : (k : ℝ) * ((k : ℝ) ^ 2)⁻¹ = (k : ℝ)⁻¹ := by field_simp
-    linarith
-  obtain ⟨i, hi, hle⟩ := exists_le_of_sum_le (nonempty_range_iff.mpr hk.ne') hsum
+  obtain ⟨i, hi, hle⟩ := exists_le_of_sum_le (nonempty_range_iff.mpr hk.ne')
+    (show ∑ _i ∈ range k, ((k : ℝ) ^ 2)⁻¹ ≤
+        ∑ i ∈ range k, (hybrid μ ν p (i + 1) - hybrid μ ν p i) by
+      rw [sum_range_sub (hybrid μ ν p), sum_const, card_range, nsmul_eq_mul,
+        show (k : ℝ) * ((k : ℝ) ^ 2)⁻¹ = (k : ℝ)⁻¹ by field_simp]
+      linarith [toOuterMeasure_injective_le_hybrid μ ν p, hybrid_zero_le μ ν p])
   exact ⟨⟨i, mem_range.mp hi⟩, hle⟩
 
 /-- The background of a hybrid step: the leaves of other coordinates that `L_{i+1}` contains for
@@ -146,11 +143,9 @@ omit [Fintype X] [Fintype Y] in
 private theorem hybridGoal_succ_update (i : Fin k)
     (x : Fin k → X) (y : Fin k → Y) (a : X) (b : Y) :
     hybridGoal p (i + 1) (Function.update x i a) (Function.update y i b) =
-      aliceGoal p i (stepBackground p i x y) a := by
-  funext w
-  by_cases hw : (p.leafOutput w).index = i
-  · simp [hybridGoal, aliceGoal, hw]
-  · simp [hybridGoal, aliceGoal, stepBackground, hw]
+      aliceGoal p i (stepBackground p i x y) a :=
+  funext fun w => by by_cases hw : (p.leafOutput w).index = i <;>
+    simp [hybridGoal, aliceGoal, stepBackground, hw]
 
 omit [Fintype X] [Fintype Y] in
 /-- After redrawing coordinate `i` of both tuples, `L_i` is the complement of Bob's pivotal goal. -/
@@ -161,10 +156,9 @@ private theorem hybridGoal_update (i : Fin k)
   funext w
   by_cases hw : (p.leafOutput w).index = i
   · simp [hybridGoal, bobGoal, hw]
-  · have hlt : ((p.leafOutput w).index : ℕ) < i ↔ ((p.leafOutput w).index : ℕ) < i + 1 := by
-      have := Fin.val_ne_of_ne hw
-      omega
-    simp [hybridGoal, bobGoal, stepBackground, hw, hlt]
+  · simp [hybridGoal, bobGoal, stepBackground, hw,
+      show ((p.leafOutput w).index : ℕ) < i ↔ ((p.leafOutput w).index : ℕ) < i + 1 by
+        have := Fin.val_ne_of_ne hw; omega]
 
 /-- Redrawing coordinate `i` of both tuples does not change a hybrid probability. -/
 private theorem hybrid_eq_sum_update (i : Fin k) (j : ℕ) :
@@ -176,15 +170,9 @@ private theorem hybrid_eq_sum_update (i : Fin k) (j : ℕ) :
   classical
   rw [hybrid, iid_eq_pi, iid_eq_pi, sum_pi_mul_update (fun _ => μ) i]
   refine sum_congr rfl fun x _ => congrArg _ ?_
-  have h (x' : Fin k → X) :
-      ∑ y, (pi (fun _ => ν) y).toReal *
-        (if p.labelLeaves.CanForce true (hybridGoal p j x' y) then 1 else 0) =
-      ∑ y, (pi (fun _ => ν) y).toReal * ∑ b, (ν b).toReal *
-        if p.labelLeaves.CanForce true (hybridGoal p j x' (Function.update y i b)) then 1
-        else 0 :=
-    sum_pi_mul_update (fun _ => ν) i _
-  simp only [h, mul_sum]
-  refine sum_comm.trans (sum_congr rfl fun _ _ => sum_congr rfl fun _ _ =>
+  simp only [fun x' => sum_pi_mul_update (fun _ => ν) i
+    (fun y => if p.labelLeaves.CanForce true (hybridGoal p j x' y) then (1 : ℝ) else 0), mul_sum]
+  exact sum_comm.trans (sum_congr rfl fun _ _ => sum_congr rfl fun _ _ =>
     sum_congr rfl fun _ _ => by ring)
 
 /-- **The pivotal step.** A hybrid step is the average, over the tuples outside the pivotal
@@ -205,15 +193,12 @@ theorem hybrid_succ_sub_hybrid (i : Fin k) :
   rw [toOuterMeasure_toReal_eq_sum_ite, toOuterMeasure_toReal_eq_sum_ite ν (bobSide _ _ _)ᶜ] at *
   have hA : ∑ a, (μ a).toReal * ∑ b, (ν b).toReal *
       (if p.labelLeaves.CanForce true (aliceGoal p i (stepBackground p i x y) a) then 1 else 0) =
-      ∑ a, (μ a).toReal * if a ∈ aliceSide p i (stepBackground p i x y) then 1 else 0 := by
-    refine sum_congr rfl fun a _ => ?_
-    rw [← sum_mul, sum_toReal, one_mul]
-    rfl
+      ∑ a, (μ a).toReal * if a ∈ aliceSide p i (stepBackground p i x y) then 1 else 0 :=
+    sum_congr rfl fun _ _ => by rw [← sum_mul, sum_toReal, one_mul]; rfl
   have hB : ∑ a, (μ a).toReal * ∑ b, (ν b).toReal *
       (if b ∉ bobSide p i (stepBackground p i x y) then 1 else 0) =
       ∑ b, (ν b).toReal * if b ∈ (bobSide p i (stepBackground p i x y))ᶜ then 1 else 0 := by
-    rw [← sum_mul, sum_toReal, one_mul]
-    rfl
+    rw [← sum_mul, sum_toReal, one_mul]; rfl
   rw [hA, hB, toOuterMeasure_toReal_eq_sum_ite ν]
   linarith
 
@@ -225,8 +210,7 @@ theorem exists_large_forcing_rectangle [Finite X] [Finite Y] (hk : 0 < k)
     ∃ (i : Fin k) (background : Set (Fin p.leafCount)),
       1 + ((k : ℝ) ^ 2)⁻¹ ≤ (μ.toOuterMeasure (aliceSide p i background)).toReal +
         (ν.toOuterMeasure (bobSide p i background)).toReal := by
-  have := Fintype.ofFinite X
-  have := Fintype.ofFinite Y
+  have := Fintype.ofFinite X; have := Fintype.ofFinite Y
   obtain ⟨i, hi⟩ := exists_hybrid_step μ ν p hk hμ hν
   rw [hybrid_succ_sub_hybrid] at hi
   obtain ⟨x, -, hx⟩ := exists_mem_support_sum_mul_le (iid μ k) _
@@ -245,33 +229,27 @@ theorem exists_large_solvable_rectangle [Finite X] [Finite Y] [Fintype Z] {R : X
         1 + ((k : ℝ) ^ 2)⁻¹ ≤ (μ.toOuterMeasure A').toReal + (ν.toOuterMeasure B').toReal := by
   classical
   have hk : 0 < k := (p.leafOutput ⟨0, p.leafCount_pos⟩).index.pos
-  obtain ⟨x₀, -⟩ := μ.support_nonempty
-  obtain ⟨y₀, -⟩ := ν.support_nonempty
-  have : Nonempty Z := ⟨(htotal x₀ y₀).choose⟩
+  have : Nonempty Z := ⟨(htotal μ.support_nonempty.choose ν.support_nonempty.choose).choose⟩
   by_cases hμ : ∃ a, ((k : ℝ) ^ 2)⁻¹ ≤ (μ a).toReal
-  · -- A heavy row: Bob announces a valid answer for the fixed input of Alice.
-    obtain ⟨a, ha⟩ := hμ
+  · obtain ⟨a, ha⟩ := hμ
     obtain ⟨q, hq, hrun⟩ := exists_run_eq_right (X := X) fun y => (htotal a y).choose
-    refine ⟨{a}, Set.univ, q, hq.trans (le_max_right _ _), fun x hx y _ => ?_, ?_⟩
-    · rw [Set.mem_singleton_iff.mp hx, hrun]
-      exact (htotal a y).choose_spec
-    · rw [PMF.toOuterMeasure_apply_singleton,
-        (ν.toOuterMeasure_apply_eq_one_iff _).mpr (Set.subset_univ _), ENNReal.toReal_one]
-      linarith
+    refine ⟨{a}, Set.univ, q, hq.trans (le_max_right _ _),
+      fun x hx y _ => by rw [Set.mem_singleton_iff.mp hx, hrun]; exact (htotal a y).choose_spec, ?_⟩
+    rw [PMF.toOuterMeasure_apply_singleton,
+      (ν.toOuterMeasure_apply_eq_one_iff _).mpr (Set.subset_univ _), ENNReal.toReal_one]
+    linarith
   by_cases hν : ∃ b, ((k : ℝ) ^ 2)⁻¹ ≤ (ν b).toReal
-  · -- A heavy column: Alice announces a valid answer for the fixed input of Bob.
-    obtain ⟨b, hb⟩ := hν
+  · obtain ⟨b, hb⟩ := hν
     obtain ⟨q, hq, hrun⟩ := exists_run_eq_left (Y := Y) fun x => (htotal x b).choose
-    refine ⟨Set.univ, {b}, q, hq.trans (le_max_right _ _), fun x _ y hy => ?_, ?_⟩
-    · rw [Set.mem_singleton_iff.mp hy, hrun]
-      exact (htotal x b).choose_spec
-    · rw [PMF.toOuterMeasure_apply_singleton,
-        (μ.toOuterMeasure_apply_eq_one_iff _).mpr (Set.subset_univ _), ENNReal.toReal_one]
-      linarith
+    refine ⟨Set.univ, {b}, q, hq.trans (le_max_right _ _),
+      fun x _ y hy => by rw [Set.mem_singleton_iff.mp hy, hrun]; exact (htotal x b).choose_spec, ?_⟩
+    rw [PMF.toOuterMeasure_apply_singleton,
+      (μ.toOuterMeasure_apply_eq_one_iff _).mpr (Set.subset_univ _), ENNReal.toReal_one]
+    linarith
   push Not at hμ hν
-  obtain ⟨i, background, hlarge⟩ := exists_large_forcing_rectangle μ ν p hk
+  obtain ⟨i, bg, hlarge⟩ := exists_large_forcing_rectangle μ ν p hk
     (fun a => (hμ a).le) (fun b => (hν b).le)
-  exact ⟨_, _, rectangleProtocol p i background, (depth_rectangleProtocol p i background).le.trans
-    (le_max_left _ _), rectangleProtocol_solves hp i background, hlarge⟩
+  exact ⟨_, _, rectangleProtocol p i bg, (depth_rectangleProtocol p i bg).le.trans
+    (le_max_left _ _), rectangleProtocol_solves hp i bg, hlarge⟩
 
 end Cslib.Communication.OneOut

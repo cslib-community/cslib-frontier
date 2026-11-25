@@ -143,43 +143,24 @@ private theorem isUnionIndep_iff_exists_commonIndep [DecidableEq α]
   classical
   constructor
   · rintro ⟨f, hf, hI⟩
-    let pick : {x : α // x ∈ I} → ι := fun x =>
-      Classical.choose (Set.mem_iUnion.1 (hI ▸ Finset.mem_coe.2 x.2))
-    have hpick : ∀ x : {x : α // x ∈ I}, (x : α) ∈ f (pick x) := fun x =>
-      Classical.choose_spec (Set.mem_iUnion.1 (hI ▸ Finset.mem_coe.2 x.2))
-    let K : Finset (ι × α) := I.attach.image fun x => (pick x, x.1)
-    refine ⟨K, ?_, ?_, ?_⟩
-    · ext y
-      simp [K]
-    · rw [Matroid.sum'_indep_iff]
-      intro i
-      refine (hf i).subset ?_
-      intro x hx
-      simp only [Set.mem_preimage, Finset.mem_coe, K, Finset.mem_image, Finset.mem_attach,
-        true_and, Prod.mk.injEq, Subtype.exists] at hx
-      obtain ⟨y, hy, hi, rfl⟩ := hx
-      simpa [← hi] using hpick ⟨y, hy⟩
+    choose g hg using fun x : {x // x ∈ I} => Set.mem_iUnion.1 (hI ▸ Finset.mem_coe.2 x.2)
+    refine ⟨I.attach.image fun x => (g x, x.1), by simp [Finset.image_image, Function.comp_def],
+      ?_, ?_⟩
+    · refine Matroid.sum'_indep_iff.2 fun i => (hf i).subset fun x hx => ?_
+      rw [Set.mem_preimage, Finset.mem_coe, Finset.mem_image] at hx
+      obtain ⟨y, -, hyx⟩ := hx
+      cases hyx
+      exact hg y
     · rw [unitPartitionMatroid_indep_iff]
-      rintro ⟨i₁, x₁⟩ hx₁ ⟨i₂, x₂⟩ hx₂ hsnd
-      simp only [Finset.mem_coe, K, Finset.mem_image, Finset.mem_attach, true_and, Prod.mk.injEq,
-        Subtype.exists] at hx₁ hx₂
-      obtain ⟨y₁, hy₁, hi₁, rfl⟩ := hx₁
-      obtain ⟨y₂, hy₂, hi₂, rfl⟩ := hx₂
-      dsimp only at hsnd
-      subst hsnd
-      rw [← hi₁, ← hi₂]
-  · rintro ⟨K, hKI, hsum, -⟩
-    rw [Matroid.sum'_indep_iff] at hsum
-    refine ⟨fun i => Prod.mk i ⁻¹' (K : Set (ι × α)), hsum, ?_⟩
+      rintro _ hx₁ _ hx₂ h
+      obtain ⟨y₁, -, rfl⟩ := Finset.mem_image.1 hx₁
+      obtain ⟨y₂, -, rfl⟩ := Finset.mem_image.1 hx₂
+      obtain rfl := Subtype.ext h
+      rfl
+  · rintro ⟨K, rfl, hsum, -⟩
+    refine ⟨fun i => Prod.mk i ⁻¹' (K : Set (ι × α)), Matroid.sum'_indep_iff.1 hsum, ?_⟩
     ext x
-    simp only [Finset.mem_coe, Set.mem_iUnion, Set.mem_preimage]
-    rw [← hKI, Finset.mem_image]
-    constructor
-    · rintro ⟨⟨i, y⟩, hK, hy⟩
-      dsimp only at hy
-      exact ⟨i, hy ▸ hK⟩
-    · rintro ⟨i, hK⟩
-      exact ⟨(i, x), hK, rfl⟩
+    simp
 
 /-- Any finite witness `I ⊆ S` lifts to a common independent subset of `univ ×ˢ S`. -/
 private theorem exists_commonIndep_lift [Fintype ι] [DecidableEq α]
@@ -215,38 +196,18 @@ private theorem sum'_eRk [Fintype ι] (M : ι → Matroid α) (X : Set (ι × α
     (Matroid.sum' M).eRk X = ∑ i : ι, (M i).eRk (Prod.mk i ⁻¹' X) := by
   classical
   let N := Matroid.sum' M
-  let X' := X ∩ N.E
-  obtain ⟨J, hJ⟩ := N.exists_isBasis X'
-  have hJi : ∀ i : ι, (M i).IsBasis (Prod.mk i ⁻¹' J) (Prod.mk i ⁻¹' X') :=
-    Matroid.sum'_isBasis_iff.1 hJ
-  have hfib : ∀ i : ι, Prod.mk i ⁻¹' X' = (Prod.mk i ⁻¹' X) ∩ (M i).E := by
-    intro i
-    ext x
-    simp [X', N, Matroid.sum'_ground_eq]
+  obtain ⟨J, hJ⟩ := N.exists_isBasis (X ∩ N.E)
   have hJ_eq : J = ⋃ i ∈ (Finset.univ : Finset ι), Prod.mk i '' (Prod.mk i ⁻¹' J) := by
     ext ⟨i, x⟩
     simp
-  have hdisj :
-      Pairwise (Function.onFun Disjoint fun i : ι => Prod.mk i '' (Prod.mk i ⁻¹' J)) := by
-    intro i j hij
-    rw [Function.onFun, Set.disjoint_left]
-    rintro ⟨i', x⟩ ⟨y, _, hy⟩ ⟨z, _, hz⟩
-    have h1 : i = i' := by simpa using congrArg Prod.fst hy
-    have h2 : j = i' := by simpa using congrArg Prod.fst hz
-    exact hij (h1.trans h2.symm)
-  calc (Matroid.sum' M).eRk X
-      = N.eRk X' := (N.eRk_inter_ground X).symm
-    _ = J.encard := hJ.eRk_eq_encard
-    _ = ∑ i ∈ (Finset.univ : Finset ι), (Prod.mk i '' (Prod.mk i ⁻¹' J)).encard := by
-        rw [← encard_iUnion_disjoint_finset Finset.univ _ hdisj, ← hJ_eq]
-    _ = ∑ i : ι, (Prod.mk i ⁻¹' J).encard := by
-        refine Finset.sum_congr rfl fun i _ => ?_
-        exact (Prod.mk_right_injective i).encard_image _
-    _ = ∑ i : ι, (M i).eRk (Prod.mk i ⁻¹' X') := by
-        refine Finset.sum_congr rfl fun i _ => (hJi i).eRk_eq_encard.symm
-    _ = ∑ i : ι, (M i).eRk (Prod.mk i ⁻¹' X) := by
-        refine Finset.sum_congr rfl fun i _ => ?_
-        rw [hfib i, (M i).eRk_inter_ground]
+  rw [← N.eRk_inter_ground, hJ.eRk_eq_encard, hJ_eq, encard_iUnion_disjoint_finset _ _
+    fun i j hij => Set.disjoint_image_image fun _ _ _ _ h => hij (congrArg Prod.fst h)]
+  refine Finset.sum_congr rfl fun i _ => ?_
+  have hfib : Prod.mk i ⁻¹' (X ∩ N.E) = (Prod.mk i ⁻¹' X) ∩ (M i).E := by
+    ext x
+    simp [N, Matroid.sum'_ground_eq]
+  rw [(Prod.mk_right_injective i).encard_image, ← (M i).eRk_inter_ground, ← hfib,
+    (Matroid.sum'_isBasis_iff.1 hJ i).eRk_eq_encard]
 
 /-- Finite augmentation for `IsUnionIndep` via shortest augmenting walks in `Matroid.sum' M` and
 `unitPartitionMatroid Prod.snd`. -/
@@ -256,8 +217,7 @@ private theorem isUnionIndep_exists_insert [Finite ι] [DecidableEq α]
     ∃ e ∈ J, e ∉ I ∧ IsUnionIndep M ((insert e I : Finset α) : Set α) := by
   classical
   have := Fintype.ofFinite ι
-  let S : Finset α := I ∪ J
-  let E : Finset (ι × α) := Finset.univ ×ˢ S
+  let E : Finset (ι × α) := Finset.univ ×ˢ (I ∪ J)
   let M₁ : Matroid (ι × α) := Matroid.sum' M
   let M₂ : Matroid (ι × α) := unitPartitionMatroid Prod.snd
   obtain ⟨K, hKE, hKI, hK, hKcard⟩ := exists_commonIndep_lift M Finset.subset_union_left hI
@@ -265,116 +225,61 @@ private theorem isUnionIndep_exists_insert [Finite ι] [DecidableEq α]
   have hex : ∃ p : List (ι × α), IsExchAugWalk M₁ M₂ E K p := by
     by_contra hno
     obtain ⟨U, -, heq⟩ := exists_separator_of_not_exists_exchAugWalk hKE hK hno
-    have hmax := isMaxCommonIndep_of_card_eq_eRk_add_eRk hKE hK heq
-    have := hmax.2.2 KJ hKJE hKJ
+    have := (isMaxCommonIndep_of_card_eq_eRk_add_eRk hKE hK heq).2.2 KJ hKJE hKJ
     omega
   obtain ⟨p, hshort⟩ := exists_isShortestExchAugWalk hex
+  obtain ⟨hne, hX1, -, hmemE, hchain⟩ := hshort.1
   obtain ⟨hK'E, hK', hK'card⟩ := hshort.augment hKE
   let K' : Finset (ι × α) := K ∆ p.toFinset
   have hinj_K : Set.InjOn Prod.snd (K : Set (ι × α)) :=
     unitPartitionMatroid_indep_iff.1 hK.indep_right
-  have hinj_K' : Set.InjOn Prod.snd (K' : Set (ι × α)) :=
-    unitPartitionMatroid_indep_iff.1 hK'.indep_right
-  have hI_sub : I ⊆ K'.image Prod.snd := by
-    intro x hxI
-    obtain ⟨v, hvK, hvx⟩ := Finset.mem_image.1 (hKI ▸ hxI)
-    by_cases hvp : v ∈ p
-    · obtain ⟨t, ht, hvt⟩ := List.mem_iff_getElem.1 hvp
-      obtain ⟨hne, hX1, hX2, hmemE, hchain⟩ := hshort.1
-      have ht_pos : 0 < t := by
-        by_contra ht0
-        have hzero : t = 0 := by omega
-        subst hzero
-        have hv_head : v = p.head hne := by rw [← hvt, List.head_eq_getElem]
-        exact (Finset.mem_sdiff.1 hX1.1).2 (hv_head ▸ hvK)
-      have ht_lt_pred : t < p.length - 1 := by
-        by_contra hge
-        have hlast_idx : t = p.length - 1 := by omega
-        subst hlast_idx
-        have hv_last : v = p.getLast hne := by rw [← hvt, List.getLast_eq_getElem]
-        exact (Finset.mem_sdiff.1 hX2.1).2 (hv_last ▸ hvK)
-      let u : ι × α := p[t - 1]'(by omega)
-      have harc : IsExchArc M₁ M₂ E K u v := by
-        have harc' := List.IsChain.getElem hchain (t - 1) (by omega)
-        have hidx : (t - 1) + 1 = t := by omega
-        simpa only [u, hvt, hidx] using harc'
-      have hu_sdiff :
-          u ∈ E \ K ∧ M₂.Indep ((insert u (K.erase v) : Finset (ι × α)) : Set (ι × α)) := by
-        rcases harc with ⟨_, hvEI, _⟩ | ⟨huE, _, hind₂⟩
-        · exact absurd hvK (Finset.mem_sdiff.1 hvEI).2
-        · exact ⟨huE, hind₂⟩
-      have hu_not_K : u ∉ K := (Finset.mem_sdiff.1 hu_sdiff.1).2
-      have hu_K' : u ∈ K' :=
-        Finset.mem_symmDiff.2 (.inr ⟨List.mem_toFinset.2 (List.getElem_mem _), hu_not_K⟩)
-      have hu_snd_mem_I : u.2 ∈ I := by
-        by_contra hu_not_I
-        have hins₂ : M₂.Indep ((insert u K : Finset (ι × α)) : Set (ι × α)) := by
-          rw [unitPartitionMatroid_indep_iff]
-          intro a ha b hb hab
-          simp only [Finset.coe_insert, Set.mem_insert_iff, Finset.mem_coe] at ha hb
-          rcases ha with rfl | haK <;> rcases hb with rfl | hbK
-          · rfl
-          · exact absurd (hab ▸ (hKI ▸ Finset.mem_image_of_mem _ hbK)) hu_not_I
-          · exact absurd (hab.symm ▸ (hKI ▸ Finset.mem_image_of_mem _ haK)) hu_not_I
-          · exact hinj_K haK hbK hab
-        let q := p.take t
-        have hq_ne : q ≠ [] := by
-          intro hnil
-          have := congrArg List.length hnil
-          simp [q, Nat.min_eq_left ht.le] at this
-          omega
-        have hq_aug : IsExchAugWalk M₁ M₂ E K q := by
-          refine ⟨hq_ne, ?_, ?_, fun z hz => hmemE z (List.mem_of_mem_take hz), hchain.take t⟩
-          · rwa [List.head_take]
-          · have hlast : q.getLast hq_ne = u := by
-              rw [List.getLast_eq_getElem]
-              simp only [q, List.length_take, Nat.min_eq_left ht.le]
-              exact List.getElem_take
-            rw [hlast]
-            exact ⟨hu_sdiff.1, hins₂⟩
-        have hlen := hshort.2 q hq_aug
-        simp only [q, List.length_take, Nat.min_eq_left ht.le] at hlen
-        omega
-      have huv_eq : u.2 = v.2 := by
-        by_contra hne_snd
-        obtain ⟨w, hwK, hwsnd⟩ := Finset.mem_image.1 (hKI ▸ hu_snd_mem_I)
-        have hw_ne_v : w ≠ v := fun h => hne_snd (hwsnd.symm.trans (congrArg Prod.snd h))
-        have hw_erase : w ∈ K.erase v := Finset.mem_erase.2 ⟨hw_ne_v, hwK⟩
-        have hu_inj :
-            Set.InjOn Prod.snd ((insert u (K.erase v) : Finset (ι × α)) : Set (ι × α)) :=
-          unitPartitionMatroid_indep_iff.1 hu_sdiff.2
-        have huw := hu_inj
-          (Finset.mem_coe.2 (Finset.mem_insert_self u (K.erase v)))
-          (Finset.mem_coe.2 (Finset.mem_insert_of_mem hw_erase))
-          hwsnd.symm
-        exact hu_not_K (huw ▸ hwK)
-      exact Finset.mem_image.2 ⟨u, hu_K', huv_eq.trans hvx⟩
-    · have hv_K' : v ∈ K' := Finset.mem_symmDiff.2 (.inl ⟨hvK, by simp [hvp]⟩)
-      exact Finset.mem_image.2 ⟨v, hv_K', hvx⟩
-  have hK'_img_card : (K'.image Prod.snd).card = I.card + 1 := by
-    rw [Finset.card_image_of_injOn hinj_K', hK'card, hKcard]
-  have hsdiff_card : (K'.image Prod.snd \ I).card = 1 := by
-    rw [Finset.card_sdiff_of_subset hI_sub, hK'_img_card]
-    omega
-  obtain ⟨e, he_eq⟩ := Finset.card_eq_one.1 hsdiff_card
-  have he_mem : e ∈ K'.image Prod.snd \ I := by rw [he_eq]; exact Finset.mem_singleton_self e
-  have he_img : e ∈ K'.image Prod.snd := (Finset.mem_sdiff.1 he_mem).1
-  have he_not_I : e ∉ I := (Finset.mem_sdiff.1 he_mem).2
-  have he_S : e ∈ S := by
-    obtain ⟨⟨i, x⟩, hxK', rfl⟩ := Finset.mem_image.1 he_img
-    exact (Finset.mem_product.1 (hK'E hxK')).2
-  have he_J : e ∈ J := Or.resolve_left (Finset.mem_union.1 he_S) he_not_I
-  have hK'_img_eq : K'.image Prod.snd = insert e I := by
-    ext x
-    by_cases hxI : x ∈ I
-    · simp [hxI, hI_sub hxI]
-    · have hx_sdiff : x ∈ K'.image Prod.snd \ I ↔ x = e := by rw [he_eq, Finset.mem_singleton]
-      have hx_img : x ∈ K'.image Prod.snd ↔ x = e :=
-        ⟨fun h => hx_sdiff.1 (Finset.mem_sdiff.2 ⟨h, hxI⟩),
-         fun h => (Finset.mem_sdiff.1 (hx_sdiff.2 h)).1⟩
-      simpa [hxI] using hx_img
-  refine ⟨e, he_J, he_not_I,
-    (isUnionIndep_iff_exists_commonIndep M (insert e I)).2 ⟨K', hK'_img_eq, hK'⟩⟩
+  have hI_sub : I ⊆ K'.image Prod.snd := fun x hxI => by
+    obtain ⟨v, hvK, rfl⟩ := Finset.mem_image.1 (hKI ▸ hxI)
+    by_cases hvp : v ∉ p
+    · exact Finset.mem_image_of_mem _ (Finset.mem_symmDiff.2 (.inl ⟨hvK, by simpa using hvp⟩))
+    -- `v ∈ K` enters `p` through an `M₂`-arc `u → v` with `u ∉ K`; minimality of `p` keeps
+    -- `u.2 ∈ I`, and then `u.2 = v.2`.
+    obtain ⟨t, ht, hvt⟩ := List.mem_iff_getElem.1 (not_not.1 hvp)
+    have ht_pos : 0 < t := Nat.pos_of_ne_zero fun h => (Finset.mem_sdiff.1 hX1.1).2 (by
+      subst h; rwa [List.head_eq_getElem, hvt])
+    let u : ι × α := p[t - 1]'(by omega)
+    have harc : IsExchArc M₁ M₂ E K u v := by
+      simpa only [u, hvt, Nat.sub_add_cancel ht_pos] using hchain.getElem (t - 1) (by omega)
+    obtain ⟨huE, hind₂⟩ :
+        u ∈ E \ K ∧ M₂.Indep ((insert u (K.erase v) : Finset (ι × α)) : Set (ι × α)) := by
+      rcases harc with ⟨_, hvEK, _⟩ | ⟨huE, _, hind₂⟩
+      exacts [absurd hvK (Finset.mem_sdiff.1 hvEK).2, ⟨huE, hind₂⟩]
+    have hu_not_K : u ∉ K := (Finset.mem_sdiff.1 huE).2
+    have hu_I : u.2 ∈ I := by
+      -- otherwise `u` is a sink and `p.take t` is a shorter augmenting walk
+      by_contra hu_not_I
+      have hsink : IsExchSink M₂ E K u := by
+        refine ⟨huE, ?_⟩
+        rw [unitPartitionMatroid_indep_iff, Finset.coe_insert]
+        exact (Set.injOn_insert hu_not_K).2 ⟨hinj_K, fun ⟨w, hwK, hw⟩ =>
+          hu_not_I (hw ▸ hKI ▸ Finset.mem_image_of_mem _ hwK)⟩
+      have hq_ne : p.take t ≠ [] := List.ne_nil_of_length_pos (by rw [List.length_take]; omega)
+      have hlast : (p.take t).getLast hq_ne = u := by
+        rw [List.getLast_eq_getElem]
+        simp only [List.length_take, Nat.min_eq_left ht.le]
+        exact List.getElem_take
+      have hlen := hshort.2 _ ⟨hq_ne, by rwa [List.head_take], hlast ▸ hsink,
+        fun z hz => hmemE z (List.mem_of_mem_take hz), hchain.take t⟩
+      rw [List.length_take] at hlen
+      omega
+    obtain ⟨w, hwK, hwu⟩ := Finset.mem_image.1 (hKI ▸ hu_I)
+    have hwv : w = v := of_not_not fun hwv => hu_not_K
+      (unitPartitionMatroid_indep_iff.1 hind₂ (by simp) (by simp [hwv, hwK]) hwu.symm ▸ hwK)
+    exact Finset.mem_image.2 ⟨u, Finset.mem_symmDiff.2
+      (.inr ⟨List.mem_toFinset.2 (List.getElem_mem _), hu_not_K⟩), by rw [← hwu, hwv]⟩
+  obtain ⟨e, he_not_I, he_eq⟩ := Finset.exists_eq_insert_iff.2 ⟨hI_sub, by
+    rw [Finset.card_image_of_injOn (unitPartitionMatroid_indep_iff.1 hK'.indep_right), hK'card,
+      hKcard]⟩
+  have he_J : e ∈ J := by
+    obtain ⟨y, hyK', rfl⟩ := Finset.mem_image.1 (he_eq ▸ Finset.mem_insert_self e I)
+    exact (Finset.mem_union.1 (Finset.mem_product.1 (hK'E hyK')).2).resolve_left he_not_I
+  exact ⟨e, he_J, he_not_I,
+    (isUnionIndep_iff_exists_commonIndep M (insert e I)).2 ⟨K', he_eq.symm, hK'⟩⟩
 
 end ReductionHelpers
 
@@ -444,35 +349,16 @@ theorem exists_isUnionIndep_card_eq [DecidableEq α] (M : ι → Matroid α) (S 
     exists_commonIndep_card_eq_eRk_add_eRk (Matroid.sum' M) (unitPartitionMatroid Prod.snd) E
   let I : Finset α := K.image Prod.snd
   let T : Finset α := S.filter fun x => ∀ i : ι, (i, x) ∈ U
-  have hIS : I ⊆ S := by
-    intro x hx
-    obtain ⟨⟨i, y⟩, hyK, rfl⟩ := Finset.mem_image.1 hx
-    exact (Finset.mem_product.1 (hmax.1 hyK)).2
-  have hTS : T ⊆ S := Finset.filter_subset _ S
+  have hIS : I ⊆ S := Finset.image_subset_iff.2 fun y hy => (Finset.mem_product.1 (hmax.1 hy)).2
   have hI : IsUnionIndep M (I : Set α) :=
     (isUnionIndep_iff_exists_commonIndep M I).2 ⟨K, rfl, hmax.2.1⟩
   have hI_card : I.card = K.card :=
     Finset.card_image_of_injOn (unitPartitionMatroid_indep_iff.1 hmax.2.1.indep_right)
-  have hUT : Finset.univ ×ˢ T ⊆ U := by
-    rintro ⟨i, x⟩ hx
-    rw [Finset.mem_product] at hx
-    exact (Finset.mem_filter.1 hx.2).2 i
+  -- `T × ι ⊆ U`, so the fibers of `U` bound the rank sum; `E \ U` projects onto `S \ T`.
   have hsum_rk :
       ∑ i : ι, (M i).eRk (T : Set α) ≤ (Matroid.sum' M).eRk (U : Set (ι × α)) := by
-    have hfib :
-        ∀ i : ι, Prod.mk i ⁻¹' ((Finset.univ ×ˢ T : Finset (ι × α)) : Set (ι × α)) = T := by
-      intro i
-      ext x
-      simp
-    calc ∑ i : ι, (M i).eRk (T : Set α)
-        = ∑ i : ι,
-            (M i).eRk (Prod.mk i ⁻¹' ((Finset.univ ×ˢ T : Finset (ι × α)) : Set (ι × α))) := by
-          refine Finset.sum_congr rfl fun i _ => ?_
-          rw [hfib i]
-      _ = (Matroid.sum' M).eRk ((Finset.univ ×ˢ T : Finset (ι × α)) : Set (ι × α)) :=
-          (sum'_eRk M _).symm
-      _ ≤ (Matroid.sum' M).eRk (U : Set (ι × α)) :=
-          (Matroid.sum' M).eRk_mono (Finset.coe_subset.2 hUT)
+    rw [sum'_eRk]
+    exact Finset.sum_le_sum fun i _ => (M i).eRk_mono fun x hx => (Finset.mem_filter.1 hx).2 i
   have hsdiff_eq : (E \ U).image Prod.snd = S \ T := by
     ext x
     simp only [Finset.mem_image, Finset.mem_sdiff, Finset.mem_product, Finset.mem_univ,
@@ -483,21 +369,13 @@ theorem exists_isUnionIndep_card_eq [DecidableEq α] (M : ι → Matroid α) (S 
     · rintro ⟨hxS, hnot⟩
       obtain ⟨i, hiU⟩ := hnot hxS
       exact ⟨i, x, ⟨hxS, hiU⟩, rfl⟩
-  have hpart_rk :
-      (unitPartitionMatroid Prod.snd).eRk ((E \ U : Finset (ι × α)) : Set (ι × α)) =
-        ((S \ T).card : ℕ∞) := by
-    rw [unitPartitionMatroid_eRk, ← Finset.coe_image, hsdiff_eq, Set.encard_coe_eq_coe_finsetCard]
-  have hle : ((S \ T).card : ℕ∞) + ∑ i : ι, (M i).eRk (T : Set α) ≤ (I.card : ℕ∞) := by
-    calc ((S \ T).card : ℕ∞) + ∑ i : ι, (M i).eRk (T : Set α)
-        ≤ (unitPartitionMatroid Prod.snd).eRk ((E \ U : Finset (ι × α)) : Set (ι × α)) +
-            (Matroid.sum' M).eRk (U : Set (ι × α)) := add_le_add hpart_rk.symm.le hsum_rk
-      _ = (K.card : ℕ∞) := by rw [add_comm, ← heq]
-      _ = (I.card : ℕ∞) := by rw [hI_card]
-  have hge : (I.card : ℕ∞) ≤ ((S \ T).card : ℕ∞) + ∑ i : ι, (M i).eRk (T : Set α) := by
-    have hweak := hI.encard_le_encard_sdiff_add_sum_eRk (Finset.coe_subset.2 hIS) (T : Set α)
+  refine ⟨I, T, hIS, Finset.filter_subset _ S, hI, le_antisymm ?_ ?_⟩
+  · have hweak := hI.encard_le_encard_sdiff_add_sum_eRk (Finset.coe_subset.2 hIS) (T : Set α)
     rwa [← Finset.coe_sdiff, Set.encard_coe_eq_coe_finsetCard,
       Set.encard_coe_eq_coe_finsetCard] at hweak
-  exact ⟨I, T, hIS, hTS, hI, le_antisymm hge hle⟩
+  · rw [hI_card, heq, unitPartitionMatroid_eRk, ← Finset.coe_image, hsdiff_eq,
+      Set.encard_coe_eq_coe_finsetCard, add_comm]
+    exact add_le_add hsum_rk le_rfl
 
 /-- **Edmonds' matroid union rank theorem** ([Schrijver2017]; [Schrijver2003]): for any finite
 family `M : ι → Matroid α` and finite set `X : Set α`, the rank `(matroidUnion M).eRk X` equals
@@ -550,36 +428,21 @@ private theorem exists_partition_of_isUnionIndep [DecidableEq α] {M : ι → Ma
     ∃ P : ι → Finset α, (∀ i, (M i).Indep (P i : Set α)) ∧
       Pairwise (Function.onFun Disjoint P) ∧ Finset.univ.biUnion P = S := by
   classical
-  obtain ⟨K, hKS, hK⟩ := (isUnionIndep_iff_exists_commonIndep M S).1 hS
-  let P : ι → Finset α := fun i => (K.filter fun p => p.1 = i).image Prod.snd
-  refine ⟨P, ?_, ?_, ?_⟩
-  · intro i
-    have hsum := Matroid.sum'_indep_iff.1 hK.indep_left i
-    refine hsum.subset ?_
-    intro x hx
-    simp only [P, Finset.coe_image, Finset.coe_filter, Set.mem_image, Set.mem_ofPred_eq,
+  obtain ⟨K, rfl, hK⟩ := (isUnionIndep_iff_exists_commonIndep M S).1 hS
+  have hinj : Set.InjOn Prod.snd (K : Set (ι × α)) :=
+    unitPartitionMatroid_indep_iff.1 hK.indep_right
+  refine ⟨fun i => (K.filter fun p => p.1 = i).image Prod.snd, fun i => ?_, fun i j hij => ?_, ?_⟩
+  · refine (Matroid.sum'_indep_iff.1 hK.indep_left i).subset fun x hx => ?_
+    simp only [Finset.coe_image, Finset.coe_filter, Set.mem_image, Set.mem_ofPred_eq,
       Prod.exists] at hx
     obtain ⟨j, y, ⟨hyK, rfl⟩, rfl⟩ := hx
     exact hyK
-  · intro i j hij
-    rw [Function.onFun, Finset.disjoint_left]
-    intro x hxi hxj
-    simp only [P, Finset.mem_image, Finset.mem_filter, Prod.exists] at hxi hxj
-    obtain ⟨i', y₁, ⟨hy₁K, rfl⟩, rfl⟩ := hxi
-    obtain ⟨j', y₂, ⟨hy₂K, rfl⟩, hy⟩ := hxj
-    have hinj : Set.InjOn Prod.snd (K : Set (ι × α)) :=
-      unitPartitionMatroid_indep_iff.1 hK.indep_right
-    have heq := hinj hy₁K hy₂K hy.symm
-    exact hij (congrArg Prod.fst heq)
+  · rw [Function.onFun, Finset.disjoint_left]
+    simp only [Finset.mem_image, Finset.mem_filter, Prod.exists]
+    rintro x ⟨i', y₁, ⟨hy₁K, rfl⟩, rfl⟩ ⟨j', y₂, ⟨hy₂K, rfl⟩, hy⟩
+    exact hij (congrArg Prod.fst (hinj hy₁K hy₂K hy.symm))
   · ext x
-    simp only [P, Finset.mem_biUnion, Finset.mem_univ, true_and, Finset.mem_image,
-      Finset.mem_filter, Prod.exists]
-    constructor
-    · rintro ⟨i, j, y, ⟨hyK, _⟩, rfl⟩
-      exact hKS ▸ Finset.mem_image_of_mem _ hyK
-    · intro hxS
-      obtain ⟨⟨i, y⟩, hyK, hy⟩ := Finset.mem_image.1 (hKS.symm ▸ hxS)
-      exact ⟨i, i, y, ⟨hyK, rfl⟩, hy⟩
+    simp
 
 /-- **Edmonds–Fulkerson matroid partitioning theorem** ([Schrijver2017]; [Schrijver2003]): a
 finite set `S : Finset α` can be partitioned into pairwise disjoint sets `P i` with
@@ -591,21 +454,12 @@ theorem exists_partition_indep_iff [DecidableEq α] (M : ι → Matroid α) (S :
       ∀ T ⊆ S, (T.card : ℕ∞) ≤ ∑ i : ι, (M i).eRk (T : Set α) := by
   constructor
   · rintro ⟨P, hP_indep, -, hP_union⟩ T hTS
-    have hT_eq : T = Finset.univ.biUnion fun i => T ∩ P i := by
-      ext x
-      simp only [Finset.mem_biUnion, Finset.mem_univ, true_and, Finset.mem_inter]
-      constructor
-      · intro hxT
-        obtain ⟨i, _, hi⟩ := Finset.mem_biUnion.1 (hP_union.symm ▸ hTS hxT)
-        exact ⟨i, hxT, hi⟩
-      · rintro ⟨i, hxT, _⟩
-        exact hxT
     have hcard_le : T.card ≤ ∑ i : ι, (T ∩ P i).card := by
-      conv_lhs => rw [hT_eq]
-      exact Finset.card_biUnion_le
+      refine (Finset.card_le_card fun x hxT => ?_).trans Finset.card_biUnion_le
+      obtain ⟨i, -, hi⟩ := Finset.mem_biUnion.1 (hP_union.symm ▸ hTS hxT)
+      exact Finset.mem_biUnion.2 ⟨i, Finset.mem_univ i, Finset.mem_inter.2 ⟨hxT, hi⟩⟩
     calc (T.card : ℕ∞)
-        ≤ ((∑ i : ι, (T ∩ P i).card : ℕ) : ℕ∞) := Nat.cast_le.2 hcard_le
-      _ = ∑ i : ι, ((T ∩ P i).card : ℕ∞) := by rw [Nat.cast_sum]
+        ≤ ∑ i : ι, ((T ∩ P i).card : ℕ∞) := by exact_mod_cast hcard_le
       _ ≤ ∑ i : ι, (M i).eRk (T : Set α) := by
           refine Finset.sum_le_sum fun i _ => ?_
           rw [← Set.encard_coe_eq_coe_finsetCard]
@@ -656,40 +510,29 @@ theorem exists_disjoint_isBase_iff (M : Matroid α) (hE : M.E.Finite) (k : ℕ) 
     simpa only [hcard, Finset.sum_const, Finset.card_fin, nsmul_eq_mul] using
       hI.encard_le_encard_sdiff_add_sum_eRk hIE T
   · intro hcond
-    let E := hE.toFinset
-    obtain ⟨I, T, -, hTE, hI, heq⟩ := exists_isUnionIndep_card_eq (fun _ : Fin k => M) E
-    have hTE' : (T : Set α) ⊆ M.E := fun x hx => (Set.Finite.mem_toFinset hE).1 (hTE hx)
-    have hsd : M.E \ (T : Set α) = ((E \ T : Finset α) : Set α) := by
-      rw [Finset.coe_sdiff, Set.Finite.coe_toFinset]
-    have hk_le_I : (k : ℕ∞) * M.eRank ≤ (I.card : ℕ∞) := by
-      calc (k : ℕ∞) * M.eRank
-          ≤ (M.E \ (T : Set α)).encard + (k : ℕ∞) * M.eRk (T : Set α) := hcond (T : Set α) hTE'
-        _ = ((E \ T).card : ℕ∞) + ∑ _i : Fin k, M.eRk (T : Set α) := by
-            rw [hsd, Set.encard_coe_eq_coe_finsetCard, Finset.sum_const, Finset.card_fin,
-              nsmul_eq_mul]
-        _ = (I.card : ℕ∞) := heq.symm
-    obtain ⟨P, hP_indep, hP_disj, hP_union⟩ := exists_partition_of_isUnionIndep hI
-    have hI_sum : I.card = ∑ i : Fin k, (P i).card := by
-      rw [← hP_union, Finset.card_biUnion fun i _ j _ hij => hP_disj hij]
-    have hP_le : ∀ i : Fin k, (P i).card ≤ M.eRank.toNat := by
-      intro i
-      have hle := (hP_indep i).encard_le_eRank
-      rw [Set.encard_coe_eq_coe_finsetCard, ← ENat.natCast_toNat hrank_ne] at hle
-      exact Nat.cast_le.1 hle
-    have hsum_ge : k * M.eRank.toNat ≤ ∑ i : Fin k, (P i).card := by
-      rw [← hI_sum]
-      have h' := hk_le_I
-      rw [← ENat.natCast_toNat hrank_ne, ← Nat.cast_mul] at h'
-      exact Nat.cast_le.1 h'
-    have hsum_eq : ∑ i : Fin k, (P i).card = ∑ _i : Fin k, M.eRank.toNat := by
-      refine le_antisymm (Finset.sum_le_sum fun i _ => hP_le i) ?_
-      simpa only [Finset.sum_const, Finset.card_fin, smul_eq_mul] using hsum_ge
-    have hP_eq : ∀ i : Fin k, (P i).card = M.eRank.toNat := fun i =>
-      (Finset.sum_eq_sum_iff_of_le fun j _ => hP_le j).1 hsum_eq i (Finset.mem_univ i)
+    obtain ⟨r, hr⟩ := ENat.ne_top_iff_exists.1 hrank_ne
+    obtain ⟨I, T, -, hTE, hI, heq⟩ :=
+      exists_isUnionIndep_card_eq (fun _ : Fin k => M) hE.toFinset
+    have hk_le_I : k * r ≤ I.card := by
+      have h := hcond T fun x hx => hE.mem_toFinset.1 (hTE hx)
+      rw [← Set.Finite.coe_toFinset hE, ← Finset.coe_sdiff, Set.encard_coe_eq_coe_finsetCard,
+        ← hr] at h
+      rw [Finset.sum_const, Finset.card_fin, nsmul_eq_mul] at heq
+      rw [← heq] at h
+      exact_mod_cast h
+    obtain ⟨P, hP_indep, hP_disj, rfl⟩ := exists_partition_of_isUnionIndep hI
+    have hP_le : ∀ i, (P i).card ≤ r := fun i => by
+      have h := (hP_indep i).encard_le_eRank
+      rwa [Set.encard_coe_eq_coe_finsetCard, ← hr, Nat.cast_le] at h
+    have hI_sum : (Finset.univ.biUnion P).card = ∑ i, (P i).card :=
+      Finset.card_biUnion fun i _ j _ hij => hP_disj hij
+    have hP_eq : ∀ i, (P i).card = r := fun i =>
+      (Finset.sum_eq_sum_iff_of_le fun j _ => hP_le j).1 (le_antisymm
+        (Finset.sum_le_sum fun j _ => hP_le j) (by simpa [hI_sum] using hk_le_I)) i
+        (Finset.mem_univ i)
     refine ⟨fun i => (P i : Set α), fun i => ?_, fun i j hij => Finset.disjoint_coe.2 (hP_disj hij)⟩
     refine (hP_indep i).isBase_of_eRk_ge (Finset.finite_toSet _) ?_
-    rw [(hP_indep i).eRk_eq_encard, Set.encard_coe_eq_coe_finsetCard, hP_eq i,
-      ENat.natCast_toNat hrank_ne]
+    rw [(hP_indep i).eRk_eq_encard, Set.encard_coe_eq_coe_finsetCard, hP_eq i, hr]
 
 end MinMaxAndPartitioning
 
