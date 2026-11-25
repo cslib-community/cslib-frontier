@@ -86,27 +86,19 @@ private def deleteBit (b a : ℕ) : ℕ :=
 /-- Deleting a bit keeps the order of levels that do not first differ at that bit. -/
 private theorem deleteBit_lt_deleteBit {b a c : ℕ} (hac : a < c) (hb : ¬ InClass b a c) :
     deleteBit b a < deleteBit b c := by
-  have h2 : 0 < 2 ^ b := Nat.pow_pos (by omega)
-  have hmod (m : ℕ) : m % 2 ^ b < 2 ^ b := Nat.mod_lt _ h2
-  have hdiv (m : ℕ) : m / 2 ^ (b + 1) * 2 = m / 2 ^ b / 2 * 2 := by
-    rw [pow_succ, ← Nat.div_div_eq_div_mul]
+  have hmod (m : ℕ) : m % 2 ^ b < 2 ^ b := Nat.mod_lt _ (by positivity)
   rcases Nat.lt_or_ge (a / 2 ^ (b + 1)) (c / 2 ^ (b + 1)) with hlt | hge
   · -- the levels differ above bit `b`
-    have := hmod a
-    calc deleteBit b a < (a / 2 ^ (b + 1) + 1) * 2 ^ b := by unfold deleteBit; nlinarith
+    calc deleteBit b a < (a / 2 ^ (b + 1) + 1) * 2 ^ b := by
+          unfold deleteBit; nlinarith [hmod a]
       _ ≤ c / 2 ^ (b + 1) * 2 ^ b := Nat.mul_le_mul_right _ hlt
       _ ≤ deleteBit b c := Nat.le_add_right _ _
   · -- the levels agree down to bit `b`, so they differ below it
     have heq : a / 2 ^ (b + 1) = c / 2 ^ (b + 1) :=
       le_antisymm (Nat.div_le_div_right hac.le) hge
-    have hb' : a / 2 ^ b = c / 2 ^ b := by
-      by_contra h
-      exact hb ⟨heq, h⟩
-    have hmodlt : a % 2 ^ b < c % 2 ^ b := by
-      have ha := Nat.div_add_mod a (2 ^ b)
-      have hc := Nat.div_add_mod c (2 ^ b)
-      rw [hb'] at ha
-      omega
+    have hb' : a / 2 ^ b = c / 2 ^ b := not_ne_iff.1 fun h => hb ⟨heq, h⟩
+    have ha := hb' ▸ Nat.div_add_mod a (2 ^ b)
+    have hc := Nat.div_add_mod c (2 ^ b)
     unfold deleteBit
     rw [heq]
     omega
@@ -114,12 +106,11 @@ private theorem deleteBit_lt_deleteBit {b a c : ℕ} (hac : a < c) (hb : ¬ InCl
 /-- Deleting a bit below `k + 1` halves the levels. -/
 private theorem deleteBit_lt {b k a : ℕ} (hb : b ≤ k) (ha : a < 2 ^ (k + 1)) :
     deleteBit b a < 2 ^ k := by
-  have h2 : 0 < 2 ^ b := Nat.pow_pos (by omega)
   have hq : a / 2 ^ (b + 1) < 2 ^ (k - b) := by
-    rw [Nat.div_lt_iff_lt_mul (Nat.pow_pos (by omega)), ← pow_add]
-    rwa [show k - b + (b + 1) = k + 1 by omega]
-  have := Nat.mod_lt a h2
-  calc deleteBit b a < (a / 2 ^ (b + 1) + 1) * 2 ^ b := by unfold deleteBit; nlinarith
+    rw [Nat.div_lt_iff_lt_mul (by positivity), ← pow_add, show k - b + (b + 1) = k + 1 by omega]
+    exact ha
+  calc deleteBit b a < (a / 2 ^ (b + 1) + 1) * 2 ^ b := by
+        unfold deleteBit; nlinarith [Nat.mod_lt a (show 0 < 2 ^ b by positivity)]
     _ ≤ 2 ^ (k - b) * 2 ^ b := Nat.mul_le_mul_right _ hq
     _ = 2 ^ k := by rw [← pow_add, Nat.sub_add_cancel hb]
 
@@ -129,25 +120,20 @@ private theorem exists_sdiff_one [DecidableEq V] {k : ℕ} (hg : IsGrading E (2 
     ∃ F ⊆ E, (k + 1) * #F ≤ #E ∧ ∃ g' : V → ℕ, IsGrading (E \ F) (2 ^ k) g' := by
   -- the classes of edges, one for each bit
   set C : ℕ → Finset (V × V) := fun b => {e ∈ E | InClass b (g e.1) (g e.2)}
-  have hdisj : (range (k + 1) : Set ℕ).PairwiseDisjoint C := by
-    intro b _ b' _ hbb'
-    refine disjoint_left.2 fun e he he' => ?_
-    rcases Nat.lt_or_gt_of_ne hbb' with h | h
-    · exact not_inClass_of_inClass (mem_filter.1 he).2 h (mem_filter.1 he').2
-    · exact not_inClass_of_inClass (mem_filter.1 he').2 h (mem_filter.1 he).2
-  have hsum : ∑ b ∈ range (k + 1), #(C b) ≤ #E := by
-    rw [← card_biUnion hdisj]
-    exact card_le_card (biUnion_subset.2 fun b _ => filter_subset _ _)
+  have hdisj : (range (k + 1) : Set ℕ).PairwiseDisjoint C := fun b _ b' _ hbb' =>
+    disjoint_left.2 fun e he he' => (Nat.lt_or_gt_of_ne hbb').elim
+      (fun h => not_inClass_of_inClass (mem_filter.1 he).2 h (mem_filter.1 he').2)
+      (fun h => not_inClass_of_inClass (mem_filter.1 he').2 h (mem_filter.1 he).2)
   -- the smallest class has at most `1 / (k + 1)` of the edges
   obtain ⟨b, hb, hmin⟩ := exists_min_image (range (k + 1)) (fun b => #(C b))
     (nonempty_range_iff.2 (Nat.succ_ne_zero k))
-  have hcard : (k + 1) * #(C b) ≤ #E := by
-    refine le_trans ?_ hsum
-    simpa using card_nsmul_le_sum (range (k + 1)) (fun b => #(C b)) _ hmin
-  refine ⟨C b, filter_subset _ _, hcard, deleteBit b ∘ g, fun v => ?_, fun e he => ?_⟩
-  · exact deleteBit_lt (Nat.lt_succ_iff.1 (mem_range.1 hb)) (hg.1 v)
-  · obtain ⟨he, hnot⟩ := mem_sdiff.1 he
-    exact deleteBit_lt_deleteBit (hg.2 e he) fun h => hnot (mem_filter.2 ⟨he, h⟩)
+  have hcard : (k + 1) * #(C b) ≤ #E :=
+    Nat.le_trans (by simpa using card_nsmul_le_sum (range (k + 1)) (fun b => #(C b)) _ hmin)
+      ((card_biUnion hdisj).symm ▸ card_le_card (biUnion_subset.2 fun _ _ => filter_subset _ _))
+  exact ⟨C b, filter_subset _ _, hcard, deleteBit b ∘ g,
+    fun v => deleteBit_lt (Nat.lt_succ_iff.1 (mem_range.1 hb)) (hg.1 v), fun e he =>
+      deleteBit_lt_deleteBit (hg.2 e (mem_sdiff.1 he).1)
+        fun h => (mem_sdiff.1 he).2 (mem_filter.2 ⟨(mem_sdiff.1 he).1, h⟩)⟩
 
 /-- **Valiant's depth reduction.** If `E` has a grading with `2 ^ k` levels and `r ≤ k`, then
 removing at most `r / k` of the edges leaves edges with a grading with `2 ^ (k - r)` levels. -/
@@ -161,26 +147,23 @@ theorem exists_sdiff [DecidableEq V] {k r : ℕ} (hg : IsGrading E (2 ^ k) g) (h
     obtain ⟨F₂, hF₂, hcard₂, g₂, hg₂⟩ := ih hg₁ (by omega)
     refine ⟨F₁ ∪ F₂, union_subset hF₁ (hF₂.trans sdiff_subset), ?_, g₂, ?_⟩
     · -- the bound for the union
-      have hdisj : Disjoint F₁ F₂ := disjoint_of_subset_right hF₂ disjoint_sdiff
+      rw [card_union_of_disjoint (disjoint_of_subset_right hF₂ disjoint_sdiff)]
       have hE : #(E \ F₁) + #F₁ = #E := card_sdiff_add_card_eq_card hF₁
-      have hy : #F₂ ≤ #(E \ F₁) := card_le_card hF₂
-      rw [card_union_of_disjoint hdisj]
       rcases Nat.eq_zero_or_pos k with rfl | hk
-      · obtain rfl : r = 0 := by omega
+      · simp only [zero_add, one_mul, Nat.add_one_mul] at hcard₁ ⊢
+        have := card_le_card hF₂
         omega
       · -- multiply by `k`; the slack is `(k - r) (#(E \ F₁) - k #F₁) ≥ 0`
         refine Nat.le_of_mul_le_mul_left ?_ hk
-        have h₁ : k * #F₁ ≤ #(E \ F₁) := by linarith
         have h₃ : r ≤ k := by omega
         have key : (k + 1) * (k * #F₂) ≤ (k + 1) * (r * #(E \ F₁)) := by gcongr
-        have slack : (k - r) * (k * #F₁) ≤ (k - r) * #(E \ F₁) := Nat.mul_le_mul_left _ h₁
+        have slack : (k - r) * (k * #F₁) ≤ (k - r) * #(E \ F₁) :=
+          Nat.mul_le_mul_left _ (by linarith)
         zify [h₃] at slack ⊢
         rw [← hE]
         push_cast
         nlinarith [key, slack]
-    · rw [show k + 1 - (r + 1) = k - r by omega,
-        show E \ (F₁ ∪ F₂) = (E \ F₁) \ F₂ by ext; simp [and_assoc]]
-      exact hg₂
+    · simpa only [Nat.add_sub_add_right, ← sdiff_sdiff_left] using hg₂
 
 end IsGrading
 

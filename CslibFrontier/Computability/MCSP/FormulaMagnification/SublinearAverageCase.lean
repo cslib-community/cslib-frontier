@@ -106,10 +106,8 @@ theorem ofFn_mem_yesSet_sqrtThreshold_iff {n : ℕ} {T : BitString (2 ^ n)} :
 
 /-- At perfect squares the threshold is exact: `⌊2 ^ √(m ^ 2)⌋₊ = 2 ^ m`. -/
 theorem sqrtThreshold_sq (m : ℕ) : sqrtThreshold (m ^ 2) = 2 ^ m := by
-  have h : (2 : ℝ) ^ Real.sqrt ((m ^ 2 : ℕ) : ℝ) = ((2 ^ m : ℕ) : ℝ) := by
-    rw [Nat.cast_pow, Real.sqrt_sq (Nat.cast_nonneg m), Real.rpow_natCast, Nat.cast_pow,
-      Nat.cast_ofNat]
-  rw [sqrtThreshold, h, Nat.floor_natCast]
+  rw [sqrtThreshold, Nat.cast_pow, Real.sqrt_sq (Nat.cast_nonneg m), Real.rpow_natCast,
+    ← Nat.cast_ofNat, ← Nat.cast_pow, Nat.floor_natCast]
 
 /-- The threshold is at least `2 ^ ⌊√n⌋`. -/
 theorem two_pow_sqrt_le_sqrtThreshold (n : ℕ) : 2 ^ Nat.sqrt n ≤ sqrtThreshold n := by
@@ -125,18 +123,16 @@ theorem sqrtThreshold_le (n : ℕ) : sqrtThreshold n ≤ 2 ^ (Nat.sqrt n + 1) :=
 
 /-- The threshold `⌊2 ^ √n⌋₊` is subexponential. -/
 theorem subexponentiallyBounded_sqrtThreshold : SubexponentiallyBounded sqrtThreshold := by
-  refine SubexponentiallyBounded.mono_of_le ?_ sqrtThreshold_le
-  intro c
+  refine SubexponentiallyBounded.mono_of_le (fun c => ?_) sqrtThreshold_le
   filter_upwards [eventually_ge_atTop ((c + 2) * (c + 2))] with n hn
   have hm : c + 2 ≤ Nat.sqrt n := Nat.le_sqrt.mpr hn
-  have hclog : Nat.clog 2 (2 ^ (Nat.sqrt n + 1) + 1) ≤ Nat.sqrt n + 2 := by
-    refine (Nat.clog_le_iff_le_pow one_lt_two).mpr ?_
-    rw [pow_succ 2 (Nat.sqrt n + 1)]
-    have := Nat.one_le_two_pow (n := Nat.sqrt n + 1)
-    omega
-  calc c * Nat.clog 2 (2 ^ (Nat.sqrt n + 1) + 1) ≤ c * (Nat.sqrt n + 2) := by gcongr
-    _ ≤ Nat.sqrt n * Nat.sqrt n := by nlinarith
-    _ ≤ n := Nat.sqrt_le n
+  have hclog : Nat.clog 2 (2 ^ (Nat.sqrt n + 1) + 1) ≤ Nat.sqrt n + 2 :=
+    (Nat.clog_le_iff_le_pow one_lt_two).mpr (by
+      rw [pow_succ 2 (Nat.sqrt n + 1)]
+      have := Nat.one_le_two_pow (n := Nat.sqrt n + 1)
+      omega)
+  exact (Nat.mul_le_mul_left c hclog).trans
+    ((by nlinarith : c * (Nat.sqrt n + 2) ≤ Nat.sqrt n * Nat.sqrt n).trans (Nat.sqrt_le n))
 
 end Cslib.MCSP
 
@@ -206,16 +202,12 @@ theorem isZeroErrorDecider_ofMask {s : ℕ → ℕ} {n k r : ℕ} {F : Formula s
     (hk : k ≤ 2 ^ r) (hr : r ≤ 2 ^ n) :
     MCSP.IsZeroErrorDecider s n k (ofMask F).eval where
   correct T b h := by
-    simp only [eval_eq_some_iff, unknown_ofMask, answer_ofMask, Formula.eval_const] at h
-    obtain ⟨hF, rfl⟩ := h
-    simp only [Bool.false_eq_true, false_iff]
-    exact fun hT => Bool.false_ne_true (hF ▸ hyes T hT)
+    obtain ⟨hF, rfl⟩ := by
+      simpa only [eval_eq_some_iff, unknown_ofMask, answer_ofMask, Formula.eval_const] using h
+    simpa using fun hT => Bool.false_ne_true (hF ▸ hyes T hT)
   card_unknown_le := by
     simp only [eval_eq_none_iff, unknown_ofMask]
-    calc k * (Finset.univ.filter fun T : BitString (2 ^ n) =>
-          F.eval interpretation T = true).card ≤ 2 ^ r * 2 ^ (2 ^ n - r) :=
-          Nat.mul_le_mul hk hcard
-      _ = 2 ^ 2 ^ n := by rw [← pow_add, Nat.add_sub_cancel' hr]
+    exact (Nat.mul_le_mul hk hcard).trans_eq (by rw [← pow_add, Nat.add_sub_cancel' hr])
 
 /-- Forward form of [OliveiraSanthanam2018, Section 3.3, Theorem 27, p. 21] for ternary devices.
 If a binary language agreeing with succinct MCSP has polynomial-size formulas, then for every
@@ -231,23 +223,16 @@ theorem exists_zeroErrorFormula_solvesOnAverage_of_mem_FormulaPoly {s k : ℕ �
   obtain ⟨N, hN⟩ := eventually_atTop.mp
     (eventually_exists_formula_zero_error_average_case_of_mem_FormulaPoly
       hs SubexponentiallyBounded.id hag hL 2 two_pos)
-  let F : ∀ n, Formula signature (2 ^ n) := fun n =>
-    if h : N ≤ n then Classical.choose (hN n h) else Formula.const true
-  have hF : ∀ n, N ≤ n → (F n).leafSize ≤ 2 ^ (n / 2) ∧
-      (∀ T : BitString (2 ^ n), List.ofFn T ∈ GapMCSP.yesSet s →
-        (F n).eval interpretation T = true) ∧
-      (Finset.univ.filter fun T : BitString (2 ^ n) =>
-        (F n).eval interpretation T = true).card ≤ 2 ^ (2 ^ n - n) := by
-    intro n h
-    simp only [F, h, ↓reduceDIte]
-    exact Classical.choose_spec (hN n h)
-  refine ⟨fun n => ofMask (F n), ?_, ?_⟩
+  let F (n : ℕ) : Formula signature (2 ^ n) :=
+    if h : N ≤ n then (hN n h).choose else Formula.const true
+  have hF (n) (h : N ≤ n) : F n = (hN n h).choose := dite_eq_left h
+  refine ⟨fun n => ofMask (F n), ?_, MCSP.solvesOnAverage_iff.mpr ?_⟩
   · filter_upwards [eventually_ge_atTop N] with n hn
-    simpa only [leafSize_ofMask] using (hF n hn).1
-  · rw [MCSP.solvesOnAverage_iff]
-    filter_upwards [eventually_ge_atTop N, hk] with n hn hkn
-    obtain ⟨-, hyes, hcard⟩ := hF n hn
-    exact isZeroErrorDecider_ofMask hyes hcard hkn Nat.lt_two_pow_self.le
+    simpa only [leafSize_ofMask, hF n hn] using (hN n hn).choose_spec.1
+  · filter_upwards [eventually_ge_atTop N, hk] with n hn hkn
+    rw [hF n hn]
+    exact isZeroErrorDecider_ofMask (hN n hn).choose_spec.2.1 (hN n hn).choose_spec.2.2
+      hkn Nat.lt_two_pow_self.le
 
 /-- An eventual bound by `2 ^ (n / 2)` is little-o of `2 ^ n`. -/
 private theorem isLittleO_two_pow_of_eventually_le_two_pow_half {f : ℕ → ℕ}
@@ -256,13 +241,10 @@ private theorem isLittleO_two_pow_of_eventually_le_two_pow_half {f : ℕ → ℕ
   rw [isLittleO_iff_nat_mul_le]
   intro c
   filter_upwards [hf, eventually_ge_atTop (2 * c)] with n hfn hn
-  have hc : c ≤ 2 ^ (n - n / 2) :=
-    (show c ≤ n - n / 2 by omega).trans Nat.lt_two_pow_self.le
   have hnat : c * f n ≤ 2 ^ n :=
-    calc c * f n ≤ 2 ^ (n - n / 2) * 2 ^ (n / 2) := Nat.mul_le_mul hc hfn
-      _ = 2 ^ n := by rw [← pow_add, Nat.sub_add_cancel (Nat.div_le_self n 2)]
-  simp only [Real.norm_natCast, norm_pow, Real.norm_ofNat]
-  exact_mod_cast hnat
+    (Nat.mul_le_mul ((show c ≤ n - n / 2 by omega).trans Nat.lt_two_pow_self.le) hfn).trans_eq
+      (by rw [← pow_add, Nat.sub_add_cancel (Nat.div_le_self n 2)])
+  simpa only [Real.norm_natCast, norm_pow, Real.norm_ofNat] using mod_cast hnat
 
 /-- Hardness magnification from sublinear zero-error average-case formulas, for any
 subexponential threshold `s` and unknown fraction `1 / k n` with `k n ≤ 2 ^ n`: if no family of
@@ -278,10 +260,9 @@ theorem exists_NP_not_mem_FormulaPoly_of_zero_error_average_case_sublinear_hard 
     ∃ L : Language Bool, (L : Set (List Bool)) ∈ Complexity.NP Turing.MultiTapeTM.encBits ∧
       L ∉ FormulaPoly := by
   obtain ⟨L, hLNP, hag⟩ := SuccinctMCSP.exists_language_mem_NP
-  refine ⟨L, hLNP, fun hL => hhard ?_⟩
-  obtain ⟨D, hsize, hsolve⟩ :=
+  exact ⟨L, hLNP, fun hL => let ⟨D, hsize, hsolve⟩ :=
     exists_zeroErrorFormula_solvesOnAverage_of_mem_FormulaPoly hs hk hag hL
-  exact ⟨D, isLittleO_two_pow_of_eventually_le_two_pow_half hsize, hsolve⟩
+    hhard ⟨D, isLittleO_two_pow_of_eventually_le_two_pow_half hsize, hsolve⟩⟩
 
 /-- [OliveiraSanthanam2018, Section 1.2, Theorem 5, p. 8] with the average-case notion of
 [OliveiraSanthanam2018, Appendix A, Definition 43, p. 34]: if no family of ternary De Morgan

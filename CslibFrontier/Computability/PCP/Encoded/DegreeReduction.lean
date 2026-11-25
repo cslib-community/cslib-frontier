@@ -108,18 +108,15 @@ theorem isPolyTime_degreeReduceDarts {graph : Input → Graph C}
     ComputableInPolyTime (fun x => (graph x).degreeReduceDarts labels)
       input (encList (encPair (encPair encUnary encBool) (encOption labelEncoding))) := by
   let choices := none :: labels.map some
-  have houter := ComputableInPolyTime.fst
-    (encPair input (encPair encUnary encBool)) (encOption labelEncoding)
-  have hchoice := ComputableInPolyTime.snd
-    (encPair input (encPair encUnary encBool)) (encOption labelEncoding)
-  have hbody := ComputableInPolyTime.mapWithInput
-    (f := fun p : Input × (ℕ × Bool) => fun d : Option D => (p.2, d))
-    (ComputableInPolyTime.const (encOut := encList (encOption labelEncoding)) choices)
-    (houter.snd'.prod hchoice)
-  have h := ComputableInPolyTime.flatMapWithInput
-    (f := fun _ halfEdge => choices.map fun d => (halfEdge, d))
-    (isPolyTime_halfEdges hgraph) hbody
-  simpa only [degreeReduceDarts, List.product, choices] using h
+  have hp := (ComputableInPolyTime.fst
+    (encPair input (encPair encUnary encBool)) (encOption labelEncoding)).snd'.prod
+    (ComputableInPolyTime.snd
+      (encPair input (encPair encUnary encBool)) (encOption labelEncoding))
+  simpa only [degreeReduceDarts, List.product, choices] using
+    ComputableInPolyTime.flatMapWithInput
+      (f := fun _ halfEdge => choices.map fun d => (halfEdge, d)) (isPolyTime_halfEdges hgraph)
+      (ComputableInPolyTime.mapWithInput (f := fun p : Input × (ℕ × Bool) => fun d => (p.2, d))
+        (ComputableInPolyTime.const (encOut := encList (encOption labelEncoding)) choices) hp)
 
 /-- Every output edge is computed uniformly in the input graph and dart. -/
 @[fun_prop]
@@ -184,9 +181,8 @@ theorem mem_degreeReduceDarts_iff (g : Graph C) (labels : List D)
 
 /-- Enumerating distinct labels gives one occurrence of every dart. -/
 theorem nodup_degreeReduceDarts (g : Graph C) (labels : List D) (hlabels : labels.Nodup) :
-    (g.degreeReduceDarts labels).Nodup := by
-  apply g.nodup_halfEdges.product
-  exact List.nodup_cons.mpr ⟨by simp, hlabels.map (Option.some_injective _)⟩
+    (g.degreeReduceDarts labels).Nodup :=
+  g.nodup_halfEdges.product (List.nodup_cons.mpr ⟨by simp, hlabels.map (Option.some_injective _)⟩)
 
 /-- Forget the finite index proofs in a mathematical degree-reduction dart. -/
 def numberDart {edges : ℕ} (p : (Fin edges × Bool) × (Unit ⊕ D)) :
@@ -254,9 +250,7 @@ theorem toGraph_degreeReduce [DecidableEq α] [DecidableEq D] (labels : List D)
         (fun p => halfEdgeNumber (p.1.val, p.2))).comap
           (g.degreeReduceEnumeration fallback rotate labels hlabels hmem).equiv := by
   apply toGraph_eq_comap _ _ (g.degreeReduceEnumeration fallback rotate labels hlabels hmem)
-  · intro p
-    simp only [src_degreeReduceEdge, numberDart]
-    rfl
+  · exact fun _ => by simp only [src_degreeReduceEdge, numberDart]; rfl
   · exact dst_degreeReduceEdge g eval fallback family rotate hrotate
   · exact rel_degreeReduceEdge g eval fallback family rotate
 
@@ -268,25 +262,20 @@ theorem wellFormed_degreeReduce (labels : List D) :
   intro e he
   obtain ⟨⟨⟨i, b⟩, tag⟩, hp, rfl⟩ := List.mem_map.mp he
   have hi := ((g.mem_degreeReduceDarts_iff labels _).mp hp).1
-  constructor
-  · rw [src_degreeReduceEdge]
-    exact halfEdgeNumber_lt hi
-  · cases tag with
-    | none => exact halfEdgeNumber_lt hi
-    | some d =>
-      change (g.degreeReduceEdge fallback rotate
-        (numberDart ((⟨i, hi⟩, b), Sum.inr d))).dst < _
-      rw [dst_degreeReduceEdge g (fun _ (_ _ : Unit) => true) fallback family rotate hrotate]
-      apply halfEdgeNumber_lt
-      exact Fin.isLt _
+  refine ⟨(src_degreeReduceEdge fallback rotate g _).symm ▸ halfEdgeNumber_lt hi, ?_⟩
+  cases tag with
+  | none => exact halfEdgeNumber_lt hi
+  | some d =>
+    change (g.degreeReduceEdge fallback rotate (numberDart ((⟨i, hi⟩, b), .inr d))).dst < _
+    rw [dst_degreeReduceEdge g (fun _ (_ _ : Unit) => true) fallback family rotate hrotate]
+    exact halfEdgeNumber_lt (Fin.isLt _)
 
 /-- Restricting half-edge numbering to existing edges is still injective. -/
 theorem halfEdgeNumber_fin_injective (edges : ℕ) :
     Function.Injective (fun p : Fin edges × Bool => halfEdgeNumber (p.1.val, p.2)) := by
   intro p q h
-  have h := halfEdgeNumber_injective h
-  exact Prod.ext (Fin.ext (congrArg (fun r : ℕ × Bool => r.1) h))
-    (congrArg (fun r : ℕ × Bool => r.2) h)
+  obtain ⟨h1, h2⟩ := Prod.mk.inj (halfEdgeNumber_injective h)
+  exact Prod.ext (Fin.ext h1) h2
 
 include hrotate in
 /-- The executable output has exactly the value of the mathematical degree reduction. -/
