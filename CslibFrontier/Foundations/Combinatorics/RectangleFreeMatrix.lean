@@ -205,15 +205,10 @@ private theorem two_mul_choose_two_add (d : ℕ) : 2 * d.choose 2 + d = d ^ 2 :=
 private theorem card_twoSubsets_subset [Fintype α] [DecidableEq α] (S : Finset α) :
     #(univ.filter fun r : {r : Finset α // #r = 2} => r.1 ⊆ S) = (#S).choose 2 := by
   rw [← card_powersetCard 2 S]
-  refine card_bij (fun r _ => r.1) ?_ ?_ ?_
-  · intro r hr
-    rw [mem_filter] at hr
-    exact mem_powersetCard.mpr ⟨hr.2, r.2⟩
-  · intro r₁ _ r₂ _ h
-    exact Subtype.ext h
-  · intro s hs
-    rw [mem_powersetCard] at hs
-    exact ⟨⟨s, hs.2⟩, mem_filter.mpr ⟨mem_univ _, hs.1⟩, rfl⟩
+  refine card_bij (fun r _ => r.1) (fun r hr => mem_powersetCard.mpr ⟨(mem_filter.mp hr).2, r.2⟩)
+    (fun _ _ _ _ => Subtype.ext) fun s hs => ?_
+  rw [mem_powersetCard] at hs
+  exact ⟨⟨s, hs.2⟩, mem_filter.mpr ⟨mem_univ _, hs.1⟩, rfl⟩
 
 /-- Core Cauchy–Schwarz step counting `2 × 2` rectangles via `σ = ∑ i, C(a_i, 2)`. -/
 private theorem rowPairSum_mul_sub_le_two_mul_choose_mul_boolMatrixWeight_twoRectMatrix
@@ -227,22 +222,13 @@ private theorem rowPairSum_mul_sub_le_two_mul_choose_mul_boolMatrixWeight_twoRec
     fun c => univ.filter fun i : α => ∀ j ∈ c.1, A i j = true with hcolCov
   -- Double count `(i, c)` with `c.1 ⊆ {j | A i j = true}`.
   have hsum_b : ∑ c : {c : Finset β // #c = 2}, #(colCov c) = σ := by
-    let P : α → {c : Finset β // #c = 2} → Prop := fun i c => ∀ j ∈ c.1, A i j = true
-    calc ∑ c : {c : Finset β // #c = 2}, #(colCov c)
-        = ∑ c : {c : Finset β // #c = 2}, ∑ i : α, if P i c then 1 else 0 := by
-          refine sum_congr rfl fun c _ => ?_
-          rw [hcolCov, card_filter]
-          exact sum_congr rfl fun i _ => by congr 1
-      _ = ∑ i : α, ∑ c : {c : Finset β // #c = 2}, if P i c then 1 else 0 := sum_comm
-      _ = ∑ i : α, #(univ.filter fun c : {c : Finset β // #c = 2} => P i c) := by
-          refine sum_congr rfl fun i _ => ?_
-          rw [card_filter]
-      _ = ∑ i : α, (#(univ.filter fun j : β => A i j = true)).choose 2 := by
-          refine sum_congr rfl fun i _ => ?_
-          rw [← card_twoSubsets_subset]
-          congr 1
-          ext c
-          simp only [P, mem_filter, mem_univ, true_and, subset_iff]
+    simp only [hcolCov, card_filter]
+    rw [sum_comm]
+    refine sum_congr rfl fun i _ => ?_
+    rw [← card_twoSubsets_subset, card_filter]
+    refine sum_congr rfl fun c _ => ?_
+    congr 1
+    simp only [subset_iff, mem_filter, mem_univ, true_and]
   -- Count `2`-rectangles column-pair by column-pair: `|B| = ∑ c, C(#(colCov c), 2)`.
   have hsum_B : ∑ c : {c : Finset β // #c = 2}, (#(colCov c)).choose 2 =
       boolMatrixWeight (twoRectMatrix A) := by
@@ -252,19 +238,9 @@ private theorem rowPairSum_mul_sub_le_two_mul_choose_mul_boolMatrixWeight_twoRec
         ∑ c : {c : Finset β // #c = 2},
           #(univ.filter fun r : {r : Finset α // #r = 2} => r.1 ⊆ colCov c) := by
       rw [← card_sigma]
-      refine card_bij (fun p _ => ⟨p.2, p.1⟩) ?_ ?_ ?_
-      · rintro ⟨r, c⟩ hp
-        simp only [mem_filter, mem_univ, true_and, twoRectMatrix_apply] at hp
-        simp only [mem_sigma, mem_univ, mem_filter, true_and, hcolCov, subset_iff]
-        exact hp
-      · rintro ⟨r₁, c₁⟩ - ⟨r₂, c₂⟩ - h
-        simp only [Sigma.mk.injEq, heq_eq_eq] at h
-        rw [h.2, h.1]
-      · rintro ⟨c, r⟩ hp
-        simp only [mem_sigma, mem_univ, mem_filter, true_and, hcolCov, subset_iff] at hp
-        refine ⟨(r, c), ?_, rfl⟩
-        simp only [mem_filter, mem_univ, true_and, twoRectMatrix_apply]
-        exact hp
+      refine card_nbij' (fun p => ⟨p.2, p.1⟩) (fun p => (p.2, p.1)) ?_ ?_ (fun _ _ => rfl)
+        (fun _ _ => rfl) <;> intro p hp <;> simpa only [mem_coe, mem_filter, mem_univ, true_and,
+          twoRectMatrix_apply, mem_sigma, hcolCov, subset_iff] using hp
     rw [hsplit]
     exact sum_congr rfl fun c _ => (card_twoSubsets_subset (colCov c)).symm
   -- Apply Cauchy–Schwarz over the `n = C(|β|, 2)` column pairs.
@@ -273,21 +249,11 @@ private theorem rowPairSum_mul_sub_le_two_mul_choose_mul_boolMatrixWeight_twoRec
     rw [← hsum_B, ← hsum_b, mul_sum, ← sum_add_distrib]
     exact sum_congr rfl fun c _ => two_mul_choose_two_add _
   have hcs : σ ^ 2 ≤ n * (2 * boolMatrixWeight (twoRectMatrix A) + σ) := by
-    have hpow : (∑ c : {c : Finset β // #c = 2}, #(colCov c)) ^ 2 ≤
-        #(univ : Finset {c : Finset β // #c = 2}) ^ 1 *
-          ∑ c : {c : Finset β // #c = 2}, #(colCov c) ^ 2 :=
-      pow_sum_le_card_mul_sum_pow
-        (s := (univ : Finset {c : Finset β // #c = 2})) (f := fun c => #(colCov c))
-        (fun _ _ => Nat.zero_le _) 1
-    rw [pow_one, card_univ, card_twoSubsets, hsum_b, ← hsq_b] at hpow
-    exact hpow
-  rcases le_or_gt σ n with hle | hgt
-  · rw [Nat.sub_eq_zero_of_le hle, mul_zero]
-    exact Nat.zero_le _
-  · have hexp : σ * σ ≤ 2 * n * boolMatrixWeight (twoRectMatrix A) + σ * n := by
-      linarith [hcs, sq σ]
-    rw [Nat.mul_sub_left_distrib]
-    omega
+    have := sq_sum_le_card_mul_sum_sq (s := univ) (f := fun c : {c : Finset β // #c = 2} =>
+      #(colCov c))
+    rwa [card_univ, card_twoSubsets, hsum_b, ← hsq_b] at this
+  rw [Nat.mul_sub_left_distrib, tsub_le_iff_right]
+  linarith only [hcs]
 
 /-- If every row of `A : Matrix α β Bool` has at least `d` entries equal to `true`, then
 `(|α| * C(d, 2)) * (|α| * C(d, 2) - C(|β|, 2)) ≤
@@ -315,12 +281,8 @@ theorem pow_four_boolMatrixWeight_le_mul_boolMatrixWeight_twoRectMatrix [Fintype
   set m := Fintype.card α with hm_def
   set W := boolMatrixWeight A with hW_def
   rcases Nat.eq_zero_or_pos m with hm0 | hm_pos
-  · have hW0 : W = 0 := by
-      have hbound := boolMatrixWeight_le_card_mul A
-      rw [← hm_def, ← hW_def, hm0, zero_mul] at hbound
-      omega
-    rw [hW0]
-    simp only [ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow, Nat.zero_le]
+  · have hW0 : W = 0 := by simpa [← hm_def, hm0] using boolMatrixWeight_le_card_mul A
+    simp [hW0]
   -- First Cauchy–Schwarz step over the `m` rows: `W ^ 2 ≤ 4 * m * σ`.
   let rowWt : α → ℕ := fun i => #(univ.filter fun j : α => A i j = true)
   set σ := ∑ i : α, (rowWt i).choose 2
@@ -328,50 +290,28 @@ theorem pow_four_boolMatrixWeight_le_mul_boolMatrixWeight_twoRectMatrix [Fintype
     rw [hW_def, boolMatrixWeight_eq_sum_row A, mul_sum, ← sum_add_distrib]
     exact sum_congr rfl fun i _ => two_mul_choose_two_add _
   have hcs_a : W ^ 2 ≤ m * (2 * σ + W) := by
-    have hpow : (∑ i : α, rowWt i) ^ 2 ≤
-        #(univ : Finset α) ^ 1 * ∑ i : α, rowWt i ^ 2 :=
-      pow_sum_le_card_mul_sum_pow (s := (univ : Finset α)) (f := rowWt)
-        (fun _ _ => Nat.zero_le _) 1
-    rw [pow_one, card_univ, ← hm_def, ← boolMatrixWeight_eq_sum_row A, ← hW_def, ← hsq_a] at hpow
-    exact hpow
+    have := sq_sum_le_card_mul_sum_sq (s := univ) (f := rowWt)
+    rwa [card_univ, ← hm_def, ← boolMatrixWeight_eq_sum_row A, ← hW_def, ← hsq_a] at this
   have h2m_le_W : 2 * m ≤ W := by
-    have h1 : (2 * m) ^ 2 ≤ W ^ 2 := by
-      calc (2 * m) ^ 2 = 4 * m ^ 2 := by ring
-        _ ≤ 4 * m ^ 3 :=
-            Nat.mul_le_mul_left 4 (Nat.pow_le_pow_right hm_pos (by decide : 2 ≤ 3))
-        _ ≤ W ^ 2 := hA
-    exact (Nat.pow_le_pow_iff_left (by decide : 2 ≠ 0)).mp h1
+    refine (Nat.pow_le_pow_iff_left two_ne_zero).mp ?_
+    linarith only [hA, Nat.pow_le_pow_right hm_pos (show 2 ≤ 3 by norm_num)]
   have hW_sigma : W ^ 2 ≤ 4 * m * σ := by
-    have hmul : 2 * m * W ≤ W ^ 2 := by
-      calc 2 * m * W ≤ W * W := Nat.mul_le_mul_right W h2m_le_W
-        _ = W ^ 2 := (sq W).symm
-    linarith [show m * (2 * σ + W) = 2 * m * σ + m * W by ring]
+    linarith only [hcs_a, Nat.mul_le_mul_right W h2m_le_W]
   -- Deduce `2 * C(m, 2) ≤ m ^ 2 ≤ σ`.
   have hm2_le_sigma : m ^ 2 ≤ σ := by
-    have : 4 * m * m ^ 2 ≤ 4 * m * σ := by
-      calc 4 * m * m ^ 2 = 4 * m ^ 3 := by ring
-        _ ≤ W ^ 2 := hA
-        _ ≤ 4 * m * σ := hW_sigma
-    exact Nat.le_of_mul_le_mul_left this (by positivity)
+    refine Nat.le_of_mul_le_mul_left (?_ : 4 * m * m ^ 2 ≤ 4 * m * σ) (by positivity)
+    linarith only [hA, hW_sigma]
   set n := m.choose 2
   have h2n_le_m2 : 2 * n ≤ m ^ 2 := by
     have := two_mul_choose_two_add m
     omega
   have hsigma2 : σ ^ 2 ≤ 2 * m ^ 2 * boolMatrixWeight (twoRectMatrix A) := by
-    have hstep := rowPairSum_mul_sub_le_two_mul_choose_mul_boolMatrixWeight_twoRectMatrix A
     have hsub : σ ≤ 2 * (σ - n) := by omega
-    calc σ ^ 2 = σ * σ := sq σ
-      _ ≤ σ * (2 * (σ - n)) := Nat.mul_le_mul_left σ hsub
-      _ = 2 * (σ * (σ - n)) := by ring
-      _ ≤ 2 * (2 * n * boolMatrixWeight (twoRectMatrix A)) := Nat.mul_le_mul_left 2 hstep
-      _ = 2 * (2 * n) * boolMatrixWeight (twoRectMatrix A) := by ring
-      _ ≤ 2 * m ^ 2 * boolMatrixWeight (twoRectMatrix A) := by gcongr
-  calc W ^ 4 = (W ^ 2) ^ 2 := by ring
-    _ ≤ (4 * m * σ) ^ 2 := Nat.pow_le_pow_left hW_sigma 2
-    _ = 16 * m ^ 2 * σ ^ 2 := by ring
-    _ ≤ 16 * m ^ 2 * (2 * m ^ 2 * boolMatrixWeight (twoRectMatrix A)) :=
-        Nat.mul_le_mul_left _ hsigma2
-    _ = 32 * m ^ 4 * boolMatrixWeight (twoRectMatrix A) := by ring
+    calc σ ^ 2 ≤ 2 * (σ * (σ - n)) := by linarith only [Nat.mul_le_mul_left σ hsub]
+      _ ≤ 2 * (2 * n * boolMatrixWeight (twoRectMatrix A)) := Nat.mul_le_mul_left 2
+          (rowPairSum_mul_sub_le_two_mul_choose_mul_boolMatrixWeight_twoRectMatrix A)
+      _ ≤ 2 * m ^ 2 * boolMatrixWeight (twoRectMatrix A) := by rw [← mul_assoc]; gcongr
+  linarith only [Nat.pow_le_pow_left hW_sigma 2, Nat.mul_le_mul_left (16 * m ^ 2) hsigma2]
 
 private theorem le_card_biUnion_of_card_twoSubsets [DecidableEq α]
     {R : Finset {r : Finset α // #r = 2}} {k : ℕ} (hk : 1 ≤ k)

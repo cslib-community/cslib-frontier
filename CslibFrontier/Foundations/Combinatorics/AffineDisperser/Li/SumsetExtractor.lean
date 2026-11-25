@@ -12,6 +12,7 @@ public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.Li.AffineS
 public import CslibFrontier.Probability.Extractor.TwoSource
 public import CslibFrontier.Probability.SmallBias
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.Logb
+import CslibFrontier.Probability.MinEntropy.ChainRule
 import CslibFrontier.Probability.MinEntropy.Flat
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Expect
@@ -122,17 +123,12 @@ theorem IsSumsetExtractor.mono (hext : IsSumsetExtractor ext k₁ k₂ ε)
 theorem IsSumsetExtractor.comp_add_right (hext : IsSumsetExtractor ext k₁ k₂ ε) (c : BitString n) :
     IsSumsetExtractor (fun x => ext (x + c)) k₁ k₂ ε := by
   intro A B hA hB
-  have hB' : (k₂ : ℝ) ≤ minEntropy (B.map fun b => b + c) := by
-    rw [le_minEntropy_iff] at hB ⊢
-    intro y
-    change ((B.map (Equiv.addRight c)) y).toReal ≤ _
-    rw [PMF.map_equiv_apply B (Equiv.addRight c) y]
-    exact hB _
   have hmap : ((A.bind fun a => B.map fun b => a + b).map fun x => ext (x + c)) =
       ((A.bind fun a => (B.map fun b => b + c).map fun b' => a + b').map ext) := by
     simp only [PMF.map_bind, PMF.map_comp, Function.comp_def, add_assoc]
   rw [hmap]
-  exact hext A (B.map fun b => b + c) hA hB'
+  exact hext A (B.map fun b => b + c) hA
+    (le_minEntropy_map_of_injOn B (add_left_injective c).injOn hB)
 
 /-- Precomposing a sumset extractor with a `Bool`-linear equivalence preserves
 `IsSumsetExtractor`. -/
@@ -140,18 +136,12 @@ theorem IsSumsetExtractor.comp_linearEquiv (hext : IsSumsetExtractor ext k₁ k�
     (e : BitString n ≃ₗ[Bool] BitString n) :
     IsSumsetExtractor (fun x => ext (e x)) k₁ k₂ ε := by
   intro A B hA hB
-  have hmin (P : PMF (BitString n)) {k : ℝ} (hk : k ≤ minEntropy P) :
-      k ≤ minEntropy (P.map e) := by
-    rw [le_minEntropy_iff] at hk ⊢
-    intro y
-    change ((P.map e.toEquiv) y).toReal ≤ _
-    rw [PMF.map_equiv_apply P e.toEquiv y]
-    exact hk _
   have hmap : ((A.bind fun a => B.map fun b => a + b).map fun x => ext (e x)) =
       (((A.map e).bind fun a' => (B.map e).map fun b' => a' + b').map ext) := by
     simp only [PMF.map_bind, PMF.bind_map, PMF.map_comp, Function.comp_def, map_add]
   rw [hmap]
-  exact hext (A.map e) (B.map e) (hmin A hA) (hmin B hB)
+  exact hext (A.map e) (B.map e) (le_minEntropy_map_of_injOn A e.injective.injOn hA)
+    (le_minEntropy_map_of_injOn B e.injective.injOn hB)
 
 /-- **Smooth-source robustness**: a `(k₁, k₂, ε)` sumset extractor applied to a `(k₁, δ₁)`-source
 and an independent `(k₂, δ₂)`-source outputs a distribution within `δ₁ + δ₂ + ε` of uniform. -/
@@ -168,14 +158,10 @@ theorem IsSumsetExtractor.dist_le_of_isSource (hext : IsSumsetExtractor ext k₁
   have h1 : dist (sumA.map ext) (sumMid.map ext) ≤ δ₁ :=
     (dist_map_le sumA sumMid ext).trans ((dist_bind_le A A' _).trans hdA)
   have h2 : dist (sumMid.map ext) (sumB'.map ext) ≤ δ₂ := by
-    have hcomm (P Q : PMF (BitString n)) :
-        (P.bind fun a => Q.map fun b => a + b) = Q.bind fun b => P.map fun a => a + b := by
-      simp only [PMF.map, Function.comp_def]
-      exact PMF.bind_comm P Q _
     refine (dist_map_le sumMid sumB' ext).trans ?_
     change dist (A'.bind fun a => B.map fun b => a + b)
       (A'.bind fun a => B'.map fun b => a + b) ≤ δ₂
-    rw [hcomm A' B, hcomm A' B']
+    rw [sumset_comm A' B, sumset_comm A' B']
     exact (dist_bind_le B B' _).trans hdB
   have h3 := hext A' B' hA' hB'
   have ht1 := dist_triangle (sumA.map ext) (sumMid.map ext) (PMF.uniformOfFintype (BitString m))
@@ -227,12 +213,8 @@ theorem max_le_minEntropy_sumset (A B : PMF (BitString n)) :
       minEntropy (A.bind fun a => B.map fun b => a + b) := by
   have hright (P Q : PMF (BitString n)) :
       minEntropy Q ≤ minEntropy (P.bind fun a => Q.map fun b => a + b) := by
-    refine le_minEntropy_bind P (fun a => Q.map fun b => a + b) fun a _ => ?_
-    rw [le_minEntropy_iff]
-    intro y
-    change ((Q.map (Equiv.addLeft a)) y).toReal ≤ _
-    rw [PMF.map_equiv_apply Q (Equiv.addLeft a) y]
-    exact toReal_apply_le_rpow_neg_minEntropy Q _
+    exact le_minEntropy_bind P (fun a => Q.map fun b => a + b) fun a _ =>
+      le_minEntropy_map_of_injOn Q (add_right_injective a).injOn le_rfl
   exact max_le (sumset_comm A B ▸ hright B A) (hright A B)
 
 /-- **Sumset extractors yield two-source extractors**: evaluating a `(k₁, k₂, ε)` sumset extractor
@@ -245,47 +227,20 @@ theorem isTwoSourceExtractor_append_of_isSumsetExtractor {n₁ n₂ m k₁ k₂ 
   let padL : BitString n₁ → BitString (n₁ + n₂) := fun x => Fin.append x 0
   let padR : BitString n₂ → BitString (n₁ + n₂) := fun y => Fin.append 0 y
   have hpadL_inj : Function.Injective padL := fun x₁ x₂ h => funext fun i => by
-    have hi := congrFun h (Fin.castAdd n₂ i)
-    simpa only [padL, Fin.append_left] using hi
+    simpa only [padL, Fin.append_left] using congrFun h (Fin.castAdd n₂ i)
   have hpadR_inj : Function.Injective padR := fun y₁ y₂ h => funext fun j => by
-    have hj := congrFun h (Fin.natAdd n₁ j)
-    simpa only [padR, Fin.append_right] using hj
-  have hminL : (k₁ : ℝ) ≤ minEntropy (p.map padL) := by
-    rw [le_minEntropy_iff] at hp ⊢
-    intro z
-    by_cases hz : ∃ x, padL x = z
-    · obtain ⟨x, rfl⟩ := hz
-      rw [PMF.map_apply_of_injective p hpadL_inj x]
-      exact hp x
-    · have h0 : p.map padL z = 0 := by
-        rw [PMF.apply_eq_zero_iff, PMF.support_map]
-        rintro ⟨x, -, rfl⟩
-        exact hz ⟨x, rfl⟩
-      rw [h0, ENNReal.toReal_zero]
-      positivity
-  have hminR : (k₂ : ℝ) ≤ minEntropy (q.map padR) := by
-    rw [le_minEntropy_iff] at hq ⊢
-    intro z
-    by_cases hz : ∃ y, padR y = z
-    · obtain ⟨y, rfl⟩ := hz
-      rw [PMF.map_apply_of_injective q hpadR_inj y]
-      exact hq y
-    · have h0 : q.map padR z = 0 := by
-        rw [PMF.apply_eq_zero_iff, PMF.support_map]
-        rintro ⟨y, -, rfl⟩
-        exact hz ⟨y, rfl⟩
-      rw [h0, ENNReal.toReal_zero]
-      positivity
+    simpa only [padR, Fin.append_right] using congrFun h (Fin.natAdd n₁ j)
   have hadd (x : BitString n₁) (y : BitString n₂) : padL x + padR y = Fin.append x y := by
     funext i
-    refine Fin.addCases (fun i₁ => ?_) (fun i₂ => ?_) i
-    · simp only [Pi.add_apply, padL, padR, Fin.append_left, Pi.zero_apply, add_zero]
-    · simp only [Pi.add_apply, padL, padR, Fin.append_right, Pi.zero_apply, zero_add]
+    refine Fin.addCases (fun i₁ => ?_) (fun i₂ => ?_) i <;>
+      simp only [Pi.add_apply, padL, padR, Fin.append_left, Fin.append_right, Pi.zero_apply,
+        add_zero, zero_add]
   have hlaw : (p.bind fun x => q.map fun y => ext (Fin.append x y)) =
       (((p.map padL).bind fun a => (q.map padR).map fun b => a + b).map ext) := by
     simp only [PMF.map_bind, PMF.bind_map, PMF.map_comp, Function.comp_def, hadd]
   rw [hlaw]
-  exact hext (p.map padL) (q.map padR) hminL hminR
+  exact hext (p.map padL) (q.map padR) (le_minEntropy_map_of_injOn p hpadL_inj.injOn hp)
+    (le_minEntropy_map_of_injOn q hpadR_inj.injOn hq)
 
 end Structure
 
@@ -335,16 +290,14 @@ theorem dist_map_sumset_bool_le_of_fourierCoeff_le (f : (ι → Bool) → Bool) 
           Finset.sum_congr rfl fun S _ => by rw [← bias, bias_sumset]
   rw [hexp]
   gcongr
-  have hsumA : ∑ S, bias A S ^ 2 ≤ 2 ^ Fintype.card ι * 2 ^ (-k₁) := by
+  have hsum (C : PMF (ι → Bool)) {k : ℝ} (hC : k ≤ minEntropy C) :
+      ∑ S, bias C S ^ 2 ≤ (2 : ℝ) ^ Fintype.card ι * (2 : ℝ) ^ (-k) := by
     rw [sum_bias_sq]
     gcongr
-    exact (collisionProbability_le_rpow_neg_minEntropy A).trans
-      (Real.rpow_le_rpow_of_exponent_le one_le_two (neg_le_neg hA))
-  have hsumB : ∑ S, bias B S ^ 2 ≤ 2 ^ Fintype.card ι * 2 ^ (-k₂) := by
-    rw [sum_bias_sq]
-    gcongr
-    exact (collisionProbability_le_rpow_neg_minEntropy B).trans
-      (Real.rpow_le_rpow_of_exponent_le one_le_two (neg_le_neg hB))
+    exact (collisionProbability_le_rpow_neg_minEntropy C).trans
+      (Real.rpow_le_rpow_of_exponent_le one_le_two (neg_le_neg hC))
+  have hsumA := hsum A hA
+  have hsumB := hsum B hB
   have hcs_sq : (∑ S, |bias A S| * |bias B S|) ^ 2 ≤
       (2 ^ ((Fintype.card ι : ℝ) - (k₁ + k₂) / 2)) ^ 2 := by
     calc (∑ S, |bias A S| * |bias B S|) ^ 2
@@ -354,30 +307,19 @@ theorem dist_map_sumset_bool_le_of_fourierCoeff_le (f : (ι → Bool) → Bool) 
           gcongr
       _ = (2 ^ ((Fintype.card ι : ℝ) - (k₁ + k₂) / 2)) ^ 2 := by
           rw [← Real.rpow_natCast (2 : ℝ) (Fintype.card ι), ← Real.rpow_natCast _ 2,
-            ← Real.rpow_mul zero_le_two]
-          calc (2 : ℝ) ^ (Fintype.card ι : ℝ) * 2 ^ (-k₁) *
-                (2 ^ (Fintype.card ι : ℝ) * 2 ^ (-k₂))
-              = (2 ^ (Fintype.card ι : ℝ) * 2 ^ (Fintype.card ι : ℝ)) *
-                (2 ^ (-k₁) * 2 ^ (-k₂)) := by ring
-            _ = 2 ^ ((Fintype.card ι : ℝ) + (Fintype.card ι : ℝ)) * 2 ^ ((-k₁) + (-k₂)) := by
-                rw [← Real.rpow_add two_pos, ← Real.rpow_add two_pos]
-            _ = 2 ^ (((Fintype.card ι : ℝ) + (Fintype.card ι : ℝ)) + ((-k₁) + (-k₂))) := by
-                rw [← Real.rpow_add two_pos]
-            _ = 2 ^ (((Fintype.card ι : ℝ) - (k₁ + k₂) / 2) * 2) := by congr 1; ring
+            ← Real.rpow_mul zero_le_two, ← Real.rpow_add two_pos, ← Real.rpow_add two_pos,
+            ← Real.rpow_add two_pos]
+          congr 1
+          push_cast
+          ring
   have hcs : ∑ S, |bias A S| * |bias B S| ≤ 2 ^ ((Fintype.card ι : ℝ) - (k₁ + k₂) / 2) :=
     (pow_le_pow_iff_left₀ (Finset.sum_nonneg fun _ _ => mul_nonneg (abs_nonneg _) (abs_nonneg _))
       (by positivity) two_ne_zero).mp hcs_sq
   calc |∑ S, fourierCoeff (fun x => signVal (f x)) S * (bias A S * bias B S)|
-      ≤ ∑ S, |fourierCoeff (fun x => signVal (f x)) S * (bias A S * bias B S)| :=
-        Finset.abs_sum_le_sum_abs _ _
-    _ = ∑ S, |fourierCoeff (fun x => signVal (f x)) S| * (|bias A S| * |bias B S|) :=
-        Finset.sum_congr rfl fun S _ => by rw [abs_mul, abs_mul]
-    _ ≤ ∑ S, β * (|bias A S| * |bias B S|) :=
-        Finset.sum_le_sum fun S _ =>
-          mul_le_mul_of_nonneg_right (hβ S) (mul_nonneg (abs_nonneg _) (abs_nonneg _))
-    _ = β * ∑ S, |bias A S| * |bias B S| := (Finset.mul_sum ..).symm
-    _ ≤ β * 2 ^ ((Fintype.card ι : ℝ) - (k₁ + k₂) / 2) :=
-        mul_le_mul_of_nonneg_left hcs hβ0
+      ≤ ∑ S, |fourierCoeff (fun x => signVal (f x)) S| * (|bias A S| * |bias B S|) := by
+        simp only [← abs_mul]; exact Finset.abs_sum_le_sum_abs _ _
+    _ ≤ ∑ S, β * (|bias A S| * |bias B S|) := by gcongr with S; exact hβ S
+    _ ≤ β * 2 ^ ((Fintype.card ι : ℝ) - (k₁ + k₂) / 2) := by rw [← Finset.mul_sum]; gcongr
 
 end Fourier
 
@@ -473,16 +415,12 @@ private theorem abs_sum_signVal_dotProduct_mul_chi (r : ℕ) (S₁ S₂ : Finset
         signVal (p.1 ⬝ᵥ p.2) * (chi ℝ S₁ p.1 * chi ℝ S₂ p.2)| = 2 ^ r := by
   let u₁ : BitString r := fun i => decide (i ∈ S₁)
   let u₂ : BitString r := fun i => decide (i ∈ S₂)
-  have hchi₁ (x : BitString r) : chi ℝ S₁ x = signVal (u₁ ⬝ᵥ x) := by
+  have hchi (T : Finset (Fin r)) (u : BitString r) (hu : ∀ i, u i = decide (i ∈ T))
+      (x : BitString r) : chi ℝ T x = signVal (u ⬝ᵥ x) := by
     rw [signVal_dotProduct]
     congr 1
     ext i
-    simp [u₁]
-  have hchi₂ (y : BitString r) : chi ℝ S₂ y = signVal (u₂ ⬝ᵥ y) := by
-    rw [signVal_dotProduct]
-    congr 1
-    ext i
-    simp [u₂]
+    simp [hu]
   have hsum : (∑ p : BitString r × BitString r,
       signVal (p.1 ⬝ᵥ p.2) * (chi ℝ S₁ p.1 * chi ℝ S₂ p.2)) =
       2 ^ r * signVal (u₂ ⬝ᵥ u₁) := by
@@ -493,7 +431,8 @@ private theorem abs_sum_signVal_dotProduct_mul_chi (r : ℕ) (S₁ S₂ : Finset
       have hterm (x : BitString r) :
           signVal (x ⬝ᵥ y) * (chi ℝ S₁ x * chi ℝ S₂ y) =
             (if (y + u₁) ⬝ᵥ x then (-1 : ℝ) else 1) * signVal (u₂ ⬝ᵥ y) := by
-        rw [hchi₁, hchi₂, ← mul_assoc, ← signVal_xor, ← Bool.add_eq_xor, dotProduct_comm x y,
+        rw [hchi S₁ u₁ fun _ => rfl, hchi S₂ u₂ fun _ => rfl, ← mul_assoc, ← signVal_xor,
+          ← Bool.add_eq_xor, dotProduct_comm x y,
           ← add_dotProduct]
         cases (y + u₁) ⬝ᵥ x <;> simp [signVal]
       simp_rw [hterm]
@@ -503,10 +442,9 @@ private theorem abs_sum_signVal_dotProduct_mul_chi (r : ℕ) (S₁ S₂ : Finset
     · rw [BitString.add_self, ite_eq_left rfl]
     · intro y _ hy
       have hne : y + u₁ ≠ 0 := fun h => hy (by
-        have := congrArg (· + u₁) h
-        simpa [add_assoc, BitString.add_self] using this)
+        simpa [add_assoc, BitString.add_self] using congrArg (· + u₁) h)
       rw [ite_eq_right hne, zero_mul]
-    · intro h; exact absurd (Finset.mem_univ u₁) h
+    · exact fun h => absurd (Finset.mem_univ u₁) h
   rw [hsum, abs_mul, abs_of_nonneg (by positivity), abs_signVal, mul_one]
 
 /-- Every Fourier coefficient of `splitDotProduct n` has magnitude at most `2⁻¹ ^ (n / 2)`
@@ -573,18 +511,9 @@ theorem abs_fourierCoeff_splitDotProduct_le (n : ℕ) (S : Finset (Fin n)) :
     abs_of_nonneg (by positivity : (0 : ℝ) ≤ 2 ^ n)]
   have htail : |∑ c : BitString (n % 2),
       signVal (if h : n % 2 = 1 then c ⟨0, by omega⟩ else false) * chi ℝ S₃ c| ≤
-      2 ^ (n % 2) := by
-    calc |∑ c : BitString (n % 2),
-            signVal (if h : n % 2 = 1 then c ⟨0, by omega⟩ else false) * chi ℝ S₃ c|
-        ≤ ∑ c : BitString (n % 2),
-            |signVal (if h : n % 2 = 1 then c ⟨0, by omega⟩ else false) * chi ℝ S₃ c| :=
-          Finset.abs_sum_le_sum_abs _ _
-      _ = ∑ _c : BitString (n % 2), (1 : ℝ) :=
-          Finset.sum_congr rfl fun c _ => by rw [abs_mul, abs_signVal, abs_chi, mul_one]
-      _ = 2 ^ (n % 2) := by simp
-  calc (2 : ℝ) ^ (n / 2) * |∑ c : BitString (n % 2),
-          signVal (if h : n % 2 = 1 then c ⟨0, by omega⟩ else false) * chi ℝ S₃ c| / 2 ^ n
-      ≤ (2 : ℝ) ^ (n / 2) * 2 ^ (n % 2) / 2 ^ n := by gcongr
+      2 ^ (n % 2) :=
+    (Finset.abs_sum_le_sum_abs _ _).trans_eq (by simp [abs_mul, abs_signVal, abs_chi])
+  calc _ ≤ (2 : ℝ) ^ (n / 2) * 2 ^ (n % 2) / 2 ^ n := by gcongr
     _ = (2⁻¹ : ℝ) ^ (n / 2) := by
         have hdecomp : n = n / 2 + n / 2 + n % 2 := by omega
         conv_lhs => rhs; rw [hdecomp]
@@ -641,21 +570,8 @@ theorem not_isSumsetExtractor_splitDotProduct_half (r : ℕ) {ε : ℝ} (hε : �
     have := congrFun h ⟨j.1, by omega⟩
     simpa only [pad, j.2, ↓reduceDIte] using this
   let A : PMF (BitString (2 * r)) := (PMF.uniformOfFintype (BitString r)).map pad
-  have hminA : (r : ℝ) ≤ minEntropy A := by
-    rw [le_minEntropy_iff]
-    intro x
-    by_cases hx : ∃ u, pad u = x
-    · obtain ⟨u, rfl⟩ := hx
-      rw [PMF.map_apply_of_injective _ hpad_inj u, PMF.uniformOfFintype_apply,
-        Fintype.card_fun, Fintype.card_bool, Fintype.card_fin, ENNReal.toReal_inv,
-        ENNReal.toReal_natCast, Nat.cast_pow, Nat.cast_ofNat, Real.rpow_neg zero_le_two,
-        Real.rpow_natCast]
-    · have h0 : A x = 0 := by
-        rw [PMF.apply_eq_zero_iff, PMF.support_map]
-        rintro ⟨u, -, rfl⟩
-        exact hx ⟨u, rfl⟩
-      rw [h0, ENNReal.toReal_zero]
-      positivity
+  have hminA : (r : ℝ) ≤ minEntropy A := le_minEntropy_map_of_injOn _ hpad_inj.injOn
+    (minEntropy_uniformOfFintype.trans (BitString.logb_card r)).ge
   have hzero (u v : BitString r) : splitDotProduct (2 * r) (pad u + pad v) = false := by
     unfold splitDotProduct
     have hmod : ¬ (2 * r) % 2 = 1 := by omega

@@ -226,6 +226,15 @@ theorem circleDist_triangle {L : ℝ} (hL : 0 < L) (r s t : ℝ) :
   rw [hr, hs, ← hk₁, ← hk₂]
   exact (circleDist_le_abs hL r (t + (k₂ : ℝ) * L)).trans (abs_sub_le _ (s + (k₁ : ℝ) * L) _)
 
+/-- `s` is its representative `Int.fract (s / L) * L ∈ [0, L)` plus an integer multiple of `L`. -/
+private lemma eq_fract_mul_add_floor_mul {L : ℝ} (hL : 0 < L) (s : ℝ) :
+    s = Int.fract (s / L) * L + (⌊s / L⌋ : ℝ) * L := by
+  simpa only [zsmul_eq_mul] using (Int.fract_div_mul_self_add_zsmul_eq L s hL.ne').symm
+
+private lemma fract_mul_mem_Ico {L : ℝ} (hL : 0 < L) (x : ℝ) :
+    0 ≤ Int.fract x * L ∧ Int.fract x * L < L :=
+  ⟨mul_nonneg (Int.fract_nonneg _) hL.le, (mul_lt_iff_lt_one_left hL).mpr (Int.fract_lt_one _)⟩
+
 end CircleDist
 
 /-! ### Arc-length parameterization of walks and cycles -/
@@ -377,33 +386,30 @@ theorem dist_walkPoint_le [Finite V] {u v : V} (p : W.graph.Walk u v) (s t : ℝ
   | @cons a b c hadj q ih =>
     let d : W.graph.Dart := ⟨(a, b), hadj⟩
     have hw : 0 < W.weight d.edge := W.dart_weight_pos d
-    dsimp only [walkPoint]
-    split_ifs with hsw htw htw
-    · refine (dist_edgePoint_self_le d _ _).trans ?_
+    have hedge : ∀ {s t : ℝ}, s ≤ t → t ≤ W.weight d.edge →
+        Dist.dist (walkPoint (.cons hadj q) s) (walkPoint (.cons hadj q) t) ≤ t - s := by
+      intro s t hst htw
+      have hsw := hst.trans htw
+      dsimp only [walkPoint]
+      rw [ite_eq_left hsw, ite_eq_left htw]
+      refine (dist_edgePoint_self_le d _ _).trans ?_
       dsimp only
       rw [min_eq_left hsw, min_eq_left htw, ← sub_div, abs_div, abs_of_pos hw,
         mul_div_cancel₀ _ hw.ne', abs_sub_comm,
         abs_of_nonneg (sub_nonneg.mpr (max_le_max_left 0 hst))]
       exact sub_le_iff_le_add.mpr (max_le (by linarith [le_max_left 0 s])
         (by linarith [le_max_right 0 s]))
-    · have h1 : Dist.dist (edgePoint d ⟨max 0 (min s (W.weight d.edge)) / W.weight d.edge,
-          div_nonneg (le_max_left 0 _) hw.le,
-          (div_le_one hw).mpr (max_le hw.le (min_le_right _ _))⟩)
-          (vertex b) ≤ W.weight d.edge - s := by
-        rw [← edgePoint_one d]
-        refine (dist_edgePoint_self_le d _ 1).trans ?_
-        dsimp only
-        rw [Set.Icc.coe_one, min_eq_left hsw, abs_sub_comm,
-          abs_of_nonneg (sub_nonneg.mpr ((div_le_one hw).mpr (max_le hw.le hsw))),
-          mul_sub, mul_one, mul_div_cancel₀ _ hw.ne']
-        linarith [le_max_right 0 s]
-      have h2 : Dist.dist (vertex b : MetricGraph W) (walkPoint q (t - W.weight d.edge)) ≤
-          t - W.weight d.edge := by
-        rw [← walkPoint_nonpos q (s := 0) le_rfl]
-        exact (ih 0 (t - W.weight d.edge) (by linarith)).trans_eq (by ring)
-      exact (_root_.dist_triangle _ (vertex b) _).trans (by linarith)
-    · exact absurd (hst.trans htw) hsw
-    · exact (ih (s - W.weight d.edge) (t - W.weight d.edge) (by linarith)).trans_eq (by ring)
+    rcases le_or_gt t (W.weight d.edge) with htw | htw
+    · exact hedge hst htw
+    rw [walkPoint_cons_of_gt hadj q d rfl htw]
+    rcases le_or_gt s (W.weight d.edge) with hsw | hsw
+    · have h1 := hedge hsw le_rfl
+      rw [walkPoint_cons_eq_end hadj q d rfl rfl, ← walkPoint_nonpos q (s := 0) le_rfl] at h1
+      linarith [ih 0 (t - W.weight d.edge) (by linarith),
+        _root_.dist_triangle (walkPoint (.cons hadj q) s) (walkPoint q 0)
+          (walkPoint q (t - W.weight d.edge))]
+    · rw [walkPoint_cons_of_gt hadj q d rfl hsw]
+      exact (ih (s - W.weight d.edge) (t - W.weight d.edge) (by linarith)).trans_eq (by ring)
 
 private lemma walkPoint_dart_decomp : ∀ {u v : V} (p : W.graph.Walk u v), ¬ p.Nil →
     ∀ {s : ℝ}, 0 ≤ s → s ≤ walkLength W.weight p →
@@ -521,23 +527,16 @@ theorem circleMap_dist_le [Finite V] {v₀ : V} {c : W.graph.Walk v₀ v₀} (hc
   have hL : 0 < L := walkLength_pos_of_not_nil hc.not_nil
   rw [abs_sub_comm, abs_of_nonneg (sub_nonneg.mpr hst)]
   let d : ℝ := Int.fract ((t - s) / L) * L
-  have hd0 : 0 ≤ d := mul_nonneg (Int.fract_nonneg _) hL.le
-  have hdL : d < L := (mul_lt_iff_lt_one_left hL).mpr (Int.fract_lt_one _)
+  obtain ⟨hd0, hdL⟩ : 0 ≤ d ∧ d < L := fract_mul_mem_Ico hL _
   have hk_nn : 0 ≤ (⌊(t - s) / L⌋ : ℝ) := by
     exact_mod_cast Int.floor_nonneg.mpr (div_nonneg (sub_nonneg.mpr hst) hL.le)
-  have ht_shift : t = (s + d) + (⌊(t - s) / L⌋ : ℝ) * L := by
-    have := (Int.fract_div_mul_self_add_zsmul_eq L (t - s) hL.ne')
-    simp only [zsmul_eq_mul] at this
-    dsimp only [d]; linarith
-  have hd_le : d ≤ t - s := by nlinarith
-  have hs_shift : s = Int.fract (s / L) * L + (⌊s / L⌋ : ℝ) * L := by
-    simpa only [zsmul_eq_mul] using (Int.fract_div_mul_self_add_zsmul_eq L s hL.ne').symm
+  have ht_shift : t - s = d + (⌊(t - s) / L⌋ : ℝ) * L := eq_fract_mul_add_floor_mul hL _
+  have hs_shift := eq_fract_mul_add_floor_mul hL s
   let r := Int.fract (s / L) * L
-  have hr0 : 0 ≤ r := mul_nonneg (Int.fract_nonneg _) hL.le
-  have hrl : r < L := (mul_lt_iff_lt_one_left hL).mpr (Int.fract_lt_one _)
-  conv_lhs => arg 2; rw [ht_shift]
-  rw [circleMap_add_int_mul hc _ ⌊(t - s) / L⌋]
-  refine le_trans ?_ hd_le
+  obtain ⟨hr0, hrl⟩ : 0 ≤ r ∧ r < L := fract_mul_mem_Ico hL _
+  refine le_trans ?_ (show d ≤ t - s by nlinarith)
+  rw [show t = (s + d) + (⌊(t - s) / L⌋ : ℝ) * L by linarith,
+    circleMap_add_int_mul hc _ ⌊(t - s) / L⌋]
   have hsm : circleMap hc s = walkPoint c r := rfl
   by_cases hsum : r + d ≤ L
   · have htm : circleMap hc (s + d) = walkPoint c (r + d) := by
@@ -713,20 +712,13 @@ private lemma takeUntil_rotate_length [DecidableEq V] {v₀ a w : V} {c : W.grap
           ((hc_eq.symm ▸ hc).isPath_of_append_right (Walk.not_nil_of_ne haw.symm)))
     exact Or.inr (by linarith [congrArg (walkLength W.weight) harc1_eq])
   by_cases hwc1 : w ∈ c₁.support
-  · have hsp_c1 : c₁.support = c₁.support.dropLast ++ [a] := by
-      simpa only [Walk.append_nil, Walk.support_nil] using
-        Walk.support_append_eq_support_dropLast_append c₁ (.nil : W.graph.Walk a a)
-    have hwc1_drop : w ∈ c₁.support.dropLast :=
-      ((List.mem_append.mp (hsp_c1 ▸ hwc1)).resolve_right fun h =>
-        haw.symm (List.mem_singleton.mp h))
-    have hcnt : c.support.count w = c₁.support.dropLast.count w + c₂.support.count w := by
-      have hsp := congrArg Walk.support hc_eq
-      rw [Walk.support_append_eq_support_dropLast_append] at hsp
-      rw [← hsp, List.count_append]
-    have hwc2 : w ∉ c₂.support := List.count_eq_zero.mp (by
-      have := hc.count_support_of_mem hw hwv0
-      have := List.one_le_count_iff.mpr hwc1_drop
-      omega)
+  · have hwc2 : w ∉ c₂.support := fun hw2 => by
+      have hcnt := hc.count_support_of_mem hw hwv0
+      rw [← hc_eq, Walk.support_append, List.count_append] at hcnt
+      have h1 := List.one_le_count_iff.mpr hwc1
+      have h2 := List.one_le_count_iff.mpr
+        (((Walk.mem_support_iff c₂).mp hw2).resolve_left fun h => haw h.symm)
+      omega
     have hcw : cycCoord c w = walkLength W.weight (c₁.takeUntil w hwc1) := by
       rw [cycCoord_of_mem hw, takeUntil_walkLength_congr hc_eq.symm hw,
         Walk.takeUntil_append_of_mem_left c₁ c₂ hwc1]
@@ -864,12 +856,9 @@ private lemma isCycle_chord_le [DecidableEq V] {v₀ : V} {c : W.graph.Walk v₀
     have hq1_pos : 0 < q₁.length := hq1_len.symm ▸ hk.1
     have harc2_pos : 0 < arc₂.length :=
       Nat.pos_of_ne_zero (Walk.length_eq_zero_iff.not.mpr (Walk.not_nil_of_ne (Ne.symm haw)))
-    have hlen3 : 3 ≤ q₁.length + arc₂.length := by
-      rcases eq_or_lt_of_le (show 1 ≤ q₁.length from hq1_pos) with h1 | h2
-      · have hne1 : arc₂.length ≠ 1 := fun h => hsub1 ⟨h1.symm, Sym2.eq_swap ▸
-          Walk.edges_dropUntil_subset_edges cₐ hw' (mem_edges_of_length_eq_one arc₂ h)⟩
-        omega
-      · omega
+    have hne1 : q₁.length = 1 → arc₂.length ≠ 1 := fun h1 h => hsub1 ⟨h1, Sym2.eq_swap ▸
+      Walk.edges_dropUntil_subset_edges cₐ hw' (mem_edges_of_length_eq_one arc₂ h)⟩
+    have hlen3 : 3 ≤ q₁.length + arc₂.length := by omega
     have hcyc : (q₁.append arc₂).IsCycle := isCycle_append_chord (hp.take k) harc2_path haw
       (fun x hx1 hx2 => harc_disj x hx1 (Walk.support_dropUntil_subset_support _ _ hx2)) hlen3
     have hs1 : L ≤ walkLength W.weight q₁ + walkLength W.weight arc₂ :=
@@ -947,8 +936,6 @@ private lemma cycCoord_snd_of_append_cons [DecidableEq V] {v₀ : V} {c : W.grap
     refine ⟨?_, ?_⟩
     · have h := congrArg (walkLength W.weight) hc_eq
       rw [walkLength_append, walkLength_cons, walkLength_nil, add_zero] at h
-      have hwe : W.weight s(d.fst, d.snd) = W.weight d.edge := rfl
-      rw [hwe] at h
       exact h.symm
     · rw [cycCoord_of_mem (Walk.start_mem_support c), Walk.takeUntil_first, walkLength_nil]
   | cons hadj2 q₂' =>
@@ -974,12 +961,10 @@ private lemma circleMap_dart_decomp [DecidableEq V] {v₀ : V} {c : W.graph.Walk
   let L := walkLength W.weight c
   have hL : 0 < L := walkLength_pos_of_not_nil hc.not_nil
   let r := Int.fract (s / L) * L
-  have hr0 : 0 ≤ r := mul_nonneg (Int.fract_nonneg _) hL.le
-  have hrl : r < L := (mul_lt_iff_lt_one_left hL).mpr (Int.fract_lt_one _)
+  obtain ⟨hr0, hrl⟩ : 0 ≤ r ∧ r < L := fract_mul_mem_Ico hL _
   obtain ⟨d, q₁, q₂, hadj, t, hd, hc_eq, hpt, hr_eq⟩ :=
     walkPoint_dart_decomp c hc.not_nil hr0 hrl.le
-  have hs_r : s = r + (⌊s / L⌋ : ℝ) * L := by
-    simpa only [zsmul_eq_mul] using (Int.fract_div_mul_self_add_zsmul_eq L s hL.ne').symm
+  have hs_r : s = r + (⌊s / L⌋ : ℝ) * L := eq_fract_mul_add_floor_mul hL s
   have hcd_s : circleDist L s (walkLength W.weight q₁ + (t : ℝ) * W.weight d.edge) = 0 := by
     rw [← hr_eq, hs_r, circleDist_add_int_left hL, circleDist_self hL]
   have hfst_le : circleDist L s (cycCoord c d.fst) ≤ (t : ℝ) * W.weight d.edge := by
@@ -1037,7 +1022,7 @@ theorem circleMap_dist_eq_circleDist [Finite V] {v₀ : V} {c : W.graph.Walk v�
   by_cases he : d₁.edge = d₂.edge
   · obtain ⟨hu, hv, hq_len⟩ :=
       walk_decomp_unique_of_isTrail c hs.1.isTrail q₁₁ q₁₂ h₁ q₂₁ q₂₂ h₂ hc₁ hc₂ he
-    have hd_eq : d₁ = d₂ := by cases d₁; cases d₂; congr 1; exact Prod.ext hu hv
+    have hd_eq : d₁ = d₂ := Dart.toProd_injective (Prod.ext hu hv)
     have hdir : circleDist L s₁ s₂ ≤ |(t₁ : ℝ) - t₂| * W.weight d₂.edge := by
       refine (circleDist_triangle hL _
           (walkLength W.weight q₁₁ + (t₁ : ℝ) * W.weight d₁.edge) _).trans ?_
@@ -1163,37 +1148,6 @@ private lemma circleMap_append_cons_mul {v₀ : V} {c : W.graph.Walk v₀ v₀} 
   rw [walkPoint_append_of_ge _ _ hw_le]
   exact walkPoint_cons_mul hadj q₂ d hd u
 
-theorem circleMap_surjective_of_cycleGraph {n : ℕ}
-    (e : W.graph ≃g cycleGraph (n + 3)) {v₀ : V} {c : W.graph.Walk v₀ v₀} (hc : c.IsCycle) :
-    Function.Surjective (circleMap hc) := by
-  classical
-  obtain ⟨hsup, hedges⟩ := cycleGraph_support_of_isCycle e hc
-  intro p
-  induction p using ind with
-  | vertex v =>
-    have hv := hsup v
-    refine ⟨cycCoord c v, ?_⟩
-    rw [cycCoord_of_mem hv]
-    have hle : walkLength W.weight (c.takeUntil v hv) ≤ walkLength W.weight c := by
-      have := congrArg (walkLength W.weight) (c.take_spec hv)
-      rw [walkLength_append] at this
-      linarith [walkLength_nonneg W.weight W.weight_nonneg (c.dropUntil v hv)]
-    rw [circleMap_eq_walkPoint hc (walkLength_nonneg W.weight W.weight_nonneg _) hle]
-    conv_lhs =>
-      arg 1
-      rw [← c.take_spec hv]
-    rw [← add_zero (walkLength W.weight (c.takeUntil v hv)),
-      walkPoint_append_of_ge _ _ le_rfl, walkPoint_nonpos _ le_rfl]
-  | edgePoint d t ht0 ht1 =>
-    have hed : d.edge ∈ c.edges := hedges d.adj
-    rw [Walk.edges, List.mem_map] at hed
-    obtain ⟨d', hd'_mem, hd'_edge⟩ := hed
-    obtain ⟨q₁, q₂, hadj, hd'_eq, hc_eq⟩ := mem_darts_iff_exists_append.mp hd'_mem
-    have hpt := circleMap_append_cons_mul hc q₁ q₂ hadj hd'_eq hc_eq
-    rcases (dart_edge_eq_iff d' d).mp hd'_edge with rfl | hsymm
-    · exact ⟨_, hpt t⟩
-    · exact ⟨_, (hpt (unitInterval.symm t)).trans (by rw [hsymm, edgePoint_symm])⟩
-
 private lemma circleMap_rotate_eq [DecidableEq V] {v₀ v : V} {c : W.graph.Walk v₀ v₀}
     (hc : c.IsCycle) (hv : v ∈ c.support) (r : ℝ) :
     circleMap hc (cycCoord c v + r) = circleMap ((c.isCycle_rotate hv).mpr hc) r := by
@@ -1203,15 +1157,13 @@ private lemma circleMap_rotate_eq [DecidableEq V] {v₀ v : V} {c : W.graph.Walk
   have hc_v : c_v.IsCycle := (c.isCycle_rotate hv).mpr hc
   have hLv : walkLength W.weight c_v = L := walkLength_perm_eq W.weight (c.rotate_edges v hv).perm
   wlog hr : 0 ≤ r ∧ r < L generalizing r
-  · have hq_eq : r = Int.fract (r / L) * L + (⌊r / L⌋ : ℝ) * L := by
-      simpa only [zsmul_eq_mul] using (Int.fract_div_mul_self_add_zsmul_eq L r hL.ne').symm
+  · have hq_eq := eq_fract_mul_add_floor_mul hL r
     conv_lhs => rw [hq_eq, ← add_assoc, circleMap_add_int_mul hc _ ⌊r / L⌋]
     have hrhs : circleMap hc_v r = circleMap hc_v (Int.fract (r / L) * L) := by
       conv_lhs => rw [hq_eq]
       simpa only [hLv] using circleMap_add_int_mul hc_v (Int.fract (r / L) * L) ⌊r / L⌋
     rw [hrhs]
-    exact this _ ⟨mul_nonneg (Int.fract_nonneg _) hL.le,
-      (mul_lt_iff_lt_one_left hL).mpr (Int.fract_lt_one _)⟩
+    exact this _ (fract_mul_mem_Ico hL _)
   let c₁ := c.takeUntil v hv
   let c₂ := c.dropUntil v hv
   have hc_eq : c₁.append c₂ = c := c.take_spec hv
@@ -1234,6 +1186,26 @@ private lemma circleMap_rotate_eq [DecidableEq V] {v₀ v : V} {c : W.graph.Walk
     rw [walkPoint_append_of_le c₁ c₂ hsubL, show c_v = c₂.append c₁ from rfl]
     conv_rhs => arg 2; rw [show r = walkLength W.weight c₂ + (r - walkLength W.weight c₂) by ring]
     rw [walkPoint_append_of_ge c₂ c₁ hsub0]
+
+theorem circleMap_surjective_of_cycleGraph {n : ℕ}
+    (e : W.graph ≃g cycleGraph (n + 3)) {v₀ : V} {c : W.graph.Walk v₀ v₀} (hc : c.IsCycle) :
+    Function.Surjective (circleMap hc) := by
+  classical
+  obtain ⟨hsup, hedges⟩ := cycleGraph_support_of_isCycle e hc
+  intro p
+  induction p using ind with
+  | vertex v =>
+    refine ⟨cycCoord c v, ?_⟩
+    rw [← add_zero (cycCoord c v), circleMap_rotate_eq hc (hsup v), circleMap_zero]
+  | edgePoint d t ht0 ht1 =>
+    have hed : d.edge ∈ c.edges := hedges d.adj
+    rw [Walk.edges, List.mem_map] at hed
+    obtain ⟨d', hd'_mem, hd'_edge⟩ := hed
+    obtain ⟨q₁, q₂, hadj, hd'_eq, hc_eq⟩ := mem_darts_iff_exists_append.mp hd'_mem
+    have hpt := circleMap_append_cons_mul hc q₁ q₂ hadj hd'_eq hc_eq
+    rcases (dart_edge_eq_iff d' d).mp hd'_edge with rfl | hsymm
+    · exact ⟨_, hpt t⟩
+    · exact ⟨_, (hpt (unitInterval.symm t)).trans (by rw [hsymm, edgePoint_symm])⟩
 
 private lemma circleMap_local_vertex [DecidableEq V] {v₀ : V} {c : W.graph.Walk v₀ v₀}
     (hc : c.IsCycle) {s : ℝ} (v : V) (hv : v ∈ c.support) (k : ℤ)
@@ -1275,25 +1247,18 @@ private lemma circleMap_local_vertex [DecidableEq V] {v₀ : V} {c : W.graph.Wal
     refine ⟨v, d₁, d₂, δ, hv, hd₁_fst, rfl, hd₁₂,
       hmem_c _ (List.mem_cons_of_mem _ hd₁_edge), hmem_c _ List.mem_cons_self,
       hs_v, by dsimp only [δ]; positivity, fun r hr => ?_⟩
-    have hr1 : r < W.weight d₁.edge := by
-      have := hr.2; dsimp only [δ] at this
-      linarith [hr.1, min_le_left (W.weight d₁.edge) (W.weight d₂.edge)]
-    have hr2 : r < W.weight d₂.edge := by
-      have := hr.2; dsimp only [δ] at this
-      linarith [hr.1, min_le_right (W.weight d₁.edge) (W.weight d₂.edge)]
+    obtain ⟨hr1, hr2⟩ : r < W.weight d₁.edge ∧ r < W.weight d₂.edge := by
+      have hrδ : r ≤ min (W.weight d₁.edge) (W.weight d₂.edge) / 2 := hr.2
+      constructor <;> linarith [hr.1, min_le_left (W.weight d₁.edge) (W.weight d₂.edge),
+        min_le_right (W.weight d₁.edge) (W.weight d₂.edge)]
     refine ⟨hr1, hr2, div_nonneg hr.1.le hw1.le, (div_le_one hw1).mpr hr1.le,
       div_nonneg hr.1.le hw2.le, (div_le_one hw2).mpr hr2.le, ?_, ?_⟩
     · rw [show s - r = cycCoord c v + (-r) + (k : ℝ) * L by rw [hcoord]; ring,
         circleMap_add_int_mul hc _ k, circleMap_rotate_eq hc hv,
         ← circleMap_add_int_mul hc_v (-r) 1, Int.cast_one, one_mul,
         circleMap_eq_walkPoint hc_v (by linarith [hr.1]) (by linarith [hr.1]),
-        neg_add_eq_sub, hc_v_c, walkLength_cons,
-        walkPoint_cons_of_gt hadj2 q_v d₂ rfl (by
-          change W.weight s(v, b₀) < W.weight s(v, b₀) + walkLength W.weight q_v - r; linarith)]
-      have harg : W.weight s(v, b₀) + walkLength W.weight q_v - r - W.weight d₂.edge =
-          walkLength W.weight q_v - r := by
-        change W.weight d₂.edge + walkLength W.weight q_v - r - W.weight d₂.edge = _; ring
-      rw [harg]
+        neg_add_eq_sub, hL_tot, hc_v_c, add_sub_assoc,
+        walkPoint_cons_of_gt hadj2 q_v d₂ rfl (by linarith), add_sub_cancel_left]
       exact hlast hr.1 hr1.le (div_nonneg hr.1.le hw1.le) ((div_le_one hw1).mpr hr1.le)
     · rw [show s + r = cycCoord c v + r + (k : ℝ) * L by rw [hcoord]; ring,
         circleMap_add_int_mul hc _ k, circleMap_rotate_eq hc hv,
@@ -1321,12 +1286,11 @@ theorem circleMap_local_dichotomy {v₀ : V} {c : W.graph.Walk v₀ v₀} (hc : 
   let L := walkLength W.weight c
   have hL : 0 < L := walkLength_pos_of_not_nil hc.not_nil
   let r₀ := Int.fract (s / L) * L
-  have hr₀L : r₀ < L := (mul_lt_iff_lt_one_left hL).mpr (Int.fract_lt_one _)
+  obtain ⟨hr₀0, hr₀L⟩ : 0 ≤ r₀ ∧ r₀ < L := fract_mul_mem_Ico hL _
   obtain ⟨d, q₁, q₂, hadj, t, hd, hc_eq, _, hr_eq⟩ :=
-    walkPoint_dart_decomp c hc.not_nil (s := r₀) (mul_nonneg (Int.fract_nonneg _) hL.le) hr₀L.le
+    walkPoint_dart_decomp c hc.not_nil (s := r₀) hr₀0 hr₀L.le
   have hwpos := W.dart_weight_pos d
-  have hs_r₀ : s = r₀ + (⌊s / L⌋ : ℝ) * L := by
-    simpa only [zsmul_eq_mul] using (Int.fract_div_mul_self_add_zsmul_eq L s hL.ne').symm
+  have hs_r₀ : s = r₀ + (⌊s / L⌋ : ℝ) * L := eq_fract_mul_add_floor_mul hL s
   by_cases ht0 : (t : ℝ) = 0
   · exact Or.inr (circleMap_local_vertex hc d.fst
       (hc_eq ▸ Walk.support_subset_support_append_left _ _ q₁.end_mem_support) ⌊s / L⌋ (by
@@ -1347,16 +1311,15 @@ theorem circleMap_local_dichotomy {v₀ : V} {c : W.graph.Walk v₀ v₀} (hc : 
     ht_pos, ht_lt1, by dsimp only [δ]; positivity, fun r hr => ?_⟩
   have h2δ : 2 * δ = min ((t : ℝ) * W.weight d.edge) ((1 - (t : ℝ)) * W.weight d.edge) := by
     dsimp only [δ]; ring
-  have hdiv_lo : 0 < (t : ℝ) + r / W.weight d.edge := by
-    have hδl : 2 * δ ≤ (t : ℝ) * W.weight d.edge := h2δ ▸ min_le_left _ _
-    have hle : -((t : ℝ) / 2) ≤ r / W.weight d.edge :=
-      (le_div_iff₀ hwpos).mpr (by linarith [hr.1])
-    linarith
-  have hdiv_hi : (t : ℝ) + r / W.weight d.edge < 1 := by
-    have hδr : 2 * δ ≤ (1 - (t : ℝ)) * W.weight d.edge := h2δ ▸ min_le_right _ _
-    have hle : r / W.weight d.edge ≤ (1 - (t : ℝ)) / 2 :=
-      (div_le_iff₀ hwpos).mpr (by linarith [hr.2])
-    linarith
+  have hδl : 2 * δ ≤ (t : ℝ) * W.weight d.edge := h2δ ▸ min_le_left _ _
+  have hδr : 2 * δ ≤ (1 - (t : ℝ)) * W.weight d.edge := h2δ ▸ min_le_right _ _
+  have htr : (t : ℝ) + r / W.weight d.edge =
+      ((t : ℝ) * W.weight d.edge + r) / W.weight d.edge := by
+    rw [add_div, mul_div_cancel_right₀ _ hwpos.ne']
+  have hdiv_lo : 0 < (t : ℝ) + r / W.weight d.edge :=
+    htr ▸ div_pos (by linarith [hr.1, mul_pos ht_pos hwpos]) hwpos
+  have hdiv_hi : (t : ℝ) + r / W.weight d.edge < 1 :=
+    htr ▸ (div_lt_one hwpos).mpr (by linarith [hr.2])
   refine ⟨hdiv_lo, hdiv_hi, hdiv_lo.le, hdiv_hi.le, ?_⟩
   have hs_add : s + r =
       (walkLength W.weight q₁ + ((t : ℝ) + r / W.weight d.edge) * W.weight d.edge) +

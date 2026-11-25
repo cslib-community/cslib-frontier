@@ -642,13 +642,8 @@ private lemma mem_interval_edgeProj_bounds [Finite V] (hT : W.graph.IsTree) (d :
     exact (dist_add_dist_gt_of_edgeProj_lt hT d hlt (hlt.trans_le hxy)).ne hxzy.symm
   · by_contra hlt
     push Not at hlt
-    have hzx : edgeProj hT d.symm z < edgeProj hT d.symm x := by
-      rw [edgeProj_symm, edgeProj_symm]
-      linarith
-    have hzy : edgeProj hT d.symm z < edgeProj hT d.symm y := by
-      rw [edgeProj_symm, edgeProj_symm]
-      linarith
-    exact (dist_add_dist_gt_of_edgeProj_lt hT d.symm hzx hzy).ne hxzy.symm
+    refine (dist_add_dist_gt_of_edgeProj_lt hT d.symm ?_ ?_).ne hxzy.symm <;>
+      rw [edgeProj_symm, edgeProj_symm] <;> linarith
 
 private lemma dist_lt_of_edgeProj_lt [Finite V] (hT : W.graph.IsTree) (d : W.graph.Dart)
     {x y z₁ z₂ : MetricGraph W} (hz₁ : z₁ ∈ interval x y) (hz₂ : z₂ ∈ interval x y)
@@ -872,17 +867,12 @@ private lemma interval_of_no_common_step_vertex [Finite V] (hT : W.graph.IsTree)
   have hdy_pos : 0 < Dist.dist (vertex v : MetricGraph W) y := _root_.dist_pos.mpr hvy
   have hdz_pos : 0 < Dist.dist (vertex v : MetricGraph W) z := _root_.dist_pos.mpr hvz
   have hr_pos : 0 < r := by dsimp only [r]; positivity
-  have hr_lt_w : ∀ d : W.graph.Dart, r < W.weight d.edge := fun d => by
-    have h1 := hwmin_le d
-    have h2 : 3 * r ≤ wmin := by
-      have : 3 * r = min wmin (min (Dist.dist (vertex v) y) (Dist.dist (vertex v) z)) := by
-        dsimp only [r]; ring
-      exact this ▸ min_le_left _ _
-    linarith
-  have hmin_yz : 3 * r ≤ min (Dist.dist (vertex v) y) (Dist.dist (vertex v) z) := by
-    have : 3 * r = min wmin (min (Dist.dist (vertex v) y) (Dist.dist (vertex v) z)) := by
-      dsimp only [r]; ring
-    exact this ▸ min_le_right _ _
+  have h3r : 3 * r = min wmin (min (Dist.dist (vertex v) y) (Dist.dist (vertex v) z)) := by
+    dsimp only [r]; ring
+  have hr_w : 3 * r ≤ wmin := h3r ▸ min_le_left _ _
+  have hmin_yz : 3 * r ≤ min (Dist.dist (vertex v) y) (Dist.dist (vertex v) z) :=
+    h3r ▸ min_le_right _ _
+  have hr_lt_w : ∀ d : W.graph.Dart, r < W.weight d.edge := fun d => by linarith [hwmin_le d]
   obtain ⟨dy, ty, hdy_fst, _, hpy_mem, hpy_d, hty_r, hdy_y⟩ :=
     vertex_step_dart_pos hT (v := v) (y := y) hr_pos
       (by linarith [hmin_yz.trans (min_le_left _ _)]) hr_lt_w
@@ -939,9 +929,7 @@ private lemma interval_of_no_common_step_edgePoint [Finite V] (hT : W.graph.IsTr
     have hbd := abs_le.mp hsub
     have hlo : 0 < edgeProj hT d p := by linarith [hlt_t.trans (min_le_left _ _)]
     have hhi : edgeProj hT d p < W.weight d.edge := by linarith [hlt_t.trans (min_le_right _ _)]
-    rcases edgeProj_cases hT d p with h0 | hw | ⟨s, _, _, rfl⟩
-    · linarith
-    · linarith
+    obtain ⟨s, _, _, rfl⟩ := ((edgeProj_cases hT d p).resolve_left hlo.ne').resolve_left hhi.ne
     have hs_eq : |(s : ℝ) - t| * W.weight d.edge = r := by
       simpa only [abs_sub_comm] using (dist_edgePoint_edgePoint_same_eq hT d t s).symm.trans hp_d
     refine ⟨s, hp_mem, hs_eq, ?_⟩
@@ -1265,15 +1253,14 @@ private lemma exists_stem_segment_of_dart [Finite V] (hT : W.graph.IsTree)
       exact mem_interval_trans_left
         (interval_comm w _ ▸ Dart.fst_symm d ▸ vertex_fst_mem_interval_of_edgeProj hT d.symm
           hsym_w hsym_y) hp
-    · rcases edgeProj_cases hT d w with hw0 | hw_eq | ⟨sw, _, _, rfl⟩
-      · linarith [mul_nonneg t₀.2.1 hwpos.le]
-      · linarith
-      · have htw : (t₀ : ℝ) ≤ sw :=
-          ((mul_lt_mul_iff_left₀ hwpos).mp (by rwa [edgeProj_edgePoint_self] at hw_gt)).le
-        refine mem_interval_of_mem_interval_dist_le hT hp ?_ hp_le
-        rw [← edgePoint_one d]
-        exact edgePoint_mem_interval_edgePoint_of_direct
-          (dist_edgePoint_edgePoint_same_eq hT d t₀ 1) (Or.inl ⟨htw, sw.2.2⟩)
+    · obtain ⟨sw, _, _, rfl⟩ := ((edgeProj_cases hT d w).resolve_left
+        ((mul_nonneg t₀.2.1 hwpos.le).trans_lt hw_gt).ne').resolve_left hww.ne
+      have htw : (t₀ : ℝ) ≤ sw :=
+        ((mul_lt_mul_iff_left₀ hwpos).mp (by rwa [edgeProj_edgePoint_self] at hw_gt)).le
+      refine mem_interval_of_mem_interval_dist_le hT hp ?_ hp_le
+      rw [← edgePoint_one d]
+      exact edgePoint_mem_interval_edgePoint_of_direct
+        (dist_edgePoint_edgePoint_same_eq hT d t₀ 1) (Or.inl ⟨htw, sw.2.2⟩)
   · refine ⟨(1 - (t₀ : ℝ)) * W.weight d.edge / 3, by linarith, by linarith,
       fun p hp hdp_pos hdp_le z hz => ?_⟩
     have hdz_le : Dist.dist (edgePoint d t₀) z ≤ 2 * Dist.dist (edgePoint d t₀) p :=
@@ -1333,10 +1320,10 @@ theorem exists_stem_segment [Finite V] (hT : W.graph.IsTree) {y q : MetricGraph 
     let r : ℝ := min wmin (Dist.dist (vertex v) q) / 3
     have hr_pos : 0 < r := by dsimp only [r]; positivity
     have h3r : 3 * r = min wmin (Dist.dist (vertex v : MetricGraph W) q) := by dsimp only [r]; ring
+    have hr_w : 3 * r ≤ wmin := h3r ▸ min_le_left _ _
+    have hr_q : 3 * r ≤ Dist.dist (vertex v : MetricGraph W) q := h3r ▸ min_le_right _ _
     obtain ⟨d, _, hd_fst, _, _, _, _, hq_gt⟩ := vertex_step_dart_pos hT (v := v) (y := q) hr_pos
-      (by have := h3r ▸ min_le_right wmin (Dist.dist (vertex v : MetricGraph W) q); linarith)
-      (fun d => by have := h3r ▸ min_le_left wmin (Dist.dist (vertex v : MetricGraph W) q)
-                   have := hwmin_le d; linarith)
+      (by linarith) (fun d => by linarith [hwmin_le d])
     subst hd_fst
     simpa only [edgePoint_zero] using
       exists_stem_segment_of_dart hT (t₀ := 0) zero_lt_one (by simpa only [Set.Icc.coe_zero,
@@ -1350,11 +1337,9 @@ theorem exists_stem_segment [Finite V] (hT : W.graph.IsTree) {y q : MetricGraph 
         (by rw [unitInterval.coe_symm_eq]; linarith)
         (by rw [unitInterval.coe_symm_eq]; linarith)
         (by simpa only [edgePoint_symm] using hq) ?_ ?_
-      · intro heq; apply hq_ne; rw [edgeProj_symm, unitInterval.coe_symm_eq, Dart.edge_symm] at heq
-        linarith
-      · rw [edgeProj_symm, unitInterval.coe_symm_eq, Dart.edge_symm]
-        have := (lt_or_gt_of_ne hq_ne).resolve_right hgt
-        linarith
+      all_goals rw [edgeProj_symm, unitInterval.coe_symm_eq, Dart.edge_symm]
+      · exact fun heq => hq_ne (by linarith)
+      · linarith [(lt_or_gt_of_ne hq_ne).resolve_right hgt]
     exact exists_stem_segment_of_dart hT ht1 hgt
 
 end TreeMedian

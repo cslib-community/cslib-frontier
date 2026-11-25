@@ -307,10 +307,10 @@ theorem rate_submodule_ge [Fintype L] [Finite R] [Fintype D] [CommRing α] [Fint
   have _ : Finite ((D → α) ⧸ CL) := Finite.of_surjective _ CL.mkQ_surjective
   have _ : Finite ((D → α) ⧸ CR) := Finite.of_surjective _ CR.mkQ_surjective
   have hrange_le : Nat.card φ.toAddMonoidHom.range ≤
-      Nat.card ((D → α) ⧸ CL) ^ Fintype.card L * Nat.card ((D → α) ⧸ CR) ^ Fintype.card R := by
+      Nat.card ((D → α) ⧸ CL) ^ Fintype.card L * Nat.card ((D → α) ⧸ CR) ^ Fintype.card L := by
     refine (Nat.card_le_card_of_injective _ Subtype.val_injective).trans_eq ?_
     rw [Nat.card_prod, Nat.card_fun, Nat.card_fun, Nat.card_eq_fintype_card (α := L),
-      Nat.card_eq_fintype_card (α := R)]
+      Nat.card_eq_fintype_card (α := R), hLR]
   have hdom : Nat.card (L × D → α) = Fintype.card α ^ (Fintype.card L * Fintype.card D) := by
     rw [Nat.card_fun, Nat.card_eq_fintype_card (α := L × D),
       Nat.card_eq_fintype_card (α := α), Fintype.card_prod]
@@ -323,42 +323,21 @@ theorem rate_submodule_ge [Fintype L] [Finite R] [Fintype D] [CommRing α] [Fint
   have hpow_le :
       (Nat.card CL * Nat.card CR) ^ Fintype.card L ≤
         Nat.card (submodule B CL CR) * (Fintype.card α ^ Fintype.card D) ^ Fintype.card L := by
-    have hmul : Fintype.card α ^ (Fintype.card L * Fintype.card D) ≤
+    have hmul : (Fintype.card α ^ Fintype.card D) ^ Fintype.card L ≤
         Nat.card (submodule B CL CR) *
-          (Nat.card ((D → α) ⧸ CL) ^ Fintype.card L *
-            Nat.card ((D → α) ⧸ CR) ^ Fintype.card R) := by
-      rw [← hdom, ← hcard, hker_card]
+          (Nat.card ((D → α) ⧸ CL) * Nat.card ((D → α) ⧸ CR)) ^ Fintype.card L := by
+      rw [← pow_mul, mul_comm (Fintype.card D), ← hdom, ← hcard, hker_card, mul_pow]
       exact Nat.mul_le_mul_left _ hrange_le
-    rw [← hLR] at hmul
-    have hmul2 := Nat.mul_le_mul_right (Nat.card CL ^ Fintype.card L * Nat.card CR ^ Fintype.card L)
-      hmul
-    have hpos : 0 < (Fintype.card α ^ Fintype.card D) ^ Fintype.card L := by positivity
-    have hrew : (Fintype.card α ^ Fintype.card D) ^ Fintype.card L =
-        Fintype.card α ^ (Fintype.card L * Fintype.card D) := by
-      rw [← pow_mul, mul_comm]
-    have hpow2 :
-        (Nat.card CL * Nat.card CR) ^ Fintype.card L *
-            (Fintype.card α ^ Fintype.card D) ^ Fintype.card L ≤
-          (Nat.card (submodule B CL CR) * (Fintype.card α ^ Fintype.card D) ^ Fintype.card L) *
-            (Fintype.card α ^ Fintype.card D) ^ Fintype.card L := by
-      calc
-        (Nat.card CL * Nat.card CR) ^ Fintype.card L *
-            (Fintype.card α ^ Fintype.card D) ^ Fintype.card L
-          = Fintype.card α ^ (Fintype.card L * Fintype.card D) *
-              (Nat.card CL ^ Fintype.card L * Nat.card CR ^ Fintype.card L) := by
-            rw [mul_pow, hrew]; ring
-        _ ≤ Nat.card (submodule B CL CR) *
-              (Nat.card ((D → α) ⧸ CL) ^ Fintype.card L *
-                Nat.card ((D → α) ⧸ CR) ^ Fintype.card L) *
-              (Nat.card CL ^ Fintype.card L * Nat.card CR ^ Fintype.card L) := hmul2
-        _ = Nat.card (submodule B CL CR) *
-              ((Nat.card CL * Nat.card ((D → α) ⧸ CL)) ^ Fintype.card L *
-                (Nat.card CR * Nat.card ((D → α) ⧸ CR)) ^ Fintype.card L) := by
-            simp only [mul_pow]; ring
-        _ = (Nat.card (submodule B CL CR) * (Fintype.card α ^ Fintype.card D) ^ Fintype.card L) *
-              (Fintype.card α ^ Fintype.card D) ^ Fintype.card L := by
-            rw [hqL, hqR]; ring
-    exact Nat.le_of_mul_le_mul_right hpow2 hpos
+    refine Nat.le_of_mul_le_mul_right (c := (Fintype.card α ^ Fintype.card D) ^ Fintype.card L)
+      ?_ (by positivity)
+    calc _ ≤ (Nat.card CL * Nat.card CR) ^ Fintype.card L * (Nat.card (submodule B CL CR) *
+          (Nat.card ((D → α) ⧸ CL) * Nat.card ((D → α) ⧸ CR)) ^ Fintype.card L) :=
+          Nat.mul_le_mul_left _ hmul
+      _ = Nat.card (submodule B CL CR) * ((Nat.card CL * Nat.card ((D → α) ⧸ CL)) *
+          (Nat.card CR * Nat.card ((D → α) ⧸ CR))) ^ Fintype.card L := by ring
+      _ = _ := by
+        rw [hqL, hqR]
+        ring
   have hα : (1 : ℝ) < Fintype.card α := by exact_mod_cast Fintype.one_lt_card
   have hα0 : (0 : ℝ) < Fintype.card α := by linarith
   have hCL_pos : (0 : ℝ) < Nat.card CL := by exact_mod_cast Nat.card_pos (α := CL)

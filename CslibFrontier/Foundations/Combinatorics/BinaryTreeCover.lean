@@ -227,83 +227,62 @@ def cover : {h : ℕ} → Finset (Fin (2 ^ h)) → Finset (Node h)
 theorem cover_univ {h : ℕ} : cover (h := h) Finset.univ = {Node.root h} := by
   cases h <;> simp [cover]
 
+private theorem disjoint_map_leftEmb_rightEmb {h : ℕ} (A B : Finset (Node h)) :
+    Disjoint (A.map Node.leftEmb) (B.map Node.rightEmb) := by
+  simp only [Finset.disjoint_left, Finset.mem_map]
+  rintro _ ⟨u, -, rfl⟩ ⟨v, -, hv⟩
+  exact Node.leftEmb_ne_rightEmb u v hv.symm
+
 private theorem card_cover_of_ne_univ {h : ℕ} {S : Finset (Fin (2 ^ (h + 1)))}
     (hS : S ≠ Finset.univ) :
     (cover S).card = (cover (leftPart S)).card + (cover (rightPart S)).card := by
-  dsimp only [cover]
-  rw [ite_eq_right_iff.2 (fun h => absurd h hS), Finset.card_union_of_disjoint, Finset.card_map,
-    Finset.card_map]
-  rw [Finset.disjoint_left]
-  intro v hvL hvR
-  rw [Finset.mem_map] at hvL hvR
-  rcases hvL with ⟨u, _, rfl⟩
-  rcases hvR with ⟨w, _, hEq⟩
-  exact Node.leftEmb_ne_rightEmb u w hEq.symm
+  simp only [cover, hS, ↓reduceIte]
+  rw [Finset.card_union_of_disjoint (disjoint_map_leftEmb_rightEmb _ _),
+    Finset.card_map, Finset.card_map]
+
+/-- A cover split along the two halves covers each half of the leaf set. -/
+private theorem covers_map_union_iff {h : ℕ} {A B : Finset (Node h)}
+    {S : Finset (Fin (2 ^ (h + 1)))} :
+    Covers (A.map Node.leftEmb ∪ B.map Node.rightEmb) S ↔
+      Covers A (leftPart S) ∧ Covers B (rightPart S) := by
+  have he : 2 ^ h + 2 ^ h = 2 ^ (h + 1) := by rw [pow_succ', two_mul]
+  rw [Covers, ← (finCongr he).forall_congr_right, Fin.forall_fin_add]
+  simp only [Covers, mem_leftPart, mem_rightPart, finCongr_apply, Finset.mem_union,
+    Finset.mem_map, or_and_right, exists_or, exists_exists_and_eq_and, leftEmb_coversLeaf_castAdd,
+    not_rightEmb_coversLeaf_castAdd, rightEmb_coversLeaf_natAdd, not_leftEmb_coversLeaf_natAdd,
+    and_false, exists_false, or_false, false_or]
 
 /-- `cover S` covers `S` ([BonehShoup2023], Definition 5.4). -/
 theorem covers_cover {h : ℕ} (S : Finset (Fin (2 ^ h))) : Covers (cover S) S := by
+  have huniv {h : ℕ} : Covers (cover (h := h) Finset.univ) Finset.univ := fun i => by
+    simp [cover_univ, Node.root_coversLeaf]
   induction h with
   | zero =>
-    intro i
-    fin_cases i
-    by_cases hS : S = Finset.univ
-    · rw [hS, cover_univ]
-      simp [Node.root_coversLeaf]
-    · have hSemp : S = ∅ := by
-        ext j
-        fin_cases j
-        simp only [Finset.notMem_empty, iff_false]
-        intro hmem
-        apply hS
-        ext k; fin_cases k; simpa using hmem
-      subst hSemp
-      simp [cover]
+    have : Subsingleton (Fin (2 ^ 0)) := inferInstanceAs (Subsingleton (Fin 1))
+    obtain rfl | hne := S.eq_empty_or_nonempty
+    · simp [cover, Covers]
+    · exact hne.eq_univ ▸ huniv
   | succ h ih =>
     by_cases hS : S = Finset.univ
-    · rw [hS, cover_univ]
-      intro i
-      simp [Node.root_coversLeaf]
-    · intro x
-      dsimp only [cover]
-      rw [ite_eq_right_iff.2 (fun heq => absurd heq hS)]
-      by_cases hlt : x.1 < 2 ^ h
-      · let i : Fin (2 ^ h) := ⟨x.1, hlt⟩
-        have hx : x = Fin.cast (by rw [pow_succ', two_mul]) (Fin.castAdd (2 ^ h) i) := by
-          ext; rfl
-        rw [hx, ← mem_leftPart, ih (leftPart S) i]
-        simp only [Finset.mem_union, Finset.mem_map]
-        constructor
-        · rintro ⟨v, hv, hvc⟩
-          exact ⟨Node.leftEmb v, Or.inl ⟨v, hv, rfl⟩, (leftEmb_coversLeaf_castAdd v i).2 hvc⟩
-        · rintro ⟨w, hw, hwc⟩
-          rcases hw with ⟨v, hv, rfl⟩ | ⟨v, _, rfl⟩
-          · exact ⟨v, hv, (leftEmb_coversLeaf_castAdd v i).1 hwc⟩
-          · exact False.elim (not_rightEmb_coversLeaf_castAdd v i hwc)
-      · have hx2 : x.1 < 2 ^ h + 2 ^ h := by simpa [pow_succ', two_mul] using x.2
-        have hlt2 : x.1 - 2 ^ h < 2 ^ h := by omega
-        let i : Fin (2 ^ h) := ⟨x.1 - 2 ^ h, hlt2⟩
-        have hx : x = Fin.cast (by rw [pow_succ', two_mul]) (Fin.natAdd (2 ^ h) i) := by
-          ext; change x.1 = 2 ^ h + (x.1 - 2 ^ h); omega
-        rw [hx, ← mem_rightPart, ih (rightPart S) i]
-        simp only [Finset.mem_union, Finset.mem_map]
-        constructor
-        · rintro ⟨v, hv, hvc⟩
-          exact ⟨Node.rightEmb v, Or.inr ⟨v, hv, rfl⟩, (rightEmb_coversLeaf_natAdd v i).2 hvc⟩
-        · rintro ⟨w, hw, hwc⟩
-          rcases hw with ⟨v, _, rfl⟩ | ⟨v, hv, rfl⟩
-          · exact False.elim (not_leftEmb_coversLeaf_natAdd v i hwc)
-          · exact ⟨v, hv, (rightEmb_coversLeaf_natAdd v i).1 hwc⟩
+    · exact hS ▸ huniv
+    · simp only [cover, hS, ↓reduceIte]
+      exact covers_map_union_iff.2 ⟨ih _, ih _⟩
 
-private theorem Node.exists_leftEmb_or_rightEmb {h : ℕ} {w : Node (h + 1)} (hwl : w.level ≤ h) :
+private theorem Node.exists_leftEmb_or_rightEmb {h : ℕ} {w : Node (h + 1)}
+    (hw : w ≠ Node.root (h + 1)) :
     (∃ u : Node h, Node.leftEmb u = w) ∨ (∃ u : Node h, Node.rightEmb u = w) := by
+  have hwl : w.level ≤ h := by
+    by_contra hlt
+    have hl : w.level = h + 1 := by have := w.level_le; omega
+    have hi := w.index_lt
+    rw [hl, Nat.sub_self, pow_zero, Nat.lt_one_iff] at hi
+    exact hw (Node.ext hl hi)
+  have hwidx : w.index < 2 ^ (h - w.level) + 2 ^ (h - w.level) := by
+    have := w.index_lt
+    rwa [show h + 1 - w.level = (h - w.level) + 1 by omega, pow_succ', two_mul] at this
   by_cases hli : w.index < 2 ^ (h - w.level)
   · exact Or.inl ⟨⟨w.level, w.index, hwl, hli⟩, by ext <;> rfl⟩
-  · have hri : w.index - 2 ^ (h - w.level) < 2 ^ (h - w.level) := by
-      have hwidx : w.index < 2 ^ (h + 1 - w.level) := w.index_lt
-      have hexp : h + 1 - w.level = (h - w.level) + 1 := by omega
-      rw [hexp, pow_succ', two_mul] at hwidx
-      omega
-    exact Or.inr ⟨⟨w.level, w.index - 2 ^ (h - w.level), hwl, hri⟩, by
+  · exact Or.inr ⟨⟨w.level, w.index - 2 ^ (h - w.level), hwl, by omega⟩, by
       ext
       · rfl
       · simp; omega⟩
@@ -312,105 +291,56 @@ private theorem Node.exists_leftEmb_or_rightEmb {h : ℕ} {w : Node (h + 1)} (hw
 smallest covering set ([BonehShoup2023], Definition 5.4). -/
 theorem card_cover_le_of_covers {h : ℕ} {W : Finset (Node h)} {S : Finset (Fin (2 ^ h))}
     (hW : Covers W S) : (cover S).card ≤ W.card := by
+  have huniv {h : ℕ} {W : Finset (Node h)} (hW : Covers W Finset.univ) :
+      (cover (h := h) Finset.univ).card ≤ W.card := by
+    obtain ⟨v, hv, -⟩ := (hW ⟨0, Nat.two_pow_pos _⟩).1 (Finset.mem_univ _)
+    simpa [cover_univ] using Finset.card_pos.2 ⟨v, hv⟩
   induction h with
   | zero =>
     by_cases hS : S = Finset.univ
-    · rw [hS, cover_univ, Finset.card_singleton]
-      have hmem : (⟨0, by simp⟩ : Fin (2 ^ 0)) ∈ S := hS ▸ Finset.mem_univ _
-      rcases (hW _).1 hmem with ⟨v, hv, _⟩
-      exact Finset.card_pos.2 ⟨v, hv⟩
-    · dsimp only [cover]
-      rw [ite_eq_right_iff.2 (fun heq => absurd heq hS), Finset.card_empty]
-      exact Nat.zero_le _
+    · exact hS ▸ huniv (hS ▸ hW)
+    · simp only [cover, hS, ↓reduceIte, Finset.card_empty, zero_le]
   | succ h ih =>
     by_cases hS : S = Finset.univ
-    · rw [hS, cover_univ, Finset.card_singleton]
-      have hmem : (⟨0, Nat.pow_pos (by omega)⟩ : Fin (2 ^ (h + 1))) ∈ S := hS ▸ Finset.mem_univ _
-      rcases (hW _).1 hmem with ⟨v, hv, _⟩
-      exact Finset.card_pos.2 ⟨v, hv⟩
-    · have hnotRoot : Node.root (h + 1) ∉ W := by
-        intro hroot
-        apply hS
-        ext i
-        simp only [Finset.mem_univ, iff_true]
-        exact (hW i).2 ⟨Node.root (h + 1), hroot, Node.root_coversLeaf i⟩
-      let WL : Finset (Node h) := W.preimage Node.leftEmb (Node.leftEmb.injective.injOn)
-      let WR : Finset (Node h) := W.preimage Node.rightEmb (Node.rightEmb.injective.injOn)
-      have hlevel_le {w : Node (h + 1)} (hw : w ∈ W) : w.level ≤ h := by
-        have hle := w.level_le
-        rcases lt_or_eq_of_le hle with hlt | heq
-        · omega
-        · exfalso
-          have hidx := w.index_lt
-          rw [heq, Nat.sub_self, pow_zero] at hidx
-          have : w = Node.root (h + 1) := by
-            ext
-            · exact heq
-            · simp [Node.root]; omega
-          exact hnotRoot (this ▸ hw)
-      have hcovL : Covers WL (leftPart S) := by
-        intro i
-        rw [mem_leftPart, hW (Fin.cast (by rw [pow_succ', two_mul]) (Fin.castAdd (2 ^ h) i))]
-        constructor
-        · rintro ⟨w, hw, hwc⟩
-          rcases Node.exists_leftEmb_or_rightEmb (hlevel_le hw) with ⟨u, rfl⟩ | ⟨u, rfl⟩
-          · exact ⟨u, by simpa [WL] using hw, (leftEmb_coversLeaf_castAdd u i).1 hwc⟩
-          · exact False.elim (not_rightEmb_coversLeaf_castAdd u i hwc)
-        · rintro ⟨u, hu, huc⟩
-          exact ⟨Node.leftEmb u, by simpa [WL] using hu, (leftEmb_coversLeaf_castAdd u i).2 huc⟩
-      have hcovR : Covers WR (rightPart S) := by
-        intro i
-        rw [mem_rightPart, hW (Fin.cast (by rw [pow_succ', two_mul]) (Fin.natAdd (2 ^ h) i))]
-        constructor
-        · rintro ⟨w, hw, hwc⟩
-          rcases Node.exists_leftEmb_or_rightEmb (hlevel_le hw) with ⟨u, rfl⟩ | ⟨u, rfl⟩
-          · exact False.elim (not_leftEmb_coversLeaf_natAdd u i hwc)
-          · exact ⟨u, by simpa [WR] using hw, (rightEmb_coversLeaf_natAdd u i).1 hwc⟩
-        · rintro ⟨u, hu, huc⟩
-          exact ⟨Node.rightEmb u, by simpa [WR] using hu, (rightEmb_coversLeaf_natAdd u i).2 huc⟩
-      have hcardW : WL.card + WR.card ≤ W.card := by
-        rw [← Finset.card_map (f := Node.leftEmb) (s := WL),
-            ← Finset.card_map (f := Node.rightEmb) (s := WR)]
-        rw [← Finset.card_union_of_disjoint]
-        · apply Finset.card_le_card
-          intro w hw
-          simp only [Finset.mem_union, Finset.mem_map, Finset.mem_preimage, WL, WR] at hw
-          rcases hw with ⟨u, hu, rfl⟩ | ⟨u, hu, rfl⟩ <;> exact hu
-        · rw [Finset.disjoint_left]
-          intro w hwL hwR
-          simp only [Finset.mem_map, Finset.mem_preimage, WL, WR] at hwL hwR
-          rcases hwL with ⟨u, _, rfl⟩
-          rcases hwR with ⟨v, _, hv⟩
-          exact Node.leftEmb_ne_rightEmb u v hv.symm
-      calc (cover S).card = (cover (leftPart S)).card + (cover (rightPart S)).card :=
-            card_cover_of_ne_univ hS
-        _ ≤ WL.card + WR.card := Nat.add_le_add (ih hcovL) (ih hcovR)
-        _ ≤ W.card := hcardW
+    · exact hS ▸ huniv (hS ▸ hW)
+    have hnotRoot : Node.root (h + 1) ∉ W := fun hroot =>
+      hS (Finset.eq_univ_of_forall fun i => (hW i).2 ⟨_, hroot, Node.root_coversLeaf i⟩)
+    obtain ⟨A, B, rfl⟩ : ∃ A B : Finset (Node h),
+        W = A.map Node.leftEmb ∪ B.map Node.rightEmb := by
+      refine ⟨W.preimage _ Node.leftEmb.injective.injOn,
+        W.preimage _ Node.rightEmb.injective.injOn, ?_⟩
+      ext w
+      simp only [Finset.mem_union, Finset.mem_map, Finset.mem_preimage]
+      constructor
+      · intro hw
+        rcases Node.exists_leftEmb_or_rightEmb (ne_of_mem_of_not_mem hw hnotRoot) with
+          ⟨u, rfl⟩ | ⟨u, rfl⟩
+        exacts [Or.inl ⟨u, hw, rfl⟩, Or.inr ⟨u, hw, rfl⟩]
+      · rintro (⟨u, hu, rfl⟩ | ⟨u, hu, rfl⟩) <;> exact hu
+    obtain ⟨hA, hB⟩ := covers_map_union_iff.1 hW
+    rw [card_cover_of_ne_univ hS, Finset.card_union_of_disjoint
+      (disjoint_map_leftEmb_rightEmb A B), Finset.card_map, Finset.card_map]
+    exact Nat.add_le_add (ih hA) (ih hB)
 
-private theorem add_mul_logb_two_le {a b : ℝ} (ha : 0 < a) (hb : 0 < b) :
-    (a + b) * Real.logb 2 (a + b) ≤ a * Real.logb 2 (2 * a) + b * Real.logb 2 (2 * b) := by
-  have hlogsum := Real.sum_mul_log_div_card_le (Finset.univ : Finset Bool)
-    (x := fun t => if t then 2 * a else 2 * b) (fun t _ => by cases t <;> positivity)
-  have hcard : (#(Finset.univ : Finset Bool) : ℝ) = 2 := by simp
-  have hsum : (∑ t : Bool, if t then 2 * a else 2 * b) = 2 * (a + b) := by
-    simp only [Fintype.sum_bool, ↓reduceIte, Bool.false_eq_true]
-    ring
-  have hrhs : (∑ t : Bool, (if t then 2 * a else 2 * b) * Real.log (if t then 2 * a else 2 * b)) =
-      2 * (a * Real.log (2 * a) + b * Real.log (2 * b)) := by
-    simp only [Fintype.sum_bool, ↓reduceIte, Bool.false_eq_true]
-    ring
-  rw [hcard, hsum, hrhs, mul_div_cancel_left₀ _ (by norm_num)] at hlogsum
-  have hlog2 : 0 < Real.log 2 := Real.log_pos (by norm_num)
-  have hreal : (a + b) * Real.log (a + b) ≤ a * Real.log (2 * a) + b * Real.log (2 * b) := by
-    linarith
-  simp only [Real.logb]
-  have hdiv : (a + b) * Real.log (a + b) / Real.log 2 ≤
-      (a * Real.log (2 * a) + b * Real.log (2 * b)) / Real.log 2 :=
-    div_le_div_of_nonneg_right hreal hlog2.le
-  calc (a + b) * (Real.log (a + b) / Real.log 2)
-      = (a + b) * Real.log (a + b) / Real.log 2 := by ring
-    _ ≤ (a * Real.log (2 * a) + b * Real.log (2 * b)) / Real.log 2 := hdiv
-    _ = a * (Real.log (2 * a) / Real.log 2) + b * (Real.log (2 * b) / Real.log 2) := by ring
+/-- The binary log-sum inequality `(a + b) log₂ (a + b) ≤ a log₂ a + b log₂ b + (a + b)`. -/
+private theorem add_mul_logb_le {a b : ℝ} (ha : 0 < a) (hb : 0 < b) :
+    (a + b) * Real.logb 2 (a + b) ≤ a * Real.logb 2 a + b * Real.logb 2 b + (a + b) := by
+  have hsum := Real.sum_mul_log_div_card_le (Finset.univ : Finset Bool)
+    (x := fun t => if t then a else b) (fun t _ => by cases t <;> positivity)
+  simp only [Fintype.sum_bool, ↓reduceIte, Bool.false_eq_true, Finset.card_univ,
+    Fintype.card_bool, Nat.cast_ofNat] at hsum
+  rw [Real.log_div (by positivity) two_ne_zero] at hsum
+  have hlog2 : 0 < Real.log 2 := Real.log_pos one_lt_two
+  calc (a + b) * Real.logb 2 (a + b) = (a + b) * Real.log (a + b) / Real.log 2 := by
+        rw [Real.logb]; ring
+    _ ≤ (a * Real.log a + b * Real.log b + (a + b) * Real.log 2) / Real.log 2 := by
+        gcongr; linarith
+    _ = _ := by simp only [Real.logb]; field_simp
+
+private theorem logb_two_pow_div (h : ℕ) {m : ℝ} (hm : 0 < m) :
+    Real.logb 2 (2 ^ h / m) = h - Real.logb 2 m := by
+  rw [Real.logb_div (by positivity) hm.ne', Real.logb_pow, Real.logb_self_eq_one one_lt_two,
+    mul_one]
 
 /-- **Theorem 5.8 ([BonehShoup2023], p. 207):** In a complete binary tree with `n = 2 ^ h` leaves,
 for every `1 ≤ r ≤ n` and every subset `S` of `n - r` leaves (written `S.card + r = 2 ^ h` so
@@ -422,87 +352,40 @@ theorem card_cover_le {h r : ℕ} {S : Finset (Fin (2 ^ h))}
     ((cover S).card : ℝ) ≤ (r : ℝ) * Real.logb 2 ((2 ^ h : ℝ) / r) := by
   induction h generalizing r with
   | zero =>
-    have hcard : S.card = 0 := by omega
-    have hremp : S = ∅ := Finset.card_eq_zero.1 hcard
-    have hr1 : r = 1 := by omega
-    subst hremp hr1
+    obtain rfl : S = ∅ := Finset.card_eq_zero.1 (by omega)
+    obtain rfl : r = 1 := by simpa using hS
     simp [cover]
   | succ h ih =>
     have hSne : S ≠ Finset.univ := by
-      intro huniv
-      subst huniv
+      rintro rfl
       simp only [Finset.card_univ, Fintype.card_fin] at hS
       omega
-    rw [card_cover_of_ne_univ hSne]
-    let r1 : ℕ := 2 ^ h - (leftPart S).card
-    let r2 : ℕ := 2 ^ h - (rightPart S).card
-    have hLcard : (leftPart S).card ≤ 2 ^ h := by
-      simpa [Fintype.card_fin] using Finset.card_le_univ (leftPart S)
-    have hRcard : (rightPart S).card ≤ 2 ^ h := by
-      simpa [Fintype.card_fin] using Finset.card_le_univ (rightPart S)
-    have hS1 : (leftPart S).card + r1 = 2 ^ h := Nat.add_sub_of_le hLcard
-    have hS2 : (rightPart S).card + r2 = 2 ^ h := Nat.add_sub_of_le hRcard
+    obtain ⟨r1, hS1⟩ := Nat.exists_eq_add_of_le (by simpa using (leftPart S).card_le_univ)
+    obtain ⟨r2, hS2⟩ := Nat.exists_eq_add_of_le (by simpa using (rightPart S).card_le_univ)
     have hrsum : r1 + r2 = r := by
-      have hpart := card_leftPart_add_rightPart S
-      have hpow : 2 ^ (h + 1) = 2 ^ h + 2 ^ h := by rw [pow_succ', two_mul]
+      have := card_leftPart_add_rightPart S
+      have := pow_succ 2 h
       omega
-    have hlog_half (m : ℕ) (hm : 0 < m) :
-        Real.logb 2 ((2 ^ h : ℝ) / m) = Real.logb 2 ((2 ^ (h + 1) : ℝ) / m) - 1 := by
-      have hm0 : (m : ℝ) ≠ 0 := by positivity
-      have h2h0 : (2 ^ h : ℝ) ≠ 0 := by positivity
-      have heq : (2 ^ (h + 1) : ℝ) / m = 2 * ((2 ^ h : ℝ) / m) := by
-        rw [pow_succ']; ring
-      rw [heq, Real.logb_mul (by norm_num) (div_ne_zero h2h0 hm0),
-        Real.logb_self_eq_one (by norm_num)]
-      ring
-    rcases Nat.eq_zero_or_pos r1 with hr10 | hr1pos
-    · have hr2eq : r2 = r := by omega
-      have hLuniv : leftPart S = Finset.univ := by
-        apply Finset.eq_univ_of_card
-        rw [Fintype.card_fin]
-        omega
-      rw [hLuniv, cover_univ, Finset.card_singleton]
-      have ih2 := ih hr (hr2eq ▸ hS2)
-      rw [hlog_half r hr] at ih2
-      cast_linarith [hr]
-    · rcases Nat.eq_zero_or_pos r2 with hr20 | hr2pos
-      · have hr1eq : r1 = r := by omega
-        have hRuniv : rightPart S = Finset.univ := by
-          apply Finset.eq_univ_of_card
-          rw [Fintype.card_fin]
-          omega
-        rw [hRuniv, cover_univ, Finset.card_singleton]
-        have ih1 := ih hr (hr1eq ▸ hS1)
-        rw [hlog_half r hr] at ih1
-        cast_linarith [hr]
-      · have ih1 := ih hr1pos hS1
-        have ih2 := ih hr2pos hS2
-        have hconv := add_mul_logb_two_le (a := (r1 : ℝ)) (b := (r2 : ℝ))
-          (Nat.cast_pos.2 hr1pos) (Nat.cast_pos.2 hr2pos)
-        have hsumR : (r1 : ℝ) + (r2 : ℝ) = (r : ℝ) := by exact_mod_cast hrsum
-        have hrne : (r : ℝ) ≠ 0 := by positivity
-        have hN : (2 ^ (h + 1) : ℝ) = 2 * (2 ^ h : ℝ) := by rw [pow_succ']
-        have hsplit_half (m : ℕ) (hm : 0 < m) :
-            (m : ℝ) * Real.logb 2 ((2 ^ h : ℝ) / m) =
-              (m : ℝ) * Real.logb 2 (2 ^ (h + 1) : ℝ) - (m : ℝ) * Real.logb 2 (2 * (m : ℝ)) := by
-          have hm0 : (m : ℝ) ≠ 0 := by positivity
-          have hdiv : (2 ^ h : ℝ) / m = (2 ^ (h + 1) : ℝ) / (2 * (m : ℝ)) := by
-            rw [hN]; field_simp
-          rw [hdiv, Real.logb_div (by positivity) (by positivity)]
-          ring
-        have hsplit : (r : ℝ) * Real.logb 2 ((2 ^ (h + 1) : ℝ) / r) =
-            (r : ℝ) * Real.logb 2 (2 ^ (h + 1) : ℝ) - (r : ℝ) * Real.logb 2 (r : ℝ) := by
-          rw [Real.logb_div (by positivity) hrne]
-          ring
-        have hdistrib : (r1 : ℝ) * Real.logb 2 (2 ^ (h + 1) : ℝ) +
-            (r2 : ℝ) * Real.logb 2 (2 ^ (h + 1) : ℝ) =
-            (r : ℝ) * Real.logb 2 (2 ^ (h + 1) : ℝ) := by
-          rw [← add_mul, hsumR]
-        rw [hsplit_half r1 hr1pos] at ih1
-        rw [hsplit_half r2 hr2pos] at ih2
-        rw [hsumR] at hconv
-        rw [hsplit]
-        cast_linarith
+    -- The inductive hypothesis on a half with `m ≥ 1` missing leaves, and on a full half.
+    have hhalf {T : Finset (Fin (2 ^ h))} {m : ℕ} (hm : 1 ≤ m) (hT : 2 ^ h = T.card + m) :
+        ((cover T).card : ℝ) ≤ m * (h - Real.logb 2 m) := by
+      simpa only [logb_two_pow_div _ (by positivity : (0 : ℝ) < m)] using ih hm hT.symm
+    have hfull {T : Finset (Fin (2 ^ h))} (hT : 2 ^ h = T.card + 0) : ((cover T).card : ℝ) = 1 := by
+      rw [Finset.eq_univ_of_card T (by simpa using hT.symm), cover_univ, Finset.card_singleton,
+        Nat.cast_one]
+    rw [card_cover_of_ne_univ hSne, Nat.cast_add, logb_two_pow_div _ (by positivity)]
+    have hr' : (1 : ℝ) ≤ r := by exact_mod_cast hr
+    push_cast
+    rcases Nat.eq_zero_or_pos r1 with rfl | h1
+    · obtain rfl : r2 = r := by omega
+      linarith [hfull hS1, hhalf hr hS2]
+    rcases Nat.eq_zero_or_pos r2 with rfl | h2
+    · obtain rfl : r1 = r := by omega
+      linarith [hfull hS2, hhalf hr hS1]
+    subst hrsum
+    have hconv := add_mul_logb_le (Nat.cast_pos.2 h1 : (0 : ℝ) < r1) (Nat.cast_pos.2 h2)
+    push_cast
+    linarith [hhalf h1 hS1, hhalf h2 hS2]
 
 end Cslib.CompleteBinaryTree
 
