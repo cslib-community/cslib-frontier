@@ -175,18 +175,12 @@ def cycleItems : List V → List (V × CycleLabel)
 
 theorem map_fst_cycleItemsTail (v₀ : V) :
     ∀ (u : V) (l : List V), (M.cycleItemsTail α β v₀ u l).map Prod.fst = l
-  | _, [] => rfl
-  | _, [_] => rfl
-  | _, v :: w :: l => by
-    simp only [cycleItemsTail, List.map_cons]
-    rw [map_fst_cycleItemsTail v₀ v (w :: l)]
+  | _, [] | _, [_] => rfl
+  | _, v :: w :: l => by simp [cycleItemsTail, map_fst_cycleItemsTail v₀ v (w :: l)]
 
 theorem map_fst_cycleItems : ∀ l : List V, (M.cycleItems α β l).map Prod.fst = l
-  | [] => rfl
-  | [_] => rfl
-  | v₀ :: v :: l => by
-    simp only [cycleItems, List.map_cons]
-    rw [map_fst_cycleItemsTail]
+  | [] | [_] => rfl
+  | _ :: _ :: _ => by simp [cycleItems, map_fst_cycleItemsTail]
 
 /-- The transition of the cycle automaton on the state (first bit, previous bit, `α` seen,
 `β` seen). -/
@@ -454,20 +448,20 @@ theorem nodup_cycleBlock (x : V) : (M.cycleBlock α β x).Nodup := by
   rw [cycleBlock, List.nodup_ofFn]
   rintro ⟨j, hj⟩ ⟨j', hj'⟩ h
   simp only at h
-  have hinj : ∀ i i', i < M.cyclePeriod α β x → i' < M.cyclePeriod α β x →
-      (M.cycleStepMap α β)^[i] x = (M.cycleStepMap α β)^[i'] x → i = i' :=
-    fun i i' hi hi' h => Function.iterate_injOn_Iio_minimalPeriod hi hi' h
   obtain ⟨i, rfl | rfl⟩ := Nat.even_or_odd' j <;> obtain ⟨i', rfl | rfl⟩ := Nat.even_or_odd' j'
   · rw [cycleVertex_even, cycleVertex_even] at h
-    exact Fin.ext (by simp only; rw [hinj i i' (by omega) (by omega) h])
+    exact Fin.ext (congrArg (2 * ·) (Function.iterate_injOn_Iio_minimalPeriod
+      (Nat.lt_of_mul_lt_mul_left hj) (Nat.lt_of_mul_lt_mul_left hj') h))
   · rw [cycleVertex_even, cycleVertex_odd] at h
     exact absurd h (iterate_ne_mate_iterate x i i')
   · rw [cycleVertex_odd, cycleVertex_even] at h
     exact absurd h.symm (iterate_ne_mate_iterate x i' i)
   · rw [cycleVertex_odd, cycleVertex_odd] at h
-    have h' := congrArg (M.mate α) h
-    rw [M.mate_mate, M.mate_mate] at h'
-    exact Fin.ext (by simp only; rw [hinj i i' (by omega) (by omega) h'])
+    have h' : (M.cycleStepMap α β)^[i] x = (M.cycleStepMap α β)^[i'] x := by
+      simpa [M.mate_mate] using congrArg (M.mate α) h
+    exact Fin.ext (congrArg (2 * · + 1) (Function.iterate_injOn_Iio_minimalPeriod
+      (Nat.lt_of_mul_lt_mul_left (Nat.lt_of_succ_lt hj))
+      (Nat.lt_of_mul_lt_mul_left (Nat.lt_of_succ_lt hj')) h'))
 
 omit [DecidableEq V] in
 /-- **Edges along the cycle.** Every edge of colour `α` or `β` at a vertex of the alternating
@@ -619,9 +613,9 @@ theorem toFun_colorDNNF (α β : Fin 3) (x : V → Bool) :
 
 theorem isDecomposable_colorDNNF (α β : Fin 3) : (M.colorDNNF α β).IsDecomposable :=
   BranchingPrograms.ReadOnceProgram.isDecomposable_toNNF _ _
-    (BranchingPrograms.ReadOnceProgram.listOrder_injective (by
-      rw [map_fst_flatMap_cycleItems]
-      exact (M.exists_isCycleCover α β).choose_spec.nodup))
+    (BranchingPrograms.ReadOnceProgram.listOrder_injective
+      (map_fst_flatMap_cycleItems (M := M) (α := α) (β := β) _ ▸
+        (M.exists_isCycleCover α β).choose_spec.nodup))
 
 theorem isDeterministic_colorDNNF (α β : Fin 3) : (M.colorDNNF α β).IsDeterministic :=
   BranchingPrograms.ReadOnceProgram.isDeterministic_toNNF _ _

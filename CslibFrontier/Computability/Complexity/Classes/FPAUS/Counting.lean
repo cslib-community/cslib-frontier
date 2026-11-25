@@ -278,12 +278,10 @@ private theorem good_next {x : α} {p t i : ℕ} {s : State α} (hi : i < R.len 
   by_cases hlt : c₀ < c₁
   · obtain ⟨ha, hc, hlo, hhi⟩ := level hN hM (hsplit.trans (Nat.add_comm _ _)) hW hP₁ hP₀ h₁ h₀
       hlt.le
-    have hmax : max (max c₀ c₁) 1 = c₁ := by omega
-    simp only [hlt, decide_true, hmax]
+    simp only [hlt, decide_true, show max (max c₀ c₁) 1 = c₁ by omega]
     exact R.good_update hs hlen true hc ha hlo hhi
   · obtain ⟨ha, hc, hlo, hhi⟩ := level hN hM hsplit hW hP₀ hP₁ h₀ h₁ (not_lt.1 hlt)
-    have hmax : max (max c₀ c₁) 1 = c₀ := by omega
-    simp only [hlt, decide_false, hmax]
+    simp only [hlt, decide_false, show max (max c₀ c₁) 1 = c₀ by omega]
     exact R.good_update hs hlen false hc ha hlo hhi
 
 /-- Every supported result of one level is an update by counts at most `N`. -/
@@ -344,11 +342,9 @@ private theorem approxWithin_of_good {x : α} {p : ℕ} (hp : 0 < p) {s : State 
     ApproxWithin (W x).card p (if [] ∈ W s.1 then s.2.1 else 0) s.2.2 := by
   obtain ⟨hl, hden, hW, h4, h5⟩ := hs
   have hlen : R.len s.1 = 0 := by omega
-  have hsing := R.eq_singleton_nil hlen hW
-  have hmem : [] ∈ W s.1 := by rw [hsing]; exact Finset.mem_singleton_self _
-  have hcard : (W s.1).card = 1 := by rw [hsing]; rfl
-  rw [ite_eq_left hmem]
-  rw [hcard, Nat.cast_one, mul_one] at h4 h5
+  rw [R.eq_singleton_nil hlen hW] at h4 h5 ⊢
+  simp only [Finset.mem_singleton, ↓reduceIte, Finset.card_singleton, Nat.cast_one,
+    mul_one] at h4 h5 ⊢
   refine ⟨hden, ?_⟩
   set ℓ := R.len x
   set C : ℝ := ((W x).card : ℝ)
@@ -426,14 +422,10 @@ theorem approxWithin_estimate {S : α → ℕ → ProbComp (Option (List Bool))}
     1 - (1 / 2 : ℝ) ^ t ≤ ((ProbComp.eval (R.estimate S x p t)).toOuterMeasure
       {out | ApproxWithin (W x).card p out.1 out.2}).toReal := by
   rcases Nat.eq_zero_or_pos (W x).card with hx | hx
-  · have hone : (ProbComp.eval (R.estimate S x p t)).toOuterMeasure
-        {out | ApproxWithin (W x).card p out.1 out.2} = 1 := by
-      rw [PMF.toOuterMeasure_apply_eq_one_iff]
-      intro out hout
-      obtain ⟨h1, h2⟩ := R.estimate_eq_zero S hx p t out hout
+  · rw [(PMF.toOuterMeasure_apply_eq_one_iff _ _).mpr fun out hout => ?_, ENNReal.toReal_one]
+    · linarith [pow_nonneg (by norm_num : (0 : ℝ) ≤ 1 / 2) t]
+    · obtain ⟨h1, h2⟩ := R.estimate_eq_zero S hx p t out hout
       simp [ApproxWithin, hx, h1, h2]
-    rw [hone, ENNReal.toReal_one]
-    linarith [pow_nonneg (by norm_num : (0 : ℝ) ≤ 1 / 2) t]
   set ℓ := R.len x
   set M := tolerance ℓ p
   have hMpos : 0 < M := by unfold M tolerance; positivity

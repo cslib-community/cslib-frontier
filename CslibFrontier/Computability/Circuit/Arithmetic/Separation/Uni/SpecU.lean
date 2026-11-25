@@ -206,19 +206,14 @@ theorem emCo_lsF (m : Bl K → List (NB M K)) : emCo m lsF = cOut m ++ [Sy.bar] 
 
 theorem emCo_bk_true (m : Bl K → List (NB M K)) (b : Bl K) :
     emCo m (.tp (.bk b) true) = (m b).map Subtype.val ++ [Sy.bar] := by
-  unfold emCo
-  rw [flatten_ofFn_single (Fintype.equivFin (Bl K) b)]
+  rw [emCo, flatten_ofFn_single (Fintype.equivFin (Bl K) b)]
   · simp [on]
   · intro k hk
-    have hne : b ≠ (Fintype.equivFin (Bl K)).symm k := by
-      rintro rfl
-      simp at hk
-    simp [on, hne]
+    simp [on, show b ≠ (Fintype.equivFin (Bl K)).symm k from fun h => hk (by simp [h])]
 
 theorem emCo_other (m : Bl K → List (NB M K)) {z : Zc K} (h1 : z ≠ lsF)
     (h2 : ∀ b, z ≠ .tp (.bk b) true) : emCo m z = [] := by
-  unfold emCo
-  rw [flatten_ofFn_nil]
+  rw [emCo, flatten_ofFn_nil]
   · simp [on, h1]
   · intro _
     simp [on, h1, h2]
@@ -246,9 +241,7 @@ theorem emPs_bk_false (p : Ps M K) (b : Bl K) :
       (l.filter fun d => d.head = b).flatMap fun d => rw' d.flag (d.tail ++ [some d.head]) := by
     induction l with
     | nil => rfl
-    | cons d l ih =>
-      rw [List.flatMap_cons, ih, List.filter_cons]
-      by_cases h : d.head = b <;> simp [h]
+    | cons d l ih => by_cases h : d.head = b <;> simp [h, ih]
   unfold emPs
   rw [emCo_other _ (by simp) (by simp)]
   simp only [h2, on, mem_barSet_bk, ↓reduceIte, List.append_nil, h3, encW, dOut, List.flatMap_map]
@@ -299,48 +292,41 @@ theorem emCm_other (y : XG (List (Bl K))) {z : Zc K} (h : ∀ k, z ≠ .tp (.cm 
 
 theorem emU_lsT (x : XU M K) :
     emU x lsT = blocks Sy.bar (x.passes.map (fun p => encW (dIn p.1)) ++ [encW (fIn x.final)]) := by
-  unfold emU
-  rw [emFi_lsT, emCm_other _ (by simp), blocks_append]
+  rw [emU, emFi_lsT, emCm_other _ (by simp), blocks_append]
   simp [emPs_lsT, blocks, List.flatMap_map]
 
 theorem emU_lsF (x : XU M K) :
     emU x lsF = blocks Sy.bar (x.passes.map fun p => cOut p.2) := by
-  unfold emU
-  rw [emFi_other _ (by simp) (by simp), emCm_other _ (by simp)]
+  rw [emU, emFi_other _ (by simp) (by simp), emCm_other _ (by simp)]
   simp [emPs_lsF, blocks, List.flatMap_map]
 
 theorem emU_bk_false (x : XU M K) (b : Bl K) :
     emU x (.tp (.bk b) false) =
       blocks Sy.bar (x.passes.map fun p => encW (dOut b p.1)) := by
-  unfold emU
-  rw [emFi_other _ (by simp) (by simp), emCm_other _ (by simp)]
+  rw [emU, emFi_other _ (by simp) (by simp), emCm_other _ (by simp)]
   simp [emPs_bk_false, blocks, List.flatMap_map]
 
 theorem emU_bk_true (x : XU M K) (b : Bl K) :
     emU x (.tp (.bk b) true) =
       blocks Sy.bar (x.passes.map fun p => (p.2 b).map Subtype.val) := by
-  unfold emU
-  rw [emFi_other _ (by simp) (by simp), emCm_other _ (by simp)]
+  rw [emU, emFi_other _ (by simp) (by simp), emCm_other _ (by simp)]
   simp [emPs_bk_true, blocks, List.flatMap_map]
 
 theorem emU_cm_false (x : XU M K) (k : Bool) :
     emU x (.tp (.cm k) false) = encW (fOut x.final) := by
-  unfold emU
-  rw [emFi_cm, emCm_other _ (by simp)]
+  rw [emU, emFi_cm, emCm_other _ (by simp)]
   simp [fun p : Ps M K => emPs_other p (z := .tp (.cm k) false) (by simp) (by simp) (by simp)]
 
 theorem emU_cm_true (x : XU M K) (k : Bool) :
     emU x (.tp (.cm k) true) =
       encW (fOut (if k then QlG x.cmp else PlG x.cmp)) := by
-  unfold emU
-  rw [emFi_other _ (by simp) (by simp), emCm_true]
+  rw [emU, emFi_other _ (by simp) (by simp), emCm_true]
   simp [fun p : Ps M K => emPs_other p (z := .tp (.cm k) true) (by simp) (by simp) (by simp)]
 
 theorem emU_other (x : XU M K) {z : Zc K} (h1 : z ≠ lsT) (h2 : z ≠ lsF)
     (h3 : ∀ b s, z ≠ .tp (.bk b) s) (h4 : ∀ k s, z ≠ .tp (.cm k) s) :
     emU x z = [] := by
-  unfold emU
-  rw [emFi_other _ h1 (fun k => h4 k false), emCm_other _ (fun k => h4 k true)]
+  rw [emU, emFi_other _ h1 (fun k => h4 k false), emCm_other _ (fun k => h4 k true)]
   simp [fun p : Ps M K => emPs_other p h1 h2 h3]
 
 end Values

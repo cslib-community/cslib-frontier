@@ -524,11 +524,8 @@ theorem counts_iff_satisfiable (hφ : ∀ c ∈ φ, c.length ≤ 3) :
         ext ⟨j', c⟩
         simp only [hB, mem_filter, mem_product, mem_range, mem_univ, and_true, mem_image,
           true_and, Prod.mk.injEq]
-        constructor
-        · rintro ⟨⟨-, h⟩, rfl⟩
-          exact ⟨c, h, rfl, rfl⟩
-        · rintro ⟨c, h, rfl, rfl⟩
-          exact ⟨⟨hj, h⟩, rfl⟩
+        exact ⟨fun ⟨⟨_, h⟩, rfl⟩ => ⟨c, h, rfl, rfl⟩,
+          fun ⟨c', h, hj', hc'⟩ => hj' ▸ hc' ▸ ⟨⟨hj, h⟩, rfl⟩⟩
       change cnt j + _ = 3
       rw [hBj, card_image_of_injective _ (Prod.mk_right_injective j),
         card_filter _ (univ : Finset Bool), Fintype.sum_bool]
@@ -596,11 +593,7 @@ theorem computableInPolyTime_octal :
 theorem computableInPolyTime_digitNumbers :
     ComputableInPolyTime digitNumbers encCNF (encList encNat) := by
   unfold digitNumbers
-  apply listAppend'
-  · apply flatMapWithInput (by fun_prop)
-    fun_prop
-  · apply flatMapWithInput (by fun_prop)
-    fun_prop
+  apply listAppend' <;> exact flatMapWithInput (by fun_prop) (by fun_prop)
 
 /-- The target of the digit construction is computed in polynomial time. -/
 @[fun_prop]

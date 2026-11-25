@@ -52,9 +52,7 @@ theorem exists_AWPP_queryWeights {α : Type} {enc : α ↪ List Bool} {A : Set (
           (w.take (T a) ∉ A → (2 : ℤ) ^ e a * H (a, w) ≤ D) := by
   obtain ⟨g, hg, p, hA⟩ := hA
   let query : α × List Bool → List Bool := fun x => x.2.take (T x.1)
-  have hquery : ComputableInPolyTime query (encPair enc encBits) encBits := by
-    dsimp [query]
-    fun_prop
+  have hquery : ComputableInPolyTime query (encPair enc encBits) encBits := by fun_prop
   have he' : ComputableInPolyTime (fun x : α × List Bool => e x.1)
       (encPair enc encBits) encUnary := he.comp (.fst enc encBits)
   let H₀ : α × List Bool → ℤ := fun x => AWPPAmplification.majorityPolynomial
@@ -67,15 +65,11 @@ theorem exists_AWPP_queryWeights {α : Type} {enc : α ↪ List Bool} {A : Set (
   let padding : α × List Bool → ℕ := fun x =>
     12 * e x.1 * (p.eval (T x.1) - p.eval (query x).length)
   have hpow : ComputableInPolyTime (fun x => 2 ^ padding x)
-      (encPair enc encBits) encNat := by
-    dsimp [padding]
-    fun_prop
+      (encPair enc encBits) encNat := by fun_prop
   let H : α × List Bool → ℤ := fun x => H₀ x * (2 : ℤ) ^ padding x
   have hH : H ∈ GapP (encPair enc encBits) := by
-    convert GapP.mul_mem hH₀
-      (SharpP.natCast_mem_GapP (mem_SharpP_of_polyTime hpow)) using 1
-    ext x
-    simp [H]
+    simpa [H, Pi.mul_def] using
+      GapP.mul_mem hH₀ (SharpP.natCast_mem_GapP (mem_SharpP_of_polyTime hpow))
   refine ⟨H, hH, fun a => 12 * e a * p.eval (T a), by fun_prop, fun a w => ?_⟩
   obtain ⟨hb, hy, hn⟩ := hA (query (a, w))
   simp only [encBits_apply] at hb hy hn

@@ -324,30 +324,24 @@ private theorem card_filter_embedSeq_lt {ι α : Type*} [Fintype ι] [LinearOrde
     {n : ℕ} (e : ι ≃ Fin n) {a₀ a₁ : α} (_ha : a₀ < a₁) (b : BitString n) (y : α)
     (hy : a₀ < y) :
     n - weight b ≤ #{i : ι | embedSeq e a₀ a₁ b i < y} := by
-  have hsub : univ.filter (fun i : ι => b (e i) = false) ⊆
-      univ.filter (fun i : ι => embedSeq e a₀ a₁ b i < y) := by
-    intro i hi
-    rw [mem_filter] at hi ⊢
-    exact ⟨mem_univ i, by simp [embedSeq, hi.2, hy]⟩
+  have hnot := weight_not b
+  simp only [Fintype.card_fin] at hnot
   have hcard : #{i : ι | b (e i) = false} = n - weight b := by
-    have hnot := weight_not b
-    simp only [Fintype.card_fin] at hnot
     rw [card_filter_comp_equiv e b false, ← hnot]
     exact congrArg card (filter_congr fun j _ => by cases hb : b j <;> simp [hb])
-  exact hcard ▸ card_le_card hsub
+  refine hcard ▸ card_le_card fun i hi => ?_
+  rw [mem_filter] at hi ⊢
+  exact ⟨mem_univ i, by simp [embedSeq, hi.2, hy]⟩
 
 private theorem card_filter_embedSeq_gt {ι α : Type*} [Fintype ι] [LinearOrder α]
     {n : ℕ} (e : ι ≃ Fin n) {a₀ a₁ : α} (ha : a₀ < a₁) (b : BitString n) (y : α)
     (hy : y ≤ a₀) :
     weight b ≤ #{i : ι | y < embedSeq e a₀ a₁ b i} := by
-  have hsub : univ.filter (fun i : ι => b (e i) = true) ⊆
-      univ.filter (fun i : ι => y < embedSeq e a₀ a₁ b i) := by
-    intro i hi
-    rw [mem_filter] at hi ⊢
-    exact ⟨mem_univ i, by simp [embedSeq, hi.2, lt_of_le_of_lt hy ha]⟩
-  have hcard : #{i : ι | b (e i) = true} = weight b := by
-    rw [card_filter_comp_equiv e b true, weight]
-  exact hcard ▸ card_le_card hsub
+  unfold weight
+  rw [← card_filter_comp_equiv e b true]
+  refine card_le_card fun i hi => ?_
+  rw [mem_filter] at hi ⊢
+  exact ⟨mem_univ i, by simp [embedSeq, hi.2, lt_of_le_of_lt hy ha]⟩
 
 private theorem measureProb_le_of_sep {ι V W α : Type*} [Fintype ι] [Fintype V] [Fintype W]
     [LinearOrder α]
@@ -532,13 +526,8 @@ private theorem one_sub_mul_kthSmallest_le_of_sim {ι V W α : Type*}
     intro t₁ t₂ hne ht₁ ht₂ hmin hmax hsep₁ hsep₂ hgap
     have hsep := measureProb_sim_sep e step U hψ₀ T out
       (fun X y => IsApproxKthSmallestRelaxed X k Δ y) Vsim φ₀ T_bool hsim hgood
-      (fun b hb y hy => kthSmallest_le_of_weight_le e hn ha hkn b
-        (Or.elim hsep₁ (fun h0 => Or.inl (hb.trans h0)) (fun hle => Or.inr (by rw [hb]; exact hle)))
-        hy)
-      (fun b hb y hy => kthSmallest_gt_of_weight_ge e hn ha b
-        (Or.elim hsep₂ (fun hn' => Or.inl (hb.trans hn'))
-          (fun hge => Or.inr (by rw [hb]; exact hge)))
-        hy)
+      (fun b hb y hy => kthSmallest_le_of_weight_le e hn ha hkn b (by rwa [hb]) hy)
+      (fun b hb y hy => kthSmallest_gt_of_weight_ge e hn ha b (by rwa [hb]) hy)
     have hcore := one_sub_mul_add_le_four_mul_mul_abs_sub_of_weight Vsim hφ₀ T_bool
       ((univ.filter fun p => out p ≤ a₀).map (embedOutcome e)) hne ht₁ ht₂
       hsep.1 hsep.2 hε hmin hmax

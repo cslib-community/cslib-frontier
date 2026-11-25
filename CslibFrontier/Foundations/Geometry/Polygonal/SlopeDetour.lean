@@ -82,8 +82,7 @@ private def height (a c μ s : ℝ) : ℝ := μ * ((s - a) ^ 2 + c * (s - a))
 
 private theorem height_sub (a c μ s t : ℝ) :
     height a c μ s - height a c μ t = (s - t) * (μ * (s + t - 2 * a + c)) := by
-  dsimp [height]
-  ring
+  dsimp [height]; ring
 
 private theorem member_ends (r s d : ℝ) (keep : Bool) :
     (member r s d keep).start = ⟨-r, -r * s⟩ ∧
@@ -111,16 +110,14 @@ private theorem member_support {r s d : ℝ} {keep : Bool} (hr : 0 < r)
         add_zero]
       refine ⟨⟨hx.1, hx.2.trans hr.le⟩, ?_⟩
       rw [abs_of_nonpos hx.2]
-      field_simp [hr.ne']
-      ring
+      field_simp [hr.ne']; ring
     · have hx : 0 ≤ t * r ∧ t * r ≤ r := by constructor <;> nlinarith only [ht.1, ht.2, hr]
       simp only [AffineMap.lineMap_apply_module, Complex.add_re, Complex.add_im,
         Complex.smul_re, Complex.smul_im, smul_eq_mul, mul_zero,
         zero_add]
       refine ⟨⟨by linarith only [hr, hx.1], hx.2⟩, ?_⟩
       rw [abs_of_nonneg hx.1]
-      field_simp [hr.ne']
-      ring
+      field_simp [hr.ne']; ring
   · have hd := hkeep rfl
     change z ∈ (line (⟨-r, -r * s⟩ : ℂ) ⟨r, r * s⟩).support at hz
     obtain ⟨i, t, ht, rfl⟩ :=
@@ -213,12 +210,10 @@ private theorem pair_separation {r s t d e q : ℝ} (hr : 0 < r) (hst : s ≠ t)
       div_neg_of_neg_of_pos (by nlinarith only [hr, hq]) hrq⟩
   have hxr : x ∈ Set.Ioo (-r) 0 := ⟨by linarith only [hr, hx.1], hx.2⟩
   have hroot : s * x + d * (1 + x / r) = t * x + e * (1 + x / r) := by
-    have he : (s - t) * x + (d - e) * (1 + x / r) = 0 := by
-      rw [hd]
-      dsimp [x]
-      field_simp [hr.ne', hrq.ne']
-      ring
-    linarith
+    suffices (s - t) * x + (d - e) * (1 + x / r) = 0 by linarith
+    rw [hd]
+    dsimp only [x]
+    field_simp [hr.ne', hrq.ne']; ring
   obtain ⟨u, hu, hue⟩ : ∃ u ∈ Set.Ioo (0 : ℝ) 1, (member r s d keep).eval 0 u = z :=
     member_first hr hk hxr
   obtain ⟨v, hv, hve⟩ := member_first (s := t) hr hk' hxr
@@ -273,9 +268,8 @@ private theorem no_middle {a c μ w x y s t u : ℝ} (hμ : μ ≠ 0) (hw : w �
   have hv : v ∈ Set.Icc (0 : ℝ) 1 :=
     ⟨(div_pos (sub_pos.mpr hst) hus).le, ((div_lt_one hus).mpr (by linarith)).le⟩
   have hinterp : (1 - v) * s + v * u = t := by
-    dsimp [v]
-    field_simp [hus.ne']
-    ring
+    dsimp only [v]
+    field_simp [hus.ne']; ring
   have hd : (1 - v) * height a c μ s + v * height a c μ u = height a c μ t := by
     refine mul_left_cancel₀ hw ?_
     linear_combination ht - (1 - v) * hs - v * hu - x * hinterp
@@ -402,13 +396,10 @@ theorem exists_slopeDetour_separation {ι : Type*} [Finite ι]
     obtain ⟨hx, hz0, _⟩ := (hpair i j hij).2.1 z hi hj
     have hw : 0 < 1 - |z.re| / r := by
       rw [abs_of_neg hz0, sub_pos, div_lt_one hr]; linarith
-    obtain ⟨_, hi'⟩ := member_support hr (hkeep i) hi
-    obtain ⟨_, hj'⟩ := member_support hr (hkeep j) hj
-    obtain ⟨_, hk'⟩ := member_support hr (hkeep k) hk
-    exact no_three hμ.ne' hw.ne' (fun h => hij (hs h)) (fun h => hik (hs h))
-      (fun h => hjk (hs h))
-      (by simpa only [d, mul_comm (height a c μ (s i))] using hi')
-      (by simpa only [d, mul_comm (height a c μ (s j))] using hj')
-      (by simpa only [d, mul_comm (height a c μ (s k))] using hk')
+    have hsupp {m} (hm : z ∈ (R m).support) :
+        z.im = s m * z.re + (1 - |z.re| / r) * height a c μ (s m) := by
+      simpa only [d, mul_comm (height a c μ (s m))] using (member_support hr (hkeep m) hm).2
+    exact no_three hμ.ne' hw.ne' (mt (@hs _ _) hij) (mt (@hs _ _) hik) (mt (@hs _ _) hjk)
+      (hsupp hi) (hsupp hj) (hsupp hk)
 
 end Cslib.Polygonal

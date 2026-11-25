@@ -92,21 +92,15 @@ private theorem isFstOfAnyPair_eq_true_iff {f : BooleanFunction n} {S : State n}
     · simp
   · rintro ⟨pr, hpr, hx⟩
     obtain ⟨pr', h'⟩ := Option.isSome_iff_exists.1 (findPair_isSome hS hpr (Or.inl hx))
-    have := eq_of_findPair_eq_some hS h' hpr hx
-    subst this
-    unfold isFstOfAnyPair
-    rw [h']
-    simpa using hx
+    obtain rfl := eq_of_findPair_eq_some hS h' hpr hx
+    simpa [isFstOfAnyPair, h'] using hx
 
 private theorem terminalVal_fst {f : BooleanFunction n} {S : State n} (hS : S.Valid f) (L : List ℕ)
     (A : List Bool) {pr : ZeroPair} (hpr : pr ∈ S.pairs) :
     terminalVal S L A pr.fst = pr.fstBias := by
   obtain ⟨pr', h'⟩ := Option.isSome_iff_exists.1 (findPair_isSome hS hpr (Or.inl rfl))
-  have := eq_of_findPair_eq_some hS h' hpr rfl
-  subst this
-  unfold terminalVal
-  rw [h']
-  simp
+  obtain rfl := eq_of_findPair_eq_some hS h' hpr rfl
+  simp [terminalVal, h']
 
 private theorem findIdx?_eq_some_of_nodup {L : List ℕ} (hL : L.Nodup) {j : ℕ} (hj : j < L.length) :
     L.findIdx? (· = L[j]) = some j := by
@@ -120,13 +114,10 @@ private theorem terminalVal_of_getElem {S : State n} {L : List ℕ} (hL : L.Nodu
     terminalVal S L A L[j] = A.getD j false := by
   unfold terminalVal
   rw [findIdx?_eq_some_of_nodup hL hj]
-  unfold isFstOfAnyPair at hfst
-  split
-  · rename_i pr h
-    rw [h] at hfst
-    have : pr.fst ≠ L[j] := by simpa using hfst
-    simp [this]
+  rcases h : findPair S L[j] with _ | pr
   · rfl
+  · simp only [isFstOfAnyPair, h, decide_eq_false_iff_not] at hfst
+    simp [hfst]
 
 private theorem isAffine_getD_ofFn {d : ℕ} (i : ℕ) :
     IsAffine fun u : BitString d => (List.ofFn u).getD i false := by
@@ -602,11 +593,8 @@ private theorem findSome_neq {d : ℕ} (C : Circuit (fullSignature 2 Bool) n 1)
       if C.eval fullInterpretation (g A) 0 != f (g A) then some (g A) else none) = some x) :
     C.eval fullInterpretation x 0 ≠ f x := by
   obtain ⟨A, -, hA⟩ := List.exists_of_findSome?_eq_some h
-  split at hA
-  · rename_i hne
-    cases hA
-    simpa using hne
-  · cases hA
+  split_ifs at hA with hne
+  simpa [← Option.some_inj.mp hA] using hne
 
 /-- Every input returned by `findCounterexample` is a counterexample. -/
 theorem findCounterexample_spec {d : ℕ} (C : Circuit (fullSignature 2 Bool) n 1)
