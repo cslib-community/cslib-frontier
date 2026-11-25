@@ -102,9 +102,9 @@ length at most `L`. -/
 theorem exists_outcome_eq_done_of_pos_value : ∀ {n : ℕ} {h : History}, 0 < value F L n h →
     ∃ r e, e.length ≤ n ∧ (∀ x ∈ e, x.1.length ≤ L ∧ x.2.length ≤ L) ∧
       outcome (F r) (h ++ e) = .done true
-  | 0, h, hpos => by
-    obtain ⟨r, hr⟩ := exists_outcome_eq_done_of_pos_accepted hpos
-    exact ⟨r, [], le_rfl, by simp, hr⟩
+  | 0, h, hpos =>
+    let ⟨r, hr⟩ := exists_outcome_eq_done_of_pos_accepted hpos
+    ⟨r, [], le_rfl, by simp, hr⟩
   | n + 1, h, hpos => by
     rw [value] at hpos
     rcases Nat.eq_zero_or_pos (accepted F h) with h0 | hacc
@@ -112,9 +112,9 @@ theorem exists_outcome_eq_done_of_pos_value : ∀ {n : ℕ} {h : History}, 0 < v
       obtain ⟨m, hm, hsup⟩ := hpos
       obtain ⟨y, hy, hval⟩ := Finset.lt_sup_iff.1 hsup
       obtain ⟨r, e, he, hshort, hout⟩ := exists_outcome_eq_done_of_pos_value hval
-      refine ⟨r, (m, y) :: e, by simpa using he, ?_, by simpa using hout⟩
-      simp only [List.mem_cons, forall_eq_or_imp]
-      exact ⟨⟨BitString.mem_shortWords.1 hm, BitString.mem_shortWords.1 hy⟩, hshort⟩
+      exact ⟨r, (m, y) :: e, by simpa using he, List.forall_mem_cons.2
+        ⟨⟨BitString.mem_shortWords.1 hm, BitString.mem_shortWords.1 hy⟩, hshort⟩,
+        by simpa using hout⟩
     · obtain ⟨r, hr⟩ := exists_outcome_eq_done_of_pos_accepted hacc
       exact ⟨r, [], by simp, by simp, hr⟩
 
@@ -138,9 +138,8 @@ theorem acceptFrom_historyProver (h : History) {p : WordQueryComp Unit Bool} {e 
   | nil =>
     cases p with
     | pure b =>
-      have hb : b = true := Outcome.done.inj hp
-      subst hb
-      exact (acceptFrom_pure _ _ true).trans (by simp)
+      cases Outcome.done.inj hp
+      simpa using acceptFrom_pure (historyProver h) [] true
     | liftBind q next => exact absurd hp nofun
   | cons x e ih =>
     obtain ⟨m, y⟩ := x
@@ -148,20 +147,16 @@ theorem acceptFrom_historyProver (h : History) {p : WordQueryComp Unit Bool} {e 
     | pure b => exact absurd hp nofun
     | liftBind q next =>
       obtain ⟨⟨⟩, m'⟩ := q
-      have key : after (.liftBind ((), m') next : WordQueryComp Unit Bool) ((m, y) :: e) =
-          if m = m' then after (next y) e else none := rfl
       unfold outcome at hp
-      rw [key] at hp
+      rw [show after (.liftBind ((), m') next : WordQueryComp Unit Bool) ((m, y) :: e) =
+        if m = m' then after (next y) e else none from rfl] at hp
       split_ifs at hp with hm
       · subst hm
-        have hp' : outcome (next y) e = .done true := hp
         refine (acceptFrom_query_bind (historyProver h) ((m, y) :: e) m next).trans ?_
-        have hrun : ((historyProver h).respond ((), m)).run ((m, y) :: e) = PMF.pure (y, e) := rfl
-        rw [hrun]
         change ∑' ys : List Bool × History,
           (PMF.pure (y, e)) ys * acceptFrom (historyProver h) ys.2 (some (next ys.1)) = 1
         rw [tsum_eq_single (y, e) fun ys hys => by simp [PMF.pure_apply, hys]]
-        simpa [PMF.pure_apply] using ih hp'
+        simpa [PMF.pure_apply] using ih hp
 
 /-! ### Positive acceptance is an accepting transcript -/
 
@@ -181,12 +176,10 @@ theorem pos_acceptProb_historyProver {V : WordOracleComp Unit Bool} {t : ℕ} {x
     (hout : outcome (coinProgram M t x r) e = .done true) :
     0 < acceptProb V (historyProver e) := by
   subst hr
-  rw [acceptProb_eq_sum M (by
-    simpa only [ProbOracleComp.runWith_eq_run_interpret] using hV)]
+  rw [acceptProb_eq_sum M (by simpa only [ProbOracleComp.runWith_eq_run_interpret] using hV)]
   refine ENNReal.mul_pos (ENNReal.inv_ne_zero.2 (ENNReal.pow_ne_top ENNReal.ofNat_ne_top))
     (ne_of_gt ?_)
-  refine lt_of_lt_of_le ?_ (Finset.single_le_sum (fun _ _ => bot_le)
-    (Finset.mem_univ r.get))
+  refine lt_of_lt_of_le ?_ (Finset.single_le_sum (fun _ _ => bot_le) (Finset.mem_univ r.get))
   rw [List.ofFn_get]
   exact (acceptFrom_historyProver e hout).symm ▸ zero_lt_one
 
@@ -253,30 +246,24 @@ theorem mem_NP_of_exists_pos_acceptProb {V : α → WordOracleComp Unit Bool} {A
     (sound : ∀ a ∉ A, ∀ P : Prover Unit, acceptProb (V a) P = 0) : A ∈ NP enc := by
   obtain ⟨_, k, Control, _, M, c, d, hreal⟩ := hV
   set fuel : α → ℕ := fun a => c * ((enc a).length + 1) ^ d
-  have hfuel : ComputableInPolyTime fuel enc encUnary := by
-    have hlen : ComputableInPolyTime (fun a => (enc a).length) enc encUnary := by fun_prop
-    exact ((ComputableInPolyTime.unary_eval (Polynomial.C c * (Polynomial.X + 1) ^ d)).comp
-      hlen).of_enc_eq fun a => by simp [fuel]
+  have hfuel : ComputableInPolyTime fuel enc encUnary :=
+    ((ComputableInPolyTime.unary_eval (Polynomial.C c * (Polynomial.X + 1) ^ d)).comp
+      (by fun_prop : ComputableInPolyTime (fun a => (enc a).length) enc encUnary)).of_enc_eq
+      fun a => by simp [fuel]
   have hacc := computableInPolyTime_accepts (fun _ _ => true) id M
     (encEntry := encPair encBits encBits) (fun _ => ComputableInPolyTime.const true)
     ComputableInPolyTime.id'
   let check : α × (List Bool × History) → Bool := fun q =>
     decide (q.2.1.length = fuel q.1) && accepts (fun _ _ => true) id M (enc q.1) q.2.1 q.2.2
-  have hcheck : ComputableInPolyTime check (encPair enc (encPair encBits encHistory)) encBool := by
-    have hacc' : ComputableInPolyTime
-        (fun q : α × (List Bool × History) => accepts (fun _ _ => true) id M (enc q.1) q.2.1 q.2.2)
-        (encPair enc (encPair encBits encHistory)) encBool := by fun_prop
-    have hlen : ComputableInPolyTime (fun q : α × (List Bool × History) => q.2.1.length)
-        (encPair enc (encPair encBits encHistory)) encUnary := by fun_prop
-    have hfuel' : ComputableInPolyTime (fun q : α × (List Bool × History) => fuel q.1)
-        (encPair enc (encPair encBits encHistory)) encUnary :=
-      hfuel.comp (ComputableInPolyTime.fst _ _)
-    exact ComputableInPolyTime.bool_and' (hlen.decide_eq' hfuel') hacc'
+  have hcheck : ComputableInPolyTime check (encPair enc (encPair encBits encHistory)) encBool :=
+    ComputableInPolyTime.bool_and'
+      ((by fun_prop : ComputableInPolyTime (fun q : α × (List Bool × History) => q.2.1.length)
+        (encPair enc (encPair encBits encHistory)) encUnary).decide_eq' (hfuel.comp (.fst _ _)))
+      (by fun_prop)
   have hiff (a : α) (r : List Bool) (e : History) : check (a, (r, e)) = true ↔
       r.length = fuel a ∧ outcome (coinProgram M (fuel a) (enc a) r) e = .done true := by
     simp only [check, Bool.and_eq_true, decide_eq_true_eq]
-    refine and_congr_right fun hr => ?_
-    rw [accepts_eq_true_iff, hr]
+    exact and_congr_right fun hr => by rw [accepts_eq_true_iff, hr]
   set T : Polynomial ℕ := Polynomial.C c * (Polynomial.X + 1) ^ d
   refine mem_NP_of_check (p := 2 * T + 1 + T * (6 * T + 3))
     (Decoder.bits.pair (Decoder.bits.pair Decoder.bits).list) hcheck

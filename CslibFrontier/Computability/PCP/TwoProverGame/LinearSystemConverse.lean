@@ -90,27 +90,24 @@ theorem sum_accepts_eq_one_of_commutingWinProb_eq_one
   have := Fintype.ofFinite X
   have := Fintype.ofFinite Y
   set w : X → Y → ℝ := fun x y => ∑ a, ∑ b, if G.accepts x y a b then S.prob x y a b else 0
-  have hw : ∀ x y, w x y ≤ 1 := fun x y => by
+  have hw (x : X) (y : Y) : w x y ≤ 1 := by
     rw [← S.sum_prob x y]
     refine sum_le_sum fun a _ => sum_le_sum fun b _ => ?_
-    split_ifs
-    · exact le_rfl
-    · exact S.prob_nonneg x y a b
+    split_ifs <;> [exact le_rfl; exact S.prob_nonneg x y a b]
   have hμ : ∑ x, ∑ y, (G.questions (x, y)).toReal = 1 := by
     rw [← Fintype.sum_prod_type']
     exact Cslib.Probability.PMF.sum_toReal G.questions
   rw [commutingWinProb_eq_sum] at h
+  have hnn (x : X) (y : Y) : 0 ≤ (G.questions (x, y)).toReal * (1 - w x y) :=
+    mul_nonneg ENNReal.toReal_nonneg (sub_nonneg.mpr (hw x y))
   have hzero : ∑ x, ∑ y, (G.questions (x, y)).toReal * (1 - w x y) = 0 := by
     simp only [mul_sub, mul_one, sum_sub_distrib, hμ]
     rw [h, sub_self]
-  have hnn : ∀ x y, 0 ≤ (G.questions (x, y)).toReal * (1 - w x y) := fun x y =>
-    mul_nonneg ENNReal.toReal_nonneg (sub_nonneg.mpr (hw x y))
-  have hx := (sum_eq_zero_iff_of_nonneg fun x _ => sum_nonneg fun y _ => hnn x y).mp hzero x
-    (mem_univ x)
-  have hxy := (sum_eq_zero_iff_of_nonneg fun y _ => hnn x y).mp hx y (mem_univ y)
-  have hpos : (G.questions (x, y)).toReal ≠ 0 :=
-    ENNReal.toReal_ne_zero.mpr ⟨hq, PMF.apply_ne_top _ _⟩
-  have := (mul_eq_zero.mp hxy).resolve_left hpos
+  have hxy := (sum_eq_zero_iff_of_nonneg fun y _ => hnn x y).mp
+    ((sum_eq_zero_iff_of_nonneg fun x _ => sum_nonneg fun y _ => hnn x y).mp hzero x (mem_univ x))
+    y (mem_univ y)
+  have := (mul_eq_zero.mp hxy).resolve_left
+    (ENNReal.toReal_ne_zero.mpr ⟨hq, PMF.apply_ne_top _ _⟩)
   linarith
 
 /-- A strategy that wins with certainty never gives a rejected answer to a question of positive
@@ -119,15 +116,15 @@ theorem commutingProb_eq_zero_of_not_accepts {S : CommutingStrategy X Y A B 𝒜
     (h : G.commutingWinProb S = 1) {x : X} {y : Y} (hq : G.questions (x, y) ≠ 0) {a : A} {b : B}
     (hrej : ¬ G.accepts x y a b) : S.prob x y a b = 0 := by
   classical
-  have h₀ := G.sum_accepts_eq_one_of_commutingWinProb_eq_one h hq
   have h₁ : ∑ a, ∑ b, (S.prob x y a b - if G.accepts x y a b then S.prob x y a b else 0) = 0 := by
-    simp only [sum_sub_distrib, S.sum_prob, h₀, sub_self]
-  have hnn : ∀ a b, 0 ≤ S.prob x y a b - (if G.accepts x y a b then S.prob x y a b else 0) :=
-    fun a b => by split_ifs <;> simp [S.prob_nonneg]
+    simp only [sum_sub_distrib, S.sum_prob,
+      G.sum_accepts_eq_one_of_commutingWinProb_eq_one h hq, sub_self]
+  have hnn (a : A) (b : B) :
+      0 ≤ S.prob x y a b - if G.accepts x y a b then S.prob x y a b else 0 := by
+    split_ifs <;> simp [S.prob_nonneg]
   have ha := (sum_eq_zero_iff_of_nonneg fun a _ => sum_nonneg fun b _ => hnn a b).mp h₁ a
     (mem_univ a)
-  have hb := (sum_eq_zero_iff_of_nonneg fun b _ => hnn a b).mp ha b (mem_univ b)
-  simpa [hrej] using hb
+  simpa [hrej] using (sum_eq_zero_iff_of_nonneg fun b _ => hnn a b).mp ha b (mem_univ b)
 
 end TwoProverGame
 
@@ -184,16 +181,14 @@ theorem list_prod_approx (Bo Al : V → 𝒜) (l : List V) (hagree : ∀ v ∈ l
   induction l with
   | nil => simpa using AlgState.approx_self φ 1
   | cons v l ih =>
-    have ih' := ih (fun u hu => hagree u (List.mem_cons_of_mem v hu))
-      (fun u hu w hw => hcomm u (List.mem_cons_of_mem v hu) w (List.mem_cons_of_mem v hw))
     have hc : Commute (Bo v) (l.reverse.map Al).prod :=
-      Commute.list_prod_right _ _ fun x hx => by
-        obtain ⟨w, hw, rfl⟩ := List.mem_map.mp hx
-        exact hcomm v List.mem_cons_self w (List.mem_cons_of_mem v (List.mem_reverse.mp hw))
-    have h₁ := ih'.mul_left_zero (Bo v)
-    have h₂ := (hagree v List.mem_cons_self).mul_left_zero (l.reverse.map Al).prod
+      Commute.list_prod_right _ _ <| List.forall_mem_map.2 fun w hw =>
+        hcomm v List.mem_cons_self w (List.mem_cons_of_mem v (List.mem_reverse.mp hw))
+    have h₁ := (ih (fun u hu => hagree u (List.mem_cons_of_mem v hu)) fun u hu w hw =>
+      hcomm u (List.mem_cons_of_mem v hu) w (List.mem_cons_of_mem v hw)).mul_left_zero (Bo v)
     rw [hc.eq] at h₁
-    simpa [List.prod_append] using h₁.trans h₂
+    simpa [List.prod_append] using
+      h₁.trans ((hagree v List.mem_cons_self).mul_left_zero (l.reverse.map Al).prod)
 
 end Algebra
 
@@ -208,16 +203,13 @@ noncomputable def marginalObservable (S : CommutingStrategy E V (V → Bool) Boo
 theorem marginalObservable_eq (S : CommutingStrategy E V (V → Bool) Bool 𝒜) (e : E) (v : V) :
     S.marginalObservable e v = ((S.alice e).map fun a => a v).observable := by
   simp only [marginalObservable, Measurement.observable, Measurement.map_effect]
-  rw [← sum_filter_add_sum_filter_not univ fun a => a v = false]
-  rw [sub_eq_add_neg, ← sum_neg_distrib]
-  congr 1
-  · refine sum_congr ?_ fun a ha => ?_
-    · ext a; simp
-    · rw [(mem_filter.mp ha).2, BitString.signVal_false, Complex.ofReal_one, one_smul]
-  · refine sum_congr ?_ fun a ha => ?_
-    · ext a; simp
-    · have : a v = true := by simpa using (mem_filter.mp ha).2
-      rw [this, BitString.signVal_true, Complex.ofReal_neg, Complex.ofReal_one, neg_one_smul]
+  rw [← sum_filter_add_sum_filter_not univ fun a => a v = false, sub_eq_add_neg, ← sum_neg_distrib]
+  exact congrArg₂ _
+    (sum_congr (by ext; simp) fun a ha => by
+      rw [(mem_filter.mp ha).2, BitString.signVal_false, Complex.ofReal_one, one_smul])
+    (sum_congr (by ext; simp) fun a ha => by
+      rw [show a v = true by simpa using (mem_filter.mp ha).2, BitString.signVal_true,
+        Complex.ofReal_neg, Complex.ofReal_one, neg_one_smul])
 
 /-- Products of marginal observables of a projective measurement multiply pointwise. -/
 theorem list_prod_marginalObservable (e : E) (hA : (S.alice e).IsProjective) (l : List V) :
@@ -236,17 +228,13 @@ theorem effect_approx_zero_of_not_satisfies (L : LinearSystem V E) {μ : PMF (E 
     (hne : ∀ e, ∃ v, μ (e, v) ≠ 0) (h : (L.game μ).commutingWinProb S = 1) {e : E}
     {a : V → Bool} (ha : ¬ L.Satisfies e a) : (S.alice e).effect a ≈[S.state; 0] 0 := by
   obtain ⟨v, hv⟩ := hne e
-  have hprob : ∀ b, S.prob e v a b = 0 := fun b =>
-    TwoProverGame.commutingProb_eq_zero_of_not_accepts (L.game μ) h hv
-      (fun hacc => ha hacc.1)
   have hre : (S.state ((S.alice e).effect a)).re = 0 := by
-    rw [← mul_one ((S.alice e).effect a), ← (S.bob v).sum_effect, mul_sum, map_sum,
-      Complex.re_sum]
-    exact sum_eq_zero fun b _ => hprob b
-  have hE : S.state ((S.alice e).effect a) = 0 := by
-    rw [← S.state.ofReal_re_apply ((S.alice e).nonneg a), hre, Complex.ofReal_zero]
-  exact AlgState.approx_zero_of_apply_eq_zero ((S.alice e).nonneg a) ((S.alice e).effect_le_one a)
-    hE
+    rw [← mul_one ((S.alice e).effect a), ← (S.bob v).sum_effect, mul_sum, map_sum, Complex.re_sum]
+    exact sum_eq_zero fun b _ =>
+      TwoProverGame.commutingProb_eq_zero_of_not_accepts (L.game μ) h hv fun hacc => ha hacc.1
+  exact AlgState.approx_zero_of_apply_eq_zero ((S.alice e).nonneg a)
+    ((S.alice e).effect_le_one a) <| by
+      rw [← S.state.ofReal_re_apply ((S.alice e).nonneg a), hre, Complex.ofReal_zero]
 
 variable [Finite E] in
 /-- In a perfect strategy, Alice's marginal observable of a variable of her equation agrees
@@ -257,11 +245,8 @@ theorem marginalObservable_approx (L : LinearSystem V E) {μ : PMF (E × V)}
     S.marginalObservable e v ≈[S.state; 0] (S.bob v).observable := by
   set M := (S.alice e).map fun a => a v
   set F := S.bob v
-  have hcomm : ∀ b, Commute (M.effect b) (F.effect b) := fun b =>
+  have hcomm (b : Bool) : Commute (M.effect b) (F.effect b) :=
     Commute.sum_left _ _ _ fun a _ => S.commute e v a b
-  have hzero : ∀ a b, a v ≠ b → S.prob e v a b = 0 := fun a b hab =>
-    TwoProverGame.commutingProb_eq_zero_of_not_accepts (L.game μ) h (hμ e v hv)
-      (fun hacc => hab (hacc.2 hv))
   have hagr : Measurement.agreement S.state M F = 1 := by
     have hM : Measurement.agreement S.state M F =
         ∑ b, ∑ a ∈ univ.filter (fun a : V → Bool => a v = b), S.prob e v a b := by
@@ -269,16 +254,16 @@ theorem marginalObservable_approx (L : LinearSystem V E) {μ : PMF (E × V)}
         Complex.re_sum]
       rfl
     rw [hM, ← S.sum_prob e v, sum_comm]
-    refine sum_congr rfl fun b _ => sum_filter_of_ne fun a _ hne => ?_
-    by_contra hab
-    exact hne (hzero a b hab)
+    refine sum_congr rfl fun b _ => sum_filter_of_ne fun a _ hne => not_not.mp fun hab => hne ?_
+    exact TwoProverGame.commutingProb_eq_zero_of_not_accepts (L.game μ) h (hμ e v hv)
+      fun hacc => hab (hacc.2 hv)
   have hcl := Measurement.sum_norm_sub_sq_le_of_agreement S.state M F hcomm (ε := 0)
     (by rw [hagr]; norm_num)
-  have hb : ∀ b, M.effect b ≈[S.state; 0] F.effect b := fun b => by
-    have hnn : ∀ c ∈ univ, 0 ≤ S.state.norm (M.effect c - F.effect c) ^ 2 := fun c _ => sq_nonneg _
-    have := (sum_eq_zero_iff_of_nonneg hnn).mp (le_antisymm (by simpa using hcl)
-      (sum_nonneg hnn)) b (mem_univ b)
-    exact le_of_eq (pow_eq_zero_iff two_ne_zero |>.mp this)
+  have hb (b : Bool) : M.effect b ≈[S.state; 0] F.effect b := by
+    have hnn : ∀ c ∈ univ, 0 ≤ S.state.norm (M.effect c - F.effect c) ^ 2 := fun _ _ => sq_nonneg _
+    exact le_of_eq <| (pow_eq_zero_iff two_ne_zero).mp <|
+      (sum_eq_zero_iff_of_nonneg hnn).mp (le_antisymm (by simpa using hcl) (sum_nonneg hnn)) b
+        (mem_univ b)
   rw [marginalObservable_eq]
   exact ((hb false).sub (hb true)).mono (by norm_num)
 

@@ -77,35 +77,27 @@ theorem PCP_zero_zero : PCP (fun _ => 0) (fun _ => 0) enc = P enc := by
   constructor
   · rintro ⟨V, c, d, ⟨-, -, hv⟩, hcoins, hqs, hcomp, hsound⟩
     simp only [mul_zero, nonpos_iff_eq_zero] at hcoins hqs
-    refine ⟨fun a => V.verdict ((a, []), []), ?_, fun a => ?_⟩
-    · exact hv.comp (g := fun a : α => ((a, ([] : List Bool)), ([] : List Bool))) (by fun_prop)
-    · -- with no random bits there are no queries, so the verdict ignores the proof
-      have key (π : List Bool) : V.accepts a π [] = V.verdict ((a, []), []) := by
-        grind [PCPVerifier.accepts, PCPVerifier.answers]
-      constructor
-      · intro ha
-        obtain ⟨π, hπ⟩ := hcomp a ha
-        change V.verdict ((a, []), []) = true
-        rw [← key π]
-        exact hπ [] (by simp [hcoins a])
-      · intro hv'
-        by_contra ha
-        have := hsound a ha []
-        rw [hcoins a, acceptCount_zero] at this
-        simp [key, hv'] at this
+    have key (a : α) (π : List Bool) : V.accepts a π [] = V.verdict ((a, []), []) := by
+      grind [PCPVerifier.accepts, PCPVerifier.answers]
+    refine ⟨fun a => V.verdict ((a, []), []),
+      hv.comp (g := fun a : α => ((a, ([] : List Bool)), ([] : List Bool))) (by fun_prop),
+      fun a => ⟨fun ha => ?_, fun hv' => ?_⟩⟩
+    · obtain ⟨π, hπ⟩ := hcomp a ha
+      exact (key a π).symm.trans (hπ [] (by simp [hcoins a]))
+    · by_contra ha
+      simpa [hcoins a, acceptCount_zero, key, hv'] using hsound a ha []
   · rintro ⟨f, hf, hA⟩
     exact ⟨⟨fun _ => 0, fun _ => [], fun x => f x.1.1⟩, 0, 0,
       { coins := .const _
         queries := .const _
         verdict := hf.comp ((ComputableInPolyTime.fst enc encBits).comp
           (ComputableInPolyTime.fst (encPair enc encBits) encBits)) },
-      { coins_le a := by simp
-        length_queries_le a ρ _ := by simp
-        complete a ha := ⟨[], fun ρ _ => by simpa [PCPVerifier.accepts] using (hA a).mp ha⟩
-        sound a ha π := by
-          have hfa : f a = false := by simpa [hA a] using ha
+      { coins_le _ := by simp
+        length_queries_le _ _ _ := by simp
+        complete a ha := ⟨[], fun _ _ => by simpa [PCPVerifier.accepts] using (hA a).mp ha⟩
+        sound a ha _ := by
           rw [acceptCount_zero]
-          simp [PCPVerifier.accepts, hfa] }⟩
+          simp [PCPVerifier.accepts, show f a = false by simpa [hA a] using ha] }⟩
 
 /-- **`P ⊆ PCP(r, q)`** for all `r` and `q`. -/
 theorem P_subset_PCP (r q : ℕ → ℕ) : P enc ⊆ PCP r q enc :=
@@ -133,11 +125,11 @@ are logarithmically bounded. -/
 theorem isPolyTime_exhaustiveTableDecider {c d : ℕ} (hV : V.PolyTime enc)
     (hcoins : ∀ a, V.coins a ≤ c * (Nat.log 2 (enc a).length + 1))
     (hqueries : ∀ a, (V.queryTable a).length ≤ d * (Nat.log 2 (enc a).length + 1)) :
-    ComputableInPolyTime V.exhaustiveTableDecider enc encBool := by
-  have hlen : ComputableInPolyTime (fun a => (V.queryTable a).length) enc encUnary :=
-    (ComputableInPolyTime.length_list encNat).comp (V.isPolyTime_queryTable hV hcoins)
-  exact ComputableInPolyTime.anyWithInput (test := fun a table => V.tableVerifier (a, table))
-    (ComputableInPolyTime.bitsEnumList_of_le_mul_log hlen hqueries)
+    ComputableInPolyTime V.exhaustiveTableDecider enc encBool :=
+  ComputableInPolyTime.anyWithInput (test := fun a table => V.tableVerifier (a, table))
+    (ComputableInPolyTime.bitsEnumList_of_le_mul_log
+      ((ComputableInPolyTime.length_list encNat).comp (V.isPolyTime_queryTable hV hcoins))
+      hqueries)
     (V.isPolyTime_tableVerifier hV hcoins)
 
 end PCPVerifier
@@ -149,10 +141,9 @@ theorem IsPCPVerifier.mem_iff_exhaustiveTableDecider {r q : ℕ → ℕ} {V : PC
     a ∈ A ↔ V.exhaustiveTableDecider a = true := by
   refine ⟨fun ha => ?_, fun hdec => ?_⟩
   · obtain ⟨proof, hproof⟩ := h.complete a ha
-    refine List.any_eq_true.mpr ⟨PCPVerifier.answers proof (V.queryTable a), ?_, ?_⟩
-    · rw [BitString.mem_enumList]
-      simp [PCPVerifier.answers]
-    · simpa using PCPVerifier.tableVerifier_complete a proof [] hproof
+    exact List.any_eq_true.mpr ⟨PCPVerifier.answers proof (V.queryTable a),
+      BitString.mem_enumList.mpr (by simp [PCPVerifier.answers]),
+      by simpa using PCPVerifier.tableVerifier_complete a proof [] hproof⟩
   · obtain ⟨table, _, htable⟩ := List.any_eq_true.mp hdec
     exact (h.mem_iff_exists_tableVerifier a).mpr ⟨table, htable⟩
 
@@ -162,17 +153,13 @@ enumerating all `2 ^ O(log n)` consistent bit tables decides the problem in poly
 theorem PCP_zero_log : PCP (fun _ => 0) (fun n => Nat.log 2 n + 1) enc = P enc := by
   refine Set.Subset.antisymm ?_ (P_subset_PCP _ _)
   rintro A ⟨V, c, d, hV, hpcp⟩
-  have hcoins0 (a : α) : V.coins a = 0 := by
-    have := hpcp.coins_le a
-    lia
-  have hcoins (a : α) : V.coins a ≤ 0 * (Nat.log 2 (enc a).length + 1) := by
-    simp [hcoins0 a]
-  have hqueries (a : α) : (V.queryTable a).length ≤ d * (Nat.log 2 (enc a).length + 1) := by
-    rw [PCPVerifier.queryTable_of_coins_eq_zero (hcoins0 a)]
-    exact hpcp.length_queries_le a [] (by simp [hcoins0 a])
-  exact ⟨V.exhaustiveTableDecider,
-    V.isPolyTime_exhaustiveTableDecider hV hcoins hqueries,
+  have hcoins0 (a : α) : V.coins a = 0 := by have := hpcp.coins_le a; lia
+  refine ⟨V.exhaustiveTableDecider,
+    V.isPolyTime_exhaustiveTableDecider (c := 0) (d := d) hV (fun a => by simp [hcoins0 a])
+      fun a => ?_,
     hpcp.mem_iff_exhaustiveTableDecider⟩
+  rw [PCPVerifier.queryTable_of_coins_eq_zero (hcoins0 a)]
+  exact hpcp.length_queries_le a [] (by simp [hcoins0 a])
 
 /-- **`NP ⊆ PCP(0, poly)`**: with no random bits, the verifier queries the first `p(n)` positions
 of the proof, where `n` is the length of the encoded instance and `p(n)` the length of the
@@ -188,32 +175,25 @@ theorem exists_mem_PCP_zero_of_mem_NP {A : Set α} (hA : A ∈ NP enc) :
       verdict := hV.comp (((ComputableInPolyTime.fst enc encBits).comp
         (ComputableInPolyTime.fst (encPair enc encBits) encBits)).pair
         (ComputableInPolyTime.snd (encPair enc encBits) encBits)) },
-    { coins_le a := by simp
-      length_queries_le a ρ _ := by simpa using hle (enc a).length
+    { coins_le _ := by simp
+      length_queries_le a _ _ := by simpa using hle (enc a).length
       complete := ?complete
       sound := ?sound }⟩
   case queries =>
-    -- `x ↦ range (p (|enc x.1|))`, built in unary and converted elementwise to binary
-    have h1 : ComputableInPolyTime (fun x : α × List Bool => p.eval (enc x.1).length)
-        (encPair enc encBits) encUnary :=
-      (ComputableInPolyTime.unary_eval p).comp
-        ((ComputableInPolyTime.encoding_length enc).comp (ComputableInPolyTime.fst enc encBits))
     simpa [Function.comp_def] using
       (ComputableInPolyTime.map ComputableInPolyTime.unary_to_binary).comp
-        (ComputableInPolyTime.range.comp h1)
+        (ComputableInPolyTime.range.comp <| (ComputableInPolyTime.unary_eval p).comp
+          ((ComputableInPolyTime.encoding_length enc).comp (ComputableInPolyTime.fst enc encBits)))
   case complete =>
     intro a ha
     obtain ⟨w, hw, hVw⟩ := (hver a).mp ha
-    refine ⟨w, fun ρ _ => ?_⟩
+    refine ⟨w, fun _ _ => ?_⟩
     simp only [PCPVerifier.accepts]
-    rw [← hw, PCPVerifier.answers_range_length]
-    exact hVw
+    rwa [← hw, PCPVerifier.answers_range_length]
   case sound =>
     intro a ha π
-    have hrej : V (a, PCPVerifier.answers π (List.range (p.eval (enc a).length))) = false := by
-      by_contra h
-      exact ha ((hver a).mpr ⟨PCPVerifier.answers π (List.range (p.eval (enc a).length)),
-        by simp [PCPVerifier.answers], Bool.not_eq_false _ ▸ h⟩)
+    have hrej : V (a, PCPVerifier.answers π (List.range (p.eval (enc a).length))) = false :=
+      Bool.eq_false_iff.mpr fun h => ha ((hver a).mpr ⟨_, by simp [PCPVerifier.answers], h⟩)
     rw [acceptCount_zero]
     simp [PCPVerifier.accepts, hrej]
 

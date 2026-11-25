@@ -40,15 +40,14 @@ theorem exists_choose_interpolant (k t : ℕ) (value : ℕ → ℤ) :
     ∃ a : Fin t → ℤ, ∀ w, k ≤ w → w < k + t →
       ∑ j : Fin t, a j * (w.choose j : ℤ) = value w := by
   induction t generalizing value with
-  | zero => exact ⟨Fin.elim0, fun w h₁ h₂ => by omega⟩
+  | zero => exact ⟨Fin.elim0, fun _ _ _ => by omega⟩
   | succ t ih =>
     obtain ⟨a, ha⟩ := ih (fun w => value (w + 1) - value w)
     let prim (w : ℕ) : ℤ := ∑ j : Fin t, a j * (w.choose (j + 1) : ℤ)
-    have step (w : ℕ) : prim (w + 1) = prim w + ∑ j : Fin t, a j * (w.choose j : ℤ) := by
+    have hstep (w : ℕ) : prim (w + 1) = prim w + ∑ j : Fin t, a j * (w.choose j : ℤ) := by
       simp only [prim, Nat.choose_succ_succ, Nat.cast_add, mul_add, sum_add_distrib]
       exact add_comm _ _
-    refine ⟨Fin.cons (value k - prim k) a, ?_⟩
-    intro w hw upper
+    refine ⟨Fin.cons (value k - prim k) a, fun w hw upper => ?_⟩
     rw [Fin.sum_univ_succ]
     simp only [Fin.cons_zero, Fin.val_zero, Nat.choose_zero_right, Nat.cast_one, mul_one,
       Fin.cons_succ, Fin.val_succ]
@@ -56,9 +55,8 @@ theorem exists_choose_interpolant (k t : ℕ) (value : ℕ → ℤ) :
     induction w, hw using Nat.le_induction with
     | base => omega
     | succ w hw prev =>
-      rw [step, ha w hw (by omega)]
-      have := prev (by omega)
-      omega
+      rw [hstep, ha w hw (by omega)]
+      have := prev (by omega); omega
 
 /-- A squarefree monomial survives at a Boolean point precisely when its variables
 belong to the support of the point. Thus the j-th elementary symmetric value counts j-subsets. -/
@@ -70,16 +68,13 @@ private theorem eval_esymm_on_support {n : ℕ} (x : Finset (Fin n)) (j : ℕ) :
   have indicator (s : Finset (Fin n)) :
       (∏ i ∈ s, (if i ∈ x then (1 : ℤ) else 0)) = if s ⊆ x then 1 else 0 := by
     by_cases h : s ⊆ x
-    · rw [ite_eq_left h]
-      exact prod_eq_one fun i hi => by simp [h hi]
+    · exact (ite_eq_left h).symm ▸ prod_eq_one fun i hi => by simp [h hi]
     · obtain ⟨i, hi, hx⟩ := Finset.not_subset.mp h
-      rw [ite_eq_right h]
-      exact prod_eq_zero hi (by simp [hx])
+      exact (ite_eq_right h).symm ▸ prod_eq_zero hi (by simp [hx])
   simp_rw [indicator]
-  rw [← Finset.sum_filter]
-  have filter_eq : ((univ : Finset (Fin n)).powersetCard j).filter (· ⊆ x) =
-      x.powersetCard j := by ext s; simp [and_comm]
-  simp [filter_eq]
+  rw [← Finset.sum_filter, show ((univ : Finset (Fin n)).powersetCard j).filter (· ⊆ x) =
+    x.powersetCard j by ext s; simp [and_comm]]
+  simp
 
 /-- Integer multilinear interpolation on consecutive layers of a Boolean cube.
 The value function prescribes one integer per weight in the half-open band.
@@ -90,28 +85,18 @@ theorem exists_multilinear_of_consecutive_weights (n k t : ℕ) (value : ℕ →
         eval (fun i => if i ∈ x then (1 : ℤ) else 0) p = value x.card := by
   classical
   obtain ⟨a, ha⟩ := exists_choose_interpolant k t value
-  refine ⟨∑ j : Fin t, C (a j) * esymm (Fin n) ℤ j, ?_, ?_, ?_⟩
-  · apply totalDegree_finsetSum_le
-    intro j _
-    apply (totalDegree_mul _ _).trans
-    rw [totalDegree_C, zero_add, esymm]
-    apply totalDegree_finsetSum_le
-    intro s hs
-    apply (totalDegree_finsetProd _ _).trans
-    have hcard := (mem_powersetCard.mp hs).2
-    simpa using (show s.card ≤ t - 1 by have := j.isLt; omega)
-  · intro i
-    apply (degreeOf_sum_le ..).trans
-    apply Finset.sup_le
-    intro j _
-    apply (degreeOf_C_mul_le ..).trans
-    unfold esymm
-    apply (degreeOf_sum_le ..).trans
-    apply Finset.sup_le
-    intro s _
-    apply (degreeOf_prod_le ..).trans
-    by_cases hi : i ∈ s <;> simp [degreeOf_X, hi]
-  · intro x hx hxt
-    simpa only [map_sum, map_mul, eval_C, eval_esymm_on_support] using ha x.card hx hxt
+  refine ⟨∑ j : Fin t, C (a j) * esymm (Fin n) ℤ j,
+    totalDegree_finsetSum_le fun j _ => (totalDegree_mul _ _).trans <| by
+      rw [totalDegree_C, zero_add, esymm]
+      refine totalDegree_finsetSum_le fun s hs => (totalDegree_finsetProd _ _).trans ?_
+      have := (mem_powersetCard.mp hs).2; have := j.isLt
+      simp; omega,
+    fun i => (degreeOf_sum_le ..).trans <| Finset.sup_le fun _ _ =>
+      (degreeOf_C_mul_le ..).trans <| by
+        unfold esymm
+        refine (degreeOf_sum_le ..).trans <| Finset.sup_le fun s _ => (degreeOf_prod_le ..).trans ?_
+        by_cases hi : i ∈ s <;> simp [degreeOf_X, hi],
+    fun x hx hxt => by
+      simpa only [map_sum, map_mul, eval_C, eval_esymm_on_support] using ha x.card hx hxt⟩
 
 end Cslib

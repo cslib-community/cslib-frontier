@@ -155,18 +155,14 @@ theorem ttcRounds_mem {k : ℕ} {R : Finset (Fin n)} (hk : R.card ≤ k) {i : Fi
   | succ k ih =>
     have hR : R.Nonempty := ⟨i, hi⟩
     by_cases hiS : i ∈ sel.select R
-    · rw [sel.ttcRounds_succ_of_mem hR hiS]
-      exact I.topChoice_mem hR i
-    · rw [sel.ttcRounds_succ_of_notMem hR hiS]
-      exact Finset.sdiff_subset
+    · simpa only [sel.ttcRounds_succ_of_mem hR hiS] using I.topChoice_mem hR i
+    · simpa only [sel.ttcRounds_succ_of_notMem hR hiS] using Finset.sdiff_subset
         (ih (sel.card_sdiff_select_le hk hR) (Finset.mem_sdiff.2 ⟨hi, hiS⟩))
 
 theorem ttcRounds_injOn {k : ℕ} {R : Finset (Fin n)} (hk : R.card ≤ k) :
     Set.InjOn (sel.ttcRounds k R) R := by
   induction k generalizing R with
-  | zero =>
-    intro a ha
-    simp_all
+  | zero => simp_all
   | succ k ih =>
     intro a ha b hb hab
     have hR : R.Nonempty := ⟨a, ha⟩
@@ -188,10 +184,8 @@ theorem ttcRounds_injective {k : ℕ} {R : Finset (Fin n)} (hk : R.card ≤ k) :
   intro a b hab
   by_cases ha : a ∈ R <;> by_cases hb : b ∈ R
   · exact sel.ttcRounds_injOn hk ha hb hab
-  · rw [sel.ttcRounds_of_notMem hb] at hab
-    exact absurd (hab ▸ sel.ttcRounds_mem hk ha) hb
-  · rw [sel.ttcRounds_of_notMem ha] at hab
-    exact absurd (hab ▸ sel.ttcRounds_mem hk hb) ha
+  · exact absurd ((sel.ttcRounds_of_notMem hb ▸ hab) ▸ sel.ttcRounds_mem hk ha) hb
+  · exact absurd ((sel.ttcRounds_of_notMem ha ▸ hab.symm) ▸ sel.ttcRounds_mem hk hb) ha
   · rwa [sel.ttcRounds_of_notMem ha, sel.ttcRounds_of_notMem hb] at hab
 
 /-- The full allocation computed by `n` steps of `sel` starting from `Finset.univ`. -/
@@ -206,44 +200,33 @@ private theorem eq_ttcRounds_of_le {k : ℕ} {R : Finset (Fin n)} (hk : R.card �
     (hle : ∀ i ∈ S, I.rank i (ν i) ≤ I.rank i (sel.ttcRounds k R i)) :
     ∀ i ∈ S, ν i = sel.ttcRounds k R i := by
   induction k generalizing R S with
-  | zero =>
-    intro i hi
-    have := hSR hi
-    simp_all
+  | zero => exact fun i hi => by have := hSR hi; simp_all
   | succ k ih =>
     intro i hi
     have hR : R.Nonempty := ⟨i, hSR hi⟩
-    have hk' := sel.card_sdiff_select_le hk hR
     set C := sel.select R
-    have hC : ∀ a ∈ S, a ∈ C → ν a = I.topChoice R a := by
-      intro a ha haC
+    have hC (a : Fin n) (ha : a ∈ S) (haC : a ∈ C) : ν a = I.topChoice R a := by
       have h1 := hle a ha
       rw [sel.ttcRounds_succ_of_mem hR haC] at h1
       exact I.rank_injective a (le_antisymm h1 (I.rank_topChoice_le (hSR (hS a ha)) a))
     by_cases hiC : i ∈ C
     · rw [sel.ttcRounds_succ_of_mem hR hiC, hC i hi hiC]
     rw [sel.ttcRounds_succ_of_notMem hR hiC]
-    have hmaps : ∀ a ∈ S ∩ C, ν a ∈ S ∩ C := by
-      intro a ha
+    have hmaps : ∀ a ∈ S ∩ C, ν a ∈ S ∩ C := fun a ha => by
       obtain ⟨haS, haC⟩ := Finset.mem_inter.1 ha
-      rw [Finset.mem_inter, hC a haS haC]
-      exact ⟨hC a haS haC ▸ hS a haS, sel.topChoice_mem_select hR haC⟩
-    have hS' : ∀ a ∈ S \ C, ν a ∈ S \ C := by
-      intro a ha
-      obtain ⟨haS, haC⟩ := Finset.mem_sdiff.1 ha
-      refine Finset.mem_sdiff.2 ⟨hS a haS, fun hνC => haC ?_⟩
-      exact (Finset.mem_inter.1 (mem_of_apply_mem ν hmaps (Finset.mem_inter.2 ⟨hS a haS, hνC⟩))).2
-    refine ih hk' (S \ C) (Finset.sdiff_subset_sdiff hSR le_rfl) hS' (fun a ha => ?_) i
-      (Finset.mem_sdiff.2 ⟨hi, hiC⟩)
-    have h1 := hle a (Finset.sdiff_subset ha)
-    rwa [sel.ttcRounds_succ_of_notMem hR (Finset.mem_sdiff.1 ha).2] at h1
+      exact Finset.mem_inter.2 ⟨hS a haS, hC a haS haC ▸ sel.topChoice_mem_select hR haC⟩
+    refine ih (sel.card_sdiff_select_le hk hR) (S \ C) (Finset.sdiff_subset_sdiff hSR le_rfl)
+      (fun a ha => ?_) (fun a ha => ?_) i (Finset.mem_sdiff.2 ⟨hi, hiC⟩)
+    · obtain ⟨haS, haC⟩ := Finset.mem_sdiff.1 ha
+      exact Finset.mem_sdiff.2 ⟨hS a haS, fun hνC => haC
+        (Finset.mem_inter.1 (mem_of_apply_mem ν hmaps (Finset.mem_inter.2 ⟨hS a haS, hνC⟩))).2⟩
+    · simpa only [sel.ttcRounds_succ_of_notMem hR (Finset.mem_sdiff.1 ha).2] using
+        hle a (Finset.sdiff_subset ha)
 
 /-- Any `CycleSelector` execution produces an allocation in the strict core. -/
 theorem inStrictCore_ttc : I.InStrictCore sel.ttc := by
   rintro S ⟨ν, hS, hle, i, hi, hlt⟩
-  have h := sel.eq_ttcRounds_of_le (by simp) ν S (Finset.subset_univ S) hS hle i hi
-  rw [ttc_apply, h] at hlt
-  exact lt_irrefl _ hlt
+  exact (sel.eq_ttcRounds_of_le (by simp) ν S (Finset.subset_univ S) hS hle i hi ▸ hlt).false
 
 /-- **Cycle-selection order independence of TTC**: any `CycleSelector` execution yields the unique
 strict-core allocation `I.ttc`. -/
@@ -269,25 +252,20 @@ theorem iterate_mem_cycleAgents {R : Finset (Fin n)} {i : Fin n}
 
 variable {I} in
 theorem cycleOf_subset_cycleAgents {R : Finset (Fin n)} {i₀ : Fin n}
-    (hi₀ : i₀ ∈ I.cycleAgents R) : I.cycleOf R i₀ ⊆ I.cycleAgents R := by
-  rintro a ha
-  obtain ⟨k, -, rfl⟩ := Finset.mem_image.1 ha
-  exact I.iterate_mem_cycleAgents hi₀ k
+    (hi₀ : i₀ ∈ I.cycleAgents R) : I.cycleOf R i₀ ⊆ I.cycleAgents R :=
+  Finset.image_subset_iff.2 fun k _ => I.iterate_mem_cycleAgents hi₀ k
 
-theorem mem_cycleOf_self (R : Finset (Fin n)) (i₀ : Fin n) : i₀ ∈ I.cycleOf R i₀ := by
-  have h0 : (I.topChoice R)^[0] i₀ = i₀ := rfl
-  exact h0 ▸ Finset.mem_image_of_mem _ (Finset.mem_range.2 i₀.pos)
+theorem mem_cycleOf_self (R : Finset (Fin n)) (i₀ : Fin n) : i₀ ∈ I.cycleOf R i₀ :=
+  Finset.mem_image.2 ⟨0, Finset.mem_range.2 i₀.pos, rfl⟩
 
 variable {I} in
 theorem topChoice_mem_cycleOf {R : Finset (Fin n)} {i₀ i : Fin n} (hR : R.Nonempty)
     (hi₀ : i₀ ∈ I.cycleAgents R) (hi : i ∈ I.cycleOf R i₀) :
     I.topChoice R i ∈ I.cycleOf R i₀ := by
-  have hper : i₀ ∈ periodicPts (I.topChoice R) := (I.mem_cycleAgents hR).1 hi₀
-  set p := minimalPeriod (I.topChoice R) i₀
-  have hp_pos : 0 < p := minimalPeriod_pos_of_mem_periodicPts hper
-  have hp_le : p ≤ n := by
-    simpa only [Fintype.card_fin] using minimalPeriod_le_card (f := I.topChoice R) (x := i₀)
   obtain ⟨k, -, rfl⟩ := Finset.mem_image.1 hi
+  have hp_pos := minimalPeriod_pos_of_mem_periodicPts ((I.mem_cycleAgents hR).1 hi₀)
+  have hp_le : minimalPeriod (I.topChoice R) i₀ ≤ n := by
+    simpa only [Fintype.card_fin] using minimalPeriod_le_card (f := I.topChoice R) (x := i₀)
   rw [← iterate_succ_apply' (I.topChoice R), ← Function.iterate_mod_minimalPeriod_eq]
   exact Finset.mem_image_of_mem _ (Finset.mem_range.2 ((Nat.mod_lt _ hp_pos).trans_le hp_le))
 

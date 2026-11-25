@@ -136,9 +136,8 @@ private theorem clog_bounds (e g : ℕ) :
     omega
 
 /-- The Goldreich–Levin mask count is positive. -/
-theorem cikkMasks_pos (e g : ℕ) : 0 < cikkMasks e g := by
-  unfold cikkMasks
-  omega
+theorem cikkMasks_pos (e g : ℕ) : 0 < cikkMasks e g :=
+  Nat.succ_pos _
 
 /-- **The list condition**: with `γ = 2^{-g}`, `k ≤ 2 (γ/2)² (2^K - 1)` for `K = cikkMasks e g`,
 with `2^K - 1` computed in `ℕ`. -/
@@ -148,16 +147,13 @@ theorem cikkK_le_cikkMasks (e g : ℕ) :
   simp only [cikkK, cikkMasks]
   generalize cikkLogK e g = j
   push_cast
-  have ha : (1 : ℝ) ≤ 2 ^ g := one_le_pow₀ (by norm_num)
-  have hpow : (2 : ℝ) ^ (2 * g + j + 2) = 4 * (2 ^ g) ^ 2 * 2 ^ j := by ring
-  have key : 2 * (1 / 2 ^ g / 2) ^ 2 * (4 * ((2 : ℝ) ^ g) ^ 2 * 2 ^ j - 1) =
-      2 * 2 ^ j - 1 / (2 * (2 ^ g) ^ 2) := by
-    field_simp
-    ring
-  have hsmall : 1 / (2 * ((2 : ℝ) ^ g) ^ 2) ≤ 2 ^ j := by
+  rw [show (2 : ℝ) ^ (2 * g + j + 2) = 4 * (2 ^ g) ^ 2 * 2 ^ j by ring,
+    show 2 * (1 / 2 ^ g / 2) ^ 2 * (4 * ((2 : ℝ) ^ g) ^ 2 * 2 ^ j - 1) =
+      2 * 2 ^ j - 1 / (2 * (2 ^ g) ^ 2) by field_simp; ring]
+  have : 1 / (2 * ((2 : ℝ) ^ g) ^ 2) ≤ 2 ^ j := by
     rw [div_le_iff₀ (by positivity)]
-    nlinarith [one_le_pow₀ (M₀ := ℝ) (a := 2) (n := j) (by norm_num)]
-  rw [hpow, key]
+    nlinarith [one_le_pow₀ (M₀ := ℝ) (a := 2) (n := g) (by norm_num),
+      one_le_pow₀ (M₀ := ℝ) (a := 2) (n := j) (by norm_num)]
   linarith
 
 /-- **Twice the fixed set fits**: `2s ≤ k`. -/
@@ -165,12 +161,10 @@ theorem two_mul_cikkFixed_le_cikkK (e g : ℕ) : 2 * cikkFixed e g ≤ cikkK e g
   obtain ⟨hX, h2L⟩ := clog_bounds e g
   simp only [cikkK, cikkFixed, cikkLogK]
   generalize Nat.clog 2 (6 * g + 3 * e + 36) = L at hX h2L ⊢
-  have h1 : 2 ^ (e + L + 9) = 2 ^ (e + 7) * (4 * 2 ^ L) := by ring
-  have h2 : 2 * (6 * g + 2 * (e + L + 9) + e + 20) ≤ 4 * 2 ^ L := by omega
-  rw [h1]
-  calc 2 * (2 ^ (e + 7) * (6 * g + 2 * (e + L + 9) + e + 20))
-      = 2 ^ (e + 7) * (2 * (6 * g + 2 * (e + L + 9) + e + 20)) := by ring
-    _ ≤ 2 ^ (e + 7) * (4 * 2 ^ L) := Nat.mul_le_mul_left _ h2
+  rw [show 2 * (2 ^ (e + 7) * (6 * g + 2 * (e + L + 9) + e + 20)) =
+      2 ^ (e + 7) * (2 * (6 * g + 2 * (e + L + 9) + e + 20)) by ring,
+    show 2 ^ (e + L + 9) = 2 ^ (e + 7) * (4 * 2 ^ L) by ring]
+  exact Nat.mul_le_mul_left _ (by omega)
 
 /-- **The fixed set is large enough**: with `ε = 2^{-(e+1)}` and `δ₀ = 2^{-g} / 2^{K+3}`,
 `64/ε · log (512/(ε δ₀²)) ≤ s`. -/
@@ -178,15 +172,12 @@ theorem le_cikkFixed (e g : ℕ) :
     64 / (1 / 2 ^ (e + 1)) *
         Real.log (512 / (1 / 2 ^ (e + 1) * (1 / 2 ^ g / 2 ^ (cikkMasks e g + 3)) ^ 2)) ≤
       cikkFixed e g := by
-  have h1 : (512 : ℝ) / (1 / 2 ^ (e + 1) * (1 / 2 ^ g / 2 ^ (cikkMasks e g + 3)) ^ 2) =
-      2 ^ (6 * g + 2 * cikkLogK e g + e + 20) := by
-    simp only [cikkMasks]
-    field_simp
-    ring
-  have h2 : (64 : ℝ) / (1 / 2 ^ (e + 1)) = 2 ^ (e + 7) := by
-    field_simp
-    ring
-  rw [h1, h2, cikkFixed, Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat]
+  rw [show (512 : ℝ) / (1 / 2 ^ (e + 1) * (1 / 2 ^ g / 2 ^ (cikkMasks e g + 3)) ^ 2) =
+      2 ^ (6 * g + 2 * cikkLogK e g + e + 20) by
+        simp only [cikkMasks]
+        field_simp; ring,
+    show (64 : ℝ) / (1 / 2 ^ (e + 1)) = 2 ^ (e + 7) by field_simp; ring,
+    cikkFixed, Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat]
   gcongr
   exact Real.log_le_of_le_two_pow (by positivity) le_rfl
 
@@ -195,15 +186,11 @@ theorem le_cikkFixed (e g : ℕ) :
 theorem le_cikkTrials (e g : ℕ) :
     16 / (1 / 2 ^ g / 2 ^ (cikkMasks e g + 3)) * Real.log (8 / (1 / 2 ^ (e + 1))) ≤
       cikkTrials e g := by
-  have h1 : (16 : ℝ) / (1 / 2 ^ g / 2 ^ (cikkMasks e g + 3)) =
-      2 ^ (3 * g + cikkLogK e g + 9) := by
-    simp only [cikkMasks]
-    field_simp
-    ring
-  have h2 : (8 : ℝ) / (1 / 2 ^ (e + 1)) = 2 ^ (e + 4) := by
-    field_simp
-    ring
-  rw [h1, h2, cikkTrials, Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat]
+  rw [show (16 : ℝ) / (1 / 2 ^ g / 2 ^ (cikkMasks e g + 3)) = 2 ^ (3 * g + cikkLogK e g + 9) by
+      simp only [cikkMasks]
+      field_simp; ring,
+    show (8 : ℝ) / (1 / 2 ^ (e + 1)) = 2 ^ (e + 4) by field_simp; ring,
+    cikkTrials, Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat]
   gcongr
   exact Real.log_le_of_le_two_pow (by positivity) le_rfl
 
@@ -212,59 +199,47 @@ and `δ₀ = γ / 2^{K+3}`, has `log (2/η) ≤ p b` for `η = 2^{-h}`. -/
 theorem log_le_cikkRuns (e g h : ℕ) :
     Real.log (2 / (1 / 2 ^ h)) ≤
       1 / 2 ^ g * ((1 / 2 ^ g / 2 ^ (cikkMasks e g + 3)) ^ 2 / 8) * cikkRuns e g h := by
-  have h1 : (1 : ℝ) / 2 ^ g * ((1 / 2 ^ g / 2 ^ (cikkMasks e g + 3)) ^ 2 / 8) * cikkRuns e g h =
-      h + 1 := by
-    simp only [cikkRuns, cikkMasks]
-    push_cast
-    field_simp
-    ring
-  have h2 : (2 : ℝ) / (1 / 2 ^ h) = 2 ^ (h + 1) := by
-    field_simp
-    ring
-  rw [h1, h2]
+  rw [show (1 : ℝ) / 2 ^ g * ((1 / 2 ^ g / 2 ^ (cikkMasks e g + 3)) ^ 2 / 8) * cikkRuns e g h =
+      h + 1 by
+        simp only [cikkRuns, cikkMasks]; push_cast
+        field_simp; ring,
+    show (2 : ℝ) / (1 / 2 ^ h) = 2 ^ (h + 1) by field_simp; ring]
   exact_mod_cast Real.log_le_of_le_two_pow (by positivity) le_rfl
 
 /-- **Enough sample points**: `log (4b/η) ≤ 2 t θ²` for `η = 2^{-h}` and `θ = 2^{-(e+2)}`. -/
 theorem log_le_cikkSamples (e g h : ℕ) :
     Real.log (4 * cikkRuns e g h / (1 / 2 ^ h)) ≤
       2 * cikkSamples e g h * (1 / 2 ^ (e + 2)) ^ 2 := by
-  have h1 : (2 : ℝ) * cikkSamples e g h * (1 / 2 ^ (e + 2)) ^ 2 =
-      7 * g + 2 * cikkLogK e g + 2 * h + 16 := by
-    simp only [cikkSamples]
-    push_cast
-    field_simp
-    ring
   have hh : (h : ℝ) + 1 ≤ 2 ^ h := by exact_mod_cast (Nat.lt_two_pow_self : h + 1 ≤ 2 ^ h)
-  have hpow : (2 : ℝ) ^ (7 * g + 2 * cikkLogK e g + 2 * h + 15) =
-      4 * (2 ^ h * 2 ^ (7 * g + 2 * cikkLogK e g + 13)) * 2 ^ h := by ring
   have hb : (0 : ℝ) < cikkRuns e g h := by unfold cikkRuns; positivity
-  rw [h1]
+  rw [show (2 : ℝ) * cikkSamples e g h * (1 / 2 ^ (e + 2)) ^ 2 =
+      7 * g + 2 * cikkLogK e g + 2 * h + 16 by
+        simp only [cikkSamples]; push_cast
+        field_simp; ring]
   refine (Real.log_le_of_le_two_pow (k := 7 * g + 2 * cikkLogK e g + 2 * h + 15)
-    (by positivity) ?_).trans ?_
-  · rw [cikkRuns, hpow, div_eq_mul_inv, one_div, inv_inv]
-    push_cast
-    gcongr
-  · push_cast
-    linarith
+    (by positivity) ?_).trans (by push_cast; linarith)
+  rw [cikkRuns, show (2 : ℝ) ^ (7 * g + 2 * cikkLogK e g + 2 * h + 15) =
+    4 * (2 ^ h * 2 ^ (7 * g + 2 * cikkLogK e g + 13)) * 2 ^ h by ring,
+    div_eq_mul_inv, one_div, inv_inv]
+  push_cast
+  gcongr
 
 /-- **`k` is linear in `g`**: `k ≤ 2 ^ (e + 10) (6g + 3e + 36)`. -/
 theorem cikkK_le (e g : ℕ) : cikkK e g ≤ 2 ^ (e + 10) * (6 * g + 3 * e + 36) := by
   have hL : 0 < Nat.clog 2 (6 * g + 3 * e + 36) := Nat.clog_pos (by norm_num) (by omega)
-  have hlt := Nat.pow_pred_clog_lt_self (b := 2) (x := 6 * g + 3 * e + 36) (by norm_num)
-    (by omega)
+  have hlt := Nat.pow_pred_clog_lt_self (b := 2) (x := 6 * g + 3 * e + 36) (by norm_num) (by omega)
   simp only [cikkK, cikkLogK]
-  generalize Nat.clog 2 (6 * g + 3 * e + 36) = L at hL hlt ⊢
-  obtain ⟨m, rfl⟩ : ∃ m, L = m + 1 := ⟨L - 1, by omega⟩
-  rw [Nat.pred_succ] at hlt
-  rw [show e + (m + 1) + 9 = e + 10 + m by omega, pow_add]
+  obtain ⟨m, hm⟩ : ∃ m, Nat.clog 2 (6 * g + 3 * e + 36) = m + 1 :=
+    ⟨Nat.clog 2 (6 * g + 3 * e + 36) - 1, by omega⟩
+  rw [hm, Nat.pred_succ] at hlt
+  rw [hm, show e + (m + 1) + 9 = e + 10 + m by omega, pow_add]
   exact Nat.mul_le_mul_left _ hlt.le
 
 /-- **Closed form of `log₂ k`**: `log₂ k ≤ 2e + g + 15`. -/
 theorem cikkLogK_le (e g : ℕ) : cikkLogK e g ≤ 2 * e + g + 15 := by
-  have hlt := Nat.lt_two_pow_self (n := e + g)
-  have h64 : 2 ^ (e + g + 6) = 64 * 2 ^ (e + g) := by ring
-  have hclog : Nat.clog 2 (6 * g + 3 * e + 36) ≤ e + g + 6 :=
-    Nat.clog_le_of_le_pow (by omega)
+  have := Nat.lt_two_pow_self (n := e + g)
+  have : Nat.clog 2 (6 * g + 3 * e + 36) ≤ e + g + 6 :=
+    Nat.clog_le_of_le_pow (by rw [show 2 ^ (e + g + 6) = 64 * 2 ^ (e + g) by ring]; omega)
   unfold cikkLogK
   omega
 
@@ -279,25 +254,21 @@ theorem cikkMasks_le (e g : ℕ) : cikkMasks e g ≤ 3 * g + 2 * e + 17 := by
   omega
 
 /-- **Closed form of the fixed set size**: `s ≤ 2 ^ (e + 7) (8g + 5e + 50)`. -/
-theorem cikkFixed_le (e g : ℕ) : cikkFixed e g ≤ 2 ^ (e + 7) * (8 * g + 5 * e + 50) := by
-  have := cikkLogK_le e g
-  exact Nat.mul_le_mul_left _ (by omega)
+theorem cikkFixed_le (e g : ℕ) : cikkFixed e g ≤ 2 ^ (e + 7) * (8 * g + 5 * e + 50) :=
+  Nat.mul_le_mul_left _ (by have := cikkLogK_le e g; omega)
 
 /-- **Closed form of the trial count**: `m ≤ 2 ^ (4g + 2e + 24) (e + 4)`. -/
-theorem cikkTrials_le (e g : ℕ) : cikkTrials e g ≤ 2 ^ (4 * g + 2 * e + 24) * (e + 4) := by
-  have := cikkLogK_le e g
-  exact Nat.mul_le_mul_right _ (Nat.pow_le_pow_right (by norm_num) (by omega))
+theorem cikkTrials_le (e g : ℕ) : cikkTrials e g ≤ 2 ^ (4 * g + 2 * e + 24) * (e + 4) :=
+  Nat.mul_le_mul_right _ (Nat.pow_le_pow_right (by norm_num) (by have := cikkLogK_le e g; omega))
 
 /-- **Closed form of the run count**: `b ≤ (h + 1) 2 ^ (9g + 4e + 43)`. -/
-theorem cikkRuns_le (e g h : ℕ) : cikkRuns e g h ≤ (h + 1) * 2 ^ (9 * g + 4 * e + 43) := by
-  have := cikkLogK_le e g
-  exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (by norm_num) (by omega))
+theorem cikkRuns_le (e g h : ℕ) : cikkRuns e g h ≤ (h + 1) * 2 ^ (9 * g + 4 * e + 43) :=
+  Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (by norm_num) (by have := cikkLogK_le e g; omega))
 
 /-- **Closed form of the sample count**: `t ≤ 2 ^ (2e + 3) (9g + 4e + 2h + 46)`. -/
 theorem cikkSamples_le (e g h : ℕ) :
-    cikkSamples e g h ≤ 2 ^ (2 * e + 3) * (9 * g + 4 * e + 2 * h + 46) := by
-  have := cikkLogK_le e g
-  exact Nat.mul_le_mul_left _ (by omega)
+    cikkSamples e g h ≤ 2 ^ (2 * e + 3) * (9 * g + 4 * e + 2 * h + 46) :=
+  Nat.mul_le_mul_left _ (by have := cikkLogK_le e g; omega)
 
 instance (e g : ℕ) : NeZero (cikkK e g) :=
   ⟨by unfold cikkK; positivity⟩

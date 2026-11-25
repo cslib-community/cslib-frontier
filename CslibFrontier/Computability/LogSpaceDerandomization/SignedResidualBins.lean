@@ -74,15 +74,12 @@ theorem boundedRoutedBinCutoff_residual (hf : 0 < f)
       routedBinCutoff χ b i route (P.residual X Y f C x y / b i) := by
   rw [CorrectionRowRecipe.residual_eq, ← P.residual_eq]
   have hd := div_nonneg (P.residual_nonneg (X := X) (Y := Y) hf hC x y) (hb i).le
-  by_cases hi : i = 0
-  · subst i
-    apply boundedRoutedBinCutoff_eq hd
+  rcases eq_or_ne i 0 with rfl | hi
+  · apply boundedRoutedBinCutoff_eq hd
     rw [hb0, div_one]
-    have hu : P.residual X Y f C x y ≤ 1 :=
-      (Finset.single_le_sum (fun y' _ => P.residual_nonneg (X := X) (Y := Y) hf hC x y')
-        (Finset.mem_univ y)).trans (P.residual_sum_le_one X Y hf hC1 x)
-    have hk : (0 : ℝ) ≤ P.k := Nat.cast_nonneg _
-    linarith
+    have hu := (Finset.single_le_sum (fun y' _ => P.residual_nonneg (X := X) (Y := Y) hf hC x y')
+      (Finset.mem_univ y)).trans (P.residual_sum_le_one X Y hf hC1 x)
+    linarith [Nat.cast_nonneg (α := ℝ) P.k]
   · simp [boundedRoutedBinCutoff, hi, not_lt.mpr hd]
 
 end HierarchyParams
@@ -122,29 +119,23 @@ theorem expect_negativeRecipe (hf : 0 < f) (hC : ∀ x y, 0 ≤ C x y)
         ((dens {s | Ya s y} : ℝ) / dens {s | Zt s y}) * A.atom σ x y) =
       𝔼 σ ∈ ({s | Xs s x} : Finset Γ) ×ˢ ({s | Zt s y} : Finset Ω), A.atom σ x y := by
     rw [expect_product, expect_product]
-    apply expect_congr rfl
-    intro s _
+    refine expect_congr rfl fun _ _ => ?_
     apply expect_mul_dens_div_of_subset
       (fun t ht => mem_filter.mpr ⟨mem_univ _, hsub _ _ (mem_filter.mp ht).2⟩)
       (A.usage_nonempty y)
     intro t _ ht
-    have hnot : ¬Zt t y := by simpa only [mem_filter, mem_univ, true_and] using ht
-    simp [atom, correctionAtom, hnot]
-  calc
-    _ = (-f) * (𝔼 σ ∈ ({s | Xs s x} : Finset Γ) ×ˢ ({s | Ya s y} : Finset Ω),
-        ((dens {s | Ya s y} : ℝ) / dens {s | Zt s y}) * A.atom σ x y) := by
+    simp [atom, correctionAtom, show ¬Zt t y by simpa using ht]
+  rw [show (𝔼 σ ∈ ({s | Xs s x} : Finset Γ) ×ˢ ({s | Ya s y} : Finset Ω),
+        negativeRecipe (f := f) Ya Zt A.atom σ x y) =
+      (-f) * 𝔼 σ ∈ ({s | Xs s x} : Finset Γ) ×ˢ ({s | Ya s y} : Finset Ω),
+        ((dens {s | Ya s y} : ℝ) / dens {s | Zt s y}) * A.atom σ x y by
       rw [mul_expect]
-      apply expect_congr rfl
-      intro σ _
-      simp only [negativeRecipe]
-      ring
-    _ = (-f) * (𝔼 σ ∈ ({s | Xs s x} : Finset Γ) ×ˢ ({s | Zt s y} : Finset Ω),
-        A.atom σ x y) := congrArg (fun v => (-f) * v) hchange
-    _ = _ := by
-      change (-f) * (𝔼 σ ∈ ({s | Xs s x} : Finset Γ) ×ˢ
-        ({s | Zt s y} : Finset Ω), correctionAtom _ _ _ _ _ _ _ _ _ _ _ _ _ σ x y) = _
-      rw [hm, P.correctionIter_succ_apply]
-      ring
+      exact expect_congr rfl fun _ _ => by simp only [negativeRecipe]; ring,
+    hchange]
+  change (-f) * (𝔼 σ ∈ ({s | Xs s x} : Finset Γ) ×ˢ
+    ({s | Zt s y} : Finset Ω), correctionAtom _ _ _ _ _ _ _ _ _ _ _ _ _ σ x y) = _
+  rw [hm, P.correctionIter_succ_apply]
+  ring
 
 
 section SignedSample
@@ -189,14 +180,10 @@ theorem residualSample_eq_raw
         (fun z y => b * ((dens {s | Ya s y} : ℝ) / dens {s | Yt s y}) * B u z y) x y := by
   simp only [residualSample, binProductRecipe, negativeRecipe, CorrectionRowRecipe.residual,
     mul_sum]
-  have heq : ∑ z, b * ((dens {s | Ya s y} : ℝ) / dens {s | Yt s y}) *
-      (f / L.π) * (F (s, t) x z * B u z y) =
-      ∑ z, (f / L.π * F (s, t) x z) *
-        (b * ((dens {s | Ya s y} : ℝ) / dens {s | Yt s y}) * B u z y) := by
-    apply sum_congr rfl
-    intro z _
-    ring
-  rw [heq]
+  rw [sum_congr rfl fun z _ => (by ring :
+    b * ((dens {s | Ya s y} : ℝ) / dens {s | Yt s y}) * (f / L.π) * (F (s, t) x z * B u z y) =
+      (f / L.π * F (s, t) x z) *
+        (b * ((dens {s | Ya s y} : ℝ) / dens {s | Yt s y}) * B u z y))]
   ring
 
 /-- All three signed means follow from primitive laws on the actual tuples. This is the mean
@@ -216,7 +203,7 @@ theorem expect_residualSample
       b * k (C x y / b) +
         (∑ z, P.correctionIter X Y f C (i + 1) x z * (b * k (C z y / b))) -
         P.correctionIter X Y f C (i + 1) x y := by
-  have hΖ : Nonempty Ζ := ⟨(L.usage_nonempty x).choose⟩
+  have : Nonempty Ζ := ⟨(L.usage_nonempty x).choose⟩
   have hrow (z : V) : ∑ w, C z w ≤ 1 := by
     simpa only [mulVec, dotProduct, Pi.one_apply, mul_one] using hC1 z
   have hd :
@@ -231,11 +218,8 @@ theorem expect_residualSample
         let ((s, _), t) := draw
         negativeRecipe (f := f) Ya Nt N.atom (s, t) x y) =
         -P.correctionIter X Y f C (i + 1) x y := by
-    simp_rw [expect_product]
-    simp_rw [expect_const (univ_nonempty : (univ : Finset Ζ).Nonempty)]
-    have hm := N.expect_negativeRecipe hf hC hC1 hsub x y hx
-    rw [expect_product] at hm
-    exact hm
+    simp_rw [expect_product, expect_const (univ_nonempty : (univ : Finset Ζ).Nonempty)]
+    simpa only [expect_product] using N.expect_negativeRecipe hf hC hC1 hsub x y hx
   simp only [residualSample, expect_add_distrib]
   change (𝔼 draw ∈
     (({s | Xs s x} : Finset Γ) ×ˢ (univ : Finset Ζ)) ×ˢ

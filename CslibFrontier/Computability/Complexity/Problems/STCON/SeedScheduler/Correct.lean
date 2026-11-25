@@ -77,70 +77,51 @@ theorem configurationSeedScheduler_correct {m : Type → Type} [AlternativeMonad
   have hbound : size.subdivision.chainBound = generatedWeightBound I.n (I.n - 1) :=
     congrArg (fun p : SeedSearchParameters => p.search.subdivision.chainBound) hparams
   let bound := (configurationSeedSearchParameters ntm c input).search.subdivision.chainBound
-  have hchain : size.subdivision.chainBound = bound :=
-    congrArg (fun p : SeedSearchParameters => p.search.subdivision.chainBound) hparams
   have endpointVal (v : Fin ((I.n - 1) + 1) × Fin I.n) :
       (index (root size.subdivision.chainBound v)).val =
         (subdivisionIndex I bound (root bound v)).val := by
-    rw [configurationSubdivisionIndex_val]
-    simp only [subdivisionIndex_root_val]
-    rw [hchain]
+    rw [configurationSubdivisionIndex_val]; simp only [subdivisionIndex_root_val]
+    rw [congrArg (fun p : SeedSearchParameters => p.search.subdivision.chainBound) hparams]
   have hsource : (⟨setup.sourceID, hs⟩ : Fin size.subdivision.vertexCount) =
       index (root size.subdivision.chainBound source) :=
     Fin.ext ((Prod.mk.inj hids).1.trans (endpointVal source).symm)
   have htarget : (⟨setup.targetID, ht⟩ : Fin size.subdivision.vertexCount) =
       index (root size.subdivision.chainBound target) :=
     Fin.ext ((Prod.mk.inj hids).2.trans (endpointVal target).symm)
-  have hroots :
-      List.ofFn (fun j : Fin size.subdivision.originalCount =>
-        (⟨setup.originalSourceID j.val, hr _ j.isLt⟩ : Fin size.subdivision.vertexCount)) =
-        List.ofFn (originalRootID index) := by
-    apply List.ext_getElem
+  have hroots : List.ofFn (fun j : Fin size.subdivision.originalCount =>
+      (⟨setup.originalSourceID j.val, hr _ j.isLt⟩ : Fin size.subdivision.vertexCount)) =
+      List.ofFn (originalRootID index) := by
+    refine List.ext_getElem ?_ fun i _ hi => ?_
     · simpa only [List.length_ofFn] using configurationSeedSearchSetup_originalCount ntm c input
-    · intro i _ hi
-      simp only [List.getElem_ofFn]
-      apply Fin.ext
+    · simp only [List.getElem_ofFn]; apply Fin.ext
       rw [originalRootID, configurationSubdivisionIndex_val]
       exact configurationSeedSearchSetup_originalSourceID_eq ntm c input
         ⟨i, by simpa only [List.length_ofFn] using hi⟩
   let controller (bits : Fin (codeLength I.n (I.n - 1)) → Bool)
       (u : Fin size.subdivision.vertexCount) :=
     scan ⟨setup, (BitString.equivFin _ bits).val, u.val⟩
-  have hc (bits : Fin (codeLength I.n (I.n - 1)) → Bool) (u : Fin size.subdivision.vertexCount) :
-      ∃ verdict, controller bits u = pure (some verdict) ∧
-        match verdict with
-        | .bad j => ¬ ∃! p, Passes (generatedSubdivisionAdj (layeredDigraph I) index bits) u j p
-        | .decided hit =>
-          (∀ j, ∃! p, Passes (generatedSubdivisionAdj (layeredDigraph I) index bits) u j p) ∧
-            (hit = true ↔ Relation.ReflTransGen
-              (generatedSubdivisionAdj (layeredDigraph I) index bits) u
-              (index (root size.subdivision.chainBound target))) := by
-    let seed := (BitString.equivFin _ bits).cast (congrArg (2 ^ ·) hwidth.symm)
-    have hbits : (fun j : Fin (codeLength I.n (I.n - 1)) => seed.val.testBit j.val) = bits := by
-      funext j
-      exact BitString.testBit_equivFin ..
-    obtain ⟨verdict, hreturn, hspec⟩ := hscan seed u
-    rw [hbits, htarget] at hspec
-    exact ⟨verdict, hreturn, hspec⟩
   have hb (bits : Fin (codeLength I.n (I.n - 1)) → Bool) (v : Fin ((I.n - 1) + 1) × Fin I.n) :
       generatedWeight bits v ≤ size.subdivision.chainBound :=
     hbound ▸ (generatedWeight_lt_bound bits v).le
   obtain ⟨result, hrun, hmin, hleast, hreach⟩ :=
-    runGeneratedSeedSearch_correct (layeredDigraph I) (fun _ => rfl) index hb
-      source target controller hc
+    runGeneratedSeedSearch_correct (layeredDigraph I) (fun _ => rfl) index hb source target
+      controller fun bits u => by
+        let seed := (BitString.equivFin _ bits).cast (congrArg (2 ^ ·) hwidth.symm)
+        have hbits : (fun j : Fin (codeLength I.n (I.n - 1)) => seed.val.testBit j.val) = bits :=
+          funext fun _ => BitString.testBit_equivFin ..
+        obtain ⟨verdict, hreturn, hspec⟩ := hscan seed u
+        rw [hbits, htarget] at hspec
+        exact ⟨verdict, hreturn, hspec⟩
   rw [runSeedSearchIndexed_eq] at hrun
   rw [runSeedSchedulerFor_eq, runSeedSearchIndexed_eq, hroots, hsource, hwidth]
   have bitsOfRank (i : Fin (2 ^ codeLength I.n (I.n - 1))) :
       (BitString.equivFin _).symm i = fun j : Fin (codeLength I.n (I.n - 1)) =>
-        i.val.testBit j.val := by
-    funext j
-    exact BitString.equivFin_symm_apply ..
+        i.val.testBit j.val :=
+    funext fun _ => BitString.equivFin_symm_apply ..
   refine ⟨result, hrun, ?_, ?_, hreach.trans (layeredDigraph_reachable_iff I)⟩
-  · rw [← bitsOfRank]
-    exact hmin
+  · rw [← bitsOfRank]; exact hmin
   · intro i hi
-    rw [← bitsOfRank]
-    exact hleast i hi
+    rw [← bitsOfRank]; exact hleast i hi
 
 /-- Evaluate the mathematical controller with exact adjacency and membership answers
 for the request's seed and source in the original input's subdivision. The input fixes the
@@ -178,10 +159,9 @@ theorem configurationSeedSchedulerReferenceScan_correct
         verdict.Correct edge ⟨request.sourceID, hsource⟩ target := by
   classical
   intro I setup n edge target hsource
-  let source : Fin n := ⟨request.sourceID, hsource⟩
   rw [configurationSeedSchedulerReferenceScan, dite_eq_left hsource]
-  exact runController_correct (m := Id) (r := edge) (s := source) (target := target)
-    (fun _ _ => rfl) (fun _ _ _ => rfl)
+  exact runController_correct (m := Id) (r := edge) (s := ⟨request.sourceID, hsource⟩)
+    (target := target) (fun _ _ => rfl) (fun _ _ _ => rfl)
 
 /-- The search with the mathematical reference scanner has one result, selecting the
 least min-isolating rank and deciding the original configuration instance. -/
@@ -203,12 +183,9 @@ theorem configurationSeedSchedulerReference_correct
   intro I setup hs hr
   refine configurationSeedScheduler_correct (m := List) ntm c input
     (fun request => [configurationSeedSchedulerReferenceScan ntm c input request]) ?_
-  intro seed source
+  intro seed src
   obtain ⟨verdict, hscan, hcorrect⟩ := configurationSeedSchedulerReferenceScan_correct
-    ntm c input ⟨setup, seed.val, source.val⟩ source.isLt
-  refine ⟨verdict, congrArg (fun x => [x]) hscan, ?_⟩
-  cases verdict with
-  | bad j => exact hcorrect.2
-  | decided hit => exact hcorrect
+    ntm c input ⟨setup, seed.val, src.val⟩ src.isLt
+  exact ⟨verdict, congrArg (· :: []) hscan, by cases verdict; exacts [hcorrect.2, hcorrect]⟩
 
 end Cslib.Complexity.STCON
