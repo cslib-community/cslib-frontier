@@ -200,7 +200,10 @@ private theorem eq_ttcRounds_of_le {k : ℕ} {R : Finset (Fin n)} (hk : R.card �
     (hle : ∀ i ∈ S, I.rank i (ν i) ≤ I.rank i (sel.ttcRounds k R i)) :
     ∀ i ∈ S, ν i = sel.ttcRounds k R i := by
   induction k generalizing R S with
-  | zero => exact fun i hi => by have := hSR hi; simp_all
+  | zero =>
+    intro i hi
+    have := hSR hi
+    simp_all
   | succ k ih =>
     intro i hi
     have hR : R.Nonempty := ⟨i, hSR hi⟩

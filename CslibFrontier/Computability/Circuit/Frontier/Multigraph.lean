@@ -177,9 +177,12 @@ theorem edgeCut_subset_touching (L : Set V) : G.edgeCut L ⊆ G.touching L :=
 
 /-- Adding a vertex changes a cut only at the edges incident to it. -/
 theorem edgeCut_insert_subset (v : V) (L : Set V) :
-    G.edgeCut (insert v L) ⊆ G.edgeCut L ∪ G.incidenceSet v := fun e he =>
-  (em (G.src e = v ∨ G.tgt e = v)).symm.imp
-    (fun hv => by rw [not_or] at hv; simpa [mem_edgeCut, hv.1, hv.2] using he) id
+    G.edgeCut (insert v L) ⊆ G.edgeCut L ∪ G.incidenceSet v := by
+  intro e he
+  by_cases hv : G.src e = v ∨ G.tgt e = v
+  · exact Or.inr hv
+  · rw [not_or] at hv
+    exact Or.inl (by simpa [mem_edgeCut, hv.1, hv.2] using he)
 
 /-- **A connected multigraph has at least `|V| - 1` edges**: its cycle rank `|E| + 1 - |V|`
 involves no truncation. -/
@@ -309,6 +312,7 @@ theorem toSimpleGraph_induce (W : Set V) :
   refine and_congr_right fun _ => ⟨fun ⟨e, he⟩ =>
     ⟨e.1, by simpa [ends, induce, Sym2.map_mk] using congrArg (Sym2.map Subtype.val) he⟩,
     fun ⟨e, he⟩ => ?_⟩
+  -- An edge between two vertices of `W` is an edge of the induced subgraph.
   rcases Sym2.eq_iff.1 (he : s(G.src e, G.tgt e) = s((u : V), v)) with ⟨h₁, h₂⟩ | ⟨h₁, h₂⟩
   · exact ⟨⟨e, h₁.symm ▸ u.2, h₂.symm ▸ v.2⟩,
       Sym2.eq_iff.2 (Or.inl ⟨Subtype.ext h₁, Subtype.ext h₂⟩)⟩

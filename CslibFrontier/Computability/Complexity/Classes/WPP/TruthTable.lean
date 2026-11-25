@@ -94,10 +94,13 @@ private theorem answerGap_eq {α : Type} {A : Set (α × ℕ)} {g f : α × ℕ 
     simp only [List.getD_ofFn]
     split_ifs with hw
     · subst w
-      exact prod_congr rfl fun i _ => by rw [hg]; cases v i <;> simp
+      refine prod_congr rfl fun i _ => ?_
+      rw [hg]
+      cases v i <;> simp
     · obtain ⟨i, hi⟩ := Function.ne_iff.mp hw
-      exact prod_eq_zero (mem_univ i)
-        (by rw [hg]; cases hw' : w i <;> cases hv' : v i <;> simp_all)
+      refine prod_eq_zero (mem_univ i) ?_
+      rw [hg]
+      cases hw' : w i <;> cases hv' : v i <;> simp_all
   unfold answerGap
   simp_rw [hp]
   rw [sum_eq_single v (fun _ _ hw => by simp [hw]) (by simp)]
@@ -116,11 +119,12 @@ theorem truthTable_mem_WPP (hA : A ∈ WPP (encPair enc encUnary))
   obtain ⟨g, hg, f, hf, hn, hR, hA⟩ := hA
   have hF (a) : (∏ i ∈ range (r a), f (a, i)) ≠ 0 := prod_ne_zero_iff.mpr fun i _ => hn (a, i)
   refine ⟨answerGap g f r d, answerGap_mem hg (mem_GapP_of_polyTime hf) hr hd,
-    _, ComputableInPolyTime.intBin_prod_range hf hr, hF,
-    fun a => by rw [answerGap_eq hR hA]; split_ifs <;> simp, fun a => ?_⟩
-  change d (a, truthTableAnswers A r a) = true ↔ _
-  rw [answerGap_eq hR hA]
-  cases d (a, truthTableAnswers A r a) <;> simp [(hF a).symm]
+    _, ComputableInPolyTime.intBin_prod_range hf hr, hF, fun a => ?_, fun a => ?_⟩
+  · rw [answerGap_eq hR hA]
+    split_ifs <;> simp
+  · change d (a, truthTableAnswers A r a) = true ↔ _
+    rw [answerGap_eq hR hA]
+    cases d (a, truthTableAnswers A r a) <;> simp [(hF a).symm]
 
 /-- A jointly LWPP family supports any polynomial-time Boolean combination of a computed batch.
 Polynomial-family robustness normalizes the prefix target for the input-dependent batch size. -/
@@ -141,8 +145,9 @@ theorem truthTable_mem_LWPP (hA : A ∈ LWPP (encPair enc encUnary))
   refine mem_LWPP_of_indexed_targets (answerGap_mem hg (mem_GapP_of_polyTime hF) hr hd) hT
     (by fun_prop : ComputableInPolyTime (fun n => p.eval n + 1) encUnary encUnary)
     (fun _ _ _ => prod_ne_zero_iff.mpr fun _ _ => hn _) (fun a ha => ?_) fun a ha => ?_
-  · exact ⟨r a, Nat.lt_succ_of_le (hb a),
-      by rw [he, ite_eq_left (Set.mem_ofPred.mp ha)]; simp [F, T]⟩
+  · refine ⟨r a, Nat.lt_succ_of_le (hb a), ?_⟩
+    rw [he, ite_eq_left (Set.mem_ofPred.mp ha)]
+    simp [F, T]
   · exact (he a).trans (ite_eq_right ha)
 
 /-- WPP is closed under polynomial-time truth-table reductions

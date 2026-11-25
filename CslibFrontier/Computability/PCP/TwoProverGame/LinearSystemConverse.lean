@@ -93,7 +93,9 @@ theorem sum_accepts_eq_one_of_commutingWinProb_eq_one
   have hw (x : X) (y : Y) : w x y ≤ 1 := by
     rw [← S.sum_prob x y]
     refine sum_le_sum fun a _ => sum_le_sum fun b _ => ?_
-    split_ifs <;> [exact le_rfl; exact S.prob_nonneg x y a b]
+    split_ifs
+    · exact le_rfl
+    · exact S.prob_nonneg x y a b
   have hμ : ∑ x, ∑ y, (G.questions (x, y)).toReal = 1 := by
     rw [← Fintype.sum_prod_type']
     exact Cslib.Probability.PMF.sum_toReal G.questions
@@ -204,12 +206,12 @@ theorem marginalObservable_eq (S : CommutingStrategy E V (V → Bool) Bool 𝒜)
     S.marginalObservable e v = ((S.alice e).map fun a => a v).observable := by
   simp only [marginalObservable, Measurement.observable, Measurement.map_effect]
   rw [← sum_filter_add_sum_filter_not univ fun a => a v = false, sub_eq_add_neg, ← sum_neg_distrib]
-  exact congrArg₂ _
-    (sum_congr (by ext; simp) fun a ha => by
-      rw [(mem_filter.mp ha).2, BitString.signVal_false, Complex.ofReal_one, one_smul])
-    (sum_congr (by ext; simp) fun a ha => by
-      rw [show a v = true by simpa using (mem_filter.mp ha).2, BitString.signVal_true,
-        Complex.ofReal_neg, Complex.ofReal_one, neg_one_smul])
+  congr 1
+  · refine sum_congr (Finset.ext fun _ => by simp) fun a ha => ?_
+    rw [(mem_filter.mp ha).2, BitString.signVal_false, Complex.ofReal_one, one_smul]
+  · refine sum_congr (Finset.ext fun _ => by simp) fun a ha => ?_
+    have hav : a v = true := by simpa using (mem_filter.mp ha).2
+    rw [hav, BitString.signVal_true, Complex.ofReal_neg, Complex.ofReal_one, neg_one_smul]
 
 /-- Products of marginal observables of a projective measurement multiply pointwise. -/
 theorem list_prod_marginalObservable (e : E) (hA : (S.alice e).IsProjective) (l : List V) :
@@ -259,7 +261,7 @@ theorem marginalObservable_approx (L : LinearSystem V E) {μ : PMF (E × V)}
       fun hacc => hab (hacc.2 hv)
   have hcl := Measurement.sum_norm_sub_sq_le_of_agreement S.state M F hcomm (ε := 0)
     (by rw [hagr]; norm_num)
-  have hb (b : Bool) : M.effect b ≈[S.state; 0] F.effect b := by
+  have hb : ∀ b, M.effect b ≈[S.state; 0] F.effect b := fun b => by
     have hnn : ∀ c ∈ univ, 0 ≤ S.state.norm (M.effect c - F.effect c) ^ 2 := fun _ _ => sq_nonneg _
     exact le_of_eq <| (pow_eq_zero_iff two_ne_zero).mp <|
       (sum_eq_zero_iff_of_nonneg hnn).mp (le_antisymm (by simpa using hcl) (sum_nonneg hnn)) b

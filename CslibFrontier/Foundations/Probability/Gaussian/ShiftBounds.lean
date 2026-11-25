@@ -67,7 +67,8 @@ theorem abs_gaussianMass_normalized_sub_one_le (s : ℝ) (hs : 0 < s) (c : E) :
     simpa only [hnorm, sub_zero] using summable_gaussianWeight D (1 / s) (one_div_pos.mpr hs) 0
   have hsplit : (∑' w : D, f w) = 1 + ∑' w : ↥{w : D | w ≠ 0}, f w := by
     have h := hsum.sum_add_tsum_compl (s := {0})
-    rw [show (↑({0} : Finset D) : Set D)ᶜ = {w | w ≠ 0} by ext; simp] at h
+    have hset : (↑({0} : Finset D) : Set D)ᶜ = {w | w ≠ 0} := Set.ext fun _ => by simp
+    rw [hset] at h
     simpa [f, gaussianWeight] using h.symm
   have hcancel : (covolume L : ℂ) / (s : ℂ) ^ finrank ℝ E *
       ((s : ℂ) ^ finrank ℝ E / (covolume L : ℂ)) = 1 := by
@@ -146,8 +147,12 @@ theorem gaussianMass_le_gaussianMass_zero {E : Type*} [NormedAddCommGroup E]
     have hsq : ‖(z : E) - (cPar : E)‖ ^ 2 ≤ ‖(z : E) - c‖ ^ 2 := by
       have hsub : ‖(z : E) - c‖ ^ 2 =
           ‖(z : E) - (cPar : E)‖ ^ 2 + ‖c - (cPar : E)‖ ^ 2 := by
-        rw [← sub_sub_sub_cancel_right (z : E) c (cPar : E), norm_sub_sq_real, hinner]
-        ring
+        calc
+          ‖(z : E) - c‖ ^ 2 = ‖((z : E) - (cPar : E)) - (c - (cPar : E))‖ ^ 2 := by
+            rw [← sub_sub_sub_cancel_right (z : E) c (cPar : E)]
+          _ = ‖(z : E) - (cPar : E)‖ ^ 2 - 2 * ⟪(z : E) - (cPar : E), c - (cPar : E)⟫ +
+              ‖c - (cPar : E)‖ ^ 2 := norm_sub_sq_real _ _
+          _ = ‖(z : E) - (cPar : E)‖ ^ 2 + ‖c - (cPar : E)‖ ^ 2 := by rw [hinner]; ring
       nlinarith [sq_nonneg ‖c - (cPar : E)‖]
     refine Real.exp_le_exp.mpr ?_
     simp only [neg_mul, neg_div]
@@ -164,19 +169,24 @@ theorem gaussianMass_le_gaussianMass_zero {E : Type*} [NormedAddCommGroup E]
   have hLV_disc : DiscreteTopology LV := e.discreteTopology_iff.mpr inferInstance
   have hLV_lat : IsZLattice ℝ LV := ⟨by
     apply Submodule.map_injective_of_injective V.injective_subtype
-    rw [Submodule.map_span, Submodule.map_top, Submodule.range_subtype,
-      show (V.subtype '' (LV : Set V)) = (L : Set E) by
-        ext y
-        exact ⟨by rintro ⟨_, hx, rfl⟩; exact hx,
-          fun hy ↦ ⟨⟨y, Submodule.subset_span hy⟩, hy, rfl⟩⟩]⟩
+    have himg : (V.subtype '' (LV : Set V)) = (L : Set E) := by
+      ext y
+      refine ⟨?_, fun hy ↦ ⟨⟨y, Submodule.subset_span hy⟩, hy, rfl⟩⟩
+      rintro ⟨_, hx, rfl⟩
+      exact hx
+    rw [Submodule.map_span, Submodule.map_top, Submodule.range_subtype, himg]⟩
   have hmass_eq (y : V) : gaussianMass LV s y = gaussianMass L s (y : E) := by
     unfold gaussianMass
     rw [← e.toEquiv.tsum_eq (fun z : L ↦ gaussianWeight s ((z : E) - (y : E)))]
     exact tsum_congr fun _ ↦ rfl
   have hborel : @BorelSpace V _ (borel V) := @BorelSpace.mk V _ (borel V) rfl
-  exact hproj.trans <| (hmass_eq cPar).symm.trans_le <|
-    (@gaussianMass_le_gaussianMass_zero_of_isZLattice V _ _ _ (borel V) hborel
-      LV hLV_disc hLV_lat s hs cPar).trans_eq (hmass_eq 0)
+  calc
+    gaussianMass L s c ≤ gaussianMass L s (cPar : E) := hproj
+    _ = gaussianMass LV s cPar := (hmass_eq cPar).symm
+    _ ≤ gaussianMass LV s 0 :=
+      @gaussianMass_le_gaussianMass_zero_of_isZLattice V _ _ _ (borel V) hborel
+        LV hLV_disc hLV_lat s hs cPar
+    _ = gaussianMass L s 0 := hmass_eq 0
 
 end ShiftedMassMax
 

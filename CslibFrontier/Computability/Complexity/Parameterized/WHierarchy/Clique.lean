@@ -241,12 +241,13 @@ theorem WCS.computableInPolyTime_toClique (d : ℕ) :
   have hg := WeftCircuit.computableInPolyTime_gates hwc
   have houts := WeftCircuit.computableInPolyTime_outputs hwc
   have hk := encWCS_weight_polyTime (t := 1) (d := d) .id'
-  rw [show (toClique (d := d)) = fun x : WCSInstance 1 d =>
+  have heq : (toClique (d := d)) = fun x : WCSInstance 1 d =>
       ⟨graph d x.circuit.toCircuit.1 x.circuit.toCircuit.2.code.1
         (x.circuit.toCircuit.2.code.2.getD 0 0) x.weight,
-        size d x.circuit.toCircuit.1 x.weight⟩ by
+        size d x.circuit.toCircuit.1 x.weight⟩ := by
     funext x
-    simp [WCS.toClique, Circuit.code]]
+    simp [WCS.toClique, Circuit.code]
+  rw [heq]
   exact encCliqueInstance_mk_polyTime
     (computableInPolyTime_graph d hn hg (by fun_prop) hk)
     (computableInPolyTime_size d hn hk)

@@ -161,14 +161,15 @@ theorem eval_idealSupport {n offset count : ℕ} (h : offset + count ≤ n) :
     ext S
     simp [sampleSupportFrom, resolveSupport, PMF.uniformOfFinset_apply, PMF.pure_apply]
   | succ count ih =>
+    have hrange : insert offset (Ico (offset + 1) n) = Ico offset n := by
+      ext
+      simp only [mem_insert, mem_Ico]; omega
     rw [eval_sampleSupportFrom_succ, ih (by omega), eval_idealCandidate (by omega)]
     change ((PMF.uniformOfFinset (Ico offset n) _).bind fun r =>
       (PMF.uniformOfFinset ((Ico (offset + 1) n).powersetCard count) _).bind
         fun U => _root_.PMF.pure (U.collisionInsert offset r)) = _
     rw [_root_.PMF.bind_comm]
-    simpa only [show insert offset (Ico (offset + 1) n) = Ico offset n by
-      ext
-      simp only [mem_insert, mem_Ico]; omega, PMF.map, Function.comp_def] using
+    simpa only [hrange, PMF.map, Function.comp_def] using
       PMF.uniformOfFinset_collisionInsert (S := Ico (offset + 1) n) (p := offset) (k := count)
         (by simp) (by rw [Nat.card_Ico]; omega)
 
@@ -236,11 +237,12 @@ uniform words. In particular, this law retains the multiply-high bias. -/
 theorem eval_sampleSupport2 (width n count : ℕ) :
     ProbComp.eval (sampleSupport2 width n count) =
       (PMF.uniformOfFintype (Fin count → Fin (2 ^ width))).map (supportFromWords width n) := by
-  rw [sampleSupport2, sampleSupportFrom, ProbComp.eval_map, ProbComp.eval_pi_congr fun j =>
-      show ProbComp.eval (sampleCandidate width n (0 + j.val)) =
-        ProbComp.eval ((fun u : Fin (2 ^ width) => j.val + u.val * (n - j.val) / 2 ^ width) <$>
-          ProbComp.uniform (Fin (2 ^ width))) by
-        simp only [eval_sampleCandidate, ProbComp.eval_map, ProbComp.eval_uniform, Nat.zero_add],
+  have hc := ProbComp.eval_pi_congr fun j : Fin count =>
+    show ProbComp.eval (sampleCandidate width n (0 + j.val)) =
+      ProbComp.eval ((fun u : Fin (2 ^ width) => j.val + u.val * (n - j.val) / 2 ^ width) <$>
+        ProbComp.uniform (Fin (2 ^ width))) by
+      simp only [eval_sampleCandidate, ProbComp.eval_map, ProbComp.eval_uniform, Nat.zero_add]
+  rw [sampleSupport2, sampleSupportFrom, ProbComp.eval_map, hc,
     ProbComp.eval_pi_map, ProbComp.eval_pi_uniform, PMF.map_comp]
   rfl
 

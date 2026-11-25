@@ -176,10 +176,12 @@ theorem pos_acceptProb_historyProver {V : WordOracleComp Unit Bool} {t : ℕ} {x
     (hout : outcome (coinProgram M t x r) e = .done true) :
     0 < acceptProb V (historyProver e) := by
   subst hr
-  rw [acceptProb_eq_sum M (by simpa only [ProbOracleComp.runWith_eq_run_interpret] using hV)]
+  rw [acceptProb_eq_sum M (by
+    simpa only [ProbOracleComp.runWith_eq_run_interpret] using hV)]
   refine ENNReal.mul_pos (ENNReal.inv_ne_zero.2 (ENNReal.pow_ne_top ENNReal.ofNat_ne_top))
     (ne_of_gt ?_)
-  refine lt_of_lt_of_le ?_ (Finset.single_le_sum (fun _ _ => bot_le) (Finset.mem_univ r.get))
+  refine lt_of_lt_of_le ?_ (Finset.single_le_sum (fun _ _ => bot_le)
+    (Finset.mem_univ r.get))
   rw [List.ofFn_get]
   exact (acceptFrom_historyProver e hout).symm ▸ zero_lt_one
 

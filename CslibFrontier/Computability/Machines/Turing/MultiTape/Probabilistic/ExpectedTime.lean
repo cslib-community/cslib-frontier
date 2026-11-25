@@ -166,8 +166,9 @@ theorem expectedTime_le_of_halted {T : ℕ}
       (PMF.toOuterMeasure_apply_eq_zero_iff _ _).mpr <| Set.disjoint_left.mpr fun final hf hr => by
         simp [h final hf] at hr) zero_le
   rw [expectedTime, tsum_eq_sum (s := Finset.range T) fun t ht => hzero t (by simpa using ht)]
-  exact (Finset.sum_le_sum fun t _ =>
-    Cslib.Probability.PMF.toOuterMeasure_le_one _ _).trans_eq (by simp)
+  calc _ ≤ ∑ _t ∈ Finset.range T, (1 : ℝ≥0∞) :=
+        Finset.sum_le_sum fun t _ => Cslib.Probability.PMF.toOuterMeasure_le_one _ _
+    _ = T := by simp
 
 /-- **The probability of still running as a count**: the fraction of the `2 ^ t` coin strings of
 length `t` whose replay has not halted. -/
@@ -224,20 +225,30 @@ theorem exists_halted_append_of_expectedTime_ne_top (h : machine.expectedTime in
   have hlow (m : ℕ) : BitString.uniformList n coins ≤
       (ProbComp.eval (machine.runClosedConfigFrom (n + m)
         (machine.initialConfig input))).toOuterMeasure {final | final.tapes.state.isSome} := by
-    rw [← PMF.toOuterMeasure_apply_singleton, ← BitString.uniformList_take (Nat.le_add_right n m),
-      PMF.toOuterMeasure_map_apply, eval_runClosedConfigFrom_eq_map_coins,
-      PMF.toOuterMeasure_map_apply]
-    refine PMF.toOuterMeasure_mono _ fun word ⟨hword, _⟩ => ?_
-    have hsplit : word = coins ++ word.drop n := by
-      simp only [Set.mem_preimage, Set.mem_singleton_iff] at hword
-      conv_lhs => rw [← List.take_append_drop n word, hword]
-    rw [Set.mem_preimage, Set.mem_ofPred_eq, hsplit, Option.isSome_iff_ne_none]
-    exact hrun _
-  refine h (eq_top_iff.mpr <| (ENNReal.tsum_const_eq_top_of_ne_zero hpos).symm.trans_le <|
-    (tsum_le_tsum hlow).trans ?_)
-  rw [expectedTime]
-  exact tsum_comp_le_tsum_of_injective (f := (n + ·)) (fun _ _ => Nat.add_left_cancel)
-    fun t => (ProbComp.eval (machine.runClosedConfigFrom t
-      (machine.initialConfig input))).toOuterMeasure {final | final.tapes.state.isSome}
+    calc BitString.uniformList n coins
+        = (BitString.uniformList (n + m)).toOuterMeasure (List.take n ⁻¹' {coins}) := by
+          rw [← PMF.toOuterMeasure_apply_singleton,
+            ← BitString.uniformList_take (Nat.le_add_right n m), PMF.toOuterMeasure_map_apply]
+      _ ≤ (BitString.uniformList (n + m)).toOuterMeasure
+            ((fun word => machine.runClosedConfigFromCoins word (machine.initialConfig input)) ⁻¹'
+              {final | final.tapes.state.isSome}) := by
+          refine PMF.toOuterMeasure_mono _ fun word ⟨hword, _⟩ => ?_
+          have hsplit : word = coins ++ word.drop n := by
+            simp only [Set.mem_preimage, Set.mem_singleton_iff] at hword
+            conv_lhs => rw [← List.take_append_drop n word, hword]
+          rw [Set.mem_preimage, Set.mem_ofPred_eq, hsplit, Option.isSome_iff_ne_none]
+          exact hrun _
+      _ = _ := by rw [eval_runClosedConfigFrom_eq_map_coins, PMF.toOuterMeasure_map_apply]
+  refine h (eq_top_iff.mpr ?_)
+  calc (⊤ : ℝ≥0∞) = ∑' _m : ℕ, BitString.uniformList n coins :=
+        (ENNReal.tsum_const_eq_top_of_ne_zero hpos).symm
+    _ ≤ ∑' m : ℕ, (ProbComp.eval (machine.runClosedConfigFrom (n + m)
+          (machine.initialConfig input))).toOuterMeasure {final | final.tapes.state.isSome} :=
+        tsum_le_tsum hlow
+    _ ≤ machine.expectedTime input := by
+        rw [expectedTime]
+        exact tsum_comp_le_tsum_of_injective (f := (n + ·)) (fun _ _ => Nat.add_left_cancel)
+          fun t => (ProbComp.eval (machine.runClosedConfigFrom t
+            (machine.initialConfig input))).toOuterMeasure {final | final.tapes.state.isSome}
 
 end Turing.MultiTapePTM

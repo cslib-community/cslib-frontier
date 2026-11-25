@@ -125,17 +125,18 @@ theorem expect_negativeRecipe (hf : 0 < f) (hC : ∀ x y, 0 ≤ C x y)
       (A.usage_nonempty y)
     intro t _ ht
     simp [atom, correctionAtom, show ¬Zt t y by simpa using ht]
-  rw [show (𝔼 σ ∈ ({s | Xs s x} : Finset Γ) ×ˢ ({s | Ya s y} : Finset Ω),
-        negativeRecipe (f := f) Ya Zt A.atom σ x y) =
-      (-f) * 𝔼 σ ∈ ({s | Xs s x} : Finset Γ) ×ˢ ({s | Ya s y} : Finset Ω),
-        ((dens {s | Ya s y} : ℝ) / dens {s | Zt s y}) * A.atom σ x y by
+  calc
+    _ = (-f) * 𝔼 σ ∈ ({s | Xs s x} : Finset Γ) ×ˢ ({s | Ya s y} : Finset Ω),
+        ((dens {s | Ya s y} : ℝ) / dens {s | Zt s y}) * A.atom σ x y := by
       rw [mul_expect]
-      exact expect_congr rfl fun _ _ => by simp only [negativeRecipe]; ring,
-    hchange]
-  change (-f) * (𝔼 σ ∈ ({s | Xs s x} : Finset Γ) ×ˢ
-    ({s | Zt s y} : Finset Ω), correctionAtom _ _ _ _ _ _ _ _ _ _ _ _ _ σ x y) = _
-  rw [hm, P.correctionIter_succ_apply]
-  ring
+      exact expect_congr rfl fun _ _ => by simp only [negativeRecipe]; ring
+    _ = (-f) * 𝔼 σ ∈ ({s | Xs s x} : Finset Γ) ×ˢ ({s | Zt s y} : Finset Ω),
+        A.atom σ x y := congrArg ((-f) * ·) hchange
+    _ = _ := by
+      change (-f) * 𝔼 σ ∈ ({s | Xs s x} : Finset Γ) ×ˢ
+        ({s | Zt s y} : Finset Ω), correctionAtom _ _ _ _ _ _ _ _ _ _ _ _ _ σ x y = _
+      rw [hm, P.correctionIter_succ_apply]
+      ring
 
 
 section SignedSample

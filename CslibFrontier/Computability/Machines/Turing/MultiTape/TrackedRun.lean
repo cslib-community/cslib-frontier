@@ -174,9 +174,11 @@ theorem computableInPolyTime_trackedStep (tm : MultiTapeTM k Bool State) :
     | none => c
     | some q => (c.1.step (tm.tr q tag.2.1 tag.2.2),
         fun i => c.2 i + ((tm.tr q tag.2.1 tag.2.2).workTapes i).2)
-  rw [show trackedStep tm = fun c => branch (c.1.state, c.1.inputSymbol, c.1.workTapeSymbols) c by
+  have heq : trackedStep tm =
+      fun c => branch (c.1.state, c.1.inputSymbol, c.1.workTapeSymbols) c := by
     funext c
-    rcases c with ⟨⟨_, _ | _, _, _, _⟩, _⟩ <;> rfl]
+    rcases c with ⟨⟨_, _ | _, _, _, _⟩, _⟩ <;> rfl
+  rw [heq]
   refine ComputableInPolyTime.finite_cases
     (tagEncoding := encPair (encFinite _) (encPair (encFinEnum _) (encFinEnum _)))
     ((ComputableInPolyTime.finiteCfg_state.prod
@@ -218,7 +220,8 @@ private theorem TrackedBound.trackedStep {tm : MultiTapeTM k Bool State} {inputS
     have hs : |(((tm.tr q c.1.inputSymbol c.1.workTapeSymbols).workTapes i).2 : ℤ)| ≤ 1 := by
       rcases ((tm.tr q c.1.inputSymbol c.1.workTapeSymbols).workTapes i).2 with _ | _ | _ <;>
         simp [SignType.cast]
-    exact (abs_add_le _ _).trans (by lia)
+    calc |c.2 i + _| ≤ |c.2 i| + |_| := abs_add_le _ _
+      _ ≤ steps + 1 := by lia
 
 /-- The encoding of tracked storage is linear in the input size and the number of steps. -/
 private theorem length_encTracked_le : ∃ C : ℕ, ∀ (inputSize steps : ℕ)

@@ -77,6 +77,7 @@ theorem PCP_zero_zero : PCP (fun _ => 0) (fun _ => 0) enc = P enc := by
   constructor
   · rintro ⟨V, c, d, ⟨-, -, hv⟩, hcoins, hqs, hcomp, hsound⟩
     simp only [mul_zero, nonpos_iff_eq_zero] at hcoins hqs
+    -- with no random bits there are no queries, so the verdict ignores the proof
     have key (a : α) (π : List Bool) : V.accepts a π [] = V.verdict ((a, []), []) := by
       grind [PCPVerifier.accepts, PCPVerifier.answers]
     refine ⟨fun a => V.verdict ((a, []), []),
@@ -153,7 +154,9 @@ enumerating all `2 ^ O(log n)` consistent bit tables decides the problem in poly
 theorem PCP_zero_log : PCP (fun _ => 0) (fun n => Nat.log 2 n + 1) enc = P enc := by
   refine Set.Subset.antisymm ?_ (P_subset_PCP _ _)
   rintro A ⟨V, c, d, hV, hpcp⟩
-  have hcoins0 (a : α) : V.coins a = 0 := by have := hpcp.coins_le a; lia
+  have hcoins0 (a : α) : V.coins a = 0 := by
+    have := hpcp.coins_le a
+    lia
   refine ⟨V.exhaustiveTableDecider,
     V.isPolyTime_exhaustiveTableDecider (c := 0) (d := d) hV (fun a => by simp [hcoins0 a])
       fun a => ?_,

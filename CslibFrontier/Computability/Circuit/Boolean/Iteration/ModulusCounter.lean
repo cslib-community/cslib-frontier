@@ -97,7 +97,7 @@ theorem exists_hard_counter_power (k : ℕ) (hk : 64 ≤ k) :
   classical
   obtain ⟨_, ht, hh⟩ := Circuit.exists_hard_in_family (G := lowerBudget k) interpretation
     (Finset.univ.image fun T : Fin (ModulusCounter.period k) => ModulusCounter.power (k := k) T.val)
-    (by rw [counter_family_card k]; exact description_budget_lt_period k hk)
+    ((counter_family_card k).symm ▸ description_budget_lt_period k hk)
   obtain ⟨T, _, rfl⟩ := Finset.mem_image.mp ht
   exact ⟨T.val, T.isLt, fun out hcomp => not_le.mp fun hn => hh out hn hcomp⟩
 
@@ -139,10 +139,12 @@ theorem mem_easyCounterPowers (k q : ℕ) (T : Fin (ModulusCounter.period k)) :
 private theorem easyCounterPowers_card_le (k q : ℕ) :
     (easyCounterPowers k q).card ≤ signature.orderedBudget (k + k) (k + k) q := by
   classical
-  rw [← Finset.card_image_of_injective _ ModulusCounter.powers_injective]
-  refine (Finset.card_le_card fun _ ht => ?_).trans (Circuit.card_functionsAtMost_le interpretation)
-  obtain ⟨T, hT, rfl⟩ := Finset.mem_image.mp ht
-  exact (Finset.mem_filter.mp hT).2
+  calc
+    _ = ((easyCounterPowers k q).image (fun T => ModulusCounter.power (k := k) T.val)).card :=
+      (Finset.card_image_of_injective _ ModulusCounter.powers_injective).symm
+    _ ≤ _ := (Finset.card_le_card fun _ ht => by
+      obtain ⟨T, hT, rfl⟩ := Finset.mem_image.mp ht
+      exact (Finset.mem_filter.mp hT).2).trans (Circuit.card_functionsAtMost_le interpretation)
 
 /-- At least `ModulusCounter.period k - signature.orderedBudget (k + k) (k + k) q` exponents below
 `ModulusCounter.period k` require more than `q` gates. -/

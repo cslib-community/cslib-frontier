@@ -100,7 +100,9 @@ theorem PolyTimeReducible.mem_CountingLevel {L : Set α} {M : Set β}
     L ∈ CountingLevel a input := by
   cases a with
   | zero => exact h.mem_P hM
-  | succ _ => exact let ⟨A, hA, hM⟩ := hM; ⟨A, hA, h.mem_PPWithOracle hM⟩
+  | succ _ =>
+    obtain ⟨A, hA, hM⟩ := hM
+    exact ⟨A, hA, h.mem_PPWithOracle hM⟩
 
 /-- Prefixing a false tag reduces the first oracle to its tagged union. -/
 theorem reduces_taggedUnion_left (A B : Set (List Bool)) :
