@@ -108,8 +108,8 @@ theorem polynomial_queries {answer : α × β → γ} {queries : α → List β}
       Nat.le_mul_of_pos_left _ (hT x)
     have hbody : L x + Q x + O x + T x * B x ^ e ≤
         T x * (L x + Q x + O x + B x ^ e) := by
-      have := Nat.le_mul_of_pos_left (L x + Q x + O x) (hT x)
-      nlinarith
+      rw [Nat.mul_add]
+      exact Nat.add_le_add_right (Nat.le_mul_of_pos_left _ (hT x)) _
     calc _ ≤ L x + L x + cq.time x +
           (Q x + 1) * (L x + Q x + O x + T x * B x ^ e) := by
             gcongr
