@@ -91,24 +91,19 @@ theorem card_filter_sum_le_half_le_exp [DecidableEq ι] [Nonempty U] (F : U → 
   have hU : (0 : ℝ) < Fintype.card U := by exact_mod_cast Fintype.card_pos
   have hmean : μ * Fintype.card ι ≤
       ∑ _i : ι, ∑ a, ((PMF.uniformOfFintype U) a).toReal * F a := by
-    have hμ' : μ ≤ 𝔼 a, F a := by
-      rw [Fintype.expect_eq_sum_div_card, le_div_iff₀ hU]
-      exact hμ
     simp only [PMF.sum_uniformOfFintype_toReal_mul, sum_const, card_univ, nsmul_eq_mul]
     rw [mul_comm μ]
-    exact mul_le_mul_of_nonneg_left hμ' (Nat.cast_nonneg _)
+    exact mul_le_mul_of_nonneg_left
+      (by rwa [Fintype.expect_eq_sum_div_card, le_div_iff₀ hU]) (Nat.cast_nonneg _)
   have hch := PMF.pi_sum_le_one_sub_mul (fun _ : ι => PMF.uniformOfFintype U) (fun _ => F)
     (fun _ a _ => hF a) hmean (by norm_num : (0 : ℝ) ≤ 1 / 2)
-  have hev : {outcome : ι → U | ∑ i, F (outcome i) ≤ (1 - 1 / 2) * (μ * Fintype.card ι)} =
-      {b : ι → U | ∑ i, F (b i) ≤ μ * Fintype.card ι / 2} := by
+  rw [show {outcome : ι → U | ∑ i, F (outcome i) ≤ (1 - 1 / 2) * (μ * Fintype.card ι)} =
+      {b : ι → U | ∑ i, F (b i) ≤ μ * Fintype.card ι / 2} by
     ext b
     simp only [Set.mem_ofPred_eq]
-    constructor <;> intro h <;> linarith
-  rw [hev] at hch
-  refine (PMF.card_filter_pi_le_of_toOuterMeasure_le
-    (fun b : ι → U => ∑ i, F (b i) ≤ μ * Fintype.card ι / 2) hch).trans_eq ?_
-  congr 2
-  ring
+    exact ⟨fun h => by linarith, fun h => by linarith⟩] at hch
+  exact (PMF.card_filter_pi_le_of_toOuterMeasure_le
+    (fun b : ι → U => ∑ i, F (b i) ≤ μ * Fintype.card ι / 2) hch).trans_eq (by congr 2; ring)
 
 /-- **Planting a point**: summing over a point `x` and a tuple `r` with `x` written at coordinate
 `j` counts every tuple `b` once for each value `r j` it overwrote, with `x = b j`. -/
@@ -136,16 +131,14 @@ theorem sum_piecewise_eq_card_pow_nsmul_sum [DecidableEq ι] {M : Type*} [AddCom
       Fintype.card U ^ #P • ∑ y ∈ {y : ι → U | ∀ i ∈ P, y i = b₀ i}, H y := by
   classical
   rw [← sum_fiberwise_of_maps_to (s := univ) (t := {y : ι → U | ∀ i ∈ P, y i = b₀ i})
-    (g := fun r => P.piecewise b₀ r) (fun r _ => by
-      simpa using fun i hi => P.piecewise_eq_of_mem _ _ hi), smul_sum]
+    (g := fun r => P.piecewise b₀ r)
+    (fun r _ => by simpa using fun i hi => P.piecewise_eq_of_mem _ _ hi), smul_sum]
   refine sum_congr rfl fun y hy => ?_
-  have hy' : ∀ i ∈ P, y i = b₀ i := by simpa using hy
-  rw [sum_congr rfl fun r hr => by rw [(mem_filter.1 hr).2], sum_const]
-  congr 1
-  calc #{r : ι → U | P.piecewise b₀ r = y} = #{r : ι → U | ∀ i ∈ Pᶜ, r i = y i} :=
-        congrArg card <| filter_congr fun r _ => funext_iff.trans <| forall_congr' fun i => by
-          by_cases hi : i ∈ P <;> simp [hi, hy' i]
-    _ = Fintype.card U ^ #P := by rw [Fintype.card_filter_forall_mem_eq, compl_compl]
+  rw [sum_congr rfl fun r hr => by rw [(mem_filter.1 hr).2], sum_const,
+    show #{r : ι → U | P.piecewise b₀ r = y} = #{r : ι → U | ∀ i ∈ Pᶜ, r i = y i} from
+      congrArg card <| filter_congr fun r _ => funext_iff.trans <| forall_congr' fun i => by
+        by_cases hi : i ∈ P <;> simp [hi, (mem_filter.1 hy).2 i],
+    Fintype.card_filter_forall_mem_eq, compl_compl]
 
 /-- **Edges into a dense family**: if `F` takes values in `[0, 1]` and has mean at least `μ`, the
 entries of the tuples in any family `W` carry total weight at least
@@ -156,29 +149,23 @@ theorem sub_mul_le_two_mul_sum_sum [Nonempty U] (F : U → ℝ)
     ((#W : ℝ) - Fintype.card U ^ Fintype.card ι * Real.exp (-(μ * Fintype.card ι / 8))) *
         (μ * Fintype.card ι) ≤ 2 * ∑ b ∈ W, ∑ i, F (b i) := by
   classical
-  set t : ℝ := μ * Fintype.card ι with ht
+  set t : ℝ := μ * Fintype.card ι
   have ht0 : 0 ≤ t := by positivity
   set bad := W.filter fun b => ∑ i, F (b i) ≤ t / 2
-  have hbad : (#bad : ℝ) ≤ Fintype.card U ^ Fintype.card ι * Real.exp (-(t / 8)) := by
-    refine le_trans ?_ (card_filter_sum_le_half_le_exp F hF hμ)
-    exact_mod_cast card_le_card fun b hb => by
-      simp only [bad, mem_filter] at hb
-      simpa using hb.2
+  have hbad : (#bad : ℝ) ≤ Fintype.card U ^ Fintype.card ι * Real.exp (-(t / 8)) :=
+    le_trans (by exact_mod_cast card_le_card fun b hb => by simpa using (mem_filter.1 hb).2)
+      (card_filter_sum_le_half_le_exp F hF hμ)
+  have hcard : (#W : ℝ) - #bad = #(W.filter fun b => ¬∑ i, F (b i) ≤ t / 2) := by
+    rw [← card_filter_add_card_filter_not (s := W) (p := fun b => ∑ i, F (b i) ≤ t / 2)]
+    push_cast; ring
+  have hlow : (#(W.filter fun b => ¬∑ i, F (b i) ≤ t / 2) : ℝ) * (t / 2) ≤
+      ∑ b ∈ W.filter (fun b => ¬∑ i, F (b i) ≤ t / 2), ∑ i, F (b i) := by
+    simpa only [nsmul_eq_mul] using card_nsmul_le_sum
+      (W.filter fun b => ¬∑ i, F (b i) ≤ t / 2) (fun b => ∑ i, F (b i)) (t / 2)
+      fun b hb => (not_le.1 (mem_filter.1 hb).2).le
   have hgood : ((#W : ℝ) - #bad) * (t / 2) ≤ ∑ b ∈ W, ∑ i, F (b i) := by
-    rw [← sum_filter_add_sum_filter_not W fun b => ∑ i, F (b i) ≤ t / 2]
-    have hnn : 0 ≤ ∑ b ∈ W.filter (fun b => ∑ i, F (b i) ≤ t / 2), ∑ i, F (b i) :=
-      sum_nonneg fun b _ => sum_nonneg fun i _ => (hF _).1
-    have hcard : (#W : ℝ) - #bad = #(W.filter fun b => ¬∑ i, F (b i) ≤ t / 2) := by
-      rw [← card_filter_add_card_filter_not (s := W) (p := fun b => ∑ i, F (b i) ≤ t / 2)]
-      push_cast
-      ring
-    have hlow : (#(W.filter fun b => ¬∑ i, F (b i) ≤ t / 2) : ℝ) * (t / 2) ≤
-        ∑ b ∈ W.filter (fun b => ¬∑ i, F (b i) ≤ t / 2), ∑ i, F (b i) := by
-      have h := card_nsmul_le_sum (W.filter fun b => ¬∑ i, F (b i) ≤ t / 2)
-        (fun b => ∑ i, F (b i)) (t / 2) fun b hb => (not_le.1 (mem_filter.1 hb).2).le
-      simpa only [nsmul_eq_mul] using h
-    rw [hcard]
-    linarith
+    rw [hcard, ← sum_filter_add_sum_filter_not W fun b => ∑ i, F (b i) ≤ t / 2]
+    linarith [sum_nonneg (s := bad) fun b _ => sum_nonneg (s := univ) fun i _ => (hF (b i)).1]
   nlinarith
 
 /-- **Edges into a dense slice**: for a family `S` of tuples that agree on `P`, the entries
@@ -191,18 +178,14 @@ theorem sub_mul_le_two_mul_sum_sum_compl [DecidableEq ι] [Nonempty U] (F : U �
       2 * ∑ y ∈ S, ∑ j ∈ Pᶜ, F (y j) := by
   classical
   let ρ : (ι → U) → ({i // i ∈ Pᶜ} → U) := fun y i => y i
-  have hinj : Set.InjOn ρ S := by
-    intro y hy z hz h
-    funext i
+  have hinj : Set.InjOn ρ S := fun y hy z hz h => funext fun i => by
     by_cases hi : i ∈ P
     · rw [hS y hy i hi, hS z hz i hi]
     · exact congrFun h ⟨i, mem_compl.2 hi⟩
   have h := sub_mul_le_two_mul_sum_sum (ι := {i // i ∈ Pᶜ}) F hF hμ0 hμ (S.image ρ)
   rw [card_image_of_injOn hinj, sum_image hinj, Fintype.card_coe] at h
-  refine h.trans_eq ?_
-  congr 1
-  refine sum_congr rfl fun y _ => ?_
-  exact sum_coe_sort Pᶜ fun j => F (y j)
+  exact h.trans_eq
+    (congrArg (2 * ·) (sum_congr rfl fun y _ => sum_coe_sort Pᶜ fun j => F (y j)))
 
 omit [Fintype ι] in
 /-- **Regrouping by points**: summing `F` over the entries at positions `s` of the tuples in `W` is

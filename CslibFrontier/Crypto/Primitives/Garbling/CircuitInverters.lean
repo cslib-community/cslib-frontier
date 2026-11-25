@@ -198,13 +198,10 @@ def wires (f : ConventionalCircuit) (x : List Bool) : ℕ → List Bool
 theorem length_wires (f : ConventionalCircuit) (x : List Bool) {s : ℕ} (hs : s ≤ f.q) :
     (f.wires x s).length = f.n + s := by
   induction s with
-  | zero =>
-    simp [wires]
-    omega
+  | zero => simp [wires]; omega
   | succ s ih =>
     have hsq : s < f.q := Nat.lt_of_succ_le hs
-    rw [wires, dite_eq_left hsq, List.length_append, ih (Nat.le_of_lt hsq)]
-    simp [Nat.add_assoc]
+    simp [wires, hsq, ih hsq.le, Nat.add_assoc]
 
 /-- Plaintext evaluation `ev_circ(f, x)` of a conventional circuit ([BellareHoangRogaway2012],
 Section 2.3): evaluate all `q` gates and return the values on the final `m` output wires. -/
@@ -284,19 +281,16 @@ def phiCirc : SideInfo ValidCircuit ValidCircuit where
   size f := f.1.q
 
 theorem phiTopo_compatible {G : Scheme ValidCircuit} (hG : G.IsCircuitScheme) :
-    phiTopo.Compatible G := fun f => by
-  obtain ⟨h1, h2, h3⟩ := hG.1 f
-  exact ⟨h1.symm, h2.symm, h3.symm⟩
+    phiTopo.Compatible G := fun f =>
+  let ⟨h1, h2, h3⟩ := hG.1 f; ⟨h1.symm, h2.symm, h3.symm⟩
 
 theorem phiSize_compatible {G : Scheme ValidCircuit} (hG : G.IsCircuitScheme) :
-    phiSize.Compatible G := fun f => by
-  obtain ⟨h1, h2, h3⟩ := hG.1 f
-  exact ⟨h1.symm, h2.symm, h3.symm⟩
+    phiSize.Compatible G := fun f =>
+  let ⟨h1, h2, h3⟩ := hG.1 f; ⟨h1.symm, h2.symm, h3.symm⟩
 
 theorem phiCirc_compatible {G : Scheme ValidCircuit} (hG : G.IsCircuitScheme) :
-    phiCirc.Compatible G := fun f => by
-  obtain ⟨h1, h2, h3⟩ := hG.1 f
-  exact ⟨h1.symm, h2.symm, h3.symm⟩
+    phiCirc.Compatible G := fun f =>
+  let ⟨h1, h2, h3⟩ := hG.1 f; ⟨h1.symm, h2.symm, h3.symm⟩
 
 /-! ## Explicit side-information inverters -/
 
@@ -365,13 +359,11 @@ theorem wires_ofTopo_const (t : Topo) (c : Fin t.q → Bool) (x : List Bool) (hx
     (ofTopo t (fun i _ _ => c i)).wires x s =
       x ++ List.ofFn (fun i : Fin s => c ⟨i.val, Nat.lt_of_lt_of_le i.isLt hs⟩) := by
   induction s with
-  | zero =>
-    simp [ConventionalCircuit.wires, ofTopo, hx, List.take_of_length_le (le_of_eq hx)]
+  | zero => simp [ConventionalCircuit.wires, ofTopo, hx, List.take_of_length_le hx.le]
   | succ s ih =>
     have hsq : s < (ofTopo t (fun i _ _ => c i)).q := Nat.lt_of_succ_le hs
-    rw [ConventionalCircuit.wires, dite_eq_left hsq, ih (Nat.le_of_lt hsq)]
-    rw [List.append_assoc, List.ofFn_succ' (f := fun i : Fin (s + 1) =>
-      c ⟨i.val, Nat.lt_of_lt_of_le i.isLt hs⟩)]
+    rw [ConventionalCircuit.wires, dite_eq_left hsq, ih hsq.le, List.append_assoc,
+      List.ofFn_succ' (f := fun i : Fin (s + 1) => c ⟨i.val, i.isLt.trans_le hs⟩)]
     simp [List.concat_eq_append, ofTopo]
 
 /-- Because `mTopoGates t y` ignores gate wire inputs, `(ofTopo t (mTopoGates t y)).evalCirc x = y`
@@ -380,19 +372,15 @@ theorem evalCirc_ofTopo_mTopoGates_any (t : Topo) (hm : t.m ≤ t.q) (y x : List
     (hy : y.length = t.m) (hx : x.length = t.n) :
     (ofTopo t (mTopoGates t y)).evalCirc x = y := by
   unfold ConventionalCircuit.evalCirc
-  have hw := wires_ofTopo_const t (fun i => mTopoGates t y i false false) x hx t.q le_rfl
   change ((ofTopo t (fun i _ _ => mTopoGates t y i false false)).wires x t.q).drop
     (t.n + t.q - t.m) = y
-  rw [hw]
-  apply List.ext_getElem
-  · simp [hy, hx]
-    omega
-  · intro j h1 h2
-    rw [List.getElem_drop, List.getElem_append_right (by simp [hx]; omega)]
-    simp only [hx, List.getElem_ofFn, mTopoGates]
-    have hgt : ¬ (t.n + 1 + (t.n + t.q - t.m + j - t.n) ≤ t.n + t.q - t.m) := by omega
-    have hidx : t.n + 1 + (t.n + t.q - t.m + j - t.n) - (t.n + t.q - t.m) - 1 = j := by omega
-    simp only [hgt, ↓reduceIte, hidx, List.getElem?_eq_getElem h2, Option.getD_some]
+  rw [wires_ofTopo_const t _ x hx t.q le_rfl]
+  refine List.ext_getElem (by simp [hy, hx]; omega) fun j h1 h2 => ?_
+  rw [List.getElem_drop, List.getElem_append_right (by simp [hx]; omega)]
+  simp only [hx, List.getElem_ofFn, mTopoGates,
+    show ¬ (t.n + 1 + (t.n + t.q - t.m + j - t.n) ≤ t.n + t.q - t.m) by omega, ↓reduceIte,
+    show t.n + 1 + (t.n + t.q - t.m + j - t.n) - (t.n + t.q - t.m) - 1 = j by omega,
+    List.getElem?_eq_getElem h2, Option.getD_some]
 
 /-- Evaluating `ofTopo t (mTopoGates t y)` on `0^n` returns `y` whenever `t.m ≤ t.q` and
 `y.length = t.m`. -/
@@ -404,26 +392,19 @@ theorem evalCirc_ofTopo_mTopoGates (t : Topo) (hm : t.m ≤ t.q) (y : List Bool)
 /-- `mTopo` is a `(Φ_topo, ev)`-inverter for every circuit garbling scheme (proof of
 [BellareHoangRogaway2012], Section 4.1, Proposition 1; its running time is not bounded, #5293). -/
 theorem phiTopo_isEvInverter {G : Scheme ValidCircuit} (hG : G.IsCircuitScheme) :
-    phiTopo.IsEvInverter G mTopo := by
-  intro f x _
-  refine ⟨rfl, ?_, ?_⟩
-  · rw [(hG.1 _).1]
-    exact List.length_replicate
-  · rw [hG.2, hG.2]
-    exact evalCirc_ofTopo_mTopoGates f.1.topo f.2.m_le_q (f.1.evalCirc x)
-      (f.1.length_evalCirc x f.2.m_le_q)
+    phiTopo.IsEvInverter G mTopo := fun f x _ =>
+  ⟨rfl, by rw [(hG.1 _).1]; exact List.length_replicate, by
+    rw [hG.2, hG.2]
+    exact evalCirc_ofTopo_mTopoGates f.1.topo f.2.m_le_q _ (f.1.length_evalCirc x f.2.m_le_q)⟩
 
 /-- `mSize` is a `(Φ_size, ev)`-inverter for every circuit garbling scheme (proof of
 [BellareHoangRogaway2012], Section 4.1, Proposition 1; its running time is not bounded, #5293). -/
 theorem phiSize_isEvInverter {G : Scheme ValidCircuit} (hG : G.IsCircuitScheme) :
-    phiSize.IsEvInverter G mSize := by
-  intro f x _
-  refine ⟨rfl, ?_, ?_⟩
-  · rw [(hG.1 _).1]
-    exact List.length_replicate
-  · rw [hG.2, hG.2]
-    exact evalCirc_ofTopo_mTopoGates (sizeTopo (phiSize.phi f)) f.2.m_le_q (f.1.evalCirc x)
-      (f.1.length_evalCirc x f.2.m_le_q)
+    phiSize.IsEvInverter G mSize := fun f x _ =>
+  ⟨rfl, by rw [(hG.1 _).1]; exact List.length_replicate, by
+    rw [hG.2, hG.2]
+    exact evalCirc_ofTopo_mTopoGates (sizeTopo (phiSize.phi f)) f.2.m_le_q _
+      (f.1.length_evalCirc x f.2.m_le_q)⟩
 
 /-! ## Indistinguishability and simulation advantages for circuit side information -/
 
