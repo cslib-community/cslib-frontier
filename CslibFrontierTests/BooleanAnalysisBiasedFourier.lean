@@ -73,10 +73,15 @@ example : 3 * biasedBasis (1 / 4) false ^ 2 + biasedBasis (1 / 4) true ^ 2 = 4 :
   norm_num at h
   linarith
 
-/-- Disagreeing bits at rate `1/4`: `π(true) (1 + φ(false) φ(true)) = 0`. -/
+/-- Disagreeing bits at rate `1/4`: on a one-bit cube the point indicator at `true`, evaluated at
+`false`, is `π(true) (1 + φ(false) φ(true)) = 0`. -/
 example : (1 / 4 : ℝ) * (1 + biasedBasis (1 / 4) false * biasedBasis (1 / 4) true) = 0 := by
-  simpa using ite_mul_one_add_biasedBasis_mul_biasedBasis (p := 1 / 4) (by norm_num) (by norm_num)
-    false true
+  have h := bernoulliWeight_mul_sum_biasedChi_mul_biasedChi (p := 1 / 4) (by norm_num)
+    (by norm_num) (fun _ : Fin 1 => false) (fun _ => true)
+  have hU : (univ : Finset (Finset (Fin 1))) = {∅, {0}} := by decide
+  have hne : (fun _ : Fin 1 => false) ≠ fun _ => true := fun he => by simpa using congrFun he 0
+  rw [hU, sum_pair (by decide)] at h
+  simpa [bernoulliWeight, biasedChi, hne] using h
 
 /-- The biased character of both coordinates at the all-`true` string, at rate `1/4`, is
 `(-√3)² = 3`. -/

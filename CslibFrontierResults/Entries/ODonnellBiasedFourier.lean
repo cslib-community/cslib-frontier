@@ -33,7 +33,8 @@ register_result "odonnell-p-biased-fourier-expansion" where
     p; true is the source's −1, so φ(false) = √(p/(1 − p)) is the source's φ(1). The characters \
     φ_S(x) = Π_{i ∈ S} φ(x i) are orthonormal and f = Σ_S f̂(S) φ_S with f̂(S) = E_p[f φ_S]. \
     The expansion is obtained from the point-indicator identity \
-    1[x = y] = π_p(y) Σ_S φ_S(x) φ_S(y) rather than from the source's dimension count."
+    1[x = y] = bernoulliWeight p y · Σ_S φ_S(x) φ_S(y), where bernoulliWeight p y = Π_i π_p(y i) \
+    is the product mass at y, rather than from the source's dimension count."
 
 register_result "odonnell-p-biased-parseval-plancherel" where
   title := "Mean, Parseval, variance, Plancherel and covariance in the p-biased Fourier basis"

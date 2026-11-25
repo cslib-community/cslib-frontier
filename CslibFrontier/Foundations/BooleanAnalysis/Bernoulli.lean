@@ -50,7 +50,9 @@ power `h` (`bernoulliAverage_lowerSet_pow_le`). This transference principle appe
 ## Main results
 
 * `Cslib.BitString.bernoulliAverage_prod`: the coordinates of a random mask are independent.
-* `Cslib.BitString.bernoulliAverage_eq_bernoulliAverage_update`: conditioning on one coordinate.
+* `Cslib.BitString.bernoulliAverage_eq_bernoulliAverage_update`: conditioning on one coordinate,
+  an instance of `Cslib.BitString.sum_prod_erase_mul_ite_mul_eq_bernoulliAverage`, which reweights
+  one coordinate.
 * `Cslib.BitString.bernoulliAverage_sub_bernoulliAverage_mul_sub_bernoulliAverage`,
   `Cslib.BitString.bernoulliAverage_sub_bernoulliAverage_sq`: covariance and variance as
   `𝔼[f g] - 𝔼[f] 𝔼[g]` and `𝔼[f²] - 𝔼[f]²`.
@@ -333,29 +335,40 @@ theorem bernoulliAverage_one_sub (p : ℝ) (f : (ι → Bool) → ℝ) :
   change (if s i then p else 1 - p) = if !s i then 1 - p else 1 - (1 - p)
   cases s i <;> simp
 
+/-- **Reweighting one coordinate**: weighting `g` by the mass `∏_{j ≠ i} π_q(x j)` of the
+coordinates other than `i`, and by `a` or `b` according as bit `i` is `false` or `true`, gives the
+`q`-biased expectation of `a g(x^{i ↦ false}) + b g(x^{i ↦ true})`, for every `q`, `a` and `b`.
+With `a = 1 - q` and `b = q` the left side is the expectation of `g`
+(`bernoulliAverage_eq_bernoulliAverage_update`); with `a = -1` and `b = 1` it is the term of bit `i`
+in the derivative in `q` of that expectation (`hasDerivAt_bernoulliAverage` of
+`CslibFrontier.Foundations.BooleanAnalysis.MargulisRusso`). -/
+theorem sum_prod_erase_mul_ite_mul_eq_bernoulliAverage (q a b : ℝ) (i : ι)
+    (g : (ι → Bool) → ℝ) :
+    ∑ x, (∏ j ∈ univ.erase i, if x j then q else 1 - q) * (if x i then b else a) * g x =
+      bernoulliAverage q fun x =>
+        a * g (Function.update x i false) + b * g (Function.update x i true) := by
+  have hR (x : ι → Bool) (β : Bool) :
+      ∏ j ∈ univ.erase i, (if Function.update x i β j then q else 1 - q) =
+        ∏ j ∈ univ.erase i, if x j then q else 1 - q :=
+    prod_congr rfl fun j hj => by rw [Function.update_of_ne (ne_of_mem_erase hj)]
+  have hW (x : ι → Bool) : bernoulliWeight q x =
+      (if x i then q else 1 - q) * ∏ j ∈ univ.erase i, if x j then q else 1 - q :=
+    (mul_prod_erase univ _ (mem_univ i)).symm
+  refine mul_left_cancel₀ (two_ne_zero (α := ℝ)) ?_
+  rw [two_mul, two_mul, bernoulliAverage, ← sum_update_false_add_update_true i,
+    ← sum_update_false_add_update_true i]
+  refine sum_congr rfl fun x _ => ?_
+  simp only [hW, hR, Function.update_self, Function.update_idem, Bool.false_eq_true, ite_false,
+    ite_true]
+  ring
+
 /-- **Conditioning on one coordinate**: the expectation of `g` is the expectation of its average
 over bit `i`, which is `false` with probability `1 - p` and `true` with probability `p`. -/
 theorem bernoulliAverage_eq_bernoulliAverage_update (p : ℝ) (i : ι) (g : (ι → Bool) → ℝ) :
     bernoulliAverage p g = bernoulliAverage p fun x =>
       (1 - p) * g (Function.update x i false) + p * g (Function.update x i true) := by
-  set c : (ι → Bool) → ℝ := fun x => ∏ j ∈ univ.erase i, if x j then p else 1 - p
-  have hW (x : ι → Bool) (b : Bool) :
-      bernoulliWeight p (Function.update x i b) = (if b then p else 1 - p) * c x := by
-    rw [bernoulliWeight, ← mul_prod_erase univ _ (mem_univ i), Function.update_self]
-    exact congrArg _ (prod_congr rfl fun j hj => by
-      rw [Function.update_of_ne (ne_of_mem_erase hj)])
-  have e₁ := sum_update_false_add_update_true i (fun x => bernoulliWeight p x * g x)
-  have e₂ := sum_update_false_add_update_true i (fun x => bernoulliWeight p x *
-    ((1 - p) * g (Function.update x i false) + p * g (Function.update x i true)))
-  simp only [hW, Function.update_idem, Bool.false_eq_true, ite_false, ite_true] at e₁ e₂
-  have h : ∑ x, ((1 - p) * c x * g (Function.update x i false) +
-      p * c x * g (Function.update x i true)) =
-      ∑ x, ((1 - p) * c x * ((1 - p) * g (Function.update x i false) +
-        p * g (Function.update x i true)) + p * c x * ((1 - p) * g (Function.update x i false) +
-          p * g (Function.update x i true))) :=
-    sum_congr rfl fun x _ => by ring
-  rw [bernoulliAverage, bernoulliAverage]
-  linarith
+  rw [← sum_prod_erase_mul_ite_mul_eq_bernoulliAverage p (1 - p) p i g, bernoulliAverage]
+  exact sum_congr rfl fun x _ => by rw [bernoulliWeight, ← prod_erase_mul univ _ (mem_univ i)]
 
 /-- A coordinate is selected with probability `p`. -/
 theorem bernoulliAverage_coordinate (p : ℝ) (i : ι) :

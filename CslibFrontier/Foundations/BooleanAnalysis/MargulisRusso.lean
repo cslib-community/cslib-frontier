@@ -73,10 +73,10 @@ The bit-string helpers of `CslibFrontier.Foundations.Data.BitString.Flip` connec
 naming a pivotal coordinate: `BitString.exists_update_ne_of_nonconstant` finds `x` and `i` with
 `f (Function.update x i (!x i)) ≠ f x`, and
 `BitString.apply_update_false_eq_apply_update_true_iff` converts that form into the
-`false`/`true` form used here. `BitString.sum_update_false_add_update_true` pairs every vector
-with its flip at `i` in any additive commutative monoid, which is how the bit weights are
-regrouped in the proof; `BitString.bernoulliWeight_pos` gives positive mask weights for
-`0 < p < 1`.
+`false`/`true` form used here. The proof regroups the derivative of the bit weights by
+`BitString.sum_prod_erase_mul_ite_mul_eq_bernoulliAverage` of
+`CslibFrontier.Foundations.BooleanAnalysis.Bernoulli`, which pairs every vector with its flip at
+`i`; `BitString.bernoulliWeight_pos` gives positive mask weights for `0 < p < 1`.
 
 Checked clients differentiate the product of two bits (slope `2p`), a dictator (slope `1`, also
 in the influence form) and the dictator read as a sign (slope `-2` in `p`, in the derivative form,
@@ -121,49 +121,21 @@ theorem hasDerivAt_bernoulliAverage (h : (ι → Bool) → ℝ) (p : ℝ) :
     HasDerivAt (fun q => bernoulliAverage q h)
       (∑ i, bernoulliAverage p fun x =>
         h (Function.update x i true) - h (Function.update x i false)) p := by
-  set w : ι → (ι → Bool) → ℝ → ℝ := fun j s q => if s j = true then q else 1 - q
   have hw (j : ι) (s : ι → Bool) :
-      HasDerivAt (w j s) (if s j = true then 1 else -1) p := by
+      HasDerivAt (fun q : ℝ => if s j then q else 1 - q) (if s j then 1 else -1) p := by
     by_cases hj : s j = true
-    · simpa [w, hj] using hasDerivAt_id' p
-    · simpa [w, hj] using (hasDerivAt_id p).const_sub 1
+    · simpa [hj] using hasDerivAt_id' p
+    · simpa [hj] using (hasDerivAt_id p).const_sub 1
   have hsum := HasDerivAt.fun_sum (u := univ) fun s _ =>
     (HasDerivAt.fun_finsetProd (u := univ) fun j _ => hw j s).mul_const (h s)
   refine hsum.congr_deriv ?_
   -- the derivative, regrouped by coordinate
-  have hW (t : ι → Bool) (i : ι) :
-      bernoulliWeight p t = w i t p * ∏ j ∈ univ.erase i, w j t p :=
-    (mul_prod_erase univ (fun j => w j t p) (mem_univ i)).symm
-  have hR (i : ι) (s : ι → Bool) (b : Bool) :
-      ∏ j ∈ univ.erase i, w j (Function.update s i b) p = ∏ j ∈ univ.erase i, w j s p :=
-    prod_congr rfl fun j hj => by simp [w, Function.update_of_ne (ne_of_mem_erase hj)]
-  have key (i : ι) : ∑ s, (∏ j ∈ univ.erase i, w j s p) * (if s i = true then 1 else -1) * h s =
-      bernoulliAverage p fun x => h (Function.update x i true) - h (Function.update x i false) := by
-    have e₁ := sum_update_false_add_update_true i
-      fun s => (∏ j ∈ univ.erase i, w j s p) * (if s i = true then 1 else -1) * h s
-    have e₂ := sum_update_false_add_update_true i fun s => bernoulliWeight p s *
-      (h (Function.update s i true) - h (Function.update s i false))
-    have hpt (x : ι → Bool) :
-        (∏ j ∈ univ.erase i, w j (Function.update x i false) p) *
-            (if Function.update x i false i = true then 1 else -1) *
-            h (Function.update x i false) +
-          (∏ j ∈ univ.erase i, w j (Function.update x i true) p) *
-            (if Function.update x i true i = true then 1 else -1) *
-            h (Function.update x i true) =
-        bernoulliWeight p (Function.update x i false) *
-            (h (Function.update (Function.update x i false) i true) -
-              h (Function.update (Function.update x i false) i false)) +
-          bernoulliWeight p (Function.update x i true) *
-            (h (Function.update (Function.update x i true) i true) -
-              h (Function.update (Function.update x i true) i false)) := by
-      simp only [hW _ i, hR, Function.update_idem, Function.update_self, w]
-      simp only [Bool.false_eq_true, ite_false, ite_true]
-      ring
-    simp only [hpt] at e₁
-    rw [bernoulliAverage]
-    linear_combination e₂ / 2 - e₁ / 2
-  simp only [smul_eq_mul, sum_mul, ← key]
-  exact sum_comm
+  simp only [smul_eq_mul, sum_mul]
+  rw [sum_comm]
+  refine sum_congr rfl fun i _ => ?_
+  rw [sum_prod_erase_mul_ite_mul_eq_bernoulliAverage]
+  congr 1 with x
+  ring
 
 /-- The derivative in `p` of the `p`-biased expectation of `h` is `-2 ∑ᵢ 𝔼_p[Dᵢ h]`. With
 `μ = 1 - 2p`, this is the step `d/dμ 𝔼[h^{(p)}] = ∑ᵢ 𝔼[D_{x_i} h^{(p)}]` of the proof of (8.8)

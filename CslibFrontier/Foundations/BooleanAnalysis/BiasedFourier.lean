@@ -26,7 +26,8 @@ For `0 < p < 1` a bit's `φ` has mean `0` and second moment `1`, so the biased c
 orthonormal under the `p`-biased distribution
 (`BitString.bernoulliAverage_biasedChi_mul_biasedChi`).
 The indicator of agreeing with `y` in one bit is `π_p(yᵢ) (1 + φ(xᵢ) φ(yᵢ))`, so the indicator of
-the point `y` is `π_p(y) ∑_S φ_S(x) φ_S(y)`, which gives the **biased Fourier expansion**
+the point `y` is `bernoulliWeight p y ∑_S φ_S(x) φ_S(y)`, with `bernoulliWeight p y = ∏ᵢ π_p(yᵢ)`
+the product mass at `y`, which gives the **biased Fourier expansion**
 `f = ∑_S f̂(S) φ_S` (`BitString.sum_biasedFourierCoeff_mul_biasedChi`) and **Plancherel's
 identity** `𝔼_p[f g] = ∑_S f̂(S) ĝ(S)`
 (`BitString.bernoulliAverage_mul_eq_sum_biasedFourierCoeff_mul`).
@@ -165,7 +166,8 @@ theorem biasedBasis_sq_mean (hp : 0 < p) (hp1 : p < 1) :
   ring
 
 /-- The indicator of agreeing with `c` in one bit is `π_p(c) (1 + φ(b) φ(c))`. -/
-theorem ite_mul_one_add_biasedBasis_mul_biasedBasis (hp : 0 < p) (hp1 : p < 1) (b c : Bool) :
+private theorem ite_mul_one_add_biasedBasis_mul_biasedBasis (hp : 0 < p) (hp1 : p < 1)
+    (b c : Bool) :
     (if c then p else 1 - p) * (1 + biasedBasis p b * biasedBasis p c) =
       if b = c then (1 : ℝ) else 0 := by
   have hσ := biasedStd_ne_zero hp hp1
@@ -258,7 +260,8 @@ theorem bernoulliAverage_biasedChi_mul_biasedChi (hp : 0 < p) (hp1 : p < 1) (S T
     by_cases hS : i ∈ S <;> simpa [hS, ← not_iff.1 hi] using biasedBasis_mean p
 
 omit [DecidableEq ι] in
-/-- The indicator of the point `y` is `π_p(y) ∑_S φ_S(x) φ_S(y)`. -/
+/-- The indicator of the point `y` is `bernoulliWeight p y ∑_S φ_S(x) φ_S(y)`, where
+`bernoulliWeight p y = ∏ᵢ π_p(yᵢ)` is the product mass at `y`. -/
 theorem bernoulliWeight_mul_sum_biasedChi_mul_biasedChi (hp : 0 < p) (hp1 : p < 1)
     (x y : ι → Bool) :
     bernoulliWeight p y * ∑ S, biasedChi p S x * biasedChi p S y =
