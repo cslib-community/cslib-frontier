@@ -392,11 +392,10 @@ theorem totalTreeBits_le_padded_infoBits_add
   set Q_up := (P.paddedUniv + P.cap - 1) / P.cap
   set q_base := Nat.clog 2 Q_up
   have hcap1 : 1 ≤ P.cap := by have := P.two_le_cap; omega
-  have htot := P.total_value_slots_eq_cap
-  have hnL_le : n_L ≤ P.cap := by omega
+  have hnL_le : n_L ≤ P.cap := by have := P.total_value_slots_eq_cap; omega
   have hd_eq :
       (∑ ℓ ∈ Finset.Ico 2 P.depth, P.numNodes ℓ * P.tableCap ℓ) + P.rootValPoolCap = d := by
-    omega
+    have := P.total_value_slots_eq_cap; omega
   have hquot_le : ∀ ℓ, 1 ≤ ℓ → ℓ < P.depth →
       Nat.clog 2 (P.quotUniv ℓ) ≤ q_base + Nat.clog 2 (2 * (P.nFloor ℓ + 1)) := by
     intro ℓ h1 hlt
@@ -410,7 +409,7 @@ theorem totalTreeBits_le_padded_infoBits_add
       omega
     have hQ_le : P.quotUniv ℓ ≤ Q_up * (P.nFloor ℓ + 1) :=
       Nat.le_of_mul_le_mul_left (by
-        nlinarith [Nat.mul_le_mul_right (P.quotUniv ℓ) (hdiv ℓ h1 hlt),
+        linarith [Nat.mul_le_mul_right (P.quotUniv ℓ) (hdiv ℓ h1 hlt),
           Nat.mul_le_mul_right (P.nFloor ℓ + 1) hNQ,
           Nat.mul_le_mul_right (P.nFloor ℓ + 1) hQup_cov]) hcap1
     refine Nat.clog_le_of_le_pow ?_
