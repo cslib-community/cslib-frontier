@@ -113,10 +113,6 @@ theorem emission_readback {n : ℕ} (published : Bool) (x : Data 128) (e : Entry
   have hL : NodePacking.layout ((nodeState b).comap kernel) = recordLayout x M := by
     rw [nodeState_layout, hb selected (by decide), hus]
     exact recordLayout_congr x b M fun i hi hne => hbp i hi hne
-  have htableb (hp : published = true) :
-      b.regs outputs + b.regs outputCount < b.regs heap := by
-    rw [hbp outputs, hbp outputCount, hbp heap]
-    exact htable hp
   have houtb : NodePacking.Output (NodePacking.layout ((nodeState b).comap kernel))
       e.read u.mem b.mem := by simpa only [hL] using hout
   have hd : NodePacking.Output (recordLayout x M) e.read
@@ -126,13 +122,14 @@ theorem emission_readback {n : ℕ} (published : Bool) (x : Data 128) (e : Entry
     cases published with
     | false =>
       change NodePacking.Output (recordLayout x M) e.read u.mem (localDeliveryState b).mem
-      rw [localDeliveryState_mem]
-      exact hout
+      exact (localDeliveryState_mem b).symm ▸ hout
     | true =>
       change NodePacking.Output (recordLayout x M) e.read
         (Function.update u.mem (b.regs outputs + b.regs outputCount) (recordLayout x M).packed)
         (deliveryState b).mem
-      simpa only [hL] using delivery_output b e.read u.mem houtb (htableb rfl)
+      have htb : b.regs outputs + b.regs outputCount < b.regs heap := by
+        simpa only [hbp outputs, hbp outputCount, hbp heap] using htable rfl
+      simpa only [hL] using delivery_output b e.read u.mem houtb htb
   have hMexact : M = (e.task.node (Nat.primesLE (x.regs limit)) (x.regs digits)).M := by
     simpa only [hl.2.2, e.image_read, Math.Task.node, Entry.task] using hM
   have hnodeExact : NodePacking.node (recordLayout x M) e.read =
@@ -146,11 +143,9 @@ theorem emission_readback {n : ℕ} (published : Bool) (x : Data 128) (e : Entry
       Cslib.Algorithms.ThreeSum.ChanHe.heavy (e.task.sets j) M := by
     simpa only [recordLayout, hl.2.2, e.image_read, Entry.task] using hsets j
   have hlen (j : Fin 3) : (zs j).length ≤ (e.data j).length := by
-    have hh := Cslib.Algorithms.ThreeSum.ChanHe.heavy_subset (e.task.sets j) M
-    rw [← hsets' j] at hh
-    have hc := Finset.card_le_card hh
+    have hh := hsets' j ▸ Cslib.Algorithms.ThreeSum.ChanHe.heavy_subset (e.task.sets j) M
     simpa only [Entry.task, List.toFinset_card_of_nodup (hnd j),
-      List.toFinset_card_of_nodup (hv.1 j)] using hc
+      List.toFinset_card_of_nodup (hv.1 j)] using Finset.card_le_card hh
   refine ⟨⟨M, hMexact, hMpos, hMle, zs, hnd, hsets', hlen, ?_, ?_,
     fun j i => hdata j i.val i.isLt, ?_, ?_, ?_, ?_, b.mem,
     fun p hp => (hout.frame p (Or.inl hp)).trans (hprefix p hp), ?_, ?_⟩⟩
@@ -167,12 +162,8 @@ theorem emission_readback {n : ℕ} (published : Bool) (x : Data 128) (e : Entry
     simpa only [Block.read, recordLayout] using hp
   · rw [delivered_regs published b (deliveryState_packed b) (localDeliveryState_packed b), hL]
   · cases published with
-    | false =>
-      change (localDeliveryState b).regs outputCount = x.regs outputCount + 0
-      rw [localDeliveryState_count, hbp outputCount, Nat.add_zero]
-    | true =>
-      change (deliveryState b).regs outputCount = x.regs outputCount + 1
-      rw [deliveryState_count, hbp outputCount]
+    | false => exact (localDeliveryState_count b).trans (hbp outputCount)
+    | true => exact (deliveryState_count b).trans (congrArg (· + 1) (hbp outputCount))
   · rw [delivered_regs published b (deliveryState_heap b) (localDeliveryState_heap b), hL]
   · cases published with
     | false => exact localDeliveryState_mem b

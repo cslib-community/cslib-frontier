@@ -146,10 +146,7 @@ theorem existsUnique_polynomialRoot {d : ℕ} (hd : 1 ≤ d) :
   have hf_cont : ContinuousOn f (Set.Icc 1 ((d : ℝ) + 1)) :=
     (((continuous_const.add continuous_id).pow d).sub (continuous_id.pow (d + 1))).continuousOn
   have hf1 : 0 < f 1 := by
-    have h2 : (2 : ℝ) ^ 1 ≤ (2 : ℝ) ^ d := pow_le_pow_right₀ (by norm_num) hd
-    dsimp [f]
-    norm_num at h2 ⊢
-    linarith
+    simpa [f] using one_lt_pow₀ (by norm_num : (1 : ℝ) < 1 + 1) (Nat.ne_of_gt hd)
   have hfd : f ((d : ℝ) + 1) < 0 := by
     dsimp [f]
     rw [show 1 + ((d : ℝ) + 1) = (d : ℝ) + 2 by ring]
@@ -160,13 +157,9 @@ theorem existsUnique_polynomialRoot {d : ℕ} (hd : 1 ≤ d) :
   have hφ_eq : φ ^ (d + 1) = (1 + φ) ^ d := by dsimp [f] at hφ_zero; linarith
   refine ⟨φ, ⟨hφ_pos, hφ_eq⟩, fun y ⟨hy_pos, hy_eq⟩ => ?_⟩
   rcases lt_trichotomy y φ with hlt | rfl | hgt
-  · have h := pow_succ_mul_one_add_pow_lt (d := d) hy_pos hlt
-    rw [hy_eq, hφ_eq, mul_comm] at h
-    exact absurd h (lt_irrefl _)
+  · simpa [hy_eq, hφ_eq, mul_comm] using pow_succ_mul_one_add_pow_lt (d := d) hy_pos hlt
   · rfl
-  · have h := pow_succ_mul_one_add_pow_lt (d := d) hφ_pos hgt
-    rw [hφ_eq, hy_eq, mul_comm] at h
-    exact absurd h (lt_irrefl _)
+  · simpa [hφ_eq, hy_eq, mul_comm] using pow_succ_mul_one_add_pow_lt (d := d) hφ_pos hgt
 
 /-- Characteristic root `φ_d` of `φ ^ (d + 1) = (1 + φ) ^ d` for `d ≥ 1` (and `1` for `d = 0`). -/
 noncomputable def polynomialRoot (d : ℕ) : ℝ :=
@@ -287,9 +280,7 @@ theorem polynomialSmoothRatio_eq {d : ℕ} (hd : 1 ≤ d) :
     polynomialSmoothLam d / (1 - polynomialSmoothMu d) = polynomialRoot d ^ (d + 1) := by
   have hd0 : d ≠ 0 := by omega
   have hφ : 0 < polynomialRoot d := polynomialRoot_pos d
-  unfold polynomialSmoothLam polynomialSmoothMu
-  simp only [hd0, ↓reduceIte]
-  have hden1 : ((d : ℝ) + 1) * (1 + polynomialRoot d) ≠ 0 := by positivity
+  simp only [polynomialSmoothLam, polynomialSmoothMu, hd0, ↓reduceIte]
   have h1mu : 1 - (d : ℝ) * polynomialRoot d / (((d : ℝ) + 1) * (1 + polynomialRoot d)) =
       ((d : ℝ) + 1 + polynomialRoot d) / (((d : ℝ) + 1) * (1 + polynomialRoot d)) := by
     field_simp; ring
@@ -435,17 +426,11 @@ theorem mul_add_pow_le_polynomialSmooth {d : ℕ} (hd : 1 ≤ d) {x z : ℝ} (hx
       rw [mul_pow, pow_succ', ← heq]
     have h2 : (z + x) ^ (d + 1) = (x + z) ^ (d + 1) := by ring
     nlinarith
-  unfold polynomialSmoothLam polynomialSmoothMu
-  simp only [hd0, ↓reduceIte]
+  simp only [polynomialSmoothLam, polynomialSmoothMu, hd0, ↓reduceIte]
   have hden : 0 < ((d : ℝ) + 1) * (1 + φ) := by positivity
-  have hdiv : x * (z + x) ^ d ≤
-      (((d : ℝ) + 1 + φ) * φ ^ (d + 1) * x ^ (d + 1) + (d : ℝ) * φ * z ^ (d + 1)) /
-        (((d : ℝ) + 1) * (1 + φ)) :=
-    (le_div_iff₀ hden).2 hcomb
-  refine hdiv.trans_eq ?_
+  refine ((le_div_iff₀ hden).2 hcomb).trans_eq ?_
   dsimp [φ] at hden ⊢
-  have hden_ne : ((d : ℝ) + 1) * (1 + polynomialRoot d) ≠ 0 := hden.ne'
-  field_simp
+  field_simp [hden.ne']
 
 theorem nat_mul_add_one_pow_le_polynomialSmooth {j d : ℕ} (hjd : j ≤ d) (y z : ℕ) :
     (y : ℝ) * ((z : ℝ) + 1) ^ j ≤

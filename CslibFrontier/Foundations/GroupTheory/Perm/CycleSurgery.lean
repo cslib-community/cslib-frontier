@@ -268,20 +268,11 @@ theorem card_orbits_mul_swap (f : Perm α) (a b : α) (hab : a ≠ b) :
         exact (Perm.sameCycle_equiv_iff e f' f
           (fun z => by simp only [f', Equiv.permCongr_apply, Equiv.apply_symm_apply,
             Equiv.symm_symm]) (some a') (some b')).symm
-      have hconj : e.symm.permCongr (f * swap a b) =
-          f' * swap (some a') (some b') := by
-        ext z
-        simp only [Equiv.permCongr_apply, Perm.coe_mul, Function.comp_apply, f']
-        cases z with
-        | none => simp [e, swap_apply_of_ne_of_ne, hca, hcb]
-        | some z =>
-          by_cases hza : z = a'
-          · subst z; simp [e, a', b']
-          · by_cases hzb : z = b'
-            · subst z; simp [e, a', b']
-            · have hza' : (z : α) ≠ a := fun h => hza (Subtype.ext h)
-              have hzb' : (z : α) ≠ b := fun h => hzb (Subtype.ext h)
-              simp [e, swap_apply_of_ne_of_ne, hza, hzb, hza', hzb']
+      have ha' : e.symm a = some a' := e.symm_apply_eq.mpr (by simp [e, a'])
+      have hb' : e.symm b = some b' := e.symm_apply_eq.mpr (by simp [e, b'])
+      have hconj : e.symm.permCongr (f * swap a b) = f' * swap (some a') (some b') := by
+        rw [Equiv.permCongr_mul, Equiv.permCongr_def e.symm (swap a b),
+          Equiv.symm_trans_swap_trans, ha', hb']
       have hcf := card_orbits_removeNone_add f'
       have hcg := card_orbits_removeNone_add (f' * swap (some a') (some b'))
       have hfixed : (f' * swap (some a') (some b')) none = f' none := by

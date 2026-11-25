@@ -78,8 +78,7 @@ Formulas with at most this many clauses are counted by tensor contraction. -/
 private def guard (φ : CNF ℕ) : Bool := decide (φ.length ≤ threshold φ.numVars)
 
 private theorem computableInPolyTime_guard : ComputableInPolyTime guard encCNF encBool := by
-  unfold guard threshold
-  fun_prop
+  fun_prop [guard, threshold]
 
 /-! ### Arithmetic of the exponents -/
 
@@ -96,10 +95,8 @@ private theorem sqrt_log_le {n : ℕ} (hn : 1 ≤ n) : Nat.sqrt (Nat.log 2 (n + 
 
 /-- Below `16384` variables the threshold is at most `65536`. -/
 private theorem threshold_le_of_lt {n : ℕ} (hn : n < 16384) : threshold n ≤ 65536 := by
-  have h14 : Nat.clog 2 n ≤ 14 :=
-    Nat.clog_le_of_le_pow (by norm_num; omega)
-  have h4 : Nat.clog 2 (Nat.clog 2 n) ≤ 4 :=
-    Nat.clog_le_of_le_pow (by norm_num; omega)
+  have h14 : Nat.clog 2 n ≤ 14 := Nat.clog_le_of_le_pow (by omega)
+  have h4 : Nat.clog 2 (Nat.clog 2 n) ≤ 4 := Nat.clog_le_of_le_pow (by omega)
   unfold threshold
   nlinarith
 
@@ -281,9 +278,7 @@ theorem exists_modelCounter (k : ℕ) :
     fun φ hφ => ?_, (hd.inO.ite hc₁ hc₂).mono 2 (fun φ => ?_) (fun φ => ?_), fun _ => rfl,
     fun φ => ?_, fun φ hφ => ?_, fun D => ?_⟩
   · -- correctness: both branches count models
-    dsimp only
-    split
-    exacts [hcount₁ φ hφ, hcount₂ φ hφ]
+    by_cases hg : guard φ <;> simp [hg, hcount₁ φ hφ, hcount₂ φ hφ]
   · -- time: the test and either branch are within `T`
     have hd' : Y φ ^ d ≤ T φ := (Nat.pow_le_pow_right (hY1 φ) (by omega)).trans (hT1 φ)
     have hbr : (if guard φ then 2 ^ (A₁ * φ.length / q φ) * Y φ ^ e₁
@@ -333,10 +328,8 @@ theorem exists_modelCounter (k : ℕ) :
     · next hg =>
       have hgt : threshold φ.numVars < φ.length := by
         simpa only [guard, decide_eq_true_eq, not_le] using hg
-      have hsmall : φ.numVars < 2 ^ 2 ^ D := by
-        by_contra hbig
-        have := mul_le_threshold (not_lt.mp hbig)
-        omega
+      have hsmall : φ.numVars < 2 ^ 2 ^ D :=
+        not_le.mp fun hbig => hgt.not_ge (hφ.trans (mul_le_threshold hbig))
       have hn : 1 ≤ φ.numVars := Nat.pos_of_ne_zero fun h0 => by rw [h0] at hφ hgt; omega
       have hK' : ⌈(2 : ℝ) ^ ((A₂ : ℝ) * interpolationScale φ.numVars)⌉₊ ≤ K :=
         Finset.le_sup (f := fun n => ⌈(2 : ℝ) ^ ((A₂ : ℝ) * interpolationScale n)⌉₊)

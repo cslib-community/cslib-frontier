@@ -604,18 +604,13 @@ theorem eval_shiftClipResProg {Struct : Type v} (v : ℤ) (s : ℕ)
   have hb_pref : intPrefix (clipBoundStream (s + 4) K) K = B :=
     intPrefix_clipBoundStream_eq (by omega) (by omega)
   have hB0 : 0 ≤ B := by positivity
-  have hhi_iff :
-      0 ≤ cmpPrefix (env ()) (clipBoundStream (s + 4) K) K ↔ B ≤ intPrefix (env ()) K := by
-    rw [cmpPrefix_nonneg_iff hx hb_sign K, hb_pref]
-  have hlo_iff :
-      cmpPrefix (env ()) (fun j => -clipBoundStream (s + 4) K j) K ≤ 0 ↔
-        intPrefix (env ()) K ≤ -B := by
-    rw [cmpPrefix_nonpos_iff hx hb_sign.neg K, intPrefix_neg_eq, hb_pref]
-  simp only [hsmall, ↓reduceIte, QueryProg.eval_bindOverhead, eval_cmpWithConstProg, hhi_iff]
+  simp only [hsmall, ↓reduceIte, QueryProg.eval_bindOverhead, eval_cmpWithConstProg,
+    cmpPrefix_nonneg_iff hx hb_sign K, hb_pref]
   by_cases hcHi : B ≤ intPrefix (env ()) K
   · simp only [hcHi, ↓reduceIte, QueryProg.eval, posClipRes_eq, min_eq_left hcHi,
       max_eq_right (by omega : -B ≤ B), B]
-  simp only [hcHi, ↓reduceIte, QueryProg.eval_bindOverhead, eval_cmpWithConstProg, hlo_iff]
+  simp only [hcHi, ↓reduceIte, QueryProg.eval_bindOverhead, eval_cmpWithConstProg,
+    cmpPrefix_nonpos_iff hx hb_sign.neg K, intPrefix_neg_eq, hb_pref]
   have hle : intPrefix (env ()) K ≤ B := by omega
   by_cases hcLo : intPrefix (env ()) K ≤ -B
   · simp only [hcLo, ↓reduceIte, QueryProg.eval, negClipRes_eq, min_eq_right hle,
@@ -1551,12 +1546,10 @@ private theorem allowance_recipEarly {Struct : Type v} {d s wOut : ℕ} (hd : 1 
     (le_max_left _ _).trans (Nat.le_mul_of_pos_right _ hd)
   have hrc : recipCutoff s = s / 2 + 7 := rfl
   refine ⟨by rw [hrc] at hj; omega, ?_⟩
-  have hjZ : ((recipCutoff s + j + 8 : ℕ) : ℤ) ≤ (s : ℤ) + 22 := by
-    rw [hrc]; exact_mod_cast (show s / 2 + 7 + j + 8 ≤ s + 22 by rw [hrc] at hj; omega)
+  have hjZ : ((recipCutoff s + j + 8 : ℕ) : ℤ) ≤ ((s + 22 : ℕ) : ℤ) :=
+    Int.ofNat_le.mpr (by rw [hrc] at hj ⊢; omega)
   have hwZ : (wOut : ℤ) ≤ (A₀ : ℤ) + (B₀ : ℤ) * (s : ℤ) := by exact_mod_cast hwOut
-  have haZ : ((A₀ + 26 + 15 * (B₀ + 1) : ℕ) : ℤ) ≤
-      ((max (A₀ + 26 + 15 * (B₀ + 1)) ((A₀ + 4) + (B₀ + 2) * C₀) * d : ℕ) : ℤ) := by
-    exact_mod_cast ha_le
+  have haZ := Int.ofNat_le.mpr ha_le
   push_cast at hmul_pay haZ hjZ ⊢
   linarith
 

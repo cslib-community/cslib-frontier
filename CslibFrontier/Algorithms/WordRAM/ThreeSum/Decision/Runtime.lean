@@ -93,12 +93,9 @@ theorem packed_side_eventually_le_rpow (κ : ℕ) {ε : ℝ} (hε : 0 < ε) :
     have hmul := mul_le_mul_of_nonneg_left hlog (Nat.cast_nonneg n)
     push_cast at hsR hmul
     refine (by nlinarith only [hsR, hmul] : (t : ℝ) ^ 2 ≤ n * (n : ℝ) ^ (2 * ε)).trans_eq ?_
-    trans (n : ℝ) ^ (1 + 2 * ε)
-    · rw [Real.rpow_add (by positivity), Real.rpow_one]
-    · symm
-      rw [← Real.rpow_natCast, ← Real.rpow_mul (by positivity)]
-      congr 1
-      ring
+    symm
+    rw [← Real.rpow_natCast, ← Real.rpow_mul (by positivity),
+      show (1 / 2 + ε) * (2 : ℕ) = 1 + 2 * ε by ring, Real.rpow_add (by positivity), Real.rpow_one]
   exact (sq_le_sq₀ (Nat.cast_nonneg t) (by positivity)).mp hsq
 
 /-- The actual native emitted-node allowance has the same degree-seven logarithmic estimate
@@ -190,9 +187,7 @@ theorem exists_cost_bound {r : ℕ} (c : Host.Callee r) {δ a : ℝ}
         C * (n : ℝ) ^ a := by
   let ε : ℝ := (a - (2 - δ / 2)) / 10
   have hε : 0 < ε := by dsimp only [ε]; linarith
-  have hgap : 10 * ε = a - (2 - δ / 2) := by dsimp only [ε]; ring
-  have hscaleExp : ε + (1 / 2 + ε) * (4 - δ) ≤ a := by
-    nlinarith [mul_nonneg hε.le hδ.le]
+  have hscaleExp : ε + (1 / 2 + ε) * (4 - δ) ≤ a := by dsimp only [ε]; nlinarith
   have hpre : 3 / 2 < a := by linarith
   have hpower : 0 ≤ 4 - δ := by linarith
   let E := envelopeExponent κ
@@ -239,10 +234,8 @@ theorem exists_cost_bound {r : ℕ} (c : Host.Callee r) {δ a : ℝ}
         _ ≤ (n : ℝ) ^ ε * ((2 * C + 355) * (t : ℝ) ^ (4 - δ)) := by gcongr
         _ = (2 * C + 355) * ((n : ℝ) ^ ε * (t : ℝ) ^ (4 - δ)) := by ring
         _ ≤ _ := mul_le_mul_of_nonneg_left hscale (by positivity)
-    have hone : (1 : ℝ) ≤ (n : ℝ) ^ a := by
-      simpa only [Real.rpow_zero] using
-        (Real.rpow_le_rpow_of_exponent_le hn1 (show (0 : ℝ) ≤ a by linarith))
-    have hconst := mul_le_mul_of_nonneg_left hone (show (0 : ℝ) ≤ 4 * E + 32 by positivity)
+    have hconst := mul_le_mul_of_nonneg_left (Real.one_le_rpow hn1 (by linarith : (0 : ℝ) ≤ a))
+      (show (0 : ℝ) ≤ 4 * E + 32 by positivity)
     unfold cost
     change ((ChanHe.Preprocessing.cost κ n + 4 * E + 32 +
       instanceBound κ n * (Host.callerTime (instanceLength κ n) T + 12) : ℕ) : ℝ) ≤ _
@@ -250,6 +243,5 @@ theorem exists_cost_bound {r : ℕ} (c : Host.Callee r) {δ a : ℝ}
     nlinarith only [hpp, hprod, hconst]
   obtain ⟨M, hM⟩ := eventually_atTop.mp hevent
   exact ⟨2 * C + 4 * E + 388, by positivity, M, hM⟩
-
 
 end Cslib.Algorithms.WordRAM.ThreeSum.Decision

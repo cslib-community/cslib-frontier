@@ -70,10 +70,8 @@ namespace Turing.MultiTapeTM.BinaryGcd
 theorem gcd_product_halving {a b : ℕ} (ha : 0 < a) (hab : a ≤ b) :
     2 * (a * (b % a)) ≤ a * b := by
   have hr := Nat.mod_lt b ha
-  have hq : 1 ≤ b / a := (Nat.one_le_div_iff ha).mpr hab
   have hid := Nat.mod_add_div b a
-  have hmul := Nat.mul_le_mul_left a hq
-  have hhalf : 2 * (b % a) ≤ b := by lia
+  have hmul := Nat.mul_le_mul_left a ((Nat.one_le_div_iff ha).mpr hab)
   nlinarith
 
 /-- One step of Euclid's algorithm: replace `(a, b)` by `(b, a % b)` while `b ≠ 0`. -/
@@ -167,10 +165,9 @@ lemma snd_iterate_gcdStep_gcdCount (p : ℕ × ℕ) :
     exact Nat.mul_lt_mul'' h₁ h₂
   by_contra hne
   have hpos : 1 ≤ (gcdStep^[k] (gcdStep p)).1 * (gcdStep^[k] (gcdStep p)).2 := by
-    have : 1 ≤ (gcdStep^[k] (gcdStep p)).2 := Nat.pos_of_ne_zero hne
+    have := Nat.pos_of_ne_zero hne
     nlinarith
-  have hge : 2 ^ k ≤ 2 ^ k * ((gcdStep^[k] (gcdStep p)).1 * (gcdStep^[k] (gcdStep p)).2) :=
-    Nat.le_mul_of_pos_right (2 ^ k) hpos
+  have := Nat.le_mul_of_pos_right (2 ^ k) hpos
   lia
 
 /-- Iterating `gcdStep` for `gcdCount p` steps reaches `(Nat.gcd p.1 p.2, 0)`. -/
@@ -186,12 +183,10 @@ theorem iterate_gcdStep_eq (p : ℕ × ℕ) :
 theorem length_encPair_iterate_gcdStep_le (p : ℕ × ℕ) (i : ℕ) :
     (encPair encNat encNat (gcdStep^[i] p)).length ≤ 3 * (encPair encNat encNat p).length := by
   have hmax := max_iterate_gcdStep_le p i
-  have h₁ : (gcdStep^[i] p).1 ≤ max p.1 p.2 := (le_max_left _ _).trans hmax
-  have h₂ : (gcdStep^[i] p).2 ≤ max p.1 p.2 := (le_max_right _ _).trans hmax
+  have hs₁ := Nat.size_le_size ((le_max_left _ _).trans hmax)
+  have hs₂ := Nat.size_le_size ((le_max_right _ _).trans hmax)
   have hm : (max p.1 p.2).size ≤ p.1.size + p.2.size := by grind
-  have hs₁ : ((gcdStep^[i] p).1).size ≤ p.1.size + p.2.size := (Nat.size_le_size h₁).trans hm
-  have hs₂ : ((gcdStep^[i] p).2).size ≤ p.1.size + p.2.size := (Nat.size_le_size h₂).trans hm
-  simp only [length_encPair, encNat_apply, Nat.size_eq_bits_len] at hs₁ hs₂ ⊢
+  simp only [length_encPair, encNat_apply, Nat.size_eq_bits_len] at hs₁ hs₂ hm ⊢
   lia
 
 /-- Initial state `((m, a), (0, if m ≤ 1 then 0 else 1))` for the unsigned extended-Euclidean
@@ -363,17 +358,15 @@ private theorem length_encPair_iterate_modInvStep_le (a m i : ℕ) :
       9 * (encPair encNat encNat (a, m)).length := by
   set s := (modInvStep m)^[i] (modInvInit a m)
   have hfst : s.1 = gcdStep^[i] (m, a) := fst_iterate_modInvStep m (modInvInit a m) i
-  have hmax := max_iterate_gcdStep_le (m, a) i
-  have hr₁ : s.1.1 ≤ max m a := by rw [hfst]; exact (le_max_left _ _).trans hmax
-  have hr₂ : s.1.2 ≤ max m a := by rw [hfst]; exact (le_max_right _ _).trans hmax
+  have hmax := hfst ▸ max_iterate_gcdStep_le (m, a) i
+  have hsr₁ := Nat.size_le_size ((le_max_left _ _).trans hmax)
+  have hsr₂ := Nat.size_le_size ((le_max_right _ _).trans hmax)
   have hm : (max m a).size ≤ m.size + a.size := by grind
-  have hsr₁ : s.1.1.size ≤ m.size + a.size := (Nat.size_le_size hr₁).trans hm
-  have hsr₂ : s.1.2.size ≤ m.size + a.size := (Nat.size_le_size hr₂).trans hm
   obtain ⟨hinit₁, hinit₂⟩ := snd_modInvInit_le a m
   obtain ⟨ht₁, ht₂⟩ := snd_iterate_modInvStep_le m (modInvInit a m) hinit₁ hinit₂ i
-  have hst₁ : s.2.1.size ≤ m.size := Nat.size_le_size ht₁
-  have hst₂ : s.2.2.size ≤ m.size := Nat.size_le_size ht₂
-  simp only [length_encPair, encNat_apply, Nat.size_eq_bits_len] at hsr₁ hsr₂ hst₁ hst₂ ⊢
+  have hst₁ := Nat.size_le_size ht₁
+  have hst₂ := Nat.size_le_size ht₂
+  simp only [length_encPair, encNat_apply, Nat.size_eq_bits_len] at hsr₁ hsr₂ hm hst₁ hst₂ ⊢
   lia
 
 attribute [irreducible] modInv
@@ -431,9 +424,7 @@ private theorem computableInPolyTime_modInvNext {α : Type} {enc : α ↪ List B
 theorem binary_modInv : ComputableInPolyTime (fun p : ℕ × ℕ => BinaryGcd.modInv p.1 p.2)
     (encPair encNat encNat) encNat := by
   have hnext := @computableInPolyTime_modInvNext
-  have hpar : ComputableInPolyTime (fun p : ℕ × ℕ => p.2)
-      (encPair encNat encNat) encNat := by
-    fun_prop
+  have hpar := snd encNat encNat
   have hcount : ComputableInPolyTime (fun p : ℕ × ℕ => BinaryGcd.gcdCount (p.2, p.1))
       (encPair encNat encNat) encUnary := by
     unfold BinaryGcd.gcdCount

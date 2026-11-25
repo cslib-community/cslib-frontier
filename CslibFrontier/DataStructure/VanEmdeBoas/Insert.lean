@@ -76,12 +76,13 @@ private theorem extrema_insert_of_contains {t t' : Tree d} (ht : t.Valid)
 private theorem singleton_of_bounds_none {t : Tree d} (ht : t.Valid) (hb : t.bounds = none)
     {x : ℕ} (hx : x < universeSize d) :
     (t.withBounds (some (x, x))).Valid ∧
-      ∀ y, (t.withBounds (some (x, x))).Contains y ↔ y = x := by
+      ∀ y, (t.withBounds (some (x, x))).Contains y ↔ y = x ∨ t.Contains y := by
+  have hnot : ∀ y, ¬t.Contains y := not_contains_of_bounds_none hb
   cases t with
   | leaf b =>
     simp only [bounds] at hb
     subst b
-    simp only [withBounds, Valid, Extrema, bounds, contains_leaf_some]
+    simp only [withBounds, Valid, Extrema, bounds, contains_leaf_some, hnot, or_false]
     simp only [universeSize_zero] at hx
     simpa using hx
   | @node d b s c =>
@@ -91,11 +92,11 @@ private theorem singleton_of_bounds_none {t : Tree d} (ht : t.Valid) (hb : t.bou
     have hnone : ∀ i y, ¬(c i).Contains y := fun i y =>
       not_contains_of_bounds_none (hcb i) y
     have hset : ∀ y, (node (some (x, x)) s c).Contains y ↔ y = x := fun y => by simp [hnone]
-    refine ⟨⟨?_, hs, hc, ho, ?_⟩, hset⟩
+    refine ⟨⟨?_, hs, hc, ho, fun i y hy => (hnone i y hy).elim⟩, fun y => ?_⟩
     · simp only [Extrema, bounds]
       exact ⟨le_rfl, hx, (hset x).mpr rfl, (hset x).mpr rfl,
         fun y hy => by have := (hset y).mp hy; omega⟩
-    · exact fun i y hy => (hnone i y hy).elim
+    · simp only [withBounds, hset, hnot, or_false]
 
 private theorem contains_node_update {s s' : Tree d}
     {c c' : Fin (universeSize d) → Tree d} {m M x : ℕ}
@@ -160,11 +161,7 @@ private theorem insert_spec {t : Tree d} (ht : t.Valid) {x : ℕ}
     cases t with
     | leaf b =>
       cases b with
-      | none =>
-        obtain ⟨hv, hs⟩ := singleton_of_bounds_none ht rfl hx
-        refine ⟨hv, fun y => ?_⟩
-        simpa only [insert, withBounds, Contains, reduceCtorEq, false_and, exists_false,
-          or_false] using hs y
+      | none => exact singleton_of_bounds_none ht rfl hx
       | some b =>
         obtain ⟨m, M⟩ := b
         have he := ht.extrema_of_bounds rfl
@@ -179,11 +176,7 @@ private theorem insert_spec {t : Tree d} (ht : t.Valid) {x : ℕ}
     cases t with
     | node b s c =>
       cases b with
-      | none =>
-        obtain ⟨hv, hs⟩ := singleton_of_bounds_none ht rfl hx
-        refine ⟨hv, fun y => ?_⟩
-        simpa only [insert, withBounds, Contains, reduceCtorEq, false_and, exists_false,
-          or_false] using hs y
+      | none => exact singleton_of_bounds_none ht rfl hx
       | some b =>
         obtain ⟨m, M⟩ := b
         by_cases hm : x = m
@@ -201,10 +194,7 @@ private theorem insert_spec {t : Tree d} (ht : t.Valid) {x : ℕ}
             (Nat.div_add_mod' (max m x) (universeSize d)).symm
           cases hb : (c i).bounds with
           | none =>
-            obtain ⟨hv, hs⟩ := singleton_of_bounds_none (ht.2.2.1 i) hb ha
-            have hset : ∀ y, ((c i).withBounds (some (a, a))).Contains y ↔
-                y = a ∨ (c i).Contains y := fun y => by
-              simpa only [not_contains_of_bounds_none hb y, or_false] using hs y
+            obtain ⟨hv, hset⟩ := singleton_of_bounds_none (ht.2.2.1 i) hb ha
             obtain ⟨hcv, hcs⟩ := update_cluster_spec ht.2.2.1 hv hset
             obtain ⟨hsv, hss⟩ := ih ht.2.1 i.isLt
             have hresult := valid_node_update ht hx hm hz hsv hcv hss hcs

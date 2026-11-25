@@ -79,9 +79,7 @@ def continuing : Result M r → Option (FiniteState M r)
 
 theorem continuing_eq_elim (res : Result M r) :
     continuing res = res.elim none Sum.getLeft? := by
-  cases res with
-  | none => rfl
-  | some u => cases u <;> rfl
+  rcases res with _ | (_ | _) <;> rfl
 
 /-- Extract the halting output value from a step outcome, if any. -/
 def output : Result M r → Option M.Value
@@ -96,9 +94,7 @@ def output : Result M r → Option M.Value
 
 theorem output_eq_elim (res : Result M r) :
     output res = res.elim none Sum.getRight? := by
-  cases res with
-  | none => rfl
-  | some u => cases u <;> rfl
+  rcases res with _ | (_ | _) <;> rfl
 
 /-- Initial finite configuration at control label `0`. -/
 def init (regs : Fin r → M.Value) (default : M.Value)
@@ -130,9 +126,7 @@ def stepResult (k : M.Config) (p : Program M r) : Result M r → Result M r
 
 theorem stepResult_eq (k : M.Config) (p : Program M r) (res : Result M r) :
     stepResult k p res = (continuing res).elim res (fun s => step k p s) := by
-  cases res with
-  | none => rfl
-  | some u => cases u <;> rfl
+  rcases res with _ | (_ | _) <;> rfl
 
 @[simp] theorem iterate_stepResult_none (k : M.Config) (p : Program M r) (n : ℕ) :
     (stepResult k p)^[n] none = none := by
@@ -159,6 +153,15 @@ theorem run_succ (k : M.Config) (p : Program M r) (n : ℕ) (s : FiniteState M r
       | some (.inl t) => run k p n t
       | out => out := rfl
 
+private theorem finiteState_run_succ_inl {k : M.Config} {p : Program M r} {n : ℕ}
+    {s t : FiniteState M r} (h : run k p (n + 1) s = some (.inl t)) :
+    ∃ u, step k p s = some (.inl u) ∧ run k p n u = some (.inl t) := by
+  rw [run_succ] at h
+  rcases hs : step k p s with _ | (u | v)
+  · simp [hs] at h
+  · exact ⟨u, rfl, by simpa only [hs] using h⟩
+  · simp [hs] at h
+
 /-- Multi-step execution is exact iteration of `stepResult` from `some (.inl s)`. -/
 theorem run_eq_iterate_stepResult (k : M.Config) (p : Program M r) (n : ℕ)
     (s : FiniteState M r) :
@@ -167,12 +170,10 @@ theorem run_eq_iterate_stepResult (k : M.Config) (p : Program M r) (n : ℕ)
   | zero => rfl
   | succ n ih =>
     rw [Function.iterate_succ_apply, run_succ, stepResult_inl]
-    cases hs : step k p s with
-    | none => simp
-    | some u =>
-      cases u with
-      | inl t => exact ih t
-      | inr v => simp
+    rcases hs : step k p s with _ | (t | v)
+    · simp
+    · exact ih t
+    · simp
 
 theorem run_add (k : M.Config) (p : Program M r) (m n : ℕ) (s : FiniteState M r) :
     run k p (m + n) s =
@@ -181,12 +182,10 @@ theorem run_add (k : M.Config) (p : Program M r) (m n : ℕ) (s : FiniteState M 
       | out => out := by
   rw [Nat.add_comm, run_eq_iterate_stepResult, Function.iterate_add_apply,
     ← run_eq_iterate_stepResult]
-  cases hr : run k p m s with
-  | none => simp
-  | some u =>
-    cases u with
-    | inl t => exact (run_eq_iterate_stepResult k p n t).symm
-    | inr v => simp
+  rcases hr : run k p m s with _ | (t | v)
+  · simp
+  · exact (run_eq_iterate_stepResult k p n t).symm
+  · simp
 
 /-- Halting output after at most `n` finite steps (`none` on fault or unhalted continuation). -/
 def eval (k : M.Config) (p : Program M r) (n : ℕ) (s : FiniteState M r) : Option M.Value :=
@@ -347,18 +346,11 @@ theorem default_run {k : M.Config} {p : Program M r} {n : ℕ} {s t : FiniteStat
     (h : run k p n s = some (.inl t)) : t.default = s.default := by
   induction n generalizing s with
   | zero =>
-    simp only [run_zero, Option.some.injEq, Sum.inl.injEq] at h
-    exact h ▸ rfl
+    obtain ⟨⟨rfl⟩⟩ := h
+    rfl
   | succ n ih =>
-    rw [run_succ] at h
-    cases hs : step k p s with
-    | none => simp [hs] at h
-    | some u =>
-      cases u with
-      | inl u =>
-        simp only [hs] at h
-        exact (ih h).trans (default_step hs)
-      | inr v => simp [hs] at h
+    obtain ⟨u, hs, hr⟩ := finiteState_run_succ_inl h
+    exact (ih hr).trans (default_step hs)
 
 /-- Across `n` finite steps, sparse memory grows by at most `n` stored cells. -/
 theorem length_entries_run_le {k : M.Config} {p : Program M r} {n : ℕ} {s t : FiniteState M r}
@@ -366,21 +358,13 @@ theorem length_entries_run_le {k : M.Config} {p : Program M r} {n : ℕ} {s t : 
     (SparseMemory.entries t.memory).length ≤ (SparseMemory.entries s.memory).length + n := by
   induction n generalizing s with
   | zero =>
-    simp only [run_zero, Option.some.injEq, Sum.inl.injEq] at h
-    subst h
+    obtain ⟨⟨rfl⟩⟩ := h
     simp
   | succ n ih =>
-    rw [run_succ] at h
-    cases hs : step k p s with
-    | none => simp [hs] at h
-    | some u =>
-      cases u with
-      | inl u =>
-        simp only [hs] at h
-        have hstep := length_entries_step_le hs
-        have hrun := ih h
-        omega
-      | inr v => simp [hs] at h
+    obtain ⟨u, hs, hr⟩ := finiteState_run_succ_inl h
+    have hstep := length_entries_step_le hs
+    have hrun := ih hr
+    omega
 
 /-! ### Multi-step denotation and `Executes` correspondence -/
 
@@ -389,52 +373,32 @@ theorem runs_of_run_eq_inl {k : M.Config} {p : Program M r} {n : ℕ} {s t : Fin
     (h : run k p n s = some (.inl t)) : GenericRAM.Runs k p s.denote t.denote n := by
   induction n generalizing s with
   | zero =>
-    simp only [run_zero, Option.some.injEq, Sum.inl.injEq] at h
-    subst h
+    obtain ⟨⟨rfl⟩⟩ := h
     exact .refl _
   | succ n ih =>
-    rw [run_succ] at h
-    cases hs : step k p s with
-    | none => simp [hs] at h
-    | some u =>
-      cases u with
-      | inl u =>
-        simp only [hs] at h
-        have hnext : GenericRAM.Next k p s.denote u.denote := by
-          rw [GenericRAM.Next, ← denote_step, hs, denoteResult]
-        exact (ih h).head _ _ _ _ hnext
-      | inr v => simp [hs] at h
-
-private theorem exists_run_eq_inl_of_runs_aux {k : M.Config} {p : Program M r} {n : ℕ}
-    {s₀ u : State M r} (h : GenericRAM.Runs k p s₀ u n) :
-    ∀ s : FiniteState M r, s.denote = s₀ →
-      ∃ t, run k p n s = some (.inl t) ∧ t.denote = u := by
-  induction h using Relation.RelatesInSteps.head_induction_on with
-  | hrefl =>
-    intro s hd
-    exact ⟨s, rfl, hd⟩
-  | hhead hab _ ih =>
-    intro s hd
-    subst hd
-    have hstep := denote_step k p s
-    rw [GenericRAM.Next] at hab
-    rw [hab] at hstep
-    cases hs : step k p s with
-    | none => simp [hs, denoteResult] at hstep
-    | some out =>
-      cases out with
-      | inl s' =>
-        simp only [hs, denoteResult, Outcome.next.injEq] at hstep
-        obtain ⟨t, hrun, hden⟩ := ih s' hstep
-        refine ⟨t, ?_, hden⟩
-        simp [run_succ, hs, hrun]
-      | inr v => simp [hs, denoteResult] at hstep
+    obtain ⟨u, hs, hr⟩ := finiteState_run_succ_inl h
+    have hnext : GenericRAM.Next k p s.denote u.denote := by
+      rw [GenericRAM.Next, ← denote_step, hs, denoteResult]
+    exact (ih hr).head _ _ _ _ hnext
 
 /-- Every `n`-step `GenericRAM.Runs` trace from `s.denote` lifts to a continuing finite state. -/
 theorem exists_run_eq_inl_of_runs {k : M.Config} {p : Program M r} {n : ℕ}
     {s : FiniteState M r} {u : State M r} (h : GenericRAM.Runs k p s.denote u n) :
-    ∃ t, run k p n s = some (.inl t) ∧ t.denote = u :=
-  exists_run_eq_inl_of_runs_aux h s rfl
+    ∃ t, run k p n s = some (.inl t) ∧ t.denote = u := by
+  generalize hd : s.denote = s₀ at h
+  induction h using Relation.RelatesInSteps.head_induction_on generalizing s with
+  | hrefl => exact ⟨s, rfl, hd⟩
+  | hhead hab _ ih =>
+    subst hd
+    have hstep := denote_step k p s
+    rw [GenericRAM.Next] at hab
+    rw [hab] at hstep
+    rcases hs : step k p s with _ | (s' | v)
+    · simp [hs, denoteResult] at hstep
+    · simp only [hs, denoteResult, Outcome.next.injEq] at hstep
+      obtain ⟨t, hrun, hden⟩ := ih hstep
+      exact ⟨t, by simp [run_succ, hs, hrun], hden⟩
+    · simp [hs, denoteResult] at hstep
 
 /-- **Exact multi-step output refinement**: at every step budget `n`, the finite-state evaluator
 agrees with the fuel-bounded generic RAM interpreter. -/
@@ -444,30 +408,23 @@ theorem denote_run (k : M.Config) (p : Program M r) (n : ℕ) (s : FiniteState M
   | zero => rfl
   | succ n ih =>
     rw [eval, run_succ, GenericRAM.run_succ, ← denote_step]
-    cases hs : step k p s with
-    | none => rfl
-    | some u =>
-      cases u with
-      | inl t =>
-        simp only [denoteResult, Option.map_map]
-        exact ih t
-      | inr v => rfl
+    rcases hs : step k p s with _ | (t | v)
+    · rfl
+    · simp only [denoteResult, Option.map_map]
+      exact ih t
+    · rfl
 
 /-- A halting execution of `m ≤ n` instructions halts with the same output in `n` finite steps. -/
 theorem run_eq_inr_of_executes {k : M.Config} {p : Program M r} {s : FiniteState M r}
     {v : M.Value} {m n : ℕ} (h : GenericRAM.Executes k p s.denote v m) (hmn : m ≤ n) :
     run k p n s = some (.inr v) := by
-  have hrun := GenericRAM.run_mono h.run_eq hmn
   have hden := denote_run k p n s
-  rw [hrun, Option.map_some, eval] at hden
-  cases hr : run k p n s with
-  | none => simp [hr] at hden
-  | some u =>
-    cases u with
-    | inl t => simp [hr] at hden
-    | inr w =>
-      simp only [hr, output_inr, Option.some.injEq] at hden
-      exact congrArg (some ∘ Sum.inr) hden
+  rw [GenericRAM.run_mono h.run_eq hmn, Option.map_some, eval] at hden
+  rcases hr : run k p n s with _ | (t | w)
+  · simp [hr] at hden
+  · simp [hr] at hden
+  · simp only [hr, output_inr, Option.some.injEq] at hden
+    exact congrArg (some ∘ Sum.inr) hden
 
 /-- A halting execution of `m ≤ n` instructions produces `some v` under `eval`. -/
 theorem eval_eq_some_of_executes {k : M.Config} {p : Program M r} {s : FiniteState M r}
@@ -484,22 +441,18 @@ theorem executes_of_run_eq_inr {k : M.Config} {p : Program M r} {n : ℕ}
   | zero => simp [run_zero] at h
   | succ n ih =>
     rw [run_succ] at h
-    cases hs : step k p s with
-    | none => simp [hs] at h
-    | some u =>
-      cases u with
-      | inl t =>
-        simp only [hs] at h
-        obtain ⟨m, hmn, hex⟩ := ih h
-        have hnext : GenericRAM.Next k p s.denote t.denote := by
-          rw [GenericRAM.Next, ← denote_step, hs, denoteResult]
-        exact ⟨m + 1, Nat.add_le_add_right hmn 1, hex.head hnext⟩
-      | inr w =>
-        simp only [hs, Option.some.injEq, Sum.inr.injEq] at h
-        cases h
-        have hhalt : GenericRAM.step k p s.denote = .halt v := by
-          rw [← denote_step, hs, denoteResult]
-        exact ⟨1, Nat.succ_le_succ (Nat.zero_le _), .halt hhalt⟩
+    rcases hs : step k p s with _ | (t | w)
+    · simp [hs] at h
+    · simp only [hs] at h
+      obtain ⟨m, hmn, hex⟩ := ih h
+      have hnext : GenericRAM.Next k p s.denote t.denote := by
+        rw [GenericRAM.Next, ← denote_step, hs, denoteResult]
+      exact ⟨m + 1, Nat.add_le_add_right hmn 1, hex.head hnext⟩
+    · simp only [hs, Option.some.injEq, Sum.inr.injEq] at h
+      cases h
+      have hhalt : GenericRAM.step k p s.denote = .halt v := by
+        rw [← denote_step, hs, denoteResult]
+      exact ⟨1, Nat.succ_le_succ (Nat.zero_le _), .halt hhalt⟩
 
 /-- Halting generic-RAM executions from `s.denote` correspond to halting finite-state runs. -/
 theorem executes_iff_exists_run (k : M.Config) (p : Program M r) (s : FiniteState M r)
@@ -802,7 +755,6 @@ theorem le_runTime_of_run_eq_inl (enc : M.Encoding) (N : M.NativePrimitives enc)
   have h1 := le_roundCertificate_time_inl enc N p k t
   have h2 := le_maxRoundTime (roundCertificate enc N p) hj (k, Option.some (.inl s))
   rw [iterate_round_inl, hrun] at h2
-  have h3 := le_trans h1 h2
   have h4 : maxRoundTime (roundCertificate enc N p) n (k, Option.some (.inl s)) ≤
       (n + 1) * (maxRoundTime (roundCertificate enc N p) n (k, Option.some (.inl s)) +
         maxStateLength (encPair enc.config (resultEncoding enc))
@@ -822,7 +774,6 @@ theorem le_runSpace_of_run_eq_inl (enc : M.Encoding) (N : M.NativePrimitives enc
   have h1 := le_roundCertificate_space_inl enc N p k t
   have h2 := le_maxRoundSpace (roundCertificate enc N p) hj (k, Option.some (.inl s))
   rw [iterate_round_inl, hrun] at h2
-  have h3 := le_trans h1 h2
   simp only [runSpace, runCertificate, congr_space, snd_space, iterate_space]
   omega
 

@@ -144,9 +144,8 @@ theorem exists_price_of_convex_disjoint_negOrthant [Fintype G]
   let p : G → ℝ := fun g => f (Pi.single g 1)
   have hf_eq : ∀ z : G → ℝ, f z = expenditure p z := by
     intro z
-    have hz_sum : z = ∑ g : G, z g • Pi.single g (1 : ℝ) := by
-      funext k
-      simp [Pi.single_apply]
+    have hz_sum : z = ∑ g : G, z g • Pi.single g (1 : ℝ) :=
+      funext fun k => by simp [Pi.single_apply]
     conv_lhs => rw [hz_sum]
     rw [map_sum, expenditure_eq_sum]
     refine sum_congr rfl fun g _ => ?_
@@ -235,13 +234,9 @@ theorem HasConvexPreferences.of_quasiconcaveOn {u : (G → ℝ) → ℝ}
     (hq : QuasiconcaveOn ℝ {b : G → ℝ | ∀ g, 0 ≤ b g} u) :
     HasConvexPreferences u := by
   intro x _ b₁ hb₁ b₂ hb₂ a c ha hc hac
-  have hnn : ∀ g, 0 ≤ (a • b₁ + c • b₂) g := fun g =>
-    add_nonneg (mul_nonneg ha (hb₁.1 g)) (mul_nonneg hc (hb₂.1 g))
-  refine ⟨hnn, ?_⟩
-  set r := min (u b₁) (u b₂)
-  have hr_gt : u x < r := lt_min hb₁.2 hb₂.2
-  have hcomb := hq r ⟨hb₁.1, min_le_left _ _⟩ ⟨hb₂.1, min_le_right _ _⟩ ha hc hac
-  exact lt_of_lt_of_le hr_gt hcomb.2
+  exact ⟨fun g => add_nonneg (mul_nonneg ha (hb₁.1 g)) (mul_nonneg hc (hb₂.1 g)),
+    (lt_min hb₁.2 hb₂.2).trans_le
+      (hq _ ⟨hb₁.1, min_le_left _ _⟩ ⟨hb₂.1, min_le_right _ _⟩ ha hc hac).2⟩
 
 theorem HasConvexPreferences.of_concaveOn {u : (G → ℝ) → ℝ}
     (hc : ConcaveOn ℝ {b : G → ℝ | ∀ g, 0 ≤ b g} u) :
@@ -357,10 +352,8 @@ variable [Fintype G]
   IsBudgetFeasible p m x ∧ ∀ b : G → ℝ, (∀ g, 0 ≤ b g) → u x < u b → m ≤ expenditure p b
 
 theorem IsQuasiDemand.of_mem_demandSet {u : (G → ℝ) → ℝ} {p : G → ℝ} {m : ℝ} {x : G → ℝ}
-    (hx : x ∈ demandSet u p m) : IsQuasiDemand u p m x := by
-  rw [mem_demandSet] at hx
-  exact ⟨hx.1, fun b hb hub => (lt_expenditure_of_mem_demandSet
-    ((mem_demandSet).2 hx) hb hub).le⟩
+    (hx : x ∈ demandSet u p m) : IsQuasiDemand u p m x :=
+  ⟨(mem_demandSet.1 hx).1, fun _ hb hub => (lt_expenditure_of_mem_demandSet hx hb hub).le⟩
 
 /-- Under local nonsatiation and nonnegative prices `p`, every nonnegative bundle `x` admits a
 strictly preferred nonnegative bundle whose expenditure is strictly less than `expenditure p x + δ`
@@ -640,9 +633,8 @@ theorem exists_priceQuasiEquilibrium_reendow_of_isParetoOptimal [Nonempty I]
     obtain ⟨y, hy_nn, hy_gt, hy_sum⟩ :=
       exists_forall_lt_sum_expenditure_sub_le hlns hp_nn hpo.1.1
         (half_pos (sub_pos.2 (not_le.1 hlt)))
-    have hge0 := hsep _ ⟨y, hy_nn, hy_gt, fun _ => le_rfl⟩
+    have hge0 := hexp_excess y ▸ hsep _ ⟨y, hy_nn, hy_gt, fun _ => le_rfl⟩
     have hsub := hy_sum univ
-    rw [hexp_excess] at hge0
     rw [sum_sub_distrib] at hsub
     linarith
   have hsum_eq : ∑ i : I, expenditure p (x i) = expenditure p E.totalSupply :=
@@ -673,9 +665,8 @@ theorem exists_priceQuasiEquilibrium_reendow_of_isParetoOptimal [Nonempty I]
           ∑ j ∈ univ.erase i, (expenditure p (yNear j) - expenditure p (x j)) := by
       rw [← sum_sub_distrib, ← add_sum_erase univ _ (mem_univ i)]
       simp only [y, Function.update_self]
-      congr 1
-      refine sum_congr rfl fun j hj => ?_
-      rw [Function.update_of_ne (mem_erase.1 hj).1]
+      exact congrArg _ (sum_congr rfl fun j hj =>
+        congrArg₂ (· - ·) (congrArg _ (Function.update_of_ne (mem_erase.1 hj).1 b yNear)) rfl)
     linarith [hyNear_sum (univ.erase i)]
   refine ⟨p, ⟨hp_nn, hp_pos,
     fun i => by simpa only [reendow_utility, reendow_income] using hquasi i,
@@ -771,11 +762,8 @@ theorem IsEquilibrium.budget_mul_utility_le {M : LinearFisherMarket I G}
     · -- Since `expenditure p (x j) = 0`, `x i + x j` is budget-feasible for buyer `i`.
       have hexp0 : expenditure p (x j) = 0 :=
         le_antisymm (by simpa [← hbj0] using hdem_j.1.2) (expenditure_nonneg heq.1 hdem_j.1.1)
-      have hfeas_ij : Market.IsBudgetFeasible p (M.budget i) (x i + x j) := by
-        refine ⟨fun g => add_nonneg (hdem_i.1.1 g) (hdem_j.1.1 g), ?_⟩
-        rw [expenditure_add, hexp0, add_zero]
-        exact hdem_i.1.2
-      have hle := hdem_i.2 (x i + x j) hfeas_ij
+      have hle := hdem_i.2 (x i + x j) ⟨fun g => add_nonneg (hdem_i.1.1 g) (hdem_j.1.1 g), by
+        simpa only [expenditure_add, hexp0, add_zero] using hdem_i.1.2⟩
       simp only [linearUtility_eq_sum, Pi.add_apply, mul_add, sum_add_distrib] at hle ⊢
       have hnn : 0 ≤ ∑ g, M.utility i g * x j g :=
         sum_nonneg fun g _ => mul_nonneg (M.utility_nonneg i g) (hdem_j.1.1 g)
@@ -789,13 +777,9 @@ theorem IsEquilibrium.budget_mul_utility_le {M : LinearFisherMarket I G}
           ≤ (M.budget i / M.budget j) * M.budget j :=
             mul_le_mul_of_nonneg_left hdem_j.1.2 (div_nonneg (M.budget_nonneg i) hbj_pos.le)
         _ = M.budget i := div_mul_cancel₀ _ hbj_pos.ne'
-    have hopt := hdem_i.2 scaled hfeas
-    rw [linearUtility_smul] at hopt
-    have hmul := mul_le_mul_of_nonneg_left hopt hbj_pos.le
-    have hcancel : M.budget j * ((M.budget i / M.budget j) * linearUtility (M.utility i) (x j)) =
-        M.budget i * linearUtility (M.utility i) (x j) := by
-      field_simp [hbj_pos.ne']
-    linarith
+    have hmul := mul_le_mul_of_nonneg_left
+      (linearUtility_smul (M.utility i) _ (x j) ▸ hdem_i.2 scaled hfeas) hbj_pos.le
+    rwa [← mul_assoc, mul_div_cancel₀ _ hbj_pos.ne'] at hmul
 
 /-- **Equal-budget envy-freeness of linear Fisher equilibria:** when `M.budget i = M.budget j`,
 every linear Fisher equilibrium allocation is envy-free between `i` and `j`. -/
