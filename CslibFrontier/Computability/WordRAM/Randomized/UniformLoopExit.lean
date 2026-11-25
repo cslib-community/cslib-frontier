@@ -123,20 +123,13 @@ private theorem exitMass_eq_ite_exitWeightSeq {r : ℕ} {α : Type*} [Fintype α
         · obtain ⟨hloop_z, hiff_z⟩ := hinv x hIx hcx z hz
           rcases hloop_z with ⟨hcz, hIz⟩ | ⟨hncz, _⟩
           · have hfz_not : f z ∉ E := fun h => (hiff_z.mpr h) hcz
-            have hne : θ ≠ f z := fun h => hfz_not (h ▸ hθ)
-            have hin : z ∈ {w : Data r | f w ∉ E} := hfz_not
-            rw [ih hIz hcz, Set.indicator_of_mem hin]
-            simp [hθ, hne]
+            rw [ih hIz hcz, Set.indicator_of_mem (show z ∈ {w : Data r | f w ∉ E} from hfz_not)]
+            simp [hθ, show θ ≠ f z from fun h => hfz_not (h ▸ hθ)]
           · have hfz_in : f z ∈ E := hiff_z.mp hncz
             have hnot_in : z ∉ {w : Data r | f w ∉ E} := fun h => h hfz_in
             rw [exitMass_of_not_holds hncz, Set.indicator_of_notMem hnot_in, zero_mul, add_zero]
             split_ifs <;> simp
-        · have hz0 : μ_body x z = 0 := (PMF.apply_eq_zero_iff _ _).mpr hz
-          by_cases hin : z ∈ {w : Data r | f w ∉ E}
-          · rw [Set.indicator_of_mem hin, hz0]
-            simp
-          · rw [Set.indicator_of_notMem hin, hz0]
-            simp
+        · simp [Set.indicator_apply, (PMF.apply_eq_zero_iff _ _).mpr hz]
       simp_rw [hterm]
       rw [Summable.tsum_add CompleteLattice.summable CompleteLattice.summable,
         ENNReal.tsum_mul_right]
@@ -158,10 +151,8 @@ private theorem exitMass_eq_ite_exitWeightSeq {r : ℕ} {α : Type*} [Fintype α
         rcases hloop_z with ⟨hcz, hIz⟩ | ⟨hncz, _⟩
         · rw [ih hIz hcz]
           simp [hθ]
-        · have hfz_in : f z ∈ E := hiff_z.mp hncz
-          have hne : θ ≠ f z := fun h => hθ (h ▸ hfz_in)
-          rw [exitMass_of_not_holds hncz]
-          simp [hne]
+        · rw [exitMass_of_not_holds hncz]
+          simp [show θ ≠ f z from fun h => hθ (h ▸ hiff_z.mp hncz)]
       · rw [(PMF.apply_eq_zero_iff _ _).mpr hz, zero_mul]
 
 /-- If each iteration of a Word-RAM loop `Code.loop cond body` samples `f y` uniformly from a finite
@@ -179,9 +170,6 @@ theorem loopExitPMF_map_eq_uniformOfFinset {r : ℕ} {α : Type*} [Fintype α]
     {x : Data r} (hIx : I x) (hcx : cond.Holds x) :
     (loopExitPMF cond μ_body x).map f = PMF.uniformOfFinset E hE := by
   classical
-  have hinv1 : ∀ z, I z → cond.Holds z → ∀ y ∈ (μ_body z).support, LoopStateInv cond I Q y :=
-    fun z hz hcz y hy => (hinv z hz hcz y hy).1
-  have hx_inv : LoopStateInv cond I Q x := Or.inl ⟨hcx, hIx⟩
   refine pmf_eq_uniformOfFinset_of_ite_const hE (c := ⨆ K : ℕ, exitWeightSeq α E K) fun θ => ?_
   rw [PMF.map_apply]
   have hpoint : ∀ y : Data r,
@@ -191,20 +179,17 @@ theorem loopExitPMF_map_eq_uniformOfFinset {r : ℕ} {α : Type*} [Fintype α]
           Set.indicator {w | ¬cond.Holds w} (loopIterPMF cond μ_body K x) y
         else 0 := by
     intro y
-    by_cases hθ : θ = f y
-    · simp only [hθ, ↓reduceIte]
-      exact loopExitPMF_apply_of_hasSum
-        (hasSum_loopExitDensity hp_pos hp_top hinv1 hp_exit hx_inv) y
-    · simp [hθ]
+    split_ifs
+    · exact loopExitPMF_apply_of_hasSum (hasSum_loopExitDensity hp_pos hp_top
+        (fun z hz hcz y hy => (hinv z hz hcz y hy).1) hp_exit (Or.inl ⟨hcx, hIx⟩)) y
+    · simp
   simp_rw [hpoint]
   rw [ENNReal.tsum_iSup_of_monotone]
   · change (⨆ K : ℕ, exitMass cond μ_body f K x θ) = _
     simp_rw [exitMass_eq_ite_exitWeightSeq hinv hlaw _ hIx hcx θ]
     by_cases hθ : θ ∈ E <;> simp [hθ]
   · intro y K₁ K₂ hK
-    by_cases hθ : θ = f y
-    · simp only [hθ, ↓reduceIte]
-      exact loopIterPMF_indicator_mono cond μ_body x y hK
-    · simp [hθ]
+    split_ifs
+    exacts [loopIterPMF_indicator_mono cond μ_body x y hK, le_rfl]
 
 end Cslib.WordRAM.Randomized
