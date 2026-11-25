@@ -33,7 +33,7 @@ open scoped BigOperators
 variable {n ℓ k : ℕ} {K : Type*} [Field K]
 
 /-- The two-variable convolution kernel, with coefficients in the prime field. -/
-@[expose] noncomputable def kernel [Finite K] [Algebra (ZMod 2) K]
+@[expose] noncomputable def kernel [Algebra (ZMod 2) K]
     (ρ : AddChar (ZMod n) K) (ψ : AddChar (ZMod ℓ) K) (u : ZMod n)
     (p : ZMod n × ZMod ℓ) : ZMod 2 :=
   Algebra.trace (ZMod 2) K (ρ (-u * p.1 ^ 2) * ψ p.2)

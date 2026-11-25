@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import Mathlib.Data.Matrix.Mul
-public import Mathlib.Order.Lattice.Nat
+import Mathlib.Data.Nat.Find
 
 /-!
 # Binary linear circuits and their gate complexity
@@ -233,15 +233,16 @@ theorem realizableAtMost_card_mul_card [Fintype I] [Fintype O] (M : Matrix O I K
   rw [hz]
   simp [Pi.single_apply, mul_ite]
 
-/-- Least number of binary linear gates needed to apply a matrix. -/
+open scoped Classical in
+/-- Least number of binary linear gates needed to apply a finite matrix. -/
 @[expose] noncomputable def complexity [Fintype I] [Fintype O] (M : Matrix O I K) : ℕ :=
-  sInf {n | RealizableAtMost M n}
+  Nat.find (p := RealizableAtMost M) ⟨_, realizableAtMost_card_mul_card M⟩
 
 /-- A circuit attains the least gate count. -/
 theorem realizableAtMost_complexity [Fintype I] [Fintype O] (M : Matrix O I K) :
     RealizableAtMost M (complexity M) := by
   classical
-  exact Nat.sInf_mem (s := {n | RealizableAtMost M n}) ⟨_, realizableAtMost_card_mul_card M⟩
+  exact Nat.find_spec (p := RealizableAtMost M) _
 
 /-- A gate budget bounds the minimum exactly when it admits a circuit. -/
 theorem complexity_le_iff [Fintype I] [Fintype O] (M : Matrix O I K) (s : ℕ) :
@@ -252,6 +253,6 @@ theorem complexity_le_iff [Fintype I] [Fintype O] (M : Matrix O I K) (s : ℕ) :
     exact ⟨r, hr.trans h, p, hp⟩
   · intro h
     classical
-    exact Nat.sInf_le h
+    exact Nat.find_min' _ h
 
 end Cslib.Circuit.Linear

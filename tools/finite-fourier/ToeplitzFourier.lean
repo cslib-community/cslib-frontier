@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 import PinnedFourier
+import Mathlib.Order.Lattice.Nat
 import CslibFrontier.Computability.Circuit.Linear.ToeplitzLowerBound
 
 /-!
@@ -79,6 +80,9 @@ private theorem circuit_matrix [Semiring K] (c : PublishedCircuit K I O s) :
 
 private theorem complexity_eq [Semiring K] [Fintype I] [Fintype O] (M : Matrix O I K) :
     publishedComplexity M = complexity M := by
+  classical
+  rw [complexity, ← Nat.sInf_def (s := {s | RealizableAtMost M s})
+    ⟨_, realizableAtMost_card_mul_card M⟩]
   apply congrArg sInf
   ext size
   change PublishedAtMost M size ↔ RealizableAtMost M size
