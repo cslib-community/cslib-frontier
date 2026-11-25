@@ -68,40 +68,22 @@ private theorem measurable_and_lintegral_table_le {far : X → X → Prop} [Deci
       ∫⁻ s, ((P.countP fun x => decide (g (s j) x = g (s j) q ∧ far x q) : ℕ) : ℝ≥0∞)
           ∂(Measure.pi fun _ : Fin L => ν) ≤ P.length * ENNReal.ofReal P₂ := by
   refine measurable_and_lintegral_countP_le (Measure.pi fun _ : Fin L => ν)
-    (fun s x => g (s j) x = g (s j) q ∧ far x q) (ENNReal.ofReal P₂) P ?_ ?_
-  · intro x hx
-    by_cases hxf : far x q
-    · have hset : {s : Fin L → ι | g (s j) x = g (s j) q ∧ far x q} =
-          (fun s : Fin L → ι => s j) ⁻¹' {i | g i x = g i q} := by
-        ext s
-        simp only [Set.mem_preimage, Set.mem_ofPred_eq, hxf, and_true]
-      rw [hset]
-      exact (measurable_pi_apply j) (hmeas x hx)
-    · have hset : {s : Fin L → ι | g (s j) x = g (s j) q ∧ far x q} = ∅ := by
-        ext s
-        simp only [Set.mem_ofPred_eq, hxf, and_false, Set.mem_empty_iff_false]
-      rw [hset]
-      exact MeasurableSet.empty
-  · intro x hx
-    by_cases hxf : far x q
-    · have hset : {s : Fin L → ι | g (s j) x = g (s j) q ∧ far x q} =
-          Set.pi Set.univ fun k : Fin L => if k = j then {i | g i x = g i q} else Set.univ := by
-        ext s
-        simp only [Set.mem_ofPred_eq, Set.mem_pi, Set.mem_univ, true_implies, hxf, and_true]
-        exact ⟨fun hs k => by split_ifs with h <;> simp [h, hs], fun h => by simpa using h j⟩
-      rw [hset, Measure.pi_pi]
-      simp_rw [apply_ite (fun s => ν s), measure_univ]
-      rw [Finset.prod_ite_eq', ite_eq_left (Finset.mem_univ j)]
-      calc ν {i | g i x = g i q}
-          = ENNReal.ofReal (measureCollisionProb ν g x q) := by
-            rw [measureCollisionProb, measureReal_def,
-              ENNReal.ofReal_toReal (measure_ne_top _ _)]
-        _ ≤ ENNReal.ofReal P₂ := ENNReal.ofReal_le_ofReal (hfar x hx hxf)
-    · have hset : {s : Fin L → ι | g (s j) x = g (s j) q ∧ far x q} = ∅ := by
-        ext s
-        simp only [Set.mem_ofPred_eq, hxf, and_false, Set.mem_empty_iff_false]
-      rw [hset, measure_empty]
-      exact bot_le
+    (fun s x => g (s j) x = g (s j) q ∧ far x q) (ENNReal.ofReal P₂) P (fun x hx => ?_)
+    (fun x hx => ?_) <;> by_cases hxf : far x q
+  · have h := (measurable_pi_apply j : Measurable fun s : Fin L → ι => s j) (hmeas x hx)
+    simpa [hxf, Set.preimage] using h
+  · simp [hxf]
+  · have hset : {s : Fin L → ι | g (s j) x = g (s j) q ∧ far x q} =
+        Set.pi Set.univ fun k : Fin L => if k = j then {i | g i x = g i q} else Set.univ := by
+      ext s
+      simp only [Set.mem_ofPred_eq, Set.mem_pi, Set.mem_univ, true_implies, hxf, and_true]
+      exact ⟨fun hs k => by split_ifs with h <;> simp [h, hs], fun h => by simpa using h j⟩
+    rw [hset, Measure.pi_pi]
+    simp_rw [apply_ite (fun s => ν s), measure_univ]
+    rw [Finset.prod_ite_eq', ite_eq_left (Finset.mem_univ j)]
+    exact (ENNReal.ofReal_toReal (measure_ne_top _ _)).symm.trans_le
+      (ENNReal.ofReal_le_ofReal (hfar x hx hxf))
+  · simp [hxf]
 
 /-- **The far candidates are few on average**: over `L` independent probability-measure table
 seeds, the expected number of far candidates is at most `L * |P| * P₂`. -/
@@ -113,23 +95,11 @@ theorem lintegral_pi_countP_candidates_le {far : X → X → Prop} [DecidableRel
         (((candidates g s P q).countP fun y => decide (far y q) : ℕ) : ℝ≥0∞)) ∧
       ∫⁻ s, (((candidates g s P q).countP fun y => decide (far y q) : ℕ) : ℝ≥0∞)
           ∂(Measure.pi fun _ : Fin L => ν) ≤ L * (P.length * ENNReal.ofReal P₂) := by
-  have hfun : (fun s : Fin L → ι =>
-        (((candidates g s P q).countP fun y => decide (far y q) : ℕ) : ℝ≥0∞)) =
-      fun s => ∑ j : Fin L,
-        ((P.countP fun x => decide (g (s j) x = g (s j) q ∧ far x q) : ℕ) : ℝ≥0∞) := by
-    funext s
-    rw [countP_candidates, Nat.cast_sum]
-  rw [hfun]
+  simp only [countP_candidates, Nat.cast_sum]
   have htab := measurable_and_lintegral_table_le (far := far) ν g L P q hmeas hfar
   refine ⟨Finset.measurable_sum _ fun j _ => (htab j).1, ?_⟩
   rw [lintegral_finsetSum _ fun j _ => (htab j).1]
-  calc ∑ j : Fin L, ∫⁻ s,
-        ((P.countP fun x => decide (g (s j) x = g (s j) q ∧ far x q) : ℕ) : ℝ≥0∞)
-          ∂(Measure.pi fun _ : Fin L => ν)
-      ≤ ∑ _j : Fin L, (P.length * ENNReal.ofReal P₂) :=
-        Finset.sum_le_sum fun j _ => (htab j).2
-    _ = L * (P.length * ENNReal.ofReal P₂) := by
-        rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
+  exact (Finset.sum_le_sum fun j _ => (htab j).2).trans_eq (by simp)
 
 /-- **The LSH failure bound for probability-measure seeds**: with `L` independent tables drawn
 from `ν` and stop rule `T > 0`, `query` returns `none` with probability at most
@@ -151,7 +121,7 @@ theorem measureReal_query_eq_none_le {far : X → X → Prop} [DecidableRel far]
     intro s hs
     by_cases hj : ∃ j, g (s j) x₀ = g (s j) q
     · exact Or.inr (show (T : ℝ≥0∞) ≤ f s from Nat.cast_le.2 (le_countP_candidates hx₀ hnf hj hs))
-    · refine Or.inl fun j _ hj' => hj ⟨j, hj'⟩
+    · exact Or.inl fun j _ hj' => hj ⟨j, hj'⟩
   have hA : μ A = ν {i | g i x₀ = g i q}ᶜ ^ L := by
     rw [Measure.pi_pi, Finset.prod_const, Finset.card_univ, Fintype.card_fin]
   obtain ⟨hfm, hfl⟩ := lintegral_pi_countP_candidates_le ν g L P q hmeas hfar
@@ -167,9 +137,7 @@ theorem measureReal_query_eq_none_le {far : X → X → Prop} [DecidableRel far]
       (by exact_mod_cast hT.ne')
   have hle : μ {s | query g far s T P q = none} ≤
       ν {i | g i x₀ = g i q}ᶜ ^ L + L * (P.length * ENNReal.ofReal P₂) / T := by
-    refine (measure_mono hsub).trans ((measure_union_le A B).trans ?_)
-    rw [hA]
-    exact add_le_add le_rfl hB
+    exact (measure_mono hsub).trans ((measure_union_le A B).trans (add_le_add hA.le hB))
   ennreal_to_real at hle
   refine hle.trans ?_
   rw [hcompl, ← mul_assoc]
