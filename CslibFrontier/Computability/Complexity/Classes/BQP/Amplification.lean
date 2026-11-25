@@ -214,17 +214,15 @@ theorem readBit_classicalRun_copyCodes (hn : n ≤ w) (hw : 0 < w) (X : Fin (wid
       by_cases hi : i₀ < n
       · simp [hj₀, hi]
       · simp [hj₀, hi, hX i₀ (by omega)]
-    · simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not]
-      left
-      rintro ⟨i, hi, h⟩
+    · refine Bool.and_eq_false_iff.mpr (Or.inl (decide_eq_false fun ⟨i, hi, h⟩ => ?_))
       have hmod := congrArg (· / w) h
       simp only [Nat.add_mul_div_right _ _ hw, Nat.div_eq_of_lt hi₀,
         Nat.div_eq_of_lt (show i < w by omega)] at hmod
       omega
   · rw [ite_eq_right hp, foldl_xor_range k k _ _ fun j hj _ => ?_]
     · simp
-    · simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not]
-      exact Or.inl fun ⟨i, hi, h⟩ => hp ⟨j, hj, i, by omega, h⟩
+    · exact Bool.and_eq_false_iff.mpr
+        (Or.inl (decide_eq_false fun ⟨i, hi, h⟩ => hp ⟨j, hj, i, by omega, h⟩))
 
 /-- **After the copy step every block holds the input**: started from the input `x` of length
 `n ≤ m ≤ w`, the first `m` qubits of each block read `x`. -/
@@ -234,10 +232,8 @@ theorem classicalRun_copyCodes_comp_block (hn : n ≤ m) (hm : m ≤ w) {x : Lis
       inputState m x := by
   funext i
   have hw : 0 < w := lt_of_le_of_lt (Nat.zero_le _) (lt_of_lt_of_le i.2 hm)
-  have hlen : x.length ≤ width w k t := by
-    have : w ≤ base w k := le_base
-    have : base w k < width w k t := base_lt_width
-    omega
+  have hlen : x.length ≤ width w k t :=
+    hx.trans (hn.trans (hm.trans (le_base.trans base_lt_width.le)))
   have h := readBit_classicalRun_copyCodes (k := k) (t := t) (hn.trans hm) hw (inputState _ x)
     (fun p hp => readBit_inputState_of_le (by omega)) (i + (j + 1) * w)
   rw [ite_eq_left ⟨j, j.2, i, lt_of_lt_of_le i.2 hm, rfl⟩, Nat.add_mul_mod_self_right,
@@ -341,11 +337,8 @@ theorem sum_accepting_counter_swap (hm : m ≤ w) (hm0 : 0 < m) {X : Fin (width 
       ext s
       simp only [mem_filter, mem_range, mem_map, mem_univ, true_and, Fin.valEmbedding_apply,
         Function.comp_apply]
-      constructor
-      · rintro ⟨hs, h⟩
-        exact ⟨⟨s, hs⟩, (hbit ⟨s, hs⟩).symm.trans h, rfl⟩
-      · rintro ⟨j, h, rfl⟩
-        exact ⟨j.2, (hbit j).trans h⟩
+      exact ⟨fun ⟨hs, h⟩ => ⟨⟨s, hs⟩, (hbit ⟨s, hs⟩).symm.trans h, rfl⟩,
+        fun ⟨j, h, hj⟩ => hj ▸ ⟨j.2, (hbit j).trans h⟩⟩
     have hacc : (classicalRun (Counter.codes (base w k) (t + 1) (fun s => (s + 1) * w) k ++
         swapCodes (answer w k t)) Y ∈ accepting (width w k t)) ↔
         t < (univ.filter fun j : Fin k => (Y ∘ blocks w k t hm) (j, ⟨0, hm0⟩) = true).card := by
@@ -441,8 +434,7 @@ theorem acceptProb_threshold_codes {n w k t : ℕ} {gs : List GateCode} (hw : 0 
   simp only [boole_mul, ← sum_filter] at h
   refine h.trans (sum_congr rfl fun b _ => prod_congr rfl fun j _ => ?_)
   cases b j
-  · exact hfalse
-  · exact htrue
+  exacts [hfalse, htrue]
 
 namespace Amplify
 
