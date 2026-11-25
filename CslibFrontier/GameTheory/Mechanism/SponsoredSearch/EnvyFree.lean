@@ -230,35 +230,20 @@ theorem IsOptimal.isAssortative {μ : Fin k → ℝ} {v : ι → ℝ} {σ : Fin 
   · rcases eq_or_lt_of_le hle with rfl | hlt
     · exact le_rfl
     · let τ : Fin k ↪ ι := (Equiv.swap i₁ i₂).toEmbedding.trans σ
-      have hopt : welfare μ v τ ≤ welfare μ v σ := hσ τ
       have hne : i₁ ≠ i₂ := ne_of_lt hlt
       have hdiff : welfare μ v τ - welfare μ v σ =
           (μ i₁ - μ i₂) * (v (σ i₂) - v (σ i₁)) := by
         simp only [welfare, ← Finset.sum_sub_distrib]
-        have hpair : ∀ r : Fin k, r ≠ i₁ → r ≠ i₂ →
-            μ r * v (τ r) - μ r * v (σ r) = 0 := fun r hr₁ hr₂ => by
-          simp only [τ, Function.Embedding.trans_apply, Equiv.coe_toEmbedding,
-            Equiv.swap_apply_of_ne_of_ne hr₁ hr₂, sub_self]
-        rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i₁)]
-        have hi₂ : i₂ ∈ Finset.univ.erase i₁ := Finset.mem_erase.2 ⟨hne.symm, Finset.mem_univ _⟩
-        rw [← Finset.add_sum_erase _ _ hi₂]
-        have hrest : ∑ r ∈ (Finset.univ.erase i₁).erase i₂,
-            (μ r * v (τ r) - μ r * v (σ r)) = 0 :=
-          Finset.sum_eq_zero fun r hr =>
-            hpair r (Finset.ne_of_mem_erase (Finset.mem_of_mem_erase hr))
-              (Finset.ne_of_mem_erase hr)
-        rw [hrest, add_zero]
-        have ht1 : τ i₁ = σ i₂ := by
-          simp only [τ, Function.Embedding.trans_apply, Equiv.coe_toEmbedding,
-            Equiv.swap_apply_left]
-        have ht2 : τ i₂ = σ i₁ := by
-          simp only [τ, Function.Embedding.trans_apply, Equiv.coe_toEmbedding,
-            Equiv.swap_apply_right]
-        rw [ht1, ht2]
+        rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i₁),
+          ← Finset.add_sum_erase _ _ (Finset.mem_erase.2 ⟨hne.symm, Finset.mem_univ i₂⟩),
+          Finset.sum_eq_zero fun r hr => by
+            simp [τ, Equiv.swap_apply_of_ne_of_ne
+              (Finset.ne_of_mem_erase (Finset.mem_of_mem_erase hr)) (Finset.ne_of_mem_erase hr)]]
+        simp only [τ, Function.Embedding.trans_apply, Equiv.coe_toEmbedding,
+          Equiv.swap_apply_left, Equiv.swap_apply_right, add_zero]
         ring
-      have hμlt : μ i₂ < μ i₁ := hμ hlt
       change v (σ i₂) ≤ v (σ i₁)
-      nlinarith
+      nlinarith [hσ τ, hμ hlt]
   · let τ : Fin k ↪ ι :=
       { toFun := fun r => if r = i then j else σ r
         inj' := fun a b hab => by
@@ -268,24 +253,13 @@ theorem IsOptimal.isAssortative {μ : Fin k → ℝ} {v : ι → ℝ} {σ : Fin 
           · exact absurd ⟨b, hab.symm⟩ hj
           · exact absurd ⟨a, hab⟩ hj
           · exact σ.injective hab }
-    have hopt : welfare μ v τ ≤ welfare μ v σ := hσ τ
     have hdiff : welfare μ v τ - welfare μ v σ = μ i * (v j - v (σ i)) := by
-      simp only [welfare, ← Finset.sum_sub_distrib]
-      rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i)]
-      have hrest : ∑ r ∈ Finset.univ.erase i, (μ r * v (τ r) - μ r * v (σ r)) = 0 :=
-        Finset.sum_eq_zero fun r hr => by
-          have hne : r ≠ i := Finset.ne_of_mem_erase hr
-          have hτr : τ r = σ r := by
-            change (if r = i then j else σ r) = σ r
-            simp only [hne, ↓reduceIte]
-          rw [hτr, sub_self]
-      have hτi : τ i = j := by
-        change (if i = i then j else σ i) = j
-        simp only [↓reduceIte]
-      rw [hrest, add_zero, hτi]
-      ring
-    have hpos : 0 < μ i := hμ_pos i
-    nlinarith
+      have hτ (r : Fin k) : τ r = if r = i then j else σ r := rfl
+      simp only [welfare, ← Finset.sum_sub_distrib, hτ]
+      rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i),
+        Finset.sum_eq_zero fun r hr => by simp [Finset.ne_of_mem_erase hr]]
+      simp only [↓reduceIte, add_zero]; ring
+    nlinarith [hσ τ, hμ_pos i]
 
 /-- Under strictly decreasing positive CTRs, an assignment is optimal iff it is assortative
 ([LahaiePennockSaberiVohra2007], §28.3.1, p. 704). -/
@@ -480,16 +454,16 @@ assigned (`Fintype.card ι = k`). -/
     (Finset.univ \ Finset.univ.map σ).sup' h v
   else 0
 
+private theorem mem_unassigned_iff [Fintype ι] [DecidableEq ι] (σ : Fin k ↪ ι) (j : ι) :
+    j ∈ Finset.univ \ Finset.univ.map σ ↔ j ∉ Set.range σ := by
+  simp [Set.mem_range]
+
 /-- Every unassigned bidder's value is at most `maxUnassignedValue v σ`. -/
 theorem le_maxUnassignedValue [Fintype ι] [DecidableEq ι] (v : ι → ℝ) (σ : Fin k ↪ ι) {j : ι}
     (hj : j ∉ Set.range σ) : v j ≤ maxUnassignedValue v σ := by
-  have hmem : j ∈ Finset.univ \ Finset.univ.map σ := by
-    simp only [Finset.mem_sdiff, Finset.mem_univ, Finset.mem_map, true_and, not_exists]
-    exact fun i h => hj ⟨i, h⟩
+  have hmem := (mem_unassigned_iff σ j).mpr hj
   unfold maxUnassignedValue
-  split_ifs with hne
-  · exact Finset.le_sup' v hmem
-  · exact (hne ⟨j, hmem⟩).elim
+  split_ifs with hne; exacts [Finset.le_sup' v hmem, (hne ⟨j, hmem⟩).elim]
 
 /-- If all bidder values are nonnegative, then `maxUnassignedValue v σ` is nonnegative. -/
 theorem maxUnassignedValue_nonneg [Fintype ι] [DecidableEq ι] {v : ι → ℝ} (hv : ∀ j, 0 ≤ v j)
@@ -508,10 +482,7 @@ theorem maxUnassignedValue_le [Fintype ι] [DecidableEq ι] {v : ι → ℝ} {σ
     maxUnassignedValue v σ ≤ c := by
   unfold maxUnassignedValue
   split_ifs with h
-  · refine Finset.sup'_le h v fun j hj => hc0 h j ?_
-    simp only [Finset.mem_sdiff, Finset.mem_univ, Finset.mem_map, true_and, not_exists] at hj
-    rintro ⟨i, rfl⟩
-    exact hj i rfl
+  · exact Finset.sup'_le h v fun j hj => hc0 h j ((mem_unassigned_iff σ j).mp hj)
   · exact hcEmpty h
 
 /-- `maxUnassignedValue` depends only on the values of unassigned bidders. -/
@@ -520,10 +491,7 @@ theorem maxUnassignedValue_congr [Fintype ι] [DecidableEq ι] {v₁ v₂ : ι �
     maxUnassignedValue v₁ σ = maxUnassignedValue v₂ σ := by
   unfold maxUnassignedValue
   split_ifs with hne
-  · refine Finset.sup'_congr hne rfl fun j hj => h j ?_
-    simp only [Finset.mem_sdiff, Finset.mem_univ, Finset.mem_map, true_and, not_exists] at hj
-    rintro ⟨i, rfl⟩
-    exact hj i rfl
+  · exact Finset.sup'_congr hne rfl fun j hj => h j ((mem_unassigned_iff σ j).mp hj)
   · rfl
 
 /-- The value directly below slot `i : Fin k` under assignment `σ`: `v (σ (i + 1))` when
@@ -658,18 +626,9 @@ theorem minEnvyFreePrice_le [Fintype ι] [DecidableEq ι] {μ : Fin k → ℝ} {
     unfold maxUnassignedValue
     split_ifs with hne
     · obtain ⟨j, hjmem, hj⟩ := Finset.exists_mem_eq_sup' hne v
-      rw [hj]
-      have hj' : j ∉ Set.range σ := by
-        simp only [Finset.mem_sdiff, Finset.mem_univ, Finset.mem_map, true_and,
-          not_exists] at hjmem
-        rintro ⟨r, rfl⟩
-        exact hjmem r rfl
-      have := hp.unassigned_noEnvy hk j hj'
-      linarith
+      rw [hj]; linarith [hp.unassigned_noEnvy hk j ((mem_unassigned_iff σ j).mp hjmem)]
     · rw [mul_zero]; exact hp_nonneg ⟨k - 1, by omega⟩
-  · have hdiff := minEnvyFreePrice_sub_succ μ v σ r hr
-    have hne := hp.noEnvyAbove r hr
-    linarith
+  · linarith [minEnvyFreePrice_sub_succ μ v σ r hr, hp.noEnvyAbove r hr]
 
 /-- **Theorem 28.1** ([LahaiePennockSaberiVohra2007], §28.3.2, p. 706): under strictly decreasing
 positive click-through rates `μ`, a full assignment `σ : Fin k ↪ ι` is optimal if and only if
@@ -699,20 +658,12 @@ theorem isOptimal_iff_exists_isLocallyEnvyFree [Finite ι] {μ : Fin k → ℝ}
       else if hk : 0 < k then v (σ ⟨k - 1, by omega⟩) else 0
     refine ⟨priceFromBase μ v σ base, isLocallyEnvyFree_priceFromBase hσ hμ.antitone
       (fun i => (hμ_pos i).le) (fun hk => ?_) (fun j hj => ?_)⟩
-    · by_cases hne : (Finset.univ \ Finset.univ.map σ).Nonempty
-      · simp only [base, hne, ↓reduceDIte]
-        refine Finset.sup'_le hne v fun j hjmem => hσ.unassigned_le ⟨k - 1, by omega⟩ j ?_
-        simp only [Finset.mem_sdiff, Finset.mem_univ, Finset.mem_map, true_and,
-          not_exists] at hjmem
-        rintro ⟨r, rfl⟩
-        exact hjmem r rfl
-      · simp only [base, hne, hk, ↓reduceDIte, le_rfl]
-    · have hmem : j ∈ Finset.univ \ Finset.univ.map σ := by
-        simp only [Finset.mem_sdiff, Finset.mem_univ, Finset.mem_map, true_and, not_exists]
-        exact fun i h => hj ⟨i, h⟩
+    · dsimp only [base]; split_ifs with hne
+      · exact Finset.sup'_le hne v fun j hj => hσ.unassigned_le _ j ((mem_unassigned_iff σ j).mp hj)
+      · exact le_rfl
+    · have hmem := (mem_unassigned_iff σ j).mpr hj
       have hne : (Finset.univ \ Finset.univ.map σ).Nonempty := ⟨j, hmem⟩
-      simp only [base, hne, ↓reduceDIte]
-      exact Finset.le_sup' v hmem
+      simpa only [base, hne, ↓reduceDIte] using Finset.le_sup' v hmem
   · rintro ⟨p, hlef⟩
     exact (hlef.isAssortative hμ hμ_pos).isOptimal hμ.antitone fun i => (hμ_pos i).le
 
