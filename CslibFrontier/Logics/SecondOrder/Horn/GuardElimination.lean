@@ -291,7 +291,8 @@ private theorem isQF_auxClauses {m : ℕ} :
   | _, .all ψ => by
     simp only [auxClauses, List.forall_mem_append, List.forall_mem_cons, List.not_mem_nil,
       IsEmpty.forall_iff, implies_true, and_true]
-    exact ⟨List.forall_mem_map.mpr (isQF_auxClauses ψ), .top, (BoundedFormula.IsAtomic.equal _ _).isQF, isQF_succ L _ _,
+    exact ⟨List.forall_mem_map.mpr (isQF_auxClauses ψ), .top,
+      (BoundedFormula.IsAtomic.equal _ _).isQF, isQF_succ L _ _,
       (BoundedFormula.IsAtomic.equal _ _).isQF⟩
 
 /-! ### Soundness and completeness of the auxiliary clauses -/
@@ -439,7 +440,8 @@ private theorem rootTarget_le_of_holds_auxClauses :
     · change evalSub (φ₁.imp φ₂) w at hw
       rw [evalSub_imp] at hw
       by_cases hp : evalSub φ₁ w
-      · exact hc₂ w (Formula.realize_top.mpr trivial) (List.forall_mem_singleton.mpr (ih₂ true (hw hp)))
+      · exact hc₂ w (Formula.realize_top.mpr trivial)
+          (List.forall_mem_singleton.mpr (ih₂ true (hw hp)))
       · exact hc₁ w (Formula.realize_top.mpr trivial) (List.forall_mem_singleton.mpr (ih₁ false hp))
   | k, .all ψ, R, hR => by
     simp only [auxClauses, List.forall_mem_append, List.forall_mem_cons, List.not_mem_nil,
@@ -452,7 +454,8 @@ private theorem rootTarget_le_of_holds_auxClauses :
     · change ¬ evalSub ψ.all w at hw
       rw [evalSub_all, not_forall] at hw
       obtain ⟨y, hy⟩ := hw
-      have hu := hneg (Fin.snoc w y) (Formula.realize_top.mpr trivial) (List.forall_mem_singleton.mpr (ih false hy))
+      have hu := hneg (Fin.snoc w y) (Formula.realize_top.mpr trivial)
+        (List.forall_mem_singleton.mpr (ih false hy))
       change (Fin.snoc w y) ∘ Fin.castSucc ∈ R (.inl false) at hu
       rwa [Fin.snoc_comp_castSucc] at hu
     · change evalSub ψ.all w at hw

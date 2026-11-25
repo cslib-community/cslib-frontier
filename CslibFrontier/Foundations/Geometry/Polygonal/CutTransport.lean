@@ -150,7 +150,7 @@ private theorem sourceSamples_ends (p : Route) (S : Finset ℝ) (c : ℂ →ᵃ[
   have hsource : sourceSamples p S c ≠ [] := by simp [sourceSamples]
   constructor
   · rw [← List.head_eq_getElem hsource]
-    show (((List.finRange p.segments).flatMap (sourceBlock p S c)) ++
+    change (((List.finRange p.segments).flatMap (sourceBlock p S c)) ++
         [(Fin.last p.bends,1)]).head (by simp) = (0,0)
     rw [List.head_append_of_ne_nil (List.flatMap_ne_nil hfin fun i _ => sourceBlock_ne_nil p S c i),
       List.head_flatMap hfin (fun i _ => sourceBlock_ne_nil p S c i), sourceBlock_head]

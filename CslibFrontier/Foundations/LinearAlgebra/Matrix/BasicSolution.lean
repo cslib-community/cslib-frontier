@@ -311,7 +311,10 @@ theorem exists_int_farkas_certificate {A : Matrix m n ℤ} {b : m → ℤ} {B : 
   have hM : ∀ r i, |M r i| ≤ (B + 1 : ℕ) := by
     rintro (j | u) i
     exacts [(hA i j).trans (by push_cast; linarith), (hb i).trans (by push_cast; linarith)]
-  have he : ∀ r, |e r| ≤ (B + 1 : ℕ) := by rintro (j | u) <;> simp [e]; positivity
+  have he : ∀ r, |e r| ≤ (B + 1 : ℕ) := by
+    rintro (j | u)
+    · simp only [e, Sum.elim_inl, Pi.zero_apply, abs_zero]; positivity
+    · simp [e]
   set s : K := y ⬝ᵥ (fun i => (b i : K)) with hs
   have hy' : 0 ≤ (-s⁻¹) • y := smul_nonneg (neg_nonneg.2 (inv_nonpos.2 hyb.le)) hy
   have hMy : M.map (Int.cast : ℤ → K) *ᵥ ((-s⁻¹) • y) = fun r => (e r : K) := by
