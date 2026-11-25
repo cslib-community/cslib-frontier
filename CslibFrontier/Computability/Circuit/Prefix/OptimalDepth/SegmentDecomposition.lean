@@ -11,8 +11,8 @@ public import CslibFrontier.Computability.Circuit.Prefix.Basic
 public import CslibFrontier.Computability.Circuit.Prefix.OptimalDepth.Trees
 -- `import all`: reads private zero-deficiency DAG helpers (`programWord`, `ancMul`, `stripId`,
 -- `leftSpine`, `universal_mul_sets`) from `Prefix.Basic` and private `programWord`-indexed
--- segment-tree helpers (`exists_wireIntervalTree`, `spine_decomposition`, `wireState`,
--- `buildSegTree`, `buildSegTree_counts`) from `OptimalDepth.SegmentTree`.
+-- segment-tree helpers (`gateWord_range_split`, `exists_wireIntervalTree`, `spine_decomposition`,
+-- `wireState`, `buildSegTree`, `buildSegTree_counts`) from `OptimalDepth.SegmentTree`.
 import all CslibFrontier.Computability.Circuit.Prefix.Basic
 import all CslibFrontier.Computability.Circuit.Prefix.OptimalDepth.SegmentTree
 import CslibFrontier.Computability.Circuit.Basic
@@ -281,10 +281,9 @@ theorem optimal_segment_decomposition {N k : ℕ} (hN : 1 ≤ N)
         cases op with
         | id => rw [hline] at hop; cases hop
         | mul =>
-          rw [programWord_gate_mul c.program g wires hline, ha_eq] at hgw
-          have := range_split_of_append (programWord_ne_nil c.program (wires 0))
-            (programWord_ne_nil c.program (wires 1)) hgw
-          omega
+          obtain ⟨p, hp, hp1, _⟩ := gateWord_range_split c.program g wires hline
+            (a := 0) (b := 1) (by simpa only [ha_eq, Nat.sub_zero] using hgw)
+          exact (Nat.not_lt_of_ge hp hp1).elim
     · have ha2 : 1 < a := hT0 ▸ hT_strict (Nat.zero_le D) hd.le hd0
       obtain ⟨_, ⟨sg_prev, _, hv_prev_succ, _, hprev_line, _, _⟩, _, _, _, _⟩ :=
         hseg (d - 1) (by omega)
@@ -306,14 +305,11 @@ theorem optimal_segment_decomposition {N k : ℕ} (hN : 1 ≤ N)
       cases op with
       | id => rw [hline] at hop; cases hop
       | mul =>
-        rw [programWord_gate_mul c.program g wires hline] at hgw
-        obtain ⟨hp_pos, hps_pos, hw0, hw1⟩ := range_split_of_append
-          (programWord_ne_nil c.program (wires 0)) (programWord_ne_nil c.program (wires 1)) hgw
-        set p := (programWord c.program (wires 0)).length
+        obtain ⟨p, hp_pos, hps, hw0, hw1⟩ := gateWord_range_split c.program g wires hline
+          (a := 0) (b := s) (by simpa only [Nat.sub_zero] using hgw)
         suffices h : a ≤ p ∧ (p, s) ∈ I.intervals from
-          ⟨p, h.1, by omega, by simpa only [firstInput] using hw0,
-            Finset.mem_erase_of_ne_of_mem (by simp only [ne_eq, Prod.mk.injEq]; omega) h.2⟩
-        rw [Nat.zero_add] at hw1
+          ⟨p, h.1, hps, by simpa only [firstInput, Nat.sub_zero] using hw0,
+            Finset.mem_erase_of_ne_of_mem (fun he => hsb.ne (congrArg Prod.snd he)) h.2⟩
         obtain ⟨hsw, _, hs_op⟩ := stripId_spec c.program (wires 1)
         rw [hw1] at hsw
         cases hs_id : stripId c.program (wires 1) with
