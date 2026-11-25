@@ -1725,27 +1725,35 @@ theorem detPSDistinguisher_queryBound [DecidableEq M] [DecidableEq Target]
             (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
             (detPSHandler (M := M) (Target := Target) (Preimage := Preimage)) q).run st)
           (Sum.elim (fun _ => 0) (fun _ => 1) q) := by
+    have hbranch : ∀ {α : Type} (cache : List (M × (Target × Option Preimage))) (m : M)
+        (onSome onNone : Target × Option Preimage →
+          α × (List (M × (Target × Option Preimage)) × List M)),
+        ProbOracleComp.IsQueryBounded
+          (match cache.lookup m with
+          | some (y, x) => pure (onSome (y, x))
+          | none => do
+              let yx ← ProbOracleComp.query
+                (spec := fun _ : Unit => Target × Option Preimage) ()
+              pure (onNone yx)) 1 := by
+      intro α cache m onSome onNone
+      cases cache.lookup m with
+      | some yx => exact OracleComp.IsCostBounded.pure _ 1
+      | none =>
+        simpa only [add_zero] using
+          (ProbOracleComp.IsQueryBounded.query
+            (spec := fun _ : Unit => Target × Option Preimage) ()).bind
+            fun yx => OracleComp.IsCostBounded.pure _ 0
     rintro (n | (m | m)) ⟨cache, signed⟩
     · simpa only [OracleComp.sumHandler, StateT.run_lift, Sum.elim_inl, add_zero] using
         (ProbOracleComp.IsQueryBounded.sample
           (spec := fun _ : Unit => Target × Option Preimage) (ProbComp.unifFin n)).bind
           fun a => OracleComp.IsCostBounded.pure (a, (cache, signed)) 0
     · dsimp only [OracleComp.sumHandler, detPSHandler, StateT.run, Sum.elim_inr]
-      cases cache.lookup m with
-      | some yx => exact OracleComp.IsCostBounded.pure _ 1
-      | none =>
-        simpa only [add_zero] using
-          (ProbOracleComp.IsQueryBounded.query
-            (spec := fun _ : Unit => Target × Option Preimage) ()).bind
-            fun yx => OracleComp.IsCostBounded.pure _ 0
+      exact hbranch cache m (fun yx => (yx.2, (cache, m :: signed)))
+        (fun yx => (yx.2, ((m, yx) :: cache, m :: signed)))
     · dsimp only [OracleComp.sumHandler, detPSHandler, StateT.run, Sum.elim_inr]
-      cases cache.lookup m with
-      | some yx => exact OracleComp.IsCostBounded.pure _ 1
-      | none =>
-        simpa only [add_zero] using
-          (ProbOracleComp.IsQueryBounded.query
-            (spec := fun _ : Unit => Target × Option Preimage) ()).bind
-            fun yx => OracleComp.IsCostBounded.pure _ 0
+      exact hbranch cache m (fun yx => (yx.1, (cache, signed)))
+        (fun yx => (yx.1, ((m, yx) :: cache, signed)))
   have hmain :
       ProbOracleComp.IsQueryBounded
         ((OracleComp.interpret
@@ -2405,46 +2413,43 @@ private theorem detWorld_le_detPSReal_add_birthday [DecidableEq M] [DecidableEq 
         (fun (st : List (M × (Target × Option Preimage)) × List M) =>
           ∀ m y x, (m, (y, x)) ∈ st.1 → x = invTable y)
         ?_ ?_ (forger pk) ([], []) (by intro m y x hm; cases hm)
-      · rintro q ⟨cache, signed⟩ hinv a ⟨cache', signed'⟩ hstep
+      · have hbranch : ∀ {α : Type} {cache cache' : List (M × (Target × Option Preimage))}
+            {m : M} {signedOut signed' : List M} {a : α}
+            (hinv : ∀ m' y' x', (m', (y', x')) ∈ cache → x' = invTable y')
+            {outSome : Target × Option Preimage → α} {outNone : Target → α},
+            (a, (cache', signed')) ∈ (match cache.lookup m with
+              | some (y, x) => PMF.pure (outSome (y, x), (cache, signedOut))
+              | none => (PMF.uniformOfFintype Target).map fun y =>
+                  (outNone y, ((m, (y, invTable y)) :: cache, signedOut))).support →
+            ∀ m' y' x', (m', (y', x')) ∈ cache' → x' = invTable y' := by
+          intro α cache cache' m signedOut signed' a hinv outSome outNone hstep
+          cases hlu : cache.lookup m with
+          | some yx =>
+            rw [hlu, PMF.mem_support_pure_iff, Prod.mk.injEq, Prod.mk.injEq] at hstep
+            obtain ⟨-, rfl, -⟩ := hstep
+            exact hinv
+          | none =>
+            rw [hlu, PMF.mem_support_map_iff] at hstep
+            obtain ⟨y, -, heq⟩ := hstep
+            rw [Prod.mk.injEq, Prod.mk.injEq] at heq
+            obtain ⟨-, rfl, -⟩ := heq
+            intro m' y' x' hm'
+            rcases List.mem_cons.mp hm' with hhd | htl
+            · injection hhd with _ h2
+              injection h2 with hy hx
+              subst hy hx
+              rfl
+            · exact hinv m' y' x' htl
+        rintro q ⟨cache, signed⟩ hinv a ⟨cache', signed'⟩ hstep
         cases q with
         | inl m =>
-          dsimp only at hstep
-          cases hlu : cache.lookup m with
-          | some yx =>
-            rw [hlu, PMF.mem_support_pure_iff, Prod.mk.injEq, Prod.mk.injEq] at hstep
-            obtain ⟨-, rfl, -⟩ := hstep
-            exact hinv
-          | none =>
-            rw [hlu, PMF.mem_support_map_iff] at hstep
-            obtain ⟨y, -, heq⟩ := hstep
-            rw [Prod.mk.injEq, Prod.mk.injEq] at heq
-            obtain ⟨-, rfl, -⟩ := heq
-            intro m' y' x' hm'
-            rcases List.mem_cons.mp hm' with hhd | htl
-            · injection hhd with _ h2
-              injection h2 with hy hx
-              subst hy hx
-              rfl
-            · exact hinv m' y' x' htl
+          dsimp only at hinv hstep
+          exact hbranch (m := m) (signedOut := m :: signed) (signed' := signed')
+            (outSome := fun (_, x) => x) (outNone := invTable) hinv hstep
         | inr m =>
-          dsimp only at hstep
-          cases hlu : cache.lookup m with
-          | some yx =>
-            rw [hlu, PMF.mem_support_pure_iff, Prod.mk.injEq, Prod.mk.injEq] at hstep
-            obtain ⟨-, rfl, -⟩ := hstep
-            exact hinv
-          | none =>
-            rw [hlu, PMF.mem_support_map_iff] at hstep
-            obtain ⟨y, -, heq⟩ := hstep
-            rw [Prod.mk.injEq, Prod.mk.injEq] at heq
-            obtain ⟨-, rfl, -⟩ := heq
-            intro m' y' x' hm'
-            rcases List.mem_cons.mp hm' with hhd | htl
-            · injection hhd with _ h2
-              injection h2 with hy hx
-              subst hy hx
-              rfl
-            · exact hinv m' y' x' htl
+          dsimp only at hinv hstep
+          exact hbranch (m := m) (signedOut := signed) (signed' := signed')
+            (outSome := fun (y, _) => y) (outNone := fun y => y) hinv hstep
       · rintro q ⟨cache, signed⟩ hinv
         cases q with
         | inl m =>
@@ -2645,25 +2650,8 @@ private theorem detWorld_le_detPSReal_add_birthday [DecidableEq M] [DecidableEq 
             let (cache, signed, invCache) := st
             ((cache, signed), invCache))
           ?_ (forger pk) ([], [], [])
-        rintro q ⟨cache, signed, invCache⟩
-        cases q with
-        | inl m =>
-          dsimp only [detEagerHandler, StateT.run]
-          cases cache.lookup m with
-          | some yx => simp [ProbOracleComp.runWith_pure, PMF.pure_map]
-          | none =>
-            simp only [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample,
-              ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure, ProbComp.eval_uniform,
-              PMF.map_bind, PMF.bind_map, memoize]
-            refine PMF.bind_congr_on_support _ _ _ fun y _ => ?_
-            cases hinv : invCache.lookup y with
-            | some x => simp [hinv, PMF.pure_map, PMF.pure_bind]
-            | none =>
-              simp only [hinv, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind,
-                PMF.pure_bind, PMF.map_bind, PMF.pure_map, PMF.map_comp, Function.comp_def]
-              exact (PMF.bind_pure_comp _ _)
-        | inr m =>
-          dsimp only [detEagerHandler, StateT.run]
+        rintro (m | m) ⟨cache, signed, invCache⟩ <;>
+        · dsimp only [detEagerHandler, StateT.run]
           cases cache.lookup m with
           | some yx => simp [ProbOracleComp.runWith_pure, PMF.pure_map]
           | none =>
@@ -2994,6 +2982,23 @@ private theorem detCache_cons_indexed {M Target Payload : Type}
       injection h4 with hk; subst hk; omega
     · exact Nat.lt_succ_of_lt (hlt m' y' p' k htl)
 
+private theorem detCache_cons_unindexed {M Target Payload : Type}
+    {cache : List (M × (Target × Payload × Option ℕ))} {signed : List M} {hCount : ℕ}
+    (m : M) (y : Target) (p : Payload)
+    (hsign : ∀ m' y' p', (m', (y', p', none)) ∈ cache → m' ∈ signed)
+    (hlt : ∀ m' y' p' k, (m', (y', p', some k)) ∈ cache → k < hCount) :
+    (∀ m' y' p', (m', (y', p', none)) ∈ (m, (y, p, none)) :: cache → m' ∈ m :: signed) ∧
+    (∀ m' y' p' k, (m', (y', p', some k)) ∈ (m, (y, p, none)) :: cache → k < hCount) := by
+  refine ⟨?_, ?_⟩
+  · intro m' y' p' hm'
+    rcases List.mem_cons.mp hm' with hhd | htl
+    · injection hhd with hm' _; subst hm'; exact List.mem_cons_self
+    · exact List.mem_cons_of_mem _ (hsign m' y' p' htl)
+  · intro m' y' p' k hm'
+    rcases List.mem_cons.mp hm' with hhd | htl
+    · injection hhd with _ h2; injection h2 with _ h3; injection h3 with _ h4; cases h4
+    · exact hlt m' y' p' k htl
+
 private def DetTrackInv {M Target Preimage : Type} (jStar : ℕ)
     (st : DetTrackState M Target Preimage) : Prop :=
   (∀ m y x, (m, (y, x, none)) ∈ st.cache → m ∈ st.signed) ∧
@@ -3041,15 +3046,8 @@ private theorem detTrackInv_step [DecidableEq M]
       obtain ⟨yx, -, heq⟩ := hstep
       rw [Prod.mk.injEq] at heq
       obtain ⟨-, rfl⟩ := heq
-      refine ⟨?_, ?_, ?_, ?_⟩
-      · intro m' y' x' hm'
-        rcases List.mem_cons.mp hm' with hhd | htl
-        · injection hhd with hm' _; subst hm'; exact List.mem_cons_self
-        · exact List.mem_cons_of_mem _ (hsign m' y' x' htl)
-      · intro m' y' x' k hm'
-        rcases List.mem_cons.mp hm' with hhd | htl
-        · injection hhd with _ h2; injection h2 with _ h3; injection h3 with _ h4; cases h4
-        · exact hlt m' y' x' k htl
+      obtain ⟨hsign', hlt'⟩ := detCache_cons_unindexed m yx.1 yx.2 hsign hlt
+      refine ⟨hsign', hlt', ?_, ?_⟩
       · intro m₁ y₁ x₁ m₂ y₂ x₂ hm₁ hm₂
         rcases List.mem_cons.mp hm₁ with hhd | htl₁
         · injection hhd with _ h2; injection h2 with _ h3; injection h3 with _ h4; cases h4
@@ -3244,6 +3242,20 @@ private noncomputable def detOneRelate {M Target Preimage : Type} (μStar : PMF 
   | some y => PMF.pure (st, y)
   | none => μStar.map (st, ·)
 
+private theorem detOneRelate_proj_state {M Target Preimage : Type}
+    (dist : PMF ((M × Option Preimage) × DetOneState M Target Preimage)) (μ : PMF Target) :
+    (dist.bind (fun (out, st) => (detOneRelate μ st).map (out, ·))).map
+      (fun (out, (st, _)) => (out, (st.cache, st.signed, st.hCount))) =
+    dist.map (fun (out, st) => (out, (st.cache, st.signed, st.hCount))) := by
+  rw [PMF.map_bind]
+  refine (PMF.bind_congr_on_support _ _ _ fun ⟨out, st⟩ _ => ?_).trans
+    (PMF.bind_pure_comp _ _).symm
+  cases hyj : st.yAtJ with
+  | some y => simp [detOneRelate, hyj, PMF.pure_map]
+  | none =>
+    simp only [detOneRelate, hyj, PMF.map_comp, Function.comp_def]
+    exact PMF.map_const _ _
+
 private def DetOneInv {M Target Preimage : Type} (jStar : ℕ)
     (st : DetOneState M Target Preimage) : Prop :=
   (st.hCount ≤ jStar → st.yAtJ = none) ∧
@@ -3298,15 +3310,8 @@ private theorem detOneInv_step [DecidableEq M]
       obtain ⟨yx, -, heq⟩ := hstep
       rw [Prod.mk.injEq] at heq
       obtain ⟨-, rfl⟩ := heq
-      refine ⟨hnone, ?_, ?_, ?_⟩
-      · intro m' y' x' hm'
-        rcases List.mem_cons.mp hm' with hhd | htl
-        · injection hhd with hm' _; subst hm'; exact List.mem_cons_self
-        · exact List.mem_cons_of_mem _ (hsign m' y' x' htl)
-      · intro m' y' x' k hm'
-        rcases List.mem_cons.mp hm' with hhd | htl
-        · injection hhd with _ h2; injection h2 with _ h3; injection h3 with _ h4; cases h4
-        · exact hlt m' y' x' k htl
+      obtain ⟨hsign', hlt'⟩ := detCache_cons_unindexed m yx.1 (some yx.2) hsign hlt
+      refine ⟨hnone, hsign', hlt', ?_⟩
       · intro m' y' x' hm'
         rcases List.mem_cons.mp hm' with hhd | htl
         · injection hhd with _ h2; injection h2 with _ h3; injection h3 with _ h4; cases h4
@@ -3524,6 +3529,58 @@ private theorem detOneEmbed_map_eq_detPSOneSim [DecidableEq M]
           Function.comp_def]
         exact (PMF.bind_pure_comp _ _).symm
 
+private noncomputable def detHitCheck {Target Preimage : Type}
+    [Fintype Target] [Nonempty Target]
+    (check : Target → Option Preimage → Bool) (sigStar : Option Preimage) (fresh : Bool)
+    {q_H : ℕ} (hCount : ℕ) (jStar : Fin (q_H + 1))
+    (hit : Option (Target × Option ℕ)) : PMF Bool :=
+  match hit with
+  | some (y, idxOpt) =>
+    PMF.pure ((check y sigStar && fresh) &&
+      decide (Fin.ofNat (q_H + 1) (idxOpt.getD hCount) = jStar))
+  | none =>
+    (PMF.uniformOfFintype Target).map fun y =>
+      (check y sigStar && fresh) &&
+        decide (Fin.ofNat (q_H + 1) hCount = jStar)
+
+private noncomputable def detStateHitCheck {M Target Preimage Payload : Type} [DecidableEq M]
+    [Fintype Target] [Nonempty Target]
+    (check : Target → Option Preimage → Bool) (q_H : ℕ) (jStar : Fin (q_H + 1))
+    (mStar : M) (sigStar : Option Preimage)
+    (cache : List (M × (Target × Payload × Option ℕ)))
+    (signed : List M) (hCount : ℕ) : PMF Bool :=
+  detHitCheck check sigStar (!signed.contains mStar) hCount jStar
+    ((cache.lookup mStar).map fun (y, _, idxOpt) => (y, idxOpt))
+
+private theorem eval_detPSOneDistinguisher [DecidableEq M] [DecidableEq Target]
+    [Fintype Target] [Nonempty Target]
+    (sys : TrapdoorPreimageSystem PK SK Target Preimage) (q_H : ℕ)
+    (forger : PK → ProbOracleComp
+      (ROMSignature.ForgerSpec M M (Option Preimage) Target) (M × Option Preimage))
+    (pk : PK) (pairComp : ProbComp (Target × Option Preimage)) :
+    ProbComp.eval ((detPSOneDistinguisher sys q_H forger pk).run fun _ => pairComp) =
+    (PMF.uniformOfFintype (Fin (q_H + 1))).bind fun jStar =>
+      ((ProbComp.eval pairComp).map Prod.fst).bind fun yStar =>
+        (ProbComp.eval (((forger pk).runState
+          (detPSOneSimHandler sys pk jStar.val yStar)).run ([], [], 0))).bind
+          fun ((mStar, sigStar), (cache, signed, hCount)) =>
+            detStateHitCheck (sys.check pk) q_H jStar mStar sigStar cache signed hCount := by
+  unfold detPSOneDistinguisher
+  simp only [ProbOracleComp.run_bind, ProbOracleComp.run_query, ProbOracleComp.run_sample,
+    ProbComp.eval_bind, ProbComp.eval_uniform, PMF.bind_map]
+  rw [PMF.bind_comm]
+  refine PMF.bind_congr_on_support _ _ _ fun jStar _ => ?_
+  refine PMF.bind_congr_on_support _ _ _ fun yxStar _ => ?_
+  refine PMF.bind_congr_on_support _ _ _ fun
+      ⟨⟨mStar, sigStar⟩, cache, signed, hCount⟩ _ => ?_
+  dsimp only [detStateHitCheck, detHitCheck]
+  cases cache.lookup mStar with
+  | some yxk => simp [ProbOracleComp.run_pure, ProbComp.eval_pure]
+  | none =>
+    simp only [ProbOracleComp.run_bind, ProbOracleComp.run_sample, ProbOracleComp.run_pure,
+      ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure]
+    exact (PMF.bind_pure_comp _ _).symm
+
 /-- Hop 2→3 for `detScheme`: Bellare–Rogaway guessing over `Fin (q_H + 1)` fresh direct-hash
 indices + zero-loss abort on `Sign(m_{jStar})` bounds `G2` (`psExperimentSim` on
 `detPSDistinguisher`) by `(q_H + 1)` times `psExperimentSim` on 1-query `detPSOneDistinguisher`. -/
@@ -3680,28 +3737,9 @@ private theorem detSim_le_mul_detPSOneSim [DecidableEq M] [DecidableEq Target]
           (ProbComp.eval (((forger pk).runState
             (detPSOneSimHandler sys pk jStar.val yStar)).run ([], [], 0))).bind
             fun ((mStar, sigStar), (cache, signed, hCount)) =>
-              match cache.lookup mStar with
-              | some (y, _, idxOpt) =>
-                PMF.pure ((sys.check pk y sigStar && !signed.contains mStar) &&
-                  decide (Fin.ofNat (q_H + 1) (idxOpt.getD hCount) = jStar))
-              | none =>
-                (PMF.uniformOfFintype Target).map fun y =>
-                  (sys.check pk y sigStar && !signed.contains mStar) &&
-                    decide (Fin.ofNat (q_H + 1) hCount = jStar)) true := by
-    unfold detPSOneDistinguisher
-    simp only [ProbOracleComp.run_bind, ProbOracleComp.run_query, ProbOracleComp.run_sample,
-      ProbComp.eval_bind, ProbComp.eval_uniform, PMF.bind_map]
-    rw [PMF.bind_comm]
-    congr 1
-    refine PMF.bind_congr_on_support _ _ _ fun jStar _ => ?_
-    refine PMF.bind_congr_on_support _ _ _ fun yxStar _ => ?_
-    refine PMF.bind_congr_on_support _ _ _ fun ⟨⟨mStar, sigStar⟩, cache, signed, hCount⟩ _ => ?_
-    cases cache.lookup mStar with
-    | some yxk => simp [ProbOracleComp.run_pure, ProbComp.eval_pure]
-    | none =>
-      simp only [ProbOracleComp.run_bind, ProbOracleComp.run_sample, ProbOracleComp.run_pure,
-        ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure]
-      exact (PMF.bind_pure_comp _ _).symm
+              detStateHitCheck (sys.check pk) q_H jStar mStar sigStar
+                cache signed hCount) true := by
+    rw [eval_detPSOneDistinguisher]
   rw [hrhs_expand]
   refine mul_le_mul_of_nonneg_left ?_ zero_le
   rw [PMF.bind_apply, PMF.bind_apply]
@@ -3758,19 +3796,12 @@ private theorem detSim_le_mul_detPSOneSim [DecidableEq M] [DecidableEq Target]
   -- Step 2a: Zero-loss switch from `detTrackHandler` to `detAbortHandler` via `IdenticalUntilBad`.
   let winCheck : (M × Option Preimage) × DetTrackState M Target Preimage → PMF Bool :=
     fun ((mStar, sigStar), st) =>
-      match st.cache.lookup mStar with
-      | some (y, _, idxOpt) =>
-        PMF.pure ((sys.check pk y sigStar && !st.signed.contains mStar) &&
-          decide (Fin.ofNat (q_H + 1) (idxOpt.getD st.hCount) = jStar))
-      | none =>
-        (PMF.uniformOfFintype Target).map fun y =>
-          (sys.check pk y sigStar && !st.signed.contains mStar) &&
-            decide (Fin.ofNat (q_H + 1) st.hCount = jStar)
+      detStateHitCheck (sys.check pk) q_H jStar mStar sigStar st.cache st.signed st.hCount
   have htrack_eq_win :
       ((trackProj jStar).map fun p => p.1 && decide (p.2 = jStar)) true =
       ((ProbOracleComp.runWith (detTrackHandler sys pk jStar.val) (forger pk)
         ⟨[], [], 0, false⟩).bind winCheck) true := by
-    dsimp only [trackProj, winCheck]
+    dsimp only [trackProj, winCheck, detStateHitCheck, detHitCheck]
     rw [PMF.map_bind]
     congr 1
     refine PMF.bind_congr_on_support _ _ _ fun ⟨⟨mStar, sigStar⟩, st⟩ _ => ?_
@@ -3791,11 +3822,11 @@ private theorem detSim_le_mul_detPSOneSim [DecidableEq M] [DecidableEq Target]
         obtain ⟨hcount_le, hsign, hlt, _, hbad_inv⟩ := hbound_track (mStar, sigStar) st hmem
         obtain ⟨hgt, hs_j⟩ := hbad_inv hbad
         have hzero : winCheck ((mStar, sigStar), st) true = 0 := by
-          dsimp only [winCheck]
+          dsimp only [winCheck, detStateHitCheck, detHitCheck, Option.map]
           cases hlu : st.cache.lookup mStar with
           | some yxk =>
-            dsimp only
             rcases yxk with ⟨y, x, idxOpt⟩
+            dsimp only
             have hpmem := mem_of_lookup_eq_some hlu
             have hfalse : ((sys.check pk y sigStar && !st.signed.contains mStar) &&
                 decide (Fin.ofNat (q_H + 1) (idxOpt.getD st.hCount) = jStar)) = false := by
@@ -3931,36 +3962,14 @@ private theorem detSim_le_mul_detPSOneSim [DecidableEq M] [DecidableEq Target]
           (detPSOneSimHandler sys pk jStar.val yStar)).run ([], [], 0)) := by
     have hsim := congrArg (PMF.map fun (out, (st, _)) => (out, (st.cache, st.signed, st.hCount)))
       (detOneTrack_sim_detOneEmbed sys pk jStar.val μSim forger)
-    have hL_simp :
-        ((ProbOracleComp.runWith (detOneTrackHandler sys pk jStar.val μSim) (forger pk)
-          ⟨[], [], 0, none⟩).bind
-            (fun (out, st) => (detOneRelate μSim st).map (out, ·))).map
-              (fun (out, (st, _)) => (out, (st.cache, st.signed, st.hCount))) =
-        (ProbOracleComp.runWith (detOneTrackHandler sys pk jStar.val μSim) (forger pk)
-          ⟨[], [], 0, none⟩).map (fun (out, st) => (out, (st.cache, st.signed, st.hCount))) := by
-      rw [PMF.map_bind]
-      refine (PMF.bind_congr_on_support _ _ _ fun ⟨out, st⟩ _ => ?_).trans
-        (PMF.bind_pure_comp _ _).symm
-      cases hyj : st.yAtJ with
-      | some y => simp [detOneRelate, hyj, PMF.pure_map]
-      | none =>
-        simp only [detOneRelate, hyj, PMF.map_comp, Function.comp_def]
-        exact PMF.map_const _ _
-    rw [hL_simp, PMF.map_bind] at hsim
+    rw [detOneRelate_proj_state, PMF.map_bind] at hsim
     rw [hsim]
     refine PMF.bind_congr_on_support _ _ _ fun yStar _ => ?_
     exact detOneEmbed_map_eq_detPSOneSim sys pk jStar.val yStar forger
   let postOne : (M × Option Preimage) ×
       (List (M × (Target × Option (Option Preimage) × Option ℕ)) × List M × ℕ) → PMF Bool :=
     fun ((mStar, sigStar), (cache, signed, hCount)) =>
-      match cache.lookup mStar with
-      | some (y, _, idxOpt) =>
-        PMF.pure ((sys.check pk y sigStar && !signed.contains mStar) &&
-          decide (Fin.ofNat (q_H + 1) (idxOpt.getD hCount) = jStar))
-      | none =>
-        (PMF.uniformOfFintype Target).map fun y =>
-          (sys.check pk y sigStar && !signed.contains mStar) &&
-            decide (Fin.ofNat (q_H + 1) hCount = jStar)
+      detStateHitCheck (sys.check pk) q_H jStar mStar sigStar cache signed hCount
   have hL_post :
       (ProbOracleComp.runWith (detAbortHandler sys pk jStar.val) (forger pk)
         ⟨[], [], 0, false⟩).bind winCheck =
@@ -3971,7 +3980,7 @@ private theorem detSim_le_mul_detPSOneSim [DecidableEq M] [DecidableEq Target]
             st.signed, st.hCount)))).bind postOne := by
     rw [PMF.bind_map]
     refine PMF.bind_congr_on_support _ _ _ fun ⟨⟨mStar, sigStar⟩, st⟩ _ => ?_
-    dsimp only [winCheck, postOne, Function.comp_def]
+    dsimp only [winCheck, postOne, detStateHitCheck, Function.comp_def]
     rw [lookup_map_det_erase]
     cases st.cache.lookup mStar <;> rfl
   rw [hL_post, habort_to_one, hone_to_psOne, PMF.bind_bind]
@@ -4001,85 +4010,9 @@ private theorem detPSOneReal_le_targetExperiment [DecidableEq M] [DecidableEq Ta
           (ProbComp.eval (((forger pk).runState
             (detPSOneSimHandler sys pk jStar.val yStar)).run ([], [], 0))).bind
             fun ((mStar, sigStar), (cache, signed, hCount)) =>
-              match cache.lookup mStar with
-              | some (y, _, idxOpt) =>
-                PMF.pure ((sys.check pk y sigStar && !signed.contains mStar) &&
-                  decide (Fin.ofNat (q_H + 1) (idxOpt.getD hCount) = jStar))
-              | none =>
-                (PMF.uniformOfFintype Target).map fun y =>
-                  (sys.check pk y sigStar && !signed.contains mStar) &&
-                    decide (Fin.ofNat (q_H + 1) hCount = jStar) := by
-    unfold detPSOneDistinguisher
-    simp only [ProbOracleComp.run_bind, ProbOracleComp.run_query, ProbOracleComp.run_sample,
-      ProbComp.eval_bind, ProbComp.eval_uniform]
-    have hmap_fst :
-        (ProbComp.eval (sys.sampleRealPair sk)).bind (fun yxStar =>
-          (PMF.uniformOfFintype (Fin (q_H + 1))).bind fun jStar =>
-            (ProbComp.eval (((forger pk).runState
-              (detPSOneSimHandler sys pk jStar.val yxStar.1)).run ([], [], 0))).bind
-              fun ((mStar, sigStar), (cache, signed, hCount)) =>
-                match cache.lookup mStar with
-                | some (y, _, idxOpt) =>
-                  PMF.pure ((sys.check pk y sigStar && !signed.contains mStar) &&
-                    decide (Fin.ofNat (q_H + 1) (idxOpt.getD hCount) = jStar))
-                | none =>
-                  (PMF.uniformOfFintype Target).map fun y =>
-                    (sys.check pk y sigStar && !signed.contains mStar) &&
-                      decide (Fin.ofNat (q_H + 1) hCount = jStar)) =
-        ((ProbComp.eval (sys.sampleRealPair sk)).map Prod.fst).bind fun yStar =>
-          (PMF.uniformOfFintype (Fin (q_H + 1))).bind fun jStar =>
-            (ProbComp.eval (((forger pk).runState
-              (detPSOneSimHandler sys pk jStar.val yStar)).run ([], [], 0))).bind
-              fun ((mStar, sigStar), (cache, signed, hCount)) =>
-                match cache.lookup mStar with
-                | some (y, _, idxOpt) =>
-                  PMF.pure ((sys.check pk y sigStar && !signed.contains mStar) &&
-                    decide (Fin.ofNat (q_H + 1) (idxOpt.getD hCount) = jStar))
-                | none =>
-                  (PMF.uniformOfFintype Target).map fun y =>
-                    (sys.check pk y sigStar && !signed.contains mStar) &&
-                      decide (Fin.ofNat (q_H + 1) hCount = jStar) := by
-      rw [PMF.bind_map]
-      rfl
-    have hbody_eq :
-        (ProbComp.eval (sys.sampleRealPair sk)).bind (fun yxStar =>
-          (PMF.uniformOfFintype (Fin (q_H + 1))).bind fun jStar =>
-            (ProbComp.eval (((forger pk).runState
-              (detPSOneSimHandler sys pk jStar.val yxStar.1)).run ([], [], 0))).bind
-              fun ((mStar, sigStar), (cache, signed, hCount)) =>
-                ProbComp.eval ((match cache.lookup mStar with
-                  | some (y, _, idxOpt) =>
-                    pure ((sys.check pk y sigStar && !signed.contains mStar) &&
-                      decide (Fin.ofNat (q_H + 1) (idxOpt.getD hCount) = jStar))
-                  | none => do
-                    let y ← (ProbOracleComp.sample
-                      (spec := fun _ : Unit => Target × Option Preimage) (ProbComp.uniform Target))
-                    return (sys.check pk y sigStar && !signed.contains mStar) &&
-                      decide (Fin.ofNat (q_H + 1) hCount = jStar)).run
-                  fun _ => sys.sampleRealPair sk)) =
-        (ProbComp.eval (sys.sampleRealPair sk)).bind fun yxStar =>
-          (PMF.uniformOfFintype (Fin (q_H + 1))).bind fun jStar =>
-            (ProbComp.eval (((forger pk).runState
-              (detPSOneSimHandler sys pk jStar.val yxStar.1)).run ([], [], 0))).bind
-              fun ((mStar, sigStar), (cache, signed, hCount)) =>
-                match cache.lookup mStar with
-                | some (y, _, idxOpt) =>
-                  PMF.pure ((sys.check pk y sigStar && !signed.contains mStar) &&
-                    decide (Fin.ofNat (q_H + 1) (idxOpt.getD hCount) = jStar))
-                | none =>
-                  (PMF.uniformOfFintype Target).map fun y =>
-                    (sys.check pk y sigStar && !signed.contains mStar) &&
-                      decide (Fin.ofNat (q_H + 1) hCount = jStar) := by
-      refine PMF.bind_congr_on_support _ _ _ fun yxStar _ => ?_
-      refine PMF.bind_congr_on_support _ _ _ fun jStar _ => ?_
-      refine PMF.bind_congr_on_support _ _ _ fun ⟨⟨mStar, sigStar⟩, cache, signed, hCount⟩ _ => ?_
-      cases hlu : cache.lookup mStar with
-      | some yxk => simp [hlu, ProbOracleComp.run_pure, ProbComp.eval_pure]
-      | none =>
-        simp only [hlu, ProbOracleComp.run_bind, ProbOracleComp.run_sample, ProbOracleComp.run_pure,
-          ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure]
-        exact (PMF.bind_pure_comp _ _).symm
-    rw [hbody_eq, hmap_fst, sys.eval_sampleRealPair_map_fst sk, PMF.bind_comm]
+              detStateHitCheck (sys.check pk) q_H jStar mStar sigStar
+                cache signed hCount := by
+    rw [eval_detPSOneDistinguisher, sys.eval_sampleRealPair_map_fst sk]
   have hrhs_eq :
       ProbComp.eval (do
         let target ← ProbComp.uniform Target
@@ -4156,25 +4089,12 @@ private theorem detPSOneReal_le_targetExperiment [DecidableEq M] [DecidableEq Ta
         (ProbComp.eval (((forger pk).runState
           (detPSOneSimHandler sys pk jStar.val yStar)).run ([], [], 0))).bind
           fun ((mStar, sigStar), (cache, signed, hCount)) =>
-            match cache.lookup mStar with
-            | some (y, _, idxOpt) =>
-              PMF.pure ((sys.check pk y sigStar && !signed.contains mStar) &&
-                decide (Fin.ofNat (q_H + 1) (idxOpt.getD hCount) = jStar))
-            | none =>
-              (PMF.uniformOfFintype Target).map fun y =>
-                (sys.check pk y sigStar && !signed.contains mStar) &&
-                  decide (Fin.ofNat (q_H + 1) hCount = jStar)) =
+            detStateHitCheck (sys.check pk) q_H jStar mStar sigStar cache signed hCount) =
       (ProbOracleComp.runWith
         (detOneTrackHandler sys pk jStar.val (PMF.uniformOfFintype Target)) (forger pk)
         ⟨[], [], 0, none⟩).bind fun ((mStar, sigStar), st) =>
-          match st.cache.lookup mStar with
-          | some (y, _, idxOpt) =>
-            PMF.pure ((sys.check pk y sigStar && !st.signed.contains mStar) &&
-              decide (Fin.ofNat (q_H + 1) (idxOpt.getD st.hCount) = jStar))
-          | none =>
-            (PMF.uniformOfFintype Target).map fun y =>
-              (sys.check pk y sigStar && !st.signed.contains mStar) &&
-                decide (Fin.ofNat (q_H + 1) st.hCount = jStar) := by
+          detStateHitCheck (sys.check pk) q_H jStar mStar sigStar
+            st.cache st.signed st.hCount := by
     have hdist :
         ((PMF.uniformOfFintype Target).bind fun yStar =>
           ProbComp.eval (((forger pk).runState
@@ -4184,24 +4104,7 @@ private theorem detPSOneReal_le_targetExperiment [DecidableEq M] [DecidableEq Ta
           ⟨[], [], 0, none⟩).map (fun (out, st) => (out, (st.cache, st.signed, st.hCount))) := by
       have hproj :=
         congrArg (PMF.map fun (out, (st, _)) => (out, (st.cache, st.signed, st.hCount))) hsim
-      have hL_simp :
-          ((ProbOracleComp.runWith
-            (detOneTrackHandler sys pk jStar.val (PMF.uniformOfFintype Target)) (forger pk)
-            ⟨[], [], 0, none⟩).bind
-              (fun (out, st) => (detOneRelate (PMF.uniformOfFintype Target) st).map (out, ·))).map
-                (fun (out, (st, _)) => (out, (st.cache, st.signed, st.hCount))) =
-          (ProbOracleComp.runWith
-            (detOneTrackHandler sys pk jStar.val (PMF.uniformOfFintype Target)) (forger pk)
-            ⟨[], [], 0, none⟩).map (fun (out, st) => (out, (st.cache, st.signed, st.hCount))) := by
-        rw [PMF.map_bind]
-        refine (PMF.bind_congr_on_support _ _ _ fun ⟨out, st⟩ _ => ?_).trans
-          (PMF.bind_pure_comp _ _).symm
-        cases hyj : st.yAtJ with
-        | some y => simp [detOneRelate, hyj, PMF.pure_map]
-        | none =>
-          simp only [detOneRelate, hyj, PMF.map_comp, Function.comp_def]
-          exact PMF.map_const _ _
-      rw [hL_simp, PMF.map_bind] at hproj
+      rw [detOneRelate_proj_state, PMF.map_bind] at hproj
       rw [hproj]
       refine PMF.bind_congr_on_support _ _ _ fun yStar _ => ?_
       exact (hpsOne_from_embed yStar).symm
@@ -4336,14 +4239,8 @@ private theorem detPSOneReal_le_targetExperiment [DecidableEq M] [DecidableEq Ta
   let hit : Option (Target × Option ℕ) :=
     (st.cache.lookup mStar).map fun ⟨y, _, idxOpt⟩ => (y, idxOpt)
   have hL :
-      (match st.cache.lookup mStar with
-        | some (y, _, idxOpt) =>
-            PMF.pure ((sys.check pk y sigStar && !st.signed.contains mStar) &&
-              decide (Fin.ofNat (q_H + 1) (idxOpt.getD st.hCount) = jStar))
-        | none =>
-            (PMF.uniformOfFintype Target).map fun y =>
-              (sys.check pk y sigStar && !st.signed.contains mStar) &&
-                decide (Fin.ofNat (q_H + 1) st.hCount = jStar)) true =
+      (detStateHitCheck (sys.check pk) q_H jStar mStar sigStar
+        st.cache st.signed st.hCount) true =
       ((match hit with
         | some (y, idxOpt) =>
             PMF.pure ((sys.check pk y sigStar && !st.signed.contains mStar) &&
@@ -4351,9 +4248,7 @@ private theorem detPSOneReal_le_targetExperiment [DecidableEq M] [DecidableEq Ta
         | none =>
             (PMF.uniformOfFintype Target).map fun y =>
               (sys.check pk y sigStar && !st.signed.contains mStar) &&
-                decide (Fin.ofNat (q_H + 1) st.hCount = jStar)) true) := by
-    dsimp only [hit]
-    cases st.cache.lookup mStar <;> rfl
+                decide (Fin.ofNat (q_H + 1) st.hCount = jStar)) true) := rfl
   have hR :
       ((detOneRelate (PMF.uniformOfFintype Target) st).map fun (_, yStar) =>
           sys.check pk yStar sigStar) true =
