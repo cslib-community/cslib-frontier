@@ -142,8 +142,9 @@ theorem succProbability_responseCollisionGame_le_hermite [NeZero P.q] (hP : P.Va
   apply Probability.PMF.bind_apply_mono_on_support
   intro A _
   apply Probability.PMF.map_true_mono
-  rintro p _ hw
+  intro p _ hw
   simp only [decide_eq_true_eq] at hw ⊢
-  exact isSolution_responseDifference hP hγq d ⟨A, p.t⟩ hw.1 hw.2.1 hw.2.2.1 hw.2.2.2.1 hw.2.2.2.2
+  obtain ⟨hne, hc, he, hz, hz'⟩ := hw
+  exact isSolution_responseDifference hP hγq d ⟨A, p.t⟩ hne hc he hz hz'
 
 end Cslib.Crypto.MLDSA

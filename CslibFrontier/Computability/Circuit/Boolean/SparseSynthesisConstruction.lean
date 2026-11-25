@@ -464,7 +464,8 @@ private theorem linearMap_filter_eq_hash (rows : Fin m → BitString n) (x : Bit
       BitString.LinearHash.hash rows x := by
   funext j
   simp only [linearMap, parityOn_eq_sum, BitString.LinearHash.hash, dotProduct, sum_filter]
-  refine sum_congr rfl fun i _ => ?_
+  apply sum_congr rfl
+  intro i _
   cases rows j i <;> cases x i <;> rfl
 
 /-- Some linear map collides on at most a `2⁻ᵐ` fraction of any specified distinct pairs. -/
@@ -510,7 +511,9 @@ private theorem complexity_indicator_le_card_mul {n : ℕ} (R : Finset (BitStrin
   have h := Synthesis.exists_mem R (fun a x => decide ((fun i => x (id i)) = a))
     (fun _ => 2 * n + 1) fun a _ => synthesis_minterm id a
   have heq : (fun x => decide (∃ a ∈ R, decide ((fun i => x (id i)) = a) = true)) =
-      fun x => decide (x ∈ R) := funext fun _ => by simp
+      fun x => decide (x ∈ R) := by
+    funext x
+    simp
   rw [heq] at h
   exact h.complexity_le.trans (by simp)
 

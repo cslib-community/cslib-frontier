@@ -156,9 +156,12 @@ theorem matchesEntry_budget {r : α → Register k → ℕ}
     (inputSymbol_budget hn (hr .inputPos) hs)
   have hh := all_inSpace (List.ofFn fun i : Fin k => i)
     (fun i => budget_natEq (hr (.head i)) (budget_const (symbolCode (t.2.2.1 i))))
-  refine (budget_boolAnd (budget_boolAnd hc hi) hh).of_enc_eq fun a => ?_
+  apply (budget_boolAnd (budget_boolAnd hc hi) hh).of_enc_eq
+  intro a
   congr 1
-  simp [matchesEntry, List.map_ofFn, Function.comp_def]
+  dsimp only [matchesEntry]
+  rw [List.map_ofFn]
+  rfl
 
 /-- Checking that every register fits below the radix preserves a common space budget. -/
 theorem fitsB_budget {r : α → Register k → ℕ}

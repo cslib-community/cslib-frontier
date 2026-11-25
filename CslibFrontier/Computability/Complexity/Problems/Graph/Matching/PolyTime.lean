@@ -105,11 +105,12 @@ theorem computableInPolyTime_matchingPositions :
   have hb : ComputableInPolyTime (fun p : Graph × List Bool => List.range p.1.edgeList.length)
       encMatchingBuffer (encList encNat) := by
     simpa only [Function.comp_def, List.map_id'] using hc.comp hr
+  apply ComputableInPolyTime.filterWithInput hb
   have hbody : ComputableInPolyTime
       (fun p : (Graph × List Bool) × ℕ => ((p.1.1.matchingInstance, p.1.2), 2 * p.2))
       (encPair encMatchingBuffer encNat) (encPair CSP.EdgeAugmenting.encBuffer encNat) := by
     fun_prop
-  exact ComputableInPolyTime.filterWithInput hb (computableInPolyTime_selectedBit.comp hbody)
+  exact computableInPolyTime_selectedBit.comp hbody
 
 attribute [local fun_prop] computableInPolyTime_matchingPositions
 

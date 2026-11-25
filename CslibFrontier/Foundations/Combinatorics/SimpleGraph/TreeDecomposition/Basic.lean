@@ -247,10 +247,11 @@ theorem etreewidth_ne_top [Finite V] : G.etreewidth ≠ ⊤ := by
 
 /-- `etreewidth G = ⊤` exactly when the vertex type is infinite, whatever the edges of `G`. -/
 theorem etreewidth_eq_top_iff : G.etreewidth = ⊤ ↔ Infinite V := by
-  refine ⟨fun h => by_contra fun hV => ?_,
-    fun h => iInf_eq_top.2 fun D => absurd D.2.finite (not_finite_iff_infinite.2 h)⟩
-  have := not_infinite_iff_finite.1 hV
-  exact etreewidth_ne_top h
+  refine ⟨fun h => ?_, fun h => ?_⟩
+  · by_contra hV
+    have := not_infinite_iff_finite.1 hV
+    exact etreewidth_ne_top h
+  · exact iInf_eq_top.2 fun D => absurd D.2.finite (not_finite_iff_infinite.2 h)
 
 /-- The treewidth of `G`: the least width of a tree decomposition of `G` with finitely many nodes.
 This is meaningful for finite `V`, where such a decomposition always exists. For infinite `V` it is

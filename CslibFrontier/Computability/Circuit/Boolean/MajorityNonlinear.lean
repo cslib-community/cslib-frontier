@@ -123,11 +123,14 @@ equals the existing conjunction-gate cost. -/
     have h : IsAffine (interpretation .one) := isAffine_const (by decide) true
     simp [nonlinearCost, h]
   | xor =>
-    have h : IsAffine (interpretation .xor) := fun x y z => by
-      simp only [interpretation_xor, ← Bool.add_eq_xor, Pi.add_apply]; ring
+    have h : IsAffine (interpretation .xor) := by
+      intro x y z
+      simp only [interpretation_xor, ← Bool.add_eq_xor, Pi.add_apply]
+      ring
     simp [nonlinearCost, h]
   | and =>
-    have h : ¬IsAffine (interpretation .and) := fun h => by
+    have h : ¬IsAffine (interpretation .and) := by
+      intro h
       have h' := h ![false, false] ![true, false] ![false, true]
       norm_num [interpretation, Pi.add_apply, Bool.add_eq_xor] at h'
     simp [nonlinearCost, h]

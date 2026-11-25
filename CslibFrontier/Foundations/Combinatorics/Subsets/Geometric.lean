@@ -57,12 +57,15 @@ theorem sum_nonempty_powerset_pow_card_le_one {α : Type*} (s : Finset α) {q : 
   have hexp : (∑ t ∈ s.powerset, q ^ t.card) = (1 + q) ^ s.card := by
     simpa using (prod_one_add (f := fun _ : α => q) s).symm
   have hsplit := sum_filter_add_sum_filter_not s.powerset Finset.Nonempty (fun t => q ^ t.card)
-  have hempty : (s.powerset.filter fun t => ¬t.Nonempty) = {∅} := by
-    ext t
-    simp only [mem_filter, mem_powerset, not_nonempty_iff_eq_empty, mem_singleton]
-    exact ⟨And.right, fun h => ⟨h ▸ empty_subset s, h⟩⟩
-  simp only [hempty, sum_singleton, card_empty, pow_zero, hexp] at hsplit
-  linarith [one_add_pow_le_two_of_mul_le_half hq hq1 hs]
+  have hempty : (∑ t ∈ s.powerset with ¬ t.Nonempty, q ^ t.card) = 1 := by
+    rw [sum_eq_single ∅]
+    · simp
+    · intro t ht hne
+      exact False.elim (hne ((not_nonempty_iff_eq_empty).mp (mem_filter.mp ht).2))
+    · simp
+  rw [hempty, hexp] at hsplit
+  have hpow := one_add_pow_le_two_of_mul_le_half hq hq1 hs
+  linarith
 
 /-- For a ground set of size at least two, the number of subsets of size less than `t`,
 plus one, is at most the `t`th power of the ground-set size. -/

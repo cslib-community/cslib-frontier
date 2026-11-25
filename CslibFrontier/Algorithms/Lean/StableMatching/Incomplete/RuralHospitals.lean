@@ -115,13 +115,19 @@ receivers that the stable matchings `μ` and `ν` leave unmatched coincide. -/
 theorem unmatched_eq_of_isStable {μ ν : PartialMatching m n} (hμ : I.IsStable μ)
     (hν : I.IsStable ν) :
     {p | μ p = none} = {p | ν p = none} ∧ {r | μ.symm r = none} = {r | ν.symm r = none} := by
+  have hP := I.matchedProposers_eq_of_isStable hμ hν
+  have hR := I.matchedReceivers_eq_of_isStable hμ hν
   constructor
   · ext p
-    simpa only [Set.mem_ofPred_eq, mem_matchedProposers, eq_iff_iff, Option.isSome_iff_ne_none,
-      ne_eq, not_iff_not] using congrArg (p ∈ ·) (I.matchedProposers_eq_of_isStable hμ hν)
+    have := congrArg (p ∈ ·) hP
+    simp only [mem_matchedProposers, eq_iff_iff, Option.isSome_iff_ne_none, ne_eq,
+      not_iff_not] at this
+    exact this
   · ext r
-    simpa only [Set.mem_ofPred_eq, mem_matchedReceivers, eq_iff_iff, Option.isSome_iff_ne_none,
-      ne_eq, not_iff_not] using congrArg (r ∈ ·) (I.matchedReceivers_eq_of_isStable hμ hν)
+    have := congrArg (r ∈ ·) hR
+    simp only [mem_matchedReceivers, eq_iff_iff, Option.isSome_iff_ne_none, ne_eq,
+      not_iff_not] at this
+    exact this
 
 /-- All stable matchings have the same number of pairs. -/
 theorem card_matchedProposers_eq_of_isStable {μ ν : PartialMatching m n} (hμ : I.IsStable μ)

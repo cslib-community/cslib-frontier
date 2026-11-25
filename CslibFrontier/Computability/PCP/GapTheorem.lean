@@ -187,7 +187,8 @@ theorem card_vertices_cnfGraph :
     show 20 * 8 ^ 2 + 15 * 8 + 3 = 1403 from rfl, show 4 * 8 ^ 2 = 256 from rfl,
     show 2 * 8 = 16 from rfl]
   simp only [Fintype.card_prod, Fintype.card_fin, Fintype.card_bool, card_label_preprocess]
-  generalize 2 ^ 1403 = c, 2 ^ 256 = d
+  generalize 2 ^ 1403 = c
+  generalize 2 ^ 256 = d
   ring
 
 /-- **The gap graph** of a formula `φ` [Dinur, Corollary 4.2][Dinur2005]: `⌈log₂ |E|⌉` rounds of

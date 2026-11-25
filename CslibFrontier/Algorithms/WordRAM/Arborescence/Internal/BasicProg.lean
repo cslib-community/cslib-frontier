@@ -329,10 +329,13 @@ private theorem selectOuterStep_realizes :
   realize [fillSelectRowProg_realizes, argMinArrayProg_realizes]
   all_goals
     obtain ⟨hv, hk, hws, hrow, harg⟩ := h
-    first | assumption | exact hws.of_le (by
-      dsimp only [wsSize, frameParentBase, frameBase, curAdjBase, curCostBase,
-        candPredBase, candCostBase]
-      nlinarith)
+    first
+    | exact hrow
+    | exact harg
+    | exact hws.of_le (by
+        dsimp only [wsSize, frameParentBase, frameBase, curAdjBase, curCostBase,
+          candPredBase, candCostBase]
+        nlinarith)
 
 /-- Populates frame `a.k`'s greedy parent table and returns `1` iff all non-root vertices have an
 active outgoing edge. -/

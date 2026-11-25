@@ -147,12 +147,14 @@ namespace Feasible
 variable {β n b w M : ℕ}
 
 /-- `1 ≤ n` holds under `Feasible β n b w M`. -/
-theorem one_le_n (hF : Feasible β n b w M) : 1 ≤ n :=
-  Nat.le_trans (by decide) hF.twenty_le
+theorem one_le_n (hF : Feasible β n b w M) : 1 ≤ n := by
+  have := hF.twenty_le
+  omega
 
 /-- `1 ≤ rowBound β n` holds under `Feasible β n b w M`. -/
-theorem one_le_rowBound (hF : Feasible β n b w M) : 1 ≤ rowBound β n :=
-  Nat.le_trans (by decide) hF.thirtyTwo_le_rowBound
+theorem one_le_rowBound (hF : Feasible β n b w M) : 1 ≤ rowBound β n := by
+  have := hF.thirtyTwo_le_rowBound
+  omega
 
 /-- `rowBound β n < numNodes n` holds under `Feasible β n b w M`. -/
 theorem rowBound_lt_numNodes (hF : Feasible β n b w M) : rowBound β n < numNodes n := by

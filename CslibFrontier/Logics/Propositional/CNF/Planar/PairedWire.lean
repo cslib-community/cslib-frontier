@@ -80,8 +80,10 @@ theorem eval_links_iff (σ : V → Bool) (cells : List (Cell V))
     (links cells).eval σ = true ↔
       ∀ p ∈ cells.consecutivePairs, σ (p.1 0).1 = σ (p.2 0).1 := by
   rw [links, eval_flatMap_eq_true_iff]
-  exact forall₂_congr fun p hp => eval_gapClauses_iff σ p.1 p.2
-    (hcells _ (List.of_mem_zip hp).1) (hcells _ (List.mem_of_mem_tail (List.of_mem_zip hp).2))
+  apply forall₂_congr fun p hp => ?_
+  have hm := List.of_mem_zip hp
+  exact eval_gapClauses_iff σ p.1 p.2 (hcells _ hm.1)
+    (hcells _ (List.mem_of_mem_tail hm.2))
 
 /-- Empty wires have no gap clauses. -/
 @[simp] theorem links_nil : links ([] : List (Cell V)) = [] := rfl

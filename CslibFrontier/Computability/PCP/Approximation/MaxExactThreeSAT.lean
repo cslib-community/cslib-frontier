@@ -124,7 +124,8 @@ theorem countUnsat_toExactThreeSAT (σ : ℕ → Bool) (φ : CNF ℕ) :
 /-- Padding the clauses does not change the value of a formula. -/
 theorem unsatVal_toExactThreeSAT (φ : CNF ℕ) :
     (toExactThreeSAT φ).unsatVal = φ.unsatVal := by
-  simp only [CNF.unsatVal, countUnsat_toExactThreeSAT]
+  unfold CNF.unsatVal
+  simp only [countUnsat_toExactThreeSAT]
   rw [toExactThreeSAT, List.length_map]
 
 /-- The reduction is polynomial-time. -/

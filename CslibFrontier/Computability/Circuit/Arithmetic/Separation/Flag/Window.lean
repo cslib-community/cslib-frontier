@@ -47,10 +47,15 @@ theorem win_win {p n p' n' : ℕ} (hp : p + n ≤ h) (hp' : p' + n' ≤ n) (hpp 
   have e : wi hp * wi hp' = wi hpp := by
     ext i j
     simp only [Matrix.mul_apply, wi, incl_apply, weEmb_apply]
-    rw [sum_eq_single (we hp' j) (fun _ _ hc => by simp [hc]) (by simp)]
-    simp only [show we hp (we hp' j) = we hpp j by simp only [we, Fin.ext_iff]; omega,
-      ite_mul, one_mul, zero_mul, ite_true]
-    congr 1
+    rw [sum_eq_single (we hp' j)]
+    · have : we hp (we hp' j) = we hpp j := by
+        simp only [we, Fin.ext_iff]
+        omega
+      simp only [this, ite_mul, one_mul, zero_mul, ite_true]
+      congr 1
+    · intro c _ hc
+      simp [hc]
+    · simp
   unfold wm
   rw [Matrix.mul_add, Matrix.add_mul, Matrix.mul_sub, Matrix.sub_mul, ← e, Matrix.transpose_mul]
   simp only [Matrix.mul_assoc]

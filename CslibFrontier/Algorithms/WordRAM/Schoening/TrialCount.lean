@@ -307,10 +307,11 @@ theorem schoeningTrials_le {k : ℕ} (hk : 3 ≤ k) (n c : ℕ) :
 theorem counterLen_le (k n c : ℕ) : counterLen k n c ≤ 6 * (n + k) ^ 2 + c := by
   have h1 : (Nat.digits 2 (3 * n + 2 * k)).length ≤ 3 * n + 2 * k :=
     (Nat.digits_length_le_iff (by decide) _).mpr Nat.lt_two_pow_self
-  have h2 : (Nat.digits 2 c).length ≤ c :=
-    (Nat.digits_length_le_iff (by decide) _).mpr Nat.lt_two_pow_self
+  have h2 : (Nat.digits 2 c).length ≤ c := (Nat.digits_length_le_iff (by decide) _).mpr
+    Nat.lt_two_pow_self
+  have h3 := Nat.mul_le_mul_left (2 * n + 2 * k) h1
   rw [counterLen]
-  nlinarith [Nat.mul_le_mul_left (2 * n + 2 * k) h1]
+  nlinarith
 
 end Cslib.Algorithms.WordRAM.Schoening
 

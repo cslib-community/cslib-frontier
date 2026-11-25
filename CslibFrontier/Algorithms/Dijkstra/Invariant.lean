@@ -133,13 +133,19 @@ private theorem Inv.cut {S : Finset (Fin I.n)} {D : Fin I.n → ℕ∞} (h : I.I
 other vertex at `⊤`. -/
 theorem Inv.init : I.Inv ∅ (Function.update (fun _ => ⊤) I.source 0) := by
   classical
-  refine ⟨by simp, ?_,
-    by simp,
-    by simp, ?_⟩
+  refine ⟨by simp, ?_, ?_, ?_, ?_⟩
   · intro v
-    rcases eq_or_ne v I.source with rfl | hv <;> simp [I.dist_self, Function.update_of_ne, *]
+    by_cases hv : v = I.source
+    · subst v
+      simp [I.dist_self]
+    · simp [Function.update_of_ne hv]
+  · simp
+  · simp
   · intro v hv
-    rcases eq_or_ne v I.source with rfl | heq <;> simp [Function.update_of_ne, *] at hv ⊢
+    by_cases heq : v = I.source
+    · subst v
+      simp
+    · simp [Function.update_of_ne heq] at hv
 
 /-- **Dijkstra's step.** Visiting an unvisited vertex `u` of least finite tentative distance and
 relaxing its edges keeps the invariant. -/
@@ -200,9 +206,12 @@ theorem Inv.eq_dist {S : Finset (Fin I.n)} {D : Fin I.n → ℕ∞} (h : I.Inv S
   by_cases hv : v ∈ S
   · exact h.eq_of_mem v hv
   · rw [hdone v hv]
-    refine le_antisymm (le_iInf fun p => ?_) le_top
+    apply le_antisymm _ le_top
+    apply le_iInf
+    intro p
     obtain ⟨x, hx, hxp⟩ := h.cut I p hv
-    exact hdone x hx ▸ hxp
+    rw [hdone x hx] at hxp
+    exact hxp
 
 end Instance
 

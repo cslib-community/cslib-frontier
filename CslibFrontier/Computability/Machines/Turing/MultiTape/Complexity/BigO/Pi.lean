@@ -99,7 +99,8 @@ theorem pi_gather {Target : Type} [Fintype Index] [Fintype Target]
     ComputableInO (fun values : Index → Value => values ∘ indices)
       (encPi enc) (encPi enc)
       (fun values => (encPi enc values).length) (fun values => (encPi enc values).length) := by
-  apply (pi fun i => pi_apply enc (indices i)).mono (Fintype.card Target + 1) <;> intro values <;>
+  have h := pi (fun i => pi_apply enc (indices i))
+  apply h.mono (Fintype.card Target + 1) <;> intro values <;>
     simp only [Finset.sum_const, Finset.card_univ, smul_eq_mul] <;> nlinarith
 
 /-- Replace one fixed entry of a stored tuple with a stored value, preserving all other entries. -/

@@ -65,7 +65,10 @@ theorem interpret_tabulate {m : Type → Type*} [Monad m] [LawfulMonad m]
   | cons p ps ih =>
     simp only [tabulate, interp_norm, ih, pure_bind]
     congr 1 with p' : 1
-    by_cases h : p' = p <;> simp [h]
+    by_cases h : p' = p
+    · subst h
+      simp
+    · simp [h]
 
 /-- Tabulation costs at most the sum of the query costs of the list entries. -/
 theorem isCostBounded_tabulate (cost : Query → ℕ) (q : P → Query) (ps : List P) :

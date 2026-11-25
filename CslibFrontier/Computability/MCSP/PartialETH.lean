@@ -148,8 +148,10 @@ theorem mem_monotoneReadOnce_iff {x : Instance} :
 theorem mem_of_mem_monotoneReadOnce {x : Instance} (h : x ∈ MonotoneReadOnce) :
     x ∈ PartialMCSP := by
   obtain ⟨F, -, hsize, hagree⟩ := h
-  refine mem_iff_exists_circuit.mpr ⟨F.toCircuit, by simpa using hsize, fun y b hy => ?_⟩
-  simpa only [PosFormula.eval_toCircuit] using hagree y b hy
+  rw [mem_iff_exists_circuit]
+  refine ⟨F.toCircuit, by simpa using hsize, fun y b hy => ?_⟩
+  rw [PosFormula.eval_toCircuit]
+  exact hagree y b hy
 
 theorem monotoneReadOnce_subset : MonotoneReadOnce ⊆ PartialMCSP :=
   fun _ => mem_of_mem_monotoneReadOnce

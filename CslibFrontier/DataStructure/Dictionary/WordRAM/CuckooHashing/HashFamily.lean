@@ -850,7 +850,8 @@ theorem mem_support_resampleSingleComp {base c_exp n_max U M : ℕ} {x : Data 19
     have := add_cuckooK_lt_singleHashSpace hlt
     refine ⟨by simpa [resampleSingleSteps, hlt] using hsteps, by wram_simp [hz0], ?_, ?_,
       fun a ha => hout a (by omega)⟩
-    · rw [SingleTableRep, decide_eq_true hlt]
+    · unfold SingleTableRep
+      rw [decide_eq_true hlt]
       exact htab'
     · unfold SingleSeedRep extractSingleSeed
       revert hseed'
@@ -861,7 +862,9 @@ theorem mem_support_resampleSingleComp {base c_exp n_max U M : ℕ} {x : Data 19
       DoubleTabulation.mem_support_resampleComp hbase hz₀
     refine ⟨by simp [resampleSingleSteps, hlt, hsteps], by wram_simp [hz0], ?_, ?_,
       fun a ha => hout a (singleHashSpace_of_not_lt hlt ▸ ha)⟩
-    · simp only [SingleTableRep, SingleTableRepAux, decide_eq_false hlt]
+    · unfold SingleTableRep
+      rw [decide_eq_false hlt]
+      trivial
     · unfold SingleSeedRep extractSingleSeed
       revert hseed'
       rw [decide_eq_false hlt]

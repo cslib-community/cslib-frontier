@@ -62,8 +62,10 @@ theorem last_mem_segment_endpoint {r : Route} (hs : IsSimple r) {p : Point}
 /-- Joining properly orthogonal routes at their common listed endpoint remains orthogonal. -/
 theorem isOrthogonal_join {q r : Route} {p : Point}
     (hq : q.getLast? = some p) (hr : r.head? = some p)
-    (hoq : IsOrthogonal q) (hor : IsOrthogonal r) : IsOrthogonal (q ++ r.tail) := fun e he =>
-  (List.mem_append.mp (consecutivePairs_join hq hr ▸ he)).elim (hoq e) (hor e)
+    (hoq : IsOrthogonal q) (hor : IsOrthogonal r) : IsOrthogonal (q ++ r.tail) := by
+  intro e he
+  rw [consecutivePairs_join hq hr, List.mem_append] at he
+  exact he.elim (hoq e) (hor e)
 
 /-- Joining simple routes whose only continuous intersection is their common endpoint
 introduces neither repeated listed points nor forbidden segment contacts. -/

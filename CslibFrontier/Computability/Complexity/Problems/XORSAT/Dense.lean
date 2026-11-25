@@ -166,16 +166,24 @@ theorem satisfiable_step_iff {n : ℕ} {F : System} (hF : Width (n + 1) F) :
       Bool.eq_false_of_not_eq_true (List.find?_eq_none.mp hfind r hr)
     have hstep : step F = F.map (fun r => ⟨r.coeffs.tail, r.rhs⟩) := by
       simp only [step, hfind, Option.getD_none]
-      exact List.map_congr_left fun r hr => by
-        simp only [clear, hz r hr, Bool.false_eq_true, ↓reduceIte]
+      apply List.map_congr_left
+      intro r hr
+      dsimp only [clear]
+      rw [hz r hr]
+      rfl
     rw [hstep]
-    refine ⟨fun ⟨a, ha, h⟩ => ⟨false :: a, by simp [ha], fun r hr => ?_⟩, ?_⟩
-    · rw [dot_cons, hz r hr]
+    constructor
+    · rintro ⟨a, ha, h⟩
+      refine ⟨false :: a, by simp [ha], fun r hr => ?_⟩
+      rw [dot_cons, hz r hr]
       simpa only [← Bool.zero_eq_false, zero_mul, zero_add] using
         h ⟨r.coeffs.tail, r.rhs⟩ (List.mem_map.mpr ⟨r, hr, rfl⟩)
-    · rintro ⟨_ | ⟨b, a⟩, ha, h⟩
-      · simp at ha
-      · refine ⟨a, by simpa using ha, fun e he => ?_⟩
+    · rintro ⟨a, ha, h⟩
+      cases a with
+      | nil => simp at ha
+      | cons b a =>
+        refine ⟨a, by simpa using ha, ?_⟩
+        intro e he
         obtain ⟨r, hr, rfl⟩ := List.mem_map.mp he
         have hh := h r hr
         rw [dot_cons, hz r hr] at hh

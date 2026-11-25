@@ -54,7 +54,8 @@ private def uniformInterp {M : Type*} (J : ℕ → List M → Prop) (b : M) : �
 private theorem realize_uniformize {M : Type*} (B : ℕ) (J : ℕ → List M → Prop) :
     ∀ (φ : RawFormula) (v : ℕ → M), φ.varBound ≤ B →
       ((uniformize B φ).Realize J v ↔ φ.Realize (uniformInterp J (v B)) v)
-  | falsum, _, _ | equal _ _, _, _ => Iff.rfl
+  | falsum, _, _ => Iff.rfl
+  | equal _ _, _, _ => Iff.rfl
   | rel r args, v, _ => by
     simp only [uniformize, realize_rel, uniformInterp, List.map_append, List.map_replicate,
       List.length_map]

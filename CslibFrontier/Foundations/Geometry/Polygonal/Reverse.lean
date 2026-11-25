@@ -103,9 +103,10 @@ private theorem atEnd_reverse (p : Route) (i : Fin p.reverse.segments) (t : ℝ)
 
 /-- Reversal preserves the full continuum of actual support points. -/
 @[simp] theorem support_reverse (p : Route) : p.reverse.support = p.support := by
-  have sub (r : Route) : r.reverse.support ⊆ r.support := fun z hz =>
-    let ⟨i, t, ht, heq⟩ := (r.reverse.mem_support_iff z).mp hz
-    (r.mem_support_iff z).mpr
+  have sub (r : Route) : r.reverse.support ⊆ r.support := by
+    intro z hz
+    obtain ⟨i, t, ht, heq⟩ := (r.reverse.mem_support_iff z).mp hz
+    exact (r.mem_support_iff z).mpr
       ⟨i.rev, 1 - t, Set.Icc.one_sub_mem ht, (eval_reverse r i t).symm.trans heq⟩
   exact Set.Subset.antisymm (sub p) (by simpa only [reverse_reverse] using sub p.reverse)
 

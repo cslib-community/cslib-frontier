@@ -269,6 +269,7 @@ Its output indices use unary encoding and are bounded by the input's number of o
 theorem CNF.isPolyTime_compact [DecidableEq V] (enc : V ↪ List Bool) :
     ComputableInPolyTime (CNF.compact (V := V))
       (encCNFOver enc) (encCNFOver encUnary) := by
-  fun_prop [CNF.compact, CNF.relabel, Clause.relabel, Prod.map]
+  unfold CNF.compact CNF.relabel Clause.relabel Prod.map
+  fun_prop
 
 end Cslib.Logic.PL

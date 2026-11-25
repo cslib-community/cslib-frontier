@@ -410,12 +410,15 @@ private theorem hKeyEmb_apply (n : ℕ) (b : Bool) (m : BitString (P.msgLen n))
 /-- A word in the `H` domain names a typed `H` request, whose word triple it encodes. -/
 private theorem typedHQuery_of_isHQuery {n : ℕ} {w : List Bool} (h : P.isHQuery n w = true) :
     ∃ x, P.typedHQuery n w = some x ∧ hKeyEmb P n x = hQueryDecoder.decode w := by
+  have hy := h
+  unfold isHQuery at hy
   unfold typedHQuery
   rcases hd : hQueryDecoder.decode w with ⟨b, m, c⟩
-  have hy : (encHQuery (false, m, c) = w ∧ m.length = P.msgLen n) ∧ c.length ≤ P.ctLen n := by
-    simpa only [isHQuery, hd, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] using h
+  rw [hd] at hy
+  simp only [Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at hy
   simp only [h, ↓reduceIte]
-  exact ⟨_, rfl, by rw [hKeyEmb_apply, BitString.ofFn_ofList hy.1.2, toCiphertext_val hy.2]⟩
+  refine ⟨_, rfl, ?_⟩
+  rw [hKeyEmb_apply, BitString.ofFn_ofList hy.1.2, toCiphertext_val hy.2]
 
 private theorem typedHQuery_of_not_isHQuery {n : ℕ} {w : List Bool}
     (h : ¬P.isHQuery n w = true) : P.typedHQuery n w = none := by

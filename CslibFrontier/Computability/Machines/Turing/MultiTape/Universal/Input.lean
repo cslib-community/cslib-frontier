@@ -68,7 +68,8 @@ private theorem input_state (p : ℕ) (x : List ℕ) (j : ℕ) :
     | nil => simp
     | cons a l ih =>
       rw [List.foldl_cons, ih]
-      simp only [inputNext, List.length_cons]; omega
+      simp only [inputNext, List.length_cons, Nat.sub_sub]
+      omega
   exact hfold _ _
 
 private theorem input_emission (p : ℕ) (x : List ℕ) :

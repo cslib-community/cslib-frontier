@@ -59,9 +59,15 @@ def rowLift {k r : ℕ} {I : Type} (i : Fin k) (B : Finset I) :
 @[simp] private theorem mem_rowLift {k r : ℕ} {I : Type} (i : Fin k) (B : Finset I)
     (p : (Fin k × Fin r) × I) : p ∈ rowLift (r := r) i B ↔ p.1.1 = i ∧ p.2 ∈ B := by
   rcases p with ⟨⟨j, c⟩, a⟩
-  simp only [rowLift, Finset.mem_map, Function.Embedding.coeFn_mk, Prod.mk.injEq, Prod.exists]
-  exact ⟨fun ⟨_, b, hb, ⟨hi, _⟩, hba⟩ => ⟨hi.symm, hba ▸ (Finset.mem_product.mp hb).2⟩,
-    fun ⟨rfl, ha⟩ => ⟨c, a, Finset.mem_product.mpr ⟨Finset.mem_univ c, ha⟩, ⟨rfl, rfl⟩, rfl⟩⟩
+  unfold rowLift
+  rw [Finset.mem_map]
+  constructor
+  · rintro ⟨⟨c', b⟩, hb, hp⟩
+    change ((i, c'), b) = ((j, c), a) at hp
+    cases hp
+    exact ⟨rfl, (Finset.mem_product.mp hb).2⟩
+  · rintro ⟨rfl, ha⟩
+    exact ⟨(c, a), Finset.mem_product.mpr ⟨Finset.mem_univ _, ha⟩, rfl⟩
 
 /-- If `0 < r` and `B` is nonempty, then `rowLift i B` is nonempty. -/
 theorem rowLift_nonempty {k r : ℕ} {I : Type} (i : Fin k) (B : Finset I)
@@ -89,7 +95,10 @@ theorem rowLift_family_disjoint {k r : ℕ} {I K : Type} (blocks : K → Finset 
       Disjoint (rowLift (r := r) a.1 (blocks a.2)) (rowLift b.1 (blocks b.2)) := by
   intro a b hab
   by_cases hrow : a.1 = b.1
-  · exact rowLift_disjoint _ _ _ _ (hB fun hcol => hab (Prod.ext hrow hcol))
+  · apply rowLift_disjoint
+    apply hB
+    intro hcol
+    exact hab (Prod.ext hrow hcol)
   · exact rowLift_disjoint_of_ne _ _ _ _ hrow
 
 open scoped Classical in

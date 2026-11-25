@@ -98,7 +98,9 @@ theorem iterate_reflection_comp_reflection (Ra Rb : E →ₗ[K] E) {a e : E} {γ
   induction T with
   | zero => simp
   | succ T ih =>
-    have hφ : φ - 2 * T * γ - 2 * γ = φ - 2 * ((T + 1 : ℕ) : ℝ) * γ := by push_cast; ring
+    have hφ : φ - 2 * T * γ - 2 * γ = φ - 2 * ((T + 1 : ℕ) : ℝ) * γ := by
+      push_cast
+      ring
     rw [Function.iterate_succ_apply', ih, map_smul, map_smul,
       reflection_comp_reflection Ra Rb ha he hb hb', hφ, pow_succ, mul_neg_one, neg_smul,
       smul_neg]

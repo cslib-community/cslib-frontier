@@ -161,6 +161,7 @@ theorem advantage_eq {seedBits outputBits commonBits : ℕ} (generator : List Bo
       ((uniformList outputBits).bind
         (fun word => ProbComp.eval (test seedBits commonBits adversary word))) := by
   rw [generate_distribution generator hfits, ← ideal_distribution hexpands]
-  simp only [PMF.monad_bind_eq_bind, pmf_norm, test, BitString.eval_sampleList]
+  simp only [PMF.monad_bind_eq_bind]
+  simp only [pmf_norm, test, BitString.eval_sampleList]
 
 end Cslib.Crypto.GeneratorPadding

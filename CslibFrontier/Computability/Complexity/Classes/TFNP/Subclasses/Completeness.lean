@@ -89,8 +89,12 @@ theorem pigeonRel_searchReducible_Pigeon {n : α → ℕ} {F : α × List Bool �
   change pigeonRel (fun a => n a) (fun p => evalCircuitCode (n p.1) (code p.1) p.2) a w at hw
   obtain ⟨hw, h⟩ := hw
   change w.length = 2 * n a at hw
-  have hu : (w.take (n a)).length = n a := by simp only [List.length_take]; omega
-  have hv : (w.drop (n a)).length = n a := by simp only [List.length_drop]; omega
+  have hu : (w.take (n a)).length = n a := by
+    simp only [List.length_take]
+    omega
+  have hv : (w.drop (n a)).length = n a := by
+    simp only [List.length_drop]
+    omega
   exact ⟨hw, by simpa only [hsem a _ hu, hsem a _ hv] using h⟩
 
 /-- A uniform polynomial-time end-of-line family reduces to its circuit presentation. -/

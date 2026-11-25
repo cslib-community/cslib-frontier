@@ -320,8 +320,9 @@ theorem oneTimeGame_le {seed : PMF K} {hash : K → M → Y} {ε : ℝ≥0∞}
 adaptive one-time forger has strong-forgery probability at most `ε`. -/
 theorem oneTimeStrongGame_le {seed : PMF K} {hash : K → M → Y} {ε : ℝ≥0∞}
     (hh : IsDeltaUniversalHash seed hash ε) (forger : OneTimeForger M Y) :
-    oneTimeStrongGame seed hash forger true ≤ ε :=
-  oneTimeStrongGame_eq_oneTimeGame seed hash forger ▸ oneTimeGame_le hh forger
+    oneTimeStrongGame seed hash forger true ≤ ε := by
+  rw [oneTimeStrongGame_eq_oneTimeGame]
+  exact oneTimeGame_le hh forger
 
 end OneTime
 
@@ -539,8 +540,9 @@ theorem counterGame_le {seed : PMF K} {hash : K → M → Y} {ε : ℝ≥0∞}
 forgery probability at most `ε`. -/
 theorem counterStrongGame_le {seed : PMF K} {hash : K → M → Y} {ε : ℝ≥0∞}
     (hh : IsDeltaUniversalHash seed hash ε) (forger : CounterForger M Y) :
-    counterStrongGame seed hash forger true ≤ ε :=
-  counterStrongGame_eq_counterSlotGame seed hash forger ▸ counterSlotGame_le hh forger
+    counterStrongGame seed hash forger true ≤ ε := by
+  rw [counterStrongGame_eq_counterSlotGame]
+  exact counterSlotGame_le hh forger
 
 end Counter
 

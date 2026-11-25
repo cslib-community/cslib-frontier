@@ -91,7 +91,8 @@ theorem sub_maxDegree_le_card_allowedColors (x : V → Fin q) (w : V) :
   have h1 : ((G.neighborFinset w).image x).card ≤ G.maxDegree :=
     Finset.card_image_le.trans (G.degree_le_maxDegree w)
   have h2 := Finset.le_card_sdiff ((G.neighborFinset w).image x) Finset.univ
-  simp only [allowedColors, Finset.card_univ, Fintype.card_fin] at h2 ⊢
+  rw [Finset.card_univ, Fintype.card_fin] at h2
+  rw [allowedColors]
   omega
 
 theorem allowedColors_nonempty (hq : G.maxDegree < q) (x : V → Fin q) (w : V) :
@@ -155,7 +156,11 @@ theorem frozenColorings_empty {b : V → Fin q} (hb : G.IsProperColoring b) :
   ext x
   simp only [mem_frozenColorings, Finset.notMem_empty, not_false_eq_true, forall_const,
     Finset.mem_singleton]
-  exact ⟨fun ⟨_, h⟩ => funext h, fun h => ⟨h ▸ hb, fun _ => congrFun h _⟩⟩
+  constructor
+  · rintro ⟨-, h⟩
+    exact funext h
+  · rintro rfl
+    exact ⟨hb, fun _ => rfl⟩
 
 /-- Freezing one more vertex `v` at its color in `b` keeps the colorings with `x v = b v`. -/
 theorem frozenColorings_erase (U : Finset V) (b : V → Fin q) (v : V) :

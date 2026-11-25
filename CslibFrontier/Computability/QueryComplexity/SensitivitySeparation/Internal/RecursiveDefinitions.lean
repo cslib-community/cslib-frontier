@@ -121,13 +121,15 @@ theorem rowClause_nested {k r h : ℕ} {I : Type} (T : Tournament k)
     (x : ((Fin k × Fin r) × I) → Bool) (i : Fin k)
     (hi : rowClause T label F q' x i = true) : rowClause T label F q x i = true := by
   rw [rowClause_eq_true_iff] at hi ⊢
-  exact ⟨hi.1, fun j hij => hF.rejects_of_le (gateIndex_antitone hqq) (hi.2 j hij)⟩
+  refine ⟨hi.1, fun j hij => ?_⟩
+  exact hF.rejects_of_le (gateIndex_antitone hqq) (hi.2 j hij)
 
 /-- If `F` is a nested family, then so is `recursiveFamily T label F`. -/
 theorem recursiveFamily_nested {k r h : ℕ} {I : Type} (T : Tournament k)
     (label : Fin k → Fin k → Fin r) (F : Fin (h + 1) → (I → Bool) → Bool)
     (hF : NestedFamily F) : NestedFamily (recursiveFamily T label F) := by
-  refine ⟨fun {q q' x} hqq hx => ?_⟩
+  constructor
+  intro q q' x hqq hx
   obtain ⟨i, hi⟩ := (recursiveFamily_eq_true_iff T label F q' x).mp hx
   exact (recursiveFamily_eq_true_iff T label F q x).mpr
     ⟨i, rowClause_nested T label F hF hqq x i hi⟩

@@ -125,7 +125,8 @@ variable {α : Type*} [Fintype α] [MeasurableSpace α] [DiscreteMeasurableSpace
 theorem integral_uniformOn_univ (f : α → ℝ) :
     ∫ x, f x ∂uniformOn (Set.univ : Set α) = 𝔼 x, f x := by
   rw [integral_fintype .of_finite, Finset.expect_eq_sum_div_card, Finset.sum_div]
-  exact Finset.sum_congr rfl fun _ _ => by simp [measureReal_def, uniformOn_univ, div_eq_inv_mul]
+  refine Finset.sum_congr rfl fun x _ => ?_
+  simp [measureReal_def, uniformOn_univ, div_eq_inv_mul]
 
 /-- Under the uniform distribution on a finite type, `X` is `B`-reasonable exactly when
 `𝔼 X ^ 4 ≤ B (𝔼 X ^ 2) ^ 2` [O'Donnell, Definition 9.1][ODonnell2014]. -/
@@ -142,7 +143,8 @@ section Gaussian
 /-- A standard Gaussian is `3`-reasonable [O'Donnell, Example 9.2][ODonnell2014]. -/
 theorem isReasonable_id_gaussianReal : IsReasonable 3 id (gaussianReal 0 1) :=
   ⟨memLp_id_gaussianReal 4, by
-    simp only [id_eq, integral_pow_four_gaussianReal, integral_sq_gaussianReal]; norm_num⟩
+    simp only [id_eq, integral_pow_four_gaussianReal, integral_sq_gaussianReal]
+    norm_num⟩
 
 variable {g : Ω → ℝ}
 

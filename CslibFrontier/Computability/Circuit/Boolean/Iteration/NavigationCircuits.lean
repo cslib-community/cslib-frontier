@@ -94,10 +94,15 @@ theorem reachability_hitting_time (c : Circuit signature n n) :
       (out.size : ℝ) ≤ 9000000 * optimizedBudget n c.size (2 ^ n) := by
   obtain ⟨L, hL, hLN, ho⟩ := exists_powerBudget_le_optimizedBudget n c.size (2 ^ n) le_rfl
   obtain ⟨out, hout, hs⟩ := navigation_circuit c L hL hLN
-  refine ⟨out, fun z => (hout z).symm ▸ navigationBits_flag _ _ _, fun z hz => ?_, ?_⟩
-  · rw [hout z] at hz ⊢
+  refine ⟨out, ?_, ?_, ?_⟩
+  · intro z
+    rw [hout z]
+    exact navigationBits_flag _ _ _
+  · intro z hz
+    rw [hout z] at hz ⊢
     exact navigationBits_time _ _ _ ((navigationBits_flag _ _ _).mp hz)
-  · have : (out.size : ℝ) ≤ 4500000 * (powerBudget n c.size (2 ^ n) L : ℝ) := by
+  · have hs' : (out.size : ℝ) ≤
+        4500000 * (powerBudget n c.size (2 ^ n) L : ℝ) := by
       exact_mod_cast hs.trans (navigationBudget_le n c.size L)
     linarith
 

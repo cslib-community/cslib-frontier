@@ -121,8 +121,11 @@ private theorem lift {v : Fin I.graph.n} {k : ℕ}
 source-to-target walk within the given bound. Zero bounds and coinciding terminals are included. -/
 theorem layered_mem_iff : I.layered ∈ STCON ↔ I ∈ BoundedSTCON := by
   rw [← I.capped_iff]
-  exact ⟨fun h => by simpa [layered, node] using I.project h,
-    fun h => I.lift (Relation.relatesWithinSteps_iff_relatesInSteps_reflGen.mp h) le_rfl⟩
+  constructor
+  · intro h
+    simpa [layered, node] using I.project h
+  · intro h
+    exact I.lift (Relation.relatesWithinSteps_iff_relatesInSteps_reflGen.mp h) le_rfl
 
 end BoundedSTCONInstance
 

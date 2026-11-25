@@ -483,20 +483,24 @@ theorem length_mem_uowhfLeaves {M : ℕ} {msg : List Bool} {w : List Bool}
 theorem uowhfLeaves_injective_of_length_eq {M : ℕ} (hM : 1 ≤ M) {m₀ m₁ : List Bool}
     (hlen : m₀.length = m₁.length) (heq : uowhfLeaves M m₀ = uowhfLeaves M m₁) :
     m₀ = m₁ := by
-  refine List.ext_getElem hlen fun idx h₀ h₁ => ?_
-  have hm₀ : m₀.isEmpty = false :=
-    List.isEmpty_eq_false_iff.mpr (List.ne_nil_of_length_pos (by omega))
-  have hm₁ : m₁.isEmpty = false :=
-    List.isEmpty_eq_false_iff.mpr (List.ne_nil_of_length_pos (by omega))
-  simp only [uowhfLeaves, hm₀, hm₁, Bool.false_eq_true, ↓reduceIte, hlen] at heq
-  have hr : idx < (List.range m₁.length).length := by simpa only [List.length_range] using h₁
-  have hcell : padOrTake M [m₀.getD idx false] = padOrTake M [m₁.getD idx false] := by
-    simpa only [List.getElem?_map, List.getElem?_eq_getElem hr, List.getElem_range,
-      Option.map_some, Option.some.injEq] using congrArg (fun l => l[idx]?) heq
-  obtain ⟨M', rfl⟩ : ∃ M', M = M' + 1 := ⟨M - 1, by omega⟩
-  simpa only [padOrTake, List.singleton_append, List.take_succ_cons, List.headD_cons,
-    List.getD_eq_getElem _ _ h₀, List.getD_eq_getElem _ _ h₁] using
-    congrArg (fun w => w.headD false) hcell
+  cases m₀ with
+  | nil => exact (List.length_eq_zero_iff.mp hlen.symm).symm
+  | cons b₀ bs₀ =>
+    cases m₁ with
+    | nil => cases hlen
+    | cons b₁ bs₁ =>
+      refine List.ext_getElem hlen fun idx h₀ h₁ => ?_
+      simp only [uowhfLeaves, List.isEmpty_cons, Bool.false_eq_true, ↓reduceIte, hlen] at heq
+      have hr : idx < (List.range (b₁ :: bs₁).length).length := by
+        simpa only [List.length_range] using h₁
+      have hcell : padOrTake M [(b₀ :: bs₀).getD idx false] =
+          padOrTake M [(b₁ :: bs₁).getD idx false] := by
+        simpa only [List.getElem?_map, List.getElem?_eq_getElem hr, List.getElem_range,
+          Option.map_some, Option.some.injEq] using congrArg (fun l => l[idx]?) heq
+      obtain ⟨M', rfl⟩ : ∃ M', M = M' + 1 := ⟨M - 1, by omega⟩
+      simpa only [padOrTake, List.singleton_append, List.take_succ_cons, List.headD_cons,
+        List.getD_eq_getElem _ _ h₀, List.getD_eq_getElem _ _ h₁] using
+        congrArg (fun w => w.headD false) hcell
 
 @[program_certificate]
 theorem computableInPolyTime_uowhfLeaves :
@@ -995,10 +999,12 @@ private theorem uniformList_bind_three_split {α : Type*} (a b c : ℕ)
 private theorem listRow_eq_drop_take_of_le {κ n i : ℕ} (hi : i ≤ n) {K : List Bool}
     (hK : K.length = (n + 1) * κ) :
     (K.drop (i * κ)).take κ = BitString.listRow κ i K := by
-  have hle : i * κ + κ ≤ (n + 1) * κ := by
-    simpa only [Nat.add_mul, Nat.one_mul] using Nat.mul_le_mul_right κ (Nat.add_le_add_right hi 1)
-  unfold BitString.listRow
-  exact (List.take_append_of_le_length (by rw [List.length_drop, hK]; omega)).symm
+  have hrem : κ ≤ (K.drop (i * κ)).length := by
+    rw [List.length_drop, hK]
+    have : (i + 1) * κ ≤ (n + 1) * κ := Nat.mul_le_mul_right κ (by omega)
+    have : i * κ + κ = (i + 1) * κ := by ring
+    omega
+  unfold BitString.listRow; rw [List.take_append_of_le_length hrem]
 
 /-- **Concrete security bound for `uowhfTreeHash`**: at any security parameter `n ≥ 1` with
 `n ≤ blockLen n`, `1 ≤ maxBlocks n`, and every supported message pair `(m₀, m₁)` of `adversary`

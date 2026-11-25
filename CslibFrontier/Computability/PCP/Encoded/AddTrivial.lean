@@ -93,7 +93,8 @@ theorem WellFormed.addTrivial {g : Graph C} (hg : g.WellFormed) (truth : C)
 /-- Self-loops stay in the declared vertex set, including when it is empty. -/
 theorem WellFormed.addLoops {g : Graph C} (hg : g.WellFormed) (truth : C) :
     (g.addLoops truth).WellFormed := by
-  refine hg.addTrivial truth fun p hp => ?_
+  apply hg.addTrivial truth
+  intro p hp
   obtain ⟨v, hv, rfl⟩ := List.mem_map.mp hp
   exact ⟨List.mem_range.mp hv, List.mem_range.mp hv⟩
 
@@ -148,7 +149,8 @@ theorem unsatVal_addLoops (g : Graph C) (eval : C → α → α → Bool)
       (g.edges.length : ℝ) / (g.edges.length + g.vertices) * (g.toGraph eval).unsatVal := by
   change ((g.addTrivial truth
     ((List.range g.vertices).map fun v => (v, v))).toGraph eval).unsatVal = _
-  simpa only [List.length_map, List.length_range] using
-    g.unsatVal_addTrivial eval truth htruth ((List.range g.vertices).map fun v => (v, v))
+  have h := g.unsatVal_addTrivial eval truth htruth
+    ((List.range g.vertices).map fun v => (v, v))
+  simpa only [List.length_map, List.length_range] using h
 
 end Cslib.PCP.Encoded.Graph

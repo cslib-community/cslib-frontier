@@ -141,9 +141,10 @@ theorem stageSide_le_stageModulus (l : ℕ) : stageSide M l ≤ stageModulus M l
   exact Nat.le_mul_of_pos_left _ (by positivity)
 
 theorem stageSide_pos (l : ℕ) : 0 < stageSide M l := by
-  refine Nat.pos_of_ne_zero fun h => ?_
-  have := (ceilDiv_le_iff_le_mul (by positivity : 0 < (2 : ℕ) ^ l)).1 (Nat.le_zero.2 h)
-  have := (stageModulus_prime M l).pos
+  by_contra h
+  have hz : stageSide M l ≤ 0 := Nat.le_of_not_gt h
+  have hp := (ceilDiv_le_iff_le_mul (by positivity : 0 < (2 : ℕ) ^ l)).1 hz
+  have hprime := (stageModulus_prime M l).pos
   omega
 
 /-- The seeds of the affine channel of stage `l`: affine maps `𝔽_(P_l) → 𝔽_(P_l) ^ H`. -/

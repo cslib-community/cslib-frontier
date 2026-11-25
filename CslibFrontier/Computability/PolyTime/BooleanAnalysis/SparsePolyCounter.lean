@@ -181,67 +181,78 @@ namespace BranchEvalInput
 @[fun_prop]
 theorem computableInPolyTime_numVars :
     ComputableInPolyTime numVars encBranchEvalInput encUnary := by
-  fun_prop [numVars, encBranchEvalInput]
+  unfold numVars encBranchEvalInput
+  fun_prop
 
 /-- Read the unary degree bound. -/
 @[fun_prop]
 theorem computableInPolyTime_maxDegree :
     ComputableInPolyTime maxDegree encBranchEvalInput encUnary := by
-  fun_prop [maxDegree, encBranchEvalInput]
+  unfold maxDegree encBranchEvalInput
+  fun_prop
 
 /-- Read the binary neutral-augmented factor incidence. -/
 @[fun_prop]
 theorem computableInPolyTime_factorIncidence :
     ComputableInPolyTime factorIncidence encBranchEvalInput encNat := by
-  fun_prop [factorIncidence, encBranchEvalInput]
+  unfold factorIncidence encBranchEvalInput
+  fun_prop
 
 /-- Read the binary neutral-augmented factor scope width. -/
 @[fun_prop]
 theorem computableInPolyTime_factorWidth :
     ComputableInPolyTime factorWidth encBranchEvalInput encNat := by
-  fun_prop [factorWidth, encBranchEvalInput]
+  unfold factorWidth encBranchEvalInput
+  fun_prop
 
 /-- Read the binary total neutral-augmented incidence. -/
 @[fun_prop]
 theorem computableInPolyTime_augmentedIncidence :
     ComputableInPolyTime augmentedIncidence encBranchEvalInput encNat := by
-  fun_prop [augmentedIncidence, encBranchEvalInput]
+  unfold augmentedIncidence encBranchEvalInput
+  fun_prop
 
 /-- Read the binary polylogarithmic incidence exponent. -/
 @[fun_prop]
 theorem computableInPolyTime_incidenceExponent :
     ComputableInPolyTime incidenceExponent encBranchEvalInput encNat := by
-  fun_prop [incidenceExponent, encBranchEvalInput]
+  unfold incidenceExponent encBranchEvalInput
+  fun_prop
 
 /-- Read the binary group count. -/
 @[fun_prop]
 theorem computableInPolyTime_numGroups :
     ComputableInPolyTime numGroups encBranchEvalInput encNat := by
-  fun_prop [numGroups, encBranchEvalInput]
+  unfold numGroups encBranchEvalInput
+  fun_prop
 
 /-- Read the binary interpolation-node count. -/
 @[fun_prop]
 theorem computableInPolyTime_numNodes :
     ComputableInPolyTime numNodes encBranchEvalInput encNat := by
-  fun_prop [numNodes, encBranchEvalInput]
+  unfold numNodes encBranchEvalInput
+  fun_prop
 
 /-- Read the binary row bound. -/
 @[fun_prop]
 theorem computableInPolyTime_rowBound :
     ComputableInPolyTime rowBound encBranchEvalInput encNat := by
-  fun_prop [rowBound, encBranchEvalInput]
+  unfold rowBound encBranchEvalInput
+  fun_prop
 
 /-- Read the binary interval start. -/
 @[fun_prop]
 theorem computableInPolyTime_intervalStart :
     ComputableInPolyTime intervalStart encBranchEvalInput encNat := by
-  fun_prop [intervalStart, encBranchEvalInput]
+  unfold intervalStart encBranchEvalInput
+  fun_prop
 
 /-- Read the polynomial system with the existing binary variable encoding. -/
 @[fun_prop]
 theorem computableInPolyTime_equations :
     ComputableInPolyTime equations encBranchEvalInput encSparseSystem := by
-  fun_prop [equations, encBranchEvalInput]
+  unfold equations encBranchEvalInput
+  fun_prop
 
 end BranchEvalInput
 

@@ -110,9 +110,11 @@ theorem visited_succ (tm : MultiTapeTM k Symbol State)
   simp only [MultiTapeNTM.RunPath.mem_visitedByTapeHead_ofDeterministic, Finset.mem_insert]
   constructor
   · rintro ⟨m, hm, hz⟩
-    exact if h : m = n + 1 then .inl (h ▸ hz).symm else .inr ⟨m, by omega, hz⟩
-  · rintro (rfl | ⟨m, hm, hz⟩)
-    · exact ⟨n + 1, by omega, rfl⟩
+    by_cases h : m = n + 1
+    · exact .inl (h ▸ hz).symm
+    · exact .inr ⟨m, by omega, hz⟩
+  · rintro (hz | ⟨m, hm, hz⟩)
+    · exact ⟨n + 1, by omega, hz.symm⟩
     · exact ⟨m, by omega, hz⟩
 
 /-- Every stored cell has been visited, and every visited cell remains stored. -/

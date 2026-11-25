@@ -92,7 +92,8 @@ theorem DecidesInTime.mem_iff_exists_checkChoices {ntm : MultiTapeNTM k Bool Sta
       exists_runClosedCoins_choiceTable p ((h a).1 p hp.ge) hout
     rw [hp] at hlen
     refine ⟨coins ++ List.replicate (L - coins.length) false, by
-      simp only [List.length_append, List.length_replicate]; omega, by simp [checkChoices, hcoins]⟩
+      simp only [List.length_append, List.length_replicate]; omega, ?_⟩
+    simp [checkChoices, hcoins]
   · rintro ⟨w, -, hw⟩
     exact accepts_of_runClosedCoins_choiceTable (coins := w) (by simpa [checkChoices] using hw)
 

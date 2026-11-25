@@ -81,9 +81,13 @@ theorem coefficientResidue_cast {p : ℕ} [Fact p.Prime]
     (coefficientResidue p k value : ZMod p) = P.coeff k := by
   have hp : p.Prime := Fact.out
   unfold coefficientResidue
-  rw [ZMod.natCast_mod, Nat.cast_sub (Nat.mod_lt _ hp.pos).le, ZMod.natCast_self,
-    ZMod.natCast_mod, zero_sub, Polynomial.coeff_eq_neg_sum_range_eval P k hP hk, Nat.cast_sum]
-  refine congrArg (- ·) (Finset.sum_congr rfl fun z hz => ?_)
+  rw [ZMod.natCast_mod, Nat.cast_sub (Nat.mod_lt _ hp.pos).le,
+    ZMod.natCast_self, ZMod.natCast_mod, zero_sub]
+  rw [Polynomial.coeff_eq_neg_sum_range_eval P k hP hk]
+  congr 1
+  rw [Nat.cast_sum]
+  apply Finset.sum_congr rfl
+  intro z hz
   rw [Nat.cast_mul, hvalue z (Finset.mem_range.mp hz),
     powMod_of_ne_zero hp.ne_zero, ZMod.natCast_mod, Nat.cast_pow]
 

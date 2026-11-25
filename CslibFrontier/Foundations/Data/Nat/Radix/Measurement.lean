@@ -36,8 +36,9 @@ theorem measurementValues_bounds (c D j : ℕ) :
     ∀ z ∈ measurementValues c D j, -(D : ℤ) ≤ z ∧ z ≤ D := by
   intro z hz
   obtain ⟨i, _, rfl⟩ := List.mem_map.mp hz
-  have hd : digit (2 * D + 1) j i < 2 * D + 1 :=
-    digit_eq_div_pow_mod _ _ _ ▸ Nat.mod_lt _ (by omega)
+  have hd : digit (2 * D + 1) j i < 2 * D + 1 := by
+    rw [digit_eq_div_pow_mod]
+    exact Nat.mod_lt _ (by omega)
   omega
 
 private theorem shifted_digit (D d : ℕ) :
@@ -47,13 +48,14 @@ private theorem decoded_value (c D j : ℕ) (hj : j < (2 * D + 1) ^ c) :
     Nat.ofDigits (2 * D + 1)
       ((measurementValues c D j).map fun z => (z + (D : ℤ)).toNat) = j := by
   obtain ⟨x, hx, hval⟩ := Nat.exists_ofDigits_ofFn hj
-  suffices (measurementValues c D j).map (fun z => (z + (D : ℤ)).toNat) = List.ofFn x by
-    rw [this, hval]
-  refine List.ext_getElem (by simp) fun i hi hi' => ?_
-  simp only [measurementValues, List.getElem_map, List.getElem_range, List.getElem_ofFn,
-    shifted_digit, ← hval]
-  exact (digit_ofDigits (B := 2 * D + 1) (by omega) (List.ofFn x)
-    (by simpa using hx) i (by simpa using hi')).trans (List.getElem_ofFn hi')
+  have hwords : (measurementValues c D j).map (fun z => (z + (D : ℤ)).toNat) = List.ofFn x := by
+    apply List.ext_getElem (by simp)
+    intro i hi hi'
+    simp only [measurementValues, List.getElem_map, List.getElem_range, List.getElem_ofFn]
+    rw [shifted_digit, ← hval]
+    exact (digit_ofDigits (B := 2 * D + 1) (by omega) (List.ofFn x)
+      (by simpa using hx) i (by simpa using hi')).trans (List.getElem_ofFn hi')
+  rw [hwords, hval]
 
 /-- No two fitting indices encode the same signed measurement tuple, including radix one. -/
 theorem measurementValues_injective (c D : ℕ) :

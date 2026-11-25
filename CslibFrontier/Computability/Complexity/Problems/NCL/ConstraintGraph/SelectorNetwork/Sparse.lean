@@ -67,13 +67,18 @@ private theorem owner_eq_of_code_eq
     Numbering.edgeOwner N A e = Numbering.edgeOwner N A f := by
   have he := slot_lt N A budget hbudget e
   have hf := slot_lt N A budget hbudget f
-  refine order.injective (Fin.ext (by_contradiction fun hne => ?_))
-  unfold code at h
+  apply order.injective
+  apply Fin.ext
+  by_contra hne
   rcases lt_or_gt_of_ne hne with hlt | hgt
-  · have := Nat.mul_le_mul_left budget (Nat.succ_le_of_lt hlt)
-    rw [Nat.mul_succ] at this; omega
-  · have := Nat.mul_le_mul_left budget (Nat.succ_le_of_lt hgt)
-    rw [Nat.mul_succ] at this; omega
+  · have hm := Nat.mul_le_mul_left budget (Nat.succ_le_of_lt hlt)
+    simp only [Nat.mul_succ] at hm
+    unfold code at h
+    omega
+  · have hm := Nat.mul_le_mul_left budget (Nat.succ_le_of_lt hgt)
+    simp only [Nat.mul_succ] at hm
+    unfold code at h
+    omega
 
 private theorem eq_of_owner_slot_eq {e f : Edge C R ⊕ Private N A}
     (howner : Numbering.edgeOwner N A e = Numbering.edgeOwner N A f)

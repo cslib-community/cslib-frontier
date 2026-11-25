@@ -85,7 +85,9 @@ theorem testShift_sound (confidence inverseTolerance densityNumerator densityDen
   have hcutoff : (↑(densityNumerator * (32 * rateDenominator + rateNumerator)) : ℝ) /
       ↑(32 * densityDenominator * rateDenominator) =
       (densityNumerator : ℝ) / densityDenominator *
-        (1 + (rateNumerator : ℝ) / rateDenominator / 32) := by push_cast; field_simp
+        (1 + (rateNumerator : ℝ) / rateDenominator / 32) := by
+    push_cast
+    field_simp
   unfold testShift
   apply ProbComp.testProbabilityLT_error_pow_of_bounds confidence inverseTolerance _ _
     htolerance (by positivity) trial <;> rw [hcutoff] <;> nlinarith [hprecision]
@@ -104,7 +106,9 @@ theorem testMajority_sound (confidence inverseTolerance densityNumerator density
             (ProbComp.eval trial true).toReal}).toReal ≤ (1 / 2 : ℝ) ^ confidence := by
   have hd : (0 : ℝ) < densityDenominator := by exact_mod_cast hdensity
   have hcutoff : (↑(13 * densityNumerator) : ℝ) / ↑(32 * densityDenominator) =
-      13 * ((densityNumerator : ℝ) / densityDenominator) / 32 := by push_cast; field_simp
+      13 * ((densityNumerator : ℝ) / densityDenominator) / 32 := by
+    push_cast
+    field_simp
   unfold testMajority
   apply ProbComp.testProbabilityLT_error_pow_of_bounds confidence inverseTolerance _ _
     htolerance (by positivity) trial <;> rw [hcutoff] <;> linarith

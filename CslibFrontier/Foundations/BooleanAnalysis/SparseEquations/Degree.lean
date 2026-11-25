@@ -43,9 +43,11 @@ variable {ι R : Type*} [CommRing R]
 then `monomialSum R P` has degree at most `k` on the cube. -/
 theorem monomialSum_mem_lowDegree {P : Finset (Finset ι)} {k : ℕ} (hk : ∀ M ∈ P, #M ≤ k) :
     monomialSum R P ∈ lowDegree R ι k := by
-  have h : monomialSum R P = ∑ M ∈ P, monomial R M :=
-    funext fun x => (Finset.sum_apply x P (monomial R)).symm
-  exact h ▸ sum_mem_lowDegree P fun M hM => monomial_mem_lowDegree (hk M hM)
+  have h : monomialSum R P = ∑ M ∈ P, monomial R M := by
+    funext x
+    simp only [monomialSum, Finset.sum_apply]
+  rw [h]
+  exact sum_mem_lowDegree P fun M hM => monomial_mem_lowDegree (hk M hM)
 
 /-- **The parity-factor coefficients of an equation are low-degree**: if every monomial of `P` has
 at most `k` variables, then the `V ^ j` coefficient of the parity factor of its integer lift has

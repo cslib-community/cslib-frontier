@@ -179,9 +179,11 @@ theorem IsCircList.rotate_to {n : ℕ} {left right : Fin n → ℕ} {L₁ L₂ :
   induction L₁ generalizing L₂ with
   | nil => simpa only [List.append_nil, List.nil_append] using hL
   | cons x xs ih =>
-    have hrot : IsCircList left right (xs ++ v :: (L₂ ++ [x])) := by
-      simpa only [List.append_eq, List.cons_append, List.append_assoc] using hL.rotate_one
-    simpa only [List.append_assoc, List.singleton_append] using ih hrot
+    have hrot : IsCircList left right ((xs ++ v :: L₂) ++ [x]) := hL.rotate_one
+    have heq : (xs ++ v :: L₂) ++ [x] = xs ++ v :: (L₂ ++ [x]) := by simp
+    rw [heq] at hrot
+    have hih := ih hrot
+    simpa only [List.append_assoc, List.singleton_append] using hih
 
 /-- Any member `v ∈ L` of a circular list can be rotated to the head while preserving `Perm`. -/
 theorem IsCircList.exists_head {n : ℕ} {left right : Fin n → ℕ} {L : List (Fin n)} {v : Fin n}
