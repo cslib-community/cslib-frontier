@@ -71,10 +71,8 @@ private theorem exp_mul_le_one_add_mul {s : ℝ} (hs : s ∈ Set.Icc 0 1) (t : �
     Real.exp (t * s) ≤ 1 + s * (Real.exp t - 1) := by
   have h := convexOn_exp.2 (Set.mem_univ 0) (Set.mem_univ t) (sub_nonneg.mpr hs.2) hs.1
     (sub_add_cancel 1 s)
-  simp only [smul_eq_mul, mul_zero, zero_add, Real.exp_zero, mul_one] at h
-  calc Real.exp (t * s) = Real.exp (s * t) := by rw [mul_comm]
-    _ ≤ 1 - s + s * Real.exp t := h
-    _ = 1 + s * (Real.exp t - 1) := by ring
+  simp only [smul_eq_mul, mul_zero, zero_add, Real.exp_zero, mul_one, mul_comm s t] at h
+  linarith
 
 /-- Scores in `[0, 1]` on the support have a nonnegative mean. -/
 private theorem mean_nonneg (p : ∀ i, PMF (α i)) (score : ∀ i, α i → ℝ)
@@ -124,6 +122,20 @@ theorem mgf_pi_sum_le [∀ i, MeasurableSpace (α i)] [∀ i, MeasurableSingleto
   rw [hsum, hindep.mgf_sum (fun _ => measurable_of_countable _), Finset.sum_mul, Real.exp_sum]
   exact Finset.prod_le_prod₀ (fun _ _ => mgf_nonneg) (fun i _ => hle i)
 
+private theorem pi_sum_tail_le_exp (p : ∀ i, PMF (α i)) (score : ∀ i, α i → ℝ)
+    (hscore : ∀ i a, a ∈ (p i).support → score i a ∈ Set.Icc 0 1) {t ε : ℝ} {E : Set (∀ i, α i)}
+    (hE : ∀ [∀ i, MeasurableSpace (α i)] [∀ i, MeasurableSingletonClass (α i)],
+      (pi p).toMeasure.real E ≤
+        Real.exp (-t * ε) * mgf (fun outcome => ∑ i, score i (outcome i)) (pi p).toMeasure t) :
+    ((pi p).toOuterMeasure E).toReal ≤
+      Real.exp (-t * ε + (∑ i, ∑ a, (p i a).toReal * score i a) * (Real.exp t - 1)) := by
+  let (i : ι) : MeasurableSpace (α i) := ⊤
+  have h := hE
+  rw [measureReal_def, PMF.toMeasure_apply_eq_toOuterMeasure_apply _
+    ((Set.to_countable _).measurableSet)] at h
+  rw [Real.exp_add]
+  exact h.trans (mul_le_mul_of_nonneg_left (mgf_pi_sum_le p score hscore t) (Real.exp_pos _).le)
+
 /-- **The Chernoff bound** for the upper tail, with a free parameter `t ≥ 0`: a sum of
 independent scores in `[0, 1]` is at least `ε` with probability at most
 `exp (-t ε + mean * (exp t - 1))`. -/
@@ -131,14 +143,8 @@ theorem pi_sum_ge_le_exp (p : ∀ i, PMF (α i)) (score : ∀ i, α i → ℝ)
     (hscore : ∀ i a, a ∈ (p i).support → score i a ∈ Set.Icc 0 1) {t : ℝ} (ht : 0 ≤ t)
     (ε : ℝ) :
     ((pi p).toOuterMeasure {outcome | ε ≤ ∑ i, score i (outcome i)}).toReal ≤
-      Real.exp (-t * ε + (∑ i, ∑ a, (p i a).toReal * score i a) * (Real.exp t - 1)) := by
-  let (i : ι) : MeasurableSpace (α i) := ⊤
-  have h := measure_ge_le_exp_mul_mgf (μ := (pi p).toMeasure)
-    (X := fun outcome => ∑ i, score i (outcome i)) ε ht Integrable.of_finite
-  simp only [measureReal_def, PMF.toMeasure_apply_eq_toOuterMeasure_apply _
-    ((Set.to_countable _).measurableSet)] at h
-  rw [Real.exp_add]
-  exact h.trans (mul_le_mul_of_nonneg_left (mgf_pi_sum_le p score hscore t) (Real.exp_pos _).le)
+      Real.exp (-t * ε + (∑ i, ∑ a, (p i a).toReal * score i a) * (Real.exp t - 1)) :=
+  pi_sum_tail_le_exp p score hscore (measure_ge_le_exp_mul_mgf ε ht Integrable.of_finite)
 
 /-- **The Chernoff bound** for the lower tail, with a free parameter `t ≤ 0`: a sum of
 independent scores in `[0, 1]` is at most `ε` with probability at most
@@ -147,14 +153,8 @@ theorem pi_sum_le_le_exp (p : ∀ i, PMF (α i)) (score : ∀ i, α i → ℝ)
     (hscore : ∀ i a, a ∈ (p i).support → score i a ∈ Set.Icc 0 1) {t : ℝ} (ht : t ≤ 0)
     (ε : ℝ) :
     ((pi p).toOuterMeasure {outcome | ∑ i, score i (outcome i) ≤ ε}).toReal ≤
-      Real.exp (-t * ε + (∑ i, ∑ a, (p i a).toReal * score i a) * (Real.exp t - 1)) := by
-  let (i : ι) : MeasurableSpace (α i) := ⊤
-  have h := measure_le_le_exp_mul_mgf (μ := (pi p).toMeasure)
-    (X := fun outcome => ∑ i, score i (outcome i)) ε ht Integrable.of_finite
-  simp only [measureReal_def, PMF.toMeasure_apply_eq_toOuterMeasure_apply _
-    ((Set.to_countable _).measurableSet)] at h
-  rw [Real.exp_add]
-  exact h.trans (mul_le_mul_of_nonneg_left (mgf_pi_sum_le p score hscore t) (Real.exp_pos _).le)
+      Real.exp (-t * ε + (∑ i, ∑ a, (p i a).toReal * score i a) * (Real.exp t - 1)) :=
+  pi_sum_tail_le_exp p score hscore (measure_le_le_exp_mul_mgf ε ht Integrable.of_finite)
 
 /-- **The sharp multiplicative Chernoff bound** [Mitzenmacher and Upfal, Section 4.2]
 [MitzenmacherUpfal2017]: if independent scores in `[0, 1]` have mean at most `μ`, their sum is at
@@ -170,7 +170,8 @@ theorem pi_sum_ge_one_add_mul_le_exp_log (p : ∀ i, PMF (α i)) (score : ∀ i,
     (Real.log_nonneg (show (1 : ℝ) ≤ 1 + δ by linarith)) _).trans ?_
   rw [Real.exp_log hpos, add_sub_cancel_left]
   gcongr
-  nlinarith
+  linarith [mul_le_mul_of_nonneg_right hμ hδ,
+    show -Real.log (1 + δ) * ((1 + δ) * μ) + μ * δ = μ * (δ - (1 + δ) * Real.log (1 + δ)) by ring]
 
 /-- **The multiplicative Chernoff bound**: if independent scores in `[0, 1]` have mean at most
 `μ`, their sum is at least `(1 + δ) μ` with probability at most `exp (-δ² μ / (2 + δ))`, for every
@@ -182,13 +183,14 @@ theorem pi_sum_ge_one_add_mul (p : ∀ i, PMF (α i)) (score : ∀ i, α i → �
       Real.exp (-(δ ^ 2 * μ / (2 + δ))) := by
   refine (pi_sum_ge_one_add_mul_le_exp_log p score hscore hμ hδ).trans (Real.exp_le_exp.mpr ?_)
   have hμ0 : 0 ≤ μ := (mean_nonneg p score hscore).trans hμ
-  have hlog : 2 * δ / (δ + 2) ≤ Real.log (1 + δ) := Real.le_log_one_add_of_nonneg hδ
-  have h2 : (0 : ℝ) < 2 + δ := by linarith
-  have hmul : μ * (δ - (1 + δ) * Real.log (1 + δ)) ≤ μ * (δ - (1 + δ) * (2 * δ / (δ + 2))) :=
-    mul_le_mul_of_nonneg_left (by nlinarith) hμ0
-  refine hmul.trans (le_of_eq ?_)
-  field_simp
-  ring
+  calc μ * (δ - (1 + δ) * Real.log (1 + δ))
+      ≤ μ * (δ - (1 + δ) * (2 * δ / (δ + 2))) :=
+        mul_le_mul_of_nonneg_left (sub_le_sub_left
+          (mul_le_mul_of_nonneg_left (Real.le_log_one_add_of_nonneg hδ) (by linarith)) δ) hμ0
+    _ = -(δ ^ 2 * μ / (2 + δ)) := by
+        have : (0 : ℝ) < 2 + δ := by linarith
+        field_simp
+        ring
 
 /-- **The multiplicative Chernoff bound for `δ ≤ 1`** [Mitzenmacher and Upfal, Section 4.2]
 [MitzenmacherUpfal2017]: if independent scores in `[0, 1]` have mean at most `μ`, their sum is at
@@ -214,14 +216,17 @@ theorem pi_sum_le_one_sub_mul (p : ∀ i, PMF (α i)) (score : ∀ i, α i → �
       Real.exp (-(δ ^ 2 * μ / 2)) := by
   rcases lt_or_ge μ 0 with hμ0 | hμ0
   · exact (toOuterMeasure_toReal_le_one _ _).trans
-      (Real.one_le_exp (by nlinarith [sq_nonneg δ]))
+      (Real.one_le_exp (neg_nonneg.2 (div_nonpos_of_nonpos_of_nonneg
+        (mul_nonpos_of_nonneg_of_nonpos (sq_nonneg _) hμ0.le) zero_le_two)))
   refine (pi_sum_le_le_exp p score hscore (neg_nonpos.mpr hδ) _).trans (Real.exp_le_exp.mpr ?_)
-  have hexp : Real.exp (-δ) - 1 ≤ 0 := by
-    rw [sub_nonpos, Real.exp_le_one_iff]
-    linarith
-  have hmean : (∑ i, ∑ a, (p i a).toReal * score i a) * (Real.exp (-δ) - 1) ≤
-      μ * (Real.exp (-δ) - 1) := mul_le_mul_of_nonpos_right hμ hexp
-  nlinarith [mul_le_mul_of_nonneg_left (Real.exp_neg_le_one_sub_add_sq_div_two hδ) hμ0]
+  have hexp : Real.exp (-δ) - 1 ≤ 0 := sub_nonpos.2 (Real.exp_le_one_iff.2 (by linarith))
+  calc -(-δ) * ((1 - δ) * μ) + (∑ i, ∑ a, (p i a).toReal * score i a) * (Real.exp (-δ) - 1)
+      ≤ -(-δ) * ((1 - δ) * μ) + μ * (Real.exp (-δ) - 1) :=
+        add_le_add le_rfl (mul_le_mul_of_nonpos_right hμ hexp)
+    _ ≤ -(-δ) * ((1 - δ) * μ) + μ * (1 - δ + δ ^ 2 / 2 - 1) := by
+        gcongr
+        exact Real.exp_neg_le_one_sub_add_sq_div_two hδ
+    _ = -(δ ^ 2 * μ / 2) := by ring
 
 /-- **The two-sided multiplicative Chernoff bound** [Mitzenmacher and Upfal, Section 4.2]
 [MitzenmacherUpfal2017]: a sum of independent scores in `[0, 1]` deviates from its mean by at
