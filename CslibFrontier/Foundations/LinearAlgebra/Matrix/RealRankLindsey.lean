@@ -113,15 +113,10 @@ private theorem sq_sum_matrix_bilinear_le_of_rank_le [Fintype α] [Fintype β] [
         r * (∑ p, ∑ q, M p q ^ 2) * 2 ^ Fintype.card α * 2 ^ Fintype.card β
   | 0, M, hr => by
     classical
-    have hr0 : M.rank = 0 := Nat.eq_zero_of_le_zero hr
-    have hbot : LinearMap.range M.mulVecLin = ⊥ := Submodule.finrank_eq_zero.mp hr0
-    have hM0 : ∀ p q, M p q = 0 := by
-      intro p q
-      have hmem : M.mulVecLin (Pi.single q 1) ∈ (⊥ : Submodule ℝ ((α → ZMod 2) → ℝ)) :=
-        hbot ▸ LinearMap.mem_range_self M.mulVecLin (Pi.single q 1)
-      have hcol : M *ᵥ Pi.single q 1 = 0 := (Submodule.mem_bot ℝ).mp hmem
-      simpa [mulVec_single] using congrFun hcol p
-    simp [hM0]
+    obtain rfl : M = 0 := Matrix.toLin'.injective <| by
+      rw [map_zero, Matrix.toLin'_apply']
+      exact LinearMap.range_eq_bot.1 (Submodule.finrank_eq_zero.1 (Nat.eq_zero_of_le_zero hr))
+    simp
   | r + 1, M, hr => by
     classical
     by_cases hzero : ∀ p q, M p q = 0
@@ -156,41 +151,20 @@ private theorem sq_sum_matrix_bilinear_le_of_rank_le [Fintype α] [Fintype β] [
       let e₀ : (β → ZMod 2) → ℝ := Pi.single q₀ 1
       have hN_le : LinearMap.range N.mulVecLin ≤ LinearMap.range M.mulVecLin := by
         rintro _ ⟨x, rfl⟩
-        refine ⟨x - (c ⬝ᵥ x) • e₀, ?_⟩
+        refine ⟨x - (c ⬝ᵥ x) • Pi.single q₀ 1, ?_⟩
+        rw [mulVecLin_apply, mulVecLin_apply, mulVec_sub, mulVec_smul, mulVec_single_one]
         ext p
-        simp only [mulVecLin_apply, mulVec, dotProduct, N, of_apply, Pi.sub_apply, Pi.smul_apply,
-          smul_eq_mul, sub_mul, Finset.sum_sub_distrib]
-        have hv : ∑ q, v p * c q * x q = (∑ q, c q * x q) * M p q₀ := by
-          simp_rw [show ∀ q, v p * c q * x q = (c q * x q) * v p from fun q => by ring,
-            ← Finset.sum_mul]
-          rfl
-        have hsingle : ∑ q, M p q * e₀ q = M p q₀ := by
-          rw [Fintype.sum_eq_single q₀ fun q hq => by simp [e₀, hq]]
-          simp [e₀]
-        rw [hv]
-        simp_rw [show ∀ q, M p q * (x q - (∑ i, c i * x i) * e₀ q) =
-            M p q * x q - (∑ i, c i * x i) * (M p q * e₀ q) from fun q => by ring,
-          Finset.sum_sub_distrib, ← Finset.mul_sum, hsingle]
+        simp only [Pi.sub_apply, Pi.smul_apply, smul_eq_mul, col_apply, mulVec, dotProduct, N, v,
+          of_apply, sub_mul, Finset.sum_sub_distrib, Finset.sum_mul]
+        congr 1; exact Finset.sum_congr rfl fun q _ => by ring
       have hN_lt : LinearMap.range N.mulVecLin < LinearMap.range M.mulVecLin := by
         refine lt_of_le_of_ne hN_le fun heq => ?_
-        have hv_mem : v ∈ LinearMap.range M.mulVecLin := by
-          refine ⟨e₀, ?_⟩
-          ext p
-          simp [e₀, mulVec_single, v]
-        rw [← heq] at hv_mem
-        obtain ⟨x, hx⟩ := hv_mem
-        have hdot : v ⬝ᵥ (N *ᵥ x) = 0 := by
-          calc v ⬝ᵥ (N *ᵥ x)
-              = ∑ p, v p * ∑ q, N p q * x q := rfl
-            _ = ∑ q, x q * ∑ p, v p * N p q := by
-                simp_rw [Finset.mul_sum, show ∀ p q, v p * (N p q * x q) = x q * (v p * N p q)
-                  from fun _ _ => by ring]
-                exact Finset.sum_comm
-            _ = 0 := by simp [horth]
+        obtain ⟨x, hx⟩ : v ∈ LinearMap.range N.mulVecLin := by
+          rw [heq]; exact ⟨e₀, funext fun p => by simp [e₀, mulVec_single, v]⟩
+        have hdot := dotProduct_mulVec v N x
         rw [mulVecLin_apply] at hx
-        rw [hx] at hdot
-        have hvv : v ⬝ᵥ v = s := by
-          simp [dotProduct, s, sq]
+        rw [hx, show v ᵥ* N = 0 from funext horth, zero_dotProduct] at hdot
+        have hvv : v ⬝ᵥ v = s := by simp [dotProduct, s, sq]
         linarith
       have hrank_lt : N.rank < M.rank := Submodule.finrank_lt_finrank_of_lt hN_lt
       have hNrank : N.rank ≤ r := by omega
