@@ -1396,13 +1396,7 @@ theorem exists_balanced_nof_discrepancy (n : ℕ) :
           have hterm : ∀ j : {j : Fin (r + 1) // j ≠ i}, Fintype.card (X j.1 → Bool) = 2 ^ q :=
             fun j => by simp [hcard j.1]
           simp only [hterm, Finset.prod_const, Finset.card_univ]
-          have hcompl : Fintype.card {j : Fin (r + 1) // j ≠ i} = r := by
-            rw [Fintype.card_subtype]
-            have heq : (Finset.univ.filter fun j : Fin (r + 1) => j ≠ i) =
-                Finset.univ.erase i := by
-              ext j; simp [Finset.mem_erase]
-            rw [heq, Finset.card_erase_of_mem (Finset.mem_univ i), Finset.card_fin]
-            omega
+          have hcompl : Fintype.card {j : Fin (r + 1) // j ≠ i} = r := by simp
           rw [hcompl, ← pow_mul, mul_comm]
         have hcard_phi :
             Fintype.card (∀ i : Fin (r + 1), NOF.View (fun j => X j → Bool) i → Bool) =
