@@ -179,17 +179,15 @@ theorem replayChoices_choose_ne_nil {input : List Bool}
   cases indices with
   | nil =>
     have hf := congrArg (fun x => x.map (fun p => p.2.state)) hr
-    simp only [replayChoices_nil, Option.map_some] at hf
-    rw [hcfg, hhalt] at hf
+    simp only [replayChoices_nil, Option.map_some, hcfg, hhalt] at hf
     cases hf
   | cons j indices =>
     rw [replayChoices] at hr
-    obtain ⟨next, _, hrest⟩ := Option.bind_eq_some_iff.mp hr
-    obtain ⟨⟨trace, last⟩, _, heq⟩ := Option.map_eq_some_iff.mp hrest
+    obtain ⟨_, _, hrest⟩ := Option.bind_eq_some_iff.mp hr
+    obtain ⟨⟨_, _⟩, _, heq⟩ := Option.map_eq_some_iff.mp hrest
+    rintro rfl
     have he := congrArg Prod.fst heq
     simp only [atChoice, hcfg, ↓reduceIte] at he
-    intro hnil
-    rw [hnil] at he
     cases he
 
 /-- A live native step outside a choice boundary has one occurrence and records no bit. -/
@@ -204,10 +202,8 @@ theorem replayChoices_step_zero {input : List Bool}
     | some q => cases q <;> simp_all [atChoice]
   rw [← toNTM_countingMachine] at hstep
   obtain ⟨j, hj⟩ := ((countingMachine I P F C).step_toNTM_iff hlive).mp hstep
-  have hj' := step_index_lt I P F C hj
-  obtain rfl : j = 0 := by simpa [hat, Nat.lt_one_iff] using hj'
-  rw [replayChoices, hj]
-  simp [hat, Option.bind]
+  obtain rfl : j = 0 := by simpa [hat, Nat.lt_one_iff] using step_index_lt I P F C hj
+  rw [replayChoices, hj]; simp [hat, Option.bind]
 
 /-- A running path through deterministic routines has a replay with no recorded choice bits. -/
 theorem replayChoices_replicate_zero {input : List Bool}
@@ -217,18 +213,13 @@ theorem replayChoices_replicate_zero {input : List Bool}
   induction p using RelSeries.inductionOn' with
   | singleton cfg => rfl
   | snoc p next hs ih =>
-    have hbefore : ∀ i : Fin p.length, (p i.castSucc).state ≠ some .choose := by
-      intro i
-      have hi := h ⟨i.val, by simp⟩
-      change (p.snoc next hs i.castSucc.castSucc).state ≠ some .choose at hi
-      exact (RelSeries.snoc_castSucc p next hs i.castSucc) ▸ hi
     have hlast : p.last.state ≠ some .choose := by
-      have hi := h ⟨p.length, by simp⟩
-      change (p.snoc next hs (Fin.last p.length).castSucc).state ≠ some .choose at hi
       change (p (Fin.last p.length)).state ≠ some .choose
-      exact (RelSeries.snoc_castSucc p next hs (Fin.last p.length)) ▸ hi
-    rw [RelSeries.snoc_length, List.replicate_succ', RelSeries.head_snoc,
-      replayChoices_append, ih hbefore]
+      exact (RelSeries.snoc_castSucc p next hs (Fin.last p.length)) ▸
+        (h ⟨p.length, by simp⟩ : (p.snoc next hs (Fin.last p.length).castSucc).state ≠ some .choose)
+    rw [RelSeries.snoc_length, List.replicate_succ', RelSeries.head_snoc, replayChoices_append,
+      ih fun i => (RelSeries.snoc_castSucc p next hs i.castSucc) ▸
+        (h ⟨i.val, by simp⟩ : (p.snoc next hs i.castSucc.castSucc).state ≠ some .choose)]
     simpa only [Option.bind, List.nil_append, RelSeries.last_snoc, replayChoices_nil,
       Option.map_some] using
       congrArg (Option.map (fun p => (([] : List Bool) ++ p.1, p.2)))
@@ -253,27 +244,19 @@ theorem prefix_occurrences_of_replayChoices {input : List Bool}
       simp only [replayChoices, Option.bind_eq_some_iff, Option.map_eq_some_iff] at h₁ h₂
       obtain ⟨x, hx, ⟨bs, f₁⟩, hxs, hbits₁⟩ := h₁
       obtain ⟨y, hy, ⟨cs, f₂⟩, hys, hbits₂⟩ := h₂
-      have hb₁ := congrArg Prod.fst hbits₁
-      have hb₂ := congrArg Prod.fst hbits₂
-      dsimp only at hb₁ hb₂
-      rw [← hb₁, ← hb₂] at hprefix
+      obtain ⟨rfl, rfl⟩ := Prod.mk.inj hbits₁
+      obtain ⟨rfl, rfl⟩ := Prod.mk.inj hbits₂
       have hi := step_index_lt I P F C hx
       have hj := step_index_lt I P F C hy
-      have hsame : i = j ∧ bs <+: cs := by
+      obtain ⟨rfl, htail⟩ : i = j ∧ bs <+: cs := by
         cases hc : atChoice cfg
         · simp only [hc, Bool.false_eq_true, ↓reduceIte] at hi hj hprefix
           exact ⟨by omega, hprefix⟩
         · simp only [hc, ↓reduceIte, List.cons_prefix_cons] at hi hj hprefix
-          refine ⟨?_, hprefix.2⟩
-          by_contra hne
-          have hcases : (i = 0 ∧ j = 1) ∨ (i = 1 ∧ j = 0) := by omega
-          rcases hcases with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;> simp at hprefix
-      obtain ⟨rfl, htail⟩ := hsame
+          refine ⟨by_contra fun hne => ?_, hprefix.2⟩
+          rcases (show (i = 0 ∧ j = 1) ∨ (i = 1 ∧ j = 0) by omega) with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;>
+            simp at hprefix
       obtain rfl : x = y := Option.some.inj (hx.symm.trans hy)
-      have hf₁ : f₁ = final₁ := congrArg Prod.snd hbits₁
-      have hf₂ : f₂ = final₂ := congrArg Prod.snd hbits₂
-      rw [hf₁] at hxs
-      rw [hf₂] at hys
       obtain ⟨suffix, hs⟩ := ih hxs hys (by simpa using hlen) htail
       exact ⟨suffix, congrArg (i :: ·) hs⟩
 
@@ -290,12 +273,9 @@ theorem exists_suffix_of_replayChoices {input : List Bool}
   obtain ⟨rest, rfl⟩ := prefix_occurrences_of_replayChoices I P F C hfirst hfull hlen
     (List.prefix_append _ _)
   rw [replayChoices_append, hfirst] at hfull
-  change (replayChoices I P F C middle rest).map (fun p => (firstBits ++ p.1, p.2)) =
-    some (firstBits ++ lastBits, final) at hfull
   obtain ⟨⟨bits, cfg'⟩, hrest, heq⟩ := Option.map_eq_some_iff.mp hfull
-  have hbits : firstBits ++ bits = firstBits ++ lastBits := congrArg Prod.fst heq
-  have hcfg : cfg' = final := congrArg Prod.snd heq
-  exact ⟨rest, rfl, by simpa [List.append_cancel_left hbits, hcfg] using hrest⟩
+  obtain ⟨hbits, rfl⟩ := Prod.mk.inj heq
+  exact ⟨rest, rfl, List.append_cancel_left hbits ▸ hrest⟩
 
 /-- Two first-halting occurrence traces with the same genuine choice bits coincide. -/
 theorem eq_occurrences_of_replayChoices {input : List Bool}
