@@ -11,7 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.WordRAM.TrimmedYates.Basic
 public import CslibFrontier.Algorithms.WordRAM.TrimmedYates.Regs
 import CslibFrontier.Computability.WordRAM.CountingLoop
-import CslibFrontier.Computability.WordRAM.SymbolicExec
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Bounded-cardinality subset enumeration and coordinate extraction on the word RAM
@@ -208,6 +208,15 @@ theorem genLowSubsets_preserves (i : Fin numRegs) :
     i ≠ rTrieTmp ∧ i ≠ Reg.builtRoot ∧ (i.val < 27 ∨ 33 ≤ i.val) → genLowSubsets.Preserves i := by
   decide +kernel +revert
 
+/-- Registers that `genLowSubsets` reads and never writes. -/
+private structure GenRegs (coordsPtr len k domPtr : ℕ) (s : Data numRegs) : Prop where
+  zero : s.regs rZero = 0
+  one : s.regs rOne = 1
+  coordsPtr : s.regs rCoordsPtr = coordsPtr
+  coordsLen : s.regs rCoordsLen = len
+  maxCard : s.regs rMaxCard = k
+  domPtr : s.regs rDomPtr = domPtr
+
 theorem exec_genLowSubsets {w d coordsPtr domPtr k : ℕ} (coords : List (Fin d))
     (x : Data numRegs)
     (hz : x.regs rZero = 0) (ho : x.regs rOne = 1)
@@ -229,17 +238,13 @@ theorem exec_genLowSubsets {w d coordsPtr domPtr k : ℕ} (coords : List (Fin d)
   intro outList
   set Lmax := ∑ j ∈ range (k + 1), coords.length.choose j with hLmax_def
   have hLmax_pos : 1 ≤ Lmax := by
-    rw [hLmax_def, Finset.sum_range_succ']
-    simp only [Nat.choose_zero_right]
-    omega
+    simp only [hLmax_def, Finset.sum_range_succ', Nat.choose_zero_right]; omega
   have hrun : ∃ y, ExecWithin w genLowSubsets x y (coords.length * (20 * Lmax + 12) + 8) ∧
       y.regs rDomLen = outList.length ∧
       HoldsDom y.mem domPtr outList ∧
       (∀ a, a < domPtr ∨ domPtr + 2 * outList.length ≤ a → y.mem a = x.mem a) := by
     let P_out (idx : ℕ) (s : Data numRegs) : Prop :=
-      s.regs rZero = 0 ∧ s.regs rOne = 1 ∧
-      s.regs rCoordsPtr = coordsPtr ∧ s.regs rCoordsLen = coords.length ∧
-      s.regs rMaxCard = k ∧ s.regs rDomPtr = domPtr ∧
+      GenRegs coordsPtr coords.length k domPtr s ∧
       s.regs rDomLen = (prefixesUpTo k (coords.take idx)).length ∧
       HoldsDom s.mem domPtr (prefixesUpTo k (coords.take idx)) ∧
       ∀ a, a < domPtr ∨ domPtr + 2 * (prefixesUpTo k (coords.take idx)).length ≤ a →
@@ -249,241 +254,122 @@ theorem exec_genLowSubsets {w d coordsPtr domPtr k : ℕ} (coords : List (Fin d)
         ∃ z, ExecWithin w genOuterStep s z (20 * Lmax + 10) ∧
           P_out (s.regs rGenIdx + 1) z ∧ z.regs rGenIdx = s.regs rGenIdx + 1 := by
       generalize hidx : s.regs rGenIdx = idx at hs hlt ⊢
-      dsimp only [P_out] at hs
-      obtain ⟨hsz, hso, hscptr, hsclen, hsk, hsdptr, hsdlen, hsdom, hsframe⟩ := hs
-      let prev := prefixesUpTo k (coords.take idx)
-      change s.regs rDomLen = prev.length at hsdlen
-      change HoldsDom s.mem domPtr prev at hsdom
-      change ∀ a, a < domPtr ∨ domPtr + 2 * prev.length ≤ a → s.mem a = x.mem a at hsframe
+      obtain ⟨hsr, hsdlen, hsdom, hsframe⟩ := hs
+      set prev := prefixesUpTo k (coords.take idx)
       let c := coords[idx]
-      have hnd_take1 : (coords.take (idx + 1)).Nodup := hnd.sublist (List.take_sublist _ _)
       have hnd_take : (coords.take idx).Nodup := hnd.sublist (List.take_sublist _ _)
       have hnext_eq : prefixesUpTo k (coords.take (idx + 1)) =
           prev ++ (prev.filter fun S => decide (#S < k)).map (insert c) := by
         rw [List.take_succ_eq_append_getElem hlt, prefixesUpTo_append_singleton]
       have hnext_len_le : (prefixesUpTo k (coords.take (idx + 1))).length ≤ Lmax := by
-        rw [length_prefixesUpTo k hnd_take1, List.length_take_of_le (by omega), hLmax_def]
+        rw [length_prefixesUpTo k (hnd.sublist (List.take_sublist _ _)),
+          List.length_take_of_le (by omega), hLmax_def]
         exact Finset.sum_le_sum fun j _ => Nat.choose_le_choose j (by omega)
-      have hprev_len_le : prev.length ≤ (prefixesUpTo k (coords.take (idx + 1))).length := by
-        rw [hnext_eq, List.length_append]; omega
       have hc_not_in_prev : ∀ S ∈ prev, c ∉ S := by
         intro S hS hcS
         have hnd_app : (coords.take idx ++ [c]).Nodup := by
-          rwa [← List.take_succ_eq_append_getElem hlt]
-        have hc_not : c ∉ coords.take idx := fun hc =>
-          (List.nodup_append.mp hnd_app).2.2 c hc c (by simp) rfl
-        have hsub : S ⊆ (coords.take idx).toFinset :=
-          (((prefixesUpTo_spec k hnd_take).2 S).mp hS).1
-        exact hc_not (List.mem_toFinset.mp (hsub hcS))
-      have hc_mem_read : s.mem (coordsPtr + idx) = c.val := by
-        rw [hsframe _ (Or.inl (by omega)), hcoords_mem idx hlt]
-      have hbit_fit : Fits w (1 <<< c.val) := by
-        rw [Nat.shiftLeft_eq, one_mul]
-        exact hfit_mask.of_le (Nat.pow_le_pow_right Nat.two_pos c.isLt.le)
-      have hsetup : ∃ u₀, ExecWithin (B := .standard) w (ram[
-          rGenTmp ← rCoordsPtr + rGenIdx;
-          rGenTmp ← *rGenTmp;
-          rGenBitMask ← rOne <<< rGenTmp;
-          rGenOldLen ← rDomLen;
-          rGenPos ← #0 ]) s u₀ 5 ∧
-          u₀.regs rZero = 0 ∧ u₀.regs rOne = 1 ∧
-          u₀.regs rCoordsPtr = coordsPtr ∧ u₀.regs rCoordsLen = coords.length ∧
-          u₀.regs rMaxCard = k ∧ u₀.regs rDomPtr = domPtr ∧
-          u₀.regs rDomLen = prev.length ∧ u₀.regs rGenOldLen = prev.length ∧
-          u₀.regs rGenBitMask = (1 <<< c.val) ∧ u₀.regs rGenIdx = idx ∧
-          u₀.regs rGenPos = 0 ∧ u₀.mem = s.mem := by
-        have haddr_c : Fits w (coordsPtr + idx) := hfit_mem.of_le (by omega)
-        wram_exec [hso, hscptr, hsdlen, hidx, hc_mem_read]
-        wram_simp [hsz, hso, hscptr, hsclen, hsk, hsdptr, hsdlen, hidx]
-      obtain ⟨u₀, hsetup_ex, hu₀z, hu₀o, hu₀cp, hu₀cl, hu₀k, hu₀dp, hu₀dl, hu₀ol,
-        hu₀bm, hu₀idx, hu₀pos, hu₀mem⟩ := hsetup
+          rw [← List.take_succ_eq_append_getElem hlt]; exact hnd.sublist (List.take_sublist _ _)
+        have hc := List.mem_toFinset.mp ((((prefixesUpTo_spec k hnd_take).2 S).mp hS).1 hcS)
+        exact (List.nodup_append.mp hnd_app).2.2 c hc c (List.mem_singleton_self c) rfl
       let accAt (p : ℕ) := prev ++ ((prev.take p).filter fun S => decide (#S < k)).map (insert c)
+      have hacc_len (p : ℕ) : prev.length ≤ (accAt p).length ∧ (accAt p).length ≤ Lmax := by
+        refine ⟨by simp [accAt], le_trans ?_ hnext_len_le⟩
+        rw [hnext_eq]
+        simp only [accAt, List.length_append, List.length_map]
+        exact Nat.add_le_add_left ((List.take_sublist p prev).filter _).length_le _
       let P_in (p : ℕ) (q : Data numRegs) : Prop :=
-        q.regs rZero = 0 ∧ q.regs rOne = 1 ∧
-        q.regs rCoordsPtr = coordsPtr ∧ q.regs rCoordsLen = coords.length ∧
-        q.regs rMaxCard = k ∧ q.regs rDomPtr = domPtr ∧
-        q.regs rGenOldLen = prev.length ∧ q.regs rGenBitMask = (1 <<< c.val) ∧
-        q.regs rGenIdx = idx ∧ q.regs rDomLen = (accAt p).length ∧
-        HoldsDom q.mem domPtr (accAt p) ∧
+        (GenRegs coordsPtr coords.length k domPtr q ∧ q.regs rGenOldLen = prev.length ∧
+          q.regs rGenBitMask = 1 <<< c.val ∧ q.regs rGenIdx = idx) ∧
+        q.regs rDomLen = (accAt p).length ∧ HoldsDom q.mem domPtr (accAt p) ∧
         ∀ a, a < domPtr ∨ domPtr + 2 * (accAt p).length ≤ a → q.mem a = x.mem a
       have hinner (q : Data numRegs) (hq : P_in (q.regs rGenPos) q)
           (hp : q.regs rGenPos < prev.length) :
           ∃ q', ExecWithin w genInnerStep q q' 18 ∧
             P_in (q.regs rGenPos + 1) q' ∧ q'.regs rGenPos = q.regs rGenPos + 1 := by
         generalize hp_eq : q.regs rGenPos = p at hq hp ⊢
-        dsimp only [P_in] at hq
-        obtain ⟨hqz, hqo, hqcp, hqcl, hqk, hqdp, hqol, hqbm, hqidx, hqdl, hqdom, hqframe⟩ := hq
-        let acc := accAt p
-        change q.regs rDomLen = acc.length at hqdl
-        change HoldsDom q.mem domPtr acc at hqdom
-        change ∀ a, a < domPtr ∨ domPtr + 2 * acc.length ≤ a → q.mem a = x.mem a at hqframe
-        have hp_lt_acc : p < acc.length := by dsimp [acc, accAt]; rw [List.length_append]; omega
-        have hacc_p : acc[p] = prev[p] := by dsimp [acc, accAt]; exact List.getElem_append_left hp
-        obtain ⟨hmask_p, hsize_p⟩ := hqdom p hp_lt_acc
+        obtain ⟨hqr, hqdl, hqdom, hqframe⟩ := hq
+        have hp_lt : p < (accAt p).length := (hacc_len p).1.trans_lt' hp
+        have hacc_p : (accAt p)[p] = prev[p] := List.getElem_append_left hp
+        obtain ⟨hmask_p, hsize_p⟩ := hqdom p hp_lt
         rw [hacc_p] at hmask_p hsize_p
-        have hc_not_p : c ∉ prev[p] := hc_not_in_prev prev[p] (List.getElem_mem hp)
+        have h2p : p + p = 2 * p := by omega
+        have h2l : (accAt p).length + (accAt p).length = 2 * (accAt p).length := by omega
+        have hlen := (hacc_len p).2
+        unfold genInnerStep
         by_cases hcard_lt : #prev[p] < k
-        · have hacc1_eq : accAt (p + 1) = acc ++ [insert c prev[p]] := by
-            dsimp only [accAt, acc]
+        · have hacc1 : accAt (p + 1) = accAt p ++ [insert c prev[p]] := by
+            simp only [accAt]
             rw [List.take_succ_eq_append_getElem hp, List.filter_append, List.map_append]
             simp [hcard_lt]
-          have hacc1_len : acc.length + 1 ≤ Lmax := by
-            have hle1 : (accAt (p + 1)).length ≤
-                (prefixesUpTo k (coords.take (idx + 1))).length := by
-              dsimp only [accAt]
-              rw [hnext_eq, List.length_append, List.length_append,
-                List.length_map, List.length_map]
-              have := ((List.take_sublist (p + 1) prev).filter (fun S => decide (#S < k))).length_le
-              omega
-            rw [hacc1_eq, List.length_append, List.length_singleton] at hle1
-            exact hle1.trans hnext_len_le
-          have hf_2p : Fits w (p + p) := hfit_mem.of_le (by omega)
-          have hf_dp2p : Fits w (domPtr + (p + p)) := hfit_mem.of_le (by omega)
-          have hf_dp2p1 : Fits w (domPtr + (p + p) + 1) := hfit_mem.of_le (by omega)
-          have hf_sz1 : Fits w (#prev[p] + 1) :=
-            hfit_mask.of_le ((by have := Finset.card_le_univ prev[p]; simp at this; omega :
-              #prev[p] + 1 ≤ d + 1).trans (by
-              have := Nat.lt_two_pow_self (n := d); omega))
-          have hf_2l : Fits w (acc.length + acc.length) := hfit_mem.of_le (by omega)
-          have hf_dp2l : Fits w (domPtr + (acc.length + acc.length)) := hfit_mem.of_le (by omega)
-          have hf_dp2l1 : Fits w (domPtr + (acc.length + acc.length) + 1) :=
-            hfit_mem.of_le (by omega)
+          have hlen1 := (hacc_len (p + 1)).2
+          rw [hacc1, List.length_append, List.length_singleton] at hlen1
+          have hcard : #prev[p] < 2 ^ d :=
+            (card_le_univ _).trans_lt (by simpa using Nat.lt_two_pow_self)
           have hf_or : Fits w (setMask prev[p] ||| (1 <<< c.val)) := by
             rw [← setMask_insert]; exact hfit_mask.of_le (setMask_lt _).le
-          have hf_l1 : Fits w (acc.length + 1) := hfit_mem.of_le (by omega)
-          have hf_p1 : Fits w (p + 1) := hfit_mem.of_le (by omega)
-          have h2p_eq : p + p = 2 * p := by omega
-          have h2l_eq : acc.length + acc.length = 2 * acc.length := by omega
-          have hread_sz : q.mem (domPtr + (p + p) + 1) = #prev[p] := by
-            simpa only [h2p_eq] using hsize_p
-          have hread_mk : q.mem (domPtr + (p + p)) = setMask prev[p] := by
-            simpa only [h2p_eq] using hmask_p
-          have hstep : ∃ q', ExecWithin w genInnerStep q q' 18 ∧
-              q'.regs rZero = 0 ∧ q'.regs rOne = 1 ∧
-              q'.regs rCoordsPtr = coordsPtr ∧ q'.regs rCoordsLen = coords.length ∧
-              q'.regs rMaxCard = k ∧ q'.regs rDomPtr = domPtr ∧
-              q'.regs rGenOldLen = prev.length ∧ q'.regs rGenBitMask = (1 <<< c.val) ∧
-              q'.regs rGenIdx = idx ∧ q'.regs rDomLen = acc.length + 1 ∧
-              q'.regs rGenPos = p + 1 ∧
-              q'.mem = Function.update
-                (Function.update q.mem (domPtr + 2 * acc.length + 1) (#prev[p] + 1))
-                (domPtr + 2 * acc.length) (setMask (insert c prev[p])) := by
-            unfold genInnerStep
-            wram_exec [hqo, hqk, hqdp, hqdl, hqbm, hp_eq, hread_sz, hcard_lt, hread_mk]
-            refine ⟨hqz, hqo, hqcp, hqcl, hqk, hqdp, hqol, hqbm, hqidx, ?_, ?_, ?_⟩
-            · wram_simp [hqdl]
-            · wram_simp [hp_eq]
-            · wram_simp [h2l_eq, hread_mk, setMask_insert]
-          obtain ⟨q', hq'_ex, hq'z, hq'o, hq'cp, hq'cl, hq'k, hq'dp, hq'ol, hq'bm,
-            hq'idx, hq'dl, hq'pos, hq'mem⟩ := hstep
-          refine ⟨q', hq'_ex, ?_, hq'pos⟩
-          dsimp only [P_in]
-          rw [hacc1_eq]
-          refine ⟨hq'z, hq'o, hq'cp, hq'cl, hq'k, hq'dp, hq'ol, hq'bm, hq'idx,
-            by rw [hq'dl]; simp [acc], ?_, ?_⟩
-          · intro r hr
-            rw [List.length_append, List.length_singleton] at hr
-            by_cases hr_eq : r = acc.length
-            · subst hr_eq
-              simp only [List.getElem_append_right (le_rfl), Nat.sub_self, List.getElem_singleton,
-                hq'mem, card_insert_of_notMem hc_not_p]
-              refine ⟨Function.update_self _ _ _, ?_⟩
-              rw [Function.update_of_ne (by omega), Function.update_self]
-            · have hr_lt : r < acc.length := by omega
-              simp only [List.getElem_append_left hr_lt, hq'mem]
-              refine ⟨?_, ?_⟩
-              · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-                exact (hqdom r hr_lt).1
-              · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-                exact (hqdom r hr_lt).2
-          · intro a ha
-            rw [List.length_append, List.length_singleton] at ha
-            rw [hq'mem, Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-            exact hqframe a (by omega)
-        · have hacc1_eq : accAt (p + 1) = acc := by
-            dsimp only [accAt, acc]
+          wram_exec * [h2p, h2l, hmask_p, hsize_p, hcard_lt]
+          refine ⟨⟨by regs_frame, ?_⟩, by wram_simp [hp_eq]⟩
+          rw [hacc1]
+          simp only [List.length_append, List.length_singleton]
+          refine ⟨by wram_simp [hqdl], fun r hr => ?_, fun a ha => ?_⟩
+          · simp only [List.length_append, List.length_singleton] at hr
+            obtain hr | rfl := Nat.lt_succ_iff_lt_or_eq.mp hr
+            · wram_simp [List.getElem_append_left hr]; exact hqdom r hr
+            · wram_simp [List.getElem_concat_length, setMask_insert,
+                card_insert_of_notMem (hc_not_in_prev _ (List.getElem_mem hp))]
+          · wram_simp; exact hqframe a (by omega)
+        · have hacc1 : accAt (p + 1) = accAt p := by
+            simp only [accAt]
             rw [List.take_succ_eq_append_getElem hp, List.filter_append, List.map_append]
             simp [hcard_lt]
-          have hprev_le : prev.length ≤ Lmax := hprev_len_le.trans hnext_len_le
-          have hf_2p : Fits w (p + p) := hfit_mem.of_le (by omega)
-          have hf_dp2p : Fits w (domPtr + (p + p)) := hfit_mem.of_le (by omega)
-          have hf_dp2p1 : Fits w (domPtr + (p + p) + 1) := hfit_mem.of_le (by omega)
-          have hf_p1 : Fits w (p + 1) := hfit_mem.of_le (by omega)
-          have h2p_eq : p + p = 2 * p := by omega
-          have hread_sz : q.mem (domPtr + (p + p) + 1) = #prev[p] := by
-            simpa only [h2p_eq] using hsize_p
-          have hstep : ∃ q', ExecWithin w genInnerStep q q' 18 ∧
-              q'.regs rZero = 0 ∧ q'.regs rOne = 1 ∧
-              q'.regs rCoordsPtr = coordsPtr ∧ q'.regs rCoordsLen = coords.length ∧
-              q'.regs rMaxCard = k ∧ q'.regs rDomPtr = domPtr ∧
-              q'.regs rGenOldLen = prev.length ∧ q'.regs rGenBitMask = (1 <<< c.val) ∧
-              q'.regs rGenIdx = idx ∧ q'.regs rDomLen = acc.length ∧
-              q'.regs rGenPos = p + 1 ∧ q'.mem = q.mem := by
-            unfold genInnerStep
-            wram_exec [hqo, hqk, hqdp, hqdl, hp_eq, hread_sz, hcard_lt]
-            wram_simp [hqz, hqo, hqcp, hqcl, hqk, hqdp, hqol, hqbm, hqidx, hqdl, hp_eq]
-          obtain ⟨q', hq'_ex, hq'z, hq'o, hq'cp, hq'cl, hq'k, hq'dp, hq'ol, hq'bm,
-            hq'idx, hq'dl, hq'pos, hq'mem⟩ := hstep
-          refine ⟨q', hq'_ex, ?_, hq'pos⟩
-          dsimp only [P_in]
-          rw [hacc1_eq, hq'mem]
-          exact ⟨hq'z, hq'o, hq'cp, hq'cl, hq'k, hq'dp, hq'ol, hq'bm, hq'idx, hq'dl, hqdom, hqframe⟩
-      have hu₀_in : P_in (u₀.regs rGenPos) u₀ := by
-        dsimp only [P_in, accAt]
-        rw [hu₀pos, List.take_zero, List.filter_nil, List.map_nil, List.append_nil, hu₀mem]
-        exact ⟨hu₀z, hu₀o, hu₀cp, hu₀cl, hu₀k, hu₀dp, hu₀ol, hu₀bm, hu₀idx, hu₀dl, hsdom, hsframe⟩
-      obtain ⟨u₁, hloop_in, hu₁P, _⟩ := ExecWithin.loop_count P_in
-        (fun q hq => hq.2.2.2.2.2.2.1) hinner (by simp [hu₀pos]) hu₀_in
-      obtain ⟨hu₁z, hu₁o, hu₁cp, hu₁cl, hu₁k, hu₁dp, _, _, hu₁idx, hu₁dl, hu₁dom, hu₁frame⟩ := hu₁P
-      dsimp only [accAt] at hu₁dl hu₁dom hu₁frame
-      rw [List.take_length, ← hnext_eq] at hu₁dl hu₁dom hu₁frame
-      have hf_idx1 : Fits w (idx + 1) := hfit_mem.of_le (by omega)
-      let z := u₁.set rGenIdx (idx + 1)
-      have hinc : ExecWithin (B := .standard) w (ram[ rGenIdx ← rGenIdx + rOne ]) u₁ z 1 := by
-        wram_exec [hu₁idx, hu₁o]
-      have hprev_le_Lmax : prev.length ≤ Lmax := hprev_len_le.trans hnext_len_le
-      have hmul_le : 20 * prev.length ≤ 20 * Lmax := Nat.mul_le_mul_left 20 hprev_le_Lmax
-      have hcost : 5 + ((prev.length - u₀.regs rGenPos) * (18 + 2) + 2) + 1 ≤ 20 * Lmax + 10 := by
-        rw [hu₀pos, Nat.sub_zero, Nat.mul_comm _ 20]
-        omega
-      refine ⟨z, (hsetup_ex.seq (hloop_in.seq hinc)).mono hcost, ?_, by simp [z]⟩
-      dsimp only [P_out]
-      exact ⟨by simp [z, hu₁z], by simp [z, hu₁o], by simp [z, hu₁cp], by simp [z, hu₁cl],
-        by simp [z, hu₁k], by simp [z, hu₁dp], by simp [z, hu₁dl], hu₁dom, hu₁frame⟩
-    have hf_dp1 : Fits w (domPtr + 1) := hfit_mem.of_le (by omega)
-    have hinit : ∃ s₀, ExecWithin (B := .standard) w (ram[
-        *rDomPtr ← rZero;
-        rGenTmp ← rDomPtr + rOne;
-        *rGenTmp ← rZero;
-        rDomLen ← #1;
-        rGenIdx ← #0 ]) x s₀ 5 ∧
-        s₀.regs rZero = 0 ∧ s₀.regs rOne = 1 ∧
-        s₀.regs rCoordsPtr = coordsPtr ∧ s₀.regs rCoordsLen = coords.length ∧
-        s₀.regs rMaxCard = k ∧ s₀.regs rDomPtr = domPtr ∧
-        s₀.regs rDomLen = 1 ∧ s₀.regs rGenIdx = 0 ∧
-        s₀.mem = Function.update (Function.update x.mem domPtr 0) (domPtr + 1) 0 := by
-      wram_exec [hz, ho, hdptr]
-      wram_simp [hz, ho, hcptr, hclen, hk, hdptr]
-    obtain ⟨s₀, hinit_ex, hs₀z, hs₀o, hs₀cp, hs₀cl, hs₀k, hs₀dp, hs₀dl, hs₀idx, hs₀mem⟩ := hinit
-    have hs₀P : P_out (s₀.regs rGenIdx) s₀ := by
-      dsimp only [P_out]
-      rw [hs₀idx, List.take_zero]
-      refine ⟨hs₀z, hs₀o, hs₀cp, hs₀cl, hs₀k, hs₀dp, hs₀dl, ?_, ?_⟩
-      · intro p hp
-        obtain rfl : p = 0 := by simp [prefixesUpTo] at hp; omega
-        simp [prefixesUpTo, hs₀mem]
-      · intro a ha
-        simp only [prefixesUpTo, List.foldl_nil, List.length_singleton] at ha
-        rw [hs₀mem, Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-    obtain ⟨y, hloop_out, hyP, _⟩ := ExecWithin.loop_count P_out
-      (fun s hs => hs.2.2.2.1) houter (by simp [hs₀idx]) hs₀P
-    obtain ⟨_, _, _, _, _, _, hydl, hydom, hyframe⟩ := hyP
+          wram_exec * [h2p, hsize_p, hcard_lt]
+          refine ⟨⟨by regs_frame, ?_⟩, by wram_simp [hp_eq]⟩
+          rw [hacc1]
+          exact ⟨by wram_simp [hqdl], by wram_simp; exact hqdom, by wram_simp; exact hqframe⟩
+      have hc_read : s.mem (coordsPtr + idx) = c.val := by
+        rw [hsframe _ (Or.inl (by omega)), hcoords_mem idx hlt]
+      have hbit_fit : Fits w (1 <<< c.val) := by
+        rw [Nat.shiftLeft_eq, one_mul]
+        exact hfit_mask.of_le (Nat.pow_le_pow_right Nat.two_pos c.isLt.le)
+      unfold genOuterStep
+      wram_exec * [hc_read]
+      refine WP.name fun u₀ hu₀ => ?_
+      have hu₀pos : u₀.regs rGenPos = 0 := by subst hu₀; wram_simp
+      have hu₀P : P_in 0 u₀ := by
+        subst hu₀
+        have hacc0 : accAt 0 = prev := by simp [accAt]
+        refine ⟨⟨by regs_frame, by wram_simp [hsdlen], by wram_simp, by wram_simp [hidx]⟩, ?_⟩
+        rw [hacc0]
+        exact ⟨by wram_simp [hsdlen], by wram_simp; exact hsdom, by wram_simp; exact hsframe⟩
+      obtain ⟨u₁, hloop, ⟨hu₁r, hu₁dl, hu₁dom, hu₁frame⟩, -⟩ := ExecWithin.loop_count P_in
+        (fun q hq => hq.1.2.1) hinner (by omega) (hu₀pos ▸ hu₀P)
+      have hacc_end : accAt prev.length = prefixesUpTo k (coords.take (idx + 1)) := by
+        simp only [accAt, List.take_length]; exact hnext_eq.symm
+      rw [hacc_end] at hu₁dl hu₁dom hu₁frame
+      have hprev_le := (hacc_len 0).1.trans (hacc_len 0).2
+      refine WP.of_execWithin hloop ?_
+      wram_exec *
+      exact ⟨⟨by regs_frame, by wram_simp [hu₁dl], by wram_simp; exact hu₁dom,
+        by wram_simp; exact hu₁frame⟩, by wram_simp⟩
+    unfold genLowSubsets
+    wram_exec *
+    refine WP.name fun s₀ hs₀ => ?_
+    have hs₀idx : s₀.regs rGenIdx = 0 := by subst hs₀; wram_simp
+    have hs₀P : P_out 0 s₀ := by
+      subst hs₀
+      have h0 : prefixesUpTo k (coords.take 0) = [∅] := rfl
+      refine ⟨by regs_frame, ?_⟩
+      rw [h0]
+      refine ⟨by wram_simp; rfl, fun p hp => ?_, fun a ha => ?_⟩
+      · obtain rfl : p = 0 := by simpa using hp
+        wram_simp; simp
+      · rw [List.length_singleton] at ha
+        wram_simp
+    obtain ⟨y, hloop, ⟨-, hydl, hydom, hyframe⟩, -⟩ := ExecWithin.loop_count P_out
+      (fun s hs => hs.1.coordsLen) houter (by omega) (hs₀idx ▸ hs₀P)
     rw [List.take_length] at hydl hydom hyframe
-    refine ⟨y, (hinit_ex.seq hloop_out).mono (by
-      rw [hs₀idx, Nat.sub_zero]
-      change 5 + (coords.length * (20 * Lmax + 12) + 2) ≤ coords.length * (20 * Lmax + 12) + 8
-      omega),
-      hydl, hydom, hyframe⟩
+    refine WP.of_execWithin hloop ⟨?_, hydl, hydom, hyframe⟩
+    rw [hs₀idx, Nat.sub_zero]; ring_nf; omega
   obtain ⟨y, he, hydl, hydom, hyframe⟩ := hrun
   exact ⟨y, he, hydl, hydom, hyframe, fun i hi => he.regs_eq (genLowSubsets_preserves i hi)⟩
 
@@ -694,53 +580,19 @@ theorem exec_flipHighDom {w d domPtr : ℕ} (C : Finset (Fin d))
       obtain ⟨hso, hsk, hscl, hsdp, hsdl, hdone, htodo, hsframe⟩ := hs
       obtain ⟨hmk_p, hsz_p⟩ := htodo p hp le_rfl
       have hsub_p : ys[p] ⊆ C := hys_sub ys[p] (List.getElem_mem hp)
-      have hf_2p : Fits w (p + p) := hfit_mem.of_le (by omega)
-      have hf_dp2p : Fits w (domPtr + (p + p)) := hfit_mem.of_le (by omega)
-      have hf_dp2p1 : Fits w (domPtr + (p + p) + 1) := hfit_mem.of_le (by omega)
       have hf_xor : Fits w (setMask C ^^^ setMask ys[p]) := by
         rw [← setMask_sdiff hsub_p]; exact hfit_mask.of_le (setMask_lt _).le
-      have hf_sub : Fits w (#C - #ys[p]) :=
-        hfit_mask.of_le ((by have := Finset.card_le_univ C; simp at this; omega :
-          #C - #ys[p] ≤ d).trans Nat.lt_two_pow_self.le)
-      have hf_p1 : Fits w (p + 1) := hfit_mem.of_le (by omega)
-      have h2p_eq : p + p = 2 * p := by omega
-      have hrmk : s.mem (domPtr + (p + p)) = setMask ys[p] := by simpa only [h2p_eq] using hmk_p
-      have hrsz : s.mem (domPtr + (p + p) + 1) = #ys[p] := by simpa only [h2p_eq] using hsz_p
-      have hstep : ∃ z, ExecWithin w flipStep s z 10 ∧
-          z.regs rOne = 1 ∧ z.regs rTrieKey = setMask C ∧ z.regs rCoordsLen = #C ∧
-          z.regs rDomPtr = domPtr ∧ z.regs rDomLen = ys.length ∧ z.regs rGenPos = p + 1 ∧
-          z.mem = Function.update
-            (Function.update s.mem (domPtr + 2 * p) (setMask (C \ ys[p])))
-            (domPtr + 2 * p + 1) #(C \ ys[p]) := by
-        unfold flipStep
-        wram_exec [hso, hsk, hscl, hsdp, hp_eq, hrmk, hrsz]
-        refine ⟨hso, hsk, hscl, hsdp, hsdl, ?_, ?_⟩
-        · wram_simp [hp_eq]
-        · wram_simp [h2p_eq, hrmk, hrsz, setMask_sdiff hsub_p, Finset.card_sdiff_of_subset hsub_p]
-      obtain ⟨z, hz_ex, hzo, hzk, hzcl, hzdp, hzdl, hzpos, hzmem⟩ := hstep
-      refine ⟨z, hz_ex, ⟨hzo, hzk, hzcl, hzdp, hzdl, ?_, ?_, ?_⟩, hzpos⟩
-      · intro j hj hlt_j
-        by_cases hjp : j = p
-        · subst hjp
-          simp only [hzmem]
-          exact ⟨by rw [Function.update_of_ne (by omega), Function.update_self],
-            Function.update_self _ _ _⟩
-        · simp only [hzmem]
-          refine ⟨?_, ?_⟩
-          · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-            exact (hdone j hj (by omega)).1
-          · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-            exact (hdone j hj (by omega)).2
-      · intro j hj hle
-        simp only [hzmem]
-        refine ⟨?_, ?_⟩
-        · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-          exact (htodo j hj (by omega)).1
-        · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-          exact (htodo j hj (by omega)).2
-      · intro a ha
-        rw [hzmem, Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-        exact hsframe a ha
+      have hcard : #C ≤ d := by simpa using Finset.card_le_univ C
+      have h2p : p + p = 2 * p := by omega
+      unfold flipStep
+      wram_exec [hso, hsk, hscl, hsdp, hp_eq, h2p, hmk_p, hsz_p]
+      refine ⟨⟨by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
+        fun j hj hj' => ?_, fun j hj hj' => ?_, fun a ha => ?_⟩, by wram_simp [hp_eq]⟩
+      · obtain hjp | rfl := Nat.lt_succ_iff_lt_or_eq.mp hj'
+        · wram_simp; exact hdone j hj hjp
+        · wram_simp [setMask_sdiff hsub_p, card_sdiff_of_subset hsub_p, hmk_p, hsz_p]
+      · wram_simp; exact htodo j hj (by omega)
+      · wram_simp; exact hsframe a ha
     let x₀ := x.set rGenPos 0
     have hinit : ExecWithin (B := .standard) w (ram[ rGenPos ← #0 ]) x x₀ 1 := by wram_exec
     have hx₀ : P (x₀.regs rGenPos) x₀ := by
