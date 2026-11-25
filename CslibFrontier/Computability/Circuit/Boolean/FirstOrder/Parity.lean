@@ -175,13 +175,10 @@ private theorem exists_formula_computes_parity [Finite (Σ l, L.Relations l)] (P
     have := depth_toUnbounded_le e φ Fin.elim0
     circuit_bound
   · -- size
-    have h : (Circuits.Formula.gate (σ := Unbounded.signature) .not ![G.bind sub]).size ≤
-        G.size + G.leafSize * 1 + 1 := by
-      circuit_bound
-    have hs : G.size ≤ foSize φ * (n + 2) ^ foSize φ := size_toUnbounded_le e φ Fin.elim0
-    have hl : G.leafSize ≤ (n + 2) ^ foSize φ := leafSize_toUnbounded_le e φ Fin.elim0
-    have hpos : 1 ≤ (n + 2) ^ foSize φ := Nat.one_le_pow _ _ (by omega)
-    nlinarith
+    have := size_toUnbounded_le e φ Fin.elim0
+    have := leafSize_toUnbounded_le e φ Fin.elim0
+    have : 1 ≤ (n + 2) ^ foSize φ := Nat.one_le_pow _ _ (by omega)
+    circuit_bound
 
 /-- **Parity is not first-order definable, with arbitrary numerical relations**
 [FurstSaxeSipser1984], [Ajtai1983], [Immerman1999]. Let `L` be a relational

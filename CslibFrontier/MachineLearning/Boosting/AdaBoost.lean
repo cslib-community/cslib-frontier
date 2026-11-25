@@ -65,7 +65,10 @@ form on pp. 135–137; [MohriRostamizadehTalwalkar2018, Theorem 7.2] states both
 * The weak learner is deterministic, with the edge as a hypothesis on the rounds (or on all
   positive distributions in `IsWeakLearner`); SSBD's weak learner may fail with probability `δ`
   (Remark 10.2), which a union bound handles outside this statement.
-* Generalization of the output (SSBD Section 10.3, MRT Corollary 7.5) is not covered.
+* Margin-based generalization bounds for AdaBoost (independent of the number of rounds `T`) are
+  provided separately in `CslibFrontier.MachineLearning.Boosting.Margin`
+  (`convexHull_margin_bound`, `adaBoost_uniform_margin_bound_vc`, and
+  `adaBoost_generalization_bound_of_edge`).
 
 ## References
 
@@ -111,8 +114,14 @@ variable (S : Fin m → α × Bool) (r : Round α m)
 /-- The weighted error of the round's hypothesis under the round's weights. -/
 noncomputable def error : ℝ := weightedError S r.weights r.hyp
 
+/-- Defining equation for `Round.error`. -/
+theorem error_def : r.error S = weightedError S r.weights r.hyp := by rw [error]
+
 /-- The vote weight of the round's hypothesis. -/
 noncomputable def vote : ℝ := voteWeight (r.error S)
+
+/-- Defining equation for `Round.vote`. -/
+theorem vote_def : r.vote S = voteWeight (r.error S) := by rw [vote]
 
 end Round
 
@@ -223,6 +232,11 @@ predicting `true` minus that of the hypotheses predicting `false` (`signVal true
 noncomputable def score (S : Fin m → α × Bool) (A : (Fin m → ℝ) → α → Bool) (T : ℕ) (x : α) : ℝ :=
   -∑ t ∈ range T, (rounds S A t).vote S * signVal ((rounds S A t).hyp x)
 
+/-- Defining equation for `score`. -/
+theorem score_def (S : Fin m → α × Bool) (A : (Fin m → ℝ) → α → Bool) (T : ℕ) (x : α) :
+    score S A T x = -∑ t ∈ range T, (rounds S A t).vote S * signVal ((rounds S A t).hyp x) := by
+  rw [score]
+
 open Classical in
 /-- **AdaBoost** [FreundSchapire1997] run for `T` rounds on the sample `S` with the weak learner
 `A`. If some round before `T` has weighted error `0`, the output is the hypothesis of the first
@@ -232,6 +246,21 @@ noncomputable def adaBoost (S : Fin m → α × Bool) (A : (Fin m → ℝ) → �
     α → Bool :=
   if h : ∃ t < T, (rounds S A t).error S = 0 then (rounds S A (Nat.find h)).hyp
   else fun x => decide (0 < score S A T x)
+
+open Classical in
+/-- When some round before `T` has weighted error `0`, `adaBoost` returns the hypothesis of the
+first such round. -/
+theorem adaBoost_of_exists_error_zero (S : Fin m → α × Bool) (A : (Fin m → ℝ) → α → Bool)
+    {T : ℕ} (hz : ∃ t < T, (rounds S A t).error S = 0) :
+    adaBoost S A T = (rounds S A (Nat.find hz)).hyp := by
+  rw [adaBoost, dite_eq_left hz]
+
+/-- When no round before `T` has weighted error `0`, `adaBoost` returns the sign of `score`. -/
+theorem adaBoost_of_not_exists_error_zero (S : Fin m → α × Bool) (A : (Fin m → ℝ) → α → Bool)
+    {T : ℕ} (hz : ¬ ∃ t < T, (rounds S A t).error S = 0) :
+    adaBoost S A T = fun x => decide (0 < score S A T x) := by
+  classical
+  rw [adaBoost, dite_eq_right hz]
 
 section Vote
 
@@ -287,6 +316,26 @@ theorem rounds_error_nonneg (t : ℕ) : 0 ≤ (rounds S A t).error S := by
   exact sum_nonneg fun i _ => (rounds_weights_pos S A t i).le
 
 open OnlineLearning.Experts in
+/-- Exact potential of the exponential multiplicative update in AdaBoost after `T` rounds,
+when every round before `T` has weighted error in `(0, 1)`. -/
+theorem potential_lossSeq_eq [NeZero m] {T : ℕ}
+    (hz : ¬ ∃ t < T, (rounds S A t).error S = 0)
+    (hlt : ∀ t < T, (rounds S A t).error S < 1) :
+    potential exp (lossSeq S A) T =
+      m * ∏ t ∈ range T, 2 * √((rounds S A t).error S * (1 - (rounds S A t).error S)) := by
+  have hstep : ∀ t ∈ range T, ∑ i, prob exp (lossSeq S A) t i * exp (lossSeq S A t i) =
+      2 * √((rounds S A t).error S * (1 - (rounds S A t).error S)) := fun t ht => by
+    have ht' := mem_range.mp ht
+    have hε₀ : 0 < (rounds S A t).error S :=
+      (rounds_error_nonneg S A t).lt_of_ne fun h => hz ⟨t, ht', h.symm⟩
+    have hε₁ := hlt t ht'
+    simp only [lossSeq_apply, ← rounds_weights, Round.vote]
+    rw [Round.error] at hε₀ hε₁ ⊢
+    exact sum_mul_exp_pointLoss (sum_rounds_weights S A t) hε₀ hε₁
+  rw [potential_eq_card_mul_prod (fun _ _ _ => exp_pos _), Fintype.card_fin,
+    prod_congr rfl hstep]
+
+open OnlineLearning.Experts in
 /-- **The AdaBoost training-error bound, product form** ([ShalevShwartzBenDavid2014], proof of
 Theorem 10.2; [MohriRostamizadehTalwalkar2018], proof of Theorem 7.2): if every round before `T`
 has weighted error `εₜ < 1`, the fraction of sample points that the output of `T` rounds of
@@ -308,21 +357,10 @@ theorem empiricalMiscount_adaBoost_le_prod {T : ℕ} (hlt : ∀ t < T, (rounds S
   · rw [Nat.cast_zero, div_zero]
     exact hprod
   have : NeZero m := ⟨hm.ne'⟩
-  have hstep : ∀ t ∈ range T, ∑ i, prob exp (lossSeq S A) t i * exp (lossSeq S A t i) =
-      2 * √((rounds S A t).error S * (1 - (rounds S A t).error S)) := fun t ht => by
-    have ht' := mem_range.mp ht
-    have hε₀ : 0 < (rounds S A t).error S :=
-      (rounds_error_nonneg S A t).lt_of_ne fun h => hz ⟨t, ht', h.symm⟩
-    have hε₁ := hlt t ht'
-    simp only [lossSeq_apply, ← rounds_weights, Round.vote]
-    rw [Round.error] at hε₀ hε₁ ⊢
-    exact sum_mul_exp_pointLoss (sum_rounds_weights S A t) hε₀ hε₁
   rw [adaBoost, dite_eq_right hz, div_le_iff₀ (Nat.cast_pos.mpr hm)]
   calc (empiricalMiscount (fun x => decide (0 < score S A T x)) S : ℝ)
       ≤ potential exp (lossSeq S A) T := empiricalMiscount_le_potential S A T
-    _ = _ := by
-      rw [potential_eq_card_mul_prod (fun _ _ _ => exp_pos _), Fintype.card_fin,
-        prod_congr rfl hstep, mul_comm]
+    _ = _ := by rw [potential_lossSeq_eq S A hz hlt, mul_comm]
 
 /-- The AdaBoost factor of an error `ε` is at most `exp (-2 (1/2 - ε)²)`, since
 `4 ε (1 - ε) = 1 - 4 (1/2 - ε)²`. -/

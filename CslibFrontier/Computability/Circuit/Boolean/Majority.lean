@@ -119,12 +119,8 @@ theorem depth_exactlyCircuitOfMajority_le (k : ℕ) :
 /-- `MOD_q` costs `n + 1` circuits for "exactly `k`" and one disjunction. -/
 theorem size_modCircuitOfMajority_le (q : ℕ) :
     (modCircuitOfMajority φ q M).size ≤ 1 + (n + 1) * (2 * (2 + M.size) + 2) := by
-  have h : (modCircuitOfMajority φ q M).size ≤
-      (n + 1) * max (2 * (2 + M.size) + 2) 1 + 1 := by
-    circuit_bound [modCircuitOfMajority, size_exactlyCircuitOfMajority, size_constCircuit,
-      Unbounded.Op.arity]
-  rw [Nat.max_eq_left (by omega), add_comm] at h
-  exact h
+  circuit_bound [modCircuitOfMajority, size_exactlyCircuitOfMajority, size_constCircuit,
+    Unbounded.Op.arity]
 
 /-- `MOD_q` is four deeper than the majority circuit. -/
 @[circuit_bound]

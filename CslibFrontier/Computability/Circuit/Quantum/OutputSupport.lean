@@ -29,7 +29,6 @@ untargeted wires.
 
 ## Main definitions
 
-* `Cslib.Quantum.GateCode.target`: the target wire of a gate code.
 * `Cslib.Quantum.GateCode.targets`: distinct target wires in order of first occurrence.
 
 ## Main results
@@ -52,10 +51,6 @@ open Probability
 variable {m : ℕ}
 
 namespace GateCode
-
-/-- The single target wire of a Hadamard or classical gate code. -/
-@[expose] def target : GateCode → ℕ
-  | (_, t, _) => t
 
 /-- Distinct target wires, in order of their first occurrence in the circuit. -/
 @[expose] def targets (gs : List GateCode) : List ℕ :=

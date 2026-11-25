@@ -86,19 +86,19 @@ variable {α β : Type} {m n : Type → Type*} [Monad m] [Monad n]
 theorem map_insertM (hf : IsMonadHom m n f) (le : α → α → m Bool) (k : α) (v : β)
     (l : List (α × β)) : f (insertM le k v l) = insertM (fun a b => f (le a b)) k v l := by
   induction l with
-  | nil => simp [insertM, hf.map_pure]
+  | nil => simp only [insertM, hf.map_pure]
   | cons p l ih =>
     obtain ⟨k', v'⟩ := p
-    simp [insertM, hf.map_bind, hf.map_pure, apply_ite f, ih]
+    simp only [insertM, hf.map_bind, hf.map_pure, apply_ite f, ih]
 
 /-- A monad morphism commutes with the erase scan. -/
 theorem map_eraseM (hf : IsMonadHom m n f) (le : α → α → m Bool) (k : α) (l : List (α × β)) :
     f (eraseM le k l) = eraseM (fun a b => f (le a b)) k l := by
   induction l with
-  | nil => simp [eraseM, hf.map_pure]
+  | nil => simp only [eraseM, hf.map_pure]
   | cons p l ih =>
     obtain ⟨k', v'⟩ := p
-    simp [eraseM, hf.map_bind, hf.map_pure, apply_ite f, ih]
+    simp only [eraseM, hf.map_bind, hf.map_pure, apply_ite f, ih]
 
 end Transfer
 
@@ -112,7 +112,8 @@ private theorem idRun_insertM_cons :
     Id.run (insertM leI k v ((k', v') :: l)) =
       if k ≤ k' then (if k' ≤ k then (k, v) :: l else (k, v) :: (k', v') :: l)
       else (k', v') :: Id.run (insertM leI k v l) := by
-  by_cases h₁ : k ≤ k' <;> by_cases h₂ : k' ≤ k <;> simp [insertM, leI, h₁, h₂]
+  by_cases h₁ : k ≤ k' <;> by_cases h₂ : k' ≤ k <;>
+    simp only [insertM, leI, Id.run_bind, Id.run_pure, decide_eq_true_eq, h₁, h₂, ↓reduceIte]
 
 /-- The pure erase scan at an entry: stop at a key not below `k`, dropping it on equality, and
 move on otherwise. -/
@@ -120,7 +121,8 @@ private theorem idRun_eraseM_cons :
     Id.run (eraseM leI k ((k', v') :: l)) =
       if k ≤ k' then (if k' ≤ k then l else (k', v') :: l)
       else (k', v') :: Id.run (eraseM leI k l) := by
-  by_cases h₁ : k ≤ k' <;> by_cases h₂ : k' ≤ k <;> simp [eraseM, leI, h₁, h₂]
+  by_cases h₁ : k ≤ k' <;> by_cases h₂ : k' ≤ k <;>
+    simp only [eraseM, leI, Id.run_bind, Id.run_pure, decide_eq_true_eq, h₁, h₂, ↓reduceIte]
 
 /-- The pure insert scan is `insert`, on any list. -/
 theorem idRun_insertM (k : α) (v : β) (l : List (α × β)) :
@@ -131,9 +133,9 @@ theorem idRun_insertM (k : α) (v : β) (l : List (α × β)) :
     obtain ⟨k', v'⟩ := p
     rw [idRun_insertM_cons, insert_cons, ih]
     rcases lt_trichotomy k k' with h | rfl | h
-    · simp [h, h.le, not_le.2 h]
-    · simp
-    · simp [not_le.2 h, not_lt.2 h.le, h.ne']
+    · simp only [h, h.le, not_le.2 h, ↓reduceIte]
+    · simp only [le_refl, lt_self_iff_false, ↓reduceIte]
+    · simp only [not_le.2 h, not_lt.2 h.le, h.ne', ↓reduceIte]
 
 /-- On a sorted list the pure erase scan is `erase`. -/
 theorem idRun_eraseM (h : l.IsSortedAssoc) (k : α) : Id.run (eraseM leI k l) = erase k l := by

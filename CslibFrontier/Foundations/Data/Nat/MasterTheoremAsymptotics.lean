@@ -12,6 +12,7 @@ public import Mathlib.Analysis.Asymptotics.Defs
 public import Mathlib.Analysis.SpecialFunctions.Log.Base
 public import Mathlib.Analysis.SpecialFunctions.Pow.Real
 import CslibFrontier.Foundations.Data.Nat.LogTwoRpow
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # The master theorem in asymptotic form
@@ -65,8 +66,7 @@ theorem le_mul_rpow (h : DivideConquerBound T a b n₀ T₀ fun n => c * n ^ d)
   have hmain := h.sub_mul_le_pow_clog ha hb hn₀ n
   have hpos : (0 : ℝ) < (a : ℝ) - b ^ d := by
     have : ((b ^ d : ℕ) : ℝ) < a := by exact_mod_cast hlt
-    push_cast at this
-    linarith
+    cast_linarith
   have hcast : ((a - b ^ d : ℕ) : ℝ) = (a : ℝ) - b ^ d := by
     rw [Nat.cast_sub hlt.le]; push_cast; ring
   have hmain' : ((a : ℝ) - b ^ d) * T n ≤
