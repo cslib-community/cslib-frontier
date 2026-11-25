@@ -298,16 +298,15 @@ private theorem revCopyLoop_spec {N w : ℕ} (O P : ℕ) (hOP : O + N ≤ P)
       fun _ _ => rfl, fun _ _ => rfl⟩
   | rem + 1, k, x, hk, hord, hcp, hc1, hNv, hO, hP, hi => by
     have hm : x.mem (O + (N - 1 - k)) = f k := hord k (by omega)
-    let StepPost (x₁ : Data 28) : Prop :=
-      (∀ q, q < N → x₁.mem (O + (N - 1 - q)) = f q) ∧
-        (∀ q, q < k + 1 → x₁.mem (P + 1 + q) = f q) ∧
-        (∀ a, a ≤ P → x₁.mem a = x.mem a) ∧
-        x₁.regs iReg = k + 1 ∧
-        (∀ r : Fin 28, r.val < 18 → x₁.regs r = x.regs r)
-    have hstep : ∃ x₁, ExecWithin w revCopyBody x x₁ 8 ∧ StepPost x₁ := by
+    obtain ⟨x₁, hx₁_ex, hx₁_ord, hx₁_cp, hx₁_low, hx₁_i, hx₁_fr⟩ :
+        ∃ x₁, ExecWithin w revCopyBody x x₁ 8 ∧
+          (∀ q, q < N → x₁.mem (O + (N - 1 - q)) = f q) ∧
+          (∀ q, q < k + 1 → x₁.mem (P + 1 + q) = f q) ∧
+          (∀ a, a ≤ P → x₁.mem a = x.mem a) ∧
+          x₁.regs iReg = k + 1 ∧
+          (∀ r : Fin 28, r.val < 18 → x₁.regs r = x.regs r) := by
       unfold revCopyBody
       wram_exec [hc1, hNv, hO, hP, hi, hm]
-      dsimp only [StepPost]
       refine ⟨fun q hq => ?_, fun q hq => ?_, fun a ha => ?_, by wram_simp, fun r hr => ?_⟩
       · mem_upd
         rw [Function.update_of_ne (by omega)]
@@ -320,7 +319,6 @@ private theorem revCopyLoop_spec {N w : ℕ} (O P : ℕ) (hOP : O + N ≤ P)
       · mem_upd
         exact Function.update_of_ne (by omega) _ _
       · wram_simp
-    obtain ⟨x₁, hx₁_ex, hx₁_ord, hx₁_cp, hx₁_low, hx₁_i, hx₁_fr⟩ := hstep
     obtain ⟨y, hy_ex, hy_cp, hy_low, hy_fr⟩ :=
       revCopyLoop_spec O P hOP hfit f rem (k + 1) x₁ (by omega) hx₁_ord hx₁_cp
         ((hx₁_fr cOne (by decide)).trans hc1) ((hx₁_fr nVerts (by decide)).trans hNv)
