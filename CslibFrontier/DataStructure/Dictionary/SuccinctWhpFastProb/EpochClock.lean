@@ -173,22 +173,12 @@ theorem epochTick_clean_or_clock {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
     CleanWindowFast c U V n_max θ W_keys BadIns fs' dict ∨
     (fs'.epochClock = fs.epochClock + 1 ∧ fs.epochClock + 1 < qEpochWhp n_max) := by
   unfold epochTick at htick
-  set fs1 := epochTickStage c U n_max θ fs
-  have hclk1 : fs1.epochClock = fs.epochClock := tickStage_epochClock c U n_max θ fs
+  have hclk1 := tickStage_epochClock c U n_max θ fs
   dsimp only [epochTickRollover] at htick
-  by_cases hroll : qEpochWhp n_max ≤ fs1.epochClock + 1
-  · rw [ite_eq_left hroll] at htick
-    by_cases hs5 : fs1.rebStage = 5
-    · rw [ite_eq_left hs5] at htick
-      injection htick with hfs'
-      rw [← hfs'] at hv' ⊢
-      exact Or.inl (CleanWindowFast.of_clean_fast hv'
-        (tickStage_rollover_itemAlloc_zero hc hs5) rfl (fun h => by cases h))
-    · rw [ite_eq_right hs5] at htick; cases htick
-  · rw [ite_eq_right hroll] at htick
-    injection htick with hfs'
-    rw [← hfs']
-    exact Or.inr ⟨congrArg (· + 1) hclk1, by omega⟩
+  split_ifs at htick with hroll hs5 <;> cases htick
+  · exact Or.inl (CleanWindowFast.of_clean_fast hv'
+      (tickStage_rollover_itemAlloc_zero hc hs5) rfl (fun h => by cases h))
+  · exact Or.inr ⟨congrArg (· + 1) hclk1, by omega⟩
 
 theorem fastDelete_epochClock (c U n_max : ℕ) (θ : SeedWhp c U n_max)
     (fs : FastState) (u : Fin U) :
