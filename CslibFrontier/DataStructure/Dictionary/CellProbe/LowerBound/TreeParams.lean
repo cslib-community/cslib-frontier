@@ -137,10 +137,8 @@ theorem logb_le_rpow_of_ge_pow {γ : ℝ} (hγ : 0 < γ) {n : ℕ}
     rwa [hexp_eq, Real.rpow_natCast] at h
   have hrpow2 : (n : ℝ) ^ (1 / (M : ℝ)) ≤ (n : ℝ) ^ (γ / 2) := by
     refine Real.rpow_le_rpow_of_exponent_le (by exact_mod_cast hn1) ?_
-    have hM_pos_r : (0 : ℝ) < (M : ℝ) := by exact_mod_cast hM_pos
-    rw [div_le_iff₀ hM_pos_r]
-    have hmul := (div_le_iff₀ hγ).mp hc
-    linarith only [hmul]
+    rw [div_le_iff₀ (by exact_mod_cast hM_pos)]
+    linarith only [(div_le_iff₀ hγ).mp hc]
   exact hlog_lt.trans
     ((Nat.cast_le (α := ℝ).mpr hL1_pow).trans (by push_cast; exact hrpow1.trans hrpow2))
 
@@ -169,17 +167,13 @@ theorem iterLog_tree_bounds {γ c_R : ℝ} (hγ : 0 < γ) (hγ1 : γ ≤ 1) (hcR
   have hM_le_tw : max 71 (4 * c_tree * (4 * c_tree + 71)) ≤ Nat.twoTower (s + 1) :=
     (Nat.logStar_le_iff.mp (hs_def.le)).trans (Nat.twoTower_lt_twoTower_succ s).le
   have hct_808 : 808 * (c_R + 1) ≤ (c_tree : ℝ) := by
-    have h1 := (div_le_iff₀ hγ).mp hct_ceil
-    have h2 : (c_tree : ℝ) * γ ≤ (c_tree : ℝ) :=
-      (mul_le_mul_of_nonneg_left hγ1 (Nat.cast_nonneg c_tree)).trans_eq (mul_one _)
-    linarith only [h1, h2]
+    linarith only [(div_le_iff₀ hγ).mp hct_ceil,
+      mul_le_mul_of_nonneg_left hγ1 (Nat.cast_nonneg (α := ℝ) c_tree)]
   have hk_le_fls : k ≤ (Nat.floorLogStar n - 1) + 2 := by
     have h1 := Nat.logStar_le_floorLogStar_add_one n; omega
   have hH_ge : 2 ≤ k' - s_off := by omega
   have hk_r : (k : ℝ) / 4 ≤ ((k' - s_off - 1 : ℕ) : ℝ) := by
-    have : (k : ℝ) ≤ 4 * ((k' - s_off - 1 : ℕ) : ℝ) := by
-      exact_mod_cast (by omega : k ≤ 4 * (k' - s_off - 1))
-    linarith
+    rw [div_le_iff₀ (by norm_num)]; exact_mod_cast (by omega : k ≤ (k' - s_off - 1) * 4)
   have hH1_logU : ((k' - s_off - 1 : ℕ) : ℝ) ≤ Real.logb 2 U :=
     (Nat.cast_le.mpr (by omega : k' - s_off - 1 ≤ Nat.floorLogStar n - 1)).trans
       (floorLogStar_sub_one_le_logb hn hnU)
@@ -197,17 +191,9 @@ theorem iterLog_tree_bounds {γ c_R : ℝ} (hγ : 0 < γ) (hγ1 : γ ≤ 1) (hcR
   generalize hT_def : iterLogMetaTree n k' c_tree = T at hH_le_height ⊢
   have hb1_mul : (c_tree - 2) * n * Nat.iterLog k' n ≤ T.blockSize 1 * Nat.iterLog 1 n := by
     have hm := mul_iterLog_le_blockSize_one_add_iterLogMetaTree hn k' c_tree
-    rw [hT_def] at hm
-    have hsub : (c_tree - 2) * (n * Nat.iterLog k' n) + 2 * (n * Nat.iterLog k' n) =
-        c_tree * (n * Nat.iterLog k' n) := by
-      rw [← Nat.add_mul, Nat.sub_add_cancel (by omega)]
-    have h1 : (c_tree - 2) * n * Nat.iterLog k' n + 2 * Nat.iterLog 1 n ≤
-        c_tree * n * Nat.iterLog k' n := calc
-      (c_tree - 2) * n * Nat.iterLog k' n + 2 * Nat.iterLog 1 n
-          ≤ (c_tree - 2) * (n * Nat.iterLog k' n) + 2 * (n * Nat.iterLog k' n) := by
-            rw [mul_assoc (c_tree - 2)]
-            exact Nat.add_le_add_left (h2n_le.trans_eq (mul_assoc 2 n _)) _
-      _ = c_tree * n * Nat.iterLog k' n := hsub.trans (mul_assoc _ _ _).symm
+    rw [hT_def, Nat.mul_assoc] at hm
+    rw [Nat.mul_assoc, Nat.sub_mul]
+    rw [Nat.mul_assoc] at h2n_le
     omega
   have hn_le_b1 : (n : ℝ) ≤ (T.blockSize 1 : ℝ) * Real.logb 2 n := by
     have h1 : n ≤ T.blockSize 1 * Nat.iterLog 1 n :=
