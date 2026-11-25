@@ -218,11 +218,9 @@ private theorem deleteLastReadCode_exec {U V w N n_init base : ℕ}
       x₇.regs reg = x₂.regs reg := fun reg h160 h => by
     simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at h
     obtain ⟨hz, hfr', hib, hiw, hcnt⟩ := h
-    dsimp only [x₇, x₆, x₅, RData.set]
-    rw [Function.update_of_ne hz, Function.update_of_ne hfr', Function.update_of_ne hib,
+    rw [show x₇.regs reg = x₄.regs reg by simp [x₇, x₆, x₅, RData.set, hz, hfr', hib],
       hx₄_keep3 reg hfr' h160 hiw]
-    dsimp only [x₃, RData.set]
-    rw [Function.update_of_ne hfr', Function.update_of_ne hcnt]
+    simp [x₃, RData.set, hfr', hcnt]
   have hin_ro : x₇.regs ∘ srcReadOldKV = WordEncoding.encode d_ro := by
     refine (regs_pairSrc
       (regs_pairSrc
