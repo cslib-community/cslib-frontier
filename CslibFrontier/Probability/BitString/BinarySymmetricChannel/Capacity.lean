@@ -74,23 +74,16 @@ general discrete memoryless channels would need their own definition. -/
 
 /-- Rates `R ≤ 0` are achievable: a single codeword is never misdecoded. -/
 theorem isAchievableRate_of_nonpos (p : I) {R : ℝ} (hR : R ≤ 0) : IsAchievableRate p R := by
-  intro ε hε
-  refine Eventually.of_forall fun n => ?_
-  have h0 : ⌈R * n⌉₊ = 0 := Nat.ceil_eq_zero.mpr (mul_nonpos_of_nonpos_of_nonneg hR n.cast_nonneg)
-  have h1 : (2 : ℕ) ^ ⌈R * n⌉₊ = 1 := by rw [h0, pow_zero]
-  have hsub : ∀ m m' : Fin (2 ^ ⌈R * n⌉₊), m = m' := fun m m' => by
-    have hm : m.val < 1 := lt_of_lt_of_eq m.isLt h1
-    have hm' : m'.val < 1 := lt_of_lt_of_eq m'.isLt h1
-    ext
-    omega
-  refine ⟨fun _ _ => false, fun _ => ⟨0, by positivity⟩, fun m => ?_⟩
+  refine fun ε hε => Eventually.of_forall fun n => ⟨fun _ _ => false,
+    fun _ => ⟨0, by positivity⟩, fun m => ?_⟩
   classical
-  rw [decodingError_eq_bernoulliAverage]
-  have : (fun e : BitString n =>
-      if (⟨0, by positivity⟩ : Fin (2 ^ ⌈R * n⌉₊)) ≠ m then (1 : ℝ) else 0) = fun _ => 0 :=
-    funext fun _ => ite_eq_right fun h => absurd (hsub _ _) h
-  rw [this, bernoulliAverage_const]
-  exact hε.le
+  have h1 : (2 : ℕ) ^ ⌈R * n⌉₊ = 1 := by
+    rw [Nat.ceil_eq_zero.mpr (mul_nonpos_of_nonpos_of_nonneg hR n.cast_nonneg), pow_zero]
+  have hm : (⟨0, by positivity⟩ : Fin (2 ^ ⌈R * n⌉₊)) = m := by
+    have := m.isLt
+    exact Fin.ext (by omega)
+  simpa only [decodingError_eq_bernoulliAverage, hm, ne_self_iff_false, ↓reduceIte,
+    bernoulliAverage_const] using hε.le
 
 /-- Achievability on `BSC_p` and on `BSC_{1 - p}` are equivalent: complement the received word
 before decoding. -/
@@ -109,33 +102,29 @@ theorem isAchievableRate_of_lt (p : I) {R : ℝ} (hR : R < 1 - Real.binEntropy p
   · exact isAchievableRate_of_nonpos p hR0
   have key (q : I) (hq : (q : ℝ) < 1 / 2) (hRq : R < 1 - Real.binEntropy q / Real.log 2) :
       IsAchievableRate q R := fun ε hε =>
-    (eventually_exists_code_decodingError_le q hq hRq hε).mono fun n ⟨E, hE⟩ => by
+    (eventually_exists_code_decodingError_le q hq hRq hε).mono fun n ⟨E, hE⟩ =>
       have : Nonempty (Fin (2 ^ ⌈R * n⌉₊)) := ⟨⟨0, by positivity⟩⟩
-      obtain ⟨D, hD⟩ := exists_isNearestDecoder E
-      exact ⟨E, D, hE D hD⟩
+      let ⟨D, hD⟩ := exists_isNearestDecoder E; ⟨E, D, hE D hD⟩
   rcases lt_trichotomy (p : ℝ) (1 / 2) with hp | hp | hp
   · exact key p hp hR
   · rw [hp, one_div, Real.binEntropy_two_inv, div_self (Real.log_pos one_lt_two).ne',
       sub_self] at hR
-    exact absurd hR0 (not_lt.mpr hR.le)
-  · refine (isAchievableRate_symm p R).mp (key (σ p) ?_ ?_)
-    · rw [unitInterval.coe_symm_eq]
-      linarith
-    · rwa [unitInterval.coe_symm_eq, Real.binEntropy_one_sub]
+    exact (hR0.not_ge hR.le).elim
+  · exact (isAchievableRate_symm p R).mp (key (σ p)
+      (by rw [unitInterval.coe_symm_eq]; linarith)
+      (by rwa [unitInterval.coe_symm_eq, Real.binEntropy_one_sub]))
 
 /-- **The converse**: no rate above the capacity `1 - h₂(p)` of `BSC_p` is achievable, for every
 `p ∈ [0, 1]`. By the strong converse even the average error of such codes tends to `1`. -/
 theorem not_isAchievableRate_of_lt (p : I) {R : ℝ} (hR : 1 - Real.binEntropy p / Real.log 2 < R) :
     ¬ IsAchievableRate p R := by
   intro h
-  obtain ⟨n, ⟨E, D, hD⟩, hn⟩ :=
-    ((h (1 / 4) (by norm_num)).and
-      (eventually_one_sub_le_expect_decodingError p hR (ε := 1 / 2) (by norm_num))).exists
+  obtain ⟨n, ⟨E, D, hD⟩, hn⟩ := ((h (1 / 4) (by norm_num)).and
+    (eventually_one_sub_le_expect_decodingError p hR (ε := 1 / 2) (by norm_num))).exists
   have : Nonempty (Fin (2 ^ ⌈R * n⌉₊)) := ⟨⟨0, by positivity⟩⟩
-  have hM : R * n ≤ Real.logb 2 (Fintype.card (Fin (2 ^ ⌈R * n⌉₊))) := by
+  have h1 := hn E D (by
     rw [Fintype.card_fin, Nat.cast_pow, Nat.cast_two, Real.logb_two_pow]
-    exact Nat.le_ceil _
-  have h1 := hn E D hM
+    exact Nat.le_ceil _)
   have h2 : 𝔼 m, decodingError p E D m ≤ 1 / 4 :=
     Finset.expect_le Finset.univ_nonempty fun m _ => hD m
   linarith
