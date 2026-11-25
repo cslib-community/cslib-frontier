@@ -17,7 +17,8 @@ import CslibFrontier.Foundations.Data.Matrix.PairChunks
 # Internal scratch registers, phase memory invariants, and loop helpers
 
 Internal support module for the `O(n³)` Word-RAM Hungarian implementation, providing scratch
-register indices, `OuterMem`, `StepMem`, reduced-cost arithmetic, and `fillConst` / `exec_forLoop`.
+register indices, `OuterMem`, `StepMem`, reduced-cost arithmetic, `fillConst`, `exec_forLoop` and
+`exec_prefixWriteLoop`.
 -/
 
 public section
@@ -151,6 +152,27 @@ theorem exec_forLoop {w N T : ℕ} {idxReg limReg : Fin 28}
   refine ⟨y, (hs₀.seq hl).mono ?_, hPN⟩
   rw [hidx0, Nat.sub_zero]
   omega
+
+/-- `ExecWithin.loop_prefixWrite` after `idx ← 0`, keeping the registers below `idx`: iteration
+`j` of the loop bounded by `limReg` stores `e j` at `d + j`. -/
+theorem exec_prefixWriteLoop {w N T d : ℕ} {limReg : Fin 28} {body : Code .standard 28}
+    (x : Data 28) (e : Fin N → ℕ) (hlim : x.regs limReg = N) (hlimReg : limReg.val < 21)
+    (hbody : ∀ y, (∀ i : Fin 28, i.val < 21 → y.regs i = x.regs i) → (hlt : y.regs idx < N) →
+      (∀ a, ¬(d ≤ a ∧ a < d + y.regs idx) → y.mem a = x.mem a) →
+      ∃ z, ExecWithin w body y z T ∧
+        z.mem = Function.update y.mem (d + y.regs idx) (e ⟨y.regs idx, hlt⟩) ∧
+        (∀ i : Fin 28, i.val < 21 → z.regs i = x.regs i) ∧ z.regs idx = y.regs idx + 1) :
+    ∃ y, ExecWithin w (.seq (ram[ idx ← #0 ]) (.loop (.lt idx limReg) body)) x y
+        (N * (T + 2) + 3) ∧
+      (∀ i : Fin 28, i.val < 21 → y.regs i = x.regs i) ∧ (∀ j : Fin N, y.mem (d + j) = e j) ∧
+      ∀ a, ¬(d ≤ a ∧ a < d + N) → y.mem a = x.mem a := by
+  obtain ⟨y, hy, hr, hm, hf⟩ := ExecWithin.loop_prefixWrite (x := x.set idx 0) (d := d)
+    (fun y => ∀ i : Fin 28, i.val < 21 → y.regs i = x.regs i) e
+    (fun y hy => (hy limReg hlimReg).trans hlim) hbody (Data.set_regs_self x idx 0)
+    (fun i hi => Data.set_regs_of_ne (fun h => by subst h; simp at hi) _)
+  have hs₀ : ExecWithin w (ram[ idx ← #0 ] : Code .standard 28) x (x.set idx 0) 1 :=
+    ExecWithin.op (o := .const idx 0) (x := x) (Data.put_of_fits (fits_zero w))
+  exact ⟨y, (hs₀.seq hy).mono (by omega), hr, hm, hf⟩
 
 /-! ### Reusable leaf loops -/
 

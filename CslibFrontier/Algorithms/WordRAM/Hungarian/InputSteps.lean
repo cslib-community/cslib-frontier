@@ -230,26 +230,20 @@ theorem exec_fillCCode {w M : ℕ} (inst : Instance) (hw : Fits w inst.wordBound
       CostMem (2 + inst.n * inst.n) (fun p => (inst.cost p + (M : ℤ)).toNat) y₃.mem := by
   let n := inst.n
   let bC := 2 + n * n
-  let x₀ : Data 28 := Data.init inst.encode
   let C : Fin n × Fin n → ℕ := fun p => (inst.cost p + (M : ℤ)).toNat
-  let eC : ℕ → ℕ := fun q => if hq : q < n * n then C (finProdFinEquiv.symm ⟨q, hq⟩) else 0
-  let PC (k : ℕ) (y : Data 28) : Prop :=
-    (∀ i : Fin 28, i.val < 21 → y.regs i = y₂.regs i) ∧
-      (∀ j < k, y.mem (bC + j) = eC j) ∧
-      (∀ a, ¬(bC ≤ a ∧ a < bC + k) → y.mem a = x₀.mem a)
-  have hbodyC (y : Data 28) (hy : PC (y.regs idx) y) (hlt : y.regs idx < n * n) :
-      ∃ z, ExecWithin w fillCBody y z 10 ∧ PC (y.regs idx + 1) z ∧
-        z.regs idx = y.regs idx + 1 := by
-    obtain ⟨hr, hm, hf⟩ := hy
+  refine (exec_prefixWriteLoop (T := 10) (d := bC) y₂ (fun q => C (finProdFinEquiv.symm q))
+    hb₂.hrnn (by decide) ?_).imp fun y₃ ⟨he₃, hr₃, hm₃, _⟩ =>
+      ⟨he₃.mono (by nlinarith), hb₂.of_eq (fun i hi => hr₃ i (by omega)), fun u v => ?_⟩
+  · intro y hr hlt hf
     have hby : BaseRegs n bC M y := hb₂.of_eq fun i hi => hr i (by omega)
-    let p := finProdFinEquiv.symm ⟨y.regs idx, hlt⟩
+    set p := finProdFinEquiv.symm ⟨y.regs idx, hlt⟩
     let u := p.1
     let v := p.2
     have hp_mul : u.val * n + v.val = y.regs idx :=
       (Cslib.Matrix.pairIndex_eq_val_finProdFinEquiv p).trans
         (congrArg Fin.val (finProdFinEquiv.apply_symm_apply ⟨y.regs idx, hlt⟩))
     have hload : y.mem (2 + y.regs idx) = Signed.encode (inst.cost (u, v)) := by
-      rw [hf _ (by simp only [bC]; omega), ← hp_mul]
+      rw [hf _ (by simp only [bC]; omega), hmem₂, ← hp_mul]
       exact inst.init_mem_cost u v
     have hdiv : Signed.encode (inst.cost (u, v)) / 2 = (inst.cost (u, v)).natAbs :=
       Signed.encode_div_two _
@@ -264,55 +258,38 @@ theorem exec_fillCCode {w M : ℕ} (inst : Instance) (hw : Fits w inst.wordBound
       hw.of_le (by unfold Instance.wordBound; simp only [bC, n] at hlt ⊢; nlinarith)
     have hf4 : Fits w (y.regs idx + 1) :=
       hw.of_le (by unfold Instance.wordBound; simp only [n] at hlt; nlinarith)
-    have hstep : ∃ z, ExecWithin w fillCBody y z 10 ∧
-        z.mem = Function.update y.mem (bC + y.regs idx) (eC (y.regs idx)) ∧
-        (∀ i : Fin 28, i.val < 21 → z.regs i = y₂.regs i) ∧
-        z.regs idx = y.regs idx + 1 := by
-      refine WP.exists_execWithin ?_
-      unfold fillCBody
-      by_cases hneg : inst.cost (u, v) < 0
-      · have hmod1 : (if inst.cost (u, v) < 0 then 1 else 0) = 1 := ite_eq_left hneg
-        have heq_e : M - (inst.cost (u, v)).natAbs = eC (y.regs idx) := by
-          simp only [eC, hlt, dite_true]
-          change _ = C (u, v)
-          simp only [C]
-          omega
-        have hsub_M : M - (inst.cost (u, v)).natAbs ≤ inst.maxMag :=
-          (Nat.sub_le _ _).trans hM_le
-        have hf_sub : Fits w (M - (inst.cost (u, v)).natAbs) :=
-          hw.of_le (by unfold Instance.wordBound; nlinarith)
-        wram_exec [hby.htwo, hby.hzero, hby.hone, hby.hrM, hby.hbaseC,
-          hload, hdiv, hmod, hmod1, hmag_M, hf1, hf2, hf3, hf4, hf_sub]
-        exact ⟨by wram_simp [heq_e], fun i hi => by wram_simp [hr i hi], by wram_simp⟩
-      · have hmod0 : (if inst.cost (u, v) < 0 then 1 else 0) = 0 := ite_eq_right hneg
-        have heq_e : M + (inst.cost (u, v)).natAbs = eC (y.regs idx) := by
-          simp only [eC, hlt, dite_true]
-          change _ = C (u, v)
-          simp only [C]
-          omega
-        have hadd_M : M + (inst.cost (u, v)).natAbs ≤ 2 * inst.maxMag := by
-          have := inst.natAbs_cost_le_maxMag u v
-          omega
-        have hf_add : Fits w (M + (inst.cost (u, v)).natAbs) :=
-          hw.of_le (by unfold Instance.wordBound; nlinarith)
-        wram_exec [hby.htwo, hby.hzero, hby.hone, hby.hrM, hby.hbaseC,
-          hload, hdiv, hmod, hmod0, hf1, hf2, hf3, hf4, hf_add]
-        exact ⟨by wram_simp [heq_e], fun i hi => by wram_simp [hr i hi], by wram_simp⟩
-    obtain ⟨z, he, hmz, hrz, hiz⟩ := hstep
-    obtain ⟨hm', hf'⟩ := prefix_write_step hm hf hmz
-    exact ⟨z, he, ⟨hrz, hm', hf'⟩, hiz⟩
-  obtain ⟨y₃, he₃, hr₃, hm₃, _⟩ := exec_forLoop PC
-    (fun y hy => (hy.1 rnn (by decide)).trans hb₂.hrnn) hbodyC (x := y₂)
-    ⟨fun i hi => by wram_simp, fun _ hj => by omega, fun a _ => congrFun hmem₂ a⟩
-  refine ⟨y₃, he₃.mono (by nlinarith),
-    hb₂.of_eq (fun i hi => hr₃ i (by omega)), fun u v => ?_⟩
-  have hq : u.val * n + v.val < n * n := Cslib.Matrix.pairIndex_lt (u, v)
-  have h := hm₃ (u.val * n + v.val) hq
-  have hp_eq : (⟨u.val * n + v.val, hq⟩ : Fin (n * n)) = finProdFinEquiv (u, v) :=
-    Fin.ext (Cslib.Matrix.pairIndex_eq_val_finProdFinEquiv (u, v))
-  dsimp only [eC, n, bC, C] at h
-  rw [dite_eq_left hq, hp_eq, finProdFinEquiv.symm_apply_apply] at h
-  exact h
+    refine WP.exists_execWithin ?_
+    unfold fillCBody
+    by_cases hneg : inst.cost (u, v) < 0
+    · have hmod1 : (if inst.cost (u, v) < 0 then 1 else 0) = 1 := ite_eq_left hneg
+      have heq_e : M - (inst.cost (u, v)).natAbs = C p := by
+        change _ = C (u, v)
+        simp only [C]
+        omega
+      have hsub_M : M - (inst.cost (u, v)).natAbs ≤ inst.maxMag :=
+        (Nat.sub_le _ _).trans hM_le
+      have hf_sub : Fits w (M - (inst.cost (u, v)).natAbs) :=
+        hw.of_le (by unfold Instance.wordBound; nlinarith)
+      wram_exec [hby.htwo, hby.hzero, hby.hone, hby.hrM, hby.hbaseC,
+        hload, hdiv, hmod, hmod1, hmag_M, hf1, hf2, hf3, hf4, hf_sub]
+      exact ⟨by wram_simp [heq_e], fun i hi => by wram_simp [hr i hi], by wram_simp⟩
+    · have hmod0 : (if inst.cost (u, v) < 0 then 1 else 0) = 0 := ite_eq_right hneg
+      have heq_e : M + (inst.cost (u, v)).natAbs = C p := by
+        change _ = C (u, v)
+        simp only [C]
+        omega
+      have hadd_M : M + (inst.cost (u, v)).natAbs ≤ 2 * inst.maxMag := by
+        have := inst.natAbs_cost_le_maxMag u v
+        omega
+      have hf_add : Fits w (M + (inst.cost (u, v)).natAbs) :=
+        hw.of_le (by unfold Instance.wordBound; nlinarith)
+      wram_exec [hby.htwo, hby.hzero, hby.hone, hby.hrM, hby.hbaseC,
+        hload, hdiv, hmod, hmod0, hf1, hf2, hf3, hf4, hf_add]
+      exact ⟨by wram_simp [heq_e], fun i hi => by wram_simp [hr i hi], by wram_simp⟩
+  · have h := hm₃ (finProdFinEquiv (u, v))
+    rw [finProdFinEquiv.symm_apply_apply,
+      ← Cslib.Matrix.pairIndex_eq_val_finProdFinEquiv] at h
+    exact h
 
 theorem exec_sumCostCode {w M : ℕ} (inst : Instance) (hw : Fits w inst.wordBound)
     (hM_le : M ≤ inst.maxMag)

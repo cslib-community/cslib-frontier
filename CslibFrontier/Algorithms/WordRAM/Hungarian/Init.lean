@@ -136,51 +136,33 @@ private theorem exec_initYCode {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ}
       (∀ i : Fin 28, i.val < 21 → y.regs i = x.regs i) ∧
       (∀ u : Fin n, y.mem (bC + n * n + u.val) = (hgRowMin (fun p => (C p : ℤ)) u).toNat) ∧
       (∀ a, ¬(bC + n * n ≤ a ∧ a < bC + n * n + n) → y.mem a = x.mem a) := by
-  let c : Fin n × Fin n → ℤ := fun p => (C p : ℤ)
   let d := bC + n * n
-  let e : ℕ → ℕ := fun k => if hk : k < n then (hgRowMin c ⟨k, hk⟩).toNat else 0
-  let P (k : ℕ) (y : Data 28) : Prop :=
-    (∀ i : Fin 28, i.val < 21 → y.regs i = x.regs i) ∧
-      (∀ j < k, y.mem (d + j) = e j) ∧
-      (∀ a, ¬(d ≤ a ∧ a < d + k) → y.mem a = x.mem a)
-  have hbody (y : Data 28) (hy : P (y.regs idx) y) (hlt : y.regs idx < n) :
-      ∃ z, ExecWithin w initYBody y z (10 * n + 10) ∧ P (y.regs idx + 1) z ∧
-        z.regs idx = y.regs idx + 1 := by
-    obtain ⟨hr, hm, hf⟩ := hy
-    let u : Fin n := ⟨y.regs idx, hlt⟩
-    have hby : BaseRegs n bC M y := hb.of_eq fun i hi => hr i (by omega)
-    have hCy : CostMem bC C y.mem := hC.of_outside fun a ha => hf a (by omega)
-    obtain ⟨y₁, he₁, hr₁, hmem₁, hacc₁⟩ := exec_rowMinCode hCW u y hby hCy rfl hfit
-    have hbY₁ : y₁.regs baseY = d :=
-      ((hr₁ baseY (by decide)).trans (hr baseY (by decide))).trans hb.hbaseY
-    have hidx₁ : y₁.regs idx = y.regs idx := hr₁ idx (by decide)
-    have hone₁ : y₁.regs one = 1 :=
-      ((hr₁ one (by decide)).trans (hr one (by decide))).trans hb.hone
-    have hf_addr : Fits w (d + y.regs idx) := hfit.of_le (by omega)
-    have hf_next : Fits w (y.regs idx + 1) := hfit.of_le (by omega)
-    have hej : y₁.regs acc = e (y.regs idx) := by
-      simp only [e, hlt, dite_true]
-      exact hacc₁
-    have hstep₂ : ∃ z, ExecWithin w
-        (ram[ addr ← baseY + idx; *addr ← acc; idx ← idx + one ] : Code .standard 28) y₁ z 3 ∧
-        z = ((y₁.set addr (d + y.regs idx)).write (d + y.regs idx) (e (y.regs idx))).set idx
-          (y.regs idx + 1) := by
-      refine WP.exists_execWithin ?_
-      wram_exec [hbY₁, hidx₁, hone₁, hej, hf_addr, hf_next]
-      rfl
-    obtain ⟨z, he₂, rfl⟩ := hstep₂
-    have hmem_z : (((y₁.set addr (d + y.regs idx)).write (d + y.regs idx) (e (y.regs idx))).set idx
-        (y.regs idx + 1)).mem = Function.update y.mem (d + y.regs idx) (e (y.regs idx)) := by
-      rw [← hmem₁]
-      rfl
-    obtain ⟨hm', hf'⟩ := prefix_write_step hm hf hmem_z
-    refine ⟨_, (he₁.seq he₂).mono (by omega), ⟨fun i hi => ?_, hm', hf'⟩, by wram_simp⟩
-    wram_simp [hr₁ i (by omega), hr i hi]
-  obtain ⟨y, he, hr, hm, hf⟩ := exec_forLoop P
-    (fun y hy => (hy.1 rn (by decide)).trans hb.hrn) hbody (x := x)
-    ⟨fun i hi => by wram_simp, fun _ hj => by omega, fun _ _ => rfl⟩
-  refine ⟨y, he.mono (by nlinarith), hr, fun u => ?_, hf⟩
-  simpa [d, e, u.isLt] using hm u.val u.isLt
+  refine (exec_prefixWriteLoop (T := 10 * n + 10) (d := d) x
+    (fun u => (hgRowMin (fun p => (C p : ℤ)) u).toNat)
+    hb.hrn (by decide) ?_).imp fun y h => ⟨h.1.mono (by nlinarith), h.2⟩
+  intro y hr hlt hf
+  set u : Fin n := ⟨y.regs idx, hlt⟩
+  have hby : BaseRegs n bC M y := hb.of_eq fun i hi => hr i (by omega)
+  have hCy : CostMem bC C y.mem := hC.of_outside fun a ha => hf a (by omega)
+  obtain ⟨y₁, he₁, hr₁, hmem₁, hacc₁⟩ := exec_rowMinCode hCW u y hby hCy rfl hfit
+  have hbY₁ : y₁.regs baseY = d :=
+    ((hr₁ baseY (by decide)).trans (hr baseY (by decide))).trans hb.hbaseY
+  have hidx₁ : y₁.regs idx = y.regs idx := hr₁ idx (by decide)
+  have hone₁ : y₁.regs one = 1 :=
+    ((hr₁ one (by decide)).trans (hr one (by decide))).trans hb.hone
+  have hf_addr : Fits w (d + y.regs idx) := hfit.of_le (by omega)
+  have hf_next : Fits w (y.regs idx + 1) := hfit.of_le (by omega)
+  have hstep₂ : ∃ z, ExecWithin w
+      (ram[ addr ← baseY + idx; *addr ← acc; idx ← idx + one ] : Code .standard 28) y₁ z 3 ∧
+      z = ((y₁.set addr (d + y.regs idx)).write (d + y.regs idx) (y₁.regs acc)).set idx
+        (y.regs idx + 1) := by
+    refine WP.exists_execWithin ?_
+    wram_exec [hbY₁, hidx₁, hone₁, hf_addr, hf_next]
+    rfl
+  obtain ⟨z, he₂, rfl⟩ := hstep₂
+  refine ⟨_, (he₁.seq he₂).mono (by omega), ?_, fun i hi => ?_, by wram_simp⟩
+  · simp only [Data.set_mem, Data.write_mem, hmem₁, hacc₁]
+  · wram_simp [hr₁ i (by omega), hr i hi]
 
 /-- Initialize `y`, `nz`, `colMate`, and `rowMate` before the first phase. -/
 def initOuterCode : Code .standard 28 :=
@@ -257,62 +239,41 @@ private theorem exec_initMinvCode {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ
       (∀ j : Fin n, y.mem (bC + n * n + 5 * n + j.val) =
         (hgRed (fun p => (C p : ℤ)) y₀ z₀ r j).toNat) ∧
       (∀ a, ¬(bC + n * n + 5 * n ≤ a ∧ a < bC + n * n + 6 * n) → y.mem a = x.mem a) := by
-  let c : Fin n × Fin n → ℤ := fun p => (C p : ℤ)
   let d := bC + n * n + 5 * n
-  let e : ℕ → ℕ := fun k => if hk : k < n then (hgRed c y₀ z₀ r ⟨k, hk⟩).toNat else 0
-  let P (k : ℕ) (y : Data 28) : Prop :=
-    (∀ i : Fin 28, i.val < 21 → y.regs i = x.regs i) ∧
-      (∀ j < k, y.mem (d + j) = e j) ∧
-      (∀ a, ¬(d ≤ a ∧ a < d + k) → y.mem a = x.mem a)
-  have hbody (y : Data 28) (hy : P (y.regs idx) y) (hlt : y.regs idx < n) :
-      ∃ z, ExecWithin w initMinvBody y z 13 ∧ P (y.regs idx + 1) z ∧
-        z.regs idx = y.regs idx + 1 := by
-    obtain ⟨hr, hm, hf⟩ := hy
-    let j : Fin n := ⟨y.regs idx, hlt⟩
-    have hby : BaseRegs n bC M y := hb.of_eq fun i hi => hr i (by omega)
-    have hrr_y : y.regs rr = r.val := (hr rr (by decide)).trans hr_reg
-    have hmul : r.val * n + y.regs idx < n * n := Cslib.Matrix.pairIndex_lt (r, j)
-    obtain ⟨hle_sub, hsum_le, hred_eq⟩ := hgRed_nat_eq (hCW r j) (hOB.y_bounds r)
-      (hOB.z_bounds j) (hOB.feas r j)
-    have hC_rj : y.mem (bC + (r.val * n + y.regs idx)) = C (r, j) := by
-      rw [hf _ (by omega)]
-      exact hC r j
-    have hnz_j : y.mem (bC + n * n + n + y.regs idx) = (-vget z₀ j).toNat := by
-      rw [hf _ (by omega)]
-      exact hOM.hnz j
-    have hy_r : y.mem (bC + n * n + r.val) = (vget y₀ r).toNat := by
-      rw [hf _ (by omega)]
-      exact hOM.hy r
-    have hf1 : Fits w (r.val * n) := hfit.of_le (by omega)
-    have hf2 : Fits w (r.val * n + y.regs idx) := hfit.of_le (by omega)
-    have hf3 : Fits w (bC + (r.val * n + y.regs idx)) := hfit.of_le (by omega)
-    have hf4 : Fits w (bC + n * n + n + y.regs idx) := hfit.of_le (by omega)
-    have hf5 : Fits w (C (r, j) + (-vget z₀ j).toNat) := hfit.of_le (by omega)
-    have hf6 : Fits w (bC + n * n + r.val) := hfit.of_le (by have := r.isLt; omega)
-    have hf7 : Fits w (C (r, j) + (-vget z₀ j).toNat - (vget y₀ r).toNat) := hfit.of_le (by omega)
-    have hf8 : Fits w (d + y.regs idx) := hfit.of_le (by omega)
-    have hf9 : Fits w (y.regs idx + 1) := hfit.of_le (by omega)
-    have hej : C (r, j) + (-vget z₀ j).toNat - (vget y₀ r).toNat = e (y.regs idx) := by
-      simp only [e, hlt, dite_true]
-      exact hred_eq
-    have hstep : ∃ z, ExecWithin w initMinvBody y z 13 ∧
-        z.mem = Function.update y.mem (d + y.regs idx) (e (y.regs idx)) ∧
-        (∀ i : Fin 28, i.val < 21 → z.regs i = x.regs i) ∧
-        z.regs idx = y.regs idx + 1 := by
-      refine WP.exists_execWithin ?_
-      unfold initMinvBody
-      wram_exec [hrr_y, hby.hrn, hby.hbaseC, hby.hbaseNZ, hby.hbaseY, hby.hbaseMinv, hby.hone,
-        hC_rj, hnz_j, hy_r, hle_sub, hf1, hf2, hf3, hf4, hf5, hf6, hf7, hf8, hf9]
-      refine ⟨?_, fun i hi => by wram_simp [hr i hi], by wram_simp⟩
-      wram_simp [d, hej]
-    obtain ⟨z, he, hmz, hrz, hiz⟩ := hstep
-    obtain ⟨hm', hf'⟩ := prefix_write_step hm hf hmz
-    exact ⟨z, he, ⟨hrz, hm', hf'⟩, hiz⟩
-  obtain ⟨y, he, hr, hm, hf⟩ := exec_forLoop P
-    (fun y hy => (hy.1 rn (by decide)).trans hb.hrn) hbody (x := x)
-    ⟨fun i hi => by wram_simp, fun _ hj => by omega, fun _ _ => rfl⟩
-  refine ⟨y, he.mono (by omega), hr, fun j => ?_, fun a ha => hf a (by simp only [d]; omega)⟩
-  simpa [d, e, j.isLt] using hm j.val j.isLt
+  refine (exec_prefixWriteLoop (T := 13) (d := d) x
+    (fun j => (hgRed (fun p => (C p : ℤ)) y₀ z₀ r j).toNat) hb.hrn (by decide) ?_).imp
+    fun y ⟨he, hr, hm, hf⟩ =>
+      ⟨he.mono (by omega), hr, hm, fun a ha => hf a (by simp only [d]; omega)⟩
+  intro y hr hlt hf
+  set j : Fin n := ⟨y.regs idx, hlt⟩
+  have hby : BaseRegs n bC M y := hb.of_eq fun i hi => hr i (by omega)
+  have hrr_y : y.regs rr = r.val := (hr rr (by decide)).trans hr_reg
+  have hmul : r.val * n + y.regs idx < n * n := Cslib.Matrix.pairIndex_lt (r, j)
+  obtain ⟨hle_sub, hsum_le, hred_eq⟩ := hgRed_nat_eq (hCW r j) (hOB.y_bounds r)
+    (hOB.z_bounds j) (hOB.feas r j)
+  have hC_rj : y.mem (bC + (r.val * n + y.regs idx)) = C (r, j) := by
+    rw [hf _ (by omega)]
+    exact hC r j
+  have hnz_j : y.mem (bC + n * n + n + y.regs idx) = (-vget z₀ j).toNat := by
+    rw [hf _ (by omega)]
+    exact hOM.hnz j
+  have hy_r : y.mem (bC + n * n + r.val) = (vget y₀ r).toNat := by
+    rw [hf _ (by omega)]
+    exact hOM.hy r
+  have hf1 : Fits w (r.val * n) := hfit.of_le (by omega)
+  have hf2 : Fits w (r.val * n + y.regs idx) := hfit.of_le (by omega)
+  have hf3 : Fits w (bC + (r.val * n + y.regs idx)) := hfit.of_le (by omega)
+  have hf4 : Fits w (bC + n * n + n + y.regs idx) := hfit.of_le (by omega)
+  have hf5 : Fits w (C (r, j) + (-vget z₀ j).toNat) := hfit.of_le (by omega)
+  have hf6 : Fits w (bC + n * n + r.val) := hfit.of_le (by have := r.isLt; omega)
+  have hf7 : Fits w (C (r, j) + (-vget z₀ j).toNat - (vget y₀ r).toNat) := hfit.of_le (by omega)
+  have hf8 : Fits w (d + y.regs idx) := hfit.of_le (by omega)
+  have hf9 : Fits w (y.regs idx + 1) := hfit.of_le (by omega)
+  refine WP.exists_execWithin ?_
+  unfold initMinvBody
+  wram_exec [hrr_y, hby.hrn, hby.hbaseC, hby.hbaseNZ, hby.hbaseY, hby.hbaseMinv, hby.hone,
+    hC_rj, hnz_j, hy_r, hle_sub, hf1, hf2, hf3, hf4, hf5, hf6, hf7, hf8, hf9]
+  exact ⟨by wram_simp [d, hred_eq], fun i hi => by wram_simp [hr i hi], by wram_simp⟩
 
 /-- Initialize all phase arrays (`used`, `tree`, `bestRow`, `minv`, and `augmented = 0`). -/
 def initPhaseCode : Code .standard 28 :=
