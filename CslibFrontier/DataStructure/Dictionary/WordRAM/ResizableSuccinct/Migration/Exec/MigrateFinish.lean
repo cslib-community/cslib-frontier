@@ -163,11 +163,10 @@ theorem migrateFinishCode_exec {U V w N_old n base : ℕ}
       reg ∉ ([mFr, mTmpA, mZero, mCur, mIdx, mK, mOne, mRes] : List (Fin rResize)) →
       z₃.regs reg = y_set.regs reg := fun reg h160 hnot => by
     simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hnot
-    obtain ⟨hfr', hta, hz, hcur, hidx, hk, ho, hres⟩ := hnot
-    refine (by dsimp only [z₃, RData.set]; rw [Function.update_of_ne hz] :
-      z₃.regs reg = z₂.regs reg).trans (hkeep_set_2 reg h160 ?_)
-    simp only [List.mem_cons, List.not_mem_nil, or_false, not_or]
-    exact ⟨hfr', hta, hcur, hidx, hk, ho, hres⟩
+    rw [← hkeep_set_2 reg h160 (by simp [hnot])]
+    exact Function.update_of_ne hnot.2.2.1 _ _
+  have hk3 : ∀ reg : Fin rResize, 13 ≤ reg.val ∧ reg.val < 156 → z₃.regs reg = y_set.regs reg :=
+    fun reg h => hkeep_set_to_3 reg (by omega) (by clear * - h; simp [Fin.ext_iff]; omega)
   let d_sa := (((((mkHashParams w (qBits U N_old) (hashB N_old) (totalMicroBits N_old) 3,
       mkCompParams U V w N_old), (base, oldItemDst)),
     ((mkHashParams w (qBits U N_new) (hashB N_new) (totalMicroBits N_new) 3,
@@ -184,16 +183,12 @@ theorem migrateFinishCode_exec {U V w N_old n base : ℕ}
             (regs_pairSrc (regs_reg1_eq mNewMeta ?_) (regs_reg1_eq mArena ?_))))
         (regs_reg1_eq mZero (by simp [z₃, RData.set])))
       (regs_reg1_eq mCnt ?_)).eq
-    · exact (hkeep_set_to_3 _ (mOldHp_lt_160 i) (by clear * -; simp [Fin.ext_iff]; omega)).trans
-        (hr_ohp i)
-    · exact (hkeep_set_to_3 _ (mOldCp_lt_160 i) (by clear * -; simp [Fin.ext_iff]; omega)).trans
-        (hr_ocp i)
+    · exact (hk3 _ (by simp only [val_mOldHp]; omega)).trans (hr_ohp i)
+    · exact (hk3 _ (by simp only [val_mOldCp]; omega)).trans (hr_ocp i)
     · exact (hkeep_set_to_3 _ (mReg_lt_160 _) (by simp)).trans hr_base
     · exact (hkeep_set_to_3 _ (mReg_lt_160 _) (by simp)).trans hr_oid
-    · exact (hkeep_set_to_3 _ (mNewHp_lt_160 i) (by clear * -; simp [Fin.ext_iff]; omega)).trans
-        (hr_nhp i)
-    · exact (hkeep_set_to_3 _ (mNewCp_lt_160 i) (by clear * -; simp [Fin.ext_iff]; omega)).trans
-        (hr_ncp i)
+    · exact (hk3 _ (by simp only [val_mNewHp]; omega)).trans (hr_nhp i)
+    · exact (hk3 _ (by simp only [val_mNewCp]; omega)).trans (hr_ncp i)
     · exact (hkeep_set_to_3 _ (mReg_lt_160 _) (by simp)).trans hr_nm
     · exact (hkeep_set_to_3 _ (mReg_lt_160 _) (by simp)).trans hr_ar
     · exact (hkeep_set_to_3 _ (mReg_lt_160 _) (by simp)).trans hr_cnt
