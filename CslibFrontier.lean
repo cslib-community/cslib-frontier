@@ -7727,6 +7727,8 @@ public import CslibFrontier.Foundations.Analysis.Normed.Ring.PowSub
 public import CslibFrontier.Foundations.Analysis.Normed.UnitSphere
 public import CslibFrontier.Foundations.Analysis.ODE.LinearFlow
 public import CslibFrontier.Foundations.Analysis.ODE.LinearLyapunov
+public import CslibFrontier.Foundations.Analysis.ODE.StateSpace
+public import CslibFrontier.Foundations.Analysis.ODE.VariationOfConstants
 public import CslibFrontier.Foundations.Analysis.RateExponent
 public import CslibFrontier.Foundations.Analysis.ReverseHolder
 public import CslibFrontier.Foundations.Analysis.RootError
