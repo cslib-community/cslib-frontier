@@ -225,15 +225,11 @@ theorem batched_counter_power (T r : ℕ) (hr : r ≤ 2 ^ (k + k)) :
     BitString.equivBitVec (lookupOr (residueKeys k) (residueValues k T) (queries x member))
   have ha (member : Fin r) : wordWires (a member) ⊆ s1 := by
     rintro _ ⟨i, rfl⟩
-    left
-    refine ⟨finProdFinEquiv (member, Fin.castAdd k i), ?_⟩
-    funext x
+    refine .inl ⟨finProdFinEquiv (member, Fin.castAdd k i), funext fun x => ?_⟩
     simp [a, ModulusCounter.leftWord, counterBlock]
   have hb (member : Fin r) : wordWires (b member) ⊆ s1 := by
     rintro _ ⟨i, rfl⟩
-    left
-    refine ⟨finProdFinEquiv (member, Fin.natAdd k i), ?_⟩
-    funext x
+    refine .inl ⟨finProdFinEquiv (member, Fin.natAdd k i), funext fun x => ?_⟩
     simp [b, ModulusCounter.rightWord, counterBlock]
   have hrem (member : Fin r) : wordWires (rem member) ⊆ s1 := by
     rintro _ ⟨i, rfl⟩
@@ -272,14 +268,10 @@ theorem batched_counter_power (T r : ℕ) (hr : r ≤ 2 ^ (k + k)) :
     obtain ⟨⟨member, bit⟩, rfl⟩ := finProdFinEquiv.surjective i
     induction bit using Fin.addCases with
     | left i =>
-      left
-      refine ⟨finProdFinEquiv (member, Fin.castAdd k i), ?_⟩
-      funext x
+      refine .inl ⟨finProdFinEquiv (member, Fin.castAdd k i), funext fun x => ?_⟩
       simp only [counterBatchPower_apply, counterStep_iterate_left, counterBlock]
     | right i =>
-      right
-      refine Set.mem_iUnion.mpr ⟨member, i, ?_⟩
-      funext x
+      refine .inr (Set.mem_iUnion.mpr ⟨member, i, funext fun x => ?_⟩)
       simp only [hspec, counterBatchPower_apply, ModulusCounter.power, ModulusCounter.pack,
         Fin.append_right, BitString.equivBitVec_symm_apply, BitVec.getLsbD_eq_getElem, i.isLt, a, b]
   obtain ⟨out, ho, hsize⟩ := (h.mono Set.Subset.rfl hout le_rfl).exists_circuit_outputs
@@ -290,20 +282,11 @@ theorem batched_counter_power (T r : ℕ) (hr : r ≤ 2 ^ (k + k)) :
   have hM : r + (2 ^ k - 1) + 1 = 2 ^ k + r := by omega
   rw [hM]
   have hc := clog_two_pow_add_le hr
-  have hw : (Nat.clog 2 (r + (2 ^ k - 1)) + 1) ^ 2 * (k + k + 1) ≤ 8 * (k + 1) ^ 3 := by
-    have h2 : Nat.clog 2 (r + (2 ^ k - 1)) + 1 ≤ 2 * (k + 1) := by omega
-    have hsq : (Nat.clog 2 (r + (2 ^ k - 1)) + 1) ^ 2 ≤ (2 * (k + 1)) ^ 2 := by gcongr
-    have hlin : k + k + 1 ≤ 2 * (k + 1) := by omega
-    have hmul := Nat.mul_le_mul hsq hlin
-    nlinarith
-  have hl : 48 * (2 ^ k + r) * (Nat.clog 2 (r + (2 ^ k - 1)) + 1) ^ 2 * (k + k + 1) ≤
-      384 * (k + 1) ^ 3 * (2 ^ k + r) := by
-    calc 48 * (2 ^ k + r) * (Nat.clog 2 (r + (2 ^ k - 1)) + 1) ^ 2 * (k + k + 1)
-        = 48 * (2 ^ k + r) * ((Nat.clog 2 (r + (2 ^ k - 1)) + 1) ^ 2 * (k + k + 1)) := by ring
-      _ ≤ 48 * (2 ^ k + r) * (8 * (k + 1) ^ 3) := Nat.mul_le_mul_left _ hw
-      _ = 384 * (k + 1) ^ 3 * (2 ^ k + r) := by ring
-  have hk : k + 1 ≤ (k + 1) ^ 3 := by
-    simpa using Nat.pow_le_pow_right (show 1 ≤ k + 1 by omega) (show 1 ≤ 3 by omega)
+  have hw : (Nat.clog 2 (r + (2 ^ k - 1)) + 1) ^ 2 * (k + k + 1) ≤ 8 * (k + 1) ^ 3 :=
+    calc _ ≤ (2 * (k + 1)) ^ 2 * (2 * (k + 1)) := by gcongr <;> omega
+      _ = 8 * (k + 1) ^ 3 := by ring
+  have hl := Nat.mul_le_mul_left (48 * (2 ^ k + r)) hw
+  have hk : k + 1 ≤ (k + 1) ^ 3 := Nat.le_self_pow (by norm_num) _
   have hr' := Nat.mul_le_mul_left (100 * r) hk
   nlinarith [Nat.zero_le (2 ^ k * (k + 1) ^ 3), Nat.zero_le (r * (k + 1) ^ 3)]
 
@@ -327,19 +310,16 @@ theorem counterPower_of_batched (T : ℕ) (member : Fin r)
     rw [hc, counterBatchPower_apply]
     congr 1 with b : 1
     simp [counterBlock, init]
-  obtain ⟨out, ho, hs⟩ := (h.mono Set.Subset.rfl hout le_rfl).exists_circuit_outputs
-  exact ⟨out, ho, hs⟩
+  exact (h.mono Set.Subset.rfl hout le_rfl).exists_circuit_outputs
 
 /-- If `ModulusCounter.power T` is not the identity, every block needs its own output gate. -/
 theorem counterBatch_size_ge_of_ne_id (T : ℕ) (hT : ModulusCounter.power (k := k) T ≠ id)
     (c : Circuit signature (r * (k + k)) (r * (k + k)))
     (hc : c.Computes interpretation (counterBatchPower T)) : r ≤ c.size := by
   classical
-  have hex : ∃ y : BitString (k + k), ∃ bit, ModulusCounter.power T y bit ≠ y bit := by
-    by_contra hn
-    push Not at hn
-    exact hT (funext fun y => funext fun bit => hn y bit)
-  obtain ⟨y, bit, hy⟩ := hex
+  obtain ⟨y, bit, hy⟩ : ∃ y : BitString (k + k), ∃ bit, ModulusCounter.power T y bit ≠ y bit := by
+    by_contra! hn
+    exact hT (funext fun y => funext (hn y))
   have hright : ∃ j : Fin k, bit = Fin.natAdd k j := by
     induction bit using Fin.addCases with
     | left i => exact absurd (counterStep_iterate_left T y i) hy
@@ -348,11 +328,7 @@ theorem counterBatch_size_ge_of_ne_id (T : ℕ) (hT : ModulusCounter.power (k :=
   let g : BitString (k + k) → Bool := fun z => ModulusCounter.power T z (Fin.natAdd k j)
   let e : BitVec k := BitVec.twoPow k j.val
   have he (i : Fin k) : e[i.val] = decide (i = j) := by
-    rw [← BitVec.getLsbD_eq_getElem]
-    simp only [e, BitVec.getLsbD_twoPow]
-    by_cases h : i = j
-    · simp [h]
-    · simp [h, Fin.val_ne_of_ne (Ne.symm h)]
+    simp [e, Fin.val_inj, eq_comm]
   have hge : g (ModulusCounter.pack 0 e) = true := by
     change ModulusCounter.power T (ModulusCounter.pack 0 e) (Fin.natAdd k j) = true
     rw [counterStep_iterate_joinState_zero]
