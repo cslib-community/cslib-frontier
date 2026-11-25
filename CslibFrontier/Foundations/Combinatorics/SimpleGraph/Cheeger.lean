@@ -245,11 +245,11 @@ private theorem two_mul_sum_le_sum_abs_sub_of_level {c : ℝ} (w : V → ℝ) (�
         #(G.interedges (univ.filter fun v => ψ u ≤ ψ v) (univ.filter fun v => ψ u ≤ ψ v)ᶜ)) :
     2 * c * ∑ v, ψ v * w v ≤ ∑ e ∈ G.interedges univ univ, |ψ e.1 - ψ e.2| := by
   set T : Finset V := univ.filter fun v => 0 < ψ v
+  have hT_zero : ∀ v ∉ T, ψ v = 0 := fun v hv => by
+    simp only [T, mem_filter, mem_univ, true_and, not_lt] at hv
+    exact le_antisymm hv (hψ v)
   rcases T.eq_empty_or_nonempty with hT | hT_ne
-  · have hzero : ∀ v, ψ v = 0 := fun v => by
-      have hnot : v ∉ T := hT ▸ notMem_empty v
-      simp only [T, mem_filter, mem_univ, true_and, not_lt] at hnot
-      exact le_antisymm hnot (hψ v)
+  · have hzero : ∀ v, ψ v = 0 := fun v => hT_zero v (hT ▸ notMem_empty v)
     simp only [hzero, zero_mul, sum_const_zero, mul_zero, sub_self, abs_zero, le_rfl]
   · obtain ⟨v₀, hv₀T, hmin⟩ := T.exists_min_image ψ hT_ne
     have hv₀_pos : 0 < ψ v₀ := (mem_filter.1 hv₀T).2
@@ -257,15 +257,9 @@ private theorem two_mul_sum_le_sum_abs_sub_of_level {c : ℝ} (w : V → ℝ) (�
       ext v
       simp only [T, mem_filter, mem_univ, true_and]
       exact ⟨fun hv => hmin v (mem_filter.2 ⟨mem_univ v, hv⟩), fun hv => lt_of_lt_of_le hv₀_pos hv⟩
-    have hT_zero : ∀ v ∉ T, ψ v = 0 := fun v hv => by
-      simp only [T, mem_filter, mem_univ, true_and, not_lt] at hv
-      exact le_antisymm hv (hψ v)
     let ψ' : V → ℝ := fun v => if v ∈ T then ψ v - ψ v₀ else 0
     have hψ'_nonneg : ∀ v, 0 ≤ ψ' v := fun v => by
-      by_cases hv : v ∈ T
-      · simp only [ψ', hv, ↓reduceIte, sub_nonneg]
-        exact hmin v hv
-      · simp only [ψ', hv, ↓reduceIte, le_rfl]
+      by_cases hv : v ∈ T <;> simp only [ψ', hv, ↓reduceIte, sub_nonneg, hmin, le_rfl]
     have hsub : (univ.filter fun v => 0 < ψ' v) ⊂ T := by
       rw [ssubset_iff_subset_ne]
       refine ⟨fun v hv => ?_, fun heq => ?_⟩
@@ -287,12 +281,9 @@ private theorem two_mul_sum_le_sum_abs_sub_of_level {c : ℝ} (w : V → ℝ) (�
         simp only [mem_filter, mem_univ, true_and, ψ', huT, ↓reduceIte]
         by_cases hvT : v ∈ T
         · simp only [hvT, ↓reduceIte, sub_le_sub_iff_right]
-        · simp only [hvT, ↓reduceIte]
-          have hv0 : ψ v = 0 := hT_zero v hvT
-          have hnot1 : ¬ (ψ u - ψ v₀ ≤ 0) :=
-            not_le.2 (by simpa only [ψ', huT, ↓reduceIte] using hu')
-          have hnot2 : ¬ (ψ u ≤ ψ v) := by rw [hv0]; exact not_le.2 hu_pos
-          simp only [hnot1, hnot2]
+        · simp only [hvT, ↓reduceIte, hT_zero v hvT]
+          exact iff_of_false (not_le.2 (by simpa only [ψ', huT, ↓reduceIte] using hu'))
+            (not_le.2 hu_pos)
       rw [hset_eq]
       exact hlevel u hu_pos
     have ih := two_mul_sum_le_sum_abs_sub_of_level w ψ' hψ'_nonneg hlevel'
@@ -336,21 +327,13 @@ private theorem four_mul_sq_mul_sum_sq_le {c : ℝ} (hc₀ : 0 ≤ c) (w : V →
           (univ.filter fun v => φ u ^ 2 ≤ φ v ^ 2)ᶜ) := by
     intro u hu2
     have hu : 0 < φ u := by nlinarith [hφ u]
-    have heq : (fun v => φ u ^ 2 ≤ φ v ^ 2) = (fun v => φ u ≤ φ v) := by
-      ext v
-      refine ⟨fun h => ?_, fun h => pow_le_pow_left₀ (hφ u) h 2⟩
-      contrapose! h
-      exact pow_lt_pow_left₀ h (hφ v) two_ne_zero
+    have heq : (fun v => φ u ^ 2 ≤ φ v ^ 2) = (fun v => φ u ≤ φ v) :=
+      funext fun v => propext (pow_le_pow_iff_left₀ (hφ u) (hφ v) two_ne_zero)
     simpa only [heq] using hlevel u hu
   have hco := two_mul_sum_le_sum_abs_sub_of_level G w (fun v => φ v ^ 2) (fun v => sq_nonneg _)
     hlevel_sq
-  have hfact : ∀ e : V × V, |φ e.1 ^ 2 - φ e.2 ^ 2| = |φ e.1 - φ e.2| * (φ e.1 + φ e.2) := by
-    intro e
-    have hsum_nn : 0 ≤ φ e.1 + φ e.2 := add_nonneg (hφ _) (hφ _)
-    calc |φ e.1 ^ 2 - φ e.2 ^ 2|
-        = |(φ e.1 - φ e.2) * (φ e.1 + φ e.2)| := by ring_nf
-      _ = |φ e.1 - φ e.2| * |φ e.1 + φ e.2| := abs_mul _ _
-      _ = |φ e.1 - φ e.2| * (φ e.1 + φ e.2) := by rw [abs_of_nonneg hsum_nn]
+  have hfact : ∀ e : V × V, |φ e.1 ^ 2 - φ e.2 ^ 2| = |φ e.1 - φ e.2| * (φ e.1 + φ e.2) :=
+    fun e => by rw [sq_sub_sq, abs_mul, abs_of_nonneg (add_nonneg (hφ _) (hφ _)), mul_comm]
   have hcs : (∑ e ∈ G.interedges univ univ, |φ e.1 ^ 2 - φ e.2 ^ 2|) ^ 2 ≤
       (∑ e ∈ G.interedges univ univ, (φ e.1 - φ e.2) ^ 2) *
         (∑ e ∈ G.interedges univ univ, (φ e.1 + φ e.2) ^ 2) := by
@@ -970,28 +953,17 @@ theorem normSpectralGap_le_one_of_ne_top {a b : V} (hab : a ≠ b) (hnadj : ¬ G
   have hcross : ∀ e ∈ G.interedges univ univ, f e.1 * f e.2 = 0 := by
     intro ⟨x, y⟩ he
     have hadj : G.Adj x y := (G.mem_interedges_iff.1 he).2.2
+    have hyx : y ≠ x := (G.ne_of_adj hadj).symm
     rcases eq_or_ne x a with rfl | hxa
-    · have hyb : y ≠ b := fun hy => hnadj (hy ▸ hadj)
-      have hyx : y ≠ x := (G.ne_of_adj hadj).symm
-      simp only [f, hyx, hyb, ↓reduceIte, mul_zero]
-    · rcases eq_or_ne x b with rfl | hxb
-      · have hya : y ≠ a := fun hy => hnadj (hy ▸ hadj.symm)
-        have hyx : y ≠ x := (G.ne_of_adj hadj).symm
-        simp only [f, hxa, hya, hyx, ↓reduceIte, mul_zero]
-      · simp only [f, hxa, hxb, ↓reduceIte, zero_mul]
-  have hnum : ∑ e ∈ G.interedges univ univ, (f e.1 - f e.2) ^ 2 =
-      2 * ∑ v, f v ^ 2 * G.degree v := by
-    calc ∑ e ∈ G.interedges univ univ, (f e.1 - f e.2) ^ 2
-        = ∑ e ∈ G.interedges univ univ, (f e.1 ^ 2 + f e.2 ^ 2) := by
-          refine sum_congr rfl fun e he => ?_
-          have hc := hcross e he
-          nlinarith
-      _ = (∑ e ∈ G.interedges univ univ, f e.1 ^ 2) +
-            ∑ e ∈ G.interedges univ univ, f e.2 ^ 2 := sum_add_distrib
-      _ = 2 * ∑ v, f v ^ 2 * G.degree v := by
-          rw [sum_interedges_univ_fst G (fun v => f v ^ 2),
-            sum_interedges_univ_snd G (fun v => f v ^ 2)]
-          ring
+    · simp only [f, hyx, show y ≠ b from fun hy => hnadj (hy ▸ hadj), ↓reduceIte, mul_zero]
+    rcases eq_or_ne x b with rfl | hxb
+    · simp only [f, hxa, hyx, show y ≠ a from fun hy => hnadj (hy ▸ hadj.symm), ↓reduceIte,
+        mul_zero]
+    · simp only [f, hxa, hxb, ↓reduceIte, zero_mul]
+  have hsq : ∀ e ∈ G.interedges univ univ, (f e.1 - f e.2) ^ 2 = f e.1 ^ 2 + f e.2 ^ 2 :=
+    fun e he => by nlinarith [hcross e he]
+  rw [sum_congr rfl hsq, sum_add_distrib, sum_interedges_univ_fst G (fun v => f v ^ 2),
+    sum_interedges_univ_snd G (fun v => f v ^ 2)]
   linarith
 
 end NormalizedLaplacian
@@ -1088,40 +1060,32 @@ private theorem exists_level_cut_of_nonneg {φ : V → ℝ} (hφ : ∀ v, 0 ≤ 
   have hray_eq : G.normRayleigh φ₀ = G.normRayleigh φ := by
     rw [normRayleigh, normRayleigh, G.dotProduct_mulVec_lapMatrix, G.dotProduct_mulVec_lapMatrix,
       hD_eq, hN_eq]
+  have hN_pos : 0 < ∑ v, φ₀ v ^ 2 * G.degree v := hN_eq.symm ▸ hpos
+  -- A vertex where `φ₀` is positive has positive degree, so `φ₀` agrees with `φ` there.
+  have hdeg : ∀ {u}, 0 < φ₀ u → G.degree u ≠ 0 := fun {u} hu hd => by
+    simp only [φ₀, hd, ↓reduceIte, lt_irrefl] at hu
+  have hφ₀_eq : ∀ {u}, 0 < φ₀ u → φ₀ u = φ u := fun hu => by simp only [φ₀, hdeg hu, ↓reduceIte]
   set T₀ : Finset V := univ.filter fun v => 0 < φ₀ v
   have hT₀_ne : T₀.Nonempty := by
-    by_contra hempty
-    rw [not_nonempty_iff_eq_empty] at hempty
-    have hall : ∀ v, φ₀ v = 0 := fun v => by
-      have hv : v ∉ T₀ := hempty ▸ notMem_empty v
-      simp only [T₀, mem_filter, mem_univ, true_and, not_lt] at hv
-      exact le_antisymm hv (hφ₀_nn v)
-    simp only [hall, zero_pow two_ne_zero, zero_mul, sum_const_zero] at hN_eq
-    linarith
-  have hT₀_sub : T₀ ⊆ univ.filter fun v => 0 < φ v := fun v hv => by
-    have hv' : 0 < φ₀ v := (mem_filter.1 hv).2
-    by_cases hd : G.degree v = 0
-    · simp only [φ₀, hd, ↓reduceIte, lt_irrefl] at hv'
-    · simp only [φ₀, hd, ↓reduceIte] at hv'
-      exact mem_filter.2 ⟨mem_univ v, hv'⟩
+    obtain ⟨v, -, hv⟩ := exists_ne_zero_of_sum_ne_zero hN_pos.ne'
+    refine ⟨v, mem_filter.2 ⟨mem_univ v, (hφ₀_nn v).lt_of_ne fun h => hv ?_⟩⟩
+    rw [← h, zero_pow two_ne_zero, zero_mul]
+  have hT₀_sub : T₀ ⊆ univ.filter fun v => 0 < φ v := fun v hv =>
+    mem_filter.2 ⟨mem_univ v, hφ₀_eq (mem_filter.1 hv).2 ▸ (mem_filter.1 hv).2⟩
   let cutOf : V → Finset V := fun u => univ.filter fun v => φ₀ u ≤ φ₀ v
   have hcut_eq : ∀ u ∈ T₀, cutOf u = univ.filter fun v => G.degree v ≠ 0 ∧ φ u ≤ φ v := by
     intro u hu
-    have hu_pos : 0 < φ₀ u := (mem_filter.1 hu).2
-    have hdu : G.degree u ≠ 0 := by
-      intro hd; simp only [φ₀, hd, ↓reduceIte, lt_irrefl] at hu_pos
-    have hu_val : φ₀ u = φ u := by simp only [φ₀, hdu, ↓reduceIte]
+    have hu_val : φ₀ u = φ u := hφ₀_eq (mem_filter.1 hu).2
     ext v
     simp only [cutOf, mem_filter, mem_univ, true_and, hu_val]
     by_cases hdv : G.degree v = 0
     · simp only [φ₀, hdv, ↓reduceIte, ne_eq, not_true_eq_false, false_and, iff_false, not_le]
-      rwa [← hu_val]
+      exact hu_val ▸ (mem_filter.1 hu).2
     · simp only [φ₀, hdv, ↓reduceIte, ne_eq, not_false_eq_true, true_and]
   have hcut_valid : ∀ u ∈ T₀, 0 < G.vol (cutOf u) ∧ 2 * G.vol (cutOf u) ≤ G.totalVol := by
     intro u hu
     have hu_pos : 0 < φ₀ u := (mem_filter.1 hu).2
-    have hdu : 0 < G.degree u := Nat.pos_of_ne_zero fun hd => by
-      simp only [φ₀, hd, ↓reduceIte, lt_irrefl] at hu_pos
+    have hdu : 0 < G.degree u := Nat.pos_of_ne_zero (hdeg hu_pos)
     have hu_in : u ∈ cutOf u := mem_filter.2 ⟨mem_univ u, le_rfl⟩
     have hsub : cutOf u ⊆ T₀ := fun v hv =>
       mem_filter.2 ⟨mem_univ v, lt_of_lt_of_le hu_pos (mem_filter.1 hv).2⟩
@@ -1145,7 +1109,6 @@ private theorem exists_level_cut_of_nonneg {φ : V → ℝ} (hφ : ∀ v, 0 ≤ 
     (fun _ => Nat.cast_nonneg _) φ₀ hφ₀_nn hlevel
   set W := G.normRayleigh φ₀
   set N := ∑ v, φ₀ v ^ 2 * G.degree v
-  have hN_pos : 0 < N := hN_eq.symm ▸ hpos
   have hD_W : ∑ e ∈ G.interedges univ univ, (φ₀ e.1 - φ₀ e.2) ^ 2 = 2 * W * N := by
     have hlap : φ₀ ⬝ᵥ (G.lapMatrix ℝ *ᵥ φ₀) = W * N := by
       simp only [W, normRayleigh, N, div_mul_cancel₀ _ hN_pos.ne']
@@ -1155,18 +1118,10 @@ private theorem exists_level_cut_of_nonneg {φ : V → ℝ} (hφ : ∀ v, 0 ≤ 
   have hc_W : c ^ 2 ≤ W * (2 - W) := by
     have h4N : 0 < 4 * N ^ 2 := by positivity
     nlinarith
-  have hW_nn : 0 ≤ W := G.normRayleigh_nonneg φ₀
   have h1 : 1 - Real.sqrt (1 - c ^ 2) ≤ W := by
-    rcases le_or_gt 1 W with hW1 | hW1
-    · linarith [Real.sqrt_nonneg (1 - c ^ 2)]
-    · have hsub_nn : 0 ≤ 1 - W := by linarith
-      have hsq : (1 - W) ^ 2 ≤ 1 - c ^ 2 := by nlinarith
-      have hle_sqrt : 1 - W ≤ Real.sqrt (1 - c ^ 2) :=
-        (Real.le_sqrt hsub_nn (by nlinarith)).2 hsq
-      linarith
-  have h2 : c ≤ Real.sqrt (2 * W) := by
-    refine (Real.le_sqrt hc₀ (by positivity)).2 ?_
-    nlinarith [sq_nonneg W]
+    linarith [le_abs_self (1 - W), Real.abs_le_sqrt (x := 1 - W) (y := 1 - c ^ 2) (by linarith)]
+  have h2 : c ≤ Real.sqrt (2 * W) :=
+    (le_abs_self c).trans (Real.abs_le_sqrt (by nlinarith [sq_nonneg W]))
   obtain ⟨hv_pos, hv_2⟩ := hcut_valid u_min hu_min
   refine ⟨u_min, ?_⟩
   dsimp only
@@ -1207,17 +1162,11 @@ private theorem exists_weighted_half_rayleigh_le {w f : V → ℝ} (hw : ∀ v, 
     have h1 : N_pos + N_neg = ∑ v, (f v - m) ^ 2 * w v := by
       simp only [N_pos, N_neg, g_pos, g_neg, ← sum_add_distrib, ← add_mul, sq_max_add_sq_max]
     have h2 : ∑ v, (f v - m) ^ 2 * w v =
-        (∑ v, f v ^ 2 * w v) + m ^ 2 * ∑ v, w v := by
-      calc ∑ v, (f v - m) ^ 2 * w v
-          = ∑ v, (f v ^ 2 * w v - 2 * m * (f v * w v) + m ^ 2 * w v) :=
-            sum_congr rfl fun _ _ => by ring
-        _ = (∑ v, f v ^ 2 * w v) - 2 * m * (∑ v, f v * w v) + m ^ 2 * ∑ v, w v := by
-            rw [sum_add_distrib, sum_sub_distrib, ← mul_sum, ← mul_sum]
-        _ = (∑ v, f v ^ 2 * w v) + m ^ 2 * ∑ v, w v := by
-            rw [horth, mul_zero, sub_zero]
-    rw [h1, h2]
-    have hw_nn : 0 ≤ m ^ 2 * ∑ v, w v := mul_nonneg (sq_nonneg m) (sum_nonneg fun v _ => hw v)
-    linarith
+        (∑ v, f v ^ 2 * w v) - 2 * m * (∑ v, f v * w v) + m ^ 2 * ∑ v, w v := by
+      rw [mul_sum, mul_sum, ← sum_sub_distrib, ← sum_add_distrib]
+      exact sum_congr rfl fun _ _ => by ring
+    rw [h1, h2, horth]
+    linarith [mul_nonneg (sq_nonneg m) (sum_nonneg (s := univ) fun v _ => hw v)]
   have hlap_sum : g_pos ⬝ᵥ (G.lapMatrix ℝ *ᵥ g_pos) + g_neg ⬝ᵥ (G.lapMatrix ℝ *ᵥ g_neg) ≤
       f ⬝ᵥ (G.lapMatrix ℝ *ᵥ f) := by
     rw [G.dotProduct_mulVec_lapMatrix, G.dotProduct_mulVec_lapMatrix, G.dotProduct_mulVec_lapMatrix,
@@ -1504,14 +1453,9 @@ theorem exists_card_sweep_cut_le {f : V → ℝ} (horth : ∑ v, f v = 0) (hne :
     (f ⬝ᵥ (G.lapMatrix ℝ *ᵥ f)) / (f ⬝ᵥ f)) at hray1
   set T := univ.filter fun v => 0 < φ v
   have hT_ne : T.Nonempty := by
-    by_contra hempty
-    rw [not_nonempty_iff_eq_empty] at hempty
-    have hall : ∀ v, φ v = 0 := fun v => by
-      have hv : v ∉ T := hempty ▸ notMem_empty v
-      simp only [T, φ, mem_filter, mem_univ, true_and, not_lt] at hv
-      exact le_antisymm hv (le_max_right _ _)
-    simp only [φ] at hall
-    simp only [hall, zero_pow two_ne_zero, sum_const_zero, lt_irrefl] at hgt1
+    obtain ⟨v, -, hv⟩ := exists_ne_zero_of_sum_ne_zero hgt1.ne'
+    exact ⟨v, mem_filter.2 ⟨mem_univ v,
+      (le_max_right _ _).lt_of_ne ((pow_ne_zero_iff two_ne_zero).mp hv).symm⟩⟩
   let cutOf : V → Finset V := fun u => univ.filter fun v => φ u ≤ φ v
   obtain ⟨u_min, hu_min, hmin_c⟩ :=
     T.exists_min_image (fun u => (#(G.interedges (cutOf u) (cutOf u)ᶜ) : ℝ) / #(cutOf u)) hT_ne
@@ -1560,12 +1504,10 @@ theorem exists_card_sweep_cut_le {f : V → ℝ} (horth : ∑ v, f v = 0) (hne :
     ext v
     simp only [cutOf, hgu, φ, mem_filter, mem_univ, true_and, le_max_iff]
     exact ⟨fun h => by rcases h with h | h <;> linarith, fun h => Or.inl h⟩
+  refine ⟨cutOf u_min, ?_, hne_S, h2_S, hc_bound⟩
   rcases hd_cases with rfl | rfl
-  · exact ⟨cutOf u_min, Or.inl ⟨f u_min, by simpa only [sub_le_sub_iff_right] using hS_eq⟩,
-      hne_S, h2_S, hc_bound⟩
-  · exact ⟨cutOf u_min,
-      Or.inr ⟨f u_min, by simpa only [neg_le_neg_iff, sub_le_sub_iff_right] using hS_eq⟩,
-      hne_S, h2_S, hc_bound⟩
+  · exact Or.inl ⟨f u_min, by simpa only [sub_le_sub_iff_right] using hS_eq⟩
+  · exact Or.inr ⟨f u_min, by simpa only [neg_le_neg_iff, sub_le_sub_iff_right] using hS_eq⟩
 
 omit [DecidableEq V] G [DecidableRel G.Adj] in
 private theorem nonempty_zeroSum_of_nontrivial [Nontrivial V] :
