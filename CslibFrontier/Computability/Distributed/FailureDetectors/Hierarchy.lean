@@ -189,13 +189,8 @@ theorem exists_stabilize [Finite P] (F : FailurePattern P) :
   let t₀ := (Finset.univ : Finset P).sup cTime
   refine ⟨t₀, fun t ht => ?_⟩
   have hcrashed : ∀ p, p ∈ F t ↔ p ∈ F.Crashed := fun p => by
-    constructor
-    · exact fun hp => ⟨t, hp⟩
-    · intro hp
-      have hspec : p ∈ F hp.choose := hp.choose_spec
-      have hle : hp.choose ≤ t₀ := by
-        simpa only [cTime, hp, ↓reduceDIte] using Finset.le_sup (f := cTime) (Finset.mem_univ p)
-      exact F.mem_of_le (hle.trans ht) hspec
+    refine ⟨fun hp => ⟨t, hp⟩, fun hp => F.mem_of_le (le_trans ?_ ht) hp.choose_spec⟩
+    simpa only [cTime, hp, ↓reduceDIte] using Finset.le_sup (f := cTime) (Finset.mem_univ p)
   refine ⟨hcrashed, fun p => ?_⟩
   rw [hcrashed p, ← mem_correct_iff_notMem_crashed]
 
@@ -209,18 +204,14 @@ theorem card_correct_ge_of_card_le [Fintype P] (F : FailurePattern P) {bound : �
   refine ⟨Finset.univ \ F t₀, ?_, ?_⟩
   · ext p
     simp only [mem_coe, Finset.mem_sdiff, Finset.mem_univ, true_and, (ht₀ t₀ le_rfl).2]
-  · have hsub : F t₀ ⊆ Finset.univ := Finset.subset_univ _
-    have hcard := Finset.card_sdiff_add_card_eq_card hsub
-    have hle := hF t₀
-    simp only [Finset.card_univ] at hcard
-    omega
+  · rw [Finset.card_univ_sdiff]
+    exact Nat.sub_le_sub_left (hF t₀) _
 
 theorem correct_nonempty_of_card_lt [Fintype P] (F : FailurePattern P) {bound : ℕ}
     (hF : ∀ t, (F t).card ≤ bound) (hlt : bound < Fintype.card P) :
     F.Correct.Nonempty := by
   obtain ⟨C, hC, hcard⟩ := F.card_correct_ge_of_card_le hF
-  have hpos : 0 < C.card := by omega
-  obtain ⟨p, hp⟩ := Finset.card_pos.mp hpos
+  obtain ⟨p, hp⟩ := Finset.card_pos.mp (by omega : 0 < C.card)
   exact ⟨p, hC ▸ hp⟩
 
 end FailurePattern
@@ -273,14 +264,12 @@ equivalence noted in [Chandra and Toueg, §2.3, p. 233][ChandraToueg1996]): quan
 theorem eventualStrongAccuracy_iff_alive [Finite P] (F : FailurePattern P)
     (H : DetectorHistory P) :
     EventualStrongAccuracy F H ↔ ∃ t, ∀ t', t ≤ t' → ∀ p ∉ F t', ∀ q ∉ F t', p ∉ H q t' := by
-  constructor
-  · rintro ⟨t₁, ht₁⟩
-    obtain ⟨t₀, ht₀⟩ := F.exists_stabilize
-    refine ⟨max t₁ t₀, fun t' ht' p hp q hq => ?_⟩
-    have hstab := (ht₀ t' ((le_max_right t₁ t₀).trans ht')).2
-    exact ht₁ t' ((le_max_left t₁ t₀).trans ht') p (hstab p |>.mp hp) q (hstab q |>.mp hq)
-  · rintro ⟨t, ht⟩
-    exact ⟨t, fun t' ht' p hp q hq => ht t' ht' p (hp t') q (hq t')⟩
+  refine ⟨fun ⟨t₁, ht₁⟩ => ?_,
+    fun ⟨t, ht⟩ => ⟨t, fun t' ht' p hp q hq => ht t' ht' p (hp t') q (hq t')⟩⟩
+  obtain ⟨t₀, ht₀⟩ := F.exists_stabilize
+  refine ⟨max t₁ t₀, fun t' ht' p hp q hq => ?_⟩
+  have hstab := (ht₀ t' ((le_max_right t₁ t₀).trans ht')).2
+  exact ht₁ t' ((le_max_left t₁ t₀).trans ht') p (hstab p |>.mp hp) q (hstab q |>.mp hq)
 
 /-- Interface characterization of `EventualWeakAccuracy` on finite `P` (analogous to
 `eventualStrongAccuracy_iff_alive`, [Chandra and Toueg, §2.3, p. 233][ChandraToueg1996]):
@@ -290,52 +279,48 @@ theorem eventualWeakAccuracy_iff_alive [Finite P] (F : FailurePattern P)
     (H : DetectorHistory P) :
     EventualWeakAccuracy F H ↔
       ∃ t, ∃ p ∈ F.Correct, ∀ t', t ≤ t' → ∀ q ∉ F t', p ∉ H q t' := by
-  constructor
-  · rintro ⟨t₁, p, hp, ht₁⟩
-    obtain ⟨t₀, ht₀⟩ := F.exists_stabilize
-    refine ⟨max t₁ t₀, p, hp, fun t' ht' q hq => ?_⟩
-    have hstab := (ht₀ t' ((le_max_right t₁ t₀).trans ht')).2
-    exact ht₁ t' ((le_max_left t₁ t₀).trans ht') q (hstab q |>.mp hq)
-  · rintro ⟨t, p, hp, ht⟩
-    exact ⟨t, p, hp, fun t' ht' q hq => ht t' ht' q (hq t')⟩
+  refine ⟨fun ⟨t₁, p, hp, ht₁⟩ => ?_,
+    fun ⟨t, p, hp, ht⟩ => ⟨t, p, hp, fun t' ht' q hq => ht t' ht' q (hq t')⟩⟩
+  obtain ⟨t₀, ht₀⟩ := F.exists_stabilize
+  refine ⟨max t₁ t₀, p, hp, fun t' ht' q hq => ?_⟩
+  have hstab := (ht₀ t' ((le_max_right t₁ t₀).trans ht')).2
+  exact ht₁ t' ((le_max_left t₁ t₀).trans ht') q (hstab q |>.mp hq)
 
 /-! #### Implications among completeness and accuracy properties -/
 
 theorem StrongCompleteness.toWeak {F : FailurePattern P} {H : DetectorHistory P}
-    (h : StrongCompleteness F H) (hcorr : F.Correct.Nonempty) : WeakCompleteness F H := by
-  obtain ⟨t, ht⟩ := h
-  obtain ⟨q₀, hq₀⟩ := hcorr
-  exact ⟨t, fun p hp => ⟨q₀, hq₀, ht p hp q₀ hq₀⟩⟩
+    (h : StrongCompleteness F H) (hcorr : F.Correct.Nonempty) : WeakCompleteness F H :=
+  let ⟨q₀, hq₀⟩ := hcorr
+  h.imp fun _ ht p hp => ⟨q₀, hq₀, ht p hp q₀ hq₀⟩
 
 theorem StrongAccuracy.toWeak {F : FailurePattern P} {H : DetectorHistory P}
-    (h : StrongAccuracy F H) (hcorr : F.Correct.Nonempty) : WeakAccuracy F H := by
-  obtain ⟨p₀, hp₀⟩ := hcorr
-  exact ⟨p₀, hp₀, fun t q hq => h t p₀ (hp₀ t) q hq⟩
+    (h : StrongAccuracy F H) (hcorr : F.Correct.Nonempty) : WeakAccuracy F H :=
+  let ⟨p₀, hp₀⟩ := hcorr
+  ⟨p₀, hp₀, fun t q hq => h t p₀ (hp₀ t) q hq⟩
 
 theorem StrongAccuracy.toEventualStrong {F : FailurePattern P} {H : DetectorHistory P}
     (h : StrongAccuracy F H) : EventualStrongAccuracy F H :=
   ⟨0, fun t' _ p hp q hq => h t' p (hp t') q (hq t')⟩
 
 theorem WeakAccuracy.toEventualWeak {F : FailurePattern P} {H : DetectorHistory P}
-    (h : WeakAccuracy F H) : EventualWeakAccuracy F H := by
-  obtain ⟨p, hp, hns⟩ := h
-  exact ⟨0, p, hp, fun t' _ q hq => hns t' q (hq t')⟩
+    (h : WeakAccuracy F H) : EventualWeakAccuracy F H :=
+  let ⟨p, hp, hns⟩ := h
+  ⟨0, p, hp, fun t' _ q hq => hns t' q (hq t')⟩
 
 theorem WeakAccuracy.correct_nonempty {F : FailurePattern P} {H : DetectorHistory P}
-    (h : WeakAccuracy F H) : F.Correct.Nonempty := by
-  obtain ⟨p, hp, _⟩ := h
-  exact ⟨p, hp⟩
+    (h : WeakAccuracy F H) : F.Correct.Nonempty :=
+  h.imp fun _ => And.left
 
 theorem EventualWeakAccuracy.correct_nonempty {F : FailurePattern P} {H : DetectorHistory P}
-    (h : EventualWeakAccuracy F H) : F.Correct.Nonempty := by
-  obtain ⟨_, p, hp, _⟩ := h
-  exact ⟨p, hp⟩
+    (h : EventualWeakAccuracy F H) : F.Correct.Nonempty :=
+  let ⟨_, p, hp, _⟩ := h
+  ⟨p, hp⟩
 
 theorem EventualStrongAccuracy.toEventualWeak {F : FailurePattern P} {H : DetectorHistory P}
-    (h : EventualStrongAccuracy F H) (hcorr : F.Correct.Nonempty) : EventualWeakAccuracy F H := by
-  obtain ⟨t, ht⟩ := h
-  obtain ⟨p₀, hp₀⟩ := hcorr
-  exact ⟨t, p₀, hp₀, fun t' ht' q hq => ht t' ht' p₀ hp₀ q hq⟩
+    (h : EventualStrongAccuracy F H) (hcorr : F.Correct.Nonempty) : EventualWeakAccuracy F H :=
+  let ⟨t, ht⟩ := h
+  let ⟨p₀, hp₀⟩ := hcorr
+  ⟨t, p₀, hp₀, fun t' ht' q hq => ht t' ht' p₀ hp₀ q hq⟩
 
 /-! ### The eight Chandra–Toueg failure detector classes -/
 
@@ -506,41 +491,21 @@ instance (a b : DetectorClass) : Decidable (a ≤ b) :=
 
 instance : DistribLattice DetectorClass where
   sup a b := ofCube (toCube a ⊔ toCube b)
-  le_sup_left a b := by
-    change toCube a ≤ toCube (ofCube (toCube a ⊔ toCube b))
-    rw [toCube_ofCube]
-    exact le_sup_left
-  le_sup_right a b := by
-    change toCube b ≤ toCube (ofCube (toCube a ⊔ toCube b))
-    rw [toCube_ofCube]
-    exact le_sup_right
-  sup_le a b c hac hbc := by
-    change toCube (ofCube (toCube a ⊔ toCube b)) ≤ toCube c
-    rw [toCube_ofCube]
-    exact sup_le hac hbc
+  le_sup_left a b := by change toCube a ≤ _; rw [toCube_ofCube]; exact le_sup_left
+  le_sup_right a b := by change toCube b ≤ _; rw [toCube_ofCube]; exact le_sup_right
+  sup_le a b c hac hbc := by change _ ≤ toCube c; rw [toCube_ofCube]; exact sup_le hac hbc
   inf a b := ofCube (toCube a ⊓ toCube b)
-  inf_le_left a b := by
-    change toCube (ofCube (toCube a ⊓ toCube b)) ≤ toCube a
-    rw [toCube_ofCube]
-    exact inf_le_left
-  inf_le_right a b := by
-    change toCube (ofCube (toCube a ⊓ toCube b)) ≤ toCube b
-    rw [toCube_ofCube]
-    exact inf_le_right
-  le_inf a b c hab hac := by
-    change toCube a ≤ toCube (ofCube (toCube b ⊓ toCube c))
-    rw [toCube_ofCube]
-    exact le_inf hab hac
+  inf_le_left a b := by change _ ≤ toCube a; rw [toCube_ofCube]; exact inf_le_left
+  inf_le_right a b := by change _ ≤ toCube b; rw [toCube_ofCube]; exact inf_le_right
+  le_inf a b c hab hac := by change toCube a ≤ _; rw [toCube_ofCube]; exact le_inf hab hac
   le_sup_inf a b c := by
     cases a <;> cases b <;> cases c <;> decide
 
 instance : BoundedOrder DetectorClass where
   top := .EW
-  le_top a := by
-    cases a <;> decide
+  le_top a := by cases a <;> decide
   bot := .P
-  bot_le a := by
-    cases a <;> decide
+  bot_le a := by cases a <;> decide
 
 @[simp]
 theorem bot_eq : (⊥ : DetectorClass) = .P := rfl
@@ -567,57 +532,12 @@ pattern (`F.Correct.Nonempty`), `c₁ ≤ c₂` implies `c₁.Sat F H → c₂.S
 theorem sat_mono {P : Type*} {c₁ c₂ : DetectorClass} (hle : c₁ ≤ c₂)
     {F : FailurePattern P} (hcorr : F.Correct.Nonempty) {H : DetectorHistory P}
     (hsat : c₁.Sat F H) : c₂.Sat F H := by
-  cases c₁ with
-  | P =>
-    cases c₂ with
-    | P => exact hsat
-    | S => exact IsPerfect.toStrong hsat hcorr
-    | EP => exact IsPerfect.toEventuallyPerfect hsat
-    | ES => exact (IsPerfect.toStrong hsat hcorr).toEventuallyStrong
-    | Q => exact IsPerfect.toQuasiPerfect hsat hcorr
-    | W => exact (IsPerfect.toStrong hsat hcorr).toWeak
-    | EQ => exact (IsPerfect.toQuasiPerfect hsat hcorr).toEventuallyQuasiPerfect
-    | EW => exact ((IsPerfect.toStrong hsat hcorr).toEventuallyStrong).toEventuallyWeak
-  | S =>
-    cases c₂ with
-    | S => exact hsat
-    | ES => exact IsStrong.toEventuallyStrong hsat
-    | W => exact IsStrong.toWeak hsat
-    | EW => exact (IsStrong.toEventuallyStrong hsat).toEventuallyWeak
-    | P | EP | Q | EQ => exact absurd hle (by decide)
-  | EP =>
-    cases c₂ with
-    | EP => exact hsat
-    | ES => exact IsEventuallyPerfect.toEventuallyStrong hsat hcorr
-    | EQ => exact IsEventuallyPerfect.toEventuallyQuasiPerfect hsat hcorr
-    | EW => exact (IsEventuallyPerfect.toEventuallyStrong hsat hcorr).toEventuallyWeak
-    | P | S | Q | W => exact absurd hle (by decide)
-  | ES =>
-    cases c₂ with
-    | ES => exact hsat
-    | EW => exact IsEventuallyStrong.toEventuallyWeak hsat
-    | P | S | EP | Q | W | EQ => exact absurd hle (by decide)
-  | Q =>
-    cases c₂ with
-    | Q => exact hsat
-    | W => exact IsQuasiPerfect.toWeak hsat hcorr
-    | EQ => exact IsQuasiPerfect.toEventuallyQuasiPerfect hsat
-    | EW => exact (IsQuasiPerfect.toWeak hsat hcorr).toEventuallyWeak
-    | P | S | EP | ES => exact absurd hle (by decide)
-  | W =>
-    cases c₂ with
-    | W => exact hsat
-    | EW => exact IsWeak.toEventuallyWeak hsat
-    | P | S | EP | ES | Q | EQ => exact absurd hle (by decide)
-  | EQ =>
-    cases c₂ with
-    | EQ => exact hsat
-    | EW => exact IsEventuallyQuasiPerfect.toEventuallyWeak hsat hcorr
-    | P | S | EP | ES | Q | W => exact absurd hle (by decide)
-  | EW =>
-    cases c₂ with
-    | EW => exact hsat
-    | P | S | EP | ES | Q | W | EQ => exact absurd hle (by decide)
+  -- Weaken the completeness and accuracy components separately.
+  cases c₁ <;> cases c₂ <;> (try exact absurd hle (by decide)) <;>
+    obtain ⟨hc, ha⟩ := hsat <;> refine ⟨by first | exact hc | exact hc.toWeak hcorr, ?_⟩ <;>
+    first
+      | exact ha | exact ha.toWeak hcorr | exact ha.toEventualStrong | exact ha.toEventualWeak
+      | exact ha.toEventualWeak hcorr | exact (ha.toWeak hcorr).toEventualWeak
 
 end DetectorClass
 
@@ -638,12 +558,8 @@ theorem weakCompleteness_iff_strongCompleteness_of_card_le_two {P : Type*} [Fint
     classical
     have hqp : q ≠ p := fun heq => F.mem_correct_iff_notMem_crashed q |>.mp hq (heq ▸ hp)
     have hq'p : q' ≠ p := fun heq => F.mem_correct_iff_notMem_crashed q' |>.mp hq' (heq ▸ hp)
-    have hthree : 3 ≤ ({q, q', p} : Finset P).card := by
-      rw [Finset.card_insert_of_notMem, Finset.card_insert_of_notMem, Finset.card_singleton]
-      · simp only [Finset.mem_singleton]
-        exact hq'p
-      · simp only [Finset.mem_insert, Finset.mem_singleton, not_or]
-        exact ⟨hne, hqp⟩
+    have hthree : ({q, q', p} : Finset P).card = 3 :=
+      Finset.card_eq_three.mpr ⟨q, q', p, hne, hqp, hq'p, rfl⟩
     have hle := Finset.card_le_univ ({q, q', p} : Finset P)
     omega
   exact hsub ▸ hsusp t' ht'
@@ -660,15 +576,10 @@ theorem exists_isEventuallyPerfect_not_isWeakAccuracy {P : Type*} [Finite P] [No
   let H : DetectorHistory P := fun _ t => if t = 0 then Finset.univ else ∅
   obtain ⟨p₀⟩ := ‹Nonempty P›
   have hcorr : F.Correct.Nonempty := ⟨p₀, by simp [F]⟩
-  refine ⟨F, H, hcorr, ⟨?_, ?_⟩, ?_⟩
-  · refine ⟨0, fun p hp => ?_⟩
-    simp only [F, FailurePattern.crashed_const, coe_empty, Set.mem_empty_iff_false] at hp
-  · refine ⟨1, fun t' ht' p _ q _ => ?_⟩
-    have hne : t' ≠ 0 := by omega
-    simp only [H, hne, ↓reduceIte, notMem_empty, not_false_eq_true]
-  · rintro ⟨p, _, hns⟩
-    have h0 := hns 0 p (by simp [F])
-    simp only [H, ↓reduceIte, mem_univ, not_true_eq_false] at h0
+  exact ⟨F, H, hcorr,
+    ⟨⟨0, fun p hp => by simp [F] at hp⟩,
+     ⟨1, fun t' ht' _ _ _ _ => by simp [H, Nat.ne_of_gt ht']⟩⟩,
+    fun ⟨p, _, hns⟩ => by simpa [H] using hns 0 p (by simp [F])⟩
 
 /-- **Original raw-history coatom witness 2 (`S \ ◇Q`):** on any `[Nontrivial P]`, permanently
 suspecting one fixed correct process `p₁` while never suspecting a distinct correct process
@@ -683,15 +594,9 @@ theorem exists_isStrong_not_isEventualStrongAccuracy {P : Type*} [Nontrivial P] 
   let H : DetectorHistory P := fun _ _ => {p₁}
   have hp₀ : p₀ ∈ F.Correct := by simp [F]
   have hp₁ : p₁ ∈ F.Correct := by simp [F]
-  refine ⟨F, H, ⟨p₀, hp₀⟩, ⟨?_, ?_⟩, ?_⟩
-  · refine ⟨0, fun p hp => ?_⟩
-    simp only [F, FailurePattern.crashed_const, coe_empty, Set.mem_empty_iff_false] at hp
-  · refine ⟨p₀, hp₀, fun t q _ => ?_⟩
-    simp only [H, mem_singleton]
-    exact hne
-  · rintro ⟨t, ht⟩
-    have hmem := ht t le_rfl p₁ hp₁ p₀ hp₀
-    simp only [H, mem_singleton, not_true_eq_false] at hmem
+  exact ⟨F, H, ⟨p₀, hp₀⟩,
+    ⟨⟨0, fun p hp => by simp [F] at hp⟩, ⟨p₀, hp₀, fun _ _ _ => mem_singleton.not.mpr hne⟩⟩,
+    fun ⟨t, ht⟩ => by simpa [H] using ht t le_rfl p₁ hp₁ p₀ hp₀⟩
 
 /-- **Original raw-history coatom witness 3 (`Q \ ◇S`):** when `3 ≤ Fintype.card P`, crashing one
 process `f` while one correct process `c₁` permanently suspects `f` and a second correct process
@@ -706,18 +611,9 @@ theorem exists_isQuasiPerfect_not_isStrongCompleteness {P : Type*} [Fintype P]
   let c₁ : P := e.symm ⟨0, by omega⟩
   let c₂ : P := e.symm ⟨1, by omega⟩
   let f : P := e.symm ⟨2, by omega⟩
-  have hc₁f : c₁ ≠ f := fun h => by
-    have := congrArg e h
-    simp only [c₁, f, Equiv.apply_symm_apply, Fin.mk.injEq] at this
-    omega
-  have hc₂f : c₂ ≠ f := fun h => by
-    have := congrArg e h
-    simp only [c₂, f, Equiv.apply_symm_apply, Fin.mk.injEq] at this
-    omega
-  have hc₂c₁ : c₂ ≠ c₁ := fun h => by
-    have := congrArg e h
-    simp only [c₁, c₂, Equiv.apply_symm_apply, Fin.mk.injEq] at this
-    omega
+  have hc₁f : c₁ ≠ f := e.symm.injective.ne (by simp)
+  have hc₂f : c₂ ≠ f := e.symm.injective.ne (by simp)
+  have hc₂c₁ : c₂ ≠ c₁ := e.symm.injective.ne (by simp)
   let F : FailurePattern P := FailurePattern.const {f}
   let H : DetectorHistory P := fun q _ => if q = c₁ then {f} else ∅
   have hc₁ : c₁ ∈ F.Correct := by simp [F, hc₁f]
@@ -725,14 +621,11 @@ theorem exists_isQuasiPerfect_not_isStrongCompleteness {P : Type*} [Fintype P]
   have hf : f ∈ F.Crashed := by simp [F]
   refine ⟨F, H, ⟨c₁, hc₁⟩, ⟨?_, ?_⟩, ?_⟩
   · refine ⟨0, fun p hp => ?_⟩
-    have hpf : p = f := by simpa [F] using hp
-    subst hpf
+    obtain rfl : p = f := by simpa [F] using hp
     exact ⟨c₁, hc₁, fun t' _ => by simp [H]⟩
   · intro t p hp q _
     have hpf : p ≠ f := by simpa [F] using hp
-    by_cases hqc₁ : q = c₁
-    · simp [H, hqc₁, hpf]
-    · simp [H, hqc₁]
+    by_cases hqc₁ : q = c₁ <;> simp [H, hqc₁, hpf]
   · rintro ⟨t, ht⟩
     have hmem := ht f hf c₂ hc₂ t le_rfl
     simp only [H, hc₂c₁, ↓reduceIte, notMem_empty] at hmem

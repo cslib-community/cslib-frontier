@@ -127,7 +127,10 @@ private theorem mem_foldl_elim {α β : Type*} [DecidableEq β] (f : α → Opti
     rw [List.foldl_cons, ih]
     cases h : f r with
     | none => simp [h]
-    | some c => simp only [Option.elim_some, List.mem_insert_iff]; grind
+    | some c =>
+      simp only [Option.elim_some, List.mem_insert_iff, List.mem_cons, exists_eq_or_imp, h,
+        Option.some.injEq, eq_comm (a := c)]
+      tauto
 
 omit [DecidableEq T] [DecidableEq G.NT] in
 private theorem nodup_foldl_elim {α β : Type*} [DecidableEq β] (f : α → Option β) (l : List α)
@@ -137,10 +140,9 @@ private theorem nodup_foldl_elim {α β : Type*} [DecidableEq β] (f : α → Op
   | nil => exact h
   | cons r l ih =>
     rw [List.foldl_cons]
-    refine ih ?_
     cases f r with
-    | none => exact h
-    | some c => exact h.insert
+    | none => exact ih h
+    | some _ => exact ih h.insert
 
 omit [DecidableEq T] in
 /-- A scan adds exactly the matches of the rules. -/
@@ -156,18 +158,15 @@ theorem nodup_scan {f : ChomskyNormalFormRule T G.NT → Option G.NT} {acc : Lis
 
 theorem mem_leafCell {i : ℕ} {A : G.NT} :
     A ∈ leafCell G w i ↔ ∃ a, w[i]? = some a ∧ leaf A a ∈ G.rules := by
-  rw [leafCell, mem_scan]
+  simp only [leafCell, mem_scan, List.not_mem_nil, false_or]
   constructor
-  · rintro (h | ⟨r, hr, h⟩)
-    · simp at h
-    · cases r with
-      | leaf B a =>
-        simp only [leafMatch, Option.ite_none_right_eq_some, Option.some.injEq] at h
-        obtain ⟨h, rfl⟩ := h
-        exact ⟨a, h, hr⟩
-      | node => simp [leafMatch] at h
+  · rintro ⟨⟨B, a⟩ | ⟨_, _, _⟩, hr, h⟩
+    · obtain ⟨ha, rfl⟩ := by
+        simpa only [leafMatch, Option.ite_none_right_eq_some, Option.some.injEq] using h
+      exact ⟨a, ha, hr⟩
+    · cases h
   · rintro ⟨a, h, hr⟩
-    exact Or.inr ⟨leaf A a, hr, by simp [leafMatch, h]⟩
+    exact ⟨leaf A a, hr, by simp [leafMatch, h]⟩
 
 omit [DecidableEq T] in
 theorem mem_nodeCell {tbl : Table G} {i l : ℕ} {A : G.NT} :
@@ -225,32 +224,9 @@ theorem level_apply (tbl : Table G) (l i' l' : ℕ) :
 /-- Once level `l` has been filled (`l ≤ L`), cells of length `l` are unchanged by later levels. -/
 theorem table_eq_of_le {l L : ℕ} (hl : l ≤ L) (i : ℕ) :
     table G w L i l = table G w l i l := by
-  induction L with
-  | zero =>
-    obtain rfl : l = 0 := by omega
-    rfl
-  | succ L ih =>
-    rcases eq_or_lt_of_le hl with rfl | hlt
-    · rfl
-    · rw [table, level_apply, ite_eq_right (fun h => by omega), ih (by omega)]
-
-omit [DecidableEq T] [DecidableEq G.NT] in
-private theorem exists_split_iff {s : List T} {P : List T → List T → Prop} :
-    (∃ u v, u ≠ [] ∧ v ≠ [] ∧ s = u ++ v ∧ P u v) ↔
-      ∃ k < s.length - 1, P (s.take (k + 1)) (s.drop (k + 1)) := by
-  constructor
-  · rintro ⟨u, v, hu, hv, rfl, h⟩
-    have hu' := List.length_pos_of_ne_nil hu
-    have hv' := List.length_pos_of_ne_nil hv
-    refine ⟨u.length - 1, by simp only [List.length_append]; omega, ?_⟩
-    rw [Nat.sub_add_cancel hu', List.take_left, List.drop_left]
-    exact h
-  · rintro ⟨k, hk, h⟩
-    refine ⟨_, _, ?_, ?_, (List.take_append_drop (k + 1) s).symm, h⟩
-    · simp only [ne_eq, List.take_eq_nil_iff, not_or]
-      exact ⟨by omega, List.ne_nil_of_length_pos (by omega)⟩
-    · simp only [ne_eq, List.drop_eq_nil_iff, not_le]
-      omega
+  induction hl with
+  | refl => rfl
+  | step hm ih => rw [table, level_apply, ite_eq_right (fun h => (Nat.lt_succ_of_le hm).ne h.1), ih]
 
 /-- The cell of length `L + 1` at `i` lists exactly the nonterminals deriving the subword, given
 that the table is correct for all shorter subwords. -/
@@ -261,19 +237,17 @@ private theorem mem_cell_iff {tbl : Table G} {L i : ℕ} (hi : i + (L + 1) ≤ w
     A ∈ cell G w tbl i (L + 1) ↔
       G.toCFG.Derives [.nonterminal A] (((w.drop i).take (L + 1)).map .terminal) := by
   set s := (w.drop i).take (L + 1) with hs
-  have hlen : s.length = L + 1 := by grind
+  have hlen : s.length = L + 1 := by simp only [hs, List.length_take, List.length_drop]; omega
   have hne : s ≠ [] := List.ne_nil_of_length_pos (by omega)
   rw [derives_iff_of_ne_nil hne]
   rcases L with _ | L
   · -- a single letter
-    have hsi : s = [w[i]] := by
-      rw [hs, List.drop_eq_getElem_cons (by omega)]
-      rfl
+    have hsi : s = [w[i]] := by rw [hs, List.drop_eq_getElem_cons (by omega)]; rfl
     rw [cell, ite_eq_left rfl, mem_leafCell, List.getElem?_eq_getElem (by omega)]
     constructor
     · rintro ⟨a, ha, hr⟩
       exact Or.inl ⟨a, by rw [hsi, Option.some.inj ha], hr⟩
-    · rintro (⟨a, ha, hr⟩ | ⟨B, C, u, v, -, hu, hv, huv, -⟩)
+    · rintro (⟨a, ha, hr⟩ | ⟨_, _, u, v, -, hu, hv, huv, -⟩)
       · rw [hsi, List.singleton_inj] at ha
         exact ⟨a, by rw [ha], hr⟩
       · have := congrArg List.length huv
@@ -283,32 +257,39 @@ private theorem mem_cell_iff {tbl : Table G} {L i : ℕ} (hi : i + (L + 1) ≤ w
         omega
   · -- at least two letters
     rw [cell, ite_eq_right (by omega), mem_nodeCell]
-    have hleft : ¬ ∃ a, s = [a] ∧ leaf A a ∈ G.rules := by
-      rintro ⟨a, ha, -⟩
-      rw [ha, List.length_singleton] at hlen
-      omega
+    have hleft : ¬ ∃ a, s = [a] ∧ leaf A a ∈ G.rules := fun ⟨a, ha, _⟩ => by
+      rw [ha, List.length_singleton] at hlen; omega
     rw [or_iff_right hleft]
-    have e : (∃ B C u v, node A B C ∈ G.rules ∧ u ≠ [] ∧ v ≠ [] ∧ s = u ++ v ∧
-          G.toCFG.Derives [.nonterminal B] (u.map .terminal) ∧
-          G.toCFG.Derives [.nonterminal C] (v.map .terminal)) ↔
-        ∃ u v, u ≠ [] ∧ v ≠ [] ∧ s = u ++ v ∧ ∃ B C, node A B C ∈ G.rules ∧
-          G.toCFG.Derives [.nonterminal B] (u.map .terminal) ∧
-          G.toCFG.Derives [.nonterminal C] (v.map .terminal) :=
-      ⟨fun ⟨B, C, u, v, hr, hu, hv, he, hB, hC⟩ => ⟨u, v, hu, hv, he, B, C, hr, hB, hC⟩,
-        fun ⟨u, v, hu, hv, he, B, C, hr, hB, hC⟩ => ⟨B, C, u, v, hr, hu, hv, he, hB, hC⟩⟩
-    rw [e, exists_split_iff, hlen]
-    refine exists_congr fun k => and_congr_right fun hk => ?_
-    have h1 : s.take (k + 1) = (w.drop i).take (k + 1) := by
-      rw [hs, List.take_take]
-      congr 1
-      omega
-    have h2 : s.drop (k + 1) = (w.drop (i + k + 1)).take (L + 1 + 1 - k - 1) := by
-      rw [hs, List.drop_take, List.drop_drop, Nat.sub_sub, ← Nat.add_assoc]
-    rw [h1, h2]
-    refine exists_congr fun B => exists_congr fun C => and_congr_right fun _ => and_congr ?_ ?_
-    · exact htbl i (k + 1) (by omega) (by omega) (by omega) B
-    · refine htbl (i + k + 1) (L + 1 + 1 - k - 1) ?_ ?_ ?_ C
-      all_goals omega
+    have hcell : ∀ k < L + 1, ∀ B C,
+        (B ∈ tbl i (k + 1) ∧ C ∈ tbl (i + k + 1) (L + 1 + 1 - k - 1)) ↔
+        (G.toCFG.Derives [.nonterminal B] ((s.take (k + 1)).map .terminal) ∧
+          G.toCFG.Derives [.nonterminal C] ((s.drop (k + 1)).map .terminal)) := fun k hk B C => by
+      have h1 : s.take (k + 1) = (w.drop i).take (k + 1) := by
+        rw [hs, List.take_take, Nat.min_eq_left (by omega)]
+      have h2 : s.drop (k + 1) = (w.drop (i + k + 1)).take (L + 1 + 1 - k - 1) := by
+        rw [hs, List.drop_take, List.drop_drop, Nat.sub_sub, ← Nat.add_assoc]
+      rw [h1, h2]
+      exact and_congr (htbl i (k + 1) (Nat.succ_pos k) hk (by omega) B)
+        (htbl (i + k + 1) (L + 1 + 1 - k - 1) (by omega) (by omega) (by omega) C)
+    constructor
+    · rintro ⟨k, hk, B, C, hr, hB, hC⟩
+      have hk' : k < L + 1 := by omega
+      obtain ⟨hB', hC'⟩ := (hcell k hk' B C).mp ⟨hB, hC⟩
+      exact ⟨B, C, s.take (k + 1), s.drop (k + 1), hr,
+        List.ne_nil_of_length_pos (by rw [List.length_take]; omega),
+        List.ne_nil_of_length_pos (by rw [List.length_drop]; omega),
+        (List.take_append_drop (k + 1) s).symm, hB', hC'⟩
+    · rintro ⟨B, C, u, v, hr, hu, hv, huv, hB, hC⟩
+      have hu' := List.length_pos_of_ne_nil hu
+      have hv' := List.length_pos_of_ne_nil hv
+      have hlen' : u.length + v.length = L + 2 := by rw [← List.length_append, ← huv, hlen]
+      have hk : u.length - 1 < L + 1 := by omega
+      have htk : s.take (u.length - 1 + 1) = u := by
+        rw [Nat.sub_add_cancel hu', huv, List.take_left]
+      have hdp : s.drop (u.length - 1 + 1) = v := by
+        rw [Nat.sub_add_cancel hu', huv, List.drop_left]
+      obtain ⟨hB', hC'⟩ := (hcell (u.length - 1) hk B C).mpr ⟨htk.symm ▸ hB, hdp.symm ▸ hC⟩
+      exact ⟨u.length - 1, hk, B, C, hr, hB', hC'⟩
 
 /-- **Correctness of the CYK table**: after filling the levels `1, …, L`, the cell of a subword of
 length `l ≤ L` lists exactly the nonterminals deriving it. -/
@@ -323,20 +304,15 @@ theorem mem_table_iff {L i l : ℕ} (hl : 0 < l) (hlL : l ≤ L) (hi : i + l ≤
     split_ifs with h
     · obtain ⟨rfl, -⟩ := h
       exact mem_cell_iff hi (fun i l hl hlL hi A => ih hl hlL hi A) A
-    · have : l ≤ L := by
-        by_contra h'
-        exact h ⟨by omega, by omega⟩
-      exact ih hl this hi A
+    · exact ih hl (by omega) hi A
 
 /-- **Correctness of CYK** [Hopcroft, Motwani and Ullman, Section 7.4.4][Hopcroft2006]: the test
 accepts exactly the words of the language of the grammar. -/
 theorem cyk_eq_true_iff : cyk G w = true ↔ w ∈ G.toCFG.language := by
   rw [cyk]
   split_ifs with hw
-  · subst hw
-    exact mem_language_nil_iff.symm
-  · rw [decide_eq_true_iff, mem_table_iff (List.length_pos_of_ne_nil hw) le_rfl (by simp)]
-    simp
+  · exact hw ▸ mem_language_nil_iff.symm
+  · simp [mem_table_iff (List.length_pos_of_ne_nil hw) le_rfl (Nat.zero_add _).le]
 
 /-- Membership in the language of a grammar in Chomsky normal form is decidable, by CYK. -/
 instance decidableMemLanguage : DecidablePred (· ∈ G.toCFG.language) :=

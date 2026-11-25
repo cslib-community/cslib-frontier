@@ -103,11 +103,9 @@ theorem drawingPosition_variable {φ : CNF V} (a : FormulaDrawing φ) {v : V}
       a.variablePoint v := by
   have hi := List.idxOf_lt_length_of_mem (CNF.mem_distinctVars.mpr hv)
   change a.positions.getD ((List.range _).idxOf (φ.distinctVars.idxOf v)) (0, 0) = _
-  rw [List.idxOf_range_of_lt (by omega), positions]
-  rw [List.getD_append _ _ _ _ (by simpa only [List.length_map] using hi)]
-  rw [List.getD_eq_getElem _ _ (by simpa only [List.length_map] using hi), List.getElem_map]
-  congr 1
-  exact List.getElem_idxOf hi
+  rw [List.idxOf_range_of_lt (by omega), positions,
+    List.getD_append _ _ _ _ (by simpa using hi),
+    List.getD_eq_getElem _ _ (by simpa using hi), List.getElem_map, List.getElem_idxOf hi]
 
 /-- A clause index resolves to its supplied position in the actual graph. -/
 theorem drawingPosition_clause {φ : CNF V} (a : FormulaDrawing φ) (_ha : a.Valid)
@@ -115,100 +113,78 @@ theorem drawingPosition_clause {φ : CNF V} (a : FormulaDrawing φ) (_ha : a.Val
     Graph.drawingPosition (SAT.incidenceGraph φ) a.drawing (φ.distinctVars.length + i) =
       a.clausePoints.getD i (0, 0) := by
   change a.positions.getD ((List.range _).idxOf (φ.distinctVars.length + i)) (0, 0) = _
-  rw [List.idxOf_range_of_lt (by omega), positions]
-  rw [List.getD_append_right _ _ _ _ (by simp only [List.length_map]; omega)]
-  simp only [List.length_map, Nat.add_sub_cancel_left]
+  rw [List.idxOf_range_of_lt (by omega), positions,
+    List.getD_append_right _ _ _ _ (by simp)]
+  simp
 
 /-- The occurrence at an edge-list index is the same occurrence used to build its route. -/
 theorem indexed_route {φ : CNF V} (a : FormulaDrawing φ) {i : ℕ}
     (hi : i < (SAT.incidenceGraph φ).2.length) :
     a.routes.getD i [] = a.incidenceRoute
       ((Cslib.Logic.PL.occurrences φ)[i]'(by simpa [SAT.incidenceGraph] using hi)) := by
-  have hi' : i < (Cslib.Logic.PL.occurrences φ).length := by
-    simpa [SAT.incidenceGraph] using hi
-  rw [routes, List.getD_eq_getElem _ _ (by simpa using hi'), List.getElem_map]
+  rw [routes, List.getD_eq_getElem _ _ (by simpa [SAT.incidenceGraph] using hi),
+    List.getElem_map]
 
 /-- Local occurrence-indexed certificates give a drawing of the actual formula incidence graph. -/
 theorem isPlanarOrthogonalDrawing {φ : CNF V} (a : FormulaDrawing φ) (ha : a.Valid) :
     Graph.IsPlanarOrthogonalDrawing (SAT.incidenceGraph φ) a.drawing := by
+  have hlen : (SAT.incidenceGraph φ).2.length = (Cslib.Logic.PL.occurrences φ).length := by
+    simp [SAT.incidenceGraph]
   have hei (i : ℕ) (hi : i < (SAT.incidenceGraph φ).2.length) :
       (SAT.incidenceGraph φ).2[i] =
-        (φ.distinctVars.idxOf ((Cslib.Logic.PL.occurrences φ)[i]'(by
-          simpa [SAT.incidenceGraph] using hi)).lit.1,
-        φ.distinctVars.length + ((Cslib.Logic.PL.occurrences φ)[i]'(by
-          simpa [SAT.incidenceGraph] using hi)).clause) := by
+        (φ.distinctVars.idxOf ((Cslib.Logic.PL.occurrences φ)[i]'(hlen ▸ hi)).lit.1,
+        φ.distinctVars.length + ((Cslib.Logic.PL.occurrences φ)[i]'(hlen ▸ hi)).clause) := by
     simp only [SAT.incidenceGraph, List.getElem_map]
-  refine ⟨?_, ?_, List.nodup_range, ha.positionsNodup,
-    (fun _ => SAT.incidenceGraph_endpoints), (fun _ => SAT.incidenceGraph_loopless),
-    ?_, ?_, ?_, ?_, ?_⟩
-  · simp [drawing, positions, SAT.incidenceGraph, ha.clauseCount]
-  · simp [drawing, routes, SAT.incidenceGraph]
-  · intro i hi
-    have hi' : i < (Cslib.Logic.PL.occurrences φ).length := by
-      simpa [SAT.incidenceGraph] using hi
-    let o := (Cslib.Logic.PL.occurrences φ)[i]
-    have ho : o ∈ Cslib.Logic.PL.occurrences φ := List.getElem_mem hi'
-    have hci : o.clause < φ.length := (Cslib.Logic.PL.mem_occurrences.mp ho).choose
+  refine ⟨by simp [drawing, positions, SAT.incidenceGraph, ha.clauseCount],
+    by simp [drawing, routes, SAT.incidenceGraph], List.nodup_range, ha.positionsNodup,
+    fun _ => SAT.incidenceGraph_endpoints, fun _ => SAT.incidenceGraph_loopless,
+    fun i hi => ?_, fun i hi => ?_, fun i hi => ?_, fun i hi v hv hp => ?_,
+    fun i hi j hj hij p hp hq => ?_⟩
+  · let o := (Cslib.Logic.PL.occurrences φ)[i]'(hlen ▸ hi)
+    have ho : o ∈ Cslib.Logic.PL.occurrences φ := List.getElem_mem _
     rw [hei i hi]
     change (_ = _ ∧ _ = _) ∨ (_ = _ ∧ _ = _)
     rw [drawingPosition_variable a (variable_mem_of_mem_occurrences ho),
-      drawingPosition_clause a ha hci]
+      drawingPosition_clause a ha (Cslib.Logic.PL.mem_occurrences.mp ho).choose]
     exact Or.inr (by simpa only [drawing, indexed_route a hi] using ha.endpoints o ho)
-  · intro i hi
-    rw [show a.drawing.2 = a.routes from rfl, indexed_route a hi]
-    exact ha.orthogonal _ (List.getElem_mem _)
-  · intro i hi
-    rw [show a.drawing.2 = a.routes from rfl, indexed_route a hi]
-    exact ha.simple _ (List.getElem_mem _)
-  · intro i hi v hv hp
-    have hi' : i < (Cslib.Logic.PL.occurrences φ).length := by
-      simpa [SAT.incidenceGraph] using hi
-    let o := (Cslib.Logic.PL.occurrences φ)[i]
-    have ho : o ∈ Cslib.Logic.PL.occurrences φ := List.getElem_mem hi'
+  · simpa only [drawing, indexed_route a hi] using ha.orthogonal _ (List.getElem_mem _)
+  · simpa only [drawing, indexed_route a hi] using ha.simple _ (List.getElem_mem _)
+  · let o := (Cslib.Logic.PL.occurrences φ)[i]'(hlen ▸ hi)
+    have ho : o ∈ Cslib.Logic.PL.occurrences φ := List.getElem_mem _
     rw [show a.drawing.2 = a.routes from rfl, indexed_route a hi] at hp
     rw [hei i hi]
     have hv' : v < φ.distinctVars.length + φ.length := by simpa [SAT.incidenceGraph] using hv
     by_cases hvar : v < φ.distinctVars.length
-    · let w := φ.distinctVars[v]
-      have hw : w ∈ φ.vars := CNF.mem_distinctVars.mp (List.getElem_mem hvar)
-      have hidx : φ.distinctVars.idxOf w = v := (CNF.nodup_distinctVars φ).idxOf_getElem v hvar
+    · have hw : φ.distinctVars[v] ∈ φ.vars := CNF.mem_distinctVars.mp (List.getElem_mem hvar)
+      have hidx := (CNF.nodup_distinctVars φ).idxOf_getElem v hvar
       rw [← hidx, drawingPosition_variable a hw] at hp
-      have he := ha.avoidsVariables o ho w hw hp
-      exact Or.inl (hidx.symm.trans (congrArg φ.distinctVars.idxOf he))
+      exact Or.inl (hidx.symm.trans (congrArg φ.distinctVars.idxOf
+        (ha.avoidsVariables o ho _ hw hp)))
     · have hci : v - φ.distinctVars.length < φ.length := by omega
-      have hvci : v = φ.distinctVars.length + (v - φ.distinctVars.length) := by omega
-      rw [hvci, drawingPosition_clause a ha hci] at hp
-      have he := ha.avoidsClauses o ho _ hci hp
+      rw [show v = φ.distinctVars.length + (v - φ.distinctVars.length) by omega,
+        drawingPosition_clause a ha hci] at hp
+      have := ha.avoidsClauses o ho _ hci hp
       exact Or.inr (by change v = φ.distinctVars.length + o.clause; omega)
-  · intro i hi j hj hij p hp hq
-    have hi' : i < (Cslib.Logic.PL.occurrences φ).length := by
-      simpa [SAT.incidenceGraph] using hi
-    have hj' : j < (Cslib.Logic.PL.occurrences φ).length := by
-      simpa [SAT.incidenceGraph] using hj
-    let o := (Cslib.Logic.PL.occurrences φ)[i]
-    let t := (Cslib.Logic.PL.occurrences φ)[j]
-    have ho : o ∈ Cslib.Logic.PL.occurrences φ := List.getElem_mem hi'
-    have ht : t ∈ Cslib.Logic.PL.occurrences φ := List.getElem_mem hj'
+  · let o := (Cslib.Logic.PL.occurrences φ)[i]'(hlen ▸ hi)
+    let t := (Cslib.Logic.PL.occurrences φ)[j]'(hlen ▸ hj)
+    have ho : o ∈ Cslib.Logic.PL.occurrences φ := List.getElem_mem _
+    have ht : t ∈ Cslib.Logic.PL.occurrences φ := List.getElem_mem _
     have hot : o ≠ t := fun h => hij ((Cslib.Logic.PL.occurrences_nodup φ).getElem_inj_iff.mp h)
     rw [show a.drawing.2 = a.routes from rfl, indexed_route a hi] at hp
     rw [show a.drawing.2 = a.routes from rfl, indexed_route a hj] at hq
     rw [hei i hi, hei j hj]
     rcases ha.contacts o ho t ht hot p hp hq with ⟨he, hp⟩ | ⟨he, hp⟩
-    · refine ⟨φ.distinctVars.idxOf o.lit.1, ?_, Or.inl rfl, Or.inl ?_, ?_⟩
-      · have hidx := List.idxOf_lt_length_of_mem
-          (CNF.mem_distinctVars.mpr (variable_mem_of_mem_occurrences ho))
-        simp only [SAT.incidenceGraph, List.mem_range]
-        omega
-      · exact congrArg φ.distinctVars.idxOf he
-      · rw [drawingPosition_variable a (variable_mem_of_mem_occurrences ho)]
-        exact hp
-    · refine ⟨φ.distinctVars.length + o.clause, ?_, Or.inr rfl, Or.inr ?_, ?_⟩
-      · have hci := (Cslib.Logic.PL.mem_occurrences.mp ho).choose
-        simp only [SAT.incidenceGraph, List.mem_range]
-        omega
-      · exact congrArg (φ.distinctVars.length + ·) he
-      · rw [drawingPosition_clause a ha (Cslib.Logic.PL.mem_occurrences.mp ho).choose]
-        exact hp
+    · have hidx := List.idxOf_lt_length_of_mem
+        (CNF.mem_distinctVars.mpr (variable_mem_of_mem_occurrences ho))
+      refine ⟨φ.distinctVars.idxOf o.lit.1,
+        by simp only [SAT.incidenceGraph, List.mem_range]; omega,
+        Or.inl rfl, Or.inl (congrArg φ.distinctVars.idxOf he), ?_⟩
+      rwa [drawingPosition_variable a (variable_mem_of_mem_occurrences ho)]
+    · have hci := (Cslib.Logic.PL.mem_occurrences.mp ho).choose
+      refine ⟨φ.distinctVars.length + o.clause,
+        by simp only [SAT.incidenceGraph, List.mem_range]; omega,
+        Or.inr rfl, Or.inr (congrArg (φ.distinctVars.length + ·) he), ?_⟩
+      rwa [drawingPosition_clause a ha hci]
 
 /-- The same actual drawing certifies compact output labels, with no change in any graph record. -/
 theorem isPlanarOrthogonalDrawing_compact {φ : CNF V} (a : FormulaDrawing φ) (ha : a.Valid) :

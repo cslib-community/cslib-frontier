@@ -76,6 +76,9 @@ Applications*:
   $k$-ary oracle replacement (Definitions 7.5.5–7.5.6, pp. 701–702).
 * `Cslib.Crypto.Protocols.MPC.Protocol.compose`, `Cslib.Crypto.Protocols.MPC.composeSim`:
   protocol and coalition-simulator composition (Theorem 7.5.7, pp. 702–703).
+* `Cslib.Crypto.Protocols.MPC.Composition.kernelRun`: the execution of an outer step computation
+  in which every oracle round draws the corrupted slots' subprotocol views and all answers from a
+  kernel.
 * `Cslib.Crypto.Protocols.MPC.Protocol.mapInput`, `Cslib.Crypto.Protocols.MPC.mapInputSim`:
   precomposing a protocol and coalition simulator with local party input encodings.
 * `Cslib.Crypto.Protocols.MPC.randomizedFunctionality`,
@@ -93,9 +96,16 @@ Applications*:
 
 ## Main results
 
+* `Cslib.Crypto.Protocols.MPC.Protocol.realJoint_compose`: real joint distribution of a composed
+  protocol over perfectly private subprotocols, with no assumption on the outer protocol.
 * `Cslib.Crypto.Protocols.MPC.PerfectSemiHonestPrivate.compose`: Theorem 7.5.7 (print pp. 702–703;
   cf. Theorem 7.3.3, print pp. 637–638), multi-party composition theorem for perfect semi-honest
   privacy.
+* `Cslib.Crypto.Protocols.MPC.Protocol.realJoint_compose_eq_kernelRun`,
+  `Cslib.Crypto.Protocols.MPC.Protocol.realJoint_bind_expandSimSteps_eq_kernelRun`: with no
+  assumption on the subprotocols, the real execution of a composed protocol and the hybrid
+  execution expanded by subprotocol simulators are the same kernel program, on the real and on the
+  ideal joint distributions of the subprotocols.
 * `Cslib.Crypto.Protocols.MPC.PerfectSemiHonestPrivate.mapInput`: preservation of perfect
   semi-honest privacy under local party input encodings.
 * `Cslib.Crypto.Protocols.MPC.perfectSemiHonestPrivate_randomizedWrapper`: Proposition 7.3.4
@@ -180,55 +190,35 @@ private theorem eval_pi_single {m : ℕ} {β : Type} (i₀ : Fin m) (p : ProbCom
   | zero => exact i₀.elim0
   | succ m ih =>
     refine Fin.cases ?_ (fun j₀ => ?_) i₀
-    · have h00 : (if h : (0 : Fin (m + 1)) = 0 then
-          (fun (c : β) (_ : (0 : Fin (m + 1)) = 0) => c) <$> p
-        else
-          pure (fun h' : (0 : Fin (m + 1)) = 0 => (h h').elim)) =
-          (fun (c : β) (_ : (0 : Fin (m + 1)) = 0) => c) <$> p := rfl
-      have hrest : (fun i : Fin m =>
-          if h : (0 : Fin (m + 1)) = i.succ then
-            (fun (c : β) (_ : (0 : Fin (m + 1)) = i.succ) => c) <$> p
-          else
-            pure (fun h' : (0 : Fin (m + 1)) = i.succ => (h h').elim)) =
-          fun i : Fin m =>
-            pure (fun h' : (0 : Fin (m + 1)) = i.succ => (Fin.succ_ne_zero i h'.symm).elim) := by
-        funext i
-        have hne : ¬ ((0 : Fin (m + 1)) = i.succ) := fun h => Fin.succ_ne_zero i h.symm
-        simp [hne]
-      rw [OracleComp.pi_succ, h00, hrest]
+    · have htail : (fun i : Fin m =>
+          if h : (0 : Fin (m + 1)) = i.succ then (fun (c : β) (_ : 0 = i.succ) => c) <$> p
+          else pure (fun h' : 0 = i.succ => (h h').elim)) =
+        fun i : Fin m => pure (fun h' : (0 : Fin (m + 1)) = i.succ =>
+          (Fin.succ_ne_zero i h'.symm).elim) :=
+        funext fun i => dite_eq_right fun h => Fin.succ_ne_zero i h.symm
+      rw [OracleComp.pi_succ, htail, dite_eq_left rfl]
       simp only [pmf_norm, eval_pi_pure]
       refine congrArg (PMF.map · (ProbComp.eval p)) (funext fun c => ?_)
       ext i h
-      refine Fin.cases (fun _ => rfl) (fun j hj => (Fin.succ_ne_zero j hj.symm).elim) i h
+      exact Fin.cases (fun _ => rfl) (fun j hj => (Fin.succ_ne_zero j hj.symm).elim) i h
     · have h0 : ¬ (j₀.succ = (0 : Fin (m + 1))) := Fin.succ_ne_zero j₀
-      have h0_Br : (if h : j₀.succ = (0 : Fin (m + 1)) then
-          (fun (c : β) (_ : j₀.succ = 0) => c) <$> p
-        else
-          pure (fun h' : j₀.succ = 0 => (h h').elim)) =
-          pure (fun h' : j₀.succ = 0 => (h0 h').elim) := by
-        simp [h0]
-      have hrest : (fun i : Fin m =>
-          if h : j₀.succ = i.succ then
-            (fun (c : β) (_ : j₀.succ = i.succ) => c) <$> p
-          else
-            pure (fun h' : j₀.succ = i.succ => (h h').elim)) =
-          fun i : Fin m =>
-            (fun (f : (j₀ = i) → β) (h' : j₀.succ = i.succ) => f (Fin.succ_inj.1 h')) <$>
-              (if h : j₀ = i then
-                (fun (c : β) (_ : j₀ = i) => c) <$> p
-              else
-                pure (fun h' : j₀ = i => (h h').elim)) := by
+      have htail : (fun i : Fin m =>
+          if h : j₀.succ = i.succ then (fun (c : β) (_ : j₀.succ = i.succ) => c) <$> p
+          else pure (fun h' : j₀.succ = i.succ => (h h').elim)) =
+        fun i : Fin m => (fun (f : (j₀ = i) → β) (h' : j₀.succ = i.succ) =>
+          f (Fin.succ_inj.1 h')) <$>
+            (if h : j₀ = i then (fun (c : β) (_ : j₀ = i) => c) <$> p
+              else pure (fun h' : j₀ = i => (h h').elim)) := by
         funext i
         by_cases h : j₀ = i
         · subst h
           simp [Functor.map_map]
-        · have hs : ¬ (j₀.succ = i.succ) := fun hs => h (Fin.succ_inj.1 hs)
-          simp [hs, h]
-      rw [OracleComp.pi_succ, h0_Br, hrest]
+        · simp [h, show ¬ j₀.succ = i.succ from fun hs => h (Fin.succ_inj.1 hs)]
+      rw [OracleComp.pi_succ, dite_eq_right h0, htail]
       simp only [pmf_norm, ProbComp.eval_pi_map, ih j₀]
       refine congrArg (PMF.map · (ProbComp.eval p)) (funext fun c => ?_)
       ext i h
-      refine Fin.cases (fun h0' => (h0 h0').elim) (fun _ _ => rfl) i h
+      exact Fin.cases (fun h0' => (h0 h0').elim) (fun _ _ => rfl) i h
 
 /-! #### Induced sub-coalitions, tuple pushforwards, and subprotocol coin sampling -/
 
@@ -566,84 +556,106 @@ simulator `S₂ op (subCoalition parties I)` at every `.oracle op parties` round
           (pushScheduleReceivedRestrict parties I (sc₂ op) (fun s => (v_sub s).received) i)
           (rest i).2)
 
-/-- Hybrid equivalence lemma for `Steps.compose`: for any `steps : Steps State Out sc₁` and initial
-states `st : (i : Fin m) → State i`, running `steps` in `W₁` and expanding the coalition `I`'s
-transcript via `expandSimSteps S₂ I` produces the exact same joint distribution over
-`((i : I) → SubCoins × ComposedReceived) × ((i : Fin m) → Out i)` as sampling `sampleSubCoins Sub
-sc₁` and running `Steps.compose Sub steps` in `W₂` (Goldreich Theorem 7.5.7 Proof Sketch,
-pp. 702–703). -/
-private theorem evalWith_compose_steps_eq_hybrid {m : ℕ} {spec₁ spec₂ : MultiOracleSpec}
-    {State Out : Fin m → Type} {sc₁ : Schedule m spec₁}
-    {sc₂ : (op : spec₁.Op) → Schedule (spec₁.arity op) spec₂}
-    {Coins₂ : (op : spec₁.Op) → Fin (spec₁.arity op) → Type}
-    {W₁ : MultiOracleWorld spec₁} {W₂ : MultiOracleWorld spec₂}
-    {Sub : (op : spec₁.Op) →
-      Protocol (spec₁.arity op) spec₂ (sc₂ op) (spec₁.Query op) (Coins₂ op) (spec₁.Answer op)}
-    {S₂ : (op : spec₁.Op) → (J : Finset (Fin (spec₁.arity op))) →
-      CoalitionSimulator (sc₂ op) (spec₁.Query op) (Coins₂ op) (spec₁.Answer op) J}
-    (hSub : ∀ op, PerfectSemiHonestPrivate (Sub op) W₂ (W₁ op) (S₂ op))
+/-! #### Composed and hybrid executions as one kernel program -/
+
+section Kernel
+
+variable {m : ℕ} {spec₁ spec₂ : MultiOracleSpec}
+  {sc₂ : (op : spec₁.Op) → Schedule (spec₁.arity op) spec₂}
+  {Coins₂ : (op : spec₁.Op) → Fin (spec₁.arity op) → Type}
+
+/-- The execution of `steps` from the states `st` in which every oracle round `op` with query tuple
+`q` draws the views of the corrupted slots `J = subCoalition parties I` in a subprotocol for `op`,
+together with all the answers, from the kernel `μ op J q`. The result is the coalition `I`'s
+subprotocol coins and composed transcript, with every party's output. -/
+@[expose] noncomputable def kernelRun
+    (μ : (op : spec₁.Op) → (J : Finset (Fin (spec₁.arity op))) →
+      ((s : Fin (spec₁.arity op)) → spec₁.Query op s) →
+      PMF (((s : J) → PartyView (spec₁.Query op) (Coins₂ op) (sc₂ op) s) ×
+        ((s : Fin (spec₁.arity op)) → spec₁.Answer op s)))
+    (I : Finset (Fin m)) {State Out : Fin m → Type} {sc₁ : Schedule m spec₁}
+    (steps : Steps State Out sc₁) (st : (i : Fin m) → State i) :
+    PMF (((i : I) → Schedule.SubCoins Coins₂ sc₁ i.1 ×
+      Schedule.Received (Schedule.compose sc₂ sc₁) i.1) × ((i : Fin m) → Out i)) :=
+  match steps with
+  | .done output => PMF.pure (fun _ => ((), ()), fun i => output i (st i))
+  | .message (sender := s₀) (receiver := r₀) send next =>
+    (kernelRun μ I next (fun i => (st i, Round.deliverMessage (send (st s₀)) i))).map fun res =>
+      (fun i : I => ((res.1 i).1,
+        (Round.deliverMessage (spec := spec₂) (sender := s₀) (receiver := r₀)
+          (send (st s₀)) i.1, (res.1 i).2)), res.2)
+  | .oracle (op := op) (parties := parties) query next =>
+    (μ op (subCoalition parties I) fun s => query s (st (parties s))).bind fun ⟨v_sub, ans⟩ =>
+      (kernelRun μ I next (fun i => (st i, Round.deliverOracle parties ans i))).map
+        fun ⟨sub_tail, y⟩ =>
+          (fun i : I =>
+            ((pushTupleRestrict parties I (fun s => (v_sub s).coins) i, (sub_tail i).1),
+              Schedule.Received.append
+                (pushScheduleReceivedRestrict parties I (sc₂ op)
+                  (fun s => (v_sub s).received) i)
+                (sub_tail i).2),
+            y)
+
+/-- **The hybrid execution is the kernel program on the ideal joints.** Running `steps` in `W₁` and
+expanding the coalition `I`'s transcript with the simulators `S₂` (`expandSimSteps`) has the joint
+distribution of `kernelRun` on the ideal joint distributions `idealJoint (W₁ op) J (S₂ op J) q` of
+the subprotocols. Nothing is assumed about the simulators. -/
+theorem evalWith_bind_expandSimSteps_eq_kernelRun {State Out : Fin m → Type}
+    {sc₁ : Schedule m spec₁} (W₁ : MultiOracleWorld spec₁)
+    (S₂ : (op : spec₁.Op) → (J : Finset (Fin (spec₁.arity op))) →
+      CoalitionSimulator (sc₂ op) (spec₁.Query op) (Coins₂ op) (spec₁.Answer op) J)
     (I : Finset (Fin m)) (steps : Steps State Out sc₁) (st : (i : Fin m) → State i) :
     ((steps.evalWith W₁ st).bind fun recv₁ =>
       (ProbComp.eval (expandSimSteps S₂ I steps (I.restrict st) (I.restrict recv₁))).map
         fun sub => (sub, fun i => steps.outputAt i (st i) (recv₁ i))) =
-    (ProbComp.eval (OracleComp.pi (sampleSubCoins Sub sc₁))).bind fun c_sub =>
-      ((Steps.compose Sub steps).evalWith W₂ (fun i => (st i, c_sub i))).map fun recv₂ =>
-        (fun i : I => (c_sub i.1, recv₂ i.1),
-          fun i => (Steps.compose Sub steps).outputAt i (st i, c_sub i) (recv₂ i)) := by
+    kernelRun (fun op J q => ProbComp.eval (idealJoint (W₁ op) J (S₂ op J) q)) I steps st := by
   induction steps with
   | done output =>
-    simp [Steps.compose, expandSimSteps, sampleSubCoins, eval_pi_pure, Steps.outputAt]
+    simp [expandSimSteps, Steps.outputAt, kernelRun]
   | @message _ _ s₀ r₀ _ _ send next ih =>
-    simp only [pmf_norm, Steps.compose, expandSimSteps, sampleSubCoins, Steps.evalWith_message,
-      Steps.evalWith_mapState, bind_pure_comp, Finset.restrict_def, Steps.outputAt,
-      Steps.outputAt_mapState]
-    have hih := ih (fun i => (st i, Round.deliverMessage (send (st s₀)) i))
-    simp only [Finset.restrict_def] at hih
-    have hmap := congrArg (PMF.map fun res : ((i : I) → Schedule.SubCoins Coins₂ _ i.1 ×
-          Schedule.Received (Schedule.compose sc₂ _) i.1) × ((i : Fin m) → _) =>
-        (fun i : I => ((res.1 i).1,
-          (Round.deliverMessage (spec := spec₂) (sender := s₀) (receiver := r₀)
-            (send (st s₀)) i.1, (res.1 i).2)), res.2)) hih
-    simp only [pmf_norm] at hmap
-    exact hmap
+    rw [kernelRun, ← ih]
+    simp only [pmf_norm, expandSimSteps, Steps.evalWith_message, bind_pure_comp,
+      Finset.restrict_def, Steps.outputAt]
+    rfl
+  | @oracle _ _ op parties rest query next ih =>
+    rw [kernelRun]
+    simp only [← ih]
+    simp only [pmf_norm, Steps.evalWith_oracle, expandSimSteps, idealJoint, bind_pure_comp]
+    refine congrArg (ProbComp.eval (W₁ op fun s => query s (st (parties s)))).bind
+      (funext fun ans => ?_)
+    pmf_swap
+
+/-- **The composed execution is the kernel program on the real joints.** Sampling the subprotocol
+coins and running `Steps.compose Sub steps` in `W₂` has the joint distribution of `kernelRun` on the
+real joint distributions `(Sub op).realJoint W₂ J q` of the subprotocols (Goldreich Theorem 7.5.7
+Proof Sketch, pp. 702–703, without the privacy of the subprotocols). -/
+theorem evalWith_compose_steps_eq_kernelRun {State Out : Fin m → Type}
+    {sc₁ : Schedule m spec₁} (W₂ : MultiOracleWorld spec₂)
+    (Sub : (op : spec₁.Op) →
+      Protocol (spec₁.arity op) spec₂ (sc₂ op) (spec₁.Query op) (Coins₂ op) (spec₁.Answer op))
+    (I : Finset (Fin m)) (steps : Steps State Out sc₁) (st : (i : Fin m) → State i) :
+    ((ProbComp.eval (OracleComp.pi (sampleSubCoins Sub sc₁))).bind fun c_sub =>
+      ((Steps.compose Sub steps).evalWith W₂ (fun i => (st i, c_sub i))).map fun recv₂ =>
+        (fun i : I => (c_sub i.1, recv₂ i.1),
+          fun i => (Steps.compose Sub steps).outputAt i (st i, c_sub i) (recv₂ i))) =
+    kernelRun (fun op J q => (Sub op).realJoint W₂ J q) I steps st := by
+  induction steps with
+  | done output =>
+    simp [Steps.compose, sampleSubCoins, eval_pi_pure, Steps.outputAt, kernelRun]
+  | @message _ _ s₀ r₀ _ _ send next ih =>
+    rw [kernelRun, ← ih]
+    simp only [pmf_norm, Steps.compose, sampleSubCoins, Steps.evalWith_message,
+      Steps.evalWith_mapState, Steps.outputAt, Steps.outputAt_mapState]
+    rfl
   | @oracle _ _ op parties rest query next ih =>
     let q : (s : Fin (spec₁.arity op)) → spec₁.Query op s := fun s => query s (st (parties s))
-    let J : Finset (Fin (spec₁.arity op)) := subCoalition parties I
-    -- 1. Rewrite the LHS using `idealJoint` of `W₁ op` and `S₂ op J`.
-    have hlhs :
-        (((Steps.oracle query next).evalWith W₁ st).bind fun recv₁ =>
-          (ProbComp.eval (expandSimSteps S₂ I (Steps.oracle query next)
-              (I.restrict st) (I.restrict recv₁))).map
-            fun sub => (sub, fun i => (Steps.oracle query next).outputAt i (st i) (recv₁ i))) =
-        (ProbComp.eval (idealJoint (W₁ op) J (S₂ op J) q)).bind fun ⟨v_sub, ans⟩ =>
-          (((next.evalWith W₁ (fun i => (st i, Round.deliverOracle parties ans i))).bind
-            fun r_tail =>
-              (ProbComp.eval (expandSimSteps S₂ I next
-                (I.restrict (fun i => (st i, Round.deliverOracle parties ans i)))
-                (I.restrict r_tail))).map
-                fun sub_tail =>
-                  (sub_tail, fun i =>
-                    next.outputAt i (st i, Round.deliverOracle parties ans i) (r_tail i))).map
-            fun ⟨sub_tail, y⟩ =>
-              (fun i : I =>
-                ((pushTupleRestrict parties I (fun s => (v_sub s).coins) i, (sub_tail i).1),
-                  Schedule.Received.append
-                    (pushScheduleReceivedRestrict parties I (sc₂ op)
-                      (fun s => (v_sub s).received) i)
-                    (sub_tail i).2),
-                y)) := by
-      simp only [pmf_norm, Steps.evalWith_oracle, expandSimSteps, idealJoint, bind_pure_comp]
-      refine congrArg (ProbComp.eval (W₁ op q)).bind (funext fun ans => ?_)
-      pmf_swap
-    -- 2. Apply subprotocol privacy `hSub op J q` and the induction hypothesis `ih`.
-    rw [hlhs, hSub op J q]
-    simp only [ih (fun i => (st i, Round.deliverOracle parties _ i))]
-    -- 3. Unfold `(Sub op).realJoint W₂ J q` and the RHS of `Steps.compose`.
+    rw [kernelRun]
+    simp only [← ih]
+    symm
     simp only [pmf_norm, Protocol.realJoint, Protocol.evalWith_eq, Protocol.outputOfView,
       Steps.compose, sampleSubCoins, eval_pi_pair, eval_pi_sampleSlotCoins, Steps.evalWith_append,
       Steps.evalWith_mapState, Prod.map_apply, Finset.restrict_def, id_eq]
     refine congrArg (ProbComp.eval (OracleComp.pi (Sub op).sampleCoins)).bind (funext fun c_k => ?_)
-    -- Swap the `c_tail` and `r_sub` binds on the RHS so both sides bind `c_tail` then `r_sub`.
     pmf_swap with c_tail
     have hslot (i : Fin m) (s : Fin (spec₁.arity op)) (hs : parties s = i) :
         (query s (hs.symm ▸ st i), pushTuple parties c_k i s hs) = (q s, c_k s) := by
@@ -680,6 +692,8 @@ private theorem evalWith_compose_steps_eq_hybrid {m : ℕ} {spec₁ spec₂ : Mu
       (congrArg (Schedule.Received.append · (r_tail i.1))
         (congrFun (restrict_pushScheduleReceived parties I (sc₂ op) r_sub) i).symm)
 
+end Kernel
+
 end Composition
 
 open _root_.Cslib.Crypto.Protocols.MPC.Composition
@@ -706,24 +720,127 @@ Theorem 7.3.3, pp. 637–638). -/
 
 /-- Composed coalition simulator for `P.compose Sub` (Goldreich Section 7.5.2.1, Theorem 7.5.7
 Proof Sketch, pp. 702–703; cf. Section 7.3.1, Theorem 7.3.3 Proof Sketch, pp. 637–638): runs the
-outer simulator `S₁ I xI yI` to obtain simulated outer views `v₁` and expands each oracle call in
-`P.steps` using the inner simulator `S₂ op (subCoalition parties I)`. -/
+outer simulator `S₁ xI yI` for coalition `I` to obtain simulated outer views `v₁` and expands each
+oracle call in `P.steps` using the inner simulator `S₂ op (subCoalition parties I)`. -/
 @[expose] noncomputable def composeSim {m : ℕ} {spec₁ spec₂ : MultiOracleSpec}
     {sc₁ : Schedule m spec₁} {sc₂ : (op : spec₁.Op) → Schedule (spec₁.arity op) spec₂}
     {In Coins₁ Out : Fin m → Type}
     {Coins₂ : (op : spec₁.Op) → Fin (spec₁.arity op) → Type}
-    (P : Protocol m spec₁ sc₁ In Coins₁ Out)
-    (S₁ : (I : Finset (Fin m)) → CoalitionSimulator sc₁ In Coins₁ Out I)
+    (P : Protocol m spec₁ sc₁ In Coins₁ Out) {I : Finset (Fin m)}
+    (S₁ : CoalitionSimulator sc₁ In Coins₁ Out I)
     (S₂ : (op : spec₁.Op) → (J : Finset (Fin (spec₁.arity op))) →
-      CoalitionSimulator (sc₂ op) (spec₁.Query op) (Coins₂ op) (spec₁.Answer op) J)
-    (I : Finset (Fin m)) :
+      CoalitionSimulator (sc₂ op) (spec₁.Query op) (Coins₂ op) (spec₁.Answer op) J) :
     CoalitionSimulator (Schedule.compose sc₂ sc₁) In
       (Schedule.ComposedCoins Coins₂ Coins₁ sc₁) Out I :=
   fun xI yI => do
-    let v₁ ← S₁ I xI yI
+    let v₁ ← S₁ xI yI
     let sub ← expandSimSteps S₂ I P.steps
       (fun i => (xI i, (v₁ i).coins)) (fun i => (v₁ i).received)
     return fun i => ⟨xI i, ((v₁ i).coins, (sub i).1), (sub i).2⟩
+
+section Kernel
+
+variable {m : ℕ} {spec₁ spec₂ : MultiOracleSpec} {sc₁ : Schedule m spec₁}
+  {sc₂ : (op : spec₁.Op) → Schedule (spec₁.arity op) spec₂} {In Coins₁ Out : Fin m → Type}
+  {Coins₂ : (op : spec₁.Op) → Fin (spec₁.arity op) → Type}
+
+/-- **Real executions of a composed protocol, with no assumption on the subprotocols.** The real
+joint distribution of `P.compose Sub` in `W₂` samples the outer coins and runs the kernel program
+`kernelRun` of `P.steps` on the real joint distributions of the subprotocols. -/
+theorem Protocol.realJoint_compose_eq_kernelRun (P : Protocol m spec₁ sc₁ In Coins₁ Out)
+    (W₂ : MultiOracleWorld spec₂)
+    (Sub : (op : spec₁.Op) →
+      Protocol (spec₁.arity op) spec₂ (sc₂ op) (spec₁.Query op) (Coins₂ op) (spec₁.Answer op))
+    (I : Finset (Fin m)) (x : (i : Fin m) → In i) :
+    (P.compose Sub).realJoint W₂ I x =
+      (ProbComp.eval (OracleComp.pi P.sampleCoins)).bind fun c₁ =>
+        (kernelRun (fun op J q => (Sub op).realJoint W₂ J q) I P.steps
+          (fun i => (x i, c₁ i))).map fun res =>
+            (fun i : I => ⟨x i.1, (c₁ i.1, (res.1 i).1), (res.1 i).2⟩, res.2) := by
+  have key := fun c₁ : (i : Fin m) → Coins₁ i =>
+    evalWith_compose_steps_eq_kernelRun W₂ Sub I P.steps (fun i => (x i, c₁ i))
+  generalize (fun (op : spec₁.Op) (J : Finset (Fin (spec₁.arity op)))
+    (q : (s : Fin (spec₁.arity op)) → spec₁.Query op s) => (Sub op).realJoint W₂ J q) = μ
+    at key ⊢
+  simp only [pmf_norm, Protocol.realJoint, Protocol.evalWith_eq, Protocol.outputOfView,
+    Protocol.compose, eval_pi_pair, Steps.evalWith_mapState, Steps.outputAt_mapState,
+    Prod.map_apply, Finset.restrict_def, id_eq]
+  refine congrArg (ProbComp.eval (OracleComp.pi P.sampleCoins)).bind (funext fun c₁ => ?_)
+  have hmap := congrArg (PMF.map fun res : ((i : I) → Schedule.SubCoins Coins₂ sc₁ i.1 ×
+        Schedule.Received (Schedule.compose sc₂ sc₁) i.1) × ((i : Fin m) → Out i) =>
+      (fun i : I =>
+        (⟨x i.1, (c₁ i.1, (res.1 i).1), (res.1 i).2⟩ :
+          PartyView In (Schedule.ComposedCoins Coins₂ Coins₁ sc₁) (Schedule.compose sc₂ sc₁) i.1),
+        res.2)) (key c₁)
+  simp only [pmf_norm] at hmap ⊢
+  exact hmap
+
+/-- **Hybrid executions of a composed protocol.** The real joint distribution of the outer protocol
+`P` in `W₁`, with the coalition's views expanded by the subprotocol simulators `S₂`, samples the
+outer coins and runs the kernel program `kernelRun` of `P.steps` on the ideal joint distributions of
+the subprotocols. -/
+theorem Protocol.realJoint_bind_expandSimSteps_eq_kernelRun
+    (P : Protocol m spec₁ sc₁ In Coins₁ Out) (W₁ : MultiOracleWorld spec₁)
+    (S₂ : (op : spec₁.Op) → (J : Finset (Fin (spec₁.arity op))) →
+      CoalitionSimulator (sc₂ op) (spec₁.Query op) (Coins₂ op) (spec₁.Answer op) J)
+    (I : Finset (Fin m)) (x : (i : Fin m) → In i) :
+    ((P.realJoint W₁ I x).bind fun ⟨v₁, y⟩ =>
+        (ProbComp.eval (expandSimSteps S₂ I P.steps
+          (fun i => (x i.1, (v₁ i).coins)) (fun i => (v₁ i).received))).map fun sub =>
+            ((fun i : I => ⟨x i.1, ((v₁ i).coins, (sub i).1), (sub i).2⟩, y) :
+              ((i : I) → PartyView In (Schedule.ComposedCoins Coins₂ Coins₁ sc₁)
+                (Schedule.compose sc₂ sc₁) i) × ((i : Fin m) → Out i))) =
+      (ProbComp.eval (OracleComp.pi P.sampleCoins)).bind fun c₁ =>
+        (kernelRun (fun op J q => ProbComp.eval (idealJoint (W₁ op) J (S₂ op J) q)) I P.steps
+          (fun i => (x i, c₁ i))).map fun res =>
+            (fun i : I => ⟨x i.1, (c₁ i.1, (res.1 i).1), (res.1 i).2⟩, res.2) := by
+  have key := fun c₁ : (i : Fin m) → Coins₁ i =>
+    evalWith_bind_expandSimSteps_eq_kernelRun W₁ S₂ I P.steps (fun i => (x i, c₁ i))
+  generalize (fun (op : spec₁.Op) (J : Finset (Fin (spec₁.arity op)))
+    (q : (s : Fin (spec₁.arity op)) → spec₁.Query op s) =>
+      ProbComp.eval (idealJoint (W₁ op) J (S₂ op J) q)) = μ at key ⊢
+  simp only [pmf_norm, Protocol.realJoint, Protocol.evalWith_eq, Protocol.outputOfView,
+    Prod.map_apply, Finset.restrict_def, id_eq]
+  refine congrArg (ProbComp.eval (OracleComp.pi P.sampleCoins)).bind (funext fun c₁ => ?_)
+  have hmap := congrArg (PMF.map fun res : ((i : I) → Schedule.SubCoins Coins₂ sc₁ i.1 ×
+        Schedule.Received (Schedule.compose sc₂ sc₁) i.1) × ((i : Fin m) → Out i) =>
+      (fun i : I =>
+        (⟨x i.1, (c₁ i.1, (res.1 i).1), (res.1 i).2⟩ :
+          PartyView In (Schedule.ComposedCoins Coins₂ Coins₁ sc₁) (Schedule.compose sc₂ sc₁) i.1),
+        res.2)) (key c₁)
+  simp only [pmf_norm, Finset.restrict_def] at hmap ⊢
+  exact hmap
+
+end Kernel
+
+/-- **Real executions of a composed protocol** (Goldreich Section 7.5.2.1, Theorem 7.5.7 Proof
+Sketch, pp. 702–703): when every subprotocol `Sub op` is perfectly private in `W₂` for the
+functionality `W₁ op` with simulators `S₂ op`, the real joint distribution of `P.compose Sub` in
+`W₂` is that of `P` in `W₁` with the coalition's views expanded by `expandSimSteps S₂ I`. Nothing is
+assumed about the privacy of the outer protocol `P`. -/
+theorem Protocol.realJoint_compose {m : ℕ} {spec₁ spec₂ : MultiOracleSpec}
+    {sc₁ : Schedule m spec₁} {sc₂ : (op : spec₁.Op) → Schedule (spec₁.arity op) spec₂}
+    {In Coins₁ Out : Fin m → Type}
+    {Coins₂ : (op : spec₁.Op) → Fin (spec₁.arity op) → Type}
+    {P : Protocol m spec₁ sc₁ In Coins₁ Out}
+    {W₁ : MultiOracleWorld spec₁} {W₂ : MultiOracleWorld spec₂}
+    {Sub : (op : spec₁.Op) →
+      Protocol (spec₁.arity op) spec₂ (sc₂ op) (spec₁.Query op) (Coins₂ op) (spec₁.Answer op)}
+    {S₂ : (op : spec₁.Op) → (J : Finset (Fin (spec₁.arity op))) →
+      CoalitionSimulator (sc₂ op) (spec₁.Query op) (Coins₂ op) (spec₁.Answer op) J}
+    (hSub : ∀ op, PerfectSemiHonestPrivate (Sub op) W₂ (W₁ op) (S₂ op))
+    (I : Finset (Fin m)) (x : (i : Fin m) → In i) :
+    (P.compose Sub).realJoint W₂ I x =
+      (P.realJoint W₁ I x).bind fun ⟨v₁, y⟩ =>
+        (ProbComp.eval (expandSimSteps S₂ I P.steps
+          (fun i => (x i.1, (v₁ i).coins)) (fun i => (v₁ i).received))).map fun sub =>
+            (fun i : I => ⟨x i.1, ((v₁ i).coins, (sub i).1), (sub i).2⟩, y) := by
+  have hμ : (fun (op : spec₁.Op) (J : Finset (Fin (spec₁.arity op)))
+      (q : (s : Fin (spec₁.arity op)) → spec₁.Query op s) => (Sub op).realJoint W₂ J q) =
+      fun op J q => ProbComp.eval (idealJoint (W₁ op) J (S₂ op J) q) :=
+    funext fun op => funext fun J => funext fun q => (hSub op J q).symm
+  rw [Protocol.realJoint_compose_eq_kernelRun, hμ]
+  exact (Protocol.realJoint_bind_expandSimSteps_eq_kernelRun P W₁ S₂ I x).symm
 
 /-- Theorem 7.5.7 (Goldreich Section 7.5.2.1, pp. 702–703; cf. Theorem 7.3.3, pp. 637–638):
 composing a perfectly private `m`-party outer protocol `P` with perfectly private `k`-party
@@ -742,30 +859,10 @@ theorem PerfectSemiHonestPrivate.compose {m : ℕ} {spec₁ spec₂ : MultiOracl
       CoalitionSimulator (sc₂ op) (spec₁.Query op) (Coins₂ op) (spec₁.Answer op) J}
     (hP : PerfectSemiHonestPrivate P W₁ f S₁)
     (hSub : ∀ op, PerfectSemiHonestPrivate (Sub op) W₂ (W₁ op) (S₂ op)) :
-    PerfectSemiHonestPrivate (P.compose Sub) W₂ f (composeSim P S₁ S₂) := by
+    PerfectSemiHonestPrivate (P.compose Sub) W₂ f (fun I => composeSim P (S₁ I) S₂) := by
   intro I x
-  have houter :
-      ProbComp.eval (idealJoint f I (composeSim P S₁ S₂ I) x) =
-        (P.realJoint W₁ I x).bind fun ⟨v₁, y⟩ =>
-          (ProbComp.eval (expandSimSteps S₂ I P.steps
-            (fun i => (x i.1, (v₁ i).coins)) (fun i => (v₁ i).received))).map fun sub =>
-              (fun i : I => ⟨x i.1, ((v₁ i).coins, (sub i).1), (sub i).2⟩, y) := by
-    rw [← hP I x]
-    simp [idealJoint, composeSim, PMF.bind_bind, PMF.bind_map, Function.comp_def]
-  rw [houter]
-  simp only [pmf_norm, Protocol.realJoint, Protocol.evalWith_eq, Protocol.outputOfView,
-    Protocol.compose, eval_pi_pair, Steps.evalWith_mapState, Steps.outputAt_mapState,
-    Prod.map_apply, Finset.restrict_def, id_eq]
-  refine congrArg (ProbComp.eval (OracleComp.pi P.sampleCoins)).bind (funext fun c₁ => ?_)
-  have hsteps := evalWith_compose_steps_eq_hybrid hSub I P.steps (fun i => (x i, c₁ i))
-  have hmap := congrArg (PMF.map fun res : ((i : I) → Schedule.SubCoins Coins₂ sc₁ i.1 ×
-        Schedule.Received (Schedule.compose sc₂ sc₁) i.1) × ((i : Fin m) → Out i) =>
-      (fun i : I =>
-        (⟨x i.1, (c₁ i.1, (res.1 i).1), (res.1 i).2⟩ :
-          PartyView In (Schedule.ComposedCoins Coins₂ Coins₁ sc₁) (Schedule.compose sc₂ sc₁) i.1),
-        res.2)) hsteps
-  simp only [pmf_norm, Finset.restrict_def] at hmap ⊢
-  exact hmap
+  rw [Protocol.realJoint_compose hSub I x, ← hP I x]
+  simp [idealJoint, composeSim, PMF.bind_bind, PMF.bind_map, Function.comp_def]
 
 /-! ### Part 2: Randomized-to-Deterministic Wrapper (Proposition 7.3.4 & Eq. 7.48) -/
 
@@ -889,35 +986,23 @@ private theorem bind_restrict_and_sum_pi_uniform {m : ℕ} (coins : ℕ) {β : T
           (ProbComp.eval (ProbComp.uniform (BitString coins))).bind fun s =>
             k rI s := by
   classical
-  have hex : ∃ ℓ : Fin m, ℓ ∉ I := by
-    by_contra h
-    apply hI
-    ext i
-    simp only [Finset.mem_univ, iff_true]
-    by_contra hi
-    exact h ⟨i, hi⟩
-  obtain ⟨ℓ, hℓ⟩ := hex
-  have hstep1 :
-      (ProbComp.eval (OracleComp.pi (fun _ : Fin m => ProbComp.uniform (BitString coins)))).bind
-          (fun r => k (I.restrict r) (∑ j : Fin m, r j)) =
-      (ProbComp.eval (OracleComp.pi (fun _ : Fin m => ProbComp.uniform (BitString coins)))).bind
-        fun r =>
-          (ProbComp.eval (ProbComp.uniform (BitString coins))).bind fun s =>
-            k (I.restrict r) s := by
-    rw [ProbComp.eval_pi_uniform]
-    conv_lhs => rw [← PMF.uniformOfFintype_update ℓ, PMF.bind_bind]
-    simp only [PMF.bind_map, Function.comp_def, ProbComp.eval_uniform]
-    pmf_swap with r
-    have hsum :
-        ((PMF.uniformOfFintype (BitString coins)).bind fun v =>
-          k (I.restrict (Function.update r ℓ v)) (∑ j : Fin m, Function.update r ℓ v j)) =
-        ((PMF.uniformOfFintype (BitString coins)).map
-          (fun v => ∑ j : Fin m, Function.update r ℓ v j)).bind (k (I.restrict r)) := by
-      simp only [restrict_update_of_notMem hℓ, PMF.bind_map, Function.comp_def]
-    rw [hsum, PMF.uniformOfFintype_map_sum_update r ℓ]
-  rw [hstep1]
-  exact ProbComp.eval_bind_restrict_pi I (fun _ : Fin m => ProbComp.uniform (BitString coins))
-    (fun rI => (ProbComp.eval (ProbComp.uniform (BitString coins))).bind (k rI))
+  obtain ⟨ℓ, hℓ⟩ : ∃ ℓ, ℓ ∉ I := by
+    by_contra! h
+    exact hI (Finset.eq_univ_iff_forall.mpr h)
+  refine Eq.trans ?_ (ProbComp.eval_bind_restrict_pi I
+    (fun _ : Fin m => ProbComp.uniform (BitString coins))
+    (fun rI => (ProbComp.eval (ProbComp.uniform (BitString coins))).bind (k rI)))
+  rw [ProbComp.eval_pi_uniform]
+  conv_lhs => rw [← PMF.uniformOfFintype_update ℓ, PMF.bind_bind]
+  simp only [PMF.bind_map, Function.comp_def, ProbComp.eval_uniform]
+  pmf_swap with r
+  have hsum :
+      ((PMF.uniformOfFintype (BitString coins)).bind fun v =>
+        k (I.restrict (Function.update r ℓ v)) (∑ j, Function.update r ℓ v j)) =
+      ((PMF.uniformOfFintype (BitString coins)).map
+        (fun v => ∑ j, Function.update r ℓ v j)).bind (k (I.restrict r)) := by
+    simp only [restrict_update_of_notMem hℓ, PMF.bind_map, Function.comp_def]
+  rw [hsum, PMF.uniformOfFintype_map_sum_update r ℓ]
 
 /-- Proposition 7.3.4 (Goldreich Section 7.3.1, pp. 639–640) combined with the composition theorem
 (Section 7.3.1 Application, pp. 638–639, Eq. 7.19) and Section 7.5.2.4 Eq. 7.48 (p. 707):
@@ -1073,12 +1158,8 @@ private theorem eval_sumBlocksCircuit (m coins : ℕ) (r : Fin m → BitString c
           (fun i : Fin m => r i.castSucc) := by
       funext idx
       obtain ⟨⟨i, c⟩, rfl⟩ := finProdFinEquiv.surjective idx
-      have hcast :
-          Fin.castLE (Nat.mul_le_mul_right coins (Nat.le_succ m)) (finProdFinEquiv (i, c)) =
-            finProdFinEquiv (i.castSucc, c) := by
-        ext
-        rfl
-      simp [Function.comp_apply, hcast]
+      simp [Function.comp_apply, show Fin.castLE (Nat.mul_le_mul_right coins (Nat.le_succ m))
+        (finProdFinEquiv (i, c)) = finProdFinEquiv (i.castSucc, c) from Fin.ext rfl]
     have hlast :
         ((Cslib.BitString.blocksEquiv (α := Bool) (m := m + 1) (k := coins)).symm r ∘
           fun c => finProdFinEquiv (Fin.last m, c)) =
@@ -1178,11 +1259,11 @@ with `multiPartyMulProtocol m` (`m * (m - 1) / 2` calls to `sharedMulSpec 2`) an
 
 /-- Composed coalition simulator for `gmwOT14Protocol m n k C`. -/
 @[expose] noncomputable def gmwOT14Sim (m n k : ℕ) [NeZero m]
-    (C : Cslib.Circuits.Circuit Boolean.signature (m * n) (m * k)) :=
+    (C : Cslib.Circuits.Circuit Boolean.signature (m * n) (m * k)) (I : Finset (Fin m)) :=
   composeSim
     ((gmwCircuitProtocol m n k C).compose (fun _ => multiPartyMulProtocol m))
     (composeSim (gmwCircuitProtocol m n k C)
-      (gmwCircuitSim m n k C)
+      (gmwCircuitSim m n k C I)
       (fun _ => multiPartyMulSim m))
     (fun _ => twoPartyMulSim)
 
@@ -1238,27 +1319,13 @@ theorem perfectSemiHonestPrivateProper_gmwOT14Randomized (m coins n k : ℕ) [Ne
               ((Cslib.BitString.blocksEquiv (α := Bool) (m := m) (k := n)).symm x) r)) i))
       (gmwOT14RandomizedSim m coins n k C) := by
   apply perfectSemiHonestPrivate_randomizedWrapper
-  have hmap :=
-    (perfectSemiHonestPrivate_gmwOT14 m (n + coins) k
+  convert (perfectSemiHonestPrivate_gmwOT14 m (n + coins) k
       (C.comp (xorPreludeCircuit m n coins))).mapInput
-      (enc := fun _ (xr : BitString n × BitString coins) => Fin.append xr.1 xr.2)
-  have hfunc :
-      (fun xr : Fin m → BitString n × BitString coins =>
-        Functionality.ofDeterministic
-          (circuitFunctionality m (n + coins) k (C.comp (xorPreludeCircuit m n coins)))
-          (fun i => Fin.append (xr i).1 (xr i).2)) =
-      Functionality.ofDeterministic
-        (detOfRandomized coins (fun r x i =>
-          Cslib.BitString.block
-            (C.eval Boolean.interpretation
-              (Fin.append
-                ((Cslib.BitString.blocksEquiv (α := Bool) (m := m) (k := n)).symm x) r)) i)) := by
-    funext xr
-    dsimp [Functionality.ofDeterministic, detOfRandomized]
-    congr 1 with i : 1
-    dsimp [circuitFunctionality]
-    rw [Circuit.eval_comp, eval_xorPreludeCircuit]
-  rw [← hfunc]
-  exact hmap
+    (enc := fun _ (xr : BitString n × BitString coins) => Fin.append xr.1 xr.2) using 1
+  funext xr
+  dsimp [Functionality.ofDeterministic, detOfRandomized]
+  congr 1 with i : 1
+  dsimp [circuitFunctionality]
+  rw [Circuit.eval_comp, eval_xorPreludeCircuit]
 
 end Cslib.Crypto.Protocols.MPC

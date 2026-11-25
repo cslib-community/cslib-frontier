@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner
 module
 -- upstream: vendored crei:crei/tidy-universal @7f7c0696 (unsubmitted)
 
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Encoding
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Words
 
 /-!
 # Linear word operations for encodings

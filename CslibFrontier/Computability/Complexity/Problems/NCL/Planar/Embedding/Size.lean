@@ -118,8 +118,8 @@ private theorem cap_vertices {E : Type*} (es : List E) (c : E → Color) :
   | cons e es ih =>
     change (vertexList Prim.interp ((Gadgets.Wire.cap (c e)).tensor
       ((Sinks.caps c es).diagram.subst Cell.expand))).length ≤ 16 * (es.length + 1)
+    have := Gadgets.Wire.cap_length_vertexList_le (c e)
     rw [length_vertexList_tensor]
-    have hc := Gadgets.Wire.cap_length_vertexList_le (c e)
     omega
 
 private theorem cap_inner {E : Type*} (es : List E) (c : E → Color) :
@@ -127,9 +127,9 @@ private theorem cap_inner {E : Type*} (es : List E) (c : E → Color) :
   induction es with
   | nil => exact Nat.zero_le _
   | cons e es ih =>
+    have := Gadgets.Wire.cap_innerCount_le (c e)
     simp only [Sinks.caps, Sinks.tensor, Sinks.cap, subst, Cell.expand,
       innerCount, List.length_cons]
-    have hc := Gadgets.Wire.cap_innerCount_le (c e)
     omega
 
 private theorem routing_empty {a b : List Color} {xs ys : List (Port (Fin m))}
@@ -140,31 +140,27 @@ private theorem routing_empty {a b : List Color} {xs ys : List (Port (Fin m))}
 private theorem expanded_vertices (vs : List (Vertex (Fin m))) (c : Fin m → Color)
     (hw : ConstraintGraph.WellFormed (fun i : Fin vs.length => vs.get i)) :
     (vertexList Prim.interp ((diagram vs c hw).subst Cell.expand)).length ≤ vs.length + 16 * m := by
-  have hs := source_vertices vs (fun p => c p.edge)
-  have ht := cap_vertices (List.finRange m) c
-  have hr := empty_vertices Prim.interp _ (routing_empty (routing vs c hw))
   change (vertexList Prim.interp (((sourceBundle vs c).diagram.subst Cell.expand).comp
     (((routing vs c hw).diagram.subst Cell.expand).comp
       ((sinkBundle c).diagram.subst Cell.expand)))).length ≤ _
   rw [length_vertexList_comp, length_vertexList_comp]
   dsimp only [sourceBundle, sinkBundle]
-  rw [hr, List.length_nil, Nat.zero_add, hs]
-  simpa only [List.length_finRange] using Nat.add_le_add_left ht vs.length
+  rw [empty_vertices Prim.interp _ (routing_empty (routing vs c hw)), List.length_nil,
+    Nat.zero_add, source_vertices vs fun p => c p.edge]
+  simpa only [List.length_finRange] using Nat.add_le_add_left (cap_vertices (List.finRange m) c) _
 
 private theorem expanded_inner (vs : List (Vertex (Fin m))) (c : Fin m → Color)
     (hw : ConstraintGraph.WellFormed (fun i : Fin vs.length => vs.get i)) :
     ((diagram vs c hw).subst Cell.expand).innerCount ≤ 25 * m := by
-  have hs := source_inner vs (fun p => c p.edge)
   have ht := cap_inner (List.finRange m) c
-  have hr := empty_inner _ (routing_empty (routing vs c hw))
-  have hl : (Sources.vertexLabels vs).length = 2 * m := by
-    rw [(incidencePerm vs hw).length_eq, length_pairLabels, List.length_finRange]
+  simp only [List.length_finRange] at ht
   change ((sourceBundle vs c).diagram.subst Cell.expand).innerCount +
     (((routing vs c hw).diagram.subst Cell.expand).innerCount +
       ((sinkBundle c).diagram.subst Cell.expand).innerCount) ≤ _
   dsimp only [sourceBundle, sinkBundle]
-  rw [hr, Nat.zero_add, hs, hl]
-  simp only [List.length_finRange] at ht
+  rw [empty_inner _ (routing_empty (routing vs c hw)), Nat.zero_add,
+    source_inner vs fun p => c p.edge, (incidencePerm vs hw).length_eq, length_pairLabels,
+    List.length_finRange]
   omega
 
 /-- Polynomial vertex bound for the canonical planarization. -/

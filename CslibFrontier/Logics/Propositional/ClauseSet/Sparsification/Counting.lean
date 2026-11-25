@@ -73,16 +73,11 @@ theorem sat_countingChild_false_iff (ψ : ClauseSet V) (c : ℕ)
 theorem sat_countingChild_true_iff (ψ : ClauseSet V) (c : ℕ)
     (H : Finset (Literal V)) (x : V → Bool) :
     (countingChild ψ c H true).Sat x ↔ ψ.Sat x ∧ ¬ ∃ l ∈ H, x l.1 = l.2 := by
-  rw [countingChild, sat_reduce_iff, sat_union_iff, sat_union_iff,
-    sat_negatedHeartUnits_iff]
-  constructor
-  · exact fun h => ⟨h.1.1, h.2⟩
-  · rintro ⟨hψ, hH⟩
-    refine ⟨⟨hψ, ?_⟩, hH⟩
-    intro C hC
-    obtain ⟨D, hD, rfl⟩ := mem_petals.mp hC
-    obtain ⟨l, hl, htrue⟩ := hψ D (flower_subset ψ c H hD)
-    exact ⟨l, Finset.mem_sdiff.mpr ⟨hl, fun hlH => hH ⟨l, hlH, htrue⟩⟩, htrue⟩
+  rw [countingChild, sat_reduce_iff, sat_union_iff, sat_union_iff, sat_negatedHeartUnits_iff]
+  refine ⟨fun h => ⟨h.1.1, h.2⟩, fun ⟨hψ, hH⟩ => ⟨⟨hψ, fun C hC => ?_⟩, hH⟩⟩
+  obtain ⟨D, hD, rfl⟩ := mem_petals.mp hC
+  obtain ⟨l, hl, htrue⟩ := hψ D (flower_subset ψ c H hD)
+  exact ⟨l, Finset.mem_sdiff.mpr ⟨hl, fun hlH => hH ⟨l, hlH, htrue⟩⟩, htrue⟩
 
 /-- Every parent solution satisfies exactly one child, even for an empty or contradictory heart.
 -/
@@ -91,12 +86,8 @@ theorem sat_countingChild_partition (ψ : ClauseSet V) (c : ℕ)
     ψ.Sat x ↔ ((countingChild ψ c H false).Sat x ∨
       (countingChild ψ c H true).Sat x) := by
   rw [sat_countingChild_false_iff, sat_countingChild_true_iff]
-  constructor
-  · intro hψ
-    by_cases hH : ∃ l ∈ H, x l.1 = l.2
-    · exact Or.inl ⟨hψ, hH⟩
-    · exact Or.inr ⟨hψ, hH⟩
-  · rintro (h | h) <;> exact h.1
+  exact ⟨fun hψ => (em (∃ l ∈ H, x l.1 = l.2)).imp (⟨hψ, ·⟩) (⟨hψ, ·⟩),
+    fun h => h.elim And.left And.left⟩
 
 /-- No assignment satisfies both counting children. -/
 theorem not_sat_both_countingChild (ψ : ClauseSet V) (c : ℕ)
@@ -116,8 +107,7 @@ theorem support_countingChild (ψ : ClauseSet V) (c : ℕ) (H : Finset (Literal 
   | false =>
     rcases Finset.mem_union.mp (child_subset ψ c H false hC) with hC | hC
     · exact hψ C hC l hl
-    · have hCH : C = H := by simpa only [intro, Finset.mem_singleton] using hC
-      exact hH l (hCH ▸ hl)
+    · exact hH l ((show C = H by simpa only [intro, Finset.mem_singleton] using hC) ▸ hl)
   | true =>
     rcases Finset.mem_union.mp (reduce_subset _ hC) with hC | hC
     · rcases Finset.mem_union.mp hC with hC | hC
@@ -125,8 +115,7 @@ theorem support_countingChild (ψ : ClauseSet V) (c : ℕ) (H : Finset (Literal 
       · obtain ⟨D, hD, rfl⟩ := mem_petals.mp hC
         exact hψ D (flower_subset ψ c H hD) l (Finset.mem_sdiff.mp hl).1
     · obtain ⟨a, ha, rfl⟩ := Finset.mem_image.mp hC
-      have hl : l = Std.Sat.Literal.negate a := Finset.mem_singleton.mp hl
-      subst l
+      obtain rfl := Finset.mem_singleton.mp hl
       exact hH a ha
 
 /-- Counting both children over the same declared variables recovers the parent count.

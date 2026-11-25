@@ -13534,22 +13534,20 @@ register_result "odonnell-unbiased-noise-stability-dictators" where
     case fails at both endpoints."
 
 register_result "odonnell-level-one-inequality" where
-  title := "Level-1 Inequality with the explicit constant 16"
+  title := "Level-1 Inequality for [−1, 1]-valued functions, with the constant 16"
   topic := "analysis of Boolean functions"
   sources := [
     { paper := ODonnell2014, theorem := "Level-1 Inequality",
       locator := "arXiv:2105.10386v1, §5.4, printed p. 126; proof for [−1, 1]-valued functions \
         on printed p. 128" }
   ]
-  theorems := [
-    Cslib.BitString.levelWeight_one_le_of_abs_le_one,
-    Cslib.BitString.levelWeight_one_bitVal_le
-  ]
-  scope := "Uniform cube on any finite coordinate type. The source's O(α² log(1/α)) is stated \
-    with the explicit constant 16 and the natural logarithm: W¹[f] ≤ 16 α² ln(1/α) whenever \
-    α ≤ 1/2, for f with values in [−1, 1] and α = 𝔼|f| (the setting of the source's proof), and \
-    for a Boolean function read as 0 or 1 with α its mean. The sharp constant 2 of Remark 5.28 \
-    is not covered."
+  theorems := [Cslib.BitString.levelWeight_one_le_of_abs_le_one]
+  scope := "Uniform cube on any finite coordinate type, for f with values in [−1, 1] and \
+    α = 𝔼|f| ≤ 1/2, the setting of the source's proof. The source's O(α² log(1/α)) is stated \
+    with the explicit constant 16 and the natural logarithm: W¹[f] ≤ 16 α² ln(1/α). The sharp \
+    constant 2 of Remark 5.28 is not covered in this setting; for {0, 1}-valued f it is the \
+    entry odonnell-sharp-level-one-inequality. The source states it for f : {−1, 1}ⁿ → {0, 1} of \
+    mean α; that is the case of values in {0, 1}, where 𝔼|f| = α."
 
 register_result "azuma-hoeffding-seq-process" where
   title := "Azuma–Hoeffding exponential moment and tail inequalities for sequential PMF processes"

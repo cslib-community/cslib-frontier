@@ -72,26 +72,21 @@ variable {V R : Type*}
 /-- Clocking multiplies the number of states by exactly `T + 1`. -/
 theorem card_timeLayer [Fintype V] (T : ℕ) :
     Fintype.card (Lex (Fin (T + 1) × V)) = (T + 1) * Fintype.card V := by
-  rw [Fintype.card_congr (ofLex : Lex (Fin (T + 1) × V) ≃ Fin (T + 1) × V)]
-  simp only [Fintype.card_prod, Fintype.card_fin]
+  simpa only [Fintype.card_prod, Fintype.card_fin] using
+    Fintype.card_congr (ofLex : Lex (Fin (T + 1) × V) ≃ Fin (T + 1) × V)
 
 /-- The clock alone supplies strict forwardness; no acyclicity of `P` is needed. -/
 theorem timeLayer_isStrictUpperTriangular [LT V] [Zero R] (T : ℕ) (P : Matrix V V R) :
-    (timeLayer T P).IsStrictUpperTriangular := by
-  intro a b hab
-  apply ite_eq_right
-  intro hclock
-  exact hab (Prod.Lex.lt_iff.mpr (Or.inl (show (ofLex a).1 < (ofLex b).1 by
-    change (ofLex a).1.val < (ofLex b).1.val
-    omega)))
+    (timeLayer T P).IsStrictUpperTriangular := fun a b hab =>
+  ite_eq_right fun _ => hab (Prod.Lex.lt_iff.mpr (.inl (Fin.lt_def.mpr (by omega))))
 
 /-- Every terminal row is zero, including when the horizon is zero. -/
 theorem timeLayer_last [Zero R] (T : ℕ) (P : Matrix V V R) (x : V)
-    (b : Lex (Fin (T + 1) × V)) : timeLayer T P (toLex (Fin.last T, x)) b = 0 := by
-  apply ite_eq_right
-  have hb := (ofLex b).1.isLt
-  change ¬ T + 1 = (ofLex b).1.val
-  omega
+    (b : Lex (Fin (T + 1) × V)) : timeLayer T P (toLex (Fin.last T, x)) b = 0 :=
+  ite_eq_right fun h => by
+    have := (ofLex b).1.isLt
+    change T + 1 = (ofLex b).1.val at h
+    omega
 
 /-- A clocked row applies `P` to the next slice; at the horizon it vanishes. -/
 theorem timeLayer_mulVec [Fintype V] [Semiring R] (T : ℕ) (P : Matrix V V R)
@@ -101,41 +96,30 @@ theorem timeLayer_mulVec [Fintype V] [Semiring R] (T : ℕ) (P : Matrix V V R)
         (P *ᵥ fun y => v (toLex (⟨i.val + 1, Nat.succ_lt_succ h⟩, y))) x else 0 := by
   classical
   unfold mulVec dotProduct
-  rw [← (toLex : Fin (T + 1) × V ≃ Lex (Fin (T + 1) × V)).sum_comp]
-  rw [Fintype.sum_prod_type]
+  rw [← (toLex : Fin (T + 1) × V ≃ Lex (Fin (T + 1) × V)).sum_comp, Fintype.sum_prod_type]
   by_cases hi : i.val < T
-  · rw [dite_eq_left hi]
-    rw [sum_eq_single (⟨i.val + 1, Nat.succ_lt_succ hi⟩ : Fin (T + 1))]
+  · rw [dite_eq_left hi, sum_eq_single (⟨i.val + 1, Nat.succ_lt_succ hi⟩ : Fin (T + 1))]
     · simp [timeLayer]
-    · intro j _ hj
-      have hne : i.val + 1 ≠ j.val := fun h => hj (Fin.ext h.symm)
-      simp [timeLayer, hne]
+    · exact fun j _ hj => by
+        simp [timeLayer, show i.val + 1 ≠ j.val from fun h => hj (Fin.ext h.symm)]
     · simp
   · rw [dite_eq_right hi]
-    refine sum_eq_zero fun j _ => ?_
-    have hne : i.val + 1 ≠ j.val := by omega
-    simp [timeLayer, hne]
+    exact sum_eq_zero fun j _ => by simp [timeLayer, show i.val + 1 ≠ j.val by omega]
 
 /-- Nonnegative entries remain nonnegative after clocking. -/
 theorem timeLayer_nonneg [Zero R] [Preorder R] {P : Matrix V V R}
-    (hP : ∀ x y, 0 ≤ P x y) (T : ℕ) : ∀ a b, 0 ≤ timeLayer T P a b := by
-  intro a b
+    (hP : ∀ x y, 0 ≤ P x y) (T : ℕ) : ∀ a b, 0 ≤ timeLayer T P a b := fun a b => by
   unfold timeLayer
   split_ifs
-  · exact hP _ _
-  · exact le_rfl
+  exacts [hP _ _, le_rfl]
 
 /-- Clocking preserves the substochastic row bound, with zero terminal rows. -/
 theorem timeLayer_mulVec_one_le [Fintype V] [Semiring R] [PartialOrder R] [IsOrderedRing R]
-    {P : Matrix V V R} (hP : P *ᵥ 1 ≤ 1) (T : ℕ) : timeLayer T P *ᵥ 1 ≤ 1 := by
-  intro a
-  let i := (ofLex a).1
-  let x := (ofLex a).2
-  change (timeLayer T P *ᵥ 1) (toLex (i, x)) ≤ (1 : R)
+    {P : Matrix V V R} (hP : P *ᵥ 1 ≤ 1) (T : ℕ) : timeLayer T P *ᵥ 1 ≤ 1 := fun a => by
+  change (timeLayer T P *ᵥ 1) (toLex ((ofLex a).1, (ofLex a).2)) ≤ (1 : R)
   rw [timeLayer_mulVec]
   split_ifs
-  · exact hP x
-  · exact zero_le_one
+  exacts [hP _, zero_le_one]
 
 /-- A substochastic matrix preserves `[0,1]` under every finite power. -/
 theorem pow_mulVec_mem_Icc [Fintype V] [DecidableEq V]
@@ -152,10 +136,9 @@ theorem pow_mulVec_mem_Icc [Fintype V] [DecidableEq V]
 theorem timeLayerPotential_mem_Icc [Fintype V] [DecidableEq V]
     [Semiring R] [PartialOrder R] [IsOrderedRing R] {P : Matrix V V R} {e : V → R}
     (hP0 : ∀ x y, 0 ≤ P x y) (hP1 : P *ᵥ 1 ≤ 1) (he : e ∈ Set.Icc 0 1) (T : ℕ) :
-    timeLayerPotential T P e ∈ Set.Icc 0 1 := by
-  constructor <;> intro a
-  · exact (pow_mulVec_mem_Icc hP0 hP1 he _).1 _
-  · exact (pow_mulVec_mem_Icc hP0 hP1 he _).2 _
+    timeLayerPotential T P e ∈ Set.Icc 0 1 :=
+  ⟨fun _ => (pow_mulVec_mem_Icc hP0 hP1 he _).1 _,
+    fun _ => (pow_mulVec_mem_Icc hP0 hP1 he _).2 _⟩
 
 /-- At clock zero, the potential is the original `T`-step terminal expectation. -/
 theorem timeLayerPotential_zero [Fintype V] [DecidableEq V] [Semiring R]
@@ -177,20 +160,18 @@ theorem one_sub_timeLayer_mulVec [Fintype V] [DecidableEq V] [Ring R]
   rw [timeLayer_mulVec]
   by_cases hi : i.val < T
   · rw [dite_eq_left hi]
-    have hne : i.val ≠ T := by omega
-    have hremaining : T - i.val = T - (i.val + 1) + 1 := by omega
     change (P ^ (T - i.val) *ᵥ e) x -
       (P *ᵥ (P ^ (T - (i.val + 1)) *ᵥ e)) x = if i.val = T then e x else 0
-    rw [ite_eq_right hne, mulVec_mulVec, ← pow_succ', ← hremaining, sub_self]
+    rw [ite_eq_right (by omega), mulVec_mulVec, ← pow_succ',
+      show T - (i.val + 1) + 1 = T - i.val by omega, sub_self]
   · rw [dite_eq_right hi]
-    have hiT : i.val = T := by omega
-    simp [timeLayerPotential, timeLayerReward, hiT]
+    simp [timeLayerPotential, timeLayerReward, show i.val = T by omega]
 
 /-- The clocked linear system has determinant one over any commutative ring. -/
 theorem det_one_sub_timeLayer [Fintype V] [LinearOrder V] [CommRing R]
-    (T : ℕ) (P : Matrix V V R) : (1 - timeLayer T P).det = 1 := by
-  rw [sub_eq_add_neg]
-  exact (timeLayer_isStrictUpperTriangular T P).neg.det_one_add
+    (T : ℕ) (P : Matrix V V R) : (1 - timeLayer T P).det = 1 :=
+  sub_eq_add_neg (1 : Matrix _ _ R) (timeLayer T P) ▸
+    (timeLayer_isStrictUpperTriangular T P).neg.det_one_add
 
 /-- The inverse expression equals the explicitly constructed remaining-time potential. -/
 theorem inv_one_sub_timeLayer_mulVec [Fintype V] [LinearOrder V] [CommRing R]

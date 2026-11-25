@@ -202,12 +202,10 @@ theorem computableInPolyTime_repEvalWord {α : Type} {encode : α ↪ List Bool}
       (fun a => repEvalWord (t a) (inLen₀ a) (evalWord₀ (n a)) (w a))
       encode encBits := by
   unfold repEvalWord
-  apply ComputableInPolyTime.flatMapToBitsWithInput
-    (ComputableInPolyTime.unary_range' ht)
   have hfst := ComputableInPolyTime.fst encode encUnary
-  have hsnd := ComputableInPolyTime.snd encode encUnary
-  have hrow := ComputableInPolyTime.bitsRowWithInput (hin₀.comp hfst) hsnd (hw.comp hfst)
-  exact heval₀.comp ((hn.comp hfst).prod hrow)
+  exact ComputableInPolyTime.flatMapToBitsWithInput (ComputableInPolyTime.unary_range' ht)
+    (heval₀.comp ((hn.comp hfst).prod (ComputableInPolyTime.bitsRowWithInput (hin₀.comp hfst)
+      (ComputableInPolyTime.snd encode encUnary) (hw.comp hfst))))
 
 theorem length_repEvalWord {t inLen₀ outLen₀ : ℕ} {evalWord₀ : List Bool → List Bool}
     (hlen : ∀ u, u.length = inLen₀ → (evalWord₀ u).length = outLen₀) (w : List Bool) :
@@ -325,11 +323,10 @@ theorem repEvalWord_realSampleEntropy_le_prob {t inLen₀ outLen₀ : ℕ}
           (f₀ x, x)) - Δ}).toReal ≤
       Real.exp (-2 * Δ ^ 2 / (t * (inLen₀ : ℝ) ^ 2)) := by
   intro f₀ f₁
-  have h := repHashFin_realSampleEntropy_le_prob t f₀ (Nat.cast_nonneg inLen₀)
-    (by simp [Real.logb_pow]) hΔ
   simpa only [← PMF.uniformOfFintype_map_equiv Cslib.BitString.blocksEquiv,
     PMF.toOuterMeasure_map_apply, Set.preimage_ofPred_eq, f₁, f₀,
-    realSampleEntropy_wordToFinMap_repEvalWord hlen] using h
+    realSampleEntropy_wordToFinMap_repEvalWord hlen] using
+    repHashFin_realSampleEntropy_le_prob t f₀ (Nat.cast_nonneg inLen₀) (by simp [Real.logb_pow]) hΔ
 
 /-- Flat `BitString` upper-tail Hoeffding bound for `repBitAccessibleSet` (`[HHRVW2020]`,
 Lemma 5.3(ii), Equation (5.1), p. 27). -/

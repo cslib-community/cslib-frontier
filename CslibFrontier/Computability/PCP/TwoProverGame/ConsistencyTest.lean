@@ -82,12 +82,10 @@ private theorem CommutingStrategy.sum_ite_prob_eq_agreement (S : CommutingStrate
     · simp [he, CommutingStrategy.prob]
     · simp [he, Ne.symm he]
   rw [Measurement.agreement]
-  simp only [hb]
-  rw [← sum_fiberwise univ f]
+  simp only [hb, ← sum_fiberwise univ f]
   refine sum_congr rfl fun c _ => ?_
   simp only [Measurement.map_effect, sum_mul, map_sum, Complex.re_sum]
-  refine sum_congr rfl fun a ha => ?_
-  rw [(mem_filter.mp ha).2]
+  exact sum_congr rfl fun a ha => by rw [(mem_filter.mp ha).2]
 
 namespace SeededGame
 
@@ -107,19 +105,16 @@ theorem sum_norm_sub_sq_le_of_bitAgreement (seed : PMF R) (query : R → X × Y)
       ∑ r, (seed r).toReal * Measurement.agreement S.state
         ((S.alice (query r).1).map (decodeAlice r)) ((S.bob (query r).2).map (decodeBob r)) := by
     rw [commutingWinProb_eq_sum]
-    refine sum_congr rfl fun r _ => ?_
-    exact congrArg ((seed r).toReal * ·)
+    exact sum_congr rfl fun r _ => congrArg ((seed r).toReal * ·)
       (S.sum_ite_prob_eq_agreement (query r).1 (query r).2 (decodeAlice r) (decodeBob r))
   rw [hwin]
   have h r c : Commute (((S.alice (query r).1).map (decodeAlice r)).effect c)
-      (((S.bob (query r).2).map (decodeBob r)).effect c) := by
-    simp only [Measurement.map_effect]
-    refine Commute.sum_left _ _ _ fun a _ => Commute.sum_right _ _ _ fun b _ => ?_
-    exact S.commute _ _ a b
-  have havg := Probability.PMF.sum_le_affine seed (a := 4) (b := -4) fun r => by
-    have hdist := Measurement.norm_observable_sub_sq_le S.state
-      ((S.alice (query r).1).map (decodeAlice r)) ((S.bob (query r).2).map (decodeBob r)) (h r)
-    exact hdist.trans_eq (by ring)
+      (((S.bob (query r).2).map (decodeBob r)).effect c) :=
+    Measurement.commute_map_map _ _ (S.commute _ _) _ _ c c
+  have havg := Probability.PMF.sum_le_affine seed (a := 4) (b := -4) fun r =>
+    (Measurement.norm_observable_sub_sq_le S.state
+      ((S.alice (query r).1).map (decodeAlice r))
+      ((S.bob (query r).2).map (decodeBob r)) (h r)).trans_eq (by ring)
   linarith
 
 /-- If every accepted answer pair has equal decoded bits, the same squared-distance bound
@@ -137,9 +132,7 @@ theorem sum_norm_sub_sq_le_of_accepts_imp_eq (G : SeededGame R X Y A B)
   have hwin : G.commutingWinProb S ≤
       (bitAgreement G.seed G.query decodeAlice decodeBob).commutingWinProb S := by
     unfold commutingWinProb answersWinProb
-    apply Probability.PMF.toOuterMeasure_toReal_mono
-    rintro ⟨r, a, b⟩ h
-    exact haccept r a b h
+    exact Probability.PMF.toOuterMeasure_toReal_mono _ fun ⟨r, a, b⟩ h => haccept r a b h
   linarith
 
 end SeededGame

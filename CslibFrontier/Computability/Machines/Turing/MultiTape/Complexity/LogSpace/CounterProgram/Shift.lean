@@ -117,17 +117,14 @@ theorem Reaches.shift {B c : ℕ} {s s' : Config} (hcB : c ≤ B)
     obtain ⟨hstep, hB⟩ := ht 0 (by omega)
     simp only [Function.iterate_zero, id] at hstep hB
     have hl := hQ s.1 hstep
-    refine Reaches.head ⟨by rw [hl]; simp, by rw [hl]; exact Instr.isStep_shift hstep, ?_⟩ ?_
+    refine Reaches.head ⟨by simp [hl], hl ▸ Instr.isStep_shift hstep, ?_⟩ ?_
     · intro r hr
-      simp only [List.mem_cons] at hr
-      rcases hr with rfl | hr
+      rcases List.mem_cons.mp hr with rfl | hr
       · exact hcB
       · exact hB r hr
-    · rw [step_shift c hl]
-      rw [Function.iterate_succ_apply]
-      exact ih (fun t' ht' => by
-        have := ht (t' + 1) (by omega)
-        rwa [Function.iterate_succ_apply] at this)
+    · rw [step_shift c hl, Function.iterate_succ_apply]
+      exact ih fun t' ht' => by
+        simpa only [Function.iterate_succ_apply] using ht (t' + 1) (by omega)
 
 /-- A list of instructions placed at the label `b`, after halts. -/
 @[expose] def padded (b : ℕ) (l : List Instr) : CounterProgram where
@@ -135,17 +132,15 @@ theorem Reaches.shift {B c : ℕ} {s s' : Config} (hcB : c ≤ B)
   registers := 0
 
 theorem codeAt_padded (b : ℕ) (l : List Instr) : (padded b l).CodeAt b l := by
-  have := codeAt_of_code_eq (P := padded b l) (l := l) (pre := List.replicate b (.halt []))
+  simpa using codeAt_of_code_eq (P := padded b l) (l := l) (pre := List.replicate b (.halt []))
     (post := []) (by simp [padded])
-  simpa using this
 
 theorem padded_instr_of_isStep {b : ℕ} {l : List Instr} (hQ : Q.CodeAt b (l.map Instr.shift))
     {i : ℕ} (hi : ((padded b l).instr i).IsStep) :
     Q.instr i = ((padded b l).instr i).shift := by
   have hlt : i < b + l.length := by
     by_contra hge
-    rw [instr, List.getD_eq_default _ _ (by simp [padded]; omega)] at hi
-    exact hi
+    rwa [instr, List.getD_eq_default _ _ (by simp [padded]; omega)] at hi
   have hge : b ≤ i := by
     by_contra hlt'
     rw [instr, List.getD_eq_getElem _ _ (by simp [padded]; omega)] at hi

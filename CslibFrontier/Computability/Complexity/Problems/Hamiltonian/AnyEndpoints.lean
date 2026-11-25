@@ -176,7 +176,7 @@ private theorem shift_injective : Function.Injective (· + 2 : ℕ → ℕ) :=
 /-- **Correctness of `DirHamPath.toAny`.** -/
 theorem toAny_mem_iff (x : PathInstance) : toAny x ∈ DirHamPathAny ↔ x ∈ DirHamPath := by
   constructor
-  · rintro ⟨p, hnd, hcov, -, hch⟩
+  · rintro ⟨p, hnd, hcov, hne, hch⟩
     -- no arc enters `0`, so `0` comes first
     have h0 : 0 ∉ p.tail := fun h => by
       obtain ⟨y, hy⟩ := exists_rel_of_mem_tail hch h
@@ -188,12 +188,10 @@ theorem toAny_mem_iff (x : PathInstance) : toAny x ∈ DirHamPathAny ↔ x ∈ D
       rw [mem_toAny_edges] at hy
       omega
     obtain ⟨r, rfl⟩ : ∃ r, p = 0 :: r := by
-      cases p with
-      | nil => simpa using (hcov 0).2 (by simp [toAny])
-      | cons a r =>
-        rcases List.mem_cons.mp ((hcov 0).2 (by simp [toAny])) with h | h
-        · exact ⟨r, by rw [h]⟩
-        · exact absurd h h0
+      obtain ⟨a, r, rfl⟩ := List.exists_cons_of_ne_nil hne
+      rcases List.mem_cons.mp ((hcov 0).2 (by simp [toAny])) with rfl | h
+      · exact ⟨r, rfl⟩
+      · exact absurd h h0
     have hr : r ≠ [] := by
       rintro rfl
       simpa [toAny] using (hcov 1).2 (by simp [toAny])
@@ -219,12 +217,8 @@ theorem toAny_mem_iff (x : PathInstance) : toAny x ∈ DirHamPathAny ↔ x ∈ D
       omega
     obtain ⟨q, rfl⟩ : ∃ q, m = q.map (· + 2) :=
       ⟨m.map (· - 2), by
-        rw [List.map_map]
-        conv_lhs => rw [← List.map_id m]
-        exact List.map_congr_left fun v hv => by
-          change v = v - 2 + 2
-          have := hm2 v hv
-          omega⟩
+        simpa [List.map_map, Function.comp_def] using
+          List.map_congr_left fun v hv => (Nat.sub_add_cancel (hm2 v hv)).symm⟩
     have hq : q ≠ [] := by
       rintro rfl
       have := hch
@@ -278,16 +272,13 @@ theorem toAny_mem_iff (x : PathInstance) : toAny x ∈ DirHamPathAny ↔ x ∈ D
         rw [mem_toAny_edges]
         exact Or.inr (Or.inr ⟨u, v, h, rfl, rfl⟩)
       · intro u hu v hv
-        simp only [List.getLast?_singleton, Option.mem_def, Option.some.injEq] at hu
-        simp only [List.map_cons, List.head?_cons, Option.mem_def, Option.some.injEq] at hv
-        rw [← hu, ← hv, mem_toAny_edges]
-        exact Or.inl ⟨rfl, rfl⟩
+        simp only [List.getLast?_singleton, List.map_cons, List.head?_cons, Option.mem_def,
+          Option.some.injEq] at hu hv
+        simp [hu, hv, mem_toAny_edges]
       · intro u hu v hv
-        simp only [List.head?_cons, Option.mem_def, Option.some.injEq] at hv
         rw [List.getLast?_append_of_ne_nil _ (by simp), List.getLast?_map, ht] at hu
-        simp only [Option.map_some, Option.mem_def, Option.some.injEq] at hu
-        rw [← hu, ← hv, mem_toAny_edges]
-        exact Or.inr (Or.inl ⟨rfl, rfl⟩)
+        simp only [Option.map_some, List.head?_cons, Option.mem_def, Option.some.injEq] at hu hv
+        simp [hu, hv, mem_toAny_edges]
 
 /-- The reduction `DirHamPath.toAny` is polynomial-time. -/
 @[fun_prop]

@@ -47,12 +47,9 @@ theorem criticalSystem_coeffNorm1_at_pow_two_le {n ell b : ℕ} (hell : 1 ≤ el
       (deformedPolynomial ell a u F).coeffNorm1 ≤ bound := by
   intro a u bound
   let R := criticalSystemCoeffNormExponent n ell b
-  have hu : u.natAbs = 2 ^ s := by
-    change ((2 : ℤ) ^ s).natAbs = _
-    rw [Int.natAbs_pow]
-    rfl
+  have hu : u.natAbs = 2 ^ s := Int.natAbs_pow 2 s
   have hcomp : (Polynomial.evalRingHom u).comp Polynomial.C = RingHom.id ℤ := by
-    ext z
+    ext
     simp
   have specialize (p : MvPolynomial (Fin n) (Polynomial ℤ))
       (hp : HasParameterDegree p 1) (hn : ParameterCoeffNorm.norm p ≤ 2 ^ R) :
@@ -63,14 +60,13 @@ theorem criticalSystem_coeffNorm1_at_pow_two_le {n ell b : ℕ} (hell : 1 ≤ el
     exact h.trans ((Nat.mul_le_mul_right _ hn).trans_eq (pow_add 2 _ _).symm)
   obtain ⟨hrdeg, hvdeg⟩ := criticalSystem_hasParameterDegree ell F
   obtain ⟨hrnorm, hvnorm⟩ := criticalSystem_norm_le hell F hF hb
-  constructor
-  · intro i
-    simpa only [criticalLower_map, Polynomial.coe_evalRingHom, Polynomial.eval_C,
-      Polynomial.eval_X, MvPolynomial.map_map, hcomp, MvPolynomial.map_id, a] using
-      specialize _ (hrdeg i) (hrnorm i)
-  · simpa only [deformedPolynomial_map, Polynomial.coe_evalRingHom, Polynomial.eval_C,
-      Polynomial.eval_X, MvPolynomial.map_map, hcomp, MvPolynomial.map_id, a] using
-      specialize _ hvdeg hvnorm
+  exact ⟨fun i => by
+      simpa only [criticalLower_map, Polynomial.coe_evalRingHom, Polynomial.eval_C,
+        Polynomial.eval_X, MvPolynomial.map_map, hcomp, MvPolynomial.map_id, a] using
+        specialize _ (hrdeg i) (hrnorm i),
+    by simpa only [deformedPolynomial_map, Polynomial.coe_evalRingHom, Polynomial.eval_C,
+        Polynomial.eval_X, MvPolynomial.map_map, hcomp, MvPolynomial.map_id, a] using
+        specialize _ hvdeg hvnorm⟩
 
 /-- Bound the integer characteristic polynomial's coefficient norm at parameter `2 ^ s`.
 The exponent includes the symbolic norm allowance and `s` times the parameter-degree bound. -/
@@ -84,7 +80,7 @@ theorem coeffNorm1_valuePolynomial_at_pow_two_le {n ell b : ℕ} (hell : 2 ≤ e
   have hd (k : ℕ) : (q.coeff k).natDegree ≤ D :=
     (natDegree_parametricValuePolynomial_coeff_le hell F hF k).trans
       (Nat.mul_le_mul_right _ (Nat.sub_le _ _))
-  have ha : ((2 : ℤ) ^ s).natAbs = 2 ^ s := by rw [Int.natAbs_pow]; rfl
+  have ha : ((2 : ℤ) ^ s).natAbs = 2 ^ s := Int.natAbs_pow 2 s
   rw [← parametricValuePolynomial_map_evalRingHom]
   have h := Polynomial.coeffNorm1_map_evalRingHom_le q ((2 : ℤ) ^ s)
     (ha.symm ▸ Nat.one_le_two_pow) hd
@@ -106,12 +102,10 @@ theorem valuePolynomial_at_integerParameterExclusion {n ell b : ℕ} (hell : 2 �
   have hφ : (Int.castRingHom ℝ).comp (Polynomial.evalRingHom u) =
       Polynomial.eval₂RingHom (Int.castRingHom ℝ) (u : ℝ) := by
     ext <;> simp [Polynomial.coe_evalRingHom, Polynomial.coe_eval₂RingHom]
-  change (q.map (Int.castRingHom ℝ)).Separable ∧ (q.map (Int.castRingHom ℝ)).eval (a : ℝ) ≠ 0
-  dsimp only [q]
+  dsimp only [q', q]
   rw [← parametricValuePolynomial_map_evalRingHom, Polynomial.map_map, hφ]
-  have h := parametricValuePolynomial_at_parameterExclusion (by omega : 1 ≤ ell) F hF
-    (parametricValuePolynomial_bivariateCoeffNorm1_le hell F hF hb)
-  dsimp only at h
-  simpa only [u, H, a, criticalParameterExponent, Int.cast_pow, Int.cast_ofNat] using h
+  simpa only [u, H, a, criticalParameterExponent, Int.cast_pow, Int.cast_ofNat] using
+    parametricValuePolynomial_at_parameterExclusion (by omega : 1 ≤ ell) F hF
+      (parametricValuePolynomial_bivariateCoeffNorm1_le hell F hF hb)
 
 end MvPolynomial.CriticalSystem

@@ -53,10 +53,9 @@ private theorem tracks_step {M : TM0.Machine Γ Q} {lo hi : ℤ} {c : Cfg Γ Q}
     (hs : HeadPosition.StepWithin M lo hi x y) :
     ∃ d, step M c = some d ∧ Tracks lo hi d y := by
   rcases c with ⟨q, a, L, R⟩
-  rcases x with ⟨native, p⟩
+  rcases x with ⟨_, p⟩
   obtain ⟨he, hL, hR⟩ := hc
-  have hn : native = TM0.cfgOf q a L R := he.symm
-  subst native
+  obtain rfl : _ = TM0.cfgOf q a L R := he.symm
   cases hM : M q a with
   | none => simp only [HeadPosition.StepWithin, HeadPosition.step, TM0.cfgOf, hM,
       Option.map_none] at hs; cases hs.1
@@ -64,19 +63,15 @@ private theorem tracks_step {M : TM0.Machine Γ Q} {lo hi : ℤ} {c : Cfg Γ Q}
     rcases result with ⟨q', action⟩
     cases action with
     | write b =>
-      have hy : y = ⟨TM0.cfgOf q' b L R, p⟩ := by
-        apply Option.some.inj
+      obtain rfl : y = ⟨TM0.cfgOf q' b L R, p⟩ := Option.some.inj <| by
         simpa only [HeadPosition.step, TM0.cfgOf, hM, Option.map_some, Tape.write] using hs.1.symm
-      subst y
       exact ⟨⟨q', b, L, R⟩, by simp only [step, hM], rfl, hL, hR⟩
     | move direction =>
       cases direction with
       | left =>
-        have hy : y = ⟨TM0.cfgOf q' L.headI L.tail (a :: R), p - 1⟩ := by
-          apply Option.some.inj
+        obtain rfl : y = ⟨TM0.cfgOf q' L.headI L.tail (a :: R), p - 1⟩ := Option.some.inj <| by
           simpa only [HeadPosition.step, TM0.cfgOf, hM, Option.map_some, Tape.move,
             ListBlank.head_mk, ListBlank.tail_mk, ListBlank.cons_mk] using hs.1.symm
-        subst y
         have hp : lo ≤ p - 1 := hs.2.2.2.1
         have hlen : 0 < L.length := by change (L.length : ℤ) = p - lo at hL; omega
         cases L with
@@ -85,11 +80,9 @@ private theorem tracks_step {M : TM0.Machine Γ Q} {lo hi : ℤ} {c : Cfg Γ Q}
           refine ⟨⟨q', b, L, a :: R⟩, by simp only [step, hM], rfl, ?_, ?_⟩ <;>
             simp only [List.length_cons, Int.natCast_succ] at hL hR ⊢ <;> omega
       | right =>
-        have hy : y = ⟨TM0.cfgOf q' R.headI (a :: L) R.tail, p + 1⟩ := by
-          apply Option.some.inj
+        obtain rfl : y = ⟨TM0.cfgOf q' R.headI (a :: L) R.tail, p + 1⟩ := Option.some.inj <| by
           simpa only [HeadPosition.step, TM0.cfgOf, hM, Option.map_some, Tape.move,
             ListBlank.head_mk, ListBlank.tail_mk, ListBlank.cons_mk] using hs.1.symm
-        subst y
         have hp : p + 1 ≤ hi := hs.2.2.2.2
         have hlen : 0 < R.length := by change (R.length : ℤ) = hi - p at hR; omega
         cases R with
@@ -119,27 +112,20 @@ private theorem step_eq_none_of_native {M : TM0.Machine Γ Q} {c : Cfg Γ Q}
     (h : TM0.step M c.toNative = none) : step M c = none := by
   cases hs : step M c with
   | none => rfl
-  | some d =>
-    have hn := step_native hs
-    rw [h] at hn
-    cases hn
+  | some _ => cases h.symm.trans (step_native hs)
 
 end
 
 private theorem mk_injective_of_length {L R : List Γ} (hlen : L.length = R.length)
     (h : ListBlank.mk L = ListBlank.mk R) : L = R := by
   have hrel : BlankRel L R := Quotient.exact' h
-  rcases hrel with ⟨n, he⟩ | ⟨n, he⟩
-  · have hn : n = 0 := by
+  rcases hrel with ⟨n, he⟩ | ⟨n, he⟩ <;>
+  · obtain rfl : n = 0 := by
       have := congrArg List.length he
       simp only [List.length_append, List.length_replicate] at this
       omega
-    simpa only [hn, List.replicate_zero, List.append_nil] using he.symm
-  · have hn : n = 0 := by
-      have := congrArg List.length he
-      simp only [List.length_append, List.length_replicate] at this
-      omega
-    simpa only [hn, List.replicate_zero, List.append_nil] using he
+    simp only [List.replicate_zero, List.append_nil] at he
+    first | exact he | exact he.symm
 
 private theorem toNative_injective_of_lengths {c d : Cfg Γ Q}
     (hL : c.left.length = d.left.length) (hR : c.right.length = d.right.length)
@@ -148,11 +134,7 @@ private theorem toNative_injective_of_lengths {c d : Cfg Γ Q}
   rcases d with ⟨q', a', L', R'⟩
   simp only [Cfg.toNative, TM0.cfgOf, TM0.Cfg.mk.injEq, Tape.mk.injEq] at h
   obtain ⟨rfl, rfl, hl, hr⟩ := h
-  have heL : L = L' := mk_injective_of_length hL hl
-  have heR : R = R' := mk_injective_of_length hR hr
-  subst L'
-  subst R'
-  rfl
+  rw [mk_injective_of_length (L := L) hL hl, mk_injective_of_length (L := R) hR hr]
 
 private theorem mk_pad (L : List Γ) (n : ℕ) :
     ListBlank.mk (L ++ List.replicate n default) = ListBlank.mk L :=
@@ -189,16 +171,9 @@ private theorem reaches_of_headRange [Inhabited Q] {M : TM0.Machine Γ Q}
     (hcL : c.left.length = 1) (hcR : c.right.length = radius)
     (hdL : d.left.length = 1) (hdR : d.right.length = radius) :
     StateTransition.Reaches (step M) c d := by
-  obtain ⟨e, hce, he, hL, hR⟩ := headRange_reaches hr c rfl (by simp only [hcL]; omega)
-    (by simp only [hcR]; omega)
-  have heL : e.left.length = d.left.length := by
-    change (e.left.length : ℤ) = 0 - -1 at hL
-    omega
-  have heR : e.right.length = d.right.length := by
-    change (e.right.length : ℤ) = (radius : ℤ) - 0 at hR
-    omega
-  have hed : e = d := toNative_injective_of_lengths heL heR he
-  exact hed ▸ hce
+  obtain ⟨e, hce, he, hL, hR⟩ := headRange_reaches hr c rfl (by simp [hcL]) (by simp [hcR])
+  dsimp only at hL hR
+  exact toNative_injective_of_lengths (by omega) (by omega) he ▸ hce
 
 /-- Filling an origin window is polynomial-time in its control, tape list and unary radius. -/
 theorem computableInPolyTime_ofList {Γ Q α : Type} [Inhabited Γ] {encIn : α ↪ List Bool}

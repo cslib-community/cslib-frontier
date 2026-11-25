@@ -137,27 +137,26 @@ theorem mem_Reach_configurationGraphInterpretation
     (configurationGraphInterpretation L inputFormula lengthFormula ntm).toDomainInterpretation.map
       hI M ∈ Reach ↔ ntm.Accepts w := by
   let E : (Fin (Fintype.card (Register k)) → Fin M.size) ≃ (Register k → Fin M.size) :=
-    { toFun := fun x r => x (Fintype.equivFin (Register k) r)
-      invFun := fun x i => x ((Fintype.equivFin (Register k)).symm i)
-      left_inv := fun x => funext fun i => by simp only [Equiv.apply_symm_apply]
-      right_inv := fun x => funext fun r => by simp only [Equiv.symm_apply_apply] }
+    Equiv.arrowCongr (Fintype.equivFin (Register k)).symm (Equiv.refl _)
   refine (mem_Reach_boundedReachInterpretation _ _ _ M).trans ?_
   rw [accepts_iff_registerStep_fin hfit]
   have hsrc (x : Fin (Fintype.card (Register k)) → Fin M.size) :
       (startFormula L ntm fun r => Term.var (Fintype.equivFin (Register k) r)).Realize x ↔
         ∀ r, (E x r).val = startRegisters ntm r := by
-    simp only [realize_startFormula, Term.realize_var, E, Equiv.coe_fn_mk]
+    simp only [realize_startFormula, Term.realize_var, E, Equiv.arrowCongr_apply,
+      Function.comp_apply, Equiv.symm_symm, Equiv.refl_apply]
   have hstep (a b : Fin (Fintype.card (Register k)) → Fin M.size) :
       (stepFormula L inputFormula lengthFormula ntm
         (fun r => Term.var (.inl (Fintype.equivFin (Register k) r)))
         (fun r => Term.var (.inr (Fintype.equivFin (Register k) r)))).Realize (Sum.elim a b) ↔
         RegisterStep ntm w (fun r => (E a r).val) (fun r => (E b r).val) := by
     simp only [realize_stepFormula hinput hlen hn, Term.realize_var, Sum.elim_inl, Sum.elim_inr,
-      E, Equiv.coe_fn_mk]
+      E, Equiv.arrowCongr_apply, Function.comp_apply, Equiv.symm_symm, Equiv.refl_apply]
   have htgt (y : Fin (Fintype.card (Register k)) → Fin M.size) :
       (acceptFormula L State fun r => Term.var (Fintype.equivFin (Register k) r)).Realize y ↔
         (E y .control).val = stateCode (none : Option State) ∧ (E y .output).val = 1 := by
-    simp only [realize_acceptFormula, Term.realize_var, E, Equiv.coe_fn_mk]
+    simp only [realize_acceptFormula, Term.realize_var, E, Equiv.arrowCongr_apply,
+      Function.comp_apply, Equiv.symm_symm, Equiv.refl_apply]
   constructor
   · rintro ⟨x, y, hx, hxy, hy⟩
     obtain ⟨hc, ho⟩ := (htgt y).mp hy
@@ -401,18 +400,13 @@ theorem toOrderedGraph_mem_Reach (I : STCONInstance) :
         rcases ih with hu0 | ⟨a, rfl, hsa⟩ | ⟨hu_max, -⟩
         · rcases hedge with ⟨_, hw⟩ | ⟨a, b, ha, _, _⟩ | ⟨ht, _⟩
           · exact Or.inr (Or.inl ⟨I.s, Fin.ext hw, .refl⟩)
-          · omega
-          · omega
+          all_goals omega
         · rcases hedge with ⟨hu0, _⟩ | ⟨a', b, ha', hb, hab⟩ | ⟨ht, hw⟩
           · simp only [shift] at hu0
             omega
-          · have ha_eq : a = a' := by
-              fin_index [shift]
-            subst ha_eq
+          · obtain rfl : a = a' := by fin_index [shift]
             exact Or.inr (Or.inl ⟨b, Fin.ext hb, hsa.tail hab⟩)
-          · have ha_eq : a = I.t := by
-              fin_index [shift]
-            subst ha_eq
+          · obtain rfl : a = I.t := by fin_index [shift]
             exact Or.inr (Or.inr ⟨hw, hsa⟩)
         · rcases hedge with ⟨hu0, _⟩ | ⟨a, _, ha, _, _⟩ | ⟨ht, _⟩
           · omega
@@ -515,10 +509,9 @@ private theorem computableInLogSpace_splitUnary {γ : Type} {encIn : γ ↪ List
         List.length_replicate]
   have hdrop : ComputableInLogSpace (fun a => (w a).drop (f a + 1)) encIn encBits := by fun_prop
   refine ⟨hf, hdrop.congr_fun fun a => ?_⟩
-  have hlen : f a + 1 = (List.replicate (f a) true ++ [false]).length := by simp
-  have happ : List.replicate (f a) true ++ false :: rest a =
-      (List.replicate (f a) true ++ [false]) ++ rest a := by simp
-  rw [hsplit a, hlen, happ, List.drop_left]
+  rw [hsplit a]
+  simpa [List.append_assoc] using
+    (List.drop_left (l₁ := List.replicate (f a) true ++ [false]) (l₂ := rest a)).symm
 
 private def rawOneHot (n k : ℕ) : List Bool :=
   (List.replicate k false ++ ([true] ++ List.replicate n false)).take n
@@ -567,28 +560,16 @@ private theorem stconToSTEncoded_mem_iff (I : STCONInstance) :
     stconToSTEncoded I ∈ STReach.encodedLanguage stGraphVocabulary ↔ I ∈ STCON := by
   by_cases hn1 : I.n ≤ 1
   · simp only [stconToSTEncoded, hn1, ↓reduceIte]
-    have hI : I ∈ STCON := by
-      rw [mem_STCON]
-      have hsub : I.s = I.t := by
-        omega
-      rw [hsub]
-    exact iff_of_true yesSTEncoded_mem_STReach hI
+    have hsub : I.s = I.t := by omega
+    exact iff_of_true yesSTEncoded_mem_STReach (by rw [mem_STCON, hsub])
   · have hn2 : 2 ≤ I.n := by omega
     simp only [stconToSTEncoded, hn1, ↓reduceIte]
     let tables : List (List Bool) := [I.matrix, rawOneHot I.n I.t.val, rawOneHot I.n I.s.val]
     have hwf : stGraphVocabulary.WellFormed (I.n, tables) := by
-      refine ⟨rfl, fun i => ?_⟩
-      rcases i with ⟨idx, hidx⟩
+      refine ⟨rfl, fun ⟨idx, hidx⟩ => ?_⟩
       match idx, hidx with
-      | 0, _ =>
-        change I.matrix.length = I.n ^ 2
-        rw [I.length_matrix, sq]
-      | 1, _ =>
-        change (rawOneHot I.n I.t.val).length = I.n ^ 1
-        rw [length_rawOneHot, pow_one]
-      | 2, _ =>
-        change (rawOneHot I.n I.s.val).length = I.n ^ 1
-        rw [length_rawOneHot, pow_one]
+      | 0, _ => exact I.length_matrix.trans (sq I.n).symm
+      | 1, _ | 2, _ => exact (length_rawOneHot I.n _).trans (pow_one I.n).symm
     change (stGraphVocabulary.WellFormed (I.n, tables) ∧
         ∃ hn : 2 ≤ I.n, decoded stGraphVocabulary (I.n, tables) hn ∈ STReach) ↔ I ∈ STCON
     simp only [hwf, true_and]

@@ -186,48 +186,38 @@ theorem sum_norm_sq_sub_fiber_le_twistedShearTranslation (π₁ π₂ : Equiv.Pe
           sum_congr rfl fun x _ ↦ ZMod.sum_norm_sq_dftProd _
       _ = _ := by rw [← mul_sum, Fintype.sum_prod_type]
   -- The changes of `ψ` along the dual shears are at most those of `F`.
-  have hshear (π : Equiv.Perm X) (s : Equiv.Perm (ZMod n × ZMod n)) (hs : ∀ ξ, s ξ = 0 ↔ ξ = 0)
-      (ξ : ZMod n × ZMod n) :
-      ‖(ψ (s ξ) : ℂ) - ψ ξ‖ ^ 2 ≤ ∑ x, ‖F (π x) (s ξ) - F x ξ‖ ^ 2 := by
+  have hshear (π : Equiv.Perm X) (s : Equiv.Perm (ZMod n × ZMod n)) (hs : ∀ ξ, s ξ = 0 ↔ ξ = 0) :
+      ∑ ξ, ‖(ψ (s ξ) : ℂ) - ψ ξ‖ ^ 2 ≤ ∑ x, ∑ ξ, ‖F (π x) (s ξ) - F x ξ‖ ^ 2 := by
+    rw [sum_comm]
+    refine sum_le_sum fun ξ _ ↦ ?_
     rw [← Complex.ofReal_sub, Complex.norm_real, Real.norm_eq_abs, sq_abs]
     by_cases hξ : ξ = 0
     · subst hξ
-      have h0 : s 0 = 0 := (hs 0).2 rfl
-      have e : ψ (s 0) - ψ 0 = 0 := by simp only [hψ, h0, ite_true, sub_self]
-      rw [e, sq, mul_zero]
-      exact sum_nonneg fun _ _ ↦ by positivity
-    · have : s ξ ≠ 0 := fun h ↦ hξ ((hs ξ).1 h)
-      simp only [hψ, this, hξ, ite_false]
+      simp only [hψ, (hs 0).2 rfl, ite_true, sub_self]
+      rw [sq, mul_zero]
+      positivity
+    · simp only [hψ, mt (hs ξ).1 hξ, hξ, ite_false]
       rw [← Equiv.sum_comp π fun x ↦ ‖F x (s ξ)‖ ^ 2]
       exact sq_sqrt_sub_sqrt_le (fun x ↦ F (π x) (s ξ)) (fun x ↦ F x ξ)
   have hS₁ : ∑ ξ, ‖(ψ (shearSnd (-1) ξ) : ℂ) - ψ ξ‖ ^ 2 ≤
       (n : ℝ) ^ 2 * ∑ p, ‖f (twistedShearTranslationMove π₁ π₂ n 0 p) - f p‖ ^ 2 := by
-    calc _ ≤ ∑ ξ, ∑ x, ‖F (π₁ x) (shearSnd (-1) ξ) - F x ξ‖ ^ 2 :=
-          sum_le_sum fun ξ _ ↦ hshear π₁ _ (shearSnd_eq_zero_iff _) ξ
-      _ = _ := by
-        rw [sum_comm, Fintype.sum_prod_type, mul_sum]
-        refine sum_congr rfl fun x _ ↦ ?_
-        exact ZMod.sum_norm_sq_dftProd_shearFst_sub (fun w ↦ f (π₁ x, w)) (fun w ↦ f (x, w)) 1
+    refine (hshear π₁ _ (shearSnd_eq_zero_iff _)).trans_eq ?_
+    rw [Fintype.sum_prod_type, mul_sum]
+    exact sum_congr rfl fun x _ ↦ ZMod.sum_norm_sq_dftProd_shearFst_sub _ (fun w ↦ f (x, w)) 1
   have hS₂ : ∑ ξ, ‖(ψ (shearFst (-1) ξ) : ℂ) - ψ ξ‖ ^ 2 ≤
       (n : ℝ) ^ 2 * ∑ p, ‖f (twistedShearTranslationMove π₁ π₂ n 1 p) - f p‖ ^ 2 := by
-    calc _ ≤ ∑ ξ, ∑ x, ‖F (π₂ x) (shearFst (-1) ξ) - F x ξ‖ ^ 2 :=
-          sum_le_sum fun ξ _ ↦ hshear π₂ _ (shearFst_eq_zero_iff _) ξ
-      _ = _ := by
-        rw [sum_comm, Fintype.sum_prod_type, mul_sum]
-        refine sum_congr rfl fun x _ ↦ ?_
-        exact ZMod.sum_norm_sq_dftProd_shearSnd_sub (fun w ↦ f (π₂ x, w)) (fun w ↦ f (x, w)) 1
+    refine (hshear π₂ _ (shearFst_eq_zero_iff _)).trans_eq ?_
+    rw [Fintype.sum_prod_type, mul_sum]
+    exact sum_congr rfl fun x _ ↦ ZMod.sum_norm_sq_dftProd_shearSnd_sub _ (fun w ↦ f (x, w)) 1
   -- The translation weights of `ψ` are those of `F`.
   have hweight (c : ZMod n × ZMod n → ℝ) (hc : ∀ ξ, 0 ≤ c ξ) :
       ∑ ξ, c ξ * ‖(ψ ξ : ℂ)‖ ^ 2 ≤ ∑ x, ∑ ξ, c ξ * ‖F x ξ‖ ^ 2 := by
     rw [sum_comm]
     refine sum_le_sum fun ξ _ ↦ ?_
     rw [hψsq, mul_sum]
-    refine sum_le_sum fun x _ ↦ ?_
+    refine sum_le_sum fun x _ ↦ mul_le_mul_of_nonneg_left ?_ (hc ξ)
     split_ifs
-    · have := hc ξ
-      simp only [mul_zero]
-      positivity
-    · exact le_rfl
+    exacts [sq_nonneg _, le_rfl]
   have hT₁ : ∑ ξ, ‖ZMod.stdAddChar ξ.1 - 1‖ ^ 2 * ‖(ψ ξ : ℂ)‖ ^ 2 ≤
       (n : ℝ) ^ 2 * ∑ p, ‖f (twistedShearTranslationMove π₁ π₂ n 2 p) - f p‖ ^ 2 := by
     refine (hweight _ fun _ ↦ by positivity).trans_eq ?_

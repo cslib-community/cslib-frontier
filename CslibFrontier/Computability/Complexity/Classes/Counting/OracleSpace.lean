@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Classes.Counting.Space
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.CountingEquivalence
 import CslibFrontier.Computability.Complexity.Classes.SharpP.Characterization
+import CslibFrontier.Computability.Complexity.Classes.Oracle.PolyTime
 
 /-!
 # Counting oracles within polynomial space
@@ -21,7 +22,9 @@ is needed. Thresholding the extension gives the corresponding extension for PP l
 
 The definitions of `P^PP` and `P^#P` require a single oracle program to work for every oracle
 agreeing on valid encodings. Choosing the total PP extension therefore puts these classes within
-PSPACE. In particular, this argument does not assume that an encoding's image is decidable.
+PSPACE. In particular, this argument does not assume that an encoding's image is decidable. In
+the same way, if every #P function on words is computable in polynomial time, the bit graph of the
+total extension is a polynomial-time oracle, and `P^#P` collapses to `P`.
 
 ## Main results
 
@@ -29,6 +32,7 @@ PSPACE. In particular, this argument does not assume that an encoding's image is
 * `Cslib.Complexity.exists_PP_extension`: a PP word language agreeing on valid encodings.
 * `Cslib.Complexity.PWithPPOracle_subset_PSPACE`.
 * `Cslib.Complexity.PWithSharpPOracle_subset_PSPACE`.
+* `Cslib.Complexity.PWithSharpPOracle_subset_P_of_SharpP_subset`: `#P ⊆ FP` implies `P^#P = P`.
 
 ## References
 
@@ -71,5 +75,22 @@ theorem PWithPPOracle_subset_PSPACE : PWithPPOracle enc ⊆ PSPACE enc := by
 /-- Polynomial time with a bit-by-bit #P oracle is contained in polynomial space. -/
 theorem PWithSharpPOracle_subset_PSPACE : PWithSharpPOracle enc ⊆ PSPACE enc :=
   PWithSharpPOracle_subset_PWithPPOracle.trans PWithPPOracle_subset_PSPACE
+
+/-- **If `#P ⊆ FP`, then `P^#P = P`**: if every #P function on words is computable in polynomial
+time with binary output, every problem in `P^#P` is in `P`, at every instance encoding. The total
+word extension of the oracle's function (`SharpP.exists_extension`) is then computable in
+polynomial time, so its bit graph is a polynomial-time oracle answering every query on a valid
+code. -/
+theorem PWithSharpPOracle_subset_P_of_SharpP_subset
+    (h : SharpP encBits ⊆ {f | ComputableInPolyTime f encBits encNat}) :
+    PWithSharpPOracle enc ⊆ P enc := by
+  rintro L ⟨β, encβ, f, hf, hL⟩
+  obtain ⟨g, hg, hext⟩ := SharpP.exists_extension hf
+  have hans : AnswersBits encβ f (bitGraph encBits g) := fun b i => by
+    rw [← hext b]
+    exact answersBits_bitGraph encBits g (encβ b) i
+  obtain ⟨d, hd, hdL⟩ := hL.exists_computableInPolyTimeWithOracle hans
+  rw [← PWithOracle_eq_P (bitGraph_mem_P Decoder.bits (h hg)) enc]
+  exact ⟨d, hd, hdL⟩
 
 end Cslib.Complexity

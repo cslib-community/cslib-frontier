@@ -56,13 +56,10 @@ structure MemberEntry (base query : ℕ) (s : Data 32) : Prop where
 theorem member_eq_false_of_max_lt {d m M query : ℕ} {tree : Tree d}
     (ht : tree.Valid) (hb : tree.bounds = some (m, M)) (hx : M < query) :
     tree.member query = false := by
-  have hnot : ¬tree.Contains query := by
-    intro hc
-    have := ((ht.extrema_of_bounds hb).2.2.2.2 query hc).2
-    omega
-  cases he : tree.member query
-  · rfl
-  · exact False.elim (hnot ((Tree.member_iff_contains ht query).mp he))
+  rw [Bool.eq_false_iff, ne_eq, Tree.member_iff_contains ht]
+  intro hc
+  have := ((ht.extrema_of_bounds hb).2.2.2.2 query hc).2
+  omega
 
 /-- The cached maximum is a valid early successful membership result. -/
 theorem member_maximum {d m M : ℕ} {tree : Tree d}
@@ -90,14 +87,14 @@ theorem memberLoop_spec {d w base query : ℕ} {tree : Tree d} {s : Data 32}
     (ha : Fits w (base + span d)) :
     ∃ z, ExecWithin w memberLoop s z (28 * (d + 1) + 2) ∧
       z.regs out = (if tree.member query then 1 else 0) ∧ z.mem = s.mem := by
-  obtain ⟨hz, ho, htwo, hthree, hfour, hfive, hp, hx, hout0, hrun⟩ := hs
+  have ⟨hz, ho, htwo, hthree, hfour, hfive, hp, hx, hout0, hrun⟩ := hs
   have hbase4 : Fits w (base + 4) := ha.of_le (by have := five_le_span d; omega)
   have hheader := hr.header
   rcases hb : tree.bounds with _ | ⟨m, M⟩ <;> rw [hb] at hheader
   · have he : s.mem base = 0 := hheader.1
     have hmem_f : tree.member query = false := by
       cases tree <;> simp_all [Tree.bounds, Tree.member]
-    apply memberLoop_finish ⟨hz, ho, htwo, hthree, hfour, hfive, hp, hx, hout0, hrun⟩
+    apply memberLoop_finish hs
     apply WP.exists_execWithin
     unfold memberBody
     wram_exec [hp, hz, he]
@@ -108,7 +105,7 @@ theorem memberLoop_spec {d w base query : ℕ} {tree : Tree d} {s : Data 32}
   by_cases heq : query = m
   · have hmem_t : tree.member query = true := by
       cases tree <;> simp_all [Tree.bounds, Tree.member]
-    apply memberLoop_finish ⟨hz, ho, htwo, hthree, hfour, hfive, hp, hx, hout0, hrun⟩
+    apply memberLoop_finish hs
     apply WP.exists_execWithin
     unfold memberBody readAt
     wram_exec [hp, hx, hz, ho, he, hm, heq]
@@ -116,7 +113,7 @@ theorem memberLoop_spec {d w base query : ℕ} {tree : Tree d} {s : Data 32}
   by_cases heq' : query = M
   · have hneM : M ≠ m := by simpa only [heq'] using heq
     have hmem_t : tree.member query = true := heq' ▸ member_maximum ht hb
-    apply memberLoop_finish ⟨hz, ho, htwo, hthree, hfour, hfive, hp, hx, hout0, hrun⟩
+    apply memberLoop_finish hs
     apply WP.exists_execWithin
     unfold memberBody readAt
     wram_exec [hp, hx, hz, ho, htwo, he, hm, hM, heq, heq', hneM]
@@ -127,7 +124,7 @@ theorem memberLoop_spec {d w base query : ℕ} {tree : Tree d} {s : Data 32}
       obtain rfl : b = some (m, M) := hb
       have hmem_f : (Tree.leaf (some (m, M))).member query = false := by
         simp [Tree.member, heq, heq']
-      apply memberLoop_finish ⟨hz, ho, htwo, hthree, hfour, hfive, hp, hx, hout0, hrun⟩
+      apply memberLoop_finish hs
       apply WP.exists_execWithin
       unfold memberBody readAt
       wram_exec [hp, hx, hz, ho, htwo, hthree, he, hm, hM, hq, splitSize, heq, heq', hlt]
@@ -147,7 +144,7 @@ theorem memberLoop_spec {d w base query : ℕ} {tree : Tree d} {s : Data 32}
         omega
       have hqne : universeSize d ≠ 0 := Nat.ne_of_gt (universeSize_pos d)
       let i : Fin (universeSize d) := ⟨query / universeSize d, hi⟩
-      have hstep : ∃ s₁, ExecWithin w memberBody s s₁ 26 ∧
+      obtain ⟨s₁, he_step, hentry, hs₁_mem⟩ : ∃ s₁, ExecWithin w memberBody s s₁ 26 ∧
           MemberEntry (base + clusterOffset d i.val) (query % universeSize d) s₁ ∧
           s₁.mem = s.mem := by
         apply WP.exists_execWithin
@@ -158,7 +155,6 @@ theorem memberLoop_spec {d w base query : ℕ} {tree : Tree d} {s : Data 32}
           by wram_simp [hthree], by wram_simp [hfour], by wram_simp [hfive],
           by wram_simp [clusterOffset, i, Nat.add_assoc], by wram_simp,
           by wram_simp [hout0], by wram_simp [hrun]⟩, by wram_simp⟩
-      obtain ⟨s₁, he_step, hentry, hs₁_mem⟩ := hstep
       have hrep : Rep (cluster i) (base + clusterOffset d i.val) s₁.mem :=
         hs₁_mem ▸ hr.2.2 i
       have hfit : Fits w (base + clusterOffset d i.val + span d) :=
@@ -170,7 +166,7 @@ theorem memberLoop_spec {d w base query : ℕ} {tree : Tree d} {s : Data 32}
         decide
       · simpa only [Tree.member, heq, hi, ↓reduceDIte, ↓reduceIte] using ho_z
   · have hmem_f := member_eq_false_of_max_lt (query := query) ht hb (by omega)
-    apply memberLoop_finish ⟨hz, ho, htwo, hthree, hfour, hfive, hp, hx, hout0, hrun⟩
+    apply memberLoop_finish hs
     apply WP.exists_execWithin
     unfold memberBody readAt
     wram_exec [hp, hx, hz, ho, htwo, he, hm, hM, heq, heq', hlt]

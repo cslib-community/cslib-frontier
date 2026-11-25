@@ -171,8 +171,7 @@ theorem exists_runFrom_decode_root [Finite Q] (M : MultiTapeTM k Bool Q) (e : Q 
   have hcapacity : r ≤ ((2 ^ m) ^ (d * r)).size := by
     rw [← pow_mul, Nat.size_pow]
     have hmr : r ≤ m * (d * r) := by
-      have := Nat.mul_le_mul_right r (Nat.mul_pos hm hd)
-      nlinarith
+      simpa only [Nat.mul_assoc] using Nat.le_mul_of_pos_left r (Nat.mul_pos hm hd)
     omega
   obtain ⟨T, bank, hrun, hdecode, hspace⟩ := ConcreteEvaluator.exists_runFrom_decode_root
     (q := q) M e w b σ hcapacity hb hm hsp (alphabetEmbedding hd hB) (fun _ => rfl)

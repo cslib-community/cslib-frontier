@@ -505,10 +505,7 @@ query (`countInr`, `0` when infeasible). -/
         (fun _ q => oracle (.inr (.find q))) x := by
   simp only [maxOptWitnessQ, maxOptWitness, maxOpt, FreeM.eval_bind, eval_lowerBoundBy,
     FreeM.eval_lift]
-  set k := lowerBound (fun m => oracle (.inl (.probe m))) 0 (S.bound x + 1)
-  by_cases hk : k = 0
-  · simp only [hk, ↓reduceIte, FreeM.eval_pure]
-  · simp only [hk, ↓reduceIte, FreeM.eval_map, FreeM.eval_lift]
+  split_ifs <;> simp only [FreeM.eval_pure, FreeM.eval_map, FreeM.eval_lift]
 
 /-- Exact witness-query count of `maxOptWitnessQ`: `1` when a valid witness is returned
 (`eval = some _`), and `0` when infeasible (`eval = none`). -/
@@ -712,10 +709,7 @@ query (`countInr`, `0` when infeasible). -/
         (fun _ q => oracle (.inr (.find q))) x := by
   simp only [minOptWitnessQ, minOptWitness, minOpt, FreeM.eval_bind, eval_lowerBoundBy,
     FreeM.eval_map, FreeM.eval_lift]
-  set k := lowerBound (fun m => !(oracle (.inl (.probe m)))) 0 (S.bound x + 1)
-  by_cases hk : k ≤ S.bound x
-  · simp only [hk, ↓reduceIte, FreeM.eval_map, FreeM.eval_lift]
-  · simp only [hk, ↓reduceIte, FreeM.eval_pure]
+  split_ifs <;> simp only [FreeM.eval_map, FreeM.eval_lift, FreeM.eval_pure]
 
 /-- Exact witness-query count of `minOptWitnessQ`: `1` when a valid witness is returned
 (`eval = some _`), and `0` when infeasible (`eval = none`). -/
@@ -907,21 +901,18 @@ theorem mem_queriesWith_bisectProgram {α : Type}
     (inv := fun iv : BisectInterval => lo a ≤ iv.lo ∧ (iv.lo < iv.hi → iv.hi ≤ hi a))
     ⟨le_rfl, fun _ => le_rfl⟩
     (fun iv ⟨hlo, hhi⟩ => by
-      unfold bisectStepProgram; split_ifs with hlt
-      · rw [OracleComp.interpret_map]
-        have hhi' := hhi hlt
-        set b : Bool := OracleComp.interpret (m := Id) answer
-          (queryBit (req a ((iv.lo + iv.hi) / 2)))
-        change lo a ≤ (if b then BisectInterval.mk ((iv.lo + iv.hi) / 2 + 1) iv.hi
-            else ⟨iv.lo, (iv.lo + iv.hi) / 2⟩).lo ∧
-          ((if b then BisectInterval.mk ((iv.lo + iv.hi) / 2 + 1) iv.hi
-            else ⟨iv.lo, (iv.lo + iv.hi) / 2⟩).lo <
-           (if b then BisectInterval.mk ((iv.lo + iv.hi) / 2 + 1) iv.hi
-            else ⟨iv.lo, (iv.lo + iv.hi) / 2⟩).hi →
-           (if b then BisectInterval.mk ((iv.lo + iv.hi) / 2 + 1) iv.hi
-            else ⟨iv.lo, (iv.lo + iv.hi) / 2⟩).hi ≤ hi a)
-        cases b <;> simp only [↓reduceIte, Bool.false_eq_true] <;>
-          exact ⟨by omega, fun _ => by omega⟩
+      unfold bisectStepProgram
+      split_ifs with hlt
+      · have hhi' := hhi hlt
+        rw [OracleComp.interpret_map]
+        cases (OracleComp.interpret (m := Id) answer
+          (queryBit (req a ((iv.lo + iv.hi) / 2))) : Bool)
+        · refine ⟨hlo, fun _ => ?_⟩
+          dsimp only [Functor.map]
+          simp only [Bool.false_eq_true, ↓reduceIte]; omega
+        · refine ⟨?_, fun _ => hhi'⟩
+          dsimp only [Functor.map]
+          simp only [↓reduceIte]; omega
       · exact ⟨hlo, hhi⟩) hq
   unfold bisectStepProgram at hq_step
   split_ifs at hq_step with hlt
@@ -1239,17 +1230,14 @@ private theorem not_mem_vars_applyPartial {answers : List (Literal ℕ)} {φ : C
   obtain ⟨⟨v', b⟩, hmem, rfl⟩ := List.mem_map.mp hv
   intro hcontra
   obtain ⟨_, hc', b', hb'⟩ := CNF.mem_vars.mp hcontra
-  simp only [applyPartial, List.mem_map, List.mem_filter] at hc'
+  simp only [applyPartial, List.mem_map, List.mem_filter, Bool.not_eq_true',
+    List.any_eq_false] at hc'
   obtain ⟨c, ⟨_, hnot_sat⟩, rfl⟩ := hc'
-  obtain ⟨hlc, hnot_neg⟩ := List.mem_filter.mp hb'
+  simp only [List.mem_filter, Bool.not_eq_true', List.any_eq_false] at hb'
   rcases eq_or_ne b b' with rfl | hne
-  · have hsat : (c.any fun l => answers.any (· == l)) = true :=
-      List.any_eq_true.mpr ⟨(v', b), hlc, List.any_eq_true.mpr ⟨(v', b), hmem, by simp⟩⟩
-    simp [hsat] at hnot_sat
-  · have hb_eq : b = !b' := by cases b <;> cases b' <;> simp_all
-    have hneg : (answers.any (· == (v', !b'))) = true :=
-      List.any_eq_true.mpr ⟨(v', !b'), hb_eq ▸ hmem, by simp⟩
-    simp [hneg] at hnot_neg
+  · exact hnot_sat (v', b) hb'.1 (List.any_eq_true.mpr ⟨(v', b), hmem, beq_iff_eq.mpr rfl⟩)
+  · refine hb'.2 (v', !b') ?_ (beq_iff_eq.mpr rfl)
+    cases b <;> cases b' <;> simp_all
 
 /-- Querying `MaxSATThreshold` on `(applyPartial answers φ, target - satisfiedBy answers φ)`
 characterizes whether `answers` extends to a full assignment satisfying at least `target`
@@ -1588,37 +1576,34 @@ theorem solveMaxSATProgram_query_bounds (answer : Unit × List Bool → List Boo
       φ.length.size + CNF.numVars φ ∧
     ∀ req ∈ OracleComp.queriesWith answer (solveMaxSATProgram φ),
       req.2.length ≤ (encMaxSATQuery ⟨φ, φ.length⟩).length := by
-  unfold solveMaxSATProgram; rw [OracleComp.queriesWith_bind]
+  unfold solveMaxSATProgram
+  rw [OracleComp.queriesWith_bind]
   set k : ℕ := OracleComp.interpret (m := Id) answer
     (bisectProgram (fun ψ m => encMaxSATQuery ⟨ψ, m⟩) (fun _ => 1) (fun ψ => ψ.length + 1) φ)
-  have hiter : ∀ s (iv : BisectInterval), iv.lo ≤ φ.length + 1 → iv.hi ≤ φ.length + 1 →
-      (OracleComp.interpret (m := Id) answer (OracleComp.iterate s
-        (bisectStepProgram (fun ψ m => encMaxSATQuery ⟨ψ, m⟩) φ) iv)).lo ≤ φ.length + 1 := by
-    intro s; induction s with
+  have hk_bound : k ≤ φ.length + 1 := by
+    suffices ∀ s (iv : BisectInterval), iv.lo ≤ φ.length + 1 → iv.hi ≤ φ.length + 1 →
+        ((fun st => OracleComp.interpret (m := Id) answer
+          (bisectStepProgram (fun ψ m => encMaxSATQuery ⟨ψ, m⟩) φ st))^[s] iv).lo ≤
+          φ.length + 1 by
+      simp only [k, bisectProgram, OracleComp.interpret_map, OracleComp.interpret_id_iterate]
+      exact this _ _ (Nat.le_add_left 1 φ.length) le_rfl
+    intro s
+    induction s with
     | zero => exact fun _ h1 _ => h1
     | succ s ih =>
       intro iv h1 h2
-      rw [OracleComp.iterate_succ_bind, OracleComp.interpret_bind]
-      have hstep :
-          let iv' : BisectInterval := OracleComp.interpret (m := Id) answer
-            (bisectStepProgram (fun ψ m => encMaxSATQuery ⟨ψ, m⟩) φ iv)
-          iv'.lo ≤ φ.length + 1 ∧ iv'.hi ≤ φ.length + 1 := by
-        unfold bisectStepProgram; split_ifs with hlt
-        · rw [OracleComp.interpret_map]
-          set b : Bool := OracleComp.interpret (m := Id) answer _
-          change (if b then BisectInterval.mk ((iv.lo + iv.hi) / 2 + 1) iv.hi
-              else ⟨iv.lo, (iv.lo + iv.hi) / 2⟩).lo ≤ φ.length + 1 ∧
-            (if b then BisectInterval.mk ((iv.lo + iv.hi) / 2 + 1) iv.hi
-              else ⟨iv.lo, (iv.lo + iv.hi) / 2⟩).hi ≤ φ.length + 1
-          cases b <;> simp only [↓reduceIte, Bool.false_eq_true] <;> exact ⟨by omega, by omega⟩
-        · exact ⟨h1, h2⟩
-      exact ih _ hstep.1 hstep.2
-  have hk_bound : k ≤ φ.length + 1 := by
-    have hk_eq : k = (OracleComp.interpret (m := Id) answer (OracleComp.iterate
-        ((φ.length + 1 - 1).size) (bisectStepProgram (fun ψ m => encMaxSATQuery ⟨ψ, m⟩) φ)
-        ⟨1, φ.length + 1⟩) : BisectInterval).lo := by
-      simp only [k, bisectProgram, OracleComp.interpret_map]; rfl
-    exact hk_eq ▸ hiter _ ⟨1, φ.length + 1⟩ (Nat.le_add_left 1 φ.length) le_rfl
+      rw [Function.iterate_succ_apply]
+      unfold bisectStepProgram
+      split_ifs with hlt
+      · rw [OracleComp.interpret_map]
+        cases (OracleComp.interpret (m := Id) answer _ : Bool)
+        · refine ih _ h1 ?_
+          dsimp only [Functor.map]
+          simp only [Bool.false_eq_true, ↓reduceIte]; omega
+        · refine ih _ ?_ h2
+          dsimp only [Functor.map]
+          simp only [↓reduceIte]; omega
+      · exact ih iv h1 h2
   refine ⟨?_, fun req hreq => ?_⟩
   · have h1 := length_queriesWith_bisectProgram_le answer
       (fun ψ m => encMaxSATQuery ⟨ψ, m⟩) (fun _ => 1) (fun ψ => ψ.length + 1) φ

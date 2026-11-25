@@ -76,12 +76,10 @@ theorem nodup_indexWords (bound fuel : ℕ) : (indexWords bound fuel).Nodup := b
   induction fuel with
   | zero => simp [indexWords]
   | succ fuel ih =>
-    change ((List.range bound).flatMap _).Nodup
-    refine List.nodup_flatMap.mpr ⟨fun _ _ => ih.map List.cons_injective, ?_⟩
-    apply List.nodup_range.imp
-    intro left right hne
-    simp only [List.disjoint_left, List.mem_map]
-    rintro word ⟨xs, _, rfl⟩ ⟨ys, _, heq⟩
+    refine List.nodup_flatMap.mpr ⟨fun _ _ => ih.map List.cons_injective,
+      List.nodup_range.imp fun hne => List.disjoint_left.mpr fun _ h1 h2 => ?_⟩
+    obtain ⟨_, _, rfl⟩ := List.mem_map.mp h1
+    obtain ⟨_, _, heq⟩ := List.mem_map.mp h2
     exact hne (List.cons.inj heq).1.symm
 
 variable {k : ℕ} {Symbol Control Operation : Type} [DecidableEq Operation]
@@ -168,22 +166,11 @@ private theorem flatMap_range_getElem? {α β : Type} (choices : List α)
     (f : ℕ → α → List β) (bound : ℕ) (hbound : choices.length ≤ bound) :
     (List.range bound).flatMap (fun index => (choices[index]?).toList.flatMap (f index)) =
       (List.finRange choices.length).flatMap (fun index => f index.val choices[index]) := by
-  have trim : ∀ n, choices.length ≤ n →
-      (List.range n).flatMap (fun index => (choices[index]?).toList.flatMap (f index)) =
-        (List.range choices.length).flatMap
-          (fun index => (choices[index]?).toList.flatMap (f index)) := by
-    intro n hn
-    induction n, hn using Nat.le_induction with
-    | base => rfl
-    | succ n hn ih =>
-      simp [List.range_succ, List.flatMap_append, List.getElem?_eq_none hn, ih]
-  rw [trim bound hbound]
-  have hrange : (List.finRange choices.length).map Fin.val = List.range choices.length := by
-    apply List.ext_getElem <;> simp
-  rw [← hrange, List.flatMap_map]
-  apply List.flatMap_congr
-  intro index _
-  simp
+  induction bound, hbound using Nat.le_induction with
+  | base =>
+    rw [← List.map_coe_finRange_eq_range, List.flatMap_map]
+    exact List.flatMap_congr fun index _ => by simp
+  | succ n hn ih => simp [List.range_succ, List.flatMap_append, List.getElem?_eq_none hn, ih]
 
 private theorem flatMap_range_zero {α : Type} (bound : ℕ) (hbound : 0 < bound) (values : List α) :
     (List.range bound).flatMap (fun index => if index = 0 then values else []) = values := by
@@ -244,8 +231,7 @@ private theorem filterMap_replayAuxResult
         interpret_runOccurrenceProgram_succ machine fuel cfg state hs oracle trace s,
         List.map_flatMap]
       change (List.finRange _).flatMap _ = (List.finRange _).flatMap _
-      apply List.flatMap_congr
-      intro index _
+      refine List.flatMap_congr fun index _ => ?_
       dsimp only [following]
       cases (machine.tr state cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols
         cfg.answerSymbols)[index.val] <;> exact ih _ _ _
@@ -289,10 +275,10 @@ theorem filterMap_replayResult_terminal
     (fuel : ℕ) (cfg : Config k Symbol Control Operation input) {S : Type}
     (oracle : Operation × List Symbol → S → List Symbol × S) (s : S) :
     (indexWords bound fuel).filterMap (fun word =>
-        (machine.replayResult cfg word oracle s).filter fun result =>
-          result.1.2.tapes.state.isNone) =
-      (machine.runOccurrenceTrace fuel cfg oracle s).filter fun result =>
-        result.1.2.tapes.state.isNone := by
+        (machine.replayResult cfg word oracle s).filter fun ⟨⟨_, finalCfg⟩, _⟩ =>
+          finalCfg.tapes.state.isNone) =
+      (machine.runOccurrenceTrace fuel cfg oracle s).filter fun ⟨⟨_, finalCfg⟩, _⟩ =>
+        finalCfg.tapes.state.isNone := by
   rw [← machine.filterMap_replayResult bound hpos hbound fuel cfg oracle s,
     List.filter_filterMap]
 
@@ -305,9 +291,9 @@ theorem countP_replayResult_terminal
     (oracle : Operation × List Symbol → S → List Symbol × S) (s : S)
     (verdict : List Symbol → Bool) :
     (indexWords bound fuel).countP (fun word => (machine.replayResult cfg word oracle s).any
-        fun result => result.1.2.tapes.state.isNone && verdict result.1.2.tapes.output) =
-      (machine.runOccurrenceTrace fuel cfg oracle s).countP
-        (fun result => result.1.2.tapes.state.isNone && verdict result.1.2.tapes.output) := by
+        fun ⟨⟨_, finalCfg⟩, _⟩ => finalCfg.tapes.state.isNone && verdict finalCfg.tapes.output) =
+      (machine.runOccurrenceTrace fuel cfg oracle s).countP fun ⟨⟨_, finalCfg⟩, _⟩ =>
+        finalCfg.tapes.state.isNone && verdict finalCfg.tapes.output := by
   rw [← machine.filterMap_replayResult bound hpos hbound fuel cfg oracle s,
     List.countP_filterMap]
   congr 1 with word : 1
@@ -332,16 +318,11 @@ private theorem interpret_runOccurrenceProgram_empty (machine : MultiTapeCTM k S
         (fun final => (Config.emptyOracleEquiv.symm final, s)) := by
   rw [runOccurrenceProgram_empty, OracleComp.interpret_interpret]
   simp only [OracleComp.interpret_query]
-  have heq := OracleComp.run_interpret_stateless
-    (fun n => List.ofFn (id : Fin n → Fin n))
-    (machine.runConfigFrom MultiTapeCTM.chooseOccurrence Empty.elim fuel cfg) s
   have hhandler : (fun n => occurrenceHandler (S := S)
-      (fun q : Empty × List Symbol => q.1.elim)
-      (.inl n)) = (fun n state => (fun index => (index, state)) <$>
-        List.ofFn (id : Fin n → Fin n)) := by
-    funext n state
-    simp [occurrenceHandler, List.map_ofFn]
-  rw [hhandler, heq, machine.interpret_runConfigFrom_eq_map_runList]
+      (fun q : Empty × List Symbol => q.1.elim) (.inl n)) =
+      fun n state => (·, state) <$> List.ofFn (id : Fin n → Fin n) :=
+    funext₂ fun _ _ => by simp [occurrenceHandler, List.map_ofFn]
+  rw [hhandler, OracleComp.run_interpret_stateless, machine.interpret_runConfigFrom_eq_map_runList]
   simp [List.map_map, Function.comp_def]
 
 /-- With no oracle channels, erasing the trace gives exactly the existing closed `runList`.
