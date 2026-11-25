@@ -1411,19 +1411,12 @@ theorem isPPT_shoupComposeAdversary
     hh.comp (by fun_prop : ComputableInPolyTime
       (fun q : (ℕ × List Bool × List Bool) × List Bool × List Bool => (q.1.1, q.2))
       (encPair encP (encPair encBits encBits)) encP)
-  have hres := isPPTOn_shoupComposeFindWith (encIn := encP)
+  exact isPPTOn_shoupComposeFindWith (encIn := encP)
     (baseKeyLen := fun p : ℕ × List Bool × List Bool => baseKeyLen p.1)
     (outLen := fun p => outLen p.1) (s := fun p => s p.1) (t := fun p => t p.1) (n := fun p => p.1)
     (savedState := fun p => p.2.1) (k := fun p => p.2.2)
     (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
     hstep_key (fun p => h_len p.1) (by fun_prop) (by fun_prop) ha.find
-  have heq : (fun p : ℕ × List Bool × List Bool =>
-      shoupComposeFindWith (baseKeyLen p.1) (outLen p.1) (s p.1) (t p.1) (h p.1) adversary
-        p.1 p.2.1 p.2.2) =
-      (fun ⟨n, st, k⟩ =>
-        shoupComposeFindWith (baseKeyLen n) (outLen n) (s n) (t n) (h n) adversary n st k) := by
-    funext ⟨_, _, _⟩; rfl
-  exact heq ▸ hres
 
 private noncomputable def shoupTargetDist (baseKeyLen outLen t : ℕ → ℕ)
     (adversary : TargetCollisionFinder) (n : ℕ) :
