@@ -363,11 +363,7 @@ theorem succProbability_universal2GuessGame_le {State₀ State₁ : Type} (d : F
         (v, w, ρ, st₁) ∈ (ProbComp.eval ((A.chooseChallenge st₀
           (projHash2Aux F d δ₁ 0 δ₂ 0 (α • F.generator d))).run
             (fun ((v', w'), ρ') => pure (projHash2 F d δ₁ 0 δ₂ 0 ρ' v' w')))).support := by
-      have haux :
-          projHash2Aux F d δ₁ 0 δ₂ 0 (α • F.generator d) =
-            (δ₁ • F.generator d, δ₂ • F.generator d) := by
-        simp only [projHash2Aux, projHashAux_generator_smul, mul_zero, add_zero]
-      rwa [haux]
+      simpa only [projHash2Aux, projHashAux_generator_smul, mul_zero, add_zero] using hchal
     have hpost_z := hpost δ₁ 0 δ₂ 0 v w ρ st₁ hchal'
     rw [PMF.bind_comm]
     conv_lhs =>
@@ -376,12 +372,7 @@ theorem succProbability_universal2GuessGame_le {State₀ State₁ : Type} (d : F
     refine PMF.bind_apply_le_on_support _ fun ξ _ => ?_
     obtain ⟨β, rfl⟩ := F.smul_generator_surjective d v
     obtain ⟨γ, rfl⟩ := F.smul_generator_surjective d w
-    have hchal_eq (τ₂ : ZMod (F.order d)) :
-        projHash2 F d (δ₁ - α * (ξ - ρ * τ₂)) (ξ - ρ * τ₂) (δ₂ - α * τ₂) τ₂ ρ
-          (β • F.generator d) (γ • F.generator d) =
-        (β * (δ₁ + ρ * δ₂) + (γ - α * β) * ξ) • F.generator d :=
-      projHash2_fiber_challenge_eq F d α β γ δ₁ δ₂ ξ τ₂ ρ
-    simp only [hchal_eq]
+    simp only [projHash2_fiber_challenge_eq F d α β γ δ₁ δ₂ ξ]
     set z : F.Carrier d := (β * (δ₁ + ρ * δ₂) + (γ - α * β) * ξ) • F.generator d
     have hpost_congr (τ₂ : ZMod (F.order d)) :
         ProbComp.eval ((A.guess st₁ z).run
