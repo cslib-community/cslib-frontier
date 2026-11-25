@@ -226,12 +226,10 @@ theorem exists_width_le_of_intervals {V E : Type*} [Fintype V] [Finite E]
   let P : Set V := π.initial t
   have hdiv_mem (a : E) : score a / K = tE a := by
     rw [hscore_eq, Nat.add_mul_div_left _ _ hKpos, Nat.div_eq_of_lt (hidx a), zero_add]
-  have ht_le_div {a : E} {m₀ : ℕ} (h : score a ≤ m₀) : tE a ≤ m₀ / K := by
-    rw [← hdiv_mem a]
-    exact Nat.div_le_div_right h
-  have hdiv_le_t {a : E} {m₀ : ℕ} (h : m₀ ≤ score a) : m₀ / K ≤ tE a := by
-    rw [← hdiv_mem a]
-    exact Nat.div_le_div_right h
+  have ht_le_div {a : E} {m₀ : ℕ} (h : score a ≤ m₀) : tE a ≤ m₀ / K :=
+    (hdiv_mem a).symm.trans_le (Nat.div_le_div_right h)
+  have hdiv_le_t {a : E} {m₀ : ℕ} (h : m₀ ≤ score a) : m₀ / K ≤ tE a :=
+    (Nat.div_le_div_right h).trans_eq (hdiv_mem a)
   set i : ℕ := min (m / K) T
   have hiT : i ≤ T := min_le_right _ _
   have hm_le_i {a : E} (h : score a ≤ m) : tE a ≤ i := le_min (ht_le_div h) (htE a)
@@ -272,9 +270,7 @@ theorem exists_width_le_of_intervals {V E : Type*} [Fintype V] [Finite E]
       have h2 : i ≤ tE a' := hi_le_m ((hPc _ hvP).trans hle')
       have hs1 := (hmem_t _ a hav).1
       have he2 := (hmem_t _ a' ha').2
-      refine ⟨?_, hvP⟩
-      rw [Finset.mem_coe, mem_intervalBag]
-      exact ⟨by omega, by omega⟩
+      exact ⟨mem_intervalBag.2 ⟨by omega, by omega⟩, hvP⟩
     · rintro a ⟨ha, hlt⟩ b ⟨hb, hlt'⟩ heq
       obtain ⟨hvP, hav⟩ := houtEnd ha
       obtain ⟨_, hbv⟩ := houtEnd hb
@@ -298,9 +294,7 @@ theorem exists_width_le_of_intervals {V E : Type*} [Fintype V] [Finite E]
       have h2 : i ≤ tE a := hi_le_m hgt.le
       have hs1 := (hmem_t _ a' ha').1
       have he2 := (hmem_t _ a hau).2
-      refine ⟨?_, huP⟩
-      rw [Finset.mem_coe, mem_intervalBag]
-      exact ⟨by omega, by omega⟩
+      exact ⟨mem_intervalBag.2 ⟨by omega, by omega⟩, huP⟩
     · rintro a ⟨ha, hgt⟩ b ⟨hb, hgt'⟩ heq
       obtain ⟨huP, hau⟩ := hinEnd ha
       obtain ⟨_, hbu⟩ := hinEnd hb
