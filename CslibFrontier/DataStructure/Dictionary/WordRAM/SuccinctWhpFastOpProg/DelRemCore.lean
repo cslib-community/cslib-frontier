@@ -393,8 +393,12 @@ private theorem readInLiveTagGenProg_spec {c U V w n_max base b st : ℕ}
     (readBktFieldGenProg_spec henv hb (by decide : 8 < 10) hrep (s := s))
   simp only [getBktField] at h8
   dsimp only
+  suffices h : CostBoundedStep w (base + largeSpaceWhp c U V w n_max) s
+      (readInLiveTagGenProg (((mkWhpCoreParams c U V w n_max, base), b), st)) s
+      (if inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) st then 1 else 0) 5 from
+    ⟨h.clientState_eq, h.clientResult_eq, h.memoryCost_le, h.validProg⟩
   unfold readInLiveTagGenProg
-  exact CostBoundedStep.mono (.bind hS <| .bind hO <| .bind h8 <| .of (inLiveTreeProg_spec (w := w)
+  exact .mono (.bind hS <| .bind hO <| .bind h8 <| .of (inLiveTreeProg_spec (w := w)
     (rebStage := fs.rebStage) (oldEp := fs.oldEp) (rebDoneB := fs.rebDoneFlag b) (st := st)))
     (by omega)
 
@@ -487,7 +491,9 @@ theorem delRemOmGenProg_fastStep {c U V w n_max base b loc_del st_del fp_live_u 
     (readBktFieldGenProg_spec henv hb (by decide : 5 < 10) hrep (s := s))
   have h6 := CostBoundedStep.of
     (readBktFieldGenProg_spec henv hb (by decide : 6 < 10) hrep (s := s))
-  have hIL := readInLiveTagGenProg_spec henv hce hb hrep (st := st_del) (s := s)
+  obtain ⟨hIL1, hIL2, hIL3, hIL4⟩ := readInLiveTagGenProg_spec henv hce hb hrep (st := st_del)
+    (s := s)
+  have hIL : CostBoundedStep _ _ _ _ _ _ _ := ⟨hIL1, hIL2, hIL3, hIL4⟩
   simp only [getBktField] at h5 h6
   have hcond_iff :
       (fs.overmarsActive b = 1 ∧ loc_del < fs.overmarsCursor b ∧

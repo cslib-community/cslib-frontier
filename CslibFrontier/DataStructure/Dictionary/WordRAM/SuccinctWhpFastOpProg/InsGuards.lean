@@ -53,8 +53,10 @@ attribute [local simp] clientResult_pure_whp clientState_pure_whp
 
 private theorem CostBoundedStep.weaken {α : Type} {w F C C' : ℕ} {s s' : Memory.State}
     {p : Memory.Prog α} {r r' : α} (h : CostBoundedStep w F s p s' r C) (hr : r = r')
-    (hC : C ≤ C') : CostBoundedStep w F s p s' r' C' :=
-  hr ▸ h.mono hC
+    (hC : C ≤ C') :
+    (Memory.spec 0).clientState s p = s' ∧ (Memory.spec 0).clientResult s p = r' ∧
+      memoryCost p s ≤ C' ∧ ValidProg w F s p :=
+  ⟨h.clientState_eq, h.clientResult_eq.trans hr, h.memoryCost_le.trans hC, h.validProg⟩
 
 /-- Guard 1 (`insCheckCapPoolGenProg`): check `totalLocalCoordsWhp ≤ X ∨ (cf ≤ X ∧ poolFreeTop = 0)`
 without mutating memory, returning `(0, 0)` if rejected or `(1, X)` if accepted. -/
@@ -251,9 +253,10 @@ private theorem insOldBufSomeGenProg_spec {c U V w n_max base rKey : ℕ}
   unfold insOldBufSomeGenProg; dsimp only; simp only [pure_bind]
   by_cases hle3 : fs.rebStage ≤ 3
   · obtain ⟨oldMap, hv_old⟩ := hbo_fn hle3
+    obtain ⟨hb1, hb2, hb3, hb4⟩ := insBufIsSomeGenProg_spec henv hold_or hrep hv_old (rKey := rKey)
     exact CostBoundedStep.weaken (.bind ⟨hst_st, hst_res, hst_mc.le, hst_vp⟩ <|
       .bind ⟨hro_st, hro_res, hro_mc.le, hro_vp⟩ <|
-      .if_pos hle3 (insBufIsSomeGenProg_spec henv hold_or hrep hv_old (rKey := rKey)))
+      .if_pos hle3 ⟨hb1, hb2, hb3, hb4⟩)
       (by simp [hle3]) (by omega)
   · exact CostBoundedStep.weaken (.bind ⟨hst_st, hst_res, hst_mc.le, hst_vp⟩ <|
       .bind ⟨hro_st, hro_res, hro_mc.le, hro_vp⟩ <| .if_neg hle3 (.pure _ _))
@@ -510,9 +513,9 @@ theorem insReadFpLiveGenProg_spec {c U V w n_max base b : ℕ}
       (insEvalLiveFpGenProg ((mkWhpParams c U V w n_max, base), (b, u.val))) s
       (fp, fs.liveSliceIdx b) (hashEvalCostWhp c + 4) := by
     unfold insEvalLiveFpGenProg; dsimp only; rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
-    exact .weaken (.bind ⟨hrs_st, hrs_res, hrs_mc.le, hrs_vp⟩ <|
+    exact .mono (.bind ⟨hrs_st, hrs_res, hrs_mc.le, hrs_vp⟩ <|
       .bind ⟨hmh_st, hmh_res, hmh_mc.le, hmh_vp⟩ <| .bind ⟨hfp_st, hfp_res, hfp_mc, hfp_vp⟩ <|
-      .pure _ _) rfl (by omega)
+      .pure _ _) (by omega)
   dsimp only
   unfold insReadFpLiveGenProg; dsimp only
   rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]

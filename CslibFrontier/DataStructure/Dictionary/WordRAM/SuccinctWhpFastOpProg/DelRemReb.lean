@@ -522,10 +522,16 @@ theorem delRemReadInfoGenProg_spec {c U V w n_max base b loc_del : ℕ}
   rw [hrk_eq] at hrk_res
   rw [hfp_eq] at hfp_res
   dsimp only
+  suffices h : CostBoundedStep w (base + largeSpaceWhp c U V w n_max) s
+      (delRemReadInfoGenProg ((((mkWhpParams c U V w n_max, base), b), loc_del), u.val)) s
+      (fs.locState b loc_del,
+        (fpReducedKey c U n_max θ.2 u, fpOfSalt c U n_max θ.2 (fs.bktSalt b) u))
+      (hashEvalCostWhp c + 5) from
+    ⟨h.clientState_eq, h.clientResult_eq, h.memoryCost_le, h.validProg⟩
   unfold delRemReadInfoGenProg
   dsimp only
   rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
-  exact CostBoundedStep.mono (.bind ⟨hst_l, hres_l, hmc_l.le, hvp_l⟩ <|
+  exact .mono (.bind ⟨hst_l, hres_l, hmc_l.le, hvp_l⟩ <|
     .bind ⟨hmh_st, hmh_res, hmh_mc.le, hmh_vp⟩ <| .bind ⟨hrk_st, hrk_res, hrk_mc, hrk_vp⟩ <|
     .bind ⟨hs1_st, hs1_res, hs1_mc.le, hs1_vp⟩ <|
     .bind ⟨hfp_st, hfp_res, hfp_mc, hfp_vp⟩ (.pure _ _)) (by omega)

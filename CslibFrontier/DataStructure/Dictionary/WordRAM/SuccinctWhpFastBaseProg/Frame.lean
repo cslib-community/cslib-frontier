@@ -176,10 +176,16 @@ theorem bufTrie_caps_of_bounds {c n_max : ℕ} (hth : whpThreshold c ≤ n_max) 
 `s'` with result `r`, issues at most `C` memory operations (`memoryCost`), and produces a valid
 memory history at word size `w` whenever `s` is well formed with frontier at least `F`
 (`ValidProg`). -/
-@[expose] def CostBoundedStep {α : Type} (w F : ℕ) (s : Memory.State) (p : Memory.Prog α)
-    (s' : Memory.State) (r : α) (C : ℕ) : Prop :=
-  (Memory.spec 0).clientState s p = s' ∧ (Memory.spec 0).clientResult s p = r ∧
-    memoryCost p s ≤ C ∧ ValidProg w F s p
+structure CostBoundedStep {α : Type} (w F : ℕ) (s : Memory.State) (p : Memory.Prog α)
+    (s' : Memory.State) (r : α) (C : ℕ) : Prop where
+  /-- Final memory state produced by `p` from `s`. -/
+  clientState_eq : (Memory.spec 0).clientState s p = s'
+  /-- Result returned by `p` from `s`. -/
+  clientResult_eq : (Memory.spec 0).clientResult s p = r
+  /-- Upper bound on memory operations issued by `p` from `s`. -/
+  memoryCost_le : memoryCost p s ≤ C
+  /-- Memory-history validity of `p` from `s` at word size `w` and frontier `F`. -/
+  validProg : ValidProg w F s p
 
 namespace CostBoundedStep
 
@@ -189,25 +195,37 @@ variable {α : Type} {w F C C' : ℕ} {s s' : Memory.State}
 theorem of {p : Memory.Prog α} {r : α}
     (h : (Memory.spec 0).clientState s p = s ∧ (Memory.spec 0).clientResult s p = r ∧
       memoryCost p s = C ∧ ValidProg w F s p) : CostBoundedStep w F s p s r C :=
-  ⟨h.1, h.2.1, h.2.2.1.le, h.2.2.2⟩
+  let ⟨h1, h2, h3, h4⟩ := h
+  ⟨h1, h2, h3.le, h4⟩
 
+/-- Pure return takes zero memory operations and leaves the state unchanged. -/
 theorem pure (s : Memory.State) (x : α) : CostBoundedStep w F s (Pure.pure x) s x 0 :=
   ⟨rfl, rfl, (memoryCost_pure x s).le, validProg_pure x⟩
 
+/-- Sequential composition sums cost bounds and threads the intermediate state and result. -/
 theorem bind {β : Type} {C₁ C₂ : ℕ} {s₁ s₂ : Memory.State} {f : Memory.Prog α}
     {g : α → Memory.Prog β} {x : α} {y : β} (hf : CostBoundedStep w F s f s₁ x C₁)
     (hg : CostBoundedStep w F s₁ (g x) s₂ y C₂) :
-    CostBoundedStep w F s (f >>= g) s₂ y (C₁ + C₂) := by
-  obtain ⟨h1, h2, h3, h4⟩ := hf
-  refine ⟨?_, ?_, ?_, validProg_bind h4 (by rw [h1, h2]; exact hg.2.2.2)⟩
-  · rw [StateTransitionSpec.clientState_bind, h1, h2]; exact hg.1
-  · rw [StateTransitionSpec.clientResult_bind, h1, h2]; exact hg.2.1
-  · rw [memoryCost_bind', h1, h2]; exact Nat.add_le_add h3 hg.2.2.1
+    CostBoundedStep w F s (f >>= g) s₂ y (C₁ + C₂) where
+  clientState_eq := by
+    rw [StateTransitionSpec.clientState_bind, hf.clientState_eq, hf.clientResult_eq]
+    exact hg.clientState_eq
+  clientResult_eq := by
+    rw [StateTransitionSpec.clientResult_bind, hf.clientState_eq, hf.clientResult_eq]
+    exact hg.clientResult_eq
+  memoryCost_le := by
+    rw [memoryCost_bind', hf.clientState_eq, hf.clientResult_eq]
+    exact Nat.add_le_add hf.memoryCost_le hg.memoryCost_le
+  validProg := validProg_bind hf.validProg (by
+    rw [hf.clientState_eq, hf.clientResult_eq]
+    exact hg.validProg)
 
+/-- Relax the memory-operation upper bound of a cost-bounded step. -/
 theorem mono {p : Memory.Prog α} {r : α} (h : CostBoundedStep w F s p s' r C) (hC : C ≤ C') :
     CostBoundedStep w F s p s' r C' :=
-  ⟨h.1, h.2.1, h.2.2.1.trans hC, h.2.2.2⟩
+  ⟨h.clientState_eq, h.clientResult_eq, h.memoryCost_le.trans hC, h.validProg⟩
 
+/-- Conditional execution with matching final state and cost bound across both branches. -/
 theorem ite {c : Prop} [Decidable c] {p₁ p₂ : Memory.Prog α} {r₁ r₂ : α}
     (h₁ : CostBoundedStep w F s p₁ s' r₁ C) (h₂ : CostBoundedStep w F s p₂ s' r₂ C) :
     CostBoundedStep w F s (if c then p₁ else p₂) s' (if c then r₁ else r₂) C := by
@@ -215,11 +233,13 @@ theorem ite {c : Prop} [Decidable c] {p₁ p₂ : Memory.Prog α} {r₁ r₂ : �
   · exact h₁
   · exact h₂
 
+/-- Positive branch of a conditional cost-bounded step. -/
 theorem if_pos {c : Prop} [Decidable c] {p₁ p₂ : Memory.Prog α} {r : α} (hc : c)
     (h : CostBoundedStep w F s p₁ s' r C) :
     CostBoundedStep w F s (if c then p₁ else p₂) s' r C := by
   rwa [ite_eq_left hc]
 
+/-- Negative branch of a conditional cost-bounded step. -/
 theorem if_neg {c : Prop} [Decidable c] {p₁ p₂ : Memory.Prog α} {r : α} (hc : ¬c)
     (h : CostBoundedStep w F s p₂ s' r C) :
     CostBoundedStep w F s (if c then p₁ else p₂) s' r C := by
@@ -229,7 +249,7 @@ theorem if_neg {c : Prop} [Decidable c] {p₁ p₂ : Memory.Prog α} {r : α} (h
 theorem elim {p : Memory.Prog α} {r : α} {P : Memory.State → Prop}
     (h : CostBoundedStep w F s p s' r C) (hC : C ≤ C') (hP : P s') :
     memoryCost p s ≤ C' ∧ ValidProg w F s p ∧ P ((Memory.spec 0).clientState s p) :=
-  ⟨h.2.2.1.trans hC, h.2.2.2, by rw [h.1]; exact hP⟩
+  ⟨h.memoryCost_le.trans hC, h.validProg, by rw [h.clientState_eq]; exact hP⟩
 
 end CostBoundedStep
 
