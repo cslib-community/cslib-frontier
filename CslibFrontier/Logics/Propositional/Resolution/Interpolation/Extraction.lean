@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Logics.Propositional.Resolution.Interpolation
 public import CslibFrontier.Computability.Circuit.Boolean.Encoding
 import CslibFrontier.Computability.Circuit.Encoding.Evaluation
+import CslibFrontier.Logics.Propositional.CNF.Eval
 import Mathlib.Data.List.GetD
 
 /-!

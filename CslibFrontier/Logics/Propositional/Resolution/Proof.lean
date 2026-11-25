@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Logics.Propositional.LineProof
 public import CslibFrontier.Logics.Propositional.Resolution
+import CslibFrontier.Logics.Propositional.CNF.Eval
 
 /-!
 # Resolution proofs
@@ -130,13 +131,6 @@ def CNF.RefutableInSize (φ : CNF V) (s : ℕ) : Prop :=
 /-- `φ` has a resolution refutation all of whose lines have width at most `w`. -/
 def CNF.RefutableInWidth (φ : CNF V) (w : ℕ) : Prop :=
   ∃ ls, φ.IsProof ls ∧ [] ∈ ls ∧ ∀ c ∈ ls, c.width ≤ w
-
-omit [DecidableEq V] in
-/-- A literal belongs to a relabelled clause exactly when it has a preimage with the same sign. -/
-theorem Clause.mem_relabel_iff {W : Type*} {f : V → W} {c : Clause V} {w : W} {b : Bool} :
-    (w, b) ∈ c.relabel f ↔ ∃ u, (u, b) ∈ c ∧ f u = w := by
-  simp only [relabel, List.mem_map, Prod.exists, Prod.map_apply, id_eq, Prod.mk.injEq,
-    ← and_assoc, exists_eq_right]
 
 namespace CNF
 
