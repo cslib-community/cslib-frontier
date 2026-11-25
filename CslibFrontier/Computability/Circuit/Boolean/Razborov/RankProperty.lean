@@ -122,25 +122,14 @@ private theorem subsetMobius_eq_sum (h : (ι → Bool) → ZMod 2) (S : Finset �
     subsetMobius (fun T => h fun i => decide (i ∈ T)) S = ∑ x with ∀ i ∉ S, x i = false, h x := by
   rw [subsetMobius]
   refine sum_nbij' (fun T i => decide (i ∈ T)) (fun x => univ.filter fun i => x i = true)
-    ?_ ?_ ?_ ?_ ?_
-  · intro T hT
-    rw [mem_powerset] at hT
-    exact mem_filter.mpr ⟨mem_univ _, fun i hi => decide_eq_false fun hiT => hi (hT hiT)⟩
-  · intro x hx
-    refine mem_powerset.mpr fun i hi => ?_
-    by_contra hiS
-    have hxi := (mem_filter.mp hi).2
-    rw [(mem_filter.mp hx).2 i hiS] at hxi
-    exact Bool.false_ne_true hxi
-  · intro T _
-    ext i
-    simp only [mem_filter, mem_univ, true_and, decide_eq_true_eq]
-  · intro x _
-    funext i
-    simp only [mem_filter, mem_univ, true_and, Bool.decide_eq_true]
-  · intro T _
-    rw [zsmul_eq_mul, Int.cast_pow, Int.cast_neg, Int.cast_one, CharTwo.neg_one_eq_one, one_pow,
-      one_mul]
+    (fun T hT => mem_filter.mpr ⟨mem_univ _,
+      fun i hi => decide_eq_false fun hiT => hi (mem_powerset.mp hT hiT)⟩)
+    (fun x hx => mem_powerset.mpr fun i hi => by_contra fun hiS =>
+      Bool.false_ne_true (((mem_filter.mp hx).2 i hiS).symm.trans (mem_filter.mp hi).2))
+    (fun T _ => by ext; simp)
+    (fun x _ => by funext; simp) fun T _ => by
+      rw [zsmul_eq_mul, Int.cast_pow, Int.cast_neg, Int.cast_one, CharTwo.neg_one_eq_one, one_pow,
+        one_mul]
 
 /-- **The entries of the zero-sum matrix** over `ZMod 2`: the entry at `(I, J)` is the sum of `h`
 over the points vanishing on `I ∪ J`. -/
@@ -227,40 +216,29 @@ theorem zeroSumMatrix_exactWeight (a : ℕ) :
       have hwle : weight x ≤ Fintype.card ι := weight_le x
       have haI : a ≤ Fintype.card ι := I.2 ▸ card_le_univ I.1
       have hS : #S = a := by omega
-      have hIS : I.1 ⊆ S := fun i hi => mem_filter.mpr ⟨mem_univ i, hx i (mem_union_left _ hi)⟩
-      have hJS : J.1 ⊆ S := fun i hi => mem_filter.mpr ⟨mem_univ i, hx i (mem_union_right _ hi)⟩
-      have hI : I.1 = S := eq_of_subset_of_card_le hIS (by rw [hS, I.2])
-      have hJ : J.1 = S := eq_of_subset_of_card_le hJS (by rw [hS, J.2])
+      have hI : I.1 = S := eq_of_subset_of_card_le
+        (fun i hi => mem_filter.mpr ⟨mem_univ i, hx i (mem_union_left _ hi)⟩) (by rw [hS, I.2])
+      have hJ : J.1 = S := eq_of_subset_of_card_le
+        (fun i hi => mem_filter.mpr ⟨mem_univ i, hx i (mem_union_right _ hi)⟩) (by rw [hS, J.2])
       refine ⟨Subtype.ext (hI.trans hJ.symm), funext fun i => ?_⟩
-      rw [hI]
-      cases hxi : x i <;> simp [S, hxi]
+      rw [hI]; cases hxi : x i <;> simp [S, hxi]
     · rintro ⟨rfl, rfl⟩
-      refine ⟨fun i hi => by simpa only [decide_eq_false_iff_not, not_not, union_self] using hi,
-        ?_⟩
-      have hfalse : (univ.filter fun i => decide (i ∉ I.1) = false) = I.1 := by
-        ext i
-        simp only [mem_filter, mem_univ, true_and, decide_eq_false_iff_not, not_not]
+      refine ⟨fun i hi => by simpa using hi, ?_⟩
       have h1 := card_filter_eq_false_eq_card_sub_weight fun i => decide (i ∉ I.1)
       have h2 := weight_le fun i => decide (i ∉ I.1)
-      rw [hfalse, I.2] at h1
+      rw [show (univ.filter fun i => decide (i ∉ I.1) = false) = I.1 by ext; simp, I.2] at h1
       omega
-  by_cases hIJ : I = J
-  · subst hIJ
-    rw [Matrix.one_apply_eq]
-    refine (sum_eq_single_of_mem (fun i => decide (i ∉ I.1)) ?_ fun x hx hne => ?_).trans ?_
-    · rw [mem_filter]
-      exact ⟨mem_univ _, ((key _).mpr ⟨rfl, rfl⟩).1⟩
-    · rw [mem_filter] at hx
-      have hw : weight x ≠ Fintype.card ι - a := fun hw => hne ((key x).mp ⟨hx.2, hw⟩).2
-      rw [show exactWeight (Fintype.card ι - a) x = false from
-        decide_eq_false hw, bitVal_false]
-    · rw [show exactWeight (Fintype.card ι - a) (fun i => decide (i ∉ I.1)) = true from
-        exactWeight_eq_true_iff.mpr ((key _).mpr ⟨rfl, rfl⟩).2, bitVal_true]
+  rcases eq_or_ne I J with rfl | hIJ
+  · rw [Matrix.one_apply_eq]
+    refine (sum_eq_single_of_mem (fun i => decide (i ∉ I.1))
+      (mem_filter.mpr ⟨mem_univ _, ((key _).mpr ⟨rfl, rfl⟩).1⟩) fun x hx hne => ?_).trans ?_
+    · rw [show exactWeight (Fintype.card ι - a) x = false from decide_eq_false
+        (fun hw => hne ((key x).mp ⟨(mem_filter.mp hx).2, hw⟩).2), bitVal_false]
+    · rw [exactWeight_eq_true_iff.mpr ((key _).mpr ⟨rfl, rfl⟩).2, bitVal_true]
   · rw [Matrix.one_apply_ne hIJ]
-    refine sum_eq_zero fun x hx => ?_
-    rw [mem_filter] at hx
-    have hw : weight x ≠ Fintype.card ι - a := fun hw => hIJ ((key x).mp ⟨hx.2, hw⟩).1
-    rw [show exactWeight (Fintype.card ι - a) x = false from decide_eq_false hw, bitVal_false]
+    exact sum_eq_zero fun x hx => by
+      rw [show exactWeight (Fintype.card ι - a) x = false from decide_eq_false
+        (fun hw => hIJ ((key x).mp ⟨(mem_filter.mp hx).2, hw⟩).1), bitVal_false]
 
 end Matrix
 
@@ -289,10 +267,9 @@ private theorem rank_one_finsetLen (a : ℕ) :
 /-- The indicator of the points with exactly `a` zeros passes the rank test at level `a`: its
 zero-sum matrix is the identity, of full rank `C(n, a)`. -/
 theorem exactWeight_mem_rankTest (a : ℕ) : exactWeight (n - a) ∈ rankTest n a := by
-  rw [mem_rankTest]
   have h := zeroSumMatrix_exactWeight (ι := Fin n) a
   rw [Fintype.card_fin] at h
-  rw [h, rank_one_finsetLen]
+  rw [mem_rankTest, h, rank_one_finsetLen]
   omega
 
 /-- **Largeness of the rank test**: at every `n` and `a`, at least half of the Boolean functions on
@@ -305,30 +282,24 @@ theorem two_pow_two_pow_le_two_mul_ncard_rankTest (n a : ℕ) :
   set φ : BooleanFunction n → BooleanFunction n := fun f x => f x ^^ g x
   have hφ : Function.Involutive φ := fun f => funext fun x => by
     simp only [φ, Bool.xor_assoc, Bool.xor_self, Bool.xor_false]
-  -- every function or its partner passes
-  have hcover : ∀ f, f ∈ rankTest n a ∨ φ f ∈ rankTest n a := by
-    intro f
+  have hcover (f) : f ∈ rankTest n a ∨ φ f ∈ rankTest n a := by
+    have h := zeroSumMatrix_exactWeight (ι := Fin n) a
+    rw [Fintype.card_fin] at h
     have hsum : (zeroSumMatrix a fun x => bitVal (ZMod 2) (f x)) +
         (zeroSumMatrix a fun x => bitVal (ZMod 2) (φ f x)) = 1 := by
-      have h := zeroSumMatrix_exactWeight (ι := Fin n) a
-      rw [Fintype.card_fin] at h
       rw [← zeroSumMatrix_add, ← h]
-      congr 1
-      funext x
-      simp only [φ, g, Pi.add_apply, bitVal_xor_of_char_two, ← add_assoc,
-        CharTwo.add_self_eq_zero, zero_add]
+      exact congrArg (zeroSumMatrix a) (funext fun x => by
+        simp [φ, g, bitVal_xor_of_char_two, ← add_assoc, CharTwo.add_self_eq_zero])
     have hle := Matrix.rank_add_le (zeroSumMatrix a fun x => bitVal (ZMod 2) (f x))
       (zeroSumMatrix a fun x => bitVal (ZMod 2) (φ f x))
     rw [hsum, rank_one_finsetLen] at hle
-    simp only [mem_rankTest]
-    omega
-  have huniv : (Set.univ : Set (BooleanFunction n)) ⊆ rankTest n a ∪ φ ⁻¹' rankTest n a :=
-    fun f _ => hcover f
-  have hpre : (φ ⁻¹' rankTest n a).ncard = (rankTest n a).ncard := by
-    rw [← hφ.image_eq_preimage_symm, Set.ncard_image_of_injective _ hφ.injective]
-  have hcard := (Set.ncard_le_ncard huniv (Set.toFinite _)).trans (Set.ncard_union_le _ _)
+    simp only [mem_rankTest]; omega
+  have hcard := (Set.ncard_le_ncard
+    (show (Set.univ : Set (BooleanFunction n)) ⊆ rankTest n a ∪ φ ⁻¹' rankTest n a from
+      fun f _ => hcover f) (Set.toFinite _)).trans (Set.ncard_union_le _ _)
   rw [Set.ncard_univ, Nat.card_eq_fintype_card, Fintype.card_fun, Fintype.card_bool,
-    Fintype.card_fun, Fintype.card_bool, Fintype.card_fin, hpre] at hcard
+    Fintype.card_fun, Fintype.card_bool, Fintype.card_fin, ← hφ.image_eq_preimage_symm,
+    Set.ncard_image_of_injective _ hφ.injective] at hcard
   omega
 
 /-- **Usefulness of the rank test against AC⁰[2]**: if a circuit of the AC⁰[2] basis of depth `d`
@@ -347,16 +318,12 @@ theorem rank_mul_two_pow_le_size {f : BooleanFunction n} {C : Circuit Unbounded.
     congrFun (hC x) 0
   simp only [heval] at herr
   set E := univ.filter fun x => Q x ≠ bitVal (ZMod 2) (f x)
-  have hkill : zeroSumMatrix a Q = 0 :=
-    zeroSumMatrix_eq_zero_of_mem_lowDegree hQ (by rwa [Fintype.card_fin])
-  have hrank : (zeroSumMatrix a fun x => bitVal (ZMod 2) (f x)).rank ≤ #E := by
-    have h := zeroSumMatrix_sub a (fun x => bitVal (ZMod 2) (f x)) Q
-    rw [hkill, sub_zero] at h
-    rw [← h]
-    refine rank_zeroSumMatrix_le_card fun x hx => ?_
-    simp only [E, mem_filter, mem_univ, true_and, not_not] at hx
-    rw [Pi.sub_apply, hx, sub_self]
-  exact (Nat.mul_le_mul_right _ hrank).trans herr
+  have hsub := zeroSumMatrix_sub a (fun x => bitVal (ZMod 2) (f x)) Q
+  rw [zeroSumMatrix_eq_zero_of_mem_lowDegree hQ (by rwa [Fintype.card_fin]), sub_zero] at hsub
+  refine (Nat.mul_le_mul_right _
+    (hsub ▸ rank_zeroSumMatrix_le_card (E := E) fun x hx => ?_)).trans herr
+  simp only [E, mem_filter, mem_univ, true_and, not_not] at hx
+  rw [Pi.sub_apply, hx, sub_self]
 
 /-- **The size–depth tradeoff for the rank test**: let `1 ≤ s` and `100 s² ≤ n + 1`. If `f` passes
 the rank test at level `⌈n/2⌉ - s` and a circuit of the AC⁰[2] basis of depth `d` computes `f`,
