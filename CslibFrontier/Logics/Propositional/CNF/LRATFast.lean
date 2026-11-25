@@ -166,8 +166,8 @@ private theorem isTrue_unassign (asg : Array Bool) (ls : List (Literal ℕ)) (l'
     simp only [unassign, List.foldl_cons] at ih ⊢
     rw [ih, List.contains_cons]
     simp only [isTrue, Array.getD_setIfInBounds_self, litIdx_inj]
-    by_cases h : l' = l
-    · simp [h]
+    rcases eq_or_ne l' l with rfl | h
+    · simp
     · simp [h, beq_eq_false_iff_ne.mpr h]
 
 /-! ### The checker -/
@@ -216,38 +216,33 @@ private theorem propagateFast_eq {db : Array (Option (Clause ℕ))} {L : List (�
     ∀ (asg : Array Bool) (trail : List (Literal ℕ)), (∀ l, isTrue asg l = trail.contains l) →
       (propagateFast db asg trail hs).1 = propagateHints L trail hs ∧
         ∀ l, isTrue (propagateFast db asg trail hs).2 l = false := by
-  have hreset : ∀ (asg : Array Bool) (trail : List (Literal ℕ)),
-      (∀ l, isTrue asg l = trail.contains l) → ∀ l, isTrue (unassign asg trail) l = false := by
-    intro asg trail hasg l
+  have hreset (asg : Array Bool) (trail : List (Literal ℕ))
+      (hasg : ∀ l, isTrue asg l = trail.contains l) (l : Literal ℕ) :
+      isTrue (unassign asg trail) l = false := by
     rw [isTrue_unassign, hasg]
     cases trail.contains l <;> rfl
   induction hs with
-  | nil => intro asg trail hasg; exact ⟨rfl, hreset asg trail hasg⟩
+  | nil => exact fun asg trail hasg => ⟨rfl, hreset asg trail hasg⟩
   | cons h hs ih =>
     intro asg trail hasg
     have hfind : db.getD h none = (L.find? (·.1 == h)).map (·.2) := by
       rw [hdb, List.lookup_eq_map_find?]
       congr 2
       funext e
-      exact Bool.eq_iff_iff.2 (by simp only [beq_iff_eq]; exact eq_comm)
-    have hfilter (c : Clause ℕ) : c.filter (fun l => !isTrue asg (Std.Sat.Literal.negate l)) =
-        c.filter (fun l => !trail.contains (Std.Sat.Literal.negate l)) := by
-      simp only [hasg]
+      simp [eq_comm]
     rw [propagateHints_cons]
     simp only [propagateFast, hfind]
     cases L.find? (·.1 == h) with
     | none => exact ⟨rfl, hreset asg trail hasg⟩
     | some e =>
-      simp only [Option.map_some, hfilter, Clause.residual]
+      simp only [Option.map_some, hasg, Clause.residual]
       cases e.2.filter (fun l => !trail.contains (Std.Sat.Literal.negate l)) with
       | nil => exact ⟨rfl, hreset asg trail hasg⟩
       | cons l ls =>
-        by_cases hall : ls.all (· == l)
-        · simp only [hall, ite_true]
-          refine ih _ _ fun l' => ?_
-          rw [isTrue_assign, hasg, List.contains_cons]
-        · simp only [hall]
-          exact ⟨rfl, hreset asg trail hasg⟩
+        dsimp only
+        split_ifs with hall
+        · exact ih _ _ fun l' => by rw [isTrue_assign, hasg, List.contains_cons]
+        · exact ⟨rfl, hreset asg trail hasg⟩
 
 private theorem checkLRATFastAux_eq {db : Array (Option (Clause ℕ))} {L : List (ℕ × Clause ℕ)}
     (hdb : ∀ n, db.getD n none = L.lookup n) {asg : Array Bool}

@@ -82,6 +82,23 @@ structure HasRegularContacts {G : Graph} (D : PolygonalDrawing G) : Prop where
   /-- Different edges can only share listed endpoints at declared vertices. -/
   shared_ends_are_vertices : D.SharedSegmentEndsAreVertices
 
+/-- The two ends of a route with regular contacts name different vertices. -/
+theorem HasRegularContacts.reverse_vertex_ne {G : Graph} {D : PolygonalDrawing G}
+    (hD : D.HasRegularContacts) (d : Dart G) : d.reverse.vertex ≠ d.vertex := by
+  obtain ⟨e, b⟩ := d
+  have hend : (D.route e).start ≠ (D.route e).finish := by
+    intro he
+    have hval := congrArg Fin.val (hD.points_injective e he)
+    exact Nat.succ_ne_zero _ hval.symm
+  have hv : Dart.vertex (G := G) (e, false) ≠ Dart.vertex (e, true) := by
+    intro he
+    apply hend
+    change (D.route e).endpoint false = (D.route e).endpoint true
+    rw [D.endpoint_eq, D.endpoint_eq, he]
+  cases b
+  · exact hv.symm
+  · exact hv
+
 /-- Distinct segment occurrences in a regular drawing have at most one open point in common. -/
 theorem HasRegularContacts.open_inter_subsingleton {G : Graph} {D : PolygonalDrawing G}
     (hD : D.HasRegularContacts) (i j : D.SegmentIndex) (hij : i ≠ j) :

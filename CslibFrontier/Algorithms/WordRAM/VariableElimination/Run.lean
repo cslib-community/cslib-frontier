@@ -72,7 +72,7 @@ private theorem stateCap_eliminateOrder_le (d : ℕ) :
             stateCap_eliminateOrder_le d xs (elimVar d x es)
         _ ≤ (max 1 d) ^ xs.length * (max 1 d * stateCap es) :=
             Nat.mul_le_mul_left _ (stateCap_elimVar_le d x es)
-        _ = (max 1 d) ^ xs.length * max 1 d * stateCap es := by ring
+        _ = (max 1 d) ^ xs.length * max 1 d * stateCap es := (Nat.mul_assoc ..).symm
 
 /-- Top-level Word-RAM memory program executing bucket elimination on `ElimInstance`. -/
 def runProg (_ : Unit) : Memory.Prog ℕ :=
@@ -107,8 +107,7 @@ private theorem decode_init_layout (inst : ElimInstance) :
   obtain ⟨_, hm2, hr2⟩ := holdsIn_cons_shift hr1
   obtain ⟨_, hm3, hr3⟩ := holdsIn_cons_shift hr2
   obtain ⟨h4_lt, hm4, hr4⟩ := holdsIn_cons_shift hr3
-  have h5 : 1 + 1 + 1 + 1 + 1 = 5 := rfl
-  rw [h5] at hr4
+  change HoldsIn 5 _ _ at hr4
   obtain ⟨hdecl, hr5⟩ := holdsIn_append_split hr4
   obtain ⟨hord, hfac⟩ := holdsIn_append_split hr5
   exact ⟨by omega, hm1, hm2, hm3, hm4, hdecl, hord, hfac⟩

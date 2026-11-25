@@ -224,18 +224,22 @@ section Polymorphic
 
 variable {V Y Z : Type*}
 
-/-- A candidate step names two of the lines, by their positions, and the variable of a literal of
-the first. -/
-private theorem mem_candidates {lines : List (Clause V)} {t : Step V} (ht : t ∈ candidates lines) :
+/-- A found step resolves its indexed premises to the requested clause. -/
+private theorem findStep_spec [DecidableEq V] {lines : List (Clause V)} {c : Clause V}
+    {t : Step V} (ht : findStep lines c = some t) :
     ∃ (h₁ : t.leftIndex < lines.length) (h₂ : t.rightIndex < lines.length),
-      lines[t.leftIndex] = t.left ∧ lines[t.rightIndex] = t.right := by
-  obtain ⟨⟨c₁, i₁⟩, he₁, ht⟩ := List.mem_flatMap.1 ht
-  obtain ⟨⟨c₂, i₂⟩, he₂, ht⟩ := List.mem_flatMap.1 ht
-  obtain ⟨⟨v, _⟩, -, rfl⟩ := List.mem_map.1 ht
+      lines[t.leftIndex] = t.left ∧ lines[t.rightIndex] = t.right ∧
+        (t.pivot, true) ∈ t.left ∧ (t.pivot, false) ∈ t.right ∧
+        t.left.resolvent t.right t.pivot = c := by
+  have htest := List.find?_some ht
+  simp only [decide_eq_true_eq] at htest
+  obtain ⟨⟨c₁, i₁⟩, he₁, hm⟩ := List.mem_flatMap.1 (List.mem_of_find?_eq_some ht)
+  obtain ⟨⟨c₂, i₂⟩, he₂, hm⟩ := List.mem_flatMap.1 hm
+  obtain ⟨⟨v, _⟩, -, rfl⟩ := List.mem_map.1 hm
   obtain ⟨-, h₁, hc₁⟩ := List.mem_zipIdx he₁
   obtain ⟨-, h₂, hc₂⟩ := List.mem_zipIdx he₂
   simp only [Nat.zero_add, Nat.sub_zero] at h₁ h₂ hc₁ hc₂
-  exact ⟨h₁, h₂, hc₁.symm, hc₂.symm⟩
+  exact ⟨h₁, h₂, hc₁.symm, hc₂.symm, htest⟩
 
 /-- A resolution step among the lines is a candidate. -/
 private theorem mem_candidates_of_getElem {lines : List (Clause V)} {k₁ k₂ : ℕ}
@@ -316,11 +320,9 @@ theorem isCodeFrom_lineGatesOf {s n : ℕ} {constOp : Bool → σ.Op}
   · exact isCodeFrom_replicate_const (hconst true) _ _ _
   rcases hfind : findStep lines c with _ | t
   · exact isCodeFrom_replicate_const (hconst false) _ _ _
-  obtain ⟨h₁, h₂, hc₁, -⟩ := mem_candidates (List.mem_of_find?_eq_some hfind)
-  have htest := List.find?_some hfind
-  simp only [decide_eq_true_eq] at htest
+  obtain ⟨h₁, h₂, hc₁, -, hpivot, -, -⟩ := findStep_spec hfind
   exact hstep_code (wire_lt_of_lt hs h₁) (wire_lt_of_lt hs h₂)
-    fun i hi => hvars t.left (hc₁ ▸ List.getElem_mem _) i true (hi ▸ htest.1)
+    fun i hi => hvars t.left (hc₁ ▸ List.getElem_mem _) i true (hi ▸ hpivot)
 
 /-- All extracted gates are well formed when the shared variables of `lines` are below `n`. -/
 theorem isCodeFrom_gatesOf {s n : ℕ} {constOp : Bool → σ.Op}
@@ -492,9 +494,7 @@ theorem ofCode_gatesOf {I : Interpretation σ Bool} {s n : ℕ} {constOp : Bool 
           obtain ⟨k₂, hk₂, rfl⟩ := List.getElem_of_mem hc₂
           exact List.find?_eq_none.1 hfind _ (mem_candidates_of_getElem hk₁ hk₂ hv₁)
             (by simp [hv₁, hv₂])
-      obtain ⟨h₁, h₂, hc₁, hc₂⟩ := mem_candidates (List.mem_of_find?_eq_some hfind)
-      have htest := List.find?_some hfind
-      simp only [decide_eq_true_eq] at htest
+      obtain ⟨h₁, h₂, hc₁, hc₂, hpivot, -, hres⟩ := findStep_spec hfind
       have hline : lineGatesOf s constOp step n A B lines c =
           step (n + G.length) (n + s * t.leftIndex + (s - 1))
             (n + s * t.rightIndex + (s - 1)) t.pivot := by
@@ -504,10 +504,10 @@ theorem ofCode_gatesOf {I : Interpretation σ Bool} {s n : ℕ} {constOp : Bool 
       rw [hline] at hcode ⊢
       rw [hbase]
       obtain ⟨c₁, k₁, c₂, k₂, v⟩ := t
-      dsimp only at h₁ h₂ hc₁ hc₂ htest hw₁ hw₂ hcode ⊢
-      obtain ⟨hv₁, -, rfl⟩ := htest
+      dsimp only at h₁ h₂ hc₁ hc₂ hpivot hres hw₁ hw₂ hcode ⊢
+      subst c
       exact hInv_step hw₁ hw₂
-        (fun i hi => hv c₁ (List.mem_append_left _ (hc₁ ▸ List.getElem_mem _)) i true (hi ▸ hv₁))
+        (fun i hi => hv c₁ (List.mem_append_left _ (hc₁ ▸ List.getElem_mem _)) i true (hi ▸ hpivot))
         hcode (hc₁ ▸ hinv k₁ h₁) (hc₂ ▸ hinv k₂ h₂)
   have hrev : ∀ {ls' : List (Clause (ℕ ⊕ (Y ⊕ Z)))}, (A.appendShared B).IsProof ls' →
       (∀ d ∈ ls', ∀ i b, (.inl i, b) ∈ d → i < n) →

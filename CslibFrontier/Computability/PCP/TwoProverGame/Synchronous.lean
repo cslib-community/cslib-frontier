@@ -77,10 +77,8 @@ variable [Ring 𝒜] [PartialOrder 𝒜] [Algebra ℂ 𝒜]
 /-- Physically swapping the players preserves synchrony. -/
 @[simp] theorem isSynchronous_swap_iff (S : CommutingStrategy X X A A 𝒜) :
     S.swap.IsSynchronous ↔ S.IsSynchronous := by
-  constructor <;> intro h x a b hab
-  · simpa only [prob_swap] using h x b a (Ne.symm hab)
-  · rw [prob_swap]
-    exact h x b a (Ne.symm hab)
+  simp only [IsSynchronous, prob_swap]
+  exact ⟨fun h x a b hab => h x b a hab.symm, fun h x a b hab => h x b a hab.symm⟩
 
 /-- In a synchronous strategy, Alice's marginal on a repeated question is its diagonal entry. -/
 theorem IsSynchronous.sum_prob_eq_diag {S : CommutingStrategy X X A A 𝒜}
@@ -171,7 +169,6 @@ def aliceState : AlgState S.aliceAlgebra where
 
 /-- The restricted state evaluates an element by applying the original state. -/
 @[simp] theorem aliceState_apply (x : S.aliceAlgebra) : S.aliceState x = S.state x.val := by
-  unfold aliceState
   rfl
 
 /-- Alice's measurements viewed in the algebra they generate. -/
@@ -186,7 +183,6 @@ def aliceMeasurements (x : X) : Measurement A S.aliceAlgebra where
 
 @[simp] theorem aliceMeasurements_effect (x : X) (a : A) :
     ((S.aliceMeasurements x).effect a : 𝒜) = (S.alice x).effect a := by
-  unfold aliceMeasurements
   rfl
 
 variable [StarOrderedRing 𝒜]
@@ -227,11 +223,9 @@ private theorem IsSynchronous.tracial_on_aliceAlgebra {S : CommutingStrategy X X
     change w ∈ Algebra.adjoin ℂ (Set.range L ∪ star (Set.range L)) at hw
     induction hw using Algebra.adjoin_induction with
     | mem t ht =>
-      rcases ht with ⟨p, rfl⟩ | ht
+      rcases ht with ⟨p, rfl⟩ | ⟨p, hp⟩
       · exact hgen p
-      · obtain ⟨p, hp⟩ := ht
-        obtain rfl : t = L p := by
-          rw [← (hL p).star_eq, hp, star_star]
+      · rw [← star_star t, ← hp, (hL p).star_eq]
         exact hgen p
     | algebraMap r => intro z _; rw [Algebra.commutes]
     | add x y _ _ hx hy =>
@@ -333,25 +327,19 @@ noncomputable def ofTracial :
 theorem ofTracial_alice_effect (x : X) (a : A) :
     ((ofTracial τ hτ P).alice x).effect a =
       τ.toPositiveLinearMap.gnsStarAlgHom ((P x).effect a) := by
-  unfold ofTracial
   rfl
 
 /-- The state in the tracial realization is the vector state of the unit element. -/
 theorem ofTracial_state_apply (T : τ.toPositiveLinearMap.GNS →L[ℂ] τ.toPositiveLinearMap.GNS) :
     (ofTracial τ hτ P).state T =
       inner ℂ (τ.toPreGNS 1 : τ.toPositiveLinearMap.GNS) (T (τ.toPreGNS 1)) := by
-  unfold ofTracial unitVectorState
   rfl
 
 /-- The GNS strategy realizes the full complex trace of the product of the effects. -/
 theorem ofTracial_prob (x y : X) (a b : A) :
     ((ofTracial τ hτ P).prob x y a b : ℂ) = τ ((P x).effect a * (P y).effect b) := by
-  let S := ofTracial τ hτ P
-  change (S.prob x y a b : ℂ) = _
-  rw [show (S.prob x y a b : ℂ) =
-    S.state ((S.alice x).effect a * (S.bob y).effect b) from
-      S.state.ofReal_re_apply (S.effect_mul_effect_nonneg x y a b)]
-  change (ofTracial τ hτ P).state _ = _
+  refine ((ofTracial τ hτ P).state.ofReal_re_apply
+    ((ofTracial τ hτ P).effect_mul_effect_nonneg x y a b)).trans ?_
   rw [ofTracial_state_apply]
   change
     inner ℂ (τ.toPreGNS 1 : τ.toPositiveLinearMap.GNS)
@@ -363,13 +351,10 @@ theorem ofTracial_prob (x y : X) (a b : A) :
 /-- Left and right multiplication preserve projective measurements. -/
 theorem ofTracial_isProjective (hP : ∀ x, (P x).IsProjective) (x : X) :
     ((ofTracial τ hτ P).alice x).IsProjective ∧ ((ofTracial τ hτ P).bob x).IsProjective := by
-  constructor <;> intro a
-  · change τ.toPositiveLinearMap.gnsStarAlgHom _ * τ.toPositiveLinearMap.gnsStarAlgHom _ = _
-    rw [← map_mul, hP x a]
-    rfl
-  · change τ.gnsRight hτ (op _) * τ.gnsRight hτ (op _) = _
-    rw [← map_mul, ← op_mul, hP x a]
-    rfl
+  refine ⟨fun a => ?_, fun a => ?_⟩
+  · simpa only [ofTracial, ← map_mul] using congrArg τ.toPositiveLinearMap.gnsStarAlgHom (hP x a)
+  · simpa only [ofTracial, Function.comp_apply, ← map_mul, ← op_mul] using
+      congrArg (τ.gnsRight hτ ∘ op) (hP x a)
 
 /-- The GNS strategy answers synchronously because distinct effects of each
 projective measurement are orthogonal. -/

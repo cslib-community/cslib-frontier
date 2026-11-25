@@ -51,11 +51,7 @@ omit [Fintype P] [DecidableEq P] in
 theorem active_opId_unique {ps : ProcSnapshotState P Data} {id₁ id₂ : ℕ}
     (h₁ : HasActiveOpId ps id₁) (h₂ : HasActiveOpId ps id₂) : id₁ = id₂ := by
   rcases h₁ with ⟨st₁, rfl, rfl⟩ | ⟨v₁, sn₁, rfl⟩ <;>
-    rcases h₂ with ⟨st₂, hp₂, rfl⟩ | ⟨v₂, sn₂, hp₂⟩
-  · injection hp₂ with h; rw [h]
-  · cases hp₂
-  · cases hp₂
-  · injection hp₂
+    rcases h₂ with ⟨st₂, hp₂, rfl⟩ | ⟨v₂, sn₂, hp₂⟩ <;> cases hp₂ <;> rfl
 
 /-- Double-collect loop invariant for active scan `st` over trace window `[lo, hi]`
 (typically instantiated with `lo = τ.lastIdleStep i hi`). -/
@@ -78,15 +74,13 @@ theorem ScanLoopInv.mono_hi {τ : SnapshotTrace ord dInit} {lo hi hi' : ℕ}
     {st : ActiveScan P Data} (hle : hi ≤ hi') (h : ScanLoopInv τ lo hi st) :
     ScanLoopInv τ lo hi' st := by
   obtain ⟨iterS, hlo, hhi, hmov, hcA, hcB⟩ := h
-  refine ⟨iterS, hlo, le_trans hhi hle, hmov, ?_, ?_⟩
-  · intro hA k hk
-    obtain ⟨tA, a1, a2, a3⟩ := hcA hA k hk
-    exact ⟨tA, a1, le_trans a2 hle, a3⟩
-  · intro hB
-    obtain ⟨u, u1, u2, ha, hb⟩ := hcB hB
-    refine ⟨u, u1, le_trans u2 hle, ha, fun k hk => ?_⟩
+  refine ⟨iterS, hlo, hhi.trans hle, hmov, fun hA k hk => ?_, fun hB => ?_⟩
+  · obtain ⟨tA, a1, a2, a3⟩ := hcA hA k hk
+    exact ⟨tA, a1, a2.trans hle, a3⟩
+  · obtain ⟨u, u1, u2, ha, hb⟩ := hcB hB
+    refine ⟨u, u1, u2.trans hle, ha, fun k hk => ?_⟩
     obtain ⟨tB, b1, b2, b3⟩ := hb k hk
-    exact ⟨tB, b1, le_trans b2 hle, b3⟩
+    exact ⟨tB, b1, b2.trans hle, b3⟩
 
 /-- `ScanLoopInv` step: reading register `j` during `collectA`. -/
 theorem ScanLoopInv.readA {τ : SnapshotTrace ord dInit} {lo t : ℕ}
@@ -101,8 +95,7 @@ theorem ScanLoopInv.readA {τ : SnapshotTrace ord dInit} {lo t : ℕ}
   dsimp only at hk ⊢
   by_cases hkj : k = j
   · subst hkj; exact ⟨t, hi₂, by omega, Function.update_self _ _ _⟩
-  · have hk_not : k ∉ j :: rest := by simp only [List.mem_cons, not_or]; exact ⟨hkj, hk⟩
-    obtain ⟨tA, a1, a2, a3⟩ := hcA hph k (hrem ▸ hk_not)
+  · obtain ⟨tA, a1, a2, a3⟩ := hcA hph k (by simp [hrem, hkj, hk])
     exact ⟨tA, a1, by omega, (Function.update_of_ne hkj _ _).trans a3⟩
 
 /-- `ScanLoopInv` step: transitioning from completed `collectA` (`rem = []`) to `collectB`. -/
@@ -111,10 +104,10 @@ theorem ScanLoopInv.finishA {τ : SnapshotTrace ord dInit} {lo t : ℕ}
     (h : ScanLoopInv τ lo t st) :
     ScanLoopInv τ lo (t + 1) { st with phase := .collectB, rem := ord.elems } := by
   obtain ⟨iterS, hi₁, hi₂, hmov, hcA, _⟩ := h
-  refine ⟨iterS, hi₁, by omega, hmov, (fun hA => by cases hA), fun _ => ?_⟩
-  refine ⟨t, hi₂, by omega,
-    fun k => hcA hph k (by simp only [hrem, List.not_mem_nil, not_false_eq_true]),
-    fun k hk => absurd (ord.complete k) hk⟩
+  refine ⟨iterS, hi₁, by omega, hmov,
+    (fun hA => by cases hA),
+    fun _ => ⟨t, hi₂, by omega, fun k => hcA hph k (by simp [hrem]),
+      fun k hk => absurd (ord.complete k) hk⟩⟩
 
 /-- `ScanLoopInv` step: reading register `j` during `collectB`. -/
 theorem ScanLoopInv.readB {τ : SnapshotTrace ord dInit} {lo t : ℕ}
@@ -126,13 +119,13 @@ theorem ScanLoopInv.readB {τ : SnapshotTrace ord dInit} {lo t : ℕ}
                 collectBVal := Function.update st.collectBVal j ((τ.stateAt t).reg j) } := by
   obtain ⟨iterS, hi₁, hi₂, hmov, _, hcB⟩ := h
   obtain ⟨u, hu₁, hu₂, ha_all, hb_rem⟩ := hcB hph
-  refine ⟨iterS, hi₁, by omega, hmov, (fun hA => by cases hA), fun _ => ?_⟩
-  refine ⟨u, hu₁, by omega, ha_all, fun k hk => ?_⟩
+  refine ⟨iterS, hi₁, by omega, hmov,
+    (fun hA => by cases hA),
+    fun _ => ⟨u, hu₁, by omega, ha_all, fun k hk => ?_⟩⟩
   dsimp only at hk ⊢
   by_cases hkj : k = j
   · subst hkj; exact ⟨t, hu₂, by omega, Function.update_self _ _ _⟩
-  · have hk_not : k ∉ j :: rest := by simp only [List.mem_cons, not_or]; exact ⟨hkj, hk⟩
-    obtain ⟨tB, b1, b2, b3⟩ := hb_rem k (hrem ▸ hk_not)
+  · obtain ⟨tB, b1, b2, b3⟩ := hb_rem k (by simp [hrem, hkj, hk])
     exact ⟨tB, b1, by omega, (Function.update_of_ne hkj _ _).trans b3⟩
 
 /-- `ScanLoopInv` step: adding all changed processes to `moved` and restarting `collectA`. -/
@@ -147,20 +140,15 @@ theorem ScanLoopInv.restart {τ : SnapshotTrace ord dInit} {lo t : ℕ}
           rem := ord.elems } := by
   obtain ⟨iterS, hi₁, hi₂, hmov, _, hcB⟩ := h
   obtain ⟨u, hu₁, hu₂, ha_all, hb_rem⟩ := hcB hph
-  refine ⟨t + 1, by omega, le_rfl, ?_,
+  refine ⟨t + 1, by omega, le_rfl, fun k hk => ?_,
     fun _ k hk => absurd (ord.complete k) hk, fun hB => by cases hB⟩
-  intro k hk
-  dsimp only at hk
   rcases mem_union.mp hk with hk_old | hk_new
   · obtain ⟨w₁, h1, h2, h3⟩ := hmov k hk_old
     exact ⟨w₁, h1, by omega, h3⟩
-  · have hne_k := (mem_filter.mp hk_new).2
-    obtain ⟨tA, htA₁, htA₂, htA_eq⟩ := ha_all k
-    obtain ⟨tB, htB₁, htB₂, htB_eq⟩ :=
-      hb_rem k (by simp only [hrem, List.not_mem_nil, not_false_eq_true])
-    rw [htA_eq, htB_eq] at hne_k
-    obtain ⟨w₁, hw₁_lo, hw₁_hi, hw₁_w⟩ :=
-      τ.exists_writeStep_of_seq_ne k (le_trans htA₂ htB₁) (le_trans htB₂ ht) hne_k
+  · obtain ⟨tA, htA₁, htA₂, htA_eq⟩ := ha_all k
+    obtain ⟨tB, htB₁, htB₂, htB_eq⟩ := hb_rem k (by simp [hrem])
+    obtain ⟨w₁, hw₁_lo, hw₁_hi, hw₁_w⟩ := τ.exists_writeStep_of_seq_ne k (htA₂.trans htB₁)
+      (htB₂.trans ht) (htA_eq ▸ htB_eq ▸ (mem_filter.mp hk_new).2)
     exact ⟨w₁, by omega, by omega, hw₁_w⟩
 
 end SnapshotTrace

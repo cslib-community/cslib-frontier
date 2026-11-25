@@ -371,6 +371,15 @@ theorem buildWalk_from_start (h : EdgeInstance F) {sem : Rel → List Bool → B
   have hb := h.buildWalk_spec hM hg hsub (hammingDist f g) hw (by rw [he])
   simpa only [he, List.length_nil, Nat.zero_add] using hb
 
+private theorem repair_full_spec (h : EdgeInstance F) {sem : Rel → List Bool → Bool}
+    (hM : EvenConstraints sem F) {f g : OccurrenceLabeling F Bool}
+    (hf : ValidLabeling sem f) (hg : ValidLabeling sem g) :
+    let fixed := repair sem f (hammingDist f g) g
+    ValidLabeling sem fixed.1 ∧ (defects fixed.1).card ≤ (defects g).card ∧
+      hammingDist f fixed.1 + 2 * fixed.2 = hammingDist f g ∧ defects fixed.1 ⊆ defects f := by
+  obtain ⟨hvalid, hcard, hdist, -, hsub⟩ := h.repair_spec hM hf hg (hammingDist f g)
+  exact ⟨hvalid, hcard, hdist, hsub le_rfl⟩
+
 /-- Full Lemma 31 existence conclusion, obtained by the actual two phases. The specified
 variable is excluded only as the start. No solver or augmenting-walk assumption is used. -/
 theorem exists_augmentingWalk_start_ne (h : EdgeInstance F)
@@ -379,17 +388,11 @@ theorem exists_augmentingWalk_start_ne (h : EdgeInstance F)
     (hlt : (defects g).card < (defects f).card) (x : V) :
     ∃ w : Walk F, w.IsAugmenting sem f ∧ w.start ≠ x ∧
       2 * w.steps.length ≤ hammingDist f g := by
-  let fixed := repair sem f (hammingDist f g) g
-  have hfix := h.repair_spec hM hf hg (hammingDist f g)
-  change ValidLabeling sem fixed.1 ∧ (defects fixed.1).card ≤ (defects g).card ∧
-    hammingDist f fixed.1 + 2 * fixed.2 = hammingDist f g ∧
-    fixed.2 ≤ hammingDist f g ∧
-    (hammingDist f g ≤ hammingDist f g → defects fixed.1 ⊆ defects f) at hfix
-  have hsub := hfix.2.2.2.2 le_rfl
-  obtain ⟨r, hrx, hrf, hrg⟩ := h.exists_start_ne hM hf hfix.1
-    (hfix.2.1.trans_lt hlt) x
+  obtain ⟨hvalid, hcard, hrepair, hsub⟩ := h.repair_full_spec hM hf hg
+  obtain ⟨r, hrx, hrf, hrg⟩ := h.exists_start_ne hM hf hvalid
+    (hcard.trans_lt hlt) x
   obtain ⟨w, k, _, hw, hstart, hlen, hdist, _⟩ :=
-    h.buildWalk_from_start hM hf hfix.1 hsub r hrf hrg
+    h.buildWalk_from_start hM hf hvalid hsub r hrf hrg
   refine ⟨w, hw, hstart ▸ hrx, ?_⟩
   omega
 
@@ -422,16 +425,11 @@ theorem augmentingWalk_spec (h : EdgeInstance F) {sem : Rel → List Bool → Bo
       w.start ≠ x ∧
       2 * ((repair sem f (hammingDist f g) g).2 + w.steps.length) ≤ hammingDist f g := by
   let fixed := repair sem f (hammingDist f g) g
-  have hfix := h.repair_spec hM hf hg (hammingDist f g)
-  change ValidLabeling sem fixed.1 ∧ (defects fixed.1).card ≤ (defects g).card ∧
-    hammingDist f fixed.1 + 2 * fixed.2 = hammingDist f g ∧
-    fixed.2 ≤ hammingDist f g ∧
-    (hammingDist f g ≤ hammingDist f g → defects fixed.1 ⊆ defects f) at hfix
-  have hsub := hfix.2.2.2.2 le_rfl
+  obtain ⟨hvalid, hcard, hrepair, hsub⟩ := h.repair_full_spec hM hf hg
   cases hs : findStart F f fixed.1 x with
   | none =>
-    obtain ⟨r, hrx, hrf, hrg⟩ := h.exists_start_ne hM hf hfix.1
-      (hfix.2.1.trans_lt hlt) x
+    obtain ⟨r, hrx, hrf, hrg⟩ := h.exists_start_ne hM hf hvalid
+      (hcard.trans_lt hlt) x
     obtain ⟨o, p, hor, hpr, hop⟩ := hrf
     have hn := List.find?_eq_none.mp hs o (mem_incidenceList o)
     exact (hn (by simpa only [hor, decide_eq_true_eq] using
@@ -442,12 +440,11 @@ theorem augmentingWalk_spec (h : EdgeInstance F) {sem : Rel → List Bool → Bo
       of_decide_eq_true (List.find?_some (p := fun o : Occurrence F =>
         decide (o.var ≠ x ∧ Inconsistent f o.var ∧ ¬ Inconsistent fixed.1 o.var)) hs)
     obtain ⟨w, k, hw, ha, hstart, hlen, hdist, _⟩ :=
-      h.buildWalk_from_start hM hf hfix.1 hsub o.var ho.2.1 ho.2.2
+      h.buildWalk_from_start hM hf hvalid hsub o.var ho.2.1 ho.2.2
     refine ⟨w, ?_, ha, hstart ▸ ho.1, ?_⟩
     · have hs' : findStart F f (repair sem f (hammingDist f g) g).1 x = some o := hs
       simpa only [augmentingWalk, hs'] using hw
-    · change 2 * (fixed.2 + w.steps.length) ≤ hammingDist f g
-      omega
+    · omega
 
 /-- Nonoptimality is equivalent to existence of an augmenting walk, without assuming a solver. -/
 theorem exists_improvement_iff_exists_augmentingWalk (h : EdgeInstance F)

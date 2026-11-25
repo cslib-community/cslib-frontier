@@ -144,10 +144,8 @@ theorem length_slotLog {P Op : Type*} (slot : ℕ → ConsensusCell (P × Op)) (
 /-- **Log agreement:** every caller reconstructs the exact same prefix log from `slot`, regardless
 of the proposal argument it supplies. -/
 theorem slotLog_eq {P Op : Type*} (slot : ℕ → ConsensusCell (P × Op)) (x y : P × Op) (n : ℕ) :
-    slotLog slot x n = slotLog slot y n := by
-  simp only [slotLog, List.map_inj_left]
-  intro i _
-  exact (slot i).propose_eq x y
+    slotLog slot x n = slotLog slot y n :=
+  List.map_congr_left fun i _ => (slot i).propose_eq x y
 
 private theorem slotLog_succ {P Op : Type*} (slot : ℕ → ConsensusCell (P × Op)) (probe : P × Op)
     (k : ℕ) :
@@ -295,40 +293,21 @@ theorem universalInvoke_terminates [Fintype P]
   push Not at hnowin
   let s := startSlot p
   let n := Fintype.card P
-  have hbefore : ∀ j < s, ((slot j).propose (p, ops p)).1 ≠ p := fun j hj =>
-    hsched.ne_winner_before_start p hj (p, ops p)
-  have hact_range : ∀ i : Fin n, SlotActive slot ops startSlot (s + i.val) := by
-    intro i
+  have hact_range (i : Fin n) : SlotActive slot ops startSlot (s + i.val) := by
     refine Or.inr ⟨p, by omega, fun j hj => ?_⟩
     by_cases hjs : j < s
-    · exact hbefore j hjs
+    · exact hsched.ne_winner_before_start p hjs (p, ops p)
     · exact hnowin j (by omega) (by omega)
   let winOf : Fin n → P := fun i => ((slot (s + i.val)).propose (p, ops p)).1
-  have hwin_ne_p : ∀ i : Fin n, winOf i ≠ p := fun i =>
-    hnowin (s + i.val) (by omega) (by omega)
-  have hwin_inj : Function.Injective winOf := by
-    intro i₁ i₂ heq
+  have hwin_inj : Function.Injective winOf := fun i₁ i₂ heq => by
     by_contra hne
-    have hval_ne : i₁.val ≠ i₂.val := fun hv => hne (Fin.ext hv)
     rcases Nat.lt_trichotomy i₁.val i₂.val with hlt | hveq | hgt
-    · exact hsched.fresh_winner (s + i₂.val) (hact_range i₂) (s + i₁.val) (by omega)
-        (p, ops p) heq
-    · exact hval_ne hveq
-    · exact hsched.fresh_winner (s + i₁.val) (hact_range i₁) (s + i₂.val) (by omega)
-        (p, ops p) heq.symm
-  let img : Finset P := Finset.univ.image winOf
-  have himg_card : img.card = n := by
-    rw [Finset.card_image_of_injective _ hwin_inj, Finset.card_univ, Fintype.card_fin]
-  have himg_sub : img ⊆ Finset.univ.erase p := by
-    intro q hq
-    obtain ⟨i, _, rfl⟩ := Finset.mem_image.mp hq
-    exact Finset.mem_erase.mpr ⟨hwin_ne_p i, Finset.mem_univ _⟩
-  have hle := Finset.card_le_card himg_sub
-  have herase : (Finset.univ.erase p).card = n - 1 :=
-    Finset.card_erase_of_mem (Finset.mem_univ p)
-  have hn_pos : 0 < n := Fintype.card_pos_iff.mpr ⟨p⟩
-  rw [himg_card, herase] at hle
-  omega
+    · exact hsched.fresh_winner _ (hact_range i₂) _ (by omega) (p, ops p) heq
+    · exact hne (Fin.ext hveq)
+    · exact hsched.fresh_winner _ (hact_range i₁) _ (by omega) (p, ops p) heq.symm
+  have hnotMem : p ∉ Set.range winOf := fun ⟨i, hi⟩ =>
+    hnowin (s + i.val) (by omega) (by omega) hi
+  exact absurd (Fintype.card_lt_of_injective_of_notMem winOf hwin_inj hnotMem) (by simp [n])
 
 /-- **State-machine safety of `universalInvoke`:** when `universalInvoke` returns `some res` for
 invocation `p` under `ValidSlotSchedule`:
@@ -353,17 +332,11 @@ theorem universalInvoke_spec [Fintype P]
     by_cases hjs : j < startSlot p
     · exact hsched.ne_winner_before_start p hjs (p, ops p)
     · exact hprev j (by omega) hj
-  have hprop_eq : (slot res.slotIdx).propose probe = (slot res.slotIdx).propose (p, ops p) :=
-    (slot res.slotIdx).propose_eq probe (p, ops p)
-  have hop_eq : ((slot res.slotIdx).propose (p, ops p)).2 = ops p := by
-    rw [hsched.winner_op res.slotIdx hact (p, ops p), hwin]
   have hpair_eq : (slot res.slotIdx).propose probe = (p, ops p) := by
-    rw [hprop_eq]
-    exact Prod.ext hwin hop_eq
-  have hlog_eq : slotLog slot (p, ops p) res.slotIdx = slotLog slot probe res.slotIdx :=
-    slotLog_eq slot (p, ops p) probe res.slotIdx
+    rw [(slot res.slotIdx).propose_eq probe (p, ops p)]
+    exact Prod.ext hwin ((hsched.winner_op res.slotIdx hact (p, ops p)).trans (congrArg ops hwin))
   refine ⟨hle, hlt, hpair_eq, ?_, ?_⟩
-  · rw [hresp, hlog_eq]
+  · rw [hresp, slotLog_eq slot (p, ops p) probe]
   · rw [applyLog_slotLog_succ, hpair_eq]
 
 /-- **Injectivity of linearization slots:** distinct invocations `p ≠ q` never win the same
@@ -407,12 +380,9 @@ theorem universalInvoke_linearizable_of_validSlotSchedule [Fintype P]
   let res : P → UniversalResult Resp := fun p => Classical.choose (hterm p)
   have hres : ∀ p, universalInvoke M slot p (ops p) (startSlot p) = some (res p) :=
     fun p => Classical.choose_spec (hterm p)
-  refine ⟨res, hres, ?_, ?_, fun p probe => universalInvoke_spec hsched (hres p) probe⟩
-  · intro p q hidx
-    exact universalInvoke_slotIdx_injective hsched (hres p) (hres q) hidx
-  · intro p q hprec
-    have hq_le := (universalInvoke_spec hsched (hres q) (q, ops q)).1
-    omega
+  refine ⟨res, hres, fun p q => universalInvoke_slotIdx_injective hsched (hres p) (hres q),
+    fun p q hprec => hprec.trans_le (universalInvoke_spec hsched (hres q) (q, ops q)).1,
+    fun p => universalInvoke_spec hsched (hres p)⟩
 
 /-- Under `ValidSlotSchedule` with `startSlot = 0`, the winning consensus indices of a finite
 invocation batch `P` form a bijection `P ≃ Fin (Fintype.card P)` ordering all `Fintype.card P`
@@ -423,23 +393,14 @@ theorem universalInvoke_slotIdx_bijective_of_validSlotSchedule [Fintype P]
     (hres : ∀ p, universalInvoke M slot p (ops p) 0 = some (res p)) :
     ∃ order : P ≃ Fin (Fintype.card P),
       ∀ p, (order p).val = (res p).slotIdx := by
-  have hlt : ∀ p, (res p).slotIdx < Fintype.card P := by
-    intro p
-    have h := (universalInvoke_spec hsched (hres p) (p, ops p)).2.1
-    omega
-  let f : P → Fin (Fintype.card P) := fun p => ⟨(res p).slotIdx, hlt p⟩
-  have hinj : Function.Injective f := by
-    intro p q heq
-    exact universalInvoke_slotIdx_injective hsched (hres p) (hres q) (congrArg Fin.val heq)
-  have hbij : Function.Bijective f := by
-    refine ⟨hinj, fun y => ?_⟩
-    have himg : Finset.univ.image f = Finset.univ := by
-      apply Finset.eq_univ_of_card
-      rw [Finset.card_image_of_injective _ hinj, Finset.card_univ, Fintype.card_fin]
-    have hy : y ∈ Finset.univ.image f := himg.symm ▸ Finset.mem_univ y
-    obtain ⟨p, _, hp⟩ := Finset.mem_image.mp hy
-    exact ⟨p, hp⟩
-  exact ⟨Equiv.ofBijective f hbij, fun _ => rfl⟩
+  let f : P → Fin (Fintype.card P) := fun p => ⟨(res p).slotIdx, by
+    simpa using (universalInvoke_spec hsched (hres p) (p, ops p)).2.1⟩
+  have hinj : Function.Injective f := fun p q heq =>
+    universalInvoke_slotIdx_injective hsched (hres p) (hres q) (congrArg Fin.val heq)
+  have hsurj : Function.Surjective f := by
+    by_contra hns
+    exact (Fintype.card_lt_of_injective_not_surjective f hinj hns).ne (Fintype.card_fin _).symm
+  exact ⟨Equiv.ofBijective f ⟨hinj, hsurj⟩, fun _ => rfl⟩
 
 end SafetyAndLinearizability
 

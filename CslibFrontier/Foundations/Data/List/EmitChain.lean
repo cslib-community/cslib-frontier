@@ -45,10 +45,7 @@ theorem eq_flatMap_range_of_emit {α β : Type*}
   | nil => simp [hshort j carry [] (by simp)]
   | cons b rest ih =>
     by_cases hs : (b :: rest).length ≤ reserve
-    · have hz : rest.length + 1 - reserve = 0 := by
-        simp only [length_cons] at hs
-        omega
-      simp [hshort j carry (b :: rest) hs, hz]
+    · simp [hshort j carry (b :: rest) hs, Nat.sub_eq_zero_of_le (by simpa using hs)]
     · have hn : (b :: rest).length - reserve = (rest.length - reserve) + 1 := by
         simp only [length_cons] at hs ⊢
         omega
@@ -56,19 +53,15 @@ theorem eq_flatMap_range_of_emit {α β : Type*}
       simp only [hn, range_succ_eq_map, flatMap_cons, flatMap_map, ite_true,
         getD_cons_zero, Nat.add_zero, drop_succ_cons, Nat.succ_ne_zero, ite_false,
         Nat.add_one_sub_one, append_assoc]
-      congr 1
       have hcarry (i : ℕ) :
           (if i = 0 then next j else next (j + 1 + (i - 1))) = next (j + i) := by
         cases i <;> simp [Nat.add_comm, Nat.add_left_comm]
-      apply congrArg₂ List.append
-      · apply flatMap_congr
-        intro i hi
-        have hi' : i < rest.length := by
-          simp only [mem_range] at hi
-          omega
-        rw [hcarry i, getD_cons_succ, getD_eq_getElem _ _ hi', getD_eq_getElem _ _ hi']
-        congr 1
+      congr 1
+      refine congrArg₂ List.append (flatMap_congr fun i hi => ?_) (congrArg (finish · _) (hcarry _))
+      have hi' : i < rest.length := by
+        have := mem_range.mp hi
         omega
-      · rw [hcarry]
+      rw [hcarry i, getD_cons_succ, getD_eq_getElem _ _ hi', getD_eq_getElem _ _ hi']
+      exact congrArg (fun k => emit k (next (j + i)) rest[i]) (by omega)
 
 end List

@@ -343,7 +343,8 @@ private theorem short_witness {s : Level} {pk : MLDSA.PublicKey s.params} {bytes
   have hball := inBall_of_sampleInBall hc
   have hv : compressedVerify s.params 13 (fun _ => o.challenge) pk
       (messageRepresentative bytes (formattedMessage f))
-      ⟨o.signature.z, o.signature.h, o.challenge⟩ := by simp [compressedVerify, hz, hball]
+      ⟨o.signature.z, o.signature.h, o.challenge⟩ := by
+    simp [compressedVerify, hz, hball]
   have hy := isSelfTargetSolution_of_compressedVerify s.valid (by cases s <;> decide)
     (by decide : 0 < 13) hv
   exact liftWitness_bound hy.1 hy.2.1 hball (by unfold compressedSelfTargetRadius; omega)
@@ -577,14 +578,16 @@ private theorem fixed_le {Coins : Type} (s : Level) (adv : Forger s Coins) (r : 
           (PMF.pure r) (solver s adv) (systematic s A t) true := by
   simp only [trial, eval_runDigest, run_interpret_bind, ModuleSIS.SelfTarget.game, solver,
     fullKey_systematic, interpret_map, StateT.run_map, pmf_norm, Function.comp_def]
-  apply Probability.PMF.bind_apply_mono_on_support; rintro ⟨f, cache⟩ _
+  apply Probability.PMF.bind_apply_mono_on_support
+  rintro ⟨f, cache⟩ _
   cases ho : opening s f with
   | none => simp [verify, ho]
   | some o =>
     simp only [verify, length_encodePublic, FixedBytes.length_toList, ite_true, ho, extract,
       ModuleSIS.SelfTarget.product, product_witness s r.seed A t f o, run_interpret_bind,
       run_interpret_query, run_interpret_pure, pmf_norm]
-    apply Probability.PMF.bind_apply_mono_on_support; rintro ⟨d, _⟩ _
+    apply Probability.PMF.bind_apply_mono_on_support
+    rintro ⟨d, _⟩ _
     by_cases he : d.toList = o.signature.digest <;>
       simp [he, accepts_digest_of_opening ⟨A, t⟩ (encodePublic s r.seed.toList t) ho]
 
@@ -703,10 +706,11 @@ theorem observeRaw_eq {Coins : Type} (s : Level) (coins : ProbComp Coins)
   simp only [interpret_bind, rawVerifier_point, StateT.run_bind, PMF.monad_bind_eq_bind,
     onlineTrial, pointForger, PMF.map_bind]
   refine congrArg (PMF.bind _) (funext fun ⟨f, m, d⟩ => ?_)
+  have hmemo : memoize (fun _ : Point s => PMF.uniformOfFintype (Digest s)) =
+      Protocols.ROMSignature.oracle (Digest s) :=
+    funext₂ (memoize_digest s)
   rw [show matrixDigestOracle s = RandomOracle.memoizeSum _ _ from rfl,
-    RandomOracle.run_interpret_memoizeSum_liftRight, PMF.map_comp,
-    show memoize (fun _ : Point s => PMF.uniformOfFintype (Digest s)) =
-      Protocols.ROMSignature.oracle (Digest s) by funext p cache; exact memoize_digest s p cache]
+    RandomOracle.run_interpret_memoizeSum_liftRight, PMF.map_comp, hmemo]
   rfl
 
 /-- The Hermite instance obtained by prefixing the identity to a single uniform right block. -/

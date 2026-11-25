@@ -576,8 +576,8 @@ private theorem exists_complexity_universalPrefix_pair_le_add_key
     isPrefixFree_universalPrefix.eq_of_prefix hp hx' (List.prefix_append p q) hp'
   obtain rfl : x = x' := hp.unique hx'
   have hstep : Nat.pair x y ∈ chainPairStep key (p ++ q) n := by
-    simp only [chainPairStep, hmatch, Option.bind_some, List.drop_left, hcp₀, Option.mem_def,
-      Option.map_eq_some_iff]
+    simp only [chainPairStep, hmatch, Option.bind_some, List.drop_left, hcp₀,
+      Option.mem_def, Option.map_eq_some_iff]
     exact ⟨y, mem_prefixAccepted_iff_lookup.mp
       ((prefixAccepted_prefix (c₀.curry (key (p, x))) (le_max_right n₁ n₂)).subset hn₂), rfl⟩
   have hev := hc (p ++ q) (Nat.pair x y) ((Nat.rfindOpt_mono (hmono (r := p ++ q))).mpr ⟨n, hstep⟩)
@@ -824,7 +824,9 @@ private theorem exists_prefixTableNew_of_produces {p : List Bool} {z : ℕ}
   let m₀ := Nat.find hex
   have hm₀ : (p, z) ∈ universalPrefixTable m₀ := Nat.find_spec hex
   obtain ⟨i, hi⟩ : ∃ i, m₀ = i + 1 :=
-    Nat.exists_eq_succ_of_ne_zero fun h0 => by rw [h0] at hm₀; cases hm₀
+    Nat.exists_eq_succ_of_ne_zero fun h0 => by
+      rw [h0] at hm₀
+      cases hm₀
   have hnot : (p, z) ∉ universalPrefixTable i := Nat.find_min hex (by omega)
   obtain ⟨j, hj, hfj⟩ := Nat.mem_distinctValues.mp (hi ▸ hm₀)
   rcases Nat.lt_succ_iff_lt_or_eq.mp hj with hlt | rfl
@@ -967,18 +969,31 @@ private theorem symScaled_mul_le_of_universalMarginal {c₁ x n : ℕ}
     rw [Finset.sum_map]
     exact (Finset.sum_attach T fun w => (2 : ℝ)⁻¹ ^ w.length).symm
   have hsum_le : ∑ w ∈ T, (2 : ℝ)⁻¹ ^ w.length ≤
-      (2 : ℝ) ^ c₁ * (2 : ℝ)⁻¹ ^ universalPrefix.complexity x :=
-    hsum_F.trans_le ((hs.sum_le_tsum F fun _ _ => by positivity).trans (htsum.trans_le hmarg))
+      (2 : ℝ) ^ c₁ * (2 : ℝ)⁻¹ ^ universalPrefix.complexity x := by
+    calc ∑ w ∈ T, (2 : ℝ)⁻¹ ^ w.length
+        = ∑ q ∈ F, (2 : ℝ)⁻¹ ^ q.2.1.length := hsum_F
+      _ ≤ ∑' q : (y : ℕ) × {p : List Bool // universalPrefix.Produces p (Nat.pair x y)},
+            (2 : ℝ)⁻¹ ^ q.2.1.length :=
+          hs.sum_le_tsum F fun _ _ => by positivity
+      _ = ∑' y : ℕ, universalPrefix.universalProb (Nat.pair x y) := htsum
+      _ ≤ (2 : ℝ) ^ c₁ * (2 : ℝ)⁻¹ ^ universalPrefix.complexity x := hmarg
   have hreal : ((codeScaledSum (symProgs x n) * 2 ^ universalPrefix.complexity x : ℕ) : ℝ) ≤
       ((2 ^ (codeMaxLen (symProgs x n) + c₁) : ℕ) : ℝ) := by
     push_cast
     rw [natCast_codeScaledSum,
-      ← List.sum_toFinset (fun w : List Bool => (2 : ℝ)⁻¹ ^ w.length) (nodup_symProgs x n), pow_add]
-    refine (mul_le_mul_of_nonneg_right
-      (mul_le_mul_of_nonneg_right hsum_le (pow_nonneg (by norm_num) _))
-      (pow_nonneg (by norm_num) _)).trans_eq ?_
-    rw [mul_right_comm, mul_assoc ((2 : ℝ) ^ c₁), ← mul_pow, inv_mul_cancel₀ two_ne_zero, one_pow,
-      mul_one, mul_comm]
+      ← List.sum_toFinset (fun w : List Bool => (2 : ℝ)⁻¹ ^ w.length) (nodup_symProgs x n),
+      pow_add]
+    calc (∑ w ∈ T, (2 : ℝ)⁻¹ ^ w.length) * (2 : ℝ) ^ codeMaxLen (symProgs x n) *
+          (2 : ℝ) ^ universalPrefix.complexity x
+        ≤ ((2 : ℝ) ^ c₁ * (2 : ℝ)⁻¹ ^ universalPrefix.complexity x) *
+            (2 : ℝ) ^ codeMaxLen (symProgs x n) * (2 : ℝ) ^ universalPrefix.complexity x := by
+          gcongr
+      _ = (2 : ℝ) ^ codeMaxLen (symProgs x n) * (2 : ℝ) ^ c₁ *
+            (((2 : ℝ)⁻¹ * (2 : ℝ)) ^ universalPrefix.complexity x) := by
+          rw [mul_pow]
+          ring
+      _ = (2 : ℝ) ^ codeMaxLen (symProgs x n) * (2 : ℝ) ^ c₁ := by
+          rw [inv_mul_cancel₀ two_ne_zero, one_pow, mul_one]
   exact_mod_cast hreal
 
 private theorem symReq_sum_le_one (c₁ xk n : ℕ) :
@@ -993,7 +1008,9 @@ private theorem symReq_sum_le_one (c₁ xk n : ℕ) :
   change ∑ i ∈ Finset.range n, f i ≤ 1
   have hsum_I : ∑ i ∈ Finset.range n, f i = ∑ i ∈ I, f i := by
     rw [Finset.sum_filter]
-    exact Finset.sum_congr rfl fun i _ => by dsimp only [f]; cases symReq c₁ xk i <;> simp
+    exact Finset.sum_congr rfl fun i _ => by
+      dsimp only [f]
+      cases symReq c₁ xk i <;> simp
   rw [hsum_I]
   rcases I.eq_empty_or_nonempty with hI | hne
   · simp [hI]
@@ -1038,15 +1055,18 @@ private theorem symReq_sum_le_one (c₁ xk n : ℕ) :
   have hterm {i : ℕ} (hi : i ∈ I) :
       f i ≤ (2 : ℝ) ^ k * (2 : ℝ)⁻¹ ^ c₁ * (2 : ℝ)⁻¹ ^ (prog i).length := by
     obtain ⟨p, _, hpt, -, -, hfi⟩ := hsym hi
-    have hsub : (2 : ℝ)⁻¹ ^ (p.length + c₁ - k) ≤ 2 ^ k * (2 : ℝ)⁻¹ ^ (p.length + c₁) := by
-      have h1 : (2 : ℝ)⁻¹ ^ (p.length + c₁ - k) =
-          2 ^ k * (2 : ℝ)⁻¹ ^ (p.length + c₁ - k + k) := by
-        rw [pow_add, mul_left_comm, ← mul_pow, mul_inv_cancel₀ two_ne_zero, one_pow, mul_one]
-      rw [h1]
-      gcongr 2 ^ k * ?_
-      exact pow_le_pow_of_le_one (by positivity) (by norm_num) (by omega)
-    rw [hfi, show prog i = p by simp [prog, hpt]]
-    exact hsub.trans_eq (by rw [pow_add]; ring)
+    have hprog : prog i = p := by simp [prog, hpt]
+    have hsub : (2 : ℝ)⁻¹ ^ (p.length + c₁ - k) ≤ (2 : ℝ) ^ k * (2 : ℝ)⁻¹ ^ (p.length + c₁) := by
+      calc (2 : ℝ)⁻¹ ^ (p.length + c₁ - k)
+          = (2 : ℝ) ^ k * (2 : ℝ)⁻¹ ^ (p.length + c₁ - k + k) := by
+            rw [pow_add, mul_left_comm, ← mul_pow, mul_inv_cancel₀ two_ne_zero, one_pow, mul_one]
+        _ ≤ (2 : ℝ) ^ k * (2 : ℝ)⁻¹ ^ (p.length + c₁) := by
+            gcongr (2 : ℝ) ^ k * ?_
+            exact pow_le_pow_of_le_one (by positivity) (by norm_num) (by omega)
+    calc f i = (2 : ℝ)⁻¹ ^ (p.length + c₁ - k) := hfi
+      _ ≤ (2 : ℝ) ^ k * (2 : ℝ)⁻¹ ^ (p.length + c₁) := hsub
+      _ = (2 : ℝ) ^ k * (2 : ℝ)⁻¹ ^ c₁ * (2 : ℝ)⁻¹ ^ (prog i).length := by
+          rw [hprog, pow_add]; ring
   calc ∑ i ∈ I, f i
       ≤ ∑ i ∈ I, (2 : ℝ) ^ k * (2 : ℝ)⁻¹ ^ c₁ * (2 : ℝ)⁻¹ ^ (prog i).length :=
         Finset.sum_le_sum fun i hi => hterm hi

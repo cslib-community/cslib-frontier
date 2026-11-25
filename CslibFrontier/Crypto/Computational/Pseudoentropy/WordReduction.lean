@@ -70,7 +70,8 @@ theorem computableInPolyTime_coinBudget {α : Type} {encode : α ↪ List Bool}
     (hlength : ComputableInPolyTime length encode encUnary) :
     ComputableInPolyTime (fun a => coinBudget c d (parameter a) (length a))
       encode encUnary := by
-  unfold coinBudget; fun_prop
+  unfold coinBudget
+  fun_prop
 
 /-- Call the saved-coin predictor on the complete public observation. -/
 def predictWithCoins (evaluate : (ℕ × List Bool) → List Bool → Bool) (n : ℕ)
@@ -123,6 +124,7 @@ theorem isPPTOn_wordInverter {α : Type} {input : α ↪ List Bool} {f : List Bo
     (himage : ComputableInPolyTime image input encBits) (c d degree : ℕ) :
     IsPPTOn input encBits
       (fun a => wordInverter f (evaluate a) c d degree (parameter a) (image a)) := by
+  -- The five sampled values (coins, index, matrix, digest, masks) are kept alongside the input.
   let e₅ := encPair (encPair (encPair (encPair (encPair input encBits) encUnary) encBits) encBits)
     encBits
   have hhash : ComputableInPolyTime hashCount encUnary encUnary :=

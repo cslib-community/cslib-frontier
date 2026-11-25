@@ -158,13 +158,12 @@ private theorem contract_comp {a b c : Vertex V bound}
   | nil => rfl
   | @cons b c q e ih =>
     rw [Quiver.Path.comp_cons]
-    by_cases h : b.vertex = c.vertex
-    · rw [contract_cons_eq _ _ h, contract_cons_eq _ _ h, ih]
-      cases b with | mk b bi =>
-        cases c with | mk c ci =>
-          change b = c at h
-          subst c
-          rfl
+    rcases b with ⟨b, bi⟩
+    rcases c with ⟨c, ci⟩
+    by_cases h : b = c
+    · subst c
+      rw [contract_cons_eq (p.comp q) e rfl, contract_cons_eq q e rfl]
+      exact ih
     · rw [contract_cons_ne _ _ h, contract_cons_ne _ _ h]
       exact congrArg (fun r => @Quiver.Path.cons V G.toQuiver _ _ _ r _) ih
 
@@ -181,11 +180,9 @@ theorem contract_expand (hw : ∀ v, weight v ≤ bound) {a b : V} (p : G.Path a
   induction p with
   | nil => rfl
   | @cons b c p e ih =>
-    have hne : b ≠ c := by
-      intro h
-      have he := G.layer_adj e.down
-      rw [h] at he
-      omega
+    have hne : b ≠ c := fun h => by
+      have := G.layer_adj e.down
+      rw [h] at this; omega
     change contract (@Quiver.Path.cons _ (toQuiver G weight bound) (root bound a)
       ⟨b, ⟨weight b, Nat.lt_succ_of_le (hw b)⟩⟩ (root bound c)
       ((expand hw p).comp (chain b (weight b) le_rfl (hw b)))
@@ -200,10 +197,10 @@ private theorem chain_step (v : V) (a b : Fin (bound + 1))
     @Quiver.Path.cons _ (toQuiver G weight bound) _ _ _
       (chain v a.val ha (Nat.le_of_lt_succ a.isLt)) e =
       chain v b.val hb (Nat.le_of_lt_succ b.isLt) := by
-  have hn : a.val + 1 < bound + 1 := by have := b.isLt; omega
-  have hbi : b = ⟨a.val + 1, hn⟩ := Fin.ext hoff
-  subst b
-  rfl
+  cases b with | mk b hb' =>
+    dsimp only at hoff hb ⊢
+    subst hoff
+    rfl
 
 /-- Every subdivided path is an expanded original path followed by a final chain prefix.
 The statement includes auxiliary endpoints, not only the original graph's vertices. -/
@@ -219,38 +216,30 @@ theorem normal_form (hw : ∀ v, weight v ≤ bound) {s : V} {v : Vertex V bound
   | nil => rfl
   | @cons a b p e ih =>
     by_cases h : a.vertex = b.vertex
-    · have he : b.offset.val = a.offset.val + 1 := by
-        rcases e.down with he | he
-        · exact he.2.1
-        · have hl := G.layer_adj he.2.2
-          rw [h] at hl
-          omega
+    · have he : b.offset.val = a.offset.val + 1 :=
+        e.down.elim (·.2.1) fun he => by
+          have := G.layer_adj he.2.2
+          rw [h] at this; omega
       rw [contract_cons_eq _ _ h]
-      cases a with | mk a ai =>
-        cases b with | mk b bi =>
-          change a = b at h
-          subst b
-          change p.cons e = (expand hw (contract p)).comp _
-          calc
-            p.cons e = ((expand hw (contract p)).comp
-                (chain a ai.val (offset_le p) (Nat.le_of_lt_succ ai.isLt))).cons e :=
-              congrArg (fun q => q.cons e) ih
-            _ = (expand hw (contract p)).comp
-                ((chain a ai.val (offset_le p) (Nat.le_of_lt_succ ai.isLt)).cons e) := rfl
-            _ = _ := congrArg (fun q => (expand hw (contract p)).comp q)
-              (chain_step a ai bi e (offset_le p) (offset_le (p.cons e)) he)
-    · have he : a.offset.val = weight a.vertex ∧ b.offset.val = 0 ∧ G.Adj a.vertex b.vertex :=
-        e.down.elim (fun he => (h he.1).elim) id
+      rcases a, b with ⟨⟨a, ai⟩, ⟨b, bi⟩⟩
+      change a = b at h
+      subst b
+      change p.cons e = (expand hw (contract p)).comp _
+      calc
+        p.cons e = ((expand hw (contract p)).comp
+            (chain a ai.val (offset_le p) (Nat.le_of_lt_succ ai.isLt))).cons e :=
+          congrArg (fun q => q.cons e) ih
+        _ = (expand hw (contract p)).comp
+            ((chain a ai.val (offset_le p) (Nat.le_of_lt_succ ai.isLt)).cons e) := rfl
+        _ = _ := congrArg (fun q => (expand hw (contract p)).comp q)
+          (chain_step a ai bi e (offset_le p) (offset_le (p.cons e)) he)
+    · obtain ⟨ha, hb, -⟩ := e.down.elim (fun he => (h he.1).elim) id
       rw [contract_cons_ne _ _ h]
-      cases a with | mk a ai =>
-        cases b with | mk b bi =>
-          obtain ⟨ha, hb, hab⟩ := he
-          have hai : ai = ⟨weight a, Nat.lt_succ_of_le (hw a)⟩ := Fin.ext ha
-          have hbi : bi = 0 := Fin.ext hb
-          subst ai
-          subst bi
-          conv_lhs => rw [ih]
-          rfl
+      rcases a, b with ⟨⟨a, ai⟩, ⟨b, bi⟩⟩
+      obtain rfl : ai = ⟨weight a, Nat.lt_succ_of_le (hw a)⟩ := Fin.ext ha
+      obtain rfl : bi = 0 := Fin.ext hb
+      conv_lhs => rw [ih]
+      rfl
 
 /-- Original paths correspond bijectively to subdivided paths ending at any valid offset. -/
 noncomputable def pathEquiv (hw : ∀ v, weight v ≤ bound) (s : V) (v : Vertex V bound)
@@ -335,23 +324,19 @@ private theorem departureCost_eq {a b : V} (p : G.Path a b) (h : a ≠ b) :
   | @cons b c p e ih =>
     by_cases hab : a = b
     · subst b
-      have hp : p = Quiver.Path.nil :=
+      obtain rfl : p = Quiver.Path.nil :=
         LayeredDigraph.Path.eq_of_layer_le_succ (Nat.le_succ _) _ _
-      subst p
       simp [Quiver.Path.addWeightOfEPs_cons, Quiver.Path.addWeightOfEPs_nil,
         LayeredDigraph.Path.internalWeight, LayeredDigraph.Path.internalVertices,
         Quiver.Path.vertices_cons, Quiver.Path.vertices_nil, LayeredDigraph.Path.length]
     · have hp : G.layer a < G.layer b := by
-        have hl := LayeredDigraph.Path.layer_end (G := G) p
-        change G.layer b = G.layer a + p.length at hl
+        have hl : G.layer b = G.layer a + p.length := LayeredDigraph.Path.layer_end (G := G) p
         have hn : p.length ≠ 0 := fun hz => hab (p.eq_of_length_zero hz)
         omega
-      have he : G.layer b < G.layer c := by have := G.layer_adj e.down; omega
-      have hw := LayeredDigraph.Path.internalWeight_comp weight p
-        (LayeredDigraph.Path.ofAdj e.down) hp he
-      have hz : (LayeredDigraph.Path.ofAdj e.down).internalWeight weight = 0 := rfl
-      change LayeredDigraph.Path.internalWeight weight (p.cons e) = _ at hw
-      rw [hz, Nat.add_zero] at hw
+      have hw : LayeredDigraph.Path.internalWeight weight (p.cons e) =
+          LayeredDigraph.Path.internalWeight weight p + weight b + 0 :=
+        LayeredDigraph.Path.internalWeight_comp weight p (LayeredDigraph.Path.ofAdj e.down) hp
+          (by have := G.layer_adj e.down; omega)
       rw [Quiver.Path.addWeightOfEPs_cons, ih hab, hw]
       change _ = _ + weight a + (p.length + 1)
       dsimp only [LayeredDigraph.Path.length] at *

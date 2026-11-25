@@ -107,14 +107,20 @@ theorem replay_seq_cases {State₀ State₁ : Type}
     rcases ih with ⟨before, hp⟩ | ⟨before, after, hh, hs⟩
     · rw [hp]
       by_cases hh : (first.runClosedConfigFromCoins before initial).tapes.state = none
-      · refine .inr ⟨before, [bit], hh, ?_⟩
+      · right
+        refine ⟨before, [bit], hh, ?_⟩
         rw [Sequential.left_halted second _ hh]
         simpa only [runClosedConfigFromCoins, List.foldl_cons, List.foldl_nil] using
-          step_withCoin_seq_right first second bit _
-      · exact .inl ⟨before ++ [bit], by
-          rw [replay_append]; exact step_withCoin_seq_left first second bit _ hh⟩
-    · exact .inr ⟨before, after ++ [bit], hh, by
-        rw [hs, replay_append]; exact step_withCoin_seq_right first second bit _⟩
+          step_withCoin_seq_right first second bit
+            (Sequential.start second (first.runClosedConfigFromCoins before initial))
+      · left
+        refine ⟨before ++ [bit], ?_⟩
+        rw [replay_append]
+        exact step_withCoin_seq_left first second bit _ hh
+    · right
+      refine ⟨before, after ++ [bit], hh, ?_⟩
+      rw [hs, replay_append]
+      exact step_withCoin_seq_right first second bit _
 
 /-- The output tape length is monotonically non-decreasing during a run. -/
 theorem output_length_le_replay (machine : MultiTapePTM k Symbol State)

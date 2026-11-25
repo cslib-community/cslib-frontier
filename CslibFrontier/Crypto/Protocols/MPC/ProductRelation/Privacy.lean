@@ -125,7 +125,8 @@ theorem bind_honestOpening_eq_bind_uniform {q m : ℕ} [Fact (Nat.Prime q)] (hm 
         let d₁ := e₁.toDeal t₁
         let γ₂ := (d₁.polyA.eval r + α₂) * (d₁.polyB.eval r + β₂) - d₁.polyC.eval r
         g (α₂, β₂, γ₂))) := by
-  have hc : basisZeroAt q m r ≠ 0 := basisZeroAt_ne_zero (succ_lt_of_two_mul_lt hm).le hr
+  have hc : basisZeroAt q m r ≠ 0 :=
+    basisZeroAt_ne_zero (succ_lt_of_two_mul_lt hm).le hr
   set offA : ZMod q := restLinearEval q m (fun k => (t₂ k).a) r
   set offB : ZMod q := restLinearEval q m (fun k => (t₂ k).b) r
   set d₁ : PartyDeal q m := e₁.toDeal t₁
@@ -153,9 +154,10 @@ theorem bind_honestOpening_eq_bind_uniform {q m : ℕ} [Fact (Nat.Prime q)] (hm 
   have haff (off : ZMod q) (k : ZMod q → PMF β) :
       ((PMF.uniformOfFintype (ZMod q)).bind fun x => k (off + basisZeroAt q m r * x)) =
         (PMF.uniformOfFintype (ZMod q)).bind k := by
-    rw [show (fun x => k (off + basisZeroAt q m r * x)) =
-      k ∘ (fun x => off + basisZeroAt q m r • x) from funext fun _ => by simp [smul_eq_mul],
-      ← PMF.bind_map, Cslib.Probability.PMF.map_add_smul_uniformOfFintype off hc]
+    have hcomp : (fun x => k (off + basisZeroAt q m r * x)) =
+        k ∘ fun x => off + basisZeroAt q m r • x :=
+      funext fun _ => by simp [smul_eq_mul]
+    rw [hcomp, ← PMF.bind_map, Cslib.Probability.PMF.map_add_smul_uniformOfFintype off hc]
   simp_rw [hrew, haff offB]
   exact haff offA fun α₂ => (PMF.uniformOfFintype (ZMod q)).bind (h α₂)
 
@@ -234,9 +236,12 @@ private theorem bind_uniform_uniform_bind_comm {q : ℕ} [NeZero q] {γ δ : Typ
         p.bind fun c => f a b c) =
     p.bind fun c =>
       (PMF.uniformOfFintype (ZMod q)).bind fun a =>
-        (PMF.uniformOfFintype (ZMod q)).bind fun b => f a b c :=
-  (congrArg (PMF.uniformOfFintype (ZMod q)).bind (funext fun _ => PMF.bind_comm ..)).trans
-    (PMF.bind_comm ..)
+        (PMF.uniformOfFintype (ZMod q)).bind fun b => f a b c := by
+  calc _ = (PMF.uniformOfFintype (ZMod q)).bind fun a =>
+        p.bind fun c => (PMF.uniformOfFintype (ZMod q)).bind fun b => f a b c := by
+          congr 1 with a : 1
+          exact PMF.bind_comm _ _ _
+    _ = _ := PMF.bind_comm _ _ _
 
 /-- **Fact 23.2 (corrupt `P₁`)**: under `2 * m < q` and valid inputs satisfying
 `ProductRelations`, `experiment0P1` and `experiment1P1` induce identical output distributions on

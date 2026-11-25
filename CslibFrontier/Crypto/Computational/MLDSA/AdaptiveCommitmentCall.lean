@@ -300,17 +300,21 @@ private theorem all_windows (C : QuantumSigningForger) (s : Level) (H : Xofs)
     let last y := (maskList s k).bind fun zs =>
       U.bind (C.callWindow s H A keys sk next i rows ((ys ++ [y]) ++ zs) 0)
     have one : |prob (U.bind (C.callWindow s H A keys sk next i rows ys (k + 1))) -
-        prob (μ.bind adjacentLaw)| ≤ B :=
-      (C.window_step s H A keys sk next i rows ys k hash).trans
-        (by dsimp only [B, δ]; gcongr; exact_mod_cast (by lia : 1 + ys.length ≤ 814))
+        prob (μ.bind adjacentLaw)| ≤ B := by
+      refine (C.window_step s H A keys sk next i rows ys k hash).trans ?_
+      dsimp only [B, δ]
+      gcongr
+      exact_mod_cast (by lia : 1 + ys.length ≤ 814)
     have rest : |prob (μ.bind adjacentLaw) - prob (μ.bind last)| ≤ k * B :=
-      abs_common_bind _ _ _ fun y =>
-        ih (ys ++ [y]) (by simp only [List.length_append, List.length_singleton]; lia)
-    rw [show ((maskList s (k + 1)).bind fun zs =>
-        U.bind (C.callWindow s H A keys sk next i rows (ys ++ zs) 0)) = μ.bind last by
+      abs_common_bind _ _ _ fun y => ih (ys ++ [y]) (by
+        simp only [List.length_append, List.length_singleton]
+        lia)
+    have endLaw : ((maskList s (k + 1)).bind fun zs =>
+        U.bind (C.callWindow s H A keys sk next i rows (ys ++ zs) 0)) = μ.bind last := by
       simp only [maskList, PMF.iid, PMF.monad_bind_eq_bind, PMF.map_bind, PMF.bind_bind,
         PMF.map_comp, PMF.bind_map, Function.comp_def, List.ofFn_cons, last, μ,
-        List.append_assoc, List.singleton_append]]
+        List.append_assoc, List.singleton_append]
+    rw [endLaw]
     exact (abs_sub_le _ (prob (μ.bind adjacentLaw)) _).trans
       ((add_le_add one rest).trans_eq (by push_cast; ring))
 
@@ -519,12 +523,13 @@ private theorem conditioned_call_gap (C : QuantumSigningForger) (s : Level) (H :
       abs_common_bind U _ _ fun D => C.erase_at_cut s H keys sk A key mat hash calls i D _
   have refresh : |prob fresh - prob native| ≤
       814 * (2 * (4 * qH * √δ + (815 * i.val + 814) * δ)) := by
-    rw [show native = rows.bind fun rs => (maskList s 814).bind fun ys =>
-        U.bind (C.callWindow s H A keys sk (C.nativeAfter s H A keys) i (List.ofFn rs) ys 0) by
+    have source : native = rows.bind fun rs => (maskList s 814).bind fun ys =>
+        U.bind (C.callWindow s H A keys sk (C.nativeAfter s H A keys) i (List.ofFn rs) ys 0) := by
       dsimp only [native]
       simp_rw [PMF.bind_comm (maskList s 814) U, PMF.bind_comm rows U]
       exact congrArg (PMF.bind U ·)
-        (funext fun D => (C.read_window_eq s H keys sk A key mat i D).symm)]
+        (funext fun D => (C.read_window_eq s H keys sk A key mat i D).symm)
+    rw [source]
     refine abs_common_bind rows _ _ fun rs => ?_
     have write : C.callWindow s H A keys sk (C.nativeAfter s H A keys) i (List.ofFn rs) [] 814 =
         fun D => C.chosenCall s H A keys i D true (List.ofFn rs) :=

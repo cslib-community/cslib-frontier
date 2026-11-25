@@ -71,7 +71,8 @@ theorem positiveExterior_foreign_box {φ : CNF ℕ} {d : Graph.OrthogonalDrawing
   have hindex := sourceEdgeIndex_lt φ hj hk
   have hedge : (SAT.incidenceGraph φ).2[sourceEdgeIndex φ j k] =
       (φ.distinctVars.idxOf φ[j][k].1, φ.distinctVars.length + j) := by
-    rw [← List.getD_eq_getElem _ _ hindex]; exact sourceEdgeIndex_edge φ hj hk
+    rw [← List.getD_eq_getElem _ _ hindex]
+    exact sourceEdgeIndex_edge φ hj hk
   refine exteriorRoute_avoids_box hd hindex (sourceClause_declared φ hi) ?_ (by rw [hedge]; omega)
     (by decide : positiveRadius < positiveScale) hx
   rw [hedge]
@@ -126,9 +127,12 @@ theorem positiveIncidenceRoute_endpoints {φ : CNF ℕ} {d : Graph.OrthogonalDra
     obtain ⟨q, hq, hr⟩ := positiveIncidenceRoute_join_endpoints hd hi h he hj
     change (positiveStem φ d i e ++ (positiveExterior φ d i j).tail).head? = _ ∧
       (positiveStem φ d i e ++ (positiveExterior φ d i j).tail).getLast? = _
-    refine ⟨by obtain ⟨t, ht⟩ := List.head?_eq_some_iff.mp hstem.2.2.1; rw [ht]; rfl, ?_⟩
-    rw [last_join hq hr, positiveExterior_last hd hi hjSource, positiveIncidenceVariable, hj]
-    simp only [profileVariableMap, List.getD_eq_getElem _ _ hjSource]
+    refine ⟨?_, ?_⟩
+    · obtain ⟨t, ht⟩ := List.head?_eq_some_iff.mp hstem.2.2.1
+      rw [ht]
+      rfl
+    · rw [last_join hq hr, positiveExterior_last hd hi hjSource, positiveIncidenceVariable, hj]
+      simp only [profileVariableMap, List.getD_eq_getElem _ _ hjSource]
   next w hw =>
     change (positiveStem φ d i e).head? = _ ∧ (positiveStem φ d i e).getLast? = _
     refine ⟨hstem.2.2.1, hstem.2.2.2.trans (congrArg some (Eq.symm ?_))⟩
@@ -190,7 +194,8 @@ theorem positiveExterior_contacts {φ : CNF ℕ} {d : Graph.OrthogonalDrawing}
   rw [positiveVariablePoint_source φ d hmem₁, realPoint_add]
   dsimp only
   rw [hxq]
-  congr 2; rw [sourceFinish, sourceEdgeIndex_edge φ hi hk]
+  congr 2
+  rw [sourceFinish, sourceEdgeIndex_edge φ hi hk]
 
 /-- Source-placeholder metadata for an actual local row. -/
 theorem positiveIncidence_source_lookup {φ : CNF ℕ} {d : Graph.OrthogonalDrawing}
@@ -306,9 +311,11 @@ theorem positiveIncidenceRoute_contacts {φ : CNF ℕ} {d : Graph.OrthogonalDraw
         · exact (List.not_mem_nil hq).elim
       · split_ifs at hq with hv
         · have ha := clauseGeometry_shared_variable_auxiliary hd hi (h i hi) he hf hef hv
-          exact Or.inr ⟨by unfold positiveIncidenceVariable; rw [hv], by
-            rw [positiveIncidenceVariable_auxiliary_point hd hi (h i hi) he ha]
-            exact List.mem_singleton.mp hq ▸ hzq⟩
+          refine Or.inr ⟨?_, ?_⟩
+          · unfold positiveIncidenceVariable
+            rw [hv]
+          · rw [positiveIncidenceVariable_auxiliary_point hd hi (h i hi) he ha]
+            exact List.mem_singleton.mp hq ▸ hzq
         · exact (List.not_mem_nil hq).elim
     · exact (Set.disjoint_left.mp
         (positiveStem_different_boxes_disjoint hd hi hj hij φ[i] φ[j] he hf) hz hw).elim
@@ -332,8 +339,10 @@ theorem positiveIncidenceRoute_contacts {φ : CNF ℕ} {d : Graph.OrthogonalDraw
       exact hne (Prod.ext rfl
         (clauseGeometry_source_lookup_injective hd hi (h i hi) he hf hgetk hgetl))
     obtain ⟨hvars, hzvar⟩ := positiveExterior_contacts hd hi hj hmk.1 hml.1 hslots hz hw
-    exact Or.inr ⟨by rw [hmk.2.2.2, hml.2.2.2, List.getD_eq_getElem _ _ hmk.1,
-        List.getD_eq_getElem _ _ hml.1, hvars],
-      by rw [hmk.2.2.2, List.getD_eq_getElem _ _ hmk.1]; exact hzvar⟩
+    refine Or.inr ⟨?_, ?_⟩
+    · rw [hmk.2.2.2, hml.2.2.2, List.getD_eq_getElem _ _ hmk.1,
+        List.getD_eq_getElem _ _ hml.1, hvars]
+    · rw [hmk.2.2.2, List.getD_eq_getElem _ _ hmk.1]
+      exact hzvar
 
 end Cslib.Complexity.SAT.ExactOne

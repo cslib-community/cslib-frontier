@@ -71,15 +71,18 @@ section Helpers
 
 private theorem bool_profile_eq {α : Bool → Type*} (β : ∀ i : Bool, α i) :
     (fun | false => β false | true => β true) = β := by
-  funext i; cases i <;> rfl
+  funext i
+  cases i <;> rfl
 
 private theorem update_false_eq {α : Bool → Type*} (β : ∀ i : Bool, α i) (x : α false) :
     Function.update β false x = fun | false => x | true => β true := by
-  funext i; cases i <;> simp [Function.update_of_ne]
+  funext i
+  cases i <;> simp [Function.update_of_ne]
 
 private theorem update_true_eq {α : Bool → Type*} (β : ∀ i : Bool, α i) (y : α true) :
     Function.update β true y = fun | false => β false | true => y := by
-  funext i; cases i <;> simp [Function.update_of_ne]
+  funext i
+  cases i <;> simp [Function.update_of_ne]
 
 private theorem dotProduct_neg_transpose_mulVec {α β : Type*} [Fintype α] [Fintype β]
     (A : Matrix α β ℝ) (x : α → ℝ) (y : β → ℝ) :
@@ -90,14 +93,18 @@ private theorem eval_isLeast_of_neg_isGreatest {α : Type*} (S : Set α) (f : α
     (hmax : IsGreatest ((fun y => -f y) '' S) u) :
     IsLeast (f '' S) (-u) := by
   obtain ⟨y₀, hy₀, hy₀_eq⟩ := hmax.1
-  exact ⟨⟨y₀, hy₀, by linarith⟩, by rintro _ ⟨y, hy, rfl⟩; linarith [hmax.2 ⟨y, hy, rfl⟩]⟩
+  refine ⟨⟨y₀, hy₀, by linarith⟩, ?_⟩
+  rintro _ ⟨y, hy, rfl⟩
+  linarith [hmax.2 ⟨y, hy, rfl⟩]
 
 private theorem ciSup_subtype_eq_of_isGreatest {α : Type*} {P : α → Prop} {f : α → ℝ} {v : ℝ}
     (h : IsGreatest (f '' {x | P x}) v) : (⨆ x : {x // P x}, f x.1) = v := by
   obtain ⟨⟨x₀, hx₀, hx₀_eq⟩, hmax⟩ := h
   let _ : Nonempty {x // P x} := ⟨⟨x₀, hx₀⟩⟩
-  have hbdd : BddAbove (Set.range fun x : {x // P x} => f x.1) :=
-    ⟨v, by rintro _ ⟨⟨x, hx⟩, rfl⟩; exact hmax ⟨x, hx, rfl⟩⟩
+  have hbdd : BddAbove (Set.range fun x : {x // P x} => f x.1) := by
+    refine ⟨v, ?_⟩
+    rintro _ ⟨⟨x, hx⟩, rfl⟩
+    exact hmax ⟨x, hx, rfl⟩
   exact le_antisymm (ciSup_le fun ⟨x, hx⟩ => hmax ⟨x, hx, rfl⟩)
     (hx₀_eq.symm.trans_le (le_ciSup hbdd ⟨x₀, hx₀⟩))
 
@@ -105,18 +112,22 @@ private theorem ciInf_subtype_eq_of_isLeast {α : Type*} {P : α → Prop} {f : 
     (h : IsLeast (f '' {y | P y}) u) : (⨅ y : {y // P y}, f y.1) = u := by
   obtain ⟨⟨y₀, hy₀, hy₀_eq⟩, hmin⟩ := h
   let _ : Nonempty {y // P y} := ⟨⟨y₀, hy₀⟩⟩
-  have hbdd : BddBelow (Set.range fun y : {y // P y} => f y.1) :=
-    ⟨u, by rintro _ ⟨⟨y, hy⟩, rfl⟩; exact hmin ⟨y, hy, rfl⟩⟩
+  have hbdd : BddBelow (Set.range fun y : {y // P y} => f y.1) := by
+    refine ⟨u, ?_⟩
+    rintro _ ⟨⟨y, hy⟩, rfl⟩
+    exact hmin ⟨y, hy, rfl⟩
   exact le_antisymm ((ciInf_le hbdd ⟨y₀, hy₀⟩).trans_eq hy₀_eq)
     (le_ciInf fun ⟨y, hy⟩ => hmin ⟨y, hy, rfl⟩)
 
 private theorem iSup_eq_of_surjective {α β : Type*} {e : α → β} (he : Function.Surjective e)
     {f : α → ℝ} {g : β → ℝ} (h : ∀ a, f a = g (e a)) : (⨆ a, f a) = ⨆ b, g b := by
-  simp_rw [h]; exact congrArg sSup (he.range_comp g)
+  simp_rw [h]
+  exact congrArg sSup (he.range_comp g)
 
 private theorem iInf_eq_of_surjective {α β : Type*} {e : α → β} (he : Function.Surjective e)
     {f : α → ℝ} {g : β → ℝ} (h : ∀ a, f a = g (e a)) : (⨅ a, f a) = ⨅ b, g b := by
-  simp_rw [h]; exact congrArg sInf (he.range_comp g)
+  simp_rw [h]
+  exact congrArg sInf (he.range_comp g)
 
 end Helpers
 
@@ -149,9 +160,11 @@ theorem seqPayoffMat_apply [∀ i h, Fintype (Act i h)]
   let r₁ : Seq H Act true → ℝ := fun τ => if τ = σ₁.1 then 1 else 0
   have hb := seqPayoffMat_bilinear T p r₀ r₁
   have hr0 : (fun σ : SeqVar T false => r₀ σ.1) = Pi.single σ₀ (1 : ℝ) := by
-    ext σ; simp [r₀, Pi.single_apply, Subtype.ext_iff]
+    ext σ
+    simp [r₀, Pi.single_apply, Subtype.ext_iff]
   have hr1 : (fun τ : SeqVar T true => r₁ τ.1) = Pi.single σ₁ (1 : ℝ) := by
-    ext τ; simp [r₁, Pi.single_apply, Subtype.ext_iff]
+    ext τ
+    simp [r₁, Pi.single_apply, Subtype.ext_iff]
   have hlhs : (Pi.single σ₀ (1 : ℝ)) ⬝ᵥ (T.seqPayoffMat p *ᵥ Pi.single σ₁ (1 : ℝ)) =
       T.seqPayoffMat p σ₀ σ₁ := by simp [dotProduct, Matrix.mulVec, Pi.single_apply]
   rw [hr0, hr1, hlhs] at hb
@@ -234,8 +247,13 @@ theorem dotProduct_seqPayoffMat_mulVec_eq_sum_terminal [∀ i h, Fintype (Act i 
   let r₁ : Seq H Act true → ℝ := fun τ => if h : ∃ z : Terminal T, τ <+: z.seq true then
     y ⟨τ, h⟩ else 0
   have hb := seqPayoffMat_bilinear T p r₀ r₁
-  rw [show (fun σ : SeqVar T false => r₀ σ.1) = x by ext σ; simp [r₀, σ.2],
-    show (fun τ : SeqVar T true => r₁ τ.1) = y by ext τ; simp [r₁, τ.2]] at hb
+  have hr0 : (fun σ : SeqVar T false => r₀ σ.1) = x := by
+    ext σ
+    simp [r₀, σ.2]
+  have hr1 : (fun τ : SeqVar T true => r₁ τ.1) = y := by
+    ext τ
+    simp [r₁, τ.2]
+  rw [hr0, hr1] at hb
   rw [hb]
   refine sum_congr rfl fun z _ => ?_
   have h0 : ∃ w : Terminal T, z.seq false <+: w.seq false := ⟨z, List.prefix_rfl⟩
@@ -261,8 +279,11 @@ private theorem eq_of_hasNoChance_seq_eq {T : ExtensiveTree Bool H Act} (hnc : T
     ∀ {z₁ z₂ : Terminal T},
       z₁.seq false = z₂.seq false → z₁.seq true = z₂.seq true → z₁ = z₂ := by
   induction T with
-  | leaf _ => rintro ⟨⟩ ⟨⟩ _ _; rfl
-  | chance _ _ _ => exact False.elim hnc
+  | leaf _ =>
+    rintro ⟨⟩ ⟨⟩ _ _
+    rfl
+  | chance _ _ _ =>
+    exact False.elim hnc
   | decision p _ _ ih =>
     intro z₁ z₂ h0 h1
     cases z₁ with | decision a₁ sub₁ => cases z₂ with | decision a₂ sub₂ =>
@@ -469,11 +490,13 @@ theorem isBehaviorNash_iff_saddlePoint [∀ i h, Fintype (Act i h)]
           T.evalBehavior β false ≤ T.evalBehavior (fun | false => β false | true => β₁) false) := by
   refine and_congr_right fun _ => ⟨fun hopt => ⟨fun β₀ hβ₀ => ?_, fun β₁ hβ₁ => ?_⟩,
     fun ⟨h0, h1⟩ i β' hβ' => ?_⟩
-  · have h := hopt false β₀ hβ₀; rwa [update_false_eq] at h
+  · have h := hopt false β₀ hβ₀
+    rwa [update_false_eq] at h
   · have h := hopt true β₁ hβ₁
     rwa [hzs.evalBehavior_true, hzs.evalBehavior_true, neg_le_neg_iff, update_true_eq] at h
   · cases i
-    · rw [update_false_eq]; exact h0 β' hβ'
+    · rw [update_false_eq]
+      exact h0 β' hβ'
     · rw [hzs.evalBehavior_true, hzs.evalBehavior_true, neg_le_neg_iff, update_true_eq]
       exact h1 β' hβ'
 
@@ -598,8 +621,10 @@ theorem isSeqNash_iff_maximin_minimax [∀ i h, Fintype (Act i h)] [∀ i h, Non
       le_antisymm (hlo_eq ▸ hmaxV.2 ⟨x, hx, rfl⟩) (hup_eq ▸ hminV.2 ⟨y, hy, rfl⟩)
     exact ⟨⟨hx, (hlo_eq.trans hval).symm ▸ hmaxV⟩, ⟨hy, (hup_eq.trans hval).symm ▸ hminV⟩⟩
   · rintro ⟨⟨hx, hx_max⟩, ⟨hy, hy_min⟩⟩
-    have hlo_v : T.seqLowerVal x = v := le_antisymm (hmaxV.2 ⟨x, hx, rfl⟩) (hx_max.2 hmaxV.1)
-    have hup_v : T.seqUpperVal y = v := le_antisymm (hy_min.2 hminV.1) (hminV.2 ⟨y, hy, rfl⟩)
+    have hlo_v : T.seqLowerVal x = v :=
+      le_antisymm (hmaxV.2 ⟨x, hx, rfl⟩) (hx_max.2 hmaxV.1)
+    have hup_v : T.seqUpperVal y = v :=
+      le_antisymm (hy_min.2 hminV.1) (hminV.2 ⟨y, hy, rfl⟩)
     have hxy : x ⬝ᵥ (T.seqPayoffMat false *ᵥ y) = v :=
       le_antisymm ((le_seqUpperVal (hpr false) y hx).trans_eq hup_v)
         (hlo_v.symm.trans_le (seqLowerVal_le (hpr true) x hy))
@@ -734,7 +759,8 @@ private theorem image_behavior_eq_image_plan [∀ i h, Fintype (Act i h)]
     (hpr : T.PerfectRecall i) {f : (∀ h : H i, Act i h → ℝ) → ℝ} {g : (SeqVar T i → ℝ) → ℝ}
     (hfg : ∀ b, f b = g (T.behaviorToRealizationPlan i b)) :
     f '' {b | IsBehaviorStrategy b} = g '' {x | T.IsRealizationPlan i x} := by
-  ext v; simp only [Set.mem_image, Set.mem_ofPred_eq, hfg]
+  ext v
+  simp only [Set.mem_image, Set.mem_ofPred_eq, hfg]
   exact ⟨fun ⟨b, hb, hv⟩ => ⟨_, isRealizationPlan_behaviorToRealizationPlan hpr hb, hv⟩,
     fun ⟨x, hx, hv⟩ => let ⟨⟨b, hb⟩, hbx⟩ := surjective_behaviorToPlanSub hpr ⟨x, hx⟩
       ⟨b, hb, (congrArg (g ∘ Subtype.val) hbx).trans hv⟩⟩

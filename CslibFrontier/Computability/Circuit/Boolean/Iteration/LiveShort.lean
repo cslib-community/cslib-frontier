@@ -63,10 +63,9 @@ private theorem shortLength_of_no_return (f : BitString n → BitString n) (z : 
       let ⟨j, hj⟩ := Nat.exists_eq_succ_of_ne_zero hp.ne'
       hr ⟨⟨j, by omega⟩, hj ▸ he⟩
   unfold shortLength firstIndex chooseFirst
-  rw [chooseRecord_of_forall_eq_false _ _ _ hz,
-    show (fun _ : Fin w => false) = fun i => (0 : BitVec w).getLsbD i.val from
-      funext fun _ => BitVec.getLsbD_zero.symm,
-    BitString.equivBitVec_getLsbD]
+  have he : (fun _ : Fin w => false) = fun i => (0 : BitVec w).getLsbD i.val :=
+    funext fun _ => BitVec.getLsbD_zero.symm
+  rw [chooseRecord_of_forall_eq_false _ _ _ hz, he, BitString.equivBitVec_getLsbD]
 
 private theorem synthesis_time_lt (s : Set (BooleanFunction a)) (bits : BitString a → BitString m)
     (hb : wires bits ⊆ s) (hc : ∀ b : Bool, (fun _ : BitString a => b) ∈ s) (K : ℕ) :
@@ -114,7 +113,9 @@ private theorem liveShortValue (f : BitString n → BitString n) (x : BitString 
   · obtain ⟨hp, hpK, hret⟩ := shortLength_of_return f _ hKw (hready.resolve_left ht)
     have he : index.toNat = K + (t - K) % d.toNat := by
       simpa only [index, decide_eq_false ht] using
-        toNat_periodicTimeIndex_long K d bits (le_of_not_gt ht) hp (by lia) (by lia)
+        toNat_periodicTimeIndex_long K d bits (le_of_not_gt ht) hp
+          (by lia)
+          (by lia)
     have hlt : index.toNat < 2 * K := by
       have := Nat.mod_lt (t - K) hp
       lia
@@ -174,11 +175,16 @@ theorem live_short_circuit (c : Circuit signature n n) (m K : ℕ) (hK : 0 < K)
   let b := b.add ((Synthesis.of_mem (I := interpretation) (s := b.wires)
     (show short ∈ b.wires by synthesis_available)).or
     (Synthesis.of_mem (show (fun y => !decide (period y = 0)) ∈ b.wires by synthesis_available)))
-  let b := b.add (synthesis_periodicTimeIndex b.wires K period bits short (by synthesis_available)
-    (fun _ => by synthesis_available) (fun _ => by synthesis_available) (by synthesis_available))
-  let b := b.add (Synthesis.selectBits index rows (fun _ => by synthesis_available) fun j i => by
-    have h := hs j.val j.isLt.le i
-    synthesis_available)
+  let b := b.add (synthesis_periodicTimeIndex b.wires K period bits short
+    (by synthesis_available)
+    (fun _ => by synthesis_available)
+    (fun _ => by synthesis_available)
+    (by synthesis_available))
+  let b := b.add (Synthesis.selectBits index rows
+    (fun _ => by synthesis_available)
+    fun j i => by
+      have h := hs j.val j.isLt.le i
+      synthesis_available)
   have hpack : wires packed ⊆ b.wires := by
     rintro _ ⟨i, rfl⟩
     induction i using Fin.addCases with

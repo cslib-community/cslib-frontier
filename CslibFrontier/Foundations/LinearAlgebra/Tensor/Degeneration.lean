@@ -175,13 +175,17 @@ def IsSLDegen [Fintype X'] [Fintype Y'] [Fintype Z'] [DecidableEq X'] (f : X →
 theorem IsSLDegen.toIsDegen [Fintype X'] [Fintype Y'] [Fintype Z'] [DecidableEq X'] {f : X → X'}
     {h : ℕ} {T : Tensor K X Y Z} {S : Tensor K X' Y' Z'} (hT : IsSLDegen f h T S) :
     IsDegen h T S := by
-  obtain ⟨β, γ, E, hE⟩ := hT; exact ⟨_, β, γ, E, hE⟩
+  obtain ⟨β, γ, E, hE⟩ := hT
+  exact ⟨_, β, γ, E, hE⟩
 
 /-- A restriction is a degeneration of order `0`. -/
 theorem IsDegen.of_isRestriction [Fintype X'] [Fintype Y'] [Fintype Z'] {T : Tensor K X Y Z}
     {S : Tensor K X' Y' Z'} (h : IsRestriction T S) : IsDegen 0 T S := by
   obtain ⟨α, β, γ, rfl⟩ := h
-  exact ⟨α.map C, β.map C, γ.map C, 0, by rw [← map_restrict]; ext x y z; simp⟩
+  refine ⟨α.map C, β.map C, γ.map C, 0, ?_⟩
+  rw [← map_restrict]
+  ext x y z
+  simp
 
 /-- A shared-left restriction is a shared-left degeneration of order `0`. -/
 theorem IsSLDegen.of_restrict_incl [Fintype X'] [Fintype Y'] [Fintype Z'] [DecidableEq X']
@@ -227,7 +231,8 @@ private theorem restrict_map_expand [Fintype X'] [Fintype Y'] [Fintype Z'] {k : 
         (Polynomial.X ^ (N * k + N) : K[X]) • E.map (Polynomial.expand K N).toRingHom := by
   have he (p : K[X]) : (Polynomial.expand K N).toRingHom p = Polynomial.expand K N p := rfl
   have hS : (S.map C).map (Polynomial.expand K N).toRingHom = S.map C := by
-    funext x y z; simp only [Tensor.map_apply, he, Polynomial.expand_C]
+    funext x y z
+    simp only [Tensor.map_apply, he, Polynomial.expand_C]
   rw [← hS, ← map_restrict, hw]
   funext x y z
   simp only [Tensor.map_apply, Pi.add_apply, Pi.smul_apply, smul_eq_mul, he, map_add, map_mul,
@@ -384,8 +389,10 @@ theorem IsSLDegen.reindex_source [Fintype X'] [Fintype Y'] [Fintype Z'] [Decidab
   obtain ⟨β, γ, E, hE⟩ := hT
   refine ⟨incl e₂ * β, γ * (incl e₃)ᵀ, E, ?_⟩
   rw [incl_comp, ← restrict_restrict, restrict_incl]
-  rwa [show (fun x y z => (reindex e₁ e₂ e₃ S).map C (e₁ x) (e₂ y) (e₃ z)) = S.map C by
-    funext x y z; simp]
+  have h₁ : (fun x y z => (reindex e₁ e₂ e₃ S).map C (e₁ x) (e₂ y) (e₃ z)) = S.map C := by
+    funext x y z
+    simp
+  rwa [h₁]
 
 /-- Removing a reindexing of the target of a shared-left degeneration. -/
 theorem IsSLDegen.of_reindex_target [Fintype X'] [Fintype Y'] [Fintype Z'] [DecidableEq X']
@@ -524,7 +531,8 @@ theorem IsSLDegen.slSum_comp {ι κ : Type*} [Finite ι] [DecidableEq ι] [Decid
     [Fintype X'] [Fintype Y'] [Fintype Z'] [DecidableEq X'] {f : X → X'} {h : ℕ}
     {G : ι → Tensor K X Y Z} {S : Tensor K X' Y' Z'} (hT : IsSLDegen f h (Tensor.slSum G) S)
     (e : κ → ι) (he : Function.Injective e) : IsSLDegen f h (Tensor.slSum (G ∘ e)) S := by
-  cases nonempty_fintype ι; cases nonempty_fintype X
+  cases nonempty_fintype ι
+  cases nonempty_fintype X
   cases nonempty_fintype Y
   cases nonempty_fintype Z
   classical
@@ -551,8 +559,10 @@ theorem IsDegen.dsum_comp {ι κ : Type*} [Finite ι] [DecidableEq ι] [Decidabl
     [Fintype Y'] [Fintype Z'] {h : ℕ} {G : ι → Tensor K X Y Z} {S : Tensor K X' Y' Z'}
     (hT : IsDegen h (Tensor.dsum G) S) (e : κ → ι) (he : Function.Injective e) :
     IsDegen h (Tensor.dsum (G ∘ e)) S := by
-  cases nonempty_fintype ι; cases nonempty_fintype X
-  cases nonempty_fintype Y; cases nonempty_fintype Z
+  cases nonempty_fintype ι
+  cases nonempty_fintype X
+  cases nonempty_fintype Y
+  cases nonempty_fintype Z
   exact (isRestriction_dsum_comp G e he).trans_isDegen hT
 
 end Degenerations
@@ -606,7 +616,8 @@ theorem IsDegen.rank_of_natDegree_le [Finite X] [Finite Y] [Finite Z] {h D r : �
     rw [map_restrict]
     congr 1
     funext i j l
-    simp only [Tensor.map_apply, unit_apply, Polynomial.coe_evalRingHom]; split_ifs <;> simp
+    simp only [Tensor.map_apply, unit_apply, Polynomial.coe_evalRingHom]
+    split_ifs <;> simp
   rw [hT]
   exact Rank.of_isRestriction ((isRestriction_sum_dsum c _).trans (IsRestriction.dsum h₁))
     (Rank.dsum (D + 1) (IsRestriction.refl _))
@@ -640,7 +651,8 @@ theorem IsDegen.exists_rank_tpow [Finite X] [Finite Y] [Finite Z] {h r : ℕ}
     (α₁.map C * piKronecker fun _ => α) (β₁.map C * piKronecker fun _ => β)
     ((piKronecker fun _ => γ) * γ₁.map C) R ?_ ?_
   · rwa [← restrict_restrict, h₂, hw]
-  · intro x y z; rw [← restrict_restrict, h₂, tprodPi_apply]
+  · intro x y z
+    rw [← restrict_restrict, h₂, tprodPi_apply]
     refine (Polynomial.natDegree_prod_le _ _).trans ?_
     refine (Finset.sum_le_card_nsmul _ _ D fun _ _ => hD _ _ _).trans_eq ?_
     rw [Finset.card_univ, Fintype.card_fin, smul_eq_mul, mul_comm]

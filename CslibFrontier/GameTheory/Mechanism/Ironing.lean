@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.GameTheory.Mechanism.OptimalAuction
+import CslibFrontier.Foundations.Algebra.BigOperators.Fin
 import CslibFrontier.Foundations.Data.Finset.ApplyUpdate
 import CslibFrontier.Foundations.MeasureTheory.Integral.IntervalPrimitive
 import CslibFrontier.Foundations.MeasureTheory.Integral.PiUpdate
@@ -1747,34 +1748,6 @@ namespace IsDiscreteIronedVirtualValue
 
 variable {m : ℕ} {D : DiscretePrior m} {φBar : Fin (m + 1) → ℝ}
 
-/-- Abel summation identity on `Fin (m + 1)` expressing `∑ⱼ dⱼ xⱼ` in terms of step increments
-`x_{i+1} − x_i` and upper tails `∑_{j ≥ i+1} dⱼ`. -/
-private theorem sum_mul_eq_abel (d x : Fin (m + 1) → ℝ) :
-    ∑ j : Fin (m + 1), d j * x j =
-      (∑ j, d j) * x 0 +
-        ∑ i : Fin m, (x i.succ - x i.castSucc) * ∑ j : Fin (m + 1) with i.succ ≤ j, d j := by
-  have hx_tel : ∀ j : Fin (m + 1),
-      x j = x 0 + ∑ i : Fin m with i.succ ≤ j, (x i.succ - x i.castSucc) := by
-    intro j
-    induction j using Fin.induction with
-    | zero =>
-      rw [DiscretePrior.filter_succ_le_zero, Finset.sum_empty, add_zero]
-    | succ r ih =>
-      rw [DiscretePrior.sum_filter_succ_le_succ]
-      linarith [ih]
-  have h1 : ∑ j : Fin (m + 1), d j * x j =
-      (∑ j, d j * x 0) +
-        ∑ j : Fin (m + 1), ∑ i : Fin m,
-          if i.succ ≤ j then d j * (x i.succ - x i.castSucc) else 0 := by
-    rw [← Finset.sum_add_distrib]
-    refine Finset.sum_congr rfl fun j _ => ?_
-    conv_lhs => rw [hx_tel j]
-    rw [mul_add, Finset.mul_sum, Finset.sum_filter]
-  rw [h1, ← Finset.sum_mul, Finset.sum_comm]
-  congr 1
-  refine Finset.sum_congr rfl fun i _ => ?_
-  rw [← Finset.sum_filter, ← Finset.sum_mul, mul_comm]
-
 private theorem sum_ironed_sub_virtualValue_mul (hφ : IsDiscreteIronedVirtualValue D φBar)
     (x : Fin (m + 1) → ℝ) :
     (∑ j, D.prob j * φBar j * x j) - (∑ j, D.prob j * D.virtualValue j * x j) =
@@ -1785,8 +1758,12 @@ private theorem sum_ironed_sub_virtualValue_mul (hφ : IsDiscreteIronedVirtualVa
   have hrew : (∑ j, (D.prob j * φBar j * x j - D.prob j * D.virtualValue j * x j)) =
       ∑ j, (D.prob j * φBar j - D.prob j * D.virtualValue j) * x j :=
     Finset.sum_congr rfl fun j _ => by ring
-  rw [hrew, sum_mul_eq_abel, Finset.sum_sub_distrib, hφ.sum_eq, sub_self, zero_mul, zero_add]
-  exact Finset.sum_congr rfl fun i _ => by rw [Finset.sum_sub_distrib]
+  have hab := Fin.sum_univ_smul_by_parts_tail
+    (fun j => D.prob j * φBar j - D.prob j * D.virtualValue j) x
+  simp only [smul_eq_mul] at hab
+  rw [hrew, hab, Finset.sum_sub_distrib, hφ.sum_eq, sub_self, zero_mul, zero_add]
+  exact Finset.sum_congr rfl fun i _ => by
+    simp only [← Finset.filter_le_eq_Ici, Finset.sum_sub_distrib, mul_comm]
 
 /-- **Discrete Myerson ironing inequality.** For every monotone allocation curve `x` on the grid,
 expected discrete virtual surplus is at most expected discrete ironed virtual surplus. -/
@@ -1845,6 +1822,8 @@ theorem expectedDiscreteSumPayment_le_ironed_of_isDiscreteIronedVirtualValue
         ∑ k : ∀ j, Fin (m j + 1), (∏ j, (D j).prob (k j)) *
           ∑ r : Fin (m i + 1), (D i).prob r * G k r := by
     intro i G hG
+    -- Split k into (k i, k_{-i}) by summing over r' = k i on LHS!
+    -- Equivalently, introduce `x.2` via `(D i).sum_prob = 1` and swap `(x.1 i, x.2)`.
     have hinv : Function.Involutive fun x : (∀ j, Fin (m j + 1)) × Fin (m i + 1) =>
         (Function.update x.1 i x.2, x.1 i) := fun x => by simp
     calc ∑ k : ∀ j, Fin (m j + 1), (∏ j, (D j).prob (k j)) * G k (k i)

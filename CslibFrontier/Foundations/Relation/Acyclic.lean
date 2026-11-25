@@ -87,16 +87,12 @@ theorem exists_cycle_chain_of_transGen {a : α} (h : TransGen r a a) :
     ∃ c : List α, a ∈ c ∧ (c : Cycle α).Chain r := by
   obtain ⟨b, hab, hba⟩ := TransGen.head'_iff.1 h
   obtain ⟨l, hl, hlast⟩ := List.exists_isChain_cons_of_relationReflTransGen hba
-  have ha : a ∈ b :: l := by
-    rw [← hlast]
-    exact List.getLast_mem _
-  refine ⟨b :: l, ha, ?_⟩
+  refine ⟨b :: l, hlast ▸ List.getLast_mem _, ?_⟩
   rw [Cycle.chain_coe_cons, ← List.cons_append, List.isChain_append]
   refine ⟨hl, .singleton _, fun x hx y hy => ?_⟩
   rw [List.getLast?_eq_some_getLast (List.cons_ne_nil _ _), hlast, Option.mem_some_iff] at hx
   rw [List.head?_cons, Option.mem_some_iff] at hy
-  rw [← hx, ← hy]
-  exact hab
+  rwa [← hx, ← hy]
 
 /-- Every element of a closed chain lies on a closed walk. -/
 theorem transGen_of_cycle_chain {c : List α} (hch : (c : Cycle α).Chain r) {a : α}
@@ -127,15 +123,12 @@ outside `V` are related to nothing, so their numbers are unconstrained. -/
 theorem Acyclic.exists_rank (hr : Acyclic r) (V : Finset α) (hV : ∀ a b, r a b → a ∈ V ∧ b ∈ V) :
     ∃ f : α → ℕ, (∀ a ∈ V, f a < V.card) ∧ ∀ a b, r a b → f a < f b := by
   classical
-  refine ⟨fun a => (V.filter fun u => TransGen r u a).card, fun a ha => ?_, fun a b hab => ?_⟩
-  · exact Finset.card_lt_card (Finset.filter_ssubset.2 ⟨a, ha, hr.irrefl a⟩)
-  · refine Finset.card_lt_card ((Finset.ssubset_iff_of_subset fun u hu => ?_).2 ⟨a, ?_, ?_⟩)
-    · simp only [Finset.mem_filter] at hu ⊢
-      exact ⟨hu.1, hu.2.tail hab⟩
-    · simp only [Finset.mem_filter]
-      exact ⟨(hV a b hab).1, TransGen.single hab⟩
-    · simp only [Finset.mem_filter, not_and]
-      exact fun _ => hr.irrefl a
+  refine ⟨fun a => (V.filter fun u => TransGen r u a).card,
+    fun a ha => Finset.card_lt_card (Finset.filter_ssubset.2 ⟨a, ha, hr.irrefl a⟩),
+    fun a b hab => Finset.card_lt_card ((Finset.ssubset_iff_of_subset fun u hu => ?_).2
+      ⟨a, Finset.mem_filter.2 ⟨(hV a b hab).1, .single hab⟩,
+        fun h => hr.irrefl a (Finset.mem_filter.1 h).2⟩)⟩
+  exact Finset.mem_filter.2 ⟨(Finset.mem_filter.1 hu).1, (Finset.mem_filter.1 hu).2.tail hab⟩
 
 /-- A numbering that strictly increases along every step of `r` excludes closed walks. -/
 theorem not_transGen_of_rank {f : α → ℕ} (hf : ∀ a b, r a b → f a < f b) (a : α) :

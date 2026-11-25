@@ -271,13 +271,16 @@ theorem computableInTimeAndSpace_kilianVerify_honest_le {enc : α ↪ List Bool}
   let inBound : ℕ → ℕ := fun u =>
     4 * u + 6 * u + 6 + 2 * (u * (2 * (c * (u + 1)) + 1)) +
       u * (2 * (q * (2 * (3 + (c * (u + 1) + Nat.clog 2 q) * (2 * u + 1)) + 1)) + 1)
+  have hin_pb : PolynomiallyBounded inBound := by
+    dsimp only [inBound]
+    fun_prop
   obtain ⟨kTM, State, hfin, tm, t, s, tHonest, sHonest, ht_pb, hs_pb, htH, hsH, htm', hbound⟩ :=
     computableInTimeAndSpace_kilianVerify_of_bound hH hlen hV hcoins
       (fun v => ∃ n table, v.key.length = n ∧ v.challenges.length = n ∧
         (∀ ρ ∈ v.challenges, ρ.length = V.coins v.stmt) ∧
         v.root = kilianCommit H V v.key v.stmt table ∧
         v.response = kilianRespond H V v.key v.stmt table v.challenges)
-      (fun v => v.key.length + (enc v.stmt).length) inBound (by dsimp only [inBound]; fun_prop)
+      (fun v => v.key.length + (enc v.stmt).length) inBound hin_pb
       fun ⟨⟨k, stmt, root⟩, challenges, response⟩ ⟨n, table, hk, hn, hρs, hroot, hresp⟩ => by
         dsimp only at hk hn hρs hroot hresp ⊢
         subst hroot hresp

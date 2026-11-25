@@ -178,12 +178,7 @@ theorem linearReconstruct_linearShare_add (P : MonotoneSpanProgram F Party)
     (k₁ k₂ : LinearKey P) (secret₁ secret₂ : F) {s : Finset Party} (hs : P.Accepts s) :
     linearReconstruct P s (fun i => linearShare P k₁ secret₁ i.1 + linearShare P k₂ secret₂ i.1) =
       secret₁ + secret₂ := by
-  have hcongr :
-      (fun i : s => linearShare P k₁ secret₁ i.1 + linearShare P k₂ secret₂ i.1) =
-        fun i : s => linearShare P (k₁ + k₂) (secret₁ + secret₂) i.1 := by
-    ext i r
-    exact (congrFun (linearShare_add P k₁ k₂ secret₁ secret₂ i.1) r).symm
-  rw [hcongr]
+  simp only [← linearShare_add]
   exact linearReconstruct_linearShare P (k₁ + k₂) (secret₁ + secret₂) hs
 
 /-- The privacy identity of Construction 22.2, a step toward [BonehShoup2023], Theorem 22.13

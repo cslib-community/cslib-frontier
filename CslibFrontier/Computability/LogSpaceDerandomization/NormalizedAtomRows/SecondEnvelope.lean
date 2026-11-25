@@ -65,13 +65,12 @@ theorem preparationError_le_fullRank (R : RoleProfile J) (D : ZMod P)
     rw [side_eq_ceil, side_eq_ceil]
     exact Nat.ceil_mono (mul_le_mul_of_nonneg_left
       (inv_anti₀ (by positivity) (pow_le_pow_right₀ (by norm_num) husage)) (by positivity))
-  have hyr : retainedMask R.terminal (side P k) D st σ y :=
-    mem_retentionBox.mpr (fun a => (mem_retentionBox.mp hy a).trans_le hside)
   have hm (w : ZMod P) (hw : retainedMask R.terminal (side P k) D st σ w) :=
     abs_le_kthLargest_one {w | retainedMask R.terminal (side P k) D st σ w}
       (fun w => A σ x w - G x w) w (mem_filter.mpr ⟨mem_univ _, hw⟩)
   exact (preparationError_le R D st k hLh hLρ A G σ x y kthLargest_nonneg
-    (hm y hyr) hm).trans_eq (by ring)
+    (hm y (mem_retentionBox.mpr fun a => (mem_retentionBox.mp hy a).trans_le hside)) hm).trans_eq
+    (by ring)
 
 /-- Conditional Jensen and max⁴ ≤ full-rank sum give the explicit width-P payment. -/
 theorem secondMeanEnvelope_moment (R : RoleProfile J) (D : ZMod P)
@@ -237,20 +236,17 @@ theorem actualCompletedRaw_absolute_moment_le_payment {q : ℕ}
   dsimp only
   have hP : (0 : ℝ) < P := by exact_mod_cast (Fact.out : P.Prime).pos
   have hNu := (mul_pos hP (rate_pos ks)).le
-  apply (rowNormPow_sub_le_centered hNu _
+  refine (rowNormPow_sub_le_centered hNu _
     (rowSliceMean (retainedMask R.source (side P ks) D ss)
       (retainedMask R.terminal (side P k) D st)
       (rawIncomingNormalized HP D id R l bin ks km k kb ss sm st
         (polynomialAuxCutoff4 HP.θ) HP.incomingCutoff Kc binCutoff raw prep maximum)) G).trans
-  apply mul_le_mul_of_nonneg_left _ (by norm_num : (0 : ℝ) ≤ 8)
-  apply add_le_add
-  · have hn := rawIncomingNormalized_noise_le_lower HP hK D (id : ZMod P → ZMod P) R
-      l bin ks km k kb ss sm st Kc hKc binCutoff raw prep maximum hP (rate_pos ks) steps
-    have hp := incomingMomentBudget_le_payment HP D R H l bin ks km k kb hks hkm
-      ss sm st Kc binCutoff hCB hbin raw prep maximum
-    exact hn.trans (mul_le_mul_of_nonneg_left hp (by rw [pow_mul]; positivity))
-  · apply (rowNormPow_le_mul hNu (c := 1) ?_).trans_eq (one_mul _)
-    intro σ x y _ _
+    (mul_le_mul_of_nonneg_left (add_le_add ?_ ?_) (by norm_num : (0 : ℝ) ≤ 8))
+  · exact (rawIncomingNormalized_noise_le_lower HP hK D (id : ZMod P → ZMod P) R
+      l bin ks km k kb ss sm st Kc hKc binCutoff raw prep maximum hP (rate_pos ks) steps).trans
+      (mul_le_mul_of_nonneg_left (incomingMomentBudget_le_payment HP D R H l bin ks km k kb
+        hks hkm ss sm st Kc binCutoff hCB hbin raw prep maximum) (by rw [pow_mul]; positivity))
+  · refine (rowNormPow_le_mul hNu (c := 1) fun _ x y _ _ => ?_).trans_eq (one_mul _)
     rw [one_mul, abs_of_nonneg ((abs_nonneg _).trans (he x y))]
     exact pow_le_pow_left₀ (abs_nonneg _) (he x y) 4
 

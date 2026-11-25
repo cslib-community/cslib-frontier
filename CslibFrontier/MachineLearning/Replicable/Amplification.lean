@@ -106,25 +106,21 @@ private theorem exists_pow_four_mul_le {β₀ β : ℝ} (hnn : 0 ≤ β₀) (hlt
   obtain ⟨r, hr⟩ := exists_pow_lt_of_lt_one hβ hbase1
   exact ⟨r, (pow_le_pow_of_le_one hbase0 hbase1.le (Nat.le_succ r)).trans hr.le⟩
 
+private theorem exists_neZero_mul_pow_le (M : ℝ) {r ε : ℝ} (hr₀ : 0 ≤ r) (hr₁ : r < 1)
+    (hε : 0 < ε) : ∃ (n : ℕ) (_ : NeZero n), M * r ^ n ≤ ε := by
+  have hlim : Filter.Tendsto (fun n : ℕ => M * r ^ n) Filter.atTop (nhds 0) := by
+    simpa only [mul_zero] using (tendsto_pow_atTop_nhds_zero_of_lt_one hr₀ hr₁).const_mul M
+  obtain ⟨n, hlt, hn⟩ := (((tendsto_order.1 hlim).2 ε hε).and
+    (Filter.eventually_ge_atTop (1 : ℕ))).exists
+  exact ⟨n, ⟨(Nat.succ_le_iff.1 hn).ne'⟩, hlt.le⟩
+
 private theorem exp_decay_exists (M : ℝ) {δ : ℝ} (hδ : 0 < δ) {ε : ℝ} (hε : 0 < ε) :
     ∃ (k : ℕ) (_ : NeZero k), M * (2 * Real.exp (-2 * (k : ℝ) * δ ^ 2)) ≤ ε := by
-  let B : ℝ := max (2 * M) 1
-  have hB : 0 < B := zero_lt_one.trans_le (le_max_right _ _)
-  obtain ⟨k, hk⟩ := exists_nat_gt (max (Real.log (B / ε) / (2 * δ ^ 2)) 0)
-  have hkpos : 0 < k := by exact_mod_cast (le_max_right _ 0).trans_lt hk
-  have harg : Real.log (B / ε) < 2 * (k : ℝ) * δ ^ 2 := by
-    have hlt := (div_lt_iff₀ (by positivity : 0 < 2 * δ ^ 2)).mp ((le_max_left _ 0).trans_lt hk)
-    linarith
-  have hexp : Real.exp (-2 * (k : ℝ) * δ ^ 2) ≤ ε / B := by
-    rw [show -2 * (k : ℝ) * δ ^ 2 = -(2 * (k : ℝ) * δ ^ 2) by ring, Real.exp_neg,
-      inv_eq_one_div, one_div_le (Real.exp_pos _) (div_pos hε hB), one_div_div,
-      ← Real.exp_log (div_pos hB hε)]
-    exact Real.exp_le_exp.mpr harg.le
-  refine ⟨k, ⟨hkpos.ne'⟩, ?_⟩
-  calc M * (2 * Real.exp (-2 * (k : ℝ) * δ ^ 2)) = (2 * M) * Real.exp (-2 * (k : ℝ) * δ ^ 2) :=
-        by ring
-    _ ≤ B * (ε / B) := mul_le_mul (le_max_left _ _) hexp (Real.exp_pos _).le hB.le
-    _ = ε := mul_div_cancel₀ ε hB.ne'
+  have hr : Real.exp (-2 * δ ^ 2) < 1 :=
+    Real.exp_lt_one_iff.mpr (by nlinarith [sq_pos_of_pos hδ])
+  obtain ⟨k, hk, hle⟩ := exists_neZero_mul_pow_le (M * 2) (Real.exp_nonneg _) hr hε
+  refine ⟨k, hk, ?_⟩
+  rwa [show -2 * (k : ℝ) * δ ^ 2 = k * (-2 * δ ^ 2) by ring, Real.exp_nat_mul, ← mul_assoc]
 
 private theorem exists_nat_div_le (M : ℝ) {ε : ℝ} (hε : 0 < ε) :
     ∃ (N : ℕ) (_ : NeZero N), M / N ≤ ε := by
@@ -402,16 +398,16 @@ theorem isAccurateFor_amplifyFinite [Fintype α] [Nonempty α] [LinearOrder α]
   have hβ₀_nn : 0 ≤ β₀ := ENNReal.toReal_nonneg.trans (hacc D hD)
   have hdiv_pos : 0 < (1 - β₀) / Fintype.card α := by linarith
   have hex_heavy : ∃ y₀ ∈ good D, (1 - β₀) / Fintype.card α ≤ (A.marginal D y₀).toReal := by
-    by_contra hnone; push Not at hnone
-    have hsum_good := (isAccurateFor_iff_prob_good.mp hacc) D hD
-    rw [Probability.PMF.toOuterMeasure_apply_toReal] at hsum_good
-    have hsum_lt : (∑ y : α, if y ∈ good D then (A.marginal D y).toReal else 0) <
-        ∑ _y : α, (1 - β₀) / Fintype.card α :=
-      Finset.sum_lt_sum (fun y _ => by split_ifs with hy; exacts [(hnone y hy).le, hdiv_pos.le])
-        ⟨Classical.arbitrary α, Finset.mem_univ _, by
-          split_ifs with hy; exacts [hnone _ hy, hdiv_pos]⟩
-    rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, mul_div_cancel₀ _ hM.ne'] at hsum_lt
-    linarith
+    have hsum := (isAccurateFor_iff_prob_good.mp hacc) D hD
+    rw [Probability.PMF.toOuterMeasure_apply_toReal] at hsum
+    obtain ⟨y, _, hy⟩ := Finset.exists_le_of_sum_le Finset.univ_nonempty
+      (f := fun _ : α => (1 - β₀) / Fintype.card α)
+      (g := fun y : α => if y ∈ good D then (A.marginal D y).toReal else 0) (by
+        simpa only [Finset.sum_const, Finset.card_univ, nsmul_eq_mul,
+          mul_div_cancel₀ _ hM.ne'] using hsum)
+    split_ifs at hy with hgood
+    · exact ⟨y, hgood, hy⟩
+    · exact (hdiv_pos.not_ge hy).elim
   obtain ⟨y₀, _, hy₀_mass⟩ := hex_heavy
   rw [marginal_amplifyFinite]
   refine (Probability.PMF.toOuterMeasure_bind_failure_toReal_le _ _ Set.univ _
@@ -981,12 +977,10 @@ theorem exists_amplifyReplicability_accurate {ρ₀ ρ β : ℝ} (hρ₀_nonneg 
   let q : ℝ := ρ₀ / (1 - θ_acc)
   have hq0 : 0 ≤ q := div_nonneg hρ₀_nonneg (sub_pos.mpr hθ_lt).le
   have hq1 : q < 1 := (div_lt_one (sub_pos.mpr hθ_lt)).mpr (by dsimp only [θ_acc, γ]; linarith)
-  obtain ⟨T0, hT0⟩ := exists_pow_lt_of_lt_one (by positivity : 0 < ε / 4) hq1
-  let T : ℕ := max T0 1
-  have hT_inst : NeZero T := ⟨Nat.ne_of_gt (lt_of_lt_of_le Nat.zero_lt_one (le_max_right _ _))⟩
+  obtain ⟨T, hT_inst, hT_pow⟩ :=
+    exists_neZero_mul_pow_le 1 hq0 hq1 (show 0 < ε / 4 by positivity)
+  rw [one_mul] at hT_pow
   have hTR : (0 : ℝ) < T := Nat.cast_pos.mpr (NeZero.pos T)
-  have hT_pow : q ^ T ≤ ε / 4 :=
-    (pow_le_pow_of_le_one hq0 hq1.le (le_max_left T0 1)).trans hT0.le
   obtain ⟨N, hN_inst, hN_bound⟩ := exists_nat_div_le (T : ℝ) (by positivity : 0 < ρ / 4)
   let δ : ℝ := min (γ / 2) ((ρ / (8 * (T : ℝ))) * (b - a))
   have hδ : 0 < δ := lt_min (by dsimp only [γ]; linarith) (by positivity)

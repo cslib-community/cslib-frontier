@@ -73,29 +73,22 @@ theorem card_kernel {w : Fin d → Bool} (hw : w ≠ 0) :
 theorem card_dotProduct_eq_false_and_eq_false {v w : Fin d → Bool} (hv : v ≠ 0) (hw : w ≠ 0)
     (hvw : v ≠ w) :
     #{x : Fin d → Bool | x ⬝ᵥ v = false ∧ x ⬝ᵥ w = false} * 4 = 2 ^ d := by
-  have hd : 1 ≤ d := by
-    rcases Nat.eq_zero_or_pos d with rfl | hd
-    · exact absurd (funext fun i => i.elim0) hv
-    · exact hd
+  rcases d with _ | d
+  · exact absurd (Subsingleton.elim _ _) hv
   have hvw' : v + w ≠ 0 := fun h => hvw <| funext fun i => by
-    have hi := congrFun h i
-    revert hi
-    simp only [Pi.add_apply, Pi.zero_apply]
-    cases v i <;> cases w i <;> decide
-  have hpt : ∀ x : Fin d → Bool,
+    have hi : v i + w i = 0 := congrFun h i
+    rw [← add_zero (v i), ← hi, ← add_assoc, BooleanRing.add_self, zero_add]
+  have hpt (x : Fin (d + 1) → Bool) :
       ((if x ⬝ᵥ v = false then 1 else 0) + (if x ⬝ᵥ w = false then 1 else 0) +
         (if x ⬝ᵥ (v + w) = false then 1 else 0) : ℕ) =
         1 + 2 * (if x ⬝ᵥ v = false ∧ x ⬝ᵥ w = false then 1 else 0) := by
-    intro x
     rw [dotProduct_add]
     cases x ⬝ᵥ v <;> cases x ⬝ᵥ w <;> rfl
-  have hsum := sum_congr rfl fun x (_ : x ∈ (univ : Finset (Fin d → Bool))) => hpt x
+  have hsum := sum_congr rfl fun x (_ : x ∈ (univ : Finset (Fin (d + 1) → Bool))) => hpt x
   simp only [sum_add_distrib, ← mul_sum, ← card_filter, sum_const, card_univ, Fintype.card_fun,
     Fintype.card_bool, Fintype.card_fin, smul_eq_mul, mul_one] at hsum
-  rw [card_dotProduct_eq_false hv, card_dotProduct_eq_false hw, card_dotProduct_eq_false hvw']
-    at hsum
-  have h2 : 2 ^ d = 2 * 2 ^ (d - 1) := by
-    rw [← pow_succ', Nat.sub_add_cancel hd]
+  rw [card_dotProduct_eq_false hv, card_dotProduct_eq_false hw, card_dotProduct_eq_false hvw',
+    Nat.add_sub_cancel, pow_succ'] at hsum
   omega
 
 /-- Matrices with `c` rows whose kernel contains two distinct nonzero strings `v` and `w`: a
@@ -103,13 +96,11 @@ theorem card_dotProduct_eq_false_and_eq_false {v w : Fin d → Bool} (hv : v ≠
 theorem card_kernel_pair {v w : Fin d → Bool} (hv : v ≠ 0) (hw : w ≠ 0) (hvw : v ≠ w) :
     #{A : Fin c → Fin d → Bool | ∀ i, A i ⬝ᵥ v = false ∧ A i ⬝ᵥ w = false} * 4 ^ c =
       2 ^ (d * c) := by
-  have h : #{A : Fin c → Fin d → Bool | ∀ i, A i ⬝ᵥ v = false ∧ A i ⬝ᵥ w = false} =
-      #{x : Fin d → Bool | x ⬝ᵥ v = false ∧ x ⬝ᵥ w = false} ^ c := by
-    rw [← Fintype.card_piFinset_const]
-    congr 1
-    ext A
-    simp [Fintype.mem_piFinset]
-  rw [h, ← mul_pow, card_dotProduct_eq_false_and_eq_false hv hw hvw, pow_mul]
+  rw [pow_mul, ← card_dotProduct_eq_false_and_eq_false hv hw hvw, mul_pow,
+    ← Fintype.card_piFinset_const]
+  congr 2
+  ext A
+  simp [Fintype.mem_piFinset]
 
 end Kernel
 

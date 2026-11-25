@@ -66,56 +66,41 @@ private theorem preserves_cell (a b d i : Fin (r + 4)) (hi : Workspace.IsDigit i
   exact ⟨Ne.symm ht, Ne.symm ht, Ne.symm ht, Ne.symm hid, Ne.symm hc⟩
 
 /-- Every digit register outside a row's destinations is syntactically preserved. -/
-private theorem preserves_row (a : Fin (r + 4)) (bs ds : List (Fin (r + 4)))
-    (i : Fin (r + 4)) (hi : Workspace.IsDigit i) (hid : i ∉ ds) :
-    (row a bs ds).Preserves i := by
-  have hc := (Workspace.digit_ne hi).2.1
-  induction bs generalizing ds with
-  | nil =>
-    simpa only [row, Code.Preserves, Op.dest, ne_eq, Option.some.injEq] using Ne.symm hc
-  | cons b bs ih =>
-    cases ds with
-    | nil =>
-      simpa only [row, Code.Preserves, Op.dest, ne_eq, Option.some.injEq] using Ne.symm hc
-    | cons d ds =>
-      exact ⟨preserves_cell a b d i hi (fun he => hid (by simp [he])),
-        ih ds (fun hm => hid (by simp [hm]))⟩
+private theorem preserves_row (a : Fin (r + 4)) : (bs ds : List (Fin (r + 4))) →
+    (i : Fin (r + 4)) → Workspace.IsDigit i → i ∉ ds → (row a bs ds).Preserves i
+  | [], _, _, hi, _ | _ :: _, [], _, hi, _ =>
+    by simpa only [row, Code.Preserves, Op.dest, ne_eq, Option.some.injEq] using
+      Ne.symm (Workspace.digit_ne hi).2.1
+  | b :: bs, d :: ds, i, hi, hid =>
+    ⟨preserves_cell a b d i hi (fun he => hid (by simp [he])),
+      preserves_row a bs ds i hi (fun hm => hid (by simp [hm]))⟩
 
 /-- Every digit register outside all row destinations is syntactically preserved. -/
-private theorem preserves_rows (as bs ds os : List (Fin (r + 4)))
-    (i : Fin (r + 4)) (hi : Workspace.IsDigit i) (hid : i ∉ ds ++ os) :
-    (rows as bs ds os).Preserves i := by
-  have hc := (Workspace.digit_ne hi).2.1
-  induction as generalizing bs ds os with
-  | nil =>
-    simpa only [rows, Code.Preserves, Op.dest, ne_eq, Option.some.injEq] using Ne.symm hc
-  | cons a as ih =>
-    cases os with
-    | nil =>
-      simpa only [rows, Code.Preserves, Op.dest, ne_eq, Option.some.injEq] using Ne.symm hc
-    | cons d os =>
-      simp only [rows, Code.Preserves, Op.dest, ne_eq, Option.some.injEq]
-      refine ⟨Ne.symm hc, preserves_row a bs ds i hi (fun hm => hid (by simp [hm])),
-        ?_, ih (Workspace.zero :: bs) (ds ++ [d]) os ?_⟩
-      · simpa only [Code.Preserves, Op.dest, ne_eq, Option.some.injEq] using
-          (show d ≠ i from fun he => hid (by simp [he]))
-      · intro hm
-        apply hid
-        simpa only [List.mem_append, List.mem_singleton, List.mem_cons, or_assoc,
-          List.not_mem_nil, false_or] using hm
+private theorem preserves_rows : (as bs ds os : List (Fin (r + 4))) →
+    (i : Fin (r + 4)) → Workspace.IsDigit i → i ∉ ds ++ os → (rows as bs ds os).Preserves i
+  | [], _, _, _, _, hi, _ | _ :: _, _, _, [], _, hi, _ =>
+    by simpa only [rows, Code.Preserves, Op.dest, ne_eq, Option.some.injEq] using
+      Ne.symm (Workspace.digit_ne hi).2.1
+  | a :: as, bs, ds, d :: os, i, hi, hid => by
+    simp only [rows, Code.Preserves, Op.dest, ne_eq, Option.some.injEq]
+    refine ⟨Ne.symm (Workspace.digit_ne hi).2.1,
+      preserves_row a bs ds i hi (fun hm => hid (by simp [hm])),
+      by simpa only [Code.Preserves, Op.dest, ne_eq, Option.some.injEq] using
+        (show d ≠ i from fun he => hid (by simp [he])),
+      preserves_rows as (Workspace.zero :: bs) (ds ++ [d]) os i hi ?_⟩
+    exact fun hm => hid (by
+      simpa only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false, or_assoc] using hm)
 
 /-- Clearing an accumulator preserves every digit register outside it. -/
-private theorem preserves_clear (ds : List (Fin (r + 4)))
-    (i : Fin (r + 4)) (hi : Workspace.IsDigit i) (hid : i ∉ ds) :
-    (clear ds).Preserves i := by
-  induction ds with
-  | nil =>
-    simpa only [clear, Code.Preserves, Op.dest, ne_eq, Option.some.injEq] using
+private theorem preserves_clear : (ds : List (Fin (r + 4))) →
+    (i : Fin (r + 4)) → Workspace.IsDigit i → i ∉ ds → (clear ds).Preserves i
+  | [], _, hi, _ =>
+    by simpa only [clear, Code.Preserves, Op.dest, ne_eq, Option.some.injEq] using
       Ne.symm (Workspace.digit_ne hi).2.1
-  | cons d ds ih =>
-    refine ⟨?_, ih (fun hm => hid (by simp [hm]))⟩
-    simpa only [Code.Preserves, Op.dest, ne_eq, Option.some.injEq] using
-      (show d ≠ i from fun he => hid (by simp [he]))
+  | d :: ds, i, hi, hid =>
+    ⟨by simpa only [Code.Preserves, Op.dest, ne_eq, Option.some.injEq] using
+        (show d ≠ i from fun he => hid (by simp [he])),
+      preserves_clear ds i hi (fun hm => hid (by simp [hm]))⟩
 
 /-- Radix initialization writes only the four reserved workspace registers. -/
 private theorem preserves_setup (i : Fin (r + 4)) (hi : Workspace.IsDigit i) :
@@ -187,7 +172,6 @@ private theorem exec_borrow_framed {w : ℕ} (hw : 2 ≤ w) (bs ds : List (Fin (
       Multiword.value (radix w) y ds + Multiword.value (radix w) x bs =
         Multiword.value (radix w) x ds + radix w ^ ds.length * y.regs borrow ∧
       Arithmetic.Frame x y ds := by
-  have hβ := one_lt_radix hw
   refine WP.Exact.exists_exec ?_
   unfold program
   wram_exec [radix_fits hw]

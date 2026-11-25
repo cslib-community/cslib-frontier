@@ -86,12 +86,10 @@ theorem length_configurationJustesenSourceContext_le_log {k : ℕ} {State : Type
             ≤ C * (Nat.log2 w.length + 1) := by
   obtain ⟨A, hA⟩ := length_configurationJustesenSubdivisionContext_le_log ntm c
   obtain ⟨B, hB⟩ := length_configurationSubdivisionVertexCount_le_log ntm c
-  refine ⟨2 * A + 3 * B + 2, fun w => ?_⟩
-  intro I n seed source target
+  refine ⟨2 * A + 3 * B + 2, fun w seed source target => ?_⟩
   have ha := hA w seed.val seed.isLt
-  have hn : (encNat n).length ≤ B * (Nat.log2 w.length + 1) := hB w
-  have hs := (length_encNat_mono source.isLt.le).trans hn
-  have ht := (length_encNat_mono target.isLt.le).trans hn
+  have hs := (length_encNat_mono source.isLt.le).trans (hB w)
+  have ht := (length_encNat_mono target.isLt.le).trans (hB w)
   simp only [encJustesenSourceContext_apply, encJustesenSourceContextFields,
     length_encPair, Nat.add_mul, Nat.mul_assoc]
   omega
@@ -140,14 +138,14 @@ theorem justesenSourceMembershipStart_inSpace :
       (MembershipTally.encRetainedState encJustesenSubdivisionContext encJustesenSubdivisionState)
       (fun r => (E r).length) := by
   intro E
-  have hr := budget_id (enc := E) (.refl _)
-  have hctx := SourceRoundLoop.encRegisters_context_budget encJustesenSourceContext hr
+  have hctx := SourceRoundLoop.encRegisters_context_budget encJustesenSourceContext
+    (budget_id (enc := E) (.refl _))
   have hid := budget_id (enc := encJustesenSourceContext) (.refl _)
-  have hround := SourceRoundLoop.roundContext_inSpace
-    JustesenSourceContext.size JustesenSourceContext.sourceID encJustesenSourceContext
-    (encJustesenSourceContext_size_budget hid) (encJustesenSourceContext_sourceID_budget hid)
   exact justesenRoundMembershipStart_budget (encJustesenSourceContext_adjacency_budget hctx)
-    hround (encJustesenSourceContext_targetID_budget hctx)
+    (SourceRoundLoop.roundContext_inSpace JustesenSourceContext.size
+      JustesenSourceContext.sourceID encJustesenSourceContext
+      (encJustesenSourceContext_size_budget hid) (encJustesenSourceContext_sourceID_budget hid))
+    (encJustesenSourceContext_targetID_budget hctx)
 
 variable {k : ℕ} {State : Type} [Fintype State]
 
@@ -204,21 +202,17 @@ theorem justesenRoundMembership_readReply_iff
       ∃! branch, callBits = MembershipTally.selectors (BoundedWalk.selectors 3) branch ∧
         Scan.run (configurationJustesenSubdivisionAdjacent ntm c w seed)
           source target radius totals branch = some hit := by
-    let entered := M.withInit entry
-    change entered.FirstHalting w callBits entered.init ∧
-      MembershipTally.retainedReply (entered.run w callBits) = some hit ↔ _
-    dsimp only [entered, M, entry, adjacency, ctx]
+    change (M.withInit entry).FirstHalting w callBits (M.withInit entry).init ∧
+      MembershipTally.retainedReply ((M.withInit entry).run w callBits) = some hit ↔ _
+    dsimp only [M, entry, adjacency, ctx]
     rw [justesenRoundMembershipMachine_withInit]
     exact configurationJustesenMembershipTally_firstHalting_iff ntm c w seed source target
       radius totals callBits hit
-  constructor
-  · rintro ⟨callBits, hbits, hfirst, hreply⟩
-    obtain ⟨branch, ⟨rfl, hscan⟩, _⟩ := (hspec callBits).mp ⟨hfirst, hreply⟩
-    exact ⟨branch, hbits, hscan⟩
-  · rintro ⟨branch, hbits, hscan⟩
-    refine ⟨_, hbits, (hspec _).mpr ⟨branch, ⟨rfl, hscan⟩, ?_⟩⟩
-    exact fun _ h =>
-      MembershipTally.selectors_injective _ (BoundedWalk.eq_of_selectors_prefix 3) h.1.symm
+  refine ⟨fun ⟨callBits, hbits, hf⟩ => ?_, fun ⟨branch, hbits, hscan⟩ =>
+    ⟨_, hbits, (hspec _).mpr ⟨branch, ⟨rfl, hscan⟩, fun _ h =>
+      MembershipTally.selectors_injective _ (BoundedWalk.eq_of_selectors_prefix 3) h.1.symm⟩⟩⟩
+  obtain ⟨branch, ⟨rfl, hscan⟩, _⟩ := (hspec callBits).mp hf
+  exact ⟨branch, hbits, hscan⟩
 
 open NondeterministicQueryMachine in
 /-- A final membership return consumes the canonical typed tally selectors and the false
@@ -337,22 +331,15 @@ theorem justesenSourceMembership_bounds (ntm : MultiTapeNTM k Bool State) (c : �
               encJustesenSubdivisionState (M.replay w bits entry)).length ≤
                 C * (Nat.log2 w.length + 1) := by
   obtain ⟨C, hlength⟩ := configurationJustesenMembershipTally_length_run_le_log_of_loop_caps ntm c
-  refine ⟨C, fun w => ?_⟩
-  intro I size seed source target limit hlimit ctx r hr M entry
-  have hsize : ctx.size = size.vertexCount :=
-    configurationJustesenSourceContext_size ntm c w seed.val source.val target.val
+  refine ⟨C, fun w seed source target limit hlimit ⟨_, fuel, radius, totals⟩ hr => ?_⟩
   obtain ⟨_, hrad, hc, hs⟩ := SourceRoundLoop.admissible_caps_le hr hlimit
-  rw [hsize] at hc hs
-  rcases r with ⟨actual, fuel, radius, totals⟩
-  have hctx : actual = ctx := hr.1
-  subst actual
-  dsimp only [M, entry]
-  constructor
+  rcases hr.1 with rfl
+  rw [configurationJustesenSourceContext_size] at hc hs
+  refine ⟨?_, fun bits => ?_⟩
   · rw [justesenSourceMembershipMachine_withInit]
     exact configurationJustesenMembershipTally_haltsWithin_clock ntm c w
       seed source target radius totals hrad
-  · intro bits
-    rw [← run_withInit, justesenSourceMembershipMachine_withInit]
+  · rw [← run_withInit, justesenSourceMembershipMachine_withInit]
     exact hlength w seed source target radius totals hrad hc hs bits
 
 end Cslib.Complexity.STCON

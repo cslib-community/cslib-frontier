@@ -98,9 +98,8 @@ theorem implFillLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
           G.encode_length, Instance.wordBound]
         omega)
     obtain ⟨hlen_p, hlit_p, hcm_rest⟩ := clauseMemAt_cons hcm
-    have hflat_cons : ((c :: cs).flatMap (encodeClauseBy Fin.val)).length =
-        c.length + 1 + (cs.flatMap (encodeClauseBy Fin.val)).length := by
-      simp [List.flatMap_cons, length_encodeClauseBy, Nat.add_assoc]
+    simp only [List.flatMap_cons, List.length_append, length_encodeClauseBy] at hp
+    have hf_i1 : Fits w (idx + 1) := G.fits_of_le hfit (by unfold Instance.wordBound; lia)
     have htarget' : cs.foldl addClauseEdges (addClauseEdges g c) = implicationAdj G.φ := by
       rcases htarget with hnil | hfold
       · simp [hnil] at hidx
@@ -126,7 +125,6 @@ theorem implFillLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
         have hf_p2 : Fits w (p + 1 + 1) :=
           G.fits_of_le hfit (by have := G.encode_length; unfold Instance.wordBound; omega)
         have hf_na := fits_litCode_xor_one G hfit a
-        have hf_i1 : Fits w (idx + 1) := G.fits_of_le hfit (by unfold Instance.wordBound; omega)
         let st_v := ((((x.set jReg 1).set pReg (p + 1)).set oldFinReg (litCodeBy Fin.val a)).set
           vReg (litCodeBy Fin.val a ^^^ 1)).set uReg (litCodeBy Fin.val a)
         obtain ⟨y₁, hy₁_ex, hy₁_p, hy₁_out, hy₁_fr⟩ :=
@@ -176,7 +174,6 @@ theorem implFillLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
           G.fits_of_le hfit (by have := G.encode_length; unfold Instance.wordBound; omega)
         have hf_na := fits_litCode_xor_one G hfit a
         have hf_nb := fits_litCode_xor_one G hfit b
-        have hf_i1 : Fits w (idx + 1) := G.fits_of_le hfit (by unfold Instance.wordBound; omega)
         let st_v1 := ((((((x.set jReg 2).set pReg (p + 1)).set oldFinReg (litCodeBy Fin.val a)).set
           pReg (p + 1 + 1)).set jReg (litCodeBy Fin.val b)).set
           vReg (litCodeBy Fin.val a ^^^ 1)).set uReg (litCodeBy Fin.val b)
@@ -212,7 +209,6 @@ theorem implFillLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
     have hcm_x₁ : ClauseMemAt x₁.mem (p + 1 + c.length) cs := by
       intro k hk
       have hk_bound : p + 1 + c.length + k < G.workBase := by
-        rw [hflat_cons] at hp
         simp only [Instance.workBase, Instance.outAddrBase]
         omega
       rw [hx₁_out _ (by simp only [curBase, edgeBase, kCurAddr, kEdgeAddr]; omega)]
@@ -224,7 +220,7 @@ theorem implFillLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
     obtain ⟨y, hy_ex, hy_p_csr, hy_out, hy_fr⟩ := implFillLoop_spec G hfit cs
       (addClauseEdges g c) (idx + 1) (p + 1 + c.length) x₁ hrest (.inr htarget')
       (by simp only [List.length_cons] at hidx; omega)
-      (by rw [hflat_cons] at hp; omega) hcm_x₁ hx₁_p_csr
+      (by lia) hcm_x₁ hx₁_p_csr
       ((hx₁_fr cOne (by decide)).trans hc1)
       ((hx₁_fr mClauses (by decide)).trans hm)
       ((hx₁_fr curB (by decide)).trans hcur)

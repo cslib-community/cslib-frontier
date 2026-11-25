@@ -150,7 +150,9 @@ theorem hgt_eq_of_smul_eq {v w : Fin 3 → k[X]} (hv : IsPrimTriple v) (hw : IsP
     hab.symm.dvd_of_dvd_mul_left ⟨_, key i⟩
   have hau : IsUnit t.num := isPrimTriple_iff.1 hw _ fun i ↦
     hab.dvd_of_dvd_mul_left ⟨_, (key i).symm⟩
-  unfold hgt; congr 1; funext i
+  unfold hgt
+  congr 1
+  funext i
   rw [← natDegree_mul_of_isUnit hau, key i, natDegree_mul_of_isUnit hbu]
 
 /-! ### The symmetric product of two coprime pairs -/
@@ -175,14 +177,18 @@ private lemma coeff_max_ne_zero {r s : k[X]} (h : IsCoprime r s) :
   rcases eq_or_ne s 0 with rfl | hs
   · exact .inl (by simpa using mt leadingCoeff_eq_zero.1 (isCoprime_zero_right.1 h).ne_zero)
   rcases le_or_gt r.natDegree s.natDegree with hle | hlt
-  · exact .inr (by rw [max_eq_right hle]; exact mt leadingCoeff_eq_zero.1 hs)
-  · exact .inl (by
-      rw [max_eq_left hlt.le]; exact mt leadingCoeff_eq_zero.1 fun hr ↦ by simp [hr] at hlt)
+  · right
+    rw [max_eq_right hle]
+    exact mt leadingCoeff_eq_zero.1 hs
+  · left
+    rw [max_eq_left hlt.le]
+    exact mt leadingCoeff_eq_zero.1 fun hr ↦ by simp [hr] at hlt
 
 /-- The product of two nonzero linear forms `(a Z + b)(a' Z + b')` is nonzero. -/
 private lemma coeffs_mul_ne_zero {a b a' b' : k} (h : a ≠ 0 ∨ b ≠ 0) (h' : a' ≠ 0 ∨ b' ≠ 0) :
     a * a' ≠ 0 ∨ a * b' + b * a' ≠ 0 ∨ b * b' ≠ 0 := by
-  by_contra! hc; obtain ⟨h0, h1, h2⟩ := hc
+  by_contra! hc
+  obtain ⟨h0, h1, h2⟩ := hc
   rcases h with h | h <;> rcases h' with h' | h' <;> simp_all
 
 /-- The height of the symmetric product of two coprime pairs is the sum of their heights. -/
@@ -219,10 +225,12 @@ private lemma natDegree_eval₂_C_le {P : MvPolynomial (Fin 3) k} {n : ℕ} (hP 
   rw [MvPolynomial.eval₂_eq']
   refine natDegree_sum_le_of_forall_le _ _ fun d hd ↦
     (natDegree_C_mul_le _ _).trans ((natDegree_prod_le _ _).trans ?_)
-  rw [hP.degree_eq_sum_deg_support hd, ← Finsupp.degree_apply, Finsupp.degree_eq_sum,
-    Finset.sum_mul]
-  exact Finset.sum_le_sum fun i _ ↦
-    natDegree_pow_le.trans (Nat.mul_le_mul_left _ (natDegree_le_hgt w i))
+  calc ∑ i, (w i ^ d i).natDegree ≤ ∑ i, d i * hgt w :=
+        Finset.sum_le_sum fun i _ ↦
+          natDegree_pow_le.trans (Nat.mul_le_mul_left _ (natDegree_le_hgt w i))
+    _ = n * hgt w := by
+        rw [← Finset.sum_mul, hP.degree_eq_sum_deg_support hd, ← Finsupp.degree_apply,
+          Finsupp.degree_eq_sum]
 
 /-- The coefficient at `T ^ (n * H)` of a homogeneous polynomial of degree `n` over `k`,
 evaluated at a triple of polynomials of degree at most `H`, is its value at the coefficients at
@@ -247,7 +255,7 @@ private lemma coeff_hgt_ne_zero {w : Fin 3 → k[X]} (hw : IsPrimTriple w) :
     (fun i ↦ (w i).coeff (hgt w)) ≠ 0 := by
   intro h0
   obtain ⟨i, hi⟩ := exists_natDegree_eq_hgt w
-  have hwi : w i = 0 := leadingCoeff_eq_zero.1 (by rw [leadingCoeff, hi]; exact congrFun h0 i)
+  have hwi : w i = 0 := leadingCoeff_eq_zero.1 (by simpa [leadingCoeff, hi] using congrFun h0 i)
   have hH : hgt w = 0 := by simp [← hi, hwi]
   refine hw X prime_X fun j ↦ ?_
   rw [eq_C_of_natDegree_le_zero ((natDegree_le_hgt w j).trans hH.le), ← hH, congrFun h0 j]

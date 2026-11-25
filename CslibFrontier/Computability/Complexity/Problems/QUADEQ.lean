@@ -120,11 +120,7 @@ theorem assignment_vars_map_append (F : QuadSystem ℕ) (a : ℕ → Bool) (w : 
 variables, and its framed encoding takes at least two bits. -/
 theorem length_vars_le (F : QuadSystem ℕ) : F.vars.length ≤ (encoding F).length := by
   have hterms (l : List (ℕ × ℕ)) : (l.flatMap fun p => [p.1, p.2]).length = 2 * l.length := by
-    induction l with
-    | nil => rfl
-    | cons p l ih =>
-      simp only [List.flatMap_cons, List.length_append, ih, List.length_cons, List.length_nil]
-      omega
+    simp [List.length_flatMap, Nat.mul_comm]
   have he (e : QuadEquation ℕ) : e.vars.length ≤ (encQuadEquation encNat e).length := by
     have := length_le_length_encList (encPair encNat encNat) e.terms
     simp only [QuadEquation.vars, hterms, encQuadEquation_apply, encQuadEquationFields,

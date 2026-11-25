@@ -172,10 +172,11 @@ theorem kwProtocol_solves (p : Program signature n g) (i₀ : Fin n) (d : ℕ) (
         p.depthsWith andOrCost k :=
     p.wireDepthsWith_lines_add_le _ k a
   fun_induction kwProtocol p i₀ d w s with
-  | case1 d s i =>
+  | case1 d s i => -- input wire: output it
     simp only [RoundProtocol.run, Program.trace_input] at hx hy ⊢
-    rw [hx, hy]; cases s <;> decide
-  | case2 d s k hop ih =>
+    rw [hx, hy]
+    cases s <;> decide
+  | case2 d s k hop ih => -- not gate: recurse on its argument
     have hx' := (hval k x).symm.trans hx
     have hy' := (hval k y).symm.trans hy
     rw [interpretation_of_op_eq_not hop] at hx' hy'
@@ -183,22 +184,26 @@ theorem kwProtocol_solves (p : Program signature n g) (i₀ : Fin n) (d : ℕ) (
     have hdk : p.depthsWith andOrCost k ≤ d := hw
     have := p.cost_le_depthsWith andOrCost k
     exact ih (by grind) (by rw [hfirst, ← hx', Bool.not_not]) (by rw [hfirst, ← hy', Bool.not_not])
-  | case3 s k m hop | case5 s k m hop =>
+  | case3 s k m hop | case5 s k m hop => -- and/or gate, no messages left
     have hdk : p.depthsWith andOrCost k ≤ 0 := hw
     have := p.cost_le_depthsWith andOrCost k
     simp only [hop, andOrCost] at this; omega
-  | case4 s k m hop d ih =>
+  | case4 s k m hop d ih => -- and gate: speak, then recurse
     have hdk : p.depthsWith andOrCost k ≤ d + 1 := hw
     obtain ⟨a, ha, hxa, hya⟩ := exists_argWith_witness (b := false)
       (fun u => by simp [hval, ← Bool.not_eq_true, interpretation_of_op_eq_and hop]) hx hy
-    simp only [Bool.bne_false] at ha; rw [RoundProtocol.run_speak, ha]
-    exact ih _ (by have := hle k a; simp only [hop, andOrCost] at this; omega) hxa hya
-  | case6 s k m hop d ih =>
+    simp only [Bool.bne_false] at ha
+    rw [RoundProtocol.run_speak, ha]
+    have hc := hle k a
+    exact ih _ (by simp only [hop, andOrCost] at hc; omega) hxa hya
+  | case6 s k m hop d ih => -- or gate: speak, then recurse
     have hdk : p.depthsWith andOrCost k ≤ d + 1 := hw
     obtain ⟨a, ha, hxa, hya⟩ := exists_argWith_witness (b := true)
       (fun u => by rw [hval, interpretation_of_op_eq_or hop]) hx hy
-    simp only [Bool.bne_true] at ha; rw [RoundProtocol.run_speak, ha]
-    exact ih _ (by have := hle k a; simp only [hop, andOrCost] at this; omega) hxa hya
+    simp only [Bool.bne_true] at ha
+    rw [RoundProtocol.run_speak, ha]
+    have hc := hle k a
+    exact ih _ (by simp only [hop, andOrCost] at hc; omega) hxa hya
 
 /-- **A circuit gives a protocol**: a circuit of AND/OR depth at most `d` computing `f` on `n ≥ 1`
 inputs gives a Karchmer–Wigderson protocol for `f` with at most `d` messages from its wires. -/
@@ -267,6 +272,7 @@ theorem two_rpow_lt_add_size_of_computes_majority {d : ℕ} (hd : 2 ≤ d) :
 private theorem exists_add_pow_le_two_rpow {r ε : ℝ} (hr : 0 < r) (hε : 0 < ε) (k : ℕ) :
     ∃ N : ℕ, ∀ n : ℕ, N ≤ n → (n : ℝ) + n ^ k ≤ 2 ^ (ε * (n : ℝ) ^ r) := by
   have hD : (0 : ℝ) < ((k + 2 : ℕ) : ℝ) := by positivity
+  -- `log n = o(n ^ r)`
   obtain ⟨N, hN⟩ := Filter.eventually_atTop.1 <| tendsto_natCast_atTop_atTop.eventually <|
     (isLittleO_log_rpow_atTop hr).def
       (div_pos (mul_pos hε (Real.log_pos one_lt_two)) hD)
@@ -278,19 +284,22 @@ private theorem exists_add_pow_le_two_rpow {r ε : ℝ} (hr : 0 < r) (hε : 0 < 
     rw [Real.norm_eq_abs, abs_of_nonneg (Real.rpow_nonneg hnpos.le _), div_mul_eq_mul_div,
       le_div_iff₀ hD] at h
     linarith
+  -- `n + n ^ k ≤ 2 n ^ (k + 1) ≤ n ^ (k + 2)`
   have hnat : n + n ^ k ≤ n ^ (k + 2) :=
     calc n + n ^ k ≤ 2 * n ^ (k + 1) := by
-          have h1 : n ≤ n ^ (k + 1) :=
-            by simpa using Nat.pow_le_pow_right (by omega) (by omega : 1 ≤ k + 1)
-          have h2 : n ^ k ≤ n ^ (k + 1) := Nat.pow_le_pow_right (by omega) (Nat.le_succ k)
+          have h1 : n ≤ n ^ (k + 1) := by
+            simpa using Nat.pow_le_pow_right (zero_lt_two.trans_le hn2) (Nat.le_add_left 1 k)
+          have h2 : n ^ k ≤ n ^ (k + 1) :=
+            Nat.pow_le_pow_right (zero_lt_two.trans_le hn2) (Nat.le_succ k)
           omega
       _ ≤ n * n ^ (k + 1) := Nat.mul_le_mul_right _ hn2
       _ = n ^ (k + 2) := by ring
   calc (n : ℝ) + n ^ k ≤ ((n ^ (k + 2) : ℕ) : ℝ) := mod_cast hnat
     _ = Real.exp (((k + 2 : ℕ) : ℝ) * Real.log n) := by
-        rw [Real.exp_nat_mul, Real.exp_log hnpos]; norm_cast
-    _ ≤ 2 ^ (ε * (n : ℝ) ^ r) := by
-        rw [Real.rpow_def_of_pos two_pos]; exact Real.exp_le_exp.2 hlog
+        rw [Real.exp_nat_mul, Real.exp_log hnpos]
+        norm_cast
+    _ ≤ Real.exp (Real.log 2 * (ε * (n : ℝ) ^ r)) := Real.exp_le_exp.2 hlog
+    _ = 2 ^ (ε * (n : ℝ) ^ r) := (Real.rpow_def_of_pos two_pos _).symm
 
 /-- Bounds `n + g > 2 ^ (ε n ^ r)` with `r, ε > 0` on the circuits satisfying `Q` give more than
 `n ^ k` gates for large `n`. -/

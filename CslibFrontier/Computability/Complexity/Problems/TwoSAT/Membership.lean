@@ -419,8 +419,11 @@ theorem ab_choice {Q : Config → Prop} {l yes no : ℕ} {st : St}
     (hno : ∀ b : Bool, decider.AllBranches (encCNF φ) (bnd φ) (Post φ) Q (no, st.regs b.toNat))
     (b : Bool) : decider.AllBranches (encCNF φ) (bnd φ) (Post φ) Q (l, st.regs b.toNat) := by
   refine .step (by simp [halted, hl, Instr.halts]) (mem_regs_le hB b) fun b' => ?_
-  rw [step_lt _ _ hl]; simp only [eval_reg, St.getD_regs_0, eval_const, withChoice_regs]
-  cases b <;> [simpa using hyes b'; simpa using hno b']
+  rw [step_lt _ _ hl]
+  simp only [eval_reg, St.getD_regs_0, eval_const, withChoice_regs]
+  cases b
+  · simpa using hyes b'
+  · simpa using hno b'
 
 /-- The first bit of a clause is that of its first literal, or the end of the clause. -/
 theorem LitsAt.getElem?_isSome {w : List Bool} {p : ℕ} {c : Clause ℕ} (h : LitsAt w p c) :
@@ -996,11 +999,15 @@ theorem ab_head {st : St} (hinv : LoopInv φ st) (b : Bool) :
   simp only [headOut]
   split_ifs with hhit hp0
   · obtain ⟨rfl, hsp⟩ := hhit
-    rcases hreach with ⟨-, hr⟩ | ⟨h, -⟩; swap; · omega
+    rcases hreach with ⟨-, hr⟩ | ⟨h, -⟩
+    swap
+    · omega
     refine (ab_walk (st := { st with t₁ := X, t₂ := Y, phase := 1, steps := 0 })
       ⟨v, b₀, v, b₁, hO₀, hOc, hsgn, hlen, by simp, by st_bounded,
-        .inr ⟨rfl, by simpa [hsp, hp0] using hr, by simpa [hsp, hp0] using
-          (Relation.ReflTransGen.refl : Relation.ReflTransGen φ.Implies (v, false) (v, false))⟩⟩
+        .inr ⟨rfl,
+          by simpa [hsp, hp0] using hr,
+          by simpa [hsp, hp0] using
+            (Relation.ReflTransGen.refl : Relation.ReflTransGen φ.Implies (v, false) (v, false))⟩⟩
       b).mono fun _ ⟨st'', b', hs, hi, hm⟩ =>
       ⟨st'', b', hs, hi, by simp only [measure, hp0, hlen] at hm ⊢; omega⟩
   · obtain ⟨rfl, hsp⟩ := hhit
@@ -1075,7 +1082,8 @@ theorem branches_choice {l yes no : ℕ} (hl : decider.instr l = lt (reg 0) (con
   have := Branches.single (P := decider) (w := encCNF φ) (s := (l, st.regs b.toNat))
     (by simp [halted, hl, Instr.halts]) b'
   rw [step_lt _ _ hl, withChoice_regs] at this
-  simp only [eval_reg, St.getD_regs_0, eval_const] at this; cases b <;> simpa using this
+  simp only [eval_reg, St.getD_regs_0, eval_const] at this
+  cases b <;> simpa using this
 
 /-- **A branch guessing a clause** of a scanning loop: the code at `l₀` reads the scanning
 position, the choice at `l₀ + 1` inspects the clause at `inspect` or skips it with the code at
@@ -1159,7 +1167,8 @@ private theorem pair_choice {ℓ' m m₁ m₂ : Literal ℕ} (hm : m ∈ [m₁, 
     (hall : ∀ y ∈ [m₁, m₂], y = m ∨ y = ℓ') :
     (ℓ' = m₁ ∧ m = m₂) ∨ (ℓ' = m₂ ∧ m = m₁) := by
   simp only [List.mem_cons, List.not_mem_nil, or_false] at hm hℓ'
-  have h1 := hall m₁ (by simp); have h2 := hall m₂ (by simp)
+  have h1 := hall m₁ (by simp)
+  have h2 := hall m₂ (by simp)
   grind
 
 /-- Choosing the order of the two literals of a binary clause at label `74` so that `ℓ'` is in
@@ -1333,8 +1342,13 @@ private theorem exists_relatesInSteps {ℓ ℓ' : Literal ℕ}
     | .inr ⟨_, _, c, hc, _, hy, _⟩ => Set.mem_insert_of_mem _ (by simpa using ⟨c, hc, hy⟩)
   have hcard : {y | Relation.ReflTransGen φ.Implies ℓ y}.encard ≤
       ((φ.flatten.length : ℕ) : ℕ∞) + 1 :=
-    (Set.encard_le_encard hsub).trans ((Set.encard_insert_le _ _).trans (by
-      rw [Set.encard_coe_eq_coe_finsetCard]; gcongr; exact_mod_cast List.toFinset_card_le _))
+    calc _ ≤ (insert ℓ (↑φ.flatten.toFinset : Set (Literal ℕ))).encard :=
+          Set.encard_le_encard hsub
+      _ ≤ (↑φ.flatten.toFinset : Set (Literal ℕ)).encard + 1 := Set.encard_insert_le _ _
+      _ ≤ _ := by
+        rw [Set.encard_coe_eq_coe_finsetCard]
+        gcongr
+        exact_mod_cast List.toFinset_card_le _
   obtain ⟨m, hm, hsteps⟩ := h.relatesWithinSteps_of_encard_le hcard
   exact ⟨m, hm.trans (length_flatten_le_length_encCNF φ), hsteps⟩
 
@@ -1373,18 +1387,30 @@ theorem branches_modeB (hw : ∀ c ∈ φ, 1 ≤ c.length ∧ c.length ≤ 2) {x
       decider.instr s.1 = .accept := by
   obtain ⟨m₁, hm₁, hpath₁⟩ := exists_relatesInSteps h₁
   obtain ⟨m₂, hm₂, hpath₂⟩ := exists_relatesInSteps h₂
-  rcases m₁ with _ | m₁; · simp at hpath₁
-  rcases m₂ with _ | m₂; · simp at hpath₂
+  rcases m₁ with _ | m₁
+  · simp at hpath₁
+  rcases m₂ with _ | m₂
+  · simp at hpath₂
   obtain ⟨o, hoB, ho, hto35⟩ := branches_modeB_init hpath₁
   set st₀ : St := { len := (encCNF φ).length, p := o, o₀ := o, cur := o, sgn := 1 }
+  have hB₀ : st₀.Bounded (bnd φ) := by
+    simp only [st₀]
+    st_bounded
   obtain ⟨_, st₁, b₁, hbr₁, h0, -⟩ := branches_walk hw (m₁ + 1) st₀ ho ho (by simp [st₀])
-    (by simp [st₀]) (by simp only [st₀]; st_bounded) rfl (by simp only [st₀]; omega)
+    (by simp [st₀]) hB₀ rfl
+    (by simp only [st₀]; omega)
     (by simpa [st₀] using hpath₁) false
   obtain ⟨rfl, hph₁, hst₁, ho₁, hln₁, hB₁, hsg₁, _, hcur₁⟩ := h0 rfl
   obtain ⟨ℓ₂, harc, hrest⟩ := hpath₂.succ'
   obtain ⟨st₂, b₃, hbr₂, h₂₀, h₂₁, h₂₂, h₂₃, hocc, hsg₂, hB₂⟩ := branches_arc hcur₁
-    (by omega) hB₁ hln₁ (by simp only [hst₁, hln₁, st₀]; omega) hw (by simpa [hsg₁] using harc) b₁
-  obtain ⟨_, _, _, hbr₃, -, h1⟩ := branches_walk hw m₂ st₂ (by rw [h₂₀, ho₁]; exact ho) hocc.2
+    (by omega) hB₁ hln₁
+    (by simp only [hst₁, hln₁, st₀]; omega) hw
+    (by simpa [hsg₁] using harc) b₁
+  obtain ⟨_, _, _, hbr₃, -, h1⟩ := branches_walk hw m₂ st₂
+    (by
+      rw [h₂₀, ho₁]
+      exact ho)
+    hocc.2
     (hsg₂ ▸ Bool.toNat_le _) (by rw [h₂₁, hph₁]) hB₂ (h₂₃.trans hln₁)
     (by simp only [h₂₂, hst₁, h₂₃, hln₁, st₀]; omega)
     (by rwa [hsg₂, decide_toNat_eq_one, h₂₁, hph₁]) b₃
@@ -1405,7 +1431,8 @@ theorem accepts_decider_iff :
     · exact branches_modeA hnil (.inl rfl)
     · by_cases hbad : ∃ c ∈ φ, c.length = 0 ∨ 3 ≤ c.length
       · obtain ⟨c, hc, hw⟩ := hbad; exact branches_modeA hc hw
-      · push Not at hbad; exact branches_modeB (fun c hc => by have := hbad c hc; omega) h₁ h₂
+      · push Not at hbad
+        exact branches_modeB (fun c hc => by have := hbad c hc; omega) h₁ h₂
 
 end TwoSAT
 

@@ -163,10 +163,15 @@ The removed point is fixed by the swap, but may lie anywhere in the original per
 theorem removeNone_mul_swap (f : Perm (Option α)) (a b : α) :
     removeNone (f * swap (some a) (some b)) = removeNone f * swap a b := by
   apply Equiv.optionCongr_injective
-  rw [show (removeNone f * swap a b).optionCongr =
-    (removeNone f).optionCongr * (swap a b).optionCongr by ext (_ | _) <;> rfl,
-    map_equiv_removeNone, map_equiv_removeNone]
-  simp [mul_assoc, swap_apply_of_ne_of_ne]
+  calc
+    _ = swap none ((f * swap (some a) (some b)) none) *
+        (f * swap (some a) (some b)) := map_equiv_removeNone _
+    _ = (swap none (f none) * f) * (swap a b).optionCongr := by
+      simp [mul_assoc, swap_apply_of_ne_of_ne]
+    _ = (removeNone f).optionCongr * (swap a b).optionCongr := by
+      rw [map_equiv_removeNone]
+    _ = _ := by
+      ext (_ | _) <;> rfl
 
 omit [DecidableEq α] [Finite α] in
 /-- Deleting the extra point commutes with postcomposition by a permutation of the
@@ -175,8 +180,9 @@ theorem removeNone_mul_optionCongr (f : Perm (Option α)) (g : Perm α) :
     removeNone (f * g.optionCongr) = removeNone f * g := by
   classical
   apply Equiv.optionCongr_injective
-  rw [show (removeNone f * g).optionCongr = (removeNone f).optionCongr * g.optionCongr by
-    ext (_ | _) <;> rfl, map_equiv_removeNone, map_equiv_removeNone,
+  have hm : (removeNone f * g).optionCongr = (removeNone f).optionCongr * g.optionCongr := by
+    ext (_ | _) <;> rfl
+  rw [hm, map_equiv_removeNone, map_equiv_removeNone,
     show (f * g.optionCongr) none = f none from rfl, mul_assoc]
 
 omit [DecidableEq α] in
@@ -278,8 +284,9 @@ theorem card_orbits_mul_swap (f : Perm α) (a b : α) (hab : a ≠ b) :
               simp [e, swap_apply_of_ne_of_ne, hza, hzb, hza', hzb']
       have hcf := card_orbits_removeNone_add f'
       have hcg := card_orbits_removeNone_add (f' * swap (some a') (some b'))
-      rw [removeNone_mul_swap, show (f' * swap (some a') (some b')) none = f' none by
-        simp [swap_apply_def], ← hconj, card_orbits_permCongr] at hcg
+      have hfixed : (f' * swap (some a') (some b')) none = f' none := by
+        simp [swap_apply_def]
+      rw [removeNone_mul_swap, hfixed, ← hconj, card_orbits_permCongr] at hcg
       rw [card_orbits_permCongr] at hcf
       exact ⟨fun h => by have := hi.1 (hsame.mpr h); omega,
         fun h => by have := hi.2 (h ∘ hsame.mp); omega⟩
@@ -289,12 +296,13 @@ theorem card_orbits_mul_swap (f : Perm α) (a b : α) (hab : a ≠ b) :
       by_cases hfa : f a = a
       · have hfb : f b = b := (cover (f b)).resolve_left fun h =>
           hab (f.injective (hfa.trans h.symm))
-        simp only [hfa, ite_true, show (f * swap a b) a = b by simp [hfb],
-          hab.symm, ite_false] at hcf hcg
+        have hga : (f * swap a b) a = b := by simp [hfb]
+        simp only [hfa, ite_true, hga, hab.symm, ite_false] at hcf hcg
         exact ⟨fun h => (hab (h.eq_of_left hfa)).elim, fun _ => by omega⟩
       · have hfb : f b = a := (cover (f b)).resolve_right fun h =>
           hab (f.injective (((cover (f a)).resolve_left hfa).trans h.symm))
-        simp only [hfa, ite_false, show (f * swap a b) a = a by simp [hfb], ite_true] at hcf hcg
+        have hga : (f * swap a b) a = a := by simp [hfb]
+        simp only [hfa, ite_false, hga, ite_true] at hcf hcg
         exact ⟨fun _ => by omega, fun h => (h (hfb ▸ Perm.sameCycle_apply_left.mpr .rfl)).elim⟩
 
 omit [DecidableEq α] [Finite α] in

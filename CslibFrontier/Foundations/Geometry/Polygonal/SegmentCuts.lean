@@ -118,8 +118,7 @@ private theorem segmentCuts_adjacent_no_level_real {levels : Finset ℝ} {a b : 
           (AffineMap.lineMap a b (segmentCuts levels a b)[k + 1]))
         (max (AffineMap.lineMap a b (segmentCuts levels a b)[k])
           (AffineMap.lineMap a b (segmentCuts levels a b)[k + 1])) := by
-  let L := segmentCuts levels a b
-  have hkL : k + 1 < L.length := hk
+  set L := segmentCuts levels a b
   let α := L[k]
   let β := L[k + 1]
   have hmono := (segmentCuts_sorted levels a b).strictMono_get
@@ -134,9 +133,7 @@ private theorem segmentCuts_adjacent_no_level_real {levels : Finset ℝ} {a b : 
     simp only [he, mul_zero, zero_add, min_self, max_self] at hbetween
     exact (not_lt_of_ge hbetween.1.le) hbetween.2
   let t := (y - a) / (b - a)
-  have ht_eq : t * (b - a) + a = y := by
-    dsimp only [t]
-    rw [div_mul_cancel₀ _ hne, sub_add_cancel]
+  have ht_eq : t * (b - a) + a = y := by rw [div_mul_cancel₀ _ hne, sub_add_cancel]
   have ht : α < t ∧ t < β := by
     rcases lt_or_gt_of_ne hne with hneg | hpos
     · have he : β * (b - a) + a < α * (b - a) + a := by
@@ -154,10 +151,8 @@ private theorem segmentCuts_adjacent_no_level_real {levels : Finset ℝ} {a b : 
     exact ⟨Finset.mem_image.mpr ⟨y, hy, rfl⟩,
       lt_of_le_of_lt hα.1 ht.1, lt_of_lt_of_le ht.2 hβ.2⟩
   obtain ⟨j, hj⟩ := List.mem_iff_get.mp (mem_segmentCuts.mpr (Or.inr (Or.inr htm)))
-  have hkj : (⟨k, by omega⟩ : Fin L.length) < j := (hmono.lt_iff_lt).mp (hj ▸ ht.1)
-  have hjk : j < (⟨k + 1, hk⟩ : Fin L.length) := (hmono.lt_iff_lt).mp (hj ▸ ht.2)
-  change k < j.val at hkj
-  change j.val < k + 1 at hjk
+  have hkj : k < j.val := (hmono.lt_iff_lt (a := ⟨k, by omega⟩)).mp (hj ▸ ht.1)
+  have hjk : j.val < k + 1 := (hmono.lt_iff_lt (b := ⟨k + 1, hk⟩)).mp (hj ▸ ht.2)
   omega
 
 /-- Every closed unit parameter belongs to a consecutive closed cut interval. -/
@@ -189,11 +184,9 @@ theorem segmentCuts_dropLast_bounds {levels : Finset ℝ} {a b : ℝ} {t : ℝ}
   have ht' : L[i.val] = t := by simpa only [List.get_eq_getElem, List.getElem_dropLast] using hi
   constructor
   · exact ht' ▸ (segmentCuts_mem_Icc (List.getElem_mem hil)).1
-  · have hm := (segmentCuts_sorted levels a b).strictMono_get
+  · have hm : L[i.val] < L[L.length - 1] := (segmentCuts_sorted levels a b).strictMono_get
       (show (⟨i.val, hil⟩ : Fin L.length) < ⟨L.length - 1, by omega⟩ from hilt)
-    change L[i.val] < L[L.length - 1] at hm
-    rw [ht', show L[L.length - 1] = 1 from (segmentCuts_first_last levels a b).2] at hm
-    exact hm
+    rwa [ht', (segmentCuts_first_last levels a b).2] at hm
 
 /-- No level lies strictly between consecutive sample coordinates, for any real affine
 coordinate on the plane. -/

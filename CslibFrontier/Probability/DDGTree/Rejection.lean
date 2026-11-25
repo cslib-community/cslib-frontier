@@ -18,6 +18,7 @@ import CslibFrontier.Probability.PMF.Filter
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF.ToReal
 import CslibFrontier.Probability.StatisticalDistance
+import CslibFrontier.Probability.StatisticalDistance.ClosedForm
 import CslibFrontier.Tactic.ENNRealToReal
 import Mathlib.Data.Nat.Log
 import Mathlib.Topology.Algebra.InfiniteSum.ENNReal
@@ -350,25 +351,17 @@ theorem dist_runCapped_eq [Fintype α] {spec : BlockRejectionSpec α} {target : 
       (1 - r.toReal) * (target a).toReal + if a = fallback then r.toReal else 0 := by
     rw [runCapped_apply h fallback t a, ← hr]
     split_ifs <;> ennreal_to_real
-  rw [PMF.dist_eq, ← Finset.add_sum_erase _ _ (Finset.mem_univ fallback)]
-  have hrest : ∑ b ∈ Finset.univ.erase fallback,
-      |(spec.runCapped fallback t b).toReal - (target b).toReal| =
-      r.toReal * ∑ b ∈ Finset.univ.erase fallback, (target b).toReal := by
-    rw [Finset.mul_sum]
-    refine Finset.sum_congr rfl fun b hb => ?_
-    rw [hval b, ite_eq_right (Finset.ne_of_mem_erase hb), add_zero,
-      show (1 - r.toReal) * (target b).toReal - (target b).toReal =
-        -(r.toReal * (target b).toReal) by ring,
-      abs_neg, abs_of_nonneg (mul_nonneg ENNReal.toReal_nonneg ENNReal.toReal_nonneg)]
-  have herase : ∑ b ∈ Finset.univ.erase fallback, (target b).toReal =
-      1 - (target fallback).toReal := eq_sub_of_add_eq' <|
-    (Finset.add_sum_erase _ _ (Finset.mem_univ fallback)).trans (PMF.sum_toReal target)
-  rw [hrest, herase, hval fallback, ite_eq_left rfl,
-    show (1 - r.toReal) * (target fallback).toReal + r.toReal - (target fallback).toReal =
-      r.toReal * (1 - (target fallback).toReal) by ring,
-    abs_of_nonneg (mul_nonneg ENNReal.toReal_nonneg
-      (sub_nonneg.2 (PMF.toReal_apply_le_one target fallback)))]
-  ring
+  -- Completing the sampler scales each deviation from the target by the failure mass.
+  have hsub (a : α) : (spec.runCapped fallback t a).toReal - (target a).toReal =
+      r.toReal * (((PMF.pure fallback) a).toReal - (target a).toReal) := by
+    rw [hval, PMF.pure_apply]
+    split_ifs <;> simp only [ENNReal.toReal_one, ENNReal.toReal_zero] <;> ring
+  calc
+    _ = r.toReal * dist (PMF.pure fallback) target := by
+      rw [PMF.dist_eq, PMF.dist_eq]
+      simp only [hsub, abs_mul, abs_of_nonneg ENNReal.toReal_nonneg, ← Finset.mul_sum]
+      ring
+    _ = _ := by rw [PMF.dist_pure_left]
 
 theorem dist_runCapped_le [Fintype α] {spec : BlockRejectionSpec α} {target : PMF α}
     (h : ∀ a, spec.singleLaw (some a) = spec.acceptProb * target a)

@@ -70,11 +70,9 @@ theorem forest_cycle_entry_mem {x : α} (hx : x ∈ checkpointHull f H) :
 
 /-- For a hull state `x` and `i < transientDepth f x`, the state `f^[i] x` is a forest source. -/
 theorem forest_iterate_mem_sources {x : α} (hx : x ∈ checkpointHull f H)
-    {i : ℕ} (hi : i < transientDepth f x) : f^[i] x ∈ forestSources f H := by
-  apply (mem_forestSources f H _).mpr
-  refine ⟨checkpointHull_iterate f H hx hi.le, ?_⟩
-  rw [transientDepth_iterate]
-  omega
+    {i : ℕ} (hi : i < transientDepth f x) : f^[i] x ∈ forestSources f H :=
+  (mem_forestSources f H _).mpr ⟨checkpointHull_iterate f H hx hi.le,
+    by rw [transientDepth_iterate]; omega⟩
 
 /-- A compressed edge ends at the next mark, no later than cycle entry. -/
 structure IsForestEdge (x : α) (d : ℕ) : Prop where
@@ -106,12 +104,9 @@ private theorem forest_edge_pred_eq {a b : α} {d i j : ℕ}
 
 /-- The length of a compressed edge from `x` is unique. -/
 theorem IsForestEdge.unique {x : α} {d₁ d₂ : ℕ}
-    (h₁ : IsForestEdge f H x d₁) (h₂ : IsForestEdge f H x d₂) : d₁ = d₂ := by
-  apply le_antisymm
-  · by_contra h
-    exact h₁.interior d₂ h₂.pos (by omega) h₂.end_mem
-  · by_contra h
-    exact h₂.interior d₁ h₁.pos (by omega) h₁.end_mem
+    (h₁ : IsForestEdge f H x d₁) (h₂ : IsForestEdge f H x d₂) : d₁ = d₂ :=
+  le_antisymm (not_lt.mp fun h => h₁.interior d₂ h₂.pos h h₂.end_mem)
+    (not_lt.mp fun h => h₂.interior d₁ h₁.pos h h₁.end_mem)
 
 /-- Applying checkpoint coverage after one step bounds each compressed edge by `2 * L`. -/
 theorem exists_short_forest_edge {L : ℕ} (_hL : 0 < L)
@@ -133,12 +128,9 @@ theorem exists_short_forest_edge {L : ℕ} (_hL : 0 < L)
       exact subset_forestMarks f H hmem
   let d := Nat.find hex
   have hspec := Nat.find_spec hex
-  have hdepth : d ≤ transientDepth f x := Nat.find_min' hex ⟨hd, hroot⟩
   obtain ⟨t, ht, htL, htm⟩ := hshort
-  have hdt : d ≤ t := Nat.find_min' hex ⟨ht, htm⟩
-  refine ⟨d, hdt.trans htL, hx, hspec.1, hdepth, hspec.2, ?_⟩
-  intro i hi hid him
-  exact Nat.find_min hex hid ⟨hi, him⟩
+  exact ⟨d, (Nat.find_min' hex ⟨ht, htm⟩).trans htL, hx, hspec.1,
+    Nat.find_min' hex ⟨hd, hroot⟩, hspec.2, fun i hi hid him => Nat.find_min hex hid ⟨hi, him⟩⟩
 
 /-- Interiors of compressed edges are disjoint, including their starting marks. -/
 theorem forest_edge_interior_inj {x y : α} {d e : ℕ}

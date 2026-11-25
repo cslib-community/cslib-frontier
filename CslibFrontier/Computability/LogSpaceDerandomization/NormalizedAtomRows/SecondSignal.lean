@@ -93,9 +93,8 @@ lemma selectedPreparation_range
     (HP : FourthRootHierarchyParams 16 1 16 32 8) (D : ZMod P) (R : RoleProfile J)
     (st : List (ZMod P)) (k : ℕ) (σ : Environment P J) (x y : ZMod P) :
     selectedPreparation HP D R st k (fun _ _ _ => 0) σ x y = 0 := by
-  have hz := polynomialPrepCutoff4_eq_zero HP.θ_pos
-    (show (0 : ℝ) ≤ HP.θ / 2 by linarith [HP.θ_pos])
-  simp only [selectedPreparation, DenseRowRecipe.preparation, atomPrep, zero_div, hz, zero_mul]
+  simp [selectedPreparation, DenseRowRecipe.preparation, atomPrep,
+    polynomialPrepCutoff4_eq_zero HP.θ_pos (show (0 : ℝ) ≤ HP.θ / 2 by linarith [HP.θ_pos])]
 
 /-- This rank support bound concerns the preparation input, not the averaged walk.
 Walk averaging can combine different retained supports. -/
@@ -110,8 +109,7 @@ lemma selectedPreparation_support
   unfold selectedPreparation DenseRowRecipe.preparation atomPrep
   exact card_filter_mul_rowGate_ne_zero_lt _ x hK (by linarith [HP.θ_pos] : 0 ≤ HP.θ / 2)
     (fun _ hd => polynomialPrepCutoff4_eq_zero HP.θ_pos hd)
-    (show HP.η₂ ≤ HP.θ / 2 by
-      linarith [HP.η₂_lt, HP.δ₀_lt_δ₁, HP.δ₁_lt, HP.θ_pos]) HP.ρ_zero
+    (by linarith [HP.η₂_lt, HP.δ₀_lt_δ₁, HP.δ₁_lt, HP.θ_pos]) HP.ρ_zero
 
 /-- Finite input payment with the exact joint densities and both width sums retained.
 This does not imply a uniform numerical recursive budget. Empty slices contribute zero. -/
@@ -133,8 +131,7 @@ theorem selectedPreparation_moment
   rcases ({σ : Environment P J | retainedMask R.source (side P ks) D ss σ x ∧
     retainedMask R.terminal (side P kt) D st σ y} : Finset _).eq_empty_or_nonempty with he | he
   · rw [he]; norm_num
-  apply expect_le he
-  intro σ _
+  refine expect_le he fun σ _ => ?_
   have hr := selectedPreparation_range HP D R st k A σ x y
   rw [abs_of_nonneg hr.1]
   exact pow_le_one₀ hr.1 hr.2
@@ -162,9 +159,8 @@ theorem selectedPreparation_support_moment
   have hcard (σ : Environment P J) (x : ZMod P) :
       #{y ∈ ({y | retainedMask R.terminal (side P kt) D st σ y} : Finset (ZMod P)) |
         selectedPreparation HP D R st k A σ x y ≠ 0} ≤ HP.K := by
-    apply (card_le_card ?_).trans
+    refine (card_le_card fun y hy => ?_).trans
       (selectedPreparation_support HP hK D R st k A σ x).le
-    intro y hy
     simp only [mem_filter, mem_univ, true_and] at hy ⊢
     exact ⟨mem_retentionBox.mpr (fun a => (mem_retentionBox.mp hy.1 a).trans_le hside), hy.2⟩
   have hb := rowNormPow_le_of_card_le
@@ -246,14 +242,9 @@ lemma actualTwoSignal_zero_off {E : Type*} [Fintype E]
   dsimp only
   have hz (j : ℕ) := conditionalWalk_zero_off (retainedMask s Ls D ss)
     (retainedMask t Lt D st) (graphs j) (times j) (input j) σ x y hy
-  constructor
-  · intro i
-    rw [actualPrefix_twoSignal_second, hz, mul_zero]
-  · intro S n K ρ m
-    apply iterate_second_zero_off S n K ρ _ _ y rfl _ m
-    intro i
-    simp only [firstSignalIncrement, secondSignalIncrement, Fin.isValue, one_ne_zero,
-      ↓reduceIte, hz, ite_self, sub_self, mul_zero]
+  refine ⟨fun i => ?_, fun S n K ρ m => iterate_second_zero_off S n K ρ _ _ y rfl (fun i => ?_) m⟩
+  · rw [actualPrefix_twoSignal_second, hz, mul_zero]
+  · simp [firstSignalIncrement, secondSignalIncrement, hz]
 
 /-- Stationarity identifies the actual second noise on source × usage, including
 empty slices. The first slot and full-rank denominator data remain arbitrary. -/
@@ -415,18 +406,15 @@ theorem actualSelectedSecondSignal_noise_le_dyadic
         (firstSignalIncrement F k (secondSignalIncrement H ζ)) (fun _ _ _ _ => 0) 1 i) ≤
       (ε * (64 : ℝ)⁻¹ ^ dyadicSlack m i) ^ 4 := by
   have hden : (1 : ℝ) < 155648 * (J + 1) * (4 : ℝ) ^ 4 := by
-    have : (0 : ℝ) ≤ J := Nat.cast_nonneg J
-    linarith
+    linarith [Nat.cast_nonneg (α := ℝ) J]
   have hr : 0 < 1 - 1 / (155648 * (J + 1) * (4 : ℝ) ^ 4) :=
     sub_pos.mpr ((div_lt_one (by linarith)).mpr hden)
   have hp := spectralWalkLength_payment hr (sub_lt_self _ (by positivity))
     (by positivity : 0 ≤ ζ ^ 4 * 512 * HP.K) hε (dyadicSlack m i) (steps (i + 1)) hsteps
-  exact (actualSelectedSecondSignal_noise_le HP hK D R Horizon ks k kt husage
-    hks ss st A F steps ζ G i).trans
-    ((show ζ ^ 4 * (32 * (1 - 1 / (155648 * (J + 1) * (4 : ℝ) ^ 4)) ^
-        (2 * steps (i + 1)) * (16 * HP.K)) =
-      (ζ ^ 4 * 512 * HP.K) * (1 - 1 / (155648 * (J + 1) * (4 : ℝ) ^ 4)) ^
-        (2 * steps (i + 1)) by ring).trans_le hp)
+  refine (actualSelectedSecondSignal_noise_le HP hK D R Horizon ks k kt husage
+    hks ss st A F steps ζ G i).trans ?_
+  convert hp using 1
+  ring
 
 end
 end Matrix.HierarchyParams.H4RankEnvironment.NormalizedMoments

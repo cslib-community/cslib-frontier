@@ -57,10 +57,11 @@ variable {ι : Type*} [Fintype ι] [DecidableEq ι]
 private theorem toOuterMeasure_uniformOfFintype_cube (Q : Finset ι) (c : ι → Bool) :
     ((PMF.uniformOfFintype (ι → Bool)).toOuterMeasure {z | ∀ i ∈ Q, z i = c i}).toReal =
       ((2 : ℝ) ^ #Q)⁻¹ := by
-  rw [show {z : ι → Bool | ∀ i ∈ Q, z i = c i} =
-      Q.restrict ⁻¹' ({Q.restrict c} : Set (Q → Bool)) by
-        ext z; simp [funext_iff, Finset.restrict],
-    ← PMF.toOuterMeasure_map_apply, Probability.PMF.uniformOfFintype_pi_map_restrict,
+  have hset : {z : ι → Bool | ∀ i ∈ Q, z i = c i} =
+      Q.restrict ⁻¹' ({Q.restrict c} : Set (Q → Bool)) := by
+    ext z
+    simp [funext_iff, Finset.restrict]
+  rw [hset, ← PMF.toOuterMeasure_map_apply, Probability.PMF.uniformOfFintype_pi_map_restrict,
     PMF.toOuterMeasure_apply_singleton, PMF.uniformOfFintype_apply]
   simp
 
@@ -144,8 +145,11 @@ private theorem map_eval_forceBit {J : Type*} [Fintype J] [DecidableEq J]
       (fun z => Function.update z (p z) (b z))).map T.eval = PMF.pure true ∧
       (PMF.uniformOfFintype (J → Bool)).map T.eval = PMF.uniformOfFintype Bool := by
   refine ⟨?_, ?_⟩
-  · rw [PMF.map_comp, show T.eval ∘ (fun z => Function.update z (p z) (b z)) =
-      Function.const _ true by funext z; simp [heval, hp, hb]]
+  · have h : T.eval ∘ (fun z => Function.update z (p z) (b z)) =
+        Function.const _ true := by
+      funext z
+      simp [heval, hp, hb]
+    rw [PMF.map_comp, h]
     simp
   · have h := Probability.PMF.uniformOfFintype_bind_bind_adaptiveUpdate p hp
       (fun z => PMF.pure (T.eval z))
@@ -212,10 +216,11 @@ private theorem dist_map_restrict_pointerLaw_le {D : Type*} [Fintype D] [Decidab
     cases hv : z (point key z) <;> cases ht : target (address z) <;> simp_all
   have hB (a : Fin m → Bool) : (U.toOuterMeasure (B a)).toReal = ((2 : ℝ) ^ (m + 1))⁻¹ := by
     let Q : Finset (Fin m ⊕ D) := insert (.inr (key a)) (univ.map ⟨Sum.inl, Sum.inl_injective⟩)
-    rw [show B a = {z | ∀ i ∈ Q, z i = Sum.elim a (fun _ => !target a) i} by
-        ext z; simp [B, Q, address, funext_iff, and_comm],
-      toOuterMeasure_uniformOfFintype_cube, card_insert_of_notMem (by simp), card_map, card_univ,
-      Fintype.card_fin]
+    have hBQ : B a = {z | ∀ i ∈ Q, z i = Sum.elim a (fun _ => !target a) i} := by
+      ext z
+      simp [B, Q, address, funext_iff, and_comm]
+    rw [hBQ, toOuterMeasure_uniformOfFintype_cube, card_insert_of_notMem (by simp), card_map,
+      card_univ, Fintype.card_fin]
   calc (U.toOuterMeasure
         {z | (S.restrict ∘ forcePointer key target) z ≠ (S.restrict ∘ compare) z}).toReal
       ≤ (U.toOuterMeasure (⋃ a ∈ A, B a)).toReal :=
@@ -431,7 +436,8 @@ private theorem dist_map_restrict_le (M : PointerMatching m) (S : Finset (Fin m 
   by_cases h : ∃ i, address z = M.upper i
   · obtain ⟨i, hi⟩ := h
     rw [hi, M.charge_upper]
-    by_contra hm; exact hhidden ⟨i, true, hi, hm⟩
+    by_contra hm
+    exact hhidden ⟨i, true, hi, hm⟩
   · have ha : address z ∈ M.Keys := (M.mem_keys _).2 fun i hi => h ⟨i, hi⟩
     rwa [M.charge_of_mem ha, ← M.key_of_mem ha]
 

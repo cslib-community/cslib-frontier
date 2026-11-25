@@ -117,19 +117,13 @@ theorem Valid.next {table : TowerTable D} (h : table.Valid)
     (next H e hb table).Valid := by
   intro row hrow label
   obtain ⟨vertex, hvertex, rfl⟩ := List.mem_map.mp hrow
-  have hv : vertex / b < table.length := Nat.div_lt_iff_lt_mul hb |>.mpr
-    (List.mem_range.mp hvertex)
-  have h₁ := h.lookup_lt hv (e (H.rot (⟨vertex % b, Nat.mod_lt _ hb⟩, label.1)).1 0)
-  have h₂ := h.lookup_lt h₁ (e (H.rot (⟨vertex % b, Nat.mod_lt _ hb⟩, label.1)).1 1)
+  have hv : vertex / b < table.length := (Nat.div_lt_iff_lt_mul hb).mpr (List.mem_range.mp hvertex)
+  let s := (H.rot (⟨vertex % b, Nat.mod_lt _ hb⟩, label.1)).1
+  have h₂ := h.lookup_lt (h.lookup_lt hv (e s 0)) (e s 1)
   dsimp only [nextRow]
   rw [length_next]
-  generalize H.rot (e.symm
-    ![(table.lookup (table.lookup (vertex / b)
-      (e (H.rot (⟨vertex % b, Nat.mod_lt _ hb⟩, label.1)).1 0)).1
-      (e (H.rot (⟨vertex % b, Nat.mod_lt _ hb⟩, label.1)).1 1)).2,
-      (table.lookup (vertex / b)
-      (e (H.rot (⟨vertex % b, Nat.mod_lt _ hb⟩, label.1)).1 0)).2], label.2) = last
-  have hlast := last.1.isLt
+  have hlast := (H.rot (e.symm ![(table.lookup (table.lookup (vertex / b) (e s 0)).1 (e s 1)).2,
+    (table.lookup (vertex / b) (e s 0)).2], label.2)).1.isLt
   nlinarith
 
 /-- The complete table after `level` rounds has exactly the tower's vertex count. -/
@@ -187,10 +181,8 @@ theorem lookup_iterate_numbered {B : Type*} (H : RotationMap B D)
   | zero =>
     change B at vertex
     rw [Function.iterate_zero_apply]
-    change (initial (H.reindex numbering)).lookup (numbering vertex).val label = _
-    rw [lookup_initial]
-    simp only [reindexRot, Equiv.symm_apply_apply]
-    rfl
+    exact (lookup_initial (H.reindex numbering) (numbering vertex) label).trans
+      (by simp only [reindexRot, Equiv.symm_apply_apply]; rfl)
   | succ level ih =>
     rcases vertex with ⟨vertex, cloud⟩
     rcases label with ⟨first, second⟩
@@ -202,17 +194,11 @@ theorem lookup_iterate_numbered {B : Type*} (H : RotationMap B D)
     have hindex : (ZigzagTowerVertex.equivFin numbering (level + 1) (vertex, cloud)).val <
         ((next (H.reindex numbering) (numbering.symm.trans e) hb)^[level]
           (initial (H.reindex numbering))).length * b := by
-      rw [length_iterate, ← pow_succ]
-      exact (ZigzagTowerVertex.equivFin numbering (level + 1) (vertex, cloud)).isLt
+      simpa only [length_iterate, ← pow_succ] using
+        (ZigzagTowerVertex.equivFin numbering (level + 1) (vertex, cloud)).isLt
     rw [Function.iterate_succ_apply', lookup_next _ _ _ _ hindex, hstep]
-    have hmod :
-        ((ZigzagTowerVertex.equivFin numbering level vertex).val * b + (numbering cloud).val) % b =
-          (numbering cloud).val := Nat.mul_add_mod_of_lt (numbering cloud).isLt
-    have hdiv :
-        ((ZigzagTowerVertex.equivFin numbering level vertex).val * b + (numbering cloud).val) / b =
-          (ZigzagTowerVertex.equivFin numbering level vertex).val :=
-      Nat.mul_add_div_of_lt _ (numbering cloud).isLt
-    simp only [nextRow, hmod, hdiv, reindexRot, Equiv.trans_apply, Fin.eta,
+    simp only [nextRow, Nat.mul_add_mod_of_lt (numbering cloud).isLt,
+      Nat.mul_add_div_of_lt _ (numbering cloud).isLt, reindexRot, Equiv.trans_apply, Fin.eta,
       Equiv.symm_apply_apply, Equiv.symm_trans_apply, Equiv.apply_symm_apply]
     rw [ih, ih]
     simp only [rot_zigzagTower_succ, zigzagRot, square_relabel_rotation, hstep]

@@ -67,12 +67,10 @@ theorem unsatVal_nonneg : 0 ≤ F.unsatVal sem :=
 
 /-- The value is at most one. -/
 theorem unsatVal_le_one [Nonempty D] : F.unsatVal sem ≤ 1 := by
-  let σ : V → D := fun _ => Classical.arbitrary D
-  refine (unsatVal_le sem F σ).trans ?_
+  refine (unsatVal_le sem F fun _ => Classical.arbitrary D).trans ?_
   rcases Nat.eq_zero_or_pos F.length with h0 | hpos
   · simp [h0]
-  · rw [div_le_one (by exact_mod_cast hpos)]
-    exact_mod_cast List.countP_le_length
+  · exact (div_le_one (by exact_mod_cast hpos)).2 (by exact_mod_cast List.countP_le_length)
 
 /-- A lower bound on the value bounds the proportion falsified by every assignment. -/
 theorem le_unsatVal_iff [Nonempty D] {c : ℝ} :
@@ -83,13 +81,11 @@ theorem le_unsatVal_iff [Nonempty D] {c : ℝ} :
 /-- The minimum is attained: the violation proportions take finitely many values. -/
 theorem exists_countUnsat_div_eq_unsatVal [Nonempty D] :
     ∃ σ : V → D,
-      (F.countP (fun c => !Constraint.eval sem σ c) : ℝ) / F.length = F.unsatVal sem := by
-  have hfin : (Set.range fun σ : V → D =>
-      (F.countP (fun c => !Constraint.eval sem σ c) : ℝ) / F.length).Finite := by
-    refine (Set.finite_range fun j : Fin (F.length + 1) => (j : ℝ) / F.length).subset ?_
-    rintro _ ⟨σ, rfl⟩
-    exact ⟨⟨_, Nat.lt_succ_of_le List.countP_le_length⟩, rfl⟩
-  exact (Set.range_nonempty _).csInf_mem hfin
+      (F.countP (fun c => !Constraint.eval sem σ c) : ℝ) / F.length = F.unsatVal sem :=
+  (Set.range_nonempty _).csInf_mem <|
+    (Set.finite_range fun j : Fin (F.length + 1) => (j : ℝ) / F.length).subset <| by
+      rintro _ ⟨σ, rfl⟩
+      exact ⟨⟨_, Nat.lt_succ_of_le List.countP_le_length⟩, rfl⟩
 
 /-- **The value vanishes exactly on satisfiable instances.** -/
 theorem unsatVal_eq_zero_iff [Nonempty D] : F.unsatVal sem = 0 ↔ F.Satisfiable sem := by
@@ -98,18 +94,12 @@ theorem unsatVal_eq_zero_iff [Nonempty D] : F.unsatVal sem = 0 ↔ F.Satisfiable
     obtain ⟨σ, hσ⟩ := exists_countUnsat_div_eq_unsatVal sem F
     rw [h, div_eq_zero_iff, Nat.cast_eq_zero, Nat.cast_eq_zero] at hσ
     rcases hσ with hσ | hσ
-    · refine ⟨σ, List.all_eq_true.2 fun c hc => ?_⟩
-      have hnot := (List.countP_eq_zero.1 hσ) c hc
-      cases he : Constraint.eval sem σ c
-      · simp [he] at hnot
-      · rfl
+    · exact ⟨σ, List.all_eq_true.2 fun c hc => by simpa using List.countP_eq_zero.1 hσ c hc⟩
     · exact ⟨fun _ => Classical.arbitrary D, by rw [List.length_eq_zero_iff.1 hσ]; rfl⟩
   · rintro ⟨σ, hσ⟩
     refine le_antisymm ?_ (unsatVal_nonneg sem F)
     have h0 : F.countP (fun c => !Constraint.eval sem σ c) = 0 :=
-      List.countP_eq_zero.2 fun c hc => by
-        rw [List.all_eq_true.1 hσ c hc]
-        decide
+      List.countP_eq_zero.2 fun c hc => by simp [List.all_eq_true.1 hσ c hc]
     simpa [h0] using unsatVal_le sem F σ
 
 /-- The empty instance has unsatisfiability value zero. -/

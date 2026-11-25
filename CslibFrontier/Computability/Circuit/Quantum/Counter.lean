@@ -112,21 +112,15 @@ private theorem invariant_zero {base T : ℕ} {src : ℕ → ℕ} (hN : base < N
     (hx : ∀ p, base ≤ p → readBit x p = false) :
     Invariant base T src x (classicalStep (false, base, []) x) 0 := by
   have hstep (p : ℕ) : readBit (classicalStep (false, base, []) x) p =
-      (readBit x p ^^ decide (p = base)) := by
-    rw [readBit_classicalStep]
-    simp [hN]
-  refine ⟨fun p hp => ?_, ?_, fun i hi => ?_, fun p hp => ?_⟩
-  · rw [hstep]
-    simp [show p ≠ base by omega]
-  · rw [hstep, hx base le_rfl]
-    simp
+      (readBit x p ^^ decide (p = base)) := by simp [readBit_classicalStep, hN]
+  refine ⟨fun p hp => by simp [hstep, hp.ne],
+    by simp [hstep, hx base le_rfl], fun i _ => ?_, fun p hp => ?_⟩
   · rw [hstep, hx _ (by unfold level; omega)]
     simp only [count, level, Nat.zero_mul, Nat.add_zero, range_zero, filter_empty, card_empty,
       Nat.not_lt_zero, decide_false, Bool.false_xor, decide_eq_false_iff_not]
     omega
-  · rw [hstep, hx _ (by omega)]
-    simp only [Nat.zero_add, Nat.one_mul] at hp
-    simp [show p ≠ base by omega]
+  · have hne : p ≠ base := by omega
+    simp [hstep, hx p (by omega), hne]
 
 private theorem invariant_succ {base T s : ℕ} {src : ℕ → ℕ} (hsrc : src s < base)
     (hN : base + 1 + (s + 2) * T ≤ N) {x y : Fin N → Bool} (hy : Invariant base T src x y s) :

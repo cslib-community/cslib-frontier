@@ -98,13 +98,11 @@ theorem notMem_lowAgreement {A : QueryLearner ι Ω}
     {f : (ι → Bool) → Bool} (hf : f ∈ C) : f ∉ A.lowAgreement ((1 - δ) * (1 - ε)) := by
   classical
   have hbad := ENNReal.toReal_le_of_le_ofReal hδ (learns_iff.1 hA f hf)
-  rw [Cslib.Probability.PMF.toOuterMeasure_uniformOfFintype_toReal] at hbad
-  have hδ' : (dens {ω | ε < uniformError f ((A ω).eval f)} : ℝ) ≤ δ := by
-    rwa [Finset.nnratCast_dens]
-  have := le_expect_dens_eq (fun _ : Ω => f) (fun ω => (A ω).eval f) hε hδ'
+  rw [Cslib.Probability.PMF.toOuterMeasure_uniformOfFintype_toReal, ← Finset.nnratCast_dens]
+    at hbad
   simp only [lowAgreement, Set.mem_ofPred_eq, not_lt]
-  refine this.trans_eq (expect_congr rfl fun ω _ => ?_)
-  simp only [agrees_eq_true_iff]
+  exact (le_expect_dens_eq (fun _ : Ω => f) (fun ω => (A ω).eval f) hε hbad).trans_eq
+    (expect_congr rfl fun _ _ => by simp only [agrees_eq_true_iff])
 
 /-- **The property is large.** If `A` makes at most `q` queries, then for `θ ≤ 1` at least a
 `θ - p` fraction of all functions lie in `A.lowAgreement θ`, where `p = 1 / 2 + q / 2 ^ (N + 1)`
@@ -231,25 +229,20 @@ theorem isNatural_PPoly_lowAgreement {A : ∀ n, QueryLearner (Fin n) (Ω n)} {q
     filter_upwards [hgap] with n hn
     have hθ : (1 - δ n) * (1 - ε n) ≤ 1 := by nlinarith [hε n, hδ n]
     obtain ⟨B, hBq, hB⟩ := (hA n).exists_queriesAtMost
-    have hagr (ω : Ω n) (z : BitString n) (g : BooleanFunction n) :
-        B.agrees ω z g = (A n).agrees ω z g := by
-      rw [Bool.eq_iff_iff, agrees_eq_true_iff, agrees_eq_true_iff, hB]
     have hAB : (A n).lowAgreement ((1 - δ n) * (1 - ε n)) =
         B.lowAgreement ((1 - δ n) * (1 - ε n)) := by
-      simp only [lowAgreement, hagr]
+      simp only [lowAgreement, agrees_eq_true_iff, hB]
     have hd := sub_le_dens_lowAgreement hBq hθ
     rw [← hAB, Fintype.card_fin] at hd
     have hset : (A n).lowAgreement ((1 - δ n) * (1 - ε n)) =
         ↑({g | g ∈ (A n).lowAgreement ((1 - δ n) * (1 - ε n))} : Finset (BooleanFunction n)) := by
       ext; simp
-    rw [hset, Set.ncard_coe_finset]
+    rw [hset, Set.ncard_coe_finset, mul_comm]
     rw [Finset.nnratCast_dens, Fintype.card_fun, Fintype.card_bool, Fintype.card_fun,
       Fintype.card_fin, Fintype.card_bool] at hd
-    have h3 : (0 : ℝ) < 2 ^ (c * n) := by positivity
     have key := hn.trans hd
-    rw [inv_le_iff_one_le_mul₀ h3, div_mul_eq_mul_div, le_div_iff₀ (by positivity), one_mul]
-      at key
-    rw [mul_comm]
+    rw [inv_le_iff_one_le_mul₀ (by positivity), div_mul_eq_mul_div, le_div_iff₀ (by positivity),
+      one_mul] at key
     exact_mod_cast key
   · -- constructivity: the tests have `2 ^ O(n)` gates
     refine truthTableLanguage_mem_PPoly_of_complexity_le _

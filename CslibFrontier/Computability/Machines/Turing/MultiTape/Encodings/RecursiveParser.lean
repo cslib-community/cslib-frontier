@@ -90,7 +90,7 @@ theorem parseFuel_readNode_sound (arity : τ → ℕ)
         tokens value ++ rest = stream ∧ Forest arity 1 (tokens value) := by
   intro fuel
   induction fuel with
-  | zero => intro _ _ _ h; simp [parseFuel] at h
+  | zero => nofun
   | succ fuel ih =>
     rintro (_ | ⟨token, stream⟩) value rest h
     · simp [parseFuel] at h
@@ -140,8 +140,7 @@ theorem parseFuel_readNode_complete (arity : τ → ℕ)
   induction fuel with
   | zero =>
     rintro tree htree hlength _
-    obtain rfl : tree = [] := List.length_eq_zero_iff.mp (by omega)
-    cases htree
+    cases List.length_eq_zero_iff.mp (Nat.eq_zero_of_le_zero hlength) ▸ htree
   | succ fuel ih =>
     intro tree htree hlength rest
     cases htree with | @cons _ token tail hforest =>
@@ -192,11 +191,10 @@ theorem decode_readNode_polyTime {encToken : τ ↪ List Bool} {encTree : α ↪
   refine ((isTree_polyTime harity hmax).ite
     ((ComputableInPolyTime.optionSome (encList encToken)).comp .id')
     (.const none)).of_enc_eq fun stream => ?_
-  have h := decode_readNode_tokens arity make tokens htokens stream
   have hword : encOption encTree (decode (readNode arity make) stream) =
       encOption (encList encToken) ((decode (readNode arity make) stream).map tokens) := by
     cases decode (readNode arity make) stream <;> simp [Option.map_some, encOption_some, henc]
-  rw [hword, h]
+  rw [hword, decode_readNode_tokens arity make tokens htokens]
   split <;> rfl
 
 end Turing.MultiTapeTM.RecursiveEncoding

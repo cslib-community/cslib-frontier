@@ -63,17 +63,22 @@ theorem countTrue_average_deviation (count : ℕ) (hcount : 0 < count)
       ε ≤ |(successes : ℝ) / count - (eval program true).toReal|}).toReal ≤
         2 * Real.exp (-2 * count * ε ^ 2) := by
   have hc : (0 : ℝ) < count := by exact_mod_cast hcount
-  have hevent : {successes : ℕ | ε ≤ |(successes : ℝ) / count - (eval program true).toReal|} =
-      {successes : ℕ |
-        (count : ℝ) * ε ≤ |(successes : ℝ) - count * (eval program true).toReal|} := by
+  have hevent : {successes : ℕ |
+      ε ≤ |(successes : ℝ) / count - (eval program true).toReal|} =
+      {successes : ℕ | (count : ℝ) * ε ≤
+        |(successes : ℝ) - count * (eval program true).toReal|} := by
     ext successes
     simp only [Set.mem_ofPred_eq]
     rw [show (successes : ℝ) / count - (eval program true).toReal =
       (successes - count * (eval program true).toReal) / count by field_simp,
       abs_div, abs_of_pos hc, le_div_iff₀ hc, mul_comm ε]
   rw [hevent]
-  exact (countTrue_deviation count program (mul_nonneg hc.le hε)).trans_eq
-    (congrArg (2 * Real.exp ·) (by field_simp))
+  calc
+    _ ≤ 2 * Real.exp (-2 * ((count : ℝ) * ε) ^ 2 / count) :=
+      countTrue_deviation count program (mul_nonneg hc.le hε)
+    _ = _ := by
+      congr 2
+      field_simp
 
 /-- A polynomial trial budget gives inverse-polynomial accuracy and exponentially small failure.
 Both parameters are natural numbers, so a client can compute the budget with unary arithmetic. -/
@@ -87,15 +92,18 @@ theorem countTrue_average_deviation_pow (confidence inverseTolerance : ℕ)
   have h := countTrue_average_deviation ((confidence + 1) * inverseTolerance ^ 2)
     (by positivity) program (ε := 1 / inverseTolerance) (by positivity)
   have hexponent : -2 * (((confidence + 1) * inverseTolerance ^ 2 : ℕ) : ℝ) *
-      (1 / inverseTolerance) ^ 2 = (confidence + 1 : ℕ) * (-2) := by
+      (1 / inverseTolerance) ^ 2 = -2 * (confidence + 1) := by
     push_cast
     field_simp
-  rw [hexponent, Real.exp_nat_mul] at h
+  rw [hexponent] at h
+  refine h.trans ?_
   have hexp : Real.exp (-2) ≤ (1 : ℝ) / 2 := by
     rw [Real.exp_neg, inv_eq_one_div, div_le_iff₀ (Real.exp_pos 2)]
     linarith [Real.add_one_le_exp 2]
-  exact h.trans ((mul_le_mul_of_nonneg_left (pow_le_pow_left₀ (by positivity) hexp _)
-    zero_le_two).trans_eq (by rw [pow_succ]; ring))
+  rw [mul_comm (-2), ← Nat.cast_add_one, Real.exp_nat_mul]
+  calc
+    _ ≤ 2 * (1 / 2 : ℝ) ^ (confidence + 1) := by gcongr
+    _ = _ := by rw [pow_succ]; ring
 
 /-- Polynomially many independent draws find a good value except with exponentially small
 probability whenever one draw succeeds with inverse-polynomial probability. The predicate is

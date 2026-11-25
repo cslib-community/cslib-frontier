@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import Mathlib.Algebra.MvPolynomial.Degrees
 public import Mathlib.Data.Finsupp.Weight
 import CslibFrontier.Foundations.Data.MvPolynomial.Support
+import Mathlib.Data.Finsupp.Multiset
 
 /-!
 # Polynomial Calculus proofs
@@ -167,38 +168,26 @@ theorem exists_isProof_monomial_mul {F : List (MvPolynomial V R)}
     ∃ ls, IsProof F ls ∧ monomial m 1 * f ∈ ls ∧
       size ls ≤ (m.degree + 1) * f.support.card ∧ degree ls ≤ f.totalDegree + m.degree := by
   classical
-  induction m using Finsupp.induction with
-  | zero =>
-    refine ⟨[f], IsProof.nil.mem hf, ?_, ?_, ?_⟩ <;> simp
-  | single_add v k m _ _ ih =>
-    have hm (n : ℕ) : ∃ ls, IsProof F ls ∧
-        monomial (Finsupp.single v n + m) 1 * f ∈ ls ∧
-        size ls ≤ ((Finsupp.single v n + m).degree + 1) * f.support.card ∧
-        degree ls ≤ f.totalDegree + (Finsupp.single v n + m).degree := by
-      induction n with
-      | zero => simpa using ih
-      | succ n ihn =>
-        obtain ⟨ls, hls, hmem, hs, hd⟩ := ihn
-        let q := monomial (Finsupp.single v n + m) 1 * f
-        have heq : monomial (Finsupp.single v (n + 1) + m) 1 * f = X v * q := by
-          rw [show Finsupp.single v (n + 1) + m =
-              Finsupp.single v 1 + (Finsupp.single v n + m) by
-                rw [Finsupp.single_add]; abel,
-            monomial_single_add, pow_one, mul_assoc]
-        have hcard : (X v * q).support.card ≤ f.support.card :=
-          heq ▸ card_support_monomial_mul_le _ _ _
-        refine ⟨X v * q :: ls, hls.mulVar v hmem, heq ▸ List.mem_cons_self, ?_, ?_⟩
-        · simp only [size_cons, map_add, Finsupp.degree_single, Nat.add_mul, Nat.one_mul]
-            at hs ⊢
-          omega
-        · rw [degree_cons, max_le_iff, ← heq]
-          have hmono : (monomial (Finsupp.single v (n + 1) + m) (1 : R)).totalDegree ≤
-              (Finsupp.single v (n + 1) + m).degree := totalDegree_monomial_le _ _
-          refine ⟨(totalDegree_mul _ _).trans
-            ((Nat.add_le_add_right hmono _).trans_eq (Nat.add_comm _ _)), ?_⟩
-          simp only [map_add, Finsupp.degree_single] at hd ⊢
-          omega
-    exact hm k
+  rw [← Finsupp.toMultiset_toFinsupp m]
+  induction Finsupp.toMultiset m using Multiset.induction_on with
+  | empty =>
+    refine ⟨[f], IsProof.nil.mem hf, ?_, ?_, ?_⟩ <;> simp [Multiset.toFinsupp_zero]
+  | cons v s ih =>
+    rw [← Multiset.singleton_add, Multiset.toFinsupp_add, Multiset.toFinsupp_singleton]
+    obtain ⟨ls, hls, hmem, hs, hd⟩ := ih
+    let q := monomial s.toFinsupp 1 * f
+    have heq : monomial (Finsupp.single v 1 + s.toFinsupp) 1 * f = X v * q := by
+      rw [monomial_single_add, pow_one, mul_assoc]
+    have hcard : (X v * q).support.card ≤ f.support.card :=
+      heq ▸ card_support_monomial_mul_le _ _ _
+    refine ⟨X v * q :: ls, hls.mulVar v hmem, heq ▸ List.mem_cons_self, ?_, ?_⟩
+    · simp only [size_cons, map_add, Finsupp.degree_single, Nat.add_mul, Nat.one_mul] at hs ⊢
+      lia
+    · rw [degree_cons, max_le_iff, ← heq]
+      refine ⟨(totalDegree_mul _ _).trans
+        ((Nat.add_le_add_right (totalDegree_monomial_le _ _) _).trans_eq (Nat.add_comm _ _)), ?_⟩
+      rw [map_add, Finsupp.degree_single]
+      exact hd.trans (Nat.add_le_add_left (Nat.le_add_left _ _) _)
 
 /-- Derive the nonzero sum `∑ i ∈ t, C (a i) * p i` in one PC proof of degree at most `d`
 and size at most `(∑ i ∈ t, w i) ^ 2 + ∑ i ∈ t, c i`, given support bounds `w i`

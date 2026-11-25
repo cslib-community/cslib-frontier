@@ -121,20 +121,22 @@ theorem card_introducedOfCard_le_pow (P : Path (threshold k α) V)
   induction c using Nat.strong_induction_on with
   | _ c ih =>
     intro hc hck
-    obtain ⟨c', rfl⟩ : ∃ c', c = c' + 1 := ⟨c - 1, by omega⟩
+    obtain ⟨c', rfl⟩ := Nat.exists_eq_succ_of_ne_zero (Nat.ne_of_gt hc)
     have hrec := P.card_introducedOfCard_le hθ hleaf U hU hc
     have hterm : ∀ h ∈ Ico 1 (c' + 1),
         2 * threshold k α (c' + 1 - h) * (P.introducedOfCard h).card ≤
           2 * α * U.card * X ^ (2 * c') := by
       intro h hh
       obtain ⟨hh1, hhc⟩ := mem_Ico.mp hh
-      rw [threshold_of_one_le (by omega)]
-      have hIh := ih h hhc hh1 (by omega)
+      rw [threshold_of_one_le (by lia)]
+      have hIh := ih h hhc hh1 (hhc.le.trans hck)
+      have hexp : (2 * (c' + 1 - h) - 1) + (2 * h - 1) = 2 * c' := by lia
       calc 2 * (α * X ^ (2 * (c' + 1 - h) - 1)) * (P.introducedOfCard h).card
-          ≤ 2 * (α * X ^ (2 * (c' + 1 - h) - 1)) * (U.card * X ^ (2 * h - 1)) := by gcongr
-        _ = 2 * α * U.card * X ^ ((2 * (c' + 1 - h) - 1) + (2 * h - 1)) := by
-          rw [pow_add]; ring
-        _ = 2 * α * U.card * X ^ (2 * c') := by congr 2; omega
+          ≤ 2 * (α * X ^ (2 * (c' + 1 - h) - 1)) * (U.card * X ^ (2 * h - 1)) :=
+          Nat.mul_le_mul_left _ hIh
+        _ = 2 * α * U.card * X ^ (2 * c') := by
+          rw [← hexp, pow_add]
+          ac_rfl
     calc (P.introducedOfCard (c' + 1)).card
         ≤ 2 * U.card * threshold k α (c' + 1 - 1) +
             ∑ h ∈ Ico 1 (c' + 1), 2 * threshold k α (c' + 1 - h) *
@@ -144,13 +146,13 @@ theorem card_introducedOfCard_le_pow (P : Path (threshold k α) V)
           add_le_add (Nat.mul_le_mul_left _ (threshold_pred_le hk hα hc)) (sum_le_sum hterm)
       _ = (c' + 1) * (2 * α * U.card * X ^ (2 * c')) := by
           rw [sum_const, Nat.card_Ico, smul_eq_mul, Nat.add_sub_cancel,
-            show 2 * (c' + 1) - 2 = 2 * c' by omega]
+            show 2 * (c' + 1) - 2 = 2 * c' by lia]
           ring
       _ ≤ k * (2 * α * U.card * X ^ (2 * c')) := Nat.mul_le_mul_right _ hck
       _ = U.card * X ^ (2 * (c' + 1) - 1) := by
-          rw [show 2 * (c' + 1) - 1 = 2 * c' + 1 by omega, pow_succ]
+          rw [show 2 * (c' + 1) - 1 = 2 * c' + 1 by lia, pow_succ]
           simp only [X, base]
-          ring
+          ac_rfl
 
 /-- **Few introduced clauses.** Along a branch from a clause set of width `k` over the `N`
 variables of `U`, ending in a sparse node, at most `N k X ^ (2 k)` clauses are introduced. -/

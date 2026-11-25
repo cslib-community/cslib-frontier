@@ -156,9 +156,8 @@ private theorem ClusterWitness.partialIso {m k : ℕ} {a : Fin k → M} {b : Fin
     · set p := W.cl i
       obtain ⟨u, hu⟩ := (W.entry p).mem_idx i rfl
       obtain ⟨v, hv⟩ := (W.entry p).mem_idx j hij.symm
-      have heq := (W.entry p).isNbhdIso.partialIso.eq_iff u v
-      simp only [Function.comp_apply, hu, hv] at heq
-      exact heq
+      simpa only [Function.comp_apply, hu, hv] using
+        (W.entry p).isNbhdIso.partialIso.eq_iff u v
     · exact iff_of_false (fun h => by simpa [h] using W.sepM i j hij)
         (fun h => by simpa [h] using W.sepN i j hij)
   · rcases Nat.eq_zero_or_pos l with rfl | hl
@@ -168,10 +167,9 @@ private theorem ClusterWitness.partialIso {m k : ℕ} {a : Fin k → M} {b : Fin
       set p := W.cl (f i₀)
       by_cases hall : ∀ q : Fin l, W.cl (f q) = p
       · choose g hg using fun q => (W.entry p).mem_idx (f q) (hall q)
-        have ha : a ∘ f = (a ∘ (W.entry p).idx) ∘ g := funext fun q => congrArg a (hg q).symm
-        have hb : b ∘ f = (b ∘ (W.entry p).idx) ∘ g := funext fun q => congrArg b (hg q).symm
-        rw [ha, hb]
-        exact (W.entry p).isNbhdIso.partialIso.relMap_iff R g
+        have hcomp : (W.entry p).idx ∘ g = f := funext hg
+        simpa only [Function.comp_assoc, hcomp] using
+          (W.entry p).isNbhdIso.partialIso.relMap_iff R g
       · obtain ⟨q, hq⟩ := not_forall.mp hall
         have farM : 1 < (gaifmanGraph L M).edist (a (f q)) (a (f i₀)) :=
           (one_le_cast_two_pow m).trans_lt (W.sepM (f q) (f i₀) hq)
@@ -199,14 +197,10 @@ private noncomputable def ClusterWitness.symm [Nonempty M] {m k : ℕ} {a : Fin 
 
 private theorem edist_gt_of_sep {V : Type*} {G : SimpleGraph V} {T : ℕ} {u v x : V}
     (huv : ((2 * T : ℕ) : ℕ∞) < G.edist u v) (hux : G.edist u x ≤ T) :
-    ((T : ℕ) : ℕ∞) < G.edist x v := by
-  by_contra hle
-  rw [not_lt] at hle
-  have htri : G.edist u v ≤ ((2 * T : ℕ) : ℕ∞) :=
-    calc G.edist u v ≤ G.edist u x + G.edist x v := SimpleGraph.edist_triangle
-      _ ≤ (T : ℕ∞) + T := add_le_add hux hle
-      _ = ((2 * T : ℕ) : ℕ∞) := by rw [← Nat.cast_add, two_mul]
-  exact absurd huv (not_lt.2 htri)
+    ((T : ℕ) : ℕ∞) < G.edist x v := lt_of_not_ge fun hxv => huv.not_ge <| calc
+  G.edist u v ≤ G.edist u x + G.edist x v := SimpleGraph.edist_triangle
+  _ ≤ (T : ℕ∞) + T := add_le_add hux hxv
+  _ = ((2 * T : ℕ) : ℕ∞) := by rw [← Nat.cast_add, two_mul]
 
 private theorem cast_two_pow_le_succ (m : ℕ) : ((2 ^ m : ℕ) : ℕ∞) ≤ ((2 ^ (m + 1) : ℕ) : ℕ∞) := by
   exact_mod_cast Nat.pow_le_pow_right (by decide) (Nat.le_succ m)
@@ -295,12 +289,7 @@ private def ClusterEntry.snocSkip {r d k c c' : ℕ} {a : Fin k → M} {b : Fin 
       exact ⟨u, congrArg Fin.castSucc hu⟩
   isoFun := E.isoFun
   isNbhdIso := by
-    have ha_eq : (Fin.snoc a x : Fin (k + 1) → M) ∘ (Fin.castSucc ∘ E.idx) = a ∘ E.idx := by
-      ext; simp
-    have hb_eq : (Fin.snoc b y : Fin (k + 1) → N) ∘ (Fin.castSucc ∘ E.idx) = b ∘ E.idx := by
-      ext; simp
-    rw [ha_eq, hb_eq]
-    exact E.isNbhdIso.mono hd
+    simpa only [← Function.comp_assoc, Fin.snoc_comp_castSucc] using E.isNbhdIso.mono hd
 
 /-- Extend cluster `E` with `(x, E.isoFun x)` at radius `d` when `x ∈ ball L (a ∘ E.idx) l` and
 `l + d ≤ r`. -/
@@ -330,19 +319,10 @@ private def ClusterEntry.snocExtend {r l d k c : ℕ} {a : Fin k → M} {b : Fin
       | last => simpa using hx
       | cast u => simpa using ball_mono (Nat.zero_le l) (mem_ball_self (a ∘ E.idx) 0 u)
     have hres := E.isNbhdIso.restrict (x := Fin.snoc (a ∘ E.idx) x) (l := l) (d := d) hsub hld
-    have ha_eq : (Fin.snoc a x : Fin (k + 1) → M) ∘
-        Fin.snoc (Fin.castSucc ∘ E.idx) (Fin.last k) = Fin.snoc (a ∘ E.idx) x := by
-      ext u; induction u using Fin.lastCases <;> simp
-    have hb_eq : (Fin.snoc b (E.isoFun x) : Fin (k + 1) → N) ∘
-        Fin.snoc (Fin.castSucc ∘ E.idx) (Fin.last k) =
-        E.isoFun ∘ Fin.snoc (a ∘ E.idx) x := by
-      ext u
-      induction u using Fin.lastCases with
-      | last => simp
-      | cast u =>
-        simp only [Function.comp_apply, Fin.snoc_castSucc]
-        exact (E.isNbhdIso.map_tuple u).symm
-    rwa [ha_eq, hb_eq]
+    rw [Fin.comp_snoc, show E.isoFun ∘ (a ∘ E.idx) = b ∘ E.idx from
+      funext E.isNbhdIso.map_tuple] at hres
+    simpa only [Fin.comp_snoc, ← Function.comp_assoc, Fin.snoc_comp_castSucc, Fin.snoc_last]
+      using hres
 
 /-- Singleton cluster `{Fin.last k}` formed from a far move `(x, y)`. -/
 private def ClusterEntry.snocSingleton {d k c : ℕ} (a : Fin k → M) (b : Fin k → N)
@@ -361,11 +341,7 @@ private def ClusterEntry.snocSingleton {d k c : ℕ} (a : Fin k → M) (b : Fin 
       exact absurd hi (Fin.castSucc_ne_last _)
   isoFun := h
   isNbhdIso := by
-    have ha_eq : (Fin.snoc a x : Fin (k + 1) → M) ∘ (fun _ : Fin 1 => Fin.last k) =
-        fun _ : Fin 1 => x := by ext; simp
-    have hb_eq : (Fin.snoc b y : Fin (k + 1) → N) ∘ (fun _ : Fin 1 => Fin.last k) =
-        fun _ : Fin 1 => y := by ext; simp
-    rwa [ha_eq, hb_eq]
+    simpa only [Function.comp_def, Fin.snoc_last] using H
 
 /-- One forth step of the clustered invariant: from stage `m + 1` and Spoiler move `x : M`,
 Duplicator finds `y : N` preserving `ClusterWitness` at stage `m`. -/
@@ -375,19 +351,21 @@ private theorem ClusterWitness.forth [Finite M] {m k : ℕ} {a : Fin k → M} {b
     ∃ y : N, Nonempty (ClusterWitness L m (Fin.snoc a x : Fin (k + 1) → M)
       (Fin.snoc b y : Fin (k + 1) → N)) := by
   have hr_eq := two_pow_add_pred_eq m
+  have hr : 2 ^ m ≤ 2 ^ (m + 1) - 1 := by lia
+  have hshrink : 2 ^ m - 1 ≤ 2 ^ (m + 1) - 1 := (Nat.sub_le _ _).trans hr
   by_cases hnear : ∃ p : Fin W.c, x ∈ ball L (a ∘ (W.entry p).idx) (2 ^ m)
   · -- Case A: `x` lies within `2 ^ m` of some cluster `p₀`; extend `p₀`.
     obtain ⟨p₀, hx⟩ := hnear
     set E₀ := W.entry p₀
     set y := E₀.isoFun x
     have hy : y ∈ ball L (b ∘ E₀.idx) (2 ^ m) :=
-      E₀.isNbhdIso.mapsTo_ball (by omega) hx
+      E₀.isNbhdIso.mapsTo_ball hr hx
     refine ⟨y, ⟨{
       c := W.c
       cl := Fin.snoc W.cl p₀
       entry := fun p =>
         if hp : p = p₀ then hp ▸ E₀.snocExtend hr_eq.le hx
-        else (W.entry p).snocSkip (by omega) x y (Fin.snoc W.cl p₀) p
+        else (W.entry p).snocSkip hshrink x y (Fin.snoc W.cl p₀) p
           (fun u => by simp [(W.entry p).cl_idx u])
           (fun _ hj => by simpa only [Fin.snoc_castSucc] using hj)
           (by simp [Ne.symm hp])
@@ -401,41 +379,36 @@ private theorem ClusterWitness.forth [Finite M] {m k : ℕ} {a : Fin k → M} {b
   · -- Case B: `x` lies outside every cluster's `2 ^ m`-ball; form a new singleton cluster.
     let BM : Fin W.c → Set M := fun p => ball L (a ∘ (W.entry p).idx) (2 ^ m)
     let BN : Fin W.c → Set N := fun p => ball L (b ∘ (W.entry p).idx) (2 ^ m)
-    have disjM : ∀ {p q : Fin W.c}, p ≠ q → ∀ {z : M}, z ∈ BM p → z ∉ BM q :=
-      fun hpq _ => not_mem_ball_of_sep W.sepM hpq (W.entry _).cl_idx (W.entry _).cl_idx
-    have disjN : ∀ {p q : Fin W.c}, p ≠ q → ∀ {w : N}, w ∈ BN p → w ∉ BN q :=
-      fun hpq _ => not_mem_ball_of_sep W.sepN hpq (W.entry _).cl_idx (W.entry _).cl_idx
+    have disjM : Pairwise fun p q => Disjoint (BM p) (BM q) := fun p q hpq =>
+      Set.disjoint_left.2 fun _ hz =>
+        not_mem_ball_of_sep W.sepM hpq (W.entry p).cl_idx (W.entry q).cl_idx hz
+    have disjN : Pairwise fun p q => Disjoint (BN p) (BN q) := fun p q hpq =>
+      Set.disjoint_left.2 fun _ hz =>
+        not_mem_ball_of_sep W.sepN hpq (W.entry p).cl_idx (W.entry q).cl_idx hz
     set SM : Set M := ⋃ p, BM p
     set SN : Set N := ⋃ p, BN p
     classical
-    let H : M → N := fun z => if hz : ∃ p, z ∈ BM p then (W.entry hz.choose).isoFun z else e z
-    have hEq : ∀ (p : Fin W.c) {z : M}, z ∈ BM p → H z = (W.entry p).isoFun z := by
-      intro p z hzp
-      have hz : ∃ q, z ∈ BM q := ⟨p, hzp⟩
-      have hp : hz.choose = p := by_contra fun hne => disjM hne hz.choose_spec hzp
-      simp only [H, hz, dite_true]
-      rw [hp]
+    -- Identify each union with the dependent sum of its disjoint cluster balls.
+    let ballEquiv (p : Fin W.c) : BM p ≃ BN p :=
+      Set.BijOn.equiv _ ((W.entry p).isNbhdIso.mono hr).bijOn
+    let EM := Set.unionEqSigmaOfDisjoint disjM
+    let EN := Set.unionEqSigmaOfDisjoint disjN
+    let E : SM ≃ SN := EM.trans ((Equiv.sigmaCongrRight ballEquiv).trans EN.symm)
+    let H : M → N := fun z => if hz : z ∈ SM then (E ⟨z, hz⟩).val else e z
+    have hH (z : SM) : H z = (E z).val := dite_eq_left z.property
+    have hEq (p : Fin W.c) {z : M} (hzp : z ∈ BM p) : H z = (W.entry p).isoFun z := by
+      let q : Σ p, BM p := ⟨p, ⟨z, hzp⟩⟩
+      change H (EM.symm q).val = (W.entry p).isoFun z
+      rw [hH (EM.symm q)]
+      simp only [E, Equiv.trans_apply, Equiv.apply_symm_apply]
+      rfl
     have hBij : Set.BijOn H SM SN := by
-      refine ⟨fun z hz => ?_, fun z₁ hz₁ z₂ hz₂ h12 => ?_, fun w hw => ?_⟩
-      · obtain ⟨p, hzp⟩ := Set.mem_iUnion.1 hz
-        refine Set.mem_iUnion.2 ⟨p, ?_⟩
-        rw [hEq p hzp]
-        exact (W.entry p).isNbhdIso.mapsTo_ball (by omega) hzp
-      · obtain ⟨p₁, hz₁p⟩ := Set.mem_iUnion.1 hz₁
-        obtain ⟨p₂, hz₂p⟩ := Set.mem_iUnion.1 hz₂
-        rw [hEq p₁ hz₁p, hEq p₂ hz₂p] at h12
-        have hw₁ : (W.entry p₁).isoFun z₁ ∈ BN p₁ :=
-          (W.entry p₁).isNbhdIso.mapsTo_ball (by omega) hz₁p
-        have hw₂ : (W.entry p₁).isoFun z₁ ∈ BN p₂ := by
-          rw [h12]
-          exact (W.entry p₂).isNbhdIso.mapsTo_ball (by omega) hz₂p
-        obtain rfl : p₁ = p₂ := by_contra fun hne => disjN hne hw₁ hw₂
-        exact ((W.entry p₁).isNbhdIso.mono (by omega : 2 ^ m ≤ 2 ^ (m + 1) - 1)).bijOn.injOn
-          hz₁p hz₂p h12
-      · obtain ⟨p, hwp⟩ := Set.mem_iUnion.1 hw
-        obtain ⟨z, hzp, rfl⟩ :=
-          ((W.entry p).isNbhdIso.mono (by omega : 2 ^ m ≤ 2 ^ (m + 1) - 1)).bijOn.surjOn hwp
-        exact ⟨z, Set.mem_iUnion.2 ⟨p, hzp⟩, hEq p hzp⟩
+      refine ⟨fun z hz => hH ⟨z, hz⟩ ▸ (E ⟨z, hz⟩).property,
+        fun z hz w hw he => ?_, fun w hw => ?_⟩
+      · rw [hH ⟨z, hz⟩, hH ⟨w, hw⟩] at he
+        exact congrArg Subtype.val (E.injective (Subtype.ext he))
+      · obtain ⟨z, hz⟩ := E.surjective ⟨w, hw⟩
+        exact ⟨z, z.property, (hH z).trans (congrArg Subtype.val hz)⟩
     have hPt : ∀ z ∈ SM, NbhdIso L (2 ^ m - 1) (fun _ : Fin 1 => z) (fun _ : Fin 1 => H z) := by
       intro z hz
       obtain ⟨p, hzp⟩ := Set.mem_iUnion.1 hz
@@ -452,7 +425,7 @@ private theorem ClusterWitness.forth [Finite M] {m k : ℕ} {a : Fin k → M} {b
       cl := Fin.snoc (Fin.castSucc ∘ W.cl) (Fin.last W.c)
       entry := fun p =>
         Fin.lastCases (ClusterEntry.snocSingleton a b W.cl H_xy)
-          (fun p' => (W.entry p').snocSkip (by omega) x y
+          (fun p' => (W.entry p').snocSkip hshrink x y
             (Fin.snoc (Fin.castSucc ∘ W.cl) (Fin.last W.c)) p'.castSucc
             (fun u => by simp [(W.entry p').cl_idx u])
             (fun _ hj => by

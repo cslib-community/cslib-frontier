@@ -294,16 +294,6 @@ theorem RefutableInSize.of_relabel {W : Type*} [DecidableEq W] {f : V → W}
 
 /-! ### Restricting and lifting proofs -/
 
-private theorem countP_cons_le_cons {α β : Type*} {p : α → Bool} {q : β → Bool} {a : α} {b : β}
-    {l : List α} {l' : List β} (h : l.countP p ≤ l'.countP q) (hab : p a = true → q b = true) :
-    (a :: l).countP p ≤ (b :: l').countP q := by
-  grind
-
-private theorem countP_le_cons {α β : Type*} {p : α → Bool} {q : β → Bool} {b : β} {l : List α}
-    {l' : List β} (h : l.countP p ≤ l'.countP q) : l.countP p ≤ (b :: l').countP q := by
-  rw [List.countP_cons]
-  omega
-
 /-- Helper: lines of `ls'` with literals in `c₁` and in `c₂` give a line of `ls'`, or a resolvent
 of two lines of `ls'` on `u`, with literals in `c₁.resolvent c₂ u`. -/
 private theorem exists_subset_resolvent {ls' : List (Clause V)} {c₁ c₂ c₁' c₂' : Clause V}
@@ -322,63 +312,6 @@ private theorem exists_subset_resolvent {ls' : List (Clause V)} {c₁ c₂ c₁'
 theorem IsProof.fst_ne_of_restrict {v : V} {b : Bool} (h : (φ.restrict v b).IsProof ls)
     (hc : c ∈ ls) {l : Literal V} (hl : l ∈ c) : l.1 ≠ v :=
   (Finset.mem_erase.1 (vars_restrict_subset (List.mem_toFinset.2 (h.fst_mem_vars hc hl)))).1
-
-/-- **Restricting a proof.** A proof from `φ` becomes a proof from `φ` with `v` fixed to `b`, with
-at most as many lines. Every line of the original proof that does not contain the literal `(v, b)`
-is replaced by a line of the new proof with a subset of its literals, and for every `w` the new
-proof has at most as many lines wider than `w` as the original proof has lines without `(v, b)`
-wider than `w`. -/
-theorem IsProof.restrict (h : φ.IsProof ls) (v : V) (b : Bool) :
-    ∃ ls', (φ.restrict v b).IsProof ls' ∧ ls'.length ≤ ls.length ∧
-      (∀ c ∈ ls, (v, b) ∉ c → ∃ c' ∈ ls', ∀ l ∈ c', l ∈ c) ∧
-      ∀ w, ls'.countP (fun c => w < c.width) ≤ ls.countP (fun c => (v, b) ∉ c ∧ w < c.width) := by
-  induction h with
-  | nil => exact ⟨[], .nil, le_rfl, by simp, by simp⟩
-  | @mem ls c _ hc ih =>
-    obtain ⟨ls', h', hlen, hsub, hcount⟩ := ih
-    by_cases hvc : (v, b) ∈ c
-    · exact ⟨ls', h', hlen.trans (Nat.le_succ _), List.forall_mem_cons.2 ⟨absurd hvc, hsub⟩,
-        fun w => countP_le_cons (hcount w)⟩
-    · exact ⟨c.filter (· ≠ (v, !b)) :: ls', h'.mem (mem_restrict.2 ⟨c, hc, hvc, rfl⟩),
-        Nat.succ_le_succ hlen, List.forall_mem_cons.2 ⟨fun _ => ⟨_, List.mem_cons_self,
-          fun l hl => (List.mem_filter.1 hl).1⟩,
-          fun e he hve => List.exists_mem_cons_of_exists (hsub e he hve)⟩,
-        fun w => countP_cons_le_cons (hcount w) fun hw => decide_eq_true ⟨hvc,
-          (of_decide_eq_true hw).trans_le
-            (Clause.width_le_width fun l hl => (List.mem_filter.1 hl).1)⟩⟩
-  | @resolvent ls c₁ c₂ u _ h₁ h₂ hu₁ hu₂ ih =>
-    obtain ⟨ls', h', hlen, hsub, hcount⟩ := ih
-    by_cases hvc : (v, b) ∈ c₁.resolvent c₂ u
-    · exact ⟨ls', h', hlen.trans (Nat.le_succ _), List.forall_mem_cons.2 ⟨absurd hvc, hsub⟩,
-        fun w => countP_le_cons (hcount w)⟩
-    -- the new line to add, if any: a subclause of the resolvent derivable from `ls'`
-    have key : ∃ c', (c' ∈ ls' ∨ ∃ c₁' c₂', c₁' ∈ ls' ∧ c₂' ∈ ls' ∧ (u, true) ∈ c₁' ∧
-        (u, false) ∈ c₂' ∧ c' = c₁'.resolvent c₂' u) ∧ ∀ l ∈ c', l ∈ c₁.resolvent c₂ u := by
-      have hne (c' : Clause V) (hc' : c' ∈ ls') (l : Literal V) (hl : l ∈ c') :
-          l.1 ≠ v := h'.fst_ne_of_restrict hc' hl
-      by_cases hv₁ : (v, b) ∈ c₁
-      · -- `v = u` and `b = true`: the second premise is not satisfied, and its subclause will do
-        obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Clause.eq_of_mem_of_notMem_resolvent_left hv₁ hvc)
-        obtain ⟨c₂', hc₂', hsub₂⟩ := hsub c₂ h₂ fun hv₂ =>
-          hvc (Clause.mem_resolvent.2 (Or.inr ⟨hv₂, by simp⟩))
-        exact ⟨c₂', Or.inl hc₂',
-          Clause.subset_resolvent_right hsub₂ fun hv => hne _ hc₂' _ hv rfl⟩
-      by_cases hv₂ : (v, b) ∈ c₂
-      · obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Clause.eq_of_mem_of_notMem_resolvent_right hv₂ hvc)
-        obtain ⟨c₁', hc₁', hsub₁⟩ := hsub c₁ h₁ hv₁
-        exact ⟨c₁', Or.inl hc₁',
-          Clause.subset_resolvent_left hsub₁ fun hv => hne _ hc₁' _ hv rfl⟩
-      obtain ⟨c₁', hc₁', hsub₁⟩ := hsub c₁ h₁ hv₁
-      obtain ⟨c₂', hc₂', hsub₂⟩ := hsub c₂ h₂ hv₂
-      exact exists_subset_resolvent hc₁' hc₂' hsub₁ hsub₂
-    obtain ⟨c', hc' | ⟨c₁', c₂', hc₁', hc₂', hu₁', hu₂', rfl⟩, hsub'⟩ := key
-    · exact ⟨ls', h', hlen.trans (Nat.le_succ _), List.forall_mem_cons.2 ⟨fun _ => ⟨c', hc', hsub'⟩,
-        hsub⟩, fun w => countP_le_cons (hcount w)⟩
-    · exact ⟨_ :: ls', h'.resolvent u hc₁' hc₂' hu₁' hu₂', Nat.succ_le_succ hlen,
-        List.forall_mem_cons.2 ⟨fun _ => ⟨_, List.mem_cons_self, hsub'⟩,
-          fun e he hve => List.exists_mem_cons_of_exists (hsub e he hve)⟩,
-        fun w => countP_cons_le_cons (hcount w) fun hw =>
-          decide_eq_true ⟨hvc, (of_decide_eq_true hw).trans_le (Clause.width_le_width hsub')⟩⟩
 
 /-- **Lifting a proof.** A proof from `φ` with `v` fixed to `b` lifts to a proof from `φ`. Every
 line of the original proof is contained in a line of the lifted proof that has, besides its
@@ -439,9 +372,8 @@ omit [DecidableEq V] in
 /-- A formula restricted by `ρ` mentions only variables that `ρ` does not fix. -/
 theorem eq_none_of_mem_restrictBy {ρ : V → Option Bool} (hc : c ∈ φ.restrictBy ρ)
     {l : Literal V} (hl : l ∈ c) : ρ l.1 = none := by
-  simp only [restrictBy, List.mem_map, List.mem_filter] at hc
-  obtain ⟨d, -, rfl⟩ := hc
-  simpa using (List.mem_filter.1 hl).2
+  obtain ⟨d, -, -, rfl⟩ := mem_restrictBy.1 hc
+  exact of_decide_eq_true (List.mem_filter.1 hl).2
 
 /-- The lines of a proof from a formula restricted by `ρ` mention only variables that `ρ` does not
 fix. -/
@@ -517,6 +449,61 @@ theorem IsProof.restrictBy (h : φ.IsProof ls) (ρ : V → Option Bool) :
           ⟨fun _ => ⟨_, List.mem_cons_self, hsub'⟩,
             fun e he hfe => List.exists_mem_cons_of_exists (hsub e he hfe)⟩,
         _ :: ks, hks.cons_cons _, List.forall_mem_cons.2 ⟨hsat, hfree⟩, .cons hsub' hF⟩
+
+private theorem countP_le_of_forall₂ {α β : Type*} {R : α → β → Prop}
+    {xs : List α} {ys : List β} {p : α → Bool} {q : β → Bool} (h : List.Forall₂ R xs ys)
+    (hpq : ∀ {x y}, R x y → p x → q y) : xs.countP p ≤ ys.countP q := by
+  induction h with
+  | nil => exact le_rfl
+  | @cons x y xs ys hxy _ ih =>
+    by_cases hx : p x
+    · simpa only [List.countP_cons_of_pos hx, List.countP_cons_of_pos (hpq hxy hx)] using
+        Nat.add_le_add_right ih 1
+    · rw [List.countP_cons_of_neg hx]
+      exact ih.trans ((List.sublist_cons_self y ys).countP_le)
+
+/-- **Restricting a proof.** A proof from `φ` becomes a proof from `φ` with `v` fixed to `b`, with
+at most as many lines. Every line of the original proof that does not contain the literal `(v, b)`
+is replaced by a line of the new proof with a subset of its literals, and for every `w` the new
+proof has at most as many lines wider than `w` as the original proof has lines without `(v, b)`
+wider than `w`. -/
+theorem IsProof.restrict (h : φ.IsProof ls) (v : V) (b : Bool) :
+    ∃ ls', (φ.restrict v b).IsProof ls' ∧ ls'.length ≤ ls.length ∧
+      (∀ c ∈ ls, (v, b) ∉ c → ∃ c' ∈ ls', ∀ l ∈ c', l ∈ c) ∧
+      ∀ w, ls'.countP (fun c => w < c.width) ≤ ls.countP (fun c => (v, b) ∉ c ∧ w < c.width) := by
+  let ρ : V → Option Bool := fun u => if u = v then some b else none
+  have hfree {c : Clause V} : (∀ l ∈ c, ρ l.1 ≠ some l.2) ↔ (v, b) ∉ c := by
+    constructor
+    · exact fun h hc => h (v, b) hc (ite_eq_left rfl)
+    · intro hc
+      rintro ⟨u, a⟩ hl
+      by_cases hu : u = v
+      · subst u
+        exact fun he => hc (Option.some.inj (by simpa only [ρ, ite_eq_left rfl] using he) ▸ hl)
+      · simp [ρ, hu]
+  -- On a clause that survives the restriction, any literal on `v` has sign `!b`.
+  have hformula : φ.restrictBy ρ ⊆ φ.restrict v b := by
+    intro c hc
+    obtain ⟨d, hd, hdc, rfl⟩ := mem_restrictBy.1 hc
+    have hvd := hfree.mp hdc
+    refine mem_restrict.2 ⟨d, hd, hvd, List.filter_congr ?_⟩
+    rintro ⟨u, a⟩ hl
+    by_cases hu : u = v
+    · subst u
+      have ha : a = !b := Bool.eq_not_of_ne fun he => hvd (he ▸ hl)
+      simp [ρ, ha]
+    · simp [ρ, hu]
+  obtain ⟨ls', h', hsub, ks, hks, hfreeks, hF⟩ := h.restrictBy ρ
+  refine ⟨ls', h'.mono hformula, hF.length_eq.le.trans hks.length_le,
+    fun c hc hvc => hsub c hc (hfree.mpr hvc), fun w => ?_⟩
+  calc
+    ls'.countP (fun c => w < c.width) ≤ ks.countP (fun c => w < c.width) := by
+      refine countP_le_of_forall₂ hF fun hsub hw => ?_
+      exact decide_eq_true ((of_decide_eq_true hw).trans_le (Clause.width_le_width hsub))
+    _ ≤ ks.countP (fun c => (v, b) ∉ c ∧ w < c.width) :=
+      List.countP_mono_left fun c hc hw =>
+        decide_eq_true ⟨hfree.mp (hfreeks c hc), of_decide_eq_true hw⟩
+    _ ≤ _ := hks.countP_le
 
 end CNF
 

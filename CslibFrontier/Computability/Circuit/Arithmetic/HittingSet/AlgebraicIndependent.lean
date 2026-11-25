@@ -57,10 +57,12 @@ private theorem eval_eq_zero_of_mul_wronskian {a : F} {R α γ S : F[X]} (hR : R
     (hα : α ≠ 0)
     (h : (X - C a) * R * (α * derivative γ - derivative α * γ) = α ^ 2 * S) : S.eval a = 0 := by
   rcases eq_or_ne γ 0 with rfl | hγ
-  · simp [show S = 0 by simpa [hα] using h.symm]
+  · have hS : S = 0 := by simpa [hα] using h.symm
+    rw [hS, eval_zero]
   obtain ⟨α₀, hα', hα₀⟩ := exists_eq_pow_rootMultiplicity_mul_and_not_dvd α hα a
   obtain ⟨γ₀, hγ', hγ₀⟩ := exists_eq_pow_rootMultiplicity_mul_and_not_dvd γ hγ a
-  generalize rootMultiplicity a α = p at hα'; generalize rootMultiplicity a γ = q at hγ'
+  generalize rootMultiplicity a α = p at hα'
+  generalize rootMultiplicity a γ = q at hγ'
   subst hα' hγ'
   rw [dvd_iff_isRoot, IsRoot] at hα₀ hγ₀
   have hL (k : ℕ) : (X - C a) * derivative ((X - C a) ^ k) = (k : F[X]) * (X - C a) ^ k := by
@@ -84,7 +86,10 @@ private theorem eval_eq_zero_of_mul_wronskian {a : F} {R α γ S : F[X]} (hR : R
     have h' := congrArg (eval a) (mul_left_cancel₀ (pow_ne_zero (2 * q + k + 1) hX)
       (b := R * (-((k : F[X]) + 1) * (α₀ * γ₀) +
         (X - C a) * (α₀ * derivative γ₀ - derivative α₀ * γ₀)))
-      (c := (X - C a) ^ (k + 1) * (α₀ ^ 2 * S)) (by push_cast at key; linear_combination key))
+      (c := (X - C a) ^ (k + 1) * (α₀ ^ 2 * S)) (by
+        have := key
+        push_cast at this
+        linear_combination this))
     have hk : -((k : F) + 1) = 0 := by simpa [hR, hα₀, hγ₀] using h'
     exact (Nat.cast_add_one_ne_zero k (neg_eq_zero.1 hk)).elim
 
@@ -93,9 +98,11 @@ private theorem logDenom_eq (i : Fin n) :
     logDenom F n = (X - C (-((i : ℕ) + 1 : F)⁻¹)) * logCoeff F n i := by
   have hi : ((i : ℕ) + 1 : F) ≠ 0 := Nat.cast_add_one_ne_zero i
   have h : C ((i : ℕ) + 1 : F) * (X - C (-((i : ℕ) + 1 : F)⁻¹)) = 1 + C ((i : ℕ) + 1 : F) * X := by
-    rw [mul_sub, ← C_mul, mul_neg, mul_inv_cancel₀ hi]; simp [add_comm]
+    rw [mul_sub, ← C_mul, mul_neg, mul_inv_cancel₀ hi]
+    simp [add_comm]
   refine mul_left_cancel₀ (C_ne_zero.2 hi) ?_
-  rw [← logCoeff_mul, ← h]; ring
+  rw [← logCoeff_mul, ← h]
+  ring
 
 /-- Among the `bⱼ`, only `bᵢ` does not vanish at `-1 / (i + 1)`. -/
 private theorem eval_logCoeff_eq_zero_iff (i j : Fin n) :
@@ -143,11 +150,15 @@ private theorem eq_zero_of_aeval_logSeries (d : ℕ) (g : MvPolynomial (Fin n) F
       simp only [mem_filter, mem_erase, MvPolynomial.mem_support_iff, hcoeff] at hm ⊢
       obtain ⟨hm, hmd⟩ := hm
       rw [hD m hmd.ge] at hm
-      exact ⟨fun h => hm (by rw [h]; ring), fun h => hm (by rw [h]; simp), hmd⟩
-    · rw [hcoeff, hD m (Nat.le_of_succ_le hm), hd m hm]; simp
+      refine ⟨fun h => hm ?_, fun h => hm ?_, hmd⟩
+      · rw [h]; ring
+      · rw [h]; simp
+    · rw [hcoeff, hD m (Nat.le_of_succ_le hm), hd m hm]
+      simp
   have H (m : Fin n →₀ ℕ) :
       α * (logDeriv F n g).coeff m = logDenom F n * derivative α * g.coeff m := by
-    rw [← sub_eq_zero, ← hcoeff, hmin]; simp
+    rw [← sub_eq_zero, ← hcoeff, hmin]
+    simp
   have hQ : logDenom F n ≠ 0 := prod_ne_zero_iff.2 fun i _ h => by
     simpa using congrArg (eval 0) h
   -- In degree `d`, the coefficients of `g` are constant multiples of `α`.
@@ -163,12 +174,17 @@ private theorem eq_zero_of_aeval_logSeries (d : ℕ) (g : MvPolynomial (Fin n) F
     exact ⟨c, Polynomial.coe_injective F (by rw [hc, Polynomial.coe_smul])⟩
   choose! c hc using hconst
   rcases eq_or_ne m₀ 0 with rfl | hne
-  · rw [map_zero] at hm₀; subst hm₀
+  · -- `d = 0`: then `g = α` is a nonzero polynomial in `t`.
+    rw [map_zero] at hm₀
+    subst hm₀
     have hgα : g = MvPolynomial.C α := MvPolynomial.ext _ _ fun m => by
-      rw [MvPolynomial.coeff_C]; split_ifs with h
+      rw [MvPolynomial.coeff_C]
+      split_ifs with h
       · rw [← h]
       · exact hd m (Nat.pos_of_ne_zero fun h0 => h ((Finsupp.degree_eq_zero_iff m).1 h0).symm)
-    exact hα (by simpa [hgα, PowerSeries.algebraMap_apply'] using hg)
+    rw [hgα, MvPolynomial.aeval_C] at hg
+    exact hα (by simpa [PowerSeries.algebraMap_apply'] using hg)
+  -- `d ≥ 1`: compare the coefficients at a monomial `m` of degree `d - 1` below `m₀`.
   obtain ⟨i, hi⟩ := DFunLike.ne_iff.1 hne
   have hm := Finsupp.sub_add_single_one_cancel hi
   set m := m₀ - Finsupp.single i 1
@@ -178,7 +194,8 @@ private theorem eq_zero_of_aeval_logSeries (d : ℕ) (g : MvPolynomial (Fin n) F
   rw [coeff_logDeriv] at h
   have hsum (j : Fin n) : logCoeff F n j * (g.coeff (m + Finsupp.single j 1) * (m j + 1)) =
       α * (logCoeff F n j * C (c (m + Finsupp.single j 1) * (m j + 1))) := by
-    rw [hc _ (hdeg j), smul_eq_C_mul, C_mul, C_add, C_1, C_eq_natCast]; ring
+    rw [hc _ (hdeg j), smul_eq_C_mul, C_mul, C_add, C_1, C_eq_natCast]
+    ring
   simp only [hsum, ← mul_sum] at h
   have h0 := eval_eq_zero_of_mul_wronskian (a := -((i : ℕ) + 1 : F)⁻¹)
     (mt (eval_logCoeff_eq_zero_iff i i).1 (by simp)) hα
@@ -188,8 +205,9 @@ private theorem eq_zero_of_aeval_logSeries (d : ℕ) (g : MvPolynomial (Fin n) F
     rw [eval_mul, (eval_logCoeff_eq_zero_iff i j).2 hj, zero_mul]) (by simp), hm, eval_mul,
     eval_C, mul_eq_zero, mul_eq_zero] at h0
   rcases h0 with h0 | h0 | h0
-  exacts [(eval_logCoeff_eq_zero_iff i i).1 h0 rfl, hα (by rw [hαdef, hc m₀ hm₀, h0, zero_smul]),
-    Nat.cast_add_one_ne_zero _ h0]
+  · exact (eval_logCoeff_eq_zero_iff i i).1 h0 rfl
+  · exact hα (by rw [hαdef, hc m₀ hm₀, h0, zero_smul])
+  · exact Nat.cast_add_one_ne_zero _ h0
 
 /-- Lemmas 2.3 and 2.4 of the source: the power series `ln (1 + (i + 1) t)` are algebraically
 independent over `F[t]`. -/

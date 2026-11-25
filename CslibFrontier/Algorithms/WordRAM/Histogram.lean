@@ -96,23 +96,16 @@ theorem pairs_eq_card (keys : ℕ → ℕ) (k : ℕ) :
       ext p
       simp only [C, mem_filter, mem_product, mem_singleton]
       aesop
-    have hAB : Disjoint A B := by
-      rw [disjoint_left]
-      intro p hp hq
-      have hp' := (mem_offDiag.mp (mem_filter.mp hp).1).1
-      have hq' := mem_singleton.mp (mem_product.mp (mem_filter.mp hq).1).1
-      have : p.1 < k := mem_range.mp hp'
+    have hAB : Disjoint A B := disjoint_left.mpr fun p hp hq => by
+      have := mem_range.mp (mem_offDiag.mp (mem_filter.mp hp).1).1
+      have := mem_singleton.mp (mem_product.mp (mem_filter.mp hq).1).1
       omega
-    have hAC : Disjoint (A ∪ B) C := by
-      rw [disjoint_left]
-      intro p hp hq
-      have hq' := mem_singleton.mp (mem_product.mp (mem_filter.mp hq).1).2
+    have hAC : Disjoint (A ∪ B) C := disjoint_left.mpr fun p hp hq => by
+      have := mem_singleton.mp (mem_product.mp (mem_filter.mp hq).1).2
       rcases mem_union.mp hp with hp | hp
-      · have hp' := (mem_offDiag.mp (mem_filter.mp hp).1).2.1
-        have : p.2 < k := mem_range.mp hp'
+      · have := mem_range.mp (mem_offDiag.mp (mem_filter.mp hp).1).2.1
         omega
-      · have hp' := (mem_product.mp (mem_filter.mp hp).1).2
-        have : p.2 < k := mem_range.mp hp'
+      · have := mem_range.mp (mem_product.mp (mem_filter.mp hp).1).2
         omega
     have hsplit : {p ∈ (range (k + 1)).offDiag | keys p.1 = keys p.2} = A ∪ B ∪ C := by
       rw [range_add_one, offDiag_insert (notMem_range_self : k ∉ range k),
@@ -215,19 +208,12 @@ theorem exec_clearBlock {r w : ℕ} (base count cur stop zero one : Fin r)
   have hzf := (zeroFill_exec (w := w) (cur := cur) (stop := stop) (zero := zero) (one := one)
     (x := x₀) hcs hcuz hcuo hz₀ ho₀
     (by rw [hidx₀, haddr₀]; omega) (by rwa [haddr₀])).within
-  refine ⟨_, (he₀.seq hzf).mono (by rw [hidx₀, haddr₀]; omega), ?_, ?_, ?_, ?_⟩
-  · dsimp only
-    rw [hm₀, hidx₀, haddr₀, Nat.add_sub_cancel_left]
-  · intro i hc hs hz ho
-    dsimp only
-    rw [Function.update_of_ne hc]
-    exact hr₀ i hc hs hz ho
-  · dsimp only
-    rw [Function.update_of_ne (Ne.symm hcuz)]
-    exact hz₀
-  · dsimp only
-    rw [Function.update_of_ne (Ne.symm hcuo)]
-    exact ho₀
+  refine ⟨_, (he₀.seq hzf).mono (by rw [hidx₀, haddr₀]; omega), ?_,
+    fun i hc hs hz ho => (Function.update_of_ne hc _ _).trans (hr₀ i hc hs hz ho),
+    (Function.update_of_ne (Ne.symm hcuz) _ _).trans hz₀,
+    (Function.update_of_ne (Ne.symm hcuo) _ _).trans ho₀⟩
+  dsimp only
+  rw [hm₀, hidx₀, haddr₀, Nat.add_sub_cancel_left]
 
 /-- Insert one key and add twice its old bucket count. -/
 def body : Code .standard 11 := ram[

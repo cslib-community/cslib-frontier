@@ -85,26 +85,18 @@ theorem exists_weights_of_symmetric {ι : Type*} (Γ : ι → Finset ι) {d : �
     have hexp_lt : (Real.exp 1)⁻¹ < 1 := inv_lt_one_of_one_lt₀ hexp
     refine ⟨b, fun i => ⟨hb0 i, (hq i).trans_lt (hq_exp.trans_lt hexp_lt)⟩, fun i => ?_,
       fun h => absurd h (by omega), fun _ i => ⟨?_, ?_⟩⟩
-    · have hempty : Γ i = ∅ := card_eq_zero.1 (Nat.eq_zero_of_le_zero (hd i))
-      simp [hempty]
+    · simp [card_eq_zero.1 (Nat.eq_zero_of_le_zero (hd i))]
     · exact div_one_sub_le_div_one_sub (hb0 i) (hq i) (hq_exp.trans_lt hexp_lt)
-    · have hle := div_one_sub_le_div_one_sub (hb0 i) ((hq i).trans hq_exp) hexp_lt
-      refine hle.trans_eq ?_
-      have he0 : Real.exp 1 ≠ 0 := by positivity
+    · refine (div_one_sub_le_div_one_sub (hb0 i) ((hq i).trans hq_exp) hexp_lt).trans_eq ?_
       have he1 : Real.exp 1 - 1 ≠ 0 := by linarith
       field_simp
   · refine ⟨fun _ => 1 / ((d : ℝ) + 1), fun _ => ⟨by positivity, ?_⟩, fun i => ?_,
       fun _ _ => ?_, fun h => absurd h (by omega)⟩
-    · have hd1 : (1 : ℝ) < (d : ℝ) + 1 := by
-        exact_mod_cast Nat.lt_succ_of_le hdpos
-      exact (div_lt_one (by positivity)).2 hd1
+    · exact (div_lt_one (by positivity)).2 (by exact_mod_cast Nat.lt_succ_of_le hdpos)
     · simpa only [prod_const] using
         (hq i).trans (Cslib.Probability.le_inv_add_one_mul_one_sub_pow (hd i) hlll)
-    · have hd1 : (d : ℝ) + 1 ≠ 0 := by positivity
-      have hsub : 1 - 1 / ((d : ℝ) + 1) = d / (d + 1) := by
-        field_simp
-        ring
-      rw [hsub, div_div_div_cancel_right₀ hd1]
+    · have hsub : 1 - 1 / ((d : ℝ) + 1) = d / (d + 1) := by field_simp; ring
+      rw [hsub, div_div_div_cancel_right₀ (by positivity)]
 
 end Weights
 
@@ -362,8 +354,7 @@ theorem lintegral_resamplings_le_pmfPi [DecidableEq V] [DecidableEq ι] [Finite 
     ∫⁻ T, resamplings sel i T ∂table (fun v => (p v).toMeasure) ≤
       ENNReal.ofReal (x i / (1 - x i)) :=
   lintegral_resamplings_le (fun v => (p v).toMeasure) vbl A hAm hA Γ hΓ hx
-    (fun j => by
-      simpa only [toReal_toOuterMeasure_pi_eq_measureReal p (hAm j)] using hAx j)
+    (fun j => toReal_toOuterMeasure_pi_eq_measureReal p (hAm j) ▸ hAx j)
     hsel i
 
 /-- Almost sure termination and avoidance for `table (fun v => (p v).toMeasure)` directly from the
@@ -382,8 +373,7 @@ theorem ae_exists_forall_notMem_run_pmfPi [DecidableEq V] [Finite ι]
     ∀ᵐ T ∂table (fun v => (p v).toMeasure),
       ∃ n, ∀ i, current vbl T (run sel T n) ∉ A i :=
   ae_exists_forall_notMem_run (fun v => (p v).toMeasure) vbl A hAm hA Γ hΓ hx
-    (fun j => by
-      simpa only [toReal_toOuterMeasure_pi_eq_measureReal p (hAm j)] using hAx j)
+    (fun j => toReal_toOuterMeasure_pi_eq_measureReal p (hAm j) ▸ hAx j)
     hsel hstop
 
 /-- Symmetric `PMF.pi` Moser–Tardos resampling bound (`1 ≤ d`): expected resamplings of `A i`
@@ -400,8 +390,7 @@ theorem lintegral_resamplings_le_pmfPi_symmetric [DecidableEq V] [DecidableEq ι
     ∫⁻ T, resamplings sel i T ∂table (fun v => (p v).toMeasure) ≤
       ENNReal.ofReal (1 / (d : ℝ)) :=
   lintegral_resamplings_le_symmetric (fun v => (p v).toMeasure) vbl A hAm hA hdpos hd
-    (fun j => by
-      simpa only [toReal_toOuterMeasure_pi_eq_measureReal p (hAm j)] using hq j)
+    (fun j => toReal_toOuterMeasure_pi_eq_measureReal p (hAm j) ▸ hq j)
     hlll hsel i
 
 /-- Almost sure termination and avoidance for `table (fun v => (p v).toMeasure)` directly from the
@@ -418,8 +407,7 @@ theorem ae_exists_forall_notMem_run_pmfPi_symmetric [DecidableEq V] [DecidableEq
     ∀ᵐ T ∂table (fun v => (p v).toMeasure),
       ∃ n, ∀ i, current vbl T (run sel T n) ∉ A i :=
   ae_exists_forall_notMem_run_symmetric (fun v => (p v).toMeasure) vbl A hAm hA hd
-    (fun j => by
-      simpa only [toReal_toOuterMeasure_pi_eq_measureReal p (hAm j)] using hq j)
+    (fun j => toReal_toOuterMeasure_pi_eq_measureReal p (hAm j) ▸ hq j)
     hlll hsel hstop
 
 end PMFBridge

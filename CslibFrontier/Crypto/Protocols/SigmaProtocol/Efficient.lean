@@ -553,7 +553,8 @@ theorem computableInPolyTime_orExtractWord
     ComputableInPolyTime (orExtractWord subWord f₀ f₁)
       (encExtractorWordInput (enc₀.orProof enc₁).index) encBits := by
   have hf₁' : ComputableInPolyTime f₁ (encExtractorWordInput enc₀.index) encBits := hI ▸ hf₁
-  unfold orExtractWord Encoding.orProof; dsimp only
+  unfold orExtractWord Encoding.orProof
+  dsimp only
   exact ComputableInPolyTime.ite (by fun_prop) (by fun_prop) (by fun_prop)
 
 /-- `orExtractWord` realizes `orExtract` on `enc₀.orProof enc₁` with witness encoding `encSum`. -/
@@ -577,8 +578,10 @@ theorem extractorRealizedBy_orExtractWord [∀ i, AddCommGroup (C i)] [∀ i, De
   simp only [orExtractWord, Encoding.orProof, unframe_encPair, dropFrame_encPair, hbeq, hsub_eq,
     orExtract]
   by_cases hc₀ : c₀ = c₀'
-  · simp only [hc₀, decide_true, ↓reduceIte, encSum_inr]; rw [hC i, h₁]
-  · simp only [hc₀, decide_false, Bool.false_eq_true, ↓reduceIte, encSum_inl]; rw [h₀]
+  · simp only [hc₀, decide_true, ↓reduceIte, encSum_inr]
+    rw [hC i, h₁]
+  · simp only [hc₀, decide_false, Bool.false_eq_true, ↓reduceIte, encSum_inl]
+    rw [h₀]
 
 /-- **Efficient special soundness of `orProof`.** -/
 theorem EfficientSpecialSoundness.orProof
@@ -789,7 +792,8 @@ theorem computableInPolyTime_parallelExtractWord
         (fun p : (I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool) × ℕ =>
           (frames p.1.2.2.2.2.1).getD p.2 [])
         (encPair encIn encUnary) encBits := by fun_prop
-    simp only [bne]; exact ComputableInPolyTime.findWithInput (by fun_prop) (by fun_prop)
+    simp only [bne]
+    exact ComputableInPolyTime.findWithInput (by fun_prop) (by fun_prop)
   have hbody : ComputableInPolyTime
       (fun p : (I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool) × ℕ =>
         f (p.1.1, p.1.2.1, (frames p.1.2.2.1).getD p.2 [], (frames p.1.2.2.2.1).getD p.2 [],
@@ -821,11 +825,14 @@ theorem extractorRealizedBy_parallelExtractWord
     List.ext_getElem (by simp) fun _ _ _ => by simp
   simp only [parallelExtractWord, Encoding.parallelRepetition, encFinFn_apply, frames_encList,
     List.length_map, List.length_ofFn, ← hrange, List.find?_map]
-  rw [show ((fun idx => ((List.ofFn c).map (enc.challenge i)).getD idx [] !=
+  have hpred :
+      ((fun idx => ((List.ofFn c).map (enc.challenge i)).getD idx [] !=
         ((List.ofFn c').map (enc.challenge i)).getD idx []) ∘ Fin.val) =
-      fun j : Fin (k i) => c j != c' j from funext fun j => by
-    simp only [Function.comp_apply, List.map_ofFn, List.getD_ofFn]
-    rw [Bool.eq_iff_iff, bne_iff_ne, bne_iff_ne, (enc.challenge i).injective.ne_iff]]
+      fun j : Fin (k i) => c j != c' j :=
+    funext fun j => by
+      simp only [Function.comp_apply, List.map_ofFn, List.getD_ofFn]
+      rw [Bool.eq_iff_iff, bne_iff_ne, bne_iff_ne, (enc.challenge i).injective.ne_iff]
+  rw [hpred]
   unfold parallelExtract
   cases (List.finRange (k i)).find? (fun j => c j != c' j) with
   | none =>
@@ -921,10 +928,13 @@ theorem isPPT_parallelSimulator
   · simp only [parallelSimulator, parallelSimulateWord, Encoding.parallelRepetition,
       encFinFn_apply, frames_encList, List.ofFn_eq_map, List.map_map, List.mapM_map,
       Function.comp_def, ProbComp.eval_map, ← ProbComp.eval_pi_map_ofFn, ProbComp.eval_pi_eq_piFin]
-    rw [show (PMF.piFin fun j => ProbComp.eval (prog (i, enc.statement i y, enc.challenge i (c j))))
-        = (PMF.piFin fun j => ProbComp.eval (sim i y (c j))).map
-          fun tz j => (enc.commitment i (tz j).1, enc.response i (tz j).2) by
-      simp only [← hword, PMF.piFin_map]; rfl]
+    have hcoord :
+        (PMF.piFin fun j => ProbComp.eval (prog (i, enc.statement i y, enc.challenge i (c j)))) =
+          (PMF.piFin fun j => ProbComp.eval (sim i y (c j))).map
+            fun tz j => (enc.commitment i (tz j).1, enc.response i (tz j).2) := by
+      simp only [← hword, PMF.piFin_map]
+      rfl
+    rw [hcoord]
     simp only [PMF.map_comp]
     refine congrArg (PMF.map · _) (funext fun tz => ?_)
     simp [Function.comp_def, Prod.map_apply, encList_eq_encList_bits_map, List.ofFn_eq_map,

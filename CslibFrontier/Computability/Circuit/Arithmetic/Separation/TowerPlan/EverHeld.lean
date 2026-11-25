@@ -230,19 +230,13 @@ theorem heldCount_add_sum_roleUnits_le (hr : 0 < r) (hb : 0 < b) (hh : 0 < h)
         have h2 := sum_roles_le (lhat := lhat) (n := initialCounts n) (o := outcomeOf R FL Pl o)
           P (.relay x hx)
         have h3 : Fintype.card (Move.relay x hx : Move R ch FL).law.Slot = 1 := Fintype.card_unit
-        have h4 : (∑ q : RelayRole, if x.party R ch q = P then
-            moveCount lhat (initialCounts n) (outcomeOf R FL Pl o) (.relay x hx) else 0) =
-            unitsAt lhat (initialCounts n) (outcomeOf R FL Pl o) P (.relay x hx) := rfl
         rw [h3] at h2
-        rw [h4] at h1
+        change _ ≤ 2 * unitsAt lhat (initialCounts n) (outcomeOf R FL Pl o) P (.relay x hx) at h1
         exact (add_le_add h1 h2).trans_eq (by ring)
       · exact le_rfl
-    · have h1 := vertex_ends_le hr hb hg' P l
-      have h2 := sum_roles_le (lhat := lhat) (n := initialCounts n) (o := outcomeOf R FL Pl o)
-        P (.vertex l)
-      have h3 := Nat.mul_le_mul_right (unitsAt lhat (initialCounts n) (outcomeOf R FL Pl o) P
-        (.vertex l)) (Nat.add_le_add_left (hSm l.kind) 1)
-      exact (add_le_add h1 (h2.trans h3)).trans_eq (by ring)
+    · exact (add_le_add (vertex_ends_le hr hb hg' P l)
+        ((sum_roles_le P (.vertex l)).trans
+          (Nat.mul_le_mul_right _ (Nat.add_le_add_left (hSm l.kind) 1)))).trans_eq (by ring)
   have h1 := heldCount_le (R := R) (FL := FL) (Pl := Pl) (n := n) (o := o) P hini
   have h2 := sum_unitsAt_relay_le hh hg' P
   have h3 := sum_unitsAt_vertex_le hg' hnr P

@@ -110,9 +110,13 @@ variable {N : S → S → Prop} {ρ : S → S → ℝ}
 
 theorem isPathMetricOn_univ : IsPathMetricOn Set.univ N ρ ↔ IsPathMetric N ρ :=
   ⟨fun ⟨h1, h2, h3⟩ => ⟨fun x => h1 x trivial, fun x y => h2 x trivial y trivial,
-      fun x y hxy => let ⟨z, _, hz⟩ := h3 x trivial y trivial hxy; ⟨z, hz⟩⟩,
+      fun x y hxy =>
+        let ⟨z, _, hz⟩ := h3 x trivial y trivial hxy
+        ⟨z, hz⟩⟩,
     fun ⟨h1, h2, h3⟩ => ⟨fun x _ => h1 x, fun x _ y _ => h2 x y,
-      fun x _ y _ hxy => let ⟨z, hz⟩ := h3 x y hxy; ⟨z, trivial, hz⟩⟩⟩
+      fun x _ y _ hxy =>
+        let ⟨z, hz⟩ := h3 x y hxy
+        ⟨z, trivial, hz⟩⟩⟩
 
 namespace IsPathMetricOn
 
@@ -200,16 +204,20 @@ theorem lipschitz_sum_of_coupling_on {C : Set S} {f : S → ℝ} {L κ : ℝ} (h
     (hω : ∑ p, (ω p).toReal * ρ p.1 p.2 ≤ κ * ρ x y) :
     |∑ a, (P x a).toReal * f a - ∑ a, (P y a).toReal * f a| ≤ L * κ * ρ x y := by
   rw [← h1, ← h2, sum_map_mul, sum_map_mul, ← Finset.sum_sub_distrib]
-  refine (Finset.abs_sum_le_sum_abs _ _).trans
-    ((Finset.sum_le_sum (g := fun p => L * ((ω p).toReal * ρ p.1 p.2)) fun p _ => ?_).trans ?_)
-  · rw [← mul_sub, abs_mul, abs_of_nonneg ENNReal.toReal_nonneg, mul_left_comm]
-    by_cases hp : p ∈ ω.support
-    · exact mul_le_mul_of_nonneg_left
-        (hf _ (hxC (h1 ▸ (PMF.mem_support_map_iff _ _ _).2 ⟨p, hp, rfl⟩))
-            _ (hyC (h2 ▸ (PMF.mem_support_map_iff _ _ _).2 ⟨p, hp, rfl⟩))) ENNReal.toReal_nonneg
-    · simp [(PMF.apply_eq_zero_iff _ _).2 hp]
-  · rw [← Finset.mul_sum, mul_assoc]
-    exact mul_le_mul_of_nonneg_left hω hL
+  refine (Finset.abs_sum_le_sum_abs _ _).trans ?_
+  calc ∑ p, |(ω p).toReal * f p.1 - (ω p).toReal * f p.2|
+      ≤ ∑ p, (ω p).toReal * (L * ρ p.1 p.2) := Finset.sum_le_sum fun p _ => by
+        rw [← mul_sub, abs_mul, abs_of_nonneg ENNReal.toReal_nonneg]
+        by_cases hp : p ∈ ω.support
+        · exact mul_le_mul_of_nonneg_left
+            (hf _ (hxC (h1 ▸ (PMF.mem_support_map_iff _ _ _).2 ⟨p, hp, rfl⟩))
+                _ (hyC (h2 ▸ (PMF.mem_support_map_iff _ _ _).2 ⟨p, hp, rfl⟩))) ENNReal.toReal_nonneg
+        · simp [(PMF.apply_eq_zero_iff _ _).2 hp]
+    _ = L * ∑ p, (ω p).toReal * ρ p.1 p.2 := by
+        rw [Finset.mul_sum]
+        exact Finset.sum_congr rfl fun _ _ => by ring
+    _ ≤ L * (κ * ρ x y) := mul_le_mul_of_nonneg_left hω hL
+    _ = L * κ * ρ x y := by ring
 
 /-- One coupled step contracts a Lipschitz function: if `ω` couples `P x` with `P y` and
 `E_ω ρ ≤ κ ρ(x, y)`, then the expectations of an `L`-Lipschitz `f` differ by at most
@@ -246,9 +254,10 @@ theorem lipschitz_sum_pow_on {C : Set S} (hρ : IsPathMetricOn C N ρ)
       (L := L * κ ^ (t + 1)) (by positivity) (fun a ha b hb hab => ?_) hx hy
     obtain ⟨ω, h1, h2, hω⟩ := hc a ha b hb hab
     rw [pow_succ_apply', pow_succ_apply', sum_bind_mul, sum_bind_mul]
-    simpa only [pow_succ, mul_assoc] using
-      lipschitz_sum_of_coupling_on (P := P) (by positivity)
-        (fun _ ha' _ hb' => ih ha' hb') (hP a ha) (hP b hb) ω h1 h2 hω
+    calc _ ≤ L * κ ^ t * κ * ρ a b :=
+          lipschitz_sum_of_coupling_on (P := P) (by positivity)
+            (fun _ ha' _ hb' => ih ha' hb') (hP a ha) (hP b hb) ω h1 h2 hω
+      _ = L * κ ^ (t + 1) * ρ a b := by ring
 
 /-- **Path coupling, Lipschitz form.** If every neighboring pair admits a one-step coupling that
 contracts `ρ` in expectation by `κ`, then `t` steps multiply `ρ`-Lipschitz constants by

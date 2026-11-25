@@ -54,17 +54,7 @@ open Finset
 /-- A coordinate belongs to the natural support exactly when its bit is set. -/
 @[simp] theorem mem_natSupport {n : ℕ} (x : BitString n) (i : Fin n) :
     i.val ∈ natSupport x ↔ x i = true := by
-  constructor
-  · intro hi
-    rw [natSupport, mem_map] at hi
-    obtain ⟨j, hj, hji⟩ := hi
-    have hji' : j = i := Fin.ext hji
-    subst j
-    simpa only [mem_supportOfList, List.getD_ofFn] using hj
-  · intro hi
-    rw [natSupport, mem_map]
-    refine ⟨i, ?_, rfl⟩
-    simpa only [mem_supportOfList, List.getD_ofFn] using hi
+  simp [natSupport, ← Fin.ext_iff]
 
 /-- The natural support of an `n`-bit string lies in `range n`. -/
 theorem natSupport_subset_range {n : ℕ} (x : BitString n) : natSupport x ⊆ range n := by
@@ -90,16 +80,10 @@ theorem weight_indicatorVector {n : ℕ} {S : Finset ℕ} (hS : S ⊆ range n) :
 @[simp] theorem natSupport_indicatorVector {n : ℕ} {S : Finset ℕ} (hS : S ⊆ range n) :
     natSupport (indicatorVector n S) = S := by
   ext j
-  constructor
-  · intro hj
-    rw [natSupport, mem_map] at hj
-    obtain ⟨i, hi, rfl⟩ := hj
-    simpa [indicatorVector] using hi
-  · intro hj
-    have hjn : j < n := mem_range.mp (hS hj)
-    rw [natSupport, mem_map]
-    refine ⟨⟨j, hjn⟩, ?_, rfl⟩
-    simp [indicatorVector, hj, hjn]
+  by_cases hj : j < n
+  · simpa [indicatorVector] using mem_natSupport (indicatorVector n S) ⟨j, hj⟩
+  · exact iff_of_false (fun h => hj (mem_range.mp (natSupport_subset_range _ h)))
+      (fun h => hj (mem_range.mp (hS h)))
 
 /-- The indicator of the natural support is the original bit string. -/
 @[simp] theorem indicatorVector_natSupport {n : ℕ} (x : BitString n) :

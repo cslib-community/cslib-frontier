@@ -166,15 +166,10 @@ theorem synthesis_threshold {a : ℕ} (s : Set (BooleanFunction a)) (μ : BitStr
   have he : (fun x => if decide (μ x ≤ (0 : BitVec (n + 2)).toNat) then 0 else plus x) =
       fun x => BitVec.ofNat (n + 2) (μ x) := by
     funext x
-    have hs := searchBelow_result n (μ x) (hμ x).le
-    have h1 : (1 : BitVec (n + 2)).toNat = 1 := by grind
-    have h0 : (0 : BitVec (n + 2)).toNat = 0 := rfl
-    by_cases hz : μ x = 0
-    · rw [ite_eq_left (by rw [h0, hz]; rfl), hz]; rfl
-    · rw [ite_eq_right hz] at hs
-      apply BitVec.eq_of_toNat_eq
-      rw [ite_eq_right (by rw [h0, decide_eq_true_iff]; omega), BitVec.toNat_add,
-        hv n le_rfl, h1, hs, BitVec.toNat_ofNat]
+    change (if decide (μ x ≤ 0) then BitVec.ofNat (n + 2) 0
+      else BitVec.ofNat (n + 2) (searchBelow n (μ x) n) + BitVec.ofNat (n + 2) 1) = _
+    simpa only [Nat.le_zero, decide_eq_true_eq, BitVec.ofNat_add_ofNat, apply_ite] using
+      congrArg (BitVec.ofNat (n + 2)) (searchBelow_result n (μ x) (hμ x).le)
   rw [he] at hm
   exact (hsteps.trans (hadd.trans (htest.trans hm))).mono Set.Subset.rfl Set.Subset.rfl
     (by rw [Nat.add_one_mul n (C + 16 * (n + 3))]; omega)
@@ -215,34 +210,24 @@ theorem depth_circuit (c : Circuit signature n n) (L : ℕ) (hL : 0 < L) (hLN : 
     refine (hi.trans hq).mono Set.Subset.rfl ?_ le_rfl
     rintro _ rfl
     refine ⟨0, funext fun x => Bool.eq_iff_iff.mpr ?_⟩
-    change cyclic.eval interpretation (current x) 0 = true ↔ _
     rw [hcyc, iterate_mem_periodicPts_iff, decide_eq_true_iff]
   have h := hconst.trans (synthesis_threshold s0 (transientDepth f) n C
     (fun x => by simpa using transientDepth_lt_card f x) hc query)
   obtain ⟨out, hout, hs⟩ := h.exists_circuit_outputs
   refine ⟨out, fun x => by rw [hout x, BitString.equivBitVec_getLsbD], hs.trans ?_⟩
-  have hC : C + 16 * (n + 3) ≤ (n + 2) * (40000 * powerBudget n c.size (2 ^ n) L + 4 * n) +
-      (40000 * powerBudget n c.size (2 ^ n) L + (6 * n + 1)) + 16 * (n + 3) := by
-    simp only [C]; omega
-  have := Nat.mul_le_mul_left (n + 1) hC
   unfold depthBudget
-  omega
+  gcongr
+  exact Nat.add_le_add_left hcs _
 
 /-- The threshold search costs at most a factor `(n + 1) ^ 2` more than a fixed power. -/
 private theorem depthBudget_le (n s L : ℕ) :
     depthBudget n s L ≤ 200000 * (n + 1) ^ 2 * powerBudget n s (2 ^ n) L := by
   set B := powerBudget n s (2 ^ n) L
-  have hb : (n + 1) ^ 3 ≤ B := by
-    have h := Nat.mul_le_mul_left ((n + 1) ^ 3) (Nat.le_add_left 1 (L + 2 ^ n / L))
-    simp only [B, powerBudget]
-    nlinarith
+  have hb : (n + 1) ^ 3 ≤ B := cube_le_powerBudget n s (2 ^ n) L
   have hsmall : (n + 2) * (4 * n) + (6 * n + 1) + 16 * (n + 3) + 2 ≤ 100 * (n + 1) ^ 3 := by
     nlinarith [Nat.zero_le (n ^ 3)]
-  have hsmall' := Nat.mul_le_mul_left (n + 1) hsmall
-  have hB : (n + 1) * ((n + 1) ^ 3) ≤ (n + 1) ^ 2 * B := by
-    nlinarith [Nat.mul_le_mul_left ((n + 1) ^ 2) hb]
   unfold depthBudget
-  nlinarith [Nat.zero_le ((n + 1) ^ 2 * B), Nat.zero_le (n * B)]
+  nlinarith [Nat.mul_le_mul_left (n + 1) hsmall, Nat.mul_le_mul_left ((n + 1) ^ 2) hb]
 
 /-- **Square-root transient depths by binary search.** Some circuit of size at most
 `400000 * (n + 1) ^ 2 * optimizedBudget n c.size (2 ^ n)` computes the transient depth of every
@@ -255,9 +240,8 @@ theorem depth_circuit_optimized (c : Circuit signature n n) :
   obtain ⟨L, hL, hLN, ho⟩ := exists_powerBudget_le_optimizedBudget n c.size (2 ^ n) le_rfl
   obtain ⟨out, hout, hs⟩ := depth_circuit c L hL hLN
   refine ⟨out, hout, ?_⟩
-  have hs' : (out.size : ℝ) ≤ 200000 * (n + 1 : ℝ) ^ 2 * (powerBudget n c.size (2 ^ n) L : ℝ) := by
-    exact_mod_cast hs.trans (depthBudget_le n c.size L)
-  have h := mul_le_mul_of_nonneg_left ho (show 0 ≤ 200000 * (n + 1 : ℝ) ^ 2 by positivity)
-  nlinarith
+  have hs' : (out.size : ℝ) ≤ 200000 * (n + 1 : ℝ) ^ 2 * powerBudget n c.size (2 ^ n) L :=
+    mod_cast hs.trans (depthBudget_le n c.size L)
+  nlinarith [mul_le_mul_of_nonneg_left ho (show 0 ≤ 200000 * (n + 1 : ℝ) ^ 2 by positivity)]
 
 end Cslib.Circuits.Boolean.Iteration

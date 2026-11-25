@@ -82,50 +82,39 @@ theorem parityOn_cyclicDifference {n : ℕ} (x : Fin n → Bool) :
 /-- Zero differences force a tuple to be constant. The empty tuple is included. -/
 theorem cyclicDifference_eq_zero_iff {n : ℕ} (x : Fin n → Bool) :
     cyclicDifference x = (fun _ => false) ↔ ∃ b, x = fun _ => b := by
-  constructor
-  · intro h
-    cases n with
-    | zero => exact ⟨false, funext fun i => i.elim0⟩
-    | succ n =>
-      refine ⟨x 0, funext ?_⟩
-      intro i
-      induction i using Fin.induction with
-      | zero => rfl
-      | succ i ih =>
-        have hi : finRotate (n + 1) i.castSucc = i.succ := finRotate_of_lt i.isLt
-        have hb := congrFun h i.castSucc
-        change (x i.castSucc ^^ x (finRotate (n + 1) i.castSucc)) = false at hb
-        rw [hi] at hb
-        have he : x i.succ = x i.castSucc := by
-          cases ha : x i.castSucc <;> cases hc : x i.succ <;> simp_all
-        exact he.trans ih
-  · rintro ⟨b, rfl⟩
-    exact cyclicDifference_const n b
+  refine ⟨fun h => ?_, fun ⟨b, hb⟩ => hb ▸ cyclicDifference_const n b⟩
+  cases n with
+  | zero => exact ⟨false, funext fun i => i.elim0⟩
+  | succ n =>
+    refine ⟨x 0, funext fun i => ?_⟩
+    induction i using Fin.induction with
+    | zero => rfl
+    | succ i ih =>
+      have hrot : finRotate (n + 1) i.castSucc = i.succ := finRotate_of_lt i.isLt
+      have hb : (x i.castSucc ^^ x i.succ) = false := hrot ▸ congrFun h i.castSucc
+      refine (?_ : x i.succ = x i.castSucc).trans ih
+      cases ha : x i.castSucc <;>
+        cases hc : x i.succ <;> simp_all
 
 /-- The only ambiguity in recovering a tuple from its cyclic differences is complementation. -/
 theorem cyclicDifference_eq_iff {n : ℕ} (x y : Fin n → Bool) :
     cyclicDifference x = cyclicDifference y ↔ x = y ∨ x = fun i => !y i := by
-  constructor
-  · intro h
-    have hz : cyclicDifference (x + y) = fun _ => false := by
+  refine ⟨fun h => ?_, ?_⟩
+  · have hz : cyclicDifference (x + y) = fun _ => false := by
       rw [cyclicDifference_add, h]
-      funext i
-      simp only [Pi.add_apply, Bool.add_eq_xor, Bool.xor_self]
+      exact funext fun _ => Bool.xor_self _
     obtain ⟨b, hb⟩ := (cyclicDifference_eq_zero_iff (x + y)).mp hz
     cases b
-    · left
-      funext i
-      have hi := congrFun hb i
-      change (x i ^^ y i) = false at hi
-      cases hx : x i <;> cases hy : y i <;> simp_all
-    · right
-      funext i
-      have hi := congrFun hb i
-      change (x i ^^ y i) = true at hi
-      cases hx : x i <;> cases hy : y i <;> simp_all
+    · refine Or.inl <| funext fun i => ?_
+      have hi : (x i ^^ y i) = false := congrFun hb i
+      cases hx : x i <;>
+        cases hy : y i <;> simp_all
+    · refine Or.inr <| funext fun i => ?_
+      have hi : (x i ^^ y i) = true := congrFun hb i
+      cases hx : x i <;>
+        cases hy : y i <;> simp_all
   · rintro (rfl | rfl)
-    · rfl
-    · exact cyclicDifference_not y
+    exacts [rfl, cyclicDifference_not y]
 
 /-- Recover a tuple with initial value zero by summing preceding cyclic differences. -/
 @[expose] def cyclicIntegral {n : ℕ} (d : Fin n → Bool) : Fin n → Bool :=
@@ -154,8 +143,7 @@ theorem cyclicDifference_cyclicIntegral {n : ℕ} (d : Fin n → Bool)
   cases n with
   | zero => exact funext fun i => i.elim0
   | succ n =>
-    funext i
-    refine Fin.lastCases ?_ (fun j => ?_) i
+    refine funext fun i => Fin.lastCases ?_ (fun j => ?_) i
     · have hs : insert (Fin.last n)
           (Finset.univ.filter fun j : Fin (n + 1) => j.val < (Fin.last n).val) =
           Finset.univ := by
@@ -172,11 +160,12 @@ theorem cyclicDifference_cyclicIntegral {n : ℕ} (d : Fin n → Bool)
       rw [finRotate_last, cyclicIntegral_zero, Bool.xor_false]
       change false = (d (Fin.last n) ^^ cyclicIntegral d (Fin.last n)) at hp
       exact Bool.xor_right_inj.mp (hp.symm.trans (Bool.xor_self _).symm)
-    · change (cyclicIntegral d j.castSucc ^^
+    · have hrot : finRotate (n + 1) j.castSucc = j.succ := finRotate_of_lt j.isLt
+      change (cyclicIntegral d j.castSucc ^^
         cyclicIntegral d (finRotate (n + 1) j.castSucc)) = d j.castSucc
-      have hj : finRotate (n + 1) j.castSucc = j.succ := finRotate_of_lt j.isLt
-      rw [hj, cyclicIntegral_succ]
-      cases cyclicIntegral d j.castSucc <;> cases d j.castSucc <;> rfl
+      rw [hrot, cyclicIntegral_succ]
+      cases cyclicIntegral d j.castSucc <;>
+        cases d j.castSucc <;> rfl
 
 /-- The image of cyclic difference is exactly the even-parity tuples, including arity zero. -/
 theorem exists_cyclicDifference_eq_iff {n : ℕ} (d : Fin n → Bool) :

@@ -190,29 +190,35 @@ private theorem eval_pi_single {m : ℕ} {β : Type} (i₀ : Fin m) (p : ProbCom
   | zero => exact i₀.elim0
   | succ m ih =>
     refine Fin.cases ?_ (fun j₀ => ?_) i₀
-    · rw [OracleComp.pi_succ, show (fun i : Fin m =>
+    · have htail : (fun i : Fin m =>
           if h : (0 : Fin (m + 1)) = i.succ then (fun (c : β) (_ : 0 = i.succ) => c) <$> p
           else pure (fun h' : 0 = i.succ => (h h').elim)) =
         fun i : Fin m => pure (fun h' : (0 : Fin (m + 1)) = i.succ =>
-          (Fin.succ_ne_zero i h'.symm).elim) from funext fun i =>
-          dite_eq_right fun h => Fin.succ_ne_zero i h.symm, dite_eq_left rfl]
+          (Fin.succ_ne_zero i h'.symm).elim) :=
+        funext fun i => dite_eq_right fun h => Fin.succ_ne_zero i h.symm
+      rw [OracleComp.pi_succ, htail, dite_eq_left rfl]
       simp only [pmf_norm, eval_pi_pure]
       refine congrArg (PMF.map · (ProbComp.eval p)) (funext fun c => ?_)
-      ext i h; exact Fin.cases (fun _ => rfl) (fun j hj => (Fin.succ_ne_zero j hj.symm).elim) i h
+      ext i h
+      exact Fin.cases (fun _ => rfl) (fun j hj => (Fin.succ_ne_zero j hj.symm).elim) i h
     · have h0 : ¬ (j₀.succ = (0 : Fin (m + 1))) := Fin.succ_ne_zero j₀
-      rw [OracleComp.pi_succ, dite_eq_right h0, show (fun i : Fin m =>
+      have htail : (fun i : Fin m =>
           if h : j₀.succ = i.succ then (fun (c : β) (_ : j₀.succ = i.succ) => c) <$> p
           else pure (fun h' : j₀.succ = i.succ => (h h').elim)) =
         fun i : Fin m => (fun (f : (j₀ = i) → β) (h' : j₀.succ = i.succ) =>
           f (Fin.succ_inj.1 h')) <$>
             (if h : j₀ = i then (fun (c : β) (_ : j₀ = i) => c) <$> p
-              else pure (fun h' : j₀ = i => (h h').elim)) from funext fun i => by
-          by_cases h : j₀ = i
-          · subst h; simp [Functor.map_map]
-          · simp [h, show ¬ j₀.succ = i.succ from fun hs => h (Fin.succ_inj.1 hs)]]
+              else pure (fun h' : j₀ = i => (h h').elim)) := by
+        funext i
+        by_cases h : j₀ = i
+        · subst h
+          simp [Functor.map_map]
+        · simp [h, show ¬ j₀.succ = i.succ from fun hs => h (Fin.succ_inj.1 hs)]
+      rw [OracleComp.pi_succ, dite_eq_right h0, htail]
       simp only [pmf_norm, ProbComp.eval_pi_map, ih j₀]
       refine congrArg (PMF.map · (ProbComp.eval p)) (funext fun c => ?_)
-      ext i h; exact Fin.cases (fun h0' => (h0 h0').elim) (fun _ _ => rfl) i h
+      ext i h
+      exact Fin.cases (fun h0' => (h0 h0').elim) (fun _ _ => rfl) i h
 
 /-! #### Induced sub-coalitions, tuple pushforwards, and subprotocol coin sampling -/
 
@@ -980,7 +986,9 @@ private theorem bind_restrict_and_sum_pi_uniform {m : ℕ} (coins : ℕ) {β : T
           (ProbComp.eval (ProbComp.uniform (BitString coins))).bind fun s =>
             k rI s := by
   classical
-  obtain ⟨ℓ, hℓ⟩ : ∃ ℓ, ℓ ∉ I := by by_contra! h; exact hI (Finset.eq_univ_iff_forall.mpr h)
+  obtain ⟨ℓ, hℓ⟩ : ∃ ℓ, ℓ ∉ I := by
+    by_contra! h
+    exact hI (Finset.eq_univ_iff_forall.mpr h)
   refine Eq.trans ?_ (ProbComp.eval_bind_restrict_pi I
     (fun _ : Fin m => ProbComp.uniform (BitString coins))
     (fun rI => (ProbComp.eval (ProbComp.uniform (BitString coins))).bind (k rI)))
@@ -988,12 +996,13 @@ private theorem bind_restrict_and_sum_pi_uniform {m : ℕ} (coins : ℕ) {β : T
   conv_lhs => rw [← PMF.uniformOfFintype_update ℓ, PMF.bind_bind]
   simp only [PMF.bind_map, Function.comp_def, ProbComp.eval_uniform]
   pmf_swap with r
-  simp only [show ∀ v, k (I.restrict (Function.update r ℓ v)) (∑ j, Function.update r ℓ v j) =
-      k (I.restrict r) (∑ j, Function.update r ℓ v j) from
-    fun v => by rw [restrict_update_of_notMem hℓ]]
-  rw [show (fun v => k (I.restrict r) (∑ j, Function.update r ℓ v j)) =
-      k (I.restrict r) ∘ fun v => ∑ j, Function.update r ℓ v j from rfl,
-    ← PMF.bind_map, PMF.uniformOfFintype_map_sum_update r ℓ]
+  have hsum :
+      ((PMF.uniformOfFintype (BitString coins)).bind fun v =>
+        k (I.restrict (Function.update r ℓ v)) (∑ j, Function.update r ℓ v j)) =
+      ((PMF.uniformOfFintype (BitString coins)).map
+        (fun v => ∑ j, Function.update r ℓ v j)).bind (k (I.restrict r)) := by
+    simp only [restrict_update_of_notMem hℓ, PMF.bind_map, Function.comp_def]
+  rw [hsum, PMF.uniformOfFintype_map_sum_update r ℓ]
 
 /-- Proposition 7.3.4 (Goldreich Section 7.3.1, pp. 639–640) combined with the composition theorem
 (Section 7.3.1 Application, pp. 638–639, Eq. 7.19) and Section 7.5.2.4 Eq. 7.48 (p. 707):
@@ -1023,28 +1032,45 @@ theorem perfectSemiHonestPrivate_randomizedWrapper {m : ℕ}
     PerfectSemiHonestPrivateProper (P.randomizedWrapper coins) W
       (randomizedFunctionality coins g) (randomizedWrapperSim coins S) := by
   intro I hI x
-  have hsub : (P.randomizedWrapper coins).realJoint W I x =
-      (ProbComp.eval (OracleComp.pi (fun _ : Fin m => ProbComp.uniform (BitString coins)))).bind
-        fun r => (ProbComp.eval (S I (fun i => (x i.1, I.restrict r i))
-            (I.restrict (g (∑ j : Fin m, r j) x)))).map fun v =>
-          (fun i : I => (⟨x i.1, (I.restrict r i, (v i).coins), (v i).received⟩ :
-            PartyView In (fun i => BitString coins × Coins i) sc i.1), g (∑ j : Fin m, r j) x) := by
-    rw [show (P.randomizedWrapper coins).realJoint W I x =
-      (ProbComp.eval (OracleComp.pi (fun _ : Fin m => ProbComp.uniform (BitString coins)))).bind
-        fun r => (P.realJoint W I (fun i => (x i, r i))).map fun res =>
-          (fun i : I => ⟨x i.1, (r i.1, (res.1 i).coins), (res.1 i).received⟩, res.2) by
-      simp only [pmf_norm, Protocol.realJoint, Protocol.evalWith_eq, Protocol.outputOfView,
-        Protocol.randomizedWrapper, eval_pi_pair, Steps.evalWith_mapState,
-        Steps.outputAt_mapState, Prod.map_apply, Finset.restrict_def, id_eq]]
+  -- 1. Express the real execution of `P.randomizedWrapper coins` as binding `r` then `P.realJoint`.
+  have hreal :
+      (P.randomizedWrapper coins).realJoint W I x =
+        (ProbComp.eval (OracleComp.pi (fun _ : Fin m => ProbComp.uniform (BitString coins)))).bind
+          fun r =>
+            (P.realJoint W I (fun i => (x i, r i))).map fun res =>
+              (fun i : I =>
+                (⟨x i.1, (r i.1, (res.1 i).coins), (res.1 i).received⟩ :
+                  PartyView In (fun i => BitString coins × Coins i) sc i.1),
+                res.2) := by
+    simp only [pmf_norm, Protocol.realJoint, Protocol.evalWith_eq, Protocol.outputOfView,
+      Protocol.randomizedWrapper, eval_pi_pair, Steps.evalWith_mapState, Steps.outputAt_mapState,
+      Prod.map_apply, Finset.restrict_def, id_eq]
+  -- 2. Substitute `← hP I (fun i => (x i, r i))` inside the `r` bind.
+  have hsub :
+      (P.randomizedWrapper coins).realJoint W I x =
+        (ProbComp.eval (OracleComp.pi (fun _ : Fin m => ProbComp.uniform (BitString coins)))).bind
+          fun r =>
+            (ProbComp.eval (S I (fun i => (x i.1, I.restrict r i))
+              (I.restrict (g (∑ j : Fin m, r j) x)))).map fun v =>
+                (fun i : I =>
+                  (⟨x i.1, (I.restrict r i, (v i).coins), (v i).received⟩ :
+                    PartyView In (fun i => BitString coins × Coins i) sc i.1),
+                  g (∑ j : Fin m, r j) x) := by
+    rw [hreal]
     refine congrArg (ProbComp.eval _).bind (funext fun r => ?_)
     rw [← hP I (fun i => (x i, r i))]
     simp [idealJoint, Functionality.ofDeterministic, detOfRandomized,
       PMF.map_comp, Function.comp_def, Finset.restrict_def]
+  -- 3. Apply `bind_restrict_and_sum_pi_uniform` to decouple `I.restrict r` from `∑ j, r j`.
   rw [hsub, bind_restrict_and_sum_pi_uniform coins hI (k := fun rI s =>
     (ProbComp.eval (S I (fun i => (x i.1, rI i)) (I.restrict (g s x)))).map fun v =>
-      (fun i : I => (⟨x i.1, (rI i, (v i).coins), (v i).received⟩ :
-        PartyView In (fun i => BitString coins × Coins i) sc i.1), g s x))]
-  symm; rw [PMF.bind_comm]
+      (fun i : I =>
+        (⟨x i.1, (rI i, (v i).coins), (v i).received⟩ :
+          PartyView In (fun i => BitString coins × Coins i) sc i.1),
+        g s x))]
+  -- 4. Swap the `rI` and `s` binds to match `idealJoint` of `randomizedFunctionality`.
+  symm
+  rw [PMF.bind_comm]
   simp [idealJoint, randomizedFunctionality, randomizedWrapperSim, Finset.restrict_def]
 
 /-! ### Part 3: XOR Prelude Circuit and $\text{OT}_1^4$-Hybrid GMW Protocol (Theorem 7.5.12) -/
@@ -1121,19 +1147,26 @@ private theorem eval_sumBlocksCircuit (m coins : ℕ) (r : Fin m → BitString c
       ((Cslib.BitString.blocksEquiv (α := Bool) (m := m) (k := coins)).symm r) =
     ∑ i : Fin m, r i := by
   induction m with
-  | zero => simp [sumBlocksCircuit, eval_zeroBitStringCircuit]
+  | zero =>
+    simp [sumBlocksCircuit, eval_zeroBitStringCircuit]
   | succ m ih =>
     simp only [sumBlocksCircuit, Circuit.eval_comp, Circuit.eval_append, Circuit.eval_wiring]
-    have hfirst : (Cslib.BitString.blocksEquiv (α := Bool) (m := m + 1) (k := coins)).symm r ∘
-        Fin.castLE (Nat.mul_le_mul_right coins (Nat.le_succ m)) =
-      (Cslib.BitString.blocksEquiv (α := Bool) (m := m) (k := coins)).symm
-        (fun i : Fin m => r i.castSucc) := by
-      funext idx; obtain ⟨⟨i, c⟩, rfl⟩ := finProdFinEquiv.surjective idx
+    have hfirst :
+        (Cslib.BitString.blocksEquiv (α := Bool) (m := m + 1) (k := coins)).symm r ∘
+          Fin.castLE (Nat.mul_le_mul_right coins (Nat.le_succ m)) =
+        (Cslib.BitString.blocksEquiv (α := Bool) (m := m) (k := coins)).symm
+          (fun i : Fin m => r i.castSucc) := by
+      funext idx
+      obtain ⟨⟨i, c⟩, rfl⟩ := finProdFinEquiv.surjective idx
       simp [Function.comp_apply, show Fin.castLE (Nat.mul_le_mul_right coins (Nat.le_succ m))
         (finProdFinEquiv (i, c)) = finProdFinEquiv (i.castSucc, c) from Fin.ext rfl]
-    rw [hfirst, show ((Cslib.BitString.blocksEquiv (α := Bool) (m := m + 1) (k := coins)).symm r ∘
-        fun c => finProdFinEquiv (Fin.last m, c)) = r (Fin.last m) by funext c; simp,
-      ih, eval_xorBitStringsCircuit, Fin.sum_univ_castSucc]
+    have hlast :
+        ((Cslib.BitString.blocksEquiv (α := Bool) (m := m + 1) (k := coins)).symm r ∘
+          fun c => finProdFinEquiv (Fin.last m, c)) =
+        r (Fin.last m) := by
+      funext c
+      simp
+    rw [hfirst, hlast, ih, eval_xorBitStringsCircuit, Fin.sum_univ_castSucc]
 
 /-- Zero-gate wiring circuit extracting the `m * n` party input bits from `m` blocks of width
 `n + coins`. -/
@@ -1289,8 +1322,10 @@ theorem perfectSemiHonestPrivateProper_gmwOT14Randomized (m coins n k : ℕ) [Ne
   convert (perfectSemiHonestPrivate_gmwOT14 m (n + coins) k
       (C.comp (xorPreludeCircuit m n coins))).mapInput
     (enc := fun _ (xr : BitString n × BitString coins) => Fin.append xr.1 xr.2) using 1
-  funext xr; dsimp [Functionality.ofDeterministic, detOfRandomized]
-  congr 1 with i : 1; dsimp [circuitFunctionality]
+  funext xr
+  dsimp [Functionality.ofDeterministic, detOfRandomized]
+  congr 1 with i : 1
+  dsimp [circuitFunctionality]
   rw [Circuit.eval_comp, eval_xorPreludeCircuit]
 
 end Cslib.Crypto.Protocols.MPC

@@ -55,12 +55,8 @@ theorem Realizes.exists_contraction_angle_lift {G : Graph} {u v : ℕ}
     let dir : Fin (n + 1) → Real.Angle := fun i => D.direction (e.symm i).val
     have hrank (i : Fin (n + 1)) : (r.contractionRank (e.symm i)).val = i.val :=
       congrArg Fin.val (e.apply_symm_apply i)
-    have hinj : Function.Injective dir := by
-      intro i j heq
-      have hvertex : (e.symm i).val.vertex = (e.symm j).val.vertex :=
-        (e.symm i).property.trans (e.symm j).property.symm
-      have hd := hR.directions_injective (e.symm i).val (e.symm j).val hvertex heq
-      exact e.symm.injective (Subtype.ext hd)
+    have hinj : Function.Injective dir := fun i j heq => e.symm.injective <| Subtype.ext <|
+      hR.directions_injective _ _ ((e.symm i).property.trans (e.symm j).property.symm) heq
     have horder : ∀ i j : Fin (n + 1), i ≠ Fin.last n → j ≠ Fin.last n → i ≠ j →
         (sbtw (dir (Fin.last n)) (dir i) (dir j) ↔ j.val < i.val) := by
       intro i j hi hj hij
@@ -79,12 +75,8 @@ theorem Realizes.exists_contraction_angle_lift {G : Graph} {u v : ℕ}
         hrank, hrank, hrank, Fin.val_last] at h
       exact h.trans (by omega)
     obtain ⟨cut, L, hmem, hcoe, hlt⟩ := exists_reverse_ordered_angle_lift n dir hinj horder
-    refine ⟨cut, L, ?_, hcoe, ?_⟩
-    · intro d
-      simpa only [dir, e.symm_apply_apply] using hmem (e d)
-    · intro a b
-      have h := hlt (e a) (e b)
-      simpa only [dir, e.symm_apply_apply, ← hrank] using h
+    exact ⟨cut, L, fun d => by simpa only [dir, e.symm_apply_apply] using hmem (e d), hcoe,
+      fun a b => by simpa only [dir, e.symm_apply_apply, ← hrank] using hlt (e a) (e b)⟩
 
 /-- An actual contracted embedding supplies its own two separated fans and connector
 in the exact source insertion slots. No geometric split data are premises. The cut
@@ -123,9 +115,8 @@ theorem Realizes.exists_contraction_split {G : Graph} {u v : ℕ}
   obtain ⟨cut, L, hmem, hcoe, hlt⟩ := hR.exists_contraction_angle_lift r huv
   let θ : ℂ → ℝ := fun x => L ((x - D.vertex v).arg : Real.Angle)
   have hangle (d : I) : ((P d - D.vertex v).arg : Real.Angle) = D.direction d.val := by
-    have h := congrArg (fun t : ℝ => (t : Real.Angle))
-      (D.arg_cutPort_sub hρ d.val (hD.germ_ne_zero d.val))
-    simpa only [d.property, direction] using h
+    simpa only [d.property, direction] using
+      congrArg Real.Angle.coe (D.arg_cutPort_sub hρ d.val (hD.germ_ne_zero d.val))
   have hθ (d : I) : θ (P d) = L (D.direction d.val) := congrArg L (hangle d)
   have hsphere (d : I) : P d ∈ Metric.sphere (D.vertex v) ρ := by
     rw [Metric.mem_sphere]

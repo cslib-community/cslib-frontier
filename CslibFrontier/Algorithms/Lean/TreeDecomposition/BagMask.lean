@@ -133,9 +133,10 @@ theorem toMask_ofMask {L : List V} (hL : L.Nodup) {m : ℕ} (hm : m < 2 ^ L.leng
         simp [mem_ofMask_cons, show x ≠ v from fun e => hvL (e ▸ hx)],
       ih hL (by simp only [List.length_cons, pow_succ] at hm; omega)]
     have hv : v ∈ ofMask (v :: L) m ↔ m % 2 = 1 := by
-      simp [mem_ofMask_cons, show v ∉ ofMask L (m / 2) from
-        fun h => hvL (List.mem_toFinset.1 (ofMask_subset L _ h))]
-    simp only [hv]; split_ifs <;> omega
+      have hvL' : v ∉ ofMask L (m / 2) := fun h => hvL (List.mem_toFinset.1 (ofMask_subset L _ h))
+      simp [mem_ofMask_cons, hvL']
+    simp only [hv]
+    split_ifs <;> omega
 
 theorem toMask_eq_toMask_iff {L : List V} {S T : Finset V} :
     toMask L S = toMask L T ↔ S ∩ L.toFinset = T ∩ L.toFinset := by
@@ -146,8 +147,11 @@ theorem powerset_toFinset_eq_image (L : List V) :
     L.toFinset.powerset = (Finset.range (2 ^ L.length)).image (ofMask L) := by
   ext S
   simp only [Finset.mem_powerset, Finset.mem_image, Finset.mem_range]
-  exact ⟨fun hS => ⟨toMask L S, toMask_lt L S, by rw [ofMask_toMask, Finset.inter_eq_left.2 hS]⟩,
-    by rintro ⟨m, -, rfl⟩; exact ofMask_subset L m⟩
+  constructor
+  · intro hS
+    exact ⟨toMask L S, toMask_lt L S, by rw [ofMask_toMask, Finset.inter_eq_left.2 hS]⟩
+  · rintro ⟨m, -, rfl⟩
+    exact ofMask_subset L m
 
 end Mask
 

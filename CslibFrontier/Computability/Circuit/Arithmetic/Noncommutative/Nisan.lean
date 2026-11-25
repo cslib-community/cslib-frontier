@@ -95,7 +95,8 @@ private noncomputable def shiftBy (x : X) : (FreeMonoid X → K) →ₗ[K] (Free
 
 private theorem shiftBy_nisanRow (f : FreeAlgebra K X) (u : FreeMonoid X) (x : X) :
     shiftBy x (nisanRow f u) = nisanRow f (u * FreeMonoid.of x) := by
-  funext v; simp [shiftBy, nisanRow, LinearMap.funLeft, mul_assoc]
+  funext v
+  simp [shiftBy, nisanRow, LinearMap.funLeft, mul_assoc]
 
 private theorem nisanRowSpace_le_comap_shiftBy (f : FreeAlgebra K X) (k : ℕ) (x : X) :
     nisanRowSpace f k ≤ (nisanRowSpace f (k + 1)).comap (shiftBy x) :=
@@ -122,7 +123,8 @@ of the words of length `k`. -/
 theorem rank_nisanMatrix_eq_finrank_nisanRowSpace [Fintype X] {f : FreeAlgebra K X}
     {k m : ℕ} (hf : f.IsHomogeneous (k + m)) :
     (nisanMatrix k m f).rank = Module.finrank K (nisanRowSpace f k) := by
-  let restr : (FreeMonoid X → K) →ₗ[K] ((Fin m → X) → K) := LinearMap.funLeft K K FreeMonoid.ofFn
+  let restr : (FreeMonoid X → K) →ₗ[K] ((Fin m → X) → K) :=
+    LinearMap.funLeft K K FreeMonoid.ofFn
   have hrow : Set.range (nisanMatrix k m f).row =
       restr '' Set.range (fun u : Fin k → X => nisanRow f (FreeMonoid.ofFn u)) := by
     rw [← Set.range_comp]
@@ -139,14 +141,16 @@ theorem rank_nisanMatrix_eq_finrank_nisanRowSpace [Fintype X] {f : FreeAlgebra K
 
 /-- The row of the empty word lists the coefficients of `f`. -/
 theorem nisanRow_one (f : FreeAlgebra K X) : nisanRow f 1 = fun w => coeff w f := by
-  funext w; simp [nisanRow]
+  funext w
+  simp [nisanRow]
 
 /-- For nonzero `f`, the row space of layer `0` is a line: `rank M_0(f) = 1`. -/
 theorem finrank_nisanRowSpace_zero {f : FreeAlgebra K X} (hf : f ≠ 0) :
     Module.finrank K (nisanRowSpace f 0) = 1 := by
   rw [nisanRowSpace, Set.range_unique, FreeMonoid.ofFn_zero]
-  exact finrank_span_singleton fun h =>
-    let ⟨w, hw⟩ := exists_coeff_ne_zero hf; hw (by simpa [nisanRow_one] using congrFun h w)
+  refine finrank_span_singleton fun h => ?_
+  obtain ⟨w, hw⟩ := exists_coeff_ne_zero hf
+  exact hw (by simpa [nisanRow_one] using congrFun h w)
 
 /-- Over finitely many variables, the row spaces are finite-dimensional. -/
 instance [Finite X] (f : FreeAlgebra K X) (k : ℕ) : FiniteDimensional K (nisanRowSpace f k) :=
@@ -174,7 +178,7 @@ theorem one_le_rank_nisanMatrix [Fintype X] {f : FreeAlgebra K X} {k m : ℕ}
   refine Nat.one_le_iff_ne_zero.mpr (Module.finrank_pos_iff_exists_ne_zero.mpr ?_).ne'
   obtain ⟨w, hw⟩ := exists_coeff_ne_zero hf0
   obtain ⟨u, hu⟩ := FreeMonoid.exists_ofFn_eq (k := k) (FreeMonoid.ofList (w.toList.take k))
-    (by simp; have := hf w hw; omega)
+    (by simp [hf w hw])
   refine ⟨⟨nisanRow f (FreeMonoid.ofFn u), Submodule.subset_span ⟨u, rfl⟩⟩, fun h => hw ?_⟩
   simpa [nisanRow, hu, ← FreeMonoid.ofList_append, List.take_append_drop] using
     congrFun (congrArg Subtype.val h) (FreeMonoid.ofList (w.toList.drop k))
@@ -247,7 +251,8 @@ private theorem rowScale_ne_zero {f : FreeAlgebra K X} {d : ℕ} (hd : f.IsHomog
     exact div_ne_zero (by simpa [nisanRow] using coeff_witness hf)
       (smul_eq_nisanRow_one hf (rowBasis f 0 i).2
         fun h => (rowBasis f 0).ne_zero i (Subtype.ext h)).1
-  · subst hkd; exact inv_ne_zero (rowBasis_apply_one_ne_zero hd i)
+  · subst hkd
+    exact inv_ne_zero (rowBasis_apply_one_ne_zero hd i)
   · exact one_ne_zero
 
 /-- The rescaled basis vector `i` of the row space of layer `k`. -/

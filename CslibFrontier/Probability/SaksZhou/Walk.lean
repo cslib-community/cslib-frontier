@@ -142,11 +142,7 @@ private theorem card_foldl_walkStep_eq {A : Matrix ι ι ℝ} (h0 : ∀ i j, 0 �
     (#{u : Fin m → X | (List.ofFn u).foldl (walkStep A) (some i) = some j} : ℝ) =
       (A ^ m) i j * (Fintype.card X : ℝ) ^ m := by
   induction m generalizing i with
-  | zero =>
-    by_cases hij : i = j
-    · subst hij
-      simp
-    · simp [hij, Matrix.one_apply_ne hij]
+  | zero => simp [Matrix.one_apply, eq_comm, apply_ite]
   | succ m ih =>
     have hnone : #{u : Fin m → X | (List.ofFn u).foldl (walkStep A) none = some j} = 0 := by
       simp [foldl_walkStep_none]

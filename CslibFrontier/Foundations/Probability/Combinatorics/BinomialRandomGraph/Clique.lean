@@ -87,14 +87,11 @@ private def edgesOn (t : Finset V) : Finset (Sym2 V) := t.offDiag.image Sym2.mk.
 
 private theorem mk_mem_edgesOn {t : Finset V} {a b : V} :
     s(a, b) ∈ edgesOn t ↔ a ∈ t ∧ b ∈ t ∧ a ≠ b := by
-  simp only [edgesOn, mem_image, mem_offDiag, Prod.exists, Function.uncurry_apply_pair]
-  constructor
-  · rintro ⟨x, y, ⟨hx, hy, hxy⟩, h⟩
-    rcases Sym2.eq_iff.1 h with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
-    · exact ⟨hx, hy, hxy⟩
-    · exact ⟨hy, hx, Ne.symm hxy⟩
-  · rintro ⟨ha, hb, hab⟩
-    exact ⟨a, b, ⟨ha, hb, hab⟩, rfl⟩
+  simp only [edgesOn, mem_image, mem_offDiag, Prod.exists, Function.uncurry_apply_pair,
+    Sym2.eq_iff]
+  exact ⟨fun ⟨_, _, ⟨hx, hy, hxy⟩, h⟩ =>
+      h.elim (fun ⟨rfl, rfl⟩ => ⟨hx, hy, hxy⟩) (fun ⟨rfl, rfl⟩ => ⟨hy, hx, hxy.symm⟩),
+    fun ⟨ha, hb, hab⟩ => ⟨a, b, ⟨ha, hb, hab⟩, Or.inl ⟨rfl, rfl⟩⟩⟩
 
 private theorem card_edgesOn (t : Finset V) : #(edgesOn t) = (#t).choose 2 :=
   Sym2.card_image_offDiag t
@@ -112,15 +109,13 @@ private theorem edgesOn_inter (s t : Finset V) : edgesOn (s ∩ t) = edgesOn s �
     tauto
 
 private theorem isClique_iff_edgesOn_subset {G : SimpleGraph V} {t : Finset V} :
-    G.IsClique (t : Set V) ↔ (edgesOn t : Set (Sym2 V)) ⊆ G.edgeSet := by
-  constructor
-  · intro h e he
+    G.IsClique (t : Set V) ↔ (edgesOn t : Set (Sym2 V)) ⊆ G.edgeSet :=
+  ⟨fun h e he => by
     induction e using Sym2.ind with
     | _ a b =>
       obtain ⟨ha, hb, hab⟩ := mk_mem_edgesOn.1 he
-      exact h ha hb hab
-  · intro h a ha b hb hab
-    exact h (mk_mem_edgesOn.2 ⟨ha, hb, hab⟩)
+      exact h ha hb hab,
+   fun h _ ha _ hb hab => h (mk_mem_edgesOn.2 ⟨ha, hb, hab⟩)⟩
 
 end EdgesOn
 
@@ -211,10 +206,8 @@ private theorem card_filter_card_inter_eq_two_le {s : Finset V} (hs : #s = 3) :
     intro t ht
     rw [mem_coe, mem_filter, mem_powersetCard] at ht
     simp only [coe_product, Set.mem_prod, mem_coe, mem_powersetCard]
-    refine ⟨⟨inter_subset_left, ht.2⟩, sdiff_subset_sdiff (subset_univ t) le_rfl, ?_⟩
-    have := card_sdiff_add_card_inter t s
-    rw [inter_comm] at this
-    omega
+    have := inter_comm t s ▸ card_sdiff_add_card_inter t s
+    exact ⟨⟨inter_subset_left, ht.2⟩, sdiff_subset_sdiff (subset_univ t) le_rfl, by omega⟩
   calc #T ≤ #(powersetCard 2 s ×ˢ powersetCard 1 (univ \ s)) := card_le_card_of_injOn _ hmaps hinj
     _ = 3 * (Fintype.card V - 3) := by
       rw [card_product, card_powersetCard, card_powersetCard, hs, card_univ_sdiff, hs,
@@ -241,26 +234,23 @@ private theorem binomialRandom_real_isClique_inter_le [Countable V] (p : I) {s t
       hs, ht]
     rfl
   have hp0 : (0 : ℝ) ≤ p := p.2.1
-  have hp1 : (p : ℝ) ≤ 1 := p.2.2
   have hj : #(s ∩ t) ≤ 3 := hs ▸ card_le_card inter_subset_left
   by_cases hst : s = t
   · subst hst
     rw [inter_self, hs] at hcard
-    have h3 : #(edgesOn s ∪ edgesOn s) = 3 := by simpa using hcard
-    simp only [↓reduceIte, inter_self, hs, h3]
+    simp only [↓reduceIte, inter_self, hs, show #(edgesOn s ∪ edgesOn s) = 3 by simpa using hcard]
     norm_num
     positivity
   · simp only [hst, ↓reduceIte, add_zero]
-    have hne : #(s ∩ t) ≠ 3 := fun h =>
-      hst (eq_of_subset_of_card_le (inter_eq_left.1 (eq_of_subset_of_card_le inter_subset_left
-        (by omega))) (by omega))
+    have hne : #(s ∩ t) ≠ 3 := fun h => hst <|
+      eq_of_subset_of_card_le (inter_eq_left.1 (eq_of_subset_of_card_le inter_subset_left
+        (by omega))) (by omega)
     interval_cases h : #(s ∩ t)
-    · have h6 : #(edgesOn s ∪ edgesOn t) = 6 := by simpa using hcard
-      rw [h6]; norm_num
-    · have h6 : #(edgesOn s ∪ edgesOn t) = 6 := by simpa using hcard
-      rw [h6]; norm_num
-    · have h5 : #(edgesOn s ∪ edgesOn t) = 5 := by simpa using hcard
-      rw [h5]; norm_num; positivity
+    · rw [show #(edgesOn s ∪ edgesOn t) = 6 by simpa using hcard]; norm_num
+    · rw [show #(edgesOn s ∪ edgesOn t) = 6 by simpa using hcard]; norm_num
+    · rw [show #(edgesOn s ∪ edgesOn t) = 5 by simpa using hcard]
+      norm_num
+      positivity
     · exact absurd rfl hne
 
 omit [DecidableEq V] in
@@ -268,11 +258,11 @@ private theorem setOf_cliqueFree_three :
     {G : SimpleGraph V | G.CliqueFree 3} =
       {G | ∀ t ∈ powersetCard 3 (univ : Finset V), G ∉ {G | G.IsClique (t : Set V)}} := by
   ext G
-  have h := congrArg (G ∈ ·) (setOf_not_cliqueFree (V := V) 3)
-  simp only [Set.mem_ofPred_eq, Set.mem_iUnion, exists_prop, eq_iff_iff] at h
   simp only [Set.mem_ofPred_eq]
-  rw [← not_iff_not, h]
+  rw [← not_iff_not]
   simp only [not_forall, not_not, exists_prop]
+  simpa only [Set.mem_ofPred_eq, Set.mem_iUnion, exists_prop, eq_iff_iff] using
+    congrArg (G ∈ ·) (setOf_not_cliqueFree (V := V) 3)
 
 end Triangle
 
@@ -326,21 +316,17 @@ private theorem pow_three_le_sixteen_mul_choose {n : ℕ} (hn : 4 ≤ n) :
     (n : ℝ) ^ 3 ≤ 16 * n.choose 3 := by
   obtain ⟨m, rfl⟩ := Nat.exists_eq_add_of_le hn
   have h : ((4 + m).choose 3 : ℝ) * 6 = (4 + m) * (3 + m) * (2 + m) := by
-    have := Nat.choose_mul_factorial_mul_factorial (n := 4 + m) (k := 3) (by omega)
-    rw [show 4 + m - 3 = m + 1 by omega] at this
+    have hc := Nat.choose_mul_factorial_mul_factorial (n := 4 + m) (k := 3) (by omega)
     have hf : (m + 1 + 3).factorial = (4 + m) * (3 + m) * (2 + m) * (m + 1).factorial := by
       rw [show m + 1 + 3 = (m + 1 + 2) + 1 by ring, Nat.factorial_succ, Nat.factorial_succ,
         Nat.factorial_succ]
       ring
-    rw [show 4 + m = m + 1 + 3 by ring, hf] at this
-    have h6 : (3 : ℕ).factorial = 6 := rfl
-    rw [h6] at this
-    have hpos := Nat.factorial_pos (m + 1)
-    have : (m + 1 + 3).choose 3 * 6 = (m + 1 + 3) * (m + 1 + 2) * (m + 1 + 1) := by
-      apply Nat.eq_of_mul_eq_mul_right hpos
-      nlinarith [this]
+    rw [show (3 : ℕ).factorial = 6 from rfl, show 4 + m - 3 = m + 1 by omega,
+      show 4 + m = m + 1 + 3 by ring, hf] at hc
+    have hnat : (m + 1 + 3).choose 3 * 6 = (4 + m) * (3 + m) * (2 + m) :=
+      Nat.eq_of_mul_eq_mul_right (Nat.factorial_pos (m + 1)) (by nlinarith [hc])
     rw [show 4 + m = m + 1 + 3 by ring]
-    exact_mod_cast (by rw [this]; ring)
+    exact_mod_cast hnat
   cast_nlinarith [sq_nonneg (m : ℝ), (m.cast_nonneg : (0 : ℝ) ≤ m)]
 
 /-- **The triangle threshold, second moment, in terms of `n p`**: for `n ≥ 4` and `p > 0`,
@@ -365,24 +351,21 @@ theorem binomialRandom_real_cliqueFree_three_le {n : ℕ} (hn : 4 ≤ n) (p : I)
 theorem binomialRandom_real_not_cliqueFree_three_le (n : ℕ) (p : I) :
     G(Fin n, p).real {G | ¬G.CliqueFree 3} ≤ (n * p) ^ 3 / 6 := by
   refine (binomialRandom_real_not_cliqueFree_le p 3).trans ?_
-  rw [Fintype.card_fin]
+  rw [Fintype.card_fin, show (3 : ℕ).choose 2 = 3 from rfl]
   have h := Nat.choose_le_pow_div (α := ℝ) 3 n
-  have h6 : ((3 : ℕ).factorial : ℝ) = 6 := by norm_num [Nat.factorial]
-  rw [h6] at h
-  have hp3 : (0 : ℝ) ≤ (p : ℝ) ^ (3 : ℕ).choose 2 := pow_nonneg p.2.1 _
-  calc (n.choose 3 : ℝ) * (p : ℝ) ^ (3 : ℕ).choose 2 ≤ (n : ℝ) ^ 3 / 6 * (p : ℝ) ^ 3 :=
-        mul_le_mul h (le_of_eq rfl) hp3 (by positivity)
-    _ = _ := by ring
+  rw [show ((3 : ℕ).factorial : ℝ) = 6 by norm_num [Nat.factorial]] at h
+  calc (n.choose 3 : ℝ) * (p : ℝ) ^ 3
+      ≤ (n : ℝ) ^ 3 / 6 * (p : ℝ) ^ 3 := mul_le_mul_of_nonneg_right h (pow_nonneg p.2.1 _)
+    _ = (n * p) ^ 3 / 6 := by ring
 
 /-- **Below the triangle threshold** [Alon and Spencer, Section 4.4][AlonSpencer2016]: if
 `n p(n) → 0`, then `G(n, p(n))` contains a triangle with probability tending to `0`. -/
 theorem tendsto_binomialRandom_real_not_cliqueFree_three {p : ℕ → I}
     (hp : Tendsto (fun n : ℕ => (n : ℝ) * p n) atTop (𝓝 0)) :
-    Tendsto (fun n => G(Fin n, p n).real {G | ¬G.CliqueFree 3}) atTop (𝓝 0) := by
-  have hlim : Tendsto (fun n : ℕ => ((n : ℝ) * p n) ^ 3 / 6) atTop (𝓝 0) := by
-    simpa using (hp.pow 3).div_const 6
-  exact squeeze_zero (fun _ => measureReal_nonneg)
-    (fun n => binomialRandom_real_not_cliqueFree_three_le n (p n)) hlim
+    Tendsto (fun n => G(Fin n, p n).real {G | ¬G.CliqueFree 3}) atTop (𝓝 0) :=
+  squeeze_zero (fun _ => measureReal_nonneg)
+    (fun n => binomialRandom_real_not_cliqueFree_three_le n (p n))
+    (by simpa using (hp.pow 3).div_const 6)
 
 /-- **Above the triangle threshold** [Alon and Spencer, Section 4.4][AlonSpencer2016]: if
 `n p(n) → ∞`, then `G(n, p(n))` is triangle-free with probability tending to `0`, that is, it
@@ -392,10 +375,8 @@ theorem tendsto_binomialRandom_real_cliqueFree_three {p : ℕ → I}
     Tendsto (fun n => G(Fin n, p n).real {G | G.CliqueFree 3}) atTop (𝓝 0) := by
   have hlim : Tendsto (fun n : ℕ => 16 / ((n : ℝ) * p n) ^ 3 + 48 / ((n : ℝ) * p n)) atTop
       (𝓝 0) := by
-    have h1 : Tendsto (fun n : ℕ => 16 / ((n : ℝ) * p n) ^ 3) atTop (𝓝 0) :=
-      (tendsto_pow_atTop (by norm_num : (3 : ℕ) ≠ 0) |>.comp hp).const_div_atTop 16
-    have h2 : Tendsto (fun n : ℕ => 48 / ((n : ℝ) * p n)) atTop (𝓝 0) := hp.const_div_atTop 48
-    simpa using h1.add h2
+    simpa using ((tendsto_pow_atTop (by norm_num : (3 : ℕ) ≠ 0) |>.comp hp).const_div_atTop
+      16).add (hp.const_div_atTop 48)
   refine squeeze_zero' (Eventually.of_forall fun _ => measureReal_nonneg) ?_ hlim
   filter_upwards [eventually_ge_atTop 4, hp.eventually_gt_atTop 0] with n hn hnp
   exact binomialRandom_real_cliqueFree_three_le hn (p n) (pos_of_mul_pos_right hnp n.cast_nonneg)

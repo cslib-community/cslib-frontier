@@ -116,48 +116,37 @@ theorem labelMap_append (n : ℕ) (K : BitString (keyBits n)) (x : Fin (samples 
     labelMap keyBits samples F n
         (List.ofFn K ++ ((List.ofFn fun i => List.ofFn (x i)).flatten ++ rest)) =
       encodeSample (examples (family keyBits F n K) x) := by
-  have hkey : BitString.listRow (keyBits n) 0
-      (List.ofFn K ++ ((List.ofFn fun i => List.ofFn (x i)).flatten ++ rest)) = List.ofFn K := by
-    rw [BitString.listRow_zero, BitString.ofList_ofFn_append]
-  have hdrop : (List.ofFn K ++ ((List.ofFn fun i => List.ofFn (x i)).flatten ++ rest)).drop
-      (keyBits n) = (List.ofFn fun i => List.ofFn (x i)).flatten ++ rest :=
-    List.drop_left' (by simp)
   have hrows : BitString.listRows (samples n) n
       ((List.ofFn fun i => List.ofFn (x i)).flatten ++ rest) =
         List.ofFn fun i => List.ofFn (x i) := by
     have hflat := BitString.listRows_flatten (width := n) (List.ofFn fun i => List.ofFn (x i))
       (by simp)
-    have hlen : (List.ofFn fun i => List.ofFn (x i)).flatten.length = samples n * n := by
-      simp [List.length_flatten, Function.comp_def]
     rw [List.length_ofFn] at hflat
-    rw [← BitString.listRows_take, List.take_left' hlen, hflat]
-  simp only [labelMap, hkey, hdrop, hrows, encodeSample, examples_apply, family, List.map_ofFn,
-    Function.comp_def]
+    rw [← BitString.listRows_take,
+      List.take_left' (by simp [List.length_flatten, Function.comp_def]), hflat]
+  simp only [labelMap, BitString.listRow_zero, BitString.ofList_ofFn_append,
+    List.drop_left' (List.length_ofFn (f := K)), hrows, encodeSample, examples_apply, family,
+    List.map_ofFn, Function.comp_def]
 
 /-- A word whose labelling map is the encoding of a labelled sample starts with a key that is
 consistent with the sample. -/
 theorem consistent_of_labelMap_eq {n : ℕ} {S : LabeledSample (Fin n → Bool) Bool (samples n)}
     {w : List Bool} (h : labelMap keyBits samples F n w = encodeSample S) (i : Fin (samples n)) :
     family keyBits F n (BitString.ofList (keyBits n) w) (S i).1 = (S i).2 := by
-  have hlen : (BitString.listRows (samples n) n (w.drop (keyBits n))).flatten.length =
-      (List.ofFn fun i => List.ofFn (S i).1).flatten.length := by
-    rw [List.length_flatten, List.length_flatten]
-    simp [List.map_ofFn, Function.comp_def, BitString.listRows]
-  have happ := List.append_inj h hlen
-  have hrows : BitString.listRows (samples n) n (w.drop (keyBits n)) =
-      List.ofFn fun i => List.ofFn (S i).1 := by
-    have hleft := BitString.listRows_flatten
-      (BitString.listRows (samples n) n (w.drop (keyBits n)))
-      fun _ hrow => BitString.length_of_mem_listRows hrow
-    have hright := BitString.listRows_flatten (width := n) (List.ofFn fun i => List.ofFn (S i).1)
-      (by simp)
-    rw [BitString.length_listRows] at hleft
-    rw [List.length_ofFn] at hright
-    exact hleft.symm.trans ((congrArg (BitString.listRows (samples n) n) happ.1).trans hright)
+  have happ := List.append_inj h (by
+    simp [List.length_flatten, List.map_ofFn, Function.comp_def, BitString.listRows])
+  have hleft := BitString.listRows_flatten
+    (BitString.listRows (samples n) n (w.drop (keyBits n)))
+    fun _ => BitString.length_of_mem_listRows
+  have hright := BitString.listRows_flatten (width := n) (List.ofFn fun i => List.ofFn (S i).1)
+    (by simp)
+  rw [BitString.length_listRows] at hleft
+  rw [List.length_ofFn] at hright
   have hlabels := happ.2
-  rw [hrows, List.map_ofFn] at hlabels
-  have := congrFun (List.ofFn_inj.1 hlabels) i
-  simpa only [Function.comp_apply, BitString.listRow_zero, family] using this
+  rw [hleft.symm.trans ((congrArg (BitString.listRows (samples n) n) happ.1).trans hright),
+    List.map_ofFn] at hlabels
+  simpa only [Function.comp_apply, BitString.listRow_zero, family] using
+    congrFun (List.ofFn_inj.1 hlabels) i
 
 /-- A uniform input of the labelling map is a uniform key, then uniform points, then uniform spare
 bits. -/
@@ -217,19 +206,18 @@ theorem learningExperiment_inconsistent_le (A : Inverter) (n : ℕ) :
           encodeSample (examples (family keyBits F n K) x) := by
     simp only [OneWayReindex.familyInversionGame, ProbComp.eval_bind, ProbComp.eval_pure,
       BitString.eval_sampleList, uniformList_inputLength, PMF.bind_bind, PMF.bind_map,
-      Function.comp_def, labelMap_append]
-    simp only [Q, PMF.map_bind, PMF.map_comp, Function.comp_def, PMF.bind_const]
+      Function.comp_def, labelMap_append, Q, PMF.map_bind, PMF.map_comp, PMF.bind_const]
     rfl
   rw [hleft, hright, PMF.toOuterMeasure_map_apply, ← PMF.toOuterMeasure_apply_singleton,
     PMF.toOuterMeasure_map_apply]
   refine Q.toOuterMeasure.mono fun ⟨K, x, c⟩ ⟨i, hi⟩ => ?_
   simp only [Set.mem_preimage, Set.mem_singleton_iff, beq_eq_false_iff_ne]
   intro heq
-  refine hi ?_
   have hkb : keyBits n ≤ inputLength keyBits samples n :=
     (Nat.le_add_right _ _).trans (Nat.le_add_right _ _)
-  have := consistent_of_labelMap_eq keyBits samples F heq i
-  rwa [← BitString.ofList_take, List.take_take, min_eq_left hkb, BitString.ofList_take] at this
+  have hc := consistent_of_labelMap_eq keyBits samples F heq i
+  rw [← BitString.ofList_take, List.take_take, min_eq_left hkb, BitString.ofList_take] at hc
+  exact hi hc
 
 /-! ### Polynomial-time certificates -/
 
@@ -295,23 +283,21 @@ theorem exists_isPPT_inverter_frequently_learningExperiment_le_of_not_exists_wea
       1 - 1 / ((q.eval n : ℕ) : ℝ) < (Game.succProbability (ProbComp.eval
         (OneWayReindex.familyInversionGame (inputLength keyBits samples)
           (labelMap keyBits samples F) A n)) : ℝ) := by
-    by_contra hcon
-    push Not at hcon
+    by_contra! hcon
     exact hOWF ⟨_, OneWayReindex.weakOneWay (computableInPolyTime_inputLength _ _ hkeyBits hsamples)
-      (fun n => Nat.le_add_left _ _) (computableInPolyTime_labelMap _ _ _ hkeyBits hsamples hF) hq
+      (fun _ => Nat.le_add_left _ _) (computableInPolyTime_labelMap _ _ _ hkeyBits hsamples hF) hq
       hcon⟩
   obtain ⟨A, hA, hfreq⟩ := hex
   refine ⟨A, hA, hfreq.mono fun n hn ε hε => ?_⟩
   set G := ProbComp.eval (OneWayReindex.familyInversionGame (inputLength keyBits samples)
     (labelMap keyBits samples F) A n)
-  have hpos : (0 : ℝ) < (q.eval n : ℕ) := Nat.cast_pos.mpr (hq n)
   have hfail : G false ≤ ((q.eval n : ℕ) : ℝ≥0∞)⁻¹ := by
     have hlt : (G false).toReal < 1 / ((q.eval n : ℕ) : ℝ) := by
       rw [Cslib.Probability.PMF.toReal_false_eq_one_sub]
       simp only [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal] at hn
       linarith
     rw [← ENNReal.ofReal_toReal (G.apply_ne_top false), ← ENNReal.ofReal_natCast,
-      ← ENNReal.ofReal_inv_of_pos hpos, ← one_div]
+      ← ENNReal.ofReal_inv_of_pos (Nat.cast_pos.mpr (hq n)), ← one_div]
     exact ENNReal.ofReal_le_ofReal hlt.le
   calc _ ≤ _ + Fintype.card (BitString (keyBits n)) * (1 - ENNReal.ofReal ε) ^ samples n :=
         bind_labelInversion_lt_uniformError_le (family keyBits F n) (inverterLearner keyBits A n)

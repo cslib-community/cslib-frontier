@@ -590,7 +590,8 @@ private theorem dischargeLoop_spec {adj : V → List V} (hadj : IsAdjacency N ad
     | cons v vs =>
       by_cases hadm : 0 < s.pr.flow.resCap u v ∧ s.pr.height u = s.pr.height v + 1
       swap
-      · obtain ⟨hs', hstep⟩ := dischargeMeasure_advance_step hs hcu hadm
+      · -- Advance current-arc pointer
+        obtain ⟨hs', hstep⟩ := dischargeMeasure_advance_step hs hcu hadm
         have ih := dischargeLoop_spec hadj hnorm u fuel _ hs' (by omega)
         rw [dischargeLoop_advance hnorm hact hcu hadm]
         generalize dischargeLoop adj norm u fuel ⟨s.pr, Function.update s.cur u vs⟩ = r at ih ⊢
@@ -609,7 +610,9 @@ private theorem dischargeLoop_spec {adj : V → List V} (hadj : IsAdjacency N ad
       have hex (w : V) (hwu : w ≠ u)
           (hnon : ¬ (0 < s.pr.flow.resCap u w ∧ s.pr.height u = s.pr.height w + 1)) :
           (s.pr.apply (.push u v)).flow.excess w = s.pr.flow.excess w :=
-        s.pr.flow.excess_push_of_ne hwu (by rintro rfl; exact hnon hadm)
+        s.pr.flow.excess_push_of_ne hwu <| by
+          rintro rfl
+          exact hnon hadm
       have hres (x y : V) (hx : x ≠ u) (hy : y ≠ u) :
           (s.pr.apply (.push u v)).flow.resCap x y = s.pr.flow.resCap x y :=
         s.pr.flow.resCap_push_of_ne (fun h => hx h.1) (fun h => hy h.2)
@@ -629,7 +632,8 @@ private theorem dischargeLoop_spec {adj : V → List V} (hadj : IsAdjacency N ad
             hnon (push_preserves_admissible_backward hp h)).trans (hex w hwu hnon),
           ihIn, fun x y hx hy => (ihRes x y hx hy).trans (hres x y hx hy)⟩
         rwa [State.numNonsatPushes_cons, ite_eq_right fun h => h.2 hsat, Nat.zero_add]
-      · have hnact' := not_isActive_of_nonsatPush hp hsat
+      · -- Nonsaturating push: `u` becomes inactive and `dischargeLoop` returns at once.
+        have hnact' := not_isActive_of_nonsatPush hp hsat
         rw [dischargeLoop_of_not_isActive hnact']
         dsimp only
         rw [numRelabels_push_cons]
@@ -1286,7 +1290,10 @@ theorem rtfLoop_step {adj : V → List V} (hadj : IsAdjacency N adj) {st : RTFSt
   have hlt : rtfMeasure V st < rtfFuel V := rtfMeasure_lt_rtfFuel hinv hst
   obtain ⟨hinv', hmeas'⟩ : RTFInv adj st' ∧ rtfMeasure V st' + 1 ≤ rtfMeasure V st :=
     rtfNext_spec hadj (norm := id) (fun _ => rfl) hst hinv htodo 0 0
-  obtain ⟨f, hf⟩ : ∃ f, rtfFuel V = f + 1 := ⟨rtfFuel V - 1, by unfold rtfFuel; omega⟩
+  obtain ⟨f, hf⟩ : ∃ f, rtfFuel V = f + 1 :=
+    ⟨rtfFuel V - 1, by
+      unfold rtfFuel
+      omega⟩
   have hsub : rtfLoop adj id id f st' = r' :=
     rtfLoop_eq_of_lt hadj hst (rtfFuel V) f (rtfFuel V) st' hinv'
       (by omega) (by omega) (by omega)
@@ -1440,7 +1447,9 @@ theorem relabelToFrontWith_correct {vs : List V} (hnodup : vs.Nodup)
   rw [ite_eq_right hst]
   simp only [RelabelToFrontOutput.ofState]
   rw [dite_eq_left hz]
-  exact ⟨hmax, hmin, hval, hrun, hdis.trans_eq (by rw [hmeas0]; exact Nat.zero_add _),
+  exact ⟨hmax, hmin, hval, hrun, hdis.trans_eq (by
+      rw [hmeas0]
+      exact Nat.zero_add _),
     hns.trans_eq (Nat.sub_zero _), (Nat.le_add_right _ _).trans
       (hadv.trans_eq ((Nat.zero_add _).trans (advPotential_init adj)))⟩
 

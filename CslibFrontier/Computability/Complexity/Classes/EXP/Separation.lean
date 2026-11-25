@@ -74,34 +74,29 @@ theorem P_ssubset_E : P encBits ⊂ E encBits :=
 the clocked diagonal with clock `2 ^ (n + 1) ^ 2` is in `DTIME (2 ^ n ^ 3)` and in no class
 `DTIME (2 ^ (k * n))` [Arora and Barak, Theorem 3.1][AroraBarak09]. -/
 theorem E_ssubset_EXP : E encBits ⊂ EXP encBits := by
-  have hJ := timeConstructible_two_pow_succ_sq
   refine (Set.ssubset_iff_of_subset E_subset_EXP).mpr ⟨_, mem_EXP_iff.mpr ⟨3,
-    DTIME_mono_of_eventually_le ?_ (setOf_timeDiagonal_mem_DTIME hJ)⟩, fun h => ?_⟩
+    DTIME_mono_of_eventually_le ?_
+      (setOf_timeDiagonal_mem_DTIME timeConstructible_two_pow_succ_sq)⟩, fun h => ?_⟩
   · -- the running time of the clocked diagonal is within `2 ^ n ^ 3` from `n = 5` on
     filter_upwards [PolynomiallyBounded.eventually_lt_two_pow (f := fun n => (n + 1) ^ 5)
       (by fun_prop), eventually_ge_atTop 5] with n hn h5
     have h₁ : 2 ^ (n + 1) ^ 2 + 1 ≤ 2 ^ ((n + 1) ^ 2 + 1) := by grind
-    have hexp : n + 3 * ((n + 1) ^ 2 + 1) ≤ n ^ 3 := by nlinarith
     calc (n + 1) ^ 5 * (2 ^ (n + 1) ^ 2 + 1) ^ 3
         ≤ 2 ^ n * (2 ^ ((n + 1) ^ 2 + 1)) ^ 3 :=
           Nat.mul_le_mul hn.le (Nat.pow_le_pow_left h₁ 3)
       _ = 2 ^ (n + 3 * ((n + 1) ^ 2 + 1)) := by rw [← pow_mul, ← pow_add, mul_comm]
-      _ ≤ 2 ^ n ^ 3 := Nat.pow_le_pow_right (by norm_num) hexp
+      _ ≤ 2 ^ n ^ 3 := Nat.pow_le_pow_right (by norm_num) (by nlinarith)
   · -- the clock eventually exceeds every `c * 2 ^ (k * n) + c`
     obtain ⟨k, hk⟩ := mem_E_iff.mp h
     refine setOf_timeDiagonal_notMem_DTIME (fun c => ?_) hk
     filter_upwards [eventually_ge_atTop (k + c + 1)] with n hn
-    have hc : c + c ≤ 2 ^ (c + 1) := by
-      rw [pow_succ 2 c]
-      have := Nat.lt_two_pow_self (n := c)
-      omega
-    have hexp : c + 1 + k * n ≤ (n + 1) ^ 2 := by nlinarith
+    have hc : c + c ≤ 2 ^ (c + 1) := by grind [c.lt_two_pow_self]
     calc c * 2 ^ (k * n) + c ≤ (c + c) * 2 ^ (k * n) := by
           have := Nat.one_le_two_pow (n := k * n)
           nlinarith
       _ ≤ 2 ^ (c + 1) * 2 ^ (k * n) := Nat.mul_le_mul_right _ hc
       _ = 2 ^ (c + 1 + k * n) := (pow_add _ _ _).symm
-      _ ≤ 2 ^ (n + 1) ^ 2 := Nat.pow_le_pow_right (by norm_num) hexp
+      _ ≤ 2 ^ (n + 1) ^ 2 := Nat.pow_le_pow_right (by norm_num) (by nlinarith)
 
 /-- **`E` is not closed under polynomial-time many-one reductions** [Book][Book1974]: a problem in
 `EXP` but not in `E` reduces to bounded halting, which is in `E`. -/

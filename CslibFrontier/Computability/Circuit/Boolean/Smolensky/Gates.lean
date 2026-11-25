@@ -91,29 +91,31 @@ def modApprox (u : Fin m → R) : R :=
 theorem orApprox_comp_mem {D : ℕ} (T : Fin ℓ → Finset (Fin m)) {v : Fin m → BitString n → R}
     (hv : ∀ k, v k ∈ lowDegree R (Fin n) D) :
     (fun x => orApprox p T fun k => v k x) ∈ lowDegree R (Fin n) (ℓ * ((p - 1) * D)) := by
-  rw [show (fun x => orApprox p T fun k => v k x) = 1 - ∏ j, (1 - (∑ i ∈ T j, v i) ^ (p - 1)) by
-    ext; simp [orApprox]]
-  simpa using one_sub_mem_lowDegree (prod_mem_lowDegree (R := R) (ι := Fin n) univ
+  convert one_sub_mem_lowDegree (prod_mem_lowDegree (R := R) (ι := Fin n) univ
     (a := (p - 1) * D) (f := fun j => 1 - (∑ i ∈ T j, v i) ^ (p - 1)) fun j _ =>
-      one_sub_mem_lowDegree (pow_mem_lowDegree (sum_mem_lowDegree _ fun i _ => hv i) (p - 1)))
+      one_sub_mem_lowDegree (pow_mem_lowDegree (sum_mem_lowDegree (T j) fun i _ => hv i) (p - 1)))
+    using 2
+  · simp
+  · simp [orApprox]
 
 /-- Composing `andApprox p T` with degree-`D` polynomials yields a polynomial of degree at most
 `ℓ * ((p - 1) * D)`. -/
 theorem andApprox_comp_mem {D : ℕ} (T : Fin ℓ → Finset (Fin m)) {v : Fin m → BitString n → R}
     (hv : ∀ k, v k ∈ lowDegree R (Fin n) D) :
     (fun x => andApprox p T fun k => v k x) ∈ lowDegree R (Fin n) (ℓ * ((p - 1) * D)) := by
-  rw [show (fun x => andApprox p T fun k => v k x) =
-      1 - fun x => orApprox p T fun k => (1 - v k) x by ext; simp [andApprox]]
-  exact one_sub_mem_lowDegree (orApprox_comp_mem p T fun k => one_sub_mem_lowDegree (hv k))
+  convert one_sub_mem_lowDegree (orApprox_comp_mem p T fun k => one_sub_mem_lowDegree (hv k))
+    using 1
+  funext x
+  simp [andApprox]
 
 /-- Composing `modApprox p` with degree-`D` polynomials yields a polynomial of degree at most
 `(p - 1) * D`. -/
 theorem modApprox_comp_mem {D : ℕ} {v : Fin m → BitString n → R}
     (hv : ∀ k, v k ∈ lowDegree R (Fin n) D) :
     (fun x => modApprox p fun k => v k x) ∈ lowDegree R (Fin n) ((p - 1) * D) := by
-  rw [show (fun x => modApprox p fun k => v k x) = (∑ i, v i) ^ (p - 1) by
-    ext; simp [modApprox, Finset.sum_apply]]
-  exact pow_mem_lowDegree (sum_mem_lowDegree _ fun i _ => hv i) (p - 1)
+  convert pow_mem_lowDegree (sum_mem_lowDegree univ fun i _ => hv i) (p - 1) using 1
+  funext x
+  simp [modApprox, Finset.sum_apply]
 
 end Approximators
 
@@ -211,7 +213,8 @@ theorem card_orApprox_wrong_mul_le (u : Fin m → Bool) :
       _ ≤ (2 ^ m) ^ ℓ := Nat.pow_le_pow_left (two_mul_card_sum_eq_zero_le u hk) ℓ
   · simp only [not_exists, Bool.not_eq_true] at hex
     rw [filter_false_of_mem fun T _ => by
-      rw [orApprox_bitVal_of_forall_false T u hex]; simp [hex]]
+      rw [orApprox_bitVal_of_forall_false T u hex]
+      simp [hex]]
     simp
 
 /-- **Averaging over the inputs.** For arguments `u x` depending on the input, some tuple makes the
@@ -226,7 +229,8 @@ private theorem exists_orApprox (u : BitString n → Fin m → Bool) :
   refine (exists_le_of_sum_le univ_nonempty ?_).imp fun _ hT => hT.2
   calc ∑ T, #(univ.filter fun x => Wrong T x) * 2 ^ ℓ
       = ∑ x, #(univ.filter fun T => Wrong T x) * 2 ^ ℓ := by
-        simp only [card_filter, sum_mul]; exact sum_comm
+        simp only [card_filter, sum_mul]
+        exact sum_comm
     _ ≤ ∑ _x : BitString n, (2 ^ m) ^ ℓ := sum_le_sum fun x _ => card_orApprox_wrong_mul_le (u x)
     _ = ∑ _T : Fin ℓ → Finset (Fin m), 2 ^ n := by simp; ring
 
@@ -259,7 +263,8 @@ theorem exists_gate_approx (hℓ : 1 ≤ ℓ) (op : Unbounded.extSignature.Op)
       convert hT using 4 with x
       have hd : decide (∀ j, u x j = true) = !decide (∃ j, (!u x j) = true) := by
         rw [Bool.eq_iff_iff, Bool.not_eq_true', decide_eq_true_iff, decide_eq_false_iff_not,
-          not_exists]; simp
+          not_exists]
+        simp
       simp [andApprox, Unbounded.extInterpretation, Unbounded.interpretation, hd, bitVal_not]
   | gate m =>
     refine ⟨modApprox p, fun D _ hv => lowDegree_mono

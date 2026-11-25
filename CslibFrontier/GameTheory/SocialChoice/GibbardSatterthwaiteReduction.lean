@@ -99,14 +99,10 @@ variable {f}
 /-- **Proposition 9.6** of [Nisan2007]: a social choice function is single-voter monotone if and
 only if it is strategy-proof (incentive compatible). No finiteness assumption on `V` or `A` is
 needed. -/
-theorem isSingleMonotone_iff_isStrategyProof : f.IsSingleMonotone ↔ f.IsStrategyProof := by
-  constructor
-  · intro hm P Q i hPQ hman
-    have hne : f P ≠ f Q := ((P i).ne_of_prefers hman).symm
-    exact (P i).asymm hman (hm i hPQ hne).1
-  · intro hf P Q i hPQ hne
-    exact ⟨(P i).prefers_of_not_prefers hne.symm (hf P Q i hPQ),
-      (Q i).prefers_of_not_prefers hne (hf Q P i fun j hj => (hPQ j hj).symm)⟩
+theorem isSingleMonotone_iff_isStrategyProof : f.IsSingleMonotone ↔ f.IsStrategyProof :=
+  ⟨fun hm P _Q i hPQ hman => (P i).asymm hman (hm i hPQ ((P i).ne_of_prefers hman).symm).1,
+    fun hf P Q i hPQ hne => ⟨(P i).prefers_of_not_prefers hne.symm (hf P Q i hPQ),
+      (Q i).prefers_of_not_prefers hne (hf Q P i fun j hj => (hPQ j hj).symm)⟩⟩
 
 /-- Derived equivalence for finitely many voters: single-voter monotonicity is equivalent to
 Maskin monotonicity, obtained by composing Proposition 9.6 (`isSingleMonotone_iff_isStrategyProof`)
@@ -158,13 +154,10 @@ theorem nisanSWF_antisymm (hf : f.IsStrategyProof) (hs : Function.Surjective f)
 chooses `a` when `{a, b}` is moved to the top. -/
 theorem nisanSWF_prefers (hf : f.IsStrategyProof) (hs : Function.Surjective f)
     (P : Profile V A) (a b : A) :
-    (f.nisanSWF hf hs P).Prefers a b ↔ a ≠ b ∧ f (P.toTopSet {a, b}) = a := by
-  constructor
-  · intro h
-    have hab : a ≠ b := fun he => (f.nisanSWF hf hs P).prefers_irrefl a (he ▸ h)
-    exact ⟨hab, (f.nisanSWF hf hs P).atLeast_of_prefers h⟩
-  · rintro ⟨hab, ha⟩ hba
-    exact hab (f.nisanSWF_antisymm hf hs P ha hba)
+    (f.nisanSWF hf hs P).Prefers a b ↔ a ≠ b ∧ f (P.toTopSet {a, b}) = a :=
+  ⟨fun h => ⟨fun he => (f.nisanSWF hf hs P).prefers_irrefl a (he ▸ h),
+    (f.nisanSWF hf hs P).atLeast_of_prefers h⟩,
+    fun ⟨hab, ha⟩ hba => hab (f.nisanSWF_antisymm hf hs P ha hba)⟩
 
 /-- **Strict-ranking form of Nisan's extension** ([Nisan2007], Definition 9.9 and Lemma 9.10):
 for every profile `P`, `nisanRanking` produces a strict linear order (`Ranking A`), matching
@@ -188,28 +181,21 @@ def nisanRanking (f : SocialChoiceFunction V A) (hf : f.IsStrategyProof)
 @[simp] theorem toWeakRanking_nisanRanking (hf : f.IsStrategyProof) (hs : Function.Surjective f)
     (P : Profile V A) :
     (f.nisanRanking hf hs P).toWeakRanking = f.nisanSWF hf hs P := by
+  classical
   ext a b
   rw [Ranking.toWeakRanking_atLeast]
-  change a = b ∨ (f.nisanSWF hf hs P).Prefers a b ↔ (f.nisanSWF hf hs P).AtLeast a b
-  constructor
-  · rintro (rfl | h)
-    · exact (f.nisanSWF hf hs P).refl a
-    · exact (f.nisanSWF hf hs P).atLeast_of_prefers h
-  · intro h
-    by_cases hab : a = b
-    · exact Or.inl hab
-    · exact Or.inr ((f.nisanSWF_prefers hf hs P a b).2 ⟨hab, h⟩)
+  exact ⟨fun h => h.elim (· ▸ (f.nisanSWF hf hs P).refl a)
+    (f.nisanSWF hf hs P).atLeast_of_prefers, fun h =>
+    if hab : a = b then .inl hab else .inr ((f.nisanSWF_prefers hf hs P a b).2 ⟨hab, h⟩)⟩
 
 /-- **Weak Pareto (unanimity)** for `nisanSWF` ([Nisan2007], Lemma 9.11): with a nonempty
 electorate, if every voter ranks `a` above `b`, so does `nisanSWF`. -/
 theorem nisanSWF_isPareto [Nonempty V] (hf : f.IsStrategyProof) (hs : Function.Surjective f) :
-    (f.nisanSWF hf hs).IsPareto := by
-  intro P a b h hba
+    (f.nisanSWF hf hs).IsPareto := fun P a b h => by
   obtain ⟨i⟩ := ‹Nonempty V›
-  have hab : a ≠ b := (P i).ne_of_prefers (h i)
-  refine hf.isMaskinMonotone.apply_ne (hs a) hab (P := P.toTopSet {b, a}) (fun j => ?_) hba
-  exact ((P j).toTopSet_prefers_iff_of_mem (Set.mem_insert_of_mem _ rfl)
-    (Set.mem_insert _ _)).2 (h j)
+  exact hf.isMaskinMonotone.apply_ne (hs a) ((P i).ne_of_prefers (h i)) (P := P.toTopSet {b, a})
+    fun j => ((P j).toTopSet_prefers_iff_of_mem (Set.mem_insert_of_mem _ rfl)
+      (Set.mem_insert _ _)).2 (h j)
 
 /-- When `A` has at least two alternatives, surjectivity of `f` forces `V` to be nonempty, so
 `nisanSWF` is weakly Pareto without an explicit `[Nonempty V]` assumption. -/
@@ -220,8 +206,8 @@ theorem nisanSWF_isPareto_of_nontrivial [Nontrivial A] (hf : f.IsStrategyProof)
     rw [not_nonempty_iff] at hV
     obtain ⟨a, b, hab⟩ := exists_pair_ne A
     obtain ⟨P, rfl⟩ := hs a
-    obtain ⟨Q, rfl⟩ := hs b
-    exact hab (congrArg f (funext fun i => isEmptyElim i))
+    obtain ⟨_Q, rfl⟩ := hs b
+    exact hab (congrArg f (funext isEmptyElim))
   exact f.nisanSWF_isPareto hf hs
 
 /-- **Constant-profile unanimity** ([Nisan2007], Definition 9.2): if all voters hold the same
@@ -231,24 +217,17 @@ theorem nisanSWF_const [Nonempty V] (hf : f.IsStrategyProof) (hs : Function.Surj
     f.nisanSWF hf hs (fun _ => r) = r.toWeakRanking := by
   ext a b
   rw [Ranking.toWeakRanking_atLeast]
-  by_cases hab : a = b
-  · subst hab
-    exact iff_of_true ((f.nisanSWF hf hs _).refl a) (Or.inl rfl)
-  · constructor
-    · intro h
-      refine Or.inr (r.prefers_of_not_prefers (Ne.symm hab) fun hba => ?_)
-      have hP := f.nisanSWF_isPareto hf hs (fun _ => r) b a (fun _ => hba)
-      exact hP h
-    · rintro (rfl | h)
-      · exact absurd rfl hab
-      · exact (f.nisanSWF hf hs _).atLeast_of_prefers
-          (f.nisanSWF_isPareto hf hs (fun _ => r) a b fun _ => h)
+  rcases eq_or_ne a b with rfl | hab
+  · exact iff_of_true ((f.nisanSWF hf hs _).refl a) (.inl rfl)
+  · exact ⟨fun h => .inr (r.prefers_of_not_prefers hab.symm fun hba =>
+      f.nisanSWF_isPareto hf hs _ b a (fun _ => hba) h),
+      fun h => h.elim (absurd · hab) fun h => (f.nisanSWF hf hs _).atLeast_of_prefers
+        (f.nisanSWF_isPareto hf hs _ a b fun _ => h)⟩
 
 /-- **Independence of irrelevant alternatives** for `nisanSWF` ([Nisan2007], Lemma 9.11): the
 social comparison of `a` and `b` depends only on the voters' comparisons of `a` and `b`. -/
 theorem nisanSWF_isIIA (hf : f.IsStrategyProof) (hs : Function.Surjective f) :
-    (f.nisanSWF hf hs).IsIIA := by
-  intro P Q a b h
+    (f.nisanSWF hf hs).IsIIA := fun P Q a b h => by
   change f (P.toTopSet {a, b}) = a ↔ f (Q.toTopSet {a, b}) = a
   rw [hf.isMaskinMonotone.apply_toTopSet_congr (Set.mem_insert a _) (hs a)
     (P := P) (Q := Q) fun i x y hx hy => ?_]
@@ -264,19 +243,14 @@ theorem nisanSWF_isIIA (hf : f.IsStrategyProof) (hs : Function.Surjective f) :
 contrapositively deduce non-dictatorship). -/
 theorem nisanSWF_isDictator_iff (hf : f.IsStrategyProof) (hs : Function.Surjective f) {i : V} :
     (f.nisanSWF hf hs).IsDictator i ↔ f.IsDictator i := by
-  constructor
-  · intro hi P x _ hxP
-    refine (P i).prefers_of_not_prefers hxP fun hnx => ?_
-    have hsoc := hi P x (f P) hnx
-    exact hsoc (hf.isMaskinMonotone.apply_toTopSet_of_mem (Set.mem_insert (f P) {x}))
-  · intro hi P a b hab hba
-    have hne : a ≠ b := (P i).ne_of_prefers hab
-    have hba' : f (P.toTopSet {b, a}) = b := hba
-    have htop := hi (P.toTopSet {b, a}) a (hs a) (by rwa [hba'])
-    rw [hba'] at htop
-    have hab' := ((P i).toTopSet_prefers_iff_of_mem (Set.mem_insert b {a})
-      (Set.mem_insert_of_mem b rfl)).1 htop
-    exact (P i).asymm hab hab'
+  refine ⟨fun hi P x _ hxP => (P i).prefers_of_not_prefers hxP fun hnx =>
+    hi P x (f P) hnx (hf.isMaskinMonotone.apply_toTopSet_of_mem (Set.mem_insert (f P) {x})),
+    fun hi P a b hab hba => (P i).asymm hab ?_⟩
+  have hba' : f (P.toTopSet {b, a}) = b := hba
+  have htop := hi (P.toTopSet {b, a}) a (hs a) (hba'.symm ▸ (P i).ne_of_prefers hab)
+  rw [hba'] at htop
+  exact ((P i).toTopSet_prefers_iff_of_mem (Set.mem_insert b {a})
+    (Set.mem_insert_of_mem b rfl)).1 htop
 
 /-- Strengthening of the non-dictatorship conclusion of [Nisan2007], Lemma 9.11: `nisanSWF` is
 dictatorial if and only if `f` is dictatorial (giving Lemma 9.11's

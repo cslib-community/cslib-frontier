@@ -144,12 +144,9 @@ theorem proc_eq_of_other_event {P Data : Type*} [Fintype P] [DecidableEq P] (ord
     (h : stepSnapshot ord dInit s ev = some s') :
     s'.proc i = s.proc i := by
   obtain ⟨⟨ps, hproc⟩, -⟩ := stepSnapshot_effect h
-  have hij : i ≠ ev.actor := by
-    rcases ev with j | ⟨j, v⟩ | j <;> intro heq <;> subst heq
-    · exact hne.1 rfl
-    · exact hne.2.1 v rfl
-    · exact hne.2.2 rfl
-  rw [hproc, Function.update_of_ne hij]
+  rw [hproc, Function.update_of_ne]
+  rcases ev with j | ⟨j, v⟩ | j <;> rintro rfl
+  exacts [hne.1 rfl, hne.2.1 v rfl, hne.2.2 rfl]
 
 theorem remainingSteps_eq_of_other {P Data : Type*} [Fintype P] [DecidableEq P] (ord : ScanOrder P)
     (dInit : Data) {s s' : SnapshotState P Data} {ev : SnapshotEvent P Data} {i : P}
@@ -200,27 +197,24 @@ theorem remainingSteps_lt_of_step {P Data : Type*} [Fintype P] [DecidableEq P] (
       remainingRegOps, Nat.zero_lt_one, le_refl, and_self]
   | scanning st =>
     simp only [hpi] at h
-    cases hph : st.phase with
-    | collectA =>
-      cases hrem : st.rem with
-      | cons j rest =>
-        simp only [hph, hrem, Option.some.injEq] at h; subst h
+    cases hrem : st.rem with
+    | cons j rest =>
+      cases hph : st.phase
+      all_goals
+        simp only [hph, hrem, Option.some.injEq] at h
+        subst h
         simp only [isRegAccessStep, hpi, hrem, ↓reduceIte, Function.update_self,
           remainingSteps, remainingRegOps, hph, List.length_cons]
         cases st.mode <;> dsimp only <;> constructor <;> omega
-      | nil =>
-        simp only [hph, hrem, Option.some.injEq] at h; subst h
+    | nil =>
+      cases hph : st.phase with
+      | collectA =>
+        simp only [hph, hrem, Option.some.injEq] at h
+        subst h
         simp only [isRegAccessStep, hpi, hrem, Bool.false_eq_true, ↓reduceIte,
           Function.update_self, remainingSteps, remainingRegOps, hph, List.length_nil]
         cases st.mode <;> dsimp only <;> constructor <;> omega
-    | collectB =>
-      cases hrem : st.rem with
-      | cons j rest =>
-        simp only [hph, hrem, Option.some.injEq] at h; subst h
-        simp only [isRegAccessStep, hpi, hrem, ↓reduceIte, Function.update_self,
-          remainingSteps, remainingRegOps, hph, List.length_cons]
-        cases st.mode <;> dsimp only <;> constructor <;> omega
-      | nil =>
+      | collectB =>
         have hfinish : ∀ snap,
             finishScan s i st.mode st.opId snap = s' →
             remainingSteps ord (s'.proc i) < remainingSteps ord (.scanning st) ∧

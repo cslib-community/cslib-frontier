@@ -106,9 +106,10 @@ theorem eval_runClosedConfigFrom_succ_of_step (N : MultiTapePTM k' Symbol S')
       ProbComp.eval (N.runClosedConfigFrom fuel c') := by
   rw [eval_runClosedConfigFrom_eq_map_coins, eval_runClosedConfigFrom_eq_map_coins,
     BitString.uniformList_succ, PMF.map_bind]
-  simp only [PMF.map_comp, Function.comp_def, show ∀ bit coins,
-    N.runClosedConfigFromCoins (bit :: coins) c = N.runClosedConfigFromCoins coins c' from
-      fun bit coins => congrArg (N.runClosedConfigFromCoins coins) (h bit), PMF.bind_const]
+  have hcons (bit : Bool) (coins : List Bool) :
+      N.runClosedConfigFromCoins (bit :: coins) c = N.runClosedConfigFromCoins coins c' :=
+    congrArg (N.runClosedConfigFromCoins coins) (h bit)
+  simp only [PMF.map_comp, Function.comp_def, hcons, PMF.bind_const]
 
 
 end Simulation
@@ -391,21 +392,29 @@ private theorem eval_cont_rewind (second : MultiTapePTM k₂ Bool S₂) (out : L
           out) })
   | 0, pos, hpos, _ => by
     obtain rfl : pos = 0 := Fin.ext hpos
+    have hsym : (ctrl (k₂ := k₂) (S₂ := S₂) W P F (some true) (0 : Fin (input.length + 2))
+        out).inputSymbol = none := by
+      simp [Cfg.inputSymbol, ctrl]
+    have hmove : moveInputPos (0 : Fin (input.length + 2)) 1 = 1 :=
+      Fin.ext (by simp [moveInputPos])
     rw [eval_runClosedConfigFrom_succ_of_step _ fun bit => step_cont_rewind W P F second bit 0 out,
-      show (ctrl (k₂ := k₂) (S₂ := S₂) W P F (some true) (0 : Fin (input.length + 2))
-        out).inputSymbol = none by simp [Cfg.inputSymbol, ctrl]]
+      hsym]
     dsimp only
-    rw [show moveInputPos (0 : Fin (input.length + 2)) 1 = 1 from Fin.ext (by simp [moveInputPos])]
+    rw [hmove]
   | q + 1, pos, hpos, hq => by
+    have hsym : (ctrl (k₂ := k₂) (S₂ := S₂) W P F (some true) pos out).inputSymbol =
+        some input[q] := by
+      refine inputSymbolInner q ?_ (by omega)
+      simp only [ctrl, hpos]
+      omega
+    have hne : pos ≠ 0 := fun h => by simp [h] at hpos
     rw [show m + (q + 1 + 1) = m + (q + 1) + 1 from rfl,
       eval_runClosedConfigFrom_succ_of_step _ fun bit => step_cont_rewind W P F second bit pos out,
-      show (ctrl (k₂ := k₂) (S₂ := S₂) W P F (some true) pos out).inputSymbol = some input[q] from
-        inputSymbolInner q (by simp [ctrl, hpos]; omega) (by omega)]
+      hsym]
     dsimp only
-    exact eval_cont_rewind second out m q _
-      (by rw [show (-1 : SignType) = .neg from rfl,
-            moveInputPos_neg_of_ne_left pos (fun h => by simp [h] at hpos)]; simp [hpos])
-      (by omega)
+    refine eval_cont_rewind second out m q _ ?_ (by omega)
+    rw [show (-1 : SignType) = .neg from rfl, moveInputPos_neg_of_ne_left pos hne]
+    simp [hpos]
 
 /-- If the flag is set, the second phase accepts in one step. -/
 private theorem eval_cont_of_flag (second : MultiTapePTM k₂ Bool S₂) (hF : F 0 = some true)
@@ -582,27 +591,34 @@ private theorem reachable_ctrl_step (bit : Bool) (coins : List Bool) (W : Fin k�
     · refine .inr (.inl ⟨coins, W, F, true, _, rfl, fun _ => ?_⟩)
       have := val_moveInputPos_eq pos (-1)
       have := pos.isLt
-      simp only [SignType.cast] at *; omega
+      simp only [SignType.cast] at *
+      omega
   | true =>
     rw [step_cont_rewind]
     by_cases h0 : pos = 0
     · subst h0
-      rw [show (ctrl (k₂ := k₂) (S₂ := S₂) W (reach first input coins).tapes.workTapePos F
-        (some true) (0 : Fin (input.length + 2)) []).inputSymbol = none by
-          simp [Cfg.inputSymbol, ctrl]]
+      have hsym : (ctrl (k₂ := k₂) (S₂ := S₂) W (reach first input coins).tapes.workTapePos F
+          (some true) (0 : Fin (input.length + 2)) []).inputSymbol = none := by
+        simp [Cfg.inputSymbol, ctrl]
+      have hmove : moveInputPos (0 : Fin (input.length + 2)) 1 = 1 :=
+        Fin.ext (by simp [moveInputPos])
+      rw [hsym]
       dsimp only
-      rw [show moveInputPos (0 : Fin (input.length + 2)) 1 = 1 from
-        Fin.ext (by simp [moveInputPos])]
+      rw [hmove]
       exact .inr (.inr (.inr ⟨coins, W, F, [], rfl⟩))
     · have hp := hpos rfl
       have hne : pos.val ≠ 0 := fun h => h0 (Fin.ext h)
-      rw [show (ctrl (k₂ := k₂) (S₂ := S₂) W (reach first input coins).tapes.workTapePos F
-        (some true) pos []).inputSymbol = some input[pos.val - 1] from
-          inputSymbolInner _ (by simp [ctrl]; omega) (by omega)]
+      have hsym : (ctrl (k₂ := k₂) (S₂ := S₂) W (reach first input coins).tapes.workTapePos F
+          (some true) pos []).inputSymbol = some input[pos.val - 1] := by
+        refine inputSymbolInner _ ?_ (by omega)
+        simp only [ctrl]
+        omega
+      rw [hsym]
       dsimp only
       refine .inr (.inl ⟨coins, W, F, true, _, rfl, fun _ => ?_⟩)
       rw [show (-1 : SignType) = .neg from rfl, moveInputPos_neg_of_ne_left pos h0]
-      simp only; omega
+      simp only
+      omega
 
 private theorem reachable_step (bit : Bool) {c} (hc : Reachable first second input c) :
     Reachable first second input (((first.orElse second).withCoin bit).step c) := by

@@ -504,7 +504,8 @@ theorem IsSemanticRefutation.exists_monotone_circuit_of_monotoneCommComplexity_l
       (by rwa [MemRight, ← hSD, mem_leftCylinder])
     cases ho : p.run a b <;> rw [ho] at hrun
     · obtain ⟨u', hu', hn⟩ := hrun
-      exact absurd (by rw [MemLeft, ← hSD, mem_leftCylinder]; exact hmono a.1 u' a.2 ha hu' S hS) hn
+      rw [MemLeft, ← hSD, mem_leftCylinder] at hn
+      exact absurd (hmono a.1 u' a.2 ha hu' S hS) hn
     · exact ⟨_, rfl, hrun⟩
 
 end Cslib.Logic.PL

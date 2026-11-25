@@ -102,8 +102,12 @@ theorem mem_bitClass_lossClass {C : ConceptClass α Bool} {f : α × Bool → �
     f ∈ bitClass (lossClass C) ↔
       ∃ h ∈ C, (fun p : α × Bool => bitVal ℝ (decide (h p.1 ≠ p.2))) = f := by
   rw [mem_bitClass]
-  exact ⟨by rintro ⟨_, hl, rfl⟩; obtain ⟨h, hh, rfl⟩ := mem_lossClass.1 hl; exact ⟨h, hh, rfl⟩,
-    by rintro ⟨h, hh, rfl⟩; exact ⟨_, mem_lossClass.2 ⟨h, hh, rfl⟩, rfl⟩⟩
+  constructor
+  · rintro ⟨_, hl, rfl⟩
+    obtain ⟨h, hh, rfl⟩ := mem_lossClass.1 hl
+    exact ⟨h, hh, rfl⟩
+  · rintro ⟨h, hh, rfl⟩
+    exact ⟨_, mem_lossClass.2 ⟨h, hh, rfl⟩, rfl⟩
 
 /-- Functions of `bitClass C` take values in `[0, 1]`. -/
 theorem mem_Icc_of_mem_bitClass {C : ConceptClass α Bool} {f : α → ℝ} (hf : f ∈ bitClass C)
@@ -268,7 +272,9 @@ private theorem empiricalMiscount_div_le [Finite α] (D : PMF (α × Bool)) {m :
   refine le_trans (Probability.PMF.toOuterMeasure_toReal_mono _ ?_)
     (rademacherComplexity_generalization_bound D hm (a := -1) (b := 0) (by norm_num)
       (F := {fun p => -bitVal ℝ (decide (c p.1 ≠ p.2))})
-      (by rintro f rfl z; by_cases hz : c z.1 = z.2 <;> simp [hz, bitVal]) hδ)
+      (by
+        rintro f rfl z
+        by_cases hz : c z.1 = z.2 <;> simp [hz, bitVal]) hδ)
   refine fun S hS => ⟨_, rfl, ?_⟩
   simp only [Set.mem_ofPred_eq, Finset.expect_neg_distrib, expect_bitVal_decide_ne,
     rademacherComplexity_singleton, mul_neg, Finset.sum_neg_distrib, sum_mul_bitVal_decide_ne]
@@ -325,7 +331,8 @@ theorem PACLearning.IsERM.rademacherComplexity_agnostic_bound [Fintype α] (D : 
   refine le_trans (Probability.PMF.toOuterMeasure_toReal_mono _ ?_)
     (hA.rademacherComplexity_le_add D hm hc₀ hδ)
   rintro S ⟨c, hc, hlt⟩
-  change _ < _; linarith [hmin c hc]
+  change _ < _
+  linarith [hmin c hc]
 
 /-- **Agnostic VC bound for empirical risk minimization**: if every finite set shattered by `C`
 has at most `d` points, then for `m ≥ d` and `m > 0`, with probability at least `1 - δ` over `m`

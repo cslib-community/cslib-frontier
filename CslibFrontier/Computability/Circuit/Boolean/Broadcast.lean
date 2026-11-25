@@ -78,9 +78,10 @@ private theorem prefix_le_of_snoc_le {k : ℕ} {x y : BitString k} {a b : Bool}
 
 private theorem false_lt_true {k : ℕ} (key : BitString k) :
     toLex (Fin.snoc (α := fun _ => Bool) key false) <
-      toLex (Fin.snoc (α := fun _ => Bool) key true) :=
-  ⟨Fin.last k, fun i hi => by
-    obtain ⟨i, rfl⟩ := Fin.eq_castSucc_of_ne_last (ne_of_lt hi); simp, by simp⟩
+      toLex (Fin.snoc (α := fun _ => Bool) key true) := by
+  refine ⟨Fin.last k, fun i hi => ?_, by simp⟩
+  obtain ⟨i, rfl⟩ := Fin.eq_castSucc_of_ne_last (ne_of_lt hi)
+  simp
 
 /-- At a destination in key/tag order, propagation is the OR of all matching source values.
 False tags mark sources and true tags mark destinations. Sources and destinations may repeat,
@@ -98,10 +99,11 @@ theorem propagate_sorted_tagged_eq_true_iff {k n d : ℕ} (key : ℕ → BitStri
   rw [propagate_sorted_eq_true_iff (fun i => toLex (key i))
     (fun i => !tag i && payload i) (d + 1) monoKey]
   simp only [Bool.and_eq_true, Bool.not_eq_true', Nat.add_sub_cancel_right, toLex_inj]
-  exact ⟨fun ⟨s, hs, ⟨ht, hp⟩, hk⟩ => ⟨s, by lia, hk, ht, hp⟩,
-    fun ⟨s, hs, hk, hsrc, hp⟩ =>
-      have hsd : s < d := sorted.reflect_lt hs hd (by rw [hsrc, htag, hk]; exact false_lt_true _)
-      ⟨s, by lia, ⟨hsrc, hp⟩, hk⟩⟩
+  refine ⟨fun ⟨s, hs, ⟨ht, hp⟩, hk⟩ => ⟨s, by lia, hk, ht, hp⟩, fun ⟨s, hs, hk, hsrc, hp⟩ => ?_⟩
+  have hsd : s < d := sorted.reflect_lt hs hd <| by
+    rw [hsrc, htag, hk]
+    exact false_lt_true _
+  exact ⟨s, by lia, ⟨hsrc, hp⟩, hk⟩
 
 end Cslib.BitString
 
@@ -212,7 +214,8 @@ private theorem eval_values {input count keyWidth width : ℕ}
     eval_propagateCircuit]
   simp only [Function.comp_def, Fin.append_left, Fin.append_right]
   apply BitString.propagate_congr
-  · intro i hi; simp only [inputBlock, dite_eq_left (by lia : i < count)]
+  · intro i hi
+    simp only [inputBlock, dite_eq_left (by lia : i < count)]
   · intro i hi
     simp only [inputBlock, dite_eq_left (by lia : i < count)]
     exact eval_links key x ⟨i, by lia⟩
@@ -232,7 +235,8 @@ theorem eval_values_eq_true_iff {input count keyWidth width : ℕ}
   have sortedNat : MonotoneOn (fun i =>
       toLex (Fin.snoc (α := fun _ => Bool) (inputKey key x i) (inputBlock (x ∘ tag) i)))
       (Set.Iio count) := fun a ha b hb hab => by
-    change a < count at ha; change b < count at hb
+    change a < count at ha
+    change b < count at hb
     have hs := sorted (a := ⟨a, ha⟩) (b := ⟨b, hb⟩) hab
     simpa only [inputKey_fin key x ⟨a, ha⟩, inputKey_fin key x ⟨b, hb⟩,
       inputBlock, dite_eq_left ha, dite_eq_left hb, Function.comp_apply] using hs

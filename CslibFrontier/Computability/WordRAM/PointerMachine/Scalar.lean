@@ -34,18 +34,12 @@ private theorem set_registers (x : Data r) (s : Cslib.PointerMachine.State (mode
     (same : ∀ j, s.data (register j) = x.regs j) (d : Fin r) (v : ℕ) :
     (∀ j, (s.setData (register d) v).data (register j) = (x.set d v).regs j) ∧
     (∀ j, j.val < 4 → (s.setData (register d) v).data j = s.data j) := by
-  constructor
-  · intro j
-    by_cases eq : j = d
-    · subst j; simp [Cslib.PointerMachine.State.setData, Data.set]
-    · have ne : register j ≠ register d := fun h => eq (register_injective h)
-      simp [Cslib.PointerMachine.State.setData, Data.set, eq, ne, same]
-  · intro j hj
-    have ne : j ≠ register d := by
-      intro eq
-      have := register_ge_four d
-      subst j
-      omega
+  refine ⟨fun j => ?_, fun j hj => ?_⟩
+  · by_cases eq : j = d
+    · subst j
+      simp [Cslib.PointerMachine.State.setData, Data.set]
+    · simp [Cslib.PointerMachine.State.setData, Data.set, eq, register_injective.ne eq, same]
+  · have ne : j ≠ register d := ne_of_lt (show j < register d from hj.trans_le (register_ge_four d))
     simp [Cslib.PointerMachine.State.setData, ne]
 
 /-- Successful scalar source evaluation has the same register effect after lowering.
@@ -57,33 +51,33 @@ theorem scalar_correct (o : Op .standard r) (i : Cslib.PointerMachine.Instr (mod
     (∀ j, (i.effect s).data (register j) = y.regs j) ∧
     (∀ j, j.val < 4 → (i.effect s).data j = s.data j) ∧
     (i.effect s).heap = s.heap ∧ (i.effect s).ptr = s.ptr := by
+  have step (d : Fin r) (v : ℕ) (hi : i.effect s = s.setData (register d) v)
+      (hy : y = x.set d v) :
+      (∀ j, (i.effect s).data (register j) = y.regs j) ∧
+      (∀ j, j.val < 4 → (i.effect s).data j = s.data j) ∧
+      (i.effect s).heap = s.heap ∧ (i.effect s).ptr = s.ptr := by
+    rw [hi, hy]
+    exact ⟨(set_registers x s same d v).1, (set_registers x s same d v).2, rfl, rfl⟩
   cases o with
   | const d n =>
     cases Option.some.inj lowered
     obtain ⟨_, rfl⟩ := Data.put_eq_some.mp evaluated
-    exact ⟨(set_registers x s same d n).1, (set_registers x s same d n).2, rfl, rfl⟩
+    exact step d n rfl rfl
   | copy d src =>
     cases Option.some.inj lowered
     cases Option.some.inj evaluated
-    simp only [Cslib.PointerMachine.Instr.effect, same]
-    exact
-      And.intro (set_registers x s same d (x.regs src)).1
-        (And.intro (set_registers x s same d (x.regs src)).2 (And.intro rfl rfl))
+    exact step d (x.regs src) (by simp [Cslib.PointerMachine.Instr.effect, same]) rfl
   | alu f d args =>
     cases f with
     | bin f =>
       change Fin 2 → Fin r at args
       cases Option.some.inj lowered
-      have ev : x.put w d (f.eval (x.regs (args 0)) (x.regs (args 1))) = some y := evaluated
-      obtain ⟨_, rfl⟩ := Data.put_eq_some.mp ev
-      simp only [Cslib.PointerMachine.Instr.effect, model, same]
-      have frame := set_registers x s same d (f.eval (x.regs (args 0)) (x.regs (args 1)))
-      exact ⟨frame.1, frame.2, rfl, rfl⟩
+      obtain ⟨_, rfl⟩ := Data.put_eq_some.mp (evaluated : x.put w d _ = some y)
+      exact step d _ (by simp [Cslib.PointerMachine.Instr.effect, model, same]) rfl
     | width =>
-      have ev : x.put w d w = some y := evaluated
       cases Option.some.inj lowered
-      obtain ⟨_, rfl⟩ := Data.put_eq_some.mp ev
-      exact ⟨(set_registers x s same d w).1, (set_registers x s same d w).2, rfl, rfl⟩
+      obtain ⟨_, rfl⟩ := Data.put_eq_some.mp (evaluated : x.put w d w = some y)
+      exact step d w rfl rfl
   | load d a => cases lowered
   | store a src => cases lowered
 

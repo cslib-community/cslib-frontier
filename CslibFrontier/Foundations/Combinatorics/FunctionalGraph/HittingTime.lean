@@ -78,8 +78,12 @@ variable [LinearOrder α]
 theorem phase_add_canonicalTime_modEq (x : α) :
     phase f x + canonicalTime f x ≡ 0 [MOD cycleLength f x] := by
   unfold Nat.ModEq phase
-  rw [Nat.mod_add_mod, ← Nat.add_mod_mod,
-    Nat.sub_add_cancel (Nat.mod_lt _ (cycleLength_pos f x)).le, Nat.mod_self, Nat.zero_mod]
+  calc
+    _ = (cycleLength f x - canonicalTime f x % cycleLength f x +
+        canonicalTime f x % cycleLength f x) % cycleLength f x := by
+      simp only [Nat.add_mod, Nat.mod_mod]
+    _ = _ := by
+      rw [Nat.sub_add_cancel (Nat.mod_lt _ (cycleLength_pos f x)).le, Nat.mod_self, Nat.zero_mod]
 
 /-- Past the transient, the state is the representative advanced by the phase plus the time. -/
 theorem iterate_eq_iterate_phase (x : α) {t : ℕ} (ht : transientDepth f x ≤ t) :
@@ -99,7 +103,8 @@ theorem phase_eq_of_iterate_eq_canonicalCycle (x : α) {t : ℕ}
     (iterate_mem_periodicPts_iff f x t).mp (ht.symm ▸ canonicalCycle_periodic f x)
   have hm := (iterate_eq_iterate_iff_modEq f x hd (transientDepth_le_canonicalTime f x)).mp
     (ht.trans (canonicalTime_spec f x).symm)
-  unfold phase; rw [hm]
+  unfold phase
+  rw [hm]
 
 /-- Iterating shifts the phase by the number of steps. -/
 @[simp] theorem phase_iterate (x : α) (t : ℕ) :
@@ -151,7 +156,8 @@ theorem cyclic_first_hit (x y : α) (hy : y ∈ periodicPts f)
       Nat.mod_eq_of_lt hphase, ← hyrepr]
   · have hjμ : transientDepth f x ≤ j := (iterate_mem_periodicPts_iff f x j).mp (he.symm ▸ hy)
     have hjmod : phase f x + j ≡ phase f y [MOD ell] := by
-      rw [← he, phase_iterate]; exact (Nat.mod_modEq _ _).symm
+      rw [← he, phase_iterate]
+      exact (Nat.mod_modEq _ _).symm
     have hc2 : cyclicDistance f x y ≡ j - transientDepth f x [MOD ell] :=
       Nat.ModEq.add_left_cancel' (transientDepth f x) <| by
         rw [Nat.add_sub_of_le hjμ]
@@ -178,7 +184,8 @@ noncomputable def hittingTime (x y : α) : ℕ :=
 
 /-- `reaches f x y` holds exactly when the orbit of `x` visits `y`. -/
 theorem reaches_iff (x y : α) : reaches f x y = true ↔ ∃ t, f^[t] x = y := by
-  unfold reaches; split_ifs with hy
+  unfold reaches
+  split_ifs with hy
   · rw [decide_eq_true_eq]
     exact (exists_iterate_eq_iff_canonicalCycle_eq f x y
       ((transientDepth_eq_zero_iff f y).mp hy)).symm
@@ -194,12 +201,16 @@ theorem hittingTime_spec [Fintype α] (x y : α) (h : reaches f x y = true) :
       hittingTime f x y < Fintype.card α := by
   have hr := (reaches_iff f x y).mp h
   have hfirst : f^[hittingTime f x y] x = y ∧ ∀ j < hittingTime f x y, f^[j] x ≠ y := by
-    unfold hittingTime; split_ifs with hy
+    unfold hittingTime
+    split_ifs with hy
     · have hp := (transientDepth_eq_zero_iff f y).mp hy
       exact cyclic_first_hit f x y hp ((exists_iterate_eq_iff_canonicalCycle_eq f x y hp).mp hr)
     · obtain ⟨-, he⟩ := (exists_iterate_eq_iff_of_not_mem_periodicPts f x y
         (mt (transientDepth_eq_zero_iff f y).mpr hy)).mp hr
-      exact ⟨he, fun j hj hjy => by have := transientDepth_iterate f x j; rw [hjy] at this; omega⟩
+      refine ⟨he, fun j hj hjy => ?_⟩
+      have := transientDepth_iterate f x j
+      rw [hjy] at this
+      omega
   obtain ⟨t, ht, hty, hmin⟩ := exists_first_visit f (fun z => z = y) x hr
   have he : t = hittingTime f x y := Nat.le_antisymm
     (not_lt.mp fun hlt => hmin _ hlt hfirst.1) (not_lt.mp fun hlt => hfirst.2 _ hlt hty)
@@ -230,7 +241,8 @@ theorem visit_before_deadline_of_first (x y : α) (d : ℕ)
     (hd : f^[d] x = y) (hfirst : ∀ j < d, f^[j] x ≠ y) (T : ℕ) :
     (∃ t ≤ T, f^[t] x = y) ↔ d ≤ T :=
   ⟨fun ⟨t, ht, hy⟩ => by
-    obtain ⟨k, rfl⟩ := (visit_schedule_of_first f x y d hd hfirst t).mp hy; lia,
+    obtain ⟨k, rfl⟩ := (visit_schedule_of_first f x y d hd hfirst t).mp hy
+    lia,
    fun h => ⟨d, h, hd⟩⟩
 
 /-- Complete visit schedule from `x` to `y` in terms of `reaches`, `hittingTime`, and

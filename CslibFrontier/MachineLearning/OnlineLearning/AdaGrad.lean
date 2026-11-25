@@ -177,16 +177,22 @@ private theorem adaGradNorm_step_le {K : Set E} {proj : E → E}
   set x := adaGradNorm proj grad γ ε x₀
   set S := adaGradNormSqSum proj grad γ ε x₀
   have hSn : 0 ≤ S t := by
-    change 0 ≤ adaGradNormSqSum _ _ _ _ _ t; rw [adaGradNormSqSum_eq]
+    change 0 ≤ adaGradNormSqSum _ _ _ _ _ t
+    rw [adaGradNormSqSum_eq]
     exact add_nonneg hε (sum_nonneg fun _ _ => sq_nonneg _)
   have hS1_nn : 0 ≤ S (t + 1) := by
-    change 0 ≤ S t + ‖grad t (x t)‖ ^ 2; exact add_nonneg hSn (sq_nonneg _)
+    change 0 ≤ S t + ‖grad t (x t)‖ ^ 2
+    exact add_nonneg hSn (sq_nonneg _)
   rcases hS1_nn.eq_or_lt with hzero | hpos
-  · have hg : grad t (x t) = 0 := norm_eq_zero.mp (sq_eq_zero_iff.mp (by
-      have : S t + ‖grad t (x t)‖ ^ 2 = 0 := hzero.symm; linarith [sq_nonneg ‖grad t (x t)‖]))
+  · have hg0 : ‖grad t (x t)‖ ^ 2 = 0 := by
+      have : S t + ‖grad t (x t)‖ ^ 2 = 0 := hzero.symm
+      linarith [sq_nonneg ‖grad t (x t)‖]
+    have hg : grad t (x t) = 0 := norm_eq_zero.mp (sq_eq_zero_iff.mp hg0)
     simp [hg, ← hzero]
-  · set r := √(S (t + 1)); have hr : 0 < r := sqrt_pos.mpr hpos
-    set η := γ / r; have hη : 0 < η := div_pos hγ hr
+  · set r := √(S (t + 1))
+    have hr : 0 < r := sqrt_pos.mpr hpos
+    set η := γ / r
+    have hη : 0 < η := div_pos hγ hr
     have hproj : ‖x (t + 1) - u‖ ^ 2 ≤ ‖x t - η • grad t (x t) - u‖ ^ 2 := by
       rw [show x (t + 1) = proj (x t - η • grad t (x t)) from adaGradNorm_succ _ _ _ _ _ t]
       exact pow_le_pow_left₀ (norm_nonneg _) (hP.norm_sub_le _ u hu) 2
@@ -194,14 +200,19 @@ private theorem adaGradNorm_step_le {K : Set E} {proj : E → E}
         ‖x t - u‖ ^ 2 - 2 * η * ⟪grad t (x t), x t - u⟫ + η ^ 2 * ‖grad t (x t)‖ ^ 2 := by
       rw [show x t - η • grad t (x t) - u = (x t - u) - η • grad t (x t) by abel,
         norm_sub_sq_real, norm_smul, real_inner_smul_right, real_inner_comm, Real.norm_eq_abs,
-        abs_of_pos hη]; ring
+        abs_of_pos hη]
+      ring
     have hdiv := div_le_div_of_nonneg_right
       (by linarith : 2 * η * ⟪grad t (x t), x t - u⟫ ≤
         ‖x t - u‖ ^ 2 - ‖x (t + 1) - u‖ ^ 2 + η ^ 2 * ‖grad t (x t)‖ ^ 2) hη.le
-    rwa [show 2 * η * ⟪grad t (x t), x t - u⟫ / η = 2 * ⟪grad t (x t), x t - u⟫ by field_simp,
-      show (‖x t - u‖ ^ 2 - ‖x (t + 1) - u‖ ^ 2 + η ^ 2 * ‖grad t (x t)‖ ^ 2) / η =
-        r / γ * (‖x t - u‖ ^ 2 - ‖x (t + 1) - u‖ ^ 2) + γ * (‖grad t (x t)‖ ^ 2 / r) by
-        simp only [η]; field_simp] at hdiv
+    have hL : 2 * η * ⟪grad t (x t), x t - u⟫ / η = 2 * ⟪grad t (x t), x t - u⟫ := by
+      field_simp
+    have hR : (‖x t - u‖ ^ 2 - ‖x (t + 1) - u‖ ^ 2 + η ^ 2 * ‖grad t (x t)‖ ^ 2) / η =
+        r / γ * (‖x t - u‖ ^ 2 - ‖x (t + 1) - u‖ ^ 2) +
+          γ * (‖grad t (x t)‖ ^ 2 / r) := by
+      simp only [η]
+      field_simp
+    rwa [hL, hR] at hdiv
 
 /-- Linearized dynamic regret bound for scalar `AdaGrad-Norm` against any sequence of comparators
 `u : ℕ → E` in `K`. -/
@@ -247,17 +258,19 @@ theorem adaGradNorm_dynamic_sum_inner_le {K : Set E} {proj : E → E}
           (div_nonneg (sqrt_nonneg (S (k + 1))) hγ.le)
         have h2 := mul_le_mul_of_nonneg_right (div_le_div_of_nonneg_right hr_le hγ.le)
           (sub_nonneg.mpr hd_le)
-        have h3 : (2 * D / γ) * (pathLength u (k + 1) + ‖u (k + 1) - u k‖) * √(S (k + 1)) ≤
+        have h3 : (2 * D / γ) * pathLength u (k + 1) * √(S (k + 1)) +
+            (2 * D / γ) * ‖u (k + 1) - u k‖ * √(S (k + 1)) ≤
             (2 * D / γ) * pathLength u (k + 2) * √(S (k + 2)) := by
           rw [pathLength_succ_succ]
-          exact mul_le_mul_of_nonneg_left hr_le
-            (mul_nonneg (by positivity) (add_nonneg (pathLength_nonneg _ _) (norm_nonneg _)))
+          calc (2 * D / γ) * pathLength u (k + 1) * √(S (k + 1)) +
+                (2 * D / γ) * ‖u (k + 1) - u k‖ * √(S (k + 1))
+              = (2 * D / γ) * (pathLength u (k + 1) + ‖u (k + 1) - u k‖) * √(S (k + 1)) := by ring
+            _ ≤ (2 * D / γ) * (pathLength u (k + 1) + ‖u (k + 1) - u k‖) * √(S (k + 2)) :=
+                mul_le_mul_of_nonneg_left hr_le
+                  (mul_nonneg (by positivity) (add_nonneg (pathLength_nonneg _ _) (norm_nonneg _)))
         rw [sum_range_succ, sum_range_succ (fun t => ‖grad t (x t)‖ ^ 2 / √(S (t + 1)))]
         linarith [show √(S (k + 1)) / γ * (2 * D * ‖u (k + 1) - u k‖) =
             (2 * D / γ) * ‖u (k + 1) - u k‖ * √(S (k + 1)) by ring,
-          show (2 * D / γ) * pathLength u (k + 1) * √(S (k + 1)) +
-            (2 * D / γ) * ‖u (k + 1) - u k‖ * √(S (k + 1)) =
-            (2 * D / γ) * (pathLength u (k + 1) + ‖u (k + 1) - u k‖) * √(S (k + 1)) by ring,
           show √(S (k + 2)) / γ * (D ^ 2 - ‖x (k + 1) - u (k + 1)‖ ^ 2) +
             √(S (k + 2)) / γ * (‖x (k + 1) - u (k + 1)‖ ^ 2 - ‖x (k + 2) - u (k + 1)‖ ^ 2) =
             √(S (k + 2)) / γ * (D ^ 2 - ‖x (k + 2) - u (k + 1)‖ ^ 2) by ring]
@@ -317,8 +330,11 @@ theorem adaGradNorm_regret_le_optimal {K : Set E} {proj : E → E} {f : ℕ → 
         D / √2 * √ε := by
   have hsq2 : 0 < √(2 : ℝ) := sqrt_pos.mpr (by norm_num)
   have h := adaGradNorm_regret_le (f := f) (grad := grad) hP hx₀ hD (div_pos hD0 hsq2) hε hsub hu T
-  rwa [show D ^ 2 / (2 * (D / √2)) + D / √2 = √2 * D by
-    field_simp; nlinarith [mul_self_sqrt (by norm_num : (0 : ℝ) ≤ 2)]] at h
+  have heq : D ^ 2 / (2 * (D / √2)) + D / √2 = √2 * D := by
+    have h2 : √(2 : ℝ) * √(2 : ℝ) = 2 := mul_self_sqrt (by norm_num)
+    field_simp
+    nlinarith [h2]
+  rwa [heq] at h
 
 /-- Worst-case `O(G * D * √T)` bound for `AdaGrad-Norm`: when `‖grad t x‖ ≤ G` on `K` and
 `ε = 0`, `AdaGrad-Norm` with `γ = D / √2` guarantees regret at most `√2 * G * D * √T`. -/
@@ -333,14 +349,24 @@ theorem adaGradNorm_regret_le_sqrt {K : Set E} {proj : E → E} {f : ℕ → E �
   have h := adaGradNorm_regret_le_optimal (f := f) (grad := grad) hP hx₀ hD0 hD le_rfl hsub hu T
   simp only [zero_add, sqrt_zero, mul_zero, sub_zero] at h
   have hsum : ∑ t ∈ range T, ‖grad t (adaGradNorm proj grad (D / √2) 0 x₀ t)‖ ^ 2 ≤
-      (T : ℝ) * G ^ 2 :=
-    (sum_le_sum fun t _ => pow_le_pow_left₀ (norm_nonneg _)
-      (hG t _ (adaGradNorm_mem hP hx₀ grad (D / √2) 0 t)) 2).trans_eq
-      (by simp [sum_const, card_range, nsmul_eq_mul])
+      (T : ℝ) * G ^ 2 := by
+    calc ∑ t ∈ range T, ‖grad t (adaGradNorm proj grad (D / √2) 0 x₀ t)‖ ^ 2
+        ≤ ∑ _ ∈ range T, G ^ 2 := sum_le_sum fun t _ =>
+          pow_le_pow_left₀ (norm_nonneg _)
+            (hG t _ (adaGradNorm_mem hP hx₀ grad (D / √2) 0 t)) 2
+      _ = (T : ℝ) * G ^ 2 := by simp [sum_const, card_range, nsmul_eq_mul]
   have hsqrt : √(∑ t ∈ range T, ‖grad t (adaGradNorm proj grad (D / √2) 0 x₀ t)‖ ^ 2) ≤
-      G * √(T : ℝ) :=
-    (sqrt_le_sqrt hsum).trans_eq (by rw [sqrt_mul (Nat.cast_nonneg T), sqrt_sq hG0]; ring)
-  exact h.trans ((mul_le_mul_of_nonneg_left hsqrt (by positivity)).trans_eq (by ring))
+      G * √(T : ℝ) := by
+    calc √(∑ t ∈ range T, ‖grad t (adaGradNorm proj grad (D / √2) 0 x₀ t)‖ ^ 2)
+        ≤ √((T : ℝ) * G ^ 2) := sqrt_le_sqrt hsum
+      _ = √(T : ℝ) * √(G ^ 2) := sqrt_mul (Nat.cast_nonneg T) _
+      _ = G * √(T : ℝ) := by
+          rw [sqrt_sq hG0]
+          ring
+  calc ∑ t ∈ range T, (f t (adaGradNorm proj grad (D / √2) 0 x₀ t) - f t u)
+      ≤ √2 * D * √(∑ t ∈ range T, ‖grad t (adaGradNorm proj grad (D / √2) 0 x₀ t)‖ ^ 2) := h
+    _ ≤ √2 * D * (G * √(T : ℝ)) := mul_le_mul_of_nonneg_left hsqrt (by positivity)
+    _ = √2 * G * D * √(T : ℝ) := by ring
 
 end AdaGradNorm
 
@@ -433,14 +459,17 @@ theorem adaGradBox_regret_le {ι : Type*} [Fintype ι] {l r : ι → ℝ} (hlr :
     rw [← sum_comm]
     refine sum_le_sum fun t _ => ?_
     have h := hsub t (x t) (adaGradBox_mem hlr grad γ ε hx₀ t) u hu
-    linarith [show ∑ i : ι, grad t (x t) i * (u i - x t i) =
-      - ∑ i : ι, grad t (x t) i * (x t i - u i) by
-        rw [← sum_neg_distrib]; exact sum_congr rfl fun _ _ => by ring]
+    have hneg : ∑ i : ι, grad t (x t) i * (u i - x t i) =
+        - ∑ i : ι, grad t (x t) i * (x t i - u i) := by
+      rw [← sum_neg_distrib]
+      exact sum_congr rfl fun _ _ => by ring
+    linarith
   have hcoord (i : ι) : ∑ t ∈ range T, grad t (x t) i * (x t i - u i) ≤
       ((r i - l i) ^ 2 / (2 * γ) + γ) * √(ε + ∑ t ∈ range T, (grad t (x t) i) ^ 2) - γ * √ε := by
     have hDi : ∀ a ∈ Set.Icc (l i) (r i), ∀ b ∈ Set.Icc (l i) (r i), ‖a - b‖ ≤ r i - l i :=
       fun a ha b hb => by
-        rw [Real.norm_eq_abs, abs_le]; constructor <;> linarith [ha.1, ha.2, hb.1, hb.2]
+        rw [Real.norm_eq_abs, abs_le]
+        constructor <;> linarith [ha.1, ha.2, hb.1, hb.2]
     have hbase := adaGradNorm_dynamic_sum_inner_le (K := Set.Icc (l i) (r i))
       (grad := fun s _ => grad s (x s) i) (isPythagoreanProjection_clampProj (hlr i)) (hx₀ i)
       hDi hγ hε (u := fun _ => u i) (fun _ => hu i) T
@@ -450,8 +479,14 @@ theorem adaGradBox_regret_le {ι : Type*} [Fintype ι] {l r : ι → ℝ} (hlr :
       (adaGradNorm (clampProj (l i) (r i))
         (fun s _ => grad s (x s) i) γ ε (x₀ i) t - u i) * grad t (x t) i
     rw [(adaGradBox_coord_eq l r grad γ ε x₀ i t).1, mul_comm]
-  exact hlin.trans ((sum_le_sum fun i _ => hcoord i).trans_eq
-    (by rw [sum_sub_distrib, sum_const, card_univ, nsmul_eq_mul]; ring))
+  calc ∑ t ∈ range T, (f t (x t) - f t u)
+      ≤ ∑ i : ι, ∑ t ∈ range T, grad t (x t) i * (x t i - u i) := hlin
+    _ ≤ ∑ i : ι, (((r i - l i) ^ 2 / (2 * γ) + γ) *
+          √(ε + ∑ t ∈ range T, (grad t (x t) i) ^ 2) - γ * √ε) := sum_le_sum fun i _ => hcoord i
+    _ = ∑ i : ι, ((r i - l i) ^ 2 / (2 * γ) + γ) *
+          √(ε + ∑ t ∈ range T, (grad t (x t) i) ^ 2) - γ * (Fintype.card ι : ℝ) * √ε := by
+        rw [sum_sub_distrib, sum_const, card_univ, nsmul_eq_mul]
+        ring
 
 /-- **Optimally scaled diagonal `AdaGrad` on an `ℓ∞`-bounded box**: when `r i - l i ≤ D` for
 every coordinate `i : ι` with `D > 0`, choosing `γ = D / √2` gives
@@ -468,12 +503,28 @@ theorem adaGradBox_regret_le_optimal {ι : Type*} [Fintype ι] {l r : ι → ℝ
           (grad t (adaGradBox l r grad (D / √2) ε x₀ t) i) ^ 2) -
         D / √2 * (Fintype.card ι : ℝ) * √ε := by
   have hsq2 : 0 < √(2 : ℝ) := sqrt_pos.mpr (by norm_num)
-  refine (adaGradBox_regret_le hlr (f := f) (grad := grad) hx₀ hu (div_pos hD0 hsq2) hε hsub
-    T).trans ((sub_le_sub_right (sum_le_sum fun i _ => mul_le_mul_of_nonneg_right ?_
-      (sqrt_nonneg _)) _).trans_eq (by rw [← mul_sum]))
-  have hsq := pow_le_pow_left₀ (sub_nonneg.mpr (hlr i)) (hwidth i) 2
-  exact (by gcongr : _ ≤ D ^ 2 / (2 * (D / √2)) + D / √2).trans_eq
-    (by field_simp; nlinarith [mul_self_sqrt (by norm_num : (0 : ℝ) ≤ 2)])
+  have h := adaGradBox_regret_le hlr (f := f) (grad := grad) hx₀ hu (div_pos hD0 hsq2) hε hsub T
+  have hterm (i : ι) : (r i - l i) ^ 2 / (2 * (D / √2)) + D / √2 ≤ √2 * D := by
+    have hsq : (r i - l i) ^ 2 ≤ D ^ 2 :=
+      pow_le_pow_left₀ (sub_nonneg.mpr (hlr i)) (hwidth i) 2
+    have h2 : √(2 : ℝ) * √(2 : ℝ) = 2 := mul_self_sqrt (by norm_num)
+    calc (r i - l i) ^ 2 / (2 * (D / √2)) + D / √2
+        ≤ D ^ 2 / (2 * (D / √2)) + D / √2 := by gcongr
+      _ = √2 * D := by
+          field_simp
+          nlinarith [h2]
+  calc ∑ t ∈ range T, (f t (adaGradBox l r grad (D / √2) ε x₀ t) - f t u)
+      ≤ ∑ i : ι, ((r i - l i) ^ 2 / (2 * (D / √2)) + D / √2) *
+            √(ε + ∑ t ∈ range T, (grad t (adaGradBox l r grad (D / √2) ε x₀ t) i) ^ 2) -
+          D / √2 * (Fintype.card ι : ℝ) * √ε := h
+    _ ≤ ∑ i : ι, (√2 * D) *
+            √(ε + ∑ t ∈ range T, (grad t (adaGradBox l r grad (D / √2) ε x₀ t) i) ^ 2) -
+          D / √2 * (Fintype.card ι : ℝ) * √ε := by
+        gcongr with i
+        exact hterm i
+    _ = √2 * D * ∑ i : ι, √(ε + ∑ t ∈ range T,
+            (grad t (adaGradBox l r grad (D / √2) ε x₀ t) i) ^ 2) -
+          D / √2 * (Fintype.card ι : ℝ) * √ε := by rw [← mul_sum]
 
 end DiagonalAdaGrad
 

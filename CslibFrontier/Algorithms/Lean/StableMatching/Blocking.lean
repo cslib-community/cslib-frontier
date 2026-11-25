@@ -83,10 +83,8 @@ private theorem blocking_of_not_better {μ : Matching n} {q : Fin n}
   push Not at hx
   rw [hDx] at hx
   refine ⟨lt_of_le_of_ne hx fun h => hμx (I.propRank_injective x h).symm, ?_⟩
-  have h := I.recvRank_deferredAcceptance_lt hq
-  rw [RecvPrefers, ← hxdef, Equiv.symm_apply_apply]
-  rw [hxdef] at h ⊢
-  exact h
+  rw [RecvPrefers, Equiv.symm_apply_apply, ← hxdef]
+  exact I.recvRank_deferredAcceptance_lt hq
 
 /-- If `σ` is injective and maps the finite set `B` into itself, it maps `B` onto itself. -/
 private theorem exists_eq_of_mapsTo {σ : Fin n → Fin n} (hσ : Function.Injective σ)
@@ -114,9 +112,7 @@ private theorem exists_last_change (B : Finset (Fin n)) {p₀ : Fin n} (hp₀ : 
         have h1 := hT (Finset.mem_range.2 (show k < N by omega))
         push Not at h1
         rw [← h1 p₀ hp₀, ih (by omega)]
-    have := key N le_rfl
-    rw [← finalState] at this
-    omega
+    exact absurd (key N le_rfl) hpos.ne'
   set t := T.max' hT
   have ht : t ∈ T := T.max'_mem hT
   rw [Finset.mem_filter, Finset.mem_range] at ht
@@ -129,9 +125,7 @@ private theorem exists_last_change (B : Finset (Fin n)) {p₀ : Fin n} (hp₀ : 
     | succ k hk ih =>
       rw [ih (by omega)]
       by_contra hne
-      have hmem : k ∈ T := by
-        rw [Finset.mem_filter, Finset.mem_range]
-        exact ⟨by omega, q, hq, hne⟩
+      have hmem : k ∈ T := Finset.mem_filter.2 ⟨Finset.mem_range.2 (by omega), q, hq, hne⟩
       have := T.le_max' k hmem
       omega
   exact stable N (by omega) le_rfl
@@ -195,8 +189,7 @@ private theorem blocking_of_closed {μ : Matching n} {q₀ : Fin n}
   -- `q` had already been turned down by `D p₀` before step `t`
   have hk : (I.propRank q (D p₀)).val < I.run t q := by
     have h := (hB q).1 hqB
-    rw [hμq, Fin.lt_def, hD, propRank_deferredAcceptance, ← hfin q hqB, hrun q hqp] at h
-    exact h
+    rwa [hμq, Fin.lt_def, hD, propRank_deferredAcceptance, ← hfin q hqB, hrun q hqp] at h
   obtain ⟨x, hx, hxq⟩ := hsI.rejected q _ hk
   rw [propPref_propRank] at hx hxq
   have hxp : x ≠ p₀ := by
@@ -213,11 +206,7 @@ private theorem blocking_of_closed {μ : Matching n} {q₀ : Fin n}
   have hxle : I.propRank x (D x) ≤ I.propRank x (μ x) :=
     le_of_not_gt (mt (hB x).2 hxB)
   have hxlt : I.propRank x (D p₀) < I.propRank x (D x) := by
-    have h1 := I.propRank_target hs'I x
-    rw [hx'] at h1
-    have h2 : (I.propRank x (D x)).val = I.finalState x := by
-      rw [hD, propRank_deferredAcceptance]
-    rw [Fin.lt_def, h1, h2]
+    rw [Fin.lt_def, ← hx', I.propRank_target hs'I x, hD, propRank_deferredAcceptance]
     refine lt_of_le_of_ne (I.run_le_finalState (t + 1) x) fun heq => hxp (D.injective ?_)
     rw [hDeq x, ← hx']
     simp only [target, heq]

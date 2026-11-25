@@ -321,7 +321,8 @@ theorem maxIntrinsicBits_substDigits_le {Op₂ : Type u'} {α : Type w} (retBits
   induction prog with
   | ret _ => exact Nat.zero_le M
   | scratchStep _ _ ih =>
-    exact max_le ((le_max_left _ _).trans hParent) (ih ((le_max_right _ _).trans hParent) hChild)
+    exact max_le ((le_max_left _ _).trans hParent)
+      (ih ((le_max_right _ _).trans hParent) hChild)
   | queryDigit op u w _ ih =>
     exact (maxIntrinsicBits_bindOverhead_le _ _ _ _ _).trans (max_le
       (hChild op u w List.mem_cons_self)
@@ -433,7 +434,8 @@ theorem toQueryProg_retainedBits_le (regenScratch : ℕ) (tree : CondBoolTree Op
   induction tree generalizing ev with
   | const _ => nomatch hev
   | digitBit _ _ _ | structLeaf _ =>
-    rcases List.mem_singleton.mp hev with rfl; simp [QueryEvent.retained, depth]
+    rcases List.mem_singleton.mp hev with rfl
+    simp [QueryEvent.retained, depth]
   | notGate _ ih =>
     simp only [toQueryProg, QueryProg.activeQueries, QueryProg.activeQueries_bindOverhead,
       List.append_nil, List.mem_map] at hev
@@ -468,7 +470,8 @@ theorem toQueryProg_intrinsic_le (regenScratch : ℕ) (tree : CondBoolTree Op St
     (env : Op → ℕ → ℤ) (sEnv : Struct → Bool) :
     (tree.toQueryProg regenScratch).maxIntrinsicBits env sEnv ≤ regenScratch + 2 * tree.depth := by
   induction tree with
-  | const _ | digitBit _ _ _ | structLeaf _ => simp [toQueryProg, QueryProg.maxIntrinsicBits, depth]
+  | const _ | digitBit _ _ _ | structLeaf _ =>
+    simp [toQueryProg, QueryProg.maxIntrinsicBits, depth]
   | notGate _ ih =>
     simp only [toQueryProg, QueryProg.maxIntrinsicBits, depth]
     refine max_le (Nat.le_add_right _ _) ((QueryProg.maxIntrinsicBits_bindOverhead_le ..).trans

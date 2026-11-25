@@ -102,7 +102,9 @@ private theorem exec_markMLCode {w bOff : ℕ} {inst : SparseInstance}
       (∀ a, ¬(bOff + inst.m + 1 + inst.numEdges + inst.r ≤ a ∧
           a < bOff + inst.m + 1 + inst.numEdges + inst.r + inst.m) → y.mem a = x.mem a)
   have he₀ : ExecWithin w (ram[ idx ← #0 ] : Code .standard 34) y₁ (y₁.set idx 0) 1 :=
-    WP.execWithin (by wram_exec; rfl)
+    WP.execWithin <| by
+      wram_exec
+      rfl
   have hP₀ : P 0 (y₁.set idx 0) :=
     ⟨fun i hi => by wram_simp [hr₁ i (by omega)], fun u => by
       simpa only [Data.set, List.take_zero, List.foldl_nil, vget_replicate, Bool.false_eq_true,
@@ -191,10 +193,13 @@ private theorem exec_seedBfsCode {w bOff : ℕ} {inst : SparseInstance}
   intro p
   obtain ⟨y₁, he₁, hr₁, hzero₁, hkeep₁⟩ := exec_clearAt bDistReg rm (by decide) (by decide) x
     hb.hzero hb.hone hb.hbDist hb.hrm (hfit.of_le (by omega))
-  have he₀ : ExecWithin w
-      (ram[ qHead ← #0; qTail ← #0; rk ← #0; rfound ← #0; idx ← #0 ] : Code .standard 34) y₁
-      (((((y₁.set qHead 0).set qTail 0).set rk 0).set rfound 0).set idx 0) 5 :=
-    WP.execWithin (by wram_exec; rfl)
+  have hs₀ : ∃ s₀, ExecWithin w
+      (ram[ qHead ← #0; qTail ← #0; rk ← #0; rfound ← #0; idx ← #0 ] : Code .standard 34) y₁ s₀ 5 ∧
+      s₀ = ((((y₁.set qHead 0).set qTail 0).set rk 0).set rfound 0).set idx 0 := by
+    refine WP.exists_execWithin ?_
+    wram_exec
+    rfl
+  obtain ⟨s₀, he₀, rfl⟩ := hs₀
   let pk (k : ℕ) :=
     ((List.finRange inst.m).take k).foldl (hkBfsInitStep ml) (Vector.replicate inst.m none, [])
   let P (k : ℕ) (y : Data 34) : Prop :=
@@ -308,22 +313,25 @@ private theorem exec_seedBfsCode {w bOff : ℕ} {inst : SparseInstance}
     rw [List.take_of_length_le (by simp)]
   rw [hfull] at hdM₂ hqM₂ hqt₂ hnd₂ hiff₂
   have hb₂ : BaseRegs inst bOff y₂ := hb.of_eq fun i hi => hr₂ i (by omega)
-  let y₃ := y₂.set active (if p.2 = [] then 0 else 1)
+  set y₃ := y₂.set active (if p.2 = [] then 0 else 1) with hy₃
   have he_act : ExecWithin w
       (ram[ if qHead < qTail then [ active ← one ] else [ active ← zero ] ] : Code .standard 34)
       y₂ y₃ 3 := WP.execWithin <| by
     by_cases hne : 0 < p.2.length
     · have hne_nil : p.2 ≠ [] := List.ne_nil_of_length_pos hne
       wram_exec [hqh₂, hqt₂, hb₂.hone, hb₂.hzero, hne]
-      simp [y₃, hne_nil]
+      simp [hy₃, hne_nil]
     · have hnil : p.2 = [] := List.eq_nil_of_length_eq_zero (by omega)
       wram_exec [hqh₂, hqt₂, hb₂.hone, hb₂.hzero, hne]
-      simp [y₃, hnil]
+      simp [hy₃, hnil]
   refine ⟨y₃, (he₁.seq (he₀.seq (hl.seq he_act))).mono (by simp; omega),
-    fun i hi => by dsimp only [y₃]; wram_simp [hr₂ i hi], hdM₂, hqM₂,
-    by dsimp only [y₃]; wram_simp [hqh₂], by dsimp only [y₃]; wram_simp [hqt₂],
-    by dsimp only [y₃]; wram_simp [hrk₂], by dsimp only [y₃]; wram_simp [hrf₂],
-    by dsimp only [y₃]; wram_simp, hnd₂, hiff₂, fun a ha => hf₂ a (by omega)⟩
+    fun i hi => by wram_simp [hy₃, hr₂ i hi], hdM₂, hqM₂,
+    by wram_simp [hy₃, hqh₂],
+    by wram_simp [hy₃, hqt₂],
+    by wram_simp [hy₃, hrk₂],
+    by wram_simp [hy₃, hrf₂],
+    by wram_simp [hy₃], hnd₂, hiff₂,
+    fun a ha => hf₂ a (by omega)⟩
 
 private def bfsEdgeBody : Code .standard 34 := ram[
   addr ← bEdgesReg + idx; val ← *addr;
@@ -636,23 +644,30 @@ private theorem exec_bfsFrontierLoop {w bOff : ℕ} {inst : SparseInstance}
     have hoff_u : x.mem (bOff + u.val) = inst.offset u.val := hcsr.hoff (le_of_lt hu_lt)
     have hoff_u1 : x.mem (bOff + u.val + 1) = inst.offset (u.val + 1) := by
       simpa [Nat.add_assoc] using hcsr.hoff hu_lt
-    let x₁ := ((((((x.set addr (bOff + inst.m + 1 + inst.numEdges + inst.r + 2 * inst.m + qh)).set
+    set x₁ := ((((((x.set addr (bOff + inst.m + 1 + inst.numEdges + inst.r + 2 * inst.m + qh)).set
       val u.val).set qHead (qh + 1)).set addr (bOff + u.val)).set idx (inst.offset u.val)).set
-      addr (bOff + u.val + 1)).set limit (inst.offset (u.val + 1))
+      addr (bOff + u.val + 1)).set limit (inst.offset (u.val + 1)) with hx₁
     have he_set : ExecWithin w (ram[
         addr ← bQueueReg + qHead; val ← *addr;
         qHead ← qHead + one;
         addr ← bOffReg + val; idx ← *addr;
-        addr ← addr + one; limit ← *addr ] : Code .standard 34) x x₁ 7 :=
-      WP.execWithin (by wram_exec [hb.hbQueue, hb.hbOff, hb.hone, hqh, hq_u, hoff_u, hoff_u1]; rfl)
-    have hb₁ : BaseRegs inst bOff x₁ := hb.of_eq fun i hi => by dsimp only [x₁]; wram_simp
+        addr ← addr + one;
+        limit ← *addr ] : Code .standard 34) x x₁ 7 :=
+      WP.execWithin <| by
+        wram_exec [hb.hbQueue, hb.hbOff, hb.hone, hqh, hq_u, hoff_u, hoff_u1]
+        rfl
+    have hb₁ : BaseRegs inst bOff x₁ := hb.of_eq fun i hi => by wram_simp [hx₁]
     obtain ⟨x₂, he_edges, hr₂, hdM₂, hq_us₂, hq_next₂, hrk₂, hrf₂, hqh₂, hle₂, hqt₂, hact₂,
       hiff₂, hbound₂, hf₂⟩ :=
       exec_bfsEdgeLoop j (qh + 1) le u s us x₁ hb₁ hcsr hmate hdM hq_us hq_next (by omega)
-        (by dsimp only [x₁]; wram_simp) (by dsimp only [x₁]; wram_simp)
-        (by dsimp only [x₁]; wram_simp [hrk]) (by dsimp only [x₁]; wram_simp [hrf])
-        (by dsimp only [x₁]; wram_simp) (by dsimp only [x₁]; wram_simp [hle])
-        (by dsimp only [x₁]; wram_simp [hqt]) (by dsimp only [x₁]; wram_simp [hact])
+        (by wram_simp [hx₁])
+        (by wram_simp [hx₁])
+        (by wram_simp [hx₁, hrk])
+        (by wram_simp [hx₁, hrf])
+        (by wram_simp [hx₁])
+        (by wram_simp [hx₁, hle])
+        (by wram_simp [hx₁, hqt])
+        (by wram_simp [hx₁, hact])
         hiff hqt_bound hj_le hfit
     have hb₂ : BaseRegs inst bOff x₂ := hb₁.of_eq fun i hi => hr₂ i (by omega)
     obtain ⟨y, he_rest, hr₃, hdM₃, hq_next₃, hrk₃, hrf₃, hqh₃, hle₃, hqt₃, hact₃,
@@ -661,7 +676,7 @@ private theorem exec_bfsFrontierLoop {w bOff : ℕ} {inst : SparseInstance}
         (hmate.of_outside fun a ha => hf₂ a (by omega)) hdM₂ hq_us₂ hq_next₂ (by omega)
         hrk₂ hrf₂ hqh₂ hle₂ hqt₂ hact₂ hiff₂ hbound₂
     refine ⟨y, (ExecWithin.loop_iter hc (he_set.seq he_edges) he_rest).mono ?_,
-      fun i hi => (hr₃ i hi).trans ((hr₂ i hi).trans (by dsimp only [x₁]; wram_simp)),
+      fun i hi => (hr₃ i hi).trans ((hr₂ i hi).trans (by wram_simp [hx₁])),
       hdM₃, hq_next₃, hrk₃, hrf₃, hqh₃, hle₃, hqt₃, hact₃, hiff₃, hbound₃,
       fun a ha => (hf₃ a ha).trans (hf₂ a ha)⟩
     simp only [List.map_cons, List.sum_cons, bfsVertWeight]
@@ -723,7 +738,10 @@ private theorem exec_bfsLayersLoop {w bOff : ℕ} {inst : SparseInstance}
         simp [hnil]
       let le := qh + frontier.length
       have he_le : ExecWithin w (ram[ layerEnd ← qTail ] : Code .standard 34) x
-          (x.set layerEnd le) 1 := WP.execWithin (by wram_exec [hqt]; rfl)
+          (x.set layerEnd le) 1 :=
+        WP.execWithin <| by
+          wram_exec [hqt]
+          rfl
       have hb₁ : BaseRegs inst bOff (x.set layerEnd le) := hb.of_eq fun i hi => by wram_simp
       obtain ⟨x₂, he_front, hr₂, hdM₂, hq_next₂, hrk₂, hrf₂, hqh₂, hle₂, hqt₂, hact₂,
         _, hbound₂, hf₂⟩ :=
@@ -792,7 +810,9 @@ private theorem exec_bfsLayersLoop {w bOff : ℕ} {inst : SparseInstance}
               if rfound = one then [ active ← zero ] else [
                 if qHead = qTail then [ active ← zero ] else [ rk ← rk + one ] ] ] :
               Code .standard 34) x₂ (x₂.set rk (j + 1)) 5 :=
-            WP.execWithin (by wram_exec [hrf_zero, hb₂.hone, hrk₂, hqh_ne_qt]; rfl)
+            WP.execWithin <| by
+              wram_exec [hrf_zero, hb₂.hone, hrk₂, hqh_ne_qt]
+              rfl
           have hb₃ : BaseRegs inst bOff (x₂.set rk (j + 1)) := hb₂.of_eq fun i hi => by wram_simp
           have hcsr₃ : CSRMem inst bOff (x₂.set rk (j + 1)).mem :=
             hcsr.of_outside fun a ha => hf₂ a (by omega)

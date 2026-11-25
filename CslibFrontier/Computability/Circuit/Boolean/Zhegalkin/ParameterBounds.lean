@@ -93,10 +93,7 @@ theorem log_param_props {M : ℕ} (hL8 : 8 ≤ Nat.log 2 M)
   dsimp only
   set L := Nat.log 2 M
   set s := L - 3 * Nat.log 2 L
-  have hM0 : M ≠ 0 := by
-    intro h0
-    subst h0
-    simp [L] at hL8
+  have hM0 : M ≠ 0 := fun h0 => by simp [L, h0] at hL8
   have hpowM : 2 ^ L ≤ M := Nat.pow_log_le_self 2 hM0
   have hs_pos : 0 < s := by omega
   have hs_le : s ≤ L := Nat.sub_le _ _
@@ -104,10 +101,8 @@ theorem log_param_props {M : ℕ} (hL8 : 8 ≤ Nat.log 2 M)
   have hlogL1 : 1 ≤ Nat.log 2 L :=
     Nat.le_log_of_pow_le one_lt_two (by omega : 2 ^ 1 ≤ L)
   have hL2M : L ^ 2 ≤ M := hpow2.trans hpowM
-  have hL_lt : L ≤ 2 * 2 ^ Nat.log 2 L := by
-    have h := Nat.lt_pow_succ_log_self one_lt_two L
-    rw [pow_succ'] at h
-    exact h.le
+  have hL_lt : L ≤ 2 * 2 ^ Nat.log 2 L :=
+    (pow_succ' 2 _ ▸ Nat.lt_pow_succ_log_self one_lt_two L).le
   have hcubes : (2 * 2 ^ Nat.log 2 L) ^ 3 = 8 * 2 ^ (3 * Nat.log 2 L) := by
     rw [mul_pow, ← pow_mul, mul_comm (Nat.log 2 L) 3]
     norm_num
@@ -132,11 +127,9 @@ private theorem natLog_le_logb {m : ℕ} (hm : 1 ≤ m) :
 
 private theorem logb_le_natLog_add_one {m : ℕ} (hm : 1 ≤ m) :
     Real.logb 2 m ≤ (Nat.log 2 m : ℝ) + 1 := by
-  have h := Nat.lt_pow_succ_log_self one_lt_two m
-  rw [Real.logb_le_iff_le_rpow (by norm_num) (by positivity)]
-  have hcast : ((Nat.log 2 m + 1 : ℕ) : ℝ) = (Nat.log 2 m : ℝ) + 1 := by push_cast; ring
-  rw [← hcast, Real.rpow_natCast]
-  exact_mod_cast h.le
+  rw [Real.logb_le_iff_le_rpow (by norm_num) (by positivity), ← Nat.cast_add_one,
+    Real.rpow_natCast]
+  exact_mod_cast (Nat.lt_pow_succ_log_self one_lt_two m).le
 
 theorem logb_two_ge_one {m : ℕ} (hm : 2 ≤ m) :
     1 ≤ Real.logb 2 m := by

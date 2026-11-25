@@ -75,15 +75,14 @@ private theorem sum_le_sum_failures (atoms : Fin k → Atom σ U) (samples : Fin
         ∑ t ∈ samples, ∑ i, if ¬ (atoms i).Preserves I (P t) then mass t else 0 := by
       refine Finset.sum_le_sum fun t ht => ?_
       obtain ⟨i, hi⟩ := not_forall.mp (hcover t ht)
-      have h := Finset.single_le_sum (f := fun i : Fin k =>
+      simpa only [ite_eq_left hi] using Finset.single_le_sum (f := fun i : Fin k =>
         if ¬ (atoms i).Preserves I (P t) then mass t else 0)
         (fun _ _ => Nat.zero_le _) (Finset.mem_univ i)
-      simpa only [ite_eq_left hi] using h
     _ = ∑ i, ∑ t ∈ (atoms i).failures I P samples, mass t := by
       rw [Finset.sum_comm]
       simp only [Atom.failures, Finset.sum_filter]
-      refine Finset.sum_congr rfl fun i _ => Finset.sum_congr rfl fun t _ => ?_
-      by_cases ht : (atoms i).Preserves I (P t) <;> simp [ht]
+      exact Finset.sum_congr rfl fun i _ => Finset.sum_congr rfl fun t _ => by
+        by_cases ht : (atoms i).Preserves I (P t) <;> simp [ht]
 
 /-- Local failure-mass estimates bound the total mass of any finite sample of witnesses.
 Operation costs and witness masses are independent; capacity zero and zero masses are allowed. -/
@@ -94,7 +93,7 @@ theorem Cover.sum_le_mul_cost (c : Cover I P) (samples : Finset W) (mass : W →
     ∑ t ∈ samples, mass t ≤ capacity * c.cost weight := by
   calc
     ∑ t ∈ samples, mass t ≤ ∑ i, ∑ t ∈ (c.atoms i).failures I P samples, mass t :=
-      sum_le_sum_failures c.atoms samples mass (fun t _ => c.isCover t)
+      sum_le_sum_failures c.atoms samples mass fun t _ => c.isCover t
     _ ≤ ∑ i, capacity * weight (c.atoms i).op := Finset.sum_le_sum fun i _ => hbound i
     _ = capacity * c.cost weight := (Finset.mul_sum ..).symm
 
@@ -120,8 +119,7 @@ theorem sum_le_mul_program_cost (p : Program σ n g) (I : Interpretation σ U)
     (fun t => hin t t.property) (fun t => hfail t t.property)
   calc
     ∑ t ∈ samples, mass t ≤ ∑ k, ∑ t ∈ (programAtoms p I input k).failures I P samples,
-        mass t :=
-      sum_le_sum_failures _ samples mass (fun t ht => hcover ⟨t, ht⟩)
+        mass t := sum_le_sum_failures _ samples mass fun t ht => hcover ⟨t, ht⟩
     _ ≤ ∑ k, capacity * weight (p.lines k).op := Finset.sum_le_sum fun k _ => hbound k
     _ = capacity * p.cost weight := by rw [p.cost_eq_sum, Finset.mul_sum]
 

@@ -89,7 +89,8 @@ theorem opNorm_toEuclideanCLM_le_of_inner {κ : Type*} [Fintype κ] [DecidableEq
       inner ℝ u (Matrix.toEuclideanCLM (𝕜 := ℝ) A v) ≤ C) :
     ‖Matrix.toEuclideanCLM (𝕜 := ℝ) A‖ ≤ C := by
   refine ContinuousLinearMap.opNorm_le_of_re_inner_le hC fun v u hv hu => ?_
-  rw [RCLike.re_to_real, real_inner_comm]; exact h u v hu.le hv.le
+  rw [RCLike.re_to_real, real_inner_comm]
+  exact h u v hu.le hv.le
 
 /-- Absolute bilinear evaluation of a real matrix on vectors of norm at most `1` is at most its
 Euclidean operator norm. -/
@@ -106,14 +107,18 @@ private theorem sum_abs_mul_sq_le_of_row_le {κ : Type*} [Fintype κ]
     {u : EuclideanSpace ℝ κ} (hu : ‖u‖ ≤ 1) :
     ∑ p : κ × κ, (√(|A p.1 p.2|) * |u.ofLp p.1|) ^ 2 ≤ R := by
   rw [Fintype.sum_prod_type]
-  have h1 (x : κ) : (∑ y, (√(|A x y|) * |u.ofLp x|) ^ 2) ≤ u.ofLp x ^ 2 * R := by
-    rw [show (∑ y, (√(|A x y|) * |u.ofLp x|) ^ 2) = u.ofLp x ^ 2 * ∑ y, |A x y| by
-      rw [mul_sum]; exact sum_congr rfl fun y _ => by
-        rw [mul_pow, Real.sq_sqrt (abs_nonneg _), sq_abs, mul_comm]]
-    exact mul_le_mul_of_nonneg_left (hrow x) (sq_nonneg _)
-  exact (sum_le_sum fun x _ => h1 x).trans <| (sum_mul _ _ _).symm.trans_le <|
-    (mul_le_mul_of_nonneg_right
-      ((EuclideanSpace.norm_le_one_iff_sum_sq_le_one u).1 hu) hR).trans_eq (one_mul R)
+  calc ∑ x, ∑ y, (√(|A x y|) * |u.ofLp x|) ^ 2
+      = ∑ x, u.ofLp x ^ 2 * ∑ y, |A x y| := by
+          refine sum_congr rfl fun x _ => ?_
+          rw [mul_sum]
+          refine sum_congr rfl fun y _ => ?_
+          rw [mul_pow, Real.sq_sqrt (abs_nonneg _), sq_abs, mul_comm]
+    _ ≤ ∑ x, u.ofLp x ^ 2 * R :=
+          sum_le_sum fun x _ => mul_le_mul_of_nonneg_left (hrow x) (sq_nonneg _)
+    _ = (∑ x, u.ofLp x ^ 2) * R := (sum_mul _ _ _).symm
+    _ ≤ 1 * R :=
+          mul_le_mul_of_nonneg_right ((EuclideanSpace.norm_le_one_iff_sum_sq_le_one u).1 hu) hR
+    _ = R := one_mul R
 
 /-- **Schur's test** for Euclidean operator norms: if row `ℓ¹` norms are at most `R` and column
 `ℓ¹` norms are at most `C`, then `‖Matrix.toEuclideanCLM (𝕜 := ℝ) A‖ ≤ √(R · C)`. -/
@@ -122,23 +127,39 @@ theorem opNorm_toEuclideanCLM_le_sqrt {κ : Type*} [Fintype κ] [DecidableEq κ]
     (hrow : ∀ x, ∑ y, |A x y| ≤ R) (hcol : ∀ y, ∑ x, |A x y| ≤ C) :
     ‖Matrix.toEuclideanCLM (𝕜 := ℝ) A‖ ≤ √(R * C) := by
   refine opNorm_toEuclideanCLM_le_of_inner A (Real.sqrt_nonneg _) fun u v hu hv => ?_
-  rw [Matrix.inner_toEuclideanCLM]; simp only [dotProduct, Matrix.mulVec, mul_sum]
+  rw [Matrix.inner_toEuclideanCLM]
+  simp only [dotProduct, Matrix.mulVec, mul_sum]
   have h1 : ∑ x, ∑ y, u.ofLp x * (A x y * v.ofLp y) ≤
+      ∑ x, ∑ y, |A x y| * (|u.ofLp x| * |v.ofLp y|) := by
+    refine sum_le_sum fun x _ => sum_le_sum fun y _ => ?_
+    calc u.ofLp x * (A x y * v.ofLp y) ≤ |u.ofLp x * (A x y * v.ofLp y)| := le_abs_self _
+      _ = |A x y| * (|u.ofLp x| * |v.ofLp y|) := by rw [abs_mul, abs_mul]; ring
+  have hcs := Real.sum_mul_le_sqrt_mul_sqrt (univ : Finset (κ × κ))
+    (fun p => √(|A p.1 p.2|) * |u.ofLp p.1|) (fun p => √(|A p.1 p.2|) * |v.ofLp p.2|)
+  have hterm : (∑ x, ∑ y, |A x y| * (|u.ofLp x| * |v.ofLp y|)) =
       ∑ p : κ × κ, (√(|A p.1 p.2|) * |u.ofLp p.1|) * (√(|A p.1 p.2|) * |v.ofLp p.2|) := by
     rw [Fintype.sum_prod_type]
-    refine sum_le_sum fun x _ => sum_le_sum fun y _ => (le_abs_self _).trans_eq ?_
-    dsimp only
-    conv_lhs => rw [abs_mul, abs_mul, ← Real.mul_self_sqrt (abs_nonneg (A x y))]
-    ring
+    refine sum_congr rfl fun x _ => sum_congr rfl fun y _ => ?_
+    calc |A x y| * (|u.ofLp x| * |v.ofLp y|)
+        = (√(|A x y|) * √(|A x y|)) * (|u.ofLp x| * |v.ofLp y|) := by
+            rw [Real.mul_self_sqrt (abs_nonneg _)]
+      _ = (√(|A x y|) * |u.ofLp x|) * (√(|A x y|) * |v.ofLp y|) := by ring
+  have hlhs : ∑ p : κ × κ, (√(|A p.1 p.2|) * |u.ofLp p.1|) ^ 2 ≤ R :=
+    sum_abs_mul_sq_le_of_row_le A hR hrow hu
   have hrhs : ∑ p : κ × κ, (√(|A p.1 p.2|) * |v.ofLp p.2|) ^ 2 ≤ C := by
-    have ht := sum_abs_mul_sq_le_of_row_le Aᵀ hC
-      (fun y => by simpa [transpose_apply] using hcol y) hv
-    rw [Fintype.sum_prod_type, sum_comm]; rw [Fintype.sum_prod_type] at ht
+    have ht := sum_abs_mul_sq_le_of_row_le Aᵀ hC (fun y => by simpa [transpose_apply] using hcol y)
+      hv
+    rw [Fintype.sum_prod_type, sum_comm]
+    rw [Fintype.sum_prod_type] at ht
     simpa [transpose_apply] using ht
-  exact h1.trans <| (Real.sum_mul_le_sqrt_mul_sqrt univ _ _).trans <|
-    (mul_le_mul (Real.sqrt_le_sqrt (sum_abs_mul_sq_le_of_row_le A hR hrow hu))
-      (Real.sqrt_le_sqrt hrhs) (Real.sqrt_nonneg _) (Real.sqrt_nonneg _)).trans_eq
-      (Real.sqrt_mul hR _).symm
+  calc ∑ x, ∑ y, u.ofLp x * (A x y * v.ofLp y)
+      ≤ ∑ p : κ × κ, (√(|A p.1 p.2|) * |u.ofLp p.1|) * (√(|A p.1 p.2|) * |v.ofLp p.2|) :=
+        hterm ▸ h1
+    _ ≤ √(∑ p : κ × κ, (√(|A p.1 p.2|) * |u.ofLp p.1|) ^ 2) *
+          √(∑ p : κ × κ, (√(|A p.1 p.2|) * |v.ofLp p.2|) ^ 2) := hcs
+    _ ≤ √R * √C := mul_le_mul (Real.sqrt_le_sqrt hlhs) (Real.sqrt_le_sqrt hrhs)
+          (Real.sqrt_nonneg _) (Real.sqrt_nonneg _)
+    _ = √(R * C) := (Real.sqrt_mul hR _).symm
 
 /-- Every matrix entry has magnitude at most its Euclidean operator norm. -/
 theorem abs_entry_le_norm_toEuclideanCLM {κ : Type*} [Fintype κ] [DecidableEq κ]
@@ -154,11 +175,16 @@ theorem abs_sum_mul_le_sqrt_mul_sqrt {X Y : Type*} [Fintype X] [Fintype Y]
     (M : Matrix X Y ℝ) (p : X → ℝ) (q : Y → ℝ) :
     |∑ x, ∑ y, p x * M x y * q y| ≤
       √(∑ x, p x ^ 2) * √(∑ x, (M *ᵥ q) x ^ 2) := by
-  have hcs := abs_real_inner_le_norm (WithLp.toLp 2 p : EuclideanSpace ℝ X)
+  have hcs := abs_real_inner_le_norm
+    (WithLp.toLp 2 p : EuclideanSpace ℝ X)
     (WithLp.toLp 2 (M *ᵥ q) : EuclideanSpace ℝ X)
-  rw [EuclideanSpace.inner_toLp_toLp, star_trivial, dotProduct_comm] at hcs
-  simpa only [EuclideanSpace.norm_eq, Real.norm_eq_abs, sq_abs, dotProduct, mulVec, mul_sum,
-    mul_assoc] using hcs
+  simp only [EuclideanSpace.inner_toLp_toLp, star_trivial, EuclideanSpace.norm_eq,
+    Real.norm_eq_abs, sq_abs] at hcs
+  rw [dotProduct_comm] at hcs
+  have heq : ∑ x, ∑ y, p x * M x y * q y = p ⬝ᵥ (M *ᵥ q) := by
+    simp only [dotProduct, mulVec, mul_sum, mul_assoc]
+  rw [heq]
+  exact hcs
 
 open scoped Matrix.Norms.L2Operator in
 /-- The bilinear form of a finite real rectangular matrix is bounded by its Euclidean

@@ -63,7 +63,9 @@ private theorem vertexEven_of_two_paths {G : Graph} {r : RotationSystem G}
             (if Dart.vertex (G := G) (e, false) = v then true else 0)) = ends e
         simp only [count, ends, add_comm]
     · rw [← Finset.sum_filter]
-      exact Finset.sum_congr (by ext e; simp [P, Q, hx]) fun _ _ => rfl
+      refine Finset.sum_congr ?_ fun _ _ => rfl
+      ext e
+      simp [P, Q, hx]
   have pathSum {k : ℕ} (arm : Fin (k + 1) → Dart G)
       (step : ∀ i : Fin k, r.rotate.symm (arm i.castSucc).reverse = arm i.succ) :
       (∑ i, ends (arm i).1) = atVertex (arm 0) + atVertex (arm (Fin.last k)).reverse := by
@@ -120,12 +122,18 @@ theorem HasRegularContacts.inverse_rotate_iff_not_inverse_rotate_of_three_paths
   have selected (e : Fin G.edges.length) :
       label e = true ↔ (∃ i, (path 0 i).1 = e) ∨ (∃ i, (path 1 i).1 = e) := by
     rw [hlabel]
-    exact ⟨fun ⟨k, hk, i, hi⟩ => by
-        fin_cases k; exacts [.inl ⟨i, hi⟩, .inr ⟨i, hi⟩, (hk rfl).elim],
-      by rintro (⟨i, hi⟩ | ⟨i, hi⟩); exacts [⟨0, by decide, i, hi⟩, ⟨1, by decide, i, hi⟩]⟩
+    refine ⟨fun ⟨k, hk, i, hi⟩ => ?_, ?_⟩
+    · fin_cases k
+      exacts [.inl ⟨i, hi⟩, .inr ⟨i, hi⟩, (hk rfl).elim]
+    · rintro (⟨i, hi⟩ | ⟨i, hi⟩)
+      · exact ⟨0, by decide, i, hi⟩
+      · exact ⟨1, by decide, i, hi⟩
   have unselected (i : Fin (length 2 + 1)) : label (path 2 i).1 = false :=
-    Bool.eq_false_iff.mpr fun h => let ⟨_, hk, _, hj⟩ := (hlabel _).mp h; distinct hk _ i hj
-  have hs (k : Fin 3) : (path k 0).vertex = u := hstart k ▸ (start k).property
+    Bool.eq_false_iff.mpr fun h => by
+      obtain ⟨_, hk, _, hj⟩ := (hlabel _).mp h
+      exact distinct hk _ i hj
+  have hs (k : Fin 3) : (path k 0).vertex = u :=
+    hstart k ▸ (start k).property
   have ht (k : Fin 3) : (path k (Fin.last (length k))).reverse.vertex = v :=
     hfinish k ▸ (finish k).property
   have hl : G.VertexEven label :=
@@ -148,7 +156,8 @@ theorem HasRegularContacts.inverse_rotate_iff_not_inverse_rotate_of_three_paths
     (fun _ => by simp [crossings]) (fun a b hab i j => ?_) edge hsector
   · intro e f
     by_cases h : e = f
-    · subst h; rfl
+    · subst h
+      rfl
     · simpa only [crossings, ite_eq_right h, ite_eq_right (Ne.symm h)] using
         Route.intersectionParity_symm (D.route e) (D.route f)
   · simpa only [crossings, ite_eq_right (distinct hab i j), Bool.zero_eq_false] using

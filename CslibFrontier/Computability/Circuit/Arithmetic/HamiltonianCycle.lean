@@ -65,8 +65,9 @@ theorem totalDegree_hamiltonianCycleSum_genericMatrix_le {K : Type u} [CommSemir
     (genericMatrix K n).hamiltonianCycleSum.totalDegree ≤ n := by
   rw [Matrix.hamiltonianCycleSum]
   refine totalDegree_finsetSum_le fun σ _ => (totalDegree_finsetProd _ _).trans ?_
-  exact (Finset.sum_le_sum (g := fun _ => 1) fun i _ =>
-    (totalDegree_monomial_le _ _).trans (by simp)).trans_eq (by simp)
+  calc _ ≤ ∑ _i : Fin n, 1 :=
+        Finset.sum_le_sum fun i _ => (totalDegree_monomial_le _ _).trans (by simp)
+    _ = n := by simp
 
 /-- The Hamiltonian cycle family is a p-family. -/
 theorem isPFamily_hcFamily {K : Type u} [CommSemiring K] : (hcFamily K).IsPFamily :=
@@ -119,7 +120,8 @@ private theorem orderBits_injective : Function.Injective (orderBits n) := by
 private theorem projection_pos (e : Fin (n * n) → Bool) (i u : Fin n) :
     projection (booleanAssignment e) (pos (K := K) n i u) =
       C (bif e (finProdFinEquiv (i, u)) then 1 else 0) := by
-  rw [pos, projection_X]; simp only [booleanAssignment, Fin.append_right, Sum.elim_inr]
+  rw [pos, projection_X]
+  simp only [booleanAssignment, Fin.append_right, Sum.elim_inr]
 
 private theorem projection_entry (e : Fin (n * n) → Bool) (u v : Fin n) :
     projection (booleanAssignment e) (entry (K := K) n u v) =
@@ -137,7 +139,7 @@ private theorem projection_orderTest_orderBits (π : Equiv.Perm (Fin n)) :
     projection (booleanAssignment (orderBits n π)) (orderTest (K := K) n) = 1 := by
   simp only [orderTest, map_mul, map_prod, map_sub, map_one, map_sum, projection_pos_orderBits]
   rw [Finset.prod_eq_one, Finset.prod_eq_one, one_mul]
-  · intro i _; simp
+  · simp
   · intro p hp
     obtain ⟨hne, h⟩ := (mem_filter.1 hp).2
     have : ¬ (π p.1.1 = p.1.2 ∧ π p.2.1 = p.2.2) := fun ⟨h1, h2⟩ =>
@@ -177,10 +179,7 @@ private theorem projection_orderEdges_orderBits (π : Equiv.Perm (Fin n)) :
   rw [Finset.sum_eq_single (π i, π (finRotate n i))]
   · simp
   · intro p _ hp
-    by_cases h1 : π i = p.1
-    · simp only [h1, show π (finRotate n i) ≠ p.2 from fun h2 => hp (Prod.ext h1.symm h2.symm),
-        ↓reduceIte, one_mul, zero_mul]
-    · simp only [h1, ↓reduceIte, zero_mul]
+    split_ifs <;> simp_all [Prod.ext_iff]
   · simp
 
 /-- **Summing the witness over all bit tables gives the Hamiltonian cycle polynomial.** -/
@@ -202,15 +201,14 @@ private theorem booleanSum_hcWitness :
     · exact Finset.sum_congr rfl fun π _ => by rw [map_mul, projection_orderTest_orderBits, one_mul]
     · intro e _ he
       rw [map_mul]
-      refine mul_eq_zero_of_left (by_contra fun h => ?_) _
-      obtain ⟨π, hπ⟩ := exists_orderBits_of_ne_zero (k + 1) e h
-      exact he (mem_image.2 ⟨π, mem_univ _, hπ⟩)
+      by_contra h
+      obtain ⟨π, rfl⟩ := exists_orderBits_of_ne_zero (k + 1) e (left_ne_zero_of_mul h)
+      exact he (mem_image_of_mem _ (mem_univ _))
   rw [booleanSum, hcWitness, dite_eq_left_of_eq_true (eq_true k.succ_pos)]
   simp only [mul_assoc]
   rw [hsum]
   simp only [map_mul, projection_pos_orderBits, projection_orderEdges_orderBits, ite_mul, one_mul,
-    zero_mul]
-  rw [← Finset.sum_filter, Matrix.hamiltonianCycleSum_eq_sum_orders]
+    zero_mul, ← Finset.sum_filter, Matrix.hamiltonianCycleSum_eq_sum_orders]
   rfl
 
 /-! ### Size and degree of the witness -/

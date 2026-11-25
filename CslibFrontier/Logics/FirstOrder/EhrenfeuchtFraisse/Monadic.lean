@@ -228,6 +228,7 @@ theorem exists_substructure_realize [L.IsRelational] [Finite (L.Relations 1)]
       Nat.card S ≤ max (quantifierRank φ) 1 * 2 ^ Nat.card (L.Relations 1) ∧ S ⊨ φ := by
   classical
   set Q := max (quantifierRank φ) 1
+  -- keep at most `Q` elements of each color
   choose T hTsub hTcard using fun C : Set (L.Relations 1) =>
     Set.exists_subset_encard_eq (min_le_right (Q : ℕ∞) {m : M | color L m = C}.encard)
   let s : Set M := {m | m ∈ T (color L m)}
@@ -240,7 +241,9 @@ theorem exists_substructure_realize [L.IsRelational] [Finite (L.Relations 1)]
     refine ⟨fun ⟨hm, hC⟩ => ?_, fun hm => ?_⟩
     · have hc : color L m = C := (S.subtype.color_apply ⟨m, hm⟩).trans hC
       exact hc ▸ hm
-    · have hm' : m ∈ S := by change m ∈ T (color L m); rwa [hTsub C hm]
+    · have hm' : m ∈ S := by
+        change m ∈ T (color L m)
+        rwa [hTsub C hm]
       exact ⟨hm', (S.subtype.color_apply ⟨m, hm'⟩).symm.trans (show color L m = C from hTsub C hm)⟩
   have hcard : s.encard ≤ (Q * 2 ^ Nat.card (L.Relations 1) : ℕ) := by
     have := Fintype.ofFinite (L.Relations 1)
@@ -252,7 +255,8 @@ theorem exists_substructure_realize [L.IsRelational] [Finite (L.Relations 1)]
       _ = (Q * 2 ^ Nat.card (L.Relations 1) : ℕ) := by
           rw [Finset.sum_const, Finset.card_univ, Fintype.card_set, nsmul_eq_mul,
             Nat.card_eq_fintype_card]
-          push_cast; exact mul_comm _ _
+          push_cast
+          exact mul_comm _ _
   have hrealize : S ⊨ φ ↔ M ⊨ φ := by
     refine realize_iff_of_encard (n := Q) hmon (fun R => ?_) (fun C => ?_) (le_max_left _ _)
     · rw [← S.subtype.map_rel R default, Subsingleton.elim (S.subtype ∘ default) default]

@@ -95,8 +95,12 @@ section Auxiliary
 `1 / (1 - x)`, for `0 ≤ x < 1`. -/
 private theorem sum_ite_lt_pow_le {x : ℝ} (hx₀ : 0 ≤ x) (hx₁ : x < 1) (T i : ℕ) :
     ∑ j ∈ range T, (if i < j then x ^ (j - (i + 1)) else 0) ≤ 1 / (1 - x) := by
-  rw [sum_ite, sum_const_zero, add_zero, show {j ∈ range T | i < j} = Ico (i + 1) T by
-    ext j; simp only [mem_filter, mem_range, mem_Ico]; omega, sum_Ico_eq_sum_range]
+  rw [sum_ite, sum_const_zero, add_zero,
+    show {j ∈ range T | i < j} = Ico (i + 1) T by
+      ext j
+      simp only [mem_filter, mem_range, mem_Ico]
+      omega,
+    sum_Ico_eq_sum_range]
   simp only [Nat.add_sub_cancel_left]
   rw [range_eq_Ico]
   simpa using geom_sum_Ico_le_of_lt_one (m := 0) (n := T - (i + 1)) hx₀ hx₁
@@ -123,7 +127,8 @@ private theorem mul_min_le_div {c B B' T ε u δ : ℝ} (hc : 0 ≤ c) (hB : 0 �
   set m := min u δ
   have hm₀ : 0 ≤ m := le_min hu hδ
   have hmε : m ≤ ε := (min_le_left _ _).trans huε
-  have hTm : T ^ 2 * m ≤ T ^ 2 * δ := mul_le_mul_of_nonneg_left (min_le_right _ _) (sq_nonneg T)
+  have hTm : T ^ 2 * m ≤ T ^ 2 * δ :=
+    mul_le_mul_of_nonneg_left (min_le_right _ _) (sq_nonneg T)
   have hε₀ : 0 ≤ ε := hm₀.trans hmε
   calc c ^ 2 / (c + T ^ 2 * δ + B') * m = c ^ 2 * m / (c + T ^ 2 * δ + B') := by ring
     _ ≤ c ^ 2 * m / (c + T ^ 2 * m + B) := by gcongr
@@ -137,10 +142,12 @@ probability at most `1 / (2 K)`. -/
 private theorem one_sub_inv_pow_le {q K : ℕ} (hq : 2 ≤ q) (hK : 1 ≤ K) :
     (1 - (q : ℝ)⁻¹) ^ (2 * K * (q - 1)) ≤ (2 * K : ℝ)⁻¹ := by
   have hq₁ : (0 : ℝ) < q - 1 := by cast_linarith [hq]
+  have hn : ((2 * K * (q - 1) : ℕ) : ℝ) * ((q : ℝ) - 1)⁻¹ = 2 * K := by
+    push_cast [Nat.cast_sub (by omega : 1 ≤ q)]
+    field_simp
   have hb := one_add_mul_le_pow (a := ((q : ℝ) - 1)⁻¹) (by linarith [inv_pos.2 hq₁])
     (2 * K * (q - 1))
-  rw [show ((2 * K * (q - 1) : ℕ) : ℝ) * ((q : ℝ) - 1)⁻¹ = 2 * K by
-    push_cast [Nat.cast_sub (by omega : 1 ≤ q)]; field_simp] at hb
+  rw [hn] at hb
   rw [show 1 - (q : ℝ)⁻¹ = (1 + ((q : ℝ) - 1)⁻¹)⁻¹ by field_simp; ring, inv_pow]
   exact inv_anti₀ (by positivity) (by cast_linarith [hK])
 
@@ -239,7 +246,8 @@ theorem expect_killTime_eq_and_hit [Fintype V] [Fintype D] [Nonempty D]
   rw [hrhs, ← expect_prod_ite_killTime_eq hℓ]
   refine expect_congr rfl fun p _ ↦ ?_
   by_cases h : killTime p.2.2 = ℓ
-  · subst h; simp only [true_and, ite_true, R.hit_iff_splitHit T q A σ p hℓ hi]
+  · subst h
+    simp only [true_and, ite_true, R.hit_iff_splitHit T q A σ p hℓ hi]
   · simp [h]
 
 /-! ### The first moment -/
@@ -367,7 +375,8 @@ private theorem numHits_sq_le_add_sum (A : V → WalkLabels D T → α) (σ : V 
     rw [numHits_eq_sum, ← Fin.sum_univ_eq_sum_range]
   -- a hit at step `i` crosses a violated dart
   have hhc (i : Fin T) : h i ≤ c i := by
-    simp only [h, c]; split_ifs with h₁ h₂
+    simp only [h, c]
+    split_ifs with h₁ h₂
     · exact le_rfl
     · exact absurd (ConstraintGraph.mem_unsatEdges.2 h₁.2.1) h₂
     all_goals norm_num
@@ -401,8 +410,11 @@ theorem expect_mem_unsatEdges_mul_le (σ : V → α) {i j : Fin T} (hij : i < j)
   have h := R.graph.abs_expect_walkDart_mul_walkDart_sub_le hij b
   have hb : 𝔼 d, b d = R.toConstraintGraph.unsatFrac σ :=
     R.toConstraintGraph.expect_mem_unsatEdges σ
-  have hb₂ : 𝔼 d, b d ^ 2 = R.toConstraintGraph.unsatFrac σ :=
-    (expect_congr rfl fun d _ ↦ by simp only [b]; split_ifs <;> norm_num).trans hb
+  have hb₂ : 𝔼 d, b d ^ 2 = R.toConstraintGraph.unsatFrac σ := by
+    rw [← hb]
+    refine expect_congr rfl fun d _ ↦ ?_
+    simp only [b]
+    split_ifs <;> norm_num
   rw [hb, hb₂] at h
   have hlam : 0 ≤ R.graph.spectralExpansion ^ (j - (i + 1) : ℕ) :=
     pow_nonneg R.graph.spectralExpansion_nonneg _
@@ -465,21 +477,25 @@ theorem expect_numHits_sq_le (A : V → WalkLabels D T → α) (σ : V → α)
   have hlam₀ : 0 ≤ lam := R.graph.spectralExpansion_nonneg
   -- the errors sum to a geometric series at every step
   have hgsum : ∑ i, ∑ j, g i j ≤ T * (1 / (1 - lam)) :=
-    (sum_le_sum fun i _ ↦ by
-      simpa [g] using (Fin.sum_univ_eq_sum_range
-        (fun j ↦ if (i : ℕ) < j then lam ^ (j - (i + 1)) else 0) T).le.trans
-        (sum_ite_lt_pow_le hlam₀ hlam T i)).trans_eq (by simp)
+    calc ∑ i, ∑ j, g i j
+        ≤ ∑ _i : Fin T, 1 / (1 - lam) := sum_le_sum fun i _ ↦ by
+          simpa [g] using (Fin.sum_univ_eq_sum_range
+            (fun j ↦ if (i : ℕ) < j then lam ^ (j - (i + 1)) else 0) T).le.trans
+            (sum_ite_lt_pow_le hlam₀ hlam T i)
+      _ = T * (1 / (1 - lam)) := by simp
   calc 𝔼 p, (R.numHits T q A σ p : ℝ) ^ 2
       ≤ 𝔼 p, ((R.numHits T q A σ p : ℝ) + ∑ i, ∑ j, if i = j then 0 else c i p * c j p) :=
         expect_le_expect fun p _ ↦ numHits_sq_le_add_sum R T q A σ p
     _ = 𝔼 p, (R.numHits T q A σ p : ℝ) +
           ∑ i, ∑ j, if i = j then 0 else 𝔼 p, c i p * c j p := by
         rw [expect_add_distrib, expect_sum_comm]
-        simp only [expect_sum_comm]; congr 1
+        simp only [expect_sum_comm]
+        congr 1
         exact sum_congr rfl fun i _ ↦ sum_congr rfl fun j _ ↦ by split_ifs <;> simp
     _ ≤ 𝔼 p, (R.numHits T q A σ p : ℝ) +
           ∑ i : Fin T, ∑ j : Fin T, (ε ^ 2 + ε * g i j + ε * g j i) := by
-        gcongr with i _ j _; exact ite_expect_walkDart_mem_unsatEdges_mul_le R T q σ i j
+        gcongr with i _ j _
+        exact ite_expect_walkDart_mem_unsatEdges_mul_le R T q σ i j
     _ ≤ 𝔼 p, (R.numHits T q A σ p : ℝ) + T ^ 2 * ε ^ 2 + 2 * T * ε / (1 - lam) := by
         have hsum : ∑ i : Fin T, ∑ j : Fin T, (ε ^ 2 + ε * g i j + ε * g j i) =
             T ^ 2 * ε ^ 2 + ε * ∑ i, ∑ j, g i j + ε * ∑ i, ∑ j, g i j := by
@@ -498,7 +514,8 @@ private theorem expect_numHits_ne_zero_le (A : V → WalkLabels D T → α) (σ 
   rw [← ConstraintGraph.expect_mem_unsatEdges]
   refine expect_le_expect fun p _ ↦ ?_
   by_cases h : (R.numHits T q A σ p : ℝ) = 0
-  · rw [ite_eq_left h]; split_ifs <;> norm_num
+  · rw [ite_eq_left h]
+    split_ifs <;> norm_num
   · obtain ⟨i, hi⟩ : ({i ∈ range T | R.Hit T q A σ p i} : Finset ℕ).Nonempty :=
       nonempty_iff_ne_empty.2 fun h' ↦ h (by simp [numHits, h'])
     rw [ite_eq_right h, ite_eq_left (ConstraintGraph.mem_unsatEdges.2
@@ -600,7 +617,8 @@ theorem le_unsatVal_power_min (hq : 2 ≤ q) (hT : T = 4 * Fintype.card α * (q 
   have hm : 1 ≤ K * (q - 1) := Nat.mul_pos hK (by omega)
   have hH : 2 * (2 * K * (q - 1) - 1) + 1 < T := by
     rw [hT, show 4 * K * (q - 1) = 4 * (K * (q - 1)) by ring,
-      show 2 * K * (q - 1) = 2 * (K * (q - 1)) by ring]; omega
+      show 2 * K * (q - 1) = 2 * (K * (q - 1)) by ring]
+    omega
   have hsurv : (1 - (q : ℝ)⁻¹) ^ (2 * K * (q - 1) - 1 + 1) ≤ (2 * K : ℝ)⁻¹ := by
     rw [Nat.sub_add_cancel (by rw [show 2 * K * (q - 1) = 2 * (K * (q - 1)) by ring]; omega)]
     exact one_sub_inv_pow_le hq hK
@@ -608,8 +626,11 @@ theorem le_unsatVal_power_min (hq : 2 ≤ q) (hT : T = 4 * Fintype.card α * (q 
   have hc : c ≤ ((q : ℝ) - 1) * ((K : ℝ)⁻¹ - (1 - (q : ℝ)⁻¹) ^ (2 * K * (q - 1) - 1 + 1)) ^ 2 := by
     have h : (2 * K : ℝ)⁻¹ ≤ (K : ℝ)⁻¹ - (1 - (q : ℝ)⁻¹) ^ (2 * K * (q - 1) - 1 + 1) := by
       linarith [show (K : ℝ)⁻¹ = 2 * (2 * K : ℝ)⁻¹ by field_simp]
-    exact (show c = (q - 1) * ((2 * K : ℝ)⁻¹) ^ 2 by simp only [c]; field_simp; ring).le.trans
-      (by gcongr)
+    calc c = (q - 1) * ((2 * K : ℝ)⁻¹) ^ 2 := by
+          simp only [c]
+          field_simp
+          ring
+      _ ≤ _ := by gcongr
   exact R.le_unsatVal_power_of_le T q _ hH (hsurv.trans (inv_anti₀ (by positivity) (by linarith)))
     (by positivity) hc hμ hμ₁ hδ
 
@@ -625,8 +646,9 @@ theorem le_unsatVal_power (hq : 2 ≤ q) (hT : T = 4 * Fintype.card α * (q - 1)
   have hK : 1 ≤ K := Fintype.card_pos
   have hq' : (1 : ℝ) ≤ q - 1 := by cast_linarith [hq]
   have hμ' : 0 < 1 - μ := sub_pos.2 hμ₁
-  have hT₀ : (T : ℝ) ≠ 0 :=
-    Nat.cast_ne_zero.2 (by rw [hT]; exact (Nat.mul_pos (by lia) (by lia)).ne')
+  have hT₀ : (T : ℝ) ≠ 0 := by
+    rw [Nat.cast_ne_zero, hT]
+    exact (Nat.mul_pos (by omega) (by omega)).ne'
   have hpow := R.le_unsatVal_power_min T q hq hT hμ hμ₁ (δ := 1 / T ^ 2) (by positivity)
   dsimp only at hpow
   rw [show (T : ℝ) ^ 2 * (1 / (T : ℝ) ^ 2) = 1 by field_simp] at hpow
@@ -635,11 +657,16 @@ theorem le_unsatVal_power (hq : 2 ≤ q) (hT : T = 4 * Fintype.card α * (q - 1)
   gcongr ?_ * _
   · exact le_min R.toConstraintGraph.unsatVal_nonneg (by positivity)
   -- the factor `c ^ 2 / (c + 1 + 2 T / (1 - μ))` grows linearly with `q`
-  rw [show (T : ℝ) = 4 * K * (q - 1) by rw [hT]; push_cast [Nat.cast_sub (by omega : 1 ≤ q)]; ring,
-    div_le_div_iff₀ (by positivity) (by positivity),
-    show c ^ 2 * (4 * K ^ 2 + 16 * K ^ 4 + 128 * K ^ 5 / (1 - μ)) =
-      c * (q - 1) + (q - 1) ^ 2 + (q - 1) * (2 * (4 * K * (q - 1)) / (1 - μ)) by
-        simp only [c]; field_simp; ring]
+  have hTc : (T : ℝ) = 4 * K * (q - 1) := by
+    rw [hT]
+    push_cast [Nat.cast_sub (by omega : 1 ≤ q)]
+    ring
+  have e : c ^ 2 * (4 * K ^ 2 + 16 * K ^ 4 + 128 * K ^ 5 / (1 - μ)) =
+      c * (q - 1) + (q - 1) ^ 2 + (q - 1) * (2 * (4 * K * (q - 1)) / (1 - μ)) := by
+    simp only [c]
+    field_simp
+    ring
+  rw [hTc, div_le_div_iff₀ (by positivity) (by positivity), e]
   nlinarith [show 0 ≤ (q - 1 : ℝ) * (2 * (4 * K * (q - 1)) / (1 - μ)) by positivity]
 
 end Bound

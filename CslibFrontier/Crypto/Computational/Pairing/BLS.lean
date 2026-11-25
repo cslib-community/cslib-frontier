@@ -302,7 +302,8 @@ private theorem sufCma_worldRealize_eq_eufCma_of_unique {PK SK M Sig Digest : Ty
   by_cases hpred : pred d msig.2 = true
   · by_cases hmsg : (pairs.map Prod.fst).contains msig.1 = true
     · obtain ⟨⟨m', sig₀⟩, hpMem, hm'⟩ := List.mem_map.mp (List.contains_iff_mem.mp hmsg)
-      dsimp only at hm'; subst hm'
+      dsimp only at hm'
+      subst hm'
       obtain ⟨d₀, hd₀, hpred₀⟩ := hinv (msig.1, sig₀) hpMem
       change (d, cache') ∈ ((oracle Digest msig.1).run cache).support at hd
       rw [run_oracle_of_lookup_eq_some hd₀, PMF.mem_support_pure_iff] at hd
@@ -460,7 +461,9 @@ private theorem run_interpret_blsRunCore (d : P.G₀.Desc) [Fintype (P.G₀.Carr
         fun (res, c', s') => ((res, s'), c') := by
     intro p
     induction p using OracleComp.induction with
-    | pure a => intro c s; simp [interp_norm, pmf_norm]
+    | pure a =>
+      intro c s
+      simp [interp_norm, pmf_norm]
     | query_bind q cont ih =>
       intro c s
       change (interpret (oracle (P.G₀.Carrier d))
@@ -468,13 +471,15 @@ private theorem run_interpret_blsRunCore (d : P.G₀.Desc) [Fintype (P.G₀.Carr
         ((interpret (handler (P.blsTypedROMScheme d) α)
           (OracleComp.query q >>= cont)).run (c, s)).map
           fun (res, c', s') => ((res, s'), c')
-      cases q <;>
-        (simp only [interpret_bind, interpret_query, blsCoreHandler, handler, blsTypedROMScheme,
-          StateT.run_bind]; dsimp only [StateT.run];
-          simp only [interpret_map, interpret_query]; dsimp only [Functor.map, StateT.map];
-          simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind,
-            PMF.map_bind];
-          exact PMF.bind_congr_on_support _ _ _ fun hc _ => ih _ hc.2 _)
+      cases q <;> (
+        simp only [interpret_bind, interpret_query, blsCoreHandler, handler, blsTypedROMScheme,
+          StateT.run_bind]
+        dsimp only [StateT.run]
+        simp only [interpret_map, interpret_query]
+        dsimp only [Functor.map, StateT.map]
+        simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind,
+          PMF.map_bind]
+        exact PMF.bind_congr_on_support _ _ _ fun hc _ => ih _ hc.2 _)
   simp only [blsRunCore, StateT.run_bind, interpret_bind, interpret_pure,
     StateT.run_pure, interpret_query, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
     PMF.map_bind, hinner, PMF.bind_map, blsTypedROMScheme, interpret_map, StateT.run_map,
@@ -563,14 +568,16 @@ private theorem bankStepIndexed_eq_withSampleList {Val H : Type} (proj : Val →
           match st.1.lookup q with
           | some entry => PMF.pure (proj entry.1, (st.1, st.2 + 1))
           | none => PMF.pure (proj val, ((q, (val, st.2)) :: st.1, st.2 + 1)))
-        (OracleComp.query q >>= cont)).run ((table, k), all.drop k)).map fun (a, st, _) => (a, st)
+        (OracleComp.query q >>= cont)).run ((table, k), all.drop k)).map fun (a, st, _) =>
+          (a, st)
     simp only [StateT.run_bind, interpret_bind, interpret_query]
     dsimp only [bankStepHandler, withSampleList, StateT.run, bankStepIndexed]
     simp only [PMF.monad_map_eq_map, PMF.monad_bind_eq_bind, PMF.map_bind, PMF.bind_map,
       Function.comp_def]
     have hhead : (all.drop k).headD fallback = all.getD k fallback := by
       rw [List.getD_eq_getElem?_getD, List.headD_eq_head?_getD, List.head?_drop]
-    have hdrop : (all.drop k).tail = all.drop (k + 1) := by simp [List.tail_drop]
+    have hdrop : (all.drop k).tail = all.drop (k + 1) := by
+      simp [List.tail_drop]
     cases hlook : table.lookup q with
     | some entry =>
       simp only [PMF.pure_bind, hdrop]
@@ -693,9 +700,10 @@ private theorem runBankedForge_eq_interpret_blsRunCore_forge {Val : Type} (d : P
       ((OracleComp.interpret (P.blsCoreHandler d α)
         (OracleComp.query q >>= cont)).run signed)).run (table, count) =
       runBankedForge P d α proj fallback vals (OracleComp.query q >>= cont) signed table count
-    cases q <;>
-      (simp only [runBankedForge, runBankedHandler, blsCoreHandler, interpret_bind,
-        interpret_query, StateT.run_bind]; exact ih _ _ _ _)
+    cases q <;> (
+      simp only [runBankedForge, runBankedHandler, blsCoreHandler, interpret_bind,
+        interpret_query, StateT.run_bind]
+      exact ih _ _ _ _)
 
 private theorem interpret_bankStep_blsRunCore {Val : Type} (d : P.G₀.Desc)
     (α : ZMod (P.G₀.order d)) (proj : Val → P.G₀.Carrier d) (fallback : Val) (vals : List Val)
@@ -732,7 +740,9 @@ private theorem runBankedForge_bounds {Val : Type} (d : P.G₀.Desc) (α : ZMod 
       (∀ q ∈ signed, q ∈ res.1.2) := by
   induction prog generalizing Qs Qro signed table count with
   | pure a =>
-    exact ⟨Nat.le_add_right _ _, by change count ≤ count + Qs + Qro; omega,
+    exact ⟨Nat.le_add_right _ _, by
+        change count ≤ count + Qs + Qro
+        omega,
       hidx, hnodup, fun _ _ _ h => h, hsigned, fun _ h => h⟩
   | liftBind q cont ih =>
     obtain ⟨hQs, hcontS⟩ := IsCostBounded.liftBind_iff.mp hs
@@ -1104,7 +1114,7 @@ theorem succProbability_eufCmaGame_blsTypedROMScheme_le_of_banked
     rename_i _ q st
     dsimp only [step]
     cases List.lookup q st.1 <;> rfl
-  -- Step 2: Pointwise recovery when `(wonFn = true ∧ cs idxFn = true ∧ ∀ i ∈ RFn, cs i = false)`.
+  -- Step 2: Pointwise recovery when `(won = true ∧ cs idxStar = true ∧ ∀ i ∈ R, cs i = false)`.
   have hpointwise (α β : ZMod (P.G₀.order d)) (s : A.Coins)
       (cs : Fin K → Bool) (rhos : Fin K → ZMod (P.G₀.order d)) :
       let samples := List.ofFn fun i : Fin K => (cs i, rhos i)
@@ -1123,12 +1133,14 @@ theorem succProbability_eufCmaGame_blsTypedROMScheme_le_of_banked
     let proj := P.coronSampleElem d (β • P.G₀.generator d)
     have hhs : List.ofFn hs = samples.map proj := by
       simp [samples, hs, List.map_ofFn, proj, Function.comp_def]
+    -- Relate `bankStepHandler id 0 (samples.map proj)` to `bankStepHandler proj (false, 0)`.
     have hrel_step :
         ∀ (p : OracleComp (fun _ : List Bool => P.G₀.Carrier d)
             ((List Bool × P.G₀.Carrier d) × List (List Bool) × P.G₀.Carrier d)) t cnt,
         let rr := (OracleComp.interpret (bankStepHandler id 0 (samples.map proj)) p).run
             (t.map (fun (k, (v, i)) => (k, (proj v, i))), cnt)
-        let rs := (OracleComp.interpret (bankStepHandler proj (false, 0) samples) p).run (t, cnt)
+        let rs := (OracleComp.interpret (bankStepHandler proj (false, 0) samples) p).run
+            (t, cnt)
         rr.1 = rs.1 ∧ rr.2.1 = rs.2.1.map (fun (k, (v, i)) => (k, (proj v, i))) ∧
           rr.2.2 = rs.2.2 := by
       intro p
@@ -1152,6 +1164,7 @@ theorem succProbability_eufCmaGame_blsTypedROMScheme_le_of_banked
           simp only [Option.map_none, hget]
           exact ih (proj (samples.getD cnt (false, 0)))
             ((q, (samples.getD cnt (false, 0), cnt)) :: t) (cnt + 1)
+    -- Relate `res` (with `id, hs`) to `(f1, last)`.
     let f1 := P.runBankedForge d α proj (false, 0) samples
       (A.forge (α • P.G₁.generator d) s) [] [] 0
     have hcore_eq := P.interpret_bankStep_blsRunCore d α proj (false, 0) samples
@@ -1178,6 +1191,7 @@ theorem succProbability_eufCmaGame_blsTypedROMScheme_le_of_banked
     rw [← hhs, hcore_eq] at hr
     obtain ⟨hr1, hr2, _⟩ := hr
     have hf1_lt : f1.2.2 < K := by have h : f1.2.2 ≤ 0 + Qs + Qro := hbounds.2.1; omega
+    -- Show every signed message in `f1` has slot coin `false`.
     have havoid : ∀ m ∈ f1.1.2, ∀ c ρ i, f1.2.1.lookup m = some ((c, ρ), i) → c = false := by
       intro m hm c ρ i hmLook
       obtain ⟨_, i', hlook', hi'⟩ := hbounds.2.2.2.2.2.1 m hm
@@ -1189,7 +1203,10 @@ theorem succProbability_eufCmaGame_blsTypedROMScheme_le_of_banked
         dsimp only [resFn]
         rw [hr2]
         exact (list_lookup_map_snd (fun e : (Bool × ZMod (P.G₀.order d)) × ℕ => (proj e.1, e.2))
-          _ m).trans (by dsimp only; rw [hpres_last]; rfl)
+          _ m).trans (by
+            dsimp only
+            rw [hpres_last]
+            rfl)
       have hi_mem : ⟨i, hiK⟩ ∈ RFn α s hs :=
         List.mem_toFinset.mpr (List.mem_filterMap.mpr ⟨m, hr1 ▸ hm, by simp [hres_look, hiK]⟩)
       have hi_eq := (hmem_val m (c, ρ) i (List.mem_of_lookup_eq_some hpres_last)).trans
@@ -1198,7 +1215,10 @@ theorem succProbability_eufCmaGame_blsTypedROMScheme_le_of_banked
     rw [P.blsBankedReductionStep_eq_runBankedForge d α β samples
       (A.forge (α • P.G₁.generator d) s) (hA (α • P.G₁.generator d) s).1
       (hA (α • P.G₁.generator d) s).2 [] [] 0
-      (fun _ _ _ h => by cases h) (fun _ _ _ _ _ h => by cases h) (fun _ h => by cases h) havoid]
+      (fun _ _ _ h => by cases h)
+      (fun _ _ _ _ _ h => by cases h)
+      (fun _ h => by cases h)
+      havoid]
     simp only [blsBankedReductionFinish, Bool.false_eq_true, ↓reduceIte]
     obtain ⟨iStar, hlast_look, hlast_val, hiStar_lt⟩ := hstep1.2.2.2.1
     have hiK : iStar < K := by omega
@@ -1208,7 +1228,10 @@ theorem succProbability_eufCmaGame_blsTypedROMScheme_le_of_banked
       dsimp only [resFn]
       rw [hr1, hr2]
       exact (list_lookup_map_snd (fun e : (Bool × ZMod (P.G₀.order d)) × ℕ => (proj e.1, e.2))
-        _ _).trans (by dsimp only; rw [hlast_look]; cases f1.2.1.lookup f1.1.1.1 <;> rfl)
+        _ _).trans (by
+          dsimp only
+          rw [hlast_look]
+          cases f1.2.1.lookup f1.1.1.1 <;> rfl)
     have hidx_eq : idxFn α s hs = ⟨iStar, hiK⟩ := by
       dsimp only [idxFn]
       rw [hres_look]
@@ -1238,10 +1261,12 @@ theorem succProbability_eufCmaGame_blsTypedROMScheme_le_of_banked
       rw [hr1]
       dsimp only
       rw [hlast_val]
-      cases hfl : f1.2.1.lookup f1.1.1.1 <;>
-        (simp only [hfl] at hstar_eq ⊢; rw [hstar_eq]; rfl)
+      cases hfl : f1.2.1.lookup f1.1.1.1 <;> (
+        simp only [hfl] at hstar_eq ⊢
+        rw [hstar_eq]
+        rfl)
     rw [hsig_eq, hlast_h, smul_add, ← mul_smul, smul_comm α (rhos _), add_sub_cancel_right]
-  -- Step 3: Bound `wonFn` via `one_div_le_toOuterMeasure_iid_marked`, then decouple and transfer.
+  -- Step 3: Bound `won` from `one_div_le_toOuterMeasure_iid_marked`, then decouple and transfer.
   have hmarked (α : ZMod (P.G₀.order d)) (s : A.Coins) (hs : Fin K → P.G₀.Carrier d)
       (hwon : wonFn α s hs = true) :
       idxFn α s hs ∉ RFn α s hs ∧ ((RFn α s hs).card : ℝ) + 1 ≤ a := by
@@ -1270,7 +1295,8 @@ theorem succProbability_eufCmaGame_blsTypedROMScheme_le_of_banked
       dsimp only [idxFn, resFn]
       rw [hcore0]
       dsimp only
-      rw [hlookStar]; simp only [hiK, ↓reduceDIte]
+      rw [hlookStar]
+      simp only [hiK, ↓reduceDIte]
     refine ⟨?_, ?_⟩
     · intro hmem
       dsimp only [RFn, resFn] at hmem
@@ -1280,7 +1306,9 @@ theorem succProbability_eufCmaGame_blsTypedROMScheme_le_of_banked
       change Option.bind ((bankStepIndexed id 0 (List.ofFn hs) f0.1.1.1 f0.2).2.1.lookup m) _ = _
         at hm_eq
       cases hml : (bankStepIndexed id 0 (List.ofFn hs) f0.1.1.1 f0.2).2.1.lookup m with
-      | none => rw [hml] at hm_eq; cases hm_eq
+      | none =>
+        rw [hml] at hm_eq
+        cases hm_eq
       | some em =>
         simp only [hml, Option.bind_some] at hm_eq
         split_ifs at hm_eq with hmK
@@ -1289,7 +1317,8 @@ theorem succProbability_eufCmaGame_blsTypedROMScheme_le_of_banked
           simpa only [hidx0] using this
         exact hnotMem (hstep0.2.1 m em.1 f0.1.1.1 _ iStar (hm_idx ▸ hml) hlookStar ▸ hm_signed)
     · have hcard_le : (RFn α s hs).card ≤ Qs := by
-        dsimp only [RFn, resFn]; rw [hcore0]
+        dsimp only [RFn, resFn]
+        rw [hcore0]
         refine (List.toFinset_card_le _).trans ((List.length_filterMap_le _ _).trans ?_)
         have h : f0.1.2.length ≤ [].length + Qs := hbounds0.1
         simpa only [List.length_nil, Nat.zero_add] using h
@@ -1316,7 +1345,14 @@ theorem succProbability_eufCmaGame_blsTypedROMScheme_le_of_banked
           simp only [hwon, Bool.true_and, decide_eq_true hcs, ↓reduceIte]
         · rw [Set.indicator_of_notMem hcs]
           simp only [hwon, Bool.true_and, decide_eq_false hcs, Bool.true_eq_false, ↓reduceIte]
-      simpa only [hwon, ↓reduceIte, mul_one, ← heq_om] using ENNReal.ofReal_le_of_le_toReal hcoin_le
+      calc
+        ENNReal.ofReal (1 / (2.72 * a)) * (if wonFn α s hs = true then 1 else 0) =
+            ENNReal.ofReal (1 / (2.72 * a)) := by
+          simp only [hwon, ↓reduceIte, mul_one]
+        _ ≤ (PMF.iid coin K).toOuterMeasure
+              {cs | cs (idxFn α s hs) = true ∧ ∀ i ∈ RFn α s hs, cs i = false} :=
+          ENNReal.ofReal_le_of_le_toReal hcoin_le
+        _ = _ := heq_om.symm
     · simp [hwon]
   have hmap_bind : ∀ {α β : Type} (p : PMF α) (f : α → β),
       p.map f = p.bind fun x => PMF.pure (f x) := fun _ _ => rfl
@@ -1355,7 +1391,8 @@ theorem succProbability_eufCmaGame_blsTypedROMScheme_le_of_banked
           (PMF.iid (PMF.uniformOfFintype (P.G₀.Carrier d)) K).map fun hs =>
             wonFn α s hs &&
               decide (cs (idxFn α s hs) = true ∧ ∀ i ∈ RFn α s hs, cs i = false)) := by
-      simp_rw [hmap_bind]; exact PMF.bind_comm _ _ _
+      simp_rw [hmap_bind]
+      exact PMF.bind_comm _ _ _
     refine hmap_left.trans ?_
     rw [hcomm, PMF.bind_apply, PMF.bind_apply]
     refine tsum_le_tsum fun cs => mul_le_mul_of_nonneg_left ?_ zero_le
@@ -1383,7 +1420,8 @@ theorem succProbability_eufCmaGame_blsTypedROMScheme_le_of_banked
       simp [hpred]
   have henn :
       ENNReal.ofReal (1 / (2.72 * a)) *
-          (ROMSignature.eufCmaGame (P.blsTypedROMScheme d) A) true ≤ E_R true := by
+          (ROMSignature.eufCmaGame (P.blsTypedROMScheme d) A) true ≤
+        E_R true := by
     rw [heuf_eq]
     have hconst :
         ((PMF.uniformOfFintype (ZMod (P.G₀.order d))).bind fun α =>
@@ -1420,7 +1458,8 @@ theorem succProbability_eufCmaGame_blsTypedROMScheme_le_of_banked
   calc
     ((ROMSignature.eufCmaGame (P.blsTypedROMScheme d) A) true).toReal =
         (2.72 * a) * ((1 / (2.72 * a)) *
-          ((ROMSignature.eufCmaGame (P.blsTypedROMScheme d) A) true).toReal) := by field_simp
+          ((ROMSignature.eufCmaGame (P.blsTypedROMScheme d) A) true).toReal) := by
+      field_simp
     _ ≤ (2.72 * a) * (E_R true).toReal := mul_le_mul_of_nonneg_left hreal hpos.le
 
 /-- **Quantitative Coron co-CDH bound for typed BLS** ([BonehShoup2023], Theorem 15.1, eq. (15.9),
@@ -1566,18 +1605,18 @@ private theorem blsNativeROMScheme_sign_verifies (n : ℕ) (d : P.G₀.Desc)
     PMF.monad_map_eq_map, PMF.mem_support_map_iff] at hres
   obtain ⟨r, hr, rfl⟩ := hres
   refine ⟨r.1, lookup_of_mem_support_oracle hr, ?_⟩
-  rw [P.G₀.smul_encode, P.ofBits_encScalar_eq d α,
-    show P.isElem₀ (d, P.G₀.encode d (α • r.1)) = true from
-      DecodablePrimeOrderGroupFamily.isElem_encode P.toDecodableG₀ d (α • r.1), Bool.true_and]
+  have hisElem : P.isElem₀ (d, P.G₀.encode d (α • r.1)) = true :=
+    DecodablePrimeOrderGroupFamily.isElem_encode P.toDecodableG₀ d (α • r.1)
+  rw [P.G₀.smul_encode, P.ofBits_encScalar_eq d α, hisElem, Bool.true_and]
   simp only [P.pairEncoded_encode, map_smul, LinearMap.smul_apply, decide_true]
 
 /-- **Correctness** of `blsNativeROMScheme`: every generated key pair and signature verifies. -/
 theorem blsNativeROMScheme_correct (n : ℕ) (d : P.G₀.Desc) [Fintype (P.G₀.Carrier d)] :
     (P.blsNativeROMScheme n d).Correct := by
   intro keys hkeys m _ _ cache signed hsigned verified hverified
-  rw [show (P.blsNativeROMScheme n d).keyGen =
-    ProbComp.eval (P.G₁.toFamily.schnorrSigKeyGen n d) from rfl,
-    PrimeOrderGroupFamily.eval_schnorrSigKeyGen, PMF.mem_support_map_iff] at hkeys
+  have hkg : (P.blsNativeROMScheme n d).keyGen =
+      ProbComp.eval (P.G₁.toFamily.schnorrSigKeyGen n d) := rfl
+  rw [hkg, PrimeOrderGroupFamily.eval_schnorrSigKeyGen, PMF.mem_support_map_iff] at hkeys
   obtain ⟨α, _, rfl⟩ := hkeys
   obtain ⟨h, hlookup, hver⟩ := P.blsNativeROMScheme_sign_verifies n d α m cache signed hsigned
   simp only [blsNativeROMScheme, interpret_map, interpret_query, StateT.run_map,

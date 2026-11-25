@@ -362,10 +362,12 @@ theorem exists_priceQuasiEquilibrium_of_forall_replica_isInCore [Nonempty I] [No
       let w₂ : I → ℝ := fun i => if i ∈ S₂ then t₂ * α₂ i else 0
       let α : I → ℝ := fun i => w₁ i + w₂ i
       have hw₁_nn (i : I) : 0 ≤ w₁ i := by
-        dsimp only [w₁]; split_ifs with h
+        dsimp only [w₁]
+        split_ifs with h
         exacts [mul_nonneg ht₁_pos.le (hα₁_pos i h).le, le_rfl]
       have hw₂_nn (i : I) : 0 ≤ w₂ i := by
-        dsimp only [w₂]; split_ifs with h
+        dsimp only [w₂]
+        split_ifs with h
         exacts [mul_nonneg ht₂_pos.le (hα₂_pos i h).le, le_rfl]
       have hα_pos : ∀ i ∈ S, 0 < α i := by
         intro i hi
@@ -510,10 +512,13 @@ theorem exists_priceQuasiEquilibrium_of_forall_replica_isInCore [Nonempty I] [No
         rw [Finset.sum_biUnion hslice_disj]
         refine sum_congr rfl fun i hi => ?_
         have hconst : ∀ ic ∈ slice i, f ic.1 = f i := fun ic hic => by
-          obtain ⟨c, -, rfl⟩ := mem_map.1 hic; rfl
+          obtain ⟨c, -, rfl⟩ := mem_map.1 hic
+          rfl
         rw [sum_congr rfl hconst, sum_const, hcard_slice i hi, nsmul_eq_mul]
-      rw [hsum_C (fun i => b i g), show ∑ ic ∈ C, (E.replica r).endowment ic g = _ from
-        hsum_C (fun i => E.endowment i g)]
+      have hsum_endow :
+          ∑ ic ∈ C, (E.replica r).endowment ic g = ∑ i ∈ S, (k i : ℝ) * E.endowment i g :=
+        hsum_C (fun i => E.endowment i g)
+      rw [hsum_C (fun i => b i g), hsum_endow]
       -- Bound `∑ i ∈ S, k i * (b i g - w i g) = M * D g + ∑ i ∈ S, (k i - M * α i) * (...) < 0`.
       suffices hneg_diff : ∑ i ∈ S, (k i : ℝ) * (b i g - E.endowment i g) ≤ 0 by
         simp only [mul_sub, sum_sub_distrib] at hneg_diff
@@ -524,15 +529,24 @@ theorem exists_priceQuasiEquilibrium_of_forall_replica_isInCore [Nonempty I] [No
         rw [mul_sum, ← sum_add_distrib]
         exact sum_congr rfl fun i _ => by ring
       have herr_le_B :
-          ∑ i ∈ S, ((k i : ℝ) - (M : ℝ) * α i) * (b i g - E.endowment i g) ≤ B := by
-        refine (sum_le_sum fun i hi => ?_).trans (sum_le_sum fun i _ =>
-          single_le_sum (fun l _ => abs_nonneg (b i l - E.endowment i l)) (mem_univ g))
-        have hfl := Nat.floor_le (mul_nonneg (Nat.cast_nonneg M) (hα_pos i hi).le)
-        have hlt := Nat.lt_floor_add_one ((M : ℝ) * α i)
-        have hrem_nn : 0 ≤ (k i : ℝ) - (M : ℝ) * α i := by dsimp only [k]; push_cast; linarith
-        have hrem_le_1 : (k i : ℝ) - (M : ℝ) * α i ≤ 1 := by dsimp only [k]; push_cast; linarith
-        exact (mul_le_mul_of_nonneg_left (le_abs_self _) hrem_nn).trans
-          (mul_le_of_le_one_left (abs_nonneg _) hrem_le_1)
+          ∑ i ∈ S, ((k i : ℝ) - (M : ℝ) * α i) * (b i g - E.endowment i g) ≤ B :=
+        calc ∑ i ∈ S, ((k i : ℝ) - (M : ℝ) * α i) * (b i g - E.endowment i g)
+            ≤ ∑ i ∈ S, |b i g - E.endowment i g| := sum_le_sum fun i hi => by
+              have hfl := Nat.floor_le (mul_nonneg (Nat.cast_nonneg M) (hα_pos i hi).le)
+              have hlt := Nat.lt_floor_add_one ((M : ℝ) * α i)
+              have hrem_nn : 0 ≤ (k i : ℝ) - (M : ℝ) * α i := by
+                dsimp only [k]
+                push_cast; linarith
+              have hrem_le_1 : (k i : ℝ) - (M : ℝ) * α i ≤ 1 := by
+                dsimp only [k]
+                push_cast; linarith
+              calc ((k i : ℝ) - (M : ℝ) * α i) * (b i g - E.endowment i g)
+                  ≤ ((k i : ℝ) - (M : ℝ) * α i) * |b i g - E.endowment i g| :=
+                    mul_le_mul_of_nonneg_left (le_abs_self _) hrem_nn
+                _ ≤ |b i g - E.endowment i g| :=
+                    mul_le_of_le_one_left (abs_nonneg _) hrem_le_1
+          _ ≤ B := sum_le_sum fun i _ =>
+              single_le_sum (fun l _ => abs_nonneg (b i l - E.endowment i l)) (mem_univ g)
       have hMD_le : (M : ℝ) * D g ≤ -(M : ℝ) * δ := by
         have := mul_le_mul_of_nonneg_left (hD_le g) (Nat.cast_nonneg M)
         linarith

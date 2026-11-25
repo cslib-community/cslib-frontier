@@ -196,10 +196,12 @@ namespace PMF
 open DDGTree
 
 theorem coin_eq_pure_false {ρ : I} (h : (ρ : ℝ) = 0) : coin ρ = _root_.PMF.pure false := by
-  ext b; cases b <;> simp [coin_apply, h]
+  ext b
+  cases b <;> simp [coin_apply, h]
 
 theorem coin_eq_pure_true {ρ : I} (h : (ρ : ℝ) = 1) : coin ρ = _root_.PMF.pure true := by
-  ext b; cases b <;> simp [coin_apply, h]
+  ext b
+  cases b <;> simp [coin_apply, h]
 
 end PMF
 
@@ -241,10 +243,12 @@ theorem runWith_add_two_vonNeumann (n : ℕ) :
   simp only [runWith_succ]
   refine congrArg c.bind (funext fun a => congrArg c.bind (funext fun b => ?_))
   split_ifs with hab
-  · exact congrArg (runWith c n) (DDGTree.ext (funext fun w => by
-      change vonNeumannOutput (a :: b :: w) = vonNeumannOutput w; simp [vonNeumannOutput, hab]))
-  · exact runWith_eq_pure_of_output_nil c
-      (by change vonNeumannOutput [a, b] = some a; simp [vonNeumannOutput, hab]) n
+  · refine congrArg (runWith c n) (DDGTree.ext (funext fun w => ?_))
+    change vonNeumannOutput (a :: b :: w) = vonNeumannOutput w
+    simp [vonNeumannOutput, hab]
+  · refine runWith_eq_pure_of_output_nil c ?_ n
+    change vonNeumannOutput [a, b] = some a
+    simp [vonNeumannOutput, hab]
 
 theorem runWith_add_two_vonNeumann_none (n : ℕ) :
     vonNeumann.runWith c (n + 2) none =

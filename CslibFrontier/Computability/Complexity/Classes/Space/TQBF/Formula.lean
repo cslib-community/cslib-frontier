@@ -97,14 +97,15 @@ theorem tokens_lit (v : ℕ) (b : Bool) :
 theorem tokens_ofCNF (φ : CNF ℕ) : (ofCNF φ).tokens = φ.flatMap (fun c => (Kind.and, 0) ::
     (c.flatMap (fun l => (Kind.or, 0) :: (lit l.1 l.2).tokens) ++ [(Kind.bot, 0)])) ++
       [(Kind.top, 0)] := by
-  have hc (c : Clause ℕ) : (ofClause c).tokens =
-      c.flatMap (fun l => (Kind.or, 0) :: (lit l.1 l.2).tokens) ++ [(Kind.bot, 0)] := by
-    induction c with
-    | nil => rfl
-    | cons l c ih => simpa [ofClause, tokens] using ih
   induction φ with
   | nil => rfl
-  | cons c φ ih => simpa [ofCNF, tokens, hc] using ih
+  | cons c φ ih =>
+    have hc : (ofClause c).tokens =
+        c.flatMap (fun l => (Kind.or, 0) :: (lit l.1 l.2).tokens) ++ [(Kind.bot, 0)] := by
+      induction c with
+      | nil => rfl
+      | cons _ _ ihc => simpa [ofClause, tokens] using ihc
+    simpa [ofCNF, tokens, hc] using ih
 
 end Cslib.Logic.PL.QBF
 
@@ -139,12 +140,10 @@ theorem blockVar_inj {k k' i i' j j' : ℕ} (hk : k < 3) (hk' : k' < 3)
 private theorem blockVar_mem_blockVars {w k k' i i' j : ℕ} (hk : k < 3) (hk' : k' < 3) :
     blockVar k i j ∈ blockVars w k' i' ↔ k = k' ∧ i = i' ∧ j < w := by
   simp only [blockVars, List.mem_map, List.mem_range]
-  constructor
-  · rintro ⟨j', hj', h⟩
-    obtain ⟨rfl, rfl, rfl⟩ := blockVar_inj hk' hk h
-    exact ⟨rfl, rfl, hj'⟩
-  · rintro ⟨rfl, rfl, hj⟩
-    exact ⟨j, hj, rfl⟩
+  exact ⟨fun ⟨j', hj', h⟩ => by
+      obtain ⟨rfl, rfl, rfl⟩ := blockVar_inj hk' hk h
+      exact ⟨rfl, rfl, hj'⟩,
+    fun ⟨rfl, rfl, hj⟩ => ⟨j, hj, rfl⟩⟩
 
 private theorem nodup_blockVars (w kind i : ℕ) (hk : kind < 3) : (blockVars w kind i).Nodup :=
   List.nodup_range.map fun _ _ h => (blockVar_inj hk hk h).2.2
@@ -153,9 +152,8 @@ private theorem nodup_blockVars (w kind i : ℕ) (hk : kind < 3) : (blockVars w 
 theorem nodup_blockVars_append (w i : ℕ) : (blockVars w 0 i ++ blockVars w 1 i).Nodup := by
   refine List.nodup_append.mpr ⟨nodup_blockVars w 0 i (by omega),
     nodup_blockVars w 1 i (by omega), fun a ha b hb hab => ?_⟩
-  simp only [blockVars, List.mem_map] at ha hb
-  obtain ⟨j, -, rfl⟩ := ha
-  obtain ⟨j', -, rfl⟩ := hb
+  obtain ⟨j, -, rfl⟩ := List.mem_map.mp ha
+  obtain ⟨j', -, rfl⟩ := List.mem_map.mp hb
   exact absurd (blockVar_inj (by omega) (by omega) hab).1 (by omega)
 
 /-- Assignments agreeing outside a list of variables that misses a block hold the same word in
@@ -183,9 +181,7 @@ private theorem exists_agree_block (σ : ℕ → Bool) {w : ℕ} (i : ℕ) {u v 
       block τ w 0 i = u ∧ block τ w 1 i = v := by
   obtain ⟨τ, hτ, h⟩ := exists_agree_map_eq σ (nodup_blockVars_append w i) (bs := u ++ v)
     (by simp [blockVars, hu, hv])
-  rw [List.map_append] at h
-  obtain ⟨h₁, h₂⟩ := List.append_inj h (by simp [blockVars, hu])
-  exact ⟨τ, hτ, h₁, h₂⟩
+  exact ⟨τ, hτ, List.append_inj (List.map_append .. ▸ h) (by simp [block, blockVars, hu])⟩
 
 /-- Any word of width `w` can be held by a block, keeping the other variables. -/
 private theorem exists_agree_block_one (σ : ℕ → Bool) {w k : ℕ} (hk : k < 3) (i : ℕ) {u : List Bool}
@@ -261,23 +257,21 @@ theorem eval_midpoint {e : List Bool → List Bool → Bool} {w : ℕ} {base : Q
   | zero => exact hbase σ
   | succ i ih =>
     -- blocks of level `i + 1` are untouched by the quantifiers of level `i`
-    have hlow : ∀ k < 3, ∀ k' < 2, ∀ j < w, blockVar k (i + 1) j ∉
-        blockVars w 0 i ++ blockVars w 1 i := by
-      intro k hk k' _ j _ h
+    have hlow (k : ℕ) (hk : k < 3) {j : ℕ} (_ : j < w)
+        (h : blockVar k (i + 1) j ∈ blockVars w 0 i ++ blockVars w 1 i) : False := by
       rcases List.mem_append.mp h with h | h <;>
-        · obtain ⟨-, h, -⟩ := (blockVar_mem_blockVars hk (by omega)).mp h
-          omega
-    have hmid : ∀ k < 2, ∀ j < w, blockVar k (i + 1) j ∉ blockVars w 2 (i + 1) := by
-      intro k hk j _ h
-      obtain ⟨h, -, -⟩ := (blockVar_mem_blockVars (by omega) (by omega)).mp h
+        exact absurd ((blockVar_mem_blockVars hk (by omega)).mp h).2.1 (by omega)
+    have hmid (k : ℕ) (_ : k < 2) {j : ℕ} (_ : j < w)
+        (h : blockVar k (i + 1) j ∈ blockVars w 2 (i + 1)) : False := by
+      rw [blockVar_mem_blockVars (by omega) (by omega)] at h
       omega
     rw [Bool.eq_iff_iff, midpoint, QBF.eval_exs_eq_true_iff]
     simp only [reach, List.any_eq_true, Bool.and_eq_true, BitString.mem_enumList]
     constructor
     · rintro ⟨τ₁, hτ₁, h⟩
       rw [QBF.eval_alls_eq_true_iff] at h
-      have hsrc := block_eq_of_agree hτ₁ (hmid 0 (by omega))
-      have hdst := block_eq_of_agree hτ₁ (hmid 1 (by omega))
+      have hsrc := block_eq_of_agree hτ₁ (fun _ => hmid 0 (by omega))
+      have hdst := block_eq_of_agree hτ₁ (fun _ => hmid 1 (by omega))
       -- the halves, for the words held by the source and target blocks of level `i`
       have hhalf : ∀ u v, u.length = w → v.length = w →
           ((u = block σ w 0 (i + 1) ∧ v = block τ₁ w 2 (i + 1)) ∨
@@ -288,33 +282,29 @@ theorem eval_midpoint {e : List Bool → List Bool → Bool} {w : ℕ} {base : Q
         rw [QBF.eval_imp, Bool.or_eq_true, Bool.not_eq_true', ih, h₁, h₂] at this
         refine this.resolve_left ?_
         simp only [halves, QBF.eval_or, QBF.eval_and, eval_eqBlock, h₁, h₂,
-          block_eq_of_agree hτ₂ (hlow 0 (by omega) 0 (by omega)),
-          block_eq_of_agree hτ₂ (hlow 1 (by omega) 0 (by omega)),
-          block_eq_of_agree hτ₂ (hlow 2 (by omega) 0 (by omega)), hsrc, hdst]
+          block_eq_of_agree hτ₂ (fun _ => hlow 0 (by omega)),
+          block_eq_of_agree hτ₂ (fun _ => hlow 1 (by omega)),
+          block_eq_of_agree hτ₂ (fun _ => hlow 2 (by omega)), hsrc, hdst]
         rcases huv with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;> simp
       exact ⟨block τ₁ w 2 (i + 1), length_block .., hhalf _ _ (length_block ..)
         (length_block ..) (.inl ⟨rfl, rfl⟩), hhalf _ _ (length_block ..) (length_block ..)
         (.inr ⟨rfl, rfl⟩)⟩
     · rintro ⟨m, hm, h₁, h₂⟩
       obtain ⟨τ₁, hτ₁, hτm⟩ := exists_agree_block_one σ (k := 2) (by omega) (i + 1) hm
-      have hsrc := block_eq_of_agree hτ₁ (hmid 0 (by omega))
-      have hdst := block_eq_of_agree hτ₁ (hmid 1 (by omega))
       refine ⟨τ₁, hτ₁, (QBF.eval_alls_eq_true_iff ..).mpr fun τ₂ hτ₂ => ?_⟩
       rw [QBF.eval_imp, Bool.or_eq_true, Bool.not_eq_true', ih]
       by_cases hh : (halves w i).eval τ₂ = true
-      · right
-        simp only [halves, QBF.eval_or, QBF.eval_and, eval_eqBlock,
-          block_eq_of_agree hτ₂ (hlow 0 (by omega) 0 (by omega)),
-          block_eq_of_agree hτ₂ (hlow 1 (by omega) 0 (by omega)),
-          block_eq_of_agree hτ₂ (hlow 2 (by omega) 0 (by omega)), hsrc, hdst, hτm,
+      · simp only [halves, QBF.eval_or, QBF.eval_and, eval_eqBlock,
+          block_eq_of_agree hτ₂ (fun _ => hlow 0 (by omega)),
+          block_eq_of_agree hτ₂ (fun _ => hlow 1 (by omega)),
+          block_eq_of_agree hτ₂ (fun _ => hlow 2 (by omega)),
+          block_eq_of_agree hτ₁ (fun _ => hmid 0 (by omega)),
+          block_eq_of_agree hτ₁ (fun _ => hmid 1 (by omega)), hτm,
           Bool.or_eq_true, Bool.and_eq_true, decide_eq_true_eq] at hh
         rcases hh with ⟨ha, hb⟩ | ⟨ha, hb⟩
-        · rw [ha, hb]
-          exact h₁
-        · rw [ha, hb]
-          exact h₂
-      · left
-        simpa using hh
+        · exact .inr (ha ▸ hb ▸ h₁)
+        · exact .inr (ha ▸ hb ▸ h₂)
+      · exact .inl (Bool.eq_false_iff.mpr hh)
 
 /-- The free variables of the midpoint formula of level `i` lie in the source and target blocks
 of level `i`, as soon as those of the formula of level `0` lie in the blocks of level `0`. -/
@@ -348,12 +338,11 @@ theorem eval_savitchFormula {e : List Bool → List Bool → Bool} {w : ℕ} {ba
   rw [Bool.eq_iff_iff, savitchFormula, QBF.eval_exs_eq_true_iff]
   simp only [QBF.eval_and, Bool.and_eq_true, eval_isBlock _ _ _ hu, eval_isBlock _ _ _ hv,
     decide_eq_true_eq, eval_midpoint hbase]
-  constructor
-  · rintro ⟨τ, -, rfl, rfl, h⟩
-    exact h
-  · intro h
-    obtain ⟨τ, hτ, rfl, rfl⟩ := exists_agree_block σ d hu hv
-    exact ⟨τ, hτ, rfl, rfl, h⟩
+  refine ⟨?_, fun h =>
+    let ⟨τ, hτ, h₁, h₂⟩ := exists_agree_block σ d hu hv
+    ⟨τ, hτ, h₁, h₂, h₁.symm ▸ h₂.symm ▸ h⟩⟩
+  rintro ⟨_, -, rfl, rfl, h⟩
+  exact h
 
 /-- **Savitch's formula is closed**, as soon as the free variables of the formula of level `0` lie
 in the source and target blocks of level `0`. -/
@@ -363,11 +352,9 @@ theorem closed_savitchFormula {w : ℕ} {base : QBF ℕ}
   refine Finset.eq_empty_of_forall_notMem fun x hx => ?_
   simp only [savitchFormula, QBF.freeVars_exs, QBF.freeVars_and, Finset.mem_sdiff,
     Finset.mem_union, List.mem_toFinset, List.mem_append] at hx
-  obtain ⟨hx, hblock⟩ := hx
-  rcases hx with hx | hx | hx
-  · exact hblock (.inl (mem_freeVars_isBlock hx))
-  · exact hblock (.inr (mem_freeVars_isBlock hx))
-  · exact hblock (mem_freeVars_midpoint hbase d x hx)
+  rcases hx with ⟨hx | hx | hx, hblock⟩
+  exacts [hblock (.inl (mem_freeVars_isBlock hx)), hblock (.inr (mem_freeVars_isBlock hx)),
+    hblock (mem_freeVars_midpoint hbase d x hx)]
 
 /-! ### Tokens of the midpoint formulas -/
 

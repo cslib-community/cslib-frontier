@@ -267,9 +267,7 @@ public theorem ComputableTidilyInTimeAndSpace.multiPassFold {α σ : Type u} {γ
         (fun _ ws ws' em => ws' = ws ∧ em = encE' (passEmit (ms i n)))
         (T + 3 * (D * (L + 1)) + 4) (Sm + 3 * (D * (L + 1)) + 4 * L + 3 * (M + 4) + 12) := by
       refine (hPE (ms i n)).imp (fun _ _ h => h) (fun _ _ _ _ _ h => h) ?_ ?_ <;>
-      · have := hTe
-        have := hSe
-        have := hmul₂ cuf (by omega) _ hn₀
+      · have := hmul₂ cuf (by omega) _ hn₀
         have := hmul cPE (by omega) _ hn₀
         simp only [id_eq, encFramed_apply, length_frame]
         omega
@@ -278,9 +276,7 @@ public theorem ComputableTidilyInTimeAndSpace.multiPassFold {α σ : Type u} {γ
         (fun _ ws ws' em => ws' = Function.update ws N (frame (encS (ps (i + 1)))) ∧ em = [])
         (T + 10 * (D * (L + 1)) + 7) (Sm + 20 * (D * (L + 1)) + 4 * (M + 4) + 20) := by
       refine (hPN (ms i n)).imp (fun _ _ h => h) (fun _ _ _ _ _ h => h) ?_ ?_ <;>
-      · have := hTe
-        have := hSe
-        have := hmul₂ cuf (by omega) _ hn₀
+      · have := hmul₂ cuf (by omega) _ hn₀
         have := hmul cPN₁ (by omega) _ hn₀
         have := hmul cfr (by omega) _ hn₁
         have := hmul cPN (by omega) _ hn₁
@@ -294,9 +290,7 @@ public theorem ComputableTidilyInTimeAndSpace.multiPassFold {α σ : Type u} {γ
         unfold flagWord; split_ifs <;> simp
       refine (hC (ps (i + 1))).imp (fun _ _ h => h)
         (fun _ _ _ _ _ ⟨h, he⟩ => ⟨by rw [h]; simp [cs], he⟩) ?_ ?_ <;>
-      · have := hTe
-        have := hSe
-        have := hmul₂ cuf (by omega) _ hn₁
+      · have := hmul₂ cuf (by omega) _ hn₁
         have := hmul cC₁ (by omega) _ hn₁
         have := hc2 cfl (by omega) 1 le_rfl
         have := hc2 cC (by omega) 1 le_rfl
@@ -312,14 +306,11 @@ public theorem ComputableTidilyInTimeAndSpace.multiPassFold {α σ : Type u} {γ
       (frame (encS (ps (i + 1)))) (cs i) (cs (i + 1)) hloop' hEe hNe hCm).imp
       (fun _ _ h => h) (fun _ _ _ _ _ h => h) ?_ ?_
     · have := hcs i
-      have := hmsS i hi n le_rfl
       have hnR : n * (2 * T + 4 * (D * (L + 1))) ≤ n * R := Nat.mul_le_mul_left _ (by omega)
       have hR : (n + 1) * R = n * R + R := by ring
-      have hRdef : R = 3 * T + 60 * (D * (L + 1)) := rfl
       simp only [length_frame, tP, hR]
       omega
     · have := hcs i
-      have := hmsS i hi n le_rfl
       simp only [length_frame, sP]
       omega
   -- the initial state and the final emission
@@ -389,13 +380,13 @@ public theorem ComputableTidilyInTimeAndSpace.multiPassFold {α σ : Type u} {γ
         _ ≤ W := Nat.le_mul_of_pos_left _ (by omega)
     have h₁ : P * (tP + 1) ≤ 200 * (D * W) :=
       (Nat.mul_le_mul_left P htP).trans_eq (by simp only [W]; ring)
-    have h₂ : D * (L + 1) ≤ D * W := Nat.mul_le_mul_left D hW
-    have h₃ : D * W ≤ E * W := Nat.mul_le_mul_right W hDE
-    have h₄ : tI x ≤ E * tI x := Nat.le_mul_of_pos_left _ hE1
-    have h₅ : tF (ps P) ≤ E * tF (ps P) := Nat.le_mul_of_pos_left _ hE1
     have h₆ : 2000 * E * (tI x + tF (ps P) + W) = 2000 * (E * tI x) + 2000 * (E * tF (ps P)) +
         2000 * (E * W) := by ring
     rw [h₆]
+    have := Nat.mul_le_mul_left D hW
+    have := Nat.mul_le_mul_right W hDE
+    have := Nat.le_mul_of_pos_left (tI x) hE1
+    have := Nat.le_mul_of_pos_left (tF (ps P)) hE1
     omega
   · beta_reduce
     rw [← hSdef, ← hLdef]
@@ -406,21 +397,19 @@ public theorem ComputableTidilyInTimeAndSpace.multiPassFold {α σ : Type u} {γ
     have hSm : Sm ≤ D * Sm := Nat.le_mul_of_pos_left _ hD1
     have hDL : D ≤ D * (L + 1) := Nat.le_mul_of_pos_right _ (by omega)
     have hsR : sR ≤ 200 * (D * Y) := by omega
-    have hKs : (M + 4) * sR ≤ 200 * (D * (D * Y)) :=
-      (Nat.mul_le_mul (by omega) hsR).trans_eq (by ring)
-    have hDY : D * Y ≤ D * (D * Y) := Nat.le_mul_of_pos_left _ hD1
     have hsP : (M + 4) * sP ≤ 600 * (E * Y) := by
+      have hKs : (M + 4) * sR ≤ 200 * (D * (D * Y)) :=
+        (Nat.mul_le_mul hKD hsR).trans_eq (by ring)
+      have := Nat.le_mul_of_pos_left (D * Y) hD1
       have : sP ≤ 600 * (D * (D * Y)) := by rw [hsPdef, Nat.mul_assoc]; omega
-      exact (Nat.mul_le_mul (by omega) this).trans_eq (by simp only [E]; ring)
-    have hEY : D * Y ≤ E * Y := Nat.mul_le_mul_right Y hDE
-    have h₄ : sI x ≤ E * sI x := Nat.le_mul_of_pos_left _ hE1
-    have h₅ : sF (ps (passes x + 1)) ≤ E * sF (ps (passes x + 1)) :=
-      Nat.le_mul_of_pos_left _ hE1
+      exact (Nat.mul_le_mul hKD this).trans_eq (by simp only [E]; ring)
     have h₆ : 2000 * E * (sI x + sF (ps (passes x + 1)) + Sm + L + 1) =
         2000 * (E * sI x) + 2000 * (E * sF (ps (passes x + 1))) + 2000 * (E * Y) := by
       simp only [Y]; ring
-    have h₇ : 2 * (M + 4) * sP = 2 * ((M + 4) * sP) := by ring
-    rw [h₆, h₇]
+    rw [h₆, show 2 * (M + 4) * sP = 2 * ((M + 4) * sP) by ring]
+    have := Nat.mul_le_mul_right Y hDE
+    have := Nat.le_mul_of_pos_left (sI x) hE1
+    have := Nat.le_mul_of_pos_left (sF (ps (passes x + 1))) hE1
     omega
 
 end Turing.MultiTapeTM

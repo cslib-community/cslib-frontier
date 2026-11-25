@@ -151,8 +151,11 @@ def Model.toSigma (e : I.Model M) : Σ t, ι t → M :=
 
 /-- Two elements of `I.Model M` with equal `toSigma` projections are equal. -/
 theorem Model.ext_toSigma {e e' : I.Model M} (h : e.toSigma = e'.toSigma) : e = e' := by
-  obtain ⟨t, x, _⟩ := e; obtain ⟨t', x', _⟩ := e'
-  obtain ⟨rfl, h⟩ := Sigma.mk.inj_iff.1 h; cases eq_of_heq h; rfl
+  obtain ⟨t, x, _⟩ := e
+  obtain ⟨t', x', _⟩ := e'
+  obtain ⟨rfl, h⟩ := Sigma.mk.inj_iff.1 h
+  cases eq_of_heq h
+  rfl
 
 variable [L'.IsRelational]
 
@@ -242,9 +245,10 @@ theorem relMap_copies_two [L'.IsRelational] [L'.Structure N] (R : L'.Relations 2
 theorem relMap_copies_one [L'.IsRelational] [L'.Structure N]
     (R : L'.Relations 1) (a : Copies J N) :
     RelMap R ![a] ↔ RelMap R ![a.val] := by
-  have heq : (fun i : Fin 1 => (![a] i).val) = ![a.val] := funext fun i => by fin_cases i; rfl
-  simp only [Copies.relMap_copies, heq, and_iff_right_iff_imp]
-  exact fun _ i j => by fin_cases i; fin_cases j; rfl
+  rw [Copies.relMap_copies]
+  refine ⟨fun h => ?_, fun h => ⟨fun i j => by fin_cases i; fin_cases j; rfl, ?_⟩⟩
+  · exact (iff_of_eq (congrArg _ (funext fun i => by fin_cases i; rfl))).1 h.2
+  · exact (iff_of_eq (congrArg _ (funext fun i => by fin_cases i; rfl))).2 h
 
 /-- The copies of a set have cardinality the number of copies times its cardinality. -/
 theorem ncard_set_val (s : Set N) :
@@ -433,7 +437,8 @@ private theorem coords_data_mk (a b : M) (t : T) (x : ι t → M) (hx : (I.domai
 omit [Finite T] [∀ t, Finite (ι t)] in
 private theorem coords_tag_eq_iff {a b : M} (h : a ≠ b) (e : I.Model M) (t : T) :
     coords a b e (tag t) = b ↔ t = e.1 := by
-  simp only [coords]; split_ifs with ht <;> simp [ht, h]
+  simp only [coords]
+  split_ifs with ht <;> simp [ht, h]
 
 omit [Finite T] [∀ t, Finite (ι t)] in
 private theorem coords_injective {a b a' b' : M} (h : a ≠ b) {e e' : I.Model M}
@@ -442,9 +447,12 @@ private theorem coords_injective {a b a' b' : M} (h : a ≠ b) {e e' : I.Model M
   obtain rfl : b = b' := congrFun heq Coord.q
   have ht := congrFun heq (tag e.1)
   rw [(coords_tag_eq_iff h e e.1).2 rfl, eq_comm, coords_tag_eq_iff h] at ht
-  obtain ⟨t, x, hx⟩ := e; obtain ⟨t', x', hx'⟩ := e'; obtain rfl : t = t' := ht
+  obtain ⟨t, x, hx⟩ := e
+  obtain ⟨t', x', hx'⟩ := e'
+  obtain rfl : t = t' := ht
   refine ⟨rfl, rfl, Model.ext_toSigma (Sigma.ext rfl (heq_of_eq (funext fun (i : ι t) => ?_)))⟩
-  have := congrFun heq (data ⟨t, i⟩); rwa [coords_data_mk, coords_data_mk] at this
+  have := congrFun heq (data ⟨t, i⟩)
+  rwa [coords_data_mk, coords_data_mk] at this
 
 /-- For distinct elements `a ≠ b` and `e : I.Model M`, `coords a b e` satisfies
 `I.domainAt e.1`. -/
@@ -471,7 +479,8 @@ theorem ofCopies_bijective [Nontrivial M] :
     Function.Bijective (ofCopies (I := I) (M := M) S) := by
   refine ⟨?_, fun ⟨c, hc⟩ => ?_⟩
   · rintro ⟨⟨⟨a, b⟩, h⟩, e⟩ ⟨⟨⟨a', b'⟩, h'⟩, e'⟩ heq
-    obtain ⟨rfl, rfl, rfl⟩ := coords_injective h (congrArg Subtype.val heq); rfl
+    obtain ⟨rfl, rfl, rfl⟩ := coords_injective h (congrArg Subtype.val heq)
+    rfl
   · obtain ⟨t, hct⟩ := (realize_toInterpretation_domain_of_nontrivial S c).1 hc
     obtain ⟨hpq, htag, hdata, hdom⟩ := (realize_domainAt t c).1 hct
     refine ⟨⟨⟨(c p, c q), hpq⟩, ⟨t, fun i => c (data ⟨t, i⟩), hdom⟩⟩,
@@ -480,8 +489,10 @@ theorem ofCopies_bijective [Nontrivial M] :
     · rfl
     · rfl
     · exact (htag t').symm
-    · simp only [ofCopies, coords]; split_ifs with ht
-      · subst ht; rfl
+    · simp only [ofCopies, coords]
+      split_ifs with ht
+      · subst ht
+        rfl
       · exact (hdata ⟨t', i⟩ ht).symm
 
 /-- **On a structure with two distinct elements, the compiled interpretation is a disjoint union
@@ -541,7 +552,8 @@ theorem Reduces.of_tagged {L : Language.{u, v}} {L' : Language.{u', v'}} [L'.IsR
     Reduces K K' := by
   refine .of_interpretation (I.toInterpretation S) fun M _ => ?_
   rcases subsingleton_or_nontrivial M with hM | hM
-  · exact (hsmall M hM).trans (hK' (TaggedInterpretation.subsingletonEquiv S).symm)
+  · rw [hsmall M hM]
+    exact (hK' (TaggedInterpretation.subsingletonEquiv S).symm)
   · have : Finite (Bundled.of (c := L'.Structure)
         (Copies (TaggedInterpretation.Pairs M) (I.Model M))) :=
       inferInstanceAs (Finite (Copies _ _))
@@ -596,9 +608,11 @@ theorem realize_formula [L.Structure M] {w : T} (x : ι t → M) (y : ι w → M
   by_cases h : τ.target = w
   · subst h
     fo_simp [dite_true, Sigma.mk.inj_iff, heq_eq_eq, exists_eq_left', Compat]
-    exact and_congr Iff.rfl (forall_congr' fun j => by cases τ.map j <;> simp [eq_comm])
+    refine and_congr Iff.rfl (forall_congr' fun j => ?_)
+    cases τ.map j <;> simp [eq_comm]
   · fo_simp [h, dite_false, false_iff, not_and, not_exists]
-    exact fun _ _ he => absurd (congrArg Sigma.fst he).symm h
+    intro _ _ he
+    exact absurd (congrArg Sigma.fst he).symm h
 
 /-- The disjunction of the formulas of a list of templates. -/
 noncomputable def listFormula (l : List (Template L ι t)) (w : T) : L.Formula (ι t ⊕ ι w) :=
@@ -626,7 +640,8 @@ theorem relMap_binaryRel {L' : Language.{u', v'}} [L'.IsRelational]
     {F : ∀ t w : T, L.Formula (ι t ⊕ ι w)} (hR : ∀ ts, I.rel R ts = binaryRel F ts)
     (a b : I.Model M) : RelMap R ![a, b] ↔ (F a.1 b.1).Realize (Sum.elim a.coords b.coords) := by
   rw [relMap_model, hR, binaryRel, Formula.realize_relabel]
-  exact iff_of_eq (congrArg _ (funext fun i => by rcases i with i | i <;> rfl))
+  refine iff_of_eq (congrArg _ (funext fun i => ?_))
+  rcases i with i | i <;> rfl
 
 end TaggedInterpretation
 

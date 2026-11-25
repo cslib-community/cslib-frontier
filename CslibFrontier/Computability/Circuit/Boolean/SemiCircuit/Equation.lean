@@ -128,11 +128,9 @@ theorem card_subst_le {E : Equation} {v : ℕ} {ℓ : Lit} :
   split_ifs with hv
   · rcases ℓ with ⟨_ | t, c⟩
     · exact Finset.card_erase_le
-    · dsimp only
-      have := Finset.card_erase_of_mem hv
-      have := Finset.card_pos.2 ⟨v, hv⟩
-      have := card_symmDiff_singleton_le (E.terms.erase v) t
-      omega
+    · calc (E.terms.erase v ∆ {t}).card
+          ≤ (E.terms.erase v).card + 1 := card_symmDiff_singleton_le _ _
+        _ = E.terms.card := Finset.card_erase_add_one hv
   · exact le_rfl
 
 /-- Rerouting `v` to a literal not reading `v` eliminates `v` from the terms of the equation. -/
@@ -192,31 +190,38 @@ private theorem sum_addArg (p : Finset ℕ × Bool) (b : Bool) (a : Arg) (val : 
     ∑ i ∈ (addArg p b a).1, val i + (addArg p b a).2 =
       ∑ i ∈ p.1, val i + p.2 + (b && a.eval val) := by
   unfold addArg
-  cases b; · exact (add_zero _).symm
-  cases a with
-  | node t =>
-    simp only [ite_true, sum_symmDiff_singleton, Arg.eval_node, Bool.true_and]
-    generalize ∑ i ∈ p.1, val i = s; generalize val t = v; generalize p.2 = r
-    revert s v r; decide
-  | const v =>
-    simp only [ite_true, Arg.eval_const, Bool.true_and]
-    generalize ∑ i ∈ p.1, val i = s; generalize p.2 = r; revert s v r; decide
+  cases b
+  · exact (add_zero _).symm
+  · cases a with
+    | node t =>
+      simp only [ite_true, sum_symmDiff_singleton, Arg.eval_node, Bool.true_and]
+      generalize ∑ i ∈ p.1, val i = s; generalize val t = v; generalize p.2 = r
+      revert s v r; decide
+    | const v =>
+      simp only [ite_true, Arg.eval_const, Bool.true_and]
+      generalize ∑ i ∈ p.1, val i = s; generalize p.2 = r
+      revert s v r; decide
 
 /-- Any term in `(addArg p b a).1` either belongs to `p.1` or is the node read by `a`. -/
 theorem mem_addArg {p : Finset ℕ × Bool} {b : Bool} {a : Arg} {z : ℕ}
     (h : z ∈ (addArg p b a).1) : z ∈ p.1 ∨ a = .node z := by
   unfold addArg at h
-  cases b; · exact Or.inl h
-  cases a with
-  | node t => exact if hzt : z = t then Or.inr (hzt ▸ rfl)
-    else Or.inl ((mem_symmDiff_singleton.1 h).2 hzt)
-  | const _ => exact Or.inl h
+  cases b
+  · exact Or.inl h
+  · cases a with
+    | node t =>
+      exact if hzt : z = t then Or.inr (hzt ▸ rfl)
+        else Or.inl ((mem_symmDiff_singleton.1 h).2 hzt)
+    | const _ => exact Or.inl h
 
 private theorem card_addArg_le (p : Finset ℕ × Bool) (b : Bool) (a : Arg) :
     (addArg p b a).1.card ≤ p.1.card + 1 := by
   unfold addArg
-  cases b; · exact Nat.le_succ _
-  cases a with | node _ => exact card_symmDiff_singleton_le _ _ | const _ => exact Nat.le_succ _
+  cases b
+  · exact Nat.le_succ _
+  · cases a with
+    | node t => exact card_symmDiff_singleton_le _ _
+    | const v => exact Nat.le_succ _
 
 /-- The equation `J + b₁ t₁ + b₂ t₂ = c` replacing the affine gate
 `J = b₁ t₁ + b₂ t₂ + c`. -/

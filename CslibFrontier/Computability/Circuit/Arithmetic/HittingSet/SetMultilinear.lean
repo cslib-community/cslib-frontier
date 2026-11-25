@@ -156,7 +156,8 @@ theorem blockPower_ne_zero (hf : IsSetPartitioned Prod.fst f) (hf0 : f ≠ 0) :
     rw [coeff_weightedHomogeneousComponent, coeff_monomial]
     by_cases hm' : m' ∈ f.support
     · by_cases hmm : m = m'
-      · subst hmm; simp
+      · subst hmm
+        simp
       · have hne : Finsupp.weight blockWeight m' ≠ Finsupp.weight blockWeight m :=
           fun hw => hmm (weight_blockWeight_injOn (hf m hm) (hf m' hm') hw.symm)
         simp [hmm, hne]
@@ -199,7 +200,8 @@ theorem shift_blockPower (b : Fin n → F) (f : MvPolynomial (Fin n × Fin d) F)
   have h : (shift b).comp (blockPower F n d) =
       (aeval fun v : Fin n × Fin d => (X v.1 + C (b v.1)) ^ (v.2.val + 1) -
         (C (b v.1 ^ (v.2.val + 1)) : MvPolynomial (Fin n) F)).comp (shift (blockPowerPoint b)) :=
-    algHom_ext fun v => by simp [blockPower_X, shift_X, blockPowerPoint]
+    algHom_ext fun v => by
+      simp [blockPower_X, shift_X, blockPowerPoint]
   exact congrArg (fun φ : MvPolynomial (Fin n × Fin d) F →ₐ[F] MvPolynomial (Fin n) F => φ f) h
 
 /-- [Shpilka2026, proof of Theorem 1.2]: if `f` is set-partitioned and a shift `b` of
@@ -269,7 +271,8 @@ theorem isHittingSet_setMultilinearHittingSet_sum_prod (s : ℕ) :
   have hlin (i : Fin s) (j : Fin n) : IsSetMultilinear Prod.fst {j}
       (∑ t, C (c i j t) * X (j, t) : MvPolynomial (Fin n × Fin d) F) :=
     IsSetMultilinear.sum _ fun t _ => by
-      rw [← smul_eq_C_mul]; exact (isSetMultilinear_X Prod.fst (j, t)).smul _
+      rw [← smul_eq_C_mul]
+      exact (isSetMultilinear_X Prod.fst (j, t)).smul _
   have hI (i : Fin s) (J : Finset (Fin n)) (S : Set (Fin n)) (hJ : ∀ j ∈ J, j ∈ S) :
       (∏ j ∈ J, ∑ t, C (c i j t) * X (j, t) : MvPolynomial (Fin n × Fin d) F) ∈
         supported F (Prod.fst ⁻¹' S) :=

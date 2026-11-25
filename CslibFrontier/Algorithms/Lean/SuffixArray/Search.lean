@@ -100,29 +100,18 @@ theorem cmpSuffix_eq (w : Array α) (p : List α) (i : ℕ) :
     · simp only [hi, ↓reduceDIte]
       rw [List.drop_eq_getElem_cons (i := i) (l := w.toList) (by simpa using hi),
         List.length_cons, List.take_succ_cons, Array.getElem_toList]
-      rcases lt_trichotomy a w[i] with h | h | h
-      · rw [compare_lt_iff_lt.mpr h]
-        simp only [show a :: p < w[i] :: (w.toList.drop (i + 1)).take p.length from
-          List.Lex.rel h, ↓reduceIte]
-      · rw [compare_eq_iff_eq.mpr h]
-        have e1 : a :: p < w[i] :: (w.toList.drop (i + 1)).take p.length ↔
-            p < (w.toList.drop (i + 1)).take p.length := by
-          rw [← h]; exact List.lex_cons_iff
-        have e2 : a :: p = w[i] :: (w.toList.drop (i + 1)).take p.length ↔
-            p = (w.toList.drop (i + 1)).take p.length := by
-          rw [← h]; exact List.cons_inj_right a
-        simp only [e1, e2]
-        exact ih (i + 1)
-      · rw [compare_gt_iff_gt.mpr h]
-        have e1 : ¬ a :: p < w[i] :: (w.toList.drop (i + 1)).take p.length :=
-          not_lt_of_gt (List.Lex.rel h)
-        have e2 : a :: p ≠ w[i] :: (w.toList.drop (i + 1)).take p.length :=
-          fun e => ne_of_gt h (List.cons.inj e).1
-        simp only [e1, e2, ↓reduceIte]
-    · simp only [hi, ↓reduceDIte]
-      rw [List.drop_eq_nil_of_le (by simpa using hi), List.take_nil]
-      have e1 : ¬ a :: p < [] := not_lt_of_gt List.Lex.nil
-      simp only [e1, reduceCtorEq, ↓reduceIte]
+      rcases lt_trichotomy a w[i] with h | rfl | h
+      · have hlt : a :: p < w[i] :: (w.toList.drop (i + 1)).take p.length := List.Lex.rel h
+        simp only [compare_lt_iff_lt.mpr h, hlt, ↓reduceIte]
+      · have e1 : w[i] :: p < w[i] :: (w.toList.drop (i + 1)).take p.length ↔
+            p < (w.toList.drop (i + 1)).take p.length := List.lex_cons_iff
+        simp only [compare_eq_iff_eq.mpr rfl, e1, List.cons.injEq, true_and, ih (i + 1)]
+      · have hgt : w[i] :: (w.toList.drop (i + 1)).take p.length < a :: p := List.Lex.rel h
+        simp only [compare_gt_iff_gt.mpr h, not_lt_of_gt hgt, List.cons.injEq, h.ne', false_and,
+          ↓reduceIte]
+    · have hgt : [] < a :: p := List.Lex.nil
+      simp only [hi, ↓reduceDIte, List.drop_eq_nil_of_le (Array.length_toList ▸ Nat.not_lt.mp hi),
+        List.take_nil, not_lt_of_gt hgt, reduceCtorEq, ↓reduceIte]
 
 /-- `cmpSuffix` reports `.gt` iff the window of the suffix is below `p`. -/
 theorem cmpSuffix_eq_gt_iff (w : Array α) (p : List α) (i : ℕ) :

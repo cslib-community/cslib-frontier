@@ -385,19 +385,15 @@ private theorem after_map {γ δ : Type} (f : γ → δ) (p : WordQueryComp Unit
     (h : Interaction.History) :
     Interaction.after (f <$> p) h = (Interaction.after p h).map (f <$> ·) := by
   induction p generalizing h with
-  | pure a =>
-    cases h with
-    | nil => rfl
-    | cons _ _ => rfl
+  | pure _ => cases h <;> rfl
   | liftBind q next ih =>
     cases h with
     | nil => rfl
     | cons x h =>
-      obtain ⟨m, y⟩ := x
-      change (if m = q.2 then Interaction.after (f <$> next y) h else none) =
-        Option.map (f <$> ·) (if m = q.2 then Interaction.after (next y) h else none)
+      change (if x.1 = q.2 then Interaction.after (f <$> next x.2) h else none) =
+        Option.map (f <$> ·) (if x.1 = q.2 then Interaction.after (next x.2) h else none)
       split_ifs
-      · exact ih y h
+      · exact ih x.2 h
       · rfl
 
 private theorem exists_transcript_ge_of_after {γ : Type} (p : WordQueryComp Unit γ)
@@ -419,19 +415,17 @@ private theorem exists_transcript_ge_of_after {γ : Type} (p : WordQueryComp Uni
     have hmem' := hmem
     rw [OracleComp.run_interpret_withTranscript_append, PMF.mem_support_map_iff] at hmem'
     obtain ⟨⟨_, _, fresh⟩, _, hrec⟩ := hmem'
-    have hlen : (fresh ++ ⟨((), m), []⟩ :: tr).length = tr'.length :=
-      congrArg (List.length ·.2.2) hrec
+    have hlen := congrArg (List.length ·.2.2) hrec
     simp only [List.length_append, List.length_cons] at hlen
     refine ⟨out, s', tr', ?_, by simp only [List.length_nil]; omega⟩
+    have hwt : (OracleComp.withTranscript oracle ((), m)).run ([], tr) =
+        PMF.pure ([], [], ⟨((), m), []⟩ :: tr) := by
+      simp [OracleComp.withTranscript, oracle, StateT.run]
     rw [hafter]
     change (out, s', tr') ∈ ((OracleComp.interpret (OracleComp.withTranscript oracle)
       (OracleComp.query ((), m) >>= next)).run ([], tr)).support
-    rw [OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind,
-      show (OracleComp.withTranscript oracle ((), m)).run ([], tr) =
-        PMF.pure ([], [], ⟨((), m), []⟩ :: tr) by
-          simp [OracleComp.withTranscript, oracle, StateT.run],
+    rwa [OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind, hwt,
       Probability.PMF.monad_bind_eq_bind, PMF.pure_bind]
-    exact hmem
   | cons e h ih =>
     obtain ⟨m', y'⟩ := e
     cases p with
@@ -443,29 +437,27 @@ private theorem exists_transcript_ge_of_after {γ : Type} (p : WordQueryComp Uni
       · subst hm
         obtain ⟨out, s', tr', hmem, hlen⟩ := ih (cont y') (⟨((), m'), y'⟩ :: tr) hafter
         refine ⟨out, s', tr', ?_, by simp only [List.length_cons] at hlen ⊢; omega⟩
+        have hwt : (OracleComp.withTranscript oracle ((), m')).run ((m', y') :: h, tr) =
+            PMF.pure (y', h, ⟨((), m'), y'⟩ :: tr) := by
+          simp [OracleComp.withTranscript, oracle, StateT.run]
         change (out, s', tr') ∈ ((OracleComp.interpret (OracleComp.withTranscript oracle)
           (OracleComp.query ((), m') >>= cont)).run ((m', y') :: h, tr)).support
-        rw [OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind,
-          show (OracleComp.withTranscript oracle ((), m')).run ((m', y') :: h, tr) =
-            PMF.pure (y', h, ⟨((), m'), y'⟩ :: tr) by
-              simp [OracleComp.withTranscript, oracle, StateT.run],
+        rwa [OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind, hwt,
           Probability.PMF.monad_bind_eq_bind, PMF.pure_bind]
-        exact hmem
 
 private theorem after_eq_liftBind_of_outcome_ask {p : WordQueryComp Unit Bool}
     {h : Interaction.History} {m : List Bool} (hm : Interaction.outcome p h = .ask m) :
     ∃ cont, Interaction.after p h = some (.liftBind ((), m) cont) := by
   unfold Interaction.outcome at hm
   cases ha : Interaction.after p h with
-  | none => rw [ha] at hm; cases hm
+  | none => simp [ha] at hm
   | some p0 =>
     cases p0 with
-    | pure _ => rw [ha] at hm; cases hm
+    | pure _ => simp [ha] at hm
     | liftBind q cont =>
       obtain ⟨⟨⟩, m0⟩ := q
       simp only [ha, Interaction.Outcome.ask.injEq] at hm
-      subst hm
-      exact ⟨cont, rfl⟩
+      exact ⟨cont, hm ▸ rfl⟩
 
 /-- If a machine-realized oracle verifier has query budget `D`, its fixed-coin family has
 `rounds` bounded by `D`. -/
@@ -668,13 +660,11 @@ private theorem simMsg_of_outcome_ask {enc : α ↪ List Bool} {k : ℕ} {Contro
     rw [List.length_ofFn]
     rcases hs : Interaction.simulate MUnit (t (enc a).length) (enc a) (List.ofFn c) h with
       (_ | m') | ⟨cfg, _ | ⟨e, rest⟩⟩ <;>
-      simp only [hs, Except.map, Interaction.replayOutcome] at hc
-    · cases hc
-    · cases hc; exact rfl
-    · cases hc
-    · cases hc
+      simp_all [Except.map, Interaction.replayOutcome]
   obtain ⟨_, _, hcfg, hm⟩ := Interaction.aliveRun_of_simulate_error_some MUnit hsim
-  dsimp only [simMsg]; rw [hp, hcfg, hm]; rfl
+  dsimp only [simMsg]
+  rw [hp, hcfg, hm]
+  rfl
 
 private theorem simMsg_of_outcome_done {enc : α ↪ List Bool} {k : ℕ} {Control : Type}
     (MUnit : Turing.MultiTapePTM k Bool Control Unit) (t : ℕ → ℕ) (a : α)
@@ -692,27 +682,24 @@ private theorem simMsg_of_outcome_done {enc : α ↪ List Bool} {k : ℕ} {Contr
     rw [List.length_ofFn]
     rcases hs : Interaction.simulate MUnit (t (enc a).length) (enc a) (List.ofFn c) h with
       (_ | _) | ⟨cfg, _ | _⟩ <;>
-      simp only [hs, Except.map, Interaction.replayOutcome] at hc
-    · cases hc
-    · cases hc
-    · exact ⟨cfg, rfl⟩
-    · cases hc
+      simp_all [Except.map, Interaction.replayOutcome]
   obtain ⟨_, hcfg⟩ := hsim
-  dsimp only [simMsg]; rw [hp, Interaction.aliveRun_of_simulate_ok MUnit hcfg]; rfl
+  dsimp only [simMsg]
+  rw [hp, Interaction.aliveRun_of_simulate_ok MUnit hcfg]
+  rfl
 
 private theorem after_eq_pure_of_outcome_done {p : WordQueryComp Unit Bool}
     {h : Interaction.History} {b : Bool} (hb : Interaction.outcome p h = .done b) :
     Interaction.after p h = some (.pure b) := by
   unfold Interaction.outcome at hb
   cases ha : Interaction.after p h with
-  | none => rw [ha] at hb; cases hb
+  | none => simp only [ha, reduceCtorEq] at hb
   | some p0 =>
     cases p0 with
-    | pure b' =>
+    | pure _ =>
       simp only [ha, Interaction.Outcome.done.injEq] at hb
-      subst hb
-      rfl
-    | liftBind _ _ => rw [ha] at hb; cases hb
+      exact hb ▸ rfl
+    | liftBind _ _ => simp only [ha, reduceCtorEq] at hb
 
 private theorem acceptFrom_pure_bool (P : Prover Unit) (s : P.State) (b : Bool) :
     Interaction.acceptFrom P s (some (.pure b)) = if b = true then 1 else 0 := by
@@ -1123,23 +1110,11 @@ private theorem isQueryBounded_oracleVerifier (enc : α ↪ List Bool) (g : ℕ 
     (ρ q : ℕ → ℕ) (msg : α × List Bool × ℕ × List Bool → List Bool)
     (dec : α × List Bool × List Bool → Bool) (a : α) :
     (oracleVerifier enc g ρ q msg dec a).IsQueryBounded (q (enc a).length) := by
-  unfold oracleVerifier
-  dsimp only [ProbOracleComp.IsQueryBounded]
-  have hiter : ∀ c, OracleComp.IsCostBounded (Sum.elim (fun _ => 0) fun _ => 1)
-      (OracleComp.iterate (q (enc a).length) (oracleStep enc g msg (a, c)) (SimState.mk 0 []) >>=
-        fun st => pure (dec (a, c, st.transcript))) (q (enc a).length + 0) := fun c => by
-    have hunit : OracleComp.IsCostBounded (Sum.elim (fun _ => 0) fun _ => 1)
-        (OracleComp.iterate (q (enc a).length) (oracleStep enc g msg (a, c)) (SimState.mk 0 []))
-        (q (enc a).length) := by
-      simpa using OracleComp.IsCostBounded.iterate
-        (isQueryBounded_oracleStep enc g msg (a, c)) (q (enc a).length) (SimState.mk 0 [])
-    exact OracleComp.IsCostBounded.bind hunit (fun st => .pure _ 0)
-  have hwhole : OracleComp.IsCostBounded (Sum.elim (fun _ => 0) fun _ => 1)
-      (ProbOracleComp.sample (BitString.sampleList (ρ (enc a).length)) >>= fun c =>
-        OracleComp.iterate (q (enc a).length) (oracleStep enc g msg (a, c)) (SimState.mk 0 []) >>=
-          fun st => pure (dec (a, c, st.transcript))) (0 + (q (enc a).length + 0)) :=
-    OracleComp.IsCostBounded.bind (ProbOracleComp.IsQueryBounded.sample _) hiter
-  exact hwhole.mono (by omega)
+  unfold oracleVerifier ProbOracleComp.IsQueryBounded
+  refine (OracleComp.IsCostBounded.bind (ProbOracleComp.IsQueryBounded.sample _) fun c =>
+    OracleComp.IsCostBounded.bind (OracleComp.IsCostBounded.iterate
+      (isQueryBounded_oracleStep enc g msg (a, c)) (q (enc a).length) (SimState.mk 0 []))
+      fun _ => .pure _ 0).mono (by omega)
 
 private theorem isOraclePPTOn_oracleStep {enc : α ↪ List Bool} {g : ℕ → List (IPMove × ℕ)}
     {msg : α × List Bool × ℕ × List Bool → List Bool}
@@ -1323,9 +1298,8 @@ private theorem execProg_acceptProb_le {enc : α ↪ List Bool} (g : ℕ → Lis
     have hnp : ((g (enc a).length).getD (j + 1) (.prover, 0)).2 = np :=
       by simpa using (congrArg Prod.snd (hget 1 (.prover, 0))).symm
     have hget'' : ∀ k d, g''.getD k d = (g (enc a).length).getD (j + 2 + k) d := fun k d => by
-      have hk := hget (k + 2) d
-      rw [show j + 2 + k = j + (k + 2) by omega]
-      exact hk
+      have hk : j + 2 + k = j + (k + 2) := by omega
+      exact hk ▸ hget (k + 2) d
     have hstep_rw : ∀ c : BitString ρn,
         (P.run ((fun st => dec (a, List.ofFn c, st.transcript)) <$>
             OracleComp.iterate (m + 1) (oracleStep enc g msg (a, List.ofFn c))
@@ -1427,9 +1401,8 @@ private theorem execProg_acceptProb_proverOfIPGame {enc : α ↪ List Bool}
     have hnp : ((g (enc a).length).getD (2 * i + 1) (.prover, 0)).2 = np :=
       by simpa using (congrArg Prod.snd (hget 1 (.prover, 0))).symm
     have hget'' : ∀ k d, g''.getD k d = (g (enc a).length).getD (2 * (i + 1) + k) d := fun k d => by
-      have hk := hget (k + 2) d
-      rw [show 2 * (i + 1) + k = 2 * i + (k + 2) by omega]
-      exact hk
+      have hk : 2 * (i + 1) + k = 2 * i + (k + 2) := by omega
+      exact hk ▸ hget (k + 2) d
     rw [PMF.ext_iff.1 (execProg_acceptProb_step g msg dec a (proverOfIPGame enc g a PGame) c m
       (2 * i) nv np p (SimState.mk i p) hnv hnp) true]
     subst hnp
@@ -1483,12 +1456,10 @@ theorem IPPolyRounds_subset_IPPolyQueryBounded {enc : α ↪ List Bool} {q : ℕ
             msg (a, List.ofFn c, j, p))
           (fun (c : BitString (ρ (enc a).length)) tr => dec (a, List.ofFn c, tr))
           (g (enc a).length) : ENNReal) := by
-      have hle' := execProg_acceptProb_le (enc := enc) g msg dec
+      simp_rw [acceptProb, bind_pure_comp]
+      exact execProg_acceptProb_le (enc := enc) g msg dec
         (ρn := ρ (enc a).length) a P (q (enc a).length) (g (enc a).length) 0 [] univ P.init
         (hgmap (enc a).length) (fun _ _ => by simp)
-      refine le_of_eq_of_le (Finset.sum_congr rfl fun c _ => ?_) (hle'.trans_eq ?_)
-      · rw [acceptProb, bind_pure_comp]
-      · rfl
     exact (mul_le_mul_right hle _).trans (le_one_div_three_iff_nat.mpr ((hA a).2 ha))
 
 end SimOracle
@@ -1541,16 +1512,12 @@ polynomial-time round count `k`. -/
 theorem IP_subset_AMPolyRounds {enc : α ↪ List Bool} {A : Set α} (hA : A ∈ IP enc) :
     ∃ k : ℕ → ℕ, ComputableInPolyTime k encUnary encUnary ∧ A ∈ AMPolyRounds enc k := by
   obtain ⟨c, d, hq⟩ := IP_subset_exists_IPPolyQueryBounded hA
-  let qPoly : Polynomial ℕ := Polynomial.C c * (Polynomial.X + 1) ^ d
-  have hqEval : (fun n => qPoly.eval n) = (fun n => c * (n + 1) ^ d) := funext fun n => by
-    simp [qPoly]
-  have hqPoly : ComputableInPolyTime (fun n => c * (n + 1) ^ d) encUnary encUnary := by
-    rw [← hqEval]
-    exact ComputableInPolyTime.unary_eval qPoly
+  have hqPoly : ComputableInPolyTime (fun n => c * (n + 1) ^ d) encUnary encUnary :=
+    (ComputableInPolyTime.unary_eval (Polynomial.C c * (Polynomial.X + 1) ^ d)).of_enc_eq
+      fun n => by simp
   exact ⟨fun n => 2 * (c * (n + 1) ^ d) + 2,
     ComputableInPolyTime.unary_add'
-      (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2) hqPoly)
-      (ComputableInPolyTime.const 2),
+      (ComputableInPolyTime.unary_mul' (.const 2) hqPoly) (.const 2),
     IPPolyQueryBounded_subset_AMPolyRounds hqPoly hq⟩
 
 end Cslib.Complexity

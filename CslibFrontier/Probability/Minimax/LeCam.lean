@@ -14,6 +14,7 @@ public import CslibFrontier.Probability.PMF.Coin
 public import CslibFrontier.Probability.Pinsker
 import CslibFrontier.Probability.PMF.ToReal
 import Mathlib.MeasureTheory.Measure.TotalVariation.Basic
+import Mathlib.Probability.ProbabilityMassFunction.Integrals
 
 /-!
 # Le Cam's two-point minimax lower-bound method
@@ -98,31 +99,25 @@ theorem leCam_measure_add_ge (μ ν : Measure α) [IsProbabilityMeasure μ] [IsP
     (hsep : ∀ x, sep ≤ L₀ x + L₁ x) :
     sep * (1 - tvDist μ ν / 2) ≤ (∫ x, L₀ x ∂μ) + ∫ x, L₁ x ∂ν := by
   obtain ⟨s, hs⟩ := exists_isHahnDecomposition μ ν
-  have h_on_s : ∫ x in s, L₁ x ∂μ ≤ ∫ x in s, L₁ x ∂ν :=
-    integral_mono_measure hs.le_on (ae_of_all _ hL₁) hint₁.integrableOn
-  have h_on_sc : ∫ x in sᶜ, L₀ x ∂ν ≤ ∫ x in sᶜ, L₀ x ∂μ :=
-    integral_mono_measure hs.ge_on_compl (ae_of_all _ hL₀) hint₀.integrableOn
-  have hint₁_μs : IntegrableOn L₁ s μ := Integrable.mono_measure hint₁.integrableOn hs.le_on
-  have hint₀_νsc : IntegrableOn L₀ sᶜ ν := Integrable.mono_measure hint₀.integrableOn hs.ge_on_compl
-  have hsplit₀ : (∫ x in s, L₀ x ∂μ) + ∫ x in sᶜ, L₀ x ∂μ = ∫ x, L₀ x ∂μ :=
-    integral_add_compl hs.measurableSet hint₀
-  have hsplit₁ : (∫ x in s, L₁ x ∂ν) + ∫ x in sᶜ, L₁ x ∂ν = ∫ x, L₁ x ∂ν :=
-    integral_add_compl hs.measurableSet hint₁
-  have hsep_on {κ : Measure α} [IsProbabilityMeasure κ] {t : Set α}
-      (h0 : IntegrableOn L₀ t κ) (h1 : IntegrableOn L₁ t κ) :
-      sep * κ.real t ≤ (∫ x in t, L₀ x ∂κ) + ∫ x in t, L₁ x ∂κ := by
-    rw [← integral_add h0 h1, show sep * κ.real t = ∫ _ in t, sep ∂κ by
-      rw [setIntegral_const, smul_eq_mul, mul_comm]]
-    exact integral_mono (integrable_const sep) (h0.add h1) hsep
-  have hover := hahn_overlap_eq μ ν hs
-  calc sep * (1 - tvDist μ ν / 2)
-      = sep * μ.real s + sep * ν.real sᶜ := by rw [← hover]; ring
-    _ ≤ ((∫ x in s, L₀ x ∂μ) + ∫ x in s, L₁ x ∂μ) +
-          ((∫ x in sᶜ, L₀ x ∂ν) + ∫ x in sᶜ, L₁ x ∂ν) :=
-        add_le_add (hsep_on hint₀.integrableOn hint₁_μs) (hsep_on hint₀_νsc hint₁.integrableOn)
-    _ ≤ ((∫ x in s, L₀ x ∂μ) + ∫ x in s, L₁ x ∂ν) +
-          ((∫ x in sᶜ, L₀ x ∂μ) + ∫ x in sᶜ, L₁ x ∂ν) := by linarith
-    _ = (∫ x, L₀ x ∂μ) + ∫ x, L₁ x ∂ν := by linarith
+  let overlap := μ.restrict s + ν.restrict sᶜ
+  have hμ : overlap ≤ μ :=
+    (add_le_add le_rfl hs.ge_on_compl).trans_eq
+      (Measure.restrict_add_restrict_compl hs.measurableSet)
+  have hν : overlap ≤ ν :=
+    (add_le_add hs.le_on le_rfl).trans_eq (Measure.restrict_add_restrict_compl hs.measurableSet)
+  let : IsFiniteMeasure overlap := isFiniteMeasure_of_le μ hμ
+  have hmass : overlap.real univ = 1 - tvDist μ ν / 2 := by
+    rw [show overlap = μ.restrict s + ν.restrict sᶜ from rfl, measureReal_add_apply,
+      measureReal_restrict_apply_univ, measureReal_restrict_apply_univ, hahn_overlap_eq μ ν hs]
+  have ho₀ := hint₀.mono_measure hμ
+  have ho₁ := hint₁.mono_measure hν
+  calc sep * (1 - tvDist μ ν / 2) = ∫ _ : α, sep ∂overlap := by
+        rw [integral_const, smul_eq_mul, hmass, mul_comm]
+    _ ≤ ∫ x, (L₀ x + L₁ x) ∂overlap := integral_mono (integrable_const _) (ho₀.add ho₁) hsep
+    _ = (∫ x, L₀ x ∂overlap) + ∫ x, L₁ x ∂overlap := integral_add ho₀ ho₁
+    _ ≤ (∫ x, L₀ x ∂μ) + ∫ x, L₁ x ∂ν :=
+        add_le_add (integral_mono_measure hμ (ae_of_all _ hL₀) hint₀)
+          (integral_mono_measure hν (ae_of_all _ hL₁) hint₁)
 
 /-- **Measure-theoretic Le Cam minimax bound**: under the hypotheses of `leCam_measure_add_ge`,
 `(sep / 2) · (1 - tvDist μ ν / 2) ≤ max (∫ L₀ ∂μ) (∫ L₁ ∂ν)`. -/
@@ -200,19 +195,11 @@ theorem leCam_add_ge (p₀ p₁ : PMF X) {L₀ L₁ : X → ℝ} {sep : ℝ}
     (hsep : ∀ x, sep ≤ L₀ x + L₁ x) :
     sep * (1 - dist p₀ p₁) ≤
       (∑ x, (p₀ x).toReal * L₀ x) + ∑ x, (p₁ x).toReal * L₁ x := by
-  rw [← sum_min_toReal p₀ p₁, mul_sum, ← Finset.sum_add_distrib]
-  refine Finset.sum_le_sum fun x _ => ?_
-  have hmin₀ : min (p₀ x).toReal (p₁ x).toReal ≤ (p₀ x).toReal := min_le_left _ _
-  have hmin₁ : min (p₀ x).toReal (p₁ x).toReal ≤ (p₁ x).toReal := min_le_right _ _
-  have hmin_nn : 0 ≤ min (p₀ x).toReal (p₁ x).toReal :=
-    le_min ENNReal.toReal_nonneg ENNReal.toReal_nonneg
-  calc sep * min (p₀ x).toReal (p₁ x).toReal
-      ≤ (L₀ x + L₁ x) * min (p₀ x).toReal (p₁ x).toReal :=
-        mul_le_mul_of_nonneg_right (hsep x) hmin_nn
-    _ = min (p₀ x).toReal (p₁ x).toReal * L₀ x + min (p₀ x).toReal (p₁ x).toReal * L₁ x := by ring
-    _ ≤ (p₀ x).toReal * L₀ x + (p₁ x).toReal * L₁ x :=
-        add_le_add (mul_le_mul_of_nonneg_right hmin₀ (hL₀ x))
-          (mul_le_mul_of_nonneg_right hmin₁ (hL₁ x))
+  let _ : MeasurableSpace X := ⊤
+  have h₀ : Integrable L₀ p₀.toMeasure := .of_finite
+  have h₁ : Integrable L₁ p₁.toMeasure := .of_finite
+  simpa only [PMF.integral_eq_sum, smul_eq_mul, dist_eq_tvDist_toMeasure_div_two] using
+    leCam_measure_add_ge p₀.toMeasure p₁.toMeasure hL₀ hL₁ h₀ h₁ hsep
 
 /-- **Le Cam two-point minimax bound** for deterministic estimators `est : X → T`: if
 `∀ t, sep ≤ loss t θ₀ + loss t θ₁`, then worst-case expected loss over `{θ₀, θ₁}` is at least

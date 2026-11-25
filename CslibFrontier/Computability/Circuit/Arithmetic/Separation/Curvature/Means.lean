@@ -171,13 +171,15 @@ private theorem lem_means_display (hN : CrossingLength N) (hh : IsHomogeneous N)
   unfold meansDiff
   have h := hN.crossing p (-p) q (-q) a (-a) b (-b) τ hτ
   have e1 (Z : ℤ × ℤ) : N (Z - -Z) = 2 * N Z := by
-    rw [show Z - -Z = 2 • Z by module, hh]; norm_num
+    rw [show Z - -Z = 2 • Z by module, hh]
+    norm_num
   have en (X Y : ℤ × ℤ) : N (-X - Y) = N (X - -Y) := by
     rw [← hN.neg]
-    congr 1; module
-  rw [e1 p, e1 q, e1 a, e1 b, en p (-a), en p (-b), en q (-a), en q b, neg_neg, neg_neg,
-    show ((2 * N a) ^ 2 + (2 * N b) ^ 2) / (2 * τ) = 4 * ((N a ^ 2 + N b ^ 2) / (2 * τ)) by
-      ring] at h
+    congr 1
+    module
+  have e6 : ((2 * N a) ^ 2 + (2 * N b) ^ 2) / (2 * τ) = 4 * ((N a ^ 2 + N b ^ 2) / (2 * τ)) := by
+    ring
+  rw [e1 p, e1 q, e1 a, e1 b, en p (-a), en p (-b), en q (-a), en q b, neg_neg, neg_neg, e6] at h
   linarith
 
 /-- `∂A_i + ∂(A_i - a) = 2 (N(A_i) - N(A_i - c)) + δ_i - δ_{i+1}`, for every function `N`. -/
@@ -283,14 +285,16 @@ private theorem lem_means_estimate (hN : CrossingLength N) (hh : IsHomogeneous N
   have hR0 : (0 : ℝ) ≤ R := Nat.cast_nonneg R
   have hκ0 : 0 ≤ κ := (hN.nonneg c).trans hc
   have h1 := lem_means_display hN hh a b p q (τ := 1 / (2 * M)) (by positivity)
-  rw [show (N a ^ 2 + N b ^ 2) / (2 * (1 / (2 * (M : ℝ)))) = M * (N a ^ 2 + N b ^ 2) by
-    field_simp] at h1
+  have e1 : (N a ^ 2 + N b ^ 2) / (2 * (1 / (2 * (M : ℝ)))) = M * (N a ^ 2 + N b ^ 2) := by
+    field_simp
+  rw [e1] at h1
   have hdiff (u z : ℤ × ℤ) (hz : N a + N z ≤ κ) : |meansDiff N a z u| ≤ κ := by
     unfold meansDiff
     have h2 := hN.abs_sub_le u (u - a)
     have h3 := hN.abs_sub_le u (u - z)
     rw [sub_sub_cancel, abs_le] at h2 h3
-    rw [abs_le]; constructor <;> linarith
+    rw [abs_le]
+    constructor <;> linarith
   have low (A B x : ℝ) (hA : |A - B| ≤ 2 * R * κ) (hx : |x| ≤ κ) :
       B * x - 2 * R * κ ^ 2 ≤ A * x := by
     have h2 := (abs_le.1 (abs_mul (A - B) x ▸
@@ -301,7 +305,8 @@ private theorem lem_means_estimate (hN : CrossingLength N) (hh : IsHomogeneous N
     have h3 : N Z ^ 2 ≤ (M * N c + 2 * R * κ) ^ 2 :=
       pow_le_pow_left₀ (hN.nonneg Z) (by linarith [(abs_le.1 hZ).2]) 2
     have h5 : (M : ℝ) * R * (N c * κ) ≤ M * R * κ ^ 2 := by
-      rw [sq κ]; exact mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_right hc hκ0) (by positivity)
+      rw [sq κ]
+      exact mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_right hc hκ0) (by positivity)
     have h6 : (R : ℝ) * R * κ ^ 2 ≤ M * R * κ ^ 2 :=
       mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_right hR' hR0) (sq_nonneg _)
     rw [div_mul_eq_mul_div, one_mul, div_le_iff₀ (by positivity)]
@@ -321,11 +326,14 @@ private theorem means_arith {m f f' n Q κ : ℝ} (hm : 0 < m) (hf0 : 0 ≤ f) (
     f ^ 2 + f' ^ 2 ≤ 2 * Q + 36 * κ ^ 2 * (1 / m) := by
   have hκ0 : 0 ≤ κ := hf0.trans hf
   have el (x y : ℝ) : m ^ 2 * x * (2 * m * (x - 2 * m * y / m ^ 2) - 2 * n) =
-      2 * m ^ 3 * x ^ 2 - 4 * (x * y) * m ^ 2 - 2 * (x * n) * m ^ 2 := by field_simp; ring
+      2 * m ^ 3 * x ^ 2 - 4 * (x * y) * m ^ 2 - 2 * (x * n) * m ^ 2 := by
+    field_simp
+    ring
   rw [el f f', el f' f, mul_comm f' f] at h
   refine le_of_mul_le_mul_left (a := m ^ 3) ?_ (by positivity)
-  rw [show m ^ 3 * (2 * Q + 36 * κ ^ 2 * (1 / m)) = 2 * m ^ 3 * Q + 36 * κ ^ 2 * m ^ 2 by
-    field_simp]
+  have e5 : m ^ 3 * (2 * Q + 36 * κ ^ 2 * (1 / m)) = 2 * m ^ 3 * Q + 36 * κ ^ 2 * m ^ 2 := by
+    field_simp
+  rw [e5]
   nlinarith [mul_le_mul hf hf' hf0' hκ0, mul_le_mul hf hn hn0 hκ0, mul_le_mul hf' hn hn0 hκ0,
     sq_nonneg m]
 

@@ -103,22 +103,15 @@ private theorem link_relaxEdge {n K V w : ℕ}
   unfold relaxEdge
   refine (PFunctor.FreeM.liftM_bind M (edge u i) _).trans ?_
   rw [he]
-  congr 1 with vc : 1
-  rcases vc with ⟨v, c⟩
+  congr 1 with ⟨v, c⟩ : 1
   refine (PFunctor.FreeM.liftM_bind M (getDist v) _).trans ?_
   rw [hg]
-  congr 1 with old : 1
-  cases old with
-  | none =>
-    exact (PFunctor.FreeM.liftM_bind M (setDist v (du + c)) _).trans
-      (by rw [hs, hp])
-  | some old =>
-    by_cases h : du + c < old
-    · simp only [ite_eq_left h]
-      exact (PFunctor.FreeM.liftM_bind M (setDist v (du + c)) _).trans
-        (by rw [hs, hp])
-    · simp only [ite_eq_right h]
-      rfl
+  congr 1 with (_ | old) : 1
+  · exact (PFunctor.FreeM.liftM_bind M (setDist v (du + c)) _).trans (by rw [hs, hp])
+  · dsimp only
+    split_ifs
+    · exact (PFunctor.FreeM.liftM_bind M (setDist v (du + c)) _).trans (by rw [hs, hp])
+    · rfl
 
 /-- The natural-argument relaxation is the complete original linked program. -/
 theorem relaxWord_eq {n K V w : ℕ}
@@ -177,16 +170,9 @@ theorem scanWord_eq {n K V w : ℕ}
   simp only [bind_assoc, pure_bind]
   congr 1 with a : 1
   congr 1 with b : 1
-  have hb : (fun x : ℕ × ℕ => do
-      relaxWord ins dec T A n u du x.2; pure (x.2 + 1)) =
-      (fun x : ℕ × ℕ => do
-        link (Methods.prod pq (Methods.prod (Dictionary.Memory.ops T)
-          (AdjacencyList.Memory.ops A))) (relaxEdge (K := K) (V := V) u du x.2)
-        pure (x.2 + 1)) := by
-    funext x
-    exact congrArg (fun p => p >>= fun _ => pure (x.2 + 1))
-      (relaxWord_eq pq ins dec hins hdec T A u du x.2)
-  rw [hb]
+  congr 2
+  funext x
+  exact congrArg (· >>= fun _ => pure (x.2 + 1)) (relaxWord_eq pq ins dec hins hdec T A u du x.2)
 
 /-- Extract once; an empty or invalid observed entry sets the remaining rounds to zero. -/
 def loopStepWord (extract : Memory.Prog (Option (ℕ × ℕ)))
@@ -293,11 +279,7 @@ theorem loopWord_eq {n K V w : ℕ}
         (AdjacencyList.Memory.ops A))) (loop (K := K) (V := V) k) := by
   rw [← loopView_eq]
   unfold loopWord loopView
-  have hb : loopStepWord extract ins dec T A n =
-      loopStep (K := K) (V := V) (Methods.prod pq (Methods.prod (Dictionary.Memory.ops T)
-        (AdjacencyList.Memory.ops A))) :=
-    funext (loopStepWord_eq pq extract ins dec hins hdec hex T A)
-  rw [hb]
+  rw [funext (loopStepWord_eq pq extract ins dec hins hdec hex T A)]
 
 /-- Exact typed-result erasure preserves the full early-exit loop and its query history. -/
 theorem loopWord_eq_of_erasure {n K V w : ℕ}

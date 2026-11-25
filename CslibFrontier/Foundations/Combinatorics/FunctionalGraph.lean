@@ -147,7 +147,9 @@ theorem absorb_iterate_card_eq_iff [Fintype α] (P : α → Prop) [DecidablePred
     P ((absorb f P)^[Fintype.card α] x) ↔ ∃ t, P (f^[t] x) :=
   ⟨fun hp => by_contra fun h =>
       h ⟨_, absorb_iterate_of_forall_not f P x _ (fun j _ hj => h ⟨j, hj⟩) ▸ hp⟩,
-    fun h => let ⟨_, _, ht, _, he⟩ := absorb_iterate_card f P x h; he.symm ▸ ht⟩
+    fun h =>
+      let ⟨_, _, ht, _, he⟩ := absorb_iterate_card f P x h
+      he.symm ▸ ht⟩
 
 /-! ### Transient depth and cycle length -/
 
@@ -244,7 +246,8 @@ theorem iterate_apply_eq_iterate_apply_iff (x : α) {a b : ℕ} (hab : a < b) :
     fun ⟨ha, hd⟩ => by
       have hp : IsPeriodicPt f (b - a) (f^[a] x) :=
         isPeriodicPt_iff_minimalPeriod_dvd.mpr (minimalPeriod_iterate f x ha ▸ hd)
-      rw [← hp.eq, ← iterate_add_apply, Nat.sub_add_cancel hab.le]⟩
+      calc f^[a] x = f^[b - a] (f^[a] x) := hp.eq.symm
+        _ = f^[b] x := by rw [← iterate_add_apply, Nat.sub_add_cancel hab.le]⟩
 
 /-- The transient and one complete cycle contain no repeated state. -/
 theorem orbit_prefix_injective (x : α) :
@@ -252,7 +255,8 @@ theorem orbit_prefix_injective (x : α) :
   have key (a b : ℕ) (hab : a < b) (hb : b < transientDepth f x + cycleLength f x)
       (he : f^[a] x = f^[b] x) : False := by
     obtain ⟨_, hd⟩ := (iterate_apply_eq_iterate_apply_iff f x hab).mp he
-    have := Nat.le_of_dvd (by omega) hd; omega
+    have := Nat.le_of_dvd (by omega) hd
+    omega
   exact fun i j he => Fin.ext <| by_contra fun hne =>
     (lt_or_gt_of_ne hne).elim (fun h => key i j h j.isLt he) fun h => key j i h i.isLt he.symm
 
@@ -265,7 +269,8 @@ theorem transientDepth_add_cycleLength_le_card [Fintype α] (x : α) :
 theorem transientDepth_add_cycleLength_le_of_iterate_eq (x : α) {i j : ℕ} (hij : i < j)
     (he : f^[i] x = f^[j] x) : transientDepth f x + cycleLength f x ≤ j := by
   obtain ⟨_, hd⟩ := (iterate_apply_eq_iterate_apply_iff f x hij).mp he
-  have := Nat.le_of_dvd (by omega) hd; omega
+  have := Nat.le_of_dvd (by omega) hd
+  omega
 
 /-- A transient target can only be reached at the difference of the transient depths. -/
 theorem exists_iterate_eq_iff_of_not_mem_periodicPts (x y : α) (hy : y ∉ periodicPts f) :
@@ -277,7 +282,7 @@ theorem exists_iterate_eq_iff_of_not_mem_periodicPts (x y : α) (hy : y ∉ peri
   exact ⟨fun ⟨t, ht⟩ => by
       subst ht
       rw [transientDepth_iterate] at hpos ⊢
-      exact ⟨Nat.sub_le _ _, by congr 1; omega⟩,
+      exact ⟨Nat.sub_le _ _, congrArg (f^[·] x) (by omega)⟩,
     fun ⟨_, ht⟩ => ⟨_, ht⟩⟩
 
 end Finite

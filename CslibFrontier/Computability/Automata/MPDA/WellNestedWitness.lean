@@ -80,8 +80,7 @@ theorem wnWitness_spec : ∀ {k : ℕ} {s s' : State} {w : List (Symbol × Op n 
   | k + 1, s, s', w, h => by
     unfold wnWitness at h
     split_ifs at h with hss
-    · obtain rfl := Option.some.inj h
-      exact ⟨.nil, hss ▸ .refl⟩
+    · exact Option.some.inj h ▸ ⟨.nil, hss ▸ .refl⟩
     simp only [Option.orElse_eq_orElse, Option.orElse_eq_or] at h
     rcases Option.or_eq_some_iff.mp h with h | ⟨-, h⟩
     · obtain ⟨⟨a, s₂⟩, -, h⟩ := List.exists_of_findSome?_eq_some h
@@ -111,16 +110,12 @@ theorem isSome_wnWitness : ∀ {k : ℕ} {s s' : State},
       Option.orElse_eq_orElse, Option.orElse_eq_or, Option.isSome_or, Bool.or_eq_true] at h ⊢
     rcases h with h | ⟨a, s₂, hT, h⟩ | ⟨a, b, i, γ, s₂, s₃, s₄, hT, h₂, hT', h₄⟩
     · exact absurd h hss
-    · refine .inl (List.findSome?_isSome_iff.mpr ⟨(a, s₂), FinEnum.mem_toList _, ?_⟩)
-      dsimp only
-      simp only [hT, ↓reduceIte, Option.isSome_map]
-      exact isSome_wnWitness h
-    · refine .inr (List.findSome?_isSome_iff.mpr ⟨(a, b, i, γ, s₂, s₃, s₄), FinEnum.mem_toList _,
-        ?_⟩)
-      dsimp only
-      obtain ⟨w₁, hw₁⟩ := Option.isSome_iff_exists.mp (isSome_wnWitness h₂)
+    · exact .inl (List.findSome?_isSome_iff.mpr ⟨(a, s₂), FinEnum.mem_toList _,
+        by simp [hT, isSome_wnWitness h]⟩)
+    · obtain ⟨w₁, hw₁⟩ := Option.isSome_iff_exists.mp (isSome_wnWitness h₂)
       obtain ⟨w₂, hw₂⟩ := Option.isSome_iff_exists.mp (isSome_wnWitness h₄)
-      simp [hT, hT', hw₁, hw₂]
+      exact .inr (List.findSome?_isSome_iff.mpr ⟨(a, b, i, γ, s₂, s₃, s₄), FinEnum.mem_toList _,
+        by simp [hT, hT', hw₁, hw₂]⟩)
 
 /-- The search with the fuel of `WR` succeeds on every pair of `WR`. -/
 theorem isSome_wrWitness {s s' : State} (h : (s, s') ∈ M.wellNestedPairs) :
@@ -132,7 +127,6 @@ theorem isSome_wrWitness_iff {s s' : State} :
     (M.wrWitness s s').isSome ↔ (s, s') ∈ M.wellNestedPairs := by
   refine ⟨fun h => ?_, isSome_wrWitness⟩
   obtain ⟨w, hw⟩ := Option.isSome_iff_exists.mp h
-  obtain ⟨hwn, hrun⟩ := wnWitness_spec hw
-  exact (mem_wellNestedPairs M).mpr (wellNestedReach_iff.mpr ⟨w, hwn, hrun⟩)
+  exact (mem_wellNestedPairs M).mpr (wellNestedReach_iff.mpr ⟨w, wnWitness_spec hw⟩)
 
 end Cslib.Automata.MPDA

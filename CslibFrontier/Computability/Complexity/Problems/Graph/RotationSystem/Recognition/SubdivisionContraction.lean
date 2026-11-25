@@ -160,7 +160,8 @@ private theorem joined_simple {I : FixedRotationInput} (hI : Valid I)
   apply hprefix.concat (hF.simple (pieceEdge I i 2)) hopen (piece_open hI hF i 2)
     hjoin
   intro a b s t hs' ht' he
-  rcases Route.concat_eval_cases p q hpq a s with ⟨j, hj, hval⟩ | ⟨j, hj, hval⟩
+  rcases Route.concat_eval_cases p q hpq a with ⟨j, hj, hval⟩ | ⟨j, hj, hval⟩ <;>
+    specialize hval s
   · obtain ⟨c, d, hc, hd, hcd⟩ :=
       route_pair_contact hF i 0 2 (by decide) j b hs' ht' (hval.symm.trans he)
     have hh : c = false ∧ d = true := by
@@ -194,8 +195,10 @@ private theorem joined_trace {I : FixedRotationInput}
   let q := F.route (pieceEdge I i 1)
   let r := F.route (pieceEdge I i 2)
   obtain ⟨_, hpq, hj, _⟩ := piece_endpoints F i
-  rcases Route.concat_eval_cases (p.concat q) r hj a s with ⟨b, hb, hv⟩ | ⟨b, hb, hv⟩
-  · rcases Route.concat_eval_cases p q hpq b s with ⟨j, hidx, hval⟩ | ⟨j, hidx, hval⟩
+  rcases Route.concat_eval_cases (p.concat q) r hj a with ⟨b, hb, hv⟩ | ⟨b, hb, hv⟩ <;>
+    specialize hv s
+  · rcases Route.concat_eval_cases p q hpq b with ⟨j, hidx, hval⟩ | ⟨j, hidx, hval⟩ <;>
+      specialize hval s
     · exact ⟨0, j, by simpa [shift] using hb.trans hidx, hv.trans hval⟩
     · exact ⟨1, j, by simpa [shift, p] using hb.trans hidx, hv.trans hval⟩
   · exact ⟨2, b, by simpa [shift, Route.segments_concat, p, q] using hb, hv⟩

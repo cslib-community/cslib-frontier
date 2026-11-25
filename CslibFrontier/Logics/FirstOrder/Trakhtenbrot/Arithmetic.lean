@@ -150,7 +150,9 @@ private def NextNat (a' b' a b : ℕ) : Prop :=
 private theorem pair_of_nextNat {a' b' a b : ℕ} (h : NextNat a' b' a b) :
     Nat.pair a b = Nat.pair a' b' + 1 := by
   rcases h with ⟨rfl, h1, rfl⟩ | ⟨rfl, rfl, rfl⟩ | ⟨h1, rfl, rfl⟩ | ⟨rfl, rfl, rfl⟩
-  all_goals simp only [Nat.pair]; split_ifs <;> first | omega | ring1
+  all_goals
+    simp only [Nat.pair]
+    split_ifs <;> first | omega | ring1
 
 private theorem pair_eq_succ_iff {a b q : ℕ} :
     Nat.pair a b = q + 1 ↔ ∃ a' b', Nat.pair a' b' = q ∧ NextNat a' b' a b := by
@@ -174,11 +176,16 @@ private theorem pair_eq_iff {N a b p : ℕ} (hp : p < N) :
         have := Nat.left_le_pair a b
         have := Nat.right_le_pair a b
         omega⟩,
-      by rintro (⟨-, rfl, rfl⟩ | ⟨_, _, _, _, _, _, h, -⟩); exacts [rfl, by omega]⟩
+      fun h => by
+        rcases h with ⟨-, rfl, rfl⟩ | ⟨_, _, _, _, _, _, h, -⟩
+        · rfl
+        · omega⟩
   · rw [pair_eq_succ_iff]
     refine ⟨fun ⟨a', b', h1, h2⟩ => Or.inr ⟨a', ?_, b', ?_, q, by omega, rfl, h1, h2⟩, ?_⟩
-    · have := Nat.left_le_pair a' b'; omega
-    · have := Nat.right_le_pair a' b'; omega
+    · have := Nat.left_le_pair a' b'
+      omega
+    · have := Nat.right_le_pair a' b'
+      omega
     · rintro (⟨h, -⟩ | ⟨a', -, b', -, p', -, h, h1, h2⟩)
       · omega
       · exact ⟨a', b', by omega, h2⟩
@@ -200,7 +207,7 @@ private lemma succ_iff_lt_forall {N : ℕ} (e : M ≃ Fin N) (a b : M) :
     ((e a : ℕ) < e b ∧ ∀ c, (e a : ℕ) < e c → ¬(e c : ℕ) < e b) ↔ (e b : ℕ) = e a + 1 := by
   rw [forall_fin_val e (P := fun i => (e a : ℕ) < i → ¬i < e b)]
   exact ⟨fun ⟨hab, H⟩ => by_contra fun hne =>
-    H (e a + 1) (by have := (e b).2; omega) (by omega) (by omega),
+    H (e a + 1) ((Nat.succ_le_of_lt hab).trans_lt (e b).2) (Nat.lt_succ_self _) (by omega),
     fun H => ⟨by omega, fun i _ _ => by omega⟩⟩
 
 private theorem nextSem_iff {N : ℕ} (e : M ≃ Fin N) (hlt : ∀ a b, I 0 [a, b] ↔ (e a : ℕ) < e b)
@@ -219,7 +226,8 @@ theorem pair_faithful (h : ArithModel I) {N : ℕ} (e : M ≃ Fin N)
   suffices H : ∀ q a b p, (e p : ℕ) = q → (I 3 [a, b, p] ↔ Nat.pair (e a) (e b) = q)
     from fun a b p => H _ a b p rfl
   intro q
-  induction q using Nat.strong_induction_on with | _ q ih =>
+  induction q using Nat.strong_induction_on with
+  | _ q ih =>
   intro a b p hp
   rw [h.pair, pair_eq_iff (hp ▸ (e p).2)]
   simp only [hz, hs, nextSem_iff e hlt hz hs, hp]

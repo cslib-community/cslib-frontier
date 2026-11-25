@@ -149,9 +149,8 @@ theorem SecondPreimageResistantOn.of_negligible {f : List Bool → List Bool}
     (hneg : ∀ adversary, IsPPT encBits adversary →
       Negligible fun n =>
         Game.succProbability (ProbComp.eval (secondPreimageGameOn f valid adversary n))) :
-    SecondPreimageResistantOn f valid := by
-  refine ⟨hf, fun adversary ha => ?_⟩
-  simpa only [Game.advantage_pure_false] using hneg adversary ha
+    SecondPreimageResistantOn f valid :=
+  ⟨hf, fun adversary ha => by simpa only [Game.advantage_pure_false] using hneg adversary ha⟩
 
 /-- Compare two `secondPreimageGameOn` runs when every winning `(x, x')` pair in the first
 (`x.length = n`, `valid₁ n x'`, `x' ≠ x`, `f₁ x' = f₁ x`) satisfies `valid₂ n x'` and
@@ -166,13 +165,13 @@ theorem succProbability_secondPreimageGameOn_le_of_imp
   refine Game.succProbability_mono ?_
   unfold secondPreimageGameOn
   simp only [ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList]
-  refine PMF.bind_apply_mono_on_support _ _ fun x hx => ?_
-  have hlenx : x.length = n := BitString.mem_support_uniformList_iff.mp hx
-  refine PMF.bind_apply_mono_on_support _ _ fun x' _ => ?_
+  refine PMF.bind_apply_mono_on_support _ _ fun x hx =>
+    PMF.bind_apply_mono_on_support _ _ fun x' _ => ?_
   cases hwin : (valid₁ n x' && (x' != x && f₁ x' == f₁ x))
   · simp
   · simp only [Bool.and_eq_true, bne_iff_ne, beq_iff_eq] at hwin
-    obtain ⟨hv, hf⟩ := h x x' hlenx hwin.1 hwin.2.1 hwin.2.2
+    obtain ⟨hv, hf⟩ := h x x' (BitString.mem_support_uniformList_iff.mp hx)
+      hwin.1 hwin.2.1 hwin.2.2
     simp [hv, hwin.2.1, hf]
 
 /-- Shrinking the valid answer predicate preserves second-preimage resistance. -/
@@ -193,23 +192,18 @@ theorem SecondPreimageResistantOn.of_injective {f : List Bool → List Bool}
     (hinj : ∀ n x x', x.length = n → valid n x' = true → f x' = f x → x' = x) :
     SecondPreimageResistantOn f valid := by
   refine SecondPreimageResistantOn.of_negligible hf fun adversary _ => ?_
-  have hzero : ∀ n, Game.succProbability
-      (ProbComp.eval (secondPreimageGameOn f valid adversary n)) = 0 := fun n => by
-    have heval : ProbComp.eval (secondPreimageGameOn f valid adversary n) = PMF.pure false := by
-      unfold secondPreimageGameOn
-      simp only [ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList]
-      refine PMF.bind_eq_pure_of_forall_mem_support fun x hx => ?_
-      have hlenx : x.length = n := BitString.mem_support_uniformList_iff.mp hx
-      have hconst : ∀ x' : List Bool,
-          (valid n x' && (x' != x && f x' == f x)) = false := fun x' => by
-        by_cases hv : valid n x' = true
-        · by_cases hx' : x' = x
-          · simp [hx']
-          · have hfx : f x' ≠ f x := fun h => hx' (hinj n x x' hlenx hv h)
-            simp [hx', hfx]
-        · simp [hv]
-      simp_rw [hconst, PMF.bind_const]
-    simp [heval, Game.succProbability]
+  have hzero (n : ℕ) : Game.succProbability
+      (ProbComp.eval (secondPreimageGameOn f valid adversary n)) = 0 := by
+    suffices ProbComp.eval (secondPreimageGameOn f valid adversary n) = PMF.pure false by
+      simp [this, Game.succProbability]
+    unfold secondPreimageGameOn
+    simp only [ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList]
+    refine PMF.bind_eq_pure_of_forall_mem_support fun x hx => ?_
+    have hconst (x' : List Bool) : (valid n x' && (x' != x && f x' == f x)) = false := by
+      simp only [Bool.and_eq_false_imp, bne_iff_ne, beq_eq_false_iff_ne]
+      exact fun hv hx' hf =>
+        hx' (hinj n x x' (BitString.mem_support_uniformList_iff.mp hx) hv hf)
+    simp_rw [hconst, PMF.bind_const]
   simpa only [hzero] using negligible_zero
 
 /-- Winning `secondPreimageGameOn` eventually with probability bounded away from zero refutes
@@ -234,14 +228,14 @@ theorem succProbability_secondPreimageGameOn_pure_eq_one {f g : List Bool → Li
     (h : ∀ x : List Bool, x.length = n → valid n (g x) = true ∧ g x ≠ x ∧ f (g x) = f x) :
     Game.succProbability
       (ProbComp.eval (secondPreimageGameOn f valid (fun _ x => pure (g x)) n)) = 1 := by
-  have heval :
-      ProbComp.eval (secondPreimageGameOn f valid (fun _ x => pure (g x)) n) = PMF.pure true := by
-    unfold secondPreimageGameOn
-    simp only [ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList, PMF.pure_bind]
-    refine PMF.bind_eq_pure_of_forall_mem_support fun x hx => ?_
-    obtain ⟨hv, hne, hf⟩ := h x (BitString.mem_support_uniformList_iff.mp hx)
-    simp [hv, bne_iff_ne.mpr hne, hf]
-  rw [heval, Game.succProbability, PMF.pure_apply_self, ENNReal.toNNReal_one]
+  suffices ProbComp.eval (secondPreimageGameOn f valid (fun _ x => pure (g x)) n) =
+      PMF.pure true by
+    rw [this, Game.succProbability, PMF.pure_apply_self, ENNReal.toNNReal_one]
+  unfold secondPreimageGameOn
+  simp only [ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList, PMF.pure_bind]
+  refine PMF.bind_eq_pure_of_forall_mem_support fun x hx => ?_
+  obtain ⟨hv, hne, hf⟩ := h x (BitString.mem_support_uniformList_iff.mp hx)
+  simp [hv, bne_iff_ne.mpr hne, hf]
 
 /-- Any constant function is not second-preimage resistant on any validity predicate that admits the
 head-flipped word on `n`-bit inputs for sufficiently large `n` (in particular,
@@ -252,10 +246,8 @@ theorem not_secondPreimageResistantOn_const {valid : ℕ → List Bool → Bool}
     ¬ SecondPreimageResistantOn (fun _ => c) valid := by
   let flip : List Bool → List Bool := fun x => (!x.headD false) :: x.tail
   have hflip_poly : ComputableInPolyTime flip encBits encBits := by polytime
-  let adv : SecondPreimageFinder := fun _ x => pure (flip x)
-  have hadv : IsPPT encBits adv := hflip_poly.isPPT
-  refine not_secondPreimageResistantOn_of_le_succProbability one_ne_zero adv hadv ?_
-  filter_upwards [hvalid] with n hvn
+  refine not_secondPreimageResistantOn_of_le_succProbability one_ne_zero
+    (fun _ x => pure (flip x)) hflip_poly.isPPT (hvalid.mono fun n hvn => ?_)
   exact (succProbability_secondPreimageGameOn_pure_eq_one fun x hx =>
     ⟨hvn x hx, by cases x <;> simp, rfl⟩).symm.le
 

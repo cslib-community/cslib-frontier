@@ -147,11 +147,10 @@ private theorem update_cluster_spec {c : Fin (universeSize d) → Tree d}
     (∀ j, (Function.update c i t j).Valid) ∧
       ∀ j y, (Function.update c i t j).Contains y ↔
         (j = i ∧ y = a) ∨ (c j).Contains y := by
-  refine ⟨fun j => ?_, fun j y => ?_⟩ <;> obtain rfl | h := eq_or_ne j i
-  · simpa only [Function.update_self] using ht
-  · simpa only [Function.update_of_ne h] using hc j
-  · simpa only [Function.update_self, true_and] using hs y
-  · simp [h]
+  refine ⟨(Function.forall_update_iff c fun _ u => u.Valid).mpr ⟨ht, fun j _ => hc j⟩,
+    fun j y => ?_⟩
+  rw [Function.pred_update (fun {_} (u : Tree d) => u.Contains y) c i t j, hs]
+  by_cases h : j = i <;> simp [h]
 
 private theorem insert_spec {t : Tree d} (ht : t.Valid) {x : ℕ}
     (hx : x < universeSize d) :
@@ -198,8 +197,8 @@ private theorem insert_spec {t : Tree d} (ht : t.Valid) {x : ℕ}
           let i : Fin (universeSize d) := ⟨max m x / universeSize d, hi⟩
           let a := max m x % universeSize d
           have ha : a < universeSize d := Nat.mod_lt _ (universeSize_pos d)
-          have hz : max m x = i.val * universeSize d + a := by
-            simpa only [i, a, Nat.mul_comm] using (Nat.div_add_mod (max m x) (universeSize d)).symm
+          have hz : max m x = i.val * universeSize d + a :=
+            (Nat.div_add_mod' (max m x) (universeSize d)).symm
           cases hb : (c i).bounds with
           | none =>
             obtain ⟨hv, hs⟩ := singleton_of_bounds_none (ht.2.2.1 i) hb ha

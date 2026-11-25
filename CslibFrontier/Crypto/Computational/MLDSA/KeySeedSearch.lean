@@ -157,10 +157,10 @@ private theorem signDecoded_plant (H : Xofs) (s : Level) (seed : FixedBytes 32)
     signDecoded (H.withKeySeedExpansion s seed out) s m r {v with key := K.toList} =
       signDecoded H s m r v := by
   let μ := H.representativeFromTr v.tr m
-  have rep : (H.withKeySeedExpansion s seed out).representativeFromTr v.tr m = μ :=
-    congrArg Keccak.bytesToBitsLE <| plant_off _ _ _ _
-      (by simp only [representativeInput, List.length_append, Keccak.length_bytesToBitsLE, ht]; lia)
-      _
+  have rep : (H.withKeySeedExpansion s seed out).representativeFromTr v.tr m = μ := by
+    refine congrArg Keccak.bytesToBitsLE (plant_off _ _ _ _ ?_ _)
+    simp only [representativeInput, List.length_append, Keccak.length_bytesToBitsLE, ht]
+    lia
   have hμ : μ.length = 512 := by
     simp [μ, Xofs.representativeFromTr, Keccak.length_bytesToBitsLE, H.h256.length_read]
   unfold signDecoded Xofs.runSigning Xofs.startDecodedSigning
@@ -170,11 +170,12 @@ private theorem signDecoded_plant (H : Xofs) (s : Level) (seed : FixedBytes 32)
   | none => simp only [Option.bind_eq_bind, Option.bind_none]
   | some A =>
     simp only [Option.bind_eq_bind, Option.bind_some, Option.pure_def]
-    exact congrArg (fun f => firstAccepted s.params.ℓ f 814 0) <| funext fun κ =>
-      attempt_congr_of_read (s := s) (sk := v) (r := r (BitString.ofList 512 μ))
-        (fun _ h => plant_off H s seed out h) (by decide)
-        (fun w => by simp only [commitmentInput, List.length_append, hμ]; lia)
-        (by cases s <;> decide)
+    refine congrArg (fun f => firstAccepted s.params.ℓ f 814 0) (funext fun κ => ?_)
+    refine attempt_congr_of_read (s := s) (sk := v) (r := r (BitString.ofList 512 μ))
+      (fun _ h => plant_off H s seed out h) (by decide) (fun w => ?_)
+      (by cases s <;> decide)
+    simp only [commitmentInput, List.length_append, hμ]
+    lia
 
 private theorem row_eq_decoded (H : Xofs) (s : Level) (sk : List Byte) (q : SigningQuery)
     (r : Row) (hc : q.context.length ≤ 255) :
@@ -249,8 +250,10 @@ private theorem rowSigner_plant (H : Xofs) (s : Level) (p : FixedBytes 96)
     Xofs.expandA_congr (H := H) (K := G seed K) rfl,
     Xofs.expandA_congr (H := H) (K := G z z) rfl, short, pkHash,
     Option.pure_def, Option.bind_eq_bind]
-  rcases eqA : H.expandA s rho with _ | A; · rfl
-  rcases eqU : tabulate _ (fun i : Fin s.params.ℓ => H.secretPoly s rho' i.val) with _ | u; · rfl
+  rcases eqA : H.expandA s rho with _ | A
+  · rfl
+  rcases eqU : tabulate _ (fun i : Fin s.params.ℓ => H.secretPoly s rho' i.val) with _ | u
+  · rfl
   rcases eqV :
     tabulate _ (fun i : Fin s.params.k => H.secretPoly s rho' (s.params.ℓ + i.val)) with _ | v
   · rfl
@@ -318,7 +321,8 @@ theorem keySeedDeviceGame_true (C : QuantumSigningForger) (s : Level) (base : Xo
     C.keySeedDeviceGame s base a b n j true = C.signingSeedPredictionGame s base a b n j := by
   simp only [keySeedDeviceGame, signingSeedPredictionGame, PMF.monad_bind_eq_bind,
     PMF.monad_pure_eq_pure, ↓reduceIte, fixedPrediction_eq]
-  congr 1 with seed : 1; congr 1 with rows : 1
+  congr 1 with seed : 1
+  congr 1 with rows : 1
   let run (H : Xofs) :=
     (C.observations H s (rowSigner H s seed) rows j).map fun guesses =>
       guesses.contains (Keccak.bytesToBitsLE (signingSeedBytes H s seed))

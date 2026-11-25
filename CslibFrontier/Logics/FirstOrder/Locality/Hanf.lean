@@ -120,7 +120,8 @@ private theorem exists_equiv_compl {α β Q : Type*} [Finite α] {κa : α → Q
       congr 1
       ext y
       constructor
-      · rintro ⟨x, ⟨hxA, hxs⟩, rfl⟩; exact ⟨(hκ x hxs).trans hxA, hh.mapsTo hxs⟩
+      · rintro ⟨x, ⟨hxA, hxs⟩, rfl⟩
+        exact ⟨(hκ x hxs).trans hxA, hh.mapsTo hxs⟩
       · rintro ⟨hyB, hyt⟩
         obtain ⟨x, hxs, rfl⟩ := hh.surjOn hyt
         exact ⟨x, ⟨(hκ x hxs).symm.trans hyB, hxs⟩, rfl⟩
@@ -209,6 +210,7 @@ theorem hanfEquiv_of_nbhdIso [Finite M] {k d : ℕ} {a : Fin k → M} {b : Fin k
   obtain ⟨h, Hh⟩ := nbhdIso_iff.1 hab
   set S := ball L a (2 * d + 1)
   have HS : IsNbhdIso L (2 * d + 1) a b h := Hh.mono (by omega)
+  -- a point near `a` and its image under `h` have isomorphic radius-`d` neighborhoods
   obtain ⟨g, hg⟩ := exists_compl_equiv_nbhdIso e he HS.bijOn fun x hx =>
     (Hh.restrict (x := fun _ : Fin 1 => x) (l := 2 * d + 1) (fun _ => hx) (by omega)).nbhdIso
   classical
@@ -217,13 +219,15 @@ theorem hanfEquiv_of_nbhdIso [Finite M] {k d : ℕ} {a : Fin k → M} {b : Fin k
       (Equiv.Set.sumCompl (ball L b (2 * d + 1)))
   refine ⟨F, fun c => ?_⟩
   by_cases hc : c ∈ S
-  · have hFS : F c = h c := by simp [F, Equiv.Set.sumCompl_symm_apply_of_mem hc, Set.BijOn.equiv]
+  · -- near `a`, use `h` itself
+    have hFS : F c = h c := by simp [F, Equiv.Set.sumCompl_symm_apply_of_mem hc, Set.BijOn.equiv]
     rw [hFS]
     have := Hh.restrict (x := (Fin.snoc a c : Fin (k + 1) → M)) (l := 2 * d + 1) (d := d)
       (snoc_mem (fun j => ball_mono (by omega) (mem_ball_self a 0 j)) hc) (by omega)
     rw [Fin.comp_snoc, show h ∘ a = b from funext Hh.map_tuple] at this
     exact this.nbhdIso
-  · have hFS' : F c = g ⟨c, hc⟩ := by simp [F, Equiv.Set.sumCompl_symm_apply_of_notMem hc]
+  · -- far from `a`, combine the neighborhood of `a` with that of `c`
+    have hFS' : F c = g ⟨c, hc⟩ := by simp [F, Equiv.Set.sumCompl_symm_apply_of_notMem hc]
     rw [hFS']
     obtain ⟨h₂, H₂⟩ := nbhdIso_iff.1 (hg ⟨c, hc⟩)
     exact (Hh.mono (by omega)).snoc H₂

@@ -202,19 +202,15 @@ theorem lockstepClockAvg_achievesSkew {P : Type u} [Fintype P] [DecidableEq P] [
         (fun _ => (hδ 0 r x).1) (fun _ => (hδ 0 r x).2)
     have hself : ∀ x : P, xEst x x = c x := fun x => by
       simp only [xEst, estDiff, ↓reduceIte, add_zero]
-    have hp_term : |xEst p p - xEst q p| ≤ u / 2 := by
-      rw [hself p, abs_sub_comm]
-      exact herr q p
-    have hq_term : |xEst p q - xEst q q| ≤ u / 2 := by
-      rw [hself q]
-      exact herr p q
+    have hp_term : |xEst p p - xEst q p| ≤ u / 2 :=
+      hself p ▸ (abs_sub_comm _ _).trans_le (herr q p)
+    have hq_term : |xEst p q - xEst q q| ≤ u / 2 := hself q ▸ herr p q
     have hq_mem : q ∈ (Finset.univ.erase p : Finset P) :=
       Finset.mem_erase.mpr ⟨Ne.symm hpq, Finset.mem_univ q⟩
     let rest : Finset P := (Finset.univ.erase p).erase q
     have hcard_rest : rest.card = n - 2 := by
-      have hc1 : (Finset.univ.erase p : Finset P).card = n - 1 :=
-        Finset.card_erase_of_mem (Finset.mem_univ p)
-      rw [Finset.card_erase_of_mem hq_mem, hc1]
+      simp only [rest, Finset.card_erase_of_mem hq_mem,
+        Finset.card_erase_of_mem (Finset.mem_univ p), Finset.card_univ, n]
       omega
     have hn2 : 2 ≤ n := Fintype.one_lt_card_iff.mpr ⟨p, q, hpq⟩
     have hsum_bound : ∑ r : P, |xEst p r - xEst q r| ≤ ((n : K) - 1) * u := by
@@ -241,11 +237,8 @@ theorem exists_achievesLockstepSkew_iff {P : Type u} [Fintype P] [Nonempty P]
     {d_min d_max γ : K} (hd : d_min ≤ d_max) :
     (∃ (R : ℕ) (π : LockstepProtocol P K R), AchievesLockstepSkew π d_min d_max γ) ↔
       ((Fintype.card P - 1 : K) / Fintype.card P) * (d_max - d_min) ≤ γ := by
-  constructor
-  · rintro ⟨R, π, hπ⟩
-    exact lockstepClockSync_lower_bound hd hπ
-  · intro hγ
-    let _ := Classical.decEq P
-    exact ⟨1, lockstepClockAvg d_min d_max, (lockstepClockAvg_achievesSkew hd).mono hγ⟩
+  let _ := Classical.decEq P
+  exact ⟨fun ⟨_, _, hπ⟩ => lockstepClockSync_lower_bound hd hπ,
+    fun hγ => ⟨1, lockstepClockAvg d_min d_max, (lockstepClockAvg_achievesSkew hd).mono hγ⟩⟩
 
 end Cslib.Distributed.ClockSync

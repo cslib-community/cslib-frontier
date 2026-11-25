@@ -153,8 +153,8 @@ theorem mem_eval_iff {P : ClockedComp spec α} (hP : Stable o P) {a : α} :
     have hm : Nat.find hex ∈ Nat.rfind (fun k => Option.isSome <$> attempt o P k : ℕ →. Bool) :=
       Nat.mem_rfind.2 ⟨by simp [Nat.find_spec hex], fun hj =>
         (hP k a hk _).elim (fun h => absurd h (Nat.find_min hex hj)) fun h => by simp [h.2]⟩
-    exact Part.mem_bind_iff.2 ⟨_, hm, Part.mem_bind_iff.2
-      ⟨some a, by rw [Nat.find_spec hex]; exact Part.mem_some _, Part.mem_some _⟩⟩
+    refine Part.mem_bind_iff.2 ⟨_, hm, Part.mem_bind_iff.2 ⟨some a, ?_, Part.mem_some _⟩⟩
+    simp [Nat.find_spec hex]
 
 theorem Stable.pure (a : α) : Stable o (pure a : ClockedComp spec α) := fun _ _ h _ =>
   Or.inl <| congrArg (Part.some ∘ some) (Option.some.inj (Part.mem_some_iff.1 h)).symm
@@ -170,7 +170,8 @@ theorem Stable.bind {P : ClockedComp spec α} {f : α → ClockedComp spec β} (
 
 theorem Stable.map {P : ClockedComp spec α} (hP : Stable o P) (f : α → β) :
     Stable o (f <$> P) := by
-  rw [map_eq_bind_pure_comp]; exact hP.bind fun a => .pure (f a)
+  rw [map_eq_bind_pure_comp]
+  exact hP.bind fun a => .pure (f a)
 
 theorem Stable.query (q : ι) : Stable o (query q : ClockedComp spec (spec q)) := by
   intro k a h j
@@ -246,7 +247,8 @@ section Eval
 variable (o : (q : ι) → Part (spec q))
 
 @[simp] theorem eval_pure (a : α) : eval o (pure a : ClockedComp spec α) = Part.some a := by
-  ext b; simp [mem_eval_iff (.pure a), eq_comm]
+  ext b
+  simp [mem_eval_iff (.pure a), eq_comm]
 
 theorem eval_bind {P : ClockedComp spec α} {f : α → ClockedComp spec β} (hP : Stable o P)
     (hf : ∀ a, Stable o (f a)) : eval o (P >>= f) = (eval o P).bind fun a => eval o (f a) := by
@@ -268,7 +270,8 @@ theorem eval_map {P : ClockedComp spec α} (hP : Stable o P) (f : α → β) :
     Part.bind_some_eq_map]
 
 @[simp] theorem eval_query (q : ι) : eval o (query q : ClockedComp spec (spec q)) = o q := by
-  ext a; simp [mem_eval_iff (.query q)]
+  ext a
+  simp [mem_eval_iff (.query q)]
 
 theorem eval_rfind {p : ℕ → ClockedComp spec Bool} (hp : ∀ i, Stable o (p i)) :
     eval o (rfind p) = Nat.rfind (fun i => eval o (p i) : ℕ →. Bool) := by

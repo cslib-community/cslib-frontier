@@ -286,13 +286,14 @@ theorem accepts_iff_toNTM_accepts (h : ∀ q, atm.universal q = false) {t : ℕ}
     atm.Accepts input ↔ atm.toPTM.toNTM.Accepts input := by
   rw [accepts_iff_acceptsWithin ht, acceptsWithin_iff_exists_stepCoins h,
     MultiTapeNTM.accepts_iff_exists_time_eq ht]
-  refine ⟨?_, fun ⟨p, hp, hout⟩ => ?_⟩
+  constructor
   · rintro ⟨coins, hlen, -, hout⟩
     obtain ⟨p, hhead, hp, hlast⟩ :=
       (atm.toPTM.exists_runPath_toNTM_iff (c := atm.toPTM.toNTM.initCfg input)).mpr
         ⟨coins, hlen, rfl⟩
     exact ⟨⟨p, hhead⟩, hp, hlast ▸ hout⟩
-  · obtain ⟨coins, hlen, hcoins⟩ := atm.toPTM.exists_runPath_toNTM_iff.mp
+  · rintro ⟨p, hp, hout⟩
+    obtain ⟨coins, hlen, hcoins⟩ := (atm.toPTM.exists_runPath_toNTM_iff).mp
       ⟨p.toRunPath, p.head_eq, hp, rfl⟩
     exact ⟨coins, hlen, state_stepCoins_eq_none ht hlen, hcoins ▸ hout⟩
 

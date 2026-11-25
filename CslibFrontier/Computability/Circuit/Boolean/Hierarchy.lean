@@ -65,14 +65,22 @@ theorem complexity_update_le (f : BooleanFunction n) (a : Fin n → Bool) (b : B
   have hm : complexity interpretation (single m) ≤ 2 * n + 1 :=
     (synthesis_minterm (n := n) id a).complexity_le
   cases b
-  · rw [show Function.update f a false = fun x => f x && !m x from
-      funext fun x => by by_cases h : x = a <;> simp [h, m]]
-    refine (complexity_and_le _ _).trans ?_
-    refine (Nat.add_le_add_right (Nat.add_le_add_left (complexity_not_le m) _) _).trans ?_
-    omega
-  · rw [show Function.update f a true = fun x => f x || m x from
-      funext fun x => by by_cases h : x = a <;> simp [h, m]]
-    exact (complexity_or_le _ _).trans (by omega)
+  · have e : Function.update f a false = fun x => f x && !m x := funext fun x => by
+      by_cases h : x = a <;> simp [h, m]
+    rw [e]
+    calc complexity interpretation (single fun x => f x && !m x)
+        ≤ complexity interpretation (single f) +
+            complexity interpretation (single fun x => !m x) + 1 := complexity_and_le _ _
+      _ ≤ complexity interpretation (single f) + (complexity interpretation (single m) + 1) + 1 :=
+          Nat.add_le_add_right (Nat.add_le_add_left (complexity_not_le m) _) _
+      _ ≤ complexity interpretation (single f) + (2 * n + 3) := by omega
+  · have e : Function.update f a true = fun x => f x || m x := funext fun x => by
+      by_cases h : x = a <;> simp [h, m]
+    rw [e]
+    calc complexity interpretation (single fun x => f x || m x)
+        ≤ complexity interpretation (single f) + complexity interpretation (single m) + 1 :=
+          complexity_or_le _ _
+      _ ≤ complexity interpretation (single f) + (2 * n + 3) := by omega
 
 /-- **Finite override of a constant.** Returning `f x` on a finite set `S` and the constant `c`
 outside `S` costs at most `#S * (2 * n + 3) + 1` gates: start from the constant `c` and change
@@ -83,19 +91,22 @@ theorem complexity_ite_mem_le (f : BooleanFunction n) (S : Finset (Fin n → Boo
   induction S using Finset.induction_on with
   | empty => simpa using (Synthesis.const (n := n) c).complexity_le
   | @insert a S ha ih =>
-    rw [show (fun x => if x ∈ insert a S then f x else c) =
-        Function.update (fun x => if x ∈ S then f x else c) a (f a) from
-      funext fun x => by by_cases hx : x = a <;> simp [hx], Finset.card_insert_of_notMem ha,
-      add_one_mul]
-    exact (complexity_update_le _ a (f a)).trans (by linarith)
+    have e : (fun x => if x ∈ insert a S then f x else c) =
+        Function.update (fun x => if x ∈ S then f x else c) a (f a) := funext fun x => by
+      by_cases hx : x = a <;> simp [hx]
+    rw [e, Finset.card_insert_of_notMem ha, add_one_mul]
+    calc _ ≤ _ + (2 * n + 3) := complexity_update_le _ a (f a)
+      _ ≤ #S * (2 * n + 3) + 1 + (2 * n + 3) := Nat.add_le_add_right ih _
+      _ = _ := by ring
 
 /-- Restricting a Boolean function `f` to `S` and returning `false` outside `S` costs at most
 `#S * (2 * n + 3) + 1` gates (`complexity_ite_mem_le` with the constant `false`). -/
 theorem complexity_mask_le (f : BooleanFunction n) (S : Finset (Fin n → Bool)) :
     complexity interpretation (single fun x => decide (x ∈ S) && f x) ≤
       #S * (2 * n + 3) + 1 := by
-  rw [show (fun x => decide (x ∈ S) && f x) = fun x => if x ∈ S then f x else false from
-    funext fun x => by by_cases hx : x ∈ S <;> simp [hx]]
+  have e : (fun x => decide (x ∈ S) && f x) = fun x => if x ∈ S then f x else false :=
+    funext fun x => by by_cases hx : x ∈ S <;> simp [hx]
+  rw [e]
   exact complexity_ite_mem_le f S false
 
 /-- **The truth-table bound.** A Boolean function on `n` inputs costs at most
@@ -117,9 +128,9 @@ theorem complexity_le_of_dependsOn {f : BooleanFunction n} {s : Finset (Fin n)}
       simp only [dite_eq_left (Finset.mem_coe.1 hi), Function.comp_apply,
         ← Finset.coe_orderIsoOfFin_apply, OrderIso.apply_symm_apply]
   rw [hfg]
-  refine (complexity_comp_le _ _).trans ?_
-  rw [complexity_wiring, zero_add]
-  exact complexity_le_two_pow_mul_add_one g
+  calc _ ≤ complexity interpretation (fun x => x ∘ s.orderEmbOfFin rfl) +
+        complexity interpretation (single g) := complexity_comp_le _ _
+    _ ≤ _ := by simpa [complexity_wiring] using complexity_le_two_pow_mul_add_one g
 
 /-- A constant function costs exactly one gate: a circuit without gates outputs an input. -/
 theorem complexity_const (b : Bool) :
@@ -155,6 +166,7 @@ theorem SIZE_ssubset {s t : ℕ → ℕ} (hst : s ≤ t) (ht : ∀ n, 1 ≤ t n)
     (hs : ∃ᶠ n in atTop, (s n : ℝ) < 2 ^ n / n) : SIZE s ⊂ SIZE t := by
   classical
   obtain ⟨N, hN⟩ := Shannon.lt_complexity
+  -- The lengths at which a function of complexity in `(s n, t n]` is used.
   let P n := N ≤ n ∧ s n + (2 * n + 3) ≤ t n ∧ (s n : ℝ) < 2 ^ n / n
   have hf (n) : ∃ f : BooleanFunction n, complexity interpretation (single f) ≤ t n ∧
       (P n → s n < complexity interpretation (single f)) := by
@@ -166,7 +178,9 @@ theorem SIZE_ssubset {s t : ℕ → ℕ} (hst : s ≤ t) (ht : ∀ n, 1 ≤ t n)
   choose f hft hfs using hf
   refine ⟨SIZE_mono hst, fun hsub => ?_⟩
   obtain ⟨n, hlt, hn, hgap'⟩ := (hs.and_eventually ((eventually_ge_atTop N).and hgap)).exists
-  have hL : Language.ofSlices f ∈ SIZE t := fun m => by rw [Language.slice_ofSlices]; exact hft m
+  have hL : Language.ofSlices f ∈ SIZE t := fun m => by
+    rw [Language.slice_ofSlices]
+    exact hft m
   have := hsub hL n
   rw [Language.slice_ofSlices] at this
   exact (hfs n ⟨hn, hgap', hlt⟩).not_ge this
@@ -182,7 +196,8 @@ theorem SIZE_pow_ssubset {k : ℕ} (hk : 1 ≤ k) :
   refine SIZE_ssubset (fun n => Nat.pow_le_pow_right n.succ_pos k.le_succ)
     (fun n => Nat.one_le_pow _ _ n.succ_pos) ?_ hlt.frequently
   filter_upwards [eventually_ge_atTop 3] with n hn
-  rw [pow_succ]; nlinarith [Nat.le_self_pow (by omega : k ≠ 0) (n + 1)]
+  rw [pow_succ]
+  nlinarith [Nat.le_self_pow (by omega : k ≠ 0) (n + 1)]
 
 /-- **The circuit size hierarchy under the draft's hypotheses** [AroraBarak07, Theorem 6.17]. If
 `n < T n < T' n` for every `n`, eventually `T' n < 2 ^ n / (100 n)`, and `T log T = o(T')`, then
@@ -212,9 +227,11 @@ theorem SIZE_sub_ssubset_of_isLittleO {T T' : ℕ → ℕ} (hT : ∀ n, n < T n)
     rw [Real.norm_of_nonneg (mul_nonneg (by positivity) (by linarith)), one_mul,
       Real.norm_of_nonneg (by positivity)] at hn
     have : 4 * T n ≤ T' n := mod_cast (by nlinarith : (4 : ℝ) * T n ≤ T' n)
-    have := hT n; omega
+    have := hT n
+    omega
   · refine (hT'.and (eventually_ge_atTop 1)).frequently.mono fun n ⟨h, hn⟩ => ?_
-    exact (Nat.cast_le.2 ((Nat.sub_le _ _).trans (hTT' n).le)).trans_lt <|
-      h.trans_le (div_le_div_of_nonneg_left (by positivity) (mod_cast hn) (by linarith))
+    calc ((T n - n : ℕ) : ℝ) ≤ T' n := mod_cast (Nat.sub_le _ _).trans (hTT' n).le
+      _ < 2 ^ n / (100 * n) := h
+      _ ≤ 2 ^ n / n := div_le_div_of_nonneg_left (by positivity) (mod_cast hn) (by linarith)
 
 end Cslib.Circuits.Boolean

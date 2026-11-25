@@ -98,7 +98,7 @@ theorem growthFunction_lossClass_le_natarajanSum [Fintype β] [DecidableEq β] {
 /-- Real-exponential form of Natarajan's lemma for sample-size bounds: with at least one label,
 `∑_{i ≤ d} (n choose i) (k choose 2) ^ i ≤ k ^ (2 d) exp (n / T) T ^ d` for every `T ≥ 1`. -/
 theorem natarajanSum_le_pow_mul_exp_mul_pow (n d : ℕ) {k : ℕ} (hk : 0 < k) {T : ℝ} (hT : 1 ≤ T) :
-    (natarajanSum n k d : ℝ) ≤ (k : ℝ) ^ (2 * d) * (Real.exp (n / T) * T ^ d) := by
+    (natarajanSum n k d : ℝ) ≤ (k : ℝ) ^ (2 * d) * (Real.exp (n / T) * T ^ d) :=
   calc (natarajanSum n k d : ℝ)
       ≤ (∑ i ∈ Finset.range (d + 1), (n.choose i : ℝ)) * (k : ℝ) ^ (2 * d) := by
         exact_mod_cast natarajanSum_le_sum_choose_mul n d hk
@@ -120,8 +120,7 @@ theorem natarajanSampleSize_eq_vcSampleSize (d : ℕ) {k : ℕ} (hk : 0 < k) (ε
   have hK : (4 : ℝ) * k ^ (2 * d) ≠ 0 := by positivity
   rw [natarajanSampleSize, vcSampleSize, div_div_eq_mul_div, Real.log_div hK hδ.ne',
     Real.log_mul (by norm_num) (by positivity), Real.log_pow, Real.log_div (by norm_num) hδ.ne']
-  push_cast
-  ring
+  push_cast; ring
 
 variable [MeasurableSpace α] [MeasurableSingletonClass α] [Countable α]
   [MeasurableSpace β] [MeasurableSingletonClass β]
@@ -151,7 +150,7 @@ theorem IsConsistent.measure_pi_lt_error_le_of_natarajanSampleSize_le {C : Conce
   rw [natarajanSampleSize_eq_vcSampleSize d hk ε hδ] at hm
   obtain ⟨h8, hN⟩ := le_of_vcSampleSize_le hε hε1 (div_pos hδ hK)
     ((div_le_one hK).2 (hδ1.trans hK1)) hm le_rfl
-  have hgrowth : 2 * (growthFunction (lossClass C) (m + m) : ℝ) ≤ δ * 2 ^ ⌈ε * m / 2⌉₊ := by
+  have hgrowth : 2 * (growthFunction (lossClass C) (m + m) : ℝ) ≤ δ * 2 ^ ⌈ε * m / 2⌉₊ :=
     calc 2 * (growthFunction (lossClass C) (m + m) : ℝ)
         ≤ 2 * (natarajanSum (m + m) (Fintype.card β) d : ℝ) := by
           gcongr
@@ -180,12 +179,10 @@ theorem isPACLearnerFor_realizableDistributions_of_natarajanSampleSize_le [Nonem
   · exact isPACLearnerFor_realizableDistributions_empty (fun _ _ => Classical.arbitrary β) ε δ
   obtain ⟨A, hA⟩ := exists_isConsistent (m := m) hne
   refine ⟨A, fun D _ hD => ?_⟩
-  have h := hA.measure_pi_lt_error_le_of_natarajanSampleSize_le hC hD
-    (by exact_mod_cast ε.prop.1) (by exact_mod_cast ε.prop.2.le) (by exact_mod_cast δ.prop.1)
-    (by exact_mod_cast δ.prop.2.le) hm
-  rw [ENNReal.ofReal_coe_nnreal, ENNReal.ofReal_coe_nnreal] at h
-  rw [IsRealizableBy.optimalError_eq_zero hD, zero_add]
-  exact h
+  simpa only [ENNReal.ofReal_coe_nnreal, IsRealizableBy.optimalError_eq_zero hD, zero_add] using
+    hA.measure_pi_lt_error_le_of_natarajanSampleSize_le hC hD
+      (by exact_mod_cast ε.prop.1) (by exact_mod_cast ε.prop.2.le) (by exact_mod_cast δ.prop.1)
+      (by exact_mod_cast δ.prop.2.le) hm
 
 /-- Countable-domain realizable sample-complexity step toward [ShalevShwartzBenDavid2014,
 Theorem 29.3] (#5084): a class of finite Natarajan dimension `d` with `k` labels has realizable

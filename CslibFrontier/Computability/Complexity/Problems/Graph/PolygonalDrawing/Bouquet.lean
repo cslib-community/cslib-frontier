@@ -55,13 +55,18 @@ noncomputable def bouquet
     · rw [hloop e]
 
 private theorem spacing_pos : 0 < spacing r := by
-  unfold spacing; positivity
+  unfold spacing
+  positivity
 
 private theorem port_bounds (d : Dart G) : 0 < port r d ∧ port r d < spacing r := by
   classical
   have h' : (r.portRank d : ℝ) ≤ Finset.univ.sup r.portRank := by
     exact_mod_cast Finset.le_sup (f := r.portRank) (Finset.mem_univ d)
-  exact ⟨by unfold port; positivity, by dsimp only [port, spacing]; linarith⟩
+  refine ⟨?_, ?_⟩
+  · unfold port
+    positivity
+  · dsimp only [port, spacing]
+    linarith
 
 private theorem same_center_of_contact {u v : ℕ} {x y : ℝ}
     (hx : x ∈ Set.Ico 0 (spacing r)) (hy : y ∈ Set.Ico 0 (spacing r))
@@ -82,8 +87,10 @@ private theorem eval_re_bounds (e : Fin G.2.length) (i : Fin 5) {t : ℝ}
   ⟨h.1, h.2.trans_lt (max_lt (port_bounds r _).2 (port_bounds r _).2)⟩
 
 private theorem port_injective (a b : Dart G) (hv : a.vertex = b.vertex)
-    (h : port r a = port r b) : a = b :=
-  r.portRank_injective a b hv (by unfold port at h; exact_mod_cast add_right_cancel h)
+    (h : port r a = port r b) : a = b := by
+  apply r.portRank_injective a b hv
+  unfold port at h
+  exact_mod_cast add_right_cancel h
 
 /-- The two actual loop-end germs are the ports of those very indexed darts. -/
 theorem germ_bouquet
@@ -92,7 +99,8 @@ theorem germ_bouquet
     (bouquet r hloop).germ d = ⟨(r.portRank d : ℝ) + 1, 1⟩ := by
   rcases d with ⟨e, b⟩
   change ((portLoop (port r (e, false)) (port r (e, true))).translate _).germ b = _
-  rw [Route.germ_translate, germ_portLoop]; cases b <;> rfl
+  rw [Route.germ_translate, germ_portLoop]
+  cases b <;> rfl
 
 /-- The construction realizes the exact given clockwise rotation, without reflection.
 This needs no numerical-genus assumption; `bouquet_isEmbedding` supplies embedding separately. -/
@@ -102,7 +110,8 @@ theorem bouquet_realizes
     (bouquet r hloop).Realizes r where
   nonzero d h := by
     rw [germ_bouquet] at h
-    have := congrArg Complex.im h; norm_num at this
+    have := congrArg Complex.im h
+    norm_num at this
   directions_injective a b hv heq := by
     change (((bouquet r hloop).germ a).arg : Real.Angle) =
       (((bouquet r hloop).germ b).arg : Real.Angle) at heq
@@ -161,7 +170,7 @@ theorem bouquet_isEmbedding
     have hz : (portLoop (port r (e, false)) (port r (e, true))).eval i t = 0 :=
       add_left_cancel ((hv ▸ heq).trans (add_zero _).symm)
     obtain ⟨b, hb⟩ := atEnd_of_eval_portLoop_eq_zero (distinct_ports r hloop e) i ht hz
-    exact ⟨b, hb, by cases b; exacts [hv, (hloop e).symm.trans hv]⟩
+    exact ⟨b, hb, b.casesOn hv ((hloop e).symm.trans hv)⟩
   edge_contacts e f hef i j s t hs ht heq := by
     change Fin 5 at i j
     rw [eval_bouquet r hloop e i s, eval_bouquet r hloop f j t] at heq
