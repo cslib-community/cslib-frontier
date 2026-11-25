@@ -101,18 +101,15 @@ theorem IsHuffmanBuild.leaves_perm_flatten {α β : Type*} [Add β] [LE β] {w :
   induction h with
   | single t => simp
   | @step F F_rest t₁ t₂ T hmin _ ih =>
-    have hflat : ((CodeTree.branch t₁ t₂ :: F_rest).map CodeTree.leaves).flatten =
-        ((t₁ :: t₂ :: F_rest).map CodeTree.leaves).flatten := by
-      simp [List.append_assoc]
-    rw [hflat] at ih
-    exact ih.trans (hmin.perm.symm.map CodeTree.leaves).flatten
+    exact (by simpa [List.append_assoc] using ih :
+      T.leaves.Perm ((t₁ :: t₂ :: F_rest).map CodeTree.leaves).flatten).trans
+      (hmin.perm.symm.map CodeTree.leaves).flatten
 
 theorem IsHuffmanBuild.leaves_perm {α β : Type*} [Add β] [LE β] {w : α → β}
     {syms : List α} {T : CodeTree α} (h : IsHuffmanBuild w (syms.map .leaf) T) :
     T.leaves.Perm syms := by
-  have hflat : ∀ L : List α, ((L.map CodeTree.leaf).map CodeTree.leaves).flatten = L := fun L => by
-    simp only [List.map_map, Function.comp_def, CodeTree.leaves_leaf]; exact L.flatMap_singleton'
-  exact hflat syms ▸ h.leaves_perm_flatten
+  simpa only [List.map_map, Function.comp_def, CodeTree.leaves_leaf, ← List.flatMap_def,
+    List.flatMap_singleton'] using h.leaves_perm_flatten
 
 theorem IsHuffmanBuild.map {α₁ α₂ β : Type*} [Add β] [LE β]
     {w₁ : α₁ → β} {w₂ : α₂ → β} {f : α₁ → α₂} (hw : ∀ a, w₂ (f a) = w₁ a)
@@ -357,9 +354,8 @@ theorem exists_leftCherryAtDepth_rotateDeepestLeft {δ : Type*} (l r : CodeTree 
   | case1 => simp [CodeTree.maxDepth] at h1
   | case2 l r hcmp ih => exact hstep hcmp ih
   | case3 l r hcmp ih =>
-    have hcomm : (CodeTree.branch l r).maxDepth = (CodeTree.branch r l).maxDepth := by
-      simp [CodeTree.maxDepth, Nat.max_comm]
-    exact hcomm ▸ hstep (by omega) ih
+    rw [CodeTree.maxDepth, Nat.max_comm]
+    exact hstep (by omega) ih
 
 theorem LeftCherryAtDepth.leaves_and_depths {δ : Type*} {T : CodeTree δ} {D : ℕ} {u v : δ}
     {C : δ → CodeTree δ} (h : LeftCherryAtDepth T D u v C) :
@@ -417,15 +413,12 @@ private theorem relabel_append_spec {δ γ : Type*} (fb : γ) (T : CodeTree δ)
     refine ⟨?_, ?_, ?_⟩
     · rw [hbr_xs, hxs_split, List.append_assoc]; simp only [relabel, hl_app_ys, hr_app_ys]
     · rw [hbr_xs, CodeTree.leaves_branch, hl_leaves, hr_leaves, ← hxs_split]
-    · have hzip_succ : ∀ (us : List γ) (ds : List ℕ),
-          (us.zip ds).map (fun p => (p.1, p.2 + 1)) = us.zip (ds.map (· + 1)) :=
-        fun _ _ => List.zip_map_right.symm
-      have hdl_len : xs₁.length = ((l.leafDepths.map Prod.snd).map (· + 1)).length := by
+    · have hdl_len : xs₁.length = ((l.leafDepths.map Prod.snd).map (· + 1)).length := by
         rw [List.length_map, List.length_map, hlen₁, ← CodeTree.map_fst_leafDepths l,
           List.length_map]
       rw [hbr_xs, CodeTree.leafDepths, hl_depths, hr_depths, hxs_split]
-      simp only [CodeTree.leafDepths, List.map_append, map_snd_map_succ, hzip_succ,
-        List.zip_append hdl_len]
+      simp only [CodeTree.leafDepths, List.map_append, map_snd_map_succ, List.zip_append hdl_len,
+        List.zip_map_right, Prod.map_def, id_eq]
 
 private theorem LeftCherryAtDepth.relabel_spec {δ γ : Type*} {T : CodeTree δ} {D : ℕ} {u v : δ}
     {C : δ → CodeTree δ} (h : LeftCherryAtDepth T D u v C)
@@ -494,20 +487,13 @@ theorem exists_cherry_weightedPathLength_le {γ β : Type*}
       ⟨_, hS'_leaves, hS'_depths⟩
     rcases hC.relabel_spec x y hlen_relabel with ⟨C', hC', hC'_leaves⟩
     let S' := (relabel x S₁ (x :: y :: tail')).1
-    have hS'_wpl : S'.weightedPathLength W =
-        zipCost W (x :: y :: tail') ((CodeTree.branch l r).maxDepth ::
-          (CodeTree.branch l r).maxDepth :: ds) := by
-      rw [CodeTree.weightedPathLength_eq_sum_leafDepths, hS'_depths, hS₁_depths]; rfl
-    have hS₁_wpl : S₁.weightedPathLength W =
-        zipCost W (u :: v :: tail) ((CodeTree.branch l r).maxDepth ::
-          (CodeTree.branch l r).maxDepth :: ds) := by
-      have hzip_self : ∀ L : List (γ × ℕ), L = (L.map Prod.fst).zip (L.map Prod.snd) := fun L => by
-        simpa only [List.unzip_fst, List.unzip_snd] using (List.zip_unzip L).symm
-      rw [CodeTree.weightedPathLength_eq_sum_leafDepths, hzip_self S₁.leafDepths,
-        CodeTree.map_fst_leafDepths, hS₁_leaves, hS₁_depths]
-      rfl
     refine ⟨S', C', tail', hC', hS'_leaves, htail'_perm, hC'_leaves, ?_⟩
-    rwa [hS'_wpl, ← weightedPathLength_rotateDeepestLeft W (.branch l r), hS₁_wpl]
+    rw [← weightedPathLength_rotateDeepestLeft W (.branch l r),
+      CodeTree.weightedPathLength_eq_sum_leafDepths W S',
+      CodeTree.weightedPathLength_eq_sum_leafDepths W (rotateDeepestLeft (.branch l r)),
+      ← List.zip_unzip S₁.leafDepths, List.unzip_fst, List.unzip_snd,
+      CodeTree.map_fst_leafDepths, hS'_depths, hS₁_leaves, hS₁_depths]
+    exact hle
 
 theorem LeftCherryAtDepth.weight_contract_eq {γ β : Type*} [AddCommMonoid β]
     {S : CodeTree γ} {D : ℕ} {x y : γ} {C : γ → CodeTree γ}

@@ -113,18 +113,31 @@ def forgetWeightProg (args : ForgetWeightArgs) : Memory.Prog ℕ := do
     ⟨args.bagBPtr, args.mask, 0⟩
   pure res.acc
 
+private theorem forgetWeightStep_eval (env : ForgetWeightEnv) (st : ForgetWeightState)
+    (s : Memory.State) :
+    (Memory.spec 0).clientState s (forgetWeightStep (env, st)) = s ∧
+    (Memory.spec 0).clientResult s (forgetWeightStep (env, st)) =
+      ⟨st.curB + 1, st.curT / 2, st.acc +
+        if st.curT % 2 = 1 then
+          if (Memory.spec 0).clientResult s
+              (bagMemProg ⟨s.mem st.curB, env.bagPPtr, env.bagPLen⟩) = 0 then
+            s.mem (env.wtPtr + s.mem st.curB) else 0
+        else 0⟩ := by
+  unfold forgetWeightStep
+  dsimp only
+  rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
+    StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
+    StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
+    bagMemProg_state]
+  exact ⟨rfl, rfl⟩
+
 /-- `forgetWeightProg` is read-only and leaves memory unchanged. -/
 theorem forgetWeightProg_state (args : ForgetWeightArgs) (s : Memory.State) :
     (Memory.spec 0).clientState s (forgetWeightProg args) = s := by
   unfold forgetWeightProg
   rw [StateTransitionSpec.clientState_bind]
-  refine clientState_iterate_eq_of forgetWeightStep ⟨args.wtPtr, args.bagPPtr, args.bagPLen⟩
-    (fun _ m => ?_) args.bagBLen ⟨args.bagBPtr, args.mask, 0⟩ s
-  unfold forgetWeightStep
-  dsimp only
-  rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind,
-    StateTransitionSpec.clientState_bind, bagMemProg_state]
-  rfl
+  exact clientState_iterate_eq_of forgetWeightStep ⟨args.wtPtr, args.bagPPtr, args.bagPLen⟩
+    (fun st m => (forgetWeightStep_eval _ st m).1) args.bagBLen ⟨args.bagBPtr, args.mask, 0⟩ s
 
 /-- `forgetWeight` against a weight list `wtL` is bounded by `|LB| * wtL.foldl max 0`. -/
 theorem forgetWeight_le_foldl_max (wtL LP : List ℕ) :
@@ -215,26 +228,13 @@ theorem forgetWeightProg_spec {w : ℕ} (args : ForgetWeightArgs) {wtL LP LB : L
       refine validHistory_read_bind (by omega) ?_
       rw [hmem_u]
       exact validHistory_read_bind hwt_lt (validHistory_bind_step hv_bm (validHistory_pure w _ _))
-    have hst_step : (Memory.spec 0).clientState s
-        (forgetWeightStep (env, ⟨curB, curT, acc⟩)) = s := by
-      unfold forgetWeightStep
-      dsimp only [env]
-      rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind,
-        StateTransitionSpec.clientState_bind, bagMemProg_state]
-      rfl
-    have hr_st (a : ℕ) : (Memory.spec 0).clientState s (Memory.read a) = s := rfl
-    have hr_res (a : ℕ) : (Memory.spec 0).clientResult s (Memory.read a) = s.mem a := rfl
-    have hres_step : (Memory.spec 0).clientResult s
-        (forgetWeightStep (env, ⟨curB, curT, acc⟩)) =
-        ⟨curB + 1, curT / 2, acc + addW⟩ := by
-      unfold forgetWeightStep
-      dsimp only [env]
-      rw [StateTransitionSpec.clientResult_bind, hr_st, hr_res, hmem_u,
-        StateTransitionSpec.clientResult_bind, hr_st, hr_res, hwt_read,
-        StateTransitionSpec.clientResult_bind, hst_bm, hr_bm, hadd_eq]
-      rfl
+    obtain ⟨hst_step, hres_step⟩ := forgetWeightStep_eval env ⟨curB, curT, acc⟩ s
+    dsimp only [env] at hres_step
+    rw [hmem_u, hwt_read, hr_bm, hadd_eq] at hres_step
     have hc_step : memoryCost (forgetWeightStep (env, ⟨curB, curT, acc⟩)) s ≤
         args.bagPLen + 2 := by
+      have hr_st (a : ℕ) : (Memory.spec 0).clientState s (Memory.read a) = s := rfl
+      have hr_res (a : ℕ) : (Memory.spec 0).clientResult s (Memory.read a) = s.mem a := rfl
       dsimp only at hc_bm
       unfold forgetWeightStep
       dsimp only [env]
@@ -312,13 +312,6 @@ theorem forgetWeightProg_realizes :
     hfitSum.of_le (hacc_next_le.trans hacc_max)
   have hacc_fit : Fits w (st.acc + 0) :=
     hfitSum.of_le ((by omega : st.acc + 0 ≤ (d.bagBLen - j) * W).trans hacc_max)
-  have hst_body : (Memory.spec 0).clientState t
-      (forgetWeightStep (⟨d.wtPtr, d.bagPPtr, d.bagPLen⟩, st)) = t := by
-    unfold forgetWeightStep
-    dsimp only
-    rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind,
-      StateTransitionSpec.clientState_bind, bagMemProg_state]
-    rfl
   let addW := if st.curT % 2 = 1 then
     if (Memory.spec 0).clientResult t (bagMemProg ⟨t.mem st.curB, d.bagPPtr, d.bagPLen⟩) = 0 then
       t.mem (d.wtPtr + t.mem st.curB) else 0
@@ -326,14 +319,8 @@ theorem forgetWeightProg_realizes :
   have hadd_le : addW ≤ t.mem (d.wtPtr + t.mem st.curB) := by
     dsimp only [addW]
     split_ifs <;> first | exact le_rfl | exact Nat.zero_le _
-  have hres_body : (Memory.spec 0).clientResult t
-      (forgetWeightStep (⟨d.wtPtr, d.bagPPtr, d.bagPLen⟩, st)) =
-      ⟨st.curB + 1, st.curT / 2, st.acc + addW⟩ := by
-    unfold forgetWeightStep
-    dsimp only
-    rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_bind,
-      StateTransitionSpec.clientResult_bind, bagMemProg_state]
-    rfl
+  obtain ⟨hst_body, hres_body⟩ := forgetWeightStep_eval ⟨d.wtPtr, d.bagPPtr, d.bagPLen⟩ st t
+  change _ = (⟨st.curB + 1, st.curT / 2, st.acc + addW⟩ : ForgetWeightState) at hres_body
   refine ⟨by repeat (first | split | assumption | refine And.intro ?_ ?_),
     Nat.le_of_succ_le hj_le, ?_, by rwa [hst_body], ?_, ?_⟩
   · simp only [hres_body]; omega
