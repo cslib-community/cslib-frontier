@@ -384,6 +384,13 @@ private theorem exists_costOK {e u x}
   · simp only [g, hdom, ↓reduceDIte]
     exact Part.get_mem hdom
 
+/-- A cancelled program halts at the stage where it is cancelled. -/
+private theorem dom_eval_of_canc {e : Code} {ov : ℕ → Bool} {u x i : ℕ}
+    (h : canc (elig Φ r e) ov u x = some i) : ((ofNat Code i).eval x).Dom := by
+  obtain ⟨-, -, -, hE, -⟩ := canc_eq_some.1 h
+  obtain ⟨-, -, -, -, m', hm', -⟩ := elig_eq_true.1 hE
+  exact (Φ.dom_cost_iff _ _).1 (Part.dom_iff_mem.2 ⟨m', hm'⟩)
+
 /-- Under a cost cap, the run halts. -/
 private theorem dom_run_of_costOK {e u d x B} (hB : CostOK Φ e u x B) :
     (run Φ r e u d x).Dom := by
@@ -391,10 +398,7 @@ private theorem dom_run_of_costOK {e u d x B} (hB : CostOK Φ e u x B) :
   change (Code.eval _ _).Dom
   cases hc : canc (elig Φ r e) (ovB d) u x with
   | none => exact trivial
-  | some i =>
-    obtain ⟨-, -, -, hE, -⟩ := canc_eq_some.1 hc
-    obtain ⟨-, -, -, -, m', hm', -⟩ := elig_eq_true.1 hE
-    exact (Φ.dom_cost_iff _ _).1 (Part.dom_iff_mem.2 ⟨m', hm'⟩)
+  | some i => exact dom_eval_of_canc hc
 
 /-- At the fixed point `e`, every version halts on every input, by induction on `x - u`. -/
 private theorem costOK_of_fixed {e : Code} (he : e.eval = master Φ r e) :
@@ -419,13 +423,6 @@ private theorem mem_run {e : Code} (he : e.eval = master Φ r e) {u d x w : ℕ}
   obtain ⟨B, hB⟩ := costOK_of_fixed he _ u x le_rfl
   rw [run_eq (Part.get_mem (dom_rfind_costOK hB))]
   exact Part.mem_map _ hw
-
-/-- A cancelled program halts at the stage where it is cancelled. -/
-private theorem dom_eval_of_canc {e : Code} {ov : ℕ → Bool} {u x i : ℕ}
-    (h : canc (elig Φ r e) ov u x = some i) : ((ofNat Code i).eval x).Dom := by
-  obtain ⟨-, -, -, hE, -⟩ := canc_eq_some.1 h
-  obtain ⟨-, -, -, -, m', hm', -⟩ := elig_eq_true.1 hE
-  exact (Φ.dom_cost_iff _ _).1 (Part.dom_iff_mem.2 ⟨m', hm'⟩)
 
 private theorem ovOf_encode_nil (y : ℕ) : ovOf (encode ([] : List (Option ℕ))) y = none := by
   simp [ovOf]
@@ -486,17 +483,14 @@ theorem speedup {r : ℕ → ℕ → ℕ} (hr : Computable₂ r) :
       obtain ⟨w, hw⟩ := Part.dom_iff_mem.1 (dom_eval_of_canc hc)
       rw [hfc x i w hc hw]
       omega
-  have hfcomp : Computable f := by
-    refine ((Code.eval_part.comp (Computable.const (vers e 0 d₀)) Computable.id).of_eq_tot
-      fun x => ?_)
-    rw [eval_vers he]
-    exact hfmem x
+  have hfcomp : Computable f :=
+    (Code.eval_part.comp (Computable.const (vers e 0 d₀)) Computable.id).of_eq_tot
+      fun x => by rw [eval_vers he]; exact hfmem x
   refine ⟨f, hfcomp, hf1, fun c hc => ?_⟩
   -- `c` is never cancelled, so eventually it is not eligible
   let i := encode c
-  have hnc : ∀ y, C₀ y ≠ some i := by
-    intro y hy
-    have h := hfc y i (f y) hy (by simpa [i] using hc y)
+  have hnc : ∀ y, C₀ y ≠ some i := fun y hy => by
+    have := hfc y i (f y) hy (by simpa [i] using hc y)
     have := hf1 y
     omega
   have hne := eventually_not_eligible hnc
@@ -537,20 +531,15 @@ theorem speedup {r : ℕ → ℕ → ℕ} (hr : Computable₂ r) :
     · have hg : ovOf D y = none := by rw [hovD]; simp only [g, hlow, ↓reduceIte]
       cases hcy : C₀ y with
       | none =>
-        have hcy' : canc (elig Φ r e) (ovB D) (i + 1) y = none := by
-          cases h' : canc (elig Φ r e) (ovB D) (i + 1) y with
-          | none => rfl
-          | some k =>
-            have := (hsame y k (canc_le h').1).1 h'
-            exact absurd (this.symm.trans hcy) (Option.some_ne_none k)
+        have hcy' : canc (elig Φ r e) (ovB D) (i + 1) y = none :=
+          Option.eq_none_iff_forall_ne_some.2 fun k h' =>
+            Option.some_ne_none k (((hsame y k (canc_le h').1).1 h').symm.trans hcy)
         have h := mem_run he (u := i + 1) (d := D) (x := y) (w := 0)
           (by rw [hcy']; exact Part.mem_some 0)
         rw [hg, hcy', Option.map_none, Option.getD_none, Option.getD_none] at h
         rwa [hf0 y hcy]
       | some k =>
-        have hk : i + 1 ≤ k := by
-          by_contra hk
-          exact hlow ⟨k, by omega, hcy⟩
+        have hk : i + 1 ≤ k := not_lt.1 fun hk => hlow ⟨k, hk, hcy⟩
         have hcy' : canc (elig Φ r e) (ovB D) (i + 1) y = some k := (hsame y k hk).2 hcy
         obtain ⟨w, hw⟩ := Part.dom_iff_mem.1 (dom_eval_of_canc hcy)
         have h := mem_run he (u := i + 1) (d := D) (x := y) (w := w)
@@ -560,12 +549,8 @@ theorem speedup {r : ℕ → ℕ → ℕ} (hr : Computable₂ r) :
   refine ⟨c', hc', ?_⟩
   -- eventually `c` is not eligible, which is the speedup
   filter_upwards [hne, eventually_ge_atTop D] with y hy hDy m hm m' hm'
-  by_contra hlt
-  push Not at hlt
-  have : elig Φ r e i y = true :=
+  exact not_le.1 fun hlt => Bool.false_ne_true <| hy ▸
     elig_eq_true.2 ⟨D, Nat.lt_succ_of_le hDy, m, hm, m', by simpa [i] using hm', hlt⟩
-  rw [hy] at this
-  exact Bool.false_ne_true this
 
 /-- **Blum's speedup theorem**, one-argument form: for every computable `r`, there is a
 computable function `f` with values in `{0, 1}` such that every program `c` for `f` has another

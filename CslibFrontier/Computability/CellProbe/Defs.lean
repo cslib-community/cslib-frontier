@@ -514,10 +514,7 @@ theorem card_probedCells_le_depth (t : ProbeTree S w α) (m : Mem S w) :
 theorem isQueryBounded_iff_depth_le (t : ProbeTree S w α) {n : ℕ} :
     t.IsQueryBounded n ↔ t.depth ≤ n := by
   induction t generalizing n with
-  | pure a =>
-    constructor
-    · intro _; exact Nat.zero_le n
-    · intro _; exact .pure a n
+  | pure a => exact ⟨fun _ => Nat.zero_le n, fun _ => .pure a n⟩
   | liftBind q cont ih =>
     change OracleComp.IsCostBounded (fun _ => 1) (PFunctor.FreeM.liftBind q cont) n ↔ _
     rw [OracleComp.IsCostBounded.liftBind_iff]
@@ -600,10 +597,7 @@ theorem run_eq_of_eq_on_probedCells (t : ProbeTree S w α) {m₁ m₂ : Mem S w}
         rw [hj]
         by_cases hisub : i ∈ probedCells (cont (m₁ j)) m₁
         · exact hmem_in i hisub
-        · have hij : i = j := by
-            rcases Finset.mem_insert.mp hi with rfl | hmem
-            · rfl
-            · exact absurd hmem hisub
+        · have hij := (Finset.mem_insert.mp hi).resolve_right hisub
           subst hij
           have hisub₂ : i ∉ probedCells (cont (m₁ i)) m₂ := by rwa [hcells]
           rw [nextMem_eq_of_notMem_probedCells (cont (m₁ i)) m₂ hisub₂,
@@ -630,10 +624,7 @@ theorem run_eq_of_eq_on_probedCells (t : ProbeTree S w α) {m₁ m₂ : Mem S w}
         change (run (cont PUnit.unit) m₂').2 i = (run (cont PUnit.unit) m₁').2 i
         by_cases hisub : i ∈ probedCells (cont PUnit.unit) m₁'
         · exact hmem_in i hisub
-        · have hij : i = j := by
-            rcases Finset.mem_insert.mp hi with rfl | hmem
-            · rfl
-            · exact absurd hmem hisub
+        · have hij := (Finset.mem_insert.mp hi).resolve_right hisub
           subst hij
           have hisub₂ : i ∉ probedCells (cont PUnit.unit) m₂' := by rwa [hcells]
           rw [nextMem_eq_of_notMem_probedCells (cont PUnit.unit) m₂' hisub₂,
@@ -650,9 +641,7 @@ theorem card_le_pow_depth {ι : Type*} (t : ProbeTree S w α) (I : Finset ι) (e
   classical
   induction t generalizing I enc with
   | pure a =>
-    have hcard : I.card ≤ 1 :=
-      Finset.card_le_one.mpr fun x hx y hy => hinj hx hy rfl
-    simpa only [depth, Nat.pow_zero] using hcard
+    simpa only [depth, Nat.pow_zero] using Finset.card_le_one.mpr fun x hx y hy => hinj hx hy rfl
   | liftBind q cont ih =>
     cases q with
     | read j =>
@@ -667,12 +656,10 @@ theorem card_le_pow_depth {ι : Type*} (t : ProbeTree S w α) (I : Finset ι) (e
             have hinj_v : Set.InjOn (fun x => (run (cont v) (enc x)).1)
                 ↑(I.filter fun x => enc x j = v) := by
               intro x hx y hy heq
-              have hx' := Finset.mem_filter.mp hx
-              have hy' := Finset.mem_filter.mp hy
-              refine hinj hx'.1 hy'.1 ?_
+              rw [Finset.mem_coe, Finset.mem_filter] at hx hy
+              refine hinj hx.1 hy.1 ?_
               change (run (cont (enc x j)) (enc x)).1 = (run (cont (enc y j)) (enc y)).1
-              rw [hx'.2, hy'.2]
-              exact heq
+              rwa [hx.2, hy.2]
             exact (ih v _ enc hinj_v).trans
               (Nat.pow_le_pow_right (Nat.two_pow_pos w)
                 (Finset.le_sup (f := fun u => depth (cont u)) (Finset.mem_univ v)))

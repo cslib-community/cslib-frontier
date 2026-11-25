@@ -60,17 +60,13 @@ private theorem average_majorant_mul_le (φ : AlgState A)
   have hstep (u v : Point F m) : J R u v ≤ J L u u + √(e u v) + √(copyDefect φ (R v) (L v)) := by
     have hv := φ.abs_sum_weighted_mul_le T (W u)
       (fun g => (L v).effect (f v g) - (L u).effect (f u g)) (hW u) (hle u)
-    conv at hv =>
-      lhs
-      simp only [mul_sub, map_sub, Complex.sub_re, sum_sub_distrib]
+    conv_lhs at hv => simp only [mul_sub, map_sub, Complex.sub_re, sum_sub_distrib]
     change |J L u v - J L u u| ≤ √(e u v) at hv
     have hc := (φ.abs_sum_weighted_mul_le T (W u)
       (fun g => (R v).effect (f v g) - (L v).effect (f v g)) (hW u) (hle u)).trans
       (Real.sqrt_le_sqrt (φ.sum_weighted_conj_le_sum_norm_sq T (f v)
         (fun a => (R v).effect a - (L v).effect a)))
-    conv at hc =>
-      lhs
-      simp only [mul_sub, map_sub, Complex.sub_re, sum_sub_distrib]
+    conv_lhs at hc => simp only [mul_sub, map_sub, Complex.sub_re, sum_sub_distrib]
     change |J R u v - J L u v| ≤ √(copyDefect φ (R v) (L v)) at hc
     linarith only [(abs_le.mp hv).2, (abs_le.mp hc).2]
   have hmean (u : Point F m) : (𝔼 v : Point F m, J R u v) = (φ (D u * Z)).re := by
@@ -129,25 +125,25 @@ theorem successfulMass_sub_sandwichedAgreement_le
   have hS (u g) : S u g = X u g * U.effect g * X u g := by
     simp only [S, H, X, sandwichBy_effect_some]
   have hST (u h g) : Commute (S u h) (T.effect g) := by
-    rw [hS]
-    exact ((hLT u g _).mul_left (hUT h g)).mul_left (hLT u g _)
+    rw [hS]; exact ((hLT u g _).mul_left (hUT h g)).mul_left (hLT u g _)
   have hSR (u v g b) : Commute (S u g) ((R v).effect b) := by
-    rw [hS]
-    exact ((hLR u v _ b).mul_left (hUR g v b)).mul_left (hLR u v _ b)
+    rw [hS]; exact ((hLR u v _ b).mul_left (hUR g v b)).mul_left (hLR u v _ b)
   have hD u : D u ∈ Set.Icc (0 : A) 1 := by
     refine ⟨sum_nonneg fun g _ => (H u).nonneg (some g), ?_⟩
     rw [← sub_nonneg, ← (H u).effect_none_eq_one_sub_successfulEffect]
     exact (H u).nonneg none
   have hDT (u g) : Commute (D u) (T.effect g) :=
     Commute.sum_left _ _ _ fun h _ => hST u h g
-  have hdiag : (∑ g, (φ (P.effect (some g) * Q.effect (some g))).re) =
-      𝔼 u : Point F m, ∑ g, (φ (S u g * Q.effect (some g))).re := by
+  have hP (B : BoundedPolynomial F m d → A) : (∑ g, (φ (P.effect (some g) * B g)).re) =
+      𝔼 u : Point F m, ∑ g, (φ (S u g * B g)).re := by
     rw [expect_sum_comm]
     refine sum_congr rfl fun g _ => ?_
     rw [show P = sandwichedPolynomialMeasurement L U from rfl,
       sandwichedPolynomialMeasurement_effect_some, smul_mul_assoc, sum_mul,
       AlgState.re_apply_uniformAverage]
     simp only [hS, X, f]
+  have hdiag : (∑ g, (φ (P.effect (some g) * Q.effect (some g))).re) =
+      𝔼 u : Point F m, ∑ g, (φ (S u g * Q.effect (some g))).re := hP _
   have ht := abs_sandwichedPolynomial_score_sub_le φ L R T S
     (fun u g => ⟨(H u).nonneg _, (H u).effect_le_one _⟩)
     (fun u g => hST u g g) (fun u v g b => hSR u v g b) hLT
@@ -166,10 +162,8 @@ theorem successfulMass_sub_sandwichedAgreement_le
       simp only [mul_assoc]
     rw [heq]
     by_cases he : f u h = f u g
-    · have hh : X u h = X u g := congrArg (L u).effect he
-      simp only [ite_eq_left he, hh, hxproj]
-    · have hz : X u h * X u g = 0 := (hL u).mul_eq_zero he
-      simp only [ite_eq_right he, hz, mul_zero]
+    · simp only [ite_eq_left he, show X u h = X u g from congrArg (L u).effect he, hxproj]
+    · simp only [ite_eq_right he, show X u h * X u g = 0 from (hL u).mul_eq_zero he, mul_zero]
   have hdiagTerm (u g) :
       (φ (X u g * S u g * X u g * T.effect g)).re = w u g g := by
     change _ = (φ (X u g * (U.effect g * T.effect g) * X u g)).re
@@ -191,8 +185,7 @@ theorem successfulMass_sub_sandwichedAgreement_le
     rw [← hg, sum_filter, ← sum_add_distrib]
     refine sum_congr rfl fun h _ => ?_
     by_cases he : h = g
-    · subst h
-      simp [w]
+    · subst h; simp [w]
     · by_cases hf : f u h = f u g <;> simp [he, hf, w]
   have hsplit :
       (𝔼 u : Point F m, ∑ g, (φ (D u * T.effect g * X u g)).re) =
@@ -207,8 +200,7 @@ theorem successfulMass_sub_sandwichedAgreement_le
     at htransport
   rw [hsplit] at htransport
   have hSZ (u g) : Commute (S u g) Z := by
-    rw [hS]
-    exact ((hLZ u _).mul_left (hUZ g)).mul_left (hLZ u _)
+    rw [hS]; exact ((hLZ u _).mul_left (hUZ g)).mul_left (hLZ u _)
   have hmaj : (𝔼 u : Point F m, ∑ g, (φ (S u g * averagePolynomialPointEffect R g)).re) ≤
       𝔼 u : Point F m, (φ (D u * Z)).re := by
     refine expect_le_expect fun u _ => ?_
@@ -224,13 +216,7 @@ theorem successfulMass_sub_sandwichedAgreement_le
     rw [averagePolynomialPointEffect_eq, mul_smul_comm, mul_sum, AlgState.re_apply_uniformAverage]
   have hscore (v : Point F m) :
       (𝔼 u : Point F m, ∑ g, (φ (S u g * (R v).effect (f v g))).re) =
-        ∑ g, (φ (P.effect (some g) * (R v).effect (f v g))).re := by
-    rw [expect_sum_comm]
-    refine sum_congr rfl fun g _ => ?_
-    rw [show P = sandwichedPolynomialMeasurement L U from rfl,
-      sandwichedPolynomialMeasurement_effect_some, smul_mul_assoc, sum_mul,
-      AlgState.re_apply_uniformAverage]
-    simp only [hS, X, f]
+        ∑ g, (φ (P.effect (some g) * (R v).effect (f v g))).re := (hP _).symm
   have heq (v : Point F m) :
       (∑ g, (φ (P.effect (some g) * (R v).effect (f v g))).re) =
         (φ P.successfulEffect).re - successfulMismatch φ (evaluatePolynomialMeasurement P v) (R v)

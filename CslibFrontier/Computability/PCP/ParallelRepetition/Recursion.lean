@@ -189,14 +189,10 @@ theorem le_two_mul_rpow_of_step (hv : 0 ≤ v) (hv1 : v ≤ 1) (hC : 1 ≤ C) (h
   have hfloor := le_pow_floor_of_step hv hv1 hC hL hp0 hnn hmono hstep
   -- Round the number of steps down at the cost of a factor `2`.
   have hround : b ^ ⌊x⌋₊ ≤ 2 * b ^ x := by
-    have hle : x - 1 ≤ (⌊x⌋₊ : ℝ) := by linarith only [Nat.lt_floor_add_one x]
-    have h1 : b ^ ⌊x⌋₊ = b ^ ((⌊x⌋₊ : ℕ) : ℝ) := (Real.rpow_natCast b _).symm
-    have h2 : b ^ ((⌊x⌋₊ : ℕ) : ℝ) ≤ b ^ (x - 1) :=
-      Real.rpow_le_rpow_of_exponent_ge hb0 hb1 hle
-    have h3 : b ^ (x - 1) = b ^ x / b := Real.rpow_sub_one hb0.ne' x
-    rw [h1]
-    refine h2.trans (h3.le.trans ?_)
-    rw [div_le_iff₀ hb0, mul_comm 2, mul_assoc]
+    rw [← Real.rpow_natCast]
+    refine (Real.rpow_le_rpow_of_exponent_ge hb0 hb1
+      (by linarith only [Nat.lt_floor_add_one x] : x - 1 ≤ ⌊x⌋₊)).trans ?_
+    rw [Real.rpow_sub_one hb0.ne', div_le_iff₀ hb0, mul_comm 2, mul_assoc]
     exact le_mul_of_one_le_right (Real.rpow_nonneg hb0.le x) (by linarith only [hbhalf])
   -- Bernoulli's inequality for the exponent `a ∈ [0, 1]`.
   have hbern : b ^ a ≤ 1 - (1 - v) ^ 3 / (26 * C ^ 2) := by
@@ -248,9 +244,7 @@ theorem le_rpow_of_step (hv : 0 ≤ v) (hv1 : v ≤ 1) (hC0 : 0 ≤ C) (hC : C �
   set t := (n : ℝ) / L with ht
   have hL0 : 0 < L := by positivity
   have ht0 : 0 ≤ t := by positivity
-  have htL : t * L = n := by
-    rw [ht]
-    field_simp
+  have htL : t * L = n := by rw [ht]; field_simp
   have hr0 : 0 < 1 - u ^ 3 / 6000 := by linarith only [pow_le_one₀ hu0 hu1 (n := 3)]
   have hr1 : 1 - u ^ 3 / 6000 ≤ 1 := sub_le_self _ (by positivity)
   rcases le_or_gt (u ^ 2 * t) 6000 with hA | hB
@@ -270,11 +264,7 @@ theorem le_rpow_of_step (hv : 0 ≤ v) (hv1 : v ≤ 1) (hC0 : 0 ≤ C) (hC : C �
             show t * -(u ^ 3 / 6000) = -(u * (u ^ 2 * t)) / 6000 by ring]
   -- Many steps: run the induction with the ratio `b = 1 - u / 5`.
   set b := 1 - u / 5 with hb
-  have hu_pos : 0 < u := by
-    rcases hu0.lt_or_eq with h | h
-    · exact h
-    · rw [← h] at hB
-      norm_num at hB
+  have hu_pos : 0 < u := hu0.lt_of_ne fun h => by rw [← h] at hB; norm_num at hB
   have hb0 : 0 < b := by linarith only [hb, hu1]
   have hb1 : b < 1 := by linarith only [hb, hu_pos]
   -- `v = 1 - u ≤ (1 - u / 5)^5`, by Bernoulli's inequality.
@@ -329,8 +319,7 @@ theorem le_rpow_of_step (hv : 0 ≤ v) (hv1 : v ≤ 1) (hC0 : 0 ≤ C) (hC : C �
     have h := rpow_one_add_le_one_add_mul_self (s := -(u / 5)) (by linarith only [hu1])
       (by positivity : 0 ≤ u ^ 2 / 1200) (by linarith only [hu2])
     rw [← sub_eq_add_neg, ← hb] at h
-    refine h.trans (le_of_eq ?_)
-    ring
+    exact h.trans_eq (by ring)
   calc p n ≤ p M := hanti hMn
     _ ≤ b ^ M := hpM
     _ = b ^ (M : ℝ) := (Real.rpow_natCast b M).symm

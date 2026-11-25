@@ -155,22 +155,15 @@ theorem find?_prep {e : Key × Act} (he : e ∈ markerEntries eS tm d ++ branchE
     simp only [List.mem_append] at he ⊢
     tauto
   · have hs := (prep_spec eS tm d he).1
+    rw [← hk] at hs
     rw [table_dispatch] at he'
     simp only [List.mem_append] at he'
     rcases he' with (((he' | he') | he') | he') | he'
     · rw [(prep_spec eS tm d (List.mem_append_left _ he')).2, (prep_spec eS tm d he).2, hk]
-    · have := state_runEntries eS tm d he'
-      rw [hk] at this
-      omega
+    · have := state_runEntries eS tm d he'; omega
     · rw [(prep_spec eS tm d (List.mem_append_right _ he')).2, (prep_spec eS tm d he).2, hk]
-    · have := state_redirectEntries d he'
-      rw [hk] at this
-      simp only [Bool.toNat_false] at this
-      omega
-    · have := state_redirectEntries d he'
-      rw [hk] at this
-      simp only [Bool.toNat_true] at this
-      omega
+    · have := state_redirectEntries d he'; simp only [Bool.toNat_false] at this; omega
+    · have := state_redirectEntries d he'; simp only [Bool.toNat_true] at this; omega
 
 /-- For the states of `tm`, the transitions found are those of `tm`, writing the output on the
 virtual input tape. -/
@@ -195,27 +188,13 @@ theorem find?_run (q : ℕ) (i : Option ℕ) (ws : List (Option ℕ)) :
     · rintro ⟨rfl, rfl, rfl⟩
       exact ⟨rfl, rfl, rfl⟩
   · have := (prep_spec eS tm d (List.mem_append_left _ he)).1
-    simp only [decide_eq_false_iff_not]
-    intro h
-    rw [h] at this
-    dsimp only at this
-    omega
+    exact decide_eq_false fun h => by rw [h] at this; dsimp only at this; omega
   · have := (prep_spec eS tm d (List.mem_append_right _ he)).1
-    simp only [decide_eq_false_iff_not]
-    intro h
-    rw [h] at this
-    dsimp only at this
-    omega
+    exact decide_eq_false fun h => by rw [h] at this; dsimp only at this; omega
   · have := state_redirectEntries d he
-    simp only [decide_eq_false_iff_not]
-    intro h
-    rw [h] at this
-    simp at this
+    exact decide_eq_false fun h => by rw [h] at this; simp at this
   · have := state_redirectEntries d he
-    simp only [decide_eq_false_iff_not]
-    intro h
-    rw [h] at this
-    simp at this
+    exact decide_eq_false fun h => by rw [h] at this; simp at this
 
 /-- For the states of `d b` and an input head reading a blank, the transitions found are those of
 `d b`, redirected. -/
@@ -225,29 +204,21 @@ theorem find?_redirectEntries (b : Bool) (q : ℕ) (ws : List (Option ℕ)) :
   have hprep : ∀ e ∈ markerEntries eS tm d ++ runEntries eS tm d ++ branchEntries d k,
       decide (e.1 = ⟨dstate b q, none, ws⟩) = false := by
     intro e he
-    simp only [decide_eq_false_iff_not]
-    intro h
+    refine decide_eq_false fun h => ?_
     have hb := Bool.toNat_le b
     simp only [List.mem_append] at he
     rcases he with (he | he) | he
     · have := (prep_spec eS tm d (List.mem_append_left _ he)).1
-      rw [h] at this
-      simp only [dstate] at this
-      omega
+      rw [h] at this; simp only [dstate] at this; omega
     · have := state_runEntries eS tm d he
-      rw [h] at this
-      simp only [dstate] at this
-      omega
+      rw [h] at this; simp only [dstate] at this; omega
     · have := (prep_spec eS tm d (List.mem_append_right _ he)).1
-      rw [h] at this
-      simp only [dstate] at this
-      omega
+      rw [h] at this; simp only [dstate] at this; omega
   cases b
   · rw [table_dispatch, find?_append_of_forall_not' fun e he => ?_,
       find?_append_of_forall_not hprep]
     have := state_redirectEntries d he
-    simp only [decide_eq_false_iff_not]
-    intro h
+    refine decide_eq_false fun h => ?_
     rw [h] at this
     simp only [dstate, Bool.toNat_true, Bool.toNat_false] at this
     omega
@@ -255,8 +226,7 @@ theorem find?_redirectEntries (b : Bool) (q : ℕ) (ws : List (Option ℕ)) :
     rcases List.mem_append.mp he with he | he
     · exact hprep e he
     · have := state_redirectEntries d he
-      simp only [decide_eq_false_iff_not]
-      intro h
+      refine decide_eq_false fun h => ?_
       rw [h] at this
       simp only [dstate, Bool.toNat_true, Bool.toNat_false] at this
       omega
@@ -385,9 +355,8 @@ theorem exists_run_of_computesTidily {w : List Bool} {o : List Bool} {t₀ s₀ 
       (init (desc eS eBit tm), []) = c at h₁ h₂ ⊢
     obtain ⟨hk, hle⟩ := h₂
     refine ⟨?_, ?_, ?_, ?_⟩
-    · have := congrArg Cfg.state h₁
-      simp only [Cfg.map_state, wordsCfg, Option.map_none, SCfg.toCfg] at this
-      exact this.symm
+    · simpa only [Cfg.map_state, wordsCfg, Option.map_none, SCfg.toCfg] using
+        (congrArg Cfg.state h₁).symm
     · have := congrArg (fun c => c.inputPos.val) h₁
       simp only [Cfg.map_inputPos, wordsCfg, Fin.val_cast, SCfg.toCfg] at this
       have h1 : (1 : Fin (w.length + 2)).val = 1 := rfl
@@ -402,9 +371,7 @@ theorem exists_run_of_computesTidily {w : List Bool} {o : List Bool} {t₀ s₀ 
         List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi'', Option.getD_some] at hc
       simp only [List.getElem_map, List.getElem_replicate, Tape.read_eq]
       exact hc.symm
-    · have := congrArg Cfg.output h₁
-      simp only [Cfg.map_output, wordsCfg, SCfg.toCfg] at this
-      exact this.symm
+    · simpa only [Cfg.map_output, wordsCfg, SCfg.toCfg] using (congrArg Cfg.output h₁).symm
 
 end Dispatch
 
