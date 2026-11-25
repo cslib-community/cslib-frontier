@@ -659,18 +659,14 @@ private theorem computableInO_radixPass {α : Type} (encα : α ↪ List Bool) :
       (fun q j hj => (le_listMax (f := fun p => (encElem p).length)
         (List.getElem_mem hj)).trans (Nat.le_add_left _ _))
       ⟨1, fun q => (ComputableInDegree.length_encList_filter_le encElem _ q.2).trans (by omega)⟩
-    let D := max d 1
-    refine ⟨D, hd.weaken ⟨3, fun q => ?_⟩ (BigOLe.of_le fun q => ?_)⟩
-    · dsimp only [lMax, encElem, D]
-      rw [length_encPair]
-      have h0 : (encNat q.1).length ≤
-          ((encNat q.1).length + listMax (fun p => (encPair encBits encα p).length) q.2 + 1) := by
-        omega
+    refine ⟨max d 1, hd.weaken ⟨3, fun q => ?_⟩ ⟨3, fun q => ?_⟩⟩ <;>
+    · dsimp only [lMax, encElem]
+      try rw [length_encPair]
       have h1 : (encNat q.1).length ≤
           (q.2.length + 1) *
             ((encNat q.1).length + listMax (fun p => (encPair encBits encα p).length) q.2 + 1) ^
               max d 1 :=
-        (h0.trans (Nat.le_self_pow
+        ((by omega : (encNat q.1).length ≤ _ + 1).trans (Nat.le_self_pow
           (Nat.ne_of_gt (lt_of_lt_of_le zero_lt_one (le_max_right d 1))) _)).trans
           (Nat.le_mul_of_pos_left _ (Nat.succ_pos _))
       have h2 : ((encNat q.1).length +
@@ -678,18 +674,7 @@ private theorem computableInO_radixPass {α : Type} (encα : α ↪ List Bool) :
           ((encNat q.1).length +
             listMax (fun p => (encPair encBits encα p).length) q.2 + 1) ^ max d 1 :=
         Nat.pow_le_pow_right (Nat.succ_pos _) (le_max_left d 1)
-      have h3 : (q.2.length + 1) * ((encNat q.1).length +
-            listMax (fun p => (encPair encBits encα p).length) q.2 + 1) ^ d ≤
-          (q.2.length + 1) * ((encNat q.1).length +
-            listMax (fun p => (encPair encBits encα p).length) q.2 + 1) ^ max d 1 :=
-        Nat.mul_le_mul_left _ h2
-      omega
-    · dsimp only [lMax, encElem, D]
-      have h2 : ((encNat q.1).length +
-            listMax (fun p => (encPair encBits encα p).length) q.2 + 1) ^ d ≤
-          ((encNat q.1).length +
-            listMax (fun p => (encPair encBits encα p).length) q.2 + 1) ^ max d 1 :=
-        Nat.pow_le_pow_right (Nat.succ_pos _) (le_max_left d 1)
+      have h3 := Nat.mul_le_mul_left (q.2.length + 1) h2
       omega
   obtain ⟨d0, h0⟩ := hbranch false
   obtain ⟨d1, h1⟩ := hbranch true
@@ -697,24 +682,18 @@ private theorem computableInO_radixPass {α : Type} (encα : α ↪ List Bool) :
     rw [radixPass, encList_append]
     exact congrArg (fun l => encList encElem l ++ _)
       (List.filter_congr fun p _ => by cases p.1.getD q.1 false <;> rfl)).weaken
-    ⟨2, fun q => ?_⟩ ⟨2, fun q => ?_⟩⟩
-  · dsimp only
-    have hle0 : ((encNat q.1).length + listMax (fun p => (encElem p).length) q.2 + 1) ^ d0 ≤
-        ((encNat q.1).length + listMax (fun p => (encElem p).length) q.2 + 1) ^ max d0 d1 :=
+    ⟨2, fun q => ?_⟩ ⟨2, fun q => ?_⟩⟩ <;>
+  · dsimp only [encElem]
+    have hle0 : ((encNat q.1).length + listMax (fun p => (encPair encBits encα p).length) q.2 + 1) ^
+        d0 ≤ ((encNat q.1).length + listMax (fun p => (encPair encBits encα p).length) q.2 + 1) ^
+          max d0 d1 :=
       Nat.pow_le_pow_right (Nat.succ_pos _) (le_max_left d0 d1)
-    have hle1 : ((encNat q.1).length + listMax (fun p => (encElem p).length) q.2 + 1) ^ d1 ≤
-        ((encNat q.1).length + listMax (fun p => (encElem p).length) q.2 + 1) ^ max d0 d1 :=
+    have hle1 : ((encNat q.1).length + listMax (fun p => (encPair encBits encα p).length) q.2 + 1) ^
+        d1 ≤ ((encNat q.1).length + listMax (fun p => (encPair encBits encα p).length) q.2 + 1) ^
+          max d0 d1 :=
       Nat.pow_le_pow_right (Nat.succ_pos _) (le_max_right d0 d1)
-    dsimp only [encElem] at hle0 hle1 ⊢
-    nlinarith
-  · dsimp only
-    have hle0 : ((encNat q.1).length + listMax (fun p => (encElem p).length) q.2 + 1) ^ d0 ≤
-        ((encNat q.1).length + listMax (fun p => (encElem p).length) q.2 + 1) ^ max d0 d1 :=
-      Nat.pow_le_pow_right (Nat.succ_pos _) (le_max_left d0 d1)
-    have hle1 : ((encNat q.1).length + listMax (fun p => (encElem p).length) q.2 + 1) ^ d1 ≤
-        ((encNat q.1).length + listMax (fun p => (encElem p).length) q.2 + 1) ^ max d0 d1 :=
-      Nat.pow_le_pow_right (Nat.succ_pos _) (le_max_right d0 d1)
-    dsimp only [encElem] at hle0 hle1 ⊢
+    have := Nat.mul_le_mul_left (q.2.length + 1) hle0
+    have := Nat.mul_le_mul_left (q.2.length + 1) hle1
     omega
 
 private theorem computableInO_radixSortLSB {α γ : Type} {encα : α ↪ List Bool}
@@ -741,7 +720,7 @@ private theorem computableInO_radixSortLSB {α γ : Type} {encα : α ↪ List B
       (fun q => (encList encElem q.2).length +
         ((encNat q.1).length + listMax (fun p => (encElem p).length) q.2 + 1) ^ d) := by
     have hcomp := (ComputableInO.natSucc.comp (ComputableInO.fst encNat (encList encElem))).prod hp
-    refine hcomp.weaken ⟨4, fun q => ?_⟩ ⟨4, fun q => ?_⟩
+    refine hcomp.weaken ⟨4, fun q => ?_⟩ ⟨4, fun q => ?_⟩ <;>
     · dsimp only [encElem, encState]
       rw [length_encPair]
       have hdp : ((encNat q.1).length +
@@ -766,19 +745,6 @@ private theorem computableInO_radixSortLSB {α γ : Type} {encα : α ↪ List B
             listMax (fun p => (encPair encBits encα p).length) q.2 + 1) ^ d :=
         Nat.le_mul_of_pos_left _ (Nat.succ_pos _)
       omega
-    · dsimp only [encElem, encState]
-      rw [length_encPair]
-      have hdp : ((encNat q.1).length +
-            listMax (fun p => (encPair encBits encα p).length) q.2 + 1) ^ dp ≤
-          ((encNat q.1).length +
-            listMax (fun p => (encPair encBits encα p).length) q.2 + 1) ^ d :=
-        Nat.pow_le_pow_right (Nat.succ_pos _) (le_max_left dp 2)
-      have h1 : (encNat q.1).length ≤
-          ((encNat q.1).length +
-            listMax (fun p => (encPair encBits encα p).length) q.2 + 1) ^ d :=
-        (Nat.le_add_right _ _ |>.trans (Nat.le_add_right _ _)).trans
-          (Nat.le_self_pow (Nat.ne_of_gt (lt_of_lt_of_le (by decide) (le_max_right dp 2))) _)
-      omega
   have hinit : ComputableInO (fun x => ((0 : ℕ), L x)) encIn encState
       (fun x => (encIn x).length + TL x) (fun x => SL x) :=
     ((ComputableInO.constZero (encIn := encIn) (encMid := encNat) (0 : ℕ)).prod hL).weaken
@@ -790,40 +756,31 @@ private theorem computableInO_radixSortLSB {α γ : Type} {encα : α ↪ List B
       fun p hp => hM x p ((mem_radixStep_iff).1 hp)
     have hl : (radixStep^[k] (0, L x)).2.length = (L x).length := length_radixStep k 0 (L x)
     exact (length_encList_le encElem _ (b := M x) hm).trans (by rw [hl])
+  have hk1 : ∀ x k, k ≤ b x →
+      (encNat (radixStep^[k] (0, L x)).1).length ≤ (encNat (b x)).length := fun x k hk => by
+    rw [fst_iterate_radixStep, Nat.zero_add]; exact length_encNat_mono hk
+  have hpow : ∀ x k, k ≤ b x → ((encNat (radixStep^[k] (0, L x)).1).length +
+      listMax (fun p => (encElem p).length) (radixStep^[k] (0, L x)).2 + 1) ^ d ≤
+        ((encNat (b x)).length + M x + 1) ^ d := fun x k hk =>
+    Nat.pow_le_pow_left (by
+      have := hk1 x k hk
+      have : listMax (fun p => (encElem p).length) (radixStep^[k] (0, L x)).2 ≤ M x :=
+        listMax_le fun p hp => hM x p ((mem_radixStep_iff).1 hp)
+      omega) d
   have hit := ComputableInO.iterate hb hinit hstep
     (R := fun x => (L x).length * (2 * M x + 1) +
       ((L x).length + 1) * ((encNat (b x)).length + M x + 1) ^ d)
     (Q := fun x => (L x).length * (2 * M x + 1) + ((encNat (b x)).length + M x + 1) ^ d)
     (B := fun x => 2 * (encNat (b x)).length + (L x).length * (2 * M x + 1) + 1)
     (fun x k hk => by
-      have hk1 : (encNat (radixStep^[k] (0, L x)).1).length ≤ (encNat (b x)).length := by
-        rw [fst_iterate_radixStep, Nat.zero_add]; exact length_encNat_mono hk
-      have hlen2 := henc_step x k
-      have hl2 : (radixStep^[k] (0, L x)).2.length = (L x).length := length_radixStep k 0 (L x)
-      have hm2 : listMax (fun p => (encElem p).length) (radixStep^[k] (0, L x)).2 ≤ M x :=
-        listMax_le fun p hp => hM x p ((mem_radixStep_iff).1 hp)
-      have hpow : ((encNat (radixStep^[k] (0, L x)).1).length +
-            listMax (fun p => (encElem p).length) (radixStep^[k] (0, L x)).2 + 1) ^ d ≤
-          ((encNat (b x)).length + M x + 1) ^ d :=
-        Nat.pow_le_pow_left (by omega) d
-      have hmul := Nat.mul_le_mul_left ((L x).length + 1) hpow
-      rw [hl2]
+      have := henc_step x k
+      have := Nat.mul_le_mul_left ((L x).length + 1) (hpow x k hk)
+      rw [length_radixStep k 0 (L x)]
       omega)
+    (fun x k hk => by have := henc_step x k; have := hpow x k hk; omega)
     (fun x k hk => by
-      have hk1 : (encNat (radixStep^[k] (0, L x)).1).length ≤ (encNat (b x)).length := by
-        rw [fst_iterate_radixStep, Nat.zero_add]; exact length_encNat_mono hk
-      have hlen2 := henc_step x k
-      have hm2 : listMax (fun p => (encElem p).length) (radixStep^[k] (0, L x)).2 ≤ M x :=
-        listMax_le fun p hp => hM x p ((mem_radixStep_iff).1 hp)
-      have hpow : ((encNat (radixStep^[k] (0, L x)).1).length +
-            listMax (fun p => (encElem p).length) (radixStep^[k] (0, L x)).2 + 1) ^ d ≤
-          ((encNat (b x)).length + M x + 1) ^ d :=
-        Nat.pow_le_pow_left (by omega) d
-      omega)
-    (fun x k hk => by
-      have hk1 : (encNat (radixStep^[k] (0, L x)).1).length ≤ (encNat (b x)).length := by
-        rw [fst_iterate_radixStep, Nat.zero_add]; exact length_encNat_mono hk
-      have hlen2 := henc_step x k
+      have := hk1 x k hk
+      have := henc_step x k
       rw [length_encPair]
       omega)
   refine ⟨d, (ComputableInO.snd' hit).weaken ⟨8, fun x => ?_⟩ ⟨4, fun x => ?_⟩⟩
@@ -2919,44 +2876,22 @@ private theorem computableInO_tabulateOut {out : ℕ → Bool} {T S : ℕ → �
     have hkn : (encNat k).length ≤ (encSymAndInstance x).length := by
       have h1 := encNat_length_le k
       omega
-    have hacc_aux : ∀ l : List ℕ, (∀ m ∈ l, m ≤ k) →
-        (encList encJoinItem (l.map fun m => (Nat.bits m, (false, (0, out m))))).length ≤
-          l.length * (4 * (encSymAndInstance x).length + 50) := by
-      intro l hm_le
-      induction l with
-      | nil => simp
-      | cons a t iht =>
-        have ha := hm_le a (List.mem_cons_self ..)
-        have ht := iht fun b hb => hm_le b (List.mem_cons_of_mem _ hb)
-        have han : (encNat a).length ≤ (encSymAndInstance x).length :=
-          (length_encNat_mono ha).trans hkn
-        have hej := length_encJoinItem_le (Nat.bits a) false 0 (out a)
+    have hacc := length_encList_le encJoinItem
+      ((List.range k).reverse.map fun m => (Nat.bits m, (false, (0, out m))))
+      (b := 2 * (encSymAndInstance x).length + 24) fun p hp => by
+        obtain ⟨m, hm, rfl⟩ := List.mem_map.1 hp
+        rw [List.mem_reverse, List.mem_range] at hm
+        have han : (encNat m).length ≤ (encSymAndInstance x).length :=
+          (length_encNat_mono hm.le).trans hkn
+        have hej := length_encJoinItem_le (Nat.bits m) false 0 (out m)
         have h0 : (encNat 0).length = 0 := by simp [encNat_apply]
-        have hba : (Nat.bits a).length = (encNat a).length := rfl
-        rw [List.map_cons, encList_cons, List.length_append, List.length_cons, length_frame]
-        nlinarith
-    have hacc := hacc_aux (List.range k).reverse (fun m hm => by
-      rw [List.mem_reverse, List.mem_range] at hm; omega)
-    have hlen_r : (List.range k).reverse.length = k := by simp
-    rw [hlen_r] at hacc
-    have hpow : k * (4 * (encSymAndInstance x).length + 50) ≤
-        54 * ((encSymAndInstance x).length + 1) ^ 2 := by
-      have h1 : k ≤ (encSymAndInstance x).length + 1 := by omega
-      have h2 : 4 * (encSymAndInstance x).length + 50 ≤
-          54 * ((encSymAndInstance x).length + 1) := by
+        have hba : (Nat.bits m).length = (encNat m).length := rfl
         omega
-      calc k * (4 * (encSymAndInstance x).length + 50)
-          ≤ ((encSymAndInstance x).length + 1) * (54 * ((encSymAndInstance x).length + 1)) :=
-            Nat.mul_le_mul h1 h2
-        _ = 54 * ((encSymAndInstance x).length + 1) ^ 2 := by ring
+    rw [List.length_map, List.length_reverse, List.length_range] at hacc
+    have hmul := Nat.mul_le_mul_right (2 * (2 * (encSymAndInstance x).length + 24) + 1) hk_A
     change (encPair encNat (encList encJoinItem) ((tabulateStep out)^[k] (0, []))).length ≤ _
     rw [length_encPair, hf, hl]
-    calc 2 * (encNat k).length + 1 + _
-        ≤ 2 * (encSymAndInstance x).length + 1 + 54 * ((encSymAndInstance x).length + 1) ^ 2 := by
-          omega
-      _ ≤ 57 * ((encSymAndInstance x).length + 1) ^ 2 := by
-          have : 1 ≤ ((encSymAndInstance x).length + 1) ^ 2 := Nat.one_le_pow _ _ (by omega)
-          nlinarith
+    nlinarith
   have hit := ComputableInO.iterate hs_nat
     (ComputableInO.const (encIn := encSymAndInstance) (encMid := encTab)
       ((0 : ℕ), ([] : List JoinItem)))
@@ -2999,50 +2934,36 @@ private theorem computableInO_tabulateOut {out : ℕ → Bool} {T S : ℕ → �
     funext x
     simp only [Function.comp_apply, tabulateOut, (tabulateStep_iter out x.gates.length).1]
   rw [heq_fn] at htab
-  refine ⟨max c_s 3, htab.mono 305 (fun x => ?_) (fun x => ?_)⟩ <;>
-  · set A := (encSymAndInstance x).length + 1
-    set C := max c_s 3
-    have hf := (tabulateStep_iter out x.gates.length).1
+  obtain ⟨C, hCs, hC3⟩ : ∃ C, c_s ≤ C ∧ 3 ≤ C := ⟨c_s + 3, by omega, by omega⟩
+  refine ⟨C, htab.weaken (.of_le_linear 305 0 fun x => ?_) (.of_le_linear 305 0 fun x => ?_)⟩ <;>
+  · have hf := (tabulateStep_iter out x.gates.length).1
     have h_enc := hstep_enc_le x x.gates.length le_rfl
     have hg := gates_length_le_encSymAndInstance x
+    set A := (encSymAndInstance x).length + 1
     have hn_s : (encNat x.gates.length).length + 1 ≤ A := by
       have := encNat_length_le x.gates.length; omega
-    have hA_c : A ^ c_s ≤ A ^ C := Nat.pow_le_pow_right (Nat.succ_pos _) (le_max_left _ _)
-    have hA_3 : A ^ 3 ≤ A ^ C := Nat.pow_le_pow_right (Nat.succ_pos _) (le_max_right _ _)
-    have hA_2 : A ^ 2 ≤ A ^ C := Nat.pow_le_pow_right (Nat.succ_pos _) (by omega)
-    have hA_1 : A ≤ A ^ C := Nat.le_self_pow (by omega) A
     have hsq : ((encNat x.gates.length).length + 1) ^ 2 ≤ A ^ 2 := Nat.pow_le_pow_left hn_s 2
     have hA2_pos : 1 ≤ A ^ 2 := Nat.one_le_pow _ _ (Nat.succ_pos _)
-    have htab_le : ∀ (F : ℕ → ℕ),
+    have hAC_pos : 1 ≤ A ^ C := Nat.one_le_pow _ _ (Nat.succ_pos _)
+    have hA2 : A ^ 2 ≤ A ^ C := Nat.pow_le_pow_right (Nat.succ_pos _) (by omega)
+    have hA1 : A ≤ A ^ C := Nat.le_self_pow (by omega) A
+    have hAc : A ^ c_s ≤ A ^ C := Nat.pow_le_pow_right (Nat.succ_pos _) hCs
+    have key (F : ℕ → ℕ) :
         (x.gates.length + 1) * (61 * A ^ 2 + F x.gates.length + 57 * A ^ 2 +
-            ((encNat x.gates.length).length + 1) ^ 2) +
-          (58 * A ^ 2 + F x.gates.length + 1) + 57 * A ^ 2 +
-          (encTab ((tabulateStep out)^[x.gates.length] (0, []))).length +
-          (encSymAndInstance x).length + (encNat x.gates.length).length +
-          F x.gates.length + A ^ c_s ≤
-        305 * (A ^ C * (F x.gates.length + 1)) := fun F => by
-      set P := A ^ C * (F x.gates.length + 1)
-      have hAC_pos : 1 ≤ A ^ C := Nat.one_le_pow _ _ (Nat.succ_pos _)
-      have hF1 : A ^ C ≤ P := Nat.le_mul_of_pos_right _ (Nat.succ_pos _)
-      have hmul : (x.gates.length + 1) * (122 * A ^ 2 + F x.gates.length) ≤ 122 * P := by
-        calc (x.gates.length + 1) * (122 * A ^ 2 + F x.gates.length)
-            ≤ A * (122 * A ^ 2 * (F x.gates.length + 1)) :=
+            ((encNat x.gates.length).length + 1) ^ 2) ≤ 122 * (A ^ C * (F x.gates.length + 1)) ∧
+          A ^ C ≤ A ^ C * (F x.gates.length + 1) ∧
+          F x.gates.length ≤ A ^ C * (F x.gates.length + 1) :=
+      ⟨calc _ ≤ A * (122 * A ^ 2 * (F x.gates.length + 1)) :=
               Nat.mul_le_mul (by omega) (by nlinarith)
-          _ = 122 * (A ^ 3 * (F x.gates.length + 1)) := by ring
-          _ ≤ 122 * P := Nat.mul_le_mul_left _ (Nat.mul_le_mul_right _ hA_3)
-      have hprod : (x.gates.length + 1) * (61 * A ^ 2 + F x.gates.length + 57 * A ^ 2 +
-            ((encNat x.gates.length).length + 1) ^ 2) ≤ 122 * P :=
-        (Nat.mul_le_mul_left _ (by omega)).trans hmul
-      have hF_le : F x.gates.length ≤ P :=
-        (Nat.le_succ _).trans (Nat.le_mul_of_pos_left _ hAC_pos)
-      have h57_enc : (encTab ((tabulateStep out)^[x.gates.length] (0, []))).length ≤ 57 * P :=
-        h_enc.trans (Nat.mul_le_mul_left 57 (hA_2.trans hF1))
-      have hxA : (encSymAndInstance x).length ≤ A := Nat.le_succ _
-      omega
+            _ = 122 * (A ^ 3 * (F x.gates.length + 1)) := by ring
+            _ ≤ _ := Nat.mul_le_mul_left _
+              (Nat.mul_le_mul_right _ (Nat.pow_le_pow_right (Nat.succ_pos _) hC3)),
+        Nat.le_mul_of_pos_right _ (Nat.succ_pos _),
+        (Nat.le_succ _).trans (Nat.le_mul_of_pos_left _ hAC_pos)⟩
+    obtain ⟨hT1, hT2, hT3⟩ := key T
+    obtain ⟨hS1, hS2, hS3⟩ := key S
     rw [hf]
-    first
-    | exact (by omega : _ ≤ _).trans ((htab_le T).trans (Nat.mul_le_mul_left _ (Nat.le_succ _)))
-    | exact (by omega : _ ≤ _).trans ((htab_le S).trans (Nat.mul_le_mul_left _ (Nat.le_succ _)))
+    omega
 
 private theorem computableInO_queryEntries :
     ∃ c, ComputableInO (fun x : SymAndInstance => queryEntries (yatesZeta x.n (countMasks x)))
@@ -3110,134 +3031,72 @@ private theorem computableInO_queryEntries :
           _ = _ := by ring
       exact (h1.trans hmul).trans (Nat.mul_le_mul_left 8 (Nat.le_succ _))⟩
   obtain ⟨c_y, hyates⟩ := computableInO_yatesZeta
+  obtain ⟨D, C_q, hdD, hD1, hCy, hCD⟩ : ∃ D C, d_f ≤ D ∧ 1 ≤ D ∧ c_y + 1 ≤ C ∧ 2 * D + 4 ≤ C :=
+    ⟨d_f + 1, c_y + 2 * d_f + 6, by omega, by omega, by omega, by omega⟩
   have hwrap : ComputableInO (fun x : SymAndInstance => (0, yatesZeta x.n (countMasks x)))
       encSymAndInstance (encPair encNat (encList encNat))
-      (symBox (max c_y 1) fun _ => 0) (symBox (max c_y 1) fun _ => 0) := by
-    have hp := (ComputableInO.constZero (encIn := encSymAndInstance) (encMid := encNat) 0).prod
-      hyates
-    refine hp.weaken ⟨2, fun x => ?_⟩ ⟨2, fun x => ?_⟩ <;>
-    · dsimp only
-      try rw [Nat.zero_add]
-      have hx := enc_le_symBox (c := max c_y 1) (le_max_right _ _) (fun _ => 0) x
+      (symBox C_q fun _ => 0) (symBox C_q fun _ => 0) := by
+    refine ((ComputableInO.constZero (encIn := encSymAndInstance) (encMid := encNat) 0).prod
+      hyates).weaken (.of_le_linear 2 0 fun x => ?_) (.of_le_linear 2 0 fun x => ?_) <;>
+    · have hx := enc_le_symBox (c := C_q) (by omega) (fun _ => 0) x
       have hy : (2 ^ x.n + ((encSymAndInstance x).length + 1) ^ c_y) * (x.n + 1) ^ c_y ≤
-          symBox (max c_y 1) (fun _ => 0) x := by
-        simpa only [symBox, Nat.zero_add, Nat.mul_one] using Nat.mul_le_mul
-          (Nat.add_le_add_left (Nat.pow_le_pow_right (Nat.succ_pos _) (le_max_left _ _)) _)
-          (Nat.pow_le_pow_right (Nat.succ_pos _) (le_max_left _ _))
-      have := Nat.add_le_add hx hy
-      have h1 := Nat.le_succ (symBox (max c_y 1) (fun _ => 0) x)
+          symBox C_q (fun _ => 0) x := by
+        simpa only [symBox, Nat.zero_add, Nat.mul_one] using
+          symBox_mono (by omega : c_y ≤ C_q) (fun _ => le_rfl) x (F₁ := fun _ => 0) (F₂ := fun _ => 0)
       omega
   obtain ⟨c_w, hwrap_len⟩ := hwrap.length_le
-  have hcomp := hfold.comp hwrap
-  let D := max d_f 1
-  let C_q := max c_y 1 + 2 * D + 4
-  have hmain_q : ∀ x : SymAndInstance,
+  obtain ⟨K, hK⟩ : ∃ K, ∀ x : SymAndInstance,
       ((yatesZeta x.n (countMasks x)).length + 1) *
           (Nat.log2 (0 + (yatesZeta x.n (countMasks x)).length + 1) +
-            listMax (fun v => (encNat v).length) (yatesZeta x.n (countMasks x)) + 9) ^ D ≤
-        11 ^ D * (2 * 3 ^ (D + 1) * 2 ^ D) * symBox C_q (fun _ => 0) x := fun x => by
+            listMax (fun v => (encNat v).length) (yatesZeta x.n (countMasks x)) + 10) ^ D ≤
+        K * symBox C_q (fun _ => 0) x := by
+    refine ⟨11 ^ D * (2 * 3 ^ (D + 1) * 2 ^ D), fun x => ?_⟩
     set A := (encSymAndInstance x).length + 1
     have hg_len : (yatesZeta x.n (countMasks x)).length = 2 ^ x.n := by
       rw [yatesZeta_countMasks_eq, List.length_map, List.length_range]
     have hlog : Nat.log2 (0 + (yatesZeta x.n (countMasks x)).length + 1) ≤ x.n + 1 := by
-      rw [hg_len, Nat.zero_add]
-      have hlt : 2 ^ x.n + 1 < 2 ^ (x.n + 2) := by
-        have := Nat.one_le_pow x.n 2 (by decide); rw [pow_add]; omega
-      by_contra hgt
-      push Not at hgt
-      have hgt' : x.n + 2 ≤ Nat.log2 (2 ^ x.n + 1) := by omega
-      have hle := Nat.pow_le_pow_right (by decide : 1 ≤ 2) hgt'
-      have hself := Nat.log2_self_le (by positivity : 2 ^ x.n + 1 ≠ 0)
+      rw [hg_len, Nat.zero_add, ← Nat.lt_add_one_iff, Nat.log2_lt (by positivity), Nat.pow_succ,
+        Nat.pow_succ]
+      have := Nat.one_le_two_pow (n := x.n)
       omega
     have hmax_g : listMax (fun v => (encNat v).length) (yatesZeta x.n (countMasks x)) ≤
         Nat.log2 A + 1 :=
       listMax_le fun v hv => length_encNat_le_log2
         ((yatesZeta_mem_le x hv).trans
           ((gates_length_le_encSymAndInstance x).trans (Nat.le_succ _)))
-    have hpow_b : (Nat.log2 (0 + (yatesZeta x.n (countMasks x)).length + 1) +
-          listMax (fun v => (encNat v).length) (yatesZeta x.n (countMasks x)) + 9) ^ D ≤
-        11 ^ D * (x.n + 1) ^ D * (Nat.log2 A + 2) ^ D := by
+    have hbase : Nat.log2 (0 + (yatesZeta x.n (countMasks x)).length + 1) +
+          listMax (fun v => (encNat v).length) (yatesZeta x.n (countMasks x)) + 10 ≤
+        11 * (x.n + 1) * (Nat.log2 A + 2) := by
       have h1 : x.n ≤ x.n * (Nat.log2 A + 2) := Nat.le_mul_of_pos_right _ (by omega)
-      have hbase : Nat.log2 (0 + (yatesZeta x.n (countMasks x)).length + 1) +
-            listMax (fun v => (encNat v).length) (yatesZeta x.n (countMasks x)) + 9 ≤
-          11 * (x.n + 1) * (Nat.log2 A + 2) := by nlinarith
-      calc _ ≤ (11 * (x.n + 1) * (Nat.log2 A + 2)) ^ D := Nat.pow_le_pow_left hbase D
-        _ = 11 ^ D * (x.n + 1) ^ D * (Nat.log2 A + 2) ^ D := by rw [Nat.mul_pow, Nat.mul_pow]
-    have hlog_sym := symBox_log_le (r := D) (k := D) (c := C_q)
-      (by dsimp only [C_q]; omega) (by dsimp only [C_q]; omega) (fun _ => 0) x
-    calc ((yatesZeta x.n (countMasks x)).length + 1) *
-            (Nat.log2 (0 + (yatesZeta x.n (countMasks x)).length + 1) +
-              listMax (fun v => (encNat v).length) (yatesZeta x.n (countMasks x)) + 9) ^ D
-        ≤ (2 ^ x.n + A) * (11 ^ D * (x.n + 1) ^ D * (Nat.log2 A + 2) ^ D) :=
-            Nat.mul_le_mul (by rw [hg_len]; omega) hpow_b
-      _ = 11 ^ D * ((2 ^ x.n + A) * (x.n + 1) ^ D * (Nat.log2 A + 2) ^ D) := by ring
+      nlinarith
+    calc _ ≤ (2 ^ x.n + A) * (11 * (x.n + 1) * (Nat.log2 A + 2)) ^ D :=
+          Nat.mul_le_mul (by rw [hg_len]; omega) (Nat.pow_le_pow_left hbase D)
+      _ = 11 ^ D * ((2 ^ x.n + A) * (x.n + 1) ^ D * (Nat.log2 A + 2) ^ D) := by
+          rw [Nat.mul_pow, Nat.mul_pow]; ring
       _ ≤ 11 ^ D * (2 * 3 ^ (D + 1) * 2 ^ D * symBox C_q (fun _ => 0) x) :=
-            Nat.mul_le_mul_left _ hlog_sym
-      _ = 11 ^ D * (2 * 3 ^ (D + 1) * 2 ^ D) * symBox C_q (fun _ => 0) x := by ring
-  let K_q := 11 ^ D * (2 * 3 ^ (D + 1) * 2 ^ D)
-  refine ⟨C_q, symBox_zero_weaken (hcomp.weaken ⟨c_w + K_q + 2, fun x => ?_⟩
-      ⟨3 * K_q + 2, fun x => ?_⟩)⟩ <;>
-  · dsimp only
-    have hmq := hmain_q x
-    have hbox := symBox_mono (by dsimp only [C_q]; omega : max c_y 1 ≤ C_q) (fun _ => le_rfl) x
-      (F₁ := fun _ => 0) (F₂ := fun _ => 0)
-    have hpow_df : (Nat.log2 (0 + (yatesZeta x.n (countMasks x)).length + 1) +
+          Nat.mul_le_mul_left _ (symBox_log_le (by omega) (by omega) _ x)
+      _ = _ := by ring
+  refine ⟨C_q, symBox_zero_weaken ((hfold.comp hwrap).weaken
+      (.of_le_linear (c_w + 3 * K + 1) c_w fun x => ?_)
+      (.of_le_linear (c_w + 3 * K + 1) c_w fun x => ?_))⟩ <;>
+  · have hKx := hK x
+    have hw := hwrap_len x
+    have hpow : (Nat.log2 (0 + (yatesZeta x.n (countMasks x)).length + 1) +
           listMax (fun v => (encNat v).length) (yatesZeta x.n (countMasks x)) + 8 + 1) ^ d_f ≤
         (Nat.log2 (0 + (yatesZeta x.n (countMasks x)).length + 1) +
-          listMax (fun v => (encNat v).length) (yatesZeta x.n (countMasks x)) + 9) ^ D :=
-      (Nat.pow_le_pow_left (by omega) d_f).trans
-        (Nat.pow_le_pow_right (by omega) (le_max_left _ _))
-    have hq_le : ((yatesZeta x.n (countMasks x)).length + 1) *
-          (Nat.log2 (0 + (yatesZeta x.n (countMasks x)).length + 1) +
-            listMax (fun v => (encNat v).length) (yatesZeta x.n (countMasks x)) + 8 + 1) ^ d_f ≤
-        K_q * symBox C_q (fun _ => 0) x :=
-      (Nat.mul_le_mul_left _ hpow_df).trans hmq
-    have hK_pos : 1 ≤ K_q :=
-      Nat.mul_pos (Nat.pow_pos (by decide))
-        (Nat.mul_pos (Nat.mul_pos (by decide) (Nat.pow_pos (by decide))) (Nat.pow_pos (by decide)))
-    have h1 : symBox C_q (fun _ => 0) x ≤ symBox C_q (fun _ => 0) x + 1 := Nat.le_succ _
-    first
-    | exact (by
-        have hlen_w : (encPair encNat (encList encNat) (0, yatesZeta x.n (countMasks x))).length ≤
-            c_w * (symBox C_q (fun _ => 0) x + 1) :=
-          (hwrap_len x).trans (Nat.mul_le_mul_left _ (by omega))
-        calc _ ≤ (symBox C_q (fun _ => 0) x + 1) + c_w * (symBox C_q (fun _ => 0) x + 1) +
-                K_q * (symBox C_q (fun _ => 0) x + 1) := by
-              have hK := Nat.mul_le_mul_left K_q h1
-              omega
-          _ = (c_w + K_q + 1) * (symBox C_q (fun _ => 0) x + 1) := by ring
-          _ ≤ (c_w + K_q + 2) * (symBox C_q (fun _ => 0) x + 1) :=
-              Nat.mul_le_mul_right _ (by omega))
-    | exact (by
-        have hp1 : (Nat.log2 (0 + (yatesZeta x.n (countMasks x)).length + 1) +
-              listMax (fun v => (encNat v).length) (yatesZeta x.n (countMasks x)) + 8 + 1) ^
-              d_f ≤ K_q * symBox C_q (fun _ => 0) x :=
-          (Nat.le_mul_of_pos_left _ (Nat.succ_pos _)).trans hq_le
-        have hp2 : ((yatesZeta x.n (countMasks x)).length + 1) *
-              (Nat.log2 (0 + (yatesZeta x.n (countMasks x)).length + 1) +
-                listMax (fun v => (encNat v).length) (yatesZeta x.n (countMasks x)) + 10) ≤
-            2 * (K_q * symBox C_q (fun _ => 0) x) := by
-          have hlin : Nat.log2 (0 + (yatesZeta x.n (countMasks x)).length + 1) +
-                listMax (fun v => (encNat v).length) (yatesZeta x.n (countMasks x)) + 10 ≤
-              2 * (Nat.log2 (0 + (yatesZeta x.n (countMasks x)).length + 1) +
-                listMax (fun v => (encNat v).length) (yatesZeta x.n (countMasks x)) + 9) ^ D := by
-            have hle := Nat.le_self_pow (by dsimp only [D]; omega : D ≠ 0)
-              (Nat.log2 (0 + (yatesZeta x.n (countMasks x)).length + 1) +
-                listMax (fun v => (encNat v).length) (yatesZeta x.n (countMasks x)) + 9)
-            omega
-          calc _ ≤ ((yatesZeta x.n (countMasks x)).length + 1) *
-                  (2 * (Nat.log2 (0 + (yatesZeta x.n (countMasks x)).length + 1) +
-                    listMax (fun v => (encNat v).length) (yatesZeta x.n (countMasks x)) + 9) ^
-                    D) := Nat.mul_le_mul_left _ hlin
-            _ = 2 * _ := by ring
-            _ ≤ 2 * (K_q * symBox C_q (fun _ => 0) x) := Nat.mul_le_mul_left 2 hmq
-        calc _ ≤ (symBox C_q (fun _ => 0) x + 1) +
-                3 * (K_q * (symBox C_q (fun _ => 0) x + 1)) := by
-              have hK := Nat.mul_le_mul_left K_q h1
-              omega
-          _ = (3 * K_q + 1) * (symBox C_q (fun _ => 0) x + 1) := by ring
-          _ ≤ (3 * K_q + 2) * (symBox C_q (fun _ => 0) x + 1) :=
-              Nat.mul_le_mul_right _ (by omega))
+          listMax (fun v => (encNat v).length) (yatesZeta x.n (countMasks x)) + 10) ^ D :=
+      (Nat.pow_le_pow_left (by omega) d_f).trans (Nat.pow_le_pow_right (by omega) hdD)
+    have hp1 := Nat.mul_le_mul_left ((yatesZeta x.n (countMasks x)).length + 1) hpow
+    have hp2 := Nat.mul_le_mul_left ((yatesZeta x.n (countMasks x)).length + 1)
+      (Nat.le_self_pow (by omega : D ≠ 0) (Nat.log2 (0 + (yatesZeta x.n (countMasks x)).length + 1) +
+          listMax (fun v => (encNat v).length) (yatesZeta x.n (countMasks x)) + 10))
+    have hp3 := Nat.le_mul_of_pos_left ((Nat.log2 (0 + (yatesZeta x.n (countMasks x)).length + 1) +
+          listMax (fun v => (encNat v).length) (yatesZeta x.n (countMasks x)) + 10) ^ D)
+      (by omega : 0 < (yatesZeta x.n (countMasks x)).length + 1)
+    rw [Nat.mul_add_one] at hw
+    dsimp only
+    rw [Nat.add_mul (c_w + 3 * K) 1, Nat.add_mul c_w (3 * K), Nat.mul_assoc 3]
+    omega
 
 private theorem computableInO_size_gates :
     ∃ c, ComputableInO (fun x : SymAndInstance => Nat.size x.gates.length)
@@ -3409,141 +3268,96 @@ private theorem computableInO_joined_of {out : ℕ → Bool} {T S : ℕ → ℕ}
   obtain ⟨c_sz, hsz⟩ := computableInO_size_gates
   let joinInput (x : SymAndInstance) : List JoinItem :=
     tabulateOut out x.gates.length ++ queryEntries (yatesZeta x.n (countMasks x))
-  let C_in := max (max c_tab c_q) 1
+  obtain ⟨C_in, hCt, hCq⟩ : ∃ C, c_tab ≤ C ∧ c_q ≤ C := ⟨c_tab + c_q, by omega, by omega⟩
   have hjoin_in : ComputableInO joinInput encSymAndInstance (encList encJoinItem)
       (symBox C_in T) (symBox C_in S) := by
-    have happ := (ComputableInO.of_linear (ComputableInDegree.listAppend encJoinItem)).comp_linear
-      (htab.prod hquery)
-    refine happ.weaken ⟨4, fun x => ?_⟩ ⟨4, fun x => ?_⟩ <;>
-    · dsimp only [C_in]
-      have hsub : ∀ G : ℕ → ℕ,
-          ((encSymAndInstance x).length + 1) ^ c_tab * (G x.gates.length + 1) +
-            (2 ^ x.n + ((encSymAndInstance x).length + 1) ^ c_q) * (x.n + 1) ^ c_q ≤
-          4 * (symBox (max (max c_tab c_q) 1) G x + 1) := fun G => by
-        have ht1 : ((encSymAndInstance x).length + 1) ^ c_tab * (G x.gates.length + 1) ≤
-            symBox (max (max c_tab c_q) 1) G x :=
-          ((Nat.mul_le_mul_right _ (Nat.pow_le_pow_right (Nat.succ_pos _)
-            ((le_max_left c_tab c_q).trans (le_max_left _ _)))).trans (Nat.le_add_left _ _)).trans
-            (Nat.le_mul_of_pos_right _ (Nat.one_le_pow _ _ (Nat.succ_pos _)))
-        have ht2 : (2 ^ x.n + ((encSymAndInstance x).length + 1) ^ c_q) * (x.n + 1) ^ c_q ≤
-            symBox (max (max c_tab c_q) 1) G x := by
-          calc _ = symBox c_q (fun _ => 0) x := by simp only [symBox, Nat.zero_add, Nat.mul_one]
-            _ ≤ symBox (max (max c_tab c_q) 1) G x :=
-                symBox_mono ((le_max_right c_tab c_q).trans (le_max_left _ _))
-                  (fun s => Nat.zero_le (G s)) x (F₁ := fun _ => 0) (F₂ := G)
-        omega
-      first | exact hsub T | exact hsub S
+    refine ((ComputableInO.of_linear (ComputableInDegree.listAppend encJoinItem)).comp_linear
+      (htab.prod hquery)).weaken (.of_le_linear 2 0 fun x => ?_) (.of_le_linear 2 0 fun x => ?_) <;>
+    · have key (G : ℕ → ℕ) :
+          ((encSymAndInstance x).length + 1) ^ c_tab * (G x.gates.length + 1) ≤ symBox C_in G x ∧
+          (2 ^ x.n + ((encSymAndInstance x).length + 1) ^ c_q) * (x.n + 1) ^ c_q ≤
+            symBox C_in G x :=
+        ⟨((Nat.mul_le_mul_right _ (Nat.pow_le_pow_right (Nat.succ_pos _) hCt)).trans
+          (Nat.le_add_left _ _)).trans (Nat.le_mul_of_pos_right _ (Nat.one_le_pow _ _ (Nat.succ_pos _))),
+          by simpa only [symBox, Nat.zero_add, Nat.mul_one] using
+            symBox_mono hCq (fun s => Nat.zero_le (G s)) x (F₁ := fun _ => 0) (F₂ := G)⟩
+      obtain ⟨h1, h2⟩ := key T
+      obtain ⟨h1', h2'⟩ := key S
+      omega
   obtain ⟨d_js, hjoin_sort⟩ := computableInO_radixSortLSB hsz hjoin_in
     (length_encJoinItem_joinInput_le out)
-  let D_j := max d_js 1
-  let C_j := max c_sz C_in + 2 * D_j + 5
-  let K_j := 2 * 41 ^ D_j * (2 * 3 ^ (D_j + 2) * 2 ^ (D_j + 1))
-  refine ⟨C_j, hjoin_sort.weaken ⟨K_j + 1600, fun x => ?_⟩ ⟨K_j + 1600, fun x => ?_⟩⟩ <;>
-  · dsimp only
+  obtain ⟨D, C_j, hdD, hD1, hCsz, hCin, hCD⟩ :
+      ∃ D C, d_js ≤ D ∧ 1 ≤ D ∧ c_sz ≤ C ∧ C_in ≤ C ∧ 2 * D + 5 ≤ C :=
+    ⟨d_js + 1, c_sz + C_in + 2 * d_js + 7, by omega, by omega, by omega, by omega, by omega⟩
+  obtain ⟨K, hK⟩ : ∃ K, ∀ (G : ℕ → ℕ) (x : SymAndInstance),
+      (Nat.log2 ((encSymAndInstance x).length + 1) + 2) *
+          (2 * (2 ^ x.n + ((encSymAndInstance x).length + 1))) *
+          (41 * (x.n + 1) * (Nat.log2 ((encSymAndInstance x).length + 1) + 2)) ^ D ≤
+        K * symBox C_j G x :=
+    ⟨2 * 41 ^ D * (2 * 3 ^ (D + 1 + 1) * 2 ^ (D + 1)), fun G x =>
+      calc _ = 2 * 41 ^ D * ((2 ^ x.n + ((encSymAndInstance x).length + 1)) * (x.n + 1) ^ D *
+            (Nat.log2 ((encSymAndInstance x).length + 1) + 2) ^ (D + 1)) := by
+            rw [Nat.mul_pow, Nat.mul_pow]; ring
+        _ ≤ 2 * 41 ^ D * (2 * 3 ^ (D + 1 + 1) * 2 ^ (D + 1) * symBox C_j G x) :=
+            Nat.mul_le_mul_left _ (symBox_log_le (by omega) (by omega) G x)
+        _ = _ := by ring⟩
+  refine ⟨C_j, hjoin_sort.weaken (.of_le_linear (3 * K + 3) 0 fun x => ?_)
+    (.of_le_linear (3 * K + 3) 0 fun x => ?_)⟩ <;>
+  · have hK1 := hK T x
+    have hK2 := hK S x
+    have hx := enc_le_symBox (by omega : 1 ≤ C_j) T x
+    have hx' := enc_le_symBox (by omega : 1 ≤ C_j) S x
+    have hsz1 := A_pow_le_symBox hCsz T x
+    have hsz2 := A_pow_le_symBox hCsz S x
+    have hin1 := symBox_mono hCin (fun _ => le_rfl) x (F₁ := T) (F₂ := T)
+    have hin2 := symBox_mono hCin (fun _ => le_rfl) x (F₁ := S) (F₂ := S)
     set A := (encSymAndInstance x).length + 1
-    set N := x.n + 1
     have hg_le := gates_length_le_encSymAndInstance x
-    have hlen_in := length_joinInput_le out x
     have hlen_2n : (joinInput x).length + 1 ≤ 2 * (2 ^ x.n + A) := by
-      have h2n := Nat.one_le_pow x.n 2 (by decide)
-      dsimp only [joinInput, A] at hlen_in ⊢; omega
-    have harg : (encNat (Nat.size x.gates.length)).length +
-          (4 * x.n + 6 * Nat.log2 A + 32) + 1 ≤ 41 * N * (Nat.log2 A + 2) := by
-      have hlen_sz : (encNat (Nat.size x.gates.length)).length ≤ Nat.log2 A + 1 :=
-        length_encNat_le_log2 (((Nat.size_le_self _).trans hg_le).trans (Nat.le_succ _))
-      have h1 : x.n ≤ x.n * (Nat.log2 A + 2) := Nat.le_mul_of_pos_right _ (by omega)
-      have h41 : 41 * N * (Nat.log2 A + 2) =
-          41 * (x.n * (Nat.log2 A + 2)) + 41 * (Nat.log2 A + 2) := by
-        dsimp only [N]; ring
-      omega
-    have hpow_d : ((encNat (Nat.size x.gates.length)).length +
-          (4 * x.n + 6 * Nat.log2 A + 32) + 1) ^ d_js ≤
-        41 ^ D_j * N ^ D_j * (Nat.log2 A + 2) ^ D_j := by
-      have hpos : 0 < 41 * N * (Nat.log2 A + 2) :=
-        Nat.mul_pos (Nat.mul_pos (by decide) (Nat.succ_pos x.n)) (by omega)
-      calc _ ≤ (41 * N * (Nat.log2 A + 2)) ^ d_js := Nat.pow_le_pow_left harg d_js
-        _ ≤ (41 * N * (Nat.log2 A + 2)) ^ D_j :=
-            Nat.pow_le_pow_right hpos (le_max_left _ _)
-        _ = _ := by rw [Nat.mul_pow, Nat.mul_pow]
+      have h2n := Nat.one_le_two_pow (n := x.n)
+      have := length_joinInput_le out x
+      dsimp only [joinInput, A] at this ⊢; omega
     have hb_le : Nat.size x.gates.length + 1 ≤ Nat.log2 A + 2 := by
       have h1 : Nat.size x.gates.length ≤ Nat.log2 (x.gates.length + 1) + 1 := by
         rw [← Nat.size_eq_bits_len]; exact length_encNat_le_log2 (Nat.le_succ _)
       have h2 := log2_mono (by omega : x.gates.length + 1 ≤ A)
       omega
-    have hC1 : 1 ≤ C_j := by dsimp only [C_j]; omega
-    have hsub : ∀ G : ℕ → ℕ,
-        ((encSymAndInstance x).length + A ^ c_sz + symBox C_in G x +
-          (Nat.size x.gates.length + 1) * ((joinInput x).length + 1) *
-            ((encNat (Nat.size x.gates.length)).length +
-              (4 * x.n + 6 * Nat.log2 A + 32) + 1) ^ d_js +
-          (Nat.size x.gates.length + 1) +
-          ((joinInput x).length + 1) * (4 * x.n + 6 * Nat.log2 A + 32 + 1)) ≤
-        (K_j + 1600) * (symBox C_j G x + 1) := fun G => by
-      set B := symBox C_j G x
-      have hx := enc_le_symBox hC1 G x
-      have hsz_le := A_pow_le_symBox (by dsimp only [C_j]; omega : c_sz ≤ C_j) G x
-      have hjin_le := symBox_mono (by dsimp only [C_j]; omega : C_in ≤ C_j) (fun _ => le_rfl) x
-        (F₁ := G) (F₂ := G)
-      have hlog_D := symBox_log_le (r := D_j) (k := D_j + 1) (c := C_j)
-        (by dsimp only [C_j]; omega) (by dsimp only [C_j]; omega) G x
-      have hlog_1 := symBox_log_le (r := 1) (k := 1) (c := C_j)
-        (by dsimp only [C_j]; omega) (by dsimp only [C_j]; omega) G x
-      have h3_le : 2 * 3 ^ (D_j + 1 + 1) * 2 ^ (D_j + 1) =
-          2 * 3 ^ (D_j + 2) * 2 ^ (D_j + 1) := by ring
-      have hprod_d : (Nat.size x.gates.length + 1) * ((joinInput x).length + 1) *
-            ((encNat (Nat.size x.gates.length)).length +
-              (4 * x.n + 6 * Nat.log2 A + 32) + 1) ^ d_js ≤
-          K_j * B := by
-        calc _ ≤ (Nat.log2 A + 2) * (2 * (2 ^ x.n + A)) *
-                (41 ^ D_j * N ^ D_j * (Nat.log2 A + 2) ^ D_j) :=
-              Nat.mul_le_mul (Nat.mul_le_mul hb_le hlen_2n) hpow_d
-          _ = 2 * 41 ^ D_j * ((2 ^ x.n + A) * N ^ D_j * (Nat.log2 A + 2) ^ (D_j + 1)) := by ring
-          _ ≤ 2 * 41 ^ D_j * (2 * 3 ^ (D_j + 2) * 2 ^ (D_j + 1) * B) :=
-              Nat.mul_le_mul_left _ (by rw [← h3_le]; exact hlog_D)
-          _ = K_j * B := by dsimp only [K_j]; ring
-      have hsz1 : Nat.size x.gates.length + 1 ≤ 36 * B := by
-        have h2n_1 : 1 ≤ (2 ^ x.n + A) * N ^ 1 :=
-          Nat.mul_pos (by omega) (Nat.pow_pos (Nat.succ_pos x.n))
-        have hb1 : Nat.size x.gates.length + 1 ≤ (Nat.log2 A + 2) ^ 1 := by
-          rw [pow_one]; exact hb_le
-        calc Nat.size x.gates.length + 1 ≤ (2 ^ x.n + A) * N ^ 1 * (Nat.log2 A + 2) ^ 1 :=
-              hb1.trans (Nat.le_mul_of_pos_left _ h2n_1)
-          _ ≤ 2 * 3 ^ (1 + 1) * 2 ^ 1 * B := hlog_1
-          _ = 36 * B := by ring
-      have hprod_1 : ((joinInput x).length + 1) * (4 * x.n + 6 * Nat.log2 A + 32 + 1) ≤
-          1300 * B := by
-        have h1 : x.n ≤ x.n * (Nat.log2 A + 2) := Nat.le_mul_of_pos_right _ (by omega)
-        have h17 : 17 * N * (Nat.log2 A + 2) =
-            17 * (x.n * (Nat.log2 A + 2)) + 17 * (Nat.log2 A + 2) := by
-          dsimp only [N]; ring
-        have hlin : 4 * x.n + 6 * Nat.log2 A + 33 ≤ 17 * N * (Nat.log2 A + 2) := by omega
-        calc _ ≤ (2 * (2 ^ x.n + A)) * (17 * N * (Nat.log2 A + 2)) :=
-              Nat.mul_le_mul hlen_2n (by omega)
-          _ = 34 * ((2 ^ x.n + A) * N ^ 1 * (Nat.log2 A + 2) ^ 1) := by ring
-          _ ≤ 34 * (2 * 3 ^ (1 + 1) * 2 ^ 1 * B) := Nat.mul_le_mul_left _ hlog_1
-          _ = 1224 * B := by ring
-          _ ≤ 1300 * B := Nat.mul_le_mul_right _ (by decide)
-      calc _ ≤ B + B + B + K_j * B + 36 * B + 1300 * B := by
-            have hadd := Nat.add_le_add (Nat.add_le_add (Nat.add_le_add
-              (Nat.add_le_add (Nat.add_le_add hx hsz_le) hjin_le) hprod_d) hsz1) hprod_1
-            dsimp only [B] at hadd ⊢; omega
-        _ = (K_j + 1339) * B := by ring
-        _ ≤ (K_j + 1600) * (B + 1) := Nat.mul_le_mul (by omega) (Nat.le_succ B)
-    first
-    | exact (by
-        have := hsub T
-        rw [Nat.mul_add (Nat.size x.gates.length + 1), Nat.mul_one,
-          ← Nat.mul_assoc (Nat.size x.gates.length + 1)]
-        omega)
-    | exact (by
-        have hs := hsub S
-        have hst : ((encNat (Nat.size x.gates.length)).length +
-              (4 * x.n + 6 * Nat.log2 A + 32) + 1) ^ d_js ≤
-            (Nat.size x.gates.length + 1) * ((joinInput x).length + 1) *
-              ((encNat (Nat.size x.gates.length)).length +
-                (4 * x.n + 6 * Nat.log2 A + 32) + 1) ^ d_js :=
-          Nat.le_mul_of_pos_left _ (Nat.mul_pos (Nat.succ_pos _) (Nat.succ_pos _))
-        omega)
+    have harg : (encNat (Nat.size x.gates.length)).length +
+          (4 * x.n + 6 * Nat.log2 A + 32) + 1 ≤ 41 * (x.n + 1) * (Nat.log2 A + 2) := by
+      have hlen_sz : (encNat (Nat.size x.gates.length)).length ≤ Nat.log2 A + 1 :=
+        length_encNat_le_log2 (((Nat.size_le_self _).trans hg_le).trans (Nat.le_succ _))
+      have h1 : x.n ≤ x.n * (Nat.log2 A + 2) := Nat.le_mul_of_pos_right _ (by omega)
+      have h41 : 41 * (x.n + 1) * (Nat.log2 A + 2) =
+          41 * (x.n * (Nat.log2 A + 2)) + 41 * (Nat.log2 A + 2) := by ring
+      omega
+    have hpos : 0 < 41 * (x.n + 1) * (Nat.log2 A + 2) := by positivity
+    have h1 : (Nat.size x.gates.length + 1) * ((joinInput x).length + 1) *
+          ((encNat (Nat.size x.gates.length)).length + (4 * x.n + 6 * Nat.log2 A + 32) + 1) ^ d_js ≤
+        (Nat.log2 A + 2) * (2 * (2 ^ x.n + A)) * (41 * (x.n + 1) * (Nat.log2 A + 2)) ^ D :=
+      Nat.mul_le_mul (Nat.mul_le_mul hb_le hlen_2n)
+        ((Nat.pow_le_pow_left harg _).trans (Nat.pow_le_pow_right hpos hdD))
+    have h2 : ((joinInput x).length + 1) * (4 * x.n + 6 * Nat.log2 A + 32 + 1) ≤
+        (Nat.log2 A + 2) * (2 * (2 ^ x.n + A)) * (41 * (x.n + 1) * (Nat.log2 A + 2)) ^ D :=
+      calc _ ≤ 2 * (2 ^ x.n + A) * (41 * (x.n + 1) * (Nat.log2 A + 2)) ^ D :=
+            Nat.mul_le_mul hlen_2n ((by omega : _ ≤ 41 * (x.n + 1) * (Nat.log2 A + 2)).trans
+              (Nat.le_self_pow (by omega) _))
+        _ ≤ _ := by rw [Nat.mul_assoc (Nat.log2 A + 2)]; exact Nat.le_mul_of_pos_left _ (by omega)
+    have h3 : Nat.size x.gates.length + 1 ≤
+        (Nat.log2 A + 2) * (2 * (2 ^ x.n + A)) * (41 * (x.n + 1) * (Nat.log2 A + 2)) ^ D :=
+      hb_le.trans (by rw [Nat.mul_assoc]; exact Nat.le_mul_of_pos_right _ (by positivity))
+    have h4 : ((encNat (Nat.size x.gates.length)).length +
+          (4 * x.n + 6 * Nat.log2 A + 32) + 1) ^ d_js ≤
+        (Nat.size x.gates.length + 1) * ((joinInput x).length + 1) *
+          ((encNat (Nat.size x.gates.length)).length + (4 * x.n + 6 * Nat.log2 A + 32) + 1) ^ d_js :=
+      Nat.le_mul_of_pos_left _ (by positivity)
+    have hdist : (Nat.size x.gates.length + 1) * (((joinInput x).length + 1) *
+          ((encNat (Nat.size x.gates.length)).length + (4 * x.n + 6 * Nat.log2 A + 32) + 1) ^ d_js +
+          1) =
+        (Nat.size x.gates.length + 1) * ((joinInput x).length + 1) *
+          ((encNat (Nat.size x.gates.length)).length + (4 * x.n + 6 * Nat.log2 A + 32) + 1) ^ d_js +
+          (Nat.size x.gates.length + 1) := by ring
+    rw [Nat.add_mul (3 * K) 3, Nat.mul_assoc 3]
+    omega
 
 private def joinInput (out : ℕ → Bool) (x : SymAndInstance) : List JoinItem :=
   tabulateOut out x.gates.length ++ queryEntries (yatesZeta x.n (countMasks x))
@@ -3565,12 +3379,12 @@ private theorem computableInO_extracted_of {out : ℕ → Bool} {T S : ℕ → �
     fun x p hp => (mem_radixStep_iff).1 hp
   have hlen_joined : ∀ x : SymAndInstance, (joined out x).length = (joinInput out x).length :=
     fun x => length_radixStep _ 0 _
-  let D_ex := max d_ex 1
-  let C_ex := C_j + 2 * D_ex + 4
-  have hpow_ex : ∀ G (x : SymAndInstance),
+  obtain ⟨D, C_ex, hdD, hD1, hCj, hCD⟩ : ∃ D C, d_ex ≤ D ∧ 1 ≤ D ∧ C_j ≤ C ∧ 2 * D + 4 ≤ C :=
+    ⟨d_ex + 1, C_j + 2 * d_ex + 6, by omega, by omega, by omega, by omega⟩
+  obtain ⟨K, hK⟩ : ∃ K, ∀ G (x : SymAndInstance),
       ((joined out x).length + 1) *
-          (listMax (fun p : JoinItem => (encJoinItem p).length) (joined out x) + 1) ^ D_ex ≤
-        2 * 17 ^ D_ex * (2 * 3 ^ (D_ex + 1) * 2 ^ D_ex) * symBox C_ex G x := fun G x => by
+          (listMax (fun p : JoinItem => (encJoinItem p).length) (joined out x) + 1) ^ D ≤
+        K * symBox C_ex G x := ⟨2 * 17 ^ D * (2 * 3 ^ (D + 1) * 2 ^ D), fun G x => by
     set A := (encSymAndInstance x).length + 1
     have hlen_j := hlen_joined x
     have hlen_in := length_joinInput_le out x
@@ -3579,93 +3393,46 @@ private theorem computableInO_extracted_of {out : ℕ → Bool} {T S : ℕ → �
         4 * x.n + 6 * Nat.log2 A + 32 :=
       listMax_le fun p hp => length_encJoinItem_joinInput_le out x p (hmem_joined x p hp)
     have h1 : 4 * x.n + 6 * Nat.log2 A + 34 ≤ 17 * (x.n + 1) * (Nat.log2 A + 2) := by nlinarith
-    have hpow : (listMax (fun p : JoinItem => (encJoinItem p).length) (joined out x) + 1) ^ D_ex ≤
-        17 ^ D_ex * (x.n + 1) ^ D_ex * (Nat.log2 A + 2) ^ D_ex := by
-      calc _ ≤ (17 * (x.n + 1) * (Nat.log2 A + 2)) ^ D_ex := Nat.pow_le_pow_left (by omega) D_ex
-        _ = _ := by rw [Nat.mul_pow, Nat.mul_pow]
-    have h2n : 1 ≤ 2 ^ x.n := Nat.one_le_pow _ _ (by decide)
+    have h2n : 1 ≤ 2 ^ x.n := Nat.one_le_two_pow
     have hlen2 : (joined out x).length + 1 ≤ 2 * (2 ^ x.n + A) := by
       dsimp only [joined, joinInput] at hlen_j ⊢; omega
-    have hlog := symBox_log_le (r := D_ex) (k := D_ex) (c := C_ex)
-      (by dsimp only [C_ex]; omega) (by dsimp only [C_ex]; omega) G x
-    calc _ ≤ (2 * (2 ^ x.n + A)) * (17 ^ D_ex * (x.n + 1) ^ D_ex * (Nat.log2 A + 2) ^ D_ex) :=
-          Nat.mul_le_mul hlen2 hpow
-      _ = 2 * 17 ^ D_ex * ((2 ^ x.n + A) * (x.n + 1) ^ D_ex * (Nat.log2 A + 2) ^ D_ex) := by ring
-      _ ≤ 2 * 17 ^ D_ex * (2 * 3 ^ (D_ex + 1) * 2 ^ D_ex * symBox C_ex G x) :=
-          Nat.mul_le_mul_left _ hlog
-      _ = _ := by ring
-  let K_ex := 2 * 17 ^ D_ex * (2 * 3 ^ (D_ex + 1) * 2 ^ D_ex)
-  have hcomp := hex_raw.comp hjoined
-  refine ⟨C_ex, hcomp.weaken ⟨5 * K_ex + 5, fun x => ?_⟩ ⟨5 * K_ex + 5, fun x => ?_⟩⟩ <;>
-  · dsimp only [joined, joinInput]
-    have hm1 : 1 ≤ listMax (fun p : JoinItem => (encJoinItem p).length) (joined out x) + 1 :=
+    calc _ ≤ (2 * (2 ^ x.n + A)) * (17 * (x.n + 1) * (Nat.log2 A + 2)) ^ D :=
+          Nat.mul_le_mul hlen2 (Nat.pow_le_pow_left (by omega) D)
+      _ = 2 * 17 ^ D * ((2 ^ x.n + A) * (x.n + 1) ^ D * (Nat.log2 A + 2) ^ D) := by
+          rw [Nat.mul_pow, Nat.mul_pow]; ring
+      _ ≤ 2 * 17 ^ D * (2 * 3 ^ (D + 1) * 2 ^ D * symBox C_ex G x) :=
+          Nat.mul_le_mul_left _ (symBox_log_le (by omega) (by omega) G x)
+      _ = _ := by ring⟩
+  refine ⟨C_ex, (hex_raw.comp hjoined).weaken (.of_le_linear (5 * K + 3) 0 fun x => ?_)
+    (.of_le_linear (5 * K + 3) 0 fun x => ?_)⟩ <;>
+  · have hm1 : 1 ≤ listMax (fun p : JoinItem => (encJoinItem p).length) (joined out x) + 1 :=
       Nat.succ_pos _
-    have hD_pos : D_ex ≠ 0 := by dsimp only [D_ex]; omega
-    have henc_j : (encList encJoinItem (joined out x)).length ≤
-        2 * ((joined out x).length + 1) *
-          (listMax (fun p : JoinItem => (encJoinItem p).length) (joined out x) + 1) ^ D_ex := by
-      have h1 := length_encList_le encJoinItem (joined out x)
-        (b := listMax (fun p : JoinItem => (encJoinItem p).length) (joined out x))
-        fun p hp => le_listMax (f := fun p : JoinItem => (encJoinItem p).length) hp
-      have h2 := Nat.le_self_pow hD_pos
-        (listMax (fun p : JoinItem => (encJoinItem p).length) (joined out x) + 1)
-      have h2' : 2 * listMax (fun p : JoinItem => (encJoinItem p).length) (joined out x) + 1 ≤
-          2 * (listMax (fun p : JoinItem => (encJoinItem p).length) (joined out x) + 1) ^ D_ex := by
-        omega
-      calc (encList encJoinItem (joined out x)).length
-          ≤ (joined out x).length *
-              (2 * listMax (fun p : JoinItem => (encJoinItem p).length) (joined out x) + 1) := h1
-        _ ≤ (joined out x).length *
-              (2 * (listMax (fun p : JoinItem => (encJoinItem p).length) (joined out x) + 1) ^
-                D_ex) := Nat.mul_le_mul_left _ h2'
-        _ ≤ ((joined out x).length + 1) *
-              (2 * (listMax (fun p : JoinItem => (encJoinItem p).length) (joined out x) + 1) ^
-                D_ex) := Nat.mul_le_mul_right _ (Nat.le_succ _)
-        _ = 2 * ((joined out x).length + 1) *
-              (listMax (fun p : JoinItem => (encJoinItem p).length) (joined out x) + 1) ^
-                D_ex := by ring
+    have hself := Nat.le_self_pow (by omega : D ≠ 0)
+      (listMax (fun p : JoinItem => (encJoinItem p).length) (joined out x) + 1)
+    have henc : (encList encJoinItem (joined out x)).length ≤
+        2 * (((joined out x).length + 1) *
+          (listMax (fun p : JoinItem => (encJoinItem p).length) (joined out x) + 1) ^ D) :=
+      calc _ ≤ ((joined out x).length + 1) *
+            (2 * (listMax (fun p : JoinItem => (encJoinItem p).length) (joined out x) + 1) ^ D) :=
+          (length_encList_le encJoinItem (joined out x)
+            fun p hp => le_listMax (f := fun p : JoinItem => (encJoinItem p).length) hp).trans
+            (Nat.mul_le_mul (Nat.le_succ _) (by omega))
+        _ = _ := by ring
     have hpow_d : (listMax (fun p : JoinItem => (encJoinItem p).length) (joined out x) + 1) ^ d_ex ≤
         ((joined out x).length + 1) *
-          (listMax (fun p : JoinItem => (encJoinItem p).length) (joined out x) + 1) ^ D_ex :=
-      (Nat.pow_le_pow_right hm1 (le_max_left _ _)).trans
-        (Nat.le_mul_of_pos_left _ (Nat.succ_pos _))
-    have hprod_d : ((joined out x).length + 1) *
-          (listMax (fun p : JoinItem => (encJoinItem p).length) (joined out x) + 1) ^ d_ex ≤
-        ((joined out x).length + 1) *
-          (listMax (fun p : JoinItem => (encJoinItem p).length) (joined out x) + 1) ^ D_ex :=
-      Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hm1 (le_max_left _ _))
-    have hprod_1 : ((joined out x).length + 1) *
-          (listMax (fun p : JoinItem => (encJoinItem p).length) (joined out x) + 1) ≤
-        ((joined out x).length + 1) *
-          (listMax (fun p : JoinItem => (encJoinItem p).length) (joined out x) + 1) ^ D_ex :=
-      Nat.mul_le_mul_left _ (Nat.le_self_pow hD_pos _)
-    have hsub : ∀ G, (symBox C_j G x +
-          ((encList encJoinItem (joined out x)).length +
-            ((joined out x).length + 1) *
-              (listMax (fun p : JoinItem => (encJoinItem p).length) (joined out x) + 1) ^ d_ex +
-            1) +
-          ((listMax (fun p : JoinItem => (encJoinItem p).length) (joined out x) + 1) ^ d_ex +
-            ((joined out x).length + 1) *
-              (listMax (fun p : JoinItem => (encJoinItem p).length) (joined out x) + 1) + 1)) ≤
-        (5 * K_ex + 5) * (symBox C_ex G x + 1) := fun G => by
-      set B := symBox C_ex G x
-      set M := ((joined out x).length + 1) *
-        (listMax (fun p : JoinItem => (encJoinItem p).length) (joined out x) + 1) ^ D_ex
-      have hbox_c := symBox_mono (by dsimp only [C_ex]; omega : C_j ≤ C_ex) (fun _ => le_rfl) x
-        (F₁ := G) (F₂ := G)
-      have hmain : M ≤ K_ex * B := hpow_ex G x
-      have hpos : 1 ≤ B := symBox_pos C_ex G x
-      have henc_j' : (encList encJoinItem (joined out x)).length ≤ 2 * M := by
-        dsimp only [M]; rw [Nat.mul_assoc] at henc_j; exact henc_j
-      calc _ ≤ B + (2 * M + M + 1) + (M + M + 1) := by omega
-        _ = B + 5 * M + 2 := by ring
-        _ ≤ B + 5 * (K_ex * B) + 2 := by have := Nat.mul_le_mul_left 5 hmain; omega
-        _ ≤ (5 * K_ex + 5) * (B + 1) := by
-            have : (5 * K_ex + 5) * (B + 1) = 5 * (K_ex * B) + 5 * K_ex + 5 * B + 5 := by ring
-            omega
-    first
-    | exact (by have := hsub T; dsimp only [joined, joinInput] at this ⊢; omega)
-    | exact (by have := hsub S; dsimp only [joined, joinInput] at this ⊢; omega)
+          (listMax (fun p : JoinItem => (encJoinItem p).length) (joined out x) + 1) ^ D :=
+      (Nat.pow_le_pow_right hm1 hdD).trans (Nat.le_mul_of_pos_left _ (Nat.succ_pos _))
+    have hprod_d := Nat.mul_le_mul_left ((joined out x).length + 1) (Nat.pow_le_pow_right hm1 hdD)
+    have hprod_1 := Nat.mul_le_mul_left ((joined out x).length + 1) hself
+    have hT := hK T x
+    have hS := hK S x
+    have hbT := symBox_mono hCj (fun _ => le_rfl) x (F₁ := T) (F₂ := T)
+    have hbS := symBox_mono hCj (fun _ => le_rfl) x (F₁ := S) (F₂ := S)
+    have hpT := symBox_pos C_ex T x
+    have hpS := symBox_pos C_ex S x
+    dsimp only [joined, joinInput] at henc hpow_d hprod_d hprod_1 hT hS ⊢
+    rw [Nat.add_mul (5 * K) 3, Nat.mul_assoc 5]
+    omega
 
 /-- **Williams's Evaluation Lemma on multi-tape Turing machines** ([Williams2014], Lemma 4.2,
 Proof 1): given any monotonic binary-input Turing-machine evaluator `out` running in time `T` and
