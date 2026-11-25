@@ -88,43 +88,23 @@ omit [DecidableEq ι] in
 theorem card_filter_nonempty_card_le_pow (k : ℕ) :
     #({S : Finset ι | S.Nonempty ∧ #S ≤ k} : Finset (Finset ι)) ≤ Fintype.card ι ^ k := by
   classical
-  rcases Nat.eq_zero_or_pos k with rfl | hk
-  · have hempty : ({S : Finset ι | S.Nonempty ∧ #S ≤ 0} : Finset (Finset ι)) = ∅ := by
-      ext S
-      simp only [mem_filter, mem_univ, true_and, notMem_empty, iff_false, not_and, Nat.le_zero]
-      intro hS hcard
-      exact hS.ne_empty (card_eq_zero.mp hcard)
-    rw [hempty, card_empty]
-    exact Nat.zero_le _
-  · let cover : (Fin k → ι) → Finset ι := fun f => univ.image f
-    have hsub :
-        ({S : Finset ι | S.Nonempty ∧ #S ≤ k} : Finset (Finset ι)) ⊆ univ.image cover := by
-      intro S hS
-      rw [mem_filter] at hS
-      obtain ⟨⟨a, ha⟩, hSk⟩ := hS.2
-      let e := S.equivFin
-      let f : Fin k → ι := fun i =>
-        if h : (i : ℕ) < #S then (e.symm ⟨i, h⟩ : ι) else a
-      rw [mem_image]
-      refine ⟨f, mem_univ f, ?_⟩
-      ext x
-      simp only [cover, mem_image, mem_univ, true_and]
-      constructor
-      · rintro ⟨i, rfl⟩
-        dsimp [f]
-        split_ifs with h
-        · exact (e.symm ⟨i, h⟩).2
-        · exact ha
-      · intro hx
-        let j := e ⟨x, hx⟩
-        refine ⟨⟨j.1, j.isLt.trans_le hSk⟩, ?_⟩
-        dsimp [f]
-        simp only [j.isLt, ↓reduceIte]
-        exact congrArg Subtype.val (e.symm_apply_apply ⟨x, hx⟩)
-    calc #({S : Finset ι | S.Nonempty ∧ #S ≤ k} : Finset (Finset ι))
-        ≤ #(univ.image cover) := card_le_card hsub
-      _ ≤ #(univ : Finset (Fin k → ι)) := card_image_le
-      _ = Fintype.card ι ^ k := by simp [card_univ]
+  have hsub : ({S : Finset ι | S.Nonempty ∧ #S ≤ k} : Finset (Finset ι)) ⊆
+      univ.image fun f : Fin k → ι => univ.image f := by
+    intro S hS
+    obtain ⟨⟨a, ha⟩, hSk⟩ := (mem_filter.1 hS).2
+    let e := S.equivFin
+    refine mem_image.2 ⟨fun i => if h : (i : ℕ) < #S then e.symm ⟨i, h⟩ else a, mem_univ _, ?_⟩
+    ext x
+    simp only [mem_image, mem_univ, true_and]
+    refine ⟨?_, fun hx => ⟨⟨e ⟨x, hx⟩, (e ⟨x, hx⟩).isLt.trans_le hSk⟩, ?_⟩⟩
+    · rintro ⟨i, rfl⟩
+      split_ifs with h
+      · exact (e.symm ⟨i, h⟩).2
+      · exact ha
+    · simp only [(e ⟨x, hx⟩).isLt, ↓reduceDIte, Fin.eta, Equiv.symm_apply_apply]
+  calc _ ≤ #(univ.image fun f : Fin k → ι => univ.image f) := card_le_card hsub
+    _ ≤ #(univ : Finset (Fin k → ι)) := card_image_le
+    _ = Fintype.card ι ^ k := by simp [card_univ]
 
 /-- If every marginal of `D` on at most `k` coordinates is within statistical distance `γ` of
 uniform, then `D` is `k`-wise `(2 * γ)`-biased. -/
