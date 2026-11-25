@@ -222,19 +222,9 @@ private theorem ncard_edgeCut_threshold_inter_le [Finite E] {α : Type*} [Linear
   have hcut (κ : V → α) (hκ : ∀ e ∈ G.incidenceSet v, κ (G.otherEnd v e) = key (G.otherEnd v e)) :
       G.edgeCut {w | κ w < t} ∩ G.incidenceSet v = if κ v < t then B else A := by
     ext e
-    split_ifs with hv
-    · simp only [mem_inter_iff, mem_ofPred_eq, B]
-      refine ⟨fun ⟨he, hi⟩ => ⟨hi, ?_⟩, fun ⟨hi, he⟩ => ⟨?_, hi⟩⟩
-      · rw [mem_edgeCut_iff_otherEnd hi, mem_ofPred_eq, mem_ofPred_eq, hκ e hi] at he
-        tauto
-      · rw [mem_edgeCut_iff_otherEnd hi, mem_ofPred_eq, mem_ofPred_eq, hκ e hi]
-        tauto
-    · simp only [mem_inter_iff, mem_ofPred_eq, A]
-      refine ⟨fun ⟨he, hi⟩ => ⟨hi, ?_⟩, fun ⟨hi, he⟩ => ⟨?_, hi⟩⟩
-      · rw [mem_edgeCut_iff_otherEnd hi, mem_ofPred_eq, mem_ofPred_eq, hκ e hi] at he
-        tauto
-      · rw [mem_edgeCut_iff_otherEnd hi, mem_ofPred_eq, mem_ofPred_eq, hκ e hi]
-        tauto
+    split_ifs with hv <;> simp only [mem_inter_iff, mem_ofPred_eq, A, B] <;> rw [and_comm] <;>
+      refine and_congr_right fun hi => ?_ <;>
+      rw [mem_edgeCut_iff_otherEnd hi, mem_ofPred_eq, mem_ofPred_eq, hκ e hi] <;> tauto
   rw [hcut key' hfix, hcut key fun _ _ => rfl]
   obtain ⟨h₁, h₂⟩ := hmed
   -- The median sides with the larger of `A` and `B`.
