@@ -62,14 +62,12 @@ theorem runFrom_one (E : Evaluator) (args : Args)
     (machine E k).runFrom w (.inl (args, σ, none)) (T + 2) =
       .inl (resume E (args, σ, none) (E.machine.runFrom w
         (E.start (inputLength args, blockWidth args, σ, horizon args)) T)) := by
+  rcases args with ⟨N, b, q⟩
+  dsimp only [horizon] at hvalid
   apply QueryMachine.withCalls_runFrom_call
-  · change (!pending k (args, σ, none)) = false
-    rcases args with ⟨N, b, q⟩
-    dsimp only [horizon] at hvalid
+  · change (!pending k ((N, b, q), σ, none)) = false
     simp only [pending, Option.isSome_none, Bool.not_false, Bool.true_and, hvalid, Bool.not_true]
-  · rcases args with ⟨N, b, q⟩
-    dsimp only [horizon] at hvalid
-    simp only [inputLength, blockWidth, horizon, request, pending, Option.isSome_none,
+  · simp only [inputLength, blockWidth, horizon, request, pending, Option.isSome_none,
       Bool.not_false, Bool.true_and,
       hvalid, ↓reduceIte]
   · exact hpre
@@ -165,8 +163,7 @@ theorem exists_runFrom_boundaryDecision {Q : Type} {E : Evaluator} {M : MultiTap
     obtain ⟨σ, hvalid, hschedule⟩ := ScheduleCounter.exists_valid_schedule
       (actualSchedule (MultiTapePTM.ofDeterministic M) w b (q := q))
     refine ⟨σ, (ScheduleCounter.valid_eq_true_iff k σ q).mp hvalid, ?_⟩
-    dsimp only [values]
-    simp only [hschedule, ↓reduceIte]
+    simp only [values, hschedule, ↓reduceIte]
   have hcaller : ∀ σ ≤ 3 ^ ((k + 1) * q), ∀ result : Option Bool,
       (encState E (.inl ((w.length, b, q), σ, result))).length ≤
         space k A w.length b q := by
@@ -178,8 +175,7 @@ theorem exists_runFrom_boundaryDecision {Q : Type} {E : Evaluator} {M : MultiTap
   obtain ⟨T, σ, hrun, hhalt, hspace⟩ := exists_runFrom_candidates E (w.length, b, q) w
     values result (space k A w.length b q) hcaller hstep hsafe hcomplete
   refine ⟨T, ?_, ?_, hspace⟩
-  · rw [hrun]
-    exact hhalt
+  · rwa [hrun]
   · rw [hrun]
     rfl
 
