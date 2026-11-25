@@ -176,10 +176,9 @@ theorem one_sub_le_expect_re_apply_mul_mul_of_linearityTest
     have hK : (Fintype.card (n → Bool) : ℝ) ≠ 0 := by positivity
     field_simp
     ring
-  have hE : ∀ k, 𝔼 a, 𝔼 b, C k a b ≤ 1 := fun k => by
-    calc 𝔼 a, 𝔼 b, C k a b ≤ 𝔼 _a : n → Bool, 𝔼 _b : n → Bool, (1 : ℝ) :=
-          expect_le_expect fun a _ => expect_le_expect fun b _ => hC1 k a b
-      _ = 1 := by simp only [Fintype.expect_const]
+  have hE (k : Fin 3) : 𝔼 a, 𝔼 b, C k a b ≤ 1 :=
+    (expect_le_expect fun a _ => expect_le_expect fun b _ => hC1 k a b).trans_eq
+      (by simp only [Fintype.expect_const])
   have hc : ∀ k a b c, Commute (N k a b) (A c) := fun k a b c => S.commute_observable_map _ _ _
   have hdistE (k : Fin 3) :
       𝔼 a, 𝔼 b, φ.norm (A (linearityQuery k a b) - N k a b) ^ 2 ≤
