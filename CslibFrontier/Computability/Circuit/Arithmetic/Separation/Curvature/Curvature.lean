@@ -74,15 +74,11 @@ private theorem prop_space_step {d : FreeMagma V → FreeMagma V → ℝ} (hd : 
     (fun _ => by norm_num) (by simp) (fun l κ => if l = 0 then κ.1 else κ.2)
   refine ⟨fun s t => w' (MidpointTerm.place n s) (MidpointTerm.place n t), h1.comp _, ?_, ?_⟩
   · intro s t hs ht
-    simp only [MidpointTerm.place, ite_eq_left hs, ite_eq_left ht]
-    exact h2 s t
+    simpa only [MidpointTerm.place, ite_eq_left hs, ite_eq_left ht] using h2 s t
   · intro s t hst
-    have hs : (depth s) ≤ n := hst ▸ le_max_left _ _
-    have ht : (depth t) ≤ n := hst ▸ le_max_right _ _
-    have hm : ¬ depth (s * t) ≤ n := by
-      simp only [depth, hst]
-      omega
-    simp only [MidpointTerm.place, ite_eq_left hs, ite_eq_left ht, ite_eq_right hm]
+    have hm : ¬ depth (s * t) ≤ n := by simp only [depth, hst]; omega
+    simp only [MidpointTerm.place, ite_eq_left (hst ▸ le_max_left _ _),
+      ite_eq_left (hst ▸ le_max_right _ _), ite_eq_right hm]
     have g1 := h3 (Sum.inl s) (Sum.inr (s, t))
     have g2 := h3 (Sum.inl t) (Sum.inr (s, t))
     simp only
@@ -103,35 +99,22 @@ private theorem prop_space_midpoints (hw : IsPrice K w) : ∃ d : FreeMagma V �
   let D : ℕ → FreeMagma V → FreeMagma V → ℝ := fun n => Nat.rec (fun s t => w (base s) (base t))
       (fun n d => f n d) n
   have hDs : ∀ n, D (n + 1) = f n (D n) := fun _ => rfl
-  have hP : ∀ n, IsPrice K (D n) := by
-    intro n
-    induction n with
-    | zero => exact hw.comp _
-    | succ n ih => rw [hDs]; exact hf1 n _ ih
-  have hst : ∀ n k s t, (depth s) ≤ n → (depth t) ≤ n → D (n + k) s t = D n s t := by
-    intro n k s t hs ht
+  have hP (n : ℕ) : IsPrice K (D n) := Nat.rec (hw.comp _) (fun n ih => hf1 n _ ih) n
+  have hst (n k s t) (hs : depth s ≤ n) (ht : depth t ≤ n) : D (n + k) s t = D n s t := by
     induction k with
     | zero => rfl
-    | succ k ih =>
-      rw [← add_assoc, hDs, hf2 _ _ (hP _) s t (by omega) (by omega), ih]
-  refine ⟨fun s t => D (max (depth s) (depth t)) s t, ?_, ?_, ?_⟩
-  · refine isPrice_of_tendsto (l := atTop) (d := D) (fun s t => ?_) (Eventually.of_forall hP)
-    refine tendsto_const_nhds.congr' ?_
+    | succ k ih => rw [← add_assoc, hDs, hf2 _ _ (hP _) s t (by omega) (by omega), ih]
+  refine ⟨fun s t => D (max (depth s) (depth t)) s t, ?_, fun _ _ => rfl, fun s t => ?_⟩
+  · refine isPrice_of_tendsto (l := atTop) (d := D) (fun s t => tendsto_const_nhds.congr' ?_)
+      (Eventually.of_forall hP)
     filter_upwards [eventually_ge_atTop (max (depth s) (depth t))] with n hn
     obtain ⟨k, rfl⟩ := Nat.exists_eq_add_of_le hn
     exact (hst _ k s t (le_max_left _ _) (le_max_right _ _)).symm
-  · intro a b
-    rfl
-  · intro s t
-    have h := hf3 (max (depth s) (depth t)) (D (max (depth s) (depth t))) (hP _) s t rfl
-    have e1 : max (depth s) (depth (s * t)) = max (depth s) (depth t) + 1 := by
-      simp only [depth]
-      omega
+  · have e1 : max (depth s) (depth (s * t)) = max (depth s) (depth t) + 1 := by
+      simp only [depth]; omega
     have e2 : max (depth t) (depth (s * t)) = max (depth s) (depth t) + 1 := by
-      simp only [depth]
-      omega
-    simp only [e1, e2, hDs]
-    exact h
+      simp only [depth]; omega
+    simpa only [e1, e2, hDs] using hf3 _ _ (hP _) s t rfl
 
 /-- Midpoints of Cauchy sequences are Cauchy by (CN) itself: if a n → x and b n → v, and m n
 satisfies (CN) for a n and b n,
@@ -142,70 +125,43 @@ private theorem prop_space_cauchy {X : Type*} [MetricSpace X] {a b m : ℕ → X
     (hm : ∀ n z,
         dist z (m n) ^ 2 ≤ (dist z (a n) ^ 2 + dist z (b n) ^ 2) / 2 - dist (a n) (b n) ^ 2 / 4) :
     CauchySeq m := by
-  have hR : Tendsto (fun n => dist (a n) (b n)) atTop (𝓝 (dist x v)) := ha.dist hb
-  have hmid : ∀ n, dist (a n) (m n) ≤ dist (a n) (b n) / 2 ∧
+  have hmid (n) : dist (a n) (m n) ≤ dist (a n) (b n) / 2 ∧
       dist (b n) (m n) ≤ dist (a n) (b n) / 2 := by
-    intro n
     have h1 := hm n (a n)
     have h2 := hm n (b n)
     rw [dist_self] at h1 h2
     rw [dist_comm (b n) (a n)] at h2
-    constructor
-    · apply abs_le_of_sq_le_sq' _ (by positivity) |>.2
-      nlinarith
-    · apply abs_le_of_sq_le_sq' _ (by positivity) |>.2
-      nlinarith
+    exact ⟨(abs_le_of_sq_le_sq' (by nlinarith) (by positivity)).2,
+      (abs_le_of_sq_le_sq' (by nlinarith) (by positivity)).2⟩
   rw [Metric.cauchySeq_iff]
   intro ε hε
-  set R := dist x v + 1 with hRdef
+  set R := dist x v + 1
   have hR0 : 0 < R := by positivity
-  set δ := min 1 (ε ^ 2 / (2 * (2 * R + 4))) with hδ
+  set δ := min 1 (ε ^ 2 / (2 * (2 * R + 4)))
   have hδ0 : 0 < δ := by positivity
   obtain ⟨N₁, hN₁⟩ := Metric.cauchySeq_iff.1 ha.cauchySeq (δ / 2) (by positivity)
   obtain ⟨N₂, hN₂⟩ := Metric.cauchySeq_iff.1 hb.cauchySeq (δ / 2) (by positivity)
   obtain ⟨N₃, hN₃⟩ :=
-      eventually_atTop.1 (hR.eventually (gt_mem_nhds (show dist x v < R by linarith)))
+    eventually_atTop.1 ((ha.dist hb).eventually (gt_mem_nhds (show dist x v < R by linarith)))
   refine ⟨max N₁ (max N₂ N₃), fun l hl k hk => ?_⟩
-  have l1 := (le_max_left _ _).trans hl
-  have l2 := ((le_max_left _ _).trans (le_max_right _ _)).trans hl
-  have k1 := (le_max_left _ _).trans hk
-  have k2 := ((le_max_left _ _).trans (le_max_right _ _)).trans hk
-  have k3 := ((le_max_right _ _).trans (le_max_right _ _)).trans hk
-  have e1 := hN₁ l l1 k k1
-  have e2 := hN₂ l l2 k k2
-  have e3 := hN₃ k k3
-  set e := dist (a l) (a k) + dist (b l) (b k) with he
+  have e1 := hN₁ l ((le_max_left _ _).trans hl) k ((le_max_left _ _).trans hk)
+  have e2 := hN₂ l (((le_max_left _ _).trans (le_max_right _ _)).trans hl) k
+    (((le_max_left _ _).trans (le_max_right _ _)).trans hk)
+  have e3 := hN₃ k (((le_max_right _ _).trans (le_max_right _ _)).trans hk)
+  set e := dist (a l) (a k) + dist (b l) (b k)
   have he0 : 0 ≤ e := by positivity
   have hed : e < δ := by linarith
+  have t2 := dist_triangle4 (a l) (a k) (b k) (b l)
+  rw [dist_comm (b k) (b l)] at t2
   have d1 : dist (m l) (a k) ≤ dist (a k) (b k) / 2 + 2 * e := by
-    have t1 := dist_triangle (m l) (a l) (a k)
-    have t2 := dist_triangle4 (a l) (a k) (b k) (b l)
-    rw [dist_comm (m l) (a l)] at t1
-    rw [dist_comm (b k) (b l)] at t2
-    have := (hmid l).1
-    have := dist_nonneg (x := b l) (y := b k)
-    linarith
+    linarith [dist_triangle_left (m l) (a k) (a l), (hmid l).1, dist_nonneg (x := b l) (y := b k)]
   have d2 : dist (m l) (b k) ≤ dist (a k) (b k) / 2 + 2 * e := by
-    have t1 := dist_triangle (m l) (b l) (b k)
-    have t2 := dist_triangle4 (a l) (a k) (b k) (b l)
-    rw [dist_comm (m l) (b l)] at t1
-    rw [dist_comm (b k) (b l)] at t2
-    have := (hmid l).2
-    have := dist_nonneg (x := a l) (y := a k)
-    linarith
-  have d3 := hm k (m l)
-  have d4 := pow_le_pow_left₀ dist_nonneg d1 2
-  have d5 := pow_le_pow_left₀ dist_nonneg d2 2
+    linarith [dist_triangle_left (m l) (b k) (b l), (hmid l).2, dist_nonneg (x := a l) (y := a k)]
   have d6 : dist (m l) (m k) ^ 2 ≤ (2 * R + 4) * e := by
-    have e4 : e ≤ 1 := hed.le.trans (min_le_left _ _)
-    have e5 : dist (a k) (b k) * e ≤ R * e := mul_le_mul_of_nonneg_right e3.le he0
-    nlinarith
-  have d7 : (2 * R + 4) * e < ε ^ 2 := by
-    have e4 : e < ε ^ 2 / (2 * (2 * R + 4)) := hed.trans_le (min_le_right _ _)
-    rw [lt_div_iff₀ (by positivity)] at e4
-    have : 0 < ε ^ 2 := by positivity
-    nlinarith
-  exact lt_of_pow_lt_pow_left₀ 2 hε.le (d6.trans_lt d7)
+    nlinarith [hm k (m l), pow_le_pow_left₀ dist_nonneg d1 2, pow_le_pow_left₀ dist_nonneg d2 2,
+      hed.le.trans (min_le_left _ _), mul_le_mul_of_nonneg_right e3.le he0]
+  have e4 := (lt_div_iff₀ (by positivity)).1 (hed.trans_le (min_le_right _ _))
+  exact lt_of_pow_lt_pow_left₀ 2 hε.le (d6.trans_lt (by nlinarith [sq_pos_of_pos hε]))
 
 /-- The completion satisfies (CN): a complete metric space is CAT(0) if any two points x, v of a
 dense subset S have a
@@ -215,30 +171,21 @@ private theorem prop_space_completion {X : Type*} [MetricSpace X] [CompleteSpace
     (h : ∀ x ∈ S, ∀ v ∈ S, ∃ m, ∀ z ∈ S,
       dist z m ^ 2 ≤ (dist z x ^ 2 + dist z v ^ 2) / 2 - dist x v ^ 2 / 4) : CompleteCAT0Space X :=
           by
-  have h' : ∀ x ∈ S, ∀ v ∈ S, ∃ m, ∀ z,
+  have h' (x) (hx : x ∈ S) (v) (hv : v ∈ S) : ∃ m, ∀ z,
       dist z m ^ 2 ≤ (dist z x ^ 2 + dist z v ^ 2) / 2 - dist x v ^ 2 / 4 := by
-    intro x hx v hv
     obtain ⟨m, hm⟩ := h x hx v hv
-    refine ⟨m, fun z => ?_⟩
     have hc : IsClosed {z | dist z m ^ 2 ≤ (dist z x ^ 2 + dist z v ^ 2) / 2 - dist x v ^ 2 / 4} :=
       isClosed_le (by fun_prop) (by fun_prop)
-    have h3 : S ⊆ {z | dist z m ^ 2 ≤ (dist z x ^ 2 + dist z v ^ 2) / 2 - dist x v ^ 2 / 4} := hm
-    exact hc.closure_subset_iff.2 h3 (hS z)
+    exact ⟨m, fun z => hc.closure_subset_iff.2 hm (hS z)⟩
   refine { exists_mid := fun x v => ?_ }
   obtain ⟨a, haS, ha⟩ := mem_closure_iff_seq_limit.1 (hS x)
   obtain ⟨b, hbS, hb⟩ := mem_closure_iff_seq_limit.1 (hS v)
   choose m hm using fun n => h' (a n) (haS n) (b n) (hbS n)
   obtain ⟨p, hp⟩ := cauchySeq_tendsto_of_complete (prop_space_cauchy ha hb hm)
   refine ⟨p, fun z => ?_⟩
-  have hl : Tendsto (fun n => dist z (m n) ^ 2) atTop (𝓝 (dist z p ^ 2)) :=
-    (tendsto_const_nhds.dist hp).pow 2
-  have hr : Tendsto (fun n => (dist z (a n) ^ 2 + dist z (b n) ^ 2) / 2 - dist (a n) (b n) ^ 2 / 4)
-      atTop (𝓝 ((dist z x ^ 2 + dist z v ^ 2) / 2 - dist x v ^ 2 / 4)) :=
-    ((((tendsto_const_nhds.dist ha).pow 2).add ((tendsto_const_nhds.dist hb).pow 2)).div_const
-        2).sub
-      (((ha.dist hb).pow 2).div_const 4)
-  refine (le_of_tendsto_of_tendsto' hl hr fun n => hm n z).trans_eq ?_
-  ring
+  exact (le_of_tendsto_of_tendsto' ((tendsto_const_nhds.dist hp).pow 2)
+    (((((tendsto_const_nhds.dist ha).pow 2).add ((tendsto_const_nhds.dist hb).pow 2)).div_const
+      2).sub (((ha.dist hb).pow 2).div_const 4)) fun n => hm n z).trans_eq (by ring)
 
 /-- Its metric is a price as a limit: if the distance of a pseudometric space is a price, so is
 the metric of its
@@ -246,19 +193,16 @@ completion. -/
 private theorem prop_space_limit {T : Type} [PseudoMetricSpace T]
     (hd : IsPrice K fun s t : T => dist s t) :
     IsPrice K fun a b : UniformSpace.Completion T => dist a b := by
-  have hseq : ∀ a : UniformSpace.Completion T, ∃ u : ℕ → T,
-      Tendsto (fun n => ((u n : T) : UniformSpace.Completion T)) atTop (𝓝 a) := by
-    intro a
+  have hseq (a : UniformSpace.Completion T) :
+      ∃ u : ℕ → T, Tendsto (fun n => ((u n : T) : UniformSpace.Completion T)) atTop (𝓝 a) := by
     obtain ⟨u, hu, ha⟩ :=
-        mem_closure_iff_seq_limit.1 (UniformSpace.Completion.denseRange_coe (α := T) a)
+      mem_closure_iff_seq_limit.1 (UniformSpace.Completion.denseRange_coe (α := T) a)
     choose u' hu' using hu
     exact ⟨u', by simpa only [hu'] using ha⟩
   choose u hu using hseq
-  refine isPrice_of_tendsto (l := atTop) (d := fun n a b => dist (u a n) (u b n)) ?_
+  refine isPrice_of_tendsto (l := atTop) (d := fun n a b => dist (u a n) (u b n))
+    (fun a b => by simpa only [UniformSpace.Completion.dist_eq] using (hu a).dist (hu b))
     (Eventually.of_forall fun n => hd.comp fun a => u a n)
-  intro a b
-  have h := (hu a).dist (hu b)
-  simpa only [UniformSpace.Completion.dist_eq] using h
 
 /-- **Paper: Proposition C.3.** Every price `w` on a set `V` is the pull-back of the metric of a
 price space: a complete CAT(0) space whose metric is a price. -/
@@ -267,29 +211,23 @@ theorem exists_completeCAT0Space_of_isPrice {V : Type} {w : V → V → ℝ} (hw
       IsPrice K (fun a b : X => dist a b) ∧ ∀ a b, dist (f a) (f b) = w a b := by
   obtain ⟨d, hd, hof, hmid⟩ := prop_space_midpoints hw
   let _ : PseudoMetricSpace (FreeMagma V) :=
-    { dist := d
-      dist_self := hd.self
-      dist_comm := hd.symm
-      dist_triangle := hd.triangle }
+    { dist := d, dist_self := hd.self, dist_comm := hd.symm, dist_triangle := hd.triangle }
   have hdd : ∀ s t : FreeMagma V, dist s t = d s t := fun _ _ => rfl
   -- identify points at distance `0`; the completion satisfies (CN), and its metric is a price
   -- as a limit
   refine ⟨UniformSpace.Completion (FreeMagma V), inferInstance,
     prop_space_completion UniformSpace.Completion.denseRange_coe ?_,
     fun v => ((FreeMagma.of v : FreeMagma V) : UniformSpace.Completion (FreeMagma V)),
-        prop_space_limit hd, ?_⟩
+    prop_space_limit hd, ?_⟩
   · -- each new point is a midpoint of its pair, so (CN) holds by Theorem C.1
     rintro _ ⟨s, rfl⟩ _ ⟨t, rfl⟩
     refine ⟨(((s * t) : FreeMagma V) : UniformSpace.Completion (FreeMagma V)), ?_⟩
     rintro _ ⟨z, rfl⟩
     simp only [UniformSpace.Completion.dist_eq, hdd]
-    have h := isPrice_sq_le_of_mid hd s t (s * t) z (D := d s t / 2)
-        (hmid s t).1 (hmid s t).2 (by ring)
-    refine h.trans (le_of_eq ?_)
-    ring
+    exact (isPrice_sq_le_of_mid hd s t (s * t) z (D := d s t / 2)
+      (hmid s t).1 (hmid s t).2 (by ring)).trans_eq (by ring)
   · intro a b
-    simp only [UniformSpace.Completion.dist_eq, hdd]
-    exact hof a b
+    simpa only [UniformSpace.Completion.dist_eq, hdd] using hof a b
 
 end Space
 
