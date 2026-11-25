@@ -392,35 +392,31 @@ private theorem isRoot_div_gcd_deriv_iff {p : ℝ[X]} (hp : p ≠ 0) (x : ℝ) :
   classical
   set g := EuclideanDomain.gcd p (derivative p)
   obtain ⟨hp_eq, _, _⟩ := mul_div_gcd_deriv hp
-  constructor
-  · intro hA
-    rw [IsRoot.def] at hA ⊢
-    rw [← hp_eq, eval_mul, hA, mul_zero]
-  · intro hpx
-    by_contra hAx
-    rw [IsRoot.def] at hpx hAx
-    have hm_pos : 0 < p.rootMultiplicity x := (rootMultiplicity_pos hp).mpr hpx
-    obtain ⟨h, hp_fac, hh_ndvd⟩ := exists_eq_pow_rootMultiplicity_mul_and_not_dvd p hp x
-    have hhx : h.eval x ≠ 0 := mt dvd_iff_isRoot.mpr hh_ndvd
-    set m := p.rootMultiplicity x
-    have hcop_lin : IsCoprime (X - C x) (p / g) := by
-      refine ⟨-C ((p / g).eval x)⁻¹ * ((p / g) /ₘ (X - C x)), C ((p / g).eval x)⁻¹, ?_⟩
-      have hdiv := modByMonic_add_div (p / g) (X - C x)
-      rw [modByMonic_X_sub_C_eq_C_eval] at hdiv
-      have hinv : C ((p / g).eval x)⁻¹ * C ((p / g).eval x) = 1 := by
-        rw [← map_mul, inv_mul_cancel₀ hAx, map_one]
-      linear_combination -C ((p / g).eval x)⁻¹ * hdiv + hinv
-    have hpow_dvd_g : (X - C x) ^ m ∣ g := (hcop_lin.pow_left).dvd_of_dvd_mul_left
-      (by rw [mul_comm, hp_eq, hp_fac]; exact dvd_mul_right _ _)
-    obtain ⟨w, hw⟩ := dvd_trans hpow_dvd_g (EuclideanDomain.gcd_dvd_right p (derivative p))
-    have hderiv_fac := derivative_eq_pow_mul hm_pos hp_fac
-    have hpow_split : (X - C x) ^ m * w = (X - C x) ^ (m - 1) * ((X - C x) * w) := by
-      rw [← mul_assoc, ← pow_succ, Nat.sub_add_cancel hm_pos]
-    rw [hw, hpow_split] at hderiv_fac
-    have hcancel := mul_left_cancel₀ (pow_ne_zero (m - 1) (X_sub_C_ne_zero x)) hderiv_fac
-    have hev := congrArg (eval x) hcancel
-    simp only [eval_add, eval_mul, eval_C, eval_sub, eval_X, sub_self, zero_mul, add_zero] at hev
-    exact mul_ne_zero (Nat.cast_ne_zero.mpr hm_pos.ne') hhx hev.symm
+  refine ⟨fun hA => by rw [IsRoot.def, ← hp_eq, eval_mul, hA.eq_zero, mul_zero], fun hpx => ?_⟩
+  by_contra hAx
+  rw [IsRoot.def] at hpx hAx
+  have hm_pos : 0 < p.rootMultiplicity x := (rootMultiplicity_pos hp).mpr hpx
+  obtain ⟨h, hp_fac, hh_ndvd⟩ := exists_eq_pow_rootMultiplicity_mul_and_not_dvd p hp x
+  have hhx : h.eval x ≠ 0 := mt dvd_iff_isRoot.mpr hh_ndvd
+  set m := p.rootMultiplicity x
+  have hcop_lin : IsCoprime (X - C x) (p / g) := by
+    refine ⟨-C ((p / g).eval x)⁻¹ * ((p / g) /ₘ (X - C x)), C ((p / g).eval x)⁻¹, ?_⟩
+    have hdiv := modByMonic_add_div (p / g) (X - C x)
+    rw [modByMonic_X_sub_C_eq_C_eval] at hdiv
+    have hinv : C ((p / g).eval x)⁻¹ * C ((p / g).eval x) = 1 := by
+      rw [← map_mul, inv_mul_cancel₀ hAx, map_one]
+    linear_combination -C ((p / g).eval x)⁻¹ * hdiv + hinv
+  have hpow_dvd_g : (X - C x) ^ m ∣ g := (hcop_lin.pow_left).dvd_of_dvd_mul_left
+    (by rw [mul_comm, hp_eq, hp_fac]; exact dvd_mul_right _ _)
+  obtain ⟨w, hw⟩ := dvd_trans hpow_dvd_g (EuclideanDomain.gcd_dvd_right p (derivative p))
+  have hderiv_fac := derivative_eq_pow_mul hm_pos hp_fac
+  have hpow_split : (X - C x) ^ m * w = (X - C x) ^ (m - 1) * ((X - C x) * w) := by
+    rw [← mul_assoc, ← pow_succ, Nat.sub_add_cancel hm_pos]
+  rw [hw, hpow_split] at hderiv_fac
+  have hcancel := mul_left_cancel₀ (pow_ne_zero (m - 1) (X_sub_C_ne_zero x)) hderiv_fac
+  have hev := congrArg (eval x) hcancel
+  simp only [eval_add, eval_mul, eval_C, eval_sub, eval_X, sub_self, zero_mul, add_zero] at hev
+  exact mul_ne_zero (Nat.cast_ne_zero.mpr hm_pos.ne') hhx hev.symm
 
 private theorem eventually_sign_div_gcd_of_eval_eq_zero {p : ℝ[X]} (hp : p ≠ 0) {x : ℝ}
     (hpx : p.eval x = 0) :
@@ -485,17 +481,13 @@ private theorem eventually_sign_div_gcd_of_eval_eq_zero {p : ℝ[X]} (hp : p ≠
     have hy_sq : 0 < ((y - x) ^ (m - 1)) ^ 2 :=
       sq_pos_of_ne_zero (pow_ne_zero _ (sub_ne_zero.mpr hyx))
     have hid := hpdp_id y
-    constructor
-    · intro hxy
-      have hrhs : 0 < (y - x) * ((y - x) ^ (m - 1)) ^ 2 * (h * Q).eval y :=
-        mul_pos (mul_pos (sub_pos.mpr hxy) hy_sq) hpy
-      have hab : 0 < A.eval y * B.eval y := by nlinarith
+    refine ⟨fun hxy => ?_, fun hyx_lt => ?_⟩
+    · have hab : 0 < A.eval y * B.eval y := by
+        nlinarith [mul_pos (mul_pos (sub_pos.mpr hxy) hy_sq) hpy]
       have hmul_sign : sign (A.eval y) * sign (B.eval y) = 1 := by rw [← sign_mul, sign_pos hab]
       rw [← hBy]; revert hmul_sign; cases sign (A.eval y) <;> cases sign (B.eval y) <;> decide
-    · intro hyx_lt
-      have hrhs : (y - x) * ((y - x) ^ (m - 1)) ^ 2 * (h * Q).eval y < 0 :=
-        mul_neg_of_neg_of_pos (mul_neg_of_neg_of_pos (sub_neg.mpr hyx_lt) hy_sq) hpy
-      have hab : A.eval y * B.eval y < 0 := by nlinarith
+    · have hab : A.eval y * B.eval y < 0 := by
+        nlinarith [mul_neg_of_neg_of_pos (mul_neg_of_neg_of_pos (sub_neg.mpr hyx_lt) hy_sq) hpy]
       have hmul_sign : sign (A.eval y) * sign (B.eval y) = -1 := by rw [← sign_mul, sign_neg hab]
       rw [← hBy]; revert hmul_sign; cases sign (A.eval y) <;> cases sign (B.eval y) <;> decide
   exact ⟨((hbase.filter_mono nhdsWithin_le_nhds).and eventually_mem_nhdsWithin).mono
@@ -517,9 +509,7 @@ private theorem eventually_sturmReducedVariations_of_eval_ne_zero {p : ℝ[X]} (
   refine (eventually_sign_eq_of_mem (sturmSeq A B)).mono fun y hy => ?_
   simp only [sturmReducedVariations]
   exact signVariations_eval_eq_of_isSturmChainAt hchain (fun f hf => by
-    rw [head?_sturmSeq hA0] at hf
-    cases hf
-    exact hAx) hy
+    rw [head?_sturmSeq hA0] at hf; cases hf; exact hAx) hy
 
 private theorem eventually_sturmReducedVariations_of_eval_eq_zero {p : ℝ[X]} (hp : p ≠ 0)
     {x : ℝ} (hpx : p.eval x = 0) :
@@ -543,9 +533,7 @@ private theorem eventually_sturmReducedVariations_of_eval_eq_zero {p : ℝ[X]} (
     refine (eventually_sign_eq_of_mem tail).mono fun y hy => ?_
     have hvar : (tail.map (eval y)).signVariations = (tail.map (eval x)).signVariations :=
       signVariations_eval_eq_of_isSturmChainAt htail_chain (fun f hf => by
-        rw [htail_def, head?_sturmSeq hB0] at hf
-        cases hf
-        exact hdne) hy
+        rw [htail_def, head?_sturmSeq hB0] at hf; cases hf; exact hdne) hy
     rw [hvar, sturmReducedVariations, show p / EuclideanDomain.gcd p (derivative p) = A from rfl,
       show derivative p / EuclideanDomain.gcd p (derivative p) = B from rfl,
       hseq_eq, List.map_cons, hAx, List.signVariations_zero_cons]
@@ -616,9 +604,8 @@ private theorem isLocallyConstant_sturmReducedVariations_add_card {p : ℝ[X]} (
     refine ((hno_other.filter_mono nhdsWithin_le_nhds).and eventually_mem_nhdsWithin).mono ?_
     rintro y ⟨hy, hxy⟩
     refine congrArg Finset.card (Finset.filter_congr fun r hr => ?_)
-    by_cases hrx : r = x
-    · subst hrx
-      exact iff_of_true (le_of_lt hxy) le_rfl
+    rcases eq_or_ne r x with rfl | hrx
+    · exact iff_of_true (le_of_lt hxy) le_rfl
     · exact hy r hr hrx
   have hlt_filter : ∀ᶠ y in 𝓝[<] x,
       (p.roots.toFinset.filter (· ≤ y)).card + (if p.eval x = 0 then 1 else 0) =
@@ -634,9 +621,8 @@ private theorem isLocallyConstant_sturmReducedVariations_add_card {p : ℝ[X]} (
           insert x (p.roots.toFinset.filter (· ≤ y)) := by
         ext r
         simp only [Finset.mem_filter, Finset.mem_insert]
-        by_cases hrx : r = x
-        · subst hrx
-          exact iff_of_true ⟨hxmem, le_rfl⟩ (Or.inl rfl)
+        rcases eq_or_ne r x with rfl | hrx
+        · exact iff_of_true ⟨hxmem, le_rfl⟩ (Or.inl rfl)
         · simp only [hrx, false_or]
           exact and_congr_right fun hr => (hy r hr hrx).symm
       rw [ite_eq_left hpx, heq, Finset.card_insert_of_notMem hxnot, add_comm]
