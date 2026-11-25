@@ -575,16 +575,12 @@ theorem steps_expected_amortized (C : StateTransitionImpl P D w base params s₀
     let T_op (t : CoupledRState C.Seed D.State r_ds) := T_step (prepMap t)
     let ν₁ := ν.bind μ_op
     have hν₁_eq : ν₁ = ν_prep.bind μ_step := by simp [ν₁, ν_prep, μ_op, PMF.bind_map]; rfl
-    have hv₁ : ∀ q ∈ ν₁.support, D.ValidOpSeq q.state os := by
+    have hnext₁ : ∀ q ∈ ν₁.support,
+        D.ValidOpSeq q.state os ∧ PeakFitsOpSeq w base C.peakSpaceBound q.state os := by
       intro q hq; rw [PMF.mem_support_bind_iff] at hq; obtain ⟨t, ht, hq_op⟩ := hq
       obtain ⟨a, hstep_a, _, _, _⟩ :=
         (hstep (prepMap t) ((PMF.mem_support_map_iff _ _ _).mpr ⟨t, ht, rfl⟩)).2 q hq_op
-      exact (hv t ht).2 q.state a hstep_a
-    have hfit₁ : ∀ q ∈ ν₁.support, PeakFitsOpSeq w base C.peakSpaceBound q.state os := by
-      intro q hq; rw [PMF.mem_support_bind_iff] at hq; obtain ⟨t, ht, hq_op⟩ := hq
-      obtain ⟨a, hstep_a, _, _, _⟩ :=
-        (hstep (prepMap t) ((PMF.mem_support_map_iff _ _ _).mpr ⟨t, ht, rfl⟩)).2 q hq_op
-      exact (hfit t ht).2 q.state a hstep_a
+      exact ⟨(hv t ht).2 q.state a hstep_a, (hfit t ht).2 q.state a hstep_a⟩
     have hrep₁ : ∀ q ∈ ν₁.support, C.rep q.seed q.state q.data := by
       intro q hq; rw [hν₁_eq, PMF.mem_support_bind_iff] at hq; obtain ⟨t', ht', hq_s⟩ := hq
       obtain ⟨_, _, _, hr_q, _⟩ := (hstep t' ht').2 q hq_s; exact hr_q
@@ -602,7 +598,8 @@ theorem steps_expected_amortized (C : StateTransitionImpl P D w base params s₀
         (∑' t, ν t * ((C.charge t.state o : ℝ≥0∞) + (C.potential t.seed t.data : ℝ≥0∞))) =
           C₁ + ∑' t, ν t * (C.potential t.seed t.data : ℝ≥0∞) := by
       simp_rw [mul_add, tsum_add]; rfl
-    refine ⟨ν₁, T₁, C₁, ⟨hv₁, hfit₁, hν₁_eq ▸ hseed₁, hrep₁, hν₁_eq ▸ hsingle₁⟩, ?_, ?_⟩
+    refine ⟨ν₁, T₁, C₁, ⟨fun q hq => (hnext₁ q hq).1, fun q hq => (hnext₁ q hq).2,
+      hν₁_eq ▸ hseed₁, hrep₁, hν₁_eq ▸ hsingle₁⟩, ?_, ?_⟩
     · rw [hstep_split, ← hcharge_split, ← hpot_prep]
       exact hamort₁
     · intro ν_final T_rest C_rest hex_rest
