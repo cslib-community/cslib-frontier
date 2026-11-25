@@ -70,8 +70,7 @@ theorem exec_core {W b m t N s r q : ℕ}
         y.mem (b + a) % windowSize N qs.length =
           (State.init (BoxProduct.input true (21 * m) t X Y qs) : State 160).data.mem a) ∧
       (∀ a, a < b ∨ b + windowSize N qs.length ≤ a → y.mem a = x.mem a) := by
-  let original :=
-    (State.init (BoxProduct.input true (21 * m) t X Y qs) : State 160).data.mem
+  let original := (State.init (BoxProduct.input true (21 * m) t X Y qs) : State 160).data.mem
   have hsource (a : ℕ) (ha : 0 < a) (ha' : a < QueriedProduct.inputEnd m N qs.length) :
       original a =
         (State.init (QueriedProduct.input true (21 * m) X Y qs) : State 160).data.mem a :=
