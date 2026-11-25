@@ -71,13 +71,11 @@ variable {a : EncodedStructure} [L.Structure (Fin a.1)] [Fact (2 ≤ a.1)]
 
 private theorem sound_of_eq {w : List Bool} {l l' T T' : ℕ} {regs : List ℕ}
     {G : List ℕ → Prop} (h : Sound P w B Post l regs T G) (hl : l = l') (hT : T = T') :
-    Sound P w B Post l' regs T' G := by
-  subst hl hT; exact h
+    Sound P w B Post l' regs T' G := hl ▸ hT ▸ h
 
 private theorem complete_of_eq {w : List Bool} {l l' T T' : ℕ} {regs : List ℕ}
     {G : List ℕ → Prop} (h : Complete P w l regs T G) (hl : l = l') (hT : T = T') :
-    Complete P w l' regs T' G := by
-  subst hl hT; exact h
+    Complete P w l' regs T' G := hl ▸ hT ▸ h
 
 /-- The compiled body of a closure, run with the outer free variables below `base` and a pair
 `(us, ws)` from register `base'`, decides the edge relation `E` at polarity `s`. -/
@@ -104,9 +102,7 @@ private theorem body_correct {Γ : List ℕ} {α : Type} {k : ℕ}
     (Sat s (E us ws) → Complete P (encStructure a) l regs T (Kept B sb regs)) := by
   have hsat : Sat s (E us ws) ↔ Sat s ((body ⟨0, Nat.one_pos⟩).Realize TC.interpretation
       (RelEnv.empty.append ρ) (Sum.elim val (TC.pair us ws))) := by
-    cases s
-    · exact not_congr (hEiff us ws)
-    · exact hEiff us ws
+    cases s; exacts [not_congr (hEiff us ws), hEiff us ws]
   obtain ⟨hs, hc⟩ := ih (by rw [hΓ]; rfl) s hWb _ sb (Sum.elim val (TC.pair us ws))
     (RelEnv.empty.append ρ) l T regs hP (by omega)
     (fun x => by
@@ -283,12 +279,11 @@ theorem correct_op (hE : Env v a P B Post R) {Γ : List ℕ} {α : Type} (k : �
       hdst hM (fun us ws t regs₃ hmid => (hbody us ws t regs₃ hmid).1) _ 0 s₀ regsI rfl
       (Nat.zero_le _) hinvI (Relation.RelatesWithinSteps.refl _)).mono
       fun regs' h => ⟨h.1, h.2.reflTransGen⟩
-  · have hcard : Nat.card (Fin k → Fin a.1) ≤ a.1 ^ k - 1 + 1 := by
-      have : 0 < a.1 ^ k := pow_pos hn k
+  · have : 0 < a.1 ^ k := pow_pos hn k
+    have hcard : Nat.card (Fin k → Fin a.1) ≤ a.1 ^ k - 1 + 1 := by
       rw [Nat.card_eq_fintype_card, Fintype.card_fun, Fintype.card_fin, Fintype.card_fin]
       omega
     obtain ⟨m, hm, hsteps⟩ := (Relation.reflTransGen_iff_relatesWithinSteps hcard).mp hsat
-    have : 0 < a.1 ^ k := pow_pos hn k
     exact loop_complete hP' hbase hE.card_le hNB hNB h0 hdst hM
       (fun us ws t regs₃ hmid => (hbody us ws t regs₃ hmid).2) m 0 s₀ regsI hsteps (by omega)
       hinvI
