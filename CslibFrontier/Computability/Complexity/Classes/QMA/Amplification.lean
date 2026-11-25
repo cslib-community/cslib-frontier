@@ -206,7 +206,7 @@ theorem classicalRun_moveCodes (hnp : n + p ≤ m) (hm : m ≤ W) (hW : n + 2 * 
     exact glue_apply_emb _ Z X (finProdFinEquiv (⟨j, hj⟩, ⟨i, hi⟩))
   have hGoff {c : ℕ} (hc : ∀ q : Fin (2 * R * p), (q : ℕ) + n ≠ c) :
       readBit (glue (blockEmb n (witBlock_le hW)) Z X) c = readBit X c :=
-    readBit_glue_of_forall_ne _ Z X fun q h => hc q h
+    readBit_glue_of_forall_ne _ Z X hc
   have hSoff {c : ℕ} (hc : ∀ q : Fin (2 * R) × Fin p, (q.2 : ℕ) + n + (q.1 + 1) * W ≠ c) :
       readBit (glue (slotsEmb hnp hm) Z X) c = readBit X c := by
     refine readBit_glue_of_forall_ne _ Z X fun q h => ?_
@@ -325,19 +325,16 @@ theorem classicalRun_prep (hnp : n + p ≤ m) (hm : m ≤ W) (hW : n + 2 * R * p
       glue (slotsEmb hnp hm) Z (classicalRun (Amplify.copyCodes n W (2 * R)) X) := by
   rw [classicalRun_append, classicalRun_moveCodes hnp hm hW X hX Z]
   refine classicalRun_glue _ (fun g hg q => ?_) (fun g hg q => ?_) Z X
-  · simp only [Amplify.copyCodes, List.mem_flatMap, List.mem_range, List.mem_map] at hg
+  all_goals
+    simp only [Amplify.copyCodes, List.mem_flatMap, List.mem_range, List.mem_map] at hg
     obtain ⟨j, hj, i, hi, rfl⟩ := hg
     obtain ⟨⟨j', i'⟩, rfl⟩ := finProdFinEquiv.surjective q
     rw [slotsEmb_finProdFinEquiv, slotEmb_apply_val]
-    intro h
+  · intro h
     have := Nat.eq_of_add_mul_eq (W := W) (a := i' + n) (a' := i) (b := j' + 1) (b' := j + 1)
       (by omega) (by omega) (by simpa only [Nat.add_assoc] using h)
     omega
-  · simp only [Amplify.copyCodes, List.mem_flatMap, List.mem_range, List.mem_map] at hg
-    obtain ⟨j, hj, i, hi, rfl⟩ := hg
-    obtain ⟨⟨j', i'⟩, rfl⟩ := finProdFinEquiv.surjective q
-    rw [slotsEmb_finProdFinEquiv, slotEmb_apply_val]
-    have := le_add_mul (W := W) (i := (i' : ℕ) + n) (j := j')
+  · have := le_add_mul (W := W) (i := (i' : ℕ) + n) (j := j')
     simp only [List.mem_cons, List.not_mem_nil, or_false]
     omega
 
@@ -742,9 +739,8 @@ theorem PromiseQMA_errorExponent_subset (q : Polynomial ℕ) (hq : ∀ n, 2 ≤ 
     PromiseQMA (fun n => 1 - ((2 : ℝ) ^ q.eval n)⁻¹) (fun n => ((2 : ℝ) ^ q.eval n)⁻¹) enc ⊆
       PromiseQMA (fun _ => 2 / 3) (fun _ => 1 / 3) enc := by
   have h (n : ℕ) : ((2 : ℝ) ^ q.eval n)⁻¹ ≤ 1 / 3 := by
-    have : (4 : ℝ) ≤ 2 ^ q.eval n := by
-      calc (4 : ℝ) = 2 ^ 2 := by norm_num
-        _ ≤ 2 ^ q.eval n := pow_le_pow_right₀ (by norm_num) (hq n)
+    have : (4 : ℝ) ≤ 2 ^ q.eval n :=
+      (by norm_num : (4 : ℝ) = 2 ^ 2).trans_le (pow_le_pow_right₀ (by norm_num) (hq n))
     rw [inv_le_comm₀ (by positivity) (by norm_num)]
     linarith
   exact PromiseQMA_mono (fun n => by linarith [h n]) h
