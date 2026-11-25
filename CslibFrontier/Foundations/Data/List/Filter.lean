@@ -47,52 +47,37 @@ theorem two_le_filter_contains_iff {α : Type*} [DecidableEq α]
     | nil => simp at hlen
     | cons r rs ih =>
       by_cases hp : p ∈ r
-      · have hne : (rs.filter fun r => r.contains p) ≠ [] := by
-          intro h
-          have hf : ((r :: rs).filter fun r => r.contains p) = [r] := by
-            have hpred : r.contains p = true := by simpa using hp
-            simp only [List.filter_cons, hpred, ↓reduceIte, h]
-          rw [hf] at hlen
-          simp at hlen
-        cases hf : rs.filter (fun r => r.contains p) with
-        | nil => exact False.elim (hne hf)
-        | cons t ts =>
-          have ht : t ∈ rs.filter (fun r => r.contains p) := by rw [hf]; simp
-          obtain ⟨htmem, htp⟩ := List.mem_filter.mp ht
-          obtain ⟨j, hj, rfl⟩ := List.mem_iff_getElem.mp htmem
-          exact ⟨0, j + 1, by simp, by simpa using hj, by omega, hp, by simpa using htp⟩
-      · have hf : ((r :: rs).filter fun r => r.contains p) = rs.filter (fun r => r.contains p) := by
-          simp [hp]
-        rw [hf] at hlen
+      · simp only [List.filter_cons, List.contains_iff_mem.mpr hp, ↓reduceIte,
+          List.length_cons] at hlen
+        obtain ⟨t, ht⟩ := List.exists_mem_of_ne_nil (rs.filter fun r => r.contains p)
+          (List.ne_nil_of_length_pos (by omega))
+        obtain ⟨htmem, htp⟩ := List.mem_filter.mp ht
+        obtain ⟨j, hj, rfl⟩ := List.mem_iff_getElem.mp htmem
+        exact ⟨0, j + 1, by simp, Nat.succ_lt_succ hj, by omega, hp, List.contains_iff_mem.mp htp⟩
+      · simp only [List.filter_cons, List.contains_iff_mem, hp, ↓reduceIte] at hlen
         obtain ⟨i, j, hi, hj, hij, hpi, hpj⟩ := ih hlen
-        exact ⟨i + 1, j + 1, by simpa using hi, by simpa using hj, by omega, hpi, hpj⟩
+        exact ⟨i + 1, j + 1, Nat.succ_lt_succ hi, Nat.succ_lt_succ hj, by omega, hpi, hpj⟩
   · rintro ⟨i, j, hi, hj, hij, hpi, hpj⟩
     induction rs generalizing i j with
     | nil => simp at hi
     | cons r rs ih =>
       -- If the head and some tail entry both contain `p`, the filter keeps at least two lists.
-      have hhead : ∀ k (hk : k < rs.length), p ∈ r → p ∈ rs[k] →
-          2 ≤ ((r :: rs).filter fun r => r.contains p).length := fun k hk hr hk' => by
+      have hhead (k : ℕ) (hk : k < rs.length) (hr : p ∈ r) (hk' : p ∈ rs[k]) :
+          2 ≤ ((r :: rs).filter fun r => r.contains p).length := by
         have hm : rs[k] ∈ rs.filter (fun r => r.contains p) :=
           List.mem_filter.mpr ⟨List.getElem_mem hk, List.contains_iff_mem.mpr hk'⟩
         have := List.length_pos_of_mem hm
         simp only [List.filter_cons, List.contains_iff_mem.mpr hr, ite_true, List.length_cons]
         omega
-      cases i with
-      | zero =>
-        cases j with
-        | zero => exact False.elim (hij rfl)
-        | succ j => exact hhead j (by simpa using hj) hpi hpj
-      | succ i =>
-        cases j with
-        | zero => exact hhead i (by simpa using hi) hpj hpi
-        | succ j =>
-          have ht := ih i j (by simpa using hi) (by simpa using hj) (by omega) hpi hpj
-          rw [List.filter_cons]
-          split_ifs
-          · simp only [List.length_cons]
-            omega
-          · exact ht
+      rcases i with _ | i <;> rcases j with _ | j
+      · exact (hij rfl).elim
+      · exact hhead j (Nat.lt_of_succ_lt_succ hj) hpi hpj
+      · exact hhead i (Nat.lt_of_succ_lt_succ hi) hpj hpi
+      · have ht := ih i j (Nat.lt_of_succ_lt_succ hi) (Nat.lt_of_succ_lt_succ hj)
+          (by omega) hpi hpj
+        rw [List.filter_cons]; split_ifs
+        · simp only [List.length_cons]; omega
+        · exact ht
 
 /-- Two filtered memberships give an index different from any given natural number. -/
 theorem exists_other_index_of_two_le_filter_contains {α : Type*} [DecidableEq α]
@@ -123,27 +108,21 @@ theorem countP_le_sum_map {α : Type*} {p : α → Bool} {f : α → ℕ} {l : L
     have := ih fun x hx => h x (List.mem_cons_of_mem _ hx)
     by_cases hp : p a = true
     · have := h a List.mem_cons_self hp
-      simp only [hp, ite_true]
-      omega
-    · simp only [hp, Bool.false_eq_true, ite_false]
-      omega
+      simp only [hp, ite_true]; omega
+    · simp only [hp, Bool.false_eq_true, ite_false]; omega
 
 /-- `List.any id` is monotone with respect to `List.Forall₂ (· ≤ ·)`. -/
 theorem any_id_le_of_forall₂ {u v : List Bool} (h : List.Forall₂ (· ≤ ·) u v) :
     u.any id ≤ v.any id := by
   induction h with
   | nil => exact le_rfl
-  | cons hab _ ih =>
-    simp only [List.any_cons, id]
-    exact max_le_max hab ih
+  | cons hab _ ih => simp only [List.any_cons, id]; exact max_le_max hab ih
 
 /-- `List.all id` is monotone with respect to `List.Forall₂ (· ≤ ·)`. -/
 theorem all_id_le_of_forall₂ {u v : List Bool} (h : List.Forall₂ (· ≤ ·) u v) :
     u.all id ≤ v.all id := by
   induction h with
   | nil => exact le_rfl
-  | cons hab _ ih =>
-    simp only [List.all_cons, id]
-    exact min_le_min hab ih
+  | cons hab _ ih => simp only [List.all_cons, id]; exact min_le_min hab ih
 
 end List

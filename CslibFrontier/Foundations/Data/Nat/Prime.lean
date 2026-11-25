@@ -55,11 +55,7 @@ def primesIoc (a b : ℕ) : List ℕ :=
 /-- `p` is in `primesIoc a b` exactly when `p` is a prime with `a < p ≤ b`. -/
 theorem mem_primesIoc {a b p : ℕ} : p ∈ primesIoc a b ↔ a < p ∧ p ≤ b ∧ p.Prime := by
   simp only [primesIoc, List.mem_filter, List.mem_range'_1, decide_eq_true_eq]
-  constructor
-  · rintro ⟨⟨h1, h2⟩, hp⟩
-    exact ⟨by omega, by omega, hp⟩
-  · rintro ⟨h1, h2, hp⟩
-    exact ⟨⟨by omega, by omega⟩, hp⟩
+  exact ⟨fun ⟨_, hp⟩ => ⟨by omega, by omega, hp⟩, fun ⟨_, _, hp⟩ => ⟨⟨by omega, by omega⟩, hp⟩⟩
 
 /-- `primesIoc a b` has no duplicates. -/
 theorem nodup_primesIoc (a b : ℕ) : (primesIoc a b).Nodup :=
@@ -74,12 +70,10 @@ def selectBelow : ℕ → List ℕ → List ℕ
 /-- The greedy choice is a sublist of `ps`. -/
 theorem selectBelow_sublist (T : ℕ) (ps : List ℕ) : (selectBelow T ps).Sublist ps := by
   induction ps generalizing T with
-  | nil => exact List.Sublist.slnil
+  | nil => exact .slnil
   | cons p ps ih =>
-    simp only [selectBelow]
-    split_ifs
-    · exact (ih _).cons_cons p
-    · exact (ih T).cons p
+    simp only [selectBelow]; split_ifs
+    exacts [(ih _).cons_cons p, (ih T).cons p]
 
 /-- The greedy choice has product at most the budget `T ≥ 1`. -/
 theorem prod_selectBelow_le {T : ℕ} (hT : 1 ≤ T) (ps : List ℕ) : (selectBelow T ps).prod ≤ T := by
@@ -89,10 +83,8 @@ theorem prod_selectBelow_le {T : ℕ} (hT : 1 ≤ T) (ps : List ℕ) : (selectBe
     rw [List.prod_cons]
     rcases Nat.eq_zero_or_pos p with rfl | hp0
     · simp
-    · calc p * (selectBelow (T / p) ps).prod ≤ p * (T / p) :=
-            Nat.mul_le_mul_left _ (ih ((Nat.one_le_div_iff hp0).2 hp))
-        _ ≤ T := Nat.mul_div_le T p
-  | case3 T p ps hp ih => exact ih hT
+    · exact (Nat.mul_le_mul_left _ (ih ((Nat.one_le_div_iff hp0).2 hp))).trans (Nat.mul_div_le T p)
+  | case3 T p ps _ ih => exact ih hT
 
 /-- **The greedy choice is large**: if every element of `ps` is positive and at most `B`, either
 every element is chosen (the product of `ps` is at most the chosen product) or the chosen product
@@ -104,22 +96,14 @@ theorem prod_le_or_lt_mul_prod_selectBelow {B : ℕ} (T : ℕ) {ps : List ℕ}
   | nil => simp [selectBelow]
   | cons p ps ih =>
     have hp := hps p List.mem_cons_self
-    have hps' : ∀ q ∈ ps, 0 < q ∧ q ≤ B := fun q hq => hps q (List.mem_cons_of_mem _ hq)
-    simp only [selectBelow]
-    split_ifs with hpT
+    have hps' (q : ℕ) (hq : q ∈ ps) := hps q (List.mem_cons_of_mem _ hq)
+    simp only [selectBelow]; split_ifs with hpT
     · rw [List.prod_cons, List.prod_cons]
       rcases ih (T / p) hps' with h | h
-      · exact Or.inl (Nat.mul_le_mul_left _ h)
-      · right
-        rw [Nat.div_lt_iff_lt_mul hp.1] at h
-        calc T < B * (selectBelow (T / p) ps).prod * p := h
-          _ = B * (p * (selectBelow (T / p) ps).prod) := by ring
-    · right
-      have hpos : 0 < (selectBelow T ps).prod :=
+      · exact .inl (Nat.mul_le_mul_left _ h)
+      · exact .inr (((Nat.div_lt_iff_lt_mul hp.1).1 h).trans_eq (by ring))
+    · exact .inr <| (not_le.1 hpT).trans_le <| hp.2.trans <| Nat.le_mul_of_pos_right _ <|
         List.prod_pos fun q hq => (hps' q ((selectBelow_sublist T ps).subset hq)).1
-      calc T < p := not_le.1 hpT
-        _ ≤ B := hp.2
-        _ ≤ B * (selectBelow T ps).prod := Nat.le_mul_of_pos_right _ hpos
 
 /-- The product of `primesIoc a b` is the product of the primes in the interval `[a + 1, b]`. -/
 theorem prod_primesIoc (a b : ℕ) :
@@ -135,8 +119,8 @@ theorem four_pow_le_mul_prod_primesIoc (L : ℕ) :
   set P := (primesIoc L (4 * L)).prod
   have hP : primorial (4 * L) = primorial L * P := by
     rw [show P = _ from prod_primesIoc L (4 * L), show 4 * L = L + 3 * L by ring, primorial_add]
-  have hPpos : 0 < P := List.prod_pos fun p hp => (mem_primesIoc.1 hp).2.2.pos
-  have hPr : 0 < (P : ℝ) := by exact_mod_cast hPpos
+  have hPr : 0 < (P : ℝ) := by
+    exact_mod_cast List.prod_pos fun p hp => (mem_primesIoc.1 hp).2.2.pos
   have hprim : 0 < (primorial L : ℝ) := by exact_mod_cast primorial_pos L
   -- Chebyshev's bounds `θ (4 L) ≥ 4 L log 2 - log (4 L + 1) - 2 √(4 L) log (4 L)`, `θ L ≤ L log 4`
   have h1 := Chebyshev.theta_ge (4 * L)
@@ -146,8 +130,7 @@ theorem four_pow_le_mul_prod_primesIoc (L : ℕ) :
   push_cast at h1
   have hsqrt4 : √(4 * (L : ℝ)) = 2 * √(L : ℝ) := by
     rw [Real.sqrt_mul (by norm_num), show (4 : ℝ) = 2 ^ 2 by norm_num, Real.sqrt_sq (by norm_num)]
-  have hs : √(L : ℝ) ≤ Nat.sqrt L + 1 := by
-    rw [Real.sqrt_le_left (by positivity)]
+  have hs : √(L : ℝ) ≤ Nat.sqrt L + 1 := (Real.sqrt_le_left (by positivity)).2 <| by
     exact_mod_cast (Nat.lt_succ_sqrt L).le.trans_eq (by rw [Nat.succ_eq_add_one]; ring)
   have hmul : √(L : ℝ) * Real.log (4 * L) ≤ (Nat.sqrt L + 1) * Real.log (4 * L + 1) := by
     rcases Nat.eq_zero_or_pos L with rfl | hL
@@ -156,17 +139,15 @@ theorem four_pow_le_mul_prod_primesIoc (L : ℕ) :
       exact mul_le_mul hs (Real.log_le_log (by positivity) (by linarith))
         (Real.log_nonneg (by linarith)) (by positivity)
   have hlog4 : Real.log 4 = 2 * Real.log 2 := by
-    rw [show (4 : ℝ) = 2 ^ 2 by norm_num, Real.log_pow]
-    norm_num
+    rw [show (4 : ℝ) = 2 ^ 2 by norm_num, Real.log_pow]; norm_num
   have key : (L : ℝ) * Real.log 4 ≤ (4 * Nat.sqrt L + 5) * Real.log (4 * L + 1) + Real.log P := by
-    rw [hsqrt4] at h1
-    nlinarith
+    rw [hsqrt4] at h1; nlinarith
   -- exponentiate
-  have hreal : ((4 ^ L : ℕ) : ℝ) ≤ (((4 * L + 1) ^ (4 * Nat.sqrt L + 5) * P : ℕ) : ℝ) := by
-    rw [← Real.log_le_log_iff (by positivity) (by positivity)]
-    push_cast
-    rw [Real.log_pow, Real.log_mul (by positivity) hPr.ne', Real.log_pow]
-    cast_linarith
-  exact_mod_cast hreal
+  suffices ((4 ^ L : ℕ) : ℝ) ≤ (((4 * L + 1) ^ (4 * Nat.sqrt L + 5) * P : ℕ) : ℝ) from
+    mod_cast this
+  push_cast
+  rw [← Real.log_le_log_iff (by positivity) (by positivity), Real.log_pow,
+    Real.log_mul (by positivity) hPr.ne', Real.log_pow]
+  cast_linarith
 
 end Cslib
