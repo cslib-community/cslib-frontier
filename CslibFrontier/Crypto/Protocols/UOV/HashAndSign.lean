@@ -2975,6 +2975,25 @@ private noncomputable def detAbortHandler [DecidableEq M]
           cache := (m, (yx.1, yx.2, some st.hCount)) :: st.cache
           hCount := st.hCount + 1 })
 
+private theorem detCache_cons_indexed {M Target Payload : Type}
+    {cache : List (M × (Target × Payload × Option ℕ))} {signed : List M} {hCount : ℕ}
+    (m : M) (y : Target) (p : Payload)
+    (hsign : ∀ m' y' p', (m', (y', p', none)) ∈ cache → m' ∈ signed)
+    (hlt : ∀ m' y' p' k, (m', (y', p', some k)) ∈ cache → k < hCount) :
+    (∀ m' y' p', (m', (y', p', none)) ∈ (m, (y, p, some hCount)) :: cache → m' ∈ signed) ∧
+    (∀ m' y' p' k, (m', (y', p', some k)) ∈ (m, (y, p, some hCount)) :: cache →
+      k < hCount + 1) := by
+  refine ⟨?_, ?_⟩
+  · intro m' y' p' hm'
+    rcases List.mem_cons.mp hm' with hhd | htl
+    · injection hhd with _ h2; injection h2 with _ h3; injection h3 with _ h4; cases h4
+    · exact hsign m' y' p' htl
+  · intro m' y' p' k hm'
+    rcases List.mem_cons.mp hm' with hhd | htl
+    · injection hhd with _ h2; injection h2 with _ h3; injection h3 with _ h4
+      injection h4 with hk; subst hk; omega
+    · exact Nat.lt_succ_of_lt (hlt m' y' p' k htl)
+
 private def DetTrackInv {M Target Preimage : Type} (jStar : ℕ)
     (st : DetTrackState M Target Preimage) : Prop :=
   (∀ m y x, (m, (y, x, none)) ∈ st.cache → m ∈ st.signed) ∧
@@ -3056,16 +3075,8 @@ private theorem detTrackInv_step [DecidableEq M]
       obtain ⟨yx, -, heq⟩ := hstep
       rw [Prod.mk.injEq] at heq
       obtain ⟨-, rfl⟩ := heq
-      refine ⟨?_, ?_, ?_, ?_⟩
-      · intro m' y' x' hm'
-        rcases List.mem_cons.mp hm' with hhd | htl
-        · injection hhd with _ h2; injection h2 with _ h3; injection h3 with _ h4; cases h4
-        · exact hsign m' y' x' htl
-      · intro m' y' x' k hm'
-        rcases List.mem_cons.mp hm' with hhd | htl
-        · injection hhd with _ h2; injection h2 with _ h3; injection h3 with _ h4
-          injection h4 with hk; subst hk; dsimp only; omega
-        · exact Nat.lt_succ_of_lt (hlt m' y' x' k htl)
+      obtain ⟨hsign', hlt'⟩ := detCache_cons_indexed m yx.1 yx.2 hsign hlt
+      refine ⟨hsign', hlt', ?_, ?_⟩
       · intro m₁ y₁ x₁ m₂ y₂ x₂ hm₁ hm₂
         rcases List.mem_cons.mp hm₁ with hhd₁ | htl₁ <;>
           rcases List.mem_cons.mp hm₂ with hhd₂ | htl₂
@@ -3256,17 +3267,9 @@ private theorem detOneInv_cons_cache {M Target Preimage : Type} {jStar : ℕ}
     (hyj' : ∀ m' y' x', (m', (y', x', some jStar)) ∈ (m, (y, xOpt, some st.hCount)) :: st.cache →
       yAtJ' = some y') :
     DetOneInv jStar
-      ⟨(m, (y, xOpt, some st.hCount)) :: st.cache, st.signed, st.hCount + 1, yAtJ'⟩ := by
-  refine ⟨hnone', ?_, ?_, hyj'⟩
-  · intro m' y' x' hm'
-    rcases List.mem_cons.mp hm' with hhd | htl
-    · injection hhd with _ h2; injection h2 with _ h3; injection h3 with _ h4; cases h4
-    · exact hsign m' y' x' htl
-  · intro m' y' x' k hm'
-    rcases List.mem_cons.mp hm' with hhd | htl
-    · injection hhd with _ h2; injection h2 with _ h3; injection h3 with _ h4
-      injection h4 with hk; subst hk; dsimp only; omega
-    · exact Nat.lt_succ_of_lt (hlt m' y' x' k htl)
+      ⟨(m, (y, xOpt, some st.hCount)) :: st.cache, st.signed, st.hCount + 1, yAtJ'⟩ :=
+  let ⟨hsign', hlt'⟩ := detCache_cons_indexed m y xOpt hsign hlt
+  ⟨hnone', hsign', hlt', hyj'⟩
 
 private theorem detOneInv_step [DecidableEq M]
     (sys : TrapdoorPreimageSystem PK SK Target Preimage) (pk : PK) (jStar : ℕ)
