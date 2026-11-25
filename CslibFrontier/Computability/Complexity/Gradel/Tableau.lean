@@ -522,15 +522,13 @@ private theorem holds_inPrevClausesFor_target (tm : MultiTapeTM m Bool State)
     ∀ C ∈ inPrevClausesFor (m := m) (State := State) L inputFormula d,
       C.Holds (targetModel B tm input) := by
   intro C hC
-  cases d with
-  | zero =>
-    simp only [inPrevClausesFor, List.mem_cons, List.not_mem_nil, or_false] at hC
+  cases d <;> simp only [inPrevClausesFor, List.mem_cons, List.not_mem_nil, or_false] at hC
+  case zero =>
     subst hC
     intro v _ hb
     have hh := (holds_tagAtom_target tm input .inPos 0 1 v).mp (hb _ (List.mem_cons_self ..))
     exact (holds_inPrevAtom_target tm input .zero 0 1 v).mpr hh
-  | neg =>
-    simp only [inPrevClausesFor, List.mem_cons, List.not_mem_nil, or_false] at hC
+  case neg =>
     rcases hC with rfl | rfl
     · intro v hg hb
       rw [realize_zeroGuard] at hg
@@ -540,8 +538,7 @@ private theorem holds_inPrevClausesFor_target (tm : MultiTapeTM m Bool State)
       rw [realize_succGuard] at hg
       have hh := (holds_tagAtom_target tm input .inPos 0 2 v).mp (hb _ (List.mem_cons_self ..))
       exact (holds_inPrevAtom_target tm input .neg 0 1 v).mpr (Or.inr ⟨v 2, hg, hh⟩)
-  | pos =>
-    simp only [inPrevClausesFor, List.mem_cons, List.not_mem_nil, or_false] at hC
+  case pos =>
     rcases hC with rfl | rfl
     · intro v hg hb
       rw [Formula.realize_inf, Formula.realize_not, realize_zeroGuard,
@@ -561,35 +558,31 @@ private theorem holds_headPrevClausesFor_target (tm : MultiTapeTM m Bool State)
     ∀ C ∈ headPrevClausesFor (State := State) L i sign d, C.Holds (targetModel B tm input) := by
   intro C hC
   unfold headPrevClausesFor at hC
-  have hbody : ∀ v : Fin C.width → Fin B, C.guard.Realize v →
-      (∀ a ∈ C.body, a.Holds (targetModel B tm input) v) →
-      C.head.elim False fun a => a.Holds (targetModel B tm input) v := by
-    cases hdir : (if sign then d else -d) <;>
-      simp only [hdir, List.mem_cons, List.not_mem_nil, or_false] at hC
-    · subst hC
-      intro v _ hb
+  cases hdir : (if sign then d else -d) <;>
+    simp only [hdir, List.mem_cons, List.not_mem_nil, or_false] at hC
+  · subst hC
+    intro v _ hb
+    exact (holds_headPrevAtom_target tm input i sign d 0 1 v).mpr <| by
+      rw [headPrev, hdir]
+      exact (holds_tagAtom_target tm input _ 0 1 v).mp (hb _ (List.mem_cons_self ..))
+  · subst hC
+    intro v hg hb
+    exact (holds_headPrevAtom_target tm input i sign d 0 1 v).mpr <| by
+      rw [headPrev, hdir]
+      exact ⟨v 2, (realize_succGuard 1 2 v).mp hg,
+        (holds_tagAtom_target tm input _ 0 2 v).mp (hb _ (List.mem_cons_self ..))⟩
+  · rcases hC with rfl | rfl
+    · intro v hg hb
+      rw [Formula.realize_inf, realize_zeroGuard, realize_oneGuard] at hg
       exact (holds_headPrevAtom_target tm input i sign d 0 1 v).mpr <| by
         rw [headPrev, hdir]
-        exact (holds_tagAtom_target tm input _ 0 1 v).mp (hb _ (List.mem_cons_self ..))
-    · subst hC
-      intro v hg hb
-      exact (holds_headPrevAtom_target tm input i sign d 0 1 v).mpr <| by
-        rw [headPrev, hdir]
-        exact ⟨v 2, (realize_succGuard 1 2 v).mp hg,
+        exact Or.inl ⟨hg.1, v 2, hg.2,
           (holds_tagAtom_target tm input _ 0 2 v).mp (hb _ (List.mem_cons_self ..))⟩
-    · rcases hC with rfl | rfl
-      · intro v hg hb
-        rw [Formula.realize_inf, realize_zeroGuard, realize_oneGuard] at hg
-        exact (holds_headPrevAtom_target tm input i sign d 0 1 v).mpr <| by
-          rw [headPrev, hdir]
-          exact Or.inl ⟨hg.1, v 2, hg.2,
-            (holds_tagAtom_target tm input _ 0 2 v).mp (hb _ (List.mem_cons_self ..))⟩
-      · intro v hg hb
-        exact (holds_headPrevAtom_target tm input i sign d 0 1 v).mpr <| by
-          rw [headPrev, hdir]
-          exact Or.inr ⟨v 2, (realize_succGuard 2 1 v).mp hg,
-            (holds_tagAtom_target tm input _ 0 2 v).mp (hb _ (List.mem_cons_self ..))⟩
-  exact hbody
+    · intro v hg hb
+      exact (holds_headPrevAtom_target tm input i sign d 0 1 v).mpr <| by
+        rw [headPrev, hdir]
+        exact Or.inr ⟨v 2, (realize_succGuard 2 1 v).mp hg,
+          (holds_tagAtom_target tm input _ 0 2 v).mp (hb _ (List.mem_cons_self ..))⟩
 
 private theorem holds_initClausesFor_target [DecidableEq State]
     (tm : MultiTapeTM m Bool State) (input : List Bool)
@@ -689,36 +682,30 @@ private theorem stepBodies_sound (tm : MultiTapeTM m Bool State) (input : List B
     simp only [stepBodies, List.mem_cons, List.mem_map, List.mem_filter,
       decide_eq_true_eq] at hbody
     rcases hbody with rfl | ⟨⟨y, o'⟩, ⟨_, ho'⟩, rfl⟩
-    · obtain ⟨h1, h2⟩ := List.forall_mem_cons.mp hb
-      rw [List.forall_mem_singleton] at h2
+    · obtain ⟨h1, h2⟩ := (List.forall_mem_cons.mp hb).imp_right List.forall_mem_singleton.mp
       exact Or.inl ⟨(holds_tagAtom_target tm input _ 0 2 v).mp h1,
         (holds_tagAtom_target tm input _ 0 2 v).mp h2⟩
-    · obtain ⟨h1, h2⟩ := List.forall_mem_cons.mp hb
-      rw [List.forall_mem_singleton] at h2
+    · obtain ⟨h1, h2⟩ := (List.forall_mem_cons.mp hb).imp_right List.forall_mem_singleton.mp
       exact Or.inr ⟨y, o', ho', (holds_sitAtom_target tm input y 0 2 v).mp h1,
         (holds_tagAtom_target tm input _ 0 2 v).mp h2⟩
   | inPos =>
     simp only [stepBodies, List.mem_cons, List.mem_map] at hbody
     rcases hbody with rfl | ⟨y, _, rfl⟩
-    · obtain ⟨h1, h2⟩ := List.forall_mem_cons.mp hb
-      rw [List.forall_mem_singleton] at h2
+    · obtain ⟨h1, h2⟩ := (List.forall_mem_cons.mp hb).imp_right List.forall_mem_singleton.mp
       exact Or.inl ⟨(holds_tagAtom_target tm input _ 0 2 v).mp h1,
         (holds_tagAtom_target tm input _ 0 2 v).mp h2⟩
-    · obtain ⟨h1, h2⟩ := List.forall_mem_cons.mp hb
-      rw [List.forall_mem_singleton] at h2
+    · obtain ⟨h1, h2⟩ := (List.forall_mem_cons.mp hb).imp_right List.forall_mem_singleton.mp
       exact Or.inr ⟨y, (holds_sitAtom_target tm input y 0 2 v).mp h1,
         (holds_inPrevAtom_target tm input _ 0 2 v).mp h2⟩
   | head i sign =>
     simp only [stepBodies, List.mem_cons, List.mem_map] at hbody
     rcases hbody with rfl | ⟨y, _, rfl⟩
-    · obtain ⟨h1, h2⟩ := List.forall_mem_cons.mp hb
-      rw [List.forall_mem_singleton] at h2
+    · obtain ⟨h1, h2⟩ := (List.forall_mem_cons.mp hb).imp_right List.forall_mem_singleton.mp
       exact Or.inl ⟨(holds_tagAtom_target tm input _ 0 2 v).mp h1,
         (holds_tagAtom_target tm input _ 0 2 v).mp h2⟩
     · rcases hw : (tm.actionOf y).workTapes i with ⟨writeSym, dir⟩
       simp only [hw] at hb
-      obtain ⟨h1, h2⟩ := List.forall_mem_cons.mp hb
-      rw [List.forall_mem_singleton] at h2
+      obtain ⟨h1, h2⟩ := (List.forall_mem_cons.mp hb).imp_right List.forall_mem_singleton.mp
       refine Or.inr ⟨y, (holds_sitAtom_target tm input y 0 2 v).mp h1, ?_⟩
       rw [hw]
       exact (holds_headPrevAtom_target tm input i sign dir 0 2 v).mp h2
@@ -726,12 +713,10 @@ private theorem stepBodies_sound (tm : MultiTapeTM m Bool State) (input : List B
     simp only [stepBodies, List.mem_cons, List.mem_map, List.mem_filter,
       decide_eq_true_eq] at hbody
     rcases hbody with rfl | rfl | ⟨⟨y, s'⟩, ⟨_, hs'⟩, rfl⟩
-    · obtain ⟨h1, h2⟩ := List.forall_mem_cons.mp hb
-      rw [List.forall_mem_singleton] at h2
+    · obtain ⟨h1, h2⟩ := (List.forall_mem_cons.mp hb).imp_right List.forall_mem_singleton.mp
       exact Or.inl ⟨(holds_tagAtom_target tm input _ 0 2 v).mp h1,
         Or.inl ((holds_tagAtom_target tm input _ 0 2 v).mp h2)⟩
-    · obtain ⟨h1, h2⟩ := List.forall_mem_cons.mp hb
-      rw [List.forall_mem_singleton] at h2
+    · obtain ⟨h1, h2⟩ := (List.forall_mem_cons.mp hb).imp_right List.forall_mem_singleton.mp
       exact Or.inl ⟨(holds_tagAtom_target tm input _ 0 2 v).mp h1,
         Or.inr ((holds_elsewhereAtom_target tm input i sign 0 2 v).mp h2)⟩
     · rcases hw : (tm.actionOf y).workTapes i with ⟨writeSym, dir⟩
