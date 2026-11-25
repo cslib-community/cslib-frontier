@@ -99,18 +99,12 @@ private theorem evalSupportPMF_map_val {α : Type} (p : ProbComp α) :
   · rw [tsum_eq_single ⟨a, ha⟩]
     · simp only [evalSupportPMF, ↓reduceIte]
       rfl
-    · intro x hx
-      rw [ite_eq_right]
-      intro hval
-      exact hx (Subtype.ext hval.symm)
+    · exact fun x hx => ite_eq_right fun hval => hx (Subtype.ext hval.symm)
   · have hzero : p.eval a = 0 := by simpa [PMF.mem_support_iff] using ha
     simp only [evalSupportPMF]
     erw [hzero]
     rw [tsum_eq_zero_iff.mpr]
-    intro x
-    rw [ite_eq_right]
-    intro hval
-    exact absurd (hval ▸ x.2) ha
+    exact fun x => ite_eq_right fun (hval : a = x.1) => ha (hval ▸ x.2)
 
 /-- Variant of `ProbComp.eval_pi` without `[∀ j, Finite (α j)]`: restricts each `p j` to its
 finite support subtype `EvalSupport (p j)` so `Probability.PMF.pi` applies to arbitrary state
@@ -184,28 +178,23 @@ theorem run_parFinLazy_eq_parFin {m : ℕ} {ιE : Type} {E : ιE → Type} {α :
       ∀ a (s' : StateL), (a, s') ∈ (oracleL q s).support → InvL s' := by
     rintro (k | ⟨j, e⟩) ⟨cur, cache⟩ hs a ⟨cur', cache'⟩ hmem
     · simp only [oracleL, PMF.mem_support_map_iff] at hmem
-      rcases hmem with ⟨_, _, heq⟩
-      cases heq
+      obtain ⟨_, _, ⟨⟩⟩ := hmem
       exact hs
     · cases hcur : cur j with
       | some st =>
         have hcache : (cache j).isSome := (hs j).mp (by simp [hcur])
         obtain ⟨x₀, hx₀⟩ := Option.isSome_iff_exists.mp hcache
         simp only [oracleL, hcur, hx₀, PMF.mem_support_map_iff] at hmem
-        rcases hmem with ⟨⟨r, st'⟩, _, heq⟩
-        cases heq
+        obtain ⟨⟨r, st'⟩, _, ⟨⟩⟩ := hmem
         intro i
         by_cases hi : i = j
         · subst hi; simp [hx₀]
         · simpa [Function.update_of_ne hi] using hs i
       | none =>
         have hcache : cache j = none :=
-          Option.not_isSome_iff_eq_none.mp fun h => by
-            have := (hs j).mpr h
-            simp [hcur] at this
+          Option.not_isSome_iff_eq_none.mp (by simpa [hcur] using hs j)
         simp only [oracleL, hcur, hcache, PMF.mem_support_bind_iff, PMF.mem_support_map_iff] at hmem
-        rcases hmem with ⟨x₀, _, ⟨r, st'⟩, _, heq⟩
-        cases heq
+        obtain ⟨x₀, _, ⟨r, st'⟩, _, ⟨⟩⟩ := hmem
         intro i
         by_cases hi : i = j
         · subst hi; simp
@@ -233,9 +222,7 @@ theorem run_parFinLazy_eq_parFin {m : ℕ} {ιE : Type} {E : ιE → Type} {α :
         · simp [Function.update_of_ne hi]
       | none =>
         have hcache : cache j = none :=
-          Option.not_isSome_iff_eq_none.mp fun h => by
-            have := (hs j).mpr h
-            simp [hcur] at this
+          Option.not_isSome_iff_eq_none.mp (by simpa [hcur] using hs j)
         simp only [oracleL, oracleE, relate, hcur, hcache, PMF.bind_bind, PMF.bind_map,
           PMF.map_comp, Function.comp_def]
         have hcomm (x₀ : InitSup j) :
@@ -317,11 +304,11 @@ theorem run_parFinLazy_eq_parFin {m : ℕ} {ιE : Type} {E : ιE → Type} {α :
           (by
             rintro (k | ⟨j, e⟩) ⟨c, t⟩ ht a ⟨c', t'⟩ hmem
             · simp only [oracleE, PMF.mem_support_map_iff] at hmem
-              rcases hmem with ⟨_, _, heq⟩
-              cases heq; exact ht
+              obtain ⟨_, _, ⟨⟩⟩ := hmem
+              exact ht
             · simp only [oracleE, PMF.mem_support_map_iff] at hmem
-              rcases hmem with ⟨⟨r, st'⟩, _, heq⟩
-              cases heq; exact ht)
+              obtain ⟨⟨r, st'⟩, _, ⟨⟩⟩ := hmem
+              exact ht)
           program (curE, table) rfl x.1 x.2 hx
       calc
         ((OracleComp.interpret oracleE program).run (curE, table)).map (fun x => (x.1, x.2.2))
@@ -360,9 +347,7 @@ theorem run_parFinLazy_eq_parFin {m : ℕ} {ιE : Type} {E : ιE → Type} {α :
               Function.comp_def, ← PMF.bind_pure_comp]
           | none =>
             have hcache : cache j = none :=
-              Option.not_isSome_iff_eq_none.mp fun h => by
-                have := (hs j).mpr h
-                simp [hcur] at this
+              Option.not_isSome_iff_eq_none.mp (by simpa [hcur] using hs j)
             simp only [oracleL, oracleLClean, parFinLazy, Machine.handler, sumHandler, hcur, hcache,
               StateT.run, Machine.closeProgram_bind, Machine.closeProgram_sample,
               Machine.closeProgram_pure, ProbComp.eval_bind, ProbComp.eval_pure]
