@@ -249,8 +249,6 @@ theorem entryCertificate_le
   have hnZ : n + 1 ≤ Z := by omega
   have hZD : Z ^ D ≤ Z ^ (G + D) := Nat.pow_le_pow_right (by omega) (by omega)
   have hnD : n ≤ Z ^ D := (by omega : n ≤ Z).trans (Nat.le_self_pow (by omega) Z)
-  have hGP : G * P * Z ^ D ≤ (G + D) * P * Z ^ (G + D) :=
-    Nat.mul_le_mul (Nat.mul_le_mul_right _ (Nat.le_add_right _ _)) hZD
   have hG1 : G * Z ^ D ≤ (G + D) * Z ^ (G + D) := Nat.mul_le_mul (by omega) hZD
   have hrt' : (NativeCertificate.ofPolyTime (getLeft_polyTime (encT := encT))).time q ≤
       cr * Z ^ D := (hrt q).trans (hn ▸ mul_pow_le_mul_pow hnZ (by omega))
@@ -290,15 +288,24 @@ theorem entryCertificate_le
           n + ((NativeCertificate.ofPolyTime (rootInput_polyTime (encT := encT))).space
             ((.inl t, bs), t) + ce.space (t, bs)) := by
       rw [hn]; rfl
-    rw [htime, hspace]
     constructor
-    · have : (2 * cr + 1 + ci * 3 ^ di) * Z ^ D ≤ (2 * cr + 1 + ci * 3 ^ di) * P * Z ^ D :=
-        Nat.mul_le_mul_right _ (Nat.le_mul_of_pos_right _ hP1)
-      have : (2 * cr + 1 + ci * 3 ^ di) * P * Z ^ D ≤ G * P * Z ^ D :=
-        Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ (by omega))
-      linarith
-    · have : (2 * cr' + 1 + ci' * 3 ^ di') * Z ^ D ≤ G * Z ^ D := Nat.mul_le_mul_right _ (by omega)
-      linarith
+    · rw [htime]
+      have h1 : 2 * (cr * Z ^ D) + Z ^ D + ci * 3 ^ di * Z ^ D ≤ G * Z ^ D := by
+        have : (2 * cr + 1 + ci * 3 ^ di) * Z ^ D ≤ G * Z ^ D := Nat.mul_le_mul_right _ (by omega)
+        have e : (2 * cr + 1 + ci * 3 ^ di) * Z ^ D =
+            2 * (cr * Z ^ D) + Z ^ D + ci * 3 ^ di * Z ^ D := by ring
+        omega
+      have h2 : G * Z ^ D ≤ (G + D) * P * Z ^ (G + D) :=
+        Nat.mul_le_mul ((Nat.le_add_right G D).trans (Nat.le_mul_of_pos_right _ hP1)) hZD
+      omega
+    · rw [hspace]
+      have h1 : 2 * (cr' * Z ^ D) + Z ^ D + ci' * 3 ^ di' * Z ^ D ≤ G * Z ^ D := by
+        have : (2 * cr' + 1 + ci' * 3 ^ di') * Z ^ D ≤ G * Z ^ D :=
+          Nat.mul_le_mul_right _ (by omega)
+        have e : (2 * cr' + 1 + ci' * 3 ^ di') * Z ^ D =
+            2 * (cr' * Z ^ D) + Z ^ D + ci' * 3 ^ di' * Z ^ D := by ring
+        omega
+      omega
   · -- A packet: the input of the packet evaluator, then the evaluator.
     have hpt' : (NativeCertificate.ofPolyTime (packetInput_polyTime (encT := encT))).time
         (.inr d, bs) ≤ cp * Z ^ D :=
@@ -332,15 +339,25 @@ theorem entryCertificate_le
           n + ((NativeCertificate.ofPolyTime (packetInput_polyTime (encT := encT))).space
             (.inr d, bs) + vertexCertificate.space (d, bs)) := by
       rw [hn]; rfl
-    rw [htime, hspace]
     constructor
-    · have : (2 * cr + 1 + cp) * Z ^ D ≤ (2 * cr + 1 + cp) * P * Z ^ D :=
-        Nat.mul_le_mul_right _ (Nat.le_mul_of_pos_right _ hP1)
-      have : (2 * cr + 1 + cp + K₀) * P * Z ^ D ≤ G * P * Z ^ D :=
-        Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ (by omega))
-      linarith
-    · have : (2 * cr' + 1 + cp' + K₀) * Z ^ D ≤ G * Z ^ D := Nat.mul_le_mul_right _ (by omega)
-      linarith
+    · rw [htime]
+      have h1 : 2 * (cr * Z ^ D) + Z ^ D + cp * Z ^ D ≤ P * ((2 * cr + 1 + cp) * Z ^ D) := by
+        calc _ = (2 * cr + 1 + cp) * Z ^ D := by ring
+          _ ≤ _ := Nat.le_mul_of_pos_left _ hP1
+      have h2 : P * ((2 * cr + 1 + cp) * Z ^ D) + K₀ * P * Z ^ D ≤ P * (G * Z ^ D) := by
+        rw [show K₀ * P * Z ^ D = P * (K₀ * Z ^ D) by ring, ← Nat.mul_add, ← Nat.add_mul]
+        exact Nat.mul_le_mul_left _ (Nat.mul_le_mul_right _ (by omega))
+      have h3 : P * (G * Z ^ D) ≤ (G + D) * P * Z ^ (G + D) := by
+        rw [show (G + D) * P * Z ^ (G + D) = P * ((G + D) * Z ^ (G + D)) by ring]
+        exact Nat.mul_le_mul_left _ hG1
+      omega
+    · rw [hspace]
+      have h1 : 2 * (cr' * Z ^ D) + Z ^ D + cp' * Z ^ D + K₀ * Z ^ D ≤ G * Z ^ D := by
+        have : (2 * cr' + 1 + cp' + K₀) * Z ^ D ≤ G * Z ^ D := Nat.mul_le_mul_right _ (by omega)
+        have e : (2 * cr' + 1 + cp' + K₀) * Z ^ D =
+            2 * (cr' * Z ^ D) + Z ^ D + cp' * Z ^ D + K₀ * Z ^ D := by ring
+        omega
+      omega
 
 end Evaluator
 
