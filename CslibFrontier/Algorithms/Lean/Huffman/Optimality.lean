@@ -111,10 +111,7 @@ theorem IsHuffmanBuild.leaves_perm {α β : Type*} [Add β] [LE β] {w : α → 
     {syms : List α} {T : CodeTree α} (h : IsHuffmanBuild w (syms.map .leaf) T) :
     T.leaves.Perm syms := by
   have hflat : ∀ L : List α, ((L.map CodeTree.leaf).map CodeTree.leaves).flatten = L := fun L => by
-    induction L with
-    | nil => rfl
-    | cons a as ih =>
-      simp only [List.map_cons, List.flatten_cons, CodeTree.leaves_leaf, List.singleton_append, ih]
+    simp only [List.map_map, Function.comp_def, CodeTree.leaves_leaf]; exact L.flatMap_singleton'
   exact hflat syms ▸ h.leaves_perm_flatten
 
 theorem IsHuffmanBuild.map {α₁ α₂ β : Type*} [Add β] [LE β]
@@ -403,10 +400,7 @@ private theorem relabel_append_spec {δ γ : Type*} (fb : γ) (T : CodeTree δ)
       (relabel fb T xs).1.leafDepths = xs.zip (T.leafDepths.map Prod.snd) := by
   induction T generalizing xs ys with
   | leaf _ =>
-    rcases xs with _ | ⟨x, _ | ⟨_, _⟩⟩
-    · simp at hlen
-    · simp [relabel, CodeTree.leafDepths]
-    · simp at hlen
+    rcases xs with _ | ⟨x, _ | ⟨_, _⟩⟩ <;> simp [relabel, CodeTree.leafDepths] at hlen ⊢
   | branch l r ihl ihr =>
     simp only [CodeTree.leaves_branch, List.length_append] at hlen
     let xs₁ := xs.take l.leaves.length
@@ -513,8 +507,7 @@ theorem exists_cherry_weightedPathLength_le {γ β : Type*}
         CodeTree.map_fst_leafDepths, hS₁_leaves, hS₁_depths]
       rfl
     refine ⟨S', C', tail', hC', hS'_leaves, htail'_perm, hC'_leaves, ?_⟩
-    rw [hS'_wpl, ← weightedPathLength_rotateDeepestLeft W (.branch l r), hS₁_wpl]
-    exact hle
+    rwa [hS'_wpl, ← weightedPathLength_rotateDeepestLeft W (.branch l r), hS₁_wpl]
 
 theorem LeftCherryAtDepth.weight_contract_eq {γ β : Type*} [AddCommMonoid β]
     {S : CodeTree γ} {D : ℕ} {x y : γ} {C : γ → CodeTree γ}
@@ -559,10 +552,7 @@ theorem IsHuffmanBuild.weightedPathLength_le_join {α β : Type*}
     (S : CodeTree (CodeTree α)) (hS : S.leaves.Perm F) :
     T.weightedPathLength w ≤ S.join.weightedPathLength w := by
   induction hbuild generalizing S with
-  | single t =>
-    have hEq := CodeTree.eq_leaf_of_leaves_perm_singleton hS
-    subst hEq
-    exact le_rfl
+  | single t => obtain rfl := CodeTree.eq_leaf_of_leaves_perm_singleton hS; exact le_rfl
   | @step F F_rest t₁ t₂ T hmin _ ih =>
     let W : CodeTree α → β := fun t => t.weight w
     rcases exists_cherry_weightedPathLength_le W S (hS.trans hmin.perm) hmin.weight_le with
@@ -576,11 +566,10 @@ theorem IsHuffmanBuild.weightedPathLength_le_join {α β : Type*}
       exact add_le_add hwpl_le le_rfl
     let S_c := C' (.branch t₁ t₂)
     have hSc_perm : S_c.leaves.Perm (.branch t₁ t₂ :: F_rest) := by
-      rw [hC'_leaves]
-      exact htail'_perm.cons (.branch t₁ t₂)
+      rw [hC'_leaves]; exact htail'_perm.cons (.branch t₁ t₂)
     have hih := ih S_c hSc_perm
     rw [hC'.join_contract_eq] at hih
-    exact le_trans hih hjoin_le
+    exact hih.trans hjoin_le
 
 /-- **Optimality of Huffman Coding over Full Binary Code Trees** ([Huffman1952]; [CLRS2009],
 Theorem 16.4): every tree `T` produced by `IsHuffmanBuild w (syms.map .leaf) T` minimizes
