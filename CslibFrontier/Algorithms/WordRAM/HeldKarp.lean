@@ -392,9 +392,7 @@ private theorem exec_baseMaskStep {w : ℕ} (I : Instance) (hwS : Fits w I.space
         y'.mem (2 + (I.n + 1) * (I.n + 1) + j) = I.dist 0 ⟨j, hj⟩) ∧
       y'.regs rT = y.regs rT + 1 := by
   let dp0 := 2 + (I.n + 1) * (I.n + 1)
-  have hyz := hyfix.zero; have hyo := hyfix.one; have hyn := hyfix.n_eq
-  have hyN := hyfix.N_eq; have hydb := hyfix.distB; have hydp := hyfix.dpB
-  have hypow := hyfix.powN
+  have hyo := hyfix.one; have hydb := hyfix.distB; have hydp := hyfix.dpB
   have hpow1 : 1 ≤ 2 ^ I.n := Nat.one_le_two_pow
   have hmul : I.n + 1 ≤ 2 ^ I.n * (I.n + 1) := Nat.le_mul_of_pos_left _ hpow1
   have hsq : I.n + 1 ≤ (I.n + 1) * (I.n + 1) := Nat.le_mul_self _
@@ -407,14 +405,7 @@ private theorem exec_baseMaskStep {w : ℕ} (I : Instance) (hwS : Fits w I.space
     simpa using I.init_mem_dist (r := 18) 0 ⟨y.regs rT, hlt⟩
   dsimp [baseMaskStep]
   wram_exec [hydb, hydp, hyo, hsrc_mem]
-  refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, ?_, ?_, ?_⟩
-  · wram_simp [hyz]
-  · wram_simp [hyo]
-  · wram_simp [hyn]
-  · wram_simp [hyN]
-  · wram_simp [hydb]
-  · wram_simp [hydp]
-  · wram_simp [hypow]
+  refine ⟨by struct_frame hyfix, ?_, ?_, by wram_simp [hyo]⟩
   · intro a ha
     wram_simp [hydp]
     exact hylow a ha
@@ -423,7 +414,6 @@ private theorem exec_baseMaskStep {w : ℕ} (I : Instance) (hwS : Fits w I.space
     · subst hjeq; wram_simp [hydb, hydp, hsrc_mem]
     · wram_simp [hydb, hydp, hsrc_mem]
       exact hywr j (by omega) hjlt
-  · wram_simp [hyo]
 
 private theorem exec_setup {w : ℕ} (I : Instance) (hw : I.FitsWidth w) :
     ∃ s, ExecWithin w setupCode (.init I.encode) s (15 * I.n + 30) ∧
@@ -448,14 +438,8 @@ private theorem exec_setup {w : ℕ} (I : Instance) (hw : I.FitsWidth w) :
         hwS.of_le (by rw [Instance.spaceBound]; nlinarith only [hlt, hpow1])
       dsimp [dpBaseStep]
       wram_exec [hyN, hydp, hyo]
-      refine ⟨⟨hym, ?_, ?_, ?_, ?_, ?_, ?_⟩, ?_⟩
-      · wram_simp [hyz]
-      · wram_simp [hyo]
-      · wram_simp [hyn]
-      · wram_simp [hyN]
-      · wram_simp [hydb]
-      · wram_simp [hydp, hyN]; ring
-      · wram_simp [hyo])
+      refine ⟨⟨hym, ?_, ?_, ?_, ?_, ?_, ?_⟩, ?_⟩ <;> wram_simp [hyz, hyo, hyn, hyN, hydb, hydp]
+      ring)
     (by rw [ht1]; omega)
     (by rw [ht1]; exact ⟨rfl, hz1, ho1, hn1, hN1, hdb1, by simp [hdp1]⟩)
   rw [ht1, Nat.sub_zero] at hloop1
@@ -488,15 +472,9 @@ private theorem exec_setup {w : ℕ} (I : Instance) (hw : I.FitsWidth w) :
         hwS.of_le (by rw [Instance.spaceBound]; nlinarith only [hlt, hpow1])
       dsimp [powNStep]
       wram_exec [hypow, hyo]
-      refine ⟨⟨hym, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, ?_⟩
-      · wram_simp [hyz]
-      · wram_simp [hyo]
-      · wram_simp [hyn]
-      · wram_simp [hyN]
-      · wram_simp [hydb]
-      · wram_simp [hydp]
-      · wram_simp [hypow]; ring
-      · wram_simp [hyo])
+      refine ⟨⟨hym, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, ?_⟩ <;>
+        wram_simp [hyz, hyo, hyn, hyN, hydb, hydp, hypow]
+      ring)
     (by rw [hi3]; omega)
     (by rw [hi3]; exact ⟨hm3, hz3, ho3, hn3, hN3, hdb3, hdp3, by simp [hpow3]⟩)
   rw [hi3, Nat.sub_zero] at hloop2
@@ -527,16 +505,12 @@ private theorem exec_setup {w : ℕ} (I : Instance) (hw : I.FitsWidth w) :
   have h7 : ∃ s7, ExecWithin w setupMaskInit s6 s7 2 ∧
       s7.mem = s6.mem ∧ FixedRegs I s7 ∧ s7.regs rMask = 1 ∧
       s7.regs rMaskBase = dp0 + (I.n + 1) := by
-    have hz6 := hfix6.zero; have ho6 := hfix6.one; have hn6 := hfix6.n_eq
-    have hN6 := hfix6.N_eq; have hdb6 := hfix6.distB; have hdp6 := hfix6.dpB
-    have hpow6 := hfix6.powN
     have hfit1 : Fits w 1 := hwS.of_le (by rw [Instance.spaceBound]; omega)
     have hfit_mb : Fits w (dp0 + (I.n + 1)) :=
       hwS.of_le (by rw [Instance.spaceBound]; dsimp [dp0]; nlinarith only [hpow1])
     dsimp [dp0, setupMaskInit]
-    wram_exec [hdp6, hN6]
-    refine ⟨rfl, ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, ?_, ?_⟩ <;>
-      wram_simp [hz6, ho6, hn6, hN6, hdb6, hdp6, hpow6]
+    wram_exec [hfix6.dpB, hfix6.N_eq]
+    exact ⟨rfl, by struct_frame hfix6, by wram_simp, by wram_simp [hfix6.dpB, hfix6.N_eq]⟩
   obtain ⟨s7, he7, hm7, hfix7, hmask7, hmb7⟩ := h7
   refine ⟨s7,
     (he1.seq (he2.seq (he3.seq (he4.seq (he5.seq (he6.seq he7)))))).mono (by omega),
@@ -713,9 +687,6 @@ private theorem exec_targetStep {w : ℕ} (I : Instance) (hw : I.FitsWidth w)
   obtain ⟨hwS, hwV⟩ := hw
   let dp0 := 2 + (I.n + 1) * (I.n + 1)
   let tFin : Fin (I.n + 1) := ⟨tIdx, ht_lt⟩
-  have hz := hst_fix.zero; have ho := hst_fix.one; have hn := hst_fix.n_eq
-  have hN := hst_fix.N_eq; have hdb := hst_fix.distB; have hdp := hst_fix.dpB
-  have hpow := hst_fix.powN
   have hfit1 : Fits w 1 := by
     refine hwS.of_le ?_
     rw [Instance.spaceBound]
@@ -730,9 +701,9 @@ private theorem exec_targetStep {w : ℕ} (I : Instance) (hw : I.FitsWidth w)
   have hinit_i : ∃ u0, ExecWithin w targetInit st u0 6 ∧ u0.mem = st.mem ∧ FixedRegs I u0 ∧
       BitRegs I mask tFin 0 u0 ∧ u0.regs rI = 0 ∧ u0.regs rHasBest = 0 := by
     dsimp [targetInit]
-    wram_exec [hz, ho, hN, hdb]
-    refine ⟨rfl, ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, ⟨?_, ?_, ?_, ?_, ?_, ?_⟩, ?_, ?_⟩ <;>
-      wram_simp [hz, ho, hn, hN, hdb, hdp, hpow, hst_m, hst_mb, ht_eq] <;> first | rfl | simp
+    wram_exec [hst_fix.N_eq, hst_fix.distB]
+    refine ⟨rfl, by struct_frame hst_fix, ⟨?_, ?_, ?_, ?_, ?_, ?_⟩, ?_, ?_⟩ <;>
+      wram_simp [hst_fix.N_eq, hst_fix.distB, hst_m, hst_mb, ht_eq] <;> first | rfl | simp
   obtain ⟨u0, he_u0, hmu0, hfix_u0, hs_u0, hi_u0, hhb_u0⟩ := hinit_i
   let PBit (k : ℕ) (u : Data 18) : Prop :=
     u.mem = st.mem ∧ FixedRegs I u ∧ BitRegs I mask tFin k u ∧
@@ -781,9 +752,8 @@ private theorem exec_targetStep {w : ℕ} (I : Instance) (hw : I.FitsWidth w)
     have ht_u1 : u1.regs rT = tIdx := hs_u1.t_eq
     dsimp only [dp0, targetStore]
     wram_exec [hs_u1.maskBase_eq, ht_u1, hfix_u1.one]
-    refine ⟨?_, ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, ?_, ?_, ?_⟩ <;>
-      wram_simp [hmu1, hfix_u1.zero, hfix_u1.one, hfix_u1.n_eq, hfix_u1.N_eq, hfix_u1.distB,
-        hfix_u1.dpB, hfix_u1.powN, hs_u1.mask_eq, hs_u1.maskBase_eq, ht_u1]
+    exact ⟨by wram_simp [hmu1, hs_u1.maskBase_eq, ht_u1], by struct_frame hfix_u1,
+      by wram_simp [hs_u1.mask_eq], by wram_simp [hs_u1.maskBase_eq], by wram_simp [ht_u1, hfix_u1.one]⟩
   obtain ⟨u2, he_u2, hmu2, hfix_u2, hm_u2, hmb_u2, ht_u2⟩ := hstore
   refine ⟨u2, (he_u0.seq (he_u1.seq he_u2)).mono (by omega),
     hfix_u2, ?_, ?_, hm_u2, hmb_u2, ?_, ht_u2⟩
@@ -821,13 +791,9 @@ private theorem exec_maskStep {w : ℕ} (I : Instance) (hw : I.FitsWidth w)
   have h1 : ∃ y1, ExecWithin w maskZeroT y y1 1 ∧
       y1.mem = y.mem ∧ FixedRegs I y1 ∧ y1.regs rMask = mask ∧
       y1.regs rMaskBase = dp0 + mask * (I.n + 1) ∧ y1.regs rT = 0 := by
-    have hz := hyfix.zero; have ho := hyfix.one; have hn := hyfix.n_eq
-    have hN := hyfix.N_eq; have hdb := hyfix.distB; have hdp := hyfix.dpB
-    have hpow := hyfix.powN
     dsimp [dp0, maskZeroT]
-    wram_exec [hz]
-    refine ⟨rfl, ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, ?_, ?_, ?_⟩ <;>
-      wram_simp [hz, ho, hn, hN, hdb, hdp, hpow, hym, hymb]
+    wram_exec [hyfix.zero]
+    exact ⟨rfl, by struct_frame hyfix, by wram_simp [hym], by wram_simp [hymb], by wram_simp⟩
   obtain ⟨y1, he_y1, hmy1, hfix_y1, hm_y1, hmb_y1, ht_y1⟩ := h1
   let PTarget (tIdx : ℕ) (st : Data 18) : Prop :=
     FixedRegs I st ∧ DistIntact I st.mem ∧ TableInv I mask st.mem ∧
@@ -853,25 +819,15 @@ private theorem exec_maskStep {w : ℕ} (I : Instance) (hw : I.FitsWidth w)
   have hinc : ∃ y3, ExecWithin w maskInc y2 y3 2 ∧
       y3.mem = y2.mem ∧ FixedRegs I y3 ∧ y3.regs rMask = mask + 1 ∧
       y3.regs rMaskBase = dp0 + (mask + 1) * (I.n + 1) := by
-    have hz2 := hfix_y2.zero; have ho2 := hfix_y2.one; have hn2 := hfix_y2.n_eq
-    have hN2 := hfix_y2.N_eq; have hdb2 := hfix_y2.distB; have hdp2 := hfix_y2.dpB
-    have hpow2 := hfix_y2.powN
+    have ho2 := hfix_y2.one; have hN2 := hfix_y2.N_eq
     have hfit_m1 : Fits w (mask + 1) :=
       hwS.of_le (by rw [Instance.spaceBound]; nlinarith)
     have hfit_mb1 : Fits w ((dp0 + mask * (I.n + 1)) + (I.n + 1)) :=
       hwS.of_le (by rw [Instance.spaceBound]; dsimp [dp0]; nlinarith)
     dsimp [maskInc]
     wram_exec [hm_y2, ho2, hmb_y2, hN2]
-    refine ⟨rfl, ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, ?_, ?_⟩
-    · wram_simp [hz2]
-    · wram_simp [ho2]
-    · wram_simp [hn2]
-    · wram_simp [hN2]
-    · wram_simp [hdb2]
-    · wram_simp [hdp2]
-    · wram_simp [hpow2]
-    · wram_simp [hm_y2, ho2]
-    · wram_simp [hmb_y2, hN2]; ring
+    exact ⟨rfl, by struct_frame hfix_y2, by wram_simp [hm_y2, ho2],
+      by wram_simp [hmb_y2, hN2]; ring⟩
   obtain ⟨y3, he_y3, hmy3, hfix_y3, hm_y3, hmb_y3⟩ := hinc
   have h13 : (I.n + 1) * (22 * I.n + 11 + 2) + 2 + 1 + 2 ≤ (I.n + 1) * (22 * I.n + 13) + 5 := by
     nlinarith
