@@ -127,58 +127,48 @@ theorem rightUnique_registerStep_fin (hdet : ntm.IsDeterministic) {B : ℕ} :
 /-- The initial view has the start registers. -/
 theorem registers_initView (w : List Bool) :
     registers (ntm.initView w) = startRegisters ntm := by
-  funext i
-  cases i <;> rfl
+  funext i; cases i <;> rfl
 
 /-- Every view step is a register step on the view's input. -/
 theorem registerStep_of_viewStep {v v' : FiniteCfg k Bool State} (h : ntm.ViewStep v v') :
     RegisterStep ntm v.input (registers v) (registers v') := by
   cases hs : v.state with
   | none =>
-    have hv : v' = v := by simpa [ViewStep, hs] using h
-    subst hv
+    obtain rfl : v' = v := by simpa [ViewStep, hs] using h
     exact .inl ⟨by simp [registers, hs], rfl⟩
   | some q =>
     obtain ⟨a, ha, rfl⟩ : ∃ a, ntm.Tr q v.inputSymbol v.workTapeSymbols a ∧
         v' = (v.step a).summarizeOutput := by simpa [ViewStep, hs] using h
-    refine .inr ⟨q, v.inputSymbol, v.workTapeSymbols, a, ha, by simp [registers, hs], ?_,
-      fun _ => rfl, registers_step v a⟩
-    exact (Cfg.inputSymbol_eq_inputAt v.toCfg).symm
+    exact .inr ⟨q, _, _, a, ha, by simp [registers, hs],
+      (Cfg.inputSymbol_eq_inputAt v.toCfg).symm, fun _ => rfl, registers_step v a⟩
 
 /-- Every register step out of the registers of a view is the registers of a view step. -/
 theorem exists_viewStep_of_registerStep {v : FiniteCfg k Bool State} {r : Register k → ℕ}
     (h : RegisterStep ntm v.input (registers v) r) :
     ∃ v', ntm.ViewStep v v' ∧ v'.input = v.input ∧ registers v' = r := by
   rcases h with ⟨hc, rfl⟩ | ⟨q, s, heads, a, ha, hc, hin, hh, rfl⟩
-  · have hs : v.state = none := stateCode_injective hc
-    exact ⟨v, by simp [ViewStep, hs], rfl, rfl⟩
-  · have hs : v.state = some q := stateCode_injective hc
-    have hin' : v.inputSymbol = s := (Cfg.inputSymbol_eq_inputAt v.toCfg).trans hin
+  · exact ⟨v, by simp [ViewStep, stateCode_injective hc], rfl, rfl⟩
+  · have hin' : v.inputSymbol = s := (Cfg.inputSymbol_eq_inputAt v.toCfg).trans hin
     have hw : v.workTapeSymbols = heads := funext fun i => symbolCode_injective (hh i)
     refine ⟨(v.step a).summarizeOutput, ?_, rfl, registers_step v a⟩
-    simp only [ViewStep, hs]
+    simp only [ViewStep, stateCode_injective hc]
     exact ⟨a, by rwa [hin', hw], rfl⟩
 
 /-- **Reachable register tuples are the registers of reachable views.** -/
 theorem reflTransGen_registerStep_iff (r : Register k → ℕ) :
     Relation.ReflTransGen (RegisterStep ntm w) (startRegisters ntm) r ↔
       ∃ v, Relation.ReflTransGen ntm.ViewStep (ntm.initView w) v ∧ registers v = r := by
-  constructor
-  · intro h
-    induction h with
+  refine ⟨fun h => ?_, ?_⟩
+  · induction h with
     | refl => exact ⟨_, .refl, registers_initView w⟩
-    | @tail a b _ hab ih =>
+    | tail _ hab ih =>
       obtain ⟨v, hv, rfl⟩ := ih
-      rw [← input_of_reachable hv] at hab
-      obtain ⟨v', hstep, _, rfl⟩ := exists_viewStep_of_registerStep hab
+      obtain ⟨v', hstep, _, rfl⟩ := exists_viewStep_of_registerStep (input_of_reachable hv ▸ hab)
       exact ⟨v', hv.tail hstep, rfl⟩
   · rintro ⟨v, hv, rfl⟩
     induction hv with
     | refl => rw [registers_initView]
-    | @tail a b hab hstep ih =>
-      have hstep' := registerStep_of_viewStep hstep
-      rw [input_of_reachable hab] at hstep'
-      exact ih.tail hstep'
+    | tail hab hstep ih => exact ih.tail (input_of_reachable hab ▸ registerStep_of_viewStep hstep)
 
 /-- **Acceptance is register-tuple reachability**: a machine accepts exactly when a tuple with the
 halting control tag and output tag `1` is reachable from the start registers. -/
@@ -186,13 +176,10 @@ theorem accepts_iff_registerStep :
     ntm.Accepts w ↔ ∃ r, Relation.ReflTransGen (RegisterStep ntm w) (startRegisters ntm) r ∧
       r .control = stateCode (none : Option State) ∧ r .output = 1 := by
   rw [accepts_iff_reflTransGen_viewStep]
-  constructor
-  · rintro ⟨v, hv, hs, ho⟩
-    exact ⟨registers v, (reflTransGen_registerStep_iff _).mpr ⟨v, hv, rfl⟩,
-      congrArg stateCode hs, outputCode_eq_one_iff.mpr ho⟩
-  · rintro ⟨r, hr, hc, ho⟩
-    obtain ⟨v, hv, rfl⟩ := (reflTransGen_registerStep_iff r).mp hr
-    exact ⟨v, hv, stateCode_injective hc, outputCode_eq_one_iff.mp ho⟩
+  refine ⟨fun ⟨v, hv, hs, ho⟩ => ⟨registers v, (reflTransGen_registerStep_iff _).mpr ⟨v, hv, rfl⟩,
+    congrArg stateCode hs, outputCode_eq_one_iff.mpr ho⟩, fun ⟨r, hr, hc, ho⟩ => ?_⟩
+  obtain ⟨v, hv, rfl⟩ := (reflTransGen_registerStep_iff r).mp hr
+  exact ⟨v, hv, stateCode_injective hc, outputCode_eq_one_iff.mp ho⟩
 
 /-- **Acceptance on bounded register tuples**: when every reachable view fits the radix `B`,
 acceptance is reachability between tuples of elements of `Fin B`, from a tuple holding the start
@@ -205,26 +192,18 @@ theorem accepts_iff_registerStep_fin {B : ℕ}
         RegisterStep ntm w (fun i => (x i).val) (fun i => (y i).val)) x y ∧
       (y .control).val = stateCode (none : Option State) ∧ (y .output).val = 1 := by
   let f : (Register k → Fin B) → Register k → ℕ := fun x i => (x i).val
-  have hf : Function.Injective f := fun x y h => funext fun i => Fin.ext (congrFun h i)
-  have hstart : Fits B (startRegisters ntm) := by
-    rw [← registers_initView w]
-    exact hfit _ .refl
+  have hf : Function.Injective f := fun _ _ h => funext fun i => Fin.ext (congrFun h i)
   have hrange : ∀ r, Relation.ReflTransGen (RegisterStep ntm w) (startRegisters ntm) r →
-      ∃ x, f x = r := by
-    intro r hr
+      ∃ x, f x = r := fun r hr => by
     obtain ⟨v, hv, rfl⟩ := (reflTransGen_registerStep_iff r).mp hr
     exact ⟨fun i => ⟨registers v i, hfit v hv i⟩, rfl⟩
   rw [accepts_iff_registerStep]
-  constructor
-  · rintro ⟨r, hr, hc, ho⟩
-    let x : Register k → Fin B := fun i => ⟨startRegisters ntm i, hstart i⟩
-    obtain ⟨y, rfl⟩ := hrange r hr
-    exact ⟨x, y, fun _ => rfl,
-      (Relation.reflTransGen_onFun_iff hf (a := x) (b := y) hrange).mpr hr, hc, ho⟩
-  · rintro ⟨x, y, hx, hxy, hc, ho⟩
-    have hfx : f x = startRegisters ntm := funext hx
-    refine ⟨f y, ?_, hc, ho⟩
-    rw [← hfx]
-    exact Relation.ReflTransGen.lift f (fun _ _ h => h) _ _ hxy
+  refine ⟨fun ⟨r, hr, hc, ho⟩ => ?_, fun ⟨x, y, hx, hxy, hc, ho⟩ =>
+    ⟨f y, funext hx ▸ Relation.ReflTransGen.lift f (fun _ _ h => h) _ _ hxy, hc, ho⟩⟩
+  let x : Register k → Fin B :=
+    fun i => ⟨startRegisters ntm i, by rw [← registers_initView w]; exact hfit _ .refl i⟩
+  obtain ⟨y, rfl⟩ := hrange r hr
+  exact ⟨x, y, fun _ => rfl,
+    (Relation.reflTransGen_onFun_iff hf (a := x) (b := y) hrange).mpr hr, hc, ho⟩
 
 end Turing.MultiTapeNTM.ConfigurationGraph

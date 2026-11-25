@@ -44,24 +44,18 @@ open _root_.Turing _root_.Turing.MultiTapeTM Filter
 
 private theorem timeDiagonal_two_pow_two_pow_bound (n : ℕ) :
     (n + 1) ^ 5 * (2 ^ (2 ^ n) + 1) ^ 3 ≤ 2 ^ (2 ^ (n + 4)) := by
-  have h₁ : n + 1 ≤ 2 ^ (2 ^ n) := by
-    calc n + 1 ≤ 2 ^ n := Nat.lt_two_pow_self
-      _ ≤ 2 ^ (2 ^ n) := Nat.pow_le_pow_right (by norm_num) (Nat.le_of_lt Nat.lt_two_pow_self)
-  have h₂ : (n + 1) ^ 5 ≤ 2 ^ (5 * 2 ^ n) := by
-    calc (n + 1) ^ 5 ≤ (2 ^ (2 ^ n)) ^ 5 := Nat.pow_le_pow_left h₁ 5
-      _ = 2 ^ (5 * 2 ^ n) := by rw [← Nat.pow_mul, mul_comm]
+  have h₁ : n + 1 ≤ 2 ^ (2 ^ n) :=
+    (Nat.succ_le_of_lt Nat.lt_two_pow_self).trans
+      (Nat.pow_le_pow_right Nat.two_pos Nat.lt_two_pow_self.le)
+  have h₂ : (n + 1) ^ 5 ≤ 2 ^ (5 * 2 ^ n) :=
+    (Nat.pow_le_pow_left h₁ 5).trans_eq (by rw [← Nat.pow_mul, mul_comm])
   have h₃ : 2 ^ (2 ^ n) + 1 ≤ 2 ^ (2 * 2 ^ n) := by
-    have hp₁ : 1 ≤ 2 ^ (2 ^ n) := Nat.one_le_two_pow
-    have hp₂ : 1 ≤ 2 ^ n := Nat.one_le_two_pow
-    calc 2 ^ (2 ^ n) + 1 ≤ 2 * 2 ^ (2 ^ n) := by omega
-      _ = 2 ^ (2 ^ n + 1) := (pow_succ' 2 (2 ^ n)).symm
-      _ ≤ 2 ^ (2 * 2 ^ n) := Nat.pow_le_pow_right (by norm_num) (by omega)
-  have h₄ : (2 ^ (2 ^ n) + 1) ^ 3 ≤ 2 ^ (6 * 2 ^ n) := by
-    calc (2 ^ (2 ^ n) + 1) ^ 3 ≤ (2 ^ (2 * 2 ^ n)) ^ 3 := Nat.pow_le_pow_left h₃ 3
-      _ = 2 ^ (6 * 2 ^ n) := by rw [← Nat.pow_mul]; ring_nf
+    have := @Nat.one_le_two_pow (2 ^ n); have := @Nat.one_le_two_pow n
+    exact (show 2 ^ (2 ^ n) + 1 ≤ 2 ^ (2 ^ n + 1) by rw [pow_succ']; omega).trans
+      (Nat.pow_le_pow_right (by norm_num) (by omega))
   calc (n + 1) ^ 5 * (2 ^ (2 ^ n) + 1) ^ 3
-      ≤ 2 ^ (5 * 2 ^ n) * 2 ^ (6 * 2 ^ n) := Nat.mul_le_mul h₂ h₄
-    _ = 2 ^ (11 * 2 ^ n) := by rw [← Nat.pow_add]; ring_nf
+      ≤ 2 ^ (5 * 2 ^ n) * (2 ^ (2 * 2 ^ n)) ^ 3 := Nat.mul_le_mul h₂ (Nat.pow_le_pow_left h₃ 3)
+    _ = 2 ^ (11 * 2 ^ n) := by rw [← Nat.pow_mul, ← Nat.pow_add]; ring_nf
     _ ≤ 2 ^ (16 * 2 ^ n) := Nat.pow_le_pow_right (by norm_num) (by omega)
     _ = 2 ^ (2 ^ (n + 4)) := by rw [Nat.pow_add, mul_comm (2 ^ n) (2 ^ 4)]
 
@@ -91,41 +85,29 @@ theorem not_NEXP_subset_NP : ¬ (NEXP encBits ⊆ NP encBits) := by
     ComputableInPolyTime.unary_add.comp (.prod .id' (.const 4))
   have hB₂ := preimage_pad_mem_NEXP (enc := encBits) (f := fun n => n + 4) hB₁ hf_add
     fun n => Nat.le_add_right n 4
-  have hL_eq : L = g₂ ⁻¹' (h₁ ⁻¹' ntm.padded c) := by
-    ext x
+  have hL_eq : L = g₂ ⁻¹' (h₁ ⁻¹' ntm.padded c) := Set.ext fun x => by
     change x ∈ L ↔ h₁ (g₂ x) ∈ ntm.padded c
-    have hpad_eq : h₁ (g₂ x) =
-        frame x ++ (List.replicate (2 ^ (x.length + 4)) true ++
-          List.replicate (2 ^ (g₂ x).length) true) := by
-      simp [h₁, g₂, List.append_assoc]
-    rw [hpad_eq]
+    simp only [h₁, g₂, List.append_assoc]
     refine (hdec.frame_append_mem_padded_iff (a := x) ?_).symm
-    change Nat.card (Turing.Action k Bool State) * (c₁ * 2 ^ (2 ^ (x.length + 4)) + c₂) ≤
-      c * (frame x ++ (List.replicate (2 ^ (x.length + 4)) true ++
-        List.replicate (2 ^ (g₂ x).length) true)).length
     have hM : 2 ^ (x.length + 4) ≤ (g₂ x).length := by
       simp only [g₂, List.length_append, length_frame, List.length_replicate]; omega
-    have hpow_le : 2 ^ (2 ^ (x.length + 4)) ≤ 2 ^ (g₂ x).length := by gcongr
     have hlen_ge : 2 ^ (2 ^ (x.length + 4)) + 1 ≤
         (frame x ++ (List.replicate (2 ^ (x.length + 4)) true ++
           List.replicate (2 ^ (g₂ x).length) true)).length := by
+      have : 2 ^ (2 ^ (x.length + 4)) ≤ 2 ^ (g₂ x).length := by gcongr
       have := Nat.zero_le (2 ^ (x.length + 4))
       simp only [List.length_append, length_frame, List.length_replicate]; omega
-    have hmul : c₁ * 2 ^ (2 ^ (x.length + 4)) + c₂ ≤
-        (c₁ + c₂) * (frame x ++ (List.replicate (2 ^ (x.length + 4)) true ++
-          List.replicate (2 ^ (g₂ x).length) true)).length :=
-      (Nat.add_le_add (Nat.mul_le_mul_left c₁ (Nat.le_succ _))
-        (Nat.le_mul_of_pos_right c₂ (Nat.succ_pos _))).trans
-        ((Nat.add_mul _ _ _).symm ▸ Nat.mul_le_mul_left _ hlen_ge)
-    rw [Nat.mul_assoc]
-    exact Nat.mul_le_mul_left _ hmul
-  have hL_EXP : L ∈ EXP encBits := hL_eq ▸ NP_subset_EXP (hSub hB₂)
-  obtain ⟨d, hd⟩ := mem_EXP_iff.mp hL_EXP
+    rw [show c * _ = Nat.card (Turing.Action k Bool State) * ((c₁ + c₂) * _) from
+      Nat.mul_assoc _ _ _]
+    exact Nat.mul_le_mul_left _ ((Nat.add_le_add (Nat.mul_le_mul_left c₁ (Nat.le_succ _))
+      (Nat.le_mul_of_pos_right c₂ (Nat.succ_pos _))).trans
+        ((Nat.add_mul _ _ _).symm ▸ Nat.mul_le_mul_left _ hlen_ge))
+  obtain ⟨d, hd⟩ := mem_EXP_iff.mp (hL_eq ▸ NP_subset_EXP (hSub hB₂))
   refine setOf_timeDiagonal_notMem_DTIME (f := fun n => 2 ^ n ^ d) (J := J) (fun C => ?_) hd
-  have hpoly : PolynomiallyBounded fun n => n ^ d + n + 1 := by fun_prop
-  filter_upwards [hpoly.eventually_lt_two_pow, eventually_ge_atTop (C + 1)] with n hn hC
+  filter_upwards [(by fun_prop : PolynomiallyBounded fun n => n ^ d + n + 1).eventually_lt_two_pow,
+    eventually_ge_atTop (C + 1)] with n hn hC
   have h₁ : 2 * C ≤ 2 ^ (n + 1) := by
-    have : n + 1 ≤ 2 ^ n := Nat.lt_two_pow_self
+    have := @Nat.lt_two_pow_self n
     rw [pow_succ']; omega
   have h₂ : C ≤ C * 2 ^ n ^ d := Nat.le_mul_of_pos_right C Nat.one_le_two_pow
   calc C * 2 ^ n ^ d + C

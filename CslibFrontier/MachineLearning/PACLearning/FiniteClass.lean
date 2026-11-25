@@ -66,11 +66,9 @@ theorem measure_pi_forall_apply_eq_eq_pow_card {ι : Type*} [Fintype ι] (D : Me
     [IsProbabilityMeasure D] {h : α → β} (hh : MeasurableSet {p : α × β | h p.1 ≠ p.2}) :
     Measure.pi (fun _ : ι => D) {S : ι → α × β | ∀ i, h (S i).1 = (S i).2} =
       (1 - error D h) ^ Fintype.card ι := by
-  have hset : {S : ι → α × β | ∀ i, h (S i).1 = (S i).2} =
-      Set.univ.pi fun _ => {p : α × β | h p.1 ≠ p.2}ᶜ := by
-    ext S
-    simp only [mem_ofPred_eq, mem_pi, mem_univ, mem_compl_iff, not_not, true_implies]
-  rw [hset, Measure.pi_pi, prob_compl_eq_one_sub hh, Finset.prod_const, Finset.card_univ, error]
+  rw [show {S : ι → α × β | ∀ i, h (S i).1 = (S i).2} =
+      Set.univ.pi fun _ => {p : α × β | h p.1 ≠ p.2}ᶜ by ext; simp,
+    Measure.pi_pi, prob_compl_eq_one_sub hh, Finset.prod_const, Finset.card_univ, error]
 
 /-- A fixed hypothesis `h` agrees with all `m` i.i.d. examples drawn from `D` with probability
 `(1 - error D h) ^ m`. -/
@@ -90,24 +88,19 @@ theorem measure_pi_exists_consistent_lt_error_le_card_mul_pow {H : Finset (α �
         {S : LabeledSample α β m | ∃ h ∈ H, ε < error D h ∧ ∀ i, h (S i).1 = (S i).2} ≤
       H.card * (1 - ε) ^ m := by
   classical
-  set μ := Measure.pi (fun _ : Fin m => D)
   set Bad := H.filter fun h => ε < error D h
-  have hsub : {S : LabeledSample α β m | ∃ h ∈ H, ε < error D h ∧ ∀ i, h (S i).1 = (S i).2} ⊆
-      ⋃ h ∈ Bad, {S : LabeledSample α β m | ∀ i, h (S i).1 = (S i).2} := fun S ⟨h, hH, hε, hS⟩ =>
-    mem_iUnion₂.2 ⟨h, Finset.mem_filter.2 ⟨hH, hε⟩, hS⟩
-  calc μ {S | ∃ h ∈ H, ε < error D h ∧ ∀ i, h (S i).1 = (S i).2}
-      ≤ μ (⋃ h ∈ Bad, {S : LabeledSample α β m | ∀ i, h (S i).1 = (S i).2}) := measure_mono hsub
-    _ ≤ ∑ h ∈ Bad, μ {S : LabeledSample α β m | ∀ i, h (S i).1 = (S i).2} :=
-        measure_biUnion_finset_le _ _
-    _ ≤ ∑ _h ∈ Bad, (1 - ε) ^ m := by
-        refine Finset.sum_le_sum fun h hh => ?_
-        obtain ⟨hhH, hhε⟩ := Finset.mem_filter.1 hh
-        rw [measure_pi_forall_apply_eq_eq_pow D (hH h hhH)]
-        gcongr
-    _ ≤ H.card * (1 - ε) ^ m := by
-        rw [Finset.sum_const, nsmul_eq_mul]
-        gcongr
-        exact Finset.filter_subset _ _
+  refine (measure_mono
+    (s := {S : LabeledSample α β m | ∃ h ∈ H, ε < error D h ∧ ∀ i, h (S i).1 = (S i).2})
+    (t := ⋃ h ∈ Bad, {S : LabeledSample α β m | ∀ i, h (S i).1 = (S i).2})
+    fun S ⟨h, hH, hε, hS⟩ => mem_iUnion₂.2 ⟨h, Finset.mem_filter.2 ⟨hH, hε⟩, hS⟩).trans
+    ((measure_biUnion_finset_le _ _).trans
+      ((Finset.sum_le_sum (g := fun _ => (1 - ε) ^ m) fun h hh => ?_).trans ?_))
+  · rw [measure_pi_forall_apply_eq_eq_pow D (hH h (Finset.mem_filter.1 hh).1)]
+    have := (Finset.mem_filter.1 hh).2
+    gcongr
+  · rw [Finset.sum_const, nsmul_eq_mul]
+    have := Finset.filter_subset (fun h => ε < error D h) H
+    gcongr
 
 /-- **Union bound for consistent learners of a finite class.** If `D` is realizable by the finite
 class `H` and `A` is consistent with `H`, then the probability over `m` i.i.d. examples that the
@@ -117,23 +110,18 @@ theorem IsConsistent.measure_pi_lt_error_le_card_mul_pow {H : Finset (α → β)
     (hA : IsConsistent A (H : Set (α → β))) {D : Measure (α × β)} [IsProbabilityMeasure D]
     (hD : IsRealizableBy D (H : Set (α → β))) (ε : ℝ≥0∞) :
     Measure.pi (fun _ : Fin m => D) {S | ε < error D (A S)} ≤ H.card * (1 - ε) ^ m := by
-  have hsub : {S | ε < error D (A S)} ≤ᵐ[Measure.pi (fun _ : Fin m => D)]
-      {S : LabeledSample α β m | ∃ h ∈ H, ε < error D h ∧ ∀ i, h (S i).1 = (S i).2} := by
-    filter_upwards [hA.ae_mem_versionSpace hD] with S hS hlt
-    obtain ⟨hAH, hAS⟩ := hS
-    exact ⟨A S, Finset.mem_coe.1 hAH, hlt, hAS⟩
-  exact (measure_mono_ae hsub).trans
-    (measure_pi_exists_consistent_lt_error_le_card_mul_pow hH D ε)
+  refine (measure_mono_ae ?_).trans (measure_pi_exists_consistent_lt_error_le_card_mul_pow hH D ε)
+  filter_upwards [hA.ae_mem_versionSpace hD] with S ⟨hAH, hAS⟩ hlt
+  exact ⟨A S, Finset.mem_coe.1 hAH, hlt, hAS⟩
 
 /-- `n exp (-(ε m)) ≤ δ` once `log n + log (1 / δ) ≤ ε m`. -/
 private theorem natCast_mul_exp_neg_le {n m : ℕ} {ε δ : ℝ} (hδ : 0 < δ)
     (hm : Real.log n + Real.log δ⁻¹ ≤ ε * m) : n * Real.exp (-(ε * m)) ≤ δ := by
   rcases Nat.eq_zero_or_pos n with rfl | hn
   · simpa using hδ.le
-  have hn' : (0 : ℝ) < n := by exact_mod_cast hn
   rw [Real.log_inv] at hm
   calc (n : ℝ) * Real.exp (-(ε * m)) = Real.exp (Real.log n + -(ε * m)) := by
-        rw [Real.exp_add, Real.exp_log hn']
+        rw [Real.exp_add, Real.exp_log (mod_cast hn)]
     _ ≤ Real.exp (Real.log δ) := Real.exp_le_exp.2 (by linarith)
     _ = δ := Real.exp_log hδ
 
@@ -143,11 +131,9 @@ private theorem one_sub_ofReal_pow_le (ε : ℝ) (hε : 0 ≤ ε) (m : ℕ) :
   have h1 : 1 - ENNReal.ofReal ε ≤ ENNReal.ofReal (Real.exp (-ε)) := by
     rw [← ENNReal.ofReal_one, ← ENNReal.ofReal_sub _ hε]
     exact ENNReal.ofReal_le_ofReal (Real.one_sub_le_exp_neg ε)
-  calc (1 - ENNReal.ofReal ε) ^ m ≤ ENNReal.ofReal (Real.exp (-ε)) ^ m := by gcongr
-    _ = ENNReal.ofReal (Real.exp (-(ε * m))) := by
-        rw [← ENNReal.ofReal_pow (Real.exp_pos _).le, ← Real.exp_nat_mul]
-        congr 2
-        ring
+  refine (pow_le_pow_left' h1 m).trans_eq ?_
+  rw [← ENNReal.ofReal_pow (Real.exp_pos _).le, ← Real.exp_nat_mul]
+  congr 2; ring
 
 /-- **The Occam sample size.** `n (1 - ε) ^ m ≤ δ` once `log n + log (1 / δ) ≤ ε m`. -/
 theorem natCast_mul_one_sub_ofReal_pow_le {n m : ℕ} {ε δ : ℝ} (hε : 0 ≤ ε) (hδ : 0 < δ)
@@ -189,20 +175,17 @@ theorem isPACLearnerFor_realizableDistributions_of_log_card_add_log_inv_le
     IsPACLearnerFor m ε δ (H : Set (α → β)) (realizableDistributions (H : Set (α → β))) := by
   rcases H.eq_empty_or_nonempty with rfl | hne
   · have hδ : 0 < Real.log (δ.val : ℝ)⁻¹ :=
-      Real.log_pos ((one_lt_inv₀ (by exact_mod_cast δ.2.1)).2 (by exact_mod_cast δ.2.2))
+      Real.log_pos ((one_lt_inv₀ (mod_cast δ.2.1)).2 (mod_cast δ.2.2))
     have hm0 : 0 < m := Nat.pos_of_ne_zero fun h => by
       subst h
-      simp only [Finset.card_empty, Nat.cast_zero, Real.log_zero, zero_add, mul_zero] at hm
-      linarith
+      simp only [Finset.card_empty, Nat.cast_zero, Real.log_zero] at hm; linarith
     simpa only [Finset.coe_empty] using
       isPACLearnerFor_realizableDistributions_empty (fun S _ => (S ⟨0, hm0⟩).2) ε δ
-  obtain ⟨A, hA⟩ := exists_isConsistent (m := m) (C := (H : Set (α → β))) (by exact_mod_cast hne)
+  obtain ⟨A, hA⟩ := exists_isConsistent (m := m) (C := (H : Set (α → β))) (mod_cast hne)
   refine ⟨A, fun D _ hD => ?_⟩
-  have h := hA.measure_pi_lt_error_le_of_log_card_add_log_inv_le hH hD ε.val.coe_nonneg
-    (by exact_mod_cast δ.2.1) hm
-  rw [ENNReal.ofReal_coe_nnreal, ENNReal.ofReal_coe_nnreal] at h
-  rw [IsRealizableBy.optimalError_eq_zero hD, zero_add]
-  exact h
+  simpa only [ENNReal.ofReal_coe_nnreal, IsRealizableBy.optimalError_eq_zero hD, zero_add] using
+    hA.measure_pi_lt_error_le_of_log_card_add_log_inv_le hH hD ε.val.coe_nonneg
+      (mod_cast δ.2.1) hm
 
 /-- The realizable sample complexity of a finite class `H` is at most
 `⌈(log |H| + log (1 / δ)) / ε⌉` [ShalevShwartzBenDavid2014, Corollary 2.3]. -/
