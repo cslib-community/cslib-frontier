@@ -178,9 +178,7 @@ private theorem eventually_four_mul_numBlocks_le :
   filter_upwards [Nat.eventually_le_log (ℓ₁ + 3 * L₂ + 3) one_lt_two] with N hN
   set ℓ := Nat.log 2 N
   have hpow := hℓ₁ ℓ (by omega)
-  have hN0 : N ≠ 0 := by
-    rintro rfl
-    simp [ℓ] at hN
+  have hN0 : N ≠ 0 := by rintro rfl; simp [ℓ] at hN
   have hNℓ : 2 ^ ℓ ≤ N := Nat.pow_log_le_self 2 hN0
   set L := primeBound N
   have hL : L = ℓ / 3 := rfl
@@ -208,8 +206,7 @@ private theorem eventually_four_mul_numBlocks_le :
     have h4L : 4 * L ≤ 2 * (ℓ + 1) := by omega
     have hr1 : r + 1 ≤ 2 * (ℓ + 1) ^ 3 := by
       have : (ℓ + 1) ^ 2 * (4 * L) ≤ (ℓ + 1) ^ 2 * (2 * (ℓ + 1)) := Nat.mul_le_mul_left _ h4L
-      have : (ℓ + 1) ^ 2 * (2 * (ℓ + 1)) = 2 * (ℓ + 1) ^ 3 := by ring
-      omega
+      linarith [show (ℓ + 1) ^ 2 * (2 * (ℓ + 1)) = 2 * (ℓ + 1) ^ 3 by ring]
     calc 4 * ((ℓ + 1) * (r * (r + 1)))
         ≤ 4 * ((ℓ + 1) * (2 * (ℓ + 1) ^ 3 * (2 * (ℓ + 1) ^ 3))) := by
           gcongr
@@ -226,9 +223,7 @@ theorem eventually_explicitThreshold_le :
   filter_upwards [eventually_four_mul_numBlocks_le,
     Nat.eventually_le_log (ℓ₁ + 1) one_lt_two] with N hkey hN
   set ℓ := Nat.log 2 N
-  have hN0 : N ≠ 0 := by
-    rintro rfl
-    simp [ℓ] at hN
+  have hN0 : N ≠ 0 := by rintro rfl; simp [ℓ] at hN
   have hNℓ : 2 ^ ℓ ≤ N := Nat.pow_log_le_self 2 hN0
   have hsq : (ℓ + 1) ^ 2 ≤ 2 ^ ℓ := by simpa using hℓ₁ ℓ (by omega)
   set L := primeBound N
