@@ -100,13 +100,14 @@ theorem clippedError_le_mean_add_rowNoiseEnvelope (S : Finset ι)
   have hγ := rowNoiseEnvelope_nonneg S raw mean
   have ht0 := abs_sub_le (raw y 0) (mean y 0) d
   have ht1 := abs_sub_le (raw y 1) (mean y 1) v
-  have hden : 0 < 1 + d := by positivity
   have hdiv : |raw y 0 - d| / (1 + d) ≤
       |mean y 0 - d| / (1 + d) + rowNoiseEnvelope S raw mean := by
-    apply (div_le_iff₀ hden).2
-    have hpos := mul_nonneg hγ hd
-    have hc := (div_mul_cancel₀ |mean y 0 - d| hden.ne')
-    nlinarith
+    calc |raw y 0 - d| / (1 + d)
+        ≤ (|mean y 0 - d| + rowNoiseEnvelope S raw mean) / (1 + d) := by gcongr; linarith
+      _ = |mean y 0 - d| / (1 + d) + rowNoiseEnvelope S raw mean / (1 + d) := add_div _ _ _
+      _ ≤ |mean y 0 - d| / (1 + d) + rowNoiseEnvelope S raw mean := by
+        gcongr
+        exact div_le_self hγ (by linarith)
   have hclip (a b γ : ℝ) (hγ : 0 ≤ γ) (hab : a ≤ b + γ) :
       min 1 a ≤ min 1 b + γ := by
     calc
@@ -117,6 +118,15 @@ theorem clippedError_le_mean_add_rowNoiseEnvelope (S : Finset ι)
     ((hclip _ _ _ hγ hdiv).trans (add_le_add_left (le_max_left _ _) _))
     ((hclip |raw y 1 - v| |mean y 1 - v| _ hγ (by linarith)).trans
       (add_le_add_left (le_max_right _ _) _))
+
+private theorem expect_rowNoiseEnvelope_pow_four_le {Ω : Type*} [Fintype Ω]
+    (S : Finset ι) (W F : ι → Fin 2 → Ω → ℝ) (c : ℝ)
+    (h : ∀ y ν, (𝔼 σ, (W y ν σ - 𝔼 τ, F y ν τ) ^ 4) ≤ c * 𝔼 σ, (F y ν σ - 𝔼 τ, F y ν τ) ^ 4) :
+    (𝔼 σ, rowNoiseEnvelope S (fun y ν => W y ν σ) (fun y ν => 𝔼 τ, F y ν τ) ^ 4) ≤
+      c * ∑ y ∈ S, ∑ ν : Fin 2, 𝔼 σ, (F y ν σ - 𝔼 τ, F y ν τ) ^ 4 := by
+  simp_rw [rowNoiseEnvelope_pow_four, expect_sum_comm, mul_sum]
+  refine sum_le_sum fun y _ => sum_le_sum fun ν _ => ?_
+  simpa only [(by decide : Even (4 : ℕ)).pow_abs] using h y ν
 
 end Cslib.RowCompression
 
@@ -132,17 +142,9 @@ theorem expect_rowNoiseEnvelope_walk_le (G : RotationMap Ω D) (S : Finset ι)
     (𝔼 σ, rowNoiseEnvelope S (fun y ν => (G.walk ^ (2 * t)) (F y ν) σ)
       (fun y ν => 𝔼 τ, F y ν τ) ^ 4) ≤
       2 * G.spectralExpansion ^ (2 * t) *
-        ∑ y ∈ S, ∑ ν : Fin 2, 𝔼 σ, (F y ν σ - 𝔼 τ, F y ν τ) ^ 4 := by
-  simp_rw [rowNoiseEnvelope_pow_four]
-  rw [expect_sum_comm]
-  simp_rw [expect_sum_comm]
-  rw [mul_sum]
-  refine sum_le_sum fun y _ => ?_
-  rw [mul_sum]
-  refine sum_le_sum fun ν _ => ?_
-  have habs (r : ℝ) : |r| ^ 4 = r ^ 4 := (by decide : Even (4 : ℕ)).pow_abs r
-  simpa only [habs] using
-    G.expect_walk_pow_two_mul_sub_expect_pow_four_le (F y ν) t
+        ∑ y ∈ S, ∑ ν : Fin 2, 𝔼 σ, (F y ν σ - 𝔼 τ, F y ν τ) ^ 4 :=
+  expect_rowNoiseEnvelope_pow_four_le S (fun y ν => (G.walk ^ (2 * t)) (F y ν)) F _
+    fun y ν => G.expect_walk_pow_two_mul_sub_expect_pow_four_le (F y ν) t
 
 /-- **Finite additive-prefix noise.** The same-seed endpoint functions are averaged before
 measuring their errors. Individual centered input budgets imply the fourth power of the sum
@@ -164,14 +166,10 @@ theorem expect_rowNoiseEnvelope_prefix_le [Finite ι] (s : Finset I) (S : Finset
     (((G i).walk ^ (2 * t i)) (F i z.1 z.2) σ) - 𝔼 τ, F i z.1 z.2 τ
   have heq (f : Ω → ι × Fin 2 → ℝ) :
       vertexNormPow 4 1 1 X f = 𝔼 σ, ∑ y ∈ S, ∑ ν : Fin 2, |f σ (y, ν)| ^ 4 := by
-    simp only [vertexNormPow, one_mul, inv_one, X]
-    apply expect_congr rfl
-    intro σ _
-    simp only [sum_filter, Fintype.sum_prod_type]
-    calc
-      _ = ∑ y ∈ S, ∑ ν : Fin 2, if y ∈ S then |f σ (y, ν)| ^ 4 else 0 :=
-        (sum_subset (subset_univ S) (fun y _ hy => by simp [hy])).symm
-      _ = _ := sum_congr rfl fun y hy => by simp [hy]
+    simp only [vertexNormPow, one_mul, inv_one, X, sum_filter, Fintype.sum_prod_type]
+    refine expect_congr rfl fun σ _ => ?_
+    rw [← sum_subset (subset_univ S) (fun y _ hy => by simp [hy])]
+    exact sum_congr rfl fun y hy => by simp [hy]
   have hnoise : ∀ i ∈ s, vertexNormPow 4 1 1 X (noise i) ≤ ε i ^ 4 := by
     intro i hi
     rw [heq]
@@ -200,16 +198,10 @@ theorem expect_rowNoiseEnvelope_componentMove_le {ι : Type*} {H M J : ℕ}
         (componentEquiv M hL y).symm).walk ^ (2 * t)) (F z ν) A))
       (fun z ν => 𝔼 B, F z ν B) ^ 4) ≤
       2 * (1 - 1 / (155648 * (J + 1) * H ^ 4)) ^ (2 * t) *
-        ∑ z ∈ S, ∑ ν : Fin 2, 𝔼 A, (F z ν A - 𝔼 B, F z ν B) ^ 4 := by
-  simp_rw [rowNoiseEnvelope_pow_four]
-  rw [expect_sum_comm]
-  simp_rw [expect_sum_comm]
-  rw [mul_sum]
-  refine sum_le_sum fun z _ => ?_
-  rw [mul_sum]
-  refine sum_le_sum fun ν _ => ?_
-  have habs (r : ℝ) : |r| ^ 4 = r ^ 4 := (by decide : Even (4 : ℕ)).pow_abs r
-  simpa only [habs] using
-    expect_walk_pow_componentMove_sub_expect_pow_four_le hH hL y (F z ν) t
+        ∑ z ∈ S, ∑ ν : Fin 2, 𝔼 A, (F z ν A - 𝔼 B, F z ν B) ^ 4 :=
+  expect_rowNoiseEnvelope_pow_four_le S
+    (fun z ν => (((ofPerms (componentMove H M P L)).lazy.reindex
+      (componentEquiv M hL y).symm).walk ^ (2 * t)) (F z ν))
+    F _ fun z ν => expect_walk_pow_componentMove_sub_expect_pow_four_le hH hL y (F z ν) t
 
 end Cslib.Probability
