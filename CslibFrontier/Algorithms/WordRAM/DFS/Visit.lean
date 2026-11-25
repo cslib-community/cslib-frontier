@@ -463,11 +463,9 @@ private theorem dfsLoop_iter {w offAddr edgeAddr visAddr finAddr stkAddr d T₁ 
     {x x₁ z : Data 28} (hregs : DfsRegs offAddr edgeAddr visAddr finAddr stkAddr x)
     (hp : x.regs pReg = d + 1) (h₁ : ExecWithin w dfsStepBody x x₁ T₁)
     (h₂ : ExecWithin w dfsLoop x₁ z T₂) : ExecWithin w dfsLoop x z (T₁ + T₂ + 2) := by
-  obtain ⟨t₁, ht₁, he₁⟩ := h₁
-  obtain ⟨t₂, ht₂, he₂⟩ := h₂
   have hlt : (Cond.lt cZero pReg).Holds x := by
     change x.regs cZero < x.regs pReg; rw [hregs.czero, hp]; omega
-  exact ⟨t₁ + t₂ + 2, by omega, Exec.loop_iter hlt he₁ he₂⟩
+  exact h₁.loop_iter hlt h₂
 
 private theorem dfsLoop_cps {N w : ℕ} (adj : Fin N → List (Fin N))
     (offAddr edgeAddr visAddr finAddr stkAddr Mc : ℕ)
@@ -570,8 +568,7 @@ private theorem dfsLoop_cps {N w : ℕ} (adj : Fin N → List (Fin N))
         · omega
         set vis₁ := insert v vis
         have hcard_vis₁ : vis₁.card = vis.card + 1 := Finset.card_insert_of_notMem hmem
-        have hcard_vis₁_le : vis₁.card ≤ N := by
-          have := Finset.card_le_univ vis₁; simpa using this
+        have hcard_vis₁_le : vis₁.card ≤ N := by simpa using Finset.card_le_univ vis₁
         have hk' : N - vis₁.card ≤ k' := by omega
         have hcons_child : F₀ + (d + 1) + 1 + (N - vis₁.card) ≤ N := by omega
         obtain ⟨x₁, hx₁, hx₁_r, hx₁_csr, hx₁_vis, hx₁_p, hx₁_fc, hx₁_d0, hx₁_d1,
@@ -590,7 +587,7 @@ private theorem dfsLoop_cps {N w : ℕ} (adj : Fin N → List (Fin N))
         have hcard_s₁ : s₁.visited.card = vis.card + s₁.finished.length := by
           rw [← hs₁_def]; exact card_visit_nil adj (k' + 1) v vis
         have hcard_s₁_le : s₁.visited.card ≤ N := by
-          have := Finset.card_le_univ s₁.visited; simpa only [Fintype.card_fin] using this
+          simpa only [Fintype.card_fin] using Finset.card_le_univ s₁.visited
         have hlen_s₁ : s₁.finished.length = s_child.finished.length + 1 := by
           rw [hs₁_eq]; rfl
         have hk_s₁ : N - s₁.visited.card ≤ k' + 1 := by omega
@@ -690,8 +687,7 @@ private theorem visitRootCode_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → Lis
   · have hvis_0 : x.mem (visAddr + r.val) = 0 := by simpa [hmem] using hvis_r
     set vis₁ := insert r vis
     have hcard_vis₁ : vis₁.card = vis.card + 1 := Finset.card_insert_of_notMem hmem
-    have hcard_vis₁_le : vis₁.card ≤ N := by
-      have := Finset.card_le_univ vis₁; simpa using this
+    have hcard_vis₁_le : vis₁.card ≤ N := by simpa using Finset.card_le_univ vis₁
     have hk' : N - vis₁.card ≤ k' := by omega
     have hcons_root : F₀ + 0 + 1 + (N - vis₁.card) ≤ N := by omega
     have hoff_r0 : x.mem (offAddr + r.val) = csrOffset adj r.val := hcsr.1 r.val (by omega)
@@ -740,7 +736,7 @@ private theorem visitRootCode_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → Lis
         have hend : ¬ (Cond.lt cZero pReg).Holds y := by
           change ¬ y.regs cZero < y.regs pReg
           have := hy_r.czero; omega
-        refine ⟨y, ⟨2, le_rfl, Exec.loop_exit hend⟩, ?_⟩
+        refine ⟨y, ExecWithin.loop_exit hend, ?_⟩
         dsimp only [RootPost]
         rw [hs_eq]
         dsimp only
