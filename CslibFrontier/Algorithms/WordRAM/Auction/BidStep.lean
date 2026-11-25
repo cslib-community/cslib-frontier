@@ -40,7 +40,7 @@ open Cslib.WordRAM
 open Cslib.WordRAM.Realization
 open Cslib.DataStructure
 open Cslib.Algorithms.Lean.Assignment
-open StateTransitionSpec (clientResult_bind clientState_bind clientResult_pure clientState_pure)
+open StateTransitionSpec (clientResult_bind clientState_bind)
 
 private def computeNewP (ws : AuctionWS) (rowBase bestJ : ℕ) (sec : SecondState) :
     Memory.Prog ℕ :=
