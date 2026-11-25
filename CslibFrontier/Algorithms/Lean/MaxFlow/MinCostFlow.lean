@@ -760,15 +760,26 @@ private theorem dpRelax_inv [AddCommGroup W] [LinearOrder W]
     exact dpStep_preserves harcs ih
 
 omit [Fintype V] in
+private theorem dpStep_foldl_le_init [AddCommGroup W] [LinearOrder W]
+    (M : CostNetwork V W) (prev : V → W × List (ResArc V)) (v : V)
+    (l : List (ResArc V)) (init : W × List (ResArc V)) :
+    (l.foldl
+      (fun best a =>
+        if a.dst = v ∧ (prev a.src).1 + M.resCost a < best.1 then
+          ((prev a.src).1 + M.resCost a, (prev a.src).2 ++ [a])
+        else best)
+      init).1 ≤ init.1 :=
+  foldl_inv (P := fun best : W × List (ResArc V) => best.1 ≤ init.1) l le_rfl
+    fun _ hb _ _ => by
+      split_ifs with h
+      · exact h.2.le.trans hb
+      · exact hb
+
+omit [Fintype V] in
 private theorem dpStep_le_prev [AddCommGroup W] [LinearOrder W]
     (M : CostNetwork V W) (arcs : List (ResArc V)) (prev : V → W × List (ResArc V)) (v : V) :
-    (dpStep M arcs prev v).1 ≤ (prev v).1 := by
-  unfold dpStep
-  refine foldl_inv (P := fun best : W × List (ResArc V) => best.1 ≤ (prev v).1) arcs le_rfl
-    fun best hb a _ => ?_
-  split_ifs with h
-  · exact le_trans h.2.le hb
-  · exact hb
+    (dpStep M arcs prev v).1 ≤ (prev v).1 :=
+  dpStep_foldl_le_init M prev v arcs (prev v)
 
 omit [Fintype V] in
 private theorem dpStep_foldl_le_of_mem [AddCommGroup W] [LinearOrder W]
@@ -785,17 +796,7 @@ private theorem dpStep_foldl_le_of_mem [AddCommGroup W] [LinearOrder W]
   | b :: bs, init, ha => by
     rw [List.foldl_cons]
     rcases List.mem_cons.mp ha with rfl | ha'
-    · have hmono : ∀ (l : List (ResArc V)) (x : W × List (ResArc V)),
-          (l.foldl
-            (fun best c =>
-              if c.dst = v ∧ (prev c.src).1 + M.resCost c < best.1 then
-                ((prev c.src).1 + M.resCost c, (prev c.src).2 ++ [c])
-              else best)
-            x).1 ≤ x.1 := fun l x =>
-        foldl_inv (P := fun best : W × List (ResArc V) => best.1 ≤ x.1) l le_rfl
-          fun _ hb _ _ => by
-            split_ifs with h <;> [exact le_trans h.2.le hb; exact hb]
-      refine le_trans (hmono bs _) ?_
+    · refine (dpStep_foldl_le_init M prev v bs _).trans ?_
       split_ifs with h
       · exact le_rfl
       · exact not_lt.mp fun hc => h ⟨ha_dst, hc⟩
@@ -912,13 +913,9 @@ private theorem exists_compSlackness_of_not_exists_negCycle [AddCommGroup W] [Li
   let vs : List V := (Finset.univ : Finset V).toList
   have hvs : ∀ v, v ∈ vs := fun v => Finset.mem_toList.mpr (Finset.mem_univ v)
   have hspec := findNegCycleOrPotential_spec hvs f
-  cases hfind : findNegCycleOrPotential M vs f with
-  | inl cyc =>
-    rw [hfind] at hspec
-    exact absurd ⟨cyc, hspec⟩ hno
-  | inr π =>
-    rw [hfind] at hspec
-    exact ⟨π, hspec⟩
+  rcases hfind : findNegCycleOrPotential M vs f with cyc | π <;> rw [hfind] at hspec
+  · exact absurd ⟨cyc, hspec⟩ hno
+  · exact ⟨π, hspec⟩
 
 /-- **Klein's negative-cycle optimality theorem** ([Klein1967], pp. 205–220, locator not
 re-verified against primary PDF; [Schrijver2003], Chapter 12, locator not re-verified against
@@ -1024,13 +1021,9 @@ private theorem cycleCancelLoop_spec [DecidableEq V] [AddCommGroup W] [LinearOrd
     have hmin : f.IsMinCost := h0 f (Nat.eq_zero_of_le_zero hfuel)
     have hspec := findNegCycleOrPotential_spec hvs f
     dsimp only [cycleCancelLoop]
-    cases hfind : findNegCycleOrPotential M vs f with
-    | inl cyc =>
-      rw [hfind] at hspec
-      exact absurd ⟨cyc, hspec⟩ ((isMinCost_iff_not_exists_negCycle f).mp hmin)
-    | inr π =>
-      rw [hfind] at hspec
-      exact ⟨hmin, hspec, hP_refl f count⟩
+    rcases hfind : findNegCycleOrPotential M vs f with cyc | π <;> rw [hfind] at hspec
+    · exact absurd ⟨cyc, hspec⟩ ((isMinCost_iff_not_exists_negCycle f).mp hmin)
+    · exact ⟨hmin, hspec, hP_refl f count⟩
   | fuel + 1, f, count, hfuel => by
     have hspec := findNegCycleOrPotential_spec hvs f
     dsimp only [cycleCancelLoop]
@@ -1181,16 +1174,12 @@ theorem cycleCancelInt_correct [DecidableEq V] {M : CostNetwork V ℤ} {vs : Lis
       out.cancellations ≤ 2 * absCostBound M vs := by
   have hbound : ∀ g : M.Flow, -(absCostBound M vs : ℤ) ≤ g.totalCost := fun g =>
     (totalCost_bound_aux hvs g).1
-  have hrank : ∀ f : M.Flow, (f.totalCost + (absCostBound M vs : ℤ)).toNat = 0 → f.IsMinCost := by
-    intro f hf0 g
-    have hg := hbound g
-    omega
+  have hrank : ∀ f : M.Flow, (f.totalCost + (absCostBound M vs : ℤ)).toNat = 0 → f.IsMinCost :=
+    fun f _ g => by have := hbound g; omega
   have hdrop : ∀ f f' : M.Flow, f'.totalCost < f.totalCost →
       (f'.totalCost + (absCostBound M vs : ℤ)).toNat <
-        (f.totalCost + (absCostBound M vs : ℤ)).toNat := by
-    intro f f' hlt
-    have hf' := hbound f'
-    omega
+        (f.totalCost + (absCostBound M vs : ℤ)).toNat :=
+    fun f f' _ => by have := hbound f'; omega
   have hf₀_lo := (totalCost_bound_aux hvs f₀).1
   have hf₀_hi := (totalCost_bound_aux hvs f₀).2
   obtain ⟨hmin, hcs, hdec⟩ := cycleCancelLoop_spec hvs
