@@ -4,18 +4,23 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Matthew Doty
 -/
 
+module
+-- upstream: local-only (tests of the LTI impulse-response certificates)
+
 import CslibFrontier.Algorithms.LinearAlgebra.ImpulseCertificate
 
 /-! # Tests for energy and decay certificates of LTI impulse responses
 
-Every acceptance and rejection is closed by `decide +kernel`. The clients are those of #8322:
+A `module` client with ordinary imports: the checkers are evaluated through their exposed bodies
+and the soundness theorems are used through their public statements. Every acceptance and
+rejection is closed by `decide +kernel`. The clients are those of #8322:
 
 * the scalar system `A = -1`, `B = C = 1`, `D = 0`: the exact energy `1/2` (with integrability),
   the inexact upper-bound certificate `W = 1`, decay with `P = 1`, `α = β = γ = 1`, the energy
   tail and the numerical tail after `T = 2`, and settling below `1/10` after `T = 5/2`, certified
   by Taylor lower bounds for `exp`;
-  overclaimed rates, energies, bounds and settling times, a sign-corrupted model and a model with
-  direct feedthrough are rejected;
+  overclaimed rates, energies, bounds and settling times, negative squared radii, a
+  sign-corrupted model and a model with direct feedthrough are rejected;
 * an RC circuit with `τ = 1/1000 s`: energy `500 s⁻¹` and decay at rate `1000 s⁻¹`;
 * the repeated-pole client of #8321, `h t = t exp (-t)`: energy `1/4` and decay at rate `1/2`;
   its initial output `h 0` vanishes;
@@ -24,6 +29,8 @@ Every acceptance and rejection is closed by `decide +kernel`. The clients are th
 * `A = diag (1, -1)` with unobservable unstable mode: an energy upper bound is accepted, and no
   Lyapunov certificate exists, so no internal-stability verdict follows.
 -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.ImpulseCertificate
 
@@ -67,6 +74,25 @@ example {v : Fin 1 → ℝ} (hv : v ⬝ᵥ v ≤ 1) {t : ℝ} (ht : 5 / 2 ≤ t)
 
 /-- The same claim at `T = 2`, where `exp 4 < 100`, is rejected. -/
 example : scalarDecay.impulseSettles 1 (1/100) 2 12 = false := by decide +kernel
+
+/-- A negative squared input radius is rejected: it would make the hypothesis `‖v‖₂² ≤ vmax2`
+unsatisfiable. -/
+example : scalarDecay.impulseSettles (-1) 1 0 1 = false := by decide +kernel
+
+/-- State settling: for `‖x 0‖₂ ≤ 1`, `‖x t‖₂ ≤ 1/10` for `t ≥ 5/2`. -/
+theorem scalar_stateSettles : scalarDecay.stateSettles 1 (1/100) (5/2) 12 = true := by
+  decide +kernel
+
+example {x : ℝ → Fin 1 → ℝ}
+    (hx : ∀ t ∈ Ici (0 : ℝ), HasDerivWithinAt x (scalar.toSystem.A *ᵥ x t) (Ici 0) t)
+    (h0 : x 0 ⬝ᵥ x 0 ≤ 1) {t : ℝ} (ht : 5 / 2 ≤ t) : x t ⬝ᵥ x t ≤ 1/100 := by
+  have := DecayCert.dotProduct_self_le_of_stateSettles scalarDecay_ok scalar_stateSettles hx
+    (by exact_mod_cast h0) (t := t) (by norm_num; linarith)
+  norm_num at this
+  exact this
+
+/-- A negative squared initial-state radius is rejected. -/
+example : scalarDecay.stateSettles (-1) 1 0 1 = false := by decide +kernel
 
 /-- The decay certificate also proves internal stability. -/
 example : (toEuclideanCLM (𝕜 := ℝ) scalar.toSystem.A).IsExponentiallyStable :=

@@ -421,9 +421,7 @@ theorem integrableOn_Ioi_and_integral_mulVec_eq (hR : S.Aᵀ * W + W * S.A + S.C
     IntegrableOn (fun t => S.responseKernel t *ᵥ v ⬝ᵥ S.responseKernel t *ᵥ v) (Ioi 0) ∧
       ∫ t in Ioi 0, S.responseKernel t *ᵥ v ⬝ᵥ S.responseKernel t *ᵥ v =
         S.B *ᵥ v ⬝ᵥ W *ᵥ (S.B *ᵥ v) := by
-  have h := integrableOn_Ioi_and_integral_eq (C := S.C)
-    (hasDerivWithinAt_exp_smul_mulVec S.A (S.B *ᵥ v)) hR (tendsto_exp_smul_mulVec hA _)
-  simp only [zero_smul, NormedSpace.exp_zero, one_mulVec] at h
+  have h := gramian_key hR hA (S.B *ᵥ v)
   exact ⟨h.1.congr_fun (eqOn_responseKernel v).symm measurableSet_Ioi,
     (setIntegral_congr_fun measurableSet_Ioi (eqOn_responseKernel v)).trans h.2⟩
 

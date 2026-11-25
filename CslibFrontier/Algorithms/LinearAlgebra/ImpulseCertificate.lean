@@ -415,16 +415,20 @@ theorem responseKernel_mulVec_sq_le_peak (h : c.check G = true) (v : Fin m → �
 
 variable (c) in
 /-- Whether `c` certifies settling of the impulse response below `ε` after time `T` for inputs
-with `‖v‖₂² ≤ vmax2`: `T ≥ 0`, `eps2 = ε² > 0`, and `γ β vmax2 ≤ ε² expLower N (2 α T)`. -/
+with `‖v‖₂² ≤ vmax2`: `T ≥ 0`, `vmax2 ≥ 0`, `eps2 = ε² > 0`, and
+`γ β vmax2 ≤ ε² expLower N (2 α T)`. It reads only the scalars of `c`, so it means something only
+together with a successful `DecayCert.check` of `c` for the same model. -/
 @[expose] def impulseSettles (vmax2 eps2 T : ℚ) (N : ℕ) : Bool :=
-  decide (0 ≤ T) && decide (0 < eps2) &&
+  decide (0 ≤ T) && decide (0 ≤ vmax2) && decide (0 < eps2) &&
     decide (c.γ * c.β * vmax2 ≤ eps2 * expLower N (2 * c.α * T))
 
 variable (c) in
 /-- Whether `c` certifies settling of the state below `ε` after time `T` for initial states with
-`‖x 0‖₂² ≤ r2`: `T ≥ 0`, `eps2 = ε² > 0`, and `(hi / lo) r2 ≤ ε² expLower N (2 α T)`. -/
+`‖x 0‖₂² ≤ r2`: `T ≥ 0`, `r2 ≥ 0`, `eps2 = ε² > 0`, and `(hi / lo) r2 ≤ ε² expLower N (2 α T)`.
+It reads only the scalars of `c`, so it means something only together with a successful
+`DecayCert.check` of `c` for the same model. -/
 @[expose] def stateSettles (r2 eps2 T : ℚ) (N : ℕ) : Bool :=
-  decide (0 ≤ T) && decide (0 < eps2) &&
+  decide (0 ≤ T) && decide (0 ≤ r2) && decide (0 < eps2) &&
     decide (c.hi / c.lo * r2 ≤ eps2 * expLower N (2 * c.α * T))
 
 /-- **Certified impulse-response settling.** If the kernel accepts `c` for `G` and
@@ -436,7 +440,7 @@ theorem responseKernel_mulVec_sq_le_of_impulseSettles (h : c.check G = true) {vm
     (hv : v ⬝ᵥ v ≤ vmax2) {t : ℝ} (ht : T ≤ t) :
     G.toSystem.responseKernel t *ᵥ v ⬝ᵥ G.toSystem.responseKernel t *ᵥ v ≤ eps2 := by
   simp only [impulseSettles, Bool.and_eq_true, decide_eq_true_eq] at hs
-  obtain ⟨⟨hT, he⟩, hs⟩ := hs
+  obtain ⟨⟨⟨hT, -⟩, he⟩, hs⟩ := hs
   obtain ⟨hα, -, -, hγ, hβ, -, -, -, -, -⟩ := facts h
   have hgb : (0 : ℝ) ≤ c.γ * c.β := by exact_mod_cast mul_nonneg hγ hβ
   have hv0 : 0 ≤ v ⬝ᵥ v := by simpa using dotProduct_self_star_nonneg v
@@ -462,7 +466,7 @@ theorem dotProduct_self_le_of_stateSettles (h : c.check G = true) {r2 eps2 T : �
     (hx : ∀ t ∈ Ici (0 : ℝ), HasDerivWithinAt x (G.toSystem.A *ᵥ x t) (Ici 0) t)
     (hr : x 0 ⬝ᵥ x 0 ≤ r2) {t : ℝ} (ht : T ≤ t) : x t ⬝ᵥ x t ≤ eps2 := by
   simp only [stateSettles, Bool.and_eq_true, decide_eq_true_eq] at hs
-  obtain ⟨⟨hT, he⟩, hs⟩ := hs
+  obtain ⟨⟨⟨hT, -⟩, he⟩, hs⟩ := hs
   obtain ⟨hα, hlo, hlh, -, -, -, -, -, -, -⟩ := facts h
   have hv0 : 0 ≤ x 0 ⬝ᵥ x 0 := by simpa using dotProduct_self_star_nonneg (x 0)
   have hhl : (0 : ℝ) ≤ c.hi / c.lo := by
