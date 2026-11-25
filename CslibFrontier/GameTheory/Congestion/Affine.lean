@@ -87,13 +87,11 @@ theorem mul_add_one_le_five_thirds_sq_add_one_third_sq (y z : ℕ) :
   rcases Nat.lt_or_ge y 2 with hy | hy
   · interval_cases y
     · norm_num
-    · have : ((z : ℝ) - 1) * ((z : ℝ) - 2) ≥ 0 := by
-        rcases Nat.lt_or_ge z 2 with hz | hz
-        · interval_cases z <;> norm_num
-        · have : (2 : ℝ) ≤ z := by exact_mod_cast hz
-          nlinarith
-      cast_nlinarith
-  · have : (2 : ℝ) ≤ y := by exact_mod_cast hy
+    · rcases Nat.lt_or_ge z 2 with hz | hz
+      · interval_cases z <;> norm_num
+      · have hz' : (2 : ℝ) ≤ z := mod_cast hz
+        cast_nlinarith [mul_nonneg (by linarith : (0 : ℝ) ≤ z - 1) (by linarith : (0 : ℝ) ≤ z - 2)]
+  · have : (2 : ℝ) ≤ y := mod_cast hy
     nlinarith [sq_nonneg ((3 : ℝ) * y - 2 * z)]
 
 variable [DecidableEq ι] [Finite E]
@@ -105,16 +103,13 @@ theorem isSmooth_of_hasAffineLatencies (h : C.HasAffineLatencies) :
   have := Fintype.ofFinite E
   obtain ⟨a, b, ha, hb, hl⟩ := h
   intro s s'
-  have hdev : ∀ i, C.toCostGame.cost i (Function.update s i (s' i))
-      ≤ ∑ e ∈ C.resources i (s' i), C.latency e (C.load s e + 1) := by
-    intro i
-    rw [toCostGame_cost, Function.update_self]
-    refine Finset.sum_le_sum fun e _ => ?_
-    rw [hl, hl]
-    cast_nlinarith [C.load_update_le s i (s' i) e, ha e]
   calc ∑ i, C.toCostGame.cost i (Function.update s i (s' i))
       ≤ ∑ i, ∑ e ∈ C.resources i (s' i), C.latency e (C.load s e + 1) :=
-        Finset.sum_le_sum fun i _ => hdev i
+        Finset.sum_le_sum fun i _ => by
+          rw [toCostGame_cost, Function.update_self]
+          refine Finset.sum_le_sum fun e _ => ?_
+          rw [hl, hl]
+          cast_nlinarith [C.load_update_le s i (s' i) e, ha e]
     _ = ∑ e, (C.load s' e : ℝ) * C.latency e (C.load s e + 1) :=
         C.sum_sum_resources_eq_sum_load_mul s' _
     _ ≤ ∑ e, (5 / 3 * ((C.load s' e : ℝ) * C.latency e (C.load s' e))
@@ -122,9 +117,8 @@ theorem isSmooth_of_hasAffineLatencies (h : C.HasAffineLatencies) :
         refine Finset.sum_le_sum fun e _ => ?_
         rw [hl, hl, hl]
         have hk := mul_add_one_le_five_thirds_sq_add_one_third_sq (C.load s' e) (C.load s e)
-        have : (0 : ℝ) ≤ C.load s e := Nat.cast_nonneg _
-        have : (0 : ℝ) ≤ C.load s' e := Nat.cast_nonneg _
-        cast_nlinarith [mul_le_mul_of_nonneg_left hk (ha e), hb e]
+        cast_nlinarith [mul_le_mul_of_nonneg_left hk (ha e), hb e,
+          Nat.cast_nonneg (α := ℝ) (C.load s e), Nat.cast_nonneg (α := ℝ) (C.load s' e)]
     _ = 5 / 3 * C.toCostGame.socialCost s' + 1 / 3 * C.toCostGame.socialCost s := by
         rw [socialCost_toCostGame, socialCost_toCostGame, Finset.sum_add_distrib,
           Finset.mul_sum, Finset.mul_sum]
@@ -176,27 +170,21 @@ private def tightGame : CongestionGame (Fin 3) (fun _ => Bool) (Fin 6) where
 
 private theorem tightGame_socialCost_false :
     tightGame.toCostGame.socialCost (fun _ => false) = 15 := by
-  rw [socialCost_toCostGame]
-  have h : ∑ e, tightGame.load (fun _ => false) e * tightGame.load (fun _ => false) e = 15 := by
-    decide
-  change ∑ e, (tightGame.load (fun _ => false) e : ℝ) * (tightGame.load (fun _ => false) e : ℝ)
-    = 15
-  exact_mod_cast h
+  simp only [socialCost_toCostGame, tightGame]
+  exact_mod_cast (by decide :
+    ∑ e, tightGame.load (fun _ => false) e * tightGame.load (fun _ => false) e = 15)
 
 private theorem tightGame_socialCost_true :
     tightGame.toCostGame.socialCost (fun _ => true) = 6 := by
-  rw [socialCost_toCostGame]
-  have h : ∑ e, tightGame.load (fun _ => true) e * tightGame.load (fun _ => true) e = 6 := by
-    decide
-  change ∑ e, (tightGame.load (fun _ => true) e : ℝ) * (tightGame.load (fun _ => true) e : ℝ) = 6
-  exact_mod_cast h
+  simp only [socialCost_toCostGame, tightGame]
+  exact_mod_cast (by decide :
+    ∑ e, tightGame.load (fun _ => true) e * tightGame.load (fun _ => true) e = 6)
 
 private theorem tightGame_isPureNash : tightGame.toCostGame.IsPureNash (fun _ => false) := by
   intro i t
   simp only [toCostGame_cost, tightGame]
   rw [← Nat.cast_sum, ← Nat.cast_sum, Nat.cast_le]
-  revert i t
-  decide
+  revert i t; decide
 
 /-- **The bound `5/2` is attained**: there is a three-player atomic congestion game with six
 resources and latencies `latency e k = k` that has a pure Nash equilibrium `s` and a profile `s'`
@@ -205,15 +193,10 @@ cannot be improved. -/
 theorem exists_socialCost_eq_five_halves_mul :
     ∃ (C : CongestionGame (Fin 3) (fun _ => Bool) (Fin 6)) (s s' : Fin 3 → Bool),
       C.HasAffineLatencies ∧ C.toCostGame.IsPureNash s ∧ 0 < C.toCostGame.socialCost s' ∧
-        C.toCostGame.socialCost s = 5 / 2 * C.toCostGame.socialCost s' := by
-  refine ⟨tightGame, fun _ => false, fun _ => true,
-    ⟨fun _ => 1, fun _ => 0, fun _ => zero_le_one, fun _ => le_rfl, fun e k => ?_⟩,
-    tightGame_isPureNash, ?_, ?_⟩
-  · change (k : ℝ) = 1 * k + 0
-    rw [one_mul, add_zero]
-  · rw [tightGame_socialCost_true]
-    norm_num
-  · rw [tightGame_socialCost_false, tightGame_socialCost_true]
-    norm_num
+        C.toCostGame.socialCost s = 5 / 2 * C.toCostGame.socialCost s' :=
+  ⟨tightGame, fun _ => false, fun _ => true,
+    ⟨fun _ => 1, fun _ => 0, fun _ => zero_le_one, fun _ => le_rfl, fun _ _ => by simp [tightGame]⟩,
+    tightGame_isPureNash, by rw [tightGame_socialCost_true]; norm_num,
+    by rw [tightGame_socialCost_false, tightGame_socialCost_true]; norm_num⟩
 
 end Cslib.GameTheory.CongestionGame

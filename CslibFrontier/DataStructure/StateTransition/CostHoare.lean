@@ -73,18 +73,15 @@ theorem StateTransitionSpec.costHoare_iff_ofFn
     (p : D.Client α) (post : α → D.State → Prop) (budget : D.State → Nat) :
     D.CostHoare charge pre p post budget ↔
       D.Hoare pre p post ∧
-        ∀ s, pre s → D.totalCost charge s (D.clientHistory s p) ≤ budget s := by
-  unfold StateTransitionSpec.CostHoare
-  refine and_congr_right fun hhoare => forall_congr' fun s => imp_congr_right fun hs => ?_
-  have hv : D.ValidHistory s (D.clientHistory s p) :=
-    (D.demonicValid_iff_validHistory_runClient s p).mp (hhoare s hs).1
-  constructor
-  · intro h
-    have hb := h _ _ _ (D.clientRun_canonical s p hv)
-    rwa [D.totalCostTranscript_canonicalTranscript] at hb
-  · intro h v s' tr hrun
-    obtain ⟨_, _, _, rfl⟩ := (D.clientRun_iff_runClient s p v s' tr).mp hrun
-    rwa [D.totalCostTranscript_canonicalTranscript]
+        ∀ s, pre s → D.totalCost charge s (D.clientHistory s p) ≤ budget s :=
+  and_congr_right fun hhoare => forall_congr' fun s => imp_congr_right fun hs =>
+    ⟨fun h => by
+       simpa only [D.totalCostTranscript_canonicalTranscript] using
+         h _ _ _ (D.clientRun_canonical s p
+           ((D.demonicValid_iff_validHistory_runClient s p).mp (hhoare s hs).1)),
+     fun h v s' tr hrun => by
+       obtain ⟨_, _, _, rfl⟩ := (D.clientRun_iff_runClient s p v s' tr).mp hrun
+       rwa [D.totalCostTranscript_canonicalTranscript]⟩
 
 namespace StateTransitionSpec.CostHoare
 
@@ -96,34 +93,26 @@ theorem hoare (h : CostHoare charge pre p post budget) : D.Hoare pre p post := h
 
 /-- Returning a value has zero operation cost. -/
 theorem pure (a : α) (h : ∀ s, pre s → post a s) :
-    CostHoare charge pre (.pure a) post (fun _ => 0) := by
-  refine ⟨Hoare.pure pre a post h, fun s _ v s' tr hrun => ?_⟩
-  cases hrun
-  exact Nat.le_refl 0
+    CostHoare charge pre (.pure a) post (fun _ => 0) :=
+  ⟨Hoare.pure pre a post h, fun _ _ _ _ _ hrun => by cases hrun; exact le_rfl⟩
 
 /-- Calling a single operation requires `D.valid s o`, establishes `post a s'` for every permitted
 outcome `D.step s o s' a`, and charges `charge s o` at the pre-state `s`. -/
 theorem call (o : D.Op)
     {post : D.Result o → D.State → Prop}
     (h : ∀ s, pre s → D.valid s o ∧ ∀ s' a, D.step s o s' a → post a s') :
-    CostHoare charge pre (.liftBind o fun a => .pure a) post (fun s => charge s o) := by
-  refine ⟨Hoare.call pre o post h, fun s _ v s' tr hrun => ?_⟩
-  cases hrun with
-  | liftBind _ _ a _ _ hrest =>
-    cases hrest
-    simp
+    CostHoare charge pre (.liftBind o fun a => .pure a) post (fun s => charge s o) :=
+  ⟨Hoare.call pre o post h, fun _ _ _ _ _ hrun => by
+    cases hrun with | liftBind _ _ _ _ _ hrest => cases hrest; simp⟩
 
 /-- On a deterministic specification (`[D.HasStepFn f]`), calling an operation exposes
 `(D.stepFn s o)` and charges `charge s o`. -/
 theorem call_ofFn {f : (s : D.State) → (o : D.Op) → D.State × D.Result o} [D.HasStepFn f]
     (o : D.Op) {post : D.Result o → D.State → Prop}
     (h : ∀ s, pre s → D.valid s o ∧ post (D.stepFn s o).2 (D.stepFn s o).1) :
-    CostHoare charge pre (.liftBind o fun a => .pure a) post (fun s => charge s o) := by
-  refine ⟨Hoare.call_ofFn pre o post h, fun s _ v s' tr hrun => ?_⟩
-  cases hrun with
-  | liftBind _ _ a _ _ hrest =>
-    cases hrest
-    simp
+    CostHoare charge pre (.liftBind o fun a => .pure a) post (fun s => charge s o) :=
+  ⟨Hoare.call_ofFn pre o post h, fun _ _ _ _ _ hrun => by
+    cases hrun with | liftBind _ _ _ _ _ hrest => cases hrest; simp⟩
 
 /-- Compose budgets at every intermediate abstract state satisfying `mid`. -/
 theorem bind {mid : α → D.State → Prop} {post : β → D.State → Prop}
@@ -132,14 +121,12 @@ theorem bind {mid : α → D.State → Prop} {post : β → D.State → Prop}
     (hk : ∀ a, CostHoare charge (mid a) (k a) post (next a))
     (hb : ∀ s, pre s → ∀ a s', mid a s' → first s + next a s' ≤ budget s) :
     CostHoare charge pre (p.bind k) post budget := by
-  refine ⟨Hoare.bind hp.hoare (fun a => (hk a).hoare), ?_⟩
-  intro s hs b s₂ tr hrun
+  refine ⟨Hoare.bind hp.hoare fun a => (hk a).hoare, fun s hs b s₂ tr hrun => ?_⟩
   obtain ⟨a, s₁, tr₁, tr₂, hrun₁, hrun₂, rfl⟩ := clientRun_bind_iff.mp hrun
   have hmid : mid a s₁ := (hp.hoare s hs).2 a s₁ tr₁ hrun₁
-  have hf := hp.2 s hs a s₁ tr₁ hrun₁
-  have hn := (hk a).2 s₁ hmid b s₂ tr₂ hrun₂
   rw [D.totalCostTranscript_append charge hrun₁.validTranscript tr₂]
-  exact (Nat.add_le_add hf hn).trans (hb s hs a s₁ hmid)
+  exact (Nat.add_le_add (hp.2 s hs a s₁ tr₁ hrun₁)
+    ((hk a).2 s₁ hmid b s₂ tr₂ hrun₂)).trans (hb s hs a s₁ hmid)
 
 /-- Strengthen the precondition and weaken the postcondition or budget. -/
 theorem consequence {pre' : D.State → Prop} {post' : α → D.State → Prop}
@@ -204,11 +191,9 @@ theorem ChargeBound.ofFn
     {M : Module D E} {lower : E.State → E.Op → Nat} {upper : D.State → D.Op → Nat}
     (h : ∀ {s e} o, M.rep s e → D.valid s o →
       E.totalCost lower e (E.clientHistory e (M.methods o)) ≤ upper s o) :
-    M.ChargeBound lower upper := by
-  intro s e o a e' tr hr hv hrun
-  obtain ⟨_, _, _, rfl⟩ := (E.clientRun_iff_runClient e (M.methods o) a e' tr).mp hrun
-  rw [E.totalCostTranscript_canonicalTranscript]
-  exact h o hr hv
+    M.ChargeBound lower upper := fun {_ _} o {_ _ _} hr hv hrun => by
+  obtain ⟨_, _, _, rfl⟩ := (E.clientRun_iff_runClient _ (M.methods o) _ _ _).mp hrun
+  simpa only [E.totalCostTranscript_canonicalTranscript] using h o hr hv
 
 /-- Method budgets compose along any demonically admissible client execution. -/
 theorem ChargeBound.demonic {M : Module D E} {lower : E.State → E.Op → Nat}
@@ -220,19 +205,17 @@ theorem ChargeBound.demonic {M : Module D E} {lower : E.State → E.Op → Nat}
     ∃ s' tr_D, D.ClientRun s p a s' tr_D ∧ M.rep s' e' ∧
       E.totalCostTranscript lower e tr_E ≤ D.totalCostTranscript upper s tr_D := by
   induction p generalizing s e tr_E with
-  | pure b =>
+  | pure =>
     cases hrun_E
-    exact ⟨s, [], .pure s a, hr, Nat.le_refl 0⟩
+    exact ⟨s, [], .pure s a, hr, le_rfl⟩
   | liftBind o k ih =>
     obtain ⟨hv_o, hv_k⟩ := (D.demonicValid_liftBind_iff s o k).mp hv
     obtain ⟨res, e₁, tr₁, tr₂, hrun₁, hrun₂, rfl⟩ := E.clientRun_bind_iff.mp hrun_E
     obtain ⟨s₁, hstep₁, hr₁⟩ := M.correct o hr hv_o hrun₁
-    have hm := B o hr hv_o hrun₁
     obtain ⟨s₂, tr_D, hrun_D, hr₂, hk⟩ := ih res hr₁ (hv_k s₁ res hstep₁) hrun₂
     refine ⟨s₂, ⟨o, res, s₁⟩ :: tr_D, .liftBind o k res hv_o hstep₁ hrun_D, hr₂, ?_⟩
-    rw [E.totalCostTranscript_append lower hrun₁.validTranscript tr₂,
-      D.totalCostTranscript_cons]
-    exact Nat.add_le_add hm hk
+    rw [E.totalCostTranscript_append lower hrun₁.validTranscript tr₂, D.totalCostTranscript_cons]
+    exact Nat.add_le_add (B o hr hv_o hrun₁) hk
 
 /-- Method budgets compose along the actual answer-dependent history of a client on deterministic
 specifications. -/
@@ -246,12 +229,9 @@ theorem ChargeBound.client
     (hr : M.rep s e) (hv : D.ValidHistory s (D.clientHistory s p)) :
     E.totalCost lower e (E.clientHistory e (link M.methods p)) ≤
       D.totalCost upper s (D.clientHistory s p) := by
-  have hv_dem : D.DemonicValid s p :=
-    (D.demonicValid_iff_validHistory_runClient s p).mpr hv
-  have hv_E : E.ValidHistory e (E.clientHistory e (link M.methods p)) :=
-    (M.simulates_client p hr hv).1
-  have hrun_E := E.clientRun_canonical e (link M.methods p) hv_E
-  obtain ⟨s', tr_D, hrun_D, _, hcost⟩ := B.demonic p hr hv_dem hrun_E
+  obtain ⟨s', tr_D, hrun_D, _, hcost⟩ := B.demonic p hr
+    ((D.demonicValid_iff_validHistory_runClient s p).mpr hv)
+    (E.clientRun_canonical e (link M.methods p) (M.simulates_client p hr hv).1)
   obtain ⟨_, _, _, rfl⟩ := (D.clientRun_iff_runClient s p _ s' tr_D).mp hrun_D
   simpa only [E.totalCostTranscript_canonicalTranscript,
     D.totalCostTranscript_canonicalTranscript] using hcost
@@ -285,8 +265,7 @@ theorem StateTransitionSpec.CostHoare.link {α : Type w} {M : Module D E}
     (hb : ∀ s e, pre s → M.rep s e → budget s ≤ lowerBudget e) :
     E.CostHoare lower (fun e => ∃ s, pre s ∧ M.rep s e) (DataStructure.link M.methods p)
       (fun a e => ∃ s, post a s ∧ M.rep s e) lowerBudget := by
-  refine ⟨StateTransitionSpec.Hoare.link M h.hoare, ?_⟩
-  rintro e ⟨s, hs, hr⟩ a e' tr_E hrun_E
+  refine ⟨StateTransitionSpec.Hoare.link M h.hoare, fun e ⟨s, hs, hr⟩ a e' tr_E hrun_E => ?_⟩
   obtain ⟨s', tr_D, hrun_D, _, hcost⟩ := B.demonic p hr (h.hoare s hs).1 hrun_E
   exact hcost.trans ((h.2 s hs a s' tr_D hrun_D).trans (hb s e hs hr))
 

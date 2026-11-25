@@ -231,12 +231,11 @@ theorem depth_sendBits_le {i : ι} {n d : ℕ} {msg : View X i → BitString n}
   induction n generalizing d with
   | zero => simpa [sendBits] using h _
   | succ n ih =>
-    simp only [sendBits, depth_speak]
-    have h₀ := ih (cont := fun m => cont (Fin.cons false m)) (msg := fun v => Fin.tail (msg v))
-      fun m => h _
-    have h₁ := ih (cont := fun m => cont (Fin.cons true m)) (msg := fun v => Fin.tail (msg v))
-      fun m => h _
-    omega
+    have h₀ := ih (cont := fun m => cont (Fin.cons false m))
+      (msg := fun v => Fin.tail (msg v)) fun _ => h _
+    have h₁ := ih (cont := fun m => cont (Fin.cons true m))
+      (msg := fun v => Fin.tail (msg v)) fun _ => h _
+    simp only [sendBits, depth_speak]; omega
 
 /-- Players `who 0, …, who (m - 1)` write one bit each, in this order, player `who t` writing
 `bit t` of what they see, after which the protocol continues with `cont` of the bits written. -/
@@ -264,12 +263,11 @@ theorem depth_sendEach_le {m d : ℕ} {who : Fin m → ι} {bit : ∀ t, View X 
   induction m generalizing d with
   | zero => simpa [sendEach] using h _
   | succ m ih =>
-    simp only [sendEach, depth_speak]
     have h₀ := ih (who := fun t => who t.succ) (bit := fun t => bit t.succ)
-      (cont := fun b => cont (Fin.cons false b)) fun b => h _
+      (cont := fun b => cont (Fin.cons false b)) fun _ => h _
     have h₁ := ih (who := fun t => who t.succ) (bit := fun t => bit t.succ)
-      (cont := fun b => cont (Fin.cons true b)) fun b => h _
-    omega
+      (cont := fun b => cont (Fin.cons true b)) fun _ => h _
+    simp only [sendEach, depth_speak]; omega
 
 /-- **The trivial protocol.** If player `i`'s input is recovered by `decode` from `n` bits
 `encode` that player `j ≠ i` computes from what they see, then every Boolean function has a
@@ -283,17 +281,14 @@ theorem ecomplexityFun_le_succ {i j : ι} (hij : i ≠ j) {n : ℕ}
   -- After reading `m`, player `i` evaluates `f` with its own part replaced by `decode m`.
   let answer (m : BitString n) (v : View X i) : Bool :=
     f fun k => if h : k = i then h ▸ decode m else v ⟨k, h⟩
-  have hanswer (x : ∀ k, X k) : answer (encode (view j x)) (view i x) = f x := by
-    simp only [answer]
-    congr 1 with k : 1
-    by_cases h : k = i
-    · subst h
-      simp [hdecode]
-    · simp [h]
-  have h := ecomplexityFun_le_iff (f := f) (k := n + 1)
-  push_cast at h
-  refine h.mpr ⟨sendBits j n encode fun m => speak i (answer m) (output false) (output true),
-    funext fun x => ?_, depth_sendBits_le fun m => by simp⟩
+  have hanswer (x : ∀ k, X k) : answer (encode (view j x)) (view i x) = f x :=
+    congrArg f (funext fun k => by
+      by_cases h : k = i
+      · subst h; simp [hdecode]
+      · simp [h])
+  rw [show (n : ℕ∞) + 1 = ((n + 1 : ℕ) : ℕ∞) by push_cast; rfl, ecomplexityFun_le_iff]
+  refine ⟨sendBits j n encode fun m => speak i (answer m) (output false) (output true),
+    funext fun x => ?_, depth_sendBits_le fun _ => by simp⟩
   simp only [run_sendBits, run_speak, run_output, hanswer]
   cases f x <;> rfl
 
@@ -316,9 +311,7 @@ theorem depth_bind_le {Z' : Type*} {p : Protocol X Z} {q : Z → Protocol X Z'} 
     (hq : ∀ z, (q z).depth ≤ d) : (p.bind q).depth ≤ p.depth + d := by
   induction p with
   | output z => simpa [bind] using hq z
-  | speak _ _ _ _ ih₀ ih₁ =>
-    simp only [bind, depth_speak]
-    omega
+  | speak _ _ _ _ ih₀ ih₁ => simp only [bind, depth_speak]; omega
 
 /-- Run the protocols `ps 0, …, ps (k - 1)` one after another and output `g` of their outputs. -/
 def runAll {Z' : Type*} :
@@ -330,14 +323,10 @@ def runAll {Z' : Type*} :
     (g : (Fin k → Z) → Z') (x : ∀ i, X i) :
     (runAll ps g).run x = g fun t => (ps t).run x := by
   induction k generalizing Z' with
-  | zero =>
-    simp only [runAll, run_output]
-    congr 1 with t : 1
-    exact t.elim0
+  | zero => exact congrArg g (funext fun t => t.elim0)
   | succ _ ih =>
     rw [runAll, run_bind, ih]
-    congr 1 with t : 1
-    induction t using Fin.cases <;> rfl
+    exact congrArg g (funext fun t => by induction t using Fin.cases <;> rfl)
 
 /-- Running `k` protocols of depth at most `d` one after another writes at most `k d` bits. -/
 theorem depth_runAll_le {Z' : Type*} {k : ℕ} {ps : Fin k → Protocol X Z}
@@ -346,11 +335,9 @@ theorem depth_runAll_le {Z' : Type*} {k : ℕ} {ps : Fin k → Protocol X Z}
   induction k generalizing Z' with
   | zero => simp [runAll]
   | succ _ ih =>
-    rw [runAll]
-    refine (depth_bind_le fun _ => ih fun t => hps t.succ).trans ?_
     have := hps 0
-    rw [Nat.succ_mul]
-    omega
+    rw [runAll, Nat.succ_mul]
+    exact (depth_bind_le fun _ => ih fun t => hps t.succ).trans (by omega)
 
 end Protocol
 

@@ -76,11 +76,8 @@ def greaterThan [LinearOrder X] (x y : X) : Bool :=
 theorem isFoolingSet_equality [DecidableEq X] (s : Finset X) :
     IsFoolingSet equality true (s.image fun x => (x, x)) := by
   simp only [IsFoolingSet, mem_image]
-  refine ⟨?_, ?_⟩
-  · rintro _ ⟨x, -, rfl⟩
-    simp [equality]
-  · rintro _ ⟨x, -, rfl⟩ _ ⟨x', -, rfl⟩ h -
-    simpa [equality] using h
+  exact ⟨by rintro _ ⟨_, -, rfl⟩; simp [equality],
+    by rintro _ ⟨_, -, rfl⟩ _ ⟨_, -, rfl⟩ h -; simpa [equality] using h⟩
 
 /-- For an injective map `e` into a linear order, the diagonal pairs form a fooling set for
 greater-than after `e`, with value `false`. -/
@@ -88,24 +85,19 @@ theorem isFoolingSet_greaterThan {L : Type*} [LinearOrder L] [DecidableEq X] {e 
     (he : Function.Injective e) (s : Finset X) :
     IsFoolingSet (fun x y => greaterThan (e x) (e y)) false (s.image fun x => (x, x)) := by
   simp only [IsFoolingSet, mem_image]
-  refine ⟨?_, ?_⟩
-  · rintro _ ⟨x, -, rfl⟩
-    simp [greaterThan]
-  · rintro _ ⟨x, -, rfl⟩ _ ⟨x', -, rfl⟩ h h'
-    simp only [greaterThan, decide_eq_false_iff_not, not_lt] at h h'
-    rw [he (le_antisymm h' h)]
+  refine ⟨by rintro _ ⟨_, -, rfl⟩; simp [greaterThan], ?_⟩
+  rintro _ ⟨_, -, rfl⟩ _ ⟨_, -, rfl⟩ h h'
+  simp only [greaterThan, decide_eq_false_iff_not, not_lt] at h h'
+  rw [he (le_antisymm h' h)]
 
 /-- In a partial order, the diagonal pairs form a fooling set for `≤` with value `true`, by
 antisymmetry. -/
 theorem isFoolingSet_le [PartialOrder X] [DecidableLE X] [DecidableEq X] (s : Finset X) :
     IsFoolingSet (fun x y => decide (x ≤ y)) true (s.image fun x => (x, x)) := by
   simp only [IsFoolingSet, mem_image]
-  refine ⟨?_, ?_⟩
-  · rintro _ ⟨x, -, rfl⟩
-    simp
-  · rintro _ ⟨x, -, rfl⟩ _ ⟨x', -, rfl⟩ h h'
-    simp only [decide_eq_true_eq] at h h'
-    rw [le_antisymm h h']
+  refine ⟨by rintro _ ⟨_, -, rfl⟩; simp, ?_⟩
+  rintro _ ⟨x, -, rfl⟩ _ ⟨x', -, rfl⟩ h h'
+  rw [le_antisymm (by simpa using h : x ≤ x') (by simpa using h' : x' ≤ x)]
 
 /-- **Equality on a finite set needs more than `log₂` of its size bits**: a protocol computing
 equality on a set of at least two elements sends `d` bits with `|X| < 2 ^ d`. The exact cost,
@@ -123,11 +115,9 @@ private theorem card_lt_two_pow_of_run_eq_greaterThan [Fintype X] [LinearOrder X
     (hX : 1 < Fintype.card X) {p : Protocol X X Bool} (hp : p.run = greaterThan) :
     Fintype.card X < 2 ^ p.depth := by
   obtain ⟨x, y, hxy⟩ := Fintype.one_lt_card_iff.mp hX
-  have hz : ∃ x y : X, greaterThan x y ≠ false := by
-    rcases hxy.lt_or_gt with h | h
-    · exact ⟨y, x, by simpa [greaterThan] using h⟩
-    · exact ⟨x, y, by simpa [greaterThan] using h⟩
-  have h := (isFoolingSet_greaterThan Function.injective_id univ).card_lt_two_pow hp hz
+  have h := (isFoolingSet_greaterThan Function.injective_id univ).card_lt_two_pow hp <|
+    hxy.lt_or_gt.elim (fun h => ⟨y, x, by simpa [greaterThan] using h⟩)
+      fun h => ⟨x, y, by simpa [greaterThan] using h⟩
   rwa [card_image_of_injective _ fun x y h => congrArg Prod.fst h, card_univ] at h
 
 /-- **Equality of `n` bits needs `n + 1` bits**, for `0 < n`. This is the case of bit strings of
@@ -149,11 +139,9 @@ theorem ecomplexity_greaterThan (hn : 0 < n) :
       n + 1 := by
   refine le_antisymm (Protocol.ecomplexityFun_le_succ _)
     ((isFoolingSet_greaterThan (BitString.equivFin n).injective univ).succ_le_ecomplexity
-      ⟨(BitString.equivFin n).symm ⟨1, ?_⟩, (BitString.equivFin n).symm ⟨0, ?_⟩, ?_⟩ ?_)
-  · exact Nat.one_lt_two_pow hn.ne'
-  · exact Nat.two_pow_pos n
-  · simp [greaterThan, Fin.lt_def]
-  · rw [card_image_of_injective _ fun x y h => congrArg Prod.fst h, card_univ, BitString.card]
+      ⟨(BitString.equivFin n).symm ⟨1, Nat.one_lt_two_pow hn.ne'⟩,
+        (BitString.equivFin n).symm ⟨0, Nat.two_pow_pos n⟩, by simp [greaterThan, Fin.lt_def]⟩ ?_)
+  rw [card_image_of_injective _ fun x y h => congrArg Prod.fst h, card_univ, BitString.card]
 
 /-! ### Disjointness -/
 
@@ -168,28 +156,24 @@ def disjointness (x y : ι → Bool) : Bool :=
 theorem isFoolingSet_disjointness (s : Finset (ι → Bool)) :
     IsFoolingSet disjointness true (s.image fun x => (x, fun i => !x i)) := by
   simp only [IsFoolingSet, mem_image]
-  refine ⟨?_, ?_⟩
-  · rintro _ ⟨x, -, rfl⟩
-    simp [disjointness]
-  · rintro _ ⟨x, -, rfl⟩ _ ⟨x', -, rfl⟩ h h'
-    simp only [disjointness, decide_eq_true_eq] at h h'
-    have hxx : x = x' := funext fun i => by
-      have h₁ := h i
-      have h₂ := h' i
-      revert h₁ h₂
-      cases x i <;> cases x' i <;> simp
-    rw [hxx]
+  refine ⟨by rintro _ ⟨_, -, rfl⟩; simp [disjointness], ?_⟩
+  rintro _ ⟨x, -, rfl⟩ _ ⟨x', -, rfl⟩ h h'
+  simp only [disjointness, decide_eq_true_eq] at h h'
+  suffices x = x' by rw [this]
+  refine funext fun i => ?_
+  have h₁ := h i
+  have h₂ := h' i
+  cases hx : x i <;> cases hx' : x' i <;> simp_all
 
 /-- **Disjointness of `n` bits needs `n + 1` bits**, for `0 < n`. -/
 theorem ecomplexity_disjointness (hn : 0 < n) :
     Protocol.ecomplexity (fun (x y : BitString n) b => disjointness x y = b) Set.univ Set.univ =
       n + 1 := by
   refine le_antisymm (Protocol.ecomplexityFun_le_succ _)
-    ((isFoolingSet_disjointness univ).succ_le_ecomplexity ⟨fun _ => true, fun _ => true, ?_⟩ ?_)
-  · intro h
-    simp only [disjointness, decide_eq_true_eq] at h
-    exact absurd (h ⟨0, hn⟩) (by decide)
-  · rw [card_image_of_injective _ fun x y h => congrArg Prod.fst h, card_univ, BitString.card]
+    ((isFoolingSet_disjointness univ).succ_le_ecomplexity ⟨fun _ => true, fun _ => true, fun h => by
+      simp only [disjointness, decide_eq_true_eq] at h
+      exact absurd (h ⟨0, hn⟩) (by decide)⟩ ?_)
+  rw [card_image_of_injective _ fun x y h => congrArg Prod.fst h, card_univ, BitString.card]
 
 /-! ### Inner product -/
 
@@ -202,26 +186,24 @@ theorem two_pow_lt_leafCount_of_run_eq_dotProduct [Nonempty ι]
   set N := 2 ^ Fintype.card ι with hN
   obtain ⟨M, hM⟩ : ∃ M, N = 2 * M :=
     ⟨2 ^ (Fintype.card ι - 1), by rw [hN, ← pow_succ', Nat.sub_add_cancel Fintype.card_pos]⟩
-  have hK (b : Bool) (A B : Finset (ι → Bool)) (h : ∀ x ∈ A, ∀ y ∈ B, x ⬝ᵥ y = b) :
-      #A * #B ≤ N :=
-    BitString.card_mul_le_two_pow_of_dotProduct_eq A B b h
-  have hT := Protocol.card_filter_le_mul hp true (hK true)
-  have hF := Protocol.card_filter_le_mul hp false (hK false)
+  have hT := Protocol.card_filter_le_mul hp true
+    (fun A B h => BitString.card_mul_le_two_pow_of_dotProduct_eq A B true h)
+  have hF := Protocol.card_filter_le_mul hp false
+    (fun A B h => BitString.card_mul_le_two_pow_of_dotProduct_eq A B false h)
   set T := #{i | p.leafOutput i = true}
   set F := #{i | p.leafOutput i = false}
   have hleaves : T + F = p.leafCount := by
-    have := card_filter_add_card_filter_not (s := univ) fun i => p.leafOutput i = true
-    simpa [T, F] using this
+    simpa [T, F] using card_filter_add_card_filter_not (s := univ) fun i => p.leafOutput i = true
   have hpairs : #{q : (ι → Bool) × (ι → Bool) | q.1 ⬝ᵥ q.2 = true} +
       #{q : (ι → Bool) × (ι → Bool) | q.1 ⬝ᵥ q.2 = false} = N * N := by
-    have := card_filter_add_card_filter_not (s := univ)
+    simpa [Fintype.card_fun, hN] using card_filter_add_card_filter_not (s := univ)
       fun q : (ι → Bool) × (ι → Bool) => q.1 ⬝ᵥ q.2 = true
-    simpa [Fintype.card_fun, hN] using this
   have hcount := BitString.two_mul_card_dotProduct_eq_true_add_two_pow (ι := ι)
   rw [← hN] at hcount
-  have hNpos : 0 < N := Nat.two_pow_pos _
-  have hT' : N ≤ 2 * T + 1 := Nat.le_of_mul_le_mul_right (by nlinarith) hNpos
-  have hF' : N + 1 ≤ 2 * F := Nat.le_of_mul_le_mul_right (by nlinarith) hNpos
+  have hT' := Nat.le_of_mul_le_mul_right
+    (by nlinarith : N * N ≤ (2 * T + 1) * N) (Nat.two_pow_pos _)
+  have hF' := Nat.le_of_mul_le_mul_right
+    (by nlinarith : (N + 1) * N ≤ 2 * F * N) (Nat.two_pow_pos _)
   omega
 
 /-- **The inner product of `n` bits needs `n + 1` bits**, for `0 < n`. -/

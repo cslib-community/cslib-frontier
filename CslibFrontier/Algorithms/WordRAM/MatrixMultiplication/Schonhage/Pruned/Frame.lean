@@ -55,17 +55,16 @@ theorem exec_locate {w : ℕ} (x : Data registers) (h1 : x.regs one = 1)
       y.regs stamps = x.regs scratch + 4 * (x.regs inputDepth + 1) +
         2 * (x.regs inputDepth + 1) * x.regs span ∧
       (∀ i, ¬LocateLocal i → y.regs i = x.regs i) := by
-  have hds : Fits w ((x.regs inputDepth + 1) * x.regs span) := hw.of_le (by nlinarith)
-  have hv : Fits w (x.regs scratch + 4 * (x.regs inputDepth + 1) +
-      (x.regs inputDepth + 1) * x.regs span) := hw.of_le (by nlinarith)
-  have hs : Fits w (x.regs scratch + 4 * (x.regs inputDepth + 1) +
-      (x.regs inputDepth + 1) * x.regs span + (x.regs inputDepth + 1) * x.regs span) :=
-    hw.of_le (by nlinarith)
   refine WP.exists_execWithin_preserves locate_preserves ?_
   unfold locate
-  wram_exec [h1, h4, hds, hv, hs]
-  intro hregs
-  wram_simp
+  wram_exec [h1, h4,
+    show Fits w ((x.regs inputDepth + 1) * x.regs span) from hw.of_le (by nlinarith),
+    show Fits w (x.regs scratch + (x.regs inputDepth + 1) * 4 +
+      (x.regs inputDepth + 1) * x.regs span) from hw.of_le (by nlinarith),
+    show Fits w (x.regs scratch + (x.regs inputDepth + 1) * 4 +
+      (x.regs inputDepth + 1) * x.regs span + (x.regs inputDepth + 1) * x.regs span) from
+      hw.of_le (by nlinarith)]
+  intro hregs; wram_simp
   exact ⟨by ring, by ring, by ring, hregs⟩
 
 /-- Registers written while loading one stack frame and computing the two depth rows. -/
@@ -133,11 +132,9 @@ theorem exec_loadFrame {w : ℕ} (x : Data registers) (h1 : x.regs one = 1)
     show Fits w (x.regs values + x.regs level * x.regs span) from hw.of_le (by nlinarith),
     show Fits w (x.regs lists + (x.regs level + 1) * x.regs span) from hw.of_le (by nlinarith),
     show Fits w (x.regs values + (x.regs level + 1) * x.regs span) from hw.of_le (by nlinarith)]
-  intro hregs
-  wram_simp [uframe, humem]
-  exact ⟨by simpa [frameFields, hf0] using hufields 0,
-    by simpa [frameFields, hf0] using hufields 1,
-    by simpa [frameFields, hf0] using hufields 2,
-    by simpa [frameFields, hf0] using hufields 3, hregs⟩
+  intro hregs; wram_simp [uframe, humem]
+  exact ⟨by simpa [frameFields, hf0] using hufields 0, by simpa [frameFields, hf0] using hufields 1,
+    by simpa [frameFields, hf0] using hufields 2, by simpa [frameFields, hf0] using hufields 3,
+    hregs⟩
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PrunedQuery
