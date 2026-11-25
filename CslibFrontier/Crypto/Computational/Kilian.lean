@@ -215,9 +215,10 @@ theorem kilianCheck_kilianOpen {x : α} {table : List Bool}
     List.length_map, List.all_map, List.all_eq_true, Function.comp_def, List.map_map, true_and]
   refine ⟨fun a ha => ?_, ?_⟩
   · have hpos := kilianPosition_lt hρ ha
-    rw [kilianCommit, show [(kilianTable V x table).getD (kilianPosition V x a) false] =
-      (kilianLeaves (kilianTable V x table)).getD (kilianPosition V x a) [] by
-        simp [kilianLeaves, hpos]]
+    have hleaf : (kilianLeaves (kilianTable V x table)).getD (kilianPosition V x a) [] =
+        [(kilianTable V x table).getD (kilianPosition V x a) false] := by
+      simp [kilianLeaves, hpos]
+    rw [kilianCommit, ← hleaf]
     exact merkleVerify_merklePath_of_clog_eq hlen (by simp [kilianLeaves, kilianDepth])
       (hpos.trans_le (Nat.le_pow_clog (by norm_num) _))
   · convert hverdict using 3
