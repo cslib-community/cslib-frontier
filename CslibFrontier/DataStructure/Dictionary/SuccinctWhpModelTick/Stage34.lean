@@ -58,6 +58,14 @@ private theorem bufDelete_self_checkSlot_none {cTab bChar id rKey : ℕ} {tr : B
     · simp [hid]
     · exact ite_eq_right hid
 
+private theorem update_locState_of_ne (locSt : ℕ → ℕ → ℕ) (b₀ loc₀ v b loc : ℕ)
+    (h : ¬(b = b₀ ∧ loc = loc₀)) :
+    Function.update locSt b₀ (Function.update (locSt b₀) loc₀ v) b loc = locSt b loc := by
+  by_cases hbb : b = b₀
+  · subst hbb
+    rw [Function.update_self, Function.update_of_ne (fun hl => h ⟨rfl, hl⟩)]
+  · rw [Function.update_of_ne hbb]
+
 private theorem BufMapRel.untag_one {M tag b₀ loc₀ : ℕ} {bktCnt : ℕ → ℕ}
     {locSt rKeyOf : ℕ → ℕ → ℕ} {m : ℕ → Option (ℕ × ℕ)}
     (hrel : BufMapRel M tag bktCnt locSt rKeyOf m)
@@ -77,28 +85,17 @@ private theorem BufMapRel.untag_one {M tag b₀ loc₀ : ℕ} {bktCnt : ℕ → 
     · rcases hbl with ⟨rfl, rfl⟩
       rw [Function.update_self, Function.update_self] at hst'
       exact hne hst'
-    · have hst_old : locSt b loc = tag := by
-        by_cases hbb : b = b₀
-        · subst hbb
-          have hne_l : loc ≠ loc₀ := fun h => hbl ⟨rfl, h⟩
-          rwa [Function.update_self, Function.update_of_ne hne_l] at hst'
-        · rwa [Function.update_of_ne hbb] at hst'
-      exact hbl (hinj b hb loc hloc hst_old heq)
+    · rw [update_locState_of_ne _ _ _ _ _ _ hbl] at hst'
+      exact hbl (hinj b hb loc hloc hst' heq)
   · rw [Function.update_of_ne hrk, hrel.2 rk b loc]
     refine ⟨fun ⟨hb, hloc, hst, heq⟩ => ⟨hb, hloc, ?_, heq⟩,
       fun ⟨hb, hloc, hst', heq⟩ => ⟨hb, hloc, ?_, heq⟩⟩
-    · by_cases hbb : b = b₀
-      · subst hbb
-        have hne_l : loc ≠ loc₀ := fun h => hrk (h ▸ heq.symm)
-        rw [Function.update_self, Function.update_of_ne hne_l]; exact hst
-      · rwa [Function.update_of_ne hbb]
-    · by_cases hbb : b = b₀
-      · subst hbb
-        rw [Function.update_self] at hst'
-        by_cases hll : loc = loc₀
-        · subst hll; rw [Function.update_self] at hst'; exact absurd hst' hne
-        · rwa [Function.update_of_ne hll] at hst'
-      · rwa [Function.update_of_ne hbb] at hst'
+    · rwa [update_locState_of_ne _ _ _ _ _ _ (fun ⟨hb', hl'⟩ => hrk (hb' ▸ hl' ▸ heq.symm))]
+    · by_cases hbl : b = b₀ ∧ loc = loc₀
+      · rcases hbl with ⟨rfl, rfl⟩
+        rw [Function.update_self, Function.update_self] at hst'
+        exact absurd hst' hne
+      · rwa [update_locState_of_ne _ _ _ _ _ _ hbl] at hst'
 
 private def epochTickStage3Finish (s : FastState) : FastState :=
   if (s.buf s.oldEp).itemAlloc ≤ s.stageCursor then
@@ -203,10 +200,7 @@ theorem epochTickStage3_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
         · rcases hbl with ⟨rfl, rfl⟩
           rw [Function.update_self, Function.update_self, hst₀]
           simp [inLiveTree]
-        · by_cases hbb : b = b₀
-          · subst hbb
-            rw [Function.update_self, Function.update_of_ne (fun h => hbl ⟨rfl, h⟩)]
-          · rw [Function.update_of_ne hbb]
+        · rw [update_locState_of_ne _ _ _ _ _ _ hbl]
       have hc' : CoreFastInv c U V n_max θ fs' dict :=
         { hth := hc.hth
           curEp_or := hc.curEp_or
@@ -219,19 +213,14 @@ theorem epochTickStage3_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
           locState_active := fun b hb loc hloc => by
             dsimp only [fs']
             by_cases hbl : b = b₀ ∧ loc = loc₀
-            · rcases hbl with ⟨rfl, rfl⟩; simp
-            · by_cases hbb : b = b₀
-              · subst hbb; rw [Function.update_self, Function.update_of_ne (fun h => hbl ⟨rfl, h⟩)]
-                exact hc.locState_active b hb loc hloc
-              · rw [Function.update_of_ne hbb]; exact hc.locState_active b hb loc hloc
+            · rcases hbl with ⟨rfl, rfl⟩
+              simp
+            · rw [update_locState_of_ne _ _ _ _ _ _ hbl]
+              exact hc.locState_active b hb loc hloc
           locState_inactive := fun b loc hnot => by
             dsimp only [fs']
-            by_cases hbb : b = b₀
-            · subst hbb
-              rw [Function.update_self,
-                Function.update_of_ne (fun h => hnot ⟨hb₀, by rw [h]; exact hl₀⟩)]
-              exact hc.locState_inactive b loc hnot
-            · rw [Function.update_of_ne hbb]; exact hc.locState_inactive b loc hnot
+            rw [update_locState_of_ne _ _ _ _ _ _ (fun ⟨rfl, rfl⟩ => hnot ⟨hb₀, hl₀⟩)]
+            exact hc.locState_inactive b loc hnot
           active_item := hc.active_item
           quot_inj := hc.quot_inj
           dict_map := hc.dict_map
@@ -256,12 +245,11 @@ theorem epochTickStage3_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
                 2 ≤ fs'.locState b l → 2 ≤ fs.locState b l := by
               intro b _ l _ h2
               dsimp only [fs'] at h2
-              by_cases hbb : b = b₀
-              · subst hbb; rw [Function.update_self] at h2
-                by_cases hll : l = loc₀
-                · subst hll; rw [Function.update_self] at h2; omega
-                · rwa [Function.update_of_ne hll] at h2
-              · rwa [Function.update_of_ne hbb] at h2
+              by_cases hbl : b = b₀ ∧ l = loc₀
+              · rcases hbl with ⟨rfl, rfl⟩
+                rw [Function.update_self, Function.update_self] at h2
+                omega
+              · rwa [update_locState_of_ne _ _ _ _ _ _ hbl] at h2
             exact hc.rKey_buf_inj b₁ hb₁ l₁ hl₁ b₂ hb₂ l₂ hl₂
               (h2_orig b₁ hb₁ l₁ hl₁ h2₁) (h2_orig b₂ hb₂ l₂ hl₂ h2₂) hrkeq
           bufCur_valid := by
@@ -275,10 +263,9 @@ theorem epochTickStage3_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
             by_cases hbl : b = b₀ ∧ loc = loc₀
             · rcases hbl with ⟨rfl, rfl⟩
               rw [Function.update_self, Function.update_self, hst₀]
-              have := curEp_ne_oldEp hc.curEp_or; omega
-            · by_cases hbb : b = b₀
-              · subst hbb; rw [Function.update_self, Function.update_of_ne (fun h => hbl ⟨rfl, h⟩)]
-              · rw [Function.update_of_ne hbb]
+              have := curEp_ne_oldEp hc.curEp_or
+              omega
+            · rw [update_locState_of_ne _ _ _ _ _ _ hbl]
           bufOld_valid := by
             have hst_eq : fs'.rebStage = 3 := hs3
             have hold_eq : fs'.oldEp = oldEp := rfl

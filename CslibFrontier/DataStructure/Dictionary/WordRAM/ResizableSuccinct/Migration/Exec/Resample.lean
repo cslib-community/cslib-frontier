@@ -66,6 +66,24 @@ private theorem seedWindow_cases {base w₀ b b' a : ℕ} (h₁ : base ≤ a)
   exact Or.inr ⟨⟨(a - (base + 1)) / L, Nat.div_lt_of_lt_mul (by rwa [Nat.mul_comm])⟩,
     ⟨(a - (base + 1)) % L, Nat.mod_lt _ (by omega)⟩, by dsimp only; omega⟩
 
+private theorem zeroResampleRegs_regs (y : RData rResize) (j : Fin rResize) :
+    (((((y.set mCur 0).set mIdx 0).set mK 0).set mOne 0).set mRes 0).regs j =
+      if j ∈ ([mCur, mIdx, mK, mOne, mRes] : List (Fin rResize)) then 0 else y.regs j := by
+  dsimp only [RData.set]
+  by_cases h1 : j = mRes
+  · simp [h1]
+  rw [Function.update_of_ne h1]
+  by_cases h2 : j = mOne
+  · simp [h2]
+  rw [Function.update_of_ne h2]
+  by_cases h3 : j = mK
+  · simp [h3]
+  rw [Function.update_of_ne h3]
+  by_cases h4 : j = mIdx
+  · simp [h4]
+  rw [Function.update_of_ne h4]
+  by_cases h5 : j = mCur <;> simp [Function.update_of_ne, h1, h2, h3, h4, h5]
+
 theorem zeroResampleRegsCode_exec {w L_peak w₀ b b' hashBase : ℕ}
     {θ : ReducedPolySeed w₀ b b' 3} {x y : RData rResize}
     (hx : x.Bounded w) (hy_fr : y.frontier = x.frontier) (hL : x.frontier ≤ L_peak)
@@ -98,27 +116,11 @@ theorem zeroResampleRegsCode_exec {w L_peak w₀ b b' hashBase : ℕ}
     (s1.seq_eq (s2.seq_eq (s3.seq_eq (s4.seq_eq s5)))).mono (by omega) (fun _ h => h),
     ⟨⟨fun j => ?_, fun a => ?_⟩, hy_fr ▸ hx.frontier_fits, fun a ha => ?_⟩,
     rfl, hy_fr, fun j hj => ?_⟩
-  · dsimp only [z, z₄, z₃, z₂, z₁, RData.set, RData.toData]
-    by_cases h1 : j = mRes
-    · subst h1; rw [Function.update_self]; exact hfz
-    rw [Function.update_of_ne h1]
-    by_cases h2 : j = mOne
-    · subst h2; rw [Function.update_self]; exact hfz
-    rw [Function.update_of_ne h2]
-    by_cases h3 : j = mK
-    · subst h3; rw [Function.update_self]; exact hfz
-    rw [Function.update_of_ne h3]
-    by_cases h4 : j = mIdx
-    · subst h4; rw [Function.update_self]; exact hfz
-    rw [Function.update_of_ne h4]
-    by_cases h5 : j = mCur
-    · subst h5; rw [Function.update_self]; exact hfz
-    rw [Function.update_of_ne h5]
-    have hj_not : j ∉ ([mCur, mIdx, mK, mOne, mRes] : List (Fin rResize)) := by
-      simp only [List.mem_cons, List.not_mem_nil, or_false, not_or]
-      exact ⟨h5, h4, h3, h2, h1⟩
-    rw [hframe_reg j hj_not]
-    exact hx.regs_fits j
+  · dsimp only [z, z₄, z₃, z₂, z₁, RData.toData]
+    rw [zeroResampleRegs_regs]
+    split_ifs with hj
+    · exact hfz
+    · exact hframe_reg j hj ▸ hx.regs_fits j
   · dsimp only [z, z₄, z₃, z₂, z₁, RData.set, RData.toData]
     by_cases ha_out : a < hashBase ∨ hashBase + ReducedKWise.seedWords w₀ b b' 3 ≤ a
     · rw [hframe_mem a ha_out]; exact hx.mem_fits a
@@ -130,9 +132,8 @@ theorem zeroResampleRegsCode_exec {w L_peak w₀ b b' hashBase : ℕ}
   · dsimp only [z, z₄, z₃, z₂, z₁, RData.set] at ha ⊢
     rw [hframe_mem a (Or.inr (by omega))]
     exact hx.zero_above (hy_fr ▸ ha)
-  · rw [← hframe_reg j hj]
-    simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hj
-    simp [z, z₄, z₃, z₂, z₁, RData.set, hj]
+  · dsimp only [z, z₄, z₃, z₂, z₁]
+    rw [zeroResampleRegs_regs, ite_eq_right hj, hframe_reg j hj]
 
 
 /-- Shared post-resample step executing `.op (.copy mTmpA rMeta)` followed by `wInitNewMeta.code`
@@ -322,26 +323,10 @@ theorem exec_setup_resample_finish
     rw [heq_seed] at hseed₁
     apply RData.ext
     · funext j
-      dsimp only [RData.set]
-      by_cases h1 : j = mRes
-      · subst h1; rw [Function.update_self, Function.update_self]
-      rw [Function.update_of_ne h1, Function.update_of_ne h1]
-      by_cases h2 : j = mOne
-      · subst h2; rw [Function.update_self, Function.update_self]
-      rw [Function.update_of_ne h2, Function.update_of_ne h2]
-      by_cases h3 : j = mK
-      · subst h3; rw [Function.update_self, Function.update_self]
-      rw [Function.update_of_ne h3, Function.update_of_ne h3]
-      by_cases h4 : j = mIdx
-      · subst h4; rw [Function.update_self, Function.update_self]
-      rw [Function.update_of_ne h4, Function.update_of_ne h4]
-      by_cases h5 : j = mCur
-      · subst h5; rw [Function.update_self, Function.update_self]
-      rw [Function.update_of_ne h5, Function.update_of_ne h5]
-      have hj : j ∉ ([mCur, mIdx, mK, mOne, mRes] : List (Fin rResize)) := by
-        simp only [List.mem_cons, List.not_mem_nil, or_false, not_or]
-        exact ⟨h5, h4, h3, h2, h1⟩
-      rw [hreg₁ j hj, hreg₂ j hj]
+      rw [zeroResampleRegs_regs, zeroResampleRegs_regs]
+      split_ifs with hj
+      · rfl
+      · exact (hreg₁ j hj).trans (hreg₂ j hj).symm
     · funext a
       dsimp only [RData.set]
       by_cases ha_out :

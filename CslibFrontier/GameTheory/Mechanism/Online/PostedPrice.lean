@@ -125,14 +125,11 @@ theorem criticalValue_eq_iInf (q : PriceSchedule ι T) (θ : ι → AgentType (F
     q.policy.criticalValue θ i a d had =
       ⨅ (t : Fin T) (_ : a ≤ t ∧ t ≤ d), ENNReal.ofReal (q.price i t θ) := by
   apply le_antisymm
-  · refine le_iInf fun t => le_iInf fun ht => ?_
-    have hwin :
-        (q.policy.alloc (Function.update θ i ⟨a, d, q.price i t θ, had, q.price_nonneg i t θ⟩)
-          i).isSome := by
-      rw [q.policy_alloc_isSome_iff]
-      simp only [Function.update_self, q.price_update]
-      exact ⟨t, ht, le_rfl⟩
-    exact q.policy.criticalValue_le_of_isSome (q.price_nonneg i t θ) hwin
+  · refine le_iInf₂ fun t ht =>
+      q.policy.criticalValue_le_of_isSome (q.price_nonneg i t θ) ?_
+    rw [q.policy_alloc_isSome_iff]
+    simp only [Function.update_self, q.price_update]
+    exact ⟨t, ht, le_rfl⟩
   · refine le_sInf fun w hw => ?_
     obtain ⟨r, hr, rfl, hwin⟩ := hw
     rw [q.policy_alloc_isSome_iff] at hwin
@@ -204,12 +201,11 @@ theorem arrivalMechanism_isDSICNoEarlyArrival (q : PriceSchedule ι T)
     rw [hutil_rep]
     linarith [θ_true.realizedValue_le_value (some (θ i).arrival),
       hinc i θ θ_true.arrival (θ i).arrival ha, htrue.2]
-  · have hrep_none : q.policy.alloc θ i = none := by
-      rw [← Option.not_isSome_iff_eq_none, halloc_arr]
-      exact hrep_win
-    simp only [Mechanism.utility, arrivalMechanism, hrep_none, AgentType.realizedValue_none,
-      Option.isSome_none, Bool.false_eq_true, ↓reduceIte, sub_self]
-    exact htrue.1
+  · have hrep_none : q.policy.alloc θ i = none :=
+      Option.not_isSome_iff_eq_none.mp ((halloc_arr θ i).not.mpr hrep_win)
+    rw [Mechanism.utility_of_alloc_none _ hrep_none]
+    simpa only [arrivalMechanism, hrep_none, Option.isSome_none, Bool.false_eq_true, ↓reduceIte,
+      neg_zero] using htrue.1
 
 end PriceSchedule
 
@@ -344,9 +340,8 @@ theorem thresholdSingleItemMechanism_isDSICNoEarlyArrival {p : ℝ} (hp : 0 ≤ 
             refine hw_rep.2 j hj ?_
             rcases hba with hlt | ⟨heq, hji_lt⟩
             · exact Or.inl (lt_of_lt_of_le hlt ha)
-            · rcases lt_or_eq_of_le ha with halt | haeq
-              · exact Or.inl (heq ▸ halt)
-              · exact Or.inr ⟨heq.trans haeq, hji_lt⟩
+            · exact (lt_or_eq_of_le ha).elim (fun h => Or.inl (heq ▸ h))
+                (fun h => Or.inr ⟨heq.trans h, hji_lt⟩)
         simp only [Mechanism.utility, thresholdSingleItemMechanism, thresholdSingleItemPolicy,
           hw_true, ↓reduceIte, θ_t, Function.update_self, Option.isSome_some,
           AgentType.realizedValue_some_of_inWindow
@@ -359,12 +354,9 @@ theorem thresholdSingleItemMechanism_isDSICNoEarlyArrival {p : ℝ} (hp : 0 ≤ 
           zero_sub]
       rw [hutil_rep]
       linarith
-  · have hutil_rep : (thresholdSingleItemMechanism p).utility i θ_true θ = 0 := by
-      simp only [Mechanism.utility, thresholdSingleItemMechanism, thresholdSingleItemPolicy,
-        hw_rep, ↓reduceIte, AgentType.realizedValue_none, Option.isSome_none, Bool.false_eq_true,
-        sub_self]
-    rw [hutil_rep]
-    exact htrue_ir
+  · have hnone : (thresholdSingleItemPolicy p).alloc θ i = none := ite_eq_right hw_rep
+    rwa [Mechanism.utility_of_alloc_none _ hnone,
+      thresholdSingleItemMechanism_isLoserZero p i θ hnone, neg_zero]
 
 /-- Whenever at least one agent in a finite population has value `≥ p`,
 `thresholdSingleItemPolicy p` allocates to a unique winner whose value is at least `p`. -/
@@ -374,9 +366,8 @@ theorem exists_thresholdWins [Finite ι] {p : ℝ} {θ : ι → AgentType (Fin T
   classical
   have : Fintype ι := Fintype.ofFinite ι
   set Q := Finset.univ.filter fun i : ι => p ≤ (θ i).value
-  have hQne : Q.Nonempty := by
-    obtain ⟨i, hi⟩ := hex
-    exact ⟨i, Finset.mem_filter.mpr ⟨Finset.mem_univ i, hi⟩⟩
+  obtain ⟨i₀, hi₀⟩ := hex
+  have hQne : Q.Nonempty := ⟨i₀, Finset.mem_filter.mpr ⟨Finset.mem_univ i₀, hi₀⟩⟩
   obtain ⟨t_min, ht_mem, ht_min⟩ := Finset.exists_min_image Q (fun i => (θ i).arrival) hQne
   set Qmin := Q.filter fun i : ι => (θ i).arrival = (θ t_min).arrival
   have hQmin_ne : Qmin.Nonempty :=
