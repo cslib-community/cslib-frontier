@@ -6488,6 +6488,7 @@ public import CslibFrontier.Crypto.Computational.Pseudoentropy.WordReduction
 public import CslibFrontier.Crypto.Computational.Pseudoentropy.WordSeedExtraction
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade
+public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.AdjacentPRF
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildChallenge
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildReduction
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildReductionLaw
