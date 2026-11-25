@@ -59,12 +59,9 @@ private theorem exec_keep_bestBefore {w D : ℕ} (score : ℕ → ℕ) (x : Data
   obtain ⟨y, he, hb, hv, hf, hm, hr⟩ := exec_keep x hz ho hf
   have hnext := bestBefore_take hbest hk
   rw [hscore] at hb hv
-  refine ⟨y, he, ?_, hm, ?_⟩
-  · rw [hb, hv, hf]
-    exact hnext
-  · intro i hi
-    apply hr i
-    all_goals intro h; subst i; simp [Reg.best, Reg.bestCount, Reg.found] at hi
+  refine ⟨y, he, by rw [hb, hv, hf]; exact hnext, hm, fun i hi => ?_⟩
+  apply hr i
+  all_goals intro h; subst i; simp [Reg.best, Reg.bestCount, Reg.found] at hi
 
 private theorem exec_candidate_bestBefore {w D T : ℕ} (counter : Code .standard 128)
     (score : ℕ → ℕ) (Source : (ℕ → ℕ) → Prop) (x : Data 160)
@@ -84,11 +81,8 @@ private theorem exec_candidate_bestBefore {w D T : ℕ} (counter : Code .standar
         (y.regs Reg.bestCount) (y.regs Reg.found) ∧ Source y.mem ∧
       ∀ i, 131 ≤ i.val → y.regs i = x.regs i := by
   by_cases hlo : 4 * (x.regs Reg.cursor * x.regs Reg.cursor) < D
-  · have hnot : x.regs Reg.cursor ∉ Nat.sqrtPrimeWindow D := by
-      intro hw
-      have hlow := (Nat.mem_sqrtPrimeWindow_iff_sq.1 hw).2.1
-      simp only [pow_two] at hlow
-      omega
+  · have hnot : x.regs Reg.cursor ∉ Nat.sqrtPrimeWindow D := fun hw => by
+      have hlow := (Nat.mem_sqrtPrimeWindow_iff_sq.1 hw).2.1; rw [pow_two] at hlow; omega
     refine ⟨x, ?_, bestBefore_skip hbest hnot, hSource, fun _ _ => rfl⟩
     exact (ExecWithin.branch_pos
       (by simpa only [Cond.holds_lt, hfour, hD] using hlo) (exec_nop x)).mono (by omega)
@@ -97,8 +91,7 @@ private theorem exec_candidate_bestBefore {w D T : ℕ} (counter : Code .standar
     obtain ⟨z, ht, hflag, hm, hr⟩ := exec_trial x hp hfit
     have hzSource : Source z.mem := by simpa only [hm] using hSource
     have hzOne : z.regs Reg.one = 1 := by regs_frame
-    have hmeta : ∀ i, 128 ≤ i.val → z.regs i = x.regs i :=
-      fun i hi => hr i (by omega)
+    have hmeta : ∀ i, 128 ≤ i.val → z.regs i = x.regs i := fun i hi => hr i (by omega)
     by_cases hprime : (x.regs Reg.cursor).Prime
     · have hwindow : x.regs Reg.cursor ∈ Nat.sqrtPrimeWindow D :=
         Nat.mem_sqrtPrimeWindow_iff_sq.2 ⟨hprime,
@@ -107,34 +100,27 @@ private theorem exec_candidate_bestBefore {w D T : ℕ} (counter : Code .standar
       have hbit : (Cond.eq Reg.trialFlag Reg.one).Holds z := by
         simp only [Cond.holds_eq, hflag, hprime, ↓reduceIte, hzOne]
       obtain ⟨a, hc, hscore, haSource⟩ := hcount z hzSource hmeta hwindow
-      have hameta : ∀ i, 128 ≤ i.val → a.regs i = x.regs i := by
-        intro i hi
-        exact (hc.regs_eq (count_preserves counter i hi)).trans (hmeta i hi)
+      have hameta : ∀ i, 128 ≤ i.val → a.regs i = x.regs i := fun i hi =>
+        (hc.regs_eq (count_preserves counter i hi)).trans (hmeta i hi)
       have haBest : BestBefore D score (a.regs Reg.cursor) (a.regs Reg.best)
           (a.regs Reg.bestCount) (a.regs Reg.found) := by
         simpa only [hameta Reg.cursor (by decide), hameta Reg.best (by decide),
           hameta Reg.bestCount (by decide), hameta Reg.found (by decide)] using hbest
-      obtain ⟨y, hy, hybest, hym, hyr⟩ := exec_keep_bestBefore score a
-        (by regs_frame) (by regs_frame)
-        haBest (by simpa only [hameta Reg.cursor (by decide)] using hwindow)
+      obtain ⟨y, hy, hybest, hym, hyr⟩ := exec_keep_bestBefore score a (by regs_frame)
+        (by regs_frame) haBest (by simpa only [hameta Reg.cursor (by decide)] using hwindow)
         (by simpa only [hameta Reg.cursor (by decide)] using hscore)
-      refine ⟨y, ?_, ?_, ?_, ?_⟩
-      · exact (ExecWithin.branch_neg hneg
-          (ht.seq (ExecWithin.branch_pos hbit (hc.seq hy)))).mono (by omega)
-      · simpa only [hameta Reg.cursor (by decide)] using hybest
-      · simpa only [hym] using haSource
-      · intro i hi
-        exact (hyr i hi).trans (hameta i (by omega))
+      exact ⟨y, (ExecWithin.branch_neg hneg
+          (ht.seq (ExecWithin.branch_pos hbit (hc.seq hy)))).mono (by omega),
+        by simpa only [hameta Reg.cursor (by decide)] using hybest,
+        by simpa only [hym] using haSource, fun i hi => (hyr i hi).trans (hameta i (by omega))⟩
     · have hbit : ¬(Cond.eq Reg.trialFlag Reg.one).Holds z := by
         simp only [Cond.holds_eq, hflag, hprime, ↓reduceIte, hzOne, zero_ne_one, not_false_eq_true]
       have hnot : x.regs Reg.cursor ∉ Nat.sqrtPrimeWindow D :=
         fun hw => hprime (Nat.mem_sqrtPrimeWindow_iff_sq.1 hw).1
-      refine ⟨z, ?_, ?_, hzSource, ?_⟩
-      · exact (ExecWithin.branch_neg hneg
-          (ht.seq (ExecWithin.branch_neg hbit (exec_nop z)))).mono (by omega)
-      · simpa only [hmeta Reg.best (by decide), hmeta Reg.bestCount (by decide),
-          hmeta Reg.found (by decide)] using bestBefore_skip hbest hnot
-      · intro i hi
-        exact hr i (by omega)
+      exact ⟨z, (ExecWithin.branch_neg hneg
+          (ht.seq (ExecWithin.branch_neg hbit (exec_nop z)))).mono (by omega),
+        by simpa only [hmeta Reg.best (by decide), hmeta Reg.bestCount (by decide),
+          hmeta Reg.found (by decide)] using bestBefore_skip hbest hnot,
+        hzSource, fun i hi => hr i (by omega)⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.PrimeSelection

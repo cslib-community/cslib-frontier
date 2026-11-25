@@ -48,25 +48,21 @@ theorem oneRoot_zero {w capacity : ℕ} (x : Data 128) (hx : x.Bounded w)
   have ha : Exec (B := .standard) w
       (.seq (.op (.const zero 0)) (.seq (.op (.const one 1))
         (.seq (.op (.copy (registers WordStack.ptr) stackBase))
-          (.op (.const (registers WordStack.len) 0))))) x a 4 := by
-    dsimp only [a]
-    wram_exec
+          (.op (.const (registers WordStack.len) 0))))) x a 4 := by dsimp only [a]; wram_exec
   have haslots (i : Fin 7) : a.regs (slot i) = x.regs (slot i) := by
     fin_cases i <;>
       simp +decide [a, slot, registers, WordStack.ptr, WordStack.len, zero, one]
   have har : WordStack.Rep w (x.regs stackBase) capacity [] (a.comap registers) := by
     refine ⟨⟨fun i => (ha.bounded hx).1 (registers i), (ha.bounded hx).2⟩,
-      ?_, ?_, Nat.zero_le _, fun i => Fin.elim0 i⟩
-    · simp +decide [a, registers, WordStack.ptr, WordStack.len, zero, one]
-    · simp +decide [a, registers, WordStack.ptr, WordStack.len, zero, one]
+      ?_, ?_, Nat.zero_le _, fun i => Fin.elim0 i⟩ <;>
+      simp +decide [a, registers, WordStack.ptr, WordStack.len, zero, one]
   obtain ⟨b, hb, hrb, hfb, hpb⟩ := pushFrame_exec a [] h2 hcap har
     (fun i => (ha.bounded hx).1 (slot i)) (by simpa using hcapacity)
   obtain ⟨c, hc, hrc, hcs, hfc, hpc⟩ := popFrame_exec b [] (fun i => a.regs (slot i)) h2 hcap hrb
   have hbzero : b.regs zero = 0 := by
     rw [hpb zero (Or.inl (by decide))]
     simp +decide [a, registers, WordStack.ptr, WordStack.len, zero, one]
-  have hczero : c.regs zero = 0 := by
-    rw [hpc zero (Or.inl (by decide)) (by decide), hbzero]
+  have hczero : c.regs zero = 0 := by rw [hpc zero (Or.inl (by decide)) (by decide), hbzero]
   have hcf : c.regs (slot 0) = 0 := (hcs 0).trans ((haslots 0).trans hf)
   have hblen : b.regs (registers WordStack.len) = 7 := by
     simpa only [Data.comap_regs, List.length_append, List.length_cons, List.length_nil,
@@ -76,22 +72,17 @@ theorem oneRoot_zero {w capacity : ℕ} (x : Data 128) (hx : x.Bounded w)
     convert (Exec.copy (B := Basis.standard) (w := w) (x := c)
       (d := slot 0) (s := slot 0)) using 1
     ext i <;> simp [Data.set]
-  have hbody : Exec w body b c 101 := by
-    exact hc.seq (Exec.branch_pos (by change c.regs (slot 0) = c.regs zero; omega) hcopy)
-  have hl : Exec w loop b c 105 := by
-    apply Exec.loop_once
-    · change b.regs zero < b.regs (registers WordStack.len)
-      omega
-    · exact hbody
-    · change ¬c.regs zero < c.regs (registers WordStack.len)
-      omega
+  have hbody : Exec w body b c 101 :=
+    hc.seq (Exec.branch_pos (by change c.regs (slot 0) = c.regs zero; omega) hcopy)
+  have hl : Exec w loop b c 105 := Exec.loop_once
+    (by change b.regs zero < b.regs (registers WordStack.len); omega) hbody
+    (by change ¬c.regs zero < c.regs (registers WordStack.len); omega)
   refine ⟨c, ha.seq (hb.seq hl), hrc, fun i => (hcs i).trans (haslots i), ?_, ?_, ?_⟩
   · rw [hpc outputCount (Or.inl (by decide)) (by decide),
       hpb outputCount (Or.inl (by decide))]
     simp +decide [a, registers, WordStack.ptr, WordStack.len, outputCount, zero, one]
   · rw [hpc heap (Or.inl (by decide)) (by decide), hpb heap (Or.inl (by decide))]
     simp +decide [a, registers, WordStack.ptr, WordStack.len, heap, zero, one]
-  · intro p hp
-    exact (hfc p hp).trans (hfb p hp)
+  · exact fun p hp => (hfc p hp).trans (hfb p hp)
 
 end Cslib.Algorithms.WordRAM.ThreeSum.ChanHe.Traversal
