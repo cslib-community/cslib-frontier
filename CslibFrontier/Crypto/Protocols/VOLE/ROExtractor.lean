@@ -51,14 +51,14 @@ ROM.
 ## Protocol model and extraction mechanism
 
 * **Two-channel ROM (`VOLEITHROSpec`)**: a leaf commitment oracle `H_leaf(k, iv, idx) ↦ (sd, com)`
-  ([BaumEtAl2023FAEST], `H0`; `faest-arch-opt` `leaf_hash::shake`) paired with a Fiat–Shamir
-  challenge oracle `H_FS(stmt, iv, coms, d_corr, preMsg) ↦ Δ` (`FSQuery`). Including the witness
-  correction `d_corr` and pre-challenge commitment `preMsg` inside `H_FS` commits `w* = d_corr + u`
-  and `preMsg` before `Δ` is drawn, matching [BaumBMRS2023] and [BaumEtAl2026FAEST].
+  ([BaumEtAl2023FAEST], `H0` (`SHAKE`) leaf commitments; `faest-arch-opt` `leaf_hash::shake`) paired
+  with a Fiat–Shamir challenge oracle `H_FS(stmt, iv, coms, d_corr, preMsg) ↦ Δ` (`FSQuery`).
+  Including `d_corr` and `preMsg` inside `H_FS` binds `w* = d_corr + u` and `preMsg` before `Δ` is
+  drawn, matching [BaumBMRS2023Eprint] and [BaumEtAl2026FAEST].
 * **`FAEST.Conversion` reconstruction**: verifying the `2 ^ d - 1` opened indices `pIdx = i ^^^ Δ`
   (`collectOpenRows`) produces `FAEST.verifierRows`, so `FAEST.convertExpandedRows` satisfies
-  `FAEST.convertExpandedRows_correlation` (`FAEST.Conversion`, Prop. 5.2) whenever the prover's
-  `H_leaf` queries uniquely determine all `2 ^ d` leaves.
+  `FAEST.convertExpandedRows_correlation` ([BaumEtAl2026FAEST], Section 5.4, Figure 5.6 /
+  Proposition 5.2) whenever the prover's `H_leaf` queries uniquely determine all `2 ^ d` leaves.
 * **Zero-rewinding extraction (`extractWitnessFromTrace`)**: reading only the `H_leaf` query trace
   recorded *prior* to running verification recovers all `2 ^ d` leaves and `u`, yielding the witness
   `decWit (d_corr + u)` straight-line. Using a two-channel sticky bad-state handler
@@ -67,16 +67,19 @@ ROM.
   `Q_leaf * (Q_leaf + 2 ^ d * Q_FS) / 2 ^ comLen + Q_FS * ε_rel`.
 * **AnonymousToken bridges (`Basic` & `Conservation`)**: because a VOLE-ACT Issuer only verifies
   client proofs (`IssueRequest`, `SpendRequest`) and never simulates proofs for the adversary
-  ([VOLEACT2026], Initial Issuance / Spending; [BaumBMRS2023], Lemma 4 / Theorem 5), plain
-  straight-line multi-verify ROM extraction suffices without simulation-extractability. Unextracted
-  ROM adversaries reduce explicitly to `AnonymousToken.extractedExperiment` and
+  ([VOLEACT2026], Initial Issuance / Spending; [BaumBMRS2023Eprint], Lemma 4, pp. 19–20, and
+  Theorem 5, p. 36), plain straight-line multi-verify ROM extraction suffices without
+  simulation-extractability. Unextracted ROM adversaries reduce explicitly to
+  `AnonymousToken.extractedExperiment` and
   `AnonymousToken.Conservation.extractedConservationExperiment` with additive loss `ε_KS` and
   preserved signing/issuer query budgets.
-* **PRG leaf separation (`leaf_hash::aes_ctr`)**: a local PRG prover makes `0` `H_leaf` queries and
-  accepts with probability `1` under deterministic PRG verification, defeating any RO-query-log
-  extractor (`tr_leaf = []`) with probability `1`; when two seeds collide on `PRG` (`com_Δ`) yet
-  yield distinct expanded `u` values (motivating FAESTer's Almost-Injective PRG, Definition 27 and
-  Lemma 32), even unbounded full-proof extractors fail on at least one witness.
+* **PRG leaf separation (`leaf_hash::aes_ctr`)**: a local PRG prover (`prgLeafProver`, modeling
+  `leaf_hash::aes_ctr` as used in [VoleMole2026], `src/act/issue.hpp:121`, `src/act/spend.hpp:289`)
+  makes `0` `H_leaf` queries (`tr_leaf = []`) and accepts with probability `1` under deterministic
+  PRG verification (`prgLeafVerify`), defeating any RO-query-log extractor with probability `1`;
+  when two seeds collide on `PRG` (`com`) yet yield distinct expanded `u` values (motivating
+  almost-injective PRGs in [BaumEtAl2026FAESTer], Definition 27, pp. 17–18, and Lemma 32,
+  pp. 25–26), even unbounded full-proof extractors fail on at least one witness.
 
 ## Scope and gaps
 
@@ -89,15 +92,19 @@ ROM.
 ## References
 
 * [C. Baum et al., *Publicly Verifiable Zero-Knowledge and Post-Quantum Signatures from
-  VOLE-in-the-Head*][BaumBMRS2023], Lemma 1, Lemma 4, Theorem 5.
-* [C. Baum et al., *FAEST: Algorithm Specifications*, version 1.0][BaumEtAl2023FAEST], Section 2.3.2
-  and `H0` (`SHAKE`) leaf commitment.
-* [C. Baum et al., *FAEST v3: Algorithm Specifications*, version 3.0][BaumEtAl2026FAEST], Sec. 5.4
-  (Figure 5.6 / Proposition 5.2) and Section 5.5 (Figure 5.7).
-* *FAESTer* (ePrint 2026/164), Section 3.3 (Definition 27 and Lemma 32): cited for the unbounded
-  `Simple` PRG-leaf soundness argument contrasted here against query-log ROM extraction.
+  VOLE-in-the-Head* (full version, ePrint 2023/996)][BaumBMRS2023Eprint], Section 4 (Lemma 4,
+  pp. 19–20) and Section 7.1 (Theorem 5, p. 36).
+* [C. Baum et al., *FAEST: Algorithm Specifications*, version 1.0][BaumEtAl2023FAEST]: `H0`
+  (`SHAKE`) leaf hashing.
+* [C. Baum et al., *FAEST v3: Algorithm Specifications*, version 3.0][BaumEtAl2026FAEST],
+  Section 5.4 (Figure 5.6 / Proposition 5.2) and Section 5.5 (Figure 5.7).
+* [C. Baum et al., *Shorter, Tighter, FAESTer: Optimizations and Improved (QROM) Analysis for
+  VOLE-in-the-Head Signatures* (ePrint 2026/164)][BaumEtAl2026FAESTer], Section 3 (Definition 27,
+  pp. 17–18) and Section 3.3 (Lemmas 32–33, pp. 25–26).
 * [T. Zhang, C. Patton, S. Schlesinger, *VOLE-ACT*][VOLEACT2026], Parameters, Tag, Initial Issuance,
   and Spending.
+* [C. Patton, T. Zhang, *vole-mole* (commit `87af6871f`)][VoleMole2026], `src/act/issue.hpp:121`,
+  `src/act/spend.hpp:289`, `src/ihat/circuit.hpp:33`, `src/pomfrit/redeem.hpp:75`.
 -/
 
 public section
@@ -476,8 +483,7 @@ private theorem xorIndex_ne_right {d : ℕ} {i hidden : Fin (2 ^ d)} (hi : i ≠
 matching commitment `coms idx` and expanded row `rows idx`, `collectOpenRows` hits only the leaf
 cache and returns `FAEST.verifierRows rows hidden` without modifying the ROM trace. -/
 theorem collectOpenRows_of_trace {d sdLen comLen rowLen : ℕ} {Stmt Seed IV PreMsg Chal : Type}
-    [BEq (LeafQuery d Seed IV)] [LawfulBEq (LeafQuery d Seed IV)]
-    [BEq (FSQuery d comLen rowLen Stmt IV PreMsg)]
+    [BEq (LeafQuery d Seed IV)] [BEq (FSQuery d comLen rowLen Stmt IV PreMsg)]
     [Fintype Chal] [Nonempty Chal]
     (expand : BitString sdLen → BitString rowLen)
     (iv : IV) (openKeys : Fin (2 ^ d) → Seed) (coms : Fin (2 ^ d) → BitString comLen)
@@ -1497,9 +1503,9 @@ private theorem collectOpenRows_sound_of_clean {d sdLen comLen rowLen : ℕ}
             ProbOracleComp.runWith_pure] at hite
 
 /-- Straight-line extraction soundness along a single clean execution of `voleithVerifyROM`:
-if `voleithVerifyROM` accepts under `voleithStickyMemoize` without flipping the bad flag
-(`st'.2 = false`), then `extractWitnessFromTrace` applied to the leaf trace `st.1.1` **prior** to
-verification already satisfies `Rel stmt w* = true`. -/
+if `voleithVerifyROM` accepts from trace `roSt` under `voleithStickyMemoize` without flipping
+the bad flag (`st'.2 = false`), then `extractWitnessFromTrace` applied to the leaf trace `roSt.1`
+**prior** to verification already satisfies `Rel stmt w* = true`. -/
 theorem voleithVerifyROM_sound_of_clean {d sdLen comLen rowLen : ℕ}
     {Stmt Seed IV PreMsg Chal Wit : Type}
     [BEq (LeafQuery d Seed IV)] [LawfulBEq (LeafQuery d Seed IV)]
@@ -1510,14 +1516,15 @@ theorem voleithVerifyROM_sound_of_clean {d sdLen comLen rowLen : ℕ}
     (chalToIdx : Chal → Fin (2 ^ d)) (Rel : Stmt → Wit → Bool)
     (checkRel : Stmt → (Fin d → BitString rowLen) → BitString rowLen → PreMsg → Chal → Bool)
     (stmt : Stmt) (prf : VOLEITHProof d comLen rowLen Seed IV PreMsg)
-    (st st' : VOLEITHStickyState d sdLen comLen rowLen Stmt Seed IV PreMsg Chal)
-    (hclean : st.2 = false)
-    (hinv : VOLEITHGoodInv expand decWit chalToIdx Rel checkRel st.1)
+    (roSt : VOLEITHTraceState d sdLen comLen rowLen Stmt Seed IV PreMsg Chal)
+    (st' : VOLEITHStickyState d sdLen comLen rowLen Stmt Seed IV PreMsg Chal)
+    (hinv : VOLEITHGoodInv expand decWit chalToIdx Rel checkRel roSt)
     (hsupp : (true, st') ∈
       (ProbOracleComp.runWith (voleithStickyMemoize expand decWit chalToIdx Rel checkRel)
-        (voleithVerifyROM (Chal := Chal) expand chalToIdx checkRel stmt prf) st).support)
+        (voleithVerifyROM (Chal := Chal) expand chalToIdx checkRel stmt prf)
+        (roSt, false)).support)
     (hclean' : st'.2 = false) :
-    Rel stmt (extractWitnessFromTrace expand decWit st.1.1 prf) = true := by
+    Rel stmt (extractWitnessFromTrace expand decWit roSt.1 prf) = true := by
   unfold voleithVerifyROM at hsupp
   rw [ProbOracleComp.runWith_bind, PMF.mem_support_bind_iff] at hsupp
   obtain ⟨⟨delta, st_mid⟩, hfs_supp, hrest⟩ := hsupp
@@ -1539,10 +1546,8 @@ theorem voleithVerifyROM_sound_of_clean {d sdLen comLen rowLen : ℕ}
     OracleComp.sumHandler_inr] at hfs_supp
   have hinv_mid : VOLEITHGoodInv expand decWit chalToIdx Rel checkRel st_mid.1 :=
     voleithStickyMemoize_preserves_goodInv expand decWit chalToIdx Rel checkRel
-      (.inr _) st (fun _ => hinv) delta st_mid hfs_supp hclean_mid
-  rcases st with ⟨⟨tr₁, tr₂⟩, b⟩
-  dsimp only at hclean
-  subst hclean
+      (.inr _) (roSt, false) (fun _ => hinv) delta st_mid hfs_supp hclean_mid
+  rcases roSt with ⟨tr₁, tr₂⟩
   simp only [voleithStickyMemoize, OracleComp.withBadFlag_false,
     voleithStepKernel] at hfs_supp
   have hst_mid_tr1 : st_mid.1.1 = tr₁ := by
@@ -1730,9 +1735,12 @@ theorem voleithKnowledgeSoundness_bound {d sdLen comLen rowLen : ℕ}
                   exact OracleComp.isFlagMonotone_withBadFlag _ q s₁ (a, next) hx)
                 _ st_mid hbm ok st_end hsupp2
               simp [OracleComp.FlagBad, hc_end] at hbe
+            have hinv_mid := hinvP (stmt, prf) st_mid hsupp1 hc_mid
+            rcases st_mid with ⟨ro_mid, b_mid⟩
+            dsimp only at hc_mid hinv_mid hrel_f
+            subst hc_mid
             have hgood_rel := voleithVerifyROM_sound_of_clean expand decWit chalToIdx Rel checkRel
-              stmt prf st_mid st_end hc_mid (hinvP (stmt, prf) st_mid hsupp1 hc_mid)
-              (hok ▸ hsupp2) hc_end
+              stmt prf ro_mid st_end hinv_mid (hok ▸ hsupp2) hc_end
             exact absurd (hgood_rel.symm.trans hrel_f) (by decide)
           simp [heq, hbad_end]
         · simp [heq]
@@ -1909,8 +1917,11 @@ private theorem voleithMultiVerifyStickyHandler_invariant {d sdLen comLen rowLen
     cases ok with
     | false => simp [hfail_f]
     | true =>
+      rcases s with ⟨ro_s, b_s⟩
+      dsimp only at hclean_s hinv_s
+      subst hclean_s
       have hrel := voleithVerifyROM_sound_of_clean expand decWit chalToIdx Rel checkRel stmt prf
-        s s' hclean_s hinv_s hs'_mem hclean'
+        ro_s s' hinv_s hs'_mem hclean'
       simp [hfail_f, hrel]
   · simp only [voleithMultiVerifyStickyHandler, PMF.mem_support_map_iff, Prod.mk.injEq] at hx'
     obtain ⟨⟨ans, s'⟩, hs'_mem, _, hx'_eq⟩ := hx'
@@ -2031,9 +2042,7 @@ private theorem voleithStickyMemoize_trace_len_le {d sdLen comLen rowLen : ℕ}
 
 private theorem toOuterMeasure_run_mvSticky_bad_le {d sdLen comLen rowLen : ℕ}
     {Stmt Seed IV PreMsg Chal Wit α : Type}
-    [BEq (LeafQuery d Seed IV)] [LawfulBEq (LeafQuery d Seed IV)]
-    [BEq (FSQuery d comLen rowLen Stmt IV PreMsg)]
-    [LawfulBEq (FSQuery d comLen rowLen Stmt IV PreMsg)]
+    [BEq (LeafQuery d Seed IV)] [BEq (FSQuery d comLen rowLen Stmt IV PreMsg)]
     [DecidableEq IV] [Fintype Chal] [Nonempty Chal]
     (expand : BitString sdLen → BitString rowLen) (decWit : BitString rowLen → Wit)
     (chalToIdx : Chal → Fin (2 ^ d)) (Rel : Stmt → Wit → Bool)
@@ -2448,6 +2457,38 @@ private theorem toOuterMeasure_run_mvSticky_bad_le {d sdLen comLen rowLen : ℕ}
                 (ε_rel : ℝ≥0∞) := by ring
           _ = _ := by rw [hk1_cast, hk2_cast]
 
+private theorem isCostBounded_mvLeafCost_add {d sdLen comLen rowLen : ℕ}
+    {Stmt Seed IV PreMsg Chal α : Type}
+    {P : ProbOracleComp (VOLEITHMultiVerifySpec d sdLen comLen rowLen Stmt Seed IV PreMsg Chal) α}
+    {Q_leaf m : ℕ}
+    (hm : IsCostBounded (Sum.elim (fun _ => 0) (Sum.elim (fun _ => 1) (fun _ => 0))) P m)
+    (hleaf : IsCostBounded (Sum.elim (fun _ => 0)
+      (Sum.elim (fun _ => 0) (voleithLeafCost (d := d) (comLen := comLen) (rowLen := rowLen)
+        (Stmt := Stmt) (Seed := Seed) (IV := IV) (PreMsg := PreMsg)))) P Q_leaf) :
+    IsCostBounded (Sum.elim (fun _ => 0)
+      (mvLeafCost (d := d) (comLen := comLen) (rowLen := rowLen)
+        (Stmt := Stmt) (Seed := Seed) (IV := IV) (PreMsg := PreMsg))) P
+      (Q_leaf + m * (2 ^ d - 1)) := by
+  refine (hleaf.add (IsCostBounded.mul_of_le
+    (cost' := Sum.elim (fun _ => 0) (Sum.elim (fun _ => 2 ^ d - 1) (fun _ => 0)))
+    hm fun q => ?_)).of_le fun q => ?_
+  · rcases q with k | (⟨_, _⟩ | qRO) <;> simp
+  · rcases q with k | (⟨_, _⟩ | qRO) <;> simp [mvLeafCost]
+
+private theorem isCostBounded_mvFSCost_add {d sdLen comLen rowLen : ℕ}
+    {Stmt Seed IV PreMsg Chal α : Type}
+    {P : ProbOracleComp (VOLEITHMultiVerifySpec d sdLen comLen rowLen Stmt Seed IV PreMsg Chal) α}
+    {Q_FS m : ℕ}
+    (hm : IsCostBounded (Sum.elim (fun _ => 0) (Sum.elim (fun _ => 1) (fun _ => 0))) P m)
+    (hfs : IsCostBounded (Sum.elim (fun _ => 0)
+      (Sum.elim (fun _ => 0) (voleithFSCost (d := d) (comLen := comLen) (rowLen := rowLen)
+        (Stmt := Stmt) (Seed := Seed) (IV := IV) (PreMsg := PreMsg)))) P Q_FS) :
+    IsCostBounded (Sum.elim (fun _ => 0)
+      (mvFSCost (d := d) (comLen := comLen) (rowLen := rowLen)
+        (Stmt := Stmt) (Seed := Seed) (IV := IV) (PreMsg := PreMsg))) P (Q_FS + m) := by
+  refine (hfs.add hm).of_le fun q => ?_
+  rcases q with k | (⟨_, _⟩ | qRO) <;> simp [mvFSCost]
+
 /-- **Adaptive multi-verify straight-line ROM extraction bound** (cf. [VOLEACT2026], Initial
 Issuance / Spending): if an adaptive adversary `A` with access to a `Verify` oracle and
 `VOLEITHROSpec` makes at most `m` verification queries, `Q_leaf` direct `H_leaf` queries, and
@@ -2475,18 +2516,13 @@ theorem voleithMultiVerifyROM_sound_bound {d sdLen comLen rowLen : ℕ}
     (hfs : IsCostBounded
       (Sum.elim (fun _ => 0) (Sum.elim (fun _ => 0) voleithFSCost)) A Q_FS) :
     ((ProbOracleComp.runWith (voleithMultiVerifyHandler expand decWit chalToIdx Rel checkRel)
-        A (([], []), false)).map fun x => x.2.2) true ≤
+        A (([], []), false)).map fun (_, _, bad) => bad) true ≤
       (ksBound d comLen (Q_leaf + m * (2 ^ d - 1)) (Q_FS + m) ε_rel : ℝ≥0∞) := by
   have hleaf_tot :
-      IsCostBounded (Sum.elim (fun _ => 0) mvLeafCost) A (Q_leaf + m * (2 ^ d - 1)) := by
-    refine (hleaf.add (IsCostBounded.mul_of_le
-      (cost' := Sum.elim (fun _ => 0) (Sum.elim (fun _ => 2 ^ d - 1) (fun _ => 0)))
-      hm fun q => ?_)).of_le fun q => ?_
-    · rcases q with k | (⟨_, _⟩ | qRO) <;> simp
-    · rcases q with k | (⟨_, _⟩ | qRO) <;> simp [mvLeafCost]
-  have hfs_tot : IsCostBounded (Sum.elim (fun _ => 0) mvFSCost) A (Q_FS + m) := by
-    refine (hfs.add hm).of_le fun q => ?_
-    rcases q with k | (⟨_, _⟩ | qRO) <;> simp [mvFSCost]
+      IsCostBounded (Sum.elim (fun _ => 0) mvLeafCost) A (Q_leaf + m * (2 ^ d - 1)) :=
+    isCostBounded_mvLeafCost_add hm hleaf
+  have hfs_tot : IsCostBounded (Sum.elim (fun _ => 0) mvFSCost) A (Q_FS + m) :=
+    isCostBounded_mvFSCost_add hm hfs
   have hmap :
       ((ProbOracleComp.runWith
           (voleithMultiVerifyStickyHandler expand decWit chalToIdx Rel checkRel)
@@ -2498,10 +2534,10 @@ theorem voleithMultiVerifyROM_sound_bound {d sdLen comLen rowLen : ℕ}
       A ((([], []), false), false)
   have hprob_eq :
       ((ProbOracleComp.runWith (voleithMultiVerifyHandler expand decWit chalToIdx Rel checkRel)
-          A (([], []), false)).map fun x => x.2.2) true =
+          A (([], []), false)).map fun (_, _, bad) => bad) true =
         ((ProbOracleComp.runWith
           (voleithMultiVerifyStickyHandler expand decWit chalToIdx Rel checkRel)
-          A ((([], []), false), false)).map fun x => x.2.2) true := by
+          A ((([], []), false), false)).map fun (_, _, bad) => bad) true := by
     rw [← hmap, PMF.map_comp]
     rfl
   rw [hprob_eq, ← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
@@ -2524,8 +2560,9 @@ theorem voleithMultiVerifyROM_sound_bound {d sdLen comLen rowLen : ℕ}
       (ProbOracleComp.runWith
           (voleithMultiVerifyStickyHandler expand decWit chalToIdx Rel checkRel)
           A ((([], []), false), false)).toOuterMeasure
-            ((fun x : α × (VOLEITHStickyState d sdLen comLen rowLen Stmt Seed IV PreMsg Chal ×
-              Bool) => x.2.2) ⁻¹' {true}) ≤
+            ((fun (_, (_, bad)) => bad :
+              α × (VOLEITHStickyState d sdLen comLen rowLen Stmt Seed IV PreMsg Chal × Bool) →
+                Bool) ⁻¹' {true}) ≤
         (ProbOracleComp.runWith
           (voleithMultiVerifyStickyHandler expand decWit chalToIdx Rel checkRel)
           A ((([], []), false), false)).toOuterMeasure {x | OracleComp.FlagBad x.2.1} := by
@@ -2654,6 +2691,80 @@ private theorem runWith_voleithStickyMemoize_goodInv_backwards {d sdLen comLen r
     exact voleithStickyMemoize_goodInv_backwards expand decWit chalToIdx Rel checkRel
       q s sm r hsm hcm him
 
+private theorem run_interpret_sumUnif_isCostBounded
+    {ιReq ιRO : Type} {ReqSpec : ιReq → Type} {ROSpec : ιRO → Type}
+    {ιOut : Type} {OutSpec : ιOut → Type} {S α : Type}
+    (inner : (q : ιReq ⊕ ιRO) → StateT S (ProbOracleComp OutSpec) ((ReqSpec ⊕ₒ ROSpec) q))
+    (reqCost : ιReq → ℕ) (roCost : ιRO → ℕ) (outCost : ιOut → ℕ)
+    (hReq : ∀ req (s : S), IsCostBounded (Sum.elim (fun _ => 0) outCost)
+      ((inner (.inl req)).run s) (reqCost req))
+    (hRO : ∀ qRO (s : S), IsCostBounded (Sum.elim (fun _ => 0) outCost)
+      ((inner (.inr qRO)).run s) (roCost qRO))
+    (prog : ProbOracleComp ((ReqSpec ⊕ₒ ROSpec)) α) (s₀ : S) {B : ℕ}
+    (hB : IsCostBounded (Sum.elim (fun _ => 0) (Sum.elim reqCost roCost)) prog B) :
+    IsCostBounded (Sum.elim (fun _ => 0) outCost)
+      ((OracleComp.interpret
+        (OracleComp.sumHandler
+          (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
+          inner)
+        prog).run s₀) B := by
+  refine OracleComp.IsCostBounded.run_interpret
+    (cost := Sum.elim (fun _ => 0) (Sum.elim reqCost roCost))
+    (cost' := Sum.elim (fun _ => 0) outCost) ?_ hB s₀
+  intro q s
+  rcases q with n | (req | qRO)
+  · simp only [StateT.run_lift, Sum.elim_inl]
+    rw [show (0 : ℕ) = 0 + 0 from rfl]
+    refine (ProbOracleComp.isCostBounded_sample _ _).bind fun _ =>
+      OracleComp.IsCostBounded.pure _ 0
+  · exact hReq req s
+  · exact hRO qRO s
+
+private theorem isCostBounded_sample_ite_query {ι R S : Type} {spec : OracleSpec ι}
+    (m : ProbComp (Bool × S)) (q : ι) (f : S → spec q → R × S) (g : S → R × S) :
+    IsCostBounded (Sum.elim (fun _ => 0) (fun _ => 1))
+      (ProbOracleComp.sample m >>= fun (ok, s') =>
+        if ok then ProbOracleComp.query q >>= fun r => pure (f s' r) else pure (g s')) 1 := by
+  rw [show (1 : ℕ) = 0 + 1 from rfl]
+  refine (ProbOracleComp.isCostBounded_sample _ _).bind fun (ok, s') => ?_
+  cases ok
+  · exact OracleComp.IsCostBounded.pure _ 1
+  · dsimp only
+    simp only [↓reduceIte]
+    rw [show (1 : ℕ) = 1 + 0 from rfl]
+    exact (OracleComp.IsCostBounded.query (spec := probOracleSpec _) (Sum.inr _)).bind
+      fun _ => OracleComp.IsCostBounded.pure _ 0
+
+private theorem stickyVerify_inr_map_forget {d sdLen comLen rowLen : ℕ}
+    {Stmt Seed IV PreMsg Chal Wit Extra : Type}
+    [BEq (LeafQuery d Seed IV)] [BEq (FSQuery d comLen rowLen Stmt IV PreMsg)]
+    [DecidableEq IV] [Fintype Chal] [Nonempty Chal]
+    (expand : BitString sdLen → BitString rowLen) (decWit : BitString rowLen → Wit)
+    (chalToIdx : Chal → Fin (2 ^ d)) (Rel : Stmt → Wit → Bool)
+    (checkRel : Stmt → (Fin d → BitString rowLen) → BitString rowLen → PreMsg → Chal → Bool)
+    (qRO : LeafQuery d Seed IV ⊕ FSQuery d comLen rowLen Stmt IV PreMsg)
+    (roSt : VOLEITHTraceState d sdLen comLen rowLen Stmt Seed IV PreMsg Chal)
+    (extra : Extra) (b : Bool) :
+    (((voleithStickyMemoize expand decWit chalToIdx Rel checkRel qRO (roSt, b)).map
+        fun (ans, s') => (ans, ((s'.1, extra), s'.2))).map (Prod.map id Prod.fst)) =
+      (voleithMemoize qRO roSt).map fun (ans, roSt') => (ans, (roSt', extra)) := by
+  simp only [voleithStickyMemoize]
+  have hstep := OracleComp.withBadFlag_map_fst
+    (voleithStepKernel expand decWit chalToIdx Rel checkRel) qRO roSt b
+  have hk := voleithStepKernel_map_fst expand decWit chalToIdx Rel checkRel qRO roSt
+  calc
+    ((OracleComp.withBadFlag
+        (voleithStepKernel expand decWit chalToIdx Rel checkRel) qRO
+        (roSt, b)).map fun (ans, s') => (ans, ((s'.1, extra), s'.2))).map
+        (Prod.map id Prod.fst) =
+      ((OracleComp.withBadFlag
+          (voleithStepKernel expand decWit chalToIdx Rel checkRel) qRO
+          (roSt, b)).map (Prod.map id Prod.fst)).map
+          fun (ans, roSt') => (ans, (roSt', extra)) := by
+      rw [PMF.map_comp, PMF.map_comp]
+      rfl
+    _ = _ := by rw [hstep, hk]
+
 end StickySoundness
 
 /-! ### Bridge to `AnonymousToken.Basic` -/
@@ -2753,9 +2864,10 @@ noncomputable def runROMUnextractedToken {d sdLen comLen rowLen : ℕ}
       Chal Sig) (Token Message Opening Sig)) :
     ProbComp (ROMTokenExecution PK Message Opening Sig) := do
   let keys ← S.keyGen
-  let res ← ((A keys.1).runState (romTokenHandlerProg expand chalToIdx checkRel S keys)).run
-    (([], []), [])
-  pure { publicKey := keys.1, output := res.1, signedMessages := res.2.2 }
+  let ⟨output, _, signedMessages⟩ ←
+    ((A keys.1).runState (romTokenHandlerProg expand chalToIdx checkRel S keys)).run
+      (([], []), [])
+  pure { publicKey := keys.1, output := output, signedMessages := signedMessages }
 
 /-- Unextracted ROM anonymous-token unforgeability game. -/
 noncomputable def romUnextractedTokenExperiment {d sdLen comLen rowLen : ℕ}
@@ -2839,28 +2951,21 @@ theorem extractedForgerOfROM_isQueryBounded {d sdLen comLen rowLen : ℕ}
   intro pk
   unfold extractedForgerOfROM
   rw [ProbOracleComp.IsQueryBounded, OracleComp.isCostBounded_map_iff]
-  refine OracleComp.IsCostBounded.run_interpret
-    (cost := Sum.elim (fun _ => 0) (Sum.elim (fun _ => 1) (fun _ => 0)))
-    (cost' := Sum.elim (fun _ => 0) (fun _ => 1)) ?_ (hm pk) ([], [])
-  intro q roSt
-  rcases q with n | (req | qRO)
-  · simp only [StateT.run_lift, Sum.elim_inl]
+  refine run_interpret_sumUnif_isCostBounded
+    (romToExtractedInner expand decWit chalToIdx checkRel)
+    (fun _ => 1) (fun _ => 0) (fun _ => 1) (fun req roSt => ?_) (fun qRO roSt => ?_)
+    (A pk) ([], []) (hm pk)
+  · simpa only [StateT.run, romToExtractedInner] using
+      isCostBounded_sample_ite_query
+        (spec := fun _ : Payload Message Opening => Sig) (R := Option Sig)
+        ((ProbOracleComp.runState
+          (voleithVerifyROM (Chal := Chal) expand chalToIdx checkRel req.stmt req.proof)
+          voleithMemoizeProg).run roSt)
+        ⟨req.message, extractWitnessFromTrace expand decWit roSt.1 req.proof⟩
+        (fun roSt' sig => (some sig, roSt')) (fun roSt' => (none, roSt'))
+  · simp only [StateT.run, romToExtractedInner]
     rw [show (0 : ℕ) = 0 + 0 from rfl]
-    refine (ProbOracleComp.isCostBounded_sample _ _).bind fun _ =>
-      OracleComp.IsCostBounded.pure _ 0
-  · simp only [StateT.run, Sum.elim_inr, Sum.elim_inl, romToExtractedInner]
-    rw [show (1 : ℕ) = 0 + 1 from rfl]
-    refine (ProbOracleComp.isCostBounded_sample _ _).bind fun (ok, roSt') => ?_
-    cases ok
-    · exact OracleComp.IsCostBounded.pure _ 1
-    · dsimp only
-      simp only [↓reduceIte]
-      rw [show (1 : ℕ) = 1 + 0 from rfl]
-      exact (OracleComp.IsCostBounded.query (spec := probOracleSpec _) (Sum.inr _)).bind
-        fun _ => OracleComp.IsCostBounded.pure _ 0
-  · simp only [StateT.run, Sum.elim_inr, Sum.elim_inr, romToExtractedInner]
-    rw [show (0 : ℕ) = 0 + 0 from rfl]
-    refine (ProbOracleComp.isCostBounded_sample _ _).bind fun _ =>
+    exact (ProbOracleComp.isCostBounded_sample _ _).bind fun _ =>
       OracleComp.IsCostBounded.pure _ 0
 
 private noncomputable def romTokenStickyHandler {d sdLen comLen rowLen : ℕ}
@@ -2922,8 +3027,7 @@ private noncomputable def extTokenStickyHandler {d sdLen comLen rowLen : ℕ}
 
 private def romTokenBad {d sdLen comLen rowLen : ℕ}
     {Message Opening Target Seed IV PreMsg Chal : Type}
-    [BEq (LeafQuery d Seed IV)] [BEq (FSQuery d comLen rowLen (Message × Target) IV PreMsg)]
-    [DecidableEq IV] [DecidableEq Target] [Fintype Chal] [Nonempty Chal]
+    [DecidableEq IV] [DecidableEq Target]
     (expand : BitString sdLen → BitString rowLen) (decWit : BitString rowLen → Opening)
     (chalToIdx : Chal → Fin (2 ^ d)) (targetFn : Message → Opening → Target)
     (checkRel : Message × Target → (Fin d → BitString rowLen) → BitString rowLen →
@@ -2991,8 +3095,8 @@ private theorem romTokenSticky_identicalUntilBad {d sdLen comLen rowLen : ℕ}
         · rcases st_res with ⟨ro_end, b_end⟩
           cases b_end
           · have hrel := voleithVerifyROM_sound_of_clean expand decWit chalToIdx
-              (romTokenRel targetFn) checkRel req.stmt req.proof (roSt, false) (ro_end, false)
-              rfl (not_not.mp hs.2) hmem rfl
+              (romTokenRel targetFn) checkRel req.stmt req.proof roSt (ro_end, false)
+              (not_not.mp hs.2) hmem rfl
             have htarget :
                 targetFn req.message (extractWitnessFromTrace expand decWit roSt.1 req.proof) =
                   req.target := by
@@ -3115,16 +3219,10 @@ private theorem tokenToMVInner_roCost {d sdLen comLen rowLen : ℕ}
           (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
           (tokenToMVInner S keys))
         prog).run ()) Q_ro := by
-  refine OracleComp.IsCostBounded.run_interpret
-    (cost := Sum.elim (fun _ => 0) (Sum.elim (fun _ => 0) roCost))
-    (cost' := Sum.elim (fun _ => 0) (Sum.elim (fun _ => 0) roCost)) ?_ hro ()
-  intro q u
-  rcases q with n | (req | qRO)
-  · simp only [StateT.run_lift, Sum.elim_inl]
-    rw [show (0 : ℕ) = 0 + 0 from rfl]
-    refine (ProbOracleComp.isCostBounded_sample _ _).bind fun _ =>
-      OracleComp.IsCostBounded.pure _ 0
-  · simp only [StateT.run, Sum.elim_inr, Sum.elim_inl, tokenToMVInner]
+  refine run_interpret_sumUnif_isCostBounded (tokenToMVInner S keys)
+    (fun _ => 0) roCost (Sum.elim (fun _ => 0) roCost)
+    (fun req u => ?_) (fun qRO u => ?_) prog () hro
+  · simp only [StateT.run, tokenToMVInner]
     rw [show (0 : ℕ) = 0 + 0 from rfl]
     refine (OracleComp.IsCostBounded.query (spec := probOracleSpec _)
       (Sum.inr (Sum.inl _))).bind fun ok => ?_
@@ -3133,7 +3231,7 @@ private theorem tokenToMVInner_roCost {d sdLen comLen rowLen : ℕ}
     · rw [show (0 : ℕ) = 0 + 0 from rfl]
       refine (ProbOracleComp.isCostBounded_sample _ _).bind fun _ =>
         OracleComp.IsCostBounded.pure _ 0
-  · simp only [StateT.run, Sum.elim_inr, Sum.elim_inr, tokenToMVInner]
+  · simp only [StateT.run, tokenToMVInner]
     rw [show roCost qRO = roCost qRO + 0 from rfl]
     refine (OracleComp.IsCostBounded.query (spec := probOracleSpec _)
       (Sum.inr (Sum.inr _))).bind fun _ => OracleComp.IsCostBounded.pure _ 0
@@ -3165,9 +3263,7 @@ private noncomputable def romRoOnlyStickyHandler {d sdLen comLen rowLen : ℕ}
 
 private theorem romTokenSticky_bad_le {d sdLen comLen rowLen : ℕ}
     {PK SK Message Opening Target Seed IV PreMsg Chal Sig : Type}
-    [BEq (LeafQuery d Seed IV)] [LawfulBEq (LeafQuery d Seed IV)]
-    [BEq (FSQuery d comLen rowLen (Message × Target) IV PreMsg)]
-    [LawfulBEq (FSQuery d comLen rowLen (Message × Target) IV PreMsg)]
+    [BEq (LeafQuery d Seed IV)] [BEq (FSQuery d comLen rowLen (Message × Target) IV PreMsg)]
     [DecidableEq IV] [DecidableEq Target] [Fintype Chal] [Nonempty Chal]
     (expand : BitString sdLen → BitString rowLen) (decWit : BitString rowLen → Opening)
     (chalToIdx : Chal → Fin (2 ^ d)) (targetFn : Message → Opening → Target)
@@ -3288,16 +3384,10 @@ private theorem romTokenSticky_bad_le {d sdLen comLen rowLen : ℕ}
   have hmv_m :
       IsCostBounded (Sum.elim (fun _ => 0)
         (Sum.elim (fun _ => 1) (fun _ => 0))) mvProg m := by
-    refine OracleComp.IsCostBounded.run_interpret
-      (cost := Sum.elim (fun _ => 0) (Sum.elim (fun _ => 1) (fun _ => 0)))
-      (cost' := Sum.elim (fun _ => 0) (Sum.elim (fun _ => 1) (fun _ => 0))) ?_ hm ()
-    intro q u
-    rcases q with n | (req | qRO)
-    · simp only [StateT.run_lift, Sum.elim_inl]
-      rw [show (0 : ℕ) = 0 + 0 from rfl]
-      refine (ProbOracleComp.isCostBounded_sample _ _).bind fun _ =>
-        OracleComp.IsCostBounded.pure _ 0
-    · simp only [StateT.run, Sum.elim_inr, Sum.elim_inl, tokenToMVInner]
+    refine run_interpret_sumUnif_isCostBounded (tokenToMVInner S keys)
+      (fun _ => 1) (fun _ => 0) (Sum.elim (fun _ => 1) (fun _ => 0))
+      (fun req u => ?_) (fun qRO u => ?_) prog () hm
+    · simp only [StateT.run, tokenToMVInner]
       rw [show (1 : ℕ) = 1 + 0 from rfl]
       refine (OracleComp.IsCostBounded.query (spec := probOracleSpec _)
         (Sum.inr (Sum.inl _))).bind fun ok => ?_
@@ -3306,22 +3396,17 @@ private theorem romTokenSticky_bad_le {d sdLen comLen rowLen : ℕ}
       · rw [show (0 : ℕ) = 0 + 0 from rfl]
         refine (ProbOracleComp.isCostBounded_sample _ _).bind fun _ =>
           OracleComp.IsCostBounded.pure _ 0
-    · simp only [StateT.run, Sum.elim_inr, Sum.elim_inr, tokenToMVInner]
+    · simp only [StateT.run, tokenToMVInner]
       rw [show (0 : ℕ) = 0 + 0 from rfl]
       refine (OracleComp.IsCostBounded.query (spec := probOracleSpec _)
         (Sum.inr (Sum.inr _))).bind fun _ => OracleComp.IsCostBounded.pure _ 0
   have hmv_leaf := tokenToMVInner_roCost S keys voleithLeafCost prog hleaf
   have hmv_fs := tokenToMVInner_roCost S keys voleithFSCost prog hfs
   have hleaf_tot :
-      IsCostBounded (Sum.elim (fun _ => 0) mvLeafCost) mvProg (Q_leaf + m * (2 ^ d - 1)) := by
-    refine (hmv_leaf.add (IsCostBounded.mul_of_le
-      (cost' := Sum.elim (fun _ => 0) (Sum.elim (fun _ => 2 ^ d - 1) (fun _ => 0)))
-      hmv_m fun q => ?_)).of_le fun q => ?_
-    · rcases q with k | (⟨_, _⟩ | qRO) <;> simp
-    · rcases q with k | (⟨_, _⟩ | qRO) <;> simp [mvLeafCost]
-  have hfs_tot : IsCostBounded (Sum.elim (fun _ => 0) mvFSCost) mvProg (Q_FS + m) := by
-    refine (hmv_fs.add hmv_m).of_le fun q => ?_
-    rcases q with k | (⟨_, _⟩ | qRO) <;> simp [mvFSCost]
+      IsCostBounded (Sum.elim (fun _ => 0) mvLeafCost) mvProg (Q_leaf + m * (2 ^ d - 1)) :=
+    isCostBounded_mvLeafCost_add hmv_m hmv_leaf
+  have hfs_tot : IsCostBounded (Sum.elim (fun _ => 0) mvFSCost) mvProg (Q_FS + m) :=
+    isCostBounded_mvFSCost_add hmv_m hmv_fs
   have hmv_bad := toOuterMeasure_run_mvSticky_bad_le expand decWit chalToIdx
     (romTokenRel targetFn) checkRel hSound mvProg hleaf_tot hfs_tot (([], []), false) false rfl
   let dropMsg : (VOLEITHTraceState d sdLen comLen rowLen (Message × Target) Seed IV PreMsg Chal ×
@@ -3434,7 +3519,7 @@ private theorem romTokenSticky_bad_le {d sdLen comLen rowLen : ℕ}
 private noncomputable def romTokenHandler {d sdLen comLen rowLen : ℕ}
     {PK SK Message Target Seed IV PreMsg Chal Sig : Type}
     [BEq (LeafQuery d Seed IV)] [BEq (FSQuery d comLen rowLen (Message × Target) IV PreMsg)]
-    [DecidableEq IV] [Fintype Chal] [Nonempty Chal]
+    [Fintype Chal] [Nonempty Chal]
     (expand : BitString sdLen → BitString rowLen)
     (chalToIdx : Chal → Fin (2 ^ d))
     (checkRel : Message × Target → (Fin d → BitString rowLen) → BitString rowLen →
@@ -3487,7 +3572,7 @@ private noncomputable def extTokenHandler {d sdLen comLen rowLen : ℕ}
 private theorem romTokenHandlerProg_eval {d sdLen comLen rowLen : ℕ}
     {PK SK Message Target Seed IV PreMsg Chal Sig : Type}
     [BEq (LeafQuery d Seed IV)] [BEq (FSQuery d comLen rowLen (Message × Target) IV PreMsg)]
-    [DecidableEq IV] [Fintype Chal] [Nonempty Chal]
+    [Fintype Chal] [Nonempty Chal]
     (expand : BitString sdLen → BitString rowLen)
     (chalToIdx : Chal → Fin (2 ^ d))
     (checkRel : Message × Target → (Fin d → BitString rowLen) → BitString rowLen →
@@ -3545,23 +3630,9 @@ private theorem romTokenStickyHandler_map_forget {d sdLen comLen rowLen : ℕ}
     congr 1
     funext ⟨ok, s'⟩
     cases ok <;> simp [PMF.map_comp, Function.comp_def]
-  · simp only [romTokenStickyHandler, romTokenHandler, voleithStickyMemoize]
-    have hstep := OracleComp.withBadFlag_map_fst
-      (voleithStepKernel expand decWit chalToIdx (romTokenRel targetFn) checkRel) qRO roSt b
-    have hk := voleithStepKernel_map_fst expand decWit chalToIdx (romTokenRel targetFn)
-      checkRel qRO roSt
-    calc
-      ((OracleComp.withBadFlag
-          (voleithStepKernel expand decWit chalToIdx (romTokenRel targetFn) checkRel) qRO
-          (roSt, b)).map fun (ans, (roSt', b')) => (ans, ((roSt', msgs), b'))).map
-          (Prod.map id Prod.fst) =
-        ((OracleComp.withBadFlag
-            (voleithStepKernel expand decWit chalToIdx (romTokenRel targetFn) checkRel) qRO
-            (roSt, b)).map (Prod.map id Prod.fst)).map
-            fun (ans, roSt') => (ans, (roSt', msgs)) := by
-        rw [PMF.map_comp, PMF.map_comp]
-        rfl
-      _ = _ := by rw [hstep, hk]
+  · simp only [romTokenStickyHandler, romTokenHandler]
+    exact stickyVerify_inr_map_forget expand decWit chalToIdx (romTokenRel targetFn) checkRel qRO
+      roSt msgs b
 
 private theorem extTokenStickyHandler_map_forget {d sdLen comLen rowLen : ℕ}
     {PK SK Message Opening Target Seed IV PreMsg Chal Sig : Type}
@@ -3588,23 +3659,9 @@ private theorem extTokenStickyHandler_map_forget {d sdLen comLen rowLen : ℕ}
     congr 1
     funext ⟨ok, s'⟩
     cases ok <;> simp [PMF.map_comp, Function.comp_def]
-  · simp only [extTokenStickyHandler, extTokenHandler, voleithStickyMemoize]
-    have hstep := OracleComp.withBadFlag_map_fst
-      (voleithStepKernel expand decWit chalToIdx (romTokenRel targetFn) checkRel) qRO roSt b
-    have hk := voleithStepKernel_map_fst expand decWit chalToIdx (romTokenRel targetFn)
-      checkRel qRO roSt
-    calc
-      ((OracleComp.withBadFlag
-          (voleithStepKernel expand decWit chalToIdx (romTokenRel targetFn) checkRel) qRO
-          (roSt, b)).map fun (ans, (roSt', b')) => (ans, ((roSt', msgs), b'))).map
-          (Prod.map id Prod.fst) =
-        ((OracleComp.withBadFlag
-            (voleithStepKernel expand decWit chalToIdx (romTokenRel targetFn) checkRel) qRO
-            (roSt, b)).map (Prod.map id Prod.fst)).map
-            fun (ans, roSt') => (ans, (roSt', msgs)) := by
-        rw [PMF.map_comp, PMF.map_comp]
-        rfl
-      _ = _ := by rw [hstep, hk]
+  · simp only [extTokenStickyHandler, extTokenHandler]
+    exact stickyVerify_inr_map_forget expand decWit chalToIdx (romTokenRel targetFn) checkRel qRO
+      roSt msgs b
 
 /-- **ROM-to-Extracted reduction for `AnonymousToken.Basic`**: any query-bounded unextracted ROM
 adversary `A` reduces straight-line (no rewinding) to the extracted-model adversary
@@ -4269,9 +4326,9 @@ noncomputable def runROMUnextractedConservation {d sdLen comLen rowLen : ℕ}
       d sdLen comLen rowLen PK Seed IV PreMsg Chal Sig) Context) :
     ProbComp (ROMConservationExecution PK Nullifier Context Commitment) := do
   let keys ← S.keyGen
-  let res ← ((A keys.1).runState
+  let ⟨targetCtx, _, acceptedQueries⟩ ← ((A keys.1).runState
     (romConservationHandlerProg expand chalToIdx tag checkRel S keys)).run (([], []), [])
-  pure { publicKey := keys.1, targetCtx := res.1, acceptedQueries := res.2.2 }
+  pure { publicKey := keys.1, targetCtx := targetCtx, acceptedQueries := acceptedQueries }
 
 /-- Unextracted ROM credit-conservation experiment, original to this library: wins if the accepted
 ROM query transcript overspends `run.targetCtx`. -/
@@ -4373,28 +4430,23 @@ theorem extractedAdversaryOfROM_isQueryBounded {d sdLen comLen rowLen : ℕ}
   intro pk
   unfold extractedAdversaryOfROM
   rw [ProbOracleComp.IsQueryBounded, OracleComp.isCostBounded_map_iff]
-  refine OracleComp.IsCostBounded.run_interpret
-    (cost := Sum.elim (fun _ => 0) (Sum.elim (fun _ => 1) (fun _ => 0)))
-    (cost' := Sum.elim (fun _ => 0) (fun _ => 1)) ?_ (hm pk) ([], [])
-  intro q roSt
-  rcases q with n | (req | qRO)
-  · simp only [StateT.run_lift, Sum.elim_inl]
+  refine run_interpret_sumUnif_isCostBounded
+    (consToExtractedInner expand decWit chalToIdx checkRel pk)
+    (fun _ => 1) (fun _ => 0) (fun _ => 1) (fun req roSt => ?_) (fun qRO roSt => ?_)
+    (A pk) ([], []) (hm pk)
+  · simpa only [StateT.run, consToExtractedInner] using
+      isCostBounded_sample_ite_query
+        (spec := fun _ : Conservation.Request Nullifier Context Opening Commitment Sig =>
+          Option Sig)
+        (R := Option Sig)
+        ((ProbOracleComp.runState
+          (voleithVerifyROM (Chal := Chal) expand chalToIdx checkRel ⟨pk, req.query⟩ req.proof)
+          voleithMemoizeProg).run roSt)
+        (toExtractedRequest req (extractWitnessFromTrace expand decWit roSt.1 req.proof))
+        (fun roSt' sig => (sig, roSt')) (fun roSt' => (none, roSt'))
+  · simp only [StateT.run, consToExtractedInner]
     rw [show (0 : ℕ) = 0 + 0 from rfl]
-    refine (ProbOracleComp.isCostBounded_sample _ _).bind fun _ =>
-      OracleComp.IsCostBounded.pure _ 0
-  · simp only [StateT.run, Sum.elim_inr, Sum.elim_inl, consToExtractedInner]
-    rw [show (1 : ℕ) = 0 + 1 from rfl]
-    refine (ProbOracleComp.isCostBounded_sample _ _).bind fun (ok, roSt') => ?_
-    cases ok
-    · exact OracleComp.IsCostBounded.pure _ 1
-    · dsimp only
-      simp only [↓reduceIte]
-      rw [show (1 : ℕ) = 1 + 0 from rfl]
-      exact (OracleComp.IsCostBounded.query (spec := probOracleSpec _) (Sum.inr _)).bind
-        fun _ => OracleComp.IsCostBounded.pure _ 0
-  · simp only [StateT.run, Sum.elim_inr, Sum.elim_inr, consToExtractedInner]
-    rw [show (0 : ℕ) = 0 + 0 from rfl]
-    refine (ProbOracleComp.isCostBounded_sample _ _).bind fun _ =>
+    exact (ProbOracleComp.isCostBounded_sample _ _).bind fun _ =>
       OracleComp.IsCostBounded.pure _ 0
 
 private noncomputable def romConsStickyHandler {d sdLen comLen rowLen : ℕ}
@@ -4483,10 +4535,7 @@ private noncomputable def extConsStickyHandler {d sdLen comLen rowLen : ℕ}
 
 private def romConsBad {d sdLen comLen rowLen : ℕ}
     {PK SK Nullifier Context Opening Commitment Target Seed IV PreMsg Chal Sig : Type}
-    [DecidableEq Commitment]
-    [BEq (LeafQuery d Seed IV)]
-    [BEq (FSQuery d comLen rowLen (ROMConservationStmt PK Nullifier Context Commitment) IV PreMsg)]
-    [DecidableEq IV] [Fintype Chal] [Nonempty Chal]
+    [DecidableEq Commitment] [DecidableEq IV]
     (expand : BitString sdLen → BitString rowLen)
     (decWit : BitString rowLen → ROMConservationWitness Nullifier Opening Sig)
     (chalToIdx : Chal → Fin (2 ^ d))
@@ -4577,7 +4626,7 @@ private theorem romConsSticky_identicalUntilBad {d sdLen comLen rowLen : ℕ}
           cases b_end
           · have hrel := voleithVerifyROM_sound_of_clean expand decWit chalToIdx
               (conservationRel com tag S) checkRel ⟨keys.1, req.query⟩ req.proof
-              (roSt, false) (ro_end, false) rfl (not_not.mp hs.2) hmem rfl
+              roSt (ro_end, false) (not_not.mp hs.2) hmem rfl
             have hloc := acceptLocal_toExtractedRequest_of_rel com tag S keys.1 req
               (extractWitnessFromTrace expand decWit roSt.1 req.proof) hrel
             have hmsg := signedMessage_toExtractedRequest tag req
@@ -4739,16 +4788,10 @@ private theorem consToMVInner_roCost {d sdLen comLen rowLen : ℕ}
           (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
           (consToMVInner tag S keys))
         prog).run []) Q_ro := by
-  refine OracleComp.IsCostBounded.run_interpret
-    (cost := Sum.elim (fun _ => 0) (Sum.elim (fun _ => 0) roCost))
-    (cost' := Sum.elim (fun _ => 0) (Sum.elim (fun _ => 0) roCost)) ?_ hro []
-  intro q accepted
-  rcases q with n | (req | qRO)
-  · simp only [StateT.run_lift, Sum.elim_inl]
-    rw [show (0 : ℕ) = 0 + 0 from rfl]
-    refine (ProbOracleComp.isCostBounded_sample _ _).bind fun _ =>
-      OracleComp.IsCostBounded.pure _ 0
-  · simp only [StateT.run, Sum.elim_inr, Sum.elim_inl, consToMVInner]
+  refine run_interpret_sumUnif_isCostBounded (consToMVInner tag S keys)
+    (fun _ => 0) roCost (Sum.elim (fun _ => 0) roCost)
+    (fun req accepted => ?_) (fun qRO accepted => ?_) prog [] hro
+  · simp only [StateT.run, consToMVInner]
     rw [show (0 : ℕ) = 0 + 0 from rfl]
     refine (OracleComp.IsCostBounded.query (spec := probOracleSpec _)
       (Sum.inr (Sum.inl _))).bind fun ok => ?_
@@ -4762,7 +4805,7 @@ private theorem consToMVInner_roCost {d sdLen comLen rowLen : ℕ}
           OracleComp.IsCostBounded.pure _ 0
       · simp only [hacc, Bool.false_eq_true, ↓reduceIte]
         exact OracleComp.IsCostBounded.pure _ 0
-  · simp only [StateT.run, Sum.elim_inr, Sum.elim_inr, consToMVInner]
+  · simp only [StateT.run, consToMVInner]
     rw [show roCost qRO = roCost qRO + 0 from rfl]
     refine (OracleComp.IsCostBounded.query (spec := probOracleSpec _)
       (Sum.inr (Sum.inr _))).bind fun _ => OracleComp.IsCostBounded.pure _ 0
@@ -4810,10 +4853,8 @@ private noncomputable def romConsRoOnlyStickyHandler {d sdLen comLen rowLen : �
 private theorem romConsSticky_bad_le {d sdLen comLen rowLen : ℕ}
     {PK SK Nullifier Context Opening Commitment Target Seed IV PreMsg Chal Sig : Type}
     [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
-    [BEq (LeafQuery d Seed IV)] [LawfulBEq (LeafQuery d Seed IV)]
+    [BEq (LeafQuery d Seed IV)]
     [BEq (FSQuery d comLen rowLen (ROMConservationStmt PK Nullifier Context Commitment) IV PreMsg)]
-    [LawfulBEq (FSQuery d comLen rowLen
-      (ROMConservationStmt PK Nullifier Context Commitment) IV PreMsg)]
     [DecidableEq IV] [Fintype Chal] [Nonempty Chal]
     (expand : BitString sdLen → BitString rowLen)
     (decWit : BitString rowLen → ROMConservationWitness Nullifier Opening Sig)
@@ -4944,16 +4985,10 @@ private theorem romConsSticky_bad_le {d sdLen comLen rowLen : ℕ}
   have hmv_m :
       IsCostBounded (Sum.elim (fun _ => 0)
         (Sum.elim (fun _ => 1) (fun _ => 0))) mvProg m := by
-    refine OracleComp.IsCostBounded.run_interpret
-      (cost := Sum.elim (fun _ => 0) (Sum.elim (fun _ => 1) (fun _ => 0)))
-      (cost' := Sum.elim (fun _ => 0) (Sum.elim (fun _ => 1) (fun _ => 0))) ?_ hm []
-    intro q accepted
-    rcases q with n | (req | qRO)
-    · simp only [StateT.run_lift, Sum.elim_inl]
-      rw [show (0 : ℕ) = 0 + 0 from rfl]
-      refine (ProbOracleComp.isCostBounded_sample _ _).bind fun _ =>
-        OracleComp.IsCostBounded.pure _ 0
-    · simp only [StateT.run, Sum.elim_inr, Sum.elim_inl, consToMVInner]
+    refine run_interpret_sumUnif_isCostBounded (consToMVInner tag S keys)
+      (fun _ => 1) (fun _ => 0) (Sum.elim (fun _ => 1) (fun _ => 0))
+      (fun req accepted => ?_) (fun qRO accepted => ?_) prog [] hm
+    · simp only [StateT.run, consToMVInner]
       rw [show (1 : ℕ) = 1 + 0 from rfl]
       refine (OracleComp.IsCostBounded.query (spec := probOracleSpec _)
         (Sum.inr (Sum.inl _))).bind fun ok => ?_
@@ -4967,22 +5002,17 @@ private theorem romConsSticky_bad_le {d sdLen comLen rowLen : ℕ}
             OracleComp.IsCostBounded.pure _ 0
         · simp only [hacc, Bool.false_eq_true, ↓reduceIte]
           exact OracleComp.IsCostBounded.pure _ 0
-    · simp only [StateT.run, Sum.elim_inr, Sum.elim_inr, consToMVInner]
+    · simp only [StateT.run, consToMVInner]
       rw [show (0 : ℕ) = 0 + 0 from rfl]
       refine (OracleComp.IsCostBounded.query (spec := probOracleSpec _)
         (Sum.inr (Sum.inr _))).bind fun _ => OracleComp.IsCostBounded.pure _ 0
   have hmv_leaf := consToMVInner_roCost tag S keys voleithLeafCost prog hleaf
   have hmv_fs := consToMVInner_roCost tag S keys voleithFSCost prog hfs
   have hleaf_tot :
-      IsCostBounded (Sum.elim (fun _ => 0) mvLeafCost) mvProg (Q_leaf + m * (2 ^ d - 1)) := by
-    refine (hmv_leaf.add (IsCostBounded.mul_of_le
-      (cost' := Sum.elim (fun _ => 0) (Sum.elim (fun _ => 2 ^ d - 1) (fun _ => 0)))
-      hmv_m fun q => ?_)).of_le fun q => ?_
-    · rcases q with k | (⟨_, _⟩ | qRO) <;> simp
-    · rcases q with k | (⟨_, _⟩ | qRO) <;> simp [mvLeafCost]
-  have hfs_tot : IsCostBounded (Sum.elim (fun _ => 0) mvFSCost) mvProg (Q_FS + m) := by
-    refine (hmv_fs.add hmv_m).of_le fun q => ?_
-    rcases q with k | (⟨_, _⟩ | qRO) <;> simp [mvFSCost]
+      IsCostBounded (Sum.elim (fun _ => 0) mvLeafCost) mvProg (Q_leaf + m * (2 ^ d - 1)) :=
+    isCostBounded_mvLeafCost_add hmv_m hmv_leaf
+  have hfs_tot : IsCostBounded (Sum.elim (fun _ => 0) mvFSCost) mvProg (Q_FS + m) :=
+    isCostBounded_mvFSCost_add hmv_m hmv_fs
   have hmv_bad := toOuterMeasure_run_mvSticky_bad_le expand decWit chalToIdx
     (conservationRel com tag S) checkRel hSound mvProg hleaf_tot hfs_tot (([], []), false) false rfl
   let dropAcc : (VOLEITHTraceState d sdLen comLen rowLen
@@ -5269,23 +5299,9 @@ private theorem romConsStickyHandler_map_forget {d sdLen comLen rowLen : ℕ}
       by_cases hacc : romAcceptQuery accepted req.query
       · simp [hacc, PMF.map_comp, Function.comp_def]
       · simp [hacc, PMF.map]
-  · simp only [romConsStickyHandler, romConservationHandler, voleithStickyMemoize]
-    have hstep := OracleComp.withBadFlag_map_fst
-      (voleithStepKernel expand decWit chalToIdx (conservationRel com tag S) checkRel) qRO roSt b
-    have hk := voleithStepKernel_map_fst expand decWit chalToIdx (conservationRel com tag S)
-      checkRel qRO roSt
-    calc
-      ((OracleComp.withBadFlag
-          (voleithStepKernel expand decWit chalToIdx (conservationRel com tag S) checkRel) qRO
-          (roSt, b)).map fun (ans, (roSt', b')) => (ans, ((roSt', accepted), b'))).map
-          (Prod.map id Prod.fst) =
-        ((OracleComp.withBadFlag
-            (voleithStepKernel expand decWit chalToIdx (conservationRel com tag S) checkRel) qRO
-            (roSt, b)).map (Prod.map id Prod.fst)).map
-            fun (ans, roSt') => (ans, (roSt', accepted)) := by
-        rw [PMF.map_comp, PMF.map_comp]
-        rfl
-      _ = _ := by rw [hstep, hk]
+  · simp only [romConsStickyHandler, romConservationHandler]
+    exact stickyVerify_inr_map_forget expand decWit chalToIdx (conservationRel com tag S) checkRel
+      qRO roSt accepted b
 
 private theorem extConsStickyHandler_map_forget {d sdLen comLen rowLen : ℕ}
     {PK SK Nullifier Context Opening Commitment Target Seed IV PreMsg Chal Sig : Type}
@@ -5334,23 +5350,9 @@ private theorem extConsStickyHandler_map_forget {d sdLen comLen rowLen : ℕ}
           romAcceptQuery accepted req.query
       · simp [hacc, PMF.map_comp, Function.comp_def]
       · simp [hacc, PMF.map]
-  · simp only [extConsStickyHandler, extConservationHandler, voleithStickyMemoize]
-    have hstep := OracleComp.withBadFlag_map_fst
-      (voleithStepKernel expand decWit chalToIdx (conservationRel com tag S) checkRel) qRO roSt b
-    have hk := voleithStepKernel_map_fst expand decWit chalToIdx (conservationRel com tag S)
-      checkRel qRO roSt
-    calc
-      ((OracleComp.withBadFlag
-          (voleithStepKernel expand decWit chalToIdx (conservationRel com tag S) checkRel) qRO
-          (roSt, b)).map fun (ans, (roSt', b')) => (ans, ((roSt', accepted), b'))).map
-          (Prod.map id Prod.fst) =
-        ((OracleComp.withBadFlag
-            (voleithStepKernel expand decWit chalToIdx (conservationRel com tag S) checkRel) qRO
-            (roSt, b)).map (Prod.map id Prod.fst)).map
-            fun (ans, roSt') => (ans, (roSt', accepted)) := by
-        rw [PMF.map_comp, PMF.map_comp]
-        rfl
-      _ = _ := by rw [hstep, hk]
+  · simp only [extConsStickyHandler, extConservationHandler]
+    exact stickyVerify_inr_map_forget expand decWit chalToIdx (conservationRel com tag S) checkRel
+      qRO roSt accepted b
 
 /-- Query-bounded reduction from the unextracted ROM credit-conservation game to
 `Conservation.extractedConservationExperiment`: an adversary making at most `m` signing queries,
@@ -5700,5 +5702,542 @@ theorem unextractedConservationExperiment_succProbability_le_prod_mk
       com CS hverify S _) _
 
 end ConservationBridge
+
+/-! ### PRG Leaf Commitment Separation (`leaf_hash::aes_ctr`) -/
+
+section PRGSeparation
+
+/-- Local deterministic PRG leaf verification (`leaf_hash::aes_ctr` style): checks the `2 ^ d - 1`
+non-hidden commitments `prgLeaf (openKeys pIdx) iv pIdx` locally without querying `H_leaf`, and
+reconstructs `verifierRows` (`0` at `vIdx = 0`). -/
+@[expose] def prgLeafOpenRows {d sdLen comLen rowLen : ℕ} {Seed IV : Type}
+    (expand : BitString sdLen → BitString rowLen)
+    (prgLeaf : Seed → IV → Fin (2 ^ d) → LeafOutput sdLen comLen)
+    (iv : IV) (openKeys : Fin (2 ^ d) → Seed) (coms : Fin (2 ^ d) → BitString comLen)
+    (hidden : Fin (2 ^ d)) : Option (Fin (2 ^ d) → BitString rowLen) :=
+  if ∀ vIdx : Fin (2 ^ d), vIdx = 0 ∨
+      (prgLeaf (openKeys (FAEST.xorIndex vIdx hidden)) iv
+        (FAEST.xorIndex vIdx hidden)).com = coms (FAEST.xorIndex vIdx hidden) then
+    some fun vIdx =>
+      if vIdx = 0 then 0 else
+        expand (prgLeaf (openKeys (FAEST.xorIndex vIdx hidden)) iv
+          (FAEST.xorIndex vIdx hidden)).seedOut
+  else
+    none
+
+/-- Verifier for PRG-based leaf commitments in `VOLEITHROSpec`: queries only `H_FS` for `Δ` and
+checks all `2 ^ d - 1` non-hidden leaves locally via `prgLeafOpenRows`. -/
+@[expose] def prgLeafVerify {d sdLen comLen rowLen : ℕ} {Stmt Seed IV PreMsg Chal : Type}
+    (expand : BitString sdLen → BitString rowLen)
+    (prgLeaf : Seed → IV → Fin (2 ^ d) → LeafOutput sdLen comLen)
+    (chalToIdx : Chal → Fin (2 ^ d))
+    (checkRel : Stmt → (Fin d → BitString rowLen) → BitString rowLen → PreMsg → Chal → Bool)
+    (stmt : Stmt) (prf : VOLEITHProof d comLen rowLen Seed IV PreMsg) :
+    ProbOracleComp (VOLEITHROSpec d sdLen comLen rowLen Stmt Seed IV PreMsg Chal) Bool := do
+  let delta ← OracleComp.liftRight (spec₁ := unifSpec)
+    (OracleComp.liftRight (spec₁ := VOLEITHLeafSpec d sdLen comLen Seed IV)
+      (OracleComp.query (prf.fsQuery stmt)))
+  let hidden := chalToIdx delta
+  match prgLeafOpenRows expand prgLeaf prf.iv prf.openKeys prf.coms hidden with
+  | none => return false
+  | some rows =>
+    let qCols := (FAEST.convertExpandedRows d rows).columns
+    return checkRel stmt qCols prf.dCorr prf.preMsg delta
+
+/-- Honest local-PRG prover (`leaf_hash::aes_ctr` style): commits all `2 ^ d` leaves locally via
+`prgLeaf` with `0` queries to `H_leaf`, then queries `H_FS` once for `Δ`. -/
+@[expose] def prgLeafProver {d sdLen comLen rowLen : ℕ} {Stmt Seed IV PreMsg Chal Wit : Type}
+    (expand : BitString sdLen → BitString rowLen)
+    (prgLeaf : Seed → IV → Fin (2 ^ d) → LeafOutput sdLen comLen)
+    (encWit : Wit → BitString rowLen) (chalToIdx : Chal → Fin (2 ^ d))
+    (mkPreMsg : (Fin d → BitString rowLen) → BitString rowLen → BitString rowLen → PreMsg)
+    (defaultSeed : Seed) (iv : IV) (keys : Fin (2 ^ d) → Seed) (stmt : Stmt) (w : Wit) :
+    ProbOracleComp (VOLEITHROSpec d sdLen comLen rowLen Stmt Seed IV PreMsg Chal)
+      (VOLEITHProof d comLen rowLen Seed IV PreMsg) := do
+  let rows : Fin (2 ^ d) → BitString rowLen :=
+    fun idx => expand (prgLeaf (keys idx) iv idx).seedOut
+  let coms : Fin (2 ^ d) → BitString comLen := fun idx => (prgLeaf (keys idx) iv idx).com
+  let conv := FAEST.convertExpandedRows d rows
+  let dCorr := encWit w + conv.u
+  let preMsg := mkPreMsg conv.columns conv.u dCorr
+  let delta ← OracleComp.liftRight (spec₁ := unifSpec)
+    (OracleComp.liftRight (spec₁ := VOLEITHLeafSpec d sdLen comLen Seed IV)
+      (OracleComp.query ⟨stmt, iv, coms, dCorr, preMsg⟩))
+  let hidden := chalToIdx delta
+  let openKeys : Fin (2 ^ d) → Seed := fun idx => if idx = hidden then defaultSeed else keys idx
+  return ⟨iv, coms, dCorr, preMsg, openKeys⟩
+
+/-- Honest PRG prover-then-verifier execution in `VOLEITHROSpec`. -/
+@[expose] def prgLeafGame {d sdLen comLen rowLen : ℕ} {Stmt Seed IV PreMsg Chal Wit : Type}
+    (expand : BitString sdLen → BitString rowLen)
+    (prgLeaf : Seed → IV → Fin (2 ^ d) → LeafOutput sdLen comLen)
+    (encWit : Wit → BitString rowLen) (chalToIdx : Chal → Fin (2 ^ d))
+    (mkPreMsg : (Fin d → BitString rowLen) → BitString rowLen → BitString rowLen → PreMsg)
+    (checkRel : Stmt → (Fin d → BitString rowLen) → BitString rowLen → PreMsg → Chal → Bool)
+    (defaultSeed : Seed) (iv : IV) (keys : Fin (2 ^ d) → Seed) (stmt : Stmt) (w : Wit) :
+    ProbOracleComp (VOLEITHROSpec d sdLen comLen rowLen Stmt Seed IV PreMsg Chal) Bool := do
+  let prf ← prgLeafProver expand prgLeaf encWit chalToIdx mkPreMsg defaultSeed iv keys stmt w
+  prgLeafVerify expand prgLeaf chalToIdx checkRel stmt prf
+
+/-- `prgLeafProver` makes strictly zero queries to the leaf random oracle `H_leaf`. -/
+theorem prgLeafProver_leafCost_zero {d sdLen comLen rowLen : ℕ}
+    {Stmt Seed IV PreMsg Chal Wit : Type}
+    (expand : BitString sdLen → BitString rowLen)
+    (prgLeaf : Seed → IV → Fin (2 ^ d) → LeafOutput sdLen comLen)
+    (encWit : Wit → BitString rowLen) (chalToIdx : Chal → Fin (2 ^ d))
+    (mkPreMsg : (Fin d → BitString rowLen) → BitString rowLen → BitString rowLen → PreMsg)
+    (defaultSeed : Seed) (iv : IV) (keys : Fin (2 ^ d) → Seed) (stmt : Stmt) (w : Wit) :
+    IsCostBounded
+      (Sum.elim (fun _ => 0) (voleithLeafCost (d := d) (Seed := Seed) (IV := IV)
+        (comLen := comLen) (rowLen := rowLen) (Stmt := Stmt) (PreMsg := PreMsg)))
+      (prgLeafProver (Chal := Chal) expand prgLeaf encWit chalToIdx mkPreMsg defaultSeed iv keys
+        stmt w) 0 := by
+  unfold prgLeafProver
+  have hz : IsCostBounded
+      (Sum.elim (fun _ => 0) (voleithLeafCost (d := d) (Seed := Seed) (IV := IV)
+        (comLen := comLen) (rowLen := rowLen) (Stmt := Stmt) (PreMsg := PreMsg)))
+      (OracleComp.liftRight (spec₁ := unifSpec)
+        (OracleComp.liftRight (spec₁ := VOLEITHLeafSpec d sdLen comLen Seed IV)
+          (OracleComp.query
+            (⟨stmt, iv, fun idx => (prgLeaf (keys idx) iv idx).com,
+              encWit w + (FAEST.convertExpandedRows d
+                (fun idx => expand (prgLeaf (keys idx) iv idx).seedOut)).u,
+              mkPreMsg
+                (FAEST.convertExpandedRows d
+                  (fun idx => expand (prgLeaf (keys idx) iv idx).seedOut)).columns
+                (FAEST.convertExpandedRows d
+                  (fun idx => expand (prgLeaf (keys idx) iv idx).seedOut)).u
+                (encWit w + (FAEST.convertExpandedRows d
+                  (fun idx => expand (prgLeaf (keys idx) iv idx).seedOut)).u)⟩ :
+              FSQuery d comLen rowLen Stmt IV PreMsg))) :
+        ProbOracleComp (VOLEITHROSpec d sdLen comLen rowLen Stmt Seed IV PreMsg Chal) Chal) 0 := by
+    refine IsCostBounded.liftRight
+      (IsCostBounded.liftRight_of_cost_inr_eq_zero (fun _ => rfl) _)
+      (fun _ => le_rfl)
+  simpa only [Nat.add_zero] using hz.bind fun _ => IsCostBounded.pure _ 0
+
+/-- Deterministic PRG proof constructed for a challenge `delta`. -/
+private def prgLeafProofOfDelta {d sdLen comLen rowLen : ℕ} {Seed IV PreMsg Chal Wit : Type}
+    (expand : BitString sdLen → BitString rowLen)
+    (prgLeaf : Seed → IV → Fin (2 ^ d) → LeafOutput sdLen comLen)
+    (encWit : Wit → BitString rowLen) (chalToIdx : Chal → Fin (2 ^ d))
+    (mkPreMsg : (Fin d → BitString rowLen) → BitString rowLen → BitString rowLen → PreMsg)
+    (defaultSeed : Seed) (iv : IV) (keys : Fin (2 ^ d) → Seed) (w : Wit) (delta : Chal) :
+    VOLEITHProof d comLen rowLen Seed IV PreMsg :=
+  let rows := fun idx => expand (prgLeaf (keys idx) iv idx).seedOut
+  let coms := fun idx => (prgLeaf (keys idx) iv idx).com
+  let conv := FAEST.convertExpandedRows d rows
+  let dCorr := encWit w + conv.u
+  let preMsg := mkPreMsg conv.columns conv.u dCorr
+  let openKeys := fun idx => if idx = chalToIdx delta then defaultSeed else keys idx
+  ⟨iv, coms, dCorr, preMsg, openKeys⟩
+
+private theorem prgLeafProver_runWith_eq_map {d sdLen comLen rowLen : ℕ}
+    {Stmt Seed IV PreMsg Chal Wit : Type}
+    [BEq (LeafQuery d Seed IV)] [BEq (FSQuery d comLen rowLen Stmt IV PreMsg)]
+    [Fintype Chal] [Nonempty Chal]
+    (expand : BitString sdLen → BitString rowLen)
+    (prgLeaf : Seed → IV → Fin (2 ^ d) → LeafOutput sdLen comLen)
+    (encWit : Wit → BitString rowLen) (chalToIdx : Chal → Fin (2 ^ d))
+    (mkPreMsg : (Fin d → BitString rowLen) → BitString rowLen → BitString rowLen → PreMsg)
+    (defaultSeed : Seed) (iv : IV) (keys : Fin (2 ^ d) → Seed) (stmt : Stmt) (w : Wit) :
+    ProbOracleComp.runWith
+        (voleithMemoize (d := d) (sdLen := sdLen) (comLen := comLen) (rowLen := rowLen)
+          (Stmt := Stmt) (Seed := Seed) (IV := IV) (PreMsg := PreMsg) (Chal := Chal))
+        (prgLeafProver expand prgLeaf encWit chalToIdx mkPreMsg defaultSeed iv keys stmt w)
+        ([], []) =
+      (PMF.uniformOfFintype Chal).map fun delta =>
+        let prf := prgLeafProofOfDelta expand prgLeaf encWit chalToIdx mkPreMsg defaultSeed iv
+          keys w delta
+        (prf, ([], [(prf.fsQuery stmt, delta)])) := by
+  unfold prgLeafProver
+  rw [ProbOracleComp.runWith_bind, ProbOracleComp.runWith,
+    OracleComp.runWith_sumHandler_liftRight, OracleComp.runWith_eq_run_interpret,
+    OracleComp.liftRight_query, OracleComp.run_interpret_query, voleithMemoize,
+    RandomOracle.memoizeSum_inr]
+  have hnil : Cslib.memoize (fun _ : FSQuery d comLen rowLen Stmt IV PreMsg =>
+      PMF.uniformOfFintype Chal)
+      ⟨stmt, iv, fun idx => (prgLeaf (keys idx) iv idx).com,
+        encWit w + (FAEST.convertExpandedRows d
+          (fun idx => expand (prgLeaf (keys idx) iv idx).seedOut)).u,
+        mkPreMsg
+          (FAEST.convertExpandedRows d
+            (fun idx => expand (prgLeaf (keys idx) iv idx).seedOut)).columns
+          (FAEST.convertExpandedRows d
+            (fun idx => expand (prgLeaf (keys idx) iv idx).seedOut)).u
+          (encWit w + (FAEST.convertExpandedRows d
+            (fun idx => expand (prgLeaf (keys idx) iv idx).seedOut)).u)⟩ [] =
+      (PMF.uniformOfFintype Chal).map fun delta => (delta,
+        [(⟨stmt, iv, fun idx => (prgLeaf (keys idx) iv idx).com,
+          encWit w + (FAEST.convertExpandedRows d
+            (fun idx => expand (prgLeaf (keys idx) iv idx).seedOut)).u,
+          mkPreMsg
+            (FAEST.convertExpandedRows d
+              (fun idx => expand (prgLeaf (keys idx) iv idx).seedOut)).columns
+            (FAEST.convertExpandedRows d
+              (fun idx => expand (prgLeaf (keys idx) iv idx).seedOut)).u
+            (encWit w + (FAEST.convertExpandedRows d
+              (fun idx => expand (prgLeaf (keys idx) iv idx).seedOut)).u)⟩, delta)]) := by
+    simp [Cslib.memoize, PMF.map, Function.comp_def]
+  rw [hnil, PMF.map_comp, PMF.bind_map]
+  simp only [Function.comp_def, ProbOracleComp.runWith_pure, PMF.map]
+  rfl
+
+private theorem prgLeafVerify_runWith_of_delta {d sdLen comLen rowLen : ℕ}
+    {Stmt Seed IV PreMsg Chal Wit : Type}
+    [BEq (LeafQuery d Seed IV)] [BEq (FSQuery d comLen rowLen Stmt IV PreMsg)]
+    [LawfulBEq (FSQuery d comLen rowLen Stmt IV PreMsg)]
+    [Fintype Chal] [Nonempty Chal]
+    (expand : BitString sdLen → BitString rowLen)
+    (prgLeaf : Seed → IV → Fin (2 ^ d) → LeafOutput sdLen comLen)
+    (encWit : Wit → BitString rowLen) (chalToIdx : Chal → Fin (2 ^ d))
+    (mkPreMsg : (Fin d → BitString rowLen) → BitString rowLen → BitString rowLen → PreMsg)
+    (checkRel : Stmt → (Fin d → BitString rowLen) → BitString rowLen → PreMsg → Chal → Bool)
+    (defaultSeed : Seed) (iv : IV) (keys : Fin (2 ^ d) → Seed) (stmt : Stmt) (w : Wit)
+    (hRel : ∀ (pCols : Fin d → BitString rowLen) (u : BitString rowLen) (delta : Chal),
+      checkRel stmt
+        (fun j => pCols j + fun k => (BitString.equivFin d).symm (chalToIdx delta) j * u k)
+        (encWit w + u) (mkPreMsg pCols u (encWit w + u)) delta = true)
+    (delta : Chal) :
+    let prf := prgLeafProofOfDelta expand prgLeaf encWit chalToIdx mkPreMsg defaultSeed iv keys w
+      delta
+    ProbOracleComp.runWith
+        (voleithMemoize (d := d) (sdLen := sdLen) (comLen := comLen) (rowLen := rowLen)
+          (Stmt := Stmt) (Seed := Seed) (IV := IV) (PreMsg := PreMsg) (Chal := Chal))
+        (prgLeafVerify expand prgLeaf chalToIdx checkRel stmt prf)
+        ([], [(prf.fsQuery stmt, delta)]) =
+      PMF.pure (true, ([], [(prf.fsQuery stmt, delta)])) := by
+  dsimp only
+  let prf := prgLeafProofOfDelta expand prgLeaf encWit chalToIdx mkPreMsg defaultSeed iv keys w
+    delta
+  unfold prgLeafVerify
+  rw [ProbOracleComp.runWith_bind, ProbOracleComp.runWith,
+    OracleComp.runWith_sumHandler_liftRight, OracleComp.runWith_eq_run_interpret,
+    OracleComp.liftRight_query, OracleComp.run_interpret_query, voleithMemoize,
+    RandomOracle.memoizeSum_inr]
+  have hfs : Cslib.memoize
+      (fun _ : FSQuery d comLen rowLen Stmt IV PreMsg => PMF.uniformOfFintype Chal)
+      (prf.fsQuery stmt) [(prf.fsQuery stmt, delta)] =
+      PMF.pure (delta, [(prf.fsQuery stmt, delta)]) := by
+    simp [Cslib.memoize]
+  rw [hfs]
+  simp only [PMF.map, PMF.pure_bind, Function.comp_def]
+  have hopen : ∀ vIdx : Fin (2 ^ d), vIdx = 0 ∨
+      (prgLeaf (prf.openKeys (FAEST.xorIndex vIdx (chalToIdx delta))) prf.iv
+        (FAEST.xorIndex vIdx (chalToIdx delta))).com =
+        prf.coms (FAEST.xorIndex vIdx (chalToIdx delta)) := by
+    intro vIdx
+    by_cases hv : vIdx = 0
+    · exact Or.inl hv
+    · right
+      have hne := xorIndex_ne_right (hidden := chalToIdx delta) hv
+      simp [prf, prgLeafProofOfDelta, hne]
+  have hrows : prgLeafOpenRows expand prgLeaf prf.iv prf.openKeys prf.coms (chalToIdx delta) =
+      some (FAEST.verifierRows (fun idx => expand (prgLeaf (keys idx) iv idx).seedOut)
+        (chalToIdx delta)) := by
+    unfold prgLeafOpenRows
+    simp only [hopen, forall_const, ite_true]
+    congr 1
+    funext vIdx
+    by_cases hv : vIdx = 0
+    · subst hv
+      simp [FAEST.verifierRows]
+    · have hne := xorIndex_ne_right (hidden := chalToIdx delta) hv
+      simp [FAEST.verifierRows, hv, prf, prgLeafProofOfDelta, hne]
+  rw [hrows]
+  dsimp only
+  simp only [ProbOracleComp.runWith_pure]
+  have hcols : (FAEST.convertExpandedRows d
+      (FAEST.verifierRows (fun idx => expand (prgLeaf (keys idx) iv idx).seedOut)
+        (chalToIdx delta))).columns =
+      fun j => (FAEST.convertExpandedRows d
+          (fun idx => expand (prgLeaf (keys idx) iv idx).seedOut)).columns j +
+        fun k => (BitString.equivFin d).symm (chalToIdx delta) j *
+          (FAEST.convertExpandedRows d
+            (fun idx => expand (prgLeaf (keys idx) iv idx).seedOut)).u k := by
+    funext j
+    exact FAEST.convertExpandedRows_correlation _ (chalToIdx delta) j
+  rw [hcols]
+  exact congrArg PMF.pure (Prod.ext (hRel _ _ delta) rfl)
+
+/-- Every supported run of `prgLeafGame` against `voleithMemoize` records an empty `H_leaf`
+trace `tr₁ = []`. -/
+theorem prgLeafGame_leafTrace_eq_nil {d sdLen comLen rowLen : ℕ}
+    {Stmt Seed IV PreMsg Chal Wit : Type}
+    [BEq (LeafQuery d Seed IV)] [BEq (FSQuery d comLen rowLen Stmt IV PreMsg)]
+    [LawfulBEq (FSQuery d comLen rowLen Stmt IV PreMsg)]
+    [Fintype Chal] [Nonempty Chal]
+    (expand : BitString sdLen → BitString rowLen)
+    (prgLeaf : Seed → IV → Fin (2 ^ d) → LeafOutput sdLen comLen)
+    (encWit : Wit → BitString rowLen) (chalToIdx : Chal → Fin (2 ^ d))
+    (mkPreMsg : (Fin d → BitString rowLen) → BitString rowLen → BitString rowLen → PreMsg)
+    (checkRel : Stmt → (Fin d → BitString rowLen) → BitString rowLen → PreMsg → Chal → Bool)
+    (defaultSeed : Seed) (iv : IV) (keys : Fin (2 ^ d) → Seed) (stmt : Stmt) (w : Wit)
+    (hRel : ∀ (pCols : Fin d → BitString rowLen) (u : BitString rowLen) (delta : Chal),
+      checkRel stmt
+        (fun j => pCols j + fun k => (BitString.equivFin d).symm (chalToIdx delta) j * u k)
+        (encWit w + u) (mkPreMsg pCols u (encWit w + u)) delta = true)
+    {b : Bool} {st : VOLEITHTraceState d sdLen comLen rowLen Stmt Seed IV PreMsg Chal}
+    (hmem : (b, st) ∈ (ProbOracleComp.runWith
+      (voleithMemoize (d := d) (sdLen := sdLen) (comLen := comLen) (rowLen := rowLen)
+        (Stmt := Stmt) (Seed := Seed) (IV := IV) (PreMsg := PreMsg) (Chal := Chal))
+      (prgLeafGame expand prgLeaf encWit chalToIdx mkPreMsg checkRel defaultSeed iv keys stmt w)
+      ([], [])).support) :
+    st.1 = [] := by
+  unfold prgLeafGame at hmem
+  rw [ProbOracleComp.runWith_bind, prgLeafProver_runWith_eq_map,
+    PMF.bind_map, PMF.mem_support_bind_iff] at hmem
+  obtain ⟨delta, -, hmem_v⟩ := hmem
+  dsimp only [Function.comp_apply] at hmem_v
+  rw [prgLeafVerify_runWith_of_delta expand prgLeaf encWit chalToIdx mkPreMsg checkRel
+    defaultSeed iv keys stmt w hRel delta, PMF.mem_support_pure_iff] at hmem_v
+  cases hmem_v
+  rfl
+
+/-- Honest `leaf_hash::aes_ctr`-style PRG commitments pass `prgLeafVerify` with probability `1`
+without touching `H_leaf`. -/
+theorem prgLeafGame_eq_pure_true {d sdLen comLen rowLen : ℕ}
+    {Stmt Seed IV PreMsg Chal Wit : Type}
+    [BEq (LeafQuery d Seed IV)] [BEq (FSQuery d comLen rowLen Stmt IV PreMsg)]
+    [LawfulBEq (FSQuery d comLen rowLen Stmt IV PreMsg)]
+    [Fintype Chal] [Nonempty Chal]
+    (expand : BitString sdLen → BitString rowLen)
+    (prgLeaf : Seed → IV → Fin (2 ^ d) → LeafOutput sdLen comLen)
+    (encWit : Wit → BitString rowLen) (chalToIdx : Chal → Fin (2 ^ d))
+    (mkPreMsg : (Fin d → BitString rowLen) → BitString rowLen → BitString rowLen → PreMsg)
+    (checkRel : Stmt → (Fin d → BitString rowLen) → BitString rowLen → PreMsg → Chal → Bool)
+    (defaultSeed : Seed) (iv : IV) (keys : Fin (2 ^ d) → Seed) (stmt : Stmt) (w : Wit)
+    (hRel : ∀ (pCols : Fin d → BitString rowLen) (u : BitString rowLen) (delta : Chal),
+      checkRel stmt
+        (fun j => pCols j + fun k => (BitString.equivFin d).symm (chalToIdx delta) j * u k)
+        (encWit w + u) (mkPreMsg pCols u (encWit w + u)) delta = true) :
+    ((ProbOracleComp.runWith
+      (voleithMemoize (d := d) (sdLen := sdLen) (comLen := comLen) (rowLen := rowLen)
+        (Stmt := Stmt) (Seed := Seed) (IV := IV) (PreMsg := PreMsg) (Chal := Chal))
+      (prgLeafGame expand prgLeaf encWit chalToIdx mkPreMsg checkRel defaultSeed iv keys stmt w)
+      ([], [])).map Prod.fst) = PMF.pure true := by
+  unfold prgLeafGame
+  rw [ProbOracleComp.runWith_bind, prgLeafProver_runWith_eq_map,
+    PMF.bind_map, PMF.map_bind]
+  trans ((PMF.uniformOfFintype Chal).bind fun _ => PMF.pure true)
+  · congr 1 with delta : 1
+    dsimp only [Function.comp_apply]
+    rw [prgLeafVerify_runWith_of_delta expand prgLeaf encWit chalToIdx mkPreMsg checkRel
+      defaultSeed iv keys stmt w hRel delta]
+    simp only [PMF.map, PMF.pure_bind, Function.comp_def]
+  · simp [PMF.bind_const]
+
+/-- **Query-log extraction impossibility for `leaf_hash::aes_ctr`**: against any witness `w` not
+hardcoded into `extLog []`, a local PRG prover accepts under `prgLeafVerify` and defeats any
+query-log extractor `extLog : LeafTrace → Option Wit` with probability `1`. -/
+theorem toOuterMeasure_prgLeaf_queryLog_fails_eq_one {d sdLen comLen rowLen : ℕ}
+    {Stmt Seed IV PreMsg Chal Wit : Type}
+    [BEq (LeafQuery d Seed IV)] [BEq (FSQuery d comLen rowLen Stmt IV PreMsg)]
+    [LawfulBEq (FSQuery d comLen rowLen Stmt IV PreMsg)]
+    [Fintype Chal] [Nonempty Chal] [DecidableEq Wit]
+    (expand : BitString sdLen → BitString rowLen)
+    (prgLeaf : Seed → IV → Fin (2 ^ d) → LeafOutput sdLen comLen)
+    (encWit : Wit → BitString rowLen) (chalToIdx : Chal → Fin (2 ^ d))
+    (mkPreMsg : (Fin d → BitString rowLen) → BitString rowLen → BitString rowLen → PreMsg)
+    (checkRel : Stmt → (Fin d → BitString rowLen) → BitString rowLen → PreMsg → Chal → Bool)
+    (defaultSeed : Seed) (iv : IV) (keys : Fin (2 ^ d) → Seed) (stmt : Stmt) (w : Wit)
+    (hRel : ∀ (pCols : Fin d → BitString rowLen) (u : BitString rowLen) (delta : Chal),
+      checkRel stmt
+        (fun j => pCols j + fun k => (BitString.equivFin d).symm (chalToIdx delta) j * u k)
+        (encWit w + u) (mkPreMsg pCols u (encWit w + u)) delta = true)
+    (extLog : LeafTrace d sdLen comLen Seed IV → Option Wit) (hne : extLog [] ≠ some w) :
+    ((ProbOracleComp.runWith
+      (voleithMemoize (d := d) (sdLen := sdLen) (comLen := comLen) (rowLen := rowLen)
+        (Stmt := Stmt) (Seed := Seed) (IV := IV) (PreMsg := PreMsg) (Chal := Chal))
+      (prgLeafGame expand prgLeaf encWit chalToIdx mkPreMsg checkRel defaultSeed iv keys stmt w)
+      ([], [])).map fun (b, st) => decide (b = true ∧ extLog st.1 ≠ some w)).toOuterMeasure
+        {true} = 1 := by
+  have hpure : ((ProbOracleComp.runWith
+      (voleithMemoize (d := d) (sdLen := sdLen) (comLen := comLen) (rowLen := rowLen)
+        (Stmt := Stmt) (Seed := Seed) (IV := IV) (PreMsg := PreMsg) (Chal := Chal))
+      (prgLeafGame expand prgLeaf encWit chalToIdx mkPreMsg checkRel defaultSeed iv keys stmt w)
+      ([], [])).map fun (b, st) => decide (b = true ∧ extLog st.1 ≠ some w)) =
+      PMF.pure true := by
+    refine PMF.map_eq_pure_iff.mpr ?_
+    rintro ⟨b, st⟩ hsupp
+    have htr : st.1 = [] := prgLeafGame_leafTrace_eq_nil expand prgLeaf encWit chalToIdx mkPreMsg
+      checkRel defaultSeed iv keys stmt w hRel hsupp
+    have hb_supp : b ∈ ((ProbOracleComp.runWith voleithMemoize
+        (prgLeafGame expand prgLeaf encWit chalToIdx mkPreMsg checkRel defaultSeed iv keys stmt w)
+        ([], [])).map Prod.fst).support := by
+      rw [PMF.mem_support_map_iff]
+      exact ⟨(b, st), hsupp, rfl⟩
+    rw [prgLeafGame_eq_pure_true expand prgLeaf encWit chalToIdx mkPreMsg checkRel defaultSeed iv
+      keys stmt w hRel, PMF.support_pure, Set.mem_singleton_iff] at hb_supp
+    dsimp only
+    rw [htr, hb_supp]
+    exact decide_eq_true ⟨rfl, hne⟩
+  rw [hpure]
+  simp
+
+/-- **Universal query-log separation for PRG leaves**: whenever `Wit` has at least two distinct
+elements, every RO-query-log extractor fails with probability `1` on at least one valid witness. -/
+theorem exists_witness_prgLeaf_queryLog_fails_eq_one {d sdLen comLen rowLen : ℕ}
+    {Stmt Seed IV PreMsg Chal Wit : Type}
+    [BEq (LeafQuery d Seed IV)] [BEq (FSQuery d comLen rowLen Stmt IV PreMsg)]
+    [LawfulBEq (FSQuery d comLen rowLen Stmt IV PreMsg)]
+    [Fintype Chal] [Nonempty Chal] [DecidableEq Wit]
+    (expand : BitString sdLen → BitString rowLen)
+    (prgLeaf : Seed → IV → Fin (2 ^ d) → LeafOutput sdLen comLen)
+    (encWit : Wit → BitString rowLen) (chalToIdx : Chal → Fin (2 ^ d))
+    (mkPreMsg : (Fin d → BitString rowLen) → BitString rowLen → BitString rowLen → PreMsg)
+    (checkRel : Stmt → (Fin d → BitString rowLen) → BitString rowLen → PreMsg → Chal → Bool)
+    (defaultSeed : Seed) (iv : IV) (keys : Fin (2 ^ d) → Seed) (stmt : Stmt)
+    (w₀ w₁ : Wit) (hne : w₀ ≠ w₁)
+    (hRel₀ : ∀ (pCols : Fin d → BitString rowLen) (u : BitString rowLen) (delta : Chal),
+      checkRel stmt
+        (fun j => pCols j + fun k => (BitString.equivFin d).symm (chalToIdx delta) j * u k)
+        (encWit w₀ + u) (mkPreMsg pCols u (encWit w₀ + u)) delta = true)
+    (hRel₁ : ∀ (pCols : Fin d → BitString rowLen) (u : BitString rowLen) (delta : Chal),
+      checkRel stmt
+        (fun j => pCols j + fun k => (BitString.equivFin d).symm (chalToIdx delta) j * u k)
+        (encWit w₁ + u) (mkPreMsg pCols u (encWit w₁ + u)) delta = true)
+    (extLog : LeafTrace d sdLen comLen Seed IV → Option Wit) :
+    ∃ w : Wit,
+      ((ProbOracleComp.runWith
+        (voleithMemoize (d := d) (sdLen := sdLen) (comLen := comLen) (rowLen := rowLen)
+          (Stmt := Stmt) (Seed := Seed) (IV := IV) (PreMsg := PreMsg) (Chal := Chal))
+        (prgLeafGame expand prgLeaf encWit chalToIdx mkPreMsg checkRel defaultSeed iv keys stmt w)
+        ([], [])).map fun (b, st) => decide (b = true ∧ extLog st.1 ≠ some w)).toOuterMeasure
+          {true} = 1 := by
+  by_cases h0 : extLog [] = some w₀
+  · refine ⟨w₁, toOuterMeasure_prgLeaf_queryLog_fails_eq_one expand prgLeaf encWit chalToIdx
+      mkPreMsg checkRel defaultSeed iv keys stmt w₁ hRel₁ extLog ?_⟩
+    rw [h0]
+    intro h1
+    exact hne (Option.some.inj h1)
+  · exact ⟨w₀, toOuterMeasure_prgLeaf_queryLog_fails_eq_one expand prgLeaf encWit chalToIdx mkPreMsg
+      checkRel defaultSeed iv keys stmt w₀ hRel₀ extLog h0⟩
+
+/-- **Unbounded full-proof separation under colliding PRG commitments** (motivating
+almost-injective PRGs in [BaumEtAl2026FAESTer], Definition 27, pp. 17–18, and Lemma 32,
+pp. 25–26): if two witnesses `w₀ ≠ w₁` have identical honest PRG proofs across all challenges
+`delta : Chal`, then **every** extractor `ext : LeafTrace → VOLEITHProof → Option Wit` fails with
+probability `1` on at least one of `w₀` or `w₁`. -/
+theorem exists_valid_prgLeaf_extract_fails_all {d sdLen comLen rowLen : ℕ}
+    {Stmt Seed IV PreMsg Chal Wit : Type}
+    [BEq (LeafQuery d Seed IV)] [BEq (FSQuery d comLen rowLen Stmt IV PreMsg)]
+    [LawfulBEq (FSQuery d comLen rowLen Stmt IV PreMsg)]
+    [Fintype Chal] [Nonempty Chal] [DecidableEq Wit]
+    (expand : BitString sdLen → BitString rowLen)
+    (prgLeaf : Seed → IV → Fin (2 ^ d) → LeafOutput sdLen comLen)
+    (encWit : Wit → BitString rowLen) (chalToIdx : Chal → Fin (2 ^ d))
+    (mkPreMsg : (Fin d → BitString rowLen) → BitString rowLen → BitString rowLen → PreMsg)
+    (checkRel : Stmt → (Fin d → BitString rowLen) → BitString rowLen → PreMsg → Chal → Bool)
+    (defaultSeed : Seed) (iv : IV) (keys₀ keys₁ : Fin (2 ^ d) → Seed) (stmt : Stmt)
+    (w₀ w₁ : Wit) (hne : w₀ ≠ w₁)
+    (hRel₀ : ∀ (pCols : Fin d → BitString rowLen) (u : BitString rowLen) (delta : Chal),
+      checkRel stmt
+        (fun j => pCols j + fun k => (BitString.equivFin d).symm (chalToIdx delta) j * u k)
+        (encWit w₀ + u) (mkPreMsg pCols u (encWit w₀ + u)) delta = true)
+    (hRel₁ : ∀ (pCols : Fin d → BitString rowLen) (u : BitString rowLen) (delta : Chal),
+      checkRel stmt
+        (fun j => pCols j + fun k => (BitString.equivFin d).symm (chalToIdx delta) j * u k)
+        (encWit w₁ + u) (mkPreMsg pCols u (encWit w₁ + u)) delta = true)
+    (hcom : ∀ idx, (prgLeaf (keys₀ idx) iv idx).com = (prgLeaf (keys₁ idx) iv idx).com)
+    (hdCorr : encWit w₀ +
+        (FAEST.convertExpandedRows d (fun idx => expand (prgLeaf (keys₀ idx) iv idx).seedOut)).u =
+      encWit w₁ +
+        (FAEST.convertExpandedRows d (fun idx => expand (prgLeaf (keys₁ idx) iv idx).seedOut)).u)
+    (hpre :
+      mkPreMsg
+        (FAEST.convertExpandedRows d
+          (fun idx => expand (prgLeaf (keys₀ idx) iv idx).seedOut)).columns
+        (FAEST.convertExpandedRows d (fun idx => expand (prgLeaf (keys₀ idx) iv idx).seedOut)).u
+        (encWit w₀ + (FAEST.convertExpandedRows d
+          (fun idx => expand (prgLeaf (keys₀ idx) iv idx).seedOut)).u) =
+      mkPreMsg
+        (FAEST.convertExpandedRows d
+          (fun idx => expand (prgLeaf (keys₁ idx) iv idx).seedOut)).columns
+        (FAEST.convertExpandedRows d (fun idx => expand (prgLeaf (keys₁ idx) iv idx).seedOut)).u
+        (encWit w₁ + (FAEST.convertExpandedRows d
+          (fun idx => expand (prgLeaf (keys₁ idx) iv idx).seedOut)).u))
+    (delta₀ : Chal) (hconst : ∀ delta : Chal,
+      (fun idx => if idx = chalToIdx delta then defaultSeed else keys₀ idx) =
+        (fun idx => if idx = chalToIdx delta₀ then defaultSeed else keys₀ idx) ∧
+      (fun idx => if idx = chalToIdx delta then defaultSeed else keys₁ idx) =
+        (fun idx => if idx = chalToIdx delta₀ then defaultSeed else keys₀ idx))
+    (ext : LeafTrace d sdLen comLen Seed IV → VOLEITHProof d comLen rowLen Seed IV PreMsg →
+      Option Wit) :
+    ∃ w : Wit, ∃ keys : Fin (2 ^ d) → Seed,
+      ((ProbOracleComp.runWith
+        (voleithMemoize (d := d) (sdLen := sdLen) (comLen := comLen) (rowLen := rowLen)
+          (Stmt := Stmt) (Seed := Seed) (IV := IV) (PreMsg := PreMsg) (Chal := Chal))
+        (do
+          let prf ← prgLeafProver expand prgLeaf encWit chalToIdx mkPreMsg defaultSeed iv keys
+            stmt w
+          let ok ← prgLeafVerify expand prgLeaf chalToIdx checkRel stmt prf
+          return (ok, prf)) ([], [])).map fun ((ok, prf), st) =>
+            decide (ok = true ∧ ext st.1 prf ≠ some w)).toOuterMeasure {true} = 1 := by
+  let prf0 : VOLEITHProof d comLen rowLen Seed IV PreMsg :=
+    prgLeafProofOfDelta expand prgLeaf encWit chalToIdx mkPreMsg defaultSeed iv keys₀ w₀ delta₀
+  have hprf_eq : ∀ delta : Chal,
+      prgLeafProofOfDelta expand prgLeaf encWit chalToIdx mkPreMsg defaultSeed iv keys₀ w₀ delta =
+        prf0 ∧
+      prgLeafProofOfDelta expand prgLeaf encWit chalToIdx mkPreMsg defaultSeed iv keys₁ w₁ delta =
+        prf0 := by
+    intro delta
+    have hcoms : (fun idx => (prgLeaf (keys₁ idx) iv idx).com) =
+        (fun idx => (prgLeaf (keys₀ idx) iv idx).com) := funext fun idx => (hcom idx).symm
+    obtain ⟨h0, h1⟩ := hconst delta
+    constructor
+    · simp only [prf0, prgLeafProofOfDelta]
+      congr 1
+    · simp only [prf0, prgLeafProofOfDelta]
+      rw [hcoms, ← hpre, ← hdCorr, h1]
+  have hfail : ∀ w keys
+      (hRel : ∀ (pCols : Fin d → BitString rowLen) (u : BitString rowLen) (delta : Chal),
+        checkRel stmt
+          (fun j => pCols j + fun k => (BitString.equivFin d).symm (chalToIdx delta) j * u k)
+          (encWit w + u) (mkPreMsg pCols u (encWit w + u)) delta = true)
+      (hp : ∀ delta : Chal,
+        prgLeafProofOfDelta expand prgLeaf encWit chalToIdx mkPreMsg defaultSeed iv keys w delta =
+          prf0)
+      (he : ext [] prf0 ≠ some w),
+      ((ProbOracleComp.runWith
+        (voleithMemoize (d := d) (sdLen := sdLen) (comLen := comLen) (rowLen := rowLen)
+          (Stmt := Stmt) (Seed := Seed) (IV := IV) (PreMsg := PreMsg) (Chal := Chal))
+        (do
+          let prf ← prgLeafProver expand prgLeaf encWit chalToIdx mkPreMsg defaultSeed iv keys
+            stmt w
+          let ok ← prgLeafVerify expand prgLeaf chalToIdx checkRel stmt prf
+          return (ok, prf)) ([], [])).map fun ((ok, prf), st) =>
+            decide (ok = true ∧ ext st.1 prf ≠ some w)).toOuterMeasure {true} = 1 := by
+    intro w keys hRel hp he
+    have hrun : (ProbOracleComp.runWith
+        (voleithMemoize (d := d) (sdLen := sdLen) (comLen := comLen) (rowLen := rowLen)
+          (Stmt := Stmt) (Seed := Seed) (IV := IV) (PreMsg := PreMsg) (Chal := Chal))
+        (do
+          let prf ← prgLeafProver expand prgLeaf encWit chalToIdx mkPreMsg defaultSeed iv keys
+            stmt w
+          let ok ← prgLeafVerify expand prgLeaf chalToIdx checkRel stmt prf
+          return (ok, prf)) ([], [])).map (fun ((ok, prf), st) =>
+            decide (ok = true ∧ ext st.1 prf ≠ some w)) = PMF.pure true := by
+      rw [ProbOracleComp.runWith_bind, prgLeafProver_runWith_eq_map,
+        PMF.bind_map, PMF.map_bind]
+      trans ((PMF.uniformOfFintype Chal).bind fun _ => PMF.pure true)
+      · congr 1 with delta : 1
+        dsimp only [Function.comp_apply]
+        rw [ProbOracleComp.runWith_bind, prgLeafVerify_runWith_of_delta expand prgLeaf encWit
+          chalToIdx mkPreMsg checkRel defaultSeed iv keys stmt w hRel delta,
+          PMF.pure_bind, ProbOracleComp.runWith_pure, hp delta]
+        simp only [PMF.map, PMF.pure_bind, Function.comp_def]
+        exact congrArg PMF.pure (decide_eq_true ⟨trivial, he⟩)
+      · simp [PMF.bind_const]
+    rw [hrun]
+    simp
+  by_cases h0 : ext [] prf0 = some w₀
+  · refine ⟨w₁, keys₁, hfail w₁ keys₁ hRel₁ (fun d => (hprf_eq d).2) ?_⟩
+    rw [h0]
+    intro h1
+    exact hne (Option.some.inj h1)
+  · exact ⟨w₀, keys₀, hfail w₀ keys₀ hRel₀ (fun d => (hprf_eq d).1) h0⟩
+
+end PRGSeparation
 
 end Cslib.Crypto.Protocols.VOLE
