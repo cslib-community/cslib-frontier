@@ -166,6 +166,11 @@ def encConventionalCircuit : ConventionalCircuit ↪ List Bool :=
 def encValidCircuit : ValidCircuit ↪ List Bool :=
   (Function.Embedding.subtype _).trans encConventionalCircuit
 
+/-- Specification of `encValidCircuit` in terms of `encCircuitData`. -/
+theorem encValidCircuit_apply (f : ValidCircuit) :
+    encValidCircuit f = encCircuitData (f.1.n, f.1.m, f.1.gateList) := by
+  rfl
+
 /-- A valid circuit's word has at least `n + q` bits: `n` in unary and at least one bit per
 gate. -/
 theorem n_add_q_le_length_encValidCircuit (f : ValidCircuit) :
@@ -306,6 +311,11 @@ def encTopo : Topo ↪ List Bool :=
 /-- Valid topologies, the side information of `phiTopo`, as words by `encTopo`. -/
 def encValidTopo : ValidTopo ↪ List Bool :=
   (Function.Embedding.subtype _).trans encTopo
+
+/-- Specification of `encValidTopo` in terms of `encTopoData`. -/
+theorem encValidTopo_apply (t : ValidTopo) :
+    encValidTopo t = encTopoData (t.1.n, t.1.m, t.1.gateList) := by
+  rfl
 
 /-- The data of a valid topology is read from its word in polynomial time. -/
 theorem topoData_polyTime :
