@@ -397,17 +397,13 @@ theorem mem_FPT_iff_computableInFPTTime {A : Set α} :
     A ∈ FPT encA κ ↔
       ∃ g : α → Bool, ComputableInFPTTime g encA encBool κ ∧ ∀ a, a ∈ A ↔ g a = true := by
   have e (f : ℕ → ℕ) (c : ℕ) : (fun a => (f (κ a) : ℝ) * ((encA a).length + 1) ^ c) =
-      fun a => ((f (κ a) * ((encA a).length + 1) ^ c : ℕ) : ℝ) := by
-    funext
-    push_cast; rfl
+      fun a => ((f (κ a) * ((encA a).length + 1) ^ c : ℕ) : ℝ) := funext fun _ => by push_cast; rfl
   refine ⟨fun ⟨f, c, h⟩ => ?_, fun ⟨g, hg, hA⟩ => ?_⟩
   · rw [e, decidableInTimeO_natCast_iff] at h
     obtain ⟨g, hg, hA⟩ := h
     exact ⟨g, hg.computableInFPTTime, hA⟩
   · obtain ⟨f, c, hg⟩ := ComputableInFPTTime.exists_computableInO hg
-    refine ⟨f, c, ?_⟩
-    rw [e, decidableInTimeO_natCast_iff]
-    exact ⟨g, hg, hA⟩
+    exact ⟨f, c, (e f c).symm ▸ decidableInTimeO_natCast_iff.mpr ⟨g, hg, hA⟩⟩
 
 /-- **`XP` in terms of computability within explicit bounds.** -/
 theorem mem_XP_iff_exists_computableInO {A : Set α} :
@@ -415,16 +411,13 @@ theorem mem_XP_iff_exists_computableInO {A : Set α} :
       (fun a => f (κ a) * ((encA a).length + 1) ^ e (κ a))
       (fun a => f (κ a) * ((encA a).length + 1) ^ e (κ a)) ∧ ∀ a, a ∈ A ↔ g a = true := by
   have h (f e : ℕ → ℕ) : (fun a => (f (κ a) : ℝ) * ((encA a).length + 1) ^ e (κ a)) =
-      fun a => ((f (κ a) * ((encA a).length + 1) ^ e (κ a) : ℕ) : ℝ) := by
-    funext
-    push_cast; rfl
+      fun a => ((f (κ a) * ((encA a).length + 1) ^ e (κ a) : ℕ) : ℝ) :=
+    funext fun _ => by push_cast; rfl
   refine ⟨fun ⟨f, e, hA⟩ => ?_, fun ⟨g, f, e, hg, hA⟩ => ?_⟩
   · rw [h, decidableInTimeO_natCast_iff] at hA
     obtain ⟨g, hg, hA⟩ := hA
     exact ⟨g, f, e, hg, hA⟩
-  · refine ⟨f, e, ?_⟩
-    rw [h, decidableInTimeO_natCast_iff]
-    exact ⟨g, hg, hA⟩
+  · exact ⟨f, e, (h f e).symm ▸ decidableInTimeO_natCast_iff.mpr ⟨g, hg, hA⟩⟩
 
 /-- **Bounded parameters.** For a parameter bounded by a constant, `FPT` is `P`. -/
 theorem FPT_eq_P_of_le {K : ℕ} (hκ : ∀ a, κ a ≤ K) : FPT encA κ = P encA := by
@@ -451,34 +444,28 @@ theorem XP_eq_P_of_le {K : ℕ} (hκ : ∀ a, κ a ≤ K) : XP encA κ = P encA 
 /-- **`FPT` is closed under complement.** -/
 theorem compl_mem_FPT {A : Set α} (hA : A ∈ FPT encA κ) : Aᶜ ∈ FPT encA κ := by
   obtain ⟨g, hg, hA⟩ := mem_FPT_iff_computableInFPTTime.mp hA
-  refine mem_FPT_iff_computableInFPTTime.mpr ⟨_, hg.ite
+  exact mem_FPT_iff_computableInFPTTime.mpr ⟨_, hg.ite
     ((ComputableInPolyTime.const false).computableInFPTTime κ)
     ((ComputableInPolyTime.const true).computableInFPTTime κ),
-      fun a => ?_⟩
-  simp only [Set.mem_compl_iff, hA]
-  cases g a <;> simp
+    fun a => by cases h : g a <;> simp [*]⟩
 
 /-- **`FPT` is closed under intersection.** -/
 theorem inter_mem_FPT {A B : Set α} (hA : A ∈ FPT encA κ) (hB : B ∈ FPT encA κ) :
     A ∩ B ∈ FPT encA κ := by
   obtain ⟨g₁, hg₁, hA⟩ := mem_FPT_iff_computableInFPTTime.mp hA
   obtain ⟨g₂, hg₂, hB⟩ := mem_FPT_iff_computableInFPTTime.mp hB
-  refine mem_FPT_iff_computableInFPTTime.mpr ⟨_, hg₁.ite hg₂
+  exact mem_FPT_iff_computableInFPTTime.mpr ⟨_, hg₁.ite hg₂
     ((ComputableInPolyTime.const false).computableInFPTTime κ),
-      fun a => ?_⟩
-  simp only [Set.mem_inter_iff, hA, hB]
-  cases g₁ a <;> simp
+    fun a => by cases h₁ : g₁ a <;> simp [*]⟩
 
 /-- **`FPT` is closed under union.** -/
 theorem union_mem_FPT {A B : Set α} (hA : A ∈ FPT encA κ) (hB : B ∈ FPT encA κ) :
     A ∪ B ∈ FPT encA κ := by
   obtain ⟨g₁, hg₁, hA⟩ := mem_FPT_iff_computableInFPTTime.mp hA
   obtain ⟨g₂, hg₂, hB⟩ := mem_FPT_iff_computableInFPTTime.mp hB
-  refine mem_FPT_iff_computableInFPTTime.mpr ⟨_, hg₁.ite
-    ((ComputableInPolyTime.const true).computableInFPTTime κ)
-      hg₂, fun a => ?_⟩
-  simp only [Set.mem_union, hA, hB]
-  cases g₁ a <;> simp
+  exact mem_FPT_iff_computableInFPTTime.mpr ⟨_, hg₁.ite
+    ((ComputableInPolyTime.const true).computableInFPTTime κ) hg₂,
+    fun a => by cases h₁ : g₁ a <;> simp [*]⟩
 
 /-- **`XP` is closed under complement.** -/
 theorem compl_mem_XP {A : Set α} (hA : A ∈ XP encA κ) : Aᶜ ∈ XP encA κ := by
@@ -486,10 +473,7 @@ theorem compl_mem_XP {A : Set α} (hA : A ∈ XP encA κ) : Aᶜ ∈ XP encA κ 
   have h := hg.ite (ComputableInO.const false : ComputableInO _ _ encBool _ _)
     (ComputableInO.const true : ComputableInO _ _ encBool _ _)
   refine mem_XP_iff_exists_computableInO.mpr ⟨_, fun k => f k + 1, fun k => e k + 1,
-    h.mono_le (fun a => ?_) (fun a => ?_), fun a => ?_⟩
-  rotate_left 2
-  · simp only [Set.mem_compl_iff, hA]
-    cases g a <;> simp
+    h.mono_le (fun a => ?_) (fun a => ?_), fun a => by cases hg' : g a <;> simp [*]⟩
   all_goals
     dsimp only
     have h₁ : ((encA a).length + 1) ^ e (κ a) ≤ ((encA a).length + 1) ^ (e (κ a) + 1) :=

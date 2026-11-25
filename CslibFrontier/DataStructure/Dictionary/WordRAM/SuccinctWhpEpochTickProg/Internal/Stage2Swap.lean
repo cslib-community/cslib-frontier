@@ -58,13 +58,12 @@ private theorem bindRead_fastStep {α : Type} {c U V w n_max base c₁ c₂ : �
     memoryCost (p >>= k) s ≤ c₁ + c₂ ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s (p >>= k) ∧
     FastStateStep base c U V w n_max θ fs' s ((Memory.spec 0).clientState s (p >>= k)) := by
+  obtain ⟨hk_mc, hk_vp, hk_st⟩ := hk
   refine ⟨?_, validProg_bind hvp ?_, ?_⟩
   · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hst, hres]
-    exact Nat.add_le_add hmc hk.1
-  · rw [hst, hres]
-    exact hk.2.1
-  · rw [clientState_bind, hst, hres]
-    exact hk.2.2
+    exact Nat.add_le_add hmc hk_mc
+  · rwa [hst, hres]
+  · rwa [clientState_bind, hst, hres]
 
 private theorem weakenCost {c U V w n_max base c₁ c₂ : ℕ}
     {θ : SeedWhp c U n_max} {fs' : FastState} {s : Memory.State} {p : Memory.Prog Unit}
@@ -211,10 +210,9 @@ private theorem stage2SwapRolesProg_fastStep {c U V w n_max base b : ℕ}
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
     FastStateStep base c U V w n_max θ
       { fs with liveRole := Function.update fs.liveRole b (fs.rebRole b) } s s' := by
-  have h3_le : 3 ≤ n_max := by
-    have := henv.numBuckets_le_n_max
-    have := (large_bounds_lt_n_max henv.2.2.2.1).1
-    omega
+  have h3_le : 3 ≤ n_max :=
+    (by decide : 3 ≤ 1024).trans
+      ((large_bounds_lt_n_max henv.2.2.2.1).1.trans henv.numBuckets_le_n_max)
   obtain ⟨hro_st, hro_res, hro_mc, hro_vp⟩ := readRebAndOmRoleGenProg_spec henv hb hrep (s := s)
   rw [ite_eq_left ⟨by omega, by omega⟩] at hro_res
   obtain ⟨hw1_mc, hw1_vp, hw1_step⟩ :=
@@ -225,16 +223,14 @@ private theorem stage2SwapRolesProg_fastStep {c U V w n_max base b : ℕ}
   unfold stage2SwapRolesProg
   simp only [pure_bind]
   refine ⟨?_, ?_, ?_, ?_⟩
-  · rw [clientResult_bind, hro_st, hro_res, clientResult_bind]; rfl
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hro_st, hro_res, hro_mc]
-    simp only [memoryCost_pure]
+  · simp only [clientResult_bind, hro_st, hro_res, clientResult_pure_whp]
+  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, memoryCost_pure,
+      hro_st, hro_res, hro_mc]
     omega
   · refine validProg_bind hro_vp ?_
     rw [hro_st, hro_res]
     exact validProg_bind hw1_vp (validProg_pure _)
-  · rw [clientState_bind, hro_st, hro_res, clientState_bind, clientState_pure_whp]
-    exact hw1_step
+  · rwa [clientState_bind, hro_st, hro_res, clientState_bind, clientState_pure_whp]
 
 @[irreducible] private def stage2SwapCountsProg :
     (WhpCoreParams × ℕ) × ℕ → Memory.Prog Unit
@@ -423,7 +419,7 @@ private theorem stage2SwapScalarsProg_fastStep {c U V w n_max base b : ℕ}
   dsimp only
   unfold stage2SwapScalarsProg
   refine ⟨?_, ?_, ?_, ?_⟩
-  · rw [clientResult_bind, h1_res, clientResult_bind, clientResult_bind]; rfl
+  · simp only [clientResult_bind, h1_res, clientResult_pure_whp]
   · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, memoryCost_pure]; omega
   · exact validProg_bind h1_vp (validProg_bind h2_vp (validProg_bind h3_vp (validProg_pure _)))
   · rw [clientState_bind, clientState_bind, clientState_bind, clientState_pure_whp]
@@ -517,29 +513,26 @@ private theorem stage2SwapPreAdvanceProg_fastStep {c U V w n_max base b omRole :
   obtain ⟨hdi_st, hdi_res, hdi_mc, hdi_vp⟩ :=
     readHdr_large_spec henv (by decide) (fastMemHdrs hrs1_step.2.2.1).dirtyIdx
   dsimp only at hdi_res
-  have hw := writeHdrStep henv (by decide)
+  obtain ⟨hw_mc, hw_vp, hw_step⟩ := writeHdrStep henv (by decide)
     (henv.fits_of_le_n_max (by omega))
     (fun h6 => by dsimp [hdrDirtyIdx] at h6; omega)
     hrs1_step.2.1 hrs1_step.2.2.1 (hdrOff := hdrDirtyIdx) (val := fs.dirtyIdx + 1)
   obtain ⟨hzh_mc, hzh_vp, hzh_step⟩ := resetRebScanHdrsProg_fastStep henv
-    (Nat.two_pow_pos w) hw.2.2.2.1 hw.2.2.2.2.1 (cand := 0)
+    (Nat.two_pow_pos w) hw_step.2.1 hw_step.2.2.1 (cand := 0)
   dsimp only
   unfold stage2SwapPreAdvanceProg
   simp only [pure_bind]
   refine ⟨?_, ?_, ?_, ?_⟩
-  · rw [clientResult_bind, clientResult_bind, hdi_st, hdi_res,
-      clientResult_bind, clientResult_bind]
-    rfl
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, memoryCost_pure]
-    have := hw.1
-    rw [hdi_st, hdi_res, hdi_mc]
+  · simp only [clientResult_bind, hdi_st, hdi_res, clientResult_pure_whp]
+  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, memoryCost_pure,
+      hdi_st, hdi_res, hdi_mc]
     omega
   · refine validProg_bind hrs1_vp (validProg_bind hdi_vp ?_)
     rw [hdi_st, hdi_res]
-    exact validProg_bind hw.2.1 (validProg_bind hzh_vp (validProg_pure _))
+    exact validProg_bind hw_vp (validProg_bind hzh_vp (validProg_pure _))
   · rw [clientState_bind, clientState_bind, hdi_st, hdi_res,
       clientState_bind, clientState_bind, clientState_pure_whp]
-    exact (hrs1_step.trans hw.2.2).trans hzh_step
+    exact (hrs1_step.trans hw_step).trans hzh_step
 
 @[irreducible] private def stage2SwapAdvanceNextProg :
     (WhpCoreParams × ℕ) × ℕ → Memory.Prog Unit
@@ -721,12 +714,10 @@ private theorem stage2SwapFinishProg_fastStep {c U V w n_max base b : ℕ}
   dsimp only
   unfold stage2SwapFinishProg
   refine ⟨?_, ?_, ?_⟩
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hpa_res]
+  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hpa_res]
     omega
   · refine validProg_bind hpa_vp ?_
-    rw [hpa_res]
-    exact han_vp
+    rwa [hpa_res]
   · rw [clientState_bind, hpa_res]
     exact hpa_step.trans han_step
 
@@ -865,12 +856,10 @@ theorem stage2PostScanGenProg_fastStep {c U V w n_max base b : ℕ}
           (bindRead_fastStep (c₂ := 72) hcr_st hcr_res hcr_mc.le hcr_vp (by
             rw [ite_eq_left hdone_b]
             refine ⟨?_, ?_, ?_⟩
-            · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-              rw [hss_res]
+            · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hss_res]
               exact Nat.add_le_add hss_mc hsf_mc
             · refine validProg_bind hss_vp ?_
-              rw [hss_res]
-              exact hsf_vp
+              rwa [hss_res]
             · rw [clientState_bind, hss_res]
               exact hss_step.trans hsf_step))))
     · rw [ite_eq_right hdone_b]

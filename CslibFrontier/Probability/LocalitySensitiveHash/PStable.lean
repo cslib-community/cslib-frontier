@@ -153,9 +153,8 @@ private theorem volume_Ico_floor_ne_of_le {x y : ℝ} (hxy : x ≤ y) (hgap : y 
       {b : ℝ | ⌊x + b⌋ ≠ ⌊y + b⌋}.indicator (fun _ => (1 : ℝ)) b =
         (⌊y + b⌋ : ℝ) - ⌊x + b⌋ := fun b => by
     have hle : ⌊x + b⌋ ≤ ⌊y + b⌋ := Int.floor_mono (by linarith)
-    have hlt : ⌊y + b⌋ ≤ ⌊x + b⌋ + 1 := by
-      rw [← Int.floor_add_one]
-      exact Int.floor_mono (by linarith)
+    have hlt : ⌊y + b⌋ ≤ ⌊x + b⌋ + 1 :=
+      Int.floor_add_one (x + b) ▸ Int.floor_mono (by linarith)
     simp only [Set.indicator_apply, Set.mem_ofPred_eq]
     split_ifs with h
     · simp [show ⌊y + b⌋ = ⌊x + b⌋ + 1 by omega]
@@ -165,8 +164,7 @@ private theorem volume_Ico_floor_ne_of_le {x y : ℝ} (hxy : x ≤ y) (hgap : y 
       (Int.measurable_floor.comp (measurable_const.add measurable_id))).compl
   have hdiff : ∀ b : ℝ, (⌊y + b⌋ : ℝ) - ⌊x + b⌋ =
       (y - x) + Int.fract (x + b) - Int.fract (y + b) := fun b => by
-    simp only [Int.fract]
-    ring
+    simp only [Int.fract]; ring
   have hper : Function.Periodic (Int.fract : ℝ → ℝ) 1 := fun z => by
     simpa only [add_comm] using Int.fract_add_one z
   have hf_eq (u : ℝ) : ∫ b in (0 : ℝ)..1, Int.fract (u + b) = ∫ b in (0 : ℝ)..1, Int.fract b := by
@@ -197,11 +195,9 @@ theorem measureReal_uniformInterval_floor_eq {r : ℝ} (hr : 0 < r) (x y : ℝ) 
       ext b
       simp only [Set.mem_ofPred_eq, Set.mem_empty_iff_false, iff_false]
       have h1 : (x + b) / r + 1 ≤ (y + b) / r := by
-        rw [div_add_one hr.ne', div_le_div_iff_of_pos_right hr]
-        linarith
-      have h2 : ⌊(x + b) / r⌋ + 1 ≤ ⌊(y + b) / r⌋ := by
-        rw [← Int.floor_add_one]
-        exact Int.floor_mono h1
+        rw [div_add_one hr.ne', div_le_div_iff_of_pos_right hr]; linarith
+      have h2 : ⌊(x + b) / r⌋ + 1 ≤ ⌊(y + b) / r⌋ :=
+        Int.floor_add_one ((x + b) / r) ▸ Int.floor_mono h1
       omega
     rw [hemp, measureReal_empty, eq_comm, max_eq_left]
     rwa [habs, sub_nonpos, le_div_iff₀ hr, one_mul]
@@ -235,10 +231,9 @@ theorem measureReal_uniformInterval_floor_eq {r : ℝ} (hr : 0 < r) (x y : ℝ) 
       rw [intervalIntegral.integral_sub hi1 hi2, intervalIntegral.integral_const, sub_zero,
         smul_eq_mul, mul_one, hne_int]
       field_simp [hr.ne']
-    rw [uniformInterval_real_apply hr _, hscale, habs, eq_comm, max_eq_right]
-    · field_simp [hr.ne']
-    · rw [sub_nonneg, div_le_one hr]
-      exact hnear.le
+    rw [uniformInterval_real_apply hr _, hscale, habs, eq_comm,
+      max_eq_right (sub_nonneg.2 ((div_le_one hr).2 hnear.le))]
+    field_simp [hr.ne']
 
 /-- **General Fubini collision formula for `intervalFloorHash`**: under any probability measure
 `μ` on the projection space paired with `uniformInterval r`, `u` and `v` collide with probability
@@ -341,9 +336,8 @@ private theorem integrable_stableKernel (μ : Measure ℝ) [IsFiniteMeasure μ]
 
 theorem stableCollisionProb_le_one (μ : Measure ℝ) [IsProbabilityMeasure μ] {r c : ℝ}
     (hr : 0 < r) (hc : 0 ≤ c) : stableCollisionProb μ r c ≤ 1 := by
-  have h := integral_mono (integrable_stableKernel μ hr hc) (integrable_const (1 : ℝ)) fun z =>
-    (stableKernel_mem_Icc hr hc z).2
-  simpa [stableCollisionProb] using h
+  simpa [stableCollisionProb] using integral_mono (integrable_stableKernel μ hr hc)
+    (integrable_const (1 : ℝ)) fun z => (stableKernel_mem_Icc hr hc z).2
 
 theorem stableCollisionProb_anti (μ : Measure ℝ) [IsProbabilityMeasure μ] {r : ℝ} (hr : 0 < r)
     {c₁ c₂ : ℝ} (hc₁ : 0 ≤ c₁) (hle : c₁ ≤ c₂) :
@@ -416,10 +410,8 @@ private theorem stableCollisionProb_withDensity_eq_two_mul {f : ℝ → ℝ}
   have hsupp : ∀ z ∉ Set.Icc (-(r / c)) (r / c),
       f z * max (0 : ℝ) (1 - c * |z| / r) = 0 := fun z hz => by
     have habs : r / c < |z| := lt_of_not_ge fun hle => hz (abs_le.1 hle)
-    have h1 : 1 - c * |z| / r ≤ 0 := by
-      rw [sub_nonpos, one_le_div hr, mul_comm]
-      exact ((div_lt_iff₀ hc).1 habs).le
-    rw [max_eq_left h1, mul_zero]
+    rw [max_eq_left (sub_nonpos.2
+      ((one_le_div hr).2 (mul_comm c |z| ▸ ((div_lt_iff₀ hc).1 habs).le))), mul_zero]
   have hint_full := integrable_mul_stableKernel' hf_cont hf_nonneg hf_int hr hc.le
   have hzero : ∫ z in (Set.Icc (-(r / c)) (r / c))ᶜ, f z * max (0 : ℝ) (1 - c * |z| / r) = 0 :=
     setIntegral_eq_zero_of_forall_eq_zero hsupp
@@ -544,14 +536,11 @@ theorem p2StableProb_eq_sub {r c : ℝ} (hr : 0 < r) (hc : 0 < c) :
   have htail : 2 * ∫ z in (0 : ℝ)..(r / c), (c * z / r) * gaussianPDFReal 0 1 z =
       √(2 / π) * (c / r) * (1 - Real.exp (-((r / c) ^ 2) / 2)) := by
     have hcongr : (fun z : ℝ => (c * z / r) * gaussianPDFReal 0 1 z) =
-        fun z => ((c / r) * (√(2 * π))⁻¹) * (z * Real.exp (-(z ^ 2) / 2)) := by
-      funext z
-      simp only [gaussianPDFReal_def, sub_zero, NNReal.coe_one, mul_one]
-      ring
+        fun z => ((c / r) * (√(2 * π))⁻¹) * (z * Real.exp (-(z ^ 2) / 2)) := funext fun z => by
+      simp only [gaussianPDFReal_def, sub_zero, NNReal.coe_one, mul_one]; ring
     have hderiv : ∀ z ∈ uIcc 0 (r / c),
-        HasDerivAt (fun s : ℝ => -Real.exp (-(s ^ 2) / 2)) (z * Real.exp (-(z ^ 2) / 2)) z := by
-      intro z _
-      exact ((hasDerivAt_pow 2 z).neg.div_const 2).exp.neg.congr_deriv (by norm_num; ring)
+        HasDerivAt (fun s : ℝ => -Real.exp (-(s ^ 2) / 2)) (z * Real.exp (-(z ^ 2) / 2)) z :=
+      fun z _ => ((hasDerivAt_pow 2 z).neg.div_const 2).exp.neg.congr_deriv (by dsimp; ring)
     have hie : IntervalIntegrable (fun z : ℝ => z * Real.exp (-(z ^ 2) / 2)) volume 0 (r / c) :=
       Continuous.intervalIntegrable (by fun_prop) _ _
     rw [hcongr, intervalIntegral.integral_const_mul,
@@ -561,8 +550,7 @@ theorem p2StableProb_eq_sub {r c : ℝ} (hr : 0 < r) (hc : 0 < c) :
       rw [Real.sqrt_div zero_le_two, Real.sqrt_mul zero_le_two]
       field_simp
       rw [Real.sq_sqrt zero_le_two]
-    rw [← hsqrt]
-    ring
+    rw [← hsqrt]; ring
   rw [hnorm, htail, gaussianReal_of_var_ne_zero 0 one_ne_zero]
 
 /-- **Gaussian `p = 2` LSH collision probability** ([DatarImmorlicaIndykMirrokni2004]):
@@ -651,19 +639,17 @@ theorem p1StableProb_eq {r c : ℝ} (hr : 0 < r) (hc : 0 < c) :
     (fun z => (cauchyPDF_pos 0 one_ne_zero z).le) (integrable_cauchyPDFReal 0)
     (fun z => by simp [cauchyPDFReal_def]) hr hc).trans ?_
   have hcongr : (fun z : ℝ => (1 - c * z / r) * cauchyPDFReal 0 1 z) =
-      fun z => π⁻¹ * (1 + z ^ 2)⁻¹ - (c / (π * r)) * (z * (1 + z ^ 2)⁻¹) := by
-    funext z
-    simp only [cauchyPDFReal_def, sub_zero, NNReal.coe_one, mul_one]
-    ring
+      fun z => π⁻¹ * (1 + z ^ 2)⁻¹ - (c / (π * r)) * (z * (1 + z ^ 2)⁻¹) := funext fun z => by
+    simp only [cauchyPDFReal_def, sub_zero, NNReal.coe_one, mul_one]; ring
   have hd1 : ∀ z ∈ uIcc 0 (r / c),
       HasDerivAt Real.arctan (1 + z ^ 2)⁻¹ z := fun z _ => Real.hasDerivAt_arctan' z
   have hd2 : ∀ z ∈ uIcc 0 (r / c),
       HasDerivAt (fun s : ℝ => (2 : ℝ)⁻¹ * Real.log (1 + s ^ 2)) (z * (1 + z ^ 2)⁻¹) z := by
     intro z _
-    have hpos : 1 + z ^ 2 ≠ 0 := by positivity
     have hsq : HasDerivAt (fun s : ℝ => 1 + s ^ 2) (2 * z) z := by
       simpa using (hasDerivAt_pow 2 z).const_add 1
-    exact ((hsq.log hpos).const_mul (2 : ℝ)⁻¹).congr_deriv (by field_simp)
+    exact ((hsq.log (add_pos_of_pos_of_nonneg one_pos (sq_nonneg z)).ne').const_mul
+      (2 : ℝ)⁻¹).congr_deriv (by field_simp)
   have hie1 : IntervalIntegrable (fun z : ℝ => (1 + z ^ 2)⁻¹) volume 0 (r / c) :=
     Continuous.intervalIntegrable (Continuous.inv₀ (by fun_prop) fun z => by positivity) _ _
   have hie2 : IntervalIntegrable (fun z : ℝ => z * (1 + z ^ 2)⁻¹) volume 0 (r / c) :=

@@ -131,9 +131,7 @@ private theorem packedFormula_sound (v : Fin 3 → Fin n)
   obtain ⟨u, hlo, hhi, hs, hk, he, hsh, hspace, hkw, hks, hcap, hzero, hend, hblocks⟩ := hf
   have hp : 2 ^ (u (.inl 0)).val < n := by lia
   have hspos : 0 < (u (.inl 2)).val := hs ▸ Nat.two_pow_pos _
-  have hdiv : (u (.inl 2)).val ∣ (u (.inl 4)).val := by
-    rw [hs, hk]
-    exact Nat.pow_dvd_pow 2 he
+  have hdiv : (u (.inl 2)).val ∣ (u (.inl 4)).val := hs ▸ hk ▸ Nat.pow_dvd_pow 2 he
   have hwidth : 2 ^ (u (.inl 2)).val < n :=
     lt_of_le_of_lt (Nat.pow_le_pow_right (by decide) hsh) hp
   have hcapn : ((u (.inl 2)).val + 1) * (u (.inl 2)).val < n := by lia
@@ -141,9 +139,7 @@ private theorem packedFormula_sound (v : Fin 3 → Fin n)
     at hzero hend
   fo_simp at hzero hend
   fo_simp [allBlocks, not_le] at hblocks
-  have hinput (i : Fin 3) : (v i).val < 2 ^ ((u (.inl 0)).val + 1) := by
-    have := (v i).isLt
-    lia
+  have hinput (i : Fin 3) : (v i).val < 2 ^ ((u (.inl 0)).val + 1) := by have := (v i).isLt; omega
   apply BitString.mul_eq_of_blocks (hinput 0) (hinput 1)
     (lt_of_lt_of_le (hinput 2) (Nat.pow_le_pow_right (by decide) (by lia))) hkw hspos hdiv
     (fun a => BitString.readPackedField (u (.inl 0)).val (fun r => (u (.inr r)).val)
@@ -252,17 +248,14 @@ private theorem packedFormula_complete (v : Fin 3 → Fin n) (hn : 257 ≤ n)
     intro a ⟨haj, hak⟩
     change (a 0).val * s = (a 1).val at haj
     change (a 1).val < k at hak
-    have hjend : (a 1).val + s ≤ k := by
-      rw [← haj]
-      exact block_end_le hspos hdiv (by rwa [haj])
+    have hjend : (a 1).val + s ≤ k := haj ▸ block_end_le hspos hdiv (haj.symm ▸ hak)
     rw [realize_blockChecks _ _ _ _ _ _ _ _ _ (by rfl)
       (by simpa [u] using hcapn) (by simpa [u] using (show (a 1).val + s < n by lia))
       (by simpa [u] using hwidth) (by simpa [u] using hspace)]
     fo_simp
     refine exists_local_carries v (h := h) (s := s) (j := (a 1).val) (g := g)
       hp hspace hcap hspos hcwidth (hinput 0) hprod ?_ ?_
-    · rw [← haj]
-      exact hg (a 0).val (by rw [haj]; lia)
+    · exact haj ▸ hg (a 0).val (by rw [haj]; omega)
     · have ht := hg ((a 0).val + 1) (by rw [Nat.add_mul, Nat.one_mul, haj]; lia)
       simpa only [Nat.add_mul, Nat.one_mul, haj] using ht
 
@@ -304,10 +297,7 @@ public theorem not_realize_multiplication_of_le (v : Fin 3 → Fin n)
 /-- Every representable ordinary product has exactly one output. -/
 public theorem existsUnique_multiplication (x y : Fin n) (hxy : x.val * y.val < n) :
     ∃! z : Fin n, (multiplication L).Realize ![x, y, z] := by
-  refine ⟨⟨x.val * y.val, hxy⟩, ?_, ?_⟩
-  · exact (realize_multiplication _).mpr rfl
-  · intro z hz
-    rw [realize_multiplication] at hz
-    exact Fin.ext hz.symm
+  exact ⟨⟨x.val * y.val, hxy⟩, (realize_multiplication _).mpr rfl,
+    fun _ hz => Fin.ext ((realize_multiplication _).mp hz).symm⟩
 
 end Cslib.Logic.FO.Ordered

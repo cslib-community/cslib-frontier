@@ -113,9 +113,7 @@ theorem eventually_lt_mul_card_of_ledger_min {r : ℕ} (hr : 2 ≤ r) {A : ℝ} 
   set a := (N.frontier π t ∪ N.frontier π (t + 1)).ncard + (N.readAt (π.symm ⟨t, ht⟩)).ncard
   set nW := (N.readIn W).ncard
   set s : ℝ := (((r - 1) * se : ℕ) : ℝ)
-  have hs : s = (r - 1) * se := by
-    simp only [s]
-    rw [Nat.cast_mul, Nat.cast_sub (by omega), Nat.cast_one]
+  have hs : s = (r - 1) * se := by simp [s, Nat.cast_sub (by omega : 1 ≤ r)]
   have ha : (a : ℝ) ≤ (N.frontier π t).ncard + (r + 2) := by
     have hU : (N.frontier π t ∪ N.frontier π (t + 1)).ncard ≤ (N.frontier π t).ncard + (r + 1) :=
       (ncard_le_ncard (union_subset subset_union_left (N.frontier_succ_subset π ht))
@@ -125,32 +123,29 @@ theorem eventually_lt_mul_card_of_ledger_min {r : ℕ} (hr : 2 ≤ r) {A : ℝ} 
       Compiler.ncard_readAt_le (I.withConstants (L.readout 1)) (fun _ => univ) _
     exact_mod_cast (show a ≤ (N.frontier π t).ncard + (r + 2) by simp only [a]; omega)
   have hρ : (N.cycleRankOn W : ℝ) + nW ≤ s + 1 := by
-    have h := Compiler.cycleRankOn_add_ncard_readIn_le (I.withConstants (L.readout 1))
+    have h := hse ▸ Compiler.cycleRankOn_add_ncard_readIn_le (I.withConstants (L.readout 1))
       (fun _ => univ) hfan' (N.edgeCut_component (π.symm ⟨t, ht⟩))
       (N.ncard_component_le_ncard_touching_add_one (π.symm ⟨t, ht⟩))
-    rw [hse] at h
     simp only [s]
     exact_mod_cast h
   have hV : (V : ℝ) ≤ 7 * s + 3 * n + 3 := by
-    have h := Compiler.card_vertex_le hfan'
-    have hlive := card_live_le (p := c.program) (special := special)
-    rw [hse] at h hlive
-    have : V ≤ 7 * ((r - 1) * se) + 3 * n := by
+    have h := hse ▸ Compiler.card_vertex_le hfan'
+    have hlive := hse ▸ card_live_le (p := c.program) (special := special)
+    have hV_nat : V ≤ 7 * ((r - 1) * se) + 3 * n := by
       have h7 : 2 * r + 3 ≤ 7 * (r - 1) := by omega
-      have := Nat.mul_le_mul_right se h7
       simp only [V]
-      nlinarith
-    have : (V : ℝ) ≤ 7 * s + 3 * n := by simp only [s]; exact_mod_cast this
+      nlinarith [Nat.mul_le_mul_right se h7]
+    have hV' : (V : ℝ) ≤ 7 * s + 3 * n := by
+      simpa only [s, Nat.cast_add, Nat.cast_mul, Nat.cast_ofNat] using
+        (Nat.cast_le (α := ℝ)).mpr hV_nat
     linarith
   set E : ℕ := min (q ^ Nat.card {g // special g}) (Nat.card M) * Nat.card M
   have hEpos : 0 < E :=
     Nat.mul_pos (lt_min (Nat.pow_pos Nat.card_pos) Nat.card_pos) Nat.card_pos
   have hcount' : ({x | c.program.trace I x o ∈ Acc}.ncard : ℝ) ≤
       (K n : ℝ) ^ 2 * (V + 1) * E * (q : ℝ) ^ (min a nW) := by
-    have hK2 : (K n - 1) ^ 2 ≤ K n ^ 2 := Nat.pow_le_pow_left (Nat.sub_le _ _) 2
-    have h := hcount.trans (Nat.mul_le_mul_right _
-      (Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ hK2)))
-    exact_mod_cast h
+    exact_mod_cast hcount.trans (Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _
+      (Nat.mul_le_mul_right _ (Nat.pow_le_pow_left (Nat.sub_le _ _) 2))))
   have hSpos : (0 : ℝ) < {x | c.program.trace I x o ∈ Acc}.ncard :=
     Nat.cast_pos.mpr (hK1.trans_le hKS)
   have hlogS : Real.logb q {x | c.program.trace I x o ∈ Acc}.ncard ≤
@@ -251,9 +246,8 @@ theorem eventually_lt_mul_card_of_aggregates {r : ℕ} (hr : 2 ≤ r) {A : ℝ} 
             (r - 1) * (c.program.innerGates.filter fun g => ¬special g).card := by
   filter_upwards [eventually_lt_mul_card_of_ledger.{u, v, w} hr hA hlayout hSK hβ hε] with n hn
   intro σ I Acc c special _ T _ _ hfan hagg hk hS
-  refine hn σ I Acc c special _ hfan (Ledger.ofAggregates hagg) ?_ hS
-  rw [Nat.card_fun, Nat.cast_pow, Real.log_pow]
-  exact hk
+  exact hn σ I Acc c special _ hfan (Ledger.ofAggregates hagg)
+    (by simpa [Nat.card_fun] using hk) hS
 
 /-- **The frontier lower bound with unbounded threshold gates (`Th_t`, `MAJ`, symmetric).** Fix
 `r ≥ 2`, `LayoutBound (r + 1) A`, a dense rectangle-free Boolean family `S_n`, and `β(n) = o(n)`.
@@ -312,10 +306,9 @@ theorem eventually_lt_mul_card_of_ltf {r : ℕ} (hr : 2 ≤ r) {A : ℝ} (hA : 0
             (r - 1) * (c.program.innerGates.filter fun g => ¬special g).card := by
   filter_upwards [eventually_lt_mul_card_of_ledger_readout.{0, v, 0} hr hA hlayout hSK hβ hε]
     with n hn σ I Acc c special _ W hfan hltf hk hS
-  have hagg : ∀ g, special g → Aggregates (I (c.program.lines g).op) (TruncAdd W) := fun g hg => by
-    obtain ⟨w, P, hw, hI⟩ := hltf g hg
-    rw [hI]
-    exact aggregates_weightedSum w hw P
+  have hagg : ∀ g, special g → Aggregates (I (c.program.lines g).op) (TruncAdd W) := fun g hg =>
+    let ⟨w, P, hw, hI⟩ := hltf g hg
+    hI ▸ aggregates_weightedSum w hw P
   refine hn σ I Acc c special _ hfan (Ledger.ofAggregates hagg) ?_ hS
   rw [Nat.card_eq_fintype_card (α := Bool), Fintype.card_bool, Nat.cast_ofNat,
     Nat.card_fun, TruncAdd.card, Nat.cast_pow, Real.log_pow, Nat.cast_add, Nat.cast_one]

@@ -137,10 +137,7 @@ variable {Q s}
 private theorem map_fst_zip_tail : ∀ l : List α, (l.zip l.tail).map Prod.fst = l.dropLast
   | [] => rfl
   | [_] => rfl
-  | a :: b :: t => by
-    have ih := map_fst_zip_tail (b :: t)
-    rw [List.tail_cons] at ih
-    rw [List.tail_cons, List.zip_cons_cons, List.map_cons, ih, List.dropLast_cons_cons]
+  | a :: b :: t => by simpa using congrArg (a :: ·) (map_fst_zip_tail (b :: t))
 
 /-- The distinct queries of the nodes `pre` are as many as `hasNewQuery` counts. -/
 private theorem length_eraseDupsBy_flatMap (pre : List α) :
@@ -168,17 +165,15 @@ private theorem card_lt_of_hasNewQuery {l : List α} {j j' : ℕ} {z : α} (hz :
     ((l.take (j + 1)).flatMap Q).toFinset.card < ((l.take (j' + 1)).flatMap Q).toFinset.card := by
   rw [hasNewQuery, Bool.and_eq_true, List.any_eq_true] at hnew
   obtain ⟨-, u, hu, hnotin⟩ := hnew
-  have hnotin : u ∉ (l.take (j + 1)).flatMap Q := of_decide_eq_true hnotin
   refine Finset.card_lt_card (Finset.ssubset_iff_of_subset ?_ |>.2 ⟨u, ?_, ?_⟩)
   · intro x hx
     simp only [List.mem_toFinset, List.mem_flatMap] at hx ⊢
     obtain ⟨y, hy, hxy⟩ := hx
     exact ⟨y, (List.take_prefix_take_left (by omega)).subset hy, hxy⟩
   · simp only [List.mem_toFinset, List.mem_flatMap]
-    refine ⟨z, List.mem_of_getElem? (i := j + 1) ?_, hu⟩
-    rw [List.getElem?_take]
-    simpa [show j + 1 < j' + 1 by omega] using hz
-  · simpa using hnotin
+    exact ⟨z, List.mem_of_getElem? (i := j + 1)
+      (by simpa [List.getElem?_take, Nat.succ_lt_succ hjj'] using hz), hu⟩
+  · simpa using of_decide_eq_true hnotin
 
 /-- **`SEARCH-RIGHT` keeps at most `s + 2` nodes**: the last one, and at most `s + 1` others,
 since each raises the number of distinct queries seen, which is at most `s` when it is kept. -/
@@ -558,11 +553,10 @@ theorem SAT_mem_P {β : Type} {encB : β ↪ List Bool} {S : Set β} (hS : S ∈
   · rw [hL ψ]
     simp only [key, List.mem_map, List.mem_range, forall_exists_index, and_imp,
       forall_apply_eq_imp_iff₂, encB.injective.mem_set_image]
-  · have hw' := SizedListEncoding.length_elem_le (encA := encBits) (encL := encList encBits) _ w hw
-    refine hw'.trans ((hp (φ, a)).trans (Polynomial.eval_mono _ ?_))
+  · refine (SizedListEncoding.length_elem_le (encA := encBits) (encL := encList encBits) _ w
+      hw).trans ((hp (φ, a)).trans (Polynomial.eval_mono _ ?_))
     have hnode := Fortune.length_encNode_le ha hlen
-    rw [length_encPair]
-    dsimp only
+    simp only [length_encPair]
     omega
   · rw [hQ]
     exact hCD _ T fun w hw => by simpa using hT w hw

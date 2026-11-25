@@ -92,16 +92,12 @@ theorem sum_norm_sq_le_dual_shearTranslation (Φ : ZMod n × ZMod n → ℂ) (h0
   simp only [Fin.sum_univ_four, shearTranslationMove, Matrix.cons_val_zero, Matrix.cons_val_one,
     Matrix.cons_val_two, Matrix.cons_val_three, Matrix.head_cons, Matrix.tail_cons,
     Equiv.coe_addRight] at hP
-  have e₁ := ZMod.sum_norm_sq_dftProd_shearFst_sub f f 1
-  have e₂ := ZMod.sum_norm_sq_dftProd_shearSnd_sub f f 1
   have e₃ := ZMod.sum_norm_sq_dftProd_translate f (1, 0)
   have e₄ := ZMod.sum_norm_sq_dftProd_translate f (0, 1)
   simp only [mul_one, mul_zero, add_zero, zero_add] at e₃ e₄
-  have hM := ZMod.sum_norm_sq_dftProd f
-  have hn : (0 : ℝ) ≤ (n : ℝ) ^ 2 := by positivity
-  have := mul_le_mul_of_nonneg_left hP hn
-  rw [hM, e₁, e₂, e₃, e₄]
-  linarith
+  rw [ZMod.sum_norm_sq_dftProd, ZMod.sum_norm_sq_dftProd_shearFst_sub f f 1,
+    ZMod.sum_norm_sq_dftProd_shearSnd_sub f f 1, e₃, e₄]
+  linarith [mul_le_mul_of_nonneg_left hP (sq_nonneg (n : ℝ))]
 
 omit [NeZero n] in
 /-- Only the zero vector is sheared to zero. -/
@@ -192,9 +188,7 @@ theorem sum_norm_sq_sub_fiber_le_twistedShearTranslation (π₁ π₂ : Equiv.Pe
     refine sum_le_sum fun ξ _ ↦ ?_
     rw [← Complex.ofReal_sub, Complex.norm_real, Real.norm_eq_abs, sq_abs]
     by_cases hξ : ξ = 0
-    · subst hξ
-      simp only [hψ, (hs 0).2 rfl, ite_true, sub_self]
-      rw [sq, mul_zero]
+    · simp only [hξ, hψ, (hs 0).2 rfl, ite_true, sub_self, sq, mul_zero]
       positivity
     · simp only [hψ, mt (hs ξ).1 hξ, hξ, ite_false]
       rw [← Equiv.sum_comp π fun x ↦ ‖F x (s ξ)‖ ^ 2]

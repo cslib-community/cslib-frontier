@@ -169,19 +169,15 @@ private theorem fst_flipFirst (a : Fin k → α × Bool) (i : Fin k) :
 
 private theorem flipFirst_flipFirst (a : Fin k → α × Bool) : flipFirst g (flipFirst g a) = a := by
   funext i
-  rw [flipFirst_apply (flipFirst g a) i]
-  simp only [fst_flipFirst]
-  split_ifs with h
-  · rw [flipFirst_apply, ite_eq_left h, Bool.not_not]
-  · rw [flipFirst_apply, ite_eq_right h]
+  simp only [flipFirst_apply (flipFirst g a), fst_flipFirst]
+  rw [flipFirst_apply]
+  split_ifs <;> simp
 
 /-- At most one coordinate is the first to satisfy `p`. -/
 private theorem eq_of_forall_lt_not {p : Fin k → Prop} {i j : Fin k} (hi : p i)
     (hmi : ∀ t < i, ¬p t) (hj : p j) (hmj : ∀ t < j, ¬p t) : i = j := by
-  obtain h | h | h := lt_trichotomy i j
-  · exact absurd hi (hmj i h)
-  · exact h
-  · exact absurd hj (hmi j h)
+  obtain h | rfl | h := lt_trichotomy i j
+  exacts [absurd hi (hmj i h), rfl, absurd hj (hmi j h)]
 
 omit [DecidablePred g] in
 private theorem firstFlagUnset_iff {a : Fin k → α × Bool} {i : Fin k} (hi : g (a i).1)
@@ -215,13 +211,11 @@ private theorem two_mul_card_filter_firstFlagUnset (S : Finset α) (k : ℕ) :
   set P := Fintype.piFinset fun _ : Fin k => S ×ˢ (univ : Finset Bool)
   have hP (a : Fin k → α × Bool) : flipFirst g a ∈ P ↔ a ∈ P := by
     simp only [P, Fintype.mem_piFinset, mem_product, mem_univ, and_true, fst_flipFirst]
-  have hflip : #{a ∈ P | FirstFlagUnset g (flipFirst g a)} = #{a ∈ P | FirstFlagUnset g a} := by
-    refine card_nbij' (flipFirst g) (flipFirst g) (fun a ha => ?_) (fun a ha => ?_)
+  have hflip : #{a ∈ P | FirstFlagUnset g (flipFirst g a)} = #{a ∈ P | FirstFlagUnset g a} :=
+    card_nbij' (flipFirst g) (flipFirst g)
+      (fun a ha => by simpa only [coe_filter, Set.mem_ofPred_eq, hP] using ha)
+      (fun a ha => by simpa only [coe_filter, Set.mem_ofPred_eq, hP, flipFirst_flipFirst] using ha)
       (fun a _ => flipFirst_flipFirst a) (fun a _ => flipFirst_flipFirst a)
-    · simp only [coe_filter, Set.mem_ofPred_eq] at ha ⊢
-      exact ⟨(hP a).2 ha.1, ha.2⟩
-    · simp only [coe_filter, Set.mem_ofPred_eq] at ha ⊢
-      exact ⟨(hP a).2 ha.1, by rw [flipFirst_flipFirst]; exact ha.2⟩
   have hsum : ∑ a ∈ P, (((if FirstFlagUnset g a then 1 else 0) +
       if FirstFlagUnset g (flipFirst g a) then 1 else 0) : ℕ) =
         ∑ a ∈ P, (1 + if ∀ i, ¬g (a i).1 then 1 else 0) :=
@@ -363,15 +357,10 @@ private theorem comp_block_mul_mem_genSpan {a : Fin k → Finset (Fin (2 * m + 1
     from h hf
   refine Submodule.span_le.2 ?_
   rintro _ ⟨c, ⟨hc, hcw⟩, rfl⟩
-  refine Submodule.subset_span ⟨Function.update a i c, ⟨fun j => ?_, ?_⟩, ?_⟩
-  · by_cases hj : j = i
-    · subst hj
-      simpa using hc
-    · simpa [Function.update_of_ne hj] using ha j
-  · rw [genWeight_update]
-    omega
-  · funext x
-    simp [L, gen_update]
+  refine Submodule.subset_span ⟨Function.update a i c, ⟨fun j => ?_, ?_⟩,
+    funext fun x => by simp [L, gen_update]⟩
+  · by_cases hj : j = i <;> simp [hj, ha, hc]
+  · rw [genWeight_update]; omega
 
 /-- Multiplying by a variable raises the weight by at most one. -/
 private theorem bitVal_mul_mem_genSpan (v : Fin (k * (2 * m + 1))) {r : ℕ}

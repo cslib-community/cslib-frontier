@@ -114,25 +114,20 @@ private theorem exists_coeff_decomp (p : Program (affineSignature K) n g)
     ∃ (β : Wire n g → K) (S : Finset (Fin n)), S.card ≤ 2 ^ ψ w ∧
       ∀ j ∉ S, p.coeff w j = ∑ u ∈ T, β u * p.coeff u j := by
   classical
-  -- a wire in `T` is its own decomposition
-  have hT : ∀ w ∈ T, ∃ (β : Wire n g → K) (S : Finset (Fin n)), S.card = 0 ∧
-      ∀ j ∉ S, p.coeff w j = ∑ u ∈ T, β u * p.coeff u j := fun w hw =>
-    ⟨Pi.single w 1, ∅, rfl, fun j _ => by
-      rw [Finset.sum_eq_single_of_mem w hw (fun u _ hu => by simp [hu])]
-      simp⟩
   induction w using p.wire_induction with
   | input i =>
     refine ⟨0, {i}, (Finset.card_singleton i).trans_le Nat.one_le_two_pow, fun j hj => ?_⟩
-    have hij : i ≠ j := fun h => hj (Finset.mem_singleton.2 h.symm)
-    simp [coeff, hij]
+    simp [coeff, show i ≠ j from fun h => hj (Finset.mem_singleton.2 h.symm)]
   | gate k ih =>
     -- every argument decomposes with at most `2 ^ ψ (.gate k) / 2` exceptional inputs
     have harg : ∀ a, ∃ (β : Wire n g → K) (S : Finset (Fin n)), S.card ≤ 2 ^ ψ (.gate k) / 2 ∧
         ∀ j ∉ S, p.coeff ((p.lines k).wires a) j = ∑ u ∈ T, β u * p.coeff u j := by
       intro a
       by_cases ha : (p.lines k).wires a ∈ T
-      · obtain ⟨β, S, hS, h⟩ := hT _ ha
-        exact ⟨β, S, hS ▸ Nat.zero_le _, h⟩
+      · -- a wire in `T` is its own decomposition
+        refine ⟨Pi.single ((p.lines k).wires a) 1, ∅, Nat.zero_le _, fun j _ => ?_⟩
+        rw [Finset.sum_eq_single_of_mem _ ha (fun u _ hu => by simp [hu])]
+        simp
       · obtain ⟨β, S, hS, h⟩ := ih a
         refine ⟨β, S, hS.trans ?_, h⟩
         obtain ⟨d, hd⟩ := Nat.exists_eq_add_of_lt (hψ k a ha)
@@ -223,10 +218,8 @@ theorem Computes.rigidity_le {c : Circuit (affineSignature K) n m}
     obtain rfl : t = 0 := by omega
     refine (A.rigidity_antitone (Nat.zero_le _)).trans
       (rigidity_le_of_cut hc hfan ∅ c.program.wireDepths
-        (fun k a _ => c.program.wireDepths_lines_lt k a) fun o => ?_)
-    have := hout o
-    simp only [pow_zero, Nat.sub_self] at this ⊢
-    omega
+        (fun k a _ => c.program.wireDepths_lines_lt k a)
+        fun o => by have := hout o; omega)
   -- the wires read by gates of depth below `2 ^ D`, as (tail, head) pairs
   let E : Finset (Wire n c.size × Wire n c.size) :=
     (Finset.univ.biUnion fun k : Fin c.size =>

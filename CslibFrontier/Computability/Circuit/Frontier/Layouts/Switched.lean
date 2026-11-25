@@ -105,9 +105,7 @@ theorem exists_parameters {ξ : ℝ} (hξ : 0 < ξ) :
   set ρ := rStar - min η (1 / 2) / 2 with hρdef
   have hmin : 0 < min η (1 / 2) := lt_min hη (by norm_num)
   have hρ_lt : ρ < rStar := by linarith
-  have hρ_pos : 0 < ρ := by
-    have : rStar = 2 * √2 / 3 := rfl
-    linarith [min_le_right η (1 / 2)]
+  have hρ_pos : 0 < ρ := by linarith [show rStar = 2 * √2 / 3 from rfl, min_le_right η (1 / 2)]
   have hkappa : kappa ρ ≤ switchedCoefficient + ξ / 4 := by
     have hdist : dist ρ rStar < η := by
       rw [Real.dist_eq, hρdef, abs_of_neg (by linarith)]
@@ -141,7 +139,7 @@ theorem exists_parameters {ξ : ℝ} (hξ : 0 < ξ) :
     unfold switchedCoefficient
     linarith
   refine ⟨q, R, ρ, T, ε, M, hq0, hq1, hρ_pos, hρ_lt.le, hdecay, hTpos, hεpos, hMpos, ?_⟩
-  rw [switchedBound]
+  rw [switchedBound, ← max_add_add_right]
   have hε_hi : ε ≤ ξ / 6 := min_le_left _ _
   have hε_num : ε ≤ 1 / 100 := min_le_right _ _
   have hsqrtpi : 2 ≤ √(2 * π) :=
@@ -150,11 +148,9 @@ theorem exists_parameters {ξ : ℝ} (hξ : 0 < ξ) :
     refine (div_le_self (by positivity) (by linarith)).trans ?_
     rw [show T = 10 from rfl, div_le_iff₀ hMposR]
     linarith [(div_le_iff₀ hξ).mp hMR]
-  have htail : 1 / T ^ 2 + ε + ε ≤ switchedCoefficient + ξ := by
-    norm_num [T]
-    linarith
-  rw [← max_add_add_right]
-  refine max_le (by linarith) (by linarith)
+  refine max_le ?_ (by linarith)
+  norm_num [T]
+  linarith
 
 /-! ### The layout bounds -/
 
@@ -194,10 +190,8 @@ theorem exists_width_le_switchedCoefficient {ξ : ℝ} (hξ : 0 < ξ) :
   obtain ⟨y, hy_inj, hin, hout, hlo, hhi⟩ :=
     exists_good_labeling H hHdeg hq0 hq1 R hρ0 hρs hHadj hT hε hM hlarge
   set B : ℝ := switchedBound ρ T ε M * n
-  have hBnn : 0 ≤ B := by
-    have hsb : 0 ≤ switchedBound ρ T ε M :=
-      le_trans (by positivity : (0 : ℝ) ≤ 1 / T ^ 2 + ε) (le_max_left _ _)
-    exact mul_nonneg hsb (Nat.cast_nonneg n)
+  have hBnn : 0 ≤ B := mul_nonneg
+    ((by positivity : (0 : ℝ) ≤ 1 / T ^ 2 + ε).trans (le_max_left _ _)) (Nat.cast_nonneg n)
   set w : ℕ := ⌊B⌋₊
   have hwB : (w : ℝ) ≤ B := Nat.floor_le hBnn
   have h_le_w : ∀ k : ℕ, (k : ℝ) < B → k ≤ w := fun k hk => Nat.le_floor hk.le
