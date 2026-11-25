@@ -106,7 +106,7 @@ private theorem finalProdBranch_spec {w cur : ℕ} {f : FactorTable ℕ ℕ} {s 
     have h0 := hent.2.get 0 (by rw [Array.length_toList]; exact hsz_pos)
     simp only [Nat.add_zero, Array.getElem_toList] at h0
     refine ⟨validHistory_read (by omega), rfl, ?_, (memoryCost_read _ _).le⟩
-    show s.mem (s.mem (cur + 2)) = _
+    change s.mem (s.mem (cur + 2)) = _
     simp only [Array.getD, hsz_pos, ↓reduceDIte]
     exact h0
 

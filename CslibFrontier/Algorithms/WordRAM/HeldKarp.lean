@@ -753,7 +753,8 @@ private theorem exec_targetStep {w : ℕ} (I : Instance) (hw : I.FitsWidth w)
     dsimp only [dp0, targetStore]
     wram_exec [hs_u1.maskBase_eq, ht_u1, hfix_u1.one]
     exact ⟨by wram_simp [hmu1, hs_u1.maskBase_eq, ht_u1], by struct_frame hfix_u1,
-      by wram_simp [hs_u1.mask_eq], by wram_simp [hs_u1.maskBase_eq], by wram_simp [ht_u1, hfix_u1.one]⟩
+      by wram_simp [hs_u1.mask_eq], by wram_simp [hs_u1.maskBase_eq],
+      by wram_simp [ht_u1, hfix_u1.one]⟩
   obtain ⟨u2, he_u2, hmu2, hfix_u2, hm_u2, hmb_u2, ht_u2⟩ := hstore
   refine ⟨u2, (he_u0.seq (he_u1.seq he_u2)).mono (by omega),
     hfix_u2, ?_, ?_, hm_u2, hmb_u2, ?_, ht_u2⟩

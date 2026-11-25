@@ -247,8 +247,9 @@ theorem partitionLive_spec {w : ℕ} {args : PartitionArgs}
       obtain ⟨hd, hsl, hel, hsc, hent⟩ := hf
       let st₀ : PartitionState :=
         ⟨cur, bBase + 4 * bAcc.length, bAcc.length, rBuf + 4 + 4 * rAcc.length, rAcc.length⟩
-      have hhit : (Memory.spec 0).clientResult t (memScan ⟨args.x, t.mem cur, t.mem (cur + 1)⟩) = 1 ↔
-          args.x ∈ f.scope := by
+      have hhit :
+          (Memory.spec 0).clientResult t (memScan ⟨args.x, t.mem cur, t.mem (cur + 1)⟩) = 1 ↔
+            args.x ∈ f.scope := by
         rw [memScan_result hsc.2 hsl.symm]; split_ifs with h <;> simp [h]
       obtain ⟨hstep_st, hstep_res, hstep_cost⟩ := partitionStep_run args.x st₀ t
       dsimp only [st₀] at hstep_st hstep_res hstep_cost
@@ -405,7 +406,8 @@ theorem partitionLive_realizes :
         rw [hst]; exact (writeDesc_frame _ t).1
       have hmem' : ∀ a < s.frontier,
           ((Memory.spec 0).clientState t (partitionStep (d.x, st))).mem a = t.mem a :=
-        fun a ha => by rw [hst]; exact (writeDesc_frame _ t).2 a (Or.inl (by dsimp only; split_ifs <;> omega))
+        fun a ha => by
+          rw [hst]; exact (writeDesc_frame _ t).2 a (Or.inl (by dsimp only; split_ifs <;> omega))
       rw [hres]
       refine ⟨hfr'.trans hfr, ⟨le_rfl, hfr' ▸ hpres.2.1, fun a ha =>
         (hmem' a ha).trans (hpres.2.2 a ha)⟩, ?_⟩

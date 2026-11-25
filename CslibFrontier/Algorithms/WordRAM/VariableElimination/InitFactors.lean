@@ -103,7 +103,7 @@ private theorem initFactorStep_spec {w curRaw curDesc : ℕ} {f : FactorTable �
     refine validHistory_read_bind (lt_of_lt_of_le h2 hpres.2.1) ?_
     rw [hr₀, hr₁]
     exact validHistory_bind_step hv (validHistory_pure _ _ _)
-  · show (curRaw + 2 + t.mem curRaw + t.mem (curRaw + 1), curDesc + 4) = _
+  · change (curRaw + 2 + t.mem curRaw + t.mem (curRaw + 1), curDesc + 4) = _
     rw [hr₀, hr₁]
 
 private theorem initFactors_loop {w : ℕ} {s₀ : Memory.State} :

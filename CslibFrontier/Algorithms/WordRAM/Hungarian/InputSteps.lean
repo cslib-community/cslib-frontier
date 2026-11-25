@@ -219,7 +219,8 @@ theorem exec_fillCCode {w M : ℕ} (inst : Instance) (hw : Fits w inst.wordBound
       by_cases hneg : inst.cost (u, v) < 0 <;> simp only [hneg, ↓reduceIte] at hmod
       all_goals
         wram_exec [hby.htwo, hby.hzero, hby.hone, hby.hrM, hby.hbaseC, hload, hdiv, hmod]
-        exact ⟨by wram_simp [hCuv]; congr 1; omega, fun i hi => by wram_simp [hr i hi], by wram_simp⟩
+        exact ⟨by wram_simp [hCuv]; congr 1; omega, fun i hi => by wram_simp [hr i hi],
+          by wram_simp⟩
     obtain ⟨z, he, hmz, hrz, hiz⟩ := hstep
     obtain ⟨hm', hf'⟩ := prefix_write_step hm hf hmz
     exact ⟨z, he, ⟨hrz, hm', hf'⟩, hiz⟩
