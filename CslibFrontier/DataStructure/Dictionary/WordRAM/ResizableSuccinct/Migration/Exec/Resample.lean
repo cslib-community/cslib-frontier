@@ -98,10 +98,26 @@ theorem zeroResampleRegsCode_exec {w L_peak w₀ b b' hashBase : ℕ}
     (s1.seq_eq (s2.seq_eq (s3.seq_eq (s4.seq_eq s5)))).mono (by omega) (fun _ h => h),
     ⟨⟨fun j => ?_, fun a => ?_⟩, hy_fr ▸ hx.frontier_fits, fun a ha => ?_⟩,
     rfl, hy_fr, fun j hj => ?_⟩
-  · simp only [z, z₄, z₃, z₂, z₁, RData.set, RData.toData, Function.update_apply]
-    split_ifs with h1 h2 h3 h4 h5
-    any_goals exact hfz
-    rw [hframe_reg j (by simp [h1, h2, h3, h4, h5])]
+  · dsimp only [z, z₄, z₃, z₂, z₁, RData.set, RData.toData]
+    by_cases h1 : j = mRes
+    · subst h1; rw [Function.update_self]; exact hfz
+    rw [Function.update_of_ne h1]
+    by_cases h2 : j = mOne
+    · subst h2; rw [Function.update_self]; exact hfz
+    rw [Function.update_of_ne h2]
+    by_cases h3 : j = mK
+    · subst h3; rw [Function.update_self]; exact hfz
+    rw [Function.update_of_ne h3]
+    by_cases h4 : j = mIdx
+    · subst h4; rw [Function.update_self]; exact hfz
+    rw [Function.update_of_ne h4]
+    by_cases h5 : j = mCur
+    · subst h5; rw [Function.update_self]; exact hfz
+    rw [Function.update_of_ne h5]
+    have hj_not : j ∉ ([mCur, mIdx, mK, mOne, mRes] : List (Fin rResize)) := by
+      simp only [List.mem_cons, List.not_mem_nil, or_false, not_or]
+      exact ⟨h5, h4, h3, h2, h1⟩
+    rw [hframe_reg j hj_not]
     exact hx.regs_fits j
   · dsimp only [z, z₄, z₃, z₂, z₁, RData.set, RData.toData]
     by_cases ha_out : a < hashBase ∨ hashBase + ReducedKWise.seedWords w₀ b b' 3 ≤ a
@@ -306,11 +322,25 @@ theorem exec_setup_resample_finish
     rw [heq_seed] at hseed₁
     apply RData.ext
     · funext j
-      simp only [RData.set, Function.update_apply]
-      split_ifs with h1 h2 h3 h4 h5
-      any_goals rfl
+      dsimp only [RData.set]
+      by_cases h1 : j = mRes
+      · subst h1; rw [Function.update_self, Function.update_self]
+      rw [Function.update_of_ne h1, Function.update_of_ne h1]
+      by_cases h2 : j = mOne
+      · subst h2; rw [Function.update_self, Function.update_self]
+      rw [Function.update_of_ne h2, Function.update_of_ne h2]
+      by_cases h3 : j = mK
+      · subst h3; rw [Function.update_self, Function.update_self]
+      rw [Function.update_of_ne h3, Function.update_of_ne h3]
+      by_cases h4 : j = mIdx
+      · subst h4; rw [Function.update_self, Function.update_self]
+      rw [Function.update_of_ne h4, Function.update_of_ne h4]
+      by_cases h5 : j = mCur
+      · subst h5; rw [Function.update_self, Function.update_self]
+      rw [Function.update_of_ne h5, Function.update_of_ne h5]
       have hj : j ∉ ([mCur, mIdx, mK, mOne, mRes] : List (Fin rResize)) := by
-        simp [h1, h2, h3, h4, h5]
+        simp only [List.mem_cons, List.not_mem_nil, or_false, not_or]
+        exact ⟨h5, h4, h3, h2, h1⟩
       rw [hreg₁ j hj, hreg₂ j hj]
     · funext a
       dsimp only [RData.set]
