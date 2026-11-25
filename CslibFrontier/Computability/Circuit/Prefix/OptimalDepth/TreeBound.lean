@@ -38,18 +38,11 @@ namespace Cslib.Circuits.Prefix
 private theorem exists_eq_one_of_sum_eq_one {r : ℕ} {f : Fin r → ℕ}
     (h : ∑ i : Fin r, f i = 1) :
     ∃ i₀ : Fin r, f i₀ = 1 ∧ ∀ j : Fin r, j ≠ i₀ → f j = 0 := by
-  have hex : ∃ i₀ : Fin r, f i₀ ≠ 0 := by
-    by_contra hall
-    push Not at hall
-    simp only [hall, Finset.sum_const_zero] at h
-    omega
-  obtain ⟨i₀, hi₀_ne⟩ := hex
+  obtain ⟨i₀, -, hi₀_ne⟩ := Finset.exists_ne_zero_of_sum_ne_zero (by omega : ∑ i : Fin r, f i ≠ 0)
   obtain ⟨r', rfl⟩ : ∃ r', r = r' + 1 := ⟨r - 1, by have := i₀.isLt; omega⟩
   rw [Fin.sum_univ_succAbove f i₀] at h
-  have hi₀_eq : f i₀ = 1 := by omega
-  have hrest : ∑ j : Fin r', f (i₀.succAbove j) = 0 := by omega
-  rw [Finset.sum_eq_zero_iff] at hrest
-  refine ⟨i₀, hi₀_eq, fun j hj => ?_⟩
+  have hrest := Finset.sum_eq_zero_iff.mp (by omega : ∑ j : Fin r', f (i₀.succAbove j) = 0)
+  refine ⟨i₀, by omega, fun j hj => ?_⟩
   obtain ⟨j', rfl⟩ := Fin.exists_succAbove_eq hj
   exact hrest j' (Finset.mem_univ j')
 
@@ -89,14 +82,13 @@ private theorem child_edge_left {a m b st s' : ℕ} {hmul : Bool}
   by_cases hm : hmul = true
   · simp only [hm, ↓reduceIte] at hed ⊢
     have hne_m : s' ≠ m := fun heq => hnhit ⟨hm, heq⟩
-    rw [Finset.mem_union] at hed
-    have hmem_L : (st, s') ∈ IL.intervals := by
-      rcases hed.2 with hL | hR
-      · exact hL
-      · have := IR.mem_intervals_bounds hR; omega
+    have hmem_L : (st, s') ∈ IL.intervals :=
+      (Finset.mem_union.mp hed.2).resolve_right fun hR => by
+        have := IR.mem_intervals_bounds hR
+        omega
     have hbds := IL.mem_intervals_bounds hmem_L
-    refine ⟨by omega, by omega, hed.1, Finset.mem_erase.mpr ⟨?_, hmem_L⟩⟩
-    intro heq; rw [Prod.mk.injEq] at heq; exact hne_m heq.2
+    exact ⟨by omega, by omega, hed.1,
+      Finset.mem_erase.mpr ⟨fun heq => hne_m (Prod.mk.inj heq).2, hmem_L⟩⟩
   · simp only [hm, Bool.false_eq_true, ↓reduceIte] at hed ⊢
     exact ⟨by omega, by omega, hed⟩
 

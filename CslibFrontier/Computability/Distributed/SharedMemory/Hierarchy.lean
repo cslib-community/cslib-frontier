@@ -184,33 +184,19 @@ private theorem false_of_same_object_critical [Fintype P]
               (π.next a (cstar.proc a).state) (π.decideVal a (cstar.proc a).state) cstar) := by
       have hb' : (π.step a cstar).Active b := (π.active_step_of_ne hba).mpr hb
       rw [step_eq_applyAt π hb', π.step_proc_of_ne cstar hba, ← step_eq_applyAt π ha]
-    have hgen : ∀ (i₁ i₂ : I) (_ : i₁ = i₂)
-        (op_p : Op i₁) (next_p : Resp i₁ → S) (dec_p : Resp i₁ → Option Bool)
-        (op_q : Op i₂) (next_q : Resp i₂ → S) (dec_q : Resp i₂ → Option Bool),
-        Acc π.StepRel (applyAt objs p i₁ op_p next_p dec_p cstar) →
-        Acc π.StepRel (applyAt objs q i₂ op_q next_q dec_q cstar) →
-        π.IsUnivalent (applyAt objs p i₁ op_p next_p dec_p cstar) false →
-        π.IsUnivalent (applyAt objs q i₂ op_q next_q dec_q cstar) true →
-        π.lts.CanReach (applyAt objs p i₁ op_p next_p dec_p cstar)
-          (applyAt objs q i₂ op_q next_q dec_q (applyAt objs p i₁ op_p next_p dec_p cstar)) →
-        π.lts.CanReach (applyAt objs q i₂ op_q next_q dec_q cstar)
-          (applyAt objs p i₁ op_p next_p dec_p (applyAt objs q i₂ op_q next_q dec_q cstar)) →
-        False := by
-      rintro i₁ i₂ rfl op_p next_p dec_p op_q next_q dec_q hap haq huf hut hr_pq hr_qp
-      exact hsame cstar p q hpq i₁ op_p next_p dec_p op_q next_q dec_q hap haq huf hut hr_pq hr_qp
-    refine hgen (π.target p (cstar.proc p).state) (π.target q (cstar.proc q).state) htarget
-      (π.op p (cstar.proc p).state) (π.next p (cstar.proc p).state)
-      (π.decideVal p (cstar.proc p).state)
-      (π.op q (cstar.proc q).state) (π.next q (cstar.proc q).state)
-      (π.decideVal q (cstar.proc q).state) ?_ ?_ ?_ ?_ ?_ ?_
-    · rwa [← step_eq_applyAt π hp_act]
-    · rwa [← step_eq_applyAt π hq_act]
-    · rwa [← step_eq_applyAt π hp_act]
-    · rwa [← step_eq_applyAt π hq_act]
-    · rw [← htwo hp_act hq_act hqp, ← step_eq_applyAt π hp_act]
-      exact π.canReach_step q (π.step p cstar)
-    · rw [← htwo hq_act hp_act hpq, ← step_eq_applyAt π hq_act]
-      exact π.canReach_step p (π.step q cstar)
+    have hr_pq := π.canReach_step q (π.step p cstar)
+    have hr_qp := π.canReach_step p (π.step q cstar)
+    rw [htwo hp_act hq_act hqp, step_eq_applyAt π hp_act] at hr_pq
+    rw [htwo hq_act hp_act hpq, step_eq_applyAt π hq_act] at hr_qp
+    rw [step_eq_applyAt π hp_act] at ha_p hup
+    rw [step_eq_applyAt π hq_act] at ha_q huq
+    generalize π.target p (cstar.proc p).state = i₁, π.op p (cstar.proc p).state = op_p,
+      π.next p (cstar.proc p).state = next_p, π.decideVal p (cstar.proc p).state = dec_p,
+      π.target q (cstar.proc q).state = i₂, π.op q (cstar.proc q).state = op_q,
+      π.next q (cstar.proc q).state = next_q, π.decideVal q (cstar.proc q).state = dec_q
+      at htarget ha_p ha_q hup huq hr_pq hr_qp
+    subst htarget
+    exact hsame cstar p q hpq i₁ op_p next_p dec_p op_q next_q dec_q ha_p ha_q hup huq hr_pq hr_qp
   · have hcomm := π.step_comm_of_ne_target hp_act hq_act hpq htarget
     exact Protocol.not_univalent_of_indistinguishable p ha_p ha_q hup huq
       (π.canReach_step q (π.step p cstar)) (π.canReach_step p (π.step q cstar))
@@ -936,24 +922,19 @@ theorem solvesWaitFreeConsensus_cas {P V : Type*} [Finite P] [DecidableEq P] [De
           exact hpv.symm
         · simp only [Function.update_of_ne hpq] at hpv
           exact hw_dec p v hpv
-  refine ⟨hwf, ?_, ?_⟩
-  · rintro inp c hr v₁ v₂ ⟨p₁, hp₁⟩ ⟨p₂, hp₂⟩
-    obtain ⟨_, hnone, hsome⟩ := hinv inp c hr
-    cases hm : c.mem () with
-    | none =>
-      rw [hnone hm p₁] at hp₁
-      exact nomatch hp₁
-    | some w =>
-      obtain ⟨_, hdec⟩ := hsome w hm
-      rw [hdec p₁ v₁ hp₁, hdec p₂ v₂ hp₂]
-  · rintro inp c v hr ⟨p, hp⟩
+  have hdec_of {inp c p v} (hr : π.Reachable inp c) (hp : (c.proc p).decided = some v) :
+      c.mem () = some v ∧ ∃ q, inp q = v := by
     obtain ⟨_, hnone, hsome⟩ := hinv inp c hr
     cases hm : c.mem () with
     | none =>
       rw [hnone hm p] at hp
       exact nomatch hp
     | some w =>
-      obtain ⟨⟨q, hq⟩, hdec⟩ := hsome w hm
-      exact ⟨q, hq.trans (hdec p v hp).symm⟩
+      obtain ⟨hq, hdec⟩ := hsome w hm
+      obtain rfl := hdec p v hp
+      exact ⟨rfl, hq⟩
+  refine ⟨hwf, fun inp c hr v₁ v₂ ⟨p₁, hp₁⟩ ⟨p₂, hp₂⟩ => ?_,
+    fun inp c v hr ⟨p, hp⟩ => (hdec_of hr hp).2⟩
+  exact Option.some.inj ((hdec_of hr hp₁).1.symm.trans (hdec_of hr hp₂).1)
 
 end Cslib.Distributed.SharedMemory

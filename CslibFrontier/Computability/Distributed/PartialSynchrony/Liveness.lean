@@ -236,11 +236,9 @@ theorem byzQuorum_terminates_in_honest_view {F : Finset P}
   have hdel0 : ∀ j ∉ F, ∀ i ∉ F, deliver (6 * vStar) j i = true := hdel 0 (by omega)
   let st := (byzQuorumProtocol P V procs leader t).byzantineState F deliver adv x
   -- Locked state of every process is unchanged from `6 * vStar` to `6 * vStar + 2`.
-  have hlk_2_eq_0 : ∀ i, (st (6 * vStar + 2) i).locked = (st (6 * vStar) i).locked := by
-    intro i
-    dsimp only [st]
-    rw [byzState_locked_unchanged_of_ne_four leader F deliver adv x (6 * vStar + 1) (by omega),
-      byzState_locked_unchanged_of_ne_four leader F deliver adv x (6 * vStar) (by omega)]
+  have hlk_2_eq_0 (i : P) : (st (6 * vStar + 2) i).locked = (st (6 * vStar) i).locked :=
+    (byzState_locked_unchanged_of_ne_four leader F deliver adv x (6 * vStar + 1) (by omega) i).trans
+      (byzState_locked_unchanged_of_ne_four leader F deliver adv x (6 * vStar) (by omega) i)
   -- Step 1 (end of Subround 1): honest leader `leader vStar` prepares `some prop` accepted by
   -- every correct voter `i ∉ F`.
   have hprop_ok : ∃ prop : Proposal V,
@@ -363,17 +361,11 @@ theorem byzQuorum_terminates_in_honest_view {F : Finset P}
         · exact hfn _ (List.mem_dedup.2 List.mem_cons_self) (hcnt _ fun j hj => Or.inl (hall j hj))
       obtain ⟨wStar, hwStar⟩ := Option.ne_none_iff_exists'.1 hfind_ne
       have hwStar_cnt : procs.dedup.length - t ≤ properSupportCount snapsL wStar := by
-        have hp := (List.find?_eq_some_iff_append.1 hwStar).1
-        exact of_decide_eq_true hp
+        simpa using List.find?_some hwStar
       refine ⟨⟨wStar, none⟩, ?_, fun i hi => ?_⟩
-      · dsimp only [st]
+      · dsimp only [st, lCerts, allCandsL, valCands, snapsL, m1] at hpm hwStar ⊢
         rw [byzQuorum_state_succ]
-        simp only [byzUpdate, hm1_mod, hm1_div]
-        dsimp only [lCerts, allCandsL, m1] at hpm
-        rw [hpm]
-        dsimp only [valCands, snapsL, m1, st] at hwStar
-        rw [hwStar]
-        rfl
+        simp only [byzUpdate, hm1_mod, hm1_div, hpm, hwStar, Option.map_some]
       · simp only [acceptsProposal, hlk_2_eq_0 i, hunlocked i hi, Option.isNone_none,
           Bool.true_and, decide_eq_true_eq]
         simp only [snapsL, properSupportCount, filterMap_fst_filter_length, hlen,
@@ -390,13 +382,9 @@ theorem byzQuorum_terminates_in_honest_view {F : Finset P}
           length_filter_dedup_eq_card hprocs]
         refine le_trans hSP_card (Finset.card_le_card fun j hj => ?_)
         simp only [predP, Finset.mem_sdiff, Finset.mem_filter, Finset.mem_univ, true_and] at hj ⊢
-        have hjL := hj.1
-        rw [hm1_honest (leader vStar) hl j hj.2] at hjL
-        change (match extractCertStatus (m1 i j) with
-          | some (rep, _) => rep.allProper || decide (wStar ∈ rep.freqVals)
-          | none => false) = true
-        rw [hm1_honest i hi j hj.2]
-        exact hjL
+        obtain ⟨hjL, hjF⟩ := hj
+        dsimp only [m1] at hm1_honest hjL
+        rwa [hm1_honest i hi j hjF, ← hm1_honest (leader vStar) hl j hjF]
   obtain ⟨prop, hpropL, hpropV⟩ := hprop_ok
   -- Step 2 (Subround 2 → 3): every correct `i ∉ F` sets `myEcho = some prop.val`.
   have hecho3 : ∀ i ∉ F, (st (6 * vStar + 3) i).myEcho = some prop.val := by
@@ -635,15 +623,12 @@ theorem PartialSyncProtocol.byzantineState_always_eq_state {P V S M : Type*}
   | 0, _ => rfl
   | r + 1, i => by
     rw [PartialSyncProtocol.byzantineState, Cslib.Distributed.Byzantine.Protocol.state]
-    change π.update r i _ _ = π.update r i _ _
     congr 1
     · exact π.byzantineState_always_eq_state v₀ v₁ F adv b r i
     · funext j
-      by_cases hj : j ∈ F
-      · simp only [hj, ↓reduceIte]
-      · simp only [hj, ↓reduceIte]
-        change some (π.send r j _ i) = some (π.send r j _ i)
-        rw [π.byzantineState_always_eq_state v₀ v₁ F adv b r j]
+      by_cases hj : j ∈ F <;>
+        simp [hj, PartialSyncProtocol.toSyncProtocol,
+          π.byzantineState_always_eq_state v₀ v₁ F adv b r j]
 
 /-- **Synchronous-special-case impossibility (`not_partialSync_of_le_three_t`):** since `GST = 0`
 with `deliver = fun _ _ _ => true` embeds synchronous `Byzantine.Protocol` directly,

@@ -37,44 +37,43 @@ private theorem integrable_abs_gaussian : Integrable (fun x : ℝ => |x|) γ1 :=
   have := (memLp_id_gaussianReal (μ := 0) (v := 1) 1).integrable le_rfl
   simpa [Real.norm_eq_abs] using this.norm
 
+private theorem integrable_dom3 {f : ℝ → ℝ → ℝ → ℝ}
+    (hf : Measurable fun q : (ℝ × ℝ) × ℝ => f q.1.1 q.1.2 q.2) {s : Set ℝ} (hs : volume s < ⊤)
+    {M : ℝ} (hb : ∀ x₀ x₁ θ, |f x₀ x₁ θ| ≤ |x₁| + M) :
+    Integrable (fun q : (ℝ × ℝ) × ℝ => f q.1.1 q.1.2 q.2)
+      ((γ1.prod γ1).prod (volume.restrict s)) := by
+  have : IsFiniteMeasure (volume.restrict s) := ⟨by rwa [Measure.restrict_apply_univ]⟩
+  have h1 : Integrable (fun p : ℝ × ℝ => (1 : ℝ) * |p.2|) (γ1.prod γ1) :=
+    (integrable_const (1 : ℝ)).mul_prod integrable_abs_gaussian
+  have hbound : Integrable (fun q : (ℝ × ℝ) × ℝ => |q.1.2| + M)
+      ((γ1.prod γ1).prod (volume.restrict s)) := by
+    refine Integrable.add ?_ (integrable_const M)
+    simpa using h1.mul_prod
+      (integrable_const (1 : ℝ) : Integrable (fun _ : ℝ => (1 : ℝ)) (volume.restrict s))
+  exact hbound.mono' hf.aestronglyMeasurable
+    (ae_of_all _ fun _ => (Real.norm_eq_abs _).trans_le (hb _ _ _))
+
 /-- A triple Fubini swap with a dominating bound `|x₁| + M`. -/
 private theorem swap3 {f : ℝ → ℝ → ℝ → ℝ}
     (hf : Measurable fun q : (ℝ × ℝ) × ℝ => f q.1.1 q.1.2 q.2) {s : Set ℝ} (hs : volume s < ⊤)
     {M : ℝ} (hb : ∀ x₀ x₁ θ, |f x₀ x₁ θ| ≤ |x₁| + M) :
     ∫ x₀, (∫ x₁, (∫ θ in s, f x₀ x₁ θ) ∂γ1) ∂γ1 =
       ∫ θ in s, (∫ x₀, (∫ x₁, f x₀ x₁ θ ∂γ1) ∂γ1) := by
-  have : IsFiniteMeasure (volume.restrict s) := ⟨by rw [Measure.restrict_apply_univ]; exact hs⟩
-  have hbound : Integrable (fun q : (ℝ × ℝ) × ℝ => |q.1.2| + M)
-      ((γ1.prod γ1).prod (volume.restrict s)) := by
-    refine Integrable.add ?_ (integrable_const M)
-    have h1 : Integrable (fun p : ℝ × ℝ => (1 : ℝ) * |p.2|) (γ1.prod γ1) :=
-      (integrable_const (1 : ℝ)).mul_prod integrable_abs_gaussian
-    have h2 := h1.mul_prod
-      (integrable_const (1 : ℝ) : Integrable (fun _ : ℝ => (1 : ℝ)) (volume.restrict s))
-    simpa using h2
-  have hint : Integrable (fun q : (ℝ × ℝ) × ℝ => f q.1.1 q.1.2 q.2)
-      ((γ1.prod γ1).prod (volume.restrict s)) :=
-    hbound.mono' hf.aestronglyMeasurable (ae_of_all _ fun q => by
-      rw [Real.norm_eq_abs]; exact hb _ _ _)
+  have hint := integrable_dom3 hf hs hb
   -- inner integrability facts
-  have hθint : ∀ θ, Integrable (fun p : ℝ × ℝ => f p.1 p.2 θ) (γ1.prod γ1) := by
-    intro θ
+  have hθint : ∀ θ, Integrable (fun p : ℝ × ℝ => f p.1 p.2 θ) (γ1.prod γ1) := fun θ => by
     have h1 : Integrable (fun p : ℝ × ℝ => |p.2| + M) (γ1.prod γ1) := by
       refine Integrable.add ?_ (integrable_const M)
       simpa using (integrable_const (1 : ℝ)).mul_prod integrable_abs_gaussian
-    refine h1.mono'
-      (hf.comp (by fun_prop : Measurable fun p : ℝ × ℝ => (p, θ))).aestronglyMeasurable
-      (ae_of_all _ fun p => by rw [Real.norm_eq_abs]; exact hb _ _ _)
-  have hpint : Integrable (fun p : ℝ × ℝ => ∫ θ in s, f p.1 p.2 θ) (γ1.prod γ1) :=
-    hint.integral_prod_left
+    exact h1.mono' (hf.comp (by fun_prop : Measurable fun p : ℝ × ℝ => (p, θ))).aestronglyMeasurable
+      (ae_of_all _ fun _ => (Real.norm_eq_abs _).trans_le (hb _ _ _))
   calc ∫ x₀, (∫ x₁, (∫ θ in s, f x₀ x₁ θ) ∂γ1) ∂γ1
-      = ∫ p : ℝ × ℝ, (∫ θ in s, f p.1 p.2 θ) ∂(γ1.prod γ1) := (integral_prod _ hpint).symm
-    _ = ∫ θ in s, (∫ p : ℝ × ℝ, f p.1 p.2 θ ∂(γ1.prod γ1)) := by
-        exact integral_integral_swap (f := fun (p : ℝ × ℝ) (θ : ℝ) => f p.1 p.2 θ) hint
+      = ∫ p : ℝ × ℝ, (∫ θ in s, f p.1 p.2 θ) ∂(γ1.prod γ1) :=
+          (integral_prod _ hint.integral_prod_left).symm
+    _ = ∫ θ in s, (∫ p : ℝ × ℝ, f p.1 p.2 θ ∂(γ1.prod γ1)) :=
+          integral_integral_swap (f := fun (p : ℝ × ℝ) (θ : ℝ) => f p.1 p.2 θ) hint
     _ = ∫ θ in s, (∫ x₀, (∫ x₁, f x₀ x₁ θ ∂γ1) ∂γ1) := by
-        apply integral_congr_ae
-        filter_upwards with θ
-        exact integral_prod _ (hθint θ)
+        refine integral_congr_ae (ae_of_all _ fun θ => integral_prod _ (hθint θ))
 
 private theorem continuous_Phi : Continuous Phi :=
   continuous_iff_continuousAt.mpr fun x => (hasDerivAt_Phi x).continuousAt
@@ -270,19 +269,7 @@ theorem rot_mono_open {ψ₁ ψ₂ : ℝ} (hP : si ^ 2 = 1 - I ^ 2) (hR : sj ^ 2
       kernel (J := J) (sj := sj) (h := h) θ p.1 p.2) ∂(γ1.prod γ1) =
       ∫ x₀, (∫ x₁, (∫ θ in Ioc ψ₁ ψ₂, f x₀ x₁ θ) ∂γ1) ∂γ1 := by
     simp_rw [hcongr]
-    refine integral_prod (fun p : ℝ × ℝ => ∫ θ in Ioc ψ₁ ψ₂, f p.1 p.2 θ) ?_
-    exact (Integrable.integral_prod_left (f := fun q : (ℝ × ℝ) × ℝ => f q.1.1 q.1.2 q.2) <| by
-      have : IsFiniteMeasure (volume.restrict (Ioc ψ₁ ψ₂)) :=
-        ⟨by rw [Measure.restrict_apply_univ]; exact measure_Ioc_lt_top⟩
-      have hb2 : Integrable (fun q : (ℝ × ℝ) × ℝ => |q.1.2| + M)
-          ((γ1.prod γ1).prod (volume.restrict (Ioc ψ₁ ψ₂))) := by
-        refine Integrable.add ?_ (integrable_const M)
-        have h1 : Integrable (fun p : ℝ × ℝ => (1 : ℝ) * |p.2|) (γ1.prod γ1) :=
-          (integrable_const (1 : ℝ)).mul_prod integrable_abs_gaussian
-        simpa using h1.mul_prod (integrable_const (1 : ℝ) :
-          Integrable (fun _ : ℝ => (1 : ℝ)) (volume.restrict (Ioc ψ₁ ψ₂)))
-      exact hb2.mono' hfm.aestronglyMeasurable (ae_of_all _ fun q => by
-        rw [Real.norm_eq_abs]; exact hfb _ _ _))
+    exact integral_prod _ (integrable_dom3 hfm measure_Ioc_lt_top hfb).integral_prod_left
   rw [hiter, swap3 hfm measure_Ioc_lt_top hfb]
   apply setIntegral_nonpos measurableSet_Ioc
   intro θ hθ

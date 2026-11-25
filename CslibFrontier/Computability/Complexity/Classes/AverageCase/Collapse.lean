@@ -326,12 +326,8 @@ theorem collapse_polyTime (hvalid : ComputableInPolyTime H.valid encBits encBool
       have hk_eq : k = (H.header r).length := le_antisymm hk_le_hdr hdr_le_k
       simp [findHdr, idx, L, p, hopt, hk_eq, htake_hdr]
   have heq : H.collapse = fun r =>
-      if H.valid r then findHdr r ++ List.replicate (r.length - (findHdr r).length) true
-      else r := by
-    funext r
-    cases hv : H.valid r
-    · simp only [collapse, hv, Bool.false_eq_true, ite_false]
-    · simp only [collapse, hv, ite_true, hfindHdr hv]
+      if H.valid r then findHdr r ++ List.replicate (r.length - (findHdr r).length) true else r :=
+    funext fun r => by cases hv : H.valid r <;> simp [collapse, hv, hfindHdr]
   rwa [heq]
 
 /-- **The collapsed ensemble is polynomial-time computable** when the header parser is. -/
@@ -372,11 +368,8 @@ theorem ensemble_dist_collapse {r : List Bool} (hv : H.valid r = true) :
       (Ensemble.uniform.dist r.length).toOuterMeasure {r' | BitString.binaryValue r' < H.lo r} +
         H.ensemble.dist r.length (H.collapse r) := by
     have hdisj : Disjoint {r' : List Bool | BitString.binaryValue r' < H.lo r}
-        {r' | H.lo r ≤ BitString.binaryValue r' ∧ BitString.binaryValue r' < H.hi r} := by
-      rw [Set.disjoint_left]
-      intro r' h1 h2
-      simp only [Set.mem_ofPred_eq] at h1 h2
-      omega
+        {r' | H.lo r ≤ BitString.binaryValue r' ∧ BitString.binaryValue r' < H.hi r} :=
+      Set.disjoint_left.mpr fun _ h1 h2 => not_le_of_gt h1 h2.1
     have hunion : {r' : List Bool | BitString.binaryValue r' < H.hi r} =
         {r' | BitString.binaryValue r' < H.lo r} ∪
           {r' | H.lo r ≤ BitString.binaryValue r' ∧ BitString.binaryValue r' < H.hi r} := by
@@ -389,11 +382,8 @@ theorem ensemble_dist_collapse {r : List Bool} (hv : H.valid r = true) :
     apply PMF.toOuterMeasure_apply_eq_of_inter_support_eq
     ext r'
     simp only [Set.mem_inter_iff, Set.mem_preimage, Set.mem_singleton_iff, Set.mem_ofPred_eq]
-    constructor
-    · rintro ⟨h, hr⟩
-      exact ⟨(H.collapse_eq_collapse_iff hv (Ensemble.uniform.length_eq _ _ hr)).mpr h, hr⟩
-    · rintro ⟨h, hr⟩
-      exact ⟨(H.collapse_eq_collapse_iff hv (Ensemble.uniform.length_eq _ _ hr)).mp h, hr⟩
+    exact and_congr_left fun hr =>
+      (H.collapse_eq_collapse_iff hv (Ensemble.uniform.length_eq _ _ hr)).symm
   rw [Ensemble.uniform_toOuterMeasure_binaryValue_lt (H.hi_le_two_pow hv),
     Ensemble.uniform_toOuterMeasure_binaryValue_lt (hlohi.trans (H.hi_le_two_pow hv))] at hblock
   have hhi : H.hi r = H.lo r + 2 ^ (r.length - (H.header r).length) := by

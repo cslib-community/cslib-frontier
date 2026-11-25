@@ -7,6 +7,7 @@ Authors: Erik Demaine
 -- upstream: local-only (result registry collection)
 import CslibFrontierResults.Registry
 import CslibFrontier.Computability.Complexity.FineGrained.SatisfiabilityHypothesis
+import CslibFrontier.Computability.Complexity.FineGrained.SharpSatisfiabilityHypothesis
 
 /-!
 # Collected results: the Satisfiability Hypothesis
@@ -25,8 +26,23 @@ register_result "sh-fixed-width-size" where
     (occurring variables + clauses + literal occurrences), with polynomial overhead in encoded \
     input length. For each fixed k ≥ 3, SH is equivalent to the lack of a deterministic \
     multitape k-SAT solver with a fixed power saving in the exponent measured in occurring \
-    variables plus clauses, with the same kind of polynomial overhead. The counting case (#SH) \
-    is tracked in https://github.com/cslib-community/cslib-frontier/issues/8457."
+    variables plus clauses, with the same kind of polynomial overhead."
+
+register_result "sharp-sh-fixed-width-size" where
+  title := "The counting Satisfiability Hypothesis in terms of fixed-width formula size"
+  topic := "fine-grained complexity"
+  sources := [
+    { paper := MITHardnessGroup2026SH,
+      theorem := "Lemma 2.1 (counting case)",
+      locator := "arXiv:2611.02650v2, §2.1, p. 5" }
+  ]
+  theorems := [Cslib.Complexity.SharpSH_iff_SharpKSAT]
+  scope := "With native binary CNF inputs (encCNF) and binary outputs (encNat), exact counts \
+    range over occurring variables. The unrestricted exponent measures occurring variables, \
+    clauses, and literal occurrences. For each fixed k ≥ 3, the equivalent fixed-width \
+    exponent measures occurring variables plus clauses. The deterministic multitape bounds \
+    allow polynomial overhead in encoded input length, and the width-guarded counter returns \
+    zero on inputs outside the width bound."
 
 register_result "sh-exponent-transfer" where
   title := "Exponent transfer under the Satisfiability Hypothesis"

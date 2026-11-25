@@ -531,23 +531,16 @@ theorem seq_expected (C : ObliviousSequenceImpl.{u, v, z} P S w base params)
         C.initTime + (C.initPotential : ℝ≥0∞) + (C.totalCharge ops : ℝ≥0∞) := by
   obtain ⟨ν₀, he_init, hinv, hcaller₀⟩ := C.init_exec hx₀ hfr₀ hpar hfit₀
   obtain ⟨ν_final, T_ops, hex, hcontract, hcost⟩ := C.steps_exec ops ν₀ hv hfit_ops hinv
-  have hbdd₀ : ∀ t ∈ (ν₀.map (SeqROutcome.ofLatentRState (Result := S.Result))).support,
-      t.data.Bounded w := by
-    intro t ht; rw [PMF.mem_support_map_iff] at ht; obtain ⟨u, hu, rfl⟩ := ht
-    exact C.bounded hinv u hu
-  have hfr_init : ∀ t ∈ (ν₀.map (SeqROutcome.ofLatentRState (Result := S.Result))).support,
-      base ≤ t.data.frontier ∧ t.data.frontier ≤ base + C.spaceBound [] ∧
-        t.data.regs P.baseReg = base := by
-    intro t ht; rw [PMF.mem_support_map_iff] at ht; obtain ⟨u, hu, rfl⟩ := ht
-    exact C.frontier_le hinv u hu
-  have hcaller_init : ∀ t ∈ (ν₀.map (SeqROutcome.ofLatentRState (Result := S.Result))).support,
-      ∀ addr < base, t.data.mem addr = x₀.mem addr := by
-    intro t ht; rw [PMF.mem_support_map_iff] at ht; obtain ⟨u, hu, rfl⟩ := ht
-    exact hcaller₀ u hu
-  have hfr_fin := hex.frontier_le hfr_init
+  have hmap {Q : SeqROutcome C.Latent S.Result r_ds → Prop}
+      (hQ : ∀ u ∈ ν₀.support, Q (.ofLatentRState u)) :
+      ∀ t ∈ (ν₀.map SeqROutcome.ofLatentRState).support, Q t := by
+    intro t ht
+    obtain ⟨u, hu, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp ht
+    exact hQ u hu
+  have hfr_fin := hex.frontier_le (hmap (C.frontier_le hinv))
   rw [List.nil_append] at hfr_fin
-  refine ⟨ν₀, ν_final, T_ops, he_init, hcaller₀, hex,
-    fun t ht => ⟨hex.bounded hbdd₀ t ht, hfr_fin t ht, hex.caller_mem hcaller_init t ht⟩,
+  refine ⟨ν₀, ν_final, T_ops, he_init, hcaller₀, hex, fun t ht =>
+    ⟨hex.bounded (hmap (C.bounded hinv)) t ht, hfr_fin t ht, hex.caller_mem (hmap hcaller₀) t ht⟩,
     hcontract, ?_⟩
   rw [add_assoc]
   exact add_le_add le_rfl hcost

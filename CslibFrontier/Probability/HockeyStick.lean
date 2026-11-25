@@ -121,9 +121,7 @@ theorem toOuterMeasure_le_mul_add_hockeyStick (c : ℝ≥0∞) (p q : PMF α) (S
   calc p.toOuterMeasure S = ∑' a, S.indicator p a := _root_.PMF.toOuterMeasure_apply p S
     _ ≤ ∑' a, (c * S.indicator q a + (p a - c * q a)) := by
       refine tsum_le_tsum fun a => ?_
-      by_cases ha : a ∈ S
-      · simp only [Set.indicator_of_mem ha]; exact le_add_tsub
-      · simp [Set.indicator_of_notMem ha]
+      by_cases ha : a ∈ S <;> simp [ha, le_add_tsub]
     _ = c * q.toOuterMeasure S + hockeyStick c p q := by
       rw [tsum_add, ENNReal.tsum_mul_left, _root_.PMF.toOuterMeasure_apply, hockeyStick]
 
@@ -144,9 +142,8 @@ theorem forall_toOuterMeasure_le_iff_hockeyStick_le {c : ℝ≥0∞} (hc : c ≠
       · simp only [Set.indicator_of_mem ha]; exact (add_tsub_cancel_of_le ha.le).symm
       · have hle : p a ≤ c * q a := not_lt.mp ha
         simp only [Set.indicator_of_notMem ha, mul_zero, zero_add, tsub_eq_zero_of_le hle]
-    have hfin : c * q.toOuterMeasure T ≠ ⊤ :=
-      ENNReal.mul_ne_top hc (toOuterMeasure_ne_top q T)
-    exact (ENNReal.add_le_add_iff_left hfin).mp (by rw [← hsplit]; exact h T)
+    exact (ENNReal.add_le_add_iff_left (ENNReal.mul_ne_top hc (toOuterMeasure_ne_top q T))).mp
+      (hsplit ▸ h T)
   · exact fun h S => (toOuterMeasure_le_mul_add_hockeyStick c p q S).trans (add_le_add le_rfl h)
 
 /-- The hockey-stick divergence vanishes if and only if `p` is pointwise bounded by `c · q`. -/
@@ -236,9 +233,8 @@ theorem hockeyStick_bind_pair_le {c₁ c₂ : ℝ≥0∞} (hc₁ : c₁ ≠ ⊤)
   intro S
   have hsec (M : α → PMF β) (a : α) :
       ((M a).bind fun b => _root_.PMF.pure (a, b)).toOuterMeasure S =
-        (M a).toOuterMeasure (Prod.mk a ⁻¹' S) := by
-    rw [← _root_.PMF.toOuterMeasure_map_apply]
-    rfl
+        (M a).toOuterMeasure (Prod.mk a ⁻¹' S) :=
+    _root_.PMF.toOuterMeasure_map_apply (Prod.mk a) (M a) S
   simp only [_root_.PMF.toOuterMeasure_bind_apply, hsec]
   set A : α → ℝ≥0∞ := fun a => (K a).toOuterMeasure (Prod.mk a ⁻¹' S)
   set B : α → ℝ≥0∞ := fun a => (L a).toOuterMeasure (Prod.mk a ⁻¹' S)
@@ -305,11 +301,10 @@ private theorem exists_mix {P : α → ℝ≥0∞} {c : ℝ≥0∞} (hc : 1 ≤ 
   have hsden : s * (mp.toReal - mu.toReal) = mp.toReal - mq.toReal := div_mul_cancel₀ _ hden.ne'
   have hθ : ENNReal.ofReal (1 - s) + ENNReal.ofReal s = 1 := by
     rw [← ENNReal.ofReal_add (by linarith) hs0, sub_add_cancel, ENNReal.ofReal_one]
-  have hcu : ∀ a, q₀ a ≤ c * u a := fun a => by
-    change q₀ a ≤ c * min (p₀ a) (q₀ a)
+  have hcu (a : α) : q₀ a ≤ c * u a := by
     rcases le_total (p₀ a) (q₀ a) with h | h
-    · rw [min_eq_left h]; exact hqp a
-    · rw [min_eq_right h]; exact le_mul_of_one_le_left' hc
+    · simpa only [u, min_eq_left h] using hqp a
+    · simpa only [u, min_eq_right h] using le_mul_of_one_le_left' hc
   refine ⟨fun a => ENNReal.ofReal (1 - s) * p₀ a + ENNReal.ofReal s * u a, fun a => ?_,
     fun a => ?_, fun a => ?_, ?_⟩
   · calc ENNReal.ofReal (1 - s) * p₀ a + ENNReal.ofReal s * u a

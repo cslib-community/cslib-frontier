@@ -142,10 +142,11 @@ private theorem recover_step (I : State Rel) (j : ℕ) (τ : ℕ → Bool)
     have hp := List.take_append_drop j I.ports
     rw [List.drop_eq_getElem_cons hj, List.drop_eq_getElem_cons h] at hp
     have hL : L.length = j := List.length_take_of_le hj.le
+    have hports : I.ports = L ++ [x,y] ++ R := by
+      simpa only [L, x, y, R, List.append_assoc, List.cons_append, List.nil_append] using hp.symm
     have hI : I = (⟨I.body, L ++ [x,y] ++ R, I.rotation⟩ : State Rel) := by
       cases I
-      simpa only [L, x, y, R, List.append_assoc, List.cons_append, List.nil_append] using
-        congrArg (fun ps => State.mk _ ps _) hp.symm
+      exact congrArg (fun ps => State.mk _ ps _) hports
     have hr := recover_transposeAdjacent g w I.body L x y R I.rotation τ
       (by simpa only [← hI, hL] using ht)
     rw [ite_eq_left h]
@@ -155,8 +156,6 @@ private theorem recover_step (I : State Rel) (j : ℕ) (τ : ℕ → Bool)
           L.map (fun z => τ (2*z)) ++ [τ (2*y),τ (2*x)] ++ R.map (fun z => τ (2*z)) := by
       simpa only [← hI, hL] using hr
     refine ⟨hr'.1, hr'.2.trans ?_⟩
-    have hports : I.ports = L ++ [x,y] ++ R := by
-      simpa only [L,x,y,R,List.append_assoc,List.cons_append,List.nil_append] using hp.symm
     rw [hports, List.map_append, List.map_append, List.map_cons, List.map_cons,
       List.map_nil, ← hL, ← List.length_map (f := fun z => τ (2*z))]
     simp [List.swap_adjacent_eq_take_drop, List.drop_append]
@@ -217,19 +216,16 @@ private theorem forward_step (I : State Rel) (j : ℕ) (σ : ℕ → Bool)
     let L := I.ports.take j
     let R := I.ports.drop (j+2)
     have hL : L.length=j := List.length_take_of_le hj.le
-    have he := (eval_transposeAdjacent_iff g w I.body L I.ports[j] I.ports[j+1]
+    obtain ⟨τ, ht, ha, _⟩ := (eval_transposeAdjacent_iff g w I.body L I.ports[j] I.ports[j+1]
       R I.rotation σ).mp hs
-    obtain ⟨τ, ht, ha, _⟩ := he
-    refine ⟨τ, ?_, ?_⟩
-    · have hI : I = (⟨I.body, L ++ [I.ports[j],I.ports[j+1]] ++ R, I.rotation⟩ : State Rel) := by
-        cases I
-        simpa only [L, R, List.append_assoc, List.cons_append, List.nil_append] using
-          congrArg (fun ps => State.mk _ ps _) hp.symm
-      simpa only [← hI, hL] using ht
-    · simpa only [ite_eq_left h, pow_one] using ha
-  · refine ⟨σ, ?_, ?_⟩
-    · rw [transposeAdjacent_invalid g w I j (by omega)]; exact hs
-    · simp only [h, ↓reduceIte, pow_zero, one_mul, implies_true]
+    refine ⟨τ, ?_, by simpa only [ite_eq_left h, pow_one] using ha⟩
+    have hI : I = (⟨I.body, L ++ [I.ports[j],I.ports[j+1]] ++ R, I.rotation⟩ : State Rel) := by
+      cases I
+      simpa only [L, R, List.append_assoc, List.cons_append, List.nil_append] using
+        congrArg (fun ps => State.mk _ ps _) hp.symm
+    simpa only [← hI, hL] using ht
+  · exact ⟨σ, by rwa [transposeAdjacent_invalid g w I j (by omega)],
+      by simp only [h, ↓reduceIte, pow_zero, one_mul, implies_true]⟩
 
 /-- Universal old-name extension for the literal schedule. `k` counts only successful
 guards; zero successful requests have the ordinary identity lift. -/
@@ -308,10 +304,7 @@ theorem name_width_transposeSchedule_le (I : State Rel) (js : List ℕ) (W : ℕ
       rw [countP_snoc, ite_eq_left h]
       exact hz'.trans (by omega)
     · intro z hz
-      have hbad : J.ports.length ≤ j+1 := by rw [hp]; omega
-      have heq : transposeSchedule g w I (js++[j]) = J := by
-        rw [transposeSchedule_snoc, transposeAdjacent_invalid g w J j hbad]
-      rw [heq] at hz
+      rw [transposeSchedule_snoc, transposeAdjacent_invalid g w J j (by rw [hp]; omega)] at hz
       rw [countP_snoc, ite_eq_right h, add_zero]
       exact ih z hz
 
@@ -476,13 +469,9 @@ private theorem budget_poly (encRel : Rel ↪ List Bool) :
       (computableInPolyTime_length_vars encRel encNat).comp hb
   have ht := (ComputableInPolyTime.length_list encNat).comp hj
   let measure := fun p : State Rel × List ℕ => (input p).length
-  have hS : PolyBounded measure (fun p => (encState encRel p.1).length) :=
-    hi.polyBounded_length
-  have hM : PolyBounded measure (fun p => p.1.body.occurrences.length) := hm.polyBounded
-  have hT : PolyBounded measure (fun p => p.2.length) := ht.polyBounded
   have hU : PolyBounded measure (fun p => (encState encRel p.1).length +
       p.1.body.occurrences.length + p.2.length + 1) :=
-    ((hS.add hM).add hT).add (.const 1)
+    ((hi.polyBounded_length.add hm.polyBounded).add ht.polyBounded).add (.const 1)
   have hx : PolyBounded measure (fun p => 8*(templateBudget g encRel+1)*
       ((encState encRel p.1).length+p.1.body.occurrences.length+p.2.length+1)+1) :=
     ((PolyBounded.const (8*(templateBudget g encRel+1))).mul hU).add (.const 1)

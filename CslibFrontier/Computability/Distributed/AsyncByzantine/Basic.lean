@@ -364,9 +364,8 @@ theorem Reachable.msgs_src_notMem [Fintype P] {π : Protocol P S M V dealer}
     {F : Finset P} {input : Option V} {s : State P S M V} (hr : π.Reachable F input s)
     {e : Envelope P M} (he : e ∈ s.msgs) : e.src ∉ F := by
   obtain ⟨xl, hxl⟩ := hr
-  have hinv := LTS.mtrInv_of_trInv (lts := π.lts F)
-    (fun _ _ _ htr hs => π.tr_msgs_src_notMem hs htr)
-  exact hinv _ _ _ hxl (fun _ hm => π.start_msgs_src_notMem F input hm) e he
+  exact LTS.mtrInv_of_trInv (lts := π.lts F) (fun _ _ _ htr hs => π.tr_msgs_src_notMem hs htr)
+    _ _ _ hxl (fun _ => π.start_msgs_src_notMem F input) e he
 
 /-- An in-flight message `e` stays in `msgs` across any transition other than `.deliver e`. -/
 theorem tr_notDelivered_mem {F : Finset P} {s s' : State P S M V} {a : Action P M}
@@ -443,9 +442,8 @@ private lemma drainList_spec {F : Finset P} (s : State P S M V) (es : List (Enve
       simpa using Multiset.erase_le_erase e hcons
     obtain ⟨hmtr, hmap⟩ := ih (π.recvHonest e s) (hes.trans (Multiset.le_add_right _ _))
       (fun x hx => hdest x (List.mem_cons_of_mem e hx))
-    have htr : (π.lts F).Tr s (.deliver e) (π.recvHonest e s) :=
-      ⟨Multiset.mem_of_le hle (by simp), hdest e List.mem_cons_self, rfl⟩
-    exact ⟨.stepL htr hmtr, by simp only [drainList, hmap, List.map_cons]⟩
+    exact ⟨.stepL ⟨Multiset.mem_of_le hle (by simp), hdest e List.mem_cons_self, rfl⟩ hmtr,
+      by simp only [drainList, hmap, List.map_cons]⟩
 
 /-- One draining phase: deliver all envelopes currently in `s.msgs` addressed to `Fᶜ`, or stutter
 if none are pending. -/
@@ -571,23 +569,19 @@ theorem card_msgs_add_traceSent {F : Finset P} {s₀ s₁ : State P S M V} {xl :
     cases a with
     | deliver e =>
       obtain ⟨hmem, _, rfl⟩ := htr
-      have hcard : (π.recvHonest e s).msgs.card =
-          s.msgs.card - 1 + (π.send e.dest (s.proc e.dest) e.src e.body).card := by
-        simp [recvHonest, recvCore, Multiset.card_erase_of_mem hmem]
-      have hpos : 1 ≤ s.msgs.card := Multiset.card_pos_iff_exists_mem.mpr ⟨e, hmem⟩
-      simp only [traceSent, List.countP_cons, Action.isDeliver, ↓reduceIte]
+      have := Multiset.card_pos_iff_exists_mem.mpr ⟨e, hmem⟩
+      simp only [traceSent, recvHonest, recvCore, Multiset.card_add, Multiset.card_map,
+        Multiset.card_erase_of_mem hmem, Nat.pred_eq_sub_one, List.countP_cons, Action.isDeliver,
+        ↓reduceIte] at ih ⊢
       omega
     | byzRecv src dest body =>
       obtain ⟨_, _, rfl⟩ := htr
-      have hcard : (π.recvByz src dest body s).msgs.card =
-          s.msgs.card + (π.send dest (s.proc dest) src body).card := by
-        simp [recvByz, recvCore]
-      simp only [traceSent, List.countP_cons, Action.isDeliver, Bool.false_eq_true, ↓reduceIte]
+      simp only [traceSent, recvByz, recvCore, Multiset.card_add, Multiset.card_map,
+        List.countP_cons, Action.isDeliver, Bool.false_eq_true, ↓reduceIte] at ih ⊢
       omega
     | stutter =>
       obtain rfl := htr
-      simp only [traceSent, List.countP_cons, Action.isDeliver, Bool.false_eq_true, ↓reduceIte]
-      exact ih
+      simpa [traceSent, Action.isDeliver] using ih
 
 /-! ### Reliable broadcast specification -/
 

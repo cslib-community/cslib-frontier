@@ -176,12 +176,10 @@ theorem heldKarpDecide_eq_true_iff (x : TSPInstance) :
   unfold heldKarpDecide
   split
   · rename_i h
-    simp only [true_iff]
-    refine ⟨[], ?_, by simp [tourLength]⟩
-    rw [h, List.range_zero]
+    exact iff_of_true rfl ⟨[], by simp [h],
+      by simp [tourLength]⟩
   · rename_i n h
-    simp only [decide_eq_true_eq]
-    exact (mem_TSP_iff_heldKarp_le h).symm
+    exact decide_eq_true_iff.trans (mem_TSP_iff_heldKarp_le h).symm
 
 /-! ## Multi-tape Turing-machine exponential-time realization -/
 
@@ -318,12 +316,6 @@ private theorem zipWith_tabulateLSB {α : Type*} (m : ℕ) (f : α → α → α
   induction m generalizing g₁ g₂ with
   | zero => rfl
   | succ m ih =>
-    have hlen1 : (tabulateLSB m fun bs => g₁ (false :: bs)).length =
-        (tabulateLSB m fun bs => g₁ (true :: bs)).length := by
-      simp [length_tabulateLSB]
-    have hlen2 : (tabulateLSB m fun bs => g₂ (false :: bs)).length =
-        (tabulateLSB m fun bs => g₂ (true :: bs)).length := by
-      simp [length_tabulateLSB]
     have key : ∀ (a₁ b₁ a₂ b₂ : List α), a₁.length = b₁.length → a₂.length = b₂.length →
         a₁.length = a₂.length →
         List.zipWith f (interleave a₁ b₁) (interleave a₂ b₂) =
@@ -335,7 +327,9 @@ private theorem zipWith_tabulateLSB {α : Type*} (m : ℕ) (f : α → α → α
       · simp only [interleave, List.zipWith_cons_cons, List.cons.injEq, true_and]
         apply_assumption <;> omega
     rw [tabulateLSB, tabulateLSB, tabulateLSB,
-      key _ _ _ _ hlen1 hlen2 (by simp [length_tabulateLSB]), ih, ih]
+      key _ _ _ _ (by simp [length_tabulateLSB])
+        (by simp [length_tabulateLSB])
+        (by simp [length_tabulateLSB]), ih, ih]
 
 private theorem tabulateLSB_append_eq {α : Type*} (m : ℕ) (g : List Bool → α) :
     tabulateLSB m (fun bs => g (bs ++ [false])) ++
@@ -352,28 +346,14 @@ private theorem tabulateLSB_append_eq {α : Type*} (m : ℕ) (g : List Bool → 
 private theorem getLast?_interleave {α : Type*} (xs ys : List α)
     (h : xs.length = ys.length) (hne : ys ≠ []) :
     (interleave xs ys).getLast? = ys.getLast? := by
-  induction xs generalizing ys with
-  | nil => cases ys with
-    | nil => exact absurd rfl hne
-    | cons _ _ => simp at h
-  | cons x xs ih =>
-    cases ys with
-    | nil => exact absurd rfl hne
-    | cons y ys =>
-      cases ys with
-      | nil =>
-        cases xs with
-        | nil => simp [interleave]
-        | cons _ _ => simp at h
-      | cons y' ys' =>
-        cases xs with
-        | nil => simp at h
-        | cons x' xs' =>
-          have hlen : (x' :: xs').length = (y' :: ys').length := by
-            simp only [List.length_cons] at h ⊢
-            omega
-          have ih' := ih (y' :: ys') hlen (List.cons_ne_nil _ _)
-          simpa [interleave] using ih'
+  match xs, ys with
+  | _, [] => exact absurd rfl hne
+  | [], _ :: _ | [_], _ :: _ :: _ | _ :: _ :: _, [_] => simp at h
+  | [_], [_] => simp [interleave]
+  | _ :: x' :: xs', _ :: y' :: ys' =>
+    have hlen : (x' :: xs').length = (y' :: ys').length := by
+      simp only [List.length_cons] at h ⊢; omega
+    simpa [interleave] using getLast?_interleave (x' :: xs') (y' :: ys') hlen (List.cons_ne_nil _ _)
 
 private theorem getLast?_tabulateLSB {α : Type*} (m : ℕ) (g : List Bool → α) :
     (tabulateLSB m g).getLast? = some (g (List.replicate m true)) := by
@@ -671,18 +651,10 @@ private theorem streamState_oddNext_mem (L : List Row) (j : ℕ) (p : OddParams)
       cases s with
       | none =>
         obtain ⟨h1, h2⟩ := ih hsub' (some a)
-        refine ⟨h1, ?_⟩
-        rcases h2 with h2 | h2 | ⟨r, hr, h2⟩
-        · exact Or.inl h2
-        · exact Or.inr (Or.inr ⟨a, ha, h2⟩)
-        · exact Or.inr (Or.inr ⟨r, hr, h2⟩)
-      | some s₀ =>
+        exact ⟨h1, h2.imp_right fun h => h.elim (fun h => Or.inr ⟨a, ha, h⟩) Or.inr⟩
+      | some _ =>
         obtain ⟨h1, h2⟩ := ih hsub' none
-        refine ⟨h1, ?_⟩
-        rcases h2 with h2 | h2 | ⟨r, hr, h2⟩
-        · exact Or.inl h2
-        · exact Or.inl h2
-        · exact Or.inr (Or.inr ⟨r, hr, h2⟩)
+        exact ⟨h1, h2.elim Or.inl fun h => h.elim Or.inl (Or.inr ∘ Or.inr)⟩
   exact htake (L.take j) (List.take_subset j L) o
 
 private theorem computableInPolyTime_optMin :

@@ -256,13 +256,7 @@ private theorem accept_of_mem (hx : x ∈ VertexCover) : accept x = true := by
 private theorem mem_edges {i j : ℕ} : (i, j) ∈ edges x ↔ i < (active x).length ∧ j <
     (active x).length ∧
     x.graph.toSimpleGraph.Adj ((active x).getD i 0) ((active x).getD j 0) := by
-  simp only [edges, List.mem_flatMap, List.mem_range, List.mem_map, List.mem_filter,
-    Graph.adjBool_eq_true_iff, Prod.mk.injEq]
-  constructor
-  · rintro ⟨i, hi, j, ⟨hj, hadj⟩, rfl, rfl⟩
-    exact ⟨hi, hj, hadj⟩
-  · rintro ⟨hi, hj, hadj⟩
-    exact ⟨i, hi, j, ⟨hj, hadj⟩, rfl, rfl⟩
+  simp [edges, and_assoc]
 
 private theorem graph_adj {i j : ℕ} : (graph x).toSimpleGraph.Adj i j ↔ i ≠ j ∧
     ((i, j) ∈ edges x ∨ (j, i) ∈ edges x) := by
@@ -338,19 +332,13 @@ theorem graph_mem_iff (hk : cap x = x.k) (hh : (high x).length ≤ cap x) :
       simp only [graph, List.mem_range]
       omega
     · intro i _ j _ hadj
-      obtain ⟨-, hij⟩ := graph_adj.1 hadj
+      have hcov {u v} (h : (u, v) ∈ edges ⟨G, k⟩) :
+          (u < a.length ∧ a.getD u 0 ∈ S) ∨ (v < a.length ∧ a.getD v 0 ∈ S) := by
+        obtain ⟨hu, hv, hadj⟩ := mem_edges.1 h
+        exact (hS _ ((mem_low _).1 (hget u hu).1).1 _ ((mem_low _).1 (hget v hv).1).1 hadj).imp
+          (⟨hu, ·⟩) (⟨hv, ·⟩)
       simp only [Finset.mem_filter, Finset.mem_range]
-      rcases hij with h | h
-      · obtain ⟨hi, hj, hadj⟩ := mem_edges.1 h
-        rcases hS _ ((mem_low _).1 (hget i hi).1).1 _ ((mem_low _).1 (hget j hj).1).1 hadj with
-          h | h
-        · exact Or.inl ⟨hi, h⟩
-        · exact Or.inr ⟨hj, h⟩
-      · obtain ⟨hj, hi, hadj⟩ := mem_edges.1 h
-        rcases hS _ ((mem_low _).1 (hget j hj).1).1 _ ((mem_low _).1 (hget i hi).1).1 hadj with
-          h | h
-        · exact Or.inr ⟨hj, h⟩
-        · exact Or.inl ⟨hi, h⟩
+      exact (graph_adj.1 hadj).2.elim hcov fun h => (hcov h).symm
     · have hsub : (high ⟨G, k⟩).toFinset ⊆ S := fun v hv => hhS v (List.mem_toFinset.1 hv)
       have hinj : Set.InjOn (a.getD · 0)
           ((Finset.range a.length).filter fun i => a.getD i 0 ∈ S : Finset ℕ) := by
@@ -410,19 +398,12 @@ private theorem length_edges_le_of_accept (h : accept x = true) :
 private theorem size_arith {k K : ℕ} (hK : K ≤ k * (k + 2)) :
     2 * (2 * (K * (2 * K + 1)) + 1 + K * K * (2 * (2 * K + 1 + K) + 1)) + 1 + k ≤
       40 * (k + 1) ^ 6 := by
-  have ha : K ≤ (k + 1) ^ 2 := hK.trans (by nlinarith)
-  have h1 : 1 ≤ (k + 1) ^ 2 := Nat.one_le_pow _ _ (Nat.succ_pos k)
-  have h2 : K * K ≤ (k + 1) ^ 2 * (k + 1) ^ 2 := Nat.mul_le_mul ha ha
-  have h3 : K * K * K ≤ (k + 1) ^ 2 * (k + 1) ^ 2 * (k + 1) ^ 2 := Nat.mul_le_mul h2 ha
-  have h4 : (k + 1) ^ 2 ≤ (k + 1) ^ 2 * (k + 1) ^ 2 := Nat.le_mul_of_pos_left _ h1
-  have h5 : (k + 1) ^ 2 * (k + 1) ^ 2 ≤ (k + 1) ^ 2 * (k + 1) ^ 2 * (k + 1) ^ 2 :=
-    Nat.le_mul_of_pos_right _ h1
-  have h6 : (k + 1) ^ 6 = (k + 1) ^ 2 * (k + 1) ^ 2 * (k + 1) ^ 2 := by ring
-  have h7 : 2 * (2 * (K * (2 * K + 1)) + 1 + K * K * (2 * (2 * K + 1 + K) + 1)) + 1 + k =
-      12 * (K * K * K) + 14 * (K * K) + 4 * K + 3 + k := by ring
-  have h8 : k + 1 ≤ (k + 1) ^ 2 := by nlinarith
-  rw [h7, h6]
-  omega
+  have ha : K ≤ (k + 1) ^ 2 := by nlinarith
+  have h2 : K * K ≤ (k + 1) ^ 4 := by nlinarith
+  have h3 : K * K * K ≤ (k + 1) ^ 4 * (k + 1) ^ 2 := Nat.mul_le_mul h2 ha
+  have h6 : (k + 1) ^ 6 = (k + 1) ^ 4 * (k + 1) ^ 2 := by ring
+  nlinarith [Nat.one_le_pow 2 (k + 1) (Nat.succ_pos k),
+    Nat.one_le_pow 4 (k + 1) (Nat.succ_pos k)]
 
 /-- The encoded kernel has length at most `40 (k + 1) ^ 6`. -/
 private theorem length_encode_le_of_accept (h : accept x = true) :

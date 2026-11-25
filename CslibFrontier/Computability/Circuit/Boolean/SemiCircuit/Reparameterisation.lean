@@ -97,13 +97,10 @@ theorem WellFormed.swap (hC : C.WellFormed) {x Q : ℕ} {c : Bool} {T : Finset �
       out_live := fun i hi => hlive ▸ hC.out_live i hi
       solvable := fun u => ?_
       unique := fun val val' hagree heq heq' a ha => ?_ }
-  · rw [Finset.disjoint_left]
-    intro i hi hi'
-    change i ∈ insert Q (C.params.erase x) at hi
-    change i ∈ insert x (C.aux.erase Q) at hi'
-    simp only [Finset.mem_insert, Finset.mem_erase] at hi hi'
-    rcases hi with rfl | ⟨hix, hp⟩ <;> rcases hi' with rfl | ⟨hiQ, ha⟩
-    exacts [hQx rfl, hiQ rfl, hix rfl, hC.notMem_aux_of_mem_params hp ha]
+  · refine Finset.disjoint_left.2 fun i hi hi' => ?_
+    rcases Finset.mem_insert.1 hi with rfl | hi <;> rcases Finset.mem_insert.1 hi' with rfl | hi'
+    exacts [hQx rfl, (Finset.ne_of_mem_erase hi') rfl, (Finset.ne_of_mem_erase hi) rfl,
+      hC.notMem_aux_of_mem_params (Finset.mem_of_mem_erase hi) (Finset.mem_of_mem_erase hi')]
   · change i ∈ insert Q (C.params.erase x) at hi
     rcases Finset.mem_insert.1 hi with rfl | hi
     · exact hC.notMem_gates_of_mem_aux hQ hg
@@ -182,21 +179,13 @@ variable {x y z G D : ℕ} {α β γ c : Bool} (h : C.QuadOK x y z G D α β γ 
 include h
 
 private theorem notMem_terms_z {e : ℕ} (he : e ∈ C.eqns) : z ∉ (C.eqn e).terms := fun hz => by
-  have : Sum.inr e ∈ C.children z := (inr_mem_children _).2 ⟨he, hz⟩
-  rw [h.children_z] at this
-  simp at this
+  simpa [h.children_z] using (inr_mem_children _).2 ⟨he, hz⟩
 
 private theorem not_reads_z {K : ℕ} (hK : K ∈ C.gates) (hKD : K ≠ D) : ¬ (C.gate K).Reads z :=
-  fun hr => by
-    have : Sum.inl K ∈ C.children z := (inl_mem_children _).2 ⟨hK, hr⟩
-    rw [h.children_z] at this
-    exact hKD (Sum.inl.inj (Finset.mem_singleton.1 this))
+  fun hr => hKD (by simpa [h.children_z] using (inl_mem_children _).2 ⟨hK, hr⟩)
 
 private theorem not_reads_G {K : ℕ} (hK : K ∈ C.gates) (hKD : K ≠ D) : ¬ (C.gate K).Reads G :=
-  fun hr => by
-    have : Sum.inl K ∈ C.children G := (inl_mem_children _).2 ⟨hK, hr⟩
-    rw [h.children_G] at this
-    exact hKD (Sum.inl.inj (Finset.mem_singleton.1 this))
+  fun hr => hKD (by simpa [h.children_G] using (inl_mem_children _).2 ⟨hK, hr⟩)
 
 end QuadOK
 

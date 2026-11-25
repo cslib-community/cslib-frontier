@@ -44,19 +44,14 @@ theorem contractionLift_relabelEquiv (G : Graph) (u v : ℕ) (d : Dart G) :
   let e := (contractLastEdgeDartEquiv G u v).trans
     (lastEdgeDartEquiv (contractLastEdgeGraph G u v) v v)
   apply e.injective
-  have h₁ : e (contractionLift G u v (Dart.relabelEquiv G (Function.update id u v) d)) =
-      some (some (Dart.relabelEquiv G (Function.update id u v) d)) :=
-    contractionLift_coordinates G u v _
-  have h₂ : e (retainedLastEdgeDart G u v d) =
-      some (some (Dart.relabelEquiv G (Function.update id u v) d)) := by
-    change ((contractLastEdgeDartEquiv G u v).trans
-      (lastEdgeDartEquiv (contractLastEdgeGraph G u v) v v)) (retainedLastEdgeDart G u v d) = _
-    rw [contractLastEdge_coordinates]
-    change (Dart.relabelEquiv G (Function.update id u v)).optionCongr.optionCongr
-      ((lastEdgeDartEquiv G u v) (retainedLastEdgeDart G u v d)) = _
-    rw [retainedLastEdgeDart, Equiv.apply_symm_apply]
-    rfl
-  exact h₁.trans h₂.symm
+  refine (contractionLift_coordinates G u v _).trans (Eq.symm ?_)
+  change ((contractLastEdgeDartEquiv G u v).trans
+    (lastEdgeDartEquiv (contractLastEdgeGraph G u v) v v)) (retainedLastEdgeDart G u v d) = _
+  rw [contractLastEdge_coordinates]
+  change (Dart.relabelEquiv G (Function.update id u v)).optionCongr.optionCongr
+    ((lastEdgeDartEquiv G u v) (retainedLastEdgeDart G u v d)) = _
+  rw [retainedLastEdgeDart, Equiv.apply_symm_apply]
+  rfl
 
 /-- Distinct retained ends lift to distinct source ends, including ends of a target loop. -/
 theorem contractionLift_injective (G : Graph) (u v : ℕ) :
@@ -97,9 +92,7 @@ theorem contractionLift_vertex_eq_iff (G : Graph) (u v : ℕ)
     d.vertex = v ↔ (contractionLift G u v d).vertex = u ∨
       (contractionLift G u v d).vertex = v := by
   rw [← vertex_contractionLift G u v d]
-  by_cases h : (contractionLift G u v d).vertex = u
-  · simp [h]
-  · simp [h]
+  by_cases h : (contractionLift G u v d).vertex = u <;> simp [h]
 
 /-- Exactly the two selected source darts are omitted by contraction. The retained
 correspondence is an equivalence of actual occurrences, without identifying loop ends. -/
@@ -258,15 +251,15 @@ theorem contractionLift_rotate_paths {G : Graph} {u v : ℕ}
   let e := (contractLastEdgeDartEquiv G u v).trans
     (lastEdgeDartEquiv (contractLastEdgeGraph G u v) v v)
   let σ := r.rotate * Equiv.swap (lastEdgeDart G u v true) (lastEdgeDart G u v false)
-  have heA := contractionLift_coordinates G u v d
-  have heB := contractionLift_coordinates G u v ((r.contractLastEdge huv).rotate d)
-  have heT := contractLastEdge_coordinates_last G u v true
-  have heF := contractLastEdge_coordinates_last G u v false
-  change e (contractionLift G u v d) = some (some d) at heA
-  change e (contractionLift G u v ((r.contractLastEdge huv).rotate d)) =
-    some (some ((r.contractLastEdge huv).rotate d)) at heB
-  change e (lastEdgeDart G u v true) = none at heT
-  change e (lastEdgeDart G u v false) = some none at heF
+  have heA : e (contractionLift G u v d) = some (some d) :=
+    contractionLift_coordinates G u v d
+  have heB : e (contractionLift G u v ((r.contractLastEdge huv).rotate d)) =
+      some (some ((r.contractLastEdge huv).rotate d)) :=
+    contractionLift_coordinates G u v _
+  have heT : e (lastEdgeDart G u v true) = none :=
+    contractLastEdge_coordinates_last G u v true
+  have heF : e (lastEdgeDart G u v false) = some none :=
+    contractLastEdge_coordinates_last G u v false
   have hpaths := Equiv.Perm.removeNone_removeNone_paths (e.permCongr σ) d
   have hrot : Equiv.removeNone (Equiv.removeNone (e.permCongr σ)) =
       (r.contractLastEdge huv).rotate := (r.rotate_contractLastEdge huv).symm
@@ -450,8 +443,7 @@ theorem val_contractionRank_rotate {G : Graph} {u v : ℕ}
     have hlast := r.rotationDistance_of_rotate_eq oV a (hvV.trans hav.symm) h
     have hpos := r.rotationDistance_pos_of_ne oV a (hvV.trans hav.symm) haV
     have hfirst := first h' hbV
-    have hperiod := Function.minimalPeriod_eq_one_iff_isFixedPt.mpr hfix
-    have hU : nU = 0 := by simp only [nU, hperiod, Nat.sub_self]
+    have hU : nU = 0 := by simp [nU, Function.minimalPeriod_eq_one_iff_isFixedPt.mpr hfix]
     simp only [ite_eq_left hav, ite_eq_left hbv] at hk hl
     exact wrap (by dsimp [nV] at *; omega) (by omega)
   · change r.rotate a = oU at h
@@ -464,8 +456,7 @@ theorem val_contractionRank_rotate {G : Graph} {u v : ℕ}
     have hlast := r.rotationDistance_of_rotate_eq oU a (hvU.trans hau.symm) h
     have hpos := r.rotationDistance_pos_of_ne oU a (hvU.trans hau.symm) haU
     have hfirst := first h' hbU
-    have hperiod := Function.minimalPeriod_eq_one_iff_isFixedPt.mpr hfix
-    have hV : nV = 0 := by simp only [nV, hperiod, Nat.sub_self]
+    have hV : nV = 0 := by simp [nV, Function.minimalPeriod_eq_one_iff_isFixedPt.mpr hfix]
     simp only [ite_eq_right hav, ite_eq_right hbv] at hk hl
     exact wrap (by dsimp [nU] at *; omega) (by omega)
 

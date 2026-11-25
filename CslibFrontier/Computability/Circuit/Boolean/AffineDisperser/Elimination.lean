@@ -213,17 +213,15 @@ theorem Valid.step_of_sharedSecondChild {S : State n} (hS : S.Valid f) (hN : S.N
   have hcy : S.children y = {.inl G, B} := (Finset.eq_of_subset_of_card_le
     (by simp [Finset.insert_subset_iff, h.mem_children_y, hBy])
     (by rw [hpair]; exact hy2.le)).symm
-  suffices key : ∃ S' x' y', ((x' = x ∧ y' = y) ∨ (x' = y ∧ y' = x)) ∧
-      Reduction f S S' {x'} [.inl G, B] [] by
-    obtain ⟨S', x', y', hxy', hred⟩ := key
+  rcases B with Bg | e
+  · obtain ⟨S', x', y', hxy', hred⟩ :=
+      Valid.exists_reduction_sharedGate hS h hcx hcy fun he => hBG (he ▸ rfl)
     rcases hxy' with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
     · exact ⟨S', Reduction.step_of_shared hS h.unpaired_x h.unpaired_y h.ne hx2 hy2 hcy hred⟩
     · exact ⟨S',
         Reduction.step_of_shared hS h.unpaired_y h.unpaired_x h.ne.symm hy2 hx2 hcx hred⟩
-  rcases B with Bg | e
-  · exact Valid.exists_reduction_sharedGate hS h hcx hcy fun he => hBG (by rw [he])
   · obtain ⟨S', hred⟩ := Valid.exists_reduction_sharedEqn hS hN h hcx hcy
-    exact ⟨S', x, y, Or.inl ⟨rfl, rfl⟩, hred⟩
+    exact ⟨S', Reduction.step_of_shared hS h.unpaired_x h.unpaired_y h.ne hx2 hy2 hcy hred⟩
 
 /-! ### Case 8: fixing an input -/
 
@@ -307,11 +305,8 @@ private theorem MinimalAnd.length_fixInput {S : State n} (hS : S.Valid f) {G x y
       obtain ⟨K, hK, rfl, hKG⟩ := h.eq_inl_of_mem_children hS hNG
       exact (h.children K hK hKG).1
         ((SemiCircuit.inl_mem_children _).1 (Finset.mem_of_mem_erase hNx)).2
-  have hdx : S.deg x = (S.children x).card := rfl
-  have hdG : S.deg G = (S.children G).card := rfl
-  unfold fixInputDeleted
-  rw [List.length_cons, Finset.length_toList, Finset.card_union_of_disjoint hdisj,
-    Finset.card_erase_of_mem h.mem_children_x]
+  simp only [fixInputDeleted, SemiCircuit.deg, List.length_cons, Finset.length_toList,
+    Finset.card_union_of_disjoint hdisj, Finset.card_erase_of_mem h.mem_children_x]
   have := Finset.card_pos.2 ⟨_, h.mem_children_x⟩
   omega
 
@@ -336,14 +331,11 @@ theorem Reduction.wt_add_le_fixInput {S S' : State n} (hS : S.Valid f) (hN : S.N
         exact (h.children K hK hKG).2 ((SemiCircuit.inl_mem_children _).1 hNy).2
     have hcard : (S.children u \ (Sum.inl G :: (S.fixInputDeleted G x).toList).toFinset).card
         ≤ 1 := by
-      have hsub : S.children u \ (Sum.inl G :: (S.fixInputDeleted G x).toList).toFinset ⊆
-          (S.children u).erase (.inl G) := fun N hN' =>
-        Finset.mem_erase.2 ⟨fun he => (Finset.mem_sdiff.1 hN').2 (by simp [he]),
-          (Finset.mem_sdiff.1 hN').1⟩
-      refine (Finset.card_le_card hsub).trans ?_
+      refine (Finset.card_le_card fun N hN' => Finset.mem_erase.2
+        ⟨fun he => (Finset.mem_sdiff.1 hN').2 (he ▸ List.mem_toFinset.2 List.mem_cons_self),
+          (Finset.mem_sdiff.1 hN').1⟩).trans ?_
       rw [Finset.card_erase_of_mem h.mem_children_y]
-      change S.deg u - 1 ≤ 1
-      omega
+      exact Nat.sub_le_of_le_add hy2.le
     have hwt := (hred.wt_le_weight (fun N hN' => hT N (by simpa using hN'))).trans
       (weight_mono hcard)
     rw [weight_one] at hwt

@@ -78,19 +78,17 @@ theorem highestDiff_mem_relevantBits_of_lt {n w : ℕ} {keys : Fin n → ℕ}
       Nat.shiftRight_eq_of_between (hsorted hik).le (hsorted hkj).le hprefix
     have hkabove : ∀ b, p < b → (keys k).testBit b = (keys i).testBit b :=
       fun _ hb => Nat.testBit_eq_of_shiftRight_eq hkprefix (by omega)
+    change p ∈ relevantBits w keys
     by_cases hbit : (keys i).testBit p = (keys k).testBit p
     · have heq : highestDiff w (keys k) (keys j) = p :=
         highestDiff_eq_of_testBit hp (by simpa only [← hbit] using hdiff)
           (fun b hb => (hkabove b hb).trans (habove b hb))
-      change p ∈ relevantBits w keys
       rw [← heq]
       exact ih k j (by change j.val = (i.val + 1) + d + 1; omega)
     · have heq : highestDiff w (keys i) (keys k) = p :=
         highestDiff_eq_of_testBit hp hbit (fun b hb => (hkabove b hb).symm)
-      change p ∈ relevantBits w keys
       rw [← heq]
-      apply Finset.mem_image.mpr
-      exact ⟨⟨i.val, by omega⟩, Finset.mem_univ _, rfl⟩
+      exact Finset.mem_image.mpr ⟨⟨i.val, by omega⟩, Finset.mem_univ _, rfl⟩
 
 /-- A query sharing the larger stored key's prefix lies strictly above every sketch of a
 smaller stored key outside that prefix block. -/
@@ -182,19 +180,15 @@ theorem exists_sketchNeighbor_prefix {n w q cut : ℕ} {keys : Fin n → ℕ}
     refine ⟨j, Or.inl (by change t - 1 + 1 = t; omega), ?_⟩
     by_contra hj
     have hle : values j ≤ sq := (lt_upperRank_iff hmono j).mp (by change t - 1 < t; omega)
-    have hij : i ≤ j := by change i.val ≤ t - 1; omega
-    have hne : i ≠ j := by intro heq; exact hj (heq ▸ hi)
     exact (not_lt_of_ge hle) (query_lt_sketch_of_prefix hsorted hbound
-      (lt_of_le_of_ne hij hne) hi hj)
+      (lt_of_le_of_ne (Nat.le_sub_one_of_lt hit) fun heq => hj (heq ▸ hi)) hi hj)
   · let j : Fin n := ⟨t, by omega⟩
     refine ⟨j, Or.inr rfl, ?_⟩
     by_contra hj
     have hlt : sq < values j := lt_of_not_ge (fun h =>
       (Nat.lt_irrefl t) ((lt_upperRank_iff hmono j).mpr h))
-    have hji : j ≤ i := by change t ≤ i.val; omega
-    have hne : j ≠ i := by intro heq; exact hj (heq.symm ▸ hi)
     exact (not_lt_of_ge hlt.le) (sketch_lt_query_of_prefix hsorted hbound
-      (lt_of_le_of_ne hji hne) hi hj)
+      (lt_of_le_of_ne (Nat.le_of_not_lt hit) fun heq => hj (heq.symm ▸ hi)) hi hj)
 
 /-- For a query unequal to every stored key, an immediate sketch neighbor attains the longest
 full common prefix, expressed as the minimum highest differing position. -/
@@ -246,18 +240,14 @@ private theorem le_iff_sketch_le_and_lt_of_prefix_ne {n w q cut r : ℕ} {keys :
       (keys i ≤ q ↔ sketch (relevantBits w keys) (keys i) < sketch (relevantBits w keys) r) := by
   have hiboundary : keys i >>> cut ≠ r >>> cut := by rwa [hr]
   rcases lt_or_gt_of_ne (fun h : i = j => hiprefix (h ▸ hjprefix)) with hij | hji
-  · have hshift : keys i >>> cut < q >>> cut := by
-      rw [← hjprefix]
-      exact (Nat.lt_iff_shiftRight_lt_of_ne (fun h => hiprefix (h.trans hjprefix))).mp
-        (hsorted hij)
-    have hlt : keys i < q := (Nat.lt_iff_shiftRight_lt_of_ne hiprefix).mpr hshift
+  · have hlt : keys i < q := (Nat.lt_iff_shiftRight_lt_of_ne hiprefix).mpr
+      (hjprefix ▸ (Nat.lt_iff_shiftRight_lt_of_ne (fun h => hiprefix (h.trans hjprefix))).mp
+        (hsorted hij))
     have hslt := sketch_lt_query_of_prefix hsorted hbound hij (hjprefix.trans hr.symm) hiboundary
     exact ⟨iff_of_true hlt.le hslt.le, iff_of_true hlt.le hslt⟩
-  · have hshift : q >>> cut < keys i >>> cut := by
-      rw [← hjprefix]
-      exact (Nat.lt_iff_shiftRight_lt_of_ne (fun h => hiprefix (h.symm.trans hjprefix))).mp
-        (hsorted hji)
-    have hlt : q < keys i := (Nat.lt_iff_shiftRight_lt_of_ne (Ne.symm hiprefix)).mpr hshift
+  · have hlt : q < keys i := (Nat.lt_iff_shiftRight_lt_of_ne (Ne.symm hiprefix)).mpr
+      (hjprefix ▸ (Nat.lt_iff_shiftRight_lt_of_ne (fun h => hiprefix (h.symm.trans hjprefix))).mp
+        (hsorted hji))
     have hslt := query_lt_sketch_of_prefix hsorted hbound hji (hjprefix.trans hr.symm) hiboundary
     exact ⟨iff_of_false (not_le_of_gt hlt) (not_le_of_gt hslt),
       iff_of_false (not_le_of_gt hlt) (not_lt_of_ge hslt.le)⟩
@@ -488,8 +478,7 @@ theorem correctedRank_eq_upperRank {n w q : ℕ} {keys : Fin n → ℕ}
     correctedRank w keys q = upperRank keys q := by
   cases hj : bestSketchNeighbor w keys q with
   | none =>
-    have hn := bestSketchNeighbor_eq_none_iff.mp hj
-    subst n
+    obtain rfl := bestSketchNeighbor_eq_none_iff.mp hj
     simp [correctedRank, hj, upperRank]
   | some j =>
     rw [correctedRank, hj]
