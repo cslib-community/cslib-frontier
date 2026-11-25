@@ -88,8 +88,15 @@ theorem instance_adjacency {n D g p : ℕ} (values : ℕ → ℤ)
     change (values (2 * (n * n) + pairIndex (a, c)) % (p : ℤ)).toNat = _; rw [hAC]; rfl
   have hloadR (b c : Fin n) : R (N + (b.val * n + c.val)) = (wBC b c).natMod p := by
     change (values (n * n + pairIndex (b, c)) % (p : ℤ)).toNat = _; rw [hBC]; rfl
-  have hli (a : Fin n) {m : ℕ} (hm : m < D) : a.val * D + m < n * D := by nlinarith [a.isLt]
-  have hri (b : Fin n) {m : ℕ} (hm : m < D) : m * n + b.val < n * D := by nlinarith [b.isLt]
+  have hli (a : Fin n) {m : ℕ} (hm : m < D) : a.val * D + m < n * D := by
+    have hi := Nat.mul_le_mul_right D a.isLt
+    rw [Nat.succ_mul] at hi
+    omega
+  have hri (b : Fin n) {m : ℕ} (hm : m < D) : m * n + b.val < n * D := by
+    have hi := Nat.mul_le_mul_right n hm
+    rw [Nat.succ_mul, Nat.mul_comm D n] at hi
+    have hb := b.isLt
+    omega
   have hout : y.regs Instances.output = 5 + 6 * N + p + 2 * N * p + 3 * K := h.2.2.2.1
   dsimp only
   rw [hout]
