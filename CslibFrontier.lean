@@ -3095,6 +3095,7 @@ public import CslibFrontier.Computability.Complexity.FineGrained.PPZ
 public import CslibFrontier.Computability.Complexity.FineGrained.PPZ.LazyOrder
 public import CslibFrontier.Computability.Complexity.FineGrained.Padding
 public import CslibFrontier.Computability.Complexity.FineGrained.PermutationIndependentSet
+public import CslibFrontier.Computability.Complexity.FineGrained.PlanarSAT
 public import CslibFrontier.Computability.Complexity.FineGrained.PowerTime
 public import CslibFrontier.Computability.Complexity.FineGrained.Randomized
 public import CslibFrontier.Computability.Complexity.FineGrained.RatesNativeEndpoint
