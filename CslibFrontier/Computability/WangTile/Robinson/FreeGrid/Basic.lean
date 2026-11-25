@@ -207,11 +207,8 @@ private theorem has_light_cycle (g : ℕ → ℕ → Index)
     (by simp only [quarterWest, quarterEast, pow_eq]; omega)
     (by simp only [quarterSouth, quarterNorth, pow_eq]; omega)
     (by simp only [quarterNorth, pow_eq]; omega)
-  cases a
-  · exact Or.inl ha
-  · cases b
-    · exact Or.inr hb
-    · exact (neq rfl).elim
+  cases a <;> cases b
+  exacts [Or.inl ha, Or.inl ha, Or.inr hb, (neq rfl).elim]
 
 private theorem exists_refined_zero (base : IndexPlane) (depth : ℕ) :
     ∃ (g : ℕ → ℕ → Index) (u v : ℤ), g 0 0 = 0 ∧
@@ -507,10 +504,7 @@ private theorem evenRules (node : Node) : EvenRules node := by
   have hchunk : evenChunk (k / 78) = true := by
     rcases (show k / 78 = 0 ∨ k / 78 = 1 ∨ k / 78 = 2 ∨ k / 78 = 3 by omega) with h | h | h | h <;>
       rw [h]
-    · exact even_checked0
-    · exact even_checked1
-    · exact even_checked2
-    · exact even_checked3
+    exacts [even_checked0, even_checked1, even_checked2, even_checked3]
   have hcore : EvenRulesCore ⟨⟨k, hk⟩⟩ := by
     have hm := (List.all_eq_true.mp hchunk) (k % 78)
       (List.mem_range.mpr (Nat.mod_lt _ (by decide)))
@@ -784,8 +778,7 @@ private theorem even_free (axis : LineAxis) (root : Node) (depth index : ℕ)
     (hi : index ≤ depth) : LineFree axis 1 depth true root (coordinate 1 depth index) := by
   induction depth generalizing index with
   | zero =>
-      have hi0 : index = 0 := by omega
-      subst hi0
+      obtain rfl : index = 0 := by omega
       simpa [coordinate, offset] using even_base axis root
   | succ depth ih =>
       obtain ⟨previous, hp, hchild⟩ := offset_parent hi
@@ -836,8 +829,7 @@ private theorem odd_classified (axis : LineAxis) (depth index : ℕ) (hi : index
     StripClassified axis (decide (index ≠ 0)) depth (offset depth index) := by
   induction depth generalizing index with
   | zero =>
-      have hi0 : index = 0 := by omega
-      subst hi0
+      obtain rfl : index = 0 := by omega
       constructor
       · intro along hlo hhi
         norm_num at hlo hhi
@@ -1322,19 +1314,20 @@ private theorem phase_marked (flipped : Bool) (depth n : ℕ) (hn : n ≤ depth)
       (phaseScale flipped depth) (3 * phaseScale flipped depth) n) := by
   let lines : Fin (n + 1) → ℕ := fun i => coordinate (if flipped then 1 else 2) depth i
   have positiveScale : 0 < (if flipped then 1 else 2 : ℕ) := by cases flipped <;> decide
+  have hle (i : Fin (n + 1)) : (i : ℕ) ≤ depth := Nat.le_trans (Nat.lt_succ_iff.mp i.isLt) hn
   have bounds (i : Fin (n + 1)) : 2 * phaseScale flipped depth + 1 < lines i ∧
       lines i < 6 * phaseScale flipped depth :=
-    coordinate_bounds positiveScale (Nat.le_trans (Nat.lt_succ_iff.mp i.isLt) hn)
+    coordinate_bounds positiveScale (hle i)
   have hi (i : Fin (n + 1)) : lines i < 2 * (3 * phaseScale flipped depth) := by
     have := (bounds i).2; omega
   have mono : StrictMono lines := fun _ _ hij => coordinate_strictMono positiveScale depth hij
   refine MarkedFreeGrid.ofSparse lines lines mono mono
     (fun i => ⟨(bounds i).1, hi i, fun along lower upper =>
-      phase_free .column flipped depth i (Nat.le_trans (Nat.lt_succ_iff.mp i.isLt) hn)
+      phase_free .column flipped depth i (hle i)
         coarse rootEq actual valid shaded along lower
         (by dsimp only [quarterNorth] at upper; omega)⟩)
     (fun i => ⟨(bounds i).1, hi i, fun along lower upper =>
-      phase_free .row flipped depth i (Nat.le_trans (Nat.lt_succ_iff.mp i.isLt) hn)
+      phase_free .row flipped depth i (hle i)
         coarse rootEq actual valid shaded along lower
         (by dsimp only [quarterEast] at upper; omega)⟩)
     (phase_marker flipped depth positive coarse rootEq)
@@ -1367,11 +1360,9 @@ theorem exists_markedFreeGrid {P : Cslib.WangTile.Plane scaffold.tiles}
         Nonempty (MarkedFreeGrid
           (fun i j => R.parent.index (a + i) (b + j)) states
           scale (3 * scale) scale (3 * scale) n) := by
-    have phaseValid : ValidShadeGrid (phaseGrid flipped depth coarse) states := gridEq.symm ▸ valid
-    refine ⟨phaseScale flipped depth, ?_, shaded, ?_⟩
-    · rw [patch, ← gridEq]; exact phase_cycle flipped depth coarse
-    · rw [patch, ← gridEq]
-      exact phase_marked flipped depth n hn positive coarse rootEq states phaseValid shaded
+    rw [patch, ← gridEq]
+    exact ⟨_, phase_cycle flipped depth coarse, shaded, phase_marked flipped depth n hn positive
+      coarse rootEq states (gridEq.symm ▸ valid) shaded⟩
   rcases has_light_cycle coarse (2 * n + 2) (by omega)
       (s := states) (by simpa only [Nat.add_assoc] using valid) with large | small
   · have power : 2 ^ (2 * n + 2) = 4 ^ (n + 1) := by
