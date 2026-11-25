@@ -81,14 +81,18 @@ private theorem observer_disjoint_disk : Disjoint (Metric.closedBall (0 : ℂ) 1
   have hb : ‖w‖ ≤ 1 := by simpa only [Metric.mem_closedBall, dist_zero_right] using hball
   linarith
 
-/-- The orthogonal example loses its crossing point while preserving its endpoints,
+/-- The orthogonal splice has no interior crossings in the disk and preserves its endpoints,
 outgoing directions, exterior support and intersection parity with an observer outside the disk. -/
 theorem removes_orthogonal_crossing :
     let r := Route.line (((-3 / 2 : ℝ) : ℂ) - Complex.I) (((-3 / 2 : ℝ) : ℂ) + Complex.I)
-    ∃ p : Route, (0 : ℂ) ∈ p.support ∧ ∃ q : Route,
+    ∃ p : Route, (0 : ℂ) ∈ openSegmentCrossings
+      (fun k : Fin p.segments => p.point k.castSucc) (fun k => p.point k.succ) ∧ ∃ q : Route,
       q.start = p.start ∧ q.finish = p.finish ∧ (0 : ℂ) ∉ q.support ∧
       q.support \ Metric.closedBall (0 : ℂ) 1 = p.support \ Metric.closedBall (0 : ℂ) 1 ∧
       (∀ b : Bool, (q.germ b).arg = (p.germ b).arg) ∧
+      Disjoint (Metric.closedBall (0 : ℂ) 1)
+        (openSegmentCrossings (fun k : Fin q.segments => q.point k.castSucc)
+          (fun k => q.point k.succ)) ∧
       q.intersectionParity r = p.intersectionParity r := by
   have hx : (0 : ℂ) ∈ openSegment ℝ (route.point (0 : Fin route.segments).castSucc)
       (route.point (0 : Fin route.segments).succ) := by
@@ -112,11 +116,11 @@ theorem removes_orthogonal_crossing :
         (by norm_num [Complex.mul_re]) (by norm_num [Complex.mul_re]) hw
     intro x hx y hy
     exact Complex.ext ((hre hx.2).trans (hre hy.2).symm) ((him hx.1).trans (him hy.1).symm)
-  refine ⟨route, Set.mem_iUnion.mpr ⟨0, openSegment_subset_segment ℝ _ _ hx⟩, ?_⟩
-  obtain ⟨q, hstart, hfinish, hn, hout, hparity, hgerm, _⟩ :=
+  refine ⟨route, ⟨0, 3, by decide, hx, hy⟩, ?_⟩
+  obtain ⟨q, hstart, hfinish, hn, hout, hparity, hgerm, hcross, _⟩ :=
     route.exists_splice_of_isolated_crossing 0 3 (by decide) (by norm_num) hx hy hpair
       route_ends_outside connector_segments_outside
-  refine ⟨q, hstart, hfinish, hn, hout, ?_, hparity _ observer_disjoint_disk⟩
+  refine ⟨q, hstart, hfinish, hn, hout, ?_, hcross, hparity _ observer_disjoint_disk⟩
   intro b
   obtain ⟨c, hc, he⟩ := hgerm b
   rw [he, Complex.real_smul, Complex.arg_real_mul _ hc]
