@@ -61,10 +61,9 @@ theorem exists_subdivision_embedding_with_scaled_reference_spokes
   have href : Set.InjOn (referencePoint I) {v | v ∈ I.graph.vertices} :=
     fun _ hv _ hw h => referenceDrawing_vertices_injective hI (hsub hv) (hsub hw) h
   obtain ⟨P, hP, hposition, _, hdir, _, _⟩ := hD.exists_vertex_placement hdecl _ href
-  have hPReal : P.Realizes r := by
-    refine ⟨hP.germ_ne_zero, hP.directions_injective, ?_⟩
-    intro a b c hab hbc hnab hnbc hnac
-    simpa only [hdir] using hReal.clockwise a b c hab hbc hnab hnbc hnac
+  have hPReal : P.Realizes r := ⟨hP.germ_ne_zero, hP.directions_injective,
+    fun a b c hab hbc hnab hnbc hnac => by
+      simpa only [hdir] using hReal.clockwise a b c hab hbc hnab hnbc hnac⟩
   obtain ⟨δ, hδ, halign⟩ := exists_subdivision_embedding_with_reference_spokes hI hP hPReal hfixed
   obtain ⟨_, F, _, hF, _, hcenter, _, _, _, hfixedGerm⟩ :=
     halign (δ / 2) ⟨half_pos hδ, half_lt_self hδ⟩
@@ -139,10 +138,8 @@ theorem exists_subdivision_embedding_with_frozen_reference_routes
     let o := referencePoint I d.vertex
     let T : ℂ →ᵃ[ℝ] ℂ := AffineMap.homothety o s
     have hQ : Q.route f = Route.line a b := rfl
-    have hT (z : ℂ) : T z = o + s • (z - o) := by
-      change AffineMap.homothety o s z = _
-      rw [AffineMap.homothety_apply]
-      exact add_comm _ _
+    have hT (z : ℂ) : T z = o + s • (z - o) :=
+      (AffineMap.homothety_apply o s z).trans (add_comm _ _)
     have hFt (t : ℝ) (ht : t ∈ Set.Icc 0 1) :
         F (AffineMap.lineMap a b t) = T (AffineMap.lineMap a b t) := by
       have hm : AffineMap.lineMap a b t ∈ (Q.route f).support := by
@@ -200,22 +197,18 @@ theorem exists_subdivision_embedding_with_frozen_reference_routes
   · intro e
     by_cases he : frozen e
     · obtain ⟨hshort, hFt⟩ := hparam e he
-      have hroute : E.route e = Q.route e := ite_eq_left he
-      rw [hroute]
+      rw [show E.route e = Q.route e from ite_eq_left he]
       intro i
       rw [hshort]
-      refine ⟨0, 0, 1, le_rfl, zero_lt_one, le_rfl, ?_⟩
-      intro t ht
-      have ht' : AffineMap.lineMap (0 : ℝ) 1 t = t := by
-        simp only [AffineMap.lineMap_apply_ring, mul_zero, mul_one, zero_add]
-      rw [ht']
+      refine ⟨0, 0, 1, le_rfl, zero_lt_one, le_rfl, fun t ht => ?_⟩
+      rw [show AffineMap.lineMap (0 : ℝ) 1 t = t by
+        simp only [AffineMap.lineMap_apply_ring, mul_zero, mul_one, zero_add]]
       change (Route.line (Q.route e).start (Q.route e).finish).eval i t = _ ∧ _
       refine ⟨?_, fun side => ?_⟩
       · exact (Route.eval_line _ _ i t).trans
           (F.injective ((hFt t ht).trans (F.apply_symm_apply _).symm))
       · exact (Route.atEnd_line_iff _ _ i t side).trans (Route.atEnd_line_iff _ _ 0 t side).symm
-    · have hroute : E.route e = (P.route e).mapAtCuts cuts c F.symm := ite_eq_right he
-      rw [hroute]
+    · rw [show E.route e = (P.route e).mapAtCuts cuts c F.symm from ite_eq_right he]
       intro i
       obtain ⟨j, a, b, ha, hab, hb, _, h⟩ :=
         Route.eval_mapAtCuts (c := c) hline (P.route e) i
