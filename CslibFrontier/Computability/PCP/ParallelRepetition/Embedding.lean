@@ -148,10 +148,8 @@ private theorem dist_map_condLaw_shared_le
   have hq : (((P.map TV).bind κ).toOuterMeasure (Prod.fst ⁻¹' Eμ)).toReal = 1 / 2 := by
     rw [← PMF.toOuterMeasure_map_apply, Cslib.Probability.PMF.map_fst_bind_pair,
       PMF.toOuterMeasure_map_apply, hTV, hhalf]
-  have hpE := (Cslib.Probability.PMF.toOuterMeasure_toReal_pos_iff _ _).mp
-    (by rw [hp]; norm_num)
-  have hqE := (Cslib.Probability.PMF.toOuterMeasure_toReal_pos_iff _ _).mp
-    (by rw [hq]; norm_num)
+  have hpE := (Cslib.Probability.PMF.toOuterMeasure_toReal_pos_iff _ _).mp (by rw [hp]; norm_num)
+  have hqE := (Cslib.Probability.PMF.toOuterMeasure_toReal_pos_iff _ _).mp (by rw [hq]; norm_num)
   have hμE : ∃ s ∈ Eμ, s ∈ (P.map TV).support := by
     obtain ⟨ω, hω, hsupp⟩ := hES
     exact ⟨TV ω, (Set.ext_iff.mp hTV ω).mpr hω,
@@ -184,8 +182,7 @@ private theorem dist_map_condLaw_shared_le
       (P.filter ES hES).map (fun ω => (reveal b (ω.2 j), shared ha hb j ω)) := by
     refine Cslib.Probability.PMF.map_congr_on_support _ _ _ fun ω hω => ?_
     rw [PMF.support_filter] at hω
-    have hb : ω.1 j = b := hω.1
-    simp only [revealed, hb]
+    simp only [revealed, show ω.1 j = b from hω.1]
   have hR : (((P.filter ES hES).map TV).bind κ).map Φ =
       (P.map fun ω => (reveal b (ω.2 j), shared ha hb j ω)).bind
         fun (r, s) => (pairGiven G r).map (·, s) := by
@@ -196,8 +193,7 @@ private theorem dist_map_condLaw_shared_le
       _ = _ := by
           rw [hsupp, map_filter_condLaw_bit hC j b _
             (fun d c q => by simp only [shared_update]) hES]
-  rw [hL, hR] at h1
-  exact h1
+  rwa [hL, hR] at h1
 
 /-- **Holenstein's (6.7)–(6.12)** [Holenstein, proof of Lemma 6.4, (6.7)–(6.12)][Holenstein2009]:
 under `W_C`, drawing the pair at `j` given only `S` and the half `R_j = reveal b (x_j, y_j)`
