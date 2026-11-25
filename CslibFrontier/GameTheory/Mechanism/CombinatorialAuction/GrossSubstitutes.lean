@@ -478,13 +478,6 @@ theorem isGrossSubstitutes_downwardSlopingValuation {M : Type*} [Finite M] {w : 
     exact (card_inter_lt_of_subset_of_mem hj₀S₀ hj₀D₀ (mem_insert_self j₀ _) hsub).not_ge
       (hD₀_max D' hD'_dem)
 
-/-- A bundle squeezed between `S` and `insert a S` is one of the two. -/
-private theorem eq_or_eq_insert_of_subset {M : Type*} [DecidableEq M] {S B : Finset M} {a : M}
-    (hSB : S ⊆ B) (hB : B ⊆ insert a S) : B = S ∨ B = insert a S := by
-  by_cases ha : a ∈ B
-  · exact Or.inr (hB.antisymm (insert_subset ha hSB))
-  · exact Or.inl (((subset_insert_iff_of_notMem ha).1 hB).antisymm hSB)
-
 /-! ### Exercise 11.6 (Gul–Stacchetti): every gross-substitutes valuation is submodular -/
 
 /-- Two-item marginal diminishing returns for gross-substitutes valuations ([GulStacchetti1999];
@@ -618,8 +611,12 @@ theorem IsGrossSubstitutes.insert_insert_add_le {M : Type*} [Finite M] [Decidabl
   -- Evaluate the 4 candidate subsets `B` satisfying `S ⊆ B ⊆ Sxy`!
   have hfour : ∀ B : Finset M, S ⊆ B → B ⊆ Sxy → B = S ∨ B = Sx ∨ B = Sy ∨ B = Sxy := by
     intro B hSB hBSxy
-    have hC := eq_or_eq_insert_of_subset (B := B.erase x)
-      (fun j hj => mem_erase.2 ⟨ne_of_mem_of_not_mem hj hxS, hSB hj⟩) (subset_insert_iff.1 hBSxy)
+    have hSB' : S ⊆ B.erase x := fun j hj => mem_erase.2 ⟨ne_of_mem_of_not_mem hj hxS, hSB hj⟩
+    have hC : B.erase x = S ∨ B.erase x = insert y S := by
+      by_cases hy : y ∈ B.erase x
+      · exact Or.inr ((subset_insert_iff.1 hBSxy).antisymm (insert_subset hy hSB'))
+      · exact Or.inl
+          (((subset_insert_iff_of_notMem hy).1 (subset_insert_iff.1 hBSxy)).antisymm hSB')
     by_cases hxB : x ∈ B
     · rw [← insert_erase hxB]
       rcases hC with hC | hC <;> rw [hC]
