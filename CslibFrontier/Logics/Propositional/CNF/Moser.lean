@@ -251,10 +251,13 @@ theorem mem_neighbors {c d : Fin φ.length} : d ∈ neighbors φ c ↔ Shares φ
 theorem length_neighbors_le (c : Fin φ.length) : (neighbors φ c).length ≤ degree φ c + 1 := by
   have hnd : (neighbors φ c).Nodup := (List.nodup_finRange _).filter _
   rw [← List.toFinset_card_of_nodup hnd]
-  refine (card_le_card fun j hj => ?_).trans (card_insert_le c _)
-  rw [List.mem_toFinset, mem_neighbors] at hj
-  rw [mem_insert, mem_filter]
-  exact (eq_or_ne j c).imp_right fun h => ⟨mem_univ _, h, hj⟩
+  calc #(neighbors φ c).toFinset
+      ≤ #(insert c ({j : Fin φ.length | j ≠ c ∧ Shares φ[c] φ[j]} : Finset _)) := by
+        refine card_le_card fun j hj => ?_
+        rw [List.mem_toFinset, mem_neighbors] at hj
+        rw [mem_insert, mem_filter]
+        exact (eq_or_ne j c).imp_right fun h => ⟨mem_univ _, h, hj⟩
+    _ ≤ degree φ c + 1 := card_insert_le _ _
 
 theorem getElem_mem_fin (c : Fin φ.length) : φ[c] ∈ φ := List.getElem_mem c.2
 

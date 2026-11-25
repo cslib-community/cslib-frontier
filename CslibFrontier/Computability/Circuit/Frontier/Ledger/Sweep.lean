@@ -162,8 +162,10 @@ private theorem wiresIn_insert_signal (w₀ : Compiler.Signal (liveCircuit p spe
     wiresIn (insert (.signal w₀) P) = insert (signalWire w₀) (wiresIn P) := by
   ext w
   simp only [wiresIn, signalWire, mem_ofPred_eq, mem_insert_iff]
-  exact ⟨fun ⟨hw, h⟩ => h.imp (congrArg Subtype.val ∘ Compiler.Vertex.signal.inj) (⟨hw, ·⟩),
-    by rintro (rfl | ⟨hw, h⟩); exacts [⟨w₀.2, .inl rfl⟩, ⟨hw, .inr h⟩]⟩
+  refine ⟨fun ⟨hw, h⟩ => h.imp (congrArg Subtype.val ∘ Compiler.Vertex.signal.inj) (⟨hw, ·⟩), ?_⟩
+  rintro (rfl | ⟨hw, h⟩)
+  · exact ⟨w₀.2, .inl rfl⟩
+  · exact ⟨hw, .inr h⟩
 
 private theorem wiresIn_insert_junction (j : Compiler.Junction (liveCircuit p special))
     (P : Set (Compiler.Vertex (liveCircuit p special))) :
@@ -228,7 +230,9 @@ private theorem totalOn_insert {u : Wire n s} {Q : Set (Wire n s)} (hu : u ∉ Q
   classical
   rw [totalOn, totalOn]
   trans ∏ w ∈ insert u (Finset.univ.filter (· ∈ Q)), L.contribution w (v w)
-  · exact Finset.prod_congr (by ext; simp) fun _ _ => rfl
+  · refine Finset.prod_congr ?_ fun _ _ => rfl
+    ext
+    simp
   · exact Finset.prod_insert (by simp [hu])
 
 /-! ### Splicing -/
@@ -383,13 +387,19 @@ theorem ncard_extra_le [Finite U] [Finite M] (t : ℕ) :
   have hpow : (L.extra π t '' {x | p.trace I x o ∈ Acc}).ncard ≤
       Nat.card U ^ Nat.card {g // special g} * Nat.card M :=
     (ncard_le_card _).trans_eq (by rw [Nat.card_prod, Nat.card_fun])
-  have hsq : (L.extra π t '' {x | p.trace I x o ∈ Acc}).ncard ≤ Nat.card M * Nat.card M :=
-    (ncard_image_le_ncard_image_of_factorsThrough (g := fun x =>
-        (L.total (p.trace I x), L.totalOn (wiresIn (π.initial t)) (p.trace I x))) (toFinite _)
-      fun x _ y _ hxy => by simp only [Prod.mk.injEq] at hxy; simp only [extra, hxy.1, hxy.2]).trans
-      ((ncard_le_card _).trans_eq (Nat.card_prod _ _))
-  rcases le_total (Nat.card U ^ Nat.card {g // special g}) (Nat.card M) with hle | hle <;>
-    [rwa [min_eq_left hle]; rwa [min_eq_right hle]]
+  have hsq : (L.extra π t '' {x | p.trace I x o ∈ Acc}).ncard ≤ Nat.card M * Nat.card M := by
+    calc (L.extra π t '' {x | p.trace I x o ∈ Acc}).ncard
+        ≤ ((fun x => (L.total (p.trace I x),
+            L.totalOn (wiresIn (π.initial t)) (p.trace I x))) ''
+              {x | p.trace I x o ∈ Acc}).ncard := by
+          refine ncard_image_le_ncard_image_of_factorsThrough (toFinite _) fun x _ y _ hxy => ?_
+          simp only [Prod.mk.injEq] at hxy
+          simp only [extra, hxy.1, hxy.2]
+      _ ≤ Nat.card (M × M) := ncard_le_card _
+      _ = Nat.card M * Nat.card M := Nat.card_prod _ _
+  rcases le_total (Nat.card U ^ Nat.card {g // special g}) (Nat.card M) with hle | hle
+  · rwa [min_eq_left hle]
+  · rwa [min_eq_right hle]
 
 /-- **Transitions by width.** A transition at step `t` is determined by the extra message at time
 `t`, the values on the two frontiers, and the input read at the vertex processed. -/
@@ -437,12 +447,13 @@ theorem ncard_transition_le_readIn [Finite U] [Finite M] {t : ℕ}
       rw [domRestrict_eq_domRestrict_iff] at hg
       have hread : L.readout (L.total (p.trace I x)) = L.readout (L.total (p.trace I y)) := by
         simpa only [extra, ht.le, ↓reduceIte] using congrArg Prod.fst h₀
+      -- The values on the edges at `W` depend only on the readout and the inputs read in `W`.
       have hval : EqOn (fun e => p.trace I x e.signal.1) (fun e => p.trace I y e.signal.1)
           (G.touching W) := fun e he => by
         change p.trace I x e.signal.1 = p.trace I y e.signal.1
-        rw [← L.run_total_trace x, ← L.run_total_trace y,
-          ← show L.run (L.total (p.trace I x)) y = L.run (L.total (p.trace I y)) y by
-            rw [run, run, hread]]
+        have hrun_eq : L.run (L.total (p.trace I x)) y = L.run (L.total (p.trace I y)) y := by
+          rw [run, run, hread]
+        rw [← L.run_total_trace x, ← L.run_total_trace y, ← hrun_eq]
         exact L.run_eq_of_eqOn_readIn _ hW hg he
       have hsucc := L.extra_succ_eq π ht h₀ fun w₀ hvw₀ =>
         @hval (Compiler.head w₀) (.inl (show Compiler.Vertex.signal w₀ ∈ W from hvw₀ ▸ hv))

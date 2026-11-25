@@ -195,8 +195,10 @@ private lemma transformsWordsAt_appendPrefixTM (u₀ raw : List Bool) (N : ℕ) 
     wordsCfgAt (u₀ ++ raw) pEnd none ![List.replicate N true, u₀ ++ raw.take N] out
   have hrun₁ : ((forwardWork Bool).extendTapes (tapeEmb 1)).runFrom cfg₀ (u₀.length + 1) =
       cfg₁ := by
-    rw [runFrom_tapeEmb, show oneTapeCfg 1 cfg₀ = ⟨some (forwardWork Bool).q₀, p₀,
-        fun _ => tapeOfList u₀, fun _ => ((0 : ℕ) : ℤ), out⟩ by simp [oneTapeCfg, cfg₀, wordsCfgAt],
+    have h1 : oneTapeCfg 1 cfg₀ = ⟨some (forwardWork Bool).q₀, p₀,
+        fun _ => tapeOfList u₀, fun _ => ((0 : ℕ) : ℤ), out⟩ := by
+      simp [oneTapeCfg, cfg₀, wordsCfgAt]
+    rw [runFrom_tapeEmb, h1,
       runFrom_forwardWork p₀ u₀ out (p := 0) (n := u₀.length) (by simp), embed_tapeEmb]
     refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext i <;> fin_cases i <;>
       simp [cfg₀, cfg₁, wordsCfgAt]
@@ -208,25 +210,31 @@ private lemma transformsWordsAt_appendPrefixTM (u₀ raw : List Bool) (N : ℕ) 
     simp [List.length_take]
   have hrun₃ : ((rewindWork Bool).extendTapes (tapeEmb 1)).runFrom
       (cfg₂.withState (some (rewindWork Bool).q₀)) (u₀.length + min N raw.length + 2) = cfg₃ := by
+    have h1 : oneTapeCfg 1 (cfg₂.withState (some (rewindWork Bool).q₀)) =
+        ⟨some (rewindWork Bool).q₀, pEnd, fun _ => tapeOfList (u₀ ++ raw.take N),
+          fun _ => ((u₀ ++ raw.take N).length : ℤ), out⟩ :=
+      Cfg.ext rfl rfl (funext fun _ => rfl)
+        (funext fun _ => by simp [oneTapeCfg, cfg₂, hlenOut]) rfl
     rw [runFrom_tapeEmb,
-      show u₀.length + min N raw.length + 2 = (u₀ ++ raw.take N).length + 2 by omega,
-      show oneTapeCfg 1 (cfg₂.withState (some (rewindWork Bool).q₀)) = ⟨some (rewindWork Bool).q₀,
-        pEnd, fun _ => tapeOfList (u₀ ++ raw.take N), fun _ => ((u₀ ++ raw.take N).length : ℤ),
-        out⟩ from Cfg.ext rfl rfl (by funext _; rfl) (by funext _; simp [oneTapeCfg, cfg₂, hlenOut])
-        rfl,
+      show u₀.length + min N raw.length + 2 = (u₀ ++ raw.take N).length + 2 by omega, h1,
       runFrom_rewindWork_none pEnd (tapeOfList (u₀ ++ raw.take N)) out rfl le_rfl, embed_tapeEmb]
-    exact Cfg.ext rfl rfl (by funext i; fin_cases i <;> rfl)
-      (by funext i; fin_cases i <;> simp [cfg₂, cfg₃]) rfl
+    refine Cfg.ext rfl rfl (funext fun i => ?_) (funext fun i => ?_) rfl
+    · fin_cases i <;> rfl
+    · fin_cases i <;> simp [cfg₂, cfg₃]
   have hrun₄ : ((rewindWork Bool).extendTapes (tapeEmb 0)).runFrom
       (cfg₃.withState (some (rewindWork Bool).q₀)) (min N raw.length + 2) = cfg₄ := by
-    rw [runFrom_tapeEmb,
-      show oneTapeCfg 0 (cfg₃.withState (some (rewindWork Bool).q₀)) = ⟨some (rewindWork Bool).q₀,
-        pEnd, fun _ => tapeOfList (List.replicate N true), fun _ => ((min N raw.length : ℕ) : ℤ),
-        out⟩ from Cfg.ext rfl rfl (by funext _; rfl) (by funext _; simp [oneTapeCfg, cfg₃]) rfl,
+    have h1 : oneTapeCfg 0 (cfg₃.withState (some (rewindWork Bool).q₀)) =
+        ⟨some (rewindWork Bool).q₀, pEnd, fun _ => tapeOfList (List.replicate N true),
+          fun _ => ((min N raw.length : ℕ) : ℤ), out⟩ :=
+      Cfg.ext rfl rfl (funext fun _ => rfl)
+        (funext fun _ => by simp [oneTapeCfg, cfg₃]) rfl
+    rw [runFrom_tapeEmb, h1,
       runFrom_rewindWork_none (w := List.replicate N true) pEnd
-        (tapeOfList (List.replicate N true)) out rfl (by simp), embed_tapeEmb]
-    exact Cfg.ext rfl rfl (by funext i; fin_cases i <;> rfl)
-      (by funext i; fin_cases i <;> simp [cfg₃, cfg₄, wordsCfgAt]) rfl
+        (tapeOfList (List.replicate N true)) out rfl (by simp),
+      embed_tapeEmb]
+    refine Cfg.ext rfl rfl (funext fun i => ?_) (funext fun i => ?_) rfl
+    · fin_cases i <;> rfl
+    · fin_cases i <;> simp [cfg₃, cfg₄, wordsCfgAt]
   have hrun₁₂ := runFrom_seq hrun₁ rfl hrun₂ rfl
   have hmap₃₄ : (cfg₂.mapState (Option.map (Sum.inr : Unit → Unit ⊕ Unit))).withState
         (some rewindBothTM.q₀) =
@@ -267,15 +275,18 @@ private lemma transformsWordsAt_appendPrefixTM (u₀ raw : List Bool) (N : ℕ) 
       ((u₀.length + min N raw.length + 2) + (min N raw.length + 2))).space ≤
       ((2 * (u₀.length + min N raw.length + 2 + 1)) + (2 * (min N raw.length + 2 + 1))) := by
     rw [hmap₃₄]
-    exact (space_seq_le hrun₃ rfl (by erw [hrun₄]; simp [cfg₄, wordsCfgAt, Cfg.Halted])).trans
+    refine (space_seq_le hrun₃ rfl ?_).trans
       (Nat.add_le_add (MultiTapeNTM.RunPath.ofDeterministic _ _ _).space_le_mul_time_add_one
         (MultiTapeNTM.RunPath.ofDeterministic _ _ _).space_le_mul_time_add_one)
+    erw [hrun₄]
+    simp [cfg₄, wordsCfgAt, Cfg.Halted]
   change (MultiTapeNTM.RunPath.ofDeterministic
     ((((forwardWork Bool).extendTapes (tapeEmb 1)).seq copyCappedCore).seq rewindBothTM)
     _ _).space ≤ _
   rw [hstart]
-  exact (space_seq_le hrun₁₂ rfl (by rw [hrun₃₄]; simp [cfg₄, wordsCfgAt, Cfg.Halted,
-    Cfg.mapState])).trans (Nat.add_le_add hs₁₂ hs₃₄)
+  refine (space_seq_le hrun₁₂ rfl ?_).trans (Nat.add_le_add hs₁₂ hs₃₄)
+  rw [hrun₃₄]
+  simp [cfg₄, wordsCfgAt, Cfg.Halted, Cfg.mapState]
 
 /-- Lift `ComputesTidilyInTimeAndSpace.onWords` onto an embedded slice of `K` tapes while leaving
 all tapes outside `e` undisturbed. -/
@@ -408,13 +419,13 @@ private def embUIdx (kU j : ℕ) : ℕ :=
 
 private lemma embUIdx_lt (kU kC kV j : ℕ) :
     embUIdx kU j < 3 + (kU + 1) + (kC + 1) + (kV + 1) := by
-      unfold embUIdx
-      split_ifs <;> omega
+  unfold embUIdx
+  split_ifs <;> omega
 
 private lemma embUIdx_inj (kU : ℕ) {a b : ℕ} (ha : a < kU + 1 + 2) (hb : b < kU + 1 + 2)
     (h : embUIdx kU a = embUIdx kU b) : a = b := by
-      unfold embUIdx at h
-      split_ifs at h <;> omega
+  unfold embUIdx at h
+  split_ifs at h <;> omega
 
 private def embCIdx (kU kC j : ℕ) : ℕ :=
   if j < kC then 3 + (kU + 1) + j
@@ -424,8 +435,8 @@ private def embCIdx (kU kC j : ℕ) : ℕ :=
 
 private lemma embCIdx_lt (kU kC kV j : ℕ) :
     embCIdx kU kC j < 3 + (kU + 1) + (kC + 1) + (kV + 1) := by
-      unfold embCIdx
-      split_ifs <;> omega
+  unfold embCIdx
+  split_ifs <;> omega
 
 private lemma embCIdx_inj (kU kC : ℕ) {a b : ℕ} (ha : a < kC + 1 + 2) (hb : b < kC + 1 + 2)
     (h : embCIdx kU kC a = embCIdx kU kC b) : a = b := by
@@ -471,28 +482,28 @@ private def embV (kU kC kV : ℕ) :
 
 private lemma embU_input (kU kC kV : ℕ) :
     embU kU kC kV (Fin.natAdd (kU + 1) 0) = ⟨0, by omega⟩ := by
-      ext
-      simp [embU, embUIdx]
+  ext
+  simp [embU, embUIdx]
 
 private lemma embU_output (kU kC kV : ℕ) :
     embU kU kC kV ((Fin.last kU).castAdd 2) = ⟨1, by omega⟩ := by
-      ext
-      simp [embU, embUIdx]
+  ext
+  simp [embU, embUIdx]
 
 private lemma embC_input (kU kC kV : ℕ) :
     embC kU kC kV (Fin.natAdd (kC + 1) 0) = ⟨1, by omega⟩ := by
-      ext
-      simp [embC, embCIdx]
+  ext
+  simp [embC, embCIdx]
 
 private lemma embC_output (kU kC kV : ℕ) :
     embC kU kC kV ((Fin.last kC).castAdd 2) = ⟨2, by omega⟩ := by
-      ext
-      simp [embC, embCIdx]
+  ext
+  simp [embC, embCIdx]
 
 private lemma embV_input (kU kC kV : ℕ) :
     embV kU kC kV (Fin.natAdd kV 0) = ⟨0, by omega⟩ := by
-      ext
-      simp [embV, embVIdx]
+  ext
+  simp [embV, embVIdx]
 
 private lemma embU_val_ne_zero (kU kC kV : ℕ) (j : Fin (kU + 1 + 2))
     (hj : j ≠ Fin.natAdd (kU + 1) 0) :
@@ -620,7 +631,10 @@ theorem computableInTimeAndSpace_boundedPrefix
           have hneV : embU kU kC kV j ≠ tV :=
             Fin.ne_of_val_ne (embU_val_ne_zero kU kC kV j hj)
           simp [ws₁, ws₀, Function.update_of_ne hneV])
-        (by rw [embU_input]; change ws₁ tV = frame u; simp [ws₁])
+        (by
+          rw [embU_input]
+          change ws₁ tV = frame u
+          simp [ws₁])
       have hW := hslice.words (fun _ => rfl) (fun _ _ _ ⟨hv, he⟩ =>
         ⟨by simpa [ws₂, tU, embU_output] using hv, he⟩)
       exact (by simpa [hlenFrame, L] using hW : TransformsWords _ ws₁ ws₂ [] _ _).freezeInput inp p₁
@@ -635,7 +649,10 @@ theorem computableInTimeAndSpace_boundedPrefix
           have hneU : embC kU kC kV j ≠ tU := Fin.ne_of_val_ne (by dsimp [tU]; omega)
           have hneV : embC kU kC kV j ≠ tV := Fin.ne_of_val_ne (by dsimp [tV]; omega)
           simp [ws₂, ws₁, ws₀, Function.update_of_ne hneU, Function.update_of_ne hneV])
-        (by rw [embC_input]; change ws₂ tU = u; simp [ws₂])
+        (by
+          rw [embC_input]
+          change ws₂ tU = u
+          simp [ws₂])
       have hW := hslice.words (fun _ => rfl) (fun _ _ _ ⟨hv, he⟩ =>
         ⟨by simpa [ws₃, tCap, embC_output] using hv, he⟩)
       exact (by simpa [L, u, N, ws₃, tCap, K] using hW :

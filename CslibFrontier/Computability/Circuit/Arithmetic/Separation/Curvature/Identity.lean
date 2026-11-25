@@ -576,8 +576,11 @@ private theorem prop_identity_reverse (sa : Word μ) (sb : Word ν) (sc : Word �
     have := eval₂_reverse_mul_pow (Int.castRingHom F) (x⁻¹ : F) P
     rwa [hi, coe_eval₂RingHom]
   have key := prop_identity_reflection hxz hx1 sa sb sc sd ha hb hc hd
-  rw [show psi (x⁻¹ : F) sa sb sc sd = φ P by rw [hP, map_psi]; simp [φ],
-    show psi x sa sd sc sb = ι Q by rw [hQ, map_psi], ← hrev] at key
+  have hφP : psi (x⁻¹ : F) sa sb sc sd = φ P := by
+    rw [hP, map_psi]
+    simp [φ]
+  have hιQ : psi x sa sd sc sb = ι Q := by rw [hQ, map_psi]
+  rw [hφP, hιQ, ← hrev] at key
   apply hι
   rw [map_mul, map_mul, map_pow, map_pow, ← key]
   change ι P.reverse * x ^ _ = _ * x ^ _

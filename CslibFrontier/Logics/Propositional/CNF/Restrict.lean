@@ -189,8 +189,12 @@ theorem satisfiable_restrict_iff (φ : CNF V) (v : V) (b : Bool) :
 theorem satisfiable_iff_restrict (φ : CNF V) (v : V) :
     φ.Satisfiable ↔ (φ.restrict v false).Satisfiable ∨ (φ.restrict v true).Satisfiable := by
   rw [satisfiable_restrict_iff, satisfiable_restrict_iff]
-  exact ⟨fun ⟨σ, hσ⟩ => by cases hb : σ v <;> [exact .inl ⟨σ, hb, hσ⟩; exact .inr ⟨σ, hb, hσ⟩],
-    by rintro (⟨σ, -, hσ⟩ | ⟨σ, -, hσ⟩) <;> exact ⟨σ, hσ⟩⟩
+  constructor
+  · rintro ⟨σ, hσ⟩
+    cases hb : σ v
+    · exact Or.inl ⟨σ, hb, hσ⟩
+    · exact Or.inr ⟨σ, hb, hσ⟩
+  · rintro (⟨σ, -, hσ⟩ | ⟨σ, -, hσ⟩) <;> exact ⟨σ, hσ⟩
 
 /-- Extend a restricted assignment on `declared.erase v` to `declared` by fixing `v ↦ b`. -/
 private def extendAt (declared : Finset V) (v : V) (b : Bool)
@@ -522,10 +526,12 @@ theorem occurrences_restrictList_le (φ : CNF V) (assign : List (Literal V)) (u 
 theorem occurrences_restrictList_eq_zero (φ : CNF V) (assign : List (Literal V)) {u : V}
     (hu : u ∈ assign.map Prod.fst) :
     (φ.restrictList assign).occurrences u = 0 := by
+  have hnot : u ∉ (φ.restrictList assign).vars := fun hmem =>
+    (Finset.mem_sdiff.mp (vars_restrictList_subset φ assign (List.mem_toFinset.mpr hmem))).2
+      (List.mem_toFinset.mpr hu)
   rw [CNF.occurrences, List.countP_eq_zero]
   simp only [decide_eq_true_eq, not_exists, not_and]
-  exact fun c hc l hl hlu => (Finset.mem_sdiff.mp (vars_restrictList_subset φ assign
-    (List.mem_toFinset.mpr (hlu ▸ mem_vars.mpr ⟨c, hc, l.2, hl⟩)))).2 (List.mem_toFinset.mpr hu)
+  exact fun c hc l hl hlu => hnot (hlu ▸ mem_vars.mpr ⟨c, hc, l.2, hl⟩)
 
 /-- If every assigned literal holds in `assign` (no conflicting assignments to the same variable),
 `applyAssignList` fixes each variable to its assigned Boolean value. -/

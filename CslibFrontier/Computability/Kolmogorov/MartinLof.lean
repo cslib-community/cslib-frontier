@@ -177,11 +177,16 @@ private theorem coinFlips_biUnion_list (L : List (List Bool)) :
        fun hp => hne (hp.eq_of_length ((hlen_mem v₂ hv₂).trans (hlen_mem v₁ hv₁).symm)).symm⟩
   have hnd : F.Nodup := ((Cslib.BitString.nodup_enum M).map List.ofFn_injective).filter _
   rw [biUnion_prefixCylinderList_eq_filter,
-    measure_biUnion_finset hdisj fun v _ => measurableSet_prefixCylinderList v,
-    Finset.sum_congr rfl fun v hv => by
-      rw [coinFlips_prefixCylinderList, ENNReal.inv_pow, hlen_mem v hv],
-    Finset.sum_const, nsmul_eq_mul, List.toFinset_card_of_nodup hnd, ← List.countP_eq_length_filter]
-  rfl
+    measure_biUnion_finset hdisj fun v _ => measurableSet_prefixCylinderList v]
+  calc ∑ v ∈ F.toFinset, Cslib.BitString.coinFlips (prefixCylinderList v)
+    _ = ∑ _ ∈ F.toFinset, (2 : ℝ≥0∞)⁻¹ ^ M :=
+        Finset.sum_congr rfl fun v hv => by
+          rw [coinFlips_prefixCylinderList, ENNReal.inv_pow, hlen_mem v hv]
+    _ = (F.toFinset.card : ℝ≥0∞) * (2 : ℝ≥0∞)⁻¹ ^ M := by
+        rw [Finset.sum_const, nsmul_eq_mul]
+    _ = (prefixUnionCount L : ℝ≥0∞) * (2 : ℝ≥0∞)⁻¹ ^ prefixUnionMaxLen L := by
+        rw [List.toFinset_card_of_nodup hnd, ← List.countP_eq_length_filter]
+        rfl
 
 /-- The real value of `finitePrefixMass L` equals the `coinFlips`-measure of the finite cylinder
 union `⋃ w ∈ L, prefixCylinderList w`. -/
@@ -433,7 +438,9 @@ private theorem mlCappedList_subset_mono (ek : Code × ℕ) {m n : ℕ} (hmn : m
     | none => exact ih hw
     | some _ =>
       dsimp only
-      split_ifs <;> [exact List.mem_cons_of_mem _ (ih hw); exact ih hw]
+      split_ifs
+      · exact List.mem_cons_of_mem _ (ih hw)
+      · exact ih hw
 
 private theorem mlCappedList_spec (ek : Code × ℕ) (n : ℕ) :
     prefixUnionCount (mlCappedList ek n) * 2 ^ ek.2 ≤
@@ -490,9 +497,16 @@ private theorem mlCapped_eq_all_of_measure_le (e : Code) (k : ℕ)
     rcases List.mem_cons.mp hu with rfl | hu'
     · exact hw
     · exact (mlCappedList_spec (e, k) j).2 u hu'
-  have hm := (measure_mono hsub).trans hle
-  rw [coinFlips_biUnion_list, ← nat_mul_two_pow_le_iff_ennreal] at hm
-  simp [hm]
+  have hm : (prefixUnionCount (w :: mlCappedList (e, k) j) : ℝ≥0∞) *
+      (2 : ℝ≥0∞)⁻¹ ^ prefixUnionMaxLen (w :: mlCappedList (e, k) j) ≤ (2 : ℝ≥0∞)⁻¹ ^ k :=
+    calc _ = Cslib.BitString.coinFlips
+          (⋃ u ∈ w :: mlCappedList (e, k) j, prefixCylinderList u) :=
+          (coinFlips_biUnion_list _).symm
+      _ ≤ Cslib.BitString.coinFlips
+          (⋃ u ∈ {u | (e.eval (encode (k, u))).Dom}, prefixCylinderList u) :=
+          measure_mono hsub
+      _ ≤ (2 : ℝ≥0∞)⁻¹ ^ k := hle
+  simp [(nat_mul_two_pow_le_iff_ennreal _ _ _).mpr hm]
 
 private theorem computablePred_mem_mlCappedList :
     ComputablePred fun arg : (ℕ × List Bool) × (ℕ × ℕ) =>
@@ -773,8 +787,13 @@ theorem isMartinLofRandom_iff_exists_le_ecomplexity_of_optimal
   have hshift {f g : List Bool → ℕ∞} {d : ℕ} (hd : ∀ w, f w ≤ g w + d) :
       (∃ c : ℕ, ∀ n : ℕ, (n : ℕ∞) ≤ f (List.ofFn fun i : Fin n => x i) + c) →
         ∃ c : ℕ, ∀ n : ℕ, (n : ℕ∞) ≤ g (List.ofFn fun i : Fin n => x i) + c :=
-    fun ⟨c, hc⟩ => ⟨c + d, fun n => (hc n).trans <|
-      (add_le_add_left (hd _) _).trans_eq (by push_cast; ac_rfl)⟩
+    fun ⟨c, hc⟩ => ⟨c + d, fun n =>
+      calc (n : ℕ∞)
+        _ ≤ f (List.ofFn fun i : Fin n => x i) + c := hc n
+        _ ≤ (g (List.ofFn fun i : Fin n => x i) + d) + c := add_le_add_left (hd _) _
+        _ = g (List.ofFn fun i : Fin n => x i) + ((c + d : ℕ) : ℕ∞) := by
+            push_cast
+            ac_rfl⟩
   obtain ⟨_, hc₁⟩ :=
     DescriptionMethod.exists_ecomplexity_universalPrefixBits_le_of_partrec_eval hU_pf heval hprod
   obtain ⟨_, hc₂⟩ := exists_ecomplexity_le_universalPrefixBits hU_min
@@ -1160,7 +1179,8 @@ private theorem carveOut_spec (u w : List Bool) :
       ⋃ v ∈ carveOut u w, prefixCylinderList v =
         prefixCylinderList w \ prefixCylinderList u := by
   by_cases huw : u <+: w
-  · refine ⟨fun v hv => by simp [carveOut, huw] at hv, by simp [carveOut, huw], ?_⟩
+  · refine ⟨fun v hv => by simp [carveOut, huw] at hv,
+      by simp [carveOut, huw], ?_⟩
     simp only [carveOut, huw, ↓reduceIte, List.not_mem_nil, Set.iUnion_false, Set.iUnion_empty]
     exact (Set.sdiff_eq_empty.mpr (prefixCylinderList_subset_of_isPrefix huw)).symm
   · by_cases hwu : w <+: u
@@ -1180,8 +1200,10 @@ private theorem carveOut_spec (u w : List Bool) :
     · simp only [carveOut, huw, ↓reduceIte, hwu, List.mem_singleton, List.pairwise_singleton,
         Set.iUnion_iUnion_eq_left]
       have hduw : PrefixDisjoint u w := ⟨huw, hwu⟩
-      exact ⟨fun _ hv => by rw [hv]; exact ⟨List.prefix_refl w, hduw⟩, trivial,
+      refine ⟨fun v hv => ?_, trivial,
         (disjoint_prefixCylinderList_of_prefixDisjoint hduw.symm).sdiff_eq_left.symm⟩
+      rw [hv]
+      exact ⟨List.prefix_refl w, hduw⟩
 
 private def carveOutSeen (w : List Bool) : List (List Bool) → List (List Bool)
   | [] => [w]
@@ -1232,27 +1254,26 @@ private theorem carveOutSeen_spec (w : List Bool) (seen : List (List Bool)) :
       refine ⟨fun t _ => (carveOut_spec u t).2.1, hpair.imp fun {t₁ t₂} hdisj v₁ hv₁ v₂ hv₂ =>
         prefixDisjoint_of_prefix_right (hdisj.of_prefix_left ((carveOut_spec u t₁).1 v₁ hv₁).1)
           ((carveOut_spec u t₂).1 v₂ hv₂).1⟩
-    · have hexp : (⋃ v ∈ (carveOutSeen w rest).flatMap (carveOut u), prefixCylinderList v) =
-          ⋃ t ∈ carveOutSeen w rest, prefixCylinderList t \ prefixCylinderList u := by
-        trans ⋃ t ∈ carveOutSeen w rest, ⋃ v ∈ carveOut u t, prefixCylinderList v
-        · ext y
-          simp only [Set.mem_iUnion, List.mem_flatMap, exists_prop]
-          exact ⟨fun ⟨v, ⟨t, ht, hv⟩, hy⟩ => ⟨t, ht, v, hv, hy⟩,
-            fun ⟨t, ht, v, hv, hy⟩ => ⟨v, ⟨t, ht, hv⟩, hy⟩⟩
-        · exact Set.iUnion₂_congr fun t _ => (carveOut_spec u t).2.2
-      rw [hexp]
-      ext y
-      have hmem : y ∈ ⋃ t ∈ carveOutSeen w rest, prefixCylinderList t ↔
-          y ∈ prefixCylinderList w \ ⋃ r ∈ rest, prefixCylinderList r := by rw [hunion]
-      simp only [Set.mem_iUnion, Set.mem_sdiff, exists_prop, List.mem_cons,
-        or_and_right, exists_or, exists_eq_left, not_or, not_exists] at hmem ⊢
-      constructor
-      · rintro ⟨t, ht, hyt, hyu⟩
-        obtain ⟨hyw, hrest⟩ := hmem.mp ⟨t, ht, hyt⟩
-        exact ⟨hyw, hyu, hrest⟩
-      · rintro ⟨hyw, hyu, hrest⟩
-        obtain ⟨t, ht, hyt⟩ := hmem.mpr ⟨hyw, hrest⟩
-        exact ⟨t, ht, hyt, hyu⟩
+    · calc (⋃ v ∈ (carveOutSeen w rest).flatMap (carveOut u), prefixCylinderList v)
+        _ = ⋃ t ∈ carveOutSeen w rest, ⋃ v ∈ carveOut u t, prefixCylinderList v := by
+            ext y
+            simp only [Set.mem_iUnion, List.mem_flatMap, exists_prop]
+            exact ⟨fun ⟨v, ⟨t, ht, hv⟩, hy⟩ => ⟨t, ht, v, hv, hy⟩,
+              fun ⟨t, ht, v, hv, hy⟩ => ⟨v, ⟨t, ht, hv⟩, hy⟩⟩
+        _ = ⋃ t ∈ carveOutSeen w rest, prefixCylinderList t \ prefixCylinderList u :=
+            Set.iUnion₂_congr fun t _ => (carveOut_spec u t).2.2
+        _ = (⋃ t ∈ carveOutSeen w rest, prefixCylinderList t) \ prefixCylinderList u := by
+            ext y
+            simp only [Set.mem_sdiff, Set.mem_iUnion, exists_prop]
+            exact ⟨fun ⟨t, ht, hyt, hyu⟩ => ⟨⟨t, ht, hyt⟩, hyu⟩,
+              fun ⟨⟨t, ht, hyt⟩, hyu⟩ => ⟨t, ht, hyt, hyu⟩⟩
+        _ = (prefixCylinderList w \ ⋃ r ∈ rest, prefixCylinderList r) \ prefixCylinderList u := by
+            rw [hunion]
+        _ = prefixCylinderList w \ ⋃ r ∈ u :: rest, prefixCylinderList r := by
+            ext y
+            simp only [Set.mem_sdiff, Set.mem_iUnion, exists_prop, List.mem_cons,
+              or_and_right, exists_or, exists_eq_left, not_or, not_exists]
+            tauto
 
 private def levelCandWord (e : Code) (m j : ℕ) : Option (List Bool) :=
   (decode (α := List Bool × ℕ) j).bind fun wf =>
@@ -1456,9 +1477,13 @@ theorem isMartinLofRandom_of_forall_passesSolovayTest {x : ℕ → Bool}
   have hsub : prefixCylinderList v ⊆ ⋃ u ∈ T.cover (M + 1), prefixCylinderList u :=
     (prefixCylinderList_subset_of_isPrefix hw'v).trans fun _ hy =>
       Set.mem_iUnion₂.mpr ⟨w', (he (M + 1, w')).mpr hw'_dom, hy⟩
-  have hmeas : ((1 : ℕ) : ℝ≥0∞) * (2 : ℝ≥0∞)⁻¹ ^ v.length ≤ (2 : ℝ≥0∞)⁻¹ ^ (M + 1) := by
-    rw [Nat.cast_one, one_mul, ← ENNReal.inv_pow, ← coinFlips_prefixCylinderList]
-    exact (measure_mono hsub).trans (T.measure_le (M + 1))
+  have hmeas : ((1 : ℕ) : ℝ≥0∞) * (2 : ℝ≥0∞)⁻¹ ^ v.length ≤ (2 : ℝ≥0∞)⁻¹ ^ (M + 1) :=
+    calc ((1 : ℕ) : ℝ≥0∞) * (2 : ℝ≥0∞)⁻¹ ^ v.length
+      _ = Cslib.BitString.coinFlips (prefixCylinderList v) := by
+          rw [Nat.cast_one, one_mul, coinFlips_prefixCylinderList, ENNReal.inv_pow]
+      _ ≤ Cslib.BitString.coinFlips (⋃ u ∈ T.cover (M + 1), prefixCylinderList u) :=
+          measure_mono hsub
+      _ ≤ (2 : ℝ≥0∞)⁻¹ ^ (M + 1) := T.measure_le (M + 1)
   have hpow : 2 ^ (M + 1) ≤ 2 ^ v.length := by
     simpa only [one_mul] using (nat_mul_two_pow_le_iff_ennreal 1 (M + 1) v.length).mpr hmeas
   have hvlen : M + 1 ≤ v.length := (Nat.pow_le_pow_iff_right (by norm_num : 1 < 2)).mp hpow
@@ -1489,9 +1514,14 @@ private theorem count_ofFn_eq_trueCount {n : ℕ} (y : Fin n → Bool) :
 
 private theorem sum_signVal_eq {n : ℕ} (y : Fin n → Bool) :
     (∑ i : Fin n, Cslib.BitString.signVal (y i)) = (n : ℝ) - 2 * (trueCount y : ℝ) := by
-  simp only [Cslib.BitString.signVal_eq_one_sub_two_mul_bitVal, Finset.sum_sub_distrib,
-    ← Finset.mul_sum, Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul, mul_one,
-    trueCount, Cslib.BitString.bitVal, Finset.sum_boole]
+  calc ∑ i : Fin n, Cslib.BitString.signVal (y i)
+    _ = ∑ i : Fin n, (1 - 2 * Cslib.BitString.bitVal ℝ (y i)) :=
+        Finset.sum_congr rfl fun i _ =>
+          Cslib.BitString.signVal_eq_one_sub_two_mul_bitVal (y i)
+    _ = (∑ _ : Fin n, (1 : ℝ)) - 2 * ∑ i : Fin n, Cslib.BitString.bitVal ℝ (y i) := by
+        rw [Finset.sum_sub_distrib, ← Finset.mul_sum]
+    _ = (n : ℝ) - 2 * (trueCount y : ℝ) := by
+        simp [trueCount, Cslib.BitString.bitVal, Finset.sum_boole]
 
 private theorem card_filter_sum_signVal_ge (n : ℕ) {δ : ℝ} (hδ : 0 ≤ δ) :
     ((Finset.univ.filter fun y : Fin n → Bool =>
@@ -1538,7 +1568,8 @@ private theorem card_filter_trueCount_le (n : ℕ) {δ : ℝ} (hδ : 0 ≤ δ) :
     simp only [S, Cslib.BitString.signVal_not, Finset.sum_neg_distrib]
   have hB_eq : B.card = A.card := Finset.card_bij (fun y _ i => !y i)
     (fun y hy => by
-      simp only [A, B, Finset.mem_filter, Finset.mem_univ, true_and] at hy ⊢; rwa [hS_neg])
+      simp only [A, B, Finset.mem_filter, Finset.mem_univ, true_and] at hy ⊢
+      rwa [hS_neg])
     (fun _ _ _ _ h => funext fun i => by simpa using congrArg (!·) (congrFun h i))
     (fun y hy => ⟨fun i => !y i, by
         simp only [A, B, Finset.mem_filter, Finset.mem_univ, true_and] at hy ⊢
@@ -1548,10 +1579,11 @@ private theorem card_filter_trueCount_le (n : ℕ) {δ : ℝ} (hδ : 0 ≤ δ) :
     intro y hy
     simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_union, A, B] at hy ⊢
     have hSy : |S y| = 2 * |(trueCount y : ℝ) - (n : ℝ) / 2| := by
-      rw [show S y = -2 * ((trueCount y : ℝ) - (n : ℝ) / 2) by
+      have hS_eq : S y = -2 * ((trueCount y : ℝ) - (n : ℝ) / 2) := by
         dsimp only [S]
         rw [sum_signVal_eq]
-        ring, abs_mul, show |(-2 : ℝ)| = 2 by norm_num]
+        ring
+      rw [hS_eq, abs_mul, show |(-2 : ℝ)| = 2 by norm_num]
     exact le_abs.mp (by linarith)
   have hcard_union : ((Finset.univ.filter fun y : Fin n → Bool =>
       δ * n ≤ |(trueCount y : ℝ) - (n : ℝ) / 2|).card : ℝ) ≤ (A.card : ℝ) + (B.card : ℝ) := by
@@ -1632,21 +1664,25 @@ private theorem mem_deviation_filter {k n : ℕ} (hk : 0 < k) {w : List Bool}
   rcases hmem with ⟨hw_pos, hcond⟩
   subst hw
   have hk_pos : (0 : ℝ) < k := by exact_mod_cast hk
-  have htwo_abs : (w.length : ℝ) ≤ (k : ℝ) * |2 * (devCount w : ℝ) - w.length| := by
+  have htwo_abs : (w.length : ℝ) ≤
+      (k : ℝ) * (2 * |(devCount w : ℝ) - (w.length : ℝ) / 2|) := by
+    have hhalf : |2 * (devCount w : ℝ) - w.length| =
+        2 * |(devCount w : ℝ) - (w.length : ℝ) / 2| := by
+      rw [show 2 * (devCount w : ℝ) - w.length =
+        2 * ((devCount w : ℝ) - (w.length : ℝ) / 2) by ring, abs_mul]
+      norm_num
+    rw [← hhalf]
     rcases hcond with hge | hle
-    · have h1 := real_le_mul_sub_of_nat hw_pos hge
-      push_cast at h1
-      exact h1.trans (mul_le_mul_of_nonneg_left (le_abs_self _) hk_pos.le)
-    · have h1 := real_le_mul_sub_of_nat hw_pos hle
-      push_cast at h1
-      have h2 : (w.length : ℝ) - 2 * (devCount w : ℝ) ≤ |2 * (devCount w : ℝ) - w.length| := by
-        rw [← neg_sub]
-        exact neg_le_abs _
-      exact h1.trans (mul_le_mul_of_nonneg_left h2 hk_pos.le)
-  have hhalf : |2 * (devCount w : ℝ) - w.length| = 2 * |(devCount w : ℝ) - (w.length : ℝ) / 2| := by
-    rw [show 2 * (devCount w : ℝ) - w.length = 2 * ((devCount w : ℝ) - (w.length : ℝ) / 2) by ring,
-      abs_mul]; norm_num
-  rw [hhalf] at htwo_abs
+    · calc (w.length : ℝ)
+        _ ≤ (k : ℝ) * (2 * (devCount w : ℝ) - w.length) := by
+            simpa using real_le_mul_sub_of_nat hw_pos hge
+        _ ≤ (k : ℝ) * |2 * (devCount w : ℝ) - w.length| :=
+            mul_le_mul_of_nonneg_left (le_abs_self _) hk_pos.le
+    · calc (w.length : ℝ)
+        _ ≤ (k : ℝ) * ((w.length : ℝ) - 2 * (devCount w : ℝ)) := by
+            simpa using real_le_mul_sub_of_nat hw_pos hle
+        _ ≤ (k : ℝ) * |2 * (devCount w : ℝ) - w.length| :=
+            mul_le_mul_of_nonneg_left (neg_sub (2 * (devCount w : ℝ)) _ ▸ neg_le_abs _) hk_pos.le
   rw [one_div, mul_comm (2 * (k : ℝ))⁻¹ _, ← div_eq_mul_inv]
   exact (div_le_iff₀ (by positivity)).mpr (by linarith)
 
@@ -1769,15 +1805,20 @@ theorem tendsto_freq_true_of_isMartinLofRandom {x : ℕ → Bool} (hx : IsMartin
   have habs_num : |2 * (devCount w : ℝ) - n| < n / ((k : ℝ) + 1) :=
     abs_lt.mpr
       ⟨neg_lt.mpr ((lt_div_iff₀ hk1).mpr (by linarith)), (lt_div_iff₀ hk1).mpr (by linarith)⟩
+  have hhalf_lt : (1 : ℝ) / (2 * ((k : ℝ) + 1)) < ε :=
+    calc (1 : ℝ) / (2 * ((k : ℝ) + 1))
+      _ = (1 / ((k : ℝ) + 1)) / 2 := by field_simp
+      _ < (2 * ε) / 2 := by gcongr
+      _ = ε := by ring
   have hn_real : (0 : ℝ) < n := by exact_mod_cast hn_pos
-  rw [Real.dist_eq, ← devCount_eq_count w,
-    show (devCount w : ℝ) / (n : ℝ) - 1 / 2 = (2 * (devCount w : ℝ) - n) / (2 * n) by field_simp,
-    abs_div, abs_of_pos (by positivity : (0 : ℝ) < 2 * n)]
+  rw [Real.dist_eq, ← devCount_eq_count w]
+  have hrw : (devCount w : ℝ) / (n : ℝ) - 1 / 2 = (2 * (devCount w : ℝ) - n) / (2 * n) := by
+    field_simp
+  rw [hrw, abs_div, abs_of_pos (by positivity : (0 : ℝ) < 2 * n)]
   calc |2 * (devCount w : ℝ) - n| / (2 * n)
     _ < (n / ((k : ℝ) + 1)) / (2 * n) := by gcongr
-    _ = (1 / ((k : ℝ) + 1)) / 2 := by field_simp
-    _ < (2 * ε) / 2 := by gcongr
-    _ = ε := by ring
+    _ = 1 / (2 * ((k : ℝ) + 1)) := by field_simp
+    _ < ε := hhalf_lt
 
 /-- **Borel normality of Chaitin's `Ω`**: the binary expansion of `chaitinOmega universalPrefix`
 has limiting bit frequency `1 / 2`. -/

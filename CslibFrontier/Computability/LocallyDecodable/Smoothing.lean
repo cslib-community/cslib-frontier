@@ -808,16 +808,19 @@ theorem toReal_decodeLaw_nonadaptivize [Fintype Γ] [Nonempty Γ] [DecidableEq �
         ring
       · exact hinl 0 hq (by
           simp only [e, nonadaptivize, decodeLaw_nonadaptivePlan, nonadaptivizePlan,
-            ProbComp.eval_bind, ProbComp.eval_unifFin, PMF.map_bind]; rfl)
+            ProbComp.eval_bind, ProbComp.eval_unifFin, PMF.map_bind]
+          rfl)
       · exact hinl (q + 1) hq (by
           simp only [e, nonadaptivize, decodeLaw_nonadaptivePlan, nonadaptivizePlan,
-            ProbComp.eval_bind, ProbComp.eval_unifFin, PMF.map_bind]; rfl)
+            ProbComp.eval_bind, ProbComp.eval_unifFin, PMF.map_bind]
+          rfl)
     | inr j =>
       have hinr_prog : decodeLaw (.liftBind (.inr j) cont) y = decodeLaw (cont (y j)) y := by
         change decodeLaw (OracleComp.query (.inr j) >>= cont) y = _
         rw [decodeLaw_bind, decodeLaw_query_inr, PMF.pure_bind]
       rcases q with _ | _ | q
-      · exact False.elim (by have h := (IsCostBounded.liftBind_iff.mp hq).1; simp at h)
+      · have h := (IsCostBounded.liftBind_iff.mp hq).1
+        simp at h
       · have hlaw : decodeLaw (nonadaptivize 1 (.liftBind (.inr j) cont) hq) y =
             decodeLaw (cont (y j)) y := by
           rw [nonadaptivize, decodeLaw_nonadaptivePlan, nonadaptivizePlan, ProbComp.eval_bind,

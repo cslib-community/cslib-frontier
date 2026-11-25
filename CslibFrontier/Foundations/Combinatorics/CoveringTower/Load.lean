@@ -154,9 +154,12 @@ theorem sum_be_sq (hj : j ≤ J) : ∑ c, (T.be i n c : ℝ) ^ 2 ≤
       if T.ty e = i then 2 * (n e : ℝ) ^ 2 else 0 := by
     intro e
     by_cases ht : T.ty e = i
-    · rw [ite_eq_left ht, ← Finset.sum_filter, Finset.sum_const, nsmul_eq_mul,
-        show (univ.filter fun c => T.ty e = i ∧ (T.e0 e = c ∨ T.e1 e = c)) = {T.e0 e, T.e1 e} by
-          ext c; simp [ht, eq_comm], Finset.card_pair (T.e_ne e)]
+    · have hflt : (univ.filter fun c => T.ty e = i ∧ (T.e0 e = c ∨ T.e1 e = c)) =
+          {T.e0 e, T.e1 e} := by
+        ext c
+        simp [ht, eq_comm]
+      rw [ite_eq_left ht, ← Finset.sum_filter, Finset.sum_const, nsmul_eq_mul, hflt,
+        Finset.card_pair (T.e_ne e)]
       push_cast
       ring
     · rw [ite_eq_right ht]

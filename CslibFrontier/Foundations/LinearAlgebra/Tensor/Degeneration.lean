@@ -182,7 +182,10 @@ theorem IsSLDegen.toIsDegen [Fintype X'] [Fintype Y'] [Fintype Z'] [DecidableEq 
 theorem IsDegen.of_isRestriction [Fintype X'] [Fintype Y'] [Fintype Z'] {T : Tensor K X Y Z}
     {S : Tensor K X' Y' Z'} (h : IsRestriction T S) : IsDegen 0 T S := by
   obtain ⟨α, β, γ, rfl⟩ := h
-  exact ⟨α.map C, β.map C, γ.map C, 0, by rw [← map_restrict]; ext x y z; simp⟩
+  refine ⟨α.map C, β.map C, γ.map C, 0, ?_⟩
+  rw [← map_restrict]
+  ext x y z
+  simp
 
 /-- A shared-left restriction is a shared-left degeneration of order `0`. -/
 theorem IsSLDegen.of_restrict_incl [Fintype X'] [Fintype Y'] [Fintype Z'] [DecidableEq X']
@@ -386,8 +389,10 @@ theorem IsSLDegen.reindex_source [Fintype X'] [Fintype Y'] [Fintype Z'] [Decidab
   obtain ⟨β, γ, E, hE⟩ := hT
   refine ⟨incl e₂ * β, γ * (incl e₃)ᵀ, E, ?_⟩
   rw [incl_comp, ← restrict_restrict, restrict_incl]
-  rwa [show (fun x y z => (reindex e₁ e₂ e₃ S).map C (e₁ x) (e₂ y) (e₃ z)) = S.map C by
-    funext x y z; simp]
+  have h₁ : (fun x y z => (reindex e₁ e₂ e₃ S).map C (e₁ x) (e₂ y) (e₃ z)) = S.map C := by
+    funext x y z
+    simp
+  rwa [h₁]
 
 /-- Removing a reindexing of the target of a shared-left degeneration. -/
 theorem IsSLDegen.of_reindex_target [Fintype X'] [Fintype Y'] [Fintype Z'] [DecidableEq X']

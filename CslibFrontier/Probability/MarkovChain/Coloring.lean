@@ -331,6 +331,7 @@ theorem exists_coupling_glauberColoringOn (hq : G.maxDegree < q) {U : Finset V}
     rfl
   have hn : (0 : ℝ) < U.card := Nat.cast_pos.2 hU.card_pos
   have hD : (0 : ℝ) < ((q - G.maxDegree : ℕ) : ℝ) := Nat.cast_pos.2 (by omega)
+  -- the expected distance after updating `w`
   have hw (w : V) : ∑ c, ((γ w) c).toReal *
       (hammingDist (Function.update x w c.1) (Function.update y w c.2) : ℝ) ≤
       (1 - if x w ≠ y w then 1 else 0) +
@@ -344,34 +345,49 @@ theorem exists_coupling_glauberColoringOn (hq : G.maxDegree < q) {U : Finset V}
       push_cast at h'; linarith
     simp only [hupd]
     rw [sum_affine (γ w) _ 1, one_mul]
-    rw [show ∑ c, ((γ w) c).toReal * (if c.1 ≠ c.2 then (1 : ℝ) else 0) =
-      ((γ w).toOuterMeasure {c | c.1 ≠ c.2}).toReal by
-        rw [toOuterMeasure_apply_toReal]
-        exact Finset.sum_congr rfl fun c _ => by by_cases hc : c.1 ≠ c.2 <;> simp [hc], hγ3 w]
+    have hev : ∑ c, ((γ w) c).toReal * (if c.1 ≠ c.2 then (1 : ℝ) else 0) =
+        ((γ w).toOuterMeasure {c | c.1 ≠ c.2}).toReal := by
+      rw [toOuterMeasure_apply_toReal]
+      exact Finset.sum_congr rfl fun c _ => by by_cases hc : c.1 ≠ c.2 <;> simp [hc]
+    rw [hev, hγ3 w]
     exact add_le_add le_rfl (dist_allowedColors_le G hq hv w)
   have h1 : ∑ w ∈ U, (if x w ≠ y w then (1 : ℝ) else 0) = 1 := by
     rw [Finset.sum_eq_single v (fun w _ hwv => ite_eq_right (not_not.2 (hv w hwv)))
       (fun h => absurd hvU h), ite_eq_left hvne]
   have h2 : ∑ w ∈ U, (if G.Adj v w then 1 / ((q - G.maxDegree : ℕ) : ℝ) else 0) ≤
-      G.maxDegree * (1 / ((q - G.maxDegree : ℕ) : ℝ)) := by
-    refine (Finset.sum_le_sum_of_subset_of_nonneg (Finset.subset_univ U)
-      fun _ _ _ => by split_ifs <;> positivity).trans ?_
-    rw [← Finset.sum_filter, ← SimpleGraph.neighborFinset_eq_filter, Finset.sum_const,
-      SimpleGraph.card_neighborFinset_eq_degree, nsmul_eq_mul]
-    exact mul_le_mul_of_nonneg_right (mod_cast G.degree_le_maxDegree v)
-      (div_nonneg zero_le_one hD.le)
-  rw [hxy, Nat.cast_one, mul_one, sum_bind_mul]
-  simp only [sum_map_mul]
-  refine (Finset.sum_le_sum fun w _ =>
-    mul_le_mul_of_nonneg_left (hw w) ENNReal.toReal_nonneg).trans ?_
-  have hunif (w : V) : ((uniformOfFinset U hU) w).toReal = if w ∈ U then (U.card : ℝ)⁻¹ else 0 := by
+      G.maxDegree * (1 / ((q - G.maxDegree : ℕ) : ℝ)) :=
+    calc ∑ w ∈ U, (if G.Adj v w then 1 / ((q - G.maxDegree : ℕ) : ℝ) else 0)
+        ≤ ∑ w, (if G.Adj v w then 1 / ((q - G.maxDegree : ℕ) : ℝ) else 0) :=
+          Finset.sum_le_sum_of_subset_of_nonneg (Finset.subset_univ U)
+            fun _ _ _ => by split_ifs <;> positivity
+      _ = G.degree v * (1 / ((q - G.maxDegree : ℕ) : ℝ)) := by
+          rw [← Finset.sum_filter, ← SimpleGraph.neighborFinset_eq_filter, Finset.sum_const,
+            SimpleGraph.card_neighborFinset_eq_degree, nsmul_eq_mul]
+      _ ≤ G.maxDegree * (1 / ((q - G.maxDegree : ℕ) : ℝ)) :=
+          mul_le_mul_of_nonneg_right (mod_cast G.degree_le_maxDegree v)
+            (div_nonneg zero_le_one hD.le)
+  have hunif (w : V) : ((uniformOfFinset U hU) w).toReal =
+      if w ∈ U then (U.card : ℝ)⁻¹ else 0 := by
     rw [uniformOfFinset_apply]
     split_ifs <;> simp
-  simp only [hunif, ite_mul, zero_mul]
-  rw [← Finset.sum_filter, Finset.filter_mem_eq_inter, Finset.univ_inter, ← Finset.mul_sum,
-    Finset.sum_add_distrib, Finset.sum_sub_distrib, h1, Finset.sum_const, nsmul_eq_mul, mul_one]
-  refine (mul_le_mul_of_nonneg_left (add_le_add le_rfl h2) (inv_nonneg.2 hn.le)).trans_eq ?_
-  field_simp; ring
+  rw [hxy, Nat.cast_one, mul_one, sum_bind_mul]
+  simp only [sum_map_mul]
+  calc ∑ w, ((uniformOfFinset U hU) w).toReal * ∑ c, ((γ w) c).toReal *
+        (hammingDist (Function.update x w c.1) (Function.update y w c.2) : ℝ)
+      ≤ ∑ w, ((uniformOfFinset U hU) w).toReal *
+          ((1 - if x w ≠ y w then 1 else 0) +
+            if G.Adj v w then 1 / ((q - G.maxDegree : ℕ) : ℝ) else 0) :=
+        Finset.sum_le_sum fun w _ => mul_le_mul_of_nonneg_left (hw w) ENNReal.toReal_nonneg
+    _ = (U.card : ℝ)⁻¹ * ∑ w ∈ U, ((1 - if x w ≠ y w then 1 else 0) +
+            if G.Adj v w then 1 / ((q - G.maxDegree : ℕ) : ℝ) else 0) := by
+        simp only [hunif, ite_mul, zero_mul]
+        rw [← Finset.sum_filter, Finset.filter_mem_eq_inter, Finset.univ_inter, Finset.mul_sum]
+    _ ≤ (U.card : ℝ)⁻¹ *
+          (U.card - 1 + G.maxDegree * (1 / ((q - G.maxDegree : ℕ) : ℝ))) := by
+        rw [Finset.sum_add_distrib, Finset.sum_sub_distrib, h1, Finset.sum_const, nsmul_eq_mul,
+          mul_one]
+        exact mul_le_mul_of_nonneg_left (add_le_add le_rfl h2) (inv_nonneg.2 hn.le)
+    _ = 1 - (1 - G.maxDegree / ((q - G.maxDegree : ℕ) : ℝ)) / U.card := by field_simp; ring
 
 /-- **One-step contraction for colorings** ([LevinPeres2017], (14.18) and (14.19)): if `Δ < q`,
 two colorings at Hamming distance one admit a coupling of one Glauber step under which the
@@ -424,14 +440,19 @@ theorem mixingTime_glauberColoring_le [Nonempty V] (hq : 2 * G.maxDegree < q)
     with hα_def
   have hα : 0 < α := by positivity
   have hα1 : α ≤ 1 := (div_le_one (by linarith)).2 (by linarith)
-  rw [show ((q - G.maxDegree : ℕ) : ℝ) / ((q - 2 * G.maxDegree : ℕ) : ℝ) * Fintype.card V *
-      (Real.log (Fintype.card V) - Real.log ε) = (Real.log (Fintype.card V) - Real.log ε) / α by
-    rw [hα_def]; field_simp]
+  have heq : ((q - G.maxDegree : ℕ) : ℝ) / ((q - 2 * G.maxDegree : ℕ) : ℝ) * Fintype.card V *
+      (Real.log (Fintype.card V) - Real.log ε) =
+      (Real.log (Fintype.card V) - Real.log ε) / α := by
+    rw [hα_def]
+    field_simp
+  rw [heq]
   exact (isStationary_glauberColoring G hne).mixingTime_le_of_pathCoupling
     (isPathMetric_hammingDist (β := fun _ : V => Fin q)) (κ := 1 - α)
-    (D := (Fintype.card V : ℝ)) (by linarith) hα (by linarith [Real.add_one_le_exp (-α)])
+    (D := (Fintype.card V : ℝ)) (by linarith) hα
+    (by linarith [Real.add_one_le_exp (-α)])
     (fun _ _ hxy => by
-      rw [hα_def, ← one_sub_div_eq G hq]; exact exists_coupling_glauberColoring G (by omega) hxy)
+      rw [hα_def, ← one_sub_div_eq G hq]
+      exact exists_coupling_glauberColoring G (by omega) hxy)
     (by linarith) (fun _ _ => mod_cast hammingDist_le_card_fintype) hε
 
 /-! ### Mixing with a frozen boundary -/
@@ -465,7 +486,7 @@ theorem dist_glauberColoringOn_frozen_le (hq : 2 * G.maxDegree < q) {U : Finset 
       by_contra fun h => (Finset.mem_filter.1 hu).2 ((hz u h).trans (hz' u h).symm)) t hx
   obtain ⟨w, hw, hz'w⟩ := (PMF.mem_support_bind_iff _ _ _).1 hz'
   have hwU : w ∈ U := (mem_support_uniformOfFinset_iff hU w).1 hw
-  exact (eq_of_mem_support_recolor G hz'w (by rintro rfl; exact hu hwU)).trans (hz u hu)
+  exact (eq_of_mem_support_recolor G hz'w fun h : u = w => hu (h ▸ hwU)).trans (hz u hu)
 
 /-- **Frozen-boundary sampling time** ([LevinPeres2017], (14.23)): if `2Δ < q`, `|U| ≤ n` and
 `t ≥ ((q - Δ) / (q - 2Δ)) n (log n - log δ)`, then from any coloring that agrees with `b` off `U`,
@@ -489,10 +510,12 @@ theorem dist_glauberColoringOn_frozen_le_of_le (hq : 2 * G.maxDegree < q) {U : F
   have hn0 : (0 : ℝ) < n := hk.trans_le hkn
   have hck : c / U.card ≤ 1 := (div_le_one hk).2
     (((div_le_one hD).2 (mod_cast (by omega))).trans (mod_cast hU.card_pos))
-  have ht' : n * (Real.log n - Real.log δ) ≤ c * t := by
-    have := mul_le_mul_of_nonneg_left ht hc.le
-    rwa [show ((q - G.maxDegree : ℕ) : ℝ) / ((q - 2 * G.maxDegree : ℕ) : ℝ) = c⁻¹ by
-      rw [hc_def, inv_div], ← mul_assoc, ← mul_assoc, mul_inv_cancel₀ hc.ne', one_mul] at this
+  have ht' : n * (Real.log n - Real.log δ) ≤ c * t :=
+    calc n * (Real.log n - Real.log δ)
+        = c * (c⁻¹ * n * (Real.log n - Real.log δ)) := by field_simp
+      _ = c * (((q - G.maxDegree : ℕ) : ℝ) / ((q - 2 * G.maxDegree : ℕ) : ℝ) * n *
+            (Real.log n - Real.log δ)) := by rw [hc_def, inv_div]
+      _ ≤ c * t := mul_le_mul_of_nonneg_left ht hc.le
   calc (1 - c / U.card) ^ t * U.card
       ≤ Real.exp (-(c / U.card)) ^ t * U.card := by
         gcongr; linarith [Real.add_one_le_exp (-(c / U.card))]

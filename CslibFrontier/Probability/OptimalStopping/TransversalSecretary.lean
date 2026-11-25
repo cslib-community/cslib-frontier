@@ -664,8 +664,10 @@ theorem priceSamplingUSV_truthful (profile : L → USVType R) (σ : Fin (Fintype
     have hnot_Mb : ∀ r, (l, r) ∉ Mbefore := fun r h => hl_fresh (Finset.mem_image_of_mem _ h)
     cases hallocM : priceSamplingUSVAlloc profM σ l with
     | none =>
-      simpa only [priceSamplingUSVUtility, priceSamplingUSVPayment, hallocM, sub_zero]
-        using hutil_T_nonneg
+      calc priceSamplingUSVUtility trueType none (priceSamplingUSVPayment profM σ l)
+          = 0 := by simp [priceSamplingUSVUtility, priceSamplingUSVPayment, hallocM]
+        _ ≤ priceSamplingUSVUtility trueType (priceSamplingUSVAlloc profT σ l)
+            (priceSamplingUSVPayment profT σ l) := hutil_T_nonneg
     | some r' =>
       have hstepM : (l, r') ∈ priceSamplingStep (profileGraph profM) (profileWeight profM) p
           Mbefore l := (hiffM r').mp <| by
@@ -676,8 +678,7 @@ theorem priceSamplingUSV_truthful (profile : L → USVType R) (σ : Fin (Fintype
       have hpayM : priceSamplingUSVPayment profM σ l = p r' := by
         unfold priceSamplingUSVPayment
         rw [hallocM, ← hp_eq]
-      rw [show priceSamplingUSVUtility trueType (some r') (priceSamplingUSVPayment profM σ l) =
-          (if trueType.desired r' = true then trueType.value else 0) - p r' by rw [hpayM]; rfl]
+      conv_lhs => rw [priceSamplingUSVUtility, hpayM]
       by_cases hdes : trueType.desired r' = true
       · simp only [hdes, ↓reduceIte]
         by_cases hlt : p r' < trueType.value

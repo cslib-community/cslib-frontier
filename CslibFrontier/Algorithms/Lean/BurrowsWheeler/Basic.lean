@@ -262,7 +262,7 @@ theorem getElem?_bwtFirst (w : List α) (r : ℕ) :
 @[simp] theorem length_bwtLast (w : List α) : (bwtLast w).length = w.length := by
   rcases eq_or_ne w [] with rfl | hw
   · simp
-  · rw [bwtLast, List.filterMap_length_eq_length.mpr fun _ => isSome_getLast?_of_mem hw,
+  · rw [bwtLast, List.filterMap_length_eq_length.mpr fun u hu => isSome_getLast?_of_mem hw hu,
       length_bwtMatrix hw]
 
 /-- The first column is a permutation of the word ([BurrowsWheeler1994], Section 2, step D1). -/
@@ -372,15 +372,16 @@ theorem lfMap_bwtLast_injOn (w : List α) {r r' : ℕ} (hr : r < (bwtMatrix w).l
     omega
   have hlen : (bwtLast w).length = (bwtMatrix w).length := by
     rw [length_bwtLast, length_bwtMatrix hw]
+  -- the key step: an earlier occurrence index has a strictly smaller rank
   have key {a b : ℕ} (hab : a < b) (hb : b < (bwtMatrix w).length)
       (hab' : lfMap (bwtLast w) a = lfMap (bwtLast w) b) : False := by
-    have hc : (bwtLast w)[a]? = some ((bwtLast w)[a]'(by omega)) := List.getElem?_eq_getElem _
-    have hcb : (bwtLast w)[b]? = some ((bwtLast w)[a]'(by omega)) := by
+    have ha : a < (bwtLast w).length := by omega
+    have hc : (bwtLast w)[a]? = some (bwtLast w)[a] := List.getElem?_eq_getElem ha
+    have hcb : (bwtLast w)[b]? = some (bwtLast w)[a] := by
       rw [← getElem?_bwtFirst_lfMap, ← hab', getElem?_bwtFirst_lfMap, hc]
     have e1 := hab' ▸ count_take_bwtFirst_lfMap w hc
     rw [count_take_bwtFirst_lfMap w hcb] at e1
-    have hmono := ((List.take_prefix_take_left (l := bwtLast w)
-      (by omega : a + 1 ≤ b)).sublist).count_le ((bwtLast w)[a]'(by omega))
+    have hmono := ((List.take_prefix_take_left (l := bwtLast w) hab).sublist).count_le (bwtLast w)[a]
     rw [List.take_add_one, List.count_append, hc] at hmono
     simp at hmono
     omega

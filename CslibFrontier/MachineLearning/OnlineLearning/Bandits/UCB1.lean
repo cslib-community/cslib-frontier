@@ -193,11 +193,15 @@ theorem ucb1Policy_isMeasurable [Nonempty ι] : (ucb1Policy (ι := ι)).IsMeasur
       simp only [ucb1Policy_choose, ucb1Choose, hun', ↓reduceDIte]
       simp_rw [hunpulled_const vals]
     by_cases hi : (unpulledArms (H 0)).min' hun = i
-    · rw [show {vals : Fin t → ℝ | ucb1Policy.choose (H vals) = i} = Set.univ by
-        ext vals; simp [hconst vals, hi]]
+    · have h_univ : {vals : Fin t → ℝ | ucb1Policy.choose (H vals) = i} = Set.univ := by
+        ext vals
+        simp [hconst vals, hi]
+      rw [h_univ]
       exact MeasurableSet.univ
-    · rw [show {vals : Fin t → ℝ | ucb1Policy.choose (H vals) = i} = ∅ by
-        ext vals; simp [hconst vals, hi]]
+    · have h_empty : {vals : Fin t → ℝ | ucb1Policy.choose (H vals) = i} = ∅ := by
+        ext vals
+        simp [hconst vals, hi]
+      rw [h_empty]
       exact MeasurableSet.empty
   · have hmeas_idx : ∀ j : ι, Measurable fun vals : Fin t → ℝ => ucb1Index (H vals) j := fun j => by
       have hmeas_sum : Measurable fun vals : Fin t → ℝ => feedbackSum (H vals) j := by
@@ -271,8 +275,9 @@ private theorem card_pulled_ge_min [Nonempty ι] {T : ℕ} (X : ι × Fin T → 
       rw [card_insert_of_notMem ha_not] at hcard
       have hleK : S'.card ≤ Fintype.card ι := card_le_univ S'
       omega
-    · have hall : S = univ := eq_univ_of_forall fun j => mem_filter.mpr ⟨mem_univ j, by
-        by_contra h0; exact hun ⟨j, mem_filter.mpr ⟨mem_univ j, Nat.eq_zero_of_le_zero (by omega)⟩⟩⟩
+    · have hall : S = univ := eq_univ_of_forall fun j => mem_filter.mpr ⟨mem_univ j,
+        by_contra fun h0 =>
+          hun ⟨j, mem_filter.mpr ⟨mem_univ j, Nat.eq_zero_of_le_zero (by omega)⟩⟩⟩
       have hcard : Fintype.card ι ≤ S'.card :=
         (by simp [hall] : S.card = Fintype.card ι) ▸ card_le_card hsub
       omega
@@ -410,15 +415,19 @@ private theorem measureReal_stackMean_deviation_le (B : StochasticBandit ι) {T 
         -(4 * log t) := by
       push_cast
       rw [sub_zero, norm_one, mul_pow, sq_sqrt (by positivity)]
-      field_simp; ring
+      field_simp
+      ring
     rw [harg, exp_neg, show (4 : ℝ) * log t = (4 : ℕ) * log t by norm_num, exp_nat_mul,
       exp_log htR, one_div]
-  refine ⟨le_trans (measureReal_mono fun X hX => ?_) ((hpos.measure_ge_le hc0).trans_eq hexp),
-    le_trans (measureReal_mono fun X hX => ?_) ((hneg.measure_ge_le hc0).trans_eq hexp)⟩
-  · simp only [Set.mem_ofPred_eq, stackMean, le_div_iff₀ hmR, sum_sub_distrib, sum_const,
+  constructor
+  · refine le_trans (measureReal_mono fun X hX => ?_)
+      ((hpos.measure_ge_le hc0).trans_eq hexp)
+    simp only [Set.mem_ofPred_eq, stackMean, le_div_iff₀ hmR, sum_sub_distrib, sum_const,
       card_univ, Fintype.card_fin, nsmul_eq_mul] at hX ⊢
     linarith
-  · simp only [Set.mem_ofPred_eq, stackMean, div_le_iff₀ hmR, sum_sub_distrib, sum_const,
+  · refine le_trans (measureReal_mono fun X hX => ?_)
+      ((hneg.measure_ge_le hc0).trans_eq hexp)
+    simp only [Set.mem_ofPred_eq, stackMean, div_le_iff₀ hmR, sum_sub_distrib, sum_const,
       card_univ, Fintype.card_fin, nsmul_eq_mul] at hX ⊢
     linarith
 
@@ -432,6 +441,8 @@ private theorem pullCount_ucb1_le_add_sum [Nonempty ι] {T ℓ : ℕ} (hℓ : 1 
         if ucb1Policy.choose (runStochastic ucb1Policy X t) = i ∧
             ℓ ≤ pullCount (runStochastic ucb1Policy X t) i
           then 1 else 0 := by
+  -- Express `pullCount (runStochastic ucb1Policy X T) i` as `#S` where `S` is the set of rounds
+  -- `t < T` at which `UCB1` chose arm `i`.
   have hcount : ∀ n, pullCount (runStochastic ucb1Policy X n) i =
       ((range n).filter fun t => ucb1Policy.choose (runStochastic ucb1Policy X t) = i).card := by
     intro n
@@ -448,6 +459,7 @@ private theorem pullCount_ucb1_le_add_sum [Nonempty ι] {T ℓ : ℕ} (hℓ : 1 
   have hpart : S.card = S₁.card + S₂.card := by
     simpa only [not_lt] using (card_filter_add_card_filter_not (s := S)
       (p := fun t => pullCount (runStochastic ucb1Policy X t) i < ℓ)).symm
+  -- `t ↦ pullCount (runStochastic ucb1Policy X t) i` injects `S₁` into `range ℓ`.
   have hcard₁ : S₁.card ≤ ℓ := by
     have hlt_ne : ∀ {a b}, a ∈ S → a < b →
         pullCount (runStochastic ucb1Policy X a) i <
@@ -471,16 +483,21 @@ private theorem pullCount_ucb1_le_add_sum [Nonempty ι] {T ℓ : ℕ} (hℓ : 1 
           obtain ⟨t, ht, rfl⟩ := mem_image.mp hu
           exact mem_range.mpr (mem_filter.mp ht).2
       _ = ℓ := card_range ℓ
+  -- Every `t ∈ S₂` satisfies `K ≤ t < T`.
   have hcard₂ : S₂.card ≤ ∑ t ∈ Ico (Fintype.card ι) T,
       if ucb1Policy.choose (runStochastic ucb1Policy X t) = i ∧
           ℓ ≤ pullCount (runStochastic ucb1Policy X t) i
         then 1 else 0 := by
-    rw [← card_filter]
-    refine card_le_card fun t ht => ?_
-    obtain ⟨htS, hge⟩ := mem_filter.mp ht
-    obtain ⟨htT, hch⟩ := mem_filter.mp htS
-    exact mem_filter.mpr
-      ⟨mem_Ico.mpr ⟨card_le_of_choose_of_pos X (hℓ.trans hge) hch, mem_range.mp htT⟩, hch, hge⟩
+    calc S₂.card ≤ ((Ico (Fintype.card ι) T).filter fun t =>
+          ucb1Policy.choose (runStochastic ucb1Policy X t) = i ∧
+            ℓ ≤ pullCount (runStochastic ucb1Policy X t) i).card :=
+          card_le_card fun t ht => by
+            obtain ⟨htS, hge⟩ := mem_filter.mp ht
+            obtain ⟨htT, hch⟩ := mem_filter.mp htS
+            exact mem_filter.mpr
+              ⟨mem_Ico.mpr ⟨card_le_of_choose_of_pos X (hℓ.trans hge) hch, mem_range.mp htT⟩,
+                hch, hge⟩
+      _ = _ := by rw [card_filter]
   omega
 
 /-- Elementary telescoping bound `∑_{t ∈ Ico K T} 2 / t³ ≤ 1` for `2 ≤ K`. -/
@@ -516,10 +533,12 @@ theorem ucb1_expectedPulls_le_add_two [Nonempty ι] (B : StochasticBandit ι) {T
     {i : ι} (hgap : 0 < B.gap i) :
     B.expectedPulls ucb1Policy T i ≤ 8 * log T / B.gap i ^ 2 + 2 := by
   obtain ⟨iStar, hiStar_mean, _⟩ := B.exists_optimal_arm
+  -- Since `B.gap i > 0`, `i ≠ iStar`, so `Fintype.card ι ≥ 2`.
   have hK2 : 2 ≤ Fintype.card ι := Fintype.one_lt_card_iff.mpr ⟨i, iStar, fun h => by
     subst h
     rw [B.gap_def, hiStar_mean, sub_self] at hgap
     exact lt_irrefl 0 hgap⟩
+  -- Handle `T = 1` directly (`expectedPulls ≤ T = 1 ≤ 2`).
   rcases eq_or_lt_of_le hT with rfl | hT2
   · have hsum := B.sum_expectedPulls_eq ucb1Policy_isMeasurable 1
     have hsingle := single_le_sum (fun j _ => B.expectedPulls_nonneg ucb1Policy 1 j) (mem_univ i)
@@ -532,18 +551,24 @@ theorem ucb1_expectedPulls_le_add_two [Nonempty ι] (B : StochasticBandit ι) {T
   have hℓ1 : 1 ≤ ℓ := Nat.ceil_pos.mpr hx_pos
   have hx_le_ℓ : x ≤ ℓ := Nat.le_ceil x
   have hℓ_le : (ℓ : ℝ) ≤ x + 1 := (Nat.ceil_lt_add_one hx_pos.le).le
+  -- Bound `expectedPulls` using `pullCount_ucb1_le_add_sum`.
   let badRound (t : ℕ) : Set (ι × Fin T → ℝ) :=
     {X | ucb1Policy.choose (runStochastic ucb1Policy X t) = i ∧
       ℓ ≤ pullCount (runStochastic ucb1Policy X t) i}
-  have hbad_meas : ∀ t : ℕ, MeasurableSet (badRound t) := fun t =>
-    (show MeasurableSet
-        {X : ι × Fin T → ℝ | ucb1Policy.choose (runStochastic ucb1Policy X t) = i} by
-      rw [show {X : ι × Fin T → ℝ | ucb1Policy.choose (runStochastic ucb1Policy X t) = i} =
-        {X | ((runStochastic ucb1Policy X (t + 1))[(Fin.last t).1]'(by simp)).arm = i} by
-          ext X; simp [runStochastic_succ]]
+  have hbad_meas : ∀ t : ℕ, MeasurableSet (badRound t) := fun t => by
+    have heq : {X : ι × Fin T → ℝ | ucb1Policy.choose (runStochastic ucb1Policy X t) = i} =
+        {X | ((runStochastic ucb1Policy X (t + 1))[(Fin.last t).1]'(by simp)).arm = i} :=
+      Set.ext fun X => by simp [runStochastic_succ]
+    have hch_meas : MeasurableSet
+        {X : ι × Fin T → ℝ | ucb1Policy.choose (runStochastic ucb1Policy X t) = i} := by
+      rw [heq]
       exact (measurable_runStochastic_arms_and_vals ucb1Policy ucb1Policy_isMeasurable
-        (t + 1)).1 (Fin.last t) i).inter
-    ((measurable_pullCount ucb1Policy ucb1Policy_isMeasurable t i) measurableSet_Ici)
+        (t + 1)).1 (Fin.last t) i
+    exact hch_meas.inter
+      (show MeasurableSet {X | ℓ ≤ pullCount (runStochastic ucb1Policy X t) i} from
+        (measurable_pullCount ucb1Policy ucb1Policy_isMeasurable t i) measurableSet_Ici)
+  -- Key inclusion: on `badRound t` (`t ∈ Ico K T`), either `iStar` under-concentrates for some
+  -- `s ∈ Icc 1 t` or `i` over-concentrates for some `s_i ∈ Icc ℓ t`.
   have hbad_prob : ∀ t ∈ Ico (Fintype.card ι) T,
       (B.sampleMeasure T).real (badRound t) ≤ 2 / (t : ℝ) ^ 3 := by
     intro t ht
@@ -574,6 +599,7 @@ theorem ucb1_expectedPulls_le_add_two [Nonempty ι] (B : StochasticBandit ι) {T
       rw [ucb1Index_def, ucb1Index_def, length_runStochastic ucb1Policy X t,
         empiricalMean_runStochastic_eq_stackMean ucb1Policy htT.le X iStar,
         empiricalMean_runStochastic_eq_stackMean ucb1Policy htT.le X i] at hidx_le
+      -- Show `2 * √(2 * log t / s_i) ≤ B.gap i`.
       have hbonus_le : 2 * √(2 * log t / s_i) ≤ B.gap i := by
         have hlog_le : log t ≤ log T := log_le_log (by positivity) (by exact_mod_cast htT.le)
         have hsi_ge : 8 * log T / B.gap i ^ 2 ≤ s_i := hx_le_ℓ.trans (by exact_mod_cast hℓ_le_ni)
@@ -587,6 +613,7 @@ theorem ucb1_expectedPulls_le_add_two [Nonempty ι] (B : StochasticBandit ι) {T
           have := mul_le_mul_of_nonneg_left hsi_ge (sq_nonneg (B.gap i / 2))
           linarith
         linarith [(sqrt_le_sqrt hfrac).trans_eq (sqrt_sq (by positivity))]
+      -- Trichotomy: one of the two concentration failures must occur.
       by_contra hneither
       simp only [Set.mem_union, Set.mem_iUnion, not_or, not_exists] at hneither
       have h1 := hneither.1 ⟨s_star - 1, by omega⟩
@@ -600,6 +627,7 @@ theorem ucb1_expectedPulls_le_add_two [Nonempty ι] (B : StochasticBandit ι) {T
           simpa only [E_sub, Set.mem_ofPred_eq, show s_i - 1 + 1 = s_i by omega] using not_lt.mp hge
       have hgap_eq : B.mean iStar - B.mean i = B.gap i := by rw [B.gap_def, hiStar_mean]
       linarith
+    -- Apply finite union bound + Hoeffding `1 / t ^ 4` bound to `hsubset`.
     have hunion_le : (B.sampleMeasure T).real (badRound t) ≤
         (∑ s : Fin t, (B.sampleMeasure T).real
             (E_star (s.1 + 1) (Nat.succ_le_of_lt (s.isLt.trans htT)))) +
@@ -616,8 +644,11 @@ theorem ucb1_expectedPulls_le_add_two [Nonempty ι] (B : StochasticBandit ι) {T
       (sum_le_sum fun _ _ =>
         (measureReal_stackMean_deviation_le B ht2 (Nat.succ_pos _) _ i).1).trans_eq (by simp)
     have ht_ne : (t : ℝ) ≠ 0 := by positivity
-    have : t * (1 / (t : ℝ) ^ 4) + t * (1 / (t : ℝ) ^ 4) = 2 / (t : ℝ) ^ 3 := by field_simp; ring
+    have : t * (1 / (t : ℝ) ^ 4) + t * (1 / (t : ℝ) ^ 4) = 2 / (t : ℝ) ^ 3 := by
+      field_simp
+      ring
     linarith
+  -- Integrate `pullCount_ucb1_le_add_sum` over `B.sampleMeasure T`.
   have hint_bad : ∀ t ∈ Ico (Fintype.card ι) T,
       Integrable ((badRound t).indicator fun _ => (1 : ℝ)) (B.sampleMeasure T) := fun t _ =>
     Integrable.of_mem_Icc 0 1 (measurable_const.indicator (hbad_meas t)).aemeasurable
@@ -652,17 +683,23 @@ theorem ucb1_stochasticRegret_le_sharp [Nonempty ι] (B : StochasticBandit ι) {
     B.stochasticRegret ucb1Policy T ≤
       (∑ i ∈ univ.filter (fun i => 0 < B.gap i), 8 * log T / B.gap i) +
         2 * ∑ i : ι, B.gap i := by
-  rw [B.stochasticRegret_eq_pseudoRegret ucb1Policy_isMeasurable T, B.pseudoRegret_def,
-    sum_filter, mul_sum, ← sum_add_distrib]
-  refine sum_le_sum fun i _ => ?_
-  by_cases hpos : 0 < B.gap i
-  · simp only [hpos, ↓reduceIte]
-    have hmul := mul_le_mul_of_nonneg_left (ucb1_expectedPulls_le_add_two B hT hpos) hpos.le
-    have hsimp : B.gap i * (8 * log T / B.gap i ^ 2 + 2) = 8 * log T / B.gap i + 2 * B.gap i := by
-      have := hpos.ne'
-      field_simp
-    linarith
-  · simp [le_antisymm (le_of_not_gt hpos) (B.gap_nonneg i)]
+  rw [B.stochasticRegret_eq_pseudoRegret ucb1Policy_isMeasurable T, B.pseudoRegret_def]
+  have hterm : ∀ i : ι, B.gap i * B.expectedPulls ucb1Policy T i ≤
+      (if 0 < B.gap i then 8 * log T / B.gap i else 0) + 2 * B.gap i := fun i => by
+    by_cases hpos : 0 < B.gap i
+    · simp only [hpos, ↓reduceIte]
+      have hmul := mul_le_mul_of_nonneg_left (ucb1_expectedPulls_le_add_two B hT hpos) hpos.le
+      have hsimp : B.gap i * (8 * log T / B.gap i ^ 2 + 2) = 8 * log T / B.gap i + 2 * B.gap i := by
+        have := hpos.ne'
+        field_simp
+      linarith
+    · simp [le_antisymm (le_of_not_gt hpos) (B.gap_nonneg i)]
+  calc ∑ i : ι, B.gap i * B.expectedPulls ucb1Policy T i
+      ≤ ∑ i : ι, ((if 0 < B.gap i then 8 * log T / B.gap i else 0) + 2 * B.gap i) :=
+        sum_le_sum fun i _ => hterm i
+    _ = (∑ i ∈ univ.filter (fun i => 0 < B.gap i), 8 * log T / B.gap i) +
+          2 * ∑ i : ι, B.gap i := by
+        rw [sum_add_distrib, ← sum_filter, ← mul_sum]
 
 /-- **Instance-dependent logarithmic regret of `UCB1`** ([AuerCesaBianchiFischer2002, Theorem 1],
 locator not re-verified against primary PDF): for any `[0, 1]`-bounded stochastic `K`-armed bandit
@@ -687,6 +724,7 @@ theorem ucb1_stochasticRegret_le_sqrt_add [Nonempty ι] (B : StochasticBandit ι
       √((Fintype.card ι : ℝ) * T * (8 * log T + 2)) := by
   rw [B.stochasticRegret_eq_pseudoRegret ucb1Policy_isMeasurable T, B.pseudoRegret_def]
   have hlog_nonneg : 0 ≤ log T := log_nonneg (by exact_mod_cast hT)
+  -- Each arm satisfies `(Δ_i * 𝔼[N_i])² ≤ 𝔼[N_i] * (8 ln T + 2)`.
   have hsq_arm : ∀ i : ι,
       (B.gap i * B.expectedPulls ucb1Policy T i) ^ 2 ≤
         B.expectedPulls ucb1Policy T i * (8 * log T + 2) := fun i => by

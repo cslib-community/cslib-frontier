@@ -126,7 +126,10 @@ column sums `1` to the complementary worse-partner inequality `≤ 1` on p. 261 
 
 theorem entry_le_one_of_mem_stablePolytope {x : Fin n → Fin n → ℝ} (hx : x ∈ I.stablePolytope)
     (p r : Fin n) : x p r ≤ 1 :=
-  (Finset.single_le_sum (fun r' _ => hx.1 p r') (Finset.mem_univ r)).trans_eq (hx.2.1 p)
+  calc
+    x p r ≤ ∑ r' : Fin n, x p r' :=
+      Finset.single_le_sum (fun r' _ => hx.1 p r') (Finset.mem_univ r)
+    _ = 1 := hx.2.1 p
 
 /-- The fractional stable matching polytope is convex. -/
 theorem convex_stablePolytope : Convex ℝ I.stablePolytope := by
@@ -177,9 +180,11 @@ theorem matchingMatrix_mem_stablePolytope_iff (μ : Matching n) :
         linarith
       · by_cases hp : I.PropPrefers p (μ p) r
         · have hp1 : 1 ≤ I.propBetterMass (matchingMatrix μ) p r :=
-            (show (1 : ℝ) = matchingMatrix μ p (μ p) by simp [matchingMatrix]).trans_le <|
-              Finset.single_le_sum (fun r' _ => matchingMatrix_nonneg μ p r')
-                (Finset.mem_filter.2 ⟨Finset.mem_univ _, hp⟩)
+            calc
+              (1 : ℝ) = matchingMatrix μ p (μ p) := by simp [matchingMatrix]
+              _ ≤ I.propBetterMass (matchingMatrix μ) p r :=
+                Finset.single_le_sum (fun r' _ => matchingMatrix_nonneg μ p r')
+                  (Finset.mem_filter.2 ⟨Finset.mem_univ _, hp⟩)
           linarith
         · have hp_lt : I.PropPrefers p r (μ p) :=
             lt_of_le_of_ne (le_of_not_gt hp) fun h => hpr (I.propRank_injective p h).symm
@@ -187,9 +192,11 @@ theorem matchingMatrix_mem_stablePolytope_iff (μ : Matching n) :
             lt_of_le_of_ne (le_of_not_gt fun hr => hstab p r ⟨hp_lt, hr⟩)
               fun h => hpr (by rw [← I.recvRank_injective r h, Equiv.apply_symm_apply])
           have hr1 : 1 ≤ I.recvBetterMass (matchingMatrix μ) r p :=
-            (show (1 : ℝ) = matchingMatrix μ (μ.symm r) r by simp [matchingMatrix]).trans_le <|
-              Finset.single_le_sum (fun p' _ => matchingMatrix_nonneg μ p' r)
-                (Finset.mem_filter.2 ⟨Finset.mem_univ _, hr_lt⟩)
+            calc
+              (1 : ℝ) = matchingMatrix μ (μ.symm r) r := by simp [matchingMatrix]
+              _ ≤ I.recvBetterMass (matchingMatrix μ) r p :=
+                Finset.single_le_sum (fun p' _ => matchingMatrix_nonneg μ p' r)
+                  (Finset.mem_filter.2 ⟨Finset.mem_univ _, hr_lt⟩)
           linarith
 
 /-! ### Quadratic slackness identity on positive support -/
@@ -219,11 +226,19 @@ private theorem sum_mul_strictLower_eq {α : Type*} [Fintype α]
         exact hL
   have hD : (∑ a : α, ∑ b : α, if a = b then y a ^ 2 else 0) = ∑ a : α, y a ^ 2 :=
     Finset.sum_congr rfl fun a _ => by simp
-  have hsq : (∑ a : α, y a) ^ 2 = ∑ a : α, ∑ b : α, y a * y b := by
-    rw [sq, Finset.sum_mul]
-    exact Finset.sum_congr rfl fun a _ => Finset.mul_sum _ _ _
-  rw [hsq, Finset.sum_congr rfl fun a _ => Finset.sum_congr rfl fun b _ => hpt a b]
-  simp only [Finset.sum_add_distrib, hL, hL2, hD]; ring
+  calc
+    2 * (∑ a : α, y a * (∑ b with rk b < rk a, y b)) + ∑ a : α, y a ^ 2
+      = (∑ a : α, ∑ b : α, if rk b < rk a then y a * y b else 0) +
+          (∑ a : α, ∑ b : α, if rk a < rk b then y b * y a else 0) +
+          (∑ a : α, ∑ b : α, if a = b then y a ^ 2 else 0) := by
+        rw [hL, hL2, hD]
+        ring
+    _ = ∑ a : α, ∑ b : α, y a * y b := by
+        simp_rw [← Finset.sum_add_distrib]
+        exact Finset.sum_congr rfl fun a _ => Finset.sum_congr rfl fun b _ => (hpt a b).symm
+    _ = (∑ a : α, y a) ^ 2 := by
+        rw [sq, Finset.sum_mul]
+        exact (Finset.sum_congr rfl fun a _ => Finset.mul_sum _ _ _).symm
 
 /-- Complementary-slackness identity ([Rothblum1992]; [TeoSethuraman1998]): for any
 `x ∈ I.stablePolytope` and any pair `(p, r)` with `0 < x p r`, the fractional blocking inequality at
@@ -263,12 +278,13 @@ theorem eq_one_of_mem_stablePolytope_of_pos {x : Fin n → Fin n → ℝ} (hx : 
         (2 * (∑ p₀ : Fin n, ∑ r₀ : Fin n, x p₀ r₀ * I.recvBetterMass x r₀ p₀) +
           ∑ p₀ : Fin n, ∑ r₀ : Fin n, x p₀ r₀ ^ 2) -
         2 * (∑ p₀ : Fin n, ∑ r₀ : Fin n, x p₀ r₀) := by
-      simp only [Finset.mul_sum]
-      simp_rw [show ∀ p₀ r₀ : Fin n,
+      have hpt (p₀ r₀ : Fin n) :
           2 * (x p₀ r₀ * (x p₀ r₀ + I.propBetterMass x p₀ r₀ + I.recvBetterMass x r₀ p₀ - 1)) =
             2 * (x p₀ r₀ * I.propBetterMass x p₀ r₀) + x p₀ r₀ ^ 2 +
-              (2 * (x p₀ r₀ * I.recvBetterMass x r₀ p₀) + x p₀ r₀ ^ 2) - 2 * x p₀ r₀ by
-        intro _ _; ring, Finset.sum_sub_distrib, Finset.sum_add_distrib]
+              (2 * (x p₀ r₀ * I.recvBetterMass x r₀ p₀) + x p₀ r₀ ^ 2) - 2 * x p₀ r₀ := by
+        ring
+      simp only [Finset.mul_sum]
+      simp_rw [hpt, Finset.sum_sub_distrib, Finset.sum_add_distrib]
     linarith
   have hterm_nn (p₀ r₀ : Fin n) :
       0 ≤ x p₀ r₀ * (x p₀ r₀ + I.propBetterMass x p₀ r₀ + I.recvBetterMass x r₀ p₀ - 1) :=
@@ -311,8 +327,11 @@ private theorem exists_threshold_receiver (hn : 0 < n) {x : Fin n → Fin n → 
   let kMax : Fin n := (S.image (I.propRank p)).max' (hSne.image _)
   let rStar : Fin n := I.propPref p kMax
   obtain ⟨r', hr'S, hr'eq⟩ := Finset.mem_image.1 (Finset.max'_mem (S.image (I.propRank p)) _)
+  have hrStar_eq : rStar = r' := by
+    dsimp only [rStar, kMax]
+    rw [← hr'eq, propPref_propRank]
   have hlt_low : I.propBetterMass x p rStar < t := by
-    rw [show rStar = r' by dsimp only [rStar, kMax]; rw [← hr'eq, propPref_propRank]]
+    rw [hrStar_eq]
     exact (Finset.mem_filter.1 hr'S).2
   refine ⟨rStar, hlt_low, ?_⟩
   by_contra hnot_gt
@@ -329,13 +348,14 @@ private theorem exists_threshold_receiver (hn : 0 < n) {x : Fin n → Fin n → 
       fun h => h.elim Or.inr fun h' => Or.inl (by rw [← Fin.ext h', propPref_propRank])⟩
   by_cases hk_lt : kMax.val + 1 < n
   · let rNext : Fin n := I.propPref p ⟨kMax.val + 1, hk_lt⟩
+    have hfilter_eq :
+        Finset.univ.filter (fun r' => I.propRank p r' < I.propRank p rNext) =
+          insert rStar (Finset.univ.filter (fun r' => I.propRank p r' < I.propRank p rStar)) := by
+      ext r'
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and, rNext, propRank_propPref, hmem_ins]
+      rfl
     have hmass_next : I.propBetterMass x p rNext = I.propBetterMass x p rStar + x p rStar := by
-      rw [propBetterMass,
-        show Finset.univ.filter (fun r' => I.propRank p r' < I.propRank p rNext) =
-            insert rStar (Finset.univ.filter (fun r' => I.propRank p r' < I.propRank p rStar)) by
-          ext r'; simp only [Finset.mem_filter, Finset.mem_univ, true_and, rNext,
-            propRank_propPref, hmem_ins]; rfl,
-        Finset.sum_insert hnot_in, propBetterMass, add_comm]
+      rw [propBetterMass, hfilter_eq, Finset.sum_insert hnot_in, propBetterMass, add_comm]
     have hkNext_le : (⟨kMax.val + 1, hk_lt⟩ : Fin n) ≤ kMax := by
       simpa only [rNext, propRank_propPref] using
         Finset.le_max' (S.image (I.propRank p)) (I.propRank p rNext)
@@ -370,7 +390,8 @@ private theorem sum_fin_sub_telescope :
           (if ia.val ≤ k.val ∧ k.val < ib'.val then f k.succ - f k.castSucc else 0) +
             (if k = k₀ then f k.succ - f k.castSucc else 0) := by
       by_cases hk : k = k₀
-      · subst hk; simp only [k₀, ib', show ia.val ≤ ia.val + d ∧ ia.val + d < ib.val by omega,
+      · subst hk
+        simp only [k₀, ib', show ia.val ≤ ia.val + d ∧ ia.val + d < ib.val by omega,
           and_self, ↓reduceIte, lt_irrefl, and_false, zero_add]
       · have hne : k.val ≠ ia.val + d := fun h => hk (Fin.ext h)
         by_cases h1 : ia.val ≤ k.val ∧ k.val < ib'.val
@@ -393,10 +414,11 @@ theorem stablePolytope_eq_convexHull :
       I.convex_stablePolytope)
   intro x hx
   rcases Nat.eq_zero_or_pos n with rfl | hn
-  · rw [show x = matchingMatrix (Equiv.refl (Fin 0)) by ext p; exact Fin.elim0 p]
+  · rw [show x = matchingMatrix (Equiv.refl (Fin 0)) from funext fun p => Fin.elim0 p]
     exact subset_convexHull ℝ _ ⟨Equiv.refl (Fin 0), fun p => Fin.elim0 p, rfl⟩
   · classical
     obtain ⟨hx_nn, hx_row, hx_col, hx_stab⟩ := hx
+    -- Finite breakpoint set containing 0, 1, all P p r, and all P p r + x p r.
     let bpLow : Finset ℝ :=
       Finset.univ.biUnion fun p => Finset.univ.image fun r => I.propBetterMass x p r
     let bpHigh : Finset ℝ :=
@@ -416,20 +438,26 @@ theorem stablePolytope_eq_convexHull :
       rcases hy with rfl | rfl | ⟨p, r, rfl⟩ | ⟨p, r, rfl⟩
       · exact ⟨le_rfl, zero_le_one⟩
       · exact ⟨zero_le_one, le_rfl⟩
-      · exact ⟨Finset.sum_nonneg fun r' _ => hx_nn p r',
-          (Finset.sum_le_sum_of_subset_of_nonneg (Finset.filter_subset _ _)
-            fun r' _ _ => hx_nn p r').trans_eq (hx_row p)⟩
+      · refine ⟨Finset.sum_nonneg fun r' _ => hx_nn p r', ?_⟩
+        calc
+          I.propBetterMass x p r ≤ ∑ r' : Fin n, x p r' :=
+            Finset.sum_le_sum_of_subset_of_nonneg (Finset.filter_subset _ _)
+              fun r' _ _ => hx_nn p r'
+          _ = 1 := hx_row p
       · refine ⟨add_nonneg (Finset.sum_nonneg fun r' _ => hx_nn p r') (hx_nn p r), ?_⟩
         have hnot_in : r ∉ Finset.univ.filter (fun r' => I.propRank p r' < I.propRank p r) :=
           fun h => lt_irrefl _ (Finset.mem_filter.1 h).2
         rw [add_comm, propBetterMass, ← Finset.sum_insert hnot_in]
-        exact (Finset.sum_le_sum_of_subset_of_nonneg (Finset.subset_univ _)
-          fun r' _ _ => hx_nn p r').trans_eq (hx_row p)
-    have hB_card_ge : 2 ≤ B.card :=
-      (by norm_num : ({0, 1} : Finset ℝ).card = 2) ▸ Finset.card_le_card (by
-        intro y hy
+        calc
+          (∑ r' ∈ insert r (Finset.univ.filter (fun r' => I.propRank p r' < I.propRank p r)),
+              x p r') ≤ ∑ r' : Fin n, x p r' :=
+            Finset.sum_le_sum_of_subset_of_nonneg (Finset.subset_univ _) fun r' _ _ => hx_nn p r'
+          _ = 1 := hx_row p
+    have hB_card_ge : 2 ≤ B.card := by
+      have hsub : ({0, 1} : Finset ℝ) ⊆ B := fun y hy => by
         simp only [Finset.mem_insert, Finset.mem_singleton] at hy
-        rcases hy with rfl | rfl <;> assumption)
+        rcases hy with rfl | rfl <;> assumption
+      exact (by norm_num : ({0, 1} : Finset ℝ).card = 2) ▸ Finset.card_le_card hsub
     let m : ℕ := B.card - 1
     have hB_card : B.card = m + 1 := by omega
     let e : Fin (m + 1) ↪o ℝ := B.orderEmbOfFin hB_card
@@ -462,6 +490,7 @@ theorem stablePolytope_eq_convexHull :
     have hmid_01 (k : Fin m) : 0 < mid k ∧ mid k < 1 :=
       ⟨lt_of_le_of_lt (he0 ▸ e.monotone (Fin.zero_le _)) (hmid_gt k),
        lt_of_lt_of_le (hmid_lt k) (heLast ▸ e.monotone (Fin.le_last _))⟩
+    -- For each midpoint mid k, construct the threshold matching μ_k and prove stability.
     choose f hf using fun (k : Fin m) (p : Fin n) =>
       I.exists_threshold_receiver hn ⟨hx_nn, hx_row, hx_col, hx_stab⟩
         (hmid_01 k).1 (hmid_01 k).2

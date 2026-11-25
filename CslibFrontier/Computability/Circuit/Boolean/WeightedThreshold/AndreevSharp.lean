@@ -331,19 +331,22 @@ theorem andreevSharpForm_product (i : Fin b) (ℓ : Fin m) :
     andreevSharpForm (.inr (.inr (.inr (.inl (i, ℓ))))) x s =
       s i + andreevSharpBig b m * (x (Pi.single i true)).toNat := by
   simp only [andreevSharpForm, andreevSharpTable, andreevSharpBlock, ite_mul,
-    zero_mul, one_mul, sum_ite_eq', mem_univ, ite_true]; ring
+    zero_mul, one_mul, sum_ite_eq', mem_univ, ite_true]
+  ring
 
 theorem andreevSharpForm_zero (j : Fin ((b * m + 1) / 2)) :
     andreevSharpForm (.inr (.inr (.inr (.inr (.inl j))))) x s =
       ∑ i, (s i : ℤ) + andreevSharpBig b m * (x 0).toNat := by
   simp only [andreevSharpForm, andreevSharpTable, andreevSharpBlock, Pi.one_apply, one_mul,
-    ite_mul, zero_mul, sum_ite_eq', mem_univ, ite_true]; ring
+    ite_mul, zero_mul, sum_ite_eq', mem_univ, ite_true]
+  ring
 
 theorem andreevSharpForm_half (S : Finset (Fin b)) (j : Fin (#S * m / 2)) :
     andreevSharpForm (.inr (.inr (.inr (.inr (.inr ⟨S, j⟩))))) x s =
       ∑ i ∈ S, (s i : ℤ) + andreevSharpBig b m * (x 0).toNat := by
   simp only [andreevSharpForm, andreevSharpTable, andreevSharpBlock, ite_mul,
-    zero_mul, one_mul, sum_ite_eq', mem_univ, ite_true, sum_ite_mem, univ_inter]; ring
+    zero_mul, one_mul, sum_ite_eq', mem_univ, ite_true, sum_ite_mem, univ_inter]
+  ring
 
 end Forms
 
@@ -502,7 +505,8 @@ theorem sum_topWeight_half (x : BitString b → Bool) (s : Fin b → ℕ) (hs : 
       (fun _ => by simp only [andreevSharpGate, andreevSharpThreshold, andreevSharpForm_half,
         Nat.cast_sum])
       (fun _ => by omega) (by simpa using big_gt s hs S) (Nat.div_le_div_right ht)
-      fun _ => by omega).trans (by by_cases hS : S = univ <;> simp [hS])
+      (fun _ => by omega)).trans
+      (by by_cases hS : S = univ <;> simp [hS])
 
 /-- **Half counts**: `4 ∑_S ⌊t_S / 2⌋ = N σ - N [p ≠ 0]`, the identity behind
 `x_0 [p = 0] = x_0 - x_0 σ + (4 / N) ∑_S x_0 ⌊t_S / 2⌋` (preprint, Appendix A). -/
@@ -537,7 +541,8 @@ theorem cast_andreevSharpTopAffine (x : BitString b → Bool) (s : Fin b → ℕ
         2 * andreevSharpAmp m * 2 ^ b * ∑ i, (s i : ℝ) := by
   have hE : ∑ c, (if IsSingle c then (1 : ℝ) else 0) * tableVal x c =
       ∑ i, tableVal x (Pi.single i true) := by
-    simp_rw [ite_isSingle_eq_onSingles]; simp [sum_onSingles_mul]
+    simp_rw [ite_isSingle_eq_onSingles]
+    simp [sum_onSingles_mul]
   have htab (c : BitString b) : (andreevSharpTopTable b m c : ℝ) * (x c).toNat =
       ((if c = 0 then ((andreevSharpRange b m : ℝ) + 4) * 2 ^ b * tableVal x c else 0) -
         4 * 2 ^ b * (if c = 0 then 0 else tableVal x c)) +
@@ -545,8 +550,11 @@ theorem cast_andreevSharpTopAffine (x : BitString b → Bool) (s : Fin b → ℕ
           ((if IsSingle c then (1 : ℝ) else 0) * tableVal x c) := by
     simp only [andreevSharpTopTable, Int.cast_add, Int.cast_ite, Int.cast_mul, Int.cast_natCast,
       Int.cast_ofNat, Int.cast_pow, Int.cast_neg, Int.cast_one]
-    by_cases h0 : c = 0; · simp [h0, not_isSingle_zero, tableVal]
-    by_cases hu : IsSingle c <;> simp [h0, hu, tableVal]; ring
+    by_cases h0 : c = 0
+    · simp [h0, not_isSingle_zero, tableVal]
+    · by_cases hu : IsSingle c
+      · simp [h0, hu, tableVal]; ring
+      · simp [h0, hu, tableVal]
   push_cast
   simp only [htab, sum_add_distrib, sum_sub_distrib, ← mul_sum, hE, sum_ite_eq', mem_univ,
     ite_true, andreevSharpTopBlock]
@@ -574,14 +582,18 @@ theorem andreevSharpTopSum_eq (x : BitString b → Bool) (s : Fin b → ℕ) (hs
   have hpow (X : ℝ) (h0 : b = 0 → X = 0) : (2 : ℝ) ^ (b - 1) * X = 2 ^ b / 2 * X := by
     rcases Nat.eq_zero_or_pos b with rfl | hb
     · simp [h0 rfl]
-    · rw [show (2 : ℝ) ^ (b - 1) = 2 ^ b / 2 by
-        rw [eq_div_iff two_ne_zero, ← pow_succ, Nat.sub_add_cancel hb]]
-  rw [hsplit, hpow _ fun hb => by
-      subst hb
-      have : andreevSharpLoad 0 m x s = 0 := by
-        simpa [andreevSharpRange] using andreevSharpLoad_le x s hs
-      simp [this],
-    hpow _ fun hb => by subst hb; simp, four_mul_sum_half s, andreevSharpScore]
+    · have h2 : (2 : ℝ) ^ (b - 1) = 2 ^ b / 2 := by
+        rw [eq_div_iff two_ne_zero, ← pow_succ, Nat.sub_add_cancel hb]
+      rw [h2]
+  have hp1 := hpow ((andreevSharpLoad b m x s : ℝ) ^ 2) fun hb => by
+    subst hb
+    have : andreevSharpLoad 0 m x s = 0 := by
+      simpa [andreevSharpRange] using andreevSharpLoad_le x s hs
+    simp [this]
+  have hp2 := hpow (∑ i, (s i : ℝ) ^ 2) fun hb => by
+    subst hb
+    simp
+  rw [hsplit, hp1, hp2, four_mul_sum_half s, andreevSharpScore]
   simp only [tableVal]
   linear_combination -((andreevSharpRange b m : ℝ) + 4) * 2 ^ b * ((x 0).toNat : ℝ) *
     (by exact_mod_cast (by omega : ((∑ i, s i) + 1) / 2 + (∑ i, s i) / 2 = ∑ i, s i) :
@@ -815,7 +827,7 @@ theorem abs_andreevSharpTable_le (idx : AndreevSharpIndex b m) (c : BitString b)
   have hB_ite {P : Prop} [Decidable P] (hP : P → 1 ≤ b) :
       |(if P then andreevSharpBig b m else 0)| ≤ 2 * (2 ^ b + b * m : ℤ) := by
     split_ifs with h
-    · have : (2 : ℤ) ≤ 2 ^ b := by exact_mod_cast Nat.one_lt_two_pow (by have := hP h; omega)
+    · have : (2 : ℤ) ≤ 2 ^ b := mod_cast Nat.one_lt_two_pow (by have := hP h; omega)
       have : (0 : ℤ) ≤ b * m := by positivity
       rw [andreevSharpBig, abs_of_nonneg (by positivity)]; linarith
     · rw [abs_zero]; positivity
@@ -852,8 +864,9 @@ theorem abs_andreevSharpThreshold_le (idx : AndreevSharpIndex b m) :
   · have hj := j.isLt
     unfold andreevSharpRidgeLen at hj
     have hS : #S ≤ b := (card_le_univ S).trans_eq (Fintype.card_fin b)
+    have hamp : 2 * andreevSharpAmp m + m ≤ 2 * m := by omega
     have : (2 * andreevSharpAmp m + m) * #S ≤ 2 * (b * m) :=
-      (Nat.mul_le_mul (by omega : 2 * andreevSharpAmp m + m ≤ 2 * m) hS).trans_eq (by ring)
+      (Nat.mul_le_mul hamp hS).trans_eq (by ring)
     split_ifs at hj <;> omega
   · have := θ.isLt; omega
   · have := hpos (Fin.pos i); have := ℓ.isLt; omega
@@ -864,7 +877,8 @@ theorem abs_andreevSharpThreshold_le (idx : AndreevSharpIndex b m) :
   · have hj := j.isLt
     have : #S * m ≤ b * m := Nat.mul_le_mul_right m ((card_le_univ S).trans_eq (Fintype.card_fin b))
     have := hpos (Nat.pos_of_ne_zero fun hb => by
-      subst hb; simp [Finset.eq_empty_of_isEmpty S] at hj)
+      subst hb
+      simp [Finset.eq_empty_of_isEmpty S] at hj)
     omega
 
 /-- A bound on the table and block coefficients bounds every weight of `andreevFormWeight`. -/
@@ -909,7 +923,8 @@ private theorem abs_andreevSharpTopWeight_ridge_le (S : Finset (Fin b))
     |andreevSharpTopWeight b m (.inl ⟨S, j⟩)| ≤ 16 * (2 ^ b + b * m : ℤ) := by
   have hj := j.isLt
   unfold andreevSharpRidgeLen at hj
-  split_ifs at hj; · omega
+  split_ifs at hj
+  · omega
   have hJ : 2 * (j : ℤ) + 1 ≤ 2 ^ b + (2 * andreevSharpAmp m + m) * #S := by
     exact_mod_cast (by omega : 2 * j.1 + 1 ≤ 2 ^ b + (2 * andreevSharpAmp m + m) * #S)
   have hbN : (b : ℤ) ≤ 2 ^ b := by exact_mod_cast Nat.lt_two_pow_self.le
@@ -919,8 +934,9 @@ private theorem abs_andreevSharpTopWeight_ridge_le (S : Finset (Fin b))
     (mul_le_mul (by omega) hS (by positivity) (by positivity)).trans_eq (mul_comm _ _)
   have hαb : 2 * (andreevSharpAmp m : ℤ) * b ≤ b * m :=
     (mul_le_mul_of_nonneg_right hα (by positivity)).trans_eq (mul_comm (m : ℤ) b)
+  have h2α : 2 * (andreevSharpAmp m : ℤ) + 1 ≤ m + 1 := by omega
   have hαS : (2 * (andreevSharpAmp m : ℤ) + 1) * #S ≤ b * m + b :=
-    (mul_le_mul (by omega : _ ≤ (m : ℤ) + 1) hS (by positivity) (by positivity)).trans_eq (by ring)
+    (mul_le_mul h2α hS (by positivity) (by positivity)).trans_eq (by ring)
   simp only [andreevSharpTopWeight, andreevSharpKappa]
   have : (0 : ℤ) ≤ j ∧ (0 : ℤ) ≤ b * m ∧ (0 : ℤ) ≤ (2 * (andreevSharpAmp m : ℤ) + 1) * b :=
     ⟨by positivity, by positivity, by positivity⟩
@@ -992,7 +1008,8 @@ private theorem abs_andreevSharpTopInput_cases (i : Fin (2 ^ b + b * m)) :
   · set c := (BitString.equivFin b).symm k
     simp only [andreevSharpTopTable]
     by_cases h0 : c = 0
-    · left; simp only [h0, ↓reduceIte, not_isSingle_zero, add_zero,
+    · left
+      simp only [h0, ↓reduceIte, not_isSingle_zero, add_zero,
         abs_of_nonneg (by positivity : (0 : ℤ) ≤ (andreevSharpRange b m + 4) * 2 ^ b)]
       exact (mul_le_mul (andreevSharpRange_add_four_le b m) hN (by positivity)
         (by positivity)).trans_eq (by ring)
@@ -1002,7 +1019,8 @@ private theorem abs_andreevSharpTopInput_cases (i : Fin (2 ^ b + b * m)) :
       have : (0 : ℤ) ≤ 2 ^ b * (andreevSharpAmp m : ℤ) ^ 2 := by positivity
       have : (1 : ℤ) ≤ 2 ^ b := one_le_pow₀ (by norm_num)
       exact ⟨by linarith, by linarith⟩
-    · left; simp only [h0, hu, ↓reduceIte, add_zero, abs_neg,
+    · left
+      simp only [h0, hu, ↓reduceIte, add_zero, abs_neg,
         abs_of_nonneg (by positivity : (0 : ℤ) ≤ 4 * 2 ^ b)]
       have : (1 : ℤ) ≤ 2 ^ b := one_le_pow₀ (by norm_num)
       exact (mul_le_mul_of_nonneg_left (by linarith : (2 : ℤ) ≤ n + 1)
@@ -1056,7 +1074,8 @@ theorem abs_andreevSharpTopInput_le (i : Fin (2 ^ b + b * m)) :
     27 * |andreevSharpTopInput b m i| ≤
       2 * (2 ^ b + b * m : ℤ) ^ 3 + 54 * ((2 ^ b + b * m : ℤ) * ((2 ^ b + b * m : ℤ) + 1)) := by
   have : (0 : ℤ) ≤ (2 ^ b + b * m : ℤ) ^ 3 := by positivity
-  rcases abs_andreevSharpTopInput_cases i with h | ⟨hb, h⟩; · linarith
+  rcases abs_andreevSharpTopInput_cases i with h | ⟨hb, h⟩
+  · linarith
   have hamp := mul_le_mul_of_nonneg_right
     (by exact_mod_cast Nat.one_le_pow _ _ hb : (1 : ℤ) ≤ b ^ 2)
     (by positivity : (0 : ℤ) ≤ 27 * (2 * 2 ^ b * (andreevSharpAmp m : ℤ) ^ 2))
@@ -1072,10 +1091,14 @@ private theorem andreevSharp_bounds_le (b m : ℕ) :
       (2 * (2 ^ b + b * m : ℝ) ^ 3 +
         54 * (((2 ^ b + b * m : ℝ) + 1) * ((2 ^ b + b * m : ℝ) + 4))) / 27 := by
   set n : ℝ := 2 ^ b + b * m
-  have : 1 ≤ n := by linarith [one_le_pow₀ (n := b) (by norm_num : (1 : ℝ) ≤ 2),
-    show (0 : ℝ) ≤ b * m from by positivity]
-  have := mul_le_mul_of_nonneg_left (by linarith : 1 ≤ n + 4) (by positivity : 0 ≤ 2 * (n + 1))
-  have := mul_le_mul_of_nonneg_left (by linarith : n ≤ n + 4) (by positivity : 0 ≤ n + 1)
+  have : 1 ≤ n := by
+    have : (1 : ℝ) ≤ 2 ^ b := one_le_pow₀ (n := b) (by norm_num)
+    have : (0 : ℝ) ≤ b * m := by positivity
+    linarith
+  have := mul_le_mul_of_nonneg_left (show 1 ≤ n + 4 by linarith)
+    (show 0 ≤ 2 * (n + 1) by positivity)
+  have := mul_le_mul_of_nonneg_left (show n ≤ n + 4 by linarith)
+    (show 0 ≤ n + 1 by positivity)
   have : 0 ≤ n ^ 3 := by positivity
   exact ⟨by linarith, by linarith, by linarith⟩
 
@@ -1092,9 +1115,11 @@ theorem abs_weight_andreevSharpCircuit_le (k : Fin (andreevSharpCircuit b m).siz
   refine abs_weight_lines_depthTwoInputs_le _ _ _ _ _
     (fun _ i => (abs_weight_andreevSharpBottomOp_le _ i).trans h1)
     (fun _ => ?_) (fun i => ?_) k a
-  · refine le_trans ?_ h2; exact_mod_cast abs_andreevSharpTopWeight_le _
+  · refine le_trans ?_ h2
+    exact_mod_cast abs_andreevSharpTopWeight_le _
   · refine le_trans ?_ h3
-    rw [le_div_iff₀ (by norm_num), mul_comm]; exact_mod_cast abs_andreevSharpTopInput_le i
+    rw [le_div_iff₀ (by norm_num), mul_comm]
+    exact_mod_cast abs_andreevSharpTopInput_le i
 
 /-- **All thresholds of the circuit are polynomial in `n`**: every threshold of
 `andreevSharpCircuit b m` satisfies `27 |θ| ≤ 2 n ^ 3 + 54 (n + 1) (n + 4)`, with
@@ -1105,10 +1130,11 @@ theorem abs_threshold_andreevSharpCircuit_le (k : Fin (andreevSharpCircuit b m).
         54 * (((2 ^ b + b * m : ℝ) + 1) * ((2 ^ b + b * m : ℝ) + 4)) := by
   obtain ⟨h1, -, -⟩ := andreevSharp_bounds_le b m
   rw [mul_comm, ← le_div_iff₀ (by norm_num)]
-  exact abs_threshold_lines_depthTwoInputs_le _ _ _ _ _
-    (fun _ => (abs_threshold_andreevSharpBottomOp_le _).trans h1)
-    (le_trans (by rw [abs_of_nonneg (by positivity)]; linarith [show (0 : ℝ) ≤ b * m by positivity])
-      h1) k
+  refine abs_threshold_lines_depthTwoInputs_le _ _ _ _ _
+    (fun _ => (abs_threshold_andreevSharpBottomOp_le _).trans h1) (le_trans ?_ h1) k
+  have : (0 : ℝ) ≤ b * m := by positivity
+  rw [abs_of_nonneg (by positivity)]
+  linarith
 
 /-- **Bottom gates of the circuit have `O(n)` input weights**, in the program's `inputWeight`
 form: every gate other than the output gate has input weights of absolute value at most `2 n`. -/

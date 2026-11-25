@@ -126,7 +126,8 @@ private theorem conditionalEntropy_pi_le_sum {Ω κ : Type*} {α : κ → Type*}
     PMF.conditionalEntropy (ν.map fun ω => (Y ω, X ω)) ≤
       ∑ i, PMF.conditionalEntropy (ν.map fun ω => (Y ω, X ω i)) := by
   classical
-  let := Fintype.ofFinite Ω; let := Fintype.ofFinite R
+  let := Fintype.ofFinite Ω
+  let := Fintype.ofFinite R
   let : ∀ i, Fintype (α i) := fun i => Fintype.ofFinite (α i)
   let J := ν.map fun ω => (Y ω, X ω)
   have hfst (i : κ) : (ν.map fun ω => (Y ω, X ω i)).map Prod.fst = J.map Prod.fst := by
@@ -139,16 +140,18 @@ private theorem conditionalEntropy_pi_le_sum {Ω κ : Type*} {α : κ → Type*}
           (PMF.entropy_le_sum_entropy_map_eval _) ENNReal.toReal_nonneg
     _ = ∑ i, ∑ y, ((J.map Prod.fst) y).toReal *
           PMF.entropy ((PMF.conditionalSnd J y).map fun z => z i) := by
-        simp_rw [Finset.mul_sum]; rw [Finset.sum_comm]
+        simp_rw [Finset.mul_sum]
+        rw [Finset.sum_comm]
     _ = ∑ i, PMF.conditionalEntropy (ν.map fun ω => (Y ω, X ω i)) :=
         Finset.sum_congr rfl fun i _ => by
           rw [PMF.conditionalEntropy_eq_sum]
           refine Finset.sum_congr rfl fun y _ => ?_
           rw [hfst i]
           by_cases hy : y ∈ (J.map Prod.fst).support
-          · rw [conditionalSnd_map_snd J (fun z => z i) hy,
-              show J.map (fun p => (p.1, p.2 i)) = ν.map fun ω => (Y ω, X ω i) by
-                simp only [J, _root_.PMF.map_comp]; rfl]
+          · have hmap : J.map (fun p => (p.1, p.2 i)) = ν.map fun ω => (Y ω, X ω i) := by
+              simp only [J, _root_.PMF.map_comp]
+              rfl
+            rw [conditionalSnd_map_snd J (fun z => z i) hy, hmap]
           · simp [(_root_.PMF.apply_eq_zero_iff _ _).mpr hy]
 
 /-- **Information-theoretic bit-recovery bound** [KatzTrevisan2000], [Yekhanin2012]: if
@@ -166,15 +169,18 @@ theorem card_mul_one_sub_binEntropy_le_logb_card [Fintype ι] [DecidableEq ι] [
   · simp only [Finset.card_empty, Nat.cast_zero, zero_mul]
     exact Real.logb_nonneg one_lt_two (Nat.one_le_cast.mpr Fintype.card_pos)
   let U := PMF.uniformOfFintype (ι → Bool)
+  -- Since `T` is nonempty, `1 / 2 + η ≤ 1`, so `η ≤ 1 / 2`.
   have hη_le : η ≤ 1 / 2 := by
     have h1 : (U.toOuterMeasure {x | g i₀ (C x) = x i₀}).toReal ≤ 1 := by
       simpa only [ENNReal.toReal_one] using ENNReal.toReal_mono ENNReal.one_ne_top
         (Probability.PMF.toOuterMeasure_le_one U _)
     linarith [hg i₀ hi₀]
+  -- `H(X_T) = |T|`.
   have hHXT : PMF.entropy (U.map T.restrict) = T.card := by
     rw [Probability.PMF.uniformOfFintype_pi_map_restrict (π := fun _ => Bool) T,
       PMF.entropy_uniform]
     simp [Real.logb_pow]
+  -- `H(X_T) - H(X_T | C X) ≤ H(C X) ≤ log₂ |R|`.
   have hMI : (T.card : ℝ) - PMF.conditionalEntropy (U.map fun x => (C x, T.restrict x)) ≤
       Real.logb 2 (Fintype.card R) := by
     have hswap : PMF.entropy (U.map fun x => (C x, T.restrict x)) =
@@ -182,13 +188,14 @@ theorem card_mul_one_sub_binEntropy_le_logb_card [Fintype ι] [DecidableEq ι] [
       rw [← PMF.entropy_map_of_injective _ Prod.swap_injective, _root_.PMF.map_comp]; rfl
     have hnonneg : 0 ≤ PMF.conditionalEntropy (U.map fun x => (T.restrict x, C x)) :=
       PMF.conditionalEntropy_nonneg _
-    rw [PMF.conditionalEntropy,
-      show (U.map fun x => (C x, T.restrict x)).map Prod.fst = U.map C by
-        rw [_root_.PMF.map_comp]; rfl, hswap]
-    rw [PMF.conditionalEntropy,
-      show (U.map fun x => (T.restrict x, C x)).map Prod.fst = U.map T.restrict by
-        rw [_root_.PMF.map_comp]; rfl, hHXT] at hnonneg
+    have hfst1 : (U.map fun x => (C x, T.restrict x)).map Prod.fst = U.map C := by
+      rw [_root_.PMF.map_comp]; rfl
+    have hfst2 : (U.map fun x => (T.restrict x, C x)).map Prod.fst = U.map T.restrict := by
+      rw [_root_.PMF.map_comp]; rfl
+    rw [PMF.conditionalEntropy, hfst1, hswap]
+    rw [PMF.conditionalEntropy, hfst2, hHXT] at hnonneg
     linarith [PMF.entropy_le_log_card (U.map C)]
+  -- Bound each bit's conditional entropy via Fano's inequality.
   have hbit (i : T) : PMF.conditionalEntropy (U.map fun x => (C x, x i.1)) ≤
       Real.binEntropy (1 / 2 + η) / Real.log 2 := by
     have hfano := PMF.conditionalEntropy_map_le_binEntropy_add_mul_logb U (fun x => x i.1) C (g i.1)
@@ -203,11 +210,17 @@ theorem card_mul_one_sub_binEntropy_le_logb_card [Fintype ι] [DecidableEq ι] [
       ⟨ENNReal.toReal_nonneg, by linarith⟩ ⟨by linarith, by linarith⟩ hPe_le
     rw [one_div, ← Real.binEntropy_two_inv_add] at hmono
     rwa [← one_div] at hmono
+  -- Sum over `i ∈ T` by subadditivity of conditional entropy.
   have hcond : PMF.conditionalEntropy (U.map fun x => (C x, T.restrict x)) ≤
-      (T.card : ℝ) * (Real.binEntropy (1 / 2 + η) / Real.log 2) :=
-    (conditionalEntropy_pi_le_sum U C T.restrict).trans <|
-      (Finset.sum_le_sum fun i _ => hbit i).trans_eq <| by
-        rw [Finset.sum_const, Finset.card_univ, Fintype.card_coe, nsmul_eq_mul]
+      (T.card : ℝ) * (Real.binEntropy (1 / 2 + η) / Real.log 2) := by
+    calc
+      PMF.conditionalEntropy (U.map fun x => (C x, T.restrict x))
+        ≤ ∑ i : T, PMF.conditionalEntropy (U.map fun x => (C x, x i.1)) :=
+          conditionalEntropy_pi_le_sum U C T.restrict
+      _ ≤ ∑ _i : T, (Real.binEntropy (1 / 2 + η) / Real.log 2) :=
+          Finset.sum_le_sum fun i _ => hbit i
+      _ = (T.card : ℝ) * (Real.binEntropy (1 / 2 + η) / Real.log 2) := by
+          rw [Finset.sum_const, Finset.card_univ, Fintype.card_coe, nsmul_eq_mul]
   linarith
 
 end InfoBound
@@ -252,7 +265,14 @@ private theorem bernoulli_miss_all_eq_prod [Fintype P] [DecidableEq P] (p : I)
         (PMF.pi (fun _ : P => PMF.coin p) (equiv.symm (u, v))).toReal = w1 u * w2 v := by
       rw [PMF.pi_apply, ENNReal.toReal_prod,
         ← Fintype.prod_subtype_mul_prod_subtype (p := fun j : P => j ∈ e₀)]
-      congr 1 <;> refine Finset.prod_congr (by ext j; simp) fun j _ => ?_ <;>
+      congr 1
+      · refine Finset.prod_congr (by
+            ext j
+            simp) fun j _ => ?_
+        simp [equiv, Equiv.piEquivPiSubtypeProd, j.2]
+      · refine Finset.prod_congr (by
+            ext j
+            simp) fun j _ => ?_
         simp [equiv, Equiv.piEquivPiSubtypeProd, j.2]
     let f1 (u : {j // j ∈ e₀} → Bool) : ℝ := if ∀ j, u j = true then 0 else 1
     let f2 (v : {j // j ∉ e₀} → Bool) : ℝ :=
@@ -287,10 +307,14 @@ private theorem bernoulli_miss_all_eq_prod [Fintype P] [DecidableEq P] (p : I)
     have hfactor2 : ∑ v : {j // j ∉ e₀} → Bool, w2 v * f2 v = ∏ e ∈ E, (1 - (p : ℝ) ^ e.card) := by
       rw [← ih hpdE, ← Equiv.sum_comp equiv.symm, Fintype.sum_prod_type]
       simp_rw [hw_mul, hf2_eq]
-      rw [← one_mul (∑ v, w2 v * f2 v), ← hw1_sum, Finset.sum_mul]
-      exact Finset.sum_congr rfl fun _ _ => by
-        rw [Finset.mul_sum]
-        exact Finset.sum_congr rfl fun _ _ => by ring
+      calc
+        ∑ v, w2 v * f2 v
+          = (∑ u, w1 u) * ∑ v, w2 v * f2 v := by rw [hw1_sum, one_mul]
+        _ = ∑ u, ∑ v, (w1 u * w2 v) * f2 v := by
+            rw [Finset.sum_mul]
+            refine Finset.sum_congr rfl fun _ _ => ?_
+            rw [Finset.mul_sum]
+            exact Finset.sum_congr rfl fun _ _ => by ring
     rw [Finset.prod_insert he₀, ← hfactor1, ← hfactor2, ← Equiv.sum_comp equiv.symm,
       Fintype.sum_prod_type]
     simp_rw [Finset.prod_insert he₀, hw_mul, hf1_eq, hf2_eq]
@@ -322,15 +346,21 @@ private theorem bernoulli_hit_ge [Fintype ι] [DecidableEq ι] [Fintype P]
     simp only [Set.mem_ofPred_eq]
     by_cases hall : ∀ e ∈ M.edges, ¬ ∀ j ∈ e, s j = true
     · rw [ite_eq_left hall, Finset.prod_eq_one fun e he => ite_eq_right (hall e he)]
-    · rw [ite_eq_right hall]; push Not at hall
+    · rw [ite_eq_right hall]
+      push Not at hall
       obtain ⟨e, heM, hesub⟩ := hall
       exact (Finset.prod_eq_zero (f := fun e => if ∀ j ∈ e, s j = true then (0 : ℝ) else 1)
         heM (ite_eq_left hesub)).symm
   have hmiss_le : (μ.toOuterMeasure {s | ∀ e ∈ M.edges, ¬ ∀ j ∈ e, s j = true}).toReal ≤
       (1 - (p : ℝ) ^ q) ^ M.edges.card := by
-    rw [hmiss_eq, bernoulli_miss_all_eq_prod p M.edges M.pairwiseDisjoint, ← Finset.prod_const]
-    exact Finset.prod_le_prod₀ (fun _ _ => sub_nonneg.mpr (pow_le_one₀ p.2.1 p.2.2))
-      fun e he => sub_le_sub_left (pow_le_pow_of_le_one p.2.1 p.2.2 (M.card_le_of_mem e he)) 1
+    rw [hmiss_eq, bernoulli_miss_all_eq_prod p M.edges M.pairwiseDisjoint]
+    calc
+      ∏ e ∈ M.edges, (1 - (p : ℝ) ^ e.card)
+        ≤ ∏ _e ∈ M.edges, (1 - (p : ℝ) ^ q) :=
+          Finset.prod_le_prod₀ (fun _ _ => sub_nonneg.mpr (pow_le_one₀ p.2.1 p.2.2))
+            fun e he => sub_le_sub_left
+              (pow_le_pow_of_le_one p.2.1 p.2.2 (M.card_le_of_mem e he)) 1
+      _ = (1 - (p : ℝ) ^ q) ^ M.edges.card := by rw [Finset.prod_const]
   linarith [mul_div_one_add_le_one_sub_pow (pow_nonneg p.2.1 q) (pow_le_one₀ p.2.1 p.2.2)
     M.edges.card]
 
@@ -400,18 +430,21 @@ theorem DecodingMatching.pow_le_pow [Fintype ι] [DecidableEq ι] [Fintype P] [N
     have hfull := card_recovered_mul_le hη.le M (Finset.univ : Finset P)
     have hfilter : (Finset.univ.filter fun i : ι => ∃ e ∈ (M i).edges, e ⊆ Finset.univ) =
         Finset.univ := by
-      ext i; simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.subset_univ,
+      ext i
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.subset_univ,
         and_true, iff_true]
       exact Finset.card_pos.mp (by exact_mod_cast (mul_pos hα hn).trans_le (hsize i))
     rw [hfilter, Finset.card_univ] at hfull
     have hpow := pow_le_pow_left₀ (mul_nonneg (Nat.cast_nonneg _) hH0) hfull q
     have hq1 : (1 : ℝ) ≤ (2 : ℝ) ^ q := one_le_pow₀ (by norm_num)
-    calc α * (k * H) ^ q ≤ α * (n * L) ^ q := mul_le_mul_of_nonneg_left hpow hα.le
+    calc
+      α * (k * H) ^ q ≤ α * (n * L) ^ q := mul_le_mul_of_nonneg_left hpow hα.le
       _ = (α * n) * (L ^ q * n ^ (q - 1)) := by rw [mul_pow, hnq]; ring
       _ ≤ (2 : ℝ) ^ q * (L ^ q * n ^ (q - 1)) :=
           mul_le_mul_of_nonneg_right (hsmall.le.trans hq1) (by positivity)
       _ = (2 * L) ^ q * n ^ (q - 1) := by rw [mul_pow]; ring
-  · have hqpos : (0 : ℝ) < q := by exact_mod_cast hq
+  · -- Main regime `1 ≤ α n`: sample each coordinate with probability `p = (α n) ^ (-1 / q)`.
+    have hqpos : (0 : ℝ) < q := by exact_mod_cast hq
     let p : I := ⟨(α * n) ^ (-(1 / (q : ℝ))),
       ⟨Real.rpow_nonneg (by linarith) _,
        Real.rpow_le_one_of_one_le_of_nonpos hlarge (neg_nonpos.mpr (by positivity))⟩⟩
@@ -420,15 +453,28 @@ theorem DecodingMatching.pow_le_pow [Fintype ι] [DecidableEq ι] [Fintype P] [N
       rw [← Real.rpow_natCast, ← Real.rpow_mul (by linarith : (0 : ℝ) ≤ α * n),
         show -(1 / (q : ℝ)) * (q : ℝ) = -1 by field_simp [hqpos.ne'], Real.rpow_neg_one]
     let μ := PMF.pi (fun _ : P => PMF.coin p)
+    -- Average the fixed-subset bound over `s ~ μ`.
     have havg : (∑ s : P → Bool, (μ s).toReal *
         ((Finset.univ.filter fun i : ι => ∃ e ∈ (M i).edges,
           e ⊆ Finset.univ.filter fun j => s j = true).card : ℝ)) * H ≤ (p : ℝ) * n * L := by
-      rw [Finset.sum_mul, ← bernoulli_expected_card p, Finset.sum_mul]
-      refine Finset.sum_le_sum fun s _ => ?_
-      rw [mul_assoc, mul_assoc]
-      exact mul_le_mul_of_nonneg_left
-        (card_recovered_mul_le hη.le M (Finset.univ.filter fun j => s j = true))
-        ENNReal.toReal_nonneg
+      calc
+        (∑ s : P → Bool, (μ s).toReal *
+            ((Finset.univ.filter fun i : ι => ∃ e ∈ (M i).edges,
+              e ⊆ Finset.univ.filter fun j => s j = true).card : ℝ)) * H
+          = ∑ s : P → Bool, (μ s).toReal *
+              (((Finset.univ.filter fun i : ι => ∃ e ∈ (M i).edges,
+                e ⊆ Finset.univ.filter fun j => s j = true).card : ℝ) * H) := by
+            rw [Finset.sum_mul]
+            exact Finset.sum_congr rfl fun _ _ => mul_assoc _ _ _
+        _ ≤ ∑ s : P → Bool, (μ s).toReal *
+              (((Finset.univ.filter fun j => s j = true).card : ℝ) * L) :=
+            Finset.sum_le_sum fun s _ => mul_le_mul_of_nonneg_left
+              (card_recovered_mul_le hη.le M (Finset.univ.filter fun j => s j = true))
+              ENNReal.toReal_nonneg
+        _ = (p : ℝ) * n * L := by
+            simp_rw [← mul_assoc]
+            rw [← Finset.sum_mul, bernoulli_expected_card p]
+    -- Each bit `i` is recovered with probability at least `1 / 2`.
     have hrec_lower : k * (1 / 2) ≤ ∑ s : P → Bool, (μ s).toReal *
         ((Finset.univ.filter fun i : ι => ∃ e ∈ (M i).edges,
           e ⊆ Finset.univ.filter fun j => s j = true).card : ℝ) := by
@@ -440,31 +486,38 @@ theorem DecodingMatching.pow_le_pow [Fintype ι] [DecidableEq ι] [Fintype P] [N
         congr 2
         ext i
         simp [Finset.subset_iff]
-      simp_rw [hcard, Finset.mul_sum]; rw [Finset.sum_comm]
+      simp_rw [hcard, Finset.mul_sum]
+      rw [Finset.sum_comm]
       have hbit (i : ι) : (1 / 2 : ℝ) ≤ ∑ s : P → Bool, (μ s).toReal *
           if ∃ e ∈ (M i).edges, ∀ j ∈ e, s j = true then (1 : ℝ) else 0 := by
-        rw [show (∑ s : P → Bool, (μ s).toReal *
+        have hmeas_eq : (∑ s : P → Bool, (μ s).toReal *
               if ∃ e ∈ (M i).edges, ∀ j ∈ e, s j = true then (1 : ℝ) else 0) =
-            (μ.toOuterMeasure {s | ∃ e ∈ (M i).edges, ∀ j ∈ e, s j = true}).toReal by
-          rw [Probability.PMF.toOuterMeasure_toReal_eq_sum_ite]; simp only [Set.mem_ofPred_eq]]
+            (μ.toOuterMeasure {s | ∃ e ∈ (M i).edges, ∀ j ∈ e, s j = true}).toReal := by
+          rw [Probability.PMF.toOuterMeasure_toReal_eq_sum_ite]
+          simp only [Set.mem_ofPred_eq]
+        rw [hmeas_eq]
         refine le_trans ?_ (bernoulli_hit_ge (M i) p)
         have hm : 1 ≤ (M i).edges.card * (p : ℝ) ^ q := by
           rw [hpq]
           simpa only [mul_inv_cancel₀ (by linarith : α * n ≠ 0)] using
             mul_le_mul_of_nonneg_right (hsize i) (inv_nonneg.mpr (by linarith : (0 : ℝ) ≤ α * n))
         rw [le_div_iff₀ (by linarith)]; linarith
-      exact (by rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul] :
-        k * (1 / 2) = ∑ _i : ι, (1 / 2 : ℝ)).trans_le (Finset.sum_le_sum fun i _ => hbit i)
+      calc
+        k * (1 / 2) = ∑ _i : ι, (1 / 2 : ℝ) := by
+          rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
+        _ ≤ _ := Finset.sum_le_sum fun i _ => hbit i
+    -- Combine `k * H ≤ 2 * L * p * n` and raise to power `q`.
     have hlin : k * H ≤ (2 * L) * ((p : ℝ) * n) := by
       have := mul_le_mul_of_nonneg_right hrec_lower hH0
       linarith
     have hpow := pow_le_pow_left₀ (mul_nonneg (Nat.cast_nonneg _) hH0) hlin q
-    calc α * (k * H) ^ q ≤ α * ((2 * L) * ((p : ℝ) * n)) ^ q :=
-          mul_le_mul_of_nonneg_left hpow hα.le
+    calc
+      α * (k * H) ^ q ≤ α * ((2 * L) * ((p : ℝ) * n)) ^ q :=
+        mul_le_mul_of_nonneg_left hpow hα.le
       _ = (2 * L) ^ q * n ^ (q - 1) := by
-          simp only [mul_pow, hpq, hnq]
-          have hαn : α * n ≠ 0 := (mul_pos hα hn).ne'
-          field_simp [hαn]
+        simp only [mul_pow, hpq, hnq]
+        have hαn : α * n ≠ 0 := (mul_pos hα hn).ne'
+        field_simp [hαn]
 
 end MatchingRestriction
 
@@ -515,7 +568,8 @@ private theorem rpow_le_of_pow_le_pow {q : ℕ} (hq : 2 ≤ q) {A B k n : ℝ}
     have : (2 : ℝ) ≤ q := by exact_mod_cast hq
     linarith
   have hdiv : (A / B) * k ^ q ≤ n ^ (q - 1) := by rw [div_mul_eq_mul_div, div_le_iff₀ hB]; linarith
-  have hrpow := Real.rpow_le_rpow (by positivity) hdiv (by positivity : 0 ≤ 1 / ((q : ℝ) - 1))
+  have hexp_nn : 0 ≤ 1 / ((q : ℝ) - 1) := by positivity
+  have hrpow := Real.rpow_le_rpow (by positivity) hdiv hexp_nn
   rw [Real.mul_rpow (div_nonneg hA hB.le) (pow_nonneg hk q),
     ← Real.rpow_natCast k q, ← Real.rpow_mul hk,
     ← Real.rpow_natCast n (q - 1), ← Real.rpow_mul hn, Nat.cast_sub (by omega), Nat.cast_one,
@@ -544,10 +598,12 @@ private theorem isEmpty_of_isEmpty_pos [Finite ι] [IsEmpty P]
       ENNReal.toReal_ofNat, Bool.not_true] at hsum ⊢
     linarith
   have hge : 1 / 2 + ε ≤ ∑ x : ι → Bool, (U x).toReal * (decodeLaw (A i) z (x i)).toReal := by
-    rw [show (1 / 2 + ε : ℝ) = ∑ x : ι → Bool, (U x).toReal * (1 / 2 + ε) by
-      rw [← Finset.sum_mul, Probability.PMF.sum_toReal, one_mul]]
-    exact Finset.sum_le_sum fun x _ =>
-      mul_le_mul_of_nonneg_left (heq x ▸ hcorr x i) ENNReal.toReal_nonneg
+    calc
+      (1 / 2 + ε : ℝ) = ∑ x : ι → Bool, (U x).toReal * (1 / 2 + ε) := by
+        rw [← Finset.sum_mul, Probability.PMF.sum_toReal, one_mul]
+      _ ≤ ∑ x : ι → Bool, (U x).toReal * (decodeLaw (A i) z (x i)).toReal :=
+        Finset.sum_le_sum fun x _ =>
+          mul_le_mul_of_nonneg_left (heq x ▸ hcorr x i) ENNReal.toReal_nonneg
   linarith
 
 end Helpers
@@ -576,10 +632,11 @@ theorem IsSmoothDecoder.pow_le_pow_of_nonadaptivePlan [Fintype ι] [Fintype P] [
     choose M hMsize using hM
     have hmul := mul_le_mul_of_nonneg_left
       (DecodingMatching.pow_le_pow M hq (div_pos hε hqc) (by linarith) hMsize) hqc.le
-    rw [show (q : ℝ) * c * (ε / ((q : ℝ) * c) *
+    have hlhs : (q : ℝ) * c * (ε / ((q : ℝ) * c) *
         ((Fintype.card ι : ℝ) * (1 - Real.binEntropy (1 / 2 + ε / 2) / Real.log 2)) ^ q) =
-        ε * ((Fintype.card ι : ℝ) * (1 - Real.binEntropy (1 / 2 + ε / 2) / Real.log 2)) ^ q by
-      field_simp [hqc.ne']] at hmul
+        ε * ((Fintype.card ι : ℝ) * (1 - Real.binEntropy (1 / 2 + ε / 2) / Real.log 2)) ^ q := by
+      field_simp [hqc.ne']
+    rw [hlhs] at hmul
     linarith
   · have : IsEmpty P := not_nonempty_iff.mp hP
     have : IsEmpty ι := isEmpty_of_isEmpty_pos hε hA.correct
@@ -602,10 +659,11 @@ theorem IsLocalDecoder.pow_le_pow_of_nonadaptivePlan [Fintype ι] [Fintype P]
   have hmul := mul_le_mul_of_nonneg_left
     ((isSmoothDecoder_mask_nonadaptivePlan hA hδ (C fun _ => false)).pow_le_pow_of_nonadaptivePlan
       hq (div_pos (by exact_mod_cast hq) hδ) hε) hδ.le
-  rw [show δ * ((q : ℝ) * ((q : ℝ) / δ) * (2 * Real.logb 2 (Fintype.card Γ)) ^ q *
+  have hrhs : δ * ((q : ℝ) * ((q : ℝ) / δ) * (2 * Real.logb 2 (Fintype.card Γ)) ^ q *
       (Fintype.card P : ℝ) ^ (q - 1)) =
-      (q : ℝ) ^ 2 * (2 * Real.logb 2 (Fintype.card Γ)) ^ q * (Fintype.card P : ℝ) ^ (q - 1) by
-    field_simp [hδ.ne']] at hmul
+      (q : ℝ) ^ 2 * (2 * Real.logb 2 (Fintype.card Γ)) ^ q * (Fintype.card P : ℝ) ^ (q - 1) := by
+    field_simp [hδ.ne']
+  rw [hrhs] at hmul
   linarith
 
 /-- **Katz–Trevisan `Ω(k ^ (q / (q - 1)))` bound for non-adaptive `q`-query LDCs**
@@ -646,19 +704,22 @@ theorem IsLocalDecoder.rpow_le_card_of_nonadaptivePlan [Fintype ι] [Fintype P]
     have h2 := mul_le_mul_of_nonneg_left h1 (pow_nonneg zero_le_two q)
     have hpoly : δ * ε ^ (2 * q + 1) * (Fintype.card ι : ℝ) ^ q ≤
         (q : ℝ) ^ 2 * (4 * Real.logb 2 (Fintype.card Γ)) ^ q * (Fintype.card P : ℝ) ^ (q - 1) := by
-      rw [show (2 : ℝ) ^ q * (δ * ε * ((Fintype.card ι : ℝ) * (ε ^ 2 / 2)) ^ q) =
-          δ * ε ^ (2 * q + 1) * (Fintype.card ι : ℝ) ^ q by
-        rw [mul_pow, div_pow, ← pow_mul, pow_add, pow_one]; field_simp] at h2
-      rw [show (2 : ℝ) ^ q * ((q : ℝ) ^ 2 * (2 * Real.logb 2 (Fintype.card Γ)) ^ q *
+      have hlhs : (2 : ℝ) ^ q * (δ * ε * ((Fintype.card ι : ℝ) * (ε ^ 2 / 2)) ^ q) =
+          δ * ε ^ (2 * q + 1) * (Fintype.card ι : ℝ) ^ q := by
+        rw [mul_pow, div_pow, ← pow_mul, pow_add, pow_one]
+        field_simp
+      have h4 : (4 * Real.logb 2 (Fintype.card Γ)) ^ q =
+          (2 : ℝ) ^ q * (2 * Real.logb 2 (Fintype.card Γ)) ^ q := by
+        rw [← mul_pow]
+        congr 1
+        ring
+      have hrhs : (2 : ℝ) ^ q * ((q : ℝ) ^ 2 * (2 * Real.logb 2 (Fintype.card Γ)) ^ q *
           (Fintype.card P : ℝ) ^ (q - 1)) =
-          (q : ℝ) ^ 2 * (4 * Real.logb 2 (Fintype.card Γ)) ^ q * (Fintype.card P : ℝ) ^ (q - 1) by
-        rw [show (4 * Real.logb 2 (Fintype.card Γ)) ^ q =
-            (2 : ℝ) ^ q * (2 * Real.logb 2 (Fintype.card Γ)) ^ q by
-              rw [← mul_pow]
-              congr 1
-              ring]
-        ring] at h2
-      exact h2
+          (q : ℝ) ^ 2 * (4 * Real.logb 2 (Fintype.card Γ)) ^ q *
+            (Fintype.card P : ℝ) ^ (q - 1) := by
+        rw [h4]
+        ring
+      rwa [hlhs, hrhs] at h2
     exact rpow_le_of_pow_le_pow hq (by positivity) hB (Nat.cast_nonneg _) (Nat.cast_nonneg _) hpoly
 
 /-- **Katz–Trevisan bound for arbitrary (possibly adaptive) locally decodable codes**
@@ -683,13 +744,15 @@ theorem IsLocallyDecodable.pow_le_pow [Fintype ι] [Fintype P] [Fintype Γ] [Non
   rw [show ε / (Fintype.card Γ : ℝ) ^ (q - 1) / 2 =
       ε / (2 * (Fintype.card Γ : ℝ) ^ (q - 1)) by ring] at hbound
   have hmul := mul_le_mul_of_nonneg_left hbound hΓ.le
-  rw [show (Fintype.card Γ : ℝ) ^ (q - 1) * (δ * (ε / (Fintype.card Γ : ℝ) ^ (q - 1)) *
+  have hlhs : (Fintype.card Γ : ℝ) ^ (q - 1) * (δ * (ε / (Fintype.card Γ : ℝ) ^ (q - 1)) *
       ((Fintype.card ι : ℝ) *
         (1 - Real.binEntropy (1 / 2 + ε / (2 * (Fintype.card Γ : ℝ) ^ (q - 1))) /
           Real.log 2)) ^ q) =
       δ * ε * ((Fintype.card ι : ℝ) *
         (1 - Real.binEntropy (1 / 2 + ε / (2 * (Fintype.card Γ : ℝ) ^ (q - 1))) /
-          Real.log 2)) ^ q by field_simp [hΓ.ne']] at hmul
+          Real.log 2)) ^ q := by
+    field_simp [hΓ.ne']
+  rw [hlhs] at hmul
   linarith
 
 /-- **Katz–Trevisan `Ω(k ^ (q / (q - 1)))` lower bound for arbitrary (possibly adaptive) `q`-query
@@ -710,11 +773,13 @@ theorem IsLocallyDecodable.rpow_le_card [Fintype ι] [Fintype P] [Fintype Γ] [D
   obtain ⟨A, hA⟩ := isLocallyDecodable_iff.mp hC
   have hΓpos : (0 : ℝ) < (Fintype.card Γ : ℝ) ^ (q - 1) := by positivity
   have h := hA.nonadaptivize.rpow_le_card_of_nonadaptivePlan hq hΓ hδ (div_pos hε hΓpos)
-  rwa [show δ * (ε / (Fintype.card Γ : ℝ) ^ (q - 1)) ^ (2 * q + 1) /
+  have hconst : δ * (ε / (Fintype.card Γ : ℝ) ^ (q - 1)) ^ (2 * q + 1) /
       ((q : ℝ) ^ 2 * (4 * Real.logb 2 (Fintype.card Γ)) ^ q) =
       δ * ε ^ (2 * q + 1) / ((q : ℝ) ^ 2 * (Fintype.card Γ : ℝ) ^ ((q - 1) * (2 * q + 1)) *
-        (4 * Real.logb 2 (Fintype.card Γ)) ^ q) by
-    rw [div_pow, ← pow_mul]; field_simp [hΓpos.ne']] at h
+        (4 * Real.logb 2 (Fintype.card Γ)) ^ q) := by
+    rw [div_pow, ← pow_mul]
+    field_simp [hΓpos.ne']
+  rwa [hconst] at h
 
 end Bounds
 

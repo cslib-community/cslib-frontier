@@ -276,8 +276,10 @@ private theorem mem_clone_propPref_iff {r : Fin m} {s : Fin (n * I.maxQuota)} :
       (finProdFinEquiv.symm s).fst ∈ I.resPref r ∧
         (finProdFinEquiv.symm s).snd.val < I.quota (finProdFinEquiv.symm s).fst := by
   simp only [cloneInstance, List.mem_flatMap, mem_seats_iff]
-  exact ⟨by rintro ⟨h, hh, j, rfl⟩; rw [seat_symm_fst, seat_symm_snd_val]; exact ⟨hh, j.isLt⟩,
-    fun ⟨hh, hk⟩ => ⟨_, hh, ⟨_, hk⟩, (I.eq_seat_of_lt_quota s rfl hk).symm⟩⟩
+  refine ⟨?_, fun ⟨hh, hk⟩ => ⟨_, hh, ⟨_, hk⟩, (I.eq_seat_of_lt_quota s rfl hk).symm⟩⟩
+  rintro ⟨h, hh, j, rfl⟩
+  rw [seat_symm_fst, seat_symm_snd_val]
+  exact ⟨hh, j.isLt⟩
 
 private theorem mem_clone_recvPref_iff {s : Fin (n * I.maxQuota)} {r : Fin m} :
     r ∈ I.cloneInstance.recvPref s ↔
@@ -328,8 +330,11 @@ private theorem idxOf_flatMap_seat {L : List (Fin n)} {h : Fin n} (hh : h ∈ L)
     have hnot := List.not_of_lt_findIdx (p := fun y => y == x) (xs := L)
       (lt_of_lt_of_le hk_lt (Nat.min_le_left _ _))
     simp [List.getElem_take.symm.trans hk_eq] at hnot
-  conv_lhs => rw [← List.take_append_drop i L, List.drop_eq_getElem_cons hi_lt,
-    List.getElem_idxOf hi_lt]
+  have hsplit : L = L.take i ++ h :: L.drop (i + 1) :=
+    calc L = L.take i ++ L.drop i := (List.take_append_drop i L).symm
+      _ = L.take i ++ L[i] :: L.drop (i + 1) := by rw [List.drop_eq_getElem_cons hi_lt]
+      _ = L.take i ++ h :: L.drop (i + 1) := by rw [List.getElem_idxOf hi_lt]
+  conv_lhs => rw [hsplit]
   rw [List.flatMap_append, List.flatMap_cons, idxOf_append_of_notMem hnot_mem,
     idxOf_append_of_mem (I.mem_seats_iff.2 ⟨j, rfl⟩), I.idxOf_seats h j]
 
@@ -367,11 +372,13 @@ private theorem clone_propRank_seat_lt_of_resRank_lt {r : Fin m} {h₁ h₂ : Fi
     have := j₁.isLt
     omega
   · have h1 : I.cloneInstance.propRank r (some (I.seat h₁ j₁)) < I.cloneInstance.propRank r none :=
-      (I.cloneInstance.propRank_some_lt_none_iff r _).2 (by
-        rw [mem_clone_propPref_iff, seat_symm_fst, seat_symm_snd_val]; exact ⟨hh₁, j₁.isLt⟩)
+      (I.cloneInstance.propRank_some_lt_none_iff r _).2 <| by
+        rw [mem_clone_propPref_iff, seat_symm_fst, seat_symm_snd_val]
+        exact ⟨hh₁, j₁.isLt⟩
     have h2 : I.cloneInstance.propRank r (some (I.seat h₂ j₂)) =
-        I.cloneInstance.propRank r none := List.idxOf_eq_length_iff.2 (by
-      rw [mem_clone_propPref_iff, seat_symm_fst]; exact fun h => hh₂ h.1)
+        I.cloneInstance.propRank r none := List.idxOf_eq_length_iff.2 <| by
+      rw [mem_clone_propPref_iff, seat_symm_fst]
+      exact fun h => hh₂ h.1
     omega
 
 /-- Project a cloned one-to-one partial matching down to a many-to-one matching. -/
@@ -420,13 +427,18 @@ private theorem isStable_projectClone {μ : PartialMatching m (n * I.maxQuota)}
   rcases hμ with ⟨hμ_ir, hμ_nb⟩
   have hfeas : I.IsFeasible (I.projectClone μ) := fun h => by
     rw [I.card_residents_projectClone μ h]
-    refine (Finset.card_le_card (t := Finset.univ.image (I.seat h)) fun s hs => ?_).trans
-      (Finset.card_image_le.trans_eq (Fintype.card_fin _))
-    simp only [Finset.mem_filter, PartialMatching.mem_matchedReceivers] at hs
-    obtain ⟨r, hr⟩ := Option.isSome_iff_exists.1 hs.1
-    have hk := (I.mem_clone_recvPref_iff.1 (hμ_ir r s (μ.eq_some_iff.1 hr)).2).1
-    exact Finset.mem_image.2 ⟨⟨_, hs.2 ▸ hk⟩, Finset.mem_univ _,
-      (I.eq_seat_of_lt_quota s hs.2 (hs.2 ▸ hk)).symm⟩
+    let S := (PartialMatching.matchedReceivers μ).filter
+      fun s => (finProdFinEquiv.symm s).fst = h
+    have hsub : S ⊆ Finset.univ.image (I.seat h) := fun s hs => by
+      simp only [S, Finset.mem_filter, PartialMatching.mem_matchedReceivers] at hs
+      obtain ⟨r, hr⟩ := Option.isSome_iff_exists.1 hs.1
+      have hk := (I.mem_clone_recvPref_iff.1 (hμ_ir r s (μ.eq_some_iff.1 hr)).2).1
+      exact Finset.mem_image.2 ⟨⟨_, hs.2 ▸ hk⟩, Finset.mem_univ _,
+        (I.eq_seat_of_lt_quota s hs.2 (hs.2 ▸ hk)).symm⟩
+    calc
+      S.card ≤ (Finset.univ.image (I.seat h)).card := Finset.card_le_card hsub
+      _ ≤ (Finset.univ : Finset (Fin (I.quota h))).card := Finset.card_image_le
+      _ = I.quota h := Fintype.card_fin _
   have hir : I.IsIndividuallyRational (I.projectClone μ) := fun r h hr => by
     obtain ⟨s, hs, rfl⟩ := Option.map_eq_some_iff.1 hr
     exact ⟨(I.mem_clone_propPref_iff.1 (hμ_ir r s hs).1).1,
@@ -434,6 +446,7 @@ private theorem isStable_projectClone {μ : PartialMatching m (n * I.maxQuota)}
   refine ⟨hfeas, hir, fun r h ⟨hres_lt, hr_hosp, hcap_or⟩ => ?_⟩
   have hh_res : h ∈ I.resPref r :=
     (I.resRank_some_lt_none_iff r h).1 (lt_of_lt_of_le hres_lt (I.resRank_le_resRank_none r _))
+  -- Helper: any active seat `I.seat h j` is strictly preferred by `r` to `μ r` in `cloneInstance`.
   have hprop_seat (j : Fin (I.quota h)) :
       I.cloneInstance.propRank r (some (I.seat h j)) < I.cloneInstance.propRank r (μ r) := by
     cases hμr : μ r with
@@ -447,7 +460,8 @@ private theorem isStable_projectClone {μ : PartialMatching m (n * I.maxQuota)}
       exact I.clone_propRank_seat_lt_of_resRank_lt
         (by simpa only [projectClone, hμr, Option.map_some] using hres_lt) j ⟨_, hk'⟩
   rcases hcap_or with hlt_cap | ⟨r', hr'_mem, hr'_rank⟩
-  · have hcard_S : ((PartialMatching.matchedReceivers μ).filter
+  · -- Some active seat of `h` is unmatched in `μ`.
+    have hcard_S : ((PartialMatching.matchedReceivers μ).filter
         (fun s => (finProdFinEquiv.symm s).fst = h)).card <
         (Finset.univ.image (I.seat h)).card := by
       rwa [Finset.card_image_of_injective _ fun _ _ => I.seat_inj_same, Finset.card_univ,
@@ -465,7 +479,8 @@ private theorem isStable_projectClone {μ : PartialMatching m (n * I.maxQuota)}
     rw [hs_none, I.cloneInstance.recvRank_some_lt_none_iff, mem_clone_recvPref_iff,
       seat_symm_fst, seat_symm_snd_val]
     exact ⟨j.isLt, hr_hosp⟩
-  · obtain ⟨s, hs, hfst⟩ := Option.map_eq_some_iff.1 (ManyToOneMatching.mem_residents.1 hr'_mem)
+  · -- Seat of `r'` in `h` prefers `r` to `r'`.
+    obtain ⟨s, hs, hfst⟩ := Option.map_eq_some_iff.1 (ManyToOneMatching.mem_residents.1 hr'_mem)
     have hk : (finProdFinEquiv.symm s).snd.val < I.quota h :=
       hfst ▸ (I.mem_clone_recvPref_iff.1 (hμ_ir r' s hs).2).1
     let j : Fin (I.quota h) := ⟨(finProdFinEquiv.symm s).snd.val, hk⟩
@@ -486,10 +501,11 @@ private theorem hospPos_lt_card {M : ManyToOneMatching m n} {h : Fin n} {r : Fin
 
 private theorem hospPos_strictMono {M : ManyToOneMatching m n} {h : Fin n} {r₁ r₂ : Fin m}
     (hr₁ : r₁ ∈ M.residents h) (hlt : I.hospRank h r₁ < I.hospRank h r₂) :
-    I.hospPos M h r₁ < I.hospPos M h r₂ :=
-  Finset.card_lt_card
-    ⟨fun _ hx => by simp only [Finset.mem_filter] at hx ⊢; exact ⟨hx.1, hx.2.trans hlt⟩,
-      fun hsub => by simpa using hsub (Finset.mem_filter.2 ⟨hr₁, hlt⟩)⟩
+    I.hospPos M h r₁ < I.hospPos M h r₂ := by
+  refine Finset.card_lt_card ⟨fun _ hx => ?_,
+    fun hsub => by simpa using hsub (Finset.mem_filter.2 ⟨hr₁, hlt⟩)⟩
+  simp only [Finset.mem_filter] at hx ⊢
+  exact ⟨hx.1, hx.2.trans hlt⟩
 
 private theorem hospPos_injOn {M : ManyToOneMatching m n} (hir : I.IsIndividuallyRational M)
     (h : Fin n) {r₁ r₂ : Fin m} (hr₁ : r₁ ∈ M.residents h) (hr₂ : r₂ ∈ M.residents h)
@@ -590,7 +606,9 @@ private theorem isStable_liftClone {M : ManyToOneMatching m n} (hM : I.IsStable 
   have hμ_ir : I.cloneInstance.IsIndividuallyRational μ := fun r s hs => by
     change I.liftCloneFun hfeas r = some s at hs
     cases hMr : M.hospital r with
-    | none => rw [I.liftCloneFun_none hfeas hMr] at hs; nomatch hs
+    | none =>
+      rw [I.liftCloneFun_none hfeas hMr] at hs
+      nomatch hs
     | some h =>
       rw [I.liftCloneFun_some hfeas hMr] at hs
       obtain rfl := Option.some_injective _ hs
@@ -615,6 +633,7 @@ private theorem isStable_liftClone {M : ManyToOneMatching m n} (hM : I.IsStable 
       rw [I.liftCloneFun_some hfeas (ManyToOneMatching.mem_residents.1 hr'_mem)]
       exact congrArg (some ∘ I.seat h) (Fin.ext hr'_pos)
     exact ⟨r', hr'_mem, hr'_pos, μ.eq_some_iff.2 hμr'⟩
+  -- Step 1: check whether `M.hospital r = some h`.
   by_cases hMr_same : M.hospital r = some h
   · let jPos : Fin (I.quota h) := ⟨I.hospPos M h r,
       (I.hospPos_lt_card (ManyToOneMatching.mem_residents.2 hMr_same)).trans_le (hfeas h)⟩
@@ -644,12 +663,14 @@ private theorem isStable_liftClone {M : ManyToOneMatching m n} (hM : I.IsStable 
           lt_of_le_of_ne hnot_lt fun heq =>
             hMr_same ((Option.some_injective _ (I.eq_of_resRank_eq (hir r h' hMr).1 heq)) ▸ hMr)
         exact lt_asymm hp_lt (I.clone_propRank_seat_lt_of_resRank_lt hgt_res _ j)
+    -- Now inspect `μ.symm (I.seat h j)` to get unfilled capacity or a worse resident `r'`.
     cases hsym : μ.symm (I.seat h j) with
     | none =>
       refine hnb r h ⟨hres_lt, hr_hosp, Or.inl ?_⟩
       by_contra! hge
       obtain ⟨_, -, -, hsym'⟩ := hsym_of_lt_card (lt_of_lt_of_le j.isLt hge)
-      rw [hsym] at hsym'; nomatch hsym'
+      rw [hsym] at hsym'
+      nomatch hsym'
     | some r' =>
       rw [hsym, I.clone_recvRank_seat_some, I.clone_recvRank_seat_some] at hr_lt
       have hMr' : M.hospital r' = some h := by
@@ -696,8 +717,9 @@ theorem resRank_deferredAcceptance_le_of_isStable {M : ManyToOneMatching m n} (h
       rw [hdar] at hda_le
       have hk₁ := (I.mem_clone_recvPref_iff.1
         (I.cloneInstance.isIndividuallyRational_deferredAcceptance r s₁ hdar).2).1
-      rw [show I.deferredAcceptance.hospital r = some (finProdFinEquiv.symm s₁).fst by
-        simp [deferredAcceptance, projectClone, hdar]]
+      have hda_hosp : I.deferredAcceptance.hospital r = some (finProdFinEquiv.symm s₁).fst := by
+        simp [deferredAcceptance, projectClone, hdar]
+      rw [hda_hosp]
       by_contra! hgt
       have hlt_clone := I.clone_propRank_seat_lt_of_resRank_lt hgt j₂ ⟨_, hk₁⟩
       rw [← I.eq_seat_of_lt_quota s₁ rfl hk₁] at hlt_clone

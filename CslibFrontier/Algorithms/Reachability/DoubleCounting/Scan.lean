@@ -113,18 +113,21 @@ theorem walkM_replay_eq_some {edge : Fin N → Fin N → Bool} {target current :
   change walk edge target fuel current tail = some left ↔ _
   induction tail generalizing fuel current with
   | nil =>
-    rw [walk_end, show [current].IsChainFromTo (fun u v => edge u v = true) current target ↔
-      current = target from ⟨fun h => h.getLast_eq, fun h => h ▸ List.isChainFromTo_singleton⟩]
+    have hchain : [current].IsChainFromTo (fun u v => edge u v = true) current target ↔
+        current = target := ⟨fun h => h.getLast_eq, fun h => h ▸ List.isChainFromTo_singleton⟩
+    rw [walk_end, hchain]
     by_cases h : current = target <;> simp [h, eq_comm]
   | cons next rest ih =>
+    have hchain :
+        (current :: next :: rest).IsChainFromTo (fun u v => edge u v = true) current target ↔
+          edge current next = true ∧
+            (next :: rest).IsChainFromTo (fun u v => edge u v = true) next target :=
+      ⟨fun h => ⟨(List.isChain_cons_cons.mp h.isChain).1, h.of_cons_cons⟩,
+        fun ⟨h, ht⟩ => ht.cons h⟩
     cases fuel with
     | zero => simp [walk_exhausted]
     | succ fuel =>
-      rw [walk_next, show (current :: next :: rest).IsChainFromTo (fun u v => edge u v = true)
-          current target ↔ edge current next = true ∧
-            (next :: rest).IsChainFromTo (fun u v => edge u v = true) next target from
-        ⟨fun h => ⟨(List.isChain_cons_cons.mp h.isChain).1, h.of_cons_cons⟩,
-          fun ⟨h, ht⟩ => ht.cons h⟩]
+      rw [walk_next, hchain]
       by_cases h : edge current next = true
       · simp only [h, ite_true, ih, true_and, List.length_cons, Nat.add_succ, Nat.succ.injEq]
       · simp [h]
@@ -398,12 +401,18 @@ private theorem tally_spec (edge : Fin N → Fin N → Bool) (source target : Fi
   classical
   unfold tally tallyPrefix
   simp only [Fin.castLE_refl]
-  rw [foldlM_spec (fun v => ∀ p, transcript source branch v = some p →
+  have hf := foldlM_spec
+    (fun v => ∀ p, transcript source branch v = some p →
       p.IsChainFromTo (fun u v => edge u v = true) source v ∧
         guessedLength (transcript source branch) v ≤ k)
-    (contribution target branch) _ (fun v => by rw [candidate_spec]; split <;> rfl) Result.zero,
-    contribution_matches source]
-  split <;> [simp [add, Result.zero]; rfl]
+    (contribution target branch) (candidate edge source target k branch)
+    (fun v => by
+      rw [candidate_spec]
+      split <;> rfl) Result.zero
+  rw [hf, contribution_matches source]
+  split
+  · simp [add, Result.zero]
+  · rfl
 
 /-- With exact round totals, success checks precisely the transcript contract and returns
 the membership bit for the queried vertex. -/
@@ -534,7 +543,7 @@ private theorem walkM_clock {σ : Type} (clock : σ → ℕ)
   | zero =>
     rw [walkM, show 2 * 0 + 1 = 1 + 0 by rfl]
     apply bind_stateM_clock clock 1 0 _ _ hn
-    intro result _
+    intro result t
     cases result <;> exact le_rfl
   | succ k ih =>
     rw [walkM, show 2 * (k + 1) + 1 = 1 + (1 + (2 * k + 1)) by omega]
@@ -545,7 +554,9 @@ private theorem walkM_clock {σ : Type} (clock : σ → ℕ)
     | some v =>
       apply bind_stateM_clock clock 1 (2 * k + 1) _ _ (he current v)
       intro answer u
-      cases answer <;> [exact Nat.le_add_right (clock u) _; exact ih v u]
+      cases answer with
+      | false => exact Nat.le_add_right (clock u) _
+      | true => exact ih v u
 
 /-- All branches use at most `N * (2 * k + 2)` callback actions when each selection,
 destination read, or adjacency query advances the clock by at most one. This bound includes

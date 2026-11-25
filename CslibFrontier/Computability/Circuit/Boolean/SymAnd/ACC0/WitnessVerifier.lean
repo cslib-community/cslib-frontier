@@ -549,8 +549,9 @@ theorem computableInPolyTime_certificateCircuitExt
       ((ComputableInPolyTime.length encNat).comp hcode.snd') (.const 1)
   have hhead0 : ComputableInPolyTime (fun p : P => (dec p).2.getD 0 0) encP encNat :=
     ((ComputableInPolyTime.headD (encA := encNat) (encL := encList encNat) 0).comp
-      hcode.snd').of_enc_eq fun p => congrArg encNat (by
-        dsimp only [Function.comp_apply, dec]; cases (dec p).2 <;> rfl)
+      hcode.snd').of_enc_eq fun p => congrArg encNat <| by
+        dsimp only [Function.comp_apply, dec]
+        cases (dec p).2 <;> rfl
   have houtLt : ComputableInPolyTime
       (fun p : P => decide ((dec p).2.getD 0 0 < r p.1 + (dec p).1.length)) encP encBool :=
     ComputableInPolyTime.binary_lt' hhead0
@@ -869,15 +870,15 @@ theorem smallACC0WitnessLanguage_mem_NTIME_of_acc0SAT (dD dW : ℕ) {m : ℕ} (h
     exists_acc0SAT_decider (dD + dW + 5) hm
   set r_w : ℕ := Nat.ceil (2 / ε) + 1
   have hrw_pos : 0 < r_w := Nat.succ_pos _
-  have hrw_lt : (r_w : ℝ)⁻¹ < ε :=
-    (inv_lt_comm₀ (by positivity) hε).mpr <| by
-      have : 2 / ε ≤ (Nat.ceil (2 / ε) : ℝ) := Nat.le_ceil _
-      have : 1 / ε < 2 / ε := by
-        gcongr
-        norm_num
-      dsimp only [r_w]
-      push_cast
-      linarith [one_div ε]
+  have hrw_lt : (r_w : ℝ)⁻¹ < ε := by
+    rw [inv_lt_comm₀ (by positivity) hε]
+    have : 2 / ε ≤ (Nat.ceil (2 / ε) : ℝ) := Nat.le_ceil _
+    have : 1 / ε < 2 / ε := by
+      gcongr
+      norm_num
+    dsimp only [r_w]
+    push_cast
+    linarith [one_div ε]
   refine ⟨r_w, δ, c₀ / 2, hrw_pos, lt_trans hε hεδ, hδ1, by positivity, ?_⟩
   intro q r D c hq hr hD hdepth hq_le
   let padCert : List Bool × List Bool → Σ n, Circuit Unbounded.extSignature n 1 := fun p =>
@@ -1050,12 +1051,13 @@ theorem smallACC0WitnessLanguage_mem_NTIME_of_acc0SAT (dD dW : ℕ) {m : ℕ} (h
   have hTm_b : Tm P ≤ Cm * 2 ^ dm * E_base := by
     have h1 := hTm_le P
     simp only [encUnary_apply, List.length_replicate] at h1
-    have h2 : (P + 1) ^ dm ≤ 2 ^ dm * E_base :=
-      ((Nat.pow_le_pow_left (by omega : P + 1 ≤ 2 * P) dm).trans_eq (Nat.mul_pow 2 P dm)).trans <|
-        Nat.mul_le_mul_left _ <|
-          (Nat.le_mul_of_pos_left _ (Nat.pow_pos (Nat.succ_pos n))).trans
-            (hpow_le dm (by dsimp only [D_all]; omega))
-    simpa [Nat.mul_assoc] using h1.trans (Nat.mul_le_mul_left Cm h2)
+    have h3 : P ^ dm ≤ E_base :=
+      (Nat.le_mul_of_pos_left _ (Nat.pow_pos (Nat.succ_pos n))).trans
+        (hpow_le dm (by dsimp only [D_all]; omega))
+    calc Tm P ≤ Cm * (P + 1) ^ dm := h1
+      _ ≤ Cm * (2 * P) ^ dm := Nat.mul_le_mul_left Cm (Nat.pow_le_pow_left (by omega) dm)
+      _ = Cm * 2 ^ dm * P ^ dm := by rw [Nat.mul_pow, Nat.mul_assoc]
+      _ ≤ Cm * 2 ^ dm * E_base := Nat.mul_le_mul_left _ h3
   have hPairB {T : List Bool × List Bool → ℕ} {C d : ℕ}
       (hT : ∀ p, T p ≤ C * ((encPair encBits encBits p).length + 1) ^ d) (hd : d ≤ D_all) :
       T (x, w) ≤ C * 7 ^ d * E_base := by
@@ -1087,7 +1089,9 @@ theorem smallACC0WitnessLanguage_mem_NTIME_of_acc0SAT (dD dW : ℕ) {m : ℕ} (h
       obtain ⟨hd, hl⟩ := hpad_guarded x w hge0 hw
       have hsatR := hSAT_time (padCert (x, w)) hd hl
       have hq'le : ((padCert (x, w)).1 : ℝ) ≤ ((n + c * Nat.log 2 (n + 2) + c : ℕ) : ℝ) :=
-        mod_cast max_le (by simpa only [← hn] using hq_le x) (by dsimp only; omega)
+        mod_cast max_le
+          (by simpa only [← hn] using hq_le x)
+          (by dsimp only; omega)
       have hpowR : (2 : ℝ) ^ (((padCert (x, w)).1 : ℝ) - c₀ * ((padCert (x, w)).1 : ℝ) ^ δ) ≤
           (2 : ℝ) ^ (n + c * Nat.log 2 (n + 2) + c) := by
         rw [← Real.rpow_natCast]

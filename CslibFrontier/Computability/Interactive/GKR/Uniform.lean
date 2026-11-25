@@ -561,21 +561,25 @@ private theorem sum_matchesVec_eq_evalFactor {R : Type*} [CommRing R] {kOut kIn 
       ((∏ ℓ : Fin kIn, (cl.leftLits.getD ℓ.val (.const false)).constWeight kOut (y ℓ)) *
         (∏ ℓ : Fin kIn, (cl.rightLits.getD ℓ.val (.const false)).constWeight kOut (w ℓ))) *
         ∏ j : Fin kOut, cl.bitTerm z y w j (a j) := fun a => by
-    have hite : (if cl.matchesVec a then
-          eval z (indicatorPoly a) * eval y (indicatorPoly (cl.evalLeft kIn a)) *
-            eval w (indicatorPoly (cl.evalRight kIn a))
-        else 0) =
-        (if cl.matchesVec a then (1 : R) else 0) *
-          (eval z (indicatorPoly a) * eval y (indicatorPoly (cl.evalLeft kIn a)) *
-            eval w (indicatorPoly (cl.evalRight kIn a))) := by split_ifs <;> ring
     have hz : eval z (indicatorPoly a) = ∏ j : Fin kOut, WireLit.litFactor (a j) (z j) :=
       eval_indicatorPoly_apply a z
     have hl : cl.evalLeft kIn a = fun ℓ => (cl.leftLits.getD ℓ.val (.const false)).eval a := rfl
     have hr : cl.evalRight kIn a = fun ℓ => (cl.rightLits.getD ℓ.val (.const false)).eval a := rfl
-    rw [hite, ← cl.prod_maskWeight (R := R) a, hz, hl, hr,
-      eval_indicatorPoly_lits cl.leftLits y a, eval_indicatorPoly_lits cl.rightLits w a]
-    simp only [bitTerm, Finset.prod_mul_distrib]
-    ring
+    calc (if cl.matchesVec a then
+            eval z (indicatorPoly a) * eval y (indicatorPoly (cl.evalLeft kIn a)) *
+              eval w (indicatorPoly (cl.evalRight kIn a))
+          else 0)
+        = (if cl.matchesVec a then (1 : R) else 0) *
+            (eval z (indicatorPoly a) * eval y (indicatorPoly (cl.evalLeft kIn a)) *
+              eval w (indicatorPoly (cl.evalRight kIn a))) := by
+            split_ifs <;> ring
+      _ = ((∏ ℓ : Fin kIn, (cl.leftLits.getD ℓ.val (.const false)).constWeight kOut (y ℓ)) *
+            (∏ ℓ : Fin kIn, (cl.rightLits.getD ℓ.val (.const false)).constWeight kOut (w ℓ))) *
+            ∏ j : Fin kOut, cl.bitTerm z y w j (a j) := by
+            rw [← cl.prod_maskWeight (R := R) a, hz, hl, hr,
+              eval_indicatorPoly_lits cl.leftLits y a, eval_indicatorPoly_lits cl.rightLits w a]
+            simp only [bitTerm, Finset.prod_mul_distrib]
+            ring
   simp only [hterm, ← Finset.mul_sum, evalFactor, sum_prod_bool]
 
 end WiringClause
@@ -611,9 +615,11 @@ private theorem sum_list_of_unique {R : Type*} [AddCommMonoid R] {α : Type*}
     · simp only [List.find?, hc, Option.some.injEq, ↓reduceIte] at h hfind
       subst hfind
       have h0 := List.countP_eq_zero.mp (show cs.countP p = 0 by omega)
-      rw [List.map_cons, List.sum_cons, ite_eq_left hc,
-        List.sum_eq_zero (fun r hr => by obtain ⟨d, hd, rfl⟩ := List.mem_map.mp hr; simp [h0 d hd]),
-        add_zero]
+      have hsum0 : (List.map (fun c => if p c then f c else 0) cs).sum = 0 :=
+        List.sum_eq_zero fun r hr => by
+          obtain ⟨d, hd, rfl⟩ := List.mem_map.mp hr
+          simp [h0 d hd]
+      rw [List.map_cons, List.sum_cons, ite_eq_left hc, hsum0, add_zero]
 
 /-- **Product factorization of wiring multilinear extensions** for `LayeredCircuit.ofClauses`:
 when `clauses i` partitions `{0, 1}^{width (i + 1)}`, the multilinear extension of `wiringPred g i`

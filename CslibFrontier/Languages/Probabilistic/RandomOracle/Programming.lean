@@ -101,19 +101,21 @@ theorem toOuterMeasure_exists_mem_fst_eq_le {α Query Value : Type*}
     {μ : PMF α} {f : α → Query} {δ : ℝ≥0∞}
     (hμ : ∀ q, (μ.map f) q ≤ δ) (cache : List (Query × Value)) :
     μ.toOuterMeasure {a | ∃ e ∈ cache, e.1 = f a} ≤ cache.length * δ := by
+  have hpoint (q : Query) : μ.toOuterMeasure {a | f a = q} ≤ δ := by
+    rw [show {a : α | f a = q} = f ⁻¹' {q} from rfl, ← PMF.toOuterMeasure_map_apply,
+      PMF.toOuterMeasure_apply_singleton]
+    exact hμ q
   simpa only [Set.ofPred_mem_eq, List.mem_map, List.length_map] using
-    PMF.toOuterMeasure_mem_list_le μ f (fun q => by
-      rw [show {a : α | f a = q} = f ⁻¹' {q} from rfl, ← PMF.toOuterMeasure_map_apply,
-        PMF.toOuterMeasure_apply_singleton]
-      exact hμ q) (cache.map Prod.fst)
+    (PMF.toOuterMeasure_mem_list_le μ f hpoint (cache.map Prod.fst))
 
 private theorem toOuterMeasure_lookup_isSome_le_aux {α Query Value : Type*}
     [BEq Query] [LawfulBEq Query] {μ : PMF α} {f : α → Query} {δ : ℝ≥0∞}
     (hμ : ∀ q, (μ.map f) q ≤ δ) (cache : List (Query × Value)) :
-    μ.toOuterMeasure {a | (cache.lookup (f a)).isSome} ≤ cache.length * δ :=
-  (μ.toOuterMeasure.mono fun _ ha =>
-    let ⟨e, he, hbeq⟩ := List.lookup_isSome_iff.mp ha; ⟨e, he, (eq_of_beq hbeq).symm⟩).trans
+    μ.toOuterMeasure {a | (cache.lookup (f a)).isSome} ≤ cache.length * δ := by
+  refine (μ.toOuterMeasure.mono fun a ha => ?_).trans
     (toOuterMeasure_exists_mem_fst_eq_le hμ cache)
+  obtain ⟨e, he, hbeq⟩ := List.lookup_isSome_iff.mp ha
+  exact ⟨e, he, (eq_of_beq hbeq).symm⟩
 
 /-- Composing `g : α → β` with an injective map `emb : β → Query` preserves any pointwise
 probability upper bound `∀ b, (μ.map g) b ≤ δ`. -/
@@ -124,7 +126,8 @@ theorem map_comp_apply_le_of_injective {α β Query : Type*} {μ : PMF α}
   rw [← PMF.map_comp, ← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
   by_cases hq : ∃ b, emb b = q
   · obtain ⟨b, rfl⟩ := hq
-    rw [show emb ⁻¹' {emb b} = {b} by ext; exact hemb.eq_iff, PMF.toOuterMeasure_apply_singleton]
+    have hpre : emb ⁻¹' {emb b} = {b} := Set.ext fun _ => hemb.eq_iff
+    rw [hpre, PMF.toOuterMeasure_apply_singleton]
     exact hμ b
   · rw [show emb ⁻¹' {q} = ∅ from Set.eq_empty_iff_forall_notMem.mpr fun b hb => hq ⟨b, hb⟩]
     simp
@@ -796,17 +799,22 @@ theorem hasOutputCollision_iff_not_nodup_snd {Query Digest : Type*}
     obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem he₁
     obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem he₂
     have hij : i ≠ j := fun h => hne (by subst h; rfl)
-    exact hij (hnodup.getElem_inj_iff.mp
-      (show (cache.map Prod.snd)[i]'(by simpa) = (cache.map Prod.snd)[j]'(by simpa) by simp [heq]))
+    have hget : (cache.map Prod.snd)[i]'(hi.trans_eq (List.length_map _).symm) =
+        (cache.map Prod.snd)[j]'(hj.trans_eq (List.length_map _).symm) := by
+      simpa only [List.getElem_map] using heq
+    exact hij (hnodup.getElem_inj_iff.mp hget)
   · intro hnot
     obtain ⟨i, j, hget, hij⟩ :=
       Function.not_injective_iff.mp (mt List.nodup_iff_injective_get.mpr hnot)
     have hi : i.val < cache.length := by simpa using i.isLt
     have hj : j.val < cache.length := by simpa using j.isLt
-    refine ⟨cache[i.val], List.getElem_mem hi, cache[j.val], List.getElem_mem hj, fun hk =>
-      Fin.val_ne_of_ne hij (hfst.getElem_inj_iff.mp
-        (show (cache.map Prod.fst)[i.val]'(by simpa) = (cache.map Prod.fst)[j.val]'(by simpa) by
-          simp [hk])), by simpa using hget⟩
+    have hkey : cache[i.val].1 ≠ cache[j.val].1 := fun hk => by
+      have hgetFst : (cache.map Prod.fst)[i.val]'(hi.trans_eq (List.length_map _).symm) =
+          (cache.map Prod.fst)[j.val]'(hj.trans_eq (List.length_map _).symm) := by
+        simpa only [List.getElem_map] using hk
+      exact Fin.val_ne_of_ne hij (hfst.getElem_inj_iff.mp hgetFst)
+    exact ⟨cache[i.val], List.getElem_mem hi, cache[j.val], List.getElem_mem hj, hkey,
+      by simpa using hget⟩
 
 private theorem step_not_nodup_snd_memoize_le {Query Digest : Type} [BEq Query]
     (dist : PMF Digest) {δ : ℝ≥0∞} (hdist : ∀ y, dist y ≤ δ)
@@ -826,7 +834,8 @@ private theorem step_not_nodup_snd_memoize_le {Query Digest : Type} [BEq Query]
         {y | ∃ e' ∈ cache.map Prod.swap, e'.1 = id y} := fun y hy => by
       change ¬(((key, y) :: cache).map Prod.snd).Nodup at hy
       rw [List.map_cons, List.nodup_cons] at hy
-      obtain ⟨e, he, rfl⟩ := List.mem_map.mp (by by_contra h; exact hy ⟨h, hnodup⟩)
+      have hmem : y ∈ cache.map Prod.snd := Classical.not_not.mp fun hnot => hy ⟨hnot, hnodup⟩
+      obtain ⟨e, he, rfl⟩ := List.mem_map.mp hmem
       exact ⟨e.swap, List.mem_map_of_mem he, rfl⟩
     refine (MeasureTheory.measure_mono hsub).trans ?_
     simpa only [List.length_map] using toOuterMeasure_exists_mem_fst_eq_le (f := id)
