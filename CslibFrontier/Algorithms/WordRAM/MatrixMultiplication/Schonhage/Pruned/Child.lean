@@ -69,8 +69,7 @@ theorem exec_loadScanChild {w L f a0 b0 d N k : ℕ} (x : Data registers)
         x.mem v.mem := by
   have hpow : 1 ≤ (10 : ℕ) ^ L := Nat.one_le_pow L _ (by decide)
   have hL : L + 1 ≤ (L + 1) * 10 ^ L := by nlinarith only [hpow]
-  have hmul : (d + 1) * 10 ^ L ≤ (L + 1) * 10 ^ L :=
-    Nat.mul_le_mul_right _ (by omega)
+  have hmul : (d + 1) * 10 ^ L ≤ (L + 1) * 10 ^ L := Nat.mul_le_mul_right _ (by omega)
   obtain ⟨u, hu, humem, huf', huc, hup', hstride', hut, hul', _, hun', huch', _, hureg⟩ :=
     hregs.exec_loadFrame hd hdL.le (hw.of_le (by omega))
   have hus' : u.regs stamps = f + 4 * (L + 1) + 2 * (L + 1) * 10 ^ L := by regs_frame
@@ -100,8 +99,7 @@ theorem exec_loadScanChild {w L f a0 b0 d N k : ℕ} (x : Data registers)
     have hcall : ExecWithin w dispatch u y (20 * N + 5 + T + 1) :=
       (hv.seq htail).branch_pos
         (by simpa only [Cond.holds_lt, hut', (hureg ten (by decide)).trans hregs.ten_eq] using hk)
-    obtain ⟨hum, hu0, hu1⟩ : u.regs mode = 1 ∧ u.regs nil = 0 ∧ u.regs one = 1 := by
-      regs_frame
+    obtain ⟨hum, hu0, hu1⟩ : u.regs mode = 1 ∧ u.regs nil = 0 ∧ u.regs one = 1 := by regs_frame
     have hbranch : ExecWithin w
         (ram[ if mode = nil then [ ⟪enter⟫ ] else [
           if mode = one then [ ⟪dispatch⟫ ] else [ ⟪accumulate⟫ ] ] ]) u y (20 * N + 5 + T + 4) :=
@@ -170,8 +168,7 @@ theorem exec_node_child {w L f a0 b0 d N p k : ℕ} (x : Data registers)
       Modifies (childWrites L f d) x.mem y.mem := by
   have hpow : 1 ≤ (10 : ℕ) ^ L := Nat.one_le_pow L _ (by decide)
   have hL : L + 1 ≤ (L + 1) * 10 ^ L := by nlinarith only [hpow]
-  have hmul : (d + 1) * 10 ^ L ≤ (L + 1) * 10 ^ L :=
-    Nat.mul_le_mul_right _ (by omega)
+  have hmul : (d + 1) * 10 ^ L ≤ (L + 1) * 10 ^ L := Nat.mul_le_mul_right _ (by omega)
   have hnext : (10 : ℕ) ^ d * 10 ≤ 10 ^ L := by
     simpa only [← pow_succ] using
       Nat.pow_le_pow_right (by decide : 1 ≤ (10 : ℕ)) (by omega : d + 1 ≤ L)
@@ -187,8 +184,7 @@ theorem exec_node_child {w L f a0 b0 d N p k : ℕ} (x : Data registers)
       nlinarith only [hcap, hpow, hL, hmul, hnext, hnewp]))
   have hnonempty : (Cond.lt nil childCount).Holds v := by
     simpa only [Cond.holds_lt, hv0, hvc'] using Finset.card_pos.mpr hne
-  have he : ExecWithin w step x y (20 * N + 42) :=
-    (hstep (hy.branch_pos hnonempty)).mono (by omega)
+  have he : ExecWithin w step x y (20 * N + 42) := (hstep (hy.branch_pos hnonempty)).mono (by omega)
   have hfbase : v.regs frames + v.regs nextLevel * 4 = f + 4 * (d + 1) := by rw [hvf, hvn]; omega
   have hchildFrame : Modifies (Block.mk (f + 4 * (d + 1)) 4).footprint v.mem y.mem := by
     simpa only [hfbase] using hpushFrame
