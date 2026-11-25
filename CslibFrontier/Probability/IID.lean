@@ -238,18 +238,11 @@ theorem iid_bind_update (μ : PMF α) {k : ℕ} (j : Fin k) :
     rw [Function.update_idem, Function.update_eq_self, PMF.pure_apply]
     by_cases hvw : v = w
     · subst hvw
-      simp only [↓reduceIte, mul_one]
-      rw [← Finset.mul_prod_erase Finset.univ (fun i => μ (Function.update v j y i))
-          (Finset.mem_univ j),
-        ← Finset.mul_prod_erase Finset.univ (fun i => μ (v i)) (Finset.mem_univ j),
-        Function.update_self]
-      have heq : ∀ i ∈ Finset.univ.erase j,
-          μ (Function.update v j y i) = μ (v i) := fun i hi => by
-        rw [Function.update_of_ne (Finset.ne_of_mem_erase hi)]
-      rw [Finset.prod_congr rfl heq]
+      simp only [↓reduceIte, mul_one, Function.apply_update (fun _ => μ),
+        Finset.prod_update_of_mem (Finset.mem_univ j),
+        Finset.prod_eq_mul_prod_sdiff_singleton_of_mem (Finset.mem_univ j) (fun i => μ (v i))]
       ring
-    · have hne : w ≠ v := Ne.symm hvw
-      simp [hvw, hne]
+    · simp [hvw, Ne.symm hvw]
   simp_rw [hterm]
   rw [tsum_prod', tsum_eq_single w (fun v hv => by simp [hv])]
   simp only [↓reduceIte, ENNReal.tsum_mul_left, PMF.tsum_coe, mul_one, iid_apply]
