@@ -211,26 +211,13 @@ include hH hlen hcap in
 /-- Merkle key generation is uniformly strict PPT. -/
 theorem isPPTOn_keyGen :
     IsPPTOn encUnary (encPair encBits encBits) (keyGen S H depth) := by
-  have hk : IsPPTOn encUnary encBits (fun n => BitString.sampleList n) :=
-    ComputableInPolyTime.id'.sampleList
-  have hkeys : IsPPTOn (encPair encUnary encBits) (encList (encPair encBits encBits))
-      (fun p : ℕ × List Bool => OracleComp.replicate (2 ^ depth p.1) (S.keyGen p.1)) :=
-    (S.isPPTOn_keyGen_comp (ComputableInPolyTime.fst encUnary encBits)).replicate
-      (hcap.comp (ComputableInPolyTime.fst encUnary encBits))
-  have hpost : ComputableInPolyTime
-      (fun q : (ℕ × List Bool) × List (List Bool × List Bool) =>
-        (publicKey H q.1.2 q.2, secretKey q.1.2 q.2))
-      (encPair (encPair encUnary encBits) (encList (encPair encBits encBits)))
-      (encPair encBits encBits) := by
-    have hkq : ComputableInPolyTime
-        (fun q : (ℕ × List Bool) × List (List Bool × List Bool) => q.1.2)
-        (encPair (encPair encUnary encBits) (encList (encPair encBits encBits))) encBits :=
-      (ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.fst _ _)
-    have hkeysq := ComputableInPolyTime.snd (encPair encUnary encBits)
-      (encList (encPair encBits encBits))
-    exact ((computableInPolyTime_publicKey hH hlen).comp (hkq.prod hkeysq)).prod
-      (hkq.prod hkeysq).encoding_comp
-  exact hk.bind_with (hkeys.bind_with hpost.isPPTOn)
+  have hk := ComputableInPolyTime.id' (encIn := encUnary) |>.sampleList
+  have hkeys := (S.isPPTOn_keyGen_comp (.fst encUnary encBits)).replicate
+    (hcap.comp (.fst encUnary encBits))
+  have hpair := (ComputableInPolyTime.fst (encPair encUnary encBits)
+      (encList (encPair encBits encBits))).snd'.prod (.snd _ _)
+  exact hk.bind_with (hkeys.bind_with
+    (((computableInPolyTime_publicKey hH hlen).comp hpair).prod hpair.encoding_comp).isPPTOn)
 
 include hH hlen in
 /-- Merkle signing is uniformly strict PPT. -/
@@ -238,38 +225,18 @@ theorem isPPTOn_sign :
     IsPPTOn encIndexedSignInput encBits
       (fun (sk, u, msg) => sign S H sk u msg) := by
   let E := encPair encBits (encPair encUnary encBits)
-  have hdec : ComputableInPolyTime (fun p : List Bool × ℕ × List Bool =>
-      secretKeyDecoder.decode p.1) E (encPair encBits (encList (encPair encBits encBits))) :=
-    secretKeyDecoder.computableInPolyTime.comp (ComputableInPolyTime.fst _ _)
-  have hk := (ComputableInPolyTime.fst _ _).comp hdec
-  have hkeys := (ComputableInPolyTime.snd _ _).comp hdec
-  have hu : ComputableInPolyTime (fun p : List Bool × ℕ × List Bool => p.2.1) E encUnary :=
-    (ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.snd _ _)
-  have hmsg : ComputableInPolyTime (fun p : List Bool × ℕ × List Bool => p.2.2) E encBits :=
-    (ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.snd _ _)
-  have hkey : ComputableInPolyTime (fun p : List Bool × ℕ × List Bool =>
-      (secretKeyDecoder.decode p.1).2.getD p.2.1 ([], [])) E (encPair encBits encBits) :=
-    (ComputableInPolyTime.listGetD (encA := encPair encBits encBits) ([], [])).comp
-      (hkeys.prod hu)
-  have hsign : IsPPTOn E encBits (fun p : List Bool × ℕ × List Bool =>
-      S.sign ((secretKeyDecoder.decode p.1).2.getD p.2.1 ([], [])).2
-        (H (secretKeyDecoder.decode p.1).1 p.2.2)) :=
-    S.isPPTOn_sign_comp ((ComputableInPolyTime.snd _ _).comp hkey)
-      (hH.comp (hk.prod hmsg))
-  have hpath : ComputableInPolyTime (fun p : List Bool × ℕ × List Bool =>
-      merklePath H (secretKeyDecoder.decode p.1).1
-        ((secretKeyDecoder.decode p.1).2.map Prod.fst) p.2.1) E (encList encBits) :=
-    (computableInPolyTime_merklePath hH hlen).comp
-      (hk.prod ((computableInPolyTime_keyMap.comp hkeys).prod hu))
-  have hpost : ComputableInPolyTime (fun q : (List Bool × ℕ × List Bool) × List Bool =>
-      encodeSignature ((secretKeyDecoder.decode q.1.1).2.getD q.1.2.1 ([], [])).1 q.2
-        (merklePath H (secretKeyDecoder.decode q.1.1).1
-          ((secretKeyDecoder.decode q.1.1).2.map Prod.fst) q.1.2.1))
-      (encPair E encBits) encBits := by
-    have hfst := ComputableInPolyTime.fst E encBits
-    exact ((((ComputableInPolyTime.fst _ _).comp hkey).comp hfst).prod
-      ((ComputableInPolyTime.snd E encBits).prod (hpath.comp hfst))).encoding_comp
-  exact hsign.bind_with hpost.isPPTOn
+  have hdec := secretKeyDecoder.computableInPolyTime.comp
+    (ComputableInPolyTime.fst encBits (encPair encUnary encBits))
+  have h2 := ComputableInPolyTime.snd encBits (encPair encUnary encBits)
+  have hkey := (ComputableInPolyTime.listGetD (encA := encPair encBits encBits) ([], [])).comp
+    (hdec.snd'.prod h2.fst')
+  have hsign := S.isPPTOn_sign_comp hkey.snd' (hH.comp (hdec.fst'.prod h2.snd'))
+  have hpath := (computableInPolyTime_merklePath hH hlen).comp
+    (hdec.fst'.prod ((computableInPolyTime_keyMap.comp hdec.snd').prod h2.fst'))
+  have hfst := ComputableInPolyTime.fst E encBits
+  exact hsign.bind_with
+    ((hkey.fst'.comp hfst).prod
+      ((ComputableInPolyTime.snd E encBits).prod (hpath.comp hfst))).encoding_comp.isPPTOn
 
 include hH hlen hcap in
 /-- Merkle verification is computable in polynomial time. -/
@@ -278,36 +245,18 @@ theorem computableInPolyTime_verify :
       (fun ((pk, u, msg, sig) : List Bool × ℕ × List Bool × List Bool) =>
         verify S H depth pk u msg sig)
       (encPair encBits encIndexedSignedMessage) encBool := by
-  let E := encPair encBits (encPair encUnary (encPair encBits encBits))
-  have hpk : ComputableInPolyTime
-      (fun p : List Bool × ℕ × List Bool × List Bool => p.1) E encBits :=
-    ComputableInPolyTime.fst _ _
-  have hu : ComputableInPolyTime
-      (fun p : List Bool × ℕ × List Bool × List Bool => p.2.1) E encUnary :=
-    (ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.snd _ _)
-  have hmsg : ComputableInPolyTime
-      (fun p : List Bool × ℕ × List Bool × List Bool => p.2.2.1) E encBits :=
-    (ComputableInPolyTime.fst _ _).comp
-      ((ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.snd _ _))
-  have hsig : ComputableInPolyTime
-      (fun p : List Bool × ℕ × List Bool × List Bool => p.2.2.2) E encBits :=
-    (ComputableInPolyTime.snd _ _).comp
-      ((ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.snd _ _))
-  have hk := ComputableInPolyTime.unframe.comp hpk
-  have hroot := ComputableInPolyTime.dropFrame.comp hpk
-  have hd : ComputableInPolyTime
-      (fun p : List Bool × ℕ × List Bool × List Bool => depth (unframe p.1).length) E encUnary :=
-    (computableInPolyTime_depth hcap).comp (ComputableInPolyTime.length_bits.comp hk)
-  have hdec := signatureDecoder.computableInPolyTime.comp hsig
-  have hvk := (ComputableInPolyTime.fst _ _).comp hdec
-  have hrest := (ComputableInPolyTime.snd _ _).comp hdec
-  have hots := (ComputableInPolyTime.fst _ _).comp hrest
-  have hpath := (ComputableInPolyTime.snd _ _).comp hrest
+  have h1 := ComputableInPolyTime.fst encBits encIndexedSignedMessage
+  have h2 := ComputableInPolyTime.snd encBits encIndexedSignedMessage
+  have hk := ComputableInPolyTime.unframe.comp h1
+  have hdec := signatureDecoder.computableInPolyTime.comp h2.snd'.snd'
   have hopen := (computableInPolyTime_merkleVerify hH hlen).comp
-    ((hk.prod hd).prod ((hroot.prod hu).prod (hvk.prod hpath)))
-  have hots_verify := S.computableInPolyTime_verify_comp hvk
-    (hH.comp (hk.prod hmsg)) hots
-  exact ComputableInPolyTime.bool_and.comp (hopen.prod hots_verify)
+    ((hk.prod ((computableInPolyTime_depth hcap).comp
+      (ComputableInPolyTime.length_bits.comp hk))).prod
+      (((ComputableInPolyTime.dropFrame.comp h1).prod h2.fst').prod
+        (hdec.fst'.prod hdec.snd'.snd')))
+  exact ComputableInPolyTime.bool_and.comp
+    (hopen.prod (S.computableInPolyTime_verify_comp hdec.fst'
+      (hH.comp (hk.prod h2.snd'.fst')) hdec.snd'.fst'))
 
 end Efficiency
 
