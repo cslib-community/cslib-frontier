@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Foundations.Data.List.Counting
 public import CslibFrontier.Tactic.CircuitBound.Init
 public import Mathlib.Algebra.Order.BigOperators.Group.Finset
 public import Mathlib.Tactic.Linarith
@@ -68,9 +69,10 @@ circuit-specific parts, and they are attached in `CslibFrontier.Computability.Ci
 
 ## Implementation notes
 
-`dite_le_max`, `forall_mem_ofFn` and `sum_map_le_length_mul` are used in the proofs the tactic
-builds, so they are public. The other monotonicity steps use `Nat.add_le_add`, `Nat.mul_le_mul`,
-`Nat.pow_le_pow_left`, `max_le_max`, `ite_le_sup`, `Finset.sum_le_sum` and `Finset.sup_le`.
+`dite_le_max` and `forall_mem_ofFn` are used in the proofs the tactic builds, so they are
+public. The other monotonicity steps use `Nat.add_le_add`, `Nat.mul_le_mul`, `Nat.pow_le_pow_left`,
+`max_le_max`, `ite_le_sup`, `Finset.sum_le_sum`, `Finset.sup_le` and
+`List.sum_map_le_length_mul`.
 -/
 
 public section
@@ -90,17 +92,6 @@ theorem forall_mem_ofFn {α : Type*} {n : ℕ} {f : Fin n → α} {P : α → Pr
   intro a ha
   obtain ⟨j, rfl⟩ := List.mem_ofFn.1 ha
   exact h j
-
-/-- The sum of `l.map f` is at most `l.length * B` when every member of `l` satisfies `f a ≤ B`. -/
-theorem sum_map_le_length_mul {α : Type*} {l : List α} {f : α → ℕ} {B : ℕ}
-    (h : ∀ a ∈ l, f a ≤ B) : (l.map f).sum ≤ l.length * B := by
-  induction l with
-  | nil => simp
-  | cons a l ih =>
-    simp only [List.map_cons, List.sum_cons, List.length_cons, Nat.succ_mul]
-    have ha := h a List.mem_cons_self
-    have hl := ih fun x hx => h x (List.mem_cons_of_mem a hx)
-    omega
 
 end Cslib.Tactic.CircuitBound
 
@@ -262,7 +253,7 @@ private partial def bound (e : Expr) : BoundM Bound := do
           if ba.val.containsFVar ha.fvarId! then throwError "depends on membership proof"
           checkUniform #[a] e' ba.val
           let h ← mkLambdaFVars #[a, ha] ba.proof
-          Bound.ofProof (← mkAppOptM ``sum_map_le_length_mul #[β, l, f, ba.val, h])
+          Bound.ofProof (← mkAppOptM ``List.sum_map_le_length_mul #[β, l, f, ba.val, h])
     return listBound.getD b
   | _ => boundTerm e
 

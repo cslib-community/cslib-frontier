@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Logics.Propositional.CSP.FactorTable
+import CslibFrontier.Foundations.Data.List.Counting
 import CslibFrontier.Foundations.Data.List.FoldMax
 import Mathlib.Algebra.BigOperators.Group.List.Basic
 import Mathlib.Algebra.BigOperators.Pi
@@ -471,11 +472,6 @@ section IntermediateScopeBounds
 
 variable {R V : Type*}
 
-private theorem list_sum_map_le {α : Type*} (l : List α) (m : α → ℕ) {B : ℕ}
-    (hm : ∀ a ∈ l, m a ≤ B) : (l.map m).sum ≤ l.length * B := by
-  simpa [smul_eq_mul] using List.sum_le_length_nsmul (l.map m) B fun _ hn => by
-    rcases List.mem_map.mp hn with ⟨a, ha, rfl⟩; exact hm a ha
-
 /-- Eliminating one variable never increases the number of live factor tables. -/
 theorem length_elimVar_live_le [Semiring R] [DecidableEq V] (d : ℕ) (x : V)
     (s : ElimState R V) : (elimVar d x s).live.length ≤ s.live.length := by
@@ -703,13 +699,13 @@ theorem peakLiveEntries_le [Semiring R] [DecidableEq V] {d : ℕ} (hd : 0 < d)
         have hlen' : (elimVar d x s).live.length ≤ M := le_trans (length_elimVar_live_le d x s) hlen
         have hlive_after : (stepStats d x s).liveEntriesAfter ≤ M * B := by
           rw [stepStats_liveEntriesAfter]
-          exact le_trans (list_sum_map_le _ _ hs') (Nat.mul_le_mul_right B hlen')
+          exact le_trans (List.sum_map_le_length_mul hs') (Nat.mul_le_mul_right B hlen')
         simp only [traceOrder, List.map_cons, List.foldl_cons]
         exact ih (elimVar d x s) (max acc (stepStats d x s).liveEntriesAfter)
           (max_le hacc hlive_after) hlen' hs' fun st hst => hW st (by simp [traceOrder, hst])
   have hinit : ∀ f ∈ init.live, f.entries.size ≤ B := fun f hf =>
     le_trans (each_mem_le_maxTableEntries f hf) (le_max_left E (d ^ W))
-  exact hgen order init (liveEntries init.live) (list_sum_map_le _ _ hinit) le_rfl hinit
+  exact hgen order init (liveEntries init.live) (List.sum_map_le_length_mul hinit) le_rfl hinit
     fun st hst => mem_traceOrder_out_le d order init hst
 
 /-- At every prefix `order.take k`, live-table entry count is bounded by `peakLiveEntries`. -/
