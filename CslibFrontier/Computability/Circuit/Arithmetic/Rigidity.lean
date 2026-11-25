@@ -248,9 +248,7 @@ theorem Computes.rigidity_le {c : Circuit (affineSignature K) n m}
   -- the depths, capped below `2 ^ D`, grade these wires
   have hgrade : IsGrading E (2 ^ D) fun w => min (c.program.wireDepths w) (2 ^ D - 1) := by
     refine ⟨fun w => ?_, fun e he => ?_⟩
-    · have := Nat.two_pow_pos D
-      change min (c.program.wireDepths w) (2 ^ D - 1) < 2 ^ D
-      omega
+    · exact (min_le_right _ _).trans_lt (Nat.sub_lt (Nat.two_pow_pos D) one_pos)
     obtain ⟨he, hlt⟩ := Finset.mem_filter.1 he
     obtain ⟨k, -, he⟩ := Finset.mem_biUnion.1 he
     obtain ⟨a, -, rfl⟩ := Finset.mem_image.1 he
@@ -283,18 +281,14 @@ theorem Computes.rigidity_le {c : Circuit (affineSignature K) n m}
         ha (Finset.mem_image.2 ⟨_, h, rfl⟩)
       have := hg'.2 _ (Finset.mem_sdiff.2 ⟨hmem k a hk, hnot⟩)
       dsimp only [ψ]
-      rw [ite_eq_left (h1.trans hk), ite_eq_left (h2 ▸ hk)]
-      exact this
+      rwa [ite_eq_left (h1.trans hk), ite_eq_left (h2 ▸ hk)]
     · -- a deep gate is above every label
       dsimp only [ψ]
       rw [ite_eq_right (by omega : ¬c.program.wireDepths (Wire.gate k) < 2 ^ D)]
-      split_ifs with h
-      · have := hg'lt ((c.program.lines k).wires a)
-        omega
-      · omega
-  · have h := hout o
-    dsimp only [ψ]
-    rw [ite_eq_left h]
+      have := hg'lt ((c.program.lines k).wires a)
+      split_ifs <;> omega
+  · dsimp only [ψ]
+    rw [ite_eq_left (hout o)]
     exact (hg'.1 _).le
 
 /-- **Valiant's rigidity criterion, asymptotic form** ([Valiant1977]; [Lokam2009], Theorem 2.1).
@@ -349,9 +343,7 @@ theorem Computes.mul_log_log_lt_size {C k e : ℕ} (hC : 0 < C) (hk : 0 < k) (he
   have hDpos : 0 < D := Nat.succ_pos _
   have h1 : (n / e + 1) * D ≤ 2 * t * c.size :=
     (Nat.le_div_iff_mul_le hDpos).1 (Nat.succ_le_of_lt hrank)
-  have h2 : n < (n / e + 1) * e := by
-    rw [Nat.add_mul, one_mul]
-    exact Nat.lt_div_mul_add he
+  have h2 : n < (n / e + 1) * e := (Nat.lt_div_mul_add he).trans_eq (Nat.succ_mul _ _).symm
   have h3 : n * D < 2 * e * t * c.size :=
     calc n * D < (n / e + 1) * e * D := Nat.mul_lt_mul_of_pos_right h2 hDpos
       _ = (n / e + 1) * D * e := by ring
