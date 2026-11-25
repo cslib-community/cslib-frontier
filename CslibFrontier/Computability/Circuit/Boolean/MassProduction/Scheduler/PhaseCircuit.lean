@@ -80,16 +80,12 @@ private theorem synthesis_candidate (hin : inputs _ ⊆ src) :
     let w := finProdFinEquiv (pending hk i, targetBit (D := D) (s := s) β)
     have hw : (fun x : BitString (2 ^ D * width D (ℓ * b) s) => x w) ∈ src := hin ⟨w, rfl⟩
     cases hb : pointBits bits ((scalar c : K) • menu e i) β
-    · have : (fun x => candidate hk bits scalar menu x e i c β) = fun x => x w := by
-        funext x
-        simp only [candidate, Pi.add_apply, hb, add_false]
-        rfl
+    · have : (fun x => candidate hk bits scalar menu x e i c β) = fun x => x w :=
+        funext fun x => by simp only [candidate, Pi.add_apply, hb, add_false]; rfl
       simpa only [this] using (Synthesis.of_mem hw).mono Set.Subset.rfl Set.Subset.rfl
         (Nat.zero_le 1)
-    · have : (fun x => candidate hk bits scalar menu x e i c β) = fun x => !x w := by
-        funext x
-        simp only [candidate, Pi.add_apply, hb, add_true]
-        rfl
+    · have : (fun x => candidate hk bits scalar menu x e i c β) = fun x => !x w :=
+        funext fun x => by simp only [candidate, Pi.add_apply, hb, add_true]; rfl
       simpa only [this] using (Synthesis.of_mem hw).not
   · simp only [sum_const, card_univ, Fintype.card_prod, Fintype.card_fin, smul_eq_mul, mul_one,
       Nat.mul_assoc]
@@ -285,10 +281,9 @@ private theorem synthesis_success
     rw [hin] at h
     have hflag := sort_flag_eq_true_iff (fun r : BitString 1 => r ∘ id) p
       (fun i _ => clean hk bits scalar menu x e i) j₀
-    change (bitonicSortCircuit id p false).eval interpretation (fun q => g q x)
-      (finProdFinEquiv (j₀, 0)) = success hk bits scalar menu x e
-    rw [show (bitonicSortCircuit id p false).eval interpretation (fun q => g q x)
-      (finProdFinEquiv (j₀, 0)) = _ from h, Bool.eq_iff_iff, success, decide_eq_true_iff]
+    refine h.trans ?_
+    beta_reduce
+    rw [Bool.eq_iff_iff, success, decide_eq_true_iff]
     refine hflag.trans ?_
     simp only [Function.comp_id, j₀]
     lia
@@ -419,8 +414,7 @@ private theorem synthesis_sortedPending (hin : inputs _ ⊆ src)
   have hin : BitString.block (fun w => g w x) = enriched hk bits scalar menu x := by
     funext i f
     simp only [BitString.block, g, Equiv.symm_apply_apply]
-  rw [hin] at h
-  exact h
+  rwa [hin] at h
 
 /-- The phase output is available once the sorted pending records are. -/
 theorem next_mem (hin : inputs _ ⊆ src)
