@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.FineGrained.BruteForce
+public import CslibFrontier.Computability.Complexity.FineGrained.SatisfiabilityHypothesis
 public import Mathlib.Topology.Order.Real
 import CslibFrontier.Computability.Complexity.FineGrained.Bounds
 import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
@@ -43,6 +44,8 @@ sparsified formulas searched within time `2 ^ (ε * n)` times a polynomial; it i
   `Cslib.Complexity.satExponent_mono`: `0 ≤ s_k ≤ 1`, monotone in `k`.
 * `Cslib.Complexity.ETH_iff_satExponent_pos`: `ETH ↔ 0 < s_3`.
 * `Cslib.Complexity.SETH_iff_tendsto`: `SETH ↔ s_k → 1`.
+* `Cslib.Complexity.SH.ThreeSAT_notMem_P`, `Cslib.Complexity.SH.P_ne_NP`: SH rules out
+  polynomial-time 3SAT and separates `P` from `NP` under the native CNF encoding.
 * `Cslib.Complexity.DecidableInExpTime.length_of_numVars`: from variables to clauses.
 * `Cslib.Complexity.ETH_of_not_decidableInSubexpTime_length`: if 3SAT is not decidable in
   subexponential time in the number of clauses, then `ETH`.
@@ -109,6 +112,22 @@ theorem ETH_iff_satExponent_pos : ETH ↔ 0 < satExponent 3 :=
 theorem SETH_iff_tendsto : SETH ↔ Tendsto satExponent atTop (𝓝 1) :=
   (tendsto_rateExponent_iff (P := fun k => DecidableInExpTime (KSAT k) encCNF CNF.numVars)
     (fun _ _ _ hle h => h.mono hle) KSAT_decidableInExpTime_one satExponent_mono).symm
+
+/-! ### Consequences of SH for polynomial time -/
+
+/-- Under SH, width-at-most-three SAT is not in `P` under the native CNF bit encoding. -/
+theorem SH.ThreeSAT_notMem_P (h : SH) : ThreeSAT ∉ P encCNF := by
+  rintro ⟨f, hf, hmem⟩
+  have htime : DecidableInExpTime ThreeSAT encCNF (fun φ => φ.numVars + φ.length) 0 :=
+    DecidableInExpTime.of_computableInPolyTime hf hmem
+  obtain ⟨e, he⟩ := htime
+  exact (SH_iff_KSAT (k := 3) le_rfl).mp h (1 / 2) (by norm_num) (by norm_num)
+    ⟨0, e, by simpa only [Nat.cast_zero, zero_mul, Real.rpow_zero, one_mul] using he⟩
+
+/-- Under SH, the classes `P` and `NP` under the native CNF bit encoding differ, since
+width-at-most-three SAT is in `NP`. -/
+theorem SH.P_ne_NP (h : SH) : P encCNF ≠ NP encCNF := fun hPNP =>
+  h.ThreeSAT_notMem_P (hPNP ▸ ThreeSAT.mem_NP)
 
 /-! ### Sanity checks on the definition of `ETH`
 
