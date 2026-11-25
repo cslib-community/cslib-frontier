@@ -1879,6 +1879,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.Truncat
 public import CslibFrontier.Logics.Propositional.ClauseSet.Sparsification.CountingPathBounds
 public import CslibFrontier.Computability.RAM.Cost
 public import CslibFrontier.Probability.PairwiseIndependentHash.ConditionalAveraging
+public import CslibFrontier.Computability.Interactive.Debate.CopyChain
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.Transfer
 public import CslibFrontier.Computability.Circuit.Boolean.Minterms
 public import CslibFrontier.Computability.Complexity.FineGrained.PPSZ.Limit
