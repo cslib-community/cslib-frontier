@@ -722,7 +722,8 @@ private theorem toOuterMeasure_not_balancedBucket_single_le {c U n_max : ℕ}
         unfold bktHash
         simp [q.1.isLt, e_in, rRedWhp]
     rw [sum_sub_distrib, hsum_T₂, hsum_exp]
-    set X := #(S.filter fun u => feistelBucket (bWhp n_max) (bktHash c U n_max (α₁, T₁, T₂)) u.val = b.val)
+    set X := #(S.filter fun u =>
+      feistelBucket (bWhp n_max) (bktHash c U n_max (α₁, T₁, T₂)) u.val = b.val)
     have hM : (0 : ℝ) < numBucketsWhp n_max := Nat.cast_pos.mpr hM_pos
     have he : (numBucketsWhp n_max : ℝ) * (#S / numBucketsWhp n_max) = #S :=
       mul_div_cancel₀ _ hM.ne'
