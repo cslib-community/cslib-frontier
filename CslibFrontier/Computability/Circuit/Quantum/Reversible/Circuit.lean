@@ -58,7 +58,7 @@ theorem isClassical_circuitCodes (n : ℕ) (code : List (Op × List ℕ) × List
     IsClassical (n + code.1.length + 1) (circuitCodes n code) := by
   refine IsClassical.append.mpr ⟨isClassical_codes le_rfl (by omega), ?_⟩
   split_ifs with h
-  · intro g hg
+  · intro _ hg
     simp at hg
   · exact isClassical_swapCodes (Nat.pos_of_ne_zero h) (by unfold outQubit; omega)
 
@@ -93,14 +93,11 @@ theorem acceptProb_circuitCodes {n : ℕ} (code : List (Op × List ℕ) × List 
     split_ifs with h
     · rw [classicalRun_nil, ← h, hout]
     · rw [readBit_classicalRun_swapCodes (Nat.pos_of_ne_zero h) (by unfold outQubit; omega), hout]
-  have hmem : classicalRun (circuitCodes n code) (inputState W x) ∈ accepting W ↔
-      evalOutput x code.1 o = true := by
-    rw [mem_accepting h0,
-      ← readBit_fin (classicalRun (circuitCodes n code) (inputState W x)) (⟨0, h0⟩ : Fin W)]
-    change readBit _ 0 = true ↔ _
-    rw [hfinal]
   rw [acceptProb, Circuit.run_ofCodes (isClassical_circuitCodes n code), measureProb_ket]
-  exact if_congr hmem rfl rfl
+  refine if_congr ?_ rfl rfl
+  rw [mem_accepting h0,
+    ← readBit_fin (classicalRun (circuitCodes n code) (inputState W x)) (⟨0, h0⟩ : Fin W)]
+  exact hfinal ▸ Iff.rfl
 
 variable {γ : Type} {enc : γ ↪ List Bool}
 

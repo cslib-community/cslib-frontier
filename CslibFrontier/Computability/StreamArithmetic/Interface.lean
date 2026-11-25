@@ -89,7 +89,8 @@ theorem AllowanceBound.mono_ac {Op : Type u} {Struct : Type v} {d a₀ a b c₀ 
     (ha : a₀ ≤ a) (hc : c₀ ≤ c) {ev : QueryEvent Op Struct}
     (h : AllowanceBound d a₀ b c₀ t ev) :
     AllowanceBound d a b c t ev := by
-  have had : ((a₀ * d : ℕ) : ℤ) ≤ ((a * d : ℕ) : ℤ) := Int.ofNat_le.mpr (Nat.mul_le_mul_right d ha)
+  have had : ((a₀ * d : ℕ) : ℤ) ≤ ((a * d : ℕ) : ℤ) :=
+    Int.ofNat_le.mpr (Nat.mul_le_mul_right d ha)
   cases ev with
   | digit _ _ _ => exact ⟨h.1.trans (Nat.add_le_add_left (Nat.mul_le_mul_right d hc) t),
       h.2.trans (add_le_add_left had _)⟩
@@ -103,14 +104,12 @@ theorem AllowanceBound.mono_coeff {Op : Type u} {Struct : Type v} {d a₀ b₀ b
     AllowanceBound d (a₀ + (b - b₀) * c₀) b c₀ t ev := by
   cases ev with
   | digit op j L =>
-    obtain ⟨hj, hL⟩ := h
-    refine ⟨hj, ?_⟩
-    have := mul_nonneg (by omega : (0 : ℤ) ≤ (b : ℤ) - b₀)
-      (by zify [hj]; omega : (0 : ℤ) ≤ (t : ℤ) + ((c₀ * d : ℕ) : ℤ) - j)
-    rw [show (((a₀ + (b - b₀) * c₀) * d : ℕ) : ℤ) =
-        ((a₀ * d : ℕ) : ℤ) + ((b : ℤ) - b₀) * ((c₀ * d : ℕ) : ℤ) by
-      push_cast [Nat.add_mul, Nat.mul_assoc, Int.ofNat_sub hb]; ring]
-    linarith
+    refine ⟨h.1, ?_⟩
+    have h1 : (b₀ : ℤ) ≤ b := Int.ofNat_le.mpr hb
+    have h2 : (j : ℤ) ≤ (t : ℤ) + (c₀ * d : ℕ) := by exact_mod_cast h.1
+    have hL := h.2
+    push_cast [Nat.add_mul, Nat.mul_assoc, Int.ofNat_sub hb] at h2 hL ⊢
+    linarith [mul_nonneg (sub_nonneg.mpr h1) (sub_nonneg.mpr h2)]
   | struct sOp L =>
     exact h.trans (add_le_add (Int.ofNat_le.mpr (Nat.mul_le_mul_right d (Nat.le_add_right _ _)))
       (mul_le_mul_of_nonneg_right (Int.ofNat_le.mpr hb) (Nat.cast_nonneg t)))
@@ -141,13 +140,14 @@ theorem AllowanceBound.shift_clock_up {Op : Type u} {Struct : Type v} {d a b c t
   have had : (b * k : ℕ) ≤ b * k * d := Nat.le_mul_of_pos_right (b * k) hd
   cases ev with
   | digit op j L =>
-    have := Nat.le_mul_of_pos_right k hd
-    refine ⟨by rw [Nat.add_mul]; have := h.1; omega, ?_⟩
+    refine ⟨by linarith [h.1, Nat.add_mul c k d, Nat.le_mul_of_pos_right k hd], ?_⟩
     have h2 := h.2
-    push_cast [Nat.add_mul, Nat.mul_assoc] at had h2 ⊢; linarith
+    push_cast [Nat.add_mul, Nat.mul_assoc] at had h2 ⊢
+    linarith
   | struct sOp L =>
     dsimp only [AllowanceBound] at h ⊢
-    push_cast [Nat.add_mul, Nat.mul_assoc] at had h ⊢; linarith
+    push_cast [Nat.add_mul, Nat.mul_assoc] at had h ⊢
+    linarith
 
 theorem AllowanceBound.addBits_const {Op : Type u} {Struct : Type v} {d a b c t : ℕ}
     (hd : 1 ≤ d) (extra : ℕ) {ev : QueryEvent Op Struct}
@@ -175,13 +175,14 @@ theorem AllowanceBound.comp_child {Op₂ : Type u'} {Struct : Type v} {d a₁ a�
   have hret : retBits ≤ retBits * d := Nat.le_mul_of_pos_right retBits hd
   cases evChild with
   | digit _ _ _ =>
-    refine ⟨by rw [Nat.add_mul]; have := hChild.1; omega, ?_⟩
+    refine ⟨by linarith [hu, hChild.1, Nat.add_mul c₁ c₂ d], ?_⟩
     have h2 := hChild.2
     push_cast at hw h2 hret ⊢
     linarith
   | struct _ L =>
     dsimp only [AllowanceBound, QueryEvent.addBits] at hChild ⊢
-    push_cast at hw hChild hret ⊢; linarith
+    push_cast at hw hChild hret ⊢
+    linarith
 
 end AllowanceAccounting
 
@@ -637,7 +638,8 @@ theorem mem_activeQueries_windowPrefixModProg {Op : Type u} {Struct : Type v} (o
     (env : Op → ℕ → ℤ) (sEnv : Struct → Bool) {ev : QueryEvent Op Struct}
     (hev : ev ∈ (windowPrefixModProg op W K).activeQueries env sEnv) :
     ∃ j ≤ K, ev = .digit op j (2 * W) := by
-  have haux : ∀ idx rem acc, ev ∈ (scanModAux op W idx rem acc).activeQueries env sEnv →
+  have haux : ∀ idx rem acc,
+      ev ∈ (scanModAux op W idx rem acc).activeQueries env sEnv →
       ∃ j < idx + rem, ev = .digit op j (2 * W) := by
     intro idx rem
     induction rem generalizing idx with
@@ -646,7 +648,8 @@ theorem mem_activeQueries_windowPrefixModProg {Op : Type u} {Struct : Type v} (o
       intro _ h
       rcases List.mem_cons.mp h with rfl | h
       · exact ⟨idx, by omega, rfl⟩
-      · obtain ⟨j, hj, rfl⟩ := ih (idx + 1) _ h; exact ⟨j, by omega, rfl⟩
+      · obtain ⟨j, hj, rfl⟩ := ih (idx + 1) _ h
+        exact ⟨j, by omega, rfl⟩
   obtain ⟨j, hj, rfl⟩ := haux (K + 1 - W) (K + 1 - (K + 1 - W)) 0 hev
   exact ⟨j, by omega, rfl⟩
 

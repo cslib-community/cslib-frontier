@@ -220,13 +220,17 @@ theorem seqProcess_ville_le (step : ∀ t : ℕ, (Fin t → α) → PMF α)
       · rw [tsum_map_mul]
         refine mul_le_mul_right ?_ _
         by_cases hex : ∃ (j : ℕ) (hj : j ≤ m), c ≤ Z j (Fin.take j hj h)
-        · simp_rw [show ∀ x, stoppedProcess Z c (m + 1) (Fin.snoc (α := fun _ => α) h x) =
-              stoppedProcess Z c m h from fun x => by
-                simp only [stoppedProcess, Fin.init_snoc, hex, ↓reduceIte]]
+        · have hconst (x : α) :
+              stoppedProcess Z c (m + 1) (Fin.snoc (α := fun _ => α) h x) =
+                stoppedProcess Z c m h := by
+            simp only [stoppedProcess, Fin.init_snoc, hex, ↓reduceIte]
+          simp_rw [hconst]
           rw [ENNReal.tsum_mul_right, (step m h).tsum_coe, one_mul]
-        · simp_rw [show ∀ x, stoppedProcess Z c (m + 1) (Fin.snoc (α := fun _ => α) h x) =
-              Z (m + 1) (Fin.snoc (α := fun _ => α) h x) from fun x => by
-                simp only [stoppedProcess, Fin.init_snoc, hex, ↓reduceIte]]
+        · have hnot (x : α) :
+              stoppedProcess Z c (m + 1) (Fin.snoc (α := fun _ => α) h x) =
+                Z (m + 1) (Fin.snoc (α := fun _ => α) h x) := by
+            simp only [stoppedProcess, Fin.init_snoc, hex, ↓reduceIte]
+          simp_rw [hnot]
           rw [stoppedProcess_eq_of_not_exists Z c h hex]
           exact hsuper m hm_lt h hh
       · rw [((seqProcess step m).apply_eq_zero_iff h).mpr hh, zero_mul, zero_mul]
@@ -452,7 +456,9 @@ theorem seqProcess_exists_prefix_ge_and_var_le (step : ∀ t : ℕ, (Fin t → �
             have hm_lt : m < k := Nat.lt_of_succ_le hmk
             set pm := Fin.take m hm_lt.le hk_pref
             set pm1 := Fin.take (m + 1) hmk hk_pref
-            have hinit : Fin.init pm1 = pm := by ext; rfl
+            have hinit : Fin.init pm1 = pm := by
+              ext
+              rfl
             obtain ⟨hp_init, hx_init⟩ :=
               mem_support_seqProcess_succ step (mem_support_seqProcess_take step hmk hsupp_k)
             have hp' : pm ∈ (seqProcess step m).support := hinit ▸ hp_init
@@ -552,14 +558,18 @@ theorem seqProcess_bernstein_le_le (step : ∀ t : ℕ, (Fin t → α) → PMF �
   rw [heq]
   refine seqProcess_bernstein_ge_le step (fun k h => -X k h) vStep hb hε n hvStep
     (fun k hk h hh => ?_) (fun k hk h hh x hx => ?_) (fun k hk h hh => ?_)
-  · rw [show (fun x : α => (step k h x).toReal * (-X (k + 1) (Fin.snoc h x) - -X k h)) =
-      fun x => -((step k h x).toReal * (X (k + 1) (Fin.snoc h x) - X k h)) from
-        funext fun _ => by ring, tsum_neg]
+  · have hneg : (fun x : α => (step k h x).toReal * (-X (k + 1) (Fin.snoc h x) - -X k h)) =
+        fun x : α => -((step k h x).toReal * (X (k + 1) (Fin.snoc h x) - X k h)) :=
+      funext fun _ => by ring
+    rw [hneg, tsum_neg]
     exact neg_nonpos.mpr (hmean k hk h hh)
-  · simpa only [show -X (k + 1) (Fin.snoc h x) - -X k h = -(X (k + 1) (Fin.snoc h x) - X k h)
-      by ring, abs_neg] using hbdd k hk h hh x hx
-  · simpa only [show ∀ x : α, (-X (k + 1) (Fin.snoc h x) - -X k h) ^ 2 =
-      (X (k + 1) (Fin.snoc h x) - X k h) ^ 2 from fun _ => by ring] using hvar k hk h hh
+  · have hsub : -X (k + 1) (Fin.snoc h x) - -X k h = -(X (k + 1) (Fin.snoc h x) - X k h) := by
+      ring
+    simpa only [hsub, abs_neg] using hbdd k hk h hh x hx
+  · have hsq (x : α) :
+        (-X (k + 1) (Fin.snoc h x) - -X k h) ^ 2 = (X (k + 1) (Fin.snoc h x) - X k h) ^ 2 := by
+      ring
+    simpa only [hsq] using hvar k hk h hh
 
 /-- **Sequential Bernstein inequality, two-sided tail** for martingales with bounded increments. -/
 theorem seqProcess_bernstein_abs_sub_ge_le (step : ∀ t : ℕ, (Fin t → α) → PMF α)

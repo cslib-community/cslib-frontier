@@ -280,7 +280,9 @@ theorem one_sub_mul_sqrt_min_le_of_permInversion_partition {ι V W : Type*}
     have hR : R.Nonempty := (permInvPermRel_nonempty hne₀ hne₁ target).map
     have hadv := one_sub_mul_sqrt_le_two_mul_mul_sqrt_value step U hψ₀ T hR
       (δ := δ) (m := #I₁) (m' := #I₀) (L := max #I₀ #I₁)
-      (fun p hp => by obtain ⟨q, hq, rfl⟩ := mem_map.1 hp; exact hδ q hq)
+      (fun p hp => by
+        obtain ⟨q, hq, rfl⟩ := mem_map.1 hp
+        exact hδ q hq)
       (fun p hp => by
         obtain ⟨q, hq, rfl⟩ := mem_map.1 hp
         rw [← card_permInvPermRel_fst hq, filter_map, card_map]
@@ -296,7 +298,8 @@ theorem one_sub_mul_sqrt_min_le_of_permInversion_partition {ι V W : Type*}
           exact congrArg card (filter_congr fun _ _ => by simp [DFunLike.coe_fn_eq]))
     have hprod : ((#I₁ : ℝ) * (#I₀ : ℝ)) =
         ((min #I₀ #I₁ : ℕ) : ℝ) * ((max #I₀ #I₁ : ℕ) : ℝ) := by
-      norm_cast; rw [mul_comm, min_mul_max]
+      norm_cast
+      rw [mul_comm, min_mul_max]
     rw [hprod, Real.sqrt_mul (Nat.cast_nonneg _), ← mul_assoc] at hadv
     exact le_of_mul_le_mul_right hadv
       (Real.sqrt_pos.2 (Nat.cast_pos.2 ((card_pos.2 hne₀).trans_le (Nat.le_max_left _ _))))
@@ -446,12 +449,17 @@ theorem permInversion_div_two_lower_bound {ι V W : Type*}
       2 / 3 ≤ measureProb (runValue step U ψ₀ ⇑π T) {q | out q = π.symm target}) :
     Fintype.card ι / 2 ≤ 1296 * T ^ 2 := by
   have hbase := one_sub_two_mul_sqrt_mul_sqrt_div_two_le_of_permInversion
-    step U hψ₀ T out target (ε := 1 / 3) (fun π => by linarith [hcorr π]) (by norm_num)
+    step U hψ₀ T out target (ε := 1 / 3)
+    (fun π => by linarith [hcorr π])
+    (by norm_num)
   have hlin : √(Fintype.card ι / 2 : ℕ) ≤ 36 * (T : ℝ) := by
     linarith [mul_le_mul_of_nonneg_right one_eighteenth_le_one_sub_two_mul_sqrt
       (Real.sqrt_nonneg (Fintype.card ι / 2 : ℕ))]
-  exact Nat.cast_le (α := ℝ).1 <| (Real.sq_sqrt (Nat.cast_nonneg _)).symm.le.trans <|
-    (pow_le_pow_left₀ (Real.sqrt_nonneg _) hlin 2).trans_eq (by push_cast; ring)
+  exact Nat.cast_le (α := ℝ).1 <| calc
+    ((Fintype.card ι / 2 : ℕ) : ℝ)
+        = √(Fintype.card ι / 2 : ℕ) ^ 2 := (Real.sq_sqrt (Nat.cast_nonneg _)).symm
+    _ ≤ (36 * (T : ℝ)) ^ 2 := pow_le_pow_left₀ (Real.sqrt_nonneg _) hlin 2
+    _ = ((1296 * T ^ 2 : ℕ) : ℝ) := by push_cast; ring
 
 /-- **Bounded-error (`ε = 1 / 3`) permutation-inversion lower bound** ([Ambainis2002], Theorem 7):
 for `2 ≤ |ι|`, any `T`-query value-query algorithm that outputs `π.symm target` with probability at

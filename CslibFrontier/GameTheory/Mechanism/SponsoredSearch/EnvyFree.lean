@@ -463,7 +463,8 @@ theorem le_maxUnassignedValue [Fintype ι] [DecidableEq ι] (v : ι → ℝ) (σ
     (hj : j ∉ Set.range σ) : v j ≤ maxUnassignedValue v σ := by
   have hmem := (mem_unassigned_iff σ j).mpr hj
   unfold maxUnassignedValue
-  split_ifs with hne; exacts [Finset.le_sup' v hmem, (hne ⟨j, hmem⟩).elim]
+  split_ifs with hne
+  exacts [Finset.le_sup' v hmem, (hne ⟨j, hmem⟩).elim]
 
 /-- If all bidder values are nonnegative, then `maxUnassignedValue v σ` is nonnegative. -/
 theorem maxUnassignedValue_nonneg [Fintype ι] [DecidableEq ι] {v : ι → ℝ} (hv : ∀ j, 0 ≤ v j)
@@ -658,7 +659,8 @@ theorem isOptimal_iff_exists_isLocallyEnvyFree [Finite ι] {μ : Fin k → ℝ}
       else if hk : 0 < k then v (σ ⟨k - 1, by omega⟩) else 0
     refine ⟨priceFromBase μ v σ base, isLocallyEnvyFree_priceFromBase hσ hμ.antitone
       (fun i => (hμ_pos i).le) (fun hk => ?_) (fun j hj => ?_)⟩
-    · dsimp only [base]; split_ifs with hne
+    · dsimp only [base]
+      split_ifs with hne
       · exact Finset.sup'_le hne v fun j hj => hσ.unassigned_le _ j ((mem_unassigned_iff σ j).mp hj)
       · exact le_rfl
     · have hmem := (mem_unassigned_iff σ j).mpr hj

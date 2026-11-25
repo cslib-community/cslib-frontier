@@ -83,12 +83,10 @@ chunk rather than a truncated suffix. -/
 theorem length_base2b_chunk (X : List Byte) (b outLen : ℕ) (h : Base2bInput X b outLen)
     (i : Fin outLen) :
     (((bytesToBitsBE X).drop (i.val * b)).take b).length = b := by
-  have hcapacity : outLen * b ≤ 8 * X.length :=
-    (ceilDiv_le_iff_le_mul (by decide : 0 < 8)).1 h
+  have := (ceilDiv_le_iff_le_mul (by decide : 0 < 8)).1 h
   have hi := Nat.mul_le_mul_right b (Nat.succ_le_of_lt i.isLt)
   rw [Nat.succ_mul] at hi
-  rw [List.length_take, List.length_drop, length_bytesToBitsBE, Nat.min_eq_left]
-  omega
+  rw [List.length_take, List.length_drop, length_bytesToBitsBE, Nat.min_eq_left]; omega
 
 /-- Algorithm 4 reads the unsigned value of the `i`-th consecutive `b`-bit chunk. -/
 @[simp] theorem base2b_val (X : List Byte) (b outLen : ℕ) (h : Base2bInput X b outLen)
@@ -151,33 +149,27 @@ def checksum {p : SecurityBytes} (M : Message p) : ℕ :=
 
 /-- The WOTS+ message checksum fits in the 12 bits represented by `len2 = 3` base-16 digits. -/
 theorem checksum_lt {p : SecurityBytes} (M : Message p) : checksum M < 2 ^ (len2 * lgW) := by
-  have hle : checksum M ≤ Finset.univ.sum (fun _i : Fin (len1 p) => w - 1) := by
-    unfold checksum
-    exact Finset.sum_le_sum fun _i _hi => Nat.sub_le _ _
-  have hcount : len1 p * (w - 1) < 2 ^ (len2 * lgW) := by
-    have hp := p.count_le_32
-    norm_num [len1, w, len2, lgW] at *
-    omega
-  calc
-    checksum M ≤ Finset.univ.sum (fun _i : Fin (len1 p) => w - 1) := hle
+  have hp := p.count_le_32
+  calc checksum M
+      ≤ Finset.univ.sum fun _i : Fin (len1 p) => w - 1 :=
+        Finset.sum_le_sum fun _ _ => Nat.sub_le _ _
     _ = len1 p * (w - 1) := by simp
-    _ < 2 ^ (len2 * lgW) := hcount
+    _ < 2 ^ (len2 * lgW) := by
+      norm_num [len1, w, len2, lgW] at *
+      omega
 
 /-- The checksum exactly complements the message digits to the maximum base-16 digit sum. -/
 theorem message_sum_add_checksum {p : SecurityBytes} (M : Message p) :
     Finset.univ.sum (fun i => (messageDigits M i).val) + checksum M =
       len1 p * (w - 1) := by
   rw [checksum, ← Finset.sum_add_distrib]
-  calc
-    Finset.univ.sum
-        (fun i : Fin (len1 p) =>
-          (messageDigits M i).val + (w - 1 - (messageDigits M i).val)) =
-        Finset.univ.sum (fun _i : Fin (len1 p) => w - 1) := by
-      apply Finset.sum_congr rfl
-      intro i _hi
-      have hi : (messageDigits M i).val < 16 := (messageDigits M i).isLt
-      change (messageDigits M i).val + (15 - (messageDigits M i).val) = 15
-      omega
+  calc Finset.univ.sum (fun i : Fin (len1 p) =>
+        (messageDigits M i).val + (w - 1 - (messageDigits M i).val))
+      = Finset.univ.sum fun _i : Fin (len1 p) => w - 1 :=
+        Finset.sum_congr rfl fun i _ => by
+          have := (messageDigits M i).isLt
+          dsimp only [w, lgW] at *
+          omega
     _ = len1 p * (w - 1) := by simp
 
 /-- Line 6 of Algorithms 7 and 8: left-align the 12 checksum bits in two bytes. -/

@@ -213,7 +213,7 @@ theorem compAppendTailGMGenProg_effect {metaBase itemBase U V w N m_items b : �
   have hptr_lt : gmTailPtrBase N + (b * tailCapPerBucket N + gm (gmRIdx b)) < globalMetaLen N :=
     gmTailPtrIdx_lt hb_pos hb hr_lt
   have ht_cap : gm 1 < maxTailItems N := ntails_lt_maxTailItems_of_r_lt hb hr_lt htail
-  have hmax_le : maxTailItems N ≤ N := maxTailItems_le N
+  have := maxTailItems_le N
   have hown_lt : gmTailOwnerBase N + gm 1 < globalMetaLen N := gmTailOwnerIdx_lt hb_pos ht_cap
   have ht_val : gm 1 < 2 ^ globalPtrBits N := lt_two_pow_globalPtrBits_of_le_n_max (by omega)
   have hd_val : b * tailCapPerBucket N + gm (gmRIdx b) < 2 ^ globalPtrBits N :=
@@ -222,20 +222,16 @@ theorem compAppendTailGMGenProg_effect {metaBase itemBase U V w N m_items b : �
     lt_two_pow_globalPtrBits_of_le_globalMetaLen hb_pos
       (by unfold gmTailPtrBase gmSlabDirBase at hptr_lt; omega)
   have ht1_val : gm 1 + 1 < 2 ^ globalPtrBits N := lt_two_pow_globalPtrBits_of_le_n_max (by omega)
-  have hrd_st := clientState_compAppendTailReadGMProg ((mkCompParams U V w N, metaBase), b) s
-  have hrd_res : (Memory.spec 0).clientResult s
-      (compAppendTailReadGMProg ((mkCompParams U V w N, metaBase), b)) = (gm (gmRIdx b), gm 1) :=
-    clientResult_compAppendTailReadGMProg hb_pos hb s
-  have hres : (Memory.spec 0).clientResult s
-      (compAppendTailGMGenProg ((mkCompParams U V w N, metaBase), b)) = gm 1 := by
-    dsimp only [compAppendTailGMGenProg]
-    rw [StateTransitionSpec.clientResult_bind, hrd_st, hrd_res]
-    dsimp only [compAppendTailWriteGMProg, compAppendTailWrite1Prog, compAppendTailWrite2Prog]
-    repeat rw [StateTransitionSpec.clientResult_bind]
+  have hread := clientResult_compAppendTailReadGMProg
+    (U := U) (V := V) (w := w) (metaBase := metaBase) hb_pos hb s
+  refine ⟨?_, ?_⟩
+  · rw [compAppendTailGMGenProg, StateTransitionSpec.clientResult_bind,
+      clientState_compAppendTailReadGMProg, hread]
+    simp only [compAppendTailWriteGMProg, compAppendTailWrite1Prog, compAppendTailWrite2Prog,
+      StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_pure]
     rfl
-  refine ⟨hres, ?_⟩
   dsimp only [s', compAppendTailGMGenProg]
-  rw [StateTransitionSpec.clientState_bind, hrd_st, hrd_res]
+  rw [StateTransitionSpec.clientState_bind, clientState_compAppendTailReadGMProg, hread]
   dsimp only [compAppendTailWriteGMProg, compAppendTailWrite1Prog, compAppendTailWrite2Prog,
     cpTailCap_mk, cpGmTailPtrBase_mk, cpGmTailOwnerBase_mk]
   rw [hr_eq]
@@ -308,14 +304,13 @@ theorem validProg_compAppendTailGMGen {w : ℕ} {d : (CompParams × ℕ) × ℕ}
   have h1_lt : 1 < globalMetaLen N := by unfold globalMetaLen; omega
   have hptr_lt := gmTailPtrIdx_lt hb_pos hb hr_lt
   have hown_lt := gmTailOwnerIdx_lt hb_pos (ntails_lt_maxTailItems_of_r_lt hb hr_lt htail)
-  have hrd_v : ValidProg w 0 s
-      (compAppendTailReadGMProg ((mkCompParams U V w N, metaBase), b)) := by
-    dsimp only [compAppendTailReadGMProg]; rw [hr_eq]
+  dsimp only [compAppendTailGMGenProg]
+  refine validProg_bind ?_ ?_
+  · dsimp only [compAppendTailReadGMProg]
+    rw [hr_eq]
     refine validProg_bind (validProg_readCompGMGen ⟨mkEnv s rfl, hr_idx_lt⟩) ?_
     rw [clientState_readCompGMGenProg]
     exact validProg_bind (validProg_readCompGMGen ⟨mkEnv s rfl, h1_lt⟩) (validProg_pure _)
-  dsimp only [compAppendTailGMGenProg]
-  refine validProg_bind hrd_v ?_
   rw [clientState_compAppendTailReadGMProg, clientResult_compAppendTailReadGMProg hb_pos hb s]
   dsimp only [compAppendTailWriteGMProg, compAppendTailWrite1Prog, compAppendTailWrite2Prog,
     cpTailCap_mk, cpGmTailPtrBase_mk, cpGmTailOwnerBase_mk]

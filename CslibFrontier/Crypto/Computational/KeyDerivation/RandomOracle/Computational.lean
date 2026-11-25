@@ -720,9 +720,10 @@ theorem SecretGuessHard.negligible_roAdvantage_bitString {X : ℕ → Type}
     fun_prop
   have hdefault : ComputableInPolyTime
       (fun n : ℕ => encBitString (secLen n) (fun _ => false)) encUnary encBits := by
-    rw [show (fun n : ℕ => encBitString (secLen n) (fun _ => false)) =
-        fun n : ℕ => List.replicate (secLen n) false from
-      funext fun n => by simp [encBitString_apply, List.ofFn_const]]
+    have heq : (fun n : ℕ => encBitString (secLen n) (fun _ => false)) =
+        fun n : ℕ => List.replicate (secLen n) false :=
+      funext fun n => by simp [encBitString_apply, List.ofFn_const]
+    rw [heq]
     exact (bits_encList_polyTime encBool).2.comp (.replicate hsec (.const false))
   have hsampleT_eval (n : ℕ) :
       ProbComp.eval (sampleT n) = uniformOfFintype (BitString (outLen n)) := by

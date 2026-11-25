@@ -174,14 +174,13 @@ theorem satisfiable_replaceGadgets_iff
     have haux (j : Fin (gadgets F[i].rel).numAux) :
         τ (2 * (B * i + j.val) + 1) = b i hi j := by
       have hj : j.val < B := j.isLt.trans_le (hB _)
-      have hpos : 0 < B := by omega
-      have hhalf : (2 * (B * i + j.val) + 1) / 2 = B * i + j.val := by omega
-      have hodd : (2 * (B * i + j.val) + 1) % 2 ≠ 0 := by omega
+      have hhalf : (2 * (B * i + j.val) + 1) / 2 = B * i + j.val := by
+        rw [Nat.mul_add_div (by decide : 0 < 2)]
+        rfl
       have hdiv : (B * i + j.val) / B = i := by
-        rw [Nat.mul_add_div hpos, Nat.div_eq_of_lt hj, Nat.add_zero]
-      have hmod : (B * i + j.val) % B = j.val := by
-        simp [Nat.add_mod, Nat.mod_eq_of_lt hj]
-      simp only [τ, ite_eq_right hodd, hhalf, hdiv, hmod]
+        rw [Nat.mul_add_div (Nat.zero_lt_of_lt hj), Nat.div_eq_of_lt hj, Nat.add_zero]
+      have hodd : (2 * (B * i + j.val) + 1) % 2 ≠ 0 := by simp
+      simp only [τ, ite_eq_right hodd, hhalf, hdiv, Nat.mul_add_mod_self_left, Nat.mod_eq_of_lt hj]
       simp [aux, hi, j.isLt]
     simpa only [hfree, haux] using hb i hi
 

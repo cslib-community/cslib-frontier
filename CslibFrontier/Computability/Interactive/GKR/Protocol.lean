@@ -77,10 +77,12 @@ variable {F : Type} [Field F]
 def line {k : ℕ} (y w : Fin k → F) (t : F) : Fin k → F := fun j => y j + t * (w j - y j)
 
 theorem line_zero {k : ℕ} (y w : Fin k → F) : line y w 0 = y := by
-  funext; simp [line]
+  funext
+  simp [line]
 
 theorem line_one {k : ℕ} (y w : Fin k → F) : line y w 1 = w := by
-  funext; simp [line]
+  funext
+  simp [line]
 
 /-- The multilinear extension of `W`, restricted to the line through `y` and `w`: a polynomial of
 degree at most `k` in the line parameter. -/
@@ -91,8 +93,8 @@ noncomputable def restrictLine {k : ℕ} (y w : Fin k → F) (W : (Fin k → Boo
 
 theorem eval_restrictLine {k : ℕ} (y w : Fin k → F) (W : (Fin k → Bool) → F) (t : F) :
     (restrictLine y w W).eval t = eval (line y w t) (multilinearExtension W) := by
-  rw [restrictLine, FiniteField.eval_eval₂_line,
-    show (fun j => t * (w j - y j) + y j) = line y w t from funext fun _ => add_comm _ _]
+  rw [restrictLine, FiniteField.eval_eval₂_line]
+  exact congrArg (eval · (multilinearExtension W)) (funext fun _ => add_comm _ _)
 
 theorem natDegree_restrictLine_le {k : ℕ} (y w : Fin k → F) (W : (Fin k → Bool) → F) :
     (restrictLine y w W).natDegree ≤ k :=
@@ -357,9 +359,10 @@ theorem sumcheckStage_rbrSound (W : (Fin (C.width i) → Bool) → F) :
     fun z => Verifier.RbrSound.iterate (L := fun j => language (Sumcheck.rel (C.summand i W z) j))
       (C.sumcheckVars i) fun j hj =>
         Sumcheck.round_rbrSound 2 _ (C.degreeOf_summand_le i W z) hj
-  rwa [show {x : LayerClaim C F (i + 1) |
-    x.claim ∈ language (Sumcheck.rel (C.summand i W x.point) 0)} =
-      C.layerLang (i + 1) (C.step i W) from Set.ext (C.mem_language_rel_zero i W)] at h
+  have hL : {x : LayerClaim C F (i + 1) |
+      x.claim ∈ language (Sumcheck.rel (C.summand i W x.point) 0)} =
+      C.layerLang (i + 1) (C.step i W) := Set.ext (C.mem_language_rel_zero i W)
+  rwa [hL] at h
 
 /-! ### The output and input steps -/
 
@@ -466,7 +469,8 @@ theorem outputStep_rbrSound (x : (Fin (C.width 0) → Bool) → F) :
     have hset : {r : Fin (C.width C.depth) → F | eval r (multilinearExtension D) =
         eval r (multilinearExtension (C.output x))} =
         {r | eval r (multilinearExtension D - multilinearExtension (C.output x)) = 0} := by
-      ext; simp [sub_eq_zero]
+      ext
+      simp [sub_eq_zero]
     exact hset ▸ toOuterMeasure_eval_eq_zero_le (multilinearExtension_sub_ne_zero hD)
       (totalDegree_multilinearExtension_sub_le _ _)
   · rintro hS ⟨y, hy, hout⟩

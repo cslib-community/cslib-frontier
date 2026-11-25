@@ -15,6 +15,7 @@ public import CslibFrontier.Algorithms.WordRAM.TrimmedYates.Tabulate
 import CslibFrontier.Algorithms.WordRAM.TrimmedYates.Trie
 import CslibFrontier.Computability.WordRAM.CountingLoop
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
+import Mathlib.Data.Nat.Bitwise
 
 /-!
 # Multi-stage trimmed Yates transform on the word RAM
@@ -182,11 +183,7 @@ private theorem exec_passCode {w d domPtr free curRoot fbRoot cutoff signMode B 
     have hfit_bound : Fits w free := hfit_free.of_le (by omega)
     have hand_eq : setMask X &&& (1 <<< coord.val) =
         (if coord ∈ X then 2 ^ coord.val else 0) := by
-      refine Nat.eq_of_testBit_eq fun j => ?_
-      rw [Nat.testBit_and, Nat.shiftLeft_eq, one_mul, Nat.testBit_two_pow]
-      rcases eq_or_ne coord.val j with rfl | hj
-      · by_cases hcX : coord ∈ X <;> simp [hcX]
-      · by_cases hcX : coord ∈ X <;> simp [hcX, hj]
+      by_cases hcX : coord ∈ X <;> simp [Nat.shiftLeft_eq, Nat.and_two_pow, testBit_setMask, hcX]
     unfold passCellBody
     wram_exec [hscr, hsck]
     wram_call (exec_trieGet (bound := free) (fn := curFn) _ (by wram_simp [hsz])
@@ -268,9 +265,8 @@ private theorem HoldsTrie.toOutside_of_le {mem : ℕ → ℕ} {b exclLo exclHi b
     HoldsTrieOutside mem exclLo exclHi bound d root fn := by
   rw [HoldsTrie.iff_exists_trieRep] at h
   obtain ⟨S, hS, hrep⟩ := h
-  refine ⟨S, fun a ha => ⟨(hS ha).1, (hS ha).2.trans_le hb_bound⟩, Set.disjoint_left.mpr ?_, hrep⟩
-  intro a ha hexcl
-  have := (hS ha).2; have := hexcl.1; omega
+  exact ⟨S, hS.trans (Set.Ico_subset_Ico_right hb_bound),
+    Set.disjoint_left.mpr (fun _ ha he => ((hS ha).2.trans_le hb_excl).not_ge he.1), hrep⟩
 
 /-- Registers potentially modified by `stagesCode`. -/
 abbrev IsStageMod (i : Fin numRegs) : Prop :=

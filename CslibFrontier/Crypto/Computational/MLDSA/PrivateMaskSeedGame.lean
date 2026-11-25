@@ -66,8 +66,8 @@ private theorem attempt_congr_of_read {H G : Xofs} {bits : ℕ} {s : Level} {sk 
     H.attempt s sk A μ r.toList κ = G.attempt s sk A μ r.toList κ := by
   have nonce (i k : ℕ) : H.h256.readBytes (nonceInput r.toList i) k =
       G.h256.readBytes (nonceInput r.toList i) k :=
-    raw _ (by simp only [Keccak.length_bytesToBitsLE, nonceInput, List.length_append,
-      FixedBytes.toList, List.length_ofFn, List.length_cons, List.length_nil]; exact hn) _
+    raw _ (by simpa only [Keccak.length_bytesToBitsLE, nonceInput, List.length_append,
+      FixedBytes.toList, List.length_ofFn, List.length_cons, List.length_nil] using hn) _
   have digest w : H.commitmentDigest s w μ = G.commitmentDigest s w μ := raw _ (hw w) _
   have challenge w : H.sampleInBall s (G.commitmentDigest s w μ) =
       G.sampleInBall s (G.commitmentDigest s w μ) :=
@@ -258,9 +258,11 @@ private theorem uniform_rows_transcript (C : QuantumSigningForger) (H : Xofs) (s
   have eq := congrArg (PMF.map fun (out, st) => (out, st.2)) joint
   rw [← PMF.uniformOfFintype_map_equiv (Equiv.curry (Fin n) (BitString 512) (FixedBytes 64))] at eq
   simp only [rowTranscript, privateTranscript, signingTapeTranscript, sampledSigningTranscript,
-    rowCommand, PMF.bind_map, PMF.map_bind, PMF.map_comp, Function.comp_def, Equiv.curry_apply,
-    SigningMaskSeeds, Row, Width, probOracleSpec] at eq ⊢
-  convert eq using 1; congr 1
+    rowCommand, PMF.bind_map, PMF.map_bind, PMF.map_comp,
+    Function.comp_def, Equiv.curry_apply, SigningMaskSeeds, Row, Width,
+    probOracleSpec] at eq ⊢
+  convert eq using 1
+  congr 1
 
 /-- Fresh-digest forgery in the finite random-XOF game when Algorithm 7 draws a private
 64-byte mask seed on each signing call. Expansion, rejection sampling, coherent queries and
@@ -428,12 +430,17 @@ theorem randomPrefixGame_forgery_le_privateMaskSeedGame (C : QuantumSigningForge
   intro R trial view
   let fresh := trial.map (·.any SignedMatrixTrial.newDigestWin)
   let priv := C.privateMaskSeedGame s base a b
+  have birthday : dist fresh (view true) ≤ ((n * (n - 1) : ℕ) : ℝ) / 2 ^ 257 :=
+    C.dist_matrixTrial_sharedMaskSeedGame s base ha hb hn hsize _
+  have privateSeed : dist (view false) priv ≤ n / 2 ^ 256 :=
+    C.dist_maskSeedGame_privateMaskSeedGame s base ha _ hn hsize
   have loss : dist fresh priv ≤ ((n * (n - 1) : ℕ) : ℝ) / 2 ^ 257 +
-      dist (view true) (view false) + n / 2 ^ 256 :=
-    (dist_triangle fresh (view false) priv).trans (add_le_add
-      ((dist_triangle fresh (view true) (view false)).trans
-        (add_le_add (C.dist_matrixTrial_sharedMaskSeedGame s base ha hb hn hsize _) le_rfl))
-      (C.dist_maskSeedGame_privateMaskSeedGame s base ha _ hn hsize))
+      dist (view true) (view false) + n / 2 ^ 256 := by
+    calc
+      _ ≤ dist fresh (view false) + dist (view false) priv := dist_triangle ..
+      _ ≤ (dist fresh (view true) + dist (view true) (view false)) + n / 2 ^ 256 :=
+        add_le_add (dist_triangle ..) privateSeed
+      _ ≤ _ := add_le_add (add_le_add birthday le_rfl) le_rfl
   rw [← coe_nndist, ← Game.advantage_eq_nndist] at loss
   have branch := NNReal.coe_le_coe.mpr
     (C.randomPrefixGame_forgery_le s base ((by decide : 272 ≤ 1024).trans ha) hb)

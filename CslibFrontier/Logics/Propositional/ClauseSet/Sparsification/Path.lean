@@ -171,16 +171,14 @@ theorem card_newContaining_lt_of_steps {θ : ℕ → ℕ} (hθ : ∀ r, 1 ≤ θ
   -- and `S` is not heavy at `ψ m`
   have hlight : (flower (ψ m) j S).card < θ (j - S.card) := not_le.1 fun hheavy =>
     absurd ((hchoice m hm).2.1 j S ⟨hS, hSj, hheavy⟩) (by omega)
-  have hold : (γ.filter (· ∈ ψ m)).card < θ (j - S.card) := by
-    refine lt_of_le_of_lt (card_le_card fun C hC => ?_) hlight
-    obtain ⟨hCγ, hCold⟩ := mem_filter.mp hC
-    exact mem_flower.mpr ⟨hCold, (hγ C hCγ).2.1, (hγ C hCγ).2.2⟩
-  set Q := γ.filter (· ∉ ψ m)
-  have hsplit : (γ.filter (· ∈ ψ m)).card + Q.card = γ.card :=
-    card_filter_add_card_filter_not (s := γ) (· ∈ ψ m)
+  have hold : (γ ∩ ψ m).card < θ (j - S.card) :=
+    (card_le_card fun C hC =>
+      mem_flower.2 ⟨(mem_inter.1 hC).2, (hγ C (mem_inter.1 hC).1).2⟩).trans_lt hlight
+  let Q := γ \ ψ m
+  have hsplit : Q.card + (γ ∩ ψ m).card = γ.card := card_sdiff_add_card_inter _ _
   have hQcard : θ (j - S.card) + 1 ≤ Q.card := by omega
   have hQintro : Q ⊆ intro (ψ m) (c m) (H m) (b m) := fun C hC =>
-    hintro C (mem_filter.mp hC).1 (mem_filter.mp hC).2
+    hintro C (mem_sdiff.mp hC).1 (mem_sdiff.mp hC).2
   cases hdir : b m with
   | false =>
     have hQone : Q.card ≤ 1 := by
@@ -192,25 +190,22 @@ theorem card_newContaining_lt_of_steps {θ : ℕ → ℕ} (hθ : ∀ r, 1 ≤ θ
     have hQpetal : ∀ q ∈ Q, q ∈ petals (ψ m) (c m) (H m) := fun q hq => by
       simpa only [hdir, intro] using hQintro hq
     obtain ⟨q₀, hq₀⟩ : Q.Nonempty := by rw [← card_pos]; omega
-    obtain ⟨D₀, hD₀, hD₀q⟩ := mem_petals.mp (hQpetal q₀ hq₀)
-    have hSq₀ : S ⊆ q₀ := (hγ q₀ (mem_filter.mp hq₀).1).2.2
-    have hdisj : Disjoint (H m) S := Finset.disjoint_right.2 fun l hlS hlH =>
-      (mem_sdiff.mp (hD₀q ▸ hSq₀ hlS : l ∈ D₀ \ H m)).2 hlH
+    obtain ⟨D₀, -, hD₀q⟩ := mem_petals.mp (hQpetal q₀ hq₀)
+    have hSq₀ : S ⊆ q₀ := (hγ q₀ (mem_sdiff.mp hq₀).1).2.2
+    have hdisj : Disjoint (H m) S := Finset.disjoint_sdiff.mono_right (hD₀q ▸ hSq₀)
     have hcardHS : (H m ∪ S).card = (H m).card + S.card := card_union_of_disjoint hdisj
-    have hj : j = c m - (H m).card := by
-      rw [← (hγ q₀ (mem_filter.mp hq₀).1).2.1]
-      exact card_of_mem_petals (hQpetal q₀ hq₀)
+    have hj : j = c m - (H m).card :=
+      (hγ q₀ (mem_sdiff.mp hq₀).1).2.1 ▸ card_of_mem_petals (hQpetal q₀ hq₀)
     have hHc : (H m).card < c m := (hchoice m hm).1.2.1
     have hQle : Q.card ≤ (flower (ψ m) (c m) (H m ∪ S)).card := by
-      have hsub : Q ⊆ ((flower (ψ m) (c m) (H m)).filter (S ⊆ ·)).image (· \ H m) := by
-        intro q hq
-        obtain ⟨D, hD, rfl⟩ := mem_petals.mp (hQpetal q hq)
-        have hSD : S ⊆ D \ H m := (hγ _ (mem_filter.mp hq).1).2.2
-        exact mem_image.mpr ⟨D, mem_filter.mpr ⟨hD, hSD.trans sdiff_subset⟩, rfl⟩
-      refine (card_le_card hsub).trans (card_image_le.trans (card_le_card fun D hD => ?_))
-      obtain ⟨hDf, hSD⟩ := mem_filter.mp hD
-      obtain ⟨hDψ, hDcard, hHD⟩ := mem_flower.mp hDf
-      exact mem_flower.mpr ⟨hDψ, hDcard, union_subset hHD hSD⟩
+      refine (card_le_card (t := (flower (ψ m) (c m) (H m ∪ S)).image (· \ H m)) ?_).trans
+        card_image_le
+      intro q hq
+      obtain ⟨D, hD, rfl⟩ := mem_petals.mp (hQpetal q hq)
+      obtain ⟨hDψ, hDcard, hHD⟩ := mem_flower.mp hD
+      have hSD := (hγ _ (mem_sdiff.mp hq).1).2.2
+      exact mem_image.2
+        ⟨D, mem_flower.2 ⟨hDψ, hDcard, union_subset hHD (hSD.trans sdiff_subset)⟩, rfl⟩
     have hheavy : Heavy θ (ψ m) (c m) (H m ∪ S) := ⟨by omega, by omega, by
       rw [show c m - (H m ∪ S).card = j - S.card by omega]; omega⟩
     have := (hchoice m hm).2.2 (H m ∪ S) hheavy
@@ -359,13 +354,12 @@ theorem card_introducedOfCard_le (hleaf : Sparse θ (P.node P.len)) (U : Finset 
         by_contra hna
         exact Nat.find_min hex (by omega) ⟨by omega, hna⟩
       have hmlen : m < P.len := by omega
-      have hred := reduced_node m hmlen.le
       have hstep : a ∉ child (P.node m) (P.size m) (P.heart m) (P.dir m) := by
-        rw [← P.step m hmlen, ← hm]; exact hm₀a
-      obtain ⟨b, hb, hba⟩ := exists_ssubset_of_notMem_reduce hred hma hstep
-      refine mem_biUnion.mpr ⟨m, mem_range.mpr hmlen, mem_biUnion.mpr ⟨b, ?_, ?_⟩⟩
-      · exact mem_filter.mpr ⟨hb, hac ▸ card_lt_card hba⟩
-      · exact mem_filter.mpr ⟨hma, hnew, hac, hba.subset⟩
+        rwa [← P.step m hmlen, ← hm]
+      obtain ⟨b, hb, hba⟩ := exists_ssubset_of_notMem_reduce (reduced_node m hmlen.le) hma hstep
+      exact mem_biUnion.mpr ⟨m, mem_range.mpr hmlen, mem_biUnion.mpr ⟨b,
+        mem_filter.mpr ⟨hb, hac ▸ card_lt_card hba⟩,
+        mem_filter.mpr ⟨hma, hnew, hac, hba.subset⟩⟩⟩
   have hmaps : ∀ b ∈ P.introduced.filter (·.card < c), b.card ∈ Ico 1 c := by
     intro b hb
     obtain ⟨hbI, hbc⟩ := mem_filter.mp hb
@@ -422,10 +416,8 @@ theorem mul_card_petalSteps_le (j : ℕ) :
 private theorem card_le_of_mem_node {k : ℕ} (hk : ∀ C ∈ P.node 0, C.card ≤ k) :
     ∀ i ≤ P.len, ∀ C ∈ P.node i, C.card ≤ k
   | 0, _ => hk
-  | i + 1, hi => by
-    intro C hC
-    rw [P.step i hi] at hC
-    exact card_le_of_mem_child hθ (heavy hi) (card_le_of_mem_node hk i (by omega)) hC
+  | i + 1, hi => fun _ hC =>
+    card_le_of_mem_child hθ (heavy hi) (card_le_of_mem_node hk i (by omega)) (P.step i hi ▸ hC)
 
 /-- In a branch from a clause set of width `k`, every chosen flower size is at most `k`. -/
 private theorem size_le {k : ℕ} (hk : ∀ C ∈ P.node 0, C.card ≤ k) {i : ℕ} (hi : i < P.len) :

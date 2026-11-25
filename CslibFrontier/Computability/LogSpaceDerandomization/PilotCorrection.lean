@@ -96,17 +96,19 @@ theorem input_nonneg (hC0 : ∀ x y, 0 ≤ C x y) (i : ℕ) (x y : V) : 0 ≤ (C
 most `i`, and the input of step `i + 1` at most `i + 1` [OpenAI2026LogSpace, Lemma 4.2]. -/
 theorem sum_input_le (hC1 : C *ᵥ 1 ≤ 1) :
     ∀ i x, ∑ y, (C + F i * C) x y ≤ i + 1 ∧ ∑ y, F i x y ≤ i := by
-  have hrow (z) : ∑ y, C z y ≤ 1 := by simpa [mulVec, dotProduct] using hC1 z
-  have hinput (i x) (hi : ∑ y, F i x y ≤ i) : ∑ y, (C + F i * C) x y ≤ i + 1 := by
-    simp only [Matrix.add_apply, Matrix.mul_apply, sum_add_distrib]
-    rw [sum_comm]
-    simp_rw [← mul_sum]
-    refine (add_le_add (hrow x) (sum_le_sum fun z _ =>
-      mul_le_mul_of_nonneg_left (hrow z) (hF.nonneg i x z))).trans ?_
-    simpa only [mul_one, add_comm] using add_le_add_right hi 1
+  have hrow : ∀ z, ∑ y, C z y ≤ 1 := fun z => by simpa [mulVec, dotProduct] using hC1 z
+  have hinput : ∀ i x, ∑ y, F i x y ≤ i → ∑ y, (C + F i * C) x y ≤ i + 1 := fun i x hi => by
+    calc ∑ y, (C + F i * C) x y = ∑ y, C x y + ∑ z, F i x z * ∑ y, C z y := by
+          simp only [Matrix.add_apply, Matrix.mul_apply, sum_add_distrib, mul_sum]
+          rw [sum_comm]
+      _ ≤ 1 + ∑ z, F i x z * 1 := add_le_add (hrow x) (sum_le_sum fun z _ =>
+          mul_le_mul_of_nonneg_left (hrow z) (hF.nonneg i x z))
+      _ ≤ i + 1 := by simp only [mul_one]; linarith
   intro i
   induction i with
-  | zero => exact fun x => ⟨by simpa using hinput 0 x (by simp [hF.zero]), by simp [hF.zero]⟩
+  | zero =>
+    intro x
+    simpa [hF.zero] using hinput 0 x (by simp [hF.zero])
   | succ i ih =>
     intro x
     have hsum : ∑ y, F (i + 1) x y ≤ (i + 1 : ℕ) := by
@@ -147,8 +149,8 @@ theorem input_mem_and_mem (hA : ∀ x y, C x y ≠ 0 → x ∈ A ∧ y ∈ A) :
       (h : (C + F i * C) x y ≠ 0) : x ∈ A ∧ y ∈ A := by
     by_contra hxy
     refine h ?_
-    simp only [Matrix.add_apply, Matrix.mul_apply,
-      show C x y = 0 from by_contra fun h' => hxy (hA x y h'), zero_add]
+    have hCxy : C x y = 0 := by_contra fun h' => hxy (hA x y h')
+    simp only [Matrix.add_apply, Matrix.mul_apply, hCxy, zero_add]
     refine sum_eq_zero fun z _ => by_contra fun hz => hxy ?_
     exact ⟨(hi x z (left_ne_zero_of_mul hz)).1, (hA z y (right_ne_zero_of_mul hz)).2⟩
   intro i

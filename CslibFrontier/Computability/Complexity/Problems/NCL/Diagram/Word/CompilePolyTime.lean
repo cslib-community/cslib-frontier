@@ -56,27 +56,22 @@ private instance : SizedListEncoding encSlice encWord := by unfold encWord; infe
 private theorem computableInPolyTime_step :
     ComputableInPolyTime (fun p : Word.State × Slice => p.2.run p.1)
       (encPair Word.encState encSlice) Word.encState := by
-  have hf : ComputableInPolyTime (fun p : Word.State × Slice => (p.2, p.1))
-      (encPair Word.encState encSlice) (encPair encSlice Word.encState) :=
-    (ComputableInPolyTime.snd Word.encState encSlice).prod
-      (ComputableInPolyTime.fst Word.encState encSlice)
   change ComputableInPolyTime
     ((fun p : Slice × Word.State => p.1.run p.2) ∘ (fun p : Word.State × Slice => (p.2, p.1)))
     (encPair Word.encState encSlice) Word.encState
-  exact Slice.computableInPolyTime_run.comp hf
+  exact Slice.computableInPolyTime_run.comp
+    ((ComputableInPolyTime.snd Word.encState encSlice).prod
+      (ComputableInPolyTime.fst Word.encState encSlice))
 
 private theorem computableInPolyTime_localVertices :
     ComputableInPolyTime (fun p : (List ℕ × ℕ) × Slice =>
       (p.2.run ⟨p.1.1, p.1.2, []⟩).verts)
       (encPair encCore encSlice) encVertices := by
-  have hi : ComputableInPolyTime
-      (fun p : (List ℕ × ℕ) × Slice => (Word.State.mk p.1.1 p.1.2 [], p.2))
-      (encPair encCore encSlice) (encPair Word.encState encSlice) := by
-    apply ComputableInPolyTime.prod
-    · apply Word.State.computableInPolyTime_mk
-      all_goals unfold encCore; fun_prop
-    · exact ComputableInPolyTime.snd _ _
-  exact (Word.State.computableInPolyTime_verts.comp computableInPolyTime_step).comp hi
+  refine (Word.State.computableInPolyTime_verts.comp computableInPolyTime_step).comp
+    ((Word.State.computableInPolyTime_mk ?_ ?_ (by fun_prop)).prod (ComputableInPolyTime.snd _ _))
+  all_goals
+    unfold encCore
+    fun_prop
 
 private theorem core_length_le (w : List ℕ) (n B : ℕ) (hn : n ≤ B) (hw : w.length ≤ B)
     (hb : ∀ e ∈ w, e ≤ n) : (encCore (w, n)).length ≤ 5 * (B + 1) ^ 2 := by
@@ -113,15 +108,11 @@ private theorem localVertices_le {c d : ℕ}
     (encVertices (i.run ⟨st.wires, st.next, []⟩).verts).length ≤
       vertexBound c d (encWord p).length := by
   have hc := runBound_core hp hs
-  have he :=
-    SizedListEncoding.length_elem_le (encA := encSlice) (encL := encWord) p i hi
-  apply (hcost ((st.wires, st.next), i)).trans
-  apply Nat.mul_le_mul_left
-  apply Nat.pow_le_pow_left
+  have he := SizedListEncoding.length_elem_le (encA := encSlice) (encL := encWord) p i hi
+  refine (hcost ((st.wires, st.next), i)).trans (Nat.mul_le_mul_left _ (Nat.pow_le_pow_left ?_ _))
   rw [length_encPair]
   dsimp only
   omega
-
 
 private theorem runBound_step {c d : ℕ}
     (hcost : ∀ q : (List ℕ × ℕ) × Slice,
@@ -133,15 +124,10 @@ private theorem runBound_step {c d : ℕ}
   obtain ⟨hn, hw, hb⟩ := Word.run_resources [i] st hs.2.2.1
   simp only [Word.run, List.foldl_cons, List.foldl_nil, Word.cost, List.map_cons,
     List.map_nil, List.sum_cons, List.sum_nil, Nat.add_zero] at hn hw hb
-  have hp' : consumed <+: p := (List.prefix_append ..).trans hp
-  have hi : i ∈ p := hp.subset (by simp)
-  have hv := localVertices_le hcost hp' hi hs
+  have hv := localVertices_le (i := i) hcost ((List.prefix_append consumed [i]).trans hp)
+    (hp.subset (by simp)) hs
   have hn₀ := hs.1
   have hw₀ := hs.2.1
-  have heq : (i.run st).verts = st.verts ++ (i.run ⟨st.wires, st.next, []⟩).verts := by
-    have h := Word.run_verts_append [i] ⟨st.wires, st.next, []⟩ st.verts
-    simpa only [Word.run, List.foldl_cons, List.foldl_nil, List.append_nil] using
-      congrArg Word.State.verts h
   refine ⟨?_, ?_, hb, ?_⟩
   · simp only [Word.cost, List.map_append, List.sum_append, List.map_singleton,
       List.sum_singleton] at *
@@ -149,7 +135,10 @@ private theorem runBound_step {c d : ℕ}
   · simp only [Word.cost, List.map_append, List.sum_append, List.map_singleton,
       List.sum_singleton] at *
     omega
-  · rw [heq]
+  · have hverts : (i.run st).verts = st.verts ++ (i.run ⟨st.wires, st.next, []⟩).verts := by
+      simpa only [Word.run, List.foldl_cons, List.foldl_nil, List.append_nil] using
+        congrArg Word.State.verts (Word.run_verts_append [i] ⟨st.wires, st.next, []⟩ st.verts)
+    rw [hverts]
     simp only [encVertices, encList_append, List.length_append, List.length_singleton,
       Nat.add_mul, Nat.one_mul]
     exact Nat.add_le_add hs.2.2.2 hv

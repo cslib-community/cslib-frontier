@@ -118,11 +118,12 @@ private theorem sum_powersetCard_indicator [Fintype ι] (A : ι → Set Ω) (r :
       ∑ s ∈ (Finset.univ : Finset ι).powersetCard r, if s ∈ T.powerset then (1 : ℝ) else 0 :=
     Finset.sum_congr rfl fun s _ => by
       simp [Set.indicator_apply, T, Finset.mem_powerset, Finset.subset_iff]
-  rw [hsum, Finset.sum_boole, Finset.filter_mem_eq_inter,
-    show (Finset.univ : Finset ι).powersetCard r ∩ T.powerset = T.powersetCard r by
-      ext s
-      simp [Finset.mem_powersetCard, Finset.mem_powerset]; tauto,
-    Finset.card_powersetCard]
+  have hinter : (Finset.univ : Finset ι).powersetCard r ∩ T.powerset = T.powersetCard r := by
+    ext s
+    simp only [Finset.mem_inter, Finset.mem_powersetCard, Finset.subset_univ, true_and,
+      Finset.mem_powerset]
+    tauto
+  rw [hsum, Finset.sum_boole, Finset.filter_mem_eq_inter, hinter, Finset.card_powersetCard]
 
 /-- Pointwise Bonferroni identity expressing the truncated inclusion-exclusion error in terms of
 alternating binomial coefficients. -/
@@ -145,17 +146,25 @@ private theorem bonferroni_pointwise [Fintype ι] (A : ι → Set Ω) (k N : ℕ
     have h := congrArg (Nat.cast (R := ℝ))
       (Nat.choose_mul (n := t) (k := r + k) (s := k) (Nat.le_add_left k r))
     rw [Nat.add_sub_cancel] at h
-    push_cast at h; linarith
-  have hsum : ∑ r ∈ Finset.range N, (-1 : ℝ) ^ r * ((r + k).choose k : ℝ) * (t.choose (r + k) : ℝ) =
-      (t.choose k : ℝ) * ∑ r ∈ Finset.range N, (-1 : ℝ) ^ r * ((t - k).choose r : ℝ) := by
-    rw [Finset.mul_sum]
-    exact Finset.sum_congr rfl fun r _ => by rw [mul_assoc, hmul r]; ring
-  rw [hsum, show ({ω' : Ω | Nat.card {i : ι // ω' ∈ A i} = k} : Set Ω).indicator (1 : Ω → ℝ) ω =
-    if t = k then 1 else 0 by simp [Set.indicator_apply, t]]
-  rcases Nat.lt_trichotomy t k with hlt | rfl | hgt
-  · simp [Nat.choose_eq_zero_of_lt hlt, hlt.ne, Nat.not_lt_of_gt hlt]
-  · simp [sum_neg_one_pow_mul_choose_eq_zero N hN]
-  · simp [hgt, hgt.ne']
+    push_cast at h
+    linarith
+  calc
+    (∑ r ∈ Finset.range N, (-1 : ℝ) ^ r * ((r + k).choose k : ℝ) * (t.choose (r + k) : ℝ)) -
+        ({ω' : Ω | Nat.card {i : ι // ω' ∈ A i} = k} : Set Ω).indicator (1 : Ω → ℝ) ω
+      = (t.choose k : ℝ) * (∑ r ∈ Finset.range N, (-1 : ℝ) ^ r * ((t - k).choose r : ℝ)) -
+          (if t = k then (1 : ℝ) else 0) := by
+          congr 1
+          · rw [Finset.mul_sum]
+            refine Finset.sum_congr rfl fun r _ => ?_
+            rw [mul_assoc, hmul r]
+            ring
+          · simp [Set.indicator_apply, t]
+    _ = (t.choose k : ℝ) * if k < t then
+          ∑ r ∈ Finset.range N, (-1 : ℝ) ^ r * ((t - k).choose r : ℝ) else 0 := by
+          rcases Nat.lt_trichotomy t k with hlt | rfl | hgt
+          · simp [Nat.choose_eq_zero_of_lt hlt, hlt.ne, Nat.not_lt_of_gt hlt]
+          · simp [sum_neg_one_pow_mul_choose_eq_zero N hN]
+          · simp [hgt, hgt.ne']
 
 private theorem setOf_natCard_eq_zero [Finite ι] (A : ι → Set Ω) :
     {ω : Ω | Nat.card {i : ι // ω ∈ A i} = 0} = {ω : Ω | ∀ i, ω ∉ A i} := by
@@ -174,9 +183,10 @@ theorem measurableSet_natCard_eq [Finite ι] {A : ι → Set Ω}
     MeasurableSet {ω : Ω | Nat.card {i : ι // ω ∈ A i} = k} := by
   classical
   let _ := Fintype.ofFinite ι
-  rw [show {ω : Ω | Nat.card {i : ι // ω ∈ A i} = k} =
-      ⋃ t ∈ (Finset.univ : Finset ι).powersetCard k,
-        (⋂ i ∈ t, A i) ∩ ⋂ i ∈ tᶜ, (A i)ᶜ by
+  have heq :
+      {ω : Ω | Nat.card {i : ι // ω ∈ A i} = k} =
+        ⋃ t ∈ (Finset.univ : Finset ι).powersetCard k,
+          (⋂ i ∈ t, A i) ∩ ⋂ i ∈ tᶜ, (A i)ᶜ := by
     ext ω
     rw [Set.mem_ofPred_eq, natCard_subtype_mem_eq_card]
     simp only [Set.mem_iUnion, Finset.mem_powersetCard, Finset.subset_univ,
@@ -185,8 +195,10 @@ theorem measurableSet_natCard_eq [Finite ι] {A : ι → Set Ω}
         fun _ hi => (Finset.mem_filter.mp hi).2, fun _ hi => by simpa using hi⟩, ?_⟩
     rintro ⟨t, rfl, hmem, hnmem⟩
     congr 1
-    ext i; simp only [Finset.mem_filter, Finset.mem_univ, true_and]
-    exact ⟨fun hω => by_contra fun hnt => hnmem i hnt hω, hmem i⟩]
+    ext i
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+    exact ⟨fun hω => by_contra fun hnt => hnmem i hnt hω, hmem i⟩
+  rw [heq]
   exact MeasurableSet.biUnion (Finset.countable_toSet _) fun t _ =>
     (MeasurableSet.biInter (Finset.countable_toSet _) fun i _ => hA i).inter
       (MeasurableSet.biInter (Finset.countable_toSet _) fun i _ => (hA i).compl)
@@ -312,7 +324,8 @@ theorem tendsto_measureReal_natCard_eq_poisson_of_factorialMoments
       (∑ r ∈ Finset.range M, (-1 : ℝ) ^ r * (lam ^ r / r.factorial)) *
         (lam ^ k / k.factorial)) atTop (𝓝 (Real.exp (-lam) * (lam ^ k / k.factorial))) := by
     have hseries : HasSum (fun r : ℕ => (-lam) ^ r / r.factorial) (Real.exp (-lam)) := by
-      rw [Real.exp_eq_exp_ℝ]; exact NormedSpace.expSeries_div_hasSum_exp (-lam)
+      rw [Real.exp_eq_exp_ℝ]
+      exact NormedSpace.expSeries_div_hasSum_exp (-lam)
     refine (hseries.tendsto_sum_nat.congr fun M => Finset.sum_congr rfl fun r _ => ?_).mul_const _
     rw [neg_eq_neg_one_mul, mul_pow, mul_div_assoc]
   have hterm (r : ℕ) : ((r + k).choose k : ℝ) * (lam ^ (r + k) / (r + k).factorial) =
@@ -326,7 +339,9 @@ theorem tendsto_measureReal_natCard_eq_poisson_of_factorialMoments
     have hfac_ne : ((r + k).factorial : ℝ) ≠ 0 := by positivity
     calc ((r + k).choose k : ℝ) * (lam ^ (r + k) / (r + k).factorial)
         = (((r + k).choose k : ℝ) * (r.factorial * k.factorial : ℝ) / (r + k).factorial) *
-            (lam ^ r / r.factorial) * (lam ^ k / k.factorial) := by rw [pow_add]; field_simp
+            (lam ^ r / r.factorial) * (lam ^ k / k.factorial) := by
+            rw [pow_add]
+            field_simp
       _ = (lam ^ r / r.factorial) * (lam ^ k / k.factorial) := by
             rw [hchoose, div_self hfac_ne, one_mul]
   have hsum_lim (M : ℕ) : Tendsto (fun n => ∑ r ∈ Finset.range M, (-1 : ℝ) ^ r *
@@ -336,11 +351,14 @@ theorem tendsto_measureReal_natCard_eq_poisson_of_factorialMoments
         (lam ^ k / k.factorial))) := by
     have hfin := tendsto_finsetSum (Finset.range M) fun r _ =>
       ((hmom (r + k)).const_mul (((r + k).choose k : ℝ))).const_mul ((-1 : ℝ) ^ r)
-    rw [show (∑ r ∈ Finset.range M, (-1 : ℝ) ^ r * (lam ^ r / r.factorial)) *
+    have hsum_eq : (∑ r ∈ Finset.range M, (-1 : ℝ) ^ r * (lam ^ r / r.factorial)) *
         (lam ^ k / k.factorial) = ∑ r ∈ Finset.range M, (-1 : ℝ) ^ r *
-        (((r + k).choose k : ℝ) * (lam ^ (r + k) / (r + k).factorial)) by
+        (((r + k).choose k : ℝ) * (lam ^ (r + k) / (r + k).factorial)) := by
       rw [Finset.sum_mul]
-      exact Finset.sum_congr rfl fun r _ => by rw [hterm r]; ring]
+      refine Finset.sum_congr rfl fun r _ => ?_
+      rw [hterm r]
+      ring
+    rw [hsum_eq]
     exact hfin.congr fun n => Finset.sum_congr rfl fun r _ => by ring
   rw [Metric.tendsto_atTop]
   intro ε hε
@@ -349,8 +367,10 @@ theorem tendsto_measureReal_natCard_eq_poisson_of_factorialMoments
   obtain ⟨N₁, hN₁⟩ := (Metric.tendsto_atTop.mp (hsum_lim (2 * M₀))) (ε / 2) hε2
   obtain ⟨N₂, hN₂⟩ := (Metric.tendsto_atTop.mp (hsum_lim (2 * M₀ + 1))) (ε / 2) hε2
   refine ⟨max N₁ N₂, fun n hn => ?_⟩
-  have h1 := hN₁ n (le_of_max_le_left hn); have h2 := hN₂ n (le_of_max_le_right hn)
-  have hlim_lo := hM₀ (2 * M₀) (by omega); have hlim_hi := hM₀ (2 * M₀ + 1) (by omega)
+  have h1 := hN₁ n (le_of_max_le_left hn)
+  have h2 := hN₂ n (le_of_max_le_right hn)
+  have hlim_lo := hM₀ (2 * M₀) (by omega)
+  have hlim_hi := hM₀ (2 * M₀ + 1) (by omega)
   rw [Real.dist_eq, abs_lt] at h1 h2 hlim_lo hlim_hi ⊢
   constructor <;> linarith [bonferroni_le_measureReal_natCard_eq (μ n) (hA n) k M₀,
     measureReal_natCard_eq_le_bonferroni (μ n) (hA n) k M₀]

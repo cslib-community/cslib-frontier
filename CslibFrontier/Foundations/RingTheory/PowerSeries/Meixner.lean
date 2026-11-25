@@ -174,12 +174,10 @@ private theorem pow_dvd_sum_meixnerB_succ (y : R) (N k : ℕ) :
     (fun r => by rw [meixnerB_succ]; ring)
   refine ⟨-(meixnerB y N (k + 1) + y * meixnerB y N k), ?_⟩
   simp only [meixnerB_zero] at this
-  rw [Finset.mul_sum]
-  have e : ∑ r ∈ Finset.range N, (1 - y) * (y ^ r * meixnerB y r (k + 1)) =
-      ∑ r ∈ Finset.range N, y ^ r * (meixnerB y r (k + 1) + y * meixnerB y r k
-        - y * (meixnerB y r (k + 1) + meixnerB y r k)) :=
-    Finset.sum_congr rfl fun r _ => by ring
-  rw [e, this]
+  have e (r : ℕ) : (1 - y) * (y ^ r * meixnerB y r (k + 1)) =
+      y ^ r * (meixnerB y r (k + 1) + y * meixnerB y r k -
+        y * (meixnerB y r (k + 1) + meixnerB y r k)) := by ring
+  simp_rw [Finset.mul_sum, e, this]
   ring
 
 /-- Orthogonality modulo `y^N`: `(1 - y) ∑_{r<N} y^r B(r, i) B(r, j) ≡ [i = j] y^i`, where
@@ -193,10 +191,9 @@ theorem pow_dvd_meixnerB_orthogonality (y : R) (N i j : ℕ) :
     cases j with
     | zero =>
       have := sum_range_pow_mul_sub y (fun _ => (1 : R)) (fun _ => 1) N (fun _ => rfl)
+      simp only [mul_one, ← Finset.sum_mul] at this
       refine ⟨-1, ?_⟩
       simp only [meixnerB_zero_right, mul_one, ite_true, pow_zero]
-      simp only [mul_one] at this
-      rw [← Finset.sum_mul] at this
       linear_combination this
     | succ j =>
       simpa [(Nat.succ_ne_zero j).symm] using pow_dvd_sum_meixnerB_succ y N j
@@ -219,17 +216,12 @@ theorem pow_dvd_meixnerB_orthogonality (y : R) (N i j : ℕ) :
                 (meixnerB y r (j + 1) + meixnerB y r j))) =
           (1 - y) * ∑ r ∈ Finset.range N, y ^ r * (meixnerB y r (i + 1) * meixnerB y r (j + 1))
           - y * ((1 - y) * ∑ r ∈ Finset.range N, y ^ r * (meixnerB y r i * meixnerB y r j)) := by
-        simp only [Finset.mul_sum]
-        rw [← Finset.sum_sub_distrib]
+        simp only [Finset.mul_sum, ← Finset.sum_sub_distrib]
         exact Finset.sum_congr rfl fun r _ => by ring
-      rw [e] at this
-      have z0 : (meixnerB y 0 (i + 1) + y * meixnerB y 0 i) = 0 :=
-          by simp only [meixnerB_zero]; ring
-      have z1 : (if i + 1 = j + 1 then y ^ (i + 1) else 0) = y * (if i = j then y ^ i else 0) := by
-        by_cases hmn : i = j
-        · simp [hmn, pow_succ, mul_comm]
-        · simp [hmn]
-      rw [z0, zero_mul, zero_sub] at this
+      have z0 : meixnerB y 0 (i + 1) + y * meixnerB y 0 i = 0 := by simp only [meixnerB_zero]; ring
+      have z1 : (if i + 1 = j + 1 then y ^ (i + 1) else 0) = y * if i = j then y ^ i else 0 := by
+        by_cases hmn : i = j <;> simp [hmn, pow_succ, mul_comm]
+      rw [e, z0, zero_mul, zero_sub] at this
       rw [z1]
       linear_combination this + y * hw
 

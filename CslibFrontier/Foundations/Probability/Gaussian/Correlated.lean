@@ -150,17 +150,20 @@ theorem stdGaussian_map_inner_prod_eq_correlatedGaussian {u v : E} (hu : ‖u‖
       real_inner_smul_left, real_inner_smul_left, real_inner_smul_right, real_inner_smul_right,
       real_inner_self_eq_norm_sq, real_inner_self_eq_norm_sq, hu, hv, real_inner_comm u v, ← hρ]
     ring
-  rw [show (fun x => (⟪u, x⟫, ⟪v, x⟫)) =
-      (fun p : ℝ × ℝ => (p.1, ρ * p.1 + p.2)) ∘ fun x => (⟪u, x⟫, ⟪w, x⟫) by
+  have hpair : (fun x => (⟪u, x⟫, ⟪v, x⟫)) =
+      (fun p : ℝ × ℝ => (p.1, ρ * p.1 + p.2)) ∘ fun x => (⟪u, x⟫, ⟪w, x⟫) := by
     funext x
     simp only [Function.comp_apply, hw, inner_sub_left, real_inner_smul_left]
-    ring_nf, ← Measure.map_map (by fun_prop) (by fun_prop), stdGaussian_map_inner_prod huw,
-    show ‖u‖₊ ^ 2 = 1 by ext; simp [hu],
-    show ‖w‖₊ ^ 2 = .mk (√(1 - ρ ^ 2) ^ 2) (sq_nonneg _) by
-      ext
-      simp only [NNReal.coe_pow, coe_nnNorm, NNReal.coe_mk, hww]
-      exact (sq_sqrt (by nlinarith [sq_nonneg ‖w‖])).symm,
-    correlatedGaussian, gaussianReal_prod_map_affine]
+    ring_nf
+  have h1 : ‖u‖₊ ^ 2 = 1 := by
+    ext
+    simp [hu]
+  have h2 : ‖w‖₊ ^ 2 = .mk (√(1 - ρ ^ 2) ^ 2) (sq_nonneg _) := by
+    ext
+    simp only [NNReal.coe_pow, coe_nnNorm, NNReal.coe_mk, hww]
+    exact (sq_sqrt (by nlinarith [sq_nonneg ‖w‖])).symm
+  rw [hpair, ← Measure.map_map (by fun_prop) (by fun_prop), stdGaussian_map_inner_prod huw, h1,
+    h2, correlatedGaussian, gaussianReal_prod_map_affine]
 
 /-- For `-1 ≤ ρ ≤ 1` there are unit vectors of the plane with inner product `ρ`. -/
 private theorem exists_norm_eq_one_inner_eq {ρ : ℝ} (hρ : |ρ| ≤ 1) :
@@ -193,7 +196,8 @@ theorem correlatedGaussian_map_swap {ρ : ℝ} (hρ : |ρ| ≤ 1) :
   obtain ⟨u, v, hu, hv, rfl⟩ := exists_norm_eq_one_inner_eq hρ
   conv_lhs => rw [← stdGaussian_map_inner_prod_eq_correlatedGaussian hu hv,
     Measure.map_map measurable_swap (by fun_prop)]
-  exact (stdGaussian_map_inner_prod_eq_correlatedGaussian hv hu).trans (by rw [real_inner_comm])
+  exact (stdGaussian_map_inner_prod_eq_correlatedGaussian hv hu).trans
+    (by rw [real_inner_comm])
 
 /-- A `ρ`-correlated pair is invariant under negation: `(-z, -z')` has the same law as
 `(z, z')`. -/
@@ -202,10 +206,11 @@ theorem correlatedGaussian_map_neg {ρ : ℝ} (hρ : |ρ| ≤ 1) :
   obtain ⟨u, v, hu, hv, rfl⟩ := exists_norm_eq_one_inner_eq hρ
   conv_lhs => rw [← stdGaussian_map_inner_prod_eq_correlatedGaussian hu hv,
     Measure.map_map (by fun_prop) (by fun_prop)]
-  rw [show (fun p : ℝ × ℝ => -p) ∘ (fun x => (⟪u, x⟫, ⟪v, x⟫)) =
-      fun x => (⟪-u, x⟫, ⟪-v, x⟫) by funext x; simp [Prod.neg_mk, inner_neg_left],
-    stdGaussian_map_inner_prod_eq_correlatedGaussian (by rw [norm_neg, hu])
-      (by rw [norm_neg, hv]), inner_neg_neg]
+  have hcomp : (fun p : ℝ × ℝ => -p) ∘ (fun x => (⟪u, x⟫, ⟪v, x⟫)) =
+      fun x => (⟪-u, x⟫, ⟪-v, x⟫) :=
+    funext fun x => by simp [Prod.neg_mk, inner_neg_left]
+  rw [hcomp, stdGaussian_map_inner_prod_eq_correlatedGaussian (by rw [norm_neg, hu])
+    (by rw [norm_neg, hv]), inner_neg_neg]
 
 /-- **The correlation of a correlated pair.** The product of a `ρ`-correlated pair of standard
 Gaussians has mean `ρ` when `|ρ| ≤ 1`. -/
@@ -239,7 +244,8 @@ private theorem integral_dual_variance_dual {ν : Measure (ℝ × ℝ)} [IsGauss
   set a := L (1, 0)
   set b := L (0, 1)
   have hL : ⇑L = fun p : ℝ × ℝ => a * p.1 + b * p.2 := funext fun p => by
-    conv_lhs => rw [show p = p.1 • ((1 : ℝ), (0 : ℝ)) + p.2 • ((0 : ℝ), (1 : ℝ)) by ext <;> simp]
+    have hp : p = p.1 • ((1 : ℝ), (0 : ℝ)) + p.2 • ((0 : ℝ), (1 : ℝ)) := by ext <;> simp
+    conv_lhs => rw [hp]
     rw [map_add, map_smul, map_smul, smul_eq_mul, smul_eq_mul, mul_comm a, mul_comm b]
   have m1 : MemLp (fun p : ℝ × ℝ => p.1) 2 ν :=
     IsGaussian.memLp_dual ν (ContinuousLinearMap.fst ℝ ℝ ℝ) 2 (by simp)
@@ -253,9 +259,10 @@ private theorem integral_dual_variance_dual {ν : Measure (ℝ × ℝ)} [IsGauss
   have i12 : Integrable (fun p : ℝ × ℝ => p.1 * p.2) ν := m1.integrable_mul m2
   have j : Integrable (fun p : ℝ × ℝ => a ^ 2 * p.1 ^ 2 + 2 * a * b * (p.1 * p.2)) ν :=
     (m1.integrable_sq.const_mul _).add (i12.const_mul _)
-  rw [variance_of_integral_eq_zero (by fun_prop) hmean, hL,
-    show (fun p : ℝ × ℝ => (a * p.1 + b * p.2) ^ 2) =
-      fun p => a ^ 2 * p.1 ^ 2 + 2 * a * b * (p.1 * p.2) + b ^ 2 * p.2 ^ 2 by funext p; ring,
+  have hsq : (fun p : ℝ × ℝ => (a * p.1 + b * p.2) ^ 2) =
+      fun p => a ^ 2 * p.1 ^ 2 + 2 * a * b * (p.1 * p.2) + b ^ 2 * p.2 ^ 2 :=
+    funext fun _ => by ring
+  rw [variance_of_integral_eq_zero (by fun_prop) hmean, hL, hsq,
     integral_add j (m2.integrable_sq.const_mul _),
     integral_add (m1.integrable_sq.const_mul _) (i12.const_mul _),
     integral_const_mul, integral_const_mul, integral_const_mul, h11, h12, h22]
@@ -367,9 +374,11 @@ theorem correlatedGaussian_map_neg_snd (ρ : ℝ) :
 /-- A `1`-correlated pair is a standard Gaussian repeated: `(g, g)`. -/
 theorem correlatedGaussian_one :
     correlatedGaussian 1 = (gaussianReal 0 1).map fun x => (x, x) := by
-  rw [correlatedGaussian, show (fun g : ℝ × ℝ => (g.1, 1 * g.1 + √(1 - 1 ^ 2) * g.2)) =
-      (fun x => (x, x)) ∘ Prod.fst by funext g; simp,
-    ← Measure.map_map (by fun_prop) measurable_fst, Measure.map_fst_prod, measure_univ, one_smul]
+  have h : (fun g : ℝ × ℝ => (g.1, 1 * g.1 + √(1 - 1 ^ 2) * g.2)) =
+      (fun x => (x, x)) ∘ Prod.fst :=
+    funext fun _ => by simp
+  rw [correlatedGaussian, h, ← Measure.map_map (by fun_prop) measurable_fst,
+    Measure.map_fst_prod, measure_univ, one_smul]
 
 /-- A `-1`-correlated pair is a standard Gaussian and its negation: `(g, -g)`. -/
 theorem correlatedGaussian_neg_one :
@@ -397,26 +406,30 @@ theorem integral_correlatedGaussian_indicator_Iic_mul {ρ : ℝ} (hρ : |ρ| ≤
     Integrable.of_bound hg.aestronglyMeasurable 1 (ae_of_all _ hb)
   have h1 := hint (g := fun p => signPos p.1) (by fun_prop) fun p => norm_signPos_le p.1
   have h2 := hint (g := fun p => signPos p.2) (by fun_prop) fun p => norm_signPos_le p.2
-  have h12 := hint (g := fun p => signPos p.1 * signPos p.2) (by fun_prop) fun p => by
+  have h12 : Integrable (fun p : ℝ × ℝ => signPos p.1 * signPos p.2) (correlatedGaussian ρ) := by
+    refine hint (by fun_prop) fun p => ?_
     rw [norm_mul]
     exact (mul_le_mul (norm_signPos_le _) (norm_signPos_le _) (norm_nonneg _)
       zero_le_one).trans_eq (one_mul 1)
+  have hpt (p : ℝ × ℝ) : (Iic (0 : ℝ)).indicator 1 p.1 * (Iic (0 : ℝ)).indicator 1 p.2 =
+      1 / 4 * (1 - signPos p.1 - signPos p.2 + signPos p.1 * signPos p.2) := by
+    rw [signPos_eq, signPos_eq]
+    ring
+  have hfst : ∫ p, signPos p.1 ∂correlatedGaussian ρ = 0 := by
+    rw [← integral_gaussianReal_signPos, ← correlatedGaussian_map_fst ρ,
+      integral_map (by fun_prop) (by fun_prop)]
+  have hsnd : ∫ p, signPos p.2 ∂correlatedGaussian ρ = 0 := by
+    rw [← integral_gaussianReal_signPos, ← correlatedGaussian_map_snd hρ,
+      integral_map (by fun_prop) (by fun_prop)]
   have hstab : ∫ p, signPos p.1 * signPos p.2 ∂correlatedGaussian ρ = 1 - 2 / π * arccos ρ :=
     integral_correlatedGaussian_ite_pos_mul_ite_pos hρ
-  simp only [show ∀ p : ℝ × ℝ, (Iic (0 : ℝ)).indicator 1 p.1 * (Iic (0 : ℝ)).indicator 1 p.2 =
-      1 / 4 * (1 - signPos p.1 - signPos p.2 + signPos p.1 * signPos p.2) from
-    fun p => by rw [signPos_eq, signPos_eq]; ring]
+  simp only [hpt]
   rw [integral_const_mul,
     integral_add (f := fun p : ℝ × ℝ => 1 - signPos p.1 - signPos p.2)
       (((integrable_const _).sub h1).sub h2) h12,
     integral_sub (f := fun p : ℝ × ℝ => 1 - signPos p.1) ((integrable_const _).sub h1) h2,
     integral_sub (integrable_const _) h1, integral_const, probReal_univ, smul_eq_mul, mul_one,
-    show ∫ p, signPos p.1 ∂correlatedGaussian ρ = 0 by
-      rw [← integral_gaussianReal_signPos, ← correlatedGaussian_map_fst ρ,
-        integral_map (by fun_prop) (by fun_prop)],
-    show ∫ p, signPos p.2 ∂correlatedGaussian ρ = 0 by
-      rw [← integral_gaussianReal_signPos, ← correlatedGaussian_map_snd hρ,
-        integral_map (by fun_prop) (by fun_prop)], hstab]
+    hfst, hsnd, hstab]
   field_simp
   ring
 
@@ -467,10 +480,11 @@ theorem correlatedGaussianPi_eq_map (ρ : ℝ) :
 theorem correlatedGaussianPi_one :
     correlatedGaussianPi ι 1 =
       (Measure.pi fun _ : ι => gaussianReal 0 1).map fun z => (z, z) := by
-  rw [correlatedGaussianPi_eq_map,
-    show (fun q : (ι → ℝ) × (ι → ℝ) => (q.1, fun i => 1 * q.1 i + √(1 - 1 ^ 2) * q.2 i)) =
-      (fun z => (z, z)) ∘ Prod.fst by funext q; simp,
-    ← Measure.map_map (by fun_prop) measurable_fst, Measure.map_fst_prod, measure_univ, one_smul]
+  have h : (fun q : (ι → ℝ) × (ι → ℝ) => (q.1, fun i => 1 * q.1 i + √(1 - 1 ^ 2) * q.2 i)) =
+      (fun z => (z, z)) ∘ Prod.fst :=
+    funext fun _ => by simp
+  rw [correlatedGaussianPi_eq_map, h, ← Measure.map_map (by fun_prop) measurable_fst,
+    Measure.map_fst_prod, measure_univ, one_smul]
 
 /-- The coordinate pairs of `ρ`-correlated vectors are `ρ`-correlated. -/
 theorem correlatedGaussianPi_map_eval (ρ : ℝ) (i : ι) :

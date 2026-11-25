@@ -273,8 +273,9 @@ theorem bwtFirst_perm (w : List α) : bwtFirst w ~ w := by
 /-- The last column is a permutation of the word ([BurrowsWheeler1994], Section 2, step D1). -/
 theorem bwtLast_perm (w : List α) : bwtLast w ~ w := by
   have h := (map_rotate_one_bwtMatrix_perm w).filterMap List.getLast?
-  rw [List.filterMap_map, show (List.getLast? ∘ (·.rotate 1) : List α → _) = List.head? from
-    funext getLast?_rotate_one] at h
+  have hf : (List.getLast? ∘ (·.rotate 1) : List α → Option α) = List.head? :=
+    funext getLast?_rotate_one
+  rw [List.filterMap_map, hf] at h
   exact h.symm.trans (bwtFirst_perm w)
 
 theorem pairwise_bwtFirst (w : List α) : (bwtFirst w).Pairwise (· ≤ ·) :=

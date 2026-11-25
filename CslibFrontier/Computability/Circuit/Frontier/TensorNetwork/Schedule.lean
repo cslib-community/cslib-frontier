@@ -179,11 +179,8 @@ private theorem sum_div_two_pow_succ_le (y d : ℕ) : ∑ j ∈ range d, y / 2 ^
   | zero => simp
   | succ d ih =>
     rw [sum_range_succ']
-    have h : ∑ j ∈ range d, y / 2 ^ (j + 1 + 1) = ∑ j ∈ range d, y / 2 / 2 ^ (j + 1) :=
-      sum_congr rfl fun j _ => by rw [Nat.div_div_eq_div_mul, ← pow_succ']
-    rw [h]
+    simp only [pow_succ' _ (_ + 1), ← Nat.div_div_eq_div_mul, zero_add, pow_one]
     have := ih (y / 2)
-    simp only [zero_add, pow_one]
     omega
 
 /-- **`a ≤ 4 ε λ`**: `2 ∑_{j < d} u_j ≤ ⌊λ / 2 ^ 15⌋`. -/
@@ -263,11 +260,10 @@ theorem Active.one_le_edges (h : Active C s d M p) : 1 ≤ M :=
 theorem Active.edges_le_mul (h : Active C s d M p) : M ≤ C * s :=
   (Nat.le_mul_of_pos_left M (Nat.pow_pos (by norm_num))).trans h.edges_le
 
-theorem Active.one_le_const (h : Active C s d M p) : 1 ≤ C := by
-  have := h.one_le_edges.trans h.edges_le_mul
-  rcases Nat.eq_zero_or_pos C with rfl | hC
-  · simp at this
-  · exact hC
+theorem Active.one_le_const (h : Active C s d M p) : 1 ≤ C :=
+  Nat.pos_of_ne_zero fun h0 => by
+    have := h.one_le_edges.trans h.edges_le_mul
+    simp [h0] at this
 
 /-- At an active call `s < M ⌊√λ⌋`, since `⌊s / ⌊√λ⌋⌋ < M`. -/
 theorem Active.lt_mul_sqrt (h : Active C s d M p) (hs : 2 ≤ s) :
@@ -608,10 +604,8 @@ theorem exists_activeBounds (C : ℕ) : ∃ s₀, ∀ s, s₀ ≤ s →
     (∀ d ≤ Nat.log 2 s, precisionBound C s d ≤ s ^ 2) ∧
       ∀ d M p, Active C s d M p → ActiveBounds C s d M p := by
   rcases Nat.eq_zero_or_pos C with rfl | hC
-  · refine ⟨0, fun s _ => ⟨fun d _ => ?_, fun d M p h => absurd h.one_le_const (by norm_num)⟩⟩
-    have := precisionBound_le 0 s d
-    simp only [zero_mul] at this
-    exact this.trans (Nat.zero_le _)
+  · exact ⟨0, fun s _ => ⟨fun d _ => (precisionBound_le 0 s d).trans (by simp),
+      fun d M p h => absurd h.one_le_const (by norm_num)⟩⟩
   obtain ⟨n₀, hn₀⟩ := eventually_atTop.1 (eventually_large C hC)
   refine ⟨2 ^ n₀, fun s hs => ?_⟩
   have hs0 : s ≠ 0 := by grind

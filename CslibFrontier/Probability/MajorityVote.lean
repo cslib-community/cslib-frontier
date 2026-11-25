@@ -11,7 +11,8 @@ public import CslibFrontier.Init
 public import Mathlib.Algebra.BigOperators.Fin
 public import Mathlib.Basic.Real.Basic
 import CslibFrontier.Probability.IID
-import CslibFrontier.Probability.PMF.Uniform
+import CslibFrontier.Probability.PMF.Expect
+import CslibFrontier.Probability.PMF.UniformBridge
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 
@@ -51,48 +52,36 @@ theorem card_filter_card_filter_le_of_err_lt_half {Ω : Type*} [Fintype Ω] [Dec
   · simp only [Nat.mul_zero, pow_zero, mul_one]
     exact_mod_cast (Finset.card_filter_le _ _).trans (by simp)
   rcases isEmpty_or_nonempty Ω with hEmpty | hNonempty
-  · have : IsEmpty (Fin (2 * r) → Ω) := ⟨fun f => hEmpty.false (f ⟨0, by omega⟩)⟩
+  · have : IsEmpty (Fin (2 * r) → Ω) := ⟨fun f => hEmpty.false (f ⟨0, by lia⟩)⟩
     simp only [Finset.univ_eq_empty, Finset.filter_empty, Finset.card_empty, Nat.cast_zero]
     exact mul_nonneg (pow_nonneg (by nlinarith) r) (by positivity)
   classical
-  set N := Fintype.card Ω
-  have hN_pos : (0 : ℝ) < N := by exact_mod_cast Fintype.card_pos
+  have hN : (0 : ℝ) < Fintype.card Ω := Nat.cast_pos.mpr Fintype.card_pos
   let bad : Ω → Bool := fun x => decide (x ∉ G)
-  have hq_eq : (((Probability.PMF.uniformOfFintype Ω).map bad) true).toReal =
-      ((Finset.univ.filter (· ∉ G)).card : ℝ) / N := by
-    have h1 : ((Probability.PMF.uniformOfFintype Ω).map bad) true =
-        (Probability.PMF.uniformOfFintype Ω).toOuterMeasure {x | x ∉ G} := by
-      rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
-      congr 1 with x
-      simp [bad]
-    rw [h1, Probability.PMF.toOuterMeasure_uniformOfFintype_toReal]
-    rfl
-  have hcard_compl : ((Finset.univ.filter (· ∉ G)).card : ℝ) + G.card = N := by
-    have h := Finset.card_filter_add_card_filter_not (s := (Finset.univ : Finset Ω)) (· ∈ G)
-    rw [Finset.filter_mem_eq_inter, Finset.univ_inter, Finset.card_univ] at h
-    norm_cast
-    omega
   have hq_le : (((Probability.PMF.uniformOfFintype Ω).map bad) true).toReal ≤ ε := by
-    rw [hq_eq, div_le_iff₀ hN_pos]
+    have hbad : (Finset.univ.filter fun x => bad x = true) = Gᶜ := by
+      ext x
+      simp [bad]
+    rw [Probability.PMF.toReal_uniformOfFintype_map_apply_true, hbad, Finset.dens_eq_card_div_card,
+      NNRat.cast_div, NNRat.cast_natCast, NNRat.cast_natCast, Finset.card_compl,
+      Nat.cast_sub (Finset.card_le_univ G), div_le_iff₀ hN]
     linarith
   have hiid := Probability.PMF.iid_card_ge_le hq_le hε₁.le r
   rw [Probability.PMF.iid_map, Probability.PMF.iid_uniformOfFintype,
-    PMF.toOuterMeasure_map_apply, Probability.PMF.toOuterMeasure_uniformOfFintype_toReal] at hiid
-  have hcard_fun : (Fintype.card (Fin (2 * r) → Ω) : ℝ) = (N : ℝ) ^ (2 * r) := by
-    simp [Fintype.card_fin, N]
-  rw [hcard_fun, div_le_iff₀ (pow_pos hN_pos (2 * r))] at hiid
-  have hfilter_eq : (Finset.univ.filter fun ω : Fin (2 * r) → Ω =>
-      ω ∈ (fun ω i => bad (ω i)) ⁻¹'
-        {v : Fin (2 * r) → Bool | r ≤ (Finset.univ.filter fun i => v i = true).card}) =
-      Finset.univ.filter (fun ω : Fin (2 * r) → Ω =>
-        (Finset.univ.filter fun i => ω i ∈ G).card ≤ r) := by
+    PMF.toOuterMeasure_map_apply] at hiid
+  have hpre : (fun (ω : Fin (2 * r) → Ω) i => bad (ω i)) ⁻¹'
+      {v : Fin (2 * r) → Bool | r ≤ (Finset.univ.filter fun i => v i = true).card} =
+      {ω | (Finset.univ.filter fun i => ω i ∈ G).card ≤ r} := by
     ext ω
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Set.mem_preimage, Set.mem_ofPred_eq,
-      bad, decide_eq_true_eq]
+    simp only [Set.mem_preimage, Set.mem_ofPred_eq, bad, decide_eq_true_eq]
     have hsum := Finset.card_filter_add_card_filter_not
       (s := (Finset.univ : Finset (Fin (2 * r)))) (fun i => ω i ∈ G)
     rw [Finset.card_univ, Fintype.card_fin] at hsum
-    omega
-  rwa [hfilter_eq] at hiid
+    lia
+  rw [hpre] at hiid
+  have hcount := Probability.PMF.card_filter_univ_le_of_toOuterMeasure_uniformOfFintype_le
+    (fun (ω : Fin (2 * r) → Ω) => (Finset.univ.filter fun i => ω i ∈ G).card ≤ r) hiid
+  rw [Fintype.card_fun, Fintype.card_fin, Nat.cast_pow] at hcount
+  exact hcount.trans_eq (mul_comm _ _)
 
 end Cslib

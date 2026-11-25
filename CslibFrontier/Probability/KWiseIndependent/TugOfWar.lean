@@ -105,9 +105,8 @@ theorem expect_prod_sign [DecidableEq X] (hh : IsKWiseIndependentHash k h)
 theorem expect_sign_mul_sign (hh : IsKWiseIndependentHash 2 h) (hε₀ : 𝔼 y, ε y = 0) {x x' : X}
     (hx : x ≠ x') : 𝔼 i, ε (h i x) * ε (h i x') = 0 := by
   classical
-  have := hh.expect_prod (T := {x, x'}) card_le_two fun _ y => ε y
-  simp only [prod_pair hx, hε₀, zero_mul] at this
-  exact this
+  simpa only [prod_pair hx, hε₀, zero_mul] using
+    hh.expect_prod (T := {x, x'}) card_le_two fun _ y => ε y
 
 /-- The product of the signs at two pairs of distinct points has average one if the pairs agree
 up to order, and zero otherwise. -/
@@ -134,14 +133,7 @@ theorem expect_sign_mul_sign_mul_sign_mul_sign [DecidableEq X] (hh : IsKWiseInde
     have hb : Even #{j' : Fin 4 | (![a, b, c, d] : Fin 4 → X) j' = b} := h 1
     simp only [hcount, ite_true, hab, hab.symm, ite_false, add_zero, zero_add, Nat.even_iff]
       at ha hb
-    by_cases hca : c = a
-    · subst hca
-      simp only [hab, ite_false, add_zero] at hb
-      exact Or.inl ⟨rfl, by by_contra hdb; simp [hdb] at hb⟩
-    · have hda : d = a := by by_contra hda; simp [hca, hda] at ha
-      subst hda
-      simp only [hab, ite_false, add_zero] at hb
-      exact Or.inr ⟨by by_contra hcb; simp [hcb] at hb, rfl⟩
+    grind
   · rintro (⟨rfl, rfl⟩ | ⟨rfl, rfl⟩) j
     · rw [hcount]; rcases j with ⟨_ | _ | _ | _ | _, hj⟩ <;> first | omega | simp [hcd, hcd.symm]
     · rw [hcount]; rcases j with ⟨_ | _ | _ | _ | _, hj⟩ <;> first | omega | simp [hab, hab.symm]
@@ -220,8 +212,7 @@ theorem expect_sq_sum_mul_sign_sub_sq (hh : IsKWiseIndependentHash 4 h) (hε : �
   have hpair : ∀ p ∈ S.offDiag, f p.1 ^ 2 * f p.2 ^ 2 + f p.1 * f p.1 * (f p.2 * f p.2) =
       2 * (f p.1 ^ 2 * f p.2 ^ 2) := fun p _ => by ring
   rw [sum_congr rfl hpair, ← mul_sum, sq_sum_eq_sum_sq_add_sum_offDiag S fun x => f x ^ 2]
-  have h4 : ∀ x ∈ S, (f x ^ 2) ^ 2 = f x ^ 4 := fun x _ => by ring
-  rw [sum_congr rfl h4]
+  simp only [← pow_mul]
   ring
 
 /-- **The fourth moment of the tug-of-war sum** [AlonMatiasSzegedy1999, Theorem 2.2]: for a

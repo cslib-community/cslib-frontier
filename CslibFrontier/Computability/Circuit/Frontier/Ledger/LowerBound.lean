@@ -177,6 +177,15 @@ theorem eventually_lt_mul_card_of_ledger_min {r : ℕ} (hr : 2 ≤ r) {A : ℝ} 
   exact hn s V (N.cycleRankOn W) (N.frontier π t).ncard (Nat.cast_nonneg _) (Nat.cast_nonneg _)
     hV (by linarith) (by linarith) (hπ t ht t le_rfl (by omega)).2
 
+private theorem log_ledger_factor {q M : ℕ} (hq : 0 < q) (hM : 0 < M) (k : ℕ) :
+    Real.log ((min (q ^ k) M * M : ℕ) : ℝ) =
+      min (k * Real.log q) (Real.log M) + Real.log M := by
+  have hq' : (0 : ℝ) < q := Nat.cast_pos.mpr hq
+  have hM' : (0 : ℝ) < M := Nat.cast_pos.mpr hM
+  have hpow : (0 : ℝ) < (q : ℝ) ^ k := pow_pos hq' _
+  rw [Nat.cast_mul, Nat.cast_min, Nat.cast_pow, Real.log_mul (lt_min hpow hM').ne' hM'.ne',
+    Real.strictMonoOn_log.monotoneOn.map_min hpow hM', Real.log_pow]
+
 /-- **The tightened frontier lower bound with a ledger (`|U| ^ k · |M|`).** Under the hypotheses of
 `eventually_lt_mul_card_of_ledger_min`, if `k log |U| + log |M| ≤ β(n)`, then `(r - 1) s >
 (1 + 1/A - ε) n`. -/
@@ -195,17 +204,8 @@ theorem eventually_lt_mul_card_of_ledger_readout {r : ℕ} (hr : 2 ≤ r) {A : �
   filter_upwards [eventually_lt_mul_card_of_ledger_min.{u, v, w} hr hA hlayout hSK hβ hε] with n hn
   intro σ I Acc c special _ M _ _ hfan L hM hS
   refine hn σ I Acc c special M hfan L ?_ hS
-  have hEpos : (0 : ℝ) <
-      (min (Nat.card U ^ Nat.card {g // special g}) (Nat.card M) * Nat.card M : ℕ) := by
-    exact_mod_cast Nat.mul_pos (lt_min (Nat.pow_pos Nat.card_pos) Nat.card_pos) Nat.card_pos
-  have hEle : ((min (Nat.card U ^ Nat.card {g // special g}) (Nat.card M) * Nat.card M : ℕ) : ℝ) ≤
-      ((Nat.card U ^ Nat.card {g // special g} * Nat.card M : ℕ) : ℝ) := by
-    exact_mod_cast Nat.mul_le_mul_right _ (min_le_left _ _)
-  have hq0 : (0 : ℝ) < Nat.card U := by exact_mod_cast (Nat.card_pos (α := U))
-  have hM0 : (0 : ℝ) < Nat.card M := by exact_mod_cast (Nat.card_pos (α := M))
-  refine (Real.log_le_log hEpos hEle).trans ?_
-  rw [Nat.cast_mul, Nat.cast_pow, Real.log_mul (pow_pos hq0 _).ne' hM0.ne', Real.log_pow]
-  exact hM
+  rw [log_ledger_factor Nat.card_pos Nat.card_pos]
+  exact (add_le_add (min_le_left _ _) le_rfl).trans hM
 
 /-- **The frontier lower bound with a ledger.** Let `r ≥ 2` and assume the layout hypothesis for
 maximum degree `r + 1` with coefficient `A > 0`. Let `S_n ⊆ U^n` be `K_n`-rectangle-free sets over
@@ -229,16 +229,8 @@ theorem eventually_lt_mul_card_of_ledger {r : ℕ} (hr : 2 ≤ r) {A : ℝ} (hA 
   filter_upwards [eventually_lt_mul_card_of_ledger_min.{u, v, w} hr hA hlayout hSK hβ2 hε] with n hn
   intro σ I Acc c special _ M _ _ hfan L hM hS
   refine hn σ I Acc c special M hfan L ?_ hS
-  have hEpos : (0 : ℝ) <
-      (min (Nat.card U ^ Nat.card {g // special g}) (Nat.card M) * Nat.card M : ℕ) := by
-    exact_mod_cast Nat.mul_pos (lt_min (Nat.pow_pos Nat.card_pos) Nat.card_pos) Nat.card_pos
-  have hEle : ((min (Nat.card U ^ Nat.card {g // special g}) (Nat.card M) * Nat.card M : ℕ) : ℝ) ≤
-      ((Nat.card M * Nat.card M : ℕ) : ℝ) := by
-    exact_mod_cast Nat.mul_le_mul_right _ (min_le_right _ _)
-  have hM0 : (0 : ℝ) < Nat.card M := by exact_mod_cast (Nat.card_pos (α := M))
-  refine (Real.log_le_log hEpos hEle).trans ?_
-  rw [Nat.cast_mul, Real.log_mul hM0.ne' hM0.ne']
-  linarith
+  rw [log_ledger_factor Nat.card_pos Nat.card_pos, two_mul]
+  exact (add_le_add (min_le_right _ _) le_rfl).trans (add_le_add hM hM)
 
 /-- **The frontier lower bound with aggregate gates.** Under the hypotheses of
 `eventually_lt_mul_card_of_ledger`, for every `ε > 0` and all large `n`, every circuit deciding

@@ -95,9 +95,7 @@ inductive Step : State → Letter × Op 2 Sym → State → Prop where
   start := {.pa}
   accept := {.pa, .ge}
 
-theorem automaton_isVisibly : automaton.IsVisibly kind := by
-  intro s x op s' h
-  cases h <;> rfl
+theorem automaton_isVisibly : automaton.IsVisibly kind := fun _ _ _ _ h => by cases h <;> rfl
 
 /-! ## Runs -/
 
@@ -169,11 +167,8 @@ private theorem pre_append_group (n k : ℕ) (gs : List (List Letter)) (p q : �
   simp [pre, group, List.append_assoc]
 
 private theorem grouped_append_singleton {gs : List (List Letter)} {g : List Letter}
-    (hg : Grouped gs) (hg' : ∃ p q, g = group p q) : Grouped (gs ++ [g]) := by
-  intro x hx
-  rcases List.mem_append.mp hx with hx | hx
-  · exact hg x hx
-  · simpa using (List.mem_singleton.mp hx) ▸ hg'
+    (hg : Grouped gs) (hg' : ∃ p q, g = group p q) : Grouped (gs ++ [g]) :=
+  fun x hx => (List.mem_append.mp hx).elim (hg x) fun h => List.mem_singleton.mp h ▸ hg'
 
 /-- One transition preserves the invariant. -/
 private theorem inv_step {q q' : State} {s₀ s₁ : List Sym} {u : List Letter}
@@ -219,7 +214,7 @@ private theorem inv_step {q q' : State} {s₀ s₁ : List Sym} {u : List Letter}
     obtain ⟨t, ht, rfl⟩ := Op.apply_pop_zero_pair.mp happ
     rcases replicate_append_eq_cons ht with ⟨hpr, -, rfl⟩ | ⟨-, -, h, -⟩
     · exact ⟨_, _, rfl, n, k, gs, p, r + 1, hg, hn, hk, by omega, by omega,
-        by simp [List.replicate_succ', List.append_assoc], by congr 2, rfl⟩
+        by simp [List.replicate_succ', List.append_assoc], rfl, rfl⟩
     · cases h
   | gc_c' =>
     obtain ⟨n, k, gs, p, r, hg, hn, hk, hr, hrp, rfl, rfl, rfl⟩ := hinv
@@ -260,7 +255,7 @@ private theorem inv_step {q q' : State} {s₀ s₁ : List Sym} {u : List Letter}
     obtain ⟨t, ht, rfl⟩ := Op.apply_pop_one_pair.mp happ
     rcases replicate_append_eq_cons ht with ⟨hqr, -, rfl⟩ | ⟨-, -, h, -⟩
     · exact ⟨_, _, rfl, n, k, gs, p, q, r + 1, hg, hn, hk, by omega, by omega,
-        by simp [List.replicate_succ', List.append_assoc], rfl, by congr 2⟩
+        by simp [List.replicate_succ', List.append_assoc], rfl, rfl⟩
     · cases h
   | gd_d' =>
     obtain ⟨n, k, gs, p, q, r, hg, hn, hk, hr, hrq, rfl, rfl, rfl⟩ := hinv

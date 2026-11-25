@@ -90,8 +90,10 @@ def keyRank (k : Fin n → ℕ) (i : Fin n) : ℕ :=
 
 theorem keyRank_lt (k : Fin n → ℕ) (i : Fin n) : keyRank k i < n := by
   unfold keyRank
-  exact (Finset.card_lt_card (Finset.ssubset_iff_of_subset (Finset.filter_subset _ _) |>.2
-    ⟨i, by simp, by simp⟩)).trans_eq (by simp)
+  calc (Finset.univ.filter fun j => k j < k i ∨ (k j = k i ∧ j < i)).card
+      < (Finset.univ : Finset (Fin n)).card := Finset.card_lt_card
+        (Finset.ssubset_iff_of_subset (Finset.filter_subset _ _) |>.2 ⟨i, by simp, by simp⟩)
+    _ = n := by simp
 
 private theorem keyRank_lt_keyRank (k : Fin n → ℕ) {i j : Fin n}
     (h : k i < k j ∨ (k i = k j ∧ i < j)) :
@@ -147,7 +149,8 @@ private theorem relabelFin_eq_flatten (A : Fin n → Fin n → Bool) (k : Fin n 
     relabelFin A k = (List.ofFn fun r : Fin n => List.ofFn fun s : Fin n =>
       A ((rankPerm k).symm r) ((rankPerm k).symm s)).flatten := by
   rw [relabelFin, List.ofFn_mul]
-  congr 2 with r : 1; congr 1 with s : 1
+  congr 2 with r : 1
+  congr 1 with s : 1
   have h : (⟨r * n + s, by nlinarith [r.isLt, s.isLt]⟩ : Fin (n * n)) =
       finProdFinEquiv (r, s) := Fin.ext (by simp only [finProdFinEquiv_apply_val]; ring)
   rw [h, Equiv.symm_apply_apply]
@@ -307,17 +310,20 @@ private theorem pow_succ_le_descFactorial_add (D n : ℕ) :
   | zero => simp
   | succ n ih =>
     have hdesc : D * D.descFactorial (n + 1) ≤
-        D.descFactorial (n + 1 + 1) + (n + 1) * D.descFactorial (n + 1) := by
+        D.descFactorial (n + 2) + (n + 1) * D.descFactorial (n + 1) := by
       rw [Nat.descFactorial_succ D (n + 1), ← Nat.add_mul]
       exact Nat.mul_le_mul_right _ (by omega)
-    have hih : D * D ^ (n + 1) ≤ D * D.descFactorial (n + 1) + (n + 1) ^ 2 * D ^ (n + 1) :=
-      (Nat.mul_le_mul_left D ih).trans_eq (by rw [pow_succ' D n]; ring)
-    have h1 := Nat.mul_le_mul_left (n + 1) (Nat.descFactorial_le_pow D (n + 1))
-    have h2 : ((n + 1) + (n + 1) ^ 2) * D ^ (n + 1) ≤ (n + 1 + 1) ^ 2 * D ^ (n + 1) :=
-      Nat.mul_le_mul_right _ (by nlinarith)
-    rw [Nat.add_mul] at h2
-    rw [pow_succ' D (n + 1)]
-    omega
+    calc D ^ (n + 2) = D * D ^ (n + 1) := by ring
+      _ ≤ D * (D.descFactorial (n + 1) + (n + 1) ^ 2 * D ^ n) := Nat.mul_le_mul_left _ ih
+      _ = D * D.descFactorial (n + 1) + (n + 1) ^ 2 * D ^ (n + 1) := by ring
+      _ ≤ D.descFactorial (n + 2) + (n + 1) * D ^ (n + 1) + (n + 1) ^ 2 * D ^ (n + 1) := by
+        have := Nat.mul_le_mul_left (n + 1) (Nat.descFactorial_le_pow D (n + 1))
+        omega
+      _ ≤ D.descFactorial (n + 2) + (n + 2) ^ 2 * D ^ (n + 1) := by
+        rw [Nat.add_assoc]
+        refine Nat.add_le_add_left ?_ _
+        rw [← Nat.add_mul]
+        exact Nat.mul_le_mul_right _ (by nlinarith)
 
 open Classical in
 /-- **Birthday bound.** Among the functions from `Fin n` to a finite type with `D` elements, the
@@ -334,13 +340,16 @@ private theorem card_filter_not_injective_mul_le (n : ℕ) (β : Type*) [Fintype
   rw [Finset.card_univ, Fintype.card_fun, Fintype.card_fin, hinj] at hsum
   cases n with
   | zero =>
-    rw [show (Finset.univ.filter fun R : Fin 0 → β => ¬ Function.Injective R) = ∅ from
-      Finset.ext fun R => by simp [Function.injective_of_subsingleton R]]
+    have hemp : (Finset.univ.filter fun R : Fin 0 → β => ¬ Function.Injective R) = ∅ :=
+      Finset.ext fun R => by simp [Function.injective_of_subsingleton R]
+    rw [hemp]
     simp
   | succ m =>
     have := pow_succ_le_descFactorial_add (Fintype.card β) m
-    exact (Nat.mul_le_mul_right (Fintype.card β)
-      (show _ ≤ (m + 1) ^ 2 * Fintype.card β ^ m by omega)).trans_eq (by ring)
+    calc (Finset.univ.filter fun R : Fin (m + 1) → β => ¬ Function.Injective R).card *
+          Fintype.card β ≤ ((m + 1) ^ 2 * Fintype.card β ^ m) * Fintype.card β :=
+          Nat.mul_le_mul_right _ (by omega)
+      _ = (m + 1) ^ 2 * Fintype.card β ^ (m + 1) := by ring
 
 open Classical in
 /-- Random keys collide with probability at most `1 / 16`. -/

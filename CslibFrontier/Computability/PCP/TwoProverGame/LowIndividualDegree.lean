@@ -261,28 +261,38 @@ noncomputable def branchGame (n d : ℕ) (b : Branch) :
 
 theorem branchGame_eq_withDiagonalCap (n d : ℕ) (b : Branch) :
     branchGame (F := F) n d b = branchGameWithDiagonalCap n d ((n + 1) * d) b := by
-  unfold branchGame; rfl
+  unfold branchGame
+  rfl
 
 theorem branchGameWithDiagonalCap_questions (n d D : ℕ) (b : Branch) :
     (branchGameWithDiagonalCap (F := F) n d D b).questions = branchQuestions n b := by
-  unfold branchGameWithDiagonalCap; rfl
+  unfold branchGameWithDiagonalCap
+  rfl
 
 theorem branchGameWithDiagonalCap_accepts (n d D : ℕ) (b : Branch) :
     (branchGameWithDiagonalCap (F := F) n d D b).accepts = acceptsWithDiagonalCap d D := by
-  unfold branchGameWithDiagonalCap; rfl
+  unfold branchGameWithDiagonalCap
+  rfl
 
 theorem branchGame_questions (n d : ℕ) (b : Branch) :
-    (branchGame (F := F) n d b).questions = branchQuestions n b := by unfold branchGame; rfl
+    (branchGame (F := F) n d b).questions = branchQuestions n b := by
+  unfold branchGame
+  rfl
 
 theorem branchQuestions_axis (n : ℕ) :
-    branchQuestions (F := F) n .axis = axisQuestions n := by unfold branchQuestions; rfl
+    branchQuestions (F := F) n .axis = axisQuestions n := by
+  unfold branchQuestions
+  rfl
 
 theorem branchQuestions_diagonal (n : ℕ) :
-    branchQuestions (F := F) n .diagonal = diagonalQuestions n := by unfold branchQuestions; rfl
+    branchQuestions (F := F) n .diagonal = diagonalQuestions n := by
+  unfold branchQuestions
+  rfl
 
 theorem branchQuestions_consistency (n : ℕ) :
     branchQuestions (F := F) n .consistency = consistencyQuestions := by
-  unfold branchQuestions; rfl
+  unfold branchQuestions
+  rfl
 
 theorem branchGame_accepts (n d : ℕ) (b : Branch) :
     (branchGame (F := F) n d b).accepts = accepts d := by unfold branchGame; rfl
@@ -346,7 +356,9 @@ def honest (P : MvPolynomial (Fin m) F) : Question F m → Answer F m
 omit [Fintype F] [DecidableEq F] in
 /-- The honest point answer is the polynomial's value at that point. -/
 theorem honest_point (P : MvPolynomial (Fin m) F) (u : Point F m) :
-    honest P (.point u) = .inl (MvPolynomial.eval u P) := by unfold honest; rfl
+    honest P (.point u) = .inl (MvPolynomial.eval u P) := by
+  unfold honest
+  rfl
 
 private theorem honest_lineAgrees (P : MvPolynomial (Fin m) F) (u v : Point F m) (d : ℕ)
     (hd : (P.restrictAffineLine u v).natDegree ≤ d) :
@@ -367,9 +379,12 @@ private theorem honest_diagonal_degree {n d : ℕ} (P : MvPolynomial (Fin (n + 1
     (hP : ∀ i, P.degreeOf i ≤ d) (u v : Point F (n + 1)) :
     (P.restrictAffineLine u v).natDegree ≤ (n + 1) * d := by
   classical
-  exact (P.natDegree_restrictAffineLine_le_sum_degreeOf u v).trans <|
-    (sum_le_sum_of_subset_of_nonneg (filter_subset _ _) fun _ _ _ => Nat.zero_le _).trans <|
-      (sum_le_sum fun i _ => hP i).trans_eq (by simp)
+  refine (P.natDegree_restrictAffineLine_le_sum_degreeOf u v).trans ?_
+  calc
+    _ ≤ ∑ i : Fin (n + 1), P.degreeOf i :=
+      sum_le_sum_of_subset_of_nonneg (filter_subset _ _) fun _ _ _ => Nat.zero_le _
+    _ ≤ ∑ _ : Fin (n + 1), d := sum_le_sum fun i _ => hP i
+    _ = _ := by simp
 
 /-- Every supported question pair in each branch accepts honest answers for a polynomial with
 individual degree at most `d`. -/

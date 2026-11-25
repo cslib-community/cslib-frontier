@@ -130,33 +130,28 @@ private theorem canonical (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) :
     simp only [r0, r1, remainder, inner_sub_left, inner_sub_right, real_inner_smul_left,
       real_inner_smul_right, hvv, h20, h21]
     ring
-  have hr0 : ‖r0‖ = sy := by
-    have : ‖r0‖ ^ 2 = 1 - y ^ 2 := by
-      rw [← real_inner_self_eq_norm_sq]
-      simp only [r0, remainder, inner_sub_left, inner_sub_right, real_inner_smul_left,
-        real_inner_smul_right, hvv, h20]
-      ring
-    rw [← Real.sqrt_sq (norm_nonneg r0), this]
-  have hr1 : ‖r1‖ = sz := by
-    have : ‖r1‖ ^ 2 = 1 - z ^ 2 := by
-      rw [← real_inner_self_eq_norm_sq]
-      simp only [r1, remainder, inner_sub_left, inner_sub_right, real_inner_smul_left,
-        real_inner_smul_right, hvv, h21]
-      ring
-    rw [← Real.sqrt_sq (norm_nonneg r1), this]
+  have hrnorm (i : Fin 3) : ‖remainder (v 2) (v i)‖ = √(1 - ⟪v i, v 2⟫ ^ 2) := by
+    rw [← Real.sqrt_sq (norm_nonneg (remainder (v 2) (v i)))]
+    congr 1
+    simp only [remainder, norm_sub_sq_real, real_inner_smul_right, norm_smul, Real.norm_eq_abs,
+      sq_abs, hv, one_pow, mul_one, real_inner_comm (v 2) (v i)]
+    ring
+  have hr0 : ‖r0‖ = sy := hrnorm 0
+  have hr1 : ‖r1‖ = sz := hrnorm 1
   have hcs : |x - y * z| ≤ sy * sz := by
-    rw [← hr01, ← hr0, ← hr1]; exact abs_real_inner_le_norm r0 r1
+    rw [← hr01, ← hr0, ← hr1]
+    exact abs_real_inner_le_norm r0 r1
   -- choose the angle
   obtain ⟨ψ, hψ0, hψπ, hπ, hcosψ⟩ : ∃ ψ, 0 ≤ ψ ∧ ψ ≤ π ∧ (sy * sz = 0 → ψ = π) ∧
       sy * sz * Real.cos ψ = x - y * z := by
     by_cases h0 : sy * sz = 0
     · refine ⟨π, Real.pi_pos.le, le_rfl, fun _ => rfl, ?_⟩
-      rw [h0] at hcs ⊢
-      linarith only [abs_nonpos_iff.mp hcs]
+      rw [h0] at hcs
+      rw [h0, zero_mul, abs_nonpos_iff.mp hcs]
     · have hpos : 0 < sy * sz := lt_of_le_of_ne (by positivity) (Ne.symm h0)
       have hratio : -1 ≤ (x - y * z) / (sy * sz) ∧ (x - y * z) / (sy * sz) ≤ 1 := by
-        rw [div_le_one hpos, le_div_iff₀ hpos]
-        constructor <;> linarith only [(abs_le.mp hcs).1, (abs_le.mp hcs).2]
+        rw [div_le_one hpos, le_div_iff₀ hpos, neg_one_mul]
+        exact abs_le.mp hcs
       refine ⟨Real.arccos ((x - y * z) / (sy * sz)), Real.arccos_nonneg _, Real.arccos_le_pi _,
         fun h => absurd h h0, ?_⟩
       rw [Real.cos_arccos hratio.1 hratio.2, mul_div_cancel₀ _ h0]

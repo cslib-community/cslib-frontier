@@ -831,8 +831,10 @@ private theorem abs_tsum_pmf_mul_le_one {α : Type*} (p : PMF α) (F : α → �
   calc |∑' a, (p a).toReal * F a| ≤ ∑' a, |(p a).toReal * F a| := by
         simpa only [Real.norm_eq_abs] using norm_tsum_le_tsum_norm hs.norm
     _ ≤ ∑' a, (p a).toReal := hs.abs.tsum_le_tsum (fun a => by
-        rw [abs_mul, abs_of_nonneg ENNReal.toReal_nonneg]
-        exact mul_le_of_le_one_right ENNReal.toReal_nonneg (hF a)) (PMF.summable_toReal p)
+        calc |(p a).toReal * F a|
+            = (p a).toReal * |F a| := by rw [abs_mul, abs_of_nonneg ENNReal.toReal_nonneg]
+          _ ≤ (p a).toReal := mul_le_of_le_one_right ENNReal.toReal_nonneg (hF a))
+        (PMF.summable_toReal p)
     _ = 1 := PMF.tsum_toReal p
 
 private theorem tsum_indicator_pmf_toReal {α : Type*} (p : _root_.PMF α) (s : Set α) :

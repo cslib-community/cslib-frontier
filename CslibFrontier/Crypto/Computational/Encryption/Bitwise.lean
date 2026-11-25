@@ -134,18 +134,18 @@ theorem isPPTOn_bitwiseEncrypt {encrypt : ℕ → List Bool → Bool → ProbCom
   let prog (x : ℕ × List Bool × List Bool) (b : Bool) : ProbComp (List Bool) :=
     encrypt x.1 x.2.1 b
   have hstep : IsPPTOn (encPair (encKeyedInput encBits) encBool) encBits
-      (fun p => prog p.1 p.2) := by
-    have hp1 := ComputableInPolyTime.fst (encKeyedInput encBits) encBool
-    have hn := (ComputableInPolyTime.fst encUnary (encPair encBits encBits)).comp hp1
-    have hpk := ((ComputableInPolyTime.snd encUnary (encPair encBits encBits)).fst').comp hp1
-    have hb := ComputableInPolyTime.snd (encKeyedInput encBits) encBool
-    exact (hencrypt.preprocess
-      (prepare := fun p : (ℕ × List Bool × List Bool) × Bool => (p.1.1, p.1.2.1, p.2))
-      (hn.prod (hpk.prod hb))).congr fun _ => rfl
+      (fun p => prog p.1 p.2) :=
+    (hencrypt.preprocess
+      (prepare := fun p : (ℕ × List Bool × List Bool) × Bool => (p.1.1, p.1.2.1, p.2)) (by
+        dsimp only [encKeyedInput]
+        fun_prop)).congr fun _ => rfl
   have hlist : ComputableInPolyTime (fun x : ℕ × List Bool × List Bool => x.2.2)
       (encKeyedInput encBits) (encList encBool) :=
     ComputableInPolyTime.bitsToList.comp
-      (ComputableInPolyTime.snd encUnary (encPair encBits encBits)).snd'
+      (show ComputableInPolyTime (fun x : ℕ × List Bool × List Bool => x.2.2)
+        (encKeyedInput encBits) encBits by
+          dsimp only [encKeyedInput]
+          fun_prop)
   exact (isPPTOn_iff_encoded.mp (IsPPTOn.mapMWith (program := prog) hstep hlist)).congr
     fun ⟨_, _, _⟩ => rfl
 
@@ -154,19 +154,14 @@ theorem computableInPolyTime_bitwiseDecrypt {decrypt : List Bool → List Bool �
     (hdecrypt : ComputableInPolyTime (fun ⟨sk, ct⟩ => decrypt sk ct)
       (encPair encBits encBits) encBool) :
     ComputableInPolyTime (fun ⟨sk, ct⟩ => bitwiseDecrypt decrypt sk ct)
-      (encPair encBits encBits) encBits := by
-  have hcts : ComputableInPolyTime (fun p : List Bool × List Bool => frames p.2)
-      (encPair encBits encBits) (encList encBits) :=
-    computableInPolyTime_frames.comp (ComputableInPolyTime.snd encBits encBits)
-  have hbit : ComputableInPolyTime
-      (fun q : (List Bool × List Bool) × List Bool => decrypt q.1.1 q.2)
-      (encPair (encPair encBits encBits) encBits) encBool :=
-    hdecrypt.comp
-      (((ComputableInPolyTime.fst encBits encBits).comp
-        (ComputableInPolyTime.fst (encPair encBits encBits) encBits)).prod
-        (ComputableInPolyTime.snd (encPair encBits encBits) encBits))
-  exact ComputableInPolyTime.mapToBitsWithInput
-    (f := fun (p : List Bool × List Bool) ct => decrypt p.1 ct) hcts hbit
+      (encPair encBits encBits) encBits :=
+  ComputableInPolyTime.mapToBitsWithInput
+    (f := fun (p : List Bool × List Bool) ct => decrypt p.1 ct)
+    (computableInPolyTime_frames.comp (ComputableInPolyTime.snd encBits encBits))
+    (hdecrypt.comp
+      (show ComputableInPolyTime (fun q : (List Bool × List Bool) × List Bool => (q.1.1, q.2))
+        (encPair (encPair encBits encBits) encBits) (encPair encBits encBits) by
+          fun_prop))
 
 /-- `bitwiseDecrypt decrypt sk` on a framed list of bit ciphertexts maps `decrypt sk` across it. -/
 @[simp] theorem bitwiseDecrypt_encList (decrypt : List Bool → List Bool → Bool) (sk : List Bool)
@@ -376,48 +371,35 @@ theorem isPPT_bitwiseToSingleAt
     have hfrontBits := encBitwiseToSingleState_front_polyTime hdec
     have hbackBits := encBitwiseToSingleState_back_polyTime hdec
     have hstateA := encBitwiseToSingleState_stateA_polyTime hdec
-    have hn : ComputableInPolyTime (fun p : ℕ × List Bool × List Bool => p.1)
-        encGuessInput encUnary := by dsimp only [encGuessInput]; fun_prop
-    have hstep₀ : IsPPTOn (encPair encGuessInput encBool) encBits
-        (fun q => encrypt q.1.1 (bitwiseToSingleStateDecoder.decode q.1.2.1).pk q.2) :=
-      hencrypt.preprocess
-        ((hn.comp (ComputableInPolyTime.fst encGuessInput encBool)).prod
-          ((hpk.comp (ComputableInPolyTime.fst encGuessInput encBool)).prod
-            (ComputableInPolyTime.snd encGuessInput encBool)))
     have hfront : IsPPTOn encGuessInput (encList encBits)
         (fun p => (bitwiseToSingleStateDecoder.decode p.2.1).front.mapM
           (encrypt p.1 (bitwiseToSingleStateDecoder.decode p.2.1).pk)) :=
-      IsPPTOn.mapMWith hstep₀ (ComputableInPolyTime.bitsToList.comp hfrontBits)
-    have hp1 := ComputableInPolyTime.fst encGuessInput (encList encBits)
-    have hstep₁ : IsPPTOn (encPair E1 encBool) encBits
-        (fun q => encrypt q.1.1.1 (bitwiseToSingleStateDecoder.decode q.1.1.2.1).pk q.2) :=
-      hencrypt.preprocess
-        (((hn.comp hp1).comp (ComputableInPolyTime.fst E1 encBool)).prod
-          (((hpk.comp hp1).comp (ComputableInPolyTime.fst E1 encBool)).prod
-            (ComputableInPolyTime.snd E1 encBool)))
+      IsPPTOn.mapMWith
+        (hencrypt.preprocess
+          (prepare := fun q : (ℕ × List Bool × List Bool) × Bool =>
+            (q.1.1, (bitwiseToSingleStateDecoder.decode q.1.2.1).pk, q.2)) (by
+          dsimp only [encGuessInput, encKeyedInput]
+          fun_prop))
+        (ComputableInPolyTime.bitsToList.comp hfrontBits)
     have hback : IsPPTOn E1 (encList encBits)
         (fun q => (bitwiseToSingleStateDecoder.decode q.1.2.1).back.mapM
           (encrypt q.1.1 (bitwiseToSingleStateDecoder.decode q.1.2.1).pk)) :=
-      IsPPTOn.mapMWith hstep₁ (ComputableInPolyTime.bitsToList.comp (hbackBits.comp hp1))
-    have hp2 := ComputableInPolyTime.fst E1 (encList encBits)
-    have hct : ComputableInPolyTime (fun r : ((ℕ × List Bool × List Bool) × List (List Bool)) ×
-        List (List Bool) => r.1.1.2.2) E2 encBits := by
-      dsimp only [E2, E1, encGuessInput]; fun_prop
-    have hsplice : ComputableInPolyTime
-        (fun r : ((ℕ × List Bool × List Bool) × List (List Bool)) × List (List Bool) =>
-          encList encBits (r.1.2 ++ r.1.1.2.2 :: r.2))
-        E2 encBits :=
-      ((ComputableInPolyTime.listAppend encBits).comp
-        (((ComputableInPolyTime.snd encGuessInput (encList encBits)).comp hp2).prod
-          ((ComputableInPolyTime.cons encBits).comp
-            (hct.prod (ComputableInPolyTime.snd E1 (encList encBits)))))).encoding_comp
-    have hguessArg : ComputableInPolyTime
+      IsPPTOn.mapMWith
+        (hencrypt.preprocess
+          (prepare := fun q : ((ℕ × List Bool × List Bool) × List (List Bool)) × Bool =>
+            (q.1.1.1, (bitwiseToSingleStateDecoder.decode q.1.1.2.1).pk, q.2)) (by
+          dsimp only [E1, encGuessInput, encKeyedInput]
+          fun_prop))
+        (ComputableInPolyTime.bitsToList.comp
+          (hbackBits.comp (ComputableInPolyTime.fst encGuessInput (encList encBits))))
+    have hguess := hadversary.guess.preprocess
+      (show ComputableInPolyTime
         (fun r : ((ℕ × List Bool × List Bool) × List (List Bool)) × List (List Bool) =>
           (r.1.1.1, (bitwiseToSingleStateDecoder.decode r.1.1.2.1).stateA,
             encList encBits (r.1.2 ++ r.1.1.2.2 :: r.2)))
-        E2 encGuessInput :=
-      ((hn.comp hp1).comp hp2).prod (((hstateA.comp hp1).comp hp2).prod hsplice)
-    have hguess := hadversary.guess.preprocess hguessArg
+        E2 encGuessInput by
+          dsimp only [E2, E1, encGuessInput]
+          fun_prop)
     simpa only [bitwiseToSingleAt] using IsPPTOn.cond
       (encBitwiseToSingleState_active_polyTime hdec)
       (hfront.bind_with (hback.bind_with hguess))

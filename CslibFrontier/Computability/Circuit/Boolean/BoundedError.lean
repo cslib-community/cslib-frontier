@@ -138,7 +138,8 @@ theorem exists_complexity_le_of_oneSidedError (S : Set (Fin n → Bool))
     complexity_le_of_eq_threshold F _ ω fun _ => rfl⟩
   change threshold _ _ (fun i => F (Fin.append x (ω i))) = g x
   rw [threshold_apply, BitString.weight, Bool.eq_iff_iff, decide_eq_true_iff,
-    Nat.one_le_iff_ne_zero, Ne, card_eq_zero, filter_eq_empty_iff]
+    Nat.one_le_iff_ne_zero, Ne,
+    card_eq_zero, filter_eq_empty_iff]
   push Not
   refine ⟨fun ⟨i, _, hi⟩ => ?_, fun hgx => ?_⟩
   · by_contra hgx
@@ -189,9 +190,8 @@ theorem PPoly.of_boundedError {A : Language Bool} {p : ℕ → ℕ}
     A ∈ PPoly := by
   obtain ⟨L, hL, hLA⟩ := PPoly.exists_of_boundedError F hF (fun _ => Set.univ) A.slice
     fun n x _ => h n x
-  rw [mem_PPoly] at hL ⊢
-  simpa only [show ∀ n, A.slice n = L.slice n from
-    fun n => funext fun x => (hLA n x trivial).symm] using hL
+  have e : ∀ n, A.slice n = L.slice n := fun n => funext fun x => (hLA n x trivial).symm
+  simpa only [mem_PPoly, e] using hL
 
 /-- **Adleman's theorem for one-sided error**, on sets of inputs. -/
 theorem PPoly.exists_of_oneSidedError {p : ℕ → ℕ} (F : ∀ n, BooleanFunction (n + p n))
@@ -223,8 +223,7 @@ theorem PPoly.of_oneSidedError {A : Language Bool} {p : ℕ → ℕ}
     A ∈ PPoly := by
   obtain ⟨L, hL, hLA⟩ := PPoly.exists_of_oneSidedError F hF (fun _ => Set.univ) A.slice
     (fun n x _ => h₁ n x) fun n x _ => h₂ n x
-  rw [mem_PPoly] at hL ⊢
-  simpa only [show ∀ n, A.slice n = L.slice n from
-    fun n => funext fun x => (hLA n x trivial).symm] using hL
+  have e : ∀ n, A.slice n = L.slice n := fun n => funext fun x => (hLA n x trivial).symm
+  simpa only [mem_PPoly, e] using hL
 
 end Cslib.Circuits.Boolean

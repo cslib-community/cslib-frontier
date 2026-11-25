@@ -261,24 +261,28 @@ since `(1 + 1 / (d + 1)) ^ (d + 1) ≤ e`. -/
 theorem le_weight_of_exp_mul_le (d : ℕ) {p : ℝ} (hp : Real.exp 1 * p * (d + 1) ≤ 1) :
     p ≤ 1 / (d + 2) * (1 - 1 / (d + 2)) ^ d := by
   have hd1 : (0 : ℝ) < d + 1 := by positivity
-  have hkey : (1 + 1 / (d + 1 : ℝ)) ^ (d + 1) ≤ Real.exp 1 :=
-    (pow_le_pow_left₀ (b := Real.exp (1 / (d + 1))) (by positivity)
-      (by linarith [Real.add_one_le_exp (1 / (d + 1 : ℝ))]) _).trans_eq (by
-        rw [← Real.exp_nat_mul]
-        congr 1
-        push_cast
-        field_simp)
-  rw [show 1 / (d + 2 : ℝ) * (1 - 1 / (d + 2)) ^ d =
-      1 / (d + 1) * ((1 + 1 / (d + 1 : ℝ)) ^ (d + 1))⁻¹ by
+  have hkey : (1 + 1 / (d + 1 : ℝ)) ^ (d + 1) ≤ Real.exp 1 := by
+    calc (1 + 1 / (d + 1 : ℝ)) ^ (d + 1) ≤ Real.exp (1 / (d + 1)) ^ (d + 1) := by
+          gcongr
+          rw [add_comm]
+          exact Real.add_one_le_exp _
+      _ = Real.exp 1 := by
+          rw [← Real.exp_nat_mul]
+          congr 1
+          push_cast
+          field_simp
+  have hform : 1 / (d + 2 : ℝ) * (1 - 1 / (d + 2)) ^ d =
+      1 / (d + 1) * ((1 + 1 / (d + 1 : ℝ)) ^ (d + 1))⁻¹ := by
     rw [show (1 : ℝ) - 1 / (d + 2) = (d + 1) / (d + 2) by field_simp; ring,
       show (1 : ℝ) + 1 / (d + 1) = (d + 2) / (d + 1) by field_simp; ring, div_pow, div_pow,
       inv_div, pow_succ, pow_succ]
-    field_simp]
+    field_simp
+  rw [hform]
   have hpos : 0 < (1 + 1 / (d + 1 : ℝ)) ^ (d + 1) := by positivity
-  refine (show p ≤ 1 / (d + 1) * (Real.exp 1)⁻¹ by
-    rw [le_mul_inv_iff₀ (Real.exp_pos 1), le_div_iff₀ hd1]
-    linarith [hp]).trans ?_
-  gcongr
+  calc p ≤ 1 / (d + 1) * (Real.exp 1)⁻¹ := by
+        rw [le_mul_inv_iff₀ (Real.exp_pos 1), le_div_iff₀ hd1]
+        linarith [hp]
+    _ ≤ _ := by gcongr
 
 /-- The events containing a variable pairwise share it, so if every event has at most `d`
 neighbours in `Γ`, at most `d + 1` events contain any one variable. -/
@@ -408,8 +412,9 @@ theorem coupledTable_read_inter_disagree [Finite V] (v : V) (k : ℕ) :
     congr 1
     ext T
     simp [E]
-  · rw [coupledTable, show D = (fun T : ∀ p : V × ℕ, α p.1 × α p.1 => T (v, k)) ⁻¹'
-      {x : α v × α v | x.1 ≠ x.2} from rfl,
+  · have hDpre : D = (fun T : ∀ p : V × ℕ, α p.1 × α p.1 => T (v, k)) ⁻¹'
+        {x : α v × α v | x.1 ≠ x.2} := rfl
+    rw [coupledTable, hDpre,
       ← Measure.map_apply (measurable_pi_apply (v, k)) (Set.to_countable _).measurableSet,
       Measure.infinitePi_map_eval]
 
@@ -535,9 +540,10 @@ theorem coupledTable_diverge_le_two_mul [Finite ι] (A : ι → Set (∀ v, α v
   refine sum_le_sum fun v _ => ?_
   rw [mul_comm (2 : ℝ≥0∞)]
   gcongr
-  rw [sum_const, show 1 / (d + 2 : ℝ) / (1 - 1 / (d + 2)) = 1 / (d + 1) by
+  have hval : 1 / (d + 2 : ℝ) / (1 - 1 / (d + 2)) = 1 / (d + 1) := by
     rw [show (1 : ℝ) - 1 / (d + 2) = (d + 1) / (d + 2) by field_simp; ring,
-      div_div_div_cancel_right₀ hd.ne'], nsmul_eq_mul]
+      div_div_div_cancel_right₀ hd.ne']
+  rw [sum_const, hval, nsmul_eq_mul]
   calc 1 + ((univ.filter fun i => v ∈ vbl i).card : ℝ≥0∞) * ENNReal.ofReal (1 / (d + 1))
       ≤ 1 + ((d + 1 : ℕ) : ℝ≥0∞) * ENNReal.ofReal (1 / (d + 1)) := by
         gcongr

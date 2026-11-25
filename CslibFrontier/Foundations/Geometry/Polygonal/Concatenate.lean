@@ -41,9 +41,7 @@ def concat (p q : Route) : Route := (followingNodes q).foldl Route.append p
     (p.concat q).segments = p.segments + q.segments := by
   simp only [concat, segments_foldl_append, followingNodes, List.length_ofFn]
 
-/-- Every joined segment has its original evaluation for all real times, with its original
-index on the left and an index shifted by the first segment count on the right. -/
-theorem concat_eval_cases (p q : Route) (h : p.finish = q.start)
+private theorem concat_eval_cases_at (p q : Route) (h : p.finish = q.start)
     (i : Fin (p.concat q).segments) (t : ℝ) :
     (∃ j : Fin p.segments, i.val = j.val ∧ (p.concat q).eval i t = p.eval j t) ∨
       (∃ j : Fin q.segments, i.val = p.segments + j.val ∧ (p.concat q).eval i t = q.eval j t) := by
@@ -76,14 +74,14 @@ theorem concat_eval_cases (p q : Route) (h : p.finish = q.start)
 private theorem eval_left (p q : Route) (h : p.finish = q.start)
     (i : Fin (p.concat q).segments) (j : Fin p.segments) (hij : i.val = j.val) (t : ℝ) :
     (p.concat q).eval i t = p.eval j t := by
-  rcases concat_eval_cases p q h i t with ⟨k, hk, he⟩ | ⟨k, hk, _⟩
+  rcases concat_eval_cases_at p q h i t with ⟨k, hk, he⟩ | ⟨k, hk, _⟩
   · exact he.trans (congrArg (fun a => p.eval a t) (Fin.ext (hk.symm.trans hij)))
   · exact (by have := j.isLt; omega : False).elim
 
 private theorem eval_right (p q : Route) (h : p.finish = q.start)
     (i : Fin (p.concat q).segments) (j : Fin q.segments)
     (hij : i.val = p.segments + j.val) (t : ℝ) : (p.concat q).eval i t = q.eval j t := by
-  rcases concat_eval_cases p q h i t with ⟨k, hk, _⟩ | ⟨k, hk, he⟩
+  rcases concat_eval_cases_at p q h i t with ⟨k, hk, _⟩ | ⟨k, hk, he⟩
   · exact (by have := k.isLt; omega : False).elim
   · exact he.trans (congrArg (fun a => q.eval a t) (Fin.ext (by omega)))
 
@@ -100,6 +98,18 @@ theorem eval_concatSegmentEquiv (p q : Route) (h : p.finish = q.start)
   rcases i with i | i
   · exact eval_left p q h _ i rfl t
   · exact eval_right p q h _ i rfl t
+
+/-- Every joined segment has one source segment whose evaluation it preserves for all real
+parameters. The source index is unchanged on the left and shifted on the right. -/
+theorem concat_eval_cases (p q : Route) (h : p.finish = q.start)
+    (i : Fin (p.concat q).segments) :
+    (∃ j : Fin p.segments, i.val = j.val ∧ ∀ t, (p.concat q).eval i t = p.eval j t) ∨
+    (∃ j : Fin q.segments, i.val = p.segments + j.val ∧
+      ∀ t, (p.concat q).eval i t = q.eval j t) := by
+  obtain ⟨j, rfl⟩ := (concatSegmentEquiv p q).surjective i
+  rcases j with j | j
+  · exact Or.inl ⟨j, rfl, eval_concatSegmentEquiv p q h (Sum.inl j)⟩
+  · exact Or.inr ⟨j, rfl, eval_concatSegmentEquiv p q h (Sum.inr j)⟩
 
 /-- A sum that assigns a value to each ordered pair of consecutive route points splits
 into the two original sums when the joined ends match. -/
@@ -158,7 +168,7 @@ theorem support_concat (p q : Route) (h : p.finish = q.start) :
   constructor
   · intro hx
     obtain ⟨i, t, ht, he⟩ := ((p.concat q).mem_support_iff x).mp hx
-    rcases concat_eval_cases p q h i t with ⟨j, _, hj⟩ | ⟨j, _, hj⟩
+    rcases concat_eval_cases p q h i with ⟨j, _, hj⟩ | ⟨j, _, hj⟩ <;> specialize hj t
     · exact Or.inl ((p.mem_support_iff x).mpr ⟨j, t, ht, hj.symm.trans he⟩)
     · exact Or.inr ((q.mem_support_iff x).mpr ⟨j, t, ht, hj.symm.trans he⟩)
   · rintro (hp | hq)
@@ -213,8 +223,9 @@ theorem IsSimple.concat {p q : Route} (hp : p.IsSimple) (hq : q.IsSimple)
         rw [hright, show q.position l t = q.segments from hqt]
       simpa only [segments_concat, Nat.cast_add] using hpos
   intro i j s t hs ht he
-  rcases concat_eval_cases p q h i s with ⟨a, ha, hea⟩ | ⟨a, ha, hea⟩ <;>
-    rcases concat_eval_cases p q h j t with ⟨b, hb, heb⟩ | ⟨b, hb, heb⟩
+  rcases concat_eval_cases p q h i with ⟨a, ha, hea⟩ | ⟨a, ha, hea⟩ <;>
+    rcases concat_eval_cases p q h j with ⟨b, hb, heb⟩ | ⟨b, hb, heb⟩ <;>
+    specialize hea s <;> specialize heb t
   · left
     rw [position_left p q i a ha, position_left p q j b hb]
     exact hp.position_eq_of_eval_eq hpopen a b hs ht (hea.symm.trans (he.trans heb))

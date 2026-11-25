@@ -112,10 +112,7 @@ theorem clock_succ_le_early_payment {t j : ℕ} (hj : j ≤ recipCutoff t) :
 
 theorem recipPrefixRat_cast (x : ℕ → ℤ) (t : ℕ) :
     (recipPrefixRat x t : ℝ) = streamPrefix x (recipCutoff t) := by
-  unfold recipPrefixRat
-  rw [streamPrefix_eq_intPrefix_div]
-  push_cast
-  rfl
+  simp [recipPrefixRat, streamPrefix_eq_intPrefix_div]
 
 theorem abs_tail_recipCutoff_le {x : ℕ → ℤ} (hx : IsSignedStream x) (t : ℕ) :
     |streamVal x - (recipPrefixRat x t : ℝ)| ≤ 3 / 64 := by
@@ -242,27 +239,18 @@ private theorem abs_recipTaylor_remainder_le {x : ℕ → ℤ} (hx : IsSignedStr
   have hx₀_mem := recipPrefixRat_mem_Icc hx hx_mem t
   have hx₀_pos : 0 < x₀ := by linarith [hx₀_mem.1]
   have hxVal_pos : 0 < xVal := by linarith [hx_mem.1]
-  have hα_eq : (recipAlpha x t : ℝ) = 1 / (64 * x₀) := by
-    unfold recipAlpha
-    push_cast
-    rfl
-  have hβ_eq : (recipBeta x t : ℝ) = -1 / (64 * x₀ ^ 2) := by
-    unfold recipBeta
-    push_cast
-    rfl
+  have hα_eq : (recipAlpha x t : ℝ) = 1 / (64 * x₀) := by simp [recipAlpha, x₀]
+  have hβ_eq : (recipBeta x t : ℝ) = -1 / (64 * x₀ ^ 2) := by simp [recipBeta, x₀]
   have halg : (1 / (64 * x₀) + (-1 / (64 * x₀ ^ 2)) * e) - 1 / (64 * xVal) =
       -(e ^ 2 / (64 * x₀ ^ 2 * xVal)) := by
-    dsimp [e]
-    field_simp
-    ring
+    dsimp only [e]
+    field_simp; ring
   rw [hα_eq, hβ_eq, halg, abs_neg, abs_div, abs_of_nonneg (sq_nonneg e),
     abs_of_pos (by positivity : 0 < 64 * x₀ ^ 2 * xVal)]
-  have he_abs : |e| ≤ 6 / (2 : ℝ) ^ recipCutoff t := by
-    dsimp [e, xVal, x₀]
-    rw [recipPrefixRat_cast]
-    exact abs_streamVal_sub_streamPrefix_le hx (recipCutoff t)
   have he' : (2 : ℝ) ^ recipCutoff t * |e| ≤ 6 := by
-    rwa [le_div_iff₀ (by positivity), mul_comm] at he_abs
+    rw [mul_comm, ← le_div_iff₀ (by positivity)]
+    simpa only [e, xVal, x₀, recipPrefixRat_cast] using
+      abs_streamVal_sub_streamPrefix_le hx (recipCutoff t)
   have hk : (2 : ℝ) ^ (t + 13) ≤ ((2 : ℝ) ^ recipCutoff t) ^ 2 := by
     rw [← pow_mul]
     exact pow_le_pow_right₀ (by norm_num) (by unfold recipCutoff; omega)
@@ -354,10 +342,9 @@ section SmoothEstimatorIdentities
 /-- Clamping `q` to `[1 / 2, 1]` always lands inside `[1 / 4, 1]`, and `shiftClipVal 5` recovers
 the exact clipped stochastic-atom inverse `1 / (2 * max (1 / 2) (min 1 q))` from `1 / (64 * c)`. -/
 theorem clippedAtomDenom_mem_Icc (q : ℝ) :
-    max (1 / 2 : ℝ) (min 1 q) ∈ Set.Icc (1 / 4 : ℝ) 1 := by
-  refine ⟨?_, ?_⟩
-  · exact (by norm_num : (1 / 4 : ℝ) ≤ 1 / 2).trans (le_max_left _ _)
-  · exact max_le (by norm_num) (min_le_left _ _)
+    max (1 / 2 : ℝ) (min 1 q) ∈ Set.Icc (1 / 4 : ℝ) 1 :=
+  ⟨(by norm_num : (1 / 4 : ℝ) ≤ 1 / 2).trans (le_max_left _ _),
+    max_le (by norm_num) (min_le_left _ _)⟩
 
 theorem shiftClipVal_clippedAtomInv (q : ℝ) :
     shiftClipVal 5 (1 / (64 * max (1 / 2 : ℝ) (min 1 q))) =
@@ -365,15 +352,13 @@ theorem shiftClipVal_clippedAtomInv (q : ℝ) :
   set c := max (1 / 2 : ℝ) (min 1 q)
   have hc_lo : (1 / 2 : ℝ) ≤ c := le_max_left _ _
   have hc_hi : c ≤ 1 := max_le (by norm_num) (min_le_left _ _)
-  have hc_pos : 0 < c := by linarith
   unfold shiftClipVal
   have hmul : (2 : ℝ) ^ (5 : ℤ) * (1 / (64 * c)) = 1 / (2 * c) := by
+    have : 0 < c := by linarith
     norm_num
-    field_simp
-    ring
-  have hpos : 0 ≤ 1 / (2 * c) := by positivity
-  rw [hmul, min_eq_right ((div_le_one (by positivity)).2 (by linarith)),
-    max_eq_right (by linarith)]
+    field_simp; ring
+  have hpos : 0 ≤ 1 / (2 * c) := div_nonneg zero_le_one (by linarith)
+  rw [hmul, min_eq_right ((div_le_one (by linarith)).2 (by linarith)), max_eq_right (by linarith)]
 
 /-- Normalized `[-1, 1]` stream decomposition of `Cslib.polynomialTransition4` via `pairAvg`
 and `shiftClipVal 7`. -/
@@ -481,24 +466,18 @@ theorem sum_dyadicWeight (m : ℕ) (w : ℝ) :
     ∑ r ∈ range (m + 1), dyadicWeight m r w = 1 := by
   rcases Nat.eq_zero_or_pos m with rfl | hm
   · simp [dyadicWeight]
-  · have hm_ne : m ≠ 0 := hm.ne'
-    have hlast : dyadicWeight m m w = dyadicSwitch (m - 1) w := by
-      unfold dyadicWeight
-      simp [hm_ne]
-    have htel : ∀ k : ℕ, 1 ≤ k → k ≤ m →
+  · have hlast : dyadicWeight m m w = dyadicSwitch (m - 1) w := by
+      simp [dyadicWeight, hm.ne']
+    have htel (k : ℕ) (hk1 : 1 ≤ k) (hkm : k ≤ m) :
         ∑ r ∈ range k, dyadicWeight m r w = 1 - dyadicSwitch (k - 1) w := by
-      intro k hk1 hkm
       induction k with
       | zero => omega
       | succ k ih =>
         rcases Nat.eq_zero_or_pos k with rfl | hk_pos
-        · simp [dyadicWeight, hm_ne]
+        · simp [dyadicWeight, hm.ne']
         · rw [sum_range_succ, ih hk_pos (by omega)]
-          have hk_lt : k < m := by omega
-          have hk_ne : k ≠ 0 := hk_pos.ne'
           have hwk : dyadicWeight m k w = dyadicSwitch (k - 1) w - dyadicSwitch k w := by
-            unfold dyadicWeight
-            simp [hm_ne, hk_ne, hk_lt]
+            simp [dyadicWeight, hm.ne', hk_pos.ne', show k < m by omega]
           rw [hwk, Nat.add_sub_cancel]
           ring
     rw [sum_range_succ, htel m hm le_rfl, hlast]
@@ -506,18 +485,12 @@ theorem sum_dyadicWeight (m : ℕ) (w : ℝ) :
 
 theorem dyadicWeight_mem_Icc (m r : ℕ) (w : ℝ) :
     dyadicWeight m r w ∈ Set.Icc (-1 : ℝ) 1 := by
-  have hsw_lo : ∀ k, 0 ≤ dyadicSwitch k w := fun k =>
-    Cslib.polynomialTransition4_nonneg _
-  have hsw_hi : ∀ k, dyadicSwitch k w ≤ 1 := fun k =>
-    Cslib.polynomialTransition4_le_one _
+  have hsw_lo (k : ℕ) : 0 ≤ dyadicSwitch k w := Cslib.polynomialTransition4_nonneg _
+  have hsw_hi (k : ℕ) : dyadicSwitch k w ≤ 1 := Cslib.polynomialTransition4_le_one _
   unfold dyadicWeight
-  split_ifs
-  · exact ⟨by norm_num, by norm_num⟩
-  · exact ⟨by norm_num, by norm_num⟩
-  · exact ⟨by linarith [hsw_hi 0], by linarith [hsw_lo 0]⟩
-  · exact ⟨by linarith [hsw_lo (r - 1), hsw_hi r], by linarith [hsw_hi (r - 1), hsw_lo r]⟩
-  · exact ⟨by linarith [hsw_lo (m - 1)], hsw_hi (m - 1)⟩
-  · exact ⟨by norm_num, by norm_num⟩
+  split_ifs <;> refine ⟨?_, ?_⟩ <;>
+    linarith [hsw_lo 0, hsw_hi 0, hsw_lo (r - 1), hsw_hi (r - 1), hsw_lo r, hsw_hi r,
+      hsw_lo (m - 1), hsw_hi (m - 1)]
 
 private theorem dyadicSwitch_eq_zero_of_le {k : ℕ} {w : ℝ} (hw : w ≤ (2 : ℝ) ^ k) :
     dyadicSwitch k w = 0 := by

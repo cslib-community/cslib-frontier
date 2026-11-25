@@ -137,7 +137,8 @@ theorem exteriorRoute_not_mem_center {G : Graph} {d : Graph.OrthogonalDrawing}
     {k radius : ℕ} (hr₀ : 0 < radius) (hr : radius < k) :
     realPoint (k • sourceStart G d i) ∉ support (exteriorRoute k radius G d i) := by
   intro hp
-  have hb : inPointBox (k • sourceStart G d i) radius (realPoint (k • sourceStart G d i)) := by
+  have hb : inPointBox (k • sourceStart G d i) radius
+      (realPoint (k • sourceStart G d i)) := by
     simp only [inPointBox, realPoint]
     have : (0 : ℝ) ≤ radius := Nat.cast_nonneg _
     exact ⟨by linarith, by linarith, by linarith, by linarith⟩

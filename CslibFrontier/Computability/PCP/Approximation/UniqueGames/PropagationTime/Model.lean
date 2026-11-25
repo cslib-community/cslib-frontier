@@ -95,12 +95,12 @@ theorem buckets_spec (n : ℕ) (l : List (Edge (α → α))) (hl : ∀ e ∈ l, 
     unfold insertEdge
     split_ifs with hsd
     · refine ⟨by rw [List.length_set, hlen], fun u => ?_⟩
-      rw [hset (by rw [hlen]; exact hs), hget, hget, List.filter_cons]
+      rw [hset (by rwa [hlen]), hget, hget, List.filter_cons]
       by_cases hu : u = e.src
       · simp [hu, incident]
       · simp [hu, Ne.symm hu, ← hsd, incident]
     · refine ⟨by rw [List.length_set, List.length_set, hlen], fun u => ?_⟩
-      rw [hset (by rw [List.length_set, hlen]; exact hd), hset (by rw [hlen]; exact hs),
+      rw [hset (by rwa [List.length_set, hlen]), hset (by rwa [hlen]),
         hget, hget, hget, List.filter_cons]
       by_cases hu : u = e.dst
       · simp [hu, incident]
@@ -204,9 +204,9 @@ theorem Fits.inputFits_encode {L w : ℕ} {g : Graph (Fin L → Fin L)} (hw : Fi
   · nlinarith
   · nlinarith
   · nlinarith
-  · have := src_lt_slots he; nlinarith
-  · have := dst_lt_slots he; nlinarith
-  · have := (e.constraint a).isLt; nlinarith
+  · nlinarith [src_lt_slots he]
+  · nlinarith [dst_lt_slots he]
+  · nlinarith [(e.constraint a).isLt]
 
 namespace Reg
 

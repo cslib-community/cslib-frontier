@@ -399,12 +399,14 @@ theorem computableInPolyTime_guoExponent_toFinset {β : Type} [DecidableEq β]
     ComputableInPolyTime.eraseDupsByWithInput hl
       (ComputableInPolyTime.decide_eq' (ComputableInPolyTime.fst _ _).snd'
         (ComputableInPolyTime.snd _ _))
-  rw [show (fun a => guoExponent H (l a).toFinset) =
-      fun a => (((l a).eraseDupsBy fun x y => decide (x = y)).map H).prod from
+  have hset (a : α) : ((l a).eraseDupsBy fun x y => decide (x = y)).toFinset = (l a).toFinset :=
+    Finset.ext fun _ => by simp only [List.mem_toFinset, List.mem_eraseDupsBy_eq]
+  have hfn : (fun a => guoExponent H (l a).toFinset) =
+      fun a => (((l a).eraseDupsBy fun x y => decide (x = y)).map H).prod :=
     funext fun a => by
-      rw [← show ((l a).eraseDupsBy fun x y => decide (x = y)).toFinset = (l a).toFinset from
-        Finset.ext fun _ => by simp only [List.mem_toFinset, List.mem_eraseDupsBy_eq]]
-      exact List.prod_toFinset H (List.nodup_eraseDupsBy_eq _)]
+      rw [← hset a]
+      exact List.prod_toFinset H (List.nodup_eraseDupsBy_eq _)
+  rw [hfn]
   exact ComputableInPolyTime.binary_prod.comp ((ComputableInPolyTime.map hH).comp he)
 
 /-- Alice's commitment to the set of elements of a list is computable in polynomial time whenever

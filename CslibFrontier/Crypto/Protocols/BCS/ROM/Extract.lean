@@ -159,16 +159,13 @@ theorem exists_collision_of_bcsVerify_of_iopVerify_eq_false
       (bcsExtractOracles decSym defaultSym tr_MT d prf.roots) = false) :
     ∃ q₁ ∈ tr_MT.map Prod.fst, ∃ q₂ ∈ tr_MT.map Prod.fst, q₁ ≠ q₂ ∧ H k q₁ = H k q₂ := by
   by_contra! hno
-  have hacc : iopVerify iop x (bcsChallenge hFS x prf.roots)
-      (bcsExtractOracles decSym defaultSym tr_MT d prf.roots) = true := by
-    refine iopVerify_eq_true_of_bcsVerify_of_openings_eq hver fun j idx val path hmem => ?_
-    by_contra hne
-    have hleaf : extractLeafFromTrace tr_MT d (prf.roots j) idx.val ≠ some (encSym val) :=
-      fun h => hne (by simp [bcsExtractOracles, bcsExtractTable, h, hdec val])
-    obtain ⟨q₁, hq₁, q₂, hq₂, hneq, heq⟩ := exists_collision_of_extractLeafFromTrace_ne hcons
-      (hpaths j idx val path hmem) (verify_of_bcsVerify hver hmem) hleaf
-    exact hno q₁ hq₁ q₂ hq₂ hneq heq
-  exact Bool.false_ne_true (hrej.symm.trans hacc)
+  refine Bool.false_ne_true (hrej.symm.trans
+    (iopVerify_eq_true_of_bcsVerify_of_openings_eq hver fun j idx val path hmem => ?_))
+  by_contra hne
+  obtain ⟨q₁, hq₁, q₂, hq₂, hneq, heq⟩ := exists_collision_of_extractLeafFromTrace_ne hcons
+    (hpaths j idx val path hmem) (verify_of_bcsVerify hver hmem)
+    fun h => hne (by simp [bcsExtractOracles, bcsExtractTable, h, hdec val])
+  exact hno q₁ hq₁ q₂ hq₂ hneq heq
 
 /-- Find the first query-opening pair `((j, idx), ⟨val, path⟩)` in a BCS proof where straight-line
 Merkle leaf extraction `extractLeafFromTrace` disagrees with `some (encSym val)`. -/
@@ -215,15 +212,15 @@ theorem bcs_trace_sound_or_collision
     rcases p with ⟨⟨j, idx⟩, ⟨val, path⟩⟩
     right
     have hmem := List.mem_of_find?_eq_some hfind
-    have hne := by simpa only [bne_iff_ne, ne_eq] using List.find?_some hfind
     simpa only [bcsExtractTraceCollision, hfind] using
       isCollision_extractTraceCollision hcons (hpaths j idx val path hmem)
-        (verify_of_bcsVerify hver hmem) hne n
+        (verify_of_bcsVerify hver hmem)
+        (by simpa only [bne_iff_ne, ne_eq] using List.find?_some hfind) n
   | none =>
     refine Or.inl <| iopVerify_eq_true_of_bcsVerify_of_openings_eq hver
       fun j idx val path hmem => ?_
-    have hleaf := List.find?_eq_none.mp hfind ((j, idx), ⟨val, path⟩) hmem
-    simp only [bne_iff_ne, ne_eq, not_not] at hleaf
+    have hleaf : extractLeafFromTrace tr_MT d (prf.roots j) idx.val = some (encSym val) := by
+      simpa using List.find?_eq_none.mp hfind ((j, idx), ⟨val, path⟩) hmem
     simp only [bcsExtractOracles, bcsExtractTable, hleaf, hdec val]
 
 /-- If the IOP verifier rejects `bcsExtractOracles` on a consistent trace `tr_MT` covering all
@@ -263,9 +260,8 @@ theorem bcsExtractOracles_cons_of_ne (decSym : List Bool → Sym) (defaultSym : 
     {roots : Fin r → List Bool} (hroots : ∀ j : Fin r, ans ≠ roots j)
     (hchildren : ∀ p ∈ tr_MT, ans ≠ unframe p.1 ∧ ans ≠ dropFrame p.1) :
     bcsExtractOracles decSym defaultSym ((q, ans) :: tr_MT) d roots =
-      bcsExtractOracles decSym defaultSym tr_MT d roots := by
-  funext j
-  exact bcsExtractTable_cons_of_ne decSym defaultSym tr_MT q (hroots j) hchildren
+      bcsExtractOracles decSym defaultSym tr_MT d roots :=
+  funext fun j => bcsExtractTable_cons_of_ne decSym defaultSym tr_MT q (hroots j) hchildren
 
 end Extract
 

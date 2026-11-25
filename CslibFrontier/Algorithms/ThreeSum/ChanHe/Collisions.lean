@@ -79,17 +79,19 @@ other members of its bucket. -/
 theorem coll_eq_sum (S : Finset ℤ) (M : ℕ) :
     coll S M = ∑ x ∈ S, (#(bucket S M (x % (M : ℤ))) - 1) := by
   have hfiber : ∀ x ∈ S,
-      #(bucket S M (x % (M : ℤ))) - 1 = #{y ∈ S | x ≠ y ∧ (M : ℤ) ∣ x - y} := fun x hx => by
+      #(bucket S M (x % (M : ℤ))) - 1 = #{y ∈ S | x ≠ y ∧ (M : ℤ) ∣ x - y} := by
+    intro x hx
     rw [← card_erase_of_mem (show x ∈ bucket S M (x % (M : ℤ)) from mem_filter.mpr ⟨hx, rfl⟩)]
     congr 1
     ext y
     simp only [bucket, mem_filter, mem_erase, natCast_dvd_sub_iff_emod_eq, ne_comm (a := x),
       eq_comm (a := x % _)]
     tauto
-  rw [sum_congr rfl hfiber, coll, show {p ∈ S.offDiag | (M : ℤ) ∣ p.1 - p.2} =
-    {p ∈ S ×ˢ S | p.1 ≠ p.2 ∧ (M : ℤ) ∣ p.1 - p.2} by
-      ext; simp only [mem_filter, mem_offDiag, mem_product, and_assoc],
-    card_filter, sum_product]
+  have hpairs : {p ∈ S.offDiag | (M : ℤ) ∣ p.1 - p.2} =
+      {p ∈ S ×ˢ S | p.1 ≠ p.2 ∧ (M : ℤ) ∣ p.1 - p.2} := by
+    ext p
+    simp only [mem_filter, mem_offDiag, mem_product, and_assoc]
+  rw [sum_congr rfl hfiber, coll, hpairs, card_filter, sum_product]
   simp only [card_filter]
 
 /-- `labelBits U` is at least 1. -/
@@ -111,17 +113,18 @@ theorem sum_coll_mul_le {Q : Finset ℕ} (hP : ∀ p ∈ Q, p.Prime) {U : ℕ} {
     (hS : Bdd U S) (M₀ : ℕ) : ∑ q ∈ Q, coll S (M₀ * q) ≤ labelBits U * coll S M₀ := by
   set C := {xy ∈ S.offDiag | (M₀ : ℤ) ∣ xy.1 - xy.2}
   calc ∑ q ∈ Q, coll S (M₀ * q)
-      ≤ ∑ q ∈ Q, #{xy ∈ C | (q : ℤ) ∣ xy.1 - xy.2} := sum_le_sum fun q _ => card_le_card fun xy h =>
-        by
-          obtain ⟨hxy, hd⟩ := mem_filter.mp h
-          rw [Nat.cast_mul] at hd
-          exact mem_filter.mpr ⟨mem_filter.mpr ⟨hxy, dvd_of_mul_right_dvd hd⟩,
-            dvd_of_mul_left_dvd hd⟩
+      ≤ ∑ q ∈ Q, #{xy ∈ C | (q : ℤ) ∣ xy.1 - xy.2} := by
+        refine sum_le_sum fun q _ => card_le_card fun xy h => ?_
+        obtain ⟨hxy, hd⟩ := mem_filter.mp h
+        rw [Nat.cast_mul] at hd
+        exact mem_filter.mpr
+          ⟨mem_filter.mpr ⟨hxy, dvd_of_mul_right_dvd hd⟩, dvd_of_mul_left_dvd hd⟩
     _ = ∑ xy ∈ C, #{q ∈ Q | ((q : ℕ) : ℤ) ∣ xy.1 - xy.2} :=
         sum_card_bipartiteAbove_eq_sum_card_bipartiteBelow _
-    _ ≤ ∑ _xy ∈ C, labelBits U := sum_le_sum fun xy h =>
-        let ⟨hx, hy, hne⟩ := mem_offDiag.mp (mem_filter.mp h).1
-        card_prime_divisors_le hP (sub_ne_zero.mpr hne)
+    _ ≤ ∑ _xy ∈ C, labelBits U := by
+        refine sum_le_sum fun xy h => ?_
+        obtain ⟨hx, hy, hne⟩ := mem_offDiag.mp (mem_filter.mp h).1
+        exact card_prime_divisors_le hP (sub_ne_zero.mpr hne)
           ((abs_sub _ _).trans (by linarith [hS _ hx, hS _ hy]))
     _ = labelBits U * coll S M₀ := by rw [sum_const, smul_eq_mul, mul_comm, coll]
 
@@ -133,7 +136,8 @@ variable {Q : Finset ℕ} {U : ℕ} {S₁ S₂ S₃ : Finset ℤ}
 
 /-- On a nonempty set, `minOrOne` returns a member. -/
 private theorem minOrOne_mem {T : Finset ℕ} (h : T.Nonempty) : minOrOne T ∈ T := by
-  rw [minOrOne, dite_eq_left h]; exact T.min'_mem h
+  rw [minOrOne, dite_eq_left h]
+  exact T.min'_mem h
 
 /-- Some candidate `q` is good for the three sets at once: in each of them at most the fraction
 `3Λ/|Q|` of the pairs that collide modulo `M₀` still collide modulo `M₀ q`. -/
@@ -144,9 +148,10 @@ private theorem exists_prime_coll_le (hQ : Q.Nonempty) (hP : ∀ p ∈ Q, p.Prim
       coll S₃ (M₀ * q) * #Q ≤ 3 * labelBits U * coll S₃ M₀ := by
   obtain ⟨q, hq, hgood⟩ :=
     Finset.exists_forall_mul_card_le_mul_sum hQ 3 fun i q => coll (![S₁, S₂, S₃] i) (M₀ * q)
-  have havg {S : Finset ℤ} (hS : Bdd U S) :
-      3 * ∑ q' ∈ Q, coll S (M₀ * q') ≤ 3 * labelBits U * coll S M₀ :=
-    mul_assoc 3 (labelBits U) _ ▸ Nat.mul_le_mul_left _ (sum_coll_mul_le hP hS M₀)
+  have havg : ∀ {S : Finset ℤ}, Bdd U S →
+      3 * ∑ q' ∈ Q, coll S (M₀ * q') ≤ 3 * labelBits U * coll S M₀ := fun hS => by
+    rw [mul_assoc]
+    exact Nat.mul_le_mul_left _ (sum_coll_mul_le hP hS M₀)
   exact ⟨q, hq, (hgood 0).trans (havg h₁), (hgood 1).trans (havg h₂), (hgood 2).trans (havg h₃)⟩
 
 /-- The first search succeeds: `firstP` lies in `Q` and passes its three tests. -/
@@ -156,10 +161,10 @@ theorem firstP_spec (hQ : Q.Nonempty) (hP : ∀ p ∈ Q, p.Prime) (h₁ : Bdd U 
       coll S₂ p * #Q ≤ 3 * labelBits U * #S₂ ^ 2 ∧ coll S₃ p * #Q ≤ 3 * labelBits U * #S₃ ^ 2} := by
   obtain ⟨p, hp, c₁, c₂, c₃⟩ := exists_prime_coll_le hQ hP h₁ h₂ h₃ 1
   rw [one_mul] at c₁ c₂ c₃
-  exact minOrOne_mem ⟨p, mem_filter.mpr ⟨hp,
-    c₁.trans (Nat.mul_le_mul_left _ (coll_le_sq S₁ 1)),
-    c₂.trans (Nat.mul_le_mul_left _ (coll_le_sq S₂ 1)),
-    c₃.trans (Nat.mul_le_mul_left _ (coll_le_sq S₃ 1))⟩⟩
+  have hall : ∀ S : Finset ℤ, 3 * labelBits U * coll S 1 ≤ 3 * labelBits U * #S ^ 2 :=
+    fun S => Nat.mul_le_mul_left _ (coll_le_sq S 1)
+  exact minOrOne_mem
+    ⟨p, mem_filter.mpr ⟨hp, c₁.trans (hall S₁), c₂.trans (hall S₂), c₃.trans (hall S₃)⟩⟩
 
 /-- The second search succeeds, for any first factor `p`. -/
 theorem secondP_spec (hQ : Q.Nonempty) (hP : ∀ p ∈ Q, p.Prime) (h₁ : Bdd U S₁) (h₂ : Bdd U S₂)
@@ -167,9 +172,9 @@ theorem secondP_spec (hQ : Q.Nonempty) (hP : ∀ p ∈ Q, p.Prime) (h₁ : Bdd U
     secondP Q (labelBits U) S₁ S₂ S₃ p ∈ {q ∈ Q | coll S₁ (p * q) * #Q ≤ 3 * labelBits U *
       coll S₁ p ∧
       coll S₂ (p * q) * #Q ≤ 3 * labelBits U * coll S₂ p ∧
-      coll S₃ (p * q) * #Q ≤ 3 * labelBits U * coll S₃ p} :=
-  let ⟨q, hq, hc⟩ := exists_prime_coll_le hQ hP h₁ h₂ h₃ p
-  minOrOne_mem ⟨q, mem_filter.mpr ⟨hq, hc⟩⟩
+      coll S₃ (p * q) * #Q ≤ 3 * labelBits U * coll S₃ p} := by
+  obtain ⟨q, hq, hc⟩ := exists_prime_coll_le hQ hP h₁ h₂ h₃ p
+  exact minOrOne_mem ⟨q, mem_filter.mpr ⟨hq, hc⟩⟩
 
 /-- Both searches succeed, and the modulus leaves at most `9Λ²|S|²/|Q|²` colliding pairs in each of
 the three sets.  (A search that fails returns 1, which is not in `Q`.) -/
@@ -180,12 +185,16 @@ theorem modulus_spec (hQ : Q.Nonempty) (hP : ∀ p ∈ Q, p.Prime) (h₁ : Bdd U
     ∀ S ∈ [S₁, S₂, S₃],
       coll S (modulus Q (labelBits U) S₁ S₂ S₃) * #Q ^ 2 ≤ 9 * labelBits U ^ 2 * #S ^ 2 := by
   obtain ⟨hp, p₁, p₂, p₃⟩ := mem_filter.mp (firstP_spec hQ hP h₁ h₂ h₃)
-  obtain ⟨hq, q₁, q₂, q₃⟩ := mem_filter.mp (secondP_spec hQ hP h₁ h₂ h₃ _)
-  have hmul {c c' s : ℕ} (h1 : c' * #Q ≤ 3 * labelBits U * s ^ 2)
-      (h2 : c * #Q ≤ 3 * labelBits U * c') : c * #Q ^ 2 ≤ 9 * labelBits U ^ 2 * s ^ 2 := by
-    rw [sq, ← mul_assoc]
-    exact ((Nat.mul_le_mul_right #Q h2).trans_eq (by ring : _ = 3 * labelBits U * (c' * #Q))).trans
-      ((Nat.mul_le_mul_left _ h1).trans_eq (by ring))
+  obtain ⟨hq, q₁, q₂, q₃⟩ :=
+    mem_filter.mp (secondP_spec hQ hP h₁ h₂ h₃ (firstP Q (labelBits U) S₁ S₂ S₃))
+  -- the two tests multiply: `c` counts collisions modulo `pq`, `c'` modulo `p`, and `s = |S|`
+  have hmul : ∀ {c c' s : ℕ}, c' * #Q ≤ 3 * labelBits U * s ^ 2 → c * #Q ≤ 3 * labelBits U * c' →
+      c * #Q ^ 2 ≤ 9 * labelBits U ^ 2 * s ^ 2 := fun {c c' s} hfirst hsecond =>
+    calc c * #Q ^ 2 = c * #Q * #Q := by ring
+      _ ≤ 3 * labelBits U * c' * #Q := Nat.mul_le_mul_right _ hsecond
+      _ = 3 * labelBits U * (c' * #Q) := by ring
+      _ ≤ 3 * labelBits U * (3 * labelBits U * s ^ 2) := Nat.mul_le_mul_left _ hfirst
+      _ = 9 * labelBits U ^ 2 * s ^ 2 := by ring
   refine ⟨hp, hq, fun S hS => ?_⟩
   simp only [List.mem_cons, List.not_mem_nil, or_false] at hS
   rcases hS with rfl | rfl | rfl
@@ -217,11 +226,13 @@ theorem card_heavy_modulus_le (hP : ∀ p ∈ Q, p.Prime) {n : ℕ}
   intro S hS
   obtain ⟨-, -, hcoll⟩ := modulus_spec (nonempty_of_le_card_sq hbig hn) hP h₁ h₂ h₃
   set M := modulus Q (labelBits U) S₁ S₂ S₃
-  refine Nat.le_of_mul_le_mul_left ?_
-    (by have := labelBits_pos U; positivity : 0 < 9 * labelBits U ^ 2)
-  exact ((Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ (card_heavy_le_coll S M))).trans_eq
-    (by ring : _ = coll S M * (18 * labelBits U ^ 2 * n))).trans
-    ((Nat.mul_le_mul_left _ hbig).trans (hcoll S hS))
+  have hΛ : 0 < 9 * labelBits U ^ 2 := by have := labelBits_pos U; positivity
+  refine Nat.le_of_mul_le_mul_left ?_ hΛ
+  calc 9 * labelBits U ^ 2 * (2 * n * #(heavy S M))
+      ≤ 9 * labelBits U ^ 2 * (2 * n * coll S M) := by gcongr; exact card_heavy_le_coll S M
+    _ = coll S M * (18 * labelBits U ^ 2 * n) := by ring
+    _ ≤ coll S M * #Q ^ 2 := Nat.mul_le_mul_left _ hbig
+    _ ≤ 9 * labelBits U ^ 2 * #S ^ 2 := hcoll S hS
 
 end searches
 

@@ -78,14 +78,12 @@ private theorem exists_finalOutput_circuit (D L s : ℕ) :
     let cb := finProdFinEquiv.symm ip.2
     refine ⟨finProdFinEquiv (Fin.cast h2.symm (rank ip.1), lineBit cb.1 cb.2),
       funext fun x => ?_⟩
+    have hin : BitString.block (fun i => g i x) =
+        fun j f => x (finProdFinEquiv (Fin.cast h2 j, f)) :=
+      funext₂ fun _ _ => by simp only [BitString.block, g, Equiv.symm_apply_apply]
     have h := congrFun (congrFun (eval_bitonicSortCircuit labelBit D true (fun i => g i x))
       (Fin.cast h2.symm (rank ip.1))) (lineBit cb.1 cb.2)
-    have hin : BitString.block (fun i => g i x) =
-        fun j f => x (finProdFinEquiv (Fin.cast h2 j, f)) := by
-      funext j f
-      simp only [BitString.block, g, Equiv.symm_apply_apply]
-    rw [hin] at h
-    exact h
+    rwa [hin] at h
   obtain ⟨c, hc, hsize⟩ := Synthesis.exists_circuit_outputs
     (hsyn.mono Set.Subset.rfl hsub le_rfl)
   refine ⟨c, hc, hsize.trans ?_⟩
@@ -123,23 +121,21 @@ private theorem exists_phases_circuit (bits : K ≃+ BitString b) (scalar : Fin 
   | zero =>
     obtain ⟨c, hc, hsize⟩ := phase 0 (Nat.zero_le D)
     refine ⟨c, fun targets x hx => ?_, by lia⟩
-    have h := hc targets x hx
-    have e : 2 ^ D - arity 0 + (arity 0 + 1) / 2 = 2 ^ D := by
-      have := hkD 0 (Nat.zero_le D)
-      rw [arity_eq_two_pow, pow_zero] at this ⊢; omega
-    rwa [e] at h
+    have := hkD 0 (Nat.zero_le D)
+    rw [arity_eq_two_pow, pow_zero] at this
+    convert hc targets x hx using 2
+    rw [arity_eq_two_pow, pow_zero]
+    omega
   | succ p ih =>
     obtain ⟨c', hc', hsize'⟩ := ih (by lia)
     obtain ⟨c, hc, hsize⟩ := phase (p + 1) hp
     refine ⟨c'.comp c, fun targets x hx => ?_, ?_⟩
     · rw [Circuit.eval_comp]
-      refine hc' targets _ ?_
-      have h := hc targets x hx
-      have e : 2 ^ D - arity (p + 1) + (arity (p + 1) + 1) / 2 = 2 ^ D - arity p := by
-        have h1 := hkD (p + 1) hp
-        have h2 : arity (p + 1) = arity p + arity p := rfl
-        lia
-      rwa [e] at h
+      apply hc' targets
+      have h1 := hkD (p + 1) hp
+      have h2 : arity (p + 1) = arity p + arity p := rfl
+      convert hc targets x hx using 2
+      lia
     · rw [Circuit.size_comp]
       lia
 

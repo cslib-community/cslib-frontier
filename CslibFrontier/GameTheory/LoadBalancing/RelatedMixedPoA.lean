@@ -448,7 +448,11 @@ private theorem le_layer_cake_sum {x u : ℝ} (hu : 0 < u) {S : ℕ}
             simp
         _ ≤ _ := sum_le_sum_of_subset_of_nonneg (range_mono (min_le_right q S))
             fun _ _ _ => by split_ifs <;> norm_num
-    rcases min_cases q S with ⟨h, -⟩ | ⟨h, -⟩ <;> rw [h] at hge <;> push_cast at hx <;> nlinarith
+    have hx_le : x ≤ u + u * ((min q S : ℕ) : ℝ) := by
+      rcases min_cases q S with ⟨h, -⟩ | ⟨h, -⟩ <;> rw [h] <;> push_cast at hx ⊢ <;> linarith
+    calc x ≤ u + u * ((min q S : ℕ) : ℝ) := hx_le
+      _ ≤ u + u * ∑ r ∈ range S, if ((r + 1 : ℕ) : ℝ) * u ≤ x then (1 : ℝ) else 0 := by
+          nlinarith [hge]
 
 /-- Geometric sum bound `∑ r ∈ range S, (1 / 2) ^ (r + 1) ≤ 1`. -/
 private theorem sum_half_pow_succ_le_one (S : ℕ) :
@@ -529,8 +533,9 @@ theorem expectedMakespan_le_log_div_log_log_log (G : LoadBalancingGame ι M)
         G.makespan A ≤ 4 * M₀ * G.optMakespan + lightMax A := by
       intro A hposA
       have hpAi_pos : ∀ i : ι, 0 < p i (A i) := fun i =>
-        ((hp.1 i).nonneg (A i)).lt_of_ne fun h0 => hposA.ne' (by
-          rw [productWeight_def]; exact prod_eq_zero (mem_univ i) h0.symm)
+        ((hp.1 i).nonneg (A i)).lt_of_ne fun h0 => hposA.ne' <| by
+          rw [productWeight_def]
+          exact prod_eq_zero (mem_univ i) h0.symm
       rw [G.makespan_le_iff]
       intro j
       -- Split `load A j` by whether `1 / 4 ≤ p i j`; the light part lies inside `lightLoad A j`.
@@ -542,10 +547,15 @@ theorem expectedMakespan_le_log_div_log_log_log (G : LoadBalancingGame ι M)
       have hheavy_le : (∑ i with A i = j ∧ 1 / 4 ≤ p i j, G.weight i / G.speed j) ≤
           4 * G.expectedLoad p j := by
         rw [expectedLoad, mul_sum]
-        refine (sum_le_sum fun i hi => ?_).trans (sum_le_univ_sum_of_nonneg fun i => ?_)
-        · nlinarith [(mem_filter.mp hi).2.2, div_nonneg (G.weight_nonneg i) (G.speed_pos j).le]
-        · exact mul_nonneg (by norm_num) (mul_nonneg ((hp.1 i).nonneg j)
-            (div_nonneg (G.weight_nonneg i) (G.speed_pos j).le))
+        calc (∑ i with A i = j ∧ 1 / 4 ≤ p i j, G.weight i / G.speed j)
+            ≤ ∑ i with A i = j ∧ 1 / 4 ≤ p i j, 4 * (p i j * (G.weight i / G.speed j)) :=
+              sum_le_sum fun i hi => by
+                nlinarith [(mem_filter.mp hi).2.2,
+                  div_nonneg (G.weight_nonneg i) (G.speed_pos j).le]
+          _ ≤ ∑ i : ι, 4 * (p i j * (G.weight i / G.speed j)) :=
+              sum_le_univ_sum_of_nonneg fun i =>
+                mul_nonneg (by norm_num) (mul_nonneg ((hp.1 i).nonneg j)
+                  (div_nonneg (G.weight_nonneg i) (G.speed_pos j).le))
       have hlight_le : (∑ i with A i = j ∧ ¬1 / 4 ≤ p i j, G.weight i / G.speed j) ≤
           lightLoad A j := by
         refine sum_le_sum_of_subset_of_nonneg (fun i hi => ?_)
@@ -589,9 +599,13 @@ theorem expectedMakespan_le_log_div_log_log_log (G : LoadBalancingGame ι M)
       have hcap : ∀ i ∈ light j, 0 < p i j → G.weight i / G.speed j ≤ 12 * G.optMakespan :=
         fun i hi hpos => (div_le_iff₀ (G.speed_pos j)).mpr <| by
           linarith [G.weight_le_twelve_mul_speed_mul_optMakespan hp j i hpos (mem_filter.mp hi).2.2]
-      have hmean_light : ∑ i ∈ light j, p i j * (G.weight i / G.speed j) ≤ M₀ * G.optMakespan :=
-        (sum_le_univ_sum_of_nonneg fun i => mul_nonneg ((hp.1 i).nonneg j)
-          (div_nonneg (G.weight_nonneg i) (G.speed_pos j).le)).trans (hE_le j)
+      have hmean_light :
+          ∑ i ∈ light j, p i j * (G.weight i / G.speed j) ≤ M₀ * G.optMakespan := calc
+        ∑ i ∈ light j, p i j * (G.weight i / G.speed j)
+            ≤ ∑ i : ι, p i j * (G.weight i / G.speed j) :=
+              sum_le_univ_sum_of_nonneg fun i =>
+                mul_nonneg ((hp.1 i).nonneg j) (div_nonneg (G.weight_nonneg i) (G.speed_pos j).le)
+        _ ≤ M₀ * G.optMakespan := hE_le j
       have hch := G.prob_subset_load_ge_le_exp hp.1 j (light j)
         (z := 12 * G.optMakespan) (μ := M₀ * G.optMakespan) (t := tr)
         (by positivity) (by positivity) htr_ge hcap hmean_light
@@ -606,13 +620,33 @@ theorem expectedMakespan_le_log_div_log_log_log (G : LoadBalancingGame ι M)
           (tr - M₀ * G.optMakespan - tr * Real.log (tr / (M₀ * G.optMakespan))) /
               (12 * G.optMakespan) ≤
             -(((r + 1 : ℕ) : ℝ) * (2 * x)) := by
-        have htr : tr * (z / 2) = ((r + 1 : ℕ) : ℝ) * (2 * x) * (12 * G.optMakespan) := by
+        have htr_div12 : tr / (12 * G.optMakespan) = ((r + 1 : ℕ) : ℝ) * (4 * x / z) := by
           simp only [tr, T]
-          field_simp [hz_pos.ne']
+          field_simp [hopt_pos.ne', hz_pos.ne']
           ring
-        rw [div_le_iff₀ (by positivity)]
-        have hμ := mul_pos hM₀_pos hopt_pos
-        linarith [mul_le_mul_of_nonneg_left hlog_tr (by linarith : 0 ≤ tr)]
+        have h1 :
+            (tr - M₀ * G.optMakespan - tr * Real.log (tr / (M₀ * G.optMakespan))) /
+                (12 * G.optMakespan) ≤
+              -(tr / (12 * G.optMakespan) * (Real.log (tr / (M₀ * G.optMakespan)) - 1)) :=
+          calc (tr - M₀ * G.optMakespan - tr * Real.log (tr / (M₀ * G.optMakespan))) /
+                  (12 * G.optMakespan)
+              ≤ (-(tr * (Real.log (tr / (M₀ * G.optMakespan)) - 1))) / (12 * G.optMakespan) :=
+                div_le_div_of_nonneg_right
+                  (by nlinarith [mul_pos hM₀_pos hopt_pos])
+                  (by positivity)
+            _ = -(tr / (12 * G.optMakespan) * (Real.log (tr / (M₀ * G.optMakespan)) - 1)) := by
+                ring
+        have h2 : ((r + 1 : ℕ) : ℝ) * (2 * x) ≤
+            tr / (12 * G.optMakespan) * (Real.log (tr / (M₀ * G.optMakespan)) - 1) := by
+          rw [htr_div12]
+          calc ((r + 1 : ℕ) : ℝ) * (2 * x)
+              = ((r + 1 : ℕ) : ℝ) * (4 * x / z) * (z / 2) := by
+                field_simp [hz_pos.ne']
+                ring
+            _ ≤ ((r + 1 : ℕ) : ℝ) * (4 * x / z) *
+                  (Real.log (tr / (M₀ * G.optMakespan)) - 1) :=
+                mul_le_mul_of_nonneg_left hlog_tr (by positivity)
+        linarith
       calc (∑ A : ι → M, if tr ≤ lightLoad A j then productWeight p A else 0)
           ≤ Real.exp ((tr - M₀ * G.optMakespan - tr * Real.log (tr / (M₀ * G.optMakespan))) /
               (12 * G.optMakespan)) := hch

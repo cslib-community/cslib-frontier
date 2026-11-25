@@ -112,8 +112,10 @@ theorem MinorizesPartrec.map {β : Type*} [Primcodable β] {U : DescriptionMetho
     (hfs : ∀ y, f (s y) = y) : (U.map f).MinorizesPartrec := by
   intro g hg
   obtain ⟨c, hc⟩ := hU (fun p => (g p).map s) (hg.map (hs.comp .snd).to₂)
-  exact ⟨c, fun p y hy =>
-    hfs y ▸ (U.ecomplexity_map_le f (s y)).trans (hc p _ (Part.mem_map s hy))⟩
+  refine ⟨c, fun p y hy => ?_⟩
+  calc (U.map f).ecomplexity y = (U.map f).ecomplexity (f (s y)) := by rw [hfs]
+    _ ≤ U.ecomplexity (s y) := U.ecomplexity_map_le f (s y)
+    _ ≤ p.length + c := hc p (s y) (Part.mem_map s hy)
 
 /-! ### The Berry search -/
 
@@ -196,14 +198,17 @@ theorem chaitin_berry_bound {read : σ → Option (α × ℕ)} {f : List Bool �
   have hplen : p.length = k + 1 + r.length := by simp [p]; omega
   obtain ⟨y₀, hy₀⟩ := Part.dom_iff_mem.mp ((hT t).mp ht)
   obtain ⟨s, hs⟩ := Code.evaln_complete.mp hy₀
+  -- The search succeeds on `p`, at the sentence `t`.
   have hsearch : x ∈ chaitinSearch read (encode e) (p.length + k) (encode (t, s)) := by
     simp [chaitinSearch, Option.mem_def.mp hs, hxn, show p.length + k < n by omega]
   obtain ⟨z, hz⟩ := Part.dom_iff_mem.mp (Nat.rfindOpt_dom.mpr ⟨_, x, hsearch⟩)
+  -- Its output `z` comes with a true sentence `n' ≤ C_U(z)` of the theory with `n' > B p`.
   obtain ⟨j, hj⟩ := Nat.rfindOpt_spec hz
   simp only [chaitinSearch, ofNat_encode, Option.mem_def, Option.bind_eq_some_iff] at hj
   obtain ⟨⟨t', s'⟩, -, ⟨x', n'⟩, ⟨w, hw, hread'⟩, hcond⟩ := hj
   by_cases hc : p.length + k < n'
-  · simp only [hc, decide_true, Bool.cond_true, Option.some.injEq] at hcond; subst hcond
+  · simp only [hc, decide_true, Bool.cond_true, Option.some.injEq] at hcond
+    subst hcond
     have hn' := hsound t' ((hT t').mpr (Part.dom_iff_mem.mpr ⟨w, Code.evaln_sound hw⟩)) x' n' hread'
     have hk' := hk p x' (by simpa only [hpidx, hpdrop] using Part.mem_bind hr hz)
     have : n' ≤ p.length + k := by exact_mod_cast hn'.trans hk'
@@ -228,6 +233,8 @@ theorem MinorizesPartrec.exists_forall_le_complexity_universal_add_of_read
       (∀ t, T t → ∀ x n, read t = some (x, n) → (n : ℕ∞) ≤ U.ecomplexity x) →
       ∀ t, T t → ∀ x n, read t = some (x, n) → n ≤ universal.complexity (encode e) + c := by
   obtain ⟨f, hf, hfU⟩ := isPartrec_universal
+  -- The Berry decoder: `1^k 0 r` runs the theory with code `universal(r)` and outputs the first
+  -- `x` found with a sentence `n ≤ C_U(x)` such that `n > |1^k 0 r| + k`.
   obtain ⟨k, hk⟩ := hU _ (partrec_chaitinBerryDecoder hread hf)
   refine ⟨2 * k + 1, fun e T hT hsound t ht x n hxn => ?_⟩
   obtain ⟨r, hr, hrlen⟩ := exists_length_eq_ecomplexity (ecomplexity_universal_ne_top (encode e))

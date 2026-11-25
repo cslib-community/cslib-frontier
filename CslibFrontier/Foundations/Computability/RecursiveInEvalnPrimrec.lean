@@ -149,9 +149,7 @@ theorem primrec_recOn' {α σ}
   let m := n.div2.div2
   change G₁ ((a, (List.range (n + 5)).map fun n => F a (ofNat Code n)), n, m) =
     some (F a (ofNat Code (n + 5)))
-  have hm : m < n + 5 := by
-    simp only [m, div2_val]
-    omega
+  have hm : m < n + 5 := by simp only [m, div2_val]; omega
   have m1 : m.unpair.1 < n + 5 := lt_of_le_of_lt m.unpair_left_le hm
   have m2 : m.unpair.2 < n + 5 := lt_of_le_of_lt m.unpair_right_le hm
   simp only [List.length_map, List.length_range, List.getElem?_eq_getElem, hm, m1, m2,
@@ -303,24 +301,19 @@ theorem primrec_evaln :
       simp only [G, prod_ofNat_val, ofNat_nat, List.length_map, List.length_range,
         Nat.pair_unpair, Option.some_inj]
       refine List.map_congr_left fun n => ?_
-      have : List.range p = List.range (Nat.pair p.unpair.1 (encode (ofNat Code p.unpair.2))) := by
-        simp
-      rw [this]
-      generalize p.unpair.1 = k
-      generalize ofNat Code p.unpair.2 = c
+      have hrange : List.range p =
+          List.range (Nat.pair p.unpair.1 (encode (ofNat Code p.unpair.2))) := by simp
+      rw [hrange]
+      generalize p.unpair.1 = k, ofNat Code p.unpair.2 = c
       intro nk
       rcases k with - | k'
       · simp [evaln]
       let k := k' + 1
-      simp only
       simp only [List.mem_range, Nat.lt_succ_iff] at nk
-      have hg :
-        ∀ {k' c' n},
-          Nat.pair k' (encode c') < Nat.pair k (encode c) →
-            lup ((List.range (Nat.pair k (encode c))).map fun n =>
-              (List.range n.unpair.1).map (evaln σ n.unpair.1 (ofNat Code n.unpair.2))) (k', c') n =
-            evaln σ k' c' n := by
-        intro k₁ c₁ n₁ hl
+      have hg {k' c' n} (hl : Nat.pair k' (encode c') < Nat.pair k (encode c)) :
+          lup ((List.range (Nat.pair k (encode c))).map fun n =>
+            (List.range n.unpair.1).map (evaln σ n.unpair.1 (ofNat Code n.unpair.2))) (k', c') n =
+          evaln σ k' c' n := by
         simp [lup, List.getElem?_range hl, evaln_map, Bind.bind, Option.bind_map]
       obtain - | - | - | - | - | ⟨cf, cg⟩ | ⟨cf, cg⟩ | ⟨cf, cg⟩ | cf := c <;>
         simp only [evaln, bind, nk, guard_true, pure, Option.bind_some, unpaired, pair_unpair]

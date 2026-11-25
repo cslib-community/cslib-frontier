@@ -303,7 +303,8 @@ theorem orProofWith_specialSoundness [DecidableEq C] {W₀ W₁ : Type u}
   rw [orProofWith_accepts_iff] at hz hz'
   by_cases h : z.1 = z'.1
   · rw [orExtract, ite_eq_left h]
-    exact h₁ _ _ _ _ _ _ (by rwa [h, Ne, sub_left_inj]) hz.2 hz'.2
+    refine h₁ _ _ _ _ _ _ ?_ hz.2 hz'.2
+    rwa [h, Ne, sub_left_inj]
   · rw [orExtract, ite_eq_right h]
     exact h₀ _ _ _ _ _ _ h hz.1 hz'.1
 

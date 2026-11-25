@@ -169,7 +169,7 @@ theorem P_subset_FPT : P enc ⊆ FPT enc κ := fun _ hA => by
   refine ⟨fun _ => 1, k,
     (mem_DTIME_iff_decidableInTimeO.mp hk).mono 1 (fun a => ?_) fun _ => by positivity⟩
   have := pow_le_pow_left₀ (b := ((enc a).length : ℝ) + 1)
-    (by positivity : (0 : ℝ) ≤ (enc a).length) (by linarith) k
+    (Nat.cast_nonneg _) (by linarith) k
   push_cast; linarith
 
 /-- **`P ⊆ XP`**, for every parameter. -/
@@ -336,9 +336,14 @@ private theorem comp_time_le {L F₁ c₁ l n F₂ F₂' e E : ℕ}
   have h₂ := Nat.mul_le_mul hF h₁
   have h₃ := Nat.mul_le_mul_left (F₂' * ((l + 1) * (F₁ + 1)) ^ E * ((L + 1) ^ c₁) ^ E) hP
   have h₄ := Nat.mul_le_mul_left (F₁ * (L + 1) ^ c₁) hQ
-  rw [Nat.mul_one] at h₃ h₄
-  rw [← Nat.mul_assoc] at h₂
-  exact (add_le_add h₄ (h₂.trans h₃)).trans_eq (by rw [Nat.pow_add, Nat.pow_mul]; ring)
+  rw [Nat.pow_add, Nat.pow_mul]
+  calc F₁ * (L + 1) ^ c₁ + F₂ * (n + 1) ^ e
+      ≤ F₁ * (L + 1) ^ c₁ * ((L + 1) ^ c₁) ^ E +
+        F₂' * ((l + 1) * (F₁ + 1)) ^ E * ((L + 1) ^ c₁) ^ E * (L + 1) ^ c₁ := by
+        rw [Nat.mul_one] at h₃ h₄
+        rw [← Nat.mul_assoc] at h₂
+        omega
+    _ = _ := by ring
 
 /-- Composition of an fpt-time function with a function computable within time
 `F₂ (κB b) (|b| + 1) ^ e₂ (κB b)`, given bounds on `F₂` and `e₂` along the function. -/
@@ -397,9 +402,12 @@ theorem mem_FPT_iff_computableInFPTTime {A : Set α} :
     push_cast; rfl
   refine ⟨fun ⟨f, c, h⟩ => ?_, fun ⟨g, hg, hA⟩ => ?_⟩
   · rw [e, decidableInTimeO_natCast_iff] at h
-    exact let ⟨g, hg, hA⟩ := h; ⟨g, hg.computableInFPTTime, hA⟩
+    obtain ⟨g, hg, hA⟩ := h
+    exact ⟨g, hg.computableInFPTTime, hA⟩
   · obtain ⟨f, c, hg⟩ := ComputableInFPTTime.exists_computableInO hg
-    exact ⟨f, c, by rw [e, decidableInTimeO_natCast_iff]; exact ⟨g, hg, hA⟩⟩
+    refine ⟨f, c, ?_⟩
+    rw [e, decidableInTimeO_natCast_iff]
+    exact ⟨g, hg, hA⟩
 
 /-- **`XP` in terms of computability within explicit bounds.** -/
 theorem mem_XP_iff_exists_computableInO {A : Set α} :
@@ -412,8 +420,11 @@ theorem mem_XP_iff_exists_computableInO {A : Set α} :
     push_cast; rfl
   refine ⟨fun ⟨f, e, hA⟩ => ?_, fun ⟨g, f, e, hg, hA⟩ => ?_⟩
   · rw [h, decidableInTimeO_natCast_iff] at hA
-    exact let ⟨g, hg, hA⟩ := hA; ⟨g, f, e, hg, hA⟩
-  · exact ⟨f, e, by rw [h, decidableInTimeO_natCast_iff]; exact ⟨g, hg, hA⟩⟩
+    obtain ⟨g, hg, hA⟩ := hA
+    exact ⟨g, f, e, hg, hA⟩
+  · refine ⟨f, e, ?_⟩
+    rw [h, decidableInTimeO_natCast_iff]
+    exact ⟨g, hg, hA⟩
 
 /-- **Bounded parameters.** For a parameter bounded by a constant, `FPT` is `P`. -/
 theorem FPT_eq_P_of_le {K : ℕ} (hκ : ∀ a, κ a ≤ K) : FPT encA κ = P encA := by

@@ -288,8 +288,9 @@ private theorem sum_scalarBasis_col {M : Type*} [AddCommMonoid M] (w : ℕ) (j :
     have hne : j' ≠ j := fun h => by
       have : j.val + 1 = j.val := congrArg Fin.val h
       omega
-    simp only [show ∀ i : Fin w, i.val = j.val + 1 ↔ i = j' from
-      fun i => (Fin.ext_iff (a := i) (b := j')).symm]
+    have hsub : ∀ i : Fin w, i.val = j.val + 1 ↔ i = j' :=
+      fun i => (Fin.ext_iff (a := i) (b := j')).symm
+    simp only [hsub]
     rw [Finset.sum_eq_add j j' hne.symm
       (fun i _ ⟨hij, hij'⟩ => by simp [hij, hij', hf0])
       (fun h => (h (Finset.mem_univ j)).elim)

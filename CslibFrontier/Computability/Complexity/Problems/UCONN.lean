@@ -238,10 +238,11 @@ private theorem retract_adj (w : Fin G.n) (a b : Fin (chainInstance G).n)
     obtain ⟨-, hvb, -⟩ := eq_copyVertex hb2 b.isLt
     by_cases hw : copy G.n a = w
     · refine Or.inr ?_
-      rw [show retract G w a = ⟨vert G.n a, hva⟩ from
-          Fin.ext (by rw [val_retract, ite_eq_right (by omega), ite_eq_left hw]),
-        show retract G w b = ⟨vert G.n b, hvb⟩ from
-          Fin.ext (by rw [val_retract, ite_eq_right (by omega), ite_eq_left (hcopy ▸ hw)])]
+      have hra : retract G w a = ⟨vert G.n a, hva⟩ :=
+        Fin.ext (by rw [val_retract, ite_eq_right (by omega), ite_eq_left hw])
+      have hrb : retract G w b = ⟨vert G.n b, hvb⟩ :=
+        Fin.ext (by rw [val_retract, ite_eq_right (by omega), ite_eq_left (hcopy ▸ hw)])
+      rw [hra, hrb]
       simpa [UGraphInstance.adjN, hva, hvb] using hab
     · refine Or.inl (Fin.ext ?_)
       rw [val_retract, val_retract]
@@ -272,10 +273,11 @@ theorem chainInstance_mem_iff : chainInstance G ∈ USTCON ↔ G ∈ UCONN := by
     have h0 (w : Fin G.n) : G.graph.Reachable ⟨0, Nat.zero_lt_of_lt w.isLt⟩ w := by
       have h := reachable_map (fun r : Fin (chainInstance G).n => retract G w r)
         (retract_adj G w) hst
-      rwa [show retract G w (chainInstance G).s = ⟨0, Nat.zero_lt_of_lt w.isLt⟩ from
-          Fin.ext (by simp [val_retract, chainInstance]),
-        show retract G w (chainInstance G).t = w from
-          Fin.ext (by simp [val_retract, chainInstance])] at h
+      have hs : retract G w (chainInstance G).s = ⟨0, Nat.zero_lt_of_lt w.isLt⟩ :=
+        Fin.ext (by simp [val_retract, chainInstance])
+      have ht : retract G w (chainInstance G).t = w :=
+        Fin.ext (by simp [val_retract, chainInstance])
+      rwa [hs, ht] at h
     exact (h0 a).symm.trans (h0 b)
   · rcases Nat.eq_zero_or_pos G.n with hn | hn
     · -- no copies: the source and the target are joined

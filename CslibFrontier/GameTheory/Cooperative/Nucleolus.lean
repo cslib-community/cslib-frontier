@@ -909,9 +909,16 @@ theorem sortExcess_lex_lt_iff_proper [Fintype A] [DecidableEq A] (G : Cooperativ
   have hcx := countGe_all_eq_proper G hx
   have hcy := countGe_all_eq_proper G hy
   simp only [sortExcess, sortProperExcess, sortDesc_lex_lt_iff_countGe]
-  constructor <;> rintro ⟨r, hlt, heq⟩ <;>
-    exact ⟨r, by have := hcx r; have := hcy r; omega,
-      fun t ht => by have := hcx t; have := hcy t; have := heq t ht; omega⟩
+  constructor <;> rintro ⟨r, hlt, heq⟩
+  all_goals
+    refine ⟨r, ?_, fun t ht => ?_⟩
+    · have := hcx r
+      have := hcy r
+      omega
+    · have := hcx t
+      have := hcy t
+      have := heq t ht
+      omega
 
 theorem sortExcess_lex_le_iff_proper [Fintype A] [DecidableEq A] (G : CooperativeGame A)
     {x y : A → ℝ} (hx : x ∈ G.preimputations) (hy : y ∈ G.preimputations) :
@@ -1402,8 +1409,11 @@ private theorem kohlberg_forward [Fintype A] [DecidableEq A] (G : CooperativeGam
           ∑ S₀ ∈ ℬ.attach, ∑ S with j ∈ S, ws S₀.1 S₀.2 S) / C := by
       have hw_eq : (∑ S with j ∈ S, w S) =
           ∑ S ∈ ℬ with j ∈ S, (1 + ∑ S₀ ∈ ℬ.attach, ws S₀.1 S₀.2 S) / C :=
-        (sum_filter_mem_eq_of_eq_zero j fun S hSℬ => by simp [w, hSℬ]).symm.trans
-          (Finset.sum_congr rfl fun S hS => by simp [w, (Finset.mem_filter.1 hS).1])
+        calc (∑ S with j ∈ S, w S)
+            = ∑ S ∈ ℬ with j ∈ S, w S :=
+              (sum_filter_mem_eq_of_eq_zero j fun S hSℬ => by simp [w, hSℬ]).symm
+          _ = ∑ S ∈ ℬ with j ∈ S, (1 + ∑ S₀ ∈ ℬ.attach, ws S₀.1 S₀.2 S) / C :=
+              Finset.sum_congr rfl fun S hS => by simp [w, (Finset.mem_filter.1 hS).1]
       rw [hw_eq]
       simp only [div_eq_mul_inv, ← Finset.sum_mul]
       congr 1
@@ -1475,8 +1485,13 @@ private theorem kohlberg_backward [Fintype A] [DecidableEq A] (G : CooperativeGa
             ∑ j : A, (∑ S with j ∈ S, w S) * d j := by
           simp only [Finset.mul_sum, Finset.sum_mul]
           exact Finset.sum_comm' fun S j => by simp
-        rw [hws_all, hswap, ← Finset.sum_add_distrib, ← hd_sum]
-        exact Finset.sum_congr rfl fun j _ => by rw [← add_mul, hrow j, one_mul]
+        rw [hws_all, hswap, ← Finset.sum_add_distrib]
+        calc
+          ∑ j : A, (u j * d j + (∑ S with j ∈ S, w S) * d j)
+              = ∑ j : A, (u j + ∑ S with j ∈ S, w S) * d j :=
+                Finset.sum_congr rfl fun j _ => by ring
+          _ = ∑ j : A, d j := Finset.sum_congr rfl fun j _ => by rw [hrow j, one_mul]
+          _ = 0 := hd_sum
       have hu_nonneg : 0 ≤ ∑ j : A, u j * d j :=
         Finset.sum_nonneg fun j _ => hu_move y hyK j
       have hw_nonpos : ∑ S ∈ ℬ, w S * (∑ j ∈ S, d j) ≤ 0 := by linarith

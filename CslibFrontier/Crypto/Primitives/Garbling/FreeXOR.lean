@@ -180,10 +180,11 @@ private theorem sum_ite_isFirst {a : ℕ} {e : Fin a → Bool} {M : Type*} [AddC
 private theorem sum_isFirst_and {a : ℕ} (e : Fin a → Bool) (b : Bool)
     (he : b = true → ∃ k, e k = true) : (∑ k, (isFirst e k && b)) = b := by
   cases b with
-  | false => exact Finset.sum_eq_zero fun _ _ => Bool.and_false _
+  | false => exact Finset.sum_eq_zero fun k _ => Bool.and_false _
   | true =>
-    simpa only [show ∀ k, (isFirst e k && true) = if isFirst e k = true then true else 0 from
-      fun k => by cases isFirst e k <;> rfl] using sum_ite_isFirst (he rfl) true
+    have h : ∀ k, (isFirst e k && true) = if isFirst e k = true then true else 0 :=
+      fun k => by cases isFirst e k <;> rfl
+    simpa only [h] using sum_ite_isFirst (he rfl) true
 
 private theorem exists_flipped_of_ne {τ : Circuit.Topology n m s} {free : Fin s → Bool}
     {A : Wire n s → K × Bool} {r : GarbledRow τ free}

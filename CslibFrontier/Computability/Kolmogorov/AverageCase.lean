@@ -194,9 +194,8 @@ theorem uniformList_threshold_accept_ge {t : ℕ → ℕ} {m : ℕ} (ht : m + 1 
           if timeBoundedNat t (List.ofFn x) < m - k then (1 : ℝ) else 0 := by
     by_cases hlt : timeBoundedNat t (List.ofFn x) < m - k
     · simp only [hlt, ↓reduceIte]
-      have h1 := toReal_apply_le_one (approx (List.ofFn x)) true
-      have h2 : 0 ≤ (accept (List.ofFn x) true).toReal := ENNReal.toReal_nonneg
-      linarith
+      linarith [toReal_apply_le_one (approx (List.ofFn x)) true,
+        ENNReal.toReal_nonneg (a := accept (List.ofFn x) true)]
     · simp only [hlt, ↓reduceIte, add_zero]
       refine ENNReal.toReal_mono (PMF.apply_ne_top _ _) <|
         map_true_mono (q (List.ofFn x)) fun v _ hv => ?_
@@ -210,10 +209,7 @@ theorem uniformList_threshold_accept_ge {t : ℕ → ℕ} {m : ℕ} (ht : m + 1 
       ∑ x : BitString m, (PMF.uniformOfFintype (BitString m) x).toReal *
         (f (List.ofFn x) true).toReal := by
     simp only [BitString.uniformList, PMF.bind_map, bind_apply_toReal, Function.comp_apply]
-  have hbind_approx := hbind approx
-  have hbind_accept := hbind accept
-  have hcount := sum_uniform_timeBoundedNat_lt_le ht k
-  linarith
+  linarith [hbind approx, hbind accept, sum_uniform_timeBoundedNat_lt_le ht k]
 
 /-- **[Liu and Pass, Proof of Theorem 5.2, Claim 2, §5.2, p. 12 of arXiv:2009.11514v1][LiuPass2020]:
 Acceptance probability of the threshold distinguisher on an entropy-preserving generator
@@ -234,10 +230,8 @@ theorem generator_threshold_accept_le {t : ℕ → ℕ} {m : ℕ} (hm : 1 ≤ m)
   let accept (y : List Bool) : PMF Bool :=
     (q y).map fun v => decide (m - k - g_err ≤ v)
   let fail (x : BitString m) : ℝ := 1 - (approx (List.ofFn x) true).toReal
-  have hfail_nonneg (x : BitString m) : 0 ≤ fail x := by
-    have := toReal_apply_le_one (approx (List.ofFn x)) true
-    dsimp [fail]
-    linarith
+  have hfail_nonneg (x : BitString m) : 0 ≤ fail x :=
+    sub_nonneg.mpr (toReal_apply_le_one _ _)
   have hpoint (x : BitString m) :
       (pG x).toReal * (accept (List.ofFn x) true).toReal ≤ (pG x).toReal * fail x := by
     by_cases hx : x ∈ pG.support
@@ -246,8 +240,7 @@ theorem generator_threshold_accept_le {t : ℕ → ℕ} {m : ℕ} (hm : 1 ≤ m)
       have hkx := hlow x hx
       simp only [decide_eq_true_eq, decide_eq_false_iff_not] at hv ⊢
       omega
-    · have hx0 : pG x = 0 := by simpa only [PMF.mem_support_iff, not_not] using hx
-      simp [hx0]
+    · simp_all [PMF.mem_support_iff]
   let S : Finset (BitString m) :=
     Finset.univ.filter fun x => (pG x).toReal ≤ (2 : ℝ) ^ (-(B - 3))
   have hS_mass : 1 / (m : ℝ) ≤ ∑ x ∈ S, (pG x).toReal :=
@@ -266,10 +259,9 @@ theorem generator_threshold_accept_le {t : ℕ → ℕ} {m : ℕ} (hm : 1 ≤ m)
       ∑ x ∈ Sᶜ, (pG x).toReal * (accept (List.ofFn x) true).toReal ≤ 1 - 1 / (m : ℝ) := by
     have hcompl : (∑ x ∈ S, (pG x).toReal) + ∑ x ∈ Sᶜ, (pG x).toReal = 1 := by
       rw [Finset.sum_add_sum_compl, sum_toReal]
-    have hle1 : ∑ x ∈ Sᶜ, (pG x).toReal * (accept (List.ofFn x) true).toReal ≤
-        ∑ x ∈ Sᶜ, (pG x).toReal := Finset.sum_le_sum fun x _ =>
-      mul_le_of_le_one_right ENNReal.toReal_nonneg (toReal_apply_le_one _ true)
-    linarith
+    linarith [Finset.sum_le_sum fun x (_ : x ∈ Sᶜ) =>
+      mul_le_of_le_one_right (ENNReal.toReal_nonneg (a := pG x))
+        (toReal_apply_le_one (accept (List.ofFn x)) true)]
   have hfail_sum :
       (2 : ℝ) ^ (-(B - 3)) * ∑ x : BitString m, fail x =
         (2 : ℝ) ^ ((m : ℝ) - (B - 3)) *
@@ -282,8 +274,7 @@ theorem generator_threshold_accept_le {t : ℕ → ℕ} {m : ℕ} (hm : 1 ≤ m)
         ENNReal.toReal_inv, ENNReal.toReal_pow, ENNReal.toReal_ofNat, Nat.cast_pow, Nat.cast_ofNat,
         ← Finset.mul_sum, fail, Finset.sum_sub_distrib, Finset.sum_const, Finset.card_univ,
         nsmul_eq_mul, mul_one]
-      have h2m : (2 : ℝ) ^ m ≠ 0 := by positivity
-      field_simp [h2m]
+      field_simp
     rw [hbind_approx, ← mul_assoc]
     congr 1
     rw [← Real.rpow_natCast 2 m, ← Real.rpow_neg (by norm_num : (0 : ℝ) ≤ 2),

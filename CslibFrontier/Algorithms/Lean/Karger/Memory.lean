@@ -237,17 +237,19 @@ theorem expectedCost_karger_le {n : ℕ} (W : Fin n → Fin n → ℕ) (K : ℕ)
     spec.toRandomized.withCoins.expectedCost
         (spec.toRandomized.coinCharge (fun _ => 1) fun _ _ => K) karger ⟨n, W⟩ ≤
       ((n - 2) * (1 + 4 * K) + 2 * K : ℕ) := by
+  have hc : spec.toRandomized.coinCharge (fun _ => 1) (fun _ _ => K) =
+      fun _ o => Sum.elim (fun _ => 1) (fun _ => K) o := by
+    funext _ o
+    cases o <;> rfl
   have h₁ := RandomizedSpec.expectedCost_le_of_isCostBounded (D := spec.toRandomized.withCoins)
     (isCostBounded_contractTimes (cost := Sum.elim (fun _ => 1) (fun _ => K)) (a := 1) (b := K)
       (fun _ => le_rfl) (fun _ => le_rfl) (n - 2)) ⟨n, W⟩
-  rw [← show spec.toRandomized.coinCharge (fun _ => 1) (fun _ _ => K) =
-      fun _ o => Sum.elim (fun _ => 1) (fun _ => K) o from
-        funext fun _ => funext fun o => by cases o <;> rfl] at h₁
+  rw [← hc] at h₁
   rw [karger, expectedCost_withCoins_query_bind, RandomizedSpec.expectedCost_bind]
   dsimp only [StateTransitionSpec.stepFn, step]
-  have h₂ (x : Unit × Graph) : spec.toRandomized.withCoins.expectedCost
+  have h₂ : ∀ x : Unit × Graph, spec.toRandomized.withCoins.expectedCost
       (spec.toRandomized.coinCharge (fun _ => 1) fun _ _ => K)
-        (call .total >>= fun S => pure (S / 2)) x.2 = K := by
+        (call .total >>= fun S => pure (S / 2)) x.2 = K := fun x => by
     rw [expectedCost_withCoins_query_bind, RandomizedSpec.expectedCost_pure, add_zero]
   simp only [h₂, ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
   calc (K : ENNReal) + (_ + K) ≤ K + ((((n - 2) * (1 + 4 * K) : ℕ) : ENNReal) + K) := by gcongr
@@ -262,9 +264,10 @@ theorem expectedCost_kargerProg_le {e : Memory.State} (he : Inv L w e) {n : ℕ}
     (Memory.spec w).toRandomized.withCoins.expectedCost
         ((Memory.spec w).toRandomized.coinCharge (fun _ => 1) charge) (kargerProg L w) e ≤
       ((n - 2) * (1 + 4 * (7 * L.capacity + 7)) + 2 * (7 * L.capacity + 7) : ℕ) := by
+  have hv : spec.toRandomized.withCoins.toSpec.DemonicValid (abs L e) karger :=
+    habs ▸ demonicValid_karger hn hW₀
   have h := ((amortized_capacity L w).toRandomized.withCoins (coin := fun _ => 1)).client karger
-    he (habs ▸ demonicValid_karger hn hW₀ :
-      spec.toRandomized.withCoins.toSpec.DemonicValid (abs L e) karger)
+    he hv
   simp only [Nat.cast_zero, mul_zero, tsum_zero, add_zero] at h
   change _ ≤ spec.toRandomized.withCoins.expectedCost _ karger (abs L e) at h
   rw [habs] at h
@@ -279,13 +282,14 @@ theorem expectedCoins_kargerProg_le {e : Memory.State} (he : Inv L w e) {n : ℕ
       (n - 2 : ℕ) := by
   have A : (refinement L w).Amortized (fun _ _ => 0) (fun _ _ => 0) fun _ => 0 :=
     ⟨fun _ _ _ _ => by simp [StateTransitionSpec.totalCostTranscript_const]⟩
-  have h := (A.toRandomized.withCoins (coin := fun _ => 1)).client karger he
-    (habs ▸ demonicValid_karger hn hW₀ :
-      spec.toRandomized.withCoins.toSpec.DemonicValid (abs L e) karger)
+  have hv : spec.toRandomized.withCoins.toSpec.DemonicValid (abs L e) karger :=
+    habs ▸ demonicValid_karger hn hW₀
+  have h := (A.toRandomized.withCoins (coin := fun _ => 1)).client karger he hv
   simp only [Nat.cast_zero, mul_zero, tsum_zero, add_zero] at h
   change _ ≤ spec.toRandomized.withCoins.expectedCost _ karger (abs L e) at h
   rw [habs] at h
-  exact (h.trans (expectedCost_karger_le W₀ 0)).trans_eq (by simp)
+  refine (h.trans (expectedCost_karger_le W₀ 0)).trans_eq ?_
+  simp
 
 /-- **The exported cost.** With the layout sized to the input, the expected memory cost of
 Karger's algorithm over memory on `n` vertices is at most `F n` for some `F` that is `O(n²)`. -/

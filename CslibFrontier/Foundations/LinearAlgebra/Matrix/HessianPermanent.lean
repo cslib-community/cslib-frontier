@@ -179,8 +179,7 @@ def mignonRessayrePoint (o : ι) : ι × ι → K := fun p =>
 
 theorem mignonRessayrePoint_apply (o : ι) (p : ι × ι) :
     mignonRessayrePoint (K := K) o p = if p = (o, o) then 1 - (Fintype.card ι : K) else 1 := by
-  unfold mignonRessayrePoint
-  rfl
+  rw [mignonRessayrePoint]
 
 private theorem prod_mignonRessayrePoint (o : ι) (σ : Perm ι) (S : Finset ι) :
     ∏ i ∈ S, mignonRessayrePoint (K := K) o (σ i, i) =
@@ -188,12 +187,10 @@ private theorem prod_mignonRessayrePoint (o : ι) (σ : Perm ι) (S : Finset ι)
   simp only [mignonRessayrePoint_apply]
   split_ifs with h
   · rw [Finset.prod_eq_single_of_mem o h.1 fun i _ hi =>
-      ite_eq_right fun he => hi (congrArg Prod.snd he)]
-    rw [ite_eq_left (by rw [h.2])]
-  · refine Finset.prod_eq_one fun i hi => ite_eq_right fun he => h ?_
-    have hi' : i = o := congrArg Prod.snd he
-    subst hi'
-    exact ⟨hi, congrArg Prod.fst he⟩
+      ite_eq_right fun he => hi (congrArg Prod.snd he), ite_eq_left (by rw [h.2])]
+  · refine Finset.prod_eq_one fun i hi => ite_eq_right fun he => ?_
+    obtain ⟨h1, rfl⟩ := Prod.mk.inj he
+    exact h ⟨hi, h1⟩
 
 /-- The generic permanent vanishes at the Mignon–Ressayre point. -/
 theorem eval_permanent_mignonRessayrePoint (o : ι) :
@@ -307,19 +304,16 @@ theorem rank_hessian_permanent_mignonRessayrePoint (o : ι)
   rw [hk, show k + 2 - 1 = k + 1 from rfl, Nat.factorial_succ, Nat.cast_mul] at hfact
   obtain ⟨hk1, hkf⟩ := mul_ne_zero_iff.1 hfact
   refine rank_of_ite_sandwich o ?_ ?_ ?_ <;> rw [hk]
-  · push_cast at hk1 ⊢
-    convert hk1 using 1
-    ring
+  · convert hk1 using 1
+    push_cast; ring
   · exact hkf
   · rcases k with _ | j
     · norm_num
     · rw [show j + 1 + 2 - 2 = j + 1 from rfl, show j + 1 + 2 - 3 = j from rfl,
         Nat.factorial_succ]
       rw [Nat.factorial_succ, Nat.cast_mul] at hkf
-      have hj : (j.factorial : K) ≠ 0 := right_ne_zero_of_mul hkf
-      convert mul_ne_zero (neg_ne_zero.2 (h2 j rfl)) hj using 1
-      push_cast
-      ring
+      convert mul_ne_zero (neg_ne_zero.2 (h2 j rfl)) (right_ne_zero_of_mul hkf) using 1
+      push_cast; ring
 
 /-- **Mignon–Ressayre inequality**: if the generic `N × N` permanent is the determinant of a
 `κ × κ` matrix of affine polynomials, then `N ^ 2 ≤ 2 · card κ`, provided `(N - 1)! ≠ 0` in `K`
@@ -342,10 +336,8 @@ theorem card_mul_card_le_two_mul_card_of_permanent_eq_det {κ : Type*} [Fintype 
     rw [Finset.sum_eq_zero fun σ _ => Finset.prod_eq_zero (mem_univ o) rfl] at h0
     exact zero_ne_one h0
   · obtain ⟨o⟩ : Nonempty ι := Fintype.card_pos_iff.1 (by omega)
-    have hx : eval (mignonRessayrePoint (K := K) o) A.det = 0 := by
-      rw [← hperm]
-      exact eval_permanent_mignonRessayrePoint o
-    have := rank_hessian_det_le A hA hx
+    have := rank_hessian_det_le A hA
+      (hperm ▸ eval_permanent_mignonRessayrePoint o : eval _ A.det = 0)
     rwa [← hperm, rank_hessian_permanent_mignonRessayrePoint o hfact hN] at this
 
 end Matrix

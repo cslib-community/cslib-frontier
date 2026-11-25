@@ -313,7 +313,8 @@ theorem prefixBank_eval_natAdd (p : Program signature n g) (reads : Fin d → Fi
       simp [Program.eval_gate_last, prefixLine_eval, prefixBank_eval_castAdd]
     · change ((prefixBank p reads m (fun j => patterns j.castSucc)).gate _).eval
         interpretation x (Fin.natAdd g i).castSucc = _
-      rw [Program.eval_gate_castSucc]; exact ih _ i
+      rw [Program.eval_gate_castSucc]
+      exact ih _ i
 
 private theorem lineWeight_castSucc_input (line : Line signature n g) (i : Fin n) :
     lineWeight (line.mapWires Wire.Renaming.castSucc) (.input i) =
@@ -361,13 +362,16 @@ theorem prefixBank_inputWeight_natAdd (p : Program signature n g) (reads : Fin d
     (patterns : Fin m → Fin d → Bool) (i : Fin n) : ∀ j : Fin m,
     inputWeight (prefixBank p reads m patterns) (Fin.natAdd g j) i = 0 := by
   induction m with
-  | zero => intro i; exact i.elim0
+  | zero =>
+    intro i
+    exact i.elim0
   | succ m ih =>
     refine Fin.lastCases ?_ fun j => ?_
     · change inputWeight ((prefixBank p reads m _).gate _) (Fin.last (g + m)) i = 0
       rw [inputWeight_gate_last, prefixLine_inputWeight]
     · change inputWeight ((prefixBank p reads m _).gate _) (Fin.natAdd g j).castSucc i = 0
-      rw [inputWeight_gate_castSucc]; exact ih _ j
+      rw [inputWeight_gate_castSucc]
+      exact ih _ j
 
 /-- Appending any prefix bank adds no input-reading gates. -/
 theorem card_inputGates_prefixBank (p : Program signature n g) (reads : Fin d → Fin g)
@@ -447,11 +451,15 @@ theorem eval_append_of_match (p : Program signature n g) (reads : Fin d → Fin 
     (hmatch : (fun j => p.eval interpretation x (reads j)) = patterns a) :
     (append p reads patterns w thresholds baseline).eval interpretation x (Fin.last (g + m)) =
       decide (thresholds a ≤ ∑ i, w i * (x i).toNat) := by
-  rw [eval_append_last, sum_eq_single a
-    (fun b _ hba => by simp [show (fun j => p.eval interpretation x (reads j)) ≠ patterns b from
-      fun h => hba (hinj (h.symm.trans hmatch))])
-    (fun h => (h (mem_univ a)).elim), Bool.eq_iff_iff, decide_eq_true_iff, decide_eq_true_iff]
-  simp only [hmatch, decide_true, Bool.toNat_true, Nat.cast_one, mul_one]
+  have hne (b : Fin m) (hba : b ≠ a) :
+      (fun j => p.eval interpretation x (reads j)) ≠ patterns b :=
+    fun h => hba (hinj (h.symm.trans hmatch))
+  have hsum : (∑ b, (baseline - thresholds b) *
+      (decide ((fun j => p.eval interpretation x (reads j)) = patterns b)).toNat) =
+        baseline - thresholds a := by
+    rw [sum_eq_single a (fun b _ hba => by simp [hne b hba]) (fun h => (h (mem_univ a)).elim)]
+    simp [hmatch]
+  rw [eval_append_last, hsum, Bool.eq_iff_iff, decide_eq_true_iff, decide_eq_true_iff]
   exact ⟨fun h => by linarith, fun h => by linarith⟩
 
 /-- No matching live prefix pads the transcript with `false` when the score is below baseline. -/

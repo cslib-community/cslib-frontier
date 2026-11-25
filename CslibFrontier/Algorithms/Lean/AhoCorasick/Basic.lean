@@ -277,22 +277,26 @@ theorem output_cons (P : List (List α)) (b : α) (w : List α) :
 theorem mem_output_iff {P : List (List α)} {w v : List α} :
     v ∈ output P w ↔ v ≠ [] ∧ v ∈ P ∧ v <:+ w := by
   fun_induction output P w with
-  | case1 => simp +contextual [List.suffix_nil]
-  | case2 b w hmem ih =>
+  | case1 => -- []
+    simp +contextual [List.suffix_nil]
+  | case2 b w hmem ih => -- b :: w ∈ P
     rw [List.suffix_cons_iff, List.mem_cons, ih]
-    exact ⟨by rintro (rfl | ⟨hv, hvP, hvw⟩); exacts [⟨by simp, hmem, .inl rfl⟩,
-        ⟨hv, hvP, .inr hvw⟩],
-      by rintro ⟨hv, hvP, rfl | hvw⟩; exacts [.inl rfl, .inr ⟨hv, hvP, hvw⟩]⟩
-  | case3 b w hmem ih =>
+    refine ⟨?_, fun ⟨hv, hvP, h⟩ => h.elim .inl fun hvw => .inr ⟨hv, hvP, hvw⟩⟩
+    rintro (rfl | ⟨hv, hvP, hvw⟩)
+    · exact ⟨List.cons_ne_nil b w, hmem, .inl rfl⟩
+    · exact ⟨hv, hvP, .inr hvw⟩
+  | case3 b w hmem ih => -- b :: w ∉ P
     rw [List.suffix_cons_iff, ih]
-    exact ⟨fun ⟨hv, hvP, hvw⟩ => ⟨hv, hvP, .inr hvw⟩,
-      by rintro ⟨hv, hvP, rfl | hvw⟩; exacts [(hmem hvP).elim, ⟨hv, hvP, hvw⟩]⟩
+    refine ⟨fun ⟨hv, hvP, hvw⟩ => ⟨hv, hvP, .inr hvw⟩, ?_⟩
+    rintro ⟨hv, hvP, rfl | hvw⟩
+    · exact (hmem hvP).elim
+    · exact ⟨hv, hvP, hvw⟩
 
 theorem pairwise_length_gt_output (P : List (List α)) (w : List α) :
     (output P w).Pairwise (fun x y => y.length < x.length) := by
   fun_induction output P w with
-  | case1 => exact .nil
-  | case2 b w _ ih =>
+  | case1 => exact .nil -- []
+  | case2 b w _ ih => -- b :: w ∈ P
     exact .cons (fun y hy => Nat.lt_succ_of_le (mem_output_iff.mp hy).2.2.length_le) ih
   | case3 _ _ _ ih => exact ih -- b :: w ∉ P
 
@@ -332,8 +336,9 @@ theorem mem_occurrences_iff {P : List (List α)} {t : List α} {i : ℕ} {y : Li
     (i, y) ∈ occurrences P t ↔ IsOccurrence P t i y := by
   simp only [occurrences, List.mem_flatMap, List.mem_range, List.mem_map, Prod.mk.injEq,
     mem_output_iff, IsOccurrence]
-  exact ⟨by rintro ⟨_, hj, _, ⟨hz, hzP, hzt⟩, rfl, rfl⟩; exact ⟨by omega, hz, hzP, hzt⟩,
-    fun ⟨hi, hy, hyP, hyt⟩ => ⟨i, by omega, y, ⟨hy, hyP, hyt⟩, rfl, rfl⟩⟩
+  refine ⟨?_, fun ⟨hi, hy, hyP, hyt⟩ => ⟨i, by omega, y, ⟨hy, hyP, hyt⟩, rfl, rfl⟩⟩
+  rintro ⟨_, hj, _, ⟨hz, hzP, hzt⟩, rfl, rfl⟩
+  exact ⟨by omega, hz, hzP, hzt⟩
 
 theorem nodup_occurrences (P : List (List α)) (t : List α) : (occurrences P t).Nodup := by
   refine List.nodup_flatMap.mpr ⟨fun i _ => (nodup_output P _).map fun _ _ h => (Prod.mk.inj h).2,

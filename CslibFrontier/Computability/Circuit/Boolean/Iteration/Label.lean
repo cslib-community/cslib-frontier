@@ -228,7 +228,8 @@ theorem shortLength_eq : shortLength (w := w) f K x = BitVec.ofNat w (cycleLengt
     fun i hi => decide_eq_false fun ⟨hip, he⟩ =>
       hi.not_ge (hmin ▸ Function.IsPeriodicPt.minimalPeriod_le hip he)
   change f^[cycleLength f x] x = x
-  rw [← hmin]; exact Function.isPeriodicPt_minimalPeriod f x
+  rw [← hmin]
+  exact Function.isPeriodicPt_minimalPeriod f x
 
 include hx hK in
 private theorem shortTime_eq : shortTime (w := w) f K x = BitVec.ofNat w (canonicalTime f x) := by
@@ -307,7 +308,9 @@ theorem synthesis_shortLabel (s : Set (BooleanFunction a)) (f : BitString n → 
   let time := fun x => shortTime (w := n + 3) f K (init x)
   let src2 := s ∪ (wires rep ∪ (wordWires ell ∪ wordWires time))
   have hphase := synthesis_subMod src2 (fun _ => (0 : BitVec (n + 3))) time ell
-    (fun i => by dsimp [src2]; simpa using Or.inl (hc false))
+    (fun i => by
+      dsimp [src2]
+      simpa using Or.inl (hc false))
     (fun i => Or.inr (Or.inr (Or.inr ⟨i, rfl⟩)))
     (fun i => Or.inr (Or.inr (Or.inl ⟨i, rfl⟩))) (Or.inl (hc false))
   have hout := Synthesis.of_subset (I := interpretation)

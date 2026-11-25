@@ -201,9 +201,10 @@ theorem exists_root_formula_of_generator_vanishing [Field K] [Infinite K] [Decid
       have h1 := (card_support_aeval_le_of_degreeOf_le_one hmul hAX hAC).trans
         (Nat.pow_le_pow_right two_pos hcard)
       have h2 := (totalDegree_aeval_le_card_of_degreeOf_le_one hmul hAX hAC).trans hcard
+      have hg : aeval ψ (hybridInput f S i j) = aeval (fun k => ψ (.inl (S j k))) f := by
+        simp [hybridInput, hj, aeval_rename, Function.comp_def]
       refine (SPFormula.nodeCount_ofSparse_le _).trans ?_
-      rw [show aeval ψ (hybridInput f S i j) = aeval (fun k => ψ (.inl (S j k))) f by
-        simp [hybridInput, hj, aeval_rename, Function.comp_def]]
+      rw [hg]
       have := Nat.mul_le_mul h1 (Nat.add_le_add_right h2 1)
       omega
     · have hpos : 1 ≤ 2 ^ a * (a + 1) := Nat.mul_pos (Nat.two_pow_pos a) (Nat.succ_pos a)

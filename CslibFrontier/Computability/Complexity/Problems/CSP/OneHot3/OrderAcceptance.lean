@@ -97,7 +97,8 @@ private theorem index_coordinates (F : CSP Unit ℕ) (hw : F.WellFormed arity)
       6 * p.1.val + 2 * p.2.val + side.toNat := by
   change 2 * incidenceEdgeIndex ((ternaryCoordinates F hw).symm p) + side.toNat = _
   rw [incidenceEdgeIndex_eq_mul_add 3 hw]
-  change 2 * (3 * p.1.val + p.2.val) + side.toNat = _; omega
+  change 2 * (3 * p.1.val + p.2.val) + side.toNat = _
+  omega
 
 private theorem index_orderedOccurrence (F : CSP Unit ℕ) (c : RotationCertificate)
     (hw : F.WellFormed arity) (o : F.Occurrence) (side : Bool) :
@@ -156,7 +157,8 @@ private theorem constraint_cycle_step (F : CSP Unit ℕ) (c : RotationCertificat
     congrArg Prod.snd ((ternaryCoordinates F hw).symm.injective (incidenceDart_injective true hab))
   have himage (a : Fin 3) : ∃ b : Fin 3, r.rotate (dart a) = dart b := by
     obtain ⟨o, ho⟩ := exists_incidenceDart (r.rotate (dart a))
-    have hvertex := r.vertex_rotate (dart a); rw [← ho] at hvertex
+    have hvertex := r.vertex_rotate (dart a)
+    rw [← ho] at hvertex
     have hf := (vertex_incidenceDart_eq_iff o
       ((ternaryCoordinates F hw).symm (i, a)) (r.rotate (dart a)).2 true).mp hvertex
     refine ⟨(ternaryCoordinates F hw o).2, ho.symm.trans ?_⟩
@@ -180,9 +182,13 @@ private theorem constraint_cycle_step (F : CSP Unit ℕ) (c : RotationCertificat
       Bool.toNat_true] using (ht (dart 0)).trans (congrArg Dart.index (hnext 0))
   have hforward : forward c i.val = decide (next 0 = 1) := Bool.eq_iff_iff.mpr <| by
     simp only [forward, decide_eq_true_eq, hread, Fin.ext_iff, Fin.val_one]; omega
-  have classification : ∀ f : Fin 3 → Fin 3, Function.Injective f → (∀ a, f a ≠ a) → ∀ a,
-      let q : Equiv.Perm (Fin 3) := if decide (f 0 = 1) then Equiv.refl _ else Equiv.swap 1 2
-      q (f a) = finRotate 3 (q a) := by decide +kernel
+  -- Only the three finite ports are enumerated here, never a source graph or drawing.
+  have classification : ∀ f : Fin 3 → Fin 3, Function.Injective f →
+      (∀ a, f a ≠ a) → ∀ a,
+      let q : Equiv.Perm (Fin 3) :=
+        if decide (f 0 = 1) then Equiv.refl _ else Equiv.swap 1 2
+      q (f a) = finRotate 3 (q a) := by
+    decide +kernel
   have hconj : portPermutation c i (next j) = finRotate 3 (portPermutation c i j) := by
     simpa only [portPermutation, hforward] using classification next hni hnf j
   exact (hnext j).trans (congrArg dart <| by simpa using congrArg (portPermutation c i).symm hconj)

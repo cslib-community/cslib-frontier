@@ -185,7 +185,8 @@ ciphertext. -/
 /-! #### Length, involution, and representation lemmas -/
 
 @[simp] theorem length_evenMansourPreKeyWord (k₁ x : List Bool) :
-    (evenMansourPreKeyWord k₁ x).length = min x.length k₁.length := by simp [evenMansourPreKeyWord]
+    (evenMansourPreKeyWord k₁ x).length = min x.length k₁.length := by
+  simp [evenMansourPreKeyWord]
 
 @[simp] theorem length_evenMansourPostKeyWord (k₂ y : List Bool) :
     (evenMansourPostKeyWord k₂ y).length = min y.length k₂.length := by
@@ -193,11 +194,13 @@ ciphertext. -/
 
 private theorem length_evenMansourPreKeyWord_of_eq {n : ℕ} {k₁ x : List Bool}
     (hk₁ : k₁.length = n) (hx : x.length = n) :
-    (evenMansourPreKeyWord k₁ x).length = n := by simp [hk₁, hx]
+    (evenMansourPreKeyWord k₁ x).length = n := by
+  simp [hk₁, hx]
 
 private theorem length_evenMansourPostKeyWord_of_eq {n : ℕ} {k₂ y : List Bool}
     (hk₂ : k₂.length = n) (hy : y.length = n) :
-    (evenMansourPostKeyWord k₂ y).length = n := by simp [hk₂, hy]
+    (evenMansourPostKeyWord k₂ y).length = n := by
+  simp [hk₂, hy]
 
 /-- Applying `evenMansourPreKeyWord k₁` twice cancels on equal-length words. -/
 @[simp] theorem evenMansourPreKeyWord_self (k₁ x : List Bool) (h : x.length = k₁.length) :
@@ -898,11 +901,11 @@ private theorem eval_evenMansourWordRealGame (adversary : EvenMansourDistinguish
         List.ofFn (BitString.ofList n (splitTwoKeys n (List.ofFn z)).1) ++
           List.ofFn (BitString.ofList n (splitTwoKeys n (List.ofFn z)).2) = List.ofFn z := by
       have hz : (List.ofFn z).length = 2 * n := List.length_ofFn
+      have hdrop : ((List.ofFn z).drop n).length ≤ n := by
+        simp only [List.length_drop, hz]; omega
       rw [BitString.ofFn_ofList (length_splitTwoKeys_fst hz),
         BitString.ofFn_ofList (length_splitTwoKeys_snd hz), splitTwoKeys_fst_eq_take]
-      simp only [splitTwoKeys, keyBlock, one_mul,
-        List.take_of_length_le (show ((List.ofFn z).drop n).length ≤ n by
-          simp only [List.length_drop, hz]; omega),
+      simp only [splitTwoKeys, keyBlock, one_mul, List.take_of_length_le hdrop,
         List.take_append_drop]
     have hL : List.ofFn z₁ = List.ofFn z₂ := by
       rw [← h1 z₁, ← h1 z₂, (Prod.mk.inj h).1, (Prod.mk.inj h).2]

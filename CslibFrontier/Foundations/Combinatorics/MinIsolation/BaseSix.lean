@@ -79,22 +79,25 @@ variable {α P : Type*} {ℓ : ℕ}
 /-- Every seeded level weight is strictly below `6 ^ (level + ℓ)`. -/
 theorem levelWeight_lt_pow (level : ℕ) (word seed : Fin ℓ → Bool) :
     levelWeight level word seed < 6 ^ (level + ℓ) := by
-  calc levelWeight level word seed
-      ≤ ∑ j : Fin ℓ, levelBitCoeff level j :=
-        sum_le_sum fun j _ => by cases word j <;> cases seed j <;> simp
-    _ = ∑ j : Fin ℓ, levelBitCoeff level (Fin.revPerm j) :=
-        (Equiv.sum_comp Fin.revPerm _).symm
+  calc
+    levelWeight level word seed ≤ ∑ j : Fin ℓ, levelBitCoeff level j :=
+      sum_le_sum fun j _ => by cases word j <;> cases seed j <;> simp
     _ = 6 ^ level * ∑ k ∈ range ℓ, 6 ^ k := by
-        rw [mul_sum, ← Fin.sum_univ_eq_sum_range]
-        refine sum_congr rfl fun j _ => ?_
-        have hj := j.isLt
-        simp only [levelBitCoeff, Fin.revPerm_apply, Fin.val_rev]
-        congr 2
-        omega
+      rw [mul_sum, ← Fin.sum_univ_eq_sum_range]
+      calc
+        (∑ j : Fin ℓ, levelBitCoeff level j) =
+            ∑ j : Fin ℓ, levelBitCoeff level (Fin.revPerm j) :=
+          (Equiv.sum_comp Fin.revPerm _).symm
+        _ = _ := by
+          refine sum_congr rfl fun j _ => ?_
+          have hj := j.isLt
+          simp only [levelBitCoeff, Fin.revPerm_apply, Fin.val_rev]
+          congr 2
+          omega
     _ < 6 ^ (level + ℓ) := by
-        rw [pow_add]
-        exact Nat.mul_lt_mul_of_pos_left
-          (Nat.geomSum_lt (by decide) fun _ hk => mem_range.mp hk) (by positivity)
+      rw [pow_add]
+      exact Nat.mul_lt_mul_of_pos_left
+        (Nat.geomSum_lt (by decide) fun _ hk => mem_range.mp hk) (by positivity)
 
 /-- Switching seed bit `j` from `false` to `true` increases `levelWeight` by the masked
 coefficient at `j`. -/
@@ -130,7 +133,8 @@ private theorem sum_six_pow_multiset_eq_sum_range (s : Multiset α) (level : α 
   | cons a t ih =>
     have hfilter (k : ℕ) :
         ((a ::ₘ t).filter fun x => level x = k).card * 6 ^ k =
-          (if level a = k then 6 ^ k else 0) + (t.filter fun x => level x = k).card * 6 ^ k := by
+          (if level a = k then 6 ^ k else 0) +
+            (t.filter fun x => level x = k).card * 6 ^ k := by
       rw [Multiset.filter_cons]
       split_ifs <;> simp [Nat.add_mul, Nat.add_comm]
     rw [Multiset.map_cons, Multiset.sum_cons, ih fun x hx => hlt x (Multiset.mem_cons_of_mem hx)]

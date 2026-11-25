@@ -58,12 +58,8 @@ private theorem two_le_of_mTr {s : ℕ} {u v : V} (huv : G.Adj u v) {C D : Finse
   | @stepL C₁ m C₂ ms C₃ htr _ ih =>
     by_cases hv₂ : v ∈ C₂
     · obtain ⟨hpred, rfl⟩ := htr.1.eq_insert_of_mem hv₂ hvC
-      have huC : u ∈ C₁ := hpred u huv
-      have huv' : u ≠ v := fun h => hvC (h ▸ huC)
-      have hcard : 2 ≤ (insert v C₁).card := by
-        rw [Finset.card_insert_of_notMem hvC]
-        exact Nat.succ_le_succ (Finset.card_pos.2 ⟨u, huC⟩)
-      exact hcard.trans htr.2
+      refine (Nat.succ_le_succ (Finset.card_pos.2 ⟨u, hpred u huv⟩)).trans ?_
+      simpa only [Finset.card_insert_of_notMem hvC] using htr.2
     · exact ih hv₂ hvD
 
 /-- A vertex with a predecessor cannot be black-pebbled with fewer than two pebbles: when its
@@ -75,17 +71,12 @@ theorem BlackPebblable.two_le_of_adj {s : ℕ} {u v : V} (huv : G.Adj u v)
 
 end TwoPebbles
 
-theorem blackPebblable_pathDigraph (v : ℕ) : BlackPebblable pathDigraph 2 v := by
-  cases v with
-  | zero => exact (blackPebblable_one_of_source fun _ => pathDigraph_source).mono (by omega)
-  | succ v =>
-    refine BlackPebblable.of_forall_adj (s := 2) {v} (fun u hu => ?_) (fun u hu => ?_)
-      (by simp) (by simp)
-    · rw [pathDigraph_adj] at hu
-      rw [Finset.mem_singleton]
-      omega
-    · rw [Finset.mem_singleton] at hu
-      exact hu ▸ blackPebblable_pathDigraph v
+theorem blackPebblable_pathDigraph (v : ℕ) : BlackPebblable pathDigraph 2 v :=
+  match v with
+  | 0 => (blackPebblable_one_of_source fun _ => pathDigraph_source).mono (by omega)
+  | v + 1 => BlackPebblable.of_forall_adj (s := 2) {v}
+      (fun _ hu => Finset.mem_singleton.2 (Nat.succ.inj hu))
+      (fun _ hu => Finset.mem_singleton.1 hu ▸ blackPebblable_pathDigraph v) (by simp) (by simp)
 
 /-- Every vertex of the directed path other than the source has black pebbling price `2`. -/
 theorem blackPebblingPrice_pathDigraph_succ (v : ℕ) : blackPebblingPrice pathDigraph (v + 1) = 2 :=

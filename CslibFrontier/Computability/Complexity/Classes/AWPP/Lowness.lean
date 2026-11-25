@@ -76,7 +76,9 @@ private theorem answerStep_take_iterate {k : ℕ} {Control : Type}
         (FiniteConfig.init machine.initial input)) := by
     induction i with
     | zero => exact FiniteConfig.spaceBound_init _ _ _
-    | succ i ih => rw [Function.iterate_succ_apply']; exact machine.spaceBound_answerStep g ih
+    | succ i ih =>
+      rw [Function.iterate_succ_apply']
+      exact machine.spaceBound_answerStep g ih
   induction n with
   | zero => rfl
   | succ n ih =>
@@ -112,7 +114,11 @@ private theorem weightedReplay_error {k : ℕ} {Control : Type}
     by_cases hq : (machine.pendingQuery cfg).isSome <;> simp [replyStep, answer, hq]
   have h := acceptWeight_error machine.replyStep (fun cfg => cfg.tapes.output.headD false) answer
     (p := p) hD (show 0 ≤ (2 : ℤ) ^ e by positivity)
-    (fun cfg => by dsimp only [p]; split; exacts [(hw _).1, ⟨le_rfl, hD⟩])
+    (fun cfg => by
+      dsimp only [p]
+      split
+      · exact (hw _).1
+      · exact ⟨le_rfl, hD⟩)
     (fun cfg => by
       by_cases hq : (machine.pendingQuery cfg).isSome
       · by_cases ha : (machine.pendingRequest cfg).take (T a) ∈ A
@@ -145,7 +151,8 @@ theorem PPWithOracle_eq_PP_of_mem_AWPP (hA : A ∈ AWPP encBits) (enc : α ↪ L
   classical
   refine Set.Subset.antisymm ?_ (PP_subset_PPWithOracle A enc)
   rintro L ⟨p, V, ⟨program, hprogram, hV⟩, hL⟩
-  obtain ⟨k, m, machine, c, d, hrun⟩ := Probability.IsOraclePPTOn.exists_fin_run_pure_false hprogram
+  obtain ⟨k, m, machine, c, d, hrun⟩ :=
+    Probability.IsOraclePPTOn.exists_fin_run_pure_false hprogram
   let r : α → ℕ := fun a => p.eval (enc a).length
   let T : α → ℕ := fun a => c * (2 * (enc a).length + 1 + r a + 1) ^ d
   have hr : ComputableInPolyTime r enc encUnary := by dsimp [r]; fun_prop
@@ -156,15 +163,17 @@ theorem PPWithOracle_eq_PP_of_mem_AWPP (hA : A ∈ AWPP encBits) (enc : α ↪ L
   let input : α × List Bool → List Bool := encPair enc encBits
   let F := weightedReplay machine input (fun x => T x.1) (fun x => 2 ^ R x.1)
     (fun x => H (x.1.1, x.2))
-  have hF : F ∈ GapP (encPair enc encBits) := GapP.weightedReplay_mem machine
-    (by dsimp [input]; fun_prop) (by fun_prop) (mem_GapP_of_polyTime (by fun_prop))
-    (GapP.comp_mem hH (by fun_prop))
+  have hF : F ∈ GapP (encPair enc encBits) := by
+    refine GapP.weightedReplay_mem machine ?_ (by fun_prop)
+      (mem_GapP_of_polyTime (by fun_prop)) (GapP.comp_mem hH (by fun_prop))
+    dsimp [input]; fun_prop
   let S : α → ℤ := fun a => ∑ w : Fin (r a) → Bool, F (a, List.ofFn w)
   let E : α → ℤ := fun a => 2 ^ (R a * T a)
+  have hE : E ∈ GapP enc := mem_GapP_of_polyTime <| by
+    dsimp [E]; fun_prop
   refine mem_PP_iff_exists_GapP.mpr ⟨fun a => 4 * S a - (2 * (2 : ℤ) ^ r a + 1) * E a,
     GapP.sub_mem' (GapP.mul_mem (mem_GapP_of_polyTime (by fun_prop)) (GapP.sum_bits_mem hF hr))
-      (GapP.mul_mem (mem_GapP_of_polyTime (by fun_prop))
-        (mem_GapP_of_polyTime (by dsimp [E]; fun_prop))),
+      (GapP.mul_mem (mem_GapP_of_polyTime (by fun_prop)) hE),
     fun a => ?_⟩
   have herror (w : Fin (r a) → Bool) : (2 : ℤ) ^ (r a + T a + 4) *
       |F (a, List.ofFn w) - E a * (if V (a, List.ofFn w) then 1 else 0)| ≤ (T a : ℤ) * E a := by
@@ -177,10 +186,10 @@ theorem PPWithOracle_eq_PP_of_mem_AWPP (hA : A ∈ AWPP encBits) (enc : α ↪ L
     simpa only [input, F, E, e, hclock, hout, encBool_apply, List.headD_cons] using hw
   have hbatch := sum_error (show 0 ≤ E a by dsimp [E]; positivity)
     (fun w : Fin (r a) → Bool => F (a, List.ofFn w)) (fun w => V (a, List.ofFn w)) herror
-  rw [show (∑ w : Fin (r a) → Bool, if V (a, List.ofFn w) then (1 : ℤ) else 0) =
-      acceptCount V a (r a) by
-    simp only [acceptCount, card_filter, Nat.cast_sum, Nat.cast_ite, Nat.cast_one, Nat.cast_zero],
-    mul_comm (E a)] at hbatch
+  have hcount : (∑ w : Fin (r a) → Bool, if V (a, List.ofFn w) then (1 : ℤ) else 0) =
+      acceptCount V a (r a) := by
+    simp only [acceptCount, card_filter, Nat.cast_sum, Nat.cast_ite, Nat.cast_one, Nat.cast_zero]
+  rw [hcount, mul_comm (E a)] at hbatch
   rw [hL a]
   exact_mod_cast (positive_gap_iff (B := (2 : ℤ) ^ r a)
     (show 0 < E a by dsimp [E]; positivity) hbatch).symm

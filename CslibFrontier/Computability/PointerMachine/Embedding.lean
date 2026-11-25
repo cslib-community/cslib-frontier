@@ -147,8 +147,7 @@ private theorem modify (r : Fin L.ptrRegs) (g g' : Record M L → Record M L)
 private theorem relabel_congr {g : ℕ → ℕ}
     (hg : ∀ a, a < x.heap.length → g a = f a) {n : Record M L} (hn : n ∈ x.heap) :
     n.relabel g = n.relabel f := by
-  change { n with ptr := fun r => (n.ptr r).map g } =
-    { n with ptr := fun r => (n.ptr r).map f }
+  unfold Record.relabel
   congr 1
   funext r
   exact Option.map_congr fun a ha => hg a (h.source_valid.2 n hn r a ha)
@@ -160,16 +159,8 @@ private theorem create (r : Fin L.ptrRegs) :
   have hg (a) (ha : a < x.heap.length) : g a = f a :=
     Function.update_of_ne (Nat.ne_of_lt ha) _ _
   have hfresh : g x.heap.length = y.heap.length := Function.update_self ..
-  refine ⟨g, hg, ?_⟩
-  refine {
-    source_valid := Instr.effect_valid h.source_valid
-    target_valid := Instr.effect_valid h.target_valid
-    pc := h.pc
-    data := h.data
-    ptr := ?_
-    injective := ?_
-    bound := ?_
-    heap := ?_ }
+  refine ⟨g, hg, ⟨Instr.effect_valid h.source_valid, Instr.effect_valid h.target_valid,
+    h.pc, h.data, ?_, ?_, ?_, ?_⟩⟩
   · intro s
     simp only [Instr.effect, State.setPtr, Function.update_apply]
     split_ifs with hs
@@ -234,18 +225,15 @@ theorem effect (i : Instr M L) :
   | storePtr field base r =>
     refine ⟨f, fun _ _ => rfl, h.modify base _ _
       (Instr.effect_valid (i := .storePtr field base r) h.source_valid)
-      (Instr.effect_valid (i := .storePtr field base r) h.target_valid) ?_⟩
-    intro n _
+      (Instr.effect_valid (i := .storePtr field base r) h.target_valid) fun n _ => ?_⟩
     simp only [Record.relabel, h.ptr]
     congr 1
     funext s
-    simp only [Function.update_apply]
-    split_ifs <;> rfl
+    simp only [Function.update_apply, apply_ite (Option.map f)]
   | storeData field base s =>
     refine ⟨f, fun _ _ => rfl, h.modify base _ _
       (Instr.effect_valid (i := .storeData field base s) h.source_valid)
-      (Instr.effect_valid (i := .storeData field base s) h.target_valid) ?_⟩
-    intro n _
+      (Instr.effect_valid (i := .storeData field base s) h.target_valid) fun n _ => ?_⟩
     simp [Record.relabel, h.data]
   | goto _ | ifPtrEq _ _ _ | ifTest _ _ _ _ | halt => exact ⟨f, fun _ _ => rfl, h⟩
 

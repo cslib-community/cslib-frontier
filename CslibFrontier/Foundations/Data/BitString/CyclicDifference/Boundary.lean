@@ -351,8 +351,8 @@ theorem three_le_val_capDifferencePort {n : ℕ} {j : Fin (n + 2)} (hj : j ≠ 0
     capDifferencePort j ≠ 2 := by
   intro he
   have hv := congrArg Fin.val he
-  rw [val_capDifferencePort, show (2 : Fin (n + 4)).val = 2 from
-    Nat.mod_eq_of_lt (by omega : 2 < n + 4)] at hv
+  have ht : (2 : Fin (n + 4)).val = 2 := Nat.mod_eq_of_lt (by omega : 2 < n + 4)
+  rw [val_capDifferencePort, ht] at hv
   split_ifs at hv; omega
 
 /-- Exactly differences 1 and 2 are hidden by the cap. -/

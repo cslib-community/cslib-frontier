@@ -148,20 +148,14 @@ theorem eval_routeValuesCircuit_value_eq_true_iff {h k d width : ℕ}
       _ = order (sorted a) := he a
       _ ≤ order (sorted b) := BitonicSort.monotone_sort order d rows hab
       _ = _ := (he b).symm
-  have hr : ∀ i, R (sorted i) (answers i) := by
-    intro i hi
+  have hr (i : Fin (BitonicSort.arity d)) : R (sorted i) (answers i) := fun hi => by
     have ht : header y i tag = true := by
       simpa only [header, y, BitString.block_blocksEquiv_symm, Function.comp_apply] using hi
-    change answers i bit = true ↔ _
-    rw [show answers i bit =
-      value ((broadcastCircuit key tag (BitonicSort.arity d) width).eval interpretation y) i bit
-        from rfl,
-      eval_broadcastCircuit_value_eq_true_iff key tag y hs i ht bit]
+    refine (eval_broadcastCircuit_value_eq_true_iff key tag y hs i ht bit).trans ?_
     simpa only [header, value, y, BitString.block_blocksEquiv_symm, Function.comp_apply] using
-      List.Perm.exists_ofFn_iff (BitonicSort.sort_perm order d true rows)
-        (fun row : BitString (h + width) =>
-          (row ∘ Fin.castAdd width) ∘ key = (sorted i ∘ Fin.castAdd width) ∘ key ∧
-            row (Fin.castAdd width tag) = false ∧ row (Fin.natAdd h bit) = true)
+      (BitonicSort.sort_perm order d true rows).exists_ofFn_iff fun row : BitString (h + width) =>
+        (row ∘ Fin.castAdd width) ∘ key = (sorted i ∘ Fin.castAdd width) ∘ key ∧
+          row (Fin.castAdd width tag) = false ∧ row (Fin.natAdd h bit) = true
   rw [eval_routeValuesCircuit]
   exact BitonicSort.unrouteSort_rel_sort order d true rows answers R hr destination hdestination
 
@@ -170,10 +164,9 @@ theorem size_routeValuesCircuit {h k : ℕ} (key : Fin k → Fin h) (tag : Fin h
     (routeValuesCircuit key tag d width).size =
       BitonicSort.sortTraceSize d * (6 * (k + 1) + 6 * h + 12 * width + 2) +
       (broadcastCircuit key tag (BitonicSort.arity d) width).size := by
-  have hc := cost_program_routeValuesCircuit key tag d width (fun _ => 1)
+  have hc := cost_program_routeValuesCircuit key tag d width fun _ => 1
   simp only [Program.cost_const, one_mul, size_bitonicSortTraceCircuit] at hc
-  rw [hc]
-  ring
+  rw [hc]; ring
 
 /-- A destination receives its unique matching source at its literal original input position. -/
 theorem eval_routeValuesCircuit_of_unique_source {h k d width : ℕ}
@@ -186,12 +179,9 @@ theorem eval_routeValuesCircuit_of_unique_source {h k d width : ℕ}
     BitString.block ((routeValuesCircuit key tag d width).eval interpretation x) destination =
       value x source := by
   funext bit
-  apply Bool.eq_iff_iff.mpr
-  rw [eval_routeValuesCircuit_value_eq_true_iff key tag x destination hdestination bit]
-  constructor
-  · rintro ⟨i, hi, ht, hv⟩
-    exact unique i (hi.trans hkey.symm) ht ▸ hv
-  · intro hv
-    exact ⟨source, hkey, hsource, hv⟩
+  refine Bool.eq_iff_iff.mpr ((eval_routeValuesCircuit_value_eq_true_iff key tag x destination
+    hdestination bit).trans ⟨?_, fun hv => ⟨source, hkey, hsource, hv⟩⟩)
+  rintro ⟨i, hi, ht, hv⟩
+  exact unique i (hi.trans hkey.symm) ht ▸ hv
 
 end Cslib.Circuits.Boolean

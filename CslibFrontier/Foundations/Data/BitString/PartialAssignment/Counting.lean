@@ -190,9 +190,8 @@ theorem card_filter_extends_withFree {ρ' : PartialAssignment ι} {ℓ : ℕ}
     (hℓ : #ρ'.free ≤ ℓ) :
     #((withFree ι ℓ).filter fun ρ => ρ'.Extends ρ) =
       (Fintype.card ι - #ρ'.free).choose (ℓ - #ρ'.free) := by
-  have h := card_filter_powersetCard_subset ρ'.free univ ℓ (subset_univ _) hℓ
-  rw [card_univ] at h
-  rw [← h]
+  rw [show Fintype.card ι = #(univ : Finset ι) from card_univ.symm,
+    ← card_filter_powersetCard_subset ρ'.free univ ℓ (subset_univ _) hℓ]
   -- Freeing the coordinates of a superset `F` of `ρ'.free` leaves exactly `F` free.
   have hfree {F : Finset ι} (hsub : ρ'.free ⊆ F) :
       free (fun i => if i ∈ F then none else ρ' i) = F := by
@@ -207,12 +206,11 @@ theorem card_filter_extends_withFree {ρ' : PartialAssignment ι} {ℓ : ℕ}
     exact mem_filter.2 ⟨mem_powersetCard.2 ⟨subset_univ _, (mem_withFree.1 hρ)⟩,
       hext.free_subset⟩
   · obtain ⟨hF, hsub⟩ := mem_filter.1 hF
-    refine mem_filter.2 ⟨mem_withFree.2 ?_, fun i b hb => ?_⟩
-    · rw [hfree hsub]
-      exact (mem_powersetCard.1 hF).2
-    · dsimp only at hb
-      split_ifs at hb
-      exact hb
+    refine mem_filter.2 ⟨mem_withFree.2
+      ((congrArg Finset.card (hfree hsub)).trans (mem_powersetCard.1 hF).2), fun i b hb => ?_⟩
+    dsimp only at hb
+    split_ifs at hb
+    exact hb
   · obtain ⟨-, hext⟩ := mem_filter.1 hρ
     funext i
     by_cases hi : i ∈ ρ.free
@@ -252,17 +250,12 @@ theorem sum_card_filter_outside (Q : PartialAssignment ι → Prop) [DecidablePr
     refine card_nbij' (fun p => p.2) (fun z => ⟨ρ.free, z⟩) (fun p hp => ?_) (fun z hz => ?_)
       (fun p hp => ?_) (fun z _ => rfl)
     · obtain ⟨-, hpρ⟩ := mem_filter.1 hp
-      have h1 : p.1 = ρ.free := by rw [← hpρ, free_outside]
-      exact mem_filter.2 ⟨mem_univ _, h1 ▸ hpρ⟩
+      exact mem_filter.2 ⟨mem_univ _, (hpρ ▸ free_outside p.1 p.2) ▸ hpρ⟩
     · have hz' : outside ρ.free z = ρ := (mem_filter.1 hz).2
-      refine mem_filter.2 ⟨mem_sigma.2 ⟨mem_powersetCard.2 ⟨subset_univ _, rfl⟩, ?_⟩, hz'⟩
-      refine mem_filter.2 ⟨mem_univ _, ?_⟩
-      change Q (outside ρ.free z)
-      rw [hz']
-      exact (mem_filter.1 hρ).2
+      exact mem_filter.2 ⟨mem_sigma.2 ⟨mem_powersetCard.2 ⟨subset_univ _, rfl⟩,
+        mem_filter.2 ⟨mem_univ _, hz'.symm ▸ (mem_filter.1 hρ).2⟩⟩, hz'⟩
     · obtain ⟨-, hpρ⟩ := mem_filter.1 hp
-      have h1 : p.1 = ρ.free := by rw [← hpρ, free_outside]
-      exact Sigma.ext h1.symm HEq.rfl
+      exact Sigma.ext (hpρ ▸ free_outside p.1 p.2) HEq.rfl
   · obtain ⟨hJ, hz⟩ := mem_sigma.1 hp
     exact mem_filter.2 ⟨mem_withFree.2 (by rw [free_outside]; exact (mem_powersetCard.1 hJ).2),
       (mem_filter.1 hz).2⟩
@@ -343,9 +336,7 @@ theorem mul_card_extensions_sub_one (ρ₀ : PartialAssignment ι) {t : ℕ} (ht
   have h := (sum_extensions_update ρ₀ ht1 (fun _ => 1)).symm
   rw [sum_const, smul_eq_mul, mul_one] at h
   have hinner (ρ : PartialAssignment ι) (hρ : ρ ∈ ρ₀.extensions t) :
-      ∑ i ∈ ρ.free, (1 + 1) = 2 * t := by
-    rw [sum_const, smul_eq_mul, (mem_extensions.1 hρ).2]
-    ring
+      ∑ _ ∈ ρ.free, (1 + 1) = 2 * t := by simp [(mem_extensions.1 hρ).2, Nat.mul_comm]
   rw [h, sum_congr rfl hinner, sum_const, smul_eq_mul]
   ring
 

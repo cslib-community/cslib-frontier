@@ -169,15 +169,13 @@ theorem cast_andreevSharpMult_sq (c : BitString b) :
     (andreevSharpMult b m c : ℝ) ^ 2 =
       (if c = 0 then 0 else 1) +
         (2 * andreevSharpAmp m + andreevSharpAmp m ^ 2) * onSingles 1 c := by
-  have h1 : onSingles 1 c * onSingles 1 c = onSingles 1 c := by
-    rw [← ite_isSingle_eq_onSingles]
-    split_ifs <;> norm_num
-  have h2 : (if c = 0 then (0 : ℝ) else 1) * onSingles 1 c = onSingles 1 c := by
-    split_ifs with h <;> simp [h]
-  have h3 : (if c = 0 then (0 : ℝ) else 1) ^ 2 = if c = 0 then 0 else 1 := by
-    split_ifs <;> norm_num
-  rw [cast_andreevSharpMult]
-  linear_combination h3 + 2 * (andreevSharpAmp m : ℝ) * h2 + (andreevSharpAmp m : ℝ) ^ 2 * h1
+  rw [cast_andreevSharpMult, ← ite_isSingle_eq_onSingles]
+  by_cases hz : c = 0
+  · subst c
+    simp [not_isSingle_zero]
+  · by_cases hs : IsSingle c <;>
+      simp only [hz, hs, ↓reduceIte, mul_one, mul_zero, add_zero, one_pow]
+    ring
 
 @[simp]
 private theorem andreevSharpMult_single (i : Fin b) :
@@ -271,19 +269,19 @@ theorem andreevSharpScore_eq (x : BitString b → Bool) (s : Fin b → ℕ) :
     four_mul_sum_oddForm_mul_oddForm] at hridge
   simp only [Fintype.card_fin] at hridge
   -- basic inner products
-  have hX2 (c : BitString b) : X c * X c = X c := by rw [← sq, hX, tableVal_sq]
   have ha0 : a 0 = 0 := by simp [ha, andreevSharpMult]
   have hst0 : st 0 = 0 := onSingles_zero _
   have hε0 : ε 0 = 0 := onSingles_zero _
   have hδ0 : δ 0 = I0 := by simp only [hδ, hI0, eq_comm]
+  have weighted_sum (κ : ℝ) :
+      (∑ c, ((if c = 0 then 0 else 1) + κ * ε c) * X c) = z + κ * E := by
+    simp only [hε, add_mul, sum_add_distrib, ite_mul, zero_mul, one_mul,
+      mul_assoc, ← mul_sum, sum_onSingles_mul, Pi.one_apply, hz, hE]
   have hsa : ∑ c, a c = z + α * E := by
-    simp only [ha, cast_andreevSharpMult, add_mul, sum_add_distrib, ite_mul, zero_mul, one_mul,
-      mul_assoc, ← mul_sum, sum_onSingles_mul, Pi.one_apply, hz, hE, hα]
+    simpa only [ha, cast_andreevSharpMult, hα, hε] using weighted_sum α
   have hsaa : ∑ c, a c * a c = z + (2 * α + α ^ 2) * E := by
-    have h (c : BitString b) : a c * a c = (andreevSharpMult b m c : ℝ) ^ 2 * X c := by
-      linear_combination (andreevSharpMult b m c : ℝ) ^ 2 * hX2 c
-    simp only [h, cast_andreevSharpMult_sq, add_mul, sum_add_distrib, ite_mul, zero_mul, one_mul,
-      mul_assoc, ← mul_sum, sum_onSingles_mul, Pi.one_apply, hz, hE, hα]
+    simpa only [ha, ← sq, mul_pow, hX, tableVal_sq, cast_andreevSharpMult_sq, hα, hε]
+      using weighted_sum (2 * α + α ^ 2)
   have hsast : ∑ c, a c * st c = (1 + α) * ∑ i, X (Pi.single i true) * s i := by
     rw [hst, show (∑ c, a c * onSingles (fun i => (s i : ℝ)) c) =
         ∑ c, onSingles (fun i => (s i : ℝ)) c * a c from sum_congr rfl fun c _ => mul_comm _ _,

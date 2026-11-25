@@ -175,9 +175,9 @@ theorem eval_eufCmaExperiment_unhashedRSAExistentialForger (desc : RSADesc)
       fun _ => unhashedRSAExistentialForger desc.publicKey pick) = PMF.pure true := by
   have h (σ : Fin desc.modulus) : rsaEval desc.modulus desc.e σ =
       rsaEval desc.modulus desc.e σ % desc.modulus := (Nat.mod_mod _ _).symm
+  have hmap : (ProbComp.eval pick).map (fun _ => true) = PMF.pure true := PMF.map_const _ _
   simp [forgeExperiment, ProbOracleComp.runLogWith, unhashedRSAExistentialForger, rsaSignature,
-    freshMessage, ← h, show (ProbComp.eval pick).map (fun _ => true) = PMF.pure true from
-      PMF.map_const _ _]
+    freshMessage, ← h, hmap]
 
 /-! ### Universal forgery with one query (p. 537, equation (13.4)) -/
 

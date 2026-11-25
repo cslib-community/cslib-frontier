@@ -641,8 +641,7 @@ theorem length_encPartialSchedules_le {n m Q r : ℕ}
       | none => simp only [encOption_none, List.length_nil]; omega
       | some w =>
         obtain ⟨hlw, hmw⟩ := hw (some w) ho w rfl
-        have hwl := (length_encList_word_le hlw hmw).trans_eq
-          (show Q * (2 * (encNat r).length + 1) = Q * (2 * (encNat r).length + 1) from rfl)
+        have hwl := length_encList_word_le hlw hmw
         simp only [encOption_some, List.length_cons]
         rw [Nat.mul_assoc 2 Q]; omega
     simpa only [List.length_map, smul_eq_mul] using
@@ -714,29 +713,28 @@ theorem length_encOuterState_run_valid_le {n m Q r C : ℕ} {edges : List (ℕ �
   have hed := length_encEdges_le_of_lt hedges
   have hslen := (length_encNat_le_self s).trans hs
   rw [IndexFold.length_run]
-  rcases hst : (IndexFold.run greedySlotStepBody s (((n, m, Q), (r, C), edges), init)).2 with
-    ⟨par, sc⟩
-  have hpar : par = ((n, m, Q), (r, C), edges) := by simpa only [init, hst] using hp
-  have hsc_eq : sc = slotStateSchedules (IndexFold.run greedySlotStepBody s
-      (((n, m, Q), (r, C), edges), init)) := by simp only [slotStateSchedules, hst]
-  subst hpar; rw [← hsc_eq] at hsch
-  simp only [encOuterAcc, encScheduleParams, length_encPair, encUnary_apply, List.length_replicate]
+  simp only [encOuterAcc, length_encPair]
+  rw [hp]
+  simp only [encScheduleParams, length_encPair, encUnary_apply, List.length_replicate]
+  dsimp only [slotStateSchedules] at hsch
   have hcub : (2 * (n + m) * (2 * Q * (2 * (encNat r).length + 1) + 3) + 1) +
       10 * (n + m) + 4 * Q + 8 * (encNat r).length + 23 ≤
       24 * (n + m + 1) * (Q + 1) * ((encNat r).length + 1) := by
-    rw [show 24 * (n + m + 1) * (Q + 1) * ((encNat r).length + 1) =
-      ((2 * (n + m) * (2 * Q * (2 * (encNat r).length + 1) + 3) + 1) +
-        10 * (n + m) + 4 * Q + 8 * (encNat r).length + 23) +
-      (16 * ((n + m) * Q * (encNat r).length) + 20 * ((n + m) * Q) +
-        24 * ((n + m) * (encNat r).length) + 24 * (Q * (encNat r).length) +
-        8 * (n + m) + 20 * Q + 16 * (encNat r).length) by ring]
+    have hring : 24 * (n + m + 1) * (Q + 1) * ((encNat r).length + 1) =
+        ((2 * (n + m) * (2 * Q * (2 * (encNat r).length + 1) + 3) + 1) +
+          10 * (n + m) + 4 * Q + 8 * (encNat r).length + 23) +
+        (16 * ((n + m) * Q * (encNat r).length) + 20 * ((n + m) * Q) +
+          24 * ((n + m) * (encNat r).length) + 24 * (Q * (encNat r).length) +
+          8 * (n + m) + 20 * Q + 16 * (encNat r).length) := by ring
+    rw [hring]
     exact Nat.le_add_right _ _
   have hed' : 2 * (encList (encPair encNat encNat) edges).length ≤
       28 * edges.length * ((encNat (n + m)).length + 1) := by
     refine (Nat.mul_le_mul_left 2 hed).trans ?_
-    rw [show 28 * edges.length * ((encNat (n + m)).length + 1) =
-      2 * (edges.length * (6 * (encNat (n + m)).length + 3)) +
-      (16 * (edges.length * (encNat (n + m)).length) + 22 * edges.length) by ring]
+    have hring : 28 * edges.length * ((encNat (n + m)).length + 1) =
+        2 * (edges.length * (6 * (encNat (n + m)).length + 3)) +
+        (16 * (edges.length * (encNat (n + m)).length) + 22 * edges.length) := by ring
+    rw [hring]
     exact Nat.le_add_right _ _
   omega
 
@@ -758,28 +756,23 @@ theorem length_encOuterState_run_le (p : ScheduleParams) {s : ℕ}
         (let ((n, m, _), _) := p; (p, (List.replicate n none, List.replicate m none))))).length ≤
       8 * (encScheduleParams p).length ^ 3 + 4 * (encScheduleParams p).length ^ 2 +
         10 * (encScheduleParams p).length + 3 := by
-  let L := (encScheduleParams p).length; have hparts := scheduleParams_parts_le p
-  let init := (List.replicate p.1.1 (none : Option (List ℕ)),
-    List.replicate p.1.2.1 (none : Option (List ℕ)))
-  have hp := run_greedySlotStepBody_params p init s
-  obtain ⟨h1, h2, hw1, hw2⟩ :=
-    run_greedySlotStepBody_wf p.1.1 p.1.2.1 p.1.2.2 p.2.1.1 p.2.1.2 p.2.2 s
+  rcases p with ⟨⟨n, m, Q⟩, ⟨r, C⟩, edges⟩
+  have hparts := scheduleParams_parts_le ((n, m, Q), (r, C), edges)
+  set L := (encScheduleParams ((n, m, Q), (r, C), edges)).length with hL
+  have hp := run_greedySlotStepBody_params ((n, m, Q), (r, C), edges)
+    (List.replicate n none, List.replicate m none) s
+  obtain ⟨h1, h2, hw1, hw2⟩ := run_greedySlotStepBody_wf n m Q r C edges s
   have hsch := length_encPartialSchedules_le h1 h2 hw1 hw2
   have hslen : (encNat s).length ≤ L := (length_encNat_le_self s).trans (hs.trans hparts.1)
-  have hprod : 2 * (p.1.1 + p.1.2.1) * (2 * p.1.2.2 * (2 * (encNat p.2.1.1).length + 1) + 3) ≤
+  have hprod : 2 * (n + m) * (2 * Q * (2 * (encNat r).length + 1) + 3) ≤
       8 * L ^ 3 + 4 * L ^ 2 + 6 * L :=
     (Nat.mul_le_mul (Nat.mul_le_mul_left 2 hparts.1)
       (Nat.add_le_add_right (Nat.mul_le_mul (Nat.mul_le_mul_left 2 hparts.2.1)
         (Nat.add_le_add_right (Nat.mul_le_mul_left 2 hparts.2.2.1) 1)) 3)).trans_eq (by ring)
+  dsimp only [slotStateSchedules] at hsch ⊢
   rw [IndexFold.length_run]
-  rcases hst : (IndexFold.run greedySlotStepBody s (p, init)).2 with ⟨par, sc⟩
-  have hpar : par = p := by simpa only [init, hst] using hp
-  have hsc_eq : sc = slotStateSchedules (IndexFold.run greedySlotStepBody s (p, init)) := by
-    simp only [slotStateSchedules, hst]
-  subst hpar; rw [← hsc_eq] at hsch
   simp only [encOuterAcc, length_encPair]
-  change 2 * (encNat s).length + 1 + (2 * L + 1 + (encPartialSchedules sc).length) ≤
-    8 * L ^ 3 + 4 * L ^ 2 + 10 * L + 3
+  rw [hp, ← hL]
   omega
 
 /-- `slotOfIndex` is computable in polynomial time. -/

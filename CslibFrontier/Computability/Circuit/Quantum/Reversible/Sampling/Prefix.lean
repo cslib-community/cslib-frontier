@@ -55,12 +55,9 @@ theorem listOfFn_castLEEmb_eq_blockReadout {count width : ℕ} (h : count ≤ wi
       List.ofFn fun i : Fin count => y (Fin.castLEEmb h i)) =
       fun y => List.ofFn (blockReadout 0 count y) := by
   funext y
-  congr 1
-  funext i
+  refine congrArg List.ofFn (funext fun i => ?_)
   rw [blockReadout, readBit_of_lt y (by omega)]
-  apply congrArg y
-  apply Fin.ext
-  simp
+  exact congrArg y (Fin.ext (by simp))
 
 namespace GateCode
 
@@ -94,20 +91,18 @@ theorem readBit_classicalRun_prefixSwapCodes {source count width : ℕ}
   induction count generalizing j x with
   | zero => omega
   | succ count ih =>
-      rw [show count + 1 = Nat.succ count by omega, prefixSwapCodes_succ,
-        classicalRun_append]
-      by_cases hj' : j < count
-      · rw [readBit_classicalRun_swapWireCodes_of_ne (by omega) (by omega)]
-        exact ih (by omega) (by omega) _ hj'
-      · have hjc : j = count := by omega
-        subst j
-        rw [readBit_classicalRun_swapWireCodes (by omega) (by omega) (by omega)]
-        apply readBit_classicalRun_of_forall_ne
-        intro g hg htarget
-        obtain ⟨i, hi, hgi⟩ := List.mem_flatMap.mp hg
-        have hi' := List.mem_range.mp hi
-        simp only [swapWireCodes, List.mem_cons, List.not_mem_nil, or_false] at hgi
-        rcases hgi with rfl | rfl | rfl <;> simp_all
+    rw [prefixSwapCodes_succ, classicalRun_append]
+    by_cases hj' : j < count
+    · rw [readBit_classicalRun_swapWireCodes_of_ne (by omega) (by omega)]
+      exact ih (by omega) (by omega) _ hj'
+    · obtain rfl : j = count := by omega
+      rw [readBit_classicalRun_swapWireCodes (by omega) (by omega) (by omega)]
+      apply readBit_classicalRun_of_forall_ne
+      intro g hg htarget
+      obtain ⟨i, hi, hgi⟩ := List.mem_flatMap.mp hg
+      have := List.mem_range.mp hi
+      simp only [swapWireCodes, List.mem_cons, List.not_mem_nil, or_false] at hgi
+      rcases hgi with rfl | rfl | rfl <;> simp_all
 
 variable {γ : Type} {enc : γ ↪ List Bool}
 
@@ -131,21 +126,17 @@ theorem measureOut_eval_prefixSwapCodes {source count width : ℕ}
         (by rw [Circuit.norm_eval, hψ]) (blockReadout 0 count) =
       measureOut ψ hψ (blockReadout source count) := by
   classical
-  apply PMF.ext
-  intro y
+  refine PMF.ext fun y => ?_
   rw [measureOut_eq_ofReal_measureProb, measureOut_eq_ofReal_measureProb,
-    Circuit.measureProb_eval_ofCodes
-      (GateCode.isClassical_prefixSwapCodes hdisjoint hfit)]
-  rw [measureProb, ← Finset.sum_filter]
-  apply congrArg ENNReal.ofReal
-  congr 1
-  ext x
-  have hout : blockReadout 0 count
-      (GateCode.classicalRun (GateCode.prefixSwapCodes source count) x) =
-        blockReadout source count x := by
-    funext j
-    simpa [blockReadout] using
-      GateCode.readBit_classicalRun_prefixSwapCodes hdisjoint hfit x j.isLt
-  simp only [Finset.mem_filter, Finset.mem_univ, true_and, hout]
+    Circuit.measureProb_eval_ofCodes (GateCode.isClassical_prefixSwapCodes hdisjoint hfit),
+    measureProb, ← Finset.sum_filter]
+  have hout (x : Fin width → Bool) :
+      blockReadout 0 count (GateCode.classicalRun (GateCode.prefixSwapCodes source count) x) =
+        blockReadout source count x :=
+    funext fun j => by
+      simpa [blockReadout] using
+        GateCode.readBit_classicalRun_prefixSwapCodes hdisjoint hfit x j.isLt
+  exact congrArg ENNReal.ofReal (congrArg (Finset.sum · _)
+    (Finset.ext fun x => by simp [hout x]))
 
 end Cslib.Quantum

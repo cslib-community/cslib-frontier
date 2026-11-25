@@ -170,11 +170,16 @@ theorem sharp_noOverflow {scale : ℝ} (hs : 0 < scale) (hmargin : scale ≤ HP.
     linarith [cap_pos HP, HP.toHierarchyParams.atomCap_gt, threshold_margin HP,
       HP.η_lt_η₂, HP.θ_lt_θ₂, le_max_right ((HP.k : ℝ) + 1) HP.θ₂]
   have hact := hfinal s actual.defaultValue truth r loss hfirst hloss εf hεf herrf y hy
-  rw [show r + loss = actual.row by funext y ν; simp [loss]] at hact
+  have hr : r + loss = actual.row := funext fun y => funext fun ν => by simp [loss]
+  rw [hr] at hact
   change |stateRootError (output HP ζ) s HP.K actual ref y| ≤ Cf * εf at hact
   have href := hpre s n Δ raw truth m m le_rfl hno ε hε herr y hy
   change |stateRootError (output HP ζ) s HP.K ref ⟨0, truth⟩ y| ≤ _ at href
-  exact (abs_sub_le _ _ _).trans ((add_le_add hact href).trans_eq (add_comm _ _))
+  calc
+    _ ≤ |stateRootError (output HP ζ) s HP.K actual ref y| + |stateRootError (output HP ζ) s
+      HP.K ref ⟨0, truth⟩ y| := abs_sub_le _ _ _
+    _ ≤ Cf * εf + Cp * ∑ i ∈ range m, dyadicFloor δ m i * ε i := add_le_add hact href
+    _ = _ := add_comm _ _
 
 /-- Actual first-overflow tail compared with the stationary continuation. Errors start
 at the already-added overflow input, not the earlier global prefix. -/
@@ -293,7 +298,12 @@ theorem sharp_firstOverflow {scale : ℝ} (hs : 0 < scale) (hmargin : scale ≤ 
     unfold stateRootError
     rw [hc]
   rw [← href] at hp
-  exact (abs_sub_le _ _ _).trans ((add_le_add ht hp).trans_eq (add_comm _ _))
+  calc
+    _ ≤ |stateRootError (output HP ζ) s HP.K a c y| + |stateRootError (output HP ζ) s HP.K c
+      ⟨0, truth⟩ y| := abs_sub_le _ _ _
+    _ ≤ Ct * ∑ i ∈ Ico j m, 28 ^ (m - i) * ε i + Cp * ∑ i ∈ range j, dyadicFloor δ m i * ε i :=
+      add_le_add ht hp
+    _ = _ := add_comm _ _
 
 
 

@@ -109,11 +109,10 @@ private theorem subsetTest_ofFn_iff (acc : List Bool → Bool) {K k Z : ℕ} (hk
       split at hw
       · rename_i hjK
         rw [← Option.some.inj hw]
-        split
-        · exact (h ⟨j, hjK⟩).1 (by simpa)
-        · rename_i hjk
-          exact (not_any_ofFn_eq_true_iff _).2 ((h ⟨j, hjK⟩).2 (Nat.le_of_not_lt hjk))
-      · exact absurd hw (by simp)
+        split_ifs with hjk
+        · exact (h ⟨j, hjK⟩).1 hjk
+        · exact (not_any_ofFn_eq_true_iff _).2 ((h ⟨j, hjK⟩).2 (Nat.le_of_not_lt hjk))
+      · nomatch hw
   · simp only [List.all_eq_true, List.mem_range]
     refine ⟨fun h i hi => ?_, fun h i hi => ?_⟩
     · have := h i (by omega)
@@ -128,12 +127,10 @@ theorem card_filter_subsetTest (acc : List Bool → Bool) {K k : ℕ} (Z : ℕ) 
   classical
   set A := univ.filter fun z : Fin Z → Bool => acc (List.ofFn z) = true with hA
   set P := SubsetBlockPred acc (Z := Z) hk with hP
-  rw [show (univ.filter fun zs : Fin (K * Z) → Bool => subsetTest acc K Z k (List.ofFn zs) = true)
-      = univ.filter fun zs => P (BitString.blocksEquiv zs) by
-        simp only [subsetTest_ofFn_iff _ hk, hP],
-    show (univ.filter fun zs : Fin (K * Z) → Bool => P (BitString.blocksEquiv zs)).card =
-      (univ.filter P).card from card_equiv BitString.blocksEquiv
-        (fun _ => by simp only [mem_filter, mem_univ, true_and])]
+  simp only [subsetTest_ofFn_iff _ hk, ← hP]
+  have hequiv : (univ.filter fun zs : Fin (K * Z) → Bool => P (BitString.blocksEquiv zs)).card =
+      (univ.filter P).card :=
+    card_equiv BitString.blocksEquiv fun _ => by simp only [mem_filter, mem_univ, true_and]
   -- restricting to the first `k` blocks
   have hrestrict : (univ.filter P).card = (univ.filter fun g : Fin k → Lex (Fin Z → Bool) =>
       StrictMono g ∧ ∀ i, g i ∈ A.map toLex.toEmbedding).card := by
@@ -154,13 +151,13 @@ theorem card_filter_subsetTest (acc : List Bool → Bool) {K k : ℕ} (Z : ℕ) 
         funext fun i => by simp [i.2]⟩
       simp only [mem_filter, mem_univ, true_and, hP, SubsetBlockPred]
       refine ⟨fun j => ⟨fun hj => ?_, fun hj => by simp [show ¬(j : ℕ) < k by omega]⟩,
-        fun i hi => by
-          simp only [show i < k by omega, hi, dite_true]
-          exact hg.1 (Fin.mk_lt_mk.2 (Nat.lt_succ_self i))⟩
-      obtain ⟨z, hz, hzg⟩ := mem_map.1 (hg.2 ⟨j, hj⟩)
-      simp only [hj, ↓reduceDIte, ← hzg]
-      exact (mem_filter.1 hz).2
-  rw [hrestrict, card_filter_strictMono, card_map]
+        fun i hi => ?_⟩
+      · obtain ⟨z, hz, hzg⟩ := mem_map.1 (hg.2 ⟨j, hj⟩)
+        simp only [hj, ↓reduceDIte, ← hzg]
+        simpa [hA] using hz
+      · simp only [show i < k by omega, hi, dite_true]
+        exact hg.1 (Fin.mk_lt_mk.2 (Nat.lt_succ_self i))
+  rw [hequiv, hrestrict, card_filter_strictMono, card_map]
 
 variable {α : Type} {enc : α ↪ List Bool}
 
@@ -173,13 +170,10 @@ theorem choose_mem {f g : α → ℕ} (hf : f ∈ SharpP enc)
     (fun a => (f a).choose (g a)) ∈ SharpP enc := by
   obtain ⟨q, V, hV, hf⟩ := mem_SharpP.mp hf
   let Z : α → ℕ := fun a => q.eval (enc a).length
-  have hZ : ComputableInPolyTime Z enc encUnary := by dsimp [Z]; fun_prop
-  have hW : ComputableInPolyTime
-      (fun x : α × List Bool => subsetTest (fun w => V (x.1, w)) (g x.1) (Z x.1) (g x.1) x.2)
-      (encPair enc encBits) encBool := by
-    fun_prop
-  convert mem_SharpP_of_polyTime_length hW (ComputableInPolyTime.unary_mul.comp (hg.prod hZ))
-    using 1
+  have hZ : ComputableInPolyTime Z enc encUnary := by fun_prop
+  convert mem_SharpP_of_polyTime_length
+    (V := fun x : α × List Bool => subsetTest (fun w => V (x.1, w)) (g x.1) (Z x.1) (g x.1) x.2)
+    (by fun_prop) (ComputableInPolyTime.unary_mul.comp (hg.prod hZ)) using 1
   ext a
   change _ = acceptCount _ a (g a * Z a)
   rw [hf a]

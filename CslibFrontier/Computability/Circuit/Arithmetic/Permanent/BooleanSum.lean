@@ -63,11 +63,9 @@ private theorem projection_permanent_entry (i j : Fin d) (b : K) :
       ((genericMatrix K d).updateRow i
         (Function.update (genericMatrix K d i) j (C b))).permanent := by
   rw [AlgHom.map_permanent]
-  congr 1
-  apply Matrix.ext
-  intro r c
-  by_cases hr : r = i <;> by_cases hc : c = j <;>
-    simp [genericMatrix, entryAssignment, Matrix.updateRow_apply, hr, hc]
+  exact congrArg Matrix.permanent <| Matrix.ext fun r c => by
+    by_cases hr : r = i <;> by_cases hc : c = j <;>
+      simp [genericMatrix, entryAssignment, Matrix.updateRow_apply, hr, hc]
 
 private theorem booleanSum_permanent_entry (i j : Fin d) :
     booleanSum 1 (projection (selectorAssignment (K := K) i j) (genericMatrix K d).permanent) =
@@ -94,19 +92,14 @@ theorem isProjection_booleanSum_entry_permanent (i j : Fin d) (half : K)
     (booleanSum 1 (projection (selectorAssignment (K := K) i j) (genericMatrix K d).permanent)) _
   rw [booleanSum_permanent_entry, projection_permanent_entry, projection_permanent_entry]
   simp only [map_zero, map_one]
-  have hh : (2 : MvPolynomial (Fin (d * d)) K) * C half = 1 := by
-    rw [← map_ofNat C 2, ← map_mul, hhalf, map_one]
-  rw [Matrix.permanent_updateRow_update_zero_add_one _ i j (C half) hh]
-  have hp : IsProjection
-      (((genericMatrix K d).updateRow i
-        (Function.update (genericMatrix K d i) j (C half))).permanent)
-      (genericMatrix K d).permanent :=
-    ⟨entryAssignment i j half, projection_permanent_entry i j half⟩
-  have hc : IsProjection (2 : MvPolynomial (Fin (d * d)) K) (genericMatrix K 1).permanent := by
-    refine ⟨fun _ => .inr 2, ?_⟩
-    rw [Matrix.permanent_unique]
-    simp only [genericMatrix, Matrix.of_apply, projection_X, Sum.elim_inr]
-    exact map_ofNat C 2
-  simpa only [mul_comm (2 : MvPolynomial (Fin (d * d)) K)] using hp.permanent_mul hc
+  rw [Matrix.permanent_updateRow_update_zero_add_one _ i j (C half)
+    (by rw [← map_ofNat C 2, ← map_mul, hhalf, map_one])]
+  simpa only [mul_comm (2 : MvPolynomial (Fin (d * d)) K)] using
+    IsProjection.permanent_mul
+      ⟨entryAssignment i j half, projection_permanent_entry i j half⟩
+      ⟨fun _ => .inr 2, by
+        rw [Matrix.permanent_unique]
+        simpa only [genericMatrix, Matrix.of_apply, projection_X, Sum.elim_inr] using
+          map_ofNat C 2⟩
 
 end Cslib.Circuits.Arithmetic

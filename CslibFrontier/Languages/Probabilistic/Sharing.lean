@@ -143,14 +143,18 @@ theorem uniformOfFintype_map_restrict_completeShares {m : ℕ} [NeZero m]
   apply Cslib.Probability.PMF.uniformOfFintype_map_of_shift
   intro c
   obtain ⟨j₀, hj₀⟩ : ∃ j₀ : Fin m, j₀ ∉ I := by
-    by_contra! h; exact hI (Finset.eq_univ_iff_forall.mpr h)
+    by_contra! h
+    exact hI (Finset.eq_univ_iff_forall.mpr h)
   let full : Fin m → G := fun i =>
-    if hi : i ∈ I then c ⟨i, hi⟩ else if i = j₀ then -∑ k : I, c k else 0
+    if hi : i ∈ I then c ⟨i, hi⟩
+    else if i = j₀ then -∑ k : I, c k
+    else 0
   have hsum : ∑ i : Fin m, full i = 0 := by
-    rw [← Finset.sum_subset (Finset.subset_univ (insert j₀ I)) fun i _ hi => by
-      simp only [Finset.mem_insert, not_or] at hi; simp [full, hi.1, hi.2],
-      Finset.sum_insert hj₀, ← Finset.sum_attach I,
-      Finset.sum_congr rfl fun k _ => dite_eq_left k.2]
+    have hzero (i) (_ : i ∈ Finset.univ) (hi : i ∉ insert j₀ I) : full i = 0 := by
+      simp only [Finset.mem_insert, not_or] at hi
+      simp [full, hi.1, hi.2]
+    rw [← Finset.sum_subset (Finset.subset_univ (insert j₀ I)) hzero, Finset.sum_insert hj₀,
+      ← Finset.sum_attach I, Finset.sum_congr rfl fun k _ => dite_eq_left k.2]
     simp [full, hj₀]
   refine ⟨Equiv.addRight (initOfShares m full), fun init => ?_⟩
   ext ⟨i, hi⟩

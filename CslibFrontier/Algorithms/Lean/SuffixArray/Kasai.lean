@@ -265,12 +265,10 @@ private theorem kasaiLoop_spec {w : Array α} {sa rk : Array ℕ}
     exact ⟨r, hr, hri, hri ▸ hrk r hr⟩
   have hprev : ∀ {i r r' : ℕ} (hr : r < sa.size) (hr' : r' < sa.size),
       sa[r] = i → r ≠ r' → (r' = 0 ∨ sa[r'] < i + 1) → r' = 0 ∨ sa[r'] < i := by
-    intro i r r' hr hr' hri hne hr'd
-    rcases hr'd with h0 | hlt
-    · exact Or.inl h0
-    · rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hlt) with hlt | heq
-      · exact Or.inr hlt
-      · exact absurd (hinj r r' hr hr' (hri.trans heq.symm)) hne
+    rintro i r r' hr hr' rfl hne (rfl | hlt)
+    · exact Or.inl rfl
+    · exact Or.inr (Nat.lt_of_le_of_ne (Nat.le_of_lt_succ hlt) fun h =>
+        hne (hinj r r' hr hr' h.symm))
   fun_induction kasaiLoop w sa rk i h lcp with
   | case1 i h lcp hiw hr0 ih =>
     obtain ⟨r, hr, hri, hrki⟩ := hrank hiw
@@ -278,9 +276,8 @@ private theorem kasaiLoop_spec {w : Array α} {sa rk : Array ℕ}
     refine ih (by omega) hsize (fun r' hr' hr'i => ?_) (fun r' hr' hr'd => ?_)
     · have h0 := hh 0 hr hri
       rw [getElem_lcpArray_zero] at h0; omega
-    · rcases eq_or_ne 0 r' with rfl | hne
-      · exact hdone 0 hr' (Or.inl rfl)
-      · exact hdone r' hr' (hprev hr hr' hri hne hr'd)
+    · exact hdone r' hr' ((eq_or_ne 0 r').elim (Or.inl ∘ Eq.symm) fun hne =>
+        hprev hr hr' hri hne hr'd)
   | case2 i h lcp hiw hr0 h' ih =>
     obtain ⟨r, hr, hri, hrki⟩ := hrank hiw
     rw [hrki] at hr0
@@ -316,8 +313,6 @@ private theorem kasaiLoop_spec {w : Array α} {sa rk : Array ℕ}
 array. -/
 theorem kasaiArray_toList {w : Array α} {sa : Array ℕ} (hsa : IsSuffixArray w.toList sa.toList) :
     (kasaiArray w sa).toList = lcpArray w.toList sa.toList := by
-  have hlen : sa.size = w.size := by
-    have := hsa.length_eq; simp only [Array.length_toList] at this; exact this
   refine kasaiLoop_spec hsa (fun r hr => ?_) (Nat.zero_le _) Array.size_replicate
     (fun _ _ _ => Nat.zero_le _) (fun r hr hr0 => ?_)
   · have := getElem!_rankArray (n := w.size) hsa.nodup (fun i hi => by

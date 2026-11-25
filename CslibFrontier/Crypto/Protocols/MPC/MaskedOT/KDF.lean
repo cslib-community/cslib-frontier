@@ -479,7 +479,10 @@ private theorem advantage_bind_elim_le_of_exists_bind {C R : Type} (e : PMF (Boo
     Game.advantage (e.bind (Sum.elim PMF.pure A)) (e.bind (Sum.elim PMF.pure B)) ≤ ε := by
   classical
   have h' : ∀ c, ∃ K : R → Game, Sum.inr c ∈ e.support → A c = p.bind K ∧ B c = p'.bind K :=
-    fun c => if hc : Sum.inr c ∈ e.support then let ⟨K, hK⟩ := h c hc; ⟨K, fun _ => hK⟩
+    fun c =>
+      if hc : Sum.inr c ∈ e.support then
+        let ⟨K, hK⟩ := h c hc
+        ⟨K, fun _ => hK⟩
       else ⟨fun _ => PMF.pure false, fun hc' => absurd hc' hc⟩
   choose K hK using h'
   have hpull {X : C → Game} {q : PMF R} (hq : ∀ c, Sum.inr c ∈ e.support → X c = q.bind (K c)) :

@@ -122,7 +122,8 @@ private theorem exists_step_of_halts {c : Code} {σ τ : List Bool} (h : Halts c
 
 theorem step_snd (c : Code) (σ τ : List Bool) : τ <+: (step c σ τ).2 := by
   by_cases h : Halts c τ σ.length
-  · obtain ⟨_, hstep, hτ, -⟩ := exists_step_of_halts h; exact hstep ▸ hτ
+  · obtain ⟨_, hstep, hτ, -⟩ := exists_step_of_halts h
+    exact hstep ▸ hτ
   · simp [step, h]
 
 /-- The finite string `σ` is an initial segment of the `Bool` sequence `a`. -/
@@ -150,11 +151,14 @@ theorem step_spec {c : Code} {σ τ : List Bool} {a b : ℕ → Bool}
   · rw [show step c σ τ = (σ ++ [false], τ) by simp [step, h]] at hσ hτ
     obtain ⟨N, k, hk⟩ := evaln_complete.1 hx
     let M := max N τ.length
-    exact h ⟨((List.range M).map b, k, (a σ.length).toNat),
-      List.prefix_iff_eq_take.2 (List.ext_getElem (by simp; omega) fun i h₁ _ => by simp [hτ i h₁]),
-      by rw [show bits ((List.range M).map b) = prefixOf (fun n => (b n).toNat) M by
-          simp [bits, prefixOf, Function.comp_def]]
-         exact evaln_mono (prefixOf_prefix _ (le_max_left _ _)) le_rfl hk⟩
+    have hbits : bits ((List.range M).map b) = prefixOf (fun n => (b n).toNat) M := by
+      simp [bits, prefixOf, Function.comp_def]
+    refine h ⟨((List.range M).map b, k, (a σ.length).toNat), ?_, ?_⟩
+    · rw [List.prefix_iff_eq_take]
+      exact List.ext_getElem (by simp; omega)
+        fun i h₁ _ => by simp [hτ i h₁]
+    · rw [hbits]
+      exact evaln_mono (prefixOf_prefix _ (le_max_left _ _)) le_rfl hk
 
 /-- The finite-extension construction. Stage `2e + 1` extends the first string against code `e`,
 and stage `2e + 2` extends the second string against code `e`. -/
@@ -167,17 +171,21 @@ noncomputable def stage : ℕ → List Bool × List Bool
 
 theorem stage_succ_prefix (s : ℕ) :
     (stage s).1 <+: (stage (s + 1)).1 ∧ (stage s).2 <+: (stage (s + 1)).2 := by
-  simp only [stage]; split_ifs
-  · exact let ⟨_, hb⟩ := step_fst (ofNat Code (s / 2)) (stage s).1 (stage s).2
-      ⟨hb ▸ List.prefix_append _ _, step_snd _ _ _⟩
-  · exact let ⟨_, hb⟩ := step_fst (ofNat Code (s / 2)) (stage s).2 (stage s).1
-      ⟨step_snd _ _ _, by rw [Prod.snd_swap, hb]; exact List.prefix_append _ _⟩
+  simp only [stage]
+  split_ifs
+  · obtain ⟨_, hb⟩ := step_fst (ofNat Code (s / 2)) (stage s).1 (stage s).2
+    exact ⟨hb ▸ List.prefix_append _ _, step_snd _ _ _⟩
+  · obtain ⟨_, hb⟩ := step_fst (ofNat Code (s / 2)) (stage s).2 (stage s).1
+    refine ⟨step_snd _ _ _, ?_⟩
+    rw [Prod.snd_swap, hb]
+    exact List.prefix_append _ _
 
 theorem stage_prefix {s t : ℕ} (h : s ≤ t) :
     (stage s).1 <+: (stage t).1 ∧ (stage s).2 <+: (stage t).2 := by
   induction h with
   | refl => exact ⟨List.prefix_refl _, List.prefix_refl _⟩
-  | step _ ih => exact ⟨ih.1.trans (stage_succ_prefix _).1, ih.2.trans (stage_succ_prefix _).2⟩
+  | step _ ih =>
+    exact ⟨ih.1.trans (stage_succ_prefix _).1, ih.2.trans (stage_succ_prefix _).2⟩
 
 theorem length_stage (s : ℕ) :
     (s + 1) / 2 ≤ (stage s).1.length ∧ s / 2 ≤ (stage s).2.length := by

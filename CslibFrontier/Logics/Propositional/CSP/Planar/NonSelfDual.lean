@@ -152,16 +152,10 @@ theorem mem_of_cofactor_closure {R : Set (Fin (n + 1) → Bool)} {k : ℕ}
     (hf : f (fun _ => b) = b) (h : IsPolymorphism f (cofactor R j b))
     (a : Fin k → Fin (n + 1) → Bool) (ha : ∀ i, a i ∈ R)
     (hb : ∀ i, a i j = b) : (fun i => f (fun k => a k i)) ∈ R := by
-  have hm (i : Fin k) : j.removeNth (a i) ∈ cofactor R j b := by
-    rw [← hb i]
-    exact remove_mem_cofactor (ha i) j
-  have hout := h (fun i => j.removeNth (a i)) hm
-  change j.insertNth b _ ∈ R at hout
+  have hout : j.insertNth b _ ∈ R :=
+    h (fun i => j.removeNth (a i)) (fun i => hb i ▸ remove_mem_cofactor (ha i) j)
   convert hout using 1
-  apply (Fin.eq_insertNth_iff).mpr
-  constructor
-  · simpa only [hb] using hf
-  · rfl
+  exact Fin.eq_insertNth_iff.mpr ⟨funext hb ▸ hf, rfl⟩
 
 private theorem majority_const (b : Bool) : Cslib.majority 3 (fun _ => b) = b := by
   cases b <;> decide
@@ -246,11 +240,9 @@ private theorem parity_eq_true_of_units {R : Set (Fin n → Bool)}
     change f (Pi.single i true) = b at hi
     rw [hs, hb, Cslib.parityOn_eq_sum] at hi
     by_contra hnot
-    have hzsum : (∑ j ∈ s, (Pi.single i true : Fin n → Bool) j) = 0 := by
-      apply Finset.sum_eq_zero
-      intro j hj
-      have hji : j ≠ i := by intro heq; exact hnot (heq ▸ hj)
-      exact Pi.single_eq_of_ne (M := fun _ : Fin n => Bool) hji true
+    have hzsum : (∑ j ∈ s, (Pi.single i true : Fin n → Bool) j) = 0 :=
+      Finset.sum_eq_zero fun j hj =>
+        Pi.single_eq_of_ne (M := fun _ : Fin n => Bool) (fun heq : j = i => hnot (heq ▸ hj)) true
     rw [hzsum] at hi
     exact Bool.false_ne_true hi
   have h := he x hx
@@ -260,11 +252,9 @@ private theorem parity_eq_true_of_units {R : Set (Fin n → Bool)}
 private theorem insert_false_single (j : Fin (n + 1)) (i : Fin n) :
     j.insertNth false (Pi.single i true) =
       (Pi.single (j.succAbove i) true : Fin (n + 1) → Bool) := by
-  apply (Fin.insertNth_eq_iff).mpr
-  constructor
-  · simp [Ne.symm (Fin.succAbove_ne j i), Bool.zero_eq_false]
-  · ext k
-    simp [Fin.removeNth, Pi.single_apply, Fin.succAbove_inj]
+  refine Fin.insertNth_eq_iff.mpr ⟨by simp [Ne.symm (Fin.succAbove_ne j i), Bool.zero_eq_false], ?_⟩
+  ext k
+  simp [Fin.removeNth, Pi.single_apply, Fin.succAbove_inj]
 
 private theorem proper_even_impossible {R : Set (Fin (n + 1) → Bool)}
     (hz : (0 : Fin (n + 1) → Bool) ∉ R) (hu : ∀ i, Pi.single i true ∈ R)
@@ -272,32 +262,19 @@ private theorem proper_even_impossible {R : Set (Fin (n + 1) → Bool)}
     {v : Fin (n + 1) → Bool} (hv : v ∈ R)
     (heven : Cslib.parityOn Finset.univ v = false) (j : Fin (n + 1)) : v j = true := by
   by_contra hh
-  have hj : v j = false := by cases h : v j <;> simp_all
-  have hz' : (0 : Fin n → Bool) ∉ cofactor R j false := by
-    intro h
-    apply hz
-    change j.insertNth false (0 : Fin n → Bool) ∈ R at h
-    have heq : (j.insertNth false (0 : Fin n → Bool) : Fin (n + 1) → Bool) = 0 := by
+  have hj : v j = false := Bool.eq_false_iff.mpr hh
+  have hz' : (0 : Fin n → Bool) ∉ cofactor R j false := fun h => hz <| by
+    have h0 : j.insertNth (α := fun _ => Bool) false 0 = 0 := by
       ext i
-      rcases Fin.eq_self_or_eq_succAbove j i with rfl | ⟨k, rfl⟩ <;>
-        simp [Bool.zero_eq_false]
-    exact heq ▸ h
-  have hu' (i : Fin n) : Pi.single i true ∈ cofactor R j false := by
-    change j.insertNth false _ ∈ R
-    rw [insert_false_single]
-    exact hu _
-  have hv' : j.removeNth v ∈ cofactor R j false := by
-    rw [← hj]
-    exact remove_mem_cofactor hv j
-  have hodd := parity_eq_true_of_units (hc j) hz' hu' hv'
-  have hsum : Cslib.parityOn Finset.univ v =
-      Cslib.parityOn Finset.univ (j.removeNth v) := by
-    simp only [Cslib.parityOn_eq_sum]
-    rw [Fin.sum_univ_succAbove _ j, hj]
-    simp only [← Bool.zero_eq_false, zero_add]
-    rfl
-  rw [hsum, hodd] at heven
-  contradiction
+      rcases Fin.eq_self_or_eq_succAbove j i with rfl | ⟨k, rfl⟩ <;> simp [Bool.zero_eq_false]
+    exact h0 ▸ h
+  have hodd := parity_eq_true_of_units (hc j) hz'
+    (fun i => show j.insertNth false (Pi.single i true) ∈ R from
+      (insert_false_single j i).symm ▸ hu _)
+    (hj ▸ remove_mem_cofactor hv j)
+  simp only [Cslib.parityOn_eq_sum, Fin.sum_univ_succAbove _ j, hj, ← Bool.zero_eq_false,
+    zero_add] at heven hodd
+  exact Bool.false_ne_true (heven.symm.trans hodd)
 
 /-- Every parity-failing Boolean relation has a binary parity-failing ordered minor. This
 arbitrary-arity reconstruction uses actual projection/cofactor/twist traces. Affine separation

@@ -38,33 +38,23 @@ theorem bounded_image_mem_PSPACE {L : Set (List Bool)} {f : List Bool → List B
     {bound : List Bool → ℕ} (hb : ComputableInPolyTime bound encBits encUnary)
     (hbalance : ∀ w ∈ L, w.length ≤ bound (f w)) : f '' L ∈ PSPACE encBits := by
   have hc : ComputableInPolyTime (fun p : List Bool × List Bool => unframe p.2)
-      (encPair encBits encBits) encBits :=
-    ComputableInPolyTime.unframe.comp (ComputableInPolyTime.snd _ _)
+      (encPair encBits encBits) encBits := .comp .unframe (.snd _ _)
   have hsource : {p : List Bool × List Bool | unframe p.2 ∈ L} ∈
       PSPACE (encPair encBits encBits) :=
     PolyTimeReducible.mem_PSPACE ⟨_, hc, fun _ => Iff.rfl⟩ hL
   have heq : {p : List Bool × List Bool | f (unframe p.2) = p.1} ∈
       P (encPair encBits encBits) :=
-    ⟨fun p => decide (f (unframe p.2) = p.1),
-      ComputableInPolyTime.decide_eq' (hf.comp hc) (ComputableInPolyTime.fst _ _),
-      fun _ => by simp⟩
-  have htest := inter_mem_PSPACE hsource (P_subset_PSPACE heq)
-  have hwidth : ComputableInPolyTime (fun y => 2 * bound y + 1) encBits encUnary := by
-    fun_prop
-  have hsearch := setOf_exists_mem_PSPACE htest hwidth
-  convert hsearch using 1
+    ⟨_, .decide_eq' (hf.comp hc) (.fst _ _), fun _ => by simp⟩
+  convert setOf_exists_mem_PSPACE (inter_mem_PSPACE hsource (P_subset_PSPACE heq))
+    (by fun_prop : ComputableInPolyTime (fun y => 2 * bound y + 1) encBits encUnary) using 1
   ext y
   simp only [Set.mem_image, Set.mem_ofPred_eq, Set.mem_inter_iff]
-  constructor
-  · rintro ⟨w, hw, rfl⟩
-    let padding := List.replicate (2 * bound (f w) - 2 * w.length) false
-    refine ⟨frame w ++ padding, ?_, ?_, ?_⟩
-    · have hlen := hbalance w hw
-      simp only [List.length_append, length_frame, padding, List.length_replicate]
-      omega
-    · simpa only [unframe_frame_append] using hw
-    · simp only [unframe_frame_append]
-  · rintro ⟨w, _, hw, he⟩
-    exact ⟨unframe w, hw, he⟩
+  refine ⟨?_, fun ⟨w, _, hw, he⟩ => ⟨unframe w, hw, he⟩⟩
+  rintro ⟨w, hw, rfl⟩
+  refine ⟨frame w ++ List.replicate (2 * bound (f w) - 2 * w.length) false, ?_,
+    by simpa only [unframe_frame_append] using hw, by simp only [unframe_frame_append]⟩
+  have := hbalance w hw
+  simp only [List.length_append, length_frame, List.length_replicate]
+  omega
 
 end Cslib.Complexity

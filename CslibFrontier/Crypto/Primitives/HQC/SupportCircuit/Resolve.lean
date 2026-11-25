@@ -99,28 +99,20 @@ theorem val_eval_supportScanCircuit {bits offset count : ℕ}
         Circuit.eval_parallel, Fin.append_comp_castAdd, Fin.append_comp_natAdd,
         Circuit.id, Function.comp_id]
       rw [← blocksEquiv_symm_block
-        ((supportScanCircuit bits (offset + 1) count).eval interpretation
-          (blocksEquiv.symm (Fin.tail words)))]
-      rw [eval_collisionScanCircuit]
-      rw [← blocksEquiv_symm_cons]
-      funext i
-      simp only [Function.comp_apply, Fin.cast_cast, Fin.cast_refl, id_eq]
+          ((supportScanCircuit bits (offset + 1) count).eval interpretation
+            (blocksEquiv.symm (Fin.tail words))),
+        eval_collisionScanCircuit, ← blocksEquiv_symm_cons]
       rfl
     rw [he, block_blocksEquiv_symm]
     funext j
     cases j using Fin.cases with
     | zero =>
       simp only [Fin.cons_zero, scanSupport]
-      rw [val_foldl_collision (by omega)]
-      rw [← List.foldl_map (f := fun j => (equivFin bits (later j) : ℕ))
-        (g := fun current x => if current = x then offset else current)]
-      have hl : (List.finRange count).map (fun j => (equivFin bits (later j) : ℕ)) =
-          List.ofFn (scanSupport (offset + 1)
-            (Fin.tail (fun j => (equivFin bits (words j) : ℕ)))) := by
-        rw [List.finRange, List.map_ofFn]
-        change List.ofFn (fun j => (equivFin bits (later j) : ℕ)) = _
-        exact congrArg List.ofFn hi
-      rw [hl]
+      rw [val_foldl_collision (by omega),
+        ← List.foldl_map (f := fun j => (equivFin bits (later j) : ℕ))
+          (g := fun current x => if current = x then offset else current),
+        List.finRange, List.map_ofFn]
+      congr 2
     | succ j =>
       simp only [Fin.cons_succ, scanSupport]
       exact congrFun hi j

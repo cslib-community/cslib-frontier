@@ -137,21 +137,17 @@ private theorem foldl_mistakeStep (A : OnlineLearner α β) (S : LabeledSample �
   | nil => simp [hL]
   | cons i is ih =>
     have hstep : L.length ≤ (mistakeStep A S L i).length := by
-      unfold mistakeStep; split_ifs <;> simp
-    have hinv : mistakesFrom A [] ((mistakeStep A S L i).map S) =
-        (mistakeStep A S L i).length := by
-      rw [mistakesFrom_mistakeStep, hL]; omega
-    obtain ⟨h1, h2, h3⟩ := ih (mistakeStep A S L i) hinv
-    simp only [List.foldl_cons]
+      unfold mistakeStep
+      split_ifs <;> simp
+    obtain ⟨h1, h2, h3⟩ := ih (mistakeStep A S L i)
+      (by rw [mistakesFrom_mistakeStep, hL]; omega)
     refine ⟨h1, hstep.trans h2, fun heq => ?_⟩
     have hlen : (mistakeStep A S L i).length = L.length := le_antisymm (heq ▸ h2) hstep
-    have hi : A (L.map S) (S i).1 = (S i).2 := by
-      by_contra h
-      simp [mistakeStep, h] at hlen
-    have hL' : mistakeStep A S L i = L := by simp [mistakeStep, hi]
+    have hi : A (L.map S) (S i).1 = (S i).2 :=
+      by_contra fun h => by simp [mistakeStep, h] at hlen
+    have hL' : mistakeStep A S L i = L := ite_eq_left hi
     obtain ⟨h4, h5⟩ := h3 (heq.trans hlen.symm)
-    rw [hL'] at h5
-    exact ⟨h4.trans hL', List.forall_mem_cons.2 ⟨hi, h5⟩⟩
+    exact ⟨h4.trans hL', List.forall_mem_cons.2 ⟨hi, hL' ▸ h5⟩⟩
 
 /-- **Kept examples are mistakes.** After any number of passes from no kept examples, the learner
 errs at every kept example, in the kept order. -/
@@ -159,9 +155,7 @@ theorem mistakes_mistakePass_iterate (A : OnlineLearner α β) (S : LabeledSampl
     mistakes A (((mistakePass A S)^[n] []).map S) = ((mistakePass A S)^[n] []).length := by
   induction n with
   | zero => rfl
-  | succ n ih =>
-    rw [Function.iterate_succ_apply']
-    exact (foldl_mistakeStep A S _ _ ih).1
+  | succ n ih => exact Function.iterate_succ_apply' _ _ _ ▸ (foldl_mistakeStep A S _ _ ih).1
 
 /-- After `n` passes from no kept examples, either the next pass keeps nothing new or at least `n`
 examples are kept. -/
@@ -174,14 +168,14 @@ private theorem mistakePass_iterate_fixed_or_le (A : OnlineLearner α β) (S : L
   | succ n ih =>
     rw [Function.iterate_succ_apply']
     set L := (mistakePass A S)^[n] []
-    obtain ⟨-, hle, hfix⟩ : _ ∧ L.length ≤ (mistakePass A S L).length ∧
-        ((mistakePass A S L).length = L.length → mistakePass A S L = L ∧ _) :=
+    obtain ⟨-, hle, hfix⟩ :=
       foldl_mistakeStep A S (List.finRange m) L (mistakes_mistakePass_iterate A S n)
     rcases ih with ih | ih
-    · left; rw [ih, ih]
+    · exact Or.inl (by rw [ih, ih])
     · by_cases hlen : (mistakePass A S L).length = L.length
-      · left; rw [(hfix hlen).1, (hfix hlen).1]
-      · right; exact Nat.succ_le_of_lt (lt_of_le_of_lt ih (lt_of_le_of_ne hle (Ne.symm hlen)))
+      · have hfix' : mistakePass A S L = L := (hfix hlen).1
+        exact Or.inl (by rw [hfix', hfix'])
+      · exact Or.inr (Nat.succ_le_of_lt (ih.trans_lt (hle.lt_of_ne' hlen)))
 
 /-- On a sample realized by `C`, if `A` makes at most `M` mistakes on sequences realized by `C`,
 then at most `M` examples are kept after any number of passes. -/
@@ -189,10 +183,9 @@ theorem length_mistakePass_iterate_le {A : OnlineLearner α β} {C : ConceptClas
     (hA : mistakeBound A C ≤ M) {S : LabeledSample α β m} (hS : Realizable C S) (n : ℕ) :
     ((mistakePass A S)^[n] []).length ≤ M := by
   obtain ⟨c, hc, hcS⟩ := hS
-  have hreal : OnlineLearning.MistakeBound.Realizable C (((mistakePass A S)^[n] []).map S) :=
-    OnlineLearning.MistakeBound.realizable_iff.2 ⟨c, hc, by simp [hcS]⟩
   rw [← mistakes_mistakePass_iterate]
-  exact_mod_cast (mistakes_le_mistakeBound hreal).trans hA
+  exact_mod_cast (mistakes_le_mistakeBound
+    (OnlineLearning.MistakeBound.realizable_iff.2 ⟨c, hc, by simp [hcS]⟩)).trans hA
 
 /-- On a sample realized by `C`, if `A` makes at most `M` mistakes on sequences realized by `C`,
 then after `M + 1` passes the learner, fed the kept examples, labels every example of the sample
@@ -202,11 +195,11 @@ theorem apply_mistakePass_iterate_eq {A : OnlineLearner α β} {C : ConceptClass
     A (((mistakePass A S)^[M + 1] []).map S) (S i).1 = (S i).2 := by
   set L := (mistakePass A S)^[M + 1] []
   have hfix : mistakePass A S L = L :=
-    (mistakePass_iterate_fixed_or_le A S (M + 1)).resolve_right fun h =>
-      (length_mistakePass_iterate_le hA hS (M + 1)).not_gt h
-  obtain ⟨-, -, h⟩ := foldl_mistakeStep A S (List.finRange m) L
-    (mistakes_mistakePass_iterate A S (M + 1))
-  exact (h (congrArg List.length hfix)).2 i (List.mem_finRange i)
+    (mistakePass_iterate_fixed_or_le A S (M + 1)).resolve_right
+      (length_mistakePass_iterate_le hA hS (M + 1)).not_gt
+  exact ((foldl_mistakeStep A S (List.finRange m) L
+    (mistakes_mistakePass_iterate A S (M + 1))).2.2 (congrArg List.length hfix)).2
+      i (List.mem_finRange i)
 
 /-- **Mistake bounds give compression schemes** [FloydWarmuth1995]. If the online learner `A`
 makes at most `M` mistakes on every sequence realized by `C`, then `M + 1` passes of `A` over the

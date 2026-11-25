@@ -123,20 +123,13 @@ theorem length_encode {n : ℕ} (es : List (WeightedEdge n ℕ)) :
 theorem encodeEdges_injective (n : ℕ) : Function.Injective (encodeEdges (n := n)) := by
   intro es₁ es₂ h
   induction es₁ generalizing es₂ with
-  | nil =>
-    cases es₂ with
-    | nil => rfl
-    | cons e₂ _ => simp at h
+  | nil => cases es₂ <;> simp_all
   | cons e₁ tl₁ ih =>
-    cases es₂ with
-    | nil => simp at h
-    | cons e₂ tl₂ =>
-      simp only [encodeEdges_cons, List.cons.injEq] at h
-      obtain ⟨hu, hv, hw, htl⟩ := h
-      cases e₁; cases e₂
-      obtain rfl := Fin.ext hu
-      obtain rfl := Fin.ext hv
-      obtain rfl := hw
+    rcases es₂ with _ | ⟨⟨_, _, _⟩, tl₂⟩
+    · simp at h
+    · rcases e₁ with ⟨_, _, _⟩
+      simp only [encodeEdges_cons, List.cons.injEq, Fin.val_inj] at h
+      obtain ⟨rfl, rfl, rfl, htl⟩ := h
       exact congrArg _ (ih htl)
 
 /-- Word-width admissibility for `encode es`: when workspace addresses and edge weights fit in `w`
@@ -171,23 +164,19 @@ private theorem holdsEdges_of_holdsList {n : ℕ} {base : ℕ} {es : List (Weigh
   | nil => intro i hi; simp at hi
   | cons e tl ih =>
     rw [encodeEdges_cons] at h
-    have h0 := h.get 0 (by simp)
-    have h1 := h.get 1 (by simp)
-    have h2 := h.get 2 (by simp)
-    have htl : Block.HoldsList (base + 3) (encodeEdges tl) mem := by
-      intro j
+    have htl : Block.HoldsList (base + 3) (encodeEdges tl) mem := fun j => by
       have hj := h.get (j.val + 1 + 1 + 1) (by simp only [List.length_cons]; omega)
       change mem (base + 3 + j.val) = (encodeEdges tl)[j.val]
-      rw [show base + 3 + j.val = base + (j.val + 1 + 1 + 1) by omega]
-      exact hj
+      have hidx : base + 3 + j.val = base + (j.val + 1 + 1 + 1) := by omega
+      exact hidx ▸ hj
     intro i hi
     cases i with
     | zero =>
       simp only [Nat.mul_zero, Nat.add_zero, List.getElem_cons_zero]
-      exact ⟨by simpa using h0, by simpa using h1, by simpa using h2⟩
+      exact ⟨by simpa using h.get 0 (by simp), by simpa using h.get 1 (by simp),
+        by simpa using h.get 2 (by simp)⟩
     | succ k =>
-      have hk : k < tl.length := by simp only [List.length_cons] at hi; omega
-      obtain ⟨hu, hv, hw⟩ := ih htl k hk
+      obtain ⟨hu, hv, hw⟩ := ih htl k (by simp only [List.length_cons] at hi; omega)
       simp only [List.getElem_cons_succ]
       exact ⟨by rwa [show base + 3 * (k + 1) = base + 3 + 3 * k by omega],
         by rwa [show base + 3 * (k + 1) + 1 = base + 3 + 3 * k + 1 by omega],
@@ -231,16 +220,14 @@ private theorem holdsEdges_init {n : ℕ} (es : List (WeightedEdge n ℕ)) :
     HoldsEdges 3 es (Data.init (encode es) : Data 26).mem := by
   have hall : Block.HoldsList 1 (encode es) (Data.init (encode es) : Data 26).mem :=
     (outputList_eq_iff.mp (outputList_init (encode es))).2
-  have hedges : Block.HoldsList 3 (encodeEdges es) (Data.init (encode es) : Data 26).mem := by
-    intro j
-    have hj := hall.get (j.val + 1 + 1) (by
-      have := j.isLt
-      simp only [length_encode, length_encodeEdges] at this ⊢
-      omega)
-    change (Data.init (encode es) : Data 26).mem (3 + j.val) = (encodeEdges es)[j.val]
-    rw [show 3 + j.val = 1 + (j.val + 1 + 1) by omega]
-    exact hj
-  exact holdsEdges_of_holdsList hedges
+  refine holdsEdges_of_holdsList fun j => ?_
+  have hj := hall.get (j.val + 1 + 1) (by
+    have := j.isLt
+    simp only [length_encode, length_encodeEdges] at this ⊢
+    omega)
+  change (Data.init (encode es) : Data 26).mem (3 + j.val) = (encodeEdges es)[j.val]
+  have hidx : 3 + j.val = 1 + (j.val + 1 + 1) := by omega
+  exact hidx ▸ hj
 
 /-! ## Private Union-by-Rank Forest Invariant -/
 
@@ -266,13 +253,9 @@ private theorem ufValid_discrete (n : ℕ) :
 private theorem ufValid_rnk_le_log {n : ℕ} {p : Partition n}
     {par : Fin n → Fin n} {rnk : Fin n → ℕ} {repOf : Fin n → Fin n}
     (h : UFValid p par rnk repOf) (x : Fin n) :
-    rnk x ≤ Nat.log 2 n := by
-  have h1 := h.rnk_le_rep x
-  have h2 := h.two_pow_rnk (repOf x) (h.par_rep x)
-  have hcard : (Finset.univ.filter fun z : Fin n => repOf z = repOf x).card ≤ n :=
-    (Finset.card_filter_le _ _).trans (by simp)
-  have hpow : 2 ^ rnk (repOf x) ≤ n := h2.trans hcard
-  exact h1.trans (Nat.le_log_of_pow_le Nat.one_lt_two hpow)
+    rnk x ≤ Nat.log 2 n :=
+  (h.rnk_le_rep x).trans (Nat.le_log_of_pow_le Nat.one_lt_two
+    ((h.two_pow_rnk (repOf x) (h.par_rep x)).trans ((Finset.card_filter_le _ _).trans (by simp))))
 
 /-- Linking the root of `u` below the root of `v` keeps the forest fields of `UFValid`. -/
 private theorem ufValid_link_forest {n : ℕ} {p : Partition n}
@@ -859,15 +842,12 @@ private theorem findRoot_exec {w n pb : ℕ} {p : Partition n}
     by_cases hroot : nxt = par nxt
     · have hcond : (nxt.val = (par nxt).val) = True := eq_true (congrArg Fin.val hroot)
       wram_exec [hvpb, htmp1_v, hread_nxt, hcond, hd_pb, hd_addr, hd_tmp1, hd_flag]
-      refine ⟨hinv v nxt 0 (by rw [ite_eq_left hroot]) hmem_v hfr_v hrep_nxt, ?_⟩
-      rw [hdst, hdst_v, hrv, hrv]
-      exact hdec
-    · have hcond : (nxt.val = (par nxt).val) = False :=
-        eq_false fun h => hroot (Fin.ext h)
+      exact ⟨hinv v nxt 0 (by rw [ite_eq_left hroot]) hmem_v hfr_v hrep_nxt,
+        by rwa [hdst, hdst_v, hrv, hrv]⟩
+    · have hcond : (nxt.val = (par nxt).val) = False := eq_false (mt Fin.ext hroot)
       wram_exec [hvpb, htmp1_v, hread_nxt, hcond, hd_pb, hd_addr, hd_tmp1, hd_flag]
-      refine ⟨hinv v nxt 1 (by rw [ite_eq_right hroot]) hmem_v hfr_v hrep_nxt, ?_⟩
-      rw [hdst, hdst_v, hrv, hrv]
-      exact hdec
+      exact ⟨hinv v nxt 1 (by rw [ite_eq_right hroot]) hmem_v hfr_v hrep_nxt,
+        by rwa [hdst, hdst_v, hrv, hrv]⟩
   have hloop (fl : ℕ) (hfl : fl = if u = par u then 0 else 1) :
       ∃ y : Data 26, ExecWithin w (.loop (.lt zero flag) (findStepBody dst))
           ((((x.set dst u.val).set addr (pb + u.val)).set tmp1 (par u).val).set flag fl) y
@@ -882,14 +862,10 @@ private theorem findRoot_exec {w n pb : ℕ} {p : Partition n}
     have hyz : y.regs zero = 0 :=
       (hfr_y zero hd_z.symm (by decide) (by decide) (by decide)).trans hz
     simp only [Cond.holds_lt, hyz] at hstop
-    have hcur_root : cur = par cur := by
-      by_contra hne
-      rw [ite_eq_right hne] at hflag_y
-      omega
-    have hcur_eq_rep : cur = repOf u := by
-      rw [← hrep_y, huf.rep_of_root cur hcur_root.symm]
-    refine ⟨y, hex.mono ?_, hmem_y, hfr_y, by rw [hdst_y, hcur_eq_rep]⟩
-    omega
+    have hcur_root : cur = par cur :=
+      Decidable.byContradiction fun hne => by rw [ite_eq_right hne] at hflag_y; omega
+    exact ⟨y, hex.mono (by omega), hmem_y, hfr_y,
+      by rw [hdst_y, ← hrep_y, huf.rep_of_root cur hcur_root.symm]⟩
   have hread_u : x.mem (pb + u.val) = (par u).val := hpar_mem u
   have := u.isLt
   refine WP.exists_execWithin ?_
@@ -1030,15 +1006,13 @@ private theorem emitAndUnion_exec {w n m eb sb pb rb op s : ℕ}
       subst hM
       have := a.isLt
       refine ⟨?_, fun z => ?_, fun z => ?_, hacc_snoc _ fun c hc1 hc2 => ?_⟩
-      · have h1 := hmod.trans (Modifies.write_of_owns (base := pb) (n := 2 * n + 1 + 3 * m)
-          (a := op + 1 + 3 * acc.length) ⟨by omega, by omega⟩ e.u.val)
-        have h2 := h1.trans (Modifies.write_of_owns (base := pb) (n := 2 * n + 1 + 3 * m)
-          (a := op + 1 + 3 * acc.length + 1) ⟨by omega, by omega⟩ e.v.val)
-        have h3 := h2.trans (Modifies.write_of_owns (base := pb) (n := 2 * n + 1 + 3 * m)
-          (a := op + 1 + 3 * acc.length + 2) ⟨by omega, by omega⟩ e.weight)
-        have h4 := h3.trans (Modifies.write_of_owns (base := pb) (n := 2 * n + 1 + 3 * m)
-          (a := pb + a.val) ⟨by omega, by omega⟩ b.val)
-        simpa only [Finset.union_idempotent] using h4
+      · have hown {m₀ : ℕ → ℕ} {c : ℕ} (hc : pb ≤ c ∧ c < pb + (2 * n + 1 + 3 * m)) (v : ℕ) :=
+          Modifies.write_of_owns (m := m₀) (base := pb) (n := 2 * n + 1 + 3 * m) (a := c) hc v
+        simpa only [Finset.union_idempotent] using
+          (((hmod.trans (hown ⟨by omega, by omega⟩ e.u.val)).trans
+            (hown ⟨by omega, by omega⟩ e.v.val)).trans
+            (hown ⟨by omega, by omega⟩ e.weight)).trans
+            (hown ⟨by omega, by omega⟩ b.val)
       · have := z.isLt
         by_cases hza : z = a
         · subst hza; simp
@@ -1157,14 +1131,11 @@ private theorem kruskalScanBody_exec {w n eb sb pb rb op : ℕ}
       (∀ r : Fin 26, r ≠ tmp1 → r ≠ tmp2 → r ≠ addr → r ≠ uReg → r ≠ vReg → r ≠ wtReg →
         y1.regs r = y.regs r) ∧
       y1.regs uReg = e.u.val ∧ y1.regs vReg = e.v.val ∧ y1.regs wtReg = e.weight := by
-    have he0 : y.mem (eb + (perm[s] + perm[s] + perm[s])) = e.u.val := by
-      rw [show eb + (perm[s] + perm[s] + perm[s]) = eb + 3 * perm[s] by omega]; exact heu
-    have he1 : y.mem (eb + (perm[s] + perm[s] + perm[s]) + 1) = e.v.val := by
-      rw [show eb + (perm[s] + perm[s] + perm[s]) + 1 = eb + 3 * perm[s] + 1 by omega]
-      exact hev
+    have hmul3 : perm[s] + perm[s] + perm[s] = 3 * perm[s] := by omega
+    have he0 : y.mem (eb + (perm[s] + perm[s] + perm[s])) = e.u.val := by rwa [hmul3]
+    have he1 : y.mem (eb + (perm[s] + perm[s] + perm[s]) + 1) = e.v.val := by rwa [hmul3]
     have he2 : y.mem (eb + (perm[s] + perm[s] + perm[s]) + 1 + 1) = e.weight := by
-      rw [show eb + (perm[s] + perm[s] + perm[s]) + 1 + 1 = eb + 3 * perm[s] + 2 by omega]
-      exact hew
+      rwa [hmul3, Nat.add_assoc]
     refine WP.exists_execWithin ?_
     unfold loadScanEdge
     wram_exec [hyo, hysb, hyeb, hs_def, hread_i, he0, he1, he2]
@@ -1414,9 +1385,7 @@ theorem kruskalProgram_graphEdges_spec {w n : ℕ}
       steps ≤ 52 * G.edgeFinset.card * Nat.clog 2 G.edgeFinset.card +
         16 * G.edgeFinset.card * Nat.log 2 n + 69 * G.edgeFinset.card + 7 * n + 34 ∧
       (G.Connected → G.IsMST wt (toSimpleGraph (kruskalGraph G wt))) := by
-  have hfit' : Fits w (9 * (graphEdges G wt).length + 2 * n + 4) := by
-    rwa [length_graphEdges]
-  obtain ⟨steps, hex, hst, _⟩ := kruskalProgram_spec (graphEdges G wt) hfit'
+  obtain ⟨steps, hex, hst, _⟩ := kruskalProgram_spec (graphEdges G wt) (by rwa [length_graphEdges])
   rw [length_graphEdges] at hst
   exact ⟨steps, hex, hst, fun hconn => kruskalGraph_isMST hconn wt⟩
 

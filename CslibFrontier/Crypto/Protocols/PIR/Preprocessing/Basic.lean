@@ -395,31 +395,21 @@ theorem isPerfectlyPrivateWith_of_invariant {P : Scheme ι H R Q A} {S : Type} (
   have hrunS : ∀ (m : ℕ) (h : H) (st : St),
       ProbComp.eval (P.realAdaptiveFrom adv m h st) =
         runProjectedSteps (stepS adv) m (proj h) st := by
-    intro m
-    induction m with
-    | zero =>
-      intro h st
-      dsimp only [runProjectedSteps]
-      simp [realAdaptiveFrom]
+    intro m h st
+    induction m generalizing h st with
+    | zero => simp [runProjectedSteps, realAdaptiveFrom]
     | succ m ih =>
-      intro h st
-      dsimp only [runProjectedSteps]
-      simp only [realAdaptiveFrom, ProbComp.eval_bind]
+      simp only [runProjectedSteps, realAdaptiveFrom, ProbComp.eval_bind]
       rw [← hcompat adv h st, PMF.bind_map]
       exact congrArg _ (funext fun p => ih p.1 p.2)
   have hideal : ∀ (m : ℕ) (st : St),
       inv.bind (fun s => runProjectedSteps (stepS adv) m s st) =
         ProbComp.eval (idealAdaptiveView sim adv m st) := by
-    intro m
-    induction m with
-    | zero =>
-      intro st
-      dsimp only [runProjectedSteps]
-      simp [idealAdaptiveView]
+    intro m st
+    induction m generalizing st with
+    | zero => simp [runProjectedSteps, idealAdaptiveView]
     | succ m ih =>
-      intro st
-      dsimp only [runProjectedSteps]
-      simp only [idealAdaptiveView, ProbComp.eval_bind]
+      simp only [runProjectedSteps, idealAdaptiveView, ProbComp.eval_bind]
       rw [hstep adv st (runProjectedSteps (stepS adv) m)]
       exact congrArg _ (funext ih)
   simp only [realAdaptiveView, ProbComp.eval_bind, hrunS]
@@ -451,19 +441,14 @@ theorem eval_queryTranscript_eq_of_invariant {P : Scheme ι H R Q A} {S : Type} 
   have hrunQ : ∀ (js : List ι) (h : H),
       ProbComp.eval (P.queryTranscriptFrom x h js) =
         runProjectedTranscript stepQ (proj h) js := by
-    intro js
-    induction js with
-    | nil =>
-      intro h
-      dsimp only [runProjectedTranscript]
-      simp [queryTranscriptFrom]
+    intro js h
+    induction js generalizing h with
+    | nil => simp [runProjectedTranscript, queryTranscriptFrom]
     | cons j js ih =>
-      intro h
-      dsimp only [runProjectedTranscript]
-      simp only [queryTranscriptFrom, ProbComp.eval_bind, ProbComp.eval_pure, PMF.map]
+      simp only [runProjectedTranscript, queryTranscriptFrom, ProbComp.eval_bind,
+        ProbComp.eval_pure, PMF.map]
       rw [← hcompat h j, PMF.bind_map]
-      congr 1
-      funext p
+      congr 1 with p : 1
       rw [ih p.1]
       rfl
   have hideal : ∀ (js : List ι),
@@ -471,15 +456,12 @@ theorem eval_queryTranscript_eq_of_invariant {P : Scheme ι H R Q A} {S : Type} 
         ProbComp.eval (simTranscript sim js.length) := by
     intro js
     induction js with
-    | nil =>
-      dsimp only [runProjectedTranscript]
-      simp [simTranscript]
+    | nil => simp [runProjectedTranscript, simTranscript]
     | cons j js ih =>
-      dsimp only [runProjectedTranscript]
-      simp only [List.length_cons, simTranscript, ProbComp.eval_bind, ProbComp.eval_pure]
+      simp only [runProjectedTranscript, List.length_cons, simTranscript, ProbComp.eval_bind,
+        ProbComp.eval_pure]
       rw [hstep j (fun s' q => (runProjectedTranscript stepQ s' js).map (q :: ·))]
-      congr 1
-      funext q
+      congr 1 with q : 1
       rw [← PMF.map_bind, ih]
       rfl
   simp only [queryTranscript, ProbComp.eval_bind, hrunQ]

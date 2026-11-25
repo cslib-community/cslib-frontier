@@ -78,20 +78,15 @@ theorem realize_cardinality {m : ℕ} (B : (language L).Term α)
       (by fo_simp; exact Nat.le_of_lt hB)
   fo_simp [cardinality, ha, hd, Nat.one_mul, and_assoc]
   have hn := Fact.out (p := 2 ≤ n)
-  constructor
-  · rintro ⟨w, _, hmax, _, hone, _, _, _, hN, he⟩
-    refine ⟨hN, ?_⟩
+  refine ⟨?_, fun ⟨hN, he⟩ => ?_⟩
+  · rintro ⟨_, _, hmax, _, hone, _, _, _, hN, he⟩
     rw [hmax, hone] at he
-    exact he.symm.trans (show n - 1 + 1 = n by lia)
-  · rintro ⟨hN, he⟩
-    have hcap : n < (B.realize v).val ^ m := by
+    exact ⟨hN, by lia⟩
+  · have hcap : n < (B.realize v).val ^ m := by
       simpa only [he] using Nat.ofDigits_ofFn_lt hB _ hN
-    obtain ⟨M, hM, hMv⟩ := exists_word (B.realize v)
-      (show n - 1 < (B.realize v).val ^ m by lia)
-    obtain ⟨O, hO, hOv⟩ := exists_word (B.realize v)
-      (show 1 < (B.realize v).val ^ m by lia)
-    refine ⟨(fun p => (![M, O] p.1) p.2), hM, hMv, hO, hOv, Nat.le_of_lt hB,
-      hM, hO, hN, ?_⟩
+    obtain ⟨M, hM, hMv⟩ := exists_word (B.realize v) (by lia : n - 1 < (B.realize v).val ^ m)
+    obtain ⟨O, hO, hOv⟩ := exists_word (B.realize v) (by lia : 1 < (B.realize v).val ^ m)
+    refine ⟨fun p => (![M, O] p.1) p.2, hM, hMv, hO, hOv, hB.le, hM, hO, hN, ?_⟩
     change Nat.ofDigits _ (List.ofFn fun i => (M i).val) +
       Nat.ofDigits _ (List.ofFn fun i => (O i).val) = _
     rw [hMv, hOv, he]
@@ -122,13 +117,9 @@ theorem realize_bitIndex {d : ℕ} (B e : (language L).Term α)
     Nat.ofDigits_ofFn_succ, Fin.cons_zero, Fin.cons_succ, Nat.one_mul, Fin.le_def, not_le,
     and_assoc]
   rw [hBe, Nat.testBit_ofDigits_ofFn he _ (fun i => hBe ▸ hx i)]
-  constructor
-  · rintro ⟨r, w, hwe, hb, _, _, hi⟩
-    refine ⟨r, ⟨(w ()).val, hwe⟩, ?_, hb⟩
-    simpa only [← hBe, Nat.add_comm] using hi
-  · rintro ⟨r, b, hi, hb⟩
-    let w : Unit → Fin n := fun _ => ⟨b.val, lt_trans b.isLt (e.realize v).isLt⟩
-    refine ⟨r, w, b.isLt, hb, hBe ▸ hB, (fun i => hBe ▸ hy i), ?_⟩
-    simpa only [w, hBe, Nat.add_comm] using hi
+  refine ⟨fun ⟨r, w, hwe, hb, _, _, hi⟩ =>
+      ⟨r, ⟨(w ()).val, hwe⟩, by simpa only [← hBe, Nat.add_comm] using hi, hb⟩,
+    fun ⟨r, b, hi, hb⟩ => ⟨r, fun _ => ⟨b.val, b.isLt.trans (e.realize v).isLt⟩,
+      b.isLt, hb, hBe ▸ hB, fun i => hBe ▸ hy i, by simpa only [hBe, Nat.add_comm] using hi⟩⟩
 
 end Cslib.Logic.FO.Ordered.Radix

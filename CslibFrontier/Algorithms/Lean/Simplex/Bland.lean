@@ -282,13 +282,10 @@ theorem blandLeaving_eq_none_iff {s : ι} :
   rw [blandLeaving, minOpt_eq_none_iff]
   constructor
   · intro h i hi
-    by_contra hneg
-    push Not at hneg
-    have hne : (D.leavingCandidates s).Nonempty := ⟨i, Finset.mem_filter.2 ⟨hi, hneg⟩⟩
-    obtain ⟨k, hk, hmin⟩ := (D.leavingCandidates s).exists_min_image (D.ratio s) hne
-    have : k ∈ D.minRatioCandidates s := Finset.mem_filter.2 ⟨hk, hmin⟩
-    rw [h] at this
-    exact Finset.notMem_empty k this
+    by_contra! hneg
+    obtain ⟨k, hk, hmin⟩ := (D.leavingCandidates s).exists_min_image (D.ratio s)
+      ⟨i, Finset.mem_filter.2 ⟨hi, hneg⟩⟩
+    exact Finset.notMem_empty k (h ▸ Finset.mem_filter.2 ⟨hk, hmin⟩)
   · intro h
     refine Finset.eq_empty_of_forall_notMem fun i hi => ?_
     obtain ⟨hi, hneg⟩ := Finset.mem_filter.1 (Finset.mem_filter.1 hi).1
@@ -468,13 +465,9 @@ theorem basis_ne_of_blandPivot {E : ℕ → Dictionary ι K} {n : ℕ} (hE0 : (E
   rw [hEq, mem_pivot_basis] at htq'
   obtain rfl : t = s' := htq'.resolve_right fun h => htq h.1
   -- compare the objective rows of `E p` and `E q` along the edge of `s`
-  set x := (E p).basicSolution + (1 : K) • (E p).ray s with hx
-  have hxp : (E p).IsSolution x :=
-    (E p).isSolution_add_smul_ray hs (E p).isSolution_basicSolution 1
-  have hpq : (E p).Equivalent (E q) :=
-    (hequiv p hip (by omega)).symm.trans (hequiv q hiq (by omega))
-  have hvalpq := hpq.value_eq x hxp
-  rw [hx, (E p).value_add_smul_ray hs, (E p).value_basicSolution, one_mul] at hvalpq
+  have hvalpq := ((hequiv p hip (by omega)).symm.trans (hequiv q hiq (by omega))).value_eq _
+    ((E p).isSolution_add_smul_ray hs (E p).isSolution_basicSolution 1)
+  rw [(E p).value_add_smul_ray hs, (E p).value_basicSolution, one_mul] at hvalpq
   have hbs : (E p).basicSolution = (E q).basicSolution := by
     rw [hsol p hip hpj.le, hsol q hiq hqj.le]
   have hvalq : (E q).value ((E p).basicSolution + (1 : K) • (E p).ray s) =
@@ -484,10 +477,8 @@ theorem basis_ne_of_blandPivot {E : ℕ → Dictionary ι K} {n : ℕ} (hE0 : (E
     rw [Finset.sum_eq_zero fun v hv => by
       rw [(E q).basicSolution_of_notMem (Finset.mem_compl.1 hv), mul_zero], zero_add]
   rw [hvalq, hconst p hip hpj.le, hconst q hiq hqj.le] at hvalpq
-  have hsum : ∑ v ∈ (E q).basisᶜ, (0 : K) <
-      ∑ v ∈ (E q).basisᶜ, (E q).objCoeff v * (E p).ray s v := by
-    rw [Finset.sum_const_zero]; linarith
-  obtain ⟨v, hv, hpos⟩ := Finset.exists_lt_of_sum_lt hsum
+  obtain ⟨v, hv, hpos⟩ := Finset.exists_lt_of_sum_lt (s := (E q).basisᶜ) (f := fun _ => (0 : K))
+    (g := fun v => (E q).objCoeff v * (E p).ray s v) (by rw [Finset.sum_const_zero]; linarith)
   have hvq : v ∉ (E q).basis := Finset.mem_compl.1 hv
   by_cases hvs : v = s
   · rw [hvs, (E p).ray_self, mul_one] at hpos

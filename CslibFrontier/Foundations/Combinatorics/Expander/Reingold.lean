@@ -238,8 +238,7 @@ private theorem spectralExpansion_reingold_componentGraph_le {V : Type u} [Finty
   have : Nonempty V := ⟨v₀⟩
   set C := {v | G.toSimpleGraph.Reachable v₀ v}
   have hv₀C : v₀ ∈ C := SimpleGraph.Reachable.refl _
-  have hR : ∀ v, Fintype.card B ≤ 2 * (G.componentGraph v₀).edgeCount v v := fun v ↦ by
-    simpa using hG v
+  have hR (v : C) : Fintype.card B ≤ 2 * (G.componentGraph v₀).edgeCount v v := by simpa using hG v
   have hCV : Fintype.card C ≤ Fintype.card V := Fintype.card_subtype_le _
   have hC : 0 < Fintype.card C := Fintype.card_pos_iff.2 ⟨⟨v₀, hv₀C⟩⟩
   have hB : 0 < Fintype.card B := Fintype.card_pos
@@ -256,13 +255,9 @@ private theorem spectralExpansion_reingold_componentGraph_le {V : Type u} [Finty
   -- after `ℓ` steps it is at least `1 / 5`
   have hgap := min_pow_le_one_sub_spectralExpansion_reingold H e hH _ hγ₀ hγ ℓ
   have hℓ' : (1 / 5 : ℝ) ≤ (6 / 5) ^ ℓ * γ := by
-    have hcast : (2 * Fintype.card V ^ 2 * Fintype.card B ^ 2 * 5 ^ ℓ : ℝ) ≤ 5 * 6 ^ ℓ := by
-      exact_mod_cast hℓ
-    have e₁ : (6 / 5 : ℝ) ^ ℓ * γ =
-        6 ^ ℓ / (5 ^ ℓ * (2 * Fintype.card V ^ 2 * Fintype.card B ^ 2)) := by
-      rw [hγdef, div_pow]
-      field_simp
-    rw [e₁, le_div_iff₀ (by positivity)]
+    have hcast : (2 * Fintype.card V ^ 2 * Fintype.card B ^ 2 * 5 ^ ℓ : ℝ) ≤ 5 * 6 ^ ℓ :=
+      mod_cast hℓ
+    rw [hγdef, div_pow, mul_one_div, div_div, le_div_iff₀ (by positivity)]
     linarith
   rw [min_eq_right hℓ'] at hgap
   linarith
@@ -313,11 +308,10 @@ theorem exists_neighbor_pow_reingold_eq {V : Type u} [Fintype V] [DecidableEq V]
   obtain ⟨k, hk⟩ := (reingold H e (G.componentGraph x.root) ℓ).exists_neighbor_pow_eq hwalk
     (x.setRoot (⟨x.root, hxC⟩ : C)) (y.setRoot (⟨y.root, hxy⟩ : C))
   refine ⟨k, ?_⟩
-  have h := (((G.componentHom x.root).reingold H e ℓ).pow T).neighbor_map
-    (x.setRoot (⟨x.root, hxC⟩ : C)) k
-  simp only [Hom.pow_apply, Hom.reingold_apply, hk, IteratedProd.map_setRoot, componentHom_apply,
-    IteratedProd.setRoot_root] at h
-  exact h
+  simpa only [Hom.pow_apply, Hom.reingold_apply, hk, IteratedProd.map_setRoot, componentHom_apply,
+    IteratedProd.setRoot_root] using
+    (((G.componentHom x.root).reingold H e ℓ).pow T).neighbor_map
+      (x.setRoot (⟨x.root, hxC⟩ : C)) k
 
 /-- **Undirected connectivity by short walks in Reingold's transform** [Reingold][Reingold2008]
 [Arora and Barak, Section 21.4][AroraBarak09]: if `λ(H) ≤ 1 / 5`, at least half of the edges at

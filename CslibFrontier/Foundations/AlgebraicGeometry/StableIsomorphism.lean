@@ -175,15 +175,10 @@ theorem refl (A : Set (σ → ℝ)) : StablyIsomorphic A A :=
 theorem prod [Finite σ] {V : Set (σ → ℝ)} (hV : IsSemialgebraic V) (κ : Type u) [Finite κ] :
     StablyIsomorphic {z : σ ⊕ κ → ℝ | z ∘ Sum.inl ∈ V} V := by
   have := Fintype.ofFinite κ
-  have hA : IsSemialgebraic {z : σ ⊕ κ → ℝ | z ∘ Sum.inl ∈ V} := hV.preimage_comp Sum.inl
-  have e := SemialgebraicHomeomorph.reindex
-    ((Equiv.refl σ).sumCongr (Fintype.equivFin κ)) hA
-  have hset : {y : σ ⊕ Fin (Fintype.card κ) → ℝ |
-      y ∘ ((Equiv.refl σ).sumCongr (Fintype.equivFin κ)) ∈ {z : σ ⊕ κ → ℝ | z ∘ Sum.inl ∈ V}} =
-      {z | z ∘ Sum.inl ∈ V} := by
-    ext y
-    rfl
-  rw [hset] at e
+  have e : SemialgebraicHomeomorph {z : σ ⊕ κ → ℝ | z ∘ Sum.inl ∈ V}
+      {z : σ ⊕ Fin (Fintype.card κ) → ℝ | z ∘ Sum.inl ∈ V} :=
+    SemialgebraicHomeomorph.reindex ((Equiv.refl σ).sumCongr (Fintype.equivFin κ))
+      (hV.preimage_comp Sum.inl)
   exact (of_homeomorph e).trans (prod_fin V _)
 
 /-- Stably isomorphic sets are both empty or both nonempty. -/

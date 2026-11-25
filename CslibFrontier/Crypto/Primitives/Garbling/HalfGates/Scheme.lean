@@ -311,11 +311,7 @@ private theorem labelBits_zero (k : ℕ) :
 /-- `bitOffset` on words is `maskWord`. -/
 theorem labelBits_bitOffset (k : ℕ) (Δ : BitString (k + 1) × Bool) (b : Bool) :
     labelBits (bitOffset Δ b) = maskWord k (labelBits Δ) b := by
-  cases b
-  · rw [bitOffset_false, labelBits_zero]
-    rfl
-  · rw [bitOffset_true]
-    rfl
+  cases b <;> simp [bitOffset_false, bitOffset_true, labelBits_zero, maskWord]
 
 /-- The colour of a label word is the label's colour. -/
 theorem colourWord_labelBits {k : ℕ} (x : BitString (k + 1) × Bool) :
@@ -492,11 +488,8 @@ theorem encodeGate_toCircuit (k : ℕ) (f : XorAndCircuit)
   have hA₁ := f.isValid.one_le_A (g.cast (size_toCircuit f))
   have hAB := f.isValid.A_lt_B (g.cast (size_toCircuit f))
   simp only [ConventionalCircuit.topo] at hA₁ hAB
-  have hw : PointPermute.wireWidth f.circuit.n (toCircuit f).size =
-      PointPermute.wireWidth f.circuit.n f.circuit.q := by rw [size_toCircuit]
-  rw [hw]
-  simp only [encodeGate, toNat_left_toCircuit, toNat_right_toCircuit, Nat.sub_add_cancel hA₁,
-    Nat.sub_add_cancel (hA₁.trans hAB.le), decide_op_toCircuit]
+  simp only [encodeGate, size_toCircuit, toNat_left_toCircuit, toNat_right_toCircuit,
+    Nat.sub_add_cancel hA₁, Nat.sub_add_cancel (hA₁.trans hAB.le), decide_op_toCircuit]
 
 /-- The block of gate `g` of the typed garbled table, as a word, is `gateWord`. -/
 private theorem encodeGate_garbleTable (k : ℕ) (f : XorAndCircuit) (coins : List Bool)
@@ -516,11 +509,10 @@ private theorem encodeGate_garbleTable (k : ℕ) (f : XorAndCircuit) (coins : Li
   have hBg := f.isValid.B_lt_gate (g.cast (size_toCircuit f))
   simp only [ConventionalCircuit.topo, Fin.val_cast] at hA₁ hAB hBg
   have hgs := g.isLt
-  have hl := left_toCircuit f g
-  have hr := right_toCircuit f g
   rw [encodeGate_toCircuit, zeroWords_q, ← hWdef]
   simp only [gateWord]
-  rw [getD_ofFn_labels W (by omega), getD_ofFn_labels W (by omega), ← hl, ← hr]
+  rw [getD_ofFn_labels W (by omega), getD_ofFn_labels W (by omega),
+    ← left_toCircuit f g, ← right_toCircuit f g]
   cases hG : f.circuit.G (g.cast (size_toCircuit f)) true true
   · have hop : op (toCircuit f) g = .xor := by rw [op_toCircuit, opOf, hG]; rfl
     rw [dite_eq_right (by rw [hop]; decide)]
@@ -736,9 +728,9 @@ theorem scheme_correct : (scheme hash).Correct := by
   rw [← h]
   congr 2
   funext o
-  have hev' := congrFun hev ((toCircuit f).outputs o)
   unfold Garbled.run evaluate
   simp only [garbleWith, Garbling.decode]
-  exact congrArg (fun y : BitString (k + 1) × Bool => y.2 + _) hev'.symm
+  exact congrArg (fun y : BitString (k + 1) × Bool => y.2 + _)
+    (congrFun hev ((toCircuit f).outputs o)).symm
 
 end Cslib.Crypto.Garbling.HalfGates

@@ -297,12 +297,14 @@ private theorem eq_ttcRounds_of_le {k : ℕ} {R : Finset (Fin n)} (hk : R.card �
     intro i hi
     have hk' := card_sdiff_cycleAgents_le (I := I) hk ⟨i, hSR hi⟩
     set C := I.cycleAgents R
+    -- members of `S` on a cycle get their favourite remaining house
     have hC (a : Fin n) (ha : a ∈ S) (haC : a ∈ C) : ν a = I.topChoice R a :=
       I.rank_injective a <| le_antisymm (ttcRounds_succ_of_mem haC ▸ hle a ha)
         (rank_topChoice_le (hSR (hS a ha)) a)
     by_cases hiC : i ∈ C
     · rw [hC i hi hiC, ttcRounds_succ_of_mem hiC]
     rw [ttcRounds_succ_of_notMem hiC]
+    -- so `ν` maps `S ∩ C` onto itself, and hence `S \ C` into itself
     have hmaps : ∀ a ∈ S ∩ C, ν a ∈ S ∩ C := fun a ha => by
       obtain ⟨haS, haC⟩ := Finset.mem_inter.1 ha
       exact Finset.mem_inter.2 ⟨hS a haS, hC a haS haC ▸ topChoice_mem_cycleAgents haC⟩
@@ -350,6 +352,7 @@ private theorem eq_ttcRounds_of_inStrictCore {μ : Allocation n} (hμ : I.InStri
     intro i hi
     have hk' := card_sdiff_cycleAgents_le (I := I) hk ⟨i, hi⟩
     set C := I.cycleAgents R
+    -- the agents on cycles can trade along them: `ν` follows the pointers on `C`
     classical
     let g : Fin n → Fin n := fun a => if a ∈ C then I.topChoice R a else a
     have hg : Injective g := fun a b hab => by
@@ -361,6 +364,7 @@ private theorem eq_ttcRounds_of_inStrictCore {μ : Allocation n} (hμ : I.InStri
       · exact hab
     let ν : Allocation n := StableMatching.permOfInjective g hg
     have hνC : ∀ a ∈ C, ν a = I.topChoice R a := fun _ ha => ite_eq_left ha
+    -- so, unless `C` weakly blocks `μ`, every agent on a cycle gets its favourite house in `R`
     have hμC : ∀ a ∈ C, μ a = I.topChoice R a := fun a ha => by
       have hle : ∀ b ∈ C, I.rank b (I.topChoice R b) ≤ I.rank b (μ b) :=
         fun b hb => rank_topChoice_le (hR b (cycleAgents_subset R hb)) b
@@ -371,6 +375,7 @@ private theorem eq_ttcRounds_of_inStrictCore {μ : Allocation n} (hμ : I.InStri
     by_cases hiC : i ∈ C
     · rw [hμC i hiC, ttcRounds_succ_of_mem hiC]
     rw [ttcRounds_succ_of_notMem hiC]
+    -- `μ` maps `C` onto itself, hence `R \ C` into itself
     refine ih hk' (fun a ha => ?_) i (Finset.mem_sdiff.2 ⟨hi, hiC⟩)
     obtain ⟨haR, haC⟩ := Finset.mem_sdiff.1 ha
     exact Finset.mem_sdiff.2 ⟨hR a haR, fun hμa =>
@@ -409,6 +414,7 @@ theorem rank_ttcRounds_le_of_iterate {k : ℕ} {R : Finset (Fin n)} (hk : R.card
     · rw [ttcRounds_succ_of_mem hiC]
       exact rank_topChoice_le hh i
     rw [ttcRounds_succ_of_notMem hiC]
+    -- the path from `h` to `i` avoids the cycles, since the cycles are closed under pointers
     have hout (j : ℕ) (hj : j ≤ m) : (I.topChoice R)^[j] h ∉ I.cycleAgents R := fun hjC => by
       apply hiC
       rw [← hm, show m = (m - j) + j by omega, iterate_add_apply]
@@ -416,6 +422,7 @@ theorem rank_ttcRounds_le_of_iterate {k : ℕ} {R : Finset (Fin n)} (hk : R.card
       induction m - j with
       | zero => exact hjC
       | succ _ ihl => exact iterate_succ_apply' _ _ _ ▸ topChoice_mem_cycleAgents ihl
+    -- so it is a path of pointers in the next round
     have hpath (j : ℕ) (hj : j ≤ m) :
         (I.topChoice (R \ I.cycleAgents R))^[j] h = (I.topChoice R)^[j] h := by
       induction j with

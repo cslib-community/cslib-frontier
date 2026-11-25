@@ -151,11 +151,12 @@ theorem flipSteps_eq_flipOn (f : OccurrenceLabeling F Bool)
     (s : List (Occurrence F × Occurrence F)) (hs : (edgesOf s).Nodup) :
     flipSteps f s = flipOn (edgesOf s).toFinset f := by
   fun_induction flipSteps f s with
-  | case1 => simp [edgesOf]
-  | case2 f o p s ih =>
+  | case1 => simp [edgesOf] -- []
+  | case2 f o p s ih => -- (o, p) :: s
     simp only [edgesOf_cons, List.nodup_cons, List.mem_cons, not_or] at hs
     rw [ih hs.2.2, edgesOf_cons, List.toFinset_cons]
-    funext q; simp only [List.toFinset_cons, flipOn_apply, mem_insert, mem_singleton]
+    funext q
+    simp only [List.toFinset_cons, flipOn_apply, mem_insert, mem_singleton]
     by_cases q = o <;> by_cases q = p <;> by_cases q ∈ (edgesOf s).toFinset <;> simp_all
 
 omit [DecidableEq V] in
@@ -238,7 +239,10 @@ theorem InternallyConsistent.snoc {f : OccurrenceLabeling F Bool}
   | nil => exact ⟨.inl rfl, trivial⟩
   | cons a s ih =>
     have hend' := hend.resolve_left (List.cons_ne_nil _ _)
-    exact ⟨.inr (by rcases hi.1 with rfl | h; exacts [hend', h]), ih hi.2 a.2.var (.inr hend')⟩
+    refine ⟨.inr ?_, ih hi.2 a.2.var (.inr hend')⟩
+    rcases hi.1 with rfl | h
+    · exact hend'
+    · exact h
 
 omit [DecidableEq V] in
 /-- Append a fresh locally valid step to a prefix-valid trail. -/
@@ -262,13 +266,14 @@ theorem IsWalk.defects_flip (h : EdgeInstance F) {w : Walk F} (hw : w.IsWalk)
   rw [flip, edges, ← flipSteps_eq_flipOn f s hw.2]
   change defects (flipSteps f s) = defects f ∆ {v} ∆ {finishFrom v s}
   fun_induction flipSteps f s generalizing v with
-  | case1 => simp [finishFrom]
-  | case2 f o p s ih =>
+  | case1 => simp [finishFrom] -- []
+  | case2 f o p s ih => -- (o, p) :: s
     obtain ⟨⟨rfl, hc, hl⟩, hn⟩ := hw
     simp only [edges, edgesOf_cons, List.nodup_cons, List.mem_cons, not_or] at hn
     have hv := h.var_ne_of_constraint_eq hc hn.1.1
     rw [ih p.var ⟨hl, hn.2.2⟩, h.defects_flipOn_pair f hc hn.1.1]
-    ext z; simp only [finishFrom, mem_symmDiff, mem_insert, mem_singleton]
+    ext z
+    simp only [finishFrom, mem_symmDiff, mem_insert, mem_singleton]
     by_cases z = o.var <;> by_cases z = p.var <;> simp_all
 
 /-- Augmentation removes exactly two distinct variable defects. -/
@@ -280,7 +285,8 @@ theorem IsAugmenting.card_defects_flip_add_two (h : EdgeInstance F)
   rw [hw.1.1.1.defects_flip h, symmDiff_singleton_eq (defects f) w.start,
     ite_eq_left (mem_defects.mpr hw.2.1), symmDiff_singleton_eq, ite_eq_left hend]
   have := card_erase_add_one (mem_defects.mpr hw.2.1)
-  have := card_erase_add_one hend; omega
+  have := card_erase_add_one hend
+  omega
 
 omit [DecidableEq V] in
 /-- The recursive prefix condition is exactly validity after every variable-ended prefix,

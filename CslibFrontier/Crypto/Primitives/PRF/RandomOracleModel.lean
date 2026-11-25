@@ -284,8 +284,9 @@ private theorem identicalUntilBad_tracked (hencode : Function.Injective2 encode)
     rw [tracked_apply, tracked_apply]
     by_cases hm : ∃ x, encode key x = m
     · obtain ⟨x, rfl⟩ := hm
-      have hne : S' ≠ track encode (.inr (encode key x) : X ⊕ M) S := fun h => hS'
-        (by rw [h, track, keyOf_encode hencode]; exact Finset.mem_insert_self key S)
+      have hne : S' ≠ track encode (.inr (encode key x) : X ⊕ M) S := fun h => hS' <| by
+        rw [h, track, keyOf_encode hencode]
+        exact Finset.mem_insert_self key S
       simp [answers, PMF.pure_map, PMF.pure_apply, hne]
     · change (PMF.map _ (PMF.pure (Function.extend (encode key) f O m))) _ = _
       rw [Function.extend_apply' _ _ _ hm]
@@ -429,11 +430,17 @@ theorem roAdvantage_prependKey_le {encode : Key → X → M} (hencode : Function
       G (prependKey encode O key) O) =
       (uniformOfFintype (M → T)).bind fun O => (uniformOfFintype (X → T)).bind fun f =>
         (uniformOfFintype Key).bind fun key => G f (Function.extend (encode key) f O) := by
-    rw [PMF.bind_comm]
-    refine (congrArg _ (funext fun key => (Probability.PMF.uniformOfFintype_bind_bind_extend
-      (encode key) fun O => G (O ∘ encode key) O).symm.trans ?_)).trans
-      ((PMF.bind_comm _ _ _).trans (congrArg _ (funext fun _ => PMF.bind_comm _ _ _)))
-    simp only [Function.extend_comp (hencode.right key)]
+    calc _ = (uniformOfFintype Key).bind fun key => (uniformOfFintype (M → T)).bind fun O =>
+          G (O ∘ encode key) O := PMF.bind_comm _ _ _
+      _ = (uniformOfFintype Key).bind fun key => (uniformOfFintype (M → T)).bind fun O =>
+          (uniformOfFintype (X → T)).bind fun f => G f (Function.extend (encode key) f O) :=
+        congrArg _ (funext fun key => (Probability.PMF.uniformOfFintype_bind_bind_extend
+          (encode key) fun O => G (O ∘ encode key) O).symm.trans (by
+            simp only [Function.extend_comp (hencode.right key)]))
+      _ = (uniformOfFintype (M → T)).bind fun O => (uniformOfFintype Key).bind fun key =>
+          (uniformOfFintype (X → T)).bind fun f => G f (Function.extend (encode key) f O) :=
+        PMF.bind_comm _ _ _
+      _ = _ := congrArg _ (funext fun _ => PMF.bind_comm _ _ _)
   rw [hreal]
   exact Game.advantage_bind_le _ _ _ fun O => Game.advantage_bind_le _ _ _ fun f =>
     advantage_bind_extend_le hencode f O hQ

@@ -637,9 +637,22 @@ theorem IsBasic.profileValue_sub_two_mul_expectedWalkValue_le {G : UtilityGame �
               2 * ((G.profileValue o - 2 * G.profileValue s₀) / Fintype.card ι) := by
           field_simp
         linarith
-      rw [pow_succ, mul_assoc]
-      exact (mul_le_mul_of_nonneg_left hsum_ih (inv_nonneg.mpr hn_pos.le)).trans
-        (hpull.trans_le (mul_le_mul_of_nonneg_left hone (pow_nonneg hfactor_nonneg t)))
+      calc
+        (Fintype.card ι : ℝ)⁻¹ *
+            ∑ i : ι, (G.profileValue o -
+              2 * G.expectedWalkValue br (Function.update s₀ i (br i s₀)) t)
+          ≤ (Fintype.card ι : ℝ)⁻¹ *
+              ∑ i : ι, (1 - 2 / (Fintype.card ι : ℝ)) ^ t *
+                (G.profileValue o - 2 * G.profileValue (Function.update s₀ i (br i s₀))) :=
+            mul_le_mul_of_nonneg_left hsum_ih (inv_nonneg.mpr hn_pos.le)
+        _ = (1 - 2 / (Fintype.card ι : ℝ)) ^ t *
+              (G.profileValue o - 2 * G.expectedWalkValue br s₀ 1) := hpull
+        _ ≤ (1 - 2 / (Fintype.card ι : ℝ)) ^ t *
+              ((1 - 2 / (Fintype.card ι : ℝ)) * (G.profileValue o - 2 * G.profileValue s₀)) :=
+            mul_le_mul_of_nonneg_left hone (pow_nonneg hfactor_nonneg t)
+        _ = (1 - 2 / (Fintype.card ι : ℝ)) ^ (t + 1) *
+              (G.profileValue o - 2 * G.profileValue s₀) := by
+            rw [pow_succ, mul_assoc]
 
 /-- **Random Best-Response Convergence Bound** ([MirrokniVetta2004]; [GoemansMirrokniVetta2005];
 [TardosWexler2007], Theorem 19.20, p. 506): in a monotone basic utility game with `n ≥ 1` players
@@ -697,16 +710,27 @@ theorem IsBasic.mul_profileValue_le_expectedWalkValue {G : UtilityGame ι S} [No
       have hdecay := hG.profileValue_sub_two_mul_expectedWalkValue_le hmono hbr hn2 s₀ o t
       have hinit : G.profileValue o - 2 * G.profileValue s₀ ≤ G.profileValue o := by linarith
       -- `(1 - 2 / n) ^ t ≤ exp (-2 t / n) ≤ ε`.
-      have hpow_exp : (1 - 2 / (Fintype.card ι : ℝ)) ^ t ≤ ε := by
-        refine (pow_le_pow_left₀ hfactor_nonneg (Real.one_sub_le_exp_neg _) t).trans ?_
-        rw [← Real.exp_nat_mul, ← Real.exp_log hε, Real.exp_le_exp]
-        have hdiv : Real.log (1 / ε) ≤ 2 * (t : ℝ) / (Fintype.card ι : ℝ) := by
-          rw [le_div_iff₀ hn_pos]; linarith
-        rw [one_div, Real.log_inv] at hdiv
-        linarith [show (t : ℝ) * -(2 / (Fintype.card ι : ℝ)) = -(2 * t / Fintype.card ι) by ring]
+      have hpow_exp : (1 - 2 / (Fintype.card ι : ℝ)) ^ t ≤ ε :=
+        calc (1 - 2 / (Fintype.card ι : ℝ)) ^ t
+            ≤ Real.exp (-(2 / (Fintype.card ι : ℝ))) ^ t :=
+              pow_le_pow_left₀ hfactor_nonneg (Real.one_sub_le_exp_neg _) t
+          _ = Real.exp ((t : ℝ) * -(2 / (Fintype.card ι : ℝ))) := (Real.exp_nat_mul _ t).symm
+          _ ≤ Real.exp (Real.log ε) := Real.exp_le_exp.mpr <| by
+              have hdiv : Real.log (1 / ε) ≤ 2 * (t : ℝ) / (Fintype.card ι : ℝ) := by
+                rw [le_div_iff₀ hn_pos]; linarith
+              rw [one_div, Real.log_inv] at hdiv
+              have hrew : (t : ℝ) * -(2 / (Fintype.card ι : ℝ)) = -(2 * t / Fintype.card ι) := by
+                ring
+              linarith
+          _ = ε := Real.exp_log hε
       have hbound : G.profileValue o - 2 * G.expectedWalkValue br s₀ t ≤ ε * G.profileValue o :=
-        hdecay.trans ((mul_le_mul_of_nonneg_left hinit (pow_nonneg hfactor_nonneg t)).trans
-          (mul_le_mul_of_nonneg_right hpow_exp hVo))
+        calc G.profileValue o - 2 * G.expectedWalkValue br s₀ t
+            ≤ (1 - 2 / (Fintype.card ι : ℝ)) ^ t * (G.profileValue o - 2 * G.profileValue s₀) :=
+              hdecay
+          _ ≤ (1 - 2 / (Fintype.card ι : ℝ)) ^ t * G.profileValue o :=
+              mul_le_mul_of_nonneg_left hinit (pow_nonneg hfactor_nonneg t)
+          _ ≤ ε * G.profileValue o :=
+              mul_le_mul_of_nonneg_right hpow_exp hVo
       nlinarith
 
 end BasicWalk
@@ -910,7 +934,8 @@ private theorem closedNeighborhood_starPlusIsolates_inr (k : ℕ) (j : Fin (k + 
   dsimp only [starPlusIsolates]
   rcases v with r | j' <;> constructor
   · rintro (h | ⟨h, _⟩ | ⟨_, _, _, h⟩) <;> cases h
-  · intro h; cases h
+  · intro h
+    cases h
   · rintro (h | ⟨h, _⟩ | ⟨_, _, _, h⟩) <;> first | exact h | cases h
   · exact Or.inl
 
@@ -1019,10 +1044,19 @@ theorem exists_neighborhoodGame_isPureNash_mul_lt {ε : ℝ} (hε : 0 < ε) :
           · rw [Function.update_of_ne hji]
             exact center_mem_closedNeighborhood_inl k r'
         rw [hfilt, card_univ, Fintype.card_fin]
-      refine (Finset.sum_le_sum hterm_le).trans
-        ((Finset.sum_le_sum_of_subset_of_nonneg hsub fun _ _ _ => by positivity).trans_eq ?_)
-      rw [Finset.sum_const, card_map, card_univ, Fintype.card_fin, nsmul_eq_mul]
-      exact mul_one_div_cancel hm_pos.ne'
+      calc
+        ∑ v ∈ closedNeighborhood (starPlusIsolates k) (Sum.inl r),
+            (1 : ℝ) / (Finset.univ.filter fun j' : Fin (k + 2) =>
+              Function.update s i (Sum.inl r) j' ∈
+                closedNeighborhood (starPlusIsolates k) v).card
+          ≤ ∑ _v ∈ closedNeighborhood (starPlusIsolates k) (Sum.inl r),
+              (1 : ℝ) / (k + 2 : ℕ) := Finset.sum_le_sum hterm_le
+        _ ≤ ∑ _v ∈ (Finset.univ.map Function.Embedding.inl :
+              Finset (Fin (k + 2) ⊕ Fin (k + 1))), (1 : ℝ) / (k + 2 : ℕ) :=
+            Finset.sum_le_sum_of_subset_of_nonneg hsub fun _ _ _ => by positivity
+        _ = 1 := by
+            rw [Finset.sum_const, card_map, card_univ, Fintype.card_fin, nsmul_eq_mul]
+            exact mul_one_div_cancel hm_pos.ne'
     · rw [neighborhoodGame_utility_apply, Function.update_self,
         closedNeighborhood_starPlusIsolates_inr, sum_singleton,
         closedNeighborhood_starPlusIsolates_inr]

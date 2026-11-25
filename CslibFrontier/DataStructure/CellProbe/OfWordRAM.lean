@@ -1576,12 +1576,13 @@ theorem ObliviousSequenceImpl.exists_cellProbe_of_execRand
     rw [Cslib.CellProbe.Randomized.Scheme.expectedSeqProbes_eq_init_tsum]
     dsimp only [P_cp]
     rw [Probability.PMF.tsum_map_mul]
-    rw [show (L.overhead : ℝ≥0∞) = ((2 * persCount P.input : ℕ) : ℝ≥0∞) from
-      congrArg Nat.cast (standardLayout_overhead P.input base C.space w)] at hexp
-    rw [show ((ops.map fun o => C.charge o + 2 * persCount P.input).sum : ℕ) =
-        (ops.map C.charge).sum + 2 * persCount P.input * ops.length by
-          simp [List.sum_map_add, mul_comm],
-      Nat.cast_add, Nat.cast_mul]
+    have hovhd : (L.overhead : ℝ≥0∞) = ((2 * persCount P.input : ℕ) : ℝ≥0∞) :=
+      congrArg Nat.cast (standardLayout_overhead P.input base C.space w)
+    have hsum : ((ops.map fun o => C.charge o + 2 * persCount P.input).sum : ℕ) =
+        (ops.map C.charge).sum + 2 * persCount P.input * ops.length := by
+      simp [List.sum_map_add, mul_comm]
+    rw [hovhd] at hexp
+    rw [hsum, Nat.cast_add, Nat.cast_mul]
     exact hexp.trans ((add_le_add hcost le_rfl).trans_eq (by ac_rfl))
 
 private theorem simExecStepsLasVegas_induction

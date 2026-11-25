@@ -92,12 +92,15 @@ theorem weight_mem_lowDegree [Fintype ι] :
 /-- A univariate polynomial evaluated at the weight has degree at most its degree on the cube. -/
 theorem eval_weight_mem_lowDegree [Fintype ι] (q : R[X]) :
     (fun x : ι → Bool => q.eval (weight x : R)) ∈ lowDegree R ι q.natDegree := by
-  rw [show (fun x : ι → Bool => q.eval (weight x : R)) =
-      ∑ j ∈ range (q.natDegree + 1), q.coeff j • (fun x : ι → Bool => (weight x : R)) ^ j from
-    funext fun _ => by simp [eval_eq_sum_range, Finset.sum_apply, smul_eq_mul]]
-  exact sum_mem_lowDegree _ fun j hj => Submodule.smul_mem _ _
-    (lowDegree_mono ((mul_one j).trans_le (Nat.lt_succ_iff.1 (mem_range.1 hj)))
-      (pow_mem_lowDegree weight_mem_lowDegree j))
+  have h : (fun x : ι → Bool => q.eval (weight x : R)) =
+      ∑ j ∈ range (q.natDegree + 1), q.coeff j • (fun x : ι → Bool => (weight x : R)) ^ j := by
+    funext x
+    simp only [eval_eq_sum_range, Finset.sum_apply, Pi.smul_apply, Pi.pow_apply, smul_eq_mul]
+  rw [h]
+  refine sum_mem_lowDegree _ fun j hj => Submodule.smul_mem _ _ (lowDegree_mono ?_
+    (pow_mem_lowDegree weight_mem_lowDegree j))
+  rw [mul_one]
+  exact Nat.lt_succ_iff.1 (mem_range.1 hj)
 
 end Substitution
 

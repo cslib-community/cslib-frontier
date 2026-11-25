@@ -432,7 +432,10 @@ private theorem hybridPrice_step_identity {Z : (G → ℝ) → G → ℝ} (hW : 
         (α s' * pHat (σ t) * Z (q s') (σ t) - α s * pHat (σ t) * Z (q s) (σ t)) := by
     refine sum_congr rfl fun t ht => ?_
     have hst : s < t := (mem_filter.1 ht).2
-    have hs't : s' ≤ t := by rw [Fin.le_def]; have : s.val < t.val := hst; omega
+    have hs't : s' ≤ t := by
+      rw [Fin.le_def]
+      have : s.val < t.val := hst
+      omega
     have h1 : q s' (σ t) = α s' * pHat (σ t) := hybridPrice_sorted_of_ge hpHat hs't
     have h2 : q s (σ t) = α s * pHat (σ t) := hybridPrice_sorted_of_ge hpHat hst.le
     rw [h1, h2]
@@ -667,7 +670,10 @@ theorem IsWeakGrossSubstitutes.expenditure_pos_of_not_isWalrasianEquilibrium
             · have hsub0 := (mul_eq_zero.1 ((sum_eq_zero_iff_of_nonneg hhead_nn).1 hhead0 t
                 (mem_filter.2 ⟨mem_univ t, hts⟩))).resolve_left (heq.1 (σ t)).ne'
               linarith [show Z (q s) (σ t) = 0 from congrFun hprev (σ t)]
-            · have hs't : s' ≤ t := by change k + 1 ≤ t.val; have : ¬ t.val ≤ k := hts; omega
+            · have hs't : s' ≤ t := by
+                change k + 1 ≤ t.val
+                have : ¬ t.val ≤ k := hts
+                omega
               exact excessDemand_hybridPrice_nonpos_of_ge hH hW hWGS heq hp hs't
           have hq_s'_pos : ∀ g, 0 < q s' g := hybridPrice_pos heq.1 hp hαs'
           exact hW.eq_zero_of_isWalrasianEquilibrium ⟨hq_s'_pos, hq_s'_le0⟩
@@ -802,7 +808,9 @@ theorem cobbDouglasDemand_mem_demandSet {α p : G → ℝ} {m : ℝ}
     · obtain ⟨g₀, hαg₀, hbg₀⟩ := hzero_supp
       have hub0 : cobbDouglasUtility α b = 0 := by
         rw [cobbDouglasUtility_eq_prod]
-        exact prod_eq_zero (mem_univ g₀) (by rw [hbg₀]; exact Real.zero_rpow hαg₀.ne')
+        refine prod_eq_zero (mem_univ g₀) ?_
+        rw [hbg₀]
+        exact Real.zero_rpow hαg₀.ne'
       rw [hub0]
       exact cobbDouglasUtility_nonneg hx_nn
     · push Not at hzero_supp
@@ -1140,11 +1148,17 @@ theorem expenditure_cesDemand [Nonempty G] {α p : G → ℝ} {ρ : ℝ}
     intro g
     simp only [cesDemand_apply]
     change p g * (((α g) ^ (1 / (1 - ρ)) / (p g) ^ (1 / (1 - ρ))) * (m / D)) = _
-    have hp_pow : p g / (p g) ^ (1 / (1 - ρ)) = (p g) ^ (- ρ / (1 - ρ)) := by
-      rw [show - ρ / (1 - ρ) = 1 - 1 / (1 - ρ) by field_simp; ring, Real.rpow_sub (hp g),
-        Real.rpow_one]
-    rw [← hp_pow]
-    ring
+    have hp_pow : p g / (p g) ^ (1 / (1 - ρ)) = (p g) ^ (- ρ / (1 - ρ)) :=
+      calc p g / (p g) ^ (1 / (1 - ρ))
+          = (p g) ^ (1 - 1 / (1 - ρ)) := by rw [Real.rpow_sub (hp g), Real.rpow_one]
+        _ = (p g) ^ (- ρ / (1 - ρ)) := by
+            congr 1
+            field_simp [h10]
+            ring
+    calc
+      p g * (((α g) ^ (1 / (1 - ρ)) / (p g) ^ (1 / (1 - ρ))) * (m / D)) =
+          (α g) ^ (1 / (1 - ρ)) * (p g / (p g) ^ (1 / (1 - ρ))) * (m / D) := by ring
+      _ = ((α g) ^ (1 / (1 - ρ)) * (p g) ^ (- ρ / (1 - ρ))) * (m / D) := by rw [hp_pow]
   simp_rw [hterm, ← sum_mul]
   change D * (m / D) = m
   exact mul_div_cancel₀ m hD_pos.ne'
@@ -1194,16 +1208,24 @@ theorem cesDemand_mem_demandSet [Nonempty G] {α p : G → ℝ} {ρ m : ℝ}
           ← Real.rpow_mul hαg.le, ← Real.rpow_mul hpg.le]
         have hα_pow : α g * ((α g) ^ (1 / (1 - ρ) * ρ) / (p g) ^ (1 / (1 - ρ) * ρ)) =
             (α g) ^ (1 / (1 - ρ)) * (p g) ^ (- ρ / (1 - ρ)) := by
-          have h1 : α g * (α g) ^ (1 / (1 - ρ) * ρ) = (α g) ^ (1 / (1 - ρ)) := by
-            conv_rhs => rw [show 1 / (1 - ρ) = 1 + 1 / (1 - ρ) * ρ by field_simp; ring]
-            rw [Real.rpow_add hαg, Real.rpow_one]
+          have h1 : α g * (α g) ^ (1 / (1 - ρ) * ρ) = (α g) ^ (1 / (1 - ρ)) :=
+            calc
+              α g * (α g) ^ (1 / (1 - ρ) * ρ) = (α g) ^ (1 + 1 / (1 - ρ) * ρ) := by
+                rw [Real.rpow_add hαg, Real.rpow_one]
+              _ = (α g) ^ (1 / (1 - ρ)) := by
+                congr 1
+                field_simp [h1ρ_pos.ne']
+                ring
           have h2 : ((p g) ^ (1 / (1 - ρ) * ρ))⁻¹ = (p g) ^ (- ρ / (1 - ρ)) := by
             rw [← Real.rpow_neg hpg.le]
             congr 1
             field_simp [h1ρ_pos.ne']
           rw [div_eq_mul_inv, ← mul_assoc, h1, h2]
-        rw [← hα_pow]
-        ring
+        calc
+          α g * (((α g) ^ (1 / (1 - ρ) * ρ) / (p g) ^ (1 / (1 - ρ) * ρ)) * (m / D) ^ ρ) =
+              (α g * ((α g) ^ (1 / (1 - ρ) * ρ) / (p g) ^ (1 / (1 - ρ) * ρ))) * (m / D) ^ ρ := by
+            ring
+          _ = ((α g) ^ (1 / (1 - ρ)) * (p g) ^ (- ρ / (1 - ρ))) * (m / D) ^ ρ := by rw [hα_pow]
       simp_rw [hterm, ← sum_mul]
       change (D * (m / D) ^ ρ) ^ (1 / ρ) = m * D ^ ((1 - ρ) / ρ)
       rw [Real.mul_rpow hD_pos.le (Real.rpow_nonneg (div_pos hm_pos hD_pos).le _),
@@ -1213,8 +1235,8 @@ theorem cesDemand_mem_demandSet [Nonempty G] {α p : G → ℝ} {ρ m : ℝ}
         congr 1
         field_simp [hρ_ne]
         ring
-      rw [← hD_exp]
-      ring
+      calc D ^ (1 / ρ) * (m / D) = m * (D ^ (1 / ρ) * D⁻¹) := by ring
+        _ = m * D ^ ((1 - ρ) / ρ) := by rw [hD_exp]
     -- Now bound `cesUtility α ρ b ≤ m * D ^ ((1 - ρ) / ρ)` via ReverseHolder!
     let f : G → ℝ := fun g => (α g) ^ (1 / ρ) * b g
     let k : G → ℝ := fun g => p g * (α g) ^ (- (1 / ρ))

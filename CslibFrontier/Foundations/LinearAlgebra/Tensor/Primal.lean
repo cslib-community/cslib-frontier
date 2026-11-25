@@ -168,21 +168,22 @@ private theorem primal_key_full {a b c t : ℕ} (ha : 1 ≤ a) (hb : 1 ≤ b)
         (if x < a ∧ y' < b + t ∧ x + y' < a + (b + t) - 1 then
           primalGamma₁ t (a + b - 1) j' k ν (x + y') else 0) =
       if j = j' ∧ x < a ∧ y < b ∧ x + y = k then 1 else 0 := by
-  have hc0 : 0 < c := Nat.pos_of_ne_zero fun h => by subst h; simp at hc; omega
+  have hc0 : 0 < c := Nat.pos_of_ne_zero fun h => by simp [h] at hc; omega
   rw [sum_primalBeta₀_mul ha]
   by_cases hxy : x < a ∧ y < b
   · simp only [hxy, and_self, true_and, ite_true, primalGamma₁]
     rcases j with _ | j₁
-    · have : j' = 0 → t * j' = 0 := by rintro rfl; rfl
+    · have : j' = 0 → t * j' = 0 := fun h => h ▸ mul_zero t
       simp only [hc0, show ¬(1 : ℕ) ≤ 0 by decide, and_false, ite_true, ite_false, mul_zero,
         add_zero, sub_zero]
       split_ifs <;> first | omega | ring
     · have hmul : x + (y + t) + t * j₁ = x + y + (t * j₁ + t) := by ring
-      have hj'1 : j' = j₁ + 1 → t * j' = t * j₁ + t := by rintro rfl; ring
+      have hj'1 : j' = j₁ + 1 → t * j' = t * j₁ + t := fun h => h ▸ mul_add_one t j₁
       have hc1 : j₁ + 1 = c → t * j₁ + t = t * c := fun h => by rw [← h, mul_add_one]
       simp only [Nat.add_sub_cancel, Nat.le_add_left, and_true, mul_add_one, hmul]
       by_cases hj1 : j₁ < c
-      · simp only [hj1, ite_true]; split_ifs <;> first | omega | ring
+      · simp only [hj1, ite_true]
+        split_ifs <;> first | omega | ring
       · simp only [hj1, ite_false, sub_zero]
         rw [ite_eq_right (by omega), ite_eq_right (by omega)]
   · rw [ite_eq_right hxy, ite_eq_right (by tauto)]
@@ -193,7 +194,7 @@ private theorem primal_key_mid_zero {a b c t : ℕ} (ha : 1 ≤ a)
     ∑ ν ∈ range c, ∑ y' ∈ range (a + (b + t) - 1), primalBeta₀ (K := K) b t ν y' j y *
         (if x < a ∧ y' < b + t ∧ x + y' < a + (b + t) - 1 then
           primalGamma₀ b t (a + b - 1) k ν (x + y') else 0) = 0 := by
-  have hc0 : 0 < c := Nat.pos_of_ne_zero fun h => by subst h; simp at hc; omega
+  have hc0 : 0 < c := Nat.pos_of_ne_zero fun h => by simp [h] at hc; omega
   rw [sum_primalBeta₀_mul ha]
   by_cases hxy : x < a ∧ y < b
   · simp only [hxy, and_self, ite_true, primalGamma₀]

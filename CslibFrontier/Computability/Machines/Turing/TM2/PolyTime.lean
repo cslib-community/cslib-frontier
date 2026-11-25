@@ -143,23 +143,15 @@ theorem computableInPolyTime_encList {α β αΓ βΓ : Type} [Finite αΓ]
   have hinput : ComputableInPolyTime ea
       ((⟨ea, ha⟩ : α ↪ List αΓ).trans (encList encA))
       (encList encA) := of_eq fun _ => rfl
-  have hmap := (map (of_finite h.inputAlphabet.symm
-    (encOut := encFinite (h.tm.Γ h.tm.k₀)))).comp hinput
-  have hrun := (TM2.run_polyTime h.tm h.time).comp hmap
-  have hstacks := TM2.cfg_stacks.comp hrun
-  have hout := (dpi_apply (fun k => encList (encFinite (h.tm.Γ k))) h.tm.k₁).comp hstacks
-  have hword := (map (of_finite h.outputAlphabet (encOut := encB))).comp hout
-  apply hword.of_enc_eq
-  intro a
+  have hrun := (TM2.run_polyTime h.tm h.time).comp
+    ((map (of_finite h.inputAlphabet.symm (encOut := encFinite (h.tm.Γ h.tm.k₀)))).comp hinput)
+  have hword := (map (of_finite h.outputAlphabet (encOut := encB))).comp
+    ((dpi_apply (fun k => encList (encFinite (h.tm.Γ k))) h.tm.k₁).comp
+      (TM2.cfg_stacks.comp hrun))
+  refine hword.of_enc_eq fun a => ?_
   have heval := TM2.iterate_stepTotal_of_evals h.tm _ _ _ (h.outputsFun a)
-  have houtput := congrArg (fun cfg : TM2.Cfg h.tm.Γ h.tm.Λ h.tm.σ =>
-    List.map h.outputAlphabet (cfg.stk h.tm.k₁)) heval
-  have hresult : List.map h.outputAlphabet
-      (((TM2.stepTotal h.tm.m)^[h.time.eval (ea a).length]
-        (initList h.tm (List.map h.inputAlphabet.symm (ea a)))).stk h.tm.k₁) = eb (f a) := by
-    simpa [haltList] using houtput
+  simp only [Equiv.invFun_as_coe] at heval
   dsimp only [Function.comp_def, Function.Embedding.trans_apply]
-  simp only [List.length_map]
-  exact congrArg (encList encB) hresult.symm
+  simp [List.length_map, heval, haltList]
 
 end Turing.TM2ComputableInPolyTime

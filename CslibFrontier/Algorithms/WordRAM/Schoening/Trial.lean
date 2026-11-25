@@ -98,12 +98,8 @@ theorem ScanResult.found_eq {σ : Fin n → Bool} {φ : CNF (Fin n)} {mem : ℕ 
   unfold ScanResult at h
   rcases hfu : firstUnsat φ σ with _ | c <;> simp only [hfu] at h
   · simp [h, (firstUnsat_eq_none_iff _ _).mp hfu]
-  · have : φ.eval σ = false := by
-      rcases he : φ.eval σ
-      · rfl
-      · rw [← firstUnsat_eq_none_iff] at he; rw [he] at hfu; cases hfu
-    rw [h.1, this]
-    rfl
+  · have hf : φ.eval σ ≠ true := mt (firstUnsat_eq_none_iff _ _).mpr (by simp [hfu])
+    simp [h.1, Bool.eq_false_iff.mpr hf]
 
 /-- On the initial machine data for `encode φ`, the encoded clauses start at address `2`. -/
 theorem holdsList_encodeClauses_init {r : ℕ} (φ : CNF (Fin n)) :
@@ -274,22 +270,19 @@ theorem flip_law {φ : CNF (Fin n)} {C A w : ℕ} {M : ℕ → ℕ} (hw : Fits w
       unfold flipRest
       wram_exec [x₂, hx.one_eq, hx.aBase_eq, hlit, litCode_shiftRight, hσ l.1]
       refine ⟨⟨by dsimp only [x₂]; struct_frame hx, fun i hi => ?_⟩, ?_⟩
-      · dsimp only [x₂]
-        simp only [Data.set_mem, Data.write_mem, Function.update_apply]
+      · simp only [x₂, Data.set_mem, Data.write_mem, Function.update_apply]
         split_ifs
         · omega
         · exact hbits i hi
-      · dsimp only [x₂]
-        simp only [Data.set_mem, Data.write_mem,
-          show assignmentAt (Function.update x.mem (A + l.1.val) (1 - (σ l.1).toNat)) A n =
-              Function.update (assignmentAt x.mem A n) l.1 (decide (1 - (σ l.1).toNat = 1)) from
-            bitsAt_update_self x.mem A l.1 (1 - (σ l.1).toNat),
+      · have hupd : assignmentAt (Function.update x.mem (A + l.1.val) (1 - (σ l.1).toNat)) A n =
+            Function.update (assignmentAt x.mem A n) l.1 (decide (1 - (σ l.1).toNat = 1)) :=
+          bitsAt_update_self x.mem A l.1 (1 - (σ l.1).toNat)
+        simp only [x₂, Data.set_mem, Data.write_mem, hupd,
           assignmentAt_eq hσ, F, hk, ↓reduceDIte, ← hl]
         funext i
-        rw [flipOn_apply, Function.update_apply]
-        by_cases hi : i = l.1
-        · subst hi; cases σ l.1 <;> simp
-        · simp [hi]
+        rcases eq_or_ne i l.1 with rfl | hi
+        · cases hb : σ l.1 <;> simp [flipOn_apply, hb]
+        · simp [flipOn_apply, hi]
     choose y hy hpost hlaw using hrest
     have hrand := ExecRandLaw.rand_seq (w := w) (f := fun y => assignmentAt y.mem A n)
       (P := fun y => Frame φ C A M y ∧ ∀ i < n, y.mem (A + i) ≤ 1) (dst := var) (src := len)
@@ -474,16 +467,11 @@ theorem trialCore_law {φ : CNF (Fin n)} {C A w : ℕ} {M : ℕ → ℕ}
       split_ifs <;> rfl
     have hrest := ExecRandLaw.seq_det hpre (ExecRandLaw.seq_det_right hwalk hpost)
     simpa [y₃] using hrest
-  have hR : n + 3 * n ≤ 4 * n := by omega
   have hT : 6 * n + 3 + (3 + (3 * n * (12 * (encodeClauses φ).length + 20) + 2 +
       (12 * (encodeClauses φ).length + 5))) ≤ trialCoreTime n (encodeClauses φ).length := by
     simp only [trialCoreTime]
-    ring_nf
-    omega
-  have hlaw : (Probability.PMF.uniformOfFintype (Fin n → Bool)).bind (walk φ (3 * n)) =
-      trial φ := by
-    simp only [trial, Fintype.card_fin]
-  exact (h.congr_law hlaw).mono (fun _ h => h) hT hR
+    linarith
+  exact (h.congr_law (by simp only [trial, Fintype.card_fin])).mono (fun _ h => h) hT (by omega)
 
 /-! ### The program -/
 

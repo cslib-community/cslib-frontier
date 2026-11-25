@@ -95,31 +95,18 @@ theorem kroneckerOne_approx_oneKronecker_transpose [Nonempty ι] {O : Matrix ι 
   set X : Matrix (ι × ι) (ι × ι) ℂ := O ⊗ₖ 1
   set Y : Matrix (ι × ι) (ι × ι) ℂ := 1 ⊗ₖ Oᵀ
   have hX : star X = X := by
-    change (O ⊗ₖ 1)ᴴ = O ⊗ₖ 1
-    rw [conjTranspose_kronecker, hO.eq, conjTranspose_one]
+    simp only [X, star_eq_conjTranspose, conjTranspose_kronecker, hO.eq, conjTranspose_one]
   have hY : star Y = Y := by
-    change (1 ⊗ₖ Oᵀ)ᴴ = 1 ⊗ₖ Oᵀ
-    rw [conjTranspose_kronecker, conjTranspose_one,
+    simp only [Y, star_eq_conjTranspose, conjTranspose_kronecker, conjTranspose_one,
       conjTranspose_transpose_eq_transpose_conjTranspose, hO.eq]
-  have hXX : X * X = 1 := by
-    change O ⊗ₖ 1 * O ⊗ₖ 1 = 1
-    rw [← mul_kronecker_mul, hO', Matrix.mul_one, one_kronecker_one]
-  have hYY : Y * Y = 1 := by
-    change 1 ⊗ₖ Oᵀ * 1 ⊗ₖ Oᵀ = 1
-    rw [← mul_kronecker_mul, ← transpose_mul, hO', transpose_one, Matrix.mul_one,
-      one_kronecker_one]
-  have hXY : X * Y = O ⊗ₖ Oᵀ := by
-    change O ⊗ₖ 1 * 1 ⊗ₖ Oᵀ = O ⊗ₖ Oᵀ
-    rw [← mul_kronecker_mul, Matrix.mul_one, Matrix.one_mul]
-  have hYX : Y * X = O ⊗ₖ Oᵀ := by
-    change 1 ⊗ₖ Oᵀ * O ⊗ₖ 1 = O ⊗ₖ Oᵀ
-    rw [← mul_kronecker_mul, Matrix.mul_one, Matrix.one_mul]
   have hcorr : φ (O ⊗ₖ Oᵀ) = 1 := by
     change star (maxEntangled ι).ofLp ⬝ᵥ ((O ⊗ₖ Oᵀ) *ᵥ (maxEntangled ι).ofLp) = 1
     rw [star_maxEntangled_dotProduct_kronecker_mulVec_eq_trace, ← transpose_mul, hO',
       trace_transpose, trace_one, div_self (by exact_mod_cast Fintype.card_ne_zero)]
   have hsq : star (X - Y) * (X - Y) = 1 + 1 - (O ⊗ₖ Oᵀ + O ⊗ₖ Oᵀ) := by
-    rw [star_sub, hX, hY, sub_mul, mul_sub, mul_sub, hXX, hYY, hXY, hYX]
+    rw [star_sub, hX, hY, sub_mul, mul_sub, mul_sub]
+    simp only [X, Y, ← mul_kronecker_mul, ← transpose_mul, hO', transpose_one,
+      Matrix.mul_one, Matrix.one_mul, one_kronecker_one]
     abel
   rw [approx_iff, norm_eq_sqrt, show kroneckerOne O - oneKronecker Oᵀ = X - Y from rfl, hsq]
   simp [map_sub, map_add, hcorr]

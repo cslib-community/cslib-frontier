@@ -287,15 +287,18 @@ theorem not_lopsidependent_of_not_conflicts (φ : CNF (Fin n)) {i j : Fin φ.len
     simp only [violated, Set.mem_ofPred_eq, Bool.not_eq_false, Clause.eval_eq_true_iff] at hga
     obtain ⟨l, hla, hlga⟩ := hga
     have hlfa := (Clause.eval_eq_false_iff fa φ[a]).1 hfa l hla
-    have hvb : l.1 ∈ clauseVbl φ b := (mem_inter.1 (by
+    have hinter : l.1 ∈ clauseVbl φ a ∩ clauseVbl φ b := by
       by_contra hni
       have := hfg l.1 hni
-      rw [hlfa, hlga] at this; cases l.2 <;> simp at this)).2
-    obtain ⟨m, hmb, hml⟩ := List.mem_map.1 (List.mem_toFinset.1 hvb)
+      rw [hlfa, hlga] at this
+      cases l.2 <;> simp at this
+    obtain ⟨m, hmb, hml⟩ := List.mem_map.1 (List.mem_toFinset.1 (mem_inter.1 hinter).2)
     have hmg := (Clause.eval_eq_false_iff ga φ[b]).1 hgb m hmb
-    exact hab ⟨l, hla, (show m = (l.1, !l.2) from Prod.ext hml (by
-      rw [← hml] at hlga; rw [hlga] at hmg
-      cases hm2 : m.2 <;> cases hl2 : l.2 <;> simp [hm2, hl2] at hmg ⊢)) ▸ hmb⟩
+    have hm_eq : m = (l.1, !l.2) := Prod.ext hml <| by
+      rw [← hml] at hlga
+      rw [hlga] at hmg
+      cases hm2 : m.2 <;> cases hl2 : l.2 <;> simp [hm2, hl2] at hmg ⊢
+    exact hab ⟨l, hla, hm_eq ▸ hmb⟩
   rw [MoserTardos.lopsidependent_iff]
   rintro ⟨f, g, hfg, hfi, hgj, hfj | hgi⟩
   · exact hfj (haux (fun v hv => (hfg v (inter_comm (clauseVbl φ j) (clauseVbl φ i) ▸ hv)).symm)

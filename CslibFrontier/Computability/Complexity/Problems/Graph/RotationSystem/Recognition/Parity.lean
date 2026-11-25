@@ -172,11 +172,8 @@ theorem holds_compileFrame_iff (F : Frame) (assignment : ℕ → Bool) :
           (row F e f).Holds assignment := by
   simp only [AffineSystem.Holds, compileFrame, List.mem_flatMap, List.mem_map,
     List.mem_filter, Bool.and_eq_true, decide_eq_true_eq]
-  constructor
-  · intro h e he f hf hlt hind
-    exact h _ ⟨e, he, f, ⟨hf, hlt, hind⟩, rfl⟩
-  · rintro h _ ⟨e, he, f, ⟨hf, hlt, hind⟩, rfl⟩
-    exact h e he f hf hlt hind
+  exact ⟨fun h e he f hf hlt hind => h _ ⟨e, he, f, ⟨hf, hlt, hind⟩, rfl⟩,
+    fun h _ ⟨e, he, f, ⟨hf, hlt, hind⟩, hr⟩ => hr ▸ h e he f hf hlt hind⟩
 
 /-- The actual native query accepts exactly valid inputs whose concrete frozen parity rows
 have a Boolean assignment. This uses the implemented XOR solver without a hypothesis. -/
@@ -205,16 +202,10 @@ theorem length_compileFrame_le (F : Frame) :
     (compileFrame F).length ≤ F.segments.length ^ 2 := by
   unfold compileFrame
   rw [List.length_flatMap]
-  have h : ∀ e ∈ F.segments.zipIdx,
-      ((F.segments.zipIdx.filter fun f => decide (f.2 < e.2) &&
-        independent e.1.endpoints f.1.endpoints).map fun f => row F e f).length ≤
-      F.segments.length := by
-    intro e _
-    simpa only [List.length_map, List.length_zipIdx] using List.length_filter_le
-      (fun f : Segment × ℕ =>
-        decide (f.2 < e.2) && independent e.1.endpoints f.1.endpoints) F.segments.zipIdx
   calc
-    _ ≤ (F.segments.zipIdx.map fun _ => F.segments.length).sum := List.sum_le_sum h
+    _ ≤ (F.segments.zipIdx.map fun _ => F.segments.length).sum := List.sum_le_sum fun e _ => by
+      simpa only [List.length_map, List.length_zipIdx] using
+        List.length_filter_le _ F.segments.zipIdx
     _ = F.segments.length ^ 2 := by simp [pow_two]
 
 /-- A bounded endpoint produces a move label below the full rectangular move budget. -/

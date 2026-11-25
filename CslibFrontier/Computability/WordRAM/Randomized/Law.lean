@@ -192,7 +192,8 @@ theorem foldr_seq_det {y : Data r} (cs : List (Code B r)) {last : Code B r}
   | cons hd tl ih =>
     obtain ⟨_, hn, he⟩ := h₁
     cases he with
-    | seq ha hb => exact (seq_det ha.within (ih hb.within)).mono (fun _ h => h) (by omega) le_rfl
+    | seq ha hb =>
+      exact (seq_det ha.within (ih hb.within)).mono (fun _ h => h) (by omega) le_rfl
 
 /-- A deterministic suffix that keeps the observation does not change the law. -/
 theorem seq_det_right (h₁ : ExecRandLaw w c₁ x P T₁ R f μ)

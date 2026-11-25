@@ -204,8 +204,10 @@ private theorem eqPrice_pos {m b₁ b₂ : ℝ} (hm : 0 < m) (hb₁ : 0 < b₁) 
 
 private theorem log_eqPrice {m b₁ b₂ : ℝ} (hm : 0 < m) (hb₁ : 0 < b₁) :
     b₁ * Real.log (eqPrice m b₁ b₂ * m / b₁) = b₂ - b₁ := by
-  rw [show eqPrice m b₁ b₂ * m / b₁ = Real.exp ((b₂ - b₁) / b₁) by
-    dsimp only [eqPrice, entryPrice]; field_simp [hm.ne', hb₁.ne'], Real.log_exp]
+  have heq : eqPrice m b₁ b₂ * m / b₁ = Real.exp ((b₂ - b₁) / b₁) := by
+    dsimp only [eqPrice, entryPrice]
+    field_simp [hm.ne', hb₁.ne']
+  rw [heq, Real.log_exp]
   field_simp [hb₁.ne']
 
 /-- Monotonicity and envelope payment sandwich `(x q - x p) * p ≤ pay q - pay p ≤ (x q - x p) * q`
@@ -276,17 +278,20 @@ private theorem phase1_sandwich {m b₁ p q : ℝ} (hm : 0 < m) (hb₁ : 0 < b�
   have hdp : pay q - pay p = b₁ * Real.log (q / p) := by
     dsimp only [pay]
     rw [← mul_sub, ← Real.log_div (by positivity) (by positivity)]
-    congr 2; field_simp [hm.ne', hb₁.ne', hp.ne']
+    congr 2
+    field_simp [hm.ne', hb₁.ne', hp.ne']
   have hdx : x q - x p = b₁ * (1 / p - 1 / q) := by
     dsimp only [x]; field_simp [hp.ne', hq.ne']; ring
   refine ⟨?_, ?_, ?_⟩
   · rw [← sub_nonneg, hdx]
     exact mul_nonneg hb₁.le (sub_nonneg.mpr (one_div_le_one_div_of_le hp hpq))
-  · rw [hdp, hdx, show p * (b₁ * (1 / p - 1 / q)) = b₁ * (1 - (q / p)⁻¹) by
-      field_simp [hp.ne', hq.ne']]
+  · have hp_mul : p * (b₁ * (1 / p - 1 / q)) = b₁ * (1 - (q / p)⁻¹) := by
+      field_simp [hp.ne', hq.ne']
+    rw [hdp, hdx, hp_mul]
     exact mul_le_mul_of_nonneg_left (Real.one_sub_inv_le_log_of_pos hratio_pos) hb₁.le
-  · rw [hdp, hdx, show q * (b₁ * (1 / p - 1 / q)) = b₁ * (q / p - 1) by
-      field_simp [hp.ne', hq.ne']]
+  · have hq_mul : q * (b₁ * (1 / p - 1 / q)) = b₁ * (q / p - 1) := by
+      field_simp [hp.ne', hq.ne']
+    rw [hdp, hdx, hq_mul]
     exact mul_le_mul_of_nonneg_left (Real.log_le_sub_one_of_pos hratio_pos) hb₁.le
 
 private theorem traj0_isEnvCurve {m b₁ b₂ : ℝ} (hm : 0 < m) (hb₁ : 0 < b₁) :
@@ -300,7 +305,8 @@ private theorem traj0_isEnvCurve {m b₁ b₂ : ℝ} (hm : 0 < m) (hb₁ : 0 < b
     by_cases hle : t ≤ pe
     · obtain rfl : t = pe := le_antisymm hle ht
       dsimp only [pe] at hpe ⊢
-      simp only [trajX0, trajP0, le_rfl, ↓reduceIte, div_self hpe.ne']; exact ⟨by ring, by ring⟩
+      simp only [trajX0, trajP0, le_rfl, ↓reduceIte, div_self hpe.ne']
+      exact ⟨by ring, by ring⟩
     · exact ⟨ite_eq_right hle, ite_eq_right hle⟩
   have h := env_glue (x := trajX0 m b₁ b₂) (pay := trajP0 m b₁ b₂) (a := 0) (c := pe)
     (fun {p q} _ hpq hq => by
@@ -335,7 +341,8 @@ private theorem traj1_isEnvCurve {m b₁ b₂ : ℝ} (hm : 0 < m) (hb₁ : 0 < b
     intro t ht1 ht2
     by_cases h0 : t ≤ p₀
     · obtain rfl : t = p₀ := le_antisymm h0 ht1
-      dsimp only [p₀] at *; simp only [trajX1, trajP1, le_rfl, ↓reduceIte, hx0_eq, hp0_eq, and_self]
+      dsimp only [p₀] at *
+      simp only [trajX1, trajP1, le_rfl, ↓reduceIte, hx0_eq, hp0_eq, and_self]
     · dsimp only [p₀, pe] at h0 ht2
       simp only [trajX1, trajP1, h0, ht2, ↓reduceIte, and_self]
   have eval2 : ∀ t, pe ≤ t →
@@ -361,7 +368,9 @@ private theorem traj1_isEnvCurve {m b₁ b₂ : ℝ} (hm : 0 < m) (hb₁ : 0 < b
       obtain ⟨hxq, hpq'⟩ := eval2 q (hp.trans hpq)
       have hph := phase2_sandwich hb₁ hpe_pos hp hpq
       rw [hxp, hxq, hpp, hpq']
-      exact ⟨by linarith [hph.1], by linarith [hph.2.1], by linarith [hph.2.2]⟩)
+      exact ⟨by linarith [hph.1],
+        by linarith [hph.2.1],
+        by linarith [hph.2.2]⟩)
   have hall := env_glue (x := trajX1 m b₁ b₂) (pay := trajP1 m b₁ b₂) (a := 0) (c := p₀)
     (fun {p q} _ hpq hq => by
       have hp : p ≤ entryPrice m b₁ := hpq.trans hq
@@ -436,8 +445,9 @@ private theorem traj_invariants {m b₁ b₂ p : ℝ} (hm : 0 < m) (hb₁ : 0 < 
     · have hx1_nn : b₁ / p ≤ m := (div_le_iff₀ hp_pos).mpr (by nlinarith)
       have harg_ge : 1 ≤ p * m / b₁ := (one_le_div hb₁).mpr (by nlinarith)
       have hp1_le : b₁ * Real.log (p * m / b₁) ≤ b₂ - b₁ :=
-        (mul_le_mul_of_nonneg_left (Real.log_le_log (by positivity) (by gcongr)) hb₁.le).trans_eq
-          (log_eqPrice hm hb₁)
+        (mul_le_mul_of_nonneg_left
+          (Real.log_le_log (by positivity)
+            (by gcongr)) hb₁.le).trans_eq (log_eqPrice hm hb₁)
       have hmul_b : p * (b₁ / p) = b₁ := mul_div_cancel₀ b₁ hp_pos.ne'
       refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, fun _ => ?_, fun h => absurd h (not_lt.mpr he)⟩ <;>
         simp only [trajX0, trajX1, trajP0, trajP1, trajSupply, h0, he, ↓reduceIte, hmul_b]
@@ -526,10 +536,11 @@ private theorem orderedClinching_props {m b₁ b₂ v₁ v₂ : ℝ} (hm : 0 < m
         · linarith [hir_p0 v₁ hv₁]
         · linarith [hir_p1 v₁ hv₁, mul_le_mul_of_nonneg_right hlt.le inv.x1_nn,
             mul_le_mul_of_nonneg_right hlt.le inv.sup_nn])
-      (fun _ => ⟨by simp [Fin.sum_univ_two]; linarith [inv.sum_eq], fun i hi => by
-        fin_cases i
-        · simp [show v₁ = 0 from hi, hzx0]
-        · linarith [show v₂ = 0 from hi]⟩)
+      (fun _ => ⟨by simp [Fin.sum_univ_two]; linarith [inv.sum_eq],
+        fun i hi => by
+          fin_cases i
+          · simp [show v₁ = 0 from hi, hzx0]
+          · linarith [show v₂ = 0 from hi]⟩)
       (fun i j hi hij => by
         fin_cases i <;> fin_cases j <;> try exact absurd hij (lt_irrefl _)
         · refine inv.exh1 (by_contra fun hle_pe => ?_)
@@ -551,10 +562,11 @@ private theorem orderedClinching_props {m b₁ b₂ v₁ v₂ : ℝ} (hm : 0 < m
           · linarith [hir_p0 v₂ hv₂, mul_le_mul_of_nonneg_right hgt.le inv.x0_nn,
               mul_le_mul_of_nonneg_right hgt.le inv.sup_nn]
           · linarith [hir_p1 v₂ hv₂])
-        (fun _ => ⟨by simp [Fin.sum_univ_two]; linarith [inv.sum_eq], fun i hi => by
-          fin_cases i
-          · linarith [show v₁ = 0 from hi]
-          · simp [show v₂ = 0 from hi, hzx1]⟩)
+        (fun _ => ⟨by simp [Fin.sum_univ_two]; linarith [inv.sum_eq],
+          fun i hi => by
+            fin_cases i
+            · linarith [show v₁ = 0 from hi]
+            · simp [show v₂ = 0 from hi, hzx1]⟩)
         (fun i j hi hij => by
           fin_cases i <;> fin_cases j <;> try exact absurd hij (lt_irrefl _)
           · linarith [show v₁ < v₂ from hij]
@@ -566,7 +578,8 @@ private theorem orderedClinching_props {m b₁ b₂ v₁ v₂ : ℝ} (hm : 0 < m
       · subst hv0
         refine orderedProps_of_eq
           (show orderedClinching m b₁ b₂ 0 0 = ⟨![0, 0], ![0, 0]⟩ by simp [orderedClinching]) hv_nn
-          ⟨fun i => by fin_cases i <;> simp, by simp [Fin.sum_univ_two]; linarith⟩
+          ⟨fun i => by fin_cases i <;> simp,
+            by simp [Fin.sum_univ_two]; linarith⟩
           (fun i => by fin_cases i <;> simp)
           (fun i => by fin_cases i <;> simp <;> linarith)
           (fun i => by fin_cases i <;> simp [Outcome.utility])
@@ -724,7 +737,8 @@ private theorem ordered_dsic_zero_branch {m v b : ℝ} (hm : 0 < m) (hv : 0 ≤ 
     (if 0 < b then v * m else 0) ≤ (if 0 < v then v * m else 0) := by
   split_ifs with hzb hzv
   · exact le_rfl
-  · obtain rfl : v = 0 := le_antisymm (le_of_not_gt hzv) hv; simp
+  · obtain rfl : v = 0 := le_antisymm (le_of_not_gt hzv) hv
+    simp
   · exact mul_nonneg hv hm.le
   · exact le_rfl
 
@@ -742,7 +756,8 @@ private theorem ordered_dsic_0 {m b₁ b₂ v₁ b₁' v₂ : ℝ} (hm : 0 < m) 
           (orderedClinching m b₁ b₂ z 0).payment 0 = if 0 < z then v₁ * m else 0 := fun z hz => by
       by_cases hzp : 0 < z
       · simp [orderedClinching, not_lt.mpr hz, hzp, hzx0, hzp0, hS0]
-      · obtain rfl : z = 0 := le_antisymm (le_of_not_gt hzp) hz; simp [orderedClinching]
+      · obtain rfl : z = 0 := le_antisymm (le_of_not_gt hzp) hz
+        simp [orderedClinching]
     rw [eval0 b₁' hb₁', eval0 v₁ hv₁]
     exact ordered_dsic_zero_branch hm hv₁
   · have heval : ∀ z : ℝ,
@@ -778,7 +793,8 @@ private theorem ordered_dsic_1 {m b₁ b₂ v₁ v₂ b₂' : ℝ} (hm : 0 < m) 
           (orderedClinching m b₁ b₂ 0 z).payment 1 = if 0 < z then v₂ * m else 0 := fun z hz => by
       by_cases hzp : 0 < z
       · simp [orderedClinching, hzp, hzx1, hzp1, hS0]
-      · obtain rfl : z = 0 := le_antisymm (le_of_not_gt hzp) hz; simp [orderedClinching]
+      · obtain rfl : z = 0 := le_antisymm (le_of_not_gt hzp) hz
+        simp [orderedClinching]
     rw [eval0 b₂' hb₂', eval0 v₂ hv₂]
     exact ordered_dsic_zero_branch hm hv₂
   · have heval : ∀ z : ℝ,
@@ -823,8 +839,12 @@ private theorem log_two_lt_three_fourths : Real.log 2 < 3 / 4 := by
   have hpow : (2 : ℝ) < Real.exp (3 / 4) := by
     calc (2 : ℝ) < (23 / 20 : ℝ) ^ 5 := by norm_num
       _ ≤ (Real.exp (3 / 20)) ^ 5 := pow_le_pow_left₀ (by norm_num) h1 5
-      _ = Real.exp (3 / 4) := by rw [← Real.exp_nat_mul]; norm_num
-  exact (Real.log_lt_log (by norm_num) hpow).trans_eq (Real.log_exp _)
+      _ = Real.exp (3 / 4) := by
+        rw [← Real.exp_nat_mul]
+        norm_num
+  calc Real.log 2
+      < Real.log (Real.exp (3 / 4)) := Real.log_lt_log (by norm_num) hpow
+    _ = 3 / 4 := Real.log_exp (3 / 4)
 
 /-- **Explicit budget-manipulation witness** showing `twoBidderClinchingMechanism m` is **not**
 truthful when budgets are private (`m > 0`). On the symmetric-budget profile
@@ -855,7 +875,8 @@ theorem twoBidderClinching_budget_manipulation {m : ℝ} (hm : 0 < m) :
     simp only [eqPrice, entryPrice, sub_self, zero_div, Real.exp_zero, mul_one]
   have hpe_dev : eqPrice m 1 (1 + Real.log 2) = 2 / m := by
     simp only [eqPrice, entryPrice, add_sub_cancel_left, div_one,
-      Real.exp_log (by norm_num : (0 : ℝ) < 2)]; ring
+      Real.exp_log (by norm_num : (0 : ℝ) < 2)]
+    ring
   have hgt_p0 : ¬ (2 / m ≤ 1 / m) := by rw [not_le, div_lt_div_iff_of_pos_right hm]; norm_num
   have hhon_x : ((twoBidderClinchingMechanism m).outcome θ).alloc 1 = 3 / 8 * m := by
     simp only [twoBidderClinchingMechanism, twoBidderClinching, orderedClinching, θ,
@@ -892,10 +913,17 @@ theorem twoBidderClinching_budget_manipulation {m : ℝ} (hm : 0 < m) :
       (fun k => (θ k).val) 1 = 1 - Real.log 2 := by
     dsimp only [Outcome.utility]; rw [hdev_x, hdev_p]
     simp only [θ, Matrix.cons_val_one, Matrix.cons_val_zero]; field_simp [hm.ne']
-  exact ⟨fun k => by fin_cases k <;> exact ⟨div_pos (by norm_num) hm, zero_lt_one⟩,
-    ⟨div_pos (by norm_num) hm, by linarith⟩, hhon_p, hhon_u, hdev_p,
-    by rw [hdev_p]; simp only [θ, Matrix.cons_val_one, Matrix.cons_val_zero]; linarith,
-    hdev_u, by rw [hhon_u, hdev_u]; linarith⟩
+  have hdev_le_B : ((twoBidderClinchingMechanism m).outcome (Function.update θ 1 b')).payment 1 ≤
+      (θ 1).budget := by
+    rw [hdev_p]
+    simp only [θ, Matrix.cons_val_one, Matrix.cons_val_zero]
+    linarith
+  refine ⟨fun k => ?_,
+    ⟨div_pos (by norm_num) hm,
+      by linarith⟩,
+    hhon_p, hhon_u, hdev_p, hdev_le_B, hdev_u,
+    by rw [hhon_u, hdev_u]; linarith⟩
+  fin_cases k <;> exact ⟨div_pos (by norm_num) hm, zero_lt_one⟩
 
 /-- The continuous 2-bidder adaptive clinching auction is **not** private-budget DSIC for any
 supply `m > 0`. -/

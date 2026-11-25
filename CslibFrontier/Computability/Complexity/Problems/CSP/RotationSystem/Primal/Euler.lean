@@ -85,9 +85,11 @@ theorem polygon_component_face_card_of_equiv {α : Type*}
         exact sameComponent_polygon_iff hr (idxOf_var_lt_numVars (argumentSuccessor o))
   have : Finite α := Finite.of_injective (e.symm ∘ Sum.inl)
     (e.symm.injective.comp Sum.inl_injective)
-  rw [Nat.card_congr (e.subtypeEquiv hmem), Nat.card_congr (Equiv.subtypeSum (p := Q)),
-    Nat.card_sum]
-  rfl
+  calc
+    _ = Nat.card {s // Q s} := Nat.card_congr (e.subtypeEquiv hmem)
+    _ = Nat.card {a : α // Q (.inl a)} + Nat.card {f : r.Face // Q (.inr f)} := by
+      rw [Nat.card_congr (Equiv.subtypeSum (p := Q)), Nat.card_sum]
+    _ = _ := rfl
 
 /-- In a component rooted at a dense variable, polygon faces are exactly its constraint
 positions together with its original incidence faces. All face orbits are counted. -/
@@ -208,8 +210,9 @@ theorem numericalGenusZero_polygon_iff (r : Graph.RotationSystem (incidenceGraph
   rw [ite_eq_left ⟨polygonDart o false, vertex_polygonDart o false⟩] at hp
   have hi := (component_euler_iff r (idxOf_var_lt_numVars o)
     (polygon_component_face_card r hOrder hPos _ (idxOf_var_lt_numVars o))).mp hp
-  simpa only [show ∀ v, SameComponent (incidenceGraph F) root v ↔
-    SameComponent (incidenceGraph F) (F.distinctVars.idxOf o.var) v from
-    fun _ => ⟨hc.symm.trans, hc.trans⟩] using hi
+  have hrel (v : ℕ) : SameComponent (incidenceGraph F) root v ↔
+      SameComponent (incidenceGraph F) (F.distinctVars.idxOf o.var) v :=
+    ⟨hc.symm.trans, hc.trans⟩
+  simpa only [hrel] using hi
 
 end Cslib.Complexity.CSP

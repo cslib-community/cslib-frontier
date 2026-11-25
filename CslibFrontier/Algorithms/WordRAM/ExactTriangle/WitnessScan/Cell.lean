@@ -49,20 +49,15 @@ theorem exec_testVertex {w rb ra c : ℕ} {ab bc ac : ℤ} (x : Data 32)
     (bframe _ (Or.inr (by decide))).trans (by wram_simp [hrowA])
   have bindex : b.regs Reg.index = c :=
     (bframe _ (Or.inr (by decide))).trans (by wram_simp [hindex])
-  have hAC' : b.mem (ra + c) = Signed.encode ac := bmem ▸ hAC
-  wram_exec [bsum, bra, bindex, hAC']
+  wram_exec [bsum, bra, bindex, bmem ▸ hAC]
   wram_call (Signed.exec_add hpartial hac _ (by wram_simp) (by wram_simp))
     with y ⟨ysum, ymem, yframe⟩
   wram_simp at ymem
   refine ⟨by decide, ysum, ymem.trans bmem, fun i hi hne => ?_⟩
-  have h1 : i ≠ Signed.left := fun h => by subst h; exact absurd hi (by decide)
-  have h2 : i ≠ Signed.right := fun h => by subst h; exact absurd hi (by decide)
-  have hloadA : (b.set Signed.left (Signed.encode (ab + bc)) |>.set Reg.address (ra + c)
-      |>.set Signed.right (Signed.encode ac)).regs i = b.regs i := by
-    wram_simp [h1, h2, hne]
-  have hloadB : (x.set Signed.left (Signed.encode ab) |>.set Reg.address (rb + c)
-      |>.set Signed.right (Signed.encode bc)).regs i = x.regs i := by
-    wram_simp [h1, h2, hne]
-  exact (yframe i (Or.inr hi)).trans (hloadA.trans ((bframe i (Or.inr hi)).trans hloadB))
+  have h1 : i ≠ Signed.left := fun h => absurd (h ▸ hi) (by decide)
+  have h2 : i ≠ Signed.right := fun h => absurd (h ▸ hi) (by decide)
+  refine (yframe i (Or.inr hi)).trans ((by wram_simp [h1, h2, hne] : _ = b.regs i).trans
+    ((bframe i (Or.inr hi)).trans ?_))
+  wram_simp [h1, h2, hne]
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.WitnessScan

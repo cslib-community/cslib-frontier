@@ -61,7 +61,7 @@ theorem coe_trU (p : GLM (Fin m)) : ((trU p : GLM (Fin m)) : Mt m) = (p : Mt m)�
 theorem X_transpose (p q : GLM (Fin m)) (S : Finset (Fin m)) : (X p q S)ᵀ = X (trU q) (trU p) S :=
     by
   rw [X, X, Matrix.transpose_mul, Matrix.transpose_mul, dg, Matrix.diagonal_transpose,
-    Matrix.mul_assoc]
+      Matrix.mul_assoc]
   rfl
 
 theorem X_apply (p q : GLM (Fin m)) (S : Finset (Fin m)) (a b : Fin m) :
@@ -81,23 +81,26 @@ theorem colSpace_X (p q : GLM (Fin m)) (S : Finset (Fin m)) :
     colSpace (X p q S) = span F2 ((p : Mt m).col '' S) := by
   refine le_antisymm (span_le.2 ?_) (span_le.2 ?_)
   · rintro _ ⟨b, rfl⟩
-    rw [show (X p q S).col b = ∑ i ∈ S, (q : Mt m) i b • (p : Mt m).col i from
-      funext fun a => by simp [Matrix.col, X_apply, mul_comm]]
+    have h : (X p q S).col b = ∑ i ∈ S, (q : Mt m) i b • (p : Mt m).col i :=
+      funext fun a => by simp [Matrix.col, X_apply, mul_comm]
+    rw [h]
     exact sum_mem fun i hi => smul_mem _ _ (subset_span (Set.mem_image_of_mem _ hi))
   · rintro _ ⟨i, hi, rfl⟩
-    rw [SetLike.mem_coe, show (p : Mt m).col i =
-        ∑ b, ((q⁻¹ : GLM (Fin m)) : Mt m) b i • (X p q S).col b from funext fun a => by
-      have h1 : (X p q S * ((q⁻¹ : GLM (Fin m)) : Mt m)) a i = (p : Mt m) a i := by
-        rw [X, Units.mul_inv_cancel_right, dg, Matrix.mul_diagonal,
-          ite_eq_left (Finset.mem_coe.1 hi), mul_one]
-      simp only [Matrix.col, Matrix.transpose_apply, Finset.sum_apply, Pi.smul_apply, smul_eq_mul]
-      rw [← h1, Matrix.mul_apply]
-      exact Finset.sum_congr rfl fun b _ => mul_comm _ _]
+    have h : (p : Mt m).col i = ∑ b, ((q⁻¹ : GLM (Fin m)) : Mt m) b i • (X p q S).col b :=
+      funext fun a => by
+        have h1 : (X p q S * ((q⁻¹ : GLM (Fin m)) : Mt m)) a i = (p : Mt m) a i := by
+          rw [X, Units.mul_inv_cancel_right, dg, Matrix.mul_diagonal,
+            ite_eq_left (Finset.mem_coe.1 hi), mul_one]
+        simp only [Matrix.col, Matrix.transpose_apply, Finset.sum_apply, Pi.smul_apply, smul_eq_mul]
+        rw [← h1, Matrix.mul_apply]
+        exact Finset.sum_congr rfl fun b _ => mul_comm _ _
+    rw [SetLike.mem_coe, h]
     exact sum_mem fun b _ => smul_mem _ _ (subset_span (Set.mem_range_self b))
 
 theorem iSupIndep_colSpace {ι : Type} (p q : GLM (Fin m)) (S : ι → Finset (Fin m))
     (hd : ∀ k l, k ≠ l → Disjoint (S k) (S l)) : iSupIndep fun k => colSpace (X p q (S k)) := by
-  intro k; simp only [colSpace_X]
+  intro k
+  simp only [colSpace_X]
   refine Disjoint.mono_right (iSup₂_le fun j hj => span_mono (Set.image_mono
       (Set.subset_iUnion₂ (s := fun j (_ : j ≠ k) => (S j : Set (Fin m))) j hj)))
     ((linearIndependent_col p).disjoint_span_image ?_)
@@ -133,14 +136,16 @@ theorem exists_glm_col {α : Type} (v : α → Fin m → F2) (hv : LinearIndepen
 
 /-- Linearly independent vectors are rows, at given places, of an invertible matrix. -/
 theorem exists_glm_row {α : Type} (v : α → Fin m → F2) (hv : LinearIndependent F2 v) (ε : α → Fin m)
-    (hε : ε.Injective) : ∃ Q : GLM (Fin m), ∀ k, (Q : Mt m).row (ε k) = v k :=
-  let ⟨P, hP⟩ := exists_glm_col v hv ε hε; ⟨trU P, hP⟩
+    (hε : ε.Injective) : ∃ Q : GLM (Fin m), ∀ k, (Q : Mt m).row (ε k) = v k := by
+  obtain ⟨P, hP⟩ := exists_glm_col v hv ε hε
+  exact ⟨trU P, hP⟩
 
 theorem linearIndependent_sigma {ι : Type} {W : ι → Mt m} (h : iSupIndep fun k => colSpace (W k))
     (p q : ι → GLM (Fin m)) (S : ι → Finset (Fin m)) (hW : ∀ k, W k = X (p k) (q k) (S k)) :
     LinearIndependent F2 fun x : Σ k, S k => (p x.1 : Mt m).col x.2 := by
   have hle (k : ι) : span F2 (Set.range fun i : S k => (p k : Mt m).col i) ≤ colSpace (W k) := by
-    rw [hW k, colSpace_X]; exact span_mono fun _ ⟨i, hi⟩ => hi ▸ Set.mem_image_of_mem _ i.2
+    rw [hW k, colSpace_X]
+    exact span_mono fun _ ⟨i, hi⟩ => hi ▸ Set.mem_image_of_mem _ i.2
   refine linearIndependent_iUnion_finite (f := fun k (i : S k) => (p k : Mt m).col i)
     (fun k => (linearIndependent_col (p k)).comp _ Subtype.val_injective) fun k _ _ hk =>
     (h k).mono (hle k) (iSup₂_le fun j hj =>

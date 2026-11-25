@@ -196,12 +196,10 @@ theorem one_sub_mul_sqrt_le_two_mul_of_tribes
     unfold blockCount at this
     rw [card_eq_zero.2 (filter_eq_empty_iff.2 fun i _ => by simp [hj i])] at this
     exact zero_ne_one this
-  have hx' := (abs_le.1 (h x hx)).1
-  have hy' := (abs_le.1 (h y fun j => (hy j).le)).2
-  rw [htx, bitVal_true] at hx'
-  rw [hty, bitVal_false] at hy'
+  have hx' := htx ▸ (abs_le.1 (h x hx)).1
+  have hy' := hty ▸ (abs_le.1 (h y fun j => (hy j).le)).2
   exact norm_inner_le_two_mul_sqrt_of_measureProb (by rw [norm_run, hψ₀]) (by rw [norm_run, hψ₀])
-    (by linarith) (by linarith) hε
+    (by simpa using hx') (by simpa using hy') hε
 
 /-- **The `AND` of `OR`s takes `Ω(√(w s))` queries** [Ambainis2002], Theorem 4: if a `T`-query
 algorithm with a unit initial state accepts, by an outcome in `S`, every input `x` in which every
@@ -225,13 +223,11 @@ theorem one_sub_mul_sqrt_le_two_mul_of_forall_exists
     refine decide_eq_true fun j => ?_
     obtain ⟨i, hi⟩ := card_eq_one.1 (hy j)
     exact ⟨i, (mem_filter.1 (hi ▸ mem_singleton_self i : i ∈ _)).2⟩
-  have hx' := (abs_le.1 (h x hx)).2
-  have hy' := (abs_le.1 (h y fun j => (hy j).le)).1
-  rw [hfx, bitVal_false] at hx'
-  rw [hfy, bitVal_true] at hy'
+  have hx' := hfx ▸ (abs_le.1 (h x hx)).2
+  have hy' := hfy ▸ (abs_le.1 (h y fun j => (hy j).le)).1
   rw [norm_inner_symm]
   exact norm_inner_le_two_mul_sqrt_of_measureProb (by rw [norm_run, hψ₀]) (by rw [norm_run, hψ₀])
-    (by linarith) (by linarith) hε
+    (by simpa using hy') (by simpa using hx') hε
 
 /-- From `(1 - 2√(2/9)) √(w s) ≤ 2T` to `w s ≤ 1296 T²`. -/
 private theorem mul_le_mul_sq_of_one_sub_mul_sqrt_le {T : ℕ}
@@ -239,11 +235,9 @@ private theorem mul_le_mul_sq_of_one_sub_mul_sqrt_le {T : ℕ}
   -- `2√(2/9) ≤ 17/18`, since `8/9 = 288/324 ≤ 289/324`
   have hsqrt : √((1 / 3 : ℝ) * (1 - 1 / 3)) ≤ 17 / 36 :=
     (Real.sqrt_le_left (by norm_num)).2 (by norm_num)
-  have h0 : 0 ≤ √((w : ℝ) * s) := Real.sqrt_nonneg _
-  have h36 : √((w : ℝ) * s) ≤ 36 * T := by nlinarith
+  have h36 : √((w : ℝ) * s) ≤ 36 * T := by nlinarith [Real.sqrt_nonneg (w * s : ℝ)]
   have hsq := Real.sq_sqrt (by positivity : (0 : ℝ) ≤ w * s)
-  have : (w : ℝ) * s ≤ 1296 * T ^ 2 := by nlinarith
-  exact_mod_cast this
+  exact_mod_cast (by nlinarith [Real.sqrt_nonneg (w * s : ℝ)] : (w : ℝ) * s ≤ 1296 * T ^ 2)
 
 /-- **Tribes at error `1/3`**: if a `T`-query algorithm with a unit initial state accepts, by an
 outcome in `S`, every input `x` in which every tribe has at most one false bit with probability

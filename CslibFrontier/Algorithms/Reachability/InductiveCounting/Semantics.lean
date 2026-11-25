@@ -131,25 +131,19 @@ theorem filter_lt_succ_of_mem {S : Finset ℕ} {x : ℕ} (hx : x ∈ S) :
     S.filter (· < x + 1) = insert x (S.filter (· < x)) := by
   ext c
   simp only [Finset.mem_filter, Finset.mem_insert]
-  constructor
-  · rintro ⟨hc, hcx⟩
-    rcases Nat.lt_succ_iff_lt_or_eq.mp hcx with h | rfl
-    · exact Or.inr ⟨hc, h⟩
-    · exact Or.inl rfl
+  refine ⟨fun ⟨hc, hcx⟩ => ?_, ?_⟩
+  · rcases Nat.lt_succ_iff_lt_or_eq.mp hcx with h | rfl
+    exacts [Or.inr ⟨hc, h⟩, Or.inl rfl]
   · rintro (rfl | ⟨hc, h⟩)
-    · exact ⟨hx, Nat.lt_succ_self _⟩
-    · exact ⟨hc, by omega⟩
+    exacts [⟨hx, Nat.lt_succ_self _⟩, ⟨hc, by omega⟩]
 
 /-- Raising a prefix bound past a non-member `x` changes nothing. -/
 theorem filter_lt_succ_of_notMem {S : Finset ℕ} {x : ℕ} (hx : x ∉ S) :
     S.filter (· < x + 1) = S.filter (· < x) := by
   ext c
   simp only [Finset.mem_filter]
-  constructor
-  · rintro ⟨hc, hcx⟩
-    exact ⟨hc, lt_of_le_of_ne (Nat.lt_succ_iff.mp hcx) fun h => hx (h ▸ hc)⟩
-  · rintro ⟨hc, h⟩
-    exact ⟨hc, by omega⟩
+  exact ⟨fun ⟨hc, hcx⟩ => ⟨hc, lt_of_le_of_ne (Nat.lt_succ_iff.mp hcx) fun h => hx (h ▸ hc)⟩,
+    fun ⟨hc, h⟩ => ⟨hc, by omega⟩⟩
 
 /-- Counting the members of a set of numbers below `x + 1`. -/
 theorem card_filter_lt_succ (S : Finset ℕ) (x : ℕ) :
@@ -288,11 +282,10 @@ private theorem scan_final_safe (hsource : source < N) (hc : RoundCorrect N edge
     (hf : s.finalScan = true) (hk : s.round + 1 = N) (hh : s.hit = false) :
     Safe N source edge bad := by
   intro u hu
-  have hmem := (mem_roundSet_final hsource hk).mpr hu
-  have hno : ¬ bad u = true := fun hbad => by
-    have := (scan_exhaustive hc hp he).mpr ⟨u, hmem, by simpa [Observed, hf] using hbad⟩
-    simp_all
-  exact Bool.eq_false_iff.mpr hno
+  refine Bool.eq_false_iff.mpr fun hbad => ?_
+  have := (scan_exhaustive hc hp he).mpr
+    ⟨u, (mem_roundSet_final hsource hk).mpr hu, by simpa [Observed, hf] using hbad⟩
+  simp_all
 
 /-- The initial state satisfies the semantic invariant whenever `source < N`. -/
 theorem invariant_initial (hsource : source < N) :

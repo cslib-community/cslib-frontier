@@ -124,11 +124,7 @@ theorem fan_disjoint {u v : ℕ} (huv : u ≠ v) (s t : Fin 3) :
   intro p hp hq
   have hp' := fan_bounds hp
   have hq' := fan_bounds hq
-  rcases lt_or_gt_of_ne huv with h | h
-  · have h' : (u : ℝ) + 1 ≤ v := by exact_mod_cast h
-    linarith
-  · have h' : (v : ℝ) + 1 ≤ u := by exact_mod_cast h
-    linarith
+  rcases lt_or_gt_of_ne huv with h | h <;> cast_linarith
 
 /-- Membership in a stem fixes its column and its closed vertical interval. -/
 theorem mem_stem {n e v : ℕ} {s : Fin 3} {p : ℝ × ℝ} :
@@ -262,11 +258,7 @@ theorem fan_stem_port_eq {n e u v : ℕ} (hv : v < n) {s t : Fin 3} {p : ℝ × 
     by_contra h
     simp only [column] at hcol
     push_cast at hcol
-    rcases lt_or_gt_of_ne h with h | h
-    · have h' : (u : ℝ) + 1 ≤ v := by exact_mod_cast h
-      linarith
-    · have h' : (v : ℝ) + 1 ≤ u := by exact_mod_cast h
-      linarith
+    rcases lt_or_gt_of_ne h with h | h <;> cast_linarith
   subst v
   refine ⟨rfl, ?_⟩
   have hhigh : ((elbow u t).2 : ℝ) < track n e := by
@@ -280,13 +272,9 @@ theorem fan_stem_port_eq {n e u v : ℕ} (hv : v < n) {s t : Fin 3} {p : ℝ × 
 
 /-- Different port columns give disjoint stems, independently of their edge heights. -/
 theorem stem_disjoint {n e f u v : ℕ} {s t : Fin 3} (h : (u, s) ≠ (v, t)) :
-    Disjoint (stem n e u s) (stem n f v t) := by
-  rw [Set.disjoint_left]
-  intro p hp hq
-  have hx := (mem_stem.1 hp).1.symm.trans (mem_stem.1 hq).1
-  have hcol : column u s = column v t := by exact_mod_cast hx
-  obtain ⟨rfl, rfl⟩ := column_injective hcol
-  exact h rfl
+    Disjoint (stem n e u s) (stem n f v t) :=
+  Set.disjoint_left.2 fun _ hp hq => h <| Prod.ext_iff.2 <| column_injective <| by
+    exact_mod_cast (mem_stem.1 hp).1.symm.trans (mem_stem.1 hq).1
 
 /-- A local fan lies strictly below every upper bridge. -/
 theorem fan_bridge_disjoint {n e u v w : ℕ} (hw : w < n) (s t q : Fin 3) :
@@ -304,18 +292,15 @@ theorem bridge_disjoint {n e f u v a b : ℕ} (hef : e ≠ f) (s t q r : Fin 3) 
     Disjoint (bridge n e u v s t) (bridge n f a b q r) := by
   rw [Set.disjoint_left]
   intro p hp hq
-  have hy := (mem_bridge.1 hp).1.symm.trans (mem_bridge.1 hq).1
-  have htrack : track n e = track n f := by exact_mod_cast hy
+  have htrack : track n e = track n f := by
+    exact_mod_cast (mem_bridge.1 hp).1.symm.trans (mem_bridge.1 hq).1
   simp only [track] at htrack
-  exact hef (by omega)
+  omega
 
 /-- Fans and stems at distinct ports are disjoint, even within one vertex box. -/
 theorem fan_stem_disjoint {n e u v : ℕ} (hv : v < n) {s t : Fin 3}
-    (h : (u, s) ≠ (v, t)) : Disjoint (fan u s) (stem n e v t) := by
-  rw [Set.disjoint_left]
-  intro p hp hq
-  obtain ⟨huv, hst⟩ := fan_stem_port_eq hv hp hq
-  exact h (Prod.ext huv hst)
+    (h : (u, s) ≠ (v, t)) : Disjoint (fan u s) (stem n e v t) :=
+  Set.disjoint_left.2 fun _ hp hq => h (Prod.ext_iff.2 (fan_stem_port_eq hv hp hq))
 
 /-- The two consecutive parts of one port meet only at their common elbow. -/
 theorem fan_stem_endpointContacts {n e v : ℕ} (hv : v < n) (s : Fin 3) :

@@ -148,11 +148,17 @@ theorem mem_rotationInterval_iff_ranks (o a b c : Dart G)
   · intro horder
     change (ra < rb ∧ rb < rc) ∨ (rb < rc ∧ rc < ra) ∨ (rc < ra ∧ ra < rb) at horder
     let m := if ra < rb then rb - ra else rb + n - ra
-    have hm_pos : 0 < m := by dsimp [m]; split_ifs <;> omega
-    have hm_le : m ≤ dist := by dsimp [m]; split_ifs <;> omega
+    have hm_pos : 0 < m := by
+      dsimp [m]
+      split_ifs <;> omega
+    have hm_le : m ≤ dist := by
+      dsimp [m]
+      split_ifs <;> omega
     refine Finset.mem_image.mpr ⟨m - 1, Finset.mem_range.mpr (by omega), (pow_iff _).mpr ?_⟩
     rw [Nat.sub_add_cancel hm_pos]
-    exact (add_mod_eq_iff ha (by omega) hb).mpr (by dsimp [m]; split_ifs <;> omega)
+    refine (add_mod_eq_iff ha (by omega) hb).mpr ?_
+    dsimp [m]
+    split_ifs <;> omega
 
 private noncomputable def vertexDart (v : ℕ) (h : ∃ d : Dart G, d.vertex = v) : Dart G :=
   Classical.choose h
@@ -244,8 +250,12 @@ theorem exists_consecutive_class_of_no_alternates {ι : Type*} (color : Dart G �
     have hA := hnA d hd hda
     have hB := hnB d hd hda
     have hout : r.portRank d < r.portRank a ∨ r.portRank b < r.portRank d := by omega
-    have hzda : z ≠ d := fun he => by subst he; omega
-    have hab' : a ≠ b := fun he => by subst he; omega
+    have hzda : z ≠ d := fun he => by
+      subst he
+      omega
+    have hab' : a ≠ b := fun he => by
+      subst he
+      omega
     have hza' : z ≠ a := fun h => hza (congrArg color h)
     have hzb' : z ≠ b := fun h => hza ((congrArg color h).trans hab.symm)
     have hda' : d ≠ a := fun h => hda (congrArg color h)

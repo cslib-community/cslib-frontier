@@ -95,10 +95,14 @@ theorem split_spoke_connector_contact {G : Graph} {u v : ℕ}
     exact ⟨hs0, Or.inl ⟨hdu, ht0⟩⟩
   · have hdv := ((contractionLift_vertex_eq_iff G u v d.val).mp d.property).resolve_left hdu
     simp only [restoredVertex, ite_eq_right hdu, ite_eq_left hdv] at heq
-    obtain ⟨hs0, ht0⟩ := split_connector_contact (-f)
-      (by change -f a < -f b; linarith)
-      (by change -f b < -f (D.cutPort ρ d.val); linarith [hpb d hdv]) hs
-      ⟨by linarith [ht.2], by linarith [ht.1]⟩
+    have hsep' : (-f) a < (-f) b := by
+      change -f a < -f b
+      linarith
+    have hport : (-f) b < (-f) (D.cutPort ρ d.val) := by
+      change -f b < -f (D.cutPort ρ d.val)
+      linarith [hpb d hdv]
+    obtain ⟨hs0, ht0⟩ := split_connector_contact (-f) hsep' hport hs
+      ⟨sub_nonneg.2 ht.2, sub_le_self 1 ht.1⟩
       (heq.trans (AffineMap.lineMap_apply_one_sub b a t).symm)
     exact ⟨hs0, Or.inr ⟨hdv, by linarith⟩⟩
 
@@ -335,7 +339,7 @@ theorem IsEmbedding.attach_outsideRoute_simple {G : Graph} {D : PolygonalDrawing
     induction j using Fin.cases with
     | zero =>
       rw [Route.eval_prepend_zero, hstart, hfinish'] at heq
-      obtain ⟨hs0, ht0⟩ := hspokes s (1 - t) hs ⟨by linarith [ht.2], by linarith [ht.1]⟩
+      obtain ⟨hs0, ht0⟩ := hspokes s (1 - t) hs ⟨sub_nonneg.2 ht.2, sub_le_self 1 ht.1⟩
         (heq.trans (AffineMap.lineMap_apply_one_sub b _ t).symm)
       exact Or.inr ⟨by simp [Route.AtEnd, Route.position, hs0], by linarith⟩
     | succ j =>
@@ -344,13 +348,15 @@ theorem IsEmbedding.attach_outsideRoute_simple {G : Graph} {D : PolygonalDrawing
         rw [AffineMap.lineMap_apply_one_sub, ← hfinish']
         exact ((Route.eval_prepend_succ a p j s).symm.trans heq).symm
       obtain ⟨_, side, hside, hat⟩ := hD.spoke_outsideRoute_contact v hρ hcut hb
-        (e, true) he₁ e j ⟨by linarith [ht.2], by linarith [ht.1]⟩ hs hrev
+        (e, true) he₁ e j ⟨sub_nonneg.2 ht.2, sub_le_self 1 ht.1⟩ hs hrev
       cases hside
       refine Or.inl ⟨?_, by linarith⟩
       change (Route.prepend a p).position j.succ s = (Route.prepend a p).segments
-      rw [Route.position_prepend_succ a p j s, show p.position j s = p.segments from hat,
-        Route.segments_prepend]
-      push_cast
-      ring
+      calc
+        _ = 1 + p.position j s := Route.position_prepend_succ a p j s
+        _ = _ := by
+          rw [show p.position j s = p.segments from hat, Route.segments_prepend]
+          push_cast
+          ring
 
 end Cslib.Complexity.Graph.PolygonalDrawing

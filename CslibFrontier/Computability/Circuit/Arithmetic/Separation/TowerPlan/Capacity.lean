@@ -73,8 +73,9 @@ private theorem load_edge_le (hρ : StageRate FL ρ) (hρ1 : ρ ≤ 1) (j : Fin 
     exact_mod_cast Nat.mul_pos hρ.r_pos (Fintype.card_pos_iff.2 ⟨T.e0 e⟩)
   have h1 : (load lhat n o (.edge j e) : ℝ) ^ 2 ≤
       ∑ e', (edgeLoads (load lhat n o) j e' : ℝ) ^ 2 := by
-    rw [show load lhat n o (.edge j e) = edgeLoads (load lhat n o) j e from
-      (edgeLoads_of_lt _ j.2 e).symm]
+    have hedge_eq : load lhat n o (.edge j e) = edgeLoads (load lhat n o) j e :=
+      (edgeLoads_of_lt _ j.2 e).symm
+    rw [hedge_eq]
     exact single_le_sum (f := fun e' => (edgeLoads (load lhat n o) j e' : ℝ) ^ 2)
       (fun _ _ => sq_nonneg _) (mem_univ e)
   have h3 := sum_nonneg fun e' (_ : e' ∈ univ) => sq_nonneg (edgeLoads (load lhat n o) j e' : ℝ)

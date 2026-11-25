@@ -192,10 +192,10 @@ private theorem card_filter_not_shallow_le_of_ne_not {op : Op} (hop : op ≠ .no
   obtain ⟨hρ', hdeep⟩ := mem_filter.1 hρ'
   refine mem_filter.2 ⟨hρ', ?_⟩
   have hext := (PartialAssignment.mem_extensions.1 hρ').1
-  rw [show (fun x => DNF.eval (ρ'.fill x) D) =
-      (· != b) ∘ fun x => interpretation op (fun j => args j (ρ.fill (ρ'.fill x))) from
-    funext fun x => by rw [heval, Function.comp_apply],
-    complexity_comp_of_injective (by cases b <;> decide)]
+  have hDNF : (fun x => DNF.eval (ρ'.fill x) D) =
+      (· != b) ∘ fun x => interpretation op (fun j => args j (ρ.fill (ρ'.fill x))) :=
+    funext fun x => by rw [heval, Function.comp_apply]
+  rw [hDNF, complexity_comp_of_injective (by cases b <;> decide)]
   simpa only [PartialAssignment.fill_fill_of_extends hext] using not_lt.1 hdeep
 
 /-- **The switching step for one operation.** If the arguments of an operation are shallow under
@@ -370,8 +370,9 @@ theorem two_pow_le_size_of_computes_parity {C : Circuit signature n 1}
   obtain ⟨ρ, hρ, hgood⟩ := exists_mem_notMem_of_card_lt_card hlt
   have hout := shallow_output hs fun k hk =>
     by_contra fun hdeep => hgood (mem_filter.2 ⟨hρ, k, hk, hdeep⟩)
-  rw [show (fun x => C.program.trace interpretation x (C.outputs 0)) = parity n from
-    funext fun x => congrFun (hC x) 0] at hout
+  have hpar : (fun x => C.program.trace interpretation x (C.outputs 0)) = parity n :=
+    funext fun x => congrFun (hC x) 0
+  rw [hpar] at hout
   exact not_shallow_parity ((PartialAssignment.mem_withFree.1 hρ).symm ▸
     Nat.le_div_pow_of_mul_pow_le (by omega) le_rfl hn) hout
 

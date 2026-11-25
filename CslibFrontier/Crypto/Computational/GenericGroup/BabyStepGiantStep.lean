@@ -163,11 +163,14 @@ private theorem exists_add_one_mul_eq_add_mul [NeZero q] {m n : ℕ} (t : ZMod q
   have h₂ : ((s : ℕ) : ZMod w) = ((s % m + m * (s / m) : ℕ) : ZMod w) := by rw [Nat.mod_add_div]
   have h₃ : ((s : ℕ) : ZMod w) = m - α.val := by rw [hs_def, ZMod.natCast_zmod_val]
   push_cast at h₁ h₂
-  have hval := congr_arg ZMod.val (show ((1 + (m - 1 - s % m) : ℕ) : ZMod w) =
-      ((α.val + (s / m) * m : ℕ) : ZMod w) by push_cast; linear_combination h₁ + h₂ - h₃)
+  have hz : ((1 + (m - 1 - s % m) : ℕ) : ZMod w) = ((α.val + (s / m) * m : ℕ) : ZMod w) := by
+    push_cast
+    linear_combination h₁ + h₂ - h₃
+  have hval := congr_arg ZMod.val hz
   simp only [ZMod.val_natCast] at hval
   rw [hmod (1 + (m - 1 - s % m)), hval, ← hmod (α.val + (s / m) * m)]
-  push_cast; rw [ZMod.natCast_zmod_val]
+  push_cast
+  rw [ZMod.natCast_zmod_val]
 
 /-- Correctness against any oracle that multiplies labels of an injective labeling, for a base `t`
 of any order `addOrderOf t ≤ m * n`. -/
@@ -200,7 +203,8 @@ private theorem evalPure_babyStepGiantStep_mul_of_op [NeZero q] [DecidableEq S]
     obtain ⟨β, hβ, γ, hγ, heq⟩ := exists_add_one_mul_eq_add_mul t hmn α
     refine False.elim (not_mem_of_firstMatch_eq_none h
       (List.mem_map_of_mem (f := fun j : ℕ => L ((α + j * m) * t)) (List.mem_range.mpr hγ)) ?_)
-    rw [← heq]; push_cast
+    rw [← heq]
+    push_cast
     exact List.mem_map_of_mem (f := fun i : ℕ => L ((1 + i) * t)) (List.mem_range.mpr hβ)
 
 /-- **Correctness.** For `q ≠ 0`, an injective labeling `L` and table sizes with `q ≤ m * n`,

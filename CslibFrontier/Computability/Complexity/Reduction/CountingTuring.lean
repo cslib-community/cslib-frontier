@@ -193,7 +193,8 @@ private theorem map_decide_natBitWords {encB : β ↪ List Bool}
     (natBitWords encB b K).map (fun w => decide (w ∈ A)) = (List.range K).map (g b).testBit := by
   rw [natBitWords, List.map_map]
   exact List.map_congr_left fun i _ => by
-    simp only [Function.comp_apply, hA b i]; cases (g b).testBit i <;> rfl
+    simp only [Function.comp_apply, hA b i]
+    cases (g b).testBit i <;> rfl
 
 open Classical in
 /-- Interpreting `queryNatBits encB b K` against any oracle satisfying `AnswersBits encB g`
@@ -243,11 +244,10 @@ theorem PolyTimeOracleProgram.of_batchNatBits
       rw [batchNatBitWords, List.map_flatMap]
       exact congrArg List.flatten (List.map_congr_left fun b _ => map_decide_natBitWords hA b _)
     change combine (a, decodeNatBatch (queries a).length (bound a) _) = f a
-    rw [hmap, decodeNatBatch_flatMap _ _ _ (fun _ _ => by simp),
-      List.map_congr_left (g := g) fun b hb =>
-        show ofBits ((List.range (bound a)).map (g b).testBit) = g b from
-          Nat.foldr_bit_testBit (hsize a b hb),
-      hspec a]
+    have hvals : (queries a).map (fun b => ofBits ((List.range (bound a)).map (g b).testBit)) =
+        (queries a).map g :=
+      List.map_congr_left fun b hb => Nat.foldr_bit_testBit (hsize a b hb)
+    rw [hmap, decodeNatBatch_flatMap _ _ _ (fun _ _ => by simp), hvals, hspec a]
 
 end BatchOracle
 

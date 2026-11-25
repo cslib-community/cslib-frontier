@@ -1372,115 +1372,72 @@ theorem ValidFastState.fastFindLoc_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_
         b' = b ∧ loc < fs.bktCount b ∧ fs.quotArr (fs.physSlot n_max b loc) = q := by
     intro b' loc
     simp [FastState.matchesKey, Bool.and_eq_true, beq_iff_eq, and_assoc]
+  have key_from_quotient (loc : ℕ) (hquot : fs.quotArr (fs.physSlot n_max b loc) = q) :
+      fs.keyValAt c U n_max θ.1 b loc = u.val := by
+    dsimp only [FastState.keyValAt]
+    rw [hquot]
+    exact feistelReconstruct_feistelBucket (bWhp n_max) h1 u.val
+  let checked (entry : Option (ℕ × ℕ)) : Option ℕ := match entry with
+    | some (b', loc) => if fs.matchesKey n_max b q b' loc then some loc else none
+    | none => none
+  let BufferCases (ep : ℕ) (candidate : Option ℕ) : Prop :=
+    (∃ loc, candidate = some loc ∧ loc < fs.bktCount b ∧
+      fs.quotArr (fs.physSlot n_max b loc) = q) ∨
+    (candidate = none ∧ ∀ loc < fs.bktCount b, fs.quotArr (fs.physSlot n_max b loc) = q →
+      fs.locState b loc ≠ 2 + ep)
+  have check_buffer (ep : ℕ) (m : ℕ → Option (ℕ × ℕ))
+      (hm : BufMapRel (numBucketsWhp n_max) (2 + ep) fs.bktCount fs.locState
+        (fs.rKeyAt c U n_max θ) m) : BufferCases ep (checked (m rKey)) := by
+    have reduced_key (loc : ℕ) (hquot : fs.quotArr (fs.physSlot n_max b loc) = q) :
+        fs.rKeyAt c U n_max θ b loc = rKey := by
+      simp [FastState.rKeyAt, key_from_quotient loc hquot, u.isLt, rKey]
+    unfold BufferCases checked
+    rcases hentry : m rKey with _ | ⟨b', loc'⟩
+    · exact Or.inr ⟨rfl, fun loc hloc hquot hst =>
+        ((hm.1 rKey).mp hentry b hb_lt loc hloc hst) (reduced_key loc hquot)⟩
+    · by_cases hmatch : fs.matchesKey n_max b q b' loc' = true
+      · exact Or.inl ⟨loc', by simp [hmatch], ((hmatch_iff b' loc').mp hmatch).2⟩
+      · refine Or.inr ⟨by simp [hmatch], fun loc hloc hquot hst => ?_⟩
+        obtain ⟨hb', hloc', hst', hrk'⟩ := (hm.2 rKey b' loc').mp hentry
+        have heq := hv.rKey_buf_inj b' hb' loc' hloc' b hb_lt loc hloc
+          (hst' ▸ Nat.le_add_right 2 ep) (hst ▸ Nat.le_add_right 2 ep)
+          (hrk'.trans (reduced_key loc hquot).symm)
+        obtain ⟨rfl, rfl⟩ := heq
+        exact hmatch ((hmatch_iff b loc').mpr ⟨rfl, hloc, hquot⟩)
   dsimp only [fastFindLoc]
   rw [show fpReducedKey c U n_max θ.2 u = rKey from rfl, hcur_eq]
-  -- Check `c1` (`buf curEp`)
-  have hc1_cases :
-      (∃ loc,
-        (match curMap rKey with
-          | some (b', loc) => if fs.matchesKey n_max b q b' loc then some loc else none
-          | none => none) = some loc ∧
-        loc < fs.bktCount b ∧ fs.quotArr (fs.physSlot n_max b loc) = q) ∨
-      ((match curMap rKey with
-          | some (b', loc) => if fs.matchesKey n_max b q b' loc then some loc else none
-          | none => none) = none ∧
-        ∀ loc < fs.bktCount b, fs.quotArr (fs.physSlot n_max b loc) = q →
-          fs.locState b loc ≠ 2 + fs.curEp) := by
-    cases hm : curMap rKey with
-    | none =>
-      refine Or.inr ⟨rfl, fun loc hloc hq_eq hst => ?_⟩
-      have hkv : fs.keyValAt c U n_max θ.1 b loc = u.val := by
-        dsimp only [FastState.keyValAt]
-        rw [hq_eq]
-        exact feistelReconstruct_feistelBucket (bWhp n_max) h1 u.val
-      have hrk_eq : fs.rKeyAt c U n_max θ b loc = rKey := by
-        dsimp only [FastState.rKeyAt]; simp [hkv, u.isLt, rKey]
-      exact (hcurRel.1 rKey).mp hm b hb_lt loc hloc hst hrk_eq
-    | some p =>
-      rcases p with ⟨b', loc'⟩
-      by_cases hm_ok : fs.matchesKey n_max b q b' loc' = true
-      · obtain ⟨_, hlt, hqe⟩ := (hmatch_iff b' loc').mp hm_ok
-        exact Or.inl ⟨loc', by simp [hm_ok], hlt, hqe⟩
-      · refine Or.inr ⟨by simp [hm_ok], fun loc hloc hq_eq hst => ?_⟩
-        obtain ⟨hb', hloc', hst', hrk'⟩ := (hcurRel.2 rKey b' loc').mp hm
-        have hkv : fs.keyValAt c U n_max θ.1 b loc = u.val := by
-          dsimp only [FastState.keyValAt]; rw [hq_eq]
-          exact feistelReconstruct_feistelBucket (bWhp n_max) h1 u.val
-        have hrk_loc : fs.rKeyAt c U n_max θ b loc = rKey := by
-          dsimp only [FastState.rKeyAt]; simp [hkv, u.isLt, rKey]
-        have heq_bl := hv.rKey_buf_inj b' hb' loc' hloc' b hb_lt loc hloc
-          (by omega) (by omega) (hrk'.trans hrk_loc.symm)
-        rcases heq_bl with ⟨rfl, rfl⟩
-        exact hm_ok ((hmatch_iff b loc').mpr ⟨rfl, hloc, hq_eq⟩)
+  have hc1_cases := check_buffer fs.curEp curMap hcurRel
+  dsimp only [BufferCases, checked] at hc1_cases
   rcases hc1_cases with ⟨loc, hc1_eq, hlt, hqe⟩ | ⟨hc1_none, hnot_cur⟩
   · rw [hc1_eq]; exact ⟨hlt, hqe⟩
   · rw [hc1_none]
     dsimp only
-    -- Check `c2` (`buf oldEp` when `rebStage ≤ 3`)
-    have hc2_cases :
-        (∃ loc,
-          (if fs.rebStage ≤ 3 then
-            match bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.oldEp) rKey with
-            | some (b', loc) => if fs.matchesKey n_max b q b' loc then some loc else none
-            | none => none
-          else none) = some loc ∧
-          loc < fs.bktCount b ∧ fs.quotArr (fs.physSlot n_max b loc) = q) ∨
-        ((if fs.rebStage ≤ 3 then
-            match bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.oldEp) rKey with
-            | some (b', loc) => if fs.matchesKey n_max b q b' loc then some loc else none
-            | none => none
-          else none) = none ∧
-          ∀ loc < fs.bktCount b, fs.quotArr (fs.physSlot n_max b loc) = q →
-            fs.locState b loc ≠ 2 + fs.oldEp) := by
+    have hc2_cases : BufferCases fs.oldEp (if fs.rebStage ≤ 3 then
+        checked (bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.oldEp) rKey) else none) := by
       by_cases hst3 : fs.rebStage ≤ 3
-      · simp only [hst3, ↓reduceIte]
-        have hold := hv.bufOld_valid
-        simp only [hst3, ↓reduceIte] at hold
+      · have hold := hv.bufOld_valid
+        simp only [hst3, ↓reduceIte] at hold ⊢
         obtain ⟨_, _, oldMap, holdV, holdRel⟩ := hold
         rw [holdV.lookup_eq hrk_lt]
-        cases hm : oldMap rKey with
-        | none =>
-          refine Or.inr ⟨rfl, fun loc hloc hq_eq hst => ?_⟩
-          have hkv : fs.keyValAt c U n_max θ.1 b loc = u.val := by
-            dsimp only [FastState.keyValAt]; rw [hq_eq]
-            exact feistelReconstruct_feistelBucket (bWhp n_max) h1 u.val
-          have hrk_eq : fs.rKeyAt c U n_max θ b loc = rKey := by
-            dsimp only [FastState.rKeyAt]; simp [hkv, u.isLt, rKey]
-          exact (holdRel.1 rKey).mp hm b hb_lt loc hloc hst hrk_eq
-        | some p =>
-          rcases p with ⟨b', loc'⟩
-          by_cases hm_ok : fs.matchesKey n_max b q b' loc' = true
-          · obtain ⟨_, hlt, hqe⟩ := (hmatch_iff b' loc').mp hm_ok
-            exact Or.inl ⟨loc', by simp [hm_ok], hlt, hqe⟩
-          · refine Or.inr ⟨by simp [hm_ok], fun loc hloc hq_eq hst => ?_⟩
-            obtain ⟨hb', hloc', hst', hrk'⟩ := (holdRel.2 rKey b' loc').mp hm
-            have hkv : fs.keyValAt c U n_max θ.1 b loc = u.val := by
-              dsimp only [FastState.keyValAt]; rw [hq_eq]
-              exact feistelReconstruct_feistelBucket (bWhp n_max) h1 u.val
-            have hrk_loc : fs.rKeyAt c U n_max θ b loc = rKey := by
-              dsimp only [FastState.rKeyAt]; simp [hkv, u.isLt, rKey]
-            have heq_bl := hv.rKey_buf_inj b' hb' loc' hloc' b hb_lt loc hloc
-              (by omega) (by omega) (hrk'.trans hrk_loc.symm)
-            rcases heq_bl with ⟨rfl, rfl⟩
-            exact hm_ok ((hmatch_iff b loc').mpr ⟨rfl, hloc, hq_eq⟩)
-      · simp only [hst3, ↓reduceIte]
-        have hold := hv.bufOld_valid
-        simp only [hst3, ↓reduceIte] at hold
-        refine Or.inr ⟨trivial, fun loc hloc _ => ?_⟩
+        exact check_buffer fs.oldEp oldMap holdRel
+      · have hold := hv.bufOld_valid
+        simp only [hst3, ↓reduceIte] at hold ⊢
+        refine Or.inr ⟨rfl, fun loc hloc _ => ?_⟩
         by_cases hst4 : fs.rebStage = 4
         · simp only [hst4, ↓reduceIte] at hold
           exact hold.1 b hb_lt loc hloc
         · simp only [hst4, ↓reduceIte] at hold
           exact hold.1 b hb_lt loc hloc
+    dsimp only [BufferCases, checked] at hc2_cases
     rcases hc2_cases with ⟨loc, hc2_eq, hlt, hqe⟩ | ⟨hc2_none, hnot_old⟩
     · rw [hc2_eq]; exact ⟨hlt, hqe⟩
     · rw [hc2_none]
       dsimp only
       rw [show fpOfSalt c U n_max θ.2 (fs.bktSalt b) u = fp from rfl, hlive_eq]
-      cases hlm : liveMap fp with
-      | none =>
-        dsimp only
-        refine (hv.dict_map u).1.mpr fun loc hloc hq_eq => ?_
+      have live_entry (loc : ℕ) (hloc : loc < fs.bktCount b)
+          (hq_eq : fs.quotArr (fs.physSlot n_max b loc) = q) :
+          inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) (fs.locState b loc) = true ∧
+            fs.fpAt c U n_max θ (fs.bktSalt b) b loc = fp := by
         have hst_bnd := hv.locState_active b hb_lt loc hloc
         have hnc := hnot_cur loc hloc hq_eq
         have hno := hnot_old loc hloc hq_eq
@@ -1490,12 +1447,16 @@ theorem ValidFastState.fastFindLoc_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_
           · simp only [FastState.oldEp, hc1] at hnc hno; omega
         have hinL : inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) (fs.locState b loc) =
             true := by simp [inLiveTree, hst1]
-        have hkv : fs.keyValAt c U n_max θ.1 b loc = u.val := by
-          dsimp only [FastState.keyValAt]; rw [hq_eq]
-          exact feistelReconstruct_feistelBucket (bWhp n_max) h1 u.val
+        have hkv := key_from_quotient loc hq_eq
         have hfp_loc : fs.fpAt c U n_max θ (fs.bktSalt b) b loc = fp := by
           dsimp only [FastState.fpAt, fp, fpOfSalt]
           simp [hs_lt, hkv, u.isLt]
+        exact ⟨hinL, hfp_loc⟩
+      cases hlm : liveMap fp with
+      | none =>
+        dsimp only
+        refine (hv.dict_map u).1.mpr fun loc hloc hq_eq => ?_
+        obtain ⟨hinL, hfp_loc⟩ := live_entry loc hloc hq_eq
         exact (hliveRel.1 fp).mp hlm loc hloc hinL hfp_loc
       | some loc' =>
         dsimp only
@@ -1515,21 +1476,7 @@ theorem ValidFastState.fastFindLoc_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_
           rw [hm_fls]
           obtain ⟨hloc', hinL', hfp'⟩ := (hliveRel.2 fp loc').mp hlm
           refine (hv.dict_map u).1.mpr fun loc hloc hq_eq => ?_
-          have hst_bnd := hv.locState_active b hb_lt loc hloc
-          have hnc := hnot_cur loc hloc hq_eq
-          have hno := hnot_old loc hloc hq_eq
-          have hst1 : fs.locState b loc = 1 := by
-            rcases hv.curEp_or with hc0 | hc1
-            · simp only [FastState.oldEp, hc0] at hnc hno; omega
-            · simp only [FastState.oldEp, hc1] at hnc hno; omega
-          have hinL : inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) (fs.locState b loc) =
-              true := by simp [inLiveTree, hst1]
-          have hkv : fs.keyValAt c U n_max θ.1 b loc = u.val := by
-            dsimp only [FastState.keyValAt]; rw [hq_eq]
-            exact feistelReconstruct_feistelBucket (bWhp n_max) h1 u.val
-          have hfp_loc : fs.fpAt c U n_max θ (fs.bktSalt b) b loc = fp := by
-            dsimp only [FastState.fpAt, fp, fpOfSalt]
-            simp [hs_lt, hkv, u.isLt]
+          obtain ⟨hinL, hfp_loc⟩ := live_entry loc hloc hq_eq
           have heq_l := hv.live_fp_inj b hb_lt loc' hloc' loc hloc hinL' hinL
             (hfp'.trans hfp_loc.symm)
           subst heq_l

@@ -130,21 +130,14 @@ private theorem init_mem_n {r : ℕ} (I : Instance) :
 
 theorem FitsWidth.inputFits {I : Instance} {w : ℕ} (h : I.FitsWidth w) :
     InputFits w I.encode := by
-  refine ⟨h.1.of_le ?_, fun v hv => ?_⟩
-  · rw [I.encode_length, spaceBound]
-    have := Nat.one_le_two_pow (n := I.n)
-    nlinarith
-  · rw [encode, List.mem_cons] at hv
-    rcases hv with rfl | hv
-    · exact h.1.of_le (by
-        rw [spaceBound]
-        have := Nat.one_le_two_pow (n := I.n)
-        nlinarith)
-    · rw [List.mem_flatMap] at hv
-      obtain ⟨i, -, hj⟩ := hv
-      rw [List.mem_map] at hj
-      obtain ⟨j, -, rfl⟩ := hj
-      exact h.2.of_le ((I.dist_le_maxEntry i j).trans (Nat.le_mul_of_pos_left _ (Nat.succ_pos _)))
+  have hpow : 1 ≤ 2 ^ I.n := Nat.one_le_two_pow
+  refine ⟨h.1.of_le (by rw [I.encode_length, spaceBound]; nlinarith), fun v hv => ?_⟩
+  rw [encode, List.mem_cons] at hv
+  rcases hv with rfl | hv
+  · exact h.1.of_le (by rw [spaceBound]; nlinarith)
+  · obtain ⟨i, -, hj⟩ := List.mem_flatMap.mp hv
+    obtain ⟨j, -, rfl⟩ := List.mem_map.mp hj
+    exact h.2.of_le ((I.dist_le_maxEntry i j).trans (Nat.le_mul_of_pos_left _ (Nat.succ_pos _)))
 
 theorem inputAdmissible : InputAdmissible (fun _ => Instance.encode) Instance.FitsWidth := by
   intro I
@@ -194,18 +187,13 @@ private theorem walkCost_le_mul_maxEntry (I : Instance) (a : Fin (I.n + 1))
     simpa [walkCost] using I.dist_le_maxEntry a b
   | cons x L ih =>
     simp only [walkCost, List.length_cons]
-    have hx := I.dist_le_maxEntry a x
-    have hL := ih x
-    nlinarith
+    nlinarith [I.dist_le_maxEntry a x, ih x]
 
 private theorem isLeast_walkCosts_le (I : Instance) {S : Finset (Fin I.n)} {t : Fin (I.n + 1)}
     {v : ℕ} (hv : IsLeast (walkCosts I.dist S t) v) :
     v ≤ (S.card + 1) * I.maxEntry := by
-  obtain ⟨⟨L, hnd, hL, rfl⟩, -⟩ := hv
-  have hcard : S.card = L.length := by
-    rw [← hL, List.toFinset_card_of_nodup hnd]
-  rw [hcard, ← List.length_map (f := Fin.succ)]
-  exact walkCost_le_mul_maxEntry I 0 (L.map Fin.succ) t
+  obtain ⟨⟨L, hnd, rfl, rfl⟩, -⟩ := hv
+  simpa [List.toFinset_card_of_nodup hnd] using walkCost_le_mul_maxEntry I 0 (L.map Fin.succ) t
 
 /-! ## Structured Word-RAM program -/
 
@@ -687,17 +675,10 @@ private theorem exec_targetStep {w : ℕ} (I : Instance) (hw : I.FitsWidth w)
   obtain ⟨hwS, hwV⟩ := hw
   let dp0 := 2 + (I.n + 1) * (I.n + 1)
   let tFin : Fin (I.n + 1) := ⟨tIdx, ht_lt⟩
-  have hfit1 : Fits w 1 := by
-    refine hwS.of_le ?_
-    rw [Instance.spaceBound]
-    have := Nat.one_le_two_pow (n := I.n)
-    omega
-  have hfit_rd0 : Fits w (2 + (I.n + 1)) := by
-    refine hwS.of_le ?_
-    have hsq : I.n + 1 ≤ (I.n + 1) * (I.n + 1) := Nat.le_mul_self _
-    have := Nat.one_le_two_pow (n := I.n)
-    rw [Instance.spaceBound]
-    omega
+  have hpow1 : 1 ≤ 2 ^ I.n := Nat.one_le_two_pow
+  have hsq : I.n + 1 ≤ (I.n + 1) * (I.n + 1) := Nat.le_mul_self _
+  have hfit1 : Fits w 1 := hwS.of_le (by rw [Instance.spaceBound]; omega)
+  have hfit_rd0 : Fits w (2 + (I.n + 1)) := hwS.of_le (by rw [Instance.spaceBound]; omega)
   have hinit_i : ∃ u0, ExecWithin w targetInit st u0 6 ∧ u0.mem = st.mem ∧ FixedRegs I u0 ∧
       BitRegs I mask tFin 0 u0 ∧ u0.regs rI = 0 ∧ u0.regs rHasBest = 0 := by
     dsimp [targetInit]
@@ -744,11 +725,7 @@ private theorem exec_targetStep {w : ℕ} (I : Instance) (hw : I.FitsWidth w)
       u2.regs rT = tIdx + 1 := by
     have hfit_addr : Fits w (dp0 + mask * (I.n + 1) + tIdx) :=
       fit_table_cell hwS hlt ht_lt
-    have hfit_t1 : Fits w (tIdx + 1) := by
-      refine hwS.of_le ?_
-      have hsq : I.n + 1 ≤ (I.n + 1) * (I.n + 1) := Nat.le_mul_self _
-      rw [Instance.spaceBound]
-      omega
+    have hfit_t1 : Fits w (tIdx + 1) := hwS.of_le (by rw [Instance.spaceBound]; omega)
     have ht_u1 : u1.regs rT = tIdx := hs_u1.t_eq
     dsimp only [dp0, targetStore]
     wram_exec [hs_u1.maskBase_eq, ht_u1, hfix_u1.one]
@@ -767,12 +744,7 @@ private theorem exec_targetStep {w : ℕ} (I : Instance) (hw : I.FitsWidth w)
   · intro j hj hjlt
     by_cases hjeq : j = tIdx
     · subst hjeq
-      have hbest_eq : u2.mem (2 + (I.n + 1) * (I.n + 1) + mask * (I.n + 1) + j) =
-          u1.regs rBest := by
-        rw [hmu2]
-        simp [dp0]
-      rw [hbest_eq]
-      exact hbest_least
+      simpa [hmu2, dp0] using hbest_least
     · rw [hmu2, Function.update_of_ne (by omega)]
       exact hst_cur j (by omega) hjlt
 
@@ -908,13 +880,11 @@ theorem computesInTime_program :
     program.ComputesInTime (fun _ => Instance.encode)
       (fun I _ => 80 * (I.n ^ 2 * 2 ^ I.n + 1))
       Instance.FitsWidth (fun I => heldKarp I.dist) := by
-  refine (heldKarpCode.computesInTime_program rBest
+  exact (heldKarpCode.computesInTime_program rBest
     (encode := fun _ => Instance.encode)
     (time := fun I _ => 80 * (I.n ^ 2 * 2 ^ I.n + 1) - 1)
     fun I w hw _ => exec_heldKarpCode I hw).mono
-    (fun I _ => ?_) (fun _ _ h => h)
-  have h1 : 1 ≤ I.n ^ 2 * 2 ^ I.n + 1 := Nat.succ_pos _
-  omega
+    (fun _ _ => by omega) (fun _ _ h => h)
 
 /-- **Word-RAM Bellman–Held–Karp execution bound** [Bellman1962] [HeldKarp1962]. At every fitting
 word width `w`, `program` halts on `State.init I.encode` with `heldKarp I.dist` within
@@ -942,9 +912,6 @@ theorem uniformComputableInO_heldKarp :
       (fun n _ => n ^ 2 * 2 ^ n) Instance.FitsWidth := by
   refine ⟨fun I _ => 80 * (I.n ^ 2 * 2 ^ I.n + 1), uniformComputableInTime_heldKarp,
     160, 1, by omega, fun I _ hn _ => ?_⟩
-  have h1 : 1 ≤ I.n ^ 2 * 2 ^ I.n := by
-    have := Nat.one_le_two_pow (n := I.n)
-    nlinarith
-  nlinarith
+  nlinarith [Nat.one_le_two_pow (n := I.n)]
 
 end Cslib.Algorithms.WordRAM.HeldKarp

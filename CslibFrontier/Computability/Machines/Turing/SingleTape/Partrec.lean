@@ -481,7 +481,8 @@ theorem runFor_mono (tm : SingleTapeTM Symbol) (l : List Symbol) {t₁ t₂ : �
     {l' : List Symbol} (h : l' ∈ tm.runFor l t₁) :
     l' ∈ tm.runFor l t₂ := by
   rw [mem_runFor_iff] at h ⊢
-  exact let ⟨n, hnt, hrel⟩ := h; ⟨n, hnt.trans ht, hrel⟩
+  rcases h with ⟨n, hnt, hrel⟩
+  exact ⟨n, hnt.trans ht, hrel⟩
 
 theorem primrec_runFor (tm : SingleTapeTM Symbol) :
     Primrec₂ tm.runFor := by
@@ -512,8 +513,9 @@ omit [Primcodable Symbol] in
     l' ∈ tm.eval l ↔ tm.Outputs l l' := by
   rw [eval, Nat.rfindOpt_mono (fun ht h => tm.runFor_mono l ht h)]
   simp only [mem_runFor_iff, OutputsWithinTime, Relation.RelatesWithinSteps]
-  exact ⟨fun ⟨_, _, _, hrel⟩ => hrel.reflTransGen,
-    fun h => let ⟨n, hn⟩ := h.relatesInSteps; ⟨n, n, le_rfl, hn⟩⟩
+  refine ⟨fun ⟨_, _, _, hrel⟩ => hrel.reflTransGen, fun h => ?_⟩
+  obtain ⟨n, hn⟩ := h.relatesInSteps
+  exact ⟨n, n, le_rfl, hn⟩
 
 /-- The partial word evaluation `tm.eval` of any `SingleTapeTM Symbol` is partial recursive. -/
 theorem partrec_eval (tm : SingleTapeTM Symbol) :

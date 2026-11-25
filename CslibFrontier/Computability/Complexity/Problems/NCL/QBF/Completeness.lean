@@ -198,10 +198,11 @@ private theorem attach_dormant_legal (p : ℕ) (q : Quantifier) (qs : List Quant
     (((head p q).comp (circuit (p + 1) qs ms)).graph Gate.interp).Legal
       (attach p q qs ms ls hl u (initial (p + 1) qs ms).orient) := by
   refine (legal_comp_iff _ _ _).2 ⟨?_, ?_⟩
-  · rw [show attach p q qs ms ls hl u (initial (p + 1) qs ms).orient ∘
+  · have he : attach p q qs ms ls hl u (initial (p + 1) qs ms).orient ∘
         compLeft (head p q) (circuit (p + 1) qs ms) =
-        glueTensor q.gadget (.id (colors p)) u (wires p ls hl).orient from
-      funext (glueComp_compLeft _ _ _ _)]
+        glueTensor q.gadget (.id (colors p)) u (wires p ls hl).orient :=
+      funext (glueComp_compLeft _ _ _ _)
+    rw [he]
     exact legal_glueTensor hu (wires p ls hl).legal
   · apply legal_dormant (p + 1) qs ms
       (attach p q qs ms ls hl u (initial (p + 1) qs ms).orient ∘

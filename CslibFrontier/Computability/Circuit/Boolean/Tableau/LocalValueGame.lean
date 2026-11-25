@@ -217,10 +217,11 @@ private theorem exists_size_add_numGates_le :
   have h1 : 1 ≤ 2 ^ Nat.size n := Nat.one_le_two_pow
   have h2 : 1 ≤ 2 ^ Nat.size C * (2 ^ Nat.size T) ^ 2 := Nat.one_le_iff_ne_zero.mpr (by positivity)
   have hn : n < 2 ^ Nat.size n := Nat.lt_size_self n
-  rw [show 2 ^ (Nat.size n + 2 * Nat.size T + (Nat.size C + 1)) =
-    2 * (2 ^ Nat.size n * (2 ^ Nat.size C * (2 ^ Nat.size T) ^ 2)) by
+  have hpow : 2 ^ (Nat.size n + 2 * Nat.size T + (Nat.size C + 1)) =
+      2 * (2 ^ Nat.size n * (2 ^ Nat.size C * (2 ^ Nat.size T) ^ 2)) := by
     rw [← pow_mul, mul_comm (Nat.size T) 2, ← pow_add, ← pow_add, ← pow_succ']
-    ring_nf]
+    ring_nf
+  rw [hpow]
   nlinarith
 
 /-- **Positions of logarithmic length.** On an input `x` of length `n`, every position of the
@@ -504,9 +505,10 @@ theorem acceptsFrom_localMachine_iff (lc₀ : LocalClaim) (x : List Bool) (T : �
           Wins (update tm (encLocal x))
             (position tm (encLocal x) (Claim.next tm ⟨x, T, w, v⟩ b)) := by
       have hlt : (Claim.next tm ⟨x, T, w, v⟩ b).wire < w := next_lt ho hw b
+      have hcn : Claim.next tm ⟨x, T, w, v⟩ b = ⟨x, T, _, _⟩ :=
+        Claim.ext (by rw [Claim.next_eq]) (by rw [Claim.next_eq]) rfl rfl
       rw [step_localMachine_of_outcome_none lc₀ ho b]
-      conv_rhs => rw [show Claim.next tm ⟨x, T, w, v⟩ b = ⟨x, T, _, _⟩ from
-        Claim.ext (by rw [Claim.next_eq]) (by rw [Claim.next_eq]) rfl rfl]
+      conv_rhs => rw [hcn]
       exact ih _ hlt (hlt.trans hw) _
     have huniv : localUniversal tm (⟨x.length, T, w, v⟩, none) = Claim.player tm ⟨x, T, w, v⟩ :=
       localUniversal_toLocal (tm := tm) ⟨x, T, w, v⟩ none

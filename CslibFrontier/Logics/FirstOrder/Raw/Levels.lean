@@ -161,7 +161,8 @@ private theorem inDepths_nameDepths {F : ℕ → Prop} [DecidablePred F] {d y : 
     InDepths d (nameDepths F y) ↔ NameOk F d y := by
   unfold nameDepths NameOk
   split_ifs with h1 h2 <;> simp only [InDepths, Option.getD_none, Option.getD_some]
-  · exact ⟨fun h => Or.inl ⟨h1, by omega⟩, fun h => by rcases h with ⟨-, h⟩ | ⟨h, -⟩ <;> omega⟩
+  · exact ⟨fun h => Or.inl ⟨h1, by omega⟩,
+      fun h => by rcases h with ⟨-, h⟩ | ⟨h, -⟩ <;> omega⟩
   · exact ⟨fun _ => Or.inr ⟨by omega, h2⟩, fun _ => by omega⟩
   · exact ⟨fun h => by omega, fun h => h.elim (fun ⟨h, _⟩ => by omega) fun ⟨_, h⟩ => (h2 h).elim⟩
 
@@ -186,9 +187,11 @@ private theorem inDepths_allDepths {d x : ℕ} {p : ℕ × Option ℕ} :
   split_ifs with h
   · refine ⟨fun hd => ?_, fun ⟨hx, _⟩ => by simp [InDepths]; omega⟩
     simp only [InDepths, Option.getD_some] at hd
-    exact ⟨by omega, by simpa [show d + 1 = x / 2 + 1 by omega] using h.2⟩
+    have hd' : d + 1 = x / 2 + 1 := by omega
+    exact ⟨by omega, hd' ▸ h.2⟩
   · refine ⟨fun hd => by simp [InDepths] at hd; omega, fun ⟨hx, hp⟩ => ?_⟩
-    exact (h ⟨by omega, by simpa [hx, show 2 * d / 2 = d by omega] using hp⟩).elim
+    have hd' : 2 * d / 2 = d := by omega
+    exact (h ⟨by omega, by simpa [hx, hd'] using hp⟩).elim
 
 /-- The depth interval at which a formula is well scoped. -/
 private def depths (F : ℕ → Prop) [DecidablePred F] (A : ℕ → ℕ → Prop) [DecidableRel A] :
@@ -348,7 +351,8 @@ theorem finValid_levels (φ : RawFormula) : FinValid (levels φ) ↔ FinValid φ
 
 private theorem nameOk_bindShift {F : ℕ → Prop} {x d y : ℕ}
     (hy : NameOk F d y) : NameOk (fun z => F z ∧ z ≠ x) (d + 1) (bindShift x y) := by
-  unfold NameOk at hy ⊢; unfold bindShift
+  unfold NameOk at hy ⊢
+  unfold bindShift
   split_ifs with h1 h2
   · omega
   · omega
@@ -379,7 +383,8 @@ where
     by_cases hyx : y = 2 * x + 1
     · exact hyx ▸ nameOk_bindShift_self
     · refine nameOk_bindShift (hy.imp id fun ⟨h1, h2⟩ => ⟨h1, h2.resolve_right ?_⟩)
-      rintro rfl; omega
+      rintro rfl
+      omega
 
 /-- `levels φ` is level-named at depth `0`, with free variables among those of `φ` and the same
 atoms. -/

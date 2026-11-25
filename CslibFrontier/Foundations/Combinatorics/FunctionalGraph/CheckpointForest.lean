@@ -80,8 +80,9 @@ noncomputable def checkpointHull (H : Finset α) : Finset α :=
     Nat.lt_succ_iff]
 
 /-- Every checkpoint lies in the checkpoint hull. -/
-theorem subset_checkpointHull (H : Finset α) : H ⊆ checkpointHull f H :=
-  fun h hh => (mem_checkpointHull f H h).mpr ⟨h, hh, 0, Nat.zero_le _, rfl⟩
+theorem subset_checkpointHull (H : Finset α) : H ⊆ checkpointHull f H := by
+  intro h hh
+  exact (mem_checkpointHull f H h).mpr ⟨h, hh, 0, Nat.zero_le _, rfl⟩
 
 /-- The checkpoint hull is monotone in the checkpoint set. -/
 theorem checkpointHull_subset_of_subset {H₁ H₂ : Finset α} (h : H₁ ⊆ H₂) :
@@ -95,7 +96,8 @@ theorem checkpointHull_iterate (H : Finset α) {x : α} (hx : x ∈ checkpointHu
     {t : ℕ} (ht : t ≤ transientDepth f x) : f^[t] x ∈ checkpointHull f H := by
   obtain ⟨h, hh, d, hd, rfl⟩ := (mem_checkpointHull f H x).mp hx
   rw [transientDepth_iterate] at ht
-  exact (mem_checkpointHull f H _).mpr ⟨h, hh, t + d, by lia, Function.iterate_add_apply _ _ _ _⟩
+  apply (mem_checkpointHull f H _).mpr
+  exact ⟨h, hh, t + d, by lia, Function.iterate_add_apply _ _ _ _⟩
 
 /-- The checkpoint hull contains the successor of each of its transient states. -/
 theorem checkpointHull_step (H : Finset α) {x : α} (hx : x ∈ checkpointHull f H)
@@ -107,11 +109,19 @@ theorem checkpointHull_step (H : Finset α) {x : α} (hx : x ∈ checkpointHull 
 private theorem checkpointHull_predecessor (H : Finset α) {x : α}
     (hx : x ∈ checkpointHull f H) (hH : x ∉ H) :
     ∃ y ∈ checkpointHull f H, 0 < transientDepth f y ∧ f y = x := by
-  obtain ⟨h, hh, t, ht, rfl⟩ := (mem_checkpointHull f H x).mp hx
-  have hpos : 0 < t := Nat.pos_of_ne_zero fun h0 => hH (by simpa [h0] using hh)
-  refine ⟨f^[t - 1] h, checkpointHull_iterate f H (subset_checkpointHull f H hh) (by lia),
-    by rw [transientDepth_iterate]; lia, ?_⟩
-  rw [← Function.iterate_succ_apply' f (t - 1) h, show (t - 1).succ = t by lia]
+  obtain ⟨h, hh, t, ht, he⟩ := (mem_checkpointHull f H x).mp hx
+  have hpos : 0 < t := by
+    by_contra h0
+    have hz : t = 0 := by lia
+    simp only [hz, Function.iterate_zero_apply] at he
+    exact hH (he ▸ hh)
+  refine ⟨f^[t - 1] h, checkpointHull_iterate f H (subset_checkpointHull f H hh)
+    (by lia), ?_, ?_⟩
+  · rw [transientDepth_iterate]
+    lia
+  · rw [← Function.iterate_succ_apply' f (t - 1) h, Nat.succ_eq_add_one,
+      show t - 1 + 1 = t by lia]
+    exact he
 
 open scoped Classical in
 /-- Sources of the forest edges after cutting outgoing edges at periodic vertices. -/
@@ -159,7 +169,8 @@ to `x`. -/
 @[simp] theorem mem_forestRoots (H : Finset α) (x : α) :
     x ∈ forestRoots f H ↔ x ∈ checkpointHull f H ∧ transientDepth f x = 0 := by
   classical
-  simp only [forestRoots, Finset.mem_sdiff, mem_forestSources]; lia
+  simp only [forestRoots, Finset.mem_sdiff, mem_forestSources]
+  lia
 
 /-- The forest leaves are exactly the hull states with no children. -/
 @[simp] theorem mem_forestLeaves (H : Finset α) (x : α) :
@@ -191,8 +202,10 @@ theorem sum_forestChildren (H : Finset α) :
     ∑ x ∈ checkpointHull f H, (forestChildren f H x).card = (forestSources f H).card := by
   classical
   symm
-  exact Finset.card_eq_sum_card_fiberwise fun x hx =>
-    let ⟨hx, ht⟩ := (mem_forestSources f H x).mp hx; checkpointHull_step f H hx ht
+  apply Finset.card_eq_sum_card_fiberwise
+  intro x hx
+  obtain ⟨hx, ht⟩ := (mem_forestSources f H x).mp hx
+  exact checkpointHull_step f H hx ht
 
 /-- Branches and roots together are paid for by distinct leaves. -/
 theorem forestBranches_roots_le_leaves (H : Finset α) :

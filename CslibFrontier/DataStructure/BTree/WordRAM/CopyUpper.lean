@@ -134,20 +134,15 @@ theorem copyUpperCode_spec {w base capNodes t c z : ℕ} {x : Data 20}
   have hf_az2 : Fits w (nodeAddr base t z + 2) := hfit.of_le (by omega)
   have hf_tm1 : Fits w (t - 1) := hfit.of_le (by omega)
   -- Step 1: `copyUpperPre1` + `copyArrayCode` (keys)
-  let x₁ : Data 20 :=
-    (((((((((((((x.set rSrc (c * (6 * t))).set rSrc (base + c * (6 * t))).set rSrc
-      (base + c * (6 * t) + 1)).set rSrc (nodeAddr base t c)).set rSrc
-      (nodeAddr base t c + 1)).set rSrc (nodeAddr base t c + 2)).set rSrc
-      (nodeAddr base t c + 2 + t)).set rDst (z * (6 * t))).set rDst
-      (base + z * (6 * t))).set rDst (base + z * (6 * t) + 1)).set rDst
-      (nodeAddr base t z)).set rDst (nodeAddr base t z + 1)).set rDst
-      (nodeAddr base t z + 2)).set rLim (t - 1)
+  -- Infer the states after straight-line instructions by symbolic execution.
+  let x₁ : Data 20 := ?keySetup
   have he1 : ExecWithin w copyUpperPre1 x x₁ 14 := by
     unfold copyUpperPre1
     dsimp only [x₁]
     wram_exec [ho, hbase, hdeg, hstride, hchild, hcnt, hna_c, hna_z,
       hf_cmul, hf_cb0, hf_cb1, hf_ac, hf_ac1, hf_ac2, hf_ac2t,
       hf_zmul, hf_zb0, hf_zb1, hf_az, hf_az1, hf_az2, hf_tm1]
+    rfl
   obtain ⟨x₂, hc1, hb₂, hmem₂, hreg₂⟩ :=
     copyArrayCode_spec (srcBase := nodeAddr base t c + 2 + t)
       (dstBase := nodeAddr base t z + 2) (N := t - 1)
@@ -163,10 +158,7 @@ theorem copyUpperCode_spec {w base capNodes t c z : ℕ} {x : Data 20}
       nodeAddr base t c + (2 * t + 1) + t := by omega
   have hv_z_eq : nodeAddr base t z + 2 + (t - 1) + t =
       nodeAddr base t z + (2 * t + 1) := by omega
-  let x₃ : Data 20 :=
-    (((x₂.set rSrc (nodeAddr base t c + 2 + t + (t - 1))).set rSrc
-      (nodeAddr base t c + (2 * t + 1) + t)).set rDst
-      (nodeAddr base t z + 2 + (t - 1))).set rDst (nodeAddr base t z + (2 * t + 1))
+  let x₃ : Data 20 := ?valueSetup
   have he2 : ExecWithin w copyUpperPre2 x₂ x₃ 4 := by
     unfold copyUpperPre2
     dsimp only [x₃]
@@ -175,6 +167,7 @@ theorem copyUpperCode_spec {w base capNodes t c z : ℕ} {x : Data 20}
     have hf_d1 : Fits w (nodeAddr base t z + 2 + (t - 1)) := hfit.of_le (by omega)
     have hf_d2 : Fits w (nodeAddr base t z + (2 * t + 1)) := hfit.of_le (by omega)
     wram_exec [hsrc₂, hdst₂, hlim₂, hd₂, hv_c_eq, hv_z_eq, hf_s1, hf_s2, hf_d1, hf_d2]
+    rfl
   obtain ⟨x₄, hc2, hb₄, hmem₄, hreg₄⟩ :=
     copyArrayCode_spec (srcBase := nodeAddr base t c + (2 * t + 1) + t)
       (dstBase := nodeAddr base t z + (2 * t + 1)) (N := t - 1)
@@ -258,15 +251,13 @@ theorem copyUpperCode_spec {w base capNodes t c z : ℕ} {x : Data 20}
           Data.set_regs_of_ne hs1 _, Data.set_regs_of_ne ht2 _, Data.set_regs_of_ne ht1 _]
         exact hkeep₄ reg (by simp [hs1, hd1, hl1, hi1, ht1, ht2])
     · have hf0 : Fits w 0 := hfit.of_le (Nat.zero_le _)
-      let x₅ : Data 20 :=
-        (((((x₄.set rTmp1 (c * (6 * t))).set rTmp1 (base + c * (6 * t))).set rTmp1
-          (base + c * (6 * t) + 1)).set rTmp1 (nodeAddr base t c)).set rTmp2
-          (x.mem (nodeAddr base t c))).set rZero 0
+      let x₅ : Data 20 := ?leafState
       have he3 : ExecWithin w copyUpperBranch x₄ x₅ (7 * t + 16) := by
         unfold copyUpperBranch
         dsimp only [x₅]
         wram_exec [hz₄, ho₄, hb₄_reg, hst₄, hch₄, hna_c, hlf₄, hlf0,
           hf_cmul, hf_cb0, hf_cb1, hf_ac, hf0]
+        rfl
       refine ⟨x₅, he3, he3.bounded hb₄, ?_, rfl, fun reg hnot => ?_⟩
       · simp only [hlf0, ↓reduceIte]; rfl
       · simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hnot
@@ -288,19 +279,13 @@ theorem copyUpperCode_spec {w base capNodes t c z : ℕ} {x : Data 20}
   have hst₅ : x₅.regs rStride = 6 * t := (hkeep₅ rStride (by decide)).trans hstride
   have hch₅ : x₅.regs rChild = c := (hkeep₅ rChild (by decide)).trans hchild
   have hcnt₅ : x₅.regs rCnt = z := (hkeep₅ rCnt (by decide)).trans hcnt
-  let y : Data 20 :=
-    ((((((((((((((x₅.set rSrc (c * (6 * t))).set rSrc (base + c * (6 * t))).set rSrc
-      (base + c * (6 * t) + 1)).set rSrc (nodeAddr base t c)).set rTmp2
-      (x.mem (nodeAddr base t c))).set rDst (z * (6 * t))).set rDst
-      (base + z * (6 * t))).set rDst (base + z * (6 * t) + 1)).set rDst
-      (nodeAddr base t z)).write (nodeAddr base t z) (x.mem (nodeAddr base t c))).set rLim
-      (t - 1)).set rTmp1 (nodeAddr base t z + 1)).write (nodeAddr base t z + 1) (t - 1)).set rTmp1
-      (nodeAddr base t c + 1)).write (nodeAddr base t c + 1) (t - 1)
+  let y : Data 20 := ?finalState
   have he4 : ExecWithin w copyUpperPost x₅ y 15 := by
     unfold copyUpperPost
     dsimp only [y]
     wram_exec [ho₅, hb₅_reg, hd₅, hst₅, hch₅, hcnt₅, hna_c, hna_z, hlf₅,
       hf_cmul, hf_cb0, hf_cb1, hf_ac, hf_ac1, hf_zmul, hf_zb0, hf_zb1, hf_az, hf_az1, hf_tm1]
+    rfl
   have hfull : ExecWithin w copyUpperCode x y (21 * t + 48) :=
     (he1.seq (hc1.seq (he2.seq (hc2.seq (he3.seq he4))))).mono (by omega)
   have hymem : y.mem = memCopyUpper base t c z x.mem := by

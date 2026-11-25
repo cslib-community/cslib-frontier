@@ -478,8 +478,10 @@ theorem naorReingoldHybridGame_self (d : F.Desc) (n : ℕ)
     F.naorReingoldHybridGame d n n adv = F.naorReingoldIdealGame d n adv := by
   simp only [naorReingoldHybridGame, naorReingoldIdealGame, PMF.monad_bind_eq_bind]
   congr 1 with B : 1
-  simp_rw [show ∀ α, F.naorReingoldHybridEval d n B α = fun x => B x • F.generator d from
-    fun _ => funext fun _ => by simp [naorReingoldHybridEval], PMF.bind_const]
+  have hfn (α : Fin n → ZMod (F.order d)) :
+      F.naorReingoldHybridEval d n B α = fun x => B x • F.generator d :=
+    funext fun _ => by simp [naorReingoldHybridEval]
+  simp_rw [hfn, PMF.bind_const]
 
 /-- Evaluating the level-`k` child table `T : BitString k → F.Carrier d × F.Carrier d` followed by
 the depth-`(k + 1)` suffix exponent product. -/

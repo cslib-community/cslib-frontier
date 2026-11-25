@@ -93,10 +93,11 @@ theorem tendsto_randomGraphProb_of_mem_randomGraphTheory {φ : Language.graph.Se
     Filter.Tendsto (fun n => randomGraphProb n fun G => Satisfies G φ) Filter.atTop (nhds 1) := by
   rcases mem_randomGraphTheory.1 h with hφ | ⟨k, s, rfl⟩
   · refine tendsto_const_nhds.congr fun n => ?_
+    have hfalse : (fun G : SimpleGraph (Fin n) => ¬Satisfies G φ) = fun _ => False :=
+      funext fun G => propext (iff_false_intro (not_not_intro
+        (satisfies_of_mem_simpleGraph G hφ)))
     have h0 : randomGraphProb n (fun G => ¬Satisfies G φ) = 0 := by
-      rw [show (fun G : SimpleGraph (Fin n) => ¬Satisfies G φ) = fun _ => False from
-        funext fun G => propext (iff_false_intro (not_not_intro
-          (satisfies_of_mem_simpleGraph G hφ))), randomGraphProb_false]
+      rw [hfalse, randomGraphProb_false]
     linarith [randomGraphProb_not n fun G => Satisfies G φ]
   · exact tendsto_randomGraphProb_extensionAxiom k s
 

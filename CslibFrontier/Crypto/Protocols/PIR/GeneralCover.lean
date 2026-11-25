@@ -152,7 +152,8 @@ theorem query_cube_eq_emulateCubeQuery [DecidableEq D] {i : D → ι} {r : Unit}
     intro σ hT
     obtain rfl : σ = w := funext fun l => by_contra fun hne =>
       Finset.notMem_empty l (hT ▸ mem_diffCoords.mpr hne)
-    funext l; simp [emulateCubeQuery]
+    funext l
+    simp [emulateCubeQuery]
   | @insert l₀ T' hl₀ ih =>
     intro σ hT
     have hne₀ : σ l₀ ≠ w l₀ := mem_diffCoords.mp (hT ▸ Finset.mem_insert_self l₀ T')
@@ -379,10 +380,14 @@ theorem indexedCommunication_indexedScheme_eq (K : ExactRadiusOneCover S D) (ι 
         (2 ^ Fintype.card D + (Fintype.card D - 1) * Fintype.card S) * Fintype.card ι := by
   rw [K.indexedCommunication_indexedScheme ι]
   have hle := K.card_le_two_pow
-  nth_rw 1 [(Nat.sub_add_cancel hD).symm]
-  conv_rhs =>
-    rw [show 2 ^ Fintype.card D = Fintype.card S + (2 ^ Fintype.card D - Fintype.card S) by omega]
-  ring
+  calc Fintype.card S * Fintype.card D * Fintype.card ι + Fintype.card S +
+        (2 ^ Fintype.card D - Fintype.card S) * Fintype.card ι
+      = Fintype.card S * (Fintype.card D - 1 + 1) * Fintype.card ι + Fintype.card S +
+          (2 ^ Fintype.card D - Fintype.card S) * Fintype.card ι := by
+        rw [Nat.sub_add_cancel hD]
+    _ = Fintype.card S + (Fintype.card S + (2 ^ Fintype.card D - Fintype.card S) +
+          (Fintype.card D - 1) * Fintype.card S) * Fintype.card ι := by ring
+    _ = _ := by rw [Nat.add_sub_of_le hle]
 
 omit [DecidableEq D] in
 /-- Any `ExactRadiusOneCover` on `d ≥ 1` coordinates yields a `k`-server `IndexedScheme` for
@@ -598,15 +603,20 @@ theorem hasScheme_of_hammingDist_two_sq [Fintype S] {c : S → D → Bool}
   obtain ⟨ℓ', hℓ'⟩ := Nat.exists_eq_add_of_le hℓ
   have hinner : Fintype.card D * ℓ + (Fintype.card D).choose 2 * ℓ ^ 2 + 1 ≤
       Fintype.card D ^ 2 * ℓ ^ 2 := by
-    have h1 := Nat.mul_le_mul_right (ℓ ^ 2)
-      (Nat.choose_two_right (Fintype.card D) ▸
-        Nat.mul_div_le (Fintype.card D * (Fintype.card D - 1)) 2)
-    rw [hd', hℓ'] at h1 ⊢
-    rw [show 2 + d' - 1 = d' + 1 by omega, Nat.mul_assoc 2] at h1
-    have hpoly : 2 * ((2 + d') ^ 2 * (1 + ℓ') ^ 2) =
-        (2 * ((2 + d') * (1 + ℓ')) + (2 + d') * (d' + 1) * (1 + ℓ') ^ 2 + 2) +
-          (d' ^ 2 * (1 + ℓ') ^ 2 + d' * (5 * ℓ' ^ 2 + 8 * ℓ' + 3) + 6 * ℓ' ^ 2 + 8 * ℓ') := by ring
-    omega
+    refine Nat.le_of_mul_le_mul_left ?_ (by decide : 0 < 2)
+    calc 2 * (Fintype.card D * ℓ + (Fintype.card D).choose 2 * ℓ ^ 2 + 1)
+        = 2 * Fintype.card D * ℓ + (2 * (Fintype.card D).choose 2) * ℓ ^ 2 + 2 := by ring
+      _ ≤ 2 * Fintype.card D * ℓ + Fintype.card D * (Fintype.card D - 1) * ℓ ^ 2 + 2 := by
+          have hch : 2 * (Fintype.card D).choose 2 ≤ Fintype.card D * (Fintype.card D - 1) :=
+            Nat.choose_two_right (Fintype.card D) ▸ Nat.mul_div_le _ 2
+          gcongr
+      _ ≤ 2 * (Fintype.card D ^ 2 * ℓ ^ 2) := by
+          rw [hd', hℓ', show 2 + d' - 1 = d' + 1 by omega]
+          have hpoly : 2 * ((2 + d') ^ 2 * (1 + ℓ') ^ 2) =
+              (2 * (2 + d') * (1 + ℓ') + (2 + d') * (d' + 1) * (1 + ℓ') ^ 2 + 2) +
+                (d' ^ 2 * (1 + ℓ') ^ 2 + d' * (5 * ℓ' ^ 2 + 8 * ℓ' + 3) +
+                  6 * ℓ' ^ 2 + 8 * ℓ') := by ring
+          omega
   calc Fintype.card S * (2 * Fintype.card D * ℓ + (Fintype.card D).choose 2 * ℓ ^ 2 + 1)
       = Fintype.card S * Fintype.card D * ℓ +
           Fintype.card S * (Fintype.card D * ℓ + (Fintype.card D).choose 2 * ℓ ^ 2 + 1) := by ring

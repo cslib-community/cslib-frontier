@@ -148,7 +148,8 @@ private theorem prop_crossing_some {J : Type} [Fintype J] (Ψ : J → α → β 
       Fintype.card J * F (push ![x, y, v, u] (four (Ψ j))) := by
   have h1 := prop_crossing_cover F Ψ hΨ x y v u
   have : Nonempty J := by
-    by_contra hne; rw [not_nonempty_iff] at hne
+    by_contra hne
+    rw [not_nonempty_iff] at hne
     rw [Finset.univ_eq_empty, Finset.sum_empty] at h1
     exact h1.not_gt (mul_pos (Real.rpow_pos_of_pos (Nat.cast_pos.2 Fintype.card_pos) _)
       (Real.rpow_pos_of_pos (Nat.cast_pos.2 Fintype.card_pos) _))
@@ -177,8 +178,8 @@ private theorem prop_crossing_term {J : Type} [Fintype J] (Ψ : J → α → β 
   have hα : (0 : ℝ) < Fintype.card α := Nat.cast_pos.2 Fintype.card_pos
   have hβ : (0 : ℝ) < Fintype.card β := Nat.cast_pos.2 Fintype.card_pos
   obtain ⟨j, hj⟩ := prop_crossing_some F Ψ hΨ x y v u
-  have hJ0 : (0 : ℝ) < Fintype.card J := by
-    have : Nonempty J := ⟨j⟩; exact_mod_cast Fintype.card_pos
+  have : Nonempty J := ⟨j⟩
+  have hJ0 : (0 : ℝ) < Fintype.card J := Nat.cast_pos.2 Fintype.card_pos
   refine ⟨j, ?_⟩
   have hexp (s s' : ℝ) (n : ℕ) (e : ℝ) :
       (Fintype.card α : ℝ) ^ s * (Fintype.card β : ℝ) ^ s' * (n : ℝ) ^ e ≤
@@ -206,19 +207,23 @@ private theorem prop_crossing_classes (E : ℕ) : ∃ μ e,
   have hmaps : ∀ s ∈ lowStates E, (s.1.card, energy s.1 + energy s.2) ∈ S := fun s hs => by
     obtain ⟨h1, h2⟩ := mem_lowStates.1 hs
     have h3 : s.1.card ≤ energy s.1 := by
-      rw [energy, Finset.card_eq_sum_ones]; exact Finset.sum_le_sum fun _ _ => by omega
+      rw [energy, Finset.card_eq_sum_ones]
+      exact Finset.sum_le_sum fun _ _ => by omega
     simp only [hS, mem_product, mem_range]; omega
   obtain ⟨z, hz, hmax⟩ :=
     Finset.exists_max_image S (fun z => (states z.1 z.2).card) ⟨(0, 0), by simp [hS]⟩
   have hzE : z.2 ≤ E := Nat.lt_succ_iff.1 (mem_range.1 (mem_product.1 hz).2)
   refine ⟨z.1, z.2, hzE, ?_, card_le_card fun s hs => lowStates_mono hzE (mem_states.1 hs).1⟩
   rw [stateCount, Finset.card_eq_sum_card_fiberwise hmaps]
-  refine (Finset.sum_le_sum fun b hb =>
-    (Finset.card_le_card fun s hs => ?_).trans (hmax b hb)).trans_eq ?_
-  · obtain ⟨h1, rfl⟩ := mem_filter.1 hs
-    exact mem_states.2 ⟨mem_lowStates.2 ⟨(mem_lowStates.1 h1).1, le_rfl⟩, rfl,
-      (mem_lowStates.1 h1).1.symm, rfl⟩
-  · rw [Finset.sum_const, smul_eq_mul, hS, card_product, card_range, pow_two]
+  calc ∑ b ∈ S, ((lowStates E).filter fun s => (s.1.card, energy s.1 + energy s.2) = b).card
+      ≤ ∑ b ∈ S, (states b.1 b.2).card :=
+        Finset.sum_le_sum fun b _ => Finset.card_le_card fun s hs => by
+          obtain ⟨h1, rfl⟩ := mem_filter.1 hs
+          exact mem_states.2 ⟨mem_lowStates.2 ⟨(mem_lowStates.1 h1).1, le_rfl⟩, rfl,
+            (mem_lowStates.1 h1).1.symm, rfl⟩
+    _ ≤ ∑ _b ∈ S, (states z.1 z.2).card := Finset.sum_le_sum hmax
+    _ = (E + 1) ^ 2 * (states z.1 z.2).card := by
+        rw [Finset.sum_const, smul_eq_mul, hS, card_product, card_range, pow_two]
 
 /-- Proof of Proposition B.3: in units of `κ √n`, the logarithms of the sizes of the two classes are
 `p + o(1)` and `q + o(1)` by Lemma B.1. Here `κ` has the two properties of Lemma B.1, `n` is the
@@ -240,7 +245,8 @@ private theorem prop_crossing_class_size {κ : ℝ} (hκ : 0 < κ)
   have h0 : (0 : ℝ) < (states μ e).card := Nat.cast_pos.2 hpos
   have h2 := Real.log_le_log (Nat.cast_pos.2 (lowStates_card_pos E))
     (show ((lowStates E).card : ℝ) ≤ ((E : ℝ) + 1) ^ 2 * (states μ e).card by exact_mod_cast hcard)
-  rw [Real.log_mul (by positivity) h0.ne', Real.log_pow] at h2; push_cast at h2
+  rw [Real.log_mul (by positivity) h0.ne', Real.log_pow] at h2
+  push_cast at h2
   have hupper := (Real.log_le_log h0 (by exact_mod_cast hle)).trans (hup E)
   have hv := mul_le_mul_of_nonneg_left (sqrt_floor_le hp n) hκ.le
   have hd : 0 ≤ δ * (κ * √(n : ℝ)) := by positivity
@@ -262,9 +268,9 @@ private theorem prop_crossing_products {κ : ℝ} (hκ : 0 < κ)
   have h2 : Real.log ((M : ℝ) + 1) ≤ δ * κ * √(n : ℝ) :=
     (Real.log_le_log (by positivity) (by linarith)).trans hlog
   have hsc : (stateCount M : ℝ) ≠ 0 := Nat.cast_ne_zero.2 (lowStates_card_pos M).ne'
-  rw [show (√(M : ℝ) / √(n : ℝ) + δ) * (κ * √(n : ℝ)) =
-      κ * √(M : ℝ) + δ * κ * √(n : ℝ) by field_simp,
-    Nat.cast_mul, Nat.cast_add, Nat.cast_one, Real.log_mul (by positivity) hsc]
+  have h5 : (√(M : ℝ) / √(n : ℝ) + δ) * (κ * √(n : ℝ)) = κ * √(M : ℝ) + δ * κ * √(n : ℝ) := by
+    field_simp
+  rw [h5, Nat.cast_mul, Nat.cast_add, Nat.cast_one, Real.log_mul (by positivity) hsc]
   linarith [hup M]
 
 /-- Proof of Proposition B.3, the tensors: for every `δ > 0` there are `s > 0` and finite sets
@@ -314,7 +320,8 @@ private theorem prop_crossing_tensors (K : Type) [Field K] {p q : ℝ} (hp : 0 �
     exact ⟨fun k z => (g k z : K), fun k z => (h k z : K), fun a b c d => by simp [hgh]⟩
   · obtain ⟨g, h, hgh⟩ := hL N
     exact ⟨fun k z => (g k z : K), fun k z => (h k z : K), fun a b c d => by simp [hgh]⟩
-  · rw [← Int.cast_sum, hΨ, ite_and]; split_ifs <;> simp
+  · rw [← Int.cast_sum, hΨ, ite_and]
+    split_ifs <;> simp
   · rw [Fintype.card_fin]
     push_cast at hH ⊢
     linarith [Real.log_le_log (by positivity)
@@ -399,14 +406,18 @@ theorem isPrice_crossing {Y : Type} {d : Y → Y → ℝ} (hd : IsPrice K d)
     have lo (i j : Fin 8) {t : ℝ} (ht : 0 ≤ t) :
         t * (c * F.wireExponent i j) ≤
           t * d (![x, y, v, u, o, o', w, w'] i) (![x, y, v, u, o, o', w, w'] j) + t * η := by
-      rw [← mul_add]; exact mul_le_mul_of_nonneg_left (by linarith [(abs_lt.1 (hF i j)).1]) ht
+      rw [← mul_add]
+      exact mul_le_mul_of_nonneg_left (by linarith [(abs_lt.1 (hF i j)).1]) ht
     have hi (i j : Fin 8) {t : ℝ} (ht : 0 ≤ t) :
         t * d (![x, y, v, u, o, o', w, w'] i) (![x, y, v, u, o, o', w, w'] j) ≤
           t * (c * F.wireExponent i j) + t * η := by
-      rw [← mul_add]; exact mul_le_mul_of_nonneg_left (by linarith [(abs_lt.1 (hF i j)).2]) ht
+      rw [← mul_add]
+      exact mul_le_mul_of_nonneg_left (by linarith [(abs_lt.1 (hF i j)).2]) ht
     have hsum : 3 * (p * η) + 3 * (q * η) + (ρ + 1) * η = δ := by
-      have : η * T = δ := by rw [hη]; field_simp
-      rw [← this, hT]; ring
+      rw [hη]
+      field_simp
+      rw [hT]
+      ring
     rw [← min_add_add_right]
     refine le_min ?_ ?_
     · have ha : _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ :=

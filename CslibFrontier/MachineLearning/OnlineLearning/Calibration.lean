@@ -236,12 +236,8 @@ private theorem sum_abs_le_sqrt_mul_norm {n : ℕ} (x : EuclideanSpace ℝ (Fin 
     refine sum_congr rfl fun k _ => ?_
     rw [RCLike.inner_apply, conj_trivial, sq_abs, sq]
   rw [hsq] at hcs
-  have hcomb : (∑ k : Fin n, |x k|) ^ 2 ≤ (Real.sqrt n * ‖x‖) ^ 2 := by
-    rw [mul_pow, Real.sq_sqrt (Nat.cast_nonneg n)]
-    exact hcs
-  have hs := Real.sqrt_le_sqrt hcomb
-  rwa [Real.sqrt_sq (sum_nonneg fun _ _ => abs_nonneg _),
-    Real.sqrt_sq (mul_nonneg (Real.sqrt_nonneg _) (norm_nonneg _))] at hs
+  refine le_of_pow_le_pow_left₀ two_ne_zero (by positivity) ?_
+  rwa [mul_pow, Real.sq_sqrt (Nat.cast_nonneg n)]
 
 /-- Triangle bound relating `∑ |x k|` to Euclidean distance `distToSet (l1Ball n r) x`. -/
 theorem sum_abs_le_add_sqrt_mul_distToSet {n : ℕ} {r : ℝ} (hr : 0 ≤ r)
@@ -252,13 +248,10 @@ theorem sum_abs_le_add_sqrt_mul_distToSet {n : ℕ} {r : ℝ} (hr : 0 ≤ r)
     metricProjection_mem ⟨0, zero_mem_l1Ball hr⟩ (l1Ball_isComplete n r) (l1Ball_convex n r) x
   have htri : ∑ k : Fin n, |x k| ≤ ∑ k : Fin n, |s k| + ∑ k : Fin n, |(x - s) k| := by
     rw [← sum_add_distrib]
-    refine sum_le_sum fun k _ => ?_
-    have : x k = s k + (x - s) k := by simp
-    conv_lhs => rw [this]
-    exact abs_add_le _ _
-  have hcs := sum_abs_le_sqrt_mul_norm (x - s)
+    exact sum_le_sum fun k _ => by simpa using abs_add_le (s k) (x k - s k)
   have h1 : ∑ k : Fin n, |s k| ≤ r := hs_mem
-  rw [show ‖x - s‖ = distToSet (l1Ball n r) x from rfl] at hcs
+  have hcs : ∑ k : Fin n, |(x - s) k| ≤ Real.sqrt n * distToSet (l1Ball n r) x :=
+    sum_abs_le_sqrt_mul_norm (x - s)
   linarith
 
 /-- Rounding any `μ ∈ [0, 1]` to the nearest grid point `i / K` gives error `≤ 1 / (2 * K)`. -/
@@ -523,37 +516,25 @@ theorem fosterVohra_expected_calError_le {K : ℕ} (hK : 0 < K)
     expectHistory ((fosterVohraRule K).toStrategy (calPayoff K) adv) T []
         (empiricalCalError K adv) ≤
       1 / (2 * (K : ℝ)) + 2 * Real.sqrt (((K + 1 : ℕ) : ℝ) / (T : ℝ)) := by
-  have hKpos : (0 : ℝ) < (K : ℝ) := Nat.cast_pos.mpr hK
   have hrnn : 0 ≤ 1 / (2 * (K : ℝ)) := by positivity
   set S := l1Ball (K + 1) (1 / (2 * (K : ℝ)))
   set strat := (fosterVohraRule K).toStrategy (calPayoff K) adv
-  have hbound : expectHistory strat T [] (empiricalCalError K adv) ≤
-      1 / (2 * (K : ℝ)) + Real.sqrt (K + 1 : ℕ) *
-        expectHistory strat T []
-          (fun h => distToSet S ((T : ℝ)⁻¹ • sumPayoff (calPayoff K) adv h)) := by
-    have hpt : ∀ h : List (Fin (K + 1)), h.length = ([] : List (Fin (K + 1))).length + T →
-        empiricalCalError K adv h ≤ 1 / (2 * (K : ℝ)) +
-          Real.sqrt (K + 1 : ℕ) * distToSet S ((T : ℝ)⁻¹ • sumPayoff (calPayoff K) adv h) := by
-      intro h hh
-      have hlen : h.length = T := by simpa using hh
-      rw [empiricalCalError, hlen]
+  have hbound := expectHistory_mono strat (t := T) (h := [])
+    (f := empiricalCalError K adv)
+    (g := fun h => 1 / (2 * (K : ℝ)) +
+      Real.sqrt (K + 1 : ℕ) * distToSet S ((T : ℝ)⁻¹ • sumPayoff (calPayoff K) adv h))
+    fun h hh => by
+      rw [empiricalCalError, show h.length = T by simpa using hh]
       exact sum_abs_le_add_sqrt_mul_distToSet hrnn _
-    have hm := expectHistory_mono strat hpt
-    rw [expectHistory_add, expectHistory_const, expectHistory_smul] at hm
-    exact hm
+  rw [expectHistory_add, expectHistory_const, expectHistory_smul] at hbound
   have hdist := blackwell_expect_dist_le (l1Ball_isComplete (K + 1) _) (l1Ball_convex (K + 1) _)
     (zero_mem_l1Ball hrnn) (calPayoff K) zero_le_one
     (fun i b => by simpa using norm_calPayoff_le_one hK i b)
     strat adv (fun h _ => fosterVohraRule_halfspace hK _ (adv h)) T hT
-  have hmul : Real.sqrt (K + 1 : ℕ) *
-        expectHistory strat T []
-          (fun h => distToSet S ((T : ℝ)⁻¹ • sumPayoff (calPayoff K) adv h)) ≤
-      Real.sqrt (K + 1 : ℕ) * (2 * 1 / Real.sqrt T) :=
-    mul_le_mul_of_nonneg_left hdist (Real.sqrt_nonneg _)
+  have hmul := mul_le_mul_of_nonneg_left hdist (Real.sqrt_nonneg (K + 1 : ℕ))
   have hre : Real.sqrt (K + 1 : ℕ) * (2 * 1 / Real.sqrt T) =
       2 * Real.sqrt (((K + 1 : ℕ) : ℝ) / (T : ℝ)) := by
-    rw [Real.sqrt_div (Nat.cast_nonneg _)]
-    ring
+    rw [Real.sqrt_div (Nat.cast_nonneg _)]; ring
   linarith
 
 /-- **Foster–Vohra high-probability calibration tail bound** [FosterVohra1998]: whenever `ε`
@@ -642,33 +623,21 @@ theorem exists_calibrated_forecaster {ε δ : ℝ} (hε : 0 < ε) (hδ : 0 < δ)
     have hT_bd : 16 * ((K + 1 : ℕ) : ℝ) / ε ^ 2 ≤ (T : ℝ) :=
       (Nat.le_ceil _).trans (Nat.cast_le.mpr ((le_max_left _ _).trans hT))
     have hsqrt : Real.sqrt (((K + 1 : ℕ) : ℝ) / (T : ℝ)) ≤ ε / 4 := by
-      have hsq : ((K + 1 : ℕ) : ℝ) / (T : ℝ) ≤ (ε / 4) ^ 2 := by
-        rw [div_le_iff₀ hTr]
-        have hmul := (div_le_iff₀ (sq_pos_of_pos hε)).mp hT_bd
-        linarith [show (ε / 4) ^ 2 * (T : ℝ) = (ε ^ 2 * (T : ℝ)) / 16 by ring]
-      have hs := Real.sqrt_le_sqrt hsq
-      rwa [Real.sqrt_sq (by positivity)] at hs
-    have hex := fosterVohra_expected_calError_le hK adv hTpos
-    linarith
+      rw [Real.sqrt_le_left (by positivity), div_le_iff₀ hTr]
+      have hmul := (div_le_iff₀ (sq_pos_of_pos hε)).mp hT_bd
+      nlinarith
+    linarith [fosterVohra_expected_calError_le hK adv hTpos]
   · have hTpos : 0 < T := lt_of_lt_of_le hT₀ hT
     have hTr : (0 : ℝ) < (T : ℝ) := Nat.cast_pos.mpr hTpos
     have hT_bd : 16 * ((K + 1 : ℕ) : ℝ) / (δ * ε ^ 2) ≤ (T : ℝ) :=
       (Nat.le_ceil _).trans (Nat.cast_le.mpr ((le_max_right _ _).trans hT))
     have hgap : (3 / 4 : ℝ) * ε ≤ ε - 1 / (2 * (K : ℝ)) := by linarith
     have hgap_sq : (9 / 16 : ℝ) * ε ^ 2 ≤ (ε - 1 / (2 * (K : ℝ))) ^ 2 := by
-      have := pow_le_pow_left₀ (by positivity : 0 ≤ (3 / 4 : ℝ) * ε) hgap 2
-      linarith [show ((3 / 4 : ℝ) * ε) ^ 2 = (9 / 16 : ℝ) * ε ^ 2 by ring]
-    have hprob := fosterVohra_prob_calError_ge_le hK adv hTpos hgrid_lt
-    have hnum : 4 * ((K + 1 : ℕ) : ℝ) / ((T : ℝ) * (ε - 1 / (2 * (K : ℝ))) ^ 2) ≤ δ := by
-      rw [div_le_iff₀ (mul_pos hTr (sq_pos_of_pos (sub_pos.mpr hgrid_lt)))]
-      have hmul : 16 * ((K + 1 : ℕ) : ℝ) ≤ (T : ℝ) * (δ * ε ^ 2) := by
-        have := (div_le_iff₀ (mul_pos hδ (sq_pos_of_pos hε))).mp hT_bd
-        linarith
-      have h2 : δ * (T : ℝ) * ((9 / 16 : ℝ) * ε ^ 2) ≤
-          δ * (T : ℝ) * (ε - 1 / (2 * (K : ℝ))) ^ 2 :=
-        mul_le_mul_of_nonneg_left hgap_sq (by positivity)
-      nlinarith
-    exact hprob.trans hnum
+      nlinarith [pow_le_pow_left₀ (by positivity : 0 ≤ (3 / 4 : ℝ) * ε) hgap 2]
+    refine (fosterVohra_prob_calError_ge_le hK adv hTpos hgrid_lt).trans
+      ((div_le_iff₀ (mul_pos hTr (sq_pos_of_pos (sub_pos.mpr hgrid_lt)))).mpr ?_)
+    have hmul := (div_le_iff₀ (mul_pos hδ (sq_pos_of_pos hε))).mp hT_bd
+    nlinarith [mul_le_mul_of_nonneg_left hgap_sq (by positivity : 0 ≤ δ * (T : ℝ))]
 
 end GridCalibration
 

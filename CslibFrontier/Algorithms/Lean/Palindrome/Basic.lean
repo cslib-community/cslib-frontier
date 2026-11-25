@@ -110,22 +110,15 @@ theorem isPalRadius_succ_iff {w : List α} {c k : ℕ} (hk : IsPalRadius w c k) 
   rw [show c / 2 - k - 1 = c / 2 - (k + 1) by omega,
     show (c + 1) / 2 + k + 1 = (c + 1) / 2 + (k + 1) by omega] at hiff
   rw [show c / 2 - k - 1 = c / 2 - (k + 1) by omega]
-  constructor
-  · intro h
-    exact (hiff.mp h.2.2).2
-  · intro h
-    exact ⟨by omega, by omega, hiff.mpr ⟨hpal, h⟩⟩
+  exact ⟨fun h => (hiff.mp h.2.2).2, fun h => ⟨by omega, by omega, hiff.mpr ⟨hpal, h⟩⟩⟩
 
 variable [DecidableEq α]
 
 /-- The palindromic radii about a center `c ≤ 2 * w.length` are exactly `0, …, radius w c`. -/
 theorem isPalRadius_iff_le_radius {w : List α} {c k : ℕ} (hc : c ≤ 2 * w.length) :
-    IsPalRadius w c k ↔ k ≤ radius w c := by
-  constructor
-  · intro h
-    exact Nat.le_findGreatest (by have := h.2.1; omega) h
-  · intro h
-    exact (Nat.findGreatest_spec (Nat.zero_le _) (isPalRadius_zero hc)).mono h
+    IsPalRadius w c k ↔ k ≤ radius w c :=
+  ⟨fun h => Nat.le_findGreatest (by have := h.2.1; omega) h,
+    (Nat.findGreatest_spec (Nat.zero_le _) (isPalRadius_zero hc)).mono⟩
 
 theorem radius_eq_zero_of_length_lt {w : List α} {c : ℕ} (hc : 2 * w.length < c) :
     radius w c = 0 := by
@@ -273,15 +266,13 @@ theorem length_le_longestPalindrome {w u : List α} (hu : u <:+: w) (hpal : u.Pa
     u.length ≤ (longestPalindrome w).length := by
   obtain ⟨c, hc, hlen⟩ := exists_length_le_radius_of_isInfix hu hpal
   set f : ℕ → ℕ := fun c => 2 * radius w c + c % 2
-  have hne : (List.range (2 * w.length + 1)).argmax f ≠ none := by
-    rw [Ne, List.argmax_eq_none, List.range_eq_nil]
-    omega
-  obtain ⟨m, hm⟩ := Option.ne_none_iff_exists'.mp hne
+  obtain ⟨m, hm⟩ := Option.ne_none_iff_exists'.mp
+    (show (List.range (2 * w.length + 1)).argmax f ≠ none by simp)
   have hmem : m ∈ List.range (2 * w.length + 1) := List.argmax_mem hm
   have hle : f c ≤ f m := List.le_of_mem_argmax (List.mem_range.mpr (by omega)) hm
-  have hbest : bestCenter w = m := congrArg (fun o => Option.getD o 0) hm
-  rw [longestPalindrome, hbest, length_maxPalindrome w (by rw [List.mem_range] at hmem; omega)]
-  exact le_trans hlen hle
+  rw [longestPalindrome, show bestCenter w = m from congrArg (Option.getD · 0) hm,
+    length_maxPalindrome w (by rw [List.mem_range] at hmem; omega)]
+  exact hlen.trans hle
 
 /-- Palindromic prefixes are read off the radii: for `k ≤ w.length`, the prefix `w.take k` is a
 palindrome iff the maximal palindrome about center `k` reaches the start of `w`. -/

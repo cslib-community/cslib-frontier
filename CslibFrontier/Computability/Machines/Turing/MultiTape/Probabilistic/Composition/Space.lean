@@ -78,7 +78,8 @@ private theorem buffer_window {k₀ : ℕ} {State₀ : Type}
     induction i using Fin.addCases with
     | left _ => simp [reserve, Config.embed, MultiTapeTM.embed_natAdd, mem_window]
     | right i => simpa [reserve, Config.embed, MultiTapeTM.embed_natAdd] using hheads i
-  | right i => fin_cases i <;> simp [mem_window, hword]
+  | right i =>
+    fin_cases i <;> simp [mem_window, hword]
 
 private theorem consumer_replay_exists {k₀ k₁ : ℕ} {State₀ State₁ : Type}
     (second : MultiTapePTM k₁ Symbol State₁) (mark : Symbol)

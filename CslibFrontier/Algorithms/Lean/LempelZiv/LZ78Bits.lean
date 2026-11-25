@@ -129,7 +129,8 @@ private theorem length_lt_length_pairsToBits (e : α ≃ Fin k) (hk : 2 ≤ k) (
     (ps : List (ℕ × α)) : ps.length ≤ (pairsToBits e i ps).length := by
   have hb : 1 ≤ Nat.clog 2 k := Nat.clog_pos (by norm_num) hk
   rw [length_pairsToBits]
-  simpa using Finset.sum_le_sum (s := Finset.range ps.length) fun _ _ => (by omega : 1 ≤ _)
+  calc ps.length = ∑ _j ∈ Finset.range ps.length, 1 := by simp
+    _ ≤ _ := Finset.sum_le_sum fun _ _ => by omega
 
 private theorem bitsToPairs_pairsToBits (e : α ≃ Fin k) (hk : 2 ≤ k) (ps : List (ℕ × α))
     (i fuel : ℕ) (hp : PointersLt i ps) (hfuel : ps.length < fuel) :
@@ -200,6 +201,7 @@ theorem length_encodeBits_le_mul_add [DecidableEq α] (e : α ≃ Fin k) (hk : 2
   set L := Nat.log k c
   have hlog : c * L ≤ x.length + 2 * c := by
     simpa only [L, c, hcard] using length_parse_mul_log_le x
+  -- `⌈log₂ c⌉ ≤ b (L + 1)`, since `c < k ^ (L + 1) ≤ 2 ^ (b (L + 1))`.
   have hclog : Nat.clog 2 c ≤ b * (L + 1) := Nat.clog_le_of_le_pow <| calc
     c ≤ k ^ (L + 1) := (Nat.lt_pow_succ_log_self (by omega) c).le
     _ ≤ (2 ^ b) ^ (L + 1) := Nat.pow_le_pow_left (Nat.le_pow_clog (by norm_num) k) _

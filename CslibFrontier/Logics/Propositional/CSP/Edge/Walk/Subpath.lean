@@ -42,13 +42,10 @@ theorem InternallyConsistent.reverse {v : V} {ss : List (Occurrence F × Occurre
   | cons s ss ih =>
     rcases s with ⟨o, p⟩
     rw [List.reverse_cons, List.map_append]
-    apply (ih hl.2.2 hc.2).snoc (finishFrom p.var ss) p o
-    rcases hc.1 with he | he
-    · subst ss
-      exact Or.inl rfl
-    · apply Or.inr
-      rw [hl.2.2.finishFrom_reverse]
-      exact he
+    refine (ih hl.2.2 hc.2).snoc (finishFrom p.var ss) p o ?_
+    rcases hc.1 with rfl | he
+    · exact Or.inl rfl
+    · exact Or.inr (hl.2.2.finishFrom_reverse.symm ▸ he)
 
 /-- Remove the first `n` steps, starting at the endpoint of that prefix. -/
 @[expose] def drop (w : Walk F) (n : ℕ) : Walk F :=
@@ -109,21 +106,16 @@ theorem IsWalk.flip_take_succ {w : Walk F} (hw : w.IsWalk)
     (f : OccurrenceLabeling F Bool) {k : ℕ} (hk : k < w.steps.length) :
     (w.take (k + 1)).flip f =
       DAG.pairFlip ((w.take k).flip f) w.steps[k].1 w.steps[k].2 := by
-  have hn := (hw.take (k + 1)).2
-  change (edgesOf (w.steps.take (k + 1))).Nodup at hn
+  have hn : (edgesOf (w.steps.take (k + 1))).Nodup := (hw.take (k + 1)).2
   rw [List.take_succ_eq_append_getElem hk, edgesOf_append] at hn
   have hp := List.nodup_append.mp hn
   have hne : w.steps[k].1 ≠ w.steps[k].2 := by simpa [edgesOf] using hp.2.1
-  have hno : w.steps[k].1 ∉ (w.take k).edges := by
-    intro hm
-    exact hp.2.2 _ hm _ (by simp [edgesOf]) rfl
-  have hnp : w.steps[k].2 ∉ (w.take k).edges := by
-    intro hm
-    exact hp.2.2 _ hm _ (by simp [edgesOf]) rfl
-  have he : w.take (k + 1) = (w.take k).snoc w.steps[k].1 w.steps[k].2 := by
-    apply congrArg (Walk.mk w.start)
-    exact List.take_succ_eq_append_getElem hk
-  rw [he, flip_snoc _ f _ _ (hw.take k) hno hnp hne, DAG.pairFlip_eq _ hne]
+  have htake : w.take (k + 1) = (w.take k).snoc w.steps[k].1 w.steps[k].2 :=
+    congrArg (Walk.mk w.start) (List.take_succ_eq_append_getElem hk)
+  rw [htake,
+    flip_snoc _ f _ _ (hw.take k) (fun hm => hp.2.2 _ hm _ (by simp [edgesOf]) rfl)
+      (fun hm => hp.2.2 _ hm _ (by simp [edgesOf]) rfl) hne,
+    DAG.pairFlip_eq _ hne]
 
 /-- Join two disjoint trails at a fresh constraint step, traversing the second trail in
 reverse. Prefix validity is a separate theorem about directed DAG paths. -/
@@ -132,18 +124,14 @@ theorem IsWalk.join_meeting {w z : Walk F} (hw : w.IsWalk) (hz : z.IsWalk)
     (hc : a.1 = b.1) (hne : a ≠ b) (hd : List.Disjoint w.edges z.edges)
     (haw : a ∉ w.edges) (hbw : b ∉ w.edges) (haz : a ∉ z.edges) (hbz : b ∉ z.edges) :
     ((w.snoc a b).append z.reverse).IsWalk := by
-  apply (hw.snoc ha hc hne haw hbw).append hz.reverse
-  · rw [finish_snoc]
-    exact hb
-  · intro o ho hz'
-    rw [edges_reverse, List.mem_reverse] at hz'
-    change o ∈ edgesOf (w.steps ++ [(a, b)]) at ho
-    rw [edgesOf_append] at ho
-    rcases List.mem_append.mp ho with ho | ho
-    · exact hd ho hz'
-    · rcases (show o = a ∨ o = b by simpa [edgesOf] using ho) with rfl | rfl
-      · exact haz hz'
-      · exact hbz hz'
+  refine (hw.snoc ha hc hne haw hbw).append hz.reverse (finish_snoc w a b ▸ hb) fun o ho hz' => ?_
+  rw [edges_reverse, List.mem_reverse] at hz'
+  change o ∈ edgesOf (w.steps ++ [(a, b)]) at ho
+  rw [edgesOf_append] at ho
+  rcases List.mem_append.mp ho with ho | ho
+  · exact hd ho hz'
+  · rcases (show o = a ∨ o = b by simpa [edgesOf] using ho) with rfl | rfl
+    exacts [haz hz', hbz hz']
 
 /-- Joining at the second trail's endpoint and reading it backward ends at its start. -/
 theorem finish_join_meeting (w z : Walk F) (a b : Occurrence F)
@@ -172,8 +160,8 @@ theorem DirectedPath.mem_copies [DecidableEq V] {T : DAG F} {w : Walk F}
     (hp : DirectedPath T w time) {c : Copy F} :
     c ∈ (pathDAG w time).copies ↔ ∃ s ∈ w.steps, (inArc time s).copy = c := by
   classical
-  have hcopy : ∀ s ∈ w.steps, (outArc time s).copy = (inArc time s).copy := by
-    intro s hs
+  have hcopy (s : Occurrence F × Occurrence F) (hs : s ∈ w.steps) :
+      (outArc time s).copy = (inArc time s).copy := by
     obtain ⟨ss, ts, he⟩ := List.mem_iff_append.mp hs
     have hl := hp.walk.1
     rw [he, Walk.linked_append_iff] at hl
@@ -182,8 +170,7 @@ theorem DirectedPath.mem_copies [DecidableEq V] {T : DAG F} {w : Walk F}
     Finset.mem_insert, Finset.mem_singleton]
   constructor
   · rintro ⟨a, ⟨s, hs, rfl | rfl⟩, rfl⟩
-    · exact ⟨s, hs, rfl⟩
-    · exact ⟨s, hs, (hcopy s hs).symm⟩
+    exacts [⟨s, hs, rfl⟩, ⟨s, hs, (hcopy s hs).symm⟩]
   · rintro ⟨s, hs, rfl⟩
     exact ⟨inArc time s, ⟨s, hs, Or.inl rfl⟩, rfl⟩
 
@@ -248,29 +235,26 @@ theorem meeting_flip_eq [DecidableEq V] (w z : Walk F)
     (timeW timeZ : Occurrence F → ℕ) (a b : Arc F) (f : OccurrenceLabeling F Bool) :
     ((((pathDAG w timeW).union (pathDAG z timeZ)).union (terminalPair a b)).flip f) =
       ((w.snoc a.occurrence b.occurrence).append z.reverse).flip f := by
-  have image_path : ∀ (q : Walk F) (time : Occurrence F → ℕ),
+  have image_path (q : Walk F) (time : Occurrence F → ℕ) :
       (pathArcs q time).image Arc.occurrence = q.edges.toFinset := by
-    intro q time
     ext o
     simp only [pathArcs, Finset.mem_image, Finset.mem_biUnion, List.mem_toFinset,
       Finset.mem_insert, Finset.mem_singleton, Walk.edges, Walk.edgesOf, List.mem_flatMap]
-    constructor
-    · rintro ⟨e, ⟨s, hs, rfl | rfl⟩, rfl⟩ <;> exact ⟨s, hs, by simp [inArc, outArc]⟩
-    · rintro ⟨s, hs, ho⟩
-      rcases (show o = s.1 ∨ o = s.2 by simpa using ho) with rfl | rfl
-      · exact ⟨inArc time s, ⟨s, hs, Or.inl rfl⟩, rfl⟩
-      · exact ⟨outArc time s, ⟨s, hs, Or.inr rfl⟩, rfl⟩
+    refine ⟨?_, fun ⟨s, hs, ho⟩ => ?_⟩
+    · rintro ⟨_, ⟨s, hs, rfl | rfl⟩, rfl⟩ <;> exact ⟨s, hs, by simp [inArc, outArc]⟩
+    · rcases (show o = s.1 ∨ o = s.2 by simpa using ho) with rfl | rfl
+      exacts [⟨inArc time s, ⟨s, hs, Or.inl rfl⟩, rfl⟩,
+        ⟨outArc time s, ⟨s, hs, Or.inr rfl⟩, rfl⟩]
   unfold DAG.flip
   simp only [DAG.union, terminalPair, pathDAG, Finset.image_union, image_path,
     Finset.image_insert, Finset.image_singleton]
-  apply congrArg (fun s => BitString.flipOn s f)
+  refine congrArg (fun s => BitString.flipOn s f) ?_
   rw [Walk.edges_append, Walk.edges_reverse]
   change _ = (Walk.edgesOf (w.steps ++ [(a.occurrence, b.occurrence)]) ++ z.edges.reverse).toFinset
   rw [Walk.edgesOf_append]
-  simp only [List.toFinset_append, List.toFinset_reverse]
-  have hsingle : (Walk.edgesOf [(a.occurrence, b.occurrence)]).toFinset =
+  have hpair : (Walk.edgesOf [(a.occurrence, b.occurrence)]).toFinset =
       {a.occurrence, b.occurrence} := by simp [Walk.edgesOf]
-  rw [hsingle]
+  simp only [List.toFinset_append, List.toFinset_reverse, hpair]
   change w.edges.toFinset ∪ z.edges.toFinset ∪ {a.occurrence, b.occurrence} =
     (w.edges.toFinset ∪ {a.occurrence, b.occurrence}) ∪ z.edges.toFinset
   ext o
@@ -292,9 +276,9 @@ theorem DirectedPath.valid_take_meeting [DecidableEq V] {sem : Rel → List Bool
     (hzfresh : a.copy ∉ (pathDAG z timeZ).copies) (n : ℕ) :
     ValidLabeling sem ((((w.snoc a.occurrence b.occurrence).append z.reverse).take n).flip f) := by
   by_cases hn : n ≤ w.steps.length
-  · have he : ((w.snoc a.occurrence b.occurrence).append z.reverse).take n = w.take n := by
-      apply congrArg (Walk.mk w.start)
-      simp [Walk.append, Walk.snoc, List.take_append, Nat.sub_eq_zero_of_le hn]
+  · have he : ((w.snoc a.occurrence b.occurrence).append z.reverse).take n = w.take n :=
+      congrArg (Walk.mk w.start) <| by
+        simp [Walk.append, Walk.snoc, List.take_append, Nat.sub_eq_zero_of_le hn]
     rw [he]
     exact hw.valid_take h hM n
   · let k := z.steps.length - (n - (w.steps.length + 1))
@@ -306,13 +290,14 @@ theorem DirectedPath.valid_take_meeting [DecidableEq V] {sem : Rel → List Bool
       simp only [List.length_append, List.length_singleton]
       omega
     have he : ((w.snoc a.occurrence b.occurrence).append z.reverse).take n =
-        (w.snoc a.occurrence b.occurrence).append (z.drop k).reverse := by
-      apply congrArg (Walk.mk w.start)
-      change ((w.steps ++ [(a.occurrence, b.occurrence)]) ++ z.steps.reverse.map Prod.swap).take n =
-        (w.steps ++ [(a.occurrence, b.occurrence)]) ++ (z.steps.drop k).reverse.map Prod.swap
-      rw [List.take_append, List.take_of_length_le hlen, ← List.map_take, List.take_reverse]
-      simp only [List.length_append, List.length_singleton]
-      rfl
+        (w.snoc a.occurrence b.occurrence).append (z.drop k).reverse :=
+      congrArg (Walk.mk w.start) <| by
+        change ((w.steps ++ [(a.occurrence, b.occurrence)]) ++
+            z.steps.reverse.map Prod.swap).take n =
+          (w.steps ++ [(a.occurrence, b.occurrence)]) ++ (z.steps.drop k).reverse.map Prod.swap
+        rw [List.take_append, List.take_of_length_le hlen, ← List.map_take, List.take_reverse]
+        simp only [List.length_append, List.length_singleton]
+        rfl
     rwa [he]
 
 end DAG

@@ -121,8 +121,9 @@ private theorem state_length_iterate_le (enc : α ↪ List Bool) (mass : α → 
   induction n with
   | zero => simp
   | succ n ih =>
-    have := state_length_step_le enc mass depth ((step mass depth)^[n] s)
-    rw [Function.iterate_succ_apply']; omega
+    rw [Function.iterate_succ_apply']
+    have hstep := state_length_step_le enc mass depth ((step mass depth)^[n] s)
+    omega
 
 private def finish (depth : α → ℕ) (p : State α × ℕ) : State α :=
   if p.1.2.1.length < depth p.1.1 then
@@ -206,25 +207,33 @@ theorem nativeCertificate_expTimePolySpace {enc : α ↪ List Bool}
   obtain ⟨C, d, hround⟩ := stepCertificate_expTimePolySpace hd cm hm
   let B a := (stateEncoding enc (a, ([] : List Bool), rank a)).length + 2 * depth a
   have hinitial := (initial_polyTime hr).polyBounded_length
-  have hB : PolyBounded (fun a => (enc a).length) B := by dsimp only [B]; growth_poly
+  have hB : PolyBounded (fun a => (enc a).length) B := by
+    dsimp only [B]
+    growth_poly
   have hfactor : PolyBounded (fun a => (enc a).length) (fun a => C * (B a + 1) ^ d) := by
     growth_poly
   have hstate (a : α) (j : ℕ) (hj : j ≤ depth a) :
       (stateEncoding enc ((step mass depth)^[j] (a, [], rank a))).length ≤ B a :=
-    (state_length_iterate_le enc mass depth j _).trans
+    (state_length_iterate_le enc mass depth j (a, [], rank a)).trans
       (Nat.add_le_add_left (Nat.mul_le_mul_left 2 hj) _)
-  exact NativeCertificate.ExpTimePolySpace.iterate_of_bounds
+  have hloop := NativeCertificate.ExpTimePolySpace.iterate_of_bounds
     (NativeCertificate.ofPolyTime hd) (NativeCertificate.ofPolyTime (initial_polyTime hr))
     (stepCertificate hd cm) (NativeCertificate.ofPolyTime_isPolynomial hd)
     (NativeCertificate.ofPolyTime_isPolynomial (initial_polyTime hr))
-    hdepth hfactor hfactor hB (E := E)
+    hdepth hfactor hfactor hB
+    (R := fun a => C * (B a + 1) ^ d) (Q := fun a => C * (B a + 1) ^ d)
+    (E := E)
     (fun a j hj => by
       have h := (hround ((step mass depth)^[j] (a, [], rank a))).1
       simp only [iterate_step_input] at h
-      exact h.trans ((Nat.mul_le_mul_left _
-        (Nat.pow_le_pow_left (Nat.add_le_add_right (hstate a j hj) 1) d)).trans_eq (by ring)))
+      calc _ ≤ C * 2 ^ E a *
+            ((stateEncoding enc ((step mass depth)^[j] (a, [], rank a))).length + 1) ^ d := h
+        _ ≤ C * 2 ^ E a * (B a + 1) ^ d :=
+            Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (Nat.add_le_add_right (hstate a j hj) 1) d)
+        _ = _ := by ring)
     (fun a j hj => (hround ((step mass depth)^[j] (a, [], rank a))).2.trans
       (Nat.mul_le_mul_left C (Nat.pow_le_pow_left (Nat.add_le_add_right (hstate a j hj) 1) d)))
     hstate
+  exact hloop
 
 end Cslib.BitString.RankDecoder

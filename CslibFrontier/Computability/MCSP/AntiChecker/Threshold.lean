@@ -285,8 +285,9 @@ theorem consistent_greedy_eq_empty (ho : IsThresholdOracle G eval ℓ O)
     consistent G eval (greedy O f cands (L * ℓ + 1) []) = ∅ := by
   refine consistent_greedy_succ_eq_empty ho hgood (L * ℓ) [] hℓ ?_
   rw [consistent_nil]
-  exact (Nat.pow_le_pow_left hG ℓ).trans_lt
-    (pow_mul 2 L ℓ ▸ Nat.pow_lt_pow_right (by decide) (by omega))
+  calc #G ^ ℓ ≤ (2 ^ L) ^ ℓ := Nat.pow_le_pow_left hG ℓ
+    _ = 2 ^ (L * ℓ) := (pow_mul 2 L ℓ).symm
+    _ < 2 ^ (L * ℓ + 2) := Nat.pow_lt_pow_right (by decide) (by omega)
 
 end Greedy
 
@@ -339,7 +340,8 @@ theorem isLarge_of_card (h : 2 ^ (u + 1) ≤ #T) : IsLarge u T :=
 
 /-- Sets large at threshold `u` have at least `2 ^ u / (u + 1)` strings. -/
 theorem IsLarge.two_pow_le (h : IsLarge u T) : 2 ^ u ≤ (u + 1) * #T :=
-  let ⟨_, hc⟩ := h; BitString.card ▸ hc.card_le_mul
+  let ⟨_, hc⟩ := h
+  BitString.card ▸ hc.card_le_mul
 
 /-- At threshold `0`, the large sets are the nonempty ones. -/
 theorem isLarge_zero_iff : IsLarge 0 T ↔ T.Nonempty :=

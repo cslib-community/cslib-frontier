@@ -661,7 +661,8 @@ theorem IsStrategyProof.isClosed_optionSet (hf : f.IsStrategyProof)
       ((Subtype.val '' f.optionSet P i) ∩ Set.Ici z) := by
     ext t
     simp only [Set.mem_union, Set.mem_inter_iff, Set.mem_Iic, Set.mem_Ici]
-    exact ⟨fun ht => (le_total t z).imp (⟨ht, ·⟩) (⟨ht, ·⟩), fun h => h.elim And.left And.left⟩
+    exact ⟨fun ht => (le_total t z).imp (⟨ht, ·⟩) (⟨ht, ·⟩),
+      fun h => h.elim And.left And.left⟩
   rw [hsplit, closure_union] at hz
   rcases hz with hzL | hzR
   · let P_L := Function.update P i (Preference.preferLeft zPt)

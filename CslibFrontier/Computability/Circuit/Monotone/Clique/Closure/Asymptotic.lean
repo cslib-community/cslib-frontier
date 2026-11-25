@@ -139,9 +139,9 @@ theorem two_pow_lt_size_of_separates {n k g l : ℕ} (hl : 2 ≤ l) (hg : 2 * l 
     {C : Circuit signature (edgeCount n) 1}
     (hC : Separates k g fun x => C.eval interpretation x 0) : 2 ^ l < C.size := by
   have hb : n + 1 ≤ 2 ^ (Nat.log 2 n + 1) := Nat.lt_pow_succ_log_self (by norm_num) n
-  have hr1 : l * (Nat.log 2 n + 2) + 2 - 1 ≤ l * (Nat.log 2 n + 3) := by
-    have : l * (Nat.log 2 n + 3) = l * (Nat.log 2 n + 2) + l := by ring
-    omega
+  have hr1 : l * (Nat.log 2 n + 2) + 2 - 1 ≤ l * (Nat.log 2 n + 3) :=
+    calc l * (Nat.log 2 n + 2) + 2 - 1 ≤ l * (Nat.log 2 n + 2) + l := by omega
+      _ = l * (Nat.log 2 n + 3) := by ring
   have hr : 8 * (l * (Nat.log 2 n + 2) + 2 - 1) * k ≤ n := by
     refine le_trans ?_ hn
     rw [mul_assoc 8 l]
