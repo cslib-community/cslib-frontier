@@ -352,11 +352,7 @@ private theorem exists_threeTensorHard_eventually (K : Type*) [Field K] {U : Typ
   push_cast
   have hr_le : (r : ℝ) ≤ (q : ℝ) ^ ((2 / 3 - δ) * (n : ℝ)) :=
     Nat.floor_le (by positivity)
-  have hdiv3 : ((n / 3 : ℕ) : ℝ) ≤ (n : ℝ) / 3 := by
-    have hnat : 3 * (n / 3) ≤ n := Nat.mul_div_le n 3
-    have hcast : ((3 * (n / 3) : ℕ) : ℝ) ≤ (n : ℝ) := Nat.cast_le.mpr hnat
-    push_cast at hcast
-    linarith only [hcast]
+  have hdiv3 : ((n / 3 : ℕ) : ℝ) ≤ (n : ℝ) / 3 := by exact_mod_cast Nat.cast_div_le
   have hqn3 : (q : ℝ) ^ (n / 3 + 2 : ℕ) ≤ (q : ℝ) ^ 2 * (q : ℝ) ^ ((n : ℝ) / 3) := by
     rw [pow_add, mul_comm _ ((q : ℝ) ^ 2), ← Real.rpow_natCast (q : ℝ) (n / 3)]
     exact mul_le_mul_of_nonneg_left (Real.rpow_le_rpow_of_exponent_le hq_real_gt1.le hdiv3)
@@ -399,12 +395,9 @@ private theorem exists_threeTensorHard_eventually (K : Type*) [Field K] {U : Typ
       linarith only [hm1, show (q : ℝ) * (2 * (n : ℝ)) *
         (3 * (q : ℝ) ^ 2 * ((q : ℝ) ^ n / b ^ n)) =
         6 * (q : ℝ) ^ 3 * (n : ℝ) * ((q : ℝ) ^ n / b ^ n) by ring]
-    have hn_le_sq : (n : ℝ) ≤ (n : ℝ) ^ 2 := by
-      have hn_ge1 : (1 : ℝ) ≤ (n : ℝ) := by
-        have : (4 : ℝ) ≤ (n : ℝ) := Nat.cast_le.mpr hn4; linarith
-      nlinarith only [hn_ge1]
-    have hq3_le_q5 : (q : ℝ) ^ 3 ≤ (q : ℝ) ^ 5 := by
-      exact pow_le_pow_right₀ hq_real_gt1.le (by norm_num)
+    have hn_le_sq : (n : ℝ) ≤ (n : ℝ) ^ 2 :=
+      le_self_pow₀ (by exact_mod_cast (by omega : 1 ≤ n)) two_ne_zero
+    have hq3_le_q5 : (q : ℝ) ^ 3 ≤ (q : ℝ) ^ 5 := pow_le_pow_right₀ hq_real_gt1.le (by norm_num)
     have hfrac_lt : 6 * (q : ℝ) ^ 3 * (n : ℝ) / b ^ n < 1 / 2 := by
       rw [div_lt_iff₀ (pow_pos (by positivity : 0 < b) n)]
       have hle_n2 : 6 * (q : ℝ) ^ 3 * (n : ℝ) ≤ 6 * (q : ℝ) ^ 5 * (n : ℝ) ^ 2 := by
@@ -946,16 +939,12 @@ private theorem exists_rebalanced_coloring {σ : Signature} {n : ℕ} (c : Circu
             fin_cases x <;> simp
           rw [Fin.sum_univ_three, Fin.sum_univ_three]
           rcases hk_cases k_lo with rfl | rfl | rfl <;>
-            rcases hk_cases k_hi with rfl | rfl | rfl
-          · exact absurd rfl hlo_ne_hi
-          · have h2 := hcard_other 2 (by decide) (by decide); omega
-          · have h1 := hcard_other 1 (by decide) (by decide); omega
-          · have h2 := hcard_other 2 (by decide) (by decide); omega
-          · exact absurd rfl hlo_ne_hi
-          · have h0 := hcard_other 0 (by decide) (by decide); omega
-          · have h1 := hcard_other 1 (by decide) (by decide); omega
-          · have h0 := hcard_other 0 (by decide) (by decide); omega
-          · exact absurd rfl hlo_ne_hi
+            rcases hk_cases k_hi with rfl | rfl | rfl <;>
+            first
+            | exact absurd rfl hlo_ne_hi
+            | have := hcard_other 0 (by decide) (by decide); omega
+            | have := hcard_other 1 (by decide) (by decide); omega
+            | have := hcard_other 2 (by decide) (by decide); omega
         have hcut_step (k : Fin 3) :
             ((Compiler.graph c).edgeCut {v | col₁ v = k} ∩
               (Compiler.graph c).edgeCut {v | col₁ v = k + 1}).ncard ≤
@@ -994,14 +983,8 @@ private theorem exists_balanced_rank_of_read_ncard (K : Type*) [CommSemiring K]
   let U_fin := (R_setᶜ).toFinset
   have hcard_R : R_fin.card = m := (Set.ncard_eq_toFinset_card' R_set).symm
   have hcard_RU : R_fin.card + U_fin.card = n := by
-    have hd : Disjoint R_fin U_fin := by
-      refine Finset.disjoint_left.mpr fun i h1 h2 => ?_
-      rw [Set.mem_toFinset] at h1 h2; exact h2 h1
-    have hu : R_fin ∪ U_fin = Finset.univ := by
-      ext i; simp [R_fin, U_fin]
-    have hc := Finset.card_union_of_disjoint hd
-    rw [hu, Finset.card_univ, Fintype.card_fin] at hc
-    omega
+    rw [show U_fin = R_finᶜ from Set.toFinset_compl R_set, Finset.card_add_card_compl,
+      Fintype.card_fin]
   let eR : R_fin ≃ Fin R_fin.card := R_fin.equivFin
   let eU : U_fin ≃ Fin U_fin.card := U_fin.equivFin
   have hmU {i : Fin n} (hi : i ∉ R_fin) : i ∈ U_fin := by
