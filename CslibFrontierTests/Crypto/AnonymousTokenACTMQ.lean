@@ -20,19 +20,19 @@ Exercises `Cslib.Crypto.AnonymousToken.ACTMQ` through ordinary module imports:
   `actMQConservation_succProbability_le` and `actMQClawReduction_queryBound`, alongside the
   unbounded `Fin 4 → ℤ` client (`actMQConservation_unbounded_succProbability_le`);
 * concrete `actCom`/`actTag` credit-conservation witnesses (`= 0` honest, `= 1` forging, and `= 0`
-  out-of-range `(V4)` spend rejection in `actMQConservationExperiment 256`);
+  out-of-range `(V4)` spend rejection in `actMQConservationExperiment 5`);
 * concrete `clawExperiment` budget and dedup-boundary witnesses: an honest `1`-query client
   (`= 0`), a `2`-query repeated-target adversary winning with `2` claims (confirming dedup budget
   cost `= 1`, `= 1`), and a `0`-query duplicate-target-claim adversary rejected by `Nodup` (`= 0`);
 * concrete `G`-collision separation over `ZMod 5`: `gCollisionForger` wins `extractedExperiment`
   with probability `1` and triggers `gCollisionExperiment = 1` via `gCollisionReduction`, while
   `clawExperiment ... (clawReduction ... id (gCollisionForger ...)) = PMF.pure false`;
-* concrete zero-opening scaling over `ZMod 5` (`Sig = Option (ZMod 5)` matching the verifier shape
-  of `UOV.idealRawScheme`, `pubMap = QuadraticMap.sq` on the first coordinate, `scalars = [1, 2]`):
-  wins `clawExperiment` with probability `1` when `G 0 = 0`
-  (`clawExperiment_zeroOpeningClawAttack_option_eq_pure_true_of_quadratic`,
-  `UOV.verify_scale_option_of_quadratic`), and fails identically (`PMF.pure false`) for both
-  optional and raw preimages when `G 0 = 1 ≠ 0` (`UOV.rescale_ne_zeroOpening_of_tail_ne_zero`).
+* concrete zero-opening scaling over `ZMod 5` (`scalars = [1, 2]`): wins `clawExperiment` with
+  probability `1` when `G 0 = 0` via both `UOV.verify_scale_option_of_quadratic` (`leftSqMap`,
+  `Option (ZMod 5)`) and the composed `Correct` quadratic fixture (`surjSqMap` /
+  `clawExperiment_zeroOpeningClawAttack_option_eq_pure_true_of_quadratic`), and fails identically
+  (`PMF.pure false`) for both optional and raw preimages when `G 0 = 1 ≠ 0`
+  (`UOV.rescale_ne_zeroOpening_of_tail_ne_zero`).
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
