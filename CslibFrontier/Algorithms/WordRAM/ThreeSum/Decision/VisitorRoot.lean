@@ -152,11 +152,7 @@ theorem root_exec {r κ n w : ℕ} {a : Arena} (c : Host.Callee r)
   have hsum := envelope_ge_sum a.ceiling a.n a.m a.Λ a.U a.N
   have h2 : Fits (w + 2) 2 := hunsigned.of_le (by omega)
   have hcap : Fits (w + 2) (a.stack + a.capacity) := hunsigned.of_le (by
-    have hb := h.heapBudget
-    have hf := h.floor
-    have ht := ha.2.1
-    have hgap := ha.2.2.1
-    omega)
+    have := h.heapBudget; have := h.floor; have := ha.2.1; have := ha.2.2.1; omega)
   obtain ⟨b, hinit, ⟨hstack, bcontrols, hframe, hbr⟩, hbouter⟩ :=
     Exec.rename_post (preprocessing_injective r)
       (initializeRoot_exec (x.comap (preprocessingRegisters r)) e
@@ -203,10 +199,7 @@ theorem root_exec {r κ n w : ℕ} {a : Arena} (c : Host.Callee r)
         (e.task.output (Nat.primesLE a.m) a.Λ).length * T) := by
     have hc := ExecWithin.seq_assoc.mp (hinit.within.seq he)
     exact hc.mono (by rw [Cursor.credit, work, remaining]; dsimp only [T]; omega)
-  refine ⟨y, hexec, hfinal, ?_, ?_⟩
-  · intro q hq
-    exact (hfinal.protectedMemory q hq).trans (h.protectedMemory q hq).symm
-  · intro i hi
-    exact hexec.regs_eq (oneRoot_preserves c.code i hi)
+  exact ⟨y, hexec, hfinal, fun q hq => (hfinal.protectedMemory q hq).trans
+    (h.protectedMemory q hq).symm, fun i hi => hexec.regs_eq (oneRoot_preserves c.code i hi)⟩
 
 end Cslib.Algorithms.WordRAM.ThreeSum.Decision.Visitor

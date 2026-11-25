@@ -51,15 +51,12 @@ theorem length_decw {w w' : List Bool} (h : decw w = some w') : w'.length = w.le
   induction w generalizing w' with
   | nil => simp [decw] at h
   | cons b w ih =>
-    cases b with
-    | true =>
-      simp only [decw, Option.some.injEq] at h
-      subst h
-      rfl
-    | false =>
-      simp only [decw, Option.map_eq_some_iff] at h
-      obtain ⟨v, hv, rfl⟩ := h
+    cases b
+    · simp only [decw, Option.map_eq_some_iff] at h
+      rcases h with ⟨v, hv, rfl⟩
       simp [ih hv]
+    · simp only [decw, Option.some.injEq] at h
+      exact h ▸ rfl
 
 namespace Bt
 
@@ -120,23 +117,15 @@ private theorem ht_nds_dec {p : List Bool} {t t' : Bt} (h : dec p t = some t') :
   | leaf w =>
     cases p with
     | nil =>
-      simp only [dec, Option.map_eq_some_iff] at h
-      obtain ⟨v, hv, rfl⟩ := h
+      rcases Option.map_eq_some_iff.1 h with ⟨v, hv, rfl⟩
       simp [ht, nds, length_decw hv]
-    | cons b p => simp [dec] at h
+    | cons _ _ => simp [dec] at h
   | node l r ihl ihr =>
-    cases p with
-    | nil => simp [dec] at h
-    | cons b p =>
-      cases b with
-      | true =>
-        simp only [dec, Option.map_eq_some_iff] at h
-        obtain ⟨v, hv, rfl⟩ := h
-        simp [ht, nds, (ihr hv).1, (ihr hv).2]
-      | false =>
-        simp only [dec, Option.map_eq_some_iff] at h
-        obtain ⟨v, hv, rfl⟩ := h
-        simp [ht, nds, (ihl hv).1, (ihl hv).2]
+    rcases p with _ | ⟨b, p⟩
+    · simp [dec] at h
+    · cases b <;> rcases Option.map_eq_some_iff.1 h with ⟨v, hv, rfl⟩
+      · simp [ht, nds, (ihl hv).1, (ihl hv).2]
+      · simp [ht, nds, (ihr hv).1, (ihr hv).2]
 
 theorem ht_dec {p : List Bool} {t t' : Bt} (h : dec p t = some t') : t'.ht = t.ht :=
   (ht_nds_dec h).1
@@ -160,8 +149,7 @@ theorem ht_decAll {b : List (List Bool)} {t t' : Bt} (h : decAll b t = some t') 
     simp only [decAll, Option.some.injEq] at h
     rw [h]
   | cons p b ih =>
-    simp only [decAll, Option.bind_eq_some_iff] at h
-    obtain ⟨s, hs, h⟩ := h
+    rcases Option.bind_eq_some_iff.1 h with ⟨s, hs, h⟩
     rw [ih h, ht_dec hs]
 
 theorem nds_decAll {b : List (List Bool)} {t t' : Bt} (h : decAll b t = some t') : t'.nds =
@@ -171,8 +159,7 @@ theorem nds_decAll {b : List (List Bool)} {t t' : Bt} (h : decAll b t = some t')
     simp only [decAll, Option.some.injEq] at h
     rw [h]
   | cons p b ih =>
-    simp only [decAll, Option.bind_eq_some_iff] at h
-    obtain ⟨s, hs, h⟩ := h
+    rcases Option.bind_eq_some_iff.1 h with ⟨s, hs, h⟩
     rw [ih h, nds_dec hs]
 
 end Bt

@@ -100,16 +100,13 @@ variable {E : Type*} (S : OpenSim Prim.interp Prim.interp (gen g) H)
 /-- Source wires remain boundary wires of the implementation. -/
 theorem boundary_ι (x : (gen g : Diagram Prim a b).Edge) : H.IsBoundary (S.ι x) := by
   rcases x with i | i
-  · exact Or.inl ⟨i, S.ι_top i⟩
-  · exact Or.inr ⟨i, S.ι_bottom i⟩
+  exacts [.inl ⟨i, S.ι_top i⟩, .inr ⟨i, S.ι_bottom i⟩]
 
 /-- An internal implementation wire has a fresh private name. -/
 theorem label_private (p : (gen g : Diagram Prim a b).Edge → E) (e : Inner S) :
     label S p e = .inr e := by
-  have hn : boundaryIndex S e = none := List.find?_eq_none.2 (fun x _ => by
-    simp only [decide_eq_true_eq]
-    intro hx
-    exact e.property ⟨x, hx⟩)
+  have hn : boundaryIndex S e = none :=
+    List.find?_eq_none.2 fun x _ hx => e.property ⟨x, of_decide_eq_true hx⟩
   unfold label
   split
   · rename_i x hx
@@ -119,17 +116,14 @@ theorem label_private (p : (gen g : Diagram Prim a b).Edge → E) (e : Inner S) 
 /-- Boundary wire names agree with the supplied ambient naming. -/
 theorem label_ι (p : (gen g : Diagram Prim a b).Edge → E) (x : (gen g : Diagram Prim a b).Edge) :
     label S p (S.ι x) = .inl (p x) := by
-  have hx : x ∈ boundaryList a b := by
-    rcases x with i | i <;> simp [boundaryList]
-  unfold label
+  have hx : x ∈ boundaryList a b := by rcases x with i | i <;> simp [boundaryList]
+  unfold label boundaryIndex
   split
   · rename_i y hy
-    have hy' : (boundaryList a b).find? (fun z => decide (S.ι z = S.ι x)) = some y := hy
-    have hbool := List.find?_some (p := fun z => decide (S.ι z = S.ι x)) hy'
-    exact congrArg (Sum.inl ∘ p) (S.ι_injective (of_decide_eq_true hbool))
+    have hy' := List.find?_some hy
+    exact congrArg (Sum.inl ∘ p) (S.ι_injective (of_decide_eq_true hy'))
   · rename_i hn
-    have hn' : (boundaryList a b).find? (fun z => decide (S.ι z = S.ι x)) = none := hn
-    exact (List.find?_eq_none.1 hn' x hx (by simp)).elim
+    exact (List.find?_eq_none.1 hn x hx (by simp)).elim
 
 private theorem label_range (p : (gen g : Diagram Prim a b).Edge → E) {e : H.Edge}
     (he : e ∈ Set.range S.ι) : label S p e = .inl (p (Classical.choose he)) := by
@@ -206,21 +200,17 @@ private def edgeEquiv : (gen g : Diagram Prim a b).Edge ⊕ Inner S ≃ H.Edge w
 /-- A sum over implementation wires splits into its boundary and private parts. -/
 theorem sum_edges [Fintype (Inner S)] {M : Type*} [AddCommMonoid M] (f : H.Edge → M) :
     ∑ e, f e = (∑ i : (gen g : Diagram Prim a b).Edge, f (S.ι i)) +
-      ∑ e : Inner S, f e := by
-  have h := (edgeEquiv S).sum_comp f
-  rw [Fintype.sum_sum_type] at h
-  exact h.symm
+      ∑ e : Inner S, f e :=
+  ((edgeEquiv S).sum_comp f).symm.trans (Fintype.sum_sum_type _)
 
 /-- Private wires are precisely the created wires that do not reach the lower boundary. -/
 theorem card_inner : Fintype.card (Inner S) + b.length = H.innerCount := by
-  have h := sum_edges S (fun _ => (1 : ℕ))
-  simp only [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, Nat.cast_id, mul_one] at h
-  have he : Fintype.card H.Edge = a.length + H.innerCount :=
-    (Fintype.card_congr H.numEquiv).trans (Fintype.card_fin _)
+  have h := sum_edges S fun _ => (1 : ℕ)
+  simp only [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, Nat.cast_id, mul_one,
+    (Fintype.card_congr H.numEquiv).trans (Fintype.card_fin _)] at h
   have hb : Fintype.card (gen g : Diagram Prim a b).Edge = a.length + b.length := by
     change Fintype.card (Fin a.length ⊕ Fin b.length) = _
-    simp only [Fintype.card_sum, Fintype.card_fin]
-  rw [he, hb] at h
+    simp
   omega
 
 end Cslib.Complexity.NCL.Diagram.Replacement

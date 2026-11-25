@@ -421,17 +421,10 @@ theorem clawReduction_queryBound [DecidableEq Target]
       exact (ProbOracleComp.IsQueryBounded.query (spec := fun _ : M × R => Sig)
         (embed payload.message, payload.opening)).bind fun sig =>
           OracleComp.IsCostBounded.pure (sig, stepValidClaim S J embed pk acc (payload, sig)) 0
-  have hcont : ∀ res : Token Message R Sig × List (ClawClaim M R Sig),
-      ((let y := J (embed res.1.payload.message) res.1.payload.opening
-        if S.verify pk y res.1.signature &&
-            !(res.2.map fun c => J c.message c.opening).contains y then
-          pure (⟨embed res.1.payload.message, res.1.payload.opening, res.1.signature⟩ :: res.2)
-        else pure ([] : List (ClawClaim M R Sig))) :
-          ProbOracleComp (fun _ : M × R => Sig) (List (ClawClaim M R Sig))).IsQueryBounded 0 := by
-    intro res
-    dsimp only
-    split_ifs <;> exact OracleComp.IsCostBounded.pure _ 0
-  exact hbody.bind hcont
+  rw [clawReduction, ← Nat.add_zero q]
+  refine hbody.bind fun res => ?_
+  dsimp only
+  split_ifs <;> exact OracleComp.IsCostBounded.pure _ 0
 
 /-- `Credit.target` instantiated with `actCom` and `actTag` equals `UOV.structuredTarget` at
 `actEmbed`. -/
@@ -455,23 +448,16 @@ private theorem actEmbed_injOn_of_pred {Nullifier Context I F : Type} [AddCommGr
     Set.InjOn (actEmbed encodeState refundEmbed)
       {note : Credit.Note Nullifier Context | P note.credit ∧ P note.refund} := by
   rintro ⟨nf₁, ctx₁, t₁, x₁⟩ ⟨ht₁, hx₁⟩ ⟨nf₂, ctx₂, t₂, x₂⟩ ⟨ht₂, hx₂⟩ heq
-  have hrefund_eq : refundEmbed x₁ = refundEmbed x₂ := by
-    funext i
+  have hrefund_eq : refundEmbed x₁ = refundEmbed x₂ := funext fun i => by
     by_cases hi : isRefund i = true
-    · have hi' := congrFun heq i
-      simp only [actEmbed, Pi.add_apply, hstate_slot _ _ _ i hi, zero_add] at hi'
-      exact hi'
-    · have hfalse : isRefund i = false := Bool.eq_false_iff.mpr hi
-      simp [hrefund_slot _ i hfalse]
-  have hx : x₁ = x₂ := hrefund_inj hx₁ hx₂ hrefund_eq
-  have hstate_eq : encodeState nf₁ ctx₁ t₁ = encodeState nf₂ ctx₂ t₂ := by
-    funext i
+    · simpa only [actEmbed, Pi.add_apply, hstate_slot _ _ _ i hi, zero_add] using congrFun heq i
+    · simp [hrefund_slot _ i (Bool.eq_false_iff.mpr hi)]
+  have hstate_eq : encodeState nf₁ ctx₁ t₁ = encodeState nf₂ ctx₂ t₂ := funext fun i => by
     have hi := congrFun heq i
-    have hr := congrFun hrefund_eq i
-    simp only [actEmbed, Pi.add_apply] at hi
-    exact add_right_cancel (hi.trans (congrArg (encodeState nf₂ ctx₂ t₂ i + ·) hr.symm))
+    simp only [actEmbed, Pi.add_apply, congrFun hrefund_eq i] at hi
+    exact add_right_cancel hi
   obtain ⟨rfl, rfl, rfl⟩ := hstate_inj ht₁ ht₂ hstate_eq
-  subst hx
+  obtain rfl := hrefund_inj hx₁ hx₂ hrefund_eq
   rfl
 
 /-- Disjoint-slot `Set.InjOn` injectivity for `actEmbed` on range-bounded notes
@@ -681,8 +667,7 @@ private theorem stepValidClaim_invariant [DecidableEq Target]
       · exact Or.inr (List.mem_cons_of_mem _ hc')
     · intro hall e he
       rcases List.mem_cons.mp he with rfl | he_tl
-      · have hhd_v : S.verify pk (J (embed e.1.message) e.1.opening) e.2 = true :=
-          hall e List.mem_cons_self
+      · have hhd_v := hall e List.mem_cons_self
         have hhd_in :
             J (embed e.1.message) e.1.opening ∈ acc'.map fun c => J c.message c.opening := by
           simp only [acc', stepValidClaim]
@@ -690,10 +675,8 @@ private theorem stepValidClaim_invariant [DecidableEq Target]
               (J (embed e.1.message) e.1.opening) = true
           · simp only [hhd_v, hcont, Bool.true_and, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
             exact List.contains_iff_mem.mp hcont
-          · have hnot_mem :
-                J (embed e.1.message) e.1.opening ∉ acc.map fun c => J c.message c.opening := by
-              simpa [List.contains_iff_mem] using hcont
-            simp [hhd_v, hnot_mem]
+          · have hnot := mt List.contains_iff_mem.mpr hcont
+            simp [hhd_v, hnot]
         obtain ⟨c, hc_acc', hc_eq⟩ := List.mem_map.mp hhd_in
         exact List.mem_map.mpr ⟨c, foldl_stepValidClaim_subset S J embed pk tl acc' hc_acc', hc_eq⟩
       · exact hcov_tl (fun e' he' => hall e' (List.mem_cons_of_mem _ he')) e he_tl
@@ -723,17 +706,13 @@ private theorem clawAccept_or_binding_or_invalid_of_extractedAccept
         (target entry.1.message entry.1.opening =
           target run.output.payload.message run.output.payload.opening)) with
     | some entry =>
-      right; left
+      refine Or.inr (Or.inl ?_)
       have hentry := List.mem_of_find?_eq_some hfind
-      have hsame := List.find?_some (p := fun entry : Payload Message R × Sig => decide
-        (target entry.1.message entry.1.opening =
-          target run.output.payload.message run.output.payload.opening)) hfind
       have heq : target entry.1.message entry.1.opening =
           target run.output.payload.message run.output.payload.opening :=
-        of_decide_eq_true hsame
-      have hne : run.output.payload.message ≠ entry.1.message := by
-        intro hm
-        exact hfresh (List.mem_map.mpr ⟨entry, hentry, hm.symm⟩)
+        of_decide_eq_true (List.find?_eq_some_iff_append.mp hfind).1
+      have hne : run.output.payload.message ≠ entry.1.message := fun hm =>
+        hfresh (List.mem_map.mpr ⟨entry, hentry, hm.symm⟩)
       simp [findBindingWitness, hfind, checkBindingWitness, hne, heq]
     | none =>
       left
@@ -758,17 +737,14 @@ private theorem clawAccept_or_binding_or_invalid_of_extractedAccept
         rcases hmem_logged c hc with hc | hc
         · simp at hc
         · exact hy_fresh (hce ▸ hc)
-      have hy_not_logged : !(logged.map fun c => J c.message c.opening).contains y = true := by
-        simp [hy_not_mem]
       have hclaims_eq :
           (clawExecutionOfExtracted S J embed run).claims =
             ⟨embed run.output.payload.message, run.output.payload.opening, run.output.signature⟩ ::
               logged := by
-        dsimp only [clawExecutionOfExtracted]
-        split_ifs with hif
-        · rfl
-        · exfalso
-          exact hif (Bool.and_eq_true_iff.mpr ⟨hy_out, hy_not_logged⟩)
+        have hcond : (S.verify run.publicKey y run.output.signature &&
+            !(logged.map fun c => J c.message c.opening).contains y) = true := by
+          simp [hy_out, hy_not_mem]
+        simp only [clawExecutionOfExtracted, y, logged, hcond, ↓reduceIte]
       have hsub_len :
           ((run.log.map fun (p, _) => J (embed p.message) p.opening)).dedup.length ≤
             (logged.map fun c => J c.message c.opening).length := by
@@ -1093,16 +1069,16 @@ private theorem noteForger_rangeBoundedAdversary_support
     · simp [hmem] at hfound
     · simp only [hmem, ↓reduceIte, Option.some.injEq] at hfound
       subst hfound
-      have hs_spends : s ∈ Conservation.spends accepted' := by rw [hsp]; simp
-      have hs_acc : Conservation.Request.spend s ∈ accepted' := by
-        simp only [Conservation.spends, List.mem_filterMap] at hs_spends
-        obtain ⟨r, hr, hsome⟩ := hs_spends
-        cases r with
-        | issue _ => simp at hsome
-        | spend sr => cases hsome; exact hr
-      have hsr := hinv.1 _ hs_acc
-      simp only [requestInRange, decide_eq_true_eq] at hsr
-      exact ⟨hsr.1, hsr.2.1⟩
+      have hs_spends : s ∈ Conservation.spends accepted' := by simp [hsp]
+      simp only [Conservation.spends, List.mem_filterMap] at hs_spends
+      obtain ⟨r, hr, hsome⟩ := hs_spends
+      cases r with
+      | issue _ => simp at hsome
+      | spend sr =>
+        cases hsome
+        have hsr := hinv.1 _ hr
+        simp only [requestInRange, decide_eq_true_eq] at hsr
+        exact ⟨hsr.1, hsr.2.1⟩
 
 /-- **Range-bounded extracted VOLE-ACT-MQ credit conservation.** Under `Set.InjOn` of
 `actEmbed encodeState refundEmbed` on notes satisfying `NoteInRange bound` (which holds over finite
@@ -1366,10 +1342,6 @@ theorem clawExperiment_zeroOpeningClawAttack_eq_pure_true {K : Type} [Field K]
   dsimp only [Function.comp_def]
   rw [PMF.pure_map]
   dsimp only [clawAccept]
-  have hlen_lt : 1 < scalars.length := by omega
-  have hinj : Function.Injective fun b : K => ((b • μ, G 0) : Message × Tail) := by
-    intro b₁ b₂ heq
-    exact smul_left_injective K hμ (congrArg Prod.fst heq)
   have hclaims_nodup :
       ((scalars.map fun a => (⟨(a * a) • μ, (0 : R), scaleSig a σ⟩ :
           ClawClaim Message R Sig)).map
@@ -1380,19 +1352,17 @@ theorem clawExperiment_zeroOpeningClawAttack_eq_pure_true {K : Type} [Field K]
           (scalars.map fun a => a * a).map fun b => (b • μ, G 0) := by
       simp [UOV.structuredTarget, hF, List.map_map, Function.comp_def]
     rw [hmap]
-    exact hnodup.map hinj
+    exact hnodup.map fun _ _ heq => smul_left_injective K hμ (congrArg Prod.fst heq)
   have hclaims_verify :
       (scalars.map fun a => (⟨(a * a) • μ, (0 : R), scaleSig a σ⟩ :
           ClawClaim Message R Sig)).all
         (fun c =>
           S.verify keys.1 (UOV.structuredTarget F G c.message c.opening) c.preimage) = true := by
     rw [List.all_map, List.all_eq_true]
-    intro a ha
-    exact hverify keys hkeys σ hσ a ha
-  refine congrArg PMF.pure ?_
-  simp only [hclaims_nodup, hclaims_verify, and_true, Bool.and_true, decide_eq_true_eq]
-  rw [List.length_map]
-  simp [hlen_lt]
+    exact hverify keys hkeys σ hσ
+  refine congrArg PMF.pure
+    (Bool.and_eq_true_iff.mpr ⟨decide_eq_true ⟨?_, hclaims_nodup⟩, hclaims_verify⟩)
+  simp; omega
 
 /-- Corollary: `zeroOpeningClawAttack` achieves `Experiment.succProbability = 1` under the same
 hypotheses. -/

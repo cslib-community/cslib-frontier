@@ -118,8 +118,7 @@ private theorem sum_hole_identity {A : Type*} [CommRing A] (x : Fin m → A) :
 
 private theorem X_ne_holePoly [Nontrivial R] (i i' : Fin m) (j : Fin n) :
     (X (i, j) : MvPolynomial (Fin m × Fin n) R) ≠ 1 - X (i, j) - X (i', j) := fun h => by
-  have := congrArg constantCoeff h
-  simp at this
+  simpa using congrArg constantCoeff h
 
 /-- The summands of the refutation: `1 · 1 ² · Pᵢ`, `1 · (1 - ∑ᵢ Xᵢⱼ) ²`,
 `1 · 1 ² · Xᵢⱼ · Hᵢᵢ'ⱼ` for `i ≠ i'`, and `(m - n - 1) · 1 ²`. -/
@@ -167,12 +166,7 @@ theorem refutableInDegree_two_pigeonhole (h : n < m) :
       · rw [coe_pair, Set.insert_subset_iff, Set.singleton_subset_iff]
         exact ⟨X_mem_cnfIneqs _ _, holePoly_mem_cnfIneqs hii' j⟩
     · simp [phpSummand]
-  · rcases k with i | j | ⟨j, i, i'⟩ | -
-    · simp [phpSummand]
-    · simp [phpSummand]
-    · simp only [phpSummand]
-      split_ifs <;> simp
-    · simp [phpSummand]
+  · rcases k with i | j | ⟨j, i, i'⟩ | - <;> simp only [phpSummand] <;> (try split_ifs) <;> simp
   · rcases k with i | j | ⟨j, i, i'⟩ | -
     · simp only [phpSummand, Summand.degree_def, totalDegree_one, mul_zero, sum_singleton,
         zero_add]
@@ -258,15 +252,11 @@ theorem not_refutableInDegree_one_pigeonhole (hn : 2 ≤ n) :
 `2 ≤ d`. -/
 theorem refutableInDegree_pigeonhole_iff (hn : 2 ≤ n) {d : ℕ} :
     RefutableInDegree (cnfIneqs (pigeonhole m n) : Set (MvPolynomial (Fin m × Fin n) R))
-      (booleanAxioms (Fin m × Fin n) R) d ↔ n < m ∧ 2 ≤ d := by
-  constructor
-  · intro h
-    refine ⟨?_, ?_⟩
-    · by_contra hle
-      exact not_satisfiable_of_refutableInDegree h (satisfiable_pigeonhole_iff.2 (by omega))
-    · by_contra hd
-      exact not_refutableInDegree_one_pigeonhole hn (h.mono le_rfl le_rfl (by omega))
-  · rintro ⟨hnm, hd⟩
-    exact (refutableInDegree_two_pigeonhole hnm).mono le_rfl le_rfl hd
+      (booleanAxioms (Fin m × Fin n) R) d ↔ n < m ∧ 2 ≤ d :=
+  ⟨fun h => ⟨by_contra fun hle => not_satisfiable_of_refutableInDegree h
+      (satisfiable_pigeonhole_iff.2 (by omega)),
+    by_contra fun hd => not_refutableInDegree_one_pigeonhole hn
+      (h.mono le_rfl le_rfl (by omega))⟩,
+    fun ⟨hnm, hd⟩ => (refutableInDegree_two_pigeonhole hnm).mono le_rfl le_rfl hd⟩
 
 end Cslib.Logic.PL.SOS.Psatz

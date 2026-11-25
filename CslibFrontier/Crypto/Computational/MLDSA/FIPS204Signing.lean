@@ -108,10 +108,8 @@ theorem length_finishSigningAttempt {s : Level} {sk : PrivateKey s} {y w digest 
     dsimp only [compressedResponse] at h
     split_ifs at h with hz hh
     · simp only [Option.map_some, Option.some.injEq] at h
-      obtain rfl := h
-      exact length_encodeSignature _ _ hd hh.2
-    · contradiction
-    · contradiction
+      exact h ▸ length_encodeSignature _ _ hd hh.2
+    all_goals contradiction
 
 private def Xofs.attemptWithMask (H : Xofs) (s : Level) (sk : PrivateKey s)
     (matrix : PublicMatrix s) (μ : List Bool) (y : Fin s.params.ℓ → Poly) :
@@ -328,13 +326,7 @@ theorem signingQueries_bounded {R : Type} (s : Level) (sk : PrivateKey s) (A : P
     intro _
     exact .liftBind _ _ 0 fun _ => .pure _ _
   rw [show s.params.ℓ + 2 = s.params.ℓ + (1 + (1 + 0)) by ring]
-  apply masks.bind
-  intro _
-  apply OracleComp.IsCostBounded.liftBind
-  intro _
-  apply OracleComp.IsCostBounded.liftBind
-  intro _
-  exact .pure _ _
+  exact masks.bind fun _ => .liftBind _ _ _ fun _ => .liftBind _ _ _ fun _ => .pure _ _
 
 /-- Two prelude reads for the representative and hedging seed, followed by at most 814 trials. -/
 theorem Xofs.signInternalReads_bounded {R : Type} (H : Xofs) (s : Level) (key : List Byte)
@@ -624,14 +616,11 @@ theorem signingOracle_preserves_verified {H : Xofs} {s : Level} {seed : FixedByt
     (hs : (reply, next) ∈ (H.signingOracle s keys.secretKey q hist).support) :
     ∀ g ∈ next, H.verify s keys.publicKey g.message g.context g.signature = some true := by
   obtain ⟨rnd, _, hr⟩ := (PMF.mem_support_map_iff _ _ _).mp hs
-  dsimp only [Xofs.signAndLog] at hr
+  simp only [Xofs.signAndLog, Prod.mk.injEq] at hr
+  rcases hr with ⟨rfl, rfl⟩
   cases sig : H.sign s keys.secretKey q.message q.context rnd with
-  | none =>
-    simp only [sig, SigningQuery.logReply, Prod.mk.injEq] at hr
-    exact hr.2 ▸ ih
+  | none => exact ih
   | some bytes =>
-    simp only [sig, SigningQuery.logReply, Prod.mk.injEq] at hr
-    rw [← hr.2]
     intro g hg'
     rcases List.mem_cons.mp hg' with rfl | htail
     · exact verify_of_sign hg sig
@@ -720,11 +709,9 @@ recovers the byte-verifier key-only experiment exactly, including key-generation
 theorem sufCmaGame_sample_eq_keyOnlyGame (s : Level) (adv : List Byte → ProbComp Forgery) :
     sufCmaGame s (fun pk => ProbOracleComp.sample (adv pk)) = keyOnlyGame s adv := by
   unfold sufCmaGame Xofs.sufCmaGame keyOnlyGame Xofs.winsForgery
-  congr 1
-  funext keys
+  congr 1 with keys : 1
   rw [ProbOracleComp.runWith_sample, PMF.map_comp]
-  congr 1
-  funext f
+  congr 1 with f : 1
   simp
 
 /-- The finite set of actual Algorithm 29 raw inputs at the parameter set's digest width. -/
@@ -905,25 +892,16 @@ private theorem refreshFirstSign_bind {α : Type} {H : Xofs} {s : Level} {seed :
           ((H.h256.read key (seen key) ++ List.ofFn fresh).take 221) := by
         apply congrArg (sampleInBallBytes s)
         have h := H.h256.read_fill_window seen updated key (n := 221) (Nat.le_add_left ..)
-        rw [show updated key = fresh from Function.update_self ..] at h
-        exact h
+        rwa [show updated key = fresh from Function.update_self ..] at h
       apply congrArg (post updated)
       symm
-      change K.sign s keys.secretKey q.message q.context rnd = afterAttempt K st
-        (finishSigningAttempt s st.sk prep.mask prep.product d (sampleInBallBytes s
-          ((H.h256.read key (seen key) ++ List.ofFn fresh).take 221)))
+      change K.sign s keys.secretKey q.message q.context rnd = _
       simp only [Xofs.sign, hc, guard, ↓reduceIte, Option.pure_def, Option.bind_eq_bind,
         Option.bind_some, Xofs.signInternal, Xofs.runSigning, Xofs.signingRetries, start]
       change firstAccepted s.params.ℓ (K.attempt s st.sk st.A st.μ st.maskSeed) 814 0 = _
       rw [firstAccepted_initial]
-      change afterAttempt K st (let p := K.prepareAttempt s st.A st.maskSeed 0
-        let c := K.commitmentDigest s (highBitsVec s.params p.product) st.μ
-        finishSigningAttempt s st.sk p.mask p.product c (K.sampleInBall s c)) = _
-      rw [prepared]
-      change afterAttempt K st
-        (finishSigningAttempt s st.sk prep.mask prep.product (K.commitmentDigest s w st.μ)
-          (K.sampleInBall s (K.commitmentDigest s w st.μ))) = _
-      rw [dg, sample]
+      dsimp only [Xofs.attempt, Xofs.attemptWithMask]
+      rw [← Xofs.prepareAttempt, prepared, dg, sample]
   · apply congrArg (PMF.bind _)
     funext t
     simp [Xofs.refreshFirstSign, hc, Xofs.sign]

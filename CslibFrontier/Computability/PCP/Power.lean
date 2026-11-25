@@ -142,15 +142,13 @@ def take (m : ℕ) (hm : m ≤ T) (k : Fin T → D) : WalkLabels D T :=
 
 /-- The walk along the first `m` labels of `k` does not depend on how `m` is written. -/
 theorem take_congr {m m' : ℕ} (h : m = m') (hm : m ≤ T) (hm' : m' ≤ T) (k : Fin T → D) :
-    take m hm k = take m' hm' k := by
-  subst h
-  rfl
+    take m hm k = take m' hm' k :=
+  h ▸ rfl
 
 /-- There are `∑ ℓ ≤ T, |D| ^ ℓ` walks of length at most `T` from a vertex. -/
 private theorem card_eq [Fintype D] :
     Fintype.card (WalkLabels D T) = ∑ ℓ ∈ range (T + 1), Fintype.card D ^ ℓ := by
-  rw [Fintype.card_sigma, ← Fin.sum_univ_eq_sum_range]
-  simp
+  simp [Fintype.card_sigma, ← Fin.sum_univ_eq_sum_range]
 
 end WalkLabels
 
@@ -260,23 +258,20 @@ theorem satisfiable_power_iff (hT : 1 ≤ T) (hq : 2 ≤ q) :
     satisfiable_power T q⟩
   -- the kill signals that kill a walk after its first step
   set c : Fin T → Fin q := fun j ↦ if (j : ℕ) = 0 then ⟨1, by omega⟩ else 0
-  have hc : killTime c = 1 := by
-    refine le_antisymm (Nat.find_min' _ fun h ↦ ?_) ((lt_killTime_iff c hT).2 fun j hj ↦ ?_)
-    · simp [c]
-    · simp [c, Nat.le_zero.1 hj, Fin.ext_iff]
-  set k : Fin T → D := fun _ ↦ d.2
-  have h := satisfies_power_iff.1 (hA (d.1, k, c)) 0 (by rw [hc]; exact one_pos)
+  have hc : killTime c = 1 := le_antisymm (Nat.find_min' _ (by simp [c]))
+    ((lt_killTime_iff c hT).2 fun j hj ↦ by simp [c, Nat.le_zero.1 hj, Fin.ext_iff])
+  have h := satisfies_power_iff.1 (hA (d.1, (fun _ ↦ d.2), c)) 0 (hc ▸ one_pos)
   dsimp only [KilledDart.vertex, KilledDart.labels, KilledDart.signals] at h
   -- the killed walk ends at the far end of `d`, and both opinions are about the walk of length `0`
-  have h₁ : ((R.graph.killedPow T q).rot (d.1, k, c)).1 = R.graph.neighbor d.1 d.2 := by
+  have h₁ : ((R.graph.killedPow T q).rot (d.1, (fun _ ↦ d.2), c)).1 =
+      R.graph.neighbor d.1 d.2 := by
     rw [← neighbor_def, neighbor_killedPow, hc, R.graph.walkAt_succ_of_lt _ hT]
     rfl
   have h₀ (k' : Fin T → D) :
       WalkLabels.take 0 (Nat.zero_le T) k' = .mk (Nat.zero_le T) Fin.elim0 :=
     congrArg (WalkLabels.mk _) (Subsingleton.elim _ _)
-  rw [WalkLabels.take_congr (m := killTime c - (0 + 1)) (m' := 0) (by rw [hc]) _ (Nat.zero_le T),
+  rwa [WalkLabels.take_congr (m := killTime c - (0 + 1)) (m' := 0) (by rw [hc]) _ (Nat.zero_le T),
     h₀, h₀, h₁] at h
-  exact h
 
 /-! ### The soundness witness -/
 
@@ -311,10 +306,8 @@ theorem not_satisfies_of_hit {A : V → WalkLabels D T → α} {σ : V → α}
     {p : V × (Fin T → D) × (Fin T → Fin q)} {i : ℕ} (h : R.Hit T q A σ p i) :
     ¬ (R.power T q).toConstraintGraph.Satisfies A p := by
   obtain ⟨hi, hσ, h₁, h₂⟩ := h
-  intro hA
-  have := satisfies_power_iff.1 hA i hi
-  rw [h₁, h₂, rel_truthful_iff _ _ _ _ _ hi] at this
-  exact hσ this
+  exact fun hA ↦ hσ ((R.rel_truthful_iff T q σ p hi).1
+    (by simpa only [← h₁, ← h₂] using satisfies_power_iff.1 hA i hi))
 
 /-! ### Bookkeeping -/
 
@@ -373,11 +366,7 @@ private theorem expect_killTime_eq_and_report_eq [Nonempty D] (A : V → WalkLab
         then 1 else 0) =
       (1 - (q : ℝ)⁻¹) ^ ℓ / q * R.truthProb T A σ v ℓ := by
   rw [truthProb, dite_eq_left hℓ.le, ← expect_ite_killTime_eq hℓ]
-  refine expect_congr rfl fun x _ ↦ ?_
-  by_cases h : killTime x.2 = ℓ
-  · subst h
-    simp
-  · simp [h]
+  exact expect_congr rfl fun x _ ↦ by rcases eq_or_ne (killTime x.2) ℓ with rfl | h <;> simp [*]
 
 variable [Fintype α] [Nonempty α]
 
@@ -401,17 +390,14 @@ private theorem inv_card_le_expect_report_eq_decode [Nonempty D] (A : V → Walk
   set f := fun x : (Fin T → D) × (Fin T → Fin q) ↦
     R.report T A (killTime_le x.2) (v, Fin.take _ (killTime_le x.2) x.1)
   have hα : (0 : ℝ) < Fintype.card α := Nat.cast_pos.2 Fintype.card_pos
-  have hX : (0 : ℝ) < Fintype.card ((Fin T → D) × (Fin T → Fin q)) :=
-    Nat.cast_pos.2 Fintype.card_pos
   obtain ⟨a, ha⟩ := Fintype.exists_le_card_fiber_of_nsmul_le_card (M := ℝ) f
     (b := Fintype.card ((Fin T → D) × (Fin T → Fin q)) / Fintype.card α)
     (by rw [nsmul_eq_mul, mul_div_cancel₀ _ hα.ne'])
-  have hmax : #{x | f x = a} ≤ #{x | f x = R.decode T q A v} :=
-    (univ.exists_max_image (fun a ↦ #{x | f x = a}) univ_nonempty).choose_spec.2 a (mem_univ a)
-  rw [Fintype.expect_eq_sum_div_card, sum_boole, inv_eq_one_div, div_le_div_iff₀ hα hX, one_mul]
-  rw [div_le_iff₀ hα] at ha
-  refine ha.trans ?_
-  gcongr
+  rw [Fintype.expect_eq_sum_div_card, sum_boole, inv_eq_one_div,
+    div_le_div_iff₀ hα (Nat.cast_pos.2 Fintype.card_pos), one_mul]
+  exact ((div_le_iff₀ hα).1 ha).trans (mul_le_mul_of_nonneg_right (Nat.cast_le.2
+    ((univ.exists_max_image (fun a ↦ #{x | f x = a}) univ_nonempty).choose_spec.2 a (mem_univ a)))
+    hα.le)
 
 open Classical in
 /-- **Plurality, in terms of walks** [Dinur, Section 5][Dinur2005]: for `H < T`, the walks of length
@@ -431,28 +417,25 @@ theorem inv_card_sub_le_sum_truthProb [Nonempty D] (A : V → WalkLabels D T →
         ∑ ℓ ∈ range (H + 1), (if killTime x.2 = ℓ ∧ f x = R.decode T q A v then 1 else 0 : ℝ) +
           if H + 1 ≤ killTime x.2 then 1 else 0 := by
     by_cases hk : killTime x.2 ≤ H
-    · have h := single_le_sum (f := fun ℓ ↦
+    · rw [ite_eq_right (by omega : ¬ H + 1 ≤ killTime x.2), add_zero]
+      simpa only [true_and] using single_le_sum (f := fun ℓ ↦
         (if killTime x.2 = ℓ ∧ f x = R.decode T q A v then 1 else 0 : ℝ))
-        (fun ℓ _ ↦ by positivity) (mem_range.2 (Nat.lt_succ_of_le hk))
-      simp only [true_and] at h
-      rw [ite_eq_right (show ¬ H + 1 ≤ killTime x.2 by omega), add_zero]
-      exact h
-    · rw [ite_eq_left (show H + 1 ≤ killTime x.2 by omega)]
+        (fun _ _ ↦ by positivity) (mem_range.2 (Nat.lt_succ_of_le hk))
+    · rw [ite_eq_left (by omega : H + 1 ≤ killTime x.2)]
       have : 0 ≤ ∑ ℓ ∈ range (H + 1),
           (if killTime x.2 = ℓ ∧ f x = R.decode T q A v then 1 else 0 : ℝ) :=
-        sum_nonneg fun ℓ _ ↦ by positivity
+        sum_nonneg fun _ _ ↦ by positivity
       split_ifs <;> linarith
   have hsurv : 𝔼 x : (Fin T → D) × (Fin T → Fin q),
       (if H + 1 ≤ killTime x.2 then 1 else 0 : ℝ) = (1 - (q : ℝ)⁻¹) ^ (H + 1) := by
     rw [Fintype.expect_prod_type]
     simp only [expect_le_killTime (q := q) (Nat.succ_le_of_lt hH), Fintype.expect_const]
-  have h := R.inv_card_le_expect_report_eq_decode T q A v
   calc (Fintype.card α : ℝ)⁻¹ - (1 - (q : ℝ)⁻¹) ^ (H + 1)
       ≤ 𝔼 x, (∑ ℓ ∈ range (H + 1),
           (if killTime x.2 = ℓ ∧ f x = R.decode T q A v then 1 else 0 : ℝ) +
-            if H + 1 ≤ killTime x.2 then 1 else 0) - (1 - (q : ℝ)⁻¹) ^ (H + 1) := by
-        gcongr
-        exact h.trans (expect_le_expect fun x _ ↦ hpt x)
+            if H + 1 ≤ killTime x.2 then 1 else 0) - (1 - (q : ℝ)⁻¹) ^ (H + 1) :=
+        sub_le_sub_right ((R.inv_card_le_expect_report_eq_decode T q A v).trans
+          (expect_le_expect fun x _ ↦ hpt x)) _
     _ = ∑ ℓ ∈ range (H + 1), (1 - (q : ℝ)⁻¹) ^ ℓ / q * R.truthProb T A (R.decode T q A) v ℓ := by
         rw [expect_add_distrib, hsurv, add_sub_cancel_right, expect_sum_comm]
         exact sum_congr rfl fun ℓ hℓ ↦ R.expect_killTime_eq_and_report_eq T q A _ v

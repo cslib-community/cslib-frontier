@@ -122,8 +122,7 @@ theorem minWidth_le_numVars (φ : DNF V) : minWidth φ ≤ CNF.numVars φ :=
 theorem minWidth_le_width {φ : DNF V} {t : Term V} (ht : t ∈ φ) (hc : t.consistent = true) :
     minWidth φ ≤ t.width := by
   refine countP_range_le_of_lt _ (fun k hk => ?_) _
-  have := (List.all_eq_true.1 hk) t ht
-  simpa [hc] using this
+  simpa [hc] using (List.all_eq_true.1 hk) t ht
 
 /-- Below the number of variables, the minimum width is attained by a consistent term. -/
 theorem exists_width_le_minWidth {φ : DNF V} (h : minWidth φ < CNF.numVars φ) :
@@ -153,8 +152,7 @@ theorem two_pow_sub_minWidth_le_modelCount {φ : DNF V} (hpos : 0 < DNF.modelCou
   · obtain ⟨t, ht, hc, hw⟩ := exists_width_le_minWidth h
     exact (Nat.pow_le_pow_right (by norm_num) (by omega)).trans
       (two_pow_sub_width_le_modelCount ht hc)
-  · rw [Nat.sub_eq_zero_of_le (not_lt.1 h), pow_zero]
-    exact hpos
+  · rwa [Nat.sub_eq_zero_of_le (not_lt.1 h), pow_zero]
 
 /-! ### One trial -/
 
@@ -331,14 +329,8 @@ private theorem eval_countTrue_zero {φ : DNF V} (h : DNF.modelCount φ = 0) (co
   rw [ProbComp.eval_countTrue, PMF.mem_support_map_iff] at hsucc
   obtain ⟨bits, hbits, rfl⟩ := hsucc
   rw [Probability.PMF.mem_support_pi_iff] at hbits
-  have hzero : ∀ i, bits i = false := by
-    intro i
-    have hi := hbits i
-    rw [PMF.mem_support_iff] at hi
-    cases hb : bits i
-    · rfl
-    · rw [hb] at hi
-      exact absurd (eval_trial_true_of_modelCount_eq_zero h) hi
+  have hzero : ∀ i, bits i = false := fun i => Bool.eq_false_iff.2 fun hb =>
+    (PMF.mem_support_iff _ _).1 (hbits i) (hb ▸ eval_trial_true_of_modelCount_eq_zero h)
   simpa [hzero] using hs
 
 /-- **Zero counts are exact**: on a formula without models the estimate is `0` with probability
@@ -380,9 +372,7 @@ theorem approxWithin_estimate (φ : DNF V) {p : ℕ} (hp : 0 < p) (t : ℕ) :
     rw [hμ_def, eval_trial_true_toReal, trialBudget, ← hc_def, hN_def, hK_def]
     push_cast
     field_simp
-  have hδ₁ : (1 : ℝ) / p ≤ 1 := by
-    rw [div_le_one hpR]
-    exact_mod_cast hp
+  have hδ₁ : (1 : ℝ) / p ≤ 1 := (div_le_one hpR).2 (by exact_mod_cast hp)
   have hchern := countTrue_relative_deviation (trialBudget φ p t) (trial φ)
     (δ := 1 / p) (by positivity) hδ₁
   rw [← hμ_def] at hchern
@@ -401,8 +391,7 @@ theorem approxWithin_estimate (φ : DNF V) {p : ℕ} (hp : 0 < p) (t : ℕ) :
       linarith
     rw [hrw, abs_div, abs_mul, abs_of_pos hNpos, abs_of_pos hKR, div_le_div_iff₀ hKR hpR]
     have h1 : |(s : ℝ) - μ| * p < μ := by
-      rw [one_div, inv_mul_eq_div, lt_div_iff₀ hpR] at hlt
-      exact hlt
+      rwa [one_div, inv_mul_eq_div, lt_div_iff₀ hpR] at hlt
     nlinarith [abs_nonneg ((s : ℝ) - μ)]
   have hbad : ((ProbComp.eval (OracleComp.countTrue (trialBudget φ p t) (trial φ))).toOuterMeasure
       goodᶜ).toReal ≤ (1 / 2 : ℝ) ^ t := by

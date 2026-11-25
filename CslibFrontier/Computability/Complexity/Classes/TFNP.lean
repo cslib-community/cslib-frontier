@@ -314,12 +314,10 @@ theorem searchSum_mem_FNP (hR : R ∈ FNP enc) (hS : S ∈ FNP enc) : searchSum 
     match w, h with
     | true :: u, h =>
       have := hp a u h
-      simp only [List.length_cons]
-      omega
+      simp only [List.length_cons]; omega
     | false :: u, h =>
       have := hq a u h
-      simp only [List.length_cons]
-      omega
+      simp only [List.length_cons]; omega
   · fun_prop
   · match w with
     | [] => simp
@@ -474,15 +472,13 @@ theorem SearchReducible.mem_FPSearch (h : SearchReducible encA encB R T) (hR : R
   obtain ⟨f, g, hf, hg, hdom, hsol⟩ := h
   obtain ⟨-, s, hs, hsolve⟩ := Complexity.mem_FPSearch.mp hT
   refine Complexity.mem_FPSearch.mpr ⟨hR, fun a => (s (f a)).elim none fun w => some (g (a, w)),
-    by fun_prop, fun a => ⟨fun w ha => ?_, fun ha hR => ?_⟩⟩
-  · cases hsa : s (f a) with
-    | none => simp [hsa] at ha
-    | some v =>
-      simp only [hsa, Option.elim_some, Option.some.injEq] at ha
-      exact ha ▸ hsol a v (hsolve.rel hsa)
-  · cases hsa : s (f a) with
-    | none => exact hsolve.notMem hsa (hdom a hR)
-    | some v => simp [hsa] at ha
+    by fun_prop, fun a => ?_⟩
+  cases hsa : s (f a) with
+  | none => exact ⟨fun _ ha => by simp [hsa] at ha, fun _ hR => hsolve.notMem hsa (hdom a hR)⟩
+  | some v =>
+    refine ⟨fun w ha => ?_, fun ha => by simp [hsa] at ha⟩
+    simp only [hsa, Option.elim_some, Option.some.injEq] at ha
+    exact ha ▸ hsol a v (hsolve.rel hsa)
 
 section Hardness
 

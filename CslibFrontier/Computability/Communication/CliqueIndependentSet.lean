@@ -116,9 +116,8 @@ private theorem exists_protocol_clique_indepSet [Fintype V] [DecidableEq V] (r :
       · simpa [hvI] using hone v hvC hvI
       simp only [hvI, decide_false, Bool.cond_false]
       refine hnext_run _ (by omega) C I hC hI fun w hw => ?_
-      have hw' := mem_inter.mp hw
-      have hne : v ≠ w := fun h => hvI (h ▸ hw'.2)
-      exact mem_filter.mpr ⟨hsub hw, hC hvC hw'.1 hne⟩
+      obtain ⟨hwC, hwI⟩ := mem_inter.mp hw
+      exact mem_filter.mpr ⟨hsub hw, hC hvC hwC fun h => hvI (h ▸ hwI)⟩
     by_cases hB : ∃ u, goodB I u
     · obtain ⟨huI, -, hu⟩ := hB.choose_spec
       simp only [choiceA, dite_eq_right hA, afterA, Protocol.run_bind, hqb_run, choiceB,
@@ -128,22 +127,20 @@ private theorem exists_protocol_clique_indepSet [Fintype V] [DecidableEq V] (r :
       · simpa [huC] using hone u huC huI
       simp only [huC, decide_false, Bool.cond_false]
       refine hnext_run _ (by omega) C I hC hI fun w hw => ?_
-      have hw' := mem_inter.mp hw
-      have hne : w ≠ u := fun h => huC (h ▸ hw'.1)
-      exact mem_filter.mpr ⟨hsub hw, hne, hI huI hw'.2 hne.symm⟩
+      obtain ⟨hwC, hwI⟩ := mem_inter.mp hw
+      have hne : w ≠ u := fun h => huC (h ▸ hwC)
+      exact mem_filter.mpr ⟨hsub hw, hne, hI huI hwI hne.symm⟩
     -- Neither player can announce a vertex: no vertex is common.
     simp only [choiceA, dite_eq_right hA, afterA, Protocol.run_bind, hqb_run, choiceB,
       dite_eq_right hB, afterB, Protocol.run_output]
     refine (card_eq_zero.mpr (eq_empty_of_forall_notMem fun w hw => ?_)).symm
-    have hw' := mem_inter.mp hw
-    have hwW := hsub hw
-    have hA' : ¬ 2 * #(nbr w) ≤ #W := fun h => hA ⟨w, hw'.1, hwW, h⟩
-    have hB' : ¬ 2 * #(nonNbr w) ≤ #W := fun h => hB ⟨w, hw'.2, hwW, h⟩
+    obtain ⟨hwC, hwI⟩ := mem_inter.mp hw
+    have hA' : ¬ 2 * #(nbr w) ≤ #W := fun h => hA ⟨w, hwC, hsub hw, h⟩
+    have hB' : ¬ 2 * #(nonNbr w) ≤ #W := fun h => hB ⟨w, hwI, hsub hw, h⟩
     have hdisj : Disjoint (nbr w) (nonNbr w) :=
       disjoint_filter.mpr fun _ _ hadj hnon => hnon.2 hadj
-    have := card_le_card (union_subset (filter_subset _ W) (filter_subset _ W) :
-      nbr w ∪ nonNbr w ⊆ W)
-    rw [card_union_of_disjoint hdisj] at this
+    have := (card_union_of_disjoint hdisj).symm.trans_le (card_le_card
+      (union_subset (filter_subset _ W) (filter_subset _ W) : nbr w ∪ nonNbr w ⊆ W))
     omega
 
 /-- **Clique versus independent set** (Yannakakis; [AroraBarak07], Chapter 12, Exercise 8):

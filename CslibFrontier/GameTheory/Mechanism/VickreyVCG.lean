@@ -203,8 +203,7 @@ theorem singleItem_mem_singleItemFeasible (ω : Option ι) : singleItem ω ∈ s
 theorem welfare_le_winner {b : ι → ℝ} (hb : 0 ≤ b) (ω : Option ι) :
     welfare (linearProfile singleItem b) ω ≤ welfare (linearProfile singleItem b) (winner b) := by
   have h := (isWelfareMaximizing_allocation b hb).2 _ (singleItem_mem_singleItemFeasible ω)
-  rw [← singleItem_winner] at h
-  exact h
+  rwa [← singleItem_winner] at h
 
 open Classical in
 /-- A welfare-maximizing rule `f₀`, patched to choose the Vickrey winner on the linear valuations of
@@ -238,12 +237,10 @@ theorem vcg_toSingleParameter_eq_of_eq_winner {f : (ι → Option ι → ℝ) �
     (hfb : f (linearProfile singleItem b) = winner b) :
     ((vcg f).toSingleParameter singleItem).allocation b = mechanism.allocation b ∧
       ((vcg f).toSingleParameter singleItem).payment b = mechanism.payment b := by
-  refine ⟨?_, ?_⟩
-  · change singleItem (f (linearProfile singleItem b)) = allocation b
-    rw [hfb, singleItem_winner]
-  · funext i
-    change (vcg f).payment (linearProfile singleItem b) i = highestOtherBid b i * allocation b i
-    rw [vcg_payment_linearProfile_singleItem hf, hfb, singleItem_winner]
+  refine ⟨by simpa only [GameTheory.Mechanism.toSingleParameter, mechanism, vcg, groves, hfb] using
+    singleItem_winner b, funext fun i => ?_⟩
+  simpa only [GameTheory.Mechanism.toSingleParameter, mechanism, hfb, singleItem_winner] using
+    vcg_payment_linearProfile_singleItem hf b i
 
 /-- **The Vickrey auction is VCG** ([Roughgarden2013CS364A], Lecture 7, §2): some
 welfare-maximizing outcome rule `f` on single-item outcomes makes the VCG mechanism, run on linear
@@ -261,26 +258,16 @@ theorem exists_vcg_toSingleParameter_eq :
 /-! ### VCG directly on `singleItemFeasible` via `Option ι ≃ singleItemFeasible` -/
 
 omit [Fintype ι] in
-private theorem singleItem_injective : Function.Injective (singleItem (ι := ι)) := by
-  intro ω₁ ω₂ h
-  cases ω₁ with
-  | none =>
-    cases ω₂ with
-    | none => rfl
-    | some k =>
-      have hk := congrFun h k
-      simp only [singleItem_none, singleItem_some, ↓reduceIte, zero_ne_one] at hk
-  | some k₁ =>
-    cases ω₂ with
-    | none =>
-      have hk := congrFun h k₁
-      simp only [singleItem_some, ↓reduceIte, singleItem_none, one_ne_zero] at hk
-    | some k₂ =>
-      have hk := congrFun h k₁
-      simp only [singleItem_some, ↓reduceIte] at hk
-      split_ifs at hk with h21
-      · exact congrArg some h21.symm
-      · exact absurd hk one_ne_zero
+private theorem singleItem_injective : Function.Injective (singleItem (ι := ι))
+  | none, none, _ => rfl
+  | none, some k, h => absurd (congrFun h k) (by simp)
+  | some k, none, h => absurd (congrFun h k) (by simp)
+  | some k₁, some k₂, h => by
+    have hk := congrFun h k₁
+    simp only [singleItem_some, ↓reduceIte] at hk
+    split_ifs at hk with h21
+    · exact congrArg some h21.symm
+    · exact absurd hk one_ne_zero
 
 private theorem exists_singleItem_eq_of_mem {y : ι → ℝ} (hy : y ∈ singleItemFeasible) :
     ∃ ω : Option ι, singleItem ω = y := by
@@ -288,17 +275,12 @@ private theorem exists_singleItem_eq_of_mem {y : ι → ℝ} (hy : y ∈ singleI
   · obtain ⟨k, hk⟩ := h
     refine ⟨some k, funext fun i => ?_⟩
     rw [singleItem_some]
-    by_cases hki : k = i
-    · subst hki
-      rw [ite_eq_left rfl, hk]
+    rcases eq_or_ne k i with rfl | hki
+    · simp [hk]
     · rw [ite_eq_right hki]
       rcases hy.1 i with hi | hi
       · exact hi.symm
-      · exfalso
-        have hy0 : ∀ j, 0 ≤ y j := fun j => by
-          rcases hy.1 j with h0 | h1
-          · rw [h0]
-          · rw [h1]; exact zero_le_one
+      · have hy0 (j : ι) : 0 ≤ y j := by rcases hy.1 j with h0 | h1 <;> linarith
         have hle := Finset.sum_le_sum_of_subset_of_nonneg (Finset.subset_univ ({k, i} : Finset ι))
           fun j _ _ => hy0 j
         rw [Finset.sum_pair hki] at hle

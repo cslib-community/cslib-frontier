@@ -47,23 +47,18 @@ private theorem length_encStructurePrefix_le_pow {a : EncodedStructure} (ha : v.
   | zero =>
     rw [v.encStructurePrefix_zero, Nat.zero_add, Nat.one_mul, length_frame, encUnary_apply,
       List.length_replicate]
-    have hpow : a.1 ≤ a.1 ^ v.maxArity := by
-      simpa using Nat.pow_le_pow_right ha1 v.one_le_maxArity
+    have : a.1 ≤ a.1 ^ v.maxArity := by simpa using Nat.pow_le_pow_right ha1 v.one_le_maxArity
     omega
   | succ m ih =>
-    have hi : m < v.count := by omega
-    let idx : Fin v.count := ⟨m, hi⟩
-    have h1 := ih (by omega)
-    have h2 : (v.table a (v.symbol idx)).length = a.1 ^ v.arity idx :=
-      Vocabulary.WellFormed.length_table v ha (v.symbol idx)
-    have h3 : a.1 ^ v.arity idx ≤ a.1 ^ v.maxArity :=
-      Nat.pow_le_pow_right ha1 (v.arity_le_maxArity idx)
+    let idx : Fin v.count := ⟨m, by omega⟩
+    have := ih (by omega)
+    have := Nat.pow_le_pow_right ha1 (v.arity_le_maxArity idx)
     have hsucc := congrArg List.length (v.encStructurePrefix_succ a idx)
-    rw [List.length_append, length_frame, h2] at hsucc
+    rw [List.length_append, length_frame,
+      Vocabulary.WellFormed.length_table v ha (v.symbol idx)] at hsucc
     change (v.encStructurePrefix a (m + 1)).length =
       (v.encStructurePrefix a m).length + (2 * a.1 ^ v.arity idx + 1) at hsucc
-    rw [hsucc, Nat.add_mul, Nat.one_mul]
-    omega
+    rw [hsucc, Nat.add_mul, Nat.one_mul]; omega
 
 /-- For a well-formed input `a` with `1 ≤ a.1`, `(encStructure a).length` is bounded by
 `(v.count + 1) * (2 * a.1 ^ v.maxArity + 1)`. -/

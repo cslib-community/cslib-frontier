@@ -128,11 +128,10 @@ def IsShortestWalkOracle (G : SimpleGraph V) (P : ∀ u v : V, G.Walk u v) : Pro
 /-- A preconnected graph has a shortest-walk oracle. -/
 theorem exists_isShortestWalkOracle (hG : G.Preconnected) :
     ∃ P, IsShortestWalkOracle w G P := by
-  have h : ∀ u v : V, ∃ p : G.Walk u v, walkWeight w p = metricCompletion w G u v := fun u v =>
-    Nat.sInf_mem (s := {c | ∃ p : G.Walk u v, walkWeight w p = c}) ⟨_, (hG u v).some, rfl⟩
-  refine ⟨fun u v => (h u v).choose, fun u v p => ?_⟩
-  rw [(h u v).choose_spec]
-  exact Nat.sInf_le ⟨p, rfl⟩
+  have h (u v : V) := Nat.sInf_mem (s := {c | ∃ p : G.Walk u v, walkWeight w p = c})
+    ⟨_, (hG u v).some, rfl⟩
+  exact ⟨fun u v => (h u v).choose, fun u v p =>
+    (h u v).choose_spec.trans_le (Nat.sInf_le ⟨p, rfl⟩)⟩
 
 variable {w}
 
@@ -191,10 +190,9 @@ variable [DecidableEq V]
   (T.flatMap fun e => (P e.1 e.2).edges).toFinset
 
 theorem expandEdges_subset (P : ∀ u v : V, G.Walk u v) (T : List (V × V)) :
-    (↑(expandEdges P T) : Set (Sym2 V)) ⊆ G.edgeSet := by
-  intro e he
-  obtain ⟨x, -, hx⟩ := List.mem_flatMap.1 (List.mem_toFinset.1 he)
-  exact (P x.1 x.2).edges_subset_edgeSet hx
+    (↑(expandEdges P T) : Set (Sym2 V)) ⊆ G.edgeSet := fun _ he =>
+  let ⟨x, _, hx⟩ := List.mem_flatMap.1 (List.mem_toFinset.1 he)
+  (P x.1 x.2).edges_subset_edgeSet hx
 
 /-- Pairs related by `T` are connected through the expanded edges. -/
 theorem reachable_expandEdges (P : ∀ u v : V, G.Walk u v) {T : List (V × V)} {a b : V}
@@ -236,14 +234,14 @@ private theorem eqvGen_of_reachable {F : Finset (Sym2 V)} {a b : V}
   induction p with
   | nil => exact .refl _
   | @cons x y z hxy _ ih =>
-    refine .trans _ _ _ ?_ ih
-    have hmem : s(x, y) ∈ F := ((fromEdgeSet_adj _).1 hxy).1
-    obtain ⟨o, ho, hq⟩ : ∃ o : V × V, o ∈ F.toList.map Quot.out ∧ s(o.1, o.2) = s(x, y) :=
-      ⟨_, List.mem_map_of_mem (Finset.mem_toList.2 hmem), Sym2.mk_fst_out_snd_out _⟩
-    obtain ⟨a, b⟩ := o
+    have ho : Quot.out s(x, y) ∈ F.toList.map Quot.out :=
+      List.mem_map_of_mem (Finset.mem_toList.2 (((fromEdgeSet_adj _).1 hxy).1))
+    have hq := Sym2.mk_fst_out_snd_out s(x, y)
+    rcases h : Quot.out s(x, y) with ⟨a, b⟩
+    rw [h] at ho hq
     rcases Sym2.eq_iff.1 hq with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
-    · exact .rel _ _ ho
-    · exact .symm _ _ (.rel _ _ ho)
+    · exact .trans _ _ _ (.rel _ _ ho) ih
+    · exact .trans _ _ _ (.symm _ _ (.rel _ _ ho)) ih
 
 omit [DecidableEq V] in
 /-- Under shortest-walk costs, the representative pairs of a set of edges of `G` cost at most the

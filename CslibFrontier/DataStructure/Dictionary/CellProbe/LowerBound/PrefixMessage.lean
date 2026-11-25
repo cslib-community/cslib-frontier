@@ -104,15 +104,8 @@ private theorem dom_eq_of_ite_some_eq {α β : Type*} [DecidableEq α] {S₁ S�
     S₁ = S₂ ∧ ∀ u ∈ S₁, f₁ u = f₂ u := by
   have hS : S₁ = S₂ := Finset.ext fun u => by
     have hu := congrFun h u
-    by_cases h1 : u ∈ S₁ <;> by_cases h2 : u ∈ S₂
-    · exact iff_of_true h1 h2
-    · rw [ite_eq_left h1, ite_eq_right h2] at hu; cases hu
-    · rw [ite_eq_right h1, ite_eq_left h2] at hu; cases hu
-    · exact iff_of_false h1 h2
-  refine ⟨hS, fun u hu => ?_⟩
-  have hu' := congrFun h u
-  rw [ite_eq_left hu, ite_eq_left (hS ▸ hu)] at hu'
-  exact Option.some.inj hu'
+    by_cases h1 : u ∈ S₁ <;> by_cases h2 : u ∈ S₂ <;> simp [h1, h2] at hu ⊢
+  exact ⟨hS, fun u hu => by simpa [hu, hS ▸ hu] using congrFun h u⟩
 
 open Classical in
 theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cells w : ℕ}
@@ -157,15 +150,8 @@ theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cel
     refine Finset.sum_le_sum fun sb _ => ?_
     dsimp only [W_cons, W, W_bad]
     by_cases hc : IsModeSeedConsistent withQueries D_det t₀ m ht₀ γ t sb.1 sb.2 <;>
-      by_cases hle : ((stateFiber D_det step_end (pairBOf t₀ m ht₀ sb).val).card : ℝ) ≤ M_cap
-    · simp only [hc, hle, and_self, decide_true, ↓reduceIte, not_lt.mpr hle, decide_false,
-        Bool.true_eq_false, add_zero, le_rfl]
-    · simp only [hc, hle, and_false, decide_false, Bool.true_eq_false, ↓reduceIte,
-        lt_of_not_ge hle, decide_true, zero_add, le_rfl]
-    · simp only [hc, false_and, decide_false, Bool.true_eq_false, ↓reduceIte, zero_add]
-      split_ifs <;> positivity
-    · simp only [hc, false_and, decide_false, Bool.true_eq_false, ↓reduceIte, zero_add]
-      split_ifs <;> positivity
+      by_cases hle : ((stateFiber D_det step_end (pairBOf t₀ m ht₀ sb).val).card : ℝ) ≤ M_cap <;>
+      simp [hc, hle, not_lt.2, lt_of_not_ge]
   have hpW_gt : (1 / 2) * (U : ℝ) ^ (-γ * (m : ℝ)) < ((μ_g.map W) true).toReal := by
     change (U : ℝ) ^ (-γ * (m : ℝ)) < ((μ_g.map W_cons) true).toReal at hgt; linarith
   have hpW_pos : 0 < ((μ_g.map W) true).toReal := lt_trans (by positivity) hpW_gt
@@ -480,15 +466,11 @@ theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cel
   set C_upper := benchmarkBits U V n + (m : ℝ) * Real.logb 2 V + 2 * R +
     2 * (m : ℝ) * t + γ * (m : ℝ) * (w : ℝ) + γ * (m : ℝ) * Real.logb 2 U + 3
   have hexp_msg : (∑ sb : Ω, (p sb).toReal * ((msg sb).length : ℝ)) ≤ C_upper := by
-    calc (∑ sb : Ω, (p sb).toReal * ((msg sb).length : ℝ))
-        ≤ ∑ sb : Ω, (p sb).toReal * C_upper := by
-          refine Finset.sum_le_sum fun sb _ => ?_
-          by_cases h0 : (p sb).toReal = 0
-          · simp only [h0, zero_mul, le_rfl]
-          · have hsb : sb ∈ p.support := (_root_.PMF.mem_support_iff p sb).mpr fun h =>
-              h0 (by simp only [h, ENNReal.toReal_zero])
-            exact mul_le_mul_of_nonneg_left (hlen_pt sb hsb) ENNReal.toReal_nonneg
-      _ = C_upper := by rw [← Finset.sum_mul, PMF.sum_toReal p, one_mul]
+    refine (Finset.sum_le_sum fun sb _ => ?_).trans_eq
+      (by rw [← Finset.sum_mul, PMF.sum_toReal p, one_mul] : ∑ sb, (p sb).toReal * C_upper = _)
+    by_cases hsb : sb ∈ p.support
+    · exact mul_le_mul_of_nonneg_left (hlen_pt sb hsb) ENNReal.toReal_nonneg
+    · simp [(_root_.PMF.apply_eq_zero_iff p sb).2 hsb]
   have hm_real : (2 : ℝ) ≤ (m : ℝ) := by exact_mod_cast hm
   dsimp only [C_upper] at hexp_msg
   linarith

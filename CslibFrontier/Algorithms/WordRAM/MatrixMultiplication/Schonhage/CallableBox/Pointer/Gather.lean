@@ -27,10 +27,8 @@ open Cslib.WordRAM
 /-- Every native copy register has a distinct physical register. -/
 theorem copyBank_injective : Function.Injective copyBank := by
   intro i j h
-  have hv := congrArg (fun k : Fin 173 => k.val) h
-  apply Fin.ext
-  change 166 + i.val = 166 + j.val at hv
-  omega
+  have hv : 166 + i.val = 166 + j.val := congrArg Fin.val h
+  exact Fin.ext (by omega)
 
 /-- Native copy execution with its disjoint physical scratch bank. -/
 theorem exec_copy {W s d k : ℕ} (x : Data 173)
@@ -48,21 +46,16 @@ theorem exec_copy {W s d k : ℕ} (x : Data 173)
       (by change Fits W (x.regs Reg.destination + x.regs Reg.length)
           rw [hd, hk]; exact hfit.of_le (by omega))
       (by change x.regs Reg.source + x.regs Reg.length ≤ x.regs Reg.destination; omega))
-  change y.regs Reg.source = _ at ys
-  change y.regs Reg.destination = _ at yd
-  change y.regs Reg.length = _ at yk
-  refine ⟨y, ?_, ?_, ys.trans hs, yd.trans hd, yk.trans hk, ?_⟩
-  · change ExecWithin W copy x y (7 * x.regs Reg.length + 4) at he
-    simpa only [hk] using he
-  · change y.mem = ArrayCopy.copyPrefix x.mem (x.regs Reg.source)
-      (x.regs Reg.destination) (x.regs Reg.length) at ym
-    simpa only [hs, hd, hk] using ym
-  · intro i hi
-    apply yf i
-    intro j hj
-    have hv := congrArg Fin.val hj
-    change 166 + j.val = i.val at hv
-    omega
+  refine ⟨y,
+    by simpa only [hk] using (show ExecWithin W copy x y (7 * x.regs Reg.length + 4) from he),
+    by simpa only [hs, hd, hk] using
+      (show y.mem = ArrayCopy.copyPrefix x.mem (x.regs Reg.source)
+        (x.regs Reg.destination) (x.regs Reg.length) from ym),
+    (show y.regs Reg.source = _ from ys).trans hs,
+    (show y.regs Reg.destination = _ from yd).trans hd,
+    (show y.regs Reg.length = _ from yk).trans hk, fun i hi => yf i fun j hj => ?_⟩
+  have hv : 166 + j.val = i.val := congrArg Fin.val hj
+  omega
 
 /-- The actual memory meaning of the four destination blocks. -/
 @[expose] def gatherMemory (mem : ℕ → ℕ) (b S A Q s t q : ℕ) : ℕ → ℕ :=

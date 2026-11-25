@@ -165,12 +165,10 @@ variable {σ α β : Type*} (A : Algorithm σ α β)
 /-- In one pass, `A.toMultiPass` reaches the states that `A` reaches. -/
 theorem reachable_toMultiPass (m : ℕ) : A.toMultiPass.reachable 1 m = A.reachable m := by
   ext q
-  constructor
-  · rintro ⟨s, hs, k, hk, t, ht, rfl⟩
-    obtain rfl : k = 0 := by omega
-    exact ⟨t, ht.length_le.trans hs, rfl⟩
-  · rintro ⟨s, hs, rfl⟩
-    exact ⟨s, hs, 0, one_pos, s, List.prefix_rfl, rfl⟩
+  refine ⟨?_, fun ⟨s, hs, hq⟩ => ⟨s, hs, 0, one_pos, s, List.prefix_rfl, hq⟩⟩
+  rintro ⟨s, hs, k, hk, t, ht, rfl⟩
+  obtain rfl : k = 0 := by omega
+  exact ⟨t, ht.length_le.trans hs, rfl⟩
 
 /-- `A.toMultiPass` uses `b` bits of memory in one pass exactly when `A` does. -/
 theorem spaceLE_toMultiPass_iff {m b : ℕ} : A.toMultiPass.SpaceLE 1 m b ↔ A.SpaceLE m b := by
@@ -272,9 +270,9 @@ theorem ecomplexityFun_le_of_spaceLE {p m b : ℕ} (hp : 0 < p) (hA : A.SpaceLE 
     (f : X → Y → Bool) (hf : ∀ x y, d (A.run p (u x ++ v y)) = f x y) :
     Protocol.ecomplexityFun f ≤ (2 * p - 1) * b + 1 := by
   obtain ⟨enc, henc⟩ := hA
-  have := Protocol.ecomplexityFun_le_depth (p := A.toProtocol p m b enc u v d)
-    (funext₂ fun x y => (A.run_toProtocol hp henc u v d (hm x y)).trans (hf x y))
-  exact this.trans (by exact_mod_cast A.depth_toProtocol_le hp m b enc u v d)
+  exact (Protocol.ecomplexityFun_le_depth (p := A.toProtocol p m b enc u v d)
+    (funext₂ fun x y => (A.run_toProtocol hp henc u v d (hm x y)).trans (hf x y))).trans
+    (by exact_mod_cast A.depth_toProtocol_le hp m b enc u v d)
 
 /-! ### Randomized multi-pass algorithms -/
 
@@ -301,19 +299,17 @@ theorem Randomized.ecomplexityFun_le_of_spaceLE (μ : Randomized σ α β) {p m 
   classical
   let P : MultiPass σ α β → Protocol X Y Bool := fun A =>
     if h : A.SpaceLE p m b then A.toProtocol p m b h.choose u v d else Protocol.output false
-  refine (PublicCoin.ecomplexity_le_depth (μ := μ.map P) fun x _ y _ => ?_).trans ?_
-  · refine le_trans ?_ (hf x y)
-    unfold PublicCoin.errorProb Probability.PMF.errorProb
-    rw [PMF.toOuterMeasure_map_apply]
-    refine ENNReal.toReal_mono (Probability.PMF.toOuterMeasure_ne_top _ _)
-      (PMF.toOuterMeasure_mono _ ?_)
-    rintro A ⟨hA, hsupp⟩
-    have hs := hμ A hsupp
-    simp only [Set.mem_preimage, Set.mem_ofPred_eq, P, dite_eq_left hs] at hA ⊢
-    rwa [A.run_toProtocol hp hs.choose_spec u v d (hm x y), eq_comm] at hA
-  · refine Probability.PMF.maxCost_map_le_of_le Protocol.depth P μ fun A hA => ?_
-    simp only [P, dite_eq_left (hμ A hA)]
-    exact A.depth_toProtocol_le hp m b _ u v d
+  refine (PublicCoin.ecomplexity_le_depth (μ := μ.map P) fun x _ y _ => ?_).trans
+    (Probability.PMF.maxCost_map_le_of_le Protocol.depth P μ fun A hA => by
+      simp only [P, dite_eq_left (hμ A hA)]
+      exact A.depth_toProtocol_le hp m b _ u v d)
+  unfold PublicCoin.errorProb Probability.PMF.errorProb
+  rw [PMF.toOuterMeasure_map_apply]
+  refine (ENNReal.toReal_mono (Probability.PMF.toOuterMeasure_ne_top _ _)
+    (PMF.toOuterMeasure_mono _ fun A ⟨hA, hsupp⟩ => ?_)).trans (hf x y)
+  have hs := hμ A hsupp
+  simp only [Set.mem_preimage, Set.mem_ofPred_eq, P, dite_eq_left hs] at hA ⊢
+  rwa [A.run_toProtocol hp hs.choose_spec u v d (hm x y), eq_comm] at hA
 
 end MultiPass
 

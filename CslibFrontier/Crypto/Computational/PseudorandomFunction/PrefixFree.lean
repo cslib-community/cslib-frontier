@@ -98,16 +98,12 @@ theorem map_fst_wordQueryRunDist {α : Type} (oracle : List Bool → List Bool)
   | pure a => simp [wordQueryRunDist, OracleComp.interpret, PFunctor.FreeM.liftM]
   | liftBind op cont ih =>
     cases op with
-    | inl k =>
-      simp only [wordQueryRunDist, PMF.map_bind, ih]
-      rfl
+    | inl k => simp only [wordQueryRunDist, PMF.map_bind, ih]; rfl
     | inr req =>
       simp only [wordQueryRunDist, PMF.map_comp, Function.comp_def, ih]
-      change _ = (PMF.pure (oracle req.2)).bind fun reply =>
-        OracleComp.interpret
-          (OracleComp.sumHandler ProbComp.unifOracle (fun q => PMF.pure (oracle q.2)))
-          (cont reply)
-      simp
+      exact (PMF.pure_bind _ fun reply => OracleComp.interpret
+        (OracleComp.sumHandler ProbComp.unifOracle (fun q => PMF.pure (oracle q.2)))
+        (cont reply)).symm
 
 /-- The probability of a particular output and query log depends only on how the oracle answers
 the queries in that log, even when further queries depend on earlier replies. -/

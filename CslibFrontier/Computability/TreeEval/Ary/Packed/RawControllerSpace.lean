@@ -51,16 +51,9 @@ private theorem foldl_bankFoldStep (q : BankPar) (l : List ℕ) (j : ℕ) (out :
   | nil => simp
   | cons a l ih =>
     rw [List.foldl_cons, bankFoldStep, ih]
-    simp only [List.length_cons, List.mapIdx_cons]
-    have hf : (fun k v => bankCell q (j + 1 + k) v) =
-        (fun k v => bankCell q (j + (k + 1)) v) := by
-      funext k v
-      congr 1
-      omega
-    rw [hf]
-    simp only [List.append_assoc, List.singleton_append]
+    simp only [List.length_cons, List.mapIdx_cons, Nat.add_right_comm j 1,
+      List.append_assoc, List.singleton_append]
     congr 1
-    omega
 
 private theorem bankCell_length (q : BankPar) (k v : ℕ) :
     (encNat (bankCell q k v)).length ≤ (encNat v).length +
@@ -86,13 +79,9 @@ private theorem length_bankMap (q : BankPar) (l : List ℕ) (j : ℕ) :
   | cons v l ih =>
     have hc := bankCell_length q j v
     have ht := ih (j + 1)
-    have hf : (fun k v => bankCell q (j + (k + 1)) v) =
-        (fun k v => bankCell q (j + 1 + k) v) := by
-      funext k v
-      congr 1
-      omega
-    simp only [List.mapIdx_cons, hf, encList_cons, List.length_append, length_frame,
-      List.length_cons, Nat.add_zero]
+    simp only [Nat.add_assoc, Nat.add_comm 1] at ht
+    simp only [List.mapIdx_cons, encList_cons, List.length_append,
+      length_frame, List.length_cons, Nat.add_zero]
     nlinarith
 
 private theorem bankFoldStep_inSpace :
@@ -338,11 +327,8 @@ theorem checkedScaleBank_inSpace :
       (budget_const (encB := encPair encBool encBool) (false, false)))) hbank
   refine (budget_comp_linear checkedBankMap_inSpace hprep).of_enc_eq ?_
   rintro ⟨⟨p, r, t, a⟩, bank⟩
-  by_cases hpad : bank.all (fun v => decide (p ≤ v)) = true
-  · by_cases hp : p = 0
-    · simp [checkedBankMap, mapIdx_bankCell, checkedScaleBank, hp, mapIdx_identity]
-    · simp [checkedBankMap, mapIdx_bankCell, checkedScaleBank, hpad, hp, scaleBank]
-  · simp [checkedBankMap, checkedScaleBank, hpad]
+  by_cases hpad : bank.all (fun v => decide (p ≤ v)) = true <;> by_cases hp : p = 0 <;>
+    simp [checkedBankMap, mapIdx_bankCell, checkedScaleBank, hpad, hp, mapIdx_identity, scaleBank]
 
 private theorem vectorBank_inSpace (subtract : Bool) :
     ComputableInSpace (fun q : VectorBankArgs =>
@@ -364,11 +350,8 @@ theorem checkedAddBank_inSpace :
       (fun q => (encVectorBankArgs q).length) := by
   refine (vectorBank_inSpace false).of_enc_eq ?_
   rintro ⟨⟨p, r, t, c⟩, values, bank⟩
-  by_cases hpad : bank.all (fun v => decide (p ≤ v)) = true
-  · by_cases hp : p = 0
-    · simp [checkedBankMap, mapIdx_bankCell, checkedAddBank, hp, mapIdx_identity]
-    · simp [checkedBankMap, mapIdx_bankCell, checkedAddBank, hpad, hp, addBank]
-  · simp [checkedBankMap, checkedAddBank, hpad]
+  by_cases hpad : bank.all (fun v => decide (p ≤ v)) = true <;> by_cases hp : p = 0 <;>
+    simp [checkedBankMap, mapIdx_bankCell, checkedAddBank, hpad, hp, mapIdx_identity, addBank]
 
 /-- Subtracting returned gate values has a uniform native linear-space certificate. -/
 theorem checkedSubBank_inSpace :
@@ -376,38 +359,32 @@ theorem checkedSubBank_inSpace :
       (fun q => (encVectorBankArgs q).length) := by
   refine (vectorBank_inSpace true).of_enc_eq ?_
   rintro ⟨⟨p, r, t, c⟩, values, bank⟩
-  by_cases hpad : bank.all (fun v => decide (p ≤ v)) = true
-  · by_cases hp : p = 0
-    · simp [checkedBankMap, mapIdx_bankCell, checkedSubBank, hp, mapIdx_identity]
-    · simp [checkedBankMap, mapIdx_bankCell, checkedSubBank, hpad, hp, subBank]
-  · simp [checkedBankMap, checkedSubBank, hpad]
+  by_cases hpad : bank.all (fun v => decide (p ≤ v)) = true <;> by_cases hp : p = 0 <;>
+    simp [checkedBankMap, mapIdx_bankCell, checkedSubBank, hpad, hp, mapIdx_identity, subBank]
 
 /-- On the actual controller's valid bank the checked scale is its original scale. -/
 theorem checkedScaleBank_eq (p d r t a : ℕ) (bank : List ℕ)
     (hbank : validBank p d r bank = true) :
     checkedScaleBank ((p, r, t, a), bank) = scaleBank p r t a bank := by
   obtain ⟨hp, _, hpad⟩ := (validBank_eq_true p d r bank).mp hbank
-  have hall : bank.all (fun v => decide (p ≤ v)) = true := by
-    simpa only [List.all_eq_true, decide_eq_true_eq] using hpad
-  simp [checkedScaleBank, hall, show p ≠ 0 by omega]
+  simp [checkedScaleBank, List.all_eq_true.mpr fun v hv => decide_eq_true (hpad v hv),
+    Nat.ne_zero_of_lt hp]
 
 /-- On a valid bank the checked additive update is the actual controller update. -/
 theorem checkedAddBank_eq (p d r t c : ℕ) (values bank : List ℕ)
     (hbank : validBank p d r bank = true) :
     checkedAddBank ((p, r, t, c), values, bank) = addBank p r t c values bank := by
   obtain ⟨hp, _, hpad⟩ := (validBank_eq_true p d r bank).mp hbank
-  have hall : bank.all (fun v => decide (p ≤ v)) = true := by
-    simpa only [List.all_eq_true, decide_eq_true_eq] using hpad
-  simp [checkedAddBank, hall, show p ≠ 0 by omega]
+  simp [checkedAddBank, List.all_eq_true.mpr fun v hv => decide_eq_true (hpad v hv),
+    Nat.ne_zero_of_lt hp]
 
 /-- On a valid bank the checked subtractive update is the actual controller update. -/
 theorem checkedSubBank_eq (p d r t c : ℕ) (values bank : List ℕ)
     (hbank : validBank p d r bank = true) :
     checkedSubBank ((p, r, t, c), values, bank) = subBank p r t c values bank := by
   obtain ⟨hp, _, hpad⟩ := (validBank_eq_true p d r bank).mp hbank
-  have hall : bank.all (fun v => decide (p ≤ v)) = true := by
-    simpa only [List.all_eq_true, decide_eq_true_eq] using hpad
-  simp [checkedSubBank, hall, show p ≠ 0 by omega]
+  simp [checkedSubBank, List.all_eq_true.mpr fun v hv => decide_eq_true (hpad v hv),
+    Nat.ne_zero_of_lt hp]
 
 /-- The per-cell padding check is itself uniformly native in the binary modulus and bank. -/
 theorem bankPadding_inSpace :

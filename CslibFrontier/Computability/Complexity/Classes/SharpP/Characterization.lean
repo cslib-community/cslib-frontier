@@ -72,23 +72,22 @@ theorem exists_verifier_counting_machine (enc : α ↪ List Bool) (p : Polynomia
         (Cfg.init machine.initial (enc a)) =
       (Finset.univ.filter fun word : BitString (p.eval (enc a).length) =>
         verifier (a, List.ofFn word) = verdict).card := by
-    rw [hhalt.branchCount_eq_countP (fun out => (out == [true]) == verdict)]
+    rw [hhalt.branchCount_eq_countP]
     have hcount := hp.countP_eq (fun out => (out == [true]) == verdict)
     simp only [List.countP_map, Function.comp_def] at hcount
     rw [hcount]
     simpa [List.countP_map, Function.comp_def, encBool_apply] using
-      BitString.countP_enumList (p.eval (enc a).length) (fun word => verifier (a, word) == verdict)
-  refine ⟨hhalt, ?_, ?_⟩
-  · simpa [acceptCount, Complexity.acceptCount] using hverdict true
-  · have hcount := Complexity.acceptCount_add_card_filter_eq_false
-      (V := verifier) (a := a) (n := p.eval (enc a).length)
-    have hrejection : machine.rejectCount (clock.eval (enc a).length)
-        (Cfg.init machine.initial (enc a)) =
-        (Finset.univ.filter fun word : BitString (p.eval (enc a).length) =>
-          verifier (a, List.ofFn word) = false).card := by
-      simpa [rejectCount] using hverdict false
-    rw [hrejection]
-    lia
+      BitString.countP_enumList (p.eval (enc a).length) fun word => verifier (a, word) == verdict
+  refine ⟨hhalt, by simpa [acceptCount, Complexity.acceptCount] using hverdict true, ?_⟩
+  have := Complexity.acceptCount_add_card_filter_eq_false
+    (V := verifier) (a := a) (n := p.eval (enc a).length)
+  have hrej : machine.rejectCount (clock.eval (enc a).length)
+      (Cfg.init machine.initial (enc a)) =
+      (Finset.univ.filter fun word : BitString (p.eval (enc a).length) =>
+        verifier (a, List.ofFn word) = false).card := by
+    simpa [rejectCount] using hverdict false
+  rw [hrej]
+  lia
 
 end Turing.MultiTapeCTM
 
@@ -113,9 +112,6 @@ theorem mem_SharpP_iff_exists_machine :
     exact ⟨k, State, hfinite, machine, clock, hnon,
       fun a => ⟨(hm a).1, (hm a).2.1.trans (hf a).symm⟩⟩
   · rintro ⟨k, State, hfinite, machine, clock, _, hm⟩
-    have heq : f = fun a => machine.acceptCount (clock.eval (enc a).length)
-        (Cfg.init machine.initial (enc a)) := funext fun a => (hm a).2.symm
-    rw [heq]
-    exact machine.acceptCount_mem_SharpP enc clock
+    exact (funext fun a => (hm a).2.symm) ▸ machine.acceptCount_mem_SharpP enc clock
 
 end Cslib.Complexity

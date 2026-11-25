@@ -134,20 +134,15 @@ theorem admissible_advance_of_round_answer (size source : κ → ℕ)
     · exact Option.some.inj hanswer
   rw [hu] at hcount hsum
   obtain ⟨hcontext, hfuel, hc, hs⟩ := hr
-  have hdim : ctx.size = size context := congrArg size hcontext
   have hcursor' : (M.run input bits).controller.cursor ≤ size context :=
-    hcursor.trans_eq hdim
+    hcursor.trans_eq (congrArg size hcontext)
   have hcount' : a.tally.count ≤ r.tally.count + size context := hcount.trans
     (Nat.add_le_add_left hcursor' _)
-  have hsum' : a.tally.lengthSum ≤ r.tally.lengthSum + size context * (r.radius + 1) := by
-    exact hsum.trans (Nat.add_le_add_left (Nat.mul_le_mul_right _ hcursor') _)
-  refine ⟨hcontext, ?_, ?_, ?_⟩
-  · simp only [Registers.advance]
-    omega
-  · simp only [Registers.advance]
-    nlinarith
-  · simp only [Registers.advance]
-    nlinarith
+  have hsum' : a.tally.lengthSum ≤ r.tally.lengthSum + size context * (r.radius + 1) :=
+    hsum.trans (Nat.add_le_add_left (Nat.mul_le_mul_right _ hcursor') _)
+  refine ⟨hcontext, by simp only [Registers.advance]; omega,
+    by simp only [Registers.advance]; nlinarith,
+    by simp only [Registers.advance]; nlinarith⟩
 
 section Composition
 
@@ -178,8 +173,7 @@ theorem admissible_closed (input : List Bool) :
     Closed (singleRound) (entryRound) SourceRound.answer input
       (Admissible context (size context) limit) := by
   intro r hr hpositive bits a _ hanswer _ _
-  have hreentry := singleRound_withInit size source callee calleeStart calleeReply context limit r
-  rw [← run_withInit, hreentry] at hanswer
+  rw [← run_withInit, singleRound_withInit] at hanswer
   exact admissible_advance_of_round_answer size source callee calleeStart calleeReply
     hr hpositive input bits hanswer
 
@@ -203,9 +197,8 @@ theorem withSourceRound_haltsWithin (member : NondeterministicQueryMachine μ)
     (SourceRound.roundClock (size context) callbackClock) memberClock _ hmember
   intro r hr
   rw [singleRound_withInit]
-  have h := SourceRound.haltsWithin (roundContext size source r) callee calleeStart calleeReply
-    input callbackClock (hcall r hr)
-  simpa only [roundContext, hr.1] using h
+  simpa only [roundContext, hr.1] using SourceRound.haltsWithin (roundContext size source r)
+    callee calleeStart calleeReply input callbackClock (hcall r hr)
 
 /-- Every admissible round fits the scalar envelope at the loop's maximum radius and tally. -/
 theorem roundStateBound_le (r : Registers κ)
@@ -256,9 +249,9 @@ theorem withSourceRound_length_run_le (encContext : κ ↪ List Bool) (encCallee
     _ _ memberBound (fun _ hr => length_encRegisters_le encContext hr) _ hmember
   intro r hr choices
   rw [← run_withInit, singleRound_withInit]
-  have h := SourceRound.length_encMachineState_run_le encCallee (roundContext size source r)
-    callee calleeStart calleeReply input choices calleeBound (hcallee r hr)
-  exact h.trans (roundStateBound_le size source context limit r hr calleeBound)
+  exact (SourceRound.length_encMachineState_run_le encCallee (roundContext size source r)
+    callee calleeStart calleeReply input choices calleeBound (hcallee r hr)).trans
+    (roundStateBound_le size source context limit r hr calleeBound)
 
 /-- Compile the composed source loop from native certificates for the round callee, final
 membership callback, and input-dependent initial registers. The state budget covers all runs. -/

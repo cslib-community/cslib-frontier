@@ -53,21 +53,18 @@ theorem realPoint_mirrorPoint (p : Point) :
     realPoint (mirrorPoint p) = mirrorReal (realPoint p) := by
   ext <;> simp [mirrorPoint, mirrorReal, realPoint]
 
-private theorem mirrorPoint_involutive : Function.Involutive mirrorPoint := by
-  intro p
+private theorem mirrorPoint_involutive : Function.Involutive mirrorPoint := fun _ => by
   ext <;> simp [mirrorPoint]
 
-private theorem mirrorReal_involutive : Function.Involutive mirrorReal := by
-  intro p
+private theorem mirrorReal_involutive : Function.Involutive mirrorReal := fun _ => by
   ext <;> simp [mirrorReal]
 
 /-- Reflection maps complete real segments. -/
 theorem segment_mirrorPoint (a b : Point) :
     segment (mirrorPoint a) (mirrorPoint b) = mirrorReal '' segment a b := by
-  have h := image_segment ℝ mirrorLinear.toAffineMap (realPoint a) (realPoint b)
-  change mirrorReal '' _root_.segment ℝ (realPoint a) (realPoint b) =
-    _root_.segment ℝ (mirrorReal (realPoint a)) (mirrorReal (realPoint b)) at h
-  simpa only [Orthogonal.segment, realPoint_mirrorPoint] using h.symm
+  simpa only [Orthogonal.segment, mirrorLinear, LinearMap.coe_toAffineMap, LinearMap.coe_mk,
+    AddHom.coe_mk, realPoint_mirrorPoint] using
+    (image_segment ℝ mirrorLinear.toAffineMap (realPoint a) (realPoint b)).symm
 
 /-- Reflected segment membership is reflected membership. -/
 theorem mem_segment_mirrorPoint_iff (a b : Point) (p : ℝ × ℝ) :
@@ -110,20 +107,15 @@ theorem isOrthogonal_mirrorRoute_iff (r : Route) :
 private theorem endpointContacts_mirrorPoint_iff (a b c d : Point) :
     EndpointContacts (mirrorPoint a) (mirrorPoint b) (mirrorPoint c) (mirrorPoint d) ↔
       EndpointContacts a b c d := by
-  constructor
-  · intro h p hp hq
-    have hh := h (mirrorReal p) ((mem_segment_mirrorPoint_iff a b p).2 hp)
-      ((mem_segment_mirrorPoint_iff c d p).2 hq)
-    simp only [realPoint_mirrorPoint] at hh
-    exact ⟨hh.1.imp (fun h => mirrorReal_involutive.injective h)
-        (fun h => mirrorReal_involutive.injective h),
-      hh.2.imp (fun h => mirrorReal_involutive.injective h)
-        (fun h => mirrorReal_involutive.injective h)⟩
-  · intro h p hp hq
-    obtain ⟨q, hqa, rfl⟩ := (segment_mirrorPoint a b) ▸ hp
+  have aux {a b c d : Point} (h : EndpointContacts a b c d) :
+      EndpointContacts (mirrorPoint a) (mirrorPoint b) (mirrorPoint c) (mirrorPoint d) := by
+    intro p hp hq
+    obtain ⟨q, hqa, rfl⟩ := segment_mirrorPoint a b ▸ hp
     have hh := h q hqa ((mem_segment_mirrorPoint_iff c d q).1 hq)
     simp only [realPoint_mirrorPoint]
     exact ⟨hh.1.imp (congrArg _) (congrArg _), hh.2.imp (congrArg _) (congrArg _)⟩
+  refine ⟨fun h => ?_, aux⟩
+  simpa only [mirrorPoint_involutive _] using aux h
 
 /-- Reflection preserves continuous simplicity. -/
 theorem isSimple_mirrorRoute_iff (r : Route) : IsSimple (mirrorRoute r) ↔ IsSimple r := by

@@ -48,36 +48,25 @@ theorem iterate_bot_le_lfp [CompleteLattice β] (f : β →o β) (n : ℕ) :
 at most the cardinality of the underlying type many iterations. -/
 theorem iterate_card_bot_eq_lfp [Fintype α] (f : Set α →o Set α) :
     (f^[Fintype.card α]) ⊥ = f.lfp := by
-  have hmono : Monotone fun n => (f^[n]) ⊥ :=
-    f.monotone.monotone_iterate_of_le_map bot_le
-  have hgrowth : ∀ n, (f^[n]) ⊥ = f.lfp ∨ n ≤ ((f^[n]) ⊥).ncard := by
-    intro n
+  have hmono : Monotone fun n => (f^[n]) ⊥ := f.monotone.monotone_iterate_of_le_map bot_le
+  have hgrowth (n : ℕ) : (f^[n]) ⊥ = f.lfp ∨ n ≤ ((f^[n]) ⊥).ncard := by
     induction n with
     | zero => exact Or.inr (Nat.zero_le _)
     | succ n ih =>
       rcases ih with hfixed | hcard
-      · left
-        rw [Function.iterate_succ_apply', hfixed, f.map_lfp]
+      · exact Or.inl (by rw [Function.iterate_succ_apply', hfixed, f.map_lfp])
       · by_cases heq : (f^[n]) ⊥ = (f^[n + 1]) ⊥
-        · left
-          have hfixed : f ((f^[n]) ⊥) = (f^[n]) ⊥ := by
-            exact (Function.iterate_succ_apply' f n ⊥).symm.trans heq.symm
-          rw [← heq]
-          exact le_antisymm (f.iterate_bot_le_lfp n) (f.lfp_le_fixed hfixed)
-        · right
-          have hlt : ((f^[n]) ⊥).ncard < ((f^[n + 1]) ⊥).ncard :=
+        · exact Or.inl (heq ▸ le_antisymm (f.iterate_bot_le_lfp n)
+            (f.lfp_le_fixed ((Function.iterate_succ_apply' f n ⊥).symm.trans heq.symm)))
+        · have : ((f^[n]) ⊥).ncard < ((f^[n + 1]) ⊥).ncard :=
             Set.ncard_lt_ncard (lt_of_le_of_ne (hmono (Nat.le_succ n)) heq)
-          omega
+          exact Or.inr (by omega)
   rcases hgrowth (Fintype.card α) with hfixed | hcard
   · exact hfixed
-  · have huniv : (f^[Fintype.card α]) ⊥ = Set.univ := by
-      apply (Set.eq_univ_iff_ncard _).2
-      rw [Nat.card_eq_fintype_card]
-      apply le_antisymm ?_ hcard
-      simpa only [Nat.card_eq_fintype_card] using
-        (Set.ncard_le_card ((f^[Fintype.card α]) ⊥))
-    apply le_antisymm (f.iterate_bot_le_lfp _)
-    rw [huniv]
+  · refine le_antisymm (f.iterate_bot_le_lfp _) ?_
+    rw [(Set.eq_univ_iff_ncard ((f^[Fintype.card α]) ⊥)).2 <| le_antisymm
+      (Set.ncard_le_card ((f^[Fintype.card α]) ⊥))
+      (by simpa only [Nat.card_eq_fintype_card] using hcard)]
     exact Set.subset_univ _
 
 /-- Every iteration at or beyond the finite powerset bound equals the least fixed point. -/

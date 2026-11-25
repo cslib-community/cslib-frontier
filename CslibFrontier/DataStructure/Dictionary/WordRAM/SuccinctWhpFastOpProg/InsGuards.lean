@@ -51,6 +51,13 @@ open Cslib.DataStructure.Dictionary.WordRAM.Succinct
 
 attribute [local simp] clientResult_pure_whp clientState_pure_whp
 
+private theorem CostBoundedStep.weaken {α : Type} {w F C C' : ℕ} {s s' : Memory.State}
+    {p : Memory.Prog α} {r r' : α} (h : CostBoundedStep w F s p s' r C) (hr : r = r')
+    (hC : C ≤ C') :
+    (Memory.spec 0).clientState s p = s' ∧ (Memory.spec 0).clientResult s p = r' ∧
+      memoryCost p s ≤ C' ∧ ValidProg w F s p :=
+  ⟨h.clientState_eq, h.clientResult_eq.trans hr, h.memoryCost_le.trans hC, h.validProg⟩
+
 /-- Guard 1 (`insCheckCapPoolGenProg`): check `totalLocalCoordsWhp ≤ X ∨ (cf ≤ X ∧ poolFreeTop = 0)`
 without mutating memory, returning `(0, 0)` if rejected or `(1, X)` if accepted. -/
 @[irreducible] def insCheckCapPoolGenProg :
@@ -118,17 +125,8 @@ theorem insCheckCapPoolGenProg_spec {c U V w n_max base b : ℕ}
   dsimp only
   unfold insCheckCapPoolGenProg; dsimp only
   simp only [wp_large_totalLoc hth, wp_large_capFront hth, pure_bind]
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · rw [clientState_bind, hc0_st, hc0_res, clientState_bind, ht_st, ht_res]
-    split_ifs <;> rfl
-  · rw [clientResult_bind, hc0_st, hc0_res, clientResult_bind, ht_st, ht_res]
-    split_ifs <;> rfl
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hc0_st, hc0_res, hc0_mc, ht_st, ht_res, ht_mc]
-    split_ifs <;> (simp only [memoryCost_pure]; omega)
-  · refine validProg_bind hc0_vp ?_; rw [hc0_st, hc0_res]
-    refine validProg_bind ht_vp ?_; rw [ht_st, ht_res]
-    split_ifs <;> exact validProg_pure _
+  exact CostBoundedStep.weaken (.bind ⟨hc0_st, hc0_res, hc0_mc.le, hc0_vp⟩ <|
+    .bind ⟨ht_st, ht_res, ht_mc.le, ht_vp⟩ <| .ite (.pure _ _) (.pure _ _)) rfl (by omega)
 
 /-- Return `1` iff `(bufLookup (fs.buf ep) rKey).isSome`, else `0` (`d = (((cp, base), ep), rKey)`).
 -/
@@ -164,13 +162,9 @@ private theorem insBufIsSomeGenProg_spec {c U V w n_max base ep rKey : ℕ}
     bufLookupGenProg_spec henv hep (hrep.buf_rep hep) hv (rKey := rKey) (s := s)
   dsimp only
   unfold insBufIsSomeGenProg
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · rw [clientState_bind, hl_st]; rfl
-  · rw [clientResult_bind, hl_st, hl_res, clientResult_pure_whp]
-    rcases bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf ep) rKey with _ | ⟨_, _⟩ <;> rfl
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hl_st, memoryCost_pure]; omega
-  · refine validProg_bind hl_vp ?_; rw [hl_st]; exact validProg_pure _
+  exact CostBoundedStep.weaken (.bind ⟨hl_st, hl_res, hl_mc, hl_vp⟩ (.pure _ _))
+    (by rcases bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf ep) rKey with _ | ⟨_, _⟩ <;> rfl)
+    (by omega)
 
 /-- Return `1` iff `fs.rebStage ≤ 3 ∧ (bufLookup (fs.buf fs.oldEp) rKey).isSome`
 (`d = ((cp, base), rKey)`). -/
@@ -259,32 +253,14 @@ private theorem insOldBufSomeGenProg_spec {c U V w n_max base rKey : ℕ}
   unfold insOldBufSomeGenProg; dsimp only; simp only [pure_bind]
   by_cases hle3 : fs.rebStage ≤ 3
   · obtain ⟨oldMap, hv_old⟩ := hbo_fn hle3
-    obtain ⟨hib_st, hib_res, hib_mc, hib_vp⟩ :=
-      insBufIsSomeGenProg_spec henv hold_or hrep hv_old (rKey := rKey) (s := s)
-    refine ⟨?_, ?_, ?_, ?_⟩
-    · rw [clientState_bind, hst_st, hst_res, clientState_bind, hro_st, hro_res,
-        ite_eq_left hle3, hib_st]
-    · rw [clientResult_bind, hst_st, hst_res, clientResult_bind, hro_st, hro_res,
-        ite_eq_left hle3, hib_res]
-      by_cases hs : (bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.oldEp) rKey).isSome = true
-      · simp [hle3, hs]
-      · simp [hle3, hs]
-    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      rw [hst_st, hst_res, hst_mc, hro_st, hro_res, hro_mc, ite_eq_left hle3]; omega
-    · refine validProg_bind hst_vp ?_; rw [hst_st, hst_res]
-      refine validProg_bind hro_vp ?_; rw [hro_st, hro_res, ite_eq_left hle3]
-      exact hib_vp
-  · refine ⟨?_, ?_, ?_, ?_⟩
-    · rw [clientState_bind, hst_st, hst_res, clientState_bind, hro_st, hro_res,
-        ite_eq_right hle3]; rfl
-    · rw [clientResult_bind, hst_st, hst_res, clientResult_bind, hro_st, hro_res,
-        ite_eq_right hle3, clientResult_pure_whp]; simp [hle3]
-    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      rw [hst_st, hst_res, hst_mc, hro_st, hro_res, hro_mc, ite_eq_right hle3,
-        memoryCost_pure]; omega
-    · refine validProg_bind hst_vp ?_; rw [hst_st, hst_res]
-      refine validProg_bind hro_vp ?_; rw [hro_st, hro_res, ite_eq_right hle3]
-      exact validProg_pure _
+    obtain ⟨hb1, hb2, hb3, hb4⟩ := insBufIsSomeGenProg_spec henv hold_or hrep hv_old (rKey := rKey)
+    exact CostBoundedStep.weaken (.bind ⟨hst_st, hst_res, hst_mc.le, hst_vp⟩ <|
+      .bind ⟨hro_st, hro_res, hro_mc.le, hro_vp⟩ <|
+      .if_pos hle3 ⟨hb1, hb2, hb3, hb4⟩)
+      (by simp [hle3]) (by omega)
+  · exact CostBoundedStep.weaken (.bind ⟨hst_st, hst_res, hst_mc.le, hst_vp⟩ <|
+      .bind ⟨hro_st, hro_res, hro_mc.le, hro_vp⟩ <| .if_neg hle3 (.pure _ _))
+      (by simp [hle3]) (by omega)
 
 /-- Guard 2 (`insCheckRKeyGuardsGenProg`): return `0` if `rKey` collides in `buf curEp` or active
 `buf oldEp`, else `1` (`d = ((cp, base), rKey)`). -/
@@ -370,23 +346,13 @@ theorem insCheckRKeyGuardsGenProg_spec {c U V w n_max base rKey : ℕ}
     insOldBufSomeGenProg_spec henv hce hbo_fn hrep (rKey := rKey) (s := s)
   dsimp only
   unfold insCheckRKeyGuardsGenProg; dsimp only; simp only [pure_bind]
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · rw [clientState_bind, hce_st, hce_res, clientState_bind, hc_st, hc_res,
-      clientState_bind, ho_st, ho_res]
-    split_ifs <;> rfl
-  · rw [clientResult_bind, hce_st, hce_res, clientResult_bind, hc_st, hc_res,
-      clientResult_bind, ho_st, ho_res]
-    by_cases h1 : (bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp) rKey).isSome = true <;>
-      by_cases h2 : fs.rebStage ≤ 3 ∧
-          (bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.oldEp) rKey).isSome = true <;>
-      simp [h1, h2]
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hce_st, hce_res, hce_mc, hc_st, hc_res, ho_st, ho_res]
-    split_ifs <;> (simp only [memoryCost_pure]; omega)
-  · refine validProg_bind hce_vp ?_; rw [hce_st, hce_res]
-    refine validProg_bind hc_vp ?_; rw [hc_st, hc_res]
-    refine validProg_bind ho_vp ?_; rw [ho_st, ho_res]
-    split_ifs <;> exact validProg_pure _
+  refine CostBoundedStep.weaken (.bind ⟨hce_st, hce_res, hce_mc.le, hce_vp⟩ <|
+    .bind ⟨hc_st, hc_res, hc_mc, hc_vp⟩ <| .bind ⟨ho_st, ho_res, ho_mc, ho_vp⟩ <|
+    .ite (.pure _ _) (.pure _ _)) ?_ (by omega)
+  by_cases h1 : (bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp) rKey).isSome = true <;>
+    by_cases h2 : fs.rebStage ≤ 3 ∧
+        (bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.oldEp) rKey).isSome = true <;>
+    simp [h1, h2]
 
 /-- Read `(fpOfSaltOpt (bktSalt b) u_val, liveSliceIdx b)` without mutating memory. -/
 @[irreducible] private def insEvalLiveFpGenProg :
@@ -543,47 +509,20 @@ theorem insReadFpLiveGenProg_spec {c U V w n_max base b : ℕ}
   obtain ⟨hbt_st, hbt_res, hbt_mc, hbt_vp⟩ :=
     btreeLookupGenProg_spec henv hlIdx hins (hrep.slice_rep hlIdx) hv_sl hfp_lt (s := s)
   rw [← hv_sl.lookup_eq hth hins hfp_lt] at hbt_res
-  have hev_st : (Memory.spec 0).clientState s
-      (insEvalLiveFpGenProg ((mkWhpParams c U V w n_max, base), (b, u.val))) = s := by
+  have hev : CostBoundedStep w (base + largeSpaceWhp c U V w n_max) s
+      (insEvalLiveFpGenProg ((mkWhpParams c U V w n_max, base), (b, u.val))) s
+      (fp, fs.liveSliceIdx b) (hashEvalCostWhp c + 4) := by
     unfold insEvalLiveFpGenProg; dsimp only; rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
-    rw [clientState_bind, hrs_st, hrs_res, clientState_bind, hmh_st, hmh_res,
-      clientState_bind, hfp_st]; rfl
-  have hev_res : (Memory.spec 0).clientResult s
-      (insEvalLiveFpGenProg ((mkWhpParams c U V w n_max, base), (b, u.val))) =
-      (fp, fs.liveSliceIdx b) := by
-    unfold insEvalLiveFpGenProg; dsimp only; rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
-    rw [clientResult_bind, hrs_st, hrs_res, clientResult_bind, hmh_st, hmh_res,
-      clientResult_bind, hfp_st, hfp_res]; rfl
-  have hev_mc : memoryCost
-      (insEvalLiveFpGenProg ((mkWhpParams c U V w n_max, base), (b, u.val))) s ≤
-      hashEvalCostWhp c + 4 := by
-    unfold insEvalLiveFpGenProg; dsimp only; rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
-    simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hrs_st, hrs_res, hrs_mc, hmh_st, hmh_res, hmh_mc, hfp_st, hfp_res, memoryCost_pure]
-    have hfp_mc' : memoryCost (fpOfSaltOptRtProg ((mkHashRt c U w n_max base, fs.bktSalt b),
-        u.val)) s ≤ hashEvalCostWhp c := hfp_mc
-    dsimp only; omega
-  have hev_vp : ValidProg w (base + largeSpaceWhp c U V w n_max) s
-      (insEvalLiveFpGenProg ((mkWhpParams c U V w n_max, base), (b, u.val))) := by
-    unfold insEvalLiveFpGenProg; dsimp only; rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
-    refine validProg_bind hrs_vp ?_; rw [hrs_st, hrs_res]
-    refine validProg_bind hmh_vp ?_; rw [hmh_st, hmh_res]
-    refine validProg_bind hfp_vp ?_; rw [hfp_st, hfp_res]
-    exact validProg_pure _
+    exact .mono (.bind ⟨hrs_st, hrs_res, hrs_mc.le, hrs_vp⟩ <|
+      .bind ⟨hmh_st, hmh_res, hmh_mc.le, hmh_vp⟩ <| .bind ⟨hfp_st, hfp_res, hfp_mc, hfp_vp⟩ <|
+      .pure _ _) (by omega)
   dsimp only
   unfold insReadFpLiveGenProg; dsimp only
   rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · rw [clientState_bind, hev_st, hev_res, clientState_bind, hbt_st]; rfl
-  · rw [clientResult_bind, hev_st, hev_res, clientResult_bind, hbt_st, hbt_res,
-      clientResult_pure_whp]
-    cases btreeLookup (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
-      (fs.slices (fs.liveSliceIdx b)) fp <;> rfl
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hev_st, hev_res, hbt_st, memoryCost_pure]
-    dsimp only [cp, fp] at hbt_mc ⊢; omega
-  · refine validProg_bind hev_vp ?_; rw [hev_st, hev_res]
-    refine validProg_bind hbt_vp ?_; rw [hbt_st]; exact validProg_pure _
+  refine CostBoundedStep.weaken
+    (.bind hev <| .bind ⟨hbt_st, hbt_res, hbt_mc, hbt_vp⟩ <| .pure _ _) ?_ (by omega)
+  cases btreeLookup (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
+    (fs.slices (fs.liveSliceIdx b)) fp <;> rfl
 
 /-- Read `(fs.buf fs.curEp).itemAlloc` from headers `hdrBuf0ItemAlloc` / `hdrBuf1ItemAlloc`. -/
 @[irreducible] private def insReadCurBufItemAllocProg (base : ℕ) : Memory.Prog ℕ := do
@@ -639,20 +578,11 @@ private theorem insReadCurBufItemAllocProg_spec {c U V w n_max base : ℕ}
   unfold insReadCurBufItemAllocProg; simp only [pure_bind]
   rcases hce with hc0 | hc1
   · rw [hc0] at hce_res ⊢
-    refine ⟨?_, ?_, ?_, ?_⟩
-    · rw [clientState_bind, hce_st, hce_res, ite_eq_left rfl, hi0_st]
-    · rw [clientResult_bind, hce_st, hce_res, ite_eq_left rfl, hi0_res]
-    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      rw [hce_st, hce_res, hce_mc, ite_eq_left rfl, hi0_mc]
-    · refine validProg_bind hce_vp ?_; rw [hce_st, hce_res, ite_eq_left rfl]; exact hi0_vp
+    exact CostBoundedStep.weaken (.bind ⟨hce_st, hce_res, hce_mc.le, hce_vp⟩ <|
+      .if_pos rfl ⟨hi0_st, hi0_res, hi0_mc.le, hi0_vp⟩) rfl (by omega)
   · rw [hc1] at hce_res ⊢
-    refine ⟨?_, ?_, ?_, ?_⟩
-    · rw [clientState_bind, hce_st, hce_res, ite_eq_right (by decide : ¬(1 = 0)), hi1_st]
-    · rw [clientResult_bind, hce_st, hce_res, ite_eq_right (by decide : ¬(1 = 0)), hi1_res]
-    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      rw [hce_st, hce_res, hce_mc, ite_eq_right (by decide : ¬(1 = 0)), hi1_mc]
-    · refine validProg_bind hce_vp ?_; rw [hce_st, hce_res, ite_eq_right (by decide : ¬(1 = 0))]
-      exact hi1_vp
+    exact CostBoundedStep.weaken (.bind ⟨hce_st, hce_res, hce_mc.le, hce_vp⟩ <|
+      .if_neg (by decide) ⟨hi1_st, hi1_res, hi1_mc.le, hi1_vp⟩) rfl (by omega)
 
 /-- Guard 3 active helper (`hasFpCollision = true`): return `0` iff
 `!bufEverPresent (buf curEp) rKey ∧ 2 * sMaxWhp ≤ (buf curEp).itemAlloc`, else `1`. -/
@@ -781,22 +711,12 @@ theorem insCheckFpCapOptGenProg_spec {c U V w n_max base rKey : ℕ}
       insReadCurBufItemAllocProg_spec henv hce hrep (s := s)
     unfold insCheckFpCapActiveGenProg; dsimp only
     simp only [wp_large_bufItemCap hth, pure_bind]
-    refine ⟨?_, ?_, ?_, ?_⟩
-    · rw [clientState_bind, hce_st, hce_res, clientState_bind, hev_st, hev_res,
-        clientState_bind, hia_st, hia_res]
-      split_ifs <;> rfl
-    · rw [clientResult_bind, hce_st, hce_res, clientResult_bind, hev_st, hev_res,
-        clientResult_bind, hia_st, hia_res]
-      cases bufEverPresent (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp) rKey <;>
-        by_cases hle : 2 * sMaxWhp c n_max ≤ (fs.buf fs.curEp).itemAlloc <;>
-        simp [hle]
-    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      rw [hce_st, hce_res, hce_mc, hev_st, hev_res, hia_st, hia_res]
-      split_ifs <;> (simp only [memoryCost_pure]; omega)
-    · refine validProg_bind hce_vp ?_; rw [hce_st, hce_res]
-      refine validProg_bind hev_vp ?_; rw [hev_st, hev_res]
-      refine validProg_bind hia_vp ?_; rw [hia_st, hia_res]
-      split_ifs <;> exact validProg_pure _
+    refine CostBoundedStep.weaken (.bind ⟨hce_st, hce_res, hce_mc.le, hce_vp⟩ <|
+      .bind ⟨hev_st, hev_res, hev_mc, hev_vp⟩ <| .bind ⟨hia_st, hia_res, hia_mc, hia_vp⟩ <|
+      .ite (.pure _ _) (.pure _ _)) ?_ (by omega)
+    cases bufEverPresent (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp) rKey <;>
+      by_cases hle : 2 * sMaxWhp c n_max ≤ (fs.buf fs.curEp).itemAlloc <;>
+      simp [hle]
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
 

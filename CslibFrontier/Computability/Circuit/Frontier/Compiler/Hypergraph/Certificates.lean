@@ -128,12 +128,19 @@ private theorem arccos_div_pi_le_of_qCosUpper {θ ρ_lo : ℚ} {ρ : ℝ}
 
 /-! ### Algebraic bridges for `HyperEdgeBound` constructors -/
 
+private theorem cast_mul_pred_eq {r k : ℕ} (hk : 1 ≤ k) :
+    (r : ℝ) * ((k : ℝ) - 1) = ((r * (k - 1) : ℕ) : ℝ) := by
+  rw [Nat.cast_mul, Nat.cast_sub hk, Nat.cast_one]
+
+private theorem rat_cast_linear_le {k : ℕ} {q a b : ℚ} (hp : q ≤ a * (k : ℕ) + b) :
+    (q : ℝ) ≤ (a : ℝ) * (k : ℕ) + (b : ℝ) := by
+  have hR : (q : ℝ) ≤ ((a * (k : ℕ) + b : ℚ) : ℝ) := Rat.cast_le.mpr hp
+  simpa only [Rat.cast_add, Rat.cast_mul, Rat.cast_natCast] using hR
+
 private theorem twoStepCorr_eq {r k : ℕ} (hr : 2 ≤ r) (hk : 2 ≤ k) :
     twoStepCorr r k = 2 * √((r * (k - 1) : ℕ) : ℝ) / (((r * (k - 1) : ℕ) : ℝ) + 1) := by
   set m : ℕ := r * (k - 1)
-  have hm_eq : (r : ℝ) * ((k : ℝ) - 1) = (m : ℝ) := by
-    dsimp only [m]
-    rw [Nat.cast_mul, Nat.cast_sub (by omega), Nat.cast_one]
+  have hm_eq : (r : ℝ) * ((k : ℝ) - 1) = (m : ℝ) := cast_mul_pred_eq (by omega)
   have hm_pos : 0 < (m : ℝ) := by
     dsimp only [m]
     exact_mod_cast Nat.mul_pos (by omega) (by omega)
@@ -168,9 +175,7 @@ private theorem coneMeanSq_and_coneCorr_eq {r k : ℕ} (hr : 2 ≤ r) (hk : 3 �
         (2 * √((r * (k - 1) : ℕ) : ℝ) + ((k : ℝ) - 2)) /
           (((r * (k - 1) : ℕ) : ℝ) + (k : ℝ) - 1) := by
   set m : ℕ := r * (k - 1)
-  have hm_eq : (r : ℝ) * ((k : ℝ) - 1) = (m : ℝ) := by
-    dsimp only [m]
-    rw [Nat.cast_mul, Nat.cast_sub (by omega), Nat.cast_one]
+  have hm_eq : (r : ℝ) * ((k : ℝ) - 1) = (m : ℝ) := cast_mul_pred_eq (by omega)
   have hm_pos : 0 < (m : ℝ) := by
     dsimp only [m]
     exact_mod_cast Nat.mul_pos (by omega) (by omega)
@@ -192,8 +197,8 @@ private theorem coneMeanSq_and_coneCorr_eq {r k : ℕ} (hr : 2 ≤ r) (hk : 3 �
     rw [sq_sqrt hm_pos.le]
     ring
 
-private theorem hyperEdgeBound_pairwise_three_two {p : ℚ} (hp : 1 / 6 ≤ p) :
-    HyperEdgeBound 3 2 (p : ℝ) := by
+private theorem hyperEdgeBound_pairwise_three_two {a b : ℚ} (hp : 1 / 6 ≤ a * (2 : ℕ) + b) :
+    HyperEdgeBound 3 2 ((a : ℝ) * (2 : ℕ) + (b : ℝ)) := by
   refine HyperEdgeBound.pairwise ?_
   have hcorr : twoStepCorr 3 2 = cos (π / 6) := by
     rw [twoStepCorr_eq (by decide) (by decide), cos_pi_div_six]
@@ -205,14 +210,14 @@ private theorem hyperEdgeBound_pairwise_three_two {p : ℚ} (hp : 1 / 6 ≤ p) :
     push_cast
     field_simp [hpi]
   rw [hsimp]
-  exact Rat.cast_le.mpr hp
+  exact rat_cast_linear_le hp
 
 private theorem hyperEdgeBound_pairwise_of_rat {r k : ℕ} (hr : 2 ≤ r) (hk : 2 ≤ k)
-    {s_lo θ p : ℚ} (hs0 : 0 ≤ s_lo) (hsq : s_lo ^ 2 ≤ ((r * (k - 1) : ℕ) : ℚ))
+    {s_lo θ a b : ℚ} (hs0 : 0 ≤ s_lo) (hsq : s_lo ^ 2 ≤ ((r * (k - 1) : ℕ) : ℚ))
     (hθ0 : 0 ≤ θ) (hθ2 : θ ≤ 2) (hpos : 0 ≤ qCosPoly (θ / 2) - qCosErr (θ / 2))
     (hcu : qCosUpper θ ≤ 2 * s_lo / ((r * (k - 1) : ℕ) + 1))
-    (hp : (k : ℚ) / 2 * (θ / piLo) ≤ p) :
-    HyperEdgeBound r k (p : ℝ) := by
+    (hp : (k : ℚ) / 2 * (θ / piLo) ≤ a * (k : ℕ) + b) :
+    HyperEdgeBound r k ((a : ℝ) * (k : ℕ) + (b : ℝ)) := by
   obtain ⟨hρ_lo, hρ_lt⟩ := le_twoStepCorr_and_lt_one hr hk hs0 hsq
   have hρ_m1 : (-1 : ℚ) ≤ 2 * s_lo / ((r * (k - 1) : ℕ) + 1) :=
     le_trans (b := 0) (by norm_num) (by positivity)
@@ -222,24 +227,24 @@ private theorem hyperEdgeBound_pairwise_of_rat {r k : ℕ} (hr : 2 ≤ r) (hk : 
       = ((k : ℝ) / 2) * (arccos (twoStepCorr r k) / π) := by ring
     _ ≤ ((k : ℝ) / 2) * ((θ / piLo : ℚ) : ℝ) :=
         mul_le_mul_of_nonneg_left harc (by positivity)
-    _ = (((k : ℚ) / 2 * (θ / piLo) : ℚ) : ℝ) := by push_cast; ring
-    _ ≤ (p : ℝ) := Rat.cast_le.mpr hp
+    _ = (((k : ℚ) / 2 * (θ / piLo) : ℚ) : ℝ) := by
+        push_cast
+        ring
+    _ ≤ (a : ℝ) * (k : ℕ) + (b : ℝ) := rat_cast_linear_le hp
 
 private theorem hyperEdgeBound_starCone_of_rat {r k : ℕ} (hr : 2 ≤ r) (hk : 3 ≤ k)
-    {s_lo s_hi θ p : ℚ} (hs0 : 0 ≤ s_lo) (hsq_lo : s_lo ^ 2 ≤ ((r * (k - 1) : ℕ) : ℚ))
+    {s_lo s_hi θ a b : ℚ} (hs0 : 0 ≤ s_lo) (hsq_lo : s_lo ^ 2 ≤ ((r * (k - 1) : ℕ) : ℚ))
     (hshi0 : 0 < s_hi) (hsq_hi : ((r * (k - 1) : ℕ) : ℚ) ≤ s_hi ^ 2)
     (hcone_lo : 1 < ((r + 1 : ℚ) / (r * k)) ^ 2 * ((r * (k - 1) : ℕ) : ℚ))
     (hcone_hi : max 0 (((r + 1 : ℚ) / (r * k)) * s_hi - 1) ^ 2 <
       4 * ((r + 1 : ℚ) / (r * k)))
     (hθ0 : 0 ≤ θ) (hθ2 : θ ≤ 2) (hpos : 0 ≤ qCosPoly (θ / 2) - qCosErr (θ / 2))
     (hcu : qCosUpper θ ≤ (2 * s_lo + ((k : ℚ) - 2)) / (((r * (k - 1) : ℕ) : ℚ) + k - 1))
-    (hp : (k : ℚ) / 2 * (θ / piLo) ≤ p) :
-    HyperEdgeBound r k (p : ℝ) := by
+    (hp : (k : ℚ) / 2 * (θ / piLo) ≤ a * (k : ℕ) + b) :
+    HyperEdgeBound r k ((a : ℝ) * (k : ℕ) + (b : ℝ)) := by
   obtain ⟨hQ_eq, hC_eq⟩ := coneMeanSq_and_coneCorr_eq hr hk
   set m : ℕ := r * (k - 1)
-  have hm_eq : (r : ℝ) * ((k : ℝ) - 1) = (m : ℝ) := by
-    dsimp only [m]
-    rw [Nat.cast_mul, Nat.cast_sub (by omega), Nat.cast_one]
+  have hm_eq : (r : ℝ) * ((k : ℝ) - 1) = (m : ℝ) := cast_mul_pred_eq (by omega)
   have hm2 : 2 ≤ m :=
     le_trans (by decide : 2 ≤ 2 * 1) (Nat.mul_le_mul hr (by omega))
   have hm_pos : 0 < (m : ℝ) := by exact_mod_cast (by omega : 0 < m)
@@ -306,20 +311,20 @@ private theorem hyperEdgeBound_starCone_of_rat {r k : ℕ} (hr : 2 ≤ r) (hk : 
         = ((k : ℝ) / 2) * (arccos (coneCorr r k) / π) := by ring
       _ ≤ ((k : ℝ) / 2) * ((θ / piLo : ℚ) : ℝ) :=
           mul_le_mul_of_nonneg_left harc (by positivity)
-      _ = (((k : ℚ) / 2 * (θ / piLo) : ℚ) : ℝ) := by push_cast; ring
-      _ ≤ (p : ℝ) := Rat.cast_le.mpr hp
+      _ = (((k : ℚ) / 2 * (θ / piLo) : ℚ) : ℝ) := by
+          push_cast
+          ring
+      _ ≤ (a : ℝ) * (k : ℕ) + (b : ℝ) := rat_cast_linear_le hp
 
 private theorem hyperEdgeBound_cap_of_rat {r k : ℕ} (hr : 2 ≤ r) (hk : 3 ≤ k)
-    {s_hi θ p : ℚ} (hshi1 : 1 ≤ s_hi) (hsq_hi : ((r * (k - 1) : ℕ) : ℚ) ≤ s_hi ^ 2)
+    {s_hi θ a b : ℚ} (hshi1 : 1 ≤ s_hi) (hsq_hi : ((r * (k - 1) : ℕ) : ℚ) ≤ s_hi ^ 2)
     (hcap_gt : 1 / 2 < 4 * s_hi / (s_hi + 1) ^ 2)
     (hθ0 : 0 ≤ θ) (hθ2 : θ ≤ 2) (hpos : 0 ≤ qCosPoly (θ / 2) - qCosErr (θ / 2))
     (hcu : qCosUpper θ ≤ ((k : ℚ) * (4 * s_hi / (s_hi + 1) ^ 2) - 1) / ((k : ℚ) - 1))
-    (hp : (k : ℚ) / 2 * (θ / piLo) ≤ p) :
-    HyperEdgeBound r k (p : ℝ) := by
+    (hp : (k : ℚ) / 2 * (θ / piLo) ≤ a * (k : ℕ) + b) :
+    HyperEdgeBound r k ((a : ℝ) * (k : ℕ) + (b : ℝ)) := by
   set m : ℕ := r * (k - 1)
-  have hm_eq : (r : ℝ) * ((k : ℝ) - 1) = (m : ℝ) := by
-    dsimp only [m]
-    rw [Nat.cast_mul, Nat.cast_sub (by omega), Nat.cast_one]
+  have hm_eq : (r : ℝ) * ((k : ℝ) - 1) = (m : ℝ) := cast_mul_pred_eq (by omega)
   have hm2 : 2 ≤ m :=
     le_trans (by decide : 2 ≤ 2 * 1) (Nat.mul_le_mul hr (by omega))
   have hm1 : (1 : ℝ) ≤ √(m : ℝ) :=
@@ -335,21 +340,21 @@ private theorem hyperEdgeBound_cap_of_rat {r k : ℕ} (hr : 2 ≤ r) (hk : 3 ≤
     rw [hm_eq]
     push_cast
     rw [div_le_div_iff₀ (by positivity) (by positivity)]
-    have hfac : 4 * (s_hi : ℝ) * (√(m : ℝ) + 1) ^ 2 ≤ 4 * √(m : ℝ) * ((s_hi : ℝ) + 1) ^ 2 := by
-      have hid : 4 * √(m : ℝ) * ((s_hi : ℝ) + 1) ^ 2 - 4 * (s_hi : ℝ) * (√(m : ℝ) + 1) ^ 2 =
-          4 * ((s_hi : ℝ) - √(m : ℝ)) * (√(m : ℝ) * (s_hi : ℝ) - 1) := by ring
-      have hprod : 0 ≤ ((s_hi : ℝ) - √(m : ℝ)) * (√(m : ℝ) * (s_hi : ℝ) - 1) :=
-        mul_nonneg (sub_nonneg.mpr hsm_le) (by nlinarith)
-      linarith
-    exact hfac
+    have hid : 4 * √(m : ℝ) * ((s_hi : ℝ) + 1) ^ 2 - 4 * (s_hi : ℝ) * (√(m : ℝ) + 1) ^ 2 =
+        4 * ((s_hi : ℝ) - √(m : ℝ)) * (√(m : ℝ) * (s_hi : ℝ) - 1) := by ring
+    have hprod : 0 ≤ ((s_hi : ℝ) - √(m : ℝ)) * (√(m : ℝ) * (s_hi : ℝ) - 1) :=
+      mul_nonneg (sub_nonneg.mpr hsm_le) (by nlinarith)
+    linarith
   have hcap_le1 : capSq r k ≤ 1 := by
     unfold capSq
     rw [hm_eq, div_le_one (by positivity)]
     nlinarith [sq_nonneg (√(m : ℝ) - 1)]
   have hcap_half : 1 / 2 < capSq r k := by
     have h12 : (1 / 2 : ℝ) < ((4 * s_hi / (s_hi + 1) ^ 2 : ℚ) : ℝ) := by
-      rw [show (1 / 2 : ℝ) = ((1 / 2 : ℚ) : ℝ) by norm_num]
-      exact Rat.cast_lt.mpr hcap_gt
+      have hq : ((1 / 2 : ℚ) : ℝ) < ((4 * s_hi / (s_hi + 1) ^ 2 : ℚ) : ℝ) :=
+        Rat.cast_lt.mpr hcap_gt
+      norm_num at hq ⊢
+      exact hq
     exact h12.trans_le hcap_ge
   refine HyperEdgeBound.cap hcap_half ?_
   have hk3R : (3 : ℝ) ≤ k := Nat.ofNat_le_cast.mpr hk
@@ -370,15 +375,17 @@ private theorem hyperEdgeBound_cap_of_rat {r k : ℕ} (hr : 2 ≤ r) (hk : 3 ≤
       = ((k : ℝ) / 2) * (arccos (capCorr r k) / π) := by ring
     _ ≤ ((k : ℝ) / 2) * ((θ / piLo : ℚ) : ℝ) :=
         mul_le_mul_of_nonneg_left harc (by positivity)
-    _ = (((k : ℚ) / 2 * (θ / piLo) : ℚ) : ℝ) := by push_cast; ring
-    _ ≤ (p : ℝ) := Rat.cast_le.mpr hp
+    _ = (((k : ℚ) / 2 * (θ / piLo) : ℚ) : ℝ) := by
+        push_cast
+        ring
+    _ ≤ (a : ℝ) * (k : ℕ) + (b : ℝ) := rat_cast_linear_le hp
 
 private theorem hyperEdgeBound_slepian_three_of_rat {r : ℕ} (hr : 2 ≤ r)
-    {s_lo θ p : ℚ} (hs0 : 0 ≤ s_lo) (hsq : s_lo ^ 2 ≤ ((r * 2 : ℕ) : ℚ))
+    {s_lo θ a b : ℚ} (hs0 : 0 ≤ s_lo) (hsq : s_lo ^ 2 ≤ ((r * 2 : ℕ) : ℚ))
     (hθ0 : 0 ≤ θ) (hθ2 : θ ≤ 2) (hpos : 0 ≤ qCosPoly (θ / 2) - qCosErr (θ / 2))
     (hcu : qCosUpper θ ≤ 2 * s_lo / ((r * 2 : ℕ) + 1))
-    (hp : 3 / 2 * (θ / piLo) ≤ p) :
-    HyperEdgeBound r 3 (p : ℝ) := by
+    (hp : 3 / 2 * (θ / piLo) ≤ a * (3 : ℕ) + b) :
+    HyperEdgeBound r 3 ((a : ℝ) * (3 : ℕ) + (b : ℝ)) := by
   obtain ⟨hρ_lo, hρ_lt⟩ := le_twoStepCorr_and_lt_one hr (k := 3) (by decide) hs0 hsq
   have hρ0 : 0 ≤ twoStepCorr r 3 :=
     le_trans (by positivity) hρ_lo
@@ -391,12 +398,14 @@ private theorem hyperEdgeBound_slepian_three_of_rat {r : ℕ} (hr : 2 ≤ r)
       = (3 / 2 : ℝ) * (arccos (twoStepCorr r 3) / π) := by ring
     _ ≤ (3 / 2 : ℝ) * ((θ / piLo : ℚ) : ℝ) :=
         mul_le_mul_of_nonneg_left harc (by positivity)
-    _ = ((3 / 2 * (θ / piLo) : ℚ) : ℝ) := by push_cast; ring
-    _ ≤ (p : ℝ) := Rat.cast_le.mpr hp
+    _ = ((3 / 2 * (θ / piLo) : ℚ) : ℝ) := by
+        push_cast
+        ring
+    _ ≤ (a : ℝ) * (3 : ℕ) + (b : ℝ) := rat_cast_linear_le hp
 
 private theorem hyperEdgeBound_slepian_of_rat {r k m_in m_out S_out : ℕ}
     (hr : 2 ≤ r) (hk4 : 4 ≤ k) (hk7 : k ≤ 7) (hS : 1 ≤ S_out)
-    {s_lo θ γ_lo B I4_lo I6_lo p : ℚ}
+    {s_lo θ γ_lo B I4_lo I6_lo a b : ℚ}
     (hs0 : 0 < s_lo) (hsq : s_lo ^ 2 ≤ ((r * (k - 1) : ℕ) : ℚ))
     (hθ0 : 0 ≤ θ) (hθ2 : θ ≤ 2) (hpos : 0 ≤ qCosPoly (θ / 2) - qCosErr (θ / 2))
     (hcu : qCosUpper θ ≤ 2 * s_lo / ((r * (k - 1) : ℕ) + 1))
@@ -407,12 +416,13 @@ private theorem hyperEdgeBound_slepian_of_rat {r k m_in m_out S_out : ℕ}
     (hin_pos : 0 ≤ qEval (qExpOddPoly m_in (γ_lo ^ 2 / 2)) (B ^ 2))
     (hout_pos : 0 ≤ qEval (qExpOddPoly m_out (1 / (2 * (S_out : ℚ)))) (B ^ 2))
     (hI4 : I4_lo ≤ qMomentLower 4 m_in m_out S_out γ_lo B sqrtTwoPiHi)
-    (hI6 : if 6 ≤ k then I6_lo ≤ qMomentLower 6 m_in m_out S_out γ_lo B sqrtTwoPiHi else I6_lo = 0)
+    (hI6 : 6 ≤ k → I6_lo ≤ qMomentLower 6 m_in m_out S_out γ_lo B sqrtTwoPiHi)
     (hp : 1 - (1 / 2 ^ (k - 1) +
       2 * (k.choose 2 : ℚ) / 2 ^ (k - 2) * (1 / 4 - (θ / piLo) / 2) +
       2 * (k.choose 4 : ℚ) / 2 ^ (k - 4) * I4_lo +
-      (if 6 ≤ k then 2 * (k.choose 6 : ℚ) / 2 ^ (k - 6) * I6_lo else 0)) ≤ p) :
-    HyperEdgeBound r k (p : ℝ) := by
+      (if 6 ≤ k then 2 * (k.choose 6 : ℚ) / 2 ^ (k - 6) * I6_lo else 0)) ≤
+        a * (k : ℕ) + b) :
+    HyperEdgeBound r k ((a : ℝ) * (k : ℕ) + (b : ℝ)) := by
   have hk2 : 2 ≤ k := by omega
   obtain ⟨hρ_lo, hρ_lt⟩ := le_twoStepCorr_and_lt_one hr hk2 hs0.le hsq
   set ρ_lo_q : ℚ := 2 * s_lo / ((r * (k - 1) : ℕ) + 1)
@@ -430,19 +440,20 @@ private theorem hyperEdgeBound_slepian_of_rat {r k m_in m_out S_out : ℕ}
     nlinarith
   have hsl := equicorrStraddle_le_of_poly hk4 hk7 hS hρ_pos hρ_lt harc hγ0 hγR hB
     (by norm_num [sqrtTwoPiHi]) two_mul_pi_le_sq_sqrtTwoPiHi hin_pos hout_pos
-  have hcert_le : qEquicorrUpperCert k m_in m_out S_out (θ / piLo) γ_lo B sqrtTwoPiHi ≤ p := by
+  have hcert_le :
+      qEquicorrUpperCert k m_in m_out S_out (θ / piLo) γ_lo B sqrtTwoPiHi ≤ a * (k : ℕ) + b := by
     unfold qEquicorrUpperCert
     dsimp only
     have hc4 : 0 ≤ 2 * (k.choose 4 : ℚ) / 2 ^ (k - 4) := by positivity
     have hm4 := mul_le_mul_of_nonneg_left hI4 hc4
     by_cases hk6 : 6 ≤ k
-    · simp only [hk6, ↓reduceIte] at hI6 hp ⊢
+    · simp only [hk6, ↓reduceIte] at hp ⊢
       have hc6 : 0 ≤ 2 * (k.choose 6 : ℚ) / 2 ^ (k - 6) := by positivity
-      have hm6 := mul_le_mul_of_nonneg_left hI6 hc6
+      have hm6 := mul_le_mul_of_nonneg_left (hI6 hk6) hc6
       linarith
     · simp only [hk6, ↓reduceIte] at hp ⊢
       linarith
-  exact HyperEdgeBound.slepian (hsl.trans (Rat.cast_le.mpr hcert_le))
+  exact HyperEdgeBound.slepian (hsl.trans (rat_cast_linear_le hcert_le))
 
 private theorem qIntOdd_qPolyAdd (a b : List ℚ) (d : ℕ) (B : ℚ) :
     qIntOdd (qPolyAdd a b) d B = qIntOdd a d B + qIntOdd b d B := by
@@ -523,71 +534,72 @@ private theorem qPolyPow_seven (p : List ℚ) : qPolyPow p 7 = qPolyMul p (qPoly
 
 /-! ### The six verified `HyperDualCert` theorems -/
 
+private theorem hedge_six {r : ℕ} {a b : ℚ}
+    (h2 : HyperEdgeBound r 2 ((a : ℝ) * (2 : ℕ) + (b : ℝ)))
+    (h3 : HyperEdgeBound r 3 ((a : ℝ) * (3 : ℕ) + (b : ℝ)))
+    (h4 : HyperEdgeBound r 4 ((a : ℝ) * (4 : ℕ) + (b : ℝ)))
+    (h5 : HyperEdgeBound r 5 ((a : ℝ) * (5 : ℕ) + (b : ℝ)))
+    (h6 : HyperEdgeBound r 6 ((a : ℝ) * (6 : ℕ) + (b : ℝ))) :
+    ∀ k ∈ Finset.Icc 2 6, HyperEdgeBound r k ((a : ℝ) * (k : ℕ) + (b : ℝ)) := by
+  intro k hk
+  rcases Finset.mem_Icc.mp hk with ⟨hk2, hkK⟩
+  interval_cases k
+  · exact h2
+  · exact h3
+  · exact h4
+  · exact h5
+  · exact h6
+
 private theorem edge_sheppard_r3_k2 :
     HyperEdgeBound 3 2
-      (((18389141 / 100000000 : ℚ) : ℝ) * (2 : ℕ) + ((-19757453 / 100000000 : ℚ) : ℝ)) := by
-  have h : HyperEdgeBound 3 2
-      (((18389141 / 100000000 : ℚ) * (2 : ℕ) + (-19757453 / 100000000 : ℚ) : ℚ) : ℝ) :=
-    hyperEdgeBound_pairwise_three_two (by norm_num)
-  simpa only [Rat.cast_add, Rat.cast_mul, Rat.cast_natCast] using h
+      (((18389141 / 100000000 : ℚ) : ℝ) * (2 : ℕ) + ((-19757453 / 100000000 : ℚ) : ℝ)) :=
+  hyperEdgeBound_pairwise_three_two (by norm_num)
 
 private theorem edge_sheppard_r3_k3 :
     HyperEdgeBound 3 3
-      (((18389141 / 100000000 : ℚ) : ℝ) * (3 : ℕ) + ((-19757453 / 100000000 : ℚ) : ℝ)) := by
-  have h : HyperEdgeBound 3 3
-      (((18389141 / 100000000 : ℚ) * (3 : ℕ) + (-19757453 / 100000000 : ℚ) : ℚ) : ℝ) :=
-    hyperEdgeBound_starCone_of_rat (by decide) (by decide)
-      (s_lo := (122474487139 / 50000000000))
-      (s_hi := (244948974279 / 100000000000))
-      (θ := (9270307 / 12500000))
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-  simpa only [Rat.cast_add, Rat.cast_mul, Rat.cast_natCast] using h
+      (((18389141 / 100000000 : ℚ) : ℝ) * (3 : ℕ) + ((-19757453 / 100000000 : ℚ) : ℝ)) :=
+  hyperEdgeBound_starCone_of_rat (by decide) (by decide)
+    (s_lo := (122474487139 / 50000000000))
+    (s_hi := (244948974279 / 100000000000))
+    (θ := (9270307 / 12500000))
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
 
 private theorem edge_sheppard_r3_k4 :
     HyperEdgeBound 3 4
-      (((18389141 / 100000000 : ℚ) : ℝ) * (4 : ℕ) + ((-19757453 / 100000000 : ℚ) : ℝ)) := by
-  have h : HyperEdgeBound 3 4
-      (((18389141 / 100000000 : ℚ) * (4 : ℕ) + (-19757453 / 100000000 : ℚ) : ℚ) : ℝ) :=
-    hyperEdgeBound_cap_of_rat (by decide) (by decide)
-      (s_hi := 3)
-      (θ := (21026727 / 25000000))
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-  simpa only [Rat.cast_add, Rat.cast_mul, Rat.cast_natCast] using h
+      (((18389141 / 100000000 : ℚ) : ℝ) * (4 : ℕ) + ((-19757453 / 100000000 : ℚ) : ℝ)) :=
+  hyperEdgeBound_cap_of_rat (by decide) (by decide)
+    (s_hi := 3)
+    (θ := (21026727 / 25000000))
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
 
 private theorem edge_sheppard_r3_k5 :
     HyperEdgeBound 3 5
-      (((18389141 / 100000000 : ℚ) : ℝ) * (5 : ℕ) + ((-19757453 / 100000000 : ℚ) : ℝ)) := by
-  have h : HyperEdgeBound 3 5
-      (((18389141 / 100000000 : ℚ) * (5 : ℕ) + (-19757453 / 100000000 : ℚ) : ℚ) : ℝ) :=
-    hyperEdgeBound_cap_of_rat (by decide) (by decide)
-      (s_hi := (173205080757 / 50000000000))
-      (θ := (18062853 / 20000000))
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-  simpa only [Rat.cast_add, Rat.cast_mul, Rat.cast_natCast] using h
+      (((18389141 / 100000000 : ℚ) : ℝ) * (5 : ℕ) + ((-19757453 / 100000000 : ℚ) : ℝ)) :=
+  hyperEdgeBound_cap_of_rat (by decide) (by decide)
+    (s_hi := (173205080757 / 50000000000))
+    (θ := (18062853 / 20000000))
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
 
 private theorem edge_sheppard_r3_k6 :
     HyperEdgeBound 3 6
-      (((18389141 / 100000000 : ℚ) : ℝ) * (6 : ℕ) + ((-19757453 / 100000000 : ℚ) : ℝ)) := by
-  have h : HyperEdgeBound 3 6
-      (((18389141 / 100000000 : ℚ) * (6 : ℕ) + (-19757453 / 100000000 : ℚ) : ℚ) : ℝ) :=
-    hyperEdgeBound_cap_of_rat (by decide) (by decide)
-      (s_hi := (387298334621 / 100000000000))
-      (θ := (47426207 / 50000000))
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-  simpa only [Rat.cast_add, Rat.cast_mul, Rat.cast_natCast] using h
+      (((18389141 / 100000000 : ℚ) : ℝ) * (6 : ℕ) + ((-19757453 / 100000000 : ℚ) : ℝ)) :=
+  hyperEdgeBound_cap_of_rat (by decide) (by decide)
+    (s_hi := (387298334621 / 100000000000))
+    (θ := (47426207 / 50000000))
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
 
 /-- Verified dual-LP certificate at `r = 3` (`K₀ = 6`). -/
 theorem cert_r3_sheppard :
@@ -599,39 +611,26 @@ theorem cert_r3_sheppard :
   htail := by norm_num
   hdenom := by norm_num
   hnum := by norm_num
-  hedge := by
-    intro k hk
-    rcases Finset.mem_Icc.mp hk with ⟨hk2, hkK⟩
-    interval_cases k
-    · exact edge_sheppard_r3_k2
-    · exact edge_sheppard_r3_k3
-    · exact edge_sheppard_r3_k4
-    · exact edge_sheppard_r3_k5
-    · exact edge_sheppard_r3_k6
+  hedge := hedge_six edge_sheppard_r3_k2 edge_sheppard_r3_k3 edge_sheppard_r3_k4
+    edge_sheppard_r3_k5 edge_sheppard_r3_k6
 
 private theorem edge_slepian_r3_k2 :
     HyperEdgeBound 3 2
-      (((17970677 / 100000000 : ℚ) : ℝ) * (2 : ℕ) + ((-18502061 / 100000000 : ℚ) : ℝ)) := by
-  have h : HyperEdgeBound 3 2
-      (((17970677 / 100000000 : ℚ) * (2 : ℕ) + (-18502061 / 100000000 : ℚ) : ℚ) : ℝ) :=
-    hyperEdgeBound_pairwise_three_two (by norm_num)
-  simpa only [Rat.cast_add, Rat.cast_mul, Rat.cast_natCast] using h
+      (((17970677 / 100000000 : ℚ) : ℝ) * (2 : ℕ) + ((-18502061 / 100000000 : ℚ) : ℝ)) :=
+  hyperEdgeBound_pairwise_three_two (by norm_num)
 
 private theorem edge_slepian_r3_k3 :
     HyperEdgeBound 3 3
-      (((17970677 / 100000000 : ℚ) : ℝ) * (3 : ℕ) + ((-18502061 / 100000000 : ℚ) : ℝ)) := by
-  have h : HyperEdgeBound 3 3
-      (((17970677 / 100000000 : ℚ) * (3 : ℕ) + (-18502061 / 100000000 : ℚ) : ℚ) : ℝ) :=
-    hyperEdgeBound_starCone_of_rat (by decide) (by decide)
-      (s_lo := (122474487139 / 50000000000))
-      (s_hi := (244948974279 / 100000000000))
-      (θ := (9270307 / 12500000))
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-  simpa only [Rat.cast_add, Rat.cast_mul, Rat.cast_natCast] using h
+      (((17970677 / 100000000 : ℚ) : ℝ) * (3 : ℕ) + ((-18502061 / 100000000 : ℚ) : ℝ)) :=
+  hyperEdgeBound_starCone_of_rat (by decide) (by decide)
+    (s_lo := (122474487139 / 50000000000))
+    (s_hi := (244948974279 / 100000000000))
+    (θ := (9270307 / 12500000))
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
 
 private theorem mom4_slepian_r3_k4 :
     ((42647757861 / 2500000000000) : ℚ) ≤
@@ -643,26 +642,23 @@ private theorem mom4_slepian_r3_k4 :
 
 private theorem edge_slepian_r3_k4 :
     HyperEdgeBound 3 4
-      (((17970677 / 100000000 : ℚ) : ℝ) * (4 : ℕ) + ((-18502061 / 100000000 : ℚ) : ℝ)) := by
-  have h : HyperEdgeBound 3 4
-      (((17970677 / 100000000 : ℚ) * (4 : ℕ) + (-18502061 / 100000000 : ℚ) : ℚ) : ℝ) :=
-    hyperEdgeBound_slepian_of_rat (m_in := 4) (m_out := 2) (S_out := 2)
-      (by decide) (by decide) (by decide) (by decide)
-      (s_lo := 3)
-      (θ := (46364781 / 50000000))
-      (γ_lo := (61237 / 50000)) (B := 2)
-      (I4_lo := (42647757861 / 2500000000000))
-      (I6_lo := 0)
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
-      (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
-      mom4_slepian_r3_k4
-      (by simp)
-      (by norm_num [Nat.choose, piLo])
-  simpa only [Rat.cast_add, Rat.cast_mul, Rat.cast_natCast] using h
+      (((17970677 / 100000000 : ℚ) : ℝ) * (4 : ℕ) + ((-18502061 / 100000000 : ℚ) : ℝ)) :=
+  hyperEdgeBound_slepian_of_rat (m_in := 4) (m_out := 2) (S_out := 2)
+    (by decide) (by decide) (by decide) (by decide)
+    (s_lo := 3)
+    (θ := (46364781 / 50000000))
+    (γ_lo := (61237 / 50000)) (B := 2)
+    (I4_lo := (42647757861 / 2500000000000))
+    (I6_lo := 0)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
+    (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
+    mom4_slepian_r3_k4
+    (by omega)
+    (by norm_num [Nat.choose, piLo])
 
 private theorem mom4_slepian_r3_k5 :
     ((12611397757 / 10000000000000) : ℚ) ≤
@@ -674,26 +670,23 @@ private theorem mom4_slepian_r3_k5 :
 
 private theorem edge_slepian_r3_k5 :
     HyperEdgeBound 3 5
-      (((17970677 / 100000000 : ℚ) : ℝ) * (5 : ℕ) + ((-18502061 / 100000000 : ℚ) : ℝ)) := by
-  have h : HyperEdgeBound 3 5
-      (((17970677 / 100000000 : ℚ) * (5 : ℕ) + (-18502061 / 100000000 : ℚ) : ℚ) : ℝ) :=
-    hyperEdgeBound_slepian_of_rat (m_in := 1) (m_out := 1) (S_out := 1)
-      (by decide) (by decide) (by decide) (by decide)
-      (s_lo := (346410161513 / 100000000000))
-      (θ := (100872693 / 100000000))
-      (γ_lo := (106819 / 100000)) (B := (3 / 5))
-      (I4_lo := (12611397757 / 10000000000000))
-      (I6_lo := 0)
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
-      (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
-      mom4_slepian_r3_k5
-      (by simp)
-      (by norm_num [Nat.choose, piLo])
-  simpa only [Rat.cast_add, Rat.cast_mul, Rat.cast_natCast] using h
+      (((17970677 / 100000000 : ℚ) : ℝ) * (5 : ℕ) + ((-18502061 / 100000000 : ℚ) : ℝ)) :=
+  hyperEdgeBound_slepian_of_rat (m_in := 1) (m_out := 1) (S_out := 1)
+    (by decide) (by decide) (by decide) (by decide)
+    (s_lo := (346410161513 / 100000000000))
+    (θ := (100872693 / 100000000))
+    (γ_lo := (106819 / 100000)) (B := (3 / 5))
+    (I4_lo := (12611397757 / 10000000000000))
+    (I6_lo := 0)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
+    (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
+    mom4_slepian_r3_k5
+    (by omega)
+    (by norm_num [Nat.choose, piLo])
 
 private theorem mom4_slepian_r3_k6 :
     ((8905614613 / 10000000000000) : ℚ) ≤
@@ -713,26 +706,23 @@ private theorem mom6_slepian_r3_k6 :
 
 private theorem edge_slepian_r3_k6 :
     HyperEdgeBound 3 6
-      (((17970677 / 100000000 : ℚ) : ℝ) * (6 : ℕ) + ((-18502061 / 100000000 : ℚ) : ℝ)) := by
-  have h : HyperEdgeBound 3 6
-      (((17970677 / 100000000 : ℚ) * (6 : ℕ) + (-18502061 / 100000000 : ℚ) : ℚ) : ℝ) :=
-    hyperEdgeBound_slepian_of_rat (m_in := 1) (m_out := 1) (S_out := 1)
-      (by decide) (by decide) (by decide) (by decide)
-      (s_lo := (19364916731 / 5000000000))
-      (θ := (53271811 / 50000000))
-      (γ_lo := (96873 / 100000)) (B := (3 / 5))
-      (I4_lo := (8905614613 / 10000000000000))
-      (I6_lo := (400160759 / 10000000000000))
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
-      (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
-      mom4_slepian_r3_k6
-      (by simp only [show (6 ≤ 6) by decide, ↓reduceIte]; exact mom6_slepian_r3_k6)
-      (by norm_num [Nat.choose, piLo])
-  simpa only [Rat.cast_add, Rat.cast_mul, Rat.cast_natCast] using h
+      (((17970677 / 100000000 : ℚ) : ℝ) * (6 : ℕ) + ((-18502061 / 100000000 : ℚ) : ℝ)) :=
+  hyperEdgeBound_slepian_of_rat (m_in := 1) (m_out := 1) (S_out := 1)
+    (by decide) (by decide) (by decide) (by decide)
+    (s_lo := (19364916731 / 5000000000))
+    (θ := (53271811 / 50000000))
+    (γ_lo := (96873 / 100000)) (B := (3 / 5))
+    (I4_lo := (8905614613 / 10000000000000))
+    (I6_lo := (400160759 / 10000000000000))
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
+    (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
+    mom4_slepian_r3_k6
+    (fun _ => mom6_slepian_r3_k6)
+    (by norm_num [Nat.choose, piLo])
 
 /-- Verified dual-LP certificate at `r = 3` (`K₀ = 6`). -/
 theorem cert_r3_slepian :
@@ -744,89 +734,67 @@ theorem cert_r3_slepian :
   htail := by norm_num
   hdenom := by norm_num
   hnum := by norm_num
-  hedge := by
-    intro k hk
-    rcases Finset.mem_Icc.mp hk with ⟨hk2, hkK⟩
-    interval_cases k
-    · exact edge_slepian_r3_k2
-    · exact edge_slepian_r3_k3
-    · exact edge_slepian_r3_k4
-    · exact edge_slepian_r3_k5
-    · exact edge_slepian_r3_k6
+  hedge := hedge_six edge_slepian_r3_k2 edge_slepian_r3_k3 edge_slepian_r3_k4
+    edge_slepian_r3_k5 edge_slepian_r3_k6
 
 private theorem edge_sheppard_r4_k2 :
     HyperEdgeBound 4 2
-      (((19737623 / 100000000 : ℚ) : ℝ) * (2 : ℕ) + ((-18991953 / 100000000 : ℚ) : ℝ)) := by
-  have h : HyperEdgeBound 4 2
-      (((19737623 / 100000000 : ℚ) * (2 : ℕ) + (-18991953 / 100000000 : ℚ) : ℚ) : ℝ) :=
-    hyperEdgeBound_pairwise_of_rat (by decide) (by decide)
-      (s_lo := 2)
-      (θ := (64350151 / 100000000))
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-  simpa only [Rat.cast_add, Rat.cast_mul, Rat.cast_natCast] using h
+      (((19737623 / 100000000 : ℚ) : ℝ) * (2 : ℕ) + ((-18991953 / 100000000 : ℚ) : ℝ)) :=
+  hyperEdgeBound_pairwise_of_rat (by decide) (by decide)
+    (s_lo := 2)
+    (θ := (64350151 / 100000000))
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
 
 private theorem edge_sheppard_r4_k3 :
     HyperEdgeBound 4 3
-      (((19737623 / 100000000 : ℚ) : ℝ) * (3 : ℕ) + ((-18991953 / 100000000 : ℚ) : ℝ)) := by
-  have h : HyperEdgeBound 4 3
-      (((19737623 / 100000000 : ℚ) * (3 : ℕ) + (-18991953 / 100000000 : ℚ) : ℚ) : ℝ) :=
-    hyperEdgeBound_starCone_of_rat (by decide) (by decide)
-      (s_lo := (141421356237 / 50000000000))
-      (s_hi := (11313708499 / 4000000000))
-      (θ := (42119239 / 50000000))
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-  simpa only [Rat.cast_add, Rat.cast_mul, Rat.cast_natCast] using h
+      (((19737623 / 100000000 : ℚ) : ℝ) * (3 : ℕ) + ((-18991953 / 100000000 : ℚ) : ℝ)) :=
+  hyperEdgeBound_starCone_of_rat (by decide) (by decide)
+    (s_lo := (141421356237 / 50000000000))
+    (s_hi := (11313708499 / 4000000000))
+    (θ := (42119239 / 50000000))
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
 
 private theorem edge_sheppard_r4_k4 :
     HyperEdgeBound 4 4
-      (((19737623 / 100000000 : ℚ) : ℝ) * (4 : ℕ) + ((-18991953 / 100000000 : ℚ) : ℝ)) := by
-  have h : HyperEdgeBound 4 4
-      (((19737623 / 100000000 : ℚ) * (4 : ℕ) + (-18991953 / 100000000 : ℚ) : ℚ) : ℝ) :=
-    hyperEdgeBound_starCone_of_rat (by decide) (by decide)
-      (s_lo := (346410161513 / 100000000000))
-      (s_hi := (173205080757 / 50000000000))
-      (θ := (11665817 / 12500000))
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-  simpa only [Rat.cast_add, Rat.cast_mul, Rat.cast_natCast] using h
+      (((19737623 / 100000000 : ℚ) : ℝ) * (4 : ℕ) + ((-18991953 / 100000000 : ℚ) : ℝ)) :=
+  hyperEdgeBound_starCone_of_rat (by decide) (by decide)
+    (s_lo := (346410161513 / 100000000000))
+    (s_hi := (173205080757 / 50000000000))
+    (θ := (11665817 / 12500000))
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
 
 private theorem edge_sheppard_r4_k5 :
     HyperEdgeBound 4 5
-      (((19737623 / 100000000 : ℚ) : ℝ) * (5 : ℕ) + ((-18991953 / 100000000 : ℚ) : ℝ)) := by
-  have h : HyperEdgeBound 4 5
-      (((19737623 / 100000000 : ℚ) * (5 : ℕ) + (-18991953 / 100000000 : ℚ) : ℚ) : ℝ) :=
-    hyperEdgeBound_cap_of_rat (by decide) (by decide)
-      (s_hi := 4)
-      (θ := (98843249 / 100000000))
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-  simpa only [Rat.cast_add, Rat.cast_mul, Rat.cast_natCast] using h
+      (((19737623 / 100000000 : ℚ) : ℝ) * (5 : ℕ) + ((-18991953 / 100000000 : ℚ) : ℝ)) :=
+  hyperEdgeBound_cap_of_rat (by decide) (by decide)
+    (s_hi := 4)
+    (θ := (98843249 / 100000000))
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
 
 private theorem edge_sheppard_r4_k6 :
     HyperEdgeBound 4 6
-      (((19737623 / 100000000 : ℚ) : ℝ) * (6 : ℕ) + ((-18991953 / 100000000 : ℚ) : ℝ)) := by
-  have h : HyperEdgeBound 4 6
-      (((19737623 / 100000000 : ℚ) * (6 : ℕ) + (-18991953 / 100000000 : ℚ) : ℚ) : ℝ) :=
-    hyperEdgeBound_cap_of_rat (by decide) (by decide)
-      (s_hi := (894427191 / 200000000))
-      (θ := (102760211 / 100000000))
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-  simpa only [Rat.cast_add, Rat.cast_mul, Rat.cast_natCast] using h
+      (((19737623 / 100000000 : ℚ) : ℝ) * (6 : ℕ) + ((-18991953 / 100000000 : ℚ) : ℝ)) :=
+  hyperEdgeBound_cap_of_rat (by decide) (by decide)
+    (s_hi := (894427191 / 200000000))
+    (θ := (102760211 / 100000000))
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
 
 /-- Verified dual-LP certificate at `r = 4` (`K₀ = 6`). -/
 theorem cert_r4_sheppard :
@@ -838,45 +806,32 @@ theorem cert_r4_sheppard :
   htail := by norm_num
   hdenom := by norm_num
   hnum := by norm_num
-  hedge := by
-    intro k hk
-    rcases Finset.mem_Icc.mp hk with ⟨hk2, hkK⟩
-    interval_cases k
-    · exact edge_sheppard_r4_k2
-    · exact edge_sheppard_r4_k3
-    · exact edge_sheppard_r4_k4
-    · exact edge_sheppard_r4_k5
-    · exact edge_sheppard_r4_k6
+  hedge := hedge_six edge_sheppard_r4_k2 edge_sheppard_r4_k3 edge_sheppard_r4_k4
+    edge_sheppard_r4_k5 edge_sheppard_r4_k6
 
 private theorem edge_slepian_r8_k2 :
     HyperEdgeBound 8 2
-      (((666667 / 4000000 : ℚ) : ℝ) * (2 : ℕ) + ((0 : ℚ) : ℝ)) := by
-  have h : HyperEdgeBound 8 2
-      (((666667 / 4000000 : ℚ) * (2 : ℕ) + (0 : ℚ) : ℚ) : ℝ) :=
-    hyperEdgeBound_pairwise_of_rat (by decide) (by decide)
-      (s_lo := (141421356237 / 50000000000))
-      (θ := (89112291 / 100000000))
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-  simpa only [Rat.cast_add, Rat.cast_mul, Rat.cast_natCast] using h
+      (((666667 / 4000000 : ℚ) : ℝ) * (2 : ℕ) + ((0 : ℚ) : ℝ)) :=
+  hyperEdgeBound_pairwise_of_rat (by decide) (by decide)
+    (s_lo := (141421356237 / 50000000000))
+    (θ := (89112291 / 100000000))
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
 
 private theorem edge_slepian_r8_k3 :
     HyperEdgeBound 8 3
-      (((666667 / 4000000 : ℚ) : ℝ) * (3 : ℕ) + ((0 : ℚ) : ℝ)) := by
-  have h : HyperEdgeBound 8 3
-      (((666667 / 4000000 : ℚ) * (3 : ℕ) + (0 : ℚ) : ℚ) : ℝ) :=
-    hyperEdgeBound_starCone_of_rat (by decide) (by decide)
-      (s_lo := 4)
-      (s_hi := 4)
-      (θ := (26179949 / 25000000))
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-  simpa only [Rat.cast_add, Rat.cast_mul, Rat.cast_natCast] using h
+      (((666667 / 4000000 : ℚ) : ℝ) * (3 : ℕ) + ((0 : ℚ) : ℝ)) :=
+  hyperEdgeBound_starCone_of_rat (by decide) (by decide)
+    (s_lo := 4)
+    (s_hi := 4)
+    (θ := (26179949 / 25000000))
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
 
 private theorem mom4_slepian_r8_k4 :
     ((40268530757 / 5000000000000) : ℚ) ≤
@@ -888,26 +843,23 @@ private theorem mom4_slepian_r8_k4 :
 
 private theorem edge_slepian_r8_k4 :
     HyperEdgeBound 8 4
-      (((666667 / 4000000 : ℚ) : ℝ) * (4 : ℕ) + ((0 : ℚ) : ℝ)) := by
-  have h : HyperEdgeBound 8 4
-      (((666667 / 4000000 : ℚ) * (4 : ℕ) + (0 : ℚ) : ℚ) : ℝ) :=
-    hyperEdgeBound_slepian_of_rat (m_in := 3) (m_out := 3) (S_out := 2)
-      (by decide) (by decide) (by decide) (by decide)
-      (s_lo := (122474487139 / 25000000000))
-      (θ := (116808089 / 100000000))
-      (γ_lo := (80281 / 100000)) (B := (5 / 2))
-      (I4_lo := (40268530757 / 5000000000000))
-      (I6_lo := 0)
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
-      (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
-      mom4_slepian_r8_k4
-      (by simp)
-      (by norm_num [Nat.choose, piLo])
-  simpa only [Rat.cast_add, Rat.cast_mul, Rat.cast_natCast] using h
+      (((666667 / 4000000 : ℚ) : ℝ) * (4 : ℕ) + ((0 : ℚ) : ℝ)) :=
+  hyperEdgeBound_slepian_of_rat (m_in := 3) (m_out := 3) (S_out := 2)
+    (by decide) (by decide) (by decide) (by decide)
+    (s_lo := (122474487139 / 25000000000))
+    (θ := (116808089 / 100000000))
+    (γ_lo := (80281 / 100000)) (B := (5 / 2))
+    (I4_lo := (40268530757 / 5000000000000))
+    (I6_lo := 0)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
+    (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
+    mom4_slepian_r8_k4
+    (by omega)
+    (by norm_num [Nat.choose, piLo])
 
 private theorem mom4_slepian_r8_k5 :
     ((3011188201 / 10000000000000) : ℚ) ≤
@@ -919,26 +871,23 @@ private theorem mom4_slepian_r8_k5 :
 
 private theorem edge_slepian_r8_k5 :
     HyperEdgeBound 8 5
-      (((666667 / 4000000 : ℚ) : ℝ) * (5 : ℕ) + ((0 : ℚ) : ℝ)) := by
-  have h : HyperEdgeBound 8 5
-      (((666667 / 4000000 : ℚ) * (5 : ℕ) + (0 : ℚ) : ℚ) : ℝ) :=
-    hyperEdgeBound_slepian_of_rat (m_in := 1) (m_out := 1) (S_out := 1)
-      (by decide) (by decide) (by decide) (by decide)
-      (s_lo := (565685424949 / 100000000000))
-      (θ := (15260733 / 12500000))
-      (γ_lo := (18057 / 25000)) (B := (3 / 5))
-      (I4_lo := (3011188201 / 10000000000000))
-      (I6_lo := 0)
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
-      (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
-      mom4_slepian_r8_k5
-      (by simp)
-      (by norm_num [Nat.choose, piLo])
-  simpa only [Rat.cast_add, Rat.cast_mul, Rat.cast_natCast] using h
+      (((666667 / 4000000 : ℚ) : ℝ) * (5 : ℕ) + ((0 : ℚ) : ℝ)) :=
+  hyperEdgeBound_slepian_of_rat (m_in := 1) (m_out := 1) (S_out := 1)
+    (by decide) (by decide) (by decide) (by decide)
+    (s_lo := (565685424949 / 100000000000))
+    (θ := (15260733 / 12500000))
+    (γ_lo := (18057 / 25000)) (B := (3 / 5))
+    (I4_lo := (3011188201 / 10000000000000))
+    (I6_lo := 0)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
+    (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
+    mom4_slepian_r8_k5
+    (by omega)
+    (by norm_num [Nat.choose, piLo])
 
 private theorem mom4_slepian_r8_k6 :
     ((2239046637 / 10000000000000) : ℚ) ≤
@@ -958,26 +907,23 @@ private theorem mom6_slepian_r8_k6 :
 
 private theorem edge_slepian_r8_k6 :
     HyperEdgeBound 8 6
-      (((666667 / 4000000 : ℚ) : ℝ) * (6 : ℕ) + ((0 : ℚ) : ℝ)) := by
-  have h : HyperEdgeBound 8 6
-      (((666667 / 4000000 : ℚ) * (6 : ℕ) + (0 : ℚ) : ℚ) : ℝ) :=
-    hyperEdgeBound_slepian_of_rat (m_in := 1) (m_out := 1) (S_out := 1)
-      (by decide) (by decide) (by decide) (by decide)
-      (s_lo := (632455532033 / 100000000000))
-      (θ := (15714567 / 12500000))
-      (γ_lo := (13359 / 20000)) (B := (3 / 5))
-      (I4_lo := (2239046637 / 10000000000000))
-      (I6_lo := (50687217 / 10000000000000))
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
-      (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
-      mom4_slepian_r8_k6
-      (by simp only [show (6 ≤ 6) by decide, ↓reduceIte]; exact mom6_slepian_r8_k6)
-      (by norm_num [Nat.choose, piLo])
-  simpa only [Rat.cast_add, Rat.cast_mul, Rat.cast_natCast] using h
+      (((666667 / 4000000 : ℚ) : ℝ) * (6 : ℕ) + ((0 : ℚ) : ℝ)) :=
+  hyperEdgeBound_slepian_of_rat (m_in := 1) (m_out := 1) (S_out := 1)
+    (by decide) (by decide) (by decide) (by decide)
+    (s_lo := (632455532033 / 100000000000))
+    (θ := (15714567 / 12500000))
+    (γ_lo := (13359 / 20000)) (B := (3 / 5))
+    (I4_lo := (2239046637 / 10000000000000))
+    (I6_lo := (50687217 / 10000000000000))
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
+    (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
+    mom4_slepian_r8_k6
+    (fun _ => mom6_slepian_r8_k6)
+    (by norm_num [Nat.choose, piLo])
 
 /-- Verified dual-LP certificate at `r = 8` (`K₀ = 6`). -/
 theorem cert_r8_slepian :
@@ -989,45 +935,32 @@ theorem cert_r8_slepian :
   htail := by norm_num
   hdenom := by norm_num
   hnum := by norm_num
-  hedge := by
-    intro k hk
-    rcases Finset.mem_Icc.mp hk with ⟨hk2, hkK⟩
-    interval_cases k
-    · exact edge_slepian_r8_k2
-    · exact edge_slepian_r8_k3
-    · exact edge_slepian_r8_k4
-    · exact edge_slepian_r8_k5
-    · exact edge_slepian_r8_k6
+  hedge := hedge_six edge_slepian_r8_k2 edge_slepian_r8_k3 edge_slepian_r8_k4
+    edge_slepian_r8_k5 edge_slepian_r8_k6
 
 private theorem edge_slepian_r16_k2 :
     HyperEdgeBound 16 2
-      (((4588373 / 50000000 : ℚ) : ℝ) * (2 : ℕ) + ((18096309 / 50000000 : ℚ) : ℝ)) := by
-  have h : HyperEdgeBound 16 2
-      (((4588373 / 50000000 : ℚ) * (2 : ℕ) + (18096309 / 50000000 : ℚ) : ℚ) : ℝ) :=
-    hyperEdgeBound_pairwise_of_rat (by decide) (by decide)
-      (s_lo := 4)
-      (θ := (108083941 / 100000000))
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-  simpa only [Rat.cast_add, Rat.cast_mul, Rat.cast_natCast] using h
+      (((4588373 / 50000000 : ℚ) : ℝ) * (2 : ℕ) + ((18096309 / 50000000 : ℚ) : ℝ)) :=
+  hyperEdgeBound_pairwise_of_rat (by decide) (by decide)
+    (s_lo := 4)
+    (θ := (108083941 / 100000000))
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
 
 private theorem edge_slepian_r16_k3 :
     HyperEdgeBound 16 3
-      (((4588373 / 50000000 : ℚ) : ℝ) * (3 : ℕ) + ((18096309 / 50000000 : ℚ) : ℝ)) := by
-  have h : HyperEdgeBound 16 3
-      (((4588373 / 50000000 : ℚ) * (3 : ℕ) + (18096309 / 50000000 : ℚ) : ℚ) : ℝ) :=
-    hyperEdgeBound_starCone_of_rat (by decide) (by decide)
-      (s_lo := (565685424949 / 100000000000))
-      (s_hi := (11313708499 / 2000000000))
-      (θ := (12002041 / 10000000))
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-  simpa only [Rat.cast_add, Rat.cast_mul, Rat.cast_natCast] using h
+      (((4588373 / 50000000 : ℚ) : ℝ) * (3 : ℕ) + ((18096309 / 50000000 : ℚ) : ℝ)) :=
+  hyperEdgeBound_starCone_of_rat (by decide) (by decide)
+    (s_lo := (565685424949 / 100000000000))
+    (s_hi := (11313708499 / 2000000000))
+    (θ := (12002041 / 10000000))
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
 
 private theorem mom4_slepian_r16_k4 :
     ((22793381879 / 5000000000000) : ℚ) ≤
@@ -1039,26 +972,23 @@ private theorem mom4_slepian_r16_k4 :
 
 private theorem edge_slepian_r16_k4 :
     HyperEdgeBound 16 4
-      (((4588373 / 50000000 : ℚ) : ℝ) * (4 : ℕ) + ((18096309 / 50000000 : ℚ) : ℝ)) := by
-  have h : HyperEdgeBound 16 4
-      (((4588373 / 50000000 : ℚ) * (4 : ℕ) + (18096309 / 50000000 : ℚ) : ℚ) : ℝ) :=
-    hyperEdgeBound_slepian_of_rat (m_in := 4) (m_out := 3) (S_out := 5)
-      (by decide) (by decide) (by decide) (by decide)
-      (s_lo := (692820323027 / 100000000000))
-      (θ := (128410129 / 100000000))
-      (γ_lo := (1480 / 2357)) (B := (39 / 10))
-      (I4_lo := (22793381879 / 5000000000000))
-      (I6_lo := 0)
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
-      (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
-      mom4_slepian_r16_k4
-      (by simp)
-      (by norm_num [Nat.choose, piLo])
-  simpa only [Rat.cast_add, Rat.cast_mul, Rat.cast_natCast] using h
+      (((4588373 / 50000000 : ℚ) : ℝ) * (4 : ℕ) + ((18096309 / 50000000 : ℚ) : ℝ)) :=
+  hyperEdgeBound_slepian_of_rat (m_in := 4) (m_out := 3) (S_out := 5)
+    (by decide) (by decide) (by decide) (by decide)
+    (s_lo := (692820323027 / 100000000000))
+    (θ := (128410129 / 100000000))
+    (γ_lo := (1480 / 2357)) (B := (39 / 10))
+    (I4_lo := (22793381879 / 5000000000000))
+    (I6_lo := 0)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
+    (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
+    mom4_slepian_r16_k4
+    (by omega)
+    (by norm_num [Nat.choose, piLo])
 
 private theorem mom4_slepian_r16_k5 :
     ((35556367833 / 10000000000000) : ℚ) ≤
@@ -1070,26 +1000,23 @@ private theorem mom4_slepian_r16_k5 :
 
 private theorem edge_slepian_r16_k5 :
     HyperEdgeBound 16 5
-      (((4588373 / 50000000 : ℚ) : ℝ) * (5 : ℕ) + ((18096309 / 50000000 : ℚ) : ℝ)) := by
-  have h : HyperEdgeBound 16 5
-      (((4588373 / 50000000 : ℚ) * (5 : ℕ) + (18096309 / 50000000 : ℚ) : ℚ) : ℝ) :=
-    hyperEdgeBound_slepian_of_rat (m_in := 4) (m_out := 3) (S_out := 6)
-      (by decide) (by decide) (by decide) (by decide)
-      (s_lo := 8)
-      (θ := (33052161 / 25000000))
-      (γ_lo := (4 / 7)) (B := (21 / 5))
-      (I4_lo := (35556367833 / 10000000000000))
-      (I6_lo := 0)
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
-      (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
-      mom4_slepian_r16_k5
-      (by simp)
-      (by norm_num [Nat.choose, piLo])
-  simpa only [Rat.cast_add, Rat.cast_mul, Rat.cast_natCast] using h
+      (((4588373 / 50000000 : ℚ) : ℝ) * (5 : ℕ) + ((18096309 / 50000000 : ℚ) : ℝ)) :=
+  hyperEdgeBound_slepian_of_rat (m_in := 4) (m_out := 3) (S_out := 6)
+    (by decide) (by decide) (by decide) (by decide)
+    (s_lo := 8)
+    (θ := (33052161 / 25000000))
+    (γ_lo := (4 / 7)) (B := (21 / 5))
+    (I4_lo := (35556367833 / 10000000000000))
+    (I6_lo := 0)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
+    (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
+    mom4_slepian_r16_k5
+    (by omega)
+    (by norm_num [Nat.choose, piLo])
 
 private theorem mom4_slepian_r16_k6 :
     ((468300427 / 5000000000000) : ℚ) ≤
@@ -1109,26 +1036,23 @@ private theorem mom6_slepian_r16_k6 :
 
 private theorem edge_slepian_r16_k6 :
     HyperEdgeBound 16 6
-      (((4588373 / 50000000 : ℚ) : ℝ) * (6 : ℕ) + ((18096309 / 50000000 : ℚ) : ℝ)) := by
-  have h : HyperEdgeBound 16 6
-      (((4588373 / 50000000 : ℚ) * (6 : ℕ) + (18096309 / 50000000 : ℚ) : ℚ) : ℝ) :=
-    hyperEdgeBound_slepian_of_rat (m_in := 1) (m_out := 1) (S_out := 1)
-      (by decide) (by decide) (by decide) (by decide)
-      (s_lo := (894427190999 / 100000000000))
-      (θ := (13481147 / 10000000))
-      (γ_lo := (53239 / 100000)) (B := (3 / 5))
-      (I4_lo := (468300427 / 5000000000000))
-      (I6_lo := (6867393 / 5000000000000))
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
-      (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
-      mom4_slepian_r16_k6
-      (by simp only [show (6 ≤ 6) by decide, ↓reduceIte]; exact mom6_slepian_r16_k6)
-      (by norm_num [Nat.choose, piLo])
-  simpa only [Rat.cast_add, Rat.cast_mul, Rat.cast_natCast] using h
+      (((4588373 / 50000000 : ℚ) : ℝ) * (6 : ℕ) + ((18096309 / 50000000 : ℚ) : ℝ)) :=
+  hyperEdgeBound_slepian_of_rat (m_in := 1) (m_out := 1) (S_out := 1)
+    (by decide) (by decide) (by decide) (by decide)
+    (s_lo := (894427190999 / 100000000000))
+    (θ := (13481147 / 10000000))
+    (γ_lo := (53239 / 100000)) (B := (3 / 5))
+    (I4_lo := (468300427 / 5000000000000))
+    (I6_lo := (6867393 / 5000000000000))
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
+    (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
+    mom4_slepian_r16_k6
+    (fun _ => mom6_slepian_r16_k6)
+    (by norm_num [Nat.choose, piLo])
 
 /-- Verified dual-LP certificate at `r = 16` (`K₀ = 6`). -/
 theorem cert_r16_slepian :
@@ -1140,43 +1064,30 @@ theorem cert_r16_slepian :
   htail := by norm_num
   hdenom := by norm_num
   hnum := by norm_num
-  hedge := by
-    intro k hk
-    rcases Finset.mem_Icc.mp hk with ⟨hk2, hkK⟩
-    interval_cases k
-    · exact edge_slepian_r16_k2
-    · exact edge_slepian_r16_k3
-    · exact edge_slepian_r16_k4
-    · exact edge_slepian_r16_k5
-    · exact edge_slepian_r16_k6
+  hedge := hedge_six edge_slepian_r16_k2 edge_slepian_r16_k3 edge_slepian_r16_k4
+    edge_slepian_r16_k5 edge_slepian_r16_k6
 
 private theorem edge_slepian_r64_k2 :
     HyperEdgeBound 64 2
-      (((2318347 / 50000000 : ℚ) : ℝ) * (2 : ℕ) + ((16272637 / 25000000 : ℚ) : ℝ)) := by
-  have h : HyperEdgeBound 64 2
-      (((2318347 / 50000000 : ℚ) * (2 : ℕ) + (16272637 / 25000000 : ℚ) : ℚ) : ℝ) :=
-    hyperEdgeBound_pairwise_of_rat (by decide) (by decide)
-      (s_lo := 8)
-      (θ := (66104337 / 50000000))
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-  simpa only [Rat.cast_add, Rat.cast_mul, Rat.cast_natCast] using h
+      (((2318347 / 50000000 : ℚ) : ℝ) * (2 : ℕ) + ((16272637 / 25000000 : ℚ) : ℝ)) :=
+  hyperEdgeBound_pairwise_of_rat (by decide) (by decide)
+    (s_lo := 8)
+    (θ := (66104337 / 50000000))
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
 
 private theorem edge_slepian_r64_k3 :
     HyperEdgeBound 64 3
-      (((2318347 / 50000000 : ℚ) : ℝ) * (3 : ℕ) + ((16272637 / 25000000 : ℚ) : ℝ)) := by
-  have h : HyperEdgeBound 64 3
-      (((2318347 / 50000000 : ℚ) * (3 : ℕ) + (16272637 / 25000000 : ℚ) : ℚ) : ℝ) :=
-    hyperEdgeBound_slepian_three_of_rat (by decide)
-      (s_lo := (565685424949 / 50000000000))
-      (θ := (5577913 / 4000000))
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-  simpa only [Rat.cast_add, Rat.cast_mul, Rat.cast_natCast] using h
+      (((2318347 / 50000000 : ℚ) : ℝ) * (3 : ℕ) + ((16272637 / 25000000 : ℚ) : ℝ)) :=
+  hyperEdgeBound_slepian_three_of_rat (by decide)
+    (s_lo := (565685424949 / 50000000000))
+    (θ := (5577913 / 4000000))
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
 
 private theorem mom4_slepian_r64_k4 :
     ((67244281 / 2000000000000) : ℚ) ≤
@@ -1188,26 +1099,23 @@ private theorem mom4_slepian_r64_k4 :
 
 private theorem edge_slepian_r64_k4 :
     HyperEdgeBound 64 4
-      (((2318347 / 50000000 : ℚ) : ℝ) * (4 : ℕ) + ((16272637 / 25000000 : ℚ) : ℝ)) := by
-  have h : HyperEdgeBound 64 4
-      (((2318347 / 50000000 : ℚ) * (4 : ℕ) + (16272637 / 25000000 : ℚ) : ℚ) : ℝ) :=
-    hyperEdgeBound_slepian_of_rat (m_in := 1) (m_out := 1) (S_out := 1)
-      (by decide) (by decide) (by decide) (by decide)
-      (s_lo := (277128129211 / 20000000000))
-      (θ := (142670897 / 100000000))
-      (γ_lo := (20473 / 50000)) (B := (3 / 5))
-      (I4_lo := (67244281 / 2000000000000))
-      (I6_lo := 0)
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
-      (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
-      mom4_slepian_r64_k4
-      (by simp)
-      (by norm_num [Nat.choose, piLo])
-  simpa only [Rat.cast_add, Rat.cast_mul, Rat.cast_natCast] using h
+      (((2318347 / 50000000 : ℚ) : ℝ) * (4 : ℕ) + ((16272637 / 25000000 : ℚ) : ℝ)) :=
+  hyperEdgeBound_slepian_of_rat (m_in := 1) (m_out := 1) (S_out := 1)
+    (by decide) (by decide) (by decide) (by decide)
+    (s_lo := (277128129211 / 20000000000))
+    (θ := (142670897 / 100000000))
+    (γ_lo := (20473 / 50000)) (B := (3 / 5))
+    (I4_lo := (67244281 / 2000000000000))
+    (I6_lo := 0)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
+    (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
+    mom4_slepian_r64_k4
+    (by omega)
+    (by norm_num [Nat.choose, piLo])
 
 private theorem mom4_slepian_r64_k5 :
     ((2035466543 / 2000000000000) : ℚ) ≤
@@ -1219,26 +1127,23 @@ private theorem mom4_slepian_r64_k5 :
 
 private theorem edge_slepian_r64_k5 :
     HyperEdgeBound 64 5
-      (((2318347 / 50000000 : ℚ) : ℝ) * (5 : ℕ) + ((16272637 / 25000000 : ℚ) : ℝ)) := by
-  have h : HyperEdgeBound 64 5
-      (((2318347 / 50000000 : ℚ) * (5 : ℕ) + (16272637 / 25000000 : ℚ) : ℚ) : ℝ) :=
-    hyperEdgeBound_slepian_of_rat (m_in := 2) (m_out := 3) (S_out := 7)
-      (by decide) (by decide) (by decide) (by decide)
-      (s_lo := 16)
-      (θ := (144595881 / 100000000))
-      (γ_lo := (333 / 883)) (B := (47 / 10))
-      (I4_lo := (2035466543 / 2000000000000))
-      (I6_lo := 0)
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
-      (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
-      mom4_slepian_r64_k5
-      (by simp)
-      (by norm_num [Nat.choose, piLo])
-  simpa only [Rat.cast_add, Rat.cast_mul, Rat.cast_natCast] using h
+      (((2318347 / 50000000 : ℚ) : ℝ) * (5 : ℕ) + ((16272637 / 25000000 : ℚ) : ℝ)) :=
+  hyperEdgeBound_slepian_of_rat (m_in := 2) (m_out := 3) (S_out := 7)
+    (by decide) (by decide) (by decide) (by decide)
+    (s_lo := 16)
+    (θ := (144595881 / 100000000))
+    (γ_lo := (333 / 883)) (B := (47 / 10))
+    (I4_lo := (2035466543 / 2000000000000))
+    (I6_lo := 0)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
+    (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
+    mom4_slepian_r64_k5
+    (by omega)
+    (by norm_num [Nat.choose, piLo])
 
 private theorem mom4_slepian_r64_k6 :
     ((4133382621 / 5000000000000) : ℚ) ≤
@@ -1288,26 +1193,23 @@ private theorem mom6_slepian_r64_k6 :
 
 private theorem edge_slepian_r64_k6 :
     HyperEdgeBound 64 6
-      (((2318347 / 50000000 : ℚ) : ℝ) * (6 : ℕ) + ((16272637 / 25000000 : ℚ) : ℝ)) := by
-  have h : HyperEdgeBound 64 6
-      (((2318347 / 50000000 : ℚ) * (6 : ℕ) + (16272637 / 25000000 : ℚ) : ℚ) : ℝ) :=
-    hyperEdgeBound_slepian_of_rat (m_in := 2) (m_out := 3) (S_out := 7)
-      (by decide) (by decide) (by decide) (by decide)
-      (s_lo := (1788854381999 / 100000000000))
-      (θ := (9119433 / 6250000))
-      (γ_lo := (17 / 48)) (B := (23 / 5))
-      (I4_lo := (4133382621 / 5000000000000))
-      (I6_lo := (56834371 / 1000000000000))
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
-      (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
-      mom4_slepian_r64_k6
-      (by simp only [show (6 ≤ 6) by decide, ↓reduceIte]; exact mom6_slepian_r64_k6)
-      (by norm_num [Nat.choose, piLo])
-  simpa only [Rat.cast_add, Rat.cast_mul, Rat.cast_natCast] using h
+      (((2318347 / 50000000 : ℚ) : ℝ) * (6 : ℕ) + ((16272637 / 25000000 : ℚ) : ℝ)) :=
+  hyperEdgeBound_slepian_of_rat (m_in := 2) (m_out := 3) (S_out := 7)
+    (by decide) (by decide) (by decide) (by decide)
+    (s_lo := (1788854381999 / 100000000000))
+    (θ := (9119433 / 6250000))
+    (γ_lo := (17 / 48)) (B := (23 / 5))
+    (I4_lo := (4133382621 / 5000000000000))
+    (I6_lo := (56834371 / 1000000000000))
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
+    (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
+    mom4_slepian_r64_k6
+    (fun _ => mom6_slepian_r64_k6)
+    (by norm_num [Nat.choose, piLo])
 
 private theorem mom4_slepian_r64_k7 :
     ((155505707 / 10000000000000) : ℚ) ≤
@@ -1327,26 +1229,23 @@ private theorem mom6_slepian_r64_k7 :
 
 private theorem edge_slepian_r64_k7 :
     HyperEdgeBound 64 7
-      (((2318347 / 50000000 : ℚ) : ℝ) * (7 : ℕ) + ((16272637 / 25000000 : ℚ) : ℝ)) := by
-  have h : HyperEdgeBound 64 7
-      (((2318347 / 50000000 : ℚ) * (7 : ℕ) + (16272637 / 25000000 : ℚ) : ℚ) : ℝ) :=
-    hyperEdgeBound_slepian_of_rat (m_in := 1) (m_out := 1) (S_out := 1)
-      (by decide) (by decide) (by decide) (by decide)
-      (s_lo := (979795897113 / 50000000000))
-      (θ := (18360289 / 12500000))
-      (γ_lo := (6733 / 20000)) (B := (3 / 5))
-      (I4_lo := (155505707 / 10000000000000))
-      (I6_lo := (930741 / 10000000000000))
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
-      (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
-      (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
-      mom4_slepian_r64_k7
-      (by simp only [show (6 ≤ 7) by decide, ↓reduceIte]; exact mom6_slepian_r64_k7)
-      (by norm_num [Nat.choose, piLo])
-  simpa only [Rat.cast_add, Rat.cast_mul, Rat.cast_natCast] using h
+      (((2318347 / 50000000 : ℚ) : ℝ) * (7 : ℕ) + ((16272637 / 25000000 : ℚ) : ℝ)) :=
+  hyperEdgeBound_slepian_of_rat (m_in := 1) (m_out := 1) (S_out := 1)
+    (by decide) (by decide) (by decide) (by decide)
+    (s_lo := (979795897113 / 50000000000))
+    (θ := (18360289 / 12500000))
+    (γ_lo := (6733 / 20000)) (B := (3 / 5))
+    (I4_lo := (155505707 / 10000000000000))
+    (I6_lo := (930741 / 10000000000000))
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num [qCosUpper, qCosPoly, qCosErr, piLo])
+    (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
+    (by norm_num [qEval, qExpOddPoly, List.range, List.range.loop, List.map, Nat.factorial])
+    mom4_slepian_r64_k7
+    (fun _ => mom6_slepian_r64_k7)
+    (by norm_num [Nat.choose, piLo])
 
 /-- Verified dual-LP certificate at `r = 64` (`K₀ = 7`). -/
 theorem cert_r64_slepian :

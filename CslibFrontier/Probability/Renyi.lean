@@ -98,11 +98,9 @@ theorem tsum_tsub_le_renyiMoment {α : ℝ} (hα : 1 ≤ α) (ε' : ℝ) (p q : 
 theorem renyiMoment_comp_of_injective {f : X → Y} (hf : Function.Injective f) (α : ℝ)
     {p q : Y → ℝ≥0∞} (hp : ∀ y, y ∉ Set.range f → p y = 0) :
     renyiMoment α p q = renyiMoment α (p ∘ f) (q ∘ f) := by
-  rw [renyiMoment, renyiMoment, ← hf.tsum_eq]
-  · rfl
-  · intro y hy
-    by_contra hnot
-    exact hy (by dsimp only; rw [hp y hnot, zero_mul])
+  rw [renyiMoment, renyiMoment, ← hf.tsum_eq fun y hy => by_contra fun hnot =>
+    hy (by simp [hp y hnot])]
+  rfl
 
 /-- Conditional product factorization of `renyiMoment` on `X × Y`: for `1 ≤ α` and finite
 denominator weights `q₁`, `q₂`, the Rényi moment of `(x, y) ↦ p₁ x * p₂ x y` against
@@ -126,41 +124,20 @@ private theorem young_mul_rpow {α a b R : ℝ} (hα : 1 < α) (ha : 0 < a) (hb 
     (hR : 0 < R) :
     a * R ^ (α - 1) ≤
       (1 / α) * (a * (a / b) ^ (α - 1)) + ((α - 1) / α) * (b * R ^ α) := by
-  set t : ℝ := α - 1
-  have ht : 0 < t := sub_pos.mpr hα
   have hα0 : 0 < α := by linarith
-  have hw₁ : 0 ≤ 1 / α := by positivity
-  have hw₂ : 0 ≤ t / α := by positivity
-  have hw : 1 / α + t / α = 1 := by
-    dsimp only [t]
-    field_simp
-    ring
   have hab : 0 < a / b := div_pos ha hb
-  set z₁ : ℝ := a * (a / b) ^ t
-  set z₂ : ℝ := b * R ^ α
-  have hz₁_eq : z₁ = b * (a / b) ^ α := by
-    dsimp only [z₁, t]
-    calc a * (a / b) ^ (α - 1)
-        = b * ((a / b) ^ (1 : ℝ) * (a / b) ^ (α - 1)) := by
-          rw [Real.rpow_one]
-          field_simp
-      _ = b * (a / b) ^ α := by
-          rw [← Real.rpow_add hab]
-          exact congrArg (fun e => b * (a / b) ^ e) (by ring)
-  have hgm := Real.geom_mean_le_arith_mean2_weighted hw₁ hw₂
-    (show 0 ≤ z₁ by positivity) (show 0 ≤ z₂ by positivity) hw
-  have hlhs : z₁ ^ (1 / α) * z₂ ^ (t / α) = a * R ^ t := by
-    have h1 : z₁ ^ (1 / α) = b ^ (1 / α) * (a / b) := by
-      rw [hz₁_eq, Real.mul_rpow hb.le (Real.rpow_nonneg hab.le _), ← Real.rpow_mul hab.le,
-        mul_one_div_cancel hα0.ne', Real.rpow_one]
-    have h2 : z₂ ^ (t / α) = b ^ (t / α) * R ^ t := by
-      rw [Real.mul_rpow hb.le (Real.rpow_nonneg hR.le _), ← Real.rpow_mul hR.le,
-        mul_div_cancel₀ t hα0.ne']
-    calc z₁ ^ (1 / α) * z₂ ^ (t / α)
-        = (b ^ (1 / α) * b ^ (t / α)) * (a / b) * R ^ t := by rw [h1, h2]; ring
-      _ = b ^ (1 / α + t / α) * (a / b) * R ^ t := by rw [← Real.rpow_add hb]
-      _ = a * R ^ t := by rw [hw, Real.rpow_one, mul_div_cancel₀ a hb.ne']
-  rwa [hlhs] at hgm
+  have hw : 1 / α + (α - 1) / α = 1 := by field_simp; ring
+  have hz₁ : a * (a / b) ^ (α - 1) = b * (a / b) ^ α := by
+    rw [Real.rpow_sub_one hab.ne']; field_simp
+  have hgm := Real.geom_mean_le_arith_mean2_weighted (by positivity)
+    (div_nonneg (by linarith) hα0.le) (by positivity : 0 ≤ a * (a / b) ^ (α - 1))
+    (by positivity : 0 ≤ b * R ^ α) hw
+  calc a * R ^ (α - 1) = (a * (a / b) ^ (α - 1)) ^ (1 / α) * (b * R ^ α) ^ ((α - 1) / α) := by
+        rw [hz₁, Real.mul_rpow hb.le (Real.rpow_nonneg hab.le _), ← Real.rpow_mul hab.le,
+          mul_one_div_cancel hα0.ne', Real.rpow_one, Real.mul_rpow hb.le (Real.rpow_nonneg hR.le _),
+          ← Real.rpow_mul hR.le, mul_div_cancel₀ _ hα0.ne', mul_mul_mul_comm, ← Real.rpow_add hb,
+          hw, Real.rpow_one, ← mul_assoc, mul_div_cancel₀ a hb.ne']
+    _ ≤ _ := hgm
 
 /-- Joint sub-additivity of `(u, v) ↦ u * (u / v) ^ (α - 1)` over countable sums for `1 < α`. -/
 private theorem mul_div_rpow_tsum_le {α : ℝ} (hα : 1 < α) {u v : X → ℝ≥0∞}
@@ -173,8 +150,7 @@ private theorem mul_div_rpow_tsum_le {α : ℝ} (hα : 1 < α) {u v : X → ℝ�
   set U : ℝ≥0∞ := ∑' x, u x
   set V : ℝ≥0∞ := ∑' x, v x
   rcases eq_or_ne U 0 with hU0 | hU0
-  · rw [hU0, zero_mul]
-    exact zero_le
+  · simp [hU0]
   by_cases hsupp : ∃ x, u x ≠ 0 ∧ v x = 0
   · obtain ⟨x₀, hu₀, hv₀⟩ := hsupp
     have htop : u x₀ * (u x₀ / v x₀) ^ t = ⊤ := by
@@ -228,26 +204,15 @@ private theorem mul_div_rpow_tsum_le {α : ℝ} (hα : 1 < α) {u v : X → ℝ�
       _ = ENNReal.ofReal (1 / α) * M + ENNReal.ofReal (t / α) * (V * (U / V) ^ α) := by
           rw [tsum_add, ENNReal.tsum_mul_left, ENNReal.tsum_mul_left, ENNReal.tsum_mul_right]
   have hV_eq : V * (U / V) ^ α = U * (U / V) ^ t := by
-    have hVP : 0 < V.toReal := by ennreal_to_real using pos_iff_ne_zero.mpr hV0
-    have hR_pos : 0 < U.toReal / V.toReal := by
-      dsimp only [R] at hR; ennreal_to_real at hR; exact hR
-    ennreal_to_real
-    calc V.toReal * (U.toReal / V.toReal) ^ α
-        = V.toReal * ((U.toReal / V.toReal) ^ (1 : ℝ) * (U.toReal / V.toReal) ^ t) := by
-          rw [← Real.rpow_add hR_pos]
-          exact congrArg (fun e => V.toReal * (U.toReal / V.toReal) ^ e) (by dsimp only [t]; ring)
-      _ = U.toReal * (U.toReal / V.toReal) ^ t := by
-          rw [Real.rpow_one]
-          field_simp [hVP.ne']
+    rw [show α = 1 + t by dsimp only [t]; ring, ENNReal.rpow_add _ _ hUV0 hUV_top, ENNReal.rpow_one,
+      ← mul_assoc, ENNReal.mul_div_cancel hV0 hV]
   rw [hV_eq] at hsum_ineq
   have hL_top : U * (U / V) ^ t ≠ ⊤ := ENNReal.mul_ne_top hU hUV_rpow_t
   generalize U * (U / V) ^ t = L at hsum_ineq hL_top ⊢
   ennreal_to_real at hsum_ineq ⊢
-  have hw : 1 / α + t / α = 1 := by dsimp only [t]; field_simp; ring
   have h1L : 1 / α * L.toReal + t / α * L.toReal = L.toReal := by
-    rw [← add_mul, hw, one_mul]
-  have hmul_le : (1 / α) * L.toReal ≤ (1 / α) * M.toReal := by linarith
-  exact le_of_mul_le_mul_left hmul_le (by positivity)
+    rw [← add_mul, ← add_div, show 1 + t = α by dsimp only [t]; ring, div_self hα0.ne', one_mul]
+  exact le_of_mul_le_mul_left (by linarith : 1 / α * L.toReal ≤ 1 / α * M.toReal) (by positivity)
 
 end Moment
 
@@ -284,11 +249,9 @@ theorem renyiDiv_of_ne_top {α : ℝ} {p q : PMF X} (h : renyiMoment α p q ≠ 
 and any `p, q : PMF X`, `1 ≤ renyiMoment α p q`. -/
 theorem one_le_renyiMoment {α : ℝ} (hα : 1 < α) (p q : PMF X) :
     1 ≤ renyiMoment α p q := by
-  have hp : ∑' x, p x ≠ ⊤ := by rw [p.tsum_coe]; exact ENNReal.one_ne_top
-  have hq : ∑' x, q x ≠ ⊤ := by rw [q.tsum_coe]; exact ENNReal.one_ne_top
-  have h := mul_div_rpow_tsum_le hα hp hq
-  rw [p.tsum_coe, q.tsum_coe, div_one, ENNReal.one_rpow, mul_one] at h
-  exact h
+  simpa [renyiMoment, p.tsum_coe, q.tsum_coe] using
+    mul_div_rpow_tsum_le hα (p.tsum_coe.trans_ne ENNReal.one_ne_top)
+      (q.tsum_coe.trans_ne ENNReal.one_ne_top)
 
 /-- A distribution has zero Rényi divergence from itself. -/
 @[simp] theorem renyiDiv_self (α : ℝ) (p : PMF X) : renyiDiv α p p = 0 := by
@@ -321,10 +284,8 @@ private theorem mul_div_mul_right_le_rpow {t : ℝ} (a b c : ℝ≥0∞) (hc : c
     (a * c) * ((a * c) / (b * c)) ^ t ≤ a * (a / b) ^ t * c := by
   rcases eq_or_ne c 0 with rfl | hc0
   · simp
-  have hdiv : (a * c) / (b * c) = a / b := by
-    rw [ENNReal.mul_div_mul_comm (Or.inr hc) (Or.inr hc0), ENNReal.div_self hc0 hc, mul_one]
-  rw [hdiv]
-  exact le_of_eq (by ring)
+  rw [ENNReal.mul_div_mul_comm (Or.inr hc) (Or.inr hc0), ENNReal.div_self hc0 hc, mul_one,
+    mul_right_comm]
 
 /-- **Data-processing inequality** for `renyiMoment` [Mironov2017, Section III]: for `1 ≤ α`,
 applying a Markov kernel `K : X → PMF Y` cannot increase `renyiMoment α`. -/

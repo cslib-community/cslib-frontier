@@ -170,25 +170,20 @@ theorem retentionChannels_stageChannel {V : ℕ → Type*} {ident : ∀ l, V l �
       (2 ^ H) 4 := by
   set P := stageModulus M l
   have hP : max (2 ^ l) (M l) ≤ P := le_stageModulus M l
-  have hinj : Function.Injective fun v => ((ident l v : ℕ) : ZMod P) := by
-    intro a b hab
+  have hinj : Function.Injective fun v => ((ident l v : ℕ) : ZMod P) := fun a b hab => by
     have h := congrArg ZMod.val hab
-    simp only at h
-    rw [ZMod.val_cast_of_lt ((hM l a).trans_le ((le_max_right _ _).trans hP)),
-      ZMod.val_cast_of_lt ((hM l b).trans_le ((le_max_right _ _).trans hP))] at h
-    exact hident l h
+    rwa [ZMod.val_cast_of_lt ((hM l a).trans_le ((le_max_right _ _).trans hP)),
+      ZMod.val_cast_of_lt ((hM l b).trans_le ((le_max_right _ _).trans hP)),
+      (hident l).eq_iff] at h
   have hPa : 1 ≤ (P : ℝ) * (2⁻¹ : ℝ) ^ l := by
-    have h2 : ((2 : ℝ) ^ l) ≤ P := by exact_mod_cast (le_max_left _ _).trans hP
     calc (1 : ℝ) = 2 ^ l * (2⁻¹ : ℝ) ^ l := by rw [← mul_pow]; norm_num
-      _ ≤ P * (2⁻¹ : ℝ) ^ l := mul_le_mul_of_nonneg_right h2 (by positivity)
-  have h := retentionChannels_affineRetains (P := P) (H := H) hinj hPa
-    (pow_le_one₀ (by norm_num) (by norm_num))
-  have hrate : ((2⁻¹ : ℝ) ^ l) ^ H = ((2 : ℝ) ^ H)⁻¹ ^ l := by
+      _ ≤ P * (2⁻¹ : ℝ) ^ l := mul_le_mul_of_nonneg_right
+        (by exact_mod_cast (le_max_left _ _).trans hP) (by positivity)
+  have hrate : ((2 : ℝ) ^ H)⁻¹ ^ l = ((2⁻¹ : ℝ) ^ l) ^ H := by
     rw [← pow_mul, ← inv_pow, ← pow_mul, mul_comm]
-  rw [hrate] at h
   unfold stageChannel
-  rw [stageSide_eq_ceil]
-  exact h
+  rw [stageSide_eq_ceil, hrate]
+  exact retentionChannels_affineRetains hinj hPa (pow_le_one₀ (by norm_num) (by norm_num))
 
 end Cslib.Probability
 

@@ -89,11 +89,10 @@ private theorem forall_mem_ofFn_eq_iff {k : ℕ} (hk : 0 < k) (x : ι → Bool) 
         ∀ a, l a ∈ ({i | x i = false} : Finset ι) := by
   simp only [List.mem_ofFn, forall_exists_index, forall_apply_eq_imp_iff, mem_filter, mem_univ,
     true_and]
-  constructor
-  · intro h
-    cases h0 : x (l ⟨0, hk⟩)
-    · exact Or.inr fun a => (h a ⟨0, hk⟩).trans h0
-    · exact Or.inl fun a => (h a ⟨0, hk⟩).trans h0
+  refine ⟨fun h => ?_, ?_⟩
+  · cases h0 : x (l ⟨0, hk⟩)
+    · exact Or.inr fun a => (h a _).trans h0
+    · exact Or.inl fun a => (h a _).trans h0
   · rintro (h | h) a b <;> rw [h a, h b]
 
 omit [Nonempty ι] in
@@ -111,10 +110,9 @@ theorem card_filter_eval_deutschJozsaTree {k : ℕ} (hk : 0 < k) {x : ι → Boo
   rw [hset, card_union_of_disjoint, Fintype.card_piFinset, Fintype.card_piFinset, prod_const,
     prod_const, card_univ, Fintype.card_fin, isBalanced_iff_card_filter.mp hx, ← weight]
   · ring
-  · rw [disjoint_left]
-    intro l h1 h2
-    have h1' := Fintype.mem_piFinset.1 h1 ⟨0, hk⟩
-    have h2' := Fintype.mem_piFinset.1 h2 ⟨0, hk⟩
+  · refine disjoint_left.2 fun l h1 h2 => ?_
+    have := Fintype.mem_piFinset.1 h1 ⟨0, hk⟩
+    have := Fintype.mem_piFinset.1 h2 ⟨0, hk⟩
     simp_all
 
 /-- **The error on balanced inputs**: for `k ≥ 1`, `randomDeutschJozsa k` errs on a balanced
@@ -128,9 +126,8 @@ theorem errorProb_randomDeutschJozsa_of_isBalanced {k : ℕ} (hk : 0 < k)
     have := isBalanced_iff.mp hx
     exact Nat.cast_ne_zero.2 (by omega)
   rw [randomDeutschJozsa, errorProb_uniformMixture, hF.balanced x hx]
-  simp only [ne_eq, Bool.not_eq_false]
-  rw [card_filter_eval_deutschJozsaTree hk hx, Fintype.card_fun, Fintype.card_fin,
-    ← isBalanced_iff.mp hx]
+  simp only [ne_eq, Bool.not_eq_false, card_filter_eval_deutschJozsaTree hk hx,
+    Fintype.card_fun, Fintype.card_fin, ← isBalanced_iff.mp hx]
   push_cast
   rw [mul_pow]
   field_simp
@@ -141,8 +138,7 @@ theorem errorProb_randomDeutschJozsa_le (k : ℕ) {F : (ι → Bool) → Bool}
     (hF : SolvesDeutschJozsa F) {x : ι → Bool} (hx : (∃ c, x = fun _ => c) ∨ IsBalanced x) :
     (randomDeutschJozsa k).errorProb F x ≤ 2 / 2 ^ k := by
   rcases hx with ⟨c, rfl⟩ | hx
-  · rw [errorProb_randomDeutschJozsa_const k hF c]
-    positivity
+  · rw [errorProb_randomDeutschJozsa_const k hF c]; positivity
   · rcases Nat.eq_zero_or_pos k with rfl | hk
     · exact errorProb_le_one.trans (by norm_num)
     · exact (errorProb_randomDeutschJozsa_of_isBalanced hk hF hx).le

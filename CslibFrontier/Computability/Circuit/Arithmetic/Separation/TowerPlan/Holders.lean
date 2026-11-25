@@ -142,24 +142,21 @@ private theorem holders_target_vertex (l : VertexMove FL) (ν : (FL.law l.kind).
   set p := (T.nr l.stage.2 l.type).symm (l.vertex, FL.nearPair l.kind ν)
   have hp : T.nr l.stage.2 l.type p = (l.vertex, FL.nearPair l.kind ν) :=
     Equiv.apply_symm_apply _ _
-  have h0 : T.vx l.type (T.e0 p.1) = l.vertex :=
-    (T.nr_vx0 l.stage.2 l.type p).trans (congrArg Prod.fst hp)
-  have h1 : T.vx l.type (T.e1 p.1) = l.vertex :=
-    (T.nr_vx1 l.stage.2 l.type p).trans (congrArg Prod.fst hp)
   have h2 := (FL.place_channelEnd l.kind ν).trans
     ((T.nr_co l.stage.2 l.type p).trans (by rw [hp])).symm
-  have h3 := congrArg (Sym2.map fun f => Tower.Node.ofChamber l.stage.2
-    ((T.chamberEquiv l.stage.2 l.type).symm (l.vertex, f))) h2
   have e0 : (T.chamberEquiv l.stage.2 l.type).symm (l.vertex, T.co l.type (T.e0 p.1)) =
       T.e0 p.1 := by
-    rw [← h0]
+    rw [← ((T.nr_vx0 l.stage.2 l.type p).trans (congrArg Prod.fst hp) :
+      T.vx l.type (T.e0 p.1) = l.vertex)]
     exact T.chamberEquiv_symm_vx_co _ _ _
   have e1 : (T.chamberEquiv l.stage.2 l.type).symm (l.vertex, T.co l.type (T.e1 p.1)) =
       T.e1 p.1 := by
-    rw [← h1]
+    rw [← ((T.nr_vx1 l.stage.2 l.type p).trans (congrArg Prod.fst hp) :
+      T.vx l.type (T.e1 p.1) = l.vertex)]
     exact T.chamberEquiv_symm_vx_co _ _ _
   exact (congrArg₂ (fun x y => s(Tower.Node.ofChamber l.stage.2 x, .ofChamber l.stage.2 y))
-    e0 e1).symm.trans h3.symm
+    e0 e1).symm.trans (congrArg (Sym2.map fun f => Tower.Node.ofChamber l.stage.2
+      ((T.chamberEquiv l.stage.2 l.type).symm (l.vertex, f))) h2).symm
 
 /-- The units of a channel of a move are held by the nodes of their target. -/
 theorem holders_target (ν : MoveChannel R ch FL) (hd : ν.1.target ν.2 ≠ .done) :

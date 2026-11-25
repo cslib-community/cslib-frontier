@@ -164,9 +164,7 @@ private theorem trial_fields (m d k : ℕ) :
   | zero => simp
   | succ k ih =>
     rw [Function.iterate_succ_apply']
-    change (trialStep^[k] ⟨m, d, true⟩).candidate = m ∧
-      (trialStep^[k] ⟨m, d, true⟩).divisor + 1 = d + (k + 1)
-    exact ⟨ih.1, by rw [ih.2]; omega⟩
+    exact ⟨ih.1, by simp only [trialStep, ih.2]; omega⟩
 
 /-- Every tested divisor contributes the exact original predicate, including out-of-range and
 zero codes; there are no monicity or candidate-size preconditions on this iteration contract. -/
@@ -179,15 +177,8 @@ theorem trialRun_good_iff (p : TrialInput) :
   | zero => simp
   | succ k ih =>
     rw [Function.iterate_succ_apply']
-    simp only [trialStep, (trial_fields m d k).1, (trial_fields m d k).2, Bool.and_eq_true]
-    rw [ih]
-    constructor
-    · rintro ⟨hold, hlast⟩ i hi
-      rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hi) with hlt | rfl
-      · exact hold i hlt
-      · exact hlast
-    · intro h
-      exact ⟨fun i hi => h i (by omega), h k (by omega)⟩
+    simp only [trialStep, (trial_fields m d k).1, (trial_fields m d k).2, Bool.and_eq_true, ih,
+      ← Nat.forall_lt_succ_right]
 
 /-- Uniform native counted trial space, linear in the binary candidate/start/count words.
 The cursor is at most first + count at every prefix; the step certificate includes binary

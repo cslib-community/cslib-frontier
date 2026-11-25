@@ -104,18 +104,12 @@ theorem card_leaves_filter_order_le {L m : ℕ} (U : Finset (OutStr L))
   · -- There are only β_d leaves of order d in all.
     rcases U.eq_empty_or_nonempty with rfl | ⟨w₀, hw₀⟩
     · simp [leaves]
-    have hmL : m ≤ L := by
-      have h := card_le_univ (innerSetO w₀)
-      rwa [hU w₀ hw₀, Fintype.card_fin] at h
+    have hmL : m ≤ L := by simpa [hU w₀ hw₀] using card_le_univ (innerSetO w₀)
     rcases le_or_gt d m with hd | hd
     · rw [← card_filter_order_eq hmL d hd]
       exact card_le_card (filter_subset_filter _ (subset_univ _))
     · -- No leaf has an order above m.
-      have hempty : ((leaves U).filter fun τ => order m τ = d) = ∅ := by
-        refine filter_false_of_mem fun τ _ h => ?_
-        have hle := order_le m τ
-        omega
-      rw [hempty]
+      rw [filter_false_of_mem fun τ _ h => by have := order_le m τ; omega]
       exact Nat.zero_le _
 
 /-- Bound the cardinality of `leaves U` by summing the smaller of the per-output bound and the
@@ -125,21 +119,18 @@ theorem card_leaves_le_sum_min {L m : ℕ} (U : Finset (OutStr L))
     (hU : ∀ w ∈ U, (innerSetO w).card = m) :
     (leaves U).card ≤ ∑ d ∈ range (m + 1), min (U.card * alpha m d) (beta L m d) := by
   -- Every leaf of `leaves(U)` has an order between 0 and m.
-  have hord : ∀ τ ∈ leaves U, 0 ≤ order m τ := by
-    intro τ hτ
-    obtain ⟨w, hw, hc⟩ := mem_leaves.mp hτ
-    exact order_nonneg (hU w hw) hc
-  have hmaps : ∀ τ ∈ leaves U, (order m τ).toNat ∈ range (m + 1) := by
-    intro τ _
-    have hle := order_le m τ
-    rw [mem_range]
-    omega
+  have hord (τ : Leaf L) (hτ : τ ∈ leaves U) : 0 ≤ order m τ :=
+    let ⟨w, hw, hc⟩ := mem_leaves.mp hτ
+    order_nonneg (hU w hw) hc
+  have hmaps (τ : Leaf L) (_ : τ ∈ leaves U) : (order m τ).toNat ∈ range (m + 1) := by
+    have := order_le m τ
+    exact mem_range.mpr (by omega)
   -- Sum the smaller of the two bounds over the orders.
   rw [card_eq_sum_card_fiberwise hmaps]
-  refine sum_le_sum fun d _ => le_trans ?_ (card_leaves_filter_order_le U hU d)
-  refine card_le_card fun τ hτ => ?_
+  refine sum_le_sum fun d _ => (card_le_card fun τ hτ => ?_).trans
+    (card_leaves_filter_order_le U hU d)
   obtain ⟨hτU, hτd⟩ := mem_filter.mp hτ
-  have hnonneg := hord τ hτU
+  have := hord τ hτU
   exact mem_filter.mpr ⟨hτU, by omega⟩
 
 /-! ### The second inequality -/
@@ -175,18 +166,14 @@ theorem sum_beta_large_orders_lt (m : ℕ) :
     ((∑ d ∈ (range (m + 1)).filter (fun d => m < 9 * d), beta (19 * m) m d : ℕ) : ℝ)
       < 2 * saving m * (M (19 * m) m : ℝ) := by
   -- The orders d > m/9 are the orders d ≥ ⌊m/9⌋ + 1.
-  have hs : (range (m + 1)).filter (fun d => m < 9 * d) ⊆ Ico (m / 9 + 1) (m + 1) := by
-    intro d hd
-    obtain ⟨hdm, hd9⟩ := mem_filter.mp hd
-    rw [mem_range] at hdm
-    rw [mem_Ico]
-    omega
+  have hs : (range (m + 1)).filter (fun d => m < 9 * d) ⊆ Ico (m / 9 + 1) (m + 1) := fun d hd => by
+    simp only [mem_filter, mem_range, mem_Ico] at hd ⊢; omega
   refine (sum_beta_lt_of_subset m (m / 9 + 1) _ hs).trans_le ?_
   have hpow : (1 / 2 : ℝ) ^ (m / 9 + 1) ≤ saving m := by
-    have hfloor : (m : ℝ) ≤ 9 * ((m / 9 + 1 : ℕ) : ℝ) := by
-      exact_mod_cast (by omega : m ≤ 9 * (m / 9 + 1))
-    rw [show (1 / 2 : ℝ) ^ (m / 9 + 1) = (2 : ℝ) ^ (-((m / 9 + 1 : ℕ) : ℝ)) by
-      rw [Real.rpow_neg (by norm_num), Real.rpow_natCast, one_div, inv_pow]]
+    have hfloor : (m : ℝ) ≤ 9 * ((m / 9 + 1 : ℕ) : ℝ) := by exact_mod_cast (by omega : m ≤ _)
+    have h12 : (1 / 2 : ℝ) ^ (m / 9 + 1) = (2 : ℝ) ^ (-((m / 9 + 1 : ℕ) : ℝ)) := by
+      rw [Real.rpow_neg (by norm_num), Real.rpow_natCast, one_div, inv_pow]
+    rw [h12]
     exact Real.rpow_le_rpow_of_exponent_le (by norm_num) (by linarith)
   -- Multiply `hpow` by `2` and by `M`.
   gcongr

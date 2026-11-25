@@ -63,17 +63,13 @@ lemma coeff_mul_support_superset (x y : HahnSeries Γ R) (a : Γ)
     (x * y).coeff a = ∑ ij ∈ Finset.antidiagonal hs ht a,
       x.coeff ij.1 * y.coeff ij.2 := by
   rw [HahnSeries.coeff_mul]
-  apply Finset.sum_subset
-  · intro ij hij
-    rw [Finset.mem_antidiagonal] at hij ⊢
+  refine Finset.sum_subset (fun ij hij => ?_) fun ij hij hnot => ?_
+  · rw [Finset.mem_antidiagonal] at hij ⊢
     exact ⟨hxs hij.1, hyt hij.2.1, hij.2.2⟩
-  · intro ij hij hnot
-    rw [Finset.mem_antidiagonal] at hij
-    by_cases hx : x.coeff ij.1 = 0
-    · simp [hx]
-    by_cases hy : y.coeff ij.2 = 0
-    · simp [hy]
-    exact False.elim (hnot (Finset.mem_antidiagonal.mpr ⟨hx, hy, hij.2.2⟩))
+  · rw [Finset.mem_antidiagonal] at hij
+    by_contra hmul
+    exact hnot (Finset.mem_antidiagonal.mpr
+      ⟨left_ne_zero_of_mul hmul, right_ne_zero_of_mul hmul, hij.2.2⟩)
 
 variable {ι : Type*} [Fintype ι] [DecidableEq ι]
 
@@ -184,9 +180,7 @@ def weylUnit (a b : ZMod d) : (Matrix (ZMod d) (ZMod d) K)ˣ :=
 @[simp] lemma weylUnit_val (a b : ZMod d) : (weylUnit χ a b : Matrix _ _ K) = weyl χ a b := rfl
 
 /-- The `(0, 0)` Weyl unit is `1`. -/
-@[simp] lemma weylUnit_zero : weylUnit χ 0 0 = 1 := by
-  apply Units.ext
-  exact weyl_zero χ
+@[simp] lemma weylUnit_zero : weylUnit χ 0 0 = 1 := Units.ext (weyl_zero χ)
 
 end
 end Rational.QuantumMatrices

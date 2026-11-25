@@ -597,28 +597,21 @@ private theorem insertRest_spec {rest : List (Branch α β)} (pre : List (α × 
         rw [List.isSortedAssoc_append_iff, List.isSortedAssoc_append_iff] at hs
         exact (lt_of_lt_of_le hk' (hcs q hq)).trans (hs.2.1.2.2 q hq p hp)
 
-/-- Model equation of the bottom-up insertion, under what the search uses: the separator
-convention, sorted entries, and occupied children at `2 ≤ t`, which makes them non-empty. -/
-private theorem toList_insertOrSplit_of (ht : 2 ≤ t) (k : α) (v : β) (tr : BPlusTree α β)
-    (hp : Separated tr) (hs : tr.toList.IsSortedAssoc)
-    (ho : ∀ c ∈ tr.children, Occupied t c) :
+/-- Model equation of the bottom-up insertion under the search invariant. -/
+private theorem toList_insertOrSplit_of (k : α) (v : β) (tr : BPlusTree α β)
+    (h : SearchInvariant t tr) :
     (insertOrSplit t k v tr).toList = SortedAssoc.insert k v tr.toList := by
   induction tr with
   | leaf entries => rw [insertOrSplit_leaf, InsertResult.toList_ofLeaf, toList_leaf]
   | node first rest ihf ihr =>
-    have hof : Occupied t first := ho first List.mem_cons_self
-    have hor : ∀ e ∈ rest, Occupied t e.child := fun e he =>
-      ho _ (List.mem_cons_of_mem _ (List.mem_map_of_mem he))
-    have hs' := hs
-    rw [toList_node, List.isSortedAssoc_append_iff] at hs'
+    have hp := h.separated
+    have hmem : ∀ e ∈ rest, e.child ∈ (BPlusTree.node first rest).children :=
+      fun e he => List.mem_cons_of_mem _ (List.mem_map_of_mem he)
     have spec := insertRest_spec (t := t) (k := k) (v := v) first.toList
-      (by rwa [toList_node] at hs) (fun e he p hp' => hp.le_of_mem he hp')
-      (fun e he => List.ne_nil_of_length_pos ((hor e he).size_pos ht))
+      (by simpa only [toList_node] using h.sorted) (fun e he p hp' => hp.le_of_mem he hp')
+      (fun e he => List.ne_nil_of_length_pos ((h.occupied _ (hmem e he)).size_pos h.two_le))
       (fun p hp' e he => hp.lt_of_mem_first he hp') hp.pairwise
-      (fun e he => ihr e he (hp.of_mem_rest he)
-        (hs.sublist (toList_sublist_of_mem_children
-          (List.mem_cons_of_mem _ (List.mem_map_of_mem he))))
-        fun c hc => (hor e he).of_mem_children hc)
+      (fun e he => ihr e he (h.child (hmem e he)))
     rw [insertOrSplit_node]
     cases hr : insertRest t k v rest with
     | some r =>
@@ -626,7 +619,7 @@ private theorem toList_insertOrSplit_of (ht : 2 ≤ t) (k : α) (v : β) (tr : B
       exact spec.2 r hr
     | none =>
       simp only [InsertResult.toList_ofNode, toList_node]
-      rw [InsertResult.toList_withRest, ihf hp.first hs'.1 fun c hc => hof.of_mem_children hc,
+      rw [InsertResult.toList_withRest, ihf (h.child List.mem_cons_self),
         SortedAssoc.insert_append_of_forall_gt (spec.1 hr)]
 
 /-! ### The shape of the result -/
@@ -654,19 +647,13 @@ private theorem fits_insertRest {rest : List (Branch α β)} {h : ℕ}
         simp only [hr', Option.some.injEq] at hr
         subst hr
         obtain ⟨h₁, h₂, h₃⟩ := ih r' hr'
-        refine ⟨fun e he => ?_, by simpa using h₂, by simpa using h₃⟩
-        simp only [List.mem_cons] at he
-        rcases he with rfl | he
-        exacts [hcc.1, h₁ e he]
+        exact ⟨List.forall_mem_cons.2 ⟨hcc.1, h₁⟩, by simpa using h₂, by simpa using h₃⟩
       | none =>
         simp only [hr', Option.some.injEq] at hr
         subst hr
         obtain ⟨hp₁, hp₂, hl₁, hl₂⟩ :=
           InsertResult.fits_withRest hcc.2 hcc.1.occupied hcc.1.height_eq hrest
-        refine ⟨fun e he => ?_, by simpa using hl₁, by simpa using hl₂⟩
-        simp only [List.mem_cons] at he
-        rcases he with rfl | he
-        exacts [hp₁, hp₂ e he]
+        exact ⟨List.forall_mem_cons.2 ⟨hp₁, hp₂⟩, by simpa using hl₁, by simpa using hl₂⟩
     · simp [hk] at hr
 
 /-- Shape invariant of the bottom-up insertion. -/
@@ -740,15 +727,10 @@ theorem separated_node_of_linked {first : BPlusTree α β} {rest : List (Branch 
       (fun e he => hr e (List.mem_cons_of_mem _ he))
       (fun e he => hne e (List.mem_cons_of_mem _ he))
     obtain ⟨q, hq⟩ := List.exists_mem_of_ne_nil _ (hne (s, c) List.mem_cons_self)
-    refine .node hf hr (fun e he p hp => ?_)
+    exact .node hf hr (List.forall_mem_cons.2 ⟨h₂, fun e he p hp => hc.le_of_mem he hp⟩)
       (List.pairwise_cons.2 ⟨fun b hb p hp => hc.lt_of_mem_first hb hp, hc.pairwise⟩)
-      fun e he p hp => ?_
-    · rcases List.mem_cons.1 he with rfl | he
-      · exact h₂ p hp
-      · exact hc.le_of_mem he hp
-    · rcases List.mem_cons.1 he with rfl | he
-      · exact h₁ p hp
-      · exact lt_of_lt_of_le (h₁ p hp) ((h₂ q hq).trans (hc.lt_of_mem_first he hq).le)
+      (List.forall_mem_cons.2 ⟨h₁, fun e he p hp =>
+        lt_of_lt_of_le (h₁ p hp) ((h₂ q hq).trans (hc.lt_of_mem_first he hq).le)⟩)
 
 /-- The separator convention of a result: a separated tree, or two separated trees with the keys
 of the left one below the separator and those of the right one at least it. -/
@@ -890,55 +872,46 @@ private theorem linked_insertRest {prev : BPlusTree α β} {rest : List (Branch 
         simp only [hrs, Option.some.injEq] at hr'
         subst hr'
         obtain ⟨hl', hs'⟩ := ihs r' hrs
-        refine ⟨⟨h₁, h₂, hl'⟩, fun e he => ?_⟩
-        rcases List.mem_cons.1 he with rfl | he
-        exacts [hsc, hs' e he]
+        exact ⟨⟨h₁, h₂, hl'⟩, List.forall_mem_cons.2 ⟨hsc, hs'⟩⟩
       | none =>
         simp only [hrs, Option.some.injEq] at hr'
         subst hr'
         obtain ⟨hsx, hkx⟩ := hc (s, c) List.mem_cons_self
         obtain ⟨hlw, hsw₁, hsw₂⟩ := linked_withRest hsx hkx h₃ hrr (ihn hrs)
-        refine ⟨⟨h₁, fun p hp => ?_, hlw⟩, fun e he => ?_⟩
-        · rcases hkx p (mem_toList_of_mem_withRest_fst hp) with hpk | hp
-          · exact hpk ▸ hk
-          · exact h₂ p hp
-        · rcases List.mem_cons.1 he with rfl | he
-          exacts [hsw₁, hsw₂ e he]
+        refine ⟨⟨h₁, fun p hp => ?_, hlw⟩, List.forall_mem_cons.2 ⟨hsw₁, hsw₂⟩⟩
+        exact (hkx p (mem_toList_of_mem_withRest_fst hp)).elim (fun hpk => hpk ▸ hk) (h₂ p)
     · simp only [hk, ↓reduceIte]
       exact ⟨fun _ s' c' rest' h => by cases h; exact lt_of_not_ge hk, fun r hr => by simp at hr⟩
 
 /-- The bottom-up insertion keeps the separator convention. -/
-private theorem sep_insertOrSplit (ht : 2 ≤ t) (k : α) (v : β) (tr : BPlusTree α β)
-    (hp : Separated tr) (hs : tr.toList.IsSortedAssoc) (hb : Balanced tr)
-    (ho : ∀ c ∈ tr.children, Occupied t c) (hw : tr.width ≤ 2 * t - 1) :
+private theorem sep_insertOrSplit (k : α) (v : β) (tr : BPlusTree α β)
+    (h : SearchInvariant t tr) (hb : Balanced tr) (hw : tr.width ≤ 2 * t - 1) :
     Sep (insertOrSplit t k v tr) := by
   induction tr with
   | leaf entries =>
     rw [insertOrSplit_leaf]
-    exact sep_ofLeaf (SortedAssoc.isSortedAssoc_insert (by simpa using hs))
+    exact sep_ofLeaf (SortedAssoc.isSortedAssoc_insert (by simpa only [toList_leaf] using h.sorted))
   | node first rest ihf ihr =>
-    obtain ⟨hgf, hgr⟩ := good_of_balanced_node hb ho
-    have ht1 : 1 ≤ t := by omega
+    obtain ⟨hgf, hgr⟩ := good_of_balanced_node hb h.occupied
+    have hp := h.separated
+    have ht1 : 1 ≤ t := Nat.le_of_succ_le h.two_le
     have hne : ∀ {h : ℕ} {c : BPlusTree α β}, Good t h c → c.toList ≠ [] := fun hg =>
-      List.ne_nil_of_length_pos (hg.occupied.size_pos ht)
+      List.ne_nil_of_length_pos (hg.occupied.size_pos h.two_le)
     -- what the three inductions give for a child of the node
     have hchild : ∀ c ∈ (BPlusTree.node first rest).children, Good t first.height c →
-        Separated c → (Separated c → c.toList.IsSortedAssoc → Balanced c →
-          (∀ c' ∈ c.children, Occupied t c') → c.width ≤ 2 * t - 1 →
-            Sep (insertOrSplit t k v c)) →
+        (SearchInvariant t c → Balanced c → c.width ≤ 2 * t - 1 →
+          Sep (insertOrSplit t k v c)) →
         (insertOrSplit t k v c).Fits t c ∧ Sep (insertOrSplit t k v c) ∧
           ∀ p ∈ (insertOrSplit t k v c).toList, p.1 = k ∨ p ∈ c.toList := by
-      intro c hc hg hsc ih
-      have hcs : c.toList.IsSortedAssoc := hs.sublist (toList_sublist_of_mem_children hc)
-      have hco : ∀ c' ∈ c.children, Occupied t c' := fun _ hc' => hg.occupied.of_mem_children hc'
-      refine ⟨fits_insertOrSplit ht1 k v c hg.balanced hco hg.occupied.width_le hcs,
-        ih hsc hcs hg.balanced hco hg.occupied.width_le, fun p hp' => ?_⟩
-      rw [toList_insertOrSplit_of ht k v c hsc hcs hco] at hp'
+      intro c hc hg ih
+      have hsc := h.child hc
+      refine ⟨fits_insertOrSplit ht1 k v c hg.balanced hsc.occupied hg.occupied.width_le hsc.sorted,
+        ih hsc hg.balanced hg.occupied.width_le, fun p hp' => ?_⟩
+      rw [toList_insertOrSplit_of k v c hsc] at hp'
       rcases SortedAssoc.eq_or_mem_of_mem_insert hp' with rfl | hp'
       exacts [Or.inl rfl, Or.inr hp']
     have hrest := fun e (he : e ∈ rest) =>
-      hchild e.child (List.mem_cons_of_mem _ (List.mem_map_of_mem he)) (hgr e he)
-        (hp.of_mem_rest he) (ihr e he)
+      hchild e.child (List.mem_cons_of_mem _ (List.mem_map_of_mem he)) (hgr e he) (ihr e he)
     have hlink := linked_insertRest (t := t) (k := k) (v := v) hp.linked
       (fun e he => hp.of_mem_rest he) fun e he => (hrest e he).2
     rw [insertOrSplit_node]
@@ -949,7 +922,7 @@ private theorem sep_insertOrSplit (ht : 2 ≤ t) (k : α) (v : β) (tr : BPlusTr
       exact sep_ofNode (separated_node_of_linked hl hp.first hsr fun e he => hne (hg e he))
         fun e he => hne (hg e he)
     | none =>
-      obtain ⟨hff, hfs, hfk⟩ := hchild first List.mem_cons_self hgf hp.first ihf
+      obtain ⟨hff, hfs, hfk⟩ := hchild first List.mem_cons_self hgf ihf
       obtain ⟨hl, hs₁, hs₂⟩ := linked_withRest hfs hfk hp.linked
         (fun e he => hp.of_mem_rest he) (hlink.1 hrs)
       obtain ⟨-, hg, -, -⟩ := InsertResult.fits_withRest hff hgf.occupied rfl hgr
@@ -964,15 +937,14 @@ variable {tr : BPlusTree α β}
 theorem toList_insert (h : IsWF t tr) (k : α) (v : β) :
     (insert t k v tr).toList = SortedAssoc.insert k v tr.toList := by
   rw [insert_eq_toTree, InsertResult.toList_toTree,
-    toList_insertOrSplit_of h.two_le k v tr h.separated h.sorted h.occupied_of_mem_children]
+    toList_insertOrSplit_of k v tr h.searchInvariant]
 
 /-- Insertion preserves well-formedness. -/
 theorem IsWF.insert (h : IsWF t tr) (k : α) (v : β) : IsWF t (insert t k v tr) := by
   have ht := h.two_le
   have hf := fits_insertOrSplit (by omega) k v tr h.balanced h.occupied_of_mem_children
     h.width_le h.sorted
-  have hp := sep_insertOrSplit ht k v tr h.separated h.sorted h.balanced
-    h.occupied_of_mem_children h.width_le
+  have hp := sep_insertOrSplit k v tr h.searchInvariant h.balanced h.width_le
   have hs : (BPlusTree.insert t k v tr).toList.IsSortedAssoc := by
     rw [toList_insert h]
     exact SortedAssoc.isSortedAssoc_insert h.sorted

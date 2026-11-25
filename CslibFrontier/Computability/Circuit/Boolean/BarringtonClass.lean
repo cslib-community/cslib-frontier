@@ -186,10 +186,10 @@ theorem exists_monoidProgram_alternatingGroup_computes_of_mem_NC_one (hL : L ∈
       IsFiveCycle (σ : Perm (Fin 5)) → ∃ P : MonoidProgram (Fin n) Bool (alternatingGroup (Fin 5)),
         P.toList.length ≤ s n ∧ P.Computes σ (L.slice n) := by
   obtain ⟨s, hs, hle⟩ := exists_four_pow_formulaDepth_le_of_mem_NC_one hL
-  refine ⟨s, hs, fun n _ σ hσ => ?_⟩
-  obtain ⟨P, hlen, hP⟩ :=
-    exists_monoidProgram_alternatingGroup_computes_of_formulaDepth (L.slice n) hσ
-  exact ⟨P, hlen.trans (hle n), hP⟩
+  exact ⟨s, hs, fun n _ σ hσ =>
+    let ⟨P, hlen, hP⟩ := exists_monoidProgram_alternatingGroup_computes_of_formulaDepth
+      (L.slice n) hσ
+    ⟨P, hlen.trans (hle n), hP⟩⟩
 
 /-- **Barrington's theorem for NC¹.** For a language in NC¹ there is a polynomially bounded `s`
 such that, at every length `n ≠ 0` and for every `5`-cycle `σ`, a permutation branching program
@@ -199,23 +199,20 @@ theorem exists_monoidProgram_computes_of_mem_NC_one (hL : L ∈ NC 1) :
       ∃ P : MonoidProgram (Fin n) Bool (Perm (Fin 5)),
         P.toList.length ≤ s n ∧ P.Computes σ (L.slice n) := by
   obtain ⟨s, hs, h⟩ := exists_monoidProgram_alternatingGroup_computes_of_mem_NC_one hL
-  refine ⟨s, hs, fun n _ σ hσ => ?_⟩
-  obtain ⟨P, hlen, hP⟩ := h n ⟨σ, hσ.mem_alternatingGroup⟩ hσ
-  exact ⟨P.map (alternatingGroup (Fin 5)).subtype, (MonoidProgram.length_map _ P).trans_le hlen,
-    hP.map _⟩
+  exact ⟨s, hs, fun n _ σ hσ =>
+    let ⟨P, hlen, hP⟩ := h n ⟨σ, hσ.mem_alternatingGroup⟩ hσ
+    ⟨P.map (alternatingGroup (Fin 5)).subtype, (MonoidProgram.length_map _ P).trans_le hlen,
+      hP.map _⟩⟩
 
 /-- **NC¹ is decided by polynomial-length programs over the alternating group `A₅`.** -/
 theorem NC_one_subset_polyLength_alternatingGroup :
-    NC 1 ⊆ PolyLength Bool (alternatingGroup (Fin 5)) := by
-  intro L hL
+    NC 1 ⊆ PolyLength Bool (alternatingGroup (Fin 5)) := fun L hL => by
   obtain ⟨s, hs, h⟩ := exists_monoidProgram_alternatingGroup_computes_of_mem_NC_one hL
   have hσ : IsFiveCycle ([0, 1, 2, 3, 4] : List (Fin 5)).formPerm :=
     isFiveCycle_formPerm (by decide) rfl
-  refine ⟨s, hs, fun n => ?_⟩
-  rcases n with _ | n
-  · exact ⟨1, _, MonoidProgram.decides_one _, by simp⟩
-  · obtain ⟨P, hlen, hPc⟩ := h (n + 1) ⟨_, hσ.mem_alternatingGroup⟩ hσ
-    exact ⟨P, _, hPc.decides fun h => hσ.ne_one (congrArg Subtype.val h), hlen⟩
+  refine ⟨s, hs, fun | 0 => ⟨1, _, MonoidProgram.decides_one _, by simp⟩ | n + 1 => ?_⟩
+  obtain ⟨P, hlen, hPc⟩ := h (n + 1) ⟨_, hσ.mem_alternatingGroup⟩ hσ
+  exact ⟨P, _, hPc.decides fun h => hσ.ne_one (congrArg Subtype.val h), hlen⟩
 
 /-- **NC¹ is decided by polynomial-length permutation branching programs of width `5`.** -/
 theorem NC_one_subset_polyLength : NC 1 ⊆ PolyLength Bool (Perm (Fin 5)) :=

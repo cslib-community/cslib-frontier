@@ -1375,11 +1375,9 @@ private lemma deepALIGame_le_of_listBound {F : Type} [Field F] [Fintype F] [Deci
   let L_P : Finset (Fin w → F[X]) := Fintype.piFinset (traceColCandList sys T a)
   have hLP_card : L_P.card ≤ L ^ w := by
     rw [Fintype.card_piFinset]
-    calc (∏ i : Fin w, (traceColCandList sys T a i).card)
-        ≤ ∏ _i : Fin w, L :=
-          Finset.prod_le_prod fun i _ =>
-            card_traceColCandList_le sys T hL1 (fun i => hlist (T i)) i
-      _ = L ^ w := by simp only [Finset.prod_const, Finset.card_univ, Fintype.card_fin]
+    simpa only [Finset.card_univ, Fintype.card_fin] using
+      Finset.prod_le_pow_card Finset.univ _ L fun i _ =>
+        card_traceColCandList_le sys T hL1 (fun i => hlist (T i)) i
   have hP_deg_of_mem : ∀ P ∈ L_P, ∀ i : Fin w, (P i).degree < (sys.params.dim 0 + 1 : ℕ) := by
     intro P hP i
     have hi := (Fintype.mem_piFinset.mp hP) i
@@ -1405,20 +1403,13 @@ private lemma deepALIGame_le_of_listBound {F : Type} [Field F] [Fintype F] [Deci
       _ ≤ ∑ P ∈ L_P, (PMF.uniformOfFintype (Fin c_num → F)).toOuterMeasure
             {β | zerofierProd sys ∣ linkNumerator sys P β} :=
           MeasureTheory.measure_biUnion_finset_le _ _
-      _ ≤ ∑ _P ∈ L_P, ((1 : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞)) := by
-          refine Finset.sum_le_sum fun P hP => ?_
-          have hnot_valid : ¬ sys.IsValidWitness P := fun hv => hunsat ⟨P, hv⟩
-          have hex_m : ∃ m₀ : Fin c_num, ¬ (sys.zerofier m₀ ∣ sys.evalMaskPoly m₀ P) := by
-            by_contra hall
-            push Not at hall
-            exact hnot_valid ⟨hP_deg_of_mem P hP, hall⟩
-          obtain ⟨m₀, hm₀⟩ := hex_m
+      _ ≤ L_P.card • ((1 : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞)) := by
+          refine Finset.sum_le_card_nsmul _ _ _ fun P hP => ?_
+          obtain ⟨m₀, hm₀⟩ := not_forall.mp fun hall => hunsat ⟨P, hP_deg_of_mem P hP, hall⟩
           exact toOuterMeasure_zerofierProd_dvd_linkNumerator_le sys hm₀
-      _ = (L_P.card : ℝ≥0∞) * ((1 : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞)) := by
-          simp only [Finset.sum_const, nsmul_eq_mul]
-      _ = (L_P.card : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞) := by rw [mul_one_div]
-      _ ≤ ((L ^ w : ℕ) : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞) :=
-          ENNReal.div_le_div_right (Nat.cast_le.mpr hLP_card) _
+      _ ≤ ((L ^ w : ℕ) : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞) := by
+          rw [nsmul_eq_mul, mul_one_div]
+          exact ENNReal.div_le_div_right (Nat.cast_le.mpr hLP_card) _
   rw [add_assoc]
   refine (Cslib.Probability.PMF.toOuterMeasure_bind_failure_le
     (PMF.uniformOfFintype (Fin c_num → F)) _ goodBeta {true} _ ?_).trans
@@ -1429,11 +1420,8 @@ private lemma deepALIGame_le_of_listBound {F : Type} [Field F] [Fintype F] [Deci
     Fintype.piFinset fun j => agreePolyList sys.evalDom (sys.params.dim 0 + 1) (Q_orc j) a
   have hLQ_card : L_Q.card ≤ L ^ (q_extra + 1) := by
     rw [Fintype.card_piFinset]
-    calc (∏ j : Fin (q_extra + 1),
-          (agreePolyList sys.evalDom (sys.params.dim 0 + 1) (Q_orc j) a).card)
-        ≤ ∏ _j : Fin (q_extra + 1), L :=
-          Finset.prod_le_prod fun j _ => hlist (Q_orc j)
-      _ = L ^ (q_extra + 1) := by simp only [Finset.prod_const, Finset.card_univ, Fintype.card_fin]
+    simpa only [Finset.card_univ, Fintype.card_fin] using
+      Finset.prod_le_pow_card Finset.univ _ L fun j _ => hlist (Q_orc j)
   let goodZ : Set F :=
     {z | ∀ P ∈ L_P, ∀ Q_poly ∈ L_Q,
       (linkNumerator sys P β -
@@ -1453,10 +1441,8 @@ private lemma deepALIGame_le_of_listBound {F : Type} [Field F] [Fintype F] [Deci
       rw [Finset.mem_biUnion]
       refine ⟨(P, Q_poly), Finset.mem_product.mpr ⟨hP, hQ⟩, ?_⟩
       have hdiff_ne : linkNumerator sys P β -
-          assembleQuotPoly (sys.params.dim 0) Q_poly * zerofierProd sys ≠ 0 := by
-        intro h0
-        have heq := sub_eq_zero.mp h0
-        exact hβ_good P hP ⟨assembleQuotPoly (sys.params.dim 0) Q_poly, by rw [heq, mul_comm]⟩
+          assembleQuotPoly (sys.params.dim 0) Q_poly * zerofierProd sys ≠ 0 := fun h0 =>
+        hβ_good P hP ⟨_, by rw [sub_eq_zero.mp h0, mul_comm]⟩
       rw [Multiset.mem_toFinset, mem_roots hdiff_ne, IsRoot.def]
       exact hev0
     calc BadZ.card
@@ -1468,23 +1454,15 @@ private lemma deepALIGame_le_of_listBound {F : Type} [Field F] [Fintype F] [Deci
             (linkNumerator sys pq.1 β -
               assembleQuotPoly (sys.params.dim 0) pq.2 * zerofierProd sys).roots.toFinset.card :=
           Finset.card_biUnion_le
-      _ ≤ ∑ _pq ∈ L_P ×ˢ L_Q, sys.linkDegBound := by
-          refine Finset.sum_le_sum fun pq hpq => ?_
+      _ ≤ (L_P ×ˢ L_Q).card • sys.linkDegBound := by
+          refine Finset.sum_le_card_nsmul _ _ _ fun pq hpq => ?_
           obtain ⟨hP, hQ⟩ := Finset.mem_product.mp hpq
-          calc _ ≤ (linkNumerator sys pq.1 β -
-                assembleQuotPoly (sys.params.dim 0) pq.2 * zerofierProd sys).roots.card :=
-                Multiset.toFinset_card_le _
-            _ ≤ (linkNumerator sys pq.1 β -
-                assembleQuotPoly (sys.params.dim 0) pq.2 * zerofierProd sys).natDegree :=
-                card_roots' _
-            _ ≤ sys.linkDegBound :=
-                natDegree_linkDiff_le sys (hP_deg_of_mem pq.1 hP)
-                  (fun j => (mem_agreePolyList.mp ((Fintype.mem_piFinset.mp hQ) j)).1) β
-      _ = (L_P.card * L_Q.card) * sys.linkDegBound := by
-          simp only [Finset.sum_const, Finset.card_product, smul_eq_mul]
-      _ ≤ (L ^ w * L ^ (q_extra + 1)) * sys.linkDegBound :=
-          Nat.mul_le_mul_right _ (Nat.mul_le_mul hLP_card hLQ_card)
-      _ = L ^ (w + (q_extra + 1)) * sys.linkDegBound := by rw [← pow_add]
+          exact (Multiset.toFinset_card_le _).trans <| (card_roots' _).trans <|
+            natDegree_linkDiff_le sys (hP_deg_of_mem pq.1 hP)
+              (fun j => (mem_agreePolyList.mp ((Fintype.mem_piFinset.mp hQ) j)).1) β
+      _ ≤ L ^ (w + (q_extra + 1)) * sys.linkDegBound := by
+          rw [smul_eq_mul, Finset.card_product, pow_add]
+          exact Nat.mul_le_mul_right _ (Nat.mul_le_mul hLP_card hLQ_card)
   refine (Cslib.Probability.PMF.toOuterMeasure_bind_failure_le
     (PMF.uniformOfFinset sys.oodDom sys.hood_nonempty) _ goodZ {true} ε_fri ?_).trans
     (add_le_add hz_err le_rfl)

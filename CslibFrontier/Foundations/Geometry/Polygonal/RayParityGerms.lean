@@ -73,14 +73,8 @@ theorem eventually_rayCrosses_germ (p u v : ℂ) (hu : u.im ≠ 0) (hv : v.im �
           0 < u.re * v.im - u.im * v.re := mul_pos_iff_of_pos_left htpos
       simp [hup, not_lt_of_ge hup.le, hmul]
     have hlow : p.im ≤ (p + t • v).im ↔ 0 < v.im := by
-      rw [hcoord]
-      constructor
-      · intro h
-        rcases lt_or_gt_of_ne hv with hneg | hpos
-        · nlinarith
-        · exact hpos
-      · intro h
-        nlinarith
+      rw [hcoord, le_add_iff_nonneg_right, mul_nonneg_iff_of_pos_left htpos]
+      exact ⟨fun h => h.lt_of_ne hv.symm, le_of_lt⟩
     have hup' : p.im < p.im + u.im := by linarith
     unfold RayCrosses
     rw [Complex.add_im p u, min_eq_left hup'.le, max_eq_right hup'.le]
@@ -94,18 +88,12 @@ theorem germCrosses_iff_turnArg {u v : ℂ} (hu : u.im ≠ 0) (hv : v.im ≠ 0) 
       (0 < u.im ∧ 0 < v.im ∧ turnArg u < turnArg v) ∨
         (u.im < 0 ∧ v.im < 0 ∧ turnArg v < turnArg u) := by
   rw [GermCrosses, turnArg_lt_iff hu hv, turnArg_lt_iff hv hu]
-  by_cases hun : u.im < 0 <;> by_cases hvn : v.im < 0
-  · have hu' : ¬0 < u.im := not_lt_of_ge hun.le
-    have hv' : ¬0 < v.im := not_lt_of_ge hvn.le
-    simp only [hun, hvn, hu', hv', true_and, false_and, false_or, iff_self]
+  rcases lt_or_gt_of_ne hu with hun | hup <;> rcases lt_or_gt_of_ne hv with hvn | hvp
+  · simp only [hun, hvn, hun.asymm, hvn.asymm, true_and, false_and, false_or, iff_self]
     constructor <;> intro h <;> nlinarith
-  · have hu' : ¬0 < u.im := not_lt_of_ge hun.le
-    simp [hun, hvn, hu']
-  · have hv' : ¬0 < v.im := not_lt_of_ge hvn.le
-    simp [hun, hvn, hv']
-  · have hu' : 0 < u.im := lt_of_le_of_ne (le_of_not_gt hun) hu.symm
-    have hv' : 0 < v.im := lt_of_le_of_ne (le_of_not_gt hvn) hv.symm
-    simp [hun, hvn, hu', hv']
+  · simp [hun, hun.asymm, hvp.asymm]
+  · simp [hvn, hup.asymm, hvn.asymm]
+  · simp [hup, hvp, hup.asymm, hvp.asymm]
 
 open Classical in
 /-- Correcting the descending observation ray itself turns the germ crossing bit into
@@ -116,26 +104,16 @@ theorem germCrosses_prefix_identity {u v : ℂ} (hu : u.im ≠ 0) (hv : v.im ≠
         decide (turnArg u = turnArg v ∧ v.im < 0) =
       decide (turnArg u < turnArg v) + decide (v.im < 0) := by
   rw [germCrosses_iff_turnArg hu hv]
-  by_cases hun : u.im < 0 <;> by_cases hvn : v.im < 0
-  · have hu' : ¬0 < u.im := not_lt_of_ge hun.le
-    have hv' : ¬0 < v.im := not_lt_of_ge hvn.le
-    rcases lt_trichotomy (turnArg u) (turnArg v) with h | h | h
-    · simp [hun, hvn, hu', hv', h, ne_of_lt h, not_lt.mpr h.le, Bool.add_eq_xor]
-    · simp [hun, hvn, hu', hv', h, Bool.add_eq_xor]
-    · simp [hun, hvn, hu', hv', h, ne_of_gt h, not_lt.mpr h.le, Bool.add_eq_xor]
-  · have hu' : ¬0 < u.im := not_lt_of_ge hun.le
-    have hv' : 0 < v.im := lt_of_le_of_ne (le_of_not_gt hvn) hv.symm
-    have hgt : turnArg v < turnArg u := (turnArg_lt_iff hv hu).mpr
-      (Or.inl ⟨hv', hun⟩)
-    simp [hun, hvn, hu', hv', not_lt_of_ge hgt.le]
-  · have hu' : 0 < u.im := lt_of_le_of_ne (le_of_not_gt hun) hu.symm
-    have hv' : ¬0 < v.im := not_lt_of_ge hvn.le
-    have hlt : turnArg u < turnArg v := (turnArg_lt_iff hu hv).mpr
-      (Or.inl ⟨hu', hvn⟩)
-    simp [hun, hvn, hu', hv', hlt, ne_of_lt hlt, Bool.add_eq_xor]
-  · have hu' : 0 < u.im := lt_of_le_of_ne (le_of_not_gt hun) hu.symm
-    have hv' : 0 < v.im := lt_of_le_of_ne (le_of_not_gt hvn) hv.symm
-    simp [hun, hvn, hu', hv']
+  rcases lt_or_gt_of_ne hu with hun | hup <;> rcases lt_or_gt_of_ne hv with hvn | hvp
+  · rcases lt_trichotomy (turnArg u) (turnArg v) with h | h | h
+    · simp [hun, hvn, hun.asymm, hvn.asymm, h, h.ne, h.asymm, Bool.add_eq_xor]
+    · simp [hun, hvn, hun.asymm, hvn.asymm, h, Bool.add_eq_xor]
+    · simp [hun, hvn, hun.asymm, hvn.asymm, h, h.ne', h.asymm, Bool.add_eq_xor]
+  · have hgt : turnArg v < turnArg u := (turnArg_lt_iff hv hu).mpr (Or.inl ⟨hvp, hun⟩)
+    simp [hun, hvp, hun.asymm, hvp.asymm, hgt.asymm]
+  · have hlt : turnArg u < turnArg v := (turnArg_lt_iff hu hv).mpr (Or.inl ⟨hup, hvn⟩)
+    simp [hup, hvn, hup.asymm, hvn.asymm, hlt, hlt.ne, Bool.add_eq_xor]
+  · simp [hup, hvp, hup.asymm, hvp.asymm]
 
 open Classical in
 /-- The change of ray parity on leaving an arrangement endpoint along an actual ray

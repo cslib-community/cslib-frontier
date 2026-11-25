@@ -160,8 +160,7 @@ private theorem toLinearFast_eq (ts : List (ℕ × Literal ℕ)) : toLinearFast 
     induction ts with
     | nil => simpa [toLinear] using h
     | cons t ts ih => exact ih.linStep t
-  exact (key ts _ ⟨by simp [Array.emptyWithCapacity], fun v => by
-    simp⟩).1
+  exact (key ts _ ⟨by simp [Array.emptyWithCapacity], fun v => by simp⟩).1
 
 private theorem mem_insertCoeff {v : ℕ} {a : ℤ} :
     ∀ {L : List (ℕ × ℤ)} {e : ℕ × ℤ}, e ∈ insertCoeff v a L → e.1 = v ∨ e.1 ∈ L.map (·.1)
@@ -175,9 +174,7 @@ private theorem mem_insertCoeff {v : ℕ} {a : ℤ} :
       · exact .inr (List.mem_cons_of_mem _ (List.mem_map_of_mem h))
     · rcases List.mem_cons.1 h with rfl | h
       · simp
-      · rcases mem_insertCoeff h with h | h
-        · exact .inl h
-        · exact .inr (by simp only [List.map_cons, List.mem_cons] at h ⊢; exact .inr h)
+      · exact (mem_insertCoeff h).imp_right (List.mem_cons_of_mem _)
 
 private theorem map_modify_fst {f : ℕ × ℤ → ℕ × ℤ} (hf : ∀ e, (f e).1 = e.1) :
     ∀ (L : List (ℕ × ℤ)) (i : ℕ), (L.modify i f).map (·.1) = L.map (·.1)
@@ -202,13 +199,8 @@ private theorem toLinear_of_nodup :
   | [], _ => rfl
   | t :: ts, h => by
     rw [List.map_cons, List.nodup_cons] at h
-    have hn : (toLinear ts).findIdx? (·.1 == termVar t) = none := by
-      rw [List.findIdx?_eq_none_iff]
-      intro e he
-      have := fst_mem_toLinear he
-      simp only [beq_eq_false_iff_ne]
-      intro heq
-      exact h.1 (heq ▸ this)
+    have hn : (toLinear ts).findIdx? (·.1 == termVar t) = none := List.findIdx?_eq_none_iff.2
+      fun e he => beq_eq_false_iff_ne.2 fun heq => h.1 (heq ▸ fst_mem_toLinear he)
     change insertCoeff (termVar t) (termCoeff t) (toLinear ts) = _
     rw [insertCoeff_of_findIdx?_eq_none hn, toLinear_of_nodup h.2]
     simp
@@ -225,15 +217,9 @@ private theorem nodup_toLinear :
       simp only [List.map_cons, List.map_nil, List.mem_singleton]
       rintro a ha b rfl rfl
       obtain ⟨e, he, heq⟩ := List.mem_map.1 ha
-      rw [List.findIdx?_eq_none_iff] at h
-      have := h e he
-      simp only [beq_eq_false_iff_ne] at this
-      exact this heq
-    · rw [insertCoeff_of_findIdx?_eq_some h]
-      have : ((toLinear ts).modify i fun e => (e.1, e.2 + termCoeff t)).map (·.1) =
-          (toLinear ts).map (·.1) := by
-        exact map_modify_fst (f := fun e => (e.1, e.2 + termCoeff t)) (fun _ => rfl) _ i
-      rw [this]
+      simpa [heq] using List.findIdx?_eq_none_iff.1 h e he
+    · rw [insertCoeff_of_findIdx?_eq_some h,
+        map_modify_fst (f := fun e => (e.1, e.2 + termCoeff t)) (fun _ => rfl)]
       exact ih
 
 /-- `Cslib.Logic.PL.PBConstr.normalize` in linear time. -/
@@ -382,10 +368,9 @@ private theorem contains_foldl_insert (p : ℕ × Literal ℕ → Bool) :
     rw [List.foldl_cons, contains_foldl_insert p ts]
     by_cases hp : p t
     · by_cases hl : t.2 = l
-      · subst hl; simp [hp]
-      · have h₁ : (l == t.2) = false := by simpa using Ne.symm hl
-        have h₂ : (t.2 == l) = false := by simpa using hl
-        simp [hp, h₁, h₂]
+      · subst hl
+        simp [hp]
+      · simp [hp, beq_eq_false_iff_ne.mpr hl, beq_eq_false_iff_ne.mpr (Ne.symm hl)]
     · simp [hp]
 
 private theorem slackFast_eq {T : Trail} {ρ : List (Literal ℕ)} (h : T.Rep ρ) (c : PBConstr) :
@@ -586,18 +571,15 @@ private theorem toList_ofList (l : List (ℕ × PBConstr)) : (ofList l).toList =
 
 private theorem wf_ofList (l : List (ℕ × PBConstr)) : (ofList l).WF where
   lt := by
-    have : ∀ (l : List (ℕ × PBConstr)), ∀ e ∈ l,
-        e.1 < (l.foldr (fun e a => a.setGrow e.1 none (some e.2)) #[]).size := by
-      intro l
-      induction l with
-      | nil => simp
-      | cons e l ih =>
-        intro x hx
-        rw [List.foldr_cons]
-        rcases List.mem_cons.1 hx with rfl | hx
-        · exact Array.lt_size_setGrow _ _ _ _
-        · exact (ih x hx).trans_le (Array.size_le_size_setGrow _ _ _ _)
-    exact this l
+    simp only [ofList]
+    induction l with
+    | nil => simp
+    | cons e l ih =>
+      intro x hx
+      rw [List.foldr_cons]
+      rcases List.mem_cons.1 hx with rfl | hx
+      exacts [Array.lt_size_setGrow _ _ _ _,
+        (ih x hx).trans_le (Array.size_le_size_setGrow _ _ _ _)]
   get n := by rw [toList_ofList, get_ofList]
 
 private theorem toList_erase (d : DB) (i : ℕ) :
@@ -636,8 +618,7 @@ private theorem toList_refilter (d : DB) (k : ℕ) :
 private theorem toList_compact (d : DB) : d.compact.toList = d.toList := by
   unfold compact
   split
-  · exact toList_refilter d 0
-  · rfl
+  exacts [toList_refilter d 0, rfl]
 
 private theorem WF.compact {d : DB} (hd : d.WF) : d.compact.WF := by
   unfold DB.compact
@@ -659,8 +640,8 @@ private theorem push_spec {d : DB} (hd : d.WF) (m : ℕ) (c : PBConstr) :
         simp [show e.1 ≠ m by have := hd.lt e he; omega]
     refine ⟨⟨fun e he => ?_, fun n => ?_⟩, htl⟩
     · rcases List.mem_cons.1 he with rfl | he
-      · exact Array.lt_size_setGrow _ _ _ _
-      · exact (hd.lt e he).trans_le (Array.size_le_size_setGrow _ _ _ _)
+      exacts [Array.lt_size_setGrow _ _ _ _,
+        (hd.lt e he).trans_le (Array.size_le_size_setGrow _ _ _ _)]
     · rw [htl, lookup_cons, hd.get]
       simp only [get, Array.getD_setGrow]
       by_cases h : n = m
@@ -752,6 +733,10 @@ private theorem stepTopFast_spec (F : List PBConstr) (obj : Option Objective) {f
       ∀ f' ∈ stepTopFast F obj f t, f'.WF := by
   have hdb := DB.get_eq hf.db
   have hcore := DB.get_eq hf.core
+  have hs' : f.toState.db = f.db.toList := rfl
+  have hc' : f.toState.core = f.core.toList := rfl
+  have ht : f.toState.tcb = f.s.tcb := rfl
+  have ho : f.toState.order = f.s.order := rfl
   have fallback : ∀ t, Option.map FState.toState (Option.map FState.ofState
       (stepTop F obj f.toState t)) = stepTop F obj f.toState t := fun t => by
     simp [Option.map_map, Function.comp_def]
@@ -765,8 +750,7 @@ private theorem stepTopFast_spec (F : List PBConstr) (obj : Option Objective) {f
     | pol ops =>
       rw [stepTop_step_of_ne_del _ _ _ (by simp)]
       simp only [stepTopFast, runStep, polEvalFast_eq hdb]
-      have hs : f.toState.db = f.db.toList := rfl
-      rw [hs]
+      rw [hs']
       rcases polEval f.db.toList ops [] with _ | _ | ⟨c, _ | _⟩
       all_goals first
         | exact ⟨rfl, fun _ h => by cases h⟩
@@ -776,7 +760,6 @@ private theorem stepTopFast_spec (F : List PBConstr) (obj : Option Objective) {f
     | rup c hs =>
       rw [stepTop_step_of_ne_del _ _ _ (by simp)]
       simp only [stepTopFast, runStep, rupFast_eq hdb]
-      have hs' : f.toState.db = f.db.toList := rfl
       rw [hs']
       by_cases hr : rup f.db.toList c hs
       · simp only [hr, ↓reduceIte, Option.map_some, Option.mem_def, Option.some.injEq,
@@ -786,31 +769,19 @@ private theorem stepTopFast_spec (F : List PBConstr) (obj : Option Objective) {f
       · simp [hr]
     | del ids =>
       rw [stepTop_step_del]
-      have hs' : f.toState.db = f.db.toList := rfl
-      have hc' : f.toState.core = f.core.toList := rfl
-      simp only [stepTopFast, runStep, nodupFast_eq, hdb, hcore, hs', hc',
+      simp only [stepTopFast, runStep, nodupFast_eq, hdb, hcore, hs', hc', ht, ho,
         any_contains_eq_any_isSome_lookup]
       obtain ⟨hw₁, hl₁⟩ := DB.eraseAll_compact_spec hf.db ids
       obtain ⟨hw₂, hl₂⟩ := DB.eraseAll_compact_spec hf.core ids
-      by_cases h₁ : (decide ids.Nodup && ids.all fun i => (lookup f.db.toList i).isSome) = true
-      · simp only [h₁, ↓reduceIte]
-        by_cases h₂ : ((f.s.tcb || f.s.order.isSome) &&
-            ids.any fun i => (lookup f.core.toList i).isSome) = true
-        · have h₂' : ((f.toState.tcb || f.toState.order.isSome) &&
-              ids.any fun i => (lookup f.core.toList i).isSome) = true := h₂
-          simp [h₂, h₂']
-        · have h₂' : ¬ ((f.toState.tcb || f.toState.order.isSome) &&
-              ids.any fun i => (lookup f.core.toList i).isSome) = true := h₂
-          simp only [h₂, h₂', Bool.false_eq_true, ↓reduceIte, Option.map_some, Option.mem_def,
-            Option.some.injEq, forall_eq']
+      split
+      · split
+        · simp
+        · simp only [Option.map_some, Option.mem_def, Option.some.injEq, forall_eq']
           exact ⟨by simp [FState.toState, hl₁, hl₂], ⟨hw₁, hw₂⟩⟩
-      · simp [h₁]
-    | rupSearch c => exact ⟨fallback _, fallbackWF _⟩
-    | pbc c sub q => exact ⟨fallback _, fallbackWF _⟩
+      · simp
+    | _ => exact ⟨fallback _, fallbackWF _⟩
   | deld ids =>
     rw [stepTop_deld]
-    have hs' : f.toState.db = f.db.toList := rfl
-    have hc' : f.toState.core = f.core.toList := rfl
     simp only [stepTopFast, nodupFast_eq, hdb, hcore, hs', hc',
       any_contains_eq_any_isSome_lookup]
     obtain ⟨hw₁, hl₁⟩ := DB.eraseAll_compact_spec hf.db ids
@@ -820,10 +791,6 @@ private theorem stepTopFast_spec (F : List PBConstr) (obj : Option Objective) {f
     · simp
   | delc ids =>
     rw [stepTop_delc]
-    have hs' : f.toState.db = f.db.toList := rfl
-    have hc' : f.toState.core = f.core.toList := rfl
-    have ht : f.toState.tcb = f.s.tcb := rfl
-    have ho : f.toState.order = f.s.order := rfl
     simp only [stepTopFast, nodupFast_eq, hcore, hs', hc', ht, ho,
       any_fst_beq_eq_isSome_lookup]
     obtain ⟨hw₁, hl₁⟩ := DB.eraseAll_compact_spec hf.db ids

@@ -900,73 +900,39 @@ theorem strictly_decreasing_slope_skips {n : ℕ} (hn : 1 ≤ n) (f cost : ℕ �
       f k * v - cost k <
         max (f (k - 1) * v - cost (k - 1)) (f (k + 1) * v - cost (k + 1)) := by
     intro k hk0 hkn
-    have hdf₁ : 0 < f k - f (k - 1) := by
-      have := hf (k - 1) (by omega)
-      rw [Nat.sub_add_cancel hk0] at this
-      exact sub_pos.mpr this
+    have hdf₁ : 0 < f k - f (k - 1) :=
+      sub_pos.mpr (by simpa [Nat.sub_add_cancel hk0] using hf (k - 1) (by omega))
     have hdf₂ : 0 < f (k + 1) - f k := sub_pos.mpr (hf k hkn)
-    set s₁ := (cost k - cost (k - 1)) / (f k - f (k - 1))
-    set s₂ := (cost (k + 1) - cost k) / (f (k + 1) - f k)
-    have hlt := hslope k hk0 hkn
-    by_cases hv : v < s₁
-    · refine lt_max_of_lt_left ?_
-      have hmul : (f k - f (k - 1)) * v < cost k - cost (k - 1) := by
-        calc
-          (f k - f (k - 1)) * v < (f k - f (k - 1)) * s₁ := mul_lt_mul_of_pos_left hv hdf₁
-          _ = cost k - cost (k - 1) := mul_div_cancel₀ _ hdf₁.ne'
-      linarith
-    · refine lt_max_of_lt_right ?_
-      have hv₂ : s₂ < v := lt_of_lt_of_le hlt (not_lt.mp hv)
-      have hmul : cost (k + 1) - cost k < (f (k + 1) - f k) * v := by
-        calc
-          cost (k + 1) - cost k = (f (k + 1) - f k) * s₂ := (mul_div_cancel₀ _ hdf₂.ne').symm
-          _ < (f (k + 1) - f k) * v := mul_lt_mul_of_pos_left hv₂ hdf₂
-      linarith
-  refine ⟨?_, hinterior⟩
-  apply le_antisymm
-  · refine Finset.sup'_le Finset.nonempty_range_add_one _ fun k hk => ?_
-    have hk_le : k ≤ n := Nat.lt_succ_iff.mp (Finset.mem_range.mp hk)
-    by_cases h0n : k = 0 ∨ k = n
-    · rcases h0n with rfl | rfl
-      · exact le_max_left _ _
-      · exact le_max_right _ _
-    · push Not at h0n
-      have hlt_max : f k * v - cost k < max (f 0 * v - cost 0) (f n * v - cost n) := by
-        set M :=
-          (Finset.range (n + 1)).sup' Finset.nonempty_range_add_one fun j => f j * v - cost j
-        have hk_lt_M : f k * v - cost k < M :=
-          lt_of_lt_of_le (hinterior k (Nat.pos_of_ne_zero h0n.1) (lt_of_le_of_ne hk_le h0n.2))
-            (max_le
-              (Finset.le_sup' (fun j => f j * v - cost j)
-                (Finset.mem_range.mpr (by omega)))
-              (Finset.le_sup' (fun j => f j * v - cost j)
-                (Finset.mem_range.mpr (by omega))))
-        have hM_mem := Finset.exists_mem_eq_sup' (Finset.nonempty_range_add_one (n := n))
-          (fun j => f j * v - cost j)
-        obtain ⟨j, hj_mem, hj_eq⟩ := hM_mem
-        have hj_le : j ≤ n := Nat.lt_succ_iff.mp (Finset.mem_range.mp hj_mem)
-        have hj0n : j = 0 ∨ j = n := by
-          by_contra hjn
-          push Not at hjn
-          have := hinterior j (Nat.pos_of_ne_zero hjn.1) (lt_of_le_of_ne hj_le hjn.2)
-          have hle_left : f (j - 1) * v - cost (j - 1) ≤ M :=
-            Finset.le_sup' (fun m => f m * v - cost m) (Finset.mem_range.mpr (by omega))
-          have hle_right : f (j + 1) * v - cost (j + 1) ≤ M :=
-            Finset.le_sup' (fun m => f m * v - cost m) (Finset.mem_range.mpr (by omega))
-          have hmax_le : max (f (j - 1) * v - cost (j - 1)) (f (j + 1) * v - cost (j + 1)) ≤ M :=
-            max_le hle_left hle_right
-          linarith
-        rcases hj0n with hj0 | hjn
-        · rw [hj0] at hj_eq
-          exact lt_max_of_lt_left (by linarith)
-        · rw [hjn] at hj_eq
-          exact lt_max_of_lt_right (by linarith)
-      exact hlt_max.le
-  · refine max_le ?_ ?_
-    · exact Finset.le_sup' (fun j => f j * v - cost j)
-        (Finset.mem_range.mpr (Nat.zero_lt_succ n))
-    · exact Finset.le_sup' (fun j => f j * v - cost j)
-        (Finset.mem_range.mpr (Nat.lt_succ_self n))
+    by_cases hv : v < (cost k - cost (k - 1)) / (f k - f (k - 1))
+    · rw [lt_div_iff₀ hdf₁] at hv
+      exact lt_max_of_lt_left (by linarith)
+    · have hv₂ := (hslope k hk0 hkn).trans_le (not_lt.mp hv)
+      rw [div_lt_iff₀ hdf₂] at hv₂
+      exact lt_max_of_lt_right (by linarith)
+  have hle : ∀ j ≤ n, f j * v - cost j ≤
+      (Finset.range (n + 1)).sup' Finset.nonempty_range_add_one fun j => f j * v - cost j :=
+    fun j hj => Finset.le_sup' (fun j => f j * v - cost j) (Finset.mem_range.mpr (by omega))
+  refine ⟨le_antisymm ?_ (max_le (hle 0 (Nat.zero_le n)) (hle n le_rfl)), hinterior⟩
+  obtain ⟨j, hj, hjeq⟩ := Finset.exists_mem_eq_sup' (Finset.nonempty_range_add_one (n := n))
+    (fun j => f j * v - cost j)
+  have hjn : j ≤ n := Nat.lt_succ_iff.mp (Finset.mem_range.mp hj)
+  rw [hjeq]
+  rcases Nat.eq_zero_or_pos j with rfl | hj0
+  · exact le_max_left _ _
+  rcases hjn.eq_or_lt with rfl | hjn
+  · exact le_max_right _ _
+  exact absurd (hinterior j hj0 hjn)
+    (not_lt.mpr ((max_le (hle (j - 1) (by omega)) (hle (j + 1) hjn)).trans hjeq.le))
+
+/-- A sequence that strictly increases at each step from `a` to `b` satisfies `g a < g b`. -/
+private theorem lt_of_forall_lt_succ {g : ℕ → ℝ} {a : ℕ} :
+    ∀ {b}, a < b → (∀ m, a ≤ m → m < b → g m < g (m + 1)) → g a < g b
+  | 0, hab, _ => absurd hab (Nat.not_lt_zero a)
+  | b + 1, hab, h => by
+    rcases (Nat.lt_succ_iff.mp hab).eq_or_lt with rfl | hab
+    · exact h a le_rfl a.lt_succ_self
+    · exact (lt_of_forall_lt_succ hab fun m h1 h2 => h m h1 (by omega)).trans
+        (h b hab.le b.lt_succ_self)
 
 /-- Slope-monotonicity criterion (NRTV Exercise 23.5, stepping case): if `f` is strictly
 increasing on `0..n` and marginal cost per marginal success probability strictly increases with
@@ -981,103 +947,42 @@ theorem strictly_increasing_slope_attains_all {n : ℕ} (hn : 1 ≤ n) (f cost :
     ∀ k, k ≤ n → ∃ v : ℝ, 0 < v ∧
       ∀ j, j ≤ n → j ≠ k → f j * v - cost j < f k * v - cost k := by
   let s : ℕ → ℝ := fun m => (cost (m + 1) - cost m) / (f (m + 1) - f m)
-  have hs_mono : StrictMonoOn s (Set.Iio n) := by
-    intro a _ b hb hab
-    have hstep : ∀ m d : ℕ, m + d < n → 0 < d → s m < s (m + d) := by
-      intro m d hlt hd
-      induction d with
-      | zero => exact absurd rfl hd.ne'
-      | succ d ih =>
-        by_cases hd0 : d = 0
-        · subst hd0; exact hslope m (by simpa using hlt)
-        · exact (ih (by omega) (Nat.pos_of_ne_zero hd0)).trans
-            (hslope (m + d) (by omega))
-    have := hstep a (b - a) (by simpa [Nat.add_sub_cancel' hab.le] using hb) (Nat.sub_pos_of_lt hab)
-    simpa [Nat.add_sub_cancel' hab.le] using this
-  have hs_pos : ∀ m, m < n → 0 < s m := by
-    intro m hm
-    by_cases hm0 : m = 0
-    · subst hm0; exact hs₀
-    · exact hs₀.trans (hs_mono hn hm (Nat.pos_of_ne_zero hm0))
+  have hs_lt : ∀ a b, a < b → b < n → s a < s b := fun a b hab hb =>
+    lt_of_forall_lt_succ hab fun m _ hm => hslope m (by omega)
+  have hs_le : ∀ a b, a ≤ b → b < n → s a ≤ s b := fun a b hab hb =>
+    hab.eq_or_lt.elim (fun h => h ▸ le_rfl) fun h => (hs_lt a b h hb).le
+  have hs_pos : ∀ m, m < n → 0 < s m := fun m hm => hs₀.trans_le (hs_le 0 m m.zero_le hm)
   have step_up : ∀ (v : ℝ) (m : ℕ), m < n → s m < v →
       f m * v - cost m < f (m + 1) * v - cost (m + 1) := by
     intro v m hm hsv
-    have hdf : 0 < f (m + 1) - f m := sub_pos.mpr (hf m hm)
-    have hmul : cost (m + 1) - cost m < (f (m + 1) - f m) * v := by
-      calc
-        cost (m + 1) - cost m = (f (m + 1) - f m) * s m := (mul_div_cancel₀ _ hdf.ne').symm
-        _ < (f (m + 1) - f m) * v := mul_lt_mul_of_pos_left hsv hdf
+    simp only [s] at hsv
+    rw [div_lt_iff₀ (sub_pos.mpr (hf m hm))] at hsv
     linarith
   have step_down : ∀ (v : ℝ) (m : ℕ), m < n → v < s m →
       f (m + 1) * v - cost (m + 1) < f m * v - cost m := by
     intro v m hm hvs
-    have hdf : 0 < f (m + 1) - f m := sub_pos.mpr (hf m hm)
-    have hmul : (f (m + 1) - f m) * v < cost (m + 1) - cost m := by
-      calc
-        (f (m + 1) - f m) * v < (f (m + 1) - f m) * s m := mul_lt_mul_of_pos_left hvs hdf
-        _ = cost (m + 1) - cost m := mul_div_cancel₀ _ hdf.ne'
+    simp only [s] at hvs
+    rw [lt_div_iff₀ (sub_pos.mpr (hf m hm))] at hvs
     linarith
   intro k hk
-  have hv_exists : ∃ v : ℝ, 0 < v ∧ (∀ m, m < k → s m < v) ∧ (∀ m, k ≤ m → m < n → v < s m) := by
-    by_cases hk0 : k = 0
-    · refine ⟨s 0 / 2, half_pos hs₀, fun m hm => by omega, ?_⟩
-      intro m _ hmn
-      by_cases hm0 : m = 0
-      · subst hm0; linarith
-      · exact (half_lt_self hs₀).trans (hs_mono (by omega : 0 < n) hmn (Nat.pos_of_ne_zero hm0))
-    · by_cases hkn : k = n
-      · refine ⟨s (n - 1) + 1, by linarith [hs_pos (n - 1) (by omega)], ?_, ?_⟩
-        · intro m hm
-          rw [hkn] at hm
-          by_cases hlast : m = n - 1
-          · subst hlast; linarith
-          · have : s m < s (n - 1) :=
-              hs_mono (Set.mem_Iio.mpr (by omega)) (Set.mem_Iio.mpr (by omega)) (by omega)
-            linarith
-        · intro m hkm hm; omega
-      · have hk_lt_n : k < n := lt_of_le_of_ne hk hkn
-        have hk_pos : 0 < k := Nat.pos_of_ne_zero hk0
-        have hlt : s (k - 1) < s k :=
-          hs_mono (Set.mem_Iio.mpr (by omega)) (Set.mem_Iio.mpr hk_lt_n) (by omega)
-        have hs1 : 0 < s (k - 1) := hs_pos (k - 1) (by omega)
-        refine ⟨(s (k - 1) + s k) / 2, by linarith, ?_, ?_⟩
-        · intro m hm
-          by_cases hlast : m = k - 1
-          · subst hlast; linarith
-          · have hsm : s m < s (k - 1) :=
-              hs_mono (Set.mem_Iio.mpr (by omega)) (Set.mem_Iio.mpr (by omega)) (by omega)
-            linarith
-        · intro m hkm hmn
-          by_cases hfirst : m = k
-          · subst hfirst; linarith
-          · have hsm : s k < s m :=
-              hs_mono (Set.mem_Iio.mpr hk_lt_n) (Set.mem_Iio.mpr hmn) (by omega)
-            linarith
-  obtain ⟨v, hvpos, hleft, hright⟩ := hv_exists
+  obtain ⟨v, hvpos, hleft, hright⟩ : ∃ v : ℝ, 0 < v ∧ (∀ m, m < k → s m < v) ∧
+      (∀ m, k ≤ m → m < n → v < s m) := by
+    rcases Nat.eq_zero_or_pos k with rfl | hk0
+    · exact ⟨s 0 / 2, half_pos hs₀, fun m hm => absurd hm m.not_lt_zero,
+        fun m _ hmn => (half_lt_self hs₀).trans_le (hs_le 0 m m.zero_le hmn)⟩
+    rcases hk.eq_or_lt with rfl | hkn
+    · exact ⟨s (k - 1) + 1, by linarith [hs_pos (k - 1) (by omega)],
+        fun m hm => by linarith [hs_le m (k - 1) (by omega) (by omega)], fun m _ _ => by omega⟩
+    have hlt : s (k - 1) < s k := hs_lt (k - 1) k (by omega) hkn
+    exact ⟨(s (k - 1) + s k) / 2, by linarith [hs_pos (k - 1) (by omega)],
+      fun m hm => by linarith [hs_le m (k - 1) (by omega) (by omega)],
+      fun m hkm hmn => by linarith [hs_le k m hkm hmn]⟩
   refine ⟨v, hvpos, fun j hj hne => ?_⟩
   rcases lt_or_gt_of_ne hne with hjk | hkj
-  · have hinc : ∀ d : ℕ, j + d ≤ k → 0 < d →
-        f j * v - cost j < f (j + d) * v - cost (j + d) := by
-      intro d hle hd
-      induction d with
-      | zero => exact absurd rfl hd.ne'
-      | succ d ih =>
-        have hstep := step_up v (j + d) (by omega) (hleft (j + d) (by omega))
-        by_cases hd0 : d = 0
-        · subst hd0; simpa using hstep
-        · exact (ih (by omega) (Nat.pos_of_ne_zero hd0)).trans hstep
-    simpa [Nat.add_sub_cancel' hjk.le] using hinc (k - j) (by omega) (Nat.sub_pos_of_lt hjk)
-  · have hdec : ∀ d : ℕ, k + d ≤ n → 0 < d →
-        f (k + d) * v - cost (k + d) < f k * v - cost k := by
-      intro d hle hd
-      induction d with
-      | zero => exact absurd rfl hd.ne'
-      | succ d ih =>
-        have hstep := step_down v (k + d) (by omega) (hright (k + d) (by omega) (by omega))
-        by_cases hd0 : d = 0
-        · subst hd0; simpa using hstep
-        · exact hstep.trans (ih (by omega) (Nat.pos_of_ne_zero hd0))
-    simpa [Nat.add_sub_cancel' hkj.le] using hdec (j - k) (by omega) (Nat.sub_pos_of_lt hkj)
+  · exact lt_of_forall_lt_succ (g := fun m => f m * v - cost m) hjk
+      fun m _ hm => step_up v m (by omega) (hleft m hm)
+  · exact neg_lt_neg_iff.mp (lt_of_forall_lt_succ (g := fun m => -(f m * v - cost m)) hkj
+      fun m hm _ => neg_lt_neg (step_down v m (by omega) (hright m hm (by omega))))
 
 /-! ### AND technology (NRTV Theorem 23.8 and Exercise 23.3) -/
 
@@ -1270,153 +1175,71 @@ theorem andTech_pou_eq {n : ℕ} (hn : 1 ≤ n) {γ c : ℝ} (hγ₀ : 0 < γ) (
     (hc : 0 < c) :
     priceOfUnaccountability (andTech n γ) (fun _ => c) =
       (1 / γ - 1) ^ (n - 1) + (1 - γ / (1 - γ)) := by
-  let R : ℝ := (1 / γ - 1) ^ (n - 1) + (1 - γ / (1 - γ))
-  let vStar : ℝ := andThreshold n γ c
+  obtain ⟨m, rfl⟩ : ∃ m, n = m + 1 := ⟨n - 1, by omega⟩
+  rw [Nat.add_sub_cancel]
+  set R : ℝ := (1 / γ - 1) ^ m + (1 - γ / (1 - γ)) with hR
+  let vStar : ℝ := andThreshold (m + 1) γ c
   have hvStar_pos : 0 < vStar := andThreshold_pos hn hγ₀ hγh hc
   have h1γ : 0 < 1 - γ := by linarith
   have h12γ : 0 < 1 - 2 * γ := by linarith
-  have hpow : 0 < (1 - γ) ^ n - γ ^ n :=
+  have hpow : 0 < (1 - γ) ^ (m + 1) - γ ^ (m + 1) :=
     sub_pos.mpr (pow_lt_pow_left₀ (by linarith) hγ₀.le (by omega))
-  have hP_ge : (n : ℝ) * c ≤ (n : ℝ) * (c * (1 - γ) / (1 - 2 * γ)) := by
-    have hratio : 1 ≤ (1 - γ) / (1 - 2 * γ) := by
-      rw [le_div_iff₀ h12γ]; linarith
-    calc
-      (n : ℝ) * c = (n : ℝ) * c * 1 := (mul_one _).symm
-      _ ≤ (n : ℝ) * c * ((1 - γ) / (1 - 2 * γ)) :=
-        mul_le_mul_of_nonneg_left hratio (mul_nonneg (Nat.cast_nonneg n) hc.le)
-      _ = (n : ℝ) * (c * (1 - γ) / (1 - 2 * γ)) := by ring
-  have hvStar_bal : γ ^ n * vStar =
-      (1 - γ) ^ n * vStar - (n : ℝ) * (c * (1 - γ) / (1 - 2 * γ)) := by
+  have hden : 0 < γ ^ (m + 1) * vStar := mul_pos (pow_pos hγ₀ _) hvStar_pos
+  have hP_ge : ((m + 1 : ℕ) : ℝ) * c ≤ ((m + 1 : ℕ) : ℝ) * (c * (1 - γ) / (1 - 2 * γ)) := by
+    gcongr
+    rw [le_div_iff₀ h12γ]
+    nlinarith
+  -- At `vStar`, inducing nobody and inducing everybody give the principal the same utility.
+  have hvStar_bal : γ ^ (m + 1) * vStar =
+      (1 - γ) ^ (m + 1) * vStar - ((m + 1 : ℕ) : ℝ) * (c * (1 - γ) / (1 - 2 * γ)) := by
     dsimp [vStar, andThreshold]
     field_simp [h12γ.ne', hpow.ne']
     ring
-  have hR_eq : ((1 - γ) ^ n * vStar - (n : ℝ) * c) / (γ ^ n * vStar) = R := by
-    have hq_pow : (1 - γ) ^ n = (1 - γ) * (1 - γ) ^ (n - 1) := by
-      conv_lhs => rw [← Nat.sub_add_cancel hn, pow_succ']
-    have hg_pow : γ ^ n = γ * γ ^ (n - 1) := by
-      conv_lhs => rw [← Nat.sub_add_cancel hn, pow_succ']
-    have hdiv_pow : (1 - γ) ^ (n - 1) / γ ^ (n - 1) = (1 / γ - 1) ^ (n - 1) := by
-      rw [← div_pow]
-      congr 1
-      field_simp [hγ₀.ne']
-    have hgap : (n : ℝ) * (c * (1 - γ) / (1 - 2 * γ)) - (n : ℝ) * c =
-        (n : ℝ) * c * γ / (1 - 2 * γ) := by
-      rw [eq_div_iff h12γ.ne']
-      calc
-        ((n : ℝ) * (c * (1 - γ) / (1 - 2 * γ)) - (n : ℝ) * c) * (1 - 2 * γ) =
-            (n : ℝ) * (c * (1 - γ) / (1 - 2 * γ) * (1 - 2 * γ)) - (n : ℝ) * c * (1 - 2 * γ) := by
-          ring
-        _ = (n : ℝ) * (c * (1 - γ)) - (n : ℝ) * c * (1 - 2 * γ) := by
-          rw [div_mul_cancel₀ _ h12γ.ne']
-        _ = (n : ℝ) * c * γ := by ring
-    have hnum : (1 - γ) ^ n * vStar - (n : ℝ) * c =
-        γ ^ n * vStar + (n : ℝ) * c * γ / (1 - 2 * γ) := by
-      linarith [hvStar_bal, hgap]
-    have hden : γ ^ n * vStar ≠ 0 := (mul_pos (pow_pos hγ₀ n) hvStar_pos).ne'
-    have hstep1 : ((1 - γ) ^ n * vStar - (n : ℝ) * c) / (γ ^ n * vStar) =
-        1 + ((n : ℝ) * c * γ / (1 - 2 * γ)) / (γ ^ n * vStar) := by
-      rw [hnum, add_div, div_self hden]
-    have hstep2 : ((n : ℝ) * c * γ / (1 - 2 * γ)) / (γ ^ n * vStar) =
-        γ * ((1 - γ) ^ n - γ ^ n) / (γ ^ n * (1 - γ)) := by
-      have hv_eq : (1 - 2 * γ) * ((1 - γ) ^ n - γ ^ n) * vStar = (n : ℝ) * c * (1 - γ) := by
-        dsimp [vStar, andThreshold]
-        rw [mul_div_cancel₀ _ (mul_pos h12γ hpow).ne']
-      have hden_pos : 0 < γ ^ n * vStar := mul_pos (pow_pos hγ₀ n) hvStar_pos
-      have hden2 : 0 < γ ^ n * (1 - γ) := mul_pos (pow_pos hγ₀ n) h1γ
-      rw [div_eq_div_iff hden_pos.ne' hden2.ne']
-      calc
-        ((n : ℝ) * c * γ / (1 - 2 * γ)) * (γ ^ n * (1 - γ)) =
-            (γ ^ n * ((n : ℝ) * c * (1 - γ))) * γ / (1 - 2 * γ) := by ring
-        _ = (γ ^ n * ((1 - 2 * γ) * ((1 - γ) ^ n - γ ^ n) * vStar)) * γ / (1 - 2 * γ) := by
-          rw [hv_eq]
-        _ = γ * ((1 - γ) ^ n - γ ^ n) * (γ ^ n * vStar) * (1 - 2 * γ) / (1 - 2 * γ) := by ring
-        _ = γ * ((1 - γ) ^ n - γ ^ n) * (γ ^ n * vStar) := mul_div_cancel_right₀ _ h12γ.ne'
-    have hstep3 : γ * ((1 - γ) ^ n - γ ^ n) / (γ ^ n * (1 - γ)) =
-        (1 - γ) ^ (n - 1) / γ ^ (n - 1) - γ / (1 - γ) := by
-      rw [hq_pow, hg_pow, div_sub_div _ _ (pow_pos hγ₀ (n - 1)).ne' h1γ.ne']
-      have hden_ne : γ * γ ^ (n - 1) * (1 - γ) ≠ 0 :=
-        (mul_pos (mul_pos hγ₀ (pow_pos hγ₀ (n - 1))) h1γ).ne'
-      rw [div_eq_div_iff hden_ne (mul_pos (pow_pos hγ₀ _) h1γ).ne']
-      ring
-    rw [hstep1, hstep2, hstep3, hdiv_pow]
-    dsimp [R]
+  -- ... and the first-best welfare there is `R` times that utility.
+  have hRA : R * (γ ^ (m + 1) * vStar) = (1 - γ) ^ (m + 1) * vStar - ((m + 1 : ℕ) : ℝ) * c := by
+    have hv_eq : (1 - 2 * γ) * ((1 - γ) ^ (m + 1) - γ ^ (m + 1)) * vStar =
+        ((m + 1 : ℕ) : ℝ) * c * (1 - γ) := by
+      dsimp [vStar, andThreshold]
+      rw [mul_div_cancel₀ _ (mul_pos h12γ hpow).ne']
+    rw [eq_div_of_mul_eq h1γ.ne' hv_eq.symm, hR, show 1 / γ - 1 = (1 - γ) / γ by field_simp,
+      div_pow]
+    field_simp [h1γ.ne', hγ₀.ne']
     ring
-  have hR_ge_one : 1 ≤ R := by
-    rw [← hR_eq, one_le_div (mul_pos (pow_pos hγ₀ n) hvStar_pos)]
-    linarith
-  have htpos : ∀ s, 0 < andTech n γ s := fun s => andTech_pos hγ₀ (by linarith) s
-  have hc_nn : ∀ _ : Fin n, 0 ≤ c := fun _ => hc.le
+  have hR_ge_one : 1 ≤ R := le_of_mul_le_mul_right (by rw [one_mul, hRA]; linarith) hden
+  have htpos : ∀ s, 0 < andTech (m + 1) γ s := fun s => andTech_pos hγ₀ (by linarith) s
+  have hc_nn : ∀ _ : Fin (m + 1), 0 ≤ c := fun _ => hc.le
   apply le_antisymm
-  · rw [priceOfUnaccountability_le_iff (andTech n γ) (fun _ => c) htpos hc_nn]
+  · rw [priceOfUnaccountability_le_iff (andTech (m + 1) γ) (fun _ => c) htpos hc_nn]
     intro v hv
     rw [firstBestWelfare_andTech hn hγ₀ hγh hc v, agencyPrincipalUtility_andTech hn hγ₀ hγh hc v]
-    by_cases hvle : v ≤ vStar
-    · have hU : agencyPrincipalUtility (andTech n γ) (fun _ => c) v = γ ^ n * v := by
-        rw [agencyPrincipalUtility_andTech hn hγ₀ hγh hc v, max_eq_left_iff]
-        have : ((1 - γ) ^ n - γ ^ n) * v ≤ ((1 - γ) ^ n - γ ^ n) * vStar :=
-          mul_le_mul_of_nonneg_left hvle hpow.le
-        linarith
-      rw [agencyPrincipalUtility_andTech hn hγ₀ hγh hc v] at hU
-      rw [hU]
-      refine max_le ?_ ?_
-      · exact le_mul_of_one_le_left (mul_nonneg (pow_nonneg hγ₀.le n) hv.le) hR_ge_one
-      · have hnum : (1 - γ) ^ n * v - (n : ℝ) * c ≤ R * (γ ^ n * v) := by
-          have hslope_diff : 0 ≤ (1 - γ) ^ n - R * γ ^ n := by
-            have hlt : 0 ≤ ((1 - γ) ^ n * vStar - R * (γ ^ n * vStar)) := by
-              have hmul : R * (γ ^ n * vStar) = (1 - γ) ^ n * vStar - (n : ℝ) * c := by
-                rw [← hR_eq, div_mul_cancel₀ _ (mul_pos (pow_pos hγ₀ n) hvStar_pos).ne']
-              linarith [mul_pos (Nat.cast_pos.mpr hn) hc]
-            have : ((1 - γ) ^ n - R * γ ^ n) * vStar ≥ 0 := by linarith
-            exact nonneg_of_mul_nonneg_left this hvStar_pos
-          have hstep : ((1 - γ) ^ n - R * γ ^ n) * v ≤ ((1 - γ) ^ n - R * γ ^ n) * vStar :=
-            mul_le_mul_of_nonneg_left hvle hslope_diff
-          have hmul : R * (γ ^ n * vStar) = (1 - γ) ^ n * vStar - (n : ℝ) * c := by
-            rw [← hR_eq, div_mul_cancel₀ _ (mul_pos (pow_pos hγ₀ n) hvStar_pos).ne']
-          linarith
-        exact hnum
-    · have hvge : vStar ≤ v := le_of_not_ge hvle
-      have hU : agencyPrincipalUtility (andTech n γ) (fun _ => c) v =
-          (1 - γ) ^ n * v - (n : ℝ) * (c * (1 - γ) / (1 - 2 * γ)) := by
-        rw [agencyPrincipalUtility_andTech hn hγ₀ hγh hc v, max_eq_right_iff]
-        have : ((1 - γ) ^ n - γ ^ n) * vStar ≤ ((1 - γ) ^ n - γ ^ n) * v :=
-          mul_le_mul_of_nonneg_left hvge hpow.le
-        linarith
-      rw [agencyPrincipalUtility_andTech hn hγ₀ hγh hc v] at hU
-      rw [hU]
-      have hU_nonneg : 0 ≤ (1 - γ) ^ n * v - (n : ℝ) * (c * (1 - γ) / (1 - 2 * γ)) := by
-        have : 0 ≤ γ ^ n * v := mul_nonneg (pow_nonneg hγ₀.le n) hv.le
-        have hle : γ ^ n * v ≤ (1 - γ) ^ n * v - (n : ℝ) * (c * (1 - γ) / (1 - 2 * γ)) := by
-          have : ((1 - γ) ^ n - γ ^ n) * vStar ≤ ((1 - γ) ^ n - γ ^ n) * v :=
-            mul_le_mul_of_nonneg_left hvge hpow.le
-          linarith
-        linarith
-      refine max_le ?_ ?_
-      · have hle_u : γ ^ n * v ≤ (1 - γ) ^ n * v - (n : ℝ) * (c * (1 - γ) / (1 - 2 * γ)) := by
-          have : ((1 - γ) ^ n - γ ^ n) * vStar ≤ ((1 - γ) ^ n - γ ^ n) * v :=
-            mul_le_mul_of_nonneg_left hvge hpow.le
-          linarith
-        exact hle_u.trans (le_mul_of_one_le_left hU_nonneg hR_ge_one)
-      · have hstar_eq : (1 - γ) ^ n * vStar - (n : ℝ) * c =
-            R * ((1 - γ) ^ n * vStar - (n : ℝ) * (c * (1 - γ) / (1 - 2 * γ))) := by
-          rw [← hvStar_bal, ← hR_eq, div_mul_cancel₀ _ (mul_pos (pow_pos hγ₀ n) hvStar_pos).ne']
-        have hslope_le : 0 ≤ (R - 1) * (1 - γ) ^ n :=
-          mul_nonneg (sub_nonneg.mpr hR_ge_one) (pow_nonneg h1γ.le n)
-        have hlin : (R - 1) * (1 - γ) ^ n * vStar ≤ (R - 1) * (1 - γ) ^ n * v :=
-          mul_le_mul_of_nonneg_left hvge hslope_le
-        linarith
+    rcases le_total v vStar with hvle | hvge
+    · have hslope : 0 ≤ (1 - γ) ^ (m + 1) - R * γ ^ (m + 1) :=
+        nonneg_of_mul_nonneg_left (by nlinarith [hRA]) hvStar_pos
+      have hUA : (1 - γ) ^ (m + 1) * v - ((m + 1 : ℕ) : ℝ) * (c * (1 - γ) / (1 - 2 * γ)) ≤
+          γ ^ (m + 1) * v := by
+        linarith [mul_le_mul_of_nonneg_left hvle hpow.le]
+      rw [max_eq_left hUA]
+      exact max_le (le_mul_of_one_le_left (mul_nonneg (pow_nonneg hγ₀.le _) hv.le) hR_ge_one)
+        (by linarith [mul_le_mul_of_nonneg_left hvle hslope])
+    · have hAU : γ ^ (m + 1) * v ≤
+          (1 - γ) ^ (m + 1) * v - ((m + 1 : ℕ) : ℝ) * (c * (1 - γ) / (1 - 2 * γ)) := by
+        linarith [mul_le_mul_of_nonneg_left hvge hpow.le]
+      rw [max_eq_right hAU]
+      refine max_le (hAU.trans (le_mul_of_one_le_left
+        ((mul_nonneg (pow_nonneg hγ₀.le _) hv.le).trans hAU) hR_ge_one)) ?_
+      rw [hvStar_bal] at hRA
+      linarith [mul_le_mul_of_nonneg_left hvge
+        (mul_nonneg (sub_nonneg.mpr hR_ge_one) (pow_nonneg h1γ.le (m + 1)))]
   · calc
-      R = ((1 - γ) ^ n * vStar - (n : ℝ) * c) / (γ ^ n * vStar) := hR_eq.symm
-      _ ≤ firstBestWelfare (andTech n γ) (fun _ => c) vStar /
-          agencyPrincipalUtility (andTech n γ) (fun _ => c) vStar := by
-        have hSW_ge : (1 - γ) ^ n * vStar - (n : ℝ) * c ≤
-            firstBestWelfare (andTech n γ) (fun _ => c) vStar := by
-          rw [firstBestWelfare_andTech hn hγ₀ hγh hc vStar]; exact le_max_right _ _
-        have hU_eq : agencyPrincipalUtility (andTech n γ) (fun _ => c) vStar = γ ^ n * vStar := by
-          rw [agencyPrincipalUtility_andTech hn hγ₀ hγh hc vStar, ← hvStar_bal, max_self]
-        rw [hU_eq]
-        exact div_le_div_of_nonneg_right hSW_ge (mul_pos (pow_pos hγ₀ n) hvStar_pos).le
-      _ ≤ priceOfUnaccountability (andTech n γ) (fun _ => c) :=
-        le_priceOfUnaccountability (andTech n γ) (fun _ => c) htpos hc_nn hvStar_pos
+      R = ((1 - γ) ^ (m + 1) * vStar - ((m + 1 : ℕ) : ℝ) * c) / (γ ^ (m + 1) * vStar) := by
+        rw [← hRA, mul_div_cancel_right₀ _ hden.ne']
+      _ ≤ firstBestWelfare (andTech (m + 1) γ) (fun _ => c) vStar /
+          agencyPrincipalUtility (andTech (m + 1) γ) (fun _ => c) vStar := by
+        rw [firstBestWelfare_andTech hn hγ₀ hγh hc, agencyPrincipalUtility_andTech hn hγ₀ hγh hc,
+          ← hvStar_bal, max_self]
+        exact div_le_div_of_nonneg_right (le_max_right _ _) hden.le
+      _ ≤ priceOfUnaccountability (andTech (m + 1) γ) (fun _ => c) :=
+        le_priceOfUnaccountability (andTech (m + 1) γ) (fun _ => c) htpos hc_nn hvStar_pos
 
 /-- `POU(andTech n γ, c)` is unbounded in `n` for any fixed `γ ∈ (0, 1 / 2)` and `c > 0`
 (NRTV Theorem 23.8). -/
@@ -1596,109 +1419,54 @@ theorem orTech_transitions {n : ℕ} (hn : 1 ≤ n) {γ c : ℝ} (hγ₀ : 0 < �
   let h : ℕ → ℝ := fun m => c * orProb n γ m / (orProb n γ m - orProb n γ (m - 1))
   let r : ℝ := (1 - γ) / γ
   have hr_gt : 1 < r := (one_lt_div hγ₀).mpr (by linarith)
+  have hdf : ∀ m, m < n → 0 < orProb n γ (m + 1) - orProb n γ m := fun m hm =>
+    sub_pos.mpr (orProb_strictMono hγ₀ hγh hm)
+  have hP0 : P 0 = 0 := by simp [P]
   have hP_eq : ∀ m, 1 ≤ m → P m = (m : ℝ) * h m := by
     intro m hm
-    have hm0 : m ≠ 0 := by omega
-    simp only [P, anonOptPayment, hm0, ↓reduceIte, h]
+    simp only [P, anonOptPayment, Nat.one_le_iff_ne_zero.mp hm, ↓reduceIte, h]
     ring
   have hh_pos : ∀ m, 1 ≤ m → m ≤ n → 0 < h m := by
     intro m hm hmn
-    have hlt := orProb_strictMono hγ₀ hγh (by omega : m - 1 < n)
-    rw [Nat.sub_add_cancel hm] at hlt
-    exact div_pos (mul_pos hc (orProb_pos hn hγ₀ hγh hmn)) (sub_pos.mpr hlt)
+    have hd := hdf (m - 1) (by omega)
+    rw [Nat.sub_add_cancel hm] at hd
+    exact div_pos (mul_pos hc (orProb_pos hn hγ₀ hγh hmn)) hd
+  -- The per-agent payments satisfy the affine recursion `h (m + 1) = r * h m + c`.
   have hh_rec : ∀ m, 1 ≤ m → m < n → h (m + 1) = r * h m + c := by
     intro m hm hmn
-    have hdf₁ : orProb n γ m - orProb n γ (m - 1) ≠ 0 := by
-      have hlt := orProb_strictMono hγ₀ hγh (by omega : m - 1 < n)
-      rw [Nat.sub_add_cancel hm] at hlt
-      exact (sub_pos.mpr hlt).ne'
-    have hdf₂ : orProb n γ (m + 1) - orProb n γ m ≠ 0 :=
-      (sub_pos.mpr (orProb_strictMono hγ₀ hγh hmn)).ne'
-    have hratio :
-        (orProb n γ m - orProb n γ (m - 1)) / (orProb n γ (m + 1) - orProb n γ m) = r := by
-      have hm_lt : (m - 1) + 1 < n := by omega
-      have hdiff_rat := orProb_diff_ratio hγ₀ hγh (k := m - 1) hm_lt
-      have hm1 : m - 1 + 1 = m := Nat.sub_add_cancel hm
-      have hm2 : m - 1 + 2 = m + 1 := by omega
-      rwa [hm1, hm2] at hdiff_rat
-    have hfrac : c * orProb n γ (m + 1) / (orProb n γ (m + 1) - orProb n γ m) =
-        c * (orProb n γ m + (orProb n γ (m + 1) - orProb n γ m)) /
-          (orProb n γ (m + 1) - orProb n γ m) := by
-      congr 2
-      ring
-    dsimp [h]
-    rw [hfrac, mul_add, add_div, mul_div_cancel_right₀ c hdf₂]
-    have : c * orProb n γ m / (orProb n γ (m + 1) - orProb n γ m) =
-        r * (c * orProb n γ m / (orProb n γ m - orProb n γ (m - 1))) := by
-      rw [← hratio]
-      field_simp [hdf₁, hdf₂]
-    linarith
-  have hs₀ : 0 < (P 1 - P 0) / (orProb n γ 1 - orProb n γ 0) := by
-    have hP0 : P 0 = 0 := by simp [P]
-    have hP1 : 0 < P 1 := by rw [hP_eq 1 le_rfl, Nat.cast_one, one_mul]; exact hh_pos 1 le_rfl hn
-    exact div_pos (by linarith) (sub_pos.mpr (orProb_strictMono hγ₀ hγh (by omega)))
+    have hD : orProb n γ m - orProb n γ (m - 1) = r * (orProb n γ (m + 1) - orProb n γ m) := by
+      have hratio := orProb_diff_ratio (n := n) hγ₀ hγh (k := m - 1) (by omega)
+      rwa [Nat.sub_add_cancel hm, show m - 1 + 2 = m + 1 by omega,
+        div_eq_iff (hdf m hmn).ne'] at hratio
+    have hd := (hdf m hmn).ne'
+    have hr := (zero_lt_one.trans hr_gt).ne'
+    simp only [h, hD, Nat.add_sub_cancel]
+    field_simp
+    ring
   have hP_diff_lt : ∀ k, k + 1 < n → P (k + 1) - P k < P (k + 2) - P (k + 1) := by
     intro k hk
-    by_cases hk0 : k = 0
-    · subst hk0
-      have hP0 : P 0 = 0 := by simp [P]
-      have hP1 : P 1 = h 1 := by simpa using hP_eq 1 le_rfl
-      have hP2 : P 2 = 2 * (r * h 1 + c) := by
-        rw [hP_eq 2 (by omega), hh_rec 1 le_rfl hk]; push_cast; ring
-      have hh1 : 0 < h 1 := hh_pos 1 le_rfl hn
-      rw [hP0, hP1, hP2]
-      nlinarith
-    · have hk1 : 1 ≤ k := Nat.pos_of_ne_zero hk0
-      have hh_lt : h k < h (k + 1) := by
-        rw [hh_rec k hk1 (by omega)]
-        have := hh_pos k hk1 (by omega)
-        nlinarith
-      have h1 : P (k + 1) - P k = ((k + 1 : ℝ) * r - k) * h k + (k + 1 : ℝ) * c := by
-        rw [hP_eq (k + 1) (by omega), hP_eq k hk1, hh_rec k hk1 (by omega)]
-        push_cast; ring
-      have h2 : P (k + 2) - P (k + 1) =
-          ((k + 2 : ℝ) * r - (k + 1)) * h (k + 1) + (k + 2 : ℝ) * c := by
-        rw [hP_eq (k + 2) (by omega), hP_eq (k + 1) (by omega), hh_rec (k + 1) (by omega) hk]
-        push_cast; ring
-      rw [h1, h2]
-      have hcoeff_pos : 0 < (k + 1 : ℝ) * r - k := by nlinarith [Nat.cast_nonneg (α := ℝ) k]
-      have hcoeff_lt : (k + 1 : ℝ) * r - k < (k + 2 : ℝ) * r - (k + 1) := by linarith
-      have hmul : ((k + 1 : ℝ) * r - k) * h k < ((k + 2 : ℝ) * r - (k + 1)) * h (k + 1) :=
-        mul_lt_mul'' hcoeff_lt hh_lt hcoeff_pos.le (hh_pos k hk1 (by omega)).le
-      linarith
-  have hslope : ∀ k, k + 1 < n →
-      (P (k + 1) - P k) / (orProb n γ (k + 1) - orProb n γ k) <
-        (P (k + 2) - P (k + 1)) / (orProb n γ (k + 2) - orProb n γ (k + 1)) := by
+    rcases Nat.eq_zero_or_pos k with rfl | hk1
+    · rw [hP0, hP_eq 1 le_rfl, hP_eq 2 (by omega), hh_rec 1 le_rfl hk]
+      push_cast
+      linarith [mul_pos (sub_pos.mpr hr_gt) (hh_pos 1 le_rfl hn)]
+    · have hA : 0 < ((k : ℝ) + 2) * r - k := by
+        nlinarith [mul_nonneg (by positivity : (0 : ℝ) ≤ k + 2) (sub_pos.mpr hr_gt).le]
+      rw [hP_eq (k + 1) (by omega), hP_eq k hk1, hP_eq (k + 2) (by omega),
+        hh_rec (k + 1) (by omega) hk, hh_rec k hk1 (by omega)]
+      push_cast
+      linarith [mul_pos (mul_pos (sub_pos.mpr hr_gt) hA) (hh_pos k hk1 (by omega)),
+        mul_pos hA hc]
+  have hP_inc : ∀ k, k < n → 0 < P (k + 1) - P k := by
     intro k hk
-    have hdf₁ : 0 < orProb n γ (k + 1) - orProb n γ k :=
-      sub_pos.mpr (orProb_strictMono hγ₀ hγh (by omega))
-    have hdf₂ : 0 < orProb n γ (k + 2) - orProb n γ (k + 1) :=
-      sub_pos.mpr (orProb_strictMono hγ₀ hγh hk)
-    have hdf_lt : orProb n γ (k + 2) - orProb n γ (k + 1) < orProb n γ (k + 1) - orProb n γ k :=
-      orProb_diff_strictAnti hγ₀ hγh hk
-    have hnum_pos : 0 < P (k + 2) - P (k + 1) := by
-      have hnonneg : 0 ≤ P (k + 1) - P k := by
-        by_cases hk0 : k = 0
-        · subst hk0
-          have hP0 : P 0 = 0 := by simp [P]
-          have hP1 : P 1 = h 1 := by simpa using hP_eq 1 le_rfl
-          rw [hP0, hP1, sub_zero]; exact (hh_pos 1 le_rfl hn).le
-        · have hk1 : 1 ≤ k := Nat.pos_of_ne_zero hk0
-          rw [hP_eq (k + 1) (by omega), hP_eq k hk1, hh_rec k hk1 (by omega)]
-          have hnonneg' : 0 ≤ ((k + 1 : ℝ) * r - k) * h k + (k + 1 : ℝ) * c := by
-            have h1 : 0 < (k + 1 : ℝ) * r - k := by nlinarith [Nat.cast_nonneg (α := ℝ) k]
-            exact add_nonneg (mul_nonneg h1.le (hh_pos k hk1 (by omega)).le) (by positivity)
-          push_cast
-          linarith
-      linarith [hP_diff_lt k hk]
-    calc
-      (P (k + 1) - P k) / (orProb n γ (k + 1) - orProb n γ k) <
-          (P (k + 2) - P (k + 1)) / (orProb n γ (k + 1) - orProb n γ k) :=
-        div_lt_div_of_pos_right (hP_diff_lt k hk) hdf₁
-      _ < (P (k + 2) - P (k + 1)) / (orProb n γ (k + 2) - orProb n γ (k + 1)) :=
-        div_lt_div_of_pos_left hnum_pos hdf₂ hdf_lt
-  exact strictly_increasing_slope_attains_all hn (orProb n γ) P
-    (fun k hk => orProb_strictMono hγ₀ hγh hk) hs₀ hslope
+    induction k with
+    | zero => rw [hP0, hP_eq 1 le_rfl]; simpa using hh_pos 1 le_rfl hn
+    | succ k ih => exact (ih (by omega)).trans (hP_diff_lt k hk)
+  refine strictly_increasing_slope_attains_all hn (orProb n γ) P
+    (fun k hk => orProb_strictMono hγ₀ hγh hk) (div_pos (hP_inc 0 (by omega)) (hdf 0 (by omega)))
+    fun k hk => ?_
+  exact (div_lt_div_of_pos_right (hP_diff_lt k hk) (hdf k (by omega))).trans
+    (div_lt_div_of_pos_left (hP_inc (k + 1) hk) (hdf (k + 1) hk)
+      (orProb_diff_strictAnti hγ₀ hγh hk))
 
 /-- Under the noisy OR technology, first-best optimal team size also steps strictly through
 every cardinality `0, 1, …, n` (NRTV Exercise 23.4). -/
@@ -1771,152 +1539,81 @@ theorem orTech_pou_le_two {n : ℕ} (hn : 1 ≤ n) {γ c : ℝ} (hγ₀ : 0 < γ
   rw [firstBestWelfare_anon (t := orTech n γ) (f := orProb n γ) (fun _ => rfl),
     agencyPrincipalUtility_anon (t := orTech n γ) (f := orProb n γ) (fun _ => rfl)]
   refine Finset.sup'_le Finset.nonempty_range_add_one _ fun k hk => ?_
+  change orProb n γ k * v - (k : ℝ) * c ≤ _
   have hk_le : k ≤ n := Nat.lt_succ_iff.mp (Finset.mem_range.mp hk)
-  let U0 : ℝ := orProb n γ 0 * v - anonOptPayment (orProb n γ) c 0
-  let U1 : ℝ := orProb n γ 1 * v - anonOptPayment (orProb n γ) c 1
-  have hU0_le : U0 ≤ (Finset.range (n + 1)).sup' Finset.nonempty_range_add_one
-      (fun j => orProb n γ j * v - anonOptPayment (orProb n γ) c j) :=
-    Finset.le_sup' (fun j => orProb n γ j * v - anonOptPayment (orProb n γ) c j)
-      (Finset.mem_range.mpr (Nat.zero_lt_succ n))
-  have hU1_le : U1 ≤ (Finset.range (n + 1)).sup' Finset.nonempty_range_add_one
-      (fun j => orProb n γ j * v - anonOptPayment (orProb n γ) c j) :=
+  -- The hidden-action optimum is at least the utility of inducing `0` or `1` agents.
+  have hU : ∀ j ≤ n, orProb n γ j * v - anonOptPayment (orProb n γ) c j ≤
+      (Finset.range (n + 1)).sup' Finset.nonempty_range_add_one
+        (fun j => orProb n γ j * v - anonOptPayment (orProb n γ) c j) := fun j hj =>
     Finset.le_sup' (fun j => orProb n γ j * v - anonOptPayment (orProb n γ) c j)
       (Finset.mem_range.mpr (by omega))
-  have hU0_eq : U0 = orProb n γ 0 * v := by simp [U0]
-  let Δ₁ : ℝ := orProb n γ 1 - orProb n γ 0
-  let P₁ : ℝ := anonOptPayment (orProb n γ) c 1
-  let v01 : ℝ := P₁ / Δ₁
-  have hΔ₁_pos : 0 < Δ₁ := sub_pos.mpr (orProb_strictMono hγ₀ hγh hn)
-  have hP₁_eq : P₁ = c * orProb n γ 1 / Δ₁ := by simp [P₁, Δ₁]
-  have hv01_eq : v01 = c * orProb n γ 1 / Δ₁ ^ 2 := by
-    dsimp [v01]
-    rw [hP₁_eq, div_div, sq]
-  have hP₁_val : P₁ = Δ₁ * v01 := (mul_div_cancel₀ P₁ hΔ₁_pos.ne').symm
-  have hbal : orProb n γ 1 * v01 - P₁ = orProb n γ 0 * v01 := by
-    rw [hP₁_val]; dsimp [Δ₁]; ring
-  rcases Nat.eq_zero_or_pos k with rfl | hk1
-  · have hk0_eq : orProb n γ 0 * v - ((0 : ℕ) : ℝ) * c = U0 := by simp [U0]
-    have hU0_nn : 0 ≤ U0 := by
-      rw [hU0_eq]; exact mul_nonneg (orProb_pos hn hγ₀ hγh (Nat.zero_le n)).le hv.le
-    rw [hk0_eq]
+  have hU0 := hU 0 (Nat.zero_le n)
+  have hU1 := hU 1 hn
+  rw [anonOptPayment_zero, sub_zero] at hU0
+  have h1γ : 0 < 1 - γ := by linarith
+  have hp0 : 0 < orProb n γ 0 := orProb_pos hn hγ₀ hγh (Nat.zero_le n)
+  have hp1 : 1 / 2 < orProb n γ 1 := by
+    have := mul_le_of_le_one_right hγ₀.le (pow_le_one₀ (n := n - 1) h1γ.le (by linarith))
+    simp only [orProb, pow_one]
     linarith
-  rcases eq_or_lt_of_le (Nat.succ_le_of_lt hk1) with rfl | hk2
-  · have hk1_step : orProb n γ 1 * v01 - c ≤ 2 * (orProb n γ 0 * v01) := by
-      have hdiff_id : orProb n γ 1 - 2 * orProb n γ 0 = Δ₁ - orProb n γ 0 := by
-        dsimp [Δ₁]; ring
-      have hsum_id : orProb n γ 1 = Δ₁ + orProb n γ 0 := by dsimp [Δ₁]; ring
-      have hdiv_le : c * (Δ₁ ^ 2 - (orProb n γ 0) ^ 2) / Δ₁ ^ 2 ≤ c := by
-        rw [div_le_iff₀ (sq_pos_of_pos hΔ₁_pos)]
-        nlinarith [hc, sq_nonneg (orProb n γ 0)]
-      have hcalc : orProb n γ 1 * v01 - c - 2 * (orProb n γ 0 * v01) =
-          c * (Δ₁ ^ 2 - (orProb n γ 0) ^ 2) / Δ₁ ^ 2 - c := by
-        calc
-          orProb n γ 1 * v01 - c - 2 * (orProb n γ 0 * v01) =
-              (Δ₁ - orProb n γ 0) * v01 - c := by linarith [hdiff_id]
-          _ = c * (Δ₁ ^ 2 - (orProb n γ 0) ^ 2) / Δ₁ ^ 2 - c := by
-              rw [hv01_eq, hsum_id]
-              field_simp [hΔ₁_pos.ne']
-              ring
-      linarith
-    by_cases hv_le : v ≤ v01
-    · have hbase : orProb n γ 1 * v - c ≤ 2 * (orProb n γ 0 * v) := by
-        by_cases hneg : orProb n γ 1 - 2 * orProb n γ 0 ≤ 0
-        · have : (orProb n γ 1 - 2 * orProb n γ 0) * v ≤ 0 :=
-            mul_nonpos_of_nonpos_of_nonneg hneg hv.le
-          linarith
-        · have hpos : 0 ≤ orProb n γ 1 - 2 * orProb n γ 0 := le_of_not_ge hneg
-          have hlin : (orProb n γ 1 - 2 * orProb n γ 0) * v ≤
-              (orProb n γ 1 - 2 * orProb n γ 0) * v01 := mul_le_mul_of_nonneg_left hv_le hpos
-          linarith
-      simpa using hbase.trans (by linarith [hU0_eq, hU0_le])
-    · have hv_ge : v01 ≤ v := le_of_not_ge hv_le
-      have hpos1 : 0 ≤ orProb n γ 1 := (orProb_pos hn hγ₀ hγh hn).le
-      have hstep : orProb n γ 1 * v - (1 : ℝ) * c ≤ 2 * U1 := by
-        have hslope : (2 * orProb n γ 1 - orProb n γ 1) * v01 ≤
-            (2 * orProb n γ 1 - orProb n γ 1) * v := by
-          nlinarith
-        dsimp [U1]
+  have hpk : orProb n γ k < 1 := orProb_lt_one hγ₀ (by linarith) k
+  -- At `v01`, inducing `0` or `1` agents gives the principal the same utility.
+  obtain ⟨Δ₁, hΔ₁⟩ : ∃ d, orProb n γ 1 - orProb n γ 0 = d := ⟨_, rfl⟩
+  have hΔ₁_pos : 0 < Δ₁ := hΔ₁ ▸ sub_pos.mpr (orProb_strictMono hγ₀ hγh hn)
+  have hP₁ : anonOptPayment (orProb n γ) c 1 = c * orProb n γ 1 / Δ₁ := by
+    simp [anonOptPayment, hΔ₁]
+  obtain ⟨v01, hv01⟩ : ∃ w, c * orProb n γ 1 / Δ₁ ^ 2 = w := ⟨_, rfl⟩
+  have hv01_pos : 0 < v01 := hv01 ▸ div_pos (mul_pos hc (by linarith)) (pow_pos hΔ₁_pos 2)
+  have hbal : orProb n γ 1 * v01 - anonOptPayment (orProb n γ) c 1 = orProb n γ 0 * v01 := by
+    rw [hP₁, ← hv01]
+    field_simp
+    rw [← hΔ₁]
+    ring
+  -- The claimed bound holds at `v01`.
+  have hat : orProb n γ k * v01 - k * c ≤ 2 * (orProb n γ 0 * v01) := by
+    rcases Nat.lt_or_ge k 2 with hk2 | hk2
+    · rcases k with _ | _ | k
+      · push_cast
+        linarith [mul_pos hp0 hv01_pos]
+      · have : (orProb n γ 1 - 2 * orProb n γ 0) * v01 ≤ c := by
+          rw [← hv01, mul_div_assoc', div_le_iff₀ (pow_pos hΔ₁_pos 2), ← hΔ₁]
+          linarith [mul_nonneg hc.le (sq_nonneg (orProb n γ 0))]
+        push_cast
         linarith
-      simpa using hstep.trans (by linarith [hU1_le])
-  · have hn2 : 2 ≤ n := by omega
-    have hcase01 : ∀ w : ℝ, 0 < w → w ≤ v01 →
-        orProb n γ k * w - (k : ℝ) * c ≤ 2 * (orProb n γ 0 * w) := by
-      intro w hw0 hwv
-      let q : ℝ := 1 - γ
-      have hq₀ : 0 ≤ q := by dsimp [q]; linarith
-      have hq₁ : q ≤ 1 := by dsimp [q]; linarith
-      have hp0_eq : orProb n γ 0 = 1 - q ^ n := by simp [orProb, q]
-      have hpk_lt : orProb n γ k < 1 := orProb_lt_one hγ₀ (by linarith) k
-      have hk_ge2 : (2 : ℝ) ≤ (k : ℝ) := by exact_mod_cast hk2
-      by_cases hqn_le : q ^ n ≤ 1 / 2
-      · have h2p0 : 1 ≤ 2 * orProb n γ 0 := by rw [hp0_eq]; linarith
-        have hdiff : orProb n γ k - 2 * orProb n γ 0 ≤ 0 := by linarith
-        have hmul : (orProb n γ k - 2 * orProb n γ 0) * w ≤ 0 :=
-          mul_nonpos_of_nonpos_of_nonneg hdiff hw0.le
-        have hkc : 0 ≤ (k : ℝ) * c := mul_nonneg (Nat.cast_nonneg k) hc.le
-        linarith
-      · have hqn_gt : 1 / 2 < q ^ n := lt_of_not_ge hqn_le
-        have h2q_pos : 0 < 2 * q - 1 := by dsimp [q]; linarith
-        have hΔ₁_eq : Δ₁ = (2 * q - 1) * q ^ (n - 1) := by
-          dsimp [Δ₁]
-          rw [orProb_diff γ hn]
-          simp only [Nat.sub_zero, pow_zero, mul_one, q]
-          ring
-        have hΔ₁_sq : Δ₁ ^ 2 = (2 * q - 1) ^ 2 * q ^ (2 * n - 2) := by
-          rw [hΔ₁_eq, mul_pow, ← pow_mul]
-          congr 2
-          omega
-        have hineq : 2 * q ^ n - 1 ≤ 2 * (2 * q - 1) ^ 2 * q ^ (2 * n - 2) := by
-          rcases eq_or_lt_of_le hn2 with rfl | hn3
-          · simpa [q] using orTech_pou_n_two_ineq q
-          · exact orTech_pou_large_n_ineq hn3 hq₀ hqn_gt hq₁
-        have hp1_lt : orProb n γ 1 < 1 := orProb_lt_one hγ₀ (by linarith) 1
-        have hv01_ub : v01 ≤ c / Δ₁ ^ 2 := by
-          rw [hv01_eq]
-          exact div_le_div_of_nonneg_right (by nlinarith [hc]) (sq_nonneg Δ₁)
-        have hmul2 : (2 * q ^ n - 1) * v01 ≤ (2 * q ^ n - 1) * (c / Δ₁ ^ 2) :=
-          mul_le_mul_of_nonneg_left hv01_ub (by linarith)
-        have hlin : (2 * q ^ n - 1) * w ≤ (2 * q ^ n - 1) * v01 :=
-          mul_le_mul_of_nonneg_left hwv (by linarith)
-        have hbound : (2 * q ^ n - 1) * (c / Δ₁ ^ 2) ≤ 2 * c := by
-          have hpos_den : 0 < (2 * q - 1) ^ 2 * q ^ (2 * n - 2) :=
-            mul_pos (sq_pos_of_pos h2q_pos) (pow_pos (by linarith) _)
-          rw [hΔ₁_sq, mul_div_assoc', div_le_iff₀ hpos_den]
-          nlinarith [hc]
-        have h2qn : orProb n γ k - 2 * orProb n γ 0 ≤ 2 * q ^ n - 1 := by
-          rw [hp0_eq]; linarith
-        have hw_step : (orProb n γ k - 2 * orProb n γ 0) * w ≤ (2 * q ^ n - 1) * w :=
-          mul_le_mul_of_nonneg_right h2qn hw0.le
-        have hkc : 2 * c ≤ (k : ℝ) * c := mul_le_mul_of_nonneg_right hk_ge2 hc.le
-        linarith
-    by_cases hv_le : v ≤ v01
-    · exact (hcase01 v hv hv_le).trans (by linarith [hU0_eq, hU0_le])
-    · have hv_ge : v01 ≤ v := le_of_not_ge hv_le
-      have hv01_pos : 0 < v01 := by
-        dsimp [v01]
-        have hP₁_pos : 0 < P₁ := by
-          rw [hP₁_eq]
-          exact div_pos (mul_pos hc (orProb_pos hn hγ₀ hγh hn)) hΔ₁_pos
-        exact div_pos hP₁_pos hΔ₁_pos
-      have hat01 := hcase01 v01 hv01_pos le_rfl
-      have hU01 : orProb n γ k * v01 - (k : ℝ) * c ≤ 2 * (orProb n γ 1 * v01 - P₁) := by
-        linarith [hbal]
-      have hp1_gt_half : 1 / 2 < orProb n γ 1 := by
-        have hq_le1 : (1 - γ) ^ (n - 1) ≤ 1 := pow_le_one₀ (by linarith) (by linarith)
-        have hprod_lt : γ * (1 - γ) ^ (n - 1) < 1 / 2 := by
-          calc
-            γ * (1 - γ) ^ (n - 1) ≤ γ * 1 := mul_le_mul_of_nonneg_left hq_le1 hγ₀.le
-            _ < 1 / 2 := by linarith
-        simp only [orProb, pow_one]
-        linarith
-      have hpk_lt1 : orProb n γ k < 1 := orProb_lt_one hγ₀ (by linarith) k
-      have hslope : 0 ≤ 2 * orProb n γ 1 - orProb n γ k := by linarith
-      have hstep : (2 * orProb n γ 1 - orProb n γ k) * v01 ≤
-          (2 * orProb n γ 1 - orProb n γ k) * v := mul_le_mul_of_nonneg_left hv_ge hslope
-      have hres : orProb n γ k * v - (k : ℝ) * c ≤ 2 * U1 := by
-        dsimp [U1]
-        linarith
-      exact hres.trans (by linarith [hU1_le])
+      · omega
+    have hn2 : 2 ≤ n := by omega
+    have hkc : 2 * c ≤ k * c := mul_le_mul_of_nonneg_right (by exact_mod_cast hk2) hc.le
+    have hp0_eq : orProb n γ 0 = 1 - (1 - γ) ^ n := by simp [orProb]
+    suffices (orProb n γ k - 2 * orProb n γ 0) * v01 ≤ 2 * c by linarith
+    rcases le_or_gt ((1 - γ) ^ n) (1 / 2) with hqn | hqn
+    · linarith [mul_nonpos_of_nonpos_of_nonneg
+        (by linarith : orProb n γ k - 2 * orProb n γ 0 ≤ 0) hv01_pos.le]
+    have hΔ₁_sq : Δ₁ ^ 2 = (2 * (1 - γ) - 1) ^ 2 * (1 - γ) ^ (2 * n - 2) := by
+      rw [← hΔ₁, orProb_diff γ hn, show 2 * n - 2 = (n - 0 - 1) * 2 by omega, pow_mul]
+      ring
+    have hineq : 2 * (1 - γ) ^ n - 1 ≤ 2 * (2 * (1 - γ) - 1) ^ 2 * (1 - γ) ^ (2 * n - 2) := by
+      rcases hn2.eq_or_lt with rfl | hn3
+      · exact orTech_pou_n_two_ineq (1 - γ)
+      · exact orTech_pou_large_n_ineq hn3 h1γ.le hqn (by linarith)
+    have hv01_ub : v01 ≤ c / Δ₁ ^ 2 := hv01 ▸ div_le_div_of_nonneg_right
+      (mul_le_of_le_one_right hc.le (orProb_lt_one hγ₀ (by linarith) 1).le) (sq_nonneg Δ₁)
+    calc
+      (orProb n γ k - 2 * orProb n γ 0) * v01 ≤ (2 * (1 - γ) ^ n - 1) * v01 :=
+        mul_le_mul_of_nonneg_right (by linarith) hv01_pos.le
+      _ ≤ (2 * (1 - γ) ^ n - 1) * (c / Δ₁ ^ 2) := mul_le_mul_of_nonneg_left hv01_ub (by linarith)
+      _ ≤ 2 * c := by
+        rw [hΔ₁_sq, mul_div_assoc',
+          div_le_iff₀ (mul_pos (pow_pos (by linarith) 2) (pow_pos h1γ _))]
+        linarith [mul_le_mul_of_nonneg_right hineq hc.le]
+  -- Below `v01` compare with inducing nobody; above it, with inducing one agent.
+  rcases le_total v v01 with hv_le | hv_ge
+  · refine le_trans ?_ (mul_le_mul_of_nonneg_left hU0 zero_le_two)
+    rcases le_total (orProb n γ k - 2 * orProb n γ 0) 0 with hneg | hpos
+    · linarith [mul_nonpos_of_nonpos_of_nonneg hneg hv.le, mul_nonneg (Nat.cast_nonneg k) hc.le]
+    · linarith [mul_le_mul_of_nonneg_left hv_le hpos]
+  · refine le_trans ?_ (mul_le_mul_of_nonneg_left hU1 zero_le_two)
+    linarith [mul_nonneg (by linarith : 0 ≤ 2 * orProb n γ 1 - orProb n γ k)
+      (sub_nonneg.mpr hv_ge)]
 
 end AnonymousAndExamples
 

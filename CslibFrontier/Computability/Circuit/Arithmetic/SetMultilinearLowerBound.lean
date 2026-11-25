@@ -189,14 +189,10 @@ theorem IsSetMultilinear.subst {blk : Fin n → Fin d} {blk' : Fin m → Fin d}
     · rw [subst_input, h, ← hρ i j h]
       exact .input j
   | const a =>
-    have h : SPFormula.subst ρ (SPFormula.const a : SPFormula K n) = SPFormula.const a := by
-      rw [subst_gate]
-      congr 1 with j : 1
-      exact j.elim0
-    rw [h]
-    exact .const a
-  | add c F S _ ih => exact .add c _ S ih
-  | mul F T hT _ ih => exact .mul _ T hT ih
+    exact (show SPFormula.subst ρ (.const a) = .const a from
+      congrArg (Formula.gate _) (funext fun j : Fin 0 => j.elim0)).symm ▸ .const a
+  | add c _ S _ ih => exact .add c _ S ih
+  | mul _ T hT _ ih => exact .mul _ T hT ih
 
 end SPFormula
 
@@ -326,10 +322,10 @@ theorem productDepth_immFormula_le [Zero K] [One K] :
 
 /-- The sum over paths is set-multilinear on all blocks of `IMM_{n,d}`. -/
 theorem isSetMultilinear_immFormula [Zero K] [One K] :
-    (immFormula K n d).IsSetMultilinear (fun v => (immVarEquiv n d v).1) Finset.univ := by
-  refine .add _ _ _ fun j => isSetMultilinear_mul_iff.2
-    ⟨fun i => {i}, fun i i' h => Finset.disjoint_singleton.2 h, fun i => ?_, by simp⟩
-  exact isSetMultilinear_input_iff.2 (by simp)
+    (immFormula K n d).IsSetMultilinear (fun v => (immVarEquiv n d v).1) Finset.univ :=
+  .add _ _ _ fun _ => isSetMultilinear_mul_iff.2
+    ⟨fun i => {i}, fun _ _ h => Finset.disjoint_singleton.2 h,
+      fun _ => isSetMultilinear_input_iff.2 (by simp), by simp⟩
 
 /-- The sum over paths computes `IMM_{n,d}` on the numbered variables. -/
 theorem rename_polynomial_immFormula [CommSemiring K] :

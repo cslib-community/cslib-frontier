@@ -73,17 +73,12 @@ private def finOccurrence (r : Rel) (n : ℕ) (i : Fin n) : (finBody r n).Occurr
 
 private theorem incidenceEdgeIndex_finBody (r : Rel) (n : ℕ) (o : (finBody r n).Occurrence) :
     incidenceEdgeIndex o = o.2.val := by
-  have hi : o.1.val = 0 := by
-    have h := o.1.isLt
-    simp only [finBody, List.length_singleton] at h
-    omega
+  have hi : o.1.val = 0 := Nat.lt_one_iff.mp o.1.isLt
   let j : Fin n := ⟨o.2.val, by simpa [finBody, hi] using o.2.isLt⟩
-  have hr : o.record = (0, j.val, j) := by
-    simp [CSP.Occurrence.record, CSP.Occurrence.var, finBody, j]
-  rw [incidenceEdgeIndex, occurrences_finBody, hr]
-  have he := List.idxOf_map_injOn (List.finRange n) (fun i => (0, i.val, i))
-    (fun _ _ _ _ h => congrArg (fun o => o.2.2) h) (List.mem_finRange j)
-  rw [he, List.idxOf_finRange]
+  rw [incidenceEdgeIndex, occurrences_finBody,
+    show o.record = (0, j.val, j) by simp [CSP.Occurrence.record, CSP.Occurrence.var, finBody, j],
+    List.idxOf_map_injOn (List.finRange n) (fun i => (0, i.val, i))
+      (fun _ _ _ _ h => congrArg (·.2.2) h) (List.mem_finRange j), List.idxOf_finRange]
 
 private theorem argumentNextIndex_finBody (r : Rel) (n : ℕ) (i : Fin n) :
     argumentNextIndex (finBody r n) 0 i.val = (finRotate n i).val := by
@@ -121,23 +116,19 @@ theorem incidenceGraph_atom (arity : Rel → ℕ) (sem : Rel → List Bool → B
     incidenceGraph (PPGadget.atom (arity := arity) (sem := sem) r).body = starGraph (arity r) := by
   change incidenceGraph ([⟨r, List.ofFn Sum.inl⟩] : CSP Rel (Fin (arity r) ⊕ Fin 0)) = _
   have he : ([⟨r, List.ofFn Sum.inl⟩] : CSP Rel (Fin (arity r) ⊕ Fin 0)) =
-      (finBody r (arity r)).relabel (Sum.inl : Fin (arity r) → Fin (arity r) ⊕ Fin 0) := by
+      (finBody r (arity r)).relabel Sum.inl := by
     simp [finBody, CSP.relabel, Constraint.relabel, List.ofFn_eq_map]
   rw [he]
-  exact (incidenceGraph_relabel_of_injOn (finBody r (arity r))
-    (Sum.inl : Fin (arity r) → Fin (arity r) ⊕ Fin 0)
-    (fun _ _ _ _ h => Sum.inl.inj h)).trans (incidenceGraph_finBody r (arity r))
+  exact (incidenceGraph_relabel_of_injOn _ _ fun _ _ _ _ h => Sum.inl.inj h).trans
+    (incidenceGraph_finBody r (arity r))
 
 private theorem verifyRotationCertificate_finBody (r : Rel) (n : ℕ) :
     verifyRotationCertificate (finBody r n) (atomBodyCertificate n) = true := by
-  rw [verifyRotationCertificate, incidenceGraph_finBody, Bool.and_eq_true]
-  refine ⟨?_, verifyArgumentOrder_finBody r n⟩
-  unfold atomBodyCertificate
-  apply (Graph.RotationCertificate.verifyGenusZero_eq_true_iff _ _).mpr
-  refine ⟨Graph.RotationCertificate.verifyRotation_ofRotation (starRotation n)
-    (starGraph_endpoints_declared n), ?_⟩
-  rw [Graph.RotationCertificate.decode_ofRotation (starRotation n)
-    (starGraph_endpoints_declared n)]
+  rw [verifyRotationCertificate, incidenceGraph_finBody, atomBodyCertificate, Bool.and_eq_true]
+  refine ⟨(Graph.RotationCertificate.verifyGenusZero_eq_true_iff _ _).mpr
+    ⟨Graph.RotationCertificate.verifyRotation_ofRotation _ (starGraph_endpoints_declared n), ?_⟩,
+    verifyArgumentOrder_finBody r n⟩
+  rw [Graph.RotationCertificate.decode_ofRotation _ (starGraph_endpoints_declared n)]
   exact numericalGenusZero_starRotation _
 
 /-- A single original constraint on distinct scope names has this supplied ordered numerical
@@ -148,10 +139,9 @@ theorem singleScopeCertificate_accepted {V : Type} [DecidableEq V]
   have he : (finBody r scope.length).relabel scope.get = [⟨r, scope⟩] := by
     simp [finBody, CSP.relabel, Constraint.relabel, List.map_get_finRange]
   rw [← he]
-  have hf : Set.InjOn scope.get {i | i ∈ (finBody r scope.length).vars} :=
-    fun _ _ _ _ h => Fin.ext (hn.getElem_inj.mp h)
-  exact (verifyRotationCertificate_relabel_of_injOn (finBody r scope.length) scope.get hf
-    (atomBodyCertificate scope.length)).trans (verifyRotationCertificate_finBody r scope.length)
+  exact (verifyRotationCertificate_relabel_of_injOn _ _
+    (fun _ _ _ _ h => Fin.ext (hn.getElem_inj.mp h)) _).trans
+    (verifyRotationCertificate_finBody r scope.length)
 
 /-- The supplied table passes the actual atom's ordered numerical checker at every arity,
 including zero and one. No planarity or rotation provider is a premise. -/
@@ -160,10 +150,10 @@ theorem atomBodyCertificate_accepted (arity : Rel → ℕ) (sem : Rel → List B
       (atomBodyCertificate (arity r)) = true := by
   change verifyRotationCertificate ([⟨r, List.ofFn Sum.inl⟩] : CSP Rel (Fin (arity r) ⊕ Fin 0))
     (atomBodyCertificate (arity r)) = true
-  rw [List.ofFn_eq_map]
-  change verifyRotationCertificate ((finBody r (arity r)).relabel
-    (Sum.inl : Fin (arity r) → Fin (arity r) ⊕ Fin 0)) (atomBodyCertificate (arity r)) = true
-  rw [verifyRotationCertificate_relabel_of_injOn _ _ (fun _ _ _ _ h => Sum.inl.inj h)]
+  have he : ([⟨r, List.ofFn Sum.inl⟩] : CSP Rel (Fin (arity r) ⊕ Fin 0)) =
+      (finBody r (arity r)).relabel Sum.inl := by
+    simp [finBody, CSP.relabel, Constraint.relabel, List.ofFn_eq_map]
+  rw [he, verifyRotationCertificate_relabel_of_injOn _ _ fun _ _ _ _ h => Sum.inl.inj h]
   exact verifyRotationCertificate_finBody r (arity r)
 
 /-- Every literal original-language atom internally supplies an ordered numerical realization

@@ -133,8 +133,8 @@ theorem isPolyTime_composePosition [Finite I] [Finite P] (number : ComposeSlot I
     (hposition : ComputableInPolyTime position input positionEncoding) :
     ComputableInPolyTime
       (fun x => composePosition number (edge x) (src x) (dst x) (position x)) input encUnary := by
-  apply ComputableInPolyTime.finite_cases
-    (branch := fun p x => composePosition number (edge x) (src x) (dst x) p) hposition
+  refine ComputableInPolyTime.finite_cases
+    (branch := fun p x => composePosition number (edge x) (src x) (dst x) p) hposition ?_
   rintro (⟨b, r⟩ | p)
   · dsimp only [composePosition, Sum.elim_inl]
     split_ifs <;> fun_prop
@@ -155,21 +155,17 @@ theorem isPolyTime_composeEdge [Fintype α] [Finite I] [Finite P] [Finite R] [Fi
     ComputableInPolyTime
       (fun x => composeEdge impl number (edge x) (index x) (coins x) (query x))
       input (Edge.encoding (encTableCoinsQuery coinsEncoding queryEncoding)) := by
-  have hnumber : ComputableInPolyTime (fun ω => (number (.inr (.inr ω))).val)
-      coinsEncoding encUnary := .of_finite _
-  have hposition : ComputableInPolyTime
+  have hpos : ComputableInPolyTime
       (fun p : (α → α → Bool) × R × Q => impl.query p.1 p.2.1 p.2.2)
       (encPair (encPi (encPi encBool)) (encPair coinsEncoding queryEncoding))
       (encFinite ((Fin 2 × I) ⊕ P)) := .of_finite _
-  have hposition' := hposition.comp
-    ((Edge.isPolyTime_constraint hedge).prod (hcoins.prod hquery))
-  have hdst' := isPolyTime_composePosition number hindex (Edge.isPolyTime_src hedge)
-    (Edge.isPolyTime_dst hedge) hposition'
-  exact Edge.isPolyTime_mk
-    (ComputableInPolyTime.unary_add.comp
-      ((ComputableInPolyTime.unary_mul.comp (hindex.prod (.const width))).prod
-        (hnumber.comp hcoins))) hdst'
-    ((Edge.isPolyTime_constraint hedge).prod (hcoins.prod hquery))
+  have htriple := (Edge.isPolyTime_constraint hedge).prod (hcoins.prod hquery)
+  exact Edge.isPolyTime_mk (ComputableInPolyTime.unary_add.comp
+    ((ComputableInPolyTime.unary_mul.comp (hindex.prod (.const width))).prod
+      ((ComputableInPolyTime.of_finite (encOut := encUnary)
+        fun ω => (number (.inr (.inr ω))).val).comp hcoins)))
+    (isPolyTime_composePosition number hindex (Edge.isPolyTime_src hedge)
+      (Edge.isPolyTime_dst hedge) (hpos.comp htriple)) htriple
 
 /-- The verifier's edge predicate charges all supplied finite tables and query answers. -/
 @[fun_prop]
@@ -259,11 +255,9 @@ theorem composeVertex_injective [Nonempty R] {E : Type} (number : ComposeSlot I 
     · rcases h with ⟨rfl, rfl⟩
       rfl
     · rcases h with ⟨h, rfl⟩
-      cases hindex h
-      rfl
+      rw [hindex h]
     · rcases h with ⟨h, rfl⟩
-      cases hindex h
-      rfl
+      rw [hindex h]
   let : NeZero width := (number (.inr (.inr (Classical.arbitrary R)))).neZero
   exact (Nat.divModEquiv width).symm.injective.comp
     ((Equiv.prodCongr (Equiv.refl ℕ) number).injective.comp howner)
@@ -296,26 +290,18 @@ theorem wellFormed_compose (number : ComposeSlot I P R ≃ Fin width)
       (by simpa only [Nat.succ_mul] using Nat.mul_le_mul_right width howner)
   intro edge hedge
   obtain ⟨⟨⟨index, ω⟩, i⟩, hp, rfl⟩ := List.mem_map.mp hedge
-  have hp := (mem_composeDarts_iff coins queries g index ω i).mp hp
-  have heq : g.edgeAt (fun _ _ => false) index = g.edges[index] :=
-    List.getD_eq_getElem _ _ hp.1
-  have he := hg _ (List.getElem_mem hp.1)
-  have hi : index < g.vertices + g.edges.length := hp.1.trans_le (Nat.le_add_left ..)
-  have hsrc : (g.edges[index]).src < g.vertices + g.edges.length :=
-    he.1.trans_le (Nat.le_add_right ..)
-  have hdst : (g.edges[index]).dst < g.vertices + g.edges.length :=
-    he.2.trans_le (Nat.le_add_right ..)
-  constructor
+  obtain ⟨hlt, -, -⟩ := (mem_composeDarts_iff coins queries g index ω i).mp hp
+  have he := hg _ (List.getElem_mem hlt)
+  have hi : index < g.vertices + g.edges.length := hlt.trans_le (Nat.le_add_left ..)
+  refine ⟨hnumber hi _, ?_⟩
+  change composePosition number index _ _ _ < _
+  rw [show g.edgeAt (fun _ _ => false) index = g.edges[index] from List.getD_eq_getElem _ _ hlt]
+  rcases impl.query (g.edges[index]).constraint ω i with ⟨b, r⟩ | q
+  · dsimp only [composePosition, Sum.elim_inl]
+    split_ifs
+    · exact hnumber (he.1.trans_le (Nat.le_add_right ..)) _
+    · exact hnumber (he.2.trans_le (Nat.le_add_right ..)) _
   · exact hnumber hi _
-  · change composePosition number index _ _ _ < _
-    rw [heq]
-    rcases impl.query (g.edges[index]).constraint ω i with
-      ⟨b, r⟩ | q
-    · dsimp only [composePosition, Sum.elim_inl]
-      split_ifs
-      · exact hnumber hsrc _
-      · exact hnumber hdst _
-    · exact hnumber hi _
 
 /-- Listing each coin and query once lists each composed dart once. -/
 theorem nodup_composeDarts (coins : List R) (queries : List Q)
@@ -351,18 +337,13 @@ theorem toGraph_compose (hreal : impl.Realizes T) [BEq Γ] [LawfulBEq Γ]
       ((T.compose (g.toGraph id)).map (composeVertex number Fin.val)).comap
         (composeEnumeration impl number coins queries g hcoins hqueries
           hmemCoins hmemQueries).equiv := by
-  apply toGraph_eq_comap _ _ (composeEnumeration impl number coins queries g hcoins hqueries
-    hmemCoins hmemQueries)
-  · intro p
-    rfl
-  · intro p
-    simp only [composeEdge, edgeAt, List.getD_eq_get, AssignmentTester.compose,
+  refine toGraph_eq_comap _ _ (composeEnumeration impl number coins queries g hcoins hqueries
+    hmemCoins hmemQueries) _ _ (fun _ => rfl) (fun p => ?_) fun p a b => ?_
+  · simp only [composeEdge, edgeAt, List.getD_eq_get, AssignmentTester.compose,
       LocalTest.toConstraintGraph, AssignmentTester.composeTest,
-      LocalTest.mix, LocalTest.map, composeVertex]
-    rw [hreal.query_eq, composePosition_eq]
+      LocalTest.mix, LocalTest.map, composeVertex, hreal.query_eq, composePosition_eq]
     rfl
-  · intro p a b
-    simp only [composeEdge, edgeAt, List.getD_eq_get, AssignmentTester.compose,
+  · simp only [composeEdge, edgeAt, List.getD_eq_get, AssignmentTester.compose,
       LocalTest.toConstraintGraph, AssignmentTester.composeTest, LocalTest.mix, LocalTest.map,
       composeEval, Bool.and_eq_true, beq_iff_eq, hreal.accepts_eq_true,
       toGraph, id_eq]

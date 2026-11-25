@@ -42,21 +42,12 @@ whose weight is `λ(s, t)`. -/
 theorem isMinCutBetween_cutWeight_iff_minRealCutBetween (W : V → V → K) {s t : V} {X : Finset V} :
     IsMinCutBetween (cutWeight W) s t X ↔
       s ∈ X ∧ t ∉ X ∧ cutWeight W X = minRealCutBetween W s t := by
-  constructor
-  · intro h
-    refine ⟨h.left_mem, h.right_notMem, ?_⟩
-    apply le_antisymm
-    · by_cases hst : s = t
-      · rcases hst with rfl
-        exact (h.right_notMem h.left_mem).elim
-      · obtain ⟨Y, hs, ht, hY⟩ := exists_cutWeight_eq_minRealCutBetween W hst
-        rw [← hY]
-        exact h.le hs ht
-    · exact minRealCutBetween_le_cutWeight W h.left_mem h.right_notMem
-  · rintro ⟨hs, ht, hX⟩
-    refine ⟨hs, ht, fun Y hsY htY => ?_⟩
-    rw [hX]
-    exact minRealCutBetween_le_cutWeight W hsY htY
+  refine ⟨fun h => ⟨h.left_mem, h.right_notMem, le_antisymm ?_
+    (minRealCutBetween_le_cutWeight W h.left_mem h.right_notMem)⟩,
+    fun ⟨hs, ht, hX⟩ => ⟨hs, ht, fun Y hsY htY => hX ▸ minRealCutBetween_le_cutWeight W hsY htY⟩⟩
+  obtain ⟨Y, hs, ht, hY⟩ := exists_cutWeight_eq_minRealCutBetween W
+    fun hst : s = t => h.right_notMem (hst ▸ h.left_mem)
+  exact hY ▸ h.le hs ht
 
 end Cslib.WeightedCut
 
@@ -123,6 +114,5 @@ theorem card_image_minRealCutBetween_le {W : V → V → K} (hWs : ∀ u v, W u 
     _ ≤ T.edgeFinset.card := Finset.card_image_le
     _ = Fintype.card V - 1 := by
       omega
-
 
 end Cslib.Algorithms.Lean.GomoryHu

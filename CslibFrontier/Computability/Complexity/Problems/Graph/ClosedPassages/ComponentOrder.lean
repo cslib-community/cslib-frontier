@@ -36,23 +36,6 @@ namespace Cslib.Complexity.Graph.ClosedPassages
 
 open Cslib.Polygonal
 
-private theorem regular_edge_endpoints_ne {G : Graph} {D : PolygonalDrawing G}
-    (hreg : D.HasRegularContacts) (e : Fin G.edges.length) :
-    Dart.vertex (G := G) (e, false) ≠ Dart.vertex (e, true) := by
-  intro he
-  have hend : (D.route e).endpoint false = (D.route e).endpoint true := by
-    rw [D.endpoint_eq, D.endpoint_eq, he]
-  change (D.route e).point 0 = (D.route e).point (Fin.last (D.route e).segments) at hend
-  have hval := congrArg Fin.val (hreg.points_injective e hend)
-  exact Nat.succ_ne_zero _ hval.symm
-
-private theorem regular_dart_endpoints_ne {G : Graph} {D : PolygonalDrawing G}
-    (hreg : D.HasRegularContacts) (d : Dart G) : d.reverse.vertex ≠ d.vertex := by
-  obtain ⟨e, tag⟩ := d
-  cases tag
-  · exact (regular_edge_endpoints_ne hreg e).symm
-  · exact regular_edge_endpoints_ne hreg e
-
 private theorem not_alternates_of_passages_meeting_at {G : Graph}
     {D : PolygonalDrawing G} {r : RotationSystem G} {v : ℕ}
     (hR : D.Realizes r) (hreg : D.HasRegularContacts)
@@ -69,7 +52,7 @@ private theorem not_alternates_of_passages_meeting_at {G : Graph}
     (hmeet : ∀ e f : Dart G, x e.1 = true → y f.1 = true → e.vertex = f.vertex → e.vertex = v) :
     ¬r.Alternates (P.dart i false) (P.dart i true) (Q.dart j false) (Q.dart j true) := by
   have hdisjoint (e : Fin G.edges.length) (he : x e = true) (hf : y e = true) : False := by
-    exact regular_edge_endpoints_ne hreg e ((hmeet (e, false) (e, false) he hf rfl).trans
+    exact hreg.reverse_vertex_ne (e, true) ((hmeet (e, false) (e, false) he hf rfl).trans
       (hmeet (e, true) (e, true) he hf rfl).symm)
   exact P.not_alternates_of_unique_shared_passages Q hR hreg hsimple hvertices hdeclared
     hdisjoint (fun e f he hf => heven e f (fun h => hdisjoint e he (h ▸ hf))
@@ -98,21 +81,16 @@ theorem not_alternates_of_disjoint_induced_paths {G : Graph}
     (hreach₂ : (G.toSimpleGraph.induce T).Reachable
       ⟨c.reverse.vertex, hc'⟩ ⟨d.reverse.vertex, hd'⟩) : ¬r.Alternates a b c d := by
   intro halt
-  have hports := halt
-  obtain ⟨hab, hcd, _, _, _, _, hvab, hvcd, hvac, _⟩ := hports
+  have ⟨hab, hcd, _, _, _, _, hvab, hvcd, hvac, _⟩ := halt
   have hc := hvac.symm.trans ha
   obtain ⟨x, P, i, hPa, hPb, hPi, hPx⟩ :=
     exists_through_darts_of_induced_reachable hvS a b ha (hvab.symm.trans ha) hab ha' hb' hreach₁
   obtain ⟨y, Q, j, hQc, hQd, hQj, hQy⟩ :=
     exists_through_darts_of_induced_reachable hvT c d hc (hvcd.symm.trans hc) hcd hc' hd' hreach₂
-  have hmeet (e f : Dart G) (he : x e.1 = true) (hf : y f.1 = true)
-      (hef : e.vertex = f.vertex) : e.vertex = v := by
-    by_contra hn
-    obtain ⟨heS, _⟩ := hPx e he hn
-    obtain ⟨hfT, _⟩ := hQy f hf (hef ▸ hn)
-    exact Set.disjoint_left.mp hST heS (hef.symm ▸ hfT)
-  exact not_alternates_of_passages_meeting_at hR hreg hsimple hvertices hdeclared heven
-    P Q i j hPi hQj hmeet (by rwa [hPa, hPb, hQc, hQd])
+  refine not_alternates_of_passages_meeting_at hR hreg hsimple hvertices hdeclared heven
+    P Q i j hPi hQj (fun e f he hf hef => by_contra fun hn =>
+      Set.disjoint_left.mp hST (hPx e he hn).1 (hef.symm ▸ (hQy f hf (hef ▸ hn)).1)) ?_
+  rwa [hPa, hPb, hQc, hQd]
 
 /-- At `v`, darts into one component after deleting `u` and `v` cannot alternate
 with two darts outside that component if both of their opposite ends can reach `u` in
@@ -143,34 +121,25 @@ theorem not_alternates_of_component_after_deleting_pair {G : Graph}
   let W := Subtype.val '' C.supp
   let S : Set ℕ := Subtype.val '' W
   let T : Set ℕ := Subtype.val '' Wᶜ
-  have hvS : v ∉ S := fun ⟨x, _, hx⟩ => x.property hx
-  have hvT : v ∉ T := fun ⟨x, _, hx⟩ => x.property hx
-  have hST : Disjoint S T := by
-    refine Set.disjoint_left.mpr ?_
-    rintro z ⟨x, hx, hzx⟩ ⟨y, hy, hzy⟩
-    have hxy : x = y := Subtype.ext (hzx.trans hzy.symm)
-    exact hy (hxy ▸ hx)
-  let projection : (K.induce {w | w ≠ u}) →g G.toSimpleGraph :=
-    ⟨fun w => w.val.val, fun h => h⟩
+  have hST : Disjoint S T := Set.disjoint_left.mpr fun _ ⟨x, hx, hzx⟩ ⟨y, hy, hzy⟩ =>
+    hy (Subtype.ext (hzx.trans hzy.symm) ▸ hx)
+  let projection : (K.induce {w | w ≠ u}) →g G.toSimpleGraph := ⟨fun w => w.val.val, fun h => h⟩
   let outside : K.induce Wᶜ →g G.toSimpleGraph.induce T :=
-    { toFun := fun x => ⟨x.val.val, ⟨x.val, x.property, rfl⟩⟩
-      map_rel' := fun h => h }
-  have hP : (G.toSimpleGraph.induce S).Reachable
-      ⟨a.reverse.vertex, haS⟩ ⟨b.reverse.vertex, hbS⟩ := by
-    have transport (U : Set ℕ) (hU : U = projection '' C.supp)
-        (h₁ : a.reverse.vertex ∈ U) (h₂ : b.reverse.vertex ∈ U) :
-        (G.toSimpleGraph.induce U).Reachable ⟨a.reverse.vertex, h₁⟩ ⟨b.reverse.vertex, h₂⟩ := by
-      subst U
-      exact C.reachable_induce_image projection h₁ h₂
-    exact transport S (Set.image_image _ _ _) haS hbS
+    ⟨fun x => ⟨x.val.val, ⟨x.val, x.property, rfl⟩⟩, fun h => h⟩
+  have transport (U : Set ℕ) (hU : U = projection '' C.supp) (h₁ : a.reverse.vertex ∈ U)
+      (h₂ : b.reverse.vertex ∈ U) :
+      (G.toSimpleGraph.induce U).Reachable ⟨a.reverse.vertex, h₁⟩ ⟨b.reverse.vertex, h₂⟩ := by
+    subst U
+    exact C.reachable_induce_image projection h₁ h₂
+  have hP := transport S (Set.image_image _ _ _) haS hbS
   have hcW : (⟨c.reverse.vertex, hc⟩ : {w : ℕ // w ≠ v}) ∉ W :=
     fun h => hcS ⟨⟨c.reverse.vertex, hc⟩, h, rfl⟩
   have hdW : (⟨d.reverse.vertex, hd⟩ : {w : ℕ // w ≠ v}) ∉ W :=
     fun h => hdS ⟨⟨d.reverse.vertex, hd⟩, h, rfl⟩
-  have hQ := ((hcu.avoiding_component_after_delete C hcW).trans
-    (hdu.avoiding_component_after_delete C hdW).symm).map outside
   exact not_alternates_of_disjoint_induced_paths hR hreg hsimple hvertices hdeclared heven
-    hvS hvT hST ha haS hbS ⟨_, hcW, rfl⟩ ⟨_, hdW, rfl⟩ hP hQ
+    (S := S) (T := T) (fun ⟨x, _, hx⟩ => x.property hx) (fun ⟨x, _, hx⟩ => x.property hx) hST ha
+    haS hbS ⟨_, hcW, rfl⟩ ⟨_, hdW, rfl⟩ hP (((hcu.avoiding_component_after_delete C hcW).trans
+      (hdu.avoiding_component_after_delete C hdW).symm).map outside)
 
 /-- Darts into one separating component form a single interval starting from any outside
 cut dart. The outside darts must reach the other separator after deleting the current
@@ -237,8 +206,8 @@ theorem exists_separating_component_rank_interval {G : Graph}
     have hbOutside : b ∉ r.rotationInterval o d :=
       fun he => (not_lt_of_ge hgt.le)
         ((r.mem_rotationInterval_iff_lt_distance o b d hob hod hbo.symm hbd hod').mp he)
-    have ho' : o.reverse.vertex ≠ v := ho ▸ regular_dart_endpoints_ne hreg o
-    have hd' : d.reverse.vertex ≠ v := hd ▸ regular_dart_endpoints_ne hreg d
+    have ho' : o.reverse.vertex ≠ v := ho ▸ hreg.reverse_vertex_ne o
+    have hd' : d.reverse.vertex ≠ v := hd ▸ hreg.reverse_vertex_ne d
     apply not_alternates_of_component_after_deleting_pair hR hreg hsimple hvertices
       hdeclared heven u C ha haC hbC hoC hdC ho' hd'
       (hreach o ho hoC ho') (hreach d hd hdC hd')
@@ -266,24 +235,17 @@ theorem not_alternates_of_distinct_components_away {G : Graph}
     (hsep : ¬ (G.toSimpleGraph.induce {w | w ≠ v}).Reachable
       ⟨a.reverse.vertex, ha'⟩ ⟨c.reverse.vertex, hc'⟩) : ¬ r.Alternates a b c d := by
   intro halt
-  have hports := halt
-  obtain ⟨hab, hcd, _, _, _, _, hvab, hvcd, hvac, _⟩ := hports
+  have ⟨hab, hcd, _, _, _, _, hvab, hvcd, hvac, _⟩ := halt
   have hc := hvac.symm.trans ha
   obtain ⟨x, P, i, hPa, hPb, hPi, hPx⟩ :=
     exists_through_darts_of_reachable a b ha (hvab.symm.trans ha) hab ha' hb' hreach₁
   obtain ⟨y, Q, j, hQc, hQd, hQj, hQy⟩ :=
     exists_through_darts_of_reachable c d hc (hvcd.symm.trans hc) hcd hc' hd' hreach₂
-  have hmeet (e f : Dart G) (he : x e.1 = true) (hf : y f.1 = true)
-      (hef : e.vertex = f.vertex) : e.vertex = v := by
-    by_contra hn
-    have hn' : f.vertex ≠ v := hef ▸ hn
-    have hp := hPx e he hn
-    have hq := hQy f hf hn'
-    have hsame : (⟨e.vertex, hn⟩ : {w : ℕ // w ≠ v}) = ⟨f.vertex, hn'⟩ := Subtype.ext hef
-    rw [← hsame] at hq
-    exact hsep (hp.trans hq.symm)
-  exact not_alternates_of_passages_meeting_at hR hreg hsimple hvertices hdeclared heven
-    P Q i j hPi hQj hmeet (by rwa [hPa, hPb, hQc, hQd])
+  refine not_alternates_of_passages_meeting_at hR hreg hsimple hvertices hdeclared heven
+    P Q i j hPi hQj (fun e f he hf hef => by_contra fun hn => ?_) (by rwa [hPa, hPb, hQc, hQd])
+  have hq := hQy f hf (hef ▸ hn)
+  rw [← (Subtype.ext hef : (⟨e.vertex, hn⟩ : {w : ℕ // w ≠ v}) = ⟨f.vertex, hef ▸ hn⟩)] at hq
+  exact hsep ((hPx e he hn).trans hq.symm)
 
 /-- At a vertex incident with an edge, one component of the vertex-deleted graph occupies
 an interval of the literal clockwise port ranks. Crossings must be even between distinct
@@ -310,7 +272,7 @@ theorem exists_consecutive_component_darts {G : Graph}
     else none
   have avoid (d : Dart G) (hd : d.vertex = v) : d.reverse.vertex ≠ v := by
     rw [← hd]
-    exact regular_dart_endpoints_ne hreg d
+    exact hreg.reverse_vertex_ne d
   have same (d e : Dart G) (hd : d.reverse.vertex ≠ v) (he : e.reverse.vertex ≠ v) :
       color d = color e ↔ K.Reachable ⟨d.reverse.vertex, hd⟩ ⟨e.reverse.vertex, he⟩ := by
     simp only [color, dite_eq_left hd, dite_eq_left he, Option.some.injEq]

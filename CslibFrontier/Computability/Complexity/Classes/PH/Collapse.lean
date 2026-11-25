@@ -85,12 +85,10 @@ variable {α : Type} {enc : α ↪ List Bool}
 /-- A word of length `a + b` is a word of length `a` followed by one of length `b`. -/
 private theorem exists_length_add_iff {a b : ℕ} {P : List Bool → Prop} :
     (∃ w : List Bool, w.length = a + b ∧ P w) ↔
-      ∃ u : List Bool, u.length = a ∧ ∃ v : List Bool, v.length = b ∧ P (u ++ v) := by
-  constructor
-  · rintro ⟨w, hw, hP⟩
-    refine ⟨w.take a, by simp [hw], w.drop a, by simp [hw], by rwa [List.take_append_drop]⟩
-  · rintro ⟨u, hu, v, hv, hP⟩
-    exact ⟨u ++ v, by simp [hu, hv], hP⟩
+      ∃ u : List Bool, u.length = a ∧ ∃ v : List Bool, v.length = b ∧ P (u ++ v) :=
+  ⟨fun ⟨w, hw, hP⟩ =>
+    ⟨w.take a, by simp [hw], w.drop a, by simp [hw], by rwa [List.take_append_drop]⟩,
+   fun ⟨u, hu, v, hv, hP⟩ => ⟨u ++ v, by simp [hu, hv], hP⟩⟩
 
 /-- **`Σₖ` is closed under polynomially bounded existential quantification**, for `k ≥ 1`: if
 `B ∈ Σₖ` as a problem on pairs of an instance and a word, then so is its projection along words of
@@ -115,29 +113,27 @@ theorem mem_SigmaP_of_exists {k : ℕ} (hk : 1 ≤ k) {B : Set (α × List Bool)
       ((ComputableInPolyTime.unary_eval p).comp
         (ComputableInPolyTime.encoding_length enc)).comp (.fst _ _)
     exact hV'.comp (((ComputableInPolyTime.fst _ _).prod
-      (ComputableInPolyTime.bitsTakeWithInput (.snd _ _) hn)).prod
-        (ComputableInPolyTime.bitsDropWithInput (.snd _ _) hn))
+      (.bitsTakeWithInput (.snd _ _) hn)).prod (.bitsDropWithInput (.snd _ _) hn))
   · simp only [Set.mem_ofPred_eq, List.map_cons, alternation_true_cons, Polynomial.eval_add,
-      Polynomial.eval_comp, List.map_map, Function.comp_def]
-    rw [exists_length_add_iff]
+      Polynomial.eval_comp, List.map_map, Function.comp_def, exists_length_add_iff]
     refine exists_congr fun w => and_congr_right fun hw => ?_
     have hmem := hB' (a, w)
     simp only [List.map_cons, alternation_true_cons, hL a w hw] at hmem
     rw [hmem]
-    refine exists_congr fun v => and_congr_right fun hv => alternation_congr fun u => ?_
-    simp [hw, List.append_assoc]
+    exact exists_congr fun _ => and_congr_right fun _ => alternation_congr fun _ => by
+      simp [hw, List.append_assoc]
 
 /-- **`Σₖ₊₁` consists of the projections of `Πₖ`**: the problems `{a | ∃ w, |w| = p |enc a| ∧
 (a, w) ∈ B}` for a polynomial `p` and a problem `B` in `Πₖ` on pairs of an instance and a word. -/
 theorem mem_SigmaP_succ_iff {k : ℕ} {A : Set α} :
     A ∈ SigmaP (k + 1) enc ↔ ∃ (p : Polynomial ℕ) (B : Set (α × List Bool)),
       B ∈ PiP k (encPair enc encBits) ∧
-        A = {a | ∃ w : List Bool, w.length = p.eval (enc a).length ∧ (a, w) ∈ B} := by
-  refine ⟨fun hA => ?_, ?_⟩
-  · obtain ⟨p, B, hB, hAB⟩ := exists_mem_PiP_of_mem_SigmaP_succ hA
-    exact ⟨p, B, hB, Set.ext hAB⟩
-  · rintro ⟨p, B, hB, rfl⟩
-    exact mem_SigmaP_of_exists (Nat.le_add_left 1 k) (PiP_subset_SigmaP_succ k hB) p
+        A = {a | ∃ w : List Bool, w.length = p.eval (enc a).length ∧ (a, w) ∈ B} :=
+  ⟨fun hA =>
+    let ⟨p, B, hB, hAB⟩ := exists_mem_PiP_of_mem_SigmaP_succ hA
+    ⟨p, B, hB, Set.ext hAB⟩,
+   fun ⟨p, _, hB, hA⟩ =>
+    hA ▸ mem_SigmaP_of_exists (Nat.le_add_left 1 k) (PiP_subset_SigmaP_succ k hB) p⟩
 
 /-- **One level of the collapse.** If `Πₖ ⊆ Σₖ` for problems on pairs of an instance and a word,
 for some `k ≥ 1`, then `Σₖ₊₁ ⊆ Σₖ`: the pairs `(a, w₁)` from which the last `k` quantifiers
@@ -163,14 +159,13 @@ theorem PH_eq_SigmaP_of_PiP_subset_SigmaP {k : ℕ} (hk : 1 ≤ k)
   have hlevel (j : ℕ) :
       ∀ {β : Type} (encB : β ↪ List Bool), SigmaP (k + j) encB ⊆ SigmaP k encB := by
     induction j with
-    | zero => intro β encB; exact le_rfl
+    | zero => exact fun _ => le_rfl
     | succ j ih =>
-      intro β encB
-      refine (SigmaP_succ_subset_SigmaP (k := k + j) (by omega) fun A hA => ?_).trans
+      refine fun encB => (SigmaP_succ_subset_SigmaP (k := k + j) (by omega) fun A hA => ?_).trans
         (ih encB)
       -- `Πₖ₊ⱼ` is the complement of `Σₖ₊ⱼ ⊆ Σₖ`, within `Πₖ ⊆ Σₖ ⊆ Σₖ₊ⱼ`
-      have hc : Aᶜ ∈ SigmaP k _ := ih _ (compl_mem_SigmaP_iff.mpr hA)
-      exact SigmaP_mono (Nat.le_add_right k j) (h _ (compl_mem_SigmaP_iff.mp hc))
+      exact SigmaP_mono (Nat.le_add_right k j)
+        (h _ (compl_mem_SigmaP_iff.mp (ih _ (compl_mem_SigmaP_iff.mpr hA))))
   refine Set.Subset.antisymm (Set.iUnion_subset fun j => ?_) (SigmaP_subset_PH k)
   rcases le_total j k with hj | hj
   · exact SigmaP_mono hj
@@ -183,8 +178,7 @@ theorem PH_eq_NP_of_coNP_subset_NP (h : ∀ {β : Type} (encB : β ↪ List Bool
     PH enc = NP enc := by
   rw [← SigmaP_one]
   exact PH_eq_SigmaP_of_PiP_subset_SigmaP le_rfl fun encB => by
-    rw [PiP_one_eq_coNP, SigmaP_one]
-    exact h encB
+    simpa only [PiP_one_eq_coNP, SigmaP_one] using h encB
 
 /-- **`P = NP` collapses the polynomial hierarchy to `P`** [Arora and Barak, Theorem 5.4]
 [AroraBarak09]: then `coNP ⊆ NP`, since `P` is closed under complement. -/
@@ -192,11 +186,10 @@ theorem PH_eq_P_of_NP_subset_P (h : ∀ {β : Type} (encB : β ↪ List Bool), N
     PH enc = P enc := by
   have hNP : ∀ {β : Type} (encB : β ↪ List Bool), NP encB = P encB := fun encB =>
     (h encB).antisymm (SigmaP_one ▸ SigmaP_zero ▸ SigmaP_mono (Nat.zero_le 1))
-  rw [PH_eq_NP_of_coNP_subset_NP fun encB A hA => ?_, hNP]
+  rw [PH_eq_NP_of_coNP_subset_NP fun encB _ hA => ?_, hNP]
   obtain ⟨f, hf, hfA⟩ := h encB hA
-  rw [hNP]
-  exact ⟨fun a => !f a, (ComputableInPolyTime.bool_not.comp hf), fun a => by
-    simpa using (hfA a).not⟩
+  exact hNP encB ▸ ⟨fun a => !f a, ComputableInPolyTime.bool_not.comp hf,
+    fun a => by simpa using (hfA a).not⟩
 
 /-- **`Σₖ₊₁ ⊆ Σₖ` collapses the polynomial hierarchy to `Σₖ`**, for every `k`: then
 `Πₖ ⊆ Σₖ₊₁ ⊆ Σₖ`, and for `k = 0` the hypothesis is `NP ⊆ P`. -/
@@ -260,12 +253,9 @@ theorem mem_PiP_iff_exists_encBits {k : ℕ} {A : Set α} :
 theorem mem_PH_iff_exists_encBits {A : Set α} :
     A ∈ PH enc ↔ ∃ B ∈ PH encBits, enc ⁻¹' B = A := by
   simp only [mem_PH]
-  constructor
-  · rintro ⟨k, hA⟩
-    obtain ⟨B, hB, hBA⟩ := exists_mem_SigmaP_encBits_preimage hA
-    exact ⟨B, ⟨k, hB⟩, hBA⟩
-  · rintro ⟨B, ⟨k, hB⟩, hBA⟩
-    exact hBA ▸ ⟨k, preimage_enc_mem_SigmaP hB⟩
+  refine ⟨fun ⟨k, hA⟩ => ?_, fun ⟨_, ⟨k, hB⟩, hBA⟩ => hBA ▸ ⟨k, preimage_enc_mem_SigmaP hB⟩⟩
+  obtain ⟨B, hB, hBA⟩ := exists_mem_SigmaP_encBits_preimage hA
+  exact ⟨B, ⟨k, hB⟩, hBA⟩
 
 /-- **`Πₖ ⊆ Σₖ` on bit strings transfers to every instance encoding.** -/
 theorem PiP_encBits_subset_SigmaP_iff {k : ℕ} :

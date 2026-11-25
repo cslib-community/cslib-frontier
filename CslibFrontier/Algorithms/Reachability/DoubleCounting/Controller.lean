@@ -156,38 +156,24 @@ theorem scanNextRound_correct {m : Type → Type} [Monad m] [LawfulMonad m] {n :
         mem_round, reachableWithin_succ, Set.mem_union, Set.mem_ofPred_eq]
       simp only [← mem_round, hv, false_or]
   have hsum : (∑ v, if p v = 0 then 0 else 1) = (frontier r w).card := by
-    have hfilter : (univ.filter fun v => p v ≠ 0) = frontier r w := by
-      ext v
-      simpa using hfront v
-    rw [← hfilter, card_eq_sum_ones, sum_filter]
-    apply sum_congr rfl
-    intro v _
-    by_cases h : p v = 0 <;> simp [h]
+    rw [← show (univ.filter fun v => p v ≠ 0) = frontier r w by ext v; simpa using hfront v,
+      card_filter]
+    exact sum_congr rfl fun _ _ => by simp
   obtain ⟨hc, hs, hb⟩ := foldl_update p k init
   refine ⟨a, ?_, ?_, ?_⟩
   · rw [scanNextRound, funext fun x => funext (hstep x), Fin.foldlM_pure]
-  · rw [← nextTally_eq_expected hpass]
-    cases ha : a.tally with
-    | mk count lengthSum =>
-      change a.tally.count = _ at hc
-      change a.tally.lengthSum = _ at hs
-      simp only [ha, hsum] at hc hs
-      rw [hc, hs]
-      rfl
+  · rw [← nextTally_eq_expected hpass, nextTally, ← hsum]
+    exact congrArg₂ Tally.mk hc hs
   · rw [← Bool.not_eq_true, hb, existsUnique_passes_succ_iff hpass hw]
     simp only [init, Bool.false_eq_true, false_or, not_exists, Nat.not_lt]
     refine ⟨fun h v hv => ?_, fun h v => ?_⟩
-    · have hpos : 0 < p v := Nat.pos_of_ne_zero ((hfront v).mpr hv)
-      have hold := ((mem_frontier_iff hpass).mp hv).2
-      have heq : p v = 1 := Nat.le_antisymm (h v) hpos
-      simpa [p, predecessorCount, hold, card_eq_one_iff_existsUnique] using heq
+    · simpa [p, predecessorCount, ((mem_frontier_iff hpass).mp hv).2,
+        card_eq_one_iff_existsUnique] using
+        Nat.le_antisymm (h v) (Nat.pos_of_ne_zero ((hfront v).mpr hv))
     · by_cases hv : v ∈ frontier r w
-      · have hold := ((mem_frontier_iff hpass).mp hv).2
-        have heq : p v = 1 := by
-          simpa [p, predecessorCount, hold, card_eq_one_iff_existsUnique] using h v hv
-        omega
-      · have hz : p v = 0 := by simpa using mt (hfront v).mp hv
-        omega
+      · exact le_of_eq (by simpa [p, predecessorCount, ((mem_frontier_iff hpass).mp hv).2,
+          card_eq_one_iff_existsUnique] using h v hv)
+      · exact (Decidable.of_not_not (mt (hfront v).mp hv)).le.trans (Nat.zero_le 1)
 
 /-- A terminal verdict distinguishes a tied graph from a reachability answer. -/
 inductive ControllerVerdict where
@@ -207,19 +193,12 @@ abbrev ControllerVerdict.Correct {n : ℕ} (r : Fin n → Fin n → Prop) (s tar
 /-- Two verdicts satisfying the exact controller specification agree. -/
 theorem ControllerVerdict.Correct.eq {n : ℕ} {r : Fin n → Fin n → Prop} {s target : Fin n}
     {a b : ControllerVerdict} (ha : a.Correct r s target) (hb : b.Correct r s target) : a = b := by
-  cases a with
-  | bad i =>
-    cases b with
-    | bad j =>
-      congr 1
-      exact le_antisymm (le_of_not_gt fun h => hb.2 (ha.1 j h))
-        (le_of_not_gt fun h => ha.2 (hb.1 i h))
-    | decided hit => exact (ha.2 (hb.1 i)).elim
-  | decided hit =>
-    cases b with
-    | bad j => exact (hb.2 (ha.1 j)).elim
-    | decided answer =>
-      exact congrArg ControllerVerdict.decided (Bool.eq_iff_iff.mpr (ha.2.trans hb.2.symm))
+  cases a <;> cases b
+  · exact congrArg _ (le_antisymm (le_of_not_gt fun h => hb.2 (ha.1 _ h))
+      (le_of_not_gt fun h => ha.2 (hb.1 _ h)))
+  · exact (ha.2 (hb.1 _)).elim
+  · exact (hb.2 (ha.1 _)).elim
+  · exact congrArg _ (Bool.eq_iff_iff.mpr (ha.2.trans hb.2.symm))
 
 /-- Run the fuel-bounded controller with a supplied round and final membership action. -/
 @[expose] def runRoundsWith {m : Type → Type} [Monad m]
@@ -253,9 +232,7 @@ private theorem stable_of_count_eq {n : ℕ} {r : Fin n → Fin n → Prop}
   have heq : round r s k = round r s (k + 1) :=
     eq_of_subset_of_card_le (fun _ hv => mem_round.mpr
       (reachableWithin_mono (Nat.le_succ k) (mem_round.mp hv))) h.le
-  apply reachableWithin_eq_of_succ_eq
-  ext v
-  simp only [← mem_round, heq]
+  exact reachableWithin_eq_of_succ_eq (by ext v; simp only [← mem_round, heq])
 
 private theorem round_stable_of_size_le {n : ℕ} {r : Fin n → Fin n → Prop}
     {s : Fin n} {k : ℕ} (h : n ≤ k + 1) :
@@ -290,9 +267,8 @@ private theorem runRounds_correct {m : Type → Type} [Monad m] [LawfulMonad m] 
     obtain ⟨a, ha, ht, hb⟩ := scanNextRound_correct he (hm k hk) hk
     cases hbad : a.bad with
     | true =>
-      refine ⟨.bad (k + 1), by simp [runRounds, runRoundsWith, ha, hbad],
-        fun i hi => hgood i (by omega), ?_⟩
-      exact fun h => by simpa [hbad] using hb.mpr h
+      exact ⟨.bad (k + 1), by simp [runRounds, runRoundsWith, ha, hbad],
+        fun i hi => hgood i (by omega), fun h => by simpa [hbad] using hb.mpr h⟩
     | false =>
       by_cases hs : (expected r s (k + 1)).count = (expected r s k).count
       · have hstable := stable_of_count_eq hs
@@ -300,18 +276,13 @@ private theorem runRounds_correct {m : Type → Type} [Monad m] [LawfulMonad m] 
         · simp [runRounds, runRoundsWith, ha, hbad, ht, hs, hm k hk]
         · intro j
           rw [existsUnique_passes_iff]
-          intro v hv
-          have hr := reachableWithin_subset_setOf_reflTransGen (mem_round.mp hv)
-          exact (existsUnique_passes_iff.mp hk) v (mem_round.mpr (hstable ▸ hr))
+          exact fun v hv => (existsUnique_passes_iff.mp hk) v
+            (mem_round.mpr (hstable ▸ reachableWithin_subset_setOf_reflTransGen (mem_round.mp hv)))
         · simp only [decide_eq_true_eq, mem_round, hstable, Set.mem_ofPred_eq]
       · have hsize := radius_succ_lt_of_expected_count_ne hs
-        have hgood' (j : ℕ) (hj : j ≤ k + 1) : ∃! w, Passes r s j w := by
-          rcases Nat.eq_or_lt_of_le hj with rfl | hj
-          · exact hb.mp hbad
-          · exact hgood j (by omega)
-        obtain ⟨verdict, hv, hspec⟩ := ih (k + 1) (by omega) (by omega) hgood'
-        simp only [runRounds] at hv
-        exact ⟨verdict, by simp [runRounds, runRoundsWith, ha, hbad, ht, hs, hv], hspec⟩
+        obtain ⟨verdict, hv, hspec⟩ := ih (k + 1) (by omega) (by omega)
+          fun j hj => (Nat.eq_or_lt_of_le hj).elim (· ▸ hb.mp hbad) fun hj => hgood j (by omega)
+        exact ⟨verdict, by simpa [runRounds, runRoundsWith, ha, hbad, ht, hs] using hv, hspec⟩
 
 /-- Under the adjacency and unique membership-replay contracts, the controller returns the
 first nonunique round, or the reachability answer when all rounds are unique. Fuel suffices

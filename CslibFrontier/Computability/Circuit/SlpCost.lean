@@ -22,8 +22,9 @@ import Mathlib.Tactic.Ring
 
 `Cslib.Circuits.SlpN inp p H`: the functions of `H` are computed by a straight-line program with
 `p` gates over all operations on `Fin D` (`fullSignature 2 (Fin D)`), from the inputs `inp`. Gates
-are added one at a time (`Cslib.Circuits.SlpN.snoc`), and the inputs take one gate each
-(`Cslib.Circuits.SlpN.inputs`).
+are added one at a time (`Cslib.Circuits.SlpN.snoc`), the inputs take one gate each
+(`Cslib.Circuits.SlpN.inputs`), and a program runs unchanged over a larger alphabet
+(`Cslib.Circuits.SlpN.castLE`).
 
 `Cslib.Circuits.Cost D A c h` is the calculus on top: `h` is computed in `c` further gates from the
 functions of `A`, by constants and binary operations whose values stay below `D`. It is turned into
@@ -37,12 +38,12 @@ relations, connectives, bounded quantifiers and choice (`Cslib.Circuits.Cost.ite
 
 ## Main results
 
-* `Cslib.Circuits.SlpN.snoc`, `SlpN.le`, `SlpN.inputs`, `Cost.run`, `SlpN.stage`.
+* `Cslib.Circuits.SlpN.snoc`, `SlpN.le`, `SlpN.castLE`, `SlpN.inputs`, `Cost.run`, `SlpN.stage`.
 
 ## References
 
 * [Anthropic, *VP ≠ VNP over every field*, paper and Lean formalization][AnthropicVPVNP2026],
-  module `Nc.SlpCalc`
+  modules `Nc.SlpCalc` and `Paper.HeavyProg` (`slp_cast`)
 -/
 
 public section
@@ -102,6 +103,49 @@ theorem SlpN.le (hD : 0 < D) {p q : ℕ} (hpq : p ≤ q) {H : Set (Inp → ℕ)}
   | base => exact h
   | succ q _ ih =>
     exact (ih.snoc (fun _ => ⟨0, hD⟩) (Or.inr (Or.inl ⟨_, rfl⟩))).mono (Set.subset_insert _ _)
+
+/-- A larger alphabet: the gates of a program over `Fin D` compute the same numbers over `Fin D'`,
+for `D ≤ D'`, from inputs with the same values. -/
+theorem SlpN.castLE {D' : ℕ} (hD : D ≤ D') {inp' : Fin n → Inp → Fin D'}
+    (hinp : ∀ i x, (inp' i x : ℕ) = inp i x) {p : ℕ} {H : Set (Inp → ℕ)} (h : SlpN inp p H) :
+    SlpN inp' p H := by
+  obtain ⟨P, hP⟩ := h
+  suffices ∃ P' : Program (fullSignature 2 (Fin D')) n p, ∀ k x,
+      ((P'.eval fullInterpretation (fun i => inp' i x) k : Fin D') : ℕ) =
+        P.eval fullInterpretation (fun i => inp i x) k by
+    obtain ⟨P', hP'⟩ := this
+    exact ⟨P', fun f hf => (hP f hf).imp fun k hk x => (hP' k x).trans (hk x)⟩
+  clear hP
+  induction P with
+  | empty => exact ⟨.empty, fun k => k.elim0⟩
+  | @gate g P line ih =>
+    obtain ⟨P', hP'⟩ := ih
+    obtain ⟨op, w⟩ := line
+    have hw (a : Fin _) (x : Inp) :
+        ((Wire.elim (fun i => inp' i x) (P'.eval fullInterpretation fun i => inp' i x) (w a) :
+          Fin D') : ℕ) =
+          Wire.elim (fun i => inp i x) (P.eval fullInterpretation fun i => inp i x) (w a) := by
+      cases w a with
+      | input i => exact hinp i x
+      | gate j => exact hP' j x
+    cases op with
+    | con c =>
+      refine ⟨P'.gate ⟨.con (Fin.castLE hD c), w⟩, fun k x => ?_⟩
+      induction k using Fin.lastCases with
+      | last => simp [Line.eval, fullInterpretation]
+      | cast k => simpa using hP' k x
+    | fn f =>
+      refine ⟨P'.gate ⟨.fn fun a => if h : ∀ i, (a i : ℕ) < D then
+        Fin.castLE hD (f fun i => ⟨a i, h i⟩) else a 0, w⟩, fun k x => ?_⟩
+      induction k using Fin.lastCases with
+      | last =>
+        simp only [Program.eval_gate_last, Line.eval, fullInterpretation]
+        split
+        · rw [Fin.val_castLE]
+          congr 2 with i
+          exact hw i x
+        · exact absurd (fun i => (hw i x).trans_lt (Fin.isLt _)) ‹_›
+      | cast k => simpa using hP' k x
 
 /-- The inputs take one gate each. -/
 theorem SlpN.inputs (inp : Fin n → Inp → Fin D) :

@@ -45,26 +45,19 @@ theorem successfulMismatch_map_map {β γ : Type*} [Fintype β] [Fintype γ]
       ∑ b, ∑ c, if ∃ a, f b = some a ∧ a ≠ g c then (φ (P.effect b * Q.effect c)).re else 0 := by
   classical
   have hComplement (a : α) : 1 - (Q.map g).effect a = ∑ c with g c ≠ a, Q.effect c := by
-    rw [Measurement.map_effect, sub_eq_iff_eq_add]
-    rw [sum_filter_not_add_sum_filter, Q.sum_effect]
-  calc
-    _ = ∑ a, ∑ b, ∑ c, if f b = some a then
-        if g c ≠ a then (φ (P.effect b * Q.effect c)).re else 0 else 0 := by
-      simp only [successfulMismatch, hComplement]
-      simp only [Measurement.map_effect, sum_mul, mul_sum, map_sum, Complex.re_sum, sum_filter]
-      refine sum_congr rfl fun a _ => ?_
-      rw [sum_comm]
-      refine sum_congr rfl fun b _ => sum_congr rfl fun c _ => ?_
-      split_ifs <;> simp_all
+    rw [Measurement.map_effect, sub_eq_iff_eq_add, sum_filter_not_add_sum_filter, Q.sum_effect]
+  calc _ = ∑ a, ∑ b, ∑ c, if f b = some a then
+      if g c ≠ a then (φ (P.effect b * Q.effect c)).re else 0 else 0 := by
+        simp only [successfulMismatch, hComplement]
+        simp only [Measurement.map_effect, sum_mul, mul_sum, map_sum, Complex.re_sum, sum_filter]
+        refine sum_congr rfl fun a _ => ?_
+        rw [sum_comm]
+        exact sum_congr rfl fun b _ => sum_congr rfl fun c _ => by split_ifs <;> simp_all
     _ = _ := by
       rw [sum_comm]
       refine sum_congr rfl fun b _ => ?_
       rw [sum_comm]
-      refine sum_congr rfl fun c _ => ?_
-      cases h : f b with
-      | none => simp
-      | some a =>
-        simp [ne_comm, sum_ite_eq]
+      exact sum_congr rfl fun c _ => by cases h : f b <;> simp [ne_comm, sum_ite_eq]
 
 /-- The successful mismatch averages over a classical choice of the first measurement. -/
 theorem successfulMismatch_mixture_left {ι : Type*} [Fintype ι] [IsOrderedAddMonoid A]
@@ -129,14 +122,12 @@ theorem successfulMismatch_le (φ : AlgState A) (P : Measurement (Option α) A)
   apply sub_le_iff_le_add'.mp
   unfold successfulMismatch
   rw [← sum_sub_distrib]
-  calc
-    _ = ∑ a, (φ (star (P.effect (some a)) * (Q.effect a - R.effect a))).re := by
-      refine sum_congr rfl fun a _ => ?_
-      rw [(P.nonneg (some a)).isSelfAdjoint.star_eq, ← Complex.sub_re, ← map_sub]
-      congr 1
-      noncomm_ring
+  calc _ = ∑ a, (φ (star (P.effect (some a)) * (Q.effect a - R.effect a))).re :=
+        sum_congr rfl fun a _ => by
+          rw [(P.nonneg (some a)).isSelfAdjoint.star_eq, ← Complex.sub_re, ← map_sub]
+          exact congrArg (Complex.re ∘ φ) (by noncomm_ring)
     _ ≤ ∑ a, φ.norm (P.effect (some a)) * φ.norm (Q.effect a - R.effect a) :=
-      sum_le_sum fun a _ => φ.re_apply_star_mul_le _ _
+        sum_le_sum fun a _ => φ.re_apply_star_mul_le _ _
     _ ≤ √(∑ a, φ.norm (P.effect (some a)) ^ 2) *
         √(∑ a, φ.norm (Q.effect a - R.effect a) ^ 2) :=
       Real.sum_mul_le_sqrt_mul_sqrt _ _ _

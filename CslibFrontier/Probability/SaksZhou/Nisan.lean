@@ -108,15 +108,12 @@ theorem dens_entryFarSet_nisanPow_le {H X ι : Type*} [Fintype H] [Fintype X] [D
     {hs : Fin k → H | ∃ s : Option ι, ε < ∑ s' : Option ι,
       |(dens {x : X | (List.ofFn (Nisan.blocks h k x hs)).foldlIdx δ s = s'} : ℝ) -
         dens {u : Fin (2 ^ k) → X | (List.ofFn u).foldlIdx δ s = s'}|}
-  have hsub : entryFarSet ε (nisanPow h k A) (A ^ 2 ^ k) ⊆ bad := by
-    intro hs hhs
+  have hsub : entryFarSet ε (nisanPow h k A) (A ^ 2 ^ k) ⊆ bad := fun hs hhs => by
     obtain ⟨i, j, hij⟩ := mem_entryFarSet.1 hhs
     rw [nisanPow_apply, ← dens_foldl_walkStep_eq h0 h1 hA (2 ^ k) i j] at hij
-    simp only [bad, mem_filter, mem_univ, true_and]
-    refine ⟨some i, lt_of_lt_of_le hij ?_⟩
-    refine le_trans ?_ (single_le_sum (fun _ _ => abs_nonneg _) (mem_univ (some j)))
+    refine mem_filter.2 ⟨mem_univ _, some i, hij.trans_le ?_⟩
+    refine (le_of_eq ?_).trans (single_le_sum (fun _ _ => abs_nonneg _) (mem_univ (some j)))
     simp only [δ, foldlIdx_const]
-    exact le_rfl
   calc ((entryFarSet ε (nisanPow h k A) (A ^ 2 ^ k)).dens : ℝ)
       ≤ (bad.dens : ℝ) := NNRat.cast_le.2 (dens_le_dens hsub)
     _ ≤ Fintype.card (Option ι) * ((2 ^ k - 1) * Fintype.card (Option ι) / √(Fintype.card X)) /
@@ -133,8 +130,7 @@ private theorem exists_mul_card_eq_of_isDyadicSubstochastic {X ι : Type*} [Fint
   obtain ⟨q, hq⟩ := hdiv
   refine ⟨k * q, ?_⟩
   have h2 : (2 : ℝ) ^ d ≠ 0 := by positivity
-  rw [hk, hq, Nat.cast_mul, Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat]
-  field_simp
+  rw [hk, hq, Nat.cast_mul, Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat]; field_simp
 
 /-- **Saks–Zhou iteration with Nisan's generator**: for a substochastic matrix `M` over `ι` with
 entries in `ℤ / |X|`, `2 ^ d ∣ |X|`, and `1 ≤ k`, when `(|ι| + 1) * ((2 ^ k - 1) * (|ι| + 1) /
@@ -156,16 +152,16 @@ theorem dens_snapIter_nisanPow_far_le {H X ι : Type*} [Fintype H] [Fintype X] [
   have hn₁ : 2 ≤ 2 ^ k := by
     calc 2 = 2 ^ 1 := (pow_one 2).symm
       _ ≤ 2 ^ k := Nat.pow_le_pow_right (by decide) hk
-  have hpow : ∀ A : Matrix ι ι ℝ, A = M ∨ IsDyadicSubstochastic d A →
+  have hpow (A : Matrix ι ι ℝ) (hA : A = M ∨ IsDyadicSubstochastic d A) :
       ((entryFarSet ε (nisanPow h k A) (A ^ 2 ^ k)).dens : ℝ) ≤ ε := by
-    rintro A (rfl | hdy)
-    · refine (dens_entryFarSet_nisanPow_le hh k h0 h1 hM hε).trans ?_
-      exact (div_le_iff₀ hε).2 (by simpa only [sq] using herr)
-    · refine (dens_entryFarSet_nisanPow_le hh k hdy.nonneg hdy.sum_le_one
-        (exists_mul_card_eq_of_isDyadicSubstochastic hdy hdiv) hε).trans ?_
-      exact (div_le_iff₀ hε).2 (by simpa only [sq] using herr)
-  have hmain := dens_snapIter_far_le_of_two_le d n₂ hn₁ (nisanPow h k) h0 h1 hε.le hpow
-  simpa only [Nat.cast_pow, Nat.cast_ofNat, ← pow_mul] using hmain
+    rcases hA with rfl | hdy
+    · exact (dens_entryFarSet_nisanPow_le hh k h0 h1 hM hε).trans
+        ((div_le_iff₀ hε).2 (by simpa only [sq] using herr))
+    · exact (dens_entryFarSet_nisanPow_le hh k hdy.nonneg hdy.sum_le_one
+        (exists_mul_card_eq_of_isDyadicSubstochastic hdy hdiv) hε).trans
+        ((div_le_iff₀ hε).2 (by simpa only [sq] using herr))
+  simpa only [Nat.cast_pow, Nat.cast_ofNat, ← pow_mul] using
+    dens_snapIter_far_le_of_two_le d n₂ hn₁ (nisanPow h k) h0 h1 hε.le hpow
 
 /-! ### Specialization to Boolean Toeplitz hashing -/
 
@@ -214,18 +210,10 @@ theorem dens_snapIter_bitNisanPow_far_le {ι : Type*} [Fintype ι] [DecidableEq 
       n₂ * (ε + Fintype.card ι ^ 2 * (2 ^ d * ε + (2 ^ d)⁻¹)) := by
   have hcard : Fintype.card (BitString (2 * m)) = 2 ^ (2 * m) := by
     rw [Fintype.card_fun, Fintype.card_bool, Fintype.card_fin]
-  have hdiv : 2 ^ d ∣ Fintype.card (BitString (2 * m)) := by
-    rw [hcard]
-    exact Nat.pow_dvd_pow 2 hdm
   have hsqrt : √(Fintype.card (BitString (2 * m)) : ℝ) = (2 : ℝ) ^ m := by
-    rw [hcard]
-    push_cast
-    rw [show (2 : ℝ) ^ (2 * m) = ((2 : ℝ) ^ m) ^ 2 by rw [mul_comm, pow_mul]]
+    rw [hcard, Nat.cast_pow, Nat.cast_ofNat, mul_comm, pow_mul]
     exact Real.sqrt_sq (by positivity)
-  have herr' : (Fintype.card ι + 1 : ℝ) *
-      ((2 ^ k - 1) * (Fintype.card ι + 1) / √(Fintype.card (BitString (2 * m)))) ≤ ε ^ 2 := by
-    rwa [hsqrt]
-  exact dens_snapIter_nisanPow_far_le isPairwiseIndependentHash_toeplitzHash_bool d k n₂ hk hdiv
-    h0 h1 hM hε herr'
+  exact dens_snapIter_nisanPow_far_le isPairwiseIndependentHash_toeplitzHash_bool d k n₂ hk
+    (hcard ▸ Nat.pow_dvd_pow 2 hdm) h0 h1 hM hε (by rwa [hsqrt])
 
 end Cslib.Probability.SaksZhou

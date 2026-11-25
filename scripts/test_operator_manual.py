@@ -13,9 +13,10 @@ from unittest import mock
 
 from build_operator_manual import main as build_main
 from check_operator_manual import (LABEL_LOCATOR, LIST_AFTER_PARAGRAPH, MISNAMED_SOURCE_ANCHOR,
-                                   STALE_SOURCE_ANCHOR, book_input_errors, check, comment_depths,
-                                   fix_anchors, frozen, lists_after_paragraphs, main as check_main,
-                                   source_anchor_error)
+                                   SOURCES_LINE_FORMAT, STALE_SOURCE_ANCHOR, book_input_errors,
+                                   check, comment_depths, fix_anchors, frozen,
+                                   lists_after_paragraphs, main as check_main, source_anchor_error)
+import sources_format
 
 DATA = Path(__file__).resolve().parents[1] / "manual/data"
 with mock.patch.object(sys, "path", [str(DATA), *sys.path]):
@@ -207,6 +208,15 @@ class ManualChecks(unittest.TestCase):
         self.assertEqual([e for e in self.errors() if LABEL_LOCATOR in e],
                          [f"sources.md: Line 6: {LABEL_LOCATOR}: [Author, Section 5.6] "
                           "(`Section 5`)"])
+
+    def test_sources_must_be_one_sentence_per_line(self):
+        sources = self.manual / "sources.md"
+        sources.write_text('# Sources\n\n<a id="book"></a>\n## book\n\nFirst sentence. Second sentence.\n')
+        readme = self.manual / "README.md"
+        readme.write_text(readme.read_text() + "[Sources](sources.md)\n")
+        self.assertEqual(self.errors(), [f"sources.md: Line 6: {SOURCES_LINE_FORMAT}"])
+        self.assertEqual(sources_format.main(["--write", str(sources)]), 0)
+        self.assertEqual(self.errors(), [])
 
     def test_context_requires_link_to_complete_client(self):
         self.doc.write_text(self.doc.read_text().replace(

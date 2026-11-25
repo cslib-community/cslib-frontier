@@ -42,11 +42,8 @@ theorem exec_prepareGeometry {w L m t N Q : ℕ} (x : Data 160)
   have hT : 10 ^ L ≤ (L + 1) * 10 ^ L := Nat.le_mul_of_pos_left _ (by omega)
   have fBudget : Fits w (wordBudget L m t N Q) := hfit
   unfold wordBudget at fBudget
-  have fK : Fits w (((L + 1) * 10 ^ L + 10) * 5 + V + K) := by
-    apply allocated_fits hfit
-    unfold memoryEnd resultBase stackBase BoxQuery.stackCapacity
-    dsimp only [V, K]
-    omega
+  have fK : Fits w (((L + 1) * 10 ^ L + 10) * 5 + V + K) := allocated_fits hfit (by
+    unfold memoryEnd resultBase stackBase BoxQuery.stackCapacity; dsimp only [V, K]; omega)
   have htime : 12 + (4 * L + 20 + (11 * L + 28) * ((m - t + 1) * 10 ^ L)) + 5 ≤
       BoxTable.geometryTime L m t + 17 := by
     unfold BoxTable.geometryTime; omega
@@ -58,22 +55,16 @@ theorem exec_prepareGeometry {w L m t N Q : ℕ} (x : Data 160)
   wram_exec * [ht]
   wram_call (BoxTable.exec_geometry (w := w) (L := L) (m := m) (t := t) (D := D)) canonical
     with z ⟨zp, zK, zV, zcat⟩
-  have hR : D + (m - t + 1) * 10 ^ L = R := rfl
-  have hV : D + (m - t + 1) * 10 ^ L + 3 * K = V := rfl
-  rw [hR] at zp
-  rw [hV] at zV
+  rw [show D + (m - t + 1) * 10 ^ L = R from rfl] at zp
+  rw [show D + (m - t + 1) * 10 ^ L + 3 * K = V from rfl] at zV
   wram_exec * [zK, zV, zp.records]
   refine ⟨by regs_frame, ?_, by wram_simp, ⟨zcat.directory, zcat.code, zcat.stars, zcat.stride⟩, ?_⟩
   · refine ⟨by regs_frame, by regs_frame, by wram_simp; rfl, by wram_simp; rfl, by wram_simp, ?_⟩
-    wram_simp
-    unfold resultBase stackBase BoxQuery.stackCapacity
-    dsimp only [V, K]
-    omega
+    wram_simp; unfold resultBase stackBase BoxQuery.stackCapacity; dsimp only [V, K]; omega
   · intro p hp'
+    unfold valueBase recordBase at hp'
     wram_simp
-    apply zcat.frame p
-    · dsimp only [D]; unfold valueBase recordBase at hp'; omega
-    · rw [BoxTable.count_eligible_eq_card_boxes]
-      dsimp only [R, D]; unfold valueBase recordBase at hp'; omega
+    exact zcat.frame p (by dsimp only [D]; omega)
+      (by rw [BoxTable.count_eligible_eq_card_boxes]; dsimp only [R, D]; omega)
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct

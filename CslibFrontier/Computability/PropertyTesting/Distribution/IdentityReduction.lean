@@ -216,39 +216,35 @@ private theorem bind_identityKernel_none (p : PMF α) (j : Fin (identityBlock q 
         (2 * Fintype.card α * (q b).toReal + 2)) / identityBlock q none := by
   rw [bind_apply_toReal]
   simp only [identityKernel_apply_toReal, identityWeight, mul_div_assoc', ← sum_div, mul_sum]
-  congr 1
   rw [Finset.sum_comm]
+  congr 1
   refine sum_congr rfl fun b _ => ?_
   rw [← sum_mul_identityMix p b, sum_mul, sum_div]
-  refine sum_congr rfl fun y _ => ?_
-  ring
+  exact sum_congr rfl fun _ _ => by ring
 
 /-- **Completeness of the reduction**: Goldreich's kernel maps `q` to the uniform distribution on
 the cells. -/
 theorem bind_identityKernel_self :
     q.bind (identityKernel q) = uniformOfFintype (IdentityDomain q) := by
-  have hn : (Fintype.card α : ℝ) ≠ 0 := by
-    obtain ⟨a, -⟩ := q.support_nonempty
-    have : Nonempty α := ⟨a⟩
-    exact_mod_cast Fintype.card_ne_zero
+  obtain ⟨a, -⟩ := q.support_nonempty
+  have : Nonempty α := ⟨a⟩
+  have hn : (Fintype.card α : ℝ) ≠ 0 := by exact_mod_cast Fintype.card_ne_zero
   ext x
   rw [← ENNReal.toReal_eq_toReal_iff' (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _),
     uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast, card_identityDomain]
   push_cast
   obtain ⟨_ | b, j⟩ := x
   · have hL : (identityBlock q none : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr j.pos.ne'
-    rw [bind_identityKernel_none]
     have h (b : α) : ((q b).toReal / 2 + 1 / (2 * Fintype.card α)) * identityRemainder q b /
         (2 * Fintype.card α * (q b).toReal + 2) =
           identityRemainder q b / (4 * Fintype.card α) := by
-      have hR := (identityScale_pos q b).ne'
+      have := (identityScale_pos q b).ne'
       field_simp
       ring
-    simp only [h]
-    rw [← sum_div, sum_identityRemainder]
+    simp only [bind_identityKernel_none, h, ← sum_div, sum_identityRemainder]
     field_simp
   · rw [bind_identityKernel_some]
-    have hR := (identityScale_pos q b).ne'
+    have := (identityScale_pos q b).ne'
     field_simp
     ring
 
@@ -257,41 +253,37 @@ at most a factor `3`. -/
 theorem dist_le_three_mul_dist_bind_identityKernel (p : PMF α) :
     dist p q ≤ 3 * dist (p.bind (identityKernel q)) (q.bind (identityKernel q)) := by
   rw [dist_eq, dist_eq, Fintype.sum_sigma, Fintype.sum_option]
-  have hnone : 0 ≤ ∑ j : Fin (identityBlock q none),
-      |(p.bind (identityKernel q) ⟨none, j⟩).toReal -
-        (q.bind (identityKernel q) ⟨none, j⟩).toReal| :=
-    sum_nonneg fun _ _ => abs_nonneg _
   have hsome : ∑ b, |(p b).toReal - (q b).toReal| ≤
-      3 * ∑ b, ∑ j : Fin (identityBlock q (some b)),
-        |(p.bind (identityKernel q) ⟨some b, j⟩).toReal -
-          (q.bind (identityKernel q) ⟨some b, j⟩).toReal| := by
+      3 * ∑ b, ∑ j, |(p.bind (identityKernel q) ⟨some b, j⟩).toReal -
+        (q.bind (identityKernel q) ⟨some b, j⟩).toReal| := by
     rw [mul_sum]
     refine sum_le_sum fun b _ => ?_
     simp only [bind_identityKernel_some, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]
     have hR := identityScale_pos q b
     have hG : 2 * (2 * Fintype.card α * (q b).toReal + 2) ≤
         3 * (identityBlock q (some b) : ℝ) := by
-      have h := Nat.lt_floor_add_one (2 * (Fintype.card α : ℝ) * (q b).toReal)
+      have := Nat.lt_floor_add_one (2 * (Fintype.card α : ℝ) * (q b).toReal)
+      have : (0 : ℝ) ≤ identityGrain q b := Nat.cast_nonneg _
       rw [identityBlock_some]
       push_cast
-      have : (0 : ℝ) ≤ identityGrain q b := Nat.cast_nonneg _
-      unfold identityGrain at this ⊢
+      unfold identityGrain at *
       linarith
     have he : ((p b).toReal / 2 + 1 / (2 * Fintype.card α)) /
           (2 * Fintype.card α * (q b).toReal + 2) -
         ((q b).toReal / 2 + 1 / (2 * Fintype.card α)) / (2 * Fintype.card α * (q b).toReal + 2) =
           ((p b).toReal - (q b).toReal) / (2 * (2 * Fintype.card α * (q b).toReal + 2)) := by
-      field_simp
-      ring
+      field_simp; ring
     rw [he, abs_div, abs_of_pos (by positivity :
-      (0 : ℝ) < 2 * (2 * Fintype.card α * (q b).toReal + 2))]
-    rw [show 3 * ((identityBlock q (some b) : ℝ) * (|(p b).toReal - (q b).toReal| /
+        (0 : ℝ) < 2 * (2 * Fintype.card α * (q b).toReal + 2)),
+      show 3 * ((identityBlock q (some b) : ℝ) * (|(p b).toReal - (q b).toReal| /
         (2 * (2 * Fintype.card α * (q b).toReal + 2)))) =
-          |(p b).toReal - (q b).toReal| * (3 * identityBlock q (some b)) /
-            (2 * (2 * Fintype.card α * (q b).toReal + 2)) by ring]
-    rw [le_div_iff₀ (by positivity)]
+        |(p b).toReal - (q b).toReal| * (3 * identityBlock q (some b)) /
+          (2 * (2 * Fintype.card α * (q b).toReal + 2)) by ring,
+      le_div_iff₀ (by positivity)]
     exact mul_le_mul_of_nonneg_left hG (abs_nonneg _)
-  linarith
+  linarith [sum_nonneg fun j (_ : j ∈ univ) =>
+    abs_nonneg ((p.bind (identityKernel q) ⟨none, j⟩).toReal -
+      (q.bind (identityKernel q) ⟨none, j⟩).toReal)]
 
 /-- **The uniform distribution is complete for identity testing**
 [Goldreich][Goldreich2016UniformComplete]: a `k`-sample uniformity tester on the `4 n` cells with
@@ -300,14 +292,12 @@ identity to `q` with proximity `ε`. -/
 theorem isTester_identity_of_uniform {k : ℕ} {T : (Fin k → IdentityDomain q) → PMF Bool} {ε : ℝ}
     (hT : IsTester T {uniformOfFintype (IdentityDomain q)} (ε / 3)) :
     IsTester (fun x => (pi fun i => identityKernel q (x i)).bind T) {q} ε := by
-  refine hT.bind_pi (identityKernel q) (fun q' hq' => ?_) fun p hp q' hq' => ?_
-  · rw [Set.mem_singleton_iff] at hq' ⊢
-    rw [hq', bind_identityKernel_self]
-  · rw [Set.mem_singleton_iff] at hq'
-    rw [hq', ← bind_identityKernel_self]
-    have h1 := hp q (Set.mem_singleton q)
-    have h2 := dist_le_three_mul_dist_bind_identityKernel q p
-    linarith
+  refine hT.bind_pi (identityKernel q) ?_ ?_
+  · intro _ hq'
+    simp [Set.mem_singleton_iff.mp hq', bind_identityKernel_self]
+  · intro p hp _ hq'
+    rw [Set.mem_singleton_iff.mp hq', ← bind_identityKernel_self]
+    linarith [hp q (Set.mem_singleton q), dist_le_three_mul_dist_bind_identityKernel q p]
 
 omit [DecidableEq α] in
 /-- The reduction for uniformity testers on any domain of size `4 n`: a `k`-sample uniformity

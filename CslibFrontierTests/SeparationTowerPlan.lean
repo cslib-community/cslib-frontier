@@ -54,7 +54,7 @@ import Mathlib.Data.Fintype.BigOperators
 * Laws at the vertices of other towers: the laws of the tower with one edge, at the vertices of
   the tower without edges, with the same constants; the laws at the vertices of a tower of
   `SL_h(F₂)` at the vertices of every other one; and the `3` pairs of different elements of
-  `Fin 3`, from the `6` ordered ones. -/
+  `Fin 3`, from the `6` ordered ones and as a subtype of `Sym2 (Fin 3)`. -/
 
 set_option linter.privateModule false
 
@@ -701,5 +701,9 @@ example : ∑ q : Sym2 (Fin 3), (if q.IsDiag then 0 else 1 : ℕ) = 3 := by
   have h6 : ∑ a : Fin 3, ∑ b : Fin 3, (if a = b then 0 else 1 : ℕ) = 6 := by decide
   rw [h6, smul_eq_mul] at h
   omega
+
+/-- The `3` pairs of different elements of `Fin 3`, as a subtype of `Sym2 (Fin 3)`. -/
+example : ∑ _e : {q : Sym2 (Fin 3) // ¬ q.IsDiag}, (1 : ℕ) = 3 :=
+  (Fintype.sum_subtype_not_isDiag fun _ => (1 : ℕ)).trans (by decide)
 
 end CslibFrontierTests.SeparationTowerPlan
