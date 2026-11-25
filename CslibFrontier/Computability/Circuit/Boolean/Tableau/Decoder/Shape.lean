@@ -334,15 +334,13 @@ theorem refSrc_eval {t : ℕ} (j tag p : ℕ) (r : Ref k State) :
         colOf (slotBits k State) (colBits T) p ≤ n
     · have h₁ : (!decide (colOf (slotBits k State) (colBits T) p = 0) &&
           !decide (n < colOf (slotBits k State) (colBits T) p)) = true := by
-        simp only [Bool.and_eq_true, Bool.not_eq_eq_eq_not, Bool.not_true, decide_eq_false_iff_not,
-          not_lt]
+        simp
         omega
       simp only [h₁, h, ↓reduceIte]
       rfl
     · have h₁ : ¬ (!decide (colOf (slotBits k State) (colBits T) p = 0) &&
           !decide (n < colOf (slotBits k State) (colBits T) p)) = true := by
-        simp only [Bool.and_eq_true, Bool.not_eq_eq_eq_not, Bool.not_true, decide_eq_false_iff_not,
-          not_lt, not_and, not_le]
+        simp
         omega
       simp only [h₁, h, ↓reduceIte, Bool.false_eq_true]
       rfl
@@ -374,22 +372,16 @@ theorem clauseOf_eq_map_shapeOf (x : List Bool) (n T j tag p : ℕ) :
     · simp only [h0, ↓reduceIte]
       by_cases hp : p < 2
       · have h₁ : (!κ.pGt1) = true := by
-          simp only [hκ, Key.ofFields, Nat.div_eq_zero_iff, Nat.pow_eq_zero, OfNat.ofNat_ne_zero,
-            ne_eq, false_and, false_or, Bool.not_eq_eq_eq_not, Bool.not_true,
-            decide_eq_false_iff_not, not_lt]
+          simp [hκ, Key.ofFields]
           omega
         have h₂ : (!κ.p0) = decide (p = 1) := by
           rw [Bool.eq_iff_iff]
-          simp only [hκ, Key.ofFields, Nat.div_eq_zero_iff, Nat.pow_eq_zero, OfNat.ofNat_ne_zero,
-            ne_eq, false_and, false_or, Bool.not_eq_eq_eq_not, Bool.not_true,
-            decide_eq_false_iff_not, decide_eq_true_eq]
+          simp [hκ, Key.ofFields]
           omega
         simp only [hp, h₁, ↓reduceIte, h₂, map_eval_lift, relabel_tseitinClause]
         rfl
       · have h₁ : ¬ (!κ.pGt1) = true := by
-          simp only [hκ, Key.ofFields, Nat.div_eq_zero_iff, Nat.pow_eq_zero, OfNat.ofNat_ne_zero,
-            ne_eq, false_and, false_or, Bool.not_eq_eq_eq_not, Bool.not_true,
-            decide_eq_false_iff_not, not_lt, not_le]
+          simp [hκ, Key.ofFields]
           omega
         simp only [hp, h₁, ↓reduceIte]
         rfl
@@ -400,8 +392,7 @@ theorem clauseOf_eq_map_shapeOf (x : List Bool) (n T j tag p : ℕ) :
           rw [dite_eq_left hp, ite_eq_left h₁]
           simp [unitClause, Shape.eval, LabelSrc.eval, SignSrc.eval, List.getElem?_eq_getElem hp.2]
         · have h₁ : ¬ (j = 0 ∧ κ.pLtX = true) := by
-            simp only [hκ, Key.ofFields, Nat.div_eq_zero_iff, Nat.pow_eq_zero, OfNat.ofNat_ne_zero,
-              ne_eq, false_and, false_or, decide_eq_true_eq, not_and, not_lt]
+            simp [hκ, Key.ofFields]
             omega
           rw [dite_eq_right hp, ite_eq_right h₁]
           rfl
@@ -442,8 +433,7 @@ theorem clauseOf_eq_map_shapeOf (x : List Bool) (n T j tag p : ℕ) :
             simp [unitClause, Shape.eval, LabelSrc.eval, SignSrc.eval, outLabel, outSrc, posLabel,
               ColSrc.eval, TimeSrc.eval]
           · have h₁ : ¬ (j = 0 ∧ κ.p0 = true) := by
-              simp only [hκ, Key.ofFields, Nat.div_eq_zero_iff, Nat.pow_eq_zero,
-                OfNat.ofNat_ne_zero, ne_eq, false_and, false_or, decide_eq_true_eq, not_and]
+              simp [hκ, Key.ofFields]
               omega
             rw [ite_eq_right hp, ite_eq_right h₁]
             rfl
@@ -671,38 +661,13 @@ theorem forall_mem_shapeOf {P : Shape → Prop} (κ : Key) (htaut : ∀ sh ∈ t
     ∀ sh ∈ shapeOf tm κ, P sh := by
   intro sh hsh
   unfold shapeOf at hsh
-  by_cases hj : κ.j < 3
-  · rw [dite_eq_left hj] at hsh
-    by_cases ht0 : κ.tag = 0
-    · rw [ite_eq_left ht0] at hsh
-      split at hsh
-      · exact h0 hj sh hsh
-      · exact htaut sh hsh
-    · rw [ite_eq_right ht0] at hsh
-      by_cases ht1 : κ.tag = 1
-      · rw [ite_eq_left ht1] at hsh
-        split at hsh
-        · rename_i hc
-          simp only [List.mem_cons, List.not_mem_nil, or_false] at hsh
-          rcases hsh with rfl | rfl | rfl <;> exact h1 hc.2
-        · exact htaut sh hsh
-      · rw [ite_eq_right ht1] at hsh
-        by_cases ht2 : κ.tag = 2
-        · rw [ite_eq_left ht2] at hsh
-          split at hsh
-          · rename_i l hl
-            split at hsh
-            · rename_i hok
-              exact h2 hj l hl hok sh hsh
-            · exact htaut sh hsh
-          · exact htaut sh hsh
-        · rw [ite_eq_right ht2] at hsh
-          split at hsh
-          · simp only [List.mem_cons, List.not_mem_nil, or_false] at hsh
-            rcases hsh with rfl | rfl | rfl <;> exact h3
-          · exact htaut sh hsh
-  · rw [dite_eq_right hj] at hsh
-    exact htaut sh hsh
+  repeat' split at hsh
+  all_goals first
+    | exact htaut sh hsh
+    | exact h0 ‹_› sh hsh
+    | exact h2 ‹_› _ ‹_› ‹_› sh hsh
+    | simp only [List.mem_cons, List.not_mem_nil, or_false] at hsh
+      rcases hsh with rfl | rfl | rfl <;> first | exact h1 ‹_ ∧ κ.pLtX = true›.2 | exact h3
 
 /-- **The labels of the shapes fit their fields.** -/
 theorem inRange_of_mem_shapeOf {j tag p : ℕ} {sh : Shape}
@@ -765,22 +730,8 @@ theorem lt_of_mem_shapeOf {j tag p : ℕ} {sh : Shape}
 /-- A shape has three literals. -/
 theorem length_shapeOf (κ : Key) : (shapeOf tm κ).length = 3 := by
   unfold shapeOf
-  split
-  · split
-    · split
-      · simp [lift]
-      · rfl
-    · split
-      · split <;> rfl
-      · split
-        · split
-          · split
-            · simp only [lift, List.length_map, posShape]
-              split <;> simp
-            · rfl
-          · rfl
-        · split <;> rfl
-  · rfl
+  repeat' split
+  all_goals first | rfl | (simp only [lift, List.length_map, posShape]; split <;> simp)
 
 end Range
 
