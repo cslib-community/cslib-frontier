@@ -302,33 +302,28 @@ private theorem replayInv_step {t : ℕ} {x : List Bool} {h : History} {i : ℕ}
     ReplayInv t x h (i + 1) (acc.bind fun p => replayStep M t p b) := by
   rcases acc with (_ | ⟨m⟩) | ⟨cfg, rest⟩
   · trivial
-  · exact ⟨by have := hacc.1; lia, by have := hacc.2; lia⟩
+  · exact ⟨Nat.lt_succ_of_lt hacc.1, Nat.lt_succ_of_lt hacc.2⟩
   · obtain ⟨⟨pre, hpre, hlen⟩, hspace⟩ := hacc
     change ReplayInv t x h (i + 1) (replayStep M t (cfg, rest) b)
     unfold replayStep
-    simp only
-    cases hs : cfg.tapes.state with
-    | none => exact ⟨⟨pre, hpre, by lia⟩, hspace.mono le_rfl (by lia) le_rfl⟩
+    dsimp only
+    cases cfg.tapes.state with
+    | none => exact ⟨⟨pre, hpre, by omega⟩, hspace.mono le_rfl (by omega) le_rfl⟩
     | some c =>
-      simp only
+      dsimp only
       cases M.tr c cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols cfg.answerSymbols b with
       | step action symbol move =>
-        exact ⟨⟨pre, hpre, by lia⟩, hspace.step action symbol move⟩
+        exact ⟨⟨pre, hpre, by omega⟩, hspace.step action symbol move⟩
       | query op next =>
-        simp only
+        dsimp only
         cases rest with
-        | nil =>
-          refine ⟨by rw [hpre, List.append_nil]; lia, ?_⟩
-          have := hspace.query op
-          lia
+        | nil => exact ⟨by rw [hpre, List.append_nil]; omega, by have := hspace.query op; omega⟩
         | cons e rest =>
           obtain ⟨m, y⟩ := e
-          simp only
+          dsimp only
           split_ifs
-          · refine ⟨⟨pre ++ [(m, y)], by simp [hpre], by
-              simp only [List.length_append, List.length_cons, List.length_nil, zero_add]
-              lia⟩, ?_⟩
-            exact hspace.receive op next _ (List.length_take_le _ _)
+          · exact ⟨⟨pre ++ [(m, y)], by simp [hpre], by simp; omega⟩,
+              hspace.receive op next _ (List.length_take_le _ _)⟩
           · trivial
 
 /-- The replay satisfies the invariant after all its coins. -/
@@ -339,15 +334,17 @@ private theorem replayInv_simulate (t : ℕ) (x : List Bool) (h : History) (r : 
         (l.foldl (fun acc b => acc.bind fun p => replayStep M t p b) acc) by
     simpa [simulate, bind] using this r (.ok (FiniteConfig.init M.initial x, h)) 0
       ⟨⟨[], rfl, le_rfl⟩, FiniteConfig.spaceBound_init _ _ _⟩
-  intro l
-  induction l with
-  | nil => intro acc i hacc; simpa using hacc
-  | cons b l ih =>
-    intro acc i hacc
-    simpa [Nat.add_assoc, Nat.add_comm 1] using ih _ _ (replayInv_step M hacc b)
+  intro l acc i hacc
+  induction l generalizing acc i with
+  | nil => simpa using hacc
+  | cons b l ih => simpa [Nat.add_assoc, Nat.add_comm 1] using ih _ _ (replayInv_step M hacc b)
 
 /-- Truncate every reply of a history to its first `t` bits. -/
 private def truncate (t : ℕ) (h : History) : History := h.map fun e => (e.1, e.2.take t)
+
+private theorem truncate_idemp (t : ℕ) (h : History) :
+    truncate t (truncate t h) = truncate t h := by
+  simp [truncate, Function.comp_def, List.take_take]
 
 /-- An instruction of the replay reads replies only through their first `t` bits. -/
 private theorem replayStep_truncate (t : ℕ) (cfg : FiniteConfig k Bool Control Unit) (h : History)
@@ -355,15 +352,15 @@ private theorem replayStep_truncate (t : ℕ) (cfg : FiniteConfig k Bool Control
     (replayStep M t (cfg, h) b).map (fun p => (p.1, truncate t p.2)) =
       (replayStep M t (cfg, truncate t h) b).map (fun p => (p.1, truncate t p.2)) := by
   unfold replayStep
-  simp only
+  dsimp only
   cases cfg.tapes.state with
-  | none => simp [Except.map, truncate, List.map_map, Function.comp_def, List.take_take]
+  | none => simp only [Except.map, truncate_idemp]
   | some c =>
-    simp only
+    dsimp only
     cases M.tr c cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols cfg.answerSymbols b with
-    | step => simp [Except.map, truncate, List.map_map, Function.comp_def, List.take_take]
+    | step => simp only [Except.map, truncate_idemp]
     | query op next =>
-      simp only
+      dsimp only
       cases h with
       | nil => rfl
       | cons e h =>
@@ -383,40 +380,35 @@ private theorem simulate_truncate (t : ℕ) (x r : List Bool) {h h' : History}
         (l.foldl (fun acc b => acc.bind fun p => replayStep M t p b) acc').map
           (fun p => (p.1, truncate t p.2)) from
     this r _ _ (by simp [Except.map, hh])
-  intro l
-  induction l with
-  | nil => exact fun _ _ h => h
+  intro l acc acc' hacc
+  induction l generalizing acc acc' with
+  | nil => exact hacc
   | cons b l ih =>
-    intro acc acc' hacc
     refine ih _ _ ?_
     rcases acc with e | ⟨cfg, rest⟩ <;> rcases acc' with e' | ⟨cfg', rest'⟩ <;>
       simp only [Except.map, Except.error.injEq, Except.ok.injEq, reduceCtorEq,
         Prod.mk.injEq] at hacc
-    · subst hacc
-      rfl
+    · subst hacc; rfl
     · obtain ⟨rfl, hrest⟩ := hacc
       change (replayStep M t (cfg, rest) b).map _ = (replayStep M t (cfg, rest') b).map _
       rw [replayStep_truncate, hrest, ← replayStep_truncate]
+
+private theorem replayInv_of_outcome_ask {t : ℕ} {x : List Bool} {r : Fin t → Bool} {h : History}
+    {m : List Bool} (hm : outcome (coinFamily M t x r) h = .ask m) :
+    h.length < t ∧ m.length < t := by
+  have hinv := replayInv_simulate M t x h (List.ofFn r)
+  rw [coinFamily, outcome_coinProgram] at hm
+  rcases hs : simulate M t x (List.ofFn r) h with (_ | ⟨m'⟩) | ⟨cfg, _ | ⟨_, _⟩⟩ <;>
+    simp only [hs, Except.map, replayOutcome, reduceCtorEq, Outcome.ask.injEq] at hm
+  subst hm
+  simpa only [hs, List.length_ofFn, ReplayInv] using hinv
 
 /-- **The programs of `t` coins form a bounded family**: at most `t` messages, each of length at
 most `t`, and only the first `t` bits of each reply matter. -/
 theorem isBounded_coinFamily (t : ℕ) (x : List Bool) :
     IsBounded (coinFamily M t x) t t where
-  rounds r h m hm := by
-    have hinv := replayInv_simulate M t x h (List.ofFn r)
-    rw [coinFamily, outcome_coinProgram] at hm
-    rcases hs : simulate M t x (List.ofFn r) h with (_ | ⟨m'⟩) | ⟨cfg, _ | ⟨_, _⟩⟩ <;>
-      simp only [hs, Except.map, replayOutcome, reduceCtorEq] at hm
-    rw [hs, List.length_ofFn] at hinv
-    exact hinv.1
-  message r h m hm := by
-    have hinv := replayInv_simulate M t x h (List.ofFn r)
-    rw [coinFamily, outcome_coinProgram] at hm
-    rcases hs : simulate M t x (List.ofFn r) h with (_ | ⟨m'⟩) | ⟨cfg, _ | ⟨_, _⟩⟩ <;>
-      simp only [hs, Except.map, replayOutcome, reduceCtorEq, Outcome.ask.injEq] at hm
-    subst hm
-    rw [hs, List.length_ofFn] at hinv
-    exact hinv.2.le
+  rounds _ _ _ hm := (replayInv_of_outcome_ask M hm).1
+  message _ _ _ hm := (replayInv_of_outcome_ask M hm).2.le
   reply r h m y e := by
     simp only [coinFamily, outcome_coinProgram]
     have hsim := simulate_truncate M t x (List.ofFn r)
