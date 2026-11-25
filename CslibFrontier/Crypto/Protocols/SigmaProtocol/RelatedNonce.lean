@@ -180,12 +180,14 @@ theorem one_sub_inv_card_le_succProbability_relatedNonceGame (ι : C ↪ ZMod q)
     have hne : ((m₁, (a * r + b) • g) == (m₀, r • g)) = false := by simp [Ne.symm hm]
     have hne' : ((m₀, r • g) == (m₁, (a * r + b) • g)) = false := by simp [hm]
     rw [run_oracle_of_lookup_eq_none (by simp [List.lookup, hne])]
-    simp only [PMF.bind_bind, PMF.pure_bind]; rw [PMF.bind_apply]
+    simp only [PMF.bind_bind, PMF.pure_bind]
+    rw [PMF.bind_apply]
     refine (tsum_le_tsum
       (g := fun c₁ => PMF.uniformOfFintype C c₁ * if a * ι c₀ = ι c₁ then (1 : ℝ≥0∞) else 0)
       fun c₁ => mul_le_mul_right ?_ _).trans ?_
     · by_cases hc : a * ι c₀ = ι c₁
-      · rw [ite_eq_left hc]; exact PMF.coe_le_one _ _
+      · rw [ite_eq_left hc]
+        exact PMF.coe_le_one _ _
       · rw [ite_eq_right hc, run_oracle_of_lookup_eq_some (c := c₀) (by simp [List.lookup, hne']),
           PMF.pure_bind, run_oracle_of_lookup_eq_some (c := c₁) (by simp [List.lookup]),
           PMF.pure_bind, relatedNonceExtract_respond key.1 key.2 r a b hc]
@@ -198,9 +200,11 @@ theorem one_sub_inv_card_le_succProbability_relatedNonceGame (ι : C ↪ ZMod q)
     rw [Game.failProbability, ← ENNReal.toNNReal_coe ((Fintype.card C : ℝ≥0)⁻¹)]
     exact ENNReal.toNNReal_mono ENNReal.coe_ne_top
       (by rwa [ENNReal.coe_inv (by simp), ENNReal.coe_natCast])
-  rw [tsub_le_iff_right, ← Game.succProbability_add_failProbability
-    (relatedNonceGame ι g a b m₀ m₁)]
-  gcongr
+  rw [tsub_le_iff_right]
+  calc (1 : ℝ≥0) = Game.succProbability (relatedNonceGame ι g a b m₀ m₁) +
+        Game.failProbability (relatedNonceGame ι g a b m₀ m₁) :=
+        (Game.succProbability_add_failProbability _).symm
+    _ ≤ _ := by gcongr
 
 end RandomOracle
 

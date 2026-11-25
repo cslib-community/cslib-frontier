@@ -90,10 +90,10 @@ private theorem seedOfNat_injOn (n k : ℕ) :
       simp only [seedOfNat, hashSeedOfNat, Prod.mk.injEq, ← hm] at hseed
       have hmul := Nat.mul_comm ((i - n) / m) m
       by_cases hr' : (i - n) % m < n + n - 1
-      · simpa only [show n + (i - n) / m * m + (i - n) % m = i by omega]
-          using congrFun hseed.1 ⟨_, hr'⟩
-      · simpa only [show n + (i - n) / m * m + (n + n - 1) + ((i - n) % m - (n + n - 1)) = i by
-          omega] using congrFun hseed.2 ⟨(i - n) % m - (n + n - 1), by omega⟩
+      · have hi' : n + (i - n) / m * m + (i - n) % m = i := by omega
+        simpa only [hi'] using congrFun hseed.1 ⟨_, hr'⟩
+      · have hi' : n + (i - n) / m * m + (n + n - 1) + ((i - n) % m - (n + n - 1)) = i := by omega
+        simpa only [hi'] using congrFun hseed.2 ⟨(i - n) % m - (n + n - 1), by omega⟩
   · have hle : 2 ^ (n + k * (3 * n - 1)) ≤ 2 ^ i := Nat.pow_le_pow_right two_pos (by omega)
     rw [Nat.testBit_lt_two_pow (hz.trans_le hle), Nat.testBit_lt_two_pow (hz'.trans_le hle)]
 
@@ -129,9 +129,9 @@ def bitGeneratorNat (n k z j : ℕ) : Bool := (blockNat n k z (j / n)).testBit (
 private theorem testBit_blockNat (n k z b : ℕ) (hb : b < 2 ^ k) :
     (fun i : Fin n => (blockNat n k z b).testBit i) =
       blocks toeplitzHash k (seedOfNat n k z).1 (seedOfNat n k z).2 ⟨b, hb⟩ := by
-  rw [blocks_apply_eq_foldl, blockNat,
-    ← show (List.finRange k).map Fin.val = List.range k from
-      List.ext_getElem (by simp) fun _ _ _ => by simp, List.foldl_map]
+  have hrange : (List.finRange k).map Fin.val = List.range k :=
+    List.ext_getElem (by simp) fun _ _ _ => by simp
+  rw [blocks_apply_eq_foldl, blockNat, ← hrange, List.foldl_map]
   refine (List.foldl_hom (fun x : ℕ => fun i : Fin n => x.testBit i) fun x ℓ => ?_).symm
   dsimp only
   split

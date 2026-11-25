@@ -141,9 +141,10 @@ theorem eval_owExperiment_elGamalExplicitCoinPKE (A : G → G × G → ProbComp 
       PMF.pure (decide (δ • g - x' = (α * β) • g)))]
   refine congrArg (PMF.bind _) (funext fun γ => ?_)
   simp only [Equiv.coe_addLeft, smul_smul, mul_comm β α, add_smul]
-  exact congrArg (PMF.bind _) (funext fun x' => by
-    simp [show ((α * β) • g + γ • g - x' = (α * β) • g) ↔ x' = γ • g by
-      rw [sub_eq_iff_eq_add, eq_comm, add_left_cancel_iff, eq_comm]])
+  refine congrArg (PMF.bind _) (funext fun x' => ?_)
+  have hsub : ((α * β) • g + γ • g - x' = (α * β) • g) ↔ x' = γ • g := by
+    rw [sub_eq_iff_eq_add, eq_comm, add_left_cancel_iff, eq_comm]
+  simp [hsub]
 
 /-- **"Breaks the CDH with same advantage"** ([BonehShoup2023], Section 12.6.2, p. 500): in a fixed
 group, the one-way advantage against multiplicative ElGamal equals the CDH advantage of `ℬ`. -/

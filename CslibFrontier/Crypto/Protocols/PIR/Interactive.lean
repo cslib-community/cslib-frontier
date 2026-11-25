@@ -233,13 +233,14 @@ theorem injective_leaf (hcorrect : P.IsCorrect) (hprivate : P.IsPrivate) {i : ι
   by_contra hne
   obtain ⟨j, hj⟩ := Function.ne_iff.mp hne
   -- The leaf `t` is possible for `(x, i)` and `(y, i)`, so by privacy for `(x, j)` and `(y, j)`.
-  have hpos (z : ι → β) (hz : P.protocol.leaf (z, d) (i, c) = P.protocol.leaf (x, d) (i, c)) :
-      P.protocol.leaf (x, d) (i, c) ∈ (ProbComp.eval (P.transcript z j)).support :=
+  set t := P.protocol.leaf (x, d) (i, c)
+  have hpos (z : ι → β) (hz : P.protocol.leaf (z, d) (i, c) = t) :
+      t ∈ (ProbComp.eval (P.transcript z j)).support :=
     hprivate z j i ▸ P.mem_support_transcript_iff.mpr ⟨c, hc, d, hd, hz⟩
   obtain ⟨c₁, hc₁, d₁, hd₁, h₁⟩ := P.mem_support_transcript_iff.mp (hpos x rfl)
   obtain ⟨c₂, _, d₂, hd₂, h₂⟩ := P.mem_support_transcript_iff.mp (hpos y hxy.symm)
   -- By the rectangle property, `t` is also reached on `(y, d₂)` with the user's view `(j, c₁)`.
-  have h₃ : P.protocol.leaf (y, d₂) (j, c₁) = P.protocol.leaf (x, d) (i, c) :=
+  have h₃ : P.protocol.leaf (y, d₂) (j, c₁) = t :=
     Protocol.leaf_eq_iff.mpr ⟨(Protocol.leaf_eq_iff.mp h₂).1, (Protocol.leaf_eq_iff.mp h₁).2⟩
   have hx := hcorrect.leafOutput_eq x hc₁ hd₁
   have hy := hcorrect.leafOutput_eq y hc₁ hd₂
@@ -336,11 +337,13 @@ worst case over all branches of the protocol tree) exists exactly when `n ≤ c`
 [CGKS, Section 5.1][ChorGoldreichKushilevitzSudan1998]. -/
 theorem exists_iff (n c : ℕ) :
     (∃ (C D : Type) (P : InteractiveScheme (Fin n) C D),
-      P.IsCorrect ∧ P.IsPrivate ∧ P.protocol.depth ≤ c) ↔ n ≤ c :=
-  ⟨fun ⟨_, _, _, hcorrect, hprivate, hc⟩ =>
-    ((Fintype.card_fin n).symm.trans_le (card_le_depth hcorrect hprivate)).trans hc,
-    fun h => ⟨Unit, Unit, download n, isCorrect_download n, isPrivate_download n,
-      (depth_download n).trans_le h⟩⟩
+      P.IsCorrect ∧ P.IsPrivate ∧ P.protocol.depth ≤ c) ↔ n ≤ c := by
+  constructor
+  · rintro ⟨_, _, _, hcorrect, hprivate, hc⟩
+    exact ((Fintype.card_fin n).symm.trans_le (card_le_depth hcorrect hprivate)).trans hc
+  · intro h
+    exact ⟨Unit, Unit, download n, isCorrect_download n, isPrivate_download n,
+      (depth_download n).trans_le h⟩
 
 /-- Trivial interactive block download: the server sends all `n · ℓ` bits of the `n` blocks, and the
 user outputs block `i`. -/
@@ -373,12 +376,15 @@ correct and perfectly private interactive block scheme of protocol depth at most
 `n · ℓ ≤ c` [CGKS, Sections 4 and 5.1][ChorGoldreichKushilevitzSudan1998]. -/
 theorem exists_block_iff (n ℓ c : ℕ) :
     (∃ (C D : Type) (P : InteractiveScheme (Fin n) C D (BitString ℓ)),
-      P.IsCorrect ∧ P.IsPrivate ∧ P.protocol.depth ≤ c) ↔ n * ℓ ≤ c :=
-  ⟨fun ⟨_, _, P, hcorrect, hprivate, hc⟩ =>
-    (show n * ℓ ≤ P.protocol.depth by
-      simpa only [Fintype.card_fin] using card_mul_le_depth hcorrect hprivate).trans hc,
-    fun h => ⟨Unit, Unit, blockDownload n ℓ, isCorrect_blockDownload n ℓ,
-      isPrivate_blockDownload n ℓ, (depth_blockDownload n ℓ).trans_le h⟩⟩
+      P.IsCorrect ∧ P.IsPrivate ∧ P.protocol.depth ≤ c) ↔ n * ℓ ≤ c := by
+  constructor
+  · rintro ⟨_, _, P, hcorrect, hprivate, hc⟩
+    have hle : n * ℓ ≤ P.protocol.depth := by
+      simpa only [Fintype.card_fin] using card_mul_le_depth hcorrect hprivate
+    exact hle.trans hc
+  · intro h
+    exact ⟨Unit, Unit, blockDownload n ℓ, isCorrect_blockDownload n ℓ,
+      isPrivate_blockDownload n ℓ, (depth_blockDownload n ℓ).trans_le h⟩
 
 end InteractiveScheme
 

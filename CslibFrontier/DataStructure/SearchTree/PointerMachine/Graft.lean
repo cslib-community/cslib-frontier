@@ -73,7 +73,8 @@ theorem graftLeaf (h : List (Record M (layout extra regs))) (cs : List (Frame M 
       root tree = if contextParent cs = none then some label.address else root (plug cs .nil) := by
   let extended := h ++ [record none none (contextParent cs) label]
   have fresh : label.address ∉ addresses (plug cs .nil) := fun mem => by
-    have := rep.address_lt mem; omega
+    have := rep.address_lt mem
+    omega
   have extendedRep : Represents extended none (plug cs .nil) := rep.append _
   have leafRep : Represents extended (contextParent cs) (.node label .nil .nil) := by
     simp [Represents, extended, atEnd, root]
@@ -93,6 +94,7 @@ theorem graftLeaf (h : List (Record M (layout extra regs))) (cs : List (Frame M 
     simp [addresses, BinaryTree.map, SearchTree.elements]
   · cases cs with
     | nil => rfl
-    | cons frame cs => cases frame <;> exact root_plug_congr cs rfl
+    | cons frame cs =>
+      cases frame <;> exact root_plug_congr cs rfl
 
 end Cslib.DataStructure.SearchTree.PointerMachine

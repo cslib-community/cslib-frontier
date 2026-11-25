@@ -59,9 +59,14 @@ private theorem sensitiveInputs_boundary {n : ℕ} (f : BooleanFunction n) (i : 
         (!(Function.update x i (!x i)) j)) = f (Function.update x i (!x i)) := not_ne_iff.mp hn.2
     have h2 := not_ne_iff.mp (Finset.mem_filter.mp hj).2
     exact hx (h1.symm.trans ((congrArg f (flip_comm x i j).symm).trans (h2.trans h0)))
-  exact (card_le_card hsub).trans <| (card_union_le _ _).trans <|
-    (Nat.add_le_add (sensitivityAt_le_sensitivity f x)
-      (sensitivityAt_le_sensitivity f (Function.update x i (!x i)))).trans_eq (Nat.two_mul _).symm
+  calc #{j : Fin n | ¬IsSensitiveCoord f (Function.update x j (!x j)) i}
+      ≤ (sensitiveCoords f x ∪ sensitiveCoords f (Function.update x i (!x i))).card :=
+        card_le_card hsub
+    _ ≤ (sensitiveCoords f x).card + (sensitiveCoords f (Function.update x i (!x i))).card :=
+        card_union_le _ _
+    _ ≤ sensitivity f + sensitivity f := Nat.add_le_add (sensitivityAt_le_sensitivity f x)
+        (sensitivityAt_le_sensitivity f (Function.update x i (!x i)))
+    _ = 2 * sensitivity f := (Nat.two_mul _).symm
 
 /-- A Boolean function has at most `s(f) * 4 ^ s(f)` relevant coordinates. -/
 theorem card_relevant_le_sensitivity_mul_four_pow {n : ℕ} (f : BooleanFunction n) :
@@ -69,18 +74,21 @@ theorem card_relevant_le_sensitivity_mul_four_pow {n : ℕ} (f : BooleanFunction
   classical
   let A : Fin n → Finset (BitString n) := fun i => univ.filter fun x => IsSensitiveCoord f x i
   let R : Finset (Fin n) := univ.filter fun i => ∃ x, IsSensitiveCoord f x i
-  have hi (i : Fin n) (hi : i ∈ R) : 2 ^ n ≤ 2 ^ (2 * sensitivity f) * (A i).card :=
-    two_pow_le_two_pow_mul_card_of_boundary_bound (A i) (2 * sensitivity f)
-      (let ⟨x, hx⟩ := (mem_filter.mp hi).2; ⟨x, mem_filter.mpr ⟨mem_univ x, hx⟩⟩)
-      fun x hx => by
-        simpa only [A, mem_filter, mem_univ, true_and] using
-          sensitiveInputs_boundary f i x (mem_filter.mp hx).2
+  have hi (i : Fin n) (hi : i ∈ R) : 2 ^ n ≤ 2 ^ (2 * sensitivity f) * (A i).card := by
+    obtain ⟨x, hx⟩ := (mem_filter.mp hi).2
+    refine two_pow_le_two_pow_mul_card_of_boundary_bound (A i) (2 * sensitivity f)
+      ⟨x, mem_filter.mpr ⟨mem_univ x, hx⟩⟩ fun x hx => ?_
+    simpa only [A, mem_filter, mem_univ, true_and] using
+      sensitiveInputs_boundary f i x (mem_filter.mp hx).2
   have hdouble : ∑ i, (A i).card = ∑ x : BitString n, sensitivityAt f x := by
-    simp only [A, card_filter, sensitivityAt, sensitiveCoords]; exact sum_comm
-  have htotal : ∑ i ∈ R, (A i).card ≤ 2 ^ n * sensitivity f :=
-    (sum_le_sum_of_subset_of_nonneg (subset_univ _) fun _ _ _ => Nat.zero_le _).trans <|
-      hdouble.trans_le ((sum_le_sum fun x _ => sensitivityAt_le_sensitivity f x).trans_eq
-        (by simp [BitString]))
+    simp only [A, card_filter, sensitivityAt, sensitiveCoords]
+    exact sum_comm
+  have htotal : ∑ i ∈ R, (A i).card ≤ 2 ^ n * sensitivity f := by
+    calc ∑ i ∈ R, (A i).card ≤ ∑ i, (A i).card :=
+          sum_le_sum_of_subset_of_nonneg (subset_univ _) fun _ _ _ => Nat.zero_le _
+      _ ≤ ∑ _x : BitString n, sensitivity f :=
+          hdouble ▸ sum_le_sum fun x _ => sensitivityAt_le_sensitivity f x
+      _ = 2 ^ n * sensitivity f := by simp [BitString]
   have hproduct : R.card * 2 ^ n ≤ 2 ^ (2 * sensitivity f) * (2 ^ n * sensitivity f) := by
     calc R.card * 2 ^ n = ∑ _i ∈ R, 2 ^ n := by simp
       _ ≤ ∑ i ∈ R, 2 ^ (2 * sensitivity f) * (A i).card := sum_le_sum hi
@@ -98,8 +106,10 @@ theorem clog_le_three_mul_sensitivity_of_depends_on_all {n : ℕ} (f : BooleanFu
   have hn : n ≤ sensitivity f * 4 ^ sensitivity f := by
     simpa [hdep] using card_relevant_le_sensitivity_mul_four_pow f
   refine Nat.clog_le_of_le_pow (hn.trans ?_)
-  refine (Nat.mul_le_mul_right _ Nat.lt_two_pow_self.le).trans_eq ?_
-  rw [show 4 = 2 ^ 2 from rfl, ← pow_mul, ← pow_add]
-  exact congrArg (2 ^ ·) (by omega)
+  calc sensitivity f * 4 ^ sensitivity f ≤ 2 ^ sensitivity f * 4 ^ sensitivity f :=
+        Nat.mul_le_mul_right _ Nat.lt_two_pow_self.le
+    _ = 2 ^ (3 * sensitivity f) := by
+        rw [show 4 = 2 ^ 2 from rfl, ← pow_mul, ← pow_add]
+        exact congrArg (2 ^ ·) (by omega)
 
 end Cslib.BitString

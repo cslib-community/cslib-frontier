@@ -118,7 +118,8 @@ theorem Circuit.aeval_polynomial {R : Type*} [CommSemiring R] [Algebra K R]
       (arithInterpretationWith K (algebraMap K R)) :=
     ⟨aeval x, fun op _ => by cases op <;> simp [arithInterpretationWith]⟩
   refine (congrFun (c.map_eval h X) j).trans ?_
-  congr 1 with i : 1; exact aeval_X x i
+  congr 1 with i : 1
+  exact aeval_X x i
 
 /-- Substituting polynomials for the variables of the polynomial computed by a circuit is
 evaluating the circuit at those polynomials. -/
@@ -196,7 +197,8 @@ substituted in turn, and a constant stays. -/
 theorem projection_projection (ρ : σ → υ ⊕ K) (ρ' : τ → σ ⊕ K) (P : MvPolynomial τ K) :
     projection ρ (projection ρ' P) = projection (fun i => Sum.elim ρ Sum.inr (ρ' i)) P := by
   change ((projection ρ).comp (projection ρ')) P = _
-  congr 1; refine algHom_ext fun i => ?_
+  congr 1
+  refine algHom_ext fun i => ?_
   rcases h : ρ' i with k | a <;> simp [h]
 
 /-- `P` is a *projection* of `Q` [Valiant1979Algebra]: substituting for each variable of `Q` a
@@ -218,7 +220,9 @@ theorem IsProjection.trans {P : MvPolynomial υ K} {Q : MvPolynomial σ K} {R : 
 theorem totalDegree_projection_le (ρ : τ → σ ⊕ K) (P : MvPolynomial τ K) :
     (projection ρ P).totalDegree ≤ P.totalDegree :=
   totalDegree_aeval_le (fun i => by
-    rcases ρ i with k | a; exacts [(totalDegree_monomial_le _ _).trans (by simp), by simp]) P
+    rcases ρ i with k | a
+    · exact (totalDegree_monomial_le _ _).trans (by simp)
+    · simp) P
 
 end Projection
 
@@ -256,15 +260,16 @@ omit [CommSemiring K] in
     (ρ : Fin m → Fin n ⊕ K) (x : Fin n → R) (i : Fin m) :
     (projectionCircuit ρ).eval (arithInterpretationWith K constant) x i =
       Sum.elim x constant (ρ i) := by
-  rw [projectionCircuit, Circuit.eval_pi]; dsimp only
+  rw [projectionCircuit, Circuit.eval_pi]
+  dsimp only
   rcases ρ i with k | a <;> rfl
 
 omit [CommSemiring K] in
 /-- The substitution of a projection needs at most one gate per substituted variable. -/
 theorem size_projectionCircuit_le (ρ : Fin m → Fin n ⊕ K) : (projectionCircuit ρ).size ≤ m := by
   rw [projectionCircuit, Circuit.size_pi]
-  exact (Finset.sum_le_sum (g := fun _ => 1) fun i _ => by
-    rcases ρ i with k | a <;> simp).trans_eq (by simp)
+  calc _ ≤ ∑ _i : Fin m, 1 := Finset.sum_le_sum fun i _ => by rcases ρ i with k | a <;> simp
+    _ = m := by simp
 
 /-- Feeding the substitution of a projection to a circuit computes the projection of its
 polynomial. -/
@@ -272,7 +277,8 @@ theorem polynomial_comp_projectionCircuit (c : Circuit (arithSignature K) m p)
     (ρ : Fin m → Fin n ⊕ K) (j : Fin p) :
     (c.comp (projectionCircuit ρ)).polynomial j = projection ρ (c.polynomial j) := by
   rw [projection, Circuit.aeval_polynomial_mvPolynomial, Circuit.polynomial, Circuit.eval_comp]
-  congr 1 with i : 1; exact eval_projectionCircuit _ ρ X i
+  congr 1 with i : 1
+  exact eval_projectionCircuit _ ρ X i
 
 /-! ### The class VP -/
 
@@ -300,7 +306,8 @@ theorem VP.of_isPProjection {f g : PolynomialFamily K} (hg : g ∈ VP K)
   refine ⟨⟨hvars, (hgdeg.comp ht).mono_of_le fun n => hρ n ▸ totalDegree_projection_le _ _⟩,
     fun n => (c (t n)).comp (projectionCircuit (ρ n)),
     ((hgvars.comp ht).add (hc.comp ht)).mono_of_le fun n => ?_, fun n => ?_⟩
-  · rw [Circuit.size_comp]; exact Nat.add_le_add_right (size_projectionCircuit_le _) _
+  · rw [Circuit.size_comp]
+    exact Nat.add_le_add_right (size_projectionCircuit_le _) _
   · rw [polynomial_comp_projectionCircuit, hcg, hρ]
 
 /-- A p-family is in `VP` when, within a polynomially bounded budget, each member `f.poly n` is
@@ -327,7 +334,8 @@ theorem exists_circuit_pow_two_pow (n : ℕ) : ∃ c : Circuit (arithSignature K
   suffices ∀ t, Synthesis (arithInterpretationWith K C) (inputs 1)
       {fun x : Fin 1 → MvPolynomial (Fin 1) K => x 0 ^ 2 ^ t} t from
     (this n).exists_circuit_polynomial
-  intro t; induction t with
+  intro t
+  induction t with
   | zero =>
     simpa using Synthesis.of_mem (I := arithInterpretationWith K C)
       (⟨0, rfl⟩ : (fun x : Fin 1 → MvPolynomial (Fin 1) K => x 0) ∈ inputs 1)

@@ -105,9 +105,9 @@ theorem choice_unique {f : OccurrenceLabeling G.matchingInstance Bool}
     (hfy : f (G.choiceOccurrence v hv y hy) = true) : x = y := by
   let i := (G.choiceOccurrence v hv x hx).1
   have hh := hf i
-  rw [show G.matchingInstance[i].rel = Table.exactlyOne (G.matchingScope v) by
-    simp [i, choiceOccurrence, getElem_matchingInstance_vertex hv],
-    Table.sem_exactlyOne_eq_true] at hh
+  have ht : G.matchingInstance[i].rel = Table.exactlyOne (G.matchingScope v) := by
+    simp [i, choiceOccurrence, getElem_matchingInstance_vertex hv]
+  rw [ht, Table.sem_exactlyOne_eq_true] at hh
   have hcard : ((Finset.univ : Finset (Fin G.matchingInstance[i.val].scope.length)).filter
       fun j => f ⟨i, j⟩ = true).card = 1 := by
     simpa only [localTuple, List.count_eq_countP, List.countP_ofFn, beq_true,
@@ -171,19 +171,23 @@ theorem card_true_matchingInstance {f : OccurrenceLabeling G.matchingInstance Bo
       (localTuple f i).count true = if i.val < G.distinctVertices.length then 1 else 0 := by
     have hh : G.matchingInstance[i.val].rel.sem (localTuple f i) = true := hf i
     by_cases hi : i.val < G.distinctVertices.length
-    · rw [show G.matchingInstance[i.val].rel =
-          Table.exactlyOne (G.matchingScope G.distinctVertices[i.val]) by
-        simp [matchingInstance, hi]] at hh
+    · have hrel : G.matchingInstance[i.val].rel =
+          Table.exactlyOne (G.matchingScope G.distinctVertices[i.val]) := by
+        simp [matchingInstance, hi]
+      rw [hrel] at hh
       exact ((Table.sem_exactlyOne_eq_true _ _).mp hh).2.trans (ite_eq_left hi).symm
-    · rw [show G.matchingInstance[i.val].rel = Table.pinTable false by
-        simp [matchingInstance, Nat.le_of_not_gt hi], Table.sem_eq_true] at hh
-      rw [show localTuple f i = [false] by
-        simpa only [Table.pinTable, List.mem_singleton] using hh.2]
-      simp [hi]
+    · have hrel : G.matchingInstance[i.val].rel = Table.pinTable false := by
+        simp [matchingInstance, Nat.le_of_not_gt hi]
+      rw [hrel, Table.sem_eq_true] at hh
+      have hloc : localTuple f i = [false] := by
+        simpa only [Table.pinTable, List.mem_singleton] using hh.2
+      simp [hloc, hi]
   rw [card_true_eq_sum_count]
   simp only [hc]
-  rw [show G.matchingInstance.length = G.distinctVertices.length + G.distinctVertices.length by
-    simp [matchingInstance], Fin.sum_univ_add]
+  have hlen : G.matchingInstance.length =
+      G.distinctVertices.length + G.distinctVertices.length := by
+    simp [matchingInstance]
+  rw [hlen, Fin.sum_univ_add]
   simp
 
 /-- The exact objective identity, including isolates and empty graphs. -/

@@ -51,12 +51,17 @@ theorem matrix_writing_total_le {n D g p : ℕ} (wAB : Fin n → Fin n → ℤ) 
     exact_mod_cast card_instanceIndices_le wAB hD hDn hg hp
   have hpos : 1 ≤ n * D := Nat.mul_pos (by omega) (by omega)
   have hc : c ≤ c * (n * D) := Nat.le_mul_of_pos_right c hpos
-  simp only [Finset.sum_const, smul_eq_mul]
-  exact (Nat.mul_le_mul hcard
-    (by nlinarith : 2 * (20 * (n * D) + 6) + c ≤ (52 + c) * (n * D))).trans_eq (by ring)
+  have hstep : 2 * (20 * (n * D) + 6) + c ≤ (52 + c) * (n * D) := by nlinarith
+  calc
+    _ = (instanceIndices wAB D g p).card * (2 * (20 * (n * D) + 6) + c) := by
+      simp only [Finset.sum_const, smul_eq_mul]
+    _ ≤ (4 * n * g) * ((52 + c) * (n * D)) := Nat.mul_le_mul hcard hstep
+    _ = (208 + 4 * c) * (n * n) * D * g := by ring
 
-private theorem queryCap_le_sq (n D : ℕ) : queryCap n D ≤ n * n :=
-  (Nat.sqrt_le_sqrt (Nat.div_le_self ..)).trans_eq (by rw [Nat.sqrt_eq', pow_two])
+private theorem queryCap_le_sq (n D : ℕ) : queryCap n D ≤ n * n := by
+  calc
+    queryCap n D ≤ Nat.sqrt ((n ^ 2) ^ 2) := Nat.sqrt_le_sqrt (Nat.div_le_self ..)
+    _ = n * n := by rw [Nat.sqrt_eq', pow_two]
 
 /-- The exact signed-residue/class prefix bound and the parameter-kernel bound are charged
 separately. Their sum is at most a fixed multiple of `n² D g` when `p ≤ D`; the prime-window
@@ -91,9 +96,11 @@ theorem prefix_time_le {n D g p : ℕ}
     Catalogue.cost n D p ≤ 229 * (n * n) * D * g := by
   have hbase : 1 ≤ (n * n) * D * g :=
     Nat.mul_pos (Nat.mul_pos (Nat.mul_pos (hD.trans hDn) (hD.trans hDn)) hD) hg
-  rw [show Catalogue.cost n D p = 69 * (n * n) + p * (14 * (n * n) + 14) + 30 +
-      (5 * sOf D + 5 * queryCap n D + 27) + (p * (17 * (n * n) + 20) + 9) + 19 by
-    dsimp [Catalogue.cost]; ring]
+  have heq : Catalogue.cost n D p =
+      69 * (n * n) + p * (14 * (n * n) + 14) + 30 +
+        (5 * sOf D + 5 * queryCap n D + 27) + (p * (17 * (n * n) + 20) + 9) + 19 := by
+    dsimp [Catalogue.cost]; ring
+  rw [heq]
   nlinarith only [residue_class_parameter_time_le hD hDn hg hp,
     catalogue_time_le hD hDn hg hp, hbase]
 
@@ -110,7 +117,8 @@ theorem timeBound_le {n D g p : ℕ} (wAB : Fin n → Fin n → ℤ)
   simp only [Finset.sum_const, smul_eq_mul] at hmat
   have hvisit : (instanceIndices wAB D g p).card * (40 * (n * D) + 68) ≤
       432 * (n * n) * D * g := by
-    convert hmat using 1; ring
+    convert hmat using 1
+    ring
   rw [Instances.timeBound, ← card_instanceIndices wAB]
   have hn : 0 < n := by omega
   nlinarith only [prefix_time_le (by omega) hDn hg hpD, hvisit,

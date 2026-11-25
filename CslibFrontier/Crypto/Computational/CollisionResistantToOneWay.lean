@@ -134,8 +134,10 @@ the key followed by the message's digest. -/
 theorem keyDigest_append (H : List Bool → List Bool → List Bool) {key message : List Bool}
     {r : ℕ} (hmessage : message.length = 2 * key.length + r) (hr : r < 3) :
     keyDigest H (key ++ message) = key ++ H key message := by
-  simp only [keyDigest, show (key ++ message).length / 3 = key.length by
-    rw [List.length_append, hmessage]; omega, List.take_left, List.drop_left]
+  have hsplit : (key ++ message).length / 3 = key.length := by
+    rw [List.length_append, hmessage]
+    omega
+  simp only [keyDigest, hsplit, List.take_left, List.drop_left]
 
 /-- If a candidate's image is `k ++ H k x` for a length-preserving family, its message part either
 collides with `x` under `k` or is `x` itself. -/

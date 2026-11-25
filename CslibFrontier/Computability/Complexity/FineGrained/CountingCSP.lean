@@ -103,11 +103,12 @@ theorem computableInPolyTime_numVars [DecidableEq V] (encRel : Rel ↪ List Bool
 theorem computableInPolyTime_denseRelabel [DecidableEq V] (encRel : Rel ↪ List Bool)
     (encV : V ↪ List Bool) :
     ComputableInPolyTime (CSP.denseRelabel (Rel := Rel) (V := V))
-      (encCSP encRel encV) (encCSP encRel encNat) :=
-  (computableInPolyTime_unary_to_binary encRel).comp
-    (show ComputableInPolyTime (CSP.denseRelabel (Rel := Rel) (V := V))
-      (encCSP encRel encV) (encCSP encRel encUnary) by
-        unfold CSP.denseRelabel CSP.relabel Constraint.relabel; fun_prop)
+      (encCSP encRel encV) (encCSP encRel encNat) := by
+  have hunary : ComputableInPolyTime (CSP.denseRelabel (Rel := Rel) (V := V))
+      (encCSP encRel encV) (encCSP encRel encUnary) := by
+    unfold CSP.denseRelabel CSP.relabel Constraint.relabel
+    fun_prop
+  exact (computableInPolyTime_unary_to_binary encRel).comp hunary
 
 /-- The executable arity and variable-range guard `CSP.validDeclaredCSP k` is computable in
 polynomial time. -/
@@ -251,9 +252,9 @@ theorem exists_modelCounter_of_forall [DecidableEq V] (encRel : Rel ↪ List Boo
       fun F hF => validDeclaredCSP_denseRelabel
         (by simpa only [List.all_eq_true, decide_eq_true_eq] using hF)
   refine ⟨count, T, S, A, c, e, a, b, hcount, fun F hF => ?_, hT, hS⟩
-  simp only [hspec F, show (F.all fun c => decide (c.scope.length ≤ k)) = true by
-    simpa only [List.all_eq_true, decide_eq_true_eq] using hF,
-    ↓reduceIte, modelCountOn_denseRelabel]
+  have hv : (F.all fun c => decide (c.scope.length ≤ k)) = true := by
+    simpa only [List.all_eq_true, decide_eq_true_eq] using hF
+  simp only [hspec F, hv, ↓reduceIte, modelCountOn_denseRelabel]
 
 /-- **Occurring-variable exact counting for bounded-arity Boolean `#CSP`.** For any polynomial-time
 computable relation semantics `sem`, variable encoding `encV`, and arity bound `k`, one machine
@@ -303,11 +304,13 @@ theorem decidableInSubexpTime_KCSP_of_reduction {D β : Type} [DecidableEq V]
       (fun F : CSP Rel V => F.all fun cl => decide (cl.scope.length ≤ k))
       (encCSP encRel encV) encBool := by fun_prop
   intro δ hδ
-  rw [show KCSP k sem = {F : CSP Rel V | (F.all fun cl => decide (cl.scope.length ≤ k)) = true} ∩
-      {F : CSP Rel V | f F ∈ L} by
+  have hKCSP_eq : KCSP k sem =
+      {F : CSP Rel V | (F.all fun cl => decide (cl.scope.length ≤ k)) = true} ∩
+      {F : CSP Rel V | f F ∈ L} := by
     ext F
     simpa only [KCSP, Set.mem_inter_iff, Set.mem_ofPred_eq, List.all_eq_true, decide_eq_true_eq]
-      using and_congr_right (hiff F)]
+      using and_congr_right (hiff F)
+  rw [hKCSP_eq]
   exact (hB δ hδ).inter hwidth hδ.le
 
 /-- **Subexponential-time decision for bounded-arity Boolean `CSP` (pattern-wise hypothesis).** -/

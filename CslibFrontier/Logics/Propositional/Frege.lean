@@ -229,7 +229,8 @@ variable {Γ : List (Formula V)}
 /-- Derivability in `n` lines implies derivability in `m ≥ n` lines. -/
 theorem mono {n m : ℕ} {φ : Formula V} (h : DerivableInSize Γ φ n) (hnm : n ≤ m) :
     DerivableInSize Γ φ m :=
-  let ⟨L, hL, hφ, hlen⟩ := h; ⟨L, hL, hφ, hlen.trans hnm⟩
+  let ⟨L, hL, hφ, hlen⟩ := h
+  ⟨L, hL, hφ, hlen.trans hnm⟩
 
 /-- An axiom instance in one line. -/
 theorem ax {φ : Formula V} (h : IsAxiom φ) : DerivableInSize Γ φ 1 :=

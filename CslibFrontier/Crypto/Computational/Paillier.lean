@@ -117,19 +117,21 @@ theorem decryptNat_eq {N c m r : ℕ} (hN : 1 < N) (hcop : N.Coprime N.totient)
     (hr : r.Coprime N) (hc : (c : ZMod (N ^ 2)) = (1 + N) ^ m * (r : ZMod (N ^ 2)) ^ N) :
     decryptNat N N.totient c = m % N := by
   have hN0 : N ≠ 0 := by lia
+  -- Raising `c` to the power `φ(N)` leaves `1 + (m * φ(N) mod N) * N`.
+  have hpow : c ^ N.totient % N ^ 2 = 1 + m * N.totient % N * N := by
+    rw [← ZMod.val_one_add_natCast_mul hN, ← one_add_pow_mul_pow_pow_totient m hr, ← hc,
+      ← Nat.cast_pow, ZMod.val_natCast]
   -- `φ(N) ^ (φ(N) - 1)` inverts `φ(N)` modulo `N`, by Euler's theorem.
   have heuler : (N.totient : ZMod N) ^ N.totient = 1 := by
     simpa only [Units.val_pow_eq_pow_val, ZMod.coe_unitOfCoprime, Units.val_one] using
       congrArg Units.val (ZMod.pow_totient (ZMod.unitOfCoprime N.totient hcop.symm))
-  -- Raising `c` to the power `φ(N)` leaves `1 + (m * φ(N) mod N) * N`.
-  rw [decryptNat, powMod_of_ne_zero (pow_ne_zero 2 hN0), powMod_of_ne_zero hN0,
-    show c ^ N.totient % N ^ 2 = 1 + m * N.totient % N * N by
-      rw [← ZMod.val_one_add_natCast_mul hN, ← one_add_pow_mul_pow_pow_totient m hr, ← hc,
-        ← Nat.cast_pow, ZMod.val_natCast],
+  rw [decryptNat, powMod_of_ne_zero (pow_ne_zero 2 hN0), powMod_of_ne_zero hN0, hpow,
     Nat.add_sub_cancel_left, Nat.mul_div_cancel _ (show 0 < N by lia),
     ← ZMod.natCast_eq_natCast_iff']
   simp only [Nat.cast_mul, ZMod.natCast_mod, Nat.cast_pow]
-  rw [mul_assoc, ← pow_succ', Nat.sub_add_cancel (Nat.totient_pos.mpr (by lia)), heuler, mul_one]
+  calc (m : ZMod N) * N.totient * (N.totient : ZMod N) ^ (N.totient - 1)
+      = m * (N.totient : ZMod N) ^ (N.totient - 1 + 1) := by rw [pow_succ]; ring
+    _ = m := by rw [Nat.sub_add_cancel (Nat.totient_pos.mpr (by lia)), heuler, mul_one]
 
 /-! ### The scheme on binary words -/
 
@@ -259,7 +261,8 @@ theorem exists_of_mem_support_keyGen {gen : ℕ → ProbComp Desc} {n : ℕ}
     ∃ d : Desc, keys = (encNat d.modulus, encPair encNat encNat (d.modulus, d.totient)) := by
   simp only [keyGen, ProbComp.eval_bind, ProbComp.eval_pure, PMF.mem_support_bind_iff,
     PMF.support_pure, Set.mem_singleton_iff] at hkeys
-  exact let ⟨d, _, h⟩ := hkeys; ⟨d, h⟩
+  obtain ⟨d, _, rfl⟩ := hkeys
+  exact ⟨d, rfl⟩
 
 /-- Ciphertexts in the support of `encrypt n (encNat N) m` are `ciphertext N m r'` for some
 `r'` coprime to `N`. -/
@@ -268,7 +271,8 @@ theorem exists_of_mem_support_encrypt {n N m : ℕ} {ct : List Bool}
     ∃ r : ℕ, r.Coprime N ∧ ct = encNat (ciphertext N m r) := by
   simp only [encrypt, ofBits_encNat, ProbComp.eval_bind, ProbComp.eval_pure,
     PMF.mem_support_bind_iff, PMF.support_pure, Set.mem_singleton_iff] at hct
-  exact let ⟨r, _, h⟩ := hct; ⟨unitOrOne N r, coprime_unitOrOne N r, h⟩
+  obtain ⟨r, _, rfl⟩ := hct
+  exact ⟨unitOrOne N r, coprime_unitOrOne N r, rfl⟩
 
 /-- Decrypting with a secret key `⟨N, φ(N)⟩` of a valid description. -/
 private theorem decrypt_encPair (d : Desc) (c : ℕ) :

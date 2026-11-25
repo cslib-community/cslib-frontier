@@ -121,7 +121,8 @@ otherwise the word with index `j` would itself be the binary digits of `j + 1`, 
 theorem index_word (j : ℕ) : index (word j) = j := by
   have hne : (j + 1).bits ≠ [] := by rw [Ne, Nat.bits_eq_nil_iff]; omega
   have h := Nat.foldr_bit_bits (j + 1)
-  rw [← List.dropLast_append_getLast hne, List.foldr_append, List.foldr_cons, List.foldr_nil] at h
+  rw [← List.dropLast_append_getLast hne, List.foldr_append, List.foldr_cons,
+    List.foldr_nil] at h
   have hlt := Nat.foldr_bit_lt (word j)
   have hle := two_pow_length_word_le j
   rw [word] at hlt hle
@@ -182,12 +183,15 @@ theorem pad_mem_padSAT_iff {e : ℕ → ℕ} {φ : Logic.PL.CNF ℕ} {k : ℕ} :
     obtain ⟨h₁, rfl⟩ := pad_inj.mp h
     obtain rfl := encCNF.injective h₁
     exact ⟨hψ, rfl⟩
-  · rintro ⟨hφ, rfl⟩; exact ⟨φ, hφ, rfl⟩
+  · rintro ⟨hφ, rfl⟩
+    exact ⟨φ, hφ, rfl⟩
 
 /-- Membership of `y` depends only on the exponents of lengths below the length of `y`. -/
 theorem mem_padSAT_congr {e e' : ℕ → ℕ} {y : List Bool} (h : ∀ m < y.length, e m = e' m) :
     y ∈ padSAT e ↔ y ∈ padSAT e' := by
-  constructor <;> rintro ⟨φ, hφ, rfl⟩ <;> exact ⟨φ, hφ, by rw [h _ (by rw [length_pad]; omega)]⟩
+  constructor <;> rintro ⟨φ, hφ, rfl⟩ <;> refine ⟨φ, hφ, ?_⟩
+  · rw [h _ (by rw [length_pad]; omega)]
+  · rw [h _ (by rw [length_pad]; omega)]
 
 /-! ### The indexed machines -/
 
@@ -245,7 +249,9 @@ theorem exists_index_runIndexed_eq {k : ℕ} {State : Type} [Finite State]
   have := Fintype.ofFinite State
   obtain ⟨i, hi, hdesc⟩ :=
     exists_index_ge (desc ((Fintype.equivFin State).toEmbedding.trans Fin.valEmbedding) eBit tm) B
-  exact ⟨i, hi, fun x T hT => by rw [runIndexed, hdesc]; exact universal_desc_of_halted _ tm h hT⟩
+  refine ⟨i, hi, fun x T hT => ?_⟩
+  rw [runIndexed, hdesc]
+  exact universal_desc_of_halted _ tm h hT
 
 /-- The clock of the machine with index `i` on inputs of length `l`. -/
 def clock (i l : ℕ) : ℕ := (2 * l + 2) ^ i

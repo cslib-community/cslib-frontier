@@ -169,7 +169,8 @@ private theorem intCast_comp_sub {ι : Type*} (a b : ι → ℤ) :
 /-- The entries of a challenge vector are `0` or `1`. -/
 private theorem abs_lyubashevskyChallenge_le (c : BitString k) (j : Fin k) :
     |lyubashevskyChallenge c j| ≤ 1 := by
-  unfold lyubashevskyChallenge; split_ifs <;> simp
+  unfold lyubashevskyChallenge
+  split_ifs <;> simp
 
 /-- `S ĉ` has sup norm at most `k η` when the entries of `S` are at most `η`. -/
 theorem mulVec_lyubashevskyChallenge_mem_intBox {η : ℕ} {S : Matrix (Fin m) (Fin k) ℤ}
@@ -177,11 +178,13 @@ theorem mulVec_lyubashevskyChallenge_mem_intBox {η : ℕ} {S : Matrix (Fin m) (
     S *ᵥ lyubashevskyChallenge c ∈ intBox (Fin m) (k * η) := by
   rw [mem_intBox]
   intro i
-  change |∑ j, S i j * lyubashevskyChallenge c j| ≤ _
-  refine ((Finset.abs_sum_le_sum_abs _ _).trans
-    (Finset.sum_le_sum (g := fun _ : Fin k => (η : ℤ)) fun j _ => ?_)).trans_eq (by simp)
-  rw [abs_mul]
-  exact (mul_le_of_le_one_right (abs_nonneg _) (abs_lyubashevskyChallenge_le c j)).trans (hS i j)
+  calc |(S *ᵥ lyubashevskyChallenge c) i| = |∑ j, S i j * lyubashevskyChallenge c j| := rfl
+    _ ≤ ∑ j, |S i j * lyubashevskyChallenge c j| := Finset.abs_sum_le_sum_abs _ _
+    _ ≤ ∑ _j : Fin k, (η : ℤ) := Finset.sum_le_sum fun j _ => by
+      rw [abs_mul]
+      exact (mul_le_of_le_one_right (abs_nonneg _) (abs_lyubashevskyChallenge_le c j)).trans
+        (hS i j)
+    _ = ((k * η : ℕ) : ℤ) := by simp
 
 /-- Erasing the commitment of a published transcript leaves the abort probability unchanged. -/
 private theorem map_optionMap_apply_none {α δ : Type} (p : PMF (Option α)) (f : α → δ) :
@@ -246,8 +249,10 @@ theorem lyubashevsky_specialSoundness :
       cases hcj : c j <;> cases hcj' : c' j <;> simp_all
     · rintro (i | j)
       · simp only [lyubashevskyExtract, Option.getD_some, Sum.elim_inl, Pi.sub_apply]
-        exact ((abs_sub _ _).trans (add_le_add (mem_intBox.mp hz.1 i)
-          (mem_intBox.mp hz'.1 i))).trans (by push_cast; omega)
+        calc |z i - z' i| ≤ |z i| + |z' i| := abs_sub _ _
+          _ ≤ ((γ - β : ℕ) : ℤ) + ((γ - β : ℕ) : ℤ) :=
+              add_le_add (mem_intBox.mp hz.1 i) (mem_intBox.mp hz'.1 i)
+          _ ≤ ((max (2 * (γ - β)) 1 : ℕ) : ℤ) := by push_cast; omega
       · simp only [lyubashevskyExtract, Sum.elim_inr, Pi.sub_apply, lyubashevskyChallenge]
         split_ifs <;> simp
     · rw [InKernelLattice, Matrix.fromCols_mulVec]

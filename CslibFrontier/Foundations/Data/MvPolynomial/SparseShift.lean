@@ -93,12 +93,14 @@ of `p` by the variables of the derivative gives a polynomial in the span of the 
 theorem prod_X_mul_iteratedPDeriv_mem_restrictSupport {k : ℕ} (α : Fin k → σ)
     (p : MvPolynomial σ R) :
     (∏ i, X (α i)) * iteratedPDeriv α p ∈ restrictSupport R (p.support : Set (σ →₀ ℕ)) := by
-  rw [restrictSupport_eq_span, show iteratedPDeriv α p =
-    ∑ μ ∈ p.support, iteratedPDeriv α (monomial μ (p.coeff μ)) by
-      conv_lhs => rw [p.as_sum, map_sum], Finset.mul_sum]
+  have hp : iteratedPDeriv α p =
+      ∑ μ ∈ p.support, iteratedPDeriv α (monomial μ (p.coeff μ)) := by
+    conv_lhs => rw [p.as_sum, map_sum]
+  rw [restrictSupport_eq_span, hp, Finset.mul_sum]
   refine Submodule.sum_mem _ fun μ hμ => ?_
   obtain ⟨ν, c', h, rfl | hν⟩ := exists_iteratedPDeriv_monomial α μ (p.coeff μ)
-  · rw [h, monomial_zero, mul_zero]; exact zero_mem _
+  · rw [h, monomial_zero, mul_zero]
+    exact zero_mem _
   · rw [h, hν, ← mul_one c', ← smul_eq_mul, ← smul_monomial]
     exact Submodule.smul_mem _ _ (Submodule.subset_span ⟨μ, hμ, rfl⟩)
 

@@ -206,8 +206,11 @@ follows active outgoing edges and fixes every other vertex, reduces sink-of-line
 theorem PPADS_subset_PPP : PPADS enc ⊆ PPP enc := by
   intro R hR'
   obtain ⟨hR, n, P, S, hn, hP, hS, -, hS_len, hred⟩ := mem_PPADS.mp hR'
+  have hF : ComputableInPolyTime (ppadToPppMap n P S) (encPair enc encBits) encBits := by
+    unfold ppadToPppMap
+    fun_prop
   have hlen : PreservesWidth n (ppadToPppMap n P S) := fun a _ => length_ppadToPppMap (hS_len a)
-  exact mem_PPP.mpr ⟨hR, n, ppadToPppMap n P S, hn, by unfold ppadToPppMap; fun_prop, hlen,
+  exact mem_PPP.mpr ⟨hR, n, ppadToPppMap n P S, hn, hF, hlen,
     hred.trans <| .of_isTotalSearch (isTotalSearch_pigeonRel hlen) ComputableInPolyTime.id'
       (g := fun p => if !hasOut n P S p.1 (p.2.take (n p.1))
         then p.2.take (n p.1) else p.2.drop (n p.1))

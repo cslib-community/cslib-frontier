@@ -156,9 +156,11 @@ private theorem get_setAux (x : Option (Clause ℕ)) :
   | succ fuel ih =>
     rintro t (_ | n) m hn
     · exact h0 _ t m
-    rw [show setAux x (fuel + 1) t (n + 1) =
+    have hset : setAux x (fuel + 1) t (n + 1) =
         if n % 2 = 0 then node t.val (setAux x fuel t.zero (n / 2)) t.one
-        else node t.val t.zero (setAux x fuel t.one (n / 2)) by cases t <;> rfl]
+        else node t.val t.zero (setAux x fuel t.one (n / 2)) := by
+      cases t <;> rfl
+    rw [hset]
     rcases m with _ | m
     · simp only [Nat.zero_ne_add_one, ↓reduceIte, get_zero]
       split_ifs <;> rfl
@@ -258,7 +260,8 @@ private theorem residualMask_eq {mask : ℕ} {t : List (Literal ℕ)}
     residualMask c mask = c.residual t := by
   unfold residualMask Clause.residual
   congr 2
-  funext l; simp [h]
+  funext l
+  simp [h]
 
 /-- Unit propagation along hints, as `Cslib.Logic.PL.CNF.propagateHints`, reading the hinted
 clauses from a trie and keeping the trail in a bitmask. -/

@@ -89,7 +89,8 @@ theorem uniform_transcriptWithHedges (C : QuantumSigningForger) (H : Xofs) (s : 
     · rfl
     · simp only [isSigningCall, Sum.elim_inr, hedgeCommand, signingCommand, Xofs.signAndLog,
         online, commands, statefulSigningCommands, OracleComp.sumHandler,
-        Xofs.signingOracle, U, PMF.map_comp, Function.comp_def, ↓reduceIte]; rfl
+        Xofs.signingOracle, U, PMF.map_comp, Function.comp_def, ↓reduceIte]
+      rfl
   have joint := OracleComp.IsCostBounded.run_interpret_presample_when isSigningCall
     (hn keys.publicKey) U (fun _ => 0) (C.hedgeCommand H H s keys.secretKey) C.initial
   simp_rw [step] at joint
@@ -154,7 +155,8 @@ private theorem uniform_fixedHedgeGame (C : QuantumSigningForger) (s : Level) (b
   rw [show (fun H => (matrixSetup H s).bind fun z => (C.runAtSetup s z).map (·.any score)) =
     (fun H => (matrixSetup H s).bind eval) from rfl, eq]
   unfold fixedHedgeGame scoreWithSetup scoreTranscript withTrialSetup
-  pmf_swap with H; pmf_swap with seed
+  pmf_swap with H
+  pmf_swap with seed
   dsimp only [eval]
   rcases hg : H.keyGen s seed with _ | keys
   · simp [runAtSetup]

@@ -171,7 +171,8 @@ private theorem exists_body {w : ℕ} {x : Data registers} (o : Memory.Op)
       memoryState frontier x := prepare_memoryState o x
   obtain ⟨y, n, he, hn, hm, hout, -, -⟩ :=
     Backend.exists_exec_live certificates ((backend 0).tag o) ((backend 0).arg o)
-      (prepare_bounded hx hv) (prepare_inputs o x) (by cases o <;> trivial) (by
+      (prepare_bounded hx hv) (prepare_inputs o x) (by cases o <;> trivial)
+      (by
         rw [hprepare]
         cases o <;> simpa [certificates, backend, StateTransitionSpec.clientHistory,
           StateTransitionSpec.runClient_lift, StateTransitionSpec.validHistory_cons,

@@ -132,7 +132,8 @@ theorem mem_unsat_iff {y w : ι → Bool} (hw : w ∈ code G) {j : κ} :
   rw [unsat, mem_filter, ← syndrome_add_of_mem hw, syndrome_apply, parityOn, decide_eq_true_iff,
     ← Nat.odd_iff]
   simp only [mem_univ, true_and]
-  congr! 2; ext i
+  congr! 2
+  ext i
   simp only [mem_filter, mem_univ, true_and, mem_bipartiteBelow, Pi.add_apply, Bool.add_eq_xor,
     Bool.xor_iff_ne, and_comm]
 
@@ -224,7 +225,8 @@ theorem two_mul_mul_le_hammingDist {c k : ℕ} {α : ℝ} (hG : IsLeftBounded G 
   have hsub : uniqueNeighbors G T ⊆ neighbors G (E \ T) := fun j hj => by_contra fun hj' => by
     have hU : j ∈ uniqueNeighbors G E := by
       rw [mem_uniqueNeighbors, ← mem_uniqueNeighbors.1 hj]
-      congr 1; ext i
+      congr 1
+      ext i
       simp only [mem_bipartiteBelow]
       exact ⟨fun h => ⟨by_contra fun hiT =>
         hj' (mem_neighbors.2 ⟨i, mem_sdiff.2 ⟨h.1, hiT⟩, h.2⟩), h.2⟩, fun h => ⟨hTE h.1, h.2⟩⟩
@@ -233,8 +235,10 @@ theorem two_mul_mul_le_hammingDist {c k : ℕ} {α : ℝ} (hG : IsLeftBounded G 
   have h2 : #(uniqueNeighbors G T) ≤ c * (#E - k) :=
     (card_le_card hsub).trans ((card_neighbors_le hG _).trans
       (by rw [card_sdiff_of_subset hTE, hT]))
-  have h3 : (#(uniqueNeighbors G T) : ℝ) ≤ c * (#E - k) :=
-    (by push_cast [hEk]; ring : ((#E - k : ℕ) : ℝ) = #E - k) ▸ (by exact_mod_cast h2)
+  have hsub_cast : ((#E - k : ℕ) : ℝ) = #E - k := by push_cast [hEk]; ring
+  have h3 : (#(uniqueNeighbors G T) : ℝ) ≤ c * (#E - k) := by
+    rw [← hsub_cast]
+    exact_mod_cast h2
   change 2 * α * k ≤ c * (#E : ℝ)
   nlinarith
 

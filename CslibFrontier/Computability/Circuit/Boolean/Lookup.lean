@@ -82,9 +82,10 @@ theorem complexity_le_mul_of_forall_dependsOn (f : (Fin n → Bool) → Fin r �
     (hf : ∀ j, ∃ s : Finset (Fin n), #s ≤ t ∧ DependsOn (fun x => f x j) s) :
     complexity interpretation f ≤ r * (2 ^ t * (2 * t + 3) + 1) := by
   refine (complexity_pi_le (I := interpretation) fun j x => f x j).trans ?_
-  refine (sum_le_sum (g := fun _ => 2 ^ t * (2 * t + 3) + 1) fun j _ => ?_).trans_eq (by simp)
-  obtain ⟨s, hs, hdep⟩ := hf j
-  exact (complexity_le_of_dependsOn hdep).trans (by gcongr)
+  calc _ ≤ ∑ _j : Fin r, (2 ^ t * (2 * t + 3) + 1) := sum_le_sum fun j _ => by
+        obtain ⟨s, hs, hdep⟩ := hf j
+        exact (complexity_le_of_dependsOn hdep).trans (by gcongr)
+    _ = _ := by simp
 
 /-- **Reading a selected answer.** On inputs `z ++ x`, returning the answer bit
 `z (sel (x restricted to s))` costs at most `2 ^ #s * (2 * #s + 3) + 1` gates, the bound of

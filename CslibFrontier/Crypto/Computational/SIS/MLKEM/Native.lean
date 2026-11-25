@@ -169,10 +169,11 @@ section Agreement
 division `⌈p x / q⌋` reduced modulo `p`. -/
 theorem modulusSwitchResidue_natCast (q p x : ℕ) :
     ZMod.modulusSwitchResidue q p (x : ℤ) = roundDiv (p * x) q % p := by
-  rw [ZMod.modulusSwitchResidue, show (2 * (p : ℤ) * x + q) / (2 * (q : ℤ)) =
-      ((roundDiv (p * x) q : ℕ) : ℤ) by
-    rw [roundDiv]; push_cast
-    ring_nf, ← Int.natCast_mod, Int.toNat_natCast]
+  have hdiv : (2 * (p : ℤ) * x + q) / (2 * (q : ℤ)) = ((roundDiv (p * x) q : ℕ) : ℤ) := by
+    rw [roundDiv]
+    push_cast
+    ring_nf
+  rw [ZMod.modulusSwitchResidue, hdiv, ← Int.natCast_mod, Int.toNat_natCast]
 
 /-- Native compression computes `compressPoly`. -/
 theorem compressResidues_polyResidues {n q : ℕ} (d : ℕ) (f : Fin n → ZMod q) :
@@ -190,9 +191,10 @@ theorem decompressResidues_polyResidues {n : ℕ} (q d : ℕ) (f : Fin n → ZMo
 theorem messageResidues_eq (P : Params) (m : List Bool) :
     messageResidues P.n P.q m = polyResidues (messagePoly P fun i => m.getD i false) := by
   rw [messagePoly, ← decompressResidues_polyResidues, messageResidues]
-  exact congrArg _ (List.ext_getElem (by simp [polyResidues]) fun i _ _ => by
-    simp only [List.getElem_map, List.getElem_range, polyResidues, List.getElem_ofFn]
-    cases m.getD i false <;> rfl)
+  refine congrArg _ (List.ext_getElem (by simp [polyResidues]) ?_)
+  intro i _ _
+  simp only [List.getElem_map, List.getElem_range, polyResidues, List.getElem_ofFn]
+  cases m.getD i false <;> rfl
 
 private theorem toNat_emod_eq_val {q : ℕ} [NeZero q] (z : ℤ) :
     (z % (q : ℤ)).toNat = (z : ZMod q).val := by
@@ -268,12 +270,14 @@ theorem encryptResidues_eq (pk : PublicKey P) (m : List Bool)
 theorem decryptResidues_eq (s : SecretKey P) (ct : Ciphertext P) :
     decryptResidues P (polyVecResidues s) (polyVecResidues ct.1) (polyResidues ct.2) =
       List.ofFn (decrypt P s ct) := by
-  rw [decryptResidues, show (polyVecResidues ct.1).map (decompressResidues P.q P.du) =
-      polyVecResidues (decompressCiphertext P ct).1 by
+  have hu : (polyVecResidues ct.1).map (decompressResidues P.q P.du) =
+      polyVecResidues (decompressCiphertext P ct).1 := by
     simp only [polyVecResidues, List.map_ofFn, Function.comp_def, decompressResidues_polyResidues]
-    rfl, negacyclicInnerResidues_polyVecResidues, decompressResidues_polyResidues,
-    show decompressPoly P.q P.dv ct.2 = (decompressCiphertext P ct).2 from rfl,
-    subResidues_polyResidues, compressResidues_polyResidues]
+    rfl
+  rw [decryptResidues, hu, negacyclicInnerResidues_polyVecResidues,
+    decompressResidues_polyResidues, show decompressPoly P.q P.dv ct.2 =
+      (decompressCiphertext P ct).2 from rfl, subResidues_polyResidues,
+    compressResidues_polyResidues]
   simp only [polyResidues, List.map_ofFn, Function.comp_def, compressPoly_apply]
   rfl
 
@@ -285,8 +289,10 @@ theorem publicKeyResidues_eq (A : Matrix (Fin P.k) (Fin P.k) (Fin P.n → ZMod P
   refine List.ext_getElem (by simp [publicKeyResidues, polyVecResidues]) fun i h₁ _ => ?_
   have hi : i < P.k := by simpa [publicKeyResidues] using h₁
   simp only [publicKeyResidues, List.getElem_map, List.getElem_range]
-  rw [show (matrixResidues A).getD i [] = polyVecResidues (A ⟨i, hi⟩) by simp [matrixResidues, hi],
-    getD_polyVecResidues e hi, negacyclicInnerResidues_polyVecResidues, addResidues_polyResidues]
+  have hget : (matrixResidues A).getD i [] = polyVecResidues (A ⟨i, hi⟩) := by
+    simp [matrixResidues, hi]
+  rw [hget, getD_polyVecResidues e hi, negacyclicInnerResidues_polyVecResidues,
+    addResidues_polyResidues]
   simp [polyVecResidues, moduleSISMap, innerPoly]
 
 end SchemeAgreement

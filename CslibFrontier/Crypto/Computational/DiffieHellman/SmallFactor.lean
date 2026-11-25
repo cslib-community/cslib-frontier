@@ -112,8 +112,9 @@ theorem eval_ddhRealExperiment_ddhSmallFactorDistinguisher {G : Type} [AddCommGr
     [DecidableEq G] (q l : ℕ) [NeZero q] [Module (ZMod q) G] (g : G)
     (hl : l.Prime) (hlq : l ∣ q) (hg : Function.Injective fun c : ZMod q => c • g) :
     ProbComp.eval (ddhRealExperiment q g (ddhSmallFactorDistinguisher q l)) = PMF.pure true := by
-  have h (a b : ZMod q) : decide ((q / l) • ((a * b) • g) = 0 ↔
-      (q / l) • (a • g) = 0 ∨ (q / l) • (b • g) = 0) = true :=
+  have h (a b : ZMod q) :
+      decide ((q / l) • ((a * b) • g) = 0 ↔
+        (q / l) • (a • g) = 0 ∨ (q / l) • (b • g) = 0) = true :=
     decide_eq_true ((div_nsmul_smul_eq_zero_iff hlq hg (a * b)).trans
       (dvd_val_mul_iff hl hlq hg a b))
   simp only [eval_ddhRealExperiment, ddhSmallFactorDistinguisher, ProbComp.eval_pure, h,
@@ -203,7 +204,10 @@ theorem ddhAdvantage_ddhSmallFactorDistinguisher {G : Type} [AddCommGroup G] [De
   apply NNReal.eq
   have hl2 : (2 : ℝ) ≤ l := by exact_mod_cast hl.two_le
   have h1 : (1 : ℝ≥0) ≤ l := by exact_mod_cast hl.one_le
-  have h2 : (2 : ℝ≥0) ≤ 3 * l := by exact_mod_cast (by have := hl.two_le; omega : 2 ≤ 3 * l)
+  have h2_nat : 2 ≤ 3 * l := by
+    have := hl.two_le
+    omega
+  have h2 : (2 : ℝ≥0) ≤ 3 * l := by exact_mod_cast h2_nat
   have hreal : Pr[ddhRealExperiment q g (ddhSmallFactorDistinguisher q l)] = 1 := by
     rw [eval_ddhRealExperiment_ddhSmallFactorDistinguisher q l g hl hlq hg,
       PMF.pure_apply_self, ENNReal.toReal_one]
@@ -222,9 +226,12 @@ theorem inv_le_ddhAdvantage_ddhSmallFactorDistinguisher {G : Type} [AddCommGroup
     (l : ℝ≥0)⁻¹ ≤ ddhAdvantage q g (ddhSmallFactorDistinguisher q l) := by
   have hl_pos : (0 : ℝ) < l := by exact_mod_cast hl.pos
   have hl2 : (2 : ℝ) ≤ l := by exact_mod_cast hl.two_le
+  have h2_nat : 2 ≤ 3 * l := by
+    have := hl.two_le
+    omega
   rw [ddhAdvantage_ddhSmallFactorDistinguisher q l g hl hlq hg, ← NNReal.coe_le_coe,
     NNReal.coe_inv, NNReal.coe_natCast, NNReal.coe_div, NNReal.coe_mul,
-    NNReal.coe_sub (by exact_mod_cast (by have := hl.two_le; omega : 2 ≤ 3 * l)),
+    NNReal.coe_sub (by exact_mod_cast h2_nat),
     NNReal.coe_sub (by exact_mod_cast hl.one_le), NNReal.coe_mul, NNReal.coe_pow]
   push_cast
   rw [inv_eq_one_div, div_le_div_iff₀ hl_pos (by positivity)]

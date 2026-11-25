@@ -58,10 +58,14 @@ theorem eq_rpow_of_mul_monotone (f : ℕ → ℝ) (h1 : ∀ n, 1 ≤ n → 1 ≤
     set m := Nat.log 2 (n ^ k)
     have hm1 : 2 ^ m ≤ n ^ k := Nat.pow_log_le_self 2 (pow_ne_zero _ (by omega))
     have hm2 : n ^ k ≤ 2 ^ (m + 1) := (Nat.lt_pow_succ_log_self (by norm_num) _).le
-    have g1 := hlog_pow (v := f n) (q := k) (hfpos 2 (by norm_num)) (by
-      rw [← hpow 2 (by norm_num), ← hpow n hn]; exact hmono _ _ Nat.one_le_two_pow hm1)
-    have g2 := hlog_pow (v := f 2) (q := m + 1) (hfpos n hn) (by
-      rw [← hpow 2 (by norm_num), ← hpow n hn]; exact hmono _ _ (Nat.one_le_pow _ _ hn) hm2)
+    have f1 : f 2 ^ m ≤ f n ^ k := by
+      rw [← hpow 2 (by norm_num), ← hpow n hn]
+      exact hmono _ _ Nat.one_le_two_pow hm1
+    have f2 : f n ^ k ≤ f 2 ^ (m + 1) := by
+      rw [← hpow 2 (by norm_num), ← hpow n hn]
+      exact hmono _ _ (Nat.one_le_pow _ _ hn) hm2
+    have g1 := hlog_pow (hfpos 2 (by norm_num)) f1
+    have g2 := hlog_pow (hfpos n hn) f2
     have g3 := hlog_pow zero_lt_two (show (2 : ℝ) ^ m ≤ (n : ℝ) ^ k by exact_mod_cast hm1)
     have g4 := hlog_pow hnpos (show (n : ℝ) ^ k ≤ (2 : ℝ) ^ (m + 1) by exact_mod_cast hm2)
     push_cast at g2 g4

@@ -87,7 +87,9 @@ def lamOf (lam₀ : ℕ) (I : CMMSAInstance) : ℕ := lam₀ * ((CMMSAInstance.e
 /-- The scale is at least `λ₀ (N + 1)²` for every `N` at most the length of the encoding. -/
 theorem mul_sq_le_lamOf {lam₀ N : ℕ} {I : CMMSAInstance}
     (hN : N ≤ (CMMSAInstance.encoding I).length) :
-    lam₀ * (N + 1) ^ 2 ≤ lamOf lam₀ I := by unfold lamOf; gcongr
+    lam₀ * (N + 1) ^ 2 ≤ lamOf lam₀ I := by
+  unfold lamOf
+  gcongr
 
 /-- The scale is positive when `λ₀` is. -/
 theorem one_le_lamOf {lam₀ : ℕ} (h : 1 ≤ lam₀) (I : CMMSAInstance) : 1 ≤ lamOf lam₀ I :=
@@ -121,14 +123,19 @@ theorem length_weights_mul_le_seedLen (lam₀ : ℕ) (I : CMMSAInstance) :
   have hB : 2 ^ seedWidth I (lamOf lam₀ I) ≤ 2 * (N * (lam₀ * (N + 1) ^ 2) + 1) := by
     rw [seedWidth_eq]
     refine (Nat.two_pow_clog_two_le _).trans ?_
-    unfold lamOf; gcongr
-  rw [seedLen_eval]
-  refine (Nat.mul_le_mul (CMMSAInstance.length_weights_le I) hB).trans ?_
-  have h1 : N ≤ N + 1 := Nat.le_succ N
-  have h2 : N * (N * (lam₀ * (N + 1) ^ 2)) ≤ (N + 1) * ((N + 1) * (lam₀ * (N + 1) ^ 2)) := by
+    unfold lamOf
     gcongr
-  have h3 : N ≤ (N + 1) ^ 4 := h1.trans (Nat.le_self_pow (by norm_num) _)
-  nlinarith
+  rw [seedLen_eval]
+  calc I.weights.length * 2 ^ seedWidth I (lamOf lam₀ I)
+      ≤ N * (2 * (N * (lam₀ * (N + 1) ^ 2) + 1)) :=
+        Nat.mul_le_mul (CMMSAInstance.length_weights_le I) hB
+    _ ≤ 2 * (lam₀ + 1) * (N + 1) ^ 4 := by
+      have h1 : N ≤ N + 1 := Nat.le_succ N
+      have h2 : N * (N * (lam₀ * (N + 1) ^ 2)) ≤
+          (N + 1) * ((N + 1) * (lam₀ * (N + 1) ^ 2)) := by
+        gcongr
+      have h3 : N ≤ (N + 1) ^ 4 := h1.trans (Nat.le_self_pow (by norm_num) _)
+      nlinarith
 
 /-! ### The explicit tables -/
 
@@ -240,10 +247,12 @@ theorem exists_hard_params : ∃ (Δ k : ℕ) (δ₀ g : ℝ), Odd k ∧ 0 ≤ �
   obtain ⟨Δ₀, hΔ₀⟩ := exists_GapCMMSA_npHard (g := 25 * Real.log 2 / γ)
     (by rw [le_div_iff₀ hγ]; linarith)
   refine ⟨Δ₀ + 1, 2 * (Δ₀ + 1) ^ 2 + 1, 1 / 4, 25 * Real.log 2 / γ, odd_two_mul_add_one _,
-    by norm_num, by norm_num, ?_, by rw [div_mul_cancel₀ _ hγ.ne']; linarith,
+    by norm_num, by norm_num, ?_, ?_,
     hΔ₀.mono (GapCMMSA.yes_mono (Nat.le_succ Δ₀)) (GapCMMSA.no_mono (Nat.le_succ Δ₀))⟩
-  rw [show (1 : ℝ) - 2 * (1 / 4) = 1 / 2 by norm_num, one_div_pow]
-  exact one_div_le_one_div_of_le (by positivity)
-    (by exact_mod_cast Nat.lt_two_pow_self.le.trans (Nat.pow_le_pow_right two_pos (Nat.le_succ _)))
+  · rw [show (1 : ℝ) - 2 * (1 / 4) = 1 / 2 by norm_num, one_div_pow]
+    refine one_div_le_one_div_of_le (by positivity) ?_
+    exact_mod_cast Nat.lt_two_pow_self.le.trans (Nat.pow_le_pow_right two_pos (Nat.le_succ _))
+  · rw [div_mul_cancel₀ _ hγ.ne']
+    linarith
 
 end Cslib.PartialMCSP.FromCMMSA

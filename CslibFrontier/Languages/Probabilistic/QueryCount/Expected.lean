@@ -84,7 +84,8 @@ theorem expectedCost_query_bind (q : ι) (cont : spec q → OracleComp spec α) 
 /-- A single call costs its cost. -/
 @[simp] theorem expectedCost_query (q : ι) :
     expectedCost h cost (query (spec := spec) q) = cost q := by
-  rw [← bind_pure (query q), expectedCost_query_bind]; simp
+  rw [← bind_pure (query q), expectedCost_query_bind]
+  simp
 
 /-- **Wald's identity** for oracle programs: the expected cost of a sequence is the expected cost
 of the first program plus the expected cost of the continuation at its result. -/
@@ -108,7 +109,8 @@ theorem expectedCost_bind (program : OracleComp spec α) (next : α → OracleCo
 /-- Postprocessing the result makes no call. -/
 @[simp] theorem expectedCost_map (f : α → β) (program : OracleComp spec α) :
     expectedCost h cost (f <$> program) = expectedCost h cost program := by
-  rw [← bind_pure_comp, expectedCost_bind]; simp
+  rw [← bind_pure_comp, expectedCost_bind]
+  simp
 
 /-- A budget bounds the expected cost, whatever the distributions of the answers. -/
 theorem expectedCost_le_of_isCostBounded {cost : ι → ℕ} {program : OracleComp spec α} {n : ℕ}
@@ -118,9 +120,10 @@ theorem expectedCost_le_of_isCostBounded {cost : ι → ℕ} {program : OracleCo
   | pure => simp
   | liftBind q cont n _ ih =>
     rw [expectedCost_query_bind, Nat.cast_add, add_comm (n : ℝ≥0∞)]
-    refine add_le_add_right
-      ((tsum_le_tsum fun a => mul_le_mul_right (ih a) (h q a)).trans_eq ?_) _
-    rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
+    gcongr
+    calc ∑' a, h q a * expectedCost h _ (cont a) ≤ ∑' a, h q a * n :=
+          tsum_le_tsum fun a => mul_le_mul_right (ih a) (h q a)
+      _ = n := by rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
 
 /-- A program whose calls all cost nothing under one cost has zero expected cost under every cost
 that vanishes on the same calls. -/

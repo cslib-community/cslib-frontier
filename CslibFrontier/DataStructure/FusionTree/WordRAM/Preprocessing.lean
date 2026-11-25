@@ -138,7 +138,8 @@ theorem parameterEligible_of_valid {w m : ℕ} {cs : List Tree}
     (hs : (FusionTree.Tree.node m cs).keys.Pairwise (· < ·))
     (hb : ∀ x ∈ (FusionTree.Tree.node m cs).keys, Fits w x) :
     ParameterEligible w cs := by
-  have ht' := ht; simp only [Tree.Valid] at ht'
+  have ht' := ht
+  simp only [Tree.Valid] at ht'
   exact ⟨hw, ht'.1, ht'.2.1, childMinima_strictMono ht hs, childMinima_fit ht hb⟩
 
 /-- Valid trees with bounded leaves have fitting cached minima and actual parameters.

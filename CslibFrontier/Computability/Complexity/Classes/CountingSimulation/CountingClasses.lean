@@ -129,13 +129,14 @@ theorem setOf_mem_iUnion_DTIME_of_mem_SharpTIME (hT : TimeConstructible T)
   -- `(2 ^ x + 1) ^ e ≤ 2 ^ e * 2 ^ (e * x)`
   refine Set.mem_iUnion.mpr ⟨e * C, DTIME_mono_of_le_mul_add (C := 2 ^ e) (fun n => ?_) he⟩
   have h1 : 1 ≤ 2 ^ (C * T n / Nat.sqrt (Nat.log 2 (T n))) := Nat.one_le_two_pow
-  refine ((Nat.pow_le_pow_left
-    (by omega : 2 ^ (C * T n / Nat.sqrt (Nat.log 2 (T n))) + 1 ≤
-      2 * 2 ^ (C * T n / Nat.sqrt (Nat.log 2 (T n)))) e).trans_eq
-    (by rw [mul_pow, ← pow_mul])).trans ((Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (by norm_num)
-      ?_)).trans (Nat.le_add_right _ _))
-  rw [mul_comm _ e, mul_assoc]
-  exact Nat.mul_div_le_mul_div_assoc _ _ _
+  calc (2 ^ (C * T n / Nat.sqrt (Nat.log 2 (T n))) + 1) ^ e
+      ≤ (2 * 2 ^ (C * T n / Nat.sqrt (Nat.log 2 (T n)))) ^ e := Nat.pow_le_pow_left (by omega) e
+    _ = 2 ^ e * 2 ^ (C * T n / Nat.sqrt (Nat.log 2 (T n)) * e) := by rw [mul_pow, ← pow_mul]
+    _ ≤ 2 ^ e * 2 ^ (e * C * T n / Nat.sqrt (Nat.log 2 (T n))) := by
+        refine Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (by norm_num) ?_)
+        rw [mul_comm _ e, mul_assoc]
+        exact Nat.mul_div_le_mul_div_assoc _ _ _
+    _ ≤ _ := Nat.le_add_right _ _
 
 /-- **Strict containment in `DTIME[2 ^ T]` of every class decided by tests of counts.** For
 time-constructible `T` with `n ≤ T n` and time-constructible `t` with `max n 2 ≤ t n` and
@@ -232,7 +233,8 @@ theorem ModTIME_subset_iUnion_DTIME_two_pow_div_sqrt_log_two (k : ℕ) (hT : Tim
 theorem ParityTIME_subset_iUnion_DTIME_two_pow_div_sqrt_log_two (hT : TimeConstructible T)
     (hTn : ∀ n, max n 2 ≤ T n) :
     ParityTIME enc T ⊆ ⋃ C, DTIME enc fun n => 2 ^ (C * T n / Nat.sqrt (Nat.log 2 (T n))) := by
-  rw [← ModTIME_two]; exact ModTIME_subset_iUnion_DTIME_two_pow_div_sqrt_log_two 2 hT hTn
+  rw [← ModTIME_two]
+  exact ModTIME_subset_iUnion_DTIME_two_pow_div_sqrt_log_two 2 hT hTn
 
 /-- **`C₌TIME[T] ⊆ ⋃ C, DTIME[2 ^ (C T / √⌊log₂ T⌋)]`** for time-constructible `T` with
 `max n 2 ≤ T n`. -/
@@ -252,7 +254,8 @@ theorem ModTIME_ssubset_DTIME_two_pow (k : ℕ) (hT : TimeConstructible T)
 /-- **`⊕TIME[T] ⊊ DTIME[2 ^ T]`** for time-constructible `T` with `max n 2 ≤ T n`. -/
 theorem ParityTIME_ssubset_DTIME_two_pow (hT : TimeConstructible T) (hTn : ∀ n, max n 2 ≤ T n) :
     ParityTIME encBits T ⊂ DTIME encBits fun n => 2 ^ T n := by
-  rw [← ModTIME_two]; exact ModTIME_ssubset_DTIME_two_pow 2 hT hTn
+  rw [← ModTIME_two]
+  exact ModTIME_ssubset_DTIME_two_pow 2 hT hTn
 
 /-- **`C₌TIME[T] ⊊ DTIME[2 ^ T]`** for time-constructible `T` with `max n 2 ≤ T n`. -/
 theorem CeqTIME_ssubset_DTIME_two_pow (hT : TimeConstructible T) (hTn : ∀ n, max n 2 ≤ T n) :
@@ -327,7 +330,8 @@ theorem ParityTIME_mul_ssubset_DTIME_two_pow {h : ℕ → ℕ} (hT : TimeConstru
     (hTn : ∀ n, max n 2 ≤ T n) (hTh : TimeConstructible fun n => T n * h n)
     (hh₁ : ∀ n, 1 ≤ h n) (hh : ∀ C, ∀ᶠ n in atTop, C * h n ≤ Nat.sqrt (Nat.log 2 (T n))) :
     ParityTIME encBits (fun n => T n * h n) ⊂ DTIME encBits fun n => 2 ^ T n := by
-  rw [← ModTIME_two]; exact ModTIME_mul_ssubset_DTIME_two_pow 2 hT hTn hTh hh₁ hh
+  rw [← ModTIME_two]
+  exact ModTIME_mul_ssubset_DTIME_two_pow 2 hT hTn hTh hh₁ hh
 
 /-- **`C₌TIME[T h] ⊊ DTIME[2 ^ T]`** for time-constructible `T` with `max n 2 ≤ T n` and a factor
 `h ≥ 1` with `h = o(√⌊log₂ T⌋)` and `T h` time-constructible. -/

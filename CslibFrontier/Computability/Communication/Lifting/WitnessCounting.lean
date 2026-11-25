@@ -66,19 +66,27 @@ theorem card_conditioningAssignment {α : Type*} (U : Finset α) (m k : ℕ) :
   classical
   rw [Fintype.card_congr (ConditioningAssignment.equivSigma U m k), Fintype.card_sigma]
   simp only [Fintype.card_fun, Fintype.card_fin, Fintype.card_coe]
-  rw [Finset.sum_coe_sort (U.powerset.filter fun J => J.card ≤ k) (fun J : Finset α => m ^ J.card)]
-  refine (sum_fiberwise_of_maps_to (t := range (k + 1))
-    (fun _ hJ => mem_range.mpr (Nat.lt_succ_of_le (mem_filter.mp hJ).2)) _).symm.trans
-    (sum_congr rfl fun j hj => ?_)
-  have heq : (U.powerset.filter fun J => J.card ≤ k).filter (fun J => J.card = j) =
-      U.powersetCard j := by
-    ext J
-    simp only [mem_filter, mem_powerset, mem_powersetCard]
-    exact ⟨fun h => ⟨h.1.1, h.2⟩,
-      fun h => ⟨⟨h.1, h.2.le.trans (Nat.le_of_lt_succ (mem_range.mp hj))⟩, h.2⟩⟩
-  rw [heq]
-  exact (sum_congr rfl (g := fun _ => m ^ j) fun _ hJ => by rw [(mem_powersetCard.mp hJ).2]).trans
-    (by simp)
+  rw [Finset.sum_coe_sort (U.powerset.filter fun J => J.card ≤ k)
+    (fun J : Finset α => m ^ J.card)]
+  calc
+    (∑ J ∈ U.powerset.filter (fun J => J.card ≤ k), m ^ J.card) =
+        ∑ j ∈ range (k + 1),
+          ∑ J ∈ (U.powerset.filter fun J => J.card ≤ k).filter (fun J => J.card = j),
+            m ^ J.card :=
+      (sum_fiberwise_of_maps_to
+        (fun _ hJ => mem_range.mpr (Nat.lt_succ_of_le (mem_filter.mp hJ).2)) _).symm
+    _ = _ := sum_congr rfl fun j hj => by
+      have heq : (U.powerset.filter fun J => J.card ≤ k).filter (fun J => J.card = j) =
+          U.powersetCard j := by
+        ext J
+        simp only [mem_filter, mem_powerset, mem_powersetCard]
+        exact ⟨fun h => ⟨h.1.1, h.2⟩,
+          fun h => ⟨⟨h.1, h.2.le.trans (Nat.le_of_lt_succ (mem_range.mp hj))⟩, h.2⟩⟩
+      rw [heq]
+      calc
+        _ = ∑ _J ∈ U.powersetCard j, m ^ j :=
+          sum_congr rfl fun _ hJ => by rw [(mem_powersetCard.mp hJ).2]
+        _ = _ := by simp
 
 /-- Counting by the actual coordinate universe avoids a factor depending on an oversized
 threshold. Only `U.card + 1` distinct cardinalities can occur. -/
@@ -90,7 +98,8 @@ theorem card_conditioningAssignment_le {α : Type*} (U : Finset α) (m k N : ℕ
       (U.powerset.filter fun J => J.card ≤ min k U.card) := by
     ext J
     simp only [mem_filter, mem_powerset]
-    exact ⟨fun h => ⟨h.1, le_min h.2 (card_le_card h.1)⟩, fun h => ⟨h.1, (le_min_iff.mp h.2).1⟩⟩
+    exact ⟨fun h => ⟨h.1, le_min h.2 (card_le_card h.1)⟩,
+      fun h => ⟨h.1, (le_min_iff.mp h.2).1⟩⟩
   have heq : Fintype.card (ConditioningAssignment U m k) =
       Fintype.card (ConditioningAssignment U m (min k U.card)) := by
     rw [Fintype.card_congr (ConditioningAssignment.equivSigma U m k),

@@ -62,7 +62,8 @@ theorem encRat_apply (q : ℚ) : encRat q = encRatData (q.num, q.den) := rfl
 theorem length_encRat (q : ℚ) :
     (encRat q).length = 2 * q.num.natAbs.size + q.den.size + 3 := by
   simp only [encRat_apply, encRatData, length_encPair, length_encIntBin, encNat_apply,
-    Nat.size_eq_bits_len]; omega
+    Nat.size_eq_bits_len]
+  omega
 
 /-- Every encoded rational uses at least `4` bits. -/
 theorem four_le_length_encRat (q : ℚ) : 4 ≤ (encRat q).length := by

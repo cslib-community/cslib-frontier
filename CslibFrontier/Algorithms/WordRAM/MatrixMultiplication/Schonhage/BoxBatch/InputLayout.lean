@@ -112,22 +112,27 @@ theorem input_fits {w L m t A B : ℕ} (qs : List (OutStr L))
     (hmag : GenericRAM.Signed.Fits w (BoxQuery.magnitudeBound L A B : ℕ)) :
     InputFits (w + 2) (input m t qs a b) := by
   have hT : 10 ^ L ≤ (L + 1) * 10 ^ L := Nat.le_mul_of_pos_left _ (by omega)
-  refine ⟨length_input m t qs a b ▸ haddr.of_le (by unfold originalAddressBound; omega),
-    fun v hv => ?_⟩
-  simp only [input, List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hv
-  rcases hv with ((hv | hv) | hv) | hv
-  · rcases hv with rfl | rfl | rfl | rfl <;>
-      exact haddr.of_le (by unfold originalAddressBound; omega)
-  · obtain ⟨i, rfl⟩ := List.mem_ofFn.mp hv
-    exact (Signed.encode_fits (hmag.of_natAbs_le ((ha i).trans
-      (by unfold BoxQuery.magnitudeBound; omega)))).mono (by omega)
-  · obtain ⟨i, rfl⟩ := List.mem_ofFn.mp hv
-    exact (Signed.encode_fits (hmag.of_natAbs_le ((hb i).trans
-      (by unfold BoxQuery.magnitudeBound; omega)))).mono (by omega)
-  · obtain ⟨η, _, rfl⟩ := List.mem_map.mp hv
+  constructor
+  · rw [length_input]
     refine haddr.of_le ?_
-    have := (PrunedQuery.queryIndex η).isLt
-    unfold originalAddressBound; omega
+    unfold originalAddressBound
+    omega
+  · intro v hv
+    simp only [input, List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hv
+    rcases hv with ((hv | hv) | hv) | hv
+    · rcases hv with rfl | rfl | rfl | rfl <;> refine haddr.of_le ?_ <;>
+        unfold originalAddressBound <;> omega
+    · obtain ⟨i, rfl⟩ := List.mem_ofFn.mp hv
+      exact (Signed.encode_fits (hmag.of_natAbs_le ((ha i).trans
+        (by unfold BoxQuery.magnitudeBound; omega)))).mono (by omega)
+    · obtain ⟨i, rfl⟩ := List.mem_ofFn.mp hv
+      exact (Signed.encode_fits (hmag.of_natAbs_le ((hb i).trans
+        (by unfold BoxQuery.magnitudeBound; omega)))).mono (by omega)
+    · obtain ⟨η, _, rfl⟩ := List.mem_map.mp hv
+      refine haddr.of_le ?_
+      have := (PrunedQuery.queryIndex η).isLt
+      unfold originalAddressBound
+      omega
 
 /-- Original bounds cover the unchanged complete shared-table constructor. -/
 theorem constructor_address_le (L m t N : ℕ) (hm : m ≤ L) :
@@ -135,7 +140,8 @@ theorem constructor_address_le (L m t N : ℕ) (hm : m ≤ L) :
       (m - t + 1) * 10 ^ L + 10) ≤ originalAddressBound L m t N := by
   have := Nat.mul_le_mul_right (10 ^ L) (by omega : m - t + 1 ≤ L + 1)
   have := Nat.le_mul_of_pos_left (10 ^ L) (by omega : 0 < L + 1)
-  unfold directoryBase queryBase originalAddressBound; omega
+  unfold directoryBase queryBase originalAddressBound
+  omega
 
 /-- Original bounds also cover the batch kernel, including every cursor increment. -/
 theorem query_address_le (L m t N : ℕ) (hm : m ≤ L) :

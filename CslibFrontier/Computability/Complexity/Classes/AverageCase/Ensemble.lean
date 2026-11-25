@@ -132,7 +132,8 @@ theorem cdfLo_of_binaryValue_eq_zero (D : Ensemble) {x : List Bool}
 theorem cdfLo_eq_cdf_predWord (D : Ensemble) {x : List Bool}
     (h : BitString.binaryValue x ≠ 0) : D.cdfLo x = D.cdf (BitString.predWord x) := by
   rw [cdfLo, cdf, BitString.length_predWord, BitString.binaryValue_predWord]
-  congr 1; ext
+  congr 1
+  ext
   simp only [Set.mem_ofPred_eq]; omega
 
 /-- The cumulative distribution at `x` is at most the probability below any later word of the same
@@ -215,7 +216,8 @@ theorem uniform_toOuterMeasure_binaryValue_lt {N K : ℕ} (hK : K ≤ 2 ^ N) :
     have h := cdf_uniform (List.ofFn u)
     rw [cdf, List.length_ofFn, hu, show K - 1 + 1 = K by omega] at h
     rw [← h]
-    congr 1; ext
+    congr 1
+    ext
     simp only [Set.mem_ofPred_eq]; omega
 
 /-- The uniform ensemble is polynomial-time computable. -/

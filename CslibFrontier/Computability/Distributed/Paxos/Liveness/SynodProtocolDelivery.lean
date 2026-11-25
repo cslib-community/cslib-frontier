@@ -99,7 +99,8 @@ lemma deliver_fanout_acc {P V : Type*} [Fintype P] [LinearOrder P] [DecidableEq 
     obtain ⟨hpl_r, hnot_r, hin_r⟩ := ih hall_r
     refine ⟨fun q => ⟨(hpl_r q).1.trans (hw1_pl q).1, (hpl_r q).2.trans (hw1_pl q).2⟩,
       fun x hx => (hnot_r x fun h => hx (List.mem_cons_of_mem a h)).trans
-        (hw1_other x fun h => hx (h ▸ List.mem_cons_self)), fun x hx => ?_⟩
+        (hw1_other x fun h => hx (h ▸ List.mem_cons_self)),
+      fun x hx => ?_⟩
     rcases List.mem_cons.mp hx with rfl | hx_r
     · refine ⟨(hnot_r x ha_not').trans ?_,
         (π.mTr_map_deliver (u := w1) (fun y => ⟨p₀, y, msg⟩) fun y hy => (hall_r y hy).1).2 ?_⟩

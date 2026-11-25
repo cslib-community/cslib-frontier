@@ -110,13 +110,16 @@ theorem RAMTIME_additive_subset_DTIME {T : ℕ → ℕ} (hT : TimeConstructible 
     hclock.mem_FTIME
   refine DTIME_mono_of_le_mul_add (C := (c + 1) + (c + 2) ^ 4 * (k + 1) ^ 3) (fun n => ?_) hA
   have hz : 1 ≤ (Nat.size n + 1) ^ 3 := Nat.one_le_pow _ _ (by omega)
-  have h₁ : (c + 1) * (T n + 1) ≤ (c + 1) * ((n + T n + 1) ^ 4 * (Nat.size n + 1) ^ 3) :=
-    Nat.mul_le_mul_left _ <| (by omega : T n + 1 ≤ n + T n + 1).trans <|
-      (Nat.le_self_pow (by norm_num) _).trans (Nat.le_mul_of_pos_right _ hz)
+  have h₁ : (c + 1) * (T n + 1) ≤ (c + 1) * ((n + T n + 1) ^ 4 * (Nat.size n + 1) ^ 3) := by
+    refine Nat.mul_le_mul_left _ ?_
+    calc T n + 1 ≤ n + T n + 1 := by omega
+      _ ≤ (n + T n + 1) ^ 4 := Nat.le_self_pow (by norm_num) _
+      _ ≤ _ := Nat.le_mul_of_pos_right _ hz
   have h₂ : (n + (c + 1) * (T n + 1) + 1) ^ 4 * (k * (Nat.size n + 1) + 1) ^ 3 ≤
-      (c + 2) ^ 4 * (k + 1) ^ 3 * ((n + T n + 1) ^ 4 * (Nat.size n + 1) ^ 3) :=
-    (Nat.mul_le_mul (Nat.pow_le_pow_left (m := (c + 2) * (n + T n + 1)) (by nlinarith) 4)
-      (Nat.pow_le_pow_left (m := (k + 1) * (Nat.size n + 1)) (by nlinarith) 3)).trans_eq (by ring)
+      (c + 2) ^ 4 * (k + 1) ^ 3 * ((n + T n + 1) ^ 4 * (Nat.size n + 1) ^ 3) := by
+    calc _ ≤ ((c + 2) * (n + T n + 1)) ^ 4 * ((k + 1) * (Nat.size n + 1)) ^ 3 := by
+          gcongr <;> nlinarith
+      _ = _ := by ring
   calc (c + 1) * (T n + 1) + (n + (c + 1) * (T n + 1) + 1) ^ 4 * (k * (Nat.size n + 1) + 1) ^ 3
       ≤ (c + 1) * ((n + T n + 1) ^ 4 * (Nat.size n + 1) ^ 3) +
           (c + 2) ^ 4 * (k + 1) ^ 3 * ((n + T n + 1) ^ 4 * (Nat.size n + 1) ^ 3) :=
@@ -142,7 +145,8 @@ theorem DTIME_subset_RAMTIME_additive {g : ℕ → ℕ} (hg : PolynomiallyBounde
   have := Fintype.ofFinite Q
   -- The words of the simulator stay below `D (n + 1) ^ e`.
   have hS : PolynomiallyBounded fun n => simBound K (Fintype.card Q) n (c₁ * g n + c₂) := by
-    unfold simBound; fun_prop
+    unfold simBound
+    fun_prop
   obtain ⟨D, e, hD⟩ := polynomiallyBounded_iff_le.1 hS
   refine ⟨(c₁ + c₂) * (stepCost K (Fintype.card Q) + 2) + 2 * K + 13, D + e + 2, by omega,
     regs K, simProgram tm.tr tm.q₀ (Fintype.equivFin Q), ?_,
@@ -150,18 +154,22 @@ theorem DTIME_subset_RAMTIME_additive {g : ℕ → ℕ} (hg : PolynomiallyBounde
   intro a w hw _
   obtain ⟨hhalt, hout⟩ := (htm a).runFrom_of_le le_rfl
   have hb : simBound K (Fintype.card Q) (enc a).length (c₁ * g (enc a).length + c₂) < 2 ^ w :=
-    (hD _).trans_lt <| (lt_two_pow_logWidth _ _ _).trans_le <|
-      Nat.pow_le_pow_right (by norm_num) ((logWidth_mono (by omega) le_rfl).trans hw)
+    calc _ ≤ D * ((enc a).length + 1) ^ e := hD _
+      _ < 2 ^ logWidth (D + e) (enc a).length := lt_two_pow_logWidth _ _ _
+      _ ≤ 2 ^ w := Nat.pow_le_pow_right (by norm_num)
+        ((logWidth_mono (by omega) le_rfl).trans hw)
   have hw2 : 2 ≤ w := le_trans (by unfold logWidth; nlinarith) hw
   obtain ⟨n, hn, hex⟩ := executes_simProgram (fun _ _ _ => rfl) (Fintype.equivFin Q) hhalt hb
     (by simp only [hout, encBool_apply, List.length_singleton]; omega)
   rw [hout, encBool_apply, Cslib.BitString.lsbValue_singleton] at hex
   refine ⟨(f a).toNat, n, hex, hn.trans ?_, Bool.toNat_le _, ?_⟩
-  · unfold simTime; dsimp only
+  · unfold simTime
+    dsimp only
     nlinarith [Nat.zero_le (c₂ * (stepCost K (Fintype.card Q) + 2) * g (enc a).length),
       Nat.zero_le (c₁ * (stepCost K (Fintype.card Q) + 2)),
       Nat.zero_le ((2 * K + 13) * g (enc a).length)]
-  · rw [hfA a]; cases f a <;> simp
+  · rw [hfA a]
+    cases f a <;> simp
 
 end OfTuring
 

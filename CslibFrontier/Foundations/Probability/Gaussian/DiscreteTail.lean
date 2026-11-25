@@ -48,7 +48,8 @@ theorem gaussianWeight_mul_exp {E : Type*} [NormedAddCommGroup E] (s t : ℝ) (x
     gaussianWeight s x * Real.exp (Real.pi * (1 / s ^ 2 - 1 / t ^ 2) * ‖x‖ ^ 2) =
       gaussianWeight t x := by
   simp only [gaussianWeight, ← Real.exp_add]
-  congr 1; ring
+  congr 1
+  ring
 
 end ProbabilityTheory
 
@@ -81,15 +82,17 @@ theorem tsum_discreteGaussian_mul_exp (s : ℝ) (hs : 0 < s) (t : ℝ) (hst : s 
     (∑' z : L, discreteGaussian L s hs c z *
       ENNReal.ofReal (Real.exp (Real.pi * (1 / s ^ 2 - 1 / t ^ 2) * ‖(z : E) - c‖ ^ 2))) =
         ENNReal.ofReal (gaussianMass L t c / gaussianMass L s c) := by
-  have hcongr (z : L) : discreteGaussian L s hs c z *
-      ENNReal.ofReal (Real.exp (Real.pi * (1 / s ^ 2 - 1 / t ^ 2) * ‖(z : E) - c‖ ^ 2)) =
-      ENNReal.ofReal ((discreteGaussian L s hs c z).toReal *
-        Real.exp (Real.pi * (1 / s ^ 2 - 1 / t ^ 2) * ‖(z : E) - c‖ ^ 2)) := by
-    rw [ENNReal.ofReal_mul ENNReal.toReal_nonneg, ENNReal.ofReal_toReal (PMF.apply_ne_top _ _)]
-  rw [tsum_congr hcongr, ← ENNReal.ofReal_tsum_of_nonneg
-    (fun _ ↦ mul_nonneg ENNReal.toReal_nonneg (Real.exp_pos _).le)
-    (summable_discreteGaussian_mul_exp L s hs t hst c),
-    tsum_toReal_discreteGaussian_mul_exp L s hs t hst c]
+  calc
+    _ = ∑' z : L, ENNReal.ofReal ((discreteGaussian L s hs c z).toReal *
+        Real.exp (Real.pi * (1 / s ^ 2 - 1 / t ^ 2) * ‖(z : E) - c‖ ^ 2)) :=
+      tsum_congr fun z => by
+        rw [ENNReal.ofReal_mul ENNReal.toReal_nonneg, ENNReal.ofReal_toReal (PMF.apply_ne_top _ _)]
+    _ = ENNReal.ofReal (∑' z : L, (discreteGaussian L s hs c z).toReal *
+        Real.exp (Real.pi * (1 / s ^ 2 - 1 / t ^ 2) * ‖(z : E) - c‖ ^ 2)) :=
+      (ENNReal.ofReal_tsum_of_nonneg
+        (fun _ ↦ mul_nonneg ENNReal.toReal_nonneg (Real.exp_pos _).le)
+        (summable_discreteGaussian_mul_exp L s hs t hst c)).symm
+    _ = _ := by rw [tsum_toReal_discreteGaussian_mul_exp L s hs t hst c]
 
 /-- A discrete Gaussian tail is bounded by exponential decay times the actual normalizer ratio.
 There is no assumed mass-scaling or smoothing estimate. -/
@@ -107,20 +110,33 @@ theorem discreteGaussian_norm_ge_le (s : ℝ) (hs : 0 < s) (t : ℝ) (hst : s < 
         ENNReal.ofReal (Real.exp (-κ * R ^ 2)) *
           (discreteGaussian L s hs c z * ENNReal.ofReal (Real.exp (κ * ‖(z : E) - c‖ ^ 2))) := by
     by_cases hz : R ≤ ‖(z : E) - c‖
-    · rw [Set.indicator_of_mem hz, mul_left_comm]
+    · rw [Set.indicator_of_mem hz]
       have hsq : R ^ 2 ≤ ‖(z : E) - c‖ ^ 2 := by nlinarith [norm_nonneg ((z : E) - c)]
       have hexp : 1 ≤ Real.exp (-κ * R ^ 2) * Real.exp (κ * ‖(z : E) - c‖ ^ 2) := by
         rw [← Real.exp_add, Real.one_le_exp_iff]
         linarith [mul_le_mul_of_nonneg_left hsq hk]
       have he := ENNReal.ofReal_le_ofReal hexp
       rw [ENNReal.ofReal_one, ENNReal.ofReal_mul (Real.exp_pos _).le] at he
-      exact (mul_one _).symm.trans_le (mul_le_mul_of_nonneg_left he zero_le)
+      calc
+        _ = discreteGaussian L s hs c z * 1 := (mul_one _).symm
+        _ ≤ discreteGaussian L s hs c z *
+            (ENNReal.ofReal (Real.exp (-κ * R ^ 2)) *
+              ENNReal.ofReal (Real.exp (κ * ‖(z : E) - c‖ ^ 2))) := by gcongr
+        _ = _ := by ring
     · simp [hz]
-  refine (PMF.toOuterMeasure_apply _ _).trans_le ((tsum_le_tsum hpoint).trans ?_)
-  rw [ENNReal.tsum_mul_left, tsum_discreteGaussian_mul_exp L s hs t hst c,
-    ← ENNReal.ofReal_mul (Real.exp_pos _).le]
-  exact le_of_eq <|
-    congrArg (fun u => ENNReal.ofReal (Real.exp u * (gaussianMass L t c / gaussianMass L s c)))
-      (by dsimp [κ]; ring)
+  calc
+    _ = ∑' z : L, {z : L | R ≤ ‖(z : E) - c‖}.indicator
+        (discreteGaussian L s hs c) z := PMF.toOuterMeasure_apply _ _
+    _ ≤ ∑' z : L, ENNReal.ofReal (Real.exp (-κ * R ^ 2)) *
+        (discreteGaussian L s hs c z * ENNReal.ofReal (Real.exp (κ * ‖(z : E) - c‖ ^ 2))) :=
+      tsum_le_tsum hpoint
+    _ = ENNReal.ofReal (Real.exp (-κ * R ^ 2)) *
+        ENNReal.ofReal (gaussianMass L t c / gaussianMass L s c) := by
+      rw [ENNReal.tsum_mul_left, tsum_discreteGaussian_mul_exp L s hs t hst c]
+    _ = _ := by
+      rw [← ENNReal.ofReal_mul (Real.exp_pos _).le]
+      exact congrArg
+        (fun u => ENNReal.ofReal (Real.exp u * (gaussianMass L t c / gaussianMass L s c)))
+        (by dsimp only [κ]; ring)
 
 end ZLattice

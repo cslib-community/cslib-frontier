@@ -144,10 +144,11 @@ private theorem ratio_arith {n p q b K m alg opt I : Nat} (hpq : p * (n + 1) < 2
     rw [Nat.mul_left_comm, Nat.mul_assoc p (n + 1) m, Nat.mul_comm (n + 1) m, ← Nat.mul_add]
     exact Nat.mul_le_mul_left p hopt
   have h₂ : 2 * (p * I) ≤ p * K := Nat.mul_left_comm 2 p I ▸ Nat.mul_le_mul_left p hI
+  have e₃ : 2 * n * q * m = 2 * (q * (m * n)) := by
+    rw [Nat.mul_assoc 2, Nat.mul_assoc 2, Nat.mul_comm n q, Nat.mul_assoc q n m, Nat.mul_comm n m]
   have h₃ : p * (n + 1) * m + m ≤ 2 * (q * (m * n)) := by
-    simpa only [Nat.add_mul, Nat.one_mul, show 2 * n * q * m = 2 * (q * (m * n)) by
-      rw [Nat.mul_assoc 2, Nat.mul_assoc 2, Nat.mul_comm n q, Nat.mul_assoc q n m,
-        Nat.mul_comm n m]] using Nat.mul_le_mul_right m (show p * (n + 1) + 1 ≤ 2 * n * q by omega)
+    have hpq' : p * (n + 1) + 1 ≤ 2 * n * q := by omega
+    simpa only [Nat.add_mul, Nat.one_mul, e₃] using Nat.mul_le_mul_right m hpq'
   have h₄ := Nat.mul_le_mul_left q halg
   omega
 

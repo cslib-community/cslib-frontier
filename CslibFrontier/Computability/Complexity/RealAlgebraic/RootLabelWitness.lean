@@ -77,8 +77,9 @@ theorem decodeRootLabel_encodeRootLabel {D N : ℕ} (hD : 0 < D) (L : List (Fin 
     (hL : L.length ≤ N) : decodeRootLabel hD N (encodeRootLabel L) = L := by
   rw [decodeRootLabel, List.take_of_length_le (by simpa only [encodeRootLabel, List.length_map]
     using hL), encodeRootLabel, List.map_map]
-  exact (congrArg L.map (funext fun t =>
-    Prod.ext (Fin.ext (Nat.mod_eq_of_lt t.1.isLt)) (decodeSign_encodeSign t.2))).trans L.map_id
+  calc _ = L.map id := congrArg L.map (funext fun t =>
+        Prod.ext (Fin.ext (Nat.mod_eq_of_lt t.1.isLt)) (decodeSign_encodeSign t.2))
+    _ = L := L.map_id
 
 /-- The direct encoding of a bounded label has bit length linear in its number of
 entries and in the binary size of the derivative bound. -/

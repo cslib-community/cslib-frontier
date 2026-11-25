@@ -187,9 +187,9 @@ theorem truncGuard_of_polynomial_le {C D d s P ℓ r : ℕ} {G : DescribedNetwor
   have hCD : C * D ≤ s := (le_max_left _ _).trans hs
   have hpow : 1 ≤ (s + 1) ^ (d + 1) := Nat.one_le_pow _ _ (by omega)
   have hprod : (ℓ - 1) * G.vertices.length ≤ C * D * (s + 1) ^ (d + 1) :=
-    (Nat.mul_le_mul (show ℓ - 1 ≤ D * (s + 1) ^ d by omega)
-      (hk.trans (Nat.mul_le_mul_left C (Nat.le_succ s)))).trans_eq
-        (show D * (s + 1) ^ d * (C * (s + 1)) = C * D * (s + 1) ^ (d + 1) by rw [pow_succ]; ring)
+    calc (ℓ - 1) * G.vertices.length ≤ (D * (s + 1) ^ d) * (C * (s + 1)) :=
+          Nat.mul_le_mul (by omega) (hk.trans (Nat.mul_le_mul_left C (Nat.le_succ s)))
+      _ = C * D * (s + 1) ^ (d + 1) := by rw [pow_succ]; ring
   calc DescribedNetwork.pointCount ℓ G
       ≤ (C * D + 1) * (s + 1) ^ (d + 1) := by simp only [DescribedNetwork.pointCount]; nlinarith
     _ ≤ (s + 1) ^ (d + 2) := by

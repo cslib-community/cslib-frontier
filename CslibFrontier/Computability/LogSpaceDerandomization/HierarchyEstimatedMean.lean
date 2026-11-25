@@ -70,10 +70,12 @@ theorem estimated_residual_bins_mean_error
     ss sm st b.binExponent hbH C hC hC1 hCf c.binCutoff c.cutoff_one b.preparationCutoff
     c.requestGate c.requestRank hkh c.requestGate_nonneg c.requestGate_le_one
     c.gateThreshold_pos c.gate_one c.rank_bound x y hcover
-  dsimp only at hm; rw [← hm]
+  dsimp only at hm
+  rw [← hm]
   apply HierarchyTask.residual_bins_sub_le
   · intro i _ σ _ z
-    exact incomingChildren_final_range HP D ident Kc _ (raw i) (prep i) (maximum i) _ l rfl σ x z
+    exact incomingChildren_final_range HP D ident Kc _ (raw i) (prep i) (maximum i)
+      _ l rfl σ x z
   · intro i _ σ _ z
     change |denseChild D ident _ _ (b.preparationCutoff i) c.requestGate c.requestRank C σ z y| ≤
       2 * max b.densityCap 16
@@ -112,6 +114,7 @@ theorem ResidualStage.mean_sub_le {HP : FourthRootHierarchyParams 16 1 16 32 8}
   · symm
     unfold ResidualStage.cost HierarchyTask.conditionalChildCost rowSliceMean
     refine expect_congr ?_ fun _ _ => rfl
-    ext σ; simp only [mem_filter, mem_univ, true_and]
+    ext σ
+    simp only [mem_filter, mem_univ, true_and]
 
 end Matrix.HierarchyParams.H4RankEnvironment

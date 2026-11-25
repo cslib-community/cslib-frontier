@@ -151,17 +151,19 @@ public theorem program_spec {w n : ℕ} {s : Memory.State} (hf : Fits w (s.front
   rw [show (Stack.Memory.refinement hL).abs = Stack.Memory.abs L from rfl, habs] at hres hcost
   have hrun := Stack.Memory.runClient_allocLayout_bind (w := w) 1 (fun L => run L n) s
   simp only [StateTransitionSpec.clientResult, StateTransitionSpec.clientHistory] at hres hvE
-  refine ⟨by simp only [StateTransitionSpec.clientResult, program]; rw [hrun, hres]
-             exact clientResult_client w n,
-    by simp only [StateTransitionSpec.clientHistory, program, hrun]
-       exact ⟨hf.of_le (by omega), hf, hvE⟩, ?_⟩
-  rw [StateTransitionSpec.totalCost_const] at hcost
-  have hlen := length_clientHistory_client w n
-  simp only [memoryCost_eq_totalCost w, StateTransitionSpec.clientHistory, program, hrun]
-  change 2 + (1 + (Memory.spec w).totalCost Memory.charge ⟨clear s.mem s.frontier 1,
-    s.frontier + 1 + 1⟩ ((Memory.spec w).clientHistory ⟨clear s.mem s.frontier 1,
-      s.frontier + 1 + 1⟩ (run L n))) ≤ 15
-  omega
+  refine ⟨?_, ?_, ?_⟩
+  · simp only [StateTransitionSpec.clientResult, program]
+    rw [hrun, hres]
+    exact clientResult_client w n
+  · simp only [StateTransitionSpec.clientHistory, program, hrun]
+    exact ⟨hf.of_le (by omega), hf, hvE⟩
+  · rw [StateTransitionSpec.totalCost_const] at hcost
+    have hlen := length_clientHistory_client w n
+    simp only [memoryCost_eq_totalCost w, StateTransitionSpec.clientHistory, program, hrun]
+    change 2 + (1 + (Memory.spec w).totalCost Memory.charge ⟨clear s.mem s.frontier 1,
+      s.frontier + 1 + 1⟩ ((Memory.spec w).clientHistory ⟨clear s.mem s.frontier 1,
+        s.frontier + 1 + 1⟩ (run L n))) ≤ 15
+    omega
 
 /-- The client, compiled to one flat word-RAM program, computes `positive` in constant time at
 every width of at least three bits per input bit. -/

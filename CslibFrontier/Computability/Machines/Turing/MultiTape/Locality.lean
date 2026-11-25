@@ -130,7 +130,8 @@ theorem Cfg.AgreeOn.mono {W W' : Fin k → Set ℤ} {c c' : Cfg k Symbol State i
 /-- Agreeing configurations are at the same head positions. -/
 theorem Cfg.AgreeOn.headPos_eq {W : Fin k → Set ℤ} {c c' : Cfg k Symbol State input}
     (h : c.AgreeOn W c') : c.headPos = c'.headPos := by
-  funext t; cases t <;> simp [h.inputPos_eq, h.workTapePos_eq]
+  funext t
+  cases t <;> simp [h.inputPos_eq, h.workTapePos_eq]
 
 /-- Agreement on cells containing the work heads gives the same read symbols. -/
 theorem Cfg.AgreeOn.workTapeSymbols_eq {W : Fin k → Set ℤ} {c c' : Cfg k Symbol State input}

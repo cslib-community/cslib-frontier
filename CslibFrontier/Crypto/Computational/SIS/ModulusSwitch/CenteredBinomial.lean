@@ -111,17 +111,21 @@ private theorem family_budget (t : ℕ) :
         (2 ^ (moduleLWECBDWidth t + 1) / 2 : ℕ) -
         (2 ^ moduleLWECBDWidth t / 2 : ℕ)| ≤ moduleLWECBDRadius t := by
   have hw : 0 < moduleLWECBDWidth t := Nat.size_pos.mpr (by omega)
-  rw [show ((2 ^ moduleLWECBDWidth t : ℕ) : ℚ) / 2 ^ (moduleLWECBDWidth t + 1) = 1 / 2 by
-      push_cast
-      rw [pow_succ]
-      field_simp,
-    Nat.cast_div_charZero (dvd_pow_self 2 (by omega : moduleLWECBDWidth t + 1 ≠ 0)),
+  have hhalf : ((2 ^ moduleLWECBDWidth t : ℕ) : ℚ) / 2 ^ (moduleLWECBDWidth t + 1) = 1 / 2 := by
+    push_cast
+    rw [pow_succ]
+    field_simp
+  rw [hhalf, Nat.cast_div_charZero (dvd_pow_self 2 (by omega : moduleLWECBDWidth t + 1 ≠ 0)),
     Nat.cast_div_charZero (dvd_pow_self 2 hw.ne')]
   push_cast
-  rw [show (1 / 2 : ℚ) * (2 ^ (moduleLWECBDWidth t + 1) / 2) - 2 ^ moduleLWECBDWidth t / 2 = 0 by
-    rw [pow_succ]; ring, abs_zero, add_zero]
-  nlinarith [show (8 : ℚ) * t ^ 3 + t ^ 2 + 4 * t + 1 ≤ 2 * moduleLWECBDRadius t by
-    exact_mod_cast radius_lower t]
+  have hexact : (1 / 2 : ℚ) * (2 ^ (moduleLWECBDWidth t + 1) / 2) -
+      2 ^ moduleLWECBDWidth t / 2 = 0 := by
+    rw [pow_succ]
+    ring
+  rw [hexact, abs_zero, add_zero]
+  have hr : (8 : ℚ) * t ^ 3 + t ^ 2 + 4 * t + 1 ≤ 2 * moduleLWECBDRadius t := by
+    exact_mod_cast radius_lower t
+  nlinarith
 
 /-- In the actual retained-secret experiment, growing rank and degree cost the full
 `(2*t+1)*t` coefficient union factor. This is a correctness bound for every message. -/
@@ -144,34 +148,42 @@ theorem toOuterMeasure_moduleLWECBD_switch_failure_le (l : ℕ) (m : Fin (l + 1)
   let t := l + 1
   let w := moduleLWECBDWidth t
   let noise := PMF.pi (fun _ : Fin t => LWE.noiseLaw (w + 1) (8 * t))
-  let secrets := PMF.pi (fun _ : Fin t => PMF.pi (fun _ : Fin t => LWE.noiseLaw (w + 1) 1))
+  let secrets := PMF.pi (fun _ : Fin t =>
+    PMF.pi (fun _ : Fin t => LWE.noiseLaw (w + 1) 1))
+  have hwrap := moduleLWECBD_noWrap t
   have hs : ∀ s ∈ secrets.support, ModuleSIS.inInfNormBound 1 s := fun _ =>
-    moduleLWECenteredBinomial_inInfNormBound (by
-      have := moduleLWECBD_noWrap t
-      dsimp only [t, w] at *
-      omega)
-  have hn := toOuterMeasure_moduleLWECBD_noise_tail_le (n := t) (B := 4 * t)
-    (by dsimp only [t]; positivity : 0 < 8 * t) (moduleLWECBD_noWrap t)
-  rw [show -((4 * t : ℕ) : ℝ) ^ 2 / (2 * (8 * t : ℕ)) = -(t : ℝ) by
-    dsimp only [t]
-    push_cast
-    field_simp
-    ring] at hn
-  refine (toOuterMeasure_moduleLWEModulusSwitch_failure_le
+    moduleLWECenteredBinomial_inInfNormBound (by dsimp only [w]; omega)
+  have h := toOuterMeasure_moduleLWEModulusSwitch_failure_le
     (k := t) (n := t) (q := 2 ^ (w + 1)) (p := 2 ^ w)
     (Bs := 1) (Br := 1) (Be := 4 * t) (Bp := moduleLWECBDRadius t)
     (moduleLWECBD_margin t) noise m secrets secrets hs hs
-    (by simpa only [Nat.cast_pow, Nat.cast_ofNat, Nat.cast_one, w] using family_budget t)).trans
-    ((mul_le_mul' le_rfl hn).trans_eq ?_)
-  change (2 * (t : ℝ≥0∞) + 1) * (t * ENNReal.ofReal (4 * Real.exp (-(t : ℝ)))) =
-    ENNReal.ofReal (4 * (2 * (t : ℝ) + 1) * t * Real.exp (-(t : ℝ)))
-  rw [ENNReal.ofReal_mul (by positivity : 0 ≤ 4 * (2 * (t : ℝ) + 1) * t),
-    ENNReal.ofReal_mul (by positivity : 0 ≤ 4 * (2 * (t : ℝ) + 1))]
-  simp only [ENNReal.ofReal_mul (by norm_num : (0 : ℝ) ≤ 4),
-    ENNReal.ofReal_add (by positivity : 0 ≤ 2 * (t : ℝ)) (by norm_num : (0 : ℝ) ≤ 1),
-    ENNReal.ofReal_mul (by norm_num : (0 : ℝ) ≤ 2),
-    ENNReal.ofReal_natCast, ENNReal.ofReal_ofNat, ENNReal.ofReal_one]
-  ring
+    (by simpa only [Nat.cast_pow, Nat.cast_ofNat, Nat.cast_one, w] using family_budget t)
+  have hn := toOuterMeasure_moduleLWECBD_noise_tail_le (n := t) (B := 4 * t)
+    (Nat.mul_pos (by decide) (Nat.succ_pos l)) hwrap
+  have he : -((4 * t : ℕ) : ℝ) ^ 2 / (2 * (8 * t : ℕ)) = -(t : ℝ) := by
+    dsimp only [t]
+    push_cast
+    field_simp
+    ring
+  rw [he] at hn
+  apply h.trans
+  calc
+    _ ≤ (2 * (t : ℝ≥0∞) + 1) *
+        (t * ENNReal.ofReal (4 * Real.exp (-(t : ℝ)))) :=
+      mul_le_mul' le_rfl hn
+    _ = _ := by
+      change (2 * (t : ℝ≥0∞) + 1) *
+          (t * ENNReal.ofReal (4 * Real.exp (-(t : ℝ)))) =
+        ENNReal.ofReal (4 * (2 * (t : ℝ) + 1) * t * Real.exp (-(t : ℝ)))
+      rw [ENNReal.ofReal_mul (by positivity :
+        0 ≤ 4 * (2 * (t : ℝ) + 1) * t),
+        ENNReal.ofReal_mul (by positivity : 0 ≤ 4 * (2 * (t : ℝ) + 1))]
+      simp only [ENNReal.ofReal_mul (by norm_num : (0 : ℝ) ≤ 4),
+        ENNReal.ofReal_add (by positivity : 0 ≤ 2 * (t : ℝ))
+          (by norm_num : (0 : ℝ) ≤ 1),
+        ENNReal.ofReal_mul (by norm_num : (0 : ℝ) ≤ 2),
+        ENNReal.ofReal_natCast, ENNReal.ofReal_ofNat, ENNReal.ofReal_one]
+      ring
 
 /-- The actual switched-decryption failure is negligible for every message family. This
 is correctness of the supplied small-secret laws, with no hardness or security conclusion. -/
@@ -200,6 +212,8 @@ theorem negligible_moduleLWECBD_switch_failure (m : (l : ℕ) → Fin (l + 1) �
     (toOuterMeasure_moduleLWECBD_switch_failure_le l (m l))).trans_eq ?_
   push_cast
   rw [← Real.exp_nat_mul]
-  exact congrArg₂ (· * ·) (by ring) (congrArg Real.exp (by push_cast; ring))
+  refine congrArg₂ (· * ·) (by ring) (congrArg Real.exp ?_)
+  push_cast
+  ring
 
 end Cslib.Crypto

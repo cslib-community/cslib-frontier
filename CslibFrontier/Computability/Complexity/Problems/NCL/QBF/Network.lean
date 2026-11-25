@@ -216,8 +216,9 @@ theorem holds_row (r : List Color) :
     obtain ⟨_, rfl⟩ := List.length_eq_one_iff.1 hw
     simp only [List.cons_append, List.nil_append, List.cons.injEq] at hmid
     obtain ⟨rfl, rfl, rfl⟩ := hmid
-    exact ⟨acc, l :: ls, rs, _ :: ls', acc', rfl, rfl, by simp [hls], .cons hs.1 hf,
-      by rw [hits_cons]; exact le_or_or hs.2 ha⟩
+    refine ⟨acc, l :: ls, rs, _ :: ls', acc', rfl, rfl, by simp [hls], .cons hs.1 hf, ?_⟩
+    rw [hits_cons]
+    exact le_or_or hs.2 ha
 
 /-- The wire started by the empty clause is never active. -/
 theorem holds_dead : Holds Gate.interp (node [] [B]) fun _ y => y = [false] :=
@@ -275,8 +276,8 @@ private theorem exists_split (n : ℕ) (r : List Color) {x : List Bool}
     (hx : x.length = (bundle n ++ ([B] ++ r)).length) :
     ∃ ls w rs, x = ls ++ w :: rs ∧ ls.length = n := by
   have hn : n < x.length := by simp at hx; omega
-  exact ⟨x.take n, x[n], x.drop (n + 1),
-    by rw [← List.drop_eq_getElem_cons hn, List.take_append_drop], by simp; omega⟩
+  refine ⟨x.take n, x[n], x.drop (n + 1), ?_, by simp; omega⟩
+  rw [← List.drop_eq_getElem_cons hn, List.take_append_drop]
 
 /-- The contract of the further clauses: every continuation needs its literal, and the value of
 the conjunction needs the value before and every clause. -/

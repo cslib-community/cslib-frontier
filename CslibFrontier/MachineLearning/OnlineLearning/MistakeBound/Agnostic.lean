@@ -235,21 +235,26 @@ theorem expectedMistakes_agnosticSOA_le {C : ConceptClass α Bool} {d : ℕ}
       rw [versionSpace_nil] at h1
       exact ENat.natCast_le_natCast.mp (h1.trans hC)
   have hNpos : (0 : ℝ) < Fintype.card (flipSets T d) := by exact_mod_cast Fintype.card_pos
-  have hN : Real.log (Fintype.card (flipSets T d)) ≤ T := by
-    refine (Real.log_le_log (y := (2 : ℝ) ^ T) hNpos ?_).trans ?_
-    · rw [Fintype.card_coe]
-      exact_mod_cast card_flipSets_le_two_pow T d
-    · rw [Real.log_pow]
-      nlinarith [Real.log_le_sub_one_of_pos (by norm_num : (0 : ℝ) < 2)]
-  have hNd : Real.log (Fintype.card (flipSets T d)) ≤ d * Real.log (T + 1) := by
-    rw [← Real.log_pow]
-    refine Real.log_le_log hNpos ?_
-    rw [Fintype.card_coe]
-    exact_mod_cast card_flipSets_le T d
+  have hN : Real.log (Fintype.card (flipSets T d)) ≤ T :=
+    calc Real.log (Fintype.card (flipSets T d)) ≤ Real.log ((2 : ℝ) ^ T) :=
+          Real.log_le_log hNpos (by
+            rw [Fintype.card_coe]
+            exact_mod_cast card_flipSets_le_two_pow T d)
+      _ = T * Real.log 2 := Real.log_pow _ _
+      _ ≤ T := by
+          nlinarith [Real.log_le_sub_one_of_pos zero_lt_two]
+  have hNd : Real.log (Fintype.card (flipSets T d)) ≤ d * Real.log (T + 1) :=
+    calc Real.log (Fintype.card (flipSets T d)) ≤ Real.log (((T : ℝ) + 1) ^ d) :=
+          Real.log_le_log hNpos (by
+            rw [Fintype.card_coe]
+            exact_mod_cast card_flipSets_le T d)
+      _ = d * Real.log (T + 1) := Real.log_pow _ _
   have h := expectedMistakes_hedgeLearner_le (fun I : flipSets T d => flipExpert (soa C) I) hN
     S hS ⟨_, hI⟩
-  rw [show (mistakes (flipExpert (soa C) (mistakeRounds (soa C) Sc)) S : ℝ) =
-      (S.countP fun p => c p.1 ≠ p.2 : ℕ) by rw [hSc, mistakes_flipExpert_mistakeRounds]] at h
+  have hm : (mistakes (flipExpert (soa C) (mistakeRounds (soa C) Sc)) S : ℝ) =
+      (S.countP fun p => c p.1 ≠ p.2 : ℕ) := by
+    rw [hSc, mistakes_flipExpert_mistakeRounds]
+  rw [hm] at h
   refine h.trans (add_le_add_right ?_ _)
   rw [mul_assoc (T : ℝ)]
   gcongr

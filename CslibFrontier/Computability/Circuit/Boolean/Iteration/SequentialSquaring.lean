@@ -77,7 +77,7 @@ theorem pow_carmichael_succ_prime {M p : ℕ} [NeZero M] (hp : p.Prime) (hpM : p
 /-- For squarefree `M`, every residue modulo `M`, unit or not, satisfies `x ^ (λ(M) + 1) = x`. -/
 theorem pow_carmichael_succ {M : ℕ} (hM : Squarefree M) (x : ZMod M) :
     x ^ (carmichael M + 1) = x := by
-  have : NeZero M := ⟨by rintro rfl; exact not_squarefree_zero hM⟩
+  have : NeZero M := ⟨fun h => not_squarefree_zero (h ▸ hM)⟩
   rw [← sub_eq_zero]
   set z := x ^ (carmichael M + 1) - x with hz
   rw [← ZMod.natCast_zmod_val z, ZMod.natCast_eq_zero_iff]
@@ -96,8 +96,9 @@ theorem pow_add_mul_carmichael {M : ℕ} (hM : Squarefree M) (x : ZMod M) {a : �
   induction k with
   | zero => simp
   | succ k ih =>
-    rw [show a + carmichael M * (k + 1) = (a - 1) + (carmichael M + 1) + carmichael M * k by
-      rw [Nat.mul_succ]; omega, pow_add, pow_add, pow_carmichael_succ hM, ← pow_succ,
+    have : a + carmichael M * (k + 1) = (a - 1) + (carmichael M + 1) + carmichael M * k := by
+      rw [Nat.mul_succ]; omega
+    rw [this, pow_add, pow_add, pow_carmichael_succ hM, ← pow_succ,
       Nat.sub_add_cancel ha, ← pow_add, ih]
 
 /-- For squarefree `M`, positive exponents congruent modulo `λ(M)` give the same power of every
@@ -117,7 +118,8 @@ noncomputable def reducedExponent (M T : ℕ) : ℕ := 1 + (2 ^ T - 1) % carmich
 theorem reducedExponent_le (M T : ℕ) :
     1 ≤ reducedExponent M T ∧ reducedExponent M T ≤ carmichael M := by
   have := Nat.mod_lt (2 ^ T - 1) (carmichael_pos M)
-  unfold reducedExponent; omega
+  unfold reducedExponent
+  omega
 
 /-- Sequential squaring modulo a fixed squarefree `M`: for every `T` and every residue `x`,
 including non-units, `T` squarings equal the single power `x ^ (1 + (2 ^ T - 1) % λ(M))`. -/

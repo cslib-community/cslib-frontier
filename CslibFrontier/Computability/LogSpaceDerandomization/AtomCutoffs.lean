@@ -166,16 +166,25 @@ theorem exists_abs_auxCutoff_rpow_sub_le (hϑ : 0 < ϑ) (hp : 0 < p) :
     simpa only [Real.dist_eq] using hKa.dist_le_mul v v'
   have hdb : |b r ^ p - b r' ^ p| ≤ Kb * |r - r'| := by
     simpa only [Real.dist_eq] using hKb.dist_le_mul r r'
-  rw [show auxCutoff ϑ v r ^ p - auxCutoff ϑ v' r' ^ p =
-      (a v ^ p - a v' ^ p) * b r ^ p + a v' ^ p * (b r ^ p - b r' ^ p) by
-    simp only [auxCutoff, Real.mul_rpow (ha0 _) (hb0 _), a, b]; ring]
-  refine (abs_add_le _ _).trans ?_
-  rw [abs_mul, abs_mul, abs_of_nonneg (Real.rpow_nonneg (hb0 r) p),
-    abs_of_nonneg (Real.rpow_nonneg (ha0 v') p)]
+  have hsplit : auxCutoff ϑ v r ^ p - auxCutoff ϑ v' r' ^ p =
+      (a v ^ p - a v' ^ p) * b r ^ p + a v' ^ p * (b r ^ p - b r' ^ p) := by
+    simp only [auxCutoff, Real.mul_rpow (ha0 _) (hb0 _), a, b]
+    ring
+  rw [hsplit]
   have hb1 : b r ^ p ≤ 1 :=
     Real.rpow_le_one (hb0 r) (sub_le_self _ (smoothSwitch_nonneg _ _ _)) hp.le
   have ha1 : a v' ^ p ≤ 1 := Real.rpow_le_one (ha0 v') (smoothSwitch_le_one _ _ _) hp.le
-  nlinarith [le_max_left (Ka : ℝ) Kb, le_max_right (Ka : ℝ) Kb, abs_nonneg (v - v'),
-    abs_nonneg (r - r'), abs_nonneg (a v ^ p - a v' ^ p), abs_nonneg (b r ^ p - b r' ^ p)]
+  calc |(a v ^ p - a v' ^ p) * b r ^ p + a v' ^ p * (b r ^ p - b r' ^ p)|
+      ≤ |a v ^ p - a v' ^ p| * b r ^ p + a v' ^ p * |b r ^ p - b r' ^ p| := by
+        refine (abs_add_le _ _).trans_eq ?_
+        rw [abs_mul, abs_mul, abs_of_nonneg (Real.rpow_nonneg (hb0 r) p),
+          abs_of_nonneg (Real.rpow_nonneg (ha0 v') p)]
+    _ ≤ Ka * |v - v'| + Kb * |r - r'| := by
+        nlinarith [Real.rpow_nonneg (hb0 r) p, Real.rpow_nonneg (ha0 v') p,
+          abs_nonneg (a v ^ p - a v' ^ p), abs_nonneg (b r ^ p - b r' ^ p)]
+    _ ≤ max Ka Kb * (|v - v'| + |r - r'|) := by
+        rw [mul_add]
+        gcongr
+        exacts [le_max_left (Ka : ℝ) Kb, le_max_right (Ka : ℝ) Kb]
 
 end Cslib

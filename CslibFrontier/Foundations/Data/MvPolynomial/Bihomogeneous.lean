@@ -246,6 +246,8 @@ theorem IsHomogeneous.eq_sum_bidegree_component {Q : MvPolynomial σ R} {e : ℕ
     fun h => absurd (Finset.mem_range.2 (by omega)) h]
   exact (ite_eq_left (show weight (bidegWeight s) d =
     ((weight (bidegWeight s) d).1, e - (weight (bidegWeight s) d).1) from
-      Prod.ext rfl (by change _ = e - _; omega))).symm
+      Prod.ext rfl (by
+        change _ = e - _
+        omega))).symm
 
 end MvPolynomial

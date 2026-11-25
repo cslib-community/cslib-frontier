@@ -82,7 +82,9 @@ private theorem mixedGen_mem (i : σ) : mixedGen (R := R) s i ∈ mixedSubalgebr
 
 private theorem mixedSubalgebra_le :
     mixedSubalgebra (R := R) s ≤ Subalgebra.centralizer R (Set.range (mixedGen (R := R) s)) :=
-  Subalgebra.centralizer_le R _ _ <| by rintro _ ⟨i, rfl⟩ _ ⟨j, rfl⟩; exact commute_mixedGen s j i
+  Subalgebra.centralizer_le R _ _ <| by
+    rintro _ ⟨i, rfl⟩ _ ⟨j, rfl⟩
+    exact commute_mixedGen s j i
 
 private noncomputable instance : CommSemiring (mixedSubalgebra (R := R) s) where
   mul_comm a b := Subtype.ext (b.2 a (mixedSubalgebra_le s a.2))
@@ -136,7 +138,8 @@ theorem mixedOp_prod_X_monomial_of_pos {ι : Type*} (T : Finset ι) (c : ι → 
         (hinj.mono (Finset.coe_subset.2 (Finset.subset_insert _ _))),
       mixedOp_X_of_pos (hc t (Finset.mem_insert_self _ _)), pderiv_monomial, Finsupp.tsub_apply,
       h0, tsub_zero, Finset.sum_insert ht, Finset.prod_insert ht, tsub_tsub, add_comm]
-    congr 1; ring
+    congr 1
+    ring
 
 theorem mixedOp_C (c : R) (p : MvPolynomial σ R) : mixedOp s (C c) p = c • p := by
   rw [← algebraMap_eq, AlgHom.commutes, Module.algebraMap_end_apply]

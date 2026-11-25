@@ -61,17 +61,21 @@ public theorem exec_setupCopy {w L m N Q s d n : ℕ} {setup : Code .standard 16
   have zp : Parameters L m N Q z := by regs_frame
   obtain ⟨y, he, hm, hf⟩ := exec_copyCall z (allocated_fits hfit (by omega))
     (by dsimp only [z]
-        wram_simp; exact allocated_fits hfit hs)
+        wram_simp
+        exact allocated_fits hfit hs)
     (by dsimp only [z]
-        wram_simp; exact allocated_fits hfit hd)
+        wram_simp
+        exact allocated_fits hfit hd)
     (by dsimp only [z]
-        wram_simp; exact hsep)
+        wram_simp
+        exact hsep)
   dsimp only [z] at he hm
   wram_simp at he hm
   refine ⟨y, (hsetup.seq he).mono (by omega), zp.reframe fun i hi => hf i (by omega),
     hm, fun i hi hs hd hl => ?_⟩
   rw [hf i hi]
-  dsimp only [z]; wram_simp
+  dsimp only [z]
+  wram_simp
 
 /-- The actual input snapshot uses three argument instructions and the native copy loop. -/
 public theorem exec_saveInput {w L m N Q : ℕ} (x : Data 160)

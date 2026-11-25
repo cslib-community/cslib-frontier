@@ -44,11 +44,13 @@ open Finset Cslib.Algorithms.MatrixMultiplication.Schonhage
 /-- The initial frontier's value is the original allowed-leaf sum. -/
 @[simp] theorem frontierValue_root {G : Type*} [AddCommMonoid G] {L : ℕ}
     (η : OutStr L) (t : ℕ) (f : Leaf L → G) :
-    frontierValue η t f [[]] = ∑ τ ∈ possibleLeaves η t [], f τ := by simp [frontierValue]
+    frontierValue η t f [[]] = ∑ τ ∈ possibleLeaves η t [], f τ := by
+  simp [frontierValue]
 
 /-- Initial finite depth potential charges at most one full-depth path per allowed leaf. -/
 @[simp] theorem frontierWork_root {L : ℕ} (η : OutStr L) (t : ℕ) :
-    frontierWork η t [[]] = (L + 1) * (possibleLeaves η t []).card := by simp [frontierWork]
+    frontierWork η t [[]] = (L + 1) * (possibleLeaves η t []).card := by
+  simp [frontierWork]
 
 /-- Each pending leaf contributes at least one unit of finite depth potential. -/
 theorem leafMass_le_frontierWork {L : ℕ} (η : OutStr L) (t : ℕ)
@@ -129,12 +131,14 @@ theorem FrontierInvariant.expand {G : Type*} [AddCommMonoid G] {L t : ℕ}
     (h : FrontierInvariant η t f finished (xs :: tasks)) (hk : xs.length < L) :
     FrontierInvariant η t f finished (children η t xs ++ tasks) := by
   have hx : Good η t xs := h.good xs (by simp)
-  refine ⟨fun ys hy => ?_, by rw [leafMass_expand hx hk]; exact h.mass,
-    by rw [frontierValue_expand hx hk]; exact h.value,
-    (frontierWork_expand_lt hx hk tasks).le.trans h.work⟩
-  rcases List.mem_append.mp hy with hy | hy
-  · exact good_of_mem_children hx hk hy
-  · exact h.good ys (by simp [hy])
+  refine ⟨fun ys hy => ?_, ?_, ?_, (frontierWork_expand_lt hx hk tasks).le.trans h.work⟩
+  · rcases List.mem_append.mp hy with hy | hy
+    · exact good_of_mem_children hx hk hy
+    · exact h.good ys (by simp [hy])
+  · rw [leafMass_expand hx hk]
+    exact h.mass
+  · rw [frontierValue_expand hx hk]
+    exact h.value
 
 /-- Finishing one actual leaf transfers its occurrence and value to the completed prefix. -/
 theorem FrontierInvariant.finish {G : Type*} [AddCommMonoid G] {L t : ℕ}

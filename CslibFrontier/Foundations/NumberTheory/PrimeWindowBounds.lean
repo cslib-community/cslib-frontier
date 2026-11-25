@@ -94,15 +94,19 @@ theorem four_mul_le_card_primesLE_two_mul_pow_four {Z : ℕ} (hZ : 16 ≤ Z) :
 /-- Excluding all primes at most any `L ≤ Z` leaves at least `3Z` primes. -/
 theorem three_mul_le_card_primesLE_sdiff {Z L : ℕ} (hZ : 16 ≤ Z) (hL : L ≤ Z) :
     3 * Z ≤ #(Nat.primesLE (2 * Z ^ 4) \ Nat.primesLE L) := by
-  have := sub_le_card_primesLE_sdiff_of_mul_log_le (L := L) (four_mul_prime_count_cutoff_le hZ)
+  have := sub_le_card_primesLE_sdiff_of_mul_log_le (L := L)
+    (four_mul_prime_count_cutoff_le hZ)
   omega
 
 /-- The product of primes `L < p ≤ 2Z⁴` is at least `2^(3Z)` for `L ≤ Z` and `Z ≥ 16`. -/
 theorem two_pow_three_mul_le_prod_primesLE_sdiff {Z L : ℕ}
     (hZ : 16 ≤ Z) (hL : L ≤ Z) :
     2 ^ (3 * Z) ≤ ∏ p ∈ Nat.primesLE (2 * Z ^ 4) \ Nat.primesLE L, p := by
-  exact (Nat.pow_le_pow_right (by decide) (three_mul_le_card_primesLE_sdiff hZ hL)).trans
-    (two_pow_card_le_prod_primesLE_sdiff _ _)
+  calc
+    2 ^ (3 * Z) ≤ 2 ^ #(Nat.primesLE (2 * Z ^ 4) \ Nat.primesLE L) :=
+      Nat.pow_le_pow_right (by decide) (three_mul_le_card_primesLE_sdiff hZ hL)
+    _ ≤ ∏ p ∈ Nat.primesLE (2 * Z ^ 4) \ Nat.primesLE L, p :=
+      two_pow_card_le_prod_primesLE_sdiff _ _
 
 /-- For `m ≤ Z`, the prime product exceeds six times the maximum allowed integer magnitude. -/
 theorem six_mul_two_pow_lt_prod_primesLE_sdiff {Z L m : ℕ}
@@ -116,7 +120,8 @@ theorem six_mul_two_pow_lt_prod_primesLE_sdiff {Z L m : ℕ}
 /-- `2Z⁴` has binary length at most `4 size Z + 3`, using only existing size arithmetic. -/
 theorem size_two_mul_pow_four_le (Z : ℕ) :
     (2 * Z ^ 4).size ≤ 4 * Z.size + 3 := by
-  have := Nat.size_mul_le 2 (Z ^ 4); have := Nat.size_pow_le Z 4
+  have := Nat.size_mul_le 2 (Z ^ 4)
+  have := Nat.size_pow_le Z 4
   have : Nat.size 2 = 2 := by decide
   omega
 
@@ -131,24 +136,29 @@ theorem size_sign_prime_cutoff_le (m L : ℕ) :
 theorem size_prime_window_doubling_index_le {Z k : ℕ}
     (hk : k ≤ (2 * Z ^ 4) * (2 * Z ^ 4).size + 1) :
     k.size ≤ 8 * Z.size + 8 := by
-  have := size_mul_size_add_one_le hk; have := size_two_mul_pow_four_le Z
+  have := size_mul_size_add_one_le hk
+  have := size_two_mul_pow_four_le Z
   omega
 
 /-- The dyadic precision exponent itself is linear in the binary width of `Z`. -/
 theorem prime_window_precision_le (Z : ℕ) :
     (2 * Z ^ 4).size + 10 ≤ 4 * Z.size + 13 := by
-  have := size_two_mul_pow_four_le Z; omega
+  have := size_two_mul_pow_four_le Z
+  omega
 
 /-- The precision exponent also has an explicit binary-width bound. -/
 theorem size_prime_window_precision_le (Z : ℕ) :
     ((2 * Z ^ 4).size + 10).size ≤ 4 * Z.size + 8 := by
-  have := Nat.size_add_le (2 * Z ^ 4).size 10; have := Nat.size_le_self (2 * Z ^ 4).size
-  have := size_two_mul_pow_four_le Z; have : Nat.size 10 = 4 := by decide
+  have := Nat.size_add_le (2 * Z ^ 4).size 10
+  have := Nat.size_le_self (2 * Z ^ 4).size
+  have := size_two_mul_pow_four_le Z
+  have : Nat.size 10 = 4 := by decide
   omega
 
 /-- The width allowance `2 * Y.size + 11` for a rounded sum is linear in `Z.size`. -/
 theorem prime_window_sum_width_le (Z : ℕ) :
     2 * (2 * Z ^ 4).size + 11 ≤ 8 * Z.size + 17 := by
-  have := size_two_mul_pow_four_le Z; omega
+  have := size_two_mul_pow_four_le Z
+  omega
 
 end Nat

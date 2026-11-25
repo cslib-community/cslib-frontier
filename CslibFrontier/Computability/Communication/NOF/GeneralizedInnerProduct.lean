@@ -160,21 +160,27 @@ theorem two_mul_le_of_pow_le {k n c : ℕ} (hk : k ≠ 0) {A m : ℝ} (hA : 0 < 
     (pow_le_pow_left₀ hb hbt j).trans_eq (Real.exp_nat_mul _ j).symm
   have h0 : 0 ≤ 1 - 2 / (2 : ℝ) ^ k :=
     sub_nonneg.mpr ((div_le_one (by positivity)).mpr (le_self_pow₀ one_le_two hk))
+  have hexp := hpow n h0 (Real.one_sub_le_exp_neg _)
+  have htwo := hpow (c * 2 ^ k) zero_le_two (by linarith [Real.add_one_le_exp 1] : 2 ≤ Real.exp 1)
   have hAinv := (inv_pow A (2 ^ k)).symm.trans_le (hpow (2 ^ k) (inv_nonneg.mpr hA.le) hAm)
   -- Hence `1 = A⁻ᴷ Aᴷ ≤ exp (K m + c K - 2 n / K)` for `K = 2 ^ k`.
   have hApos : 0 < A ^ (2 ^ k) := pow_pos hA _
   have h1 : 1 ≤ Real.exp ((2 ^ k : ℕ) * m + (c * 2 ^ k : ℕ) * 1 + n * -(2 / 2 ^ k)) :=
-    (inv_mul_cancel₀ hApos.ne').symm.trans_le
-      ((mul_le_mul hAinv (h.trans (mul_le_mul
-        (hpow (t := 1) (c * 2 ^ k) zero_le_two (by linarith [Real.add_one_le_exp 1]))
-        (hpow n h0 (Real.one_sub_le_exp_neg _)) (pow_nonneg h0 _) (Real.exp_pos _).le))
-        hApos.le (Real.exp_pos _).le).trans_eq (by rw [Real.exp_add, Real.exp_add, mul_assoc]))
+    calc (1 : ℝ) = (A ^ (2 ^ k))⁻¹ * A ^ (2 ^ k) := (inv_mul_cancel₀ hApos.ne').symm
+      _ ≤ Real.exp ((2 ^ k : ℕ) * m) *
+            (Real.exp ((c * 2 ^ k : ℕ) * 1) * Real.exp (n * -(2 / 2 ^ k))) :=
+          mul_le_mul hAinv (h.trans (mul_le_mul htwo hexp (pow_nonneg h0 _) (Real.exp_pos _).le))
+            hApos.le (Real.exp_pos _).le
+      _ = _ := by rw [Real.exp_add, Real.exp_add, mul_assoc]
   have h2 := Real.one_le_exp_iff.mp h1
   push_cast at h2
   -- Multiply by `K`: `2 n ≤ K² (c + m) = 4 ^ k (c + m)`.
-  have h3 : (n : ℝ) * 2 ≤ 2 ^ k * (m + c) * 2 ^ k :=
-    (div_le_iff₀ (by positivity : (0 : ℝ) < 2 ^ k)).mp (by rw [← mul_div_assoc']; linarith)
-  rw [show (4 : ℝ) ^ k = 2 ^ k * 2 ^ k by rw [← mul_pow]; norm_num]
+  have h3 : (n : ℝ) * (2 / 2 ^ k) ≤ 2 ^ k * (m + c) := by linarith
+  rw [mul_div_assoc', div_le_iff₀ (by positivity)] at h3
+  have h4 : (4 : ℝ) ^ k = 2 ^ k * 2 ^ k := by
+    rw [← mul_pow]
+    norm_num
+  rw [h4]
   linarith
 
 /-- Deterministic cube-discrepancy trade-off: from `1 ≤ 2 ^ c * D` and
@@ -183,8 +189,9 @@ theorem two_mul_le_four_pow_mul_of_cube_discrepancy {k n c : ℕ} (hk : k ≠ 0)
     (h1 : 1 ≤ (2 : ℝ) ^ c * D) (hcube : D ^ (2 ^ k) ≤ (1 - 2 / (2 : ℝ) ^ k) ^ n) :
     2 * n ≤ 4 ^ k * c := by
   have hp : (1 : ℝ) ^ (2 ^ k) ≤ 2 ^ (c * 2 ^ k) * (1 - 2 / 2 ^ k) ^ n :=
-    ((pow_le_pow_left₀ zero_le_one h1 _).trans_eq (by rw [mul_pow, pow_mul])).trans
-      (mul_le_mul_of_nonneg_left hcube (by positivity))
+    calc (1 : ℝ) ^ (2 ^ k) ≤ ((2 : ℝ) ^ c * D) ^ (2 ^ k) := pow_le_pow_left₀ zero_le_one h1 _
+      _ = 2 ^ (c * 2 ^ k) * D ^ (2 ^ k) := by rw [mul_pow, pow_mul]
+      _ ≤ _ := mul_le_mul_of_nonneg_left hcube (by positivity)
   have hle := two_mul_le_of_pow_le hk zero_lt_one (by rw [inv_one, Real.exp_zero]) hp
   rw [add_zero] at hle
   exact_mod_cast hle
@@ -201,8 +208,13 @@ theorem PublicCoin.pow_le_of_ecomplexityFun_gip_le [Nonempty ι] {n c : ℕ} {γ
   classical
   have hd := PublicCoin.two_mul_le_two_pow_mul_discrepancy h
     (PMF.uniformOfFintype (ι → BitString n))
-  exact ((pow_le_pow_left₀ (by positivity) hd _).trans_eq (by rw [mul_pow, pow_mul])).trans
-    (mul_le_mul_of_nonneg_left (discrepancy_gip_pow_le n) (by positivity))
+  calc (2 * γ) ^ (2 ^ Fintype.card ι)
+      ≤ (2 ^ c * discrepancy (PMF.uniformOfFintype (ι → BitString n)) gip) ^
+          (2 ^ Fintype.card ι) := pow_le_pow_left₀ (by positivity) hd _
+    _ = 2 ^ (c * 2 ^ Fintype.card ι) *
+          discrepancy (PMF.uniformOfFintype (ι → BitString n)) gip ^ (2 ^ Fintype.card ι) := by
+        rw [mul_pow, pow_mul]
+    _ ≤ _ := mul_le_mul_of_nonneg_left (discrepancy_gip_pow_le n) (by positivity)
 
 omit [DecidableEq ι] in
 /-- **Babai–Nisan–Szegedy lower bound for the generalized inner product** [BabaiNisanSzegedy1992]:

@@ -153,7 +153,8 @@ theorem smallWitnessLanguage_mem_NTIME
   suffices smallWitnessLanguage D s =
       {x | ∃ w : List Bool, w.length = certLength (r x) (s x) ∧
         !sat (certificateQuery D s (x, w)) = true} by
-    rw [this]; exact setOf_exists_mem_NTIME hℓ (hsat.comp hbuild).not' ht
+    rw [this]
+    exact setOf_exists_mem_NTIME hℓ (hsat.comp hbuild).not' ht
   ext x
   refine (exists_not_mem_CircuitSAT_certificateCircuit_iff (D x) (s x)).symm.trans
     (exists_congr fun w => and_congr_right fun _ => ?_)
@@ -182,19 +183,26 @@ theorem smallWitnessLanguage_mem_NTIME_of_polyTime
     ∃ p : ℕ → ℕ, PolynomiallyBounded p ∧
       smallWitnessLanguage D s ∈ NTIME enc (fun n => p n + t n) := by
   have hℓpoly : ComputableInPolyTime (fun x => certLength (r x) (s x)) enc encUnary := by
-    unfold certLength; fun_prop
+    unfold certLength
+    fun_prop
   obtain ⟨dℓ, eℓ, hℓ⟩ := hℓpoly.exists_degree
   obtain ⟨cℓ, hlen⟩ := hℓ.2
   obtain ⟨dB, _, hbuild⟩ := (computableInPolyTime_certificateQuery hq hr hs hD).exists_degree
   let p : ℕ → ℕ := fun n => n + (n + 1) ^ dℓ + (2 * n + cℓ * (n + 1) ^ eℓ + 2) ^ dB
-  refine ⟨p, by dsimp [p]; fun_prop,
+  have hp : PolynomiallyBounded p := by
+    dsimp [p]
+    fun_prop
+  refine ⟨p, hp,
     smallWitnessLanguage_mem_NTIME (C := 1) hℓ.inO hbuild.inO hsat hspec fun x w hw => ?_⟩
   have hlength : certLength (r x) (s x) ≤ cℓ * ((enc x).length + 1) ^ eℓ := by
     simpa only [encUnary_apply, List.length_replicate] using hlen x
-  have hbuildTime := Nat.pow_le_pow_left (show (encPair enc encBits (x, w)).length + 1 ≤
-      2 * (enc x).length + cℓ * ((enc x).length + 1) ^ eℓ + 2 by
-    simp only [length_encPair, encBits_apply, hw]; omega) dB
-  have hsatTime := ht x (certificateQuery D s (x, w)) rfl (size_certificateQuery_le D s (x, w))
+  have hpair : (encPair enc encBits (x, w)).length + 1 ≤
+      2 * (enc x).length + cℓ * ((enc x).length + 1) ^ eℓ + 2 := by
+    simp only [length_encPair, encBits_apply, hw]
+    omega
+  have hbuildTime := Nat.pow_le_pow_left hpair dB
+  have hsatTime := ht x (certificateQuery D s (x, w)) rfl
+    (size_certificateQuery_le D s (x, w))
   simp only [p, encPair_apply, encBits_apply] at hbuildTime ⊢
   omega
 

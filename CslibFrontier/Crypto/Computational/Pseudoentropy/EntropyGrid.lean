@@ -164,11 +164,13 @@ attribute [program_certificate]
 
 /-- No candidate asks for zero soft-mask mass. -/
 theorem numerator_pos (bound index : ℕ) : 0 < numerator bound index := by
-  unfold numerator; lia
+  unfold numerator
+  lia
 
 /-- The integer unit is positive even at security parameter zero. -/
 theorem scale_pos (n sourceBits bound : ℕ) : 0 < scale n sourceBits bound := by
-  unfold scale ExtractionSchedule.slack; positivity
+  unfold scale ExtractionSchedule.slack
+  positivity
 
 /-- The repetition count is exactly two units per grid step. -/
 theorem count_eq (n sourceBits bound : ℕ) :
@@ -272,9 +274,11 @@ theorem exists_valid (n sourceBits bound : ℕ) {observationEntropy labelEntropy
     have hremaining : ((D * sourceBits - (first + second + 2) : ℕ) : ℝ) ≤
         D * (sourceBits - observationEntropy - labelEntropy) := by
       by_cases hsmall : first + second + 2 ≤ D * sourceBits
-      · rw [Nat.cast_sub hsmall, mul_sub, mul_sub]; push_cast
+      · rw [Nat.cast_sub hsmall, mul_sub, mul_sub]
+        push_cast
         linarith only [hfirst_lt, hsecond_lt]
-      · rw [Nat.sub_eq_zero_of_le (by lia)]; push_cast
+      · rw [Nat.sub_eq_zero_of_le (by lia)]
+        push_cast
         exact mul_nonneg hDr.le (by linarith only [htotal, hobservation, hlabel])
     simpa only [remainingBits, ← hD_def, hquot, hrem, Nat.cast_mul, Nat.cast_ofNat, mul_assoc]
       using rounded_budget (scale n sourceBits bound) _ hremaining

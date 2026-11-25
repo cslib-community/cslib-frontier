@@ -132,14 +132,16 @@ theorem deviationCost_toCostGame_row (G : BimatrixGame M N) {x : M → ℝ} (y :
   have hp : ∀ b, b ≠ true → ∑ a, profile x y b a = 1 := by
     rintro (_ | _) hb
     exacts [by rwa [sum_pureStrategy_false], absurd rfl hb]
-  rw [CostGame.deviationCost_def, sum_congr rfl fun s _ => show
-      productWeight (profile x y) s * G.toCostGame.cost false (update s false (ULift.up i)) =
-        productWeight (profile x y) s *
-          (fun c : PureStrategy M N true => -G.A i (ULift.down c)) (s true) by
-    simp only [toCostGame, update_self, update_of_ne (show true ≠ false by decide)],
-    sum_productWeight_mul_apply hp fun c : PureStrategy M N true => -G.A i (ULift.down c),
-    sum_pureStrategy_true]
-  simp only [profile_true, mulVec, dotProduct, ← sum_neg_distrib, mul_neg, mul_comm]
+  rw [CostGame.deviationCost_def]
+  calc ∑ s, productWeight (profile x y) s * G.toCostGame.cost false (update s false (ULift.up i))
+      = ∑ s, productWeight (profile x y) s *
+          (fun c : PureStrategy M N true => -G.A i (ULift.down c)) (s true) :=
+        sum_congr rfl fun s _ => by
+          simp only [toCostGame, update_self, update_of_ne (show true ≠ false by decide)]
+    _ = -(G.A *ᵥ y) i := by
+        rw [sum_productWeight_mul_apply hp fun c : PureStrategy M N true => -G.A i (ULift.down c),
+          sum_pureStrategy_true]
+        simp only [profile_true, mulVec, dotProduct, ← sum_neg_distrib, mul_neg, mul_comm]
 
 /-- If `y` is a probability vector, the expected cost of the column player's pure strategy `j`
 against `x` is its negated expected payoff `-(x B)ⱼ`. -/
@@ -149,14 +151,16 @@ theorem deviationCost_toCostGame_column (G : BimatrixGame M N) (x : M → ℝ) {
   have hp : ∀ b, b ≠ false → ∑ a, profile x y b a = 1 := by
     rintro (_ | _) hb
     exacts [absurd rfl hb, by rwa [sum_pureStrategy_true]]
-  rw [CostGame.deviationCost_def, sum_congr rfl fun s _ => show
-      productWeight (profile x y) s * G.toCostGame.cost true (update s true (ULift.up j)) =
-        productWeight (profile x y) s *
-          (fun c : PureStrategy M N false => -G.B (ULift.down c) j) (s false) by
-    simp only [toCostGame, update_self, update_of_ne (show false ≠ true by decide)],
-    sum_productWeight_mul_apply hp fun c : PureStrategy M N false => -G.B (ULift.down c) j,
-    sum_pureStrategy_false]
-  simp only [profile_false, vecMul, dotProduct, ← sum_neg_distrib, mul_neg]
+  rw [CostGame.deviationCost_def]
+  calc ∑ s, productWeight (profile x y) s * G.toCostGame.cost true (update s true (ULift.up j))
+      = ∑ s, productWeight (profile x y) s *
+          (fun c : PureStrategy M N false => -G.B (ULift.down c) j) (s false) :=
+        sum_congr rfl fun s _ => by
+          simp only [toCostGame, update_self, update_of_ne (show false ≠ true by decide)]
+    _ = -(x ᵥ* G.B) j := by
+        rw [sum_productWeight_mul_apply hp fun c : PureStrategy M N false => -G.B (ULift.down c) j,
+          sum_pureStrategy_false]
+        simp only [profile_false, vecMul, dotProduct, ← sum_neg_distrib, mul_neg]
 
 /-- The row player's expected cost under `profile x y` is its negated payoff. -/
 theorem expectedCost_toCostGame_false (G : BimatrixGame M N) {x : M → ℝ} (y : N → ℝ)

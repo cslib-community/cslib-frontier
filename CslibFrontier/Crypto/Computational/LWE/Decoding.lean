@@ -136,9 +136,10 @@ quarter of the modulus. The strict inequality excludes the decoder's asymmetric 
 theorem decode_eq_of_error {w : ℕ} (hw : 0 < w) (μ : Bool) (error : ℤ)
     (herror : 4 * error.natAbs < 2 ^ w) :
     decode w (((μ.toNat : ℤ) * 2 ^ (w - 1) + error : ℤ) : ZMod (2 ^ w)) = μ := by
-  have hhalfInt : (2 ^ w : ℕ) = (2 : ℤ) * 2 ^ (w - 1) := by
-    exact_mod_cast show 2 ^ w = 2 * 2 ^ (w - 1) by
-      conv_lhs => rw [← Nat.sub_add_cancel hw, pow_succ, Nat.mul_comm]
+  have hhalf : 2 ^ w = 2 * 2 ^ (w - 1) :=
+    calc 2 ^ w = 2 ^ ((w - 1) + 1) := by rw [Nat.sub_add_cancel hw]
+      _ = 2 * 2 ^ (w - 1) := by rw [pow_succ, Nat.mul_comm]
+  have hhalfInt : (2 ^ w : ℕ) = (2 : ℤ) * 2 ^ (w - 1) := by exact_mod_cast hhalf
   have hbound : 4 * (error.natAbs : ℤ) < (2 ^ w : ℕ) := by exact_mod_cast herror
   have hmod (x : ℤ) (hx : 0 ≤ x) (hx' : x < (2 ^ w : ℕ)) :
       (((x : ZMod (2 ^ w)).val : ℕ) : ℤ) = x := by
@@ -147,7 +148,8 @@ theorem decode_eq_of_error {w : ℕ} (hw : 0 < w) (μ : Bool) (error : ℤ)
   · simp only [Bool.toNat_false, Nat.cast_zero, zero_mul, zero_add, decode, decodeResidue,
       decide_eq_false_iff_not]
     by_cases he : 0 ≤ error
-    · have := hmod error he (by omega); omega
+    · have := hmod error he (by omega)
+      omega
     · have hval := hmod (error + (2 ^ w : ℕ)) (by omega) (by omega)
       rw [ZMod.val_intCast, Int.add_emod_right, ← ZMod.val_intCast] at hval
       omega

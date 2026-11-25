@@ -40,17 +40,23 @@ theorem mem_nodeWrites_iff {L f d c : ℕ} (hd : d ≤ L) : c ∈ nodeWrites L f
   have hf : f + 4 * d + 4 * (L + 1 - d) = f + 4 * (L + 1) := by omega
   have hl : f + 4 * (L + 1) + (d + 1) * 10 ^ L + (L - d) * 10 ^ L =
       f + 4 * (L + 1) + (L + 1) * 10 ^ L := by
-    rw [Nat.add_assoc (f + 4 * (L + 1)), ← Nat.add_mul, show d + 1 + (L - d) = L + 1 by omega]
+    have hd1 : d + 1 + (L - d) = L + 1 := by omega
+    calc
+      _ = f + 4 * (L + 1) + (d + 1 + (L - d)) * 10 ^ L := by ring
+      _ = _ := by rw [hd1]
   have hv : f + 4 * (L + 1) + (L + 1) * 10 ^ L + d * 10 ^ L +
       (L + 1 - d) * 10 ^ L = f + 4 * (L + 1) + 2 * (L + 1) * 10 ^ L := by
-    rw [Nat.add_assoc (f + 4 * (L + 1) + (L + 1) * 10 ^ L), ← Nat.add_mul,
-      show d + (L + 1 - d) = L + 1 by omega]; ring
+    have hd2 : d + (L + 1 - d) = L + 1 := by omega
+    calc
+      _ = f + 4 * (L + 1) + ((L + 1) + (d + (L + 1 - d))) * 10 ^ L := by ring
+      _ = _ := by rw [hd2]; ring
   simp only [nodeWrites, Finset.mem_union, Block.mem_footprint, Block.Owns, hf, hl, hv]
 
 /-- The recursive child's full writable frame is contained in the parent's frame. -/
 theorem nodeWrites_child_subset {L f d : ℕ} (hd : d < L) :
     nodeWrites L f (d + 1) ⊆ nodeWrites L f d := by
-  intro c hc; rw [mem_nodeWrites_iff (by omega : d + 1 ≤ L)] at hc
+  intro c hc
+  rw [mem_nodeWrites_iff (by omega : d + 1 ≤ L)] at hc
   rw [mem_nodeWrites_iff hd.le]
   have hv := Nat.mul_le_mul_right (10 ^ L) (by omega : d ≤ d + 1)
   have hl := Nat.mul_le_mul_right (10 ^ L) (by omega : d + 1 ≤ d + 1 + 1)

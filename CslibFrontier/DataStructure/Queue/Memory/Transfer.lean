@@ -112,7 +112,8 @@ theorem transfer_invariant {L₁ L₂ : Stack.Memory.Layout} {w C n : ℕ}
   have hi : M.inv s := ⟨hs₁, hs₂, hd, by
     change Cslib.WordRAM.Fits w (s.frontier + (0 + 0))
     simpa only [Nat.add_zero] using hw.frontier_fits⟩
-  have hn' : n = (Stack.Memory.abs L₂ s).length := by rw [Stack.Memory.length_abs, hn]
+  have hn' : n = (Stack.Memory.abs L₂ s).length := by
+    rw [Stack.Memory.length_abs, hn]
   have hv : (boundedStacks w C).ValidHistory (M.abs s)
       ((boundedStacks w C).clientHistory (M.abs s) (Queue.transfer n)) := by
     rw [clientHistory_boundedStacks, hn']
@@ -138,7 +139,8 @@ theorem transfer_invariant {L₁ L₂ : Stack.Memory.Layout} {w C n : ℕ}
   have hrearLength := congrArg List.length hrear
   simp only [Stack.Memory.length_abs, List.length_append, List.length_reverse,
     List.length_nil, hn] at hfrontLength hrearLength
-  exact ⟨hvE, by rw [← (spec w).run_runClient]; exact hw.run hvE, hsE.1, hsE.2.1, hrearLength,
-    Nat.add_comm _ _ ▸ hfrontLength, hfront⟩
+  refine ⟨hvE, ?_, hsE.1, hsE.2.1, hrearLength, Nat.add_comm _ _ ▸ hfrontLength, hfront⟩
+  rw [← (spec w).run_runClient]
+  exact hw.run hvE
 
 end Cslib.DataStructure.Queue.Memory

@@ -62,14 +62,15 @@ theorem accBound_aux (d cD cO : ℕ) : ∃ K, ∀ {N A W Dl Nl Ll X Y E : ℕ},
     Nat.mul_le_mul (Nat.pow_le_pow_right hX (by decide)) (Nat.le_self_pow two_ne_zero _)
   have hpre : N + A + (N + W + (N + Y)) ≤ 10 * (X * Y) := by
     have h1 := Nat.le_mul_of_pos_right X hY
-    have h2 := Nat.le_mul_of_pos_left Y hX; omega
+    have h2 := Nat.le_mul_of_pos_left Y hX
+    omega
+  have hY1 : Y + 1 ≤ 2 * Y := by omega
   have hU₂ : (2 * Dl + 1 + (2 * Nl + 1 + Ll) + 1) ^ 2 * (Y + 1) ≤ 2 * C₁ ^ 2 * (X ^ 2 * Y) :=
-    (Nat.mul_le_mul (Nat.pow_le_pow_left hIn 2) (by omega : Y + 1 ≤ 2 * Y)).trans
-      (le_of_eq (by ring))
+    (Nat.mul_le_mul (Nat.pow_le_pow_left hIn 2) hY1).trans (le_of_eq (by ring))
   have hU₄ : (2 * Dl + 1 + (2 * Nl + 1 + Ll) + 1) ^ 4 * (Y + 1) ^ 2 ≤
       4 * C₁ ^ 4 * (X ^ 4 * Y ^ 2) :=
-    (Nat.mul_le_mul (Nat.pow_le_pow_left hIn 4)
-      (Nat.pow_le_pow_left (by omega : Y + 1 ≤ 2 * Y) 2)).trans (le_of_eq (by ring))
+    (Nat.mul_le_mul (Nat.pow_le_pow_left hIn 4) (Nat.pow_le_pow_left hY1 2)).trans
+      (le_of_eq (by ring))
   have h12 : 1 ≤ X ^ 2 * Y := Nat.mul_pos (Nat.pow_pos hX) hY
   have hS : N + A + (N + W + (N + Y)) + (2 * Dl + 1 + (2 * Nl + 1 + Ll) + 1) ^ 2 * (Y + 1) + 1 ≤
       C₂ * (X ^ 2 * Y) := by
@@ -134,8 +135,10 @@ theorem verifier_branch_bound {n t c a b M A₁ A₂ A₃ B : ℕ}
   have hB : B ≤ B * M := Nat.le_mul_of_pos_right _ (by omega)
   generalize 2 + A₃ + 4 * A₁ + A₂ + B = C at *
   split_ifs with h₀ h₁ h₂
-  · have := ha h₀; omega
-  · have := hb h₁; omega
+  · have := ha h₀
+    omega
+  · have := hb h₁
+    omega
   all_goals omega
 
 /-- The numeric facts behind the bound of the exponential brute-force search: the encoded pair of

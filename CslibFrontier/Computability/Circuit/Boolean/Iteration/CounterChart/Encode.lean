@@ -61,13 +61,16 @@ abbrev chartWidth (n : ℕ) := n + 2
 theorem cycleLength_le_words (f : BitVec n → BitVec n) (x : BitVec n) :
     cycleLength f x ≤ 2 ^ n := by
   have h := transientDepth_add_cycleLength_le_card f x
-  rw [(Fintype.card_congr BitVec.equivFin.toEquiv).trans (Fintype.card_fin _)] at h; lia
+  rw [(Fintype.card_congr BitVec.equivFin.toEquiv).trans (Fintype.card_fin _)] at h
+  lia
 
 /-- Any natural number `a ≤ 2 ^ n` fits without wraparound in `BitVec (chartWidth n)`. -/
 theorem chart_ofNat_toNat {a : ℕ} (ha : a ≤ 2 ^ n) :
     (BitVec.ofNat (chartWidth n) a).toNat = a := by
   have := Nat.two_pow_pos n
-  exact Nat.mod_eq_of_lt (by simp only [chartWidth, Nat.pow_succ]; lia)
+  apply Nat.mod_eq_of_lt
+  simp only [chartWidth, Nat.pow_succ]
+  lia
 
 private theorem chart_setWidth_toNat (x : BitVec n) :
     (x.setWidth (chartWidth n)).toNat = x.toNat := by
@@ -134,8 +137,10 @@ private theorem offset_toNat (j : Fin R) (x : BitVec n) (hx : chart.start j ≤ 
     (chart.offset j x).toNat = x.toNat - chart.start j := by
   have hw := chart_setWidth_toNat x
   have hs := chart_ofNat_toNat (chart.start_lt j).le
+  have hle : (BitVec.ofNat (chartWidth n) (chart.start j)).toNat ≤
+      (x.setWidth (chartWidth n)).toNat := by rwa [hs, hw]
   unfold offset
-  rw [BitVec.toNat_sub_of_le (by change _ ≤ (x.setWidth _).toNat; rwa [hs, hw]), hw, hs]
+  rw [BitVec.toNat_sub_of_le hle, hw, hs]
 
 /-- Canonical coordinates predicted by one interval. -/
 noncomputable def encodedRow (j : Fin R) (x : BitVec n) :

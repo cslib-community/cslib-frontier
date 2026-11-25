@@ -50,7 +50,8 @@ theorem fits_of_runsInSpace_of_le {S B : ℕ} (hs : ntm.RunsInSpace w S)
     (hv : Relation.ReflTransGen ntm.ViewStep (ntm.initView w) v) :
     Fits B (registers v) := by
   have hi := input_of_reachable hv
-  intro i; cases i with
+  intro i
+  cases i with
   | inputPos => exact v.inputPos.isLt.trans_le (hi ▸ hn)
   | control => exact (Fintype.equivFin (Option State) v.state).isLt.trans hc
   | output => exact (outputCode_lt _).trans h3
@@ -83,10 +84,12 @@ private theorem stack_bound (c n : ℕ) :
     3 ^ (4 * (c * (Nat.log2 n + 1)) + 1) ≤ radix (radixExponent State c) n := by
   have hlog : 2 ^ (Nat.log2 n + 1) ≤ (n + 2) ^ 2 :=
     (Nat.two_pow_log2_succ_le n).trans (by nlinarith)
-  calc 3 ^ (4 * (c * (Nat.log2 n + 1)) + 1)
+  calc
+    3 ^ (4 * (c * (Nat.log2 n + 1)) + 1)
       ≤ 4 ^ (4 * (c * (Nat.log2 n + 1)) + 1) := Nat.pow_le_pow_left (by omega) _
     _ = 2 ^ (8 * (c * (Nat.log2 n + 1)) + 2) := by
-        rw [show (4 : ℕ) = 2 ^ 2 by decide, ← pow_mul]; exact congrArg (2 ^ ·) (by ring)
+        rw [show (4 : ℕ) = 2 ^ 2 by decide, ← pow_mul]
+        exact congrArg (2 ^ ·) (by ring)
     _ ≤ 2 ^ ((8 * c + 2) * (Nat.log2 n + 1)) := Nat.pow_le_pow_right (by omega) (by nlinarith)
     _ = (2 ^ (Nat.log2 n + 1)) ^ (8 * c + 2) := by rw [← pow_mul, mul_comm]
     _ ≤ ((n + 2) ^ 2) ^ (8 * c + 2) := Nat.pow_le_pow_left hlog _
@@ -101,10 +104,12 @@ theorem fits_of_runsInSpace (c : ℕ) (hs : ntm.RunsInSpace w (c * (Nat.log2 w.l
     Fits (radix (radixExponent State c) w.length) (registers v) := by
   have hD : 2 ≤ radixExponent State c := by simp only [radixExponent]; omega
   have hbase : w.length + 2 ≤ radix (radixExponent State c) w.length :=
-    (pow_one (w.length + 2)).symm.trans_le (Nat.pow_le_pow_right (by omega) (by omega))
+    calc w.length + 2 = (w.length + 2) ^ 1 := (pow_one _).symm
+      _ ≤ radix (radixExponent State c) w.length := Nat.pow_le_pow_right (by omega) (by omega)
   have hthree : 3 < radix (radixExponent State c) w.length :=
-    (by omega : 3 < 2 ^ 2).trans_le
-      ((Nat.pow_le_pow_left (by omega) 2).trans (Nat.pow_le_pow_right (by omega) hD))
+    calc 3 < 2 ^ 2 := by omega
+      _ ≤ (w.length + 2) ^ 2 := Nat.pow_le_pow_left (by omega) 2
+      _ ≤ radix (radixExponent State c) w.length := Nat.pow_le_pow_right (by omega) hD
   exact fits_of_runsInSpace_of_le hs hbase (Nat.lt_of_succ_lt (card_succ_lt_radix c w.length))
     hthree (stack_bound c w.length) hv
 
@@ -114,7 +119,8 @@ theorem vertexID_lt_pow_of_runsInSpace (c : ℕ)
     (hv : Relation.ReflTransGen ntm.ViewStep (ntm.initView w) v) :
     vertexID (radix (radixExponent State c) w.length) v <
       (w.length + 2) ^ (radixExponent State c * Fintype.card (Register k)) := by
-  rw [← vertexBound_eq_pow]; exact vertexID_lt (fits_of_runsInSpace c hs hv)
+  rw [← vertexBound_eq_pow]
+  exact vertexID_lt (fits_of_runsInSpace c hs hv)
 
 /-- Binary vertex IDs need only logarithmically many bits. -/
 theorem length_vertexID_le_of_runsInSpace (c : ℕ)

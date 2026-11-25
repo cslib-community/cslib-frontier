@@ -108,7 +108,8 @@ private theorem projected_program_eq :
       dynamicProgram n K := by
   have he : (subroutineImpl hS hK).toStandard.encode = Program.code.encode := by
     change (subroutineImpl hS hK).toSubroutineBase.encode = _
-    rw [subroutineImpl_toBase]; exact funext (subroutineBase_encode hS hK)
+    rw [subroutineImpl_toBase]
+    exact funext (subroutineBase_encode hS hK)
   dsimp only [SubroutineBase.toDynamicProgram, SubroutineCode.toDynamicProgram,
     dynamicProgram, resultRecoding]
   rw [he]; rfl
@@ -116,16 +117,19 @@ private theorem projected_program_eq :
 private theorem projected_potential (x : Data Program.registers) :
     (subroutineImpl hS hK).toStandard.potential x = 0 := by
   change (subroutineImpl hS hK).toSubroutineBase.potential x = 0
-  rw [subroutineImpl_toBase]; exact subroutineBase_potential hS hK x
+  rw [subroutineImpl_toBase]
+  exact subroutineBase_potential hS hK x
 
 private theorem projected_charge (s : (indexedMinPQSpec n K).State) (o : IndexedMinPQ.Op n) :
     (subroutineImpl hS hK).charge s o = operationTime o := by
-  rw [subroutineImpl_toBase]; exact subroutineBase_charge hS hK s o
+  rw [subroutineImpl_toBase]
+  exact subroutineBase_charge hS hK s o
 
 private theorem projected_rep_iff {hn : Fits w n} (s : (indexedMinPQSpec n K).State)
     (x : Data Program.registers) :
     (subroutineImpl hS hK).rep s x ↔ Representation.Rep base hn hK s x := by
-  rw [subroutineImpl_toBase]; exact subroutineBase_rep_iff hS hK s x
+  rw [subroutineImpl_toBase]
+  exact subroutineBase_rep_iff hS hK s x
 
 /-- The shared standalone correctness projection, on only the original end-fit/key-fit domain. -/
 noncomputable def certificate : DynamicCertificate (dynamicProgram n K) w :=

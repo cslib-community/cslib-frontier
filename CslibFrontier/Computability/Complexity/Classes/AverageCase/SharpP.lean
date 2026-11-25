@@ -92,8 +92,10 @@ private theorem eq_div_of_div_eq_div_add_div {a b c d k N : ℕ} (hb : b ≠ 0) 
   have hN' : (N : ℝ) ≠ 0 := by exact_mod_cast hN
   field_simp at hreal
   have hnat : N * a * d = N * c * b + k * (b * d) := by
-    exact_mod_cast (show ((N * a * d : ℕ) : ℝ) = ((N * c * b + k * (b * d) : ℕ) : ℝ) by
-      push_cast; linear_combination hreal)
+    have : ((N * a * d : ℕ) : ℝ) = ((N * c * b + k * (b * d) : ℕ) : ℝ) := by
+      push_cast
+      linear_combination hreal
+    exact_mod_cast this
   rw [hnat, Nat.add_sub_cancel_left,
     Nat.mul_div_cancel _ (Nat.mul_pos (Nat.pos_of_ne_zero hb) (Nat.pos_of_ne_zero hd))]
 
@@ -132,7 +134,8 @@ private theorem computableInPolyTime_countingWord
     (hV : ComputableInPolyTime V (encPair encBits encBits) encBool) :
     ComputableInPolyTime (fun q : ℕ × List Bool => countingWord V q.1 q.2)
       (encPair encUnary encBits) encBits := by
-  unfold countingWord; fun_prop
+  unfold countingWord
+  fun_prop
 
 /-- The counting ensemble of a polynomial-time verifier is polynomial-time samplable. -/
 private theorem pSamp_countingEnsemble
@@ -141,7 +144,10 @@ private theorem pSamp_countingEnsemble
   refine ⟨countingSampler V p, ?_, fun _ => rfl⟩
   unfold countingSampler
   exact Probability.IsPPTOn.of_seeded (f := fun q : ℕ × List Bool => countingWord V q.1 q.2)
-    (by unfold seedLength; fun_prop) (computableInPolyTime_countingWord V hV)
+    (by
+      unfold seedLength
+      fun_prop)
+    (computableInPolyTime_countingWord V hV)
 
 /-- The word `x ++ [true]` has probability `#{w ∈ {0,1}^{p(|x|)} : V(x, w)} / 2^{|x| + p(|x|)}`
 under the counting ensemble. -/
@@ -149,9 +155,10 @@ private theorem countingEnsemble_dist_append_true (x : List Bool) :
     (countingEnsemble V p).dist (x.length + 1) (x ++ [true]) =
       (acceptCount V x (p.eval x.length) : ℝ≥0∞) / 2 ^ (x.length + p.eval x.length) := by
   classical
+  have hseed : seedLength p (x.length + 1) = x.length + p.eval x.length := by
+    simp [seedLength]
   change ProbComp.eval (countingSampler V p (x.length + 1)) (x ++ [true]) = _
-  rw [countingSampler, show seedLength p (x.length + 1) = x.length + p.eval x.length by
-      simp [seedLength], ProbComp.eval_map, BitString.eval_sampleList,
+  rw [countingSampler, hseed, ProbComp.eval_map, BitString.eval_sampleList,
     BitString.uniformList_map_apply]
   congr 2
   have hiff (r : Fin (x.length + p.eval x.length) → Bool) :

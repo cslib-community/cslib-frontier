@@ -251,20 +251,23 @@ theorem rectPermSurj_eq_sum_sign_prod_sameCycle (Z : Finset n) (b : Matrix m n R
   have h1 (Y : Finset n) :
       ∑ f ∈ piFinset (fun _ : m => Yᶜ) with Function.Injective f, ∏ r, b r (f r) =
         ∑ f : m → n with Function.Injective f, if ∀ r, f r ∉ Y then ∏ r, b r (f r) else 0 := by
-    rw [show piFinset (fun _ : m => Yᶜ) = univ.filter (fun f : m → n => ∀ r, f r ∉ Y) by
-      ext; simp, filter_filter, sum_filter, sum_filter]
+    have hpi : piFinset (fun _ : m => Yᶜ) = univ.filter (fun f : m → n => ∀ r, f r ∉ Y) := by
+      ext
+      simp
+    rw [hpi, filter_filter, sum_filter, sum_filter]
     exact sum_congr rfl fun f _ => by
       by_cases hi : Function.Injective f <;> by_cases hY : ∀ r, f r ∉ Y <;> simp [hi, hY]
   have h2 (f : m → n) :
       ∑ Y ∈ Z.powerset with ∀ r, f r ∉ Y, (-1 : R) ^ #Y = if Z ⊆ univ.image f then 1 else 0 := by
-    have := congrArg (Int.cast : ℤ → R) (sum_powerset_neg_one_pow_card (x := Z \ univ.image f))
-    push_cast at this
-    rw [show {Y ∈ Z.powerset | ∀ r, f r ∉ Y} = (Z \ univ.image f).powerset by
+    have hY : {Y ∈ Z.powerset | ∀ r, f r ∉ Y} = (Z \ univ.image f).powerset := by
       ext Y
       simp only [mem_filter, mem_powerset, subset_sdiff, disjoint_left, mem_image, mem_univ,
         true_and]
       exact ⟨fun ⟨hZ, hf⟩ => ⟨hZ, fun _ hj ⟨r, hr⟩ => hf r (hr ▸ hj)⟩,
-        fun ⟨hZ, hf⟩ => ⟨hZ, fun r hr => hf hr ⟨r, rfl⟩⟩⟩, this]
+        fun ⟨hZ, hf⟩ => ⟨hZ, fun r hr => hf hr ⟨r, rfl⟩⟩⟩
+    have hpow := congrArg (Int.cast : ℤ → R) (sum_powerset_neg_one_pow_card (x := Z \ univ.image f))
+    push_cast at hpow
+    rw [hY, hpow]
     exact if_congr sdiff_eq_empty_iff_subset rfl rfl
   simp_rw [smul_sum, ← mul_smul_comm]
   rw [sum_comm]

@@ -58,24 +58,28 @@ padded dimension `padN L m N`. -/
 theorem card_tiles_mul_N0_le {L m : ℕ} (hmL : m ≤ L) (N : ℕ) :
     (tiles L m N).card * N0 L m ≤ 4 * padN L m N ^ 2 := by
   -- `N₀ ≤ K N₀² = M`, and there are at most `4N²/M` tiles.
-  refine (Nat.mul_le_mul_left _ ?_).trans (card_tiles_mul_M_le L m N)
-  simpa only [M, K, Nat.succ_eq_add_one, zero_add, one_mul, pow_one] using
-    Nat.mul_le_mul (Nat.choose_pos hmL) (Nat.pow_le_pow_right (N0_pos L m) (by decide : 1 ≤ 2))
+  refine le_trans (Nat.mul_le_mul_left _ ?_) (card_tiles_mul_M_le L m N)
+  calc N0 L m = 1 * N0 L m ^ 1 := by ring
+    _ ≤ K L m * N0 L m ^ 2 :=
+        Nat.mul_le_mul (Nat.choose_pos hmL) (Nat.pow_le_pow_right (N0_pos L m) (by norm_num))
 
 /-- The size condition `D m ^ 18 ≤ N` implies the real bound `2 ^ (m / 9) ≤ N`. -/
 theorem two_rpow_le_of_D_pow_le (m N : ℕ) (hN : D m ^ 18 ≤ N) :
-    (2 : ℝ) ^ ((m : ℝ) / 9) ≤ (N : ℝ) :=
+    (2 : ℝ) ^ ((m : ℝ) / 9) ≤ (N : ℝ) := by
   -- `2^{m/9} ≤ 2^m ≤ 4^{18m} = D^18 ≤ N`.
-  (two_rpow_ninth_le m).trans <| mod_cast
-    ((Nat.pow_le_pow_left (by decide : 2 ≤ 4) m).trans
-      (Nat.le_self_pow (by decide) _)).trans hN
+  have hpow : 2 ^ m ≤ N :=
+    calc 2 ^ m ≤ 4 ^ m := Nat.pow_le_pow_left (by decide) m
+      _ ≤ (4 ^ m) ^ 18 := Nat.le_self_pow (by decide) _
+      _ ≤ N := hN
+  exact (two_rpow_ninth_le m).trans (by exact_mod_cast hpow)
 
 /-- At `L = 19 * m`, the outer dimension is at least the real power `2 ^ (m / 9)`. -/
-theorem two_rpow_le_N0 (m : ℕ) : (2 : ℝ) ^ ((m : ℝ) / 9) ≤ (N0 (19 * m) m : ℝ) :=
+theorem two_rpow_le_N0 (m : ℕ) : (2 : ℝ) ^ ((m : ℝ) / 9) ≤ (N0 (19 * m) m : ℝ) := by
   -- `2^{m/9} ≤ 2^m ≤ 3^{18m} = N₀`.
-  (two_rpow_ninth_le m).trans <| mod_cast
-    (Nat.pow_le_pow_left (by decide : 2 ≤ 3) m).trans
-      (Nat.pow_le_pow_right (by decide) (by omega : m ≤ 19 * m - m))
+  have hpow : 2 ^ m ≤ N0 (19 * m) m :=
+    calc 2 ^ m ≤ 3 ^ m := Nat.pow_le_pow_left (by decide) m
+      _ ≤ 3 ^ (19 * m - m) := Nat.pow_le_pow_right (by decide) (by omega)
+  exact (two_rpow_ninth_le m).trans (by exact_mod_cast hpow)
 
 /-- The three counts of the remaining minutiae (Section 2.4.4), one by one: the subsets in the
 table, the tiles, and the positions of `W`. -/
@@ -86,26 +90,29 @@ private theorem minutiae_parts (m N : ℕ) (W : Finset (Fin N × Fin N)) (hN : D
       ∧ (W.card : ℝ) ≤ saving m * (N : ℝ) ^ 2 := by
   have hc := saving_pos m
   refine ⟨?_, ?_, ?_⟩
-  -- The subsets in the table: `K ≤ N ≤ 2^{-m/9} N²`.
-  · exact ((mod_cast K_le_of_D_pow_le m N hN : (K (19 * m) m : ℝ) ≤ N).trans
-      (le_mul_of_one_le_left N.cast_nonneg
-        (one_le_saving_mul (two_rpow_le_of_D_pow_le m N hN)))).trans_eq (by ring)
-  -- The tiles: at most `4N²/N₀ ≤ 4 · 2^{-m/9} N²`.
-  · have hT : ((tiles (19 * m) m N).card : ℝ) * N0 (19 * m) m
+  · -- The subsets in the table: `K ≤ N ≤ 2^{-m/9} N²`.
+    calc (K (19 * m) m : ℝ) ≤ N := mod_cast K_le_of_D_pow_le m N hN
+      _ ≤ saving m * N * N :=
+          le_mul_of_one_le_left N.cast_nonneg (one_le_saving_mul (two_rpow_le_of_D_pow_le m N hN))
+      _ = saving m * (N : ℝ) ^ 2 := by ring
+  · -- The tiles: at most `4N²/N₀ ≤ 4 · 2^{-m/9} N²`.
+    have hT : ((tiles (19 * m) m N).card : ℝ) * N0 (19 * m) m
         ≤ 4 * (padN (19 * m) m N : ℝ) ^ 2 :=
       mod_cast card_tiles_mul_N0_le (show m ≤ 19 * m by omega) N
-    have h1 := le_mul_of_one_le_right (Nat.cast_nonneg ((tiles (19 * m) m N).card))
-      (one_le_saving_mul (two_rpow_le_N0 m))
-    have h2 : ((tiles (19 * m) m N).card : ℝ) * (saving m * N0 (19 * m) m) ≤
-        saving m * (4 * (padN (19 * m) m N : ℝ) ^ 2) := by
-      rw [mul_left_comm]
-      exact mul_le_mul_of_nonneg_left hT hc.le
-    exact (h1.trans h2).trans_eq (by ring)
-  -- The positions: `|W| ≤ 2^{-m} N² ≤ 2^{-m/9} N²`.
-  · have hW' : (W.card : ℝ) * (2 : ℝ) ^ m ≤ (N : ℝ) ^ 2 := mod_cast hW
-    have hle := (mul_le_mul_of_nonneg_left (two_rpow_ninth_le m) (Nat.cast_nonneg W.card)).trans hW'
-    simpa only [mul_left_comm (saving m), saving_mul_two_rpow, mul_one] using
-      mul_le_mul_of_nonneg_left hle hc.le
+    calc ((tiles (19 * m) m N).card : ℝ)
+        ≤ (tiles (19 * m) m N).card * (saving m * N0 (19 * m) m) :=
+          le_mul_of_one_le_right (Nat.cast_nonneg _) (one_le_saving_mul (two_rpow_le_N0 m))
+      _ = saving m * ((tiles (19 * m) m N).card * N0 (19 * m) m) := by ring
+      _ ≤ saving m * (4 * (padN (19 * m) m N : ℝ) ^ 2) := by gcongr
+      _ = 4 * saving m * (padN (19 * m) m N : ℝ) ^ 2 := by ring
+  · -- The positions: `|W| ≤ 2^{-m} N² ≤ 2^{-m/9} N²`.
+    have hW' : (W.card : ℝ) * (2 : ℝ) ^ m ≤ (N : ℝ) ^ 2 := mod_cast hW
+    calc (W.card : ℝ) = saving m * (W.card * (2 : ℝ) ^ ((m : ℝ) / 9)) := by
+          rw [mul_left_comm, saving_mul_two_rpow, mul_one]
+      _ ≤ saving m * (W.card * (2 : ℝ) ^ m) := by
+          gcongr
+          exact two_rpow_ninth_le m
+      _ ≤ saving m * (N : ℝ) ^ 2 := by gcongr
 
 /-- At `L = 19 * m`, the sum of `K L m`, the tile count and `W.card` is at most `18 *
 D^(-1/18) * N²`, where `D = D m` and `N` is the original matrix dimension. The hypotheses
@@ -148,8 +155,10 @@ theorem abs_bandArrayL_le {L m N : ℕ} (lay : Layout L m) {X : Matrix (Fin N) (
   split_ifs
   · rcases sum_table_eq_zero_or lay (fun gh => rowBlock lay X (β * K0 L m + gh.1)) (innerSetL u)
       with hzero | ⟨gh, hgh⟩
-    · rw [hzero]; simpa using hA
-    · rw [hgh]; unfold rowBlock padRows
+    · rw [hzero]
+      simpa using hA
+    · rw [hgh]
+      unfold rowBlock padRows
       split_ifs
       · exact hX _ _
       · simpa using hA
@@ -165,8 +174,10 @@ theorem abs_bandArrayR_le {L m N : ℕ} (lay : Layout L m) {Y : Matrix (Fin (D m
   split_ifs
   · rcases sum_table_eq_zero_or lay (fun gh => colBlock lay Y (β * K0 L m + gh.2)) (innerSetR v)
       with hzero | ⟨gh, hgh⟩
-    · rw [hzero]; simpa using hB
-    · rw [hgh]; unfold colBlock padCols
+    · rw [hzero]
+      simpa using hB
+    · rw [hgh]
+      unfold colBlock padCols
       split_ifs
       · exact hY _ _
       · simpa using hB
@@ -187,14 +198,16 @@ of `encodingL`. -/
 theorem abs_encodingL_le {L : ℕ} {a : LeftStr L → ℤ} {A : ℤ} (ha : ∀ u, |a u| ≤ A) (τ : Leaf L) :
     |encodingL a τ| ≤ 7 ^ L * A := by
   have h := abs_encodeWith_le abs_phi_le_one ha τ
-  rw [card_leftStr] at h; exact_mod_cast h
+  rw [card_leftStr] at h
+  exact_mod_cast h
 
 /-- An absolute bound `B` on the right array entries gives the bound `7 ^ L * B` on each value
 of `encodingR`. -/
 theorem abs_encodingR_le {L : ℕ} {b : RightStr L → ℤ} {B : ℤ} (hb : ∀ v, |b v| ≤ B) (τ : Leaf L) :
     |encodingR b τ| ≤ 7 ^ L * B := by
   have h := abs_encodeWith_le abs_psi_le_one hb τ
-  rw [card_rightStr] at h; exact_mod_cast h
+  rw [card_rightStr] at h
+  exact_mod_cast h
 
 /-- If `encA` and `encB` are bounded in absolute value by `A` and `B`, every value returned by
 `Pruned.result` is bounded by `10 ^ n * (A * B)`. This holds for every request set `S` and
@@ -210,10 +223,14 @@ theorem Pruned.abs_result_le {n : ℕ} (encA encB : Leaf n → ℤ) (A B : ℤ) 
   rw [Pruned.result_eq_piecewise_sum]
   simp only [Finset.piecewise]
   split_ifs
-  · refine (abs_sum_le_card_mul _ fun τ _ => by
-        rw [abs_mul]; exact mul_le_mul (hA τ) (hB τ) (abs_nonneg _) hA0).trans ?_
-    gcongr
-    exact_mod_cast (card_le_univ _).trans_eq (card_vertex n)
+  · calc |∑ τ : Leaf n with Leaf.Contributes τ w, encA τ * encB τ|
+        ≤ (univ.filter fun τ : Leaf n => Leaf.Contributes τ w).card * (A * B) :=
+          abs_sum_le_card_mul _ fun τ _ => by
+            rw [abs_mul]
+            exact mul_le_mul (hA τ) (hB τ) (abs_nonneg _) hA0
+      _ ≤ 10 ^ n * (A * B) := by
+          gcongr
+          exact_mod_cast (card_le_univ _).trans_eq (card_vertex n)
   · simpa only [Pi.zero_apply, abs_zero] using mul_nonneg (by positivity) hAB
 
 /-- Under `D m ^ 18 ≤ N`, the number `10 ^ (19 * m)` of leaf indices is at most `N ^ 2`. -/
@@ -222,8 +239,10 @@ theorem ten_pow_le_sq (m N : ℕ) (hN : D m ^ 18 ≤ N) : 10 ^ (19 * m) ≤ N ^ 
   have hN0 : (N0 (19 * m) m : ℝ) ≤ N :=
     mod_cast (Nat.le_mul_of_pos_left _ (Nat.choose_pos (by omega))).trans (K_mul_N0_le m N hN)
   have hc := saving_le_one m
-  have hreal : (10 : ℝ) ^ (19 * m) ≤ (N : ℝ) ^ 2 := (encoding_size_le m N hN).trans
-    ((by gcongr : saving m * N * N0 (19 * m) m ≤ 1 * N * N).trans_eq (by ring))
+  have hreal : (10 : ℝ) ^ (19 * m) ≤ (N : ℝ) ^ 2 :=
+    calc (10 : ℝ) ^ (19 * m) ≤ saving m * N * N0 (19 * m) m := encoding_size_le m N hN
+      _ ≤ 1 * N * N := by gcongr
+      _ = (N : ℝ) ^ 2 := by ring
   exact_mod_cast hreal
 
 end Cslib.Algorithms.MatrixMultiplication.Schonhage
