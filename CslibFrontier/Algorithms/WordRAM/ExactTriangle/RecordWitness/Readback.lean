@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordProduct.QueryValues
 public import CslibFrontier.Algorithms.ExactTriangle.PieceBounds
+import CslibFrontier.Algorithms.WordRAM.ExactTriangle.PreparationLocality
 import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordProduct.Readback
 
 /-!
@@ -45,18 +46,10 @@ theorem record_view {n D g p : ℕ} (values : ℕ → ℤ) (initial y : Data 64)
       (∀ j < Q, y.mem (q + 2 * j) < n ∧ y.mem (q + 2 * j + 1) < n) ∧
       (∀ j < 5 + 3 * (n * n), y.mem j = initial.mem j) := by
   have record := RecordProduct.prepared_record values h hD hDn hg hp idx hidx
-  have hout := h.2.2.2.1
-  have hheap := h.2.2.2.2.2.1
-  have houtput_le_heap : y.regs Instances.output ≤ y.regs Instances.heap := by
-    rw [hout, hheap]
-    exact Nat.le_add_right _ _
-  have hinput_le_output : 5 + 3 * (n * n) ≤ y.regs Instances.output := by
-    rw [hout]
-    lia
   have hpiece := ((mem_instanceIndices _ idx).mp hidx).2
-  exact ⟨hinput_le_output.trans houtput_le_heap,
+  exact ⟨h.inputEnd_le_heap,
     le_trans (Nat.le_add_right _ _) record.recordEnd,
-    record.queryEnd.trans houtput_le_heap, (piece_start_lt hD hg hpiece).le,
+    record.queryEnd.trans h.output_le_heap, (piece_start_lt hD hg hpiece).le,
     record.descriptor, record.queryCoordinates,
     fun j hj => h.2.2.2.2.2.2.2.2.2.2.2 j (Or.inl hj)⟩
 

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordProduct.RecordData
+import CslibFrontier.Algorithms.WordRAM.ExactTriangle.PreparationLocality
 import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordProduct.QuerySpan
 
 /-!
@@ -66,30 +67,17 @@ theorem prepared_record {n D g p : ℕ} (values : ℕ → ℤ)
       (y.regs Instances.output + recordOrdinal n D g p values idx * (6 + 2 * (n * D))) := by
   let wAB := fun a b : Fin n => values (pairIndex (a, b))
   let count := fun rho => Nat.count (fun q => (values q % (p : ℤ)).toNat = rho) (n * n)
-  let records := ChunkCatalogue.before count (queryCap n D) p * numPieces n D g
-  obtain ⟨hchunk, hpiece⟩ := (mem_instanceIndices wAB idx).mp hidx
+  have hchunk := ((mem_instanceIndices wAB idx).mp hidx).1
   have hcard : (residueClass wAB p idx.residue).card = count idx.residue.val :=
-    QuerySpec.card_residueClass wAB hp _ (by intro pair; rfl) idx.residue
-  have hchunk' : idx.chunk < count idx.residue.val ⌈/⌉ queryCap n D := by
-    simpa only [numChunks, hcard] using hchunk
-  have hgroup := ChunkCatalogue.before_add_lt count (queryCap n D) idx.residue.isLt hchunk'
-  have hord : recordOrdinal n D g p values idx < records := by
-    change (ChunkCatalogue.before count (queryCap n D) idx.residue.val + idx.chunk) *
-      numPieces n D g + idx.piece < records
-    rw [Nat.mul_comm (_ + idx.chunk) (numPieces n D g)]
-    exact Nat.mul_add_lt_mul_of_lt_of_lt hgroup hpiece
+    QuerySpec.card_residueClass wAB hp _ (fun _ => rfl) idx.residue
   have hout := h.2.2.2.1
-  have hheap := h.2.2.2.2.2.1
-  obtain ⟨descriptor, left, right⟩ := PreparationSpec.instance_readback values wAB hp
+  obtain ⟨descriptor, left, right, hend⟩ := PreparationSpec.instance_readback values wAB hp
     (fun _ _ => rfl) hD hDn hg h idx hidx
   have hcoord := (output_query_coordinates values wAB hp (fun _ _ => rfl)
     (by lia) hDn h idx.residue idx.chunk hchunk).1
   constructor
-  · rw [hout, hheap]
-    change _ + _ * _ + 6 + 2 * (n * D) ≤ _ + records * (6 + 2 * (n * D))
-    have hfit := Nat.mul_le_mul_right (6 + 2 * (n * D)) (Nat.succ_le_of_lt hord)
-    rw [Nat.succ_mul] at hfit
-    lia
+  · rw [hout]
+    exact hend
   · rw [hout]
     exact query_end_le_output values hp (by lia) hDn idx hidx
   · rw [hout]
@@ -178,10 +166,6 @@ theorem producer_readback {m n g p : ℕ} (values : ℕ → ℤ)
     prepared_record values h hD hDn hg hp idx hidx
   change x.regs 39 + _ * _ + 6 + 2 * (n * D m) ≤ x.regs 42 at recordEnd
   have hframe := h.2.2.2.2.2.2.2.2.2.2.2
-  have hheap : x.regs 39 ≤ x.regs 42 := by
-    change (x.comap producerBank).regs Instances.output ≤ (x.comap producerBank).regs Instances.heap
-    rw [h.2.2.2.1, h.2.2.2.2.2.1]
-    exact Nat.le_add_right _ _
   dsimp only
   change _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ qs.length * 2 ^ m ≤ n ^ 2
   rw [decodedQueries_length]
@@ -190,7 +174,7 @@ theorem producer_readback {m n g p : ℕ} (values : ℕ → ℤ)
     le_trans (Nat.le_add_right _ _) recordEnd, descriptor,
     le_trans (Nat.add_le_add_left (Nat.le_mul_of_pos_left _ (by decide)) _) recordEnd,
     by simpa only [two_mul, Nat.add_assoc] using recordEnd,
-    queryEnd.trans hheap,
+    queryEnd.trans h.output_le_heap,
     raw_left_block values idx x.mem qs left,
     raw_right_block hn values idx x.mem qs right,
     decodedQueries_words hn x.mem _ _ coordinates,
