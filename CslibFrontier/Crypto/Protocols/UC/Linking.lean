@@ -162,12 +162,12 @@ theorem run_comp (A : Machine J E) (P : Machine OracleSpec.empty J) (program : P
 /-- The forwarding machine passes every call through and never changes its state. -/
 theorem runFrom_id (program : ProbOracleComp E α) (s : (Machine.id E).State) :
     (Machine.id E).runFrom program s = (fun a => (a, s)) <$> program := by
-  rw [runFrom, show (Machine.id E).handler = fun q => StateT.lift (OracleComp.query q) from
+  have hhand : (Machine.id E).handler = fun q => StateT.lift (OracleComp.query q) :=
     funext fun
       | .inl _ => by simp only [handler, Machine.id, ProbOracleComp.sample, ProbComp.unifFin,
           OracleComp.substitute_query]
-      | .inr _ => rfl,
-    OracleComp.run_interpret_lift, OracleComp.interpret_query_eq_self]
+      | .inr _ => rfl
+  rw [runFrom, hhand, OracleComp.run_interpret_lift, OracleComp.interpret_query_eq_self]
 
 /-- Linking against the forwarding machine leaves a program unchanged. -/
 @[simp] theorem link_id (program : ProbOracleComp E α) : (Machine.id E).link program = program := by

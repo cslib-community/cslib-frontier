@@ -208,9 +208,10 @@ theorem advantage_generator_test (P : LinearCongruential) [NeZero P.q] (ha : P.a
     P.generator.advantage (fun y => PMF.pure (P.test y.1 y.2)) =
       1 - 1 / (((P.q - 1) / P.w + 1 : ℕ) : ℝ) := by
   have hq : (P.q : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr (NeZero.ne P.q)
-  rw [show (fun y => PMF.pure (P.test y.1 y.2)) = P.generator.rangeAdversary from
-      funext fun y => congrArg PMF.pure (P.rangeTest_generator ha y).symm,
-    Generator.advantage_rangeAdversary, Nat.card_range_of_injective (P.generator_injective ha)]
+  have hadv : (fun y => PMF.pure (P.test y.1 y.2)) = P.generator.rangeAdversary :=
+    funext fun y => congrArg PMF.pure (P.rangeTest_generator ha y).symm
+  rw [hadv, Generator.advantage_rangeAdversary,
+    Nat.card_range_of_injective (P.generator_injective ha)]
   simp only [Nat.card_eq_fintype_card, Fintype.card_prod, Fintype.card_fin]
   push_cast; field_simp
 

@@ -64,8 +64,9 @@ open Cslib.Logic.PL Turing.MultiTapeTM
 /-- The support of a dense integer table is computable in polynomial time. -/
 theorem computableInPolyTime_supportTable :
     ComputableInPolyTime supportTable encIntTable encBoolTable := by
-  rw [show supportTable = fun A => A.map fun row => row.map fun x => decide (0 < x.natAbs) from
-    funext fun _ => by simp [supportTable]]
+  have hsup : supportTable = fun A => A.map fun row => row.map fun x => decide (0 < x.natAbs) :=
+    funext fun _ => by simp [supportTable]
+  rw [hsup]
   fun_prop
 
 theorem length_supportTable (A : List (List ℤ)) : (supportTable A).length = A.length :=

@@ -165,8 +165,9 @@ theorem eval_cyclicMul {k : ℕ} {ω : α} {w : ℕ → α} (hw : ∀ j < 2 ^ k,
     rw [dft_cyclicConv hω']
     rfl
   simp only [cyclicMul, FreeM.eval_bind, eval_fft hw hω, FreeM.eval_mOfFn]
-  rw [hprod, show (List.Vector.ofFn (dft ω (cyclicConv a b))).get = dft ω (cyclicConv a b) from
-    funext (List.Vector.get_ofFn _), eval_ifft_dft hw hω hn]
+  have hget : (List.Vector.ofFn (dft ω (cyclicConv a b))).get = dft ω (cyclicConv a b) :=
+    funext (List.Vector.get_ofFn _)
+  rw [hprod, hget, eval_ifft_dft hw hω hn]
 
 /-- **FFT multiplication is correct**: if `ω ^ (2 ^ k) = -1` and `nInv * 2 ^ (k + 1) = 1`, then
 `fftMul` computes the cyclic convolution of length `2 ^ (k + 1)`. -/

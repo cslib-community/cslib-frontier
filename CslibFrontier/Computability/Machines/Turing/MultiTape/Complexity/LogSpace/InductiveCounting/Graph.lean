@@ -92,8 +92,8 @@ theorem closed_iff_fits (hB : Fintype.card (Option State) + 1 < B) :
   rw [Closed, Cslib.InductiveCounting.Safe, boundedGraph_eq]
   refine ⟨fun h => fits_of_not_overflow (fits_init hB) fun u hu ho => ?_,
     fun h u hu => Bool.eq_false_iff.mpr (not_overflow_of_fits h u hu)⟩
-  rw [Overflow, show overflow ntm B input.length u input[queryIndex (k := k) B u]? = false from
-    h u hu] at ho
+  have hov : overflow ntm B input.length u input[queryIndex (k := k) B u]? = false := h u hu
+  rw [Overflow, hov] at ho
   exact Bool.false_ne_true ho
 
 /-- On a closed radix, the controller's safety property for the accepting vertices is exactly the

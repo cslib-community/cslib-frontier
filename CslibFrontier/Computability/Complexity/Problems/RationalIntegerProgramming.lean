@@ -126,8 +126,9 @@ private theorem clearRow_iff (c : Inequality) (n : ℕ) (x : Fin n → ℤ) :
   have hcast : (∑ j : Fin n, (clearRow c).coeffs.getD j 0 * x j ≤ (clearRow c).rhs) ↔
       ∑ j : Fin n, (((clearRow c).coeffs.getD j 0 : ℤ) : ℚ) * (x j : ℚ) ≤
         ((clearRow c).rhs : ℚ) := by exact_mod_cast Iff.rfl
-  rw [hcast, show ((clearRow c).rhs : ℚ) = (denominator c : ℚ) * c.rhs from
-    (Rat.clearDenom_entry (hdvd (.inr rfl))).symm]
+  have hrhs : ((clearRow c).rhs : ℚ) = (denominator c : ℚ) * c.rhs :=
+    (Rat.clearDenom_entry (hdvd (.inr rfl))).symm
+  rw [hcast, hrhs]
   simp only [hentry, mul_assoc, ← Finset.mul_sum]
   exact mul_le_mul_iff_right₀ (by exact_mod_cast hpos)
 
@@ -192,9 +193,9 @@ private theorem poly_ofInteger : ComputableInPolyTime ofInteger IntegerProgram.e
 
 private theorem ofZeroOne_mem_iff (C : List ZeroOneIP.Equation) :
     ofInteger (IntegerProgram.ofZeroOne C) ∈ Feasible ↔ C ∈ ZeroOneIP := by
-  rw [show ofInteger (IntegerProgram.ofZeroOne C) ∈ Feasible ↔ _ from
-    exists_congr fun x => and_congr_right fun _ => satisfies_ofInteger_iff _ x,
-    ← IntegerProgram.ofZeroOne_mem_iff C]
+  have hmem : ofInteger (IntegerProgram.ofZeroOne C) ∈ Feasible ↔ _ :=
+    exists_congr fun x => and_congr_right fun _ => satisfies_ofInteger_iff _ x
+  rw [hmem, ← IntegerProgram.ofZeroOne_mem_iff C]
   exact ⟨fun ⟨x, _, hx⟩ => ⟨x, hx⟩, fun ⟨x, hx⟩ =>
     ⟨x, fun j => (((IntegerProgram.satisfies_ofZeroOne_iff C x).mp hx).1 j).1, hx⟩⟩
 

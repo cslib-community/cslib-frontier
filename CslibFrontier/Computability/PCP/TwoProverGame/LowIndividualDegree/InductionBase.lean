@@ -173,8 +173,9 @@ private theorem degreeZero_pointVariance
         4 * (1 - (branchGame (F := F) n 0 .axis).commutingWinProb C) :=
     (expect_le_expect fun u _ => expect_le_expect fun i _ => by
       dsimp only [φ, A, R]
-      rw [show (fun f : PolynomialFunction F 0 => f.value 0) = fun f => f.value (u i) from
-        funext fun f => f.value_eq_of_degree_zero _ _]).trans (axisPointStateDist_le C 0)
+      have hval : (fun f : PolynomialFunction F 0 => f.value 0) = fun f => f.value (u i) :=
+        funext fun f => f.value_eq_of_degree_zero _ _
+      rw [hval]).trans (axisPointStateDist_le C 0)
   change (𝔼 u : Pt, 𝔼 v : Pt, ∑ a, φ.norm (A u a - A v a) ^ 2) ≤ _
   calc
     _ ≤ ∑ a, ∑ i : Fin (n + 1),

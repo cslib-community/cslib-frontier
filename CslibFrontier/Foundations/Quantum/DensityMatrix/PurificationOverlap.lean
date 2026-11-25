@@ -169,9 +169,11 @@ theorem exists_localUnitary_norm_sub_sq_eq (ψ φ : EuclideanSpace ℂ (ι × κ
       EuclideanSpace ℂ (ι × κ))‖ = ‖ψ‖ :=
     (mem_unitaryGroup_iff_forall_norm_toEuclideanCLM _).mp h1 ψ
   refine ⟨U, hU, ?_⟩
-  rw [norm_sub_sq (𝕜 := ℂ), hn, hψ, hφ,
-    show RCLike.re (inner ℂ (WithLp.toLp 2 (((1 : Matrix ι ι ℂ) ⊗ₖ U) *ᵥ ψ.ofLp)) φ) = _ from
-      hoverlap]
+  have hoverlap' :
+      RCLike.re (inner ℂ (WithLp.toLp 2 (((1 : Matrix ι ι ℂ) ⊗ₖ U) *ᵥ ψ.ofLp)) φ) =
+        rootFidelity (partialTraceRight (pureState ψ)) (partialTraceRight (pureState φ)) :=
+    hoverlap
+  rw [norm_sub_sq (𝕜 := ℂ), hn, hψ, hφ, hoverlap']
   ring
 
 end Cslib.Quantum
