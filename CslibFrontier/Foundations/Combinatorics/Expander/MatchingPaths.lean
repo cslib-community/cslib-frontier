@@ -69,48 +69,28 @@ theorem matchingPath_mode_eq_zero {L : Matrix V V ℝ} (hL : L.IsSymm)
     (hcore : ∀ v, ((coreDegree w - L) *ᵥ f) v + w v * x v 1 =
       3 * Real.cos θ * f v) :
     f = 0 ∧ ∀ v j, j ≤ ℓ → x v j = 0 := by
-  have hf : f = 0 := by
-    apply laplacianPencil_injective hL hLone w σ hσ hw0 hw1 hwσ hwpos hgap hq
-      (Real.abs_cos_le_one _) hc (sub_nonneg.mpr (Real.cos_le_one _)) hbudget
+  have hfirst (v : V) : x v 1 = Real.cos θ * f v +
+      (Real.sin θ / Real.sin ((ℓ : ℝ) * θ)) *
+        (f (σ v) - Real.cos ((ℓ : ℝ) * θ) * f v) := by
+    simpa only [hstart, hend] using (hrec v).first_eq hSin
+  have hker : pencil L w σ (Real.sin θ / Real.sin ((ℓ : ℝ) * θ))
+      (Real.cos ((ℓ : ℝ) * θ)) (-1) (1 - Real.cos θ) *ᵥ f = 0 := by
     ext v
     have hv := hcore v
-    have hfirst : x v 1 = Real.cos θ * f v + (Real.sin θ / Real.sin ((ℓ : ℝ) * θ)) *
-        (f (σ v) - Real.cos ((ℓ : ℝ) * θ) * f v) := by
-      simpa only [hstart, hend] using (hrec v).first_eq hSin
     rw [hfirst] at hv
     simp only [sub_mulVec, Pi.sub_apply, coreDegree, mulVec_diagonal] at hv
     simp only [pencil, sub_mulVec, add_mulVec, smul_mulVec, Pi.sub_apply, Pi.add_apply,
       Pi.smul_apply, smul_eq_mul, coreDegree, mulVec_diagonal, weightedMatching_mulVec,
-      mulVec_zero, Pi.zero_apply]
+      Pi.zero_apply]
     nlinarith [hv]
-  exact ⟨hf, fun v j hj =>
-    (hrec v).eq_zero_of_endpoints hSin (by simp [hstart, hf]) (by simp [hend, hf]) hj⟩
-
-private lemma alternating_recurrence {ℓ : ℕ} {c : ℝ} {x : ℕ → ℝ}
-    (hrec : ExpanderPath.Recurrence ℓ (-c) x) :
-    ExpanderPath.Recurrence ℓ c (fun j => (-1) ^ j * x j) := fun j hj => by
-  have heq := congrArg ((-1 : ℝ) ^ j * ·) (hrec j hj)
-  simp only [pow_add, pow_one, neg_one_sq, mul_one]
-  nlinarith [heq]
-
-private lemma signless_core_eq_zero (L : Matrix V V ℝ) (w : V → ℝ) (σ : Equiv.Perm V)
-    (hw0 : ∀ v, 0 ≤ w v) (hw1 : ∀ v, w v ≤ 1) (hwσ : ∀ v, w (σ v) = w v)
-    {ν q c r : ℝ} {ℓ : ℕ}
-    (hgap : ∀ z : V → ℝ, ν * (z ⬝ᵥ z) ≤ z ⬝ᵥ ((2 : ℝ) • coreDegree w - L) *ᵥ z)
-    (hq : 0 ≤ q) (hc : |c| ≤ 1) (hr : r ≤ 1) (hbudget : 2 * q + 3 * (1 - r) < ν)
-    {f : V → ℝ} {x : V → ℕ → ℝ}
-    (hfirst : ∀ v, -x v 1 = r * f v + q * ((-1) ^ ℓ * f (σ v) - c * f v))
-    (hcore : ∀ v, ((coreDegree w - L) *ᵥ f) v + w v * x v 1 = -3 * r * f v) : f = 0 := by
-  apply signlessPencil_injective _ w σ hw0 hw1 hwσ hgap hq hc (s := (-1) ^ (ℓ + 1))
-    (by simp) (sub_nonneg.mpr hr) hbudget
-  ext v
-  have hv := hcore v
-  have hf := congrArg (w v * ·) (hfirst v)
-  simp only [sub_mulVec, Pi.sub_apply, coreDegree, mulVec_diagonal] at hv
-  simp only [pencil, sub_mulVec, add_mulVec, smul_mulVec, Pi.sub_apply, Pi.add_apply,
-    Pi.smul_apply, smul_eq_mul, coreDegree, mulVec_diagonal, weightedMatching_mulVec,
-    mulVec_zero, Pi.zero_apply, pow_succ]
-  nlinarith [hv, hf]
+  have hf : f = 0 := by
+    apply laplacianPencil_injective hL hLone w σ hσ hw0 hw1 hwσ hwpos hgap hq
+      (Real.abs_cos_le_one _) hc (sub_nonneg.mpr (Real.cos_le_one _)) hbudget
+    simpa only [mulVec_zero] using hker
+  refine ⟨hf, fun v j hj => ?_⟩
+  apply (hrec v).eq_zero_of_endpoints hSin _ _ hj
+  · simp [hstart, hf]
+  · simp [hend, hf]
 
 /-- The corresponding certificate near `-1`. Alternating the signs of the path coordinates
 changes their recurrence to `cos θ`, and yields the parity factor `(-1)^(ℓ+1)` in the core
@@ -129,13 +109,37 @@ theorem matchingPath_negative_mode_eq_zero (L : Matrix V V ℝ) (w : V → ℝ)
     (hcore : ∀ v, ((coreDegree w - L) *ᵥ f) v + w v * x v 1 =
       -3 * Real.cos θ * f v) :
     f = 0 ∧ ∀ v j, j ≤ ℓ → x v j = 0 := by
-  have hyrec (v : V) := alternating_recurrence (hrec v)
-  have hf : f = 0 := signless_core_eq_zero L w σ hw0 hw1 hwσ hgap hq (Real.abs_cos_le_one _)
-    (Real.cos_le_one _) hbudget
-    (fun v => by simpa only [pow_one, pow_zero, one_mul, neg_one_mul, hstart, hend] using
-      (hyrec v).first_eq hSin) hcore
-  exact ⟨hf, fun v j hj => by
-    simpa using (hyrec v).eq_zero_of_endpoints hSin (by simp [hstart, hf]) (by simp [hend, hf]) hj⟩
+  let y : V → ℕ → ℝ := fun v j => (-1) ^ j * x v j
+  have hyrec (v : V) : ExpanderPath.Recurrence ℓ (Real.cos θ) (y v) := by
+    intro j hj
+    have heq := congrArg (fun a : ℝ => (-1) ^ j * a) (hrec v j hj)
+    simp only [y, pow_add, pow_one, neg_one_sq, mul_one]
+    nlinarith [heq]
+  have hfirst (v : V) :
+      -x v 1 = Real.cos θ * f v + (Real.sin θ / Real.sin ((ℓ : ℝ) * θ)) *
+        ((-1) ^ ℓ * f (σ v) - Real.cos ((ℓ : ℝ) * θ) * f v) := by
+    simpa only [y, pow_one, pow_zero, one_mul, neg_one_mul, hstart, hend] using
+      (hyrec v).first_eq hSin
+  have hker : pencil ((2 : ℝ) • coreDegree w - L) w σ
+      (Real.sin θ / Real.sin ((ℓ : ℝ) * θ)) (Real.cos ((ℓ : ℝ) * θ))
+        ((-1) ^ (ℓ + 1)) (1 - Real.cos θ) *ᵥ f = 0 := by
+    ext v
+    have hv := hcore v
+    have hf := congrArg (fun a : ℝ => w v * a) (hfirst v)
+    simp only [sub_mulVec, Pi.sub_apply, coreDegree, mulVec_diagonal] at hv
+    simp only [pencil, sub_mulVec, add_mulVec, smul_mulVec, Pi.sub_apply, Pi.add_apply,
+      Pi.smul_apply, smul_eq_mul, coreDegree, mulVec_diagonal, weightedMatching_mulVec,
+      Pi.zero_apply, pow_succ]
+    nlinarith [hv, hf]
+  have hf : f = 0 := by
+    apply signlessPencil_injective ((2 : ℝ) • coreDegree w - L) w σ hw0 hw1 hwσ hgap hq
+      (c := Real.cos ((ℓ : ℝ) * θ)) (s := (-1) ^ (ℓ + 1))
+      (Real.abs_cos_le_one _) (by simp) (sub_nonneg.mpr (Real.cos_le_one _)) hbudget
+    simpa only [mulVec_zero] using hker
+  refine ⟨hf, fun v j hj => ?_⟩
+  have hy : y v j = 0 := (hyrec v).eq_zero_of_endpoints hSin
+    (by simp [y, hstart, hf]) (by simp [y, hend, hf]) hj
+  exact (mul_eq_zero.mp hy).resolve_left (pow_ne_zero _ (by norm_num))
 
 /-- The endpoint eigenvalue `-1` is excluded by a signless core gap greater than `2 / ℓ`.
 Alternating signs give an affine path recurrence, so this theorem remains applicable at angle
@@ -150,15 +154,38 @@ theorem matchingPath_neg_one_mode_eq_zero (L : Matrix V V ℝ) (w : V → ℝ)
     (hstart : ∀ v, x v 0 = f v) (hend : ∀ v, x v ℓ = f (σ v))
     (hcore : ∀ v, ((coreDegree w - L) *ᵥ f) v + w v * x v 1 = -3 * f v) :
     f = 0 ∧ ∀ v j, j ≤ ℓ → x v j = 0 := by
-  have hyrec (v : V) := alternating_recurrence (c := 1) (hrec v)
-  have hf : f = 0 := signless_core_eq_zero L w σ hw0 hw1 hwσ hgap (q := (ℓ : ℝ)⁻¹)
-    (c := 1) (r := 1) (by positivity) (by norm_num) le_rfl (by convert hbudget using 1; ring)
-    (fun v => by simpa only [pow_one, pow_zero, one_mul, neg_one_mul, div_eq_inv_mul,
-      hstart, hend] using (hyrec v).first_eq_of_one hℓ)
-    (fun v => by simpa only [mul_one] using hcore v)
-  exact ⟨hf, fun v j hj => by
-    simpa using (hyrec v).eq_zero_of_endpoints_of_one hℓ
-      (by simp [hstart, hf]) (by simp [hend, hf]) hj⟩
+  let y : V → ℕ → ℝ := fun v j => (-1) ^ j * x v j
+  have hyrec (v : V) : ExpanderPath.Recurrence ℓ 1 (y v) := by
+    intro j hj
+    have heq := congrArg (fun a : ℝ => (-1) ^ j * a) (hrec v j hj)
+    simp only [y, pow_add, pow_one, neg_one_sq, mul_one]
+    nlinarith [heq]
+  have hfirst (v : V) :
+      -x v 1 = f v + ((-1) ^ ℓ * f (σ v) - f v) / (ℓ : ℝ) := by
+    simpa only [y, pow_one, pow_zero, one_mul, neg_one_mul, hstart, hend] using
+      (hyrec v).first_eq_of_one hℓ
+  have hker : pencil ((2 : ℝ) • coreDegree w - L) w σ (1 / (ℓ : ℝ)) 1
+      ((-1) ^ (ℓ + 1)) 0 *ᵥ f = 0 := by
+    ext v
+    have hv := hcore v
+    have hf := congrArg (fun a : ℝ => w v * a) (hfirst v)
+    simp only [sub_mulVec, Pi.sub_apply, coreDegree, mulVec_diagonal] at hv
+    simp only [div_eq_mul_inv] at hf
+    simp only [pencil, sub_mulVec, add_mulVec, smul_mulVec, Pi.sub_apply, Pi.add_apply,
+      Pi.smul_apply, smul_eq_mul, coreDegree, mulVec_diagonal, weightedMatching_mulVec,
+      Pi.zero_apply, pow_succ, div_eq_mul_inv, one_mul, zero_mul, sub_zero]
+    nlinarith [hv, hf]
+  have hbudget' : 2 * (1 / (ℓ : ℝ)) + 3 * 0 < ν := by
+    convert hbudget using 1; ring
+  have hf : f = 0 := by
+    apply signlessPencil_injective ((2 : ℝ) • coreDegree w - L) w σ hw0 hw1 hwσ hgap
+      (q := 1 / (ℓ : ℝ)) (c := 1) (s := (-1) ^ (ℓ + 1)) (δ := 0)
+      (by positivity) (by norm_num) (by simp) (le_refl 0) hbudget'
+    simpa only [mulVec_zero] using hker
+  refine ⟨hf, fun v j hj => ?_⟩
+  have hy : y v j = 0 := (hyrec v).eq_zero_of_endpoints_of_one hℓ
+    (by simp [y, hstart, hf]) (by simp [y, hend, hf]) hj
+  exact (mul_eq_zero.mp hy).resolve_left (pow_ne_zero _ (by norm_num))
 
 /-- **Uniform finite matching-path certificate.** If
 `2 τ / (ℓ sin τ) + 3 τ² / (2 ℓ²) < min μ ν` for `τ < π`, every path mode at `±cos θ`
@@ -180,20 +207,26 @@ theorem matchingPath_mode_eq_zero_of_uniform_budget {L : Matrix V V ℝ} (hL : L
     (hcore : ∀ v, ((coreDegree w - L) *ᵥ f) v + w v * x v 1 = 3 * r * f v) :
     f = 0 ∧ ∀ v j, j ≤ ℓ → x v j = 0 := by
   have hℓone : (1 : ℝ) ≤ ℓ := by exact_mod_cast hℓ
-  have hℓpos : (0 : ℝ) < ℓ := zero_lt_one.trans_le hℓone
+  have hℓpos : (0 : ℝ) < ℓ := lt_of_lt_of_le zero_lt_one hℓone
   have hangle : 0 < (ℓ : ℝ) * θ := mul_pos hℓpos hθ
   have hangleπ : (ℓ : ℝ) * θ < Real.pi := hθτ.trans_lt hτπ
-  have hsin : 0 < Real.sin ((ℓ : ℝ) * θ) := Real.sin_pos_of_pos_of_lt_pi hangle hangleπ
-  have hq : 0 < Real.sin θ / Real.sin ((ℓ : ℝ) * θ) := div_pos
-    (Real.sin_pos_of_pos_of_lt_pi hθ ((le_mul_of_one_le_left hθ.le hℓone).trans_lt hangleπ)) hsin
+  have hθangle : θ ≤ (ℓ : ℝ) * θ := by
+    simpa only [one_mul] using mul_le_mul_of_nonneg_right hℓone hθ.le
+  have hsin : 0 < Real.sin ((ℓ : ℝ) * θ) :=
+    Real.sin_pos_of_pos_of_lt_pi hangle hangleπ
+  have hq : 0 < Real.sin θ / Real.sin ((ℓ : ℝ) * θ) :=
+    div_pos (Real.sin_pos_of_pos_of_lt_pi hθ (hθangle.trans_lt hangleπ)) hsin
   have hc : Real.cos ((ℓ : ℝ) * θ) < 1 := by
-    simpa only [Real.cos_zero] using Real.cos_lt_cos_of_nonneg_of_le_pi le_rfl hangleπ.le hangle
-  obtain ⟨hb1, hb2⟩ := lt_min_iff.mp
-    ((ExpanderPath.perturbationBudget_le hℓpos hθ hθτ hτπ).trans_lt hbudget)
+    simpa only [Real.cos_zero] using
+      Real.cos_lt_cos_of_nonneg_of_le_pi (le_refl 0) hangleπ.le hangle
+  have hb := (ExpanderPath.perturbationBudget_le hℓpos hθ hθτ hτπ).trans_lt hbudget
   rcases hr with rfl | rfl
   · exact matchingPath_mode_eq_zero hL hLone w σ hσ hw0 hw1 hwσ hwpos hgap hsin.ne'
-      hq hc hb1 f x hrec hstart hend hcore
-  · exact matchingPath_negative_mode_eq_zero L w σ hw0 hw1 hwσ hQgap hsin.ne' hq.le
-      hb2 f x hrec hstart hend fun v => by rw [hcore]; ring
+      hq hc (lt_min_iff.mp hb).1 f x hrec hstart hend hcore
+  · apply matchingPath_negative_mode_eq_zero L w σ hw0 hw1 hwσ hQgap hsin.ne' hq.le
+      (lt_min_iff.mp hb).2 f x hrec hstart hend
+    intro v
+    rw [hcore]
+    ring
 
 end Cslib
