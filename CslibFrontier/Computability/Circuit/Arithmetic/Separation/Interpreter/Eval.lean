@@ -61,11 +61,9 @@ theorem lett_rel {e body : Fm} {x : Tree} {le : List (Run A)} (he : Ev θ e x le
   refine ⟨_, Ev.lett he fun s hs => ?_,
       List.rel_flatMap (forall₂_mem hR) fun s b ⟨hs, hb, hsb⟩ => ?_⟩
   · obtain ⟨b, hb, hsb⟩ := hR.exists_mem_of_mem hs
-    obtain ⟨l2, h2, -⟩ := h s hs b hb hsb
-    exact h2.hl
+    exact (h s hs b hb hsb).choose_spec.1.hl
   · obtain ⟨l2, h2, h3⟩ := h s hs b hb hsb
-    rw [h2.evl, List.forall₂_map_left_iff]
-    exact h3
+    rwa [h2.evl, List.forall₂_map_left_iff]
 
 end Rel
 
@@ -80,30 +78,19 @@ theorem selF_ev {cs : List Fm} {b : Fm} {x o : Tree} {k : ℕ} (hb : Dt θ b x o
     (h : ∀ c, cs[o.len]? = some c → Ev θ c x l) (h0 : cs.length ≤ o.len → l = []) :
     ∃ k' ≤ cs.length * (k + cs.length + 1), Ev θ (selF cs b) x (l.map (Run.delay k')) := by
   induction cs generalizing b o k with
-  | nil =>
-    refine ⟨0, Nat.zero_le _, ?_⟩
-    rw [h0 (Nat.zero_le _)]
-    exact .fail x
+  | nil => exact ⟨0, Nat.zero_le _, h0 (Nat.zero_le _) ▸ .fail x⟩
   | cons c cs ih =>
     cases o with
-    | nil =>
-      refine ⟨k + 1, ?_, Ev.ite_false hb (h c rfl)⟩
-      simp only [List.length_cons]
-      nlinarith
+    | nil => exact ⟨k + 1, by simp only [List.length_cons]; nlinarith, Ev.ite_false hb (h c rfl)⟩
     | cons a o =>
-      obtain ⟨k', hk', h'⟩ := ih (b := .tl b)
-          (o := o) hb.tl (fun c hc => h c (by simpa [len] using hc))
-        (fun hl => h0 (by simp only [List.length_cons, len]; omega))
-      refine ⟨k + 1 + k', ?_, ?_⟩
-      · simp only [List.length_cons]
-        linarith
-      · have := Ev.ite_true (c := c) hb (by simp) h'
-        rw [List.map_map] at this
-        refine Eq.mp ?_ this
-        congr 1
-        refine List.map_congr_left fun r _ => ?_
-        simp only [Run.delay, Function.comp_apply, Run.mk.injEq, and_true]
-        omega
+      obtain ⟨k', hk', h'⟩ := ih (b := .tl b) (o := o) hb.tl
+        (fun c hc => h c (by simpa [len] using hc))
+        fun hl => h0 (by simp only [List.length_cons, len]; omega)
+      refine ⟨k + 1 + k', by simp only [List.length_cons]; linarith,
+        Eq.mp (congrArg (Ev θ _ _) ?_) (Ev.ite_true (c := c) hb (by simp) h')⟩
+      rw [List.map_map]
+      exact List.map_congr_left fun r _ => by
+        simp only [Run.delay, Function.comp_apply, Run.mk.injEq, and_true]; omega
 
 end Cases
 
@@ -187,15 +174,10 @@ theorem rec_ev {b a x s : Fm} {y g z : Tree} {f' x' : Tree} {t t' : Bt} {kb ka k
         (hs : Dt θ s y t.enc ks)
     {l : List (Run A)} (h : Ev θ IF (env g z t) l) :
     Ev θ (rec' b a x s) y (l.map (Run.delay (2 * kb + ka + kx + ks + 6))) := by
-  have := Ev.run_det (Dt.hd hb) (.cons (.hd hb) (.cons ha (.cons hx hs))) (l := l) (by
-    change Ev θ (Fm.ofTree IF.code) _ l
-    rw [Fm.ofTree_code]
-    exact h)
-  refine Eq.mp ?_ this
-  congr 1
-  refine List.map_congr_left fun r _ => ?_
-  simp only [Run.delay, Run.mk.injEq, and_true]
-  omega
+  refine Eq.mp (congrArg (Ev θ _ _) ?_)
+    (Ev.run_det (Dt.hd hb) (.cons (.hd hb) (.cons ha (.cons hx hs))) (l := l)
+      (by change Ev θ (Fm.ofTree IF.code) _ l; rwa [Fm.ofTree_code]))
+  exact List.map_congr_left fun r _ => by simp only [Run.delay, Run.mk.injEq, and_true]; omega
 
 /-- A simulated run: a run of the formula, together with the budgets left after its bill. -/
 structure SimRun (A : Type) where
@@ -211,24 +193,15 @@ structure SimRun (A : Type) where
 omit [CommRing A] in
 theorem mem_simS {t : Bt} {l : List (Run A)} {q : SimRun A} (h : q ∈ simS t l) :
     q.run ∈ l ∧ Bt.decAll q.run.bill t = some q.left := by
-  rw [simS, List.mem_filterMap] at h
-  obtain ⟨r, hr, h⟩ := h
-  rw [Option.map_eq_some_iff] at h
-  obtain ⟨t', ht, rfl⟩ := h
+  obtain ⟨r, hr, h⟩ := List.mem_filterMap.1 h
+  obtain ⟨t', ht, rfl⟩ := Option.map_eq_some_iff.1 h
   exact ⟨hr, ht⟩
 
 omit [CommRing A] in
 theorem simS_map {t : Bt} {l : List (Run A)} {G : Run A → Run A} (h : ∀ r, (G r).bill = r.bill) :
     simS t (l.map G) = (simS t l).map fun q => ⟨G q.run, q.left⟩ := by
-  induction l with
-  | nil => rfl
-  | cons r l ih =>
-    simp only [simS, List.map_cons, List.filterMap_cons, h] at ih ⊢
-    cases Bt.decAll r.bill t with
-    | none => exact ih
-    | some t' =>
-      simp only [Option.map_some, List.map_cons]
-      rw [ih]
+  simp only [simS, List.filterMap_map, List.map_filterMap]
+  exact List.filterMap_congr fun r _ => by simp [Function.comp_def, h]
 
 omit [CommRing A] in
 theorem simS_append {t : Bt} {l l' : List (Run A)} : simS t (l ++ l') = simS t l ++ simS t l' := by
@@ -240,39 +213,18 @@ theorem simS_flatMap {t : Bt} {la : List (Run A)} {L : Run A → List (Run A)}
     (h : ∀ r s, (G r s).bill = r.bill ++ s.bill) : simS t (la.flatMap fun r => (L r).map (G r)) =
       (simS t la).flatMap fun q => (simS q.left (L q.run)).map fun p => ⟨G q.run p.run, p.left⟩ :=
           by
-  have one : ∀ (r : Run A) (l : List (Run A)), simS t (l.map (G r)) =
-      ((Bt.decAll r.bill t).toList.map fun t' => (⟨r, t'⟩ : SimRun A)).flatMap fun q =>
-        (simS q.left l).map fun p => ⟨G q.run p.run, p.left⟩ := by
-    intro r l
-    cases hd : Bt.decAll r.bill t with
-    | none =>
-      simp only [Option.toList_none, List.map_nil, List.flatMap_nil, simS, List.filterMap_map]
-      rw [List.filterMap_eq_nil_iff]
-      intro s _
-      simp [h, Bt.decAll_append, hd]
-    | some t' =>
-      simp only
-          [Option.toList_some, List.map_cons, List.map_nil, List.flatMap_cons, List.flatMap_nil,
-        List.append_nil]
-      induction l with
-      | nil => rfl
-      | cons s l ih =>
-        simp only
-            [simS, List.map_cons, List.filterMap_cons, h, Bt.decAll_append, hd, Option.bind_some]
-                at ih ⊢
-        cases Bt.decAll s.bill t' with
-        | none => exact ih
-        | some t'' =>
-          simp only [Option.map_some, List.map_cons]
-          rw [ih]
   induction la with
   | nil => rfl
   | cons r la ih =>
-    rw [List.flatMap_cons, simS_append, ih, one]
-    simp only [simS, List.filterMap_cons]
-    cases Bt.decAll r.bill t with
-    | none => simp
-    | some t' => simp
+    rw [List.flatMap_cons, simS_append, ih]
+    simp only [simS, List.filterMap_cons, List.filterMap_map]
+    cases hd : Bt.decAll r.bill t with
+    | none =>
+      simpa [List.filterMap_eq_nil_iff] using fun s _ => by simp [h, Bt.decAll_append, hd]
+    | some t' =>
+      simp only [Option.map_some, List.flatMap_cons, List.map_filterMap]
+      congr 1
+      exact List.filterMap_congr fun s _ => by simp [Function.comp_def, h, Bt.decAll_append, hd]
 
 end Code
 
