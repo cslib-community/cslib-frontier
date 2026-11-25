@@ -96,6 +96,59 @@ heads were reported, 1 means it was unavailable and 2 means the check could not 
 
 Merge `main` into an approved PR only when it conflicts, needs a change on `main` to pass CI, or a lower stacked PR has landed; the merge queue already tests each PR on top of the current `main`. GitHub declines any push to the branch of a PR still in the merge queue, even when its entry is unmergeable, so whoever restacks a queued PR first removes it with **Remove from queue** on the PR page or the `dequeuePullRequest` command in [Restacks](../../AGENTS.md#restacks). Dequeueing merges nothing; a non-author queues the new head again under the rules below. After such a restack, `python3 scripts/check_restack.py <approved head> <new head>`, run from a checkout of current `origin/main` after `git fetch origin`, replays the approved change onto the new head's `main` and compares the result with the new head. For a PR approved while stacked on another branch, add `--approved-base <lower head at approval>`, even when the approved head had also merged a newer `main` than that head: the script then replays from the merge of the two, so `main`'s changes are not counted as the PR's own. When the replay and the new head match and CI passes, the approval carries over: post the result line, and the non-author who queues the new head reruns the command it names. Otherwise review the paths and diffs it prints. When the only conflicts are in the `mk_all` aggregates or `references.bib`, `python3 scripts/restack_mechanical.py <PR> --approved-head <approved head>` checks that the head is the approved change, merges with the drivers, writes the aggregates as `lake exe mk_all` would and runs this check, without running the PR's code, then prints the final check result and the `queue_pr.py` command for after CI. Report the unprefixed final result line. Output marked `approval pre-check` only verifies the existing head. It refuses any other conflict, pushes only with `--push` (and only if the check passes and the branch has not moved), and never queues or comments. When a hand restack shifts `#L` declaration anchors in maintained `manual/` pages, `python3 scripts/check_operator_manual.py --fix-anchors` repoints unambiguous `[Ns.name](File.lean#Ln)` headers before re-checking. See [Restacks](../../AGENTS.md#restacks).
 
+## Find ready, stalled and finished work
+
+Three maintenance scripts read the repository through the GitHub REST API with an authenticated
+`gh`, one call per page, and refuse to start when fewer than 500 calls remain on the account
+(`--min-remaining`). Each prints Markdown, or JSON with `--json`, and exits 2 when GitHub could not
+be read. Only the last two write, and only with `--apply`.
+
+```bash
+python3 scripts/tender_report.py
+```
+
+This lists PRs approved at their exact current head (an approving review of that commit or a
+verdict line naming it) whose required checks passed, that GitHub reports mergeable, that are based
+on `main` and that no unreleased, unexpired `HOLD` line covers, but that are not queued. It
+separates those whose discussion contains free-text hold wording or an approval not written as a
+verdict line, which need a person to read the thread; approved PRs blocked by checks, conflicts or
+holds; stacked PRs whose lower PR has landed, and approved PRs whose head moved after the approval,
+which need a restack or `scripts/check_restack.py` first; expired `HOLD` lines; and review claims
+that expired without a verdict. The report never queues. The non-author who queues still reads the
+PR and runs `queue_pr.py` as above.
+
+```bash
+python3 scripts/stale_notices.py
+python3 scripts/stale_notices.py --apply --identity '<who is posting, as the first paragraph>'
+```
+
+The dry run lists draft PRs with no author push or comment for 7 days (`--draft-days`), issue
+claims (`Owner:` or `Claimed by` lines) whose claimant has been silent for 3 days and that no open
+PR references (`--claim-days`), and PRs whose latest verdict requests changes at the current head
+with no push or author reply for 48 hours (`--changes-hours`). On the shared account every agent
+posts as one login, so another agent's comment there counts as the author's; read a listed item
+before acting on it. `--apply` posts one notice per item, ending with the marker
+`<!-- stale-notice:KIND -->`; an item noticed in the last 24 hours is skipped, so a rerun posts
+nothing twice in a day. `--draft-stalled` also converts the listed change requests to drafts. The
+script closes nothing and takes nothing over: the report says when 24 hours have passed since a
+notice with no response, after which [Workers](../../AGENTS.md#workers), item 3, applies.
+
+```bash
+python3 scripts/branch_cleanup.py --delete merged --delete closed --older-than 14d
+python3 scripts/branch_cleanup.py --delete merged --apply
+```
+
+Every branch is the head of an open PR, the base of an open PR, the head of a merged PR, the head
+of a PR closed unmerged, or no PR's head. The default branch, protected and merge-queue branches,
+the head or base of any open PR, and a branch pushed to after its PR closed are never deleted.
+Closed and no-PR branches are deleted only when their closing date or last commit is older than
+`--older-than`. With `--apply` the script writes the plan to a JSON log in the system temporary
+directory (`--log` chooses the path), lists the open PRs again, and deletes a branch only if its
+ref still points at the planned commit and no open PR uses it. It prints a restore command per
+deletion, which works while GitHub still has the commit: a PR's `refs/pull/` ref keeps it, but a
+branch with no PR has no such ref, so keep the log (or fetch the commits) before deleting `nopr`
+branches.
+
 ## Record evidence at the level of the claim
 
 During ordinary edits, use MCP diagnostics or targeted
