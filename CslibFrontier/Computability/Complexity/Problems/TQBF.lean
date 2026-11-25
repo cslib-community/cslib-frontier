@@ -130,16 +130,21 @@ theorem parseFuel_tokens (φ : QBF ℕ) (rest : List (Kind × ℕ)) (fuel : ℕ)
     | zero => simp [tokens] at hf
     | succ fuel =>
       simp only [tokens, List.length_cons] at hf
-      simp [tokens, Cslib.PrefixParser.parseFuel, readToken,
-        ih rest fuel (Nat.le_of_succ_le_succ hf)]
+      simp only [tokens, List.cons_append, Cslib.PrefixParser.parseFuel, readToken]
+      rw [ih rest fuel (Nat.le_of_succ_le_succ hf)]
+      rfl
   | and φ ψ ihφ ihψ | or φ ψ ihφ ihψ =>
     cases fuel with
     | zero => simp [tokens] at hf
     | succ fuel =>
       simp only [tokens, List.length_cons, List.length_append] at hf
-      simp [tokens, List.append_assoc, Cslib.PrefixParser.parseFuel, readToken,
-        ihφ (ψ.tokens ++ rest) fuel ((Nat.le_add_right _ _).trans (Nat.le_of_succ_le_succ hf)),
-        ihψ rest fuel ((Nat.le_add_left _ _).trans (Nat.le_of_succ_le_succ hf))]
+      simp only [tokens, List.cons_append, List.append_assoc,
+        Cslib.PrefixParser.parseFuel, readToken]
+      rw [ihφ (ψ.tokens ++ rest) fuel
+        ((Nat.le_add_right _ _).trans (Nat.le_of_succ_le_succ hf))]
+      dsimp only [Bind.bind, Option.bind]
+      rw [ihψ rest fuel ((Nat.le_add_left _ _).trans (Nat.le_of_succ_le_succ hf))]
+      rfl
 
 /-- **Tokens in prefix order determine the formula**, and what follows them. -/
 theorem tokens_append_inj {φ ψ : QBF ℕ} {r r' : List (Kind × ℕ)}
