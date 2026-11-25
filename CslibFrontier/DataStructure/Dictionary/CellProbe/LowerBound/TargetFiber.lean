@@ -224,37 +224,19 @@ theorem fiber_le_queryFreePoolDist {U V n t₀ m g P_size : ℕ}
         by_cases hKr : K_rem ∈ S_comp.powersetCard (n - m)
         · have hstab_eq (K' : Finset (Fin U)) (hK' : K' ∈ S_comp.powersetCard (n - m)) :
               (stab K_rem).card = (stab K').card := by
-            let subSet (A : Finset (Fin U)) : Finset ↥S_comp := Finset.univ.filter fun x => x.1 ∈ A
+            let subSet (A : Finset (Fin U)) : Finset ↥S_comp := A.subtype (· ∈ S_comp)
+            have hsub_map (A : Finset (Fin U)) (hA : A ∈ S_comp.powersetCard (n - m)) :
+                (subSet A).map (Function.Embedding.subtype _) = A :=
+              Finset.subtype_map_of_mem fun _ hx => (Finset.mem_powersetCard.mp hA).1 hx
             have hsub_card (A : Finset (Fin U)) (hA : A ∈ S_comp.powersetCard (n - m)) :
                 (subSet A).card = n - m := by
-              obtain ⟨hA_sub, hA_c⟩ := Finset.mem_powersetCard.mp hA
-              rw [← hA_c]
-              exact Finset.card_bij (fun x _ => x.1) (fun x hx => (Finset.mem_filter.mp hx).2)
-                (fun _ _ _ _ h => Subtype.ext h) fun y hy =>
-                  ⟨⟨y, hA_sub hy⟩, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hy⟩, rfl⟩
+              rw [← Finset.card_map, hsub_map A hA, (Finset.mem_powersetCard.mp hA).2]
             obtain ⟨σ_sub, hσ_sub_map⟩ := Equiv.Perm.exists_map_finset_eq
               (subSet K_rem) (subSet K') ((hsub_card K_rem hKr).trans (hsub_card K' hK').symm)
             have hσ_map : K_rem.map (Equiv.Perm.ofSubtype σ_sub).toEmbedding = K' := by
-              obtain ⟨hKr_sub, _⟩ := Finset.mem_powersetCard.mp hKr
-              obtain ⟨hK'_sub, _⟩ := Finset.mem_powersetCard.mp hK'
-              ext y; simp only [Finset.mem_map, Equiv.coe_toEmbedding]
-              constructor
-              · rintro ⟨x, hx, rfl⟩
-                have hxS := hKr_sub hx
-                rw [Equiv.Perm.ofSubtype_apply_of_mem σ_sub hxS]
-                have hmem : σ_sub ⟨x, hxS⟩ ∈ subSet K' := by
-                  rw [← hσ_sub_map]
-                  exact Finset.mem_map.mpr ⟨⟨x, hxS⟩, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hx⟩,
-                    rfl⟩
-                exact (Finset.mem_filter.mp hmem).2
-              · intro hy
-                have hyK' : (⟨y, hK'_sub hy⟩ : ↥S_comp) ∈ subSet K' :=
-                  Finset.mem_filter.mpr ⟨Finset.mem_univ _, hy⟩
-                rw [← hσ_sub_map] at hyK'
-                obtain ⟨x_sub, hxKr, hx_eq⟩ := Finset.mem_map.mp hyK'
-                refine ⟨x_sub.1, (Finset.mem_filter.mp hxKr).2, ?_⟩
-                rw [Equiv.Perm.ofSubtype_apply_of_mem σ_sub x_sub.2]
-                exact congrArg Subtype.val hx_eq
+              rw [← hsub_map K_rem hKr, ← hsub_map K' hK', ← hσ_sub_map, Finset.map_map,
+                Finset.map_map]
+              congr 1; ext x : 1; exact Equiv.Perm.ofSubtype_apply_coe σ_sub x
             refine Finset.card_bij (fun π_sub _ => π_sub.trans σ_sub) (fun π_sub hπ => ?_)
               (fun _ _ _ _ h => Equiv.Perm.ext fun x => σ_sub.injective (Equiv.Perm.ext_iff.mp h x))
               (fun π' hπ' => ⟨π'.trans σ_sub.symm, ?_, by
@@ -403,22 +385,9 @@ theorem fiber_le_queryFreePoolDist {U V n t₀ m g P_size : ℕ}
               rw [PMF.map_apply_toReal, ← (actG γ).sum_comp]
               refine Finset.sum_congr rfl fun sb _ => ?_
               by_cases ho_sb : obs8 t₀ m ht₀ sb = o
-              · have ho_act := (hobs_iff γ sb).mpr ho_sb
-                rw [hμ_obs γ sb ho_sb]
-                by_cases ht_act : target8 t₀ m ht₀ (actG γ sb) = T
-                · have heq : (o, T) =
-                      (obs8 t₀ m ht₀ (actG γ sb), target8 t₀ m ht₀ (actG γ sb)) :=
-                    Prod.ext ho_act.symm ht_act.symm
-                  rw [ite_eq_left heq, ite_eq_left ⟨ho_sb, ht_act⟩, mul_one]
-                · have hne_p : (o, T) ≠
-                      (obs8 t₀ m ht₀ (actG γ sb), target8 t₀ m ht₀ (actG γ sb)) :=
-                    fun h => ht_act (Prod.mk.inj h).2.symm
-                  rw [ite_eq_right hne_p, ite_eq_right fun h => ht_act h.2, mul_zero]
-              · have ho_act : obs8 t₀ m ht₀ (actG γ sb) ≠ o := mt (hobs_iff γ sb).mp ho_sb
-                have hne_p : (o, T) ≠
-                    (obs8 t₀ m ht₀ (actG γ sb), target8 t₀ m ht₀ (actG γ sb)) :=
-                  fun h => ho_act (Prod.mk.inj h).1.symm
-                rw [ite_eq_right hne_p, ite_eq_right fun h => ho_sb h.1, mul_zero]
+              · rw [hμ_obs γ sb ho_sb]
+                simp [Prod.mk.injEq, ho_sb, (hobs_iff γ sb).mpr ho_sb, @eq_comm _ T]
+              · simp [Prod.mk.injEq, ho_sb, mt (hobs_iff γ sb).mp ho_sb, @eq_comm _ o]
         _ = _ := by
               rw [Finset.sum_comm]
               refine Finset.sum_congr rfl fun sb _ => ?_
