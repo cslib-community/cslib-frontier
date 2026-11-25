@@ -573,17 +573,11 @@ theorem exists_internallyDisjoint_eq_isVertexCut [Finite V] (G : Digraph V) {s t
         show ∑ u, f (u, true) (v, false) = ∑ w, f (v, true) (w, false)
         rw [split_inflow f hvt, split_outflow f hvs] }
   have hgval : g.value = f.value := by
-    have hout : ∑ y, (f (s, true) y : ℤ) = ∑ w, (f (s, true) (w, false) : ℤ) := by
-      rw [sum_split (fun y => (f (s, true) y : ℤ))]; simp [split_flow_same]
-    have hin : ∑ x, (f x (s, true) : ℤ) = 0 := by
-      norm_cast; rw [sum_split (f · (s, true))]
-      simp [split_flow_same, split_flow_ft_ne f (fun h => h.2.1 h.1)]
-    have hin' : ∑ u, (f (u, true) (s, false) : ℤ) = 0 := by
-      have h := split_inflow f hst; rw [split_flow_ft_ne f (fun h => h.2.1 rfl)] at h
-      exact_mod_cast h
+    have hin := split_inflow f hst; rw [split_flow_ft_ne f (fun h => h.2.1 rfl)] at hin
     change (∑ w, (f (s, true) (w, false) : ℤ)) - ∑ u, (f (u, true) (s, false) : ℤ) =
       (∑ y, (f (s, true) y : ℤ)) - ∑ x, (f x (s, true) : ℤ)
-    rw [hout, hin, hin']
+    rw [sum_split (fun y => (f (s, true) y : ℤ)), sum_split (fun x => (f x (s, true) : ℤ))]
+    simp [split_flow_same, split_flow_ft_ne f (fun h => h.2.1 h.1), ← Nat.cast_sum, hin]
   obtain ⟨P, hP, hcount⟩ := g.exists_flowPaths
   have hPdi : ∀ i, G.IsDipath s t (P i) := fun i =>
     ⟨(hP i).1, (hP i).2.1, (hP i).2.2.1, Digraph.isChain_iff_forall_mem_zip_tail.mpr fun e he =>
