@@ -4999,6 +4999,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Work
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Map
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Nondeterministic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.OutView
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Palindrome
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Branch
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.ClearShadowed
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.CopyBlock
@@ -5111,6 +5112,10 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.StepMachine.
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step.Init
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.TapeLemmas
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.ToSingleTape.Correct
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.ToSingleTape.Defs
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.ToSingleTape.Passes
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.ToSingleTape.Tracks
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.TrackedRun
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Basic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Bit
@@ -5154,6 +5159,7 @@ public import CslibFrontier.Computability.Machines.Turing.SingleTape.Palindrome
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.Partrec
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.PostTuringMachine
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.Rectangle
+public import CslibFrontier.Computability.Machines.Turing.SingleTape.Sweep
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.TM0Restrict
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.TM0Universal
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.TM0Window

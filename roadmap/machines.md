@@ -16,7 +16,6 @@ Part of the [roadmap](../ROADMAP.md), which explains what an entry is and when o
   A related target is the adaptive arbitrary-word cipher with its hash-then-MAC/EtM construction ([#2749](https://github.com/cslib-community/cslib-frontier/issues/2749)).
 - **Mathlib TM2:** Sublinear work-space comparisons and a linear-space forward simulation.
 - **Single-tape lower bounds** ([#2884](https://github.com/cslib-community/cslib-frontier/issues/2884)): Crossing-sequence lower bounds for CSLib `SingleTapeTM` deciders, including the quadratic palindrome lower bound with a matching `O(n²)` single-tape decider.
-  A linear-time multi-tape palindrome decider gives the one-tape/two-tape time separation.
   The gap theorem that single-tape deciders in time `o(n log n)` accept only regular languages ([#2965](https://github.com/cslib-community/cslib-frontier/issues/2965)), and its nondeterministic analogue under the accept measure.
 - **Generic RAM:** Uniform arbitrary-program dispatch with general width-selection and input-fit theorems, and simulation of operations by programs over smaller bases.
   Structured programs and time classes over arbitrary value domains with weighted or bit costs, simulations between instances, and the typed core proposed in [CSLib #1158](https://github.com/leanprover/cslib/pull/1158).
