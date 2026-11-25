@@ -199,8 +199,7 @@ private theorem runWith_cappedHandler_eq {β : Type}
           PMF.bind_map, PMF.pure_map, Prod.map, Function.comp_def, rep]
         exact PMF.bind_pure_comp _ _
       · simp only [h₁, hbud, ProbOracleComp.runWith_map, PMF.map_comp, Function.comp_def,
-          Prod.map] at hmem
-        simp only [PMF.mem_support_map_iff] at hmem
+          Prod.map, PMF.mem_support_map_iff] at hmem
         obtain ⟨⟨⟨r, s''⟩, ext''⟩, -, heq⟩ := hmem
         obtain ⟨rfl, rfl⟩ := Prod.mk.inj heq
         dsimp only [inv] at hinv ⊢
@@ -257,9 +256,8 @@ theorem IsOraclePPTOn.run_interpret_preprocess_open_of_bounded_growth
   have hword : ComputableInPolyTime (fun a => source (prepare a)) input encBits :=
     hprepare.of_enc_eq (fun _ => rfl)
   have hQ : ComputableInPolyTime Q input encUnary := by
-    have hclock : ComputableInPolyTime (fun n => qC * (n + 1) ^ qD) encUnary encUnary := by
-      fun_prop
-    exact hclock.comp (ComputableInPolyTime.length_bits.comp hword)
+    dsimp only [Q]
+    fun_prop
   obtain ⟨gC, gD, hg_bound⟩ := hgrowth.exists_le
   let G (a : Caller) : ℕ := gC * (2 * (input a).length + Q a + 2) ^ gD
   have hG_le (a : Caller) {w : List Bool} (hw : w.length ≤ Q a) : growth a w ≤ G a := by
@@ -304,17 +302,10 @@ theorem IsOraclePPTOn.run_interpret_preprocess_open_of_bounded_growth
         rw [← ProbOracleComp.runWith_eq_run_interpret] at hmem
         have hresLen := hr_bound (a, request, s) ExtState oracle ext ext' res hmem
         have hop := hopMax request.1
-        have hcallLen :
-            (encHandlerCall input operationEncoding stateEncoding (a, request, s)).length ≤
-              2 * (input a).length + 4 * opMax + 2 * Q a + maxState a + 8 := by
-          simp only [encHandlerCall, length_encPair, encBits_apply]
-          omega
-        have hrep : res.1.length ≤ (encPair encBits stateEncoding res).length := by
-          simp only [length_encPair, encBits_apply]
-          omega
-        have hrepBound : res.1.length ≤ R a :=
-          hrep.trans (hresLen.trans (Nat.mul_le_mul_left rC
-            (Nat.pow_le_pow_left (by omega) rD)))
+        have hrepBound : res.1.length ≤ R a := by
+          refine le_trans ?_ (hresLen.trans (Nat.mul_le_mul_left rC (Nat.pow_le_pow_left ?_ rD)))
+          all_goals simp only [encHandlerCall, length_encPair, encBits_apply]
+          all_goals omega
         have hstateEnc :
             (encPair stateEncoding encUnary (res.2, k + 1)).length ≤
               (encPair stateEncoding encUnary (s, k)).length + resources' a request.2 := by
