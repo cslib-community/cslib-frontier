@@ -247,15 +247,11 @@ theorem findBest_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n →
       rw [hres]
       dsimp only [d, bestNext]
       by_cases hk0 : b.idx = 0
-      · have hk_zero : k = 0 := by omega
-        subst hk_zero
+      · subst hbidx
         have hjk0 : jk = ⟨0, hn_pos⟩ := Fin.ext hk0
-        rw [ite_eq_left hk0]
-        dsimp only
+        rw [hk0, ite_eq_left rfl]
         refine ⟨rfl, Or.inr ⟨⟨0, hn_pos⟩, Nat.one_pos, ?_, rfl, ?_⟩⟩
-        · rw [show (1 : ℕ) = 0 + 1 from rfl, List.take_succ_finRange hn_pos, List.take_zero,
-            List.nil_append]
-          rfl
+        · rw [List.take_succ_finRange (k := 0) hn_pos]; rfl
         · rw [← hjk0]
           simpa only [jk, hk0] using hrc_z
       · rw [ite_eq_right hk0]
@@ -390,9 +386,7 @@ theorem findSecond_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n �
           rw [List.take_succ_finRange hk, List.filter_append, List.map_append]
           simp [jk, hjk_eq]
         rw [ite_eq_left heq_j]
-        dsimp only
-        refine ⟨rfl, ?_⟩
-        simpa only [hpref_eq] using hmin
+        exact ⟨rfl, hpref_eq.symm ▸ hmin⟩
       · have hjk_ne : jk ≠ j₀ := fun e => heq_j (congrArg Fin.val e)
         have hpref_eq : prefList (b.idx + 1) = prefList b.idx ++ [redCost cZ st.price i₀ jk] := by
           dsimp only [prefList]
@@ -402,11 +396,8 @@ theorem findSecond_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n �
         rcases hl_prev : prefList b.idx with _ | ⟨hd_prev, tl_prev⟩
         · rw [hl_prev] at hmin hpref_eq
           dsimp only [List.min?] at hmin
-          rw [ite_eq_left hmin]
-          dsimp only
-          refine ⟨rfl, ?_⟩
-          rw [hpref_eq, List.nil_append, List.min?_singleton]
-          exact ⟨rfl, hrc_z, hrc_le⟩
+          rw [ite_eq_left hmin, hpref_eq, List.nil_append, List.min?_singleton]
+          exact ⟨rfl, rfl, hrc_z, hrc_le⟩
         · have hm_some : (hd_prev :: tl_prev).min? = some (tl_prev.foldl min hd_prev) := rfl
           let wPrev := tl_prev.foldl min hd_prev
           rw [hl_prev, hm_some] at hmin

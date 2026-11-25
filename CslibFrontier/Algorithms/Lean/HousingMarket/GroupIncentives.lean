@@ -278,11 +278,8 @@ theorem IsGroupStrategyProof.isNonBossy {M : HousingMechanism n}
   · have hupd : I.updatePrefs {i, j} (fun k => if k = i then π else I.pref k) =
         I.updatePref i π := by
       ext k
-      rcases eq_or_ne k i with rfl | hki
-      · simp [Instance.updatePrefs]
-      · rcases eq_or_ne k j with rfl | hkj
-        · simp [Instance.updatePrefs, hji, Instance.updatePref_pref_of_ne _ hji]
-        · simp [Instance.updatePrefs, hki, hkj, Instance.updatePref_pref_of_ne _ hki]
+      by_cases hki : k = i <;> by_cases hkj : k = j <;>
+        simp [Instance.updatePrefs, Instance.updatePref_pref_of_ne, *]
     refine h I {i, j} _ ⟨fun k hk => ?_, j, by simp, hupd.symm ▸ hlt⟩
     rw [hupd]
     rcases Finset.mem_insert.1 hk with rfl | hkj
@@ -291,11 +288,8 @@ theorem IsGroupStrategyProof.isNonBossy {M : HousingMechanism n}
   · set I' := I.updatePref i π
     have hupd' : I'.updatePrefs {i, j} I.pref = I := by
       ext k
-      rcases eq_or_ne k i with rfl | hki
-      · simp [Instance.updatePrefs]
-      · rcases eq_or_ne k j with rfl | hkj
-        · simp [Instance.updatePrefs]
-        · simp [Instance.updatePrefs, I', hki, hkj, Instance.updatePref_pref_of_ne _ hki]
+      by_cases hki : k = i <;> by_cases hkj : k = j <;>
+        simp [Instance.updatePrefs, I', Instance.updatePref_pref_of_ne, *]
     have hrj : I'.rank j = I.rank j := I.updatePref_rank_of_ne π hji
     refine h I' {i, j} I.pref ⟨fun k hk => ?_, j, by simp, by rwa [hupd', hrj]⟩
     rw [hupd']
@@ -345,10 +339,8 @@ private theorem eq_or_eq_of_topTwoPerm_symm_le {a b x : Fin n}
   have ha0 : (topTwoPerm a b).symm a = ⟨0, a.pos⟩ := Fin.ext (topTwoPerm_symm_fst_val a b)
   by_cases hab : a = b
   · subst hab
-    have hx0 : ((topTwoPerm a a).symm x).val = 0 := by
-      have hval : ((topTwoPerm a a).symm x).val ≤ ((topTwoPerm a a).symm a).val := hle
-      rw [ha0] at hval
-      exact Nat.eq_zero_of_le_zero hval
+    have hx0 : ((topTwoPerm a a).symm x).val = 0 :=
+      Nat.eq_zero_of_le_zero (by simpa only [Fin.le_def, ha0] using hle)
     exact Or.inl ((topTwoPerm a a).symm.injective ((Fin.ext hx0).trans ha0.symm))
   · have hn2 : 2 ≤ n := by have := Fin.val_ne_of_ne hab; omega
     have hb1 : (topTwoPerm a b).symm b = ⟨1, hn2⟩ := by

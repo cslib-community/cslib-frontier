@@ -49,9 +49,7 @@ theorem read_row (hb : ∀ i, |cfg.workTapePos i| < B) (i : Fin m) (s : Option B
   · rintro ⟨a, ⟨hh, hc⟩ | ⟨hh, hc⟩⟩ <;> rwa [hh]
   · intro hs
     obtain ⟨sign, a, ha⟩ := exists_offset_eq (hb i)
-    cases sign
-    · exact ⟨a, .inr ⟨ha.symm, ha ▸ hs⟩⟩
-    · exact ⟨a, .inl ⟨ha.symm, ha ▸ hs⟩⟩
+    cases sign <;> exact ⟨a, by simp_all⟩
 
 /-- Positive situation predicates agree with the native situation. -/
 theorem situation_row (hn : input.length + 1 < B) (hb : ∀ i, |cfg.workTapePos i| < B)
@@ -61,11 +59,8 @@ theorem situation_row (hn : input.length + 1 < B) (hb : ∀ i, |cfg.workTapePos 
   simp only [row, Tag.feature]
   refine and_congr Iff.rfl (and_congr ?_ (forall_congr' fun i => read_row hb i _))
   simp only [holds_inPos, holds_inRead, Cfg.inputSymbol_eq_inputAt]
-  constructor
-  · rintro ⟨j, hj, hs⟩
-    rwa [hj]
-  · intro hs
-    exact ⟨⟨cfg.inputPos.val, lt_of_lt_of_le cfg.inputPos.isLt hn⟩, rfl, hs⟩
+  exact ⟨fun ⟨j, hj, hs⟩ => hj ▸ hs,
+    fun hs => ⟨⟨cfg.inputPos.val, cfg.inputPos.isLt.trans_le hn⟩, rfl, hs⟩⟩
 
 /-- A positively witnessed other head position is equivalent to head inequality. -/
 theorem elsewhere_row (hb : ∀ i, |cfg.workTapePos i| < B)

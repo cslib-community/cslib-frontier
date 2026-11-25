@@ -124,18 +124,14 @@ theorem khintchine_rademacher_abs_sum (T : ℕ) :
         _ = radSum σ ^ 2 := by rw [← sq, sq_abs]
     have hR1 : ∑ σ : Fin T → Bool, Real.sqrt |radSum σ| ^ 2 = S1 :=
       Finset.sum_congr rfl fun σ _ => Real.sq_sqrt (abs_nonneg _)
-    have hR2 : ∑ σ : Fin T → Bool, (|radSum σ| * Real.sqrt |radSum σ|) ^ 2 = S3 := by
-      refine Finset.sum_congr rfl fun σ _ => ?_
-      rw [mul_pow, Real.sq_sqrt (abs_nonneg _)]
-      ring
+    have hR2 : ∑ σ : Fin T → Bool, (|radSum σ| * Real.sqrt |radSum σ|) ^ 2 = S3 :=
+      Finset.sum_congr rfl fun σ _ => by rw [mul_pow, Real.sq_sqrt (abs_nonneg _)]; ring
     rwa [hL, hR1, hR2] at h
   have hcs2 : S3 ^ 2 ≤ S2 * S4 := by
     have h := Finset.sum_mul_sq_le_sq_mul_sq (Finset.univ : Finset (Fin T → Bool))
       (fun σ => |radSum σ|) (fun σ => radSum σ ^ 2)
-    have hL : ∑ σ : Fin T → Bool, |radSum σ| * radSum σ ^ 2 = S3 := by
-      refine Finset.sum_congr rfl fun σ _ => ?_
-      rw [← sq_abs (radSum σ)]
-      ring
+    have hL : ∑ σ : Fin T → Bool, |radSum σ| * radSum σ ^ 2 = S3 :=
+      Finset.sum_congr rfl fun σ _ => by rw [← sq_abs (radSum σ)]; ring
     have hR1 : ∑ σ : Fin T → Bool, |radSum σ| ^ 2 = S2 :=
       Finset.sum_congr rfl fun σ _ => sq_abs _
     have hR2 : ∑ σ : Fin T → Bool, (radSum σ ^ 2) ^ 2 = S4 :=
@@ -249,8 +245,7 @@ theorem exists_oco_regret_ge {K : Set E} {x₀ e : E} {D G : ℝ}
   set radSum : (Fin T → Bool) → ℝ := fun σ => ∑ t : Fin T, signVal (σ t)
   let uOf (σ : Fin T → Bool) : E := if 0 ≤ radSum σ then x₀ - (D / 2) • e else x₀ + (D / 2) • e
   have huOf_mem (σ : Fin T → Bool) : uOf σ ∈ K := by
-    dsimp only [uOf]
-    split_ifs <;> assumption
+    by_cases hs : 0 ≤ radSum σ <;> simp [uOf, hs, hminus, hplus]
   have hee : ⟪e, e⟫ = 1 := by rw [real_inner_self_eq_norm_sq, he, one_pow]
   have huOf_sum (σ : Fin T → Bool) :
       ∑ t : Fin T, rademacherLinear e G (σ t) (uOf σ) =
@@ -274,11 +269,7 @@ theorem exists_oco_regret_ge {K : Set E} {x₀ e : E} {D G : ℝ}
             (rademacherLinear e G (σ t) (L.eval σ t) - rademacherLinear e G (σ t) (uOf σ)) =
         D * G / 2 * ∑ σ : Fin T → Bool, |radSum σ| := by
     have hshift : ∑ σ : Fin T → Bool, radSum σ * G * ⟪e, x₀⟫ = 0 := by
-      have hmul : ∑ σ : Fin T → Bool, radSum σ * G * ⟪e, x₀⟫ =
-          (∑ σ : Fin T → Bool, radSum σ) * (G * ⟪e, x₀⟫) := by
-        rw [Finset.sum_mul]
-        exact Finset.sum_congr rfl fun _ _ => by ring
-      rw [hmul, hsum_rad, zero_mul]
+      simp only [mul_assoc, ← Finset.sum_mul, hsum_rad, zero_mul]
     rw [Finset.sum_congr rfl fun σ _ => Finset.sum_sub_distrib _ _, Finset.sum_sub_distrib,
       sum_rademacherLinear_eval_eq_zero, zero_sub,
       Finset.sum_congr rfl fun σ _ => huOf_sum σ, Finset.sum_sub_distrib, hshift, ← Finset.mul_sum]

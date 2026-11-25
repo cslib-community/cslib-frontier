@@ -91,13 +91,11 @@ theorem expect_comp_eq_bernoulliAverage {κ : Type*} [Fintype κ] [Nonempty κ] 
     𝔼 π : ι → κ, h (fun i => φ (π i)) = bernoulliAverage (dens {c | φ c} : ℝ) h := by
   have hc (b : Bool) : 𝔼 c, (if φ c = b then (1 : ℝ) else 0) =
       if b then (dens {c | φ c} : ℝ) else 1 - dens {c | φ c} := by
-    have h1 := Fintype.expect_boole (𝕜 := ℝ) fun c => φ c = true
     cases b
-    · rw [expect_congr rfl fun c _ => show (if φ c = false then (1 : ℝ) else 0) =
-          1 - if φ c = true then 1 else 0 by cases φ c <;> norm_num,
-        expect_sub_distrib, h1, Fintype.expect_const]
-      rfl
-    · exact h1
+    · have hsub (c : κ) : (if φ c = false then (1 : ℝ) else 0) =
+          1 - if φ c = true then 1 else 0 := by cases φ c <;> norm_num
+      simp [hsub, expect_sub_distrib, Fintype.expect_boole]
+    · exact Fintype.expect_boole fun c => φ c = true
   calc 𝔼 π : ι → κ, h (fun i => φ (π i))
       = 𝔼 π : ι → κ, ∑ a, h a * ∏ i, (if φ (π i) = a i then (1 : ℝ) else 0) :=
         expect_congr rfl fun _ _ => by
@@ -140,11 +138,7 @@ theorem noiseSensitivity_inv_eq_expect_totalInfluence (f : (ι → Bool) → Boo
           f ((z + fun i => w (π i)) + fun i => decide (π i = j)) then 1 else 0) :=
     sum_congr rfl fun j _ => by
       rw [influence_signVal]
-      refine expect_congr rfl fun w _ => ?_
-      rw [comp_update_not, ← add_assoc]
-      by_cases h : f ((z + fun i => w (π i)) + fun i => decide (π i = j)) =
-          f (z + fun i => w (π i)) <;>
-        simp only [h, Ne.symm, ne_eq, not_true_eq_false, not_false_eq_true, ↓reduceIte]
+      exact expect_congr rfl fun w _ => by simp [comp_update_not, ← add_assoc, eq_comm]
   -- Averaging over `z` first, the translate `z + w ∘ π` of `z` is uniformly random.
   have htrans (π : ι → Fin m) :
       𝔼 z : ι → Bool, totalInfluence
@@ -161,9 +155,8 @@ theorem noiseSensitivity_inv_eq_expect_totalInfluence (f : (ι → Bool) → Boo
   -- The preimage of a block of a uniformly random map is a mask of rate `1 / m`.
   have hblock (j : Fin m) :
       𝔼 π : ι → Fin m, H (fun i => decide (π i = j)) = bernoulliAverage (m : ℝ)⁻¹ H := by
-    rw [expect_comp_eq_bernoulliAverage (fun c : Fin m => decide (c = j)) H]
-    congr 1
-    simp [filter_eq', dens_singleton]
+    simpa [filter_eq', dens_singleton] using
+      expect_comp_eq_bernoulliAverage (fun c : Fin m => decide (c = j)) H
   simp only [hblock, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]
   field_simp
 

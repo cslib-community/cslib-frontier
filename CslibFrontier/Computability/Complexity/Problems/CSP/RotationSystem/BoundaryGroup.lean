@@ -58,8 +58,8 @@ private theorem collapse_step (x y : ℕ) (ys : List ℕ) :
     · simp only [hzs, ↓reduceIte]
       split_ifs with h₁
       · obtain ⟨v, hv, he⟩ := h₁
-        by_cases hvy : v = y
-        · subst v; simpa only [Function.update_self] using he
+        rcases eq_or_ne v y with rfl | hvy
+        · simpa using he
         · simp only [Function.update_of_ne hvy, id_eq] at he
           exact (hzs (he ▸ hv)).elim
       · rfl
@@ -111,7 +111,7 @@ theorem fields_closeFirstMetadataRun (I : State Rel) (a : ℕ) (ks : List ℕ)
   | cons x ps =>
     let R := ks.takeWhile (fun b => decide (b = a))
     have hR : R.length ≤ ps.length := by
-      have ht := (List.takeWhile_sublist (fun b => decide (b = a)) (l := ks)).length_le
+      have := (List.takeWhile_sublist (fun b => decide (b = a)) (l := ks)).length_le
       simp only [List.length_cons] at hl
       dsimp only [R]
       omega
@@ -242,11 +242,9 @@ theorem recover_closeFirstMetadataRun (sem : Rel → List Bool → Bool) (I : St
       (closeFirstMetadataRun I (a::ks)).ports.map τ = (I.ports.drop r).map (τ ∘ C) := by
   have hf := fields_closeFirstMetadataRun I a ks hl
   dsimp only at hf ⊢
-  rw [hf.1,CSP.eval_relabel] at ht
-  refine ⟨ht,?_,?_⟩
-  · intro z hz
-    rw [ite_eq_left hz]
-  · rw [hf.2.1,List.map_map]
+  rw [hf.1, CSP.eval_relabel] at ht
+  refine ⟨ht, fun z hz => by rw [ite_eq_left hz],
+    by rw [hf.2.1, List.map_map]⟩
 
 /-- A satisfying assignment already constant on the actual selected names forwards
 UNCHANGED on EVERY natural name, including unused names. Equality is a necessary source
@@ -262,16 +260,12 @@ theorem forward_closeFirstMetadataRun (sem : Rel → List Bool → Bool) (I : St
   have hf := fields_closeFirstMetadataRun I a ks hl
   dsimp only at hf
   have ha : (σ ∘ fun z => if z ∈ I.ports.take
-      ((a::ks).takeWhile (fun b => decide (b = a))).length then I.ports.headD 0 else z) = σ := by
-    funext z
-    by_cases hz : z ∈ I.ports.take ((a::ks).takeWhile (fun b => decide (b = a))).length
-    · simpa only [Function.comp_apply,ite_eq_left hz] using (he z hz).symm
-    · simp only [Function.comp_apply,ite_eq_right hz]
-  refine ⟨σ,?_,fun _ => rfl,?_⟩
-  · rw [hf.1,CSP.eval_relabel,ha]
-    exact hs
-  · rw [hf.2.1,List.map_map]
-    exact congrArg (fun k =>
-      (I.ports.drop ((a::ks).takeWhile (fun b => decide (b = a))).length).map k) ha
+      ((a::ks).takeWhile (fun b => decide (b = a))).length then I.ports.headD 0 else z) = σ :=
+    funext fun z => by
+      dsimp only [Function.comp_apply]
+      split_ifs with hz
+      exacts [(he z hz).symm, rfl]
+  exact ⟨σ, by rwa [hf.1, CSP.eval_relabel, ha], fun _ => rfl,
+    by rw [hf.2.1, List.map_map, ha]⟩
 
 end Cslib.Complexity.CSP.CrossInsertion

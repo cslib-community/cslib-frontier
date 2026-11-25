@@ -311,10 +311,8 @@ theorem codeAt_skipLit₁₆ : decider.CodeAt 16 (skipLitCode 16 8 19) := codeAt
 
 /-- A position within the input is at most the bound. -/
 theorem le_bnd_of_infixAt {p : ℕ} {u : List Bool} (h : InfixAt (encCNF φ) p u) (hu : u ≠ []) :
-    p + u.length ≤ bnd φ := by
-  have := h.le_length hu
-  simp only [bnd]
-  omega
+    p + u.length ≤ bnd φ :=
+  Nat.le_succ_of_le (h.le_length hu)
 
 theorem literalBits_ne_nil (v : ℕ) (b : Bool) : literalBits v b ≠ [] := by
   simp [literalBits]
@@ -618,17 +616,15 @@ private theorem reaches_check_move {st : St} {ℓ' : Literal ℕ}
   have hend₁ := le_bnd_of_infixAt ho₁ (literalBits_ne_nil _ _)
   have hlen₁ : st.o₁ + 8 * ℓ'.1.bits.length ≤ bnd φ := by
     simp only [length_literalBits] at hend₁; omega
-  have hℓ'2 := Bool.toNat_le ℓ'.2
-  have hℓ'B := hℓ'2.trans (one_le_bnd (φ := φ))
+  have hℓ'B := (Bool.toNat_le ℓ'.2).trans (one_le_bnd (φ := φ))
   have ho₁B : st.o₁ ≤ bnd φ := by omega
   have hregs := mem_regs_zero hB
   refine ⟨by simp only [checkMoveSt]; st_bounded, ?_⟩
   cp_step
-  have hsign' := reaches_signCode codeAt_sign₉₆ (regs := (st.regs 0).set 3 st.o₁) (B := bnd φ)
+  refine (reaches_signCode codeAt_sign₉₆ (regs := (st.regs 0).set 3 st.o₁) (B := bnd φ)
     (by omega) (by omega) (by simp) ho₁
     ((List.getD_set_ne (by decide : 3 ≠ 11)).trans (St.getD_regs_11 st 0))
-    (List.forall_mem_set_of_forall_mem hregs ho₁B) hend₁
-  refine hsign'.trans ?_
+    (List.forall_mem_set_of_forall_mem hregs ho₁B) hend₁).trans ?_
   rcases hb : ℓ'.2 <;>
     cp_step [hb, Bool.toNat_false, Bool.toNat_true, St.set_regs_3, St.set_regs_15, St.set_regs_4,
       checkMoveSt]
@@ -738,11 +734,10 @@ private theorem reaches_inspect_first {st : St} {m₁ : Literal ℕ}
   cp_step
   cp_step [List.getD_set_self (by simp : 8 < (st.regs 0).length), hm₁.literal_start]
   cp_step [List.getD_set_self (by simp : 8 < (st.regs 0).length)]
-  have hskip := reaches_skipLitCode codeAt_skipLit₆₃
+  simpa only [St.set_regs_8, St.set_regs_9] using reaches_skipLitCode codeAt_skipLit₆₃
     (regs := ((st.regs 0).set 8 st.p).set 9 st.p) (by omega) (by simp) hm₁
     (List.getD_set_self (by simp))
     (List.forall_mem_set_of_forall_mem (List.forall_mem_set_of_forall_mem hregs hp) hp) hend₁
-  simpa only [St.set_regs_8, St.set_regs_9] using hskip
 
 /-- Reading the second literal `m₂` of a clause from label `66` and checking for a third. -/
 private theorem reaches_inspect_second {st₂ : St} {m₂ : Literal ℕ} {rest : Clause ℕ}
@@ -1166,9 +1161,8 @@ orders. -/
 private theorem pair_choice {ℓ' m m₁ m₂ : Literal ℕ} (hm : m ∈ [m₁, m₂]) (hℓ' : ℓ' ∈ [m₁, m₂])
     (hall : ∀ y ∈ [m₁, m₂], y = m ∨ y = ℓ') :
     (ℓ' = m₁ ∧ m = m₂) ∨ (ℓ' = m₂ ∧ m = m₁) := by
-  simp only [List.mem_cons, List.not_mem_nil, or_false] at hm hℓ'
-  have h1 := hall m₁ (by simp)
-  have h2 := hall m₂ (by simp)
+  have := hall m₁ (.head _)
+  have := hall m₂ (.tail _ (.head _))
   grind
 
 /-- Choosing the order of the two literals of a binary clause at label `74` so that `ℓ'` is in
@@ -1292,9 +1286,7 @@ private theorem branches_walk (hw : ∀ c ∈ φ, 1 ≤ c.length ∧ c.length �
   | zero =>
     intro st v b₁ hO₀ hOc hsgn hph hB hlen hsteps hpath b
     obtain ⟨rfl, hsp⟩ := Prod.mk.inj (Relation.RelatesInSteps.zero hpath)
-    have hhit : st.sgn = st.phase := by
-      rcases (by omega : st.sgn = 0 ∨ st.sgn = 1) with h | h <;>
-        rcases (by omega : st.phase = 0 ∨ st.phase = 1) with hp | hp <;> simp_all
+    have hhit : st.sgn = st.phase := by grind
     obtain ⟨X, Y, hX, hY, hhead⟩ := reaches_head hO₀ hOc hsgn hph hB
     exact branches_walk_hit hOc hB hX hY (by simpa [headOut] using hhead) hhit b
   | succ m ih =>
@@ -1396,9 +1388,8 @@ theorem branches_modeB (hw : ∀ c ∈ φ, 1 ≤ c.length ∧ c.length ≤ 2) {x
   have hB₀ : st₀.Bounded (bnd φ) := by
     simp only [st₀]
     st_bounded
-  obtain ⟨_, st₁, b₁, hbr₁, h0, -⟩ := branches_walk hw (m₁ + 1) st₀ ho ho (by simp [st₀])
-    (by simp [st₀]) hB₀ rfl
-    (by simp only [st₀]; omega)
+  obtain ⟨_, st₁, b₁, hbr₁, h0, -⟩ := branches_walk hw (m₁ + 1) st₀ ho ho le_rfl (Nat.zero_le _)
+    hB₀ rfl (by simp only [st₀]; omega)
     (by simpa [st₀] using hpath₁) false
   obtain ⟨rfl, hph₁, hst₁, ho₁, hln₁, hB₁, hsg₁, _, hcur₁⟩ := h0 rfl
   obtain ⟨ℓ₂, harc, hrest⟩ := hpath₂.succ'
@@ -1407,11 +1398,8 @@ theorem branches_modeB (hw : ∀ c ∈ φ, 1 ≤ c.length ∧ c.length ≤ 2) {x
     (by simp only [hst₁, hln₁, st₀]; omega) hw
     (by simpa [hsg₁] using harc) b₁
   obtain ⟨_, _, _, hbr₃, -, h1⟩ := branches_walk hw m₂ st₂
-    (by
-      rw [h₂₀, ho₁]
-      exact ho)
-    hocc.2
-    (hsg₂ ▸ Bool.toNat_le _) (by rw [h₂₁, hph₁]) hB₂ (h₂₃.trans hln₁)
+    (by rwa [h₂₀, ho₁]) hocc.2
+    (hsg₂ ▸ Bool.toNat_le _) (h₂₁.trans hph₁ ▸ le_rfl) hB₂ (h₂₃.trans hln₁)
     (by simp only [h₂₂, hst₁, h₂₃, hln₁, st₀]; omega)
     (by rwa [hsg₂, decide_toNat_eq_one, h₂₁, hph₁]) b₃
   obtain rfl := h1 (h₂₁.trans hph₁)

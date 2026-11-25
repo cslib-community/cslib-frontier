@@ -198,14 +198,7 @@ def asText : Datum → Except EvalError (Option String)
   cases t <;> rfl
 
 theorem toTruth_eq_ok_iff {d : Datum} {t : Truth} : d.toTruth = .ok t ↔ d = t.toDatum := by
-  refine ⟨fun h => ?_, fun h => h ▸ toTruth_toDatum t⟩
-  match d, h with
-  | none, h =>
-    cases h
-    rfl
-  | some (.bool b), h =>
-    cases h
-    cases b <;> rfl
+  rcases d with _ | (_ | _ | (_ | _)) <;> cases t <;> simp [toTruth, Truth.toDatum, Truth.ofBool]
 
 /-- A datum has a truth value exactly when it is boolean-typed. -/
 theorem exists_toTruth_eq_ok_iff {d : Datum} : (∃ t, d.toTruth = .ok t) ↔ d.HasType .bool := by
@@ -424,12 +417,11 @@ theorem eval_eq_ok_true_iff {a b : Datum} :
   · simp
   rcases b with _ | b
   · simp
-  rw [eval_some_some, Except.map_eq_ok]
-  refine ⟨?_, fun ⟨_, h⟩ => ?_⟩
-  · rintro ⟨_ | _ | _, ho, hto⟩ <;> cases hto
-    simpa using ho
-  · cases h
-    exact ⟨.eq, Value.cmp_self a, rfl⟩
+  simp only [eval_some_some, Except.map_eq_ok, ne_eq, reduceCtorEq, not_false_eq_true,
+    Option.some.injEq, true_and]
+  refine ⟨fun ⟨o, ho, hto⟩ => ?_, fun h => h ▸ ⟨.eq, Value.cmp_self a, rfl⟩⟩
+  cases o <;> cases hto
+  exact Value.cmp_eq_ok_eq_iff.mp ho
 
 /-- A comparison succeeds exactly when the operands have a common type (`NULL` has every type). -/
 theorem exists_eval_eq_ok_iff {op : CmpOp} {a b : Datum} :
@@ -718,11 +710,9 @@ theorem inList_eq_ok_true_iff {e : Datum} {vs : List Datum} {τ : SqlType} (he :
   | cons v vs ih =>
     simp only [List.forall_mem_cons] at hvs
     obtain ⟨u, hu⟩ := exists_inList_eq_ok he hvs.2
-    have ih' := ih hvs.2
-    rw [hu, Except.ok.injEq] at ih'
-    rw [inList_cons, eval_eq_of_hasType he hvs.1, hu]
-    simp only [Except.ok_bind, Except.pure_eq_ok, Except.ok.injEq, Truth.sup_eq_true_iff, ih',
-      List.mem_cons]
+    have ih' : u = .true ↔ e ≠ none ∧ e ∈ vs := by simpa [hu] using ih hvs.2
+    simp only [inList_cons, eval_eq_of_hasType he hvs.1, hu, Except.ok_bind, Except.pure_eq_ok,
+      Except.ok.injEq, Truth.sup_eq_true_iff, ih', List.mem_cons]
     by_cases h₁ : e = none <;> by_cases h₂ : v = none <;> by_cases h₃ : e = v <;>
       simp [h₁, h₂, h₃]
 
@@ -736,11 +726,10 @@ theorem inList_eq_ok_false_iff {e : Datum} {vs : List Datum} {τ : SqlType} (he 
   | cons v vs ih =>
     simp only [List.forall_mem_cons] at hvs
     obtain ⟨u, hu⟩ := exists_inList_eq_ok he hvs.2
-    have ih' := ih hvs.2
-    rw [hu, Except.ok.injEq] at ih'
-    rw [inList_cons, eval_eq_of_hasType he hvs.1, hu]
-    simp only [Except.ok_bind, Except.pure_eq_ok, Except.ok.injEq, Truth.sup_eq_false_iff, ih',
-      List.mem_cons]
+    have ih' : u = .false ↔ vs = [] ∨ (e ≠ none ∧ none ∉ vs ∧ e ∉ vs) := by
+      simpa [hu] using ih hvs.2
+    simp only [inList_cons, eval_eq_of_hasType he hvs.1, hu, Except.ok_bind, Except.pure_eq_ok,
+      Except.ok.injEq, Truth.sup_eq_false_iff, ih', List.mem_cons]
     by_cases h₁ : e = none
     · simp [h₁]
     · by_cases h₂ : v = none

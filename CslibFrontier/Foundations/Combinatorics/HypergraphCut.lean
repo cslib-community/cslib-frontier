@@ -64,10 +64,8 @@ private theorem expect_hits (s : Finset ι) :
 private theorem expect_deficit (S : κ → Finset ι) :
     (𝔼 x, deficit S x) = (Fintype.card ι : ℝ) / 2 -
       ∑ j, (1 - (1 / 2 : ℝ) ^ (S j).card) := by
-  have hweight := BitString.bernoulliAverage_weight (ι := ι) (1 / 2 : ℝ)
-  rw [BitString.bernoulliAverage_one_half] at hweight
   simp only [deficit, expect_sub_distrib, expect_sum_comm, expect_hits]
-  rw [hweight]
+  rw [← BitString.bernoulliAverage_one_half, BitString.bernoulliAverage_weight]
   ring
 
 omit [Fintype ι] in
@@ -216,9 +214,8 @@ theorem card_lt_of_deficit_chain (S : κ → Finset ι) (U : ℕ → Finset ι) 
   have hA (t : ℕ) : (A t).card ≤ Fintype.card κ := card_le_univ _
   have hf0 : f 0 = Fintype.card κ := by simp [f, A, hzero]
   have hfm : Fintype.card ι ≤ f m := by
-    have := hA m
     simp only [f, hlast, card_univ]
-    omega
+    exact Nat.le_sub_of_add_le (Nat.add_le_add_left (hA m) _)
   have hfstep (t : ℕ) (ht : t < m) : f (t + 1) ≤ f t + 1 := by
     have hAm : (A t).card ≤ (A (t + 1)).card :=
       card_le_card fun j hj =>
@@ -236,13 +233,11 @@ theorem card_lt_of_deficit_chain (S : κ → Finset ι) (U : ℕ → Finset ι) 
   have hft : Fintype.card κ + k ≤ f t := Nat.find_spec hex
   have heq : f t = Fintype.card κ + k := by
     cases ht0 : t with
-    | zero => rw [ht0] at hft; rw [hf0] at hft ⊢; omega
+    | zero => simp only [ht0, hf0] at hft ⊢; omega
     | succ t' =>
-      have hprev : ¬Fintype.card κ + k ≤ f t' :=
-        Nat.find_min hex (by omega : t' < t)
-      have hs := hfstep t' (by omega)
-      rw [ht0] at hft
-      omega
+      have := Nat.find_min hex (by omega : t' < t)
+      have := hfstep t' (by omega)
+      rw [ht0] at hft; omega
   have hleft : (U t).card = (A t).card + k := by
     have := hA t
     dsimp only [f] at heq

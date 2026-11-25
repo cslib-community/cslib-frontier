@@ -87,12 +87,10 @@ private theorem meanSq_add_le (hw : IsPrice K w) {i j : ℕ} (hij : i + j ≤ μ
     meanSq w (i + j) ≤ meanSq w i + meanSq w j := by
   obtain ⟨S, -, T, -, hST, rfl, rfl⟩ :=
     exists_disjoint_card_eq (s := (univ : Finset (Fin μ))) (by simpa using hij)
-  have h := sum_defect_eq hw hST
-  have h0 : 0 ≤ 2 * frames μ * (meanSq w S.card + meanSq w T.card -
-      meanSq w (S.card + T.card)) :=
-    h ▸ sum_nonneg fun _ _ => sum_nonneg fun _ _ => sum_nonneg fun _ _ => defect_nonneg hw _ _ _
-  have := frames_pos (μ := μ)
-  nlinarith
+  have h0 : 0 ≤ ∑ p : GLM (Fin μ), ∑ q : GLM (Fin μ), ∑ a, defect w a (X p q S) (X p q T) :=
+    sum_nonneg fun _ _ => sum_nonneg fun _ _ => sum_nonneg fun _ _ => defect_nonneg hw _ _ _
+  rw [sum_defect_eq hw hST] at h0
+  nlinarith [frames_pos (μ := μ)]
 
 private theorem meanSq_zero (hw : IsPrice K w) : meanSq w 0 = 0 := by
   rw [meanSq, sum_eq_zero fun a _ => ?_, zero_div]
@@ -187,9 +185,7 @@ private theorem exists_meanSq_eq (hK : ¬ ContractingCase K) (hμ : 2 ≤ μ) :
   rw [distAtRank, distAtRank, ← Real.sqrt_mul (le_max_of_le_left zero_le_one)]
   refine Real.sqrt_le_sqrt ?_
   rcases (meanSq_nonneg w 1).eq_or_lt with h0 | h1
-  · have := meanSq_le hw le_rfl
-    rw [← h0] at this ⊢
-    linarith [meanSq_nonneg w μ]
+  · exact (meanSq_le hw le_rfl).trans_eq (by rw [← h0, mul_zero, mul_zero])
   · have h := hM _ (scale w hw h1)
     rw [meanSq_smul, inv_pow, Real.sq_sqrt h1.le, inv_mul_le_iff₀ h1] at h
     exact h.trans ((mul_comm _ _).le.trans (mul_le_mul_of_nonneg_right (le_max_right 1 M) h1.le))
@@ -269,13 +265,13 @@ private theorem Extremal.additive (hx : Extremal K w) {W₁ W₂ W₃ : Mt μ}
   set A := X p q (S 0)
   set B := X p q (S 1)
   set C := X p q (S 2)
+  dsimp only [nn] at e1 e5
   have f1 : a + B + A = a + (A + B) := by abel
   have f2 : a + B + (B + C) = a + C := by rw [add_assoc, add_cancel_left]
-  have f3 : nn w (a + B) (B + C) = w (a + B) (a + C) ^ 2 := by rw [nn, f2]
-  have f4 : nn w (a + B) (A + (B + C)) = w (a + B) (a + (A + C)) ^ 2 := by
-    rw [nn, add_left_comm A, add_assoc, add_cancel_left]
-  rw [f1, f2, f3, f4, e2, e4, e5, e3] at e1
-  unfold BB
+  have f3 : a + B + (A + (B + C)) = a + (A + C) := by
+    rw [add_left_comm A, add_assoc, add_cancel_left]
+  rw [e5, f1, f2, f3, e2, e4, e3] at e1
+  unfold BB nn at *
   rw [show A + B + C = A + (B + C) by abel, show B + (A + C) = A + (B + C) by abel] at *
   linarith
 
@@ -479,9 +475,7 @@ theorem exists_sq_eq_rank (hK : ¬ ContractingCase K) (hμ : 3 ≤ μ) :
   have hx : Extremal K w := ⟨hw, hr⟩
   refine ⟨w, hw, fun a a' => ?_⟩
   obtain ⟨p, q, S, hS⟩ := exists_X (a + a')
-  have e : a - a' = a + a' := by
-    ext i j
-    exact CharTwo.sub_eq_add _ _
+  have e : a - a' = a + a' := Matrix.ext fun _ _ => CharTwo.sub_eq_add _ _
   rw [e, hS, rank_X, ← add_cancel_left a a', hS, ← nn, hx.nn_X hμ,
     sum_congr rfl fun i _ => hx.nn_eq_one hμ a (by simp [rank_X])]
   simp

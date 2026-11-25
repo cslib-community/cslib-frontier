@@ -154,10 +154,8 @@ private theorem harmonicTransform_midpoint {f g : (ι → Bool) → ℝ} (hf : �
     (hg : ∀ x, 0 ≤ g x) (selected : ι → Bool) :
     (harmonicTransform f selected + harmonicTransform g selected) / 2 ≤
       harmonicTransform (fun x => (f x + g x) / 2) selected := by
-  have he : (fun x => (f x + g x) / 2) = (1 / 2 : ℝ) • f + (1 / 2 : ℝ) • g := by
-    funext x
-    simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul]
-    ring
+  have he : (fun x => (f x + g x) / 2) = (1 / 2 : ℝ) • f + (1 / 2 : ℝ) • g :=
+    funext fun _ => by simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul]; ring
   have h := (concaveOn_harmonicTransform selected).2 hf hg (by norm_num : (0 : ℝ) ≤ 1 / 2)
     (by norm_num : (0 : ℝ) ≤ 1 / 2) (by norm_num)
   rw [he]
@@ -295,9 +293,8 @@ private theorem add_sqrt_div_two_le {a b : ℝ} (ha : 0 ≤ a) (hb : 0 ≤ b) :
     (Real.sqrt a + Real.sqrt b) / 2 ≤
       3 / 4 * Real.sqrt ((a + b) / 2) + 1 / 4 * Real.sqrt (2 * a * b / (a + b)) := by
   by_cases hz : a + b = 0
-  · have ha0 : a = 0 := by linarith
-    have hb0 : b = 0 := by linarith
-    simp [ha0, hb0]
+  · obtain ⟨rfl, rfl⟩ := (add_eq_zero_iff_of_nonneg ha hb).mp hz
+    simp
   have hp : 0 < (a + b) / 2 := by positivity
   let c := Real.sqrt ((a + b) / 2)
   have hc : 0 < c := Real.sqrt_pos.mpr hp
@@ -312,9 +309,8 @@ private theorem add_sqrt_div_two_le {a b : ℝ} (ha : 0 ≤ a) (hb : 0 ≤ b) :
   have hid : 3 * c ^ 2 + Real.sqrt a * Real.sqrt b - 2 * (Real.sqrt a + Real.sqrt b) * c =
       (2 * c - (Real.sqrt a + Real.sqrt b)) ^ 2 / 2 := by
     linear_combination hc2 - (Real.sq_sqrt ha + Real.sq_sqrt hb) / 2
-  have hnonneg : 0 ≤ (2 * c - (Real.sqrt a + Real.sqrt b)) ^ 2 / 2 := by positivity
   rw [add_mul, mul_assoc (3 / 4 : ℝ), mul_assoc (1 / 4 : ℝ), div_mul_cancel₀ _ hc.ne', ← sq]
-  linarith
+  linarith [sq_nonneg (2 * c - (Real.sqrt a + Real.sqrt b))]
 
 /-- One coordinate step of Korten's harmonic-transform inequality on `Fin (n + 1) → Bool`. -/
 private theorem add_sqrt_harmonicTransform_cons_le {n : ℕ} {f : (Fin (n + 1) → Bool) → ℝ}
@@ -406,9 +402,7 @@ theorem le_bernoulliAverage_le_harmonicTransform
   let a := 1 / (2 * Real.sqrt B)
   have ha : 0 ≤ a := by dsimp [a]; positivity
   have ha2 : a ^ 2 = 1 / (4 * B) := by
-    dsimp [a]
-    rw [div_pow, mul_pow, Real.sq_sqrt hBp.le]
-    norm_num
+    rw [div_pow, mul_pow, Real.sq_sqrt hBp.le]; norm_num
   have hlower : 1 / Real.sqrt B ≤ 𝔼 x, Real.sqrt (f x) := by
     rw [div_le_iff₀ hBs, ← hmean, expect_mul]
     exact expect_le_expect fun x _ => (Real.mul_self_sqrt (hf x)).symm.trans_le

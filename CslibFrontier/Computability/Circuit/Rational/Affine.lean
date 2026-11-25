@@ -278,8 +278,7 @@ private theorem leaf_realization (a : R) :
   refine ⟨fromBlocks 1 (scalar a) 0 1, ?_, ?_, ?_⟩
   · simp [fromBlocks_multiply]
   · simp [fromBlocks_multiply]
-  · rw [fromCols_mul_fromBlocks, fromCols_mul_fromRows]
-    simp
+  · simp [fromCols_mul_fromBlocks, fromCols_mul_fromRows]
 
 private theorem fromBlocks_zero₂₂_inverse {ι κ : Type*} [Fintype ι] [Fintype κ]
     [DecidableEq ι] [DecidableEq κ]
@@ -341,12 +340,10 @@ private theorem realization_mul (args : Fin (ratSignature.Arity .mul) → Formul
       ← Matrix.mul_assoc]
   · rw [rowR_mul, colR_mul, fromCols_mul_fromBlocks, fromCols_mul_fromRows]
     simp only [Matrix.mul_zero, Matrix.zero_mul, add_zero, zero_add, B]
-    have hh : rowR c (args 0) * (Mf * colR c (args 0) * rowR c (args 1) * Mg) *
-        colR c (args 1) = rowR c (args 0) * Mf * colR c (args 0) *
-          (rowR c (args 1) * Mg * colR c (args 1)) := by
-      simp only [Matrix.mul_assoc]
-    rw [hh, hfr, hgr]
-    exact (map_mul (Matrix.uniqueRingEquiv (m := Unit)).symm a b).symm
+    trans (rowR c (args 0) * Mf * colR c (args 0)) * (rowR c (args 1) * Mg * colR c (args 1))
+    · simp only [Matrix.mul_assoc]
+    · rw [hfr, hgr]
+      exact (map_mul (Matrix.uniqueRingEquiv (m := Unit)).symm a b).symm
 
 /-- Exact affine realization of every defined formula: the evaluated pencil is invertible, and
 the row, its inverse and the column multiply to the value. -/
@@ -371,9 +368,9 @@ theorem Eval.realization {f : Formula n} {v : R} (hv : f.Eval c X v) :
       obtain ⟨Mg, hg1, hg2, hgr⟩ := ih 1 hb
       refine ⟨fromBlocks Mf 0 0 Mg, ?_, ?_, ?_⟩
       · rw [realized_add, fromBlocks_multiply]
-        simp [hf1, hg1, Matrix.mul_zero, Matrix.zero_mul]
+        simp [hf1, hg1]
       · rw [realized_add, fromBlocks_multiply]
-        simp [hf2, hg2, Matrix.mul_zero, Matrix.zero_mul]
+        simp [hf2, hg2]
       · rw [rowR_add, colR_add, fromCols_mul_fromBlocks, fromCols_mul_fromRows]
         simp only [Matrix.mul_zero, add_zero, zero_add, hfr, hgr]
         exact (map_add (Matrix.uniqueRingEquiv (m := Unit)).symm a b).symm
@@ -531,19 +528,15 @@ theorem nodeCount_le_of_mem_inverseNodes {f h : Formula n} (hh : h ∈ inverseNo
 theorem certificate_bounds (f : Formula n) (s : ℕ) (hs : 1 ≤ s) (hf : f.nodeCount ≤ s) :
     (certificates f).length ≤ s + 1 ∧
       ∀ h ∈ certificates f, 0 < Fintype.card h.Index ∧ Fintype.card h.Index ≤ 2 * s + 1 := by
-  refine ⟨?_, ?_⟩
-  · simp only [certificates, List.length_append, List.length_singleton]
-    have := inverseNodes_length f
+  have hlen := inverseNodes_length f
+  refine ⟨by simp only [certificates, List.length_append, List.length_singleton]; omega,
+    fun h hh => ?_⟩
+  rw [card_index]
+  rcases List.mem_append.mp hh with hh | hh
+  · have := nodeCount_le_of_mem_inverseNodes hh
     omega
-  · intro h hh
-    rw [card_index]
-    refine ⟨by omega, ?_⟩
-    rcases List.mem_append.mp hh with hh | hh
-    · have := nodeCount_le_of_mem_inverseNodes hh
-      omega
-    · obtain rfl : h = inv f := by simpa using hh
-      rw [nodeCount_inv]
-      omega
+  · obtain rfl : h = inv f := by simpa using hh
+    rw [nodeCount_inv]; omega
 
 end
 
@@ -581,10 +574,8 @@ private theorem normalized [Algebra ℚ R] (Z : Fin (n + 1) → R) (u : R) (hu :
   simp only [coeff, Fin.cases_zero, Fin.cases_succ, mul_add, Finset.mul_sum]
   congr 1
   · exact Algebra.commutes a.1 (Z 0)
-  · apply Finset.sum_congr rfl
-    intro i _
-    rw [← mul_assoc, ← Algebra.commutes (a.2 i) (Z 0), mul_assoc,
-      ← mul_assoc (Z 0) u, hu, one_mul]
+  · refine Finset.sum_congr rfl fun i _ => ?_
+    rw [← mul_assoc, ← Algebra.commutes (a.2 i) (Z 0), mul_assoc, ← mul_assoc (Z 0) u, hu, one_mul]
 
 private theorem normalized_pencil {ι : Type*} [Fintype ι] [DecidableEq ι] [Algebra ℚ R]
     (L : Matrix ι ι (Form n)) (Z : Fin (n + 1) → R) (u : R) (hu : Z 0 * u = 1) :
@@ -619,11 +610,8 @@ theorem homogeneous_flat {K : Type*} [Field K] [CharZero K] {ι κ : Type*} [Fin
   funext ⟨i, a⟩ ⟨j, b⟩
   change (∑ r, (algebraMap ℚ (Matrix κ κ K)) (coeff (L i j) r) * Z r) a b = _
   rw [Matrix.sum_apply]
-  apply Finset.sum_congr rfl
-  intro r _
-  change (Matrix.diagonal (fun _ : κ => (algebraMap ℚ K) (coeff (L i j) r)) * Z r :
-    Matrix κ κ K) a b = _
-  rw [Matrix.diagonal_mul]
+  refine Finset.sum_congr rfl fun r _ => ?_
+  exact Matrix.diagonal_mul (fun _ : κ => (algebraMap ℚ K) (coeff (L i j) r)) (Z r) a b
 
 end
 

@@ -166,13 +166,8 @@ theorem RunsWords.iterateWhileRound {tm : MultiTapePTM k Bool State Operation} (
       (fun _ => []) := by
   have h₁ := RunsWords.of_transformsTapes (Operation := Operation) (x := x) (out₀ := out₀)
     (Turing.MultiTapePTM.IterateWhile.transformsTapes_prepareRound (k := k) mark vp v)
-    rfl (ws' := words v []) (emitted := [])
-    (fun _ _ hQ => hQ)
-  have h₂ : (tm.onWords mark).RunsWords x (words v []) (out₀ ++ []) (t + l + 6) program
-      (fun v' => words v v') (fun _ => []) := by
-    rw [words_nil_next]
-    exact h.onWords_of_le mark hl (out₀ ++ [])
-  exact h₁.seq_pure_left h₂
+    rfl (ws' := words v []) (emitted := []) (fun _ _ hQ => hQ)
+  exact h₁.seq_pure_left (words_nil_next v ▸ h.onWords_of_le mark hl (out₀ ++ []))
 
 namespace IterateWhile
 
@@ -252,9 +247,8 @@ private theorem runsWords_liftedRound {tm : MultiTapePTM k Bool State Operation}
     (hp : p.1.length ≤ L) (hv : p.2.length ≤ L) (out : List Bool) :
     (tm.iterateWhileRound mark).RunsWords x (words p.1 p.2) out (t + 10 * L + 22)
       ((fun v' => (p.2, v')) <$> program) (fun q => words q.1 q.2) (fun _ => []) := by
-  have hround := (RunsWords.iterateWhileRound (x := x) mark (vp := p.1) h hl out).of_map
-    (fun v' => (p.2, v')) (fun q => words q.1 q.2) (fun _ => [])
-  exact hround.mono (by omega)
+  exact ((RunsWords.iterateWhileRound (x := x) mark (vp := p.1) h hl out).of_map
+    (fun v' => (p.2, v')) (fun q => words q.1 q.2) (fun _ => [])).mono (by omega)
 
 private theorem runsWords_liftedLast {tm : MultiTapePTM k Bool State Operation} (mark : Bool)
     {p : List Bool × List Bool} {t L : ℕ}
@@ -469,8 +463,7 @@ public theorem tsum_toOuterMeasure_compl_iterateWhile_le {tm : MultiTapePTM k Bo
             · have hne := (hlength v' (hsupport v hv v' hv')).1
               rw [List.nil_append, eval_runClosedConfigFrom_check_ne_nil _ _ (by rwa [words_next])]
               by_cases ha : v' ∈ answer
-              · have h0 := hstop v v' hvL ha (n * (R + 1) + j)
-                rw [show R + (1 + (n * (R + 1) + j)) = R + 1 + (n * (R + 1) + j) by omega] at h0
+              · have h0 := add_assoc R 1 (n * (R + 1) + j) ▸ hstop v v' hvL ha (n * (R + 1) + j)
                 rw [h0, mul_zero]
                 exact zero_le
               · have hr : v' ∈ retry := (hsupport v hv v' hv').resolve_right ha
