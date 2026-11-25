@@ -95,42 +95,28 @@ theorem exists_choice_sum_le {I V α R : Type*} [Fintype I] [Fintype α] [Nonemp
     (p : V → α → R) (hp0 : ∀ u a, 0 ≤ p u a) (hp1 : ∀ u, ∑ a : α, p u a ≤ 1) :
     ∃ f : V → α, (∑ i : I, ∑ a : α, p (v i) a * W i a) ≤ ∑ i : I, W i (f (v i)) := by
   classical
-  let U (u : V) (a : α) : R := ∑ i : I, if v i = u then W i a else 0
+  let U (u : V) (a : α) : R := ∑ i ∈ univ.filter (v · = u), W i a
   have hmax (u : V) : ∃ b : α, ∀ a : α, U u a ≤ U u b := by
     obtain ⟨b, _, hb⟩ := univ.exists_max_image (U u) univ_nonempty
     exact ⟨b, fun a => hb a (mem_univ a)⟩
   choose f hf using hmax
   refine ⟨f, ?_⟩
-  have hpart (F : I → V → R) :
-      (∑ i : I, F i (v i)) =
-        ∑ u ∈ univ.image v, ∑ i : I, if v i = u then F i u else 0 := by
-    rw [sum_comm]
-    refine sum_congr rfl fun i _ => ?_
-    simp [sum_ite_eq, mem_image_of_mem v (mem_univ i)]
-  rw [hpart (fun i u => ∑ a : α, p u a * W i a), hpart (fun i u => W i (f u))]
+  rw [← sum_fiberwise_of_maps_to (g := v) (t := univ.image v)
+      (fun i _ => mem_image_of_mem v (mem_univ i)),
+    ← sum_fiberwise_of_maps_to (g := v) (t := univ.image v)
+      (fun i _ => mem_image_of_mem v (mem_univ i))]
   refine sum_le_sum fun u _ => ?_
-  have hU_nonneg : 0 ≤ U u (f u) := by
-    refine sum_nonneg fun i _ => ?_
-    split_ifs
-    · exact hW i (f u)
-    · rfl
-  have hswap :
-      (∑ i : I, if v i = u then (∑ a : α, p u a * W i a) else 0) =
-        ∑ a : α, p u a * U u a := by
-    trans ∑ i : I, ∑ a : α, if v i = u then p u a * W i a else 0
-    · refine sum_congr rfl fun i _ => ?_
-      split_ifs <;> simp
-    · rw [sum_comm]
-      refine sum_congr rfl fun a _ => ?_
-      rw [mul_sum]
-      refine sum_congr rfl fun i _ => ?_
-      split_ifs <;> ring
-  rw [hswap]
-  calc ∑ a : α, p u a * U u a
+  calc ∑ i ∈ univ.filter (v · = u), ∑ a : α, p (v i) a * W i a
+      = ∑ i ∈ univ.filter (v · = u), ∑ a : α, p u a * W i a :=
+        sum_congr rfl fun i hi => by rw [(mem_filter.mp hi).2]
+    _ = ∑ a : α, p u a * U u a := by
+        rw [sum_comm]; exact sum_congr rfl fun a _ => (mul_sum ..).symm
     _ ≤ ∑ a : α, p u a * U u (f u) :=
-      sum_le_sum fun a _ => mul_le_mul_of_nonneg_left (hf u a) (hp0 u a)
-    _ = (∑ a : α, p u a) * U u (f u) := by rw [← sum_mul]
-    _ ≤ 1 * U u (f u) := mul_le_mul_of_nonneg_right (hp1 u) hU_nonneg
-    _ = ∑ i : I, if v i = u then W i (f u) else 0 := one_mul _
+        sum_le_sum fun a _ => mul_le_mul_of_nonneg_left (hf u a) (hp0 u a)
+    _ = (∑ a : α, p u a) * U u (f u) := (sum_mul ..).symm
+    _ ≤ 1 * U u (f u) :=
+        mul_le_mul_of_nonneg_right (hp1 u) (sum_nonneg fun i _ => hW i (f u))
+    _ = ∑ i ∈ univ.filter (v · = u), W i (f (v i)) := by
+        rw [one_mul]; exact sum_congr rfl fun i hi => by rw [(mem_filter.mp hi).2]
 
 end Finset
