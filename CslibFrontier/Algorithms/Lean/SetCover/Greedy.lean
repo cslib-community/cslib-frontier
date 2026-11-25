@@ -145,31 +145,40 @@ element among the candidates that do. -/
 theorem bestSet_spec {R : Finset α} {i : ι} (h : bestSet S w J R = some i) :
     i ∈ J ∧ (S i ∩ R).Nonempty ∧
       ∀ j ∈ J, (S j ∩ R).Nonempty → costPerUncovered S w R i ≤ costPerUncovered S w R j := by
-  obtain ⟨hi, hne⟩ := List.mem_filter.1 (List.argmin_mem h)
-  exact ⟨hi, of_decide_eq_true hne, fun j hj hne' =>
-    List.le_of_mem_argmin (List.mem_filter.2 ⟨hj, decide_eq_true hne'⟩) h⟩
+  have hmem := List.argmin_mem h
+  rw [List.mem_filter, decide_eq_true_eq] at hmem
+  refine ⟨hmem.1, hmem.2, fun j hj hne => List.le_of_mem_argmin ?_ h⟩
+  rw [List.mem_filter, decide_eq_true_eq]
+  exact ⟨hj, hne⟩
 
 /-- With at least `R.card` rounds, the greedy loop covers `R` whenever the candidates do. -/
 theorem greedyLoop_covers {k : ℕ} {R : Finset α} (hR : R.card ≤ k)
     (hcov : ∀ a ∈ R, ∃ j ∈ J, a ∈ S j) :
     ∀ a ∈ R, ∃ i ∈ greedyLoop S w J k R, a ∈ S i := by
   fun_induction greedyLoop S w J k R with
-  | case1 R => simp [Finset.card_eq_zero.1 (Nat.le_zero.1 hR)]
+  | case1 R =>
+    rw [Finset.card_eq_zero.1 (Nat.le_zero.1 hR)]
+    simp
   | case2 k R h =>
+    rw [bestSet_eq_none_iff] at h
     intro a ha
     obtain ⟨j, hj, haj⟩ := hcov a ha
-    exact absurd (bestSet_eq_none_iff.1 h j hj ▸ Finset.mem_inter.2 ⟨haj, ha⟩)
-      (Finset.notMem_empty a)
+    have : a ∈ S j ∩ R := Finset.mem_inter.2 ⟨haj, ha⟩
+    rw [h j hj] at this
+    exact absurd this (Finset.notMem_empty a)
   | case3 k R i h ih =>
+    obtain ⟨-, hne, -⟩ := bestSet_spec h
     have hlt : (R \ S i).card ≤ k := by
-      have := Finset.card_sdiff_add_card_inter R (S i)
-      have := (Finset.inter_comm R (S i) ▸ (bestSet_spec h).2.1).card_pos
+      have h1 := Finset.card_sdiff_add_card_inter R (S i)
+      have h2 : 0 < (R ∩ S i).card := by
+        rw [Finset.inter_comm]
+        exact hne.card_pos
       omega
+    have ih' := ih hlt fun a ha => hcov a (Finset.mem_sdiff.1 ha).1
     intro a ha
     by_cases hai : a ∈ S i
     · exact ⟨i, List.mem_cons_self, hai⟩
-    · obtain ⟨j, hj, haj⟩ := ih hlt (fun b hb => hcov b (Finset.sdiff_subset hb))
-        a (Finset.mem_sdiff.2 ⟨ha, hai⟩)
+    · obtain ⟨j, hj, haj⟩ := ih' a (Finset.mem_sdiff.2 ⟨ha, hai⟩)
       exact ⟨j, List.mem_cons_of_mem _ hj, haj⟩
 
 /-- A property of a chosen set relative to the uncovered elements holds of every set the greedy
@@ -178,11 +187,16 @@ private theorem forall_mem_greedyLoop {P : ι → Finset α → Prop}
     (hbest : ∀ {R i}, bestSet S w J R = some i → P i R)
     (hmono : ∀ {R R' i}, R' ⊆ R → P i R' → P i R) {k : ℕ} {R : Finset α} :
     ∀ i ∈ greedyLoop S w J k R, P i R := by
-  fun_induction greedyLoop S w J k R with
-  | case1 | case2 => simp
-  | case3 k R i h ih =>
-    simp only [List.mem_cons, forall_eq_or_imp]
-    exact ⟨hbest h, fun j hj => hmono Finset.sdiff_subset (ih j hj)⟩
+  induction k generalizing R with
+  | zero => simp [greedyLoop]
+  | succ k ih =>
+    unfold greedyLoop
+    rcases h : bestSet S w J R with _ | i
+    · simp
+    · intro j hj
+      rcases List.mem_cons.1 hj with rfl | hj
+      · exact hbest h
+      · exact hmono Finset.sdiff_subset (ih j hj)
 
 /-- The greedy loop chooses only candidates. -/
 theorem greedyLoop_subset {k : ℕ} {R : Finset α} : ∀ i ∈ greedyLoop S w J k R, i ∈ J :=
@@ -198,10 +212,11 @@ theorem greedyLoop_inter_nonempty {k : ℕ} {R : Finset α} :
 theorem nodup_greedyLoop {k : ℕ} {R : Finset α} : (greedyLoop S w J k R).Nodup := by
   fun_induction greedyLoop S w J k R with
   | case1 | case2 => simp
-  | case3 k R i _ ih =>
-    exact List.nodup_cons.2 ⟨fun hi =>
-      let ⟨_, ha⟩ := greedyLoop_inter_nonempty i hi
-      (Finset.mem_sdiff.1 (Finset.mem_inter.1 ha).2).2 (Finset.mem_inter.1 ha).1, ih⟩
+  | case3 k R i h ih =>
+    refine List.nodup_cons.2 ⟨fun hi => ?_, ih⟩
+    obtain ⟨a, ha⟩ := greedyLoop_inter_nonempty i hi
+    rw [Finset.mem_inter, Finset.mem_sdiff] at ha
+    exact ha.2.2 ha.1
 
 /-- The greedy loop runs at most its fuel many rounds. -/
 theorem length_greedyLoop_le {k : ℕ} {R : Finset α} : (greedyLoop S w J k R).length ≤ k := by
@@ -246,52 +261,84 @@ theorem sum_greedyLoop_le_sum_harmonic {k : ℕ} {R : Finset α} {C : Finset ι}
       (Rat.cast_nonneg.2 (harmonic_nonneg _))
   | case3 k R i h ih =>
     obtain ⟨hiJ, hne, hmin⟩ := bestSet_spec h
-    replace ih := ih fun a ha => hcov a (Finset.sdiff_subset ha)
+    replace ih := ih fun a ha => hcov a (Finset.mem_sdiff.1 ha).1
     rw [List.map_cons, List.sum_cons]
     set A := S i ∩ R with hA
-    set ρ : 𝕜 := w i / A.card
-    have hApos : (0 : 𝕜) < A.card := Nat.cast_pos.2 hne.card_pos
+    set ρ : 𝕜 := w i / A.card with hρ
+    have hApos : (0 : 𝕜) < A.card := by exact_mod_cast hne.card_pos
+    have hρ0 : 0 ≤ ρ := div_nonneg (hw i hiJ) hApos.le
+    -- The chosen set costs `ρ * |A|`, which the fractional cover of `A` pays at rate `ρ`.
     have hwi : w i ≤ ∑ j ∈ C, x j * ρ * (S j ∩ A).card := by
-      have hA1 : (A.card : 𝕜) ≤ ∑ j ∈ C, x j * (S j ∩ A).card := by
-        calc (A.card : 𝕜) = ∑ _a ∈ A, 1 := by simp
-          _ ≤ ∑ a ∈ A, ∑ j ∈ C with a ∈ S j, x j :=
-              Finset.sum_le_sum fun a ha => hcov a (Finset.mem_inter.1 ha).2
-          _ = ∑ j ∈ C, x j * (S j ∩ A).card := by
-              simp only [Finset.sum_filter]
-              rw [Finset.sum_comm]
-              refine Finset.sum_congr rfl fun j _ => ?_
-              rw [← Finset.sum_filter, Finset.sum_const, nsmul_eq_mul, mul_comm]
-              congr 3; ext a; simp [and_comm]
-      have hρ0 : 0 ≤ ρ := div_nonneg (hw i hiJ) hApos.le
-      calc w i = ρ * A.card := (div_mul_cancel₀ _ hApos.ne').symm
-        _ ≤ _ := by
-          simpa only [Finset.mul_sum, mul_left_comm ρ, ← mul_assoc] using
-            mul_le_mul_of_nonneg_left hA1 hρ0
+      have hcount : ∑ j ∈ C, x j * (S j ∩ A).card = ∑ a ∈ A, ∑ j ∈ C with a ∈ S j, x j := by
+        simp only [Finset.card_eq_sum_ones, Nat.cast_sum, Nat.cast_one, Finset.mul_sum,
+          mul_one, Finset.sum_filter]
+        rw [Finset.sum_comm]
+        refine Finset.sum_congr rfl fun j _ => ?_
+        rw [← Finset.sum_filter]
+        congr 1
+        ext a
+        simp only [Finset.mem_inter, Finset.mem_filter]
+        tauto
+      have hA1 : (A.card : 𝕜) ≤ ∑ a ∈ A, ∑ j ∈ C with a ∈ S j, x j := by
+        rw [Finset.card_eq_sum_ones, Nat.cast_sum, Nat.cast_one]
+        exact Finset.sum_le_sum fun a ha => hcov a (Finset.mem_inter.1 ha).2
+      calc w i = ρ * A.card := by rw [hρ, div_mul_cancel₀ _ hApos.ne']
+        _ ≤ ρ * ∑ j ∈ C, x j * (S j ∩ A).card := by
+          rw [hcount]
+          exact mul_le_mul_of_nonneg_left hA1 hρ0
+        _ = ∑ j ∈ C, x j * ρ * (S j ∩ A).card := by
+          rw [Finset.mul_sum]
+          exact Finset.sum_congr rfl fun j _ => by ring
+    -- Each set of the cover pays its share at most from its harmonic budget.
     have hstep : ∀ j ∈ C, x j * ρ * (S j ∩ A).card ≤
         x j * w j * (harmonic (S j ∩ R).card : 𝕜) -
-          x j * w j * (harmonic (S j ∩ (R \ S i)).card : 𝕜) := fun j hj => by
+          x j * w j * (harmonic (S j ∩ (R \ S i)).card : 𝕜) := by
+      intro j hj
       have hsplit : (S j ∩ R).card = (S j ∩ (R \ S i)).card + (S j ∩ A).card := by
-        rw [← Finset.card_sdiff_add_card_inter (S j ∩ R) (S i), Finset.inter_sdiff_assoc]
-        congr 2; ext a; simp only [Finset.mem_inter, hA]; tauto
+        have := Finset.card_sdiff_add_card_inter (S j ∩ R) (S i)
+        rw [Finset.inter_sdiff_assoc] at this
+        rw [← this]
+        congr 2
+        ext a
+        simp only [Finset.mem_inter, hA]
+        tauto
       rcases (S j ∩ A).eq_empty_or_nonempty with hjA | hjA
-      · simp [hjA, hsplit]
-      set a := (S j ∩ R).card
-      set b := (S j ∩ (R \ S i)).card
-      have hρj : ρ ≤ w j / a :=
-        hmin j (hCJ j hj) (hjA.mono (Finset.inter_subset_inter_left Finset.inter_subset_right))
+      · have : (S j ∩ R).card = (S j ∩ (R \ S i)).card := by
+          rw [hsplit, hjA, Finset.card_empty, add_zero]
+        rw [hjA, this, Finset.card_empty, Nat.cast_zero, mul_zero, sub_self]
+      set a := (S j ∩ R).card with ha
+      set b := (S j ∩ (R \ S i)).card with hb
+      have hjR : (S j ∩ R).Nonempty := by
+        obtain ⟨y, hy⟩ := hjA
+        exact ⟨y, by simp only [Finset.mem_inter, hA] at hy ⊢; tauto⟩
+      have hρj : ρ ≤ w j / a := hmin j (hCJ j hj) hjR
       have hH : ((a : 𝕜) - b) / a ≤ (harmonic a : 𝕜) - harmonic b := by
-        simpa using (Rat.cast_le (K := 𝕜)).2 (sub_div_le_harmonic_sub (a := a) (b := b) (by omega))
-      have hc : ((S j ∩ A).card : 𝕜) = a - b := eq_sub_of_add_eq' (by exact_mod_cast hsplit.symm)
-      calc x j * ρ * (S j ∩ A).card
-          ≤ x j * (w j / a) * (S j ∩ A).card :=
-            mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left hρj (hx j hj)) (Nat.cast_nonneg _)
-        _ = x j * w j * (((a : 𝕜) - b) / a) := by rw [hc]; ring
-        _ ≤ x j * w j * ((harmonic a : 𝕜) - harmonic b) :=
-            mul_le_mul_of_nonneg_left hH (mul_nonneg (hx j hj) (hw j (hCJ j hj)))
-        _ = _ := mul_sub _ _ _
-    refine (add_le_add hwi ih).trans ((add_le_add_left (Finset.sum_le_sum hstep) _).trans_eq ?_)
-    rw [← Finset.sum_add_distrib]
-    exact Finset.sum_congr rfl fun j _ => sub_add_cancel _ _
+        have := (Rat.cast_le (K := 𝕜)).2 (sub_div_le_harmonic_sub (a := a) (b := b) (by omega))
+        push_cast at this
+        exact this
+      have hc : ((S j ∩ A).card : 𝕜) = a - b := by
+        rw [hsplit]
+        push_cast
+        ring
+      rw [hc, ← mul_sub]
+      have hxw : 0 ≤ x j * w j := mul_nonneg (hx j hj) (hw j (hCJ j hj))
+      calc x j * ρ * (a - b) ≤ x j * (w j / a) * (a - b) := by
+            have hab : (0 : 𝕜) ≤ a - b := by
+              rw [← hc]
+              positivity
+            exact mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left hρj (hx j hj)) hab
+        _ = x j * w j * (((a : 𝕜) - b) / a) := by ring
+        _ ≤ x j * w j * ((harmonic a : 𝕜) - harmonic b) := by gcongr
+    calc w i + ((greedyLoop S w J k (R \ S i)).map w).sum
+        ≤ ∑ j ∈ C, x j * ρ * (S j ∩ A).card +
+            ∑ j ∈ C, x j * w j * (harmonic (S j ∩ (R \ S i)).card : 𝕜) := add_le_add hwi ih
+      _ ≤ ∑ j ∈ C, (x j * w j * (harmonic (S j ∩ R).card : 𝕜) -
+            x j * w j * (harmonic (S j ∩ (R \ S i)).card : 𝕜)) +
+            ∑ j ∈ C, x j * w j * (harmonic (S j ∩ (R \ S i)).card : 𝕜) :=
+          add_le_add_left (Finset.sum_le_sum hstep) _
+      _ = ∑ j ∈ C, x j * w j * (harmonic (S j ∩ R).card : 𝕜) := by
+          rw [← Finset.sum_add_distrib]
+          exact Finset.sum_congr rfl fun j _ => sub_add_cancel _ _
 
 /-- **Chvátal's bound** ([Chvatal1979]; cf. the proof of [WilliamsonShmoys2011], Theorem 1.12):
 against every fractional cover `x` of `U` by candidates, the greedy cover costs at most
@@ -312,9 +359,10 @@ theorem sum_greedy_le_harmonic_mul_fractional {U : Finset α} {C : Finset ι}
     ((greedy S w J U).map w).sum ≤ (harmonic d : 𝕜) * ∑ j ∈ C, x j * w j := by
   refine (sum_greedy_le_sum_harmonic hw hCJ hx hcov).trans ?_
   rw [Finset.mul_sum]
-  exact Finset.sum_le_sum fun j hj => mul_comm (harmonic d : 𝕜) _ ▸
-    mul_le_mul_of_nonneg_left (Rat.cast_le.2 (harmonic_mono (hd j hj)))
-      (mul_nonneg (hx j hj) (hw j (hCJ j hj)))
+  refine Finset.sum_le_sum fun j hj => ?_
+  rw [mul_comm (harmonic d : 𝕜)]
+  exact mul_le_mul_of_nonneg_left (Rat.cast_le.2 (harmonic_mono (hd j hj)))
+    (mul_nonneg (hx j hj) (hw j (hCJ j hj)))
 
 /-- **The `H d` guarantee** ([Chvatal1979]; [WilliamsonShmoys2011], Theorem 1.12): if the
 candidates `C` cover `U` and each of their sets meets `U` in at most `d` elements, the greedy cover
@@ -324,10 +372,12 @@ theorem sum_greedy_le_harmonic_mul {U : Finset α} {C : Finset ι} {d : ℕ}
     (hw : ∀ j ∈ J, 0 ≤ w j) (hCJ : ∀ j ∈ C, j ∈ J) (hcov : ∀ a ∈ U, ∃ j ∈ C, a ∈ S j)
     (hd : ∀ j ∈ C, (S j ∩ U).card ≤ d) :
     ((greedy S w J U).map w).sum ≤ (harmonic d : 𝕜) * ∑ j ∈ C, w j := by
-  simpa only [one_mul] using sum_greedy_le_harmonic_mul_fractional (x := fun _ => 1) hw hCJ
-    (fun _ _ => zero_le_one) (fun a ha => by
-      obtain ⟨j, hj, haj⟩ := hcov a ha
-      simpa using Finset.card_pos.2 ⟨j, Finset.mem_filter.2 ⟨hj, haj⟩⟩) hd
+  have h := sum_greedy_le_harmonic_mul_fractional (x := fun _ => 1) hw hCJ (fun _ _ => zero_le_one)
+    (fun a ha => ?_) hd
+  · simpa only [one_mul] using h
+  obtain ⟨j, hj, haj⟩ := hcov a ha
+  rw [Finset.sum_const, nsmul_eq_mul, mul_one, Nat.one_le_cast]
+  exact Finset.card_pos.2 ⟨j, Finset.mem_filter.2 ⟨hj, haj⟩⟩
 
 /-- **The `H n` guarantee** ([WilliamsonShmoys2011], Theorem 1.11): if the candidates `C` cover
 `U`, the greedy cover costs at most `H |U|` times the cost of `C`. -/
