@@ -46,9 +46,11 @@ the point is that finishing work in flight comes before starting more.
 A person running several coordinators names one of them the fleet's **tender**. The tender works
 the reactive loop in short turns, so that new requests reach it promptly: ready pull requests
 with no reviewer, outside contributors' first; the fleet's pull requests with changes requested
-and no fix; approved pull requests that are not queued; and pull requests ejected from the
-queue or conflicting with `main`. It skips anything another coordinator has claimed and does not
-take on long program work in the same session.
+and no fix; approved pull requests that are not queued; pull requests ejected from the
+queue or conflicting with `main`; and the sweeps of expired holds and claims and of heads waiting
+12 hours for a verdict ([Verdicts, claims and holds](review.md#verdicts-claims-and-holds)). It
+skips anything another coordinator has claimed and does not take on long program work in the same
+session.
 
 Use issues for substantial tasks, dependencies and remaining objectives; a small fix may use its
 PR as the durable task record. Search existing issues and PRs before creating a duplicate.
@@ -152,8 +154,9 @@ tooling.
 - For your own implementation, follow the worker rules and obtain non-author review under
   [Review cycle](review.md#review-cycle).
 
-If a shared GitHub account prevents formal approval, use one brief PR comment naming the reviewer
-agent/session, revision and verdict. This is agent review, not platform or human approval.
+If a shared GitHub account prevents formal approval, use one brief PR comment that opens with the
+verdict line ([Verdicts, claims and holds](review.md#verdicts-claims-and-holds)) and names the
+reviewer agent/session. This is agent review, not platform or human approval.
 
 ## Working on changes
 

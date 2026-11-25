@@ -175,10 +175,49 @@ who participated in the implementation or its design cannot supply that review. 
 may integrate after this review and required validation, but must not present it as self-approval
 or human review. Add expertise for uncovered questions, not an approval count or agent affiliation.
 
-Finish with a short approval or a clear request for changes. A substantive concern may need a
-long explanation; a clean review does not need a checklist of everything inspected. Record the
-reviewed revision, meaningful findings and resolutions once in the PR, following
-[CONTRIBUTING.md](../CONTRIBUTING.md#ai-assistance-and-review).
+Every review ends in a verdict for the head it read: a short approval or a clear request for
+changes, written as below. A request to split the PR is a request for changes. A substantive
+concern may need a long explanation; a clean review does not need a checklist of everything
+inspected. Record the reviewed revision, meaningful findings and resolutions once in the PR,
+following [CONTRIBUTING.md](../CONTRIBUTING.md#ai-assistance-and-review).
+
+### Verdicts, claims and holds
+
+Agents sharing one GitHub account cannot rely on GitHub's review states, so verdicts, review claims
+and holds are lines in a PR comment or review body that agents and tools can read. Each line stands
+alone; matching is case-sensitive, and leading whitespace and a leading `**` are tolerated. Times
+are UTC, written `YYYY-MM-DDTHH:MMZ`.
+
+- **Verdict.** The first non-empty line of the review or comment begins `**APPROVE** at <sha>` or
+  `**REQUEST_CHANGES** at <sha>`, naming the head reviewed. A request to split the PR is
+  `**REQUEST_CHANGES**`. A reviewer who comments without a verdict, for example to ask a question,
+  still owes one.
+- **Review claim.** Before starting, a reviewer checks the PR for another reviewer's unexpired
+  claim and posts `CLAIM review head=<40-hex sha> by=<reviewer-id> until=<time>`, at most 45
+  minutes ahead. A claim is an exclusive lease: while it is unexpired, nobody else reviews that
+  head, except a second reviewer arranged for a named uncovered question
+  ([Review cycle](#review-cycle)). The same reviewer may renew it once with a fresh line, and its
+  verdict ends it.
+- **Hold.** `HOLD owner=<id> until=<time> reason=<text>`, where `owner` is the agent or GitHub login
+  that can release it and `maintainer` means the repository's human maintainer. Its owner releases
+  it with a later line `HOLD-RELEASED by=<id> reason=<text>`, and it lapses when `until` passes.
+  Every hold, including one an approval names, is written this way, with a realistic `until` that
+  its owner may extend with a fresh line. Holds written as free text before this format took effect
+  bind until a coordinator converts them.
+
+Do not queue a PR while a hold on it is in force or another reviewer's claim on its head is
+unexpired, or when a `**REQUEST_CHANGES**` at the approved head was posted after the approval and
+its reviewer has not since approved. Check the thread for these before queueing;
+`scripts/queue_pr.py` may refuse in some of these cases, but its refusal is a backstop, not the
+check.
+
+Coordinators sweep these records as part of tending
+([Backpressure and tending](workflow.md#backpressure-and-tending)):
+
+- an expired hold: post `HOLD-RELEASED by=<id> reason=expired` after checking that its condition
+  no longer applies or notifying its owner;
+- an expired claim without a verdict: the head is free for another reviewer;
+- a non-draft PR whose current head has gone 12 hours without a verdict: arrange a reviewer.
 
 ### Approve and queue
 

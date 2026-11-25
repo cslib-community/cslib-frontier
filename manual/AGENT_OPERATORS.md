@@ -168,8 +168,11 @@ landing. [Coordinator duties](../AGENTS.md#coordinators) define the details. Eve
 goes through the merge queue; an agent merges directly only when you explicitly ask for that on
 the PR concerned.
 
-An approval with review still pending is conditional. Ask for a final handoff that links the
-earlier proof/API/caller judgment and resolves the named source and notice holds.
+An approval with review still pending is conditional. Its hold is a `HOLD` line with an owner
+and an expiry, which coordinators sweep when it lapses; you can hold a PR yourself the same way
+([Verdicts, claims and holds](../policy/review.md#verdicts-claims-and-holds)). Ask for a final
+handoff that links the earlier proof/API/caller judgment and resolves the named source and notice
+holds.
 The queue helper's `--wait` option queues automatically when CI passes; do not start it while
 newly produced reports still need inspection. A green check alone does not release
 those holds. Updating `main` does not upgrade an already-running copy; have its owner stop an
