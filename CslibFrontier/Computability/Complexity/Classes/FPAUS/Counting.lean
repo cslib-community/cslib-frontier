@@ -132,11 +132,7 @@ theorem preimage_startsWith (b : Bool) :
   ext o
   simp only [Set.mem_preimage, Set.mem_singleton_iff, startsWith_eq_true_iff, Set.mem_image,
     Set.mem_ofPred_eq]
-  constructor
-  · rintro ⟨w, rfl, hw⟩
-    exact ⟨w, hw, rfl⟩
-  · rintro ⟨w, hw, rfl⟩
-    exact ⟨w, rfl, hw⟩
+  grind
 
 /-- An almost uniform sampler's frequency of outputs beginning with `b` is within its tolerance
 of the fraction of witnesses beginning with `b`. -/
@@ -159,8 +155,16 @@ private theorem choose_real {π π' d d' γ : ℝ} (hsum : π + π' = 1) (hd : |
     (hd' : |d' - π'| ≤ γ) (hle : d' ≤ d) (hγ : γ ≤ 1 / 8) :
     1 / 4 ≤ π ∧ (1 - 4 * γ) * π ≤ d ∧ (1 - 4 * γ) * d ≤ π := by
   rw [abs_le] at hd hd'
-  have hπ : 1 / 4 ≤ π := by linarith
-  refine ⟨hπ, ?_, ?_⟩ <;> nlinarith
+  have hπ : 1 / 4 ≤ π := by linarith only [hsum, hd.2, hd'.1, hle, hγ]
+  have hγ0 : 0 ≤ γ := by linarith only [hd.1, hd.2]
+  have hγπ : γ ≤ 4 * (γ * π) := by
+    simpa only [show 4 * (γ * (1 / 4 : ℝ)) = γ by ring] using
+      mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left hπ hγ0) (by norm_num : (0 : ℝ) ≤ 4)
+  refine ⟨hπ, by rw [sub_mul, one_mul, mul_assoc]; linarith only [hd.1, hγπ], ?_⟩
+  have h1 : (1 - 4 * γ) * d ≤ (1 - 4 * γ) * (π + γ) :=
+    mul_le_mul_of_nonneg_left (by linarith only [hd.2]) (by linarith only [hγ])
+  have h2 : 0 ≤ 4 * γ ^ 2 := by positivity
+  linarith only [h1, hγπ, h2, show (1 - 4 * γ) * (π + γ) = π + γ - 4 * (γ * π) - 4 * γ ^ 2 by ring]
 
 /-- One level in counts: `c` and `c'` successes among `N` samples estimate the sampler's
 frequencies within `1 / M`, which are within `1 / M` of the witness fractions `a / A` and
@@ -175,48 +179,31 @@ private theorem level {N M a a' A c c' : ℕ} {P P' : ℝ} (hN : 0 < N) (hM : 16
   have hNR : (0 : ℝ) < N := by exact_mod_cast hN
   have hMR : (16 : ℝ) ≤ M := by exact_mod_cast hM
   have hγ : 2 / (M : ℝ) ≤ 1 / 8 := by
-    rw [div_le_div_iff₀ (by linarith) (by norm_num)]
-    linarith
-  have hd : |(c : ℝ) / N - a / A| ≤ 2 / M := by
-    calc |(c : ℝ) / N - a / A| ≤ |(c : ℝ) / N - P| + |P - a / A| := abs_sub_le _ _ _
-      _ ≤ 2 / M := by rw [show (2 : ℝ) / M = 1 / M + 1 / M by ring]; linarith
-  have hd' : |(c' : ℝ) / N - a' / A| ≤ 2 / M := by
-    calc |(c' : ℝ) / N - a' / A| ≤ |(c' : ℝ) / N - P'| + |P' - a' / A| := abs_sub_le _ _ _
-      _ ≤ 2 / M := by rw [show (2 : ℝ) / M = 1 / M + 1 / M by ring]; linarith
+    rw [div_le_div_iff₀ (by linarith only [hMR]) (by norm_num)]; linarith only [hMR]
+  have hd : |(c : ℝ) / N - a / A| ≤ 2 / M := (abs_sub_le _ P _).trans
+    (by rw [show (2 : ℝ) / M = 1 / M + 1 / M by ring]; linarith only [hc, hP])
+  have hd' : |(c' : ℝ) / N - a' / A| ≤ 2 / M := (abs_sub_le _ P' _).trans
+    (by rw [show (2 : ℝ) / M = 1 / M + 1 / M by ring]; linarith only [hc', hP'])
   have hsum : (a : ℝ) / A + a' / A = 1 := by
-    rw [← add_div, div_eq_one_iff_eq hAR.ne', hA]
-    push_cast
-    ring
+    rw [← add_div, div_eq_one_iff_eq hAR.ne', hA]; push_cast; ring
   have hle' : (c' : ℝ) / N ≤ c / N := by gcongr
   obtain ⟨hπ, h1, h2⟩ := choose_real hsum hd hd' hle' hγ
-  have h8 : 4 * (2 / (M : ℝ)) = 8 / M := by ring
-  rw [h8] at h1 h2
-  have hθ : (0 : ℝ) ≤ 1 - 8 / M := by
-    rw [sub_nonneg, div_le_one (by linarith)]
-    linarith
-  have ha : 0 < a := by
-    rcases Nat.eq_zero_or_pos a with h | h
-    · rw [h, Nat.cast_zero, zero_div] at hπ
-      norm_num at hπ
-    · exact h
-  have hcpos : 0 < c := by
-    rcases Nat.eq_zero_or_pos c with h | h
-    · rw [h, Nat.cast_zero, zero_div] at h1
-      have : (0 : ℝ) < a / A := by positivity
-      have h8M : 8 / (M : ℝ) ≤ 1 / 2 := by linarith
-      nlinarith
-    · exact h
+  rw [show 4 * (2 / (M : ℝ)) = 8 / M by ring] at h1 h2
+  have ha : 0 < a := Nat.pos_of_ne_zero fun h => by
+    rw [h, Nat.cast_zero, zero_div] at hπ; norm_num at hπ
+  have hcpos : 0 < c := Nat.pos_of_ne_zero fun h => by
+    rw [h, Nat.cast_zero, zero_div] at h1
+    have : (0 : ℝ) < (1 - 8 / M) * (a / A) :=
+      mul_pos (by rw [sub_pos, div_lt_one (by linarith only [hMR])]; linarith only [hMR])
+        (by positivity)
+    linarith only [h1, this]
   refine ⟨ha, hcpos, ?_, ?_⟩
-  · have := mul_le_mul_of_nonneg_right h1 (le_of_lt (mul_pos hNR hAR))
-    rw [show (1 - 8 / (M : ℝ)) * (a / A) * (N * A) = (1 - 8 / M) * N * a by
-      field_simp] at this
-    rw [show (c : ℝ) / N * (N * A) = c * A by field_simp] at this
-    exact this
-  · have := mul_le_mul_of_nonneg_right h2 (le_of_lt (mul_pos hNR hAR))
-    rw [show (1 - 8 / (M : ℝ)) * (c / N) * (N * A) = (1 - 8 / M) * c * A by
-      field_simp] at this
-    rw [show (a : ℝ) / A * (N * A) = N * a by field_simp] at this
-    exact this
+  · simpa only [show (1 - 8 / (M : ℝ)) * (a / A) * (N * A) = (1 - 8 / M) * N * a by field_simp,
+      show (c : ℝ) / N * (N * A) = c * A by field_simp] using
+      mul_le_mul_of_nonneg_right h1 (mul_pos hNR hAR).le
+  · simpa only [show (1 - 8 / (M : ℝ)) * (c / N) * (N * A) = (1 - 8 / M) * c * A by field_simp,
+      show (a : ℝ) / A * (N * A) = N * a by field_simp] using
+      mul_le_mul_of_nonneg_right h2 (mul_pos hNR hAR).le
 
 /-! ### The invariant -/
 
@@ -231,6 +218,9 @@ private def Good (x : α) (p i : ℕ) (s : State α) : Prop :=
       s.2.1 * (W s.1).card ∧
     (1 - 8 / (tolerance (R.len x) p : ℝ)) ^ i * (s.2.1 * (W s.1).card) ≤ s.2.2 * (W x).card
 
+private theorem sixteen_le_tolerance (ℓ p : ℕ) : 16 ≤ tolerance ℓ p :=
+  (Nat.le_mul_of_pos_right 16 (Nat.succ_pos ℓ)).trans (Nat.le_mul_of_pos_right _ (Nat.succ_pos p))
+
 /-- The invariant survives one deterministic update when the chosen child's count `a` and the
 sample count `c` satisfy the two relative bounds. -/
 private theorem good_update {x : α} {p i : ℕ} {s : State α} (hs : R.Good x p i s)
@@ -242,13 +232,8 @@ private theorem good_update {x : α} {p i : ℕ} {s : State α} (hs : R.Good x p
     R.Good x p (i + 1) (R.child s.1 b, s.2.1 * N, s.2.2 * c) := by
   obtain ⟨hl, hden, hW, h4, h5⟩ := hs
   set θ := 8 / (tolerance (R.len x) p : ℝ)
-  have hM : (16 : ℝ) ≤ tolerance (R.len x) p := by
-    unfold tolerance
-    push_cast
-    nlinarith [(Nat.cast_nonneg (R.len x) : (0 : ℝ) ≤ _), (Nat.cast_nonneg p : (0 : ℝ) ≤ _)]
-  have hθ : 0 ≤ 1 - θ := by
-    rw [sub_nonneg, div_le_one (by linarith)]
-    linarith
+  have hM : (16 : ℝ) ≤ tolerance (R.len x) p := by exact_mod_cast sixteen_le_tolerance _ _
+  have hθ : 0 ≤ 1 - θ := by rw [sub_nonneg, div_le_one (by linarith only [hM])]; linarith only [hM]
   have hpow : 0 ≤ (1 - θ) ^ i := pow_nonneg hθ i
   refine ⟨?_, Nat.mul_pos hden hc, ha, ?_, ?_⟩
   · rw [R.len_child s.1 hlen b]
@@ -282,7 +267,7 @@ private theorem good_next {x : α} {p t i : ℕ} {s : State α} (hi : i < R.len 
     R.Good x p (i + 1) (R.next (sampleCount (R.len x) p t) s c₀ c₁) := by
   have hlen : 0 < R.len s.1 := by have := hs.1; omega
   have hW := hs.2.2.1
-  have hM : 16 ≤ tolerance (R.len x) p := by unfold tolerance; nlinarith
+  have hM : 16 ≤ tolerance (R.len x) p := sixteen_le_tolerance _ _
   have hN : 0 < sampleCount (R.len x) p t := by unfold sampleCount; positivity
   have hsplit := R.card_eq_add hlen
   have hne : (W s.1).Nonempty := Finset.card_pos.1 hW
@@ -306,10 +291,9 @@ theorem mem_support_step {S : α → ℕ → ProbComp (Option (List Bool))} {ℓ
     {s s' : State α} (h : s' ∈ (ProbComp.eval (R.step S ℓ p t s)).support) :
     ∃ c₀ c₁, c₀ ≤ sampleCount ℓ p t ∧ c₁ ≤ sampleCount ℓ p t ∧
       s' = R.next (sampleCount ℓ p t) s c₀ c₁ := by
-  rw [step, ProbComp.eval_bind, PMF.mem_support_bind_iff] at h
-  obtain ⟨c₀, hc₀, h⟩ := h
-  rw [ProbComp.eval_map, PMF.mem_support_map_iff] at h
-  obtain ⟨c₁, hc₁, rfl⟩ := h
+  simp only [step, ProbComp.eval_bind, PMF.mem_support_bind_iff, ProbComp.eval_map,
+    PMF.mem_support_map_iff] at h
+  obtain ⟨c₀, hc₀, c₁, hc₁, rfl⟩ := h
   exact ⟨c₀, c₁, ProbComp.countTrue_le _ _ hc₀, ProbComp.countTrue_le _ _ hc₁, rfl⟩
 
 /-- **One level fails with probability at most `2 · 2 ^ (-(t + ℓ + 1))`**, from the invariant and
@@ -346,17 +330,13 @@ private theorem step_failure {S : α → ℕ → ProbComp (Option (List Bool))} 
       (bad false)ᶜ {s' | ¬ R.Good x p (i + 1) s'}
       (ENNReal.ofReal ((1 / 2 : ℝ) ^ (t + R.len x + 1))) (fun c₀ _ hc₀ => by
         rw [ProbComp.eval_map, PMF.toOuterMeasure_map_apply]
-        refine le_trans (MeasureTheory.measure_mono ?_) (hbadE true)
-        intro c₁ hc₁
+        refine le_trans (MeasureTheory.measure_mono fun c₁ hc₁ => ?_) (hbadE true)
         by_contra hc₁'
-        apply hc₁
-        refine R.good_next hi hs hS ?_ ?_
-        · simpa [bad] using hc₀
-        · simpa [bad] using hc₁')
+        exact hc₁ (R.good_next hi hs hS (by simpa [bad] using hc₀) (by simpa [bad] using hc₁')))
     rw [compl_compl] at h
     exact h.trans (add_le_add (hbadE false) le_rfl)
   ennreal_to_real at hle
-  linarith
+  linarith only [hle]
 
 /-- At the last level the invariant gives the accuracy guarantee. -/
 private theorem approxWithin_of_good {x : α} {p : ℕ} (hp : 0 < p) {s : State α}
@@ -378,37 +358,35 @@ private theorem approxWithin_of_good {x : α} {p : ℕ} (hp : 0 < p) {s : State 
   have hC : 0 ≤ C := Nat.cast_nonneg _
   have hnum : (0 : ℝ) ≤ s.2.1 := Nat.cast_nonneg _
   have hθ : 8 / (tolerance ℓ p : ℝ) = 1 / (2 * (ℓ + 1) * (p + 1)) := by
-    unfold tolerance
-    push_cast
-    field_simp
-    ring
+    unfold tolerance; push_cast; field_simp; ring
   have hθ0 : (0 : ℝ) ≤ 1 / (2 * (ℓ + 1) * (p + 1)) := by positivity
-  have hθ1 : 1 / (2 * ((ℓ : ℝ) + 1) * (p + 1)) ≤ 1 := by
-    rw [div_le_one (by positivity)]
-    nlinarith [(Nat.cast_nonneg ℓ : (0 : ℝ) ≤ _), hpR]
+  have hθ1 : 1 / (2 * ((ℓ : ℝ) + 1) * (p + 1)) ≤ 1 :=
+    div_le_one_of_le₀ (one_le_mul_of_one_le_of_one_le
+      (by linarith only [Nat.cast_nonneg (α := ℝ) ℓ]) (by linarith only [hpR])) (by positivity)
   have hK1 : K ≤ 1 := by
-    rw [hK_def, hθ]
-    exact pow_le_one₀ (by linarith) (by linarith)
+    rw [hK_def, hθ]; exact pow_le_one₀ (by linarith only [hθ1]) (by linarith only [hθ0])
   have hbern : 1 + (ℓ : ℝ) * (-(1 / (2 * (ℓ + 1) * (p + 1)))) ≤ K := by
-    rw [hK_def, hθ, sub_eq_add_neg]
-    exact one_add_mul_le_pow (by linarith) ℓ
+    rw [hK_def, hθ, sub_eq_add_neg]; exact one_add_mul_le_pow (by linarith only [hθ1]) ℓ
   have hKp : (p : ℝ) ≤ K * (p + 1) := by
     have hℓ : (ℓ : ℝ) * (1 / (2 * (ℓ + 1) * (p + 1))) * (p + 1) ≤ 1 := by
-      rw [show (ℓ : ℝ) * (1 / (2 * (ℓ + 1) * (p + 1))) * (p + 1) = ℓ / (2 * (ℓ + 1)) by
-        field_simp]
-      rw [div_le_one (by positivity)]
-      linarith
-    nlinarith
-  have hK0 : 0 ≤ K := by nlinarith
-  rw [abs_sub_le_iff]
-  constructor
-  · -- `num / den ≤ C + C / p`
-    rw [div_sub' hdenR.ne', div_le_div_iff₀ hdenR hpR]
-    nlinarith
-  · -- `C - C / p ≤ num / den`
-    rw [sub_div' hdenR.ne', div_le_div_iff₀ hdenR hpR]
-    have h1K : 0 ≤ 1 - (1 - K) * p := by nlinarith
-    nlinarith [mul_nonneg (sub_nonneg.2 h4) hpR.le, mul_nonneg (mul_nonneg hC hdenR.le) h1K]
+      rw [show (ℓ : ℝ) * (1 / (2 * (ℓ + 1) * (p + 1))) * (p + 1) = ℓ / (2 * (ℓ + 1)) by field_simp,
+        div_le_one (by positivity)]
+      linarith only [Nat.cast_nonneg (α := ℝ) ℓ]
+    have hm := mul_le_mul_of_nonneg_right hbern (by positivity : (0 : ℝ) ≤ p + 1)
+    linarith only [hm, hℓ, show (1 + (ℓ : ℝ) * -(1 / (2 * (ℓ + 1) * (p + 1)))) * (p + 1) =
+      p + 1 - ℓ * (1 / (2 * (ℓ + 1) * (p + 1))) * (p + 1) by ring]
+  refine abs_sub_le_iff.2 ⟨?_, ?_⟩
+  · rw [div_sub' hdenR.ne', div_le_div_iff₀ hdenR hpR]
+    have hm1 := mul_le_mul_of_nonneg_right h5 (by positivity : (0 : ℝ) ≤ p + 1)
+    have hm2 := mul_le_mul_of_nonneg_left hKp hnum
+    linarith only [hm1, hm2, show (s.2.1 : ℝ) * (K * (p + 1)) = K * s.2.1 * (p + 1) by ring,
+      show (s.2.2 : ℝ) * C * (p + 1) = C * s.2.2 * p + C * s.2.2 by ring]
+  · rw [sub_div' hdenR.ne', div_le_div_iff₀ hdenR hpR]
+    have hm1 := mul_le_mul_of_nonneg_right h4 hpR.le
+    have hm2 := mul_le_mul_of_nonneg_left
+      (show (1 - K) * p ≤ 1 by linarith only [hKp, hK1]) (mul_nonneg hC hdenR.le)
+    linarith only [hm1, hm2, show (C * s.2.2 - s.2.1) * p =
+      C * s.2.2 * ((1 - K) * p) + (K * s.2.2 * C * p - s.2.1 * p) by ring]
 
 /-! ### Accuracy -/
 
@@ -432,13 +410,10 @@ theorem estimate_eq_zero (S : α → ℕ → ProbComp (Option (List Bool))) {x :
       obtain ⟨c₀, c₁, -, -, rfl⟩ := R.mem_support_step hs'
       have hlen : 0 < R.len s.1 := by omega
       refine ⟨?_, R.card_child_eq_zero hlen hW _, Nat.mul_pos hden (by omega)⟩
-      simp only [next]
-      rw [R.len_child s.1 hlen]
+      rw [next, R.len_child s.1 hlen]
       omega) s hs
   obtain ⟨-, hW, hden⟩ := hinv
-  have hnil : [] ∉ W s.1 := fun h => by
-    rw [Finset.card_eq_zero] at hW
-    simp [hW] at h
+  have hnil : [] ∉ W s.1 := fun h => by simp [Finset.card_eq_zero.mp hW] at h
   exact ⟨by simp [hnil], hden⟩
 
 /-- **Accuracy of the sampling-to-counting estimator**: if `S x q` is within total-variation
@@ -476,8 +451,7 @@ theorem approxWithin_estimate {S : α → ℕ → ProbComp (Option (List Bool))}
     rw [this]
     calc (1 / 2 : ℝ) ^ t * (ℓ * (1 / 2) ^ ℓ) ≤ (1 / 2 : ℝ) ^ t * 1 := by
           gcongr
-          rw [one_div_pow, mul_one_div, div_le_one (by positivity)]
-          exact h2
+          rwa [one_div_pow, mul_one_div, div_le_one (by positivity)]
       _ = (1 / 2 : ℝ) ^ t := mul_one _
   rw [estimate, ProbComp.eval_map, PMF.toOuterMeasure_map_apply]
   set μ := ProbComp.eval (OracleComp.iterate ℓ (R.step S ℓ p t) (x, 1, 1))
@@ -486,9 +460,7 @@ theorem approxWithin_estimate {S : α → ℕ → ProbComp (Option (List Bool))}
   have hsub : goodᶜ ⊆ {s | ¬ R.Good x p ℓ s} := fun s hs hgood =>
     hs (R.approxWithin_of_good hp hgood)
   have hbad : (μ.toOuterMeasure goodᶜ).toReal ≤ (1 / 2 : ℝ) ^ t :=
-    (PMF.toOuterMeasure_toReal_mono _ hsub).trans
-      (hfail.trans hℓ)
-  have hsum := Probability.PMF.toOuterMeasure_toReal_add_compl μ good
-  linarith
+    (PMF.toOuterMeasure_toReal_mono _ hsub).trans (hfail.trans hℓ)
+  linarith only [hbad, Probability.PMF.toOuterMeasure_toReal_add_compl μ good]
 
 end Cslib.Complexity.SelfReducible

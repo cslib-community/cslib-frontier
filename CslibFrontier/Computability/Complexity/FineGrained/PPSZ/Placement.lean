@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Foundations.BooleanAnalysis.Bernoulli
 public import Mathlib.Data.Fintype.Perm
 public import Mathlib.MeasureTheory.Integral.IntervalIntegral.Basic
+import CslibFrontier.Tactic.FinsetCard
 import Mathlib.Analysis.SpecialFunctions.Integrals.Basic
 import Mathlib.Combinatorics.SetFamily.FourFunctions
 import Mathlib.GroupTheory.Perm.DomMulAct
@@ -360,9 +361,7 @@ theorem bernoulliProb_eq_bernoulliAverage [DecidableEq α] (U : Finset α) (r : 
     exact ⟨fun ⟨i, hi, he⟩ => he ▸ hi, fun ha => ⟨⟨a, hS ha⟩, ha, rfl⟩⟩
   · intro s _
     have hc : #({i | ¬ s i} : Finset U) = #U - #({i | s i} : Finset U) := by
-      have h := card_filter_add_card_filter_not (s := (univ : Finset U)) (fun i => s i)
-      rw [card_univ, Fintype.card_coe] at h
-      omega
+      finset_card [Fintype.card_coe U]
     rw [prod_ite, prod_const, prod_const, card_map, hc, mul_ite, mul_one, mul_zero]
 
 /-- The probability of an event is a polynomial in `r`, hence continuous. -/
@@ -423,9 +422,8 @@ theorem bernoulliProb_union_of_forall_insert [DecidableEq α] {D : Finset α} (h
   induction D using Finset.induction_on with
   | empty => rw [union_empty]
   | insert v D hv ih =>
-    have hvU : v ∉ U ∪ D := by
-      rw [mem_union, not_or]
-      exact ⟨fun h => disjoint_left.1 hUD h (mem_insert_self v D), hv⟩
+    have hvU : v ∉ U ∪ D :=
+      mem_union.not.2 <| not_or.2 ⟨fun h => disjoint_left.1 hUD h (mem_insert_self v D), hv⟩
     rw [union_insert, bernoulliProb_insert hvU,
       bernoulliProb_congr (E := fun S => E (insert v S)) (F := E)
         fun S _ => hE v (mem_insert_self v D) S,
@@ -559,14 +557,8 @@ theorem bernoulliProb_mul_le [Finite α] (hr : r ∈ Set.Icc (0 : ℝ) 1) (hE : 
     · by_cases hb : b ⊆ U
       · have hab : a ∩ b ⊆ U := inter_subset_left.trans ha
         have hab' : a ∪ b ⊆ U := union_subset ha hb
-        have e1 : #a + #b = #(a ∩ b) + #(a ∪ b) := by grind
-        have e2 : (#U - #a) + (#U - #b) = (#U - #(a ∩ b)) + (#U - #(a ∪ b)) := by
-          have h1 := card_le_card hab'
-          have h2 := card_union_add_card_inter a b
-          have h3 := card_le_card ha
-          have h4 := card_le_card hb
-          have h5 := card_le_card (subset_union_left : a ⊆ a ∪ b)
-          omega
+        have ⟨e1, e2⟩ : #a + #b = #(a ∩ b) + #(a ∪ b) ∧
+            (#U - #a) + (#U - #b) = (#U - #(a ∩ b)) + (#U - #(a ∪ b)) := by finset_card
         refine le_of_eq ?_
         simp only [hμ, ha, hb, hab, hab', ite_true]
         calc r ^ #a * (1 - r) ^ (#U - #a) * (r ^ #b * (1 - r) ^ (#U - #b))
@@ -737,11 +729,7 @@ private theorem classify_eq_one {α : Type*} [DecidableEq α] {P : Finset α} {p
   unfold classify
   by_cases hy : y ∈ P
   · simp only [hy, ite_true]
-    constructor
-    · intro h
-      exact absurd h (by decide)
-    · rintro rfl
-      exact absurd hy hp
+    exact ⟨fun h => absurd h (by decide), fun h => (hp (h ▸ hy)).elim⟩
   · by_cases hyp : y = p
     · subst hyp
       simp [hy]
@@ -824,19 +812,14 @@ private theorem placedBefore_eq_iff {π : Equiv.Perm (Fin n)} {x : Fin n} {S : F
     have hxs : π.symm x = s := by
       have := congrFun h x
       simp only [Function.comp_apply] at this
-      rw [(classify_eq_one hx).2 rfl, classify_eq_one hsI] at this
-      exact this
+      rwa [(classify_eq_one hx).2 rfl, classify_eq_one hsI] at this
     ext y
     have := congrArg (· = 0) (congrFun h y)
     simp only [Function.comp_apply, classify_eq_zero, mem_Iio, eq_iff_iff] at this
     rw [mem_placedBefore, hxs, this]
 
 private theorem card_lt_of_notMem {x : Fin n} {S : Finset (Fin n)} (hx : x ∉ S) : #S < n := by
-  have hSx : S ⊆ univ.erase x := fun y hy => mem_erase.2 ⟨by rintro rfl; exact hx hy, mem_univ y⟩
-  have := card_le_card hSx
-  rw [card_erase_of_mem (mem_univ x), card_univ, Fintype.card_fin] at this
-  have := x.pos
-  omega
+  finset_card
 
 /-- **The orders placing `S` before `x`** (original): `|S|! * (n - 1 - |S|)!` of the `n!` orders
 place exactly the variables of `S` before `x`. -/
@@ -889,8 +872,7 @@ theorem card_filter_placedBefore_div_factorial_eq_integral (x : Fin n)
     (E : Finset (Fin n) → Prop) [DecidablePred E] :
     (#(univ.filter fun π : Equiv.Perm (Fin n) => E (placedBefore π x)) : ℝ) / n.factorial =
       ∫ r in (0 : ℝ)..1, bernoulliProb (univ.erase x) r E := by
-  have hU : #(univ.erase x) = n - 1 := by
-    rw [card_erase_of_mem (mem_univ x), card_univ, Fintype.card_fin]
+  have hU : #(univ.erase x) = n - 1 := by finset_card
   have hfib := card_eq_sum_card_fiberwise (f := fun π : Equiv.Perm (Fin n) => placedBefore π x)
     (s := univ.filter fun π => E (placedBefore π x))
     (t := (univ.erase x).powerset.filter E) fun π hπ =>

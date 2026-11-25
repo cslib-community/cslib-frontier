@@ -13,7 +13,11 @@ public import CslibFrontier.Probability.MoserTardos.Coupling
 import CslibFrontier.Foundations.Probability.InfinitePi
 import CslibFrontier.Probability.MoserTardos.TotalVariation
 import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Probability.PMF.EventBind
+import CslibFrontier.Probability.PMF.ToReal
 import CslibFrontier.Probability.Product
+import CslibFrontier.Tactic.ENNRealToReal
+import Mathlib.Tactic.Linarith
 
 /-!
 # Replicable constraint solving by Moser–Tardos
@@ -259,9 +263,8 @@ theorem seedTable_disagree_le {ι : Type*} [Finite ι] (vbl : ι → Finset V)
     exact congrArg PMF.toMeasure (map_gridSample (P v))
   have hdis : ∀ v, κ v {x | x.1 ≠ x.2} ≤ ENNReal.ofReal (2 * dist (P v).toPMF (Q v).toPMF) :=
     fun v => by
-      rw [PMF.toMeasure_apply_eq_toOuterMeasure, PMF.toOuterMeasure_map_apply,
-        ← ENNReal.ofReal_toReal (Probability.PMF.toOuterMeasure_ne_top _ _)]
-      exact ENNReal.ofReal_le_ofReal (gridSample_disagree_le (P v) (Q v))
+      rw [PMF.toMeasure_apply_eq_toOuterMeasure, PMF.toOuterMeasure_map_apply]
+      ennreal_to_real using gridSample_disagree_le (P v) (Q v)
   have hP' : ∀ i, (Measure.pi fun v => (κ v).map Prod.fst).real (A i) ≤ p :=
     fun i => by simpa only [hκP] using measureReal_pi_toPMF_le P (hP i)
   set E : Set (∀ p : V × ℕ, α p.1 × α p.1) :=
@@ -273,27 +276,26 @@ theorem seedTable_disagree_le {ι : Type*} [Finite ι] (vbl : ι → Finset V)
       have h₂ := dependsOn_budgetedOutput (vbl := vbl) (r := r) (B := B) (x := sndTable T)
         (y := sndTable T') fun p hp => by simp only [sndTable]; rw [h p hp]
       simp only [E, Set.mem_ofPred_eq, h₁, h₂]
-  refine ENNReal.toReal_le_of_le_ofReal
-    (mul_nonneg (by norm_num) (sum_nonneg fun v _ => dist_nonneg)) ?_
-  calc (Probability.PMF.uniformOfFintype (BudgetSeed α L B)).toOuterMeasure
-          {σ | budgetedOutput vbl r B (seedTable B P σ) ≠
-            budgetedOutput vbl r B (seedTable B Q σ)}
-      = (Probability.PMF.uniformOfFintype (BudgetSeed α L B)).toOuterMeasure
-          (readSeed B G ⁻¹' E) := rfl
-    _ = coupledTable κ E := by rw [toOuterMeasure_readSeed B G hEdep, coupledTable_def]
-    _ ≤ coupledTable κ {T | Diverge vbl r T} := measure_mono fun T hT => by
-        by_contra hd
-        exact hT (budgetedOutput_eq_of_not_diverge hd)
-    _ ≤ 2 * ∑ v, κ v {x | x.1 ≠ x.2} :=
-        coupledTable_diverge_le_two_mul κ vbl r A (fun i => measurableSet_of_dependsOn (hA i)) hA
-          Γ hΓ hΓd hP' hp hr
-    _ ≤ 2 * ∑ v, ENNReal.ofReal (2 * dist (P v).toPMF (Q v).toPMF) := by
-        gcongr with v
-        exact hdis v
-    _ = ENNReal.ofReal (4 * ∑ v, dist (P v).toPMF (Q v).toPMF) := by
-        rw [← ENNReal.ofReal_sum_of_nonneg fun v _ => by positivity, ← ENNReal.ofReal_ofNat 2,
-          ← ENNReal.ofReal_mul (by norm_num), ← mul_sum, ← mul_assoc]
-        norm_num
+  have hcalc : (Probability.PMF.uniformOfFintype (BudgetSeed α L B)).toOuterMeasure
+      {σ | budgetedOutput vbl r B (seedTable B P σ) ≠
+        budgetedOutput vbl r B (seedTable B Q σ)} ≤
+      2 * ∑ v, ENNReal.ofReal (2 * dist (P v).toPMF (Q v).toPMF) :=
+    calc (Probability.PMF.uniformOfFintype (BudgetSeed α L B)).toOuterMeasure
+            {σ | budgetedOutput vbl r B (seedTable B P σ) ≠
+              budgetedOutput vbl r B (seedTable B Q σ)}
+        = (Probability.PMF.uniformOfFintype (BudgetSeed α L B)).toOuterMeasure
+            (readSeed B G ⁻¹' E) := rfl
+      _ = coupledTable κ E := by rw [toOuterMeasure_readSeed B G hEdep, coupledTable_def]
+      _ ≤ coupledTable κ {T | Diverge vbl r T} := measure_mono fun T hT =>
+          Classical.byContradiction fun hd => hT (budgetedOutput_eq_of_not_diverge hd)
+      _ ≤ 2 * ∑ v, κ v {x | x.1 ≠ x.2} :=
+          coupledTable_diverge_le_two_mul κ vbl r A (fun i => measurableSet_of_dependsOn (hA i)) hA
+            Γ hΓ hΓd hP' hp hr
+      _ ≤ 2 * ∑ v, ENNReal.ofReal (2 * dist (P v).toPMF (Q v).toPMF) := by
+          gcongr with v; exact hdis v
+  ennreal_to_real at hcalc
+  simp only [← mul_sum, ← mul_assoc] at hcalc
+  linarith
 
 omit [Fintype V] [∀ v, Fintype (α v)] [∀ v, DecidableEq (α v)] in
 /-- A budgeted run times out only after `B + 1` resamplings: its log after `B + 1` steps has
@@ -315,8 +317,8 @@ private theorem length_run_of_budgetedOutput_eq_none {ι : Type*} {vbl : ι → 
     induction m with
     | zero => rw [run_zero, List.length_nil]
     | succ m ih =>
-      obtain ⟨i, hi⟩ := Option.ne_none_iff_exists'.1 (hstep m (by omega))
-      rw [run_succ_of_eq_some hi, List.length_cons, ih (by omega)]
+      obtain ⟨i, hi⟩ := Option.ne_none_iff_exists'.1 (hstep m (by lia))
+      rw [run_succ_of_eq_some hi, List.length_cons, ih (by lia)]
   exact hlen _ le_rfl
 
 /-- **Timeouts are rare (original).** Let `r` be a non-anticipating rule that only selects
@@ -343,8 +345,9 @@ theorem seedTable_timeout_le {ι : Type*} [Fintype ι] (vbl : ι → Finset V)
   set μ : ∀ v, Measure (α v) := fun v => (P v).toPMF.toMeasure
   obtain ⟨hx, hPx⟩ := lll_of_symm (Measure.pi μ) Γ hΓd (fun i => measureReal_pi_toPMF_le P (hP i))
     hp
-  choose g hgm hg hge using fun i => exists_measurable_ge_resamplings μ vbl A
-    (fun i => measurableSet_of_dependsOn (hA i)) hA Γ hΓ hx hPx i
+  have hAm (i : ι) : MeasurableSet (A i) := measurableSet_of_dependsOn (hA i)
+  let maxSteps (T : ∀ p : V × ℕ, α p.1) : ℝ≥0∞ :=
+    ∑ i, ⨆ (w : List ι) (_ : IsLog vbl A T w), (w.count i : ℝ≥0∞)
   set E : Set (∀ p : V × ℕ, α p.1) := {T | budgetedOutput vbl r B T = none}
   have hEdep : DependsOn (· ∈ E) ((univ ×ˢ range (B + 1) : Finset (V × ℕ)) : Set (V × ℕ)) :=
     fun T T' h => by simp only [E, Set.mem_ofPred_eq, dependsOn_budgetedOutput h]
@@ -355,45 +358,33 @@ theorem seedTable_timeout_le {ι : Type*} [Fintype ι] (vbl : ι → Finset V)
       table_def]
     simp only [map_gridSample, μ]
   -- A timeout forces `B + 1` resamplings.
-  have hsub : E ⊆ {T | ((B + 1 : ℕ) : ℝ≥0∞) ≤ ∑ i, g i T} := fun T hT => by
-    set w := run (historyRule vbl r) T (B + 1)
-    calc ((B + 1 : ℕ) : ℝ≥0∞) = (w.length : ℝ≥0∞) := by
-          rw [length_run_of_budgetedOutput_eq_none B hT]
-      _ = ∑ i, (w.count i : ℝ≥0∞) := by
-          rw [← Nat.cast_sum]
-          congr 1
-          have := Multiset.sum_count_eq_card (s := univ) (m := (w : Multiset ι))
-            fun a _ => mem_univ a
-          simpa using this.symm
-      _ ≤ ∑ i, resamplings (historyRule vbl r) i T := sum_le_sum fun i _ => by
-          rw [resamplings_def]
-          exact le_iSup (fun n => ((run (historyRule vbl r) T n).count i : ℝ≥0∞)) (B + 1)
-      _ ≤ ∑ i, g i T := sum_le_sum fun i _ => hge i _ (historyRule_valid hr) T
+  have hsub : E ⊆ {T | ((B + 1 : ℕ) : ℝ≥0∞) ≤ maxSteps T} := fun T hT => by
+    have hlog := isLog_run vbl A (historyRule_valid hr) T (B + 1)
+    simpa only [Set.mem_ofPred_eq, maxSteps, length_run_of_budgetedOutput_eq_none B hT]
+      using length_le_sum_iSup_count vbl A hlog
   have hxd : (1 / (d + 2 : ℝ)) / (1 - 1 / (d + 2)) = 1 / (d + 1) := by
     have h2 : (d + 2 : ℝ) ≠ 0 := by positivity
     rw [one_sub_div h2, show (d + 2 : ℝ) - 1 = d + 1 by ring, div_div_div_cancel_right₀ h2]
-  have hint : ∫⁻ T, ∑ i, g i T ∂table μ ≤ Fintype.card ι * ENNReal.ofReal (1 / (d + 1)) := by
-    rw [lintegral_finsetSum _ fun i _ => hgm i]
-    calc ∑ i, ∫⁻ T, g i T ∂table μ ≤ ∑ _i : ι, ENNReal.ofReal (1 / (d + 1)) :=
-          sum_le_sum fun i _ => (hg i).trans_eq (by rw [hxd])
-      _ = _ := by rw [sum_const, card_univ, nsmul_eq_mul]
+  have hint : ∫⁻ T, maxSteps T ∂table μ ≤ Fintype.card ι * ENNReal.ofReal (1 / (d + 1)) := by
+    have h := lintegral_sum_iSup_count_le_of_bound μ vbl A hAm fun i =>
+      lintegral_iSup_count_le μ vbl A hAm hA Γ hΓ hx hPx i
+    simpa only [hxd, sum_const, card_univ, nsmul_eq_mul] using h
+  have hmeas : Measurable maxSteps :=
+    Finset.measurable_sum _ fun i _ => measurable_iSup_count vbl A hAm i
   have hB0 : ((B + 1 : ℕ) : ℝ≥0∞) ≠ 0 := Nat.cast_ne_zero.2 (Nat.succ_ne_zero B)
-  refine ENNReal.toReal_le_of_le_ofReal (by positivity) ?_
-  calc (Probability.PMF.uniformOfFintype (BudgetSeed α L B)).toOuterMeasure
-          {σ | budgetedOutput vbl r B (seedTable B P σ) = none}
-      = table μ E := hseed
-    _ ≤ table μ {T | ((B + 1 : ℕ) : ℝ≥0∞) ≤ ∑ i, g i T} := measure_mono hsub
-    _ ≤ (∫⁻ T, ∑ i, g i T ∂table μ) / ((B + 1 : ℕ) : ℝ≥0∞) :=
-        meas_ge_le_lintegral_div (Finset.measurable_sum _ fun i _ => hgm i).aemeasurable hB0
-          (ENNReal.natCast_ne_top _)
-    _ ≤ Fintype.card ι * ENNReal.ofReal (1 / (d + 1)) / ((B + 1 : ℕ) : ℝ≥0∞) := by
-        gcongr
-    _ = ENNReal.ofReal (Fintype.card ι / ((d + 1) * (B + 1))) := by
-        rw [← ENNReal.ofReal_natCast (Fintype.card ι), ← ENNReal.ofReal_mul (by positivity),
-          ← ENNReal.ofReal_natCast (B + 1), ← ENNReal.ofReal_div_of_pos (by positivity)]
-        congr 1
-        push_cast
-        field_simp
+  have hcalc : (Probability.PMF.uniformOfFintype (BudgetSeed α L B)).toOuterMeasure
+      {σ | budgetedOutput vbl r B (seedTable B P σ) = none} ≤
+      Fintype.card ι * ENNReal.ofReal (1 / (d + 1)) / ((B + 1 : ℕ) : ℝ≥0∞) := by
+    rw [hseed]
+    calc table μ E ≤ table μ {T | ((B + 1 : ℕ) : ℝ≥0∞) ≤ maxSteps T} := measure_mono hsub
+      _ ≤ (∫⁻ T, maxSteps T ∂table μ) / ((B + 1 : ℕ) : ℝ≥0∞) :=
+          meas_ge_le_lintegral_div hmeas.aemeasurable hB0
+            (ENNReal.natCast_ne_top _)
+      _ ≤ Fintype.card ι * ENNReal.ofReal (1 / (d + 1)) / ((B + 1 : ℕ) : ℝ≥0∞) := by gcongr
+  ennreal_to_real at hcalc
+  refine hcalc.trans_eq ?_
+  push_cast
+  field_simp
 
 /-- The **budgeted Moser–Tardos learner**. On the dataset `S`, it runs the rule `historyRule r`
 for `B` steps on the table of the shared seed for the estimated grid distributions `P̂ S`, and
@@ -427,46 +418,19 @@ theorem isAccurateOn_budgetedMoserTardos {ι X : Type*} [Fintype ι] {m : ℕ}
     IsAccurateOn (budgetedMoserTardos B vbl r est) D (goodOutput A)
       (Fintype.card ι / ((d + 1) * (B + 1)) +
         ((Probability.PMF.iid D m).toOuterMeasure goodᶜ).toReal) := by
-  set c : ℝ := Fintype.card ι / ((d + 1) * (B + 1))
-  have hS : ∀ S, ((Probability.PMF.uniformOfFintype (BudgetSeed α L B)).map fun σ =>
-      budgetedOutput vbl r B (seedTable B (est S) σ)).toOuterMeasure (goodOutput A)ᶜ ≤
-        ENNReal.ofReal c + goodᶜ.indicator 1 S := fun S => by
-    rw [PMF.toOuterMeasure_map_apply]
-    by_cases hSg : S ∈ good
-    · rw [Set.indicator_of_notMem (Set.notMem_compl_iff.2 hSg), add_zero]
-      refine (measure_mono fun σ hσ => ?_).trans
-        (ENNReal.le_ofReal_iff_toReal_le (Probability.PMF.toOuterMeasure_ne_top _ _)
-          (by positivity) |>.2 (seedTable_timeout_le B vbl r (est S) A hA Γ hΓ hΓd (hP S hSg)
-            hp hr))
-      simp only [Set.mem_preimage, Set.mem_compl_iff, goodOutput, Set.mem_ofPred_eq,
-        not_exists, not_and] at hσ ⊢
-      cases ho : budgetedOutput vbl r B (seedTable B (est S) σ) with
-      | none => rfl
-      | some a => exact absurd (fun i => budgetedOutput_eq_some hstop ho i) (hσ a ho)
-    · rw [Set.indicator_of_mem hSg]
-      exact le_add_left (Probability.PMF.toOuterMeasure_le_one _ _)
-  have hbound : (((budgetedMoserTardos B vbl r est).marginal D).toOuterMeasure
-      (goodOutput A)ᶜ) ≤ ENNReal.ofReal c + (Probability.PMF.iid D m).toOuterMeasure goodᶜ := by
-    rw [Algorithm.marginal, PMF.toOuterMeasure_bind_apply]
-    calc ∑' S, Probability.PMF.iid D m S *
-          ((budgetedMoserTardos B vbl r est).output S).toOuterMeasure (goodOutput A)ᶜ
-        ≤ ∑' S, Probability.PMF.iid D m S * (ENNReal.ofReal c + goodᶜ.indicator 1 S) := by
-          refine tsum_le_tsum fun S => ?_
-          gcongr
-          have h := hS S
-          rw [← PMF.bind_pure_comp] at h
-          exact h
-      _ = ENNReal.ofReal c + (Probability.PMF.iid D m).toOuterMeasure goodᶜ := by
-          simp only [mul_add, tsum_add, ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul,
-            PMF.toOuterMeasure_apply]
-          congr 1
-          refine tsum_congr fun S => ?_
-          by_cases hSg : S ∈ goodᶜ <;> simp [Set.indicator, hSg]
-  refine (ENNReal.toReal_mono
-    (ENNReal.add_ne_top.2 ⟨ENNReal.ofReal_ne_top, Probability.PMF.toOuterMeasure_ne_top _ _⟩)
-    hbound).trans ?_
-  rw [ENNReal.toReal_add ENNReal.ofReal_ne_top (Probability.PMF.toOuterMeasure_ne_top _ _),
-    ENNReal.toReal_ofReal (by positivity)]
+  change (((budgetedMoserTardos B vbl r est).marginal D).toOuterMeasure (goodOutput A)ᶜ).toReal ≤ _
+  rw [Algorithm.marginal, add_comm]
+  refine Probability.PMF.toOuterMeasure_bind_failure_toReal_le _ _ good _
+    (by positivity) fun S _ hS => ?_
+  change (((Probability.PMF.uniformOfFintype (BudgetSeed α L B)).map fun σ =>
+    budgetedOutput vbl r B (seedTable B (est S) σ)).toOuterMeasure (goodOutput A)ᶜ).toReal ≤ _
+  rw [PMF.toOuterMeasure_map_apply]
+  refine (Probability.PMF.toOuterMeasure_toReal_mono _
+    (t := {σ | budgetedOutput vbl r B (seedTable B (est S) σ) = none}) fun σ hσ => ?_).trans
+    (seedTable_timeout_le B vbl r (est S) A hA Γ hΓ hΓd (hP S hS) hp hr)
+  cases ho : budgetedOutput vbl r B (seedTable B (est S) σ) with
+  | none => exact ho
+  | some a => exact (hσ ⟨a, ho, budgetedOutput_eq_some hstop ho⟩).elim
 
 /-- **Strong accuracy of the budgeted learner (original).** If the local-lemma hypothesis holds
 for the estimates of every dataset, the learner outputs an assignment avoiding every event except
@@ -504,13 +468,9 @@ private theorem toReal_tsum_tsum_iid {X : Type*} {m : ℕ} (D : PMF X)
       _ = μ S₁ := by rw [ENNReal.tsum_mul_left, PMF.tsum_coe, mul_one]
   have hout : ∑' S₁, ∑' S₂, μ S₁ * μ S₂ * ENNReal.ofReal (f S₁ S₂) ≤ 1 :=
     (tsum_le_tsum hin).trans_eq μ.tsum_coe
-  refine ⟨ne_top_of_le_ne_top ENNReal.one_ne_top hout, ?_⟩
-  rw [ENNReal.tsum_toReal_eq fun S₁ => ne_top_of_le_ne_top (μ.apply_ne_top S₁) (hin S₁)]
-  refine tsum_congr fun S₁ => ?_
-  rw [ENNReal.tsum_toReal_eq fun S₂ => ENNReal.mul_ne_top
-    (ENNReal.mul_ne_top (μ.apply_ne_top _) (μ.apply_ne_top _)) ENNReal.ofReal_ne_top]
-  refine tsum_congr fun S₂ => ?_
-  rw [ENNReal.toReal_mul, ENNReal.toReal_mul, ENNReal.toReal_ofReal (hf0 _ _)]
+  have hin_top : ∀ S₁, ∑' S₂, μ S₁ * μ S₂ * ENNReal.ofReal (f S₁ S₂) ≠ ∞ :=
+    fun S₁ => ne_top_of_le_ne_top (μ.apply_ne_top S₁) (hin S₁)
+  exact ⟨ne_top_of_le_ne_top ENNReal.one_ne_top hout, by ennreal_to_real⟩
 
 /-- **Replicable constraint solving (original).** Let `r` be a non-anticipating rule that only
 selects occurring events, and let the dataset `S` determine grid estimates `P̂ S v` of the
@@ -549,50 +509,34 @@ theorem disagreeProb_budgetedMoserTardos_le {ι X : Type*} [Finite ι] {m : ℕ}
     rw [PMF.toOuterMeasure_map_apply]
     by_cases hS : S₁ ∈ good
     · rw [Set.indicator_of_notMem (Set.notMem_compl_iff.2 hS), add_zero]
-      refine (ENNReal.le_ofReal_iff_toReal_le (Probability.PMF.toOuterMeasure_ne_top _ _)
-        (mul_nonneg (by norm_num) (sum_nonneg fun v _ => dist_nonneg)) |>.2
-          (seedTable_disagree_le B vbl r (est S₁) (est S₂) A hA Γ hΓ hΓd (hP S₁ hS) hp hr)).trans
-        (le_of_eq ?_)
-      rw [← ENNReal.ofReal_sum_of_nonneg fun v _ => dist_nonneg, ← ENNReal.ofReal_ofNat 4,
-        ← ENNReal.ofReal_mul (by norm_num)]
+      ennreal_to_real using
+        seedTable_disagree_le B vbl r (est S₁) (est S₂) A hA Γ hΓ hΓd (hP S₁ hS) hp hr
     · rw [Set.indicator_of_mem hS]
       exact le_add_left (Probability.PMF.toOuterMeasure_le_one _ _)
   have hbound : ((budgetedMoserTardos B vbl r est).pairedOutput D).toOuterMeasure
       {q | q.1 ≠ q.2} ≤ 4 * ∑ v, e v + μ.toOuterMeasure goodᶜ := by
-    rw [budgetedMoserTardos, Algorithm.pairedOutput_deterministic_eq_samples,
+    simp only [budgetedMoserTardos, Algorithm.pairedOutput_deterministic_eq_samples,
       PMF.toOuterMeasure_bind_apply]
-    calc ∑' S₁, μ S₁ * (μ.bind fun S₂ =>
-            (Probability.PMF.uniformOfFintype (BudgetSeed α L B)).map fun σ =>
-              (budgetedOutput vbl r B (seedTable B (est S₁) σ),
-                budgetedOutput vbl r B (seedTable B (est S₂) σ))).toOuterMeasure {q | q.1 ≠ q.2}
-        ≤ ∑' S₁, μ S₁ * ∑' S₂, μ S₂ *
+    calc
+      _ ≤ ∑' S₁, μ S₁ * ∑' S₂, μ S₂ *
             (4 * ∑ v, ENNReal.ofReal (dist (est S₁ v).toPMF (est S₂ v).toPMF) +
-              goodᶜ.indicator 1 S₁) := by
-          refine tsum_le_tsum fun S₁ => ?_
-          gcongr
-          rw [PMF.toOuterMeasure_bind_apply]
-          exact tsum_le_tsum fun S₂ => by gcongr; exact hpair S₁ S₂
+              goodᶜ.indicator 1 S₁) :=
+        tsum_le_tsum fun S₁ => mul_le_mul_of_nonneg_left
+          (tsum_le_tsum fun S₂ => mul_le_mul_of_nonneg_left (hpair S₁ S₂) zero_le) zero_le
       _ = 4 * ∑ v, e v + μ.toOuterMeasure goodᶜ := by
           simp only [mul_add, tsum_add, ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul,
-            PMF.toOuterMeasure_apply]
+            ← Probability.PMF.toOuterMeasure_eq_tsum_mul_indicator]
           congr 1
-          · simp only [e, mul_sum, ← ENNReal.tsum_mul_left]
-            rw [← Summable.tsum_finsetSum fun _ _ => CompleteLattice.summable]
-            refine tsum_congr fun S₁ => ?_
-            rw [← Summable.tsum_finsetSum fun _ _ => CompleteLattice.summable]
-            refine tsum_congr fun S₂ => sum_congr rfl fun v _ => ?_
-            ring
-          · refine tsum_congr fun S => ?_
-            by_cases hSg : S ∈ goodᶜ <;> simp [Set.indicator, hSg]
-  have hfin₁ : 4 * ∑ v, e v ≠ ∞ :=
-    ENNReal.mul_ne_top ENNReal.ofNat_ne_top (ENNReal.sum_ne_top.2 fun v _ => (he v).1)
+          simp only [e, mul_sum, ← ENNReal.tsum_mul_left]
+          rw [← Summable.tsum_finsetSum fun _ _ => CompleteLattice.summable]
+          refine tsum_congr fun S₁ => ?_
+          rw [← Summable.tsum_finsetSum fun _ _ => CompleteLattice.summable]
+          refine tsum_congr fun S₂ => sum_congr rfl fun v _ => ?_
+          ring
+  have he_top : ∀ v, e v ≠ ∞ := fun v => (he v).1
+  ennreal_to_real at hbound
   rw [Algorithm.disagreeProb]
-  refine (ENNReal.toReal_mono (ENNReal.add_ne_top.2 ⟨hfin₁, Probability.PMF.toOuterMeasure_ne_top
-    _ _⟩) hbound).trans_eq ?_
-  rw [ENNReal.toReal_add hfin₁ (Probability.PMF.toOuterMeasure_ne_top _ _),
-    ENNReal.toReal_mul, ENNReal.toReal_sum fun v _ => (he v).1, ENNReal.toReal_ofNat]
-  simp only [fun v => (he v).2]
-  rfl
+  exact hbound.trans_eq (by simp only [e, μ, fun v => (he v).2])
 
 end Seed
 

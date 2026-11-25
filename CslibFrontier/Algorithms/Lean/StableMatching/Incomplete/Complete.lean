@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.Lean.StableMatching.DeferredAcceptance
 public import CslibFrontier.Algorithms.Lean.StableMatching.Incomplete.DeferredAcceptance
+import CslibFrontier.Tactic.FinsetCard
 import Mathlib.Data.Finset.Card
 import Mathlib.Data.List.FinRange
 import Mathlib.Data.List.Nodup
@@ -106,13 +107,10 @@ theorem isSome_of_isStable_toIncompleteInstance {ν : PartialMatching n n}
     (hν : I.toIncompleteInstance.IsStable ν) (p : Fin n) : (ν p).isSome := by
   by_contra hp
   rw [Option.not_isSome_iff_eq_none] at hp
-  have hlt : (PartialMatching.matchedReceivers ν).card < (Finset.univ : Finset (Fin n)).card := by
-    rw [PartialMatching.card_matchedReceivers]
-    refine Finset.card_lt_card ⟨Finset.subset_univ _, fun h => ?_⟩
-    have := PartialMatching.mem_matchedProposers.1 (h (Finset.mem_univ p))
-    rw [hp] at this
-    exact absurd this (by simp)
-  obtain ⟨r, -, hr⟩ := Finset.exists_mem_notMem_of_card_lt_card hlt
+  obtain ⟨r, hr⟩ : ∃ r, r ∉ PartialMatching.matchedReceivers ν := by
+    finset_card [PartialMatching.card_matchedReceivers ν,
+      show p ∉ PartialMatching.matchedProposers ν by
+        simp [PartialMatching.mem_matchedProposers, hp]]
   rw [PartialMatching.mem_matchedReceivers, Option.not_isSome_iff_eq_none] at hr
   refine hν.2 p r ⟨?_, ?_⟩
   · rw [hp, toIncompleteInstance_propRank_some, toIncompleteInstance_propRank_none]

@@ -74,10 +74,8 @@ edges with directions. -/
 
 private theorem Extends.cons {t : E → Bool} {ρ : List (E × Bool)}
     (h : Extends t ρ) {e : E} {b : Bool}
-    (he : t e = b) : Extends t ((e, b) :: ρ) := by
-  rintro p (_ | ⟨_, hp⟩)
-  · exact he
-  · exact h p hp
+    (he : t e = b) : Extends t ((e, b) :: ρ) :=
+  List.forall_mem_cons.2 ⟨he, h⟩
 
 namespace Vertex
 
@@ -87,9 +85,8 @@ private theorem sum_add_le_of_mem {α : Type*} {l : List α} {f g : α → ℕ} 
   | nil => exact absurd hx List.not_mem_nil
   | cons y l ih =>
     simp only [List.map_cons, List.sum_cons]
-    by_cases hxy : x = y
-    · subst hxy
-      have := List.sum_le_sum (l := l) fun z hz => h z (List.mem_cons_of_mem _ hz)
+    rcases eq_or_ne x y with rfl | hxy
+    · have := List.sum_le_sum (l := l) fun z hz => h z (List.mem_cons_of_mem _ hz)
       omega
     · have := ih (List.mem_of_ne_of_mem hxy hx) fun z hz => h z (List.mem_cons_of_mem _ hz)
       have := h y List.mem_cons_self
@@ -146,25 +143,19 @@ namespace Vertex
 
 /-- An extension receives at most the largest in-flow. -/
 private theorem inflow_le_maxInflow (v : Vertex E) {t : E → Bool} {ρ : List (E × Bool)}
-    (h : Extends t ρ) : v.inflow t ≤ v.maxInflow ρ := by
-  refine List.sum_le_sum fun p _ => ?_
-  by_cases hp : p.port.In t
-  · simp [hp, Port.mayIn_of_in h hp]
-  · simp [hp]
+    (h : Extends t ρ) : v.inflow t ≤ v.maxInflow ρ :=
+  List.sum_le_sum fun p _ => by by_cases hp : p.port.In t <;> simp [hp, Port.mayIn_of_in h]
 
 /-- An extension in which the undetermined edge of the port `p` points away receives at most the
 largest in-flow less the weight of `p`. -/
 private theorem inflow_add_le_maxInflow (v : Vertex E) {t : E → Bool} {ρ : List (E × Bool)}
     (h : Extends t ρ) {p : WeightedPort E} (hp : p ∈ v.ports) (hρ : ρ.lookup p.port.edge = none)
     (ht : ¬p.port.In t) : v.inflow t + p.weight ≤ v.maxInflow ρ := by
-  have hmay : p.port.mayIn ρ = true := by simp [Port.mayIn, hρ]
-  have := sum_add_le_of_mem (f := fun p => if p.port.In t then p.weight else 0)
+  have hsum := sum_add_le_of_mem (f := fun p => if p.port.In t then p.weight else 0)
     (g := fun p => if p.port.mayIn ρ then p.weight else 0) hp (by simp [ht]) fun q _ => by
-      by_cases hq : q.port.In t
-      · simp [hq, Port.mayIn_of_in h hq]
-      · simp [hq]
-  simp only [hmay, ↓reduceIte] at this
-  exact this
+      by_cases hq : q.port.In t <;> simp [hq, Port.mayIn_of_in h]
+  simp only [show p.port.mayIn ρ = true by simp [Port.mayIn, hρ], ↓reduceIte] at hsum
+  exact hsum
 
 /-- The vertex seen after reversing the edge `e`. -/
 @[expose] def flipAt (e : E) (v : Vertex E) : Vertex E :=
@@ -227,10 +218,7 @@ private theorem propagateRound_sound {vs : List (Vertex E)} {t : E → Bool}
     intro ρ h
     obtain ⟨ρ₁, h₁, he₁⟩ := v.propagate_sound h (hvs v List.mem_cons_self)
     obtain ⟨ρ₂, h₂, he₂⟩ := ih (fun w hw => hvs w (List.mem_cons_of_mem _ hw)) he₁
-    refine ⟨ρ₂, ?_, he₂⟩
-    simp only [propagateRound, List.foldlM_cons] at h₂ ⊢
-    rw [h₁]
-    exact h₂
+    exact ⟨ρ₂, by simpa [propagateRound, h₁] using h₂, he₂⟩
 
 /-- **Propagation is sound**: an extension satisfying every vertex extends the result. -/
 private theorem propagateRounds_sound {vs : List (Vertex E)} {t : E → Bool}
@@ -280,12 +268,9 @@ vertices seen after reversing `e`, then no `t` extending `ρ` that satisfies the
 after the reversal exists. -/
 theorem Refutes.not_step {vs : List (Vertex E)} {e : E} {ρ : List (E × Bool)}
     (hr : Refutes (vs ++ vs.map (Vertex.flipAt e)) ρ) {t : E → Bool} (h : Extends t ρ)
-    (ht : ∀ v ∈ vs, v.Sat t) (ht' : ∀ v ∈ vs, v.Sat (reverse t e)) : False := by
-  refine hr h fun v hv => ?_
-  rcases List.mem_append.1 hv with hv | hv
-  · exact ht v hv
-  · obtain ⟨w, hw, rfl⟩ := List.mem_map.1 hv
-    exact (Vertex.sat_flipAt e w t).2 (ht' w hw)
+    (ht : ∀ v ∈ vs, v.Sat t) (ht' : ∀ v ∈ vs, v.Sat (reverse t e)) : False :=
+  hr h <| List.forall_mem_append.2 ⟨ht, List.forall_mem_map.2 fun w hw =>
+    (Vertex.sat_flipAt e w t).2 (ht' w hw)⟩
 
 end Propagation
 
@@ -298,17 +283,15 @@ private theorem sat_extend (hf : Function.Injective f) (t : E → Bool) (v : Ver
 
 private theorem extends_map (hf : Function.Injective f) {t : E → Bool} {l : List (E × Bool)}
     (h : Extends t l) :
-    Extends (Function.extend f t fun _ => false) (l.map fun p => (f p.1, p.2)) := fun p hp => by
-  obtain ⟨q, hq, rfl⟩ := List.mem_map.1 hp
-  exact (hf.extend_apply _ _ _).trans (h q hq)
+    Extends (Function.extend f t fun _ => false) (l.map fun p => (f p.1, p.2)) :=
+  List.forall_mem_map.2 fun q hq => (hf.extend_apply _ _ _).trans (h q hq)
 
 /-- **Refutations survive renaming**: refuting the vertices over an injective renaming of the
 edges, for instance by numbers, refutes them over the edges themselves. -/
 theorem Refutes.of_map (hf : Function.Injective f) {vs : List (Vertex E)} {l : List (E × Bool)}
     (hr : Refutes (vs.map (Vertex.map f)) (l.map fun p => (f p.1, p.2))) : Refutes vs l :=
-  fun t h hvs => hr (extends_map hf h) fun v hv => by
-    obtain ⟨w, hw, rfl⟩ := List.mem_map.1 hv
-    exact (sat_extend hf t w).2 (hvs w hw)
+  fun t h hvs => hr (extends_map hf h) <|
+    List.forall_mem_map.2 fun w hw => (sat_extend hf t w).2 (hvs w hw)
 
 /-- Reversing an edge commutes with an injective renaming. -/
 theorem Vertex.map_flipAt [DecidableEq E] [DecidableEq E'] (hf : Function.Injective f) (e : E)

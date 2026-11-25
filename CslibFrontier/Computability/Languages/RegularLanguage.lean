@@ -62,29 +62,23 @@ theorem IsRegular.setOf_forall_mem (p : Symbol → Prop) :
     Language.IsRegular {w : List Symbol | ∀ a ∈ w, p a} := by
   classical
   let M : DFA Symbol Bool := ⟨fun s a => s && decide (p a), true, {true}⟩
-  have key : ∀ (w : List Symbol) (s : Bool),
-      M.evalFrom s w = (s && decide (∀ a ∈ w, p a)) := by
-    intro w
+  have key (w : List Symbol) : ∀ s : Bool, M.evalFrom s w = (s && decide (∀ a ∈ w, p a)) := by
     induction w with
-    | nil => intro s; simp [DFA.evalFrom_nil]
-    | cons a w ih =>
-      intro s
-      rw [DFA.evalFrom_cons, ih]
-      simp only [M, List.mem_cons, forall_eq_or_imp, Bool.and_assoc, Bool.decide_and]
+    | nil => simp [DFA.evalFrom_nil]
+    | cons a w ih => simp [M, DFA.evalFrom_cons, ih, Bool.and_assoc, Bool.decide_and]
   refine ⟨Bool, inferInstance, M, ?_⟩
   ext w
   rw [DFA.mem_accepts, DFA.eval, key]
-  simp only [M, Bool.true_and, Set.mem_singleton_iff, decide_eq_true_eq]
-  rfl
+  change (true && decide (∀ a ∈ w, p a)) ∈ ({true} : Set Bool) ↔ ∀ a ∈ w, p a
+  simp
 
 /-- The words with some letter satisfying `p` form a regular language. -/
 theorem IsRegular.setOf_exists_mem (p : Symbol → Prop) :
     Language.IsRegular {w : List Symbol | ∃ a ∈ w, p a} := by
-  have e : ({w : List Symbol | ∃ a ∈ w, p a} : Language Symbol) =
-      ({w : List Symbol | ∀ a ∈ w, ¬ p a} : Language Symbol)ᶜ := by
-    ext w; simp
-  rw [e]
-  exact (IsRegular.setOf_forall_mem _).compl
+  have h : ({w : List Symbol | ∃ a ∈ w, p a} : Language Symbol) = {w | ∀ a ∈ w, ¬ p a}ᶜ := by
+    ext w
+    simp
+  exact h ▸ (IsRegular.setOf_forall_mem _).compl
 
 private theorem exists_lt_iff_mem_mul (p q : Symbol → Prop) (w : List Symbol) :
     (∃ i j : Fin w.length, i < j ∧ p w[i] ∧ q w[j]) ↔

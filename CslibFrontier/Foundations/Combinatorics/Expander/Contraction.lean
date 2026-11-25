@@ -211,39 +211,25 @@ def finSlotDecode (p : Fin n × Fin k) : Option (Fin m) :=
 
 /-- Quotient/remainder indexing and a checked multiply/add are partial inverses. -/
 theorem isPartialInv_finSlots (hcap : m ≤ k * n) :
-    Function.IsPartialInv (finSlotEncode hcap) (finSlotDecode (m := m)) := by
-  intro v p
-  constructor
-  · intro hdecode
-    unfold finSlotDecode at hdecode
-    split at hdecode
-    · have hv := Option.some.inj hdecode
-      have he : Fin.castLE hcap v = finProdFinEquiv (p.2, p.1) := by
-        apply Fin.ext
-        exact (congrArg Fin.val hv).symm
-      change Prod.swap (finProdFinEquiv.symm (Fin.castLE hcap v)) = p
-      rw [he, Equiv.symm_apply_apply]
-      rfl
-    · contradiction
-  · intro hencode
-    have he : Fin.castLE hcap v = finProdFinEquiv (p.2, p.1) := by
-      apply finProdFinEquiv.symm.injective
-      rw [Equiv.symm_apply_apply]
-      change Prod.swap (finSlotEncode hcap v) = (p.2, p.1)
-      rw [hencode]
-      rfl
-    have hp : (finProdFinEquiv (p.2, p.1)).val < m := by rw [← he]; exact v.isLt
+    Function.IsPartialInv (finSlotEncode hcap) (finSlotDecode (m := m)) := fun v p => by
+  refine ⟨fun hdecode => ?_, fun hencode => ?_⟩
+  · unfold finSlotDecode at hdecode
+    split_ifs at hdecode with hp
+    have he : Fin.castLE hcap v = finProdFinEquiv (p.2, p.1) :=
+      Fin.ext (congrArg Fin.val (Option.some.inj hdecode)).symm
+    change Prod.swap (finProdFinEquiv.symm (Fin.castLE hcap v)) = p
+    rw [he, Equiv.symm_apply_apply]; rfl
+  · have he : Fin.castLE hcap v = finProdFinEquiv (p.2, p.1) :=
+      finProdFinEquiv.symm.injective <| (congrArg Prod.swap hencode).trans
+        (Equiv.symm_apply_apply _ _).symm
+    have hp : (finProdFinEquiv (p.2, p.1)).val < m := he ▸ v.isLt
     simp only [finSlotDecode, hp, dite_true]
-    apply congrArg some
-    exact Fin.ext (congrArg (fun j : Fin (k * n) => j.val) he.symm)
+    exact congrArg some (Fin.ext (congrArg (fun j : Fin (k * n) => j.val) he.symm))
 
 /-- If there are at least `n` original vertices, every new vertex has a representative. -/
 private theorem finSlotEncode_fst_surjective (hcap : m ≤ k * n) (hsize : n ≤ m) :
-    Function.Surjective (fun v => (finSlotEncode hcap v).1) := by
-  intro w
-  refine ⟨⟨w.val, w.isLt.trans_le hsize⟩, ?_⟩
-  apply Fin.ext
-  exact Nat.mod_eq_of_lt w.isLt
+    Function.Surjective (fun v => (finSlotEncode hcap v).1) := fun w =>
+  ⟨⟨w.val, w.isLt.trans_le hsize⟩, Fin.ext (Nat.mod_eq_of_lt w.isLt)⟩
 
 /-- Contract an indexed graph from `m` vertices to `n` vertices, using `k` slots per vertex. -/
 def contractFin (G : RotationMap (Fin m) D) (hcap : m ≤ k * n) :

@@ -136,30 +136,15 @@ a period of `w`. -/
 theorem isProperBorderLen_iff_isPeriod {α : Type*} {w : List α} {k : ℕ} :
     IsProperBorderLen w k ↔ k < w.length ∧ IsPeriod w (w.length - k) := by
   rw [isProperBorderLen_iff_take_eq_drop]
-  constructor
-  · rintro ⟨hk, heq⟩
-    refine ⟨hk, fun i hi => ?_⟩
-    have hik : i < k := by omega
-    have h1 : (w.take k)[i]'(by simp only [List.length_take]; omega) = w[i]'(by omega) :=
-      List.getElem_take
-    have h2 : (w.drop (w.length - k))[i]'(by simp only [List.length_drop]; omega) =
-        w[w.length - k + i]'(by omega) :=
-      List.getElem_drop
-    have heq_i : (w.take k)[i]'(by simp only [List.length_take]; omega) =
-        (w.drop (w.length - k))[i]'(by simp only [List.length_drop]; omega) := by
-      simp only [heq]
-    have hidx : w.length - k + i = i + (w.length - k) := Nat.add_comm _ _
-    rw [← h1, heq_i, h2]
-    simp only [hidx]
-  · rintro ⟨hk, hper⟩
-    refine ⟨hk, List.ext_getElem ?_ fun i h1 h2 => ?_⟩
-    · simp only [List.length_take, List.length_drop]
-      omega
-    · simp only [List.length_take] at h1
-      have hik : i < k := by omega
-      rw [List.getElem_take, List.getElem_drop]
-      have hidx : w.length - k + i = i + (w.length - k) := Nat.add_comm _ _
-      simpa only [hidx] using hper i (by omega)
+  refine and_congr_right fun hk => ⟨fun heq i hi => ?_, fun hper => ?_⟩
+  · have h : (w.take k)[i]'(by simp only [List.length_take]; omega) =
+        (w.drop (w.length - k))[i]'(by simp only [List.length_drop]; omega) := by simp only [heq]
+    rw [List.getElem_take, List.getElem_drop] at h
+    simpa only [Nat.add_comm] using h
+  · refine List.ext_getElem (by simp only [List.length_take, List.length_drop]; omega)
+      fun i h1 _ => ?_
+    rw [List.getElem_take, List.getElem_drop]
+    simpa only [Nat.add_comm] using hper i (by simp only [List.length_take] at h1; omega)
 
 /-- A proper border of a proper border of `w` is itself a proper border of `w`. -/
 theorem IsProperBorderLen.trans {α : Type*} {w : List α} {j k : ℕ}
@@ -453,98 +438,63 @@ private theorem maxPrefixSuffixUpTo_congr {α : Type*} [DecidableEq α] {p t t' 
   have := le_maxPrefixSuffixUpTo hkB' hkp hsuf'
   omega
 
+/-- For `B ≤ p.length`, prefixes of `p` of length `j ≤ B` that are suffixes of `t` are exactly
+those of length `j ≤ k` that are suffixes of `p.take k`, where `k = maxPrefixSuffixUpTo p t B`. -/
+private theorem le_and_take_isSuffix_iff {α : Type*} [DecidableEq α] {p t : List α} {B j : ℕ}
+    (hB : B ≤ p.length) :
+    j ≤ B ∧ p.take j <:+ t ↔
+      j ≤ maxPrefixSuffixUpTo p t B ∧ p.take j <:+ p.take (maxPrefixSuffixUpTo p t B) := by
+  have hkB := maxPrefixSuffixUpTo_le_bound p t B
+  have hksuf := take_maxPrefixSuffixUpTo_isSuffix p t B
+  constructor
+  · rintro ⟨hjB, hjsuf⟩
+    have hjk := le_maxPrefixSuffixUpTo hjB (by omega) hjsuf
+    exact ⟨hjk, List.suffix_of_suffix_length_le hjsuf hksuf
+      (by simp only [List.length_take]; omega)⟩
+  · rintro ⟨hjk, hjsuf⟩
+    exact ⟨by omega, hjsuf.trans hksuf⟩
+
+private theorem nextLen_eq_maxPrefixSuffixUpTo {α : Type*} [DecidableEq α]
+    (p : List α) (m : ℕ) (c : α) (hm : m < p.length) :
+    nextLen p m c = maxPrefixSuffixUpTo p (p.take m ++ [c]) (m + 1) := by
+  fun_induction nextLen p m c with
+  | case1 m hm hmatch =>
+    apply eq_maxPrefixSuffixUpTo_iff.mpr
+    refine ⟨Nat.le_refl _, by omega, ?_, fun s hslt hs_le _ _ => by omega⟩
+    rw [take_succ_isSuffix_append_iff hm]
+    exact ⟨List.suffix_rfl, hmatch⟩
+  | case2 hm hmatch =>
+    apply eq_maxPrefixSuffixUpTo_iff.mpr
+    refine ⟨Nat.zero_le _, Nat.zero_le _, List.nil_suffix, fun s hslt hs_le _ hssuf => ?_⟩
+    obtain rfl : s = 1 := by omega
+    exact hmatch ((take_succ_isSuffix_append_iff hm).mp hssuf).2
+  | case3 m hm hmatch hm0 ih =>
+    have hblt : borderLen p m < m :=
+      borderLen_lt (by omega) (List.ne_nil_of_length_pos (by omega))
+    rw [ih (by omega), borderLen_eq_maxPrefixSuffixUpTo (Nat.le_of_lt hm)]
+    refine maxPrefixSuffixUpTo_congr fun j hj => ?_
+    rw [take_succ_isSuffix_append_iff (by omega), take_succ_isSuffix_append_iff (by omega),
+      Nat.add_le_add_iff_right, Nat.add_le_add_iff_right, ← and_assoc, ← and_assoc,
+      ← le_and_take_isSuffix_iff (by omega)]
+    exact and_congr_left fun hjc => and_congr_left fun _ =>
+      ⟨by omega, fun hjm => by
+        have : j ≠ m := fun h => hmatch (h ▸ hjc)
+        omega⟩
+  | case4 m hm' => exact absurd hm hm'
+
 /-- Master KMP step theorem: for any bound `B < p.length` and word `t`, extending `t` by one
 character `c` updates `maxPrefixSuffixUpTo p t B` via `nextLen p · c`. -/
 theorem maxPrefixSuffixUpTo_append_singleton {α : Type*} [DecidableEq α]
     (p t : List α) (c : α) {B : ℕ} (hB : B < p.length) :
     maxPrefixSuffixUpTo p (t ++ [c]) (B + 1) =
       nextLen p (maxPrefixSuffixUpTo p t B) c := by
-  set k := maxPrefixSuffixUpTo p t B
-  have hkB : k ≤ B := maxPrefixSuffixUpTo_le_bound p t B
-  have hkp : k < p.length := Nat.lt_of_le_of_lt hkB hB
-  have hksuf : p.take k <:+ t := take_maxPrefixSuffixUpTo_isSuffix p t B
-  have h_valid_iff : ∀ j, j ≤ B ∧ p.take j <:+ t ↔ j = k ∨ IsProperBorderLen (p.take k) j := by
-    intro j
-    constructor
-    · rintro ⟨hjB, hjsuf⟩
-      have hjk : j ≤ k := le_maxPrefixSuffixUpTo (B := B) hjB (by omega) hjsuf
-      rcases Nat.eq_or_lt_of_le hjk with rfl | hjlt
-      · exact Or.inl rfl
-      · right
-        refine ⟨by rw [List.length_take_of_le (Nat.le_of_lt hkp)]; exact hjlt, ?_⟩
-        rw [List.take_take, Nat.min_eq_left (Nat.le_of_lt hjlt)]
-        exact List.suffix_of_suffix_length_le hjsuf hksuf (by simp only [List.length_take]; omega)
-    · rintro (rfl | hjprop)
-      · exact ⟨hkB, hksuf⟩
-      · have hjlt : j < k := by
-          have := hjprop.1
-          rwa [List.length_take_of_le (Nat.le_of_lt hkp)] at this
-        have hjsuf_k : p.take j <:+ p.take k := by
-          have := hjprop.2
-          rwa [List.take_take, Nat.min_eq_left (Nat.le_of_lt hjlt)] at this
-        exact ⟨by omega, hjsuf_k.trans hksuf⟩
-  suffices hrec : ∀ m, m < p.length →
-      nextLen p m c = maxPrefixSuffixUpTo p (p.take m ++ [c]) (m + 1) by
-    rw [hrec k hkp]
-    have hiff_pos : ∀ j, j ≤ B →
-        (p.take (j + 1) <:+ t ++ [c] ↔ j ≤ k ∧ p.take (j + 1) <:+ p.take k ++ [c]) := by
-      intro j hjB
-      rw [take_succ_isSuffix_append_iff (by omega), take_succ_isSuffix_append_iff (by omega)]
-      constructor
-      · rintro ⟨hjt, hjc⟩
-        rcases (h_valid_iff j).mp ⟨hjB, hjt⟩ with rfl | hjprop
-        · exact ⟨Nat.le_refl k, List.suffix_rfl, hjc⟩
-        · have hjlt : j < k := by
-            have := hjprop.1
-            rwa [List.length_take_of_le (Nat.le_of_lt hkp)] at this
-          have hjsuf_k : p.take j <:+ p.take k := by
-            have := hjprop.2
-            rwa [List.take_take, Nat.min_eq_left (Nat.le_of_lt hjlt)] at this
-          exact ⟨Nat.le_of_lt hjlt, hjsuf_k, hjc⟩
-      · rintro ⟨hjk, hjsuf_k, hjc⟩
-        exact ⟨hjsuf_k.trans hksuf, hjc⟩
-    refine maxPrefixSuffixUpTo_congr fun j hj => ⟨fun ⟨hjB, hsuf⟩ => ?_, fun ⟨hjk, hsuf⟩ => ?_⟩
-    · obtain ⟨hjk, hsuf'⟩ := (hiff_pos j (by omega)).mp hsuf
-      exact ⟨by omega, hsuf'⟩
-    · exact ⟨by omega, (hiff_pos j (by omega)).mpr ⟨by omega, hsuf⟩⟩
-  intro m hm
-  induction m using Nat.strongRecOn with
-  | ind m ih =>
-    rw [nextLen]
-    simp only [hm, ↓reduceDIte]
-    split_ifs with hmatch hm0
-    · apply eq_maxPrefixSuffixUpTo_iff.mpr
-      refine ⟨Nat.le_refl _, by omega, ?_, fun s hslt hs_le _ _ => by omega⟩
-      rw [take_succ_isSuffix_append_iff hm]
-      exact ⟨List.suffix_rfl, hmatch⟩
-    · subst hm0
-      apply eq_maxPrefixSuffixUpTo_iff.mpr
-      refine ⟨Nat.zero_le _, Nat.zero_le _, List.nil_suffix, fun s hslt hs_le hsp hssuf => ?_⟩
-      have hs1 : s = 1 := by omega
-      subst hs1
-      rw [take_succ_isSuffix_append_iff hm] at hssuf
-      exact hmatch hssuf.2
-    · have hp : p ≠ [] := by rintro rfl; simp only [List.length_nil] at hm; omega
-      have hblt : borderLen p m < m := borderLen_lt (by omega) hp
-      rw [ih (borderLen p m) hblt (by omega)]
-      set b := borderLen p m
-      have hb_eq : b = maxPrefixSuffixUpTo p (p.take m) (m - 1) :=
-        borderLen_eq_maxPrefixSuffixUpTo (Nat.le_of_lt hm)
-      have hbsuf : p.take b <:+ p.take m :=
-        hb_eq ▸ take_maxPrefixSuffixUpTo_isSuffix p (p.take m) (m - 1)
-      -- A border of `p.take m` extends by `c` exactly when it extends past the border `b`,
-      -- since `p.take m` itself does not extend (`p[m] ≠ c`).
-      refine maxPrefixSuffixUpTo_congr fun j hj => ?_
-      rw [take_succ_isSuffix_append_iff (by omega), take_succ_isSuffix_append_iff (by omega)]
-      constructor
-      · rintro ⟨hjb, hjsuf, hjc⟩
-        exact ⟨by omega, hjsuf.trans hbsuf, hjc⟩
-      · rintro ⟨hjm, hjsuf, hjc⟩
-        have hjm' : j ≠ m := fun hjeq => hmatch (hjeq ▸ hjc)
-        have hjb : j ≤ b :=
-          hb_eq ▸ le_maxPrefixSuffixUpTo (B := m - 1) (by omega) (by omega) hjsuf
-        exact ⟨by omega, List.suffix_of_suffix_length_le hjsuf hbsuf
-          (by simp only [List.length_take]; omega), hjc⟩
+  have hkp : maxPrefixSuffixUpTo p t B < p.length :=
+    Nat.lt_of_le_of_lt (maxPrefixSuffixUpTo_le_bound p t B) hB
+  rw [nextLen_eq_maxPrefixSuffixUpTo p _ c hkp]
+  refine maxPrefixSuffixUpTo_congr fun j hj => ?_
+  rw [take_succ_isSuffix_append_iff (by omega), take_succ_isSuffix_append_iff (by omega),
+    Nat.add_le_add_iff_right, Nat.add_le_add_iff_right, ← and_assoc, ← and_assoc,
+    le_and_take_isSuffix_iff (Nat.le_of_lt hB)]
 
 /-- Recurrence for the KMP prefix function (`[CLRS2009]`, Lemma 32.6 and Corollary 32.7): for
 `1 ≤ q < p.length`, `borderLen p (q + 1) = nextLen p (borderLen p q) p[q]`. -/
@@ -552,14 +502,11 @@ theorem borderLen_succ {α : Type*} [DecidableEq α] {p : List α} {q : ℕ}
     (hq1 : 1 ≤ q) (hqp : q < p.length) :
     borderLen p (q + 1) = nextLen p (borderLen p q) (p[q]'hqp) := by
   obtain ⟨r, rfl⟩ : ∃ r, q = r + 1 := ⟨q - 1, by omega⟩
-  have h1 : borderLen p (r + 1 + 1) = maxPrefixSuffixUpTo p (p.take (r + 1 + 1)) (r + 1) :=
-    borderLen_eq_maxPrefixSuffixUpTo (Nat.succ_le_of_lt hqp)
-  have h2 : borderLen p (r + 1) = maxPrefixSuffixUpTo p (p.take (r + 1)) r :=
-    borderLen_eq_maxPrefixSuffixUpTo (Nat.le_of_lt hqp)
-  have htake : p.take (r + 1 + 1) = p.take (r + 1) ++ [p[r + 1]'hqp] := by
-    rw [List.take_add_one, getElem?_pos p (r + 1) hqp, Option.toList_some]
-  rw [h1, htake, maxPrefixSuffixUpTo_append_singleton p (p.take (r + 1)) (p[r + 1]'hqp) (by omega),
-    ← h2]
+  rw [borderLen_eq_maxPrefixSuffixUpTo (Nat.succ_le_of_lt hqp),
+    borderLen_eq_maxPrefixSuffixUpTo (Nat.le_of_lt hqp),
+    List.take_add_one, getElem?_pos p (r + 1) hqp, Option.toList_some,
+    Nat.succ_sub_one, Nat.add_sub_cancel,
+    maxPrefixSuffixUpTo_append_singleton p (p.take (r + 1)) (p[r + 1]'hqp) (by omega)]
 
 /-- Resetting a full pattern match `m = p.length` (`0 < p.length`) to `borderLen p p.length`
 recovers the longest proper prefix of `p` that is a suffix of `t`. -/

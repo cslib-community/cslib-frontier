@@ -10,10 +10,8 @@ module
 public import CslibFrontier.Init
 public import Mathlib.Combinatorics.Matroid.Basic
 public import Mathlib.Data.Fintype.Card
-import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Combinatorics.Matroid.Minor.Restrict
-import Mathlib.Order.Preorder.Finite
 
 /-!
 # `p`-Systems of Finite Sets

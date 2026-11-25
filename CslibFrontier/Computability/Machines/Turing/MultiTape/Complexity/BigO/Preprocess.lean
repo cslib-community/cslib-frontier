@@ -72,8 +72,7 @@ theorem ComputableInO.comp_polyTime {f : β → γ} {g : α → β} {T S : β �
               (Nat.pow_le_pow_right hL (Nat.le_add_left _ _)))
         _ = _ := by rw [Nat.mul_left_comm]
     calc L ^ d + T (g a)
-        ≤ 2 ^ E a * L ^ (d + e₀ * e) + (c + 1) ^ e * (2 ^ E a * L ^ (d + e₀ * e)) :=
-          Nat.add_le_add hd hT'
+        ≤ 2 ^ E a * L ^ (d + e₀ * e) + (c + 1) ^ e * (2 ^ E a * L ^ (d + e₀ * e)) := by gcongr
       _ = ((c + 1) ^ e + 1) * (2 ^ E a * L ^ (d + e₀ * e)) := by rw [Nat.add_mul, Nat.one_mul,
           Nat.add_comm]
       _ ≤ _ := Nat.mul_le_mul (by omega) (Nat.le_succ _)

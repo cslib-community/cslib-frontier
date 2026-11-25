@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Memory
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 
 /-!
 # Charged timestamp insertion for native child queries
@@ -34,9 +35,6 @@ def EmitLocal (i : Fin registers) : Prop :=
 instance (i : Fin registers) : Decidable (EmitLocal i) :=
   inferInstanceAs (Decidable (i = address ∨ i = marker ∨ i = temporary ∨ i = childCount))
 
-private theorem emit_preserves (i : Fin registers) : ¬EmitLocal i → emit.Preserves i := by
-  decide +kernel +revert
-
 /-- Timestamp insertion performs its real load, comparison, optional stores and increment.
 The result states the exact memory update even before a caller supplies array separation. -/
 theorem exec_emit {w : ℕ} (x : Data registers) (h1 : x.regs one = 1)
@@ -53,29 +51,13 @@ theorem exec_emit {w : ℕ} (x : Data registers) (h1 : x.regs one = 1)
             (Function.update x.mem (x.regs childList + x.regs childCount) (x.regs suffix))
             (x.regs stamps + x.regs suffix) (x.regs epoch)) ∧
       (∀ i, ¬EmitLocal i → y.regs i = x.regs i) := by
-  let s := x.regs stamps + x.regs suffix
-  let z := (x.set address s).set marker (x.mem s)
-  by_cases h : x.mem s = x.regs epoch
-  · let y := z.set temporary (z.regs temporary)
-    have he : ExecWithin w emit x y 4 := by
-      ram_eval [emit, z, y, s, h, hs, address, stamps, suffix, marker, epoch, temporary,
-        childCount, childList, one, Fin.mk.injEq]
-    refine ⟨y, he.mono (by decide), ?_, ?_, fun i hi => he.regs_eq (emit_preserves i hi)⟩
-    · simp only [s] at h
-      simp [y, z, h, childCount, address, marker, temporary]
-    · simp only [s] at h
-      simp [y, z, h]
-  · let y :=
-      (((((z.set address (x.regs childList + x.regs childCount)).write
-        (x.regs childList + x.regs childCount) (x.regs suffix)).set address s).write
-        s (x.regs epoch)).set childCount (x.regs childCount + 1))
-    have he : ExecWithin w emit x y 9 := by
-      ram_eval [emit, z, y, s, h, hs, hl, hn, h1, address, stamps, suffix, marker, epoch,
-        temporary, childCount, childList, one, Fin.mk.injEq]
-    refine ⟨y, he, ?_, ?_, fun i hi => he.regs_eq (emit_preserves i hi)⟩
-    · simp only [s] at h
-      simp [y, h]
-    · simp only [s] at h
-      simp [y, z, h, s, Data.write_mem]
+  refine WP.exists_execWithin ?_
+  unfold emit
+  wram_exec [h1, hs, hl, hn]
+  all_goals
+    refine ⟨by wram_simp; simp [hc], by wram_simp; simp [hc], fun i hi => ?_⟩
+    simp only [EmitLocal, not_or] at hi
+    rcases hi with ⟨h1', h2', h3', h4'⟩
+    wram_simp
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PrunedQuery

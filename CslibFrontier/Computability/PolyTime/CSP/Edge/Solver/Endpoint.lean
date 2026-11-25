@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Complexity.Classes.P
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.PolyTime.CSP.Vars
+import CslibFrontier.Tactic.OptionMatch
 
 /-!
 # Complete explicit-table even edge-CSP native P endpoint
@@ -60,19 +61,9 @@ theorem computableInPolyTime_solve : ComputableInPolyTime solve
     (encCSP encTable encNat) (encOption (encList encBool)) := by
   have ho := computableInPolyTime_optimize
   have hv := computableInPolyTime_vars encTable encNat
-  have hbody : ComputableInPolyTime
-      (fun p : CSP Table ℕ × List Bool =>
-        if p.1.vars.any (EdgeAugmenting.inconsistent p.1 p.2) then none else some p.2)
-      (encPair (encCSP encTable encNat) (encList encBool)) (encOption (encList encBool)) := by
-    fun_prop
-  have h := ComputableInPolyTime.optionElimWithInput
-    (body := fun F bits =>
-      if F.vars.any (EdgeAugmenting.inconsistent F bits) then none else some bits)
-    ho (ComputableInPolyTime.const none) hbody
-  apply h.of_enc_eq
-  intro F
   unfold solve
-  cases optimize F <;> rfl
+  option_match_to_elim
+  fun_prop
 
 /-- The actual semantic decision routine is ordinary native polynomial-time on all raw input. -/
 theorem computableInPolyTime_decideSAT : ComputableInPolyTime decideSAT

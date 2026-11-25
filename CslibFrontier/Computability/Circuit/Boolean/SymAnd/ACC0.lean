@@ -10,12 +10,12 @@ module
 public import CslibFrontier.Computability.Circuit.Boolean.ACC0.Basic
 public import CslibFrontier.Computability.Circuit.Boolean.SymAnd
 public import CslibFrontier.Computability.Circuit.Boolean.SymAnd.Collapse
+public import CslibFrontier.Computability.Circuit.Boolean.SymAnd.Restrict
+public import CslibFrontier.Computability.Circuit.Depth
+public import CslibFrontier.Foundations.BooleanAnalysis.LowDegree.OrTest
 public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryField
-import CslibFrontier.Computability.Circuit.Boolean.SymAnd.Restrict
-import CslibFrontier.Computability.Circuit.Depth
 import CslibFrontier.Computability.Circuit.Program
 import CslibFrontier.Foundations.BooleanAnalysis.LowDegree.Choose
-import CslibFrontier.Foundations.BooleanAnalysis.LowDegree.OrTest
 import CslibFrontier.Foundations.BooleanAnalysis.Symmetrization
 import CslibFrontier.Foundations.Data.Nat.Choose.PrimePowerDvd
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Log
@@ -108,7 +108,7 @@ namespace ACC0ToSymAnd
 abbrev Slot (n g m : ℕ) : Type := Wire n g ⊕ (Fin g × Fin (m + 1) × Fin (m + 1))
 
 /-- The prime `p` and digit `i` read by the `MOD_m` gates: `p` prime with `p ^ (i + 1) ∣ m`. -/
-def rel (m : ℕ) : Finset (Fin (m + 1) × Fin (m + 1)) :=
+@[expose] def rel (m : ℕ) : Finset (Fin (m + 1) × Fin (m + 1)) :=
   {pi | (pi.1 : ℕ).Prime ∧ (pi.1 : ℕ) ^ ((pi.2 : ℕ) + 1) ∣ m}
 
 /-- Membership in `rel m`. -/
@@ -122,7 +122,7 @@ theorem card_rel_le (m : ℕ) : #(rel m) ≤ (m + 1) ^ 2 := by
     _ = (m + 1) ^ 2 := by simp [sq]
 
 /-- The primes `p ≤ m`. -/
-def primes (m : ℕ) : List ℕ := (List.range (m + 1)).filter fun p => decide p.Prime
+@[expose] def primes (m : ℕ) : List ℕ := (List.range (m + 1)).filter fun p => decide p.Prime
 
 /-- Membership in `primes m`. -/
 theorem mem_primes {m p : ℕ} : p ∈ primes m ↔ p < m + 1 ∧ p.Prime := by
@@ -136,34 +136,26 @@ theorem length_primes_le (m : ℕ) : (primes m).length ≤ m + 1 :=
 abbrev Seed (ℓ : ℕ) : Type := Cslib.BinaryField (2 * ℓ + 2)
 
 /-- The power basis of the seeds over `𝔽₂`. -/
-noncomputable def seedBasis (ℓ : ℕ) : Module.Basis (Fin (2 * ℓ + 2)) (ZMod 2) (Seed ℓ) :=
+@[expose] noncomputable def seedBasis (ℓ : ℕ) : Module.Basis (Fin (2 * ℓ + 2)) (ZMod 2) (Seed ℓ) :=
   Cslib.BinaryField.basis (by omega)
 
 /-- An injective numbering of the wires by `[0, n + g)`. -/
-def widx {n g : ℕ} : Wire n g → ℕ
+@[expose] def widx {n g : ℕ} : Wire n g → ℕ
   | .input i => i
   | .gate k => n + k
 
 /-- The wire numbering is injective. -/
 theorem widx_injective {n g : ℕ} : Function.Injective (widx (n := n) (g := g)) := by
   intro w w' h
-  cases w with
-  | input i =>
-    cases w' with
-    | input i' => exact congrArg Wire.input (Fin.ext h)
-    | gate k' => exact absurd h (by simp only [widx]; have := i.isLt; omega)
-  | gate k =>
-    cases w' with
-    | input i' => exact absurd h (by simp only [widx]; have := i'.isLt; omega)
-    | gate k' =>
-      simp only [widx, Nat.add_left_cancel_iff] at h
-      exact congrArg Wire.gate (Fin.ext h)
+  cases w <;> cases w' <;> simp only [widx, Nat.add_left_cancel_iff] at h
+  · exact congrArg Wire.input (Fin.ext h)
+  · omega
+  · omega
+  · exact congrArg Wire.gate (Fin.ext h)
 
 /-- The wire numbering takes values below `n + g`. -/
 theorem widx_lt {n g : ℕ} (w : Wire n g) : widx w < n + g := by
-  cases w with
-  | input i => simp only [widx]; have := i.isLt; omega
-  | gate k => simp only [widx]; have := k.isLt; omega
+  cases w <;> simp only [widx] <;> omega
 
 variable {n g m ℓ : ℕ}
 
@@ -171,7 +163,7 @@ variable {n g m ℓ : ℕ}
 
 /-- The integer polynomial evaluating gate `k` with line `L` from the slots `u` of seed `r`: NOT is
 `1 - y`; OR is the seeded OR test and AND its dual; `MOD_m` is the OR of its digit tests. -/
-noncomputable def linePoly (r : Seed ℓ) (k : Fin g) (L : Line Unbounded.extSignature n g)
+@[expose] noncomputable def linePoly (r : Seed ℓ) (k : Fin g) (L : Line Unbounded.extSignature n g)
     (u : Slot n g m → Bool) : ℤ :=
   match L with
   | ⟨.ac .not, ws⟩ => 1 - bitVal ℤ (u (.inl (ws (0 : Fin 1))))
@@ -183,7 +175,7 @@ noncomputable def linePoly (r : Seed ℓ) (k : Fin g) (L : Line Unbounded.extSig
 
 /-- The `MOD_2` layer polynomial of seed `r`: every gate is evaluated by `linePoly`; the other
 slots keep their values. -/
-noncomputable def combineQ (P : Program Unbounded.extSignature n g) (r : Seed ℓ) :
+@[expose] noncomputable def combineQ (P : Program Unbounded.extSignature n g) (r : Seed ℓ) :
     Slot n g m → (Slot n g m → Bool) → ℤ
   | .inl (.input i) => fun u => bitVal ℤ (u (.inl (.input i)))
   | .inl (.gate k) => linePoly r k (P.lines k)
@@ -191,14 +183,14 @@ noncomputable def combineQ (P : Program Unbounded.extSignature n g) (r : Seed �
 
 /-- The sum of the `e`-element monomials of the arguments of `L`, which is `C(c, e)` for `c` the
 number of true arguments. -/
-noncomputable def digitPoly (L : Line Unbounded.extSignature n g) (e : ℕ)
+@[expose] noncomputable def digitPoly (L : Line Unbounded.extSignature n g) (e : ℕ)
     (u : Slot n g m → Bool) : ℤ :=
   ∑ S ∈ (univ : Finset (Fin (Unbounded.extSignature.Arity L.op))).powersetCard e,
     monomial ℤ S fun a => u (.inl (L.wires a))
 
 /-- The `MOD_{p₀}` layer polynomial: the digit test slots of `p₀` read `digitPoly`; the other
 slots keep their values. -/
-noncomputable def digitQ (P : Program Unbounded.extSignature n g) (p₀ : ℕ) :
+@[expose] noncomputable def digitQ (P : Program Unbounded.extSignature n g) (p₀ : ℕ) :
     Slot n g m → (Slot n g m → Bool) → ℤ
   | .inl w => fun u => bitVal ℤ (u (.inl w))
   | .inr (k, pi) =>
@@ -217,10 +209,10 @@ namespace SLayer
 variable {F S : Type*}
 
 /-- The layer of one seed. -/
-def atSeed (L : SLayer F S) (r : F) : ModPolyLayer S := ⟨L.p, L.q r⟩
+@[expose] def atSeed (L : SLayer F S) (r : F) : ModPolyLayer S := ⟨L.p, L.q r⟩
 
 /-- All seeds side by side: the layer on `F × S` acting on each row by the layer of its seed. -/
-def lift (L : SLayer F S) : ModPolyLayer (F × S) :=
+@[expose] def lift (L : SLayer F S) : ModPolyLayer (F × S) :=
   ⟨L.p, fun t v => L.q t.1 t.2 fun s => v (t.1, s)⟩
 
 /-- Running the lifted layers acts on each row as the layers of its seed. -/
@@ -240,12 +232,12 @@ theorem run_lift (Ls : List (SLayer F S)) (v : F × S → Bool) (r : F) (s : S) 
 end SLayer
 
 /-- One round: the `MOD_p` digit layers for the primes `p ≤ m`, then the `MOD_2` layer. -/
-noncomputable def macroS (P : Program Unbounded.extSignature n g) (m ℓ : ℕ) :
+@[expose] noncomputable def macroS (P : Program Unbounded.extSignature n g) (m ℓ : ℕ) :
     List (SLayer (Seed ℓ) (Slot n g m)) :=
   ⟨2, fun r => combineQ P r⟩ :: (primes m).map fun p₀ => ⟨p₀, fun _ => digitQ P p₀⟩
 
 /-- `d` rounds. -/
-noncomputable def towerS (P : Program Unbounded.extSignature n g) (m ℓ : ℕ) :
+@[expose] noncomputable def towerS (P : Program Unbounded.extSignature n g) (m ℓ : ℕ) :
     ℕ → List (SLayer (Seed ℓ) (Slot n g m))
   | 0 => []
   | d + 1 => macroS P m ℓ ++ towerS P m ℓ d
@@ -313,15 +305,11 @@ private theorem linePoly_correct (r : Seed ℓ) (k : Fin g) (op : Unbounded.ExtO
       Unbounded.extInterpretation (modGate m) op fun a => y (ws a) := by
   have hor : orTest (seedBasis ℓ) (fun w => r ^ widx w) (univ.image ws) (fun w => u (.inl w)) =
       orTest (seedBasis ℓ) (fun w => r ^ widx w) (univ.image ws) y :=
-    orTest_congr _ _ _ fun w hw => by
-      obtain ⟨a, -, rfl⟩ := Finset.mem_image.1 hw
-      exact hwires a
+    orTest_congr _ _ _ (Finset.forall_mem_image.2 fun a _ => hwires a)
   have hand : orTest (seedBasis ℓ) (fun w => r ^ widx w) (univ.image ws)
       (fun w => !u (.inl w)) =
       orTest (seedBasis ℓ) (fun w => r ^ widx w) (univ.image ws) fun w => !y w :=
-    orTest_congr _ _ _ fun w hw => by
-      obtain ⟨a, -, rfl⟩ := Finset.mem_image.1 hw
-      simp only [hwires a]
+    orTest_congr _ _ _ (Finset.forall_mem_image.2 fun a _ => by simp only [hwires a])
   have himg : ∀ z : Wire n g → Bool, (∃ w ∈ univ.image ws, z w = true) ↔ ∃ a, z (ws a) = true :=
     fun z => by simp
   rcases op with ((_ | mm | mm) | mm)
@@ -334,14 +322,8 @@ private theorem linePoly_correct (r : Seed ℓ) (k : Fin g) (op : Unbounded.ExtO
     rw [one_sub_emod_two_ne_zero_iff]
     have h := (orTest_emod_two_ne_zero_iff (seedBasis ℓ) (fun w => r ^ widx w) (univ.image ws)
       fun w => !y w).trans (Iff.trans hgood' (himg _))
-    constructor
-    · intro h0 a
-      by_contra ha
-      exact h.2 ⟨a, by simpa using ha⟩ h0
-    · intro hall
-      by_contra h0
-      obtain ⟨a, ha⟩ := h.1 h0
-      simp [hall a] at ha
+    rw [← not_iff_not, ← ne_eq, h]
+    simp
   · -- OR
     simp only [linePoly, Unbounded.extInterpretation_ac, Unbounded.interpretation_or, hor]
     refine decide_eq_decide.2 ?_
@@ -356,19 +338,15 @@ private theorem linePoly_correct (r : Seed ℓ) (k : Fin g) (op : Unbounded.ExtO
       rw [haux pi hpi, decide_eq_true_iff] at h
       exact ⟨pi.1, pi.2, (mem_rel.1 hpi).1, (mem_rel.1 hpi).2, h⟩
     · rintro ⟨p, i, hp, hpm, h⟩
-      have hp1 : p < m + 1 := by
-        have := Nat.le_of_dvd hm ((dvd_pow_self p i.succ_ne_zero).trans hpm)
-        omega
+      have hp1 : p < m + 1 :=
+        Nat.lt_succ_of_le (Nat.le_of_dvd hm ((dvd_pow_self p i.succ_ne_zero).trans hpm))
       have him : i < m + 1 := by
-        have h1 : i + 1 < 2 ^ (i + 1) := Nat.lt_two_pow_self
-        have h2 : 2 ^ (i + 1) ≤ p ^ (i + 1) := Nat.pow_le_pow_left hp.two_le _
-        have h3 : p ^ (i + 1) ≤ m := Nat.le_of_dvd hm hpm
+        have := (Nat.lt_two_pow_self (n := i + 1)).trans_le
+          ((Nat.pow_le_pow_left hp.two_le _).trans (Nat.le_of_dvd hm hpm))
         omega
       have hmem : ((⟨p, hp1⟩ : Fin (m + 1)), (⟨i, him⟩ : Fin (m + 1))) ∈ rel m :=
         mem_rel.2 ⟨hp, hpm⟩
-      refine ⟨_, hmem, ?_⟩
-      rw [haux _ hmem]
-      simpa using h
+      exact ⟨_, hmem, by simpa [haux _ hmem] using h⟩
 
 /-- **The digit layers.** Running the `MOD_p` digit layers for the primes in `ps` keeps the wire
 slots and sets the digit test slot `(k, p, i)` of each relevant `p ∈ ps`. -/
@@ -409,7 +387,7 @@ theorem map_atSeed_macroS (P : Program Unbounded.extSignature n g) (r : Seed ℓ
   rfl
 
 /-- After `j` rounds, the slots `u` hold the correct value of every wire of depth at most `j`. -/
-def WiresOK (P : Program Unbounded.extSignature n g) (m : ℕ) (x : Fin n → Bool) (j : ℕ)
+@[expose] def WiresOK (P : Program Unbounded.extSignature n g) (m : ℕ) (x : Fin n → Bool) (j : ℕ)
     (u : Slot n g m → Bool) : Prop :=
   ∀ w, P.wireDepths w ≤ j → u (.inl w) = P.trace (Unbounded.extInterpretation (modGate m)) x w
 
@@ -506,12 +484,9 @@ theorem card_not_goodAt_le (A : Finset (Wire n g)) (y : Wire n g → Bool) :
           simp only [sum_map] at h
           exact h.trans (Nat.sub_le _ _)
   · rw [Finset.not_nonempty_iff_eq_empty] at hA
-    calc #{r : Seed ℓ | ¬ GoodAt r A y} = 0 := by
-          refine card_eq_zero.2 (filter_eq_empty_iff.2 fun r _ => not_not.2 ?_)
-          refine Iff.intro (fun h => absurd (by rw [hA, sum_empty]) h) fun ⟨w, hw, hy⟩ => ?_
-          have : w ∈ A.filter fun w => y w = true := mem_filter.2 ⟨hw, hy⟩
-          simp [hA] at this
-      _ ≤ n + g := Nat.zero_le _
+    refine (card_eq_zero.2 (filter_eq_empty_iff.2 fun r _ => not_not.2 ?_)).trans_le (Nat.zero_le _)
+    refine Iff.intro (fun h => absurd (by rw [hA, sum_empty]) h) fun ⟨w, hw, hy⟩ => ?_
+    exact absurd (mem_filter.2 ⟨hw, hy⟩ : w ∈ A.filter fun w => y w = true) (by simp [hA])
 
 /-- **Few bad seeds.** On every input, at most `2g (n + g)` seeds are bad. -/
 theorem card_not_good_le (P : Program Unbounded.extSignature n g) (m : ℕ) (x : Fin n → Bool) :
@@ -525,32 +500,23 @@ theorem card_not_good_le (P : Program Unbounded.extSignature n g) (m : ℕ) (x :
               fun w => !P.trace (Unbounded.extInterpretation (modGate m)) x w} :
             Finset (Seed ℓ))) := by
         refine card_le_card fun r hr => ?_
-        simp only [Good, mem_filter, mem_univ, true_and, not_forall] at hr
-        obtain ⟨k, hk⟩ := hr
+        simp only [Good, mem_filter, mem_univ, true_and, not_forall, not_and_or] at hr
         simp only [mem_biUnion, mem_univ, true_and, mem_union, mem_filter]
-        refine ⟨k, ?_⟩
-        by_cases h1 : GoodAt r (univ.image (P.lines k).wires)
-            (P.trace (Unbounded.extInterpretation (modGate m)) x)
-        · exact Or.inr fun h2 => hk ⟨h1, h2⟩
-        · exact Or.inl h1
+        exact hr
     _ ≤ ∑ k : Fin g, (#{r : Seed ℓ | ¬ GoodAt r (univ.image (P.lines k).wires)
               (P.trace (Unbounded.extInterpretation (modGate m)) x)} +
           #{r : Seed ℓ | ¬ GoodAt r (univ.image (P.lines k).wires)
               fun w => !P.trace (Unbounded.extInterpretation (modGate m)) x w}) :=
         card_biUnion_le.trans (sum_le_sum fun k _ => card_union_le _ _)
     _ ≤ ∑ _k : Fin g, 2 * (n + g) :=
-        sum_le_sum fun k _ => by
-          have h1 := card_not_goodAt_le (ℓ := ℓ) (univ.image (P.lines k).wires)
-            (P.trace (Unbounded.extInterpretation (modGate m)) x)
-          have h2 := card_not_goodAt_le (ℓ := ℓ) (univ.image (P.lines k).wires)
-            fun w => !P.trace (Unbounded.extInterpretation (modGate m)) x w
-          omega
+        sum_le_sum fun k _ =>
+          (add_le_add (card_not_goodAt_le _ _) (card_not_goodAt_le _ _)).trans_eq (two_mul _).symm
     _ = g * (2 * (n + g)) := by simp
 
 /-! ### The majority over the seeds -/
 
 /-- The majority over the seeds `r` of the slot `(r, o)`, as a `SYM ∘ AND` circuit of fan-in `1`. -/
-noncomputable def top (ℓ : ℕ) {S : Type*} (o : S) : SymAnd (Seed ℓ × S) where
+@[expose] noncomputable def top (ℓ : ℕ) {S : Type*} (o : S) : SymAnd (Seed ℓ × S) where
   gates := (univ : Finset (Seed ℓ)).val.map fun r => {(r, o)}
   out c := decide (Fintype.card (Seed ℓ) < 2 * c)
 
@@ -714,7 +680,7 @@ theorem card_seed_slot_lt (hN : n + g < 2 ^ ℓ) :
 
 /-- The input read by each slot: the input wires of every seed read their input; the other slots
 read nothing (they start `false`). -/
-def slotInput : Seed ℓ × Slot n g m → Option (Fin n)
+@[expose] def slotInput : Seed ℓ × Slot n g m → Option (Fin n)
   | (_, .inl (.input i)) => some i
   | (_, .inl (.gate _)) => none
   | (_, .inr _) => none
@@ -728,8 +694,8 @@ theorem slotInput_elim (x : Fin n → Bool) (t : Seed ℓ × Slot n g m) :
 seeds of `2ℓ + 2` bits and `d` rounds: the majority over the seeds of slot `o`, collapsed through
 the towers (`SymAnd.collapseRun` with bound `3 ((m + 1) ^ 2 + ℓ + 1)`) and restricted to the
 inputs. -/
-noncomputable def compile (P : Program Unbounded.extSignature n g) (m ℓ d : ℕ) (o : Wire n g) :
-    SymAnd (Fin n) :=
+@[expose] noncomputable def compile (P : Program Unbounded.extSignature n g) (m ℓ d : ℕ)
+    (o : Wire n g) : SymAnd (Fin n) :=
   (SymAnd.collapseRun (top ℓ (Sum.inl o : Slot n g m)) ((towerS P m ℓ d).map SLayer.lift)
     (3 * ((m + 1) ^ 2 + ℓ + 1))).restrict slotInput
 
@@ -740,7 +706,7 @@ open ACC0ToSymAnd in
 `2 (⌊log₂ (n + s)⌋ + 1) + 2` bits and `d` rounds, where `s` is the size and `d` the depth of `C`.
 It is specified only for `m > 0` (`Circuit.eval_toSymAnd`); for `m = 0` it is well-typed but no
 theorem describes it. -/
-noncomputable def _root_.Cslib.Circuits.Circuit.toSymAnd {n : ℕ}
+@[expose] noncomputable def _root_.Cslib.Circuits.Circuit.toSymAnd {n : ℕ}
     (C : Circuit Unbounded.extSignature n 1) (m : ℕ) : SymAnd (Fin n) :=
   compile C.program m (Nat.log 2 (n + C.size) + 1) C.depth (C.outputs 0)
 
@@ -767,11 +733,8 @@ private theorem toSymAnd_spec {n : ℕ} (C : Circuit Unbounded.extSignature n 1)
       obtain ⟨hp, hpB, hq⟩ := layer_ok C.program hm (mem_macroS_of_mem_towerS C.program hL₀)
       exact ⟨hp, by change L₀.p ≤ B; omega, SLayer.lift_mem_lowDegree L₀ fun r s =>
         lowDegree_mono (by omega) (hq r s)⟩
-  have hT : Fintype.card (Seed ℓ × Slot n C.size m) + 1 ≤ 2 ^ B := by
-    have := card_seed_slot_lt (m := m) hN
-    have h : 2 ^ (3 * ℓ + 2 + (m + 1) ^ 2) ≤ 2 ^ B := Nat.pow_le_pow_right (by norm_num)
-      (by omega)
-    exact this.trans_le h
+  have hT : Fintype.card (Seed ℓ × Slot n C.size m) + 1 ≤ 2 ^ B :=
+    (card_seed_slot_lt (m := m) hN).trans_le (Nat.pow_le_pow_right (by norm_num) (by omega))
   have hf : (top ℓ (Sum.inl (C.outputs 0) : Slot n C.size m)).fanIn ≤ B :=
     (fanIn_top_le _).trans (by omega)
   have hs : (top ℓ (Sum.inl (C.outputs 0) : Slot n C.size m)).size ≤ 2 ^ B := by
@@ -849,28 +812,24 @@ private theorem exists_symAnd_of_mem_AC0Mod_of_pos {m : ℕ} (hm : 0 < m) {L : L
   have hlog : Nat.log 2 (n + C.size) ≤ e * (Nat.log 2 n + 1) :=
     (Nat.log_mono_right (by omega)).trans ((Nat.log_le_clog 2 _).trans (he n))
   have hbase : 2 * (3 * ((m + 1) ^ 2 + Nat.log 2 (n + C.size) + 2)) ≤ K * (Nat.log 2 n + 1) := by
-    have h6 : 6 * ((m + 1) ^ 2 + e + 2) ≤ K := le_max_left _ _
     have h1 : 2 * (3 * ((m + 1) ^ 2 + Nat.log 2 (n + C.size) + 2)) ≤
         6 * ((m + 1) ^ 2 + e + 2) * (Nat.log 2 n + 1) := by
-      have : 6 * ((m + 1) ^ 2 + e + 2) * (Nat.log 2 n + 1) =
+      have hring : 6 * ((m + 1) ^ 2 + e + 2) * (Nat.log 2 n + 1) =
           6 * ((m + 1) ^ 2 * (Nat.log 2 n + 1)) + 6 * (e * (Nat.log 2 n + 1)) +
             12 * (Nat.log 2 n + 1) := by ring
-      have h7 : (m + 1) ^ 2 ≤ (m + 1) ^ 2 * (Nat.log 2 n + 1) :=
+      have hmul : (m + 1) ^ 2 ≤ (m + 1) ^ 2 * (Nat.log 2 n + 1) :=
         Nat.le_mul_of_pos_right _ (by omega)
       omega
-    exact h1.trans (Nat.mul_le_mul_right _ h6)
-  have hK1 : 1 ≤ K * (Nat.log 2 n + 1) := by
-    have : 1 ≤ K := le_trans (by omega) (le_max_left _ _)
-    exact Nat.one_le_iff_ne_zero.2 (Nat.mul_ne_zero (by omega) (by omega))
+    exact h1.trans (Nat.mul_le_mul_right _ (le_max_left _ _))
+  have hK1 : 1 ≤ K * (Nat.log 2 n + 1) :=
+    Nat.mul_pos (lt_of_lt_of_le (by omega) (le_max_left _ _)) (by omega)
   have hexp : 5 ^ (C.depth * (m + 2)) ≤ K :=
     (Nat.pow_le_pow_right (by norm_num) (Nat.mul_le_mul_right _ hd)).trans (le_max_right _ _)
   have hfan : (2 * (3 * ((m + 1) ^ 2 + Nat.log 2 (n + C.size) + 2))) ^ 5 ^ (C.depth * (m + 2)) ≤
       (K * (Nat.log 2 n + 1)) ^ K :=
     (Nat.pow_le_pow_left hbase _).trans (Nat.pow_le_pow_right hK1 hexp)
-  refine ⟨C', ?_, hf.trans hfan, hsize.trans (Nat.pow_le_pow_right (by norm_num) hfan)⟩
-  rw [hev]
-  funext x
-  simpa using congrFun (hCc x) 0
+  exact ⟨C', funext fun x => by simpa [hev] using congrFun (hCc x) 0,
+    hf.trans hfan, hsize.trans (Nat.pow_le_pow_right (by norm_num) hfan)⟩
 
 /-- **`ACC⁰` has quasi-polynomial `SYM ∘ AND` circuits** (Yao; Beigel–Tarui
 [BeigelTarui1994, Theorem 1.1]). Every language of `ACC0` is decided at every length `n` by

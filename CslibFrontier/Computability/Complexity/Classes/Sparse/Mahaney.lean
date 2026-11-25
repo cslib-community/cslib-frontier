@@ -101,8 +101,7 @@ private theorem eval_cross (σ : ℕ → Bool) (a b : List (Literal ℕ)) :
   simp only [CNF.eval_eq_true_iff, List.mem_flatMap, List.mem_map, forall_exists_index, and_imp]
   constructor
   · intro h l hl m hm
-    have := h _ l hl m hm rfl
-    simpa [Clause.eval_cons, Literal.eval_eq_true_iff] using this
+    simpa [Clause.eval_cons, Literal.eval_eq_true_iff] using h _ l hl m hm rfl
   · rintro h c l hl m hm rfl
     simpa [Clause.eval_cons, Literal.eval_eq_true_iff] using h l hl m hm
 
@@ -162,14 +161,12 @@ theorem length_stage_le : ∀ l : List α, (stage label t l).length ≤ max (t +
       (r := fun b b' => decide (label a b = label a b')) rest).length_le
     rw [stage]
     split
-    · simp only [List.length_cons, Nat.add_sub_cancel]
-      omega
-    · rw [List.length_cons]
-      omega
+    · simp only [List.length_cons, Nat.add_sub_cancel]; omega
+    · rw [List.length_cons]; omega
 
 theorem iterate_stage_sublist (i : ℕ) (l : List α) : ((stage label t)^[i] l).Sublist l := by
   induction i with
-  | zero => exact List.Sublist.refl l
+  | zero => exact .refl l
   | succ i ih =>
     rw [Function.iterate_succ_apply']
     exact (stage_sublist _).trans ih
@@ -179,17 +176,14 @@ theorem length_iterate_stage_le (i : ℕ) (l : List α) :
   induction i with
   | zero => exact le_max_right _ _
   | succ i ih =>
-    rw [Function.iterate_succ_apply']
-    refine (length_stage_le _).trans ?_
-    omega
+    have := length_stage_le (label := label) (t := t) ((stage label t)^[i] l)
+    rw [Function.iterate_succ_apply']; omega
 
 theorem prune_sublist (l : List α) : (prune label t l).Sublist l := iterate_stage_sublist _ l
 
 /-- A pruned level has at most `t + 1` nodes. -/
 theorem length_prune_le (l : List α) : (prune label t l).length ≤ t + 1 := by
-  have := length_iterate_stage_le (label := label) (t := t) l.length l
-  rw [Nat.sub_self] at this
-  exact this.trans (by omega)
+  simpa [prune] using length_iterate_stage_le (label := label) (t := t) l.length l
 
 end Prune
 
@@ -252,23 +246,20 @@ private theorem exists_mem_stage (hkey : ∀ ψ, ψ ∈ SAT ↔ key ψ ∈ K)
       exists_mem_eraseDupsBy_of_mem_SAT (fun _ _ h => by rw [hkey, hkey, h]) ⟨x, hx, hxsat⟩
     split
     · rename_i hlen
-      by_cases hasat : units a ++ φ ∈ SAT
-      · /- If `a` were satisfiable, every kept label would lie in `K`. -/
-        exfalso
-        have hnodup : (kept.map fun b => key (disj φ a b)).Nodup :=
-          List.nodup_map_eraseDupsBy _ rest
-        have hsub := (List.eraseDupsBy_sublist
-          (r := fun b b' => decide (key (disj φ a b) = key (disj φ a b'))) rest).subset
-        have hle := hc (kept.map fun b => key (disj φ a b)).toFinset fun w hw => by
-          obtain ⟨b, hb, rfl⟩ := List.mem_map.1 (List.mem_toFinset.1 hw)
-          exact ⟨(hkey _).1 (disj_mem_SAT_iff.2 (.inl hasat)),
-            hM a (List.mem_cons_self ..) b (List.mem_cons_of_mem _ (hsub hb))⟩
-        rw [List.toFinset_card_of_nodup hnodup, List.length_map] at hle
-        omega
-      · exact (hcases.resolve_left hasat)
-    · rcases hcases with hasat | ⟨b', hb', hb'sat⟩
-      · exact ⟨a, List.mem_cons_self .., hasat⟩
-      · exact ⟨b', List.mem_cons_of_mem _ hb', hb'sat⟩
+      refine hcases.resolve_left fun hasat => ?_
+      /- If `a` were satisfiable, every kept label would lie in `K`. -/
+      have hnodup : (kept.map fun b => key (disj φ a b)).Nodup :=
+        List.nodup_map_eraseDupsBy _ rest
+      have hsub := (List.eraseDupsBy_sublist
+        (r := fun b b' => decide (key (disj φ a b) = key (disj φ a b'))) rest).subset
+      have hle := hc (kept.map fun b => key (disj φ a b)).toFinset fun w hw => by
+        obtain ⟨b, hb, rfl⟩ := List.mem_map.1 (List.mem_toFinset.1 hw)
+        exact ⟨(hkey _).1 (disj_mem_SAT_iff.2 (.inl hasat)),
+          hM a (List.mem_cons_self ..) b (List.mem_cons_of_mem _ (hsub hb))⟩
+      rw [List.toFinset_card_of_nodup hnodup, List.length_map] at hle
+      omega
+    · exact hcases.elim (fun hasat => ⟨a, List.mem_cons_self .., hasat⟩)
+        fun ⟨b', hb', hb'sat⟩ => ⟨b', List.mem_cons_of_mem _ hb', hb'sat⟩
 
 /-- Pruning keeps a satisfiable node, if there is one. -/
 private theorem exists_mem_prune (hkey : ∀ ψ, ψ ∈ SAT ↔ key ψ ∈ K)
@@ -282,9 +273,9 @@ private theorem exists_mem_prune (hkey : ∀ ψ, ψ ∈ SAT ↔ key ψ ∈ K)
   induction i with
   | zero => exact h
   | succ i ih =>
-    rw [Function.iterate_succ_apply']
     have hsub := (iterate_stage_sublist (label := fun a b => key (disj φ a b)) (t := t) i l).subset
-    exact exists_mem_stage hkey hc (fun a ha b hb => hM a (hsub ha) b (hsub hb)) ih
+    simpa only [Function.iterate_succ_apply'] using
+      exists_mem_stage hkey hc (fun a ha b hb => hM a (hsub ha) b (hsub hb)) ih
 
 /-- **Correctness of the procedure.** If `key` reduces `SAT` to `K`, the labels of the pairs of
 nodes of the tree of `φ` have length at most `M`, and every finite set of members of `K` of length
@@ -353,7 +344,7 @@ theorem computableInPolyTime_iterate_expand {π : Type} {encP : π ↪ List Bool
     fun_prop
   exact iterateWith (par := fun q => q.1.1) (init := fun q => Fortune.expand q.2 q.1.2)
     (step := step) (fst _ _).fst' hcount hexpand hstep hexpand.polyBounded_length
-    (fun q i _ => length_encList_sublist _ (hsub _ i _))
+    (fun _ i _ => length_encList_sublist _ (hsub _ i _))
 
 /-- A level of the search is polynomial-time, uniformly in the formula, the bound, the nodes and
 the occurrence. -/
@@ -387,25 +378,19 @@ theorem length_encCNF_disj_le {φ : CNF ℕ} {a b : List (Literal ℕ)} (ha : �
     (hb : ∀ l ∈ b, l.1 ∈ φ.vars) :
     (encCNF (disj φ a b)).length ≤
       a.length * b.length * (16 * (encCNF φ).length + 21) + (encCNF φ).length := by
-  have hclause : ∀ c ∈ a.flatMap (fun l => b.map fun m => [l, m]),
+  have hclause (c) (hc : c ∈ a.flatMap fun l => b.map fun m => [l, m]) :
       (encList (encPair encNat encBool) c).length ≤ 8 * (encCNF φ).length + 10 := by
-    intro c hc
     simp only [List.mem_flatMap, List.mem_map] at hc
     obtain ⟨l, hl, m, hm, rfl⟩ := hc
     have h₁ := length_encNat_le_of_mem_vars (ha l hl)
     have h₂ := length_encNat_le_of_mem_vars (hb m hm)
     enc_len [List.append_nil, List.length_singleton]
   have hcross := length_encList_le _ _ hclause
-  have hlen : (a.flatMap fun l => b.map fun m => [l, m]).length = a.length * b.length := by
-    simp [List.length_flatMap, List.sum_replicate, List.map_const']
-  rw [hlen] at hcross
-  have hcross' : (encCNF (a.flatMap fun l => b.map fun m => [l, m])).length ≤
-      a.length * b.length * (16 * (encCNF φ).length + 21) := by
-    have e : a.length * b.length * (2 * (8 * (encCNF φ).length + 10) + 1) =
-        a.length * b.length * (16 * (encCNF φ).length + 21) := by ring
-    exact e ▸ hcross
+  simp only [List.length_flatMap, List.length_map, List.map_const', List.sum_replicate,
+    smul_eq_mul] at hcross
+  rw [show 2 * (8 * (encCNF φ).length + 10) + 1 = 16 * (encCNF φ).length + 21 by ring] at hcross
   rw [disj, length_encCNF_append]
-  omega
+  dsimp only [encCNF] at hcross ⊢; omega
 
 /-- **If `SAT` reduces to a sparse problem, then `SAT` is in `P`**, decided by Agrawal's
 procedure [Grochow, Theorem 2.1][Grochow2016]. The labels are the encoded images of the
@@ -431,12 +416,10 @@ theorem SAT_mem_P {β : Type*} {encB : β ↪ List Bool} {S : Set β} (hS : S �
       (fun ψ => ?_) (fun a b ha hb hla hlb => ?_) (fun s hs => ?_)).symm⟩
   · rw [encB.injective.mem_set_image]
     exact hfS ψ
-  · refine (hp _).trans (Polynomial.eval_mono _ ?_)
-    have hvars := length_vars_le φ
-    have hla' : a.length ≤ (encCNF φ).length := hla.trans hvars
-    have hlb' : b.length ≤ (encCNF φ).length := hlb.trans hvars
-    refine (length_encCNF_disj_le ha hb).trans ?_
-    gcongr
+  · have hvars := length_vars_le φ
+    have hla' := hla.trans hvars
+    have hlb' := hlb.trans hvars
+    exact (hp _).trans (Polynomial.eval_mono _ ((length_encCNF_disj_le ha hb).trans (by gcongr)))
   · rw [hq]
     exact hCD _ s fun w hw => by simpa using hs w hw
 

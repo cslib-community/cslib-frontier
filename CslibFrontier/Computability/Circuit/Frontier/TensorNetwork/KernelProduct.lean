@@ -53,9 +53,7 @@ public section
 namespace Cslib.Circuits.Frontier
 
 open Polynomial Finset
-
-/-- The subring `ℤ_(2)` of rationals with odd denominator. -/
-local notation "ℤ₍₂₎" => Valuation.integer (Rat.padicValuation 2)
+open scoped TensorNetwork
 
 /-- An integer is `2 ^ v₂(n)` times its odd part `n / 2 ^ v₂(n)`. -/
 theorem two_pow_mul_ediv (n : ℤ) : 2 ^ padicValInt 2 n * (n / 2 ^ padicValInt 2 n) = n :=
@@ -239,9 +237,7 @@ theorem localKernel_eq_prod {a : ℕ} {t d : ℤ} (ht : t ∈ cauchyGrid (2 ^ a)
     have htd : t ∈ (cauchyGrid (2 ^ a)).erase d := mem_erase.mpr ⟨hdt.symm, ht⟩
     have hdt' : d ∈ (cauchyGrid (2 ^ a)).erase t := mem_erase.mpr ⟨hdt, hd⟩
     have hsub : ((cauchyGrid (2 ^ a)).erase d).erase t ⊆ (cauchyGrid (2 ^ a)).erase t :=
-      fun q hq => by
-        simp only [mem_erase] at hq ⊢
-        exact ⟨hq.1, hq.2.2⟩
+      erase_subset_erase t (erase_subset d _)
     set sv := ∑ q ∈ ((cauchyGrid (2 ^ a)).erase d).erase t, padicValInt 2 (t - q)
     set U := ∏ q ∈ ((cauchyGrid (2 ^ a)).erase d).erase t, (unitFactor a t q).map (ℤ₍₂₎).subtype
     -- `S₀ = v_d + ∑_{q ≠ d, t} v_q`.

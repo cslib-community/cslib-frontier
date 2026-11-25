@@ -8,10 +8,10 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.WindowedBound
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Encoding
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Reverse
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.TakeDropUnary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LinearSpaceArith
+import CslibFrontier.Tactic.Degree
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
@@ -96,13 +96,7 @@ private lemma foldl_dbl_take_le (n i : ℕ) : ((encNat n).reverse.take i).foldl 
 /-- A doubling round, in linear time. -/
 private lemma dbl_deg : ComputableInDegree (fun p : ℕ × Bool => dbl p.1 p.2)
     (encPair encUnary encBool) encUnary 1 1 := by
-  have h₁ := ComputableInDegree.fst encUnary encBool
-  have h₂ := (ComputableInDegree.of_finite (encIn := encBool) (encMid := encUnary)
-    fun b : Bool => cond b 1 0).comp (ComputableInDegree.snd encUnary encBool)
-  have hdouble := h₁.append h₁ (encOut := encUnary) (g := fun p : ℕ × Bool => p.1 + p.1)
-    fun p => by simp only [encUnary_apply, List.replicate_add]
-  exact (hdouble.append h₂ fun p => by
-    simp only [dbl, encUnary_apply, List.replicate_add, Function.comp_apply]).mono
+  degree [dbl]
 
 /-- **From binary to unary**, in time `O((t + 1) * (L + 1))` for `t` with `L` binary digits. -/
 private lemma toUnary_inO : ComputableInO (fun t : ℕ => t) encNat encUnary
@@ -267,14 +261,7 @@ private lemma fin_inO : ComputableInO (fun m : Desc × ℕ × List (Option ℕ) 
         List.replicate m.1.tapes ⟨0, [], []⟩)
     fun m => rfl
   refine (((pd.prod (pt.prod (hq.prod hw))).mono 512 (fun m => ?_) fun m => ?_).of_enc_eq
-    fun m => ?_)
-  rotate_left 2
-  · obtain ⟨d, t, xs⟩ := m
-    have h : [some 0].take t = if decide (t = 0) = true then [] else [some 0] := by
-      cases t <;> simp
-    dsimp only
-    rw [h]
-    rfl
+    fun ⟨_, t, _⟩ => by cases t <;> simp [eProb])
   all_goals
     have htapes : m.1.tapes ≤ descLen m.1 := by
       simp only [descLen, eDesc_apply, length_encPair, encUnary_apply, List.length_replicate]
@@ -300,10 +287,7 @@ theorem initProb_inO :
       (fun i => (eIn i).length + (descLen i.1 + 1) ^ 3 +
         (i.2.2 + 1) * ((encNat i.2.2).length + 1)) := by
   refine (((fin_inO.comp mid_inO).mono 8 (fun i => ?_) fun i => ?_).of_enc_eq
-    fun i => ?_)
-  rotate_left 2
-  · rw [extract_initWin]
-    rfl
+    fun i => congrArg (fun c => eProb (i.1, i.2.2, c)) (extract_initWin i.1 i.2.1 i.2.2))
   all_goals
     have h₁ := length_encList_recode i.2.1
     have h₂ := length_le_length_encList encUnary i.2.1

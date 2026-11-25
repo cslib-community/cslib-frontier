@@ -13,7 +13,6 @@ public import CslibFrontier.Computability.Circuit.Frontier.Layouts.General
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Switched
 public import CslibFrontier.Computability.Circuit.Frontier.Linear.LowerBound
 public import Mathlib.Algebra.CharZero.Infinite
-import CslibFrontier.Computability.Circuit.Frontier.BoundedFanIn
 
 /-!
 # Unconditional frontier lower bounds for linear maps
@@ -38,6 +37,10 @@ For the explicit Cauchy matrices `1 / (i - (N + j))` this gives, for fan-in two:
 * **Prime fields**: the same maps over `ZMod q`, for every prime `q ≥ 2 N`, need more than
   `(2 - ε) N` inner gates in every basis of fan-in two, uniformly in `q`.
 
+The weighted-kernel specializations in
+`CslibFrontier.Computability.Circuit.Frontier.BoundedFanIn` give stronger bounds at small
+fan-in, including `2 s > (4 - ε) N` at fan-in three.
+
 ## Main results
 
 * `Cslib.Circuits.Frontier.eventually_two_sub_mul_lt_mul_innerSize_of_isTotallyRegular`: for
@@ -48,7 +51,7 @@ For the explicit Cauchy matrices `1 / (i - (N + j))` this gives, for fan-in two:
   over prime fields.
 * `Cslib.Circuits.Frontier.eventually_degreeCoefficient_lt_mul_innerSize_of_isTotallyRegular`:
   the Gaussian vertex-score bound `(r - 1) s > (1 + 1 / A_{r+1} - ε) N` for arbitrary fan-in
-  `r ≥ 2` (in particular `2 s > (7/2 - ε) N` at `r = 3`).
+  `r ≥ 2`.
 * `Cslib.Circuits.Frontier.eventually_gaussian_sub_mul_lt_innerSize_of_isTotallyRegular`:
   median edge-score bound `s > (L - ε) N` (`L ≈ 4.5625`) at fan-in two.
 * `Cslib.Circuits.Frontier.eventually_switched_sub_mul_lt_innerSize_of_isTotallyRegular`:
@@ -149,17 +152,6 @@ theorem eventually_degreeCoefficient_lt_mul_innerSize_of_isTotallyRegular {r : �
           (1 + 1 / Gaussian.degreeCoefficient (r + 1) - ε) * N < (r - 1) * c.innerSize :=
   eventually_lt_mul_innerSize_of_isTotallyRegular hr (Gaussian.degreeCoefficient_pos (by omega))
     (layoutBound_degree (by omega)) hε
-
-/-- **Bounded fan-in three (`2 s > (7/2 - ε) N`) for totally regular linear maps.** -/
-theorem eventually_seven_div_two_lt_two_mul_innerSize_of_isTotallyRegular {ε : ℝ} (hε : 0 < ε) :
-    ∀ᶠ N in atTop, ∀ (F : Type u) [Field F] (σ : Signature.{v}) (I : Interpretation σ F)
-      (M : Matrix (Fin N) (Fin N) F) (c : Circuit σ N N), M.IsTotallyRegular →
-        c.FanInAtMost 3 → c.Computes I (fun x => M *ᵥ x) → c.LinearCapacity I →
-          (7 / 2 - ε) * N < 2 * c.innerSize := by
-  have h := eventually_degreeCoefficient_lt_mul_innerSize_of_isTotallyRegular.{u, v} (r := 3)
-    (by norm_num) hε
-  norm_num only [Gaussian.degreeCoefficient_four] at h
-  exact h
 
 /-! ### Fan-in-two median edge-score (`4.5625 N`) and median-switched (`4.57597 N`) bounds -/
 

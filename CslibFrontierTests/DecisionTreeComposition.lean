@@ -4,11 +4,15 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.Computability.DecisionTree.Composition
+module
+
+import CslibFrontier.Computability.DecisionTree.FreeM.OracleComp
 import CslibFrontier.Computability.DecisionTree.Parity
 import Mathlib.Data.Fintype.BigOperators
 
 /-! Tests of decision-tree composition on parity of disjoint conjunctions. -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.DecisionTreeComposition
 
@@ -122,8 +126,15 @@ example : (selector.substitute subroutine).depth ≤ 4 := by
 
 example : selector.depth * 3 = 6 := by decide
 
-example : ∀ x : Fin 5 → Bool, (selector.substitute subroutine).eval x =
+private theorem selector_eval : ∀ x : Fin 5 → Bool, (selector.substitute subroutine).eval x =
     if x 0 then x 2 && x 3 && x 4 else x 1 := by decide
+
+-- Replacing Boolean requests by their free subroutines evaluates to the same asymmetric function.
+example (x : Fin 5 → Bool) :
+    (OracleComp.substitute (fun i => (subroutine i).toFreeM) selector.toFreeM).foldFreeM id
+      (fun i k => k (x i)) = (if x 0 then x 2 && x 3 && x 4 else x 1) := by
+  rw [← toFreeM_substitute, eval_toFreeM]
+  exact selector_eval x
 
 -- The same compiled tree has different execution costs on its short and long branches.
 example : (selector.substitute subroutine).cost (fun _ => false) = 2 := by decide
@@ -165,5 +176,37 @@ private def unreachable : DecisionTree Unit Bool :=
 
 -- The depth-three structural path asks the same bit for inconsistent answers.
 example : unreachable.depth = 3 ∧ ∀ x : Unit → Bool, unreachable.cost x ≤ 2 := by decide
+
+example : OracleComp.IsCostBounded (fun _ => 1) unreachable.toFreeM 3 :=
+  (weightedDepth_le_iff_isCostBounded _ _ _).mp (by decide)
+
+example : ¬ OracleComp.IsCostBounded (fun _ => 1) unreachable.toFreeM 2 := by
+  rw [← weightedDepth_le_iff_isCostBounded]
+  decide
+
+private def readCode : (PFunctor.monomial Unit Bool).FreeM Nat := do
+  let b ← PFunctor.FreeM.lift ()
+  if b then pure 7 else pure 91
+
+-- A bare request returns its answer. The two continuations of readCode return distinct numbers.
+example : ofFreeM (PFunctor.FreeM.lift (P := PFunctor.monomial Unit Bool) ()) =
+    node () (leaf false) (leaf true) := by simp
+
+example : equivFreeM.symm readCode = node () (leaf 91) (leaf 7) := by
+  simp [readCode]
+
+example (x : Unit → Bool) : (ofFreeM readCode).eval x = (if x () then 7 else 91) := by
+  rw [eval_ofFreeM]
+  cases h : x () <;> simp [readCode, h]
+
+-- These leaves return types in `Type 1`. Discarding them still charges the single query.
+private def typeQuery : DecisionTree Unit Type := node () (leaf ℕ) (leaf Bool)
+
+example :
+    OracleComp.IsCostBounded (fun _ => 1) (PFunctor.FreeM.map (fun _ => ()) typeQuery.toFreeM) 1 ∧
+    ¬ OracleComp.IsCostBounded (fun _ => 1)
+      (PFunctor.FreeM.map (fun _ => ()) typeQuery.toFreeM) 0 := by
+  simp only [← weightedDepth_le_iff_isCostBounded_map_unit]
+  decide
 
 end CslibFrontierTests.DecisionTreeComposition

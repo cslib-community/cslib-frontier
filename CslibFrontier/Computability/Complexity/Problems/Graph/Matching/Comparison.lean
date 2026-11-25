@@ -32,8 +32,7 @@ theorem mem_verts_of_incident_positions {M : G.induced.Subgraph} {v i : ℕ} (hv
     (hi : i ∈ positions M) (hinc : incident (G.edgeList.getD i (0, 0)) v = true) :
     (⟨v, hv⟩ : {v // v ∈ G.vertices}) ∈ M.verts := by
   obtain ⟨_, hu, hw, hadj⟩ := mem_positions.mp hi
-  obtain ⟨w, he⟩ := exists_other_end hinc
-  rcases he with he | he <;> simp only [he] at hu hw hadj
+  obtain ⟨w, he | he⟩ := exists_other_end hinc <;> simp only [he] at hu hw hadj
   · exact M.edge_vert hadj
   · exact M.edge_vert hadj.symm
 
@@ -58,11 +57,9 @@ theorem comparisonPort_lt (G : Graph) (S : Finset ℕ) (v : ℕ) :
     G.comparisonPort S v < (G.matchingScope v).length := by
   classical
   unfold comparisonPort
-  split
-  next h =>
-    exact List.idxOf_lt_length_iff.mpr
-      ((G.mem_matchingScope_even v h.choose).mpr h.choose_spec.2)
-  next => simp [matchingScope]
+  split_ifs with h
+  · exact List.idxOf_lt_length_iff.mpr ((G.mem_matchingScope_even v h.choose).mpr h.choose_spec.2)
+  · simp [matchingScope]
 
 /-- At an actual matching edge, uniqueness forces the comparison to choose that edge. -/
 theorem comparisonPort_eq {M : G.induced.Subgraph} (hM : M.IsMatching) (v : ℕ) (hv : v ∈ G.vertices)
@@ -72,9 +69,8 @@ theorem comparisonPort_eq {M : G.induced.Subgraph} (hM : M.IsMatching) (v : ℕ)
   classical
   have hex : ∃ j ∈ positions M, j < G.edgeList.length ∧
       incident (G.edgeList.getD j (0, 0)) v = true := ⟨i, hi, (mem_positions.mp hi).1, hinc⟩
-  have he : hex.choose = i := positions_unique hM v hv hex.choose hex.choose_spec.1 i hi
-    hex.choose_spec.2.2 hinc
-  simp only [comparisonPort, dite_eq_left hex, he]
+  simp only [comparisonPort, dite_eq_left hex,
+    positions_unique hM v hv hex.choose hex.choose_spec.1 i hi hex.choose_spec.2.2 hinc]
 
 /-- A feasible proof-only labeling, choosing exactly one port per vertex and false at pins. -/
 noncomputable def comparisonLabeling (G : Graph) (S : Finset ℕ) :
@@ -89,64 +85,52 @@ theorem comparisonLabeling_valid (G : Graph) (S : Finset ℕ) :
   intro i
   change G.matchingInstance[i.val].rel.sem (localTuple (G.comparisonLabeling S) i) = true
   by_cases hi : i.val < G.distinctVertices.length
-  · have ht : G.matchingInstance[i.val].rel =
+  · have hs : G.matchingInstance[i.val].scope = G.matchingScope G.distinctVertices[i.val] := by
+      simp [matchingInstance, hi]
+    have hrel : G.matchingInstance[i.val].rel =
         Table.exactlyOne (G.matchingScope G.distinctVertices[i.val]) := by
       simp [matchingInstance, hi]
-    have hs : G.matchingInstance[i.val].scope = G.matchingScope G.distinctVertices[i.val] := by
-      simp [matchingInstance, hi]
-    have hr : localTuple (G.comparisonLabeling S) i =
+    have htuple : localTuple (G.comparisonLabeling S) i =
         listSingle (G.matchingScope G.distinctVertices[i.val]).length
           (G.comparisonPort S G.distinctVertices[i.val]) := by
-      apply List.ext_getElem
-      · simp [localTuple, hs, listSingle]
-      · intro j hj hk
-        simp [localTuple, comparisonLabeling, hi, listSingle, hs, eq_comm]
-    rw [ht, hr, Table.sem_eq_true]
-    exact ⟨Table.wellFormed_exactlyOne _, List.mem_map.mpr
-      ⟨_, List.mem_range.mpr (comparisonPort_lt G S _), rfl⟩⟩
-  · have ht : G.matchingInstance[i.val].rel = Table.pinTable false := by
+      refine List.ext_getElem (by simp [localTuple, hs, listSingle]) fun j _ _ => ?_
+      simp [localTuple, comparisonLabeling, hi, listSingle, hs, eq_comm]
+    rw [hrel, htuple, Table.sem_eq_true]
+    exact ⟨Table.wellFormed_exactlyOne _,
+      List.mem_map.mpr ⟨_, List.mem_range.mpr (comparisonPort_lt G S _), rfl⟩⟩
+  · have hs : G.matchingInstance[i.val].scope.length = 1 := by
       simp [matchingInstance, Nat.le_of_not_gt hi]
-    have hs : G.matchingInstance[i.val].scope.length = 1 := by
+    have hrel : G.matchingInstance[i.val].rel = Table.pinTable false := by
       simp [matchingInstance, Nat.le_of_not_gt hi]
-    have hr : localTuple (G.comparisonLabeling S) i = [false] := by
-      apply List.ext_getElem
-      · simp [localTuple, hs]
-      · intro j hj hk
-        have : j = 0 := by
-          have : j < 1 := by simpa only [List.length_singleton] using hk
-          omega
-        subst j
-        simp [localTuple, comparisonLabeling, hi]
-    rw [ht, hr, Table.sem_eq_true]
+    have htuple : localTuple (G.comparisonLabeling S) i = [false] := by
+      refine List.ext_getElem (by simp [localTuple, hs]) fun j _ hk => ?_
+      obtain rfl : j = 0 := by simpa using hk
+      simp [localTuple, comparisonLabeling, hi]
+    rw [hrel, htuple, Table.sem_eq_true]
     simp [Table.pinTable]
 
 /-- The comparison for a matching selects each of its original graph edges at both endpoints. -/
 theorem positions_subset_comparison {M : G.induced.Subgraph} (hM : M.IsMatching) :
     positions M ⊆ G.positionsOfLabeling (G.comparisonLabeling (positions M)) := by
   intro i hi
-  refine (mem_positionsOfLabeling _ i).mpr ⟨(mem_positions.mp hi).1, ?_⟩
-  refine mem_selectedVariables.mpr ⟨(mem_vars_matchingInstance G).mpr
-    (Or.inl ⟨i, (mem_positions.mp hi).1, rfl⟩), ?_⟩
-  intro o ho
+  have hip := (mem_positions.mp hi).1
+  refine (mem_positionsOfLabeling _ i).mpr ⟨hip, mem_selectedVariables.mpr
+    ⟨(mem_vars_matchingInstance G).mpr (Or.inl ⟨i, hip, rfl⟩), fun o ho => ?_⟩⟩
   have hv : o.var ∈ G.matchingInstance[o.1.val].scope := List.getElem_mem o.2.isLt
   by_cases hc : o.1.val < G.distinctVertices.length
   · let v := G.distinctVertices.getD o.1.val 0
     have hvm : v ∈ G.vertices := mem_distinctVertices.mp (by
-      change G.distinctVertices.getD o.1.val 0 ∈ G.distinctVertices
-      rw [List.getD_eq_getElem _ _ hc]
+      rw [show v = G.distinctVertices[o.1.val] from List.getD_eq_getElem _ _ hc]
       exact List.getElem_mem hc)
     have hs : G.matchingInstance[o.1.val].scope = G.matchingScope v := by
       simp [matchingInstance, hc, v]
-    have hx : 2 * i ∈ G.matchingScope v := hs ▸ ho ▸ hv
-    have hinc := (mem_matchingScope_even G v i).mp hx |>.2
-    have he := comparisonPort_eq hM v hvm i hi hinc
+    have hinc := ((mem_matchingScope_even G v i).mp (hs ▸ ho ▸ hv)).2
     have hget : (G.matchingScope v)[o.2.val]'(hs ▸ o.2.isLt) = 2 * i := by
       simpa only [Occurrence.var, hs] using ho
-    have hidx : o.2.val = (G.matchingScope v).idxOf (2 * i) := by
-      rw [← hget, (nodup_matchingScope G v).idxOf_getElem]
     change (if o.1.val < G.distinctVertices.length then
       decide (o.2.val = G.comparisonPort (positions M) v) else false) = true
-    simp only [hc, ↓reduceIte, he, hidx, decide_true]
+    simp only [hc, ↓reduceIte, comparisonPort_eq hM v hvm i hi hinc,
+      ← hget, (nodup_matchingScope G v).idxOf_getElem, decide_true]
   · have hs : G.matchingInstance[o.1.val].scope =
         [2 * G.distinctVertices[o.1.val - G.distinctVertices.length]'(by
           have := o.1.isLt

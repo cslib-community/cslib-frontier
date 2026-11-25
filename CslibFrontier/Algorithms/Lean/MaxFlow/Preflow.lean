@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.Lean.MaxFlow.Basic
 public import Mathlib.Data.Finset.Lattice.Fold
 public import Mathlib.Data.Fintype.Card
+import CslibFrontier.Tactic.FinsetCard
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Algebra.BigOperators.Group.Finset.Piecewise
 import Mathlib.Algebra.BigOperators.Ring.Finset
@@ -195,11 +196,7 @@ private theorem le_add_card_of_reflTransGen {r : V → V → Prop} {h : V → �
       · exact ih (Finset.mem_Icc.mpr ⟨hk.1, hky⟩)
       · have := hr x y hxy
         exact Finset.mem_image.mpr ⟨x, Finset.mem_univ _, by omega⟩
-  have hcard := Finset.card_le_card (key u huw)
-  rw [Nat.card_Icc] at hcard
-  have := (Finset.card_image_le (s := Finset.univ) (f := h))
-  rw [Finset.card_univ] at this
-  omega
+  finset_card [key u huw, Nat.card_Icc (h w) (h u)]
 
 theorem IsValidLabeling.le_add_card {f : N.Preflow} {h : V → ℕ} (hh : f.IsValidLabeling h)
     {u w : V} (huw : f.ResReachable u w) : h u + 1 ≤ h w + Fintype.card V :=
@@ -224,20 +221,14 @@ private theorem sum_netIn_eq [DecidableEq V] (g : V → V → ℕ) (U : Finset V
     (∑ v ∈ U, ((∑ u, (g u v : ℤ)) - ∑ w, (g v w : ℤ))) =
       (∑ v ∈ U, ∑ u ∈ Finset.univ \ U, (g u v : ℤ)) -
         ∑ v ∈ U, ∑ w ∈ Finset.univ \ U, (g v w : ℤ) := by
-  have hsplit : ∀ k : V → ℤ, ∑ x, k x = (∑ x ∈ U, k x) + ∑ x ∈ Finset.univ \ U, k x := by
-    intro k
-    rw [← Finset.sum_union Finset.disjoint_sdiff,
-      Finset.union_sdiff_of_subset (Finset.subset_univ U)]
-  rw [Finset.sum_sub_distrib]
-  have h1 : ∑ v ∈ U, ∑ u, (g u v : ℤ) =
-      (∑ v ∈ U, ∑ u ∈ U, (g u v : ℤ)) + ∑ v ∈ U, ∑ u ∈ Finset.univ \ U, (g u v : ℤ) := by
+  have hsplit : ∀ k : V → V → ℤ, ∑ v ∈ U, ∑ x, k v x =
+      (∑ v ∈ U, ∑ x ∈ U, k v x) + ∑ v ∈ U, ∑ x ∈ Finset.univ \ U, k v x := fun k => by
     rw [← Finset.sum_add_distrib]
-    exact Finset.sum_congr rfl fun v _ => hsplit _
-  have h2 : ∑ v ∈ U, ∑ w, (g v w : ℤ) =
-      (∑ v ∈ U, ∑ w ∈ U, (g v w : ℤ)) + ∑ v ∈ U, ∑ w ∈ Finset.univ \ U, (g v w : ℤ) := by
-    rw [← Finset.sum_add_distrib]
-    exact Finset.sum_congr rfl fun v _ => hsplit _
-  have h3 : (∑ v ∈ U, ∑ u ∈ U, (g u v : ℤ)) = ∑ v ∈ U, ∑ w ∈ U, (g v w : ℤ) := Finset.sum_comm
+    exact Finset.sum_congr rfl fun v _ => by
+      rw [← Finset.sum_union Finset.disjoint_sdiff,
+        Finset.union_sdiff_of_subset (Finset.subset_univ U)]
+  rw [Finset.sum_sub_distrib, hsplit (fun v u => (g u v : ℤ)), hsplit (fun v w => (g v w : ℤ))]
+  have hcomm : (∑ v ∈ U, ∑ u ∈ U, (g u v : ℤ)) = ∑ v ∈ U, ∑ w ∈ U, (g v w : ℤ) := Finset.sum_comm
   omega
 
 /-- **Overflowing vertices reach the source** ([CLRS2009], Lemma 26.19): in a preflow, every vertex
@@ -402,11 +393,7 @@ theorem IsValidLabeling.exists_gap {f : N.Preflow} {h : V → ℕ} (hh : f.IsVal
       · exact ⟨N.s, Finset.mem_univ _, hkn ▸ hh.source⟩
       · obtain ⟨v, hv⟩ := hocc k hk0 (by omega)
         exact ⟨v, Finset.mem_univ _, hv⟩
-  have h1 := Finset.card_le_card hsub
-  rw [Finset.card_range] at h1
-  have h2 := Finset.card_image_le (s := (Finset.univ : Finset V)) (f := h)
-  rw [Finset.card_univ] at h2
-  omega
+  finset_card [Finset.card_range (Fintype.card V + 1)]
 
 theorem IsValidLabeling.gapLevel_spec {f : N.Preflow} {h : V → ℕ} (hh : f.IsValidLabeling h) :
     0 < gapLevel h ∧ gapLevel h < Fintype.card V ∧ ∀ v, h v ≠ gapLevel h := by
@@ -477,23 +464,13 @@ theorem pushFun_sub_pushFun (f : V → V → ℕ) (u v : V) (δ : ℕ) (x y : V)
     (pushFun f u v δ x y : ℤ) - (pushFun f u v δ y x : ℤ) =
       (f x y : ℤ) - (f y x : ℤ) + (if x = u ∧ y = v then (δ : ℤ) else 0) -
         (if x = v ∧ y = u then (δ : ℤ) else 0) := by
-  have hA' : (y = v ∧ x = u) ↔ (x = u ∧ y = v) := and_comm
-  have hB' : (y = u ∧ x = v) ↔ (x = v ∧ y = u) := and_comm
   unfold pushFun
-  simp only [hA', hB']
-  by_cases hA : x = u ∧ y = v
-  · by_cases hB : x = v ∧ y = u
-    · have hxy : x = y := hA.1.trans hB.2.symm
-      subst hxy
-      simp only [ite_eq_left hA, ite_eq_left hB]
-      omega
-    · simp only [ite_eq_left hA, ite_eq_right hB]
-      omega
-  · by_cases hB : x = v ∧ y = u
-    · simp only [ite_eq_right hA, ite_eq_left hB]
-      omega
-    · simp only [ite_eq_right hA, ite_eq_right hB]
-      omega
+  simp only [show (y = v ∧ x = u) ↔ (x = u ∧ y = v) from and_comm,
+    show (y = u ∧ x = v) ↔ (x = v ∧ y = u) from and_comm]
+  split_ifs with hA hB
+  · have : x = y := hA.1.trans hB.2.symm
+    subst this; omega
+  all_goals omega
 
 theorem sum_pushFun_sub (f : V → V → ℕ) (u v : V) (δ : ℕ) (x : V) :
     (∑ y, (pushFun f u v δ y x : ℤ)) - ∑ y, (pushFun f u v δ x y : ℤ) =
@@ -532,7 +509,8 @@ Section 26.4, procedure `PUSH`). -/
   out_le_in x hx := by
     have key := sum_pushFun_sub f.toFun u v (f.pushAmount u v) x
     have hex := f.excess_nonneg hx
-    have hδ : x = u → (f.pushAmount u v : ℤ) ≤ f.excess x := by grind [pushAmount]
+    have hδ : x = u → (f.pushAmount u v : ℤ) ≤ f.excess x := by
+      rintro rfl; unfold pushAmount; omega
     unfold excess at hex hδ
     have h0 : (0 : ℤ) ≤ (∑ y, (pushFun f u v (f.pushAmount u v) y x : ℤ)) -
         ∑ y, (pushFun f u v (f.pushAmount u v) x y : ℤ) := by
@@ -638,12 +616,10 @@ theorem resNbrs_nonempty (f : N.Preflow) {u : V} (hu : 0 < f.excess u) :
     (f.resNbrs u).Nonempty := by
   by_contra hne
   rw [Finset.not_nonempty_iff_eq_empty] at hne
-  have hz : ∀ w, f w u = 0 := by
-    intro w
-    have hw : w ∉ f.resNbrs u := by grind
+  have hz : ∀ w, f w u = 0 := fun w => by
+    have hw : w ∉ f.resNbrs u := hne ▸ Finset.notMem_empty w
     rw [mem_resNbrs, not_lt] at hw
-    unfold resCap at hw
-    omega
+    unfold resCap at hw; omega
   unfold excess at hu
   have h0 : ∑ w, (f w u : ℤ) = 0 := Finset.sum_eq_zero fun w _ => by simp [hz w]
   have : 0 ≤ ∑ w, (f u w : ℤ) := Finset.sum_nonneg fun _ _ => Int.natCast_nonneg _

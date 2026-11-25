@@ -110,14 +110,12 @@ theorem ExecWithin.loop_potential_retain {B : Basis} {r w : ℕ} {cond : Cond r}
       ∃ y T, ExecWithin w body x y T ∧ I y ∧ T + 2 + Φ y ≤ Φ x)
     {x : Data r} (hx : I x) :
     ∃ z T, ExecWithin w (.loop cond body) x z T ∧ I z ∧ ¬cond.Holds z ∧ T + Φ z ≤ Φ x + 2 := by
-  induction hm : Φ x using Nat.strong_induction_on generalizing x with
-  | _ m ih =>
-    subst hm
-    by_cases hc : cond.Holds x
-    · obtain ⟨y, T₁, hy, hIy, hΦ⟩ := hbody x hx hc
-      obtain ⟨z, T₂, hz, hIz, hcz, hΦz⟩ := ih (Φ y) (by omega) hIy rfl
-      exact ⟨z, T₁ + T₂ + 2, .loop_iter hc hy hz, hIz, hcz, by omega⟩
-    · exact ⟨x, 2, .loop_exit hc, hx, hc, by omega⟩
+  by_cases hc : cond.Holds x
+  · obtain ⟨y, T₁, hy, hIy, hΦ⟩ := hbody x hx hc
+    obtain ⟨z, T₂, hz, hIz, hcz, hΦz⟩ := ExecWithin.loop_potential_retain I Φ hbody hIy
+    exact ⟨z, T₁ + T₂ + 2, .loop_iter hc hy hz, hIz, hcz, by omega⟩
+  · exact ⟨x, 2, .loop_exit hc, hx, hc, by omega⟩
+termination_by Φ x
 
 /-- `Data.comap` preserves `Bounded w`. -/
 theorem Data.Bounded.comap {r r' w : ℕ} {x : Data r'} (hx : x.Bounded w) (f : Fin r → Fin r') :

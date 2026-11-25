@@ -106,18 +106,14 @@ variable {b : ℕ} [NeZero b]
 theorem intCast_eq_and_ediv_eq_iff (z q : ℤ) (r : ZMod b) :
     ((z : ZMod b) = r ∧ z / b = q) ↔ z = b * q + r.val := by
   have hb : (0 : ℤ) < b := by exact_mod_cast Nat.pos_of_neZero b
-  have hr : (r.val : ℤ) < b := by exact_mod_cast ZMod.val_lt r
-  constructor
-  · rintro ⟨hz, hq⟩
-    have hval : ((z : ZMod b).val : ℤ) = z % b := ZMod.val_intCast z
-    rw [hz] at hval
-    rw [hval, ← hq]
+  refine ⟨?_, ?_⟩
+  · rintro ⟨rfl, rfl⟩
+    rw [ZMod.val_intCast]
     exact (Int.mul_ediv_add_emod z b).symm
   · rintro rfl
-    constructor
-    · simp
-    · rw [add_comm, Int.add_mul_ediv_left _ _ hb.ne']
-      rw [Int.ediv_eq_zero_of_lt (by positivity) hr, zero_add]
+    refine ⟨by simp, ?_⟩
+    rw [add_comm, Int.add_mul_ediv_left _ _ hb.ne',
+      Int.ediv_eq_zero_of_lt (by positivity) (by exact_mod_cast ZMod.val_lt r), zero_add]
 
 /-- The offsets and block indices of finite storage, compared with a control record's offsets and
 prescribed block indices, are its head coordinates. -/
@@ -127,18 +123,16 @@ theorem blockControl_eq_and_blockIndex_iff (l : LocalCfg k State) (c : BlockCont
       l.state = c.1 ∧ l.track = c.2.2 ∧
         ∀ head, l.headCoord head = b * J head + (c.2.1 head).val := by
   obtain ⟨s, off, tr⟩ := c
-  have hcoord : ∀ head, ((l.blockControl b).2.1 head = off head ∧ l.blockIndex b head = J head) ↔
-      l.headCoord head = b * J head + (off head).val := by
-    intro head
+  have hcoord (head : Option (Fin k)) :
+      ((l.blockControl b).2.1 head = off head ∧ l.blockIndex b head = J head) ↔
+        l.headCoord head = b * J head + (off head).val := by
     rw [← intCast_eq_and_ediv_eq_iff]
     cases head <;> rfl
   simp only [LocalCfg.blockControl, Prod.mk.injEq] at hcoord ⊢
-  constructor
-  · rintro ⟨⟨hs, hoff, htr⟩, hJ⟩
-    exact ⟨hs, htr, fun head => (hcoord head).mp ⟨congrFun hoff head, hJ head⟩⟩
-  · rintro ⟨hs, htr, hJ⟩
-    exact ⟨⟨hs, funext fun head => ((hcoord head).mpr (hJ head)).1, htr⟩,
-      fun head => ((hcoord head).mpr (hJ head)).2⟩
+  exact ⟨fun ⟨⟨hs, hoff, htr⟩, hJ⟩ =>
+      ⟨hs, htr, fun head => (hcoord head).mp ⟨congrFun hoff head, hJ head⟩⟩,
+    fun ⟨hs, htr, hJ⟩ => ⟨⟨hs, funext fun head => ((hcoord head).mpr (hJ head)).1, htr⟩,
+      fun head => ((hcoord head).mpr (hJ head)).2⟩⟩
 
 /-- The window contents of finite storage are `w` exactly when the cells of every window are the
 window cells of `w`. -/
@@ -148,11 +142,9 @@ theorem windowContents_eq_iff (l : LocalCfg k State) (J : Option (Fin k) → ℤ
   have hb : 0 < b := Nat.pos_of_neZero b
   constructor
   · rintro rfl h
-    unfold LocalCfg.windowCellsAt windowCells
     refine List.map_congr_left fun c hc => ?_
-    have hc3 : c / b < 3 := by
-      rw [Nat.div_lt_iff_lt_mul hb]
-      simpa [Nat.mul_comm] using List.mem_range.mp hc
+    have hc3 : c / b < 3 :=
+      (Nat.div_lt_iff_lt_mul hb).mpr (by simpa [Nat.mul_comm] using List.mem_range.mp hc)
     rw [dite_eq_left hc3]
     simp only [LocalCfg.windowContents, ZMod.val_natCast]
     congr 1
@@ -162,20 +154,15 @@ theorem windowContents_eq_iff (l : LocalCfg k State) (J : Option (Fin k) → ℤ
     linear_combination (-1 : ℤ) * h
   · intro hw
     funext h d r
-    have hwh := hw h
-    unfold LocalCfg.windowCellsAt windowCells at hwh
     have hlt : b * (d : ℕ) + r.val < 3 * b := by
-      have := d.isLt
-      have := ZMod.val_lt r
-      nlinarith
-    have hcell := List.map_inj_left.mp hwh (b * d + r.val) (List.mem_range.mpr hlt)
+      nlinarith [d.isLt, ZMod.val_lt r]
+    have hcell := List.map_inj_left.mp (hw h) (b * d + r.val) (List.mem_range.mpr hlt)
     have hdiv : (b * d + r.val) / b = d := by
       rw [Nat.add_comm, Nat.add_mul_div_left _ _ hb, Nat.div_eq_of_lt (ZMod.val_lt r), zero_add]
-    simp only [hdiv, d.isLt, dite_true] at hcell
     have hcast : ((b * d + r.val : ℕ) : ZMod b) = r := by
       push_cast
       simp
-    rw [hcast] at hcell
+    simp only [hdiv, d.isLt, dite_true, hcast] at hcell
     rw [← hcell]
     simp only [LocalCfg.windowContents]
     congr 1
@@ -224,22 +211,15 @@ theorem localIntervalStepData_iff [NeZero b] (input : List Bool) (J : Option (Fi
       machine.LocalIntervalStep b input J δ cIn wIn coins cOut wOut := by
   set l := machine.localRun input coins (localStart b input J cIn wIn)
   have hcontrol := blockControl_eq_and_blockIndex_iff l cOut (fun head => J head + δ head)
-  have hwindow := windowContents_eq_iff l J wOut
-  have hlt : ∀ head, (cOut.2.1 head).val < b := fun head => ZMod.val_lt _
-  simp only [LocalIntervalStepData, LocalIntervalStep, controlData]
-  change (l.state = cOut.1 ∧ l.track = cOut.2.2 ∧ (∀ head, (cOut.2.1 head).val < b ∧
-      l.headCoord head = b * (J head + δ head) + (cOut.2.1 head).val) ∧
-      ∀ h, l.windowCellsAt b (J (some h)) h = windowCells b (wOut h)) ↔
-    l.blockControl b = cOut ∧ l.windowContents b J = wOut ∧
-      ∀ head, l.blockIndex b head = J head + δ head
-  rw [hwindow]
-  constructor
-  · rintro ⟨hs, htr, hcoord, hw⟩
-    obtain ⟨hc, hJ⟩ := hcontrol.mpr ⟨hs, htr, fun head => (hcoord head).2⟩
-    exact ⟨hc, hw, hJ⟩
-  · rintro ⟨hc, hw, hJ⟩
-    obtain ⟨hs, htr, hcoord⟩ := hcontrol.mp ⟨hc, hJ⟩
-    exact ⟨hs, htr, fun head => ⟨hlt head, hcoord head⟩, hw⟩
+  rw [LocalIntervalStepData, LocalIntervalStep, show machine.localRun input coins _ = l from rfl,
+    windowContents_eq_iff l J wOut]
+  simp only [controlData]
+  exact ⟨fun ⟨hs, htr, hcoord, hw⟩ =>
+      let ⟨hc, hJ⟩ := hcontrol.mpr ⟨hs, htr, fun head => (hcoord head).2⟩
+      ⟨hc, hw, hJ⟩,
+    fun ⟨hc, hw, hJ⟩ =>
+      let ⟨hs, htr, hcoord⟩ := hcontrol.mp ⟨hc, hJ⟩
+      ⟨hs, htr, fun head => ⟨ZMod.val_lt _, hcoord head⟩, hw⟩⟩
 
 /-- **The interval count on plain data**: the number of coin strings of `b` bits satisfying the
 interval condition. -/

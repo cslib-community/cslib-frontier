@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctHash
 public import CslibFrontier.DataStructure.WordRAM.Randomized.StateTransition
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Register Wiring and Per-Operation Native Dispatch for the Succinct Dictionary
@@ -166,9 +167,7 @@ theorem val_coreReg (i : Fin 240) :
 theorem notMem_range_coreReg {r : Fin rSuccinct}
     (hr : 240 ≤ r.val) : r ∉ Set.range coreReg := by
   rintro ⟨i, rfl⟩
-  have := i.isLt
-  dsimp only [coreReg, Fin.val_castLE] at hr
-  omega
+  fin_index [coreReg]
 
 /-- Persistent base-address register `0` (`sReg 0`). -/
 noncomputable abbrev baseReg : Fin rSuccinct := sReg 0
@@ -498,22 +497,16 @@ theorem append_paramReg_ne_tmp {k m : ℕ} (srcD : Fin k → Fin rSuccinct)
     (hd : ∀ (i : Fin k) (j : Fin m), srcD i ≠ tmp j) :
     ∀ (i : Fin (36 + k)) (j : Fin m), Fin.append paramReg srcD i ≠ tmp j :=
   fun i j => i.addCases
-    (fun i₀ h => by
-      have hval := congrArg Fin.val h
-      rw [Fin.append_left, val_paramReg] at hval
-      have := htmp_out j; omega)
-    (fun i₁ => by rw [Fin.append_right]; exact hd i₁ j)
+    (fun i₀ => by have := htmp_out j; fin_index [val_paramReg])
+    (fun i₁ => by have := hd i₁ j; fin_index)
 
 /-- Generic disjointness between `Fin.append paramReg srcD` and `frontierReg` (`240`). -/
 theorem append_paramReg_ne_frontier {k : ℕ} (srcD : Fin k → Fin rSuccinct)
     (hf : ∀ i : Fin k, (srcD i).val ≠ 240) :
     ∀ i : Fin (36 + k), Fin.append paramReg srcD i ≠ frontierReg :=
   fun i => i.addCases
-    (fun i₀ h => by
-      have hval := congrArg Fin.val h
-      rw [Fin.append_left, val_paramReg] at hval
-      change 256 + i₀.val = 240 at hval; omega)
-    (fun i₁ h => by rw [Fin.append_right] at h; exact hf i₁ (congrArg Fin.val h))
+    (fun i₀ => by fin_index [val_paramReg, frontierReg, val_sReg])
+    (fun i₁ => by have := hf i₁; fin_index [frontierReg, val_sReg])
 
 /-- Composing `x.regs` with `Fin.append paramReg srcD` yields `WordEncoding.encode (dp, d)`. -/
 theorem regs_comp_append_paramReg {D : Type} [WordEncoding D]
@@ -785,11 +778,9 @@ theorem bucketStateInv_congr {U V w n_max h_space base : ℕ} (hw : 0 < w)
     BucketStateInv U V w n_max h_space base mOf L B s₂ := by
   obtain ⟨hq, hv, hlm, hgm⟩ := arrays_congr_of_eq_on hw heq
   rcases hinv with ⟨hslot, hchains, hcm, hnodup, hsome, hdom⟩
-  refine ⟨hgm ▸ hslot, hlm ▸ hchains, ?_, ?_, ?_, ?_⟩
-  · simpa only [← hgm, ← hq] using hcm
-  · simpa only [← hgm, ← hq] using hnodup
-  · simpa only [← hgm, ← hq, ← hv] using hsome
-  · simpa only [← hgm, ← hq] using hdom
+  exact ⟨hgm ▸ hslot, hlm ▸ hchains, by simpa only [← hgm, ← hq] using hcm,
+    by simpa only [← hgm, ← hq] using hnodup, by simpa only [← hgm, ← hq, ← hv] using hsome,
+    by simpa only [← hgm, ← hq] using hdom⟩
 
 theorem dictStateInv_congr {U V w n_max base : ℕ} (hw : 0 < w)
     {θ : QuotHashSeed U n_max} {s_abs : Dictionary.State U} {s₁ s₂ : Memory.State}
@@ -807,9 +798,8 @@ theorem modifies_footprint_of_table {U V w n_max base : ℕ} {mem₁ mem₂ : �
     Modifies (Block.mk base (space U V w n_max)).footprint mem₁ mem₂ := by
   intro a ha
   rw [Block.mem_footprint, Block.Owns] at ha
-  dsimp only at ha
-  dsimp only [offQuot] at hout
-  exact hout a (fun ⟨h1, h2⟩ => ha ⟨by omega, h2⟩)
+  dsimp only [offQuot] at ha hout
+  exact hout a fun ⟨h1, h2⟩ => ha ⟨by omega, h2⟩
 
 /-! ## Section 6: `loadParamsCode` and common prefix execution helpers -/
 
@@ -886,48 +876,20 @@ theorem fits_mkDictParams {U V w n_max base : ℕ}
   have ⟨h2s, hdir, htail, hgd, hgp, hgo, hgm⟩ := hmeta
   rcases i with ⟨_ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ |
     _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | k, hi⟩
-  · exact hw_fit
-  · exact hU_fit.of_le hnU
-  · exact hU_fit.of_le (show n_max - 1 ≤ U by omega)
-  · exact hoffQ
-  · exact hw_fit.of_le (quotientBits_le_of_le_pow (le_of_lt hU))
-  · exact hoffV
-  · exact hw_fit.of_le (Nat.clog_le_of_le_pow hV)
-  · exact hoffLM 0 (by decide)
-  · exact hoffLM 1 (by decide)
-  · exact hoffLM 2 (by decide)
-  · exact hoffLM 3 (by decide)
-  · exact hoffLM 4 (by decide)
-  · exact hoffLM 5 (by decide)
-  · exact hoffLM 6 (by decide)
-  · exact hoffLM 7 (by decide)
-  · exact hoffLM 8 (by decide)
-  · exact hw_fit.of_le (effBucketPosBits_le_of_lt_pow hnU hU)
-  · exact hoffGM
-  · exact hw_fit.of_le (globalPtrBits_le_of_lt_pow hnU hU)
-  · exact hb_mask.1
-  · exact hb_mask.2
-  · exact hslab_fit
-  · exact hslab_fit.of_le (Nat.sub_le _ _)
-  · exact h2s
-  · exact hdir
-  · exact hdir.of_le (Nat.sub_le _ _)
-  · exact htail
-  · exact hgd
-  · exact hgp
-  · exact hgo
-  · exact hgm
-  · exact hmicro_fit
-  · exact hU_fit.of_le ((Nat.min_le_left _ _).trans hnU)
-  · exact hU_fit
-  · exact hV_fit
-  · exact hoffQ
-  · omega
+  exacts [hw_fit, hU_fit.of_le hnU, hU_fit.of_le (show n_max - 1 ≤ U by omega), hoffQ,
+    hw_fit.of_le (quotientBits_le_of_le_pow (le_of_lt hU)), hoffV,
+    hw_fit.of_le (Nat.clog_le_of_le_pow hV), hoffLM 0 (by decide), hoffLM 1 (by decide),
+    hoffLM 2 (by decide), hoffLM 3 (by decide), hoffLM 4 (by decide), hoffLM 5 (by decide),
+    hoffLM 6 (by decide), hoffLM 7 (by decide), hoffLM 8 (by decide),
+    hw_fit.of_le (effBucketPosBits_le_of_lt_pow hnU hU), hoffGM,
+    hw_fit.of_le (globalPtrBits_le_of_lt_pow hnU hU), hb_mask.1, hb_mask.2, hslab_fit,
+    hslab_fit.of_le (Nat.sub_le _ _), h2s, hdir, hdir.of_le (Nat.sub_le _ _), htail, hgd, hgp,
+    hgo, hgm, hmicro_fit, hU_fit.of_le ((Nat.min_le_left _ _).trans hnU), hU_fit, hV_fit, hoffQ,
+    by omega]
 
 /-- Any register below `256` is disjoint from the `paramReg` block `[256, 292)`. -/
 private theorem ne_paramReg_of_lt {r : Fin rSuccinct} (hr : r.val < 256) (j : Fin 36) :
-    r ≠ paramReg j := fun h => by
-  have := congrArg Fin.val h; rw [val_paramReg] at this; omega
+    r ≠ paramReg j := by fin_index [val_paramReg]
 
 private theorem exec_loadParamsUpTo {w : ℕ} {dp : DictParams}
     (hfits : ∀ i : Fin 36, Fits w (dp i))
@@ -944,7 +906,7 @@ private theorem exec_loadParamsUpTo {w : ℕ} {dp : DictParams}
         x (x.set (paramReg ⟨0, hk⟩) (dp ⟨0, hk⟩)) 1 :=
       ExecWithin.const (hfits ⟨0, hk⟩)
     refine ⟨_, hex, hex.bounded hx_bdd, rfl, fun j hj => ?_, fun r hr => ?_⟩
-    · obtain rfl : j = ⟨0, hk⟩ := Fin.ext (Nat.eq_zero_of_le_zero hj)
+    · obtain rfl : j = ⟨0, hk⟩ := by fin_index
       rw [Data.set_regs, Function.update_self]
     · rw [Data.set_regs, Function.update_of_ne (ne_paramReg_of_lt hr _)]
   | succ k ih =>
@@ -955,9 +917,8 @@ private theorem exec_loadParamsUpTo {w : ℕ} {dp : DictParams}
     refine ⟨_, hex₀.seq hex₁, hex₁.bounded hy₀_bdd, hmem₀, fun j hj => ?_, fun r hr => ?_⟩
     · obtain rfl | hne := eq_or_ne j ⟨k + 1, hk⟩
       · rw [Data.set_regs, Function.update_self]
-      · rw [Data.set_regs, Function.update_of_ne (fun heq => hne <| Fin.ext <| by
-          have := congrArg Fin.val heq; rw [val_paramReg, val_paramReg] at this; omega)]
-        exact hparam₀ j (by have := Fin.val_ne_of_ne hne; dsimp at this; omega)
+      · rw [Data.set_regs, Function.update_of_ne (by fin_index [val_paramReg])]
+        exact hparam₀ j (by fin_index)
     · rw [Data.set_regs, Function.update_of_ne (ne_paramReg_of_lt hr _)]
       exact hlow₀ r hr
 
@@ -1134,8 +1095,7 @@ private theorem exec_opPrefix {U V w n_max base : ℕ}
       (hhigh₂ 246 (by decide)).trans ((hframe₁ 246 (by decide)).trans (hlow₀ 246 (by decide))),
       hout₂, fun j =>
         (hhigh₂ ⟨256 + j.val, by omega⟩ (by dsimp; omega)).trans
-          ((hframe₁ ⟨256 + j.val, by omega⟩
-            (fun h => by have := congrArg Fin.val h; dsimp at this; omega)).trans (hparam₀ j))⟩
+          ((hframe₁ ⟨256 + j.val, by omega⟩ (by fin_index)).trans (hparam₀ j))⟩
   have hex_z : ExecWithin (B := .exact) w (.op (.const zeroReg 0)) x₂ (x₂.set zeroReg 0) 1 :=
     ExecWithin.const (Nat.two_pow_pos w)
   exact ⟨_, fun hex_br => hex_lp.seq (hex_ext.seq (hex_h1.seq (hex_z.seq hex_br))),
@@ -1405,7 +1365,7 @@ private theorem exec_delPrepCode {U V w n_max base : ℕ}
     (hkeep (by decide) (by decide)).trans hs₅.base_reg,
     (hkeep (by decide) (by decide)).trans hs₅.argU,
     (hkeep (by decide) (by decide)).trans hhq,
-    fun j => (hkeep (fun h => by have := congrArg Fin.val h; dsimp at this; omega)
+    fun j => (hkeep (by fin_index)
       (fun hm => by have := tmpLayout_tmpDelPrep.lt_256 _ hm; dsimp at this; omega)).trans
       (hs₅.params j),
     hout 0, hout 1, hout 2, hout 3⟩

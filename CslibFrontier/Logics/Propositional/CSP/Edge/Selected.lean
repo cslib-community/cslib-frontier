@@ -81,17 +81,15 @@ theorem EdgeInstance.card_true_eq (hF : EdgeInstance F) (f : OccurrenceLabeling 
     rw [he]
     simp only [hF.mem_selectedVariables_iff, mem_defects, hF.inconsistent_iff]
     have hn := hF.partner_ne o
-    cases h₁ : f o <;> cases h₂ : f (hF.partner o) <;>
-      simp [Finset.filter_insert, Finset.filter_singleton, h₁, h₂, hn]
+    cases h1 : f o <;> cases h2 : f (hF.partner o) <;>
+      simp [Finset.filter_insert, Finset.filter_singleton, hn, h1, h2]
   have hsum : T.card = ∑ v ∈ F.vars.toFinset, (T.filter fun o => o.var = v).card :=
     card_eq_sum_card_fiberwise fun o _ => List.mem_toFinset.mpr o.var_mem
   rw [hsum, sum_congr rfl hfiber, sum_add_distrib]
   have hs : selectedVariables f ⊆ F.vars.toFinset := fun v hv =>
     List.mem_toFinset.mpr (mem_selectedVariables.mp hv).1
-  have hd : defects f ⊆ F.vars.toFinset := by
-    intro v hv
-    obtain ⟨o, _, ho, _, _⟩ := mem_defects.mp hv
-    exact List.mem_toFinset.mpr (ho ▸ o.var_mem)
+  have hd : defects f ⊆ F.vars.toFinset := fun v hv =>
+    let ⟨o, _, ho, _, _⟩ := mem_defects.mp hv; List.mem_toFinset.mpr (ho ▸ o.var_mem)
   simp only [sum_ite_mem, inter_eq_right.mpr hs, inter_eq_right.mpr hd, sum_const,
     smul_eq_mul, mul_comm, Nat.one_mul]
 

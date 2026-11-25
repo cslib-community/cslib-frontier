@@ -7,18 +7,15 @@ Authors: Renfei Zhou
 module
 -- upstream: candidate
 
-public import CslibFrontier.Foundations.Data.Nat.Log
 public import CslibFrontier.DataStructure.Dictionary.Dynamic.Spec
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.BitPackedArray
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctSlotInv
 public import CslibFrontier.DataStructure.HashFamily.WordRAM.RuntimeReducedKWise
-import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 public import CslibFrontier.Tactic.WramOmega.Init
-import CslibFrontier.Tactic.WramOmega
 
 /-!
-# Compacted Epoch Parameters, Dense Pair-Stream Packing, and `Memory.Prog` Bit-Slice Accessors
+# Compacted Epoch Parameters and Dense Pair-Stream Packing
 
 This module defines the 8-word persistent root header, the 225-word active epoch header, the
 metadata-first compacted epoch layout, and the dense `[0, n)` `(quotient, value)` pair-stream
@@ -28,8 +25,9 @@ W. Kuszmaul, SOSA 2024][BenderFarachColtonKuszmaulKuszmaul2024].
 ## Memory layout (`[metaBase, +offCompItems)` and `[itemBase, +compactedItemWords)`)
 
 1. **Persistent 8-word root header (`[metaBase, metaBase + 8)`):**
-   `[U, V, w, keyBits U, valBits V, N, n, n_init]`. When `n = 0` (`N = 0`), the resting dictionary
-   occupies only these `8` words (`compactedEpochWords U V w 0 0 = 8`).
+   `[U - 1, V - 1, w, keyBits U, valBits V, N, n, n_init]` (storing `U - 1` and `V - 1` so
+   `V = 2 ^ w` fits in a `w`-bit word). When `n = 0` (`N = 0`), the resting dictionary occupies
+   only these `8` words (`compactedEpochWords U V w 0 0 = 8`).
 2. **Active epoch parameter and hash-scratch header (`[metaBase + 8, metaBase + 225)`):**
    * `[metaBase + 8, metaBase + 27)`: 19 words of `RuntimeReducedKWise.HashParams`.
    * `[metaBase + 27, metaBase + 63)`: 36 words of `CompParams`.
@@ -49,8 +47,8 @@ W. Kuszmaul, SOSA 2024][BenderFarachColtonKuszmaulKuszmaul2024].
 * `Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct.rootHdrWords`, `RootHeaderValid`,
   `EpochValid`, `targetCap`: root header and epoch capacity invariants.
 * `Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct.wOffQ`, `bOffQ`, `wOffV`, `bOffV`,
-  `compactedItemWords`, `readBitSlice`, `writeBitSlice`, `compQuotAt`, `compValAt`,
-  `writeCompQuot`, `writeCompVal`: overflow-free dense `[0, n)` pair-stream packing.
+  `compactedItemWords`, `compQuotAt`, `compValAt`, `writeCompQuot`, `writeCompVal`: overflow-free
+  dense `[0, n)` pair-stream packing.
 * `Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct.epochHdrWords`, `offCompLM`,
   `offCompLMSub`, `offCompGM`, `offTailToDense`, `offDenseToTail`, `offCompItems`,
   `compactedEpochWords`: compacted epoch word offsets and total footprint.
@@ -148,47 +146,34 @@ theorem wOffV_mul_add_bOffV {q_bits v_bits w d : ℕ} :
 @[expose, wram_arith] def compactedItemWords (U V w N n : ℕ) : ℕ :=
   (n * (quotientBits U N + valBits V) + w - 1) / w + 2
 
+private theorem wOff_add_one_lt_compactedItemWords {U V w N n wOff bOff g : ℕ}
+    (hw : 0 < w) (hb : bOff < w) (hid : wOff * w + bOff = g)
+    (hle : g ≤ n * (quotientBits U N + valBits V)) :
+    wOff + 1 < compactedItemWords U V w N n := by
+  have h1 : wOff = g / w := by
+    rw [← hid, Nat.mul_comm _ w, Nat.mul_add_div hw, Nat.div_eq_of_lt hb, add_zero]
+  have hdiv : wOff ≤ (n * (quotientBits U N + valBits V) + w - 1) / w :=
+    h1 ▸ Nat.div_le_div_right (by omega)
+  unfold compactedItemWords
+  omega
+
 theorem wOffQ_add_one_lt_compactedItemWords {U V w N n d : ℕ} (hw : 0 < w) (hd : d < n) :
-    wOffQ (quotientBits U N) (valBits V) w d + 1 < compactedItemWords U V w N n := by
-  have hid := wOffQ_mul_add_bOffQ
-    (q_bits := quotientBits U N) (v_bits := valBits V) (w := w) (d := d)
-  have hle : d * (quotientBits U N + valBits V) ≤ n * (quotientBits U N + valBits V) :=
-    Nat.mul_le_mul_right _ hd.le
-  have hdiv : wOffQ (quotientBits U N) (valBits V) w d ≤
-      (n * (quotientBits U N + valBits V) + w - 1) / w := by
-    have h1 : wOffQ (quotientBits U N) (valBits V) w d =
-        (d * (quotientBits U N + valBits V)) / w := by
-      have hb := bOffQ_lt (q_bits := quotientBits U N) (v_bits := valBits V) (d := d) hw
-      rw [← hid, Nat.mul_comm _ w, Nat.mul_add_div hw, Nat.div_eq_of_lt hb, add_zero]
-    rw [h1]
-    exact Nat.div_le_div_right (by omega)
-  wram_omega
+    wOffQ (quotientBits U N) (valBits V) w d + 1 < compactedItemWords U V w N n :=
+  wOff_add_one_lt_compactedItemWords hw (bOffQ_lt hw) wOffQ_mul_add_bOffQ
+    (Nat.mul_le_mul_right _ hd.le)
 
 theorem wOffV_add_one_lt_compactedItemWords {U V w N n d : ℕ} (hw : 0 < w) (hd : d < n) :
-    wOffV (quotientBits U N) (valBits V) w d + 1 < compactedItemWords U V w N n := by
-  have hid := wOffV_mul_add_bOffV
-    (q_bits := quotientBits U N) (v_bits := valBits V) (w := w) (d := d)
-  have hle : d * (quotientBits U N + valBits V) + quotientBits U N ≤
-      n * (quotientBits U N + valBits V) := by
+    wOffV (quotientBits U N) (valBits V) w d + 1 < compactedItemWords U V w N n :=
+  wOff_add_one_lt_compactedItemWords hw (bOffV_lt hw) wOffV_mul_add_bOffV <| by
     have hsucc : (d + 1) * (quotientBits U N + valBits V) ≤
         n * (quotientBits U N + valBits V) := Nat.mul_le_mul_right _ hd
     rw [Nat.add_one_mul] at hsucc
     omega
-  have hdiv : wOffV (quotientBits U N) (valBits V) w d ≤
-      (n * (quotientBits U N + valBits V) + w - 1) / w := by
-    have h1 : wOffV (quotientBits U N) (valBits V) w d =
-        (d * (quotientBits U N + valBits V) + quotientBits U N) / w := by
-      have hb := bOffV_lt (q_bits := quotientBits U N) (v_bits := valBits V) (d := d) hw
-      rw [← hid, Nat.mul_comm _ w, Nat.mul_add_div hw, Nat.div_eq_of_lt hb, add_zero]
-    rw [h1]
-    exact Nat.div_le_div_right (by omega)
-  wram_omega
 
 theorem compactedItemWords_mono {U V w N n₁ n₂ : ℕ} (h : n₁ ≤ n₂) :
     compactedItemWords U V w N n₁ ≤ compactedItemWords U V w N n₂ := by
   unfold compactedItemWords
-  have hmul : n₁ * (quotientBits U N + valBits V) ≤ n₂ * (quotientBits U N + valBits V) :=
-    Nat.mul_le_mul_right _ h
+  have hmul : n₁ * (quotientBits U N + valBits V) ≤ n₂ * (quotientBits U N + valBits V) := by gcongr
   have hdiv : (n₁ * (quotientBits U N + valBits V) + w - 1) / w ≤
       (n₂ * (quotientBits U N + valBits V) + w - 1) / w :=
     Nat.div_le_div_right (by omega)
@@ -205,8 +190,7 @@ theorem compactedItemWords_succ_sub_le_two {U V w N n : ℕ} (hw : 0 < w)
       (n * (quotientBits U N + valBits V) + w - 1) / w + 2 := by
     rw [Nat.add_mul, Nat.one_mul]
     calc (n * (quotientBits U N + valBits V) + (quotientBits U N + valBits V) + w - 1) / w
-        ≤ (n * (quotientBits U N + valBits V) + w - 1 + 2 * w) / w :=
-          Nat.div_le_div_right (by omega)
+        ≤ (n * (quotientBits U N + valBits V) + w - 1 + 2 * w) / w := by gcongr; omega
       _ = (n * (quotientBits U N + valBits V) + w - 1) / w + 2 :=
           Nat.add_mul_div_right _ _ hw
   omega
@@ -259,6 +243,20 @@ theorem compQuotAt_writeCompQuot_self {itemBase U V w N n d q : ℕ} (mem : ℕ 
   unfold compQuotAt writeCompQuot; simp only [hd, ↓reduceIte]
   exact readBitSlice_writeBitSlice_self _ _ _ _ _ _ hq
 
+private theorem pair_bitRange_disjoint {q v d₁ d₂ o₁ k₁ o₂ k₂ : ℕ}
+    (h₁ : o₁ + k₁ ≤ q + v) (h₂ : o₂ + k₂ ≤ q + v)
+    (hdisj : d₁ = d₂ → o₁ + k₁ ≤ o₂ ∨ o₂ + k₂ ≤ o₁) :
+    d₁ * (q + v) + o₁ + k₁ ≤ d₂ * (q + v) + o₂ ∨
+    d₂ * (q + v) + o₂ + k₂ ≤ d₁ * (q + v) + o₁ := by
+  rcases lt_trichotomy d₁ d₂ with hlt | rfl | hgt
+  · left
+    have hle := Nat.mul_le_mul_right (q + v) hlt
+    rw [Nat.add_one_mul] at hle; omega
+  · have := hdisj rfl; omega
+  · right
+    have hle := Nat.mul_le_mul_right (q + v) hgt
+    rw [Nat.add_one_mul] at hle; omega
+
 theorem compQuotAt_writeCompQuot_of_ne {itemBase U V w N n d d' q : ℕ} (hw : 0 < w)
     (mem : ℕ → ℕ) (hne : d' ≠ d) :
     compQuotAt itemBase U V w N n (writeCompQuot itemBase U V w N mem d q) d' =
@@ -267,13 +265,9 @@ theorem compQuotAt_writeCompQuot_of_ne {itemBase U V w N n d d' q : ℕ} (hw : 0
   split_ifs with hd'
   · refine readBitSlice_writeBitSlice_of_disjoint (bOffQ_lt hw) (bOffQ_lt hw) ?_ mem q
     rw [wOffQ_mul_add_bOffQ, wOffQ_mul_add_bOffQ]
-    rcases lt_or_gt_of_ne hne with hlt | hgt
-    · right
-      have hle := Nat.mul_le_mul_right (quotientBits U N + valBits V) hlt
-      rw [Nat.add_one_mul] at hle; omega
-    · left
-      have hle := Nat.mul_le_mul_right (quotientBits U N + valBits V) hgt
-      rw [Nat.add_one_mul] at hle; omega
+    simpa only [Nat.add_zero] using pair_bitRange_disjoint (q := quotientBits U N) (v := valBits V)
+      (d₁ := d) (d₂ := d') (o₁ := 0) (k₁ := quotientBits U N) (o₂ := 0) (k₂ := quotientBits U N)
+      (by omega) (by omega) (fun h => absurd h.symm hne)
   · rfl
 
 theorem compValAt_writeCompQuot {itemBase U V w N n d d' q : ℕ} (hw : 0 < w) (mem : ℕ → ℕ) :
@@ -283,14 +277,9 @@ theorem compValAt_writeCompQuot {itemBase U V w N n d d' q : ℕ} (hw : 0 < w) (
   split_ifs with hd'
   · refine readBitSlice_writeBitSlice_of_disjoint (bOffQ_lt hw) (bOffV_lt hw) ?_ mem q
     rw [wOffQ_mul_add_bOffQ, wOffV_mul_add_bOffV]
-    rcases lt_trichotomy d d' with hlt | rfl | hgt
-    · left
-      have hle := Nat.mul_le_mul_right (quotientBits U N + valBits V) hlt
-      rw [Nat.add_one_mul] at hle; omega
-    · left; omega
-    · right
-      have hle := Nat.mul_le_mul_right (quotientBits U N + valBits V) hgt
-      rw [Nat.add_one_mul] at hle; omega
+    simpa only [Nat.add_zero] using pair_bitRange_disjoint (q := quotientBits U N) (v := valBits V)
+      (d₁ := d) (d₂ := d') (o₁ := 0) (k₁ := quotientBits U N) (o₂ := quotientBits U N)
+      (k₂ := valBits V) (by omega) (by omega) (fun _ => Or.inl (by omega))
   · rfl
 
 theorem compValAt_writeCompVal_self {itemBase U V w N n d v : ℕ} (mem : ℕ → ℕ)
@@ -307,13 +296,9 @@ theorem compValAt_writeCompVal_of_ne {itemBase U V w N n d d' v : ℕ} (hw : 0 <
   split_ifs with hd'
   · refine readBitSlice_writeBitSlice_of_disjoint (bOffV_lt hw) (bOffV_lt hw) ?_ mem v
     rw [wOffV_mul_add_bOffV, wOffV_mul_add_bOffV]
-    rcases lt_or_gt_of_ne hne with hlt | hgt
-    · right
-      have hle := Nat.mul_le_mul_right (quotientBits U N + valBits V) hlt
-      rw [Nat.add_one_mul] at hle; omega
-    · left
-      have hle := Nat.mul_le_mul_right (quotientBits U N + valBits V) hgt
-      rw [Nat.add_one_mul] at hle; omega
+    exact pair_bitRange_disjoint (q := quotientBits U N) (v := valBits V)
+      (d₁ := d) (d₂ := d') (o₁ := quotientBits U N) (k₁ := valBits V) (o₂ := quotientBits U N)
+      (k₂ := valBits V) (by omega) (by omega) (fun h => absurd h.symm hne)
   · rfl
 
 theorem compQuotAt_writeCompVal {itemBase U V w N n d d' v : ℕ} (hw : 0 < w) (mem : ℕ → ℕ) :
@@ -323,14 +308,9 @@ theorem compQuotAt_writeCompVal {itemBase U V w N n d d' v : ℕ} (hw : 0 < w) (
   split_ifs with hd'
   · refine readBitSlice_writeBitSlice_of_disjoint (bOffV_lt hw) (bOffQ_lt hw) ?_ mem v
     rw [wOffV_mul_add_bOffV, wOffQ_mul_add_bOffQ]
-    rcases lt_trichotomy d' d with hlt | rfl | hgt
-    · right
-      have hle := Nat.mul_le_mul_right (quotientBits U N + valBits V) hlt
-      rw [Nat.add_one_mul] at hle; omega
-    · right; omega
-    · left
-      have hle := Nat.mul_le_mul_right (quotientBits U N + valBits V) hgt
-      rw [Nat.add_one_mul] at hle; omega
+    simpa only [Nat.add_zero] using pair_bitRange_disjoint (q := quotientBits U N) (v := valBits V)
+      (d₁ := d) (d₂ := d') (o₁ := quotientBits U N) (k₁ := valBits V) (o₂ := 0)
+      (k₂ := quotientBits U N) (by omega) (by omega) (fun _ => Or.inr (by omega))
   · rfl
 
 theorem writeCompQuot_outside {itemBase U V w N n d q addr : ℕ} (hw : 0 < w) (hd : d < n)
@@ -383,7 +363,7 @@ theorem compValAt_of_lt {itemBase U V w N n₁ n₂ d : ℕ} (mem : ℕ → ℕ)
 
 /-! ## Section 2: Persistent Root Header, Compacted Epoch Layout, and `1 · OPT` Space Bounds -/
 
-/-- The 8-word persistent root header `[U, V, w, keyBits U, valBits V, N, n, n_init]`. -/
+/-- The 8-word persistent root header `[U - 1, V - 1, w, keyBits U, valBits V, N, n, n_init]`. -/
 @[expose] def rootHdrWords : ℕ := 8
 /-- Word offset `8` of the 19-word `RuntimeReducedKWise.HashParams` vector. -/
 @[expose] def offHashParams : ℕ := 8
@@ -484,7 +464,8 @@ theorem quotientBits_le_add_six_of_le_four_mul {n N : ℕ} (U : ℕ)
   have hlog : Nat.log 2 n ≤ Nat.log 2 N := Nat.log_mono_right hnN
   have hll : Dynamic.logLogFactor N ≤ Dynamic.logLogFactor n + 2 :=
     (Dynamic.logLogFactor_mono hN4).trans (Dynamic.logLogFactor_four_mul_le_add_two n)
-  wram_omega
+  unfold quotientBits bucketBits
+  omega
 
 theorem succinctWords_mul_w_le_bits (C C₀ U V w n : ℕ) :
     w * Dynamic.succinctWords C C₀ U V w n ≤

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunProp
 public import CslibFrontier.Tactic.FailureNote
+public import CslibFrontier.Tactic.CertificatePreparation
 public meta import Lean.Elab.Tactic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunPropFinite
 
@@ -16,10 +17,14 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.I
 # Composing explicit workspace certificates
 
 `space` proves a `ComputableInSpace` goal by the existing budget-preserving `fun_prop` rules.
-`space [f, g]` unfolds the indicated program definitions. Local routine certificates are reused;
-unproved size inequalities and iteration invariants are not guessed. An input-length side
-condition must be reflexive or supplied in the context. When the search fails, the `fun_prop`
-error ends with a note naming these inputs.
+`space [f, g]` first unfolds `f` and then `g` in the goal, as `unfold f g` and `polytime [f, g]`
+do: every occurrence in the goal is unfolded before the search, and a name that does not occur
+at its turn is an error. Every form then runs the preparation shared with `polytime`, `ppt` and
+`logspace` (`Cslib.Tactic.prepareCertificateGoal`): it inlines literal `let`s in the goal and
+local encoding `let`s, and adds the certificates stored in local structures as local facts.
+Local routine certificates are reused; unproved size inequalities and iteration invariants are
+not guessed. An input-length side condition must be reflexive or supplied in the context. When
+the search fails, the `fun_prop` error ends with a note naming these inputs.
 
 This tactic does not assert logarithmic space in the original input: the goal specifies the
 encoding and budget. In particular, a Savitch callback is linear-space in the stored state,
@@ -83,7 +88,12 @@ private def spaceFallbacks : Array Name := #[
   ``ComputableInSpace.budget_decideEq_encFinite, ``ComputableInSpace.budget_decideAnd,
   ``ComputableInSpace.budget_decideOr, ``ComputableInSpace.budget_natLe]
 
-/-- Compose explicit space certificates, optionally unfolding the named program definitions. -/
+/-- Compose explicit space certificates within the goal's budget.
+
+`space [f, g]` first unfolds the definitions `f` and then `g` in the goal, as `unfold f g` does;
+a name that does not occur at its turn is an error. Before searching, every form also inlines
+literal `let`s in the goal, replaces local encoding `let`s by their values and adds the
+certificates stored in fields of local structures as local facts, as `polytime` does. -/
 syntax (name := spaceTac) "space" (" [" ident,* "]")? : tactic
 
 elab_rules : tactic
@@ -92,13 +102,14 @@ elab_rules : tactic
     unless target.isAppOf ``Turing.MultiTapeTM.ComputableInSpace do
       throwError "space expects a ComputableInSpace goal with an explicit budget"
     let defs := (defs.map (·.getElems)).getD #[]
+    Cslib.Tactic.prepareCertificateGoal defs
     Cslib.Tactic.withFailureNote m!"space composes `@[fun_prop]` rules for `ComputableInSpace` \
         within the goal's budget. Supply a certificate for each local routine, unfold a program \
         definition with `space [f]`, and supply a nontrivial input-length allowance \
         `(fun a => (encIn a).length) ≼ S` as a hypothesis." do
       withCanUnfoldPred spaceCanUnfold do
         let funProp ← `(tactic| fun_prop (config := { maxSteps := 256 })
-          (disch := space_discharge) [$defs,*])
+          (disch := space_discharge))
         let s ← saveState
         try
           evalTactic funProp

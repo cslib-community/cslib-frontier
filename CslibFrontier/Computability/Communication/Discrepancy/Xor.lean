@@ -140,8 +140,7 @@ theorem cubeExpectation_fin_two_le [Nonempty Λ] (f : (Fin 2 → Λ) → Bool) :
   have hc : cubeExpectation f = 𝔼 x', 𝔼 y', 𝔼 x, 𝔼 y,
       signVal (g x y) * (signVal (g x y') * signVal (g x' y)) * signVal (g x' y') := by
     unfold cubeExpectation
-    simp_rw [hcorner]
-    simp_rw [expect_fin_two]
+    simp_rw [hcorner, expect_fin_two]
     rfl
   rw [hc]
   refine Finset.expect_le univ_nonempty fun x' _ =>

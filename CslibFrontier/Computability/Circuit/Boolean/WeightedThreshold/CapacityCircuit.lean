@@ -204,24 +204,22 @@ theorem evalFrom_eq_eval (p : Program signature n g) {fixed : Finset (Fin g)} {�
     (hfix : ∀ prior ≤ gate, prior ∈ fixed → η prior = p.eval interpretation x prior)
     (hz : ∀ prior ≤ gate, prior ∉ fixed → z prior = ∑ i, inputWeight p prior i * (x i).toNat) :
     evalFrom p fixed η z gate = p.eval interpretation x gate := by
-  induction gate using Fin.strong_induction_on with
-  | h gate ih =>
-    by_cases hgate : gate ∈ fixed
-    · rw [evalFrom_eq, ite_eq_left hgate]
-      exact hfix gate le_rfl hgate
-    · rw [evalFrom_eq, ite_eq_right hgate, eval_gate_eq, hz gate le_rfl hgate]
-      have hsum : (∑ prior : Fin g, if prior < gate then
-            gateWeight p gate prior * (evalFrom p fixed η z prior).toNat else 0) =
-          ∑ prior : Fin g, gateWeight p gate prior * (p.eval interpretation x prior).toNat := by
-        apply sum_congr rfl
-        intro prior _
-        by_cases hprior : prior < gate
-        · rw [ite_eq_left hprior, ih prior hprior
-            (fun k hk => hfix k (hk.trans hprior.le))
-            (fun k hk => hz k (hk.trans hprior.le))]
-        · rw [ite_eq_right hprior, gateWeight_eq_zero_of_le p gate prior (le_of_not_gt hprior),
-            zero_mul]
-      rw [hsum]
+  fun_induction evalFrom p fixed η z gate with
+  | case1 gate hgate => exact hfix gate le_rfl hgate -- gate ∈ fixed
+  | case2 gate hgate ih => -- gate ∉ fixed: threshold on weighted sum
+    rw [eval_gate_eq, hz gate le_rfl hgate]
+    have hsum : (∑ prior : Fin g, if _h : prior < gate then
+          gateWeight p gate prior * (evalFrom p fixed η z prior).toNat else 0) =
+        ∑ prior : Fin g, gateWeight p gate prior * (p.eval interpretation x prior).toNat := by
+      apply sum_congr rfl
+      intro prior _
+      by_cases hprior : prior < gate
+      · rw [dite_eq_left hprior, ih prior hprior
+          (fun k hk => hfix k (hk.trans hprior.le))
+          (fun k hk => hz k (hk.trans hprior.le))]
+      · rw [dite_eq_right hprior, gateWeight_eq_zero_of_le p gate prior (le_of_not_gt hprior),
+          zero_mul]
+    rw [hsum]
 
 /-- The values of the first `d` gates under `evalFrom`, as functions of the parameter `t`. -/
 private noncomputable def prefixValues (p : Program signature n g) (fixed : Finset (Fin g))
@@ -308,6 +306,11 @@ private theorem bool_eq_of_toNat_eq : ∀ a b : Bool, a.toNat = b.toNat → a = 
 private theorem bool_eq_of_not_toNat_eq : ∀ a b : Bool, (!a).toNat = (!b).toNat → a = b := by
   decide
 
+/-- Deciding a weaker proposition gives a larger bit. -/
+private theorem toNat_decide_le {P Q : Prop} [Decidable P] [Decidable Q] (h : P → Q) :
+    (decide P).toNat ≤ (decide Q).toNat := by
+  by_cases hP : P <;> simp [hP, h]
+
 private theorem piecesAtMost_prefixValues (p : Program signature n g) (fixed : Finset (Fin g))
     (η : Fin g → Bool) (slope : Fin g → ℝ) (d : ℕ) :
     PiecesAtMost (prefixValues p fixed η slope d) (2 ^ activeCount fixed slope d) := by
@@ -358,35 +361,20 @@ private theorem piecesAtMost_prefixValues (p : Program signature n g) (fixed : F
     have hb1 : ∀ t, b t ≤ 1 := fun t => Bool.toNat_le _
     have hbmono : ∀ t t', t ≤ t' → π t = π t' → b t ≤ b t' := by
       intro t t' htt' e
-      have hv := fac t t' e
-      simp only [b, hval, hv]
-      by_cases hpos : 0 < slope j₀
-      · simp only [hpos, ite_true]
-        have : slope j₀ * t ≤ slope j₀ * t' := mul_le_mul_of_nonneg_left htt' hpos.le
-        by_cases h : (p.lines j₀).op.threshold ≤
-            slope j₀ * t + F (prefixValues p fixed η slope d t')
-        · have h' : (p.lines j₀).op.threshold ≤
-              slope j₀ * t' + F (prefixValues p fixed η slope d t') := by linarith
-          simp [h, h']
-        · simp [h]
-      · simp only [hpos, ite_false]
-        have hneg : slope j₀ < 0 := lt_of_le_of_ne (not_lt.mp hpos) hslope
-        have : slope j₀ * t' ≤ slope j₀ * t := mul_le_mul_of_nonpos_left htt' hneg.le
-        by_cases h : (p.lines j₀).op.threshold ≤
-            slope j₀ * t' + F (prefixValues p fixed η slope d t')
-        · have h' : (p.lines j₀).op.threshold ≤
-              slope j₀ * t + F (prefixValues p fixed η slope d t') := by linarith
-          simp [h, h']
-        · simp [h, Bool.toNat_le]
+      simp only [b, hval, fac t t' e]
+      split_ifs with hpos
+      · have := mul_le_mul_of_nonneg_left htt' hpos.le
+        exact toNat_decide_le fun h => by linarith
+      · have := mul_le_mul_of_nonpos_left htt' (not_lt.mp hpos)
+        simp only [← decide_not]
+        exact toNat_decide_le fun h h' => h (by linarith)
     refine ⟨fun t => 2 * π t + b t, ?_, ?_, ?_⟩
     · intro t t' htt'
+      have := hb1 t
       rcases (mono htt').lt_or_eq with h | h
-      · have := hb1 t
-        simp only
-        omega
+      · dsimp only; omega
       · have := hbmono t t' htt' h
-        simp only
-        omega
+        dsimp only; omega
     · intro t
       have := lt t
       have := hb1 t
@@ -401,11 +389,8 @@ private theorem piecesAtMost_prefixValues (p : Program signature n g) (fixed : F
       have hbb : b t = b t' := by omega
       have hgg : val t = val t' := by
         simp only [b] at hbb
-        by_cases hpos : 0 < slope j₀
-        · simp only [hpos, ite_true] at hbb
-          exact bool_eq_of_toNat_eq _ _ hbb
-        · simp only [hpos, ite_false] at hbb
-          exact bool_eq_of_not_toNat_eq _ _ hbb
+        split_ifs at hbb
+        exacts [bool_eq_of_toNat_eq _ _ hbb, bool_eq_of_not_toNat_eq _ _ hbb]
       rw [hsucc t, hsucc t', fac t t' hπ]
       exact congrArg _ hgg
 

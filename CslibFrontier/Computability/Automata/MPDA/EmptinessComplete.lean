@@ -164,10 +164,8 @@ theorem chainFrom_spec {i : Fin n} :
       · have hspec := Nat.find_spec h
         obtain ⟨hle, hhole⟩ := chainFrom_spec (Nat.find h) r hr
         refine ⟨by have := hspec.1; omega, fun _ => ?_⟩
-        by_cases hrf : r = Nat.find h
-        · rw [hrf]
-          exact hspec.2.1
-        · exact hhole hrf
+        rcases eq_or_ne r (Nat.find h) with rfl | hrf
+        exacts [hspec.2.1, hhole hrf]
     · obtain rfl := List.mem_singleton.mp hr
       exact ⟨le_rfl, fun h' => absurd rfl h'⟩
 termination_by q => w.length - q
@@ -244,8 +242,7 @@ theorem card_add_one_le_openHoles {C : List (HoleChain n Γ)} {t : ℕ} {i : Fin
     have hpw := hchain c hc
     simp only [hl, List.pairwise_append, List.mem_append, List.mem_singleton] at he' hpw
     rcases he' with he' | rfl
-    · exact (hpw.2.2 e' he' e rfl).le
-    · rfl
+    exacts [(hpw.2.2 e' he' e rfl).le, le_rfl]
   -- A pending push joined to a later hole push `q` lies in a chain closed up to `q`.
   have hext_of_same : ∀ {p q j'}, p < q → q ≤ t → PendingAt w p t →
       (∃ j, IsPushOn w j p ∧ IsPushOn w j q) → IsHolePushOn w j' q →
@@ -415,9 +412,7 @@ theorem exists_block_run {w : List (Symbol × Op n Γ)} {i : Fin n} :
     have hqlen : q < w.length := (List.getElem?_eq_some_iff.mp hqa).1
     -- The push at `q`.
     have hdrop : w.drop q = (a, Op.push i γ) :: w.drop (q + 1) := by
-      rw [List.drop_eq_getElem_cons hqlen]
-      congr 1
-      exact (List.getElem?_eq_some_iff.mp hqa).2
+      rw [List.drop_eq_getElem_cons hqlen, (List.getElem?_eq_some_iff.mp hqa).2]
     rw [hdrop] at hrun
     obtain ⟨c₁, hpush, hrest⟩ := LTS.MTr.cons_iff.mp hrun
     obtain ⟨hpushT, hpushA⟩ := configLTS_tr.mp hpush
@@ -523,13 +518,11 @@ theorem eq_nil_of_stacksOf_eq_empty {C : List (HoleChain n Γ)} (hne : ∀ c ∈
 theorem update_cons_injective {σ σ' : Stacks n Γ} {i : Fin n} {γ : Γ}
     (h : Function.update σ i (γ :: σ i) = Function.update σ' i (γ :: σ' i)) : σ = σ' := by
   funext j
+  have hj' := congrFun h j
   by_cases hj : j = i
   · subst hj
-    have := congrFun h j
-    simp only [Function.update_self, List.cons.injEq, true_and] at this
-    exact this
-  · have := congrFun h j
-    rwa [Function.update_of_ne hj, Function.update_of_ne hj] at this
+    simpa only [Function.update_self, List.cons.injEq, true_and] using hj'
+  · rwa [Function.update_of_ne hj, Function.update_of_ne hj] at hj'
 
 theorem reverse_take_eq_cons {β : Type*} {L : List β} {m : ℕ} (hm₁ : 1 ≤ m)
     (hm₂ : m ≤ L.length) :
@@ -750,11 +743,9 @@ private theorem cinv_pop {K : ℕ} {w : List (Symbol × Op n Γ)} {f : State} {t
   · have hsh : ∀ {P : HoleChain n Γ → Prop},
         (∀ d ∈ pre ++ ⟨i, (p, γ) :: ps⟩ :: post, P d) → P ⟨i, ps⟩ →
         ∀ d ∈ pre ++ ⟨i, ps⟩ :: post, P d := fun hC hnew d hd' => by
-      rcases List.mem_append.mp hd' with hd' | hd'
-      · exact hC d (by simp [hd'])
-      · rcases List.mem_cons.mp hd' with rfl | hd'
-        · exact hnew
-        · exact hC d (by simp [hd'])
+      simp only [List.mem_append, List.mem_cons] at hd'
+      rcases hd' with hd' | rfl | hd'
+      exacts [hC d (by simp [hd']), hnew, hC d (by simp [hd'])]
     refine ⟨⟨hpre ++ ⟨i, s₁, s₂⟩ :: hpost', c₂.state⟩, pre ++ ⟨i, ps⟩ :: post,
       rpre ++ r :: rpost, c₂, hpopnext _ ?_, htake' ▸ hd₁.wellNested hwn, hrest, rfl,
       by rw [hc₂, hc₁], List.rel_append hstkpre (.cons rfl hstkpost),
@@ -782,8 +773,8 @@ theorem pendingAt_of_push {w : List (α × Op n Γ)} {p t : ℕ} {a : α} {i : F
   rw [show t - 1 + 1 = t by omega, List.extract_eq_singleton hwt]
   rcases k with _ | k
   · simp
-  · simp only [List.take_succ_cons, List.take_nil, net_cons, net_nil, add_zero]
-    simp only [Op.net, Op.kind, OpKind.net]
+  · simp only [List.take_succ_cons, List.take_nil, net_cons, net_nil, add_zero,
+      Op.net, Op.kind, OpKind.net]
     split_ifs <;> simp
 
 variable {State Symbol : Type*} [Fintype State] [DecidableEq State] [Fintype Symbol] [Fintype Γ]
@@ -808,22 +799,17 @@ private theorem cinv_hole {K : ℕ} {w : List (Symbol × Op n Γ)} {f : State} {
   have hold : ∀ d ∈ C, ∀ e ∈ d.pushes, e.1 < t ∧ PendingAt w e.1 (t - 1) := by
     intro d hd' e he
     obtain ⟨⟨b, hb⟩, hpend⟩ := hB₂ d hd' e he
-    have hlt : e.1 < t := by
-      have := (List.getElem?_eq_some_iff.mp hb).1
-      rwa [htake_len] at this
+    have hlt : e.1 < t := htake_len ▸ (List.getElem?_eq_some_iff.mp hb).1
     refine ⟨hlt, ?_⟩
-    have := (pendingAt_append_iff (v := w.drop t)
-      (show t - 1 < (w.take t).length by omega)).mpr hpend
-    rwa [List.take_append_drop] at this
+    simpa using (pendingAt_append_iff (v := w.drop t) (by omega)).mpr hpend
   -- The counting guard.
   have hguard : C.length + 1 ≤ openHoles w t := by
     refine card_add_one_le_openHoles ht hne (fun d hd' e he => ⟨hhole d hd' e he,
       pendingAt_of_push (hold d hd' e he).2 (hold d hd' e he).1 hwt, (hold d hd' e he).1⟩)
       (fun q hq hpq => hB₄ q ?_) hB₅ (fun d hd' => (hB₃ d hd').pairwise) ?_
-    · have := hpq.anti (show q ≤ t - 1 by omega) (by omega)
-      rw [← pendingAt_append_iff (v := w.drop t) (show t - 1 < (w.take t).length by omega),
+    · rw [← pendingAt_append_iff (v := w.drop t) (show t - 1 < (w.take t).length by omega),
         List.take_append_drop]
-      exact this
+      exact hpq.anti (show q ≤ t - 1 by omega) (by omega)
     · intro d hd' e he r hr
       obtain ⟨q₀, m, hm, hlt, hpend⟩ := hcons d hd'
       have heL : e.1 ∈ chainFrom w d.stack q₀ :=
@@ -836,9 +822,7 @@ private theorem cinv_hole {K : ℕ} {w : List (Symbol × Op n Γ)} {f : State} {
       · obtain ⟨e', he', rfl⟩ := List.mem_map.mp (hm ▸ List.mem_reverse.mpr hrL)
         exact ⟨e', he', rfl⟩
       · exact absurd (hpr.anti (by omega) (by omega)) (hpend r hrL)
-  have hClt : C.length < K := by
-    have := hK t htlen
-    omega
+  have hClt : C.length < K := by have := hK t htlen; omega
   -- The block of the greedy chain from `t`.
   obtain ⟨c', r, ps, hblock, hpsfst, hpssnd, hr, hc', hrun', htlt, -⟩ :=
     exists_block_run (M := M) t hpush c _ hrun
@@ -846,17 +830,14 @@ private theorem cinv_hole {K : ℕ} {w : List (Symbol × Op n Γ)} {f : State} {
     rw [w.take_eq_take_append_extract htlt.le]
     exact hd.hole hClt (by rw [htake_len]; exact hblock)
   -- The step of the search.
-  have hlen : μ.holes.length = C.length := hstk.length_eq.symm
-  have hHS : (μ.last, c'.state) ∈ M.holeSegments i := by
-    rw [← hst]
-    exact mem_holeSegments_iff_realizes.mpr ⟨r, hr⟩
-  have hif : μ.holes.length < K := by omega
-  have hnext : M.Reachable K M.initialLists ⟨μ.holes ++ [⟨i, μ.last, c'.state⟩], c'.state⟩ := by
-    refine .step hμ ?_
-    unfold successors
-    simp only [hif, ↓reduceIte]
-    exact Finset.mem_union_left _ (Finset.mem_biUnion.mpr ⟨i, Finset.mem_univ _,
-      Finset.mem_image.mpr ⟨(μ.last, c'.state), Finset.mem_filter.mpr ⟨hHS, rfl⟩, rfl⟩⟩)
+  have hHS : (μ.last, c'.state) ∈ M.holeSegments i :=
+    hst ▸ mem_holeSegments_iff_realizes.mpr ⟨r, hr⟩
+  have hif : μ.holes.length < K := hstk.length_eq.symm ▸ hClt
+  have hnext : M.Reachable K M.initialLists ⟨μ.holes ++ [⟨i, μ.last, c'.state⟩], c'.state⟩ :=
+    .step hμ (by
+      simp only [successors, hif, ↓reduceIte]
+      exact Finset.mem_union_left _ (Finset.mem_biUnion.mpr ⟨i, Finset.mem_univ _,
+        Finset.mem_image.mpr ⟨(μ.last, c'.state), Finset.mem_filter.mpr ⟨hHS, rfl⟩, rfl⟩⟩))
   refine ⟨htlt, ⟨μ.holes ++ [⟨i, μ.last, c'.state⟩], c'.state⟩, C ++ [⟨i, ps⟩], rs ++ [r], c',
     hnext, hd', hrun', rfl, ?_, List.rel_append hstk (.cons rfl .nil),
     List.rel_append hreal (.cons (by rw [← hst]; exact hr) .nil),
@@ -933,18 +914,11 @@ answers `true` exactly when no word has a `K`-hole-bounded accepting run. It hol
 including `K = 0`; the source states Theorem 1 for positive `K`. -/
 theorem isEmpty_iff [DecidablePred (· ∈ M.accept)] {K : ℕ} :
     M.isEmpty K = true ↔ M.boundedLanguage (HoleBounded K) = 0 := by
-  constructor
-  · intro h
-    change _ = (∅ : Set _)
-    refine Set.eq_empty_iff_forall_notMem.mpr fun x hx => ?_
-    rw [isEmpty_eq_false_of_mem_boundedLanguage hx] at h
-    exact Bool.false_ne_true h
-  · intro h
-    by_contra h'
-    obtain ⟨x, hx⟩ := exists_mem_boundedLanguage_of_isEmpty_eq_false
-      (Bool.eq_false_iff.mpr h')
-    rw [h] at hx
-    exact hx
+  refine ⟨fun h => Set.eq_empty_iff_forall_notMem.mpr fun x hx =>
+      Bool.false_ne_true (isEmpty_eq_false_of_mem_boundedLanguage hx ▸ h),
+    fun h => Bool.eq_true_of_not_eq_false fun h' => ?_⟩
+  obtain ⟨x, hx⟩ := exists_mem_boundedLanguage_of_isEmpty_eq_false h'
+  exact cast (congrArg (x ∈ ·) h) hx
 
 end Complete
 

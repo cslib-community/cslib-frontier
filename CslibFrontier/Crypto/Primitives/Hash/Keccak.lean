@@ -11,7 +11,6 @@ public import CslibFrontier.Crypto.Primitives.ByteString
 public import CslibFrontier.Crypto.Primitives.Hash.Sponge
 public import CslibFrontier.Foundations.Data.BitString.Binary
 public import Mathlib.Algebra.Order.Floor.Div
-import all CslibFrontier.Crypto.Primitives.ByteString
 import CslibFrontier.Foundations.Data.BitString.List
 import all Batteries.Data.List.Basic
 
@@ -246,68 +245,31 @@ theorem get_ofSpongeView_capacity (layout : SpongeLayout) (state : SpongeView la
 /-- Converting a selected sponge view to lanes and back preserves every state bit. -/
 theorem toSpongeView_ofSpongeView (layout : SpongeLayout) (state : SpongeView layout) :
     toSpongeView layout (ofSpongeView layout state) = state := by
-  apply Prod.ext <;> funext i
-  · have hlane : i.val / 64 < layout.rateLanes := by
-      have hi := i.isLt
-      omega
-    change ((ofSpongeView layout state).get ⟨i.val / 64, by
-      have hlayout := layout.lane_count
-      omega⟩).getLsbD (i.val % 64) = state.1 i
-    rw [get_ofSpongeView_rate _ _ _ hlane,
+  have hlayout := layout.lane_count
+  apply Prod.ext <;> funext i <;> have hi := i.isLt
+  · simp only [toSpongeView]
+    rw [get_ofSpongeView_rate _ _ _ (by dsimp; omega),
       getLsbD_laneOfBits _ _ (Nat.mod_lt _ (by decide))]
-    apply congrArg state.1
-    apply Fin.ext
-    simpa [Nat.mul_comm] using Nat.div_add_mod i.val 64
-  · have hlane : ¬layout.rateLanes + i.val / 64 < layout.rateLanes := by omega
-    change ((ofSpongeView layout state).get ⟨layout.rateLanes + i.val / 64, by
-      have hi := i.isLt
-      have hlayout := layout.lane_count
-      omega⟩).getLsbD (i.val % 64) = state.2 i
-    rw [get_ofSpongeView_capacity _ _ _ hlane,
+    exact congrArg state.1 (Fin.ext (by dsimp; omega))
+  · simp only [toSpongeView]
+    rw [get_ofSpongeView_capacity _ _ _ (by dsimp; omega),
       getLsbD_laneOfBits _ _ (Nat.mod_lt _ (by decide))]
-    apply congrArg state.2
-    apply Fin.ext
-    simpa only [Nat.add_sub_cancel_left, Nat.mul_comm] using Nat.div_add_mod i.val 64
+    exact congrArg state.2 (Fin.ext (by dsimp; omega))
 
 /-- Converting a lane state to a selected sponge view and back preserves every lane. -/
 theorem ofSpongeView_toSpongeView (layout : SpongeLayout) (A : State) :
     ofSpongeView layout (toSpongeView layout A) = A := by
-  refine Vector.ext fun lane hlane => ?_
-  apply BitVec.eq_of_getLsbD_eq
-  intro z hz
+  have hlayout := layout.lane_count
+  refine Vector.ext fun lane hlane => BitVec.eq_of_getLsbD_eq fun z hz => ?_
+  change ((ofSpongeView layout (toSpongeView layout A)).get ⟨lane, hlane⟩).getLsbD z =
+    (A.get ⟨lane, hlane⟩).getLsbD z
   by_cases hrate : lane < layout.rateLanes
-  · have hdiv : (64 * lane + z) / 64 = lane := by omega
-    have hmod : (64 * lane + z) % 64 = z := by omega
-    change ((ofSpongeView layout (toSpongeView layout A)).get
-      ⟨lane, hlane⟩).getLsbD z = (A.get ⟨lane, hlane⟩).getLsbD z
-    rw [get_ofSpongeView_rate _ _ _ hrate, getLsbD_laneOfBits _ z hz]
-    change (A.get ⟨(64 * lane + z) / 64, by
-      have hlayout := layout.lane_count
-      omega⟩).getLsbD ((64 * lane + z) % 64) = _
-    have hlaneEq : (⟨(64 * lane + z) / 64, by
-        have hlayout := layout.lane_count
-        omega⟩ : Fin 25) = ⟨lane, hlane⟩ := Fin.ext hdiv
-    rw [hlaneEq, hmod]
-  · have hdiv : (64 * (lane - layout.rateLanes) + z) / 64 =
-        lane - layout.rateLanes := by omega
-    have hmod : (64 * (lane - layout.rateLanes) + z) % 64 = z := by omega
-    change ((ofSpongeView layout (toSpongeView layout A)).get
-      ⟨lane, hlane⟩).getLsbD z = (A.get ⟨lane, hlane⟩).getLsbD z
-    rw [get_ofSpongeView_capacity _ _ _ hrate, getLsbD_laneOfBits _ z hz]
-    change (A.get ⟨layout.rateLanes +
-      (64 * (lane - layout.rateLanes) + z) / 64, by
-        have hlayout := layout.lane_count
-        omega⟩).getLsbD ((64 * (lane - layout.rateLanes) + z) % 64) = _
-    have hlaneEq : (⟨layout.rateLanes +
-        (64 * (lane - layout.rateLanes) + z) / 64, by
-          have hlayout := layout.lane_count
-          omega⟩ : Fin 25) = ⟨lane, hlane⟩ := by
-      have hval : layout.rateLanes +
-          (64 * (lane - layout.rateLanes) + z) / 64 = lane := by
-        rw [hdiv]
-        exact Nat.add_sub_of_le (Nat.le_of_not_gt hrate)
-      exact Fin.ext hval
-    rw [hlaneEq, hmod]
+  · rw [get_ofSpongeView_rate _ _ _ hrate, getLsbD_laneOfBits _ z hz]
+    simp only [toSpongeView, show (64 * lane + z) % 64 = z by omega]
+    congr 2; exact Fin.ext (by dsimp; omega)
+  · rw [get_ofSpongeView_capacity _ _ _ hrate, getLsbD_laneOfBits _ z hz]
+    simp only [toSpongeView, show (64 * (lane - layout.rateLanes) + z) % 64 = z by omega]
+    congr 2; exact Fin.ext (by dsimp; omega)
 
 /-- Keccak-p[1600, 24] on a lane-aligned sponge view. -/
 @[expose] def keccakP1600Rounds24View (layout : SpongeLayout) (state : SpongeView layout) :
@@ -490,20 +452,9 @@ theorem bytesToBitsLE_take (xs : List (Fin 256)) (n : ℕ) :
 @[simp] theorem length_squeezeBytesFor (layout : SpongeLayout)
     (blocks : List (BitString (64 * layout.rateLanes))) (count : ℕ) :
     (squeezeBytesFor layout blocks count).length = (8 * layout.rateLanes) * count := by
-  have hflat : ∀ states : List (BitString (64 * layout.rateLanes)),
-      (states.flatMap (rateBytesFor layout)).length =
-        (8 * layout.rateLanes) * states.length := by
-    intro states
-    induction states with
-    | nil => simp
-    | cons state states ih =>
-      rw [List.flatMap_cons, List.length_append, length_rateBytesFor, ih, List.length_cons]
-      rw [Nat.mul_add, Nat.mul_one]
-      exact Nat.add_comm _ _
-  have hcount :
-      (Sponge.hashBlocks (keccakP1600Rounds24View layout) Prod.fst count blocks).length = count :=
-    Sponge.length_squeeze _ _ _ _
-  rw [squeezeBytesFor, hflat, hcount]
+  simp only [squeezeBytesFor, List.length_flatMap, length_rateBytesFor, List.map_const',
+    List.sum_replicate, smul_eq_mul]
+  rw [Sponge.hashBlocks, Sponge.length_squeeze, Nat.mul_comm]
 
 private theorem take_flatMap_rateBytesFor (layout : SpongeLayout)
     (states : List (BitString (64 * layout.rateLanes))) (count : ℕ) :
@@ -537,7 +488,7 @@ squeeze the requested number of little-endian bytes. -/
     List (Fin 256) :=
   let suffixed := input ++ suffix
   let padded := suffixed ++ pad10star1 (64 * layout.rateLanes) suffixed.length
-  let blocks := Sponge.toBlocks (64 * layout.rateLanes) padded
+  let blocks := BitString.toBlocks (64 * layout.rateLanes) padded
   let rateBytes := 8 * layout.rateLanes
   let outputBlockCount := outputBytes ⌈/⌉ rateBytes
   (squeezeBytesFor layout blocks outputBlockCount).take outputBytes

@@ -99,9 +99,6 @@ private def coalitionLoad (A : Finset ι) (t : ∀ i, S i) (e : E) : ℕ :=
 private def coalitionPotential [Fintype E] (A : Finset ι) (t : ∀ i, S i) : ℝ :=
   ∑ e, ∑ n ∈ Finset.range (C.coalitionLoad A t e), C.latency e (n + 1)
 
-private theorem coalitionLoad_empty (t : ∀ i, S i) (e : E) : C.coalitionLoad ∅ t e = 0 := by
-  rw [coalitionLoad, Finset.filter_empty, Finset.card_empty]
-
 variable [DecidableEq ι]
 
 /-- The coalition's load splits off the contribution of a member `i ∈ A`. -/
@@ -173,13 +170,10 @@ private theorem sum_cost_le_coalitionPotential_of_isStrongEquilibrium [Fintype E
   induction A using Finset.strongInduction with
   | H A ih =>
     rcases A.eq_empty_or_nonempty with rfl | hA
-    · rw [Finset.sum_empty, coalitionPotential]
-      simp only [coalitionLoad_empty, Finset.range_zero, Finset.sum_empty, Finset.sum_const_zero,
-        le_refl]
+    · simp [coalitionPotential, coalitionLoad]
     · obtain ⟨i, hi, hle⟩ := hs.exists_cost_le hA t
-      have hrest := ih (A.erase i) (Finset.erase_ssubset hi)
       rw [← Finset.sum_erase_add _ _ hi, C.coalitionPotential_eq hi t]
-      linarith [C.cost_piecewise_le hC hi t s]
+      linarith [ih (A.erase i) (Finset.erase_ssubset hi), C.cost_piecewise_le hC hi t s]
 
 /-- **Strong equilibria cost at most Rosenthal's potential** in congestion games with
 nonincreasing latencies ([Roughgarden2013CS364A], Lecture #15, proof of Theorem 3.2, displays
@@ -192,8 +186,8 @@ theorem socialCost_le_rosenthalPotential_of_isStrongEquilibrium [Fintype E]
     (hC : ∀ e, AntitoneOn (C.latency e) (Set.Ici 1)) {s : ∀ i, S i}
     (hs : C.toCostGame.IsStrongEquilibrium s) (t : ∀ i, S i) :
     C.toCostGame.socialCost s ≤ C.rosenthalPotential t := by
-  have h := sum_cost_le_coalitionPotential_of_isStrongEquilibrium hC hs t Finset.univ
-  rwa [coalitionPotential_univ] at h
+  rw [← coalitionPotential_univ]
+  exact sum_cost_le_coalitionPotential_of_isStrongEquilibrium hC hs t Finset.univ
 
 /-- **The price of anarchy of strong equilibria in fair cost-sharing games is at most `H k`**
 ([Roughgarden2013CS364A], Lecture #15, proof of Theorem 3.2): in a fair cost-sharing game with
@@ -246,13 +240,11 @@ theorem isStrongNash_fairCostSharing_const [DecidableEq ι] (hc : ∀ e, 0 ≤ c
     (hp : ∀ q, ∑ e ∈ R p, c e ≤ ∑ e ∈ R q, c e) :
     (fairCostSharing (fun (_ : ι) => R) c).toCostGame.IsStrongNash fun _ => p := by
   rintro A t ⟨-, i, -, hlt⟩
-  have hge := sum_div_card_le_cost_fairCostSharing (fun (_ : ι) => R) c hc
-    (A.piecewise t fun _ => p) i
   rw [cost_fairCostSharing_const c] at hlt
-  have hmono : (∑ e ∈ R p, c e) / Fintype.card ι
-      ≤ (∑ e ∈ R (A.piecewise t (fun _ => p) i), c e) / Fintype.card ι :=
-    div_le_div_of_nonneg_right (hp _) (Nat.cast_nonneg _)
-  linarith
+  linarith [sum_div_card_le_cost_fairCostSharing (fun (_ : ι) => R) c hc
+      (A.piecewise t fun _ => p) i,
+    div_le_div_of_nonneg_right (hp (A.piecewise t (fun _ => p) i))
+      (Nat.cast_nonneg (Fintype.card ι))]
 
 /-- **Strong Nash equilibria are optimal when all players share the strategy set**
 ([Roughgarden2013CS364A], Exercise Set #8, Exercise 67, the network case of a common source and a
@@ -268,36 +260,30 @@ theorem socialCost_fairCostSharing_le_of_isStrongNash [DecidableEq ι] [Finite E
       ≤ (fairCostSharing (fun (_ : ι) => R) c).toCostGame.socialCost t := by
   by_contra hlt
   push Not at hlt
-  have hne : Nonempty ι := by
-    by_contra h
+  have ⟨j₀⟩ : Nonempty ι := by_contra fun h => by
     rw [not_nonempty_iff] at h
     simp only [CostGame.socialCost, Finset.univ_eq_empty, Finset.sum_empty, lt_irrefl] at hlt
-  obtain ⟨j₀⟩ := hne
+  have : Nonempty ι := ⟨j₀⟩
   classical
   obtain ⟨q, -, hq⟩ := (Finset.univ.image s ∪ Finset.univ.image t).exists_min_image
     (fun q => ∑ e ∈ R q, c e) ⟨s j₀, Finset.mem_union_left _ (Finset.mem_image_of_mem s
       (Finset.mem_univ j₀))⟩
-  have hqs : ∀ i, ∑ e ∈ R q, c e ≤ ∑ e ∈ R (s i), c e := fun i =>
-    hq _ (Finset.mem_union_left _ (Finset.mem_image_of_mem s (Finset.mem_univ i)))
-  have hqt : ∑ e ∈ R q, c e ≤ ∑ e ∈ R (t j₀), c e :=
-    hq _ (Finset.mem_union_right _ (Finset.mem_image_of_mem t (Finset.mem_univ j₀)))
-  have hlow : ∀ i, (fairCostSharing (fun (_ : ι) => R) c).toCostGame.cost i (fun _ => q)
-      ≤ (fairCostSharing (fun (_ : ι) => R) c).toCostGame.cost i s := fun i => by
+  have hlow (i : ι) : (fairCostSharing (fun (_ : ι) => R) c).toCostGame.cost i (fun _ => q) ≤
+      (fairCostSharing (fun (_ : ι) => R) c).toCostGame.cost i s := by
     rw [cost_fairCostSharing_const c]
-    exact (div_le_div_of_nonneg_right (hqs i) (Nat.cast_nonneg _)).trans
+    exact (div_le_div_of_nonneg_right
+      (hq _ (Finset.mem_union_left _ (Finset.mem_image_of_mem s (Finset.mem_univ i))))
+      (Nat.cast_nonneg _)).trans
       (sum_div_card_le_cost_fairCostSharing (fun (_ : ι) => R) c hc s i)
   refine hs.not_pareto (fun _ => q) ⟨hlow, ?_⟩
   by_contra hno
   push Not at hno
-  have heq : (fairCostSharing (fun (_ : ι) => R) c).toCostGame.socialCost (fun _ => q)
-      = (fairCostSharing (fun (_ : ι) => R) c).toCostGame.socialCost s :=
+  have heq : (fairCostSharing (fun (_ : ι) => R) c).toCostGame.socialCost (fun _ => q) =
+      (fairCostSharing (fun (_ : ι) => R) c).toCostGame.socialCost s :=
     Finset.sum_congr rfl fun i _ => le_antisymm (hlow i) (hno i)
-  have hconst : (fairCostSharing (fun (_ : ι) => R) c).toCostGame.socialCost (fun _ => q)
-      = ∑ e ∈ R q, c e :=
-    have : Nonempty ι := ⟨j₀⟩
-    socialCost_fairCostSharing_const c q
-  have ht := sum_le_socialCost_fairCostSharing (fun (_ : ι) => R) c hc t j₀
-  linarith
+  linarith [socialCost_fairCostSharing_const (ι := ι) (R := R) c q,
+    hq _ (Finset.mem_union_right _ (Finset.mem_image_of_mem t (Finset.mem_univ j₀))),
+    sum_le_socialCost_fairCostSharing (fun (_ : ι) => R) c hc t j₀]
 
 /-- **Minimum-cost profiles are strong Nash equilibria when all players share the strategy set**
 ([Roughgarden2013CS364A], Exercise Set #8, Exercise 67, the network case of a common source and a
@@ -314,29 +300,24 @@ theorem isStrongNash_fairCostSharing_of_le [DecidableEq ι] (hc : ∀ e, 0 ≤ c
   rintro A t ⟨-, i, -, hlt⟩
   have : Nonempty ι := ⟨i⟩
   have hk : (0 : ℝ) < Fintype.card ι := by exact_mod_cast Fintype.card_pos
-  have hlow : ∀ (u : ι → P) (j : ι),
-      (fairCostSharing (fun (_ : ι) => R) c).toCostGame.socialCost s / Fintype.card ι
-        ≤ (fairCostSharing (fun (_ : ι) => R) c).toCostGame.cost j u := fun u j => by
-    refine le_trans ?_ (sum_div_card_le_cost_fairCostSharing (fun (_ : ι) => R) c hc u j)
-    refine div_le_div_of_nonneg_right ?_ (Nat.cast_nonneg _)
-    have h := hs fun _ => u j
-    rwa [socialCost_fairCostSharing_const] at h
-  have hsplit := Finset.add_sum_erase Finset.univ
-    (fun j => (fairCostSharing (fun (_ : ι) => R) c).toCostGame.cost j s) (Finset.mem_univ i)
+  have hlow (u : ι → P) (j : ι) :
+      (fairCostSharing (fun (_ : ι) => R) c).toCostGame.socialCost s / Fintype.card ι ≤
+        (fairCostSharing (fun (_ : ι) => R) c).toCostGame.cost j u :=
+    (div_le_div_of_nonneg_right
+      (by simpa only [socialCost_fairCostSharing_const] using hs fun _ => u j)
+      (Nat.cast_nonneg _)).trans
+      (sum_div_card_le_cost_fairCostSharing (fun (_ : ι) => R) c hc u j)
   have hrest := Finset.card_nsmul_le_sum (Finset.univ.erase i)
     (fun j => (fairCostSharing (fun (_ : ι) => R) c).toCostGame.cost j s) _
     (fun j _ => hlow s j)
   rw [Finset.card_erase_of_mem (Finset.mem_univ i), Finset.card_univ, nsmul_eq_mul,
     Nat.cast_sub Fintype.card_pos, Nat.cast_one] at hrest
-  have hkey : (Fintype.card ι : ℝ)
-      * ((fairCostSharing (fun (_ : ι) => R) c).toCostGame.socialCost s / Fintype.card ι)
-      = (fairCostSharing (fun (_ : ι) => R) c).toCostGame.socialCost s :=
-    mul_div_cancel₀ _ hk.ne'
-  have hsc : (fairCostSharing (fun (_ : ι) => R) c).toCostGame.socialCost s
-      = ∑ j, (fairCostSharing (fun (_ : ι) => R) c).toCostGame.cost j s := by
-    rw [CostGame.socialCost]
-  have hu := hlow (A.piecewise t s) i
-  linarith
+  linarith [Finset.add_sum_erase Finset.univ
+      (fun j => (fairCostSharing (fun (_ : ι) => R) c).toCostGame.cost j s) (Finset.mem_univ i),
+    mul_div_cancel₀ ((fairCostSharing (fun (_ : ι) => R) c).toCostGame.socialCost s) hk.ne',
+    show (fairCostSharing (fun (_ : ι) => R) c).toCostGame.socialCost s =
+      ∑ j, (fairCostSharing (fun (_ : ι) => R) c).toCostGame.cost j s from rfl,
+    hlow (A.piecewise t s) i]
 
 /-- **Strong Nash equilibria are exactly the minimum-cost profiles when all players share the
 strategy set** ([Roughgarden2013CS364A], Exercise Set #8, Exercise 67, the network case of a
@@ -379,18 +360,15 @@ player sharing, the sharing player `j` with the largest index pays more than its
 `1 / (j + 1)` (`exists_one_div_lt_cost_optOut`), and `j` belongs to the deviating coalition. -/
 theorem isStrongNash_optOut_true (hε : 0 < ε) :
     (optOut k ε).toCostGame.IsStrongNash fun _ => true := by
-  rintro A t ⟨hle, i, hi, hlt⟩
+  rintro A t ⟨hle, i, -, hlt⟩
   by_cases hu : A.piecewise t (fun _ => true) = fun _ => true
-  · rw [hu] at hlt
-    exact lt_irrefl _ hlt
+  · exact lt_irrefl _ (hu ▸ hlt)
   · obtain ⟨j, hj, hjlt⟩ := exists_one_div_lt_cost_optOut hε hu
-    have hjA : j ∈ A := by
-      by_contra hjA
+    have hjA : j ∈ A := by_contra fun hjA => by
       rw [Finset.piecewise_eq_of_notMem _ _ _ hjA] at hj
       exact Bool.true_eq_false.mp hj
     have hcost : (optOut k ε).toCostGame.cost j (fun _ => true) = 1 / ((j : ℕ) + 1 : ℝ) := by
-      rw [optOut_cost]
-      simp only [↓reduceIte]
+      simp [optOut_cost]
     linarith [hle j hjA]
 
 /-- **The opt-out game has a unique strong Nash equilibrium** for `ε > 0`: every player opts out.

@@ -18,9 +18,10 @@ import Mathlib.Tactic.FinCases
 /-!
 # Implication of sets and the Alon–Boppana family bound
 
-Alon and Boppana say that sets `W₁, …, W_r`, not necessarily distinct, *imply* a set `W` when all
-their pairwise intersections lie in `W` (`Cslib.ImpliedBy`). Sunflowers with `r` petals imply
-their core, and a single set implies every superset of itself.
+Alon and Boppana say that sets `W₁, …, W_r` (`r ≥ 2`), not necessarily distinct, *imply* a set `W`
+when all their pairwise intersections lie in `W` (`Cslib.ImpliedBy`). Sunflowers with `r ≥ 2` petals
+imply their core, and a single set implies every superset of itself; for `r ≤ 1`, implication
+reduces to containing a member of the family.
 
 A family is *implication-minimal* (`Cslib.IsImplicationMinimal`) when no member strictly contains a
 set implied by `r` members. The minimal sets of a family closed under implication are such a
@@ -54,21 +55,45 @@ open Finset
 
 variable {α : Type*} [DecidableEq α]
 
-/-- `W` is *implied* by `r` members of `F`: there are `r` members of `F`, not necessarily distinct,
-whose pairwise intersections all lie in `W` [Alon and Boppana, Section 3.1][AlonBoppana1987]. -/
+/-- `W` is *implied* by `r` members of `F`: either `W` contains a member of `F`, or `2 ≤ r` and
+there are `r` members of `F`, not necessarily distinct, whose pairwise intersections all lie in `W`
+[Alon and Boppana, Section 3.1][AlonBoppana1987]. -/
 def ImpliedBy (r : ℕ) (F : Finset (Finset α)) (W : Finset α) : Prop :=
-  ∃ V : Fin r → Finset α, (∀ i, V i ∈ F) ∧ ∀ i j, i ≠ j → V i ∩ V j ⊆ W
+  (∃ V ∈ F, V ⊆ W) ∨ (2 ≤ r ∧ ∃ V : Fin r → Finset α, (∀ i, V i ∈ F) ∧ ∀ i j, i ≠ j → V i ∩ V j ⊆ W)
 
 /-- A member of a family implies each of its supersets. -/
 theorem impliedBy_of_subset {r : ℕ} {F : Finset (Finset α)} {V W : Finset α} (hV : V ∈ F)
     (hVW : V ⊆ W) : ImpliedBy r F W :=
-  ⟨fun _ => V, fun _ => hV, fun _ _ _ => inter_subset_left.trans hVW⟩
+  Or.inl ⟨V, hV, hVW⟩
+
+/-- For `r ≥ 2`, `W` is implied by `r` members of `F` if and only if `F` has `r` members, not
+necessarily distinct, whose pairwise intersections lie in `W`: a single subset `V ⊆ W` in `F` is
+witnessed by repeating `V`. -/
+theorem impliedBy_iff_of_two_le {r : ℕ} (hr : 2 ≤ r) {F : Finset (Finset α)} {W : Finset α} :
+    ImpliedBy r F W ↔ ∃ V : Fin r → Finset α, (∀ i, V i ∈ F) ∧ ∀ i j, i ≠ j → V i ∩ V j ⊆ W := by
+  refine ⟨?_, fun h => Or.inr ⟨hr, h⟩⟩
+  rintro (⟨V, hV, hVW⟩ | ⟨-, h⟩)
+  · exact ⟨fun _ => V, fun _ => hV, fun _ _ _ => inter_subset_left.trans hVW⟩
+  · exact h
+
+/-- For `r ≤ 1`, implication reduces to upward closure: `W` is implied by `F` if and only if `W`
+contains a member of `F`. -/
+theorem impliedBy_iff_of_le_one {r : ℕ} (hr : r ≤ 1) {F : Finset (Finset α)} {W : Finset α} :
+    ImpliedBy r F W ↔ ∃ V ∈ F, V ⊆ W :=
+  ⟨fun h => h.resolve_right fun h2 => absurd h2.1 (by omega), Or.inl⟩
+
+/-- No set is implied by the empty family. -/
+@[simp]
+theorem not_impliedBy_empty {r : ℕ} {W : Finset α} : ¬ImpliedBy r ∅ W := by
+  rintro (⟨_, h, _⟩ | ⟨hr, _, h, _⟩)
+  · exact notMem_empty _ h
+  · exact notMem_empty _ (h ⟨0, by omega⟩)
 
 /-- Implication is monotone in the family. -/
 theorem ImpliedBy.mono {r : ℕ} {F G : Finset (Finset α)} {W : Finset α} (h : ImpliedBy r F W)
     (hFG : F ⊆ G) : ImpliedBy r G W :=
-  let ⟨V, hV, hVW⟩ := h
-  ⟨V, fun i => hFG (hV i), hVW⟩
+  h.imp (fun ⟨V, hV, hVW⟩ => ⟨V, hFG hV, hVW⟩)
+    fun ⟨hr, V, hV, hVW⟩ => ⟨hr, V, fun i => hFG (hV i), hVW⟩
 
 /-- A family is *implication-minimal* for `r` when no member strictly contains a set implied by `r`
 members [Alon and Boppana, property (ii) of `P(r, k)`][AlonBoppana1987]. -/
@@ -79,22 +104,20 @@ def IsImplicationMinimal (r : ℕ) (F : Finset (Finset α)) : Prop :=
 intersection, which is strictly contained in one of them. -/
 private theorem card_le_one_of_isImplicationMinimal_two {F : Finset (Finset α)}
     (hF : IsImplicationMinimal 2 F) : F.card ≤ 1 := by
-  refine card_le_one.2 fun a ha b hb => ?_
-  by_contra hab
-  have himp : ImpliedBy 2 F (a ∩ b) := by
-    refine ⟨![a, b], fun i => by fin_cases i <;> simpa, fun i j hij => ?_⟩
-    fin_cases i <;> fin_cases j <;> simp_all [inter_comm]
+  refine card_le_one.2 fun a ha b hb => by_contra fun hab => ?_
+  have himp : ImpliedBy 2 F (a ∩ b) := Or.inr ⟨le_rfl, ![a, b], fun i => by fin_cases i <;> simpa,
+    fun i j hij => by fin_cases i <;> fin_cases j <;> simp_all [inter_comm]⟩
   by_cases hUa : a ∩ b = a
-  · have hab' : a ∩ b ⊂ b := ssubset_of_subset_of_ne inter_subset_right fun h => hab (hUa ▸ h)
-    exact hF b hb _ hab' himp
+  · exact hF b hb _ (ssubset_of_subset_of_ne inter_subset_right (hab ∘ (hUa ▸ ·))) himp
   · exact hF a ha _ (ssubset_of_subset_of_ne inter_subset_left hUa) himp
 
 /-- Splitting by the trace on a member `D ∈ F` and removing it keeps implication-minimality, with
 one implying set fewer: `D` supplies the last one. -/
-private theorem isImplicationMinimal_image_sdiff {r : ℕ} {F : Finset (Finset α)}
+private theorem isImplicationMinimal_image_sdiff {r : ℕ} (hr : 2 ≤ r) {F : Finset (Finset α)}
     (hF : IsImplicationMinimal (r + 1) F) {D : Finset α} (hD : D ∈ F) (C : Finset α) :
     IsImplicationMinimal r ((F.filter (· ∩ D = C)).image (· \ C)) := by
-  rintro _ hW' U' hU' ⟨V', hV', hV'U'⟩
+  rintro _ hW' U' hU' hU'imp
+  obtain ⟨V', hV', hV'U'⟩ := (impliedBy_iff_of_two_le hr).1 hU'imp
   obtain ⟨W, hW, rfl⟩ := mem_image.1 hW'
   obtain ⟨hWF, hWD⟩ := mem_filter.1 hW
   choose X hX hXV' using fun i => mem_image.1 (hV' i)
@@ -102,38 +125,29 @@ private theorem isImplicationMinimal_image_sdiff {r : ℕ} {F : Finset (Finset �
   have hXD i := (mem_filter.1 (hX i)).2
   have hCW : C ⊆ W := hWD ▸ inter_subset_left
   refine hF W hWF (U' ∪ C) ?_
-    ⟨Fin.snoc (α := fun _ => Finset α) X D, fun i => ?_, fun i j hij => ?_⟩
+    (Or.inr ⟨by omega, Fin.snoc (α := fun _ => Finset α) X D, ?_, ?_⟩)
   · obtain ⟨x, hxW, hxU⟩ := exists_of_ssubset hU'
-    refine (ssubset_iff_of_subset (union_subset (hU'.1.trans sdiff_subset) hCW)).2
-      ⟨x, (mem_sdiff.1 hxW).1, ?_⟩
-    rw [mem_union, not_or]
-    exact ⟨hxU, (mem_sdiff.1 hxW).2⟩
-  · induction i using Fin.lastCases with
-    | last => simpa using hD
-    | cast i => simpa using hXF i
-  · induction i using Fin.lastCases with
-    | last =>
-      induction j using Fin.lastCases with
-      | last => exact absurd rfl hij
-      | cast j =>
-        simp only [Fin.snoc_last, Fin.snoc_castSucc]
-        rw [inter_comm, hXD j]
-        exact subset_union_right
-    | cast i =>
-      induction j using Fin.lastCases with
-      | last =>
-        simp only [Fin.snoc_last, Fin.snoc_castSucc]
-        rw [hXD i]
-        exact subset_union_right
-      | cast j =>
-        simp only [Fin.snoc_castSucc]
-        intro x hx
-        by_cases hxC : x ∈ C
-        · exact mem_union_right _ hxC
-        · refine mem_union_left _ (hV'U' i j (fun h => hij (by rw [h])) ?_)
-          rw [← hXV' i, ← hXV' j]
-          exact mem_inter.2 ⟨mem_sdiff.2 ⟨(mem_inter.1 hx).1, hxC⟩,
-            mem_sdiff.2 ⟨(mem_inter.1 hx).2, hxC⟩⟩
+    exact (ssubset_iff_of_subset (union_subset (hU'.1.trans sdiff_subset) hCW)).2
+      ⟨x, (mem_sdiff.1 hxW).1, by simp [hxU, (mem_sdiff.1 hxW).2]⟩
+  · exact Fin.lastCases (by simpa using hD) (fun i => by simpa using hXF i)
+  · intro i j hij
+    induction i using Fin.lastCases <;> induction j using Fin.lastCases
+    · exact absurd rfl hij
+    · simp only [Fin.snoc_last, Fin.snoc_castSucc]
+      rw [inter_comm, hXD _]
+      exact subset_union_right
+    · simp only [Fin.snoc_last, Fin.snoc_castSucc]
+      rw [hXD _]
+      exact subset_union_right
+    · rename_i i j
+      simp only [Fin.snoc_castSucc]
+      intro x hx
+      by_cases hxC : x ∈ C
+      · exact mem_union_right _ hxC
+      · refine mem_union_left _ (hV'U' i j (hij ∘ congrArg Fin.castSucc) ?_)
+        rw [← hXV' i, ← hXV' j]
+        exact mem_inter.2 ⟨mem_sdiff.2 ⟨(mem_inter.1 hx).1, hxC⟩,
+          mem_sdiff.2 ⟨(mem_inter.1 hx).2, hxC⟩⟩
 
 /-- **The Alon–Boppana family bound.** An implication-minimal family for `r ≥ 2` of sets of at most
 `k` elements has at most `(r - 1) ^ k` members [Alon and Boppana, Lemma 3.2][AlonBoppana1987]. -/
@@ -154,7 +168,7 @@ theorem card_le_pow_of_isImplicationMinimal {r k : ℕ} (hr : 2 ≤ r) {F : Fins
         simp only at h
         rw [← sdiff_union_of_subset (hW ▸ inter_subset_left : C ⊆ W),
           ← sdiff_union_of_subset (hW' ▸ inter_subset_left : C ⊆ W'), h]]
-      refine ih (fun W' hW' => ?_) (isImplicationMinimal_image_sdiff hF hD C)
+      refine ih (fun W' hW' => ?_) (isImplicationMinimal_image_sdiff hr hF hD C)
       obtain ⟨W, hW, rfl⟩ := mem_image.1 hW'
       obtain ⟨hWF, hWD⟩ := mem_filter.1 hW
       rw [card_sdiff_of_subset (hWD ▸ inter_subset_left)]

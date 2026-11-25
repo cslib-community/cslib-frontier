@@ -94,11 +94,11 @@ theorem halted_inSpace : ComputableInSpace machine.halted encState encBool
 /-- Silent emission has constant native space. -/
 theorem emit_inSpace : ComputableInSpace machine.emit (encPair encState (encOption encBool))
     encBits (fun p => (encPair encState (encOption encBool) p).length) :=
-  budget_const [] (.refl _)
+  budget_const []
 
 /-- Silent final output has constant native space; callers read the returned counter. -/
 theorem finish_inSpace : ComputableInSpace machine.finish encState encBits
-    (fun s => (encState s).length) := budget_const [] (.refl _)
+    (fun s => (encState s).length) := budget_const []
 
 /-- The native update only increments the binary index or sets the stopping flag. -/
 theorem next_inSpace : ComputableInSpace machine.next (encPair encState (encOption encBool))
@@ -109,7 +109,7 @@ theorem next_inSpace : ComputableInSpace machine.next (encPair encState (encOpti
       (encOption encBool) encBool (fun b => (encOption encBool b).length) := of_finite _
   have hsome := budget_comp_linear hs hbit
   exact budget_ite hsome
-    (budget_prod (budget_natSucc hn) (budget_const false (.refl _)))
-    (budget_prod hn (budget_const true (.refl _)))
+    (budget_prod (budget_natSucc hn) (budget_const false))
+    (budget_prod hn (budget_const true))
 
 end Turing.QueryMachine.InputLength

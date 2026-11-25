@@ -77,18 +77,13 @@ theorem card_componentEdgeSet (G : Graph) (root : ℕ) :
     (G.componentEdgeSet root).card = G.edges.countP
       (fun edge => decide (RotationCertificate.SameComponent G root edge.1)) := by
   classical
-  have h := (List.nodup_finRange G.edges.length).card_eq_countP
-    (P := fun i => RotationCertificate.SameComponent G root
-      (Dart.vertex (G := G) (i, false)))
-  rw [List.toFinset_finRange] at h
-  rw [componentEdgeSet, h]
+  rw [componentEdgeSet, ← List.toFinset_finRange, (List.nodup_finRange _).card_eq_countP]
   conv_rhs => rw [← List.map_get_finRange G.edges]
   simp only [List.countP_map, Function.comp_def, Dart.vertex, edgeEndpoint,
     Bool.false_eq_true, ite_false]
-  apply List.countP_congr
-  intro i _
-  rw [List.getD_eq_getElem _ _ i.isLt]
-  rfl
+  exact List.countP_congr fun i _ => by
+    rw [List.getD_eq_getElem _ _ i.isLt]
+    rfl
 
 namespace RotationSystem
 
@@ -261,21 +256,11 @@ theorem numericalGenusZero_dual_iff {G : Graph} (r : RotationSystem G)
     (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) :
     r.dualRotation.NumericalGenusZero ↔ r.NumericalGenusZero := by
   rw [r.dualRotation.numericalGenusZero_iff_component_cards r.dualGraph_endpoints_declared,
-    r.numericalGenusZero_iff_component_cards hG]
-  constructor
-  · intro h d
-    have hd := h (r.dualDartEquiv d)
-    rw [r.card_component_dual_faces_eq_vertices hG,
-      ← r.card_component_edges_eq_dual hG,
-      ← r.card_component_faces_eq_dual_vertices hG] at hd
-    omega
-  · intro h q
-    obtain ⟨d, rfl⟩ := r.dualDartEquiv.surjective q
-    rw [r.card_component_dual_faces_eq_vertices hG,
-      ← r.card_component_edges_eq_dual hG,
-      ← r.card_component_faces_eq_dual_vertices hG]
-    have := h d
-    omega
+    r.numericalGenusZero_iff_component_cards hG, ← r.dualDartEquiv.forall_congr_right]
+  refine forall_congr' fun d => ?_
+  rw [r.card_component_dual_faces_eq_vertices hG, ← r.card_component_edges_eq_dual hG,
+    ← r.card_component_faces_eq_dual_vertices hG]
+  omega
 
 end RotationSystem
 end Cslib.Complexity.Graph

@@ -77,35 +77,28 @@ theorem alternation_splitAlternatingBlocks (ns : List (ℕ × ℕ)) (q : Bool)
             Q (splitAlternatingBlocks ((n, m) :: ns) ((u ++ v) ++ w)).2) ↔
           Alternation r (ns.map Prod.fst) (fun w => P (u ++ w)) ∧
           Alternation r (ns.map Prod.snd) (fun w => Q (v ++ w)) := by
-      simp only [splitAlternatingBlocks_append ns hu hv]
-      exact ih r (fun w => P (u ++ w)) (fun w => Q (v ++ w))
+      simpa only [splitAlternatingBlocks_append ns hu hv] using
+        ih r (fun w => P (u ++ w)) (fun w => Q (v ++ w))
     simp only [List.map_cons]
     cases q
     · simp only [alternation_false_cons]
-      constructor
-      · intro h
-        constructor
-        · intro u hu
-          exact ((key u (List.replicate m false) hu (by simp) true).1
-            (h (u ++ List.replicate m false) (by simp [hu]))).1
-        · intro v hv
-          exact ((key (List.replicate n false) v (by simp) hv true).1
-            (h (List.replicate n false ++ v) (by simp [hv]))).2
-      · rintro ⟨hP, hQ⟩ w hw
-        have hu : (w.take n).length = n := by simp [hw]
-        have hv : (w.drop n).length = m := by simp [hw]
-        simpa only [List.take_append_drop] using
-          (key (w.take n) (w.drop n) hu hv true).2 ⟨hP _ hu, hQ _ hv⟩
+      refine ⟨fun h => ⟨fun u hu => ((key u (List.replicate m false) hu (by simp) true).1
+          (h _ (by simp [hu]))).1, fun v hv =>
+        ((key (List.replicate n false) v (by simp) hv true).1 (h _ (by simp [hv]))).2⟩, ?_⟩
+      rintro ⟨hP, hQ⟩ w hw
+      have hu : (w.take n).length = n := by simp [hw]
+      have hv : (w.drop n).length = m := by simp [hw]
+      simpa only [List.take_append_drop] using
+        (key (w.take n) (w.drop n) hu hv true).2 ⟨hP _ hu, hQ _ hv⟩
     · simp only [alternation_true_cons]
-      constructor
-      · rintro ⟨w, hw, h⟩
-        have hu : (w.take n).length = n := by simp [hw]
-        have hv : (w.drop n).length = m := by simp [hw]
-        have hh := (key (w.take n) (w.drop n) hu hv false).1
-          (by simpa only [List.take_append_drop] using h)
-        exact ⟨⟨_, hu, hh.1⟩, ⟨_, hv, hh.2⟩⟩
-      · rintro ⟨⟨u, hu, hP⟩, ⟨v, hv, hQ⟩⟩
-        exact ⟨u ++ v, by simp [hu, hv], (key u v hu hv false).2 ⟨hP, hQ⟩⟩
+      refine ⟨?_, fun ⟨⟨u, hu, hP⟩, ⟨v, hv, hQ⟩⟩ =>
+        ⟨u ++ v, by simp [hu, hv], (key u v hu hv false).2 ⟨hP, hQ⟩⟩⟩
+      rintro ⟨w, hw, h⟩
+      have hu : (w.take n).length = n := by simp [hw]
+      have hv : (w.drop n).length = m := by simp [hw]
+      have hh := (key (w.take n) (w.drop n) hu hv false).1
+        (by simpa only [List.take_append_drop] using h)
+      exact ⟨⟨_, hu, hh.1⟩, ⟨_, hv, hh.2⟩⟩
 
 /-- Splitting paired blocks is polynomial-time when their lengths are fixed polynomials of a
 computed unary size. -/
@@ -158,18 +151,14 @@ private theorem exists_inter_verifier {q : Bool} {k : ℕ} {A B : Set α}
   obtain ⟨ps, V, hp, hV, hA⟩ := hA
   obtain ⟨qs, W, hq, hW, hB⟩ := hB
   have hlen : ps.length = qs.length := hp.trans hq.symm
-  have hA' : IsAlternatingVerifier enc q ((ps.zip qs).map Prod.fst) V A := by
-    simpa only [List.map_fst_zip hlen.le] using hA
-  have hB' : IsAlternatingVerifier enc q ((ps.zip qs).map Prod.snd) W B := by
-    simpa only [List.map_snd_zip hlen.ge] using hB
-  refine ⟨_, _, ?_, ?_, hA'.inter hB'⟩
-  · simp [hp, hq]
-  · have hn : ComputableInPolyTime (fun x : α × List Bool => (enc x.1).length)
-        (encPair enc encBits) encUnary := by fun_prop
-    have hs := computableInPolyTime_splitAlternatingBlocks (ps.zip qs) hn (.snd enc encBits)
-    exact ComputableInPolyTime.bool_and.comp
-      ((hV.comp ((ComputableInPolyTime.fst enc encBits).prod hs.fst')).prod
-        (hW.comp ((ComputableInPolyTime.fst enc encBits).prod hs.snd')))
+  have hs := computableInPolyTime_splitAlternatingBlocks (ps.zip qs)
+    (by fun_prop : ComputableInPolyTime (fun x : α × List Bool => (enc x.1).length) _ _)
+    (.snd enc encBits)
+  exact ⟨_, _, by simp [hp, hq], ComputableInPolyTime.bool_and.comp
+    ((hV.comp ((ComputableInPolyTime.fst enc encBits).prod hs.fst')).prod
+      (hW.comp ((ComputableInPolyTime.fst enc encBits).prod hs.snd'))),
+    (by simpa only [List.map_fst_zip hlen.le] using hA : IsAlternatingVerifier _ _ _ _ _).inter
+      (by simpa only [List.map_snd_zip hlen.ge] using hB)⟩
 
 variable {k : ℕ} {A B : Set α}
 

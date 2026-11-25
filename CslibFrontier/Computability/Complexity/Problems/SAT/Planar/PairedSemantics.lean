@@ -151,7 +151,8 @@ theorem map_fst_links (sites : List Point) (r : Route) :
   apply List.ext_getElem
   · simp [wire, List.consecutivePairs]
   · intro i hi hj
-    have hi' : i + 2 < r.length := by grind
+    simp only [List.length_map, List.consecutivePairs, List.length_zip, List.length_tail,
+      length_wire] at hj
     simp only [List.getElem_map, List.consecutivePairs, List.getElem_zip, List.getElem_tail]
     rw [getElem_wire sites r i (by omega), getElem_wire sites r (i + 1) (by omega)]
     simp only [List.getElem_dropLast]
@@ -169,11 +170,8 @@ def sourceValue (φ : CNF ℕ) (σ : Variable → Bool) (v : ℕ) : Bool :=
 theorem wire_ne_nil {φ : CNF ℕ} {o : Occurrence ℕ}
     (ho : o ∈ Cslib.Logic.PL.occurrences φ) :
     wire (crossingSites φ) (occurrencePath φ o) ≠ [] := by
-  have hlen := PlanarCompile.occurrencePath_length_ge_two ho
-  change 2 ≤ (occurrencePath φ o).length at hlen
-  intro he
-  have hw := length_wire (crossingSites φ) (occurrencePath φ o)
-  rw [he, List.length_nil] at hw
+  have hlen : 2 ≤ (occurrencePath φ o).length := PlanarCompile.occurrencePath_length_ge_two ho
+  rw [← List.length_pos_iff_ne_nil, length_wire]
   omega
 
 /-- The actual first entry has the source cell's value. -/
@@ -182,36 +180,28 @@ theorem wire_first_value {φ : CNF ℕ} {σ : Variable → Bool}
     (ho : o ∈ Cslib.Logic.PL.occurrences φ) (fallback : PairedWire.Cell Variable) :
     σ (((wire (crossingSites φ) (occurrencePath φ o)).headD fallback 0).1) =
       sourceValue φ σ o.lit.1 := by
-  have hlen := PlanarCompile.occurrencePath_length_ge_two ho
-  change 2 ≤ (occurrencePath φ o).length at hlen
+  have hlen : 2 ≤ (occurrencePath φ o).length := PlanarCompile.occurrencePath_length_ge_two ho
   have hwpos : 0 < (wire (crossingSites φ) (occurrencePath φ o)).length := by
     rw [length_wire]
     omega
   have hhead : (wire (crossingSites φ) (occurrencePath φ o)).headD fallback =
       (wire (crossingSites φ) (occurrencePath φ o))[0] := by
-    generalize hc : wire (crossingSites φ) (occurrencePath φ o) = xs at hwpos ⊢
+    generalize wire (crossingSites φ) (occurrencePath φ o) = xs at hwpos ⊢
     cases xs with
     | nil => simp at hwpos
     | cons a rest => rfl
-  have hp := (PlanarCompile.occurrencePath_endpoints ho).1
-  change (occurrencePath φ o).head? = _ at hp
+  have hp : (occurrencePath φ o).head? = some (Layout.center (φ.distinctVars.idxOf o.lit.1)) :=
+    (PlanarCompile.occurrencePath_endpoints ho).1
   rw [List.head?_eq_getElem?, List.getElem?_eq_getElem (by omega)] at hp
   have hp' : (occurrencePath φ o)[0] = Layout.center (φ.distinctVars.idxOf o.lit.1) :=
     Option.some.inj hp
-  have hret : Layout.center (φ.distinctVars.idxOf o.lit.1) ∈
-      (occurrencePath φ o).dropLast := by
-    rw [← hp']
-    have hdrop : 0 < (occurrencePath φ o).dropLast.length := by
-      simp only [List.length_dropLast]
-      omega
-    rw [← List.getElem_dropLast hdrop]
+  have hret : Layout.center (φ.distinctVars.idxOf o.lit.1) ∈ (occurrencePath φ o).dropLast := by
+    rw [← hp', ← List.getElem_dropLast (by simp only [List.length_dropLast]; omega)]
     exact List.getElem_mem _
   have hord := (mem_ordinaryCells φ _).2
     ⟨⟨_, PlanarCompile.occurrencePath_mem_paths ho, hret⟩,
       PlanarCompile.source_center_not_crossing ho⟩
-  rw [hhead, getElem_wire _ _ 0 (by omega)]
-  simp only [Nat.zero_sub]
-  rw [List.getD_eq_getElem _ _ (by omega), hp']
+  rw [hhead, getElem_wire _ _ 0 (by omega), Nat.zero_sub, List.getD_eq_getElem _ _ (by omega), hp']
   exact ordinary_port_value h hord _ 0
 
 /-- Every actual entry and exit along an occurrence wire has exactly its source value. -/
@@ -379,10 +369,5 @@ theorem eval_rawFormula_of_compatible {φ : CNF ℕ} (τ : ℕ → Bool) (σ : V
   · intro o ho
     rw [map_fst_links]
     exact PairedWire.eval_links_of_constant σ (τ o.lit.1) _ (hcompat o ho)
-
-
-
-
-
 
 end Cslib.Complexity.SAT.ParsimoniousPlanar
