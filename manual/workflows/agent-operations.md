@@ -63,10 +63,15 @@ approved head just before enqueueing (using the trusted checkout, `GIT_DIR` incl
 repository, or the current full clone) and refuses on a textual conflict or when a non-empty queue
 cannot be replayed locally; wait for an earlier conflicting entry to land (and restack) or leave the
 queue, then rerun. If active queue entries are ahead and the PR modifies high-fan-in
-`CslibFrontier/` hub modules (`>= 500` transitive importers), `queue_pr.py` prints an advisory
-rebuild notice on enqueue, or refuses before enqueueing when `--hold-hubs` is passed so broad hub
-refactors can wait for an empty queue. A reviewer can also run the prefix check standalone before
-enqueueing:
+`CslibFrontier/` hub modules (`>= 500` transitive importers), `queue_pr.py` compares the modules
+the PR rebuilds with the union of those the entries ahead already rebuild; every later group build
+rebuilds them until the PR lands. While more than six entries are ahead and the PR adds at least
+500 modules to that union, it refuses: rerun when the queue is shorter, or pass `--allow-hub` to
+queue it now. Otherwise it prints an advisory rebuild notice on enqueue. `--hold-hubs` refuses a
+hub PR behind any entry, so broad hub refactors can wait for an empty queue. Every run first
+prints the number of entries ahead and a rough time to land (entries ahead × 14 minutes / 8
+concurrent group builds, plus the PR's own build). A reviewer can also run the prefix check
+standalone before enqueueing:
 
 ```bash
 python3 scripts/queue_status.py prefix <PR> <approved-head>
