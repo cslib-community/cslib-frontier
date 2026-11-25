@@ -167,12 +167,10 @@ theorem progress_step {w L j : ℕ} (hw : 0 < w) (hj : j < L) (side : Bool)
   have hN : 10 * P * n ≤ 10 ^ L := by
     have h := stageSize_le (j + 1) k
     simpa only [hjk', pow_succ', P, n] using h
-  have hcoeff : ∀ t < 10, ∀ s < 7, |table (coefficients side) t s| ≤ 1 := by
-    intro t _ s _
+  have hcoeff : ∀ t < 10, ∀ s < 7, |table (coefficients side) t s| ≤ 1 := fun t _ s _ => by
     unfold table coefficients
     cases side
-    · exact abs_phi_le_one _ _
-    · exact abs_psi_le_one _ _
+    exacts [abs_phi_le_one _ _, abs_psi_le_one _ _]
   let v (i : ℕ) (a : Fin 7) : ℤ := value (table (coefficients side)) j (k + 1) arr
     (i / (10 * n)) (a.val * n + i % n)
   let B : ℤ := (7 ^ j : ℕ) * A
@@ -183,9 +181,8 @@ theorem progress_step {w L j : ℕ} (hw : 0 < w) (hj : j < L) (side : Bool)
     rw [pow_succ']
     change a.val * n + i % n < 7 * n
     nlinarith only [hm, hr]
-  have hv : ∀ i < 10 * P * n, ∀ a, |v i a| ≤ B := by
-    intro i _ a
-    exact abs_value_le_of_input hcoeff hjk _ _ (hsuffix i a) ha
+  have hv : ∀ i < 10 * P * n, ∀ a, |v i a| ≤ B := fun i _ a =>
+    abs_value_le_of_input hcoeff hjk _ _ (hsuffix i a) ha
   have hload : ∀ i < 10 * P * n, ∀ a,
       x.mem (source L j + (i / (10 * n) * 7 + a.val) * n + i % n) = encode (v i a) := by
     intro i hi a
@@ -197,8 +194,7 @@ theorem progress_step {w L j : ℕ} (hw : 0 < w) (hj : j < L) (side : Bool)
         source L j + i / (10 * n) * 7 ^ (L - j) + (a.val * n + i % n) := by
       rw [hstride]
       ring
-    rw [hidx, hx.values _ hp _ (by rw [hk]; exact hsuffix i a)]
-    rw [hk]
+    rw [hidx, hx.values _ hp _ (by rw [hk]; exact hsuffix i a), hk]
   have hvalue : 7 * B < (2 : ℤ) ^ (w - 1) := by
     have hpow : 7 ^ (j + 1) ≤ 7 ^ L := Nat.pow_le_pow_right (by decide) (by omega)
     have hpowZ : ((7 ^ (j + 1) : ℕ) : ℤ) ≤ (7 ^ L : ℕ) := by exact_mod_cast hpow
@@ -220,10 +216,9 @@ theorem progress_step {w L j : ℕ} (hw : 0 < w) (hj : j < L) (side : Bool)
     hvalue hnative (haddr.of_le (by unfold addressBound; omega)) hseparate
   refine ⟨y, he.mono (by omega), ?_⟩
   have hr (a : Fin 32) (ha : 9 ≤ a.val) (hl : ¬StageLocal a) : y.regs a = x.regs a := hreg a ha hl
-  refine ⟨?_, hstage, ?_, ?_, hsrc, hdst, ?_, ?_⟩
+  refine ⟨?_, hstage, ?_, hstr, hsrc, hdst, ?_, ?_⟩
   · regs_frame
   · simpa only [P, pow_succ'] using hp
-  · exact hstr
   · intro p hpp r hrr
     have hrr' : r < n := hrr
     have hpp' : p < 10 * P := by simpa only [pow_succ', P] using hpp
@@ -236,9 +231,7 @@ theorem progress_step {w L j : ℕ} (hw : 0 < w) (hj : j < L) (side : Bool)
       (j + 1) k arr ((p * n + r) / n) ((p * n + r) % n) from stageResult_value side j k _ arr,
       hdiv, hmod] at hvout
     simpa only [source, n, k, Nat.add_assoc] using hvout
-  · intro a haout
-    rw [hf a ?_]
-    · exact hx.frame a haout
-    · rcases destination_cases L j with hd | hd <;> rw [hd] <;> unfold scratchBase at * <;> omega
+  · refine fun a haout => (hf a ?_).trans (hx.frame a haout)
+    rcases destination_cases L j with hd | hd <;> rw [hd] <;> unfold scratchBase at * <;> omega
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Encoding
