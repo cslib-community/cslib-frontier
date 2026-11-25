@@ -73,31 +73,23 @@ variable {k a b r : ℕ}
 /-- A strand with an input port is uniquely determined by that port. -/
 theorem inputStrand_of_index (e : Strand k a b r) (i : Fin (k + a + r))
     (hi : inputIndex e = some i) : inputStrand i = e := by
-  rcases e with j | ((j | j) | j)
-  all_goals simp only [inputIndex, Option.some.injEq] at hi
-  · subst i
-    simp [inputStrand, j.isLt]
-  · subst i
-    simp [inputStrand, show ¬k + j.val < k by omega,
+  rcases e with j | ((j | j) | j) <;> simp only [inputIndex, Option.some.injEq] at hi
+  · exact hi ▸ by simp [inputStrand, j.isLt]
+  · exact hi ▸ by simp [inputStrand, show ¬k + j.val < k by omega,
       show k + j.val < k + a by have := j.isLt; omega]
   · cases hi
-  · subst i
-    simp [inputStrand, show ¬k + a + j.val < k by omega,
+  · exact hi ▸ by simp [inputStrand, show ¬k + a + j.val < k by omega,
       show ¬k + a + j.val < k + a by omega]
 
 /-- A strand with an output port is uniquely determined by that port. -/
 theorem outputStrand_of_index (e : Strand k a b r) (j : Fin (k + b + r))
     (hj : outputIndex e = some j) : outputStrand j = e := by
-  rcases e with i | ((i | i) | i)
-  all_goals simp only [outputIndex, Option.some.injEq] at hj
-  · subst j
-    simp [outputStrand, i.isLt]
+  rcases e with i | ((i | i) | i) <;> simp only [outputIndex, Option.some.injEq] at hj
+  · exact hj ▸ by simp [outputStrand, i.isLt]
   · cases hj
-  · subst j
-    simp [outputStrand, show ¬k + i.val < k by omega,
+  · exact hj ▸ by simp [outputStrand, show ¬k + i.val < k by omega,
       show k + i.val < k + b by have := i.isLt; omega]
-  · subst j
-    simp [outputStrand, show ¬k + b + i.val < k by omega,
+  · exact hj ▸ by simp [outputStrand, show ¬k + b + i.val < k by omega,
       show ¬k + b + i.val < k + b by omega]
 
 /-- The unique cell vertex in the layer's own coordinates. -/
@@ -140,9 +132,8 @@ theorem Layer.edge_rows (L : Layer k a b r) (e : Strand k a b r) :
 /-- Each upper band supplies its actual orthogonal path. -/
 private theorem Layer.connected_upper (L : Layer k a b r) (e : Strand k a b r)
     (i : Fin (k + a + r)) (hi : inputIndex e = some i) :
-    Connected (L.Trace e) (4 * i.val, 0) (columns k a r i, 2 * (k + a + r + 1)) := by
-  refine ⟨L.upper.path i, fun p hp => ?_⟩
-  exact .inl ⟨i, hi, (L.upper.path_contains_iff i p).1 hp⟩
+    Connected (L.Trace e) (4 * i.val, 0) (columns k a r i, 2 * (k + a + r + 1)) :=
+  ⟨L.upper.path i, fun p hp => .inl ⟨i, hi, (L.upper.path_contains_iff i p).1 hp⟩⟩
 
 /-- Translate the cell-band path into its full-layer position. -/
 private theorem Layer.connected_middle (L : Layer k a b r) (e : Strand k a b r) :
@@ -151,7 +142,7 @@ private theorem Layer.connected_middle (L : Layer k a b r) (e : Strand k a b r) 
       (shift (2 * (k + a + r + 1)) (middleEnd e)) := by
   have hm : Connected (MiddleContains e) (middleStart e) (middleEnd e) :=
     ⟨middlePath e, fun p hp => (middlePath_contains_iff e p).1 hp⟩
-  exact (hm.shift _).mono (fun _ hp => .inr (.inl hp))
+  exact (hm.shift _).mono fun _ hp => .inr (.inl hp)
 
 /-- Translate the lower routing into its full-layer position. -/
 private theorem Layer.connected_lower (L : Layer k a b r) (e : Strand k a b r)
@@ -212,87 +203,60 @@ theorem Layer.target_of_output (L : Layer k a b r) (e : Strand k a b r)
 
 private theorem middle_top_of_input (e : Strand k a b r) (i : Fin (k + a + r))
     (hi : inputIndex e = some i) : MiddleContains e (columns k a r i, 0) := by
-  have h := (middlePath_contains_iff e _).1 (middlePath e).source_mem
-  simpa only [middleStart_index, hi, Option.elim_some] using h
+  simpa only [middleStart_index, hi, Option.elim_some] using
+    (middlePath_contains_iff e _).1 (middlePath e).source_mem
 
 private theorem middle_bottom_of_output (e : Strand k a b r) (j : Fin (k + b + r))
     (hj : outputIndex e = some j) : MiddleContains e (columns k b r j, 2) := by
-  have h := (middlePath_contains_iff e _).1 (middlePath e).target_mem
-  simpa only [middleEnd_index, hj, Option.elim_some] using h
+  simpa only [middleEnd_index, hj, Option.elim_some] using
+    (middlePath_contains_iff e _).1 (middlePath e).target_mem
 
 /-- All complete strand traces stay inside the layer band. -/
 theorem Layer.row_le (L : Layer k a b r) (e : Strand k a b r) (p : Point)
     (hp : L.Trace e p) : p.2 ≤ L.height := by
-  rcases hp with ⟨i, _, hp⟩ | ⟨hy, hp⟩ | ⟨hy, j, _, hp⟩
-  · have := L.upper.row_le i hp
-    simp only [height]
-    omega
-  · have := middle_row_le L.arity hp
-    simp only [height]
-    omega
-  · have := L.lower.row_le j hp
-    simp only [height]
-    omega
+  simp only [height]
+  rcases hp with ⟨i, _, hp⟩ | ⟨_, hp⟩ | ⟨_, j, _, hp⟩
+  · have := L.upper.row_le i hp; omega
+  · have := middle_row_le L.arity hp; omega
+  · have := L.lower.row_le j hp; omega
 
 /-- The first row consists precisely of the declared input strand endpoints. -/
 theorem Layer.top_iff (L : Layer k a b r) (e : Strand k a b r) (x : ℕ) :
     L.Trace e (x, 0) ↔ ∃ i, inputIndex e = some i ∧ x = 4 * i.val := by
   simp only [Trace, Shift, OrderedRouting.top_iff]
-  constructor
-  · rintro (⟨i, hi, hx⟩ | ⟨hy, _⟩ | ⟨hy, _⟩)
-    · exact ⟨i, hi, hx⟩
-    · omega
-    · omega
-  · rintro ⟨i, hi, hx⟩
-    exact .inl ⟨i, hi, hx⟩
+  exact ⟨by rintro (h | ⟨hy, _⟩ | ⟨hy, _⟩) <;> first | exact h | omega, .inl⟩
 
 /-- The last row consists precisely of the declared output strand endpoints. -/
 theorem Layer.bottom_iff (L : Layer k a b r) (e : Strand k a b r) (x : ℕ) :
     L.Trace e (x, L.height) ↔ ∃ j, outputIndex e = some j ∧ x = 4 * j.val := by
-  constructor
-  · rintro (⟨i, _, hu⟩ | ⟨hy, hm⟩ | ⟨hy, j, hj, hl⟩)
-    · have := L.upper.row_le i hu
-      simp only [height] at this
-      omega
-    · have := middle_row_le L.arity hm
-      simp only [height] at this
-      omega
-    · have hr : L.height - (2 * (k + a + r + 1) + 2) = 2 * (k + b + r + 1) := by
-        simp only [height]
-        omega
-      rw [hr] at hl
-      exact ⟨j, hj, (L.lower.bottom_iff j x).1 hl⟩
-  · rintro ⟨j, hj, hx⟩
-    refine .inr (.inr ⟨by simp only [height]; omega, j, hj, ?_⟩)
-    have hr : L.height - (2 * (k + a + r + 1) + 2) = 2 * (k + b + r + 1) := by
-      simp only [height]
-      omega
-    rw [hr]
-    exact (L.lower.bottom_iff j x).2 hx
+  have hr : L.height - (2 * (k + a + r + 1) + 2) = 2 * (k + b + r + 1) := by
+    simp only [height]; omega
+  refine ⟨?_, fun ⟨j, hj, hx⟩ => .inr (.inr ⟨by simp only [height]; omega, j, hj,
+    hr.symm ▸ (L.lower.bottom_iff j x).2 hx⟩)⟩
+  rintro (⟨i, _, hu⟩ | ⟨_, hm⟩ | ⟨_, j, hj, hl⟩)
+  · have := L.upper.row_le i hu
+    simp only [height] at this; omega
+  · have := middle_row_le L.arity hm
+    simp only [height] at this; omega
+  · exact ⟨j, hj, (L.lower.bottom_iff j x).1 (hr ▸ hl)⟩
 
 private theorem upper_middle_same (L : Layer k a b r) {e f : Strand k a b r}
     {i : Fin (k + a + r)} {p : Point} (hi : inputIndex e = some i)
     (hu : L.upper.Contains i p) (hm : Shift (2 * (k + a + r + 1)) (MiddleContains f) p) :
     e = f := by
   obtain ⟨heq, hx⟩ := L.upper_middle_intersection i f p hu hm
-  have hf : MiddleContains f (columns k a r i, 0) := by
-    simpa only [heq, hx, Nat.sub_self] using hm.2
-  exact middle_boundary_unique L.arity (.inl rfl) (middle_top_of_input e i hi) hf
+  exact middle_boundary_unique L.arity (.inl rfl) (middle_top_of_input e i hi)
+    (by simpa only [heq, hx, Nat.sub_self] using hm.2)
 
 private theorem lower_middle_same (L : Layer k a b r) {e f : Strand k a b r}
     {j : Fin (k + b + r)} {p : Point} (hj : outputIndex e = some j)
     (hl : Shift (2 * (k + a + r + 1) + 2) (L.lower.Contains j) p)
     (hm : Shift (2 * (k + a + r + 1)) (MiddleContains f) p) : e = f := by
-  have hlocal : 2 ≤ p.2 - 2 * (k + a + r + 1) ∧
-      L.lower.Contains j (p.1, p.2 - 2 * (k + a + r + 1) - 2) := by
-    refine ⟨by have := hl.1; omega, ?_⟩
-    simpa only [Nat.sub_sub] using hl.2
-  obtain ⟨hrow, hx⟩ := L.middle_lower_intersection f j p.1
-    (p.2 - 2 * (k + a + r + 1)) hm.2 hlocal
-  have heq : p.2 = 2 * (k + a + r + 1) + 2 := by have := hm.1; omega
-  have hf : MiddleContains f (columns k b r j, 2) := by
-    simpa only [heq, hx, Nat.add_sub_cancel_left] using hm.2
-  exact middle_boundary_unique L.arity (.inr rfl) (middle_bottom_of_output e j hj) hf
+  obtain ⟨_, hx⟩ := L.middle_lower_intersection f j p.1 (p.2 - 2 * (k + a + r + 1)) hm.2
+    ⟨by have := hl.1; omega, by simpa only [Nat.sub_sub] using hl.2⟩
+  exact middle_boundary_unique L.arity (.inr rfl) (middle_bottom_of_output e j hj)
+    (by simpa only [show p.2 = 2 * (k + a + r + 1) + 2 by have := hm.1; omega, hx,
+      Nat.add_sub_cancel_left] using hm.2)
 
 /-- Distinct full strands intersect only at their common cell vertex. -/
 theorem Layer.meet (L : Layer k a b r) {e f : Strand k a b r} (hef : e ≠ f)
@@ -300,10 +264,8 @@ theorem Layer.meet (L : Layer k a b r) {e f : Strand k a b r} (hef : e ≠ f)
     p = L.center ∧ IsCell e ∧ IsCell f := by
   rcases he with ⟨i, hi, hu⟩ | hm | ⟨hy, j, hj, hl⟩ <;>
     rcases hf with ⟨i', hi', hu'⟩ | hm' | ⟨hy', j', hj', hl'⟩
-  · by_cases hii : i = i'
-    · subst i'
-      exact (hef ((inputStrand_of_index e i hi).symm.trans
-        (inputStrand_of_index f i hi'))).elim
+  · rcases eq_or_ne i i' with rfl | hii
+    · exact (hef ((inputStrand_of_index e i hi).symm.trans (inputStrand_of_index f i hi'))).elim
     · exact (L.upper.disjoint hii p ⟨hu, hu'⟩).elim
   · exact (hef (upper_middle_same L hi hu hm')).elim
   · exact (L.upper_lower_disjoint i p hu hy').elim
@@ -311,18 +273,13 @@ theorem Layer.meet (L : Layer k a b r) {e f : Strand k a b r} (hef : e ≠ f)
   · obtain ⟨hp, he, hf⟩ := middle_intersection L.arity hef hm.2 hm'.2
     have hx := congrArg Prod.fst hp
     have hy := congrArg Prod.snd hp
-    refine ⟨Prod.ext hx ?_, he, hf⟩
-    change p.2 = 2 * (k + a + r + 1) + 1
-    simp only at hy
     have := hm.1
-    omega
+    exact ⟨Prod.ext hx (by simp only [center] at hy ⊢; omega), he, hf⟩
   · exact (hef (lower_middle_same L hj' ⟨hy', hl'⟩ hm).symm).elim
   · exact (L.upper_lower_disjoint i' p hu' hy).elim
   · exact (hef (lower_middle_same L hj ⟨hy, hl⟩ hm')).elim
-  · by_cases hjj : j = j'
-    · subst j'
-      exact (hef ((outputStrand_of_index e j hj).symm.trans
-        (outputStrand_of_index f j hj'))).elim
+  · rcases eq_or_ne j j' with rfl | hjj
+    · exact (hef ((outputStrand_of_index e j hj).symm.trans (outputStrand_of_index f j hj'))).elim
     · exact (L.lower.disjoint hjj _ ⟨hl, hl'⟩).elim
 
 /-- Only cell-incidence strands can pass through the cell vertex. -/
@@ -331,21 +288,14 @@ theorem Layer.vertex_meet (L : Layer k a b r) (e : Strand k a b r)
   have hc : GridStar.center a ≤ 1 := by unfold GridStar.center; split <;> omega
   rcases he with ⟨i, _, hu⟩ | hm | ⟨hy, _⟩
   · have := L.upper.row_le i hu
-    simp only [center] at this
-    omega
+    simp only [center] at this; omega
   · rcases e with i | (e | j)
     · have hi := i.isLt
-      have hh := hm.2
-      change L.center.1 = 4 * i.val ∧ _ at hh
-      have := hh.1
-      simp only [center] at this
-      omega
+      have : L.center.1 = 4 * i.val := hm.2.1
+      simp only [center] at this; omega
     · exact ⟨e, rfl⟩
-    · have hh := hm.2.1
-      change L.center.1 = 4 * k + 4 + 4 * j.val at hh
-      simp only [center] at hh
-      omega
-  · simp only [center] at hy
-    omega
+    · have : L.center.1 = 4 * k + 4 + 4 * j.val := hm.2.1
+      simp only [center] at this; omega
+  · simp only [center] at hy; omega
 
 end Cslib.Complexity.NCL.GridLayout

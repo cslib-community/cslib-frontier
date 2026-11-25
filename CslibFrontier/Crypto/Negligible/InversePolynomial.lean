@@ -116,25 +116,18 @@ private theorem tendsto_inv_natCast_nnreal :
 `ε` is negligible if and only if for every natural exponent `k`, `ε n < 1 / n ^ k` eventually. -/
 theorem negligible_iff_eventually_lt_inv_pow {ε : ℕ → ℝ≥0} :
     Negligible ε ↔ ∀ k : ℕ, ∀ᶠ n : ℕ in atTop, ε n < 1 / (n : ℝ≥0) ^ k := by
-  constructor
-  · intro hε k
-    filter_upwards [(hε k).eventually_lt_const zero_lt_one, eventually_ge_atTop 1] with n hn hn1
-    have hpos : (0 : ℝ≥0) < (n : ℝ≥0) ^ k := pow_pos (by exact_mod_cast hn1) k
-    rw [lt_div_iff₀ hpos, mul_comm]
-    exact hn
-  · intro h k
-    refine tendsto_of_tendsto_of_tendsto_of_le_of_le' tendsto_const_nhds tendsto_inv_natCast_nnreal
-      (Eventually.of_forall fun _ => zero_le) ?_
-    filter_upwards [h (k + 1), eventually_ge_atTop 1] with n hn hn1
+  refine ⟨fun hε k => ?_, fun h k => tendsto_of_tendsto_of_tendsto_of_le_of_le'
+    tendsto_const_nhds tendsto_inv_natCast_nnreal (Eventually.of_forall fun _ => zero_le) ?_⟩
+  · filter_upwards [(hε k).eventually_lt_const zero_lt_one, eventually_ge_atTop 1] with n hn hn1
+    rwa [lt_div_iff₀ (pow_pos (by exact_mod_cast hn1) k), mul_comm]
+  · filter_upwards [h (k + 1), eventually_ge_atTop 1] with n hn hn1
     have hn0 : (n : ℝ≥0) ≠ 0 := by exact_mod_cast (by omega : n ≠ 0)
-    have hpos : (0 : ℝ≥0) < (n : ℝ≥0) ^ (k + 1) := pow_pos (by exact_mod_cast hn1) _
-    have hmul : ε n * (n : ℝ≥0) ^ (k + 1) ≤ 1 := ((lt_div_iff₀ hpos).mp hn).le
-    calc
-      (n : ℝ≥0) ^ k * ε n = (ε n * (n : ℝ≥0) ^ (k + 1)) * (n : ℝ≥0)⁻¹ := by
-        rw [pow_succ, ← mul_assoc, mul_comm ((n : ℝ≥0) ^ k), mul_assoc, mul_inv_cancel₀ hn0,
-          mul_one]
-      _ ≤ 1 * (n : ℝ≥0)⁻¹ := mul_le_mul_of_nonneg_right hmul zero_le
-      _ = (n : ℝ≥0)⁻¹ := one_mul _
+    have hmul : ε n * (n : ℝ≥0) ^ (k + 1) ≤ 1 :=
+      ((lt_div_iff₀ (pow_pos (by exact_mod_cast hn1) _)).mp hn).le
+    calc (n : ℝ≥0) ^ k * ε n = (ε n * (n : ℝ≥0) ^ (k + 1)) * (n : ℝ≥0)⁻¹ := by
+          rw [pow_succ, ← mul_assoc, mul_comm ((n : ℝ≥0) ^ k), mul_assoc, mul_inv_cancel₀ hn0,
+            mul_one]
+      _ ≤ (n : ℝ≥0)⁻¹ := by simpa using mul_le_mul_of_nonneg_right hmul zero_le
 
 /-- Definition 2.5 ([BonehShoup2023], p. 28) with natural exponents in `ℝ≥0` (non-strict
 inequality): `ε` is negligible if and only if for every natural exponent `k`, `ε n ≤ 1 / n ^ k`
@@ -154,78 +147,62 @@ is eventually bounded by the reciprocal of every positive polynomially bounded n
 theorem negligible_iff_eventually_le_inv_polynomial {ε : ℕ → ℝ≥0} :
     Negligible ε ↔ ∀ p : ℕ → ℕ, PolynomiallyBounded p → (∀ n, 0 < p n) →
       ∀ᶠ n : ℕ in atTop, (ε n : ℝ) ≤ 1 / (p n : ℝ) := by
-  refine ⟨fun hε p hp hpos => hε.eventually_le_inv_polynomial hp hpos, fun h => ?_⟩
-  refine negligible_iff_eventually_le_inv_pow.mpr fun k => ?_
-  have hp : PolynomiallyBounded (fun n => (n + 1) ^ k) := by fun_prop
-  have hpos : ∀ n, 0 < (n + 1) ^ k := fun n => Nat.pow_pos (Nat.succ_pos n)
-  filter_upwards [h _ hp hpos, eventually_ge_atTop 1] with n hn _
+  refine ⟨fun hε p hp hpos => hε.eventually_le_inv_polynomial hp hpos,
+    fun h => negligible_iff_eventually_le_inv_pow.mpr fun k => ?_⟩
+  filter_upwards [h (fun n => (n + 1) ^ k) (by fun_prop) (fun n => Nat.pow_pos (Nat.succ_pos n)),
+    eventually_ge_atTop 1] with n hn hn1
   apply NNReal.coe_le_coe.mp
   push_cast at hn ⊢
-  refine hn.trans ?_
-  gcongr
-  linarith
+  exact hn.trans (one_div_le_one_div_of_le (pow_pos (by exact_mod_cast hn1) k)
+    (pow_le_pow_left₀ (Nat.cast_nonneg n) (by linarith) k))
 
 /-- **Definition 2.5** ([BonehShoup2023], p. 28): `ε` is negligible if and only if for every real
 `c > 0`, `(ε n : ℝ) < 1 / (n : ℝ) ^ c` eventually. -/
 theorem negligible_iff_eventually_lt_inv_rpow {ε : ℕ → ℝ≥0} :
     Negligible ε ↔ ∀ c : ℝ, 0 < c → ∀ᶠ n : ℕ in atTop, (ε n : ℝ) < 1 / (n : ℝ) ^ c := by
-  constructor
-  · intro hε c hc
-    filter_upwards [negligible_iff_eventually_lt_inv_pow.mp hε ⌈c⌉₊,
+  refine ⟨fun hε c _ => ?_, fun h => negligible_iff_eventually_lt_inv_pow.mpr fun k => ?_⟩
+  · filter_upwards [negligible_iff_eventually_lt_inv_pow.mp hε ⌈c⌉₊,
       eventually_ge_atTop 1] with n hn hn1
-    have hnR : (1 : ℝ) ≤ n := by exact_mod_cast hn1
-    have hn' : (ε n : ℝ) < 1 / (n : ℝ) ^ ⌈c⌉₊ := by exact_mod_cast hn
-    refine hn'.trans_le ?_
+    refine (show (ε n : ℝ) < 1 / (n : ℝ) ^ ⌈c⌉₊ by exact_mod_cast hn).trans_le ?_
     rw [← Real.rpow_natCast]
-    exact one_div_le_one_div_of_le (Real.rpow_pos_of_pos (by positivity) c)
-      (Real.rpow_le_rpow_of_exponent_le hnR (Nat.le_ceil c))
-  · intro h
-    refine negligible_iff_eventually_lt_inv_pow.mpr fun k => ?_
-    filter_upwards [h ((k + 1 : ℕ) : ℝ) (by positivity), eventually_ge_atTop 1] with n hn hn1
+    exact one_div_le_one_div_of_le (Real.rpow_pos_of_pos (by exact_mod_cast hn1) c)
+      (Real.rpow_le_rpow_of_exponent_le (by exact_mod_cast hn1) (Nat.le_ceil c))
+  · filter_upwards [h ((k + 1 : ℕ) : ℝ) (by positivity), eventually_ge_atTop 1] with n hn hn1
     rw [Real.rpow_natCast] at hn
     apply NNReal.coe_lt_coe.mp
     push_cast
-    refine hn.trans_le ?_
-    exact one_div_le_one_div_of_le (pow_pos (by exact_mod_cast hn1) k)
-      (pow_le_pow_right₀ (by exact_mod_cast hn1) (Nat.le_succ k))
+    exact hn.trans_le (one_div_le_one_div_of_le (pow_pos (by exact_mod_cast hn1) k)
+      (pow_le_pow_right₀ (by exact_mod_cast hn1) (Nat.le_succ k)))
 
 /-- **Theorem 2.11** ([BonehShoup2023], p. 28) for `ε : ℕ → ℝ≥0`: `ε` is negligible if and only if
 for every real `c > 0`, `ε n * n ^ c → 0` as `n → ∞`. -/
 theorem negligible_iff_tendsto_mul_rpow {ε : ℕ → ℝ≥0} :
     Negligible ε ↔
       ∀ c : ℝ, 0 < c → Tendsto (fun n : ℕ => (ε n : ℝ) * (n : ℝ) ^ c) atTop (𝓝 0) := by
-  constructor
-  · intro hε c hc
-    have hlim := negligible_iff_coe.mp hε ⌈c⌉₊
-    refine tendsto_of_tendsto_of_tendsto_of_le_of_le' tendsto_const_nhds hlim
+  refine ⟨fun hε c _ => tendsto_of_tendsto_of_tendsto_of_le_of_le' tendsto_const_nhds
+      (negligible_iff_coe.mp hε ⌈c⌉₊)
       (Eventually.of_forall fun n => mul_nonneg (NNReal.coe_nonneg _)
-        (Real.rpow_nonneg (Nat.cast_nonneg n) c)) ?_
-    filter_upwards [eventually_ge_atTop 1] with n hn1
+        (Real.rpow_nonneg (Nat.cast_nonneg n) c)) ?_,
+    fun h => negligible_iff_eventually_lt_inv_rpow.mpr fun c hc => ?_⟩
+  · filter_upwards [eventually_ge_atTop 1] with n hn1
     rw [mul_comm ((n : ℝ) ^ ⌈c⌉₊), ← Real.rpow_natCast]
     exact mul_le_mul_of_nonneg_left
       (Real.rpow_le_rpow_of_exponent_le (by exact_mod_cast hn1) (Nat.le_ceil c))
       (NNReal.coe_nonneg _)
-  · intro h
-    refine negligible_iff_eventually_lt_inv_rpow.mpr fun c hc => ?_
-    filter_upwards [(h c hc).eventually_lt_const zero_lt_one,
-      eventually_ge_atTop 1] with n hn hn1
-    have hpos : 0 < (n : ℝ) ^ c := Real.rpow_pos_of_pos (by exact_mod_cast hn1) c
-    exact (lt_div_iff₀ hpos).mpr hn
+  · filter_upwards [(h c hc).eventually_lt_const zero_lt_one, eventually_ge_atTop 1] with n hn hn1
+    exact (lt_div_iff₀ (Real.rpow_pos_of_pos (by exact_mod_cast hn1) c)).mpr hn
 
 /-- **Theorem 2.11** ([BonehShoup2023], p. 28) for real-valued `f : ℕ → ℝ`: Definition 2.5
 (`∀ c > 0`, eventually `|f n| < 1 / n ^ c`) is equivalent to `∀ c > 0`, `lim (f n * n ^ c) = 0`. -/
 theorem eventually_abs_lt_inv_rpow_iff_tendsto_mul_rpow {f : ℕ → ℝ} :
     (∀ c : ℝ, 0 < c → ∀ᶠ n : ℕ in atTop, |f n| < 1 / (n : ℝ) ^ c) ↔
       (∀ c : ℝ, 0 < c → Tendsto (fun n : ℕ => f n * (n : ℝ) ^ c) atTop (𝓝 0)) := by
-  let ε : ℕ → ℝ≥0 := fun n => ⟨|f n|, abs_nonneg _⟩
-  have h1 : (∀ c : ℝ, 0 < c → ∀ᶠ n : ℕ in atTop, |f n| < 1 / (n : ℝ) ^ c) ↔ Negligible ε :=
-    negligible_iff_eventually_lt_inv_rpow (ε := ε) |>.symm
-  rw [h1, negligible_iff_tendsto_mul_rpow]
-  refine forall₂_congr fun c _ => ?_
+  refine (negligible_iff_eventually_lt_inv_rpow (ε := fun n => ⟨|f n|, abs_nonneg _⟩)).symm.trans
+    (negligible_iff_tendsto_mul_rpow.trans (forall₂_congr fun c _ => ?_))
   rw [tendsto_zero_iff_abs_tendsto_zero (f := fun n : ℕ => f n * (n : ℝ) ^ c)]
-  refine tendsto_congr fun n => ?_
-  change |f n| * (n : ℝ) ^ c = |f n * (n : ℝ) ^ c|
-  rw [abs_mul, abs_of_nonneg (Real.rpow_nonneg (Nat.cast_nonneg n) c)]
+  exact tendsto_congr fun n => by
+    change |f n| * (n : ℝ) ^ c = |f n * (n : ℝ) ^ c|
+    rw [abs_mul, abs_of_nonneg (Real.rpow_nonneg (Nat.cast_nonneg n) c)]
 
 /-! ### Example 2.10 negligible functions (`2 ^ (-√n)` and `n ^ (-log n)`) -/
 
@@ -346,13 +323,11 @@ theorem not_negligible_of_eventually_eq_one {f : ℕ → ℝ≥0}
 /-- A function that is frequently bounded below by the reciprocal of positive values of a
 polynomially bounded `ℝ≥0` function is not negligible. -/
 theorem not_negligible_of_frequently_inv_le {ε P : ℕ → ℝ≥0} (hP : PolynomiallyBoundedNNReal P)
-    (h : ∃ᶠ n in atTop, 0 < P n ∧ (P n)⁻¹ ≤ ε n) : ¬ Negligible ε := by
-  intro hε
-  refine not_negligible_of_frequently_ge one_ne_zero ?_ (hε.polynomiallyBoundedNNReal_mul hP)
-  refine h.mono fun n ⟨hpos, hle⟩ => ?_
-  calc
-    (1 : ℝ≥0) = P n * (P n)⁻¹ := (mul_inv_cancel₀ hpos.ne').symm
-    _ ≤ P n * ε n := mul_le_mul_of_nonneg_left hle zero_le
+    (h : ∃ᶠ n in atTop, 0 < P n ∧ (P n)⁻¹ ≤ ε n) : ¬ Negligible ε := fun hε =>
+  not_negligible_of_frequently_ge one_ne_zero
+    (h.mono fun _ ⟨hpos, hle⟩ =>
+      (mul_inv_cancel₀ hpos.ne').symm.trans_le (mul_le_mul_of_nonneg_left hle zero_le))
+    (hε.polynomiallyBoundedNNReal_mul hP)
 
 /-- **Remark after Definition 2.7** ([BonehShoup2023], p. 29): if `P` is a polynomially bounded
 `ℝ≥0` function that is frequently positive, its reciprocal `(P n)⁻¹` is not negligible. -/
@@ -365,16 +340,10 @@ theorem PolynomiallyBoundedNNReal.not_negligible_inv {P : ℕ → ℝ≥0}
 `ℝ≥0` function `P` is negligible if and only if `P` is eventually zero. -/
 theorem PolynomiallyBoundedNNReal.negligible_inv_iff {P : ℕ → ℝ≥0}
     (hP : PolynomiallyBoundedNNReal P) :
-    Negligible (fun n => (P n)⁻¹) ↔ ∀ᶠ n in atTop, P n = 0 := by
-  constructor
-  · intro hneg
-    by_contra hnot
-    have hfreq : ∃ᶠ n in atTop, 0 < P n := by
-      rw [Filter.not_eventually] at hnot
-      exact hnot.mono fun n hn => pos_iff_ne_zero.mpr hn
-    exact hP.not_negligible_inv hfreq hneg
-  · intro hz
-    exact negligible_zero.congr' (hz.mono fun n hn => by simp [hn])
+    Negligible (fun n => (P n)⁻¹) ↔ ∀ᶠ n in atTop, P n = 0 :=
+  ⟨fun hneg => by_contra fun hnot => hP.not_negligible_inv
+      ((Filter.not_eventually.mp hnot).mono fun _ => pos_iff_ne_zero.mpr) hneg,
+    fun hz => negligible_zero.congr' (hz.mono fun _ hn => by simp [hn])⟩
 
 /-- Inverse powers `((n : ℝ≥0) ^ k)⁻¹` are not negligible for any natural exponent `k`
 ([BonehShoup2023], Example 2.10, p. 28). -/

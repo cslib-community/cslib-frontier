@@ -152,11 +152,10 @@ private theorem computableInPolyTime_check :
 private theorem zeroCount_eq (x : FeedbackVertexSetInstance × List ℕ) :
     zeroCount x =
       (x.1.graph.vertices.toFinset.filter fun v => colorOf x.1.graph x.2 v = 0).card := by
-  have hset : x.1.graph.distinctVertices.toFinset = x.1.graph.vertices.toFinset := by
-    ext v
-    simp only [List.mem_toFinset, mem_distinctVertices]
   rw [zeroCount, List.countP_eq_length_filter,
-    ← List.toFinset_card_of_nodup ((nodup_distinctVertices _).filter _), List.toFinset_filter, hset]
+    ← List.toFinset_card_of_nodup ((nodup_distinctVertices _).filter _), List.toFinset_filter,
+    show x.1.graph.distinctVertices.toFinset = x.1.graph.vertices.toFinset by
+      ext v; simp [mem_distinctVertices]]
   simp only [decide_eq_true_eq]
 
 private theorem check_iff (x : FeedbackVertexSetInstance × List ℕ) :
@@ -186,13 +185,12 @@ private def Certifies (x : FeedbackVertexSetInstance) (ρ : List ℕ) : Prop :=
 private theorem mem_of_certifies {G : Graph} {k : ℕ} {ρ : List ℕ} (h : Certifies ⟨G, k⟩ ρ) :
     (⟨G, k⟩ : FeedbackVertexSetInstance) ∈ FeedbackVertexSet := by
   obtain ⟨hcard, hρ⟩ := h
-  refine ⟨G.vertices.toFinset.filter fun v => colorOf G ρ v = 0, fun v hv => ?_, hcard,
+  refine ⟨G.vertices.toFinset.filter fun v => colorOf G ρ v = 0,
+    fun v hv => List.mem_toFinset.1 (Finset.mem_filter.1 hv).1, hcard,
     isDirAcyclic_of_rank (f := colorOf G ρ) fun u v huv => ?_⟩
-  · exact List.mem_toFinset.1 (Finset.mem_filter.1 hv).1
-  · rw [dirAdj_deleteVerts] at huv
-    obtain ⟨⟨hu, hv, huv⟩, huR, hvR⟩ := huv
-    simp only [Finset.mem_filter, List.mem_toFinset, not_and] at huR hvR
-    exact hρ (u, v) huv hu hv (huR hu) (hvR hv)
+  obtain ⟨⟨hu, hv, huv⟩, huR, hvR⟩ := dirAdj_deleteVerts.1 huv
+  simp only [Finset.mem_filter, List.mem_toFinset, not_and] at huR hvR
+  exact hρ (u, v) huv hu hv (huR hu) (hvR hv)
 
 /-- A member has a numbering, at most the number of distinct declared vertices, listed along the
 vertex list. -/
@@ -211,31 +209,24 @@ private theorem exists_certifies {G : Graph} {k : ℕ}
     split
     · exact Nat.zero_le _
     · exact (hflt v (mem_deleteVerts_vertices.2 ⟨hv, ‹_›⟩)).trans_le hsub
-  · have hfilter : (G.vertices.toFinset.filter fun v => colorOf G (G.vertices.map fun v =>
-        if v ∈ R then 0 else f v + 1) v = 0) = R := by
+  · rw [show (G.vertices.toFinset.filter fun v => colorOf G (G.vertices.map fun v =>
+        if v ∈ R then 0 else f v + 1) v = 0) = R by
       ext v
       simp only [Finset.mem_filter, List.mem_toFinset]
-      constructor
-      · rintro ⟨hv, h0⟩
-        rw [colorOf_map hv] at h0
-        split at h0
-        · assumption
-        · omega
-      · intro hv
-        refine ⟨hRV v hv, ?_⟩
-        rw [colorOf_map (hRV v hv)]
-        simp only [hv, ite_true]
-    rw [hfilter]
+      exact ⟨fun ⟨hv, h0⟩ => by
+          rw [colorOf_map hv] at h0
+          split at h0 <;> first | assumption | omega,
+        fun hv => ⟨hRV v hv, by rw [colorOf_map (hRV v hv), ite_eq_left hv]⟩⟩]
     exact hcard
-  · rw [colorOf_map h1] at h3 ⊢
+  · dsimp only at h1 h2 h3 h4 ⊢
+    rw [colorOf_map h1] at h3 ⊢
     rw [colorOf_map h2] at h4 ⊢
-    split at h3
-    · exact (h3 rfl).elim
-    split at h4
-    · exact (h4 rfl).elim
-    simp only [*, ite_false, Nat.add_lt_add_iff_right]
-    have := hf e.1 e.2 (dirAdj_deleteVerts.2 ⟨⟨h1, h2, he⟩, ‹_›, ‹_›⟩)
-    omega
+    by_cases hR1 : e.1 ∈ R
+    · simp [hR1] at h3
+    by_cases hR2 : e.2 ∈ R
+    · simp [hR2] at h4
+    simp only [hR1, hR2, ↓reduceIte]
+    exact Nat.add_lt_add_right (hf e.1 e.2 (dirAdj_deleteVerts.2 ⟨⟨h1, h2, he⟩, hR1, hR2⟩)) 1
 
 /-- `FeedbackVertexSet` belongs to `NP`, with a listed numbering as the witness. -/
 theorem mem_NP : FeedbackVertexSet ∈ NP encFeedbackVertexSet := by
@@ -288,33 +279,26 @@ theorem toFeedbackVertexSet_mem_iff (x : VertexCoverInstance) :
   rw [mem_VertexCover_iff_exists_card_le_mk, toFeedbackVertexSet]
   split_ifs with hk
   · rw [mem_FeedbackVertexSet_iff]
-    constructor
+    refine ⟨?_, ?_⟩
     · rintro ⟨R, hRV, hcard, hacyc⟩
-      refine ⟨hk, R, hRV, fun u hu v hv huv => ?_, hcard⟩
-      by_contra h
+      refine ⟨hk, R, hRV, fun u hu v hv huv => by_contra fun h => ?_, hcard⟩
       push Not at h
-      refine hacyc [u, v] (isDirCycle_iff.2 ⟨List.cons_ne_nil _ _, ?_, ?_⟩)
-      · simpa using huv.ne
-      · rw [Cycle.chain_coe_cons]
-        simp only [List.cons_append, List.nil_append, List.isChain_cons_cons,
-          List.isChain_singleton, and_true]
-        exact ⟨dirAdj_deleteVerts.2 ⟨dirAdj_bidirect.2 ⟨hu, hv, huv⟩, h.1, h.2⟩,
-          dirAdj_deleteVerts.2 ⟨dirAdj_bidirect.2 ⟨hv, hu, huv.symm⟩, h.2, h.1⟩⟩
+      refine hacyc [u, v] (isDirCycle_iff.2 ⟨List.cons_ne_nil _ _, by simpa using huv.ne, ?_⟩)
+      rw [Cycle.chain_coe_cons]
+      simp only [List.cons_append, List.nil_append, List.isChain_cons_cons,
+        List.isChain_singleton, and_true]
+      exact ⟨dirAdj_deleteVerts.2 ⟨dirAdj_bidirect.2 ⟨hu, hv, huv⟩, h.1, h.2⟩,
+        dirAdj_deleteVerts.2 ⟨dirAdj_bidirect.2 ⟨hv, hu, huv.symm⟩, h.2, h.1⟩⟩
     · rintro ⟨-, S, hSV, hS, hcard⟩
       refine ⟨S, hSV, hcard, isDirAcyclic_of_rank (f := fun _ => 0) fun u v huv => ?_⟩
       rw [dirAdj_deleteVerts, dirAdj_bidirect] at huv
       obtain ⟨⟨hu, hv, hadj⟩, huS, hvS⟩ := huv
       exact ((hS u hu v hv hadj).elim huS hvS).elim
-  · constructor
-    · rintro ⟨R, -, hcard, hacyc⟩
-      rw [Nat.le_zero, Finset.card_eq_zero] at hcard
-      subst hcard
-      refine (hacyc [0] (isDirCycle_iff.2 ⟨List.cons_ne_nil _ _, List.nodup_singleton _, ?_⟩)).elim
-      rw [Cycle.chain_singleton]
-      exact dirAdj_deleteVerts.2 ⟨⟨List.mem_singleton_self _, List.mem_singleton_self _,
-        List.mem_singleton_self _⟩, Finset.notMem_empty _, Finset.notMem_empty _⟩
-    · rintro ⟨hk', -⟩
-      exact (hk hk').elim
+  · refine ⟨fun ⟨R, _, hcard, hacyc⟩ => ?_, fun ⟨hk', _⟩ => (hk hk').elim⟩
+    obtain rfl := Finset.card_eq_zero.1 (Nat.le_zero.1 hcard)
+    exact (hacyc [0] (isDirCycle_iff.2 ⟨List.cons_ne_nil _ _, List.nodup_singleton _,
+      (Cycle.chain_singleton _ 0).2
+        (dirAdj_deleteVerts.2 ⟨⟨by simp, by simp, by simp⟩, by simp, by simp⟩)⟩)).elim
 
 /-- Karp's reduction is polynomial-time: the number of distinct declared vertices is computed in
 unary and compared with the binary target. -/
