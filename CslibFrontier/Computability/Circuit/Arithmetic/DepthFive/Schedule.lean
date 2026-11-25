@@ -122,7 +122,7 @@ private theorem discrepancy_arith {r d c L : ℕ} (hk : 0 < p.k) (hc : c ≤ d +
     p.n * c ≤ p.k * L + p.n := by
   have hd₁ : p.k * (r * p.s / p.k) ≤ r * p.s := Nat.mul_div_le _ _
   have hd₂ : (r + d) * p.s < p.k * ((r + d) * p.s / p.k) + p.k := Nat.lt_mul_div_succ _ hk
-  have hn : p.n = 2 * p.k + p.s := by have := p.hkm; have := p.hks; omega
+  have hn : p.n = 2 * p.k + p.s := by have := And.intro p.hkm p.hks; omega
   obtain ⟨e, he⟩ := Nat.exists_eq_add_of_le
     (Nat.div_le_div_right (c := p.k) (Nat.mul_le_mul_right p.s (Nat.le_add_right r d)))
   rw [he] at hd₂
@@ -174,12 +174,14 @@ theorem discrepancy_le (i j : ℕ) :
   set u := (Finset.univ.filter fun t : Fin p.n => (i ≤ t ∧ (t : ℕ) < j) ∧ ¬ p.isV t).card
   rcases Nat.eq_zero_or_pos p.m with hm | hm
   · have ha : a = 0 := Finset.card_eq_zero.2 <| Finset.filter_eq_empty_iff.2
-      fun t => absurd t.isLt (by have := p.hks; have := p.hkm; omega)
+      fun t => absurd t.isLt (by have := And.intro p.hks p.hkm; omega)
     simp [ρ, show p.k = 0 by have := p.hks; omega, ha]
   · have hm' : (0 : ℝ) < p.m := by exact_mod_cast hm
+    have hpn : (p.n : ℝ) = p.k + p.m := by exact_mod_cast p.hkm.symm
     rw [ρ, ← sub_nonneg, show 1 + (p.k : ℝ) / p.m - (a - p.k / p.m * u) =
       (p.k * (a + u) + p.n - p.n * a) / p.m by
-        rw [show (p.n : ℝ) = p.k + p.m by exact_mod_cast p.hkm.symm]; field_simp; ring]
+        rw [hpn]; field_simp
+        ring]
     exact div_nonneg (by cast_linarith [h]) hm'.le
 
 end Cslib.Circuits.DepthFive.Params
