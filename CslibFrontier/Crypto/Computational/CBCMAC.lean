@@ -229,9 +229,7 @@ private theorem foldl_cbcStep_length {g : List Bool → List Bool} {n : ℕ}
   induction ms generalizing state with
   | nil => exact hstate
   | cons m ms ih =>
-    have hm : m.length = n := hms m List.mem_cons_self
-    have hxor : (List.zipWith xor state m).length = n := by simp [hstate, hm]
-    have hgLen : (g (List.zipWith xor state m)).length = n := hg _ hxor
+    have hgLen := hg (List.zipWith xor state m) (by simp [hstate, hms m List.mem_cons_self])
     exact ih (by simp [hgLen]) fun b hb => hms b (List.mem_cons_of_mem _ hb)
 
 /-- When `family key` maps `n`-bit blocks to `n`-bit blocks, `cbcMacWord` always outputs `n`
@@ -308,10 +306,8 @@ private theorem computableInPolyTime_cbcMacWord_with
     (hwidth.prod hkey) hblocks hinit hstep
     (growth := fun a => width a) hwidth.polyBounded
     (fun a state block _ => by
-      have htake := List.length_take_le (width a)
-        (family (key a) (List.zipWith xor state block))
       simp only [encBits_apply]
-      exact htake.trans (Nat.le_add_left _ _))
+      exact (List.length_take_le _ _).trans (Nat.le_add_left _ _))
 
 /-- `cbcMacFamily family` is computable in deterministic polynomial time whenever `family` is. -/
 theorem computableInPolyTime_cbcMacFamily
@@ -329,12 +325,10 @@ private theorem computableInPolyTime_prependLengthWord_with
     {α : Type} {input : α ↪ List Bool} {width : α → ℕ} {msg : α → List Bool}
     (hwidth : ComputableInPolyTime width input encUnary)
     (hmsg : ComputableInPolyTime msg input encBits) :
-    ComputableInPolyTime (fun a => prependLengthWord (width a) (msg a)) input encBits := by
-  have hdivUnary : ComputableInPolyTime (fun a => (msg a).length / width a) input encUnary :=
-    ComputableInPolyTime.unary_div' (ComputableInPolyTime.length_bits.comp hmsg) hwidth
-  have hdivNat : ComputableInPolyTime (fun a => (msg a).length / width a) input encNat :=
-    ComputableInPolyTime.unary_to_binary.comp hdivUnary
-  exact ComputableInPolyTime.bitsAppend (ComputableInPolyTime.bitsLow hwidth hdivNat) hmsg
+    ComputableInPolyTime (fun a => prependLengthWord (width a) (msg a)) input encBits :=
+  ComputableInPolyTime.bitsAppend (ComputableInPolyTime.bitsLow hwidth
+    (ComputableInPolyTime.unary_to_binary.comp
+      (ComputableInPolyTime.unary_div' (ComputableInPolyTime.length_bits.comp hmsg) hwidth))) hmsg
 
 /-- `lengthPrependedCbcMacFamily family` is computable in deterministic polynomial time whenever
 `family` is. -/
@@ -356,8 +350,7 @@ private theorem val_equivFin_testBit :
     ∀ {n m : ℕ}, m < 2 ^ n →
       (BitString.equivFin n (fun i : Fin n => m.testBit i.val) : ℕ) = m
   | 0, m, hm => by
-    have hm0 : m = 0 := by omega
-    subst hm0
+    obtain rfl : m = 0 := by omega
     simp
   | n + 1, m, hm => by
     have hcons : (fun i : Fin (n + 1) => m.testBit i.val) =
@@ -451,32 +444,14 @@ private def encodeBlockList {n : ℕ} (bs : List (BitString n)) : List Bool :=
 
 private theorem length_encodeBlockList {n : ℕ} (bs : List (BitString n)) :
     (encodeBlockList bs).length = bs.length * n := by
-  induction bs with
-  | nil => simp [encodeBlockList]
-  | cons b bs ih =>
-    simp only [encodeBlockList, List.flatMap_cons, List.length_append, List.length_ofFn,
-      List.length_cons, Nat.succ_mul]
-    rw [← encodeBlockList, ih, Nat.add_comm]
+  simp [encodeBlockList, List.length_flatMap]
 
 private theorem toBlocks_encodeBlockList {n : ℕ} (hn : 0 < n) (bs : List (BitString n)) :
     BitString.toBlocks n (encodeBlockList bs) = bs := by
-  have hrows : ∀ r ∈ bs.map List.ofFn, r.length = n := by
-    intro r hr
-    obtain ⟨b, _, rfl⟩ := List.mem_map.mp hr
-    exact List.length_ofFn
-  have hdiv : (encodeBlockList bs).length / n = bs.length := by
-    rw [length_encodeBlockList, Nat.mul_div_cancel _ hn]
-  have hlhs :=
-    BitString.listRows_eq_map_ofFn_toBlocks n (encodeBlockList bs)
-  rw [hdiv] at hlhs
-  have hflat : encodeBlockList bs = (bs.map List.ofFn).flatten := List.flatMap_def
-  have hlhs' : BitString.listRows bs.length n (bs.map List.ofFn).flatten =
-      (BitString.toBlocks n (encodeBlockList bs)).map List.ofFn := by
-    rw [← hflat]
-    exact hlhs
-  rw [← (List.length_map List.ofFn : (bs.map List.ofFn).length = bs.length),
-    BitString.listRows_flatten (bs.map List.ofFn) hrows] at hlhs'
-  exact (List.map_injective_iff.mpr List.ofFn_injective) hlhs'.symm
+  have h := BitString.listRows_flatten (width := n) (bs.map List.ofFn) (by simp)
+  rw [List.length_map, ← List.flatMap_def, ← encodeBlockList, ← Nat.mul_div_cancel bs.length hn,
+    ← length_encodeBlockList, BitString.listRows_eq_map_ofFn_toBlocks] at h
+  exact List.map_injective_iff.mpr List.ofFn_injective h
 
 private theorem cbcInputBlocks_injective {n ℓ : ℕ} :
     Function.Injective (cbcInputBlocks (n := n) (ℓ := ℓ)) := by
@@ -553,47 +528,23 @@ def cbcInputCodec (n ℓ : ℕ) (hn : 0 < n) : OracleCodec Unit (CBCInput n ℓ)
 private theorem cbcBlockValid_eq_isSome_cbcInputCodec {ℓ : ℕ → ℕ} {n : ℕ} (hn : 0 < n)
     (query : List Bool) :
     cbcBlockValid ℓ n query = ((cbcInputCodec n (ℓ n) hn).decodeQuery ((), query)).isSome := by
-  by_cases hv : cbcBlockValid ℓ n query = true
-  · rw [hv]
-    simp only [cbcBlockValid, Bool.and_eq_true, decide_eq_true_eq, beq_iff_eq] at hv
-    obtain ⟨⟨hpos, hmod⟩, hle⟩ := hv
-    have hmul : query.length = (query.length / n) * n :=
-      (Nat.div_mul_cancel (Nat.dvd_of_mod_eq_zero hmod)).symm
-    have hdivPos : 0 < query.length / n := by
-      by_contra h0
-      have hz : query.length / n = 0 := Nat.eq_zero_of_not_pos h0
-      rw [hz, Nat.zero_mul] at hmul
-      exact absurd hmul hpos.ne'
-    have hdivLe : query.length / n ≤ ℓ n := by
-      rw [hmul] at hle
-      exact Nat.le_of_mul_le_mul_right hle hn
-    have hcond : (BitString.toBlocks n query).length - 1 < ℓ n ∧
-        0 < (BitString.toBlocks n query).length ∧
-        query.length = (BitString.toBlocks n query).length * n := by
-      rw [BitString.length_toBlocks]
-      exact ⟨by omega, hdivPos, hmul⟩
-    dsimp only [cbcInputCodec, decodeCBCWord]
-    rw [dite_eq_left_of_eq_true (eq_true hcond)]
-    rfl
-  · have hvf : cbcBlockValid ℓ n query = false := Bool.eq_false_iff.mpr hv
-    rw [hvf]
-    have hnot : ¬ ((BitString.toBlocks n query).length - 1 < ℓ n ∧
-        0 < (BitString.toBlocks n query).length ∧
-        query.length = (BitString.toBlocks n query).length * n) := by
-      rintro ⟨hlt, hpos, hmul⟩
-      have hposQ : 0 < query.length := by
-        rw [hmul]
-        exact Nat.mul_pos hpos hn
-      have hmod : query.length % n = 0 := by
-        rw [hmul]
-        exact Nat.mul_mod_left _ _
-      have hle : query.length ≤ ℓ n * n := by
-        rw [hmul]
-        exact Nat.mul_le_mul_right n (by omega)
-      exact hv (by simp [cbcBlockValid, hposQ, hmod, hle])
-    dsimp only [cbcInputCodec, decodeCBCWord]
-    rw [dite_eq_right_of_eq_false (eq_false hnot)]
-    rfl
+  have hiff : cbcBlockValid ℓ n query = true ↔ (BitString.toBlocks n query).length - 1 < ℓ n ∧
+      0 < (BitString.toBlocks n query).length ∧
+      query.length = (BitString.toBlocks n query).length * n := by
+    simp only [cbcBlockValid, Bool.and_eq_true, decide_eq_true_eq, beq_iff_eq,
+      BitString.length_toBlocks]
+    constructor
+    · rintro ⟨⟨hpos, hmod⟩, hle⟩
+      have hdivPos := Nat.div_pos (Nat.le_of_dvd hpos (Nat.dvd_of_mod_eq_zero hmod)) hn
+      have hdivLe : query.length / n ≤ ℓ n := Nat.div_le_of_le_mul (by rwa [Nat.mul_comm])
+      exact ⟨by omega, hdivPos, (Nat.div_mul_cancel (Nat.dvd_of_mod_eq_zero hmod)).symm⟩
+    · rintro ⟨hlt, hpos, hmul⟩
+      rw [hmul]
+      exact ⟨⟨Nat.mul_pos hpos hn, Nat.mul_mod_left _ _⟩, Nat.mul_le_mul_right n (by omega)⟩
+  rw [Bool.eq_iff_iff, hiff]
+  dsimp only [cbcInputCodec, decodeCBCWord]
+  split_ifs with h
+  exacts [iff_of_true h rfl, iff_of_false h Bool.false_ne_true]
 
 private def decodeLPWord (n L : ℕ) (w : List Bool) : Option (LengthPrependedInput n L) :=
   let blocks := BitString.toBlocks n w
@@ -672,39 +623,21 @@ private theorem lpBlockValid_eq_isSome_lengthPrependedCodec {L : ℕ → ℕ} {n
     (hL : L n < 2 ^ n) (query : List Bool) :
     lpBlockValid L n query =
       ((lengthPrependedCodec n (L n) hL).decodeQuery ((), query)).isSome := by
-  by_cases hv : lpBlockValid L n query = true
-  · rw [hv]
-    simp only [lpBlockValid, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at hv
-    obtain ⟨hmod, hle⟩ := hv
-    have hmul : query.length = (query.length / n) * n :=
-      (Nat.div_mul_cancel (Nat.dvd_of_mod_eq_zero hmod)).symm
-    have hdivLt : query.length / n < L n + 1 := by
-      rcases Nat.eq_zero_or_pos n with rfl | hn
-      · simp
-      · rw [hmul] at hle
-        exact Nat.lt_succ_of_le (Nat.le_of_mul_le_mul_right hle hn)
-    have hcond : (BitString.toBlocks n query).length < L n + 1 ∧
-        query.length = (BitString.toBlocks n query).length * n := by
-      rw [BitString.length_toBlocks]
-      exact ⟨hdivLt, hmul⟩
-    dsimp only [lengthPrependedCodec, decodeLPWord]
-    rw [dite_eq_left_of_eq_true (eq_true hcond)]
-    rfl
-  · have hvf : lpBlockValid L n query = false := Bool.eq_false_iff.mpr hv
-    rw [hvf]
-    have hnot : ¬ ((BitString.toBlocks n query).length < L n + 1 ∧
-        query.length = (BitString.toBlocks n query).length * n) := by
-      rintro ⟨hlt, hmul⟩
-      have hmod : query.length % n = 0 := by
-        rw [hmul]
-        exact Nat.mul_mod_left _ _
-      have hle : query.length ≤ L n * n := by
-        rw [hmul]
-        exact Nat.mul_le_mul_right n (Nat.lt_succ_iff.mp hlt)
-      exact hv (by simp [lpBlockValid, hmod, hle])
-    dsimp only [lengthPrependedCodec, decodeLPWord]
-    rw [dite_eq_right_of_eq_false (eq_false hnot)]
-    rfl
+  have hiff : lpBlockValid L n query = true ↔ (BitString.toBlocks n query).length < L n + 1 ∧
+      query.length = (BitString.toBlocks n query).length * n := by
+    simp only [lpBlockValid, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq,
+      BitString.length_toBlocks]
+    constructor
+    · rintro ⟨hmod, hle⟩
+      exact ⟨Nat.lt_succ_of_le (Nat.div_le_of_le_mul (by rwa [Nat.mul_comm])),
+        (Nat.div_mul_cancel (Nat.dvd_of_mod_eq_zero hmod)).symm⟩
+    · rintro ⟨hlt, hmul⟩
+      rw [hmul]
+      exact ⟨Nat.mul_mod_left _ _, Nat.mul_le_mul_right n (Nat.lt_succ_iff.mp hlt)⟩
+  rw [Bool.eq_iff_iff, hiff]
+  dsimp only [lengthPrependedCodec, decodeLPWord]
+  split_ifs with h
+  exacts [iff_of_true h rfl, iff_of_false h Bool.false_ne_true]
 
 private noncomputable def probCbcQueryRun {α : Type} {n ℓ : ℕ}
     (o : CBCInput n ℓ → BitString n) :
@@ -846,36 +779,23 @@ private theorem cbcAdmissible_fixCoins_adapt {ℓ : ℕ → ℕ} {n Q : ℕ} (hn
   refine ⟨?_, cbcQueryRun_length_le_of_isQueryBounded o htreeQ⟩
   obtain ⟨res, hres, hsub⟩ := exists_wordQueryRunDist_of_probCbcQueryRun hn o program
     (cbcQueryRun_fixCoins_mem_support o _ ω hω)
-  have horacleInvalid (w : List Bool) (hw : cbcBlockValid ℓ n w = false) :
-      cbcOracleWord hn o w = [] := by
-    unfold cbcOracleWord
-    rw [cbcBlockValid_eq_isSome_cbcInputCodec hn] at hw
-    cases hdec : (cbcInputCodec n (ℓ n) hn).decodeQuery ((), w)
-    · rfl
-    · simp [hdec] at hw
-  have horacleLen (w : List Bool) (hw : cbcBlockValid ℓ n w = true) :
-      (cbcOracleWord hn o w).length = n := by
-    unfold cbcOracleWord
-    rw [cbcBlockValid_eq_isSome_cbcInputCodec hn] at hw
-    cases hdec : (cbcInputCodec n (ℓ n) hn).decodeQuery ((), w) with
-    | none => simp [hdec] at hw
-    | some q => exact List.length_ofFn
-  have hwordPf := hpf (cbcOracleWord hn o) horacleInvalid horacleLen res hres
+  have horacle (w : List Bool) : (cbcBlockValid ℓ n w = false → cbcOracleWord hn o w = []) ∧
+      (cbcBlockValid ℓ n w = true → (cbcOracleWord hn o w).length = n) := by
+    rw [cbcBlockValid_eq_isSome_cbcInputCodec hn, cbcOracleWord]
+    cases (cbcInputCodec n (ℓ n) hn).decodeQuery ((), w) <;> simp
+  have hwordPf :=
+    hpf (cbcOracleWord hn o) (fun w => (horacle w).1) (fun w => (horacle w).2) res hres
+  have hvalid (z : CBCInput n (ℓ n)) :
+      cbcBlockValid ℓ n ((cbcInputCodec n (ℓ n) hn).encodeQuery z).2 = true := by
+    rw [cbcBlockValid_eq_isSome_cbcInputCodec hn,
+      show ((), ((cbcInputCodec n (ℓ n) hn).encodeQuery z).2) =
+        (cbcInputCodec n (ℓ n) hn).encodeQuery z from rfl,
+      OracleCodec.decodeQuery_encodeQuery, Option.isSome_some]
   intro x hx y hy hxy hpre
-  have hxValid : cbcBlockValid ℓ n ((cbcInputCodec n (ℓ n) hn).encodeQuery x).2 = true := by
-    rw [cbcBlockValid_eq_isSome_cbcInputCodec hn,
-      show ((), ((cbcInputCodec n (ℓ n) hn).encodeQuery x).2) =
-        (cbcInputCodec n (ℓ n) hn).encodeQuery x from rfl,
-      OracleCodec.decodeQuery_encodeQuery, Option.isSome_some]
-  have hyValid : cbcBlockValid ℓ n ((cbcInputCodec n (ℓ n) hn).encodeQuery y).2 = true := by
-    rw [cbcBlockValid_eq_isSome_cbcInputCodec hn,
-      show ((), ((cbcInputCodec n (ℓ n) hn).encodeQuery y).2) =
-        (cbcInputCodec n (ℓ n) hn).encodeQuery y from rfl,
-      OracleCodec.decodeQuery_encodeQuery, Option.isSome_some]
   have hneWord : ((cbcInputCodec n (ℓ n) hn).encodeQuery x).2 ≠
       ((cbcInputCodec n (ℓ n) hn).encodeQuery y).2 := fun heq =>
     hxy ((cbcInputCodec n (ℓ n) hn).encodeQuery_injective (Prod.ext rfl heq))
-  exact hwordPf _ (hsub x hx) hxValid _ (hsub y hy) hyValid hneWord
+  exact hwordPf _ (hsub x hx) (hvalid x) _ (hsub y hy) (hvalid y) hneWord
     (hpre.flatMap List.ofFn)
 
 /-! ### Section 4: Certified PRF Reductions and Concrete & Asymptotic PRF Security -/
@@ -1054,9 +974,7 @@ private theorem isOraclePPT_interpret_wordGuard
           else ProbOracleComp.sample (pure [])) := by
       funext c
       rw [hdef]
-      cases valid c.1.1 c.2.2
-      · simp only [Bool.false_eq_true, ↓reduceIte]; rfl
-      · simp only [↓reduceIte, Function.comp_apply]
+      cases valid c.1.1 c.2.2 <;> rfl
     rw [heq]
     exact IsOraclePPTOn.cond (hvalid.comp hpair) (hcall.preprocess hpair)
       ((ComputableInPolyTime.const []).isPPTOn.isOraclePPTOn)
@@ -1082,13 +1000,11 @@ theorem isOraclePPT_cbcMacToPrfDistinguisher {ℓ : ℕ → ℕ}
 
 private theorem isOraclePPTOn_cbcMacQueries_prependLengthWord :
     IsOraclePPTOn (Operation := Unit) (encPair encUnary encBits) encBits
-      (fun a : ℕ × List Bool => cbcMacQueries a.1 (prependLengthWord a.1 a.2)) := by
+      (fun a : ℕ × List Bool => cbcMacQueries a.1 (prependLengthWord a.1 a.2)) :=
   have hn : ComputableInPolyTime (fun a : ℕ × List Bool => a.1)
       (encPair encUnary encBits) encUnary := by fun_prop
-  have hmsg : ComputableInPolyTime (fun a : ℕ × List Bool => a.2)
-      (encPair encUnary encBits) encBits := by fun_prop
-  exact isOraclePPTOn_cbcMacQueries.preprocess
-    (hn.prod (computableInPolyTime_prependLengthWord_with hn hmsg))
+  isOraclePPTOn_cbcMacQueries.preprocess
+    (hn.prod (computableInPolyTime_prependLengthWord_with hn (by fun_prop)))
 
 /-- `lengthPrependedToPrfDistinguisher L adversary` is uniform strict oracle PPT whenever `L` is
 unary polynomial-time and `adversary` is uniform strict oracle PPT. -/
@@ -1216,6 +1132,10 @@ private theorem eval_table_run_eq_coinLaw_bind {Q : Type} {w : ℕ} {τ : Type*}
     ← fun ω => interpret_pmf_pure_eq (table t) (ProbOracleComp.fixCoins program ω)]
   exact (ProbOracleComp.bind_interpret_fixCoins program (table t)).symm
 
+private theorem take_randomFunctionOracle_ofFn {n : ℕ} (g : BitString n → BitString n)
+    (x : BitString n) : (randomFunctionOracle n g (List.ofFn x)).take n = List.ofFn (g x) := by
+  simp [randomFunctionOracle, List.take_of_length_le (List.length_ofFn (f := g x)).le]
+
 private theorem advantage_le_of_abs_toReal_le (p q : Game) {δ : ℝ≥0}
     (h : |(p true).toReal - (q true).toReal| ≤ (δ : ℝ)) :
     Game.advantage p q ≤ δ := by
@@ -1241,7 +1161,6 @@ private theorem eval_prfIdealGameOn_false (outLen : ℕ → ℕ) (adversary : Or
         fun q => pure (table q)) =
       ProbComp.eval ((adversary n []).run fun _ => pure []) := by
     rw [OracleCodec.run_adapt]
-    refine congrArg (fun h => ProbComp.eval ((adversary n []).run h)) (funext fun _ => ?_)
     rfl
   simp only [hrun, PMF.bind_const]
 
@@ -1274,73 +1193,57 @@ theorem advantage_cbcMac_le {family : List Bool → List Bool → List Bool}
         ProbComp.eval (prfRealGameOn (cbcBlockValid ℓ) (cbcMacFamily family) adversary 0) =
         ProbComp.eval ((adversary 0 []).run fun _ => pure []) := by
       simp [prfRealGameOn, prfOracleOn, hfalse, BitString.eval_sampleList]
-    have hideal0 : ProbComp.eval (prfIdealGameOn (cbcBlockValid ℓ) id adversary 0) =
-        ProbComp.eval ((adversary 0 []).run fun _ => pure []) := by
-      have hcongr : prfIdealGameOn (cbcBlockValid ℓ) id adversary 0 =
-          prfIdealGameOn (fun _ _ => false) id adversary 0 := by
-        simp only [prfIdealGameOn, hfalse]
-      rw [hcongr, eval_prfIdealGameOn_false]
-    rw [hreal0, hideal0, Game.advantage_self]
+    have hideal0 : prfIdealGameOn (cbcBlockValid ℓ) id adversary 0 =
+        prfIdealGameOn (fun _ _ => false) id adversary 0 := by
+      simp only [prfIdealGameOn, hfalse]
+    rw [hreal0, hideal0, eval_prfIdealGameOn_false, Game.advantage_self]
     exact zero_le
   · rw [← eval_prfRealGame_cbcMacToPrfDistinguisher hlen ℓ adversary n]
-    have hidealLe : Game.advantage
-        (ProbComp.eval (prfIdealGame id id (cbcMacToPrfDistinguisher ℓ adversary) n))
-        (ProbComp.eval (prfIdealGameOn (cbcBlockValid ℓ) id adversary n)) ≤
-      (Q : ℝ≥0) ^ 2 * (ℓ n : ℝ≥0) ^ 2 / (2 * 2 ^ n) := by
-      let codec := cbcInputCodec n (ℓ n) hn
-      let P := codec.adapt (adversary n [])
-      let D : PMF (OracleComp (CBCOracleSpec n (ℓ n)) Bool) :=
-        (ProbOracleComp.coinLaw P).map (ProbOracleComp.fixCoins P)
-      have hurfEq : ProbComp.eval (prfIdealGame id id (cbcMacToPrfDistinguisher ℓ adversary) n) =
-          (PMF.uniformOfFintype (BitString n → BitString n)).bind fun g =>
-            D.bind fun tree => PMF.pure ((cbcQueryRun (cbcMacFinite g) tree).1) := by
-        have hrunG (g : BitString n → BitString n) :
-            ProbComp.eval ((cbcMacToPrfDistinguisher ℓ adversary n []).run
-              fun req => pure (randomFunctionOracle n g req.2)) =
-            ProbComp.eval (P.run fun q => pure (cbcMacFinite g q)) := by
-          rw [cbcMacToPrfDistinguisher, run_interpret_wordHandler, OracleCodec.run_adapt]
-          refine congrArg (fun h => ProbComp.eval ((adversary n []).run h)) (funext fun req => ?_)
-          rcases req with ⟨⟨⟩, w⟩
-          rw [cbcMacQuery, cbcBlockValid_eq_isSome_cbcInputCodec hn, OracleCodec.wordOracle]
-          cases hdec : codec.decodeQuery ((), w) with
-          | none => simp
-          | some q =>
-            have henc : w = encodeBlockList (cbcInputBlocks q) :=
-              (congrArg Prod.snd ((codec.decodeQuery_eq_some_iff ((), w) q).mp hdec)).symm
-            have hword : cbcMacWord (fun _ x => randomFunctionOracle n g x) n [] w =
-                List.ofFn (cbcMacFinite g q) := by
-              rw [cbcMacWord_eq_ofFn_cbcMacBlocks (g := g)
-                (fun x => by
-                  simp [randomFunctionOracle,
-                    List.take_of_length_le (List.length_ofFn (f := g x)).le]),
-                henc, toBlocks_encodeBlockList hn, cbcMacFinite]
-            simp [codec, cbcInputCodec, run_cbcMacQueries, hword]
-        simp only [prfIdealGame, id_eq, ProbComp.eval_bind, ProbComp.eval_uniform, hrunG]
-        rw [eval_table_run_eq_coinLaw_bind]
-        simp only [D, cbcQueryRun_fst]
-      have hidealEq : ProbComp.eval (prfIdealGameOn (cbcBlockValid ℓ) id adversary n) =
-          (PMF.uniformOfFintype (CBCInput n (ℓ n) → BitString n)).bind fun f =>
-            D.bind fun tree => PMF.pure ((cbcQueryRun f tree).1) := by
-        rw [prfIdealGameOn, id_eq, eval_prfIdealGameOn_eq_eager_of_codec codec
-          (cbcBlockValid_eq_isSome_cbcInputCodec hn) (fun _ => rfl),
-          eval_table_run_eq_coinLaw_bind]
-        simp only [P, D, cbcQueryRun_fst]
-      refine advantage_le_of_abs_toReal_le _ _ ?_
-      have hbound := abs_cbcUniformFunctionSuccess_sub_cbcIdealSuccess_le n Q (ℓ n) D
+    refine (Game.advantage_triangle _ _ _).trans
+      (add_le_add le_rfl (advantage_le_of_abs_toReal_le _ _ ?_))
+    let codec := cbcInputCodec n (ℓ n) hn
+    let P := codec.adapt (adversary n [])
+    let D : PMF (OracleComp (CBCOracleSpec n (ℓ n)) Bool) :=
+      (ProbOracleComp.coinLaw P).map (ProbOracleComp.fixCoins P)
+    have hurfEq : ProbComp.eval (prfIdealGame id id (cbcMacToPrfDistinguisher ℓ adversary) n) =
+        (PMF.uniformOfFintype (BitString n → BitString n)).bind fun g =>
+          D.bind fun tree => PMF.pure ((cbcQueryRun (cbcMacFinite g) tree).1) := by
+      have hrunG (g : BitString n → BitString n) :
+          ProbComp.eval ((cbcMacToPrfDistinguisher ℓ adversary n []).run
+            fun req => pure (randomFunctionOracle n g req.2)) =
+          ProbComp.eval (P.run fun q => pure (cbcMacFinite g q)) := by
+        rw [cbcMacToPrfDistinguisher, run_interpret_wordHandler, OracleCodec.run_adapt]
+        refine congrArg (fun h => ProbComp.eval ((adversary n []).run h)) (funext fun req => ?_)
+        rcases req with ⟨⟨⟩, w⟩
+        rw [cbcMacQuery, cbcBlockValid_eq_isSome_cbcInputCodec hn, OracleCodec.wordOracle]
+        cases hdec : codec.decodeQuery ((), w) with
+        | none => simp
+        | some q =>
+          have henc : w = encodeBlockList (cbcInputBlocks q) :=
+            (congrArg Prod.snd ((codec.decodeQuery_eq_some_iff ((), w) q).mp hdec)).symm
+          have hword : cbcMacWord (fun _ x => randomFunctionOracle n g x) n [] w =
+              List.ofFn (cbcMacFinite g q) := by
+            rw [cbcMacWord_eq_ofFn_cbcMacBlocks (take_randomFunctionOracle_ofFn g),
+              henc, toBlocks_encodeBlockList hn, cbcMacFinite]
+          simp [codec, cbcInputCodec, run_cbcMacQueries, hword]
+      simp only [prfIdealGame, id_eq, ProbComp.eval_bind, ProbComp.eval_uniform, hrunG]
+      rw [eval_table_run_eq_coinLaw_bind]
+      simp only [D, cbcQueryRun_fst]
+    have hidealEq : ProbComp.eval (prfIdealGameOn (cbcBlockValid ℓ) id adversary n) =
+        (PMF.uniformOfFintype (CBCInput n (ℓ n) → BitString n)).bind fun f =>
+          D.bind fun tree => PMF.pure ((cbcQueryRun f tree).1) := by
+      rw [prfIdealGameOn, id_eq, eval_prfIdealGameOn_eq_eager_of_codec codec
+        (cbcBlockValid_eq_isSome_cbcInputCodec hn) (fun _ => rfl),
+        eval_table_run_eq_coinLaw_bind]
+      simp only [P, D, cbcQueryRun_fst]
+    rw [hurfEq, hidealEq]
+    simpa only [cbcUniformFunctionSuccess, cbcIdealSuccess, PMF.monad_bind_eq_bind,
+      PMF.monad_pure_eq_pure, NNReal.coe_div, NNReal.coe_mul, NNReal.coe_pow, NNReal.coe_natCast,
+      NNReal.coe_ofNat] using abs_cbcUniformFunctionSuccess_sub_cbcIdealSuccess_le n Q (ℓ n) D
         fun tree htree => by
-          have hmem : tree ∈ D.support := (PMF.mem_support_iff _ _).mpr htree
-          obtain ⟨ω, hω, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hmem
+          obtain ⟨ω, hω, rfl⟩ :=
+            (PMF.mem_support_map_iff _ _ _).mp ((PMF.mem_support_iff _ _).mpr htree)
           exact cbcAdmissible_fixCoins_adapt hn hQ hpf hω
-      change |(ProbComp.eval (prfIdealGame id id (cbcMacToPrfDistinguisher ℓ adversary) n)
-          true).toReal -
-        (ProbComp.eval (prfIdealGameOn (cbcBlockValid ℓ) id adversary n) true).toReal| ≤ _
-      rw [hurfEq, hidealEq]
-      simpa only [cbcUniformFunctionSuccess, cbcIdealSuccess, PMF.monad_bind_eq_bind,
-        PMF.monad_pure_eq_pure, NNReal.coe_div, NNReal.coe_mul, NNReal.coe_pow, NNReal.coe_natCast,
-        NNReal.coe_ofNat] using hbound
-    exact (Game.advantage_triangle _
-      (ProbComp.eval (prfIdealGame id id (cbcMacToPrfDistinguisher ℓ adversary) n)) _).trans
-      (add_le_add le_rfl hidealLe)
 
 /-- **Concrete computational PRF bound for length-prepended CBC-MAC** ([BonehShoup2023], Section
 6.4.1 Theorem 6.3 and Section 6.6.1 Method 1 via Section 6.6 Theorem 6.8, printed pp. 226–229 and
@@ -1362,77 +1265,64 @@ theorem advantage_lengthPrependedCbcMac_le {family : List Bool → List Bool →
         (ProbComp.eval (prfIdealGame id id (lengthPrependedToPrfDistinguisher L adversary) n)) +
       (Q : ℝ≥0) ^ 2 * ((L n : ℝ≥0) + 1) ^ 2 / (2 * 2 ^ n) := by
   rw [← eval_prfRealGame_lengthPrependedToPrfDistinguisher hlen L adversary n]
-  have hidealLe : Game.advantage
-      (ProbComp.eval (prfIdealGame id id (lengthPrependedToPrfDistinguisher L adversary) n))
-      (ProbComp.eval (prfIdealGameOn (lpBlockValid L) id adversary n)) ≤
-    (Q : ℝ≥0) ^ 2 * ((L n : ℝ≥0) + 1) ^ 2 / (2 * 2 ^ n) := by
-    let codec := lengthPrependedCodec n (L n) hL
-    let P := codec.adapt (adversary n [])
-    let D : PMF (OracleComp (LengthPrependedSpec n (L n)) Bool) :=
-      (ProbOracleComp.coinLaw P).map (ProbOracleComp.fixCoins P)
-    have hurfEq :
-        ProbComp.eval (prfIdealGame id id (lengthPrependedToPrfDistinguisher L adversary) n) =
-        (PMF.uniformOfFintype (BitString n → BitString n)).bind fun g =>
-          D.bind fun tree =>
-            PMF.pure (OracleComp.interpret (m := Id)
-              (lengthPrependedCbcMac g (blockCountBlock hL)) tree) := by
-      have hrunG (g : BitString n → BitString n) :
-          ProbComp.eval ((lengthPrependedToPrfDistinguisher L adversary n []).run
-            fun req => pure (randomFunctionOracle n g req.2)) =
-          ProbComp.eval (P.run fun q => pure (lengthPrependedCbcMac g (blockCountBlock hL) q)) := by
-        rw [lengthPrependedToPrfDistinguisher, run_interpret_wordHandler, OracleCodec.run_adapt]
-        refine congrArg (fun h => ProbComp.eval ((adversary n []).run h)) (funext fun req => ?_)
-        rcases req with ⟨⟨⟩, w⟩
-        rw [lengthPrependedQuery, lpBlockValid_eq_isSome_lengthPrependedCodec hL,
-          OracleCodec.wordOracle]
-        cases hdec : codec.decodeQuery ((), w) with
-        | none => simp
-        | some q =>
-          have henc : w = encodeBlockList (lengthPrependedBlocks q) :=
-            (congrArg Prod.snd ((codec.decodeQuery_eq_some_iff ((), w) q).mp hdec)).symm
-          have hword : cbcMacWord (fun _ x => randomFunctionOracle n g x) n []
-                (prependLengthWord n w) =
-              List.ofFn (lengthPrependedCbcMac g (blockCountBlock hL) q) := by
-            rcases Nat.eq_zero_or_pos n with rfl | hn
-            · simp [cbcMacWord, BitString.listRows]
-            · have hwDiv : w.length / n = q.1.val := by
-                rw [henc, length_encodeBlockList, length_lengthPrependedBlocks,
-                  Nat.mul_div_cancel _ hn]
-              have hprepEq : prependLengthWord n w =
-                  encodeBlockList (cbcInputBlocks (prependLength (blockCountBlock hL) q)) := by
-                rw [prependLengthWord, hwDiv, ← ofFn_blockCountBlock hL q.1, henc]
-                simp only [cbcInputBlocks_prependLength, encodeBlockList, List.flatMap_cons]
-              rw [cbcMacWord_eq_ofFn_cbcMacBlocks (g := g)
-                (fun x => by
-                  simp [randomFunctionOracle,
-                    List.take_of_length_le (List.length_ofFn (f := g x)).le]),
-                hprepEq, toBlocks_encodeBlockList hn, lengthPrependedCbcMac, cbcMacFinite]
-          simp [codec, lengthPrependedCodec, run_cbcMacQueries, hword]
-      simp only [prfIdealGame, id_eq, ProbComp.eval_bind, ProbComp.eval_uniform, hrunG]
-      exact eval_table_run_eq_coinLaw_bind _ _ _
-    have hidealEq : ProbComp.eval (prfIdealGameOn (lpBlockValid L) id adversary n) =
-        (PMF.uniformOfFintype (LengthPrependedInput n (L n) → BitString n)).bind fun f =>
-          D.bind fun tree => PMF.pure (OracleComp.interpret (m := Id) f tree) := by
-      rw [prfIdealGameOn, id_eq, eval_prfIdealGameOn_eq_eager_of_codec codec
-        (lpBlockValid_eq_isSome_lengthPrependedCodec hL) (fun _ => rfl),
-        eval_table_run_eq_coinLaw_bind]
-    refine advantage_le_of_abs_toReal_le _ _ ?_
-    have hbound := abs_lengthPrependedUniformFunctionSuccess_sub_lengthPrependedIdealSuccess_le
+  refine (Game.advantage_triangle _ _ _).trans
+    (add_le_add le_rfl (advantage_le_of_abs_toReal_le _ _ ?_))
+  let codec := lengthPrependedCodec n (L n) hL
+  let P := codec.adapt (adversary n [])
+  let D : PMF (OracleComp (LengthPrependedSpec n (L n)) Bool) :=
+    (ProbOracleComp.coinLaw P).map (ProbOracleComp.fixCoins P)
+  have hurfEq :
+      ProbComp.eval (prfIdealGame id id (lengthPrependedToPrfDistinguisher L adversary) n) =
+      (PMF.uniformOfFintype (BitString n → BitString n)).bind fun g =>
+        D.bind fun tree =>
+          PMF.pure (OracleComp.interpret (m := Id)
+            (lengthPrependedCbcMac g (blockCountBlock hL)) tree) := by
+    have hrunG (g : BitString n → BitString n) :
+        ProbComp.eval ((lengthPrependedToPrfDistinguisher L adversary n []).run
+          fun req => pure (randomFunctionOracle n g req.2)) =
+        ProbComp.eval (P.run fun q => pure (lengthPrependedCbcMac g (blockCountBlock hL) q)) := by
+      rw [lengthPrependedToPrfDistinguisher, run_interpret_wordHandler, OracleCodec.run_adapt]
+      refine congrArg (fun h => ProbComp.eval ((adversary n []).run h)) (funext fun req => ?_)
+      rcases req with ⟨⟨⟩, w⟩
+      rw [lengthPrependedQuery, lpBlockValid_eq_isSome_lengthPrependedCodec hL,
+        OracleCodec.wordOracle]
+      cases hdec : codec.decodeQuery ((), w) with
+      | none => simp
+      | some q =>
+        have henc : w = encodeBlockList (lengthPrependedBlocks q) :=
+          (congrArg Prod.snd ((codec.decodeQuery_eq_some_iff ((), w) q).mp hdec)).symm
+        have hword : cbcMacWord (fun _ x => randomFunctionOracle n g x) n []
+              (prependLengthWord n w) =
+            List.ofFn (lengthPrependedCbcMac g (blockCountBlock hL) q) := by
+          rcases Nat.eq_zero_or_pos n with rfl | hn
+          · simp [cbcMacWord, BitString.listRows]
+          · have hwDiv : w.length / n = q.1.val := by
+              rw [henc, length_encodeBlockList, length_lengthPrependedBlocks,
+                Nat.mul_div_cancel _ hn]
+            have hprepEq : prependLengthWord n w =
+                encodeBlockList (cbcInputBlocks (prependLength (blockCountBlock hL) q)) := by
+              rw [prependLengthWord, hwDiv, ← ofFn_blockCountBlock hL q.1, henc]
+              simp only [cbcInputBlocks_prependLength, encodeBlockList, List.flatMap_cons]
+            rw [cbcMacWord_eq_ofFn_cbcMacBlocks (take_randomFunctionOracle_ofFn g),
+              hprepEq, toBlocks_encodeBlockList hn, lengthPrependedCbcMac, cbcMacFinite]
+        simp [codec, lengthPrependedCodec, run_cbcMacQueries, hword]
+    simp only [prfIdealGame, id_eq, ProbComp.eval_bind, ProbComp.eval_uniform, hrunG]
+    exact eval_table_run_eq_coinLaw_bind _ _ _
+  have hidealEq : ProbComp.eval (prfIdealGameOn (lpBlockValid L) id adversary n) =
+      (PMF.uniformOfFintype (LengthPrependedInput n (L n) → BitString n)).bind fun f =>
+        D.bind fun tree => PMF.pure (OracleComp.interpret (m := Id) f tree) := by
+    rw [prfIdealGameOn, id_eq, eval_prfIdealGameOn_eq_eager_of_codec codec
+      (lpBlockValid_eq_isSome_lengthPrependedCodec hL) (fun _ => rfl),
+      eval_table_run_eq_coinLaw_bind]
+  rw [hurfEq, hidealEq]
+  simpa only [lengthPrependedUniformFunctionSuccess, lengthPrependedIdealSuccess,
+    PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, NNReal.coe_div, NNReal.coe_mul,
+    NNReal.coe_pow, NNReal.coe_add, NNReal.coe_one, NNReal.coe_natCast, NNReal.coe_ofNat]
+    using abs_lengthPrependedUniformFunctionSuccess_sub_lengthPrependedIdealSuccess_le
       n Q (L n) (blockCountBlock_injective hL) D fun tree htree => by
-        have hmem : tree ∈ D.support := (PMF.mem_support_iff _ _).mpr htree
-        obtain ⟨ω, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hmem
+        obtain ⟨ω, _, rfl⟩ :=
+          (PMF.mem_support_map_iff _ _ _).mp ((PMF.mem_support_iff _ _).mpr htree)
         exact ProbOracleComp.isQueryBounded_fixCoins (OracleCodec.isQueryBounded_adapt codec hQ) ω
-    change |(ProbComp.eval (prfIdealGame id id (lengthPrependedToPrfDistinguisher L adversary) n)
-        true).toReal -
-      (ProbComp.eval (prfIdealGameOn (lpBlockValid L) id adversary n) true).toReal| ≤ _
-    rw [hurfEq, hidealEq]
-    simpa only [lengthPrependedUniformFunctionSuccess, lengthPrependedIdealSuccess,
-      PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, NNReal.coe_div, NNReal.coe_mul,
-      NNReal.coe_pow, NNReal.coe_add, NNReal.coe_one, NNReal.coe_natCast, NNReal.coe_ofNat]
-      using hbound
-  exact (Game.advantage_triangle _
-    (ProbComp.eval (prfIdealGame id id (lengthPrependedToPrfDistinguisher L adversary) n)) _).trans
-    (add_le_add le_rfl hidealLe)
 
 /-- **Prefix-free CBC-MAC is a prefix-free pseudorandom function** ([BonehShoup2023], Section
 6.4.1, Theorem 6.3, printed pp. 226–229): for any `PseudorandomFunction family` and unary
@@ -1472,20 +1362,8 @@ theorem PseudorandomFunction.prfOn_lengthPrependedCbcMac
       simpa only [Q, List.length_nil, Nat.add_zero] using (hbounds n []).1
     have hprf := hF.secure (lengthPrependedToPrfDistinguisher L adversary)
       (isOraclePPT_lengthPrependedToPrfDistinguisher hL hadversary)
-    have hev : ∀ᶠ n in Filter.atTop,
-        Game.advantage
-          (ProbComp.eval
-            (prfRealGameOn (lpBlockValid L) (lengthPrependedCbcMacFamily family) adversary n))
-          (ProbComp.eval (prfIdealGameOn (lpBlockValid L) id adversary n)) ≤
-        Game.advantage
-          (ProbComp.eval
-            (prfRealGame id family (lengthPrependedToPrfDistinguisher L adversary) n))
-          (ProbComp.eval
-            (prfIdealGame id id (lengthPrependedToPrfDistinguisher L adversary) n)) +
-        (Q n : ℝ≥0) ^ 2 * ((L n : ℝ≥0) + 1) ^ 2 / (2 * 2 ^ n) := by
-      filter_upwards [hL.polynomiallyBounded.eventually_lt_two_pow] with n hLn
-      exact advantage_lengthPrependedCbcMac_le hF.length_eq L adversary hLn (hQ n)
-    negligible eventually hev
+    negligible eventually hL.polynomiallyBounded.eventually_lt_two_pow.mono fun n hLn =>
+      advantage_lengthPrependedCbcMac_le hF.length_eq L adversary hLn (hQ n)
 
 private def restrictLengthQuery (inLen : ℕ → ℕ) (n : ℕ) (request : Unit × List Bool) :
     WordOracleComp Unit (List Bool) :=
@@ -1573,6 +1451,16 @@ private theorem restrictLengthDistinguisher_eq_simulate (inLen : ℕ → ℕ)
     restrictLengthDistinguisher inLen adversary n aux =
       ProbOracleComp.simulate (restrictLengthQuery inLen n) (adversary n aux) := by
   rw [restrictLengthDistinguisher, ← OracleComp.substitute_eq_interpret, ← ProbOracleComp.simulate]
+
+/-- Restricting to one input length makes every distinguisher prefix-free on valid queries. -/
+private theorem isPrefixFreeOn_restrictLengthDistinguisher {valid : List Bool → Bool} {outLen : ℕ}
+    (inLen : ℕ → ℕ) (adversary : OracleDistinguisher) (n : ℕ) :
+    IsPrefixFreeOn valid outLen (restrictLengthDistinguisher inLen adversary n []) := by
+  rw [restrictLengthDistinguisher_eq_simulate]
+  intro oracle _ _ res hres x hx _ y hy _ hxy hpre
+  exact hxy (hpre.eq_of_length
+    ((mem_wordQueryRunDist_restrictLengthQuery oracle _ hres x hx).trans
+      (mem_wordQueryRunDist_restrictLengthQuery oracle _ hres y hy).symm))
 
 private theorem eval_prfRealGameOn_restrictLengthDistinguisher
     {valid : ℕ → List Bool → Bool} (inLen : ℕ → ℕ)
@@ -1668,12 +1556,8 @@ theorem PseudorandomFunction.prfOver_cbcMac {family : List Bool → List Bool �
       polytime
     have hadvPf : IsPrefixFreeOraclePPT (cbcBlockValid ℓ) id
         (restrictLengthDistinguisher (fun n => ℓ n * n) adversary) := by
-      refine ⟨isOraclePPT_restrictLengthDistinguisher hinLen hadversary, fun n => ?_⟩
-      rw [restrictLengthDistinguisher_eq_simulate]
-      intro oracle _ _ res hres x hx _ y hy _ hxy hpre
-      have hxLen := mem_wordQueryRunDist_restrictLengthQuery oracle (adversary n []) hres x hx
-      have hyLen := mem_wordQueryRunDist_restrictLengthQuery oracle (adversary n []) hres y hy
-      exact hxy (hpre.eq_of_length (hxLen.trans hyLen.symm))
+      exact ⟨isOraclePPT_restrictLengthDistinguisher hinLen hadversary,
+        fun n => isPrefixFreeOn_restrictLengthDistinguisher _ adversary n⟩
     have hsec := (hF.prefixFreePRF_cbcMac hℓ).secure
       (restrictLengthDistinguisher (fun n => ℓ n * n) adversary) hadvPf
     have hev : ∀ᶠ n in Filter.atTop,
@@ -2027,16 +1911,12 @@ private theorem prfIdealLogOracleOn_inv (valid : ℕ → List Bool → Bool) (ad
       PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hstep
     obtain ⟨_, ⟨⟨v, nextCache⟩, hans, rfl⟩, hpair⟩ := hstep
     rcases Prod.mk.inj hpair with ⟨-, rfl, rfl⟩
-    rcases cachedSamplerOracle_cache_of_mem_support hans with hnext | ⟨-, -, hnext⟩
-    · dsimp only at hnext ⊢
-      rw [hnext]
-      exact fun e he => List.mem_cons_of_mem _ (hstate e he)
-    · dsimp only at hnext ⊢
-      rw [hnext]
-      intro e he
-      rcases List.mem_cons.mp he with rfl | he
-      · exact List.mem_cons_self
-      · exact List.mem_cons_of_mem _ (hstate e he)
+    have htail : ∀ e ∈ cache, e.1 ∈ msg :: queried :=
+      fun e he => List.mem_cons_of_mem _ (hstate e he)
+    rcases cachedSamplerOracle_cache_of_mem_support hans with hnext | ⟨-, -, hnext⟩ <;>
+      dsimp only at hnext ⊢ <;> rw [hnext]
+    · exact htail
+    · exact List.forall_mem_cons.mpr ⟨List.mem_cons_self, htail⟩
   · simp only [Bool.eq_false_iff.mpr hv, Bool.false_eq_true, ↓reduceIte,
       OracleComp.interpret_pure] at hstep
     rw [show (pure ([], queried) : StateT _ PMF _) cache =
@@ -2266,27 +2146,19 @@ private theorem cbcMacFamily_zero_append_tag {family : List Bool → List Bool �
     let tag := cbcMacFamily family sk (List.replicate n false)
     cbcMacFamily family sk (List.replicate n false ++ tag) = tag := by
   intro tag
-  have htagLen : tag.length = n := by
-    dsimp only [tag]
-    rw [length_cbcMacFamily hlen, hsk]
+  have htagLen : tag.length = n := hsk ▸ length_cbcMacFamily hlen sk _
   have hrows1 : BitString.listRows (n / n) n (List.replicate n false) =
       [List.replicate n false] := by
-    rw [Nat.div_self hn]
-    have hflat : BitString.listRows 1 n [List.replicate n false].flatten =
-        [List.replicate n false] :=
-      BitString.listRows_flatten [List.replicate n false] (by simp)
-    simpa using hflat
+    simpa [Nat.div_self hn] using BitString.listRows_flatten [List.replicate n false] (by simp)
   have hfamLen : (family sk (List.replicate n false)).length = n :=
     hsk ▸ hlen sk _ (by simp [hsk])
   have htag1 : tag = family sk (List.replicate n false) := by
     simp only [tag, cbcMacFamily, hsk, cbcMacWord, List.length_replicate, hrows1,
       List.foldl_cons, List.foldl_nil, zipWith_xor_self, List.take_of_length_le hfamLen.le]
-  unfold cbcMacFamily at ⊢
-  rw [hsk, cbcMacWord_append_block family hn sk (by simp) htagLen]
   have htagWord : cbcMacWord family n sk (List.replicate n false) = tag := by
     rw [show tag = cbcMacFamily family sk (List.replicate n false) from rfl, cbcMacFamily, hsk]
-  rw [htagWord]
-  rw [zipWith_xor_self, htagLen, ← htag1, List.take_of_length_le htagLen.le]
+  rw [cbcMacFamily, hsk, cbcMacWord_append_block family hn sk (by simp) htagLen, htagWord,
+    zipWith_xor_self, htagLen, ← htag1, List.take_of_length_le htagLen.le]
 
 /-- Helper step of [BonehShoup2023], Section 6.4.3 (printed pp. 230–231): at every `n ≥ 1`,
 `cbcExtensionForger` wins `macSufCmaGameOn (lpBlockValid (fun _ => 2)) (cbcMacFamily family)` with
@@ -2313,24 +2185,19 @@ theorem eval_macSufCmaGameOn_cbcMacFamily_cbcExtensionForger
     have hskLen : sk.length = n := BitString.length_of_mem_support_uniformList hsk
     have htagLen : (cbcMacFamily family sk (List.replicate n false)).length = n := by
       rw [length_cbcMacFamily hlen, hskLen]
-    have htake : (cbcMacFamily family sk (List.replicate n false)).take n =
-        cbcMacFamily family sk (List.replicate n false) :=
-      List.take_of_length_le htagLen.le
-    rw [htake]
+    have hlen2 : (List.replicate n false ++
+        cbcMacFamily family sk (List.replicate n false)).length = 2 * n := by
+      rw [List.length_append, List.length_replicate, htagLen, Nat.two_mul]
     have hval2 : lpBlockValid (fun _ => 2) n
         (List.replicate n false ++ cbcMacFamily family sk (List.replicate n false)) = true := by
-      have hlen2 : (List.replicate n false ++
-          cbcMacFamily family sk (List.replicate n false)).length = 2 * n := by
-        rw [List.length_append, List.length_replicate, htagLen, Nat.two_mul]
       simp [lpBlockValid, hlen2, Nat.mul_mod_left]
     have hne : List.replicate n false ++ cbcMacFamily family sk (List.replicate n false) ≠
-        List.replicate n false := by
-      intro hEq
+        List.replicate n false := fun hEq => by
       have hlenEq := congrArg List.length hEq
-      rw [List.length_append, List.length_replicate, htagLen] at hlenEq
+      rw [hlen2, List.length_replicate] at hlenEq
       omega
-    have hforge := cbcMacFamily_zero_append_tag hlen hn hskLen
-    simp [hval2, hne, hforge]
+    rw [List.take_of_length_le htagLen.le]
+    simp [hval2, hne, cbcMacFamily_zero_append_tag hlen hn hskLen]
   · exact PMF.bind_const _ _
 
 /-- CBC-MAC step toward #5801 after [BonehShoup2023], Section 6.4.3 (printed pp. 230–231), not the
@@ -2527,15 +2394,9 @@ theorem succProbability_sufCmaGame_cbcFixedBlockMAC_le (ℓ : ℕ → ℕ)
   have hMRestQ : (restrictLengthDistinguisher (fun m => ℓ m * m) M n []).IsQueryBounded (Q + 1) :=
     isQueryBounded_restrictLengthDistinguisher _ M
       (isQueryBounded_macToPrfOnDistinguisher _ adversary hQ)
-  have hMRestPf : IsPrefixFreeOn (cbcBlockValid ℓ n) n
-      (restrictLengthDistinguisher (fun m => ℓ m * m) M n []) := by
-    rw [restrictLengthDistinguisher_eq_simulate]
-    intro oracle _ _ res hres x hx _ y hy _ hxy hpre
-    have hxLen := mem_wordQueryRunDist_restrictLengthQuery oracle (M n []) hres x hx
-    have hyLen := mem_wordQueryRunDist_restrictLengthQuery oracle (M n []) hres y hy
-    exact hxy (hpre.eq_of_length (hxLen.trans hyLen.symm))
   have hprf := advantage_cbcMac_le hlen ℓ
-    (restrictLengthDistinguisher (fun m => ℓ m * m) M) hMRestQ hMRestPf
+    (restrictLengthDistinguisher (fun m => ℓ m * m) M) hMRestQ
+    (isPrefixFreeOn_restrictLengthDistinguisher _ M n)
   rw [Nat.cast_add, Nat.cast_one] at hprf
   rw [hrealEq, hidealEq] at hmac
   exact hmac.trans (add_le_add hprf le_rfl)
@@ -2556,19 +2417,9 @@ theorem PseudorandomFunction.sufCma_cbcFixedBlockMAC
     simpa only [Q, List.length_nil, Nat.add_zero] using (hbounds n []).1
   have hprf := hF.secure (cbcFixedBlockMacToPrfDistinguisher ℓ adversary)
     (isOraclePPT_cbcFixedBlockMacToPrfDistinguisher hℓ hadversary)
-  have hev : ∀ᶠ n in Filter.atTop,
-      Game.succProbability
-        (ProbComp.eval ((cbcFixedBlockMAC ℓ hℓ family hF.polyTime).sufCmaGame adversary n)) ≤
-      Game.advantage
-        (ProbComp.eval (prfRealGame id family (cbcFixedBlockMacToPrfDistinguisher ℓ adversary) n))
-        (ProbComp.eval
-          (prfIdealGame id id (cbcFixedBlockMacToPrfDistinguisher ℓ adversary) n)) +
-      ((Q n : ℝ≥0) + 1) ^ 2 * (ℓ n : ℝ≥0) ^ 2 / (2 * 2 ^ n) +
-      (1 : ℝ≥0) / 2 ^ n := by
-    filter_upwards [Filter.eventually_ge_atTop 1] with n hn
-    exact succProbability_sufCmaGame_cbcFixedBlockMAC_le ℓ hℓ hF.polyTime hF.length_eq adversary
+  negligible eventually (Filter.eventually_ge_atTop 1).mono fun n hn =>
+    succProbability_sufCmaGame_cbcFixedBlockMAC_le ℓ hℓ hF.polyTime hF.length_eq adversary
       hn (hpos n) (hQ n)
-  negligible eventually hev
 
 /-- Deterministic `MACScheme` authenticating `k n * n`-bit (`k n`-block, `k n = 0` permitted)
 messages via length-prepended CBC-MAC `lengthPrependedCbcMacFamily family`. -/
