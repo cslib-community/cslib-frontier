@@ -107,12 +107,10 @@ theorem synthesis_navigation_given_flag (f : BitString n → BitString n)
     · simp only [hz, ite_true, reaches]
       exact decide_eq_decide.mpr Iff.rfl
     · simp only [hz, ite_false]
-      apply Bool.eq_iff_iff.mpr
-      rw [htr z (Nat.pos_of_ne_zero hz), ← reaches_iff]
+      exact Bool.eq_iff_iff.mpr (by rw [htr z (Nat.pos_of_ne_zero hz), ← reaches_iff])
   have htimeEq : (fun z => if decide (depthWord f (inputRight z) = 0) then cycTime z else diff z) =
-      fun z => navigationTime f (inputLeft z) (inputRight z) := by
-    funext z
-    simp only [navigationTime, cycTime, cycDist, diff, decide_eq_true_eq]
+      fun z => navigationTime f (inputLeft z) (inputRight z) :=
+    funext fun z => by simp only [navigationTime, cycTime, cycDist, diff, decide_eq_true_eq]
   rw [hflagEq] at hflagMux
   rw [htimeEq] at htimeMux
   let b := b.add (hflagMux.union htimeMux)
@@ -187,8 +185,7 @@ theorem synthesis_navigation (f : BitString n → BitString n) (K : ℕ)
         (BitString.equivBitVec (diffBits z)).toNat =
           transientDepth f (inputLeft z) - transientDepth f (inputRight z) := by
       have hw : BitString.equivBitVec (diffBits z) = (diff z).setWidth (n + 1) := by
-        apply BitVec.eq_of_getLsbD_eq
-        intro i hi
+        refine BitVec.eq_of_getLsbD_eq fun i hi => ?_
         rw [BitString.getLsbD_equivBitVec _ ⟨i, hi⟩]
         simp [diffBits, hi]
       have hlt :
@@ -197,11 +194,7 @@ theorem synthesis_navigation (f : BitString n → BitString n) (K : ℕ)
         have hpow1 : 2 ^ (n + 1) = 2 * 2 ^ n := by rw [pow_succ']
         lia
       rw [hw, BitVec.toNat_setWidth, toNat_navigationGap f _ _ hle, Nat.mod_eq_of_lt hlt]
-    constructor
-    · rintro ⟨hle, he⟩
-      exact ⟨hle, by rwa [hdiffToNat hle] at he⟩
-    · rintro ⟨hle, he⟩
-      exact ⟨hle, by rwa [hdiffToNat hle]⟩
+    exact and_congr_right fun hle => by rw [hdiffToNat hle]
   have hmain := synthesis_navigation_given_flag f depth hd label hl transientReach htrSpec
   refine hmain.mono Set.Subset.rfl Set.Subset.rfl ?_
   dsimp +zetaDelta [Synthesis.Builder.add, Synthesis.Builder.start] at htrSize

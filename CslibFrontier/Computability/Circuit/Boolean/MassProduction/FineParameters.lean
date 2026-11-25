@@ -188,34 +188,9 @@ theorem eventually_add_depth_le (hnd : num < den) (c : ℕ) :
   -- Multiply the goal by `ℓ * m` and combine the scaled floor bounds.
   refine Nat.le_of_mul_le_mul_left ?_ (Nat.mul_pos (by omega : 0 < ℓ) hmpos)
   have R1 : ℓ * m * (c + D) = ℓ * m * c + ℓ * (X + 1) * (den * D) := by rw [hm]; ring
-  have R2 : ℓ * (X + 1) * (den * D) ≤ ℓ * (X + 1) * (num * n) + ℓ * (X + 1) * den := by
-    have := Nat.mul_le_mul_left (ℓ * (X + 1)) F3
-    have e : ℓ * (X + 1) * (num * n + den) = ℓ * (X + 1) * (num * n) + ℓ * (X + 1) * den := by
-      ring
-    omega
-  have R3 : ℓ * (X + 1) * (num * n) + (2 * a + 3) * n ≤ (4 * a + 1) * (a * n) := by
-    have := Nat.mul_le_mul_right n F4
-    have e1 : (ℓ * ((X + 1) * num) + 2 * a + 3) * n =
-        ℓ * (X + 1) * (num * n) + (2 * a + 3) * n := by ring
-    have e2 : (4 * a + 1) * a * n = (4 * a + 1) * (a * n) := by ring
-    omega
-  have R4 : (4 * a + 1) * (a * n) ≤ (4 * a + 1) * (m * p) + (4 * a + 1) * m := by
-    have := Nat.mul_le_mul_left (4 * a + 1) F1.le
-    have e1 : (4 * a + 1) * (n * a) = (4 * a + 1) * (a * n) := by ring
-    have e2 : (4 * a + 1) * (m * (p + 1)) = (4 * a + 1) * (m * p) + (4 * a + 1) * m := by ring
-    omega
-  have R5 : (4 * a + 1) * (m * p) + (4 * a + 1) * m ≤ ℓ * m * ((4 * a + 1) * F) +
-      (4 * a + 1) * (m * ℓ * h) + 3 * (4 * a + 1) * m * L := by
-    have : (4 * a + 1) * m * (p + 1) ≤ (4 * a + 1) * m * (ℓ * F + ℓ * h + 3 * L) :=
-      Nat.mul_le_mul_left _ F2
-    have e1 : (4 * a + 1) * m * (p + 1) = (4 * a + 1) * (m * p) + (4 * a + 1) * m := by ring
-    have e2 : (4 * a + 1) * m * (ℓ * F + ℓ * h + 3 * L) = ℓ * m * ((4 * a + 1) * F) +
-        (4 * a + 1) * (m * ℓ * h) + 3 * (4 * a + 1) * m * L := by ring
-    omega
-  have R6 : (4 * a + 1) * (m + m * ℓ * h) = (4 * a + 1) * m + (4 * a + 1) * (m * ℓ * h) := by
-    ring
   have R7 : n ≤ (2 * a + 3) * n := Nat.le_mul_of_pos_left n (by omega)
-  omega
+  linarith [Nat.mul_le_mul_left (ℓ * (X + 1)) F3, Nat.mul_le_mul_right n F4,
+    Nat.mul_le_mul_left (4 * a + 1) F1.le, Nat.mul_le_mul_left ((4 * a + 1) * m) F2.le]
 
 /-- The prefix grows at least linearly: `n < (X + 1) * (prefixWidth n + 1)`. -/
 private theorem lt_mul_prefixWidth_add_one (hden : 0 < den) (n : ℕ) :

@@ -206,8 +206,7 @@ theorem prev_spec (u : ℕ) :
     · simpa using has w hw
     · rcases List.mem_cons.mp hw with rfl | hw
       · omega
-      · have := ((List.pairwise_append.mp hpw).2.1)
-        have := (List.pairwise_cons.mp this).1 w hw
+      · have := (List.pairwise_cons.mp (List.pairwise_append.mp hpw).2.1).1 w hw
         omega
 
 theorem prev_le (u : ℕ) : prev os u ≤ u := by
@@ -253,20 +252,13 @@ private theorem eq_replicate_or_iff (bs : List Bool) :
 /-- The equality tensor at a word: one exactly when all its bits are equal. -/
 theorem eqEntry_lsbValue (bs : List Bool) :
     eqEntry bs.length (BitString.lsbValue bs) = if ∀ a ∈ bs, ∀ b ∈ bs, a = b then 1 else 0 := by
-  have h0 : BitString.lsbValue bs = 0 ↔ bs = List.replicate bs.length false := by
-    constructor
-    · intro h
-      exact BitString.lsbValue_injective (by simp) (by simp [h])
-    · intro h
-      rw [h, BitString.lsbValue_replicate_false]
+  have h0 : BitString.lsbValue bs = 0 ↔ bs = List.replicate bs.length false :=
+    ⟨fun h => BitString.lsbValue_injective (by simp) (by simp [h]),
+      fun h => by rw [h, BitString.lsbValue_replicate_false]⟩
   have h1 : BitString.lsbValue bs + 1 = 2 ^ bs.length ↔ bs = List.replicate bs.length true := by
     have hr := BitString.lsbValue_replicate_true bs.length
-    constructor
-    · intro h
-      exact BitString.lsbValue_injective (by simp) (by omega)
-    · intro h
-      rw [h]
-      simpa using hr
+    exact ⟨fun h => BitString.lsbValue_injective (by simp) (by omega),
+      fun h => by rw [h]; simpa using hr⟩
   unfold eqEntry
   simp only [h0, h1, eq_replicate_or_iff]
 
@@ -453,15 +445,9 @@ private theorem count_qPorts (w j : ℕ) :
     constructor
     · rintro (rfl | rfl | ⟨u, hu, rfl, rfl⟩)
       · by_cases hw : 3 * w < 3 * os.length
-        · left
-          simp [hw]
-        · right
-          omega
+        exacts [Or.inl (by simp [hw]), Or.inr (by omega)]
       · by_cases hw : 3 * w + 1 < 3 * os.length
-        · left
-          simp [hw, show (3 * w + 1) / 3 = w by omega]
-        · right
-          omega
+        exacts [Or.inl (by simp [hw, show (3 * w + 1) / 3 = w by omega]), Or.inr (by omega)]
       · left
         simp [show 3 * u + 2 < 3 * os.length by omega, show (3 * u + 2) % 3 = 2 by omega,
           show (3 * u + 2) / 3 = u by omega]
@@ -484,15 +470,13 @@ theorem isRowsFirstBipartite_network (B m : ℕ) (hcl : ∀ o ∈ os, o.clause <
   refine ⟨?_, fun j hj => ⟨?_, ?_⟩⟩
   · intro v hv i hi
     simp only [vertices_network, List.mem_append, List.mem_map, List.mem_range] at hv
+    simp only [numEdges_network]
     rcases hv with (⟨i', -, rfl⟩ | ⟨u, hu, rfl⟩) | ⟨w, hw, rfl⟩
     · obtain ⟨u, hu, -, rfl⟩ := mem_clausePorts.mp hi
-      simp only [numEdges_network]
       omega
     · simp only [linkVertex, List.mem_cons, List.not_mem_nil, or_false] at hi
-      simp only [numEdges_network]
       omega
-    · rcases mem_qPorts.mp hi with rfl | rfl | ⟨u, hu, -, rfl⟩ <;> simp only [numEdges_network] <;>
-        omega
+    · rcases mem_qPorts.mp hi with rfl | rfl | ⟨u, hu, -, rfl⟩ <;> omega
   · simp only [numEdges_network] at hj
     rw [fst_network, vertices_network, List.take_left' (by simp), List.map_append,
       List.sum_append, List.map_map, List.map_map]
@@ -612,21 +596,7 @@ private theorem contraction_network_eq (B m : ℕ) (row : ℕ → ℕ → ℕ)
   rw [h1, h2, h3, List.prod_map_boole, List.prod_map_boole]
   clear h1 h2 h3 hpb
   simp only [List.mem_range, Consistent]
-  by_cases hl : ∀ u < os.length, bitAt x (3 * u + 1) = bitAt x (3 * u + 2) <;>
-    by_cases hq : ∀ w < os.length, ∀ a ∈ qPorts os w, ∀ b ∈ qPorts os w, bitAt x a = bitAt x b
-  · simp only [eq_true hl, eq_true hq, ↓reduceIte, Nat.mul_one]
-    split_ifs with hc
-    · rfl
-    · exact absurd ⟨hl, hq⟩ hc
-  · simp only [eq_false hq, ↓reduceIte, Nat.mul_zero]
-    split_ifs with hc
-    · exact absurd hc.2 hq
-    · rfl
-  all_goals
-    simp only [eq_false hl, ↓reduceIte, Nat.mul_zero, Nat.zero_mul]
-    split_ifs with hc
-    · exact absurd hc.1 hl
-    · rfl
+  split_ifs <;> first | (simp; done) | tauto
 
 /-- Under the consistency conditions, the three edges of an occurrence carry equal bits, equal to
 the bit on the row edge of the previous occurrence. -/
@@ -682,14 +652,11 @@ private theorem consistent_iff (x : Fin (3 * os.length) → Bool) :
     have hrep : ∀ u < os.length,
         bitAt x (3 * (os.map fun o => o.lit.1).idxOf (var os u)) = bitAt x (3 * u) := by
       intro u hu
-      have hm := var_mem os hu
-      have hlt := List.idxOf_lt_length_of_mem hm
+      have hlt := List.idxOf_lt_length_of_mem (var_mem os hu)
       have h1 := List.getElem_idxOf hlt
       rw [List.length_map] at hlt
-      refine eq_of_var_eq os h hlt hu ?_
       rw [List.getElem_map] at h1
-      rw [var, occ_eq_getElem os hlt]
-      exact h1
+      exact eq_of_var_eq os h hlt hu (by rw [var, occ_eq_getElem os hlt]; exact h1)
     refine ⟨fun v => bitAt x (3 * (os.map fun o => o.lit.1).idxOf v), ?_⟩
     funext j
     have hj := j.isLt
@@ -697,9 +664,8 @@ private theorem consistent_iff (x : Fin (3 * os.length) → Bool) :
     change bitAt x (3 * (os.map fun o => o.lit.1).idxOf (var os (j.val / 3))) = x j
     rw [hrep _ hu, ← bitAt_eq x hj]
     obtain ⟨h1, h2, -⟩ := consistent_edges os h hu
-    have hcases : j.val = 3 * (j.val / 3) ∨ j.val = 3 * (j.val / 3) + 1 ∨
+    obtain h' | h' | h' : j.val = 3 * (j.val / 3) ∨ j.val = 3 * (j.val / 3) + 1 ∨
         j.val = 3 * (j.val / 3) + 2 := by omega
-    rcases hcases with h' | h' | h'
     · rw [← h']
     · rw [h1, ← h']
     · rw [h1, h2, ← h']

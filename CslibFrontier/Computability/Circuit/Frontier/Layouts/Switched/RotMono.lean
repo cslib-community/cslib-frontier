@@ -170,19 +170,13 @@ private theorem inner_nonpos {θ : ℝ} (hP : si ^ 2 = 1 - I ^ 2) (hR : sj ^ 2 =
     · unfold kernel dbeta beta
       exact ((continuous_phi.comp (by fun_prop)).mul (by fun_prop)).aestronglyMeasurable
     · rw [Real.norm_eq_abs]; exact abs_kernel_le θ x₀ x₁
-  have hAk : ∀ x₀, Integrable (fun x₁ => indA I si h x₀ x₁ *
-      kernel (J := J) (sj := sj) (h := h) θ x₀ x₁) γ1 := fun x₀ =>
-    (hk x₀).bdd_mul (c := 1) (measurable_indA.comp (by fun_prop :
+  have hbk {g : ℝ → ℝ → ℝ} (hg : Measurable fun p : ℝ × ℝ => g p.1 p.2)
+      (hg1 : ∀ a b, 0 ≤ g a b ∧ g a b ≤ 1) (x₀ : ℝ) :
+      Integrable (fun x₁ => g x₀ x₁ * kernel (J := J) (sj := sj) (h := h) θ x₀ x₁) γ1 :=
+    (hk x₀).bdd_mul (c := 1) (hg.comp (by fun_prop :
       Measurable fun x₁ : ℝ => (x₀, x₁))).aestronglyMeasurable
       (ae_of_all _ fun x₁ => by
-        have := indA_mem (I := I) (si := si) (h := h) x₀ x₁
-        rw [Real.norm_eq_abs, abs_le]; constructor <;> linarith)
-  have hBk : ∀ x₀, Integrable (fun x₁ => indB I si h x₀ x₁ *
-      kernel (J := J) (sj := sj) (h := h) θ x₀ x₁) γ1 := fun x₀ =>
-    (hk x₀).bdd_mul (c := 1) (measurable_indB.comp (by fun_prop :
-      Measurable fun x₁ : ℝ => (x₀, x₁))).aestronglyMeasurable
-      (ae_of_all _ fun x₁ => by
-        have := indB_mem (I := I) (si := si) (h := h) x₀ x₁
+        have := hg1 x₀ x₁
         rw [Real.norm_eq_abs, abs_le]; constructor <;> linarith)
   have hinner : ∀ x₀, ∫ x₁, (indA I si h x₀ x₁ + indB I si h x₀ x₁) *
       kernel (J := J) (sj := sj) (h := h) θ x₀ x₁ ∂γ1 =
@@ -190,7 +184,9 @@ private theorem inner_nonpos {θ : ℝ} (hP : si ^ 2 = 1 - I ^ 2) (hR : sj ^ 2 =
         gfun (J := J) (sj := sj) (h := h) θ x₀ ((h - I * x₀) / si)) := by
     intro x₀
     simp_rw [add_mul]
-    rw [integral_add (hAk x₀) (hBk x₀), ibp_low hsi hsj hθ, ibp_high hsi hsj hθ]
+    rw [integral_add (hbk (g := indA I si h) measurable_indA indA_mem x₀)
+      (hbk (g := indB I si h) measurable_indB indB_mem x₀), ibp_low hsi hsj hθ,
+      ibp_high hsi hsj hθ]
     by_cases hx : x₀ < h
     · simp [hx, not_le.mpr hx]
     · simp [hx, not_lt.mp hx]
@@ -277,17 +273,12 @@ theorem rot_mono_open {ψ₁ ψ₂ : ℝ} (hP : si ^ 2 = 1 - I ^ 2) (hR : sj ^ 2
     · simp only [abs_zero]; linarith [abs_nonneg x₁, (abs_nonneg _).trans (hM ψ₁ ⟨le_rfl, h12⟩)]
   have hcongr : ∀ x₀ x₁, ∫ θ in Ioc ψ₁ ψ₂, (indA I si h x₀ x₁ + indB I si h x₀ x₁) *
       kernel (J := J) (sj := sj) (h := h) θ x₀ x₁ = ∫ θ in Ioc ψ₁ ψ₂, f x₀ x₁ θ := by
-    intro x₀ x₁
-    apply setIntegral_congr_fun measurableSet_Ioc
-    intro θ hθ
-    simp only [hf]
-    rw [Set.indicator_of_mem (Ioc_subset_Icc_self hθ)]
+    exact fun x₀ x₁ => setIntegral_congr_fun measurableSet_Ioc fun θ hθ => by
+      simp only [hf, Set.indicator_of_mem (Ioc_subset_Icc_self hθ)]
   have hiter : ∫ p, (∫ θ in Ioc ψ₁ ψ₂, (indA I si h p.1 p.2 + indB I si h p.1 p.2) *
       kernel (J := J) (sj := sj) (h := h) θ p.1 p.2) ∂(γ1.prod γ1) =
       ∫ x₀, (∫ x₁, (∫ θ in Ioc ψ₁ ψ₂, f x₀ x₁ θ) ∂γ1) ∂γ1 := by
-    simp_rw [show ∀ p : ℝ × ℝ, (∫ θ in Ioc ψ₁ ψ₂, (indA I si h p.1 p.2 + indB I si h p.1 p.2) *
-        kernel (J := J) (sj := sj) (h := h) θ p.1 p.2) = ∫ θ in Ioc ψ₁ ψ₂, f p.1 p.2 θ from
-        fun p => hcongr p.1 p.2]
+    simp_rw [hcongr]
     refine integral_prod (fun p : ℝ × ℝ => ∫ θ in Ioc ψ₁ ψ₂, f p.1 p.2 θ) ?_
     exact (Integrable.integral_prod_left (f := fun q : (ℝ × ℝ) × ℝ => f q.1.1 q.1.2 q.2) <| by
       have : IsFiniteMeasure (volume.restrict (Ioc ψ₁ ψ₂)) :=
@@ -306,9 +297,7 @@ theorem rot_mono_open {ψ₁ ψ₂ : ℝ} (hP : si ^ 2 = 1 - I ^ 2) (hR : sj ^ 2
   intro θ hθ
   have hθI : θ ∈ Icc ψ₁ ψ₂ := Ioc_subset_Icc_self hθ
   have hval : ∀ x₀ x₁, f x₀ x₁ θ = (indA I si h x₀ x₁ + indB I si h x₀ x₁) *
-      kernel (J := J) (sj := sj) (h := h) θ x₀ x₁ := fun x₀ x₁ => by
-    simp only [hf]
-    rw [Set.indicator_of_mem hθI]
+      kernel (J := J) (sj := sj) (h := h) θ x₀ x₁ := fun _ _ => Set.indicator_of_mem hθI _
   simp_rw [hval]
   have hcθ : Real.cos ψ₂ ≤ Real.cos θ :=
     Real.cos_le_cos_of_nonneg_of_le_pi (by linarith [hθ.1]) (by linarith) hθ.2

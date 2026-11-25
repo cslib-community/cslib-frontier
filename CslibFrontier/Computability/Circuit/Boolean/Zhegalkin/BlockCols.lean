@@ -90,20 +90,12 @@ theorem all_group_subSums {k width : ℕ} (hw : 0 < width)
   have hT_map : T'.map (emb q).toEmbedding = T := by
     ext j
     simp only [T', mem_map, mem_filter, mem_univ, true_and, RelEmbedding.coe_toEmbedding]
-    constructor
-    · rintro ⟨i, hi, rfl⟩
-      exact hi
-    · intro hjT
-      have hjB : j ∈ B q := mem_filter.mpr ⟨mem_univ j, hTq j hjT⟩
-      have hjRange : j ∈ Set.range (emb q) := by rwa [range_orderEmbOfFin]
-      obtain ⟨i, rfl⟩ := hjRange
-      exact ⟨i, hjT, rfl⟩
-  have hT'ne : T'.Nonempty := by
-    rcases T'.eq_empty_or_nonempty with h0 | hne
-    · exfalso
-      rw [h0, map_empty] at hT_map
-      exact notMem_empty j₀ (hT_map ▸ hj₀)
-    · exact hne
+    refine ⟨fun ⟨i, hi, he⟩ => he ▸ hi, fun hjT => ?_⟩
+    obtain ⟨i, rfl⟩ : j ∈ Set.range (emb q) := by
+      rw [range_orderEmbOfFin]
+      exact mem_filter.mpr ⟨mem_univ j, hTq j hjT⟩
+    exact ⟨i, hjT, rfl⟩
+  have hT'ne : T'.Nonempty := map_nonempty.mp (by rw [hT_map]; exact ⟨j₀, hj₀⟩)
   refine ⟨q, mem_range.mpr hq_lt, T', hT'ne, ?_⟩
   funext x
   rw [← hT_map, sum_map]
@@ -194,37 +186,23 @@ theorem sum_fullCol_lt_eq {m K s Q : ℕ} (A : Matrix (Fin m) (Fin K) Bool)
     (∑ c : FullCol K s with decide (c.block.1 < Q ∧ fullRowPattern A s r c.block = c.subset) = true,
       fullColVal c v) =
     ∑ j ∈ univ.filter (fun j : Fin K => j.1 / s < Q ∧ A r j = true), v j := by
-  rw [sum_filter, Fintype.sum_prod_type]
-  have hblocks :
-      (∑ q : Fin (K / s), ∑ T : {T : Finset (Fin s) // T.Nonempty},
-        if decide (q.1 < Q ∧ fullRowPattern A s r q = T.1) = true then
-          fullColVal (q, T) v
+  have hblock (q : Fin (K / s)) :
+      (∑ T : {T : Finset (Fin s) // T.Nonempty},
+        if decide (q.1 < Q ∧ fullRowPattern A s r q = T.1) = true then fullColVal (q, T) v
         else 0) =
-      ∑ q : Fin (K / s),
-        if q.1 < Q then
-          ∑ a ∈ fullRowPattern A s r q, v (fullBlockEmb q a)
-        else 0 := by
-    refine sum_congr rfl fun q _ => ?_
+      if q.1 < Q then ∑ a ∈ fullRowPattern A s r q, v (fullBlockEmb q a) else 0 := by
     by_cases hq : q.1 < Q
     · simp only [hq, true_and, ↓reduceIte]
       rcases (fullRowPattern A s r q).eq_empty_or_nonempty with hempty | hne
       · rw [hempty, sum_empty, sum_eq_zero]
-        intro ⟨T, hT⟩ _
-        have hneT : (∅ : Finset (Fin s)) ≠ T := hT.ne_empty.symm
-        simp [hneT]
-      · rw [sum_eq_single ⟨fullRowPattern A s r q, hne⟩]
-        · simp [fullColVal]
-        · intro ⟨T, _⟩ _ hne_sub
-          have hneT : fullRowPattern A s r q ≠ T :=
-            fun h => hne_sub (Subtype.ext h.symm)
-          simp [hneT]
-        · intro habs
-          exact (habs (mem_univ _)).elim
-    · simp only [hq, false_and, ↓reduceIte]
-      rw [sum_eq_zero]
-      intro _ _
-      simp
-  rw [hblocks, ← sum_filter]
+        rintro ⟨T, hT⟩ -
+        simp [hT.ne_empty.symm]
+      · rw [sum_eq_single ⟨fullRowPattern A s r q, hne⟩ (fun ⟨T, _⟩ _ h => by
+            simp [show fullRowPattern A s r q ≠ T from fun e => h (Subtype.ext e.symm)])
+          fun h => (h (mem_univ _)).elim]
+        simp [fullColVal]
+    · simp [hq]
+  rw [sum_filter, Fintype.sum_prod_type, sum_congr rfl fun q _ => hblock q, ← sum_filter]
   let blockJ (q : Fin (K / s)) : Finset (Fin K) :=
     (fullRowPattern A s r q).map (fullBlockEmb q)
   have hdisj_q :
@@ -247,13 +225,11 @@ theorem sum_fullCol_lt_eq {m K s Q : ℕ} (A : Matrix (Fin m) (Fin K) Bool)
       exact ⟨by rwa [fullBlockEmb_div], hA⟩
     · rintro ⟨hlt, hA⟩
       refine ⟨⟨j.1 / s, lt_of_lt_of_le hlt hQ⟩, hlt, ⟨j.1 % s, Nat.mod_lt _ hs⟩, ?_, ?_⟩
-      · have heq : (j.1 / s) * s + j.1 % s = j.1 := Nat.div_add_mod' j.1 s
-        convert hA using 2
-        exact Fin.ext heq
+      · convert hA using 2
+        exact Fin.ext (Nat.div_add_mod' j.1 s)
       · exact Fin.ext (Nat.div_add_mod' j.1 s)
   rw [← hbi, sum_biUnion hdisj_q]
-  refine sum_congr rfl fun q _ => ?_
-  rw [sum_map]
+  exact sum_congr rfl fun q _ => (sum_map _ _ _).symm
 
 theorem sum_row_eq_fullCol_add_tail (A : Matrix (Fin m) (Fin n) Bool) {s : ℕ} (hs : 0 < s)
     (r : Fin m) (x : Fin n → G) :
@@ -274,14 +250,9 @@ theorem sum_row_eq_fullCol_add_tail (A : Matrix (Fin m) (Fin n) Bool) {s : ℕ} 
       simp only [mem_filter, mem_univ, true_and, mem_union]
       by_cases h : j.1 / s < n / s
       · simp [h]
-      · have h' : n / s ≤ j.1 / s := Nat.le_of_not_lt h
-        simp [h, h']
-    rw [hunion, sum_union]
-    rw [Finset.disjoint_left]
-    intro j hj1 hj2
-    have h1 := (mem_filter.mp hj1).2.1
-    have h2 := (mem_filter.mp hj2).2.1
-    omega
+      · simp [h, Nat.le_of_not_lt h]
+    rw [hunion, sum_union (disjoint_left.mpr fun j hj1 hj2 => by
+      have := (mem_filter.mp hj1).2.1; have := (mem_filter.mp hj2).2.1; omega)]
   rw [hsplit_j]
   congr 1
   rw [← sum_fullCol_lt_eq A hs le_rfl r x]

@@ -313,15 +313,11 @@ private theorem linePoly_correct (r : Seed ℓ) (k : Fin g) (op : Unbounded.ExtO
       Unbounded.extInterpretation (modGate m) op fun a => y (ws a) := by
   have hor : orTest (seedBasis ℓ) (fun w => r ^ widx w) (univ.image ws) (fun w => u (.inl w)) =
       orTest (seedBasis ℓ) (fun w => r ^ widx w) (univ.image ws) y :=
-    orTest_congr _ _ _ fun w hw => by
-      obtain ⟨a, -, rfl⟩ := Finset.mem_image.1 hw
-      exact hwires a
+    orTest_congr _ _ _ (Finset.forall_mem_image.2 fun a _ => hwires a)
   have hand : orTest (seedBasis ℓ) (fun w => r ^ widx w) (univ.image ws)
       (fun w => !u (.inl w)) =
       orTest (seedBasis ℓ) (fun w => r ^ widx w) (univ.image ws) fun w => !y w :=
-    orTest_congr _ _ _ fun w hw => by
-      obtain ⟨a, -, rfl⟩ := Finset.mem_image.1 hw
-      simp only [hwires a]
+    orTest_congr _ _ _ (Finset.forall_mem_image.2 fun a _ => by simp only [hwires a])
   have himg : ∀ z : Wire n g → Bool, (∃ w ∈ univ.image ws, z w = true) ↔ ∃ a, z (ws a) = true :=
     fun z => by simp
   rcases op with ((_ | mm | mm) | mm)
@@ -334,14 +330,8 @@ private theorem linePoly_correct (r : Seed ℓ) (k : Fin g) (op : Unbounded.ExtO
     rw [one_sub_emod_two_ne_zero_iff]
     have h := (orTest_emod_two_ne_zero_iff (seedBasis ℓ) (fun w => r ^ widx w) (univ.image ws)
       fun w => !y w).trans (Iff.trans hgood' (himg _))
-    constructor
-    · intro h0 a
-      by_contra ha
-      exact h.2 ⟨a, by simpa using ha⟩ h0
-    · intro hall
-      by_contra h0
-      obtain ⟨a, ha⟩ := h.1 h0
-      simp [hall a] at ha
+    rw [← not_iff_not, ← ne_eq, h]
+    simp
   · -- OR
     simp only [linePoly, Unbounded.extInterpretation_ac, Unbounded.interpretation_or, hor]
     refine decide_eq_decide.2 ?_
@@ -506,12 +496,9 @@ theorem card_not_goodAt_le (A : Finset (Wire n g)) (y : Wire n g → Bool) :
           simp only [sum_map] at h
           exact h.trans (Nat.sub_le _ _)
   · rw [Finset.not_nonempty_iff_eq_empty] at hA
-    calc #{r : Seed ℓ | ¬ GoodAt r A y} = 0 := by
-          refine card_eq_zero.2 (filter_eq_empty_iff.2 fun r _ => not_not.2 ?_)
-          refine Iff.intro (fun h => absurd (by rw [hA, sum_empty]) h) fun ⟨w, hw, hy⟩ => ?_
-          have : w ∈ A.filter fun w => y w = true := mem_filter.2 ⟨hw, hy⟩
-          simp [hA] at this
-      _ ≤ n + g := Nat.zero_le _
+    refine (card_eq_zero.2 (filter_eq_empty_iff.2 fun r _ => not_not.2 ?_)).trans_le (Nat.zero_le _)
+    refine Iff.intro (fun h => absurd (by rw [hA, sum_empty]) h) fun ⟨w, hw, hy⟩ => ?_
+    exact absurd (mem_filter.2 ⟨hw, hy⟩ : w ∈ A.filter fun w => y w = true) (by simp [hA])
 
 /-- **Few bad seeds.** On every input, at most `2g (n + g)` seeds are bad. -/
 theorem card_not_good_le (P : Program Unbounded.extSignature n g) (m : ℕ) (x : Fin n → Bool) :
@@ -525,26 +512,17 @@ theorem card_not_good_le (P : Program Unbounded.extSignature n g) (m : ℕ) (x :
               fun w => !P.trace (Unbounded.extInterpretation (modGate m)) x w} :
             Finset (Seed ℓ))) := by
         refine card_le_card fun r hr => ?_
-        simp only [Good, mem_filter, mem_univ, true_and, not_forall] at hr
-        obtain ⟨k, hk⟩ := hr
+        simp only [Good, mem_filter, mem_univ, true_and, not_forall, not_and_or] at hr
         simp only [mem_biUnion, mem_univ, true_and, mem_union, mem_filter]
-        refine ⟨k, ?_⟩
-        by_cases h1 : GoodAt r (univ.image (P.lines k).wires)
-            (P.trace (Unbounded.extInterpretation (modGate m)) x)
-        · exact Or.inr fun h2 => hk ⟨h1, h2⟩
-        · exact Or.inl h1
+        exact hr
     _ ≤ ∑ k : Fin g, (#{r : Seed ℓ | ¬ GoodAt r (univ.image (P.lines k).wires)
               (P.trace (Unbounded.extInterpretation (modGate m)) x)} +
           #{r : Seed ℓ | ¬ GoodAt r (univ.image (P.lines k).wires)
               fun w => !P.trace (Unbounded.extInterpretation (modGate m)) x w}) :=
         card_biUnion_le.trans (sum_le_sum fun k _ => card_union_le _ _)
     _ ≤ ∑ _k : Fin g, 2 * (n + g) :=
-        sum_le_sum fun k _ => by
-          have h1 := card_not_goodAt_le (ℓ := ℓ) (univ.image (P.lines k).wires)
-            (P.trace (Unbounded.extInterpretation (modGate m)) x)
-          have h2 := card_not_goodAt_le (ℓ := ℓ) (univ.image (P.lines k).wires)
-            fun w => !P.trace (Unbounded.extInterpretation (modGate m)) x w
-          omega
+        sum_le_sum fun k _ =>
+          (add_le_add (card_not_goodAt_le _ _) (card_not_goodAt_le _ _)).trans_eq (two_mul _).symm
     _ = g * (2 * (n + g)) := by simp
 
 /-! ### The majority over the seeds -/
@@ -767,11 +745,8 @@ private theorem toSymAnd_spec {n : ℕ} (C : Circuit Unbounded.extSignature n 1)
       obtain ⟨hp, hpB, hq⟩ := layer_ok C.program hm (mem_macroS_of_mem_towerS C.program hL₀)
       exact ⟨hp, by change L₀.p ≤ B; omega, SLayer.lift_mem_lowDegree L₀ fun r s =>
         lowDegree_mono (by omega) (hq r s)⟩
-  have hT : Fintype.card (Seed ℓ × Slot n C.size m) + 1 ≤ 2 ^ B := by
-    have := card_seed_slot_lt (m := m) hN
-    have h : 2 ^ (3 * ℓ + 2 + (m + 1) ^ 2) ≤ 2 ^ B := Nat.pow_le_pow_right (by norm_num)
-      (by omega)
-    exact this.trans_le h
+  have hT : Fintype.card (Seed ℓ × Slot n C.size m) + 1 ≤ 2 ^ B :=
+    (card_seed_slot_lt (m := m) hN).trans_le (Nat.pow_le_pow_right (by norm_num) (by omega))
   have hf : (top ℓ (Sum.inl (C.outputs 0) : Slot n C.size m)).fanIn ≤ B :=
     (fanIn_top_le _).trans (by omega)
   have hs : (top ℓ (Sum.inl (C.outputs 0) : Slot n C.size m)).size ≤ 2 ^ B := by

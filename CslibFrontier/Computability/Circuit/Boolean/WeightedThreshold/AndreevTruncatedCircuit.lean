@@ -323,9 +323,8 @@ theorem andreevTruncationRadius_le (b m r : ℕ) (δ : ℝ) :
 /-- At balance (`k m = N`), `v = 5 N / 4`. -/
 private theorem andreevVarianceProxy_of_balanced {b m : ℕ} (hbal : b * m = 2 ^ b) :
     andreevVarianceProxy b m = 5 / 4 * 2 ^ b := by
-  have : (b : ℝ) * m = 2 ^ b := by exact_mod_cast hbal
   unfold andreevVarianceProxy
-  rw [this]
+  rw [show (b : ℝ) * m = 2 ^ b by exact_mod_cast hbal]
   ring
 
 /-- `4 √(v L') ≤ C √(N L)` from `16 v L' ≤ C² N L`. -/
@@ -364,13 +363,10 @@ theorem size_andreevTruncatedCircuit_le_of_balanced {b m : ℕ} (hbal : b * m = 
   have hNL : 1 / 2 ≤ N * L := by
     simpa only [one_mul] using mul_le_mul hN hL2 (by norm_num) (by linarith only [hN])
   have hR : (R : ℝ) ≤ 11 * Real.sqrt (N * L) + 1 := by
-    refine (andreevTruncationRadius_le b m b δ).trans ?_
-    have h4 : 4 * Real.sqrt (andreevVarianceProxy b m *
-        Real.log (16 * andreevVarianceProxy b m / (2 ^ b * δ))) ≤ 11 * Real.sqrt (N * L) := by
-      refine four_mul_sqrt_le (by norm_num) ?_
-      rw [hv] at h20 ⊢
-      linarith only [mul_le_mul_of_nonneg_left h20 (by linarith only [hN] : (0 : ℝ) ≤ 20 * N), hNL]
-    linarith only [h4]
+    refine (andreevTruncationRadius_le b m b δ).trans
+      (add_le_add_left (four_mul_sqrt_le (C := 11) (by norm_num) ?_) 1)
+    rw [hv] at h20 ⊢
+    linarith only [mul_le_mul_of_nonneg_left h20 (by linarith only [hN] : (0 : ℝ) ≤ 20 * N), hNL]
   have hX : 1 / 2 ≤ Real.sqrt (N * L) := by
     rw [Real.le_sqrt (by norm_num) (by linarith only [hNL])]
     linarith only [hNL]
@@ -422,11 +418,9 @@ theorem andreevVoteLevel_spec {b : ℕ} {ε : ℝ} (hε : 1 / Real.sqrt (2 ^ b) 
     andreevVoteLevel_le h
   set r := andreevVoteLevel b ε
   -- `b ≥ 1`, as `N ≥ 64`.
-  have hb : 1 ≤ b := by
-    rcases Nat.eq_zero_or_pos b with rfl | h
-    · rw [pow_zero, mul_one] at hεN
-      linarith only [hεN, hε2]
-    · exact h
+  have hb : 1 ≤ b := Nat.one_le_iff_ne_zero.mpr fun hb0 => by
+    rw [hb0, pow_zero, mul_one] at hεN
+    linarith only [hεN, hε2]
   constructor
   · -- `32 ε² N ≤ N / 2 = 2 ^ (b - 1)`.
     have hle : r ≤ b - 1 := hspec (by
@@ -491,11 +485,8 @@ theorem andreevTruncatedCircuit_part_two_of_balanced {b m : ℕ} (hbal : b * m =
       _ = 3 * L := by rw [Real.log_pow]; push_cast; ring
   have hNL1 : 1 ≤ N * L := one_le_mul_of_one_le_of_one_le hN hL1
   have hR : (R : ℝ) ≤ 8 * Real.sqrt (N * L) + 1 := by
-    refine (andreevTruncationRadius_le b m r ε).trans ?_
-    suffices h4 : 4 * Real.sqrt (andreevVarianceProxy b m *
-        Real.log (16 * andreevVarianceProxy b m / (2 ^ r * ε))) ≤ 8 * Real.sqrt (N * L) by
-      linarith only [h4]
-    refine four_mul_sqrt_le (by norm_num) ?_
+    refine (andreevTruncationRadius_le b m r ε).trans
+      (add_le_add_left (four_mul_sqrt_le (C := 8) (by norm_num) ?_) 1)
     rw [hv] at hlog ⊢
     linarith only [mul_le_mul_of_nonneg_left hlog (by linarith only [hN] : (0 : ℝ) ≤ 20 * N), hNL1]
   have hX : 1 ≤ Real.sqrt (N * L) := Real.one_le_sqrt.2 hNL1

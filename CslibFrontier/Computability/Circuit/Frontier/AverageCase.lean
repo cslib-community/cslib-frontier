@@ -462,10 +462,7 @@ theorem multiaryAverageCaseBound_of_layoutBound {A : ℝ} (hA : 0 < A) (hlayout 
   intro σ I Acc c hfan hsize
   obtain ⟨c', heval, hfan_c', hmult, hsize_c'⟩ := c.exists_eval_eq_multiarySize_size_le I
   have hfan' : c'.FanInAtMost 2 := hfan_c' 2 hfan
-  have hacc_eq : {x : Fin n → U | c.eval I x 0 ∈ Acc} = {x | c'.eval I x 0 ∈ Acc} := by
-    ext x
-    simp [congrFun (congrFun heval x) 0]
-  rw [hacc_eq]
+  rw [← heval]
   have hK2 : 2 ≤ K' n := le_max_right _ _
   have hS : RectangleBias (S n) (K' n) (b n) := hbiasn.mono (le_max_left _ _)
   have hb : 0 ≤ b n := hS.nonneg (by
@@ -479,9 +476,8 @@ theorem multiaryAverageCaseBound_of_layoutBound {A : ℝ} (hA : 0 < A) (hlayout 
   by_cases hu : K' n ≤ q ^ (Compiler.network c' I fun _ => Acc).readᶜ.ncard
   · have hlog : Real.logb q ((q * K' n ^ 2 : ℕ) : ℝ) ≤ (1 - 1 / 2) * n := by
       push_cast
-      rw [Real.logb_mul (by positivity) (by positivity), Real.logb_pow,
+      rwa [Real.logb_mul (by positivity) (by positivity), Real.logb_pow,
         Real.logb_self_eq_one (by linarith)]
-      exact hsmalln
     linarith [agreement_le_of_unread I Acc c' hS hb (by omega) hu,
       div_pow_le_exp hq2 (by positivity) (by norm_num) hlog, hexp_mono _ (min_le_right _ _)]
   · push Not at hu
@@ -515,11 +511,9 @@ theorem multiaryAverageCaseBound_of_layoutBound {A : ℝ} (hA : 0 < A) (hlayout 
       have hlogV1 : 0 ≤ Real.log ((V : ℝ) + 1) :=
         Real.log_nonneg (by linarith [Nat.cast_nonneg (α := ℝ) V])
       have hlogbV : Real.logb q ((V : ℝ) + 1) ≤ κ * Real.log ((V : ℝ) + 1) := by
-        refine (logb_le_mul_log hq2 (by linarith [Nat.cast_nonneg (α := ℝ) V])).trans ?_
-        refine mul_le_mul_of_nonneg_right ?_ hlogV1
-        simp only [κ]
-        have hqq : (0 : ℝ) ≤ (q : ℝ) ^ q := by positivity
-        linarith [Nat.cast_nonneg (α := ℝ) q]
+        refine (logb_le_mul_log hq2 (by linarith [Nat.cast_nonneg (α := ℝ) V])).trans
+          (mul_le_mul_of_nonneg_right ?_ hlogV1)
+        linarith [Nat.cast_nonneg (α := ℝ) q, pow_nonneg (Nat.cast_nonneg (α := ℝ) q) q]
       simp only [e] at hmargin
       linarith
     linarith [agreement_le_of_layout I Acc c' hS hb hfan' hu π le_rfl,

@@ -306,6 +306,11 @@ private theorem bool_eq_of_toNat_eq : ∀ a b : Bool, a.toNat = b.toNat → a = 
 private theorem bool_eq_of_not_toNat_eq : ∀ a b : Bool, (!a).toNat = (!b).toNat → a = b := by
   decide
 
+/-- Deciding a weaker proposition gives a larger bit. -/
+private theorem toNat_decide_le {P Q : Prop} [Decidable P] [Decidable Q] (h : P → Q) :
+    (decide P).toNat ≤ (decide Q).toNat := by
+  by_cases hP : P <;> simp [hP, h]
+
 private theorem piecesAtMost_prefixValues (p : Program signature n g) (fixed : Finset (Fin g))
     (η : Fin g → Bool) (slope : Fin g → ℝ) (d : ℕ) :
     PiecesAtMost (prefixValues p fixed η slope d) (2 ^ activeCount fixed slope d) := by
@@ -356,35 +361,20 @@ private theorem piecesAtMost_prefixValues (p : Program signature n g) (fixed : F
     have hb1 : ∀ t, b t ≤ 1 := fun t => Bool.toNat_le _
     have hbmono : ∀ t t', t ≤ t' → π t = π t' → b t ≤ b t' := by
       intro t t' htt' e
-      have hv := fac t t' e
-      simp only [b, hval, hv]
-      by_cases hpos : 0 < slope j₀
-      · simp only [hpos, ite_true]
-        have : slope j₀ * t ≤ slope j₀ * t' := mul_le_mul_of_nonneg_left htt' hpos.le
-        by_cases h : (p.lines j₀).op.threshold ≤
-            slope j₀ * t + F (prefixValues p fixed η slope d t')
-        · have h' : (p.lines j₀).op.threshold ≤
-              slope j₀ * t' + F (prefixValues p fixed η slope d t') := by linarith
-          simp [h, h']
-        · simp [h]
-      · simp only [hpos, ite_false]
-        have hneg : slope j₀ < 0 := lt_of_le_of_ne (not_lt.mp hpos) hslope
-        have : slope j₀ * t' ≤ slope j₀ * t := mul_le_mul_of_nonpos_left htt' hneg.le
-        by_cases h : (p.lines j₀).op.threshold ≤
-            slope j₀ * t' + F (prefixValues p fixed η slope d t')
-        · have h' : (p.lines j₀).op.threshold ≤
-              slope j₀ * t + F (prefixValues p fixed η slope d t') := by linarith
-          simp [h, h']
-        · simp [h, Bool.toNat_le]
+      simp only [b, hval, fac t t' e]
+      split_ifs with hpos
+      · have := mul_le_mul_of_nonneg_left htt' hpos.le
+        exact toNat_decide_le fun h => by linarith
+      · have := mul_le_mul_of_nonpos_left htt' (not_lt.mp hpos)
+        simp only [← decide_not]
+        exact toNat_decide_le fun h h' => h (by linarith)
     refine ⟨fun t => 2 * π t + b t, ?_, ?_, ?_⟩
     · intro t t' htt'
+      have := hb1 t
       rcases (mono htt').lt_or_eq with h | h
-      · have := hb1 t
-        simp only
-        omega
+      · dsimp only; omega
       · have := hbmono t t' htt' h
-        simp only
-        omega
+        dsimp only; omega
     · intro t
       have := lt t
       have := hb1 t
@@ -399,11 +389,8 @@ private theorem piecesAtMost_prefixValues (p : Program signature n g) (fixed : F
       have hbb : b t = b t' := by omega
       have hgg : val t = val t' := by
         simp only [b] at hbb
-        by_cases hpos : 0 < slope j₀
-        · simp only [hpos, ite_true] at hbb
-          exact bool_eq_of_toNat_eq _ _ hbb
-        · simp only [hpos, ite_false] at hbb
-          exact bool_eq_of_not_toNat_eq _ _ hbb
+        split_ifs at hbb
+        exacts [bool_eq_of_toNat_eq _ _ hbb, bool_eq_of_not_toNat_eq _ _ hbb]
       rw [hsucc t, hsucc t', fac t t' hπ]
       exact congrArg _ hgg
 

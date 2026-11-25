@@ -716,15 +716,9 @@ theorem isDepthTwoOverWeights_eval_embedUpdate {κ : Type*} [Fintype κ]
     have hF_sum : (∑ k ∈ F, gateWeight c.program top k * ev k u) =
         (∑ k ∈ F, gateWeight c.program top k * c₀ k) +
           ∑ j : κ, (∑ k ∈ F, gateWeight c.program top k * d k j) * (u j).toNat := by
-      calc (∑ k ∈ F, gateWeight c.program top k * ev k u)
-          = ∑ k ∈ F, gateWeight c.program top k * (c₀ k + ∑ j : κ, d k j * (u j).toNat) :=
-            sum_congr rfl fun k hk => by rw [hcd k hk u]
-        _ = (∑ k ∈ F, gateWeight c.program top k * c₀ k) +
-              ∑ k ∈ F, ∑ j : κ, gateWeight c.program top k * d k j * (u j).toNat := by
-            simp_rw [mul_add, sum_add_distrib, mul_sum, mul_assoc]
-        _ = (∑ k ∈ F, gateWeight c.program top k * c₀ k) +
-              ∑ j : κ, (∑ k ∈ F, gateWeight c.program top k * d k j) * (u j).toNat := by
-            rw [sum_comm]; congr 1; exact sum_congr rfl fun j _ => by rw [sum_mul]
+      rw [sum_congr rfl fun k hk => congrArg _ (hcd k hk u)]
+      simp only [mul_add, sum_add_distrib, mul_sum, sum_mul, mul_assoc]
+      exact congrArg _ sum_comm
     change decide ((c.program.lines top).op.threshold ≤
       ((∑ i ∈ (univ.image emb)ᶜ, inputWeight c.program top i * (w i).toNat) +
         ∑ j : κ, inputWeight c.program top (emb j) * (u j).toNat) +

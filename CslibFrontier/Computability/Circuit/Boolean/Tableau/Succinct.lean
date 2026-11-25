@@ -564,10 +564,8 @@ theorem satisfiable_succinctCNF_iff_tseitin {n T : ℕ} (hn : n < 2 * T) {x : Li
       (tseitinSatCNF x n (gates tm n T) (outWire k State n T)).Satisfiable := by
   have hcb : 2 * T < 2 ^ colBits T := Nat.lt_size_self _
   have hpay {p : ℕ} (hp : p < 2 ^ colBits T) :
-      p < 2 ^ (slotBits k State + colBits T + timeBits T) := by
-    have : 2 ^ colBits T ≤ 2 ^ (slotBits k State + colBits T + timeBits T) :=
-      Nat.pow_le_pow_right (by norm_num) (by omega)
-    omega
+      p < 2 ^ (slotBits k State + colBits T + timeBits T) :=
+    hp.trans_le (Nat.pow_le_pow_right (by norm_num) (by omega))
   have hout_ok : (Loc.gf (k := k) (State := State) (.out (.one true)) true 7).ColOK T 0 := rfl
   constructor
   · rintro ⟨σ, hσ⟩
@@ -596,8 +594,7 @@ theorem satisfiable_succinctCNF_iff_tseitin {n T : ℕ} (hn : n < 2 * T) {x : Li
             simpa [clauseOf, j.isLt, hg₂] using this
         have hw : n + g = n + (decide (g = 1)).toNat := by
           rcases (show g = 0 ∨ g = 1 by omega) with rfl | rfl <;> rfl
-        rw [hcode, hw, wireLabel_const]
-        exact hc
+        rwa [hcode, hw, wireLabel_const]
       · obtain ⟨t, ht, l, c, hl, hw⟩ := exists_wire_eq (k := k) (State := State) (n := n)
           (Nat.le_of_not_lt hg₂) hg
         have hwn : n + (wire n T t l c - n) = wire n T t l c := by simp only [wire]; omega

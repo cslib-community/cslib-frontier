@@ -119,20 +119,14 @@ theorem denseRectangleFree_of_eventually_rectangleBias {U : Type u} [Finite U] [
       filter_upwards [hKlog.bound (show 0 < Real.log q / 3 by positivity), hKpos,
         eventually_ge_atTop 6] with n hn hKn hn6
       have hdiv : (n : ℝ) / 3 ≤ ((n / 2 : ℕ) : ℝ) := by
-        have h1 : 3 ≤ n / 2 := by omega
-        have h2 : n ≤ 2 * (n / 2) + 1 := by omega
-        have h1' : (3 : ℝ) ≤ (n / 2 : ℕ) := by exact_mod_cast h1
-        have h2' : (n : ℝ) ≤ 2 * ((n / 2 : ℕ) : ℝ) + 1 := by exact_mod_cast h2
+        have : (n : ℝ) ≤ 3 * ((n / 2 : ℕ) : ℝ) := by exact_mod_cast (by omega : n ≤ 3 * (n / 2))
         linarith
       simp only [Real.norm_eq_abs, abs_of_nonneg (Nat.cast_nonneg (α := ℝ) n)] at hn
       have hlog_le : Real.log (K n) ≤ Real.log ((q : ℝ) ^ (n / 2)) := by
         rw [Real.log_pow]
         have := (le_abs_self (Real.log (K n))).trans hn
         nlinarith
-      have hKpos_r : (0 : ℝ) < K n := by exact_mod_cast lt_of_lt_of_le Nat.zero_lt_one hKn
-      have hle_r : (K n : ℝ) ≤ (q : ℝ) ^ (n / 2) :=
-        (Real.log_le_log_iff hKpos_r (by positivity)).mp hlog_le
-      exact_mod_cast hle_r
+      exact_mod_cast (Real.log_le_log_iff (by exact_mod_cast hKn) (by positivity)).mp hlog_le
     set c' := max c 0
     have hc'half : c' < 1 / 2 := max_lt hc (by norm_num)
     have hgap : 0 < 1 / 2 - c' := by linarith
@@ -162,15 +156,12 @@ theorem denseRectangleFree_of_eventually_rectangleBias {U : Type u} [Finite U] [
       have hb_le : b n ≤ c' := hbcn.trans (le_max_left c 0)
       have hqn_pos : (0 : ℝ) < (q : ℝ) ^ n := by positivity
       have hS_lower : (1 / 2 - c') * (q : ℝ) ^ n ≤ (S n).ncard := by
-        have h1 : (q : ℝ) ^ n / 2 - (S n).ncard ≤ b n * (q : ℝ) ^ n :=
-          (neg_sub ((S n).ncard : ℝ) _ ▸ le_abs.mpr (Or.inr le_rfl)).trans hbias_n
         have h2 : b n * (q : ℝ) ^ n ≤ c' * (q : ℝ) ^ n := by gcongr
-        linarith
+        linarith [neg_le_abs ((S n).ncard - (q : ℝ) ^ n / 2)]
       have hS_pos : (0 : ℝ) < (S n).ncard := lt_of_lt_of_le (by positivity) hS_lower
       have hS_upper : ((S n).ncard : ℝ) ≤ (q : ℝ) ^ n := by
-        have := ncard_le_ncard (subset_univ (S n)) (toFinite _)
-        have h_r : ((S n).ncard : ℝ) ≤ (univ : Set (Fin n → U)).ncard := by exact_mod_cast this
-        rwa [hcard_univ] at h_r
+        rw [← hcard_univ]
+        exact_mod_cast ncard_le_ncard (subset_univ (S n)) (toFinite _)
       have hlog_low : Real.log (1 / 2 - c') + n * Real.log q ≤ Real.log (S n).ncard := by
         have := (Real.log_le_log_iff (by positivity) hS_pos).mpr hS_lower
         rwa [Real.log_mul hgap.ne' hqn_pos.ne', Real.log_pow] at this
@@ -185,11 +176,8 @@ theorem denseRectangleFree_of_eventually_rectangleBias {U : Type u} [Finite U] [
     filter_upwards [hdef_bdd,
       tendsto_natCast_atTop_atTop.eventually (eventually_ge_atTop (B / δ))] with n hbn hRn
     simp only [Real.norm_eq_abs, abs_of_nonneg (Nat.cast_nonneg (α := ℝ) n)]
-    have hB : -Real.log (1 / 2 - c') ≤ B := le_max_left _ _
-    have hBδ : B ≤ δ * n := by
-      have : B / δ * δ = B := div_mul_cancel₀ B hδ.ne'
-      nlinarith
-    linarith
+    have hBδ : B ≤ δ * n := by rwa [div_le_iff₀ hδ, mul_comm] at hRn
+    linarith [le_max_left (-Real.log (1 / 2 - c')) 0]
 
 /-! ### Zero-padding combinatorial rectangles into XOR-sums of independent sources -/
 
@@ -323,14 +311,13 @@ theorem rectangleBias_of_isSumsetExtractor {n m k : ℕ} {ε : ℝ}
         ((PMF.uniformOfFintype A).bind fun a =>
           (PMF.uniformOfFintype B).map fun b => padLeft X a.val + padRight X b.val) := by
       simp [pA, pB, PMF.bind_map, PMF.map_comp, Function.comp_def]
-    rw [h1, PMF.uniformOfFintype_bind_map]
-    have h2 : (fun p : ↥A × ↥B => padLeft X p.1.val + padRight X p.2.val) =
-        Subtype.val ∘ rectProdEquiv X A B := rfl
-    rw [h2, ← PMF.map_comp, PMF.uniformOfFintype_map_equiv]
+    rw [h1, PMF.uniformOfFintype_bind_map,
+      show (fun p : ↥A × ↥B => padLeft X p.1.val + padRight X p.2.val) =
+        Subtype.val ∘ rectProdEquiv X A B from rfl, ← PMF.map_comp, PMF.uniformOfFintype_map_equiv]
   let proj : BitString m → Bool := fun y => eqBoolEquiv val (y j)
   have hunif : (PMF.uniformOfFintype (BitString m)).map proj = PMF.uniformOfFintype Bool := by
-    have hcomp : proj = ⇑(eqBoolEquiv val) ∘ (fun y : BitString m => y j) := rfl
-    rw [hcomp, ← PMF.map_comp, ← PMF.pi_uniformOfFintype (α := fun _ : Fin m => Bool),
+    rw [show proj = ⇑(eqBoolEquiv val) ∘ (fun y : BitString m => y j) from rfl, ← PMF.map_comp,
+      ← PMF.pi_uniformOfFintype (α := fun _ : Fin m => Bool),
       PMF.pi_map_eval, PMF.uniformOfFintype_map_equiv]
   let pOut : PMF Bool := (PMF.uniformOfFintype R).map (fun r : R => decide (ext r.val j = val))
   have hpOut : ((pA.bind fun x => pB.map fun y => x + y).map ext).map proj = pOut := by
@@ -355,9 +342,7 @@ theorem rectangleBias_of_isSumsetExtractor {n m k : ℕ} {ε : ℝ}
     rw [PMF.toReal_uniformOfFintype_map_apply_true, Finset.dens_eq_card_div_card, hcard_fib,
       hcardR, NNRat.cast_div, NNRat.cast_natCast, NNRat.cast_natCast]
   rw [hpOut_true] at hdist
-  have hR_pos : (0 : ℝ) < R.ncard := by
-    rw [← hcardR]
-    exact_mod_cast Fintype.card_pos (α := R)
+  have hR_pos : (0 : ℝ) < R.ncard := by exact_mod_cast hcardR ▸ Fintype.card_pos (α := R)
   have hmul := mul_le_mul_of_nonneg_right hdist hR_pos.le
   have h_abs : |((R ∩ S).ncard : ℝ) / R.ncard - 1 / 2| * R.ncard =
       |((R ∩ S).ncard : ℝ) - R.ncard / 2| := by
