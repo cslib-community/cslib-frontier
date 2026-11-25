@@ -1402,18 +1402,12 @@ theorem oligopoly_surplus_five_sixths {Link Provider : Type*} [Fintype Link] [De
                 (fun k => owner k = s₀) x).symm
             have hdU_d_ge : ∑ q ∈ compSet, (dU ^ 2 / latencyDeriv q (x q) + dU * x q) ≤
                 dU * d := by
-              have hmul := mul_le_mul_of_nonneg_left hdU_Xs hdU0
               have hsum1 : dU * (dU * ∑ q ∈ compSet, (latencyDeriv q (x q))⁻¹) =
                   ∑ q ∈ compSet, dU ^ 2 / latencyDeriv q (x q) := by
                 rw [← mul_assoc, Finset.mul_sum]
-                refine Finset.sum_congr rfl fun q _ => ?_
-                ring
-              rw [hd_split, mul_add]
-              have hsplit_sum : ∑ q ∈ compSet, (dU ^ 2 / latencyDeriv q (x q) + dU * x q) =
-                  (∑ q ∈ compSet, dU ^ 2 / latencyDeriv q (x q)) +
-                    ∑ q ∈ compSet, dU * x q := Finset.sum_add_distrib
-              rw [hsplit_sum, ← Finset.mul_sum]
-              linarith
+                exact Finset.sum_congr rfl fun q _ => by ring
+              rw [hd_split, mul_add, Finset.sum_add_distrib, ← Finset.mul_sum]
+              linarith [mul_le_mul_of_nonneg_left hdU_Xs hdU0]
             -- Partition ∑ k over ownSet and compSet and apply the two per-link lemmas!
             have hpart_env : ∑ k, linkSurplusEnvelope m (latency k (x k))
                   (x k * latencyDeriv k (x k)) (latencyDeriv k (x k)) =
@@ -1440,9 +1434,9 @@ theorem oligopoly_surplus_five_sixths {Link Provider : Type*} [Fintype Link] [De
                 (h.latencyDeriv_nonneg r (hoe.2.1.1.1 r))
             have hcomp_bound : 5 * ∑ q ∈ compSet, linkSurplusEnvelope m (latency q (x q))
                   (x q * latencyDeriv q (x q)) (latencyDeriv q (x q)) ≤
-                ∑ q ∈ compSet, (6 * (m * x q - x q * latency q (x q)) +
-                  (dU ^ 2 / latencyDeriv q (x q) + dU * x q)) := by
-              rw [Finset.mul_sum]
+                6 * (∑ q ∈ compSet, (m * x q - x q * latency q (x q))) +
+                  ∑ q ∈ compSet, (dU ^ 2 / latencyDeriv q (x q) + dU * x q) := by
+              rw [Finset.mul_sum, Finset.mul_sum, ← Finset.sum_add_distrib]
               refine Finset.sum_le_sum fun q hq => ?_
               have hq_comp : owner q ≠ s₀ := (Finset.mem_filter.mp hq).2
               have h1 := linkSurplusEnvelope_competitor_five_sixths (dU := dU)
@@ -1450,14 +1444,8 @@ theorem oligopoly_surplus_five_sixths {Link Provider : Type*} [Fintype Link] [De
                 (hcomp_pos q hq_comp) (h.latency_le_mul_deriv q (hoe.2.1.1.1 q))
                 hm0 (hi₀_min q (Finset.mem_univ q)) (by linarith [hmc_le_c q])
               linarith
-            have hcomp_split : ∑ q ∈ compSet, (6 * (m * x q - x q * latency q (x q)) +
-                  (dU ^ 2 / latencyDeriv q (x q) + dU * x q)) =
-                6 * (∑ q ∈ compSet, (m * x q - x q * latency q (x q))) +
-                  ∑ q ∈ compSet, (dU ^ 2 / latencyDeriv q (x q) + dU * x q) := by
-              rw [Finset.sum_add_distrib, ← Finset.mul_sum]
             rw [hpart_env] at hy_env
             rw [hpart_x] at hx_decomp
-            rw [hcomp_split] at hcomp_bound
             linarith
         · -- Monopoly subcase: ∀ q, owner q = s₀, so mc k = m for all k!
           push Not at hcomp_ne
