@@ -417,6 +417,18 @@ lemma step_ofTM0Cfg_of_none {c : _root_.Turing.TM0.Cfg (Option Symbol) Λ} (hq :
   rw [htr]
   simp [BiTape.optionMove, ← BiTape.head_equivTape_symm]
 
+private lemma ofTM0Cfg_inj {c c' : _root_.Turing.TM0.Cfg (Option Symbol) Λ} {hq : c.q ∈ S}
+    {hq' : c'.q ∈ S} (h : ofTM0Cfg M S hs c hq = ofTM0Cfg M S hs c' hq') : c = c' := by
+  rcases c with ⟨q, T⟩
+  rcases c' with ⟨q', T'⟩
+  obtain rfl : q = q' := Subtype.ext_iff.mp (Option.some.inj (congrArg Cfg.state h))
+  obtain rfl : T = T' := BiTape.equivTape.symm.injective (congrArg Cfg.BiTape h)
+  rfl
+
+private lemma mk_some_eq_ofTM0Cfg {q : Λ} (hq : q ∈ S) (t : BiTape Symbol) :
+    (⟨some ⟨q, hq⟩, t⟩ : (ofTM0 M S hs).Cfg) = ofTM0Cfg M S hs ⟨q, BiTape.equivTape t⟩ hq := by
+  simp [ofTM0Cfg]
+
 theorem relatesInSteps_ofTM0Cfg {c₁ c₂ : _root_.Turing.TM0.Cfg (Option Symbol) Λ}
     (hq₁ : c₁.q ∈ S) (n : ℕ) :
     RelatesInSteps (fun a b => b ∈ _root_.Turing.TM0.step M a) c₁ c₂ n ↔
@@ -425,20 +437,10 @@ theorem relatesInSteps_ofTM0Cfg {c₁ c₂ : _root_.Turing.TM0.Cfg (Option Symbo
   induction n generalizing c₂ with
   | zero =>
     constructor
-    · intro h
-      cases h
+    · rintro ⟨⟩
       exact ⟨hq₁, .refl _⟩
     · rintro ⟨hq₂, h⟩
-      have heq := RelatesInSteps.zero h
-      rcases c₁ with ⟨q₁, T₁⟩
-      rcases c₂ with ⟨q₂, T₂⟩
-      have hq_eq : q₁ = q₂ := by
-        have h1 := congrArg Cfg.state heq
-        exact Subtype.ext_iff.mp (Option.some.inj h1)
-      have hT_eq : T₁ = T₂ := by
-        have h2 := congrArg Cfg.BiTape heq
-        exact BiTape.equivTape.symm.injective h2
-      subst hq_eq hT_eq
+      obtain rfl := ofTM0Cfg_inj M S hs (RelatesInSteps.zero h)
       exact .refl _
   | succ n ih =>
     rw [RelatesInSteps.succ_iff]
@@ -451,31 +453,14 @@ theorem relatesInSteps_ofTM0Cfg {c₁ c₂ : _root_.Turing.TM0.Cfg (Option Symbo
       rcases RelatesInSteps.succ hrel with ⟨cfg', hrel', hstep'⟩
       rcases cfg' with ⟨_ | ⟨q', hq'⟩, t'⟩
       · cases hstep'
-      · let c' : _root_.Turing.TM0.Cfg (Option Symbol) Λ := ⟨q', BiTape.equivTape t'⟩
-        have hcfg' : (⟨some ⟨q', hq'⟩, t'⟩ : (ofTM0 M S hs).Cfg) = ofTM0Cfg M S hs c' hq' := by
-          simp [ofTM0Cfg, c']
-        rw [hcfg'] at hrel' hstep'
-        have hrel₁ : RelatesInSteps (fun a b => b ∈ _root_.Turing.TM0.step M a) c₁ c' n :=
-          (ih (c₂ := c')).mpr ⟨hq', hrel'⟩
-        rcases hM : _root_.Turing.TM0.step M c' with _ | c''
-        · have hnone := step_ofTM0Cfg_of_none M S hs hq' hM
-          rw [TransitionRelation, hnone] at hstep'
+      · rw [mk_some_eq_ofTM0Cfg M S hs hq'] at hrel' hstep'
+        have hrel₁ := (ih (c₂ := ⟨q', BiTape.equivTape t'⟩)).mpr ⟨hq', hrel'⟩
+        rcases hM : _root_.Turing.TM0.step M ⟨q', BiTape.equivTape t'⟩ with _ | c''
+        · rw [TransitionRelation, step_ofTM0Cfg_of_none M S hs hq' hM] at hstep'
           cases hstep'
-        · have hsome := step_ofTM0Cfg_of_some M S hs hq' hM
-          rw [TransitionRelation, hsome, Option.some.injEq] at hstep'
-          have hc'' : c'' = c₂ := by
-            rcases c'' with ⟨q'', T''⟩
-            rcases c₂ with ⟨q₂, T₂⟩
-            have hq_eq : q'' = q₂ := by
-              have h1 := congrArg Cfg.state hstep'
-              exact Subtype.ext_iff.mp (Option.some.inj h1)
-            have hT_eq : T'' = T₂ := by
-              have h2 := congrArg Cfg.BiTape hstep'
-              exact BiTape.equivTape.symm.injective h2
-            subst hq_eq hT_eq
-            rfl
-          subst hc''
-          exact ⟨c', hrel₁, hM⟩
+        · rw [TransitionRelation, step_ofTM0Cfg_of_some M S hs hq' hM, Option.some.injEq] at hstep'
+          obtain rfl := ofTM0Cfg_inj M S hs hstep'
+          exact ⟨_, hrel₁, hM⟩
 
 theorem relatesInSteps_ofTM0Cfg_none {c₁ : _root_.Turing.TM0.Cfg (Option Symbol) Λ}
     (hq₁ : c₁.q ∈ S) (t_f : BiTape Symbol) (m : ℕ) :
@@ -493,22 +478,14 @@ theorem relatesInSteps_ofTM0Cfg_none {c₁ : _root_.Turing.TM0.Cfg (Option Symbo
     · rintro ⟨cfg', hrel', hstep'⟩
       rcases cfg' with ⟨_ | ⟨q_f, hq_f⟩, t'⟩
       · cases hstep'
-      · let c_f : _root_.Turing.TM0.Cfg (Option Symbol) Λ := ⟨q_f, BiTape.equivTape t'⟩
-        have hcfg' : (⟨some ⟨q_f, hq_f⟩, t'⟩ : (ofTM0 M S hs).Cfg) =
-            ofTM0Cfg M S hs c_f hq_f := by
-          simp [ofTM0Cfg, c_f]
-        rw [hcfg'] at hrel' hstep'
-        have hrel₁ : RelatesInSteps (fun a b => b ∈ _root_.Turing.TM0.step M a) c₁ c_f n :=
-          (relatesInSteps_ofTM0Cfg M S hs hq₁ n).mpr ⟨hq_f, hrel'⟩
-        rcases hM : _root_.Turing.TM0.step M c_f with _ | c''
-        · have hnone := step_ofTM0Cfg_of_none M S hs hq_f hM
-          rw [TransitionRelation, hnone, Option.some.injEq, Cfg.mk.injEq] at hstep'
-          rcases hstep' with ⟨-, ht⟩
-          have ht' : t' = t_f := by simpa [c_f] using ht
-          subst ht'
+      · rw [mk_some_eq_ofTM0Cfg M S hs hq_f] at hrel' hstep'
+        have hrel₁ := (relatesInSteps_ofTM0Cfg M S hs hq₁ n).mpr ⟨hq_f, hrel'⟩
+        rcases hM : _root_.Turing.TM0.step M ⟨q_f, BiTape.equivTape t'⟩ with _ | c''
+        · rw [TransitionRelation, step_ofTM0Cfg_of_none M S hs hq_f hM, Option.some.injEq,
+            Cfg.mk.injEq] at hstep'
+          obtain rfl : t' = t_f := by simpa using hstep'.2
           exact ⟨n, q_f, rfl, hrel₁, hM⟩
-        · have hsome := step_ofTM0Cfg_of_some M S hs hq_f hM
-          rw [TransitionRelation, hsome] at hstep'
+        · rw [TransitionRelation, step_ofTM0Cfg_of_some M S hs hq_f hM] at hstep'
           cases hstep'
     · rintro ⟨n', q_f, hm, hrel₁, hM⟩
       cases Nat.succ.inj hm
