@@ -92,31 +92,24 @@ theorem viewStep_of_mem_viewSucc {finite next : FiniteCfg k Bool State}
   unfold ViewStep
   rcases hs : finite.state with _ | state
   · simp [hs] at h
-  · simp only [hs, List.mem_map, mem_actions] at h ⊢
-    obtain ⟨action, htr, rfl⟩ := h
-    exact ⟨action, htr, rfl⟩
+  · simpa only [hs, List.mem_map, mem_actions, eq_comm] using h
 
 /-- **The successor lists give the reachable views**: a halted view steps only to itself, which
 adds nothing to reachability. -/
 theorem reflTransGen_viewSucc_iff {finite next : FiniteCfg k Bool State} :
     Relation.ReflTransGen (fun a b => b ∈ ntm.viewSucc a) finite next ↔
       Relation.ReflTransGen ntm.ViewStep finite next := by
-  constructor
-  · exact Relation.ReflTransGen.mono (r := fun a b => b ∈ ntm.viewSucc a)
-      (fun _ _ h => viewStep_of_mem_viewSucc h) _ _
-  · intro h
-    induction h with
-    | refl => exact .refl
-    | @tail view next _ hstep ih =>
-      unfold ViewStep at hstep
-      rcases hs : view.state with _ | state
-      · simp only [hs] at hstep
-        exact hstep ▸ ih
-      · simp only [hs] at hstep
-        obtain ⟨action, htr, rfl⟩ := hstep
-        refine ih.tail ?_
-        simp only [viewSucc, hs, List.mem_map, mem_actions]
-        exact ⟨action, htr, rfl⟩
+  refine ⟨Relation.ReflTransGen.mono (fun _ _ => viewStep_of_mem_viewSucc) _ _, fun h => ?_⟩
+  induction h with
+  | refl => exact .refl
+  | @tail view next _ hstep ih =>
+    unfold ViewStep at hstep
+    rcases hs : view.state with _ | state
+    · simp only [hs] at hstep
+      exact hstep ▸ ih
+    · simp only [hs] at hstep
+      obtain ⟨action, htr, rfl⟩ := hstep
+      exact ih.tail (by simp only [viewSucc, hs, List.mem_map, mem_actions]; exact ⟨_, htr, rfl⟩)
 
 open scoped Classical in
 /-- **Enough rounds find every reachable view**: under a space bound `s`, breadth-first search
@@ -156,18 +149,13 @@ elements and their successors are at most polynomially many and long. -/
 theorem expand {succ : α → List α} (hsucc : ComputableInPolyTime succ enc (encList enc)) :
     ComputableInPolyTime (Cslib.Reachability.expand succ) (encList enc) (encList enc) := by
   have hlist : ComputableInPolyTime (fun found : List α => found.flatMap succ)
-      (encList enc) (encList enc) :=
-    flatMapWithInput id' (hsucc.comp (snd _ _))
-  have hstep : ComputableInPolyTime
-      (fun p : (List α × List α) × α => Cslib.Reachability.insertNew p.1.2 p.2)
-      (encPair (encPair (encList enc) (encList enc)) enc) (encList enc) :=
-    insertNew.comp (((snd _ _).comp (fst _ _)).prod (snd _ _))
+      (encList enc) (encList enc) := flatMapWithInput id' (hsucc.comp (snd _ _))
   refine foldlWithInput_of_bounded_growth
     (step := fun _ acc a => Cslib.Reachability.insertNew acc a) id'
-    ⟨hlist, hstep, inferInstance, inferInstance⟩
+    ⟨hlist, insertNew.comp (((snd _ _).comp (fst _ _)).prod (snd _ _)),
+      inferInstance, inferInstance⟩
     (growth := fun found => 2 * (encList enc (found.flatMap succ)).length + 1)
-    ⟨((PolyBounded.const 2).mul hlist.polyBounded_length).add (.const 1), ?_⟩
-  intro found acc a ha
+    ⟨((PolyBounded.const 2).mul hlist.polyBounded_length).add (.const 1), fun _ _ a ha => ?_⟩
   unfold Cslib.Reachability.insertNew
   split_ifs
   · omega
@@ -188,28 +176,25 @@ variable {k : ℕ} {State : Type} [Finite State] {ntm : MultiTapeNTM k Bool Stat
 theorem computableInPolyTime_viewSucc :
     ComputableInPolyTime ntm.viewSucc encFiniteCfg (encList encFiniteCfg) := by
   classical
-  let key (finite : FiniteCfg k Bool State) : Option State × Option Bool × (Fin k → Option Bool) :=
-    (finite.state, finite.inputSymbol, finite.workTapeSymbols)
   let branch (tag : Option State × Option Bool × (Fin k → Option Bool))
       (finite : FiniteCfg k Bool State) : List (FiniteCfg k Bool State) :=
     match tag.1 with
     | none => []
     | some state => (ntm.actions state tag.2.1 tag.2.2).map
         fun action => (finite.step action).summarizeOutput
-  have heq : ntm.viewSucc = fun finite => branch (key finite) finite := by
-    funext finite
-    rfl
-  rw [heq]
+  change ComputableInPolyTime
+    (fun finite => branch (finite.state, finite.inputSymbol, finite.workTapeSymbols) finite)
+    encFiniteCfg (encList encFiniteCfg)
   refine ComputableInPolyTime.finite_cases
-    (tagEncoding := encPair (encFinite _) (encPair (encFinEnum _) (encFinEnum _))) ?_ fun tag => ?_
-  · exact ComputableInPolyTime.finiteCfg_state.prod
+    (tagEncoding := encPair (encFinite _) (encPair (encFinEnum _) (encFinEnum _)))
+    (ComputableInPolyTime.finiteCfg_state.prod
       (ComputableInPolyTime.finiteCfg_inputSymbol.prod
-        ComputableInPolyTime.finiteCfg_workTapeSymbols)
-  · rcases tag with ⟨_ | state, symbol, work⟩
-    · exact ComputableInPolyTime.const []
-    · exact ComputableInPolyTime.mapConst _ fun action _ =>
-        ComputableInPolyTime.finiteCfg_summarizeOutput.comp
-          (ComputableInPolyTime.finiteCfg_step action)
+        ComputableInPolyTime.finiteCfg_workTapeSymbols)) ?_
+  rintro ⟨_ | state, symbol, work⟩
+  · exact ComputableInPolyTime.const []
+  · exact ComputableInPolyTime.mapConst _ fun action _ =>
+      ComputableInPolyTime.finiteCfg_summarizeOutput.comp
+        (ComputableInPolyTime.finiteCfg_step action)
 
 /-- **The accepting test is polynomial-time.** -/
 theorem computableInPolyTime_acceptingView :
@@ -257,26 +242,20 @@ theorem exists_computableInPolyTime_search {α : Type} {enc : α ↪ List Bool} 
       ComputableInPolyTime (fun a => Cslib.Reachability.search ntm.viewSucc (rounds a)
         (ntm.initView (enc a))) enc (encList encFiniteCfg) := by
   set rounds : α → ℕ := fun a => polyClock (logSpaceClockExponent k State c) (enc a).length
-  refine ⟨rounds, fun a => two_pow_coreLengthBound_log_le k State c _, ?_⟩
-  -- the number of rounds in unary
+  refine ⟨rounds, fun _ => two_pow_coreLengthBound_log_le k State c _, ?_⟩
   have hcount : ComputableInPolyTime rounds enc encUnary := by
     simp only [rounds, polyClock]
     fun_prop
-  have hinit : ComputableInPolyTime (fun a => [ntm.initView (enc a)]) enc
-      (encList encFiniteCfg) :=
-    ComputableInPolyTime.cons' (computableInPolyTime_initView enc) (ComputableInPolyTime.const [])
-  -- the found views are polynomially many, each of linear length
   set bound : α → ℕ := fun a => rounds a *
     (2 * viewLengthBound k State (enc a).length (c * (Nat.log2 (enc a).length + 1)) + 1)
   have hbound : PolyBounded (fun a => (enc a).length) bound := by
     simp only [bound, rounds, polyClock, viewLengthBound, Nat.log2_eq_log_two]
     growth_poly
-  have hstates : ∀ a, ∀ i ≤ rounds a, (encList encFiniteCfg
-      ((Cslib.Reachability.expand ntm.viewSucc)^[i] [ntm.initView (enc a)])).length ≤ bound a := by
-    intro a i _
-    exact (length_encList_search_le (hs a) i).trans
-      (Nat.mul_le_mul_right _ (two_pow_coreLengthBound_log_le k State c _))
-  exact ComputableInPolyTime.iterate hcount hinit
-    (ComputableInPolyTime.expand computableInPolyTime_viewSucc) hbound hstates
+  exact ComputableInPolyTime.iterate hcount
+    (ComputableInPolyTime.cons' (computableInPolyTime_initView enc)
+      (ComputableInPolyTime.const []))
+    (ComputableInPolyTime.expand computableInPolyTime_viewSucc) hbound fun a i _ =>
+      (length_encList_search_le (hs a) i).trans
+        (Nat.mul_le_mul_right _ (two_pow_coreLengthBound_log_le k State c _))
 
 end Turing.MultiTapeNTM
