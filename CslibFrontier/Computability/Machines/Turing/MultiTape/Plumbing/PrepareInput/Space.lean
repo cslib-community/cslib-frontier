@@ -46,9 +46,8 @@ theorem workTapePos_runFrom_prepareInput_mem_window (mark : Symbol)
     simp only [marker, runFrom_tapeEmb, oneTapeCfg, Cfg.withState, extendTapes_q₀,
       runFrom_markWork, embed_tapeEmb]
     simp [mid, Cfg.withState, hflag]
-  have hP₀ (m : ℕ) (hm : m < 2) :
-      ∀ j, (marker.runFrom (cfg.withState (some marker.q₀)) m).workTapePos j ∈ window bound := by
-    intro j
+  have hP₀ (m : ℕ) (hm : m < 2) (j : Fin (k + 2)) :
+      (marker.runFrom (cfg.withState (some marker.q₀)) m).workTapePos j ∈ window bound := by
     rcases (show m = 0 ∨ m = 1 by omega) with rfl | rfl
     · exact hheads j
     · simp only [marker, runFrom_tapeEmb, oneTapeCfg, Cfg.withState, extendTapes_q₀,
@@ -69,9 +68,8 @@ theorem workTapePos_runFrom_prepareInput_mem_window (mark : Symbol)
               dsimp only [c] at habs ⊢
               constructor <;> omega)
       · simpa only [Function.update_of_ne hj, mid, Cfg.withState] using hheads j
-  have hP₁ (n : ℕ) :
-      ∀ j, (rewind.runFrom (mid.withState (some rewind.q₀)) n).workTapePos j ∈ window bound := by
-    intro j
+  have hP₁ (n : ℕ) (j : Fin (k + 2)) :
+      (rewind.runFrom (mid.withState (some rewind.q₀)) n).workTapePos j ∈ window bound := by
     simp only [rewind, runFrom_tapeEmb, oneTapeCfg, Cfg.withState, extendTapes_q₀,
       embed_tapeEmb]
     by_cases hj : j = Fin.natAdd k (0 : Fin 2)
@@ -82,14 +80,11 @@ theorem workTapePos_runFrom_prepareInput_mem_window (mark : Symbol)
       have hrew := workTapePos_runFrom_rewindWork (Symbol := Symbol) none
         mid.inputPos (mid.workTapes (Fin.natAdd k 0)) mid.output hmid
         (p := word.length) le_rfl n
-      have hmidhead : mid.workTapePos (Fin.natAdd k 0) = word.length := hhead
-      rw [hmidhead]
-      rw [window, Finset.mem_Icc]
+      rw [show mid.workTapePos (Fin.natAdd k 0) = word.length from hhead, window, Finset.mem_Icc]
       simp only [Set.mem_Icc] at hrew
       constructor <;> omega
     · simpa only [Function.update_of_ne hj, mid, Cfg.withState] using hheads j
-  have h := withState_runFrom_seq (tm₀ := marker) (tm₁ := rewind)
-    (P := fun c => ∀ j, c.workTapePos j ∈ window bound) hmark rfl hP₀ hP₁ steps
-  exact h i
+  exact withState_runFrom_seq (tm₀ := marker) (tm₁ := rewind)
+    (P := fun c => ∀ j, c.workTapePos j ∈ window bound) hmark rfl hP₀ hP₁ steps i
 
 end Turing.MultiTapeTM
