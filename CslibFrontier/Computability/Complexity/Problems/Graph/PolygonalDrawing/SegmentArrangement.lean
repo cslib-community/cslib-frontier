@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDra
 public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityColors
 public import CslibFrontier.Foundations.Geometry.Polygonal.RouteInterior
 public import CslibFrontier.Foundations.Geometry.Polygonal.SegmentRays
+import CslibFrontier.Foundations.Geometry.Polygonal.Join
 
 /-!
 # Segment incidences of polygonal drawings
@@ -22,6 +23,7 @@ the route parameter, and the two original ends of a loop remain distinct.
 `HasRegularContacts.segment_ends_at_bend` identifies both segment occurrences at
 an internal bend of a regular drawing with simple routes, even when the drawing has crossings.
 `segment_end_at_vertex_of_contacts` identifies graph darts from the vertex contact condition.
+`IsEmbedding.hasRegularContacts` supplies those contact conditions for loopless embeddings.
 -/
 
 public section
@@ -241,5 +243,69 @@ theorem IsEmbedding.segment_end_at_vertex {G : Graph} {D : PolygonalDrawing G}
     (hp : rayEndpoint D.segmentStart D.segmentFinish k = D.vertex v) :
     ∃ d : Dart G, d.vertex = v ∧ D.segmentEnd d = k :=
   D.segment_end_at_vertex_of_contacts v (fun e i t ht => hD.vertex_contacts e i t ht v hv) k hp
+
+/-- A polygonal embedding of a declared loopless graph has regular contacts. Looplessness
+is needed for injectivity of the listed points, including both original ends. -/
+theorem IsEmbedding.hasRegularContacts {G : Graph} {D : PolygonalDrawing G}
+    (hD : D.IsEmbedding) (hG : ∀ d : Dart G, d.vertex ∈ G.vertices)
+    (hloopless : ∀ e : Fin G.edges.length,
+      Dart.vertex (G := G) (e, false) ≠ Dart.vertex (e, true)) : D.HasRegularContacts := by
+  have endpointTime (e : Fin G.edges.length) (i : Fin ((D.route e).segments + 1)) :
+      ∃ j : Fin (D.route e).segments, ∃ t ∈ Set.Icc (0 : ℝ) 1,
+        (D.route e).eval j t = (D.route e).point i ∧
+        (D.route e).position j t = i.val := by
+    refine Fin.lastCases ?_ (fun j => ?_) i
+    · refine ⟨Fin.last (D.route e).bends, 1, by simp, ?_, ?_⟩
+      · simp [Route.eval, Route.segments]
+      · simp [Route.position, Route.segments]
+    · exact ⟨j, 0, by simp, AffineMap.lineMap_apply_zero _ _,
+        by simp [Route.position]⟩
+  have pointInjective (e : Fin G.edges.length) : Function.Injective (D.route e).point := by
+    intro i j hij
+    have hopen : (D.route e).start ≠ (D.route e).finish := by
+      change (D.route e).endpoint false ≠ (D.route e).endpoint true
+      rw [D.endpoint_eq, D.endpoint_eq]
+      exact hD.vertex_ne (hG (e, false)) (hG (e, true)) (hloopless e)
+    obtain ⟨a, s, hs, ha, hposA⟩ := endpointTime e i
+    obtain ⟨b, t, ht, hb, hposB⟩ := endpointTime e j
+    have h := (hD.simple e).position_eq_of_eval_eq hopen a b hs ht (ha.trans (hij.trans hb.symm))
+    rw [hposA, hposB] at h
+    exact Fin.ext (by exact_mod_cast h)
+  have endAvoid (i j : D.SegmentIndex) (b : Bool) :
+      rayEndpoint D.segmentStart D.segmentFinish (i, b) ∉
+        openSegment ℝ (D.segmentStart j) (D.segmentFinish j) := by
+    rw [openSegment_eq_image_lineMap]
+    rintro ⟨t, ht, he⟩
+    by_cases hij : i = j
+    · subst i
+      have hs : (if b then (1 : ℝ) else 0) ∈ Set.Icc 0 1 := by cases b <;> simp
+      have he' : (D.route j.1).eval j.2 t = (D.route j.1).eval j.2 (if b then 1 else 0) :=
+        he.trans (D.segment_endpoint_eq_eval j b)
+      have ht' := ((hD.simple j.1).index_time_eq_of_eval_eq_of_mem_Ioo j.2 j.2 ht hs he').2
+      cases b
+      · exact ht.1.ne' ht'
+      · exact ht.2.ne ht'
+    · apply hD.segment_interior_disjoint j i hij t ht
+      rw [he]
+      cases b
+      · exact left_mem_segment ℝ _ _
+      · exact right_mem_segment ℝ _ _
+  have disjointOpen (i j : D.SegmentIndex) (hne : i ≠ j) (z : ℂ)
+      (hi : z ∈ openSegment ℝ (D.segmentStart i) (D.segmentFinish i))
+      (hj : z ∈ openSegment ℝ (D.segmentStart j) (D.segmentFinish j)) : False := by
+    rw [openSegment_eq_image_lineMap] at hi
+    obtain ⟨t, ht, rfl⟩ := hi
+    exact hD.segment_interior_disjoint i j (Ne.symm hne) t ht (openSegment_subset_segment ℝ _ _ hj)
+  refine ⟨pointInjective, hD.vertex_contacts, fun i j => ⟨endAvoid i j false, endAvoid i j true⟩,
+    fun i j h z hi hj => (disjointOpen i j h z hi hj).elim, ?_, ?_⟩
+  · intro f z h
+    exact disjointOpen (f 0) (f 1) (fun he => (by decide : (0 : Fin 3) ≠ 1) (f.injective he))
+      z (h 0) (h 1)
+  · intro i j hij s t hs ht he
+    have hs' := endpoint_parameters_mem_Icc hs
+    obtain ⟨b, _, hb, _, _⟩ :=
+      hD.edge_contacts i.1 j.1 hij i.2 j.2 s t hs' (endpoint_parameters_mem_Icc ht) he
+    exact ⟨Dart.vertex (G := G) (i.1, b), hG (i.1, b), (D.endpoint_eq i.1 b).symm.trans
+      ((D.route i.1).at_eq_endpoint i.2 hs' b hb).symm⟩
 
 end Cslib.Complexity.Graph.PolygonalDrawing
