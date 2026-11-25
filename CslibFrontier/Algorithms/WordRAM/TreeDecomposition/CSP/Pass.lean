@@ -46,32 +46,88 @@ open Cslib.DataStructure
 open Cslib.WordRAM
 open Cslib.WordRAM.Realization
 
-private theorem subtree_forget {w : ℕ} (inst : TreeCSPInstance) (hw : Fits w inst.wordBound)
-    (v : ℕ) (child : NiceTree ℕ) (ih : ∀ offset s, SubtreeFullSpec w inst child offset s) :
-    ∀ offset s, SubtreeFullSpec w inst (.forget v child) offset s := by
+/-- One round of `iterate` runs its body once. -/
+private theorem iterate_one {δ σ : Type} {w : ℕ} (body : δ × σ → Memory.Prog σ) (d : δ) (a : σ)
+    (s : Memory.State) :
+    (Memory.spec 0).clientState s (iterate body d 1 a) =
+      (Memory.spec 0).clientState s (body (d, a)) ∧
+    (Memory.spec 0).clientResult s (iterate body d 1 a) =
+      (Memory.spec 0).clientResult s (body (d, a)) ∧
+    ((Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (body (d, a))) →
+      (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (iterate body d 1 a))) ∧
+    memoryCost (iterate body d 1 a) s = memoryCost (body (d, a)) s := by
+  change (Memory.spec 0).clientState s (body (d, a) >>= iterate body d 0) = _ ∧
+    (Memory.spec 0).clientResult s (body (d, a) >>= iterate body d 0) = _ ∧
+    (_ → (Memory.spec w).ValidHistory s
+      ((Memory.spec w).clientHistory s (body (d, a) >>= iterate body d 0))) ∧
+    memoryCost (body (d, a) >>= iterate body d 0) s = _
+  refine ⟨StateTransitionSpec.clientState_bind .., StateTransitionSpec.clientResult_bind ..,
+    fun hv => validHistory_bind_step hv (validHistory_pure w _ _), ?_⟩
+  rw [memoryCost_bind']
+  rfl
+
+/-- The induction step for a node `T` with one child, serialized as
+`encodeNiceTreeAux offset child ++ [tag, v, offset + child.size - 1, 0]`. Given
+`SubtreeFullSpec` for `child`, it suffices that the root's `nodeStep` (`hroot`) is safe and valid,
+returns the next index, writes only the root's descriptor slot, and builds the descriptor of `T`
+within one node's space and cost budget, from any state holding the static inputs, the root's
+tree words and the child's descriptor. `subtree_introduce` and `subtree_forget` supply `hroot`. -/
+private theorem subtree_unary {w : ℕ} (inst : TreeCSPInstance) (hw : Fits w inst.wordBound)
+    (T child : NiceTree ℕ) (tag v : ℕ) (hsize : T.size = child.size + 1)
+    (hexpT : maxTableExp child ≤ maxTableExp T) (hmvT : maxTreeVert child ≤ maxTreeVert T)
+    (henc : ∀ offset, encodeNiceTreeAux offset T =
+      encodeNiceTreeAux offset child ++ [tag, v, offset + child.size - 1, 0])
+    (ih : ∀ offset s, SubtreeFullSpec w inst child offset s)
+    (hroot :
+      let env := subtreeEnv inst
+      let F_lo := env.descBase + 4 * inst.tree.size
+      let E := maxTableExp inst.tree
+      let perSpace := E + 2 + inst.domainSize ^ E
+      let perCost := 16 + 4 * E + inst.vars.length + inst.domainSize ^ E *
+        (E ^ 2 + E + 4 + 3 * inst.constraints.length + inst.totalArity * (2 * E + 3))
+      ∀ (offset : ℕ) (s₁ : Memory.State),
+        let cur := offset + child.size
+        offset + T.size ≤ inst.tree.size →
+        maxTableExp T ≤ E →
+        maxTreeVert T ≤ maxTreeVert inst.tree →
+        Memory.WellFormed w s₁ →
+        F_lo ≤ s₁.frontier →
+        s₁.frontier + perSpace ≤ F_lo + inst.tree.size * perSpace →
+        HoldsIn env.varsPtr inst.vars s₁ →
+        HoldsIn env.consRawPtr (inst.constraints.flatMap ConstraintTable.encode) s₁ →
+        HoldsIn (env.treePtr + 4 * cur) [tag, v, cur - 1, 0] s₁ →
+        NodeDescAt F_lo inst.counting inst.domainSize inst.constraints inst.vars child
+          (env.descBase + 4 * (cur - 1)) s₁ →
+        let sEnd := (Memory.spec 0).clientState s₁ (nodeStep (env, cur))
+        nodeStepSafe w (env, cur) s₁ ∧
+        (Memory.spec w).ValidHistory s₁
+          ((Memory.spec w).clientHistory s₁ (nodeStep (env, cur))) ∧
+        (Memory.spec 0).clientResult s₁ (nodeStep (env, cur)) = cur + 1 ∧
+        sEnd.frontier ≤ s₁.frontier + perSpace ∧
+        FrameOutsideRange (env.descBase + 4 * cur) (env.descBase + 4 * (cur + 1)) s₁ sEnd ∧
+        NodeDescAt F_lo inst.counting inst.domainSize inst.constraints inst.vars T
+          (env.descBase + 4 * cur) sEnd ∧
+        memoryCost (nodeStep (env, cur)) s₁ ≤ perCost) :
+    ∀ offset s, SubtreeFullSpec w inst T offset s := by
   let env := subtreeEnv inst
   let F_lo := env.descBase + 4 * inst.tree.size
-  have hq : 0 < inst.domainSize := inst.domainSize_pos
   let E := maxTableExp inst.tree
   let perSpace := E + 2 + inst.domainSize ^ E
   let perCost := 16 + 4 * E + inst.vars.length + inst.domainSize ^ E *
     (E ^ 2 + E + 4 + 3 * inst.constraints.length + inst.totalArity * (2 * E + 3))
-  obtain ⟨hpow_ge1, hfit_4, hfit_q, hfit_tree, hfit_total, _, hvars_lt_desc, _,
-    _, hperSpace_le_total, hc_ge, hfit_tree_vert⟩ := subtree_setup inst hw
-  have hfit_total' : Fits w (F_lo + inst.tree.size * perSpace) := hfit_total
+  obtain ⟨_, _, _, _, _, _, hvars_lt_desc, hcons_lt_desc, _, _, _, _⟩ := subtree_setup inst hw
   intro offset s hsz hexp hmv hwf hs_fr hfit_bud hvars htree hcons
   have hsz_ch_pos := NiceTree.size_pos child
-  have hsz_ch : offset + child.size ≤ inst.tree.size := by
-    simp only [NiceTree.size_forget] at hsz; omega
-  have hexp_ch : maxTableExp child ≤ E := (maxTableExp_le_forget v child).trans hexp
-  have hmv_ch : maxTreeVert child ≤ maxTreeVert inst.tree :=
-    (maxTreeVert_le_forget v child).trans hmv
+  have hsz_ch : offset + child.size ≤ inst.tree.size := by rw [hsize] at hsz; omega
+  have hexp_ch : maxTableExp child ≤ E := hexpT.trans hexp
+  have hmv_ch : maxTreeVert child ≤ maxTreeVert inst.tree := hmvT.trans hmv
+  change s.frontier + T.size * perSpace ≤ F_lo + inst.tree.size * perSpace at hfit_bud
+  rw [hsize] at hfit_bud
+  have hmul_bud : (child.size + 1) * perSpace = child.size * perSpace + perSpace := by ring
   have hfit_bud_ch : s.frontier + child.size * perSpace ≤ F_lo + inst.tree.size * perSpace := by
-    have hmul_le : child.size * perSpace ≤ (NiceTree.forget v child).size * perSpace :=
-      Nat.mul_le_mul_right _ (by simp [NiceTree.size_forget])
-    exact le_trans (Nat.add_le_add_left hmul_le _) hfit_bud
+    omega
   have htree_app := htree
-  rw [encodeNiceTreeAux, HoldsIn.append_iff, length_encodeNiceTreeAux] at htree_app
+  rw [henc, HoldsIn.append_iff, length_encodeNiceTreeAux] at htree_app
   obtain ⟨htree_ch, hroot_hold⟩ := htree_app
   obtain ⟨hsafe_ch, hv_ch, hres_ch, hfr_ch, hframe_ch, hdesc_ch, hc_ch⟩ :=
     ih offset s hsz_ch hexp_ch hmv_ch hwf hs_fr hfit_bud_ch hvars htree_ch hcons
@@ -79,23 +135,72 @@ private theorem subtree_forget {w : ℕ} (inst : TreeCSPInstance) (hw : Fits w i
   obtain ⟨s₁, hs₁_def⟩ :
       ∃ s₁, (Memory.spec 0).clientState s (iterate nodeStep env child.size offset) = s₁ := ⟨_, rfl⟩
   rw [hs₁_def] at hfr_ch hframe_ch hdesc_ch
-  have hFlo₁ : F_lo ≤ s₁.frontier := hs_fr.trans hframe_ch.1
+  change s₁.frontier ≤ s.frontier + child.size * perSpace at hfr_ch
+  have hwf₁ : Memory.WellFormed w s₁ := hs₁_def ▸ wellFormed_clientState hwf hv_ch
   have hout_vars : env.varsPtr + env.varsLen ≤ env.descBase + 4 * offset :=
     hvars_lt_desc.trans (Nat.le_add_right _ _)
-  have hout_root : env.treePtr + 4 * cur + [2, v, cur - 1, 0].length ≤
+  have hout_cons : env.consRawPtr + (inst.constraints.flatMap ConstraintTable.encode).length ≤
+      env.descBase + 4 * offset :=
+    hcons_lt_desc.trans (Nat.le_add_right _ _)
+  have hout_root : env.treePtr + 4 * cur + [tag, v, cur - 1, 0].length ≤
       env.descBase + 4 * offset := by
     simp only [List.length_cons, List.length_nil]
     change env.treePtr + 4 * (offset + child.size) + 4 ≤ env.descBase + 4 * offset
-    simp only [NiceTree.size_forget] at hsz
+    rw [hsize] at hsz
     dsimp only [env, subtreeEnv] at *
     omega
-  have hvars₁ : HoldsIn env.varsPtr inst.vars s₁ :=
-    hvars.frame_outsideRange (.inl hout_vars) hframe_ch
-  have hroot₁ : HoldsIn (env.treePtr + 4 * cur) [2, v, cur - 1, 0] s₁ := by
+  have hroot₁ : HoldsIn (env.treePtr + 4 * cur) [tag, v, cur - 1, 0] s₁ := by
     rw [show env.treePtr + 4 * offset + 4 * child.size = env.treePtr + 4 * cur from by
       dsimp only [cur]; omega] at hroot_hold
-    simpa only [cur, Nat.add_sub_cancel] using
-      hroot_hold.frame_outsideRange (.inl hout_root) hframe_ch
+    exact hroot_hold.frame_outsideRange (.inl hout_root) hframe_ch
+  obtain ⟨hsafe_root, hv_root, hres_root, hfr_root, hframe_root, hdesc_root, hc_root⟩ :=
+    hroot offset s₁ hsz hexp hmv hwf₁ (hs_fr.trans hframe_ch.1)
+      (show s₁.frontier + perSpace ≤ F_lo + inst.tree.size * perSpace by omega)
+      (hvars.frame_outsideRange (.inl hout_vars) hframe_ch)
+      (hcons.frame_outsideRange (.inl hout_cons) hframe_ch) hroot₁ hdesc_ch
+  change ((Memory.spec 0).clientState s₁ (nodeStep (env, cur))).frontier ≤
+    s₁.frontier + perSpace at hfr_root
+  change memoryCost (nodeStep (env, cur)) s₁ ≤ perCost at hc_root
+  obtain ⟨hit_st, hit_res, hit_v, hit_c⟩ := iterate_one (w := w) nodeStep env cur s₁
+  simp only [hsize]
+  refine ⟨iterationSafe_add nodeStep nodeStepSafe w env child.size 1 offset s hsafe_ch
+      (by rw [hres_ch, hs₁_def]; exact ⟨hsafe_root, trivial⟩),
+    validHistory_iterate_add nodeStep env child.size 1 offset s hv_ch
+      (by dsimp only; rw [hres_ch, hs₁_def]; exact hit_v hv_root),
+    by rw [clientResult_iterate_add, hres_ch, hs₁_def, hit_res]; exact hres_root,
+    ?_, ?_, ?_, ?_⟩
+  · rw [clientState_iterate_add, hres_ch, hs₁_def, hit_st]
+    change _ ≤ s.frontier + (child.size + 1) * perSpace
+    omega
+  · rw [clientState_iterate_add, hres_ch, hs₁_def, hit_st]
+    simpa only [cur, env, subtreeEnv, Nat.add_assoc] using
+      FrameOutsideRange.trans
+        (hframe_ch.mono_range le_rfl (by dsimp only [cur, env, subtreeEnv]; omega))
+        (hframe_root.mono_range (by dsimp only [cur, env, subtreeEnv]; omega) le_rfl)
+  · rw [clientState_iterate_add, hres_ch, hs₁_def, hit_st,
+      show offset + (child.size + 1) - 1 = cur from by omega]
+    exact hdesc_root
+  · rw [memoryCost_iterate_add, hres_ch, hs₁_def, hit_c]
+    have : (child.size + 1) * perCost = child.size * perCost + perCost := by ring
+    change memoryCost (iterate nodeStep env child.size offset) s ≤ child.size * perCost at hc_ch
+    change memoryCost (iterate nodeStep env child.size offset) s +
+      memoryCost (nodeStep (env, cur)) s₁ ≤ (child.size + 1) * perCost
+    omega
+
+private theorem subtree_forget {w : ℕ} (inst : TreeCSPInstance) (hw : Fits w inst.wordBound)
+    (v : ℕ) (child : NiceTree ℕ) (ih : ∀ offset s, SubtreeFullSpec w inst child offset s) :
+    ∀ offset s, SubtreeFullSpec w inst (.forget v child) offset s := by
+  refine subtree_unary inst hw _ child 2 v (NiceTree.size_forget v child)
+    (maxTableExp_le_forget v child) (maxTreeVert_le_forget v child) (fun _ => rfl) ih ?_
+  intro env F_lo E perSpace perCost offset s₁ cur hsz hexp hmv _ hFlo₁ hbud₁ hvars₁ _ hroot₁
+    hdesc_ch
+  have hq : 0 < inst.domainSize := inst.domainSize_pos
+  obtain ⟨hpow_ge1, hfit_4, hfit_q, hfit_tree, hfit_total, _, _, _,
+    _, hperSpace_le_total, hc_ge, hfit_tree_vert⟩ := subtree_setup inst hw
+  have hfit_total' : Fits w (F_lo + inst.tree.size * perSpace) := hfit_total
+  have hexp_ch : maxTableExp child ≤ E := (maxTableExp_le_forget v child).trans hexp
+  have hmv_ch : maxTreeVert child ≤ maxTreeVert inst.tree :=
+    (maxTreeVert_le_forget v child).trans hmv
   have hr_root := hroot₁
   rw [HoldsIn.cons_iff, HoldsIn.cons_iff, HoldsIn.cons_iff, HoldsIn.cons_iff] at hr_root
   obtain ⟨_, htag2, _, harg_v, _, hch1_eq, _, _, _⟩ := hr_root
@@ -117,17 +222,14 @@ private theorem subtree_forget {w : ℕ} (inst : TreeCSPInstance) (hw : Fits w i
     have hc_le_sp : inst.domainSize ^ (bagList child).length ≤ perSpace := by
       dsimp only [perSpace]; omega
     exact hfit_total.of_le (le_trans hc_le_sp (le_trans hperSpace_le_total (Nat.le_add_left _ _)))
+  have hfr_le : LB.length + inst.domainSize ^ LB.length ≤ perSpace := by
+    dsimp only [perSpace]; omega
   have hs₁_peak : Fits w (s₁.frontier +
       max (bagList child).length (LB.length + inst.domainSize ^ LB.length)) :=
     hfit_total'.of_le (by
-      change s.frontier + (NiceTree.forget v child).size * perSpace ≤
-        F_lo + inst.tree.size * perSpace at hfit_bud
-      simp only [NiceTree.size_forget] at hfit_bud
       have hmx : max (bagList child).length (LB.length + inst.domainSize ^ LB.length) ≤
           perSpace :=
-        max_le (by dsimp only [perSpace]; omega) (by dsimp only [perSpace]; omega)
-      have hmul_bud : (child.size + 1) * perSpace = child.size * perSpace + perSpace := by ring
-      change s₁.frontier ≤ s.frontier + child.size * perSpace at hfr_ch
+        max_le (by dsimp only [perSpace]; omega) hfr_le
       omega)
   have hfit_cap : Fits w
       (if inst.counting then inst.domainSize ^ (NiceTree.forget v child).size else 1) :=
@@ -227,67 +329,15 @@ private theorem subtree_forget {w : ℕ} (inst : TreeCSPInstance) (hw : Fits w i
     have hmul_c := hc_ge (E ^ 2 + E + 4) (by dsimp only [E]; omega)
     dsimp only [fgArgs, env, subtreeEnv, LB, perCost, E] at hc_fg hfg_sum hmul_c ⊢
     omega
-  have hit_root_st : (Memory.spec 0).clientState s₁ (iterate nodeStep env 1 cur) =
-      (Memory.spec 0).clientState s₁ (nodeStep (env, cur)) := by
-    have hpure_st : ∀ t (x : ℕ), (Memory.spec 0).clientState t (pure x) = t := fun _ _ => rfl
-    change (Memory.spec 0).clientState s₁ (nodeStep (env, cur) >>= iterate nodeStep env 0) = _
-    rw [StateTransitionSpec.clientState_bind]
-    exact hpure_st _ _
-  have hit_root_res : (Memory.spec 0).clientResult s₁ (iterate nodeStep env 1 cur) = cur + 1 := by
-    have hpure_res : ∀ t (x : ℕ), (Memory.spec 0).clientResult t (pure x) = x := fun _ _ => rfl
-    change (Memory.spec 0).clientResult s₁ (nodeStep (env, cur) >>= iterate nodeStep env 0) = _
-    rw [StateTransitionSpec.clientResult_bind, hres_root]
-    exact hpure_res _ _
-  have hv_it_root : (Memory.spec w).ValidHistory s₁
-      ((Memory.spec w).clientHistory s₁ (iterate nodeStep env 1 cur)) := by
-    change (Memory.spec w).ValidHistory s₁
-      ((Memory.spec w).clientHistory s₁ (nodeStep (env, cur) >>= iterate nodeStep env 0))
-    exact validHistory_bind_step hv_root (validHistory_pure w _ _)
-  have hc_it_root : memoryCost (iterate nodeStep env 1 cur) s₁ ≤ perCost := by
-    change memoryCost (nodeStep (env, cur) >>= iterate nodeStep env 0) s₁ ≤ _
-    rw [memoryCost_bind', show memoryCost (iterate nodeStep env 0 _) _ = 0 from rfl, Nat.add_zero]
-    exact hcost_root
-  simp only [NiceTree.size_forget]
-  refine ⟨iterationSafe_add nodeStep nodeStepSafe w env child.size 1 offset s hsafe_ch
-      (by rw [hres_ch, hs₁_def]; exact ⟨hsafe_root, trivial⟩),
-    validHistory_iterate_add nodeStep env child.size 1 offset s hv_ch
-      (by dsimp only [cur]; rw [hres_ch, hs₁_def]; exact hv_it_root),
-    by rw [clientResult_iterate_add, hres_ch, hs₁_def]; exact hit_root_res,
-    ?_, ?_, ?_, ?_⟩
-  · rw [clientState_iterate_add, hres_ch, hs₁_def, hit_root_st, hst_root]
-    have hfr_le : LB.length + inst.domainSize ^ LB.length ≤ perSpace := by
-      dsimp only [perSpace]; omega
-    have hmul_bud : (child.size + 1) * perSpace = child.size * perSpace + perSpace := by ring
-    change s₁.frontier ≤ s.frontier + child.size * perSpace at hfr_ch
-    change _ ≤ s.frontier + (child.size + 1) * perSpace
-    dsimp only [fgArgs, env, subtreeEnv, LB] at hfr_fg hfr_le hfr_ch ⊢
+  refine ⟨hsafe_root, hv_root, hres_root, ?_, ?_, ?_, hcost_root⟩
+  · rw [hst_root]
+    dsimp only [fgArgs, env, subtreeEnv, LB] at hfr_fg hfr_le ⊢
     omega
-  · rw [clientState_iterate_add, hres_ch, hs₁_def]
-    change FrameOutsideRange (env.descBase + 4 * offset)
-      (env.descBase + 4 * (offset + (child.size + 1))) s
-      ((Memory.spec 0).clientState s₁ (iterate nodeStep env 1 cur))
-    rw [hit_root_st, hst_root]
-    have hfr_fg' : FrameOutsideRange (env.descBase + 4 * cur)
-        (env.descBase + 4 * (cur + 1)) s₁
-        ((Memory.spec 0).clientState s₁ (forgetNodeProg fgArgs)) := by
-      dsimp only [fgArgs] at hframe_fg
-      simpa only [Nat.mul_add, Nat.mul_one, Nat.add_assoc] using hframe_fg
-    simpa only [cur, env, subtreeEnv, Nat.add_assoc] using
-      FrameOutsideRange.trans
-        (hframe_ch.mono_range le_rfl (by dsimp only [cur, env, subtreeEnv]; omega))
-        (hfr_fg'.mono_range (by dsimp only [cur, env, subtreeEnv]; omega) le_rfl)
-  · rw [clientState_iterate_add, hres_ch, hs₁_def]
-    change NodeDescAt F_lo inst.counting inst.domainSize inst.constraints inst.vars
-      (.forget v child) (env.descBase + 4 * (offset + (child.size + 1) - 1))
-      ((Memory.spec 0).clientState s₁ (iterate nodeStep env 1 cur))
-    rw [hit_root_st, hst_root, show offset + (child.size + 1) - 1 = cur from by omega]
+  · rw [hst_root]
+    dsimp only [fgArgs] at hframe_fg
+    simpa only [Nat.mul_add, Nat.mul_one, Nat.add_assoc] using hframe_fg
+  · rw [hst_root]
     exact hdesc_fg
-  · rw [memoryCost_iterate_add, hres_ch, hs₁_def]
-    change memoryCost (iterate nodeStep env child.size offset) s +
-        memoryCost (iterate nodeStep env 1 cur) s₁ ≤ (child.size + 1) * perCost
-    have : (child.size + 1) * perCost = child.size * perCost + perCost := by ring
-    change memoryCost (iterate nodeStep env child.size offset) s ≤ child.size * perCost at hc_ch
-    omega
 
 private theorem nodeStep_join_branch {w : ℕ} (env : NodeEnv) (cur ch1 ch2 : ℕ)
     (s : Memory.State)
@@ -345,17 +395,8 @@ private theorem nodeStep_join_branch {w : ℕ} (env : NodeEnv) (cur ch1 ch2 : �
     rw [ite_eq_right hne0, ite_eq_right hne1, ite_eq_right hne2,
       hch1_eq, hch2_eq, memoryCost_bind', memoryCost_pure, Nat.add_zero]
     omega
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · change (Memory.spec 0).clientState s (nodeStep (env, cur) >>= iterate nodeStep env 0) = _
-    rw [StateTransitionSpec.clientState_bind]; exact hst
-  · change (Memory.spec 0).clientResult s (nodeStep (env, cur) >>= iterate nodeStep env 0) = _
-    rw [StateTransitionSpec.clientResult_bind, hres]; rfl
-  · change (Memory.spec w).ValidHistory s
-      ((Memory.spec w).clientHistory s (nodeStep (env, cur) >>= iterate nodeStep env 0))
-    exact validHistory_bind_step hv (validHistory_pure w _ _)
-  · change memoryCost (nodeStep (env, cur) >>= iterate nodeStep env 0) s ≤ _
-    rw [memoryCost_bind', show memoryCost (iterate nodeStep env 0 _) _ = 0 from rfl, Nat.add_zero]
-    exact hcost
+  obtain ⟨hit_st, hit_res, hit_v, hit_c⟩ := iterate_one (w := w) nodeStep env cur s
+  exact ⟨hit_st.trans hst, hit_res.trans hres, hit_v hv, hit_c.trans_le hcost⟩
 
 private theorem subtree_join_step {w : ℕ} (inst : TreeCSPInstance) (hw : Fits w inst.wordBound)
     (left right : NiceTree ℕ) (offset mid cur : ℕ) (s₂ : Memory.State)
@@ -751,24 +792,10 @@ private theorem subtree_leaf {w : ℕ} (inst : TreeCSPInstance) (hw : Fits w ins
       s.frontier + 1 * perSpace := by
     rw [hst1]
     exact hfr_lf.trans (by dsimp only [perSpace]; omega)
-  have hit1 : (Memory.spec 0).clientState s (iterate nodeStep env 1 offset) =
-      (Memory.spec 0).clientState s (nodeStep (env, offset)) := by
-    change (Memory.spec 0).clientState s (nodeStep (env, offset) >>= iterate nodeStep env 0) = _
-    rw [StateTransitionSpec.clientState_bind]; rfl
-  have hres_it1 : (Memory.spec 0).clientResult s (iterate nodeStep env 1 offset) = offset + 1 := by
-    change (Memory.spec 0).clientResult s (nodeStep (env, offset) >>= iterate nodeStep env 0) = _
-    rw [StateTransitionSpec.clientResult_bind, hres1]; rfl
-  have hv_it1 : (Memory.spec w).ValidHistory s
-      ((Memory.spec w).clientHistory s (iterate nodeStep env 1 offset)) := by
-    change (Memory.spec w).ValidHistory s
-      ((Memory.spec w).clientHistory s (nodeStep (env, offset) >>= iterate nodeStep env 0))
-    exact validHistory_bind_step hv1 (validHistory_pure w _ _)
-  have hc_it1 : memoryCost (iterate nodeStep env 1 offset) s ≤ 1 * perCost := by
-    change memoryCost (nodeStep (env, offset) >>= iterate nodeStep env 0) s ≤ _
-    rw [memoryCost_bind', show memoryCost (iterate nodeStep env 0 _) _ = 0 from rfl, Nat.add_zero]
-    exact hcost1
+  obtain ⟨hit1, hres_it1, hv_it1, hc_it1⟩ := iterate_one (w := w) nodeStep env offset s
   simp only [NiceTree.size_leaf]
-  refine ⟨⟨hsafe0, trivial⟩, hv_it1, hres_it1, by rw [hit1]; exact hfr1', ?_, ?_, hc_it1⟩
+  refine ⟨⟨hsafe0, trivial⟩, hv_it1 hv1, hres_it1.trans hres1, by rw [hit1]; exact hfr1', ?_, ?_,
+    hc_it1.trans_le hcost1⟩
   · rw [hit1, hst1]
     dsimp only [leafArgs, env, subtreeEnv] at hframe_lf ⊢
     simpa only [Nat.mul_add, Nat.mul_one, Nat.add_assoc] using hframe_lf
@@ -778,59 +805,15 @@ private theorem subtree_leaf {w : ℕ} (inst : TreeCSPInstance) (hw : Fits w ins
 private theorem subtree_introduce {w : ℕ} (inst : TreeCSPInstance) (hw : Fits w inst.wordBound)
     (v : ℕ) (child : NiceTree ℕ) (ih : ∀ offset s, SubtreeFullSpec w inst child offset s) :
     ∀ offset s, SubtreeFullSpec w inst (.introduce v child) offset s := by
-  let env := subtreeEnv inst
-  let F_lo := env.descBase + 4 * inst.tree.size
+  refine subtree_unary inst hw _ child 1 v (NiceTree.size_introduce v child)
+    (maxTableExp_le_introduce v child) (maxTreeVert_le_introduce v child) (fun _ => rfl) ih ?_
+  intro env F_lo E perSpace perCost offset s₁ cur hsz hexp _ hwf₁ hFlo₁ hbud₁ _ hcons₁ hroot₁
+    hdesc_ch
   have hq : 0 < inst.domainSize := inst.domainSize_pos
-  let E := maxTableExp inst.tree
-  let perSpace := E + 2 + inst.domainSize ^ E
-  let perCost := 16 + 4 * E + inst.vars.length + inst.domainSize ^ E *
-    (E ^ 2 + E + 4 + 3 * inst.constraints.length + inst.totalArity * (2 * E + 3))
-  obtain ⟨_, hfit_4, hfit_q, hfit_tree, hfit_total, _, hvars_lt_desc, hcons_lt_desc,
-    _, _, _, _⟩ := subtree_setup inst hw
+  obtain ⟨_, hfit_4, hfit_q, hfit_tree, hfit_total, _, _, hcons_lt_desc, _, _, _, _⟩ :=
+    subtree_setup inst hw
   have hfit_total' : Fits w (F_lo + inst.tree.size * perSpace) := hfit_total
-  intro offset s hsz hexp hmv hwf hs_fr hfit_bud hvars htree hcons
-  have hsz_ch_pos := NiceTree.size_pos child
-  have hsz_ch : offset + child.size ≤ inst.tree.size := by
-    simp only [NiceTree.size_introduce] at hsz; omega
   have hexp_ch : maxTableExp child ≤ E := (maxTableExp_le_introduce v child).trans hexp
-  have hmv_ch : maxTreeVert child ≤ maxTreeVert inst.tree :=
-    (maxTreeVert_le_introduce v child).trans hmv
-  have hfit_bud_ch : s.frontier + child.size * perSpace ≤ F_lo + inst.tree.size * perSpace := by
-    have hmul_le : child.size * perSpace ≤ (NiceTree.introduce v child).size * perSpace :=
-      Nat.mul_le_mul_right _ (by simp [NiceTree.size_introduce])
-    exact le_trans (Nat.add_le_add_left hmul_le _) hfit_bud
-  have htree_app := htree
-  rw [encodeNiceTreeAux, HoldsIn.append_iff, length_encodeNiceTreeAux] at htree_app
-  obtain ⟨htree_ch, hroot_hold⟩ := htree_app
-  obtain ⟨hsafe_ch, hv_ch, hres_ch, hfr_ch, hframe_ch, hdesc_ch, hc_ch⟩ :=
-    ih offset s hsz_ch hexp_ch hmv_ch hwf hs_fr hfit_bud_ch hvars htree_ch hcons
-  let cur := offset + child.size
-  obtain ⟨s₁, hs₁_def⟩ :
-      ∃ s₁, (Memory.spec 0).clientState s (iterate nodeStep env child.size offset) = s₁ := ⟨_, rfl⟩
-  rw [hs₁_def] at hfr_ch hframe_ch hdesc_ch
-  have hwf₁ : Memory.WellFormed w s₁ := hs₁_def ▸ wellFormed_clientState hwf hv_ch
-  have hFlo₁ : F_lo ≤ s₁.frontier := hs_fr.trans hframe_ch.1
-  have hout_vars : env.varsPtr + env.varsLen ≤ env.descBase + 4 * offset :=
-    hvars_lt_desc.trans (Nat.le_add_right _ _)
-  have hout_cons : env.consRawPtr + (inst.constraints.flatMap ConstraintTable.encode).length ≤
-      env.descBase + 4 * offset :=
-    hcons_lt_desc.trans (Nat.le_add_right _ _)
-  have hout_root : env.treePtr + 4 * cur + [1, v, cur - 1, 0].length ≤
-      env.descBase + 4 * offset := by
-    simp only [List.length_cons, List.length_nil]
-    change env.treePtr + 4 * (offset + child.size) + 4 ≤ env.descBase + 4 * offset
-    simp only [NiceTree.size_introduce] at hsz
-    dsimp only [env, subtreeEnv] at *
-    omega
-  have hvars₁ : HoldsIn env.varsPtr inst.vars s₁ :=
-    hvars.frame_outsideRange (.inl hout_vars) hframe_ch
-  have hcons₁ : HoldsIn env.consRawPtr (inst.constraints.flatMap ConstraintTable.encode) s₁ :=
-    hcons.frame_outsideRange (.inl hout_cons) hframe_ch
-  have hroot₁ : HoldsIn (env.treePtr + 4 * cur) [1, v, cur - 1, 0] s₁ := by
-    rw [show env.treePtr + 4 * offset + 4 * child.size = env.treePtr + 4 * cur from by
-      dsimp only [cur]; omega] at hroot_hold
-    simpa only [cur, Nat.add_sub_cancel] using
-      hroot_hold.frame_outsideRange (.inl hout_root) hframe_ch
   have hr_root := hroot₁
   rw [HoldsIn.cons_iff, HoldsIn.cons_iff, HoldsIn.cons_iff, HoldsIn.cons_iff] at hr_root
   obtain ⟨_, htag1, _, harg_v, _, hch1_eq, _, _, _⟩ := hr_root
@@ -843,17 +826,12 @@ private theorem subtree_introduce {w : ℕ} (inst : TreeCSPInstance) (hw : Fits 
     (bagList_length_le_maxTableExp child).trans hexp_ch
   have hpow_le : inst.domainSize ^ (v :: bagList child).length ≤ inst.domainSize ^ E :=
     Nat.pow_le_pow_right hq hbag_len_le
+  have hfr_le : (v :: bagList child).length +
+      inst.domainSize ^ (v :: bagList child).length ≤ perSpace := by
+    dsimp only [perSpace]; omega
   have hs₁_peak : Fits w (s₁.frontier +
       ((v :: bagList child).length + inst.domainSize ^ (v :: bagList child).length)) :=
-    hfit_total'.of_le (by
-      change s.frontier + (NiceTree.introduce v child).size * perSpace ≤
-        F_lo + inst.tree.size * perSpace at hfit_bud
-      simp only [NiceTree.size_introduce] at hfit_bud
-      have hsp : (v :: bagList child).length + inst.domainSize ^ (v :: bagList child).length ≤
-          perSpace := by dsimp only [perSpace]; omega
-      have hmul_bud : (child.size + 1) * perSpace = child.size * perSpace + perSpace := by ring
-      change s₁.frontier ≤ s.frontier + child.size * perSpace at hfr_ch
-      omega)
+    hfit_total'.of_le (by omega)
   have hfit_v : Fits w v := hw.of_le (by
     have hv_m : v ≤ maxTreeVert (.introduce v child) := le_max_left _ _
     have hmvt : maxTreeVert inst.tree ≤ inst.maxVarLabel :=
@@ -921,64 +899,15 @@ private theorem subtree_introduce {w : ℕ} (inst : TreeCSPInstance) (hw : Fits 
       omega
     dsimp only [introArgs, TreeCSPInstance.totalArity, env, subtreeEnv, perCost] at hc_in hmul_c ⊢
     omega
-  have hit_root_st : (Memory.spec 0).clientState s₁ (iterate nodeStep env 1 cur) =
-      (Memory.spec 0).clientState s₁ (nodeStep (env, cur)) := by
-    change (Memory.spec 0).clientState s₁ (nodeStep (env, cur) >>= iterate nodeStep env 0) = _
-    rw [StateTransitionSpec.clientState_bind]; rfl
-  have hit_root_res : (Memory.spec 0).clientResult s₁ (iterate nodeStep env 1 cur) = cur + 1 := by
-    change (Memory.spec 0).clientResult s₁ (nodeStep (env, cur) >>= iterate nodeStep env 0) = _
-    rw [StateTransitionSpec.clientResult_bind, hres_root]; rfl
-  have hv_it_root : (Memory.spec w).ValidHistory s₁
-      ((Memory.spec w).clientHistory s₁ (iterate nodeStep env 1 cur)) := by
-    change (Memory.spec w).ValidHistory s₁
-      ((Memory.spec w).clientHistory s₁ (nodeStep (env, cur) >>= iterate nodeStep env 0))
-    exact validHistory_bind_step hv_root (validHistory_pure w _ _)
-  have hc_it_root : memoryCost (iterate nodeStep env 1 cur) s₁ ≤ perCost := by
-    change memoryCost (nodeStep (env, cur) >>= iterate nodeStep env 0) s₁ ≤ _
-    rw [memoryCost_bind', show memoryCost (iterate nodeStep env 0 _) _ = 0 from rfl, Nat.add_zero]
-    exact hcost_root
-  simp only [NiceTree.size_introduce]
-  refine ⟨iterationSafe_add nodeStep nodeStepSafe w env child.size 1 offset s hsafe_ch
-      (by rw [hres_ch, hs₁_def]; exact ⟨hsafe_root, trivial⟩),
-    validHistory_iterate_add nodeStep env child.size 1 offset s hv_ch
-      (by dsimp only [cur]; rw [hres_ch, hs₁_def]; exact hv_it_root),
-    by rw [clientResult_iterate_add, hres_ch, hs₁_def]; exact hit_root_res,
-    ?_, ?_, ?_, ?_⟩
-  · rw [clientState_iterate_add, hres_ch, hs₁_def, hit_root_st, hst_root]
-    have hfr_le : (v :: bagList child).length +
-        inst.domainSize ^ (v :: bagList child).length ≤ perSpace := by
-      dsimp only [perSpace]; omega
-    have hmul_bud : (child.size + 1) * perSpace = child.size * perSpace + perSpace := by ring
-    change s₁.frontier ≤ s.frontier + child.size * perSpace at hfr_ch
-    change _ ≤ s.frontier + (child.size + 1) * perSpace
-    dsimp only [introArgs, env, subtreeEnv] at hfr_in hfr_ch ⊢
+  refine ⟨hsafe_root, hv_root, hres_root, ?_, ?_, ?_, hcost_root⟩
+  · rw [hst_root]
+    dsimp only [introArgs, env, subtreeEnv] at hfr_in hfr_le ⊢
     omega
-  · rw [clientState_iterate_add, hres_ch, hs₁_def]
-    change FrameOutsideRange (env.descBase + 4 * offset)
-      (env.descBase + 4 * (offset + (child.size + 1))) s
-      ((Memory.spec 0).clientState s₁ (iterate nodeStep env 1 cur))
-    rw [hit_root_st, hst_root]
-    have hfr_in' : FrameOutsideRange (env.descBase + 4 * cur)
-        (env.descBase + 4 * (cur + 1)) s₁
-        ((Memory.spec 0).clientState s₁ (introNodeProg introArgs)) := by
-      dsimp only [introArgs] at hframe_in
-      simpa only [Nat.mul_add, Nat.mul_one, Nat.add_assoc] using hframe_in
-    simpa only [cur, env, subtreeEnv, Nat.add_assoc] using
-      FrameOutsideRange.trans
-        (hframe_ch.mono_range le_rfl (by dsimp only [cur, env, subtreeEnv]; omega))
-        (hfr_in'.mono_range (by dsimp only [cur, env, subtreeEnv]; omega) le_rfl)
-  · rw [clientState_iterate_add, hres_ch, hs₁_def]
-    change NodeDescAt F_lo inst.counting inst.domainSize inst.constraints inst.vars
-      (.introduce v child) (env.descBase + 4 * (offset + (child.size + 1) - 1))
-      ((Memory.spec 0).clientState s₁ (iterate nodeStep env 1 cur))
-    rw [hit_root_st, hst_root, show offset + (child.size + 1) - 1 = cur from by omega]
+  · rw [hst_root]
+    dsimp only [introArgs] at hframe_in
+    simpa only [Nat.mul_add, Nat.mul_one, Nat.add_assoc] using hframe_in
+  · rw [hst_root]
     exact hdesc_in
-  · rw [memoryCost_iterate_add, hres_ch, hs₁_def]
-    change memoryCost (iterate nodeStep env child.size offset) s +
-        memoryCost (iterate nodeStep env 1 cur) s₁ ≤ (child.size + 1) * perCost
-    have : (child.size + 1) * perCost = child.size * perCost + perCost := by ring
-    change memoryCost (iterate nodeStep env child.size offset) s ≤ child.size * perCost at hc_ch
-    omega
 
 private theorem subtree_full {w : ℕ} (inst : TreeCSPInstance) (hw : Fits w inst.wordBound) :
     ∀ (S : NiceTree ℕ) (offset : ℕ) (s : Memory.State),
