@@ -198,7 +198,9 @@ variable {w : ℕ} {c c₁ c₂ : Code B r} {x y y' z : Data r} {n n' : ℕ}
 /-- Executions are deterministic. -/
 theorem unique (h : Exec w c x y n) (h' : Exec w c x y' n') : y = y' ∧ n = n' := by
   induction h generalizing y' n' with
-  | op ho => cases h' with | op ho' => cases ho.symm.trans ho'; exact ⟨rfl, rfl⟩
+  | op ho =>
+    cases h' with
+    | op ho' => rw [ho] at ho'; cases ho'; exact ⟨rfl, rfl⟩
   | seq _ _ ih₁ ih₂ =>
     cases h' with
     | seq h₁' h₂' =>
@@ -485,15 +487,17 @@ private theorem Exec.of_evalLoop {w : ℕ} {c : Cond r} {body : Code B r}
   induction fuel generalizing x y n with
   | zero =>
     simp only [Code.evalLoop] at h
-    split at h <;> cases h
-    next hc => exact .loop_exit hc
+    split at h
+    · cases h
+    · next hc => cases h; exact .loop_exit hc
   | succ fuel ih =>
     simp only [Code.evalLoop] at h
     split at h
     · next hc =>
       obtain ⟨⟨x₁, m⟩, hb, hrest⟩ := Option.bind_eq_some_iff.1 h
       obtain ⟨⟨x₂, k⟩, hl, he⟩ := Option.map_eq_some_iff.1 hrest
-      obtain ⟨rfl, rfl⟩ := Prod.mk.inj he
+      simp only [Prod.mk.injEq] at he
+      obtain ⟨rfl, rfl⟩ := he
       exact .loop_iter hc (hf hb) (ih hl)
     · next hc => cases h; exact .loop_exit hc
 
@@ -502,23 +506,27 @@ theorem Exec.of_eval {w fuel : ℕ} {c : Code B r} {x y : Data r} {n : ℕ}
     (h : c.eval w fuel x = some (y, n)) : Exec w c x y n := by
   induction c generalizing x y n with
   | op o =>
-    obtain ⟨_, hy, ⟨⟩⟩ := Option.map_eq_some_iff.1 h
+    obtain ⟨y', hy, he⟩ := Option.map_eq_some_iff.1 h
+    cases he
     exact .op hy
   | seq c₁ c₂ ih₁ ih₂ =>
     obtain ⟨⟨x₁, m⟩, h₁, hrest⟩ := Option.bind_eq_some_iff.1 h
     obtain ⟨⟨x₂, k⟩, h₂, he⟩ := Option.map_eq_some_iff.1 hrest
-    obtain ⟨rfl, rfl⟩ := Prod.mk.inj he
+    simp only [Prod.mk.injEq] at he
+    obtain ⟨rfl, rfl⟩ := he
     exact .seq (ih₁ h₁) (ih₂ h₂)
   | branch c pos neg ihp ihn =>
     simp only [Code.eval] at h
     split at h
     · next hc =>
-      obtain ⟨⟨_, _⟩, h₁, he⟩ := Option.map_eq_some_iff.1 h
-      obtain ⟨rfl, rfl⟩ := Prod.mk.inj he
+      obtain ⟨⟨x₁, m⟩, h₁, he⟩ := Option.map_eq_some_iff.1 h
+      simp only [Prod.mk.injEq] at he
+      obtain ⟨rfl, rfl⟩ := he
       exact .branch_pos hc (ihp h₁)
     · next hc =>
-      obtain ⟨⟨_, _⟩, h₁, he⟩ := Option.map_eq_some_iff.1 h
-      obtain ⟨rfl, rfl⟩ := Prod.mk.inj he
+      obtain ⟨⟨x₁, m⟩, h₁, he⟩ := Option.map_eq_some_iff.1 h
+      simp only [Prod.mk.injEq] at he
+      obtain ⟨rfl, rfl⟩ := he
       exact .branch_neg hc (ihn h₁)
   | loop c body ih => exact Exec.of_evalLoop ih h
   | rand _ _ => cases h
@@ -736,24 +744,26 @@ theorem Exec.rename (hf : f.Injective) {w : ℕ} {c : Code B r} {x : Data r'} {y
     subst hx
     exact .op (by rw [Op.eval_rename hf, ho]; rfl)
   | seq _ _ ih₁ ih₂ =>
+    have h₁ := ih₁ hx
     have h₂ := ih₂ (Data.comap_extend hf _ x)
     rw [Data.extend_extend hf] at h₂
-    exact .seq (ih₁ hx) h₂
+    exact .seq h₁ h₂
   | branch_pos hc _ ih =>
     subst hx
     exact .branch_pos ((Cond.holds_rename _ _).2 hc) (ih rfl)
   | branch_neg hc _ ih =>
     subst hx
-    exact .branch_neg (mt (Cond.holds_rename _ _).1 hc) (ih rfl)
+    exact .branch_neg (fun h => hc ((Cond.holds_rename _ _).1 h)) (ih rfl)
   | loop_exit hc =>
     subst hx
     rw [Data.extend_comap hf]
-    exact .loop_exit (mt (Cond.holds_rename _ _).1 hc)
+    exact .loop_exit (fun h => hc ((Cond.holds_rename _ _).1 h))
   | loop_iter hc _ _ ihb ihl =>
     subst hx
-    have hl := ihl (Data.comap_extend hf _ x)
-    rw [Data.extend_extend hf] at hl
-    exact .loop_iter ((Cond.holds_rename _ _).2 hc) (ihb rfl) hl
+    have h₁ := ihb rfl
+    have h₂ := ihl (Data.comap_extend hf _ x)
+    rw [Data.extend_extend hf] at h₂
+    exact .loop_iter ((Cond.holds_rename _ _).2 hc) h₁ h₂
 
 /-- Bounded-time execution of a program renamed along an injective register map `f`. -/
 theorem ExecWithin.rename (hf : f.Injective) {w T : ℕ} {c : Code B r} {x : Data r'} {y : Data r}
