@@ -187,12 +187,10 @@ theorem RDemonicExec.rename {f : Fin r → Fin r'} (hf : f.Injective) {w L_peak 
     (h : RDemonicExec w L_peak c (x.comap f) T P) :
     RDemonicExec w L_peak (c.rename f) x T (fun z => ∃ y, P y ∧ z = y.extend f x) := by
   generalize hx : x.comap f = x₀ at h
-  induction h generalizing x with
+  induction h generalizing x with subst hx
   | @op o _ y P hL he hp =>
-    subst hx
     refine .op hL (by rw [evalResizable_rename hf, he]; rfl) ⟨y, hp, rfl⟩
   | @grow dst _ P hL hfit hp =>
-    subst hx
     refine .grow hL hfit fun mem' hdem => ?_
     refine ⟨⟨Function.update (x.comap f).regs dst x.frontier, mem', x.frontier + 1⟩, hp mem' hdem,
       ?_⟩
@@ -200,39 +198,33 @@ theorem RDemonicExec.rename {f : Fin r → Fin r'} (hf : f.Injective) {w L_peak 
       (congrArg (fun d => d.set (f dst) x.frontier) (Data.extend_comap hf x.toData))
     exact RData.ext (congrArg Data.regs hd).symm rfl rfl
   | @shrink _ P hL hk hp =>
-    subst hx
     refine .shrink hL hk ⟨⟨(x.comap f).regs, clear x.mem (x.frontier - 1) 1, x.frontier - 1⟩, hp,
       ?_⟩
     exact RData.ext (congrArg Data.regs (Data.extend_comap hf x.toData)).symm rfl rfl
   | @rand dst src _ P hL hfit hp =>
-    subst hx
     refine .rand hL hfit fun v hv => ⟨(x.comap f).set dst v, hp v hv, ?_⟩
     rw [RData.extend_set hf, RData.extend_comap hf]
   | seq _ _ ih₁ ih₂ =>
-    refine .seq (ih₁ hx) fun z ⟨y₁, hy₁, hz⟩ => ?_
+    refine .seq (ih₁ rfl) fun z ⟨y₁, hy₁, hz⟩ => ?_
     subst hz
     refine (ih₂ y₁ hy₁ (RData.comap_extend hf y₁ x)).mono le_rfl fun w ⟨y₂, hy₂, hw⟩ => ?_
     rw [RData.extend_extend hf] at hw
     exact ⟨y₂, hy₂, hw⟩
   | branch_pos hc _ ih =>
-    subst hx
     exact .branch_pos ((Cond.holds_rename _ _).2 hc) (ih rfl)
   | branch_neg hc _ ih =>
-    subst hx
     exact .branch_neg (fun h' => hc ((Cond.holds_rename _ _).1 h')) (ih rfl)
   | loop_exit hL hc hp =>
-    subst hx
     exact .loop_exit hL (fun h' => hc ((Cond.holds_rename _ _).1 h'))
       ⟨x.comap f, hp, (RData.extend_comap hf x).symm⟩
   | loop_iter hc _ _ ihb ihl =>
-    subst hx
     refine .loop_iter ((Cond.holds_rename _ _).2 hc) (ihb rfl) fun z ⟨y₁, hy₁, hz⟩ => ?_
     subst hz
     refine (ihl y₁ hy₁ (RData.comap_extend hf y₁ x)).mono le_rfl fun w ⟨y₂, hy₂, hw⟩ => ?_
     rw [RData.extend_extend hf] at hw
     exact ⟨y₂, hy₂, hw⟩
   | mono _ hT hPQ ih =>
-    exact (ih hx).mono hT fun z ⟨y, hy, hz⟩ => ⟨y, hPQ y hy, hz⟩
+    exact (ih rfl).mono hT fun z ⟨y, hy, hz⟩ => ⟨y, hPQ y hy, hz⟩
 
 /-- Deterministic postcondition specialization of `RDemonicExec.rename`. -/
 theorem RDemonicExec.rename_eq {f : Fin r → Fin r'} (hf : f.Injective) {w L_peak T : ℕ}
