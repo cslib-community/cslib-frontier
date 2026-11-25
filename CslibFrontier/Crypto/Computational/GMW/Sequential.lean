@@ -241,19 +241,7 @@ private theorem computableInPolyTime_seqStep {α : Type} {input : α ↪ List Bo
     funext a
     rcases h : (st a).2 with _ | ⟨coins, rest⟩ <;> simp [seqStep, h]
   rw [heq]
-  have hlist := hst.snd'
-  have hcoins := (ComputableInPolyTime.headD (encA := encProverCoins) ⟨[], []⟩).comp' hlist
-  have hempty :=
-    (ComputableInPolyTime.listIsEmpty' encProverCoins).comp' hlist
-  have htail :=
-    (ComputableInPolyTime.listTail encProverCoins).comp' hlist
-  exact hempty.ite' (.const ([], (false, [])))
-    (hst.fst'.ite'
-      ((computableInPolyTime_honestReply2 hs hφ hcoins
-        (ComputableInPolyTime.bitsRowWithInput (.const 3) (.const 0) hq)).prod
-        ((ComputableInPolyTime.const false).prod htail))
-      ((computableInPolyTime_honestReply1 hg hm hφ hcoins hq).prod
-        ((ComputableInPolyTime.const true).prod hlist)))
+  fun_prop
 
 theorem isPPTOn_runSeq_honest {α Caller : Type} {enc : α ↪ List Bool}
     {input : Caller ↪ List Bool}
