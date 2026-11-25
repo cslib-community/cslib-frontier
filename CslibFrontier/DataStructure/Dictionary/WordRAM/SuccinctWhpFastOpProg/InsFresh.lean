@@ -59,6 +59,13 @@ attribute [local simp] clientResult_pure_whp clientState_pure_whp
     else
       insFinishDirectGenProg ((((cp, base), b), X), (fp, lIdx))
 
+/-- Bucket `b`'s back pointers after `fastInsertAlloc` in the backyard case. -/
+private theorem fastInsertAlloc_backPtr_self {n_max b X : ℕ} {fs : FastState}
+    (hcf : capFrontWhp n_max ≤ X) :
+    (fastInsertAlloc n_max b X fs).backPtr b = Function.update (fs.backPtr b)
+      (X - capFrontWhp n_max) (fs.poolFreeStack (fs.poolFreeTop - 1)) := by
+  unfold fastInsertAlloc; dsimp only; rw [ite_eq_left hcf]; dsimp only; rw [Function.update_self]
+
 private theorem realizes_fastInsertFreshGen :
     Realizes .exact fastInsertFreshGenProg
       (WordEncoding.encode
@@ -103,12 +110,9 @@ private theorem realizes_fastInsertFreshGen :
       hq_lt, hv_lt, hcol1, hcol0⟩ := h
     have hw_eq := henv.2.2.1; subst hw_eq
     have hbp_alloc : capFrontWhp n_max ≤ X →
-        (fastInsertAlloc n_max b X fs).backPtr b (X - capFrontWhp n_max) < poolSizeWhp n_max := by
-      intro hcf
-      unfold fastInsertAlloc; dsimp only
-      rw [ite_eq_left hcf]; dsimp only
-      simp only [Function.update_self]
-      exact (hcf_fn hcf).2.2
+        (fastInsertAlloc n_max b X fs).backPtr b (X - capFrontWhp n_max) < poolSizeWhp n_max :=
+      fun hcf => by
+        rw [fastInsertAlloc_backPtr_self hcf, Function.update_self]; exact (hcf_fn hcf).2.2
     obtain ⟨_, _, hal_step⟩ :=
       fastInsertAllocGenProg_fastStep henv hb hX_tl hcf_fn hseed hrep (s := s)
     set fsAlloc := fastInsertAlloc n_max b X fs
@@ -166,12 +170,9 @@ private theorem fastInsertFreshGenProg_fastStep
         (fastInsertAlloc n_max b X fs)) s s' := by
   set cp := mkWhpCoreParams c U V w n_max
   have hbp_alloc : capFrontWhp n_max ≤ X →
-      (fastInsertAlloc n_max b X fs).backPtr b (X - capFrontWhp n_max) < poolSizeWhp n_max := by
-    intro hcf
-    unfold fastInsertAlloc; dsimp only
-    rw [ite_eq_left hcf]; dsimp only
-    simp only [Function.update_self]
-    exact (hcf_fn hcf).2.2
+      (fastInsertAlloc n_max b X fs).backPtr b (X - capFrontWhp n_max) < poolSizeWhp n_max :=
+    fun hcf => by
+      rw [fastInsertAlloc_backPtr_self hcf, Function.update_self]; exact (hcf_fn hcf).2.2
   obtain ⟨hal_mc, hal_vp, hal_step⟩ :=
     fastInsertAllocGenProg_fastStep henv hb hX_tl hcf_fn hseed hrep (s := s)
   set fsAlloc := fastInsertAlloc n_max b X fs
@@ -187,6 +188,7 @@ private theorem fastInsertFreshGenProg_fastStep
     (insWriteQVAtGenProg ((((cp, base), b), X), (q_val, v_val)))
   dsimp only
   unfold fastInsertFreshGenProg fastInsertFresh; dsimp only; simp only [pure_bind]
+  rw [clientState_bind, clientState_bind, memoryCost_bind', memoryCost_bind']
   cases hasFpCollision with
   | true =>
     simp only [↓reduceIte]
@@ -194,36 +196,18 @@ private theorem fastInsertFreshGenProg_fastStep
     obtain ⟨hfc_mc, hfc_vp, hfc_step⟩ :=
       insFinishCollisionGenProg_fastStep (fs := fsQV) henv hce hb hX_tl hna_cap hia_cap hv_cur
         hwq_step.2.1 hwq_step.2.2.1 (rKey := rKey) (s := s2)
-    have hs'_eq : (Memory.spec 0).clientState s
-        (fastInsertAllocGenProg (((cp, base), b), X) >>= fun _ =>
-          insWriteQVAtGenProg ((((cp, base), b), X), (q_val, v_val)) >>= fun _ =>
-          insFinishCollisionGenProg ((((cp, base), b), X), rKey)) =
-        (Memory.spec 0).clientState s2
-          (insFinishCollisionGenProg ((((cp, base), b), X), rKey)) := by
-      rw [clientState_bind, clientState_bind]
-    rw [hs'_eq]
-    refine ⟨?_, ?_, (hal_step.trans hwq_step).trans hfc_step⟩
-    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      dsimp only [s1, s2, cp] at hal_mc hwq_mc hfc_mc ⊢; omega
-    · exact validProg_bind hal_vp (validProg_bind hwq_vp hfc_vp)
+    exact ⟨by dsimp only [s1, s2, cp] at hal_mc hwq_mc hfc_mc ⊢; omega,
+      validProg_bind hal_vp (validProg_bind hwq_vp hfc_vp),
+      (hal_step.trans hwq_step).trans hfc_step⟩
   | false =>
     simp only [Bool.false_eq_true, ↓reduceIte, zero_ne_one]
     obtain ⟨hlIdx_eq, hlIdx, hfp_lt, hlic, lm, hv_l⟩ := hcol_f rfl
     obtain ⟨hfd_mc, hfd_vp, hfd_step⟩ :=
       insFinishDirectGenProg_fastStep (fs := fsQV) henv hb hX_tl hlIdx_eq hlIdx hfp_lt hlic hv_l
         hwq_step.2.1 hwq_step.2.2.1 (s := s2)
-    have hs'_eq : (Memory.spec 0).clientState s
-        (fastInsertAllocGenProg (((cp, base), b), X) >>= fun _ =>
-          insWriteQVAtGenProg ((((cp, base), b), X), (q_val, v_val)) >>= fun _ =>
-          insFinishDirectGenProg ((((cp, base), b), X), (fp, lIdx))) =
-        (Memory.spec 0).clientState s2
-          (insFinishDirectGenProg ((((cp, base), b), X), (fp, lIdx))) := by
-      rw [clientState_bind, clientState_bind]
-    rw [hs'_eq]
-    refine ⟨?_, ?_, (hal_step.trans hwq_step).trans hfd_step⟩
-    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      dsimp only [s1, s2, cp] at hal_mc hwq_mc hfd_mc ⊢; omega
-    · exact validProg_bind hal_vp (validProg_bind hwq_vp hfd_vp)
+    exact ⟨by dsimp only [s1, s2, cp] at hal_mc hwq_mc hfd_mc ⊢; omega,
+      validProg_bind hal_vp (validProg_bind hwq_vp hfd_vp),
+      (hal_step.trans hwq_step).trans hfd_step⟩
 
 private theorem overmarsBucketStepBounds_insFresh {c U V n_max b q_val v_val rKey fp : ℕ}
     {θ : SeedWhp c U n_max} {fs : FastState} {dict : State U} (hasFpCollision : Bool)
@@ -248,12 +232,11 @@ private theorem overmarsBucketStepBounds_insFresh {c U V n_max b q_val v_val rKe
       _ ≤ (slabScale n_max) ^ 12 := Nat.pow_le_pow_left hL2 12
   have hX_3L : X < 3 * (slabScale n_max) ^ 12 :=
     hX_tl.trans_le totalLocalCoordsWhp_le_three_mul
-  have hce_ins : fsIns.curEp = fs.curEp := by cases hasFpCollision <;> rfl
-  have hlr_ins : fsIns.liveRole = fs.liveRole := by cases hasFpCollision <;> rfl
-  have hor_ins : fsIns.overmarsRole = fs.overmarsRole := by cases hasFpCollision <;> rfl
-  have hoa_ins : fsIns.overmarsActive = fs.overmarsActive := by cases hasFpCollision <;> rfl
-  have hoc_ins : fsIns.overmarsCursor = fs.overmarsCursor := by cases hasFpCollision <;> rfl
-  have hoi_ins : fsIns.overmarsInsCount = fs.overmarsInsCount := by cases hasFpCollision <;> rfl
+  obtain ⟨hce_ins, hlr_ins, hor_ins, hoa_ins, hoc_ins, hoi_ins⟩ : fsIns.curEp = fs.curEp ∧
+      fsIns.liveRole = fs.liveRole ∧ fsIns.overmarsRole = fs.overmarsRole ∧
+      fsIns.overmarsActive = fs.overmarsActive ∧ fsIns.overmarsCursor = fs.overmarsCursor ∧
+      fsIns.overmarsInsCount = fs.overmarsInsCount := by
+    cases hasFpCollision <;> exact ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩
   have hcnt_ins : fsIns.bktCount b = X + 1 := by
     cases hasFpCollision <;> simp [fsIns, fastInsertFresh, fastInsertAlloc]
   have hq_ins : ∀ i < n_max, fsIns.quotArr i < 2 ^ quotBitsWhp U n_max := by
@@ -273,8 +256,7 @@ private theorem overmarsBucketStepBounds_insFresh {c U V n_max b q_val v_val rKe
       cases hasFpCollision <;> rfl
     rw [hbp_eq]
     by_cases hcf : capFrontWhp n_max ≤ X
-    · unfold fastInsertAlloc; dsimp only; rw [ite_eq_left hcf]; dsimp only
-      rw [Function.update_self]
+    · rw [fastInsertAlloc_backPtr_self hcf]
       by_cases hk_eq : k = X - capFrontWhp n_max
       · subst hk_eq; rw [Function.update_self]; exact (hcf_fn hcf).2.2
       · rw [Function.update_of_ne hk_eq]; exact (hv.backPtr_valid b hb k (by omega)).1
@@ -469,20 +451,11 @@ theorem insCommitFreshGenProg_spec {c U V w n_max base b q_val v_val rKey fp : �
     overmarsStepGenProg_fastStep henv hbnds_ins hfr_step.2.1 hfr_step.2.2.1 (s := s1)
   dsimp only
   unfold insCommitFreshGenProg; dsimp only
-  rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
-  have hs'_eq : (Memory.spec 0).clientState s
-      (fastInsertFreshGenProg
-          ((((cp, base), (b, X)), (q_val, v_val)), (hasCol, (rKey, (fp, lIdx)))) >>= fun _ =>
-        overmarsStepGenProg ((mkWhpParams c U V w n_max, base), b) >>= fun _ => pure 1) =
-      (Memory.spec 0).clientState s1
-        (overmarsStepGenProg ((mkWhpParams c U V w n_max, base), b)) := by
-    rw [clientState_bind, clientState_bind, clientState_pure_whp]
-  rw [hs'_eq]
-  refine ⟨?_, ?_, ?_, hfr_step.trans hom_step⟩
-  · rw [clientResult_bind, clientResult_bind, clientResult_pure_whp]
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, memoryCost_pure]
-    dsimp only [s1, cp, X, lIdx, hasCol] at hfr_mc hom_mc ⊢; omega
-  · exact validProg_bind hfr_vp (validProg_bind hom_vp (validProg_pure _))
+  rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1, clientResult_bind, clientResult_bind,
+    clientResult_pure_whp, clientState_bind, clientState_bind, clientState_pure_whp,
+    memoryCost_bind', memoryCost_bind', memoryCost_pure]
+  exact ⟨rfl, by dsimp only [s1, cp, X, lIdx, hasCol] at hfr_mc hom_mc ⊢; omega,
+    validProg_bind hfr_vp (validProg_bind hom_vp (validProg_pure _)), hfr_step.trans hom_step⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
 
