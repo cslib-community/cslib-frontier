@@ -32,10 +32,9 @@ variable {φ : CNF ℕ}
 theorem litAt_mem (hφ : WellFormed φ) {o : ℕ} (ho : o < numOcc φ) :
     litAt φ o ∈ φ[o / 3]'(by unfold numOcc at ho; omega) := by
   have hj : o / 3 < φ.length := by unfold numOcc at ho; omega
-  have hc := hφ _ (List.getElem_mem hj)
-  rw [litAt, List.getD_eq_getElem _ _ hj]
-  have hp : min (o % 3) ((φ[o / 3]).length - 1) < (φ[o / 3]).length := by omega
-  rw [List.getD_eq_getElem _ _ hp]
+  have hp : min (o % 3) ((φ[o / 3]).length - 1) < (φ[o / 3]).length := by
+    have := hφ _ (List.getElem_mem hj); omega
+  rw [litAt, List.getD_eq_getElem _ _ hj, List.getD_eq_getElem _ _ hp]
   exact List.getElem_mem hp
 
 /-- Every literal of a clause is a padded literal of it. -/
@@ -44,10 +43,9 @@ theorem exists_litAt_eq (hφ : WellFormed φ) {j : ℕ} (hj : j < φ.length) {l 
   obtain ⟨p, hp, rfl⟩ := List.getElem_of_mem hl
   have hc := hφ _ (List.getElem_mem hj)
   refine ⟨p, by omega, ?_⟩
-  have h1 : (3 * j + p) / 3 = j := by omega
-  have h2 : (3 * j + p) % 3 = p := by omega
-  have h3 : min p ((φ[j]).length - 1) = p := by omega
-  rw [litAt, h1, h2, List.getD_eq_getElem _ _ hj, h3, List.getD_eq_getElem _ _ hp]
+  rw [litAt, show (3 * j + p) / 3 = j by omega, show (3 * j + p) % 3 = p by omega,
+    List.getD_eq_getElem _ _ hj, show min p ((φ[j]).length - 1) = p by omega,
+    List.getD_eq_getElem _ _ hp]
 
 /-- The variable of an occurrence is listed. -/
 theorem fst_litAt_mem_varList (hφ : WellFormed φ) {o : ℕ} (ho : o < numOcc φ) :
@@ -79,8 +77,7 @@ theorem idxOf_getD_varList {i : ℕ} (hi : i < numAux φ) :
 
 theorem getD_varList_mem {i : ℕ} (hi : i < numAux φ) : (varList φ).getD i 0 ∈ varList φ := by
   unfold numAux at hi
-  rw [List.getD_eq_getElem _ _ hi]
-  exact List.getElem_mem hi
+  exact List.getD_eq_getElem _ _ hi ▸ List.getElem_mem hi
 
 /-! ### First and next occurrences -/
 
@@ -115,27 +112,20 @@ theorem exists_nextOcc_eq {o : ℕ} (ho : o < numOcc φ)
   classical
   let P : ℕ → Prop := fun o' => o' < o ∧ litAt φ o' = litAt φ o
   obtain ⟨o₀, ho₀, hl₀⟩ := h
-  have hex : ∃ o', P o' := ⟨o₀, ho₀, hl₀⟩
-  let g := Nat.findGreatest P o
-  have hg : P g := Nat.findGreatest_spec (P := P) (m := o₀) ho₀.le ⟨ho₀, hl₀⟩
-  refine ⟨g, hg.1, hg.2, nextOcc_eq_some.2 ⟨ho, hg.1, hg.2.symm, fun o'' ho'' hgo'' hl => ?_⟩⟩
-  exact Nat.findGreatest_is_greatest (P := P) hgo'' ho''.le ⟨ho'', hl.trans hg.2⟩
+  have hg : P (Nat.findGreatest P o) := Nat.findGreatest_spec ho₀.le ⟨ho₀, hl₀⟩
+  exact ⟨_, hg.1, hg.2, nextOcc_eq_some.2 ⟨ho, hg.1, hg.2.symm, fun _ ho'' hgo'' hl =>
+    Nat.findGreatest_is_greatest hgo'' ho''.le ⟨ho'', hl.trans hg.2⟩⟩⟩
 
 /-! ### Vertex indices -/
 
-theorem entryIdx_injective (φ : CNF ℕ) : Function.Injective (entryIdx φ) := by
-  intro o o' h
-  unfold entryIdx at h
-  omega
+theorem entryIdx_injective (φ : CNF ℕ) : Function.Injective (entryIdx φ) :=
+  fun _ _ h => by unfold entryIdx at h; omega
 
-theorem exitIdx_injective (φ : CNF ℕ) : Function.Injective (exitIdx φ) := by
-  intro o o' h
-  unfold exitIdx at h
-  omega
+theorem exitIdx_injective (φ : CNF ℕ) : Function.Injective (exitIdx φ) :=
+  fun _ _ h => by unfold exitIdx at h; omega
 
 theorem entryIdx_ne_exitIdx (φ : CNF ℕ) (o o' : ℕ) : entryIdx φ o ≠ exitIdx φ o' := by
-  unfold entryIdx exitIdx
-  omega
+  unfold entryIdx exitIdx; omega
 
 theorem numAux_le_entryIdx (φ : CNF ℕ) (o : ℕ) : numAux φ ≤ entryIdx φ o := by
   unfold entryIdx; omega
@@ -196,28 +186,20 @@ theorem exitSucc_lt_size (hφ : WellFormed φ) {o : ℕ} (ho : o < numOcc φ) :
 theorem auxSucc_true_ne_false (hφ : WellFormed φ) {i : ℕ} (hi : i < numAux φ) :
     auxSucc φ i true ≠ auxSucc φ i false := by
   obtain ⟨o, ho, hx⟩ := exists_occ_of_mem_varList hφ (getD_varList_mem hi)
-  have key : ∀ b, firstOcc φ ((varList φ).getD i 0, b) ≠ none →
-      ∀ o₁, firstOcc φ ((varList φ).getD i 0, b) = some o₁ →
-      auxSucc φ i (!b) ≠ entryIdx φ o₁ := by
-    intro b _ o₁ h₁ h
-    rcases h₂ : firstOcc φ ((varList φ).getD i 0, !b) with _ | o₂
-    · rw [auxSucc_eq_none h₂] at h
-      have := numAux_le_entryIdx φ o₁
-      omega
-    · rw [auxSucc_eq_some h₂] at h
-      have := entryIdx_injective φ h
-      subst this
-      have e := (firstOcc_eq_some.1 h₁).2.1
-      rw [(firstOcc_eq_some.1 h₂).2.1] at e
-      simp at e
-  have hb : firstOcc φ ((varList φ).getD i 0, (litAt φ o).2) ≠ none := by
-    rw [ne_eq, firstOcc_eq_none]
-    exact fun h => h o ho (by rw [← hx])
+  intro h
+  have hb : firstOcc φ ((varList φ).getD i 0, (litAt φ o).2) ≠ none :=
+    fun hn => firstOcc_eq_none.1 hn o ho (Prod.ext hx rfl)
   obtain ⟨o₁, h₁⟩ := Option.ne_none_iff_exists'.1 hb
-  have h1 := auxSucc_eq_some h₁
-  have h2 := key _ hb o₁ h₁
-  cases hb' : (litAt φ o).2
-  · rw [hb'] at h1 h2; simp only [Bool.not_false] at h2; rw [h1]; exact h2
-  · rw [hb'] at h1 h2; simp only [Bool.not_true] at h2; rw [h1]; exact fun h => h2 h.symm
+  have hnot : auxSucc φ i (!(litAt φ o).2) = entryIdx φ o₁ := by
+    cases hb' : (litAt φ o).2
+    · rw [hb'] at h₁; exact h.trans (auxSucc_eq_some h₁)
+    · rw [hb'] at h₁; exact h.symm.trans (auxSucc_eq_some h₁)
+  rcases h₂ : firstOcc φ ((varList φ).getD i 0, !(litAt φ o).2) with _ | o₂
+  · rw [auxSucc_eq_none h₂] at hnot
+    have := numAux_le_entryIdx φ o₁; omega
+  · rw [auxSucc_eq_some h₂] at hnot
+    obtain rfl := entryIdx_injective φ hnot
+    have e := (firstOcc_eq_some.1 h₁).2.1.symm.trans (firstOcc_eq_some.1 h₂).2.1
+    simp at e
 
 end Cslib.Complexity.PermanentThreeSAT

@@ -50,15 +50,13 @@ theorem evalPrefix_eq_of_paste_agrees [Fintype ι] (x : ι ↪ F) (u : Fin m →
     evalPrefix u p.val = f := by
   classical
   obtain ⟨hcard, hfits⟩ := (pasteOutcome_eq_some_iff x g p).mp hp
-  let s := successfulSlices g
-  apply Polynomial.eq_of_natDegree_lt_card_of_eval_eq _ _ (ι := s)
-    ((x.injective.comp Subtype.val_injective) :
-      Function.Injective fun j : s => x j.val)
+  apply Polynomial.eq_of_natDegree_lt_card_of_eval_eq _ _ (ι := successfulSlices g)
+    (x.injective.comp Subtype.val_injective)
   · intro j
     obtain ⟨q, hq⟩ := Option.isSome_iff_exists.mp (mem_successfulSlices.mp j.prop)
     rw [eval_evalPrefix]
-    have he := congrArg (fun q : BoundedPolynomial F m d => eval u q.val) (hfits j q hq)
-    exact he.trans (hagree j q hq)
+    exact (congrArg (fun r : BoundedPolynomial F m d => eval u r.val) (hfits j q hq)).trans
+      (hagree j q hq)
   · rw [Fintype.card_coe]
     exact max_lt ((natDegree_evalPrefix_le _ _).trans_lt
       ((p.prop (Fin.last m)).trans_lt hcard)) (hf.trans_lt hcard)
@@ -91,13 +89,11 @@ theorem pastedLineMismatch_le [Fintype ι] (x : ι ↪ F) (u : Fin m → F) (t :
   rintro ⟨g, b⟩ ⟨p, hp, hne⟩
   by_contra h
   obtain ⟨f, hf, heval⟩ := hline b
-  have hagree (i : ι) (q : BoundedPolynomial F m d) (hq : g i = some q) :
-      eval u q.val = f.eval (x i) := by
-    rw [heval]
-    by_contra hne'
-    exact h (Set.mem_iUnion₂.mpr ⟨i, mem_univ i, q, hq, hne'⟩)
-  apply hne
-  rw [← eval_specializeLast, ← eval_evalPrefix, evalPrefix_eq_of_paste_agrees x u hp hf hagree]
+  refine hne ?_
+  rw [← eval_specializeLast, ← eval_evalPrefix,
+    evalPrefix_eq_of_paste_agrees x u hp hf fun i q hq =>
+      (by_contra fun hne' => h (Set.mem_iUnion₂.mpr ⟨i, mem_univ i, q, hq, hne'⟩)).trans
+        (heval (x i)).symm]
   exact heval t
 
 /-- The vertical-line comparison averaged over a uniform prefix, a tuple of distinct
@@ -115,32 +111,18 @@ theorem average_pastedLineMismatch_le [Fintype F] (k : ℕ) [Nonempty (Fin k ↪
       ((law u x).toOuterMeasure (sliceLineMismatch u x lineValue i)).toReal := by
   classical
   let _ : Fintype (Fin k ↪ F) := Fintype.ofFinite _
-  let eventProb (u : Fin m → F) (x : Fin k ↪ F) (t : F) :=
-    (((law u x).map (Prod.map (pasteOutcome x) id)).toOuterMeasure
-      (pastedLineMismatch (d := d) u t lineValue)).toReal
   let sliceProb (u : Fin m → F) (x : Fin k → F) (i : Fin k) :=
     ((law u x).toOuterMeasure (sliceLineMismatch u x lineValue i)).toReal
-  change (𝔼 u, 𝔼 x, 𝔼 t, eventProb u x t) ≤
-    (k.choose 2 : ℝ) / Fintype.card F + ∑ i, 𝔼 u, 𝔼 x, sliceProb u x i
   let score (u : Fin m → F) (x : Fin k → F) := min 1 (∑ i, sliceProb u x i)
-  calc
-    _ ≤ 𝔼 u, 𝔼 x : Fin k ↪ F, score u x := by
-      refine Finset.expect_le_expect fun u _ => Finset.expect_le_expect fun x _ => ?_
-      refine Finset.expect_le univ_nonempty fun t _ => le_min ?_ ?_
-      · exact toOuterMeasure_toReal_le_one _ _
-      · exact pastedLineMismatch_le x u t lineValue hline (law u x)
-    _ ≤ 𝔼 u, ((𝔼 x, score u x) + (k.choose 2 : ℝ) / Fintype.card F) := by
-      refine Finset.expect_le_expect fun u _ => expect_embedding_le_expect_add k (score u) ?_ ?_
-      · intro x
-        exact le_min zero_le_one (sum_nonneg fun _ _ => ENNReal.toReal_nonneg)
-      · intro x
-        exact min_le_left _ _
-    _ ≤ 𝔼 u, ((𝔼 x, ∑ i, sliceProb u x i) + (k.choose 2 : ℝ) / Fintype.card F) := by
-      exact Finset.expect_le_expect fun _ _ =>
-        add_le_add_left (Finset.expect_le_expect fun _ _ => min_le_right _ _) _
-    _ = _ := by
-      rw [Finset.expect_add_distrib, Fintype.expect_const, add_comm]
-      simp only [Finset.expect_sum_comm]
+  refine (Finset.expect_le_expect fun u _ => (Finset.expect_le_expect fun x _ =>
+    Finset.expect_le univ_nonempty fun t _ => le_min (toOuterMeasure_toReal_le_one _ _)
+      (pastedLineMismatch_le x u t lineValue hline (law u x))).trans
+    ((expect_embedding_le_expect_add k (score u)
+      (fun _ => le_min zero_le_one (sum_nonneg fun _ _ => ENNReal.toReal_nonneg))
+      fun _ => min_le_left _ _).trans
+      (add_le_add_left (Finset.expect_le_expect fun _ _ => min_le_right _ _) _))).trans_eq ?_
+  rw [Finset.expect_add_distrib, Fintype.expect_const, add_comm]
+  simp only [Finset.expect_sum_comm, sliceProb]
 
 section Strategy
 
@@ -219,8 +201,7 @@ theorem pastedLineMismatch_eq_successfulMismatch [Fintype F] [DecidableEq F] {k 
   have h := (T.sequential k hM).successfulMismatch_map_map_eq_event x u
     (Option.map (fun q => eval (Fin.snoc u t) q.val) ∘ pasteOutcome x) (fun b => lineValue b t)
   refine Eq.trans ?_ h.symm
-  congr 2
-  ext ⟨a, b⟩
+  congr 2; ext ⟨a, b⟩
   change (∃ p, pasteOutcome x a = some p ∧ eval (Fin.snoc u t) p.val ≠ lineValue b t) ↔
     (∃ z, Option.map (fun p => eval (Fin.snoc u t) p.val) (pasteOutcome x a) = some z ∧
       z ≠ lineValue b t)
@@ -271,8 +252,8 @@ theorem average_sequential_pastedLineMismatch_le [Fintype F] (k : ℕ) [Nonempty
   refine (average_pastedLineMismatch_le k lineValue hline
     (fun u x => (S.sequential k hM).answers x u)).trans ?_
   rw [add_assoc]
-  apply add_le_add_right
-  refine (sum_le_sum fun i _ => average_sequentialSliceLineMismatch_le S hM i lineValue).trans_eq ?_
+  refine add_le_add_right ((sum_le_sum fun i _ =>
+    average_sequentialSliceLineMismatch_le S hM i lineValue).trans_eq ?_) _
   simp only [sum_add_distrib, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]
 
 /-- Vertical-line mismatch for the pasted measurement in terms of the isolated mismatch,
@@ -296,9 +277,9 @@ theorem average_pastedLineMismatch_le_of_pairwise [Fintype F] (k : ℕ) [Nonempt
     (k.choose 2 : ℝ) / Fintype.card F +
       k * (𝔼 u : Fin m → F, 𝔼 t : F, isolatedSliceMismatch S lineValue u t) +
       k * ((k - 1 : ℕ) : ℝ) * √(2 * χ + 8 * ζ) := by
-  refine (average_sequential_pastedLineMismatch_le k S hM lineValue hline).trans ?_
-  apply add_le_add_right
-  exact Measurement.sum_prefixDisturbance_le_of_pairwise k S.state S.alice R hM hR hc hpair hcopy
+  exact (average_sequential_pastedLineMismatch_le k S hM lineValue hline).trans
+    (add_le_add_right (Measurement.sum_prefixDisturbance_le_of_pairwise k S.state S.alice R hM hR
+      hc hpair hcopy) _)
 
 end Strategy
 
@@ -353,9 +334,8 @@ theorem average_pastedLineMismatch_le_of_successful [Fintype F] (k : ℕ)
       k * (𝔼 u : Fin m → F, 𝔼 t : F, isolatedSliceMismatch S lineValue u t) +
       k * ((k - 1 : ℕ) : ℝ) * √(162 * χ + 176 * ζ) := by
   obtain ⟨hp, hs⟩ := Measurement.average_completedDefects_le S.state S.alice R hM hR hc hpair hcopy
-  have h := average_pastedLineMismatch_le_of_pairwise k S hM R hR hc lineValue hline hp hs
-  have he : 2 * (81 * χ + 80 * ζ) + 8 * (2 * ζ) = 162 * χ + 176 * ζ := by ring
-  simpa only [he] using h
+  simpa only [show 2 * (81 * χ + 80 * ζ) + 8 * (2 * ζ) = 162 * χ + 176 * ζ by ring] using
+    average_pastedLineMismatch_le_of_pairwise k S hM R hR hc lineValue hline hp hs
 
 end Completed
 

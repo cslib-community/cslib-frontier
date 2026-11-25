@@ -161,14 +161,15 @@ private theorem isOraclePPTOn_queryAny :
     (stateEncoding := encPair (encList encBits) encBool) (by fun_prop) (by fun_prop) ?_
     (growth := 0) ?_) (by fun_prop)
   · simp only [interpret_queryAnyStep]
-    refine IsOraclePPTOn.cond (by fun_prop) (ComputableInPolyTime.id'.isOraclePPTOn) ?_
-    exact IsOraclePPTOn.map_with (IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop))
-      (by fun_prop)
-  · intro state next hnext
+    exact IsOraclePPTOn.cond (by fun_prop) ComputableInPolyTime.id'.isOraclePPTOn
+      (IsOraclePPTOn.map_with (IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop))
+        (by fun_prop))
+  · rintro ⟨words, acc⟩ next hnext
     rw [interpret_queryAnyStep] at hnext
-    obtain ⟨words, acc⟩ := state
     cases words with
-    | nil => rw [OracleComp.eq_of_mem_supportWith_pure hnext]; simp
+    | nil =>
+      rw [OracleComp.eq_of_mem_supportWith_pure hnext]
+      simp
     | cons word words =>
       obtain ⟨reply, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hnext
       enc_len [List.length_singleton, List.tail_cons, length_encList, List.map_cons, List.sum_cons]
@@ -189,20 +190,19 @@ open Classical in
 theorem interpret_queryAny (A : Set (List Bool)) (words : List (List Bool)) :
     OracleComp.interpret (m := Id) (languageOracle A) (queryAny words) =
       words.any fun word => decide (word ∈ A) := by
-  have key : ∀ (words : List (List Bool)) (acc : Bool),
+  have key (words : List (List Bool)) (acc : Bool) :
       OracleComp.interpret (m := Id) (languageOracle A)
         (OracleComp.iterate words.length queryAnyStep (words, acc)) =
         ([], acc || words.any fun word => decide (word ∈ A)) := by
-    intro words
-    induction words with
-    | nil => intro acc; simp only [List.length_nil, List.any_nil, Bool.or_false]; rfl
+    induction words generalizing acc with
+    | nil =>
+      simp only [List.length_nil, List.any_nil, Bool.or_false]
+      rfl
     | cons word words ih =>
-      intro acc
       rw [List.length_cons, OracleComp.iterate_succ_bind, OracleComp.interpret_bind]
-      change OracleComp.interpret (m := Id) (languageOracle A)
-        (OracleComp.iterate words.length queryAnyStep
-          (OracleComp.interpret (m := Id) (languageOracle A)
-            (queryAnyStep (word :: words, acc)))) = _
+      change OracleComp.interpret (m := Id) (languageOracle A) (OracleComp.iterate words.length
+        queryAnyStep (OracleComp.interpret (m := Id) (languageOracle A)
+          (queryAnyStep (word :: words, acc)))) = _
       rw [interpret_id_queryAnyStep, ih]
       simp [Bool.or_assoc]
   unfold queryAny
@@ -231,44 +231,38 @@ theorem NP_subset_RPWithPromiseOracle_PromiseUSAT (enc : α ↪ List Bool) :
     NP enc ⊆ RPWithPromiseOracle PromiseUSAT encCNF enc := by
   classical
   intro L hL
-  obtain ⟨g, hg, hgL⟩ := (CookLevin.SAT_npHard enc L hL)
+  obtain ⟨g, hg, hgL⟩ := CookLevin.SAT_npHard enc L hL
   obtain ⟨c, d, hlen⟩ := hg.polyBounded_length.exists_le
   let queries : α × List Bool → List (List Bool) := fun x =>
     (BitString.listRows (11 * (c * ((enc x.1).length + 1) ^ d + 3))
       ((c * ((enc x.1).length + 1) ^ d + 2) ^ 2) x.2).map
         fun b => encCNF (reduce (g x.1, b))
-  have hqueries : ComputableInPolyTime queries (encPair enc encBits) (encList encBits) := by
-    have hreduce := computableInPolyTime_reduce
-    fun_prop
+  have hreduce := computableInPolyTime_reduce
   refine ⟨Polynomial.C 11 * (Polynomial.C c * (Polynomial.X + 1) ^ d + 3) *
       (Polynomial.C c * (Polynomial.X + 1) ^ d + 2) ^ 2,
-    fun x => queryAny (queries x), isOraclePPTOn_queryAny.preprocess hqueries,
+    fun x => queryAny (queries x),
+    isOraclePPTOn_queryAny.preprocess (show ComputableInPolyTime queries _ _ by fun_prop),
     fun A hA a => ⟨fun ha => ?_, fun ha r => ?_⟩⟩
   · set N := c * ((enc a).length + 1) ^ d with hN
-    have heval : (Polynomial.C 11 * (Polynomial.C c * (Polynomial.X + 1) ^ d + 3) *
-        (Polynomial.C c * (Polynomial.X + 1) ^ d + 2) ^ 2).eval (enc a).length =
-        11 * (N + 3) * (N + 2) ^ 2 := by
-      simp [hN]
-    rw [heval]
-    have hsat : g a ∈ SAT := (hgL a).1 ha
+    rw [show ((Polynomial.C 11 * (Polynomial.C c * (Polynomial.X + 1) ^ d + 3) *
+        (Polynomial.C c * (Polynomial.X + 1) ^ d + 2) ^ 2 : Polynomial ℕ)).eval (enc a).length =
+        11 * (N + 3) * (N + 2) ^ 2 by simp [hN]]
     have hvars : (g a).vars.length ≤ N := (SAT.length_vars_le _).trans (hlen a)
-    have hW : randomBits (g a) ≤ (N + 2) ^ 2 :=
-      (randomBits_le _).trans (Nat.pow_le_pow_left (by omega) 2)
     refine (two_pow_le_two_mul_card_exists_row (M := N + 3) (by omega)
       (fun b => reduce (g a, b) ∈ USAT)
-      ((three_mul_two_pow_le_card_reduce_mem_USAT hsat hW).trans ?_)).trans ?_
-    · exact Nat.mul_le_mul_right _ (by omega)
-    · refine Nat.mul_le_mul_left _ (Finset.card_le_card fun r hr => ?_)
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hr ⊢
-      obtain ⟨b, hb, hgood⟩ := hr
-      rw [interpret_queryAny, List.any_eq_true]
-      exact ⟨_, List.mem_map.2 ⟨b, hb, rfl⟩, hA.1 _ hgood⟩
+      ((three_mul_two_pow_le_card_reduce_mem_USAT ((hgL a).1 ha)
+        ((randomBits_le _).trans (Nat.pow_le_pow_left (by omega) 2))).trans
+          (Nat.mul_le_mul_right _ (by omega)))).trans
+      (Nat.mul_le_mul_left _ (Finset.card_le_card fun r hr => ?_))
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hr ⊢
+    obtain ⟨b, hb, hgood⟩ := hr
+    rw [interpret_queryAny, List.any_eq_true]
+    exact ⟨_, List.mem_map.2 ⟨b, hb, rfl⟩, hA.1 _ hgood⟩
   · dsimp only
     rw [interpret_queryAny, List.any_eq_false]
     intro w hw
     obtain ⟨b, -, rfl⟩ := List.mem_map.1 hw
-    have := hA.2 _ (reduce_mem_UNSAT (fun h => ha ((hgL a).2 h)) b)
-    simpa using this
+    simpa using hA.2 _ (reduce_mem_UNSAT (ha ∘ (hgL a).2) b)
 
 open Classical in
 /-- **`NP ⊆ RP^A` for every language `A` solving `PromiseUSAT`.** -/
@@ -286,7 +280,7 @@ formulas. -/
 theorem NP_subset_RPWithOracle_USAT (enc : α ↪ List Bool) :
     NP enc ⊆ RPWithOracle (encCNF '' USAT) enc := by
   classical
-  refine NP_subset_RPWithOracle_of_solvedBy ?_ enc
-  simpa only [encCNF.injective.mem_set_image] using solvedBy_USAT
+  exact NP_subset_RPWithOracle_of_solvedBy
+    (by simpa only [encCNF.injective.mem_set_image] using solvedBy_USAT) enc
 
 end Cslib.Complexity

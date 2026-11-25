@@ -96,14 +96,13 @@ theorem generate_eq_sum (count seedBits outputBits : ℕ) (generator : ℕ → L
       List.ofFn (∑ i : Fin count,
         ofList outputBits
           (generator i.val (List.ofFn (block (ofList (count * seedBits) seed) i)))) := by
-  have hrows : (List.range count).map (fun i => generator i (listRow seedBits i seed)) =
+  rw [generate, show (List.range count).map (fun i => generator i (listRow seedBits i seed)) =
       List.ofFn (fun i : Fin count =>
-        generator i.val (List.ofFn (block (ofList (count * seedBits) seed) i))) := by
-    apply List.ext_getElem (by simp)
-    intro i hi hi'
-    simpa only [List.getElem_map, List.getElem_range, List.getElem_ofFn] using
-      congrArg (generator i) (listRow_eq_ofFn seedBits ⟨i, by simpa using hi'⟩ seed)
-  rw [generate, hrows, listXor_eq_ofFn_sum]
+        generator i.val (List.ofFn (block (ofList (count * seedBits) seed) i))) from
+    List.ext_getElem (by simp) fun i _ hi' => by
+      simpa only [List.getElem_map, List.getElem_range, List.getElem_ofFn] using
+        congrArg (generator i) (listRow_eq_ofFn seedBits ⟨i, by simpa using hi'⟩ seed),
+    listXor_eq_ofFn_sum]
 
 /-- Uniform seed blocks are independent; the combiner's law is a sum over their finite tuple. -/
 theorem generate_distribution (count seedBits outputBits : ℕ)
@@ -127,18 +126,14 @@ theorem real_distribution (count seedBits outputBits : ℕ) (generator : ℕ →
       (uniformList (count * seedBits)).map (generate count seedBits outputBits generator) := by
   simp_rw [generate_distribution]
   simp only [pmf_norm, uniformList]
-  let evaluate := fun seeds : Fin count → BitString seedBits =>
-    List.ofFn (∑ j : Fin count, ofList outputBits (generator j.val (List.ofFn (seeds j))))
-  have h := congrArg (PMF.map evaluate)
+  have h := congrArg (PMF.map fun seeds : Fin count → BitString seedBits =>
+      List.ofFn (∑ j : Fin count, ofList outputBits (generator j.val (List.ofFn (seeds j)))))
     (PMF.uniformOfFintype_update (γ := BitString seedBits) i)
   simp only [pmf_norm] at h
   refine Eq.trans ?_ h
-  congr 1 with fresh : 1
-  congr 1 with seeds : 1
-  apply congrArg List.ofFn
-  apply Finset.sum_congr rfl
-  intro j _
-  rcases eq_or_ne j i with rfl | hji <;> simp [Fin.val_inj, *]
+  congr 1 with fresh : 1; congr 1 with seeds : 1
+  exact congrArg List.ofFn (Finset.sum_congr rfl fun j _ => by
+    rcases eq_or_ne j i with rfl | hji <;> simp [Fin.val_inj, *])
 
 /-- One uniform candidate masks the complete XOR, for every fixed choice of the other outputs. -/
 theorem ideal_distribution (count seedBits outputBits : ℕ) (generator : ℕ → List Bool → List Bool)
@@ -149,23 +144,18 @@ theorem ideal_distribution (count seedBits outputBits : ℕ) (generator : ℕ �
         (fun j seed => if j = i.val then challenge else generator j seed))) =
       uniformList outputBits := by
   simp_rw [generate_distribution]
-  simp only [pmf_norm, uniformList]
-  simp only [PMF.map]
+  simp only [pmf_norm, uniformList, PMF.map]
   rw [PMF.bind_comm]
-  calc
-    _ = (PMF.uniformOfFintype (Fin count → BitString seedBits)).bind
-        (fun _ => (PMF.uniformOfFintype (BitString outputBits)).map List.ofFn) := by
-      congr 1 with seeds : 1
-      have h := congrArg (PMF.map List.ofFn) (PMF.uniformOfFintype_map_sum_update
-        (fun j : Fin count => ofList outputBits (generator j.val (List.ofFn (seeds j)))) i)
-      simp only [PMF.map_comp, Function.comp_def] at h
-      refine Eq.trans ?_ h
-      congr 1 with challenge : 1
-      apply congrArg (PMF.pure ∘ List.ofFn)
-      apply Finset.sum_congr rfl
-      intro j _
-      rcases eq_or_ne j i with rfl | hji <;> simp [Fin.val_inj, *]
-    _ = _ := PMF.bind_const _ _
+  refine Eq.trans ?_ (PMF.bind_const (PMF.uniformOfFintype (Fin count → BitString seedBits))
+    ((PMF.uniformOfFintype (BitString outputBits)).map List.ofFn))
+  congr 1 with seeds : 1
+  have h := congrArg (PMF.map List.ofFn) (PMF.uniformOfFintype_map_sum_update
+    (fun j : Fin count => ofList outputBits (generator j.val (List.ofFn (seeds j)))) i)
+  simp only [PMF.map_comp, Function.comp_def] at h
+  refine Eq.trans ?_ h
+  congr 1 with challenge : 1
+  exact congrArg (PMF.pure ∘ List.ofFn) (Finset.sum_congr rfl fun j _ => by
+    rcases eq_or_ne j i with rfl | hji <;> simp [Fin.val_inj, *])
 
 /-- Simulate every other candidate and insert the supplied challenge at the chosen index. -/
 noncomputable def test (count seedBits outputBits : ℕ) (generator : ℕ → List Bool → List Bool)
@@ -195,16 +185,15 @@ theorem isPPTOn_test {α : Type} {input : α ↪ List Bool}
   have h1 := ComputableInPolyTime.fst input encBits
   have hp1 := ComputableInPolyTime.fst (encPair (encPair input encBits) encUnary) encBits
   have ha := hp1.fst'.fst'
-  have hj := hp1.snd'
-  apply IsPPTOn.bind_with (left := encBits)
+  refine IsPPTOn.bind_with (left := encBits)
     (ComputableInPolyTime.sampleList (hcount.unary_mul' hseedBits))
-  apply hadversary.preprocess (prepare := fun p : α × List Bool =>
-    (p.1, generate (count p.1) (seedBits p.1) (outputBits p.1)
-      (fun j coins => if j = index p.1 then challenge p.1 else generator p.1 j coins) p.2))
-  refine h1.prod
-    (isPolyTime_generate (hcount.comp h1) (hseedBits.comp h1) (houtputBits.comp h1) ?_ (.snd _ _))
-  exact .ite_decide (hj.decide_eq' (hindex.comp ha)) (hchallenge.comp ha)
-    (hgenerator.comp ((ha.prod hj).prod (.snd _ _)))
+    (hadversary.preprocess (prepare := fun p : α × List Bool =>
+      (p.1, generate (count p.1) (seedBits p.1) (outputBits p.1)
+        (fun j coins => if j = index p.1 then challenge p.1 else generator p.1 j coins) p.2))
+      (h1.prod (isPolyTime_generate (hcount.comp h1) (hseedBits.comp h1) (houtputBits.comp h1)
+        ?_ (.snd _ _))))
+  exact .ite_decide (hp1.snd'.decide_eq' (hindex.comp ha)) (hchallenge.comp ha)
+    (hgenerator.comp ((ha.prod hp1.snd').prod (.snd _ _)))
 
 /-- XOR combination loses no distinguishing advantage when reducing to a valid candidate. -/
 theorem advantage_eq (count seedBits outputBits : ℕ) (generator : ℕ → List Bool → List Bool)
@@ -243,24 +232,19 @@ theorem indistinguishableWithAdvice {generator : ℕ → ℕ → List Bool → L
         (generate (count n) (seedBits n) (outputBits n) (generator n)))
       (fun n => uniformList (outputBits n)) := by
   intro adversary hadversary
-  let reduction := fun (input : (ℕ × (List Bool × ℕ)) × List Bool) =>
-    test (count input.1.1) (seedBits input.1.1) (outputBits input.1.1) (generator input.1.1)
-      input.1.2.2 (fun word => adversary ((input.1.1, input.1.2.1), word)) input.2
   have h1 := ComputableInPolyTime.fst (encPair encUnary (encPair encBits encUnary)) encBits
-  have hn := h1.fst'
-  have hreduce : IsPPTOn (encPair (encPair encUnary (encPair encBits encUnary)) encBits)
-      encBool reduction := by
-    have hp1 := ComputableInPolyTime.fst
-      (encPair (encPair (encPair encUnary (encPair encBits encUnary)) encBits) encUnary) encBits
-    apply isPPTOn_test
-    · exact hcount.comp hn
-    · exact hseedBits.comp hn
-    · exact houtputBits.comp hn
-    · exact h1.snd'.snd'
-    · exact hgenerator.comp (((hn.comp hp1.fst').prod hp1.snd').prod (.snd _ _))
-    · exact hadversary.preprocess (((hn.prod h1.snd'.fst').comp (.fst _ _)).prod (.snd _ _))
-    · exact .snd _ _
-  apply (hsecure.negligible_encoded (encAdvice := encPair encBits encUnary) hreduce).congr'
+  have hp1 := ComputableInPolyTime.fst
+    (encPair (encPair (encPair encUnary (encPair encBits encUnary)) encBits) encUnary) encBits
+  have hreduce : IsPPTOn (encPair (encPair encUnary (encPair encBits encUnary)) encBits) encBool
+      (fun input =>
+        let ⟨⟨n, adv, idx⟩, ch⟩ := input
+        test (count n) (seedBits n) (outputBits n) (generator n) idx
+          (fun word => adversary ((n, adv), word)) ch) :=
+    isPPTOn_test (hcount.comp h1.fst') (hseedBits.comp h1.fst') (houtputBits.comp h1.fst')
+      h1.snd'.snd' (hgenerator.comp (((h1.fst'.comp hp1.fst').prod hp1.snd').prod (.snd _ _)))
+      (hadversary.preprocess (((h1.fst'.prod h1.snd'.fst').comp (.fst _ _)).prod (.snd _ _)))
+      (.snd _ _)
+  refine (hsecure.negligible_encoded (encAdvice := encPair encBits encUnary) hreduce).congr' ?_
   filter_upwards [hchoose] with n hn
   simpa only [distinguishingGame_eq_bind, PMF.monad_bind_eq_bind] using
     (advantage_eq (count n) (seedBits n) (outputBits n) (generator n) ⟨choose n, hn⟩
@@ -284,10 +268,9 @@ theorem indistinguishable {generator : ℕ → ℕ → List Bool → List Bool}
       (fun n => (uniformList (count n * seedBits n)).map
         (generate (count n) (seedBits n) (outputBits n) (generator n)))
       (fun n => uniformList (outputBits n)) := by
-  apply computationallyIndistinguishable_iff_indistinguishableWithAdvice_nil.mpr
-  apply indistinguishableWithAdvice hcount hseedBits houtputBits hgenerator hchoose
-  apply IndistinguishableWithAdvice.of_negligible_encoded
-  intro test htest
+  refine computationallyIndistinguishable_iff_indistinguishableWithAdvice_nil.mpr
+    (indistinguishableWithAdvice hcount hseedBits houtputBits hgenerator hchoose
+      (.of_negligible_encoded fun test htest => ?_))
   have h1 := ComputableInPolyTime.fst (encPair encUnary encUnary) encBits
   exact hsecure.negligible_encoded (encAdvice := encUnary)
     (test := fun input => test ((input.1.1, ([], input.1.2)), input.2))
