@@ -143,10 +143,9 @@ theorem Computes.exists_one_sub_two_mul_mul_blockSensitivity_le_cost (h : μ.Com
         (mem_filter.1 hB).2).trans ?_
       exact sum_le_sum_of_subset_of_nonneg (filter_subset _ _) fun B _ _ =>
         add_nonneg (he t x) (he t _)
-    have hsplit := card_filter_add_card_filter_not (s := F) fun B => Disjoint B Q
-    have : (#F : ℝ) = #(F.filter fun B => Disjoint B Q) + #(F.filter fun B => ¬Disjoint B Q) := by
-      rw [← Nat.cast_add, hsplit]
-    rw [this]
+    have hsplit : (#F : ℝ) = #(F.filter fun B => Disjoint B Q) +
+        #(F.filter fun B => ¬Disjoint B Q) := by
+      exact_mod_cast (card_filter_add_card_filter_not (s := F) fun B => Disjoint B Q).symm
     have hhit' : (#(F.filter fun B => ¬Disjoint B Q) : ℝ) ≤ t.cost x := by exact_mod_cast hhit
     linarith
   -- average over the tree drawn from `μ`
@@ -206,8 +205,7 @@ theorem Computes.exists_div_two_add_one_le_three_mul_cost_majority (hn : 1 ≤ n
     (BitString.sensitivity_majority hn).symm.trans_le (sensitivity_le_blockSensitivity _)
   have hbs' : ((n / 2 + 1 : ℕ) : ℝ) ≤ blockSensitivity (majority n) := by exact_mod_cast hbs
   refine ⟨x, t, ht, ?_⟩
-  have : ((n / 2 + 1 : ℕ) : ℝ) ≤ 3 * (t.cost x : ℝ) := by linarith
-  exact_mod_cast this
+  exact_mod_cast (by linarith : ((n / 2 + 1 : ℕ) : ℝ) ≤ 3 * (t.cost x : ℝ))
 
 /-- A randomized decision tree computing `f` with error `ε` gives a real function of degree at most
 its depth within `ε` of `f`: the probability that the tree drawn outputs `1`. -/
@@ -255,8 +253,7 @@ theorem blockSensitivity_le_three_mul_randomizedComplexity (f : BooleanFunction 
   have := one_sub_two_mul_mul_blockSensitivity_le_randomizedComplexity
     (ε := 1 / 3) f
   norm_num only [NNReal.coe_div, NNReal.coe_one, NNReal.coe_ofNat] at this
-  have h : (blockSensitivity f : ℝ) ≤ 3 * randomizedComplexity (1 / 3) f := by linarith
-  exact_mod_cast h
+  exact_mod_cast (by linarith : (blockSensitivity f : ℝ) ≤ 3 * randomizedComplexity (1 / 3) f)
 
 /-- Deciding majority with error `1/3` has randomized query complexity at least `(⌊n/2⌋ + 1) / 3`,
 for `n ≥ 1`: the complexity form of
@@ -304,8 +301,7 @@ theorem complexity_le_mul_randomizedComplexity_pow_three (f : BooleanFunction n)
     complexity f ≤ 27 * randomizedComplexity (1 / 3) f ^ 3 := by
   have := one_sub_two_mul_pow_three_mul_complexity_le (ε := 1 / 3) f
   norm_num only [NNReal.coe_div, NNReal.coe_one, NNReal.coe_ofNat] at this
-  have h : (complexity f : ℝ) ≤ 27 * (randomizedComplexity (1 / 3) f : ℝ) ^ 3 := by linarith
-  exact_mod_cast h
+  exact_mod_cast (by linarith : (complexity f : ℝ) ≤ 27 * (randomizedComplexity (1 / 3) f : ℝ) ^ 3)
 
 end DecisionTree
 
