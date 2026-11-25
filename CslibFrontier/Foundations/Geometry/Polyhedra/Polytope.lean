@@ -477,22 +477,15 @@ theorem IsVPolytope.isHPolytope {P : Set E} (hP : IsVPolytope P) : IsHPolytope P
     obtain ⟨ι, _, A, B, rhs, hsys⟩ := fourierMotzkin_convexHull_system fun j => eE (eS j).1
     obtain ⟨ρ, _, T, _, _, hproj⟩ := Matrix.FourierMotzkin.exists_projection A B rhs
     let ℓ : ρ → E →ᵃ[ℝ] ℝ := fun r =>
-      { toFun := fun x => ((T * B) *ᵥ eE x) r - (T *ᵥ rhs) r
-        linear :=
-          { toFun := fun x => ((T * B) *ᵥ eE x) r
-            map_add' := fun x y => by rw [map_add, Matrix.mulVec_add, Pi.add_apply]
-            map_smul' := fun c x => by
-              rw [map_smul, Matrix.mulVec_smul, Pi.smul_apply, RingHom.id_apply, smul_eq_mul] }
-        map_vadd' := fun x v => by
-          rw [vadd_eq_add, vadd_eq_add, map_add, Matrix.mulVec_add, Pi.add_apply]
-          change ((T * B) *ᵥ eE v) r + ((T * B) *ᵥ eE x) r - (T *ᵥ rhs) r =
-            ((T * B) *ᵥ eE v) r + (((T * B) *ᵥ eE x) r - (T *ᵥ rhs) r)
-          ring }
+      (LinearMap.proj r ∘ₗ (T * B).mulVecLin ∘ₗ eE.toLinearMap).toAffineMap -
+        AffineMap.const ℝ E ((T *ᵥ rhs) r)
     refine ⟨Set.range ℓ, Set.finite_range ℓ, ?_⟩
     ext x
     rw [← hS.coe_toFinset, mem_convexHull_iff_coords eE eS]
     simp only [mem_ofPred_eq, Set.mem_range, forall_exists_index, forall_apply_eq_imp_iff, ℓ,
-      AffineMap.coe_mk, sub_nonpos]
+      FunLike.coe_sub, Pi.sub_apply, LinearMap.coe_toAffineMap, LinearMap.coe_comp,
+      Function.comp_apply, LinearEquiv.coe_coe, Matrix.mulVecLin_apply, LinearMap.coe_proj,
+      Function.eval, AffineMap.const_apply, sub_nonpos]
     exact ⟨fun ⟨w, hw⟩ => (hproj (eE x)).1 ⟨w, (hsys (eE x) w).2 hw⟩,
       fun hle => let ⟨w, hw⟩ := (hproj (eE x)).2 hle; ⟨w, (hsys (eE x) w).1 hw⟩⟩
   · rw [not_nonempty_iff_eq_empty.1 hSne, convexHull_empty]
@@ -693,12 +686,11 @@ theorem IsPolytopeFace.inter_affineSpan_eq {P F : Set E} (hP : IsPolytope P)
   let n : ℝ := V.card
   let M : ℝ := ∑ v ∈ V, |w v|
   have hn1 : 1 ≤ n := Nat.one_le_cast.2 (Finset.card_pos.2 hVne)
-  have hden_pos : 0 < 2 * n * (M + 1) := by
-    have : 0 ≤ M := Finset.sum_nonneg fun _ _ => abs_nonneg _; positivity
+  have hM : 0 ≤ M := Finset.sum_nonneg fun _ _ => abs_nonneg _
+  have hden_pos : 0 < 2 * n * (M + 1) := by positivity
   let ε : ℝ := 1 / (2 * n * (M + 1))
   have hε_pos : 0 < ε := div_pos one_pos hden_pos
-  have hε_le : ε ≤ 1 / 2 := (div_le_div_iff₀ hden_pos two_pos).2 (by
-    have : 0 ≤ M := Finset.sum_nonneg fun _ _ => abs_nonneg _; nlinarith)
+  have hε_le : ε ≤ 1 / 2 := (div_le_div_iff₀ hden_pos two_pos).2 (by nlinarith)
   let u : E → ℝ := fun v => (1 - ε) * (1 / n) + ε * w v
   have husum : ∑ v ∈ V, u v = 1 := by
     simp only [u, Finset.sum_add_distrib, Finset.sum_const, nsmul_eq_mul, ← Finset.mul_sum, hw1]
@@ -922,8 +914,7 @@ theorem exists_isPolytopeFace_ssubset_of_ne_vertexCentroid {P : Set E} (hP : IsP
     · by_cases hinc : ℓ b < ℓ x
       · linarith [hb ℓ (Finset.mem_filter.2 ⟨hL.mem_toFinset.2 hℓ, hb_lt, hinc⟩)]
       · linarith [mul_nonpos_of_nonneg_of_nonpos ht (sub_nonpos.2 (not_lt.1 hinc))]
-    · have h0x : ℓ x = 0 := by
-        by_contra hne0
+    · have h0x : ℓ x = 0 := by_contra fun hne0 => by
         linarith [hP.apply_vertexCentroid_lt ⟨x, hx⟩ (fun w hw => (hPL ▸ hw) ℓ hℓ) hx
           (((hPL ▸ hx) ℓ hℓ).lt_of_ne hne0)]
       rw [hb0, h0x, sub_zero, mul_zero, add_zero]
