@@ -82,12 +82,14 @@ private theorem observer_disjoint_disk : Disjoint (Metric.closedBall (0 : ℂ) 1
   linarith
 
 /-- The orthogonal example loses its crossing point while preserving its endpoints,
-exterior support and intersection parity with an observer outside the disk. -/
-theorem removes_orthogonal_crossing : ∃ p : Route, (0 : ℂ) ∈ p.support ∧ ∃ q : Route,
-    q.start = p.start ∧ q.finish = p.finish ∧ (0 : ℂ) ∉ q.support ∧
-    q.support \ Metric.closedBall (0 : ℂ) 1 = p.support \ Metric.closedBall (0 : ℂ) 1 ∧
+outgoing directions, exterior support and intersection parity with an observer outside the disk. -/
+theorem removes_orthogonal_crossing :
     let r := Route.line (((-3 / 2 : ℝ) : ℂ) - Complex.I) (((-3 / 2 : ℝ) : ℂ) + Complex.I)
-    q.intersectionParity r = p.intersectionParity r := by
+    ∃ p : Route, (0 : ℂ) ∈ p.support ∧ ∃ q : Route,
+      q.start = p.start ∧ q.finish = p.finish ∧ (0 : ℂ) ∉ q.support ∧
+      q.support \ Metric.closedBall (0 : ℂ) 1 = p.support \ Metric.closedBall (0 : ℂ) 1 ∧
+      (∀ b : Bool, (q.germ b).arg = (p.germ b).arg) ∧
+      q.intersectionParity r = p.intersectionParity r := by
   have hx : (0 : ℂ) ∈ openSegment ℝ (route.point (0 : Fin route.segments).castSucc)
       (route.point (0 : Fin route.segments).succ) := by
     change (0 : ℂ) ∈ openSegment ℝ (-2) 2
@@ -111,8 +113,12 @@ theorem removes_orthogonal_crossing : ∃ p : Route, (0 : ℂ) ∈ p.support ∧
     intro x hx y hy
     exact Complex.ext ((hre hx.2).trans (hre hy.2).symm) ((him hx.1).trans (him hy.1).symm)
   refine ⟨route, Set.mem_iUnion.mpr ⟨0, openSegment_subset_segment ℝ _ _ hx⟩, ?_⟩
-  obtain ⟨q, hstart, hfinish, hn, hout, hparity, _⟩ := route.exists_splice_of_isolated_crossing
-    0 3 (by decide) (by norm_num) hx hy hpair route_ends_outside connector_segments_outside
-  exact ⟨q, hstart, hfinish, hn, hout, hparity _ observer_disjoint_disk⟩
+  obtain ⟨q, hstart, hfinish, hn, hout, hparity, hgerm, _⟩ :=
+    route.exists_splice_of_isolated_crossing 0 3 (by decide) (by norm_num) hx hy hpair
+      route_ends_outside connector_segments_outside
+  refine ⟨q, hstart, hfinish, hn, hout, ?_, hparity _ observer_disjoint_disk⟩
+  intro b
+  obtain ⟨c, hc, he⟩ := hgerm b
+  rw [he, Complex.real_smul, Complex.arg_real_mul _ hc]
 
 end CslibFrontierTests.PolygonalCrossingSplice

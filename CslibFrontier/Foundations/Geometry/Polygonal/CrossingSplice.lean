@@ -12,6 +12,7 @@ public import CslibFrontier.Foundations.Geometry.Polygonal.RouteIntersectionPari
 public import Mathlib.Topology.MetricSpace.Pseudo.Defs
 import CslibFrontier.Foundations.Geometry.Polygonal.CircleChord
 import CslibFrontier.Foundations.Geometry.Polygonal.Concatenate
+import CslibFrontier.Foundations.Geometry.Polygonal.Germs
 import CslibFrontier.Foundations.Geometry.Polygonal.Reverse
 import CslibFrontier.Foundations.Geometry.Polygonal.RouteIntersectionCutEnds
 import CslibFrontier.Foundations.Geometry.Polygonal.Trisection
@@ -23,9 +24,9 @@ import Mathlib.LinearAlgebra.AffineSpace.Midpoint
 
 Cut the two crossing segments at the boundary of their disk. Reverse the intervening
 portion and join the two entry points and the two exit points, so the result is one
-route. Its exterior support and outer endpoints are preserved, and its support in the
-disk is exactly two disjoint chords. The splice preserves intersection parity against
-any route avoiding the disk.
+route. Its exterior support, outer endpoints and outgoing directions are preserved,
+and its support in the disk is exactly two disjoint chords. The splice preserves
+intersection parity against any route avoiding the disk.
 -/
 
 public section
@@ -55,11 +56,28 @@ private noncomputable def intervalParity (p : Route) (i j : Fin p.segments) (s t
     (line (p.eval k (if k = i then s else 0))
       (p.eval k (if k = j then t else 1))).intersectionParity r else 0
 
+private theorem exists_pos_smul_germ_of_end_eval (q p : Route) (b : Bool) {lo hi : ℝ}
+    (hlt : lo < hi) (hb : if b then hi = 1 else lo = 0)
+    (he : ∀ u, q.eval (q.endSegment b) u =
+      p.eval (p.endSegment b) (AffineMap.lineMap lo hi u)) :
+    ∃ c : ℝ, 0 < c ∧ q.germ b = c • p.germ b := by
+  refine ⟨hi - lo, sub_pos.mpr hlt, ?_⟩
+  have htime (u : ℝ) : AffineMap.lineMap lo hi (endTime b u) = endTime b ((hi - lo) * u) := by
+    cases b <;> simp only [endTime, Bool.false_eq_true, ↓reduceIte,
+      AffineMap.lineMap_apply_module', smul_eq_mul] at hb ⊢ <;> rw [hb] <;> ring
+  have h₀ := he (endTime b 0)
+  have h₁ := he (endTime b 1)
+  simp only [htime, eval_near_end, mul_zero, zero_smul, add_zero] at h₀
+  simp only [htime, eval_near_end, mul_one, one_smul, h₀] at h₁
+  exact add_left_cancel h₁
+
 private theorem exists_route_support_between (p : Route) (i j : Fin p.segments) (hij : i ≤ j)
     {s t : ℝ} (hs : s ∈ Set.Ico 0 1) (ht : t ∈ Set.Ioc 0 1) (hst : i = j → s < t) :
     ∃ q : Route, q.start = p.eval i s ∧ q.finish = p.eval j t ∧
       q.support = intervalSupport p i j s t ∧
-      ∀ r : Route, q.intersectionParity r = intervalParity p i j s t r := by
+      (∀ r : Route, q.intersectionParity r = intervalParity p i j s t r) ∧
+      (i = 0 → s = 0 → ∃ c : ℝ, 0 < c ∧ q.germ false = c • p.germ false) ∧
+      (j = Fin.last p.bends → t = 1 → ∃ c : ℝ, 0 < c ∧ q.germ true = c • p.germ true) := by
   obtain ⟨q, e, hstart, hfinish, hspec⟩ := p.exists_subroute_between i j hij hs ht hst
   have hparity (r : Route) : q.intersectionParity r = intervalParity p i j s t r := by
     classical
@@ -75,7 +93,28 @@ private theorem exists_route_support_between (p : Route) (i j : Fin p.segments) 
     change (line (q.eval k 0) (q.eval k 1)).intersectionParity r = contribution (e k).val
     obtain ⟨_, _, _, he⟩ := hspec k
     simp only [contribution, he, AffineMap.lineMap_apply_zero, AffineMap.lineMap_apply_one]
-  refine ⟨q, hstart, hfinish, ?_, hparity⟩
+  have hgerm_start (hi : i = 0) (hs₀ : s = 0) :
+      ∃ c : ℝ, 0 < c ∧ q.germ false = c • p.germ false := by
+    let first : Set.Icc i j := ⟨i, le_rfl, hij⟩
+    have hfirst := e.monotone (Fin.zero_le (e.symm first))
+    rw [e.apply_symm_apply] at hfirst
+    have hi' : (e 0).val = i := le_antisymm hfirst (e 0).property.1
+    obtain ⟨_, hlt, _, he⟩ := hspec 0
+    simp only [hi', ↓reduceIte] at hlt he
+    apply exists_pos_smul_germ_of_end_eval q p false hlt hs₀
+    simpa only [endSegment, Bool.false_eq_true, ↓reduceIte, hi] using he
+  have hgerm_finish (hj : j = Fin.last p.bends) (ht₁ : t = 1) :
+      ∃ c : ℝ, 0 < c ∧ q.germ true = c • p.germ true := by
+    let last : Set.Icc i j := ⟨j, hij, le_rfl⟩
+    have hlast := e.monotone (Fin.le_last (e.symm last))
+    rw [e.apply_symm_apply] at hlast
+    have hj' : (e (Fin.last q.bends)).val = j :=
+      le_antisymm (e (Fin.last q.bends)).property.2 hlast
+    obtain ⟨_, hlt, _, he⟩ := hspec (Fin.last q.bends)
+    simp only [hj', ↓reduceIte] at hlt he
+    apply exists_pos_smul_germ_of_end_eval q p true hlt ht₁
+    simpa only [endSegment, ↓reduceIte, hj] using he
+  refine ⟨q, hstart, hfinish, ?_, hparity, hgerm_start, hgerm_finish⟩
   ext w
   rw [q.mem_support_iff]
   constructor
@@ -150,7 +189,8 @@ private theorem intervalParity_splice (p : Route) {i j : Fin p.segments} (hij : 
 /-- Replace an isolated double crossing by two disjoint chords joined to the original
 route portions. The resulting route has the same outer endpoints and exterior support.
 Inside the disk its support is precisely the two chords, and neither contains the center.
-Its indexed intersection parity against every route disjoint from the disk is preserved. -/
+Its indexed intersection parity against every route disjoint from the disk is preserved.
+Both outgoing germs are positive multiples of their originals. -/
 theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (hij : i < j)
     {z : ℂ} {ρ : ℝ} (hρ : 0 < ρ)
     (hzi : z ∈ openSegment ℝ (p.point i.castSucc) (p.point i.succ))
@@ -164,6 +204,7 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
       q.support \ Metric.closedBall z ρ = p.support \ Metric.closedBall z ρ ∧
       (∀ r : Route, Disjoint (Metric.closedBall z ρ) r.support →
         q.intersectionParity r = p.intersectionParity r) ∧
+      (∀ b : Bool, ∃ c : ℝ, 0 < c ∧ q.germ b = c • p.germ b) ∧
       ∃ li ui lj uj : ℝ, 0 < li ∧ li < ui ∧ ui < 1 ∧ 0 < lj ∧ lj < uj ∧ uj < 1 ∧
         p.eval i li ∈ Metric.sphere z ρ ∧ p.eval i ui ∈ Metric.sphere z ρ ∧
         p.eval j lj ∈ Metric.sphere z ρ ∧ p.eval j uj ∈ Metric.sphere z ρ ∧
@@ -196,12 +237,12 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
   have hdisjoint : Disjoint (segment ℝ a c) (segment ℝ b d) :=
     disjoint_segments_of_antipodal_pairs ha hc hcb hiMid hjMid
   let jlast : Fin p.segments := Fin.last p.bends
-  obtain ⟨A, hA₀, hA₁, hA, hAp⟩ := exists_route_support_between p 0 i (Fin.zero_le i)
+  obtain ⟨A, hA₀, hA₁, hA, hAp, hAg, _⟩ := exists_route_support_between p 0 i (Fin.zero_le i)
     (s := 0) (t := li) ⟨le_rfl, zero_lt_one⟩ ⟨hli, (hi₀.trans hui).le⟩ (fun _ => hli)
-  obtain ⟨M, hM₀, hM₁, hM, hMp⟩ := exists_route_support_between p i j hij.le
+  obtain ⟨M, hM₀, hM₁, hM, hMp, _, _⟩ := exists_route_support_between p i j hij.le
     (s := ui) (t := lj) ⟨(hli.trans hi₀).le, hui⟩ ⟨hlj, (hj₀.trans huj).le⟩
     (fun h => (hij.ne h).elim)
-  obtain ⟨S, hS₀, hS₁, hS, hSp⟩ := exists_route_support_between p j jlast (Fin.le_last j)
+  obtain ⟨S, hS₀, hS₁, hS, hSp, _, hSg⟩ := exists_route_support_between p j jlast (Fin.le_last j)
     (s := uj) (t := 1) ⟨(hlj.trans hj₀).le, huj⟩ ⟨zero_lt_one, le_rfl⟩ (fun _ => huj)
   let L := line a c
   let R := line b d
@@ -347,7 +388,7 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
     have hzB : z ∈ q.support ∩ B := ⟨hz, Metric.mem_closedBall_self hρ.le⟩
     rw [hDisk] at hzB
     exact hcenter hzB
-  refine ⟨q, hstart, hfinish, hNoCenter, ?_, ?_, li, ui, lj, uj, hli, hi₀, hui, hlj, hj₀, huj,
+  refine ⟨q, hstart, hfinish, hNoCenter, ?_, ?_, ?_, li, ui, lj, uj, hli, hi₀, hui, hlj, hj₀, huj,
     ha, hb, hc, hd, hDisk, hdisjoint⟩
   · change q.support \ B = p.support \ B
     rw [hq]
@@ -371,5 +412,11 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
       intersectionParity_eq_zero_of_disjoint hL, intersectionParity_eq_zero_of_disjoint hR,
       add_zero, hAp, hMp, hSp] using
       intervalParity_splice p hij r hli hi₀ hui hlj hj₀ huj hcuti hcutj
+  · intro side
+    simp only [q, germ_concat _ _ hjoinS, germ_concat _ _ hjoinR, germ_concat _ _ hjoinM,
+      germ_concat _ _ hjoinL]
+    cases side
+    · simpa only [Bool.false_eq_true, ↓reduceIte] using hAg rfl rfl
+    · simpa only [↓reduceIte] using hSg rfl rfl
 
 end Cslib.Polygonal.Route
