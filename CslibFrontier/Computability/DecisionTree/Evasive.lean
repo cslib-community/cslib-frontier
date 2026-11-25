@@ -132,13 +132,12 @@ private theorem exists_subset_queries (t : DecisionTree ι Bool) :
         rw [chi_eq_prod_signVal, chi_eq_prod_signVal, prod_insert hi, hxi, eval_node, hxi]
         cases b <;> simp only [Bool.cond_false, Bool.cond_true] <;> ring
       rw [hhalf, hhalf] at h
-      have hb : ∃ b : Bool, ∑ x ∈ univ.filter (fun x => ∀ j ∉ S.erase i,
+      obtain ⟨b, hb⟩ : ∃ b : Bool, ∑ x ∈ univ.filter (fun x => ∀ j ∉ S.erase i,
           x j = Function.update a i b j),
           signVal ((cond b t₁ t₀).eval x) * chi ℝ (S.erase i) x ≠ 0 := by
         by_contra hne
         simp only [not_exists, not_not] at hne
         exact h (by rw [hne false, hne true, mul_zero, mul_zero, add_zero])
-      obtain ⟨b, hb⟩ := hb
       obtain ⟨x, hxa, hxq⟩ : ∃ x, (∀ j ∉ S.erase i, x j = Function.update a i b j) ∧
           S.erase i ⊆ (cond b t₁ t₀).queries x := by
         cases b
