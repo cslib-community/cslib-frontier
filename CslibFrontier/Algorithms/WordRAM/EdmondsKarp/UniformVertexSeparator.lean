@@ -451,9 +451,7 @@ private theorem validHistory_sepMain {w n : ℕ} {st : Memory.State}
         List.mul_add_lt_sq (by dsimp only [sepNodes]; omega) (by dsimp only [sepNodes]; omega)
       have h2 : (v + 2) * sepNodes n + (v + n + 2) < sepNodes n * sepNodes n :=
         List.mul_add_lt_sq (by dsimp only [sepNodes]; omega) (by dsimp only [sepNodes]; omega)
-      refine validHistory_read_bind (by have := ht.2; sep_omega) ?_
-      refine validHistory_read_bind (by have := ht.2; sep_omega) ?_
-      refine validHistory_read_bind (by have := ht.2; sep_omega) ?_
+      iterate 3 refine validHistory_read_bind (by have := ht.2; sep_omega) ?_
       refine validHistory_write_bind (by have := ht.2; sep_omega)
         (by split_ifs <;> first | exact fits_zero w | exact hn1fit) ?_
       refine validHistory_write_bind (by have := ht.2; sep_omega)
@@ -495,9 +493,7 @@ private theorem validHistory_sepMain {w n : ℕ} {st : Memory.State}
       ((Memory.spec w).clientHistory s5 (iterate sepExtractStep n n 0)) := by
     refine validHistory_iterate_nat (Inv := SepReady w n) n 0 (fun v hv t ht => ⟨?_, ?_⟩) hs5
     · unfold sepExtractStep
-      refine validHistory_read_bind (by have := ht.2; sep_omega) ?_
-      refine validHistory_read_bind (by have := ht.2; sep_omega) ?_
-      refine validHistory_read_bind (by have := ht.2; sep_omega) ?_
+      iterate 3 refine validHistory_read_bind (by have := ht.2; sep_omega) ?_
       refine validHistory_write_bind (by have := ht.2; sep_omega)
         (by split_ifs <;> first | exact h1fit | exact fits_zero w) ?_
       exact validHistory_write_bind (by have := ht.2; sep_omega)
