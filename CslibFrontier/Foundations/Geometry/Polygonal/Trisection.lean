@@ -295,17 +295,23 @@ theorem support_trisect (p : Route) {s t : ℝ}
 
 /-- Cut out a nonempty portion of a route between local times `s` on segment `i` and `t`
 on segment `j`. The new segments keep the original interval of indices in order,
-with affine time reparameterization only at the cut ends. If `i` and
-`j` differ, their local times are independent. -/
+with affine time reparameterization only at the cut ends. Equal original chain positions
+give equal subroute positions, including at retained joints. If `i` and `j` differ,
+their local times are independent. -/
 theorem exists_subroute_between (p : Route) (i j : Fin p.segments) (hij : i ≤ j)
     {s t : ℝ} (hs : s ∈ Set.Ico 0 1) (ht : t ∈ Set.Ioc 0 1)
     (hst : i = j → s < t) :
     ∃ q : Route, ∃ e : Fin q.segments ≃o Set.Icc i j,
-      q.start = p.eval i s ∧ q.finish = p.eval j t ∧ ∀ k,
+      let sourceTime (k : Fin q.segments) (u : ℝ) := AffineMap.lineMap
+        (if (e k).val = i then s else 0) (if (e k).val = j then t else 1) u
+      q.start = p.eval i s ∧ q.finish = p.eval j t ∧ (∀ k,
         let lo := if (e k).val = i then s else 0
         let hi := if (e k).val = j then t else 1
         0 ≤ lo ∧ lo < hi ∧ hi ≤ 1 ∧ ∀ u : ℝ,
-          q.eval k u = p.eval (e k).val (AffineMap.lineMap lo hi u) := by
+          q.eval k u = p.eval (e k).val (sourceTime k u)) ∧
+      ∀ (k l : Fin q.segments) {u v : ℝ}, u ∈ Set.Icc 0 1 → v ∈ Set.Icc 0 1 →
+        p.position (e k).val (sourceTime k u) = p.position (e l).val (sourceTime l v) →
+          q.position k u = q.position l v := by
   have hij' : i.val ≤ j.val := hij
   let r : Route := ⟨j.val - i.val, fun k => p.point ⟨i.val + k.val, by
     have hk : k.val < j.val - i.val + 2 := k.isLt
@@ -341,19 +347,9 @@ theorem exists_subroute_between (p : Route) (i j : Fin p.segments) (hij : i ≤ 
   have hfirst : (e 0).val = i := Fin.ext (by change i.val + 0 = i.val; omega)
   have hlast : (e (Fin.last r.bends)).val = j :=
     Fin.ext (by change i.val + (j.val - i.val) = j.val; omega)
-  refine ⟨q, e, ?_, ?_, ?_⟩
-  · change (r.cutEnds s (1 - t)).endpoint false = _
-    rw [endpoint_cutEnds]
-    change r.eval 0 s = _
-    exact (heval 0 s).trans (congrArg (fun k => p.eval k s) hfirst)
-  · change (r.cutEnds s (1 - t)).endpoint true = _
-    rw [endpoint_cutEnds]
-    change r.eval (Fin.last r.bends) (1 - (1 - t)) = _
-    rw [sub_sub_cancel]
-    exact (heval (Fin.last r.bends) t).trans (congrArg (fun k => p.eval k t) hlast)
-  · intro k
-    let lo := if (e k).val = i then s else 0
-    let hi := if (e k).val = j then t else 1
+  have hcuts (k : Fin q.segments) :
+      r.cutLower s k = (if (e k).val = i then s else 0) ∧
+      r.cutUpper (1 - t) k = (if (e k).val = j then t else 1) := by
     have hki : k.val = 0 ↔ (e k).val = i := by
       constructor
       · intro hk
@@ -369,21 +365,50 @@ theorem exists_subroute_between (p : Route) (i j : Fin p.segments) (hij : i ≤ 
       · intro h
         have h' : i.val + k.val = j.val := congrArg Fin.val h
         omega
-    have hlo : r.cutLower s k = lo := by simp only [cutLower, lo, hki]
-    have hhi : r.cutUpper (1 - t) k = hi := by simp only [cutUpper, hi, hkj, sub_sub_cancel]
-    have hbounds : 0 ≤ lo ∧ lo < hi ∧ hi ≤ 1 := by
-      dsimp only [lo, hi]
-      split_ifs with h₁ h₂ h₂
-      · exact ⟨hs.1, hst (h₁.symm.trans h₂), ht.2⟩
-      · exact ⟨hs.1, hs.2, le_rfl⟩
-      · exact ⟨le_rfl, ht.1, ht.2⟩
-      · exact ⟨le_rfl, zero_lt_one, le_rfl⟩
-    obtain ⟨hl, hlt, hh⟩ := hbounds
+    exact ⟨by simp only [cutLower, hki], by simp only [cutUpper, hkj, sub_sub_cancel]⟩
+  have hbounds (k : Fin q.segments) :
+      0 ≤ r.cutLower s k ∧ r.cutLower s k < r.cutUpper (1 - t) k ∧
+        r.cutUpper (1 - t) k ≤ 1 := by
+    obtain ⟨hlo, hhi⟩ := hcuts k
+    rw [hlo, hhi]
+    split_ifs with h₁ h₂ h₂
+    · exact ⟨hs.1, hst (h₁.symm.trans h₂), ht.2⟩
+    · exact ⟨hs.1, hs.2, le_rfl⟩
+    · exact ⟨le_rfl, ht.1, ht.2⟩
+    · exact ⟨le_rfl, zero_lt_one, le_rfl⟩
+  let sourceTime (k : Fin q.segments) (u : ℝ) := AffineMap.lineMap
+    (if (e k).val = i then s else 0) (if (e k).val = j then t else 1) u
+  have htime (k : Fin q.segments) (u : ℝ) : r.cutTime s (1 - t) k u = sourceTime k u := by
+    obtain ⟨hlo, hhi⟩ := hcuts k
+    simp only [cutTime, sourceTime, hlo, hhi]
+  refine ⟨q, e, ?_, ?_, ?_, ?_⟩
+  · change (r.cutEnds s (1 - t)).endpoint false = _
+    rw [endpoint_cutEnds]
+    change r.eval 0 s = _
+    exact (heval 0 s).trans (congrArg (fun k => p.eval k s) hfirst)
+  · change (r.cutEnds s (1 - t)).endpoint true = _
+    rw [endpoint_cutEnds]
+    change r.eval (Fin.last r.bends) (1 - (1 - t)) = _
+    rw [sub_sub_cancel]
+    exact (heval (Fin.last r.bends) t).trans (congrArg (fun k => p.eval k t) hlast)
+  · intro k
+    obtain ⟨hlo, hhi⟩ := hcuts k
+    have hb := hbounds k
+    rw [hlo, hhi] at hb
+    obtain ⟨hl, hlt, hh⟩ := hb
     refine ⟨hl, hlt, hh, fun u => ?_⟩
     calc
       q.eval k u = r.eval k (r.cutTime s (1 - t) k u) := r.eval_cutEnds s (1 - t) k u
       _ = p.eval (e k).val (r.cutTime s (1 - t) k u) := heval k _
-      _ = p.eval (e k).val (AffineMap.lineMap lo hi u) :=
-        congrArg (p.eval (e k).val) (congrArg₂ (fun a b : ℝ => AffineMap.lineMap a b u) hlo hhi)
+      _ = p.eval (e k).val (sourceTime k u) := congrArg (p.eval (e k).val) (htime k u)
+  · intro k l u v hu hv he
+    change p.position (e k).val (sourceTime k u) = p.position (e l).val (sourceTime l v) at he
+    have hsource (m : Fin q.segments) : ((e m).val.val : ℝ) = (i.val : ℝ) + m.val := by
+      change ((i.val + m.val : ℕ) : ℝ) = _
+      rw [Nat.cast_add]
+    apply position_cutEnds_eq_of_source_position_eq (p := r) hbounds k l hu hv
+    simp only [position, htime]
+    simp only [position, hsource] at he
+    linarith only [he]
 
 end Cslib.Polygonal.Route

@@ -145,7 +145,7 @@ private theorem exists_route_support_between (p : Route) (i j : Fin p.segments) 
       (i = 0 → s = 0 → ∃ c : ℝ, 0 < c ∧ q.germ false = c • p.germ false) ∧
       (j = Fin.last p.bends → t = 1 → ∃ c : ℝ, 0 < c ∧ q.germ true = c • p.germ true) ∧
       ∃ e : Fin q.segments ≃o Set.Icc i j, IntervalEvaluation p q s t e := by
-  obtain ⟨q, e, hstart, hfinish, hspec⟩ := p.exists_subroute_between i j hij hs ht hst
+  obtain ⟨q, e, hstart, hfinish, hspec, _⟩ := p.exists_subroute_between i j hij hs ht hst
   have hparity (r : Route) : q.intersectionParity r = intervalParity p i j s t r := by
     classical
     let contribution (k : Fin p.segments) :=
