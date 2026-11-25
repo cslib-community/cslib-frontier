@@ -2280,6 +2280,7 @@ public import CslibFrontier.Computability.Circuit.Quantum.EncodingSize
 public import CslibFrontier.Computability.Circuit.Quantum.GateMatrix
 public import CslibFrontier.Computability.Circuit.Quantum.HadamardLayer
 public import CslibFrontier.Computability.Circuit.Quantum.Input
+public import CslibFrontier.Computability.Circuit.Quantum.Interactive
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Basic
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Code
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Controller.Boundary
@@ -2868,6 +2869,7 @@ public import CslibFrontier.Computability.Complexity.Classes.Promise.Randomized
 public import CslibFrontier.Computability.Complexity.Classes.Promise.Reduction
 public import CslibFrontier.Computability.Complexity.Classes.Promise.Time
 public import CslibFrontier.Computability.Complexity.Classes.Promise.Time.Verifier
+public import CslibFrontier.Computability.Complexity.Classes.QIP
 public import CslibFrontier.Computability.Complexity.Classes.QMA
 public import CslibFrontier.Computability.Complexity.Classes.QMA.Amplification
 public import CslibFrontier.Computability.Complexity.Classes.QMA.Counting
