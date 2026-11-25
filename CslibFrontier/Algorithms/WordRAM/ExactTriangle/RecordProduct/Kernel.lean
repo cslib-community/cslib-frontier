@@ -26,15 +26,11 @@ open Cslib.WordRAM
 open Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage
 open Cslib.Algorithms.MatrixMultiplication.Schonhage
 
-theorem copyBank_injective : Function.Injective copyBank := by
-  intro i j h
-  apply Fin.ext
-  simpa only [copyBank, Nat.add_left_cancel_iff] using congrArg Fin.val h
+theorem copyBank_injective : Function.Injective copyBank := fun _ _ h =>
+  Fin.ext (by simpa only [copyBank, Nat.add_left_cancel_iff] using congrArg Fin.val h)
 
-theorem calleeBank_injective : Function.Injective calleeBank := by
-  intro i j h
-  apply Fin.ext
-  simpa only [calleeBank, Nat.add_left_cancel_iff] using congrArg Fin.val h
+theorem calleeBank_injective : Function.Injective calleeBank := fun _ _ h =>
+  Fin.ext (by simpa only [calleeBank, Nat.add_left_cancel_iff] using congrArg Fin.val h)
 
 /-- The real copy loop preserves all adapter metadata and the complete producer register bank. -/
 theorem exec_copy {W s d n : ℕ} (x : Data 320)
@@ -52,13 +48,10 @@ theorem exec_copy {W s d n : ℕ} (x : Data 320)
     (ArrayCopy.exec (x.comap copyBank) (hfit.of_le (by omega))
       (by rw [hs', hn']; exact hfit.of_le (by omega))
       (by rw [hd', hn']; exact hfit.of_le (by omega)) (by simpa only [hs', hd', hn'] using hsep))
-  refine ⟨y, ?_, ?_, ysrc.trans hs', ydst.trans hd', ylen.trans hn', fun i hi => hframe i ?_⟩
-  · simpa only [copy, hn'] using hy
-  · simpa only [Data.comap_mem, hs', hd', hn'] using ym
-  · intro j hj
-    have h := congrArg Fin.val hj
-    change 96 + j.val = i.val at h
-    omega
+  refine ⟨y, by simpa only [copy, hn'] using hy,
+    by simpa only [Data.comap_mem, hs', hd', hn'] using ym,
+    ysrc.trans hs', ydst.trans hd', ylen.trans hn', fun i hi => hframe i fun j hj => ?_⟩
+  have h : 96 + j.val = i.val := congrArg Fin.val hj; omega
 
 /-- The concrete original-input callee derives its execution from the matrices and coordinate
 occurrences. No execution or time certificate is accepted by this invocation rule. -/
@@ -81,29 +74,22 @@ theorem exec_invoke {W b m N : ℕ}
   let z := x.set (calleeBank CallableProduct.Reg.base) b
   have hz : ExecWithin (B := .standard) W
       (.op (.copy (calleeBank CallableProduct.Reg.base) Reg.base)) x z 1 := by
-    simpa only [z, hb] using
-      (ExecWithin.copy (w := W) (x := x) (d := calleeBank CallableProduct.Reg.base)
-        (s := Reg.base))
-  have zb : (z.comap calleeBank).regs CallableProduct.Reg.base = b := by simp [z]
+    simpa only [z, hb] using ExecWithin.copy (w := W) (x := x)
+      (d := calleeBank CallableProduct.Reg.base) (s := Reg.base)
   obtain ⟨c, hc, ⟨cr, _, _, av, ai, af⟩, hframe⟩ :=
-    ExecWithin.rename_post calleeBank_injective (
-      CallableProduct.exec X Y qs (z.comap calleeBank) zb hinput hX hY hN hfit)
+    ExecWithin.rename_post calleeBank_injective
+      (CallableProduct.exec X Y qs (z.comap calleeBank) (by simp [z]) hinput hX hY hN hfit)
   change c.regs (calleeBank CallableProduct.Reg.result) = _ at cr
   let y := c.set Reg.result (b + QueriedProduct.outputBase (19 * m) m N qs.length)
   have hy : ExecWithin (B := .standard) W
       (.op (.copy Reg.result (calleeBank CallableProduct.Reg.result))) c y 1 := by
-    simpa only [y, cr] using (ExecWithin.copy (w := W) (x := c) (d := Reg.result)
-      (s := calleeBank CallableProduct.Reg.result))
-  refine ⟨y, ?_, by simp [y], av, ai, af, ?_⟩
-  · exact (hz.seq (hc.seq hy)).mono (by omega)
-  · intro i hi hne
-    have hbank (j) : calleeBank j ≠ i := by
-      intro hj
-      have h := congrArg Fin.val hj
-      change 128 + j.val = i.val at h
-      omega
-    have hiz : i ≠ calleeBank CallableProduct.Reg.base := (hbank _).symm
-    rw [Data.set_regs, Function.update_of_ne hne, hframe i hbank]
-    simp only [z, Data.set_regs, Function.update_of_ne hiz]
+    simpa only [y, cr] using ExecWithin.copy (w := W) (x := c) (d := Reg.result)
+      (s := calleeBank CallableProduct.Reg.result)
+  refine ⟨y, (hz.seq (hc.seq hy)).mono (by omega), by simp [y], av, ai, af,
+    fun i hi hne => ?_⟩
+  have hbank (j) : calleeBank j ≠ i := fun hj => by
+    have h : 128 + j.val = i.val := congrArg Fin.val hj; omega
+  rw [Data.set_regs, Function.update_of_ne hne, hframe i hbank]
+  simp only [z, Data.set_regs, Function.update_of_ne (hbank _).symm]
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.RecordProduct
