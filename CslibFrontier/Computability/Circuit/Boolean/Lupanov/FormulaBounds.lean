@@ -129,9 +129,7 @@ theorem eventually_exists_formulaBound_le (P : ℕ) :
   filter_upwards [eventually_ge_atTop (2 ^ N)] with n hn
   let p := Nat.log2 n
   have hpN : N ≤ p := by
-    dsimp only [p]
-    rw [Nat.log2_eq_log_two]
-    exact Nat.le_log_of_pow_le Nat.one_lt_two hn
+    simpa only [p, Nat.log2_eq_log_two] using Nat.le_log_of_pow_le Nat.one_lt_two hn
   have hp : 0 < p := by dsimp only [N] at hpN; omega
   have hn0 : n ≠ 0 := ne_of_gt ((Nat.two_pow_pos N).trans_le hn)
   have hlo : 2 ^ p ≤ n := by
@@ -147,22 +145,18 @@ theorem eventually_exists_formulaBound_le (P : ℕ) :
   have hr : r + 1 = p := by dsimp only [r]; omega
   have hhalf : 2 * d = 2 ^ p := by rw [← hr, pow_succ]; dsimp only [d]; omega
   have hdim : c + d ≤ n := by
-    have hsmall : 6 * p ≤ 2 ^ p := by
-      simpa only [pow_one] using hK p (by dsimp only [N] at hpN; omega)
-    dsimp only [c]
-    omega
+    have : 6 * p ≤ 2 ^ p := by simpa only [pow_one] using hK p (by dsimp only [N] at hpN; omega)
+    dsimp only [c]; omega
   have haeq : a + c + d = n := by dsimp only [a]; omega
   have hlow : q * h ≤ p := Nat.mul_div_le p q
   have hhigh : p < q * (h + 1) := Nat.lt_mul_div_succ p hq
-  have hHh : H + 1 ≤ h := (Nat.le_div_iff_mul_le hq).mpr (by
-    have h := (le_max_left (q * (H + 1)) (max K 1)).trans hpN
-    simpa only [mul_comm] using h)
+  have hHh : H + 1 ≤ h := (Nat.le_div_iff_mul_le hq).mpr
+    (mul_comm q (H + 1) ▸ (le_max_left (q * (H + 1)) (max K 1)).trans hpN)
   have hhp : h ≤ p := (Nat.le_mul_of_pos_left h hq).trans hlow
   have hsh : s + h = p := by dsimp only [s]; omega
   have hspos : 0 < s := by
-    have hq2 : 2 ≤ q := by dsimp only [q]; omega
-    have : 2 * h ≤ p := (Nat.mul_le_mul_right h hq2).trans hlow
-    omega
+    have : 2 * h ≤ p := (Nat.mul_le_mul_right h (by dsimp only [q]; omega)).trans hlow
+    dsimp only [s]; omega
   have hmain : 2 * P * p ≤ (2 * P + 1) * s := by
     have hqh : (2 * P + 1) * h ≤ p :=
       (Nat.mul_le_mul_right h (by dsimp only [q]; omega : 2 * P + 1 ≤ q)).trans hlow
@@ -175,9 +169,7 @@ theorem eventually_exists_formulaBound_le (P : ℕ) :
       _ ≤ 30 * P * (2 * q * h) ^ 2 := by gcongr
       _ = 120 * P * q ^ 2 * h ^ 2 := by ring
       _ ≤ 2 ^ h := hH h (by omega)
-  have hbound := formulaBound_le hp hr (show d = 2 ^ r from rfl)
-    (show c = 3 * p from rfl) hsh haeq
-    (show a ≤ 2 ^ (p + 1) from (by dsimp only [a]; omega))
+  have hbound := formulaBound_le hp hr rfl rfl hsh haeq (by dsimp only [a]; omega)
   have hmainbound : 2 * P * p * (2 ^ (a + d) * (2 ^ c / s)) ≤
       (2 * P + 1) * 2 ^ n := by
     calc 2 * P * p * (2 ^ (a + d) * (2 ^ c / s)) =

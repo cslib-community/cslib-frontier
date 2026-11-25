@@ -216,6 +216,7 @@ theorem sumScaledCostProg_spec {w : ℕ} (inst : Instance) (ws : AuctionWS)
   change res.acc = (((List.finRange inst.n).take ws.n).map fun i => C_unsc (i, π i)).sum
     at hacc_full
   change res.acc ≤ ws.n * (2 * ws.M) at hacc_le_n
+  rw [Nat.mul_left_comm] at hacc_le_n
   have hsum_z : (res.acc : ℤ) = inst.minCost + ((inst.n * ws.M : ℕ) : ℤ) := by
     rw [hn, List.take_of_length_le (by simp), ← Fin.sum_univ_def] at hacc_full
     rw [hacc_full, Nat.cast_sum]
@@ -226,25 +227,17 @@ theorem sumScaledCostProg_spec {w : ℕ} (inst : Instance) (ws : AuctionWS)
     dsimp only [Instance.minCost, π]
     push_cast
     ring
-  have hf_st : Fits w (ws.n * ws.M) := by
-    rw [hn]
-    have hle : inst.n * ws.M ≤ inst.n * inst.maxMag := Nat.mul_le_mul_left _ hM_le
-    exact hw.of_le (by omega)
+  have hnM : ws.n * ws.M ≤ inst.n * inst.maxMag := hn ▸ Nat.mul_le_mul_left _ hM_le
+  have hf_st : Fits w (ws.n * ws.M) := hw.of_le (by omega)
   have hpos_safe : res.acc < ws.n * ws.M →
       res.acc ≤ ws.n * ws.M ∧ Fits w (2 * (ws.n * ws.M - res.acc)) ∧
-        Fits w (2 * (ws.n * ws.M - res.acc) + 1) := fun hlt => by
-    rw [hn] at hlt ⊢
-    have hd : 2 * (inst.n * ws.M - res.acc) ≤ 2 * (inst.n * inst.maxMag) :=
-      Nat.mul_le_mul_left 2 ((Nat.sub_le _ _).trans (Nat.mul_le_mul_left _ hM_le))
-    exact ⟨le_of_lt hlt, hw.of_le (by omega), hw.of_le (by omega)⟩
+        Fits w (2 * (ws.n * ws.M - res.acc) + 1) := fun hlt =>
+    ⟨hlt.le,
+      hw.of_le (by omega),
+      hw.of_le (by omega)⟩
   have hneg_safe : ¬(res.acc < ws.n * ws.M) →
-      ws.n * ws.M ≤ res.acc ∧ Fits w (2 * (res.acc - ws.n * ws.M)) := fun hlt => by
-    rw [hn] at hlt hacc_le_n ⊢
-    have hd : 2 * (res.acc - inst.n * ws.M) ≤ 4 * (inst.n * inst.maxMag) :=
-      (Nat.mul_le_mul_left 2 ((Nat.sub_le _ _).trans hacc_le_n)).trans
-        ((Nat.mul_le_mul_left 2 (Nat.mul_le_mul_left _ (Nat.mul_le_mul_left 2 hM_le))).trans_eq
-          (by ring))
-    exact ⟨le_of_not_gt hlt, hw.of_le (by omega)⟩
+      ws.n * ws.M ≤ res.acc ∧ Fits w (2 * (res.acc - ws.n * ws.M)) := fun hlt =>
+    ⟨le_of_not_gt hlt, hw.of_le (by omega)⟩
   unfold sumScaledCostProg
   refine ⟨⟨hsafe_it, hf1, hf2, hf_st, hpos_safe, hneg_safe⟩,
     validHistory_bind_step hv_it
@@ -260,13 +253,10 @@ theorem sumScaledCostProg_spec {w : ℕ} (inst : Instance) (ws : AuctionWS)
        else pure (2 * (res.acc - ws.n * ws.M))) = _
     unfold Instance.encodedMinCost Signed.encode
     rw [hn]
-    by_cases hlt : res.acc < inst.n * ws.M
-    · have hneg : inst.minCost < 0 := by omega
-      have habs : inst.minCost.natAbs = inst.n * ws.M - res.acc := by omega
-      rw [ite_eq_left hlt, clientResult_pure, habs, ite_eq_left hneg]
-    · have hnneg : ¬inst.minCost < 0 := by omega
-      have habs : inst.minCost.natAbs = res.acc - inst.n * ws.M := by omega
-      rw [ite_eq_right hlt, clientResult_pure, habs, ite_eq_right hnneg, Nat.add_zero]
+    split_ifs
+    all_goals
+      simp only [clientResult_pure]
+      omega
 
 end
 

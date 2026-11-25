@@ -157,8 +157,7 @@ theorem abs_bandArrayL_le {L m N : ℕ} (lay : Layout L m) {X : Matrix (Fin N) (
       with hzero | ⟨gh, hgh⟩
     · rw [hzero]
       simpa using hA
-    · rw [hgh]
-      unfold rowBlock padRows
+    · rw [hgh, rowBlock, padRows]
       split_ifs
       · exact hX _ _
       · simpa using hA
@@ -176,8 +175,7 @@ theorem abs_bandArrayR_le {L m N : ℕ} (lay : Layout L m) {Y : Matrix (Fin (D m
       with hzero | ⟨gh, hgh⟩
     · rw [hzero]
       simpa using hB
-    · rw [hgh]
-      unfold colBlock padCols
+    · rw [hgh, colBlock, padCols]
       split_ifs
       · exact hY _ _
       · simpa using hB
@@ -197,17 +195,13 @@ theorem abs_encodeWith_le {α : Type} [Fintype α] {c : Term → α → ℤ} (hc
 of `encodingL`. -/
 theorem abs_encodingL_le {L : ℕ} {a : LeftStr L → ℤ} {A : ℤ} (ha : ∀ u, |a u| ≤ A) (τ : Leaf L) :
     |encodingL a τ| ≤ 7 ^ L * A := by
-  have h := abs_encodeWith_le abs_phi_le_one ha τ
-  rw [card_leftStr] at h
-  exact_mod_cast h
+  exact_mod_cast card_leftStr L ▸ abs_encodeWith_le abs_phi_le_one ha τ
 
 /-- An absolute bound `B` on the right array entries gives the bound `7 ^ L * B` on each value
 of `encodingR`. -/
 theorem abs_encodingR_le {L : ℕ} {b : RightStr L → ℤ} {B : ℤ} (hb : ∀ v, |b v| ≤ B) (τ : Leaf L) :
     |encodingR b τ| ≤ 7 ^ L * B := by
-  have h := abs_encodeWith_le abs_psi_le_one hb τ
-  rw [card_rightStr] at h
-  exact_mod_cast h
+  exact_mod_cast card_rightStr L ▸ abs_encodeWith_le abs_psi_le_one hb τ
 
 /-- If `encA` and `encB` are bounded in absolute value by `A` and `B`, every value returned by
 `Pruned.result` is bounded by `10 ^ n * (A * B)`. This holds for every request set `S` and
@@ -225,9 +219,8 @@ theorem Pruned.abs_result_le {n : ℕ} (encA encB : Leaf n → ℤ) (A B : ℤ) 
   split_ifs
   · calc |∑ τ : Leaf n with Leaf.Contributes τ w, encA τ * encB τ|
         ≤ (univ.filter fun τ : Leaf n => Leaf.Contributes τ w).card * (A * B) :=
-          abs_sum_le_card_mul _ fun τ _ => by
-            rw [abs_mul]
-            exact mul_le_mul (hA τ) (hB τ) (abs_nonneg _) hA0
+          abs_sum_le_card_mul _ fun τ _ =>
+            (abs_mul _ _).trans_le (mul_le_mul (hA τ) (hB τ) (abs_nonneg _) hA0)
       _ ≤ 10 ^ n * (A * B) := by
           gcongr
           exact_mod_cast (card_le_univ _).trans_eq (card_vertex n)

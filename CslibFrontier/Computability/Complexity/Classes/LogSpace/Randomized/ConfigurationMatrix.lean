@@ -164,12 +164,7 @@ theorem viewStep_toNTM_iff {finite next : FiniteCfg k Bool State} :
     machine.toNTM.ViewStep finite next ↔ ∃ bit, machine.viewCoinStep finite bit = next := by
   rcases hs : finite.state with _ | state
   · simp only [MultiTapeNTM.ViewStep, hs, viewCoinStep_of_halted hs, exists_const, eq_comm]
-  · simp only [MultiTapeNTM.ViewStep, hs, viewCoinStep, tr_toNTM_iff, MultiTapeTM.tr_iff]
-    constructor
-    · rintro ⟨_, ⟨bit, rfl⟩, rfl⟩
-      exact ⟨bit, rfl⟩
-    · rintro ⟨bit, rfl⟩
-      exact ⟨_, ⟨bit, rfl⟩, rfl⟩
+  · simp [MultiTapeNTM.ViewStep, hs, viewCoinStep, tr_toNTM_iff, MultiTapeTM.tr_iff, eq_comm]
 
 /-- **The reachable views are those reached by coin strings.** -/
 theorem reflTransGen_viewStep_toNTM_iff {finite next : FiniteCfg k Bool State} :
@@ -380,15 +375,9 @@ theorem exists_configMatrix_of_mem_BPL (h : A ∈ BPL enc) :
   refine ⟨V, (hreach _).mpr .refl, hcard.trans hpoly, hV, hreach', hT,
     MultiTapePTM.liveConfigMatrix_pow_eq_zero ℚ hT hV hreach', fun ha => ?_, fun ha => ?_⟩
   all_goals rw [← MultiTapePTM.acceptCoins_div_eq_inv_mulVec ℚ ht hV hreach']
-  · have h : ((2 * 2 ^ t : ℕ) : ℚ) ≤ ((3 * M.acceptCoins (enc a) t : ℕ) : ℚ) :=
-      Nat.cast_le.mpr (hmem ha)
-    push_cast at h
-    rw [le_div_iff₀ (by positivity)]
-    linarith
-  · have h : ((3 * M.acceptCoins (enc a) t : ℕ) : ℚ) ≤ ((2 ^ t : ℕ) : ℚ) :=
-      Nat.cast_le.mpr (hnot ha)
-    push_cast at h
-    rw [div_le_iff₀ (by positivity)]
-    linarith
+  · rw [le_div_iff₀ (by positivity)]
+    linarith [show (2 * 2 ^ t : ℚ) ≤ 3 * M.acceptCoins (enc a) t by exact_mod_cast hmem ha]
+  · rw [div_le_iff₀ (by positivity)]
+    linarith [show (3 * M.acceptCoins (enc a) t : ℚ) ≤ 2 ^ t by exact_mod_cast hnot ha]
 
 end Cslib.Complexity

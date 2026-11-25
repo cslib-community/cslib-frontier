@@ -85,10 +85,7 @@ theorem powProg_result (args : PowArgs) (s : Memory.State) :
     simpa using this args.exp 1
   intro n
   induction n with
-  | zero =>
-    intro acc
-    change acc = acc * args.base ^ 0
-    simp
+  | zero => exact fun acc => (Nat.mul_one acc).symm
   | succ n ih =>
     intro acc
     rw [show iterate powStep args.base (n + 1) acc =
@@ -211,8 +208,6 @@ theorem lookupAssign_cost (args : LookupArgs) (s : Memory.State) :
     (fun a t => by
       unfold lookupStep
       rw [memoryCost_bind', memoryCost_read]
-      dsimp only
-      rw [memoryCost_ite]
       split_ifs <;> simp)
     args.outLen ⟨args.outPtr, args.idx, 0, 0⟩ s
 
@@ -291,8 +286,7 @@ theorem lookupAssign_realizes :
   refine ⟨?_, ?_⟩
   · split_ifs
     · exact ⟨Nat.ne_of_gt h.1, h.2.2.of_le (by omega), h.2.1⟩
-    · exact ⟨Nat.ne_of_gt h.1, h.2.2.of_le (by omega)⟩
-    · exact ⟨Nat.ne_of_gt h.1, h.2.2.of_le (by omega)⟩
+    all_goals exact ⟨Nat.ne_of_gt h.1, h.2.2.of_le (by omega)⟩
   · rw [(lookupStep_eval _ st t).2]
     split_ifs <;> (dsimp only; omega)
 

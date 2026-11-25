@@ -125,11 +125,10 @@ theorem card_counting_marked_le {θ : ℕ → ℕ} (hθ : ∀ r, 1 ≤ θ r)
         (ψ t).filter fun C => C ∉ ψ 0 ∧ C.card = j ∧ {l} ⊆ C).card := card_le_card hcover
     _ ≤ ∑ l ∈ literals,
         ((ψ t).filter fun C => C ∉ ψ 0 ∧ C.card = j ∧ {l} ⊆ C).card := card_biUnion_le
-    _ ≤ ∑ _l ∈ literals, 2 * θ (j - 1) := by
-      refine sum_le_sum fun l hl => ?_
-      have hbound := card_counting_newContaining_lt hθ N ψ c H b hstep hchoice (j := j) ht
-        (S := {l}) (by simp) (by simp only [card_singleton]; omega)
-      simpa only [card_singleton] using hbound.le
+    _ ≤ ∑ _l ∈ literals, 2 * θ (j - 1) := sum_le_sum fun l _ =>
+        (card_counting_newContaining_lt hθ N ψ c H b hstep hchoice (j := j) ht
+          (S := {l}) (by simp)
+          (by simp only [card_singleton]; omega)).le
     _ = 4 * declared.card * θ (j - 1) := by
       simp only [sum_const, smul_eq_mul, literals, card_product, card_univ, Fintype.card_bool]
       ring
@@ -154,14 +153,11 @@ theorem countingInsertionCount_eq_present_add_deleted {θ : ℕ → ℕ} (hθ : 
     have hsurv := countingIntro_filter_eq_node_sdiff hθ N ψ c H b hstep hheavy hred hnt hm hj
     have hI : I m = S (m + 1) \ S m := by
       ext C
-      have hsurvC := congrArg (C ∈ ·) hsurv
-      simp only [mem_filter, mem_sdiff, mem_union] at hsurvC
-      simp only [I, S, mem_filter, mem_sdiff, mem_union]
-      tauto
+      have := congrArg (C ∈ ·) hsurv
+      simp only [I, S, mem_filter, mem_sdiff, mem_union] at this ⊢; tauto
     have hD : D m = S m \ S (m + 1) := by
       ext C
-      simp only [D, S, mem_filter, mem_sdiff]
-      tauto
+      simp only [D, S, mem_filter, mem_sdiff]; tauto
     rw [hI, hD, card_sdiff_add_card, card_sdiff_add_card, union_comm]
   have hS0 : S 0 = ∅ := filter_eq_empty_iff.mpr fun C hC h => h.1 hC
   have htel : (∑ m ∈ range N, (S (m + 1)).card) = (∑ m ∈ range N, (S m).card) + (S N).card := by

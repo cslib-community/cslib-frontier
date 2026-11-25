@@ -232,20 +232,12 @@ variable {A : Type} {M K : Type} (P : Mach A M K)
 private theorem emSt_eq (x : P.Rl × List (Fin 9 → Bool)) (z : Zc K) :
     st0 P x.1 z ++ (x.2.flatMap (fun v => st1 P x.1 v z) ++ st2 z) = emSt P x z := by
   obtain ⟨r, w⟩ := x
-  match z with
-  | .tp (.rg i) s =>
-    cases s <;> simp [st0, st1, st2, emSt, rgw, bw, cw, ← List.map_eq_flatMap,
-      List.map_map, Function.comp_def]
-  | .tp .fr true =>
-    simp [st0, st1, st2, emSt, ← List.map_eq_flatMap, bw, cw, List.map_map, Function.comp_def]
-  | .tp .lk false =>
-    simp [st0, st1, st2, emSt, ← List.map_eq_flatMap, rec'_eq, ldc, List.map_map,
-      Function.comp_def]
-  | .tp .ls false =>
-    simp [st0, st1, st2, emSt, ← List.map_eq_flatMap, rec'_eq, alc, List.map_map,
-      Function.comp_def]
-  | .tp .md _ | .tp .cp _ | .tp .fr false | .tp .lk true | .tp .ls true
-  | .tp (.bk _) _ | .tp (.cm _) _ | .inp _ => simp [st0, st1, st2, emSt]
+  cases z with
+  | tp s b =>
+    cases s <;> cases b <;>
+      simp [st0, st1, st2, emSt, rgw, bw, cw, rec'_eq, ldc, alc, ← List.map_eq_flatMap,
+        List.map_map, Function.comp_def]
+  | inp _ => simp [st0, st1, st2, emSt]
 
 private theorem st1_ne (r : P.Rl) (v : Fin 9 → Bool) : ∃ z, st1 P r v z ≠ [] :=
   ⟨tp .fr true, by simp [st1]⟩

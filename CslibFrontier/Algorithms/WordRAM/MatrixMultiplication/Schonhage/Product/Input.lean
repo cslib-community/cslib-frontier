@@ -90,18 +90,13 @@ public theorem input_query_word {m N : ℕ} (bits : Bool) (L : ℕ)
   rw [show 5 + 2 * i.val + s.val = (4 + 2 * i.val + s.val) + 1 by omega,
     Data.init_mem_succ] at hw
   change (Data.init (input bits L X Y qs) : Data 160).mem _ = _
-  rw [show queryInputBase m N + 2 * i.val + s.val =
-      (4 + 2 * (N * D m) + 2 * i.val + s.val) + 1 by unfold queryInputBase; omega,
-    Data.init_mem_succ]
-  unfold input
-  rw [List.getD_append_right _ _ _ _ (by
-    simp only [List.length_append, matrixInput_length, List.length_cons, List.length_nil]
-    omega)]
-  simp only [List.length_append, matrixInput_length, List.length_cons, List.length_nil]
-  rw [show 4 + 2 * (N * D m) + 2 * i.val + s.val -
-      (1 + (1 + (1 + (1 + 0))) + 2 * (N * D m)) = 2 * i.val + s.val by omega]
-  simp only [List.getD_eq_getElem?_getD, List.getElem?_drop] at hw ⊢
-  simpa only [Nat.add_assoc] using hw
+  rw [queryInputBase, show 5 + 2 * (N * D m) + 2 * i.val + s.val =
+      (2 * (N * D m) + (2 * i.val + s.val) + 4) + 1 by omega, Data.init_mem_succ]
+  simp only [input, List.cons_append, List.nil_append, List.getD_eq_getElem?_getD,
+    List.getElem?_cons_succ] at hw ⊢
+  rw [List.getElem?_append_right (by rw [matrixInput_length]; omega), matrixInput_length,
+    Nat.add_sub_cancel_left, List.getElem?_drop, ← Nat.add_assoc]
+  exact hw
 
 /-- Both original row-major matrix blocks contain precisely their supplied entry words,
 before any copying, sign conversion or encoding takes place. -/
@@ -113,37 +108,26 @@ public theorem input_matrix_word {L m N : ℕ} (bits : Bool)
       entryWord bits (BandPreparation.matrixValues X Y side r k) := by
   let xs := (List.finRange N).flatMap (fun i => List.ofFn fun k => entryWord bits (X i k))
   let ys := (List.finRange (D m)).flatMap (fun k => List.ofFn fun j => entryWord bits (Y k j))
-  have hxs : xs.length = N * D m := by
-    simp only [xs, List.flatMap_ofFn_prod, List.length_ofFn]
-  have hys : ys.length = D m * N := by
-    simp only [ys, List.flatMap_ofFn_prod, List.length_ofFn]
+  have hxs : xs.length = N * D m := by simp only [xs, List.flatMap_ofFn_prod, List.length_ofFn]
+  have hys : ys.length = D m * N := by simp only [ys, List.flatMap_ofFn_prod, List.length_ofFn]
+  have hmul {a b A B : ℕ} (ha : a < A) (hb : b < B) : a * B + b < A * B :=
+    lt_of_lt_of_le (by rw [Nat.add_one_mul]; omega) (Nat.mul_le_mul_right B ha)
   have hoff : BandPreparation.matrixOffset m N side r k < (xs ++ ys).length := by
-    simp only [List.length_append, hxs, hys]
-    cases side
-    · have h := (finProdFinEquiv (⟨r, hr⟩, ⟨k, hk⟩)).isLt
-      simp only [finProdFinEquiv, Equiv.coe_fn_mk] at h
-      simp only [BandPreparation.matrixOffset, Bool.false_eq_true, ↓reduceIte]
-      nlinarith only [h, Nat.zero_le (N * D m)]
-    · have h := (finProdFinEquiv (⟨k, hk⟩, ⟨r, hr⟩)).isLt
-      simp only [finProdFinEquiv, Equiv.coe_fn_mk] at h
-      simp only [BandPreparation.matrixOffset, ↓reduceIte]
-      nlinarith only [h]
+    cases side <;> simp only [List.length_append, hxs, hys, BandPreparation.matrixOffset,
+      Bool.false_eq_true, ↓reduceIte]
+    · exact (hmul hr hk).trans_le (Nat.le_add_right _ _)
+    · have := hmul hk hr
+      omega
   change (Data.init (input bits L X Y qs) : Data 160).mem _ = _
   rw [show BandPreparation.matrixOffset m N side r k + 5 =
       (BandPreparation.matrixOffset m N side r k + 4) + 1 by omega, Data.init_mem_succ]
   change (([L, m, N, qs.length] ++ (xs ++ ys) ++ (Wanted.input L m qs).drop 4).getD
     (BandPreparation.matrixOffset m N side r k + 4) 0) = _
-  rw [List.getD_append _ _ _ _ (by
-    simp only [List.length_append, List.length_cons, List.length_nil, hxs, hys] at hoff ⊢
-    omega)]
-  rw [List.getD_append_right _ _ _ _ (by simp)]
-  simp only [List.length_cons, List.length_nil, Nat.reduceAdd, Nat.add_sub_cancel_right]
+  simp only [List.cons_append, List.nil_append, List.getD_eq_getElem?_getD, List.getElem?_cons_succ]
+  rw [← List.getD_eq_getElem?_getD, List.getD_append _ _ _ _ hoff]
   cases side
-  · have hi : r * D m + k < N * D m := by
-      have h := (finProdFinEquiv (⟨r, hr⟩, ⟨k, hk⟩)).isLt
-      simpa only [finProdFinEquiv, Equiv.coe_fn_mk, Nat.add_comm, Nat.mul_comm] using h
-    simp only [BandPreparation.matrixOffset, Bool.false_eq_true, ↓reduceIte]
-    rw [List.getD_append _ _ _ _ (by simpa only [hxs] using hi)]
+  · simp only [BandPreparation.matrixOffset, Bool.false_eq_true, ↓reduceIte]
+    rw [List.getD_append _ _ _ _ (hxs ▸ hmul hr hk)]
     simpa only [xs, BandPreparation.matrixValues, dite_eq_left hr, dite_eq_left hk,
       Bool.false_eq_true, ↓reduceIte] using
       List.getD_flatMap_ofFn (fun i k => entryWord bits (X i k)) 0 ⟨r, hr⟩ ⟨k, hk⟩
@@ -220,14 +204,10 @@ public theorem input_raw_matrix_le {L m N A : ℕ}
     (fun i k => Int.toNat_le.mpr ((le_abs_self _).trans (hX i k)))
     (fun k j => Int.toNat_le.mpr ((le_abs_self _).trans (hY k j)))
   change (Data.init (input true L X Y qs) : Data 160).mem _ ≤ A
-  rw [show 5 + j = (4 + j) + 1 by omega, Data.init_mem_succ]
-  unfold input
-  rw [List.getD_append _ _ _ _ (by
-    simp only [List.length_append, List.length_cons, List.length_nil]
-    omega)]
-  rw [List.getD_append_right _ _ _ _ (by simp)]
-  simp only [List.length_cons, List.length_nil, Nat.reduceAdd, Nat.add_sub_cancel_left]
-  rw [List.getD_eq_get _ _ ⟨j, hj'⟩]
-  exact hbound _ (List.get_mem _ _)
+  rw [show 5 + j = (j + 4) + 1 by omega, Data.init_mem_succ]
+  simp only [input, List.cons_append, List.nil_append, List.getD_eq_getElem?_getD,
+    List.getElem?_cons_succ, List.getElem?_append_left hj', List.getElem?_eq_getElem hj',
+    Option.getD_some]
+  exact hbound _ (List.getElem_mem _)
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.QueriedProduct
