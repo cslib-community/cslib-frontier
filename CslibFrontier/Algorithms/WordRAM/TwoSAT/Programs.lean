@@ -121,21 +121,15 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
   have hf3 : Fits w 3 := G.fits_of_le hfit (by unfold Instance.wordBound; omega)
   have hf_ob : Fits w (G.encode.length + 1) :=
     G.fits_of_le hfit (by simp only [G.encode_length, Instance.wordBound]; omega)
-  have hsetup0 : ∃ s₀, ExecWithin w headerSetupCode (Data.init G.encode) s₀ 8 ∧
+  obtain ⟨s₀, hsetup, hs₀_mem, hs₀_0, hs₀_1, hs₀_2, hs₀_3, hs₀_ob, hs₀_nv, hs₀_mc⟩ :
+      ∃ s₀, ExecWithin w headerSetupCode (Data.init G.encode) s₀ 8 ∧
       s₀.mem = (Data.init G.encode : Data 28).mem ∧
       s₀.regs cZero = 0 ∧ s₀.regs cOne = 1 ∧ s₀.regs cTwo = 2 ∧ s₀.regs cThree = 3 ∧
       s₀.regs outBase = G.outAddrBase ∧ s₀.regs nv = G.n ∧ s₀.regs mClauses = G.φ.length := by
-    let Setup0Post (s₀ : Data 28) : Prop :=
-      s₀.mem = (Data.init G.encode : Data 28).mem ∧
-        s₀.regs cZero = 0 ∧ s₀.regs cOne = 1 ∧ s₀.regs cTwo = 2 ∧ s₀.regs cThree = 3 ∧
-        s₀.regs outBase = G.outAddrBase ∧ s₀.regs nv = G.n ∧ s₀.regs mClauses = G.φ.length
-    change ∃ s₀, ExecWithin w headerSetupCode (Data.init G.encode) s₀ 8 ∧ Setup0Post s₀
     unfold headerSetupCode
     wram_exec [Data.init_regs, hm0, hm1, hm2, hf1, hf2, hf3, hf_ob]
-    dsimp only [Setup0Post]
     exact ⟨rfl, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
       by wram_simp; rfl, by wram_simp, by wram_simp⟩
-  obtain ⟨s₀, hsetup, hs₀_mem, hs₀_0, hs₀_1, hs₀_2, hs₀_3, hs₀_ob, hs₀_nv, hs₀_mc⟩ := hsetup0
   let s₁ := ((s₀.set compIdxReg 1).set pReg 3).set iReg 0
   have hchk_prep : ExecWithin (B := .standard) w
       (ram[ compIdxReg ← cOne; pReg ← cThree; iReg ← cZero ]) s₀ s₁ 3 := by
@@ -145,22 +139,13 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
   obtain ⟨s₂, hs₂_ex, hs₂_mem, hs₂_ok, hs₂_fr⟩ :=
     checkClausesLoop_spec G hfit G.φ 0 3 true s₁ (by simp) hlen_enc
       (hs₀_mem ▸ clauseMemAt_init G)
-      (by dsimp only [s₁]; wram_simp; exact hs₀_0)
-      (by dsimp only [s₁]; wram_simp; exact hs₀_1)
-      (by dsimp only [s₁]; wram_simp; exact hs₀_2)
-      (by dsimp only [s₁]; wram_simp; exact hs₀_mc)
-      (by dsimp only [s₁]; wram_simp)
-      (by dsimp only [s₁]; wram_simp)
-      (by dsimp only [s₁]; wram_simp; rfl)
+      (by wram_simp [s₁, hs₀_0]) (by wram_simp [s₁, hs₀_1]) (by wram_simp [s₁, hs₀_2])
+      (by wram_simp [s₁, hs₀_mc]) (by wram_simp [s₁]) (by wram_simp [s₁])
+      (by wram_simp [s₁]; rfl)
   have hchk_ex : ExecWithin w checkClausesCode s₀ s₂ (12 * G.φ.length + 5) :=
     (hchk_prep.seq hs₂_ex).mono (by omega)
-  have hs₂_fr0 : ∀ r : Fin 28, r.val < 18 → s₂.regs r = s₀.regs r := fun r hr => by
-    rw [hs₂_fr r hr]
-    dsimp only [s₁]
-    have h1 : r ≠ iReg := by reg_ne
-    have h2 : r ≠ pReg := by reg_ne
-    have h3 : r ≠ compIdxReg := by reg_ne
-    simp [Data.set_regs_of_ne h1, Data.set_regs_of_ne h2, Data.set_regs_of_ne h3]
+  have hs₂_fr0 : ∀ r : Fin 28, r.val < 18 → s₂.regs r = s₀.regs r := fun r hr =>
+    (hs₂_fr r hr).trans (by wram_simp [s₁])
   have hs₂_0 : s₂.regs cZero = 0 := (hs₂_fr0 cZero (by decide)).trans hs₀_0
   have hs₂_1 : s₂.regs cOne = 1 := (hs₂_fr0 cOne (by decide)).trans hs₀_1
   have hs₂_2 : s₂.regs cTwo = 2 := (hs₂_fr0 cTwo (by decide)).trans hs₀_2
@@ -176,23 +161,11 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
       rfl
     have hncond : ¬ (Cond.eq compIdxReg cOne).Holds s₂ := by
       change ¬ s₂.regs compIdxReg = s₂.regs cOne; omega
-    have hneg : Exec (B := .standard) w (ram[ *outBase ← cZero ])
+    have hneg : ExecWithin (B := .standard) w (ram[ *outBase ← cZero ])
         s₂ (s₂.write G.outAddrBase 0) 1 := by
-      have hst := Exec.store (B := .standard) (w := w) (x := s₂) (a := outBase) (s := cZero)
-      rwa [hs₂_ob, hs₂_0] at hst
-    have hbr : ExecWithin w
-        (.branch (.eq compIdxReg cOne)
-          (.branch (.eq nv cZero)
-            (ram[ *outBase ← cOne; addr ← outBase + cOne; *addr ← cOne ])
-            (setupWorkRegsCode.seq
-              (buildImplCSRCode.seq
-                (sccIndexCode.seq extractAssignmentCode))))
-          (ram[ *outBase ← cZero ]))
-        s₂ (s₂.write G.outAddrBase 0) 3 :=
-      ⟨3, le_rfl, Exec.branch_neg hncond hneg⟩
+      wram_exec [hs₂_ob, hs₂_0]
     refine ⟨s₂.write G.outAddrBase 0,
-      (hsetup.seq (hchk_ex.seq hbr)).mono (by omega),
-      hs₂_ob, ?_⟩
+      (hsetup.seq (hchk_ex.seq (hneg.branch_neg hncond))).mono (by omega), hs₂_ob, ?_⟩
     rw [Data.write_regs_apply, hs₂_ob, outputList_eq_iff]
     have hans : answerWords G = [] := by simp [answerWords, solveFin, solve, hchk]
     rw [hans]
@@ -229,34 +202,12 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
           simp only [Instance.outAddrBase, G.encode_length, Instance.wordBound]; omega)
       let y_n0 := ((s₂.write G.outAddrBase 1).set addr (G.outAddrBase + 1)).write
         (G.outAddrBase + 1) 1
-      have hpos_n0 : ExecWithin w
+      have hpos_n0 : ExecWithin (B := .standard) w
           (ram[ *outBase ← cOne; addr ← outBase + cOne; *addr ← cOne ]) s₂ y_n0 3 := by
-        have htriv : y_n0 = ((s₂.write G.outAddrBase 1).set addr (G.outAddrBase + 1)).write
-          (G.outAddrBase + 1) 1 := rfl
         wram_exec [hs₂_ob, hs₂_1, hf_ob1]
-      obtain ⟨tn0, htn0, hen0⟩ := hpos_n0
-      have hbr_inner : Exec w
-          (.branch (.eq nv cZero)
-            (ram[ *outBase ← cOne; addr ← outBase + cOne; *addr ← cOne ])
-            (setupWorkRegsCode.seq
-              (buildImplCSRCode.seq
-                (sccIndexCode.seq extractAssignmentCode))))
-          s₂ y_n0 (tn0 + 1) :=
-        Exec.branch_pos hcond_n0 hen0
-      have hbr_outer : ExecWithin w
-          (.branch (.eq compIdxReg cOne)
-            (.branch (.eq nv cZero)
-              (ram[ *outBase ← cOne; addr ← outBase + cOne; *addr ← cOne ])
-              (setupWorkRegsCode.seq
-                (buildImplCSRCode.seq
-                  (sccIndexCode.seq extractAssignmentCode))))
-            (ram[ *outBase ← cZero ]))
-          s₂ y_n0 5 :=
-        ⟨tn0 + 2, by omega, Exec.branch_pos hcond_chk hbr_inner⟩
-      refine ⟨y_n0, (hsetup.seq (hchk_ex.seq hbr_outer)).mono (by omega),
-        by dsimp only [y_n0]; wram_simp; exact hs₂_ob, ?_⟩
-      have hob_y : y_n0.regs outBase = G.outAddrBase := by
-        dsimp only [y_n0]; wram_simp; exact hs₂_ob
+      have hob_y : y_n0.regs outBase = G.outAddrBase := by wram_simp [y_n0, hs₂_ob]
+      refine ⟨y_n0, (hsetup.seq (hchk_ex.seq
+        ((hpos_n0.branch_pos hcond_n0).branch_pos hcond_chk))).mono (by omega), hob_y, ?_⟩
       rw [hob_y, outputList_eq_iff]
       have hans : answerWords G = [1] := by
         cases G with
@@ -364,34 +315,14 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
       let s₇' := (s₇.set compIdxReg 1).set iReg 0
       have hp_ext : ExecWithin (B := .standard) w (ram[ compIdxReg ← cOne; iReg ← cZero ])
           s₇ s₇' 2 := by
-        have h1' : s₇.regs cOne = 1 :=
-          (hs₇_fr3 cOne (by decide) (by decide) (by decide) (by decide)).trans hs₃_1
-        have h0' : s₇.regs cZero = 0 :=
-          (hs₇_fr3 cZero (by decide) (by decide) (by decide) (by decide)).trans hs₃_0
-        wram_exec [h1', h0']
+        wram_exec [hs₇_fr3, hs₃_1, hs₃_0]
       obtain ⟨s₈, hs₈_ex, hs₈_ob, hs₈_nv, hs₈_0, hs₈_1, hs₈_ok, hs₈_bits⟩ :=
         extractVarLoop_spec G hfit compIdx (List.finRange G.n) 0 true s₇' (by simp)
           (fun q _ => by simp) hs₇_comp' (fun _ hq _ => by omega)
-          (by
-            dsimp only [s₇']; wram_simp
-            exact (hs₇_fr3 cZero (by decide) (by decide) (by decide) (by decide)).trans hs₃_0)
-          (by
-            dsimp only [s₇']; wram_simp
-            exact (hs₇_fr3 cOne (by decide) (by decide) (by decide) (by decide)).trans hs₃_1)
-          (by
-            dsimp only [s₇']; wram_simp
-            exact (hs₇_fr3 cTwo (by decide) (by decide) (by decide) (by decide)).trans hs₃_2)
-          (by
-            dsimp only [s₇']; wram_simp
-            exact (hs₇_fr3 nv (by decide) (by decide) (by decide) (by decide)).trans hs₃_nv)
-          (by
-            dsimp only [s₇']; wram_simp
-            exact (hs₇_fr3 outBase (by decide) (by decide) (by decide) (by decide)).trans hs₃_ob)
-          (by
-            dsimp only [s₇']; wram_simp
-            exact (hs₇_fr3 compB (by decide) (by decide) (by decide) (by decide)).trans hs₃_comp)
-          (by dsimp only [s₇']; wram_simp)
-          (by dsimp only [s₇']; wram_simp; rfl)
+          (by wram_simp [s₇', hs₇_fr3, hs₃_0]) (by wram_simp [s₇', hs₇_fr3, hs₃_1])
+          (by wram_simp [s₇', hs₇_fr3, hs₃_2]) (by wram_simp [s₇', hs₇_fr3, hs₃_nv])
+          (by wram_simp [s₇', hs₇_fr3, hs₃_ob]) (by wram_simp [s₇', hs₇_fr3, hs₃_comp]; rfl)
+          (by wram_simp [s₇']) (by wram_simp [s₇']; rfl)
       rw [List.length_finRange] at hs₈_ex
       have hfin_ext : ∃ y, ExecWithin w
           (.branch (.eq compIdxReg cOne)
@@ -405,11 +336,10 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
         · have hs₈_ok0 : s₈.regs compIdxReg = 0 := by rw [hs₈_ok, hok_all]; rfl
           have hncond_ok : ¬ (Cond.eq compIdxReg cOne).Holds s₈ := by
             change ¬ s₈.regs compIdxReg = s₈.regs cOne; omega
-          have hneg : Exec (B := .standard) w (ram[ *outBase ← cZero ])
+          have hneg : ExecWithin (B := .standard) w (ram[ *outBase ← cZero ])
               s₈ (s₈.write G.outAddrBase 0) 1 := by
-            have hst := Exec.store (B := .standard) (w := w) (x := s₈) (a := outBase) (s := cZero)
-            rwa [hs₈_ob, hs₈_0] at hst
-          refine ⟨s₈.write G.outAddrBase 0, ⟨3, by omega, Exec.branch_neg hncond_ok hneg⟩,
+            wram_exec [hs₈_ob, hs₈_0]
+          refine ⟨s₈.write G.outAddrBase 0, (hneg.branch_neg hncond_ok).mono (by omega),
             hs₈_ob, ?_⟩
           rw [outputList_eq_iff]
           have hans : answerWords G = [] := by
@@ -432,21 +362,18 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
               simp only [Instance.outAddrBase, G.encode_length, Instance.wordBound]; omega)
           let y_sat := (((s₈.set addr (G.n + 1)).write G.outAddrBase (G.n + 1)).set
             addr (G.outAddrBase + 1)).write (G.outAddrBase + 1) 1
-          have hpos_sat : ExecWithin w
+          have hpos_sat : ExecWithin (B := .standard) w
               (ram[ addr ← nv + cOne; *outBase ← addr; addr ← outBase + cOne; *addr ← cOne ])
               s₈ y_sat 4 := by
-            have htriv : y_sat = (((s₈.set addr (G.n + 1)).write G.outAddrBase (G.n + 1)).set
-              addr (G.outAddrBase + 1)).write (G.outAddrBase + 1) 1 := rfl
             wram_exec [hs₈_nv, hs₈_1, hs₈_ob, hf_n1, hf_ob1]
-          obtain ⟨ts, hts, hes⟩ := hpos_sat
           have hdist_all : ∀ v : Fin G.n, compIdx (v, true) ≠ compIdx (v, false) := by
             have hall : (List.finRange G.n).foldl
                 (fun acc v => acc && decide (compIdx (v, true) ≠ compIdx (v, false))) true =
                   true := hok_all
             rw [foldl_and_eq_and_all, Bool.true_and, List.all_eq_true] at hall
             exact fun v => of_decide_eq_true (hall v (List.mem_finRange v))
-          refine ⟨y_sat, ⟨ts + 1, by omega, Exec.branch_pos hcond_ok hes⟩,
-            by dsimp only [y_sat]; wram_simp; exact hs₈_ob, ?_⟩
+          refine ⟨y_sat, (hpos_sat.branch_pos hcond_ok).mono (by omega),
+            by wram_simp [y_sat, hs₈_ob], ?_⟩
           rw [outputList_eq_iff]
           have hans : answerWords G =
               1 :: (List.finRange G.n).map
@@ -478,33 +405,8 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
       obtain ⟨y, hy_br, hy_ob, hy_list⟩ := hfin_ext
       have hext_ex : ExecWithin w extractAssignmentCode s₇ y (16 * G.n + 9) :=
         (hp_ext.seq (hs₈_ex.seq hy_br)).mono (by omega)
-      have hfull_pos : ExecWithin w
-          (setupWorkRegsCode.seq
-            (buildImplCSRCode.seq
-              (sccIndexCode.seq extractAssignmentCode)))
-          s₂ y (498 * G.n + 245 * G.φ.length + 88) :=
-        (hs₃_ex.seq (hs₄_ex.seq (hs₇_ex.seq hext_ex))).mono
-          (by dsimp only [N, Mc] at *; omega)
-      obtain ⟨tf, htf, hef⟩ := hfull_pos
-      have hbr_inner : Exec w
-          (.branch (.eq nv cZero)
-            (ram[ *outBase ← cOne; addr ← outBase + cOne; *addr ← cOne ])
-            (setupWorkRegsCode.seq
-              (buildImplCSRCode.seq
-                (sccIndexCode.seq extractAssignmentCode))))
-          s₂ y (tf + 2) :=
-        Exec.branch_neg hncond_n0 hef
-      have hbr_outer : ExecWithin w
-          (.branch (.eq compIdxReg cOne)
-            (.branch (.eq nv cZero)
-              (ram[ *outBase ← cOne; addr ← outBase + cOne; *addr ← cOne ])
-              (setupWorkRegsCode.seq
-                (buildImplCSRCode.seq
-                  (sccIndexCode.seq extractAssignmentCode))))
-            (ram[ *outBase ← cZero ]))
-          s₂ y (498 * G.n + 245 * G.φ.length + 91) :=
-        ⟨tf + 3, by omega, Exec.branch_pos hcond_chk hbr_inner⟩
-      exact ⟨y, (hsetup.seq (hchk_ex.seq hbr_outer)).mono (by omega), hy_ob,
+      exact ⟨y, (hsetup.seq (hchk_ex.seq (((hs₃_ex.seq (hs₄_ex.seq (hs₇_ex.seq hext_ex))).branch_neg
+        hncond_n0).branch_pos hcond_chk))).mono (by dsimp only [N, Mc] at *; omega), hy_ob,
         by rwa [hy_ob]⟩
 
 /-- **Linear-time 2-SAT on the word RAM (`O(n + |φ|)`).** At every word width `w` with
