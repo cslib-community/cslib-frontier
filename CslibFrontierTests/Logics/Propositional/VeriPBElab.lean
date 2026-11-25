@@ -21,7 +21,7 @@ public meta import CslibFrontier.Logics.Propositional.PseudoBoolean.Elaborate
 * a `red` step whose goal is autoproven by RUP, and `pbc` without a subproof;
 * `red` steps whose goals are autoproven by syntactic implication: by `¬C`, by `D` for the goal
   `D|ω`, by another constraint, and, with the propagated assignment substituted, VeriPB's
-  `autoproving` instance;
+  `autoproving` instance and a checked deletion whose goal `¬C` implies;
 * `core range` and `del range`;
 * a DIMACS formula with a hintless proof;
 * the names of an instance, `x01` apart from `x1`, and the standard name `x1099511627777` next to
@@ -215,6 +215,31 @@ end pseudo-Boolean proof;
 -- weak.
 #guard checkAugmented (implSubst.replace "1 a2 1 a3 1 x1" "1 a2 1 ~a4 1 x1") implSubstProof ==
   none
+
+/-- The goal `C₃|ω` of a checked deletion of the first constraint with `x₁ ↦ 1` is
+`y₁ + ⋯ + y₄ ≥ 2`. `C₂` and `¬C₁` propagate `a₁ = x₁ = 0`, and with these values substituted
+`¬C₁` becomes `y₁ + y₂ + y₃ ≥ 2`, which implies the goal. -/
+def implCore : String := "* #variable= 6 #constraint= 3
+3 x1 1 ~a1 1 ~y1 1 ~y2 1 ~y3 >= 3 ;
+1 ~a1 >= 1 ;
+1 ~x1 1 y1 1 y2 1 y3 1 y4 >= 2 ;
+"
+
+/-- A checked deletion of the first constraint with `x₁ ↦ 1`, ending with `e`. -/
+def delcX1 (e : String) : String := s!"pseudo-Boolean proof version 3.0
+f 3;
+delc 1 : x1 -> 1 {e}
+output NONE;
+conclusion NONE;
+end pseudo-Boolean proof;
+"
+
+-- In a core-only subproof, `¬C₁` is a core constraint (VeriPB 3.0.2, `checker.rs`), so it is a
+-- candidate.
+#guard checkAugmented implCore (delcX1 ": subproof qed;") == some .noClaim
+-- Without a subproof, `¬C₁` is not in VeriPB's database and is no candidate (VeriPB 3.0.2
+-- rejects it with `--force-checked-deletion`, and otherwise falls back to unchecked deletion).
+#guard checkAugmented implCore (delcX1 ";") == none
 
 /-- A DIMACS formula, PHP(3, 2) as clauses, with a hintless proof that deletes by
 specification. -/

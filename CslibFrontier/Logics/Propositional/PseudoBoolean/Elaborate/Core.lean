@@ -928,16 +928,18 @@ a `proofgoal` block refuting `¬G`, if
 * one of `direct` (the additional premise, and for the goal `D|ω` the constraint `D`) strongly
   syntactically implies `G` (`implies`), or
 * with the assignment `ρ` that the database propagates (the root trail of the engine), some live
-  constraint `D` (a core constraint if `core`, not in `skip`) has `D|ρ` implying `G|ρ`. Then the
-  block first derives the units of `ρ` on the variables of `D` and `G` by a hinted `rup`.
+  constraint `D` not in `skip` has `D|ρ` implying `G|ρ`. Then the block first derives the units
+  of `ρ` on the variables of `D` and `G` by a hinted `rup`. If `core`, `D` is a core constraint
+  or numbered from `start`: VeriPB 3.0.2 adds the constraints of a core-only subproof to the core
+  set (`ForwardsChecker::execute_rule`), `¬C` among them when the step has a subproof.
 
 VeriPB tries every constraint of the database for the second case; only those containing a
 literal of `G|ρ` can succeed, since with no conflict at the root no `D|ρ` is a contradiction, and
 a constraint sharing no literal with `G|ρ` implies it only if `G|ρ` is trivial, when the goal is
 RUP. So the constraints tried are those containing a variable of `G|ρ`, from `varOcc`, the
 variables with fewer occurrences first. -/
-private def implGoal (S : St σ) (core : Bool) (direct skip : List ℕ) (G : PBConstr) (pk : ℕ) :
-    EM σ (Option (Array Step)) := do
+private def implGoal (S : St σ) (start : ℕ) (core : Bool) (direct skip : List ℕ) (G : PBConstr)
+    (pk : ℕ) : EM σ (Option (Array Step)) := do
   let t := keyOf G
   for i in direct do
     let e ← S.entry i
@@ -957,7 +959,7 @@ private def implGoal (S : St σ) (core : Bool) (direct skip : List ℕ) (G : PBC
       if seen.contains i then continue
       seen := seen.insert i
       let some e := db[i]? | continue
-      if i == 0 || !e.alive || (core && !e.core) || skip.contains i then continue
+      if i == 0 || !e.alive || (core && !e.core && i < start) || skip.contains i then continue
       if !substImplies ρ tm e.key st then continue
       -- The units of `ρ` on the variables of `D` and `G`.
       let vs : Std.HashSet ℕ := (e.key.1 ++ t.1).foldl (fun m t => m.insert t.var) {}
@@ -977,8 +979,8 @@ private def implGoal (S : St σ) (core : Bool) (direct skip : List ℕ) (G : PBC
 for a goal that is a constraint of the database numbered below `start` (a core constraint if
 `core`), the sum of its negation and that constraint, or else a refutation by syntactic
 implication (`implGoal`) from the additional premise `prem` or a database constraint other than
-those of `skip`. A goal none proves fails the elaboration, as in VeriPB. The premises take kernel
-numbers but no augmented ones. -/
+those of `skip` (a core constraint or one numbered from `start` if `core`). A goal none proves
+fails the elaboration, as in VeriPB. The premises take kernel numbers but no augmented ones. -/
 private def autoGoals (S : St σ) (start : ℕ) (core : Bool) (proved : List GoalId) (gs : List Goal)
     (prem : Option ℕ := none) (skip : List ℕ := []) : EM σ (Array RedItem) := do
   let mut out := #[]
@@ -1003,7 +1005,7 @@ private def autoGoals (S : St σ) (start : ℕ) (core : Bool) (proved : List Goa
       | none =>
         -- The substituted assignment is propagated without `¬G`.
         S.popTo mark
-        let some sub ← S.implGoal core (prem.toList ++ src.toList) skip G pk
+        let some sub ← S.implGoal start core (prem.toList ++ src.toList) skip G pk
           | S.fail s!"a proof goal could not be autoproven ({repr g})"
         let k ← S.takeKid
         out := out.push (.goal g sub.toList k)
@@ -1090,7 +1092,7 @@ private def givenGoals : List RedItem → List GoalId
 /-- Run `act` with a fresh propagation engine holding only the live core constraints (other than
 `skip`) and the constraints numbered from `start`: the goals of `obju`, of the changes of the
 preserved set and of checked deletion are derived from the core set alone (§5.9, §5.10,
-§5.7.1). -/
+§5.7.1), to which VeriPB 3.0.2 adds the constraints of the subproof. -/
 private def withCoreEngine {α : Type} (S : St σ) (start : ℕ) (skip : ℕ) (act : St σ → EM σ α) :
     EM σ α := do
   let eng ← (Engine.new : ST σ (Engine σ))
