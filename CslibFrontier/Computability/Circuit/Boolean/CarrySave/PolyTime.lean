@@ -67,31 +67,25 @@ def csaCarryCode (w i : ℕ) : List (Op × List ℕ) × List ℕ :=
       ![i - 1, w + (i - 1), w + (w + (i - 1))]
   else ([(.const false, [])], [w + (w + w)])
 
-private theorem csaSumCode_eq (w : ℕ) (i : Fin w) :
-    csaSumCode w i.val = (csaSumFormula w i).toCircuit.code := by
+private theorem csa_formulaCode_eq (f : Formula signature 3) (w : ℕ) (j : Fin w) :
+    formulaCode (w + (w + w)) f ![j.val, w + j.val, w + (w + j.val)] =
+      (f.rename ![Fin.castAdd (w + w) j, Fin.natAdd w (Fin.castAdd w j),
+        Fin.natAdd w (Fin.natAdd w j)]).toCircuit.code := by
   let wires : Fin 3 → Fin (w + (w + w)) :=
-    ![Fin.castAdd (w + w) i, Fin.natAdd w (Fin.castAdd w i), Fin.natAdd w (Fin.natAdd w i)]
-  have hw : (fun j => (wires j).val) = ![i.val, w + i.val, w + (w + i.val)] := by
-    funext j
-    fin_cases j <;> simp [wires, Nat.add_comm]
-  have h := formulaCode_eq_code sumTemplate wires
-  rw [hw] at h
-  exact h
+    ![Fin.castAdd (w + w) j, Fin.natAdd w (Fin.castAdd w j), Fin.natAdd w (Fin.natAdd w j)]
+  have hw : (fun k => (wires k).val) = ![j.val, w + j.val, w + (w + j.val)] := by
+    funext k; fin_cases k <;> simp [wires, Nat.add_comm]
+  exact hw ▸ formulaCode_eq_code f wires
+
+private theorem csaSumCode_eq (w : ℕ) (i : Fin w) :
+    csaSumCode w i.val = (csaSumFormula w i).toCircuit.code :=
+  csa_formulaCode_eq sumTemplate w i
 
 private theorem csaCarryCode_eq (w : ℕ) (i : Fin w) :
     csaCarryCode w i.val = (csaCarryFormula w i).toCircuit.code := by
   by_cases hi : 0 < i.val
-  · let j : Fin w := ⟨i.val - 1, by omega⟩
-    let wires : Fin 3 → Fin (w + (w + w)) :=
-      ![Fin.castAdd (w + w) j, Fin.natAdd w (Fin.castAdd w j), Fin.natAdd w (Fin.natAdd w j)]
-    have hw : (fun k => (wires k).val) =
-        ![i.val - 1, w + (i.val - 1), w + (w + (i.val - 1))] := by
-      funext k
-      fin_cases k <;> simp [wires, j, Nat.add_comm]
-    have h := formulaCode_eq_code (maj3Formula (0 : Fin 3) 1 2) wires
-    rw [hw] at h
-    simp only [csaCarryCode, csaCarryFormula, hi, ↓reduceIte, ↓reduceDIte]
-    exact h
+  · simp only [csaCarryCode, csaCarryFormula, hi, ↓reduceIte, ↓reduceDIte]
+    exact csa_formulaCode_eq (maj3Formula (0 : Fin 3) 1 2) w ⟨i.val - 1, by omega⟩
   · simp only [csaCarryCode, csaCarryFormula, hi, ↓reduceIte, ↓reduceDIte]
     rfl
 
@@ -103,19 +97,13 @@ def csa3to2Code (w : ℕ) : List (Op × List ℕ) × List ℕ :=
 
 /-- Generation preserves the exact existing circuit, including its unequal carry-bit blocks. -/
 theorem csa3to2Code_eq_code (w : ℕ) : csa3to2Code w = (csa3to2 w).code := by
-  have hs : (List.range w).map (csaSumCode w) =
-      List.ofFn (fun i : Fin w => (csaSumFormula w i).toCircuit.code) := by
-    apply List.ext_getElem (by simp)
-    intro i hi hi'
-    simpa only [List.getElem_map, List.getElem_range, List.getElem_ofFn] using
-      csaSumCode_eq w ⟨i, by simpa using hi⟩
-  have hc : (List.range w).map (csaCarryCode w) =
-      List.ofFn (fun i : Fin w => (csaCarryFormula w i).toCircuit.code) := by
-    apply List.ext_getElem (by simp)
-    intro i hi hi'
-    simpa only [List.getElem_map, List.getElem_range, List.getElem_ofFn] using
-      csaCarryCode_eq w ⟨i, by simpa using hi⟩
-  rw [csa3to2Code, hs, hc, appendCodes_code, appendCodes_code, appendCode_code]
+  have hmap {α : Type} (f : ℕ → α) (g : Fin w → α) (h : ∀ i, f i.val = g i) :
+      (List.range w).map f = List.ofFn g :=
+    List.ext_getElem (by simp) fun i hi _ => by
+      simpa only [List.getElem_map, List.getElem_range, List.getElem_ofFn] using
+        h ⟨i, by simpa using hi⟩
+  rw [csa3to2Code, hmap _ _ (csaSumCode_eq w), hmap _ _ (csaCarryCode_eq w),
+    appendCodes_code, appendCodes_code, appendCode_code]
   rfl
 
 /-- The actual three-to-two reducer has a uniform native generator on unary widths. -/
@@ -125,29 +113,21 @@ theorem csa3to2Code_eq_code (w : ℕ) : csa3to2Code w = (csa3to2 w).code := by
       (encPair encUnary encUnary) encNat := unary_to_binary.comp (fst _ _)
   have hi : ComputableInPolyTime (fun p : ℕ × ℕ => p.2)
       (encPair encUnary encUnary) encNat := unary_to_binary.comp (snd _ _)
+  have htmpl (F : Formula signature 3) {f : ℕ × ℕ → ℕ}
+      (hf : ComputableInPolyTime f (encPair encUnary encUnary) encNat) :
+      ComputableInPolyTime
+        (fun p : ℕ × ℕ => formulaCode (p.1 + (p.1 + p.1)) F ![f p, p.1 + f p, p.1 + (p.1 + f p)])
+        (encPair encUnary encUnary) encCode := by
+    apply computableInPolyTime_formulaCode _ (by fun_prop)
+    intro j
+    fin_cases j
+    · exact hf
+    · change ComputableInPolyTime (fun p : ℕ × ℕ => p.1 + f p) _ encNat; fun_prop
+    · change ComputableInPolyTime (fun p : ℕ × ℕ => p.1 + (p.1 + f p)) _ encNat; fun_prop
   have hs : ComputableInPolyTime (fun p : ℕ × ℕ => csaSumCode p.1 p.2)
-      (encPair encUnary encUnary) encCode := by
-    apply computableInPolyTime_formulaCode _ (by fun_prop)
-    intro j
-    fin_cases j
-    · exact hi
-    · change ComputableInPolyTime (fun p : ℕ × ℕ => p.1 + p.2) _ encNat
-      fun_prop
-    · change ComputableInPolyTime (fun p : ℕ × ℕ => p.1 + (p.1 + p.2)) _ encNat
-      fun_prop
-  have hm : ComputableInPolyTime
-      (fun p : ℕ × ℕ => formulaCode (p.1 + (p.1 + p.1)) (maj3Formula (0 : Fin 3) 1 2)
-        ![p.2 - 1, p.1 + (p.2 - 1), p.1 + (p.1 + (p.2 - 1))])
-      (encPair encUnary encUnary) encCode := by
-    apply computableInPolyTime_formulaCode _ (by fun_prop)
-    intro j
-    fin_cases j
-    · change ComputableInPolyTime (fun p : ℕ × ℕ => p.2 - 1) _ encNat
-      fun_prop
-    · change ComputableInPolyTime (fun p : ℕ × ℕ => p.1 + (p.2 - 1)) _ encNat
-      fun_prop
-    · change ComputableInPolyTime (fun p : ℕ × ℕ => p.1 + (p.1 + (p.2 - 1))) _ encNat
-      fun_prop
+      (encPair encUnary encUnary) encCode := htmpl sumTemplate hi
+  have hm := htmpl (maj3Formula (0 : Fin 3) 1 2)
+    (show ComputableInPolyTime (fun p : ℕ × ℕ => p.2 - 1) _ encNat from by fun_prop)
   have hc : ComputableInPolyTime (fun p : ℕ × ℕ => csaCarryCode p.1 p.2)
       (encPair encUnary encUnary) encCode := by
     unfold csaCarryCode

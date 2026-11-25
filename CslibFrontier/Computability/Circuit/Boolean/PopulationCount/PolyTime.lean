@@ -136,39 +136,29 @@ theorem computableInPolyTime_tree :
       have hp : 2 ^ i ≤ 2 * (n + 1) :=
         (Nat.pow_le_pow_right (by omega : 1 ≤ (2 : ℕ)) hi).trans
           (Nat.pow_clog_le_mul Nat.one_lt_two (Nat.succ_ne_zero n))
-      have hs : (tree i).size ≤ 462 * (n + 1) :=
-        (size_tree_le i).trans (by nlinarith)
+      have hs : (tree i).size ≤ 462 * (n + 1) := (size_tree_le i).trans (by omega)
       have hiout : i + 1 ≤ n + 2 := by omega
-      have hcode := length_encCode_le (tree i)
       have hbound : (encCode (tree i).code).length ≤
           2 * (462 * (n + 1)) * (23 + 8 * (2 * (n + 1) + 462 * (n + 1))) + 1 +
             (n + 2) * (2 * (2 * (n + 1) + 462 * (n + 1)) + 1) :=
-        hcode.trans (by gcongr)
+        (length_encCode_le (tree i)).trans (by gcongr)
       change (encPair (encPair encUnary encUnary) encCode
         ((i, 2 ^ i), (tree i).code)).length ≤ _
       rw [length_encPair, length_encPair]
       simp only [encUnary_apply, List.length_replicate]
       dsimp only [bound]
-      nlinarith)
+      ring_nf at hbound ⊢
+      omega)
   simpa only [Function.comp_def, heq] using h.snd'
 
 private theorem pad_code (n m : ℕ) :
     (pad n m).code = ([(.const false, [])],
       (List.range m).map (fun i => if i < n then i else n)) := by
-  have hw (i : Fin m) : ((pad n m).outputs i).toNat =
-      if i.val < n then i.val else n := by
-    dsimp only [pad, Circuit.comp, Circuit.wiring, Function.comp_apply,
-      Program.appendedWire]
-    split_ifs with hi
-    · rw [Circuit.outputs_append_castAdd]
-      rfl
-    · rw [Circuit.outputs_append_natAdd]
-      rfl
-  apply Prod.ext
-  · rfl
-  · apply List.ext_getElem (by simp [pad, Circuit.code])
-    intro i hi hj
-    simp only [Circuit.code, List.getElem_ofFn, hw, List.getElem_map, List.getElem_range]
+  have hw (i : Fin m) : ((pad n m).outputs i).toNat = if i.val < n then i.val else n := by
+    dsimp only [pad, Circuit.comp, Circuit.wiring, Function.comp_apply, Program.appendedWire]
+    split_ifs <;> [rw [Circuit.outputs_append_castAdd]; rw [Circuit.outputs_append_natAdd]] <;> rfl
+  refine Prod.ext rfl (List.ext_getElem (by simp [pad, Circuit.code]) fun i hi hj => ?_)
+  simp only [Circuit.code, List.getElem_ofFn, hw, List.getElem_map, List.getElem_range]
 
 /-- Generate padding from unary input and output counts. -/
 theorem computableInPolyTime_pad :
