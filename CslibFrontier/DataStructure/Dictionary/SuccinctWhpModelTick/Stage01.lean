@@ -159,7 +159,7 @@ private theorem epochTickStage1Finish_spec {c U V n_max : ℕ} {θ : SeedWhp c U
     fs1.epochClock = s.epochClock := by
   have hbo := hc.bufOld_valid
   rw [ite_eq_left (by omega : s.rebStage ≤ 3)] at hbo
-  obtain ⟨hia_o, hna_o, oldMap, hv_o, hrel_o⟩ := hbo
+  have ⟨hia_o, hna_o, oldMap, hv_o, hrel_o⟩ := hbo
   have hold_dirty : ∀ b < numBucketsWhp n_max, ∀ loc < s.bktCount b,
       s.locState b loc = 2 + s.oldEp → ∃ j < s.dirtyCount, s.dirtyBuckets j = b := by
     intro b hb loc hloc hst
@@ -185,8 +185,8 @@ private theorem epochTickStage1Finish_spec {c U V n_max : ℕ} {θ : SeedWhp c U
         simp [inLiveTree, hs1, hne])
       (by
         dsimp only [FastState.oldEp]
-        simp only [show (3 : ℕ) ≤ 3 by decide, ↓reduceIte]
-        exact ⟨hia_o, hna_o, oldMap, hv_o, hrel_o⟩) ?_ rfl
+        rw [ite_eq_left (by decide)]
+        exact hbo) ?_ rfl
     dsimp only [ValidEpochStage]
     simp only [Nat.reduceEqDiff, ↓reduceIte]
     exact ⟨Nat.zero_le _, fun _ h => absurd h (Nat.not_lt_zero _)⟩
@@ -223,8 +223,8 @@ private theorem epochTickStage1Finish_spec {c U V n_max : ℕ} {θ : SeedWhp c U
         · simp [inLiveTree, hs1, hst])
       (by
         dsimp only [FastState.oldEp]
-        simp only [show (2 : ℕ) ≤ 3 by decide, ↓reduceIte]
-        exact ⟨hia_o, hna_o, oldMap, hv_o, hrel_o⟩) ?_ rfl
+        rw [ite_eq_left (by decide)]
+        exact hbo) ?_ rfl
     dsimp only [ValidEpochStage]
     simp only [Nat.reduceEqDiff, ↓reduceIte]
     refine ⟨hdc_le.trans hia_o, hdc_pos, fun j hj => (hd_props j hj).1, hd_inj,
@@ -275,6 +275,14 @@ theorem epochTickStage1_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
             stageCursor := nextCur }
         else { fs with stageCursor := nextCur }
       | none => { fs with stageCursor := nextCur }
+    have hcore_step (rq db : ℕ → ℕ) (dc : ℕ) :
+        let s : FastState :=
+          { fs with rebQueued := rq, dirtyBuckets := db, dirtyCount := dc, stageCursor := nextCur }
+        CoreFastInv c U V n_max θ s dict ∧
+        (∀ b < numBucketsWhp n_max, OvermarsBucketInv c U n_max θ s b) :=
+      core_and_om_of_inLiveTree_eq _ hc hom rfl hc.epochClock_lt hc.rebStage_le
+        hc.rebCollision_zero rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl
+        (fun _ _ => rfl) (fun _ _ => rfl) (fun _ _ _ _ => rfl) hc.bufOld_valid
     have hstep :
         CoreFastInv c U V n_max θ fs' dict ∧
         (∀ b < numBucketsWhp n_max, OvermarsBucketInv c U n_max θ fs' b) ∧
@@ -318,16 +326,7 @@ theorem epochTickStage1_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
           have := (hd_props j hj).2.1; rw [heq, hq0] at this; omega
         rw [hfs'_eq]
         dsimp only
-        obtain ⟨hc', hom'⟩ := core_and_om_of_inLiveTree_eq
-          { fs with
-            rebQueued := Function.update fs.rebQueued b₀ 1
-            dirtyBuckets := Function.update fs.dirtyBuckets fs.dirtyCount b₀
-            dirtyCount := fs.dirtyCount + 1
-            stageCursor := nextCur }
-          hc hom rfl hc.epochClock_lt
-          hc.rebStage_le hc.rebCollision_zero rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl
-          rfl rfl rfl rfl rfl (fun _ _ => rfl) (fun _ _ => rfl) (fun _ _ _ _ => rfl)
-          hc.bufOld_valid
+        obtain ⟨hc', hom'⟩ := hcore_step _ _ _
         refine ⟨hc', hom', hs1, rfl, rfl, rfl, by omega, ?_, ?_, ?_, ?_⟩
         · intro j hj
           rcases Nat.lt_succ_iff_lt_or_eq.mp hj with hj' | rfl
@@ -368,11 +367,7 @@ theorem epochTickStage1_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
           next => rfl
         rw [hfs'_eq]
         dsimp only
-        obtain ⟨hc', hom'⟩ := core_and_om_of_inLiveTree_eq { fs with stageCursor := nextCur }
-          hc hom rfl hc.epochClock_lt
-          hc.rebStage_le hc.rebCollision_zero rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl
-          rfl rfl rfl rfl rfl (fun _ _ => rfl) (fun _ _ => rfl) (fun _ _ _ _ => rfl)
-          hc.bufOld_valid
+        obtain ⟨hc', hom'⟩ := hcore_step fs.rebQueued fs.dirtyBuckets fs.dirtyCount
         refine ⟨hc', hom', hs1, rfl, rfl, rfl, by omega, hd_props, hd_inj, hall_or, ?_⟩
         intro id hid b' loc' hc'
         rcases Nat.lt_succ_iff_lt_or_eq.mp hid with hid' | rfl

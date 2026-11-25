@@ -597,12 +597,10 @@ theorem nodeDom_replaceAtNode_same
     (hnew : k_new ∉ (st.nodeDom L h1L hLL uL).erase k_old) :
     (st.replaceAtNode scheme L h2L hLL uL wait' k_old k_new qv_new).nodeDom L h1L hLL uL =
       Insert.insert k_new ((st.nodeDom L h1L hLL uL).erase k_old) := by
-  dsimp only [replaceAtNode]
+  dsimp only [replaceAtNode, replaceInnerAt]
   by_cases hLlt : L < P.depth
-  · rw [nodeDom_inner st h1L h2L hLlt hLL] at hold hnew
-    rw [dite_eq_left hLlt, nodeDom_inner _ h1L h2L hLlt hLL, nodeDom_inner st h1L h2L hLlt hLL]
-    dsimp only [replaceInnerAt]
-    rw [dite_eq_left ⟨hold, hnew⟩]
+  · rw [nodeDom_inner st h1L h2L hLlt hLL] at hold hnew ⊢
+    rw [dite_eq_left hLlt, dite_eq_left ⟨hold, hnew⟩, nodeDom_inner _ h1L h2L hLlt hLL]
     simp [updateInner]
   · obtain rfl : L = P.depth := by omega
     rw [nodeDom_depth] at hold hnew
@@ -640,17 +638,16 @@ theorem nodeQuery_replaceAtNode_same
     (st.replaceAtNode scheme L h2L hLL uL wait' k_old k_new qv_new).nodeQuery scheme L h1L hLL uL
       k' = Function.update
         (Function.update (st.nodeQuery scheme L h1L hLL uL) k_old none) k_new (some qv_new) k' := by
-  dsimp only [replaceAtNode]
+  dsimp only [replaceAtNode, replaceInnerAt]
   by_cases hLlt : L < P.depth
   · rw [nodeDom_inner st h1L h2L hLlt hLL] at hold hnew
-    rw [dite_eq_left hLlt, nodeQuery_inner _ _ h1L h2L hLlt hLL,
+    rw [dite_eq_left hLlt, dite_eq_left ⟨hold, hnew⟩, nodeQuery_inner _ _ h1L h2L hLlt hLL,
       funext (nodeQuery_inner scheme st h1L h2L hLlt hLL uL)]
-    dsimp only [replaceInnerAt]
-    rw [dite_eq_left ⟨hold, hnew⟩]
     simp [updateInner]
   · obtain rfl : L = P.depth := by omega
     rw [nodeDom_depth] at hold hnew
-    rw [dite_eq_right (lt_irrefl _), nodeQuery_depth, funext (nodeQuery_depth scheme st h1L hLL uL)]
+    rw [dite_eq_right (lt_irrefl _), nodeQuery_depth,
+      funext (nodeQuery_depth scheme st h1L hLL uL)]
     dsimp only [replaceLeafAt]
     rw [dite_eq_left ⟨hold, hnew⟩]
     simp [updateLeaf]
@@ -683,12 +680,10 @@ theorem nodeWait_replaceAtNode_same
     (hnew : k_new ∉ (st.nodeDom L h1L hLL uL).erase k_old) :
     (st.replaceAtNode scheme L h2L hLL uL wait' k_old k_new qv_new).nodeWait L h2L hLL uL =
       wait' := by
-  dsimp only [replaceAtNode]
+  dsimp only [replaceAtNode, replaceInnerAt]
   by_cases hLlt : L < P.depth
   · rw [nodeDom_inner st h1L h2L hLlt hLL] at hold hnew
-    rw [dite_eq_left hLlt, nodeWait_inner _ h2L hLlt hLL]
-    dsimp only [replaceInnerAt]
-    rw [dite_eq_left ⟨hold, hnew⟩]
+    rw [dite_eq_left hLlt, dite_eq_left ⟨hold, hnew⟩, nodeWait_inner _ h2L hLlt hLL]
     simp [updateInner]
   · obtain rfl : L = P.depth := by omega
     rw [nodeDom_depth] at hold hnew
