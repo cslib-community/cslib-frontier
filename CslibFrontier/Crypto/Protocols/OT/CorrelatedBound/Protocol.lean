@@ -192,13 +192,13 @@ private theorem stepsTranscriptOfView_execPure :
   | [], _, _, .done _, _, _ => rfl
   | _ :: _, _, _, .message (sender := sender) (receiver := receiver) send next, st, i => by
       simp only [stepsTranscriptOfView, stepsExecPure, stepsTranscriptPure]
-      refine Prod.ext (funext fun hne => ?_)
+      refine Prod.ext (funext fun _ => ?_)
         (stepsTranscriptOfView_execPure next
           (fun j => (st j, Round.deliverMessage (send (st sender)) j)) i)
       by_cases hi : i = sender
       · subst hi; simp only [dite_true]
-      · have hrev : i = receiver := by omega
-        subst hrev; simp only [hi, dite_false, Round.deliverMessage]
+      · obtain rfl : i = receiver := by omega
+        simp only [hi, dite_false, Round.deliverMessage]
   | _ :: _, _, _, .oracle (op := op) _ _, _, _ => op.elim
 
 private theorem stepsTranscriptOfView_eq_transcriptPure_of_mem_support
@@ -248,17 +248,16 @@ private theorem stepsReceivedOfTranscript_transcriptPure :
   | [], _, _, .done _, _, _ => rfl
   | _ :: _, _, _, .message (sender := sender) (receiver := receiver) send next, st, i => by
       simp only [stepsReceivedOfTranscript, stepsTranscriptPure, stepsExecPure]
-      have hhead :
-          (fun hr : i = receiver =>
+      have hhead : (fun hr : i = receiver =>
             if hs : sender = receiver then send ((hr.trans hs.symm) ▸ st i)
             else send (st sender)) =
-            Round.deliverMessage (spec := noOracleSpec) (sender := sender) (receiver := receiver)
-              (send (st sender)) i := by
-        refine Round.received_message_ext fun hr => ?_
-        by_cases hs : sender = receiver
-        · have hi : i = sender := hr.trans hs.symm
-          subst hi; simp only [hs, dite_true, Round.deliverMessage]
-        · simp only [hs, dite_false, Round.deliverMessage]
+          Round.deliverMessage (spec := noOracleSpec) (sender := sender) (receiver := receiver)
+            (send (st sender)) i :=
+        Round.received_message_ext fun hr => by
+          by_cases hs : sender = receiver
+          · obtain rfl : i = sender := hr.trans hs.symm
+            simp only [hs, dite_true, Round.deliverMessage]
+          · simp only [hs, dite_false, Round.deliverMessage]
       rw [hhead]
       exact Prod.ext rfl (stepsReceivedOfTranscript_transcriptPure next
         (fun j => (st j, Round.deliverMessage (send (st sender)) j)) i)
@@ -283,14 +282,12 @@ private theorem partyView_eq_of_mem_support_evalWith
   have hv := congrFun (congrArg Prod.fst hres.symm) i
   dsimp only at hv
   refine ⟨?_, congrFun hout i⟩
-  rw [show transcriptOfView proto 0 (views 0) = transcriptOfView proto i (views i) from by
-    fin_cases i <;> first | rfl | exact h01]
-  dsimp only [transcriptOfView]
-  rw [hv]
+  rw [show transcriptOfView proto 0 (views 0) = transcriptOfView proto i (views i) by
+    fin_cases i <;> [rfl; exact h01]]
+  dsimp only [transcriptOfView]; rw [hv]
   refine PartyView.ext rfl rfl ?_
   have h1 := stepsTranscriptOfView_execPure proto.steps (fun j => (x j, r j)) i
-  dsimp only at h1 ⊢
-  rw [h1]
+  dsimp only at h1 ⊢; rw [h1]
   exact (stepsReceivedOfTranscript_transcriptPure proto.steps (fun j => (x j, r j)) i).symm
 
 /-- Auxiliary round-by-round induction: conditioning on a public transcript never increases
@@ -478,23 +475,18 @@ private theorem realWithInputDist_eq_map_pure {In : Fin 2 → Type}
     rw [OracleComp.pi_succ, OracleComp.pi_succ, OracleComp.pi_zero]
     simp only [ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure, PMF.map_bind,
       PMF.pure_map]
-    congr 1 with r0 : 1
-    rw [← PMF.bind_pure_comp]
+    congr 1 with r0 : 1; rw [← PMF.bind_pure_comp]
     congr 1 with r1 : 1
     exact congrArg PMF.pure (funext fun i => by fin_cases i <;> rfl)
   simp only [realWithInputDist, Protocol.evalWith_eq, hpi, stepsEvalWith_eq_pure, PMF.pure_map,
     PMF.map_bind]
-  congr 1 with xy : 1
-  rw [PMF.bind_bind]
+  congr 1 with xy : 1; rw [PMF.bind_bind]
   congr 1 with r0 : 1
-  rw [PMF.bind_map, PMF.map_comp, ← PMF.bind_pure_comp]
-  congr 1 with r1 : 1
-  dsimp only [Function.comp_def]
+  rw [PMF.bind_map, PMF.map_comp, ← PMF.bind_pure_comp]; congr 1 with r1 : 1
+  dsimp only [Function.comp_def]; congr 1
   have hst : (fun i : Fin 2 => (pairVec xy.1 xy.2 i, pairVec r0 r1 i)) =
       pairVec (xy.1, r0) (xy.2, r1) := funext fun i => by fin_cases i <;> rfl
-  congr 1
-  refine Prod.ext (funext fun i => ?_) (funext fun i => ?_) <;>
-  · rw [hst]; fin_cases i <;> rfl
+  refine Prod.ext (funext fun i => ?_) (funext fun i => ?_) <;> (rw [hst]; fin_cases i <;> rfl)
 
 /-- Public communication over any joint input distribution `inputDist : PMF (In 0 × In 1)` never
 increases conditional mutual information: `I((In₀, R₀); (In₁, R₁) | T) ≤ I(In₀; In₁)`. -/
@@ -557,26 +549,14 @@ theorem condMutualInfo_transcript_le_mutualInfo
           (B × Coins 1 × PublicTranscript sc))) ≤
       mutualInfo source := by
   let In : Fin 2 → Type := Fin.cases A (fun _ => B)
-  let source' : PMF (In 0 × In 1) := source
-  have hFin0 := finite_finCases (A := A) (B := B) 0
-  have hFin1 := finite_finCases (A := A) (B := B) 1
-  have hreal : realCorrelated proto source = realWithInputDist proto source' := by
-    dsimp only [realCorrelated, realWithInputDist, source']
-    congr 1 with ab : 1
-    rw [show (Fin.cases ab.1 (fun _ => ab.2) : (i : Fin 2) → In i) = pairVec ab.1 ab.2 from
-      funext fun i => by fin_cases i <;> rfl]
-  have hEq : condMutualInfo ((realCorrelated proto source).map fun (views, _) =>
-      (transcriptOfView proto 0 (views 0),
-        ((views 0).input, (views 0).coins, transcriptOfView proto 0 (views 0)),
-        ((views 1).input, (views 1).coins, transcriptOfView proto 0 (views 0))) :
-        PMF (PublicTranscript sc × (A × Coins 0 × PublicTranscript sc) ×
-          (B × Coins 1 × PublicTranscript sc))) =
-      condMutualInfo ((realWithInputDist proto source').map fun (views, _) =>
-        (transcriptOfView proto 0 (views 0),
-          ((views 0).input, (views 0).coins, transcriptOfView proto 0 (views 0)),
-          ((views 1).input, (views 1).coins, transcriptOfView proto 0 (views 0)))) := by
-    rw [hreal]; rfl
-  exact hEq.trans_le (condMutualInfo_transcript_le_mutualInfo_input proto source')
+  have := finite_finCases (A := A) (B := B) 0; have := finite_finCases (A := A) (B := B) 1
+  have hreal : realCorrelated proto source =
+      realWithInputDist proto (source : PMF (In 0 × In 1)) :=
+    congrArg source.bind (funext fun ab => congrArg (proto.evalWith noOracleWorld)
+      (funext fun i => by fin_cases i <;> rfl))
+  refine Eq.trans_le ?_
+    (condMutualInfo_transcript_le_mutualInfo_input proto (source : PMF (In 0 × In 1)))
+  rw [hreal]; rfl
 
 private theorem partyView_input_eq_of_mem_support_evalWith
     {In Coins Out : Fin 2 → Type} (proto : Protocol 2 noOracleSpec sc In Coins Out)
@@ -693,16 +673,12 @@ private theorem idealROT_eq_reparam (k : ℕ) :
       fun j => otSelect (sc.1 j) (!(sc.2 j)))) with sc
   · rintro ⟨s₁, c₁⟩ ⟨s₂, c₂⟩ h
     obtain ⟨hr, hu⟩ := Prod.mk.inj h
-    have hc : c₁ = c₂ := funext fun j => congrArg Prod.fst (congrFun hr j)
-    subst hc
+    obtain rfl : c₁ = c₂ := funext fun j => congrArg Prod.fst (congrFun hr j)
     refine Prod.ext (funext fun j => ?_) rfl
-    have hrj := congrArg Prod.snd (congrFun hr j)
-    have huj := congrFun hu j
+    have hrj := congrArg Prod.snd (congrFun hr j); have huj := congrFun hu j
     cases h1 : c₁ j <;> simp_all [otSelect, Prod.ext_iff]
-  · funext i
-    fin_cases i
-    · funext j
-      cases h1 : sc.2 j <;> simp [h1, otSelect]
+  · funext i; fin_cases i
+    · exact funext fun j => by cases h1 : sc.2 j <;> simp [h1, otSelect]
     · rfl
 
 /-- **Ahlswede–Csiszár-style upper bound for correlated-source MPC protocols**:
@@ -1019,13 +995,12 @@ theorem chosenOT_le_mutualInfo
   have hRealUnif : real = (PMF.uniformOfFintype (Fin k → Bool → Bool)).bind fun x0 =>
       (PMF.uniformOfFintype (Fin k → Bool)).bind fun x1 =>
         realCorrelatedWithInput proto source (pairVec (eQ0 x0) (eQ1 x1)) := by
-    dsimp only [real, realWithInputDist, inputDist]
-    simp only [PMF.bind_bind]
+    dsimp only [real, realWithInputDist, inputDist]; simp only [PMF.bind_bind]
     rw [PMF.bind_comm]; congr 1 with x0 : 1
-    simp only [PMF.bind_map]
-    rw [PMF.bind_comm]; congr 1 with x1 : 1
-    refine congrArg source.bind (funext fun ab => congrArg (proto.evalWith noOracleWorld) ?_)
-    funext i; fin_cases i <;> rfl
+    simp only [PMF.bind_map]; rw [PMF.bind_comm]
+    congr 1 with x1 : 1
+    exact congrArg source.bind (funext fun _ => congrArg (proto.evalWith noOracleWorld)
+      (funext fun i => by fin_cases i <;> rfl))
   have hPriv0 : ∀ x, ProbComp.eval (idealJoint (batchOTFunctionality k Bool) {0} (S {0}) x) =
       (realCorrelatedWithInput proto source x).map (Prod.map ({0} : Finset (Fin 2)).restrict id) :=
     fun x => (hPriv {0} (by decide) x).trans (dealSourceWithInput_bind_realJoint proto source {0} x)
@@ -1035,10 +1010,8 @@ theorem chosenOT_le_mutualInfo
   have hCorrect : ∀ ω ∈ real.support, ∀ j : Fin k,
       ω.2 1 j = otSelect ((ω.1 0).input.1 j false, (ω.1 0).input.1 j true) ((ω.1 1).input.1 j) := by
     rintro ⟨views, out⟩ hω j
-    rw [hRealUnif, PMF.mem_support_bind_iff] at hω
-    rcases hω with ⟨x0, _, hω⟩
-    rw [PMF.mem_support_bind_iff] at hω
-    rcases hω with ⟨x1, _, hω⟩
+    rw [hRealUnif, PMF.mem_support_bind_iff] at hω; rcases hω with ⟨x0, _, hω⟩
+    rw [PMF.mem_support_bind_iff] at hω; rcases hω with ⟨x1, _, hω⟩
     obtain ⟨hin0, hin1⟩ := chosenOT_inOfSupport proto source (eQ0 x0) (eQ1 x1) hω
     have hmem : (({0} : Finset (Fin 2)).restrict views, out) ∈
         (ProbComp.eval (idealJoint (batchOTFunctionality k Bool) {0} (S {0})
@@ -1047,24 +1020,19 @@ theorem chosenOT_le_mutualInfo
     rw [eval_idealJoint_batchOT, PMF.mem_support_map_iff] at hmem
     rcases hmem with ⟨_, _, hy_eq⟩
     rw [hin0, hin1, ← congrFun (congrArg (fun p => p.2 1) hy_eq) j]
-    change x0 j (x1 j) = otSelect (x0 j false, x0 j true) (x1 j)
-    cases x1 j <;> rfl
+    change x0 j (x1 j) = otSelect (x0 j false, x0 j true) (x1 j); cases x1 j <;> rfl
   have hInputEq : real.map (fun ω => ((ω.1 0).input, (ω.1 1).input)) = inputDist :=
     (bind_evalWith_map_input proto inputDist (fun xy => pairVec xy.1 xy.2) id id).trans
       (PMF.map_id inputDist)
   have hMutualEq : mutualInfo inputDist = mutualInfo source := by
-    let swap0 : In 0 ≃ A × (Fin k → Bool → Bool) :=
-      { toFun := fun (x0, a) => (eA.symm a, eQ0.symm x0)
-        invFun := fun (a, x0) => (eQ0 x0, eA a)
-        left_inv := fun (_, _) => rfl, right_inv := fun (_, _) => rfl }
-    let swap1 : In 1 ≃ B × (Fin k → Bool) :=
-      { toFun := fun (x1, b) => (eB.symm b, eQ1.symm x1)
-        invFun := fun (b, x1) => (eQ1 x1, eB b)
-        left_inv := fun (_, _) => rfl, right_inv := fun (_, _) => rfl }
+    let swap0 : In 0 ≃ A × (Fin k → Bool → Bool) := (Equiv.prodCongr eQ0.symm eA.symm).trans
+      (Equiv.prodComm _ _)
+    let swap1 : In 1 ≃ B × (Fin k → Bool) := (Equiv.prodCongr eQ1.symm eB.symm).trans
+      (Equiv.prodComm _ _)
     rw [← mutualInfo_map_prodMap inputDist swap0.injective swap1.injective,
       show inputDist.map (Prod.map swap0 swap1) = source.bind fun ab =>
         (PMF.uniformOfFintype (Fin k → Bool → Bool)).bind fun x0 =>
-          (PMF.uniformOfFintype (Fin k → Bool)).map fun x1 => ((ab.1, x0), (ab.2, x1)) from by
+          (PMF.uniformOfFintype (Fin k → Bool)).map fun x1 => ((ab.1, x0), (ab.2, x1)) by
         dsimp only [inputDist]; simp only [PMF.map_bind, PMF.map_comp]; rfl]
     exact mutualInfo_bind_pair_indep source _ _
   calc (k : ℝ)
@@ -1118,9 +1086,8 @@ theorem commProtocol_rot_le_mutualInfo [Finite X] [Finite Y] {k : ℕ}
       (outB (ω.2.1, ω.2.2) j).2 = otSelect (outA (ω.1, ω.2.2) j) (outB (ω.2.1, ω.2.2) j).1 := by
     rintro ⟨x, y, t⟩ hω j
     rw [hTrLaw, PMF.mem_support_map_iff] at hω
-    rcases hω with ⟨⟨x', y'⟩, hxy, heq⟩
-    simp only [Prod.mk.injEq] at heq
-    rcases heq with ⟨rfl, rfl, rfl⟩
+    obtain ⟨⟨x', y'⟩, hxy, heq⟩ := hω
+    obtain ⟨rfl, rfl, rfl⟩ := Prod.mk.inj heq
     exact hCorrect _ _ j hxy
   have hMu : ν.map (fun q => (q.1, q.2.1)) = μ := by
     rw [hTrLaw, PMF.map_comp]; exact PMF.map_id μ

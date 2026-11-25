@@ -97,11 +97,10 @@ private theorem friTargetWord_apply_eq_smooth (params : FRIParams F)
     have hkm : k < params.m := Nat.lt_of_succ_le hi
     let s : Fin (2 ^ params.d) := ⟨j.val, lt_of_lt_of_le j.isLt
       (Nat.pow_le_pow_right (by omega) (Nat.sub_le _ _))⟩
-    have hmod : s.val % params.toSmooth.domainSize (k + 1) = j.val :=
-      Nat.mod_eq_of_lt (by simpa only [params.toSmooth_domainSize hi] using j.isLt)
-    have hfin : toSmoothDomEquiv params hi j = friSmoothFoldedFin params.toSmooth ⟨k, hkm⟩ s :=
-      Fin.ext hmod.symm
     have hdom := params.toSmooth_domainSize hi
+    have hfin : toSmoothDomEquiv params hi j = friSmoothFoldedFin params.toSmooth ⟨k, hkm⟩ s :=
+      Fin.ext (Nat.mod_eq_of_lt
+        (show s.val < params.toSmooth.domainSize (k + 1) by simpa only [hdom] using j.isLt)).symm
     simp only [friTargetWord, friSmoothTargetWord, foldWord_apply_eq_foldFiber]
     rw [hfin, foldFiber_toSmooth_eq_fold2Fiber params ⟨k, hkm⟩ _ s (prefFoldScalar pref k)]
     change fold2Fiber _ _ _ _ = fold2Fiber _ _ _ _
@@ -435,31 +434,25 @@ private theorem uniqueLineGapHypothesis_to_smooth [DecidableEq F] (params : FRIP
     UniqueCurveGapHypothesis params.toSmooth e := by
   intro i u Z hZ hclose
   let eqv := toSmoothDomEquiv params i.isLt
-  have hdom := params.toSmooth_domainSize i.isLt
-  have hcum := params.toSmooth_cumLog i.isLt
+  have hdom := params.toSmooth_domainSize i.isLt; have hcum := params.toSmooth_cumLog i.isLt
   have hZ' : 2 ^ (params.d - (i.val + 1)) < Z.card := by
     simpa only [params.toSmooth_arity i, Nat.reduceSub, one_mul, hdom] using hZ
-  let u₀ := u ⟨0, by simp⟩ ∘ eqv
-  let u₁ := u ⟨1, by simp⟩ ∘ eqv
-  have hclose' : ∀ z ∈ Z, ∃ v ∈ params.rsCode (i.val + 1),
+  let u₀ := u ⟨0, by simp⟩ ∘ eqv; let u₁ := u ⟨1, by simp⟩ ∘ eqv
+  have hclose' (z) (hz : z ∈ Z) : ∃ v ∈ params.rsCode (i.val + 1),
       hammingDist (u₀ + z • u₁) v ≤ e / 2 ^ (i.val + 1) := by
-    intro z hz
     obtain ⟨v, hv, hd⟩ := hclose z hz
-    refine ⟨v ∘ eqv, (mem_rsCode_comp_toSmooth params i.isLt v).mpr hv, ?_⟩
     rw [curveSum_toSmooth_eq_line, hcum] at hd
-    have hhd : hammingDist (u₀ + z • u₁) (v ∘ eqv) =
-        hammingDist (u ⟨0, by simp⟩ + z • u ⟨1, by simp⟩) v := by
-      simpa only [hammingDist, Finset.card_eq_sum_ones] using
-        sum_filter_equiv eqv _ _ (fun _ => 1) (fun _ => 1)
-          (fun j => by simp [u₀, u₁]) (fun _ => rfl)
-    exact hhd.trans_le hd
+    refine ⟨v ∘ eqv, (mem_rsCode_comp_toSmooth params i.isLt v).mpr hv, Eq.trans_le ?_ hd⟩
+    simpa only [hammingDist, Finset.card_eq_sum_ones] using
+      sum_filter_equiv eqv _ _ (fun _ => 1) (fun _ => 1)
+        (fun j => by simp [u₀, u₁]) (fun _ => rfl)
   obtain ⟨D', v₀, hv₀, v₁, hv₁, hD'_card, hD'_agree⟩ := hgap i u₀ u₁ Z hZ' hclose'
   refine ⟨D'.image eqv, toSmoothPair params i v₀ v₁, toSmoothPair_mem_rsCode params i hv₀ hv₁,
     by rwa [Finset.card_image_of_injective D' eqv.injective, hdom, hcum], fun y hy => ?_⟩
   obtain ⟨j, hj, rfl⟩ := Finset.mem_image.mp hy
-  refine (forall_fin_toSmooth_arity_iff params i _).mpr ?_
-  simpa only [toSmoothPair, eqv, u₀, u₁, Function.comp_apply, Equiv.symm_apply_apply,
-    Nat.one_ne_zero, ↓reduceIte] using hD'_agree j hj
+  exact (forall_fin_toSmooth_arity_iff params i _).mpr (by
+    simpa only [toSmoothPair, eqv, u₀, u₁, Function.comp_apply, Equiv.symm_apply_apply,
+      Nat.one_ne_zero, ↓reduceIte] using hD'_agree j hj)
 
 end BinaryTranscriptAndBridges
 
@@ -491,10 +484,10 @@ theorem friPreWeight_append [DecidableEq F] (params : FRIParams F)
   | zero => rfl
   | succ k ih =>
     have hk : k < pref.length := Nat.lt_of_succ_le hlen
-    have htarget := friTargetWord_append params stmt pref extra (Nat.le_of_succ_le hi) hk.le
-    have hweight := ih (Nat.le_of_succ_le hi) hk.le
     ext j
-    simp only [friPreWeight, htarget, hweight, prefOracle_append_left pref extra hk]
+    simp only [friPreWeight,
+      friTargetWord_append params stmt pref extra (Nat.le_of_succ_le hi) hk.le,
+      ih (Nat.le_of_succ_le hi) hk.le, prefOracle_append_left pref extra hk]
 
 /-- One-step folding update for `friTargetWord` after appending round `(π, c)`. -/
 theorem friTargetWord_append_step (params : FRIParams F) (stmt : OracleTable params.d F)
@@ -519,10 +512,9 @@ theorem friPreWeight_append_step [DecidableEq F] (params : FRIParams F)
     friPreWeight params stmt (pref ++ [(π, c)]) (pref.length + 1) hpm =
       friNextWeight params stmt pref pref.length hpm π := by
   ext j
-  have htarget := friTargetWord_append params stmt pref [(π, c)] hpm.le le_rfl
-  have hweight := friPreWeight_append params stmt pref [(π, c)] hpm.le le_rfl
-  simp only [friPreWeight, friNextWeight, friOracleFilterWeight, htarget, hweight,
-    prefOracle_append_self]
+  simp only [friPreWeight, friNextWeight, friOracleFilterWeight,
+    friTargetWord_append params stmt pref [(π, c)] hpm.le le_rfl,
+    friPreWeight_append params stmt pref [(π, c)] hpm.le le_rfl, prefOracle_append_self]
 
 /-- Oracle-filtered weight is bounded pointwise by `friPreWeight`. -/
 theorem friOracleFilterWeight_le [DecidableEq F] (params : FRIParams F)
@@ -532,10 +524,7 @@ theorem friOracleFilterWeight_le [DecidableEq F] (params : FRIParams F)
     (j : Fin (2 ^ (params.d - i))) :
     friOracleFilterWeight params stmt pref i hi π j ≤
       friPreWeight params stmt pref i hi j := by
-  unfold friOracleFilterWeight
-  split_ifs
-  · exact le_rfl
-  · exact Nat.zero_le _
+  unfold friOracleFilterWeight; split_ifs <;> [exact le_rfl; exact Nat.zero_le _]
 
 /-- Pointwise bound on pre-filter weights: `friPreWeight ... i j ≤ 2 ^ i`. -/
 theorem friPreWeight_le [DecidableEq F] (params : FRIParams F) (stmt : OracleTable params.d F)
@@ -614,16 +603,15 @@ theorem friTranscriptSingleAccepts_append_iff (params : FRIParams F)
     (c : FRIChal F params.d params.q) (s : Fin (2 ^ params.d)) :
     friTranscriptSingleAccepts params stmt (pref ++ [(πFinal, c)]) s ↔
       friFinalPasses params stmt pref πFinal s := by
-  have hm_eq : prefOracle (pref ++ [(πFinal, c)]) params.m = πFinal := by
-    rw [← hlen, prefOracle_append_self]
+  have hm_eq : prefOracle (pref ++ [(πFinal, c)]) params.m = πFinal :=
+    hlen ▸ prefOracle_append_self pref πFinal c
   have h0 : prefOracle (pref ++ [(πFinal, c)]) 0 =
       if params.m = 0 then πFinal else prefOracle pref 0 := by
     split_ifs with hm
-    · simpa only [hm] using hm_eq
+    · exact hm ▸ hm_eq
     · exact prefOracle_append_left pref [(πFinal, c)] (by omega)
-  have hnext (k : Fin params.m) :
-      prefOracle (pref ++ [(πFinal, c)]) (k.val + 1) =
-        if k.val + 1 = params.m then πFinal else prefOracle pref (k.val + 1) := by
+  have hnext (k : Fin params.m) : prefOracle (pref ++ [(πFinal, c)]) (k.val + 1) =
+      if k.val + 1 = params.m then πFinal else prefOracle pref (k.val + 1) := by
     split_ifs with hlast
     · rwa [hlast]
     · exact prefOracle_append_left pref [(πFinal, c)] (by omega)
@@ -662,17 +650,14 @@ theorem card_filter_friPrefixPasses_eq [DecidableEq F] (params : FRIParams F)
     (Finset.univ.filter fun s : Fin (2 ^ params.d) =>
       s.val % 2 ^ (params.d - i) = j.val ∧ friPrefixPasses params stmt pref i s).card =
     friOracleFilterWeight params stmt pref i hi (prefOracle pref i) j := by
-  rw [friOracleFilterWeight_apply_eq_smooth]
-  have hfilt :
+  rw [friOracleFilterWeight_apply_eq_smooth, show
       (Finset.univ.filter fun s : Fin (2 ^ params.d) =>
         s.val % 2 ^ (params.d - i) = j.val ∧ friPrefixPasses params stmt pref i s) =
       Finset.univ.filter fun s : Fin (2 ^ params.d) =>
         s.val % params.toSmooth.domainSize i = (toSmoothDomEquiv params hi j).val ∧
-          friSmoothPrefixPasses params.toSmooth stmt pref i s := by
-    ext s
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, params.toSmooth_domainSize hi,
-      toSmoothDomEquiv_val, friPrefixPasses_iff_smooth]
-  rw [hfilt]
+          friSmoothPrefixPasses params.toSmooth stmt pref i s by
+    ext s; simp only [Finset.mem_filter, Finset.mem_univ, true_and, params.toSmooth_domainSize hi,
+      toSmoothDomEquiv_val, friPrefixPasses_iff_smooth]]
   exact card_filter_friSmoothPrefixPasses_eq params.toSmooth stmt pref i hi _
 
 /-- **Binary final query-acceptance counting bound** (corollary of
