@@ -507,11 +507,8 @@ private theorem parityTriangle_bits (c z : ℂ) {r : ℝ} (hr : 0 < r) :
 private theorem parityTriangle_center (c : ℂ) {r : ℝ} (hr : 0 < r) :
     (parityTriangle c r).rayParity 1 c = true := by
   rw [parityTriangle_bits c c hr]
-  have hlo : c.im - r ≤ c.im := by linarith
-  have hhi : c.im < c.im + r := by linarith
-  have hleft : ¬ c.re < c.re - r := by linarith
-  have hright : c.re < c.re + r := by linarith
-  simp [hlo, hhi, hleft, hright, Bool.add_eq_xor, Bool.zero_eq_false]
+  simp only [Bool.zero_eq_false, Bool.add_eq_xor]
+  split_ifs <;> first | decide | grind
 
 private theorem parityTriangle_outside {c z : ℂ} {r : ℝ} (hr : 0 < r)
     (hout : r < max |z.re - c.re| |z.im - c.im|) :
@@ -602,9 +599,7 @@ theorem exists_rayParity_isolating_excursion {U : Set ℂ} (hU : IsOpen U)
   let V := U \ (↑(insert c points) : Set ℂ)
   have hfinite : ((↑(insert c points) : Set ℂ)).Finite := Finset.finite_toSet _
   have hV : IsOpen V := hU.sdiff hfinite.isClosed
-  have hrank : 1 < Module.rank ℝ ℂ := by
-    rw [Complex.rank_real_complex]
-    exact_mod_cast Nat.one_lt_two
+  have hrank : 1 < Module.rank ℝ ℂ := by simp [Complex.rank_real_complex]
   have hVconn : IsPathConnected V :=
     isPathConnected_sdiff_finite_of_isOpen hrank hU hconn hfinite
   obtain ⟨ε, hε, hball⟩ := Metric.isOpen_iff.mp hU c hc
@@ -613,13 +608,10 @@ theorem exists_rayParity_isolating_excursion {U : Set ℂ} (hU : IsOpen U)
   have hq : q.support ⊆ V := by
     intro z hz
     obtain ⟨hx, hy⟩ := max_lt_iff.mp (hbound z hz)
-    have hd : dist z c < ε := by
-      have hnorm := Complex.norm_le_abs_re_add_abs_im (z - c)
-      rw [Complex.sub_re, Complex.sub_im] at hnorm
-      rw [dist_eq_norm]
-      linarith only [hx, hy, hnorm]
-    refine ⟨hball (Metric.mem_ball.mpr hd), ?_⟩
-    intro hz'
+    have hnorm : dist z c ≤ |z.re - c.re| + |z.im - c.im| := by
+      simpa only [dist_eq_norm, Complex.sub_re, Complex.sub_im] using
+        Complex.norm_le_abs_re_add_abs_im (z - c)
+    refine ⟨hball (Metric.mem_ball.mpr (by linarith)), fun hz' => ?_⟩
     rcases Finset.mem_insert.mp hz' with rfl | hz'
     · exact hcenter hz
     · exact hpoints z hz' hz

@@ -361,11 +361,8 @@ private theorem relaxEdge_runs (T : Finset (Fin n)) (dm : Dictionary.State n)
     · simp [StateTransitionSpec.validHistory_cons, AdjacencyList.valid, Dictionary.valid,
         IndexedMinPQ.valid, hi, hvc, hdm, card_dom_lt hdm, hV, hK, syncQ, hvT]
     · have := unreached_update_of_none hdm (du + c)
-      dsimp only [relaxOpt]
-      rw [weight_cons, weight_cons, weight_cons, weight_cons, weight_nil, pot, pot]
-      dsimp only
-      rw [hq, ← this, Nat.mul_succ, Nat.mul_succ]
-      dsimp only [kind, edgeRate]
+      simp only [relaxOpt, weight_cons rate, weight_nil rate, pot, hq, ← this, Nat.mul_succ,
+        kind, edgeRate]
       omega
   · by_cases hlt : du + c < dv
     · have hvT : v ∉ T := fun h => by
@@ -392,10 +389,8 @@ private theorem relaxEdge_runs (T : Finset (Fin n)) (dm : Dictionary.State n)
       refine Runs.of_runClient rate hrun ?_ ?_
       · simp [StateTransitionSpec.validHistory_cons, AdjacencyList.valid, Dictionary.valid,
           IndexedMinPQ.valid, hi, hvc, hdm, hV, hK, syncQ, hvT, hlt.le]
-      · rw [weight_cons, weight_cons, weight_cons, weight_cons, weight_nil, pot, pot]
-        dsimp only
-        rw [hq, unreached_update_of_some hdm]
-        dsimp only [kind, edgeRate]
+      · simp only [weight_cons rate, weight_nil rate, pot, hq, unreached_update_of_some hdm,
+          kind, edgeRate]
         omega
     · have hrun : (spec n K V).runClient (syncQ T dm, dm, adj) (relaxEdge u du i) =
           ((), (syncQ T dm, dm, adj), [.inr (.inr (.edge u i)), .inr (.inl (.query v))]) := by
@@ -774,13 +769,9 @@ private theorem dijkstra_runs (G : ListInstance) (hK : G.n * G.maxWeight ≤ K)
       simp [pot, init, hunr, IndexedMinPQ.dom_empty]
     have hpot₁ : pot (K := K) (V := V) pU pQ (syncQ ∅ dm₀, dm₀, G.adj) =
         pU * unreached dm₀ + pQ := by
-      simp only [pot]
-      rw [← hq₀, IndexedMinPQ.dom_insert, IndexedMinPQ.dom_empty]
-      simp
-    rw [weight_append, weight_cons, weight_cons, weight_nil, hpot₀]
+      simp [pot, ← hq₀, IndexedMinPQ.dom_insert, IndexedMinPQ.dom_empty]
+    simp only [weight_append rate, weight_cons rate, weight_nil rate, hpot₀, kind, Nat.mul_succ]
     rw [hsum, hpot₁] at hw
-    dsimp only [kind]
-    rw [Nat.mul_succ]
     omega
 
 end Proof

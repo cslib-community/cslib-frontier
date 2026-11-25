@@ -487,12 +487,8 @@ theorem common_times_take (m : Meeting F) (k : ℕ) (hk : 2 * k + 1 ≤ m.common
   have hrlen := m.right.nodes_length (m.older.ancestry_length _)
   have hlsteps : k ≤ m.left.walk.steps.length := by omega
   have hrsteps : k ≤ m.right.walk.steps.length := by omega
-  have hltimes : k ≤ m.left.times.length := by
-    have hl : m.left.times.length = m.left.walk.steps.length := m.older.ancestry_length _
-    omega
-  have hrtimes : k ≤ m.right.times.length := by
-    have hl : m.right.times.length = m.right.walk.steps.length := m.older.ancestry_length _
-    omega
+  have hltimes : k ≤ m.left.times.length := (m.older.ancestry_length _).symm ▸ hlsteps
+  have hrtimes : k ≤ m.right.times.length := (m.older.ancestry_length _).symm ▸ hrsteps
   apply List.ext_getElem
   · simp only [List.length_take, Nat.min_eq_left hltimes, Nat.min_eq_left hrtimes]
   · intro i hi hj
@@ -529,22 +525,21 @@ theorem Trace.prefix_time_lt_right_drop (h : Trace sem f m) (k : ℕ)
     exact m.older.ancestry_times_pairwise _
   exact (List.pairwise_append.mp hp).2.2 _ hst _ htt
 
+private theorem commonNodes_length_pos (m : Meeting F) {a : Node F}
+    (ha : m.ancestor? = some a) : 0 < m.commonNodes.length :=
+  List.length_pos_iff.mpr fun h => by simp [ancestor?, h] at ha
+
 /-- The selected ancestor occurs at the final shared index on each ancestral node list. -/
 theorem ancestor_at_common_index (m : Meeting F) {a : Node F}
     (ha : m.ancestor? = some a) :
     m.left.nodes[m.commonNodes.length - 1]? = some a ∧
       m.right.nodes[m.commonNodes.length - 1]? = some a := by
-  have hpos : 0 < m.commonNodes.length := by
-    cases he : m.commonNodes with
-    | nil => simp [ancestor?, he] at ha
-    | cons b bs => simp
-  have hidx : m.commonNodes.length - 1 < m.commonNodes.length := by omega
-  have hh : m.commonNodes[m.commonNodes.length - 1]? = some a := by
-    rw [← List.getLast?_eq_getElem?]
-    exact ha
-  have hside : ∀ ls : List (Node F), m.commonNodes.IsPrefix ls →
-      ls[m.commonNodes.length - 1]? = some a := by
-    intro ls ⟨tail, he⟩
+  have hidx : m.commonNodes.length - 1 < m.commonNodes.length :=
+    Nat.sub_lt (m.commonNodes_length_pos ha) Nat.zero_lt_one
+  have hh : m.commonNodes[m.commonNodes.length - 1]? = some a :=
+    List.getLast?_eq_getElem?.symm.trans ha
+  have hside (ls : List (Node F)) : m.commonNodes.IsPrefix ls →
+      ls[m.commonNodes.length - 1]? = some a := fun ⟨_, he⟩ => by
     rw [← he, List.getElem?_append_left hidx]
     exact hh
   exact ⟨hside _ m.commonNodes_prefix.1, hside _ m.commonNodes_prefix.2⟩
@@ -563,23 +558,16 @@ theorem ancestor_constraint_index_lt (m : Meeting F) {c : Copy F}
     (hc : m.ancestor? = some (.inr c)) :
     (m.commonNodes.length - 1) / 2 < m.left.walk.steps.length ∧
       (m.commonNodes.length - 1) / 2 < m.right.walk.steps.length := by
-  have hside : ∀ p : Ancestry F, p.times.length = p.walk.steps.length →
-      m.commonNodes.IsPrefix p.nodes → (m.commonNodes.length - 1) / 2 < p.walk.steps.length := by
-    intro p hl hp
+  have hpos := m.commonNodes_length_pos hc
+  have hside (p : Ancestry F) (hl : p.times.length = p.walk.steps.length)
+      (hp : m.commonNodes.IsPrefix p.nodes) :
+      (m.commonNodes.length - 1) / 2 < p.walk.steps.length := by
     have hle := hp.length_le
     have hlen := p.nodes_length hl
-    have hpos : 0 < m.commonNodes.length := by
-      cases he : m.commonNodes with
-      | nil => simp [ancestor?, he] at hc
-      | cons a as => simp
     by_contra hn
-    have he : m.commonNodes.length = p.nodes.length := by omega
-    have heq := hp.eq_of_length_le (Nat.le_of_eq he.symm)
+    have heq := hp.eq_of_length_le (by omega)
     obtain ⟨v, hv⟩ := p.nodes_last_variable
-    have hh : some (.inr c : Node F) = some (.inl v) := by
-      rw [← hc, ancestor?, heq]
-      exact hv
-    cases hh
+    cases hc.symm.trans (by simpa only [ancestor?, heq] using hv)
   exact ⟨hside _ (m.older.ancestry_length _) m.commonNodes_prefix.1,
     hside _ (m.older.ancestry_length _) m.commonNodes_prefix.2⟩
 
@@ -587,10 +575,7 @@ theorem ancestor_constraint_index_lt (m : Meeting F) {c : Copy F}
 theorem ancestor_variable_length (m : Meeting F) {v : V}
     (hv : m.ancestor? = some (.inl v)) :
     m.commonNodes.length = 2 * ((m.commonNodes.length - 1) / 2) + 1 := by
-  have hpos : 0 < m.commonNodes.length := by
-    cases he : m.commonNodes with
-    | nil => simp [ancestor?, he] at hv
-    | cons a as => simp
+  have hpos := m.commonNodes_length_pos hv
   have hle := m.commonNodes_prefix.1.length_le
   have hlen := m.left.nodes_length (m.older.ancestry_length _)
   by_cases hm : (m.commonNodes.length - 1) % 2 = 0
@@ -606,21 +591,16 @@ theorem ancestor_variable_prefix (m : Meeting F) {v : V}
     (hv : m.ancestor? = some (.inl v)) :
     (m.left.walk.take ((m.commonNodes.length - 1) / 2)).finish = v ∧
       (m.right.walk.take ((m.commonNodes.length - 1) / 2)).finish = v := by
-  have hside : ∀ p : Ancestry F, p.times.length = p.walk.steps.length →
-      m.commonNodes.IsPrefix p.nodes →
-      p.nodes[m.commonNodes.length - 1]? = some (.inl v) →
+  have hpos := m.commonNodes_length_pos hv
+  have hlength := m.ancestor_variable_length hv
+  have hj : m.commonNodes.length - 1 = 2 * ((m.commonNodes.length - 1) / 2) := by omega
+  have hside (p : Ancestry F) (hl : p.times.length = p.walk.steps.length)
+      (hp : m.commonNodes.IsPrefix p.nodes)
+      (he : p.nodes[m.commonNodes.length - 1]? = some (.inl v)) :
       (p.walk.take ((m.commonNodes.length - 1) / 2)).finish = v := by
-    intro p hl hp he
-    have hpos : 0 < m.commonNodes.length := by
-      cases hx : m.commonNodes with
-      | nil => simp [ancestor?, hx] at hv
-      | cons a as => simp
     have hlen := p.nodes_length hl
     have hle := hp.length_le
-    have hk : (m.commonNodes.length - 1) / 2 ≤ p.walk.steps.length := by omega
-    have hlength := m.ancestor_variable_length hv
-    have hj : m.commonNodes.length - 1 = 2 * ((m.commonNodes.length - 1) / 2) := by omega
-    rw [hj, p.nodes_getElem?_even hl _ hk] at he
+    rw [hj, p.nodes_getElem?_even hl _ (by omega)] at he
     exact Sum.inl.inj (Option.some.inj he)
   exact ⟨hside _ (m.older.ancestry_length _) m.commonNodes_prefix.1
       (m.ancestor_at_common_index hv).1,
@@ -814,13 +794,8 @@ theorem Trace.augment_isAugmenting (h : Trace sem f m) (hF : EdgeInstance F)
       ((h.augment_isWalk hF hf hne).take n).2] at hv
   · change m.left.walk.start ≠ m.walk.finish
     rwa [hfinish]
-  · apply (mem_roots f _).mp
-    rw [← hroots]
-    exact hg.ancestry_start_root h.expansion.visited
-  · rw [hfinish]
-    apply (mem_roots f _).mp
-    rw [← hroots]
-    exact hg.ancestry_start_root h.old_visited
+  · exact (mem_roots f _).mp (hroots ▸ hg.ancestry_start_root h.expansion.visited)
+  · exact hfinish ▸ (mem_roots f _).mp (hroots ▸ hg.ancestry_start_root h.old_visited)
 
 /-- Every preparatory root-path flip actually returned by the cycle extractor is valid.
 This is the preparatory-labeling assertion of source Lemma 41; the remaining blossom
@@ -853,16 +828,12 @@ theorem Trace.variable_blossom_isFDAG (h : Trace sem f m) (hF : EdgeInstance F)
   · simp [ha] at hc
   let k := (m.commonNodes.length - 1) / 2
   have hlen : m.commonNodes.length = 2 * k + 1 := m.ancestor_variable_length ha
-  have htl : m.left.times.drop k = (m.left.walk.drop k).steps.map
-      (fun s => m.older.stamp s.1) := by
-    simpa only [Meeting.left, Walk.drop, List.map_drop] using congrArg (List.drop k)
-      (h.expansion.grown.ancestry_times_eq_stamp m.current.input.var)
-  have htr : m.right.times.drop k = (m.right.walk.drop k).steps.map
-      (fun s => m.older.stamp s.1) := by
-    simpa only [Meeting.right, Walk.drop, List.map_drop] using congrArg (List.drop k)
-      (h.expansion.grown.ancestry_times_eq_stamp m.output.var)
-  dsimp only
-  rw [htl, htr]
+  have htimes_drop (u : V) : (m.older.ancestry u).times.drop k =
+      ((m.older.ancestry u).walk.drop k).steps.map (fun s => m.older.stamp s.1) := by
+    simpa only [Walk.drop, List.map_drop] using congrArg (List.drop k)
+      (h.expansion.grown.ancestry_times_eq_stamp u)
+  dsimp only [Meeting.left, Meeting.right]
+  rw [htimes_drop, htimes_drop]
   have ht := h.pruned_isFDAG hF hf
   have hlp := h.left_directed.drop ht.supported k
   have hrp := h.right_directed.drop ht.supported k
