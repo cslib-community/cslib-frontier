@@ -148,10 +148,7 @@ theorem Good.output {o : O} (h : st.Good τ c R (.output o)) (hτ4 : 4 ≤ τ) (
     R z o := by
   have hτ0 : 0 < τ := by linarith only [hτ4]
   have hJ : (#st.Jᶜ : ℝ) ≤ n := by exact_mod_cast (card_le_univ _).trans_eq (Fintype.card_fin n)
-  have ht : (st.t : ℝ) ≤ c := by
-    have := h.budget
-    simp only [Protocol.depth, add_zero] at this
-    exact_mod_cast this
+  have ht : (st.t : ℝ) ≤ c := by exact_mod_cast (Nat.le_add_right _ _).trans h.budget
   obtain ⟨x, hx, y, hy, hxy⟩ := exists_forall_eq_of_isDense (r := τ) (D := 5 * st.t) hτ0
     h.X_nonempty (fun x hx x' hx' i hi => h.X_fixed x hx x' hx' i (by simpa using hi)) h.dense
     (fun y hy y' hy' i hi => h.Y_fixed y hy y' hy' i (by simpa using hi)) (h.two_pow_le hτ4 hτm)
@@ -162,8 +159,7 @@ theorem Good.output {o : O} (h : st.Good τ c R (.output o)) (hτ4 : 4 ≤ τ) (
     by_cases hi : i ∈ st.J
     · rw [ind_apply, h.ind_eq x hx y hy i hi, hz i hi]
     · exact hxy i (mem_compl.mpr hi)
-  have := h.solves x (mem_coe.mpr hx) y (mem_coe.mpr hy)
-  simpa [lift, hind] using this
+  simpa [lift, hind] using h.solves x (mem_coe.mpr hx) y (mem_coe.mpr hy)
 
 /-- **When Bob speaks**, following a half of `Y` holding at least half of it keeps the
 invariants. -/
@@ -221,24 +217,16 @@ private theorem Good.alice_Y_large {send : (Fin n → Fin m) → Bool} {p₀ p�
   rw [← hcardc] at h1
   have e1 : (2 : ℝ) ^ ((#(st.J ∪ q.I)ᶜ + #q.I) * m) =
       2 ^ (#(st.J ∪ q.I)ᶜ * m) * 2 ^ (m * #q.I) := by
-    rw [← pow_add]
-    congr 1
-    ring
+    rw [← pow_add, add_mul, mul_comm m]
   rw [e1] at h1
-  have hA : (0 : ℝ) ≤ 2 ^ st.t * (4 * τ) ^ #st.J := by positivity
-  have hB : (0 : ℝ) ≤ (4 * τ) ^ #q.I := by positivity
   refine le_of_mul_le_mul_right ?_ (by positivity : (0 : ℝ) < 2 ^ (m * #q.I))
   calc (2 : ℝ) ^ (#(st.J ∪ q.I)ᶜ * m) * 2 ^ (m * #q.I)
       ≤ 2 ^ st.t * (4 * τ) ^ #st.J * #st.Y := h1
     _ ≤ 2 ^ st.t * (4 * τ) ^ #st.J * (#(allowing st.Y q.I q.α ρ') * (4 * τ) ^ #q.I) := by gcongr
-    _ ≤ 2 ^ st.t * (4 * τ) ^ #st.J * ((4 * τ) ^ #q.I * (#Y' * 2 ^ (m * #q.I))) := by
-      refine mul_le_mul_of_nonneg_left ?_ hA
-      rw [mul_comm]
-      exact mul_le_mul_of_nonneg_left hηcard hB
+    _ ≤ 2 ^ st.t * (4 * τ) ^ #st.J * (#Y' * 2 ^ (m * #q.I) * (4 * τ) ^ #q.I) := by gcongr
     _ = 2 ^ st.t * ((4 * τ) ^ #st.J * ((4 * τ) ^ #q.I * #Y')) * 2 ^ (m * #q.I) := by ring
     _ ≤ 2 ^ (st.t + 1) * ((4 * τ) ^ #st.J * ((4 * τ) ^ #q.I * #Y')) * 2 ^ (m * #q.I) := by
-      gcongr; · norm_num
-      · exact Nat.le_succ _
+      gcongr <;> norm_num
     _ = 2 ^ (st.t + 1) * (4 * τ) ^ (#st.J + #q.I) * #Y' * 2 ^ (m * #q.I) := by
       rw [pow_add]
       ring
@@ -409,14 +397,11 @@ theorem SimState.Good.exists_goodPiece {st : SimState n m} {send : (Fin n → Fi
   have hτ : 0 < τ := by linarith only [hτ4]
   have hb := card_le_two_mul_card_filter_bigHalf st.X send
   have hXpos : (0 : ℝ) < #st.X := by exact_mod_cast card_pos.mpr h.X_nonempty
-  have hne : (st.X.filter fun x => send x = bigHalf st.X send).Nonempty := by
-    rw [← card_pos]
-    exact_mod_cast (show (0 : ℝ) < #(st.X.filter fun x => send x = bigHalf st.X send) by
-      linarith only [hXpos, hb])
+  have hne : (st.X.filter fun x => send x = bigHalf st.X send).Nonempty :=
+    card_pos.1 (Nat.cast_pos.1 (by linarith only [hXpos, hb] :
+      (0 : ℝ) < #(st.X.filter fun x => send x = bigHalf st.X send)))
   have hJ : (#st.Jᶜ : ℝ) ≤ n := by exact_mod_cast (card_le_univ _).trans_eq (Fintype.card_fin n)
-  have ht : (st.t : ℝ) ≤ c := by
-    have := h.budget
-    exact_mod_cast (Nat.le_add_right _ _).trans this
+  have ht : (st.t : ℝ) ≤ c := by exact_mod_cast (Nat.le_add_right _ _).trans h.budget
   exact exists_piece_forall_le_card_filter (X₀ := st.X) (D := 5 * st.t) hτ
     (isPartition_partitionOf hτ _ _) hne h.dense (filter_subset _ _) hb
     (fun x hx x' hx' i hi => h.X_fixed x (filter_subset _ _ hx) x' (filter_subset _ _ hx') i
@@ -437,8 +422,7 @@ theorem eval_sim (hτ4 : 4 ≤ τ) (hτm : τ ^ 2 ≤ m) (hτc : 64 * n * (5 * c
     intro st h z hz
     have key : ∀ b : Bool, (st.afterBob send).Good τ c R (cond b p₁ p₀) →
         R z ((cond b (sim τ p₁ (st.afterBob send)) (sim τ p₀ (st.afterBob send))).eval z) := by
-      intro b hb'
-      cases b
+      rintro ⟨⟩ hb'
       · exact ih₀ _ hb' z hz
       · exact ih₁ _ hb' z hz
     exact key _ (h.bob hτ _ (card_le_two_mul_card_filter_bigHalf _ _))
@@ -452,17 +436,19 @@ theorem eval_sim (hτ4 : 4 ≤ τ) (hτm : τ ^ 2 ≤ m) (hτc : 64 * n * (5 * c
     have hz' : ∀ i ∈ (st.afterAlice q ρ').J, z i = (st.afterAlice q ρ').ρ i := by
       intro i hi
       simp only [SimState.afterAlice, mergeAnswers, mem_union] at hi ⊢
-      by_cases hiI : i ∈ q.I
+      split_ifs with hiI
       · simp [ρ', hiI]
-      · simp only [hiI, ite_false]
-        exact hz i (hi.resolve_right hiI)
+      · exact hz i (hi.resolve_right hiI)
     have key : ∀ b : Bool, (st.afterAlice q ρ').Good τ c R (cond b p₁ p₀) →
         R z ((cond b (sim τ p₁ (st.afterAlice q ρ')) (sim τ p₀ (st.afterAlice q ρ'))).eval z) := by
-      intro b hb'
-      cases b
+      rintro ⟨⟩ hb'
       · exact ih₀ _ hb' z hz'
       · exact ih₁ _ hb' z hz'
     exact key _ (h.afterAlice hτ hqL hgood ρ')
+
+private theorem four_pow_succ_add_le {t d D : ℕ} (h : d + 1 ≤ D) :
+    (4 : ℝ) ^ (t + 1 + d) ≤ 4 ^ (t + D) :=
+  pow_le_pow_right₀ (by norm_num) (by omega)
 
 /-- Inductive step of `pow_depth_sim` when Alice speaks. -/
 private theorem pow_depth_sim_alice (hτ4 : 4 ≤ τ) (hτm : τ ^ 2 ≤ m)
@@ -476,8 +462,8 @@ private theorem pow_depth_sim_alice (hτ4 : 4 ≤ τ) (hτm : τ ^ 2 ≤ m)
     ((m : ℝ) / τ) ^ (#st.J + (sim τ (.alice send p₀ p₁) st).depth) ≤
       4 ^ (st.t + (Protocol.alice send p₀ p₁).depth) := by
   have hτ : 0 < τ := by linarith only [hτ4]
-  have hM : (1 : ℝ) ≤ m / τ := (le_div_iff₀ hτ).2 <|
-    (one_mul τ).trans_le ((le_mul_of_one_le_left hτ.le (by linarith only [hτ4])).trans (sq τ ▸ hτm))
+  have hM : (1 : ℝ) ≤ m / τ := (one_le_div hτ).2
+    ((le_mul_of_one_le_left hτ.le (by linarith only [hτ4])).trans (sq τ ▸ hτm))
   have hq := h.exists_goodPiece hτ4 hτm hτc
   rw [sim, dite_eq_left_of_eq_true (eq_true hq)]
   obtain ⟨hqL, hgood⟩ := hq.choose_spec
@@ -496,13 +482,9 @@ private theorem pow_depth_sim_alice (hτ4 : 4 ≤ τ) (hτm : τ ^ 2 ≤ m)
       ((m : ℝ) / τ) ^ (#st.J + #q.I +
         (cond b (sim τ p₁ (st.afterAlice q ρ₀)) (sim τ p₀ (st.afterAlice q ρ₀))).depth) ≤
         4 ^ (st.t + (Protocol.alice send p₀ p₁).depth) := by
-    intro b hb'
-    have hle : ∀ d, d ≤ (Protocol.alice send p₀ p₁).depth - 1 → (4 : ℝ) ^ (st.t + 1 + d) ≤
-        4 ^ (st.t + (Protocol.alice send p₀ p₁).depth) := fun d hd =>
-      pow_le_pow_right₀ (by norm_num) (by simp only [Protocol.depth] at hd ⊢; omega)
-    cases b
-    · exact (hJ ▸ ih₀ _ hb').trans (hle _ (by simp [Protocol.depth]))
-    · exact (hJ ▸ ih₁ _ hb').trans (hle _ (by simp [Protocol.depth]))
+    rintro ⟨⟩ hb'
+    · exact (hJ ▸ ih₀ _ hb').trans (four_pow_succ_add_le (by simp))
+    · exact (hJ ▸ ih₁ _ hb').trans (four_pow_succ_add_le (by simp))
   refine le_trans (pow_le_pow_right₀ hM ?_) (key _ (h.afterAlice hτ hqL hgood ρ₀))
   change #st.J + (DecisionTree.graft q.I.toList k st.ρ).depth ≤ #st.J + #q.I + (k ρ₀).depth
   omega
@@ -523,13 +505,9 @@ theorem pow_depth_sim (hτ4 : 4 ≤ τ) (hτm : τ ^ 2 ≤ m) (hτc : 64 * n * (
         ((m : ℝ) / τ) ^ (#st.J +
           (cond b (sim τ p₁ (st.afterBob send)) (sim τ p₀ (st.afterBob send))).depth) ≤
           4 ^ (st.t + (Protocol.bob send p₀ p₁).depth) := by
-      intro b hb'
-      have hle : ∀ d, d ≤ (Protocol.bob send p₀ p₁).depth - 1 → (4 : ℝ) ^ (st.t + 1 + d) ≤
-          4 ^ (st.t + (Protocol.bob send p₀ p₁).depth) := fun d hd =>
-        pow_le_pow_right₀ (by norm_num) (by simp only [Protocol.depth] at hd ⊢; omega)
-      cases b
-      · exact (ih₀ _ hb').trans (hle _ (by simp [Protocol.depth]))
-      · exact (ih₁ _ hb').trans (hle _ (by simp [Protocol.depth]))
+      rintro ⟨⟩ hb'
+      · exact (ih₀ _ hb').trans (four_pow_succ_add_le (by simp))
+      · exact (ih₁ _ hb').trans (four_pow_succ_add_le (by simp))
     exact key _ (h.bob hτ _ (card_le_two_mul_card_filter_bigHalf _ _))
   | alice send p₀ p₁ ih₀ ih₁ =>
     exact pow_depth_sim_alice hτ4 hτm hτc ih₀ ih₁
@@ -589,9 +567,7 @@ theorem exists_decisionTree_of_solves {R : (Fin n → Bool) → O → Prop} {τ 
   have hτ : 0 < τ := by linarith only [hτ4]
   have hτm' : τ ≤ m := (le_mul_of_one_le_left hτ.le (by linarith only [hτ4])).trans (sq τ ▸ hτm)
   have hm : 0 < m := by exact_mod_cast hτ.trans_le hτm'
-  have hM : (1 : ℝ) ≤ m / τ := by
-    rw [le_div_iff₀ hτ, one_mul]
-    exact hτm'
+  have hM : (1 : ℝ) ≤ m / τ := (one_le_div hτ).2 hτm'
   by_cases hc : ((m : ℝ) / τ) ^ n ≤ 4 ^ p.depth
   · -- the trivial decision tree querying every coordinate
     have htot : ∀ z, ∃ o, R z o := fun z =>
