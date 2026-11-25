@@ -158,16 +158,9 @@ private theorem slotInverter_toTyped_one_eq_interpret {f : List Bool → List Bo
             pure (if request.2.length = g then [] else xs.getD request.2.length [], ())))
         (adversary n (encList encBits ys))).run () =
         (fun x => (x, ())) <$> (adversary n (encList encBits ys)).run
-          (fun q => pure (if q.2.length = g then [] else xs.getD q.2.length [])) := by
-      have hstate : (OracleComp.interpret
-          (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
-            (fun (request : Unit × List Bool) (_ : Unit) =>
-              pure (if request.2.length = g then [] else xs.getD request.2.length [], ())))
-          (adversary n (encList encBits ys))) =
-          ProbOracleComp.runState (adversary n (encList encBits ys))
-            (fun q => StateT.lift (pure (if q.2.length = g then [] else xs.getD q.2.length []))) :=
-        rfl
-      rw [hstate, ProbOracleComp.runState_lift]
+          (fun q => pure (if q.2.length = g then [] else xs.getD q.2.length [])) :=
+      ProbOracleComp.runState_lift (adversary n (encList encBits ys))
+        (fun q : Unit × List Bool => pure (if q.2.length = g then [] else xs.getD q.2.length [])) ()
     rw [hl]
     simp only [ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure, PMF.bind_map,
       Function.comp_def]
