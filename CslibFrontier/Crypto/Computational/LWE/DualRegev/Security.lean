@@ -825,52 +825,10 @@ theorem isPPT_lweDistinguisher {n m w : ℕ → ℕ} {adversary : Encryption.Adv
     (hm : ComputableInPolyTime m encUnary encUnary)
     (hw : ComputableInPolyTime w encUnary encUnary)
     (hadversary : adversary.IsPPT) : IsPPT encBool (lweDistinguisher n m w adversary) := by
-  open Turing.MultiTapeTM.ComputableInPolyTime in
-  let baseEnc := encPair encUnary encBits
-  let choiceEnc := encPair (encPair encBool encBool) encBits
-  let coinEnc := encPair (encPair baseEnc choiceEnc) encBool
-  have hpk : ComputableInPolyTime
-      (fun p : ℕ × List Bool => (p.1, lweExtractPublicKey (n p.1) (m p.1) (w p.1) p.2))
-      baseEnc baseEnc := by
-    change ComputableInPolyTime
-      (fun p : ℕ × List Bool => (p.1, lweExtractPublicKey (n p.1) (m p.1) (w p.1) p.2))
-      (encPair encUnary encBits) (encPair encUnary encBits)
-    fun_prop
-  have hchoose := hadversary.choose.on.preprocess hpk
-  have hcoin := isPPTOn_uniform_bool (encPair baseEnc choiceEnc)
-  have hct : ComputableInPolyTime
-      (fun p : ((ℕ × List Bool) × ((Bool × Bool) × List Bool)) × Bool =>
-        (p.1.1.1, p.1.2.2, lweExtractChallenge (m p.1.1.1) (n p.1.1.1) (w p.1.1.1) p.1.1.2
-          (if p.2 then p.1.2.1.2 else p.1.2.1.1)))
-      coinEnc (encPair encUnary (encPair encBits encBits)) := by
-    dsimp only [coinEnc, baseEnc, choiceEnc]
-    fun_prop
-  have hguess := hadversary.guess.preprocess hct
-  have hxor : ComputableInPolyTime
-      (fun p : (((ℕ × List Bool) × ((Bool × Bool) × List Bool)) × Bool) × Bool => p.2 ^^ p.1.2)
-      (encPair coinEnc encBool) encBool := by
-    have hx := of_finite (encIn := encPair encBool encBool) (encOut := encBool)
-      fun p : Bool × Bool => p.1 ^^ p.2
-    have harg : ComputableInPolyTime
-        (fun p : (((ℕ × List Bool) × ((Bool × Bool) × List Bool)) × Bool) × Bool =>
-          (p.2, p.1.2)) (encPair coinEnc encBool) (encPair encBool encBool) := by
-      dsimp only [coinEnc, baseEnc, choiceEnc]
-      fun_prop
-    simpa only [Function.comp_def] using hx.comp harg
-  have htail := hguess.map_with (f := fun p guess => guess ^^ p.2) hxor
-  have hbits := hcoin.bind_with
-    (second := fun p bit =>
-      let ct := lweExtractChallenge (m p.1.1) (n p.1.1) (w p.1.1) p.1.2
-        (if bit then p.2.1.2 else p.2.1.1)
-      (fun guess => guess ^^ bit) <$> adversary.guess p.1.1 p.2.2 ct) htail
-  simpa only [IsPPT, lweDistinguisher, baseEnc, choiceEnc, coinEnc, Function.comp_def,
-    bind_pure_comp, Encryption.ChoiceOut.msg₀, Encryption.ChoiceOut.msg₁,
-    Encryption.ChoiceOut.state] using
-    hchoose.bind_with (second := fun p choice => do
-      let bit ← ProbComp.uniform Bool
-      let msg := if bit then choice.1.2 else choice.1.1
-      let ct := lweExtractChallenge (m p.1) (n p.1) (w p.1) p.2 msg
-      (fun guess => guess ^^ bit) <$> adversary.guess p.1 choice.2 ct) hbits
+  have hchoose := hadversary.choose
+  have hguess := hadversary.guess
+  unfold lweDistinguisher
+  ppt
 
 /-! ### Exact game identities and hybrid security proof -/
 
@@ -1065,37 +1023,11 @@ theorem advantage_game_le (n m w η : ℕ → ℕ) (adversary : Encryption.Adver
         Real.sqrt ((2 : ℝ) ^ (w security * n security) / (2 : ℝ) ^ m security) := by
       simp [hidingError]
     linarith
-  have hhop2 :
-      Game.advantage
-        (Encryption.publicKeyGame unifPK enc adversary false security)
-        (Encryption.publicKeyGame unifPK enc adversary true security) ≤
-      2 * Game.advantage
-        (distinguishingGame
-          (LWE.realEnsemble n (fun k => m k + 1) w (fun k => LWE.noiseLaw (w k) (η k)) security)
-          (lweDistinguisher n m w adversary security))
-        (distinguishingGame (LWE.uniformEnsemble n (fun k => m k + 1) w security)
-          (lweDistinguisher n m w adversary security)) := by
-    rw [distinguishingGame_realEnsemble, distinguishingGame_uniformEnsemble]
-    have h := Game.advantage_le_two_mul_uniform_bool_xor
-      (fun bit => Encryption.publicKeyGame unifPK enc adversary bit security)
-      (fun _ => idealCipherGame (n security) (m security) (w security) adversary security)
-    simpa only [Game.advantage_self, add_zero] using h
-  have hreal :
-      (Encryption.advantage
-        (Encryption.game (fun k => keyGenSerialized (n k) (m k) (w k)) enc adversary)
-        security : ℝ) ≤
-        (2 * Game.advantage
-          (distinguishingGame
-            (LWE.realEnsemble n (fun k => m k + 1) w (fun k => LWE.noiseLaw (w k) (η k)) security)
-            (lweDistinguisher n m w adversary security))
-          (distinguishingGame (LWE.uniformEnsemble n (fun k => m k + 1) w security)
-            (lweDistinguisher n m w adversary security)) +
-          hidingError (n security) (m security) (w security) : ℝ) := by
-    have h1 := NNReal.coe_le_coe.mpr hhop1
-    have h2 := NNReal.coe_le_coe.mpr hhop2
-    simp only [NNReal.coe_add, NNReal.coe_mul, NNReal.coe_ofNat] at h1 h2 ⊢
-    linarith
-  exact NNReal.coe_le_coe.mp hreal
+  refine hhop1.trans ((add_comm _ _).le.trans (add_le_add ?_ (by exact_mod_cast hdistPK)))
+  rw [distinguishingGame_realEnsemble, distinguishingGame_uniformEnsemble]
+  simpa only [Game.advantage_self, add_zero] using Game.advantage_le_two_mul_uniform_bool_xor
+    (fun bit => Encryption.publicKeyGame unifPK enc adversary bit security)
+    (fun _ => idealCipherGame (n security) (m security) (w security) adversary security)
 
 open Filter in
 /-- Dual-Regev encryption is IND-CPA secure under decision LWE with `m + 1` samples for
