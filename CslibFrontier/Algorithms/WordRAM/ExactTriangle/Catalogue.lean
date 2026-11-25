@@ -195,8 +195,7 @@ theorem exec_at {w : ℕ} (n D g p : ℕ) (values : ℕ → ℤ) (initial : Data
     with c ⟨hvs, hvq, hvB, hvH, hvn, _, _, hvm⟩
   wram_simp at hvq hvB hvH hvn hvm
   have hc4 : c.mem 4 = p := (congrFun hvm 4).trans ha4
-  have h2Np : Fits (w + 2) ((n * n + n * n) * p) :=
-    hbudget.of_le (by dsimp [N]; nlinarith only [])
+  have h2Np : Fits (w + 2) ((n * n + n * n) * p) := hbudget.of_le (by dsimp [N]; nlinarith only [])
   have hOut : Fits (w + 2) ((n * n + n * n) * p + queryBase) :=
     hbudget.of_le (by dsimp [N, queryBase, countBase]; nlinarith only [])
   wram_exec [hac, haq, hvn, hvq, hvB, hvH, hc4]
