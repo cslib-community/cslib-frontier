@@ -276,13 +276,10 @@ private theorem of_checkRedOutput {F : List PBConstr} {obj : Option Objective} {
   split at h
   · rename_i s hrun
     dsimp only at h
-    split at h
-    · rename_i hok
-      simp only [Option.some.injEq] at h
-      subst h
-      simp only [Bool.and_eq_true] at hok
-      exact ⟨s, hrun, hok.1, hok.2, rfl, rfl, rfl⟩
-    · cases h
+    split at h <;> cases h
+    rename_i hok
+    simp only [Bool.and_eq_true] at hok
+    exact ⟨s, hrun, hok.1, hok.2, rfl, rfl, rfl⟩
   · cases h
 
 /-- **A proof with an accepted output section is accepted**, with its conclusion. -/
@@ -323,16 +320,13 @@ private theorem exists_bijOn_of_injOn {α β : Type*} [Nonempty β] {A : Set α}
     (f := fun a : A => (⟨f a, hfm a.2⟩ : B)) (g := fun b : B => (⟨g b, hgm b.2⟩ : A))
     (fun a b hab => Subtype.ext (hf a.2 b.2 (congrArg Subtype.val hab)))
     (fun a b hab => Subtype.ext (hg a.2 b.2 (congrArg Subtype.val hab)))
-  refine ⟨fun a => if ha : a ∈ A then (h ⟨a, ha⟩ : β) else Classical.arbitrary β, ?_, ?_, ?_⟩
-  · intro a ha
-    simp only [ha, ↓reduceDIte]
-    exact (h ⟨a, ha⟩).2
-  · intro a ha b hb hab
-    simp only [ha, hb, ↓reduceDIte] at hab
-    exact congrArg Subtype.val (hh.1 (Subtype.ext hab))
-  · intro b hb
-    obtain ⟨⟨a, ha⟩, hab⟩ := hh.2 ⟨b, hb⟩
-    exact ⟨a, ha, by simp only [ha, ↓reduceDIte, hab]⟩
+  refine ⟨fun a => if ha : a ∈ A then (h ⟨a, ha⟩ : β) else Classical.arbitrary β,
+    fun a ha => by simp only [ha, ↓reduceDIte]; exact (h ⟨a, ha⟩).2,
+    fun a ha b hb hab => congrArg Subtype.val (hh.1 (Subtype.ext (by
+      simpa only [ha, hb, ↓reduceDIte] using hab))),
+    fun b hb => ?_⟩
+  obtain ⟨⟨a, ha⟩, hab⟩ := hh.2 ⟨b, hb⟩
+  exact ⟨a, ha, by simp only [ha, ↓reduceDIte, hab]⟩
 
 /-- **The injections behind `EQUIENUMERABLE`**: if the final state `s` of a run from the formula
 `F`, the objective `obj` and the preserved set `pres` accepts an `EQUIENUMERABLE` output `O`,
@@ -353,23 +347,18 @@ private theorem equienumerable_injections {F : List PBConstr} {obj : Option Obje
         proj P '' Instance.solsLE ⟨F, obj, pres⟩ v = proj P '' O.solsLE v) := by
   simp only [checkOutput, sameConstrs, State.boundLe, Bool.and_eq_true] at hout
   obtain ⟨⟨⟨⟨hchk, hle⟩, hsub, hsup⟩, hobj⟩, hpres⟩ := hout
-  obtain ⟨Pr, hPr⟩ : ∃ Pr, s.pres = some Pr := by
-    cases hp : s.pres with
-    | none => simp [hp] at hpres
-    | some Pr => exact ⟨Pr, rfl⟩
-  obtain ⟨Q, hQ⟩ : ∃ Q, O.preserved = some Q := by
-    cases hq : O.preserved with
-    | none => simp [hq, hPr] at hpres
-    | some Q => exact ⟨Q, rfl⟩
-  rw [hPr, hQ] at hpres
+  obtain ⟨Pr, Q, hPr, hQ, hpres⟩ : ∃ Pr Q, s.pres = some Pr ∧ O.preserved = some Q ∧
+      sameVars Pr Q = true := by
+    cases hp : s.pres <;> cases hq : O.preserved <;>
+      simp only [hp, hq, Bool.false_eq_true] at hpres
+    exact ⟨_, _, rfl, rfl, hpres⟩
   replace hpres := sameVars_iff.1 hpres
   obtain ⟨P, hP⟩ : ∃ P, pres = some P :=
     Option.isSome_iff_exists.1 (he.pres_some ▸ by simp [hPr])
   have hPr' : s.pres.getD [] = Pr := by rw [hPr]; rfl
   have hP' : pres.getD [] = P := by rw [hP]; rfl
-  have hcore : ∀ τ, AllHold τ s.core ↔ ∀ c ∈ s.coreConstrs, c.Holds τ := fun τ => by
-    rw [State.coreConstrs, List.forall_mem_map]
-    rfl
+  have hcore : ∀ τ, AllHold τ s.core ↔ ∀ c ∈ s.coreConstrs, c.Holds τ :=
+    fun _ => List.forall_mem_map.symm
   -- The projections to `Pr` and to `Q` determine each other everywhere.
   obtain ⟨φ, -, -, hφ⟩ := exists_proj_injOn (A := Set.univ) (P := Pr) (Q := Q) fun a _ b _ => by
     simp only [proj_eq_iff]
@@ -405,10 +394,9 @@ private theorem equienumerable_injections {F : List PBConstr} {obj : Option Obje
   · intro l₁ h₁ l₂ h₂ h12
     obtain ⟨τ₁, -, hf₁⟩ := hf l₁ h₁
     obtain ⟨τ₂, -, hf₂⟩ := hf l₂ h₂
-    simp only [hf₁, hf₂, Sum.elim_inl, id, hφ _ (Set.mem_univ _)] at h12
+    simp only [hf₁, hf₂, Sum.elim_inl, id, hφ _ (Set.mem_univ _), proj_eq_iff] at h12
     refine hfi h₁ h₂ ?_
     rw [hf₁, hf₂, Sum.inl.injEq, proj_eq_iff]
-    rw [proj_eq_iff] at h12
     exact fun x hx => h12 x ((hpres x).1 hx)
   · intro l hl
     obtain ⟨τ, hτ, hfl⟩ := hf l hl
@@ -428,9 +416,8 @@ private theorem equienumerable_injections {F : List PBConstr} {obj : Option Obje
   · have hPP : Pr = P := Option.some.inj (hPr.symm.trans ((he.pres_eq hpc).trans hP))
     subst hPP
     ext l
-    constructor
-    · intro hl
-      obtain ⟨τ, hτ, hfl⟩ := hf l hl
+    refine ⟨fun hl => ?_, ?_⟩
+    · obtain ⟨τ, hτ, hfl⟩ := hf l hl
       rw [← hfid hpc l hl _ hfl]
       exact ⟨τ, hdbO v τ hτ, rfl⟩
     · rintro ⟨τ, hτ, rfl⟩
@@ -455,9 +442,8 @@ theorem semOutput_of_checkRedOutput {F : List PBConstr} {obj : Option Objective}
   rcases o with ⟨g, O, b⟩
   simp only at hout hb ⊢
   subst hb
-  have hcore : ∀ τ, AllHold τ s.core ↔ ∀ c ∈ s.coreConstrs, c.Holds τ := fun τ => by
-    rw [State.coreConstrs, List.forall_mem_map]
-    rfl
+  have hcore : ∀ τ, AllHold τ s.core ↔ ∀ c ∈ s.coreConstrs, c.Holds τ :=
+    fun _ => List.forall_mem_map.symm
   -- Forward: below `dbound`, a solution of the input gives one of the core set with no larger
   -- value.
   have fwd : ∀ σ, (∀ c ∈ F, c.Holds σ) → (∀ d ∈ s.dbound, objValue obj σ < d) →
@@ -480,8 +466,7 @@ theorem semOutput_of_checkRedOutput {F : List PBConstr} {obj : Option Objective}
       obtain ⟨τ, hτ, -⟩ := fwd σ hF (by simp [hd])
       exact ⟨τ, holds_of_includes hsub ((hcore τ).1 hτ)⟩
     · rintro ⟨τ, hO⟩
-      obtain ⟨σ, hF, -⟩ := he.exists_of_core hchk ((hcore τ).2 (holds_of_includes hsup hO))
-      exact ⟨σ, hF⟩
+      exact (he.exists_of_core hchk ((hcore τ).2 (holds_of_includes hsup hO))).imp fun _ h => h.1
   | equioptimal =>
     simp only [checkOutput, sameConstrs, State.boundLe, Bool.and_eq_true] at hout
     obtain ⟨⟨⟨⟨hchk, hle⟩, hsub, hsup⟩, -⟩, hobj⟩ := hout
