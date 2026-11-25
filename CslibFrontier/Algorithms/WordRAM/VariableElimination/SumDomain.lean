@@ -265,8 +265,7 @@ theorem sumDomainValues_realizes :
   dsimp only
   have h1_prod : 1 ≤ (bucket.map capFactor).prod :=
     List.one_le_prod_of_one_le (by simp [one_le_capFactor])
-  have hprod_le_B : (bucket.map capFactor).prod ≤ B :=
-    (Nat.le_mul_of_pos_left _ hdom).trans hcapB
+  have hprod_le_B : (bucket.map capFactor).prod ≤ B := (Nat.le_mul_of_pos_left _ hdom).trans hcapB
   have hcurA_fit : Fits w (st.curA + 1) := hB.of_le
     ((show st.curA + 1 ≤ d.dom by omega).trans ((Nat.le_mul_of_pos_right _ h1_prod).trans hcapB))
   have hp := evalBucketProd_le_cap
