@@ -70,8 +70,7 @@ public theorem thin_envelopes (m t N Q A : ℕ) (ht : t ≤ m) (hN : D m ^ 18 �
     (n := (m - t + 1) * 10 ^ (21 * m))
   rw [BoxTable.count_eligible_eq_card_boxes] at hK
   have hDir : directoryBase (21 * m) m N Q ≤ 128 * Z ^ 2 := hOldEnd
-  have hRec : recordBase (21 * m) m t N Q ≤ 128 * Z ^ 2 + (Z + 1) * Z :=
-    Nat.add_le_add hDir hSlot
+  have hRec : recordBase (21 * m) m t N Q ≤ 128 * Z ^ 2 + (Z + 1) * Z := Nat.add_le_add hDir hSlot
   have hVal : valueBase (21 * m) m t N Q ≤ 128 * Z ^ 2 + 4 * ((Z + 1) * Z) := by
     unfold valueBase
     nlinarith only [hRec, hK.trans hSlot]
