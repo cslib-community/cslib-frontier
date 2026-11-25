@@ -533,36 +533,9 @@ theorem holds_step_iff_exists_stepTerms (hn : input.length = n)
 /-- A feature has at most `4 |Situation| + 2` terms in its step equation. -/
 theorem length_stepTerms_le (φ : Feature k State) :
     (stepTerms tm n T φ).length ≤ 4 * Fintype.card (Situation k State) + 2 := by
-  have hf {α : Type} (l : List α) (p : α → Bool) : (l.filter p).length ≤ l.length :=
-    List.length_filter_le p l
-  cases φ with
-  | state q =>
-    have := hf situations fun y => decide ((tm.actionOf y).state = q)
-    simp only [stepTerms, List.length_append, List.length_map, length_situations] at this ⊢
-    split_ifs <;> simp only [List.length_singleton, List.length_nil] <;> omega
-  | inPos j =>
-    have := hf (situations ×ˢ [j - 1, j, j + 1]) fun p =>
-      decide (p.2 < n + 2 ∧ moveInputPosNat n p.2 (tm.actionOf p.1).inputTape = j)
-    simp only [List.length_product, length_situations, List.length_cons, List.length_nil] at this
-    simp only [stepTerms, List.length_cons, List.length_map]
-    omega
-  | head i z =>
-    have := hf situations fun y => decide (|z - (((tm.actionOf y).workTapes i).2 : ℤ)| ≤ T)
-    simp only [length_situations] at this
-    simp only [stepTerms, List.length_cons, List.length_map]
-    omega
-  | cell i z s =>
-    have := hf (situations ×ˢ symbols) fun p =>
-      decide (((tm.actionOf p.1).workTapes i).1.getD p.2 = s)
-    simp only [List.length_product, length_situations, length_symbols] at this
-    simp only [stepTerms, List.length_cons, List.length_map]
-    omega
-  | out o =>
-    have := hf (situations ×ˢ OutView.all) fun p => decide (p.2.push (tm.actionOf p.1).output = o)
-    simp only [List.length_product, length_situations, OutView.length_all] at this
-    simp only [stepTerms, List.length_cons, List.length_map]
-    omega
-  | read | inRead | sit => simp [stepTerms]
+  cases φ <;>
+    grind [stepTerms, List.length_filter_le, List.length_product, length_situations,
+      length_symbols, OutView.length_all]
 
 /-- Every term of a step equation has at most three literals. -/
 theorem length_le_three_of_mem_stepTerms {φ : Feature k State} {c : Term k State}
