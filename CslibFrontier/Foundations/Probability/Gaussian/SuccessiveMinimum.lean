@@ -134,19 +134,9 @@ private theorem tsum_int_ne_zero_exp_neg_pi_mul_sq_le {t : ℝ} (ht : 0 < t) :
     rw [hprod_sum.tsum_prod' (fun _ ↦ hnat), tsum_bool]
     ring
   have hident : 2 * (u / (1 - u)) = 2 / (Real.exp (Real.pi * t ^ 2) - 1) := by
-    have hx : 1 < Real.exp (Real.pi * t ^ 2) :=
-      Real.one_lt_exp_iff.mpr (by positivity)
-    have hu_eq : u = (Real.exp (Real.pi * t ^ 2))⁻¹ := by
-      dsimp only [u]
-      rw [← Real.exp_neg]
-      congr 1
-      ring
-    rw [hu_eq]
-    have hx0 : Real.exp (Real.pi * t ^ 2) ≠ 0 := by linarith
-    have hx1 : Real.exp (Real.pi * t ^ 2) - 1 ≠ 0 := by linarith
-    have hu1' : 1 - (Real.exp (Real.pi * t ^ 2))⁻¹ ≠ 0 := by
-      have : (Real.exp (Real.pi * t ^ 2))⁻¹ < 1 := inv_lt_one_of_one_lt₀ hx
-      linarith
+    have hx : 0 < Real.exp (Real.pi * t ^ 2) - 1 := by
+      linarith [Real.one_lt_exp_iff.mpr (by positivity : 0 < Real.pi * t ^ 2)]
+    simp only [u, neg_mul, Real.exp_neg]
     field_simp
   rw [htsum_eq, ← hident]
   linarith
@@ -227,17 +217,6 @@ private theorem dual_hyperplane_fiber_le
   · have : IsEmpty {w : D // ⟪(w : E), v⟫ = (j : ℝ)} := not_nonempty_iff.mp hne
     rw [tsum_empty]
     exact mul_nonneg (Real.exp_pos _).le (gaussianMass_pos P (1 / s) hs' 0).le
-
-private theorem solve_ratio_bound {a b c x : ℝ} (hx : 1 < x)
-    (hsplit : a + b = c) (hb : b ≤ 2 / (x - 1) * a) :
-    b ≤ 2 / (x + 1) * c := by
-  have hsub : 0 < x - 1 := by linarith
-  have hadd : 0 < x + 1 := by linarith
-  have hmul : (x - 1) * b ≤ 2 * a := by
-    rw [div_mul_eq_mul_div, le_div_iff₀ hsub] at hb
-    linarith
-  rw [div_mul_eq_mul_div, le_div_iff₀ hadd]
-  linarith
 
 private theorem dual_inner_int_floor
     {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E]
@@ -323,28 +302,13 @@ private theorem dual_hyperplane_compl_le
   have hM0 : (∑' w : {w : D // ⟪(w : E), v⟫ = 0}, gaussianWeight (1 / s) (w.1 : E)) =
       gaussianMass P (1 / s) 0 := by
     rw [← e0.tsum_eq]
-    unfold gaussianMass
-    refine tsum_congr fun u ↦ ?_
-    simp only [e0, Equiv.coe_fn_mk, sub_zero]
+    simp only [gaussianMass, e0, Equiv.coe_fn_mk, sub_zero]
   have hsplit : gaussianMass P (1 / s) 0 +
       (∑' w : {w : D // ⟪(w : E), v⟫ ≠ 0}, gaussianWeight (1 / s) (w.1 : E)) =
         gaussianMass D (1 / s) 0 := by
-    have h := hsumD.tsum_subtype_add_tsum_subtype_compl {w : D | ⟪(w : E), v⟫ = 0}
-    let eZero : {w : D // ⟪(w : E), v⟫ = 0} ≃ ↥{w : D | ⟪(w : E), v⟫ = 0} :=
-      Equiv.subtypeEquivRight fun _ ↦ Iff.rfl
-    let eCompl : {w : D // ⟪(w : E), v⟫ ≠ 0} ≃ ↥({w : D | ⟪(w : E), v⟫ = 0}ᶜ) :=
-      Equiv.subtypeEquivRight fun _ ↦ by simp only [Set.mem_compl_iff, Set.mem_ofPred_eq, ne_eq]
-    have h1 : (∑' x : ↥{w : D | ⟪(w : E), v⟫ = 0}, gaussianWeight (1 / s) (x.1 : E)) =
-        gaussianMass P (1 / s) 0 := by
-      rw [← hM0]
-      exact (eZero.tsum_eq fun x : ↥{w : D | ⟪(w : E), v⟫ = 0} ↦
-        gaussianWeight (1 / s) (x.1 : E)).symm
-    have h2 : (∑' x : ↥({w : D | ⟪(w : E), v⟫ = 0}ᶜ), gaussianWeight (1 / s) (x.1 : E)) =
-        ∑' w : {w : D // ⟪(w : E), v⟫ ≠ 0}, gaussianWeight (1 / s) (w.1 : E) :=
-      (eCompl.tsum_eq fun x : ↥({w : D | ⟪(w : E), v⟫ = 0}ᶜ) ↦
-        gaussianWeight (1 / s) (x.1 : E)).symm
-    rw [h1, h2] at h
-    simpa only [gaussianMass, sub_zero] using h
+    rw [← hM0, gaussianMass]
+    simp only [sub_zero]
+    exact hsumD.tsum_subtype_add_tsum_subtype_compl {w : D | ⟪(w : E), v⟫ = 0}
   obtain ⟨hsum_outer, hne_eq⟩ := dual_fiber_sum_eq L hvL
     (fun w : D ↦ gaussianWeight (1 / s) (w : E)) hsumD
   have ht : 0 < s / ‖v‖ := div_pos hs hv_norm
@@ -366,7 +330,9 @@ private theorem dual_hyperplane_compl_le
             (gaussianMass_pos P (1 / s) hs' 0).le
   have hexp_gt : 1 < Real.exp (Real.pi * (s / ‖v‖) ^ 2) :=
     Real.one_lt_exp_iff.mpr (by positivity)
-  exact solve_ratio_bound hexp_gt hsplit hbound_ne
+  rw [div_mul_eq_mul_div, le_div_iff₀ (by linarith)] at hbound_ne
+  rw [div_mul_eq_mul_div, le_div_iff₀ (by positivity), ← hsplit]
+  linarith
 
 /-- Dual-mass form of [MicciancioRegev2007], Lemma 3.3 (pp. 11–12 of the author's copy),
 serving as a step toward the smoothing-parameter inequality
@@ -394,182 +360,76 @@ theorem gaussianMass_dual_sub_one_le_of_successiveMinimum
     rw [tsum_empty]
     exact hε.le
   · have hn_pos : 0 < finrank ℝ E := Nat.pos_of_ne_zero hn
-    have : Nonempty (Fin (finrank ℝ E)) := ⟨⟨0, hn_pos⟩⟩
-    have hn_real : (1 : ℝ) ≤ (finrank ℝ E : ℝ) := by exact_mod_cast hn_pos
     have hNontriv : Nontrivial E := finrank_pos_iff.mp hn_pos
-    have hL_ne : L ≠ ⊥ := by
-      intro hbot
-      have htop : (⊤ : Submodule ℝ E) = ⊥ := by
-        rw [← IsZLattice.span_top (K := ℝ) (L := L), hbot]
-        simp
-      exact top_ne_bot htop
+    have hL_ne : L ≠ ⊥ := fun hbot ↦
+      top_ne_bot (by rw [← IsZLattice.span_top (K := ℝ) (L := L), hbot]; simp)
     have : ProperSpace E := FiniteDimensional.proper ℝ E
     have hlam_pos : 0 < successiveMinimum L (finrank ℝ E) :=
-      (minimum_pos hL_ne).trans_le
-        (minimum_le_successiveMinimum L hL_ne hn_pos le_rfl)
+      (minimum_pos hL_ne).trans_le (minimum_le_successiveMinimum L hL_ne hn_pos le_rfl)
     obtain ⟨v, hv_li, hv_mem, hv_norm⟩ :=
       exists_linearIndependent_norm_le_successiveMinimum L (le_refl (finrank ℝ E))
-    have hv_ne (i : Fin (finrank ℝ E)) : v i ≠ 0 := hv_li.ne_zero i
-    have hv_span : Submodule.span ℝ (Set.range v) = ⊤ := by
-      simpa only [coe_basisOfLinearIndependentOfCardEqFinrank] using
-        (basisOfLinearIndependentOfCardEqFinrank hv_li (Fintype.card_fin _)).span_eq
     have harg_gt : 1 < 2 * (finrank ℝ E : ℝ) * (1 + 1 / ε) := by
-      have h1 : 0 < 1 / ε := one_div_pos.mpr hε
-      nlinarith
-    have hlog_pos : 0 < Real.log (2 * (finrank ℝ E : ℝ) * (1 + 1 / ε)) :=
-      Real.log_pos harg_gt
-    have hlog_le : Real.log (2 * (finrank ℝ E : ℝ) * (1 + 1 / ε)) ≤
-        Real.pi * (s / successiveMinimum L (finrank ℝ E)) ^ 2 := by
-      have hsq : (Real.sqrt (Real.log (2 * (finrank ℝ E : ℝ) * (1 + 1 / ε)) / Real.pi) *
-          successiveMinimum L (finrank ℝ E)) ^ 2 ≤ s ^ 2 :=
-        pow_le_pow_left₀ (by positivity) hbound 2
-      rw [mul_pow, Real.sq_sqrt (by positivity)] at hsq
-      rw [div_pow, mul_div_assoc', le_div_iff₀ (sq_pos_of_pos hlam_pos)]
-      have hpi : 0 < Real.pi := Real.pi_pos
-      have hmul := mul_le_mul_of_nonneg_left hsq hpi.le
-      have hcancel : Real.pi * (Real.log (2 * (finrank ℝ E : ℝ) * (1 + 1 / ε)) / Real.pi *
-          successiveMinimum L (finrank ℝ E) ^ 2) =
-          Real.log (2 * (finrank ℝ E : ℝ) * (1 + 1 / ε)) *
-            successiveMinimum L (finrank ℝ E) ^ 2 := by
-        field_simp
-      linarith
-    let x : ℝ := Real.exp (Real.pi * (s / successiveMinimum L (finrank ℝ E)) ^ 2)
+      have := one_div_pos.mpr hε
+      cast_nlinarith [hn_pos]
+    -- By the choice of `s`, `x = exp (π (s / λ_n)²)` is at least `2 n (1 + 1 / ε)`.
+    set x : ℝ := Real.exp (Real.pi * (s / successiveMinimum L (finrank ℝ E)) ^ 2) with hx
     have hx_ge : 2 * (finrank ℝ E : ℝ) * (1 + 1 / ε) ≤ x := by
-      calc
-        2 * (finrank ℝ E : ℝ) * (1 + 1 / ε)
-          = Real.exp (Real.log (2 * (finrank ℝ E : ℝ) * (1 + 1 / ε))) :=
-            (Real.exp_log (by linarith)).symm
-        _ ≤ x := Real.exp_le_exp.mpr hlog_le
-    have hx_gt : 1 < x := by linarith
-    have hx_add_pos : 0 < x + 1 := by linarith
+      refine (Real.log_le_iff_le_exp (by linarith)).1 ?_
+      rw [← div_le_iff₀' Real.pi_pos, ← Real.sqrt_le_left (by positivity), le_div_iff₀ hlam_pos]
+      exact hbound
+    -- Each hyperplane complement `{w | ⟪w, v i⟫ ≠ 0}` has mass at most `2 / (x + 1)` of the total.
     have hper_i (i : Fin (finrank ℝ E)) :
         (∑' w : {w : D // ⟪(w : E), v i⟫ ≠ 0}, gaussianWeight (1 / s) (w.1 : E)) ≤
           2 / (x + 1) * gaussianMass D (1 / s) 0 := by
-      have hhi := dual_hyperplane_compl_le L (hv_mem i) (hv_ne i) hs
-      refine hhi.trans (mul_le_mul_of_nonneg_right ?_ (gaussianMass_pos D (1 / s) hs' 0).le)
-      have hv_pos : 0 < ‖v i‖ := norm_pos_iff.mpr (hv_ne i)
-      have hdiv_le : s / successiveMinimum L (finrank ℝ E) ≤ s / ‖v i‖ :=
-        div_le_div_of_nonneg_left hs.le hv_pos (hv_norm i)
-      have hexp_le : x ≤ Real.exp (Real.pi * (s / ‖v i‖) ^ 2) := by
-        apply Real.exp_le_exp.mpr
-        gcongr
-      exact div_le_div_of_nonneg_left (by norm_num) hx_add_pos (by linarith)
+      refine (dual_hyperplane_compl_le L (hv_mem i) (hv_li.ne_zero i) hs).trans
+        (mul_le_mul_of_nonneg_right ?_ (gaussianMass_pos D (1 / s) hs' 0).le)
+      have hv_pos : 0 < ‖v i‖ := norm_pos_iff.mpr (hv_li.ne_zero i)
+      gcongr
+      rw [hx]
+      gcongr
+      exact hv_norm i
+    -- Union bound: the `v i` span `E`, so every nonzero `w` lies in some hyperplane complement.
     have hsumD : Summable (fun w : D ↦ gaussianWeight (1 / s) (w : E)) := by
       simpa only [sub_zero] using summable_gaussianWeight D (1 / s) hs' 0
-    have hcover : ∀ w : D, w ≠ 0 → ∃ i : Fin (finrank ℝ E), ⟪(w : E), v i⟫ ≠ 0 := by
-      intro w hw0
-      by_contra hall
-      push Not at hall
-      have horth : ∀ y : E, ⟪(w : E), y⟫ = 0 := by
-        intro y
-        have hy : y ∈ Submodule.span ℝ (Set.range v) := hv_span ▸ Submodule.mem_top
-        refine Submodule.span_induction ?_ (inner_zero_right _)
-          (fun a b _ _ ha hb ↦ by rw [inner_add_right, ha, hb, add_zero])
-          (fun r a _ ha ↦ by rw [inner_smul_right, ha, mul_zero]) hy
-        rintro _ ⟨i, rfl⟩
-        exact hall i
-      apply hw0
-      apply Subtype.ext
-      exact inner_self_eq_zero.mp (horth (w : E))
-    let ind (i : Fin (finrank ℝ E)) (w : D) : ℝ :=
-      if ⟪(w : E), v i⟫ ≠ 0 then gaussianWeight (1 / s) (w : E) else 0
-    have hind_nonneg (i : Fin (finrank ℝ E)) (w : D) : 0 ≤ ind i w := by
-      dsimp only [ind]
-      split_ifs
-      · exact (gaussianWeight_pos _ _).le
-      · exact le_rfl
-    have hind_sum (i : Fin (finrank ℝ E)) : Summable (ind i) :=
-      Summable.of_nonneg_of_le (hind_nonneg i) (fun w ↦ by
-        dsimp only [ind]; split_ifs <;> [exact le_rfl; exact (gaussianWeight_pos _ _).le]) hsumD
-    have hind_tsum (i : Fin (finrank ℝ E)) :
-        (∑' w : D, ind i w) =
-          ∑' w : {w : D // ⟪(w : E), v i⟫ ≠ 0}, gaussianWeight (1 / s) (w.1 : E) := by
-      let eS : {w : D // ⟪(w : E), v i⟫ ≠ 0} ≃ ↥{w : D | ⟪(w : E), v i⟫ ≠ 0} :=
-        Equiv.subtypeEquivRight fun _ ↦ Iff.rfl
-      have heq : (∑' w : {w : D // ⟪(w : E), v i⟫ ≠ 0}, gaussianWeight (1 / s) (w.1 : E)) =
-          ∑' w : ↥{w : D | ⟪(w : E), v i⟫ ≠ 0}, gaussianWeight (1 / s) (w.1 : E) :=
-        eS.tsum_eq fun w : ↥{w : D | ⟪(w : E), v i⟫ ≠ 0} ↦ gaussianWeight (1 / s) (w.1 : E)
-      have hsub := tsum_subtype {w : D | ⟪(w : E), v i⟫ ≠ 0}
-        (fun w : D ↦ gaussianWeight (1 / s) (w : E))
-      rw [heq, hsub]
-      refine tsum_congr fun w ↦ ?_
-      by_cases hw : ⟪(w : E), v i⟫ ≠ 0
-      · rw [Set.indicator_of_mem (show w ∈ {w : D | ⟪(w : E), v i⟫ ≠ 0} from hw)]
-        dsimp only [ind]
-        split_ifs
-        rfl
-      · rw [Set.indicator_of_notMem (show w ∉ {w : D | ⟪(w : E), v i⟫ ≠ 0} from hw)]
-        dsimp only [ind]
-        split_ifs
-        rfl
-    have hunion : gaussianMass D (1 / s) 0 - 1 ≤
-        ∑ i : Fin (finrank ℝ E),
-          ∑' w : {w : D // ⟪(w : E), v i⟫ ≠ 0}, gaussianWeight (1 / s) (w.1 : E) := by
-      rw [gaussianMass_zero_sub_one_eq_tsum D (1 / s) hs']
-      have hpt (w : {w : D | w ≠ 0}) :
-          gaussianWeight (1 / s) (w.1 : E) ≤ ∑ i : Fin (finrank ℝ E), ind i w.1 := by
-        obtain ⟨i, hi⟩ := hcover w.1 w.2
-        calc
-          gaussianWeight (1 / s) (w.1 : E) = ind i w.1 := by simp [ind, hi]
-          _ ≤ ∑ j : Fin (finrank ℝ E), ind j w.1 :=
-            Finset.single_le_sum (f := fun j ↦ ind j w.1) (fun j _ ↦ hind_nonneg j w.1)
-              (Finset.mem_univ i)
-      have hsub_le (i : Fin (finrank ℝ E)) :
-          (∑' w : {w : D | w ≠ 0}, ind i w.1) ≤ ∑' w : D, ind i w := by
-        rw [tsum_subtype {w : D | w ≠ 0} (ind i)]
-        refine Summable.tsum_le_tsum (fun w ↦ ?_) ((hind_sum i).indicator _) (hind_sum i)
-        by_cases hw : w ∈ {w : D | w ≠ 0}
-        · rw [Set.indicator_of_mem hw]
-        · rw [Set.indicator_of_notMem hw]; exact hind_nonneg i w
-      calc
-        (∑' w : {w : D | w ≠ 0}, gaussianWeight (1 / s) (w.1 : E))
-          ≤ ∑' w : {w : D | w ≠ 0}, ∑ i : Fin (finrank ℝ E), ind i w.1 :=
-            Summable.tsum_le_tsum hpt (hsumD.subtype _)
-              (summable_sum fun i _ ↦ (hind_sum i).subtype _)
-        _ = ∑ i : Fin (finrank ℝ E), ∑' w : {w : D | w ≠ 0}, ind i w.1 :=
-            Summable.tsum_finsetSum fun i _ ↦ (hind_sum i).subtype _
-        _ ≤ ∑ i : Fin (finrank ℝ E), ∑' w : D, ind i w :=
-            Finset.sum_le_sum fun i _ ↦ hsub_le i
-        _ = ∑ i : Fin (finrank ℝ E),
-              ∑' w : {w : D // ⟪(w : E), v i⟫ ≠ 0}, gaussianWeight (1 / s) (w.1 : E) := by
-            simp_rw [hind_tsum]
+    have : Nonempty (Fin (finrank ℝ E)) := ⟨⟨0, hn_pos⟩⟩
+    let b := basisOfLinearIndependentOfCardEqFinrank hv_li (Fintype.card_fin _)
+    let ind (i : Fin (finrank ℝ E)) : D → ℝ :=
+      {w : D | ⟪(w : E), v i⟫ ≠ 0}.indicator fun w ↦ gaussianWeight (1 / s) (w : E)
+    have hind_nonneg (i : Fin (finrank ℝ E)) (w : D) : 0 ≤ ind i w :=
+      Set.indicator_nonneg (fun _ _ ↦ (gaussianWeight_pos _ _).le) w
+    have hpt (w : {w : D | w ≠ 0}) : gaussianWeight (1 / s) (w.1 : E) ≤ ∑ i, ind i w := by
+      obtain ⟨i, hi⟩ : ∃ i, ⟪(w.1 : E), v i⟫ ≠ 0 := by
+        by_contra! hall
+        refine w.2 (Subtype.ext ((inner_self_eq_zero (𝕜 := ℝ)).1 ?_))
+        nth_rw 2 [← b.sum_repr (w.1 : E)]
+        simp [inner_sum, inner_smul_right, b, hall]
+      exact (Set.indicator_of_mem hi fun w : D ↦ gaussianWeight (1 / s) (w : E)).symm.le.trans
+        (Finset.single_le_sum (fun j _ ↦ hind_nonneg j w) (Finset.mem_univ i))
     have htotal : gaussianMass D (1 / s) 0 - 1 ≤
-        (2 * (finrank ℝ E : ℝ)) / (x + 1) * gaussianMass D (1 / s) 0 := by
+        2 * (finrank ℝ E : ℝ) / (x + 1) * gaussianMass D (1 / s) 0 :=
       calc
-        gaussianMass D (1 / s) 0 - 1
-          ≤ ∑ i : Fin (finrank ℝ E), (2 / (x + 1) * gaussianMass D (1 / s) 0) :=
-            hunion.trans (Finset.sum_le_sum fun i _ ↦ hper_i i)
-        _ = (2 * (finrank ℝ E : ℝ)) / (x + 1) * gaussianMass D (1 / s) 0 := by
-            rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
-            ring
-    let M := gaussianMass D (1 / s) 0 - 1
-    have hM_nonneg : 0 ≤ M := gaussianMass_zero_sub_one_nonneg D (1 / s) hs'
-    have hmul : (x + 1) * M ≤ 2 * (finrank ℝ E : ℝ) * (1 + M) := by
-      have h : M ≤ 2 * (finrank ℝ E : ℝ) * (1 + M) / (x + 1) := by
-        have hD_eq : gaussianMass D (1 / s) 0 = 1 + M := by dsimp only [M]; ring
-        rw [div_mul_eq_mul_div, hD_eq] at htotal
-        linarith
-      have h' := (le_div_iff₀' hx_add_pos).mp h
-      linarith
-    have hcoeff : 2 * (finrank ℝ E : ℝ) / ε ≤ x + 1 - 2 * (finrank ℝ E : ℝ) := by
-      have h1 : 2 * (finrank ℝ E : ℝ) * (1 + 1 / ε) =
-          2 * (finrank ℝ E : ℝ) + 2 * (finrank ℝ E : ℝ) / ε := by ring
-      linarith
-    have hprod : 2 * (finrank ℝ E : ℝ) / ε * M ≤ 2 * (finrank ℝ E : ℝ) := by
+        gaussianMass D (1 / s) 0 - 1 ≤ ∑' w : {w : D | w ≠ 0}, ∑ i, ind i w := by
+          rw [gaussianMass_zero_sub_one_eq_tsum D (1 / s) hs']
+          exact Summable.tsum_le_tsum hpt (hsumD.subtype _)
+            (summable_sum fun i _ ↦ (hsumD.indicator _).subtype _)
+        _ = ∑ i, ∑' w : {w : D | w ≠ 0}, ind i w :=
+          Summable.tsum_finsetSum fun i _ ↦ (hsumD.indicator _).subtype _
+        _ ≤ ∑ i, ∑' w, ind i w := Finset.sum_le_sum fun i _ ↦
+          Summable.tsum_subtype_le _ _ (hind_nonneg i) (hsumD.indicator _)
+        _ ≤ ∑ _i : Fin (finrank ℝ E), 2 / (x + 1) * gaussianMass D (1 / s) 0 :=
+          Finset.sum_le_sum fun i _ ↦ (tsum_subtype _ _).symm.trans_le (hper_i i)
+        _ = _ := by
+          rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
+          ring
+    -- Solve `M ≤ 2 n (1 + M) / (x + 1)` for `M = ρ_{1/s}(D \ {0})`.
+    have hM := gaussianMass_zero_sub_one_nonneg D (1 / s) hs'
+    rw [div_mul_eq_mul_div, le_div_iff₀ (by positivity)] at htotal
+    have hx' : 2 * (finrank ℝ E : ℝ) * (ε + 1) ≤ x * ε :=
       calc
-        2 * (finrank ℝ E : ℝ) / ε * M
-          ≤ (x + 1 - 2 * (finrank ℝ E : ℝ)) * M :=
-            mul_le_mul_of_nonneg_right hcoeff hM_nonneg
-        _ ≤ 2 * (finrank ℝ E : ℝ) := by linarith
-    have h2n : 0 < 2 * (finrank ℝ E : ℝ) := by positivity
-    have hdiv : M / ε ≤ 1 := by
-      have : 2 * (finrank ℝ E : ℝ) * (M / ε) ≤ 2 * (finrank ℝ E : ℝ) * 1 := by
-        calc
-          2 * (finrank ℝ E : ℝ) * (M / ε) = 2 * (finrank ℝ E : ℝ) / ε * M := by ring
-          _ ≤ 2 * (finrank ℝ E : ℝ) := hprod
-          _ = 2 * (finrank ℝ E : ℝ) * 1 := (mul_one _).symm
-      exact le_of_mul_le_mul_left this h2n
-    exact (div_le_one hε).mp hdiv
+        _ = 2 * (finrank ℝ E : ℝ) * (1 + 1 / ε) * ε := by field_simp
+        _ ≤ x * ε := by gcongr
+    have h2n : (0 : ℝ) < 2 * finrank ℝ E := by positivity
+    nlinarith [mul_le_mul_of_nonneg_left hx' hM, mul_le_mul_of_nonneg_left htotal hε.le]
 
 /-- Micciancio–Regev Lemma 3.3 ([MicciancioRegev2007], pp. 11–12 of the December 27, 2005 author's
 copy): for every full-rank discrete lattice `L` in a finite-dimensional real inner product space of
