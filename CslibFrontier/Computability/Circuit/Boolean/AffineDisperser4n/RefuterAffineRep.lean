@@ -36,18 +36,17 @@ open Cslib.Complexity.XORSAT.Dense Cslib.Circuits Cslib.BitString
 
 variable {n : ℕ}
 
-private theorem dot_map_decide (T : Finset ℕ) (w : ℕ → Bool) :
-    ∀ l : List ℕ, dot (l.map fun i => decide (i ∈ T)) (l.map w) =
-      (l.map fun i => if i ∈ T then w i else 0).sum
-  | [] => rfl
-  | a :: l => by
-    simp only [List.map_cons, dot, dot_map_decide T w l, List.sum_cons]
-    by_cases ha : a ∈ T <;>
-      simp only [ha, decide_true, decide_false, ite_true, ite_false] <;> cases w a <;> rfl
-
 private theorem dot_toDenseRow (N : ℕ) (T : Finset ℕ) (w : ℕ → Bool) (hT : ∀ i ∈ T, i < N) :
     dot ((List.range N).map fun i => decide (i ∈ T)) ((List.range N).map w) = ∑ i ∈ T, w i := by
-  rw [dot_map_decide, show ((List.range N).map fun i => if i ∈ T then w i else 0).sum =
+  have key : ∀ l : List ℕ, dot (l.map fun i => decide (i ∈ T)) (l.map w) =
+      (l.map fun i => if i ∈ T then w i else 0).sum := fun l => by
+    induction l with
+    | nil => rfl
+    | cons a l ih =>
+      simp only [List.map_cons, dot, ih, List.sum_cons]
+      by_cases ha : a ∈ T <;>
+        simp only [ha, decide_true, decide_false, ite_true, ite_false] <;> cases w a <;> rfl
+  rw [key, show ((List.range N).map fun i => if i ∈ T then w i else 0).sum =
     ∑ i ∈ Finset.range N, if i ∈ T then w i else 0 from rfl, ← Finset.sum_filter,
     Finset.filter_mem_eq_inter, Finset.inter_eq_right.2 fun i hi => Finset.mem_range.2 (hT i hi)]
 

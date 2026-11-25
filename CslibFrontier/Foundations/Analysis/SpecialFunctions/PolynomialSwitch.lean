@@ -92,8 +92,7 @@ variable {R : Type*} [CommRing R]
 
 theorem transitionPolynomial4_expanded (t : R) :
     transitionPolynomial4 t = 35 * t ^ 4 - 84 * t ^ 5 + 70 * t ^ 6 - 20 * t ^ 7 := by
-  unfold transitionPolynomial4
-  ring
+  simp only [transitionPolynomial4]; ring
 
 @[simp] theorem transitionPolynomial4_zero : transitionPolynomial4 (0 : R) = 0 := by
   simp [transitionPolynomial4]
@@ -104,25 +103,21 @@ theorem transitionPolynomial4_expanded (t : R) :
 /-- Reflection interchanges the transition polynomial and its complement. -/
 theorem one_sub_transitionPolynomial4 (t : R) :
     1 - transitionPolynomial4 t = transitionPolynomial4 (1 - t) := by
-  unfold transitionPolynomial4
-  ring
+  simp only [transitionPolynomial4]; ring
 
 end Polynomial
 
 private theorem factor_pos {t : ℝ} (ht : t ≤ 1) :
     0 < 1 + 4 * (1 - t) + 10 * (1 - t) ^ 2 + 20 * (1 - t) ^ 3 := by
-  have h : 0 ≤ 1 - t := sub_nonneg.mpr ht
-  positivity
+  have : 0 ≤ 1 - t := sub_nonneg.mpr ht; positivity
 
 /-- The derivative identifies the normalization of the integral `t^3 (1-t)^3`. -/
 theorem hasDerivAt_transitionPolynomial4 (t : ℝ) :
-    HasDerivAt transitionPolynomial4 (140 * t ^ 3 * (1 - t) ^ 3) t := by
-  convert (((hasDerivAt_pow 4 t).const_mul 35).sub
-    ((hasDerivAt_pow 5 t).const_mul 84) |>.add ((hasDerivAt_pow 6 t).const_mul 70)).sub
-      ((hasDerivAt_pow 7 t).const_mul 20) using 1
-  · funext x
-    exact transitionPolynomial4_expanded x
-  · ring
+    HasDerivAt transitionPolynomial4 (140 * t ^ 3 * (1 - t) ^ 3) t :=
+  (funext (transitionPolynomial4_expanded (R := ℝ))) ▸ by
+    convert (((hasDerivAt_pow 4 t).const_mul 35).sub
+      ((hasDerivAt_pow 5 t).const_mul 84) |>.add ((hasDerivAt_pow 6 t).const_mul 70)).sub
+        ((hasDerivAt_pow 7 t).const_mul 20) using 1; ring
 
 theorem monotoneOn_transitionPolynomial4 :
     MonotoneOn (transitionPolynomial4 : ℝ → ℝ) (Set.Icc 0 1) := by
@@ -131,31 +126,27 @@ theorem monotoneOn_transitionPolynomial4 :
     (fun x _ => (hasDerivAt_transitionPolynomial4 x).differentiableAt.differentiableWithinAt)
     fun x hx => ?_
   rw [(hasDerivAt_transitionPolynomial4 x).deriv]
-  have hx' : x ∈ Set.Icc (0 : ℝ) 1 := interior_subset hx
-  have h0 : 0 ≤ x := hx'.1
-  have h1 : 0 ≤ 1 - x := sub_nonneg.mpr hx'.2
+  have ⟨h0, h1⟩ := interior_subset hx
+  have : 0 ≤ 1 - x := sub_nonneg.mpr h1
   positivity
 
 private theorem clamp_mem (t : ℝ) : max 0 (min 1 t) ∈ Set.Icc (0 : ℝ) 1 :=
   ⟨le_max_left _ _, max_le zero_le_one (min_le_left _ _)⟩
 
 theorem polynomialTransition4_nonneg (t : ℝ) : 0 ≤ polynomialTransition4 t := by
-  have h := monotoneOn_transitionPolynomial4 (Set.left_mem_Icc.mpr zero_le_one) (clamp_mem t)
-    (clamp_mem t).1
-  simpa only [polynomialTransition4, transitionPolynomial4_zero] using h
+  simpa [polynomialTransition4] using monotoneOn_transitionPolynomial4
+    (Set.left_mem_Icc.mpr zero_le_one) (clamp_mem t) (clamp_mem t).1
 
 theorem polynomialTransition4_le_one (t : ℝ) : polynomialTransition4 t ≤ 1 := by
-  have h := monotoneOn_transitionPolynomial4 (clamp_mem t) (Set.right_mem_Icc.mpr zero_le_one)
-    (clamp_mem t).2
-  simpa only [polynomialTransition4, transitionPolynomial4_one] using h
+  simpa [polynomialTransition4] using monotoneOn_transitionPolynomial4
+    (clamp_mem t) (Set.right_mem_Icc.mpr zero_le_one) (clamp_mem t).2
 
 theorem polynomialTransition4_of_nonpos {t : ℝ} (ht : t ≤ 0) : polynomialTransition4 t = 0 := by
-  rw [polynomialTransition4, min_eq_right (ht.trans zero_le_one), max_eq_left ht]
-  exact transitionPolynomial4_zero
+  rw [polynomialTransition4, min_eq_right (ht.trans zero_le_one), max_eq_left ht,
+    transitionPolynomial4_zero]
 
 theorem polynomialTransition4_of_one_le {t : ℝ} (ht : 1 ≤ t) : polynomialTransition4 t = 1 := by
-  rw [polynomialTransition4, min_eq_left ht, max_eq_right zero_le_one]
-  exact transitionPolynomial4_one
+  rw [polynomialTransition4, min_eq_left ht, max_eq_right zero_le_one, transitionPolynomial4_one]
 
 theorem polynomialTransition4_of_mem {t : ℝ} (ht : t ∈ Set.Icc 0 1) :
     polynomialTransition4 t = transitionPolynomial4 t := by
@@ -168,34 +159,25 @@ theorem monotone_polynomialTransition4 : Monotone (polynomialTransition4 : ℝ �
 /-- Reflection interchanges the clamped transition and its complement. -/
 theorem one_sub_polynomialTransition4 (t : ℝ) :
     1 - polynomialTransition4 t = polynomialTransition4 (1 - t) := by
-  by_cases ht0 : t ≤ 0
-  · rw [polynomialTransition4_of_nonpos ht0,
-      polynomialTransition4_of_one_le (by linarith : 1 ≤ 1 - t), sub_zero]
-  by_cases ht1 : 1 ≤ t
-  · rw [polynomialTransition4_of_one_le ht1,
-      polynomialTransition4_of_nonpos (by linarith : 1 - t ≤ 0), sub_self]
-  have ht : t ∈ Set.Icc (0 : ℝ) 1 := ⟨(not_le.mp ht0).le, (not_le.mp ht1).le⟩
-  have ht' : 1 - t ∈ Set.Icc (0 : ℝ) 1 := ⟨by linarith [ht.2], by linarith [ht.1]⟩
-  rw [polynomialTransition4_of_mem ht, polynomialTransition4_of_mem ht',
-    one_sub_transitionPolynomial4]
+  rcases le_total t 0 with ht0 | ht0
+  · simp [polynomialTransition4_of_nonpos ht0,
+      polynomialTransition4_of_one_le (by linarith : 1 ≤ 1 - t)]
+  rcases le_total 1 t with ht1 | ht1
+  · simp [polynomialTransition4_of_one_le ht1,
+      polynomialTransition4_of_nonpos (by linarith : 1 - t ≤ 0)]
+  rw [polynomialTransition4_of_mem ⟨ht0, ht1⟩,
+    polynomialTransition4_of_mem ⟨by linarith, by linarith⟩, one_sub_transitionPolynomial4]
 
 theorem polynomialTransition4_eq_zero_iff {t : ℝ} : polynomialTransition4 t = 0 ↔ t ≤ 0 := by
-  refine ⟨fun h => ?_, polynomialTransition4_of_nonpos⟩
-  by_contra ht
-  have hp : 0 < max 0 (min 1 t) :=
-    (lt_min zero_lt_one (lt_of_not_ge ht)).trans_le (le_max_right _ _)
+  refine ⟨fun h => not_lt.mp fun ht => ?_, polynomialTransition4_of_nonpos⟩
+  have hp : 0 < max 0 (min 1 t) := lt_max_of_lt_right (lt_min zero_lt_one ht)
   have hf := factor_pos (clamp_mem t).2
-  have : 0 < polynomialTransition4 t := by
-    unfold polynomialTransition4 transitionPolynomial4
-    positivity
-  exact this.ne' h
+  exact (show 0 < polynomialTransition4 t by
+    unfold polynomialTransition4 transitionPolynomial4; positivity).ne' h
 
 theorem polynomialTransition4_eq_one_iff {t : ℝ} : polynomialTransition4 t = 1 ↔ 1 ≤ t := by
-  refine ⟨fun h => ?_, polynomialTransition4_of_one_le⟩
-  have hz : polynomialTransition4 (1 - t) = 0 := by
-    rw [← one_sub_polynomialTransition4, h, sub_self]
-  have := polynomialTransition4_eq_zero_iff.mp hz
-  linarith
+  rw [eq_comm, ← sub_eq_zero, one_sub_polynomialTransition4, polynomialTransition4_eq_zero_iff,
+    sub_nonpos]
 
 /-! ## Fourth-root regularity -/
 
@@ -203,26 +185,21 @@ private theorem root_eq {t : ℝ} (ht : t ∈ Set.Icc 0 1) :
     transitionPolynomial4 t ^ (4⁻¹ : ℝ) =
       t * (1 + 4 * (1 - t) + 10 * (1 - t) ^ 2 + 20 * (1 - t) ^ 3) ^ (4⁻¹ : ℝ) := by
   rw [transitionPolynomial4, Real.mul_rpow (pow_nonneg ht.1 _) (factor_pos ht.2).le]
-  congr 1
-  convert Real.pow_rpow_inv_natCast ht.1 (by norm_num : (4 : ℕ) ≠ 0) using 1
+  exact congrArg (· * _) (Real.pow_rpow_inv_natCast ht.1 (by norm_num))
 
 /-- The fourth root is Lipschitz globally; the transition has fourth-order vanishing at zero. -/
 theorem exists_lipschitzWith_polynomialTransition4_root :
     ∃ K, LipschitzWith K fun t : ℝ => polynomialTransition4 t ^ (4⁻¹ : ℝ) := by
   have hf : ContDiffOn ℝ 1 (fun t : ℝ =>
-      t * (1 + 4 * (1 - t) + 10 * (1 - t) ^ 2 + 20 * (1 - t) ^ 3) ^ (4⁻¹ : ℝ))
-        (Set.Icc 0 1) := by
-    apply contDiffOn_id.mul
-    apply ContDiffOn.rpow_const_of_ne (by fun_prop)
-    exact fun t ht => (factor_pos ht.2).ne'
+      t * (1 + 4 * (1 - t) + 10 * (1 - t) ^ 2 + 20 * (1 - t) ^ 3) ^ (4⁻¹ : ℝ)) (Set.Icc 0 1) :=
+    contDiffOn_id.mul
+      (ContDiffOn.rpow_const_of_ne (by fun_prop) fun _ ht => (factor_pos ht.2).ne')
   obtain ⟨K, hK⟩ := hf.exists_lipschitzOnWith one_ne_zero (convex_Icc 0 1) isCompact_Icc
   refine ⟨K, LipschitzWith.of_dist_le_mul fun x y => ?_⟩
   have hproj := (LipschitzWith.projIcc (zero_le_one' ℝ)).dist_le_mul x y
-  have hb := hK.dist_le_mul _ (clamp_mem x) _ (clamp_mem y)
-  rw [← root_eq (clamp_mem x), ← root_eq (clamp_mem y)] at hb
-  refine hb.trans ?_
   simp only [Subtype.dist_eq, NNReal.coe_one, one_mul, Set.coe_projIcc] at hproj
-  exact mul_le_mul_of_nonneg_left hproj K.2
+  simpa only [← root_eq (clamp_mem _), polynomialTransition4] using
+    (hK.dist_le_mul _ (clamp_mem x) _ (clamp_mem y)).trans (mul_le_mul_of_nonneg_left hproj K.2)
 
 /-- The fourth root of the complement is Lipschitz, by reflection at `1/2`. -/
 theorem exists_lipschitzWith_one_sub_polynomialTransition4_root :
