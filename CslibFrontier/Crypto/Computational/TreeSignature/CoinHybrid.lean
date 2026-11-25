@@ -741,16 +741,11 @@ private theorem isOraclePPTOn_chain :
       fun _ => rfl
   have hB : ComputableInPolyTime B encIn encUnary :=
     sigBound_funProp cs ds cB dB hK hK
-  let c2 := ComputableInPolyTime.const (encIn := encIn) (encOut := encUnary) 2
   let c1 := ComputableInPolyTime.const (encIn := encIn) (encOut := encUnary) 1
-  have h2K1 := (c2.unary_mul' hK).unary_add' c1
   have hsize : ComputableInPolyTime
       (fun a => 2 * depth a.1.1 + 1 + (2 * (2 * K a + 1 + K a) + 1 +
-        depth a.1.1 * (2 * (2 * K a + 1 + B a) + 1))) encIn encUnary :=
-    (((c2.unary_mul' hd).unary_add' c1).unary_add'
-      (((c2.unary_mul' (h2K1.unary_add' hK)).unary_add' c1).unary_add'
-        (hd.unary_mul' ((c2.unary_mul' (h2K1.unary_add' hB)).unary_add' c1)))).of_enc_eq
-      fun _ => rfl
+        depth a.1.1 * (2 * (2 * K a + 1 + B a) + 1))) encIn encUnary := by
+    fun_prop
   refine IsOraclePPTOn.iterateWith_spec
     ((hd.unary_sub' c1).of_enc_eq fun _ => rfl)
     (((ComputableInPolyTime.const []).prod (ha.snd'.prod (.const []))).of_enc_eq fun _ => rfl)
@@ -813,19 +808,8 @@ include hdepth in
 private theorem computableInPolyTime_sigWordBound (ck dk cb db cs ds cB dB : ℕ) :
     ComputableInPolyTime (fun p : ℕ × ℕ => sigWordBound ck dk cb db cs ds cB dB depth p.1 p.2)
       (encPair encUnary encUnary) encUnary := by
-  let E := encPair encUnary encUnary
-  have hp := ComputableInPolyTime.id' (encIn := E)
-  have hd := hdepth.comp' hp.fst'
-  have h3K := (ComputableInPolyTime.const 3).unary_mul'
-    ((computableInPolyTime_savedCoinBudget ck dk cb db).comp' hp.fst')
-  have hB1 := sigBound_funProp cs ds cB dB h3K h3K
-  have hB2 := sigBound_funProp cs ds cB dB h3K hp.snd'
-  let c2 := ComputableInPolyTime.const (encIn := E) (encOut := encUnary) 2
-  let c1 := ComputableInPolyTime.const (encIn := E) (encOut := encUnary) 1
-  exact (((c2.unary_mul' hd).unary_add' c1).unary_add'
-    (((c2.unary_mul' (hd.unary_mul'
-      ((c2.unary_mul' (((c2.unary_mul' h3K).unary_add' c1).unary_add' hB1)).unary_add'
-        c1))).unary_add' c1).unary_add' hB2)).of_enc_eq fun _ => rfl
+  unfold sigWordBound sigBound
+  fun_prop
 
 include hkg hkb hsg hsb hdepth in
 private theorem isOraclePPTOn_signO_aux :
