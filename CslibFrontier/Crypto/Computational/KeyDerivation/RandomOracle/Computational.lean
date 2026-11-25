@@ -252,10 +252,10 @@ theorem length_le_of_mem_support_lazyROToListGuess {X S T : ℕ → Type}
   simp only [lazyROToListGuess, ProbComp.eval_bind, ProbComp.eval_pure,
     PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hl
   obtain ⟨t, ht, ⟨b, cache⟩, hrun, rfl⟩ := hl
-  have hbound := ProbOracleComp.measure_runState_le (cost := fun _ => 1) (hQ t ht)
-    (fun req => cachedSamplerOracle (fun w => (decS n w).isSome) (encT n <$> sampleT n) req.2)
-    List.length (fun req _ _ hres => (cachedSamplerOracle_support hres).1) [] (b, cache) hrun
-  exact (List.length_filterMap_le _ cache).trans (by simpa using hbound)
+  exact (List.length_filterMap_le _ cache).trans (by simpa using
+    (ProbOracleComp.measure_runState_le (cost := fun _ => 1) (hQ t ht)
+      (fun req => cachedSamplerOracle (fun w => (decS n w).isSome) (encT n <$> sampleT n) req.2)
+      List.length (fun _ _ _ hres => (cachedSamplerOracle_support hres).1) [] (b, cache) hrun))
 
 section LazyEquivalence
 
@@ -281,50 +281,38 @@ private theorem idealLazyListLaw_eq_memoize {X S T : ℕ → Type} [∀ n, Decid
   let d : S n → PMF (T n) := fun _ => uniformOfFintype (T n)
   unfold idealLazyListLaw
   refine congrArg ((uniformOfFintype (T n)).bind ·) (funext fun t => ?_)
-  let P := D n x (encT n t)
-  let O_typed : Unit × List Bool → StateT (List (S n × T n)) PMF (List Bool) :=
-    fun req cache =>
-      match decS n req.2 with
-      | some s => (memoize d s cache).map fun (v, c') => (encT n v, c')
-      | none => PMF.pure ([], cache)
+  let O_typed : Unit × List Bool → StateT (List (S n × T n)) PMF (List Bool) := fun req cache =>
+    match decS n req.2 with
+    | some s => (memoize d s cache).map fun (v, c') => (encT n v, c')
+    | none => PMF.pure ([], cache)
   have hsim : ProbOracleComp.runWith (memoize d) (toRODistinguisher decS encT D n x t) [] =
-      ProbOracleComp.runWith O_typed P [] := by
-    rw [ProbOracleComp.runWith_eq_run_interpret, ProbOracleComp.runWith_eq_run_interpret]
-    unfold toRODistinguisher
-    rw [ProbOracleComp.interpret_simulate]
-    congr 3
-    funext req cache
-    cases hq : decS n req.2 with
-    | some s =>
-      simp only [O_typed, hq, OracleComp.interpret_map, ProbOracleComp.interpret_query]
-      rfl
-    | none =>
-      simp only [O_typed, hq, OracleComp.interpret_pure]
-      rfl
-  let represent : List (S n × T n) → List (List Bool × List Bool) :=
-    List.map fun (s, v) => (encS n s, encT n v)
+      ProbOracleComp.runWith O_typed (D n x (encT n t)) [] := by
+    rw [ProbOracleComp.runWith_eq_run_interpret, ProbOracleComp.runWith_eq_run_interpret,
+      toRODistinguisher, ProbOracleComp.interpret_simulate]
+    congr 3; funext req cache
+    cases hq : decS n req.2 <;>
+      simp only [O_typed, hq, OracleComp.interpret_map, ProbOracleComp.interpret_query,
+        OracleComp.interpret_pure] <;> rfl
   have hmap := ProbOracleComp.runWith_map_state O_typed
-    (fun req cache => cachedDistOracle (fun w => (decS n w).isSome)
-      ((uniformOfFintype (T n)).map (encT n)) req.2 cache)
-    represent
+    (fun req => cachedDistOracle (fun w => (decS n w).isSome)
+      ((uniformOfFintype (T n)).map (encT n)) req.2)
+    (List.map fun (s, v) => (encS n s, encT n v))
     (fun req cache => by
       cases hq : decS n req.2 with
       | some s =>
-        have heq : encS n s = req.2 := (hdecS n req.2 s).mp hq
         simp only [O_typed, cachedDistOracle, hq, Option.isSome_some, ↓reduceIte, PMF.map_comp,
           Function.comp_def]
-        have hm := Cslib.memoize_map (encS n) (encT n) d
-          (fun _ => (uniformOfFintype (T n)).map (encT n)) (fun _ => rfl) s cache
-        simpa only [heq, PMF.monad_map_eq_map, represent] using hm
+        simpa only [(hdecS n req.2 s).mp hq, PMF.monad_map_eq_map] using
+          Cslib.memoize_map (encS n) (encT n) d
+            (fun _ => (uniformOfFintype (T n)).map (encT n)) (fun _ => rfl) s cache
       | none =>
         simp only [O_typed, cachedDistOracle, hq, Option.isSome_none, Bool.false_eq_true,
           ↓reduceIte, PMF.pure_map])
-    P []
-  simp only [represent, List.map_nil] at hmap
+    (D n x (encT n t)) []
+  rw [List.map_nil] at hmap
   rw [← hmap, ← hsim, PMF.map_comp]
-  congr 1
-  funext ⟨_, c⟩
-  have hdec_enc (s : S n) : decS n (encS n s) = some s := (hdecS n (encS n s) s).mpr rfl
+  congr 1; funext ⟨_, c⟩
+  have hdec_enc (s : S n) : decS n (encS n s) = some s := (hdecS n _ s).mpr rfl
   simp only [Function.comp_def, List.filterMap_map, hdec_enc]
   induction c <;> simp [*]
 
@@ -337,16 +325,15 @@ private theorem idealLazy_listGuessOutput_eq_eager {X S T : ℕ → Type}
         PMF.pure (decide (s ∈ l))) =
       listGuessOutput (sample n) (info n)
         (roToListGuess (toRODistinguisher decS encT D n)) := by
-  unfold listGuessOutput
+  unfold listGuessOutput roToListGuess
   refine congrArg ((sample n).bind ·) (funext fun s => ?_)
   rw [idealLazyListLaw_eq_memoize hdecS]
-  unfold roToListGuess
   simp only [ProbComp.eval_uniform, pmf_norm]
   rw [PMF.bind_comm]
   refine congrArg ((uniformOfFintype (T n)).bind ·) (funext fun t => ?_)
-  have h := RandomOracle.runWith_memoize_mem_eq_eager_runLog
-    (toRODistinguisher decS encT D n (info n s) t) s
-  simpa only [PMF.map, PMF.bind_bind, PMF.pure_bind, Function.comp_def] using h
+  simpa only [PMF.map, PMF.bind_bind, PMF.pure_bind, Function.comp_def] using
+    RandomOracle.runWith_memoize_mem_eq_eager_runLog
+      (toRODistinguisher decS encT D n (info n s) t) s
 
 private theorem closeTo_idealLazyListLaw_eval_lazyROToListGuess {X S T : ℕ → Type}
     [∀ n, Fintype (T n)] [∀ n, Nonempty (T n)]
@@ -368,46 +355,16 @@ private theorem closeTo_idealLazyListLaw_eval_lazyROToListGuess {X S T : ℕ →
       ProbComp.eval_pure, ProbComp.eval_map, eval_cachedSamplerOracle, PMF.map]
     rfl
   rw [heval, idealLazyListLaw]
-  have hstep_word := hcloseT.map (encT n)
-  have hbind : CloseTo
-      ((uniformOfFintype (T n)).bind fun t =>
-        (ProbOracleComp.runWith
-          (fun req => cachedDistOracle (fun w => (decS n w).isSome)
-            ((uniformOfFintype (T n)).map (encT n)) req.2)
-          (D n x (encT n t)) []).map fun (_, cache) =>
-            cache.filterMap fun (entry : List Bool × List Bool) => decS n entry.1)
-      ((ProbComp.eval (sampleT n)).bind fun t =>
-        (ProbOracleComp.runWith
-          (fun req => cachedDistOracle (fun w => (decS n w).isSome)
-            ((ProbComp.eval (sampleT n)).map (encT n)) req.2)
-          (D n x (encT n t)) []).map fun (_, cache) =>
-            cache.filterMap fun (entry : List Bool × List Bool) => decS n entry.1)
-      ((εT : ℝ≥0∞) + Q * (εT : ℝ≥0∞)) :=
-    CloseTo.bind hcloseT fun t ht => by
-      refine (?_ : CloseTo
-        (ProbOracleComp.runWith
-          (fun req => cachedDistOracle (fun w => (decS n w).isSome)
-            ((uniformOfFintype (T n)).map (encT n)) req.2)
-          (D n x (encT n t)) [])
-        (ProbOracleComp.runWith
-          (fun req => cachedDistOracle (fun w => (decS n w).isSome)
-            ((ProbComp.eval (sampleT n)).map (encT n)) req.2)
-          (D n x (encT n t)) [])
-        (Q * (εT : ℝ≥0∞))).map
-          (fun p : Bool × List (List Bool × List Bool) =>
-            p.2.filterMap fun entry => decS n entry.1)
-      unfold ProbOracleComp.runWith
-      apply (hQ t ht).closeTo_runWith
-      rintro (k | req) cache
-      · simp only [OracleComp.sumHandler, Sum.elim_inl, Nat.cast_zero, zero_mul]
-        exact CloseTo.refl _
-      · simp only [OracleComp.sumHandler, Sum.elim_inr, Nat.cast_one, one_mul]
-        exact closeTo_cachedDistOracle _ hstep_word req.2 cache
-  refine hbind.mono ?_
-  have hring : (εT : ℝ≥0∞) + Q * (εT : ℝ≥0∞) = ((Q + 1 : ℕ) : ℝ≥0∞) * εT := by
-    push_cast
-    ring
-  exact hring.le
+  have hring : (εT : ℝ≥0∞) + Q * (εT : ℝ≥0∞) = ((Q + 1 : ℕ) : ℝ≥0∞) * εT := by push_cast; ring
+  refine (CloseTo.bind hcloseT fun t ht => ?_).mono hring.le
+  apply CloseTo.map
+  unfold ProbOracleComp.runWith
+  apply (hQ t ht).closeTo_runWith
+  rintro (k | req) cache
+  · simp only [OracleComp.sumHandler, Sum.elim_inl, Nat.cast_zero, zero_mul]
+    exact CloseTo.refl _
+  · simp only [OracleComp.sumHandler, Sum.elim_inr, Nat.cast_one, one_mul]
+    exact closeTo_cachedDistOracle _ (hcloseT.map (encT n)) req.2 cache
 
 end LazyEquivalence
 
@@ -429,23 +386,20 @@ theorem roAdvantage_toRODistinguisher_le_listGuessAdvantage_add {X S T : ℕ →
     roAdvantage (sample n) (info n) (toRODistinguisher decS encT D n) ≤
       listGuessAdvantage (sample n) (info n) (lazyROToListGuess decS encT sampleT D n) +
         (Q + 1 : ℕ) * εT := by
-  have heager := roAdvantage_le_listGuessAdvantage (sample n) (info n)
-    (toRODistinguisher decS encT D n)
-  refine heager.trans ?_
-  have hideal := idealLazy_listGuessOutput_eq_eager hdecS encT sample info D n
+  refine (roAdvantage_le_listGuessAdvantage (sample n) (info n)
+    (toRODistinguisher decS encT D n)).trans ?_
   have hclose : CloseTo
       ((sample n).bind fun s => (idealLazyListLaw decS encT D n (info n s)).bind fun l =>
         PMF.pure (decide (s ∈ l)))
       (listGuessOutput (sample n) (info n) (lazyROToListGuess decS encT sampleT D n))
-      (((Q + 1 : ℕ) : ℝ≥0∞) * εT) := by
-    unfold listGuessOutput
-    refine CloseTo.bind_right (sample n) fun s hs => ?_
-    exact (closeTo_idealLazyListLaw_eval_lazyROToListGuess decS encT sampleT D n Q (info n s)
-      hcloseT (hQ s hs)).bind_left fun l => PMF.pure (decide (s ∈ l))
+      (((Q + 1 : ℕ) : ℝ≥0∞) * εT) :=
+    CloseTo.bind_right (sample n) fun s hs =>
+      (closeTo_idealLazyListLaw_eval_lazyROToListGuess decS encT sampleT D n Q (info n s)
+        hcloseT (hQ s hs)).bind_left fun l => PMF.pure (decide (s ∈ l))
   have hpt := hclose {true}
-  rw [hideal, PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_apply_singleton] at hpt
-  simp only [listGuessAdvantage, Game.succProbability]
-  rw [← ENNReal.coe_le_coe]
+  rw [idealLazy_listGuessOutput_eq_eager hdecS encT sample info D n,
+    PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_apply_singleton] at hpt
+  simp only [listGuessAdvantage, Game.succProbability, ← ENNReal.coe_le_coe]
   push_cast [ENNReal.coe_toNNReal (PMF.apply_ne_top _ _)] at hpt ⊢
   exact hpt
 
@@ -505,12 +459,9 @@ theorem isPPT_lazyROToListGuess {X S T : ℕ → Type}
     (hreassoc.comp hview).of_enc_eq fun c => by simp [encWordROInput_apply]
   have hvalid : ComputableInPolyTime
       (fun p : ((Σ n, X n) × List Bool) × List Bool => (decS p.1.1.1 p.2).isSome)
-      (encPair E₁ encBits) encBool := by
-    have hn : ComputableInPolyTime
-        (fun p : ((Σ n, X n) × List Bool) × List Bool => p.1.1.1)
-        (encPair E₁ encBits) encUnary :=
-      hn₀.comp ((ComputableInPolyTime.fst E₀ encBits).comp (ComputableInPolyTime.fst E₁ encBits))
-    exact hisSome.comp (hn.prod (ComputableInPolyTime.snd E₁ encBits))
+      (encPair E₁ encBits) encBool :=
+    hisSome.comp (((hn₀.comp ((ComputableInPolyTime.fst E₀ encBits).comp
+      (ComputableInPolyTime.fst E₁ encBits)))).prod (ComputableInPolyTime.snd E₁ encBits))
   have hsample₁ : IsPPTOn E₁ encBits
       (fun c : (Σ n, X n) × List Bool => encT c.1.1 <$> sampleT c.1.1) :=
     hsampleT.preprocess (hn₀.comp (ComputableInPolyTime.fst E₀ encBits))
@@ -536,21 +487,18 @@ theorem isPPT_lazyROToListGuess {X S T : ℕ → Type}
     | nil => rfl
     | cons entry tail ih =>
       have hv := hl entry List.mem_cons_self
-      have htail : ∀ e ∈ tail, (decS n e.1).isSome = true :=
-        fun e he => hl e (List.mem_cons_of_mem _ he)
       cases hdec : decS n entry.1 with
       | none => simp [hdec] at hv
       | some s =>
-        have hq : encS n s = entry.1 := (hdecS n entry.1 s).mp hdec
-        simp [hdec, hq, ih htail]
+        simp [hdec, (hdecS n entry.1 s).mp hdec,
+          ih fun e he => hl e (List.mem_cons_of_mem _ he)]
   refine hprog.congr fun p => ?_
   simp only [lazyROToListGuess, pmf_norm]
   refine congrArg ((ProbComp.eval (sampleT p.1)).bind ·) (funext fun t => ?_)
   rw [PMF.map]
   refine PMF.bind_congr_on_support _ _ _ fun rc hrc => ?_
-  have hkeys := valid_of_mem_runState_cachedSamplerOracle (fun w => (decS p.1 w).isSome)
-    (encT p.1 <$> sampleT p.1) (D p.1 p.2 (encT p.1 t)) hrc
-  exact congrArg PMF.pure (hfilter p.1 rc.2 hkeys).symm
+  exact congrArg PMF.pure (hfilter p.1 rc.2 (valid_of_mem_runState_cachedSamplerOracle
+    (fun w => (decS p.1 w).isSome) (encT p.1 <$> sampleT p.1) (D p.1 p.2 (encT p.1 t)) hrc)).symm
 
 /-! ### 4. Lazy singleton-guessing wrapper and computational Theorem 8.10 -/
 
@@ -588,7 +536,6 @@ theorem isPPT_lazyROToGuess {X S T : ℕ → Type}
     (hsampleT : IsPPTOn encUnary encBits fun n => encT n <$> sampleT n)
     {D : WordRODistinguisher X} (hD : D.IsPPT encX) :
     (lazyROToGuess width Q defaultS decS encT sampleT D).IsPPT encX encS := by
-  have hlist := isPPT_lazyROToListGuess hdecS hisSome hsampleT hD
   let E₀ := encSigma encUnary encX
   let E₁ := encPair E₀ (encList encBits)
   have hn : ComputableInPolyTime (fun p : (Σ n, X n) × List (List Bool) => p.1.1) E₁ encUnary := by
@@ -597,25 +544,17 @@ theorem isPPT_lazyROToGuess {X S T : ℕ → Type}
       ProbComp.sampleModIndex (width p.1.1) (Q p.1.1)) :=
     isPPTOn_sampleModIndex (hwidth.comp hn) (hQ.comp hn)
   let E₂ := encPair E₁ encUnary
-  have hn' : ComputableInPolyTime
-      (fun p : ((Σ n, X n) × List (List Bool)) × ℕ => p.1.1.1) E₂ encUnary := by fun_prop
-  have hwords : ComputableInPolyTime
-      (fun p : ((Σ n, X n) × List (List Bool)) × ℕ => p.1.2) E₂ (encList encBits) := by fun_prop
-  have hi : ComputableInPolyTime
-      (fun p : ((Σ n, X n) × List (List Bool)) × ℕ => p.2) E₂ encUnary := by fun_prop
-  have hfallback : ComputableInPolyTime
-      (fun p : ((Σ n, X n) × List (List Bool)) × ℕ => encS p.1.1.1 (defaultS p.1.1.1))
-      E₂ encBits :=
-    hdefault.comp hn'
   have hpick : ComputableInPolyTime
       (fun p : ((Σ n, X n) × List (List Bool)) × ℕ =>
         (p.1.2[p.2]?).getD (encS p.1.1.1 (defaultS p.1.1.1))) E₂ encBits :=
-    ComputableInPolyTime.optionGetDWithInput (ComputableInPolyTime.getElem? hwords hi) hfallback
+    ComputableInPolyTime.optionGetDWithInput
+      (ComputableInPolyTime.getElem? (by fun_prop) (by fun_prop))
+      (hdefault.comp (g := fun p : ((Σ n, X n) × List (List Bool)) × ℕ => p.1.1.1) (by fun_prop))
   have hprog : IsPPTOn E₀ encBits (fun p : Σ n, X n => do
       let words ← List.map (encS p.1) <$> lazyROToListGuess decS encT sampleT D p.1 p.2
       (fun i => (words[i]?).getD (encS p.1 (defaultS p.1))) <$>
         ProbComp.sampleModIndex (width p.1) (Q p.1)) :=
-    hlist.bind_with (hsample.map_with hpick)
+    (isPPT_lazyROToListGuess hdecS hisSome hsampleT hD).bind_with (hsample.map_with hpick)
   refine hprog.congr fun p => ?_
   simp only [lazyROToGuess, PMF.map, List.getD_eq_getElem?_getD, List.getElem?_map, Option.getD_map,
     pmf_norm]
@@ -667,22 +606,17 @@ theorem roAdvantage_toRODistinguisher_le_mul_guessAdvantage_add {X S T : ℕ →
       rw [List.length_take] at hi
       have hiQ : i < Q n := hi.trans_le (min_le_left _ _)
       have hil : i < l.length := hi.trans_le (min_le_right _ _)
-      rw [ProbComp.sampleModIndex_eq_sampleModNat (width n) ((Nat.zero_le i).trans_lt hiQ)]
-      have h1 : (PMF.pure (decide ((l.take (Q n))[i] ∈ l))) true = 1 := by simp
-      rw [h1]
-      calc (1 : ℝ≥0∞) ≤
-            (Q n : ℝ≥0∞) * ProbComp.eval (ProbComp.sampleModNat (width n) (Q n)) i +
-              (Q n : ℝ≥0∞) / 2 ^ width n :=
-            ProbComp.one_le_mul_eval_sampleModNat_add hiQ
-        _ ≤ _ := by
-            gcongr
-            have hget : (l.take (Q n))[i] = l.getD i (defaultS n) := by
-              simp [List.getElem_take, List.getD_eq_getElem?_getD, hil]
-            rw [hget]
-            exact PMF.le_map_apply _ (fun j => l.getD j (defaultS n)) i
+      rw [ProbComp.sampleModIndex_eq_sampleModNat (width n) ((Nat.zero_le i).trans_lt hiQ),
+        show (PMF.pure (decide ((l.take (Q n))[i] ∈ l))) true = 1 by simp]
+      refine (ProbComp.one_le_mul_eval_sampleModNat_add hiQ :
+        (1 : ℝ≥0∞) ≤ (Q n : ℝ≥0∞) * ProbComp.eval (ProbComp.sampleModNat (width n) (Q n)) i +
+          (Q n : ℝ≥0∞) / 2 ^ width n).trans ?_
+      gcongr
+      rw [show (l.take (Q n))[i] = l.getD i (defaultS n) by
+        simp [List.getElem_take, List.getD_eq_getElem?_getD, hil]]
+      exact PMF.le_map_apply _ (fun j => l.getD j (defaultS n)) i
     · simp [hmem]
-  simp only [listGuessAdvantage, guessAdvantage, Game.succProbability]
-  rw [← ENNReal.coe_le_coe]
+  simp only [listGuessAdvantage, guessAdvantage, Game.succProbability, ← ENNReal.coe_le_coe]
   push_cast [ENNReal.coe_toNNReal (PMF.apply_ne_top _ _),
     ENNReal.coe_div (pow_ne_zero _ two_ne_zero)]
   exact hle
@@ -720,24 +654,17 @@ theorem SecretGuessHard.negligible_roAdvantage {X S T : ℕ → Type}
   let maxT : ℕ → ℕ := fun n => cT * (n + 1) ^ dT
   let M : ℕ → ℕ := fun n => 2 * n + 2 * (ci * (n + 1) ^ di) + maxT n + 2
   let Q : ℕ → ℕ := fun n => cD * (M n + 1) ^ dD
-  have hQ : ComputableInPolyTime Q encUnary encUnary := by
-    dsimp only [Q, M, maxT]
-    fun_prop
+  have hQ : ComputableInPolyTime Q encUnary encUnary := by dsimp only [Q, M, maxT]; fun_prop
   have hDt : ∀ n, ∀ s ∈ (sample n).support, ∀ t ∈ (ProbComp.eval (sampleT n)).support,
       (D n (info n s) (encT n t)).IsQueryBounded (Q n) := by
     intro n s hs t ht
     refine (hbounds ⟨n, info n s, encT n t⟩).1.mono ?_
     have his := hinfo n s hs
-    have hmap : encT n t ∈ (ProbComp.eval (encT n <$> sampleT n)).support := by
-      rw [ProbComp.eval_map, PMF.mem_support_map_iff]
-      exact ⟨t, ht, rfl⟩
     have hlt : (encT n t).length ≤ maxT n := by
       simpa only [encBits_apply, encUnary_apply, List.length_replicate, maxT] using
-        hlenT n (encT n t) hmap
+        hlenT n (encT n t) (by rw [ProbComp.eval_map, PMF.mem_support_map_iff]; exact ⟨t, ht, rfl⟩)
     have hlen : (encWordROInput encX ⟨n, info n s, encT n t⟩).length ≤ M n := by
-      rw [encWordROInput_apply]
-      dsimp only [M]
-      enc_len
+      rw [encWordROInput_apply]; dsimp only [M]; enc_len
     exact Nat.mul_le_mul_left cD (Nat.pow_le_pow_left (Nat.add_le_add_right hlen 1) dD)
   have hguess_red := hguess _
     (isPPT_lazyROToGuess (width := fun n => n) .id' hQ hdefault hdecS hisSome hsampleT hD)
@@ -766,47 +693,34 @@ theorem SecretGuessHard.negligible_roAdvantage_bitString {X : ℕ → Type}
     fun n => BitString.ofList (outLen n) <$> BitString.sampleList (outLen n)
   have hdecS : ∀ n w s,
       (OracleCodec.bitString (secLen n)).decodeQuery ((), w) = some s ↔
-        encBitString (secLen n) s = w := by
-    intro n w s
+        encBitString (secLen n) s = w := fun n w s => by
     simpa [OracleCodec.bitString, encBitString_apply] using
       (OracleCodec.bitString (secLen n)).decodeQuery_eq_some_iff ((), w) s
   have hisSome : ComputableInPolyTime
       (fun p : ℕ × List Bool =>
         ((OracleCodec.bitString (secLen p.1)).decodeQuery ((), p.2)).isSome)
       (encPair encUnary encBits) encBool := by
-    have heq : (fun p : ℕ × List Bool =>
+    rw [show (fun p : ℕ × List Bool =>
         ((OracleCodec.bitString (secLen p.1)).decodeQuery ((), p.2)).isSome) =
-        fun p : ℕ × List Bool => p.2.length == secLen p.1 := by
-      funext p
-      by_cases h : p.2.length = secLen p.1 <;> simp [OracleCodec.bitString, h]
-    rw [heq]
+        fun p : ℕ × List Bool => p.2.length == secLen p.1 from funext fun p => by
+      by_cases h : p.2.length = secLen p.1 <;> simp [OracleCodec.bitString, h]]
     fun_prop
   have hdefault : ComputableInPolyTime
       (fun n : ℕ => encBitString (secLen n) (fun _ => false)) encUnary encBits := by
-    have heq : (fun n : ℕ => encBitString (secLen n) (fun _ => false)) =
-        fun n : ℕ => List.replicate (secLen n) false := by
-      funext n
-      simp [encBitString_apply, List.ofFn_const]
-    rw [heq]
-    exact (bits_encList_polyTime encBool).2.comp
-      (ComputableInPolyTime.replicate hsec (ComputableInPolyTime.const false))
-  have hsampleT_eval : ∀ n,
+    rw [show (fun n : ℕ => encBitString (secLen n) (fun _ => false)) =
+        fun n : ℕ => List.replicate (secLen n) false from
+      funext fun n => by simp [encBitString_apply, List.ofFn_const]]
+    exact (bits_encList_polyTime encBool).2.comp (.replicate hsec (.const false))
+  have hsampleT_eval (n : ℕ) :
       ProbComp.eval (sampleT n) = uniformOfFintype (BitString (outLen n)) := by
-    intro n
     simp only [sampleT, ProbComp.eval_map, BitString.eval_sampleList, BitString.uniformList,
       PMF.map_comp, Function.comp_def, BitString.ofList_ofFn]
     exact PMF.map_id _
-  have hsampleT_ppt : IsPPTOn encUnary encBits fun n => encBitString (outLen n) <$> sampleT n := by
-    refine hout.sampleList.congr fun n => ?_
-    rw [ProbComp.eval_map, hsampleT_eval, BitString.eval_sampleList]
-    rfl
-  have hcloseT : StatisticallyIndistinguishable
-      (fun n => uniformOfFintype (BitString (outLen n)))
-      (fun n => ProbComp.eval (sampleT n)) := by
-    refine ⟨fun _ => 0, negligible_zero, fun n => ?_⟩
-    dsimp only
-    rw [hsampleT_eval n]
-    exact CloseTo.refl _
-  exact hguess.negligible_roAdvantage hdecS hisSome hdefault hsampleT_ppt hcloseT hinfo hD
+  have hsampleT_ppt : IsPPTOn encUnary encBits fun n => encBitString (outLen n) <$> sampleT n :=
+    hout.sampleList.congr fun n => by
+      rw [ProbComp.eval_map, hsampleT_eval, BitString.eval_sampleList]; rfl
+  exact hguess.negligible_roAdvantage hdecS hisSome hdefault hsampleT_ppt
+    ⟨fun _ => 0, negligible_zero, fun n => by
+      dsimp only; rw [hsampleT_eval n]; exact CloseTo.refl _⟩ hinfo hD
 
 end Cslib.Crypto.KeyDerivation
