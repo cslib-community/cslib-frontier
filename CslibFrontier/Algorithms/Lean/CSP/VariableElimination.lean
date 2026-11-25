@@ -371,9 +371,7 @@ theorem eval_elimVar [CommSemiring R] [DecidableEq V] (d : ℕ) (x : V) (s : Eli
       split_ifs with hb
       · have hbnil : bucket = [] := List.isEmpty_iff.mp hb
         have hrest_all : rest = s.live := List.filter_eq_self.mpr fun f hf => by
-          by_contra hmem
-          have hbf : f ∈ bucket := List.mem_filter.mpr ⟨hf, by simpa using hmem⟩
-          simp [hbnil] at hbf
+          simpa using List.filter_eq_nil_iff.1 hbnil f hf
         rw [hs_eq, ElimState.eval, FactorTable.contractionOn, hrem']
         simp only [hbnil, List.map_nil, List.prod_nil, Finset.sum_const, Finset.card_univ,
           Fintype.card_fin, nsmul_eq_mul, mul_one, hfactor, hrest_all]
