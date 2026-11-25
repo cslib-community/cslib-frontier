@@ -46,10 +46,7 @@ theorem subset_filter_affine_eq {F ι : Type*} [Field F] [Fintype ι] [Decidable
     (hagree : ∀ i ∈ D', u₀ i = v₀ i ∧ ∀ j : Fin ℓ, u j i = v j i) (z : Fin ℓ → F) :
     D' ⊆ Finset.univ.filter fun i =>
       (u₀ + ∑ j : Fin ℓ, z j • u j) i = (v₀ + ∑ j : Fin ℓ, z j • v j) i :=
-  fun i hi => mem_filter.2 ⟨mem_univ i, by
-    obtain ⟨h0, hj⟩ := hagree i hi
-    simp only [Pi.add_apply, Finset.sum_apply, Pi.smul_apply, h0]
-    congr 1; exact Finset.sum_congr rfl fun j _ => by rw [hj j]⟩
+  fun i hi => mem_filter.2 ⟨mem_univ i, by obtain ⟨h0, hj⟩ := hagree i hi; simp [h0, hj]⟩
 
 theorem subset_filter_line_eq {F ι : Type*} [Field F] [Fintype ι] [DecidableEq F]
     {D' : Finset ι} {u₀ v₀ u₁ v₁ : ι → F}
@@ -82,18 +79,16 @@ theorem hammingDist_le_of_ratWeightedAgree_ge
     hammingDist x c ≤ e := by
   refine hammingDist_le_of_card_filter_eq ?_
   set A := Finset.univ.filter fun i => x i = c i
-  have hsum_le : ∑ i ∈ A, μ i ≤ (A.card : ℚ) :=
-    (Finset.sum_le_sum fun i _ => hμ_le i).trans_eq (by simp)
-  have hlt : Fintype.card ι - e < A.card + 1 := Nat.cast_lt.1 (by
-    have : ((Fintype.card ι - e : ℕ) : ℚ) - 1 < (A.card : ℚ) := hθ.trans_le (hμ_ge.trans hsum_le)
-    have hq : ((Fintype.card ι - e : ℕ) : ℚ) < ((A.card + 1 : ℕ) : ℚ) := by push_cast; linarith
-    exact hq)
+  have hlt : Fintype.card ι - e < A.card + 1 := Nat.cast_lt (α := ℚ).1 (by
+    have := hθ.trans_le (hμ_ge.trans
+      ((Finset.sum_le_sum fun i _ => hμ_le i).trans_eq (by simp : ∑ _ ∈ A, (1 : ℚ) = A.card)))
+    push_cast; linarith)
   omega
 
 theorem nat_le_sum_iff_div {ι : Type*} {W : ι → ℕ} {M B : ℕ} (hM : 0 < M)
     (S : Finset ι) : B ≤ ∑ i ∈ S, W i ↔ (B : ℚ) / M ≤ ∑ i ∈ S, (W i : ℚ) / M := by
-  have hMq : (0 : ℚ) < M := Nat.cast_pos.2 hM
-  rw [← Finset.sum_div, div_le_div_iff_of_pos_right hMq, ← Nat.cast_sum, Nat.cast_le]
+  rw [← Finset.sum_div, div_le_div_iff_of_pos_right (Nat.cast_pos.2 hM), ← Nat.cast_sum,
+    Nat.cast_le]
 
 /-- Counting lemma: in `Fin ℓ → F` with `1 ≤ ℓ`, the hyperplane `{z | z j₀ = 0}` has cardinality
 `|F| ^ (ℓ - 1)`. -/
@@ -112,8 +107,8 @@ theorem card_filter_coord_eq_zero
       by_cases h : j = j₀ <;> simp [h, (mem_filter.1 hz).2]⟩)
   rw [← hbij, Finset.card_univ, Fintype.card_fun, Fintype.card_subtype]
   congr 1
-  have hf : (Finset.univ.filter fun j : Fin ℓ => j ≠ j₀) = Finset.univ.erase j₀ := by ext; simp
-  rw [hf, Finset.card_erase_of_mem (mem_univ j₀), Finset.card_univ, Fintype.card_fin]
+  rw [show (Finset.univ.filter fun j : Fin ℓ => j ≠ j₀) = Finset.univ.erase j₀ by ext; simp,
+    Finset.card_erase_of_mem (mem_univ j₀), Finset.card_univ, Fintype.card_fin]
 
 /-- Integer-to-rational weight threshold: with `t = ⌈B / M⌉ = (B + M - 1) / M`, the
 unique-decoding agreement count `n - (n - t)` satisfies `n - (n - t) - 1 < B / M`. -/
@@ -121,11 +116,9 @@ theorem card_sub_sub_ceilDiv_sub_one_lt {n B M : ℕ} (hM : 0 < M) :
     ((n - (n - (B + M - 1) / M) : ℕ) : ℚ) - 1 < (B : ℚ) / (M : ℚ) := by
   have hdiv : M * ((B + M - 1) / M) ≤ B + M - 1 := Nat.mul_div_le (B + M - 1) M
   generalize (B + M - 1) / M = t at hdiv ⊢
-  have hMq : (0 : ℚ) < (M : ℚ) := Nat.cast_pos.2 hM
-  have ht_lt : M * (n - (n - t)) < B + M :=
-    (Nat.mul_le_mul_left M (by omega : n - (n - t) ≤ t)).trans_lt (by omega)
-  have hq_lt : (M : ℚ) * ((n - (n - t) : ℕ) : ℚ) < (B : ℚ) + (M : ℚ) := by exact_mod_cast ht_lt
-  rw [lt_div_iff₀ hMq]
+  have hq_lt : (M : ℚ) * ((n - (n - t) : ℕ) : ℚ) < (B : ℚ) + (M : ℚ) := by
+    exact_mod_cast (Nat.mul_le_mul_left M (by omega : n - (n - t) ≤ t)).trans_lt (by omega)
+  rw [lt_div_iff₀ (Nat.cast_pos.2 hM)]
   linarith
 
 theorem curve_dichotomy_of_ca {F ι : Type*} [Field F] [Fintype F] {d : ℕ}
@@ -157,10 +150,8 @@ theorem lt_card_field_of_density_threshold
     {F : Type*} [Fintype F] {K ℓ : ℕ} {T : Finset (Fin ℓ → F)}
     (hT : K * (Fintype.card F) ^ ℓ < Fintype.card F * T.card) :
     K < Fintype.card F := by
-  have hT_le : T.card ≤ (Fintype.card F) ^ ℓ := by
-    calc T.card ≤ Fintype.card (Fin ℓ → F) := Finset.card_le_univ T
-      _ = (Fintype.card F) ^ ℓ := by
-          rw [Fintype.card_pi, Finset.prod_const, Finset.card_univ, Fintype.card_fin]
-  exact Nat.lt_of_mul_lt_mul_right (hT.trans_le (Nat.mul_le_mul_left _ hT_le))
+  refine Nat.lt_of_mul_lt_mul_right (hT.trans_le (Nat.mul_le_mul_left _ ?_))
+  simpa only [Fintype.card_pi, Finset.prod_const, Finset.card_univ, Fintype.card_fin] using
+    Finset.card_le_univ T
 
 end Cslib.Code

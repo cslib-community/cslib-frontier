@@ -183,7 +183,7 @@ old one, or the literal if collected. -/
 
 theorem holds_step (b : Bool) : Holds Gate.interp (step b) (StepSpec b) := by
   cases b
-  · refine (Holds.swap B R).mono fun x y hx _ h => ?_
+  · refine (Holds.swap B R).mono fun x _ hx _ h => ?_
     obtain ⟨acc, l, rfl⟩ := List.length_eq_two.1 hx
     subst h
     simp [StepSpec]
@@ -204,22 +204,20 @@ private theorem le_or_or {acc acc₁ acc' u v : Bool} (h₁ : acc₁ ≤ (acc ||
 
 theorem holds_row (r : List Color) :
     ∀ (n : ℕ) (m : List Bool), Holds Gate.interp (row r n m) (RowSpec n m)
-  | 0, _ => (Holds.id _).mono fun x y hx _ h => by
-    subst h
+  | 0, _ => (Holds.id _).mono fun x _ hx _ h => by
     obtain ⟨acc, rs, rfl⟩ := List.exists_cons_of_length_eq_add_one hx
-    exact ⟨acc, [], rs, [], acc, rfl, rfl, rfl, .nil, by simp⟩
+    exact ⟨acc, [], rs, [], acc, rfl, h.symm, rfl, .nil, by simp⟩
   | n + 1, m =>
     (((holds_step _).tensor_id _).comp ((holds_row r n m.tail).id_tensor [R])).mono <| by
-    rintro x y - - ⟨_, ⟨x₁, y₁, z, rfl, rfl, hx₁, hy₁, hs⟩,
-      ⟨w, _, _, hmid, rfl, hw, acc₂, ls, rs, ls', acc', rfl, rfl, hls, hf, ha⟩⟩
+    rintro _ _ - - ⟨_, ⟨x₁, y₁, _, rfl, rfl, hx₁, hy₁, hs⟩,
+      ⟨w, _, _, hmid, rfl, hw, _, ls, rs, ls', acc', rfl, rfl, hls, hf, ha⟩⟩
     obtain ⟨acc, l, rfl⟩ := List.length_eq_two.1 hx₁
     obtain ⟨l', acc₁, rfl⟩ := List.length_eq_two.1 hy₁
-    obtain ⟨w₀, rfl⟩ := List.length_eq_one_iff.1 hw
+    obtain ⟨_, rfl⟩ := List.length_eq_one_iff.1 hw
     simp only [List.cons_append, List.nil_append, List.cons.injEq] at hmid
     obtain ⟨rfl, rfl, rfl⟩ := hmid
-    refine ⟨acc, l :: ls, rs, _ :: ls', acc', rfl, rfl, by simp [hls], .cons hs.1 hf, ?_⟩
-    rw [hits_cons]
-    exact le_or_or hs.2 ha
+    exact ⟨acc, l :: ls, rs, _ :: ls', acc', rfl, rfl, by simp [hls], .cons hs.1 hf,
+      by rw [hits_cons]; exact le_or_or hs.2 ha⟩
 
 /-- The wire started by the empty clause is never active. -/
 theorem holds_dead : Holds Gate.interp (node [] [B]) fun _ y => y = [false] :=
@@ -234,25 +232,25 @@ needs a marked literal. -/
 theorem holds_clause (r : List Color) :
     ∀ (n : ℕ) (m : List Bool), Holds Gate.interp (clause r n m) (ClauseSpec n m)
   | 0, _ => (holds_dead.tensor_id r).mono <| by
-    rintro x y - - ⟨x', y', z, rfl, rfl, hx', -, rfl⟩
-    obtain rfl := List.eq_nil_of_length_eq_zero hx'
-    exact ⟨[], z, [], false, rfl, rfl, rfl, .nil, Bool.false_le _⟩
+    rintro _ _ - - ⟨x', _, z, rfl, rfl, hx', -, rfl⟩
+    exact ⟨[], z, [], false, by simp [List.eq_nil_of_length_eq_zero hx'], rfl, rfl, .nil,
+      Bool.false_le _⟩
   | n + 1, m => by
     unfold clause
     split_ifs with h
     · refine ((holds_tapFirst.tensor_id _).comp ((holds_row r n m.tail).id_tensor [R])).mono ?_
-      rintro x y - - ⟨_, ⟨x₁, y₁, z, rfl, rfl, hx₁, hy₁, hs⟩,
-        ⟨w, _, _, hmid, rfl, hw, acc₂, ls, rs, ls', acc', rfl, rfl, hls, hf, ha⟩⟩
+      rintro _ _ - - ⟨_, ⟨x₁, y₁, _, rfl, rfl, hx₁, hy₁, hs⟩,
+        ⟨w, _, _, hmid, rfl, hw, _, ls, rs, ls', acc', rfl, rfl, hls, hf, ha⟩⟩
       obtain ⟨l, rfl⟩ := List.length_eq_one_iff.1 hx₁
       obtain ⟨l', acc₁, rfl⟩ := List.length_eq_two.1 hy₁
-      obtain ⟨w₀, rfl⟩ := List.length_eq_one_iff.1 hw
+      obtain ⟨_, rfl⟩ := List.length_eq_one_iff.1 hw
       simp only [List.cons_append, List.nil_append, List.cons.injEq] at hmid
       obtain ⟨rfl, rfl, rfl⟩ := hmid
       refine ⟨l :: ls, rs, _ :: ls', acc', rfl, rfl, by simp [hls], .cons hs.1 hf, ?_⟩
-      rw [hits_cons, h, Bool.true_and]
+      rw [hits_cons, h]
       simpa using le_or_or (acc := false) (u := l) (by simpa using hs.2) ha
     · refine ((holds_clause r n m.tail).id_tensor [R]).mono ?_
-      rintro x y - - ⟨w, _, _, rfl, rfl, hw, ls, rs, ls', v, rfl, rfl, hls, hf, hv⟩
+      rintro _ _ - - ⟨w, _, _, rfl, rfl, hw, ls, rs, ls', v, rfl, rfl, hls, hf, hv⟩
       obtain ⟨l, rfl⟩ := List.length_eq_one_iff.1 hw
       refine ⟨l :: ls, rs, l :: ls', v, rfl, rfl, by simp [hls], .cons le_rfl hf, ?_⟩
       rw [hits_cons, Bool.eq_false_iff.2 h]
@@ -277,8 +275,8 @@ private theorem exists_split (n : ℕ) (r : List Color) {x : List Bool}
     (hx : x.length = (bundle n ++ ([B] ++ r)).length) :
     ∃ ls w rs, x = ls ++ w :: rs ∧ ls.length = n := by
   have hn : n < x.length := by simp at hx; omega
-  refine ⟨x.take n, x[n], x.drop (n + 1), ?_, by simp; omega⟩
-  rw [← List.drop_eq_getElem_cons hn, List.take_append_drop]
+  exact ⟨x.take n, x[n], x.drop (n + 1),
+    by rw [← List.drop_eq_getElem_cons hn, List.take_append_drop], by simp; omega⟩
 
 /-- The contract of the further clauses: every continuation needs its literal, and the value of
 the conjunction needs the value before and every clause. -/
@@ -288,25 +286,22 @@ the conjunction needs the value before and every clause. -/
 
 theorem holds_conjoin (r : List Color) (n : ℕ) :
     ∀ ms : List (List Bool), Holds Gate.interp (conjoin r n ms) (ConjoinSpec n ms)
-  | [] => (Holds.id _).mono fun x y hx _ h => by
-    subst h
+  | [] => (Holds.id _).mono fun x _ hx _ h => by
     obtain ⟨ls, w, rs, rfl, hls⟩ := exists_split n r hx
-    exact ⟨ls, w, rs, ls, w, rfl, rfl, hls, List.forall₂_refl ls, by simp⟩
+    exact ⟨ls, w, rs, ls, w, rfl, h.symm, hls, List.forall₂_refl ls, by simp⟩
   | m :: ms => (((holds_clause ([B] ++ r) n m).comp
       ((holds_conj.tensor_id r).id_tensor (bundle n))).comp (holds_conjoin r n ms)).mono <| by
-    rintro x y - - ⟨_, ⟨_, ⟨ls, rs₀, ls', v, rfl, rfl, hls, hf, hv⟩,
+    rintro _ _ - - ⟨_, ⟨_, ⟨ls, rs₀, ls', v, rfl, rfl, hls, hf, hv⟩,
       ⟨z, _, _, h₁, rfl, hz, x'', y'', q, rfl, rfl, hx'', hy'', hc⟩⟩,
       ⟨ls₂, w₂, rs₂, ls'', w', h₂, rfl, hls₂, hf', hw'⟩⟩
     obtain ⟨rfl, h₃⟩ := List.append_inj h₁ (by simp [hz, hf.length_eq, hls])
     obtain ⟨a, b, rfl⟩ := List.length_eq_two.1 hx''
     obtain ⟨c, rfl⟩ := List.length_eq_one_iff.1 hy''
-    simp only [List.cons_append, List.nil_append, List.cons.injEq] at h₃
-    obtain ⟨rfl, rfl⟩ := h₃
+    obtain ⟨rfl, rfl⟩ := List.cons.inj h₃
     obtain ⟨rfl, h₄⟩ := List.append_inj h₂ (by simp [hf.length_eq, hls, hls₂])
-    simp only [List.cons_append, List.nil_append, List.cons.injEq] at h₄
-    obtain ⟨rfl, rfl⟩ := h₄
-    refine ⟨ls, b, q, ls'', w', rfl, rfl, hls, hf'.trans hf, ?_⟩
-    simpa only [List.all_cons] using conj_le hw' hc hv (all_hits_mono ms hf)
+    obtain ⟨rfl, rfl⟩ := List.cons.inj h₄
+    exact ⟨ls, b, q, ls'', w', rfl, rfl, hls, hf'.trans hf,
+      by simpa only [List.all_cons] using conj_le hw' hc hv (all_hits_mono ms hf)⟩
 
 /-- The contract of the network: every continuation needs its literal, and the value of the
 formula needs every clause to have an active marked literal. -/
@@ -320,17 +315,16 @@ theorem holds_network (r : List Color) (n : ℕ) :
     ∀ ms : List (List Bool), Holds Gate.interp (network r n ms) (NetSpec n ms)
   | [] => ((Holds.tensor_id r (C := fun _ _ => True) fun _ _ => trivial).id_tensor
       (bundle n)).mono <| by
-    rintro x y - - ⟨z, _, _, rfl, rfl, hz, x', y', q, rfl, rfl, hx', hy', -⟩
-    obtain rfl := List.eq_nil_of_length_eq_zero hx'
+    rintro _ _ - - ⟨z, _, _, rfl, rfl, hz, x', y', q, rfl, rfl, hx', hy', -⟩
     obtain ⟨v, rfl⟩ := List.length_eq_one_iff.1 hy'
-    exact ⟨z, q, z, v, rfl, rfl, by simpa using hz, List.forall₂_refl z, by simp⟩
+    exact ⟨z, q, z, v, by simp [List.eq_nil_of_length_eq_zero hx'], rfl, by simpa using hz,
+      List.forall₂_refl z, by simp⟩
   | m :: ms => ((holds_clause r n m).comp (holds_conjoin r n ms)).mono <| by
-    rintro x y - - ⟨_, ⟨ls, rs, ls', v, rfl, rfl, hls, hf, hv⟩,
+    rintro _ _ - - ⟨_, ⟨ls, rs, ls', v, rfl, rfl, hls, hf, hv⟩,
       ⟨ls₂, w, rs₂, ls'', w', h, rfl, hls₂, hf', hw'⟩⟩
     obtain ⟨rfl, h'⟩ := List.append_inj h (by simp [hf.length_eq, hls, hls₂])
-    simp only [List.cons.injEq] at h'
-    obtain ⟨rfl, rfl⟩ := h'
-    refine ⟨ls, rs, ls'', w', rfl, rfl, hls, hf'.trans hf, ?_⟩
-    simpa only [List.all_cons] using le_trans hw' (and_le_and hv (all_hits_mono ms hf))
+    obtain ⟨rfl, rfl⟩ := List.cons.inj h'
+    exact ⟨ls, rs, ls'', w', rfl, rfl, hls, hf'.trans hf,
+      by simpa only [List.all_cons] using le_trans hw' (and_le_and hv (all_hits_mono ms hf))⟩
 
 end Cslib.Complexity.NCL.QBF.Network

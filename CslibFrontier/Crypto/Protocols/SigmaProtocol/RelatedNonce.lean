@@ -88,8 +88,7 @@ theorem schnorr_accepts_affine {u t : G} {c : C} {z : ZMod q}
     (schnorr (Function.Embedding.refl (ZMod q)) g).Accepts u (a • t + b • g) (a * ι c)
       (a * z + b) := by
   rw [schnorr_accepts_iff] at h ⊢
-  rw [Function.Embedding.refl_apply, add_smul, mul_smul, h, smul_add, mul_smul]
-  abel
+  rw [Function.Embedding.refl_apply, add_smul, mul_smul, h, smul_add, mul_smul]; abel
 
 /-- The key computed from two Schnorr signatures whose nonces are `r` and `a * r + b`
 ([BonehShoup2023], Exercise 19.1): from the challenges `c₀, c₁` and the responses `z₀, z₁`. It is
@@ -104,13 +103,9 @@ theorem relatedNonceExtract_smul [Fact q.Prime] {u t₀ t₁ : G} {a b : ZMod q}
     (h₁ : (schnorr ι g).Accepts u t₁ c₁ z₁) (ht : t₁ = a • t₀ + b • g)
     (hc : a * ι c₀ ≠ ι c₁) :
     relatedNonceExtract a b (ι c₀) z₀ (ι c₁) z₁ • g = u := by
-  have h₁' : (schnorr (Function.Embedding.refl (ZMod q)) g).Accepts u
-      (a • t₀ + b • g) (ι c₁) z₁ := by
-    rw [schnorr_accepts_iff] at h₁ ⊢
-    rw [← ht]
-    exact h₁
-  exact schnorr_specialSoundness (ι := Function.Embedding.refl (ZMod q)) (g := g) u _ _ _ _ _ hc
-    (schnorr_accepts_affine h₀ a b) h₁'
+  refine schnorr_specialSoundness (ι := Function.Embedding.refl (ZMod q)) (g := g) u _ _ _ _ _ hc
+    (schnorr_accepts_affine h₀ a b) ?_
+  rwa [schnorr_accepts_iff, ← ht, ← schnorr_accepts_iff]
 
 /-- **Related nonces reveal the signing key** ([BonehShoup2023], Exercise 19.1): from the honest
 responses with nonces `r` and `a * r + b`, with `a * ι c₀ ≠ ι c₁`. No hypothesis on `g`. -/
@@ -118,10 +113,8 @@ theorem relatedNonceExtract_respond [Fact q.Prime] (α : ZMod q) (u : G) (r a b 
     {c₀ c₁ : C} (hc : a * ι c₀ ≠ ι c₁) :
     relatedNonceExtract a b (ι c₀) ((schnorr ι g).respond α u r c₀) (ι c₁)
       ((schnorr ι g).respond α u (a * r + b) c₁) = α := by
-  have hne : a * ι c₀ - ι c₁ ≠ 0 := sub_ne_zero.mpr hc
   change (a * ι c₀ - ι c₁)⁻¹ * (a * (r + ι c₀ • α) + b - (a * r + b + ι c₁ • α)) = α
-  rw [smul_eq_mul, smul_eq_mul, inv_mul_eq_iff_eq_mul₀ hne]
-  ring
+  rw [smul_eq_mul, smul_eq_mul, inv_mul_eq_iff_eq_mul₀ (sub_ne_zero.mpr hc)]; ring
 
 end Algebra
 
@@ -179,40 +172,35 @@ theorem one_sub_inv_card_le_succProbability_relatedNonceGame (ι : C ↪ ZMod q)
   have hfail : relatedNonceGame ι g a b m₀ m₁ false ≤ (Fintype.card C : ℝ≥0∞)⁻¹ := by
     simp only [relatedNonceGame, relatedNonceAttacker, schnorrROMScheme, fiatShamir, interp_norm,
       pmf_norm, PMF.map, Function.Embedding.refl_apply]
-    refine PMF.bind_apply_le_on_support _ fun key _ => ?_
-    refine PMF.bind_apply_le_on_support _ fun r _ => ?_
+    refine PMF.bind_apply_le_on_support _ fun key _ =>
+      PMF.bind_apply_le_on_support _ fun r _ => ?_
     rw [run_oracle_of_lookup_eq_none (cache := []) rfl]
     simp only [PMF.bind_bind, PMF.pure_bind]
     refine PMF.bind_apply_le_on_support _ fun c₀ _ => ?_
     have hne : ((m₁, (a * r + b) • g) == (m₀, r • g)) = false := by simp [Ne.symm hm]
     have hne' : ((m₀, r • g) == (m₁, (a * r + b) • g)) = false := by simp [hm]
     rw [run_oracle_of_lookup_eq_none (by simp [List.lookup, hne])]
-    simp only [PMF.bind_bind, PMF.pure_bind]
-    have hsum : ∑' c₁ : C, PMF.uniformOfFintype C c₁ *
-        (if a * ι c₀ = ι c₁ then (1 : ℝ≥0∞) else 0) ≤ (Fintype.card C : ℝ≥0∞)⁻¹ := by
-      simpa only [PMF.bind_apply, PMF.pure_apply, true_eq_decide_iff] using
+    simp only [PMF.bind_bind, PMF.pure_bind]; rw [PMF.bind_apply]
+    refine (tsum_le_tsum
+      (g := fun c₁ => PMF.uniformOfFintype C c₁ * if a * ι c₀ = ι c₁ then (1 : ℝ≥0∞) else 0)
+      fun c₁ => mul_le_mul_right ?_ _).trans ?_
+    · by_cases hc : a * ι c₀ = ι c₁
+      · rw [ite_eq_left hc]; exact PMF.coe_le_one _ _
+      · rw [ite_eq_right hc, run_oracle_of_lookup_eq_some (c := c₀) (by simp [List.lookup, hne']),
+          PMF.pure_bind, run_oracle_of_lookup_eq_some (c := c₁) (by simp [List.lookup]),
+          PMF.pure_bind, relatedNonceExtract_respond key.1 key.2 r a b hc]
+        simp
+    · simpa only [PMF.bind_apply, PMF.pure_apply, true_eq_decide_iff] using
         PMF.uniformOfFintype_bind_pure_apply_true_le (α := C)
           (E := fun c₁ => decide (a * ι c₀ = ι c₁)) fun x hx y hy =>
             ι.injective ((of_decide_eq_true hx).symm.trans (of_decide_eq_true hy))
-    rw [PMF.bind_apply]
-    refine le_trans (tsum_le_tsum fun c₁ => mul_le_mul_right ?_ _) hsum
-    by_cases hc : a * ι c₀ = ι c₁
-    · rw [ite_eq_left hc]
-      exact PMF.coe_le_one _ _
-    · rw [ite_eq_right hc, run_oracle_of_lookup_eq_some (c := c₀) (by simp [List.lookup, hne']),
-        PMF.pure_bind, run_oracle_of_lookup_eq_some (c := c₁) (by simp [List.lookup]),
-        PMF.pure_bind, relatedNonceExtract_respond key.1 key.2 r a b hc]
-      simp
-  have hf : Game.failProbability (relatedNonceGame ι g a b m₀ m₁) ≤
-      (Fintype.card C : ℝ≥0)⁻¹ := by
+  have hf : Game.failProbability (relatedNonceGame ι g a b m₀ m₁) ≤ (Fintype.card C : ℝ≥0)⁻¹ := by
     rw [Game.failProbability, ← ENNReal.toNNReal_coe ((Fintype.card C : ℝ≥0)⁻¹)]
-    refine ENNReal.toNNReal_mono ENNReal.coe_ne_top ?_
-    rwa [ENNReal.coe_inv (by simp), ENNReal.coe_natCast]
-  rw [tsub_le_iff_right]
-  calc (1 : ℝ≥0) = Game.succProbability (relatedNonceGame ι g a b m₀ m₁) +
-        Game.failProbability (relatedNonceGame ι g a b m₀ m₁) :=
-        (Game.succProbability_add_failProbability _).symm
-    _ ≤ _ := by gcongr
+    exact ENNReal.toNNReal_mono ENNReal.coe_ne_top
+      (by rwa [ENNReal.coe_inv (by simp), ENNReal.coe_natCast])
+  rw [tsub_le_iff_right, ← Game.succProbability_add_failProbability
+    (relatedNonceGame ι g a b m₀ m₁)]
+  gcongr
 
 end RandomOracle
 

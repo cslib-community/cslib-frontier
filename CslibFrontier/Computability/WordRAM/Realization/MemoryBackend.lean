@@ -106,26 +106,21 @@ public noncomputable def prepare (o : Memory.Op) (x : Data registers) : Data reg
 
 /-- Argument delivery leaves the literal whole memory and frontier unchanged. -/
 public theorem prepare_memoryState (o : Memory.Op) (x : Data registers) :
-    memoryState frontier (prepare o x) = memoryState frontier x := by
-  apply Memory.State.ext
-  · rfl
-  · rfl
+    memoryState frontier (prepare o x) = memoryState frontier x :=
+  Memory.State.ext rfl rfl
 
 private theorem prepare_bounded {w : ℕ} {o : Memory.Op} {x : Data registers}
     (hx : x.Bounded w) (hv : Memory.valid w (memoryState frontier x) o) :
     (prepare o x).Bounded w := by
   have hw := wellFormed_memoryState hx (frontier := frontier)
-  have hfirst : Fits w (first o) := by
-    cases o with
-    | read a => exact hw.fits_of_lt_frontier hv
-    | write a v => exact hw.fits_of_lt_frontier hv.1
-    | alloc n => exact hv.of_le (Nat.le_add_left n _)
-    | allocDirty n => exact hv.of_le (Nat.le_add_left n _)
-  have hsecond : Fits w (second o) := by
-    cases o with
-    | write a v => exact hv.2
+  refine (hx.set ?_).set ?_
+  · cases o with
+    | read _ => exact hw.fits_of_lt_frontier hv
+    | write _ _ => exact hw.fits_of_lt_frontier hv.1
+    | alloc n | allocDirty n => exact hv.of_le (Nat.le_add_left n _)
+  · cases o with
+    | write _ _ => exact hv.2
     | _ => exact fits_zero w
-  exact (hx.set hfirst).set hsecond
 
 /-- Typed observations retain the existing word/unit convention without native decoding work. -/
 public noncomputable def result (o : Memory.Op) (y : Data registers) : o.Result :=
@@ -172,36 +167,22 @@ private theorem exists_body {w : ℕ} {x : Data registers} (o : Memory.Op)
       n ≤ factor * (Memory.charge (memoryState frontier x) o + 1) ∧
       memoryState frontier y = (Memory.step (memoryState frontier x) o).1 ∧
       result o y = (Memory.step (memoryState frontier x) o).2 := by
-  have hb := prepare_bounded hx hv
   have hprepare : memoryState (Backend.frontier certificates) (prepare o x) =
       memoryState frontier x := prepare_memoryState o x
-  have hs : (certificates ((backend 0).tag o)).safe w ((backend 0).arg o)
-      (memoryState (Backend.frontier certificates) (prepare o x)) := by cases o <;> trivial
-  have hvalid : (Memory.spec w).ValidHistory
-      (memoryState (Backend.frontier certificates) (prepare o x))
-      ((Memory.spec w).clientHistory
-        (memoryState (Backend.frontier certificates) (prepare o x))
-        ((certificates ((backend 0).tag o)).prog ((backend 0).arg o))) := by
-    rw [hprepare]
-    cases o <;>
-      simpa [certificates, backend, StateTransitionSpec.clientHistory,
-        StateTransitionSpec.runClient_lift, StateTransitionSpec.validHistory_cons,
-        StateTransitionSpec.validHistory_nil, prepare_memoryState] using hv
   obtain ⟨y, n, he, hn, hm, hout, -, -⟩ :=
-    Backend.exists_exec_live certificates ((backend 0).tag o) ((backend 0).arg o) hb
-      (prepare_inputs o x) hs hvalid
+    Backend.exists_exec_live certificates ((backend 0).tag o) ((backend 0).arg o)
+      (prepare_bounded hx hv) (prepare_inputs o x) (by cases o <;> trivial) (by
+        rw [hprepare]
+        cases o <;> simpa [certificates, backend, StateTransitionSpec.clientHistory,
+          StateTransitionSpec.runClient_lift, StateTransitionSpec.validHistory_cons,
+          StateTransitionSpec.validHistory_nil, prepare_memoryState] using hv)
   rw [hprepare] at hn hm hout
-  refine ⟨y, n, he, ?_, ?_, ?_⟩
+  refine ⟨y, n, he, ?_, by cases o <;> exact hm, ?_⟩
   · cases o <;>
       simpa [factor, frontier, certificates, backend, memoryCost, StateTransitionSpec.clientHistory,
       StateTransitionSpec.runClient_lift, StateTransitionSpec.totalCost_cons,
       StateTransitionSpec.totalCost_nil, Nat.add_zero, prepare_memoryState] using hn
-  · cases o <;> exact hm
-  · cases o with
-    | write _ _ => rfl
-    | read _ | alloc _ | allocDirty _ =>
-      have hout0 := hout ⟨0, by change 0 < 1; decide⟩
-      exact hout0
+  · cases o <;> first | rfl | exact hout ⟨0, Nat.zero_lt_one⟩
 
 /-- The memory interface implemented by four static bodies. The representation includes every
 cell, the frontier and global word bounds; argument installation is semantic and uncharged. -/

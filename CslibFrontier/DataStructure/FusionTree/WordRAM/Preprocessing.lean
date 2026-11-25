@@ -50,9 +50,8 @@ open Cslib.DataStructure.FusionTree
 /-- A nonempty valid tree's cached minimum is one of its actual leaf keys. -/
 theorem minimum_mem {B : ℕ} {t : Tree} (ht : Tree.Valid B t)
     (hne : t.keys ≠ []) : t.minimum ∈ t.keys := by
-  rw [Tree.minimum_eq_headD ht]
   obtain ⟨x, xs, hx⟩ := List.exists_cons_of_ne_nil hne
-  simp [hx]
+  simp [Tree.minimum_eq_headD ht, hx]
 
 private theorem minimum_fit {B w : ℕ} {t : Tree} (ht : Tree.Valid B t)
     (hb : ∀ x ∈ t.keys, Fits w x) : Fits w t.minimum := by
@@ -78,10 +77,9 @@ theorem childMinima_strictMono {B m : ℕ} {cs : List Tree}
     (hs : (FusionTree.Tree.node m cs).keys.Pairwise (· < ·)) :
     StrictMono (childMinima cs) := by
   simp only [Tree.keys] at hs
-  have hcross := (List.pairwise_flatMap.mp hs).2
-  intro i j hij
-  exact (List.pairwise_iff_getElem.mp hcross) i j i.isLt j.isLt hij _
-    (childMinima_mem ht i) _ (childMinima_mem ht j)
+  exact fun i j hij =>
+    List.pairwise_iff_getElem.mp (List.pairwise_flatMap.mp hs).2 i j i.isLt j.isLt hij _
+      (childMinima_mem ht i) _ (childMinima_mem ht j)
 
 /-- Every child minimum obeys the full-key bound on the leaves. -/
 theorem childMinima_fit {B w m : ℕ} {cs : List Tree}
@@ -140,8 +138,7 @@ theorem parameterEligible_of_valid {w m : ℕ} {cs : List Tree}
     (hs : (FusionTree.Tree.node m cs).keys.Pairwise (· < ·))
     (hb : ∀ x ∈ (FusionTree.Tree.node m cs).keys, Fits w x) :
     ParameterEligible w cs := by
-  have ht' := ht
-  simp only [Tree.Valid] at ht'
+  have ht' := ht; simp only [Tree.Valid] at ht'
   exact ⟨hw, ht'.1, ht'.2.1, childMinima_strictMono ht hs, childMinima_fit ht hb⟩
 
 /-- Valid trees with bounded leaves have fitting cached minima and actual parameters.
@@ -152,13 +149,10 @@ theorem preprocessed_contentFits {B w : ℕ} {t : Tree} (ht : Tree.Valid B t)
   | leaf xs => simpa only [ContentFits, Tree.keys] using hb
   | node m cs =>
     have hm := minimum_fit ht hb
-    simp only [Tree.Valid] at ht
-    simp only [Tree.keys] at hb
-    simp only [ContentFits]
-    refine ⟨hm, parameterWords_fit w (.node m cs), ?_⟩
-    intro u hu
-    exact preprocessed_contentFits (ht.2.2.2 u hu).1
-      (fun x hx => hb x (List.mem_flatMap.mpr ⟨u, hu, hx⟩))
+    simp only [Tree.Valid, Tree.keys, ContentFits] at ht hb ⊢
+    exact ⟨hm, parameterWords_fit w (.node m cs), fun u hu =>
+      preprocessed_contentFits (ht.2.2.2 u hu).1 fun x hx =>
+        hb x (List.mem_flatMap.mpr ⟨u, hu, hx⟩)⟩
 termination_by sizeOf t
 
 /-- The built tree has fitting actual preprocessing contents from full-key bounds alone. -/

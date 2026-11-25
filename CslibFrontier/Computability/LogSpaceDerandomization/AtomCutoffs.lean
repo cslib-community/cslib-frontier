@@ -113,16 +113,13 @@ theorem auxCutoff_eq_zero (hϑ : 0 < ϑ) (hv : v ≤ ϑ / 8) : auxCutoff ϑ v r 
 
 theorem auxCutoff_eq_one (hϑ : 0 < ϑ) (hv : ϑ / 4 ≤ v) (hr : r ≤ ϑ / 100) :
     auxCutoff ϑ v r = 1 := by
-  rw [auxCutoff, smoothSwitch_of_ge (by linarith) hv, smoothSwitch_of_le (by linarith) hr]
-  norm_num
+  rw [auxCutoff, smoothSwitch_of_ge (by linarith) hv, smoothSwitch_of_le (by linarith) hr]; norm_num
 
 /-- Where the row gate is open and the entry is at least `ϑ/4`, the auxiliary score is one. This
 is the hypothesis of the incoming cap [OpenAI2026LogSpace, proof of Lemma 5.6]. -/
 theorem auxCutoff_eq_one_of_rowCutoff_ne_zero (hϑ : 0 < ϑ) (hv : ϑ / 4 ≤ v)
-    (hr : rowCutoff ϑ r ≠ 0) : auxCutoff ϑ v r = 1 := by
-  refine auxCutoff_eq_one hϑ hv ?_
-  have := mt (rowCutoff_eq_zero hϑ) hr
-  linarith
+    (hr : rowCutoff ϑ r ≠ 0) : auxCutoff ϑ v r = 1 :=
+  auxCutoff_eq_one hϑ hv (by linarith [mt (rowCutoff_eq_zero hϑ) hr])
 
 theorem incomingCutoff_nonneg (r : ℝ) : 0 ≤ incomingCutoff r :=
   sub_nonneg.2 (smoothSwitch_le_one _ _ _)
@@ -161,36 +158,24 @@ theorem exists_abs_auxCutoff_rpow_sub_le (hϑ : 0 < ϑ) (hp : 0 < p) :
   obtain ⟨Kb, hKb⟩ := exists_lipschitzWith_one_sub_smoothSwitch_rpow (α := ϑ / 100)
     (β := ϑ / 50) (by linarith) hp
   refine ⟨max Ka Kb, fun v r v' r' => ?_⟩
-  set a : ℝ → ℝ := fun v => smoothSwitch (ϑ / 8) (ϑ / 4) v
+  set a : ℝ → ℝ := smoothSwitch (ϑ / 8) (ϑ / 4)
   set b : ℝ → ℝ := fun r => 1 - smoothSwitch (ϑ / 100) (ϑ / 50) r
-  have ha0 : ∀ v, 0 ≤ a v := fun v => smoothSwitch_nonneg _ _ _
-  have hb0 : ∀ r, 0 ≤ b r := fun r => sub_nonneg.2 (smoothSwitch_le_one _ _ _)
-  have ha1 : ∀ v, a v ^ p ≤ 1 := fun v =>
-    Real.rpow_le_one (ha0 v) (smoothSwitch_le_one _ _ _) hp.le
-  have hb1 : ∀ r, b r ^ p ≤ 1 := fun r =>
-    Real.rpow_le_one (hb0 r) (sub_le_self _ (smoothSwitch_nonneg _ _ _)) hp.le
+  have ha0 (x : ℝ) : 0 ≤ a x := smoothSwitch_nonneg _ _ _
+  have hb0 (y : ℝ) : 0 ≤ b y := sub_nonneg.2 (smoothSwitch_le_one _ _ _)
   have hda : |a v ^ p - a v' ^ p| ≤ Ka * |v - v'| := by
     simpa only [Real.dist_eq] using hKa.dist_le_mul v v'
   have hdb : |b r ^ p - b r' ^ p| ≤ Kb * |r - r'| := by
     simpa only [Real.dist_eq] using hKb.dist_le_mul r r'
-  have hsplit : auxCutoff ϑ v r ^ p - auxCutoff ϑ v' r' ^ p =
-      (a v ^ p - a v' ^ p) * b r ^ p + a v' ^ p * (b r ^ p - b r' ^ p) := by
-    simp only [auxCutoff, Real.mul_rpow (ha0 _) (hb0 _), a, b]
-    ring
-  rw [hsplit]
-  have hbp : 0 ≤ b r ^ p := Real.rpow_nonneg (hb0 r) p
-  have hap : 0 ≤ a v' ^ p := Real.rpow_nonneg (ha0 v') p
-  calc |(a v ^ p - a v' ^ p) * b r ^ p + a v' ^ p * (b r ^ p - b r' ^ p)|
-      ≤ |a v ^ p - a v' ^ p| * b r ^ p + a v' ^ p * |b r ^ p - b r' ^ p| := by
-        refine (abs_add_le _ _).trans (le_of_eq ?_)
-        rw [abs_mul, abs_mul, abs_of_nonneg hbp, abs_of_nonneg hap]
-    _ ≤ |a v ^ p - a v' ^ p| * 1 + 1 * |b r ^ p - b r' ^ p| := by
-        gcongr
-        exacts [hb1 r, ha1 v']
-    _ ≤ Ka * |v - v'| + Kb * |r - r'| := by rw [mul_one, one_mul]; exact add_le_add hda hdb
-    _ ≤ max Ka Kb * (|v - v'| + |r - r'|) := by
-        rw [mul_add]
-        gcongr
-        exacts [le_max_left (Ka : ℝ) Kb, le_max_right (Ka : ℝ) Kb]
+  rw [show auxCutoff ϑ v r ^ p - auxCutoff ϑ v' r' ^ p =
+      (a v ^ p - a v' ^ p) * b r ^ p + a v' ^ p * (b r ^ p - b r' ^ p) by
+    simp only [auxCutoff, Real.mul_rpow (ha0 _) (hb0 _), a, b]; ring]
+  refine (abs_add_le _ _).trans ?_
+  rw [abs_mul, abs_mul, abs_of_nonneg (Real.rpow_nonneg (hb0 r) p),
+    abs_of_nonneg (Real.rpow_nonneg (ha0 v') p)]
+  have hb1 : b r ^ p ≤ 1 :=
+    Real.rpow_le_one (hb0 r) (sub_le_self _ (smoothSwitch_nonneg _ _ _)) hp.le
+  have ha1 : a v' ^ p ≤ 1 := Real.rpow_le_one (ha0 v') (smoothSwitch_le_one _ _ _) hp.le
+  nlinarith [le_max_left (Ka : ℝ) Kb, le_max_right (Ka : ℝ) Kb, abs_nonneg (v - v'),
+    abs_nonneg (r - r'), abs_nonneg (a v ^ p - a v' ^ p), abs_nonneg (b r ^ p - b r' ^ p)]
 
 end Cslib

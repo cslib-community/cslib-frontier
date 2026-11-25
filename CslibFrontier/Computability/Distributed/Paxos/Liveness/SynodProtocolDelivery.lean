@@ -48,11 +48,9 @@ private lemma mTr_map_deliver {α : Type*} (f : α → Packet P M) {u : NetState
   induction as generalizing u with
   | nil => exact ⟨LTS.MTr.refl, Finset.Subset.rfl⟩
   | cons a rest ih =>
-    have htr : π.lts.Tr u (.deliver (f a)) (π.deliverStep u (f a)) :=
-      ⟨hmem a List.mem_cons_self, rfl⟩
-    have hsub1 : u.msgs ⊆ (π.deliverStep u (f a)).msgs := Finset.subset_union_left
-    obtain ⟨hmtr_r, hsub_r⟩ := ih (fun x hx => hsub1 (hmem x (List.mem_cons_of_mem a hx)))
-    exact ⟨LTS.MTr.stepL htr hmtr_r, hsub1.trans hsub_r⟩
+    obtain ⟨hmtr_r, hsub_r⟩ := ih (u := π.deliverStep u (f a)) fun x hx =>
+      Finset.subset_union_left (hmem x (List.mem_cons_of_mem a hx))
+    exact ⟨.stepL ⟨hmem a List.mem_cons_self, rfl⟩ hmtr_r, Finset.subset_union_left.trans hsub_r⟩
 
 
 end AsyncQuorumProtocol
@@ -79,41 +77,35 @@ lemma deliver_fanout_acc {P V : Type*} [Fintype P] [LinearOrder P] [DecidableEq 
       (∀ a ∈ as, (u'.proc a).state.acc = ast ∧
         (⟨a, p₀, reply a⟩ : Packet P (Msg P P V)) ∈ u'.msgs) := by
   let π := synodQuorumProtocol (V := V) qs
-  refine ⟨(π.mTr_map_deliver (fun a => ⟨p₀, a, msg⟩) (fun x hx => (hall x hx).1)).1, ?_⟩
+  refine ⟨(π.mTr_map_deliver (fun a => ⟨p₀, a, msg⟩) fun x hx => (hall x hx).1).1, ?_⟩
   induction hnodup generalizing u with
   | nil => exact ⟨fun _ => ⟨rfl, rfl⟩, fun _ _ => rfl, fun _ h => absurd h List.not_mem_nil⟩
   | @cons a rest ha_not _ ih =>
     have ha_not' : a ∉ rest := fun h => ha_not a h rfl
     obtain ⟨out, hon, hrep_mem⟩ := hrecv a (u.proc a) (hall a List.mem_cons_self).2
     let w1 := π.deliverStep u ⟨p₀, a, msg⟩
-    have hw1_pl : ∀ q, (w1.proc q).state.prop = (u.proc q).state.prop ∧
+    have hw1_pl (q : P) : (w1.proc q).state.prop = (u.proc q).state.prop ∧
         (w1.proc q).state.learn = (u.proc q).state.learn := by
-      intro q
       dsimp only [w1, AsyncQuorumProtocol.deliverStep, AsyncQuorumProtocol.applyResult]
       rw [hon]
       by_cases hqa : q = a <;> simp only [hqa, ↓reduceIte, and_self]
-    have hw1_other : ∀ x, x ≠ a → (w1.proc x).state.acc = (u.proc x).state.acc := by
-      intro x hxa
-      dsimp only [w1, AsyncQuorumProtocol.deliverStep, AsyncQuorumProtocol.applyResult]
-      simp only [hxa, ↓reduceIte]
-    have hw1_a : (w1.proc a).state.acc = ast ∧
-        (⟨a, p₀, reply a⟩ : Packet P (Msg P P V)) ∈ w1.msgs := by
-      dsimp only [w1, AsyncQuorumProtocol.deliverStep, AsyncQuorumProtocol.applyResult]
-      rw [hon, ite_eq_left rfl]
-      exact ⟨rfl, Finset.mem_union_right _ (Finset.mem_image.mpr ⟨(p₀, reply a), hrep_mem, rfl⟩)⟩
-    have hall_r : ∀ x ∈ rest, (⟨p₀, x, msg⟩ : Packet P (Msg P P V)) ∈ w1.msgs ∧
-        (w1.proc x).state.acc = acc₀ := fun x hx =>
+    have hw1_other (x : P) (hxa : x ≠ a) : (w1.proc x).state.acc = (u.proc x).state.acc := by
+      simp only [w1, AsyncQuorumProtocol.deliverStep, AsyncQuorumProtocol.applyResult, hxa,
+        ↓reduceIte]
+    have hall_r (x : P) (hx : x ∈ rest) : (⟨p₀, x, msg⟩ : Packet P (Msg P P V)) ∈ w1.msgs ∧
+        (w1.proc x).state.acc = acc₀ :=
       ⟨Finset.subset_union_left (hall x (List.mem_cons_of_mem a hx)).1,
         (hw1_other x fun h => ha_not' (h ▸ hx)).trans (hall x (List.mem_cons_of_mem a hx)).2⟩
-    have ⟨_, hsub_r⟩ := π.mTr_map_deliver (u := w1) (fun x => ⟨p₀, x, msg⟩)
-      (fun x hx => (hall_r x hx).1)
     obtain ⟨hpl_r, hnot_r, hin_r⟩ := ih hall_r
     refine ⟨fun q => ⟨(hpl_r q).1.trans (hw1_pl q).1, (hpl_r q).2.trans (hw1_pl q).2⟩,
       fun x hx => (hnot_r x fun h => hx (List.mem_cons_of_mem a h)).trans
-        (hw1_other x fun h => hx (h ▸ List.mem_cons_self)),
-      fun x hx => ?_⟩
+        (hw1_other x fun h => hx (h ▸ List.mem_cons_self)), fun x hx => ?_⟩
     rcases List.mem_cons.mp hx with rfl | hx_r
-    · exact ⟨(hnot_r x ha_not').trans hw1_a.1, hsub_r hw1_a.2⟩
+    · refine ⟨(hnot_r x ha_not').trans ?_,
+        (π.mTr_map_deliver (u := w1) (fun y => ⟨p₀, y, msg⟩) fun y hy => (hall_r y hy).1).2 ?_⟩
+      · simp [w1, π, AsyncQuorumProtocol.deliverStep, AsyncQuorumProtocol.applyResult, hon]
+      · simp only [w1, π, AsyncQuorumProtocol.deliverStep, AsyncQuorumProtocol.applyResult, hon]
+        exact Finset.mem_union_right _ (Finset.mem_image.mpr ⟨(p₀, reply x), hrep_mem, rfl⟩)
     · exact hin_r x hx_r
 
 /-- Many-to-one delivery fan-in preserving an inductive cohort predicate. -/

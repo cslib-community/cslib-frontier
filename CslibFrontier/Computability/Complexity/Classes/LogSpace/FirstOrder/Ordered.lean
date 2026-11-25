@@ -111,14 +111,10 @@ private theorem eval_termExpr {n : ℕ} [Fact (2 ≤ n)] [L.Structure (Fin n)]
     (termExpr fv base t).eval regs = (t.realize (Sum.elim val xs) : Fin n) := by
   cases t with
   | var x => cases x <;> first | exact hv _ | exact hxs _
-  | func f ts =>
-    cases f with
-    | inl f => exact isEmptyElim f
-    | inr f =>
-      cases f with
-      | zero => rfl
-      | one => rfl
-      | max => exact congrArg (· - 1) h0
+  | func f _ =>
+    rcases f with f | f
+    · exact isEmptyElim f
+    · cases f; exacts [rfl, rfl, congrArg (· - 1) h0]
 
 variable (v)
 
@@ -141,35 +137,25 @@ theorem atomicCompiler_correct {a : EncodedStructure} (ha : v.WellFormed a)
     letI := v.decode a
     (atomicCompiler v fv base).Correct (encStructure a) fv base val := by
   let _ := v.decode a
-  constructor
-  · intro k regs xs h0 hv hxs t
-    exact eval_termExpr h0 hv hxs t
-  · intro k r R ts P b T F B regs xs h0 hv hxs hB hinstr
-    have ht (i : Fin r) := eval_termExpr h0 hv hxs (ts i)
-    cases R with
-    | inl R => exact reaches_read_bitExprWith ha R h0 hB hinstr ht
-    | inr R =>
-      cases R with
-      | le =>
-        let x := (ts 0).realize (Sum.elim val xs)
-        let y := (ts 1).realize (Sum.elim val xs)
-        refine ⟨decide (x ≤ y), by simp only [decide_eq_true_eq]; rfl, ?_⟩
-        refine Reaches.lt hinstr hB ?_
-        simp only [ht]
-        change P.Reaches _ _ (if y.val < x.val then F else T, regs)
-          (if decide (x ≤ y) then T else F, regs)
-        by_cases h : x ≤ y
-        · simp only [show ¬ y.val < x.val from Nat.not_lt.mpr h, h, decide_true, ↓reduceIte]
-          exact Reaches.refl _
-        · simp only [show y.val < x.val from Nat.lt_of_not_ge h, h, decide_false, ↓reduceIte]
-          exact Reaches.refl _
-      | bit =>
-        refine ⟨((ts 0).realize (Sum.elim val xs) : Fin a.1).val.testBit
-          ((ts 1).realize (Sum.elim val xs)).val, Iff.rfl, ?_⟩
-        refine Reaches.lt hinstr hB ?_
-        simp only [eval_const, eval_bit, ht]
-        cases ((ts 0).realize (Sum.elim val xs) : Fin a.1).val.testBit
-          ((ts 1).realize (Sum.elim val xs)).val <;> exact Reaches.refl _
+  refine ⟨fun _ _ h0 hv hxs t => eval_termExpr h0 hv hxs t, ?_⟩
+  intro k r R ts P b T F B regs xs h0 hv hxs hB hinstr
+  have ht (i : Fin r) := eval_termExpr h0 hv hxs (ts i)
+  rcases R with R | (_ | _)
+  · exact reaches_read_bitExprWith ha R h0 hB hinstr ht
+  · let x := (ts 0).realize (Sum.elim val xs)
+    let y := (ts 1).realize (Sum.elim val xs)
+    refine ⟨decide (x ≤ y), by simp only [decide_eq_true_eq]; rfl, Reaches.lt hinstr hB ?_⟩
+    simp only [ht]
+    change P.Reaches _ _ (if y.val < x.val then F else T, regs)
+      (if decide (x ≤ y) then T else F, regs)
+    by_cases h : x ≤ y
+    · simp only [Nat.not_lt.mpr h, h, decide_true, ↓reduceIte]; exact Reaches.refl _
+    · simp only [Nat.lt_of_not_ge h, h, decide_false, ↓reduceIte]; exact Reaches.refl _
+  · refine ⟨((ts 0).realize (Sum.elim val xs) : Fin a.1).val.testBit
+      ((ts 1).realize (Sum.elim val xs)).val, Iff.rfl, Reaches.lt hinstr hB ?_⟩
+    simp only [eval_const, eval_bit, ht]
+    cases ((ts 0).realize (Sum.elim val xs) : Fin a.1).val.testBit
+      ((ts 1).realize (Sum.elim val xs)).val <;> exact Reaches.refl _
 
 variable (v)
 
@@ -220,8 +206,7 @@ theorem queryLanguage_mem_L (φ : (language L).Sentence) :
         ModelChecker.reaches_formulaCode hwf (decider_bounds v a 0).2.1 (fun e : Empty => e.elim)
           3 (by decide) (fun e => e.elim) default φ b T F regs default hP (by omega) h0 hB
           (fun e => e.elim) (fun i => i.elim0)
-      refine ⟨res, regs', ?_, hreach, hB'⟩
-      rw [mem_queryLanguage v φ, hres]
-      exact (and_iff_right hwf).symm
+      exact ⟨res, regs', by rw [mem_queryLanguage v φ, hres]; exact (and_iff_right hwf).symm,
+        hreach, hB'⟩
 
 end Cslib.Logic.FO.Ordered

@@ -61,18 +61,13 @@ abbrev chartWidth (n : ℕ) := n + 2
 theorem cycleLength_le_words (f : BitVec n → BitVec n) (x : BitVec n) :
     cycleLength f x ≤ 2 ^ n := by
   have h := transientDepth_add_cycleLength_le_card f x
-  have hc : Fintype.card (BitVec n) = 2 ^ n :=
-    (Fintype.card_congr BitVec.equivFin.toEquiv).trans (Fintype.card_fin _)
-  rw [hc] at h
-  lia
+  rw [(Fintype.card_congr BitVec.equivFin.toEquiv).trans (Fintype.card_fin _)] at h; lia
 
 /-- Any natural number `a ≤ 2 ^ n` fits without wraparound in `BitVec (chartWidth n)`. -/
 theorem chart_ofNat_toNat {a : ℕ} (ha : a ≤ 2 ^ n) :
     (BitVec.ofNat (chartWidth n) a).toNat = a := by
-  apply Nat.mod_eq_of_lt
-  simp only [chartWidth, Nat.pow_succ]
   have := Nat.two_pow_pos n
-  lia
+  exact Nat.mod_eq_of_lt (by simp only [chartWidth, Nat.pow_succ]; lia)
 
 private theorem chart_setWidth_toNat (x : BitVec n) :
     (x.setWidth (chartWidth n)).toNat = x.toNat := by
@@ -127,8 +122,7 @@ def contains (j : Fin R) (x : BitVec n) : Bool :=
 /-- `chart.contains j x` is `true` iff `x.toNat` lies in `[chart.start j, chart.stop j)`. -/
 @[simp] theorem contains_iff (j : Fin R) (x : BitVec n) :
     chart.contains j x = true ↔ chart.start j ≤ x.toNat ∧ x.toNat < chart.stop j := by
-  have hx := chart_setWidth_toNat x
-  simp only [contains, Bool.and_eq_true, Bool.not_eq_true', BitVec.ult, hx,
+  simp only [contains, Bool.and_eq_true, Bool.not_eq_true', BitVec.ult, chart_setWidth_toNat x,
     chart_ofNat_toNat (chart.start_lt j).le, chart_ofNat_toNat (chart.stop_le j),
     decide_eq_false_iff_not, not_lt, decide_eq_true_eq]
 
@@ -141,7 +135,7 @@ private theorem offset_toNat (j : Fin R) (x : BitVec n) (hx : chart.start j ≤ 
   have hw := chart_setWidth_toNat x
   have hs := chart_ofNat_toNat (chart.start_lt j).le
   unfold offset
-  rw [BitVec.toNat_sub_of_le (by change _ ≤ (x.setWidth _).toNat; rw [hs, hw]; exact hx), hw, hs]
+  rw [BitVec.toNat_sub_of_le (by change _ ≤ (x.setWidth _).toNat; rwa [hs, hw]), hw, hs]
 
 /-- Canonical coordinates predicted by one interval. -/
 noncomputable def encodedRow (j : Fin R) (x : BitVec n) :
@@ -152,29 +146,22 @@ noncomputable def encodedRow (j : Fin R) (x : BitVec n) :
 private theorem encodedRow_spec (hf : Function.Injective f) (j : Fin R) (x : BitVec n)
     (hx : chart.contains j x = true) : chart.encodedRow j x = wordCycleLabel f x := by
   obtain ⟨hlo, hhi⟩ := (chart.contains_iff j x).mp hx
-  have hpath := chart.point_eq j x hlo hhi
+  have hpath : f^[x.toNat - chart.start j] (chart.first j) = x := chart.point_eq j x hlo hhi
   have hd : x.toNat - chart.start j < cycleLength f (chart.first j) :=
     (show x.toNat - chart.start j < chart.stop j - chart.start j by lia).trans_le
       (chart.length_le_period hf j)
-  have hp : (addResidue (chart.period j) (chart.initialPhase j)
-      (chart.offset j x)).toNat = phase f x := by
-    rw [toNat_addResidue]
-    · rw [initialPhase_toNat, period_toNat, chart.offset_toNat j x hlo, ← phase_iterate]
-      exact congrArg (phase f) hpath
-    · simpa using phase_lt f (chart.first j)
-    · simpa only [period_toNat, chart.offset_toNat j x hlo] using hd
-  have hc : canonicalCycle f (chart.first j) = canonicalCycle f x := by
-    rw [← hpath, canonicalCycle_iterate]
-    rfl
-  have hl : cycleLength f (chart.first j) = cycleLength f x := by
-    rw [← hpath, cycleLength_iterate]
-    rfl
   have he : addResidue (chart.period j) (chart.initialPhase j)
       (chart.offset j x) = BitVec.ofNat (chartWidth n) (phase f x) := by
     apply BitVec.eq_of_toNat_eq
-    rw [hp, chart_ofNat_toNat ((phase_lt f x).le.trans (cycleLength_le_words f x))]
-  unfold encodedRow wordCycleLabel
-  rw [he, hc]
+    rw [toNat_addResidue _ _ _ (by simpa using phase_lt f (chart.first j))
+      (by simpa only [period_toNat, chart.offset_toNat j x hlo] using hd),
+      initialPhase_toNat, period_toNat, chart.offset_toNat j x hlo, ← phase_iterate, hpath,
+      chart_ofNat_toNat ((phase_lt f x).le.trans (cycleLength_le_words f x))]
+  have hc : canonicalCycle f (chart.first j) = canonicalCycle f x := by
+    rw [← hpath, canonicalCycle_iterate]
+  have hl : cycleLength f (chart.first j) = cycleLength f x := by
+    rw [← hpath, cycleLength_iterate]
+  rw [encodedRow, wordCycleLabel, he, hc]
   simp only [period, hl]
 
 /-- Encode by selecting any interval containing the input. -/

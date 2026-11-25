@@ -70,21 +70,15 @@ def encodeRootLabel {D : ℕ} (L : List (Fin D × SignType)) : List RootLabelTes
 /-- The bounded decoder always yields an allowed number of entries. -/
 theorem decodeRootLabel_length_le {D : ℕ} (hD : 0 < D) (N : ℕ) (data : List RootLabelTestCode) :
     (decodeRootLabel hD N data).length ≤ N := by
-  simp only [decodeRootLabel, List.length_map, List.length_take]
-  exact min_le_left _ _
+  simp [decodeRootLabel]
 
 /-- Every allowed mathematical label is recovered from its direct encoding. -/
 theorem decodeRootLabel_encodeRootLabel {D N : ℕ} (hD : 0 < D) (L : List (Fin D × SignType))
     (hL : L.length ≤ N) : decodeRootLabel hD N (encodeRootLabel L) = L := by
-  have hlen : (encodeRootLabel L).length ≤ N := by
-    simpa only [encodeRootLabel, List.length_map] using hL
-  rw [decodeRootLabel, List.take_of_length_le hlen, encodeRootLabel, List.map_map]
-  calc
-    _ = L.map id := by
-      apply congrArg (fun f => L.map f)
-      funext t
-      exact Prod.ext (Fin.ext (Nat.mod_eq_of_lt t.1.isLt)) (decodeSign_encodeSign t.2)
-    _ = L := List.map_id L
+  rw [decodeRootLabel, List.take_of_length_le (by simpa only [encodeRootLabel, List.length_map]
+    using hL), encodeRootLabel, List.map_map]
+  exact (congrArg L.map (funext fun t =>
+    Prod.ext (Fin.ext (Nat.mod_eq_of_lt t.1.isLt)) (decodeSign_encodeSign t.2))).trans L.map_id
 
 /-- The direct encoding of a bounded label has bit length linear in its number of
 entries and in the binary size of the derivative bound. -/
@@ -94,14 +88,14 @@ theorem length_encRootLabelCode_encodeRootLabel_le {D N : ℕ}
   have hentry (t : RootLabelTestCode) (ht : t ∈ encodeRootLabel L) :
       (encRootLabelTestCode t).length ≤ 2 * D.size + 3 := by
     obtain ⟨⟨i, s⟩, _, rfl⟩ := List.mem_map.mp ht
-    have hi := Nat.size_le_size i.isLt.le
-    have hs : (encodeSign s).size ≤ 2 := by cases s <;> decide
+    have := Nat.size_le_size i.isLt.le
+    have : (encodeSign s).size ≤ 2 := by cases s <;> decide
     simp only [encRootLabelTestCode_apply, encRootLabelTestCodeFields, length_encPair,
       encNat_apply, Nat.size_eq_bits_len]
     omega
   have hcode := length_encList_le encRootLabelTestCode (encodeRootLabel L) hentry
-  rw [show 2 * (2 * D.size + 3) + 1 = 4 * D.size + 7 by omega] at hcode
-  rw [encodeRootLabel, List.length_map] at hcode
+  rw [encodeRootLabel, List.length_map, show 2 * (2 * D.size + 3) + 1 = 4 * D.size + 7 by omega]
+    at hcode
   exact hcode.trans (Nat.mul_le_mul_right _ hL)
 
 /-- Convert the bounded prefix into the positive orders read by the sparse label evaluator. -/
@@ -111,8 +105,7 @@ def rootLabelCodeOrders (D N : ℕ) (data : List RootLabelTestCode) : List ℕ :
 /-- The order program uses the successor of the decoded zero-based derivative index. -/
 theorem rootLabelCodeOrders_eq {D : ℕ} (hD : 0 < D) (N : ℕ) (data : List RootLabelTestCode) :
     rootLabelCodeOrders D N data = (decodeRootLabel hD N data).map (fun t => t.1.val + 1) := by
-  simp only [rootLabelCodeOrders, decodeRootLabel, List.map_map]
-  rfl
+  simp only [rootLabelCodeOrders, decodeRootLabel, List.map_map]; rfl
 
 private def signResidue (p k : ℕ) : ℕ :=
   if k % 3 = 0 then 0 else if k % 3 = 1 then 1 else modularSub p 0 1
@@ -126,10 +119,10 @@ private theorem signResidue_polyTime {α : Type} {enc : α ↪ List Bool} {p k :
     (hp : ComputableInPolyTime p enc encNat) (hk : ComputableInPolyTime k enc encNat) :
     ComputableInPolyTime (fun w => signResidue (p w) (k w)) enc encNat := by
   have hmod := binary_mod.comp (hk.prod (.const 3))
-  have hzero := decide_eq' hmod (.const 0)
-  have hone := decide_eq' hmod (.const 1)
   simpa only [signResidue, decide_eq_true_eq, Function.comp_apply] using
-    ite' hzero (.const 0) (ite' hone (.const 1) (modularSub_polyTime hp (.const 0) (.const 1)))
+    ite' (decide_eq' hmod (.const 0)) (.const 0)
+      (ite' (decide_eq' hmod (.const 1)) (.const 1)
+        (modularSub_polyTime hp (.const 0) (.const 1)))
 
 /-- The order list is computable in polynomial time with a unary prefix bound. -/
 theorem rootLabelCodeOrders_polyTime {α : Type} {enc : α ↪ List Bool} {D N : α → ℕ}
@@ -138,11 +131,10 @@ theorem rootLabelCodeOrders_polyTime {α : Type} {enc : α ↪ List Bool} {D N :
     (hdata : ComputableInPolyTime data enc encRootLabelCode) :
     ComputableInPolyTime (fun w => rootLabelCodeOrders (D w) (N w) (data w))
       enc (encList encNat) := by
-  have hprefix := listTakeWithInput hdata hN
-  have hf := fst enc encRootLabelTestCode
   have hi := encRootLabelTestCode_index_polyTime (snd enc encRootLabelTestCode)
-  have horder := binary_add' (binary_mod.comp (hi.prod (hD.comp hf))) (.const 1)
-  simpa only [rootLabelCodeOrders, Function.comp_apply] using mapWithInput hprefix horder
+  simpa only [rootLabelCodeOrders, Function.comp_apply] using
+    mapWithInput (listTakeWithInput hdata hN)
+      (binary_add' (binary_mod.comp (hi.prod (hD.comp (fst enc encRootLabelTestCode)))) (.const 1))
 
 /-- Binary addressing of the target costs time polynomial in the encoded input and slot. -/
 theorem rootLabelCodeTarget_polyTime {α : Type} {enc : α ↪ List Bool} {p i : α → ℕ}
@@ -150,19 +142,15 @@ theorem rootLabelCodeTarget_polyTime {α : Type} {enc : α ↪ List Bool} {p i :
     (hp : ComputableInPolyTime p enc encNat) (hi : ComputableInPolyTime i enc encNat)
     (hdata : ComputableInPolyTime data enc encRootLabelCode) :
     ComputableInPolyTime (fun w => rootLabelCodeTarget (p w) (data w) (i w)) enc encNat := by
-  have hentry := listGetD_binary (encA := encRootLabelTestCode) ⟨0, 0⟩ hdata
-    (binary_sub' hi (.const 1))
-  have hk := encRootLabelTestCode_sign_polyTime hentry
+  have hk := encRootLabelTestCode_sign_polyTime
+    (listGetD_binary (encA := encRootLabelTestCode) ⟨0, 0⟩ hdata (binary_sub' hi (.const 1)))
   simpa only [rootLabelCodeTarget, decide_eq_true_eq, Function.comp_apply] using
     ite' (decide_eq' hi (.const 0)) (.const 1) (signResidue_polyTime hp hk)
 
 private theorem signResidue_cast {p : ℕ} (hp : 0 < p) (k : ℕ) :
     (signResidue p k : ZMod p) = ((decodeSign k : ℤ) : ZMod p) := by
-  by_cases hzero : k % 3 = 0
-  · simp [signResidue, decodeSign, hzero]
-  · by_cases hone : k % 3 = 1
-    · simp [signResidue, decodeSign, hone]
-    · simp [signResidue, decodeSign, hzero, hone, modularSub_cast hp]
+  unfold signResidue decodeSign
+  split_ifs <;> simp [modularSub_cast hp]
 
 /-- The target program agrees with the mathematical label on every used slot, including the
 qualifying slot and padding. Entries past the prefix cannot affect the label. -/

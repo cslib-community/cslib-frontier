@@ -67,28 +67,17 @@ theorem rowNormPow_ite_exists_le_sum {N u : ℝ} (hNu : 0 ≤ N * u)
         ∑ j ∈ range m, |if F j σ x then D σ x y else 0| ^ 4 := by
     by_cases hF : ∃ j < m, F j σ x
     · obtain ⟨j, hj, hjF⟩ := hF
-      have hsome : ∃ i < m, F i σ x := ⟨j, hj, hjF⟩
-      have hsingle := single_le_sum (s := range m)
-        (f := fun i => |if F i σ x then D σ x y else 0| ^ 4)
-        (fun _ _ => by positivity) (mem_range.mpr hj)
-      simpa only [hsome, hjF, ↓reduceIte] using hsingle
+      simpa only [show ∃ i < m, F i σ x from ⟨j, hj, hjF⟩, hjF, ↓reduceIte] using
+        single_le_sum (f := fun i => |if F i σ x then D σ x y else 0| ^ 4)
+          (fun _ _ => by positivity) (mem_range.mpr hj)
     · simp only [hF, ↓reduceIte, abs_zero, zero_pow (by decide : (4 : ℕ) ≠ 0)]
       exact sum_nonneg fun _ _ => by positivity
-  have hswap (σ : Ω) :
-      (∑ x ∈ ({x | X σ x} : Finset V), ∑ y ∈ ({y | Y σ y} : Finset V),
-        ∑ j ∈ range m, |if F j σ x then D σ x y else 0| ^ 4) =
-      ∑ j ∈ range m, ∑ x ∈ ({x | X σ x} : Finset V),
-        ∑ y ∈ ({y | Y σ y} : Finset V), |if F j σ x then D σ x y else 0| ^ 4 := by
-    simp_rw [sum_comm (s := ({y | Y σ y} : Finset V)) (t := range m)]
-    rw [sum_comm]
   unfold rowNormPow
-  calc
-    _ ≤ (N * u)⁻¹ * 𝔼 σ, ∑ x ∈ ({x | X σ x} : Finset V),
-        ∑ y ∈ ({y | Y σ y} : Finset V), ∑ j ∈ range m,
-          |if F j σ x then D σ x y else 0| ^ 4 := by
-      refine mul_le_mul_of_nonneg_left (expect_le_expect fun σ _ => ?_) (inv_nonneg.mpr hNu)
-      exact sum_le_sum fun x _ => sum_le_sum fun y _ => hpoint σ x y
-    _ = _ := by simp only [hswap, expect_sum_comm, mul_sum]
+  refine (mul_le_mul_of_nonneg_left (expect_le_expect fun σ _ =>
+    sum_le_sum fun x _ => sum_le_sum fun y _ => hpoint σ x y) (inv_nonneg.mpr hNu)).trans_eq ?_
+  rw [expect_congr rfl fun σ _ => by
+    simp_rw [sum_comm (s := ({y | Y σ y} : Finset V)) (t := range m)]
+    exact sum_comm, expect_sum_comm, mul_sum]
 
 end ExistentialMask
 
@@ -120,30 +109,22 @@ theorem rowNormPow_le_three_budgets_add_ite {N u : ℝ} (hNu : 0 ≤ N * u)
       rowNormPow 4 N u X Y (fun σ x y => if F σ x then D σ x y else 0) := by
   have hrow (σ : Ω) (x : V) (hx : X σ x) :
       ∑ y ∈ ({y | Y σ y} : Finset V), |D σ x y| ^ 4 ≤
-        128 * (K : ℝ) * (A ^ 4 * |Pre σ x| ^ 4 + C ^ 4 * |No σ x| ^ 4 +
-          C ^ 4 * |Tail σ x| ^ 4) +
-        ∑ y ∈ ({y | Y σ y} : Finset V), |if F σ x then D σ x y else 0| ^ 4 := by
+        128 * (K : ℝ) * (A ^ 4 * |Pre σ x| ^ 4 + C ^ 4 * |No σ x| ^ 4 + C ^ 4 * |Tail σ x| ^ 4) +
+          ∑ y ∈ ({y | Y σ y} : Finset V), |if F σ x then D σ x y else 0| ^ 4 := by
     by_cases hf : F σ x
     · simp only [hf, ↓reduceIte, le_add_iff_nonneg_left]
       positivity
     · simp only [hf, ↓reduceIte, abs_zero, zero_pow (by decide : (4 : ℕ) ≠ 0), sum_const_zero,
         add_zero]
-      refine (hD σ x hx hf).trans ?_
       have hS := add_add_pow_four_le (A * Pre σ x) (C * No σ x) (C * Tail σ x)
       have h4 : Even 4 := ⟨2, rfl⟩
       rw [h4.pow_abs, h4.pow_abs, h4.pow_abs, ← mul_pow, ← mul_pow, ← mul_pow]
-      exact (mul_le_mul_of_nonneg_left hS (by positivity)).trans_eq (by ring)
+      exact (hD σ x hx hf).trans ((mul_le_mul_of_nonneg_left hS (by positivity)).trans_eq (by ring))
   unfold rowNormPow vertexNormPow
-  calc
-    _ ≤ (N * u)⁻¹ * 𝔼 σ, ∑ x ∈ ({x | X σ x} : Finset V),
-        (128 * (K : ℝ) * (A ^ 4 * |Pre σ x| ^ 4 + C ^ 4 * |No σ x| ^ 4 +
-          C ^ 4 * |Tail σ x| ^ 4) +
-          ∑ y ∈ ({y | Y σ y} : Finset V), |if F σ x then D σ x y else 0| ^ 4) := by
-      refine mul_le_mul_of_nonneg_left (expect_le_expect fun σ _ => ?_) (inv_nonneg.mpr hNu)
-      exact sum_le_sum fun x hx => hrow σ x (mem_filter.mp hx).2
-    _ = _ := by
-      simp only [sum_add_distrib, ← mul_sum, expect_add_distrib, ← mul_expect]
-      ring
+  refine (mul_le_mul_of_nonneg_left (expect_le_expect fun σ _ =>
+    sum_le_sum fun x hx => hrow σ x (mem_filter.mp hx).2) (inv_nonneg.mpr hNu)).trans_eq ?_
+  simp only [sum_add_distrib, ← mul_sum, expect_add_distrib, ← mul_expect]
+  ring
 
 end BudgetAssembly
 
@@ -168,19 +149,12 @@ theorem sum_err_pow_four_le_of_false {ι : Type*} {η : ℝ}
           (uncompressedRow Δ a.row (j + 1) y)| ^ 4 := by
   have hcharge := one_le_sum_clippedError_pow_of_firstOverflow_dyadic hη hη1 ha
     m j hj hn hover hfirst hsecond hheavy 4
-  have he (y : ι) : |clippedError (truth y 0) (truth y 1)
-      (uncompressedRow Δ a.row (j + 1) y)| =
-      clippedError (truth y 0) (truth y 1) (uncompressedRow Δ a.row (j + 1) y) :=
-    abs_of_nonneg (clippedError_nonneg _ _ _)
-  calc
-    _ ≤ 2 * (K : ℝ) * M := hbound
-    _ = (2 * (K : ℝ) * M) * 1 := by ring
-    _ ≤ (2 * (K : ℝ) * M) * ((2 : ℝ) ^ (4 + 1) /
-        ((n j : ℝ) * dyadicFloor η m j ^ 4) *
-          ∑ y ∈ S, clippedError (truth y 0) (truth y 1)
-            (uncompressedRow Δ a.row (j + 1) y) ^ 4) :=
-      mul_le_mul_of_nonneg_left hcharge (by positivity)
-    _ = _ := by simp only [he]; norm_num; ring
+  refine (hbound.trans_eq (mul_one _).symm).trans
+    ((mul_le_mul_of_nonneg_left hcharge (by positivity)).trans_eq ?_)
+  simp only [fun y => abs_of_nonneg (clippedError_nonneg (truth y 0) (truth y 1)
+    (uncompressedRow Δ a.row (j + 1) y))]
+  norm_num
+  ring
 
 section NormalizedNorm
 
@@ -214,28 +188,21 @@ theorem rowNormPow_falseFirstOverflow_le_of_bound {η N u : ℝ}
   dsimp only
   unfold rowNormPow
   have hc : 0 ≤ 64 * (K : ℝ) * M / ((n j : ℝ) * dyadicFloor η m j ^ 4) := by positivity
-  calc
-    _ ≤ (N * u)⁻¹ * 𝔼 σ, ∑ x ∈ ({x | X σ x} : Finset V),
-        (64 * (K : ℝ) * M / ((n j : ℝ) * dyadicFloor η m j ^ 4)) *
-          ∑ y ∈ ({y | Y σ y} : Finset V),
-            |clippedError (truth σ x y 0) (truth σ x y 1)
-              (uncompressedRow (Δ σ x) (a σ x).row (j + 1) y)| ^ 4 := by
-      refine mul_le_mul_of_nonneg_left (expect_le_expect fun σ _ => ?_) (inv_nonneg.mpr hNu)
-      refine sum_le_sum fun x hx => ?_
-      have hx' := (mem_filter.mp hx).2
-      dsimp only
-      split_ifs with hF
-      · apply sum_err_pow_four_le_of_false hη hη1 (ha σ x hx') m j hj hn hF.1
-        · intro y hy
-          exact hfirst σ x y hx' (mem_filter.mp hy).2
-        · intro y hy
-          exact hsecond σ x y hx' (mem_filter.mp hy).2
-        · simpa only [heavyCountEvent, filter_filter] using Nat.lt_of_not_ge hF.2
-        · exact hM
-        · exact herr σ x hx'
-      · simp only [abs_zero, zero_pow (by decide : (4 : ℕ) ≠ 0), sum_const_zero]
-        exact mul_nonneg hc (sum_nonneg fun _ _ => by positivity)
-    _ = _ := by simp only [← mul_sum, ← mul_expect]; ring
+  refine (mul_le_mul_of_nonneg_left (expect_le_expect fun σ _ => sum_le_sum fun x hx =>
+    show _ ≤ (64 * (K : ℝ) * M / ((n j : ℝ) * dyadicFloor η m j ^ 4)) *
+      ∑ y ∈ ({y | Y σ y} : Finset V), |clippedError (truth σ x y 0) (truth σ x y 1)
+        (uncompressedRow (Δ σ x) (a σ x).row (j + 1) y)| ^ 4 from ?_)
+    (inv_nonneg.mpr hNu)).trans_eq (by simp only [← mul_sum, ← mul_expect]; ring)
+  have hx' := (mem_filter.mp hx).2
+  dsimp only
+  split_ifs with hF
+  · exact sum_err_pow_four_le_of_false hη hη1 (ha σ x hx') m j hj hn hF.1
+      (fun y hy => hfirst σ x y hx' (mem_filter.mp hy).2)
+      (fun y hy => hsecond σ x y hx' (mem_filter.mp hy).2)
+      (by simpa only [heavyCountEvent, filter_filter] using Nat.lt_of_not_ge hF.2)
+      hM (herr σ x hx')
+  · simp only [abs_zero, zero_pow (by decide : (4 : ℕ) ≠ 0), sum_const_zero]
+    exact mul_nonneg hc (sum_nonneg fun _ _ => by positivity)
 
 end NormalizedNorm
 

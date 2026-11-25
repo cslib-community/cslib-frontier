@@ -71,8 +71,7 @@ def sinkOfLineRel (n : α → ℕ) (P S : α × List Bool → List Bool) (a : α
 theorem sinkOfLineRel_iff {n : α → ℕ} {P S : α × List Bool → List Bool} {a : α} {u : List Bool} :
     sinkOfLineRel n P S a u ↔ endOfLineRel n P S a u ∧ hasOut n P S a u = false := by
   by_cases hu : u = zeroVertex (n a)
-  · subst hu
-    simp [sinkOfLineRel, endOfLineRel]
+  · simp [hu, sinkOfLineRel, endOfLineRel]
   · cases hin : hasIn n P S a u <;> cases hout : hasOut n P S a u <;>
       simp [sinkOfLineRel, endOfLineRel, hu, hin, hout]
 
@@ -93,14 +92,10 @@ theorem hasOut_select_eq_false_of_pigeonRel {n : α → ℕ} {P S : α × List B
     by_contra hv
     simp only [Bool.not_eq_false] at hv
     rcases h.2 with hz | ⟨hne, hcoll⟩
-    · have hFz : S (a, w.take (n a)) = zeroVertex (n a) := by
-        simpa [ppadToPppMap, hu] using hz
-      simp only [hasOut, decide_eq_true_eq] at hu
-      exact hu.2.2 hFz
+    · exact (of_decide_eq_true hu).2.2 (by simpa [ppadToPppMap, hu] using hz)
     · have hSuv : S (a, w.take (n a)) = S (a, w.drop (n a)) := by
         simpa [ppadToPppMap, hu, hv] using hcoll
-      simp only [hasOut, decide_eq_true_eq] at hu hv
-      exact hne (by rw [← hu.1, hSuv, hv.1])
+      exact hne (by rw [← (of_decide_eq_true hu).1, hSuv, (of_decide_eq_true hv).1])
 
 /-- Any solution of `pigeonRel` for `ppadToPppMap n P S` yields a solution of `sinkOfLineRel n P S`
 by selecting whichever of the two `n a`-bit halves lacks an active outgoing edge. -/
@@ -114,10 +109,10 @@ theorem sinkOfLineRel_of_pigeonRel {n : α → ℕ} {P S : α × List Bool → L
 satisfies `sinkOfLineRel`. -/
 theorem exists_sinkOfLine {n : α → ℕ} {P S : α × List Bool → List Bool} {a : α}
     (hS : ∀ u, u.length = n a → (S (a, u)).length = n a) :
-    ∃ u, sinkOfLineRel n P S a u := by
-  obtain ⟨w, hw⟩ := exists_pigeon (n := n) (F := ppadToPppMap n P S) (a := a)
-    (fun u hu => length_ppadToPppMap hS hu)
-  exact ⟨_, sinkOfLineRel_of_pigeonRel hw⟩
+    ∃ u, sinkOfLineRel n P S a u :=
+  let ⟨_, hw⟩ := exists_pigeon (n := n) (F := ppadToPppMap n P S) (a := a)
+    fun _ hu => length_ppadToPppMap hS hu
+  ⟨_, sinkOfLineRel_of_pigeonRel hw⟩
 
 /-- `sinkOfLineRel` is total whenever the successor map preserves the vertex bit-length. -/
 theorem isTotalSearch_sinkOfLineRel {n : α → ℕ} {P S : α × List Bool → List Bool}
@@ -134,11 +129,10 @@ theorem sinkOfLineRel_mem_FNP {enc : α ↪ List Bool} {n : α → ℕ}
     (hS : ComputableInPolyTime S (encPair enc encBits) encBits) :
     sinkOfLineRel n P S ∈ FNP enc := by
   obtain ⟨p, hp⟩ := (polyBounded hn).exists_polynomial
-  refine ⟨⟨p, fun a u h => h.1 ▸ hp a⟩,
+  exact ⟨⟨p, fun a _ h => h.1 ▸ hp a⟩,
     fun x => decide (x.2.length = n x.1 ∧ hasOut n P S x.1 x.2 = false ∧
-      (x.2 = zeroVertex (n x.1) ∨ hasIn n P S x.1 x.2 = true)), ?_, fun a u => ?_⟩
-  · fun_prop
-  · simp [sinkOfLineRel]
+      (x.2 = zeroVertex (n x.1) ∨ hasIn n P S x.1 x.2 = true)),
+    by fun_prop, fun _ _ => by simp [sinkOfLineRel]⟩
 
 /-- A polynomial-time length-preserving sink-of-line family defines a `TFNP` relation. -/
 theorem sinkOfLineRel_mem_TFNP {enc : α ↪ List Bool} {n : α → ℕ}
@@ -212,16 +206,12 @@ follows active outgoing edges and fixes every other vertex, reduces sink-of-line
 theorem PPADS_subset_PPP : PPADS enc ⊆ PPP enc := by
   intro R hR'
   obtain ⟨hR, n, P, S, hn, hP, hS, -, hS_len, hred⟩ := mem_PPADS.mp hR'
-  have hF : ComputableInPolyTime (ppadToPppMap n P S) (encPair enc encBits) encBits := by
-    unfold ppadToPppMap
-    fun_prop
-  have hlen : PreservesWidth n (ppadToPppMap n P S) :=
-    fun a _ hu => length_ppadToPppMap (hS_len a) hu
-  refine mem_PPP.mpr ⟨hR, n, ppadToPppMap n P S, hn, hF, hlen, hred.trans ?_⟩
-  refine .of_isTotalSearch (isTotalSearch_pigeonRel hlen) ComputableInPolyTime.id'
-    (g := fun p => if !hasOut n P S p.1 (p.2.take (n p.1))
-      then p.2.take (n p.1) else p.2.drop (n p.1)) ?_ fun a w hw => sinkOfLineRel_of_pigeonRel hw
-  fun_prop
+  have hlen : PreservesWidth n (ppadToPppMap n P S) := fun a _ => length_ppadToPppMap (hS_len a)
+  exact mem_PPP.mpr ⟨hR, n, ppadToPppMap n P S, hn, by unfold ppadToPppMap; fun_prop, hlen,
+    hred.trans <| .of_isTotalSearch (isTotalSearch_pigeonRel hlen) ComputableInPolyTime.id'
+      (g := fun p => if !hasOut n P S p.1 (p.2.take (n p.1))
+        then p.2.take (n p.1) else p.2.drop (n p.1))
+      (by fun_prop) fun _ _ => sinkOfLineRel_of_pigeonRel⟩
 
 /-- **`PPAD ⊆ PPP`** [Papadimitriou][Papadimitriou1994PPAD], [Beame et al.][BeameEtAl1998]: every
 problem in `PPAD` is in `PPP`, through `PPAD ⊆ PPADS ⊆ PPP`. -/
