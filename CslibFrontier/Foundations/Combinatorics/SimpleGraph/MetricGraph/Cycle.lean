@@ -1022,7 +1022,7 @@ theorem circleMap_dist_eq_circleDist [Finite V] {v₀ : V} {c : W.graph.Walk v�
   by_cases he : d₁.edge = d₂.edge
   · obtain ⟨hu, hv, hq_len⟩ :=
       walk_decomp_unique_of_isTrail c hs.1.isTrail q₁₁ q₁₂ h₁ q₂₁ q₂₂ h₂ hc₁ hc₂ he
-    have hd_eq : d₁ = d₂ := by cases d₁; cases d₂; congr 1; exact Prod.ext hu hv
+    have hd_eq : d₁ = d₂ := Dart.toProd_injective (Prod.ext hu hv)
     have hdir : circleDist L s₁ s₂ ≤ |(t₁ : ℝ) - t₂| * W.weight d₂.edge := by
       refine (circleDist_triangle hL _
           (walkLength W.weight q₁₁ + (t₁ : ℝ) * W.weight d₁.edge) _).trans ?_
