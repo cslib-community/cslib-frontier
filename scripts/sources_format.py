@@ -39,20 +39,38 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = ROOT / "manual" / "sources.md"
 
-# A list item: its marker and the text after it.
+# A top-level space-separated list item, any CommonMark §5.2 list item (0–3 leading spaces, space
+# or tab after the marker), and the CommonMark §5.2 subset — bullets or ordered item `1` — that
+# can interrupt an open paragraph.
 LIST_ITEM = re.compile(r"(?P<marker>(?:[-*+]|\d{1,9}[.)])[ ]+)(?P<text>\S.*)")
+ANY_LIST_ITEM = re.compile(r"(?P<marker> {0,3}(?:[-*+]|\d{1,9}[.)])[ \t]+)(?P<text>\S.*)")
+PARA_INTERRUPT_LIST = re.compile(r" {0,3}(?:[-*+]|1[.)])[ \t]+\S.*")
 EMPTY_LIST_ITEM = re.compile(r" {0,3}(?:[-*+]|\d{1,9}[.)])[ \t]*$")
+# Pandoc `fancy_lists` and `example_lists` markers (`(1)`, `(a)`, `(iv)`, `(#)`, `(@x)`, `A)`,
+# `II.`), kept off the start of wrapped prose lines.
+PANDOC_LIST_MARKER = re.compile(
+    r"(?:\((?:\d{1,9}|[A-Za-z]|[ivxlcdm]{1,9}|[IVXLCDM]{1,9}|#|@[A-Za-z0-9_-]*)\)"
+    r"|[A-Z]\)|[A-Z]\.[ \t]|[IVXLCDM]{2,}[.)])[ \t]+"
+)
 # A Setext heading underline: `=` or `-` characters after at most three spaces.
 SETEXT = re.compile(r" {0,3}(?:=+|-+)[ \t]*$")
 # A link or footnote reference definition (`[label]: url`), kept as its own line at block start.
 REFERENCE_DEF = re.compile(r" {0,3}\[[^\]]+\]:(?:\s|$)")
-# Lines that open another Markdown block (after up to three spaces) and end any paragraph:
-# anchors and other HTML, ATX headings, block quotes, tables, fences, thematic breaks and
-# Pandoc's `:::` divs.
-BLOCK_OPENER = re.compile(r" {0,3}(?:<|#|>|\||`{3,}|~{3,}|:::|([-*_])( *\1){2,}[ \t]*$)")
-NON_PIPE_OPENER = re.compile(r" {0,3}(?:<|#|>|`{3,}|~{3,}|:::|([-*_])( *\1){2,}[ \t]*$)")
+# Standalone tag-only lines such as `<a id="key"></a>`, kept on their own line at block start.
+STANDALONE_TAGS = re.compile(r" {0,3}(?:<[^<>]+>)+[ \t]*$")
+# Lines that open another Markdown block (after up to three spaces) and end any paragraph or table:
+# ATX headings (`#{1,6}` followed by whitespace or EOL in GFM tables, `#+(?:[ \t]|$)` in prose so
+# Pandoc's `markdown` reader also keeps `####### …` headings intact, never `#tag`), block quotes,
+# backtick fences without backticks in their info string (CommonMark §4.5), tilde fences, Pandoc
+# `:::` divs and thematic breaks (`BLOCK_OPENER` also includes leading-`|` lines outside tables).
+NON_PIPE_OPENER = re.compile(
+    r" {0,3}(?:#{1,6}(?:[ \t]|$)|>|`{3,}(?=[^`]*$)|~{3,}|:{3,}|([-*_])([ \t]*\1){2,}[ \t]*$)"
+)
+BLOCK_OPENER = re.compile(
+    r" {0,3}(?:#+(?:[ \t]|$)|>|\||`{3,}(?=[^`]*$)|~{3,}|:{3,}|([-*_])([ \t]*\1){2,}[ \t]*$)"
+)
 # The opening line of a fenced code block, whose lines up to the closing fence are kept.
-FENCE = re.compile(r" {0,3}(`{3,}|~{3,})")
+FENCE = re.compile(r" {0,3}(`{3,}(?=[^`]*$)|~{3,})")
 # Display math (`$$...$$`) and CommonMark §4.6 HTML block forms, kept across their full spans.
 DISPLAY_MATH = re.compile(r" {0,3}\$\$")
 HTML_RAW_OPEN = re.compile(r" {0,3}<(?:pre|script|style|textarea)(?:\s|>|$)", re.I)
@@ -85,7 +103,7 @@ ABBREVIATIONS = frozenset("""
 # Characters that may start a sentence line (with the exceptions in `starts_sentence`).
 STARTERS = frozenset("[(*_`§\"“‘")
 # How much of the text after a space `starts_sentence` reads.
-LOOKAHEAD = 200
+LOOKAHEAD = 1024
 
 
 def protected(text: str) -> list[tuple[int, int]]:
@@ -166,13 +184,14 @@ def starts_sentence(after: str) -> bool:
     """Whether `after`, the text after a space, may start a line inside a paragraph without
     starting another Markdown block in GitHub's or Pandoc's reading."""
     first = after[:1]
-    if not first or SETEXT.match(after) or LIST_ITEM.match(after):
+    if (not first or SETEXT.match(after) or ANY_LIST_ITEM.match(after)
+            or PANDOC_LIST_MARKER.match(after)):
         return False
     if first.isupper():
         return True
     if first not in STARTERS:
         return False
-    if first in "*_" and (after[1:2] in ("", " ") or BLOCK_OPENER.match(after)):
+    if first in "*_" and (not after[1:2] or after[1:2].isspace() or BLOCK_OPENER.match(after)):
         return False
     if first == "`" and after.startswith("```"):
         return False
@@ -204,6 +223,15 @@ def hard_break(line: str) -> bool:
     return line.endswith("  ") or line.endswith("\\")
 
 
+def fence_end(lines: list[str], i: int) -> int | None:
+    """Exclusive end line of a CommonMark §4.5 fenced code block starting at `lines[i]`."""
+    fence = FENCE.match(lines[i])
+    if not fence:
+        return None
+    close = re.compile(rf" {{0,3}}{re.escape(fence.group(1)[0])}{{{len(fence.group(1))},}}[ \t]*$")
+    return next((k + 1 for k in range(i + 1, len(lines)) if close.match(lines[k])), len(lines))
+
+
 def html_block_end(lines: list[str], i: int, *, in_paragraph: bool = False) -> int | None:
     """Exclusive end line of a CommonMark §4.6 HTML block starting at `lines[i]`, else None."""
     line = lines[i]
@@ -225,8 +253,20 @@ def html_block_end(lines: list[str], i: int, *, in_paragraph: bool = False) -> i
                       if ">" in (stripped[2:] if k == i else lines[k])), len(lines) - 1)
         return close + 1
     if HTML_BLOCK_TAG.match(line) or (not in_paragraph and HTML_SINGLE_TAG.match(line)):
-        # Types 6 and 7 run until the next blank line.
-        return next((k for k in range(i + 1, len(lines)) if not lines[k].strip()), len(lines))
+        # Types 6 and 7 run until the next blank line (and past any fence, raw HTML or math block
+        # opened before that blank line, which Pandoc's `markdown` reader keeps open after `</tag>`).
+        end = next((k for k in range(i + 1, len(lines)) if not lines[k].strip()), len(lines))
+        k = i + 1
+        while k < end:
+            sub = (fence_end(lines, k)
+                   or (html_block_end(lines, k)
+                       if (HTML_RAW_OPEN.match(lines[k])
+                           or lines[k].lstrip(" ").startswith(("<!--", "<?", "<![CDATA[")))
+                       else None)
+                   or display_math_end(lines, k))
+            end = max(end, sub or end)
+            k += 1
+        return end
     return None
 
 
@@ -266,14 +306,17 @@ def table_end(lines: list[str], i: int) -> int | None:
     if (not header.strip() or len(header) - len(header.lstrip(" ")) > 3
             or ("|" not in header and cols > 1)
             or FENCE.match(header) or SETEXT.match(header)
-            or LIST_ITEM.fullmatch(header) or EMPTY_LIST_ITEM.match(header)
-            or NON_PIPE_OPENER.match(header) or display_math_end(lines, i) is not None):
+            or ANY_LIST_ITEM.fullmatch(header) or EMPTY_LIST_ITEM.match(header)
+            or NON_PIPE_OPENER.match(header)
+            or html_block_end(lines, i, in_paragraph=True) is not None
+            or display_math_end(lines, i) is not None):
         return None
     # GFM §4.10: every non-blank line after the delimiter row continues the table (including a
-    # single-cell row with no `|`) until a blank line or another block-opening construct.
+    # single-cell row with no `|`, `#tag`, inline HTML or inline triple-backtick code) until a
+    # blank line or a block-interrupting construct.
     j = i + 2
     while (j < len(lines) and lines[j].strip()
-           and not LIST_ITEM.fullmatch(lines[j]) and not EMPTY_LIST_ITEM.match(lines[j])
+           and not PARA_INTERRUPT_LIST.match(lines[j])
            and not NON_PIPE_OPENER.match(lines[j])
            and html_block_end(lines, j, in_paragraph=True) is None
            and display_math_end(lines, j) is None):
@@ -290,7 +333,7 @@ def blockquote_end(lines: list[str], i: int) -> int | None:
         if re.match(r" {0,3}>", lines[j]):
             j += 1
             continue
-        if (LIST_ITEM.fullmatch(lines[j]) or EMPTY_LIST_ITEM.match(lines[j])
+        if (PARA_INTERRUPT_LIST.match(lines[j])
                 or NON_PIPE_OPENER.match(lines[j])
                 or html_block_end(lines, j, in_paragraph=True) is not None
                 or display_math_end(lines, j) is not None
@@ -300,12 +343,18 @@ def blockquote_end(lines: list[str], i: int) -> int | None:
     return j
 
 
-def list_item_opaque_end(lines: list[str], i: int, item: re.Match[str]) -> int | None:
-    """Exclusive end line when list item `lines[i]` contains a non-prose block, nested list or
-    indented code, else None."""
+def list_item_opaque_end(lines: list[str], i: int, item: re.Match[str],
+                         *, plain: bool = True) -> int | None:
+    """Exclusive end line when list item `lines[i]` has leading spaces/tabs or contains a
+    non-prose block, nested list or indented code, else None."""
     marker = item.group("marker")
     indent = " " * len(marker)
+    first = lines[i][len(marker):]
     end = i + 1
+    if first.lstrip(" ").startswith(("`", "~", "<", "$$")):
+        tail = [first, *lines[i + 1:]]
+        if sub_end := (fence_end(tail, 0) or html_block_end(tail, 0) or display_math_end(tail, 0)):
+            end = max(end, i + sub_end)
     while end < len(lines):
         if lines[end].startswith(indent):
             end += 1
@@ -316,12 +365,14 @@ def list_item_opaque_end(lines: list[str], i: int, item: re.Match[str]) -> int |
                 end = nxt + 1
                 continue
         break
-    if len(marker) - len(marker.rstrip(" ")) >= 5:  # CommonMark §5.2 Rule 2 indented code
+    if not plain or len(marker) - len(marker.rstrip(" ")) >= 5:  # CommonMark §5.2 Rule 2
         return end
-    inner = [lines[i][len(marker):],
+    inner = [first,
              *(part[len(indent):] if part.startswith(indent) else ""
                for part in lines[i + 1:end])]
-    if any(kind == "opaque" or (kind == "prose" and payload[0] != "")
+    if any(kind == "opaque" or (kind == "prose" and (
+               payload[0] != ""
+               or any(PANDOC_LIST_MARKER.match(p.lstrip(" ")) for p in payload[1])))
            for kind, payload in _iter_blocks(inner)):
         return end
     return None
@@ -340,29 +391,27 @@ def _iter_blocks(lines: list[str]):
             i = j
             continue
         item = LIST_ITEM.fullmatch(line)
-        if fence := FENCE.match(line):  # a fenced code block, kept up to its closing fence
-            close = re.compile(rf" {{0,3}}{re.escape(fence.group(1)[0])}{{{len(fence.group(1))},}}"
-                               r"\s*$")
-            j = next((k for k in range(i + 1, len(lines)) if close.match(lines[k])), len(lines))
-            yield ("opaque", lines[i:j + 1])
-            i = j + 1
-            continue
-        if end := (html_block_end(lines, i) or display_math_end(lines, i)
+        any_item = item or ANY_LIST_ITEM.fullmatch(line)
+        if end := (fence_end(lines, i) or html_block_end(lines, i) or display_math_end(lines, i)
                    or table_end(lines, i) or blockquote_end(lines, i)
-                   or (list_item_opaque_end(lines, i, item) if item else None)):
+                   or (list_item_opaque_end(lines, i, any_item, plain=bool(item))
+                       if any_item else None)):
             yield ("opaque", lines[i:end])
             i = end
             continue
-        if ((BLOCK_OPENER.match(line) and not item) or EMPTY_LIST_ITEM.match(line)
-                or SETEXT.match(line) or REFERENCE_DEF.match(line) or line[:1].isspace()):
+        if (((BLOCK_OPENER.match(line) or STANDALONE_TAGS.match(line)) and not item)
+                or EMPTY_LIST_ITEM.match(line) or SETEXT.match(line)
+                or REFERENCE_DEF.match(line) or line[:1].isspace()):
             yield ("opaque", [line])
             i += 1
             continue
         # A paragraph or top-level list item: this line and its continuation lines, up to a
         # blank line, another list item, a Setext underline or a line that opens another block.
         j = i + 1
-        while (j < len(lines) and lines[j].strip() and not LIST_ITEM.fullmatch(lines[j])
-               and not EMPTY_LIST_ITEM.match(lines[j])
+        while (j < len(lines) and lines[j].strip()
+               and not (ANY_LIST_ITEM.fullmatch(lines[j]) if item
+                        else PARA_INTERRUPT_LIST.match(lines[j]))
+               and not (EMPTY_LIST_ITEM.match(lines[j]) if item else False)
                and not (not item and SETEXT.match(lines[j]))
                and html_block_end(lines, j, in_paragraph=True) is None
                and display_math_end(lines, j) is None
@@ -380,13 +429,15 @@ def _iter_blocks(lines: list[str]):
         # Kept as they are: a hard line break (which joining would remove), a Setext underline,
         # nested list or embedded block inside a list item, and indentation other than `indent`.
         if any(hard_break(part) for part in block[:-1]) or any(
-                SETEXT.match(part.lstrip(" ")) or LIST_ITEM.fullmatch(part.lstrip(" "))
-                or (item and part.startswith(indent)
-                    and (BLOCK_OPENER.match(part[len(indent):])
-                         or DISPLAY_MATH.match(part[len(indent):])
-                         or bool(delimiter_cells(part[len(indent):]))))
-                or (part[:1].isspace() and (not item or not part.startswith(indent)
-                                            or part[len(indent):][:1].isspace()))
+                SETEXT.match(part.lstrip(" ")) or ANY_LIST_ITEM.fullmatch(part.lstrip(" "))
+                or PANDOC_LIST_MARKER.match(part.lstrip(" "))
+                or (item and (not part.startswith(indent)
+                              or part[len(indent):][:1].isspace()
+                              or BLOCK_OPENER.match(part[len(indent):])
+                              or html_block_end([part[len(indent):]], 0, in_paragraph=True) is not None
+                              or DISPLAY_MATH.match(part[len(indent):])
+                              or bool(delimiter_cells(part[len(indent):]))))
+                or (not item and part[:1].isspace())
                 for part in block[1:]):
             yield ("opaque", block)
         else:

@@ -29,6 +29,11 @@ class CanonicalTest(unittest.TestCase):
     def test_lines_of_a_paragraph_are_joined_first(self) -> None:
         self.assertSplits("One sentence\nthat wraps. And\nanother.\n\nNext paragraph.",
                           "One sentence that wraps.", "And another.", "", "Next paragraph.")
+        self.assertSplits("Published in\n2024. Second sentence.",
+                          "Published in", "2024. Second sentence.")
+        self.assertSplits("See issue\n#123. And\n<i>brief</i> note. Plus\n```code``` span. Done.",
+                          "See issue #123.", "And <i>brief</i> note.", "Plus ```code``` span.",
+                          "Done.")
 
     def test_abbreviations_initials_and_lowercase_do_not_split(self) -> None:
         self.assertSplits("By J. R. Smith et al. In Thm. 3, e.g. Lemma 2, cf. Section 4 on "
@@ -47,9 +52,11 @@ class CanonicalTest(unittest.TestCase):
                           "$$a = 1$$ is proved.", "Next.")
 
     def test_no_line_starts_another_block(self) -> None:
-        for text in ("Ends. * not a list item", "Ends. 1. not a list", "Ends. # Not a heading",
-                     "Ends. > Not a quote", "Ends. ```not a fence``` here", "Ends. [^1] note",
-                     "Ends. [label]: not a definition", "Ends. ***", "Ends. | not a table"):
+        for text in ("Ends. * not a list item", "Ends. *\tnot a list item", "Ends. 1. not a list",
+                     "Ends. (1) not a list", "Ends. A) not a list", "Ends. II. not a list",
+                     "Ends. # Not a heading", "Ends. > Not a quote", "Ends. ```not a fence``` here",
+                     "Ends. [^1] note", "Ends. [label]: not a definition", "Ends. ***",
+                     "Ends. | not a table"):
             with self.subTest(text):
                 self.assertSplits(text, text)
 
@@ -141,13 +148,46 @@ class CanonicalTest(unittest.TestCase):
                 "| Col A | Col B |\n| --- | --- |\nCell 1. More. | Cell 2\n",
                 "| Col A | Col B |\n| --- | --- |\nCell 1.\nMore. | Cell 2\n",
             ),
-            # GFM §4.10 single-cell table body row with no `|` at all.
+            # GFM §4.10 single-cell table body row with no `|` at all, and headers/rows starting
+            # with `#tag`, inline HTML (`<i>...</i>`) or inline triple-backtick code spans.
             (
                 "A | B\n--- | ---\nSource note. Keep it in one cell.\n",
                 "A | B\n--- | ---\nSource note.\nKeep it in one cell.\n",
             ),
+            (
+                "A | B\n--- | ---\n#tag. Single cell.\nAnother line. Still a cell.\n",
+                "A | B\n--- | ---\n#tag. Single cell.\nAnother line.\nStill a cell.\n",
+            ),
+            (
+                "#tag | B\n--- | ---\nAnother line. Still a cell.\n",
+                "#tag | B\n--- | ---\nAnother line.\nStill a cell.\n",
+            ),
+            (
+                "A | B\n--- | ---\n<i>brief</i> | B\nAnother line. Still a cell.\n",
+                "A | B\n--- | ---\n<i>brief</i> | B\nAnother line.\nStill a cell.\n",
+            ),
+            (
+                "<i>brief</i> | B\n--- | ---\nAnother line. Still a cell.\n",
+                "<i>brief</i> | B\n--- | ---\nAnother line.\nStill a cell.\n",
+            ),
+            (
+                "A | B\n--- | ---\n<i>\nAnother line. Still a cell.\n",
+                "A | B\n--- | ---\n<i>\nAnother line.\nStill a cell.\n",
+            ),
+            (
+                "A | B\n--- | ---\n```code``` | B\nAnother line. Still a cell.\n",
+                "A | B\n--- | ---\n```code``` | B\nAnother line.\nStill a cell.\n",
+            ),
+            (
+                "```code``` | B\n--- | ---\nAnother line. Still a cell.\n",
+                "```code``` | B\n--- | ---\nAnother line.\nStill a cell.\n",
+            ),
             # Blocks opened on the first line of a list item (`- <pre>`, `- ``` `, `- $$`,
-            # `- #`, `- >`, `- A | B`).
+            # `- #`, `- >`, `- A | B`), including unindented raw-HTML continuations.
+            (
+                "- <pre>\nSource note. Keep it on one physical line.\n</pre>\n",
+                "- <pre>\nSource note.\nKeep it on one physical line.\n</pre>\n",
+            ),
             (
                 "- <pre>\n  Source note. Keep it on one physical line.\n  </pre>\n",
                 "- <pre> Source note.\n  Keep it on one physical line.\n  </pre>\n",
@@ -248,6 +288,16 @@ class CommandTest(unittest.TestCase):
             status, output = self.run_main("--compare", str(old_pre), str(new_pre))
             self.assertEqual(status, 1)
             self.assertIn("block 1 differs", output)
+            for cell_row in ("#tag. Single cell.", "<i>brief</i> | B", "```code``` | B"):
+                old_tbl = pathlib.Path(tmp) / "tbl_old.md"
+                new_tbl = pathlib.Path(tmp) / "tbl_new.md"
+                old_tbl.write_text(f"A | B\n--- | ---\n{cell_row}\nAnother line. Still a cell.\n",
+                                   encoding="utf-8")
+                new_tbl.write_text(f"A | B\n--- | ---\n{cell_row}\nAnother line.\nStill a cell.\n",
+                                   encoding="utf-8")
+                status, output = self.run_main("--compare", str(old_tbl), str(new_tbl))
+                self.assertEqual(status, 1)
+                self.assertIn("block 1 differs", output)
 
 
 if __name__ == "__main__":
