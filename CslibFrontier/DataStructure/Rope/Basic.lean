@@ -48,7 +48,7 @@ other modules.
 * `Rope.length_eq_length_toList`, `Rope.height_eq_structuralHeight`: cached fields agree with
   the model and the structure.
 * `Rope.get?_eq_getElem?`, `Rope.toList_map`, `Rope.foldl_eq`, `Rope.foldr_eq`: the operations
-  agree with the `List` model. Membership is membership in `toList` by definition.
+  agree with the `List` model. Membership is membership in `toList` (`Rope.mem_toList`).
 * `Rope.toList_ofList`, `Rope.cacheCorrect_ofList`, `Rope.chunked_ofList`: bulk construction
   represents its input with correct caches and, for `1 ≤ B`, chunks of between `1` and `B`
   elements.
@@ -260,7 +260,8 @@ that conses each element once. -/
 
 /-- Bulk construction: one leaf per chunk of `xs.toChunks (max 1 B)`, combined by
 `List.balancedFold`. At every node the two sides receive `⌊n / 2⌋` and `⌈n / 2⌉` of the `n`
-chunks, so the shape depends only on the number of chunks. -/
+chunks. Every chunk is non-empty, so `mkNode` never drops a leaf, and the shape depends only on
+the number of chunks. -/
 @[expose] def ofList (B : ℕ) (xs : List α) : Rope α :=
   (xs.toChunks (max 1 B)).balancedFold mkNode .empty leaf
 
@@ -268,6 +269,9 @@ instance : Membership α (Rope α) := ⟨fun t x => x ∈ t.toList⟩
 
 instance [DecidableEq α] (x : α) (t : Rope α) : Decidable (x ∈ t) :=
   inferInstanceAs (Decidable (x ∈ t.toList))
+
+/-- Membership in the model is membership in the rope. -/
+@[simp] theorem mem_toList {x : α} {t : Rope α} : x ∈ t.toList ↔ x ∈ t := Iff.rfl
 
 private theorem foldr_cons_eq (t : Rope α) (tail : List α) :
     t.foldr List.cons tail = t.toList ++ tail := by
