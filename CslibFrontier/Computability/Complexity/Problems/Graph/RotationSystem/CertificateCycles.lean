@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Certificate
 import CslibFrontier.Foundations.GroupTheory.Perm.FirstReturn
+import CslibFrontier.Foundations.GroupTheory.Perm.InvariantPredicate
+import CslibFrontier.Foundations.GroupTheory.Perm.ListSplice
 
 /-!
 # Literal cycle words of accepted rotation tables
@@ -167,5 +169,82 @@ theorem formPerm_cycleWord_apply {G : Graph} {c : RotationCertificate}
   rw [Function.iterate_mod_minimalPeriod_eq, Function.iterate_succ_apply']
   have hrot : r.rotate^[k] d = e := (Dart.indexEquiv G).injective (Fin.ext hke)
   rw [hrot, index_decode_rotate h]
+
+/-- Roots at different vertices have disjoint words, even when their edges are parallel. -/
+theorem disjoint_cycleWord {G : Graph} {c : RotationCertificate}
+    (hc : verifyRotation G c = true) (a b : Dart G) (hab : a.vertex ≠ b.vertex) :
+    (cycleWord c a.index).Disjoint (cycleWord c b.index) := by
+  apply List.disjoint_left.mpr
+  intro n ha hb
+  obtain ⟨d, rfl, hd⟩ := (mem_cycleWord_iff_exists_dart hc a n).mp ha
+  exact hab (hd.symm.trans ((mem_cycleWord_iff hc b d).mp hb))
+
+open Equiv in
+/-- The two ways of swapping successors around markers on different vertex cycles give
+opposite block orders after skipping the second marker. The words come from the actual
+rotation table, and the successor comparisons use the original dart coordinates. -/
+theorem formPerm_cycleWord_join_skip_iff {G : Graph} (r : RotationSystem G)
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (a b x y : Dart G)
+    (hab : a.vertex ≠ b.vertex) (hx : x.vertex = a.vertex ∨ x.vertex = b.vertex)
+    (hxb : x ≠ b) (hyb : y ≠ b) :
+    let A := cycleWord (ofRotation r) a.index
+    let B := cycleWord (ofRotation r) b.index
+    let before := r.rotate * swap (r.rotate.symm a) (r.rotate.symm b)
+    let after := r.rotate * swap a b
+    ((a.index :: (A.tail ++ B.tail)).formPerm x.index = y.index ↔
+      before x = y ∨ before x = b ∧ before b = y) ∧
+    ((a.index :: (B.tail ++ A.tail)).formPerm x.index = y.index ↔
+      after x = y ∨ after x = b ∧ after b = y) := by
+  dsimp only
+  let c := ofRotation r
+  let A := cycleWord c a.index
+  let B := cycleWord c b.index
+  have hc : verifyRotation G c = true := verifyRotation_ofRotation r hG
+  have hidx : Function.Injective (Dart.index (G := G)) := fun _ _ h =>
+    (Dart.indexEquiv G).injective (Fin.ext h)
+  have hmem (root d : Dart G) : d.index ∈ cycleWord c root.index ↔ d.vertex = root.vertex :=
+    mem_cycleWord_iff hc root d
+  have hform (root d : Dart G) (hd : d.vertex = root.vertex) :
+      (cycleWord c root.index).formPerm d.index = (r.rotate d).index := by
+    rw [formPerm_cycleWord_apply hc root d hd, ← index_decode_rotate hc, decode_ofRotation r hG]
+  have hn : (A ++ B).Nodup := List.nodup_append'.mpr
+    ⟨nodup_cycleWord hc a, nodup_cycleWord hc b, disjoint_cycleWord hc a b hab⟩
+  let p (d : Dart G) := d.vertex = a.vertex ∨ d.vertex = b.vertex
+  have hproduct (d : Dart G) (hd : p d) :
+      (r.rotate d).index = (A.formPerm * B.formPerm) d.index := by
+    rw [Perm.mul_apply]
+    rcases hd with hd | hd
+    · have hnot : d.index ∉ B := fun hm => hab (hd.symm.trans ((hmem b d).mp hm))
+      rw [List.formPerm_apply_of_notMem hnot]
+      exact (hform a d hd).symm
+    · have hnot : (r.rotate d).index ∉ A := fun hm =>
+        hab (((hmem a (r.rotate d)).mp hm).symm.trans ((r.vertex_rotate d).trans hd))
+      rw [hform b d hd, List.formPerm_apply_of_notMem hnot]
+  have hcompare (u v : Dart G) (hu : p u) (hv : p v) :
+      let q := A.formPerm * B.formPerm * swap u.index v.index
+      let f := r.rotate * swap u v
+      (q x.index = y.index ∨ q x.index = b.index ∧ q b.index = y.index) ↔
+        f x = y ∨ f x = b ∧ f b = y := by
+    have he (d : Dart G) (hd : p d) :
+        ((r.rotate * swap u v) d).index =
+          (A.formPerm * B.formPerm * swap u.index v.index) d.index := by
+      change (r.rotate (swap u v d)).index = (A.formPerm * B.formPerm)
+        (swap u.index v.index d.index)
+      rw [← hidx.map_swap]
+      exact hproduct _ ((Equiv.predicate_swap p u v (iff_of_true hu hv) d).mpr hd)
+    simp only [← he x hx, ← he b (Or.inr rfl), hidx.eq_iff]
+  have hprev (d : Dart G) : (r.rotate.symm d).vertex = d.vertex := by
+    rw [← r.vertex_rotate (r.rotate.symm d), r.rotate.apply_symm_apply]
+  have hlast (d : Dart G) :
+      (cycleWord c d.index).getLast (by simp [cycleWord]) = (r.rotate.symm d).index := by
+    have he := hform d (r.rotate.symm d) (hprev d)
+    rw [r.rotate.apply_symm_apply] at he
+    exact ((List.formPerm_eq_head_iff_eq_getLast _ _ _).mp he).symm
+  obtain ⟨hBefore, hAfter⟩ := List.formPerm_join_skip_marker_iff A.tail B.tail a.index b.index
+    x.index y.index hn (fun he => hxb (hidx he)) (fun he => hyb (hidx he))
+  have hBefore' := hcompare (r.rotate.symm a) (r.rotate.symm b)
+    (Or.inl (hprev a)) (Or.inr (hprev b))
+  rw [← hlast a, ← hlast b] at hBefore'
+  exact ⟨hBefore.trans hBefore', hAfter.trans (hcompare a b (Or.inl rfl) (Or.inr rfl))⟩
 
 end Cslib.Complexity.Graph.RotationCertificate

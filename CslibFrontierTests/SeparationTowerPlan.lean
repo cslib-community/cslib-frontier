@@ -9,6 +9,9 @@ module
 
 import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.Capacity
 import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.Rules
+import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.Transfer
+import CslibFrontier.Foundations.Algebra.BigOperators.Sym
+import CslibFrontier.Foundations.GroupTheory.SLTower.Tower
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Data.Fintype.BigOperators
 
@@ -28,7 +31,11 @@ import Mathlib.Data.Fintype.BigOperators
   at the rate `1`, the boundary case of `towerPlan_ok_moveCap`; `startBound` and `moveCap` on its
   numbers are `10` and `33`, and the relay of the edge uses between `1` and `moveCap` units.
 * `towerPlan_ok` for an arbitrary tower, under its hypotheses: a slot is given at most `cap`
-  units. -/
+  units.
+* Laws at the vertices of other towers: the laws of the tower with one edge, at the vertices of
+  the tower without edges, with the same constants; the laws at the vertices of a tower of
+  `SL_h(F₂)` at the vertices of every other one; and the `3` pairs of different elements of
+  `Fin 3`, from the `6` ordered ones. -/
 
 set_option linter.privateModule false
 
@@ -422,5 +429,30 @@ example {T : Tower h b D J r} (R : Routes T m Uu) {ch : Fin A ↪ T.X 0} (FL : V
     (z : (moves R FL Pl).Slot) : ((towerPlan R FL Pl lhat U0 U1).given n o z).card ≤ cap :=
   have hP := towerPlan_ok hr hb hcap
   (hP.card_given_le n o z).trans (hP.count_le n o z.1)
+
+/-! ### Laws at the vertices of other towers -/
+
+/-- The laws at the vertices of the tower with one edge, at the vertices of the tower without
+edges: both have one place at a vertex and no near pairs. -/
+private abbrev pointLaws (F : Type) [CommSemiring F] : VertexLaws F (pointTower 1) :=
+  (edgeLaws F).transfer (pointTower 1) (Equiv.refl _) (Equiv.refl _) fun ν => ν.elim
+
+/-- The transferred laws have the constants of the laws of the tower with one edge. -/
+example : (pointLaws F).scale = 1 ∧ (pointLaws F).contraction = 0 := ⟨rfl, rfl⟩
+
+/-- The towers of `SL_h(F₂)` have the same places, near pairs and ends for every `n`, so the laws
+at the vertices of one of them are laws at the vertices of every other one. -/
+noncomputable example [NeZero h] (h2 : 2 ≤ h) (n n' : ℕ)
+    (FL : VertexLaws F (SLTower.tower h n h2)) :
+    VertexLaws F (SLTower.tower h n' h2) :=
+  FL.transfer _ (Equiv.refl _) (Equiv.refl _) fun _ => rfl
+
+/-- The `6` ordered pairs of different elements of `Fin 3` are twice the `3` unordered pairs off
+the diagonal. -/
+example : ∑ q : Sym2 (Fin 3), (if q.IsDiag then 0 else 1 : ℕ) = 3 := by
+  have h := Fintype.sum_sum_ite_eq_two_nsmul_sum_sym2 fun _ : Sym2 (Fin 3) => (1 : ℕ)
+  have h6 : ∑ a : Fin 3, ∑ b : Fin 3, (if a = b then 0 else 1 : ℕ) = 6 := by decide
+  rw [h6, smul_eq_mul] at h
+  omega
 
 end CslibFrontierTests.SeparationTowerPlan

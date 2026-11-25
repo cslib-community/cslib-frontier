@@ -157,8 +157,7 @@ theorem realizes_cascade : Realizes .exact
     (fun d : Fin 3 → ℕ => DataStructure.link (E := Memory.spec 0)
       ((layout (d 0) (d 1)).methods 0) (cascade (d 0 + 1) (d 2)))
     (.refl _) (WordEncoding.encode (α := Unit)) cascadeSafe (fun _ _ => 0) := by
-  conv => arg 2; ext d; rw [link_cascade_eq_boundedWhile]
-  realize [realizes_cascadeStep]
+  realize [realizes_cascadeStep] rewriting [link_cascade_eq_boundedWhile]
   all_goals first
     | exact h.1.of_le (by omega)
     | exact fun _ => h.2.2

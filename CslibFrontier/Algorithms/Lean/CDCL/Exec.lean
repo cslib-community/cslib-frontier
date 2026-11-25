@@ -21,7 +21,7 @@ invariant. Finding a conflict or a unit clause is left to the solver, which uses
 **State.** The solver keeps a trail of decisions and of implied literals carrying the number of
 their *reason*, a clause of the log (`Cslib.Algorithms.Lean.CDCL.XEntry`), the numbered clauses of
 its database, and an LRAT certificate under construction (`Cslib.Logic.PL.CNF.LRATLog`). Its
-invariant (`Cslib.Algorithms.Lean.CDCL.Exec.Inv`) is the invariant of the abstract system together
+invariant (`Cslib.Algorithms.Lean.CDCL.ExecL.Inv`) is the invariant of the abstract system together
 with:
 
 * every reason contains its literal, and its other literals are false further down the trail
@@ -29,6 +29,18 @@ with:
 * every clause of the database is in the log under its number;
 * no clause of the database is false on the part of the trail below a decision;
 * the numbered clauses of the input stay in the database.
+
+**Representation.** The solver's state `Cslib.Algorithms.Lean.CDCL.Exec` keeps the trail in two
+arrays of small numbers, oldest first: the code of each literal and the code of its reason
+(`Cslib.Algorithms.Lean.CDCL.ATrail`). Numbers in the scalar range of Lean's runtime are unboxed,
+so an entry makes no object; the arrays are written in place when they are not shared, growing or
+copying otherwise. Backjump and Restart pop the entries undone, and conflict analysis and the
+backjump read the arrays position by position. The
+trail read back as a list of entries, newest first (`Cslib.Algorithms.Lean.CDCL.ATrail.toX`), gives
+the state `Cslib.Algorithms.Lean.CDCL.ExecL` (`Cslib.Algorithms.Lean.CDCL.Exec.toL`), on which the
+moves are specified and the invariant is stated (`Cslib.Algorithms.Lean.CDCL.Exec.Inv`). Each move
+on arrays has a representation lemma (`Cslib.Algorithms.Lean.CDCL.Exec.toL_propagate`,
+`Cslib.Algorithms.Lean.CDCL.Exec.toL_afterConflict`, …), through which the invariant carries over.
 
 **Moves.**
 
@@ -48,7 +60,7 @@ with:
   first, and then the conflict clause: they refute the clause that the marks describe
   (`Cslib.Logic.PL.CNF.RupHints`), which is the resolvent so far. The solver backjumps, as MiniSat
   does, to the second-highest level of the learned clause: below the newest decision and every
-  level below it with no variable of the clause (`Cslib.Algorithms.Lean.CDCL.Exec.jump`, without
+  level below it with no variable of the clause (`Cslib.Algorithms.Lean.CDCL.ExecL.jump`, without
   decision levels). It adds the asserting literal with the learned clause as its reason, and learns
   the clause, adding it to the log as one RUP step (Backjump and Learn,
   `Cslib.Algorithms.Lean.CDCL.Exec.afterConflict`).
@@ -78,11 +90,13 @@ a conflict, so the checker accepts the certificate by construction, with no chec
 ## Main definitions
 
 * `Cslib.Algorithms.Lean.CDCL.Exec`, `Cslib.Algorithms.Lean.CDCL.Exec.Inv`: the state and its
-  invariant.
+  invariant, with the trail as arrays (`Cslib.Algorithms.Lean.CDCL.ATrail`), read back as
+  `Cslib.Algorithms.Lean.CDCL.ExecL`.
 * `Cslib.Algorithms.Lean.CDCL.analyze`: first-UIP conflict analysis, with its marks
   `Cslib.Algorithms.Lean.CDCL.Marks`, and the learned clause `Cslib.Algorithms.Lean.CDCL.Learned`.
-* `Cslib.Algorithms.Lean.CDCL.Exec.jump`: the backjump to the second-highest level of the learned
-  clause.
+* `Cslib.Algorithms.Lean.CDCL.ExecL.jump`: the backjump to the second-highest level of the learned
+  clause, found on the arrays by `Cslib.Algorithms.Lean.CDCL.ATrail.cutPos`
+  (`Cslib.Algorithms.Lean.CDCL.Exec.jump_eq`).
 * `Cslib.Algorithms.Lean.CDCL.refute`: the certificate when there is no decision.
 
 ## Main results
@@ -104,6 +118,7 @@ a conflict, so the checker accepts the certificate by construction, with no chec
 namespace Cslib.Algorithms.Lean.CDCL
 
 open Cslib.Logic.PL Cslib.Logic.PL.CNF
+open Cslib.Algorithms.WordRAM.ClauseCode (litCode)
 
 variable {φ : CNF ℕ}
 
@@ -139,6 +154,258 @@ def XTrail.trail (M : XTrail) : Trail := M.map XEntry.entry
 
 @[simp] theorem XTrail.trail_append (M N : XTrail) :
     XTrail.trail (M ++ N) = XTrail.trail M ++ XTrail.trail N := List.map_append ..
+
+/-- The literal of an entry of the solver's trail. -/
+def XEntry.lit : XEntry → Literal ℕ
+  | .decision l => l
+  | .implied l _ => l
+
+@[simp] theorem XEntry.lit_entry (e : XEntry) : e.entry.lit = e.lit := by cases e <;> rfl
+
+@[simp] theorem XEntry.var_entry (e : XEntry) : e.entry.var = e.lit.1 := by cases e <;> rfl
+
+/-- Whether an entry is a decision, read on the entry. -/
+def XEntry.isDecision : XEntry → Bool
+  | .decision _ => true
+  | .implied _ _ => false
+
+@[simp] theorem XEntry.isDecision_eq (e : XEntry) : e.isDecision = e.entry.decision := by
+  cases e <;> rfl
+
+/-- The code of the reason of an entry: `0` for a decision, and `r + 1` for an implied literal
+whose reason is numbered `r`. -/
+def XEntry.rsnCode : XEntry → ℕ
+  | .decision _ => 0
+  | .implied _ r => r + 1
+
+/-! ### The trail as arrays -/
+
+/-- The variable of a literal is its key halved. -/
+theorem litCode_div_two (l : Literal ℕ) : litCode l / 2 = l.1 :=
+  congrArg Prod.fst (litOfKey_litCode l)
+
+/-- **The solver's trail as two arrays**, oldest first: the code of each literal (`litCode`), and
+the code of the reason of each entry (`Cslib.Algorithms.Lean.CDCL.XEntry.rsnCode`). Codes in the
+scalar range of Lean's runtime are unboxed, so an entry makes no object; `push` and `shrink` write
+the arrays in place when they are not shared (and `push` has room), and grow or copy them
+otherwise. Backjumping pops the entries undone. The trail read back as a list of entries, newest
+first, is `Cslib.Algorithms.Lean.CDCL.ATrail.toX`, on which the invariants are stated. -/
+structure ATrail where
+  /-- The codes of the literals, oldest first. -/
+  lits : Array ℕ
+  /-- The codes of the reasons, oldest first. -/
+  rsns : Array ℕ
+  size_eq : lits.size = rsns.size
+
+namespace ATrail
+
+/-- The number of entries. -/
+def size (T : ATrail) : ℕ := T.lits.size
+
+/-- The empty trail. -/
+def empty : ATrail := ⟨#[], #[], rfl⟩
+
+/-- The literal at position `i`. -/
+@[inline] def lit (T : ATrail) (i : ℕ) : Literal ℕ := litOfKey (T.lits.getD i 0)
+
+/-- The entry at position `i`. -/
+def entry (T : ATrail) (i : ℕ) : XEntry :=
+  match T.rsns.getD i 0 with
+  | 0 => .decision (T.lit i)
+  | r + 1 => .implied (T.lit i) r
+
+/-- **The entries at positions `lo` to `lo + k - 1`**, newest first. -/
+def seg (T : ATrail) (lo : ℕ) : ℕ → XTrail
+  | 0 => []
+  | k + 1 => T.entry (lo + k) :: T.seg lo k
+
+/-- **The trail read back** as a list of entries, newest first. -/
+def toX (T : ATrail) : XTrail := T.seg 0 T.size
+
+/-- Adding an entry, given by the code of its literal and of its reason. -/
+@[inline] def push (T : ATrail) (c r : ℕ) : ATrail :=
+  ⟨T.lits.push c, T.rsns.push r, by simp [T.size_eq]⟩
+
+/-- Popping `k` elements, in place if the array is not shared. Unlike `Array.shrink`, whose body is
+not exposed, the kernel can unfold it, so that `decide +kernel` runs the solver. -/
+def popN {α : Type} : ℕ → Array α → Array α
+  | 0, a => a
+  | k + 1, a => popN k a.pop
+
+theorem size_popN {α : Type} : ∀ (k : ℕ) (a : Array α), (popN k a).size = a.size - k
+  | 0, _ => rfl
+  | k + 1, a => by rw [popN, size_popN k, Array.size_pop]; omega
+
+private theorem getD_popN : ∀ (k : ℕ) (a : Array ℕ) {i : ℕ}, i < a.size - k →
+    (popN k a).getD i 0 = a.getD i 0
+  | 0, _, _, _ => rfl
+  | k + 1, a, i, h => by
+    rw [popN, getD_popN k a.pop (by rw [Array.size_pop]; omega), Array.getD_eq_getD_getElem?,
+      Array.getD_eq_getD_getElem?, Array.getElem?_pop]
+    simp only [show i < a.size - 1 by omega, ↓reduceIte]
+
+/-- Keeping the first `q` entries, by popping the others, in place if the arrays are not
+shared. -/
+@[inline] def shrink (T : ATrail) (q : ℕ) : ATrail :=
+  ⟨popN (T.lits.size - q) T.lits, popN (T.lits.size - q) T.rsns, by
+    simp only [size_popN, T.size_eq]⟩
+
+/-- **A loop down the positions** `lo + k - 1` to `lo`, newest first, reading the codes of each
+entry: the fold of the entries `T.seg lo k` (`ATrail.foldDown_eq`). -/
+@[specialize] def foldDown {β : Type} (T : ATrail) (f : β → ℕ → ℕ → β) (lo : ℕ) : ℕ → β → β
+  | 0, b => b
+  | k + 1, b => T.foldDown f lo k (f b (T.lits.getD (lo + k) 0) (T.rsns.getD (lo + k) 0))
+
+/-- **A loop up the positions** `lo` to `lo + k - 1`, oldest first, reading the codes of each entry:
+the right fold of the entries `T.seg lo k` (`ATrail.foldUp_eq`). -/
+@[specialize] def foldUp {β : Type} (T : ATrail) (f : β → ℕ → ℕ → β) : ℕ → ℕ → β → β
+  | _, 0, b => b
+  | lo, k + 1, b => T.foldUp f (lo + 1) k (f b (T.lits.getD lo 0) (T.rsns.getD lo 0))
+
+theorem entry_lit (T : ATrail) (i : ℕ) : (T.entry i).lit = T.lit i := by
+  unfold entry; split <;> rfl
+
+theorem litCode_entry_lit (T : ATrail) (i : ℕ) : litCode (T.entry i).lit = T.lits.getD i 0 := by
+  rw [entry_lit, lit, litCode_litOfKey]
+
+theorem rsnCode_entry (T : ATrail) (i : ℕ) : (T.entry i).rsnCode = T.rsns.getD i 0 := by
+  unfold entry; split <;> simp_all [XEntry.rsnCode]
+
+theorem entry_of_rsn_zero {T : ATrail} {i : ℕ} (h : T.rsns.getD i 0 = 0) :
+    T.entry i = .decision (T.lit i) := by
+  simp [entry, h]
+
+theorem entry_of_rsn_succ {T : ATrail} {i r : ℕ} (h : T.rsns.getD i 0 = r + 1) :
+    T.entry i = .implied (T.lit i) r := by
+  simp [entry, h]
+
+theorem isDecision_entry (T : ATrail) (i : ℕ) :
+    (T.entry i).isDecision = (T.rsns.getD i 0 == 0) := by
+  unfold entry; split <;> simp_all [XEntry.isDecision]
+
+/-- The entry at a position holding the codes of `e` is `e`. -/
+theorem entry_eq_of {T : ATrail} {i : ℕ} {e : XEntry} (hl : T.lits.getD i 0 = litCode e.lit)
+    (hr : T.rsns.getD i 0 = e.rsnCode) : T.entry i = e := by
+  cases e <;> simp only [entry, lit, hl, hr, XEntry.rsnCode, XEntry.lit, litOfKey_litCode]
+
+/-- Two trails with the same codes at a position have the same entry there. -/
+theorem entry_congr {T T' : ATrail} {i : ℕ} (hl : T'.lits.getD i 0 = T.lits.getD i 0)
+    (hr : T'.rsns.getD i 0 = T.rsns.getD i 0) : T'.entry i = T.entry i := by
+  simp only [entry, lit, hl, hr]
+
+@[simp] theorem seg_zero (T : ATrail) (lo : ℕ) : T.seg lo 0 = [] := rfl
+
+theorem seg_succ (T : ATrail) (lo k : ℕ) : T.seg lo (k + 1) = T.entry (lo + k) :: T.seg lo k :=
+  rfl
+
+@[simp] theorem length_seg (T : ATrail) (lo k : ℕ) : (T.seg lo k).length = k := by
+  induction k with
+  | zero => rfl
+  | succ k ih => simp [seg_succ, ih]
+
+/-- **Cutting a segment**: the newer `b` entries, then the older `a`. -/
+theorem seg_add (T : ATrail) (lo a b : ℕ) : T.seg lo (a + b) = T.seg (lo + a) b ++ T.seg lo a := by
+  induction b with
+  | zero => rfl
+  | succ b ih => rw [← Nat.add_assoc, seg_succ, ih, seg_succ, Nat.add_assoc, List.cons_append]
+
+theorem seg_succ_bottom (T : ATrail) (lo k : ℕ) :
+    T.seg lo (k + 1) = T.seg (lo + 1) k ++ [T.entry lo] := by
+  rw [Nat.add_comm, seg_add]; rfl
+
+theorem mem_seg {T : ATrail} {lo k : ℕ} {x : XEntry} :
+    x ∈ T.seg lo k ↔ ∃ i, lo ≤ i ∧ i < lo + k ∧ T.entry i = x := by
+  induction k with
+  | zero => simp; omega
+  | succ k ih =>
+    rw [seg_succ, List.mem_cons, ih]
+    constructor
+    · rintro (rfl | ⟨i, h₁, h₂, h₃⟩)
+      · exact ⟨lo + k, by omega, by omega, rfl⟩
+      · exact ⟨i, h₁, by omega, h₃⟩
+    · rintro ⟨i, h₁, h₂, rfl⟩
+      by_cases hi : i = lo + k
+      · exact .inl (by rw [hi])
+      · exact .inr ⟨i, h₁, by omega, rfl⟩
+
+/-- Segments of two trails agreeing on their positions are equal. -/
+theorem seg_congr {T T' : ATrail} {lo k : ℕ}
+    (h : ∀ i, lo ≤ i → i < lo + k → T'.entry i = T.entry i) : T'.seg lo k = T.seg lo k := by
+  induction k with
+  | zero => rfl
+  | succ k ih =>
+    rw [seg_succ, seg_succ, h _ (by omega) (by omega), ih fun i h₁ h₂ => h i h₁ (by omega)]
+
+theorem foldDown_eq {β : Type} (T : ATrail) (f : β → ℕ → ℕ → β) (lo : ℕ) :
+    ∀ (k : ℕ) (b : β),
+      T.foldDown f lo k b = (T.seg lo k).foldl (fun b e => f b (litCode e.lit) e.rsnCode) b
+  | 0, _ => rfl
+  | k + 1, b => by
+    rw [foldDown, foldDown_eq T f lo k, seg_succ, List.foldl_cons, litCode_entry_lit,
+      rsnCode_entry]
+
+theorem foldUp_eq {β : Type} (T : ATrail) (f : β → ℕ → ℕ → β) :
+    ∀ (lo k : ℕ) (b : β),
+      T.foldUp f lo k b = (T.seg lo k).foldr (fun e b => f b (litCode e.lit) e.rsnCode) b
+  | _, 0, _ => rfl
+  | lo, k + 1, b => by
+    rw [foldUp, foldUp_eq T f (lo + 1) k, seg_succ_bottom, List.foldr_append, List.foldr_cons,
+      List.foldr_nil, litCode_entry_lit, rsnCode_entry]
+
+@[simp] theorem size_push (T : ATrail) (c r : ℕ) : (T.push c r).size = T.size + 1 := by
+  simp [push, size]
+
+theorem entry_push_lt (T : ATrail) {c r i : ℕ} (h : i < T.size) :
+    (T.push c r).entry i = T.entry i := by
+  have hl : i < T.lits.size := h
+  have h' : i < T.rsns.size := T.size_eq ▸ h
+  refine entry_congr ?_ ?_ <;>
+    simp [push, Array.getD_eq_getD_getElem?, Array.getElem?_push, hl, h', Nat.ne_of_lt]
+
+theorem entry_push_size (T : ATrail) (e : XEntry) :
+    (T.push (litCode e.lit) e.rsnCode).entry T.size = e := by
+  have h₁ : (T.push (litCode e.lit) e.rsnCode).lits.getD T.size 0 = litCode e.lit := by
+    simp [push, size]
+  have h₂ : (T.push (litCode e.lit) e.rsnCode).rsns.getD T.size 0 = e.rsnCode := by
+    simp [push, size, T.size_eq]
+  exact entry_eq_of h₁ h₂
+
+/-- **Pushing an entry** puts it at the head of the trail read back. -/
+theorem toX_push (T : ATrail) (e : XEntry) :
+    (T.push (litCode e.lit) e.rsnCode).toX = e :: T.toX := by
+  rw [toX, size_push, seg_succ, Nat.zero_add, entry_push_size, toX]
+  exact congrArg _ (seg_congr fun i _ h => T.entry_push_lt (by omega))
+
+@[simp] theorem size_shrink (T : ATrail) (q : ℕ) : (T.shrink q).size = min q T.size := by
+  simp only [shrink, size, size_popN]; omega
+
+private theorem entry_shrink (T : ATrail) {q i : ℕ} (h : i < q) :
+    (T.shrink q).entry i = T.entry i := by
+  by_cases hi : i < T.size
+  · have h₁ : i < T.lits.size - (T.lits.size - q) := by simp only [size] at hi; omega
+    have h₂ : i < T.rsns.size - (T.lits.size - q) := by rw [← T.size_eq]; exact h₁
+    exact entry_congr (getD_popN _ _ h₁) (getD_popN _ _ h₂)
+  · have hn : ∀ (a : Array ℕ), T.lits.size ≤ a.size → a.size ≤ i →
+        (popN (T.lits.size - q) a).getD i 0 = a.getD i 0 := fun a h₁ h₂ => by
+      rw [Array.getD_eq_getD_getElem?, Array.getD_eq_getD_getElem?,
+        Array.getElem?_eq_none (by rw [size_popN]; omega), Array.getElem?_eq_none (by omega)]
+    simp only [size] at hi
+    exact entry_congr (hn _ le_rfl (by omega))
+      (hn _ (T.size_eq ▸ le_rfl) (by rw [← T.size_eq]; omega))
+
+/-- **Popping down to `q` entries** keeps the oldest `q`. -/
+theorem toX_shrink (T : ATrail) {q : ℕ} (h : q ≤ T.size) : (T.shrink q).toX = T.seg 0 q := by
+  rw [toX, size_shrink, Nat.min_eq_left h]
+  exact seg_congr fun i _ hi => T.entry_shrink (by omega)
+
+@[simp] theorem length_toX (T : ATrail) : T.toX.length = T.size := length_seg ..
+
+@[simp] theorem toX_empty : ATrail.empty.toX = [] := rfl
+
+theorem mem_toX {T : ATrail} {x : XEntry} : x ∈ T.toX ↔ ∃ i < T.size, T.entry i = x := by
+  rw [toX, mem_seg]; simp
+
+end ATrail
 
 /-- Every implied literal of the trail has a reason clause in the log, containing it, whose other
 literals are false further down the trail; decisions have no reason. -/
@@ -596,89 +863,128 @@ private theorem value_eq_none_of_agrees {cur : Assign} {Cur A : Trail} (h : cur.
     | none => rfl
     | some b => exact absurd (Trail.mem_vars_of_mem_lits (hA ((h v b).1 hc))) hv
 
-/-- **First-UIP conflict analysis**, as MiniSat's: above the newest decision `d`, with the implied
-literals `N` over it still to pass and the trail `M₀` below it, the state `m` marks the analysed
-clause, which the hints refute. At an entry whose variable is seen, the analysis stops if it is the
-only seen variable left on the level, its first unique implication point, and otherwise adds its
-reason, whose number it prepends to the hints; entries whose variables are not seen are passed. The
-literals of the current level are read from the assignment `cur`, which agrees with them; passing
-an implied literal unassigns its variable. -/
-def analyzeGo (log : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) (A : Trail) :
-    (N : XTrail) → Trail.lits (XTrail.trail N ++ [⟨d, true⟩]) ⊆ Trail.lits A →
-    (cur : Assign) → cur.Agrees (XTrail.trail N ++ [⟨d, true⟩]) →
-    (m : Marks) → m.Inv (XTrail.trail N ++ [⟨d, true⟩]) (XTrail.trail M₀) φ.vars → 1 ≤ m.path →
-    (hints : List ℕ) → RupHints log.db (m.clause (XTrail.trail N ++ [⟨d, true⟩])) hints →
-    Reasons log (N ++ XEntry.decision d :: M₀) → (∀ x ∈ N, x.entry.decision = false) →
-    (Trail.vars (XTrail.trail (N ++ XEntry.decision d :: M₀))).Nodup →
-    Learned log A (XTrail.trail M₀)
-  | [], hA, cur, hcurA, m, hm, hpath, hints, hh, _, _, hnd =>
+/-- **The current level read back**: the entries above position `p`, then the decision at `p`. -/
+def ATrail.level (T : ATrail) (p : ℕ) : Trail :=
+  XTrail.trail (T.seg (p + 1) (T.size - (p + 1))) ++ [⟨T.lit p, true⟩]
+
+/-- **First-UIP conflict analysis**, as MiniSat's, on the trail `T` with its newest decision at
+position `p`: with the `k` implied literals over it still to pass, at positions `p + 1` to `p + k`,
+and the trail below it, the state `m` marks the analysed clause, which the hints refute. At an entry
+whose variable is seen, the analysis stops if it is the only seen variable left on the level, its
+first unique implication point, and otherwise adds its reason, whose number it prepends to the
+hints; entries whose variables are not seen are passed. The entries are read from the arrays of
+the trail, position by position, so no list is built; the entries read back (`ATrail.seg`) appear
+only in the invariant. The literals of the current level are read from the assignment `cur`, which
+agrees with them; passing an implied literal unassigns its variable. -/
+def analyzeGo (log : LRATLog φ) (T : ATrail) (p : ℕ) :
+    (k : ℕ) → Trail.lits (XTrail.trail (T.seg (p + 1) k) ++ [⟨T.lit p, true⟩]) ⊆
+      Trail.lits (T.level p) →
+    (cur : Assign) → cur.Agrees (XTrail.trail (T.seg (p + 1) k) ++ [⟨T.lit p, true⟩]) →
+    (m : Marks) →
+    m.Inv (XTrail.trail (T.seg (p + 1) k) ++ [⟨T.lit p, true⟩]) (XTrail.trail (T.seg 0 p)) φ.vars →
+    1 ≤ m.path → (hints : List ℕ) →
+    RupHints log.db (m.clause (XTrail.trail (T.seg (p + 1) k) ++ [⟨T.lit p, true⟩])) hints →
+    Reasons log (T.seg (p + 1) k ++ XEntry.decision (T.lit p) :: T.seg 0 p) →
+    (∀ x ∈ T.seg (p + 1) k, x.entry.decision = false) →
+    (Trail.vars (XTrail.trail (T.seg (p + 1) k ++ XEntry.decision (T.lit p) :: T.seg 0 p))).Nodup →
+    Learned log (T.level p) (XTrail.trail (T.seg 0 p))
+  | 0, hA, cur, hcurA, m, hm, hpath, hints, hh, _, _, hnd =>
     -- at the decision, the path has only its variable
-    have hd : m.seen.assigned d.1 = true := by
+    have hd : m.seen.assigned (T.lit p).1 = true := by
       have := hm.path_eq
       by_contra h
-      simp only [XTrail.trail_nil, List.nil_append, List.countP_singleton] at this
+      simp only [ATrail.seg_zero, XTrail.trail_nil, List.nil_append, List.countP_singleton]
+        at this
       simp only [Bool.not_eq_true] at h
       rw [h] at this
       simp at this
       omega
     have hp : m.path = 1 := by
       have := hm.path_eq
-      simp only [XTrail.trail_nil, List.nil_append, List.countP_singleton, hd] at this
+      simp only [ATrail.seg_zero, XTrail.trail_nil, List.nil_append, List.countP_singleton, hd]
+        at this
       simpa using this
-    m.learned log d true hm hd hp hints hh (hA (by simp [Trail.lits]))
+    m.learned log (T.lit p) true hm hd hp hints hh (hA (by simp [Trail.lits]))
       (fun h => by
-        simp only [List.nil_append, XTrail.trail_cons, XEntry.entry_decision, Trail.vars,
-          List.map_cons, List.nodup_cons] at hnd
+        simp only [ATrail.seg_zero, List.nil_append, XTrail.trail_cons, XEntry.entry_decision,
+          Trail.vars, List.map_cons, List.nodup_cons] at hnd
         exact hnd.1 h)
       cur (by exact value_eq_none_of_agrees hcurA hA)
-  | .decision _ :: _, _, _, _, _, _, _, _, _, _, hdec, _ =>
-    absurd (hdec _ List.mem_cons_self) (by simp)
-  | .implied l r :: N', hA, cur, hcurA, m, hm, hpath, hints, hh, hreasons, hdec, hnd =>
-    have hA' : Trail.lits (XTrail.trail N' ++ [⟨d, true⟩]) ⊆ Trail.lits A :=
+  | k + 1, hA, cur, hcurA, m, hm, hpath, hints, hh, hreasons, hdec, hnd =>
+    match hr : T.rsns.getD (p + 1 + k) 0 with
+    | 0 =>
+      absurd (hdec (T.entry (p + 1 + k)) (by rw [ATrail.seg_succ]; exact List.mem_cons_self))
+        (by rw [ATrail.entry_of_rsn_zero hr]; simp)
+    | r + 1 =>
+    have hN : T.seg (p + 1) (k + 1) = .implied (T.lit (p + 1 + k)) r :: T.seg (p + 1) k := by
+      rw [ATrail.seg_succ, ATrail.entry_of_rsn_succ hr]
+    have hA : Trail.lits (XTrail.trail (.implied (T.lit (p + 1 + k)) r :: T.seg (p + 1) k) ++
+        [⟨T.lit p, true⟩]) ⊆ Trail.lits (T.level p) := by rw [← hN]; exact hA
+    have hcurA : cur.Agrees (XTrail.trail (.implied (T.lit (p + 1 + k)) r :: T.seg (p + 1) k) ++
+        [⟨T.lit p, true⟩]) := by rw [← hN]; exact hcurA
+    have hm : m.Inv (XTrail.trail (.implied (T.lit (p + 1 + k)) r :: T.seg (p + 1) k) ++
+        [⟨T.lit p, true⟩]) (XTrail.trail (T.seg 0 p)) φ.vars := by rw [← hN]; exact hm
+    have hh : RupHints log.db (m.clause (XTrail.trail (.implied (T.lit (p + 1 + k)) r ::
+        T.seg (p + 1) k) ++ [⟨T.lit p, true⟩])) hints := by rw [← hN]; exact hh
+    have hreasons : Reasons log (.implied (T.lit (p + 1 + k)) r :: T.seg (p + 1) k ++
+        XEntry.decision (T.lit p) :: T.seg 0 p) := by rw [← hN]; exact hreasons
+    have hnd : (Trail.vars (XTrail.trail (.implied (T.lit (p + 1 + k)) r :: T.seg (p + 1) k ++
+        XEntry.decision (T.lit p) :: T.seg 0 p))).Nodup := by rw [← hN]; exact hnd
+    have hA' : Trail.lits (XTrail.trail (T.seg (p + 1) k) ++ [⟨T.lit p, true⟩]) ⊆
+        Trail.lits (T.level p) :=
       fun x hx => hA (mem_lits_cons.2 (.inr hx))
-    have hdec' : ∀ x ∈ N', x.entry.decision = false :=
-      fun x hx => hdec x (List.mem_cons_of_mem _ hx)
-    have hnd' : (Trail.vars (XTrail.trail (N' ++ XEntry.decision d :: M₀))).Nodup := by
+    have hdec' : ∀ x ∈ T.seg (p + 1) k, x.entry.decision = false :=
+      fun x hx => hdec x (by rw [hN]; exact List.mem_cons_of_mem _ hx)
+    have hnd' : (Trail.vars (XTrail.trail (T.seg (p + 1) k ++
+        XEntry.decision (T.lit p) :: T.seg 0 p))).Nodup := by
       have := hnd
       simp only [List.cons_append, XTrail.trail_cons, Trail.vars, List.map_cons,
         List.nodup_cons] at this
       exact this.2
     -- passing `l` unassigns its variable, which is not further down the trail
-    have hl₀ : l.1 ∉ Trail.vars (XTrail.trail (N' ++ XEntry.decision d :: M₀)) := by
+    have hl₀ : (T.lit (p + 1 + k)).1 ∉
+        Trail.vars (XTrail.trail (T.seg (p + 1) k ++ XEntry.decision (T.lit p) :: T.seg 0 p)) := by
       have := hnd
       simp only [List.cons_append, XTrail.trail_cons, Trail.vars, List.map_cons,
         List.nodup_cons] at this
       exact this.1
-    have hl : l.1 ∉ Trail.vars (XTrail.trail N' ++ [⟨d, true⟩]) := fun h =>
+    have hl : (T.lit (p + 1 + k)).1 ∉
+        Trail.vars (XTrail.trail (T.seg (p + 1) k) ++ [⟨T.lit p, true⟩]) := fun h =>
       hl₀ (by rw [trail_level, vars_append]; exact List.mem_append_left _ h)
-    have hlM : l.1 ∉ Trail.vars (XTrail.trail M₀) := fun h =>
+    have hlM : (T.lit (p + 1 + k)).1 ∉ Trail.vars (XTrail.trail (T.seg 0 p)) := fun h =>
       hl₀ (by rw [trail_level, vars_append]; exact List.mem_append_right _ h)
     -- `cur.clear l.1` is `cur.unassign [l.1]`, with no list built
-    have hcurA' : (cur.clear l.1).Agrees (XTrail.trail N' ++ [⟨d, true⟩]) :=
-      (Assign.Agrees.drop (N := [⟨l, false⟩]) hcurA fun v hv => by
-        rw [show v = l.1 by simpa [Trail.vars] using hv]; exact hl :
-        (cur.unassign [l.1]).Agrees (XTrail.trail N' ++ [⟨d, true⟩]))
-    if hs : m.seen.assigned l.1 = true then
+    have hcurA' : (cur.clear (T.lit (p + 1 + k)).1).Agrees
+        (XTrail.trail (T.seg (p + 1) k) ++ [⟨T.lit p, true⟩]) :=
+      (Assign.Agrees.drop (N := [⟨T.lit (p + 1 + k), false⟩]) hcurA fun v hv => by
+        rw [show v = (T.lit (p + 1 + k)).1 by simpa [Trail.vars] using hv]; exact hl :
+        (cur.unassign [(T.lit (p + 1 + k)).1]).Agrees
+          (XTrail.trail (T.seg (p + 1) k) ++ [⟨T.lit p, true⟩]))
+    if hs : m.seen.assigned (T.lit (p + 1 + k)).1 = true then
       if hp : m.path = 1 then
-        m.learned log l false hm hs hp hints hh (hA (mem_lits_cons.2 (.inl rfl))) hlM
-          cur (by exact value_eq_none_of_agrees hcurA hA)
+        m.learned log (T.lit (p + 1 + k)) false hm hs hp hints hh
+          (hA (mem_lits_cons.2 (.inl rfl))) hlM cur (by exact value_eq_none_of_agrees hcurA hA)
       else
         match hR : log.clause? r with
         | none => absurd hreasons.isSome (by simp [hR])
         | some R =>
           have hRfalse := (hreasons.reason hR).2
-          have hm₀ := hm.resolve (e := ⟨l, false⟩) hs
+          have hm₀ := hm.resolve (e := ⟨T.lit (p + 1 + k), false⟩) hs
           have hspec := Marks.absorb_spec hcurA' (by rw [← trail_level]; exact hnd')
             ⟨m.seen, m.out, m.path - 1, m.vars⟩ R hm₀ (LRATLog.vars_mem_of_clause? hR)
             fun y hy hys => by
-              have hne : y ≠ l := fun h => by simp_all
-              have : y.negate ∈ Trail.lits (XTrail.trail (N' ++ XEntry.decision d :: M₀)) :=
-                hRfalse y hy hne
+              have hne : y ≠ T.lit (p + 1 + k) := fun h => by simp_all
+              have : y.negate ∈ Trail.lits (XTrail.trail (T.seg (p + 1) k ++
+                  XEntry.decision (T.lit p) :: T.seg 0 p)) := hRfalse y hy hne
               rw [trail_level, lits_append, List.mem_append] at this
               exact this
-          analyzeGo log d M₀ A N' hA' (cur.clear l.1) hcurA'
-            (Marks.absorb (cur.clear l.1) ⟨m.seen, m.out, m.path - 1, m.vars⟩ R) hspec.1
+          analyzeGo log T p k hA' (cur.clear (T.lit (p + 1 + k)).1) hcurA'
+            -- `Marks.absorb` of the state with one off the path, without building that state
+            (Marks.absorbGo (cur.clear (T.lit (p + 1 + k)).1) m.seen m.out (m.path - 1) m.vars R)
+            hspec.1
             (by
+              change 1 ≤ (Marks.absorb (cur.clear (T.lit (p + 1 + k)).1)
+                ⟨m.seen, m.out, m.path - 1, m.vars⟩ R).path
               rw [hspec.1.path_eq]
               calc 1 ≤ m.path - 1 := by omega
                 _ = _ := hm₀.path_eq
@@ -686,8 +992,8 @@ def analyzeGo (log : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) (A : Trail) :
             (r :: hints)
             (hh.resolve (LRATLog.find?_of_clause? hR)
               (fun y hy hne => hspec.1.clause_of_seen (hspec.2.1 y hy) (by
-                have : y.negate ∈ Trail.lits (XTrail.trail (N' ++ XEntry.decision d :: M₀)) :=
-                  hRfalse y hy hne
+                have : y.negate ∈ Trail.lits (XTrail.trail (T.seg (p + 1) k ++
+                    XEntry.decision (T.lit p) :: T.seg 0 p)) := hRfalse y hy hne
                 rw [trail_level, lits_append, List.mem_append] at this
                 exact this))
               fun y hy => by
@@ -698,8 +1004,8 @@ def analyzeGo (log : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) (A : Trail) :
                 · exact .inr (.inr ⟨hspec.2.2.1 _ hys, hy⟩))
             hreasons.tail hdec' hnd'
     else
-      analyzeGo log d M₀ A N' hA' (cur.clear l.1) hcurA' m
-        (hm.pass (e := ⟨l, false⟩) (by simpa using hs)) hpath hints
+      analyzeGo log T p k hA' (cur.clear (T.lit (p + 1 + k)).1) hcurA' m
+        (hm.pass (e := ⟨T.lit (p + 1 + k), false⟩) (by simpa using hs)) hpath hints
         (hh.mono fun y hy => by
           rcases hy with hy | ⟨hys, hy⟩
           · exact .inl hy
@@ -710,32 +1016,38 @@ def analyzeGo (log : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) (A : Trail) :
           · exact .inr ⟨hys, hy⟩)
         hreasons.tail hdec' hnd'
 
-/-- **First-UIP conflict analysis.** Above the newest decision `d`, with the implied literals `N`
-over it and the trail `M₀` below it, the clause numbered `i` is false and has a literal false at
-the current level. Its literals are marked (`Cslib.Algorithms.Lean.CDCL.Marks.absorb`), and the
-analysis walks down the level, adding the reasons of the entries whose variables are seen, until
-one seen variable is left on the level, its first unique implication point, which is reached at
-the latest at the decision. The learned clause is never false at the current level elsewhere, and
-the hints, the reasons added, oldest first, and then the clause `i`, refute it by unit
-propagation. The variables seen are marked in an array of `n` slots, which grows only for
-variables beyond it: `n` affects the cost, not the result. -/
-def analyze (log : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) (A : Trail) (N : XTrail)
-    (hA : Trail.lits (XTrail.trail N ++ [⟨d, true⟩]) ⊆ Trail.lits A) (cur : Assign)
-    (hcurA : cur.Agrees (XTrail.trail N ++ [⟨d, true⟩])) (n : ℕ) (i : ℕ) (C : Clause ℕ)
-    (hC : log.clause? i = some C) (hreasons : Reasons log (N ++ XEntry.decision d :: M₀))
-    (hdec : ∀ x ∈ N, x.entry.decision = false)
-    (hfalse : ∀ y ∈ C, y.negate ∈ Trail.lits (XTrail.trail (N ++ XEntry.decision d :: M₀)))
-    (hcur : ∃ y ∈ C, y.negate ∈ Trail.lits (XTrail.trail N ++ [⟨d, true⟩]))
-    (hnd : (Trail.vars (XTrail.trail (N ++ XEntry.decision d :: M₀))).Nodup) :
-    Learned log A (XTrail.trail M₀) :=
-  have hfalse' : ∀ y ∈ C, y.negate ∈ Trail.lits (XTrail.trail N ++ [⟨d, true⟩]) ∨
-      y.negate ∈ Trail.lits (XTrail.trail M₀) := fun y hy => by
+/-- **First-UIP conflict analysis** on the trail `T`, whose newest decision is at position `p`:
+with `N`, the implied literals over it, and `M₀`, the trail below it, read back
+(`ATrail.seg`), the clause numbered `i` is false and has a literal false at the current level. Its
+literals are marked (`Cslib.Algorithms.Lean.CDCL.Marks.absorb`), and the analysis walks down the
+level, adding the reasons of the entries whose variables are seen, until one seen variable is left
+on the level, its first unique implication point, which is reached at the latest at the decision.
+The learned clause is never false at the current level elsewhere, and the hints, the reasons
+added, oldest first, and then the clause `i`, refute it by unit propagation. The variables seen are
+marked in an array of `n` slots, which grows only for variables beyond it: `n` affects the cost,
+not the result. -/
+def analyze (log : LRATLog φ) (T : ATrail) (p : ℕ) (cur : Assign)
+    (hcurA : cur.Agrees (T.level p)) (n : ℕ) (i : ℕ) (C : Clause ℕ)
+    (hC : log.clause? i = some C)
+    (hreasons : Reasons log
+      (T.seg (p + 1) (T.size - (p + 1)) ++ XEntry.decision (T.lit p) :: T.seg 0 p))
+    (hdec : ∀ x ∈ T.seg (p + 1) (T.size - (p + 1)), x.entry.decision = false)
+    (hfalse : ∀ y ∈ C, y.negate ∈ Trail.lits (XTrail.trail
+      (T.seg (p + 1) (T.size - (p + 1)) ++ XEntry.decision (T.lit p) :: T.seg 0 p)))
+    (hcur : ∃ y ∈ C, y.negate ∈ Trail.lits (T.level p))
+    (hnd : (Trail.vars (XTrail.trail
+      (T.seg (p + 1) (T.size - (p + 1)) ++ XEntry.decision (T.lit p) :: T.seg 0 p))).Nodup) :
+    Learned log (T.level p) (XTrail.trail (T.seg 0 p)) :=
+  have hfalse' : ∀ y ∈ C, y.negate ∈ Trail.lits (T.level p) ∨
+      y.negate ∈ Trail.lits (XTrail.trail (T.seg 0 p)) := fun y hy => by
     have := hfalse y hy
     rw [trail_level, lits_append, List.mem_append] at this
     exact this
-  have hspec := Marks.absorb_spec hcurA (by rw [← trail_level]; exact hnd) (Marks.start n) C
-    (Marks.inv_start _ _ _ _) (LRATLog.vars_mem_of_clause? hC) fun y hy _ => hfalse' y hy
-  analyzeGo log d M₀ A N hA cur hcurA ((Marks.start n).absorb cur C) hspec.1
+  have hspec := Marks.absorb_spec hcurA (by rw [ATrail.level, ← trail_level]; exact hnd)
+    (Marks.start n) C (Marks.inv_start _ _ _ _) (LRATLog.vars_mem_of_clause? hC) fun y hy _ =>
+      hfalse' y hy
+  analyzeGo log T p (T.size - (p + 1)) (fun _ h => h) cur hcurA ((Marks.start n).absorb cur C)
+    hspec.1
     (by
       obtain ⟨y, hy, hyc⟩ := hcur
       rw [hspec.1.path_eq]
@@ -919,6 +1231,87 @@ theorem XTrail.lits_root_cons {x : XEntry} {M : XTrail} {l : Literal ℕ}
     · simp only [XTrail.trail_cons, Trail.lits, List.map_cons, List.mem_cons] at h ⊢
       exact .inr h
 
+namespace ATrail
+
+/-- Scanning up from position `i`, through `k` positions: the first decision, or `i + k` if there
+is none. -/
+def firstDecGo (T : ATrail) : ℕ → ℕ → ℕ
+  | i, 0 => i
+  | i, k + 1 => if T.rsns.getD i 0 == 0 then i else T.firstDecGo (i + 1) k
+
+/-- **The position of the oldest decision**, or the size of the trail if there is none: the
+entries below it are the root of the trail (`ATrail.root_seg`). -/
+def rootPos (T : ATrail) : ℕ := T.firstDecGo 0 T.size
+
+theorem firstDecGo_spec (T : ATrail) : ∀ i k, i ≤ T.firstDecGo i k ∧ T.firstDecGo i k ≤ i + k ∧
+    (∀ j, i ≤ j → j < T.firstDecGo i k → T.rsns.getD j 0 ≠ 0) ∧
+    (T.firstDecGo i k < i + k → T.rsns.getD (T.firstDecGo i k) 0 = 0)
+  | i, 0 => ⟨le_rfl, le_rfl, fun j h₁ h₂ => absurd h₂ (by simp [firstDecGo]; omega),
+      fun h => absurd h (by simp [firstDecGo])⟩
+  | i, k + 1 => by
+    simp only [firstDecGo]
+    split
+    · rename_i h
+      exact ⟨le_rfl, by omega, fun j h₁ h₂ => absurd h₂ (by omega), fun _ => by simpa using h⟩
+    · rename_i h
+      obtain ⟨h₁, h₂, h₃, h₄⟩ := T.firstDecGo_spec (i + 1) k
+      refine ⟨by omega, by omega, fun j hj₁ hj₂ => ?_, fun hl => h₄ (by omega)⟩
+      by_cases hji : j = i
+      · subst hji; simpa using h
+      · exact h₃ j (by omega) hj₂
+
+private theorem firstDecGo_succ (T : ATrail) : ∀ i k, T.firstDecGo i (k + 1) =
+    if T.firstDecGo i k < i + k then T.firstDecGo i k
+    else if T.rsns.getD (i + k) 0 = 0 then i + k else i + k + 1
+  | i, 0 => by
+    simp only [firstDecGo, Nat.add_zero, Nat.lt_irrefl, ↓reduceIte, beq_iff_eq]
+  | i, k + 1 => by
+    rw [firstDecGo, T.firstDecGo_succ (i + 1) k, firstDecGo]
+    by_cases h : T.rsns.getD i 0 = 0
+    · simp [h]
+    · simp only [h, beq_iff_eq, ↓reduceIte, show i + 1 + k = i + (k + 1) by omega]
+
+private theorem any_seg_decision (T : ATrail) (k : ℕ) :
+    (T.seg 0 k).any (·.entry.decision) = true ↔ T.firstDecGo 0 k < k := by
+  obtain ⟨-, h₂, h₃, h₄⟩ := T.firstDecGo_spec 0 k
+  rw [List.any_eq_true]
+  constructor
+  · rintro ⟨x, hx, hxd⟩
+    obtain ⟨j, -, hj, rfl⟩ := mem_seg.1 hx
+    rw [← XEntry.isDecision_eq, isDecision_entry] at hxd
+    by_contra hc
+    exact h₃ j (Nat.zero_le _) (by omega) (by simpa using hxd)
+  · intro hlt
+    refine ⟨T.entry (T.firstDecGo 0 k), mem_seg.2 ⟨_, Nat.zero_le _, by omega, rfl⟩, ?_⟩
+    rw [← XEntry.isDecision_eq, isDecision_entry]
+    simpa using h₄ (by omega)
+
+/-- **The root of the trail read back** is the part below the oldest decision. -/
+theorem root_seg (T : ATrail) : ∀ k, XTrail.root (T.seg 0 k) = T.seg 0 (T.firstDecGo 0 k)
+  | 0 => rfl
+  | k + 1 => by
+    rw [seg_succ, XTrail.root_cons, T.firstDecGo_succ 0 k, Nat.zero_add]
+    by_cases hlt : T.firstDecGo 0 k < k
+    · have ha := (T.any_seg_decision k).2 hlt
+      simp only [ha, hlt, ↓reduceIte]
+      exact T.root_seg k
+    · have ha : (T.seg 0 k).any (·.entry.decision) = false :=
+        Bool.eq_false_iff.2 fun h => hlt ((T.any_seg_decision k).1 h)
+      simp only [ha, hlt, ↓reduceIte, Bool.false_eq_true]
+      by_cases hd : T.rsns.getD k 0 = 0
+      · have hx : (T.entry k).entry.decision = true := by rw [entry_of_rsn_zero hd]; rfl
+        simp only [hx, hd, ↓reduceIte]
+      · obtain ⟨r, hr⟩ := Nat.exists_eq_succ_of_ne_zero hd
+        have hx : (T.entry k).entry.decision = false := by rw [entry_of_rsn_succ hr]; rfl
+        simp only [hx, hd, ↓reduceIte, Bool.false_eq_true]
+        rw [seg_succ, Nat.zero_add]
+
+theorem rootPos_le (T : ATrail) : T.rootPos ≤ T.size := by
+  have := (T.firstDecGo_spec 0 T.size).2.1
+  unfold rootPos; omega
+
+end ATrail
+
 theorem XTrail.reasonIds_append (M N : XTrail) :
     XTrail.reasonIds (M ++ N) = XTrail.reasonIds M ++ XTrail.reasonIds N :=
   List.filterMap_append
@@ -1021,8 +1414,97 @@ theorem XTrail.split_eq_some {M : XTrail} {s : Split} (h : XTrail.split M = some
       · rfl
       · exact habove y hy
 
-/-- The state of the solver: its trail, the numbered clauses of the database, and the log. -/
-structure Exec (φ : CNF ℕ) where
+namespace ATrail
+
+/-- **The newest decision** among the first `k` positions, found by scanning down from `k - 1`. -/
+def newestDecision (T : ATrail) : ℕ → Option ℕ
+  | 0 => none
+  | k + 1 => if T.rsns.getD k 0 == 0 then some k else T.newestDecision k
+
+/-- Position `p` holds the newest decision of the trail. -/
+structure IsNewest (T : ATrail) (p : ℕ) : Prop where
+  lt : p < T.size
+  decision : T.rsns.getD p 0 = 0
+  above : ∀ j, p < j → j < T.size → T.rsns.getD j 0 ≠ 0
+
+/-- The split of the trail at the position `p` of its newest decision, read back. It appears only
+in statements: the solver reads the arrays. -/
+def splitAt (T : ATrail) (p : ℕ) : Split := ⟨T.seg (p + 1) (T.size - (p + 1)), T.lit p, T.seg 0 p⟩
+
+private theorem newestDecision_none (T : ATrail) :
+    ∀ k, T.newestDecision k = none → ∀ j < k, T.rsns.getD j 0 ≠ 0
+  | 0, _, _, hj => absurd hj (Nat.not_lt_zero _)
+  | k + 1, h, j, hj => by
+    simp only [newestDecision] at h
+    split at h
+    · simp at h
+    · rename_i hk
+      by_cases hjk : j = k
+      · subst hjk; simpa using hk
+      · exact T.newestDecision_none k h j (by omega)
+
+private theorem newestDecision_some (T : ATrail) : ∀ k p, T.newestDecision k = some p →
+    p < k ∧ T.rsns.getD p 0 = 0 ∧ ∀ j, p < j → j < k → T.rsns.getD j 0 ≠ 0
+  | 0, _, h => by simp [newestDecision] at h
+  | k + 1, p, h => by
+    simp only [newestDecision] at h
+    split at h
+    · rename_i hk
+      cases h
+      exact ⟨by omega, by simpa using hk, fun j h₁ h₂ => absurd h₂ (by omega)⟩
+    · rename_i hk
+      obtain ⟨h₁, h₂, h₃⟩ := T.newestDecision_some k p h
+      refine ⟨by omega, h₂, fun j hj₁ hj₂ => ?_⟩
+      by_cases hjk : j = k
+      · subst hjk; simpa using hk
+      · exact h₃ j hj₁ (by omega)
+
+theorem isNewest_of_newestDecision {T : ATrail} {p : ℕ} (h : T.newestDecision T.size = some p) :
+    T.IsNewest p :=
+  let ⟨h₁, h₂, h₃⟩ := T.newestDecision_some _ p h
+  ⟨h₁, h₂, h₃⟩
+
+private theorem split_seg_none (T : ATrail) :
+    ∀ k, (∀ j < k, T.rsns.getD j 0 ≠ 0) → XTrail.split (T.seg 0 k) = none
+  | 0, _ => rfl
+  | k + 1, h => by
+    obtain ⟨r, hr⟩ := Nat.exists_eq_succ_of_ne_zero (h k (by omega))
+    rw [seg_succ, Nat.zero_add, entry_of_rsn_succ hr, XTrail.split,
+      T.split_seg_none k fun j hj => h j (by omega)]
+    rfl
+
+private theorem split_seg_some (T : ATrail) {p : ℕ} (hp : T.rsns.getD p 0 = 0) :
+    ∀ k, p < k → (∀ j, p < j → j < k → T.rsns.getD j 0 ≠ 0) →
+      XTrail.split (T.seg 0 k) = some ⟨T.seg (p + 1) (k - (p + 1)), T.lit p, T.seg 0 p⟩
+  | 0, h, _ => absurd h (Nat.not_lt_zero _)
+  | k + 1, h, habove => by
+    rw [seg_succ, Nat.zero_add]
+    by_cases hpk : p = k
+    · subst hpk
+      rw [entry_of_rsn_zero hp, XTrail.split, Nat.sub_self]
+      rfl
+    · obtain ⟨r, hr⟩ := Nat.exists_eq_succ_of_ne_zero (habove k (by omega) (by omega))
+      rw [entry_of_rsn_succ hr, XTrail.split,
+        T.split_seg_some hp k (by omega) fun j h₁ h₂ => habove j h₁ (by omega)]
+      obtain ⟨m, rfl⟩ : ∃ m, k = p + 1 + m := ⟨k - (p + 1), by omega⟩
+      simp only [Option.map_some, Option.some.injEq, Split.mk.injEq, and_true]
+      rw [show p + 1 + m + 1 - (p + 1) = m + 1 by omega, show p + 1 + m - (p + 1) = m by omega,
+        seg_succ, entry_of_rsn_succ hr]
+
+theorem IsNewest.split {T : ATrail} {p : ℕ} (h : T.IsNewest p) :
+    XTrail.split T.toX = some (T.splitAt p) :=
+  T.split_seg_some h.decision _ h.lt h.above
+
+theorem split_toX_none {T : ATrail} (h : T.newestDecision T.size = none) :
+    XTrail.split T.toX = none :=
+  T.split_seg_none _ (T.newestDecision_none _ h)
+
+end ATrail
+
+/-- **The state of the solver read back**, with the trail as a list of entries: its trail, the
+numbered clauses of the database, and the log. The moves are specified, and the invariant stated,
+on it; the solver's state `Cslib.Algorithms.Lean.CDCL.Exec` keeps the trail as arrays. -/
+structure ExecL (φ : CNF ℕ) where
   /-- The trail. -/
   trail : XTrail
   /-- The numbered clauses of the database. -/
@@ -1031,15 +1513,15 @@ structure Exec (φ : CNF ℕ) where
   log : LRATLog φ
 
 /-- The clauses of the database. -/
-def Exec.clauses (S : Exec φ) : CNF ℕ := S.db.map Prod.snd
+def ExecL.clauses (S : ExecL φ) : CNF ℕ := S.db.map Prod.snd
 
 /-- The abstract state of a solver state. -/
-def Exec.state (S : Exec φ) : State := .run (XTrail.trail S.trail) S.clauses
+def ExecL.state (S : ExecL φ) : State := .run (XTrail.trail S.trail) S.clauses
 
 /-- **The invariant of the solver**: the abstract invariant, the reasons of the trail, the numbers
 of the database in the log, no clause of the database false below a decision, the numbered clauses
 of `φ` in the database unless the root satisfies them, and the reasons in the database. -/
-structure Exec.Inv (S : Exec φ) : Prop where
+structure ExecL.Inv (S : ExecL φ) : Prop where
   run : RunInv φ φ.vars (XTrail.trail S.trail) S.clauses
   reasons : Reasons S.log S.trail
   db_log : ∀ e ∈ S.db, S.log.clause? e.1 = some e.2
@@ -1053,7 +1535,7 @@ structure Exec.Inv (S : Exec φ) : Prop where
   reasons_db : ∀ r ∈ XTrail.reasonIds S.trail, ∃ R, (r, R) ∈ S.db
 
 /-- The initial state: the empty trail, the clauses of `φ` with their numbers, and the empty log. -/
-def Exec.init (φ : CNF ℕ) : Exec φ := ⟨[], φ.lratDB, LRATLog.init φ⟩
+def ExecL.init (φ : CNF ℕ) : ExecL φ := ⟨[], φ.lratDB, LRATLog.init φ⟩
 
 /-- In the numbering of `checkLRAT`, each number names its own clause. -/
 theorem find?_zipIdx_map {e : ℕ × Clause ℕ} :
@@ -1070,19 +1552,19 @@ theorem find?_zipIdx_map {e : ℕ × Clause ℕ} :
       exact find?_zipIdx_map φ (n + 1) (List.mem_map.2 ⟨p, hp, rfl⟩)
 
 /-- The clauses of the initial state are those of `φ`. -/
-theorem Exec.clauses_init (φ : CNF ℕ) : (Exec.init φ).clauses = φ := by
-  simp only [Exec.clauses, Exec.init, lratDB, List.map_map]
+theorem ExecL.clauses_init (φ : CNF ℕ) : (ExecL.init φ).clauses = φ := by
+  simp only [ExecL.clauses, ExecL.init, lratDB, List.map_map]
   conv_rhs => rw [← List.zipIdx_map_fst 0 φ]
   rfl
 
-theorem Exec.init_inv (φ : CNF ℕ) : (Exec.init φ).Inv := by
-  have hclauses : (Exec.init φ).clauses = φ := Exec.clauses_init φ
-  refine ⟨?_, .nil, fun e he => ?_, fun N d M₀ h => by simp [Exec.init, XTrail.trail] at h,
-    fun e he => .inl he, fun r hr => by simp [Exec.init] at hr⟩
+theorem ExecL.init_inv (φ : CNF ℕ) : (ExecL.init φ).Inv := by
+  have hclauses : (ExecL.init φ).clauses = φ := ExecL.clauses_init φ
+  refine ⟨?_, .nil, fun e he => ?_, fun N d M₀ h => by simp [ExecL.init, XTrail.trail] at h,
+    fun e he => .inl he, fun r hr => by simp [ExecL.init] at hr⟩
   · rw [hclauses]
     exact (Inv.init fun c hc l hl => CNF.mem_vars.2 ⟨c, hc, l.2, hl⟩ : RunInv _ _ _ _)
   · rw [LRATLog.clause?_eq]
-    simp only [Exec.init, LRATLog.init, lratDB] at he ⊢
+    simp only [ExecL.init, LRATLog.init, lratDB] at he ⊢
     rw [find?_zipIdx_map φ 0 he]
     rfl
 
@@ -1093,20 +1575,20 @@ theorem XTrail.trail_of_split {M : XTrail} {sp : Split} (hsp : XTrail.split M = 
   rw [(XTrail.split_eq_some hsp).1]
   simp
 
-theorem Exec.Inv.split_reasons {S : Exec φ} (hS : S.Inv) {sp : Split}
+theorem ExecL.Inv.split_reasons {S : ExecL φ} (hS : S.Inv) {sp : Split}
     (hsp : XTrail.split S.trail = some sp) :
     Reasons S.log (sp.above ++ XEntry.decision sp.decision :: sp.below) := by
   rw [← (XTrail.split_eq_some hsp).1]
   exact hS.reasons
 
-theorem Exec.Inv.split_nodup {S : Exec φ} (hS : S.Inv) {sp : Split}
+theorem ExecL.Inv.split_nodup {S : ExecL φ} (hS : S.Inv) {sp : Split}
     (hsp : XTrail.split S.trail = some sp) :
     (Trail.vars (XTrail.trail (sp.above ++ XEntry.decision sp.decision :: sp.below))).Nodup := by
   rw [← (XTrail.split_eq_some hsp).1]
   exact hS.run.nodup
 
 /-- The variables of the current level, from the newest decision up, are distinct. -/
-theorem Exec.Inv.split_level_nodup {S : Exec φ} (hS : S.Inv) {sp : Split}
+theorem ExecL.Inv.split_level_nodup {S : ExecL φ} (hS : S.Inv) {sp : Split}
     (hsp : XTrail.split S.trail = some sp) :
     (Trail.vars (XTrail.trail sp.above ++ [⟨sp.decision, true⟩])).Nodup := by
   have := hS.split_nodup hsp
@@ -1135,7 +1617,7 @@ theorem exists_cur {A B : Trail} {d : Literal ℕ} {c : Clause ℕ}
     List.mem_append] at this
   exact this.resolve_left (hne y hy)
 
-theorem Exec.Inv.split_cur {S : Exec φ} (hS : S.Inv) {sp : Split}
+theorem ExecL.Inv.split_cur {S : ExecL φ} (hS : S.Inv) {sp : Split}
     (hsp : XTrail.split S.trail = some sp) {e : ℕ × Clause ℕ} (he : e ∈ S.db)
     (hconf : Trail.Falsifies (XTrail.trail S.trail) e.2) :
     ∃ y ∈ e.2, y.negate ∈ Trail.lits (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) :=
@@ -1143,7 +1625,7 @@ theorem Exec.Inv.split_cur {S : Exec φ} (hS : S.Inv) {sp : Split}
     (hS.below _ _ _ (XTrail.trail_of_split hsp) e.2 (List.mem_map.2 ⟨e, he, rfl⟩))
 
 /-- A clause learned at a conflict, above and below the newest decision of the split `sp`. -/
-abbrev Exec.LearnedAt (S : Exec φ) (sp : Split) : Type :=
+abbrev ExecL.LearnedAt (S : ExecL φ) (sp : Split) : Type :=
   Learned S.log (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) (XTrail.trail sp.below)
 
 /-- Walking down the trail for `XTrail.dropLevels`: `acc` holds the entries of the current level
@@ -1241,15 +1723,15 @@ theorem XTrail.dropLevels_spec (marked : ℕ → Bool) (M : XTrail) :
 /-- **The backjump of a conflict** at the split `sp`, as MiniSat's: the entries undone, the newest
 decision level and the levels below it with no `marked` variable, and the trail kept. With the
 variables of the learned clause marked, the trail kept is the trail at the second highest level of
-the learned clause (`Cslib.Algorithms.Lean.CDCL.Exec.jump_kept`). The cost is that of reading the
+the learned clause (`Cslib.Algorithms.Lean.CDCL.ExecL.jump_kept`). The cost is that of reading the
 levels undone and the first level kept. -/
-def Exec.jump (_S : Exec φ) (sp : Split) (marked : ℕ → Bool) : XTrail × XTrail :=
+def ExecL.jump (_S : ExecL φ) (sp : Split) (marked : ℕ → Bool) : XTrail × XTrail :=
   let r := XTrail.dropLevels marked sp.below
   (sp.above ++ .decision sp.decision :: r.1, r.2)
 
 /-- The entries undone end with a decision, and the learned clause is asserting on the trail
 kept. -/
-theorem Exec.jump_spec {S : Exec φ} {sp : Split} (hsp : XTrail.split S.trail = some sp)
+theorem ExecL.jump_spec {S : ExecL φ} {sp : Split} (hsp : XTrail.split S.trail = some sp)
     (L : S.LearnedAt sp) {marked : ℕ → Bool}
     (hmarked : ∀ v ∈ L.clause.map Prod.fst, marked v = true) :
     S.trail = (S.jump sp marked).1 ++ (S.jump sp marked).2 ∧
@@ -1257,7 +1739,7 @@ theorem Exec.jump_spec {S : Exec φ} {sp : Split} (hsp : XTrail.split S.trail = 
     (∀ y ∈ L.clause, y ≠ L.lit → y.negate ∈ Trail.lits (XTrail.trail (S.jump sp marked).2)) ∧
     L.lit.1 ∉ Trail.vars (XTrail.trail (S.jump sp marked).2) := by
   obtain ⟨h₁, h₂, h₃, -⟩ := XTrail.dropLevels_spec marked sp.below
-  simp only [Exec.jump]
+  simp only [ExecL.jump]
   set r := XTrail.dropLevels marked sp.below
   have hbelow : XTrail.trail sp.below = XTrail.trail r.1 ++ XTrail.trail r.2 := by
     conv_lhs => rw [h₁]
@@ -1290,7 +1772,7 @@ variable, in an implied entry or in the decision. With exactly the variables of 
 marked, and none in the levels undone (`Cslib.Algorithms.Lean.CDCL.XTrail.dropLevels_spec`), this
 is MiniSat's target: the highest level of the learned clause's literals other than the asserting
 one, or the root for a unit clause. -/
-theorem Exec.jump_kept {S : Exec φ} (sp : Split) {marked : ℕ → Bool} :
+theorem ExecL.jump_kept {S : ExecL φ} (sp : Split) {marked : ℕ → Bool} :
     (∀ x ∈ (S.jump sp marked).2, x.entry.decision = false) ∨
       ∃ N d M₀, (S.jump sp marked).2 = N ++ .decision d :: M₀ ∧
         (∀ x ∈ N, x.entry.decision = false) ∧
@@ -1299,24 +1781,25 @@ theorem Exec.jump_kept {S : Exec φ} (sp : Split) {marked : ℕ → Bool} :
 
 /-- The state after Backjump and Learn, back to the trail `K` with the asserting literal implied by
 the learned clause, which is added to the log. -/
-def Exec.afterConflictWith {sp : Split} (S : Exec φ) (L : S.LearnedAt sp) (K : XTrail) : Exec φ :=
+def ExecL.afterConflictWith {sp : Split} (S : ExecL φ) (L : S.LearnedAt sp) (K : XTrail) :
+    ExecL φ :=
   ⟨.implied L.lit L.id :: K, (L.id, L.clause) :: S.db, L.log⟩
 
 /-- The learned clause of a conflict, and the state after Backjump and Learn: back to the trail
-kept by `Exec.jump`, with the asserting literal implied by the learned clause, which is added to
+kept by `ExecL.jump`, with the asserting literal implied by the learned clause, which is added to
 the log as one RUP step. -/
-def Exec.afterConflict (S : Exec φ) (sp : Split) (L : S.LearnedAt sp) (marked : ℕ → Bool) :
-    Exec φ :=
+def ExecL.afterConflict (S : ExecL φ) (sp : Split) (L : S.LearnedAt sp) (marked : ℕ → Bool) :
+    ExecL φ :=
   S.afterConflictWith L (S.jump sp marked).2
 
 /-- Backjump and Learn keep the invariant and lower the rank. -/
-theorem Exec.afterConflict_spec {S : Exec φ} (hS : S.Inv) {e : ℕ × Clause ℕ} (he : e ∈ S.db)
+theorem ExecL.afterConflict_spec {S : ExecL φ} (hS : S.Inv) {e : ℕ × Clause ℕ} (he : e ∈ S.db)
     (hconf : Trail.Falsifies (XTrail.trail S.trail) e.2) {sp : Split}
     (hsp : XTrail.split S.trail = some sp) (L : S.LearnedAt sp) {marked : ℕ → Bool}
     (hmarked : ∀ v ∈ L.clause.map Prod.fst, marked v = true) :
     (S.afterConflict sp L marked).Inv ∧
       rank φ.vars (S.afterConflict sp L marked).state < rank φ.vars S.state := by
-  obtain ⟨hUK, ⟨J, d', hJ⟩, hfalseK, hundefK⟩ := Exec.jump_spec hsp L hmarked
+  obtain ⟨hUK, ⟨J, d', hJ⟩, hfalseK, hundefK⟩ := ExecL.jump_spec hsp L hmarked
   set K := (S.jump sp marked).2
   have hsplitK : XTrail.trail S.trail = XTrail.trail J ++ ⟨d', true⟩ :: XTrail.trail K := by
     conv_lhs => rw [hUK, hJ]
@@ -1354,7 +1837,7 @@ theorem Exec.afterConflict_spec {S : Exec φ} (hS : S.Inv) {e : ℕ × Clause �
   · rcases hS.orig e' he' with h | ⟨l, hl, hlr⟩
     · exact .inl (List.mem_cons_of_mem _ h)
     · exact .inr ⟨l, hl, XTrail.lits_root_cons (hroot ▸ hlr)⟩
-  · simp only [Exec.afterConflict, Exec.afterConflictWith, XTrail.reasonIds_implied,
+  · simp only [ExecL.afterConflict, ExecL.afterConflictWith, XTrail.reasonIds_implied,
       List.mem_cons] at hr
     rcases hr with rfl | hr
     · exact ⟨L.clause, List.mem_cons_self⟩
@@ -1375,9 +1858,9 @@ theorem Exec.afterConflict_spec {S : Exec φ} (hS : S.Inv) {e : ℕ × Clause �
     -- a split of the new trail is below the asserting literal, so a split of the old trail
     obtain ⟨x, N, rfl⟩ : ∃ x N', N = x :: N' := by
       cases N with
-      | nil => simp [Exec.afterConflict, Exec.afterConflictWith] at hN
+      | nil => simp [ExecL.afterConflict, ExecL.afterConflictWith] at hN
       | cons x N => exact ⟨x, N, rfl⟩
-    simp only [Exec.afterConflict, Exec.afterConflictWith, XTrail.trail_cons, List.cons_append,
+    simp only [ExecL.afterConflict, ExecL.afterConflictWith, XTrail.trail_cons, List.cons_append,
       List.cons.injEq] at hN
     obtain ⟨-, hN⟩ := hN
     rcases List.mem_cons.1 hc' with rfl | hc'
@@ -1416,11 +1899,11 @@ theorem findUnit_spec {A : Assign} {M : Trail} (hA : A.Agrees M) {db : List (ℕ
   · exact (hA.holds_iff _).1 ((this.2 l' hl').resolve_left hne)
 
 /-- **UnitPropagate**: add the literal of a unit clause, with that clause as its reason. -/
-def Exec.propagate (S : Exec φ) (e : ℕ × Clause ℕ) (l : Literal ℕ) : Exec φ :=
+def ExecL.propagate (S : ExecL φ) (e : ℕ × Clause ℕ) (l : Literal ℕ) : ExecL φ :=
   ⟨.implied l e.1 :: S.trail, S.db, S.log⟩
 
 /-- UnitPropagate with a clause of the database keeps the invariant and lowers the rank. -/
-theorem Exec.propagate_spec {S : Exec φ} (hS : S.Inv) {e : ℕ × Clause ℕ} {l : Literal ℕ}
+theorem ExecL.propagate_spec {S : ExecL φ} (hS : S.Inv) {e : ℕ × Clause ℕ} {l : Literal ℕ}
     (he : e ∈ S.db) (hl : l ∈ e.2) (hundef : l.1 ∉ Trail.vars (XTrail.trail S.trail))
     (hfalse : ∀ l' ∈ e.2, l' ≠ l → l'.negate ∈ Trail.lits (XTrail.trail S.trail)) :
     (S.propagate e l).Inv ∧ rank φ.vars (S.propagate e l).state < rank φ.vars S.state := by
@@ -1432,23 +1915,23 @@ theorem Exec.propagate_spec {S : Exec φ} (hS : S.Inv) {e : ℕ × Clause ℕ} {
     .implied l e.1 hS.reasons (hS.db_log e he) hl hfalse, hS.db_log, ?_,
     fun e' he' => (hS.orig e' he').imp id fun ⟨l', hl', hr⟩ => ⟨l', hl', XTrail.lits_root_cons hr⟩,
     fun r hr => by
-      simp only [Exec.propagate, XTrail.reasonIds_implied, List.mem_cons] at hr
+      simp only [ExecL.propagate, XTrail.reasonIds_implied, List.mem_cons] at hr
       rcases hr with rfl | hr
       · exact ⟨e.2, he⟩
       · exact hS.reasons_db r hr⟩,
     hstep.rank_lt hS.run⟩
   intro N d M₁ hN c hc'
   cases N with
-  | nil => simp [Exec.propagate] at hN
+  | nil => simp [ExecL.propagate] at hN
   | cons x N =>
-    simp only [Exec.propagate, XTrail.trail_cons, List.cons_append, List.cons.injEq] at hN
+    simp only [ExecL.propagate, XTrail.trail_cons, List.cons_append, List.cons.injEq] at hN
     exact hS.below N d M₁ hN.2 c hc'
 
 /-- **Decide**: add the literal of the variable `x` with polarity `b` as a decision. -/
-def Exec.decide (S : Exec φ) (x : ℕ) (b : Bool) : Exec φ :=
+def ExecL.decide (S : ExecL φ) (x : ℕ) (b : Bool) : ExecL φ :=
   ⟨.decision (x, b) :: S.trail, S.db, S.log⟩
 
-theorem Exec.decide_spec {S : Exec φ} (hS : S.Inv)
+theorem ExecL.decide_spec {S : ExecL φ} (hS : S.Inv)
     (hnoconf : ∀ c ∈ S.clauses, ¬ Trail.Falsifies (XTrail.trail S.trail) c) {x : ℕ}
     (hx : x ∈ S.clauses.vars) (hundef : x ∉ Trail.vars (XTrail.trail S.trail)) (b : Bool) :
     (S.decide x b).Inv ∧ rank φ.vars (S.decide x b).state < rank φ.vars S.state := by
@@ -1462,21 +1945,21 @@ theorem Exec.decide_spec {S : Exec φ} (hS : S.Inv)
   intro N d M₁ hN c hc'
   cases N with
   | nil =>
-    simp only [Exec.decide, XTrail.trail_cons, List.nil_append, List.cons.injEq] at hN
+    simp only [ExecL.decide, XTrail.trail_cons, List.nil_append, List.cons.injEq] at hN
     rw [← hN.2]
     exact hnoconf c hc'
   | cons y N =>
-    simp only [Exec.decide, XTrail.trail_cons, List.cons_append, List.cons.injEq] at hN
+    simp only [ExecL.decide, XTrail.trail_cons, List.cons_append, List.cons.injEq] at hN
     exact hS.below N d M₁ hN.2 c hc'
 
 
 /-! ### Restarts -/
 
 /-- **Restart**: going back to the root of the trail, keeping the database and the log. -/
-def Exec.restart (S : Exec φ) : Exec φ := ⟨XTrail.root S.trail, S.db, S.log⟩
+def ExecL.restart (S : ExecL φ) : ExecL φ := ⟨XTrail.root S.trail, S.db, S.log⟩
 
 /-- Restart keeps the invariant. -/
-theorem Exec.restart_inv {S : Exec φ} (hS : S.Inv) : S.restart.Inv := by
+theorem ExecL.restart_inv {S : ExecL φ} (hS : S.Inv) : S.restart.Inv := by
   obtain ⟨A, hA⟩ := XTrail.root_suffix S.trail
   have hrun := hS.run
   have hreasons := hS.reasons
@@ -1517,11 +2000,11 @@ theorem exists_mem_lratDB {c : Clause ℕ} (hc : c ∈ φ) : ∃ e ∈ φ.lratDB
   exact ⟨(p.2 + 1, p.1), List.mem_map.2 ⟨p, hp, rfl⟩, rfl⟩
 
 /-- **Forget**: deleting the clauses numbered `ids` from the database and the log. -/
-def Exec.forget (S : Exec φ) (ids : List ℕ) : Exec φ :=
+def ExecL.forget (S : ExecL φ) (ids : List ℕ) : ExecL φ :=
   ⟨S.trail, CNF.LRATLog.eraseIds S.db ids, S.log.delete ids⟩
 
 /-- The database after Forget: the clauses whose number is not deleted. -/
-theorem Exec.mem_forget_db {S : Exec φ} {ids : List ℕ} {e : ℕ × Clause ℕ} :
+theorem ExecL.mem_forget_db {S : ExecL φ} {ids : List ℕ} {e : ℕ × Clause ℕ} :
     e ∈ (S.forget ids).db ↔ e ∈ S.db ∧ e.1 ∉ ids := by
   change e ∈ CNF.LRATLog.eraseIds S.db ids ↔ _
   simp [CNF.LRATLog.eraseIds_eq]
@@ -1532,15 +2015,15 @@ clauses of `φ` among them are satisfied by the root of the trail. The reasons k
 models of `φ`, and their partial models, through the root, satisfy `φ`. This does not show that
 each removed clause is partially entailed by the remaining ones, the side condition of the abstract
 `Forget` rule; the invariant does not need it. -/
-theorem Exec.forget_inv {S : Exec φ} (hS : S.Inv) {ids : List ℕ}
+theorem ExecL.forget_inv {S : ExecL φ} (hS : S.Inv) {ids : List ℕ}
     (horig : ∀ e ∈ S.db, e ∈ φ.lratDB → e.1 ∈ ids →
       ∃ l ∈ e.2, l ∈ Trail.lits (XTrail.trail (XTrail.root S.trail)))
     (hreasons : ∀ r ∈ XTrail.reasonIds S.trail, r ∉ ids) :
     (S.forget ids).Inv := by
   have hmem : ∀ e ∈ (S.forget ids).db, e ∈ S.db ∧ e.1 ∉ ids := fun e he =>
-    Exec.mem_forget_db.1 he
+    ExecL.mem_forget_db.1 he
   have hmem' : ∀ e ∈ S.db, e.1 ∉ ids → e ∈ (S.forget ids).db := fun e he hid =>
-    Exec.mem_forget_db.2 ⟨he, hid⟩
+    ExecL.mem_forget_db.2 ⟨he, hid⟩
   have hsub : ∀ c ∈ (S.forget ids).clauses, c ∈ S.clauses := fun c hc => by
     obtain ⟨e, he, rfl⟩ := List.mem_map.1 hc
     exact List.mem_map.2 ⟨e, (hmem e he).1, rfl⟩
@@ -1600,7 +2083,267 @@ theorem Exec.forget_inv {S : Exec φ} (hS : S.Inv) {ids : List ℕ}
     exact (LRATLog.clause?_delete hid).trans (hS.db_log e he)
 
 /-- Forgetting leaves the trail, hence the rank, unchanged. -/
-theorem Exec.rank_forget (S : Exec φ) (ids : List ℕ) :
+theorem ExecL.rank_forget (S : ExecL φ) (ids : List ℕ) :
     rank φ.vars (S.forget ids).state = rank φ.vars S.state := rfl
+
+/-! ### The solver state on arrays -/
+
+namespace ATrail
+
+/-- Scanning down for the backjump from position `i` (exclusive): `cut` is the lowest position of
+the levels dropped so far, and `hit` whether the level being read has a `marked` variable. At a
+decision, the scan stops if the level has a marked variable, its decision's included, and otherwise
+the level is dropped. -/
+def cutGo (T : ATrail) (marked : ℕ → Bool) : ℕ → ℕ → Bool → ℕ
+  | 0, cut, _ => cut
+  | i + 1, cut, hit =>
+    if T.rsns.getD i 0 == 0 then
+      if hit || marked (T.lits.getD i 0 / 2) then cut else T.cutGo marked i i false
+    else T.cutGo marked i cut (hit || marked (T.lits.getD i 0 / 2))
+
+/-- **The backjump point** below the decision at position `p`: the entries from it up are undone.
+It is what `XTrail.dropLevels` finds on the trail below `p` read back
+(`ATrail.dropLevels_seg`). -/
+def cutPos (T : ATrail) (marked : ℕ → Bool) (p : ℕ) : ℕ := T.cutGo marked p p false
+
+private theorem dropLevelsGo_seg (T : ATrail) (marked : ℕ → Bool) :
+    ∀ (i cut : ℕ) (hit : Bool), i ≤ cut →
+    T.cutGo marked i cut hit ≤ cut ∧
+    XTrail.dropLevelsGo marked (T.seg i (cut - i)).reverse hit (T.seg 0 i) =
+      (T.seg (T.cutGo marked i cut hit) (cut - T.cutGo marked i cut hit),
+        T.seg 0 (T.cutGo marked i cut hit))
+  | 0, cut, hit, _ => by
+    simp [cutGo, XTrail.dropLevelsGo]
+  | i + 1, cut, hit, hic => by
+    have hv : (T.lit i).1 = T.lits.getD i 0 / 2 := rfl
+    -- the trail from `i + 1` to `cut`, with the entry at `i` under it
+    have hup : T.seg i (cut - i) = T.seg (i + 1) (cut - (i + 1)) ++ [T.entry i] := by
+      rw [show cut - i = cut - (i + 1) + 1 by omega, seg_succ_bottom]
+    by_cases hd : T.rsns.getD i 0 = 0
+    · have hseg : T.seg 0 (i + 1) = .decision (T.lit i) :: T.seg 0 i := by
+        rw [seg_succ, Nat.zero_add, entry_of_rsn_zero hd]
+      have hall : T.seg 0 cut = T.seg (i + 1) (cut - (i + 1)) ++ T.seg 0 (i + 1) := by
+        have := T.seg_add 0 (i + 1) (cut - (i + 1))
+        rwa [Nat.zero_add, Nat.add_sub_cancel' hic] at this
+      rw [hseg, XTrail.dropLevelsGo]
+      simp only [cutGo, hd, beq_self_eq_true, ↓reduceIte, hv]
+      by_cases hm : (hit || marked (T.lits.getD i 0 / 2)) = true
+      · simp only [hm, ↓reduceIte, Nat.sub_self, seg_zero, List.reverse_reverse, le_rfl,
+          true_and, hall, hseg]
+      · obtain ⟨h₁, h₂⟩ := T.dropLevelsGo_seg marked i i false le_rfl
+        simp only [Nat.sub_self, seg_zero, List.reverse_nil] at h₂
+        simp only [hm, Bool.false_eq_true, ↓reduceIte, h₂, List.reverse_reverse]
+        refine ⟨by omega, ?_⟩
+        set q := T.cutGo marked i i false
+        have : T.seg q (cut - q) = T.seg (i + 1) (cut - (i + 1)) ++ T.seg q (i + 1 - q) := by
+          have := T.seg_add q (i + 1 - q) (cut - (i + 1))
+          rwa [show q + (i + 1 - q) = i + 1 by omega,
+            show i + 1 - q + (cut - (i + 1)) = cut - q by omega] at this
+        rw [this, show i + 1 - q = i - q + 1 by omega, seg_succ,
+          show q + (i - q) = i by omega, entry_of_rsn_zero hd]
+    · obtain ⟨r, hr⟩ := Nat.exists_eq_succ_of_ne_zero hd
+      have hseg : T.seg 0 (i + 1) = .implied (T.lit i) r :: T.seg 0 i := by
+        rw [seg_succ, Nat.zero_add, entry_of_rsn_succ hr]
+      rw [hseg, XTrail.dropLevelsGo]
+      have hcg : T.cutGo marked (i + 1) cut hit =
+          T.cutGo marked i cut (hit || marked (T.lits.getD i 0 / 2)) := by
+        simp only [cutGo, beq_iff_eq, hd, ↓reduceIte]
+      rw [hcg]
+      have := T.dropLevelsGo_seg marked i cut (hit || marked (T.lits.getD i 0 / 2)) (by omega)
+      rw [hup, List.reverse_append, entry_of_rsn_succ hr] at this
+      simpa [hv] using this
+
+/-- **The backjump point read back**: `XTrail.dropLevels` on the trail below `p` drops the entries
+from the backjump point to `p`, and keeps those below it. -/
+theorem dropLevels_seg (T : ATrail) (marked : ℕ → Bool) (p : ℕ) :
+    T.cutPos marked p ≤ p ∧ XTrail.dropLevels marked (T.seg 0 p) =
+      (T.seg (T.cutPos marked p) (p - T.cutPos marked p), T.seg 0 (T.cutPos marked p)) := by
+  have := T.dropLevelsGo_seg marked p p false le_rfl
+  simpa [XTrail.dropLevels, cutPos] using this
+
+end ATrail
+
+/-- **The state of the solver**: its trail as arrays (`Cslib.Algorithms.Lean.CDCL.ATrail`), the
+numbered clauses of the database, and the log. Its moves and its invariant are those of the state
+`ExecL` it reads back as (`Cslib.Algorithms.Lean.CDCL.Exec.toL`): each move has a representation
+lemma, through which the invariants carry over. -/
+structure Exec (φ : CNF ℕ) where
+  /-- The trail, as arrays. -/
+  tr : ATrail
+  /-- The numbered clauses of the database. -/
+  db : List (ℕ × Clause ℕ)
+  /-- The log of the certificate. -/
+  log : LRATLog φ
+
+namespace Exec
+
+/-- The state read back, with the trail as a list of entries. -/
+def toL (S : Exec φ) : ExecL φ := ⟨S.tr.toX, S.db, S.log⟩
+
+/-- The trail read back as a list of entries, newest first. -/
+def trail (S : Exec φ) : XTrail := S.tr.toX
+
+/-- The clauses of the database. -/
+def clauses (S : Exec φ) : CNF ℕ := S.db.map Prod.snd
+
+/-- The abstract state. -/
+def state (S : Exec φ) : State := S.toL.state
+
+@[simp] theorem toL_trail (S : Exec φ) : S.toL.trail = S.trail := rfl
+
+@[simp] theorem toL_db (S : Exec φ) : S.toL.db = S.db := rfl
+
+@[simp] theorem toL_log (S : Exec φ) : S.toL.log = S.log := rfl
+
+@[simp] theorem toL_clauses (S : Exec φ) : S.toL.clauses = S.clauses := rfl
+
+/-- The invariant, `ExecL.Inv` of the state read back. -/
+def Inv (S : Exec φ) : Prop := S.toL.Inv
+
+/-- A clause learned at a conflict, above and below the newest decision of the split `sp`: the
+type `ExecL.LearnedAt` of the state read back, stated on the log itself, so that compiled code
+reading the log of a learned clause does not read the trail back. -/
+abbrev LearnedAt (S : Exec φ) (sp : Split) : Type :=
+  Learned S.log (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) (XTrail.trail sp.below)
+
+/-- The initial state: the empty trail, the clauses of `φ` with their numbers, and the empty
+log. -/
+def init (φ : CNF ℕ) : Exec φ := ⟨ATrail.empty, φ.lratDB, LRATLog.init φ⟩
+
+theorem toL_init (φ : CNF ℕ) : (init φ).toL = ExecL.init φ := rfl
+
+theorem clauses_init (φ : CNF ℕ) : (init φ).clauses = φ := ExecL.clauses_init φ
+
+theorem init_inv (φ : CNF ℕ) : (init φ).Inv := ExecL.init_inv φ
+
+/-- **UnitPropagate**: the literal of a unit clause pushed, with that clause as its reason. -/
+def propagate (S : Exec φ) (e : ℕ × Clause ℕ) (l : Literal ℕ) : Exec φ :=
+  ⟨S.tr.push (litCode l) (e.1 + 1), S.db, S.log⟩
+
+theorem toL_propagate (S : Exec φ) (e : ℕ × Clause ℕ) (l : Literal ℕ) :
+    (S.propagate e l).toL = S.toL.propagate e l := by
+  simp only [toL, propagate, ExecL.propagate, ExecL.mk.injEq, and_true]
+  exact S.tr.toX_push (.implied l e.1)
+
+@[simp] theorem trail_propagate (S : Exec φ) (e : ℕ × Clause ℕ) (l : Literal ℕ) :
+    (S.propagate e l).trail = .implied l e.1 :: S.trail :=
+  S.tr.toX_push (.implied l e.1)
+
+theorem propagate_spec {S : Exec φ} (hS : S.Inv) {e : ℕ × Clause ℕ} {l : Literal ℕ}
+    (he : e ∈ S.db) (hl : l ∈ e.2) (hundef : l.1 ∉ Trail.vars (XTrail.trail S.trail))
+    (hfalse : ∀ l' ∈ e.2, l' ≠ l → l'.negate ∈ Trail.lits (XTrail.trail S.trail)) :
+    (S.propagate e l).Inv ∧ rank φ.vars (S.propagate e l).state < rank φ.vars S.state := by
+  rw [Inv, state, state, toL_propagate]
+  exact ExecL.propagate_spec hS he hl hundef hfalse
+
+/-- **Decide**: the literal of the variable `x` with polarity `b` pushed as a decision. -/
+def decide (S : Exec φ) (x : ℕ) (b : Bool) : Exec φ := ⟨S.tr.push (litCode (x, b)) 0, S.db, S.log⟩
+
+theorem toL_decide (S : Exec φ) (x : ℕ) (b : Bool) : (S.decide x b).toL = S.toL.decide x b := by
+  simp only [toL, decide, ExecL.decide, ExecL.mk.injEq, and_true]
+  exact S.tr.toX_push (.decision (x, b))
+
+@[simp] theorem trail_decide (S : Exec φ) (x : ℕ) (b : Bool) :
+    (S.decide x b).trail = .decision (x, b) :: S.trail :=
+  S.tr.toX_push (.decision (x, b))
+
+theorem decide_spec {S : Exec φ} (hS : S.Inv)
+    (hnoconf : ∀ c ∈ S.clauses, ¬ Trail.Falsifies (XTrail.trail S.trail) c) {x : ℕ}
+    (hx : x ∈ S.clauses.vars) (hundef : x ∉ Trail.vars (XTrail.trail S.trail)) (b : Bool) :
+    (S.decide x b).Inv ∧ rank φ.vars (S.decide x b).state < rank φ.vars S.state := by
+  rw [Inv, state, state, toL_decide]
+  exact ExecL.decide_spec hS hnoconf hx hundef b
+
+/-- **Restart**: popping back to the oldest decision, keeping the root of the trail. -/
+def restart (S : Exec φ) : Exec φ := ⟨S.tr.shrink S.tr.rootPos, S.db, S.log⟩
+
+@[simp] theorem trail_restart (S : Exec φ) : S.restart.trail = XTrail.root S.trail := by
+  rw [trail, restart, ATrail.toX_shrink _ S.tr.rootPos_le, trail, ATrail.toX,
+    ATrail.root_seg, ATrail.rootPos]
+
+theorem toL_restart (S : Exec φ) : S.restart.toL = S.toL.restart := by
+  simp only [toL, ExecL.restart, ExecL.mk.injEq]
+  exact ⟨S.trail_restart, rfl, rfl⟩
+
+theorem restart_inv {S : Exec φ} (hS : S.Inv) : S.restart.Inv := by
+  rw [Inv, toL_restart]; exact ExecL.restart_inv hS
+
+/-- **Forget**: deleting the clauses numbered `ids` from the database and the log. -/
+def forget (S : Exec φ) (ids : List ℕ) : Exec φ :=
+  ⟨S.tr, CNF.LRATLog.eraseIds S.db ids, S.log.delete ids⟩
+
+theorem toL_forget (S : Exec φ) (ids : List ℕ) : (S.forget ids).toL = S.toL.forget ids := rfl
+
+@[simp] theorem trail_forget (S : Exec φ) (ids : List ℕ) : (S.forget ids).trail = S.trail := rfl
+
+theorem mem_forget_db {S : Exec φ} {ids : List ℕ} {e : ℕ × Clause ℕ} :
+    e ∈ (S.forget ids).db ↔ e ∈ S.db ∧ e.1 ∉ ids :=
+  ExecL.mem_forget_db (S := S.toL)
+
+theorem forget_inv {S : Exec φ} (hS : S.Inv) {ids : List ℕ}
+    (horig : ∀ e ∈ S.db, e ∈ φ.lratDB → e.1 ∈ ids →
+      ∃ l ∈ e.2, l ∈ Trail.lits (XTrail.trail (XTrail.root S.trail)))
+    (hreasons : ∀ r ∈ XTrail.reasonIds S.trail, r ∉ ids) :
+    (S.forget ids).Inv :=
+  ExecL.forget_inv hS horig hreasons
+
+theorem rank_forget (S : Exec φ) (ids : List ℕ) :
+    rank φ.vars (S.forget ids).state = rank φ.vars S.state := rfl
+
+/-- The state after Backjump and Learn: the trail popped down to `q` entries, the asserting
+literal pushed with the learned clause as its reason, and the clause added to the log. -/
+def afterConflictAt {sp : Split} (S : Exec φ) (L : S.LearnedAt sp) (q : ℕ) : Exec φ :=
+  ⟨(S.tr.shrink q).push (litCode L.lit) (L.id + 1), (L.id, L.clause) :: S.db, L.log⟩
+
+theorem toL_afterConflictAt {sp : Split} (S : Exec φ) (L : S.LearnedAt sp) {q : ℕ}
+    (hq : q ≤ S.tr.size) :
+    (S.afterConflictAt L q).toL = S.toL.afterConflictWith L (S.tr.seg 0 q) := by
+  simp only [toL, afterConflictAt, ExecL.afterConflictWith, ExecL.mk.injEq, and_true]
+  exact ((S.tr.shrink q).toX_push (XEntry.implied L.lit L.id)).trans
+    (by rw [ATrail.toX_shrink _ hq])
+
+/-- **Backjump and Learn**, at the newest decision `p`: back to the trail kept by `ExecL.jump`,
+popping the entries undone, with the asserting literal implied by the learned clause. -/
+def afterConflict (S : Exec φ) (p : ℕ) (L : S.LearnedAt (S.tr.splitAt p)) (marked : ℕ → Bool) :
+    Exec φ :=
+  S.afterConflictAt L (S.tr.cutPos marked p)
+
+/-- **The backjump read back**: the entries undone are those from the backjump point up, and the
+trail kept is the one below it. -/
+theorem jump_eq (S : Exec φ) {p : ℕ} (hp : S.tr.IsNewest p) (marked : ℕ → Bool) :
+    S.toL.jump (S.tr.splitAt p) marked =
+      (S.tr.seg (S.tr.cutPos marked p) (S.tr.size - S.tr.cutPos marked p),
+        S.tr.seg 0 (S.tr.cutPos marked p)) := by
+  obtain ⟨hq, hd⟩ := S.tr.dropLevels_seg marked p
+  set q := S.tr.cutPos marked p
+  simp only [ExecL.jump, ATrail.splitAt, hd, Prod.mk.injEq, and_true]
+  have := S.tr.seg_add q (p - q + 1) (S.tr.size - (p + 1))
+  rw [show q + (p - q + 1) = p + 1 by omega,
+    show p - q + 1 + (S.tr.size - (p + 1)) = S.tr.size - q by have := hp.lt; omega,
+    ATrail.seg_succ, show q + (p - q) = p by omega, ATrail.entry_of_rsn_zero hp.decision] at this
+  exact this.symm
+
+theorem cutPos_le {S : Exec φ} {p : ℕ} (hp : S.tr.IsNewest p) (marked : ℕ → Bool) :
+    S.tr.cutPos marked p ≤ S.tr.size := by
+  have := (S.tr.dropLevels_seg marked p).1; have := hp.lt; omega
+
+theorem toL_afterConflict (S : Exec φ) {p : ℕ} (hp : S.tr.IsNewest p)
+    (L : S.LearnedAt (S.tr.splitAt p)) (marked : ℕ → Bool) :
+    (S.afterConflict p L marked).toL = S.toL.afterConflict (S.tr.splitAt p) L marked := by
+  rw [afterConflict, toL_afterConflictAt _ _ (cutPos_le hp marked)]
+  unfold ExecL.afterConflict
+  rw [S.jump_eq hp]
+
+/-- Backjump and Learn keep the invariant and lower the rank. -/
+theorem afterConflict_spec {S : Exec φ} (hS : S.Inv) {e : ℕ × Clause ℕ} (he : e ∈ S.db)
+    (hconf : Trail.Falsifies (XTrail.trail S.trail) e.2) {p : ℕ} (hp : S.tr.IsNewest p)
+    (L : S.LearnedAt (S.tr.splitAt p)) {marked : ℕ → Bool}
+    (hmarked : ∀ v ∈ L.clause.map Prod.fst, marked v = true) :
+    (S.afterConflict p L marked).Inv ∧
+      rank φ.vars (S.afterConflict p L marked).state < rank φ.vars S.state := by
+  rw [Inv, state, state, S.toL_afterConflict hp]
+  exact ExecL.afterConflict_spec hS he hconf hp.split L hmarked
+
+end Exec
 
 end Cslib.Algorithms.Lean.CDCL
