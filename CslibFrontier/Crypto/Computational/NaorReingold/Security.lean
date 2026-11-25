@@ -1914,13 +1914,7 @@ theorem DDH.negligible_naorReingoldHashedGame_ideal {F : PrimeOrderGroupFamily}
     exists_queryBound_hashedAdvGroup houtLen hbound_poly hdesc_poly hdesc hadversary
   have hstep2_neg : Negligible fun n =>
       (Q n : ℝ≥0) * (NNReal.sqrt ((2 : ℝ≥0) ^ (outLen n) / (qMin n : ℝ≥0)) / 2) := by
-    have hsqrt : Negligible fun n =>
-        NNReal.sqrt ((2 : ℝ≥0) ^ (outLen n) / (qMin n : ℝ≥0)) / 2 := by
-      have h1 : Negligible fun n =>
-          (2⁻¹ : ℝ≥0) * NNReal.sqrt ((2 : ℝ≥0) ^ (outLen n) / (qMin n : ℝ≥0)) :=
-        (Negligible.sqrt hneg).const_mul (2⁻¹ : ℝ≥0)
-      simpa only [div_eq_inv_mul] using h1
-    exact hsqrt.polynomiallyBounded_mul hQ_poly
+    negligible
   exact negligible_naorReingoldHashedGame_of_ideal_le hDDH hinLen houtLen hbound_poly hbound
     hadversary hstep2_neg fun n =>
       F.advantage_naorReingoldHashedIdeal_le setup inLen outLen bound adversary n (Q n)

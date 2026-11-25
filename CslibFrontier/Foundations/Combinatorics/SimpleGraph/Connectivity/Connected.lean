@@ -18,7 +18,8 @@ A graph on a nonempty finite vertex set that is not connected has a vertex set `
 `1 ≤ |S|`, `2 |S| ≤ |V|` and no edge between `S` and its complement
 (`SimpleGraph.exists_forall_not_adj_of_not_connected`): take the reachability class of a vertex
 or its complement, whichever is smaller. This is the combinatorial step of the union bound over
-cuts for the connectivity of random graphs.
+cuts for the connectivity of random graphs. A graph homomorphism also carries reachability
+within a component to the induced graph on its image.
 -/
 
 public section
@@ -29,6 +30,18 @@ open scoped Finset
 namespace SimpleGraph
 
 variable {V : Type*}
+
+/-- Any two vertices in the image of a connected component are reachable within that
+image, even if the homomorphism identifies vertices. -/
+theorem ConnectedComponent.reachable_induce_image {W : Type*} {G : SimpleGraph V}
+    {H : SimpleGraph W} (C : G.ConnectedComponent) (f : G →g H)
+    {x y : W} (hx : x ∈ f '' C.supp) (hy : y ∈ f '' C.supp) :
+    (H.induce (f '' C.supp)).Reachable ⟨x, hx⟩ ⟨y, hy⟩ := by
+  let F : C.toSimpleGraph →g H.induce (f '' C.supp) :=
+    SimpleGraph.induceHom f (fun _ hu => ⟨_, hu, rfl⟩)
+  obtain ⟨a, ha, rfl⟩ := hx
+  obtain ⟨b, hb, rfl⟩ := hy
+  exact (C.reachable_toSimpleGraph ha hb).map F
 
 /-- A graph on a nonempty finite vertex set that is not connected has a nonempty vertex set `S`
 with at most half of the vertices and no edge between `S` and its complement. -/

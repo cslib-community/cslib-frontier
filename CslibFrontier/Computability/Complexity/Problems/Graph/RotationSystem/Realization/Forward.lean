@@ -53,7 +53,7 @@ theorem exists_polygonalDrawing {G : Graph} (r : RotationSystem G)
       · exact r.exists_polygonalDrawing_of_loops hG hr hloop
       · push Not at hloop
         obtain ⟨i, hnonloop⟩ := hloop
-        obtain ⟨H, u, v, e, hdecl, hlenH, hcoord, _, hu, hv⟩ := G.exists_lastEdge_reindex i
+        obtain ⟨H, u, v, e, hdecl, _, hlenH, hcoord, _, _, hu, hv⟩ := G.exists_lastEdge_reindex i
         have huv : u ≠ v := by rw [hu, hv]; exact hnonloop
         have hm : ∀ w, w ∈ G.1 ↔ w ∈ (lastEdgeGraph H u v).1 := by
           intro w

@@ -233,6 +233,10 @@ end Cost
 def CostP (D : ℕ) (A : Set (Inp → ℕ)) (c : ℕ) (P : Inp → Prop) : Prop :=
   Cost D A c ({x | P x}.indicator 1)
 
+/-- A property is decided in `c` steps when its indicator is computed in `c` steps. -/
+theorem costP_iff {c : ℕ} {P : Inp → Prop} : CostP D A c P ↔ Cost D A c ({x | P x}.indicator 1) :=
+  Iff.rfl
+
 namespace CostP
 
 lemma congr {c : ℕ} {P Q : Inp → Prop} (hc : CostP D A c P) (h : ∀ x, P x ↔ Q x) : CostP D A c Q :=

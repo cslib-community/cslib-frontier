@@ -7,7 +7,8 @@ Authors: Erik Demaine
 module
 -- upstream: local-only (indexed path color regression)
 
-import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.ThreePathRestriction
+import CslibFrontier.Computability.Complexity.Problems.Graph.ClosedPassages.ComponentOrder
+import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.SeparatingPairOrder
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.FaceDartColors
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Realization.Forward
 import Mathlib.Data.Fin.VecNotation
@@ -109,9 +110,14 @@ private theorem crossingParity_of_embedding {K : Graph} {D : PolygonalDrawing K}
     (fun he => hne (congrArg Sigma.fst he).symm) w hw
     (openSegment_subset_segment ℝ _ _ hzt)
 
--- The same three arms have an actual regular polygonal embedding.
+-- In an actual regular embedding, the subdivided arm has its own rank interval when
+-- the rotation is cut at the first direct edge.
 example : ∃ D : PolygonalDrawing G, D.HasRegularContacts ∧ D.Realizes rotation ∧
-    (rotation.rotate.symm a₀ = c₀ ↔ rotation.rotate.symm a₁ ≠ c₁) := by
+    (rotation.rotate.symm a₀ = c₀ ↔ rotation.rotate.symm a₁ ≠ c₁) ∧
+    ∃ a b : Dart G, a.vertex = 0 ∧ b.vertex = 0 ∧
+      ∀ d : Dart G, d.vertex = 0 → (d = a₀ ↔
+        rotation.rotationDistance b₀ a ≤ rotation.rotationDistance b₀ d ∧
+          rotation.rotationDistance b₀ d ≤ rotation.rotationDistance b₀ b) := by
   classical
   have hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices := by decide
   have genus : rotation.NumericalGenusZero := by
@@ -122,15 +128,42 @@ example : ∃ D : PolygonalDrawing G, D.HasRegularContacts ∧ D.Realizes rotati
     exact (RotationCertificate.verifyEuler_eq_true_iff check).mp he
   obtain ⟨D, hD, hR⟩ := rotation.exists_polygonalDrawing hG genus
   have hreg := hD.hasRegularContacts (fun d => RotationSystem.vertex_mem hG d) (by decide)
-  refine ⟨D, hreg, hR, ?_⟩
-  apply hreg.inverse_rotate_iff_not_inverse_rotate_of_three_paths hD.simple hR hG arms
-    startPorts finishPorts (fun _ => rfl) (fun _ => rfl) ?_ ?_ ?_
-  · decide
-  · decide
-  · intro a b hab i j
-    have hne : (arms a i).1 ≠ (arms b j).1 :=
-      (by decide : ∀ a b : Fin 3, a ≠ b → ∀ i j, (arms a i).1 ≠ (arms b j).1) a b hab i j
-    exact crossingParity_of_embedding hD hne
+  refine ⟨D, hreg, hR, ?_, ?_⟩
+  · apply hreg.inverse_rotate_iff_not_inverse_rotate_of_three_paths hD.simple hR hG arms
+      startPorts finishPorts (fun _ => rfl) (fun _ => rfl) ?_ ?_ ?_
+    · decide
+    · decide
+    · intro a b hab i j
+      have hne : (arms a i).1 ≠ (arms b j).1 :=
+        (by decide : ∀ a b : Fin 3, a ≠ b → ∀ i j, (arms a i).1 ≠ (arms b j).1) a b hab i j
+      exact crossingParity_of_embedding hD hne
+  · let one : {w : ℕ // w ≠ 0} := ⟨1, by decide⟩
+    let K := (G.toSimpleGraph.induce {w | w ≠ 0}).induce {w | w ≠ one}
+    let two : {w : {n : ℕ // n ≠ 0} // w ≠ one} := ⟨⟨2, by decide⟩, by decide⟩
+    let C := K.connectedComponentMk two
+    let S : Set ℕ := Subtype.val '' (Subtype.val '' C.supp)
+    have htwo : (2 : ℕ) ∈ S := ⟨two.val, ⟨two, rfl, rfl⟩, rfl⟩
+    have hone : (1 : ℕ) ∉ S := by
+      rintro ⟨w, ⟨x, _, rfl⟩, hx⟩
+      exact x.property (Subtype.ext hx)
+    have other : ∀ d : Dart G, d.vertex = 0 → d ≠ a₀ → d.reverse.vertex = 1 := by decide
+    have enters (d : Dart G) (hd : d.vertex = 0) : d.reverse.vertex ∈ S ↔ d = a₀ := by
+      constructor
+      · intro hm
+        by_contra he
+        exact hone (other d hd he ▸ hm)
+      · rintro rfl
+        exact htwo
+    obtain ⟨a, b, ha, hb, _, _, hinterval⟩ :=
+      ClosedPassages.exists_separating_component_rank_interval hR hreg hD.simple
+        hD.vertices_injective
+        (RotationSystem.vertex_mem hG) (fun _ _ hne _ => crossingParity_of_embedding hD hne)
+        one C b₀ a₀ rfl rfl hone htwo (by
+          intro d hd hC hd'
+          have h := other d hd (fun he => hC ((enters d hd).mpr he))
+          exact (show (⟨d.reverse.vertex, hd'⟩ : {w : ℕ // w ≠ 0}) = one from
+            Subtype.ext h).symm ▸ SimpleGraph.Reachable.refl one)
+    exact ⟨a, b, ha, hb, fun d hd => (enters d hd).symm.trans (hinterval d hd)⟩
 
 private abbrev withSpurs : Graph :=
   ⟨[0, 1, 2, 3, 4], [(0, 2), (2, 1), (0, 1), (0, 1), (2, 3), (0, 4)]⟩
@@ -145,14 +178,30 @@ private def spurRotation : RotationSystem withSpurs where
 private def spurArms (k : Fin 3) (i : Fin (armLength k + 1)) : Dart withSpurs :=
   ⟨Fin.castLE (by decide) (arms k i).1, (arms k i).2⟩
 
-private def spurSite (k : Fin 3) (_ : Fin (armLength k)) : ℕ := 2
+private abbrev one : {w : ℕ // w ≠ 0} := ⟨1, by decide⟩
+private abbrev awayPair := (withSpurs.toSimpleGraph.induce {w | w ≠ 0}).induce {w | w ≠ one}
+private abbrev two : {w : {x : ℕ // x ≠ 0} // w ≠ one} := ⟨⟨2, by decide⟩, by decide⟩
+private abbrev armComponent := awayPair.connectedComponentMk two
 
--- Extra edges at an internal vertex and a separator do not change the triple comparison.
-example : ∃ D : PolygonalDrawing withSpurs, D.HasRegularContacts ∧ D.Realizes spurRotation ∧
-    spurRotation.rotate.symm (spurArms 0 0).reverse ≠ spurArms 0 1 ∧
-    ((2, false) ∈ spurRotation.rotationInterval (0, false) (3, false) ↔
-      (2, true) ∉ spurRotation.rotationInterval (1, true) (3, true)) := by
+private def spurComponents (k : Fin 3) : Option awayPair.ConnectedComponent :=
+  if k = 0 then some armComponent else none
+
+-- Taking the subdivided arm as the reference, the two direct pieces have opposite list
+-- orders in a realized rotation with extra edges at an interior vertex and a separator.
+example :
+    let first (k : Fin 3) := spurArms k 0
+    let last (k : Fin 3) := (spurArms k (Fin.last (armLength k))).reverse
+    let pieces : List (Fin 3) := [1, 2]
+    ∃ D : PolygonalDrawing withSpurs, D.HasRegularContacts ∧ D.Realizes spurRotation ∧
+      spurRotation.rotate.symm (spurArms 0 0).reverse ≠ spurArms 0 1 ∧
+      pieces.mergeSort (fun i j => decide
+        (spurRotation.rotationDistance (last 0) (last i) ≤
+          spurRotation.rotationDistance (last 0) (last j))) =
+        (pieces.mergeSort (fun i j => decide
+          (spurRotation.rotationDistance (first 0) (first i) ≤
+            spurRotation.rotationDistance (first 0) (first j)))).reverse := by
   classical
+  dsimp only
   have hG : ∀ v ∈ withSpurs.incidenceVertices, v ∈ withSpurs.vertices := by decide
   have genus : spurRotation.NumericalGenusZero := by
     have check := RotationCertificate.verifyRotation_ofRotation spurRotation hG
@@ -161,10 +210,24 @@ example : ∃ D : PolygonalDrawing withSpurs, D.HasRegularContacts ∧ D.Realize
   obtain ⟨D, hD, hR⟩ := spurRotation.exists_polygonalDrawing hG genus
   have hreg := hD.hasRegularContacts (fun d => RotationSystem.vertex_mem hG d) (by decide)
   refine ⟨D, hreg, hR, by decide, ?_⟩
-  exact hreg.opposite_three_path_orders hD.simple hR hG (by decide : 0 ≠ 1)
-    spurArms spurSite (by decide) (by decide) (by decide) (by decide) (by decide)
-    (fun a b hab i j => crossingParity_of_embedding hD
-      ((by decide : ∀ a b : Fin 3, a ≠ b → ∀ i j, (spurArms a i).1 ≠ (spurArms b j).1)
-        a b hab i j))
+  let first (k : Fin 3) := spurArms k 0
+  let last (k : Fin 3) := (spurArms k (Fin.last (armLength k))).reverse
+  have heven : D.EvenCrossings (fun w => w = 0 ∨ w = 1) :=
+    fun _ _ hne _ => crossingParity_of_embedding hD hne
+  apply hreg.mergeSort_eq_reverse_of_separating_components hD.simple hR hG heven
+    one (Or.inl rfl) (Or.inr rfl) first last (by decide) (by decide) (by decide)
+    spurComponents _ _ 0 [1, 2] (by decide)
+  · intro i j C hi hj
+    have eqZero {k : Fin 3} (h : spurComponents k = some C) : k = 0 := by
+      by_contra hne
+      simp [spurComponents, hne] at h
+    exact (eqZero hi).trans (eqZero hj).symm
+  · have hin : (2 : ℕ) ∈ Subtype.val '' (Subtype.val '' armComponent.supp) :=
+      ⟨two.val, ⟨two, rfl, rfl⟩, rfl⟩
+    intro k
+    fin_cases k
+    · exact ⟨hin, hin⟩
+    · rfl
+    · rfl
 
 end CslibFrontierTests.DartPathColors

@@ -103,7 +103,7 @@ theorem wm_r (A : Matrix (Fin b) (Fin b) F2) : wm (hr (a := a) (b := b)) A =
   abel
 
 /-- The element with given blocks. -/
-def blk : U a × Matrix (Fin a) (Fin b) F2 × U b → U (a + b)
+@[expose] def blk : U a × Matrix (Fin a) (Fin b) F2 × U b → U (a + b)
   | (A, M, C) => win (hr (a := a) (b := b)) C * up M * win (hl (a := a) (b := b)) A
 
 private theorem mat_blk' (t : U a × Matrix (Fin a) (Fin b) F2 × U b) : mat (blk t) =

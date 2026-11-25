@@ -8,21 +8,21 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.Moves
-public import Mathlib.Order.Bounds.Defs
-import Mathlib.Order.Bounds.Basic
 
 /-!
 # The tower plan: numbers of units
 
-The numbers of the tower plan of [AnthropicVPVNP2026] (proof of Theorem H.2; module
-`Nc.Tow.Flow`) are functions of the numbers `n` of initial units and of the outcomes `o` of the
-moves, the number of units on every channel. A unit is *alive* when the plan still moves it: all
-units of a channel of a relay with the expected outcome, and all units but the last of a channel
-of a law move with a short outcome. The *load* of a target is the number of alive units with that
-target. A move uses a number of units that is determined by the loads of the targets of earlier
-moves: a relay takes the load of its input when it is active, and a law move takes the least
-number of units into which the end segments at its vertex fit, for the first kind of law that
-attains it.
+The numbers of the tower plan of [AnthropicVPVNP2026] (proof of Theorem H.2; modules
+`Nc.Tow.Flow` and `Nc.Tow.Tree`) are functions of the numbers `n` of initial units and of the
+outcomes `o` of the moves, the number of units on every channel. A unit is *alive* when the plan
+still moves it: all units of a channel of a relay with the expected outcome, and all units but the
+last of a channel of a law move with a short outcome. The *load* of a target is the number of
+alive units with that target. A move uses a number of units that is determined by the loads of
+the targets of earlier moves: a relay takes the load of its input when it is active, and a law
+move takes the least number of units into which the end segments at its vertex fit, for the first
+kind of law that attains it. Whether a relay of a stage is active depends on the type that the
+loads of the edges of the stage (`edgeLoads`) choose in the tree of the tower
+(`Cslib.CoveringTower.Tower.IsChosenType`).
 
 ## Main definitions
 
@@ -31,8 +31,8 @@ attains it.
 * `VertexMove.OutcomeShort`, `aliveGiven`, `loadGiven`: the outcomes of a law move that are
   short, the alive units of a channel and the load of a target when the numbers of units of the
   moves are given.
-* `sqLoad`, `IsChosenType`, `Relay.Active`: the squares of the loads of a type of edges, the
-  type that is chosen at a stage, and the relays that are used.
+* `edgeLoads`, `Relay.Active`: the loads of the edges of every level, from the loads of the
+  targets, and the relays that are used.
 * `VertexMove.Fits`, `VertexMove.minUnits`, `VertexMove.IsPicked`: the choice of the number of
   units and of the kind of law at a vertex.
 * `countOfLoad`, `countBefore`, `moveCount`, `alive`, `load`, `GoodOutcome`: the number of units
@@ -42,13 +42,14 @@ attains it.
 ## Main results
 
 * `moveCount_eq`: the number of units of a move is determined by the loads.
+* `VertexMove.kind_eq_of_isPicked`: the kind of law that is used at a vertex is unique.
 * `moveCount_congr`, `load_congr`, `goodOutcome_congr`: the numbers depend on the outcomes of
   earlier moves only.
 
 ## References
 
 * [Anthropic, *VP ≠ VNP over every field*, paper and Lean formalization][AnthropicVPVNP2026],
-  Theorem H.2 (proof: "One stage"); module `Nc.Tow.Flow`
+  Theorem H.2 (proof: "One stage"); modules `Nc.Tow.Flow`, `Nc.Tow.Tree`
 -/
 
 public section
@@ -63,46 +64,47 @@ section Loads
 
 variable (L : Target T m A → ℕ)
 
-/-- The squares of the loads of the edges of the type `i` at the stage `j`. -/
-@[expose] def sqLoad (j : Fin (J + 1)) (i : Fin h) : ℕ :=
-  ∑ e : T.Ed j, if T.ty e = i then L (.edge j e) ^ 2 else 0
+/-- The loads of the edges of the level `j`, from the loads of the targets; `0` above the last
+level. -/
+@[expose] def edgeLoads (j : ℕ) : T.Ed j → ℕ :=
+  fun e => if hj : j < J + 1 then L (.edge ⟨j, hj⟩ e) else 0
 
-/-- The type `i` is chosen at the stage `j`: it is the first type with the least load. -/
-@[expose] def IsChosenType (j : Fin (J + 1)) (i : Fin h) : Prop :=
-  IsLeast {i | ∀ i', sqLoad L j i ≤ sqLoad L j i'} i
+/-- The loads of the edges of a level `j ≤ J`. -/
+theorem edgeLoads_of_lt {j : ℕ} (hj : j < J + 1) (e : T.Ed j) :
+    edgeLoads L j e = L (.edge ⟨j, hj⟩ e) :=
+  dite_eq_left hj
 
-instance (j : Fin (J + 1)) (i : Fin h) : Decidable (IsChosenType L j i) :=
-  inferInstanceAs (Decidable ((∀ i', sqLoad L j i ≤ sqLoad L j i') ∧
-    ∀ ⦃a⦄, (∀ i', sqLoad L j a ≤ sqLoad L j i') → i ≤ a))
-
-/-- The relay is used: an inner relay goes through the hosts of the chosen type, and the way
-through the next level is taken by the edges of the chosen type. -/
+/-- The relay is used: an inner relay goes through the hosts of the chosen type of the loads of
+the edges of its stage (`Cslib.CoveringTower.Tower.IsChosenType`), and the way through the next
+level is taken by the edges of the chosen type. -/
 @[expose] def Relay.Active : Relay T m A → Prop
-  | .inner j i _ => IsChosenType L j.castSucc i
-  | .middle j e s => s = 0 → IsChosenType L j.castSucc (T.ty e)
+  | .inner j i _ => T.IsChosenType (edgeLoads L j) i
+  | .middle j e s => s = 0 → T.IsChosenType (edgeLoads L j) (T.ty e)
   | _ => True
 
 instance : DecidablePred (Relay.Active L)
   | .start .. => inferInstanceAs (Decidable True)
-  | .inner .. => inferInstanceAs (Decidable (IsChosenType ..))
-  | .middle .. => inferInstanceAs (Decidable (_ → IsChosenType ..))
+  | .inner .. => inferInstanceAs (Decidable (Tower.IsChosenType ..))
+  | .middle .. => inferInstanceAs (Decidable (_ → Tower.IsChosenType ..))
   | .final _ => inferInstanceAs (Decidable True)
 
 variable {L} {L' : Target T m A → ℕ}
 
-private theorem isChosenType_congr {j : Fin (J + 1)}
-    (hL : ∀ e, L (.edge j e) = L' (.edge j e)) (i : Fin h) :
-    IsChosenType L j i ↔ IsChosenType L' j i := by
-  simp only [IsChosenType, sqLoad, hL]
+private theorem edgeLoads_congr {j : Fin J}
+    (hL : ∀ e, L (.edge j.castSucc e) = L' (.edge j.castSucc e)) :
+    edgeLoads L j = edgeLoads L' j :=
+  funext fun e => (edgeLoads_of_lt L (by omega) e).trans
+    ((hL e).trans (edgeLoads_of_lt L' (by omega) e).symm)
 
 /-- Whether a relay is used depends on the loads of earlier targets only. -/
 theorem Relay.active_congr {x : Relay T m A} (hL : ∀ τ, τ.time ≤ x.time m → L τ = L' τ) :
     x.Active L ↔ x.Active L' := by
   rcases x with ⟨a, c, γ, s⟩ | ⟨j, i, e⟩ | ⟨j, e, s⟩ | e
   · exact Iff.rfl
-  · exact isChosenType_congr (fun e => hL _ (by simp [Target.time, Relay.time])) i
-  · exact imp_congr_right fun _ =>
-      isChosenType_congr (fun e => hL _ (by simp [Target.time, Relay.time])) _
+  · simp only [Relay.Active, edgeLoads_congr (j := j) fun e =>
+      hL _ (by simp [Target.time, Relay.time])]
+  · simp only [Relay.Active, edgeLoads_congr (j := j) fun e =>
+      hL _ (by simp [Target.time, Relay.time])]
   · exact Iff.rfl
 
 namespace VertexMove
@@ -143,6 +145,15 @@ theorem isPicked_congr
     (hL : ∀ q, L (.segment l.stage l.type l.vertex q) = L' (.segment l.stage l.type l.vertex q)) :
     l.IsPicked L ↔ l.IsPicked L' := by
   simp only [IsPicked, minUnits, Fits, withKind, hL]
+
+/-- The kind of law that is used at a vertex is unique. -/
+theorem kind_eq_of_isPicked {d : FL.Kind} (h1 : l.IsPicked L) (h2 : (l.withKind d).IsPicked L) :
+    l.kind = d := by
+  rcases lt_trichotomy (Fintype.equivFin FL.Kind d) (Fintype.equivFin FL.Kind l.kind)
+    with hlt | heq | hlt
+  · exact absurd h2.1 (h1.2 d hlt)
+  · exact ((Fintype.equivFin FL.Kind).injective heq).symm
+  · exact absurd h1.1 (h2.2 l.kind hlt)
 
 end VertexMove
 
