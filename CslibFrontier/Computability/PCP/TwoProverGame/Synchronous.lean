@@ -124,10 +124,8 @@ theorem IsSynchronous.ofReal_prob_eq_state_alice (h : S.IsSynchronous) (x y : X)
 /-- Bob's product gives the same correlation with the factors in reverse order. -/
 theorem IsSynchronous.ofReal_prob_eq_state_bob (h : S.IsSynchronous) (x y : X) (a b : A) :
     (S.prob x y a b : ℂ) = S.state ((S.bob y).effect b * (S.bob x).effect a) := by
-  have h' := (isSynchronous_swap_iff S).mpr h
-  have he := h'.ofReal_prob_eq_state_alice y x b a
-  rw [prob_swap] at he
-  exact he
+  have he := ((isSynchronous_swap_iff S).mpr h).ofReal_prob_eq_state_alice y x b a
+  rwa [prob_swap] at he
 
 end Agreement
 
@@ -232,9 +230,8 @@ private theorem IsSynchronous.tracial_on_aliceAlgebra {S : CommutingStrategy X X
       rcases ht with ⟨p, rfl⟩ | ht
       · exact hgen p
       · obtain ⟨p, hp⟩ := ht
-        have ht' : t = L p := by
+        obtain rfl : t = L p := by
           rw [← (hL p).star_eq, hp, star_star]
-        subst t
         exact hgen p
     | algebraMap r => intro z _; rw [Algebra.commutes]
     | add x y _ _ hx hy =>
@@ -254,9 +251,8 @@ private theorem IsSynchronous.tracial_on_aliceAlgebra {S : CommutingStrategy X X
 
 /-- The shared state restricts to a tracial state on Alice's generated algebra. -/
 theorem IsSynchronous.aliceState_isTracial {S : CommutingStrategy X X A A 𝒜}
-    (h : S.IsSynchronous) : S.aliceState.IsTracial := by
-  intro x y
-  exact h.tracial_on_aliceAlgebra x.property y.property
+    (h : S.IsSynchronous) : S.aliceState.IsTracial :=
+  fun x y => h.tracial_on_aliceAlgebra x.property y.property
 
 /-- A synchronous correlation is invariant under exchanging the questions and answers. -/
 theorem IsSynchronous.prob_comm {S : CommutingStrategy X X A A 𝒜}
@@ -289,8 +285,7 @@ theorem IsSynchronous.exists_aliceState_projective {S : CommutingStrategy X X A 
   apply Subtype.ext
   change S.aliceAlgebra.subtype (_ * _) = _
   rw [map_mul]
-  simp only [StarSubalgebra.subtype_apply, aliceMeasurements_effect]
-  exact hP x a
+  simpa only [StarSubalgebra.subtype_apply, aliceMeasurements_effect] using hP x a
 
 end Trace
 
