@@ -139,11 +139,8 @@ private theorem integral_badCount_le_capAt {Q : Multigraph W F} (hloop : Q.Loopl
   obtain ⟨e₀, e₁, e₂, h01, h02, h12, hinc_set⟩ := ncard_eq_three.mp h3
   set s : Finset F := {e₀, e₁, e₂}
   have hs_inc : (s : Set F) = Q.incidenceSet B := by simp [s, hinc_set]
-  have hs_toFin : s = (Q.incidenceSet B).toFinset := by
-    ext e; simp [← hs_inc]
-  have hs_card : s.card = 3 := by
-    dsimp [s]
-    rw [Finset.card_insert_of_notMem (by simp [h01, h02]), Finset.card_pair h12]
+  have hs_toFin : s = (Q.incidenceSet B).toFinset := by ext e; simp [← hs_inc]
+  have hs_card : s.card = 3 := Finset.card_eq_three.2 ⟨_, _, _, h01, h02, h12, rfl⟩
   have hoff_card : (s.offDiag.card : ℝ) = 6 := by
     rw [Finset.offDiag_card, hs_card]; norm_num
   have hunit (e : F) : ‖edgeVector Q q R e‖ = 1 :=
@@ -163,13 +160,10 @@ private theorem integral_badCount_le_capAt {Q : Multigraph W F} (hloop : Q.Loopl
     (fun B' => (ω B').1.1, fun B' => (ω B').1.2)
   have hmp_proj2 : MeasurePreserving proj2 P
       ((Measure.pi fun _ : W => gaussianReal 0 1).prod
-        (Measure.pi fun _ : W => gaussianReal 0 1)) := by
-    have h1 : MeasurePreserving (fun ω B' => (ω B').1) P (Measure.pi fun _ : W => gauss2) :=
-      measurePreserving_pi _ _ fun _ =>
-        MeasureTheory.measurePreserving_fst (μ := gauss2) (ν := gaussTie)
-    have h2 := measurePreserving_arrowProdEquivProdArrow ℝ ℝ W
-      (fun _ => gaussianReal 0 1) (fun _ => gaussianReal 0 1)
-    exact h2.comp h1
+        (Measure.pi fun _ : W => gaussianReal 0 1)) :=
+    (measurePreserving_arrowProdEquivProdArrow ℝ ℝ W (fun _ => gaussianReal 0 1)
+      (fun _ => gaussianReal 0 1)).comp (measurePreserving_pi _ _ fun _ =>
+        MeasureTheory.measurePreserving_fst (μ := gauss2) (ν := gaussTie))
   set NullTie : Set (W → BlockSample) := {ω | ¬Function.Injective (ω B).2}
   set NullRay : Set (W → BlockSample) :=
     ⋃ e ∈ s, ⋃ c : Fin 3, {ω | dot2 (normVec c) (edgeVec2 Q q R ω e) = 0}
@@ -206,14 +200,10 @@ private theorem integral_badCount_le_capAt {Q : Multigraph W F} (hloop : Q.Loopl
         w₂ * (edgeVec2 Q q R ω e₂).2 = 0}
   have hRC_m (p : F × F) (c : Fin 3) : MeasurableSet (RC p c) :=
     measurableSet_rayCross_edgeVec2 Q q R c p.1 p.2
-  have hConv_m : MeasurableSet Conv :=
-    measurableSet_convex_zero_three
-      (f₀ := fun ω => edgeVec2 Q q R ω e₀)
-      (f₁ := fun ω => edgeVec2 Q q R ω e₁)
-      (f₂ := fun ω => edgeVec2 Q q R ω e₂)
-      (by unfold edgeVec2 edgeScore; fun_prop)
-      (by unfold edgeVec2 edgeScore; fun_prop)
-      (by unfold edgeVec2 edgeScore; fun_prop)
+  have hConv_m : MeasurableSet Conv := by
+    have hc (e : F) : Continuous fun ω : W → BlockSample => edgeVec2 Q q R ω e := by
+      unfold edgeVec2 edgeScore; fun_prop
+    exact measurableSet_convex_zero_three (hc e₀) (hc e₁) (hc e₂)
   have hint_bad : Integrable (fun ω => (badCount Q q R ω B : ℝ)) P :=
     integrable_badCount hdeg q R B
   have hint1 {S : Set (W → BlockSample)} (hSm : MeasurableSet S) :
@@ -235,26 +225,22 @@ private theorem integral_badCount_le_capAt {Q : Multigraph W F} (hloop : Q.Loopl
         inOpenSector c₁ (edgeVec2 Q q R ω a) → inOpenSector c₂ (edgeVec2 Q q R ω b) →
         c₁ ≠ c₂ → det2 (edgeVec2 Q q R ω a) (edgeVec2 Q q R ω b) ≠ 0 := by
       intro a ha b hb c₁ c₂ hc₁ hc₂ hne_c
-      have hab : a ≠ b := fun h => by
-        subst h; exact hne_c (inOpenSector_unique hc₁ hc₂)
+      have hab : a ≠ b := by rintro rfl; exact hne_c (inOpenSector_unique hc₁ hc₂)
       have hvec_ne : edgeVector Q q R a ≠ edgeVector Q q R b := fun heq => by
-        have hz_eq : edgeVec2 Q q R ω a = edgeVec2 Q q R ω b := by
+        have hz : edgeVec2 Q q R ω a = edgeVec2 Q q R ω b := by
           dsimp [edgeVec2, edgeScore]; rw [heq]
-        rw [hz_eq] at hc₁
-        exact hne_c (inOpenSector_unique hc₁ hc₂)
+        exact hne_c (inOpenSector_unique (hz ▸ hc₁) hc₂)
       exact hdet_ω (a, b) (Finset.mem_filter.mpr ⟨Finset.mem_offDiag.mpr ⟨ha, hb, hab⟩, hvec_ne⟩)
     have hnat := four_mul_badCount_le h01 h12 h02 hs_toFin hinj hray_ω hdet_sec
     have hreal : (4 : ℝ) * (badCount Q q R ω B : ℝ) ≤
         ((∑ p ∈ s.offDiag, ∑ c : Fin 3,
           if rayCross c (edgeVec2 Q q R ω p.1) (edgeVec2 Q q R ω p.2) then 1 else 0) +
-        2 * (if ω ∈ Conv then 1 else 0) : ℕ) := by
-      exact_mod_cast hnat
+        2 * (if ω ∈ Conv then 1 else 0) : ℕ) := by exact_mod_cast hnat
     refine hreal.trans_eq ?_
     push_cast [rhsFn, indicator_apply, RC, mem_ofPred_eq]
     rfl
   have hint_ineq : 4 * ∫ ω, (badCount Q q R ω B : ℝ) ∂P ≤ ∫ ω, rhsFn ω ∂P := by
-    rw [← integral_const_mul]
-    exact integral_mono_ae (hint_bad.const_mul 4) hint_rhs hae_le
+    rw [← integral_const_mul]; exact integral_mono_ae (hint_bad.const_mul 4) hint_rhs hae_le
   have hint_rhs_eq : ∫ ω, rhsFn ω ∂P =
       (∑ p ∈ s.offDiag, ∑ c : Fin 3, P.real (RC p c)) + 2 * P.real Conv := by
     dsimp [rhsFn]
@@ -282,9 +268,8 @@ private theorem integral_badCount_le_capAt {Q : Multigraph W F} (hloop : Q.Loopl
             measureReal_rayCross_le hloop hdeg hq (by linarith) hρ c p.1 p.2
       _ = 3 / (2 * π) * ∑ p ∈ s.offDiag, arccos ⟪edgeVector Q q R p.1, edgeVector Q q R p.2⟫ := by
           rw [Finset.mul_sum]
-          refine Finset.sum_congr rfl fun p _ => ?_
-          rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
-          ring
+          exact Finset.sum_congr rfl fun p _ => by
+            rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]; ring
       _ ≤ 3 / (2 * π) * (6 * arccos ((1 + 3 * ρ₀) / 4)) := by gcongr
       _ = 6 * straddleBound ρ₀ := by unfold straddleBound; ring
   have hpart2 : P.real Conv ≤ 1 - √((1 + ρ₀) / 2) := by
@@ -305,8 +290,8 @@ private theorem integral_badCount_le_capAt {Q : Multigraph W F} (hloop : Q.Loopl
         (f₂ := fun g : (W → ℝ) × (W → ℝ) =>
           (⟪edgeVector Q q R e₂, WithLp.toLp 2 g.1⟫, ⟪edgeVector Q q R e₂, WithLp.toLp 2 g.2⟫))
         (by fun_prop) (by fun_prop) (by fun_prop)
-    have hpre : Conv = proj2 ⁻¹' Sconv := rfl
-    rw [hpre, hmp_proj2.measureReal_preimage hSconv_m.nullMeasurableSet]
+    rw [show Conv = proj2 ⁻¹' Sconv from rfl,
+      hmp_proj2.measureReal_preimage hSconv_m.nullMeasurableSet]
     exact measureReal_pi_prod_convex_zero_le (norm_unitKernelRow q R B)
       (sqrt_pos.mpr (by linarith)) (sqrt_le_one.mpr (by linarith))
       (hcap_vec e₀ (by simp [s])) (hcap_vec e₁ (by simp [s])) (hcap_vec e₂ (by simp [s]))
