@@ -483,44 +483,23 @@ private theorem ghStep_spec {n r B k t : ℕ} {st : Memory.State} (hk : k < n) (
       rw [Function.update_of_ne (hne' _), hlow2 a ha]
   · by_cases hX : st1.mem (distBase n + st.mem (parBase n + t)) < n
     · rw [key, ite_eq_left hX]
-      dsimp only
       simp only [Function.update_apply, hX, ↓reduceIte]
       by_cases hzk : z = k
-      · subst hzk
-        simp only [parBase, wtBase] at *
-        split_ifs <;> omega
-      · by_cases hzt : z = t
-        · subst hzt
-          simp only [parBase, wtBase] at *
-          split_ifs <;> omega
-        · rw [hP2 z hz]
-          simp only [parBase, wtBase] at *
-          split_ifs <;> omega
+      · subst hzk; simp only [parBase, wtBase] at *; split_ifs <;> omega
+      by_cases hzt : z = t
+      · subst hzt; simp only [parBase, wtBase] at *; split_ifs <;> omega
+      rw [hP2 z hz]; simp only [parBase, wtBase] at *; split_ifs <;> omega
     · rw [key, ite_eq_right hX]
-      dsimp only
       simp only [Function.update_apply, hX, ↓reduceIte]
       by_cases hzk : z = k
-      · subst hzk
-        rw [hP2 z hz]
-        simp only [parBase, wtBase] at *
-        split_ifs <;> omega
-      · by_cases hzt : z = t
-        · subst hzt
-          rw [hP2 z hz]
-          simp only [parBase, wtBase] at *
-          split_ifs <;> omega
-        · rw [hP2 z hz]
-          simp only [parBase, wtBase] at *
-          split_ifs <;> omega
+      · subst hzk; rw [hP2 z hz]; simp only [parBase, wtBase] at *; split_ifs <;> omega
+      by_cases hzt : z = t
+      · subst hzt; rw [hP2 z hz]; simp only [parBase, wtBase] at *; split_ifs <;> omega
+      rw [hP2 z hz]; simp only [parBase, wtBase] at *; split_ifs <;> omega
   · by_cases hX : st1.mem (distBase n + st.mem (parBase n + t)) < n
-    · rw [key, ite_eq_left hX]
-      dsimp only
-      simp only [Function.update_apply, hX, ↓reduceIte, hW2 z hz]
-      simp only [parBase, wtBase] at *
-      split_ifs <;> omega
-    · rw [key, ite_eq_right hX]
-      dsimp only
-      simp only [Function.update_apply, hX, ↓reduceIte, hW2 z hz]
+    all_goals
+      rw [key]
+      simp only [hX, ↓reduceIte, Function.update_apply, hW2 z hz]
       simp only [parBase, wtBase] at *
       split_ifs <;> omega
 
