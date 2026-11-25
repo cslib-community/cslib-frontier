@@ -207,8 +207,7 @@ theorem tower_cosets {j : ℕ} (h2 : 2 ≤ h) (i : Fin h) (c : XX h n j) (u : U 
   split_ifs at h2' <;> simp [ev_t] at h2'
 
 theorem gen_smul_ne {j : ℕ} (h2 : 2 ≤ h) (k : Fin h) (c : XX h n j) : (gen h2 k : G h n) • c ≠ c :=
-    fun e =>
-  tower_cosets h2 k c 1 (by rw [map_one, one_smul, e])
+  fun e => tower_cosets h2 k c 1 (by rw [map_one, one_smul, e])
 
 /-- The edge of type k at a chamber. -/
 @[expose] noncomputable def edge {j : ℕ} (h2 : 2 ≤ h) (k : Fin h) (c : XX h n j) : EE h n h2 j :=
@@ -224,13 +223,10 @@ theorem edge_end {j : ℕ} (h2 : 2 ≤ h) (k : Fin h) (c : XX h n j) :
     (edge h2 k c).start = c ∨ (edge h2 k c).start = (gen h2 k : G h n) • c := by
   unfold edge
   split_ifs
-  · exact Or.inl rfl
-  · exact Or.inr rfl
+  exacts [Or.inl rfl, Or.inr rfl]
 
 theorem edge_self {j : ℕ} (h2 : 2 ≤ h) (e : EE h n h2 j) : edge h2 (e.kind) (e.start) = e :=
-    by
-  unfold edge
-  rw [dite_eq_left e.first]
+  dite_eq_left e.first
 
 theorem edge_gen {j : ℕ} (h2 : 2 ≤ h) (k : Fin h)
     (c : XX h n j) : edge h2 k ((gen h2 k : G h n) • c) = edge h2 k c := by
@@ -247,37 +243,22 @@ theorem card_edges (h2 : 2 ≤ h) (j : ℕ) (i : Fin h) :
   classical
   have h1 : (univ.filter fun e : EE h n h2 j => (e.kind) = i).card =
       (univ.filter fun c : XX h n j => FQ h2 i (evX c)).card := by
-    refine Finset.card_bij' (fun e _ => e.start) (fun c _ => edge h2 i c) ?_ ?_ ?_ ?_
-    · intro e he
-      rw [mem_filter] at he ⊢
-      exact ⟨mem_univ _, he.2 ▸ e.first⟩
-    · intro c _
-      rw [mem_filter]
-      exact ⟨mem_univ _, edge_type h2 i c⟩
-    · intro e he
-      rw [mem_filter] at he
-      rw [← he.2]
-      exact edge_self h2 e
-    · intro c hc
-      rw [mem_filter] at hc
-      unfold edge
-      rw [dite_eq_left hc.2]
+    refine Finset.card_bij' (fun e _ => e.start) (fun c _ => edge h2 i c)
+      (fun e he => mem_filter.2 ⟨mem_univ _, (mem_filter.1 he).2 ▸ e.first⟩)
+      (fun c _ => mem_filter.2 ⟨mem_univ _, edge_type h2 i c⟩)
+      (fun e he => (mem_filter.1 he).2 ▸ edge_self h2 e) fun c hc => ?_
+    unfold edge
+    rw [dite_eq_left (mem_filter.1 hc).2]
   have h3 : (univ.filter fun c : XX h n j => FQ h2 i (evX c)).card =
       (univ.filter fun c : XX h n j => ¬ FQ h2 i (evX c)).card := by
-    refine Finset.card_bij' (fun c _ => (gen h2 i : G h n) • c)
-        (fun c _ => (gen h2 i : G h n) • c) ?_ ?_ ?_ ?_
-    · intro c hc
-      rw [mem_filter] at hc ⊢
-      exact ⟨mem_univ _, fun e => (FQ_gen h2 i c).1 e hc.2⟩
-    · intro c hc
-      rw [mem_filter] at hc ⊢
-      exact ⟨mem_univ _, (FQ_gen h2 i c).2 hc.2⟩
-    · intro c _; exact gen_gen h2 i c
-    · intro c _; exact gen_gen h2 i c
+    exact Finset.card_bij' (fun c _ => (gen h2 i : G h n) • c)
+      (fun c _ => (gen h2 i : G h n) • c)
+      (fun c hc => mem_filter.2 ⟨mem_univ _, fun e => (FQ_gen h2 i c).1 e (mem_filter.1 hc).2⟩)
+      (fun c hc => mem_filter.2 ⟨mem_univ _, (FQ_gen h2 i c).2 (mem_filter.1 hc).2⟩)
+      (fun c _ => gen_gen h2 i c) fun c _ => gen_gen h2 i c
   have h4 := Finset.card_filter_add_card_filter_not (s := (univ : Finset (XX h n j)))
       (fun c => FQ h2 i (evX c))
   rw [Finset.card_univ] at h4
-  rw [h1, one_mul]
   omega
 
 theorem deg_edges (h2 : 2 ≤ h) (j : ℕ) (c : XX h n j) (i : Fin h) :
@@ -337,28 +318,21 @@ theorem npair_eq {l : Fin (h - 1)} {u u' : U h} (e : npair l u = npair l u') : u
     u' := by
   unfold npair at e
   split_ifs at e with h1 h3 h3
-  · exact Or.inl (congrArg (fun p => p.elt) e)
-  · exact Or.inr (congrArg (fun p => p.elt) e)
-  · right
-    have h4 : x h l * u = u' := congrArg (fun p => p.elt) e
-    rw [← h4, ← mul_assoc, x_mul_self, one_mul]
-  · left
-    have h4 : x h l * u = x h l * u' := congrArg (fun p => p.elt) e
-    exact mul_left_cancel h4
+  · exact Or.inl (congrArg NN.elt e)
+  · exact Or.inr (congrArg NN.elt e)
+  · have h4 : x h l * u = u' := congrArg NN.elt e
+    exact Or.inr (by rw [← h4, ← mul_assoc, x_mul_self, one_mul])
+  · exact Or.inl (mul_left_cancel (congrArg NN.elt e))
 
 omit [NeZero h] in
-theorem npair_self (ν : NN h) : npair (ν.idx) (ν.elt) = ν := by
-  unfold npair
-  rw [dite_eq_left ν.first]
+theorem npair_self (ν : NN h) : npair (ν.idx) (ν.elt) = ν := dite_eq_left ν.first
 
 omit [NeZero h] in
 theorem npair_x (l : Fin (h - 1)) (u : U h) : npair l (x h l * u) = npair l u := by
   unfold npair
   by_cases hu : FU l u
   · rw [dite_eq_left hu, dite_eq_right (fun e => (FU_iff l u).1 e hu)]
-    refine NN.ext rfl ?_
-    simp only
-    rw [← mul_assoc, x_mul_self, one_mul]
+    exact NN.ext rfl (by dsimp only; rw [← mul_assoc, x_mul_self, one_mul])
   · rw [dite_eq_right hu, dite_eq_left ((FU_iff l u).2 hu)]
 
 /-- The index of a type seen from the type i. -/
@@ -384,27 +358,17 @@ theorem nearFun_bijective (h2 : 2 ≤ h) (j : ℕ)
   · rintro ⟨⟨k, c, hc⟩, hk⟩ ⟨⟨k', c', hc'⟩, hk'⟩ e
     simp only [nearFun, Prod.mk.injEq] at e
     obtain ⟨e1, e2⟩ := e
-    have hl : idx i k hk = idx i k' hk' := by
-      have h6 : (npair (idx i k hk) (cor i c)).idx =
-          (npair (idx i k' hk') (cor i c')).idx :=
-        congrArg (fun p : NN h => p.idx) e2
-      rw [npair_type, npair_type] at h6
-      exact h6
+    have hl : idx i k hk = idx i k' hk' := by simpa only [npair_type] using congrArg NN.idx e2
     have hkk : k = k' := by rw [← sh_idx i k hk, hl, sh_idx]
     subst hkk
     have hcc : c = c' := by
       rcases npair_eq e2 with e3 | e3
       · exact (vert_cor_bijective j i).1 (Prod.ext e1 e3)
       · exfalso
-        have h3 : c = (gen h2 k : G h n) • c' := by
-          refine (vert_cor_bijective j i).1 (Prod.ext ?_ ?_)
-          · simp only
-            rw [gen_idx h2 i k hk, vert_th, e1]
-          · simp only
-            rw [gen_idx h2 i k hk, cor_th, e3]
-        have h4 : FQ h2 k (evX c) := hc
-        rw [h3] at h4
-        exact (FQ_gen h2 k c').1 h4 hc'
+        have h3 : c = (gen h2 k : G h n) • c' := (vert_cor_bijective j i).1 <| Prod.ext
+          (by dsimp only; rw [gen_idx h2 i k hk, vert_th, e1])
+          (by dsimp only; rw [gen_idx h2 i k hk, cor_th, e3])
+        exact (FQ_gen h2 k c').1 (h3 ▸ hc) hc'
     subst hcc
     rfl
   · rintro ⟨v, ν⟩
@@ -465,24 +429,19 @@ theorem tower_fibre {j : ℕ} (hj : j < JJ h n) (d : XX h n (j + 1)) :
   have h1 : ∀ (g : G h n) (d : XX h n (j + 1)), (univ.filter fun c : XX h n j => pr c = d).card =
       (univ.filter fun c : XX h n j => pr c = g • d).card := by
     intro g d
-    refine Finset.card_bij' (fun c _ => g • c) (fun c _ => g⁻¹ • c) ?_ ?_ ?_ ?_
-    · intro c hc
-      rw [mem_filter] at hc ⊢
-      exact ⟨mem_univ _, by rw [tower_equivariant, hc.2]⟩
-    · intro c hc
-      rw [mem_filter] at hc ⊢
-      exact ⟨mem_univ _, by rw [tower_equivariant, hc.2, inv_smul_smul]⟩
-    · intro c _; exact inv_smul_smul g c
-    · intro c _; exact smul_inv_smul g c
+    exact Finset.card_bij' (fun c _ => g • c) (fun c _ => g⁻¹ • c)
+      (fun c hc => mem_filter.2 ⟨mem_univ _, by rw [tower_equivariant, (mem_filter.1 hc).2]⟩)
+      (fun c hc => mem_filter.2
+        ⟨mem_univ _, by rw [tower_equivariant, (mem_filter.1 hc).2, inv_smul_smul]⟩)
+      (fun c _ => inv_smul_smul g c) fun c _ => smul_inv_smul g c
   have h3 : ∀ d' : XX h n (j + 1), (univ.filter fun c : XX h n j => pr c = d').card =
       (univ.filter fun c : XX h n j => pr c = d).card := by
     intro d'
     obtain ⟨g, rfl⟩ := MulAction.exists_smul_eq (G h n) d' d
     exact h1 g d'
   have h4 : Fintype.card (XX h n j) = ∑ d' : XX h n (j + 1),
-      (univ.filter fun c : XX h n j => pr c = d').card := by
-    rw [← Finset.card_univ]
-    exact Finset.card_eq_sum_card_fiberwise fun c _ => mem_univ _
+      (univ.filter fun c : XX h n j => pr c = d').card :=
+    Finset.card_univ.symm.trans (Finset.card_eq_sum_card_fiberwise fun c _ => mem_univ _)
   rw [Finset.sum_congr rfl fun d' _ => h3 d', Finset.sum_const, Finset.card_univ, smul_eq_mul,
       card_XX_succ hj,
     mul_comm] at h4
@@ -497,11 +456,7 @@ theorem fibre_edges {j : ℕ} (h2 : 2 ≤ h) (hj : j < JJ h n) (d : EE h n h2 (j
     exact ⟨mem_univ _, congrArg (fun p : EE h n h2 (j + 1) => p.start) he.2⟩
   · intro e he e' he' hee
     rw [Finset.mem_coe, mem_filter] at he he'
-    have h1 : e.kind = e'.kind := by
-      have a1 := congrArg (fun p : EE h n h2 (j + 1) => p.kind) he.2
-      have a2 := congrArg (fun p : EE h n h2 (j + 1) => p.kind) he'.2
-      exact a1.trans a2.symm
-    exact EE.ext h1 hee
+    exact EE.ext (congrArg EE.kind (he.2.trans he'.2.symm) :) hee
 
 /-- Proposition H.1(b) [AnthropicVPVNP2026, paper Appendix H.1, p. 44]: "Exactly b of them onto
 each": b cosets over each, a
@@ -531,24 +486,18 @@ theorem exists_host (j : ℕ) (i : Fin h) : ∃ f : VV h n j i → XX h n (j + 1
     Function.Injective f ∧ ∀ v, vert i (f v) = prV v := by
   classical
   by_cases hj : j < JJ h n
-  · have h1 : ∀ d : VV h n (j + 1) i, Nonempty ({v : VV h n j i // prV v = d} ↪ U h) := by
-      intro d
-      refine Function.Embedding.nonempty_of_card_le ?_
-      rw [card_U, ← ee, ← tower_cosets_over hj d, Fintype.card_subtype]
+  · have h1 : ∀ d : VV h n (j + 1) i, Nonempty ({v : VV h n j i // prV v = d} ↪ U h) := fun d =>
+      Function.Embedding.nonempty_of_card_le <| by
+        rw [card_U, ← ee, ← tower_cosets_over hj d, Fintype.card_subtype]
     let φ : ∀ d : VV h n (j + 1) i, {v : VV h n j i // prV v = d} ↪ U h := fun d => (h1 d).some
     have hφ : ∀ (v : VV h n j i) (d : VV h n (j + 1) i) (hv : prV v = d),
-        φ (prV v) ⟨v, rfl⟩ = φ d ⟨v, hv⟩ := by
-      rintro v _ rfl
-      rfl
+        φ (prV v) ⟨v, rfl⟩ = φ d ⟨v, hv⟩ := by rintro v _ rfl; rfl
     refine ⟨fun v => (th i (φ (prV v) ⟨v, rfl⟩) : G h n) • (prV v).1, fun _ => ⟨?_, fun v => ?_⟩⟩
     · intro v v' e
       simp only at e
-      have e1 : prV v = prV v' := by
-        have := congrArg (vert i) e
-        rwa [vert_th, vert_th, vert_of, vert_of] at this
+      have e1 : prV v = prV v' := by simpa only [vert_th, vert_of] using congrArg (vert i) e
       have e2 : φ (prV v) ⟨v, rfl⟩ = φ (prV v') ⟨v', rfl⟩ := by
-        have := congrArg (cor i) e
-        rwa [cor_th, cor_th, (prV v).2, (prV v').2, mul_one, mul_one] at this
+        simpa only [cor_th, (prV v).2, (prV v').2, mul_one] using congrArg (cor i) e
       rw [hφ v (prV v') e1] at e2
       exact congrArg Subtype.val ((φ (prV v')).injective e2)
     · rw [vert_th, vert_of]
