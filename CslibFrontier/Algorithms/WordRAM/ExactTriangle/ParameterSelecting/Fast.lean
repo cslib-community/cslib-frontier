@@ -128,15 +128,13 @@ theorem exec_fast {w W n F b : ℕ} (values : List ℤ)
       (hpj : j ≠ CallableFixedPrime.Reg.prime := by decide) : q.regs j = x.regs j :=
     (Function.update_of_ne hpj _ _).trans ((rr j hj).trans (sr j hj hdj hgj))
   have qn : q.regs CallableFixedPrime.Reg.n = n := by regs_frame
-  have qd : q.regs CallableFixedPrime.Reg.dimension = D (ParameterChoice.level n) := by
-    regs_frame
+  have qd : q.regs CallableFixedPrime.Reg.dimension = D (ParameterChoice.level n) := by regs_frame
   have qg : q.regs CallableFixedPrime.Reg.groups = ParameterChoice.groups n := by regs_frame
   have qb : q.regs CallableFixedPrime.Reg.base = b := by regs_frame
   have qa : q.regs CallableFixedPrime.Reg.ab = x.regs CallableFixedPrime.Reg.ab := qkeep _
   have qB : q.regs CallableFixedPrime.Reg.bc = x.regs CallableFixedPrime.Reg.bc := qkeep _
   have qc : q.regs CallableFixedPrime.Reg.ac = x.regs CallableFixedPrime.Reg.ac := qkeep _
-  have same (u : ℕ) (hu : u < b) : q.mem u = x.mem u :=
-    (rframe u (Or.inl hu)).trans (congrFun sm u)
+  have same (u : ℕ) (hu : u < b) : q.mem u = x.mem u := (rframe u (Or.inl hu)).trans (congrFun sm u)
   have hm := window_le (n := n) (d := D (ParameterChoice.level n))
     (g := ParameterChoice.groups n) (T := CallableFixedPrime.rawTotal n values) hcap
   obtain ⟨a, hout, y, hy, yf, ys, yiff, yw, yframe, yr⟩ :=
