@@ -113,7 +113,8 @@ theorem innerStep_spec {P : List (List ℕ)} {σ : ℕ} {T : PTrie}
   obtain ⟨hr_pos, hr_lt⟩ := hinv.r_eq ▸ hinv.q_bounds qHead₀ hqh_lt
   have hr_ne_nil : T.strOf r ≠ [] := hT.str_ne_nil r hr_pos hr_lt
   have hexp_sub : B.expAt qHead₀ ⊆ B.disc :=
-    Finset.insert_subset_insert _ (Finset.image_subset_image (Finset.range_subset_range.2 hqh_lt.le))
+    Finset.insert_subset_insert _
+      (Finset.image_subset_image (Finset.range_subset_range.2 hqh_lt.le))
   have hr_not_exp : r ∉ B.expAt qHead₀ := by
     simp only [PBFS.expAt, Finset.mem_insert, Finset.mem_image, Finset.mem_range, not_or,
       not_exists, not_and]

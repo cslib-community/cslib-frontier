@@ -196,7 +196,8 @@ private theorem exec_trieCharLoop (inp : Input) (w : ℕ) (hw : Fits w inp.wordB
     obtain ⟨x₂, he_st, hM₂, hx₂_rS, hx₂_r4, hx₂_r2, hx₂_r3, hx₂_r1, hhold₂⟩ := hstep
     obtain ⟨y, he_tl, hLy, hMy, hy_rS, hy_r4, hy_r2, hy_r1, hholdy⟩ :=
       ih rest _ x₂ (hL.of_preserves he_st) hM₂ hT_step (by omega) hx₂_rS (hx₂_r4 ▸ hs_lt_step)
-        hx₂_r3 (by rw [hx₂_r2, List.length_append]; omega) (hx₂_r2 ▸ hhold₂) fun b hb => hchars b (List.mem_cons_of_mem a hb)
+        hx₂_r3 (by rw [hx₂_r2, List.length_append]; omega) (hx₂_r2 ▸ hhold₂)
+        fun b hb => hchars b (List.mem_cons_of_mem a hb)
     rw [hx₂_r4] at hMy hy_rS hy_r4
     exact ⟨y, (ExecWithin.loop_iter hc he_st he_tl).mono (by omega), hLy, hMy, hy_rS, hy_r4,
       by omega, hy_r1.trans hx₂_r1, hholdy⟩
