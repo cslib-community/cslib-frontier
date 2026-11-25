@@ -62,9 +62,8 @@ parameter `n : ℕ` (for instance `Message n = { b : List Bool // b.length = k n
 * `Cslib.Crypto.AnonymousToken.reduceRedemptionsWord`: uniform word-level realization of
   `RandomTarget.reduceRedemptions`.
 * `Cslib.Crypto.AnonymousToken.extractedRedemptionWordGame`,
-  `Cslib.Crypto.AnonymousToken.oneMoreWordGame`,
-  `Cslib.Crypto.AnonymousToken.WordOneMoreUnforgeable`: word-level experiments and hardness
-  assumption.
+  `Cslib.Crypto.AnonymousToken.oneMoreWordGame`: word-level extracted redemption and
+  fixed-budget one-more games.
 * `Cslib.Crypto.AnonymousToken.WithinWordQueries`: input-uniform signing-query bound predicate.
 
 ## Main results
@@ -256,17 +255,6 @@ noncomputable def oneMoreWordGame (S : WordSignatureScheme) (N : ℕ → ℕ)
     (targets : ∀ n, List Bool → ProbComp (Fin (N n) → List Bool))
     (budget : ℕ → ℕ) (B : WordOneMoreAdversary) (n : ℕ) : ProbComp Bool :=
   Signature.oneMoreExperiment (S.toScheme n) (targets n) (budget n) (B.toTyped (N n) n)
-
-/-- Asymptotic word-level chosen-target one-more unforgeability (`[pomfrit26]`, `[voleihat26]`):
-every uniform strict `IsOraclePPT encBits` word adversary has negligible success probability in
-`oneMoreWordGame`. -/
-def WordOneMoreUnforgeable (S : WordSignatureScheme) (N : ℕ → ℕ)
-    (targets : ∀ n, List Bool → ProbComp (Fin (N n) → List Bool))
-    (budget : ℕ → ℕ) : Prop :=
-  Game.Indistinguishable
-    (fun B n => ProbComp.eval (oneMoreWordGame S N targets budget B n))
-    (fun _ _ => PMF.pure false)
-    (IsOraclePPT encBits)
 
 /-- Uniform word-level realization of `RandomTarget.reduceRedemptions`: runs `A n input`, keeps
 the first `budget n + 1` tokens, maps each token's message word via binary `slotWord n`, and
@@ -488,8 +476,9 @@ theorem succWithin_extractedRedemptionWordGame_withinQueries
   exact hred.mono fun _ _ => by simp
 
 /-- Asymptotic word-level redemption security in the extracted random-target model: assuming
-`WordOneMoreUnforgeable S N targets budget` and polynomial-time `n ↦ budget n + 1` and `slotWord`,
-every uniform strict `IsOraclePPT` adversary `A` has negligible success probability in
+`Game.Indistinguishable` on `oneMoreWordGame S N targets budget` against uniform strict
+`IsOraclePPT encBits` adversaries, and polynomial-time `n ↦ budget n + 1` and `slotWord`, every
+uniform strict `IsOraclePPT` adversary `A` has negligible success probability in
 `extractedRedemptionWordGame`. -/
 theorem negligible_extractedRedemptionWordGame
     (S : WordSignatureScheme) (N : ℕ → ℕ)
@@ -498,7 +487,9 @@ theorem negligible_extractedRedemptionWordGame
     (encM : ∀ n, Message n ↪ List Bool) (dec : ∀ n, Decoder (encM n))
     (slot : ∀ n, Message n ↪ Fin (N n)) (budget : ℕ → ℕ)
     (slotWord : ℕ → List Bool → ℕ)
-    (hOneMore : WordOneMoreUnforgeable S N targets budget)
+    (hOneMore : Game.Indistinguishable
+      (fun B n => ProbComp.eval (oneMoreWordGame S N targets budget B n))
+      (fun _ _ => PMF.pure false) (IsOraclePPT encBits))
     (hbudget : ComputableInPolyTime (fun n => budget n + 1) encUnary encUnary)
     (hslot : ComputableInPolyTime (fun p : ℕ × List Bool => slotWord p.1 p.2)
       (encPair encUnary encBits) encNat)
@@ -522,7 +513,9 @@ theorem indistinguishable_extractedRedemptionWordGame
     (encM : ∀ n, Message n ↪ List Bool) (dec : ∀ n, Decoder (encM n))
     (slot : ∀ n, Message n ↪ Fin (N n)) (budget : ℕ → ℕ)
     (slotWord : ℕ → List Bool → ℕ)
-    (hOneMore : WordOneMoreUnforgeable S N targets budget)
+    (hOneMore : Game.Indistinguishable
+      (fun B n => ProbComp.eval (oneMoreWordGame S N targets budget B n))
+      (fun _ _ => PMF.pure false) (IsOraclePPT encBits))
     (hbudget : ComputableInPolyTime (fun n => budget n + 1) encUnary encUnary)
     (hslot : ComputableInPolyTime (fun p : ℕ × List Bool => slotWord p.1 p.2)
       (encPair encUnary encBits) encNat)

@@ -537,7 +537,10 @@ private theorem budget_plus_one_polyTime :
 -- `N n = 2 ^ (n + 1)` targets, `budget n = n + 1`, and certified `wordCollisionAttack`.
 example (S : WordSignatureScheme)
     (targets : ∀ n, List Bool → ProbComp (Fin (2 ^ (n + 1)) → List Bool))
-    (hOneMore : WordOneMoreUnforgeable S (fun n => 2 ^ (n + 1)) targets (fun n => n + 1)) :
+    (hOneMore : Game.Indistinguishable
+      (fun B n =>
+        ProbComp.eval (oneMoreWordGame S (fun n => 2 ^ (n + 1)) targets (fun n => n + 1) B n))
+      (fun _ _ => PMF.pure false) (IsOraclePPT encBits)) :
     Negligible (fun n => Game.succProbability (ProbComp.eval
       (extractedRedemptionWordGame S (fun n => 2 ^ (n + 1)) targets (fun n => FixedBits (n + 1))
         (fun n => encFixedBits (n + 1)) (fun n => decFixedBits (n + 1)) slotFixedBits
