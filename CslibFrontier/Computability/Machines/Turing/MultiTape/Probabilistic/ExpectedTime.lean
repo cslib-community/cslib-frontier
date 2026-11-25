@@ -167,7 +167,8 @@ theorem expectedTime_le_of_halted {T : ℕ}
         simp [h final hf] at hr) zero_le
   rw [expectedTime, tsum_eq_sum (s := Finset.range T) fun t ht => hzero t (by simpa using ht)]
   calc _ ≤ ∑ _t ∈ Finset.range T, (1 : ℝ≥0∞) :=
-        Finset.sum_le_sum fun t _ => Cslib.Probability.PMF.toOuterMeasure_le_one _ _
+        Finset.sum_le_sum fun t _ =>
+          Cslib.Probability.PMF.toOuterMeasure_le_one _ _
     _ = T := by simp
 
 /-- **The probability of still running as a count**: the fraction of the `2 ^ t` coin strings of

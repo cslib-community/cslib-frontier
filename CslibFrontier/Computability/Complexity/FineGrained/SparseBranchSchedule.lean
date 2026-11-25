@@ -228,7 +228,8 @@ theorem sum_card_branchAugmentedScope_le [Fintype ι] [DecidableEq ι]
   rw [hdouble]
   calc ∑ v : Fin n', #{f | v ∈ scope f}
       ≤ ∑ _v : Fin n', (b₀ + 1) :=
-        sum_le_sum fun v _ => varIncidence_branchAugmentedScope_le F I P b₀ hIF e b v
+        sum_le_sum fun v _ =>
+          varIncidence_branchAugmentedScope_le F I P b₀ hIF e b v
     _ = (b₀ + 1) * n' := by
         rw [sum_const, card_univ, Fintype.card_fin, smul_eq_mul, mul_comm]
 
@@ -385,8 +386,9 @@ theorem Feasible.branch_domainExaminationBound_le [Fintype ι]
   intro d q C
   have hd_le : (d : ℝ) ≤ ((k * (2 * c + 4) : ℕ) : ℝ) * (n' : ℝ) := by
     exact_mod_cast branchDegreeBudget_le (k := k) hm hn
-  have hq : (q : ℝ) ≤ ((k * (2 * c + 4) : ℕ) : ℝ) * (n' : ℝ) *
-      ((rowBound β n' : ℝ) / numNodes n') := by
+  have hq :
+      (q : ℝ) ≤ ((k * (2 * c + 4) : ℕ) : ℝ) * (n' : ℝ) *
+        ((rowBound β n' : ℝ) / numNodes n') := by
     calc (q : ℝ)
         ≤ ((d * rowBound β n' : ℕ) : ℝ) / numNodes n' := Nat.cast_div_le
       _ = (d : ℝ) * ((rowBound β n' : ℝ) / numNodes n') := by rw [Nat.cast_mul, mul_div_assoc]

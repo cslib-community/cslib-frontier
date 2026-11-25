@@ -253,7 +253,8 @@ theorem measure_pi_exists_integral_risk_gt_of_measurable
       (measurable_empiricalRisk_prod hℓ m)).pow_const 2))).exp.ennreal_ofReal
   refine (measure_mono fun S hS => ?_).trans
     (measure_ofReal_div_le_lintegral_le_of_measurable _ P hFm
-      (lintegral_exp_sq_risk_sub_le D hℓi hℓ01 (by omega)) (Real.sqrt_pos.2 (by positivity)) hδ)
+      (lintegral_exp_sq_risk_sub_le D hℓi hℓ01 (by omega))
+      (Real.sqrt_pos.2 (by positivity)) hδ)
   obtain ⟨Q, hQ, hQP, hlt⟩ := hS
   by_contra hB
   rw [Set.mem_ofPred_eq, not_le] at hB

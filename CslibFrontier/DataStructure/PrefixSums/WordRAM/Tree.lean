@@ -168,7 +168,9 @@ def Rep : {h : ℕ} → Tree h → ℕ → (ℕ → ℕ) → Prop
 
 /-- The root word at base address `b` stores `t.total`. -/
 theorem Rep.root {t : Tree h} (ht : t.Rep b mem) : mem b = t.total := by
-  cases t with | leaf => exact ht | node => exact ht.1
+  cases t with
+  | leaf => exact ht
+  | node => exact ht.1
 
 /-- A frame rule for the tree representation: only its contiguous footprint matters. -/
 theorem Rep.congr {t : Tree h} (ht : t.Rep b mem)

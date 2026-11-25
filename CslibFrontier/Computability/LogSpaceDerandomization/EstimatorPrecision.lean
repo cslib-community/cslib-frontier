@@ -211,7 +211,8 @@ theorem child_cost_mul_accuracy_le_of_rate_le {s K A a a' b c u u' : ℝ}
       (2 : ℝ) ^ (-Real.logb 2 c / 2) *
         ((2 : ℝ) ^ (-precision K A M i a u - A + ((M : ℝ) - m) / K) *
           (2 : ℝ) ^ (-scaleMargin s * |Real.logb 2 (b / a)|)) := by
-  have hlog := Real.logb_le_logb_of_le (by norm_num : (1 : ℝ) < 2) (mul_pos hc hb) hba'
+  have hlog := Real.logb_le_logb_of_le (by norm_num : (1 : ℝ) < 2)
+    (mul_pos hc hb) hba'
   rw [Real.logb_mul hc.ne' hb.ne'] at hlog
   have hacc : (2 : ℝ) ^ (-precision K A m i' a' u') ≤
       (2 : ℝ) ^ (-precision K A m i' b u') * (2 : ℝ) ^ (-Real.logb 2 c / 2) := by

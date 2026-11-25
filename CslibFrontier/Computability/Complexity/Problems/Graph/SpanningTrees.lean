@@ -184,10 +184,11 @@ theorem computableInPolyTime_natCard_isTree :
       (fun G : Graph =>
         Nat.card {T : SimpleGraph {v // v ∈ G.vertices} // T ≤ G.induced ∧ T.IsTree})
       encGraph encNat := by
-  rw [show (fun G : Graph =>
+  have hfun : (fun G : Graph =>
       Nat.card {T : SimpleGraph {v // v ∈ G.vertices} // T ≤ G.induced ∧ T.IsTree}) =
-      fun G => G.spanningTreeCount.toNat from
-    funext fun G => by rw [spanningTreeCount_eq_natCard, Int.toNat_natCast]]
+      fun G => G.spanningTreeCount.toNat :=
+    funext fun G => by rw [spanningTreeCount_eq_natCard, Int.toNat_natCast]
+  rw [hfun]
   exact intBin_toNat.comp computableInPolyTime_spanningTreeCount
 
 end Cslib.Complexity.Graph

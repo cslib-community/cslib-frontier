@@ -225,8 +225,9 @@ theorem quantumWinProb_symmetrize (G : TwoProverGame Q Q A A)
     G.quantumWinProb S.symmetrize = G.quantumWinProb S := by
   classical
   let _ := Fintype.ofFinite Q
-  let score (p : Q → Q → A → A → ℝ) := ∑ x, ∑ y, (G.questions (x, y)).toReal *
-    ∑ a, ∑ b, if G.accepts x y a b then p x y a b else 0
+  let score (p : Q → Q → A → A → ℝ) :=
+    ∑ x, ∑ y, (G.questions (x, y)).toReal * ∑ a, ∑ b,
+      if G.accepts x y a b then p x y a b else 0
   let rev x y a b := S.prob y x b a
   have hrev : score rev = score S.prob := by
     dsimp only [score, rev]

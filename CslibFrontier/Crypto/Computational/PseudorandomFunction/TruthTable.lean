@@ -176,16 +176,17 @@ theorem exists_complexity_restriction_le {family : List Bool → List Bool → L
   refine ⟨c, fun key m hm => ?_⟩
   set t : List (Fin m ⊕ Bool) :=
     (frame key ++ List.replicate (key.length - m) false).map Sum.inr ++ List.ofFn Sum.inl
-  have hlen : t.length = 3 * key.length + 1 := by enc_len [t, List.length_map, List.length_ofFn]
+  have hlen : t.length = 3 * key.length + 1 := by
+    enc_len [t, List.length_map, List.length_ofFn]
   have hfun : restriction (family key) key.length m =
       fun z => L.slice t.length (substitute (fun j => t[j]) z) := funext fun z => by
-    rw [Bool.eq_iff_iff, Language.slice_eq_true_iff, show List.ofFn
-      (substitute (fun j : Fin t.length => t[j]) z) =
-      frame key ++ (List.replicate (key.length - m) false ++ List.ofFn z) from
-        (show List.ofFn (substitute (fun j : Fin t.length => t[j]) z) =
-            t.map (fun e => e.elim z id) from
-          List.ext_getElem (by simp) fun _ _ _ => by simp [substitute]).trans
-          (by simp [t, List.map_ofFn, Function.comp_def])]
+    have hsub : List.ofFn (substitute (fun j : Fin t.length => t[j]) z) =
+        frame key ++ (List.replicate (key.length - m) false ++ List.ofFn z) :=
+      (show List.ofFn (substitute (fun j : Fin t.length => t[j]) z) =
+          t.map (fun e => e.elim z id) from
+        List.ext_getElem (by simp) fun _ _ _ => by simp [substitute]).trans
+        (by simp [t, List.map_ofFn, Function.comp_def])
+    rw [Bool.eq_iff_iff, Language.slice_eq_true_iff, hsub]
     simpa only [restriction, Function.comp_apply, encPair_apply, encBits_apply] using
       hg (key, List.replicate (key.length - m) false ++ List.ofFn z)
   exact hfun ▸ (complexity_substitute_le _ _).trans (Nat.add_le_add_right (hlen ▸ hc _) 2)

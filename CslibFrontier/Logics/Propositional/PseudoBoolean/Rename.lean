@@ -253,8 +253,10 @@ theorem semOutput_rename_iff {π : ℕ → ℕ} {I O : Instance} {b : Option ℤ
     simp only [List.map_nil] at h
     rw [satisfiable_iff, satisfiable_iff, h]
   cases g with
-  | derivable => exact imp_congr (hsat I (hπ.mono hI)) (hsat O (hπ.mono hO))
-  | equisatisfiable => exact iff_congr (hsat I (hπ.mono hI)) (hsat O (hπ.mono hO))
+  | derivable =>
+    exact imp_congr (hsat I (hπ.mono hI)) (hsat O (hπ.mono hO))
+  | equisatisfiable =>
+    exact iff_congr (hsat I (hπ.mono hI)) (hsat O (hπ.mono hO))
   | equioptimal =>
     exact forall_congr' fun v => imp_congr_right fun _ =>
       iff_congr (nonempty_solsLE_rename (hπ.mono hI) v) (nonempty_solsLE_rename (hπ.mono hO) v)

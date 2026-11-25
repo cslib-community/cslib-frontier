@@ -200,9 +200,10 @@ theorem interpret_queryAny (A : Set (List Bool)) (words : List (List Bool)) :
       rfl
     | cons word words ih =>
       rw [List.length_cons, OracleComp.iterate_succ_bind, OracleComp.interpret_bind]
-      change OracleComp.interpret (m := Id) (languageOracle A) (OracleComp.iterate words.length
-        queryAnyStep (OracleComp.interpret (m := Id) (languageOracle A)
-          (queryAnyStep (word :: words, acc)))) = _
+      change OracleComp.interpret (m := Id) (languageOracle A)
+        (OracleComp.iterate words.length queryAnyStep
+          (OracleComp.interpret (m := Id) (languageOracle A)
+            (queryAnyStep (word :: words, acc)))) = _
       rw [interpret_id_queryAnyStep, ih]
       simp [Bool.or_assoc]
   unfold queryAny
@@ -244,9 +245,10 @@ theorem NP_subset_RPWithPromiseOracle_PromiseUSAT (enc : α ↪ List Bool) :
     isOraclePPTOn_queryAny.preprocess (show ComputableInPolyTime queries _ _ by fun_prop),
     fun A hA a => ⟨fun ha => ?_, fun ha r => ?_⟩⟩
   · set N := c * ((enc a).length + 1) ^ d with hN
-    rw [show ((Polynomial.C 11 * (Polynomial.C c * (Polynomial.X + 1) ^ d + 3) *
+    have heval : ((Polynomial.C 11 * (Polynomial.C c * (Polynomial.X + 1) ^ d + 3) *
         (Polynomial.C c * (Polynomial.X + 1) ^ d + 2) ^ 2 : Polynomial ℕ)).eval (enc a).length =
-        11 * (N + 3) * (N + 2) ^ 2 by simp [hN]]
+        11 * (N + 3) * (N + 2) ^ 2 := by simp [hN]
+    rw [heval]
     have hvars : (g a).vars.length ≤ N := (SAT.length_vars_le _).trans (hlen a)
     refine (two_pow_le_two_mul_card_exists_row (M := N + 3) (by omega)
       (fun b => reduce (g a, b) ∈ USAT)

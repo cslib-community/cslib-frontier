@@ -120,7 +120,8 @@ theorem eval_modLinkAdversary_guess_eq_map_coins_of_bounds (E : Scheme)
       Leveled.leveledGuessCoinBudget (depth n) (capacity n) ctBound chooseCoins guessCoins := by
     have := (hkey predecessor (hkeys predecessor (by simp))).2
     have hpos : 1 ≤ depth n * capacity n :=
-      Nat.mul_le_mul (by omega : 1 ≤ depth n) (by omega : 1 ≤ capacity n)
+      Nat.mul_le_mul (by omega : 1 ≤ depth n)
+        (by omega : 1 ≤ capacity n)
     rw [hlength]
     calc
       _ = ((depth n * capacity n - 1) + 1) * ctBound + chooseCoins + guessCoins := by ring

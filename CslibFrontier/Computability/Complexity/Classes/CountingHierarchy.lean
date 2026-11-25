@@ -136,9 +136,10 @@ theorem taggedUnion_mem_CountingLevel {A B : Set (List Bool)}
   | succ _ ih =>
     obtain ⟨O₀, hO₀, hA⟩ := hA
     obtain ⟨O₁, hO₁, hB⟩ := hB
-    exact ⟨taggedUnion O₀ O₁, ih hO₀ hO₁, taggedUnion_mem_PPWithOracle
-      ((reduces_taggedUnion_left O₀ O₁).PPWithOracle_subset encBits hA)
-      ((reduces_taggedUnion_right O₀ O₁).PPWithOracle_subset encBits hB)⟩
+    exact ⟨taggedUnion O₀ O₁, ih hO₀ hO₁,
+      taggedUnion_mem_PPWithOracle
+        ((reduces_taggedUnion_left O₀ O₁).PPWithOracle_subset encBits hA)
+        ((reduces_taggedUnion_right O₀ O₁).PPWithOracle_subset encBits hB)⟩
 
 /-- A fixed list of languages, joined by successive leading tags. The empty list gives the
 empty language; a false tag selects the head and a true tag continues through the list. -/

@@ -87,7 +87,8 @@ theorem Pairwise.count_take_countP_lt_add {α : Type*} [LinearOrder α] (c : α)
     · rw [countP_cons_of_pos (by simpa using hx), Nat.add_right_comm, take_succ_cons,
         count_cons_of_ne hx.ne, count_cons_of_ne hx.ne,
         Pairwise.count_take_countP_lt_add c k h.2]
-    · have hlt : l.countP (· < x) = 0 := countP_eq_zero.mpr fun y hy => by simpa using h.1 y hy
+    · have hlt : l.countP (· < x) = 0 :=
+        countP_eq_zero.mpr fun y hy => by simpa using h.1 y hy
       rw [countP_cons_of_neg (by simp), hlt, Nat.zero_add, count_cons_self]
       cases k with
       | zero => simp

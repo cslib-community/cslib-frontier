@@ -69,7 +69,8 @@ private theorem answerGap_mem {α : Type} {enc : α ↪ List Bool}
   have hq : ComputableInPolyTime (fun x : (α × List Bool) × ℕ => (x.1.1, x.2))
       (encPair (encPair enc encBits) encUnary) (encPair enc encUnary) := by fun_prop
   have hs : (fun x : (α × List Bool) × ℕ =>
-      if x.1.2.getD x.2 false then g (x.1.1, x.2) else f (x.1.1, x.2) - g (x.1.1, x.2)) ∈
+      if x.1.2.getD x.2 false then g (x.1.1, x.2) else
+        f (x.1.1, x.2) - g (x.1.1, x.2)) ∈
       GapP (encPair (encPair enc encBits) encUnary) :=
     GapP.ite_mem (by fun_prop) (GapP.comp_mem hg hq) (GapP.comp_mem (GapP.sub_mem' hf hg) hq)
   have hw : ComputableInPolyTime
@@ -117,7 +118,8 @@ theorem truthTable_mem_WPP (hA : A ∈ WPP (encPair enc encUnary))
     {a | d (a, truthTableAnswers A r a) = true} ∈ WPP enc := by
   rw [mem_WPP] at hA ⊢
   obtain ⟨g, hg, f, hf, hn, hR, hA⟩ := hA
-  have hF (a) : (∏ i ∈ range (r a), f (a, i)) ≠ 0 := prod_ne_zero_iff.mpr fun i _ => hn (a, i)
+  have hF (a) : (∏ i ∈ range (r a), f (a, i)) ≠ 0 :=
+    prod_ne_zero_iff.mpr fun i _ => hn (a, i)
   refine ⟨answerGap g f r d, answerGap_mem hg (mem_GapP_of_polyTime hf) hr hd,
     _, ComputableInPolyTime.intBin_prod_range hf hr, hF, fun a => ?_, fun a => ?_⟩
   · rw [answerGap_eq hR hA]

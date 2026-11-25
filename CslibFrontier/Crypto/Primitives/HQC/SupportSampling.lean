@@ -117,9 +117,10 @@ theorem eval_sampleSupportFrom_succ (draw : ℕ → ProbComp ℕ) (offset count 
     ProbComp.eval_bind, Fin.val_zero, Nat.add_zero,
     PMF.map_bind, PMF.map_comp, Function.comp_def]
   congr 1 with r : 1
-  rw [show (fun j : Fin count => draw (offset + j.succ.val)) =
-    fun j => draw (offset + 1 + j.val) from funext fun j =>
-      congrArg draw (by simp only [Fin.val_succ, Nat.add_right_comm, Nat.add_assoc])]
+  have hdraw : (fun j : Fin count => draw (offset + j.succ.val)) =
+      fun j => draw (offset + 1 + j.val) :=
+    funext fun j => congrArg draw (by simp only [Fin.val_succ, Nat.add_right_comm, Nat.add_assoc])
+  rw [hdraw]
   rfl
 
 /-- The source's line 5, using independent fair bits in place of the XOF words. -/

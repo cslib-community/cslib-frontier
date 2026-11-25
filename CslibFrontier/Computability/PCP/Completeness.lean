@@ -125,14 +125,16 @@ private theorem exists_pcpVerifier_of_gap {Input : Type} (input : Input ↪ List
       (fun p : (SelectedAlphabet → SelectedAlphabet → Bool) ×
         SelectedAlphabet × SelectedAlphabet => p.1 p.2.1 p.2.2)
       (encPair (encPi (encPi encBool))
-        (encPair (encPair encBool (encPi encBool)) (encPair encBool (encPi encBool)))) encBool :=
+        (encPair (encPair encBool (encPi encBool)) (encPair encBool (encPi encBool))))
+      encBool :=
     Graph.isPolyTime_constraintTableEval (encPair encBool (encPi encBool))
   have hV : V.PolyTime input :=
     Graph.polyTime_reductionVerifier width repeats decodeLabel hgraph heval
   have hcoins (x : Input) : V.coins x ≤ repeats * constant * (Nat.log 2 (input x).length + 1) := by
     change repeats * Nat.clog 2 (graph x).edges.length ≤
       repeats * constant * (Nat.log 2 (input x).length + 1)
-    have hb : (graph x).edges.length ≤ c₀ * ((input x).length + 1) ^ d₀ := by simpa using hbound x
+    have hb : (graph x).edges.length ≤ c₀ * ((input x).length + 1) ^ d₀ := by
+      simpa using hbound x
     calc _ ≤ repeats * Nat.clog 2 (c₀ * ((input x).length + 1) ^ d₀) := by gcongr
       _ ≤ repeats * (constant * (Nat.log 2 (input x).length + 1)) :=
         Nat.mul_le_mul_left _ (hconstant _)

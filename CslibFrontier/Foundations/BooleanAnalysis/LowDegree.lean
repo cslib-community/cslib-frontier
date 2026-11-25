@@ -180,9 +180,10 @@ theorem comp_not_mem_lowDegree {D : ℕ} {f : (ι → Bool) → R} (hf : f ∈ l
     (lowDegree R ι D).comap (LinearMap.funLeft R R fun (x : ι → Bool) i => !x i)) hf
   rintro _ ⟨S, hS, rfl⟩
   change (fun x : ι → Bool => monomial R S fun i => !x i) ∈ lowDegree R ι D
-  rw [show (fun x : ι → Bool => monomial R S fun i => !x i) =
-      ∏ i ∈ S, (1 - fun x : ι → Bool => bitVal R (x i)) from
-    funext fun _ => by simp [monomial, Finset.prod_apply, bitVal_not]]
+  have hmon : (fun x : ι → Bool => monomial R S fun i => !x i) =
+      ∏ i ∈ S, (1 - fun x : ι → Bool => bitVal R (x i)) :=
+    funext fun _ => by simp [monomial, Finset.prod_apply, bitVal_not]
+  rw [hmon]
   exact lowDegree_mono (by simpa using hS)
     (prod_mem_lowDegree S fun i _ => one_sub_mem_lowDegree (bitVal_mem_lowDegree i))
 

@@ -52,10 +52,10 @@ theorem subdivide_getElem? (I : FixedRotationInput)
   have hprefix : ((entries.take i.val).flatMap emit).length = 3 * i.val := by
     simp [emit, List.length_flatMap, Nat.min_eq_left hi.le, Nat.mul_comm]
   change (entries.flatMap emit)[3 * i.val + k.val]? = _
-  rw [show entries = entries.take i.val ++ entries[i.val] :: entries.drop (i.val + 1) by
-      rw [List.getElem_cons_drop, List.take_append_drop],
-    List.flatMap_append, List.flatMap_cons, List.getElem?_append_right (by omega), hprefix,
-    Nat.add_sub_cancel_left, List.getElem?_append_left (by simp [emit])]
+  have hentries : entries = entries.take i.val ++ entries[i.val] :: entries.drop (i.val + 1) := by
+    rw [List.getElem_cons_drop, List.take_append_drop]
+  rw [hentries, List.flatMap_append, List.flatMap_cons, List.getElem?_append_right (by omega),
+    hprefix, Nat.add_sub_cancel_left, List.getElem?_append_left (by simp [emit])]
   simp [emit, entries, List.getElem_zipIdx]
 
 /-- The original occurrence and the position of a stored subdivision edge within it. -/

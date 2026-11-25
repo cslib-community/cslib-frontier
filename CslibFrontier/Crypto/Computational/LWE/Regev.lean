@@ -285,7 +285,8 @@ private theorem lorGame_uniform_eq_bind (Q : ℕ) (adversary : LoRAdversary n m 
     lorRun_map_eq, PMF.bind_bind]
   congr 1 with X : 1
   have hmul : _root_.Matrix.map (X : Matrix (Fin Q) (Fin m) Bool)
-      (fun bit => (bit.toNat : ZMod (2 ^ w))) * A = fun i => coinVector w (X i) ᵥ* A := by
+      (fun bit => (bit.toNat : ZMod (2 ^ w))) * A =
+      fun i => coinVector w (X i) ᵥ* A := by
     ext i j
     simp only [Matrix.mul_apply, Matrix.vecMul, dotProduct, coinVector]
     rfl

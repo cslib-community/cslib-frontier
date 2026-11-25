@@ -126,9 +126,10 @@ private theorem tableStep {n depth : ℕ} (valid : List Bool → Bool) (inLen : 
         (congrArg List.ofFn (BitString.ofList_take _ _).symm).trans
           (BitString.ofFn_ofList (by simp [Nat.min_eq_left (Nat.le_of_not_ge hl)]))
       simp only [cascadeChildPrefixOracle, tableQuery, hv, ↓reduceIte, Nat.lt_of_not_ge hl,
-        dite_eq_right hl, ProbOracleComp.runWith_map, ProbOracleComp.runWith_query, tableCache,
-        tableDist, RandomOracle.answer_sum_inr, PMF.map_comp, Function.comp_def, Prod.map_apply,
-        id_eq, BitString.ofList_take, List.drop_drop]
+        dite_eq_right hl,
+        ProbOracleComp.runWith_map, ProbOracleComp.runWith_query, tableCache, tableDist,
+        RandomOracle.answer_sum_inr, PMF.map_comp, Function.comp_def, Prod.map_apply, id_eq,
+        BitString.ofList_take, List.drop_drop]
       cases hc : state.parentRows (List.ofFn parent) with
       | none =>
         simp [RandomOracle.answer, parent, hc, hparent ▸ hc, ← hparent, PMF.map_comp,

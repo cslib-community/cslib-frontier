@@ -138,10 +138,10 @@ theorem isSISSolution_sub_smul_secret {B η : ℕ}
           (mul_le_mul_of_nonneg_left (mem_intBox.mp hs i) (abs_nonneg Δc))
       _ = ((B + Δc.natAbs * η : ℕ) : ℤ) := by
         rw [Nat.cast_add, Nat.cast_mul, Int.natCast_natAbs]
-  · rw [InKernelLattice, show (Int.cast ∘ (v - Δc • s) : Fin m → ZMod q) =
-        (Int.cast ∘ v) - (Δc : ZMod q) • (Int.cast ∘ s) from
-          funext fun i => by simp [Pi.sub_apply, Pi.smul_apply],
-      Matrix.mulVec_sub, Matrix.mulVec_smul, hvA, hsA, sub_self]
+  · have hcast : (Int.cast ∘ (v - Δc • s) : Fin m → ZMod q) =
+        (Int.cast ∘ v) - (Δc : ZMod q) • (Int.cast ∘ s) :=
+      funext fun i => by simp [Pi.sub_apply, Pi.smul_apply]
+    rw [InKernelLattice, hcast, Matrix.mulVec_sub, Matrix.mulVec_smul, hvA, hsA, sub_self]
 
 /-- **Unit-challenge SIS reduction.** When `Δc = 1` (for example with binary challenges), any
 `v ≠ s` with `A v = t (mod q)` and `‖v‖∞ ≤ B` yields a short integer solution `v - s` for `A`

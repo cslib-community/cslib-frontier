@@ -82,7 +82,8 @@ variable {G} {q : ℝ} {R : ℕ} {ρ₀ : ℝ}
 theorem measurableSet_straddlesOn [Finite E] (q : ℝ) (R : ℕ) (t : ℝ) (S : Set E) :
     MeasurableSet {ω | StraddlesOn (edgeScore G q R ω) t S} := by
   have hset : {ω | StraddlesOn (edgeScore G q R ω) t S} =
-      (⋃ f ∈ S, {ω | edgeScore G q R ω f < t}) ∩ (⋃ f ∈ S, {ω | t ≤ edgeScore G q R ω f}) := by
+      (⋃ f ∈ S, {ω | edgeScore G q R ω f < t}) ∩
+      (⋃ f ∈ S, {ω | t ≤ edgeScore G q R ω f}) := by
     ext ω
     simp [StraddlesOn]
   exact hset ▸ ((toFinite S).measurableSet_biUnion fun f _ =>

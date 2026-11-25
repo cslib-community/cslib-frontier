@@ -252,9 +252,9 @@ theorem satisfiable_tseitinSatCNF_iff {x : List Bool} {n : ℕ} {gates : List (O
       rw [← hr, List.getD_append _ _ _ _ (by omega), List.getD_eq_getElem]
     refine ⟨σ, (eval_tseitinSatCNF_eq_true_iff x n gates o σ).2
       ⟨hout, fun i hi => (hσy i (by omega)).trans (hxy.getElem hi).symm, ?_⟩⟩
-    rw [eval_tseitinCNF_eq_true_iff_evalCode h,
-      show (List.ofFn fun i : Fin n => σ i) = y from
-        List.ext_getElem (by simp [hy]) fun i h₁ _ => by simp [hσy i (by simpa using h₁)]]
+    have hofFn : (List.ofFn fun i : Fin n => σ i) = y :=
+      List.ext_getElem (by simp [hy]) fun i h₁ _ => by simp [hσy i (by simpa using h₁)]
+    rw [eval_tseitinCNF_eq_true_iff_evalCode h, hofFn]
     exact fun _ _ => rfl
 
 /-- **Circuit satisfiability as a formula**: the Tseitin formula of a single-output De Morgan

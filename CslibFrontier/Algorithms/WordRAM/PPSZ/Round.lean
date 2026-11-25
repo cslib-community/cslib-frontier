@@ -219,7 +219,8 @@ theorem roundProgram_spec (s : ℕ) (φ : CNF (Fin n)) {w : ℕ}
       exact ⟨z, hz, ⟨⟨hfz, hzm ▸ hby⟩, hzm ▸ hzo⟩, by simp [hzm]⟩)).program out
     (T' := roundTime s n (s :: encode φ).length)
     (by
-      have hL : (s :: encode φ).length = (encodeClauses φ).length + 2 := by simp [length_encode]
+      have hL : (s :: encode φ).length = (encodeClauses φ).length + 2 := by
+        simp [length_encode]
       have := Nat.mul_le_mul_left n (Nat.add_le_add_right
         (impliedTime_mono s (by omega : (encodeClauses φ).length ≤ (s :: encode φ).length)) 25)
       simp only [roundTime]; omega)

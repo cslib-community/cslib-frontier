@@ -388,7 +388,8 @@ private theorem closeEval_runFrom_interpret_trap_eq_zero (M : Machine OracleSpec
       exact closeEval_bind_eq_zero fun a _ => ih a (hq.2 a) s hs
     · simp only [OracleComp.interpret_bind, OracleComp.interpret_query, sumHandler]
       erw [runFrom_bind, bind_assoc]
-      exact closeEval_bind_eq_zero fun z hz => ih z.1 (hq.2 z.1) z.2 (htrap_step q s hq.1 hs hz)
+      exact closeEval_bind_eq_zero fun z hz =>
+        ih z.1 (hq.2 z.1) z.2 (htrap_step q s hq.1 hs hz)
 
 /-- Sub-probability (clamped) state-intertwining for `closeEval`: two closed machines `M₁` and
 `M₂` sharing a state relation `R`, an absorbing trap predicate `Trap` on `M₁` where `f` assigns

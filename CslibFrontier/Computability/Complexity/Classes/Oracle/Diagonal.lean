@@ -98,9 +98,11 @@ private theorem stage {D : ℕ → WordQueryComp Operation Bool} {bound : ℕ �
       · exact Iff.rfl
       · exact ⟨fun h => h.resolve_left fun h' => hwQ (h' ▸ hqQ), Or.inr⟩
     -- whether `B` has a word of length `n` is decided by `S'`
-    rw [(interpret_languageOracle_congr (D n) hagree).1, show (∃ v ∈ B, v.length = n) ↔
-      ∃ v ∈ S', v.length = n from ⟨fun ⟨v, hv, hvn⟩ => ⟨v, (hB v (by omega)).mp hv, hvn⟩,
-        fun ⟨v, hv, hvn⟩ => ⟨v, (hB v (by omega)).mpr hv, hvn⟩⟩]
+    have hex : (∃ v ∈ B, v.length = n) ↔ ∃ v ∈ S', v.length = n :=
+      ⟨fun ⟨v, hv, hvn⟩ => ⟨v, (hB v (by omega)).mp hv, hvn⟩,
+        fun ⟨v, hv, hvn⟩ => ⟨v, (hB v (by omega)).mpr hv, hvn⟩⟩
+    rw [(interpret_languageOracle_congr (D n) hagree).1, hex]
+    clear hex
     change ¬(acc = true ↔ ∃ v ∈ S', v.length = n)
     by_cases hacc : acc = true
     · -- a positive answer: no word of length `n` is added, and `S` has none

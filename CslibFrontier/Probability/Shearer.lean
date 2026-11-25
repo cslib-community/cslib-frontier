@@ -77,11 +77,13 @@ private theorem entropy_map_restrict_insert [DecidableEq ι] (P : PMF (∀ i, α
     rcases mem_insert.mp hi with rfl | hi
     · exact congrArg Prod.snd hyz
     · exact congrFun (congrArg Prod.fst hyz) ⟨i, hi⟩
-  rw [conditionalEntropy, show (P.map fun x => (s.restrict x, x a)).map Prod.fst =
-      P.map s.restrict by rw [PMF.map_comp]; rfl,
-    show P.map (fun x => (s.restrict x, x a)) = (P.map (insert a s).restrict).map split by
-      rw [PMF.map_comp]; rfl,
-    entropy_map_of_injective _ hsplit]
+  have hfst : (P.map fun x => (s.restrict x, x a)).map Prod.fst = P.map s.restrict := by
+    rw [PMF.map_comp]
+    rfl
+  have hmap : P.map (fun x => (s.restrict x, x a)) = (P.map (insert a s).restrict).map split := by
+    rw [PMF.map_comp]
+    rfl
+  rw [conditionalEntropy, hfst, hmap, entropy_map_of_injective _ hsplit]
   ring
 
 /-- **The chain rule** over linearly ordered coordinates ([CoverThomas2006], Theorem 2.5.1): the

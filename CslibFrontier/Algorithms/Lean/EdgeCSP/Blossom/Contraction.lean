@@ -318,7 +318,8 @@ theorem even_constraint {f : OccurrenceLabeling F Bool} (hf : ValidLabeling sem 
     have he : constraint f vs i =
         ⟨F[i.val].rel.contract (localTuple f i) (positions vs F[i.val].scope),
           (outsidePositions F[i.val].scope.length (positions vs F[i.val].scope)).map
-            (fun j => F[i.val].scope.getD j 0) ++ [connector F i]⟩ := by simp [constraint, hp]
+            (fun j => F[i.val].scope.getD j 0) ++ [connector F i]⟩ := by
+      simp [constraint, hp]
     have hout := arity_constraint hf vs i
     rw [he] at hout ⊢
     exact (even_arity hout).mp (isEvenDeltaMatroid_contract hm (canContract_constraint hf vs i))
@@ -335,9 +336,10 @@ theorem even_contract {f : OccurrenceLabeling F Bool} (hf : ValidLabeling sem f)
   by_cases hi : i.val < F.length
   · rw [get_contract_old f vs ⟨i.val, hi⟩]
     exact even_constraint hf hM vs ⟨i.val, hi⟩
-  · rw [show (contract f vs)[i.val] = ⟨exactlyOne (connectors F vs), connectors F vs⟩ by
+  · have hc : (contract f vs)[i.val] = ⟨exactlyOne (connectors F vs), connectors F vs⟩ := by
       simp [contract, Nat.eq_of_lt_succ_of_not_lt (by simpa using i.isLt) hi,
-        List.getElem_append_right]]
+        List.getElem_append_right]
+    rw [hc]
     exact isEvenDeltaMatroid_exactlyOne (connectors F vs)
       (List.ne_nil_of_length_pos (by simpa using List.length_pos_iff.mpr hne))
 

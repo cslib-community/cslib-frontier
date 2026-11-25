@@ -86,7 +86,8 @@ theorem IsEmbedding.exists_vertex_placement {G : Graph} {D : PolygonalDrawing G}
   obtain ⟨z, hz⟩ := (pairs.image (fun p => D.vertex p.2 - q p.1) ∪
     pairs.image (fun p => q p.2 - q p.1)).exists_notMem
   let u (v : ℕ) := q v + z
-  have hpair {v w : ℕ} (hv : v ∈ G.vertices) (hw : w ∈ G.vertices) : (v, w) ∈ pairs :=
+  have hpair {v w : ℕ} (hv : v ∈ G.vertices) (hw : w ∈ G.vertices) :
+      (v, w) ∈ pairs :=
     Finset.mem_product.mpr ⟨List.mem_toFinset.mpr hv, List.mem_toFinset.mpr hw⟩
   obtain ⟨F, hF, hfpos, hfgerm, hfcount⟩ := place_subset hD hG u
     (fun _ hv _ hw he => hq hv hw (add_right_cancel he))
