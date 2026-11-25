@@ -41,15 +41,11 @@ theorem IsFDAG.incoming_eq_of_parent {sem : Rel → List Bool → Bool}
     (hpo : p.incoming = false) (hai : a.incoming = true) (hbi : b.incoming = true)
     (hap : a.occurrence.var = p.occurrence.var) (hbp : b.occurrence.var = p.occurrence.var) :
     a = b := by
-  have hport : ∀ c ∈ T.arcs, c.incoming = true → c.occurrence.var = p.occurrence.var →
-      c.occurrence = hF.partner p.occurrence := by
-    intro c hc hci hcv
-    rcases hF.eq_or_eq_partner hcv with he | he
-    · have hh := congrArg Arc.incoming (h.unique c hc p hp he)
-      simp only [hci, hpo] at hh
-      cases hh
-    · exact he
-  exact h.unique a ha b hb ((hport a ha hai hap).trans (hport b hb hbi hbp).symm)
+  have hport {c : Arc F} (hc : c ∈ T.arcs) (hci : c.incoming = true)
+      (hcv : c.occurrence.var = p.occurrence.var) : c.occurrence = hF.partner p.occurrence :=
+    (hF.eq_or_eq_partner hcv).resolve_left fun he => by
+      simpa [hci, hpo] using congrArg Arc.incoming (h.unique c hc p hp he)
+  exact h.unique a ha b hb ((hport ha hai hap).trans (hport hb hbi hbp).symm)
 
 /-- The source's two arms of a cycle. The one-based pivot is the common terminal copied
 constraint; before it, steps run forward, and after it, steps run backward. -/
@@ -70,23 +66,18 @@ variable. Timestamps are attached to steps, so repeated original constraints rem
 
 /-- The cycle graph supports every generated incidence and its actual endpoints. -/
 theorem blossomDAG_supported [DecidableEq V] (w : Walk F) (times : List ℕ) (pivot : ℕ) :
-    (blossomDAG w times pivot).Supported := by
-  intro a ha
+    (blossomDAG w times pivot).Supported := fun _ ha =>
   have hm := List.mem_toFinset.mp ha
-  exact ⟨Finset.mem_insert_of_mem (List.mem_toFinset.mpr
-    (List.mem_map.mpr ⟨a, hm, rfl⟩)),
-    List.mem_toFinset.mpr (List.mem_map.mpr ⟨a, hm, rfl⟩)⟩
+  ⟨Finset.mem_insert_of_mem (List.mem_toFinset.mpr (List.mem_map_of_mem hm)),
+    List.mem_toFinset.mpr (List.mem_map_of_mem hm)⟩
 
 /-- Every generated arc uses one of the supplied step timestamps. -/
 theorem blossomArcs_time_mem {ss : List (Occurrence F × Occurrence F)} {ts : List ℕ}
     {pivot : ℕ} {a : Arc F} (ha : a ∈ blossomArcs ss ts pivot) : a.time ∈ ts := by
   fun_induction blossomArcs ss ts pivot with
-  | case3 o p ss t ts pivot ih => -- (o, p) :: ss, t :: ts
-    simp only [List.mem_cons] at ha
-    rcases ha with rfl | rfl | ha
-    · exact List.mem_cons_self
-    · exact List.mem_cons_self
-    · exact List.mem_cons_of_mem _ (ih ha)
+  | case3 _ _ _ _ _ _ ih =>
+    rcases by simpa only [List.mem_cons] using ha with rfl | rfl | ha
+    exacts [List.mem_cons_self, List.mem_cons_self, List.mem_cons_of_mem _ (ih ha)]
   | _ => simp at ha -- no steps or no timestamps
 
 /-- Every copied constraint in the cycle graph retains its supplied timestamp. -/
@@ -103,21 +94,13 @@ theorem blossomArcs_append_after (ss : List (Occurrence F × Occurrence F)) (ts 
       blossomArcs ss ts pivot ++ [⟨s.1, t, false⟩, ⟨s.2, t, true⟩] := by
   induction ss generalizing ts pivot with
   | nil =>
-    cases ts with
-    | nil =>
-      have he : pivot = 0 := by simpa using hp
-      subst pivot
-      rfl
-    | cons a ts => simp at hl
+    rcases ts with _ | _; · cases Nat.eq_zero_of_le_zero hp; rfl
+    cases hl
   | cons p ss ih =>
-    cases ts with
-    | nil => simp at hl
-    | cons u ts =>
-      rcases p with ⟨a, b⟩
-      have hl' : ts.length = ss.length := by simpa using hl
-      have hp' : pivot - 1 ≤ ss.length := by simp only [List.length_cons] at hp; omega
-      simp only [List.cons_append, blossomArcs]
-      rw [ih ts (pivot - 1) hl' hp']
+    rcases ts with _ | ⟨u, ts⟩; · cases hl
+    rcases p with ⟨a, b⟩
+    simp only [List.cons_append, blossomArcs,
+      ih ts (pivot - 1) (Nat.succ.inj hl) (Nat.sub_le_of_le_add hp)]
 
 /-- A computed cycle graph is a subgraph whenever its base and all its actual arcs are
 supported by the ambient graph. Copied-node support is inherited from those arcs. -/
@@ -125,15 +108,10 @@ theorem blossomDAG_subgraph_of_arcs [DecidableEq V] (w : Walk F) (times : List �
     {T : DAG F} (hbase : w.start ∈ T.vars) (hs : T.Supported)
     (ha : ∀ a ∈ blossomArcs w.steps times pivot, a ∈ T.arcs) :
     (blossomDAG w times pivot).Subgraph T := by
-  refine ⟨?_, ?_, fun a ham => ha a (List.mem_toFinset.mp ham)⟩
-  · intro v hv
-    rcases Finset.mem_insert.mp hv with rfl | hv
-    · exact hbase
-    · obtain ⟨a, ham, rfl⟩ := List.mem_map.mp (List.mem_toFinset.mp hv)
-      exact (hs a (ha a ham)).1
-  · intro c hc
-    obtain ⟨a, ham, rfl⟩ := List.mem_map.mp (List.mem_toFinset.mp hc)
-    exact (hs a (ha a ham)).2
+  refine ⟨fun v hv => (Finset.mem_insert.mp hv).elim (· ▸ hbase) fun hv => ?_, fun c hc => ?_,
+    fun a ham => ha a (List.mem_toFinset.mp ham)⟩
+  · obtain ⟨a, ham, rfl⟩ := List.mem_map.mp (List.mem_toFinset.mp hv); exact (hs a (ha a ham)).1
+  · obtain ⟨a, ham, rfl⟩ := List.mem_map.mp (List.mem_toFinset.mp hc); exact (hs a (ha a ham)).2
 
 private theorem blossomArcs_reverse_zero
     (time : Occurrence F → ℕ) (ss : List (Occurrence F × Occurrence F)) {e : Arc F}
@@ -145,14 +123,11 @@ private theorem blossomArcs_reverse_zero
     rcases s with ⟨a, b⟩
     simp only [List.reverse_append, List.reverse_singleton, List.map_append,
       List.map_singleton, List.singleton_append] at he
-    change e ∈ outArc time (a, b) :: inArc time (a, b) ::
-      blossomArcs (ss.reverse.map Prod.swap) ((ss.map fun s => time s.1).reverse) 0 at he
-    simp only [List.mem_cons] at he
-    rcases he with rfl | rfl | he
+    change e ∈ outArc time (a, b) :: inArc time (a, b) :: _ at he
+    rcases by simpa only [List.mem_cons] using he with rfl | rfl | he
     · exact ⟨(a, b), List.mem_append_right _ (List.mem_singleton_self _), Or.inr rfl⟩
     · exact ⟨(a, b), List.mem_append_right _ (List.mem_singleton_self _), Or.inl rfl⟩
-    · obtain ⟨s, hs, he⟩ := ih he
-      exact ⟨s, List.mem_append_left _ hs, he⟩
+    · exact let ⟨s, hs, he⟩ := ih he; ⟨s, List.mem_append_left _ hs, he⟩
 
 /-- Every cycle arc comes from one of its two directed arms or the terminal incoming pair. -/
 theorem blossomArcs_meeting_mem (timeW timeZ : Occurrence F → ℕ)
@@ -165,26 +140,17 @@ theorem blossomArcs_meeting_mem (timeW timeZ : Occurrence F → ℕ)
       ∃ s ∈ zs, e = inArc timeZ s ∨ e = outArc timeZ s := by
   induction ss with
   | nil =>
-    change e ∈ ⟨a, t, true⟩ :: ⟨b, t, true⟩ ::
-      blossomArcs (zs.reverse.map Prod.swap) ((zs.map fun s => timeZ s.1).reverse) 0 at he
-    simp only [List.mem_cons] at he
-    rcases he with he | he | he
-    · exact Or.inr (Or.inl he)
-    · exact Or.inr (Or.inr (Or.inl he))
-    · exact Or.inr (Or.inr (Or.inr (blossomArcs_reverse_zero timeZ zs he)))
+    change e ∈ ⟨a, t, true⟩ :: ⟨b, t, true⟩ :: _ at he
+    rcases by simpa only [List.mem_cons] using he with he | he | he
+    exacts [Or.inr (Or.inl he), Or.inr (Or.inr (Or.inl he)),
+      Or.inr (Or.inr (Or.inr (blossomArcs_reverse_zero timeZ zs he)))]
   | cons s ss ih =>
     rcases s with ⟨o, p⟩
-    change e ∈ inArc timeW (o, p) :: outArc timeW (o, p) ::
-      blossomArcs (ss ++ (a, b) :: (zs.reverse.map Prod.swap))
-        ((ss.map fun s => timeW s.1) ++ t :: (zs.map fun s => timeZ s.1).reverse)
-        (ss.length + 1) at he
-    simp only [List.mem_cons] at he
-    rcases he with rfl | rfl | he
+    change e ∈ inArc timeW (o, p) :: outArc timeW (o, p) :: _ at he
+    rcases by simpa only [List.mem_cons] using he with rfl | rfl | he
     · exact Or.inl ⟨(o, p), List.mem_cons_self, Or.inl rfl⟩
     · exact Or.inl ⟨(o, p), List.mem_cons_self, Or.inr rfl⟩
-    · rcases ih he with ⟨s, hs, he⟩ | he
-      · exact Or.inl ⟨s, List.mem_cons_of_mem _ hs, he⟩
-      · exact Or.inr he
+    · exact (ih he).imp_left fun ⟨s, hs, he⟩ => ⟨s, List.mem_cons_of_mem _ hs, he⟩
 
 /-- Two directed arms and their incoming meeting ports embed the computed cycle graph in
 the ambient DAG. The closed-trail and consistency requirements of a blossom are separate. -/
@@ -195,23 +161,13 @@ theorem blossomDAG_subgraph_meeting [DecidableEq V] {T : DAG F} {w z : Walk F}
     (blossomDAG ((w.snoc a b).append z.reverse)
       (w.steps.map (fun s => timeW s.1) ++ [t] ++ (z.steps.map fun s => timeZ s.1).reverse)
       (w.steps.length + 1)).Subgraph T := by
-  have harcs : ∀ e ∈ blossomArcs ((w.snoc a b).append z.reverse).steps
-      (w.steps.map (fun s => timeW s.1) ++ [t] ++ (z.steps.map fun s => timeZ s.1).reverse)
-      (w.steps.length + 1), e ∈ T.arcs := by
-    intro e he
-    change e ∈ blossomArcs ((w.steps ++ [(a, b)]) ++ z.steps.reverse.map Prod.swap)
-      ((w.steps.map (fun s => timeW s.1) ++ [t]) ++
-        (z.steps.map fun s => timeZ s.1).reverse) _ at he
-    rw [List.append_assoc, List.append_assoc] at he
-    rcases blossomArcs_meeting_mem timeW timeZ w.steps z.steps a b t he with
-      ⟨s, hs, rfl | rfl⟩ | rfl | rfl | ⟨s, hs, rfl | rfl⟩
-    · exact hw.incoming s hs
-    · exact hw.outgoing s hs
-    · exact ha
-    · exact hb
-    · exact hz.incoming s hs
-    · exact hz.outgoing s hs
-  exact blossomDAG_subgraph_of_arcs _ _ _ hw.start_mem hs harcs
+  refine blossomDAG_subgraph_of_arcs _ _ _ hw.start_mem hs fun e he => ?_
+  change e ∈ blossomArcs ((w.steps ++ [(a, b)]) ++ z.steps.reverse.map Prod.swap)
+    ((w.steps.map (fun s => timeW s.1) ++ [t]) ++ (z.steps.map fun s => timeZ s.1).reverse) _ at he
+  rw [List.append_assoc, List.append_assoc] at he
+  rcases blossomArcs_meeting_mem timeW timeZ w.steps z.steps a b t he with
+    ⟨s, hs, rfl | rfl⟩ | rfl | rfl | ⟨s, hs, rfl | rfl⟩
+  exacts [hw.incoming s hs, hw.outgoing s hs, ha, hb, hz.incoming s hs, hz.outgoing s hs]
 
 end DAG
 
