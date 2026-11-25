@@ -156,8 +156,9 @@ theorem two_mul_card_multPairs (m : ℕ) : 2 * #(multPairs m) = m * (m + 1) := b
       ext rs
       simp only [mem_multPairs, mem_union, mem_antidiagonal]
       omega
-    have hdisj : Disjoint (multPairs m) (antidiagonal m) := Finset.disjoint_left.2 fun rs h1 h2 => by
-      rw [mem_multPairs] at h1; rw [mem_antidiagonal] at h2; omega
+    have hdisj : Disjoint (multPairs m) (antidiagonal m) :=
+      Finset.disjoint_left.2 fun rs h1 h2 => by
+        rw [mem_multPairs] at h1; rw [mem_antidiagonal] at h2; omega
     rw [hunion, card_union_of_disjoint hdisj, Finset.Nat.card_antidiagonal, mul_add, ih]
     ring
 
@@ -349,7 +350,8 @@ theorem IsWeightedInterpolant.eval_eq_zero (hα : Function.Injective α)
       rw [Finset.sum_eq_zero fun j hj => by rw [Multiset.count_replicate, ite_eq_right (hx j hj)]]
       exact Nat.zero_le _
   have hcard : ∑ i ∈ agree, mult i ≤ D := by
-    calc ∑ i ∈ agree, mult i = ms.card := by simp only [ms, Multiset.card_sum, Multiset.card_replicate]
+    calc ∑ i ∈ agree, mult i = ms.card := by
+          simp only [ms, Multiset.card_sum, Multiset.card_replicate]
       _ ≤ (Q.eval P).roots.card := Multiset.card_le_card hle_roots
       _ ≤ (Q.eval P).natDegree := Polynomial.card_roots' _
       _ ≤ D := hQ.weightedDegree_le.natDegree_eval_le hP
