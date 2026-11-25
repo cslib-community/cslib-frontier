@@ -123,7 +123,34 @@ class TenderReportTests(unittest.TestCase):
         self.assertIn("Queueing held until #7 lands.", three["reasons"][0])
         self.assertIn("is not a verdict line", twelve["reasons"][0])
         self.assertEqual(seventeen["reasons"], [
-            "[review CLAIM](https://x/c/23.5) by `rev-17` active until 2026-11-21T12:30Z"])
+            "[review CLAIM](https://x/c/23.5) by `rev-17` active until 2026-11-21T12:15Z"])
+
+    def test_sequencing_unswept_holds_claims_and_questionable_approvals_need_reading(self):
+        cases = {
+            21: ([approve(21, hours=1),
+                  comment("The queue now has #8474 ahead. I'll verify the delta before queueing.",
+                          2, "edemaine")], ""),
+            22: ([comment("HOLD owner=maintainer until=2026-11-20T13:00Z reason=needs check", 0.2),
+                  approve(22, hours=1)], ""),
+            23: ([comment(f"CLAIM review head={sha(23)} by=rev-x until=2026-11-21T12:40Z", 23.5),
+                  approve(23, hours=23.6)], ""),
+            24: ([comment(f"**REQUEST_CHANGES** at {sha(24)} by rev-b", 0.5),
+                  approve(24, hours=1)], ""),
+            25: ([comment(f"**APPROVE** at {sha(25)}", 1)], ""),
+            26: ([comment(f"**APPROVE** at {sha(26)} by worker-x", 1)],
+                 "`worker-x` (Jetski worker agent). This is agent action."),
+        }
+        pulls = []
+        for number, (_, body) in cases.items():
+            item = pr(number)
+            item["body"] = body
+            pulls.append(item)
+        gh = fake_github(routes(pulls, {n: ev for n, (ev, _) in cases.items()},
+                                checks={n: runs() for n in cases},
+                                mergeable={n: {"mergeable": True} for n in cases}))
+        report = tr.build_report(gh, NOW, sleep=lambda s: None)
+        self.assertEqual(report["ready"], [])
+        self.assertEqual([e["number"] for e in report["needs_check"]], sorted(cases))
 
     def test_blocked_rows_name_their_reasons(self):
         reasons = {e["number"]: e["reasons"] for e in self.report["blocked"]}
@@ -148,8 +175,8 @@ class TenderReportTests(unittest.TestCase):
         self.assertEqual(self.report["expired_holds"],
                          [{"number": 9, "owner": "x", "until": "2026-11-20T13:00Z",
                            "reason": "old", "url": "https://x/c/0"}])
-        self.assertEqual([(c["number"], c["by"]) for c in self.report["stale_claims"]],
-                         [(9, "rev-9")])
+        self.assertEqual([(c["number"], c["by"], c["until"]) for c in self.report["stale_claims"]],
+                         [(9, "rev-9", "2026-11-20T13:45Z")])
 
     def test_queued_requested_changes_and_drafts_are_left_out(self):
         listed = {e["number"] for key in ("ready", "needs_check", "blocked", "restack")

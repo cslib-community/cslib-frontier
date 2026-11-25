@@ -15,9 +15,11 @@ REST API and reports:
   free-text hold found (`gh_records.free_text_holds`). Each row prints the `queue_pr.py` command
   for a non-author to run from a trusted checkout of current `main` after reading the PR.
 * **Needs a human-readable check**: otherwise ready, but with likely free-text hold wording
-  (including a request for human review), a `HOLD-RELEASED` line from someone other than a hold's
-  owner, a review `CLAIM` still in its lease, or an approval of the head that is not written as a
-  verdict line.
+  (including a request for human review, or any mention of queueing, sequencing or waiting after
+  the approval, such as another coordinator's sequencing note), an expired unswept `HOLD` line, a
+  `HOLD-RELEASED` line from someone other than a hold's owner, a review `CLAIM` still in its lease,
+  an unanswered `REQUEST_CHANGES` at the head from another reviewer, or an approval of the head
+  that is not a verdict line naming a non-author reviewer.
 * **Approved at the head, not ready**: an active `HOLD`, required checks pending or failed,
   a conflict, mergeability not yet computed, or a base other than `main`.
 * **Restack candidates**: approved PRs whose lower PR has landed (the base branch's PR merged, or
@@ -55,6 +57,7 @@ import gh_records as gr  # noqa: E402
 from queue_pr import REQUIRED_CHECKS  # noqa: E402
 
 APPROVED_WORD = re.compile(r"\bAPPROVED?\b")
+AUTHOR_ID = re.compile(r"^[ \t]*`([A-Za-z0-9][\w.\-/@]*)`")
 TRUSTED = "/path/to/trusted-main"
 
 
@@ -103,7 +106,7 @@ def analyze(pr: dict, events: list[dict], maintainer: str = gr.MAINTAINER) -> An
     found = gr.holds(items, maintainer)
     analysis = Analysis(
         pr, items, approval, at_head, found, gr.claims(items),
-        gr.free_text_holds(items, approval.post if at_head else None),
+        gr.free_text_holds(items, approval.post if at_head else None, maintainer),
         None if at_head else other_approval(items, head), gr.queued(events),
         changes[-1] if changes else None)
     for hold in found:
@@ -111,6 +114,29 @@ def analyze(pr: dict, events: list[dict], maintainer: str = gr.MAINTAINER) -> An
             analysis.notes.append(
                 f"HOLD by `{hold.owner}` was followed by a release from "
                 f"{', '.join(f'`{by}`' for by in hold.other_releases)}, not its owner")
+    if at_head and approval is not None:
+        pr_author = ((pr.get("user") or {}).get("login") or "").strip()
+        first_body = next((line for line in (pr.get("body") or "").splitlines() if line.strip()),
+                          "")
+        body_agent = match.group(1) if (match := AUTHOR_ID.match(first_body)) else ""
+        author_ids = {who.lower() for who in (pr_author, body_agent) if who}
+        if not approval.formal and not approval.reviewer:
+            analysis.notes.append(
+                f"{link(approval.post, 'approval')} does not name a reviewer (`by <id>`)")
+        elif approval.formal and pr_author and approval.post.author.lower() == pr_author.lower():
+            analysis.notes.append(
+                f"{link(approval.post, 'approval')} is by the PR author (`{approval.post.author}`)")
+        elif not approval.formal and approval.reviewer.lower() in author_ids:
+            analysis.notes.append(
+                f"{link(approval.post, 'approval')} names the PR author (`{approval.reviewer}`)")
+        at_current = [v for v in gr.verdicts(items) if gr.sha_matches(v.sha, head)]
+        for index, verdict in enumerate(at_current):
+            if verdict.decision == "REQUEST_CHANGES" and verdict.reviewer:
+                if not any(later.decision == "APPROVE" and later.reviewer == verdict.reviewer
+                           for later in at_current[index + 1:]):
+                    analysis.notes.append(
+                        f"{link(verdict.post, 'REQUEST_CHANGES')} by `{verdict.reviewer}` at "
+                        f"this head has no later approval from `{verdict.reviewer}`")
     return analysis
 
 
@@ -174,8 +200,9 @@ def link(post: gr.Post, label: str) -> str:
 def build_report(gh: gr.GitHub, now: datetime, numbers: list[int] | None = None, jobs: int = 4,
                  maintainer: str = gr.MAINTAINER, sleep=time.sleep) -> dict:
     pulls = gh.open_pulls()
-    same_repo = [p for p in pulls if ((p.get("head") or {}).get("repo") or {}).get("full_name")
-                 == gh.repo]
+    same_repo = [p for p in pulls
+                 if (((p.get("head") or {}).get("repo") or {}).get("full_name") or "").lower()
+                 == gh.repo.lower()]
     open_heads = {p["head"]["ref"]: p["number"] for p in same_repo}
     if numbers:
         wanted = set(numbers)
@@ -224,13 +251,13 @@ def build_report(gh: gr.GitHub, now: datetime, numbers: list[int] | None = None,
                     "number": a.number, "owner": hold.owner, "until": gr.fmt_time(hold.until),
                     "reason": hold.reason, "url": hold.post.url})
         for claim in a.claims:
-            if claim.ended_by is None and claim.until <= now:
+            if claim.ended_by is None and claim.expires <= now:
                 notes = [] if claim.head == a.head else ["head moved since the claim"]
                 if claim.lease_too_long:
                     notes.append("lease longer than 45 minutes")
                 report["stale_claims"].append({
                     "number": a.number, "by": claim.by, "head": claim.head,
-                    "until": gr.fmt_time(claim.until), "url": claim.post.url, "notes": notes})
+                    "until": gr.fmt_time(claim.expires), "url": claim.post.url, "notes": notes})
         if a.queued:
             continue
         if a.pr["base"]["ref"] != "main":
@@ -279,11 +306,15 @@ def build_report(gh: gr.GitHub, now: datetime, numbers: list[int] | None = None,
         if reasons:
             report["blocked"].append(row(a, reasons=reasons))
             continue
-        checks = [f"{link(post, 'possible free-text hold')}: {text}" for post, text in a.free_text]
+        checks = [f"{link(post, 'possible free-text hold or sequencing note')}: {text}"
+                  for post, text in a.free_text]
+        checks += [f"{link(h.post, 'expired HOLD')} by `{h.owner}` "
+                   f"(until {gr.fmt_time(h.until)}, unswept): {h.reason}"
+                   for h in a.holds if h.state(now) == "expired"]
         checks += a.notes
         checks += [f"{link(c.post, 'review CLAIM')} by `{c.by}` active until "
-                   f"{gr.fmt_time(c.until)}" for c in a.claims
-                   if c.ended_by is None and c.until > now]
+                   f"{gr.fmt_time(c.expires)}" for c in a.claims
+                   if c.ended_by is None and c.expires > now]
         if not a.at_head:
             checks.append(f"{link(a.other_approval, 'approval of this head')} is not a verdict "
                           "line")

@@ -194,6 +194,12 @@ class VerdictTests(unittest.TestCase):
         found = gr.verdict_of(post(f"\n  **APPROVE** at `{HEAD}` by `rev-1` (agent review)"))
         self.assertEqual((found.decision, found.sha, found.reviewer, found.formal),
                          ("APPROVE", HEAD, "rev-1", False))
+        punct = gr.verdict_of(post(f"**APPROVE** at {HEAD} by reviewer-425b-8488. Agent review."))
+        self.assertEqual(punct.reviewer, "reviewer-425b-8488")
+        paren = gr.verdict_of(post(f"**APPROVE** at `{HEAD}` by `rev-b`), independent review"))
+        self.assertEqual(paren.reviewer, "rev-b")
+        no_by = gr.verdict_of(post(f"**APPROVE** at {HEAD} (agent review; covered by tests)"))
+        self.assertEqual(no_by.reviewer, "")
         self.assertIsNone(gr.verdict_of(post(f"`me` (agent)\n**APPROVE** at {HEAD}")))
         self.assertIsNone(gr.verdict_of(post(f"**APPROVE (queueing held)** at head `{HEAD}`")))
         self.assertIsNone(gr.verdict_of(post(f"**approve** at {HEAD}")))
@@ -248,26 +254,38 @@ class HoldTests(unittest.TestCase):
                        "HOLD owner=rev-1 until=2026-11-30T00:00Z reason=r")
         self.assertEqual(gr.holds(items)[0].state(T0), "active")
 
+    def test_fenced_code_blocks_and_invalid_dates_are_ignored(self):
+        items = thread("```\nHOLD owner=rev-1 until=2026-11-30T00:00Z reason=example\n```\n"
+                       "~~~text\nHOLD owner=rev-2 until=2026-11-30T00:00Z reason=example\n~~~\n"
+                       "HOLD owner=rev-3 until=2026-99-99T00:00Z reason=bad date")
+        self.assertEqual(gr.holds(items), [])
+
 
 class ClaimTests(unittest.TestCase):
     def claim(self, by="rev-1", until="2026-11-20T13:30Z", head=HEAD):
         return f"CLAIM review head={head} by={by} until={until}"
 
-    def test_verdict_naming_the_claimant_or_at_the_head_ends_the_claim(self):
+    def test_only_the_claimants_verdict_ends_the_claim(self):
         [open_claim] = gr.claims(thread(self.claim()))
         self.assertIsNone(open_claim.ended_by)
-        [ended] = gr.claims(thread(self.claim(), f"**APPROVE** at {OLD} by `rev-1`"))
+        [ended] = gr.claims(thread(self.claim(), f"**APPROVE** at {OLD} by `rev-1`."))
         self.assertIsNotNone(ended.ended_by)
-        [at_head] = gr.claims(thread(self.claim(), f"**REQUEST_CHANGES** at {HEAD} by `other`"))
-        self.assertIsNotNone(at_head.ended_by)
+        [in_body] = gr.claims(thread(self.claim(), f"**APPROVE** at {HEAD}\n`rev-1` (agent)"))
+        self.assertIsNotNone(in_body.ended_by)
+        [other_at_head] = gr.claims(thread(self.claim(),
+                                           f"**REQUEST_CHANGES** at {HEAD} by `other`"))
+        self.assertIsNone(other_at_head.ended_by)
         [elsewhere] = gr.claims(thread(self.claim(), f"**APPROVE** at {OLD} by `other`"))
         self.assertIsNone(elsewhere.ended_by)
+        self.assertEqual(gr.claims(thread(f"```\n{self.claim()}\n```")), [])
 
-    def test_renewal_replaces_the_claim_and_long_leases_are_flagged(self):
+    def test_renewal_replaces_the_claim_and_long_leases_are_capped_and_flagged(self):
         claims = gr.claims(thread(self.claim(until="2026-11-20T13:30Z"),
-                                  self.claim(until="2026-11-20T16:00Z"), self.claim(by="rev-2")))
+                                  f"**{self.claim(until='2026-11-20T16:00Z')}**",
+                                  self.claim(by="rev-2")))
         self.assertEqual([(c.by, c.post.seq) for c in claims], [("rev-1", 2), ("rev-2", 3)])
         self.assertTrue(claims[0].lease_too_long)
+        self.assertEqual(claims[0].expires, T0 + timedelta(hours=1, minutes=45))
         self.assertFalse(claims[1].lease_too_long)
 
 
@@ -284,6 +302,18 @@ class FreeTextHoldTests(unittest.TestCase):
         items = thread("HOLD: waiting for Samuel", "HOLD-RELEASED by=maintainer reason=ok",
                        f"**APPROVE** at {HEAD}")
         self.assertEqual(gr.free_text_holds(items, items[3]), [])
+        unrelated = thread("Hold for human review.",
+                           "HOLD owner=x until=2026-11-30T00:00Z reason=wait for #9",
+                           "HOLD-RELEASED by=x reason=#9 landed",
+                           f"**APPROVE** at {HEAD}")
+        self.assertEqual([p.seq for p, _ in gr.free_text_holds(unrelated, unrelated[4])], [1])
+        malformed = thread("Hold for human review please.",
+                           "HOLD owner=maintainer until=2026-12-01 reason=human review",
+                           f"**APPROVE** at {HEAD}")
+        self.assertEqual([p.seq for p, _ in gr.free_text_holds(malformed, malformed[3])], [1, 2])
+        fenced = thread("Do not queue: waiting on #77.", f"**APPROVE** at {HEAD}",
+                        "Example:\n```\nHOLD owner=<id> until=<YYYY-MM-DDTHH:MMZ> reason=x\n```")
+        self.assertEqual([p.seq for p, _ in gr.free_text_holds(fenced, fenced[2])], [1])
 
     def test_mathematical_prose_is_not_a_hold(self):
         items = [post("The bound holds for all n; units ever held.", seq=0, kind="body")] + [
@@ -305,6 +335,13 @@ class FreeTextHoldTests(unittest.TestCase):
                      "Waiting for human review."):
             with self.subTest(text=text):
                 self.assertEqual(len(gr.free_text_holds(thread(text), None)), 1)
+
+    def test_a_sequencing_note_after_the_approval_is_a_possible_hold(self):
+        note = "The queue now has #8474 ahead. I'll verify the resulting delta before queueing."
+        items = thread("Restacked; please queue when ready.", f"**APPROVE** at {HEAD}", note)
+        self.assertEqual([p.seq for p, _ in gr.free_text_holds(items, items[2])], [3])
+        bot = items[:3] + [post("Merge queue notice.", 4, seq=3, author="github-actions[bot]")]
+        self.assertEqual(gr.free_text_holds(bot, bot[2]), [])
 
 
 class HelperTests(unittest.TestCase):

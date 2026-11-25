@@ -105,6 +105,19 @@ class CategorizeTests(unittest.TestCase):
         self.assertEqual(self.records["feat/merged-pushed"]["protected"],
                          ["pushed to after PR #5 closed"])
 
+    def test_fork_pr_bases_and_case_mismatched_repos_are_protected(self):
+        branches = [branch("feat/a", 1), branch("fork-target", 2)]
+        pulls = [pull(1, "feat/a", 1, state="open", repo="cslib-community/cslib-frontier"),
+                 pull(2, "fork-head", 3, state="open", base="fork-target", repo="someone/fork")]
+        recs = {r["branch"]: r for r in bc.categorize(
+            branches, pulls, "cslib-community/CSLib-frontier", "main", {sha(1): T0, sha(2): T0})}
+        self.assertEqual((recs["feat/a"]["category"], recs["feat/a"]["protected"]),
+                         ("open-head", ["head of open PR #1"]))
+        self.assertEqual((recs["fork-target"]["category"], recs["fork-target"]["protected"]),
+                         ("open-base", ["base of open PR #2"]))
+        self.assertFalse(bc.eligible(recs["feat/a"], {"nopr"}, NOW, AGE))
+        self.assertFalse(bc.eligible(recs["fork-target"], {"nopr"}, NOW, AGE))
+
     def test_the_most_recently_closed_pr_decides(self):
         self.assertEqual(self.summary("feat/reused"), ("closed", 10, False))
         self.assertEqual(self.records["feat/reused"]["closed_at"], stamp(days_before_now(15)))
@@ -128,7 +141,7 @@ class CategorizeTests(unittest.TestCase):
 
 
 class CommitDateTests(unittest.TestCase):
-    def test_local_dates_read_the_object_database_and_skip_missing_commits(self):
+    def test_local_commits_read_the_object_database_and_skip_missing_commits(self):
         with tempfile.TemporaryDirectory() as directory:
             env = {**os.environ, "GIT_COMMITTER_DATE": "2026-11-01T10:00:00Z",
                    "GIT_AUTHOR_DATE": "2026-11-01T10:00:00Z", "GIT_CONFIG_GLOBAL": os.devnull,
@@ -138,19 +151,65 @@ class CommitDateTests(unittest.TestCase):
                 return subprocess.run(["git", "-C", directory, *args], check=True, env=env,
                                       capture_output=True, text=True).stdout.strip()
             git("init", "-q")
-            git("-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q",
+            git("-c", "user.name=A. Worker", "-c", "user.email=t@example.com", "commit", "-q",
                 "--allow-empty", "-m", "c")
             head = git("rev-parse", "HEAD")
-            dates = bc.local_dates([head, "f" * 40], Path(directory))
-        self.assertEqual(dates, {head: T0 - timedelta(days=19, hours=2)})
+            found = bc.local_commits([head, "f" * 40], Path(directory))
+        self.assertEqual(found, {head: (T0 - timedelta(days=19, hours=2), "A. Worker")})
 
     def test_rest_fills_in_commits_missing_locally(self):
         gh = fake_github({f"repos/{REPO}/commits/{sha(2)}":
-                          {"commit": {"committer": {"date": stamp(5)}}}})
-        with mock.patch.object(bc, "local_dates", return_value={sha(1): T0}):
-            dates = bc.commit_dates(gh, [sha(1), sha(2), sha(3), sha(2)], None, jobs=1)
-        self.assertEqual(dates, {sha(1): T0, sha(2): T0 + timedelta(hours=5)})
+                          {"commit": {"committer": {"date": stamp(5)}, "author": {"name": "b"}}}})
+        with mock.patch.object(bc, "local_commits", return_value={sha(1): (T0, "a")}):
+            found = bc.commit_info(gh, [sha(1), sha(2), sha(3), sha(2)], None, jobs=1)
+        self.assertEqual(found, {sha(1): (T0, "a"), sha(2): (T0 + timedelta(hours=5), "b")})
         self.assertEqual(gh.calls, 2)
+
+
+def notice_comment(body: str, days_ago: float, url: str = "") -> dict:
+    return {"created_at": (NOW - timedelta(days=days_ago)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "body": body, "html_url": url}
+
+
+class NoticeTests(unittest.TestCase):
+    rows = [{"branch": "old/a", "sha": sha(1), "commit_date": "2026-11-01T00:00Z",
+             "commit_author": "Pipe | Name"},
+            {"branch": "old/b", "sha": sha(2), "commit_date": "2026-11-02T00:00Z",
+             "commit_author": None}]
+
+    def test_notice_lists_each_branch_and_ends_with_the_marker(self):
+        [body] = bc.notice_bodies(self.rows, REPO, "`coord` (agent)", "14d", "7d")
+        self.assertTrue(body.startswith("`coord` (agent)\n\n**No-PR branches to be deleted.**"))
+        self.assertIn(f"| `old/a` | 2026-11-01T00:00Z | Pipe \\| Name | `{sha(1)}` |", body)
+        self.assertIn(f"| `old/b` | 2026-11-02T00:00Z |  | `{sha(2)}` |", body)
+        self.assertTrue(body.endswith(bc.NOTICE_MARKER))
+        notices = bc.Notices.read([notice_comment(body, 8)], 7, timedelta(days=7))
+        self.assertEqual(notices.listed, {"old/a": [(sha(1), NOW - timedelta(days=8))],
+                                          "old/b": [(sha(2), NOW - timedelta(days=8))]})
+
+    def test_long_notices_are_split_into_marked_parts(self):
+        with mock.patch.object(bc, "NOTICE_LIMIT", 3100):
+            bodies = bc.notice_bodies(self.rows, REPO, "id", "14d", "7d")
+        self.assertEqual(len(bodies), 2)
+        self.assertIn("(part 2 of 2)", bodies[1])
+        self.assertTrue(all(b.endswith(bc.NOTICE_MARKER) for b in bodies))
+
+    def test_deletion_waits_for_an_unanswered_notice_of_the_same_tip(self):
+        def row(name: str, n: int) -> str:
+            return f"| `{name}` | 2026-11-01T00:00Z | w | `{sha(n)}` |"
+        comments = [
+            notice_comment("\n".join([row("a", 1), row("b", 2), row("c", 3), row("c-d", 6),
+                                       bc.NOTICE_MARKER]), 8),
+            notice_comment("\n".join([row("d", 4), bc.NOTICE_MARKER]), 2),
+            notice_comment("Please keep `c`, I still need it.", 1, "https://x/keep")]
+        notices = bc.Notices.read(comments, 7, timedelta(days=7))
+        hold = {name: notices.hold({"branch": name, "sha": sha(n)}, NOW)
+                for name, n in (("a", 1), ("b", 9), ("c", 3), ("c-d", 6), ("d", 4), ("e", 5))}
+        self.assertEqual(hold, {
+            "a": None, "b": "its tip is not the one listed on #7",
+            "c": "named in a reply after the notice (https://x/keep)", "c-d": None,
+            "d": "noticed 2026-12-18T12:00Z; deletable from 2026-12-25T12:00Z",
+            "e": "not listed in a notice on #7"})
 
 
 def server_error() -> subprocess.CalledProcessError:
@@ -159,7 +218,7 @@ def server_error() -> subprocess.CalledProcessError:
 
 class DeleteTests(unittest.TestCase):
     def test_deletes_only_unchanged_unused_branches_and_logs_each_outcome(self):
-        names = ["gone-ok", "moved", "now-head", "now-base", "vanished", "fails"]
+        names = ["gone-ok", "moved", "now-head", "now-base", "main", "vanished", "fails"]
         plan = [{"branch": name, "sha": sha(i), "restore": f"restore {name}", "status": "planned"}
                 for i, name in enumerate(names)]
         refs = {f"repos/{REPO}/git/ref/heads/{name}": {"object": {"sha": sha(i)}}
@@ -168,7 +227,7 @@ class DeleteTests(unittest.TestCase):
         gh = fake_github({
             f"repos/{REPO}/pulls?state=open&per_page=100": [
                 pull(20, "now-head", 2, state="open"),
-                pull(21, "x", 3, state="open", base="now-base")],
+                pull(21, "x", 3, state="open", base="now-base", repo="someone/fork")],
             **refs,
             f"DELETE repos/{REPO}/git/refs/heads/gone-ok": None,
             f"DELETE repos/{REPO}/git/refs/heads/fails": server_error()})
@@ -180,8 +239,9 @@ class DeleteTests(unittest.TestCase):
             self.assertFalse(bc.delete(gh, plan, log, path, sleep=lambda s: None, out=out))
             logged = json.loads(path.read_text())
         self.assertEqual([e["status"].split(":")[0] for e in logged["branches"]],
-                         ["deleted", "kept", "kept", "kept", "already gone", "failed"])
+                         ["deleted", "kept", "kept", "kept", "kept", "already gone", "failed"])
         self.assertEqual(logged["branches"][1]["status"], f"kept: it moved to {sha(99)}")
+        self.assertEqual(logged["branches"][4]["status"], "kept: protected branch")
         self.assertEqual(logged["branches"][0]["deleted_at"], "2026-12-20T12:00Z")
         self.assertEqual(out.getvalue(), f"deleted gone-ok at {sha(0)}; restore: restore gone-ok\n")
         deletes = [endpoint for method, endpoint, _ in gh._run.writes()]
@@ -204,7 +264,8 @@ class CommandLineTests(unittest.TestCase):
         out, err = io.StringIO(), io.StringIO()
         with mock.patch.object(bc.gr, "GitHub", return_value=gh), \
                 mock.patch.object(bc.gr, "utcnow", return_value=NOW), \
-                mock.patch.object(bc, "local_dates", return_value=DATES), \
+                mock.patch.object(bc, "local_commits",
+                                  return_value={k: (v, "w") for k, v in DATES.items()}), \
                 mock.patch.object(bc.time, "sleep"), \
                 contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
             code = bc.main([*argv, "--repo", REPO])
@@ -212,7 +273,9 @@ class CommandLineTests(unittest.TestCase):
 
     def test_apply_needs_a_kind_and_ages_are_checked(self):
         for argv in (["--apply"], ["--delete", "merged", "--older-than", "2 weeks"],
-                     ["--delete", "everything"]):
+                     ["--delete", "everything"], ["--delete", "nopr", "--apply"],
+                     ["--notice"], ["--notice", "--identity", "x", "--apply"],
+                     ["--notice-wait", "a week"]):
             with self.subTest(argv=argv), contextlib.redirect_stderr(io.StringIO()):
                 with self.assertRaises(SystemExit):
                     bc.main(argv)
@@ -226,6 +289,40 @@ class CommandLineTests(unittest.TestCase):
                          ["feat/merged", "fork-name", "scratch-old"])
         self.assertEqual(len(report["branches"]), len(BRANCHES))
         self.assertEqual(gh._run.writes(), [])
+
+    def test_notice_mode_writes_the_comments_and_posts_nothing(self):
+        gh = fake_github(self.routes())
+        with tempfile.TemporaryDirectory() as directory:
+            code, out, _ = self.run_main(["--notice", "--identity", "`coord` (agent)",
+                                          "--notice-dir", directory, "--notice-issue", "7"], gh)
+            body = (Path(directory) / "notice-1.md").read_text()
+        self.assertEqual(code, 0)
+        self.assertIn(f"gh issue comment 7 --repo {REPO} --body-file {directory}/notice-1.md",
+                      out)
+        self.assertEqual([line.split("`")[1] for line in body.splitlines()
+                          if line.startswith("| `")], ["fork-name", "scratch-old"])
+        self.assertIn(f"| `scratch-old` | 2026-11-20T12:00Z | w | `{sha(13)}` |", body)
+        self.assertEqual(gh._run.writes(), [])
+
+    def test_notice_report_prints_markdown_table_to_stdout(self):
+        gh = fake_github(self.routes())
+        code, out, _ = self.run_main(["--notice-report"], gh)
+        self.assertEqual(code, 0)
+        self.assertEqual([line.split("`")[1] for line in out.splitlines()
+                          if line.startswith("| `")], ["fork-name", "scratch-old"])
+        self.assertTrue(out.strip().endswith(bc.NOTICE_MARKER))
+        self.assertEqual(gh._run.writes(), [])
+
+    def test_no_pr_deletion_follows_the_notice_issue(self):
+        notice = f"| `fork-name` | x | w | `{sha(12)}` |\n{bc.NOTICE_MARKER}"
+        gh = fake_github({**self.routes(), f"repos/{REPO}/issues/7/comments?per_page=100":
+                          [notice_comment(notice, 8)]})
+        code, out, _ = self.run_main(["--delete", "nopr", "--notice-issue", "7", "--json"], gh)
+        report = json.loads(out)
+        self.assertEqual(code, 0)
+        self.assertEqual([e["branch"] for e in report["plan"]], ["fork-name"])
+        self.assertEqual([(w["branch"], w["reason"]) for w in report["waiting"]],
+                         [("scratch-old", "not listed in a notice on #7")])
 
     def test_apply_deletes_the_plan_and_keeps_json_output_clean(self):
         gh = fake_github(self.routes())

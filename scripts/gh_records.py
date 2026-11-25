@@ -11,8 +11,9 @@ budget is below a floor, so that one report cannot spend what other fleets need.
 A pull request's or issue's timeline (`issues/N/timeline`) supplies, in one paginated listing, its
 comments, submitted reviews with their bodies and commits, pushes, base changes and merge-queue
 events. `posts` turns it into `Post` records, and the parsers below read the machine-readable lines
-that reviewers and coordinators write. Each line stands alone in a PR body, comment or review body;
-matching is case-sensitive and tolerates leading whitespace and a leading `**`:
+that reviewers and coordinators write. Each line stands alone outside fenced code blocks in a PR
+body, comment or review body; matching is case-sensitive and tolerates leading whitespace and a
+leading `**`:
 
     HOLD owner=<id> until=<YYYY-MM-DDTHH:MMZ> reason=<free text to end of line>
     HOLD-RELEASED by=<id> reason=<text>
@@ -204,6 +205,25 @@ def excerpt(line: str, limit: int = 160) -> str:
     return line if len(line) <= limit else line[:limit - 3] + "..."
 
 
+FENCE = re.compile(r"^(`{3,}|~{3,})")
+
+
+def unfenced_lines(body: str) -> list[tuple[int, str]]:
+    """`(line_number, line)` pairs of `body` outside fenced code blocks."""
+    out: list[tuple[int, str]] = []
+    fence: str | None = None
+    for index, raw in enumerate(body.splitlines()):
+        stripped = raw.strip()
+        if fence is not None:
+            if stripped.startswith(fence) and not stripped.lstrip(fence[0]).strip():
+                fence = None
+        elif match := FENCE.match(stripped):
+            fence = match.group(1)
+        else:
+            out.append((index, raw))
+    return out
+
+
 @dataclass(frozen=True)
 class Post:
     """A PR or issue body, comment or submitted review, in timeline order (`seq`)."""
@@ -219,6 +239,9 @@ class Post:
 
     def lines(self) -> list[str]:
         return self.body.splitlines()
+
+    def unfenced_lines(self) -> list[tuple[int, str]]:
+        return unfenced_lines(self.body)
 
 
 def posts(item: dict, events: list[dict]) -> list[Post]:
@@ -244,22 +267,43 @@ def posts(item: dict, events: list[dict]) -> list[Post]:
 # The line formats. `PREFIX` tolerates leading whitespace and a leading `**`.
 PREFIX = r"^[ \t]*(?:\*\*)?"
 STAMP = r"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z)"
-HOLD = re.compile(PREFIX + r"HOLD owner=(\S+) until=" + STAMP + r" reason=(.*)$", re.MULTILINE)
-RELEASE = re.compile(PREFIX + r"HOLD-RELEASED by=(\S+) reason=(.*)$", re.MULTILINE)
-CLAIM = re.compile(PREFIX + r"CLAIM review head=([0-9a-f]{40}) by=(\S+) until=" + STAMP,
-                   re.MULTILINE)
-VERDICT = re.compile(r"[ \t]*\*\*(APPROVE|REQUEST_CHANGES)\*\* at `?([0-9a-f]{7,40})(?![0-9a-f])")
-REVIEWER = re.compile(r"\bby `?([A-Za-z0-9][\w.\-/@]*)")
-FORMATTED = re.compile(PREFIX + r"(?:HOLD owner=|HOLD-RELEASED by=|CLAIM review head=)")
-HOLD_FORMATTED = re.compile(PREFIX + r"(?:HOLD owner=|HOLD-RELEASED by=)")
+HOLD = re.compile(PREFIX + r"HOLD owner=(\S+) until=" + STAMP + r" reason=(.*)$")
+RELEASE = re.compile(PREFIX + r"HOLD-RELEASED by=(\S+) reason=(.*)$")
+CLAIM = re.compile(PREFIX + r"CLAIM review head=([0-9a-f]{40}) by=(\S+) until=" + STAMP
+                   + r"(?:\*\*)?[ \t]*$")
+VERDICT = re.compile(r"[ \t]*\*\*(APPROVE|REQUEST_CHANGES)\*\* at `?([0-9a-f]{7,40})(?![0-9a-f])`?"
+                     r"(?: by `?([^\s`]+)`?)?")
+CLAIM_LEASE = timedelta(minutes=45)
 
 
 def clean_id(value: str) -> str:
     return value.strip("`*")
 
 
+def clean_reviewer_id(value: str) -> str:
+    return value.strip("`*").rstrip(".,;:)").strip("`*")
+
+
 def clean_reason(value: str) -> str:
     return re.sub(r"\s*\*\*\s*$", "", value).strip()
+
+
+def _record_time(value: str) -> datetime | None:
+    try:
+        return parse_time(value)
+    except ValueError:
+        return None
+
+
+def is_record_line(line: str) -> bool:
+    """Whether `line` is a well-formed `HOLD`, `HOLD-RELEASED` or `CLAIM review` record."""
+    if match := HOLD.match(line):
+        return _record_time(match.group(2)) is not None
+    if RELEASE.match(line):
+        return True
+    if match := CLAIM.match(line):
+        return _record_time(match.group(3)) is not None
+    return False
 
 
 def sha_matches(sha: str, full: str) -> bool:
@@ -281,9 +325,8 @@ def verdict_of(post: Post) -> Verdict | None:
     first = next((line for line in post.lines() if line.strip()), "")
     match = VERDICT.match(first)
     if match and (post.kind != "review" or post.state != "dismissed"):
-        reviewer = REVIEWER.search(first[match.end():])
-        return Verdict(match.group(1), match.group(2), post, False,
-                       clean_id(reviewer.group(1)) if reviewer else "")
+        reviewer = clean_reviewer_id(match.group(3)) if match.group(3) else ""
+        return Verdict(match.group(1), match.group(2), post, False, reviewer)
     if post.kind == "review" and post.commit:
         decision = {"approved": "APPROVE", "changes_requested": "REQUEST_CHANGES"}.get(post.state)
         if decision:
@@ -325,25 +368,38 @@ class Hold:
         return "active" if self.until > now else "expired"
 
 
-def holds(items: list[Post], maintainer: str = MAINTAINER) -> list[Hold]:
-    """Every formatted hold, with the release line that released it if one did."""
+def _scan_holds(items: list[Post],
+                maintainer: str = MAINTAINER) -> tuple[list[Hold], list[tuple[int, str]]]:
     found: list[Hold] = []
+    unmatched_releases: list[tuple[int, str]] = []
     for post in items:
-        for number, line in enumerate(post.lines()):
+        for number, line in post.unfenced_lines():
             if match := HOLD.match(line):
-                found.append(Hold(clean_id(match.group(1)), parse_time(match.group(2)),
-                                  clean_reason(match.group(3)), post, number))
+                until = _record_time(match.group(2))
+                if until is not None:
+                    found.append(Hold(clean_id(match.group(1)), until,
+                                      clean_reason(match.group(3)), post, number))
             elif match := RELEASE.match(line):
                 by, reason = clean_id(match.group(1)), clean_reason(match.group(2))
+                had_open = any(not h.released_by for h in found)
+                matched = False
                 for hold in found:
                     if hold.released_by:
                         continue
                     if (same_owner(hold.owner, by, maintainer)
                             or (reason.startswith("expired") and hold.until <= post.when)):
                         hold.released_by = post
+                        matched = True
                     else:
                         hold.other_releases.append(by)
-    return found
+                if not matched and not had_open:
+                    unmatched_releases.append((post.seq, by))
+    return found, unmatched_releases
+
+
+def holds(items: list[Post], maintainer: str = MAINTAINER) -> list[Hold]:
+    """Every formatted hold outside fenced code blocks, with the release line that released it."""
+    return _scan_holds(items, maintainer)[0]
 
 
 @dataclass
@@ -355,6 +411,10 @@ class Claim:
     ended_by: Post | None = None
 
     @property
+    def expires(self) -> datetime:
+        return min(self.until, self.post.when + CLAIM_LEASE)
+
+    @property
     def lease_too_long(self) -> bool:
         return self.until - self.post.when > timedelta(minutes=45, seconds=59)
 
@@ -362,64 +422,84 @@ class Claim:
 def claims(items: list[Post]) -> list[Claim]:
     """Each reviewer's latest review claim on the PR, with the verdict that ended it if any.
 
-    A verdict ends a claim when it is posted after the claim and either names the claimant
-    (`by <id>` or the id anywhere in its body) or is at the claimed head.
+    A verdict ends a claim when it is posted after the claim by the same reviewer (`by <id>` on
+    its verdict line, or mentioning `<id>` when no other reviewer id is on the verdict line).
     """
     latest: dict[str, Claim] = {}
     for post in items:
-        for line in post.lines():
+        for _, line in post.unfenced_lines():
             if match := CLAIM.match(line):
-                by = clean_id(match.group(2))
-                latest[by] = Claim(match.group(1), by, parse_time(match.group(3)), post)
+                until = _record_time(match.group(3))
+                if until is not None:
+                    by = clean_id(match.group(2))
+                    latest[by] = Claim(match.group(1), by, until, post)
     for verdict in verdicts(items):
         for claim in latest.values():
-            if (claim.ended_by is None and verdict.post.seq > claim.post.seq
-                    and (verdict.reviewer == claim.by or claim.by in verdict.post.body
-                         or sha_matches(verdict.sha, claim.head))):
+            if claim.ended_by is not None or verdict.post.seq <= claim.post.seq:
+                continue
+            mention = re.compile(rf"(?<![\w.-]){re.escape(claim.by)}(?![\w.-])")
+            same = (verdict.reviewer == claim.by if (verdict.reviewer and not verdict.formal)
+                    else (verdict.reviewer == claim.by or bool(mention.search(verdict.post.body))))
+            if same:
                 claim.ended_by = verdict.post
     return sorted(latest.values(), key=lambda claim: claim.post.seq)
 
 
 # Wording that usually marks a free-text hold. STRONG wording (an upper-case `HOLD`, one of the
 # phrases, or a request for human review, which AGENTS.md says the queueing reviewer waits for) is
-# read everywhere after the last `HOLD` or `HOLD-RELEASED` line, including the PR body; WEAK
-# wording, which also appears in ordinary discussion, only in the approval at the current head and
-# the posts after it. "Agent review is not human review" matches neither.
+# read across the PR unless an unmatched `HOLD-RELEASED` line later released it; WEAK wording,
+# which also appears in ordinary discussion, only in the approval at the current head and the posts
+# after it. "Agent review is not human review" matches neither.
 STRONG_WORD = re.compile(r"\bHOLD\b")
-STRONG_PHRASE = re.compile(
-    r"\bon hold\b|\b(?:do not|don't) (?:yet )?(?:queue|merge)\b|"
+HUMAN_REVIEW = re.compile(
     r"\b(?:hold|held|wait(?:s|ing)?|awaiting|needs?|requires?|request(?:s|ed|ing)?) (?:for )?"
     r"(?:an? )?human review\b|\bhuman review (?:is |was )?(?:requested|required|pending)\b",
+    re.IGNORECASE)
+STRONG_PHRASE = re.compile(
+    r"\bon hold\b|\b(?:do not|don't) (?:yet )?(?:queue|merge)\b",
     re.IGNORECASE)
 WEAK_HOLD = re.compile(
     r"\b(?:held (?:from|until|pending|for|back|off)|(?:queueing|queuing|is|remains|stays) held|"
     r"holds (?:below|above)|see holds|with holds|hold \d|"
     r"hold(?:ing)? (?:queueing|queuing|the queue|from|until|pending|on|for)|"
     r"not (?:yet )?queued)\b", re.IGNORECASE)
+# Any mention of queueing, sequencing or waiting on another PR in a post after the approval at the
+# head, such as another coordinator's "I'll verify the resulting delta before queueing", is also
+# read as a possible hold.
+QUEUE_TALK = re.compile(
+    r"\bqueu(?:e|es|ed|eing|ing)\b|\bsequenc(?:e|es|ed|ing)\b|"
+    r"\bwait(?:s|ing)? (?:for|on|until)\b|\bafter #\d+ (?:lands|merges)\b|"
+    r"\bconflict(?:s|ing)? with #\d+", re.IGNORECASE)
 
 
 def _strong(line: str) -> bool:
-    return bool(STRONG_WORD.search(line) or STRONG_PHRASE.search(line))
+    return bool(STRONG_WORD.search(line) or STRONG_PHRASE.search(line) or HUMAN_REVIEW.search(line))
 
 
-def free_text_holds(items: list[Post], since: Post | None) -> list[tuple[Post, str]]:
-    """Lines that look like holds not written in the line format, with their posts.
+def free_text_holds(items: list[Post], since: Post | None,
+                    maintainer: str = MAINTAINER) -> list[tuple[Post, str]]:
+    """Lines outside fenced code blocks that look like holds not written in the line format.
 
-    `since` is the approval at the current head; weak wording counts only from it on. Only posts
-    after the last `HOLD` or `HOLD-RELEASED` line are read: such a line converts or releases the
-    free-text holds before it. A review `CLAIM` line does not.
+    `since` is the approval at the current head; weak wording counts only from it on, and any
+    mention of queueing, sequencing or waiting in a later post by a person (not a `[bot]`). An
+    earlier free-text hold is cleared only by a later `HOLD-RELEASED` line that was not paired with
+    an earlier formatted `HOLD` (and for a human-review request, only from `maintainer`).
     """
-    last_formatted = max((p.seq for p in items for line in p.lines()
-                          if HOLD_FORMATTED.match(line)), default=-1)
+    _, unmatched_releases = _scan_holds(items, maintainer)
     found = []
     for post in items:
-        if post.seq <= last_formatted:
-            continue
         weak_ok = since is not None and post.seq >= since.seq
-        for line in post.lines():
-            if FORMATTED.match(line):
+        talk_ok = (since is not None and post.seq > since.seq and post.kind != "body"
+                   and not post.author.endswith("[bot]"))
+        for _, line in post.unfenced_lines():
+            if is_record_line(line):
                 continue
-            if _strong(line) or (weak_ok and WEAK_HOLD.search(line)):
+            human = bool(HUMAN_REVIEW.search(line))
+            if any(seq > post.seq and (not human or same_owner("maintainer", by, maintainer))
+                   for seq, by in unmatched_releases):
+                continue
+            if (_strong(line) or (weak_ok and WEAK_HOLD.search(line))
+                    or (talk_ok and QUEUE_TALK.search(line))):
                 found.append((post, excerpt(line)))
                 break
     return found

@@ -110,12 +110,15 @@ python3 scripts/tender_report.py
 This lists PRs approved at their exact current head (an approving review of that commit or a
 verdict line naming it) whose required checks passed, that GitHub reports mergeable, that are based
 on `main` and that no unreleased, unexpired `HOLD` line covers, but that are not queued. It
-separates those whose discussion contains free-text hold wording or an approval not written as a
-verdict line, which need a person to read the thread; approved PRs blocked by checks, conflicts or
-holds; stacked PRs whose lower PR has landed, and approved PRs whose head moved after the approval,
-which need a restack or `scripts/check_restack.py` first; expired `HOLD` lines; and review claims
-that expired without a verdict. The report never queues. The non-author who queues still reads the
-PR and runs `queue_pr.py` as above.
+separates those that need a person to read the thread: free-text hold wording or a request for
+human review, any mention of queueing, sequencing or waiting after the approval (such as another
+coordinator's note that it will verify a restack before queueing), an expired unswept `HOLD`, a
+review claim still in its lease, an unanswered `REQUEST_CHANGES` at the head from another reviewer,
+or an approval not written as a verdict line naming a non-author reviewer. It also lists approved
+PRs blocked by checks, conflicts or holds; stacked PRs whose lower PR has landed, and approved PRs
+whose head moved after the approval, which need a restack or `scripts/check_restack.py` first;
+expired `HOLD` lines; and review claims that expired without a verdict. The report never queues.
+The non-author who queues still reads the PR and runs `queue_pr.py` as above.
 
 ```bash
 python3 scripts/stale_notices.py
@@ -128,14 +131,17 @@ PR references (`--claim-days`), and PRs whose latest verdict requests changes at
 with no push or author reply for 48 hours (`--changes-hours`). On the shared account every agent
 posts as one login, so another agent's comment there counts as the author's; read a listed item
 before acting on it. `--apply` posts one notice per item, ending with the marker
-`<!-- stale-notice:KIND -->`; an item noticed in the last 24 hours is skipped, so a rerun posts
-nothing twice in a day. `--draft-stalled` also converts the listed change requests to drafts. The
-script closes nothing and takes nothing over: the report says when 24 hours have passed since a
-notice with no response, after which [Workers](../../AGENTS.md#workers), item 3, applies.
+`<!-- stale-notice:KIND -->`; an item already noticed since its last activity (or within the last
+24 hours) is skipped, so a rerun never posts twice for the same stall. `--draft-stalled` also
+converts the listed change requests to drafts. The script closes nothing and takes nothing over:
+the report says when 24 hours have passed since a notice with no response, after which
+[Workers](../../AGENTS.md#workers), item 3, applies.
 
 ```bash
 python3 scripts/branch_cleanup.py --delete merged --delete closed --older-than 14d
 python3 scripts/branch_cleanup.py --delete merged --apply
+python3 scripts/branch_cleanup.py --notice --identity '<who is posting>' --notice-issue <N>
+python3 scripts/branch_cleanup.py --delete nopr --notice-issue <N> --apply
 ```
 
 Every branch is the head of an open PR, the base of an open PR, the head of a merged PR, the head
@@ -148,6 +154,15 @@ ref still points at the planned commit and no open PR uses it. It prints a resto
 deletion, which works while GitHub still has the commit: a PR's `refs/pull/` ref keeps it, but a
 branch with no PR has no such ref, so keep the log (or fetch the commits) before deleting `nopr`
 branches.
+
+No-PR branches are announced first. `--notice` writes the notice as one or more Markdown files
+(each under GitHub's comment size limit) listing every selected no-PR branch with its last commit
+date, author and tip commit, and prints the `gh issue comment` command that posts each; it posts
+nothing itself (`--notice-report` prints the Markdown table report to standard output). After the
+notice has been up for `--notice-wait` (default 7d), `--delete nopr --notice-issue <N>` selects
+only the branches a notice on issue N listed at their current tip and that no later comment there
+names; a push changes the tip, so the branch is kept. `--delete nopr --apply` refuses to run
+without `--notice-issue`.
 
 ## Record evidence at the level of the claim
 

@@ -24,11 +24,12 @@ its id (the first `code span` on the claim line, otherwise the next word). A pus
 request is a head other than the one the request names, or a commit or force push after it.
 
 Every notice starts with `--identity` (required with `--apply`) and ends with the HTML comment
-`<!-- MARKER:KIND -->`. An item that has any notice with the marker from the last 24 hours is
-skipped, so a rerun never posts twice in a day; notices are left out of activity, and the report
-gives the age of the last one. Under AGENTS.md (Workers, item 3) a claim, or a PR that needs author
-action, may be taken over 24 hours after such a notice when its owner has not responded; this
-script only reports that the window has passed, and never takes anything over.
+`<!-- MARKER:KIND -->`. An item that has a marked notice from the last 24 hours, or one posted at
+or after its last activity, is skipped so a rerun never posts twice for the same stall; notices are
+left out of activity, and the report gives the age of the last one. Under AGENTS.md (Workers, item
+3) a claim, or a PR that needs author action, may be taken over 24 hours after such a notice when
+its owner has not responded; this script only reports that the window has passed, and never takes
+anything over.
 
 Cost: one REST call per scanned draft, non-draft PR or issue with comments or a claim line (two for
 long timelines). It refuses to start below `--min-remaining` REST calls. Exit status: 0 when the
@@ -76,7 +77,8 @@ def is_notice(post: gr.Post, marker: str) -> bool:
 
 def is_record(post: gr.Post) -> bool:
     """A verdict, hold or claim, which on the shared account is not the author's response."""
-    return gr.verdict_of(post) is not None or any(gr.FORMATTED.match(l) for l in post.lines())
+    return gr.verdict_of(post) is not None or any(gr.is_record_line(l)
+                                                  for _, l in post.unfenced_lines())
 
 
 def last_notice(items: list[gr.Post], marker: str) -> datetime | None:
@@ -144,7 +146,7 @@ def latest_claim(items: list[gr.Post]) -> tuple[gr.Post, str, list[str]] | None:
     """The last claim line not followed by a release line: its post, line and claimant ids."""
     found = None
     for post in items:
-        for line in post.lines():
+        for _, line in post.unfenced_lines():
             if match := CLAIM_LINE.match(line):
                 ids = claimants(match.group(3), match.group(1) or match.group(2))
                 found = None if ids is None else (post, gr.excerpt(line, 120), ids)
@@ -177,12 +179,17 @@ def open_pr_reference(events: list[dict]) -> int | None:
 
 def item(kind: str, record: dict, now: datetime, activity: datetime, detail: str,
          notice: datetime | None, **extra) -> dict:
+    recent = bool(notice and now - notice < NOTICE_GAP)
+    unanswered = bool(notice and activity <= notice)
     return {"kind": kind, "number": record["number"], "title": record.get("title", ""),
             "url": record.get("html_url", ""), "activity": gr.fmt_time(activity),
             "idle": gr.fmt_age(now, activity), "detail": detail,
             "last_notice": gr.fmt_time(notice) if notice else "",
-            "window_passed": bool(notice and now - notice >= NOTICE_GAP and activity < notice),
-            "skip": bool(notice and now - notice < NOTICE_GAP), **extra}
+            "window_passed": bool(notice and now - notice >= NOTICE_GAP and unanswered),
+            "skip": recent or unanswered,
+            "skip_reason": ("noticed within 24 hours" if recent
+                            else "already noticed (no activity since)" if unanswered else ""),
+            **extra}
 
 
 def notice_text(entry: dict, converted: bool = False) -> str:
@@ -264,7 +271,8 @@ def apply(gh: gr.GitHub, found: list[dict], args, sleep=time.sleep) -> bool:
     ok = True
     for entry in found:
         if entry["skip"]:
-            entry["action"] = "skipped: noticed within 24 hours"
+            reason = entry.get("skip_reason") or "noticed within 24 hours"
+            entry["action"] = f"skipped: {reason}"
             continue
         actions, converted = [], False
         if entry["kind"] == "changes" and args.draft_stalled and entry.get("node_id"):
@@ -305,7 +313,8 @@ def render(found: list[dict], args, applied: bool) -> str:
             notice = e["last_notice"] or "none"
             if e["window_passed"]:
                 notice += " (24 hours passed with no activity)"
-            action = e.get("action") or ("skip: noticed within 24 hours" if e["skip"] else
+            reason = e.get("skip_reason") or "noticed within 24 hours"
+            action = e.get("action") or (f"skip: {reason}" if e["skip"] else
                                          "would post" + ("; would convert to draft"
                                                          if kind == "changes" and args.draft_stalled
                                                          else ""))

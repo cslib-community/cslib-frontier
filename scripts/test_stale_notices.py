@@ -66,6 +66,7 @@ class ScanTests(unittest.TestCase):
             4: [notice(ago(30))],
             5: [comment("Still working on it.", ago(48), AUTHOR),
                 comment("Ping?", ago(1), "someone")],
+            6: [notice(ago(200)), commit(ago(180))],
         }
         changes = {
             10: [comment(f"**REQUEST_CHANGES** at {sha(10)} by `rev`", ago(72))],
@@ -96,6 +97,7 @@ class ScanTests(unittest.TestCase):
         issues = ([issue(20, "Plan.\n\nOwner: `worker-a` (session x)", comments=0)]
                   + [issue(n) for n in (21, 22, 23, 26, 27)]
                   + [issue(24, "Owner: none", comments=0), issue(25, "No claim.", comments=0),
+                     issue(28, "Template:\n```\nOwner: `example`\n```", comments=0),
                      {**issue(30), "pull_request": {}}])
         self.routes = {f"repos/{REPO}/pulls?state=open&per_page=100": pulls,
                        f"repos/{REPO}/issues?state=open&per_page=100": issues,
@@ -107,10 +109,11 @@ class ScanTests(unittest.TestCase):
 
     def test_drafts_without_author_activity(self):
         drafts = self.kind("drafts")
-        self.assertEqual(sorted(drafts), [1, 3, 4])
+        self.assertEqual(sorted(drafts), [1, 3, 4, 6])
         self.assertEqual(drafts[1]["activity"], "2026-11-20T12:00Z")
         self.assertTrue(drafts[3]["skip"])
-        self.assertEqual((drafts[4]["skip"], drafts[4]["window_passed"]), (False, True))
+        self.assertEqual((drafts[4]["skip"], drafts[4]["window_passed"]), (True, True))
+        self.assertEqual((drafts[6]["skip"], drafts[6]["window_passed"]), (False, False))
 
     def test_unanswered_change_requests(self):
         changes = self.kind("changes")
