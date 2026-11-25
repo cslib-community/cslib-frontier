@@ -778,11 +778,9 @@ theorem bucketStateInv_congr {U V w n_max h_space base : ℕ} (hw : 0 < w)
     BucketStateInv U V w n_max h_space base mOf L B s₂ := by
   obtain ⟨hq, hv, hlm, hgm⟩ := arrays_congr_of_eq_on hw heq
   rcases hinv with ⟨hslot, hchains, hcm, hnodup, hsome, hdom⟩
-  refine ⟨hgm ▸ hslot, hlm ▸ hchains, ?_, ?_, ?_, ?_⟩
-  · simpa only [← hgm, ← hq] using hcm
-  · simpa only [← hgm, ← hq] using hnodup
-  · simpa only [← hgm, ← hq, ← hv] using hsome
-  · simpa only [← hgm, ← hq] using hdom
+  exact ⟨hgm ▸ hslot, hlm ▸ hchains, by simpa only [← hgm, ← hq] using hcm,
+    by simpa only [← hgm, ← hq] using hnodup, by simpa only [← hgm, ← hq, ← hv] using hsome,
+    by simpa only [← hgm, ← hq] using hdom⟩
 
 theorem dictStateInv_congr {U V w n_max base : ℕ} (hw : 0 < w)
     {θ : QuotHashSeed U n_max} {s_abs : Dictionary.State U} {s₁ s₂ : Memory.State}
@@ -800,9 +798,8 @@ theorem modifies_footprint_of_table {U V w n_max base : ℕ} {mem₁ mem₂ : �
     Modifies (Block.mk base (space U V w n_max)).footprint mem₁ mem₂ := by
   intro a ha
   rw [Block.mem_footprint, Block.Owns] at ha
-  dsimp only at ha
-  dsimp only [offQuot] at hout
-  exact hout a (fun ⟨h1, h2⟩ => ha ⟨by omega, h2⟩)
+  dsimp only [offQuot] at ha hout
+  exact hout a fun ⟨h1, h2⟩ => ha ⟨by omega, h2⟩
 
 /-! ## Section 6: `loadParamsCode` and common prefix execution helpers -/
 
@@ -879,43 +876,16 @@ theorem fits_mkDictParams {U V w n_max base : ℕ}
   have ⟨h2s, hdir, htail, hgd, hgp, hgo, hgm⟩ := hmeta
   rcases i with ⟨_ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ |
     _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | k, hi⟩
-  · exact hw_fit
-  · exact hU_fit.of_le hnU
-  · exact hU_fit.of_le (show n_max - 1 ≤ U by omega)
-  · exact hoffQ
-  · exact hw_fit.of_le (quotientBits_le_of_le_pow (le_of_lt hU))
-  · exact hoffV
-  · exact hw_fit.of_le (Nat.clog_le_of_le_pow hV)
-  · exact hoffLM 0 (by decide)
-  · exact hoffLM 1 (by decide)
-  · exact hoffLM 2 (by decide)
-  · exact hoffLM 3 (by decide)
-  · exact hoffLM 4 (by decide)
-  · exact hoffLM 5 (by decide)
-  · exact hoffLM 6 (by decide)
-  · exact hoffLM 7 (by decide)
-  · exact hoffLM 8 (by decide)
-  · exact hw_fit.of_le (effBucketPosBits_le_of_lt_pow hnU hU)
-  · exact hoffGM
-  · exact hw_fit.of_le (globalPtrBits_le_of_lt_pow hnU hU)
-  · exact hb_mask.1
-  · exact hb_mask.2
-  · exact hslab_fit
-  · exact hslab_fit.of_le (Nat.sub_le _ _)
-  · exact h2s
-  · exact hdir
-  · exact hdir.of_le (Nat.sub_le _ _)
-  · exact htail
-  · exact hgd
-  · exact hgp
-  · exact hgo
-  · exact hgm
-  · exact hmicro_fit
-  · exact hU_fit.of_le ((Nat.min_le_left _ _).trans hnU)
-  · exact hU_fit
-  · exact hV_fit
-  · exact hoffQ
-  · omega
+  exacts [hw_fit, hU_fit.of_le hnU, hU_fit.of_le (show n_max - 1 ≤ U by omega), hoffQ,
+    hw_fit.of_le (quotientBits_le_of_le_pow (le_of_lt hU)), hoffV,
+    hw_fit.of_le (Nat.clog_le_of_le_pow hV), hoffLM 0 (by decide), hoffLM 1 (by decide),
+    hoffLM 2 (by decide), hoffLM 3 (by decide), hoffLM 4 (by decide), hoffLM 5 (by decide),
+    hoffLM 6 (by decide), hoffLM 7 (by decide), hoffLM 8 (by decide),
+    hw_fit.of_le (effBucketPosBits_le_of_lt_pow hnU hU), hoffGM,
+    hw_fit.of_le (globalPtrBits_le_of_lt_pow hnU hU), hb_mask.1, hb_mask.2, hslab_fit,
+    hslab_fit.of_le (Nat.sub_le _ _), h2s, hdir, hdir.of_le (Nat.sub_le _ _), htail, hgd, hgp,
+    hgo, hgm, hmicro_fit, hU_fit.of_le ((Nat.min_le_left _ _).trans hnU), hU_fit, hV_fit, hoffQ,
+    by omega]
 
 /-- Any register below `256` is disjoint from the `paramReg` block `[256, 292)`. -/
 private theorem ne_paramReg_of_lt {r : Fin rSuccinct} (hr : r.val < 256) (j : Fin 36) :
