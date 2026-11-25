@@ -230,43 +230,43 @@ private theorem abs_boundary_le {n L : ℕ} (hn : n ≠ 0) (hL : L ≤ n ^ 2) {C
     _ ≤ 2 * n ^ 2 * (2 * C) := by gcongr
     _ = 2 * C * (1 / n) * (2 * n ^ 3) := by field_simp
 
-private theorem mean_shift_one {f : WindowFn} (hf : Bounded f) :
-    mean (fun n b i k => f n b (i + 1) k) = mean f := by
+private theorem mean_eq_of_sheet_diff {f g : WindowFn} (hf : Bounded f) (hg : Bounded g)
+    (L : ℕ → ℕ) (hL : ∀ n, L n ≤ n ^ 2) (d : ℕ → Bool → ℕ → ℝ)
+    (hdiff : ∀ n b,
+      (∑ i ∈ range (n ^ 2), ∑ k ∈ range n, g n b i k) -
+          (∑ i ∈ range (n ^ 2), ∑ k ∈ range n, f n b i k) =
+        ∑ j ∈ range (L n), d n b j)
+    (hd : ∀ C, (∀ n b i k, |f n b i k| ≤ C) → ∀ n b j, |d n b j| ≤ 2 * C) :
+    mean g = mean f := by
   obtain ⟨C, hC⟩ := id hf
   have hC0 : 0 ≤ C := (abs_nonneg _).trans (hC 0 true 0 0)
-  refine mean_eq_of_abs_sub_le (by simpa using hf.shift 1 0) hf (2 * C) ?_
+  refine mean_eq_of_abs_sub_le hg hf (2 * C) ?_
   filter_upwards [eventually_ne_atTop 0] with n hn
-  have h1 : (windowAvg n fun b i k => f n b (i + 1) k) - windowAvg n (f n) =
-      (∑ b, ∑ k ∈ range n, (f n b ((n ^ 2 : ℕ) : ℤ) k - f n b 0 k)) / (2 * n ^ 3) := by
-    rw [windowAvg_eq_sum, windowAvg_eq_sum, ← sub_div, ← Finset.sum_sub_distrib]
-    congr 1
-    refine Finset.sum_congr rfl fun b _ => ?_
-    rw [Finset.sum_comm, Finset.sum_comm (s := range (n ^ 2)), ← Finset.sum_sub_distrib]
-    refine Finset.sum_congr rfl fun k _ => ?_
-    rw [sum_range_shift (fun i => f n b i k)]
-    ring
-  rw [h1]
-  exact abs_boundary_le hn (Nat.le_self_pow two_ne_zero n) hC0 _ fun b k =>
-    (abs_sub _ _).trans (by linarith [hC n b ((n ^ 2 : ℕ) : ℤ) k, hC n b 0 k])
+  rw [windowAvg_eq_sum, windowAvg_eq_sum, ← sub_div, ← Finset.sum_sub_distrib,
+    Finset.sum_congr rfl fun b _ => hdiff n b]
+  exact abs_boundary_le hn (hL n) hC0 (d n) (hd C hC n)
+
+private theorem mean_shift_one {f : WindowFn} (hf : Bounded f) :
+    mean (fun n b i k => f n b (i + 1) k) = mean f := by
+  refine mean_eq_of_sheet_diff hf (by simpa using hf.shift 1 0) id
+    (fun n => Nat.le_self_pow two_ne_zero n)
+    (fun n b k => f n b ((n ^ 2 : ℕ) : ℤ) k - f n b 0 k) (fun n b => ?_)
+    (fun C hC n b k =>
+      (abs_sub _ _).trans (by linarith [hC n b ((n ^ 2 : ℕ) : ℤ) k, hC n b 0 k]))
+  rw [Finset.sum_comm, Finset.sum_comm (s := range (n ^ 2)), ← Finset.sum_sub_distrib]
+  refine Finset.sum_congr rfl fun k _ => ?_
+  rw [sum_range_shift (fun i => f n b i k)]
+  ring
 
 private theorem mean_shift_one' {f : WindowFn} (hf : Bounded f) :
     mean (fun n b i k => f n b i (k + 1)) = mean f := by
-  obtain ⟨C, hC⟩ := id hf
-  have hC0 : 0 ≤ C := (abs_nonneg _).trans (hC 0 true 0 0)
-  refine mean_eq_of_abs_sub_le (by simpa using hf.shift 0 1) hf (2 * C) ?_
-  filter_upwards [eventually_ne_atTop 0] with n hn
-  have h1 : (windowAvg n fun b i k => f n b i (k + 1)) - windowAvg n (f n) =
-      (∑ b, ∑ i ∈ range (n ^ 2), (f n b i (n : ℕ) - f n b i 0)) / (2 * n ^ 3) := by
-    rw [windowAvg_eq_sum, windowAvg_eq_sum, ← sub_div, ← Finset.sum_sub_distrib]
-    congr 1
-    refine Finset.sum_congr rfl fun b _ => ?_
-    rw [← Finset.sum_sub_distrib]
-    refine Finset.sum_congr rfl fun i _ => ?_
-    rw [sum_range_shift (fun k => f n b i k)]
-    ring
-  rw [h1]
-  exact abs_boundary_le hn le_rfl hC0 _ fun b i =>
-    (abs_sub _ _).trans (by linarith [hC n b i (n : ℕ), hC n b i 0])
+  refine mean_eq_of_sheet_diff hf (by simpa using hf.shift 0 1) (· ^ 2) (fun _ => le_rfl)
+    (fun n b i => f n b i (n : ℕ) - f n b i 0) (fun n b => ?_)
+    (fun C hC n b i => (abs_sub _ _).trans (by linarith [hC n b i (n : ℕ), hC n b i 0]))
+  rw [← Finset.sum_sub_distrib]
+  refine Finset.sum_congr rfl fun i _ => ?_
+  rw [sum_range_shift (fun k => f n b i k)]
+  ring
 
 /-- From invariance under one step to invariance under every integer number of steps, for a
 family of translations `T a` with `T a ∘ T c = T (a + c)`. -/
@@ -398,16 +398,9 @@ theorem rms_add_le {f g : WindowFn} (hf : Bounded f) (hg : Bounded g) :
 
 theorem mean_le_rms {f : WindowFn} (hf : Bounded f) : mean f ≤ rms f := by
   have h := mean_mul_le hf (Bounded.const 1)
-  have h1 : f * (fun _ _ _ _ => (1 : ℝ)) = f := by
-    funext n b i k
-    simp
-  have h2 : rms (fun _ _ _ _ => (1 : ℝ)) = 1 := by
-    have : ((fun _ _ _ _ => (1 : ℝ)) * (fun _ _ _ _ => (1 : ℝ)) : WindowFn) =
-        fun _ _ _ _ => 1 := by
-      funext n b i k
-      simp
-    rw [rms, this, mean_const, Real.sqrt_one]
-  rwa [h1, h2, mul_one] at h
+  have h2 : rms (1 : WindowFn) = 1 := by
+    rw [rms, mul_one, show (1 : WindowFn) = fun _ _ _ _ => 1 from rfl, mean_const, Real.sqrt_one]
+  rwa [show (fun _ _ _ _ => (1 : ℝ) : WindowFn) = 1 from rfl, mul_one, h2, mul_one] at h
 
 theorem rms_shift {f : WindowFn} (hf : Bounded f) (a c : ℤ) :
     rms (fun n b i k => f n b (i + a) (k + c)) = rms f := by
