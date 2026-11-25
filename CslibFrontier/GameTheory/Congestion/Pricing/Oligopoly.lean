@@ -2291,9 +2291,7 @@ theorem IsElasticOligopolyEquilibrium.mul_latencyDeriv_le_price {Link : Type*} [
       simpa only [x', X, sub_eq_add_neg] using sum_update_add_eq x i (-δ)
     have hw' : IsElasticPricedWardrop uDeriv latency (Function.update p i p') x' := by
       refine ⟨fun k => ?_, fun k hxk => ?_, fun k => ?_⟩
-      · by_cases hki : k = i
-        · subst hki; simp only [x', Function.update_self]; linarith
-        · simp only [x', Function.update_of_ne hki]; exact hoe.2.1.1 k
+      · simp only [x', Function.update_apply]; split_ifs <;> linarith [hoe.2.1.1 k]
       · rw [hx'sum, hud_eq]
         by_cases hki : k = i
         · subst hki; simp [x', p']
@@ -2329,31 +2327,23 @@ theorem IsElasticOligopolyEquilibrium.mul_latencyDeriv_le_price {Link : Type*} [
       hl.latency_le i (by linarith) (by linarith)
     have hp'0 : 0 ≤ p' := by simp only [p']; linarith [hoe.1 i]
     have hx'sum : ∑ k, x' k = X := sum_update_sub_add_eq x hqi.symm δ
+    have hcost_eq : ∀ k, k = q ∨ k = i →
+        latency k (x' k) + Function.update p i p' k = cStar := by
+      rintro k (rfl | rfl)
+      · simp only [x', Function.update_self, Function.update_of_ne hqi, hlat_q_eq]
+        exact hq_cost
+      · simp only [x', p', Function.update_of_ne hqi.symm, Function.update_self, add_sub_cancel]
     have hw' : IsElasticPricedWardrop uDeriv latency (Function.update p i p') x' := by
       refine ⟨fun k => nonneg_update_sub_add hoe.2.1.1 hδ0.le hδx.le k,
-        fun k hxk => ?_, fun k => ?_⟩
-      · rw [hx'sum]
-        by_cases hkq : k = q
-        · subst hkq
-          simp only [x', Function.update_self, Function.update_of_ne hqi, hlat_q_eq]
-          exact hq_cost
-        · by_cases hki : k = i
-          · subst hki
-            simp only [x', p', Function.update_of_ne hkq, Function.update_self, add_sub_cancel]
-            rfl
-          · simp only [x', Function.update_of_ne hkq, Function.update_of_ne hki] at hxk ⊢
-            exact hoe.2.1.2.1 k hxk
-      · rw [hx'sum]
-        by_cases hkq : k = q
-        · subst hkq
-          simp only [x', Function.update_self, Function.update_of_ne hqi, hlat_q_eq]
-          exact hq_cost.ge
-        · by_cases hki : k = i
-          · subst hki
-            simp only [x', p', Function.update_of_ne hkq, Function.update_self, add_sub_cancel]
-            exact le_rfl
-          · simp only [x', Function.update_of_ne hkq, Function.update_of_ne hki]
-            exact hoe.2.1.2.2 k
+        fun k hxk => ?_, fun k => ?_⟩ <;> rw [hx'sum] <;> by_cases hk : k = q ∨ k = i
+      · exact hcost_eq k hk
+      · push Not at hk
+        simp only [x', Function.update_of_ne hk.1, Function.update_of_ne hk.2] at hxk ⊢
+        exact hoe.2.1.2.1 k hxk
+      · exact (hcost_eq k hk).ge
+      · push Not at hk
+        simp only [x', Function.update_of_ne hk.1, Function.update_of_ne hk.2]
+        exact hoe.2.1.2.2 k
     have hbest := hoe.2.2 i p' x' hp'0 hw'
     simp only [x', p', Function.update_of_ne hqi.symm, Function.update_self, ← hi_eff] at hbest
     exact ⟨δ, hδ0, hδη, hδx, div_mul_le_of_mul_le hδ0 (by nlinarith)⟩
@@ -2370,16 +2360,12 @@ theorem IsElasticOligopolyEquilibrium.mul_latencyDeriv_le_price {Link : Type*} [
         (by linarith [Nat.cast_nonneg (α := ℝ) Q0.card])
     exact (h1.trans h2).trans_lt ((half_lt_self (lt_min hη hxi)).trans_le (min_le_right _ _))
   have hu_inc_pos : 0 < uDeriv (X - rStep) - cStar := by
-    have hge : cStar ≤ uDeriv (X - rStep) :=
-      hu.deriv_le (by linarith) (by linarith)
-    have hne_u := hflat_u rStep hrStep_pos hrStep_lt_xi
-    exact sub_pos.mpr (lt_of_le_of_ne hge (Ne.symm hne_u))
+    have hge : cStar ≤ uDeriv (X - rStep) := hu.deriv_le (by linarith) (by linarith)
+    exact sub_pos.mpr (hge.lt_of_ne (hflat_u rStep hrStep_pos hrStep_lt_xi).symm)
   let remSet : Finset Link := Finset.univ.filter fun r => r ≠ i ∧ r ∉ Q0
-  have hrem_gt : ∀ r ∈ remSet, cStar < latency r (x r) + p r := fun r hr => by
-    have hri : r ≠ i := (Finset.mem_filter.mp hr).2.1
-    have hrQ : r ∉ Q0 := (Finset.mem_filter.mp hr).2.2
-    refine lt_of_le_of_ne (hoe.2.1.2.2 r) fun heq => hrQ ?_
-    exact Finset.mem_filter.mpr ⟨Finset.mem_univ r, hri, heq.symm⟩
+  have hrem_gt : ∀ r ∈ remSet, cStar < latency r (x r) + p r := fun r hr =>
+    (hoe.2.1.2.2 r).lt_of_ne fun heq => (Finset.mem_filter.mp hr).2.2
+      (Finset.mem_filter.mpr ⟨Finset.mem_univ r, (Finset.mem_filter.mp hr).2.1, heq.symm⟩)
   have hex_mu : ∃ μ > 0, μ < uDeriv (X - rStep) - cStar ∧
       (∀ q ∈ Q0, μ < latency q (x q + rStep) - latency q (x q)) ∧
       (∀ r ∈ remSet, cStar + μ ≤ latency r (x r) + p r) := by
@@ -2482,19 +2468,17 @@ theorem IsElasticOligopolyEquilibrium.mul_latencyDeriv_le_price {Link : Type*} [
       · linarith
       · linarith [hoe.2.1.1 k, hstep_pos k hk2]
       · exact hoe.2.1.1 k
-    all_goals rw [hx'sum, hud_s0]
-    · by_cases hki : k = i
+    all_goals
+      rw [hx'sum, hud_s0]
+      by_cases hki : k = i
       · subst hki; simp [x', p']
       by_cases hkQ : k ∈ Q0
-      · exact hQ_cost k hkQ
-      · simp only [x', hki, hkQ, ↓reduceIte] at hxk
-        exact absurd (Finset.mem_filter.mpr ⟨Finset.mem_univ k, hki, hoe.2.1.2.1 k hxk⟩) hkQ
-    · by_cases hki : k = i
-      · subst hki; simp [x', p']
-      by_cases hkQ : k ∈ Q0
-      · exact (hQ_cost k hkQ).ge
-      · simp only [x', hki, hkQ, ↓reduceIte, Function.update_of_ne hki]
-        exact hμ_rem k (Finset.mem_filter.mpr ⟨Finset.mem_univ k, hki, hkQ⟩)
+    · exact hQ_cost k hkQ
+    · simp only [x', hki, hkQ, ↓reduceIte] at hxk
+      exact absurd (Finset.mem_filter.mpr ⟨Finset.mem_univ k, hki, hoe.2.1.2.1 k hxk⟩) hkQ
+    · exact (hQ_cost k hkQ).ge
+    · simp only [x', hki, hkQ, ↓reduceIte, Function.update_of_ne hki]
+      exact hμ_rem k (Finset.mem_filter.mpr ⟨Finset.mem_univ k, hki, hkQ⟩)
   have hbest := hoe.2.2 i p' x' hp'0 hw'
   have hi_prod : p' * x' i =
       (p i + μ + (latency i (x i) - latency i (x i - Δ))) * (x i - Δ) := by
@@ -2742,16 +2726,13 @@ theorem IsElasticOligopolyEquilibrium.price_sub_mul_deriv_le_elastic {Link : Typ
       have hw' : IsElasticPricedWardrop uDeriv latency (Function.update p i p') x' := by
         refine ⟨fun k => ?_, fun k _ => ?_, fun k => ?_⟩
         · simp only [x', Function.update_apply]; split_ifs <;> linarith [hoe.2.1.1 k]
-        · rw [hx'sum, hud_eq]
+        all_goals
+          rw [hx'sum, hud_eq]
           by_cases hki : k = i
           · subst hki; simp [x', p']
-          · simp only [x', Function.update_of_ne hki]
-            exact hoe.2.1.2.1 k (hxpos k)
-        · rw [hx'sum, hud_eq]
-          by_cases hki : k = i
-          · subst hki; simp [x', p']
-          · simp only [x', Function.update_of_ne hki]
-            exact hoe.2.1.2.2 k
+          simp only [x', Function.update_of_ne hki]
+        · exact hoe.2.1.2.1 k (hxpos k)
+        · exact hoe.2.1.2.2 k
       have hbest := hoe.2.2 i p' x' hp'0 hw'
       simp only [x', p', Function.update_self, ← hi_eff] at hbest
       exact ⟨δ, hδ0, hδη, le_div_mul_add_of_mul_le hδ0 hε.le (by nlinarith)⟩
@@ -2921,14 +2902,12 @@ theorem IsElasticOligopolyEquilibrium.price_sub_mul_deriv_le_elastic {Link : Typ
       · have hkc : k ∈ compSet := Finset.mem_erase.mpr ⟨hki, Finset.mem_univ k⟩
         simp only [x', Function.update_of_ne hki]
         linarith [(hstep_lt k hkc).trans (hrStep_lt_x k hkc)]
-    · rw [hx'sum, hud_s0]
+    all_goals
+      rw [hx'sum, hud_s0]
       by_cases hki : k = i
       · subst hki; simp [x', p']
-      · exact hcomp_cost k hki
-    · rw [hx'sum, hud_s0]
-      by_cases hki : k = i
-      · subst hki; simp [x', p']
-      · exact (hcomp_cost k hki).ge
+    · exact hcomp_cost k hki
+    · exact (hcomp_cost k hki).ge
   have hbest := hoe.2.2 i p' x' hp'0 hw'
   have hi_prod : p' * x' i =
       p i * x i - μ * x i + p i * Δ -
