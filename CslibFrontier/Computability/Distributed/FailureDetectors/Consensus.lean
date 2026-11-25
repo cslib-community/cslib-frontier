@@ -972,8 +972,7 @@ theorem ctRoundProtocol_decides_in_good_round
     rw [hstate_succ]
     simp only [m₂] at hacks_len
     simp only [hq_alive, ↓reduceIte, ctUpdate, hm2, hd2, hcoord, hprop_2, hacks_len, and_self,
-      Nat.reduceEqDiff,
-      Option.isSome_or, Option.isSome_some, Bool.or_true]
+      Nat.reduceEqDiff, Option.isSome_or, Option.isSome_some, Bool.or_true]
   -- Subround `3` (`4 * rStar + 3`): `qStar` broadcasts `decided` and every `p ∈ F.Correct`
   -- receives it (`qStar ∉ H p`) and decides!
   obtain ⟨dStar, hdStar⟩ := Option.isSome_iff_exists.mp hq_dec
@@ -990,8 +989,7 @@ theorem ctRoundProtocol_decides_in_good_round
   have hinc_some : (procs.dedup.findSome? fun j => extractDecide (m₃ j)).isSome = true :=
     List.findSome?_isSome_iff.mpr
       ⟨qStar, List.mem_dedup.mpr (hprocs qStar), by rw [hq_extract]; rfl⟩
-  have hk_end : 4 * (rStar + 1) = (4 * rStar + 3) + 1 := by omega
-  rw [hk_end]
+  rw [show 4 * (rStar + 1) = (4 * rStar + 3) + 1 by omega]
   change (st ((4 * rStar + 3) + 1) p).decided.isSome = true
   rw [hstate_succ]
   simp only [m₃] at hinc_some
@@ -1224,9 +1222,7 @@ theorem not_solvesFDAsyncRoundConsensus_eventuallyPerfect {P V S M : Type*}
           simp [F_A, deliver_A, partDeliver, A₁, hk, hp, hq]
       rw [heq]
       split_ifs
-      · exact hA₀_quorum
-      · exact hA₁_quorum
-      · rw [card_univ]; omega
+      exacts [hA₀_quorum, hA₁_quorum, by rw [card_univ]; omega]
   -- Indistinguishability on `A₀` up to `K₀ ≤ G` and on `A₁` up to `K₁ ≤ G`:
   have hdec_a₀ : π.decision F_A H_A id deliver_A x_A K₀ a₀ = some v₀ := by
     change π.output a₀ (π.state F_A H_A id deliver_A x_A K₀ a₀) = some v₀
