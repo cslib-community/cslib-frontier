@@ -108,13 +108,14 @@ theorem RunsInTime.exists_time_eq {t : ℕ} (ht : ntm.RunsInTime input t)
     (p : ntm.ComputationPath input) (hp : p.last.Halted) :
     ∃ q : ntm.ComputationPath input, q.time = t ∧ q.last = p.last := by
   rcases le_or_gt t p.time with hle | hlt
-  · have hlt : t < p.length + 1 := Nat.lt_succ_of_le hle
+  · -- cut the path after `t` steps; it has halted there
+    have hlt : t < p.length + 1 := Nat.lt_succ_of_le hle
     let q : ntm.ComputationPath input :=
-      ⟨p.toRunPath.take ⟨t, hlt⟩, (RelSeries.head_take _ _).trans p.head_eq⟩
+      ⟨p.toRunPath.take ⟨t, hlt⟩, by rw [RelSeries.head_take]; exact p.head_eq⟩
     have hq : q.last.Halted := ht q (by simp [q, ComputationPath.time, RunPath.time])
+    refine ⟨q, by simp [q, ComputationPath.time, RunPath.time], ?_⟩
     have hlast : q.last = p.toRunPath ⟨t, hlt⟩ := RelSeries.last_take _ _
-    exact ⟨q, by simp [q, ComputationPath.time, RunPath.time],
-      hlast.trans (RunPath.last_eq_of_halted p.toRunPath _ (hlast ▸ hq)).symm⟩
+    exact hlast.trans (RunPath.last_eq_of_halted p.toRunPath _ (hlast ▸ hq)).symm
   · obtain ⟨q, hhead, hlen, hlast⟩ := RunPath.exists_extend_of_halted p.toRunPath hp hlt.le
     exact ⟨⟨q, hhead.trans p.head_eq⟩, hlen, hlast⟩
 
@@ -130,8 +131,9 @@ theorem RunPath.exists_extend (htotal : ∀ c : Cfg k Symbol State input, ∃ c'
     obtain ⟨q, hlen, hprefix⟩ := ih (Nat.le_add_right _ _)
     obtain ⟨c, hc⟩ := htotal q.last
     refine ⟨q.snoc c hc, by rw [RelSeries.snoc_length, hlen, Nat.add_assoc], fun i hi => ?_⟩
-    exact ((congrArg (q.snoc c hc) (Fin.ext rfl)).trans
-      (RelSeries.snoc_castSucc q c hc ⟨i, by omega⟩)).trans (hprefix i hi)
+    rw [← hprefix i hi]
+    have hi' : i < q.length + 1 := by omega
+    exact (congrArg (q.snoc c hc) (Fin.ext rfl)).trans (RelSeries.snoc_castSucc q c hc ⟨i, hi'⟩)
 
 /-- **Actual halting.** Without stuck configurations, every computation path within a time bound
 `t` is a prefix of a computation path of exactly `t` steps, which has halted. -/
@@ -142,7 +144,10 @@ theorem ComputationPath.exists_halted_extension
       ∀ i (hi : i < p.length + 1),
         q.toRunPath ⟨i, by unfold time RunPath.time at hp hq; omega⟩ = p.toRunPath ⟨i, hi⟩ := by
   obtain ⟨q, hlen, hprefix⟩ := RunPath.exists_extend htotal p.toRunPath hp
-  let q' : ntm.ComputationPath input := ⟨q, (hprefix 0 (Nat.succ_pos _)).trans p.head_eq⟩
+  have hhead : q.head = ntm.initCfg input := by
+    rw [← p.head_eq]
+    exact hprefix 0 (Nat.succ_pos _)
+  let q' : ntm.ComputationPath input := ⟨q, hhead⟩
   exact ⟨q', hlen, ht q' hlen.ge, hprefix⟩
 
 /-- If every step from the initial configuration reaches a halted configuration, every computation
@@ -151,8 +156,9 @@ theorem runsInTime_one_of_forall_step_initCfg
     (h : ∀ c, ntm.Step (ntm.initCfg input) c → c.Halted) : ntm.RunsInTime input 1 := by
   intro p hp
   have hlen : 1 < p.length + 1 := by unfold ComputationPath.time RunPath.time at hp; omega
-  have hstep : ntm.Step (ntm.initCfg input) (p.toRunPath ⟨1, hlen⟩) :=
-    p.head_eq ▸ p.toRunPath.step ⟨0, by omega⟩
+  have hstep : ntm.Step (p.toRunPath ⟨0, by omega⟩) (p.toRunPath ⟨1, hlen⟩) :=
+    p.toRunPath.step ⟨0, by omega⟩
+  rw [show p.toRunPath ⟨0, by omega⟩ = ntm.initCfg input from p.head_eq] at hstep
   exact (RunPath.last_eq_of_halted p.toRunPath _ (h _ hstep)) ▸ h _ hstep
 
 /-- A computation path extends by any step from its last configuration. -/
@@ -169,10 +175,13 @@ def Accepts (ntm : MultiTapeNTM k Bool State) (input : List Bool) : Prop :=
 steps ends with output `[true]`; such a path has halted. -/
 theorem accepts_iff_exists_time_eq {ntm : MultiTapeNTM k Bool State} {input : List Bool} {t : ℕ}
     (ht : ntm.RunsInTime input t) :
-    ntm.Accepts input ↔ ∃ p : ntm.ComputationPath input, p.time = t ∧ p.last.output = [true] :=
-  ⟨fun ⟨p, hhalt, hout⟩ =>
-    let ⟨q, hq, hlast⟩ := ht.exists_time_eq p hhalt; ⟨q, hq, hlast ▸ hout⟩,
-    fun ⟨p, hp, hout⟩ => ⟨p, ht p hp.ge, hout⟩⟩
+    ntm.Accepts input ↔ ∃ p : ntm.ComputationPath input, p.time = t ∧ p.last.output = [true] := by
+  constructor
+  · rintro ⟨p, hhalt, hout⟩
+    obtain ⟨q, hq, hlast⟩ := ht.exists_time_eq p hhalt
+    exact ⟨q, hq, hlast ▸ hout⟩
+  · rintro ⟨p, hp, hout⟩
+    exact ⟨p, ht p hp.ge, hout⟩
 
 variable {α : Type*}
 
@@ -250,18 +259,25 @@ theorem RunsInTime.runsInSpace {t : ℕ} (h : ntm.RunsInTime input t) :
   rcases le_or_gt p.time t with hle | hlt
   · exact (RunPath.space_le_mul_time_add_one p.toRunPath).trans
       (Nat.mul_le_mul_left k (Nat.add_le_add_right hle 1))
+  -- the first `t` steps have halted, and the path stays there
   have ht : t < p.length + 1 := by unfold ComputationPath.time RunPath.time at hlt; omega
   let q : ntm.ComputationPath input :=
-    ⟨p.toRunPath.take ⟨t, ht⟩, (RelSeries.head_take _ _).trans p.head_eq⟩
-  have hhalt : (p.toRunPath ⟨t, ht⟩).Halted := RelSeries.last_take p.toRunPath ⟨t, ht⟩ ▸ h q le_rfl
+    ⟨p.toRunPath.take ⟨t, ht⟩, by rw [RelSeries.head_take]; exact p.head_eq⟩
+  have hq : q.time = t := rfl
+  have hhalt : (p.toRunPath ⟨t, ht⟩).Halted := by
+    have hlast : q.last = p.toRunPath ⟨t, ht⟩ := RelSeries.last_take _ _
+    exact hlast ▸ h q hq.ge
   have hsub : ∀ c ∈ p.toRunPath, c ∈ q.toRunPath := by
     rintro _ ⟨j, rfl⟩
     rcases le_or_gt j.val t with hj | hj
     · exact ⟨⟨j, Nat.lt_succ_of_le hj⟩, rfl⟩
-    · have hj' := RunPath.last_eq_of_halted (p.toRunPath.take j) ⟨t, Nat.lt_succ_of_lt hj⟩ hhalt
+    · refine ⟨Fin.last _, ?_⟩
+      have hj' := RunPath.last_eq_of_halted (p.toRunPath.take j) ⟨t, Nat.lt_succ_of_lt hj⟩ hhalt
       rw [RelSeries.last_take] at hj'
-      exact ⟨Fin.last _, show p.toRunPath ⟨t, ht⟩ = p.toRunPath j from hj'.symm⟩
-  exact (RunPath.space_le_of_subset hsub).trans (RunPath.space_le_mul_time_add_one q.toRunPath)
+      change p.toRunPath ⟨t, ht⟩ = p.toRunPath j
+      exact hj'.symm
+  exact (RunPath.space_le_of_subset hsub).trans
+    ((RunPath.space_le_mul_time_add_one q.toRunPath).trans_eq (by rw [← hq]; rfl))
 
 /-- A decider within time `t` decides within the space it visits in that time, `k * (t a + 1)`, and
 every branch halts within `t a` steps. -/
@@ -279,16 +295,22 @@ theorem _root_.Turing.MultiTapeTM.ComputesFunInTimeAndSpace.decidesInSpace
     {tm : MultiTapeTM k Bool State} {enc : α ↪ List Bool} {f : α → Bool} {t s : α → ℕ}
     {A : Set α} (htm : tm.ComputesFunInTimeAndSpace enc MultiTapeTM.encBool f t s)
     (hA : ∀ a, a ∈ A ↔ f a = true) : tm.toMultiTapeNTM.DecidesInSpace enc A s := by
-  refine ⟨fun a => ?_, fun a => let ⟨⟨u, hhalt, _⟩, _, _⟩ := htm a
-    ⟨u, MultiTapeTM.runsInTime_of_halted hhalt⟩⟩
+  refine ⟨fun a => ?_, fun a => ?_⟩
+  swap
+  · obtain ⟨⟨u, hhalt, -⟩, -, -⟩ := htm a
+    exact ⟨u, MultiTapeTM.runsInTime_of_halted hhalt⟩
   obtain ⟨⟨u, hhalt, hout⟩, -, hspace⟩ := htm a
   refine ⟨hspace, ?_⟩
   rw [hA a, accepts_iff_exists_time_eq (MultiTapeTM.runsInTime_of_halted hhalt)]
-  refine ⟨fun hf => ⟨ComputationPath.ofDeterministic tm (enc a) u, rfl, ?_⟩,
-    fun ⟨q, hq, hout'⟩ => ?_⟩
-  · rw [MultiTapeTM.computationPath_last_eq_runFrom]
-    exact (hout : (tm.runFrom _ u).output = _).trans (congrArg _ hf)
-  · rw [MultiTapeTM.computationPath_last_eq_runFrom, hq, hout] at hout'
+  constructor
+  · intro hf
+    refine ⟨ComputationPath.ofDeterministic tm (enc a) u, rfl, ?_⟩
+    rw [MultiTapeTM.computationPath_last_eq_runFrom]
+    change (tm.runFrom _ u).output = _
+    rw [hout, hf]
+    rfl
+  · rintro ⟨q, hq, hout'⟩
+    rw [MultiTapeTM.computationPath_last_eq_runFrom, hq, hout] at hout'
     exact List.head_eq_of_cons_eq hout'
 
 /-- A Boolean function computable within time `t` and space `s` decides the problem where it is

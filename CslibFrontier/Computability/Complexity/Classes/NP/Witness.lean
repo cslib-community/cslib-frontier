@@ -126,8 +126,11 @@ theorem witnessVerifier_eq_true_iff {D : Decoder encW} {check : α × β → Boo
     witnessVerifier D check (a, w) = true ↔
       ∃ b v, w = frame (encW b) ++ v ∧ check (a, b) = true := by
   simp only [witnessVerifier, Bool.and_eq_true, decide_eq_true_eq]
-  exact ⟨fun ⟨hw, hcheck⟩ => ⟨_, _, hw.symm, hcheck⟩,
-    by rintro ⟨b, v, rfl, hcheck⟩; simpa [D.decode_enc] using hcheck⟩
+  constructor
+  · rintro ⟨hw, hcheck⟩
+    exact ⟨_, _, hw.symm, hcheck⟩
+  · rintro ⟨b, v, rfl, hcheck⟩
+    simpa [D.decode_enc] using hcheck
 
 /-- A certificate framing the encoding of a witness, followed by any bits, is checked as that
 witness. -/
@@ -143,15 +146,16 @@ theorem isVerifier_witnessVerifier (D : Decoder encW) {check : α × β → Bool
     (hR : ∀ a b, check (a, b) = true ↔ R a b)
     (hp : ∀ a b, R a b → ∃ b', R a b' ∧ (encW b').length ≤ p.eval (enc a).length) :
     IsVerifier enc (2 * p + 1) (witnessVerifier D check) {a | ∃ b, R a b} := by
-  refine IsVerifier.of_padding
-    (fun a _ _ h => let ⟨b, _, _, hc⟩ := witnessVerifier_eq_true_iff.1 h; ⟨b, (hR a b).1 hc⟩)
-    fun a ⟨b, hb⟩ => ?_
+  refine IsVerifier.of_padding (fun a w _ h => ?_) fun a ⟨b, hb⟩ => ?_
+  · obtain ⟨b, -, -, hcheck⟩ := witnessVerifier_eq_true_iff.1 h
+    exact ⟨b, (hR a b).1 hcheck⟩
   obtain ⟨b', hb', hlen⟩ := hp a b hb
-  refine ⟨frame (encW b'), ?_, fun _ => (witnessVerifier_frame_append D check a b' _).trans
-    ((hR a b').2 hb')⟩
-  simp only [length_frame, Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_ofNat,
-    Polynomial.eval_one]
-  omega
+  refine ⟨frame (encW b'), ?_, fun k => ?_⟩
+  · simp only [length_frame, Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_ofNat,
+      Polynomial.eval_one]
+    omega
+  · rw [witnessVerifier_frame_append]
+    exact (hR a b').2 hb'
 
 /-- The verifier of a witness relation is polynomial-time when its check is. -/
 @[fun_prop]
@@ -159,7 +163,10 @@ theorem computableInPolyTime_witnessVerifier (D : Decoder encW) {check : α × �
     (hcheck : ComputableInPolyTime check (encPair enc encW) encBool) :
     ComputableInPolyTime (witnessVerifier D check) (encPair enc encBits) encBool := by
   obtain ⟨_, _, hD⟩ := D.computable
-  have hdecode := hD.computableInPolyTime.comp (unframe.comp (snd enc encBits))
+  have hdecoder : ComputableInPolyTime D.decode encBits encW := hD.computableInPolyTime
+  have hdecode : ComputableInPolyTime (fun x : α × List Bool => D.decode (unframe x.2))
+      (encPair enc encBits) encW :=
+    hdecoder.comp (unframe.comp (snd enc encBits))
   exact bool_and' (decide_eq' (bitsAppend ((bitsFrame encW).comp hdecode)
     (dropFrame.comp (snd enc encBits))) (snd enc encBits))
     (hcheck.comp ((fst enc encBits).prod hdecode))
@@ -173,8 +180,9 @@ theorem mem_NP_of_witness (D : Decoder encW) {check : α × β → Bool} {R : α
     (hR : ∀ a b, check (a, b) = true ↔ R a b)
     (hp : ∀ a b, R a b → ∃ b', R a b' ∧ (encW b').length ≤ p.eval (enc a).length) :
     {a | ∃ b, R a b} ∈ NP enc := by
-  exact mem_NP.mpr ⟨_, _, computableInPolyTime_witnessVerifier D hcheck,
-    isVerifier_witnessVerifier D hR hp⟩
+  exact mem_NP.mpr
+    ⟨_, _, computableInPolyTime_witnessVerifier D hcheck,
+      isVerifier_witnessVerifier D hR hp⟩
 
 /-- **NP membership from a sound and complete check.** If `check` accepts a witness only for
 members of `A`, and every member has a witness accepted by `check` whose encoding has length at
@@ -206,8 +214,9 @@ variable [DecidableEq γ]
 are the elements of `S`. -/
 private theorem toFinset_selectDistinct_map_append {l : List γ} {S : Finset γ} (hS : ∀ v ∈ S, v ∈ l)
     (u : List Bool) : (selectDistinct l (l.map (fun v => decide (v ∈ S)) ++ u)).toFinset = S := by
-  have hget (v) (hv : v ∈ l) :
+  have hget : ∀ v ∈ l,
       (l.map (fun v => decide (v ∈ S)) ++ u).getD (l.idxOf v) false = decide (v ∈ S) := by
+    intro v hv
     simp [List.getD_eq_getElem?_getD, List.getElem?_append_left, List.idxOf_lt_length_iff.2 hv]
   ext v
   rw [List.mem_toFinset, mem_selectDistinct]
@@ -239,12 +248,12 @@ theorem isVerifier_subsetVerifier {vs : α → List γ}
       {a | ∃ S : Finset γ, (∀ v ∈ S, v ∈ vs a) ∧ P a S} := by
   have hsub (a : α) (w : List Bool) : ∀ v ∈ selectDistinct (vs a) w, v ∈ vs a :=
     fun _ hv => (mem_selectDistinct.1 hv).1
-  refine IsVerifier.of_padding
-    (fun a w _ h => ⟨_, fun v hv => hsub a w v (List.mem_toFinset.1 hv),
-      (hP a _ (nodup_selectDistinct _ _) (hsub a w)).1 h⟩)
-    fun a ⟨S, hS, hPS⟩ => ⟨(vs a).map (fun v => decide (v ∈ S)), by simpa using hvs a, fun _ =>
-      (hP a _ (nodup_selectDistinct _ _) (hsub a _)).2
-        (by rwa [toFinset_selectDistinct_map_append hS])⟩
+  refine IsVerifier.of_padding (fun a w _ h => ?_) fun a ⟨S, hS, hPS⟩ => ?_
+  · exact ⟨_, fun v hv => hsub a w v (List.mem_toFinset.1 hv),
+      (hP a _ (nodup_selectDistinct _ _) (hsub a w)).1 h⟩
+  · refine ⟨(vs a).map (fun v => decide (v ∈ S)), by simpa using hvs a, fun k => ?_⟩
+    refine (hP a _ (nodup_selectDistinct _ _) (hsub a _)).2 ?_
+    rwa [toFinset_selectDistinct_map_append hS]
 
 /-- The verifier of a subset problem is polynomial-time when the candidates and the check are. -/
 @[fun_prop]
@@ -267,8 +276,10 @@ theorem mem_NP_of_subsetWitness {encγ : γ ↪ List Bool} {vs : α → List γ}
     (hP : ∀ a l, l.Nodup → (∀ v ∈ l, v ∈ vs a) → (check (a, l) = true ↔ P a l.toFinset)) :
     {a | ∃ S : Finset γ, (∀ v ∈ S, v ∈ vs a) ∧ P a S} ∈ NP enc := by
   obtain ⟨p, hle⟩ := hvs.polyBounded_length.exists_polynomial
-  exact mem_NP.mpr ⟨p, _, computableInPolyTime_subsetVerifier hvs hcheck,
-    isVerifier_subsetVerifier (fun a => (length_le_length_encList encγ (vs a)).trans (hle a)) hP⟩
+  refine mem_NP.mpr ⟨p, _,
+    computableInPolyTime_subsetVerifier hvs hcheck,
+    isVerifier_subsetVerifier (fun a => ?_) hP⟩
+  exact (length_le_length_encList encγ (vs a)).trans (hle a)
 
 end Subset
 
@@ -301,7 +312,8 @@ theorem isVerifier_maskVerifier {items : α → List γ}
     IsVerifier enc p (maskVerifier items check) {a | ∃ s ≤ (items a : Multiset γ), P a s} := by
   intro a
   rw [Set.mem_ofPred_eq, exists_le_iff_exists_maskSelect (hitems a) (P a)]
-  exact exists_congr fun w => and_congr_right fun _ => (hP a _ (maskSelect_sublist _ w)).symm
+  exact exists_congr fun w => and_congr_right fun _ =>
+    (hP a _ (maskSelect_sublist (items a) w)).symm
 
 /-- The verifier of a sub-multiset problem is polynomial-time when the entries and the check
 are. -/
@@ -325,8 +337,10 @@ theorem mem_NP_of_subMultisetWitness {encγ : γ ↪ List Bool} {items : α → 
     (hP : ∀ a l, l.Sublist (items a) → (check (a, l) = true ↔ P a l)) :
     {a | ∃ s ≤ (items a : Multiset γ), P a s} ∈ NP enc := by
   obtain ⟨p, hle⟩ := hitems.polyBounded_length.exists_polynomial
-  exact mem_NP.mpr ⟨p, _, computableInPolyTime_maskVerifier hitems hcheck,
-    isVerifier_maskVerifier (fun a => (length_le_length_encList encγ (items a)).trans (hle a)) hP⟩
+  refine mem_NP.mpr ⟨p, _,
+    computableInPolyTime_maskVerifier hitems hcheck,
+    isVerifier_maskVerifier (fun a => ?_) hP⟩
+  exact (length_le_length_encList encγ (items a)).trans (hle a)
 
 end Mask
 
@@ -340,9 +354,9 @@ theorem PolyTimeReducible.mem_NP {encB : β ↪ List Bool} {B : Set β}
   obtain ⟨f, hf, hAB⟩ := h
   obtain ⟨q, W, hW, hWB⟩ := Complexity.mem_NP.mp hB
   obtain ⟨p, V, hV, hle, hVW⟩ := exists_truncated_verifier hf q hW
-  exact Complexity.mem_NP.mpr ⟨p, V, hV, fun a => by
-    simpa only [hVW, hAB a, hWB (f a)] using
-      (List.exists_length_eq_take_iff (P := fun u => W (f a, u) = true) (hle a)).symm⟩
+  refine Complexity.mem_NP.mpr ⟨p, V, hV, fun a => ?_⟩
+  simp only [hVW, hAB a, hWB (f a)]
+  exact (List.exists_length_eq_take_iff (P := fun u => W (f a, u) = true) (hle a)).symm
 
 /-- `coNP` is closed under polynomial-time reductions. -/
 theorem PolyTimeReducible.mem_coNP {encB : β ↪ List Bool} {B : Set β}

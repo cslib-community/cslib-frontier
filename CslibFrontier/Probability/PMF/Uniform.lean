@@ -82,8 +82,10 @@ theorem uniformOfFintype_finset_map_val (s : Finset α) [Nonempty s] :
   ext a
   simp only [PMF.map_apply, uniformOfFintype_apply, uniformOfFinset_apply, Fintype.card_coe]
   erw [tsum_subtype (↑s : Set α) (fun x => if a = x then (s.card : ℝ≥0∞)⁻¹ else 0)]
-  rw [tsum_eq_single a fun b hb => by simp [Set.indicator_apply, Ne.symm hb]]
-  simp [Set.indicator_apply]
+  rw [tsum_eq_single a]
+  · simp [Set.indicator_apply]
+  · intro b hb
+    simp [Set.indicator_apply, Ne.symm hb]
 
 -- Moved from `CslibFrontier/Crypto/Primitives/Garbling/Rerandomizable.lean`, where it was
 -- private.
@@ -111,7 +113,10 @@ theorem uniformOfFintype_prod_map_fst :
     (uniformOfFintype (α × β)).map Prod.fst = uniformOfFintype α := by
   rw [← uniformOfFintype_prod, PMF.map_bind]
   simp only [PMF.map_comp, Function.comp_def]
-  exact (congrArg _ (funext fun _ => PMF.map_const _ _)).trans (PMF.bind_pure _)
+  calc _ = (uniformOfFintype α).bind PMF.pure := by
+        congr 1 with a : 1
+        exact PMF.map_const _ _
+    _ = _ := PMF.bind_pure _
 
 /-- The second component of a uniform pair is uniform. -/
 theorem uniformOfFintype_prod_map_snd :
@@ -129,8 +134,11 @@ theorem uniformOfFintype_map_exchange_option (e : Equiv.Perm (α × β)) (read :
     (uniformOfFintype α).map (fun a => (a, read a)) := by
   rw [← uniformOfFintype_prod_map_fst (α := α) (β := β), _root_.PMF.map_comp]
   conv_rhs => rw [← uniformOfFintype_map_equiv e, _root_.PMF.map_comp]
-  refine congrArg _ (funext fun ⟨a, b⟩ => ?_)
-  cases h : read a <;> simp [h, hnone, hsome]
+  congr 1
+  funext ⟨a, b⟩
+  cases h : read a with
+  | none => simp [h, hnone h]
+  | some c => simp [h, hsome h]
 
 /-- Mapping a curried binary function over two independent uniform draws is equivalent to
 mapping the uncurried function over a uniform pair. Iterating this rewrite collapses `n`-ary
@@ -147,8 +155,12 @@ theorem uniformOfFintype_pi_map_restrict {ι : Type*} [Fintype ι] [DecidableEq 
     {π : ι → Type*} [∀ i, Fintype (π i)] [∀ i, Nonempty (π i)] (I : Finset ι) :
     (uniformOfFintype (∀ i, π i)).map I.restrict = uniformOfFintype ((i : I) → π i) := by
   let e := Equiv.piEquivPiSubtypeProd (fun i => i ∈ I) π
-  rw [show I.restrict = Prod.fst ∘ e from rfl, ← PMF.map_comp, uniformOfFintype_map_equiv e,
-    uniformOfFintype_prod_map_fst]
+  calc (uniformOfFintype (∀ i, π i)).map I.restrict
+      = ((uniformOfFintype (∀ i, π i)).map e).map Prod.fst := by
+          rw [PMF.map_comp]; rfl
+    _ = (uniformOfFintype (((i : I) → π i) × ((j : {j // j ∉ I}) → π j))).map Prod.fst := by
+          rw [uniformOfFintype_map_equiv e]
+    _ = uniformOfFintype ((i : I) → π i) := uniformOfFintype_prod_map_fst
 
 /-- Binding a uniform dependent function on `ι` to a continuation that depends only on its
 restriction to `I : Finset ι` is equivalent to sampling uniformly on `(i : I) → π i`. -/
@@ -173,9 +185,10 @@ theorem uniformOfFintype_pi_map_comp_embedding {ι κ : Type*} [Fintype ι] [Fin
         Finset.card_image_of_injective _ e.injective, Finset.card_univ]
       exact ⟨fun _ _ h => e.injective (congrArg Subtype.val h), rfl⟩)
   let pull : (I → α) ≃ (κ → α) := Equiv.piCongrLeft' (fun _ => α) eIdx.symm
-  rw [show (fun (f : ι → α) i => f (e i)) = pull ∘ I.restrict by
-      funext f i; change f (e i) = pull (I.restrict f) i; simp [pull, Finset.restrict, eIdx],
-    ← _root_.PMF.map_comp, uniformOfFintype_pi_map_restrict I, uniformOfFintype_map_equiv pull]
+  have hcomp : (fun (f : ι → α) i => f (e i)) = pull ∘ I.restrict := by
+    funext f i; change f (e i) = pull (I.restrict f) i; simp [pull, Finset.restrict, eIdx]
+  rw [hcomp, ← _root_.PMF.map_comp, uniformOfFintype_pi_map_restrict I,
+    uniformOfFintype_map_equiv pull]
 
 variable [Fintype γ] [Nonempty γ] [Finite δ]
 
@@ -186,8 +199,13 @@ theorem uniformOfFintype_bind_map_fst_equiv (e : α × β ≃ γ × δ) :
       uniformOfFintype γ := by
   have : Fintype δ := Fintype.ofFinite δ
   have : Nonempty δ := ⟨(e (Classical.arbitrary _)).2⟩
-  rw [uniformOfFintype_bind_map, show (fun p => (e p).1) = Prod.fst ∘ e from rfl,
-    ← PMF.map_comp, uniformOfFintype_map_equiv, uniformOfFintype_prod_map_fst]
+  calc _ = (uniformOfFintype (α × β)).map (Prod.fst ∘ e) := by
+        rw [← uniformOfFintype_prod, PMF.map_bind]
+        simp only [PMF.map_comp]
+        rfl
+    _ = (uniformOfFintype (γ × δ)).map Prod.fst := by
+        rw [← PMF.map_comp, uniformOfFintype_map_equiv]
+    _ = _ := uniformOfFintype_prod_map_fst
 
 /-- **Resampling** inside an experiment: running `f` on the first component of `e (a, b)`, for
 independent uniform `a` and `b`, is running `f` on a uniform input. -/
@@ -234,11 +252,14 @@ theorem toOuterMeasure_uniformOfFinset (s : Finset α) (hs : s.Nonempty) (event 
     [DecidablePred (· ∈ event)] :
     (uniformOfFinset s hs).toOuterMeasure event =
       (s.filter (· ∈ event)).card * (s.card : ℝ≥0∞)⁻¹ := by
-  rw [PMF.toOuterMeasure_apply, tsum_eq_sum (s := s) fun x hx => by
-    simp [Set.indicator_apply, uniformOfFinset_apply, hx]]
-  simp only [Set.indicator_apply, uniformOfFinset_apply]
-  rw [← Finset.sum_filter, Finset.sum_congr (g := fun _ => (s.card : ℝ≥0∞)⁻¹) rfl
-    fun x hx => by simp [Finset.mem_of_mem_filter x hx], Finset.sum_const, nsmul_eq_mul]
+  rw [PMF.toOuterMeasure_apply, tsum_eq_sum (s := s)]
+  · simp only [Set.indicator_apply, uniformOfFinset_apply]
+    rw [← Finset.sum_filter,
+      Finset.sum_congr (g := fun _ => (s.card : ℝ≥0∞)⁻¹) rfl
+        fun x hx => by simp [Finset.mem_of_mem_filter x hx],
+      Finset.sum_const, nsmul_eq_mul]
+  · intro x hx
+    simp [Set.indicator_apply, uniformOfFinset_apply, hx]
 
 /-- The probability of an event under the uniform distribution on a nonempty finite set is the
 fraction of the set's members in the event. -/

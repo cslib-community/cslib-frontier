@@ -69,20 +69,27 @@ private theorem foldlWith_listMax {σ : Type} {encS : σ ↪ List Bool} {step : 
       3 * (encList enc (list x)).length + 2 * M x + 5 + listMax (fun a => Ss (par x, a)) (list x))
     (B := fun x => (encList enc (list x)).length + M x + 1)
     (fun x i hi => by
-      have := length_le_encList_of_mem enc (List.getElem_mem hi)
+      have h₁ := length_le_encList_of_mem enc (List.getElem_mem hi)
       have h₂ := le_listMax (f := fun a => Ts (par x, a)) (List.getElem_mem hi)
-      have := hst x i; simp only [length_encPair] at h₂ ⊢; omega)
+      have h₃ := hst x i
+      simp only [length_encPair] at h₂ ⊢
+      omega)
     (fun x i hi => by
-      have := length_le_encList_of_mem enc (List.getElem_mem hi)
+      have h₁ := length_le_encList_of_mem enc (List.getElem_mem hi)
       have h₂ := le_listMax (f := fun a => Ss (par x, a)) (List.getElem_mem hi)
-      have := hst x i; simp only [length_encPair] at h₂ ⊢; omega)
+      have h₃ := hst x i
+      simp only [length_encPair] at h₂ ⊢
+      omega)
     (fun x i _ => hst x i)
-  refine hfold.mono 16 (fun x => ?_) fun _ => by omega
-  have h₁ := length_le_length_encList enc (list x)
-  have h₂ : (list x).length ≤ (list x).length * (encList enc (list x)).length :=
-    (Nat.eq_zero_or_pos (list x).length).elim (by rintro h; simp [h])
-      fun _ => Nat.le_mul_of_pos_right _ (by omega)
-  ring_nf; omega
+  refine hfold.mono 16 (fun x => ?_) fun x => ?_
+  · have h₁ := length_le_length_encList enc (list x)
+    have h₂ : (list x).length ≤ (list x).length * (encList enc (list x)).length := by
+      rcases Nat.eq_zero_or_pos (list x).length with h | h
+      · simp [h]
+      · exact Nat.le_mul_of_pos_right _ (by omega)
+    ring_nf
+    omega
+  · omega
 
 /-- The first element of `list x` passing the test `t` with the parameter `par x`. -/
 theorem findWith {t : π × α → Bool} {Tt St : π × α → ℕ}
@@ -103,14 +110,19 @@ theorem findWith {t : π × α → Bool} {Tt St : π × α → ℕ}
   have hstep : ComputableInO (fun q : (π × Option α) × α => findStep t q.1.1 q.1.2 q.2)
       (encPair (encPair encP (encOption enc)) enc) (encOption enc)
       (fun q => (encPair (encPair encP (encOption enc)) enc q).length + Tt (q.1.1, q.2))
-      fun q => (encPair (encPair encP (encOption enc)) enc q).length + St (q.1.1, q.2) :=
-    (h.mono 4 (fun _ => by split_ifs <;> omega) fun _ => by split_ifs <;> omega).of_enc_eq
-      fun ⟨⟨_, acc⟩, _⟩ => by cases acc <;> simp [findStep]
-  refine (foldlWith_listMax hstep hpar hlist (M := fun _ => 0) fun x i => ?_).of_enc_eq
+      fun q => (encPair (encPair encP (encOption enc)) enc q).length + St (q.1.1, q.2) := by
+    refine (h.mono 4 (fun q => ?_) fun q => ?_).of_enc_eq fun ⟨⟨p, acc⟩, a⟩ => ?_
+    · split_ifs <;> omega
+    · split_ifs <;> omega
+    · cases acc <;> simp [findStep]
+  have hst (x : γ) (i : ℕ) :
+      (encOption enc (((list x).take i).foldl (findStep t (par x)) none)).length ≤
+        (encList enc (list x)).length + 1 := by
+    rw [foldl_findStep, Option.none_or]
+    exact (length_encOption_find?_le enc _ _).trans
+      (Nat.add_le_add_right (length_encList_take_le enc _ _) 1)
+  exact (foldlWith_listMax hstep hpar hlist (M := fun _ => 0) fun x i => hst x i).of_enc_eq
     fun x => by rw [foldl_findStep, Option.none_or]
-  rw [foldl_findStep, Option.none_or]
-  exact (length_encOption_find?_le enc _ _).trans
-    (Nat.add_le_add_right (length_encList_take_le enc _ _) 1)
 
 /-- The elements of `list x` passing the test `t` with the parameter `par x`. -/
 theorem filterWith {t : π × α → Bool} {Tt St : π × α → ℕ}
@@ -131,14 +143,19 @@ theorem filterWith {t : π × α → Bool} {Tt St : π × α → ℕ}
       (fun q : (π × List α) × α => filterStep t q.1.1 q.1.2 q.2)
       (encPair (encPair encP (encList enc)) enc) (encList enc)
       (fun q => (encPair (encPair encP (encList enc)) enc q).length + Tt (q.1.1, q.2))
-      fun q => (encPair (encPair encP (encList enc)) enc q).length + St (q.1.1, q.2) :=
-    (h.mono 4 (fun _ => by split_ifs <;> omega) fun _ => by split_ifs <;> omega).of_enc_eq
-      fun ⟨⟨_, _⟩, _⟩ => by simp [filterStep]
-  refine (foldlWith_listMax hstep hpar hlist (M := fun _ => 0) fun x i => ?_).of_enc_eq
+      fun q => (encPair (encPair encP (encList enc)) enc q).length + St (q.1.1, q.2) := by
+    refine (h.mono 4 (fun q => ?_) fun q => ?_).of_enc_eq fun ⟨⟨p, acc⟩, a⟩ => ?_
+    · split_ifs <;> omega
+    · split_ifs <;> omega
+    · simp [filterStep]
+  have hst (x : γ) (i : ℕ) :
+      (encList enc (((list x).take i).foldl (filterStep t (par x)) [])).length ≤
+        (encList enc (list x)).length := by
+    rw [foldl_filterStep, List.nil_append]
+    exact (length_encList_filter_le enc _ _).trans (length_encList_take_le enc _ _)
+  exact (foldlWith_listMax hstep hpar hlist (M := fun _ => 0)
+    fun x i => (hst x i).trans (Nat.le_succ _)).of_enc_eq
     fun x => by rw [foldl_filterStep, List.nil_append]
-  rw [foldl_filterStep, List.nil_append]
-  exact ((length_encList_filter_le enc _ _).trans (length_encList_take_le enc _ _)).trans
-    (Nat.le_succ _)
 
 
 /-- Mapping `f` with the parameter `par x` over `list x`. -/
@@ -164,16 +181,20 @@ theorem mapWith {f : π × α → β} {Tf Sf : π × α → ℕ}
       (encPair (encPair encP (encList encB)) enc) (encList encB)
       (fun q => (encPair (encPair encP (encList encB)) enc q).length + Tf (q.1.1, q.2))
       fun q => (encPair (encPair encP (encList encB)) enc q).length + Sf (q.1.1, q.2) :=
-    h.mono (2 * c + 2 * d + 6)
-      (fun q => by
-        have := hd (q.1.1, q.2); simp only [length_encPair, Function.comp_apply] at this ⊢
-        nlinarith)
-      fun q => by
-        have := hc (q.1.1, q.2); simp only [length_encPair, Function.comp_apply] at this ⊢
-        nlinarith
-  refine (foldlWith_listMax hstep hpar hlist (init := []) fun x i => ?_).of_enc_eq
+    h.mono (2 * c + 2 * d + 6) (fun q => by
+      have := hd (q.1.1, q.2)
+      simp only [length_encPair, Function.comp_apply] at this ⊢
+      nlinarith) fun q => by
+      have := hc (q.1.1, q.2)
+      simp only [length_encPair, Function.comp_apply] at this ⊢
+      nlinarith
+  have hst (x : γ) (i : ℕ) :
+      (encList encB (((list x).take i).foldl (mapStep f (par x)) [])).length ≤
+        (encList encB ((list x).map fun a => f (par x, a))).length := by
+    rw [foldl_mapStep, List.nil_append, List.map_take]
+    exact length_encList_take_le encB _ _
+  exact (foldlWith_listMax hstep hpar hlist (init := [])
+    fun x i => by have := hst x i; omega).of_enc_eq
     fun x => by rw [foldl_mapStep, List.nil_append]
-  rw [foldl_mapStep, List.nil_append, List.map_take]
-  exact (length_encList_take_le encB _ _).trans (by omega)
 
 end Turing.MultiTapeTM.ComputableInO
