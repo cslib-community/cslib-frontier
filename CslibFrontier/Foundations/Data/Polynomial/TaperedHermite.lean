@@ -103,10 +103,8 @@ private theorem padicValInt_two_add_mul {x : ℤ} {n : ℕ} (hx : x ≠ 0) (h : 
     (c : ℤ) : padicValInt 2 (x + 2 ^ n * c) = padicValInt 2 x := by
   have hlt := padicValInt_two_lt hx h
   refine padicValInt_two_eq (dvd_add (two_pow_padicValInt_dvd x)
-    (dvd_mul_of_dvd_left (pow_dvd_pow 2 hlt.le) c)) fun hd => ?_
-  refine not_two_pow_succ_padicValInt_dvd hx ?_
-  have := dvd_sub hd (dvd_mul_of_dvd_left (pow_dvd_pow 2 (Nat.succ_le_of_lt hlt)) c)
-  rwa [add_sub_cancel_right] at this
+    (dvd_mul_of_dvd_left (pow_dvd_pow 2 hlt.le) c)) fun hd => not_two_pow_succ_padicValInt_dvd hx
+      ((dvd_add_left (dvd_mul_of_dvd_left (pow_dvd_pow 2 (Nat.succ_le_of_lt hlt)) c)).1 hd)
 
 /-- If `v₂ x < v₂ y` then `x - y` and `y - x` have the valuation of `x`. -/
 private theorem padicValInt_two_sub_of_lt {x y : ℤ} (hx : x ≠ 0)
@@ -116,11 +114,9 @@ private theorem padicValInt_two_sub_of_lt {x y : ℤ} (hx : x ≠ 0)
     (pow_dvd_pow 2 (Nat.succ_le_of_lt h)).trans (two_pow_padicValInt_dvd y)
   have hx1 := two_pow_padicValInt_dvd x
   have hx2 := not_two_pow_succ_padicValInt_dvd hx
-  refine ⟨padicValInt_two_eq (dvd_sub hx1 ((pow_dvd_pow 2 (Nat.le_succ _)).trans hy))
-    fun hd => hx2 ?_, padicValInt_two_eq (dvd_sub ((pow_dvd_pow 2 (Nat.le_succ _)).trans hy) hx1)
-    fun hd => hx2 ?_⟩
-  · have := dvd_add hd hy; rwa [sub_add_cancel] at this
-  · have := dvd_sub hy hd; rwa [sub_sub_cancel] at this
+  have hy' := (pow_dvd_pow 2 (Nat.le_succ _)).trans hy
+  exact ⟨padicValInt_two_eq (dvd_sub hx1 hy') fun hd => hx2 ((dvd_sub_left hy).1 hd),
+    padicValInt_two_eq (dvd_sub hy' hx1) fun hd => hx2 ((dvd_sub_right hy).1 hd)⟩
 
 /-- Two integers of the same 2-adic valuation `i` differ by a multiple of `2 ^ (i + 1)`. -/
 private theorem two_pow_succ_dvd_sub {x y : ℤ} (hx : x ≠ 0) (hy : y ≠ 0)
@@ -135,8 +131,8 @@ private theorem two_pow_succ_dvd_sub {x y : ℤ} (hx : x ≠ 0) (hy : y ≠ 0)
   obtain ⟨y', rfl⟩ := hdy
   have hox : ¬(2 : ℤ) ∣ x' := fun ⟨c, hc⟩ => hnx ⟨c, by rw [hc, pow_succ]; ring⟩
   have hoy : ¬(2 : ℤ) ∣ y' := fun ⟨c, hc⟩ => hny ⟨c, by rw [hc, pow_succ]; ring⟩
-  obtain ⟨c, hc⟩ : (2 : ℤ) ∣ x' - y' := by omega
-  exact ⟨c, by rw [pow_succ, mul_assoc, ← hc, mul_sub]⟩
+  rw [← mul_sub, pow_succ]
+  exact mul_dvd_mul_left _ (by omega)
 
 /-! ### The dyadic grid -/
 
