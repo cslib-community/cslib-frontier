@@ -2059,19 +2059,10 @@ theorem exists_isElasticPricedWardrop_of_socialOptimum {Link : Type*} [Fintype L
         have hu_le_M : ∀ t, 0 ≤ t → u t ≤ M := fun t ht => by
           let y : Link → ℝ := Function.update 0 i t
           have hy0 : ∀ k, 0 ≤ y k := fun k => by
-            by_cases hki : k = i
-            · subst hki; simp [y, ht]
-            · simp [y, hki]
-          have hsum_y : ∑ k, y k = t := by
-            rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i)]
-            have hr : ∑ k ∈ Finset.univ.erase i, y k = 0 :=
-              Finset.sum_eq_zero fun k hk => by simp [y, (Finset.mem_erase.mp hk).1]
-            simp [y, hr]
-          have hlat_y : ∑ k, latency k (y k) * y k = 0 := by
-            refine Finset.sum_eq_zero fun k _ => ?_
-            by_cases hki : k = i
-            · subst hki; simp [y, hlat_z t ht]
-            · simp [y, hki]
+            by_cases hki : k = i <;> simp [y, hki, ht]
+          have hsum_y : ∑ k, y k = t := by simp [y, Finset.sum_update_of_mem]
+          have hlat_y : ∑ k, latency k (y k) * y k = 0 := Finset.sum_eq_zero fun k _ => by
+            by_cases hki : k = i <;> simp [y, hki, hlat_z t ht]
           have hle := hopt.2 y hy0
           simp only [elasticSocialSurplus, hsum_y, hlat_y, sub_zero] at hle
           exact hle
@@ -2150,6 +2141,15 @@ theorem exists_isElasticPricedWardrop_of_socialOptimum {Link : Type*} [Fintype L
       ⟨0, fun _ => le_rfl, by simp [hB_pos.le]⟩
     obtain ⟨x', hx'Feas, hmin⟩ := isCompact_feasiblePricedFlows.exists_isMinOn hfeas_ne hpot_cont
     have hx'min : ∀ y, IsFeasiblePricedFlow B y → pot x' ≤ pot y := fun y hy => hmin hy
+    have hterm_upd : ∀ i v, ∑ k, termPot k (Function.update x' i v k) =
+        termPot i v + ∑ k ∈ Finset.univ.erase i, termPot k (x' k) := fun i v => by
+      rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i), Function.update_self]
+      exact congrArg _ (Finset.sum_congr rfl fun k hk => by
+        rw [Function.update_of_ne (Finset.mem_erase.mp hk).1])
+    have hterm_sub : ∀ k a, HasDerivAt (fun t => termPot k (a - t)) (-effExt k a) 0 :=
+      fun k a => by simpa only [sub_zero] using (hterm_deriv k (a - 0)).comp_const_sub a 0
+    have hterm_add : ∀ k a, HasDerivAt (fun t => termPot k (a + t)) (effExt k a) 0 :=
+      fun k a => by simpa only [add_zero] using (hterm_deriv k (a + 0)).comp_const_add a 0
     let X : ℝ := ∑ k, x' k
     have hX0 : 0 ≤ X := Finset.sum_nonneg fun k _ => hx'Feas.1 k
     -- (1) Decreasing x' i (for 0 < x' i) gives latency i (x' i) + p' i ≤ uDeriv X:
@@ -2159,27 +2159,15 @@ theorem exists_isElasticPricedWardrop_of_socialOptimum {Link : Type*} [Fintype L
       have hg_eq : ∀ t, g t = termPot i (x' i - t) +
           (∑ k ∈ Finset.univ.erase i, termPot k (x' k)) - uPot (X - t) := by
         intro t
-        simp only [g, pot]
-        have h1 : ∑ k, termPot k (Function.update x' i (x' i - t) k) =
-            termPot i (x' i - t) + ∑ k ∈ Finset.univ.erase i, termPot k (x' k) := by
-          rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i), Function.update_self]
-          congr 1
-          exact Finset.sum_congr rfl fun k hk => by
-            rw [Function.update_of_ne (Finset.mem_erase.mp hk).1]
         have h2 : ∑ k, Function.update x' i (x' i - t) k = X - t := by
           simpa only [X, sub_eq_add_neg] using sum_update_add_eq x' i (-t)
-        rw [h1, h2]
+        simp only [g, pot, hterm_upd, h2]
       have hg_deriv : HasDerivAt g (uDeriv X - (latency i (x' i) + p' i)) 0 := by
         simp only [funext hg_eq]
-        have hd1 : HasDerivAt (fun t => termPot i (x' i - t)) (effExt i (x' i) * (-1)) 0 := by
-          have h0 : HasDerivAt (termPot i) (effExt i (x' i)) (x' i - 0) := by
-            simpa only [sub_zero] using hterm_deriv i (x' i)
-          exact HasDerivAt.comp (0 : ℝ) h0 ((hasDerivAt_id' (0 : ℝ)).const_sub (x' i))
-        have hd2 : HasDerivAt (fun t => uPot (X - t)) (uDerivExt X * (-1)) 0 := by
-          have h0 : HasDerivAt uPot (uDerivExt X) (X - 0) := by
-            simpa only [sub_zero] using huPot_deriv X
-          exact HasDerivAt.comp (0 : ℝ) h0 ((hasDerivAt_id' (0 : ℝ)).const_sub X)
-        have htot := (hd1.add_const (∑ k ∈ Finset.univ.erase i, termPot k (x' k))).sub hd2
+        have hd2 : HasDerivAt (fun t => uPot (X - t)) (-uDerivExt X) 0 := by
+          simpa only [sub_zero] using (huPot_deriv (X - 0)).comp_const_sub X 0
+        have htot :=
+          ((hterm_sub i (x' i)).add_const (∑ k ∈ Finset.univ.erase i, termPot k (x' k))).sub hd2
         have heff_i : effExt i (x' i) = latency i (x' i) + p' i := by
           simp [effExt, max_eq_right hi.le]
         have hud_X : uDerivExt X = uDeriv X := by simp [uDerivExt, max_eq_right hX0]
@@ -2226,15 +2214,7 @@ theorem exists_isElasticPricedWardrop_of_socialOptimum {Link : Type*} [Fintype L
       have hg_deriv : HasDerivAt g
           ((latency j (x' j) + p' j) - (latency i (x' i) + p' i)) 0 := by
         simp only [funext hg_eq]
-        have hdi : HasDerivAt (fun t => termPot i (x' i - t)) (effExt i (x' i) * (-1)) 0 := by
-          have h0 : HasDerivAt (termPot i) (effExt i (x' i)) (x' i - 0) := by
-            simpa only [sub_zero] using hterm_deriv i (x' i)
-          exact HasDerivAt.comp (0 : ℝ) h0 ((hasDerivAt_id' (0 : ℝ)).const_sub (x' i))
-        have hdj : HasDerivAt (fun t => termPot j (x' j + t)) (effExt j (x' j) * 1) 0 := by
-          have h0 : HasDerivAt (termPot j) (effExt j (x' j)) (x' j + 0) := by
-            simpa only [add_zero] using hterm_deriv j (x' j)
-          exact HasDerivAt.comp (0 : ℝ) h0 ((hasDerivAt_id' (0 : ℝ)).const_add (x' j))
-        have htot := (hdi.add hdj).add_const
+        have htot := ((hterm_sub i (x' i)).add (hterm_add j (x' j))).add_const
           ((∑ k ∈ (Finset.univ.erase j).erase i, termPot k (x' k)) - uPot X)
         have heff_i : effExt i (x' i) = latency i (x' i) + p' i := by
           simp [effExt, max_eq_right hi.le]
@@ -2245,15 +2225,7 @@ theorem exists_isElasticPricedWardrop_of_socialOptimum {Link : Type*} [Fintype L
         ring
       have h0 : 0 ≤ (latency j (x' j) + p' j) - (latency i (x' i) + p' i) := by
         refine nonneg_of_hasDerivAt_of_forall_pos hi hg_deriv fun t ht0 hti => ?_
-        have hg0 : g 0 = pot x' := by
-          simp only [g]
-          congr 1
-          ext k
-          by_cases hkj : k = j
-          · subst hkj; simp
-          · by_cases hki : k = i
-            · subst hki; simp [hkj]
-            · simp [hkj]
+        have hg0 : g 0 = pot x' := by simp only [g, sub_zero, add_zero, Function.update_eq_self]
         rw [hg0]
         exact hx'min _ ⟨fun k => nonneg_update_sub_add hx'Feas.1 ht0.le hti.le k,
           (hsum_inv t).trans_le hx'Feas.2⟩
@@ -2266,33 +2238,18 @@ theorem exists_isElasticPricedWardrop_of_socialOptimum {Link : Type*} [Fintype L
         have hg_eq : ∀ t, g t = termPot j (x' j + t) +
             (∑ k ∈ Finset.univ.erase j, termPot k (x' k)) - uPot (X + t) := by
           intro t
-          simp only [g, pot]
-          have h1 : ∑ k, termPot k (Function.update x' j (x' j + t) k) =
-              termPot j (x' j + t) + ∑ k ∈ Finset.univ.erase j, termPot k (x' k) := by
-            rw [← Finset.add_sum_erase _ _ (Finset.mem_univ j), Function.update_self]
-            congr 1
-            exact Finset.sum_congr rfl fun k hk => by
-              rw [Function.update_of_ne (Finset.mem_erase.mp hk).1]
-          have h2 : ∑ k, Function.update x' j (x' j + t) k = X + t :=
-            sum_update_add_eq x' j t
-          rw [h1, h2]
+          simp only [g, pot, X, hterm_upd, sum_update_add_eq x' j t]
         have hg_deriv : HasDerivAt g ((latency j (x' j) + p' j) - uDeriv X) 0 := by
           simp only [funext hg_eq]
-          have hd1 : HasDerivAt (fun t => termPot j (x' j + t)) (effExt j (x' j) * 1) 0 := by
-            have h0 : HasDerivAt (termPot j) (effExt j (x' j)) (x' j + 0) := by
-              simpa only [add_zero] using hterm_deriv j (x' j)
-            exact HasDerivAt.comp (0 : ℝ) h0 ((hasDerivAt_id' (0 : ℝ)).const_add (x' j))
-          have hd2 : HasDerivAt (fun t => uPot (X + t)) (uDerivExt X * 1) 0 := by
-            have h0 : HasDerivAt uPot (uDerivExt X) (X + 0) := by
-              simpa only [add_zero] using huPot_deriv X
-            exact HasDerivAt.comp (0 : ℝ) h0 ((hasDerivAt_id' (0 : ℝ)).const_add X)
-          have htot := (hd1.add_const (∑ k ∈ Finset.univ.erase j, termPot k (x' k))).sub hd2
+          have hd2 : HasDerivAt (fun t => uPot (X + t)) (uDerivExt X) 0 := by
+            simpa only [add_zero] using (huPot_deriv (X + 0)).comp_const_add X 0
+          have htot :=
+            ((hterm_add j (x' j)).add_const (∑ k ∈ Finset.univ.erase j, termPot k (x' k))).sub hd2
           have heff_j : effExt j (x' j) = latency j (x' j) + p' j := by
             simp [effExt, max_eq_right (hx'Feas.1 j)]
           have hud_X : uDerivExt X = uDeriv X := by simp [uDerivExt, max_eq_right hX0]
           rw [heff_j, hud_X] at htot
           convert htot using 1
-          ring
         have h0 : 0 ≤ (latency j (x' j) + p' j) - uDeriv X := by
           refine nonneg_of_hasDerivAt_of_forall_pos (sub_pos.mpr hlt_B) hg_deriv
             fun t ht0 htB => ?_
