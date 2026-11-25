@@ -265,34 +265,16 @@ private theorem starCone_le_sum_offDiag_inner_hyperUnitRow {r : ℕ} (hr : 2 ≤
   have ⟨v₀, hv₀⟩ := hs_ne
   have hM_nn (z : HyperNode c) : 0 ≤ M z :=
     (walkMax_nonneg c K₀ r hθ0.le m (.inl v₀) z).trans (hle_M_of_mem v₀ hv₀ z)
-  have hM1 : 1 ≤ ‖M‖ := by
-    have hv₀1 : 1 ≤ M v₀ := by
-      have h1 : 1 ≤ walkMax c K₀ r θ m (.inl v₀) v₀ := by
-        simpa [walkMax] using walkMax_mono c K₀ r θ (Nat.zero_le m) (.inl v₀) v₀
-      exact h1.trans (hle_M_of_mem v₀ hv₀ v₀)
-    have hsq : 1 ≤ ‖M‖ ^ 2 := by
-      rw [EuclideanSpace.real_norm_sq_eq]
-      calc (1 : ℝ) ≤ M v₀ ^ 2 := by nlinarith
-        _ ≤ ∑ z, M z ^ 2 := Finset.single_le_sum (fun z _ => sq_nonneg _) (Finset.mem_univ v₀)
-    nlinarith [norm_nonneg M]
-  have hb1 (v : HyperNode c) (hv : v ∈ s) : 1 ≤ ‖b v‖ := by
-    have h1 : 1 ≤ b v v := by
-      have ha_v : 1 ≤ a v v := by
-        simpa [a, walkMax] using walkMax_mono c K₀ r θ (Nat.zero_le (2 * S)) (.inl v) v
-      have hM_v : 1 ≤ M v := by
-        have hm_v : 1 ≤ walkMax c K₀ r θ m (.inl v) v := by
-          simpa [walkMax] using walkMax_mono c K₀ r θ (Nat.zero_le m) (.inl v) v
-        exact hm_v.trans (hle_M_of_mem v hv v)
-      exact le_min ha_v hM_v
-    have hsq : 1 ≤ ‖b v‖ ^ 2 := by
-      rw [EuclideanSpace.real_norm_sq_eq]
-      calc (1 : ℝ) ≤ b v v ^ 2 := by nlinarith
-        _ ≤ ∑ z, b v z ^ 2 := Finset.single_le_sum (fun z _ => sq_nonneg _) (Finset.mem_univ v)
-    nlinarith [norm_nonneg (b v)]
-  have hattain_M (z : HyperNode c) : ∃ v ∈ s, walkMax c K₀ r θ m (.inl v) z = M z := by
-    have hmem := Finset.max'_mem (s.image fun v => walkMax c K₀ r θ m (.inl v) z) (hs_ne.image _)
-    obtain ⟨v, hv, heq⟩ := Finset.mem_image.mp hmem
-    exact ⟨v, hv, heq⟩
+  have hone (n : ℕ) (v : HyperNode c) : 1 ≤ walkMax c K₀ r θ n (.inl v) v := by
+    simpa [walkMax] using walkMax_mono c K₀ r θ (Nat.zero_le n) (.inl v) v
+  have one_le_norm (x : EuclideanSpace ℝ (HyperNode c)) (v : HyperNode c) (h : 1 ≤ x v) :
+      1 ≤ ‖x‖ :=
+    h.trans ((Real.le_norm_self _).trans (PiLp.norm_apply_le x v))
+  have hM1 : 1 ≤ ‖M‖ := one_le_norm M v₀ ((hone m v₀).trans (hle_M_of_mem v₀ hv₀ v₀))
+  have hb1 (v : HyperNode c) (hv : v ∈ s) : 1 ≤ ‖b v‖ :=
+    one_le_norm (b v) v (le_min (hone (2 * S) v) ((hone m v).trans (hle_M_of_mem v hv v)))
+  have hattain_M (z : HyperNode c) : ∃ v ∈ s, walkMax c K₀ r θ m (.inl v) z = M z :=
+    Finset.mem_image.mp (Finset.max'_mem _ (hs_ne.image _))
   have hcone_lo (v : HyperNode c) (hv : v ∈ s) (z : HyperNode c) : q₂' * M z ≤ b v z := by
     obtain ⟨v_star, hv_star, hv_star_eq⟩ := hattain_M z
     have hstep : q₂' * walkMax c K₀ r θ m (.inl v_star) z ≤ a v z := by
@@ -344,27 +326,19 @@ private theorem starCone_le_sum_offDiag_inner_hyperUnitRow {r : ℕ} (hr : 2 ≤
                 (not_lt.mp fun hlt => hz (Finset.mem_filter.mpr ⟨Finset.mem_univ z, hlt⟩))
                 (walkMax_mono c K₀ r θ (by omega) (.inl v) z)
               have hle_M : a v z ≤ M z := by
-                have hm_le_M : walkMax c K₀ r θ m (.inl v) z ≤ M z := hle_M_of_mem v hv z
                 dsimp only [a]
                 rw [← hm2, heq_m]
-                exact hm_le_M
-              have hb_eq : b v z = a v z := min_eq_left hle_M
-              simp [hb_eq]
+                exact hle_M_of_mem v hv z
+              simp [show b v z = a v z from min_eq_left hle_M]
         _ = ∑ z ∈ Bv, walkMax c K₀ r θ (m + 2) (.inl v) z ^ 2 := by
             rw [← Finset.sum_filter, Finset.filter_mem_eq_inter, Finset.univ_inter]
         _ ≤ 2 * (max (r + 1) K₀ : ℝ) * θ ^ (2 * m + 2) :=
             sum_sq_walkMax_twoStep_strict_le c K₀ hr hfan hθ0 hθ1 m (.inl v)
-    have hexp : 2 * m + 2 = 2 * (2 * S - 1) := by omega
-    rw [hexp, pow_mul'] at hnorm_ab_sq
-    have h4 : 2 * (max (r + 1) K₀ : ℝ) * (θ ^ (2 * S - 1)) ^ 2 ≤
-        (2 * √(max (r + 1) K₀ : ℝ) * θ ^ (2 * S - 1)) ^ 2 := by
-      rw [mul_pow, mul_pow, sq_sqrt (by positivity)]
-      have : 0 ≤ (max (r + 1) K₀ : ℝ) * (θ ^ (2 * S - 1)) ^ 2 := by positivity
-      linarith
     have hnorm_ab : ‖a v - b v‖ ≤ 2 * √(max (r + 1) K₀ : ℝ) * θ ^ (2 * S - 1) := by
-      have htot := hnorm_ab_sq.trans h4
-      have hrhs_nn : 0 ≤ 2 * √(max (r + 1) K₀ : ℝ) * θ ^ (2 * S - 1) := by positivity
-      nlinarith [norm_nonneg (a v - b v)]
+      refine le_of_pow_le_pow_left₀ two_ne_zero (by positivity) (hnorm_ab_sq.trans ?_)
+      rw [mul_pow, mul_pow, sq_sqrt (by positivity), show 2 * m + 2 = 2 * (2 * S - 1) by omega,
+        pow_mul']
+      linarith [(by positivity : 0 ≤ (max (r + 1) K₀ : ℝ) * (θ ^ (2 * S - 1)) ^ 2)]
     dsimp only [hyperUnitRow]
     linarith
   have hp_diff (p : HyperNode c × HyperNode c) (hp : p ∈ s.offDiag) :
@@ -372,9 +346,6 @@ private theorem starCone_le_sum_offDiag_inner_hyperUnitRow {r : ℕ} (hr : 2 ≤
           8 * √(max (r + 1) K₀ : ℝ) * θ ^ (2 * S - 1) ≤
         ⟪hyperUnitRow c K₀ r θ S p.1, hyperUnitRow c K₀ r θ S p.2⟫ := by
     obtain ⟨h1, h2, -⟩ := Finset.mem_offDiag.mp hp
-    have hb2_norm : ‖‖b p.2‖⁻¹ • b p.2‖ = 1 := by
-      have hp2 : 0 < ‖b p.2‖ := zero_lt_one.trans_le (hb1 p.2 h2)
-      rw [norm_smul, norm_inv, norm_norm, inv_mul_cancel₀ hp2.ne']
     have habs := abs_inner_sub_inner_of_norm_eq_one (u₁ := hyperUnitRow c K₀ r θ S p.1)
       (u₂ := ‖b p.1‖⁻¹ • b p.1) (v₁ := hyperUnitRow c K₀ r θ S p.2) (v₂ := ‖b p.2‖⁻¹ • b p.2)
       (by
