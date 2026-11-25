@@ -228,7 +228,7 @@ private theorem not_goodChain_of_cbcChainFlag (t : List (BitString n × BitStrin
     (c : BitString n) (ms us : List (BitString n)) (h : cbcChainFlag t c ms us = true) :
     ¬goodChain (t.map Prod.fst) c ms us := by
   fun_induction cbcChainFlag t c ms us with
-  | case1 t c m ms u us ih =>
+  | case1 t c m ms u us ih => -- m :: ms, u :: us
     rintro ⟨hc, hg⟩
     simp only [Bool.or_eq_true] at h
     rcases h with h | h

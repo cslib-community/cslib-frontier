@@ -266,7 +266,7 @@ theorem toOuterMeasure_compl_comp_le_of_halted
     (first.initialConfig input))).support
   · rw [ite_eq_left ⟨hfirst r hr, first.length_output_eval_runClosed_le fuel input _
       (Composition.output_mem first fuel input r hr)⟩, PMF.toOuterMeasure_map_apply]
-  · simp [(PMF.apply_eq_zero_iff _ _).mpr hr]
+  · rw [(PMF.apply_eq_zero_iff _ _).mpr hr, zero_mul, zero_mul]
 
 /-- **Tail of a composition with a bounded second phase.** If, from every configuration of `good₁`
 (halted, with an output of length at most `L`), the second machine reaches `good` within `rest`

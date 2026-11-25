@@ -92,9 +92,8 @@ theorem definedGraph_cycleArcFormula_adj_fin (x y : Fin m) :
     (definedGraph (Fin m) cycleArcFormula).Adj x y ↔ (x : ℕ) ≠ y ∧
       ((x : ℕ) + 1 = y ∨ ((x : ℕ) + 1 = m ∧ (y : ℕ) = 0) ∨
         (y : ℕ) + 1 = x ∨ ((y : ℕ) + 1 = m ∧ (x : ℕ) = 0)) := by
-  simp only [definedGraph_adj, cycleArcFormula, Formula.realize_sup, Formula.realize_inf,
-    realize_covByFormula_fin, realize_isTopFormula_fin, realize_isBotFormula_fin,
-    Matrix.cons_val_zero, Matrix.cons_val_one, ne_eq, Fin.val_inj, or_assoc]
+  fo_simp [definedGraph_adj, cycleArcFormula, realize_covByFormula_fin, realize_isTopFormula_fin,
+    realize_isBotFormula_fin, Fin.val_inj, or_assoc]
 
 /-- On `Fin m`, `cycleArcFormula` defines Mathlib's cycle graph `SimpleGraph.cycleGraph m`. -/
 theorem definedGraph_cycleArcFormula_fin :
@@ -117,8 +116,9 @@ theorem definedGraph_cycleArcFormula_fin :
 theorem definedGraph_cycleArcFormula_isBipartite_fin (hm : 2 ≤ m) :
     (definedGraph (Fin m) cycleArcFormula).IsBipartite ↔ Even m := by
   rw [definedGraph_cycleArcFormula_fin]
-  refine ⟨fun h => Nat.not_odd_iff_even.1 fun hodd => ?_,
-    SimpleGraph.IsBipartite.cycleGraph_of_even⟩
+  refine ⟨fun h => ?_, SimpleGraph.IsBipartite.cycleGraph_of_even⟩
+  by_contra hodd
+  rw [Nat.not_even_iff_odd] at hodd
   have h2 := h.chromaticNumber_le
   rw [SimpleGraph.chromaticNumber_cycleGraph_of_odd m hm hodd] at h2
   exact absurd h2 (by decide)
