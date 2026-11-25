@@ -94,10 +94,11 @@ private theorem card_compl_ge_sub {P : Type*} [Fintype P] [DecidableEq P]
   simp only [Finset.card_univ] at hs
   omega
 
-private theorem card_sub_le_filter_of_compl {P : Type*} [Fintype P] [DecidableEq P]
+private theorem card_sub_le_filter_of_compl {P : Type*} [Fintype P]
     {F : Finset P} {t : ℕ} (hF : F.card ≤ t) {p : P → Prop} [DecidablePred p]
-    (h : ∀ j ∉ F, p j) : Fintype.card P - t ≤ (Finset.univ.filter p).card :=
-  (card_compl_ge_sub hF).trans (Finset.card_le_card fun j hj =>
+    (h : ∀ j ∉ F, p j) : Fintype.card P - t ≤ (Finset.univ.filter p).card := by
+  classical
+  exact (card_compl_ge_sub hF).trans (Finset.card_le_card fun j hj =>
     Finset.mem_filter.2 ⟨Finset.mem_univ j, h j (Finset.mem_sdiff.1 hj).2⟩)
 
 private theorem succ_le_card_filter_sdiff {P : Type*} [Fintype P] [DecidableEq P]
