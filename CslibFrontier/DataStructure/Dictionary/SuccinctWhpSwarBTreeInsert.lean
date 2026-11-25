@@ -338,9 +338,11 @@ private theorem finishLeafInsert_descendSplitToLeaf_spec {isRoot : Bool}
         refine ⟨by omega, trivial, by split_ifs at hdeg ⊢ <;> omega, by omega,
           wordInsertAt_lt r.is_le hsep_lt_W hkw, wordInsertAt_lt (by omega) hright_lt hvw,
           h7, h8, h9, ?_, ?_, fun i => (heightOld i).trans (heightOld _).symm, ?_⟩
-        · exact everyChild (P := fun t => idx ∉ t.nodeSet) (fun h => hnot r (hsubL_c h))
+        · -- `idx` is in no child
+          exact everyChild (P := fun t => idx ∉ t.nodeSet) (fun h => hnot r (hsubL_c h))
             (fun h => (mem_insert.mp (hsubR_c h)).elim hidx.ne (hnot r)) fun k _ => hnot k
-        · have hsub : ∀ k, (Function.update cs r leftT k).nodeSet ⊆ (cs k).nodeSet :=
+        · -- the children are pairwise disjoint
+          have hsub : ∀ k, (Function.update cs r leftT k).nodeSet ⊆ (cs k).nodeSet :=
             (Function.forall_update_iff cs fun k t => t.nodeSet ⊆ (cs k).nodeSet).2
               ⟨hsubL_c, fun _ _ => subset_rfl⟩
           have hright : ∀ k, Disjoint (Function.update cs r leftT k).nodeSet rightT.nodeSet :=
@@ -355,7 +357,8 @@ private theorem finishLeafInsert_descendSplitToLeaf_spec {isRoot : Bool}
           · exact hmidS k ▸ hmidR ▸ hright k
           · exact hmidS k ▸ hmidS l ▸
               (hdisj k l fun h => hij (congrArg _ h)).mono (hsub k) (hsub l)
-        · refine (Fin.forall_iff_succAbove r.succ).2 ⟨?_, fun k => ?_⟩
+        · -- each child is rooted at its value lane and valid on its interval
+          refine (Fin.forall_iff_succAbove r.succ).2 ⟨?_, fun k => ?_⟩
           · rw [hmidR, childLo_wordInsertAt_succ hsep_lt_W, childHi_wordInsertAt_succ hsep_lt_W]
             exact ⟨by simp [laneGet_wordInsertAt hright_lt, hrtR], hvR⟩
           · rw [hmidS, laneGet_wordInsertAt_succAbove hright_lt,

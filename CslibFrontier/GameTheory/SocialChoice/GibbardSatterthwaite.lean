@@ -297,7 +297,8 @@ theorem IsMaskinMonotone.apply_toTopSet_pair_trans (P : Profile V A) {a b c : A}
       f (P.toTopSet {a, b, c}) = a ∨ f (P.toTopSet {a, b, c}) = b ∨
         f (P.toTopSet {a, b, c}) = c) with hx | hx | hx
   · rw [hf.apply_toTopSet_of_subset (hsub ha' hc') P (by simp [hx]), hx]
-  · exact absurd (hab.symm.trans
+  · -- The outcome on `{a, b, c}` is `b`, so it is also the outcome on `{a, b}`.
+    exact absurd (hab.symm.trans
       ((hf.apply_toTopSet_of_subset (hsub ha' hb') P (by simp [hx])).trans hx)) h₁
   · exact absurd (hbc.symm.trans
       ((hf.apply_toTopSet_of_subset (hsub hb' hc') P (by simp [hx])).trans hx)) h₂
