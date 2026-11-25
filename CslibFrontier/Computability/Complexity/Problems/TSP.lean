@@ -174,8 +174,7 @@ theorem computableInPolyTime_tourLength :
   have hq : ComputableInPolyTime
       (fun q : (List (List ℕ) × List ℕ) × ℕ => q.1.2 ++ [q.1.2.headD 0])
       (encPair (encPair (encList (encList encNat)) (encList encNat)) encUnary)
-      (encList encNat) := by
-    fun_prop
+      (encList encNat) := by fun_prop
   have hrow : ComputableInPolyTime
       (fun q : (List (List ℕ) × List ℕ) × ℕ =>
         q.1.1.getD ((q.1.2 ++ [q.1.2.headD 0]).getD q.2 0) [])
@@ -223,11 +222,9 @@ theorem computableInPolyTime_verifier :
       (range.comp ((length_list (encList encNat)).comp hdist))
       (unary_to_binary.comp (snd _ _))
   have hD : ComputableInPolyTime (fun q : TSPInstance × List ℕ => q.1.dist)
-      (encPair encTSP (encList encNat)) (encList (encList encNat)) := by
-    fun_prop
+      (encPair encTSP (encList encNat)) (encList (encList encNat)) := by fun_prop
   have hb : ComputableInPolyTime (fun q : TSPInstance × List ℕ => q.1.bound)
-      (encPair encTSP (encList encNat)) encNat := by
-    fun_prop
+      (encPair encTSP (encList encNat)) encNat := by fun_prop
   have hlen := computableInPolyTime_tourLength.comp (hD.prod (snd _ (encList encNat)))
   exact Graph.computableInPolyTime_verifyOrdering hV (binary_le' hlen hb)
 
@@ -265,18 +262,13 @@ private theorem chain_iff {R : ℕ → ℕ → Prop} {q : List ℕ} :
       ∀ k < q.length, R ((q ++ q.take 1).getD k 0) ((q ++ q.take 1).getD (k + 1) 0) := by
   rw [Cycle.chain_coe_iff_isChain_append_take_one, List.isChain_iff_getElem]
   by_cases hq : q = []
-  · subst hq
-    simp
+  · simp [hq]
   · have hlen : (q ++ q.take 1).length = q.length + 1 := by
       have := List.length_pos_iff.2 hq
       enc_len [List.length_take]
-    constructor
-    · intro h k hk
-      have := h k (by omega)
-      rwa [List.getD_eq_getElem _ _ (by omega), List.getD_eq_getElem _ _ (by omega)]
-    · intro h k hk
-      have := h k (by omega)
-      rwa [List.getD_eq_getElem _ _ (by omega), List.getD_eq_getElem _ _ (by omega)] at this
+    refine ⟨fun h k hk => ?_, fun h k hk => ?_⟩ <;> have := h k (by omega)
+    · rwa [List.getD_eq_getElem _ _ (by omega), List.getD_eq_getElem _ _ (by omega)]
+    · rwa [List.getD_eq_getElem _ _ (by omega), List.getD_eq_getElem _ _ (by omega)] at this
 
 private theorem eq_one_of_sum_le {l : List ℕ} (h1 : ∀ a ∈ l, 1 ≤ a) (h : l.sum ≤ l.length) :
     ∀ a ∈ l, a = 1 := by
@@ -322,8 +314,7 @@ theorem toTSP_mem_iff (G : Graph) : toTSP G ∈ TSP ↔ G ∈ HamCycle := by
       rw [show p = [0] by simpa using hp] at hlen
       simp [TSP.tourLength, TSP.dist] at hlen
     · rintro ⟨q, hq, hcov, h3, -⟩
-      have := hlenV q hq hcov
-      omega
+      exact absurd (hlenV q hq hcov) (by omega)
   · push Not at hn
     simp only [TSP, Set.mem_ofPred_eq, List.length_map]
     constructor
@@ -331,10 +322,8 @@ theorem toTSP_mem_iff (G : Graph) : toTSP G ∈ TSP ↔ G ∈ HamCycle := by
       have hn0 : 0 < V.length := by omega
       have hplen : p.length = V.length := by rw [hp.length_eq, List.length_range]
       have hplt : ∀ a ∈ p, a < V.length := fun a ha => List.mem_range.1 (hp.subset ha)
-      have hget := getD_lt hn0 (l := p ++ p.take 1) fun a ha => by
-        rcases List.mem_append.1 ha with ha | ha
-        · exact hplt a ha
-        · exact hplt a (List.mem_of_mem_take ha)
+      have hget := getD_lt hn0 (l := p ++ p.take 1) fun a ha =>
+        (List.mem_append.1 ha).elim (hplt a) fun ha => hplt a (List.mem_of_mem_take ha)
       -- Every step of the tour costs `1`, so it joins adjacent vertices.
       rw [TSP.tourLength_eq_sum] at hlen
       have hone : ∀ k < V.length, G.adjBool (V.getD ((p ++ p.take 1).getD k 0) 0)
@@ -348,8 +337,7 @@ theorem toTSP_mem_iff (G : Graph) : toTSP G ∈ TSP ↔ G ∈ HamCycle := by
           (List.mem_map.2 ⟨k, List.mem_range.2 (hplen ▸ hk), rfl⟩)
         · rw [dist_map (hget k) (hget (k + 1))] at h
           split_ifs at h with hadj
-          · exact hadj
-          · omega
+          exacts [hadj, by omega]
         · intro a ha
           obtain ⟨j, -, rfl⟩ := List.mem_map.1 ha
           rw [dist_map (hget j) (hget (j + 1))]
@@ -395,9 +383,8 @@ theorem toTSP_mem_iff (G : Graph) : toTSP G ∈ TSP ↔ G ∈ HamCycle := by
         have hmem : ∀ j < q.length + 1, (q ++ q.take 1).getD j 0 ∈ V := fun j hj => by
           have hj' : j < (q ++ q.take 1).length := by omega
           rw [List.getD_eq_getElem _ _ hj']
-          rcases List.mem_append.1 (List.getElem_mem hj') with h | h
-          · exact hqV _ h
-          · exact hqV _ (List.mem_of_mem_take h)
+          exact (List.mem_append.1 (List.getElem_mem hj')).elim (hqV _)
+            fun h => hqV _ (List.mem_of_mem_take h)
         rw [← List.map_take, ← List.map_append, getD_map_of_lt (by omega),
           getD_map_of_lt (by omega)]
         have h₁ := List.idxOf_lt_length_iff.2 (hmem k (by omega))
