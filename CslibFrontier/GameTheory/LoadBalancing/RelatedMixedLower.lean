@@ -553,10 +553,6 @@ private theorem exp_one_lt_log_of_sixteen_le {k : ℕ} (hk : 16 ≤ k) :
       (Real.log_le_log (by norm_num) (by exact_mod_cast hk))
   exact ⟨hx, Real.log_exp 1 ▸ Real.log_lt_log (Real.exp_pos 1) hx⟩
 
-private theorem one_sub_inv_le_log {a : ℝ} (ha : 0 < a) : 1 - a⁻¹ ≤ Real.log a := by
-  have h := Real.log_le_sub_one_of_pos (inv_pos.mpr ha)
-  rw [Real.log_inv] at h; linarith
-
 /-- Shared threshold verification for `B = k ^ (18 * k)` and `d = ⌊4 * k * log k / log (log k)⌋₊`
 when `k ≥ 16`. -/
 private theorem ballsIntoBins_params_of_ge_sixteen {k : ℕ} (hk : 16 ≤ k) :
@@ -1036,13 +1032,14 @@ theorem exists_relatedMixedNash_makespan_ge_log_div_log_log_log {m : ℕ} [NeZer
       have hlog2m_ge : (1.019 : ℝ) ≤ Real.log (Real.log (m : ℝ)) := by
         have hdiv_ge : (1.0195 : ℝ) ≤ Real.log (m : ℝ) / Real.exp 1 := by
           rw [le_div_iff₀ (Real.exp_pos 1)]; linarith [Real.exp_one_lt_d9]
-        have hmono := (one_sub_inv_le_log (by norm_num : (0 : ℝ) < 1.0195)).trans
+        have hmono := (Real.one_sub_inv_le_log_of_pos (by norm_num : (0 : ℝ) < 1.0195)).trans
           (Real.log_le_log (by norm_num) hdiv_ge)
         rw [Real.log_div (by linarith) (Real.exp_pos 1).ne', Real.log_exp] at hmono
         linarith
       have hlog3m_ge : (0.018 : ℝ) ≤ Real.log (Real.log (Real.log (m : ℝ))) :=
         (by norm_num : (0.018 : ℝ) ≤ 1 - (1.019 : ℝ)⁻¹).trans <|
-          (one_sub_inv_le_log (by norm_num)).trans (Real.log_le_log (by norm_num) hlog2m_ge)
+          (Real.one_sub_inv_le_log_of_pos (by norm_num)).trans
+            (Real.log_le_log (by norm_num) hlog2m_ge)
       rw [div_le_iff₀ (by linarith)]; linarith
     · push Not at hm1024
       have hlogm_le : Real.log (m : ℝ) ≤ 1233 := by
@@ -1072,7 +1069,8 @@ theorem exists_relatedMixedNash_makespan_ge_log_div_log_log_log {m : ℕ} [NeZer
         linarith [Real.log_two_gt_d9]
       have hlog3m_ge : (0.4 : ℝ) ≤ Real.log (Real.log (Real.log (m : ℝ))) :=
         (by norm_num : (0.4 : ℝ) ≤ 1 - (1.69 : ℝ)⁻¹).trans <|
-          (one_sub_inv_le_log (by norm_num)).trans (Real.log_le_log (by norm_num) hlog2m_ge)
+          (Real.one_sub_inv_le_log_of_pos (by norm_num)).trans
+            (Real.log_le_log (by norm_num) hlog2m_ge)
       rw [div_le_iff₀ (by linarith)]; linarith
 
 end Cslib.GameTheory.LoadBalancingGame
