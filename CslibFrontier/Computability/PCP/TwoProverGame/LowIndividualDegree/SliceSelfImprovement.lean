@@ -52,9 +52,7 @@ private theorem transcriptProduct_lift {α : Type*} [Fintype α] {k : ℕ}
   | zero => simp only [Measurement.transcriptProduct_zero, map_one]
   | succ k ih =>
     rw [Measurement.transcriptProduct_succ, Measurement.transcriptProduct_succ,
-      map_mul, he, ih]
-    intro j a
-    exact he j.succ a
+      map_mul, he, ih _ _ fun j a => he j.succ a]
 
 private theorem completedPaste_effect_lift
     (e : Local →⋆ₐ[ℂ] Joint) (k : ℕ) [Nonempty (Fin k ↪ F)]
@@ -84,10 +82,9 @@ private theorem rightMeasurement_completedPaste
     QuantumStrategy.rightMeasurement (ι := ι)
       (completedPaste k (fun x => (P x).toMeasurement) hP fallback).toPOVM =
       completedPaste k (fun x => QuantumStrategy.rightMeasurement (ι := ι) (P x))
-        (fun x => QuantumStrategy.rightMeasurement_isProjective (P x) (hP x)) fallback := by
-  apply Measurement.ext
-  intro a
-  exact completedPaste_effect_lift oneKronecker k _ hP _ _ (fun _ _ => rfl) fallback a
+        (fun x => QuantumStrategy.rightMeasurement_isProjective (P x) (hP x)) fallback :=
+  Measurement.ext fun a =>
+    completedPaste_effect_lift oneKronecker k _ hP _ _ (fun _ _ => rfl) fallback a
 
 omit [DecidableEq F] in
 private theorem average_slice_budget
