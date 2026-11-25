@@ -423,9 +423,8 @@ private theorem inEpochInsertMissTailCode_exec {U V w N n n_init base L_peak : �
     compInsertMiss_dict_spec (s := ⟨x₃.mem, x₃.frontier⟩) henv_grown rfl hinv₃ hcpl₃
       (htot₃.symm ▸ hn_lt_N) (by rw [htot₃]) u v hv_lt_V hhit
   set d_app := ((((mkCompParams U V w N, (base, base + offCompItems U w N)), (b, m)), (u.val, v)))
-  have hx₈_unch : ∀ {c : Fin 88}, c.val < 32 →
-      c ≠ 1 → c ≠ 7 → c ≠ 8 → c ≠ 9 → c ≠ 10 → c ≠ 11 → c ≠ 12 →
-      x₈.regs (eReg c) = x₅.regs (eReg c) := fun {c} hc h1 h7 h8' h9 h10 h11 h12 => by
+  have hx₈_unch : ∀ c : Fin 88, (c ≠ 1 ∧ c ≠ 7 ∧ c ≠ 8 ∧ c ≠ 9 ∧ c ≠ 10 ∧ c ≠ 11 ∧ c ≠ 12) →
+      x₈.regs (eReg c) = x₅.regs (eReg c) := fun c ⟨h1, h7, h8', h9, h10, h11, h12⟩ => by
     simp only [x₈, x₇, growZeroPost, RData.set_regs,
       Function.update_of_ne (eReg_ne h1), Function.update_of_ne (eReg_ne h9),
       Function.update_of_ne (eReg_ne h10), Function.update_of_ne (eReg_ne h8'),
@@ -441,27 +440,14 @@ private theorem inEpochInsertMissTailCode_exec {U V w N n n_init base L_peak : �
       Function.update_of_ne (cpReg_ne_eReg (c := 11) i (by decide))]
     exact (hx₆_pres (cpReg i) (cpReg_ne_eReg i (by decide)) (cpReg_lt_88 i)
       (cpReg_ne_eReg i (by decide))).trans (hx₅_cp i)
-  have hx₈_base : x₈.regs rBase = base :=
-    (hx₈_unch (c := 0) (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide) (by decide)).trans hx₅_base
-  have hx₈_cnt : x₈.regs rCnt = n :=
-    (hx₈_unch (c := 13) (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide) (by decide)).trans hx₅_cnt
+  have hx₈_base : x₈.regs rBase = base := (hx₈_unch 0 (by decide)).trans hx₅_base
+  have hx₈_cnt : x₈.regs rCnt = n := (hx₈_unch 13 (by decide)).trans hx₅_cnt
   have hx₈_item : x₈.regs rItemBase = base + offCompItems U w N :=
-    (hx₈_unch (c := 14) (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide) (by decide)).trans hx₅_item
-  have hx₈_b : x₈.regs rBucket = b :=
-    (hx₈_unch (c := 23) (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide) (by decide)).trans hx₅_b
-  have hx₈_m : x₈.regs rMicro = m :=
-    (hx₈_unch (c := 24) (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide) (by decide)).trans hx₅_m
-  have hx₈_u : x₈.regs rArgU = u.val :=
-    (hx₈_unch (c := 3) (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide) (by decide)).trans hx₅_u
-  have hx₈_v : x₈.regs rArgV = v :=
-    (hx₈_unch (c := 4) (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide) (by decide)).trans hx₅_v
+    (hx₈_unch 14 (by decide)).trans hx₅_item
+  have hx₈_b : x₈.regs rBucket = b := (hx₈_unch 23 (by decide)).trans hx₅_b
+  have hx₈_m : x₈.regs rMicro = m := (hx₈_unch 24 (by decide)).trans hx₅_m
+  have hx₈_u : x₈.regs rArgU = u.val := (hx₈_unch 3 (by decide)).trans hx₅_u
+  have hx₈_v : x₈.regs rArgV = v := (hx₈_unch 4 (by decide)).trans hx₅_v
   have hin_app : x₈.regs ∘ srcInsAppend = WordEncoding.encode d_app :=
     (regs_pairSrc
       (regs_pairSrc
@@ -533,24 +519,8 @@ private theorem inEpochInsertMissTailCode_exec {U V w N n n_init base L_peak : �
       (98 * inEpochFactor) * slotPotential N (compGmAt base U w N x₃.mem) +
         201 * inEpochFactor := by
     unfold inEpochPotential
-    have hym_eq : y.mem = Function.update x₉.mem (base + 6) (n + 1) := rfl
-    rw [hms₈, hym_eq, hgm_y, hx₉m_app]
-    calc inEpochFactor * (memoryCost (compInsertAppendNewGenProg d_app) s_grown + 1) +
-          (98 * inEpochFactor) *
-            slotPotential N
-              (compGmAt base U w N
-                ((Memory.spec 0).clientState s_grown (compInsertAppendNewGenProg d_app)).mem)
-        = inEpochFactor *
-            (memoryCost (compInsertAppendNewGenProg d_app) s_grown +
-              98 * slotPotential N
-                (compGmAt base U w N
-                  ((Memory.spec 0).clientState s_grown (compInsertAppendNewGenProg d_app)).mem)) +
-            inEpochFactor := by ring
-      _ ≤ inEpochFactor * (98 * slotPotential N (compGmAt base U w N x₃.mem) + 200) +
-            inEpochFactor :=
-          Nat.add_le_add_right (Nat.mul_le_mul_left _ hcost_app) _
-      _ = (98 * inEpochFactor) * slotPotential N (compGmAt base U w N x₃.mem) +
-            201 * inEpochFactor := by ring
+    rw [hms₈, show y.mem = Function.update x₉.mem (base + 6) (n + 1) from rfl, hgm_y, hx₉m_app]
+    linarith [Nat.mul_le_mul_left inEpochFactor hcost_app]
   have hex_miss := hex_gd.seq_eq (hex_gz.seq_eq (hex_add_fr.seq_eq
     (hex_app.seq_eq (hex_o2.seq_eq (hex_inc.seq_eq hex_st)))))
   refine ⟨y, _, hex_miss, hyb, hy_ff, hsplit_y, hy_base,
@@ -1029,20 +999,13 @@ private theorem inEpochDeleteHitTailCode_exec {U V w N n n' n_init base L_peak :
   have hx₁₁_ff : x₁₁.frontier = base + compactedEpochWords U V w N n' := by
     change x₁₀.frontier - x₁₀.regs rK = _
     rw [hx₁₀_k, hfr_sub_Δ]
-  have hx₁₁_base : x₁₁.regs rBase = base := by
-    simp only [x₁₁, shrinkPost,
-      Function.update_of_ne (eReg_ne (by decide) : rBase ≠ rIdx),
-      Function.update_of_ne (eReg_ne (by decide) : rBase ≠ rOne),
-      Function.update_of_ne (eReg_ne (by decide) : rBase ≠ rZero)]
-    exact (hframe_sd rBase (eReg_ne (by decide))
-      (tmpShrinkDelta_ne_reg (eReg_lt_88 _) (eReg_ne (by decide)))).trans hx₉_base
-  have hx₁₁_cnt : x₁₁.regs rCnt = n := by
-    simp only [x₁₁, shrinkPost,
-      Function.update_of_ne (eReg_ne (by decide) : rCnt ≠ rIdx),
-      Function.update_of_ne (eReg_ne (by decide) : rCnt ≠ rOne),
-      Function.update_of_ne (eReg_ne (by decide) : rCnt ≠ rZero)]
-    exact (hframe_sd rCnt (eReg_ne (by decide))
-      (tmpShrinkDelta_ne_reg (eReg_lt_88 _) (eReg_ne (by decide)))).trans hx₉_cnt
+  have hx₁₁_eq : ∀ c : Fin 88, (c ≠ 1 ∧ c ≠ 7 ∧ c ≠ 10 ∧ c ≠ 11 ∧ c ≠ 12) →
+      x₁₁.regs (eReg c) = x₉.regs (eReg c) := fun c ⟨h1, h7, h10, h11, h12⟩ => by
+    simp only [x₁₁, shrinkPost, Function.update_of_ne (eReg_ne h10),
+      Function.update_of_ne (eReg_ne h12), Function.update_of_ne (eReg_ne h11)]
+    exact hframe_sd _ (eReg_ne h1) (tmpShrinkDelta_ne_reg (eReg_lt_88 _) (eReg_ne h7))
+  have hx₁₁_base : x₁₁.regs rBase = base := (hx₁₁_eq 0 (by decide)).trans hx₉_base
+  have hx₁₁_cnt : x₁₁.regs rCnt = n := (hx₁₁_eq 13 (by decide)).trans hx₉_cnt
   have hL_sh : x₁₁.frontier ≤ L_peak := by
     rw [hx₁₁_ff]
     exact (Nat.add_le_add_left (compactedEpochWords_mono (by omega : n' ≤ n)) base).trans hL
@@ -1286,14 +1249,11 @@ private theorem inEpochDeleteCode_active_exec {U V w N n n_init base L_peak : �
   obtain ⟨x₇, hex_h2, hx₇b, hx₇f, hx₇_fr, hx₇_hout, hsplit₇, hx₇_out_mem, hx₇_pres⟩ :=
     runEvalHashAtQuot hx₆b hn hev hx₆_ff ((hx₆_ff.trans hfr.symm).le.trans hL)
       (by rw [hx₆m, hx₆_ff, ← hx₄_ff]; exact hsplit₄) hx₆_fr
-      ((hx₆_pres rHashBase (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-        (eReg_ne (by decide)) (eReg_ne (by decide)) (eReg_ne (by decide))).trans hx₅_hash)
-      ((hx₆_pres rScratchBase (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-        (eReg_ne (by decide)) (eReg_ne (by decide)) (eReg_ne (by decide))).trans hx₅_scr)
+      (by rw [hx₆_pres, hx₅_hash] <;> first | exact eReg_ne (by decide) | exact eReg_lt_88 _)
+      (by rw [hx₆_pres, hx₅_scr] <;> first | exact eReg_ne (by decide) | exact eReg_lt_88 _)
       hx₆_quot
-      (fun i => (hx₆_pres (hpReg i) (hpReg_ne_eReg i (by decide)) (hpReg_lt_88 i)
-        (hpReg_ne_eReg i (by decide)) (hpReg_ne_eReg i (by decide))
-        (hpReg_ne_eReg i (by decide)) (hpReg_ne_eReg i (by decide))).trans (hx₅_hp i))
+      (fun i => by
+        rw [hx₆_pres, hx₅_hp i] <;> first | exact hpReg_ne_eReg i (by decide) | exact hpReg_lt_88 i)
       hq_last0_lt
   have hx₇_ff : x₇.frontier = base + compactedEpochWords U V w N n := hx₇f.trans hx₆_ff
   have hms₇ : memoryState rFr x₇.toData = ⟨x₇.mem, x₇.frontier⟩ :=
@@ -1418,12 +1378,9 @@ private theorem inEpochDeleteCode_active_exec {U V w N n n_init base L_peak : �
       dsimp only [n', s_abs']
       rw [Dynamic.card_dom_delete_eq_of_isSome hsome, hsplit.card_eq]
     have hn'_pos : 0 < n' := by
-      have hev' := hval.2
-      change EpochValid U n' N at hev'
-      rcases hev' with ⟨hn0, hN0⟩ | ⟨hn1, _, _, _⟩
-      · rcases hev with ⟨rfl, _⟩ | ⟨_, _, hN4, _⟩
-        · exact absurd rfl hn.ne'
-        · exfalso; subst hN0; exact absurd (Nat.eq_zero_of_le_zero (by omega : n ≤ 0)) hn.ne'
+      have hev' : EpochValid U n' N := hval.2
+      rcases hev' with ⟨-, rfl⟩ | ⟨hn1, -⟩
+      · rcases hev with ⟨rfl, _⟩ | ⟨_, _, _, _⟩ <;> omega
       · exact hn1
     have hcond_pos : (Cond.eq rFound rOne).Holds x₉.toData := by
       change x₉.regs rFound = x₉.regs rOne
@@ -1803,58 +1760,22 @@ theorem inEpochOpCode_expected_amortized {U V w N n n_init base : ℕ}
       (Finset.card_erase_le (s := Dictionary.dom s_abs) (a := opKey o)).trans (hcard ▸ hnN)
     have hpr_le :=
       tsum_uniform_probeExcess_reducedPolyHash_le_five hNU (Dictionary.dom s_abs) (opKey o) hS_le
-    have hpt : ∀ θ,
-        μ θ * ((stepsOf θ + inEpochPotential U w N base (yOf θ) : ℕ) : ℝ≥0∞) ≤
-          μ θ * (inEpochPotential U w N base (xOf θ) : ℝ≥0∞) +
-            (μ θ * (inEpochBaseCharge : ℝ≥0∞) +
-              (12 * inEpochFactor : ℝ≥0∞) *
-                (μ θ * (probeExcess N (qStage1 U N θ.1) (polyStage2 U N) θ.2
-                  (Dictionary.dom s_abs) (opKey o) : ℝ≥0∞))) := fun θ => by
-      have hle_nat := (hspec θ).2.2.2.2.2.2.2
-      have hle_enn : ((stepsOf θ + inEpochPotential U w N base (yOf θ) : ℕ) : ℝ≥0∞) ≤
-          (inEpochPotential U w N base (xOf θ) : ℝ≥0∞) +
-            ((inEpochBaseCharge : ℝ≥0∞) +
-              (12 * inEpochFactor : ℝ≥0∞) *
-                (probeExcess N (qStage1 U N θ.1) (polyStage2 U N) θ.2
-                  (Dictionary.dom s_abs) (opKey o) : ℝ≥0∞)) := by
-        have hc := (Nat.cast_le (α := ℝ≥0∞)).mpr hle_nat
-        simp only [Nat.cast_add, Nat.cast_mul, Nat.cast_ofNat] at hc
-        rw [add_assoc] at hc
-        rw [Nat.cast_add]
-        exact hc
-      calc μ θ * ((stepsOf θ + inEpochPotential U w N base (yOf θ) : ℕ) : ℝ≥0∞)
-          ≤ μ θ * ((inEpochPotential U w N base (xOf θ) : ℝ≥0∞) +
-              ((inEpochBaseCharge : ℝ≥0∞) +
-                (12 * inEpochFactor : ℝ≥0∞) *
-                  (probeExcess N (qStage1 U N θ.1) (polyStage2 U N) θ.2
-                    (Dictionary.dom s_abs) (opKey o) : ℝ≥0∞))) :=
-            by gcongr
-        _ = μ θ * (inEpochPotential U w N base (xOf θ) : ℝ≥0∞) +
-              (μ θ * (inEpochBaseCharge : ℝ≥0∞) +
-                (12 * inEpochFactor : ℝ≥0∞) *
-                  (μ θ * (probeExcess N (qStage1 U N θ.1) (polyStage2 U N) θ.2
-                    (Dictionary.dom s_abs) (opKey o) : ℝ≥0∞))) := by ring
     calc (∑' θ, μ θ * ((stepsOf θ + inEpochPotential U w N base (yOf θ) : ℕ) : ℝ≥0∞))
         ≤ ∑' θ, (μ θ * (inEpochPotential U w N base (xOf θ) : ℝ≥0∞) +
-            (μ θ * (inEpochBaseCharge : ℝ≥0∞) +
-              (12 * inEpochFactor : ℝ≥0∞) *
-                (μ θ * (probeExcess N (qStage1 U N θ.1) (polyStage2 U N) θ.2
-                  (Dictionary.dom s_abs) (opKey o) : ℝ≥0∞)))) :=
-          tsum_le_tsum hpt
+            (μ θ * inEpochBaseCharge + 12 * inEpochFactor *
+              (μ θ * (probeExcess N (qStage1 U N θ.1) (polyStage2 U N) θ.2
+                (Dictionary.dom s_abs) (opKey o) : ℝ≥0∞)))) := tsum_le_tsum fun θ => by
+          have hc := (Nat.cast_le (α := ℝ≥0∞)).mpr (hspec θ).2.2.2.2.2.2.2
+          push_cast at hc ⊢
+          exact (mul_le_mul_right hc _).trans_eq (by ring)
       _ = (∑' θ, μ θ * (inEpochPotential U w N base (xOf θ) : ℝ≥0∞)) +
-            ((∑' θ, μ θ * (inEpochBaseCharge : ℝ≥0∞)) +
-              (12 * inEpochFactor : ℝ≥0∞) *
-                ∑' θ, μ θ * (probeExcess N (qStage1 U N θ.1) (polyStage2 U N) θ.2
-                  (Dictionary.dom s_abs) (opKey o) : ℝ≥0∞)) := by
-          rw [CompleteLattice.summable.tsum_add CompleteLattice.summable,
-            CompleteLattice.summable.tsum_add CompleteLattice.summable, ENNReal.tsum_mul_left]
+            (inEpochBaseCharge + 12 * inEpochFactor *
+              ∑' θ, μ θ * (probeExcess N (qStage1 U N θ.1) (polyStage2 U N) θ.2
+                (Dictionary.dom s_abs) (opKey o) : ℝ≥0∞)) := by
+          rw [tsum_add, tsum_add, ENNReal.tsum_mul_left, ENNReal.tsum_mul_right, μ.tsum_coe,
+            one_mul]
       _ ≤ (∑' θ, μ θ * (inEpochPotential U w N base (xOf θ) : ℝ≥0∞)) +
-            ((inEpochBaseCharge : ℝ≥0∞) + (12 * inEpochFactor : ℝ≥0∞) * 5) := by
-          rw [ENNReal.tsum_mul_right, μ.tsum_coe, one_mul]
-          gcongr
-      _ = (∑' θ, μ θ * (inEpochPotential U w N base (xOf θ) : ℝ≥0∞)) + inEpochCharge := by
-          unfold inEpochCharge
-          push_cast
-          ring
+            (inEpochBaseCharge + 12 * inEpochFactor * 5) := by gcongr
+      _ = _ := by unfold inEpochCharge; push_cast; ring
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct
