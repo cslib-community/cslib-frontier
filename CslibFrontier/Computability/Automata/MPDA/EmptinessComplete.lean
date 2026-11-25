@@ -244,8 +244,7 @@ theorem card_add_one_le_openHoles {C : List (HoleChain n Γ)} {t : ℕ} {i : Fin
     have hpw := hchain c hc
     simp only [hl, List.pairwise_append, List.mem_append, List.mem_singleton] at he' hpw
     rcases he' with he' | rfl
-    · exact (hpw.2.2 e' he' e rfl).le
-    · rfl
+    exacts [(hpw.2.2 e' he' e rfl).le, le_rfl]
   -- A pending push joined to a later hole push `q` lies in a chain closed up to `q`.
   have hext_of_same : ∀ {p q j'}, p < q → q ≤ t → PendingAt w p t →
       (∃ j, IsPushOn w j p ∧ IsPushOn w j q) → IsHolePushOn w j' q →
@@ -746,11 +745,9 @@ private theorem cinv_pop {K : ℕ} {w : List (Symbol × Op n Γ)} {f : State} {t
   · have hsh : ∀ {P : HoleChain n Γ → Prop},
         (∀ d ∈ pre ++ ⟨i, (p, γ) :: ps⟩ :: post, P d) → P ⟨i, ps⟩ →
         ∀ d ∈ pre ++ ⟨i, ps⟩ :: post, P d := fun hC hnew d hd' => by
-      rcases List.mem_append.mp hd' with hd' | hd'
-      · exact hC d (by simp [hd'])
-      · rcases List.mem_cons.mp hd' with rfl | hd'
-        · exact hnew
-        · exact hC d (by simp [hd'])
+      simp only [List.mem_append, List.mem_cons] at hd'
+      rcases hd' with hd' | rfl | hd'
+      exacts [hC d (by simp [hd']), hnew, hC d (by simp [hd'])]
     refine ⟨⟨hpre ++ ⟨i, s₁, s₂⟩ :: hpost', c₂.state⟩, pre ++ ⟨i, ps⟩ :: post,
       rpre ++ r :: rpost, c₂, hpopnext _ ?_, htake' ▸ hd₁.wellNested hwn, hrest, rfl,
       by rw [hc₂, hc₁], List.rel_append hstkpre (.cons rfl hstkpost),
@@ -804,9 +801,7 @@ private theorem cinv_hole {K : ℕ} {w : List (Symbol × Op n Γ)} {f : State} {
   have hold : ∀ d ∈ C, ∀ e ∈ d.pushes, e.1 < t ∧ PendingAt w e.1 (t - 1) := by
     intro d hd' e he
     obtain ⟨⟨b, hb⟩, hpend⟩ := hB₂ d hd' e he
-    have hlt : e.1 < t := by
-      have := (List.getElem?_eq_some_iff.mp hb).1
-      rwa [htake_len] at this
+    have hlt : e.1 < t := htake_len ▸ (List.getElem?_eq_some_iff.mp hb).1
     refine ⟨hlt, ?_⟩
     have := (pendingAt_append_iff (v := w.drop t)
       (show t - 1 < (w.take t).length by omega)).mpr hpend
@@ -816,10 +811,9 @@ private theorem cinv_hole {K : ℕ} {w : List (Symbol × Op n Γ)} {f : State} {
     refine card_add_one_le_openHoles ht hne (fun d hd' e he => ⟨hhole d hd' e he,
       pendingAt_of_push (hold d hd' e he).2 (hold d hd' e he).1 hwt, (hold d hd' e he).1⟩)
       (fun q hq hpq => hB₄ q ?_) hB₅ (fun d hd' => (hB₃ d hd').pairwise) ?_
-    · have := hpq.anti (show q ≤ t - 1 by omega) (by omega)
-      rw [← pendingAt_append_iff (v := w.drop t) (show t - 1 < (w.take t).length by omega),
+    · rw [← pendingAt_append_iff (v := w.drop t) (show t - 1 < (w.take t).length by omega),
         List.take_append_drop]
-      exact this
+      exact hpq.anti (show q ≤ t - 1 by omega) (by omega)
     · intro d hd' e he r hr
       obtain ⟨q₀, m, hm, hlt, hpend⟩ := hcons d hd'
       have heL : e.1 ∈ chainFrom w d.stack q₀ :=
@@ -832,9 +826,7 @@ private theorem cinv_hole {K : ℕ} {w : List (Symbol × Op n Γ)} {f : State} {
       · obtain ⟨e', he', rfl⟩ := List.mem_map.mp (hm ▸ List.mem_reverse.mpr hrL)
         exact ⟨e', he', rfl⟩
       · exact absurd (hpr.anti (by omega) (by omega)) (hpend r hrL)
-  have hClt : C.length < K := by
-    have := hK t htlen
-    omega
+  have hClt : C.length < K := by have := hK t htlen; omega
   -- The block of the greedy chain from `t`.
   obtain ⟨c', r, ps, hblock, hpsfst, hpssnd, hr, hc', hrun', htlt, -⟩ :=
     exists_block_run (M := M) t hpush c _ hrun
