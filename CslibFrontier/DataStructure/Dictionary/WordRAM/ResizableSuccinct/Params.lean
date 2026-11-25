@@ -184,7 +184,12 @@ theorem wOffV_add_one_lt_compactedItemWords {U V w N n d : ℕ} (hw : 0 < w) (hd
 
 theorem compactedItemWords_mono {U V w N n₁ n₂ : ℕ} (h : n₁ ≤ n₂) :
     compactedItemWords U V w N n₁ ≤ compactedItemWords U V w N n₂ := by
-  unfold compactedItemWords; gcongr
+  unfold compactedItemWords
+  have hmul : n₁ * (quotientBits U N + valBits V) ≤ n₂ * (quotientBits U N + valBits V) := by gcongr
+  have hdiv : (n₁ * (quotientBits U N + valBits V) + w - 1) / w ≤
+      (n₂ * (quotientBits U N + valBits V) + w - 1) / w :=
+    Nat.div_le_div_right (by omega)
+  omega
 
 /-- Adding `1` live item increases `compactedItemWords` by at most `2` words when `U, V ≤ 2 ^ w`. -/
 theorem compactedItemWords_succ_sub_le_two {U V w N n : ℕ} (hw : 0 < w)
@@ -254,25 +259,35 @@ theorem compQuotAt_writeCompQuot_of_ne {itemBase U V w N n d d' q : ℕ} (hw : 0
     (mem : ℕ → ℕ) (hne : d' ≠ d) :
     compQuotAt itemBase U V w N n (writeCompQuot itemBase U V w N mem d q) d' =
       compQuotAt itemBase U V w N n mem d' := by
-  unfold compQuotAt writeCompQuot; split_ifs with hd'; swap; · rfl
-  refine readBitSlice_writeBitSlice_of_disjoint (bOffQ_lt hw) (bOffQ_lt hw) ?_ mem q
-  rw [wOffQ_mul_add_bOffQ, wOffQ_mul_add_bOffQ]
-  rcases lt_or_gt_of_ne hne with h | h <;>
-    (have hle := Nat.mul_le_mul_right (quotientBits U N + valBits V) h;
-     rw [Nat.add_one_mul] at hle; omega)
+  unfold compQuotAt writeCompQuot
+  split_ifs with hd'
+  · refine readBitSlice_writeBitSlice_of_disjoint (bOffQ_lt hw) (bOffQ_lt hw) ?_ mem q
+    rw [wOffQ_mul_add_bOffQ, wOffQ_mul_add_bOffQ]
+    rcases lt_or_gt_of_ne hne with hlt | hgt
+    · right
+      have hle := Nat.mul_le_mul_right (quotientBits U N + valBits V) hlt
+      rw [Nat.add_one_mul] at hle; omega
+    · left
+      have hle := Nat.mul_le_mul_right (quotientBits U N + valBits V) hgt
+      rw [Nat.add_one_mul] at hle; omega
+  · rfl
 
 theorem compValAt_writeCompQuot {itemBase U V w N n d d' q : ℕ} (hw : 0 < w) (mem : ℕ → ℕ) :
     compValAt itemBase U V w N n (writeCompQuot itemBase U V w N mem d q) d' =
       compValAt itemBase U V w N n mem d' := by
-  unfold compValAt writeCompQuot; split_ifs with hd'; swap; · rfl
-  refine readBitSlice_writeBitSlice_of_disjoint (bOffQ_lt hw) (bOffV_lt hw) ?_ mem q
-  rw [wOffQ_mul_add_bOffQ, wOffV_mul_add_bOffV]
-  rcases lt_trichotomy d d' with h | rfl | h
-  · have hle := Nat.mul_le_mul_right (quotientBits U N + valBits V) h; rw [Nat.add_one_mul] at hle
-    omega
-  · omega
-  · have hle := Nat.mul_le_mul_right (quotientBits U N + valBits V) h; rw [Nat.add_one_mul] at hle
-    omega
+  unfold compValAt writeCompQuot
+  split_ifs with hd'
+  · refine readBitSlice_writeBitSlice_of_disjoint (bOffQ_lt hw) (bOffV_lt hw) ?_ mem q
+    rw [wOffQ_mul_add_bOffQ, wOffV_mul_add_bOffV]
+    rcases lt_trichotomy d d' with hlt | rfl | hgt
+    · left
+      have hle := Nat.mul_le_mul_right (quotientBits U N + valBits V) hlt
+      rw [Nat.add_one_mul] at hle; omega
+    · left; omega
+    · right
+      have hle := Nat.mul_le_mul_right (quotientBits U N + valBits V) hgt
+      rw [Nat.add_one_mul] at hle; omega
+  · rfl
 
 theorem compValAt_writeCompVal_self {itemBase U V w N n d v : ℕ} (mem : ℕ → ℕ)
     (hd : d < n) (hv : v < 2 ^ valBits V) :
@@ -284,25 +299,35 @@ theorem compValAt_writeCompVal_of_ne {itemBase U V w N n d d' v : ℕ} (hw : 0 <
     (mem : ℕ → ℕ) (hne : d' ≠ d) :
     compValAt itemBase U V w N n (writeCompVal itemBase U V w N mem d v) d' =
       compValAt itemBase U V w N n mem d' := by
-  unfold compValAt writeCompVal; split_ifs with hd'; swap; · rfl
-  refine readBitSlice_writeBitSlice_of_disjoint (bOffV_lt hw) (bOffV_lt hw) ?_ mem v
-  rw [wOffV_mul_add_bOffV, wOffV_mul_add_bOffV]
-  rcases lt_or_gt_of_ne hne with h | h <;>
-    (have hle := Nat.mul_le_mul_right (quotientBits U N + valBits V) h;
-     rw [Nat.add_one_mul] at hle; omega)
+  unfold compValAt writeCompVal
+  split_ifs with hd'
+  · refine readBitSlice_writeBitSlice_of_disjoint (bOffV_lt hw) (bOffV_lt hw) ?_ mem v
+    rw [wOffV_mul_add_bOffV, wOffV_mul_add_bOffV]
+    rcases lt_or_gt_of_ne hne with hlt | hgt
+    · right
+      have hle := Nat.mul_le_mul_right (quotientBits U N + valBits V) hlt
+      rw [Nat.add_one_mul] at hle; omega
+    · left
+      have hle := Nat.mul_le_mul_right (quotientBits U N + valBits V) hgt
+      rw [Nat.add_one_mul] at hle; omega
+  · rfl
 
 theorem compQuotAt_writeCompVal {itemBase U V w N n d d' v : ℕ} (hw : 0 < w) (mem : ℕ → ℕ) :
     compQuotAt itemBase U V w N n (writeCompVal itemBase U V w N mem d v) d' =
       compQuotAt itemBase U V w N n mem d' := by
-  unfold compQuotAt writeCompVal; split_ifs with hd'; swap; · rfl
-  refine readBitSlice_writeBitSlice_of_disjoint (bOffV_lt hw) (bOffQ_lt hw) ?_ mem v
-  rw [wOffV_mul_add_bOffV, wOffQ_mul_add_bOffQ]
-  rcases lt_trichotomy d' d with h | rfl | h
-  · have hle := Nat.mul_le_mul_right (quotientBits U N + valBits V) h; rw [Nat.add_one_mul] at hle
-    omega
-  · omega
-  · have hle := Nat.mul_le_mul_right (quotientBits U N + valBits V) h; rw [Nat.add_one_mul] at hle
-    omega
+  unfold compQuotAt writeCompVal
+  split_ifs with hd'
+  · refine readBitSlice_writeBitSlice_of_disjoint (bOffV_lt hw) (bOffQ_lt hw) ?_ mem v
+    rw [wOffV_mul_add_bOffV, wOffQ_mul_add_bOffQ]
+    rcases lt_trichotomy d' d with hlt | rfl | hgt
+    · right
+      have hle := Nat.mul_le_mul_right (quotientBits U N + valBits V) hlt
+      rw [Nat.add_one_mul] at hle; omega
+    · right; omega
+    · left
+      have hle := Nat.mul_le_mul_right (quotientBits U N + valBits V) hgt
+      rw [Nat.add_one_mul] at hle; omega
+  · rfl
 
 theorem writeCompQuot_outside {itemBase U V w N n d q addr : ℕ} (hw : 0 < w) (hd : d < n)
     (mem : ℕ → ℕ) (haddr : ¬(itemBase ≤ addr ∧ addr < itemBase + compactedItemWords U V w N n)) :

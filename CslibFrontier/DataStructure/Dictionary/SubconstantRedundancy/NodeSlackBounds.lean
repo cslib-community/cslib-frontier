@@ -104,11 +104,14 @@ theorem numNodes_mul_tableCap_le {U V n R p_min q_min p_max q_max : ℕ}
   · rw [canonicalSchedule_nFloor_eq h (ℓ + 1), canonicalSchedule_nFloor_eq h ℓ,
       canonicalSchedule_branchFactor_eq h ℓ]
     exact nFloor_succ_eq_div (by omega)
-  · rintro rfl
+  · intro hℓ1
+    subst hℓ1
+    have hx8 : 8 ≤ nFloor n U (redundancyRatio n R) (treeDepth U (redundancyRatio n R)) 2 := by
+      rw [← canonicalSchedule_nFloor_eq h 2]
+      exact (by decide : 8 ≤ 256 ^ 9).trans (nFloor_ge_pow_256 h hlt)
     rw [canonicalSchedule_delta_eq h 1, canonicalSchedule_branchFactor_eq h 1,
       canonicalSchedule_delta_eq h 2]
-    exact ten_mul_delta_le_branchFactor_mul_delta_succ hS17
-      (canonicalSchedule_nFloor_eq h 2 ▸ (by decide : 8 ≤ 256 ^ 9).trans (nFloor_ge_pow_256 h hlt))
+    exact ten_mul_delta_le_branchFactor_mul_delta_succ hS17 hx8
 
 private theorem leaf_and_deficit_of_schedule (P : TreeSchedule) {n r : ℕ}
     (hcap : P.cap = n)
@@ -349,11 +352,15 @@ private theorem rootExtra_and_poolDir_of_schedule (P : TreeSchedule) {n r L s1 p
   have hrem_dir : (P.numNodes 1 * (1 + K) + 4) * (ptrBits * r) ≤ 3 * n := by
     have hL2 : 1 ≤ L ^ 2 := Nat.one_le_pow 2 L (by omega)
     have hK5 : 1 + K ≤ 5 * L ^ 2 := by
-      have hsq := Nat.pow_le_pow_left hptr_hi 2; rw [mul_pow] at hsq; rw [hK_eq]; omega
+      have hsq := Nat.pow_le_pow_left hptr_hi 2
+      rw [mul_pow] at hsq
+      rw [hK_eq]
+      omega
     have hK9 : P.numNodes 1 * (1 + K) + 4 ≤ P.numNodes 1 * (9 * L ^ 2) :=
-      (Nat.add_le_add (Nat.mul_le_mul_left _ hK5)
-        ((by omega : 4 ≤ 4 * L ^ 2).trans (Nat.le_mul_of_pos_left _ (P.numNodes_pos 1)))).trans_eq
-        (by ring)
+      calc _ ≤ P.numNodes 1 * (5 * L ^ 2) + P.numNodes 1 * (4 * L ^ 2) :=
+            Nat.add_le_add (Nat.mul_le_mul_left _ hK5)
+              ((by omega : 4 ≤ 4 * L ^ 2).trans (Nat.le_mul_of_pos_left _ (P.numNodes_pos 1)))
+        _ = P.numNodes 1 * (9 * L ^ 2) := by ring
     calc (P.numNodes 1 * (1 + K) + 4) * (ptrBits * r)
         ≤ P.numNodes 1 * (9 * L ^ 2) * (2 * L * L) :=
           Nat.mul_le_mul hK9 (Nat.mul_le_mul hptr_hi hr_le_L)
@@ -362,11 +369,17 @@ private theorem rootExtra_and_poolDir_of_schedule (P : TreeSchedule) {n r L s1 p
           gcongr; exact (by norm_num : 18 ≤ 10 ^ 5).trans (Nat.pow_le_pow_left h10_L 5)
       _ = P.numNodes 1 * L ^ 9 := by ring
       _ ≤ 3 * n := by omega
-  have hdir_eq : P.rootPoolDirBits * r = P.numNodes 1 * (P.tableCap 1 / K) * (ptrBits * r) +
-      P.rootValPoolCap / K * (ptrBits * r) + (P.numNodes 1 * (1 + K) + 4) * (ptrBits * r) := by
-    change (P.numNodes 1 * (P.tableCap 1 / K + 1 + K) + P.rootValPoolCap / K + 4) * ptrBits * r = _
-    ring
-  rw [Nat.add_mul, hdir_eq]; omega
+  have hdir_r : P.rootPoolDirBits * r ≤ 7 * n :=
+    calc P.rootPoolDirBits * r
+        = P.numNodes 1 * (P.tableCap 1 / K) * (ptrBits * r) +
+            P.rootValPoolCap / K * (ptrBits * r) +
+            (P.numNodes 1 * (1 + K) + 4) * (ptrBits * r) := by
+          change (P.numNodes 1 * (P.tableCap 1 / K + 1 + K) + P.rootValPoolCap / K + 4) *
+            ptrBits * r = _
+          ring
+      _ ≤ 7 * n := by omega
+  rw [Nat.add_mul]
+  omega
 
 /-- Root extra quotient bits and pool directory overhead scaled by `r` is bounded by `8 * n`. -/
 theorem rootExtra_and_poolDir_slack_le {U V n R p_min q_min p_max q_max : ℕ}
@@ -462,17 +475,19 @@ private theorem waitingLists_and_hashSeeds_of_schedule (P : TreeSchedule) {n U r
       · have hs_eq : s = Nat.log 2 U := by
           dsimp only [s]; rw [levelScale, ite_eq_left (by omega)]; rfl
         have hls2 : levelScale U r P.depth 2 ≤ Nat.log 2 U := by
-          rw [levelScale]; split_ifs; exacts [Nat.log_le_self 2 _, hr_s1]
+          rw [levelScale]; split_ifs
+          exacts [Nat.log_le_self 2 _, hr_s1]
         have hid1 : P.idBits 1 ≤ 148 * levelScale U r P.depth 2 := hid_pred_all 2 le_rfl hd2
-        have hsq : 148 * Nat.log 2 U ≤ Nat.log 2 U ^ 2 :=
-          (sq (Nat.log 2 U)).symm ▸ Nat.mul_le_mul_right _ (by omega)
+        have hsq : 148 * Nat.log 2 U ≤ Nat.log 2 U ^ 2 := by
+          rw [sq]; exact Nat.mul_le_mul_right _ (by omega)
         have hone : 1 ≤ Nat.log 2 U ^ 2 := Nat.one_le_pow _ _ (by omega)
         have hcl1 : Nat.clog 2 (max (P.idCompRightUniv 1) 2) ≤ Nat.log 2 U ^ 2 :=
           Nat.clog_le_of_le_pow (max_le ((Nat.le_mul_of_pos_left _ (Nat.mul_pos
             (P.branchFactor_pos 0) (Nat.two_pow_pos _))).trans hpad_s1)
             (Nat.le_self_pow (by omega) 2))
         have := FeistelPerm.idCompressorSeedBits_le (P.idBits 1) (P.idCompRightUniv 1)
-        rw [hs_eq]; omega
+        rw [hs_eq]
+        omega
       · have := P.idCompressorSeedBits_le_of_two_le hgt1 hle
         have := hid_pred_all ℓ hgt1 hle
         omega
