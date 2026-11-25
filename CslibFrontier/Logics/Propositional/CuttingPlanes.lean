@@ -72,6 +72,9 @@ unsatisfiable.
   `Cslib.Logic.PL.CuttingPlanes.DerivableInSize.extend`: composing proofs.
 * `Cslib.Logic.PL.CuttingPlanes.IsProof.mono`, `Cslib.Logic.PL.CuttingPlanes.IsProof.restrict`:
   a proof uses only the hypotheses among its lines.
+* `Cslib.Logic.PL.CNF.toIneqs_relabel`, `Cslib.Logic.PL.CuttingPlanes.IsProof.relabel`,
+  `Cslib.Logic.PL.CuttingPlanes.RefutableInSize.relabel`: renaming the variables along an injective
+  map renames inequalities, proofs and refutations, keeping their size.
 
 ## References
 
@@ -312,6 +315,42 @@ theorem coeff_relabel (f : V → W) (I : Ineq V) : (I.relabel f).coeff = I.coeff
     (I.relabel f).Holds σ ↔ I.Holds (σ ∘ f) := by
   simp only [Holds, bound_relabel, lhs_relabel]
 
+theorem relabel_add (f : V → W) (I J : Ineq V) : (I + J).relabel f = I.relabel f + J.relabel f :=
+  Ineq.ext Finsupp.mapDomain_add rfl
+
+theorem relabel_nsmul (f : V → W) (c : ℕ) (I : Ineq V) : (c • I).relabel f = c • I.relabel f :=
+  Ineq.ext (Finsupp.mapDomain_smul c I.coeff) rfl
+
+@[simp] theorem relabel_contra (f : V → W) : (contra : Ineq V).relabel f = contra :=
+  Ineq.ext (Finsupp.mapDomain_zero (f := f)) rfl
+
+@[simp] theorem relabel_nonneg (f : V → W) (v : V) : (nonneg v).relabel f = nonneg (f v) :=
+  Ineq.ext Finsupp.mapDomain_single rfl
+
+@[simp] theorem relabel_leOne (f : V → W) (v : V) : (leOne v).relabel f = leOne (f v) :=
+  Ineq.ext Finsupp.mapDomain_single rfl
+
+theorem relabel_sum {ι : Type*} (f : V → W) (s : Finset ι) (g : ι → Ineq V) :
+    (∑ i ∈ s, g i).relabel f = ∑ i ∈ s, (g i).relabel f :=
+  map_sum (⟨⟨relabel f, Ineq.ext (Finsupp.mapDomain_zero (f := f)) rfl⟩, relabel_add f⟩ :
+    Ineq V →+ Ineq W)
+    g s
+
+/-- Along an injective renaming, the coefficients of variables outside the image are `0`. -/
+theorem coeff_relabel_of_notMem_range (f : V → W) (I : Ineq V) {w : W}
+    (hw : w ∉ Set.range f) : (I.relabel f).coeff w = 0 :=
+  Finsupp.mapDomain_of_notMem_range _ _ hw
+
+/-- Along an injective renaming, rounded division commutes with renaming. -/
+theorem relabel_div {f : V → W} (hf : f.Injective) (I : Ineq V) (c : ℕ) :
+    (I.div c).relabel f = (I.relabel f).div c := by
+  ext w
+  · by_cases hw : w ∈ Set.range f
+    · obtain ⟨v, rfl⟩ := hw
+      simp only [coeff_relabel_apply hf, coeff_div]
+    · simp only [coeff_relabel_of_notMem_range f _ hw, coeff_div, Int.zero_ediv]
+  · rfl
+
 end Ineq
 
 /-! ### Clauses as inequalities -/
@@ -397,6 +436,35 @@ theorem CNF.holds_toIneqs_iff [DecidableEq V] (σ : V → Bool) (φ : CNF V) :
     exact (Clause.holds_toIneq_iff σ c).1 (h _ (toIneq_mem_toIneqs hc))
   · rintro h _ ⟨c, hc, rfl⟩
     exact (Clause.holds_toIneq_iff σ c).2 (h c hc)
+
+/-- Renaming the variable of a literal renames its inequality. -/
+theorem Literal.relabel_toIneq {W : Type*} (f : V → W) (l : Literal V) :
+    l.toIneq.relabel f = Literal.toIneq (Prod.map f id l : Literal W) := by
+  obtain ⟨v, b⟩ := l
+  cases b <;> simp [Literal.toIneq]
+
+/-- Along an injective renaming, the inequality of a renamed clause is the renamed inequality. -/
+theorem Clause.toIneq_relabel [DecidableEq V] {W : Type*} [DecidableEq W] {f : V → W}
+    (hf : f.Injective) (c : Clause V) : (c.relabel f).toIneq = c.toIneq.relabel f := by
+  have hg : Function.Injective (Prod.map f id : Literal V → Literal W) :=
+    hf.prodMap Function.injective_id
+  have himage : (c.map (Prod.map f id)).toFinset = c.toFinset.image (Prod.map f id) := by
+    ext; simp
+  rw [Clause.toIneq, Clause.toIneq, relabel_add, relabel_contra, relabel_sum, Clause.relabel,
+    himage, Finset.sum_image fun _ _ _ _ h => hg h]
+  simp only [Literal.relabel_toIneq]
+
+/-- Along an injective renaming, the inequalities of a renamed CNF are the renamed
+inequalities. -/
+theorem CNF.toIneqs_relabel [DecidableEq V] {W : Type*} [DecidableEq W] {f : V → W}
+    (hf : f.Injective) (φ : CNF V) : (φ.relabel f).toIneqs = Ineq.relabel f '' φ.toIneqs := by
+  ext I
+  simp only [CNF.toIneqs, CNF.relabel, List.mem_map, Set.mem_image, Set.mem_ofPred_eq]
+  constructor
+  · rintro ⟨_, ⟨c, hc, rfl⟩, rfl⟩
+    exact ⟨c.toIneq, ⟨c, hc, rfl⟩, (Clause.toIneq_relabel hf c).symm⟩
+  · rintro ⟨_, ⟨c, hc, rfl⟩, rfl⟩
+    exact ⟨c.relabel f, ⟨c, hc, rfl⟩, Clause.toIneq_relabel hf c⟩
 
 /-! ### Proofs -/
 
@@ -517,6 +585,35 @@ theorem mono (h : IsProof Γ ls) (hΓΔ : Γ ⊆ Δ) : IsProof Δ ls :=
 theorem restrict (h : IsProof Γ ls) : IsProof (Γ ∩ {I | I ∈ ls}) ls :=
   isProof_iff_lineProof.2 (isProof_iff_lineProof.1 h).restrict
 
+/-- **Renaming the variables** of a proof along an injective map gives a proof from the renamed
+hypotheses, line by line. -/
+theorem relabel {W : Type*} {f : V → W} (hf : f.Injective) (h : IsProof Γ ls) :
+    IsProof (Ineq.relabel f '' Γ) (ls.map (Ineq.relabel f)) := by
+  induction h with
+  | nil => exact .nil
+  | hyp _ hI ih => exact ih.hyp ⟨_, hI, rfl⟩
+  | nonneg _ v ih =>
+    rw [List.map_cons, relabel_nonneg]
+    exact ih.nonneg (f v)
+  | leOne _ v ih =>
+    rw [List.map_cons, relabel_leOne]
+    exact ih.leOne (f v)
+  | add _ hI hJ ih =>
+    rw [List.map_cons, relabel_add]
+    exact ih.add (List.mem_map_of_mem hI) (List.mem_map_of_mem hJ)
+  | smul _ c hc hI ih =>
+    rw [List.map_cons, relabel_nsmul]
+    exact ih.smul c hc (List.mem_map_of_mem hI)
+  | @div _ I _ c hc hdvd hI ih =>
+    rw [List.map_cons, relabel_div hf]
+    refine ih.div c hc (fun w => ?_) (List.mem_map_of_mem hI)
+    by_cases hw : w ∈ Set.range f
+    · obtain ⟨v, rfl⟩ := hw
+      rw [coeff_relabel_apply hf]
+      exact hdvd v
+    · rw [coeff_relabel_of_notMem_range f _ hw]
+      exact dvd_zero _
+
 end IsProof
 
 namespace DerivableInSize
@@ -607,6 +704,13 @@ theorem RefutableInSize.not_exists_holds (h : RefutableInSize Γ s) :
 
 theorem RefutableInSize.mono (h : RefutableInSize Γ s) (hst : s ≤ t) : RefutableInSize Γ t :=
   DerivableInSize.mono h hst
+
+/-- Renaming the variables along an injective map keeps a refutation a refutation of the same
+size. -/
+theorem RefutableInSize.relabel {W : Type*} {f : V → W} (hf : f.Injective)
+    (h : RefutableInSize Γ s) : RefutableInSize (Ineq.relabel f '' Γ) s :=
+  let ⟨ls, h, hc, hlen⟩ := h
+  ⟨_, h.relabel hf, relabel_contra f ▸ List.mem_map_of_mem hc, by simpa using hlen⟩
 
 /-- **Soundness of cutting planes for CNFs**: a CNF whose inequalities are refutable is
 unsatisfiable. -/
