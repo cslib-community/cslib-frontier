@@ -8,6 +8,8 @@ module
 -- upstream: local-only (ordinary trisection API client)
 
 public import CslibFrontier.Foundations.Geometry.Polygonal.Trisection
+import CslibFrontier.Foundations.Geometry.Polygonal.CircleChord
+import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
 
 /-! # Two cuts within one segment -/
@@ -52,5 +54,52 @@ example : ∃ (j : Fin p.segments) (r : ℝ), r ∈ Set.Icc 0 1 ∧
   have hc : p.segments = 1 := rfl
   rw [hc, Nat.cast_one] at h
   linarith
+
+-- The disk centered at 2 with radius 1 cuts the segment from 0 to 4 at 1 and 3.
+example : ∃ l u : ℝ, 0 < l ∧ l < u ∧ u < 1 ∧
+    ((Route.line 0 4).trisect l (1 - u) 1).start = 1 ∧
+    ((Route.line 0 4).trisect l (1 - u) 1).finish = 3 := by
+  have heval (t : ℝ) : AffineMap.lineMap (0 : ℂ) 4 t = ((t * 4 : ℝ) : ℂ) := by
+    rw [AffineMap.lineMap_apply_module', sub_zero, add_zero, Complex.real_smul,
+      Complex.ofReal_mul, Complex.ofReal_ofNat]
+  have hdist (x : ℝ) : dist (x : ℂ) (2 : ℂ) = |x - 2| := by
+    simpa only [Complex.ofReal_ofNat, Real.dist_eq] using Complex.isometry_ofReal.dist_eq x 2
+  have hz : (2 : ℂ) ∈ openSegment ℝ 0 4 := by
+    rw [openSegment_eq_image_lineMap]
+    exact ⟨1 / 2, by norm_num, by rw [heval]; norm_num⟩
+  have ha : (0 : ℂ) ∉ Metric.closedBall (2 : ℂ) 1 := by
+    change ¬dist ((0 : ℝ) : ℂ) (2 : ℂ) ≤ 1
+    rw [hdist]
+    norm_num
+  have hb : (4 : ℂ) ∉ Metric.closedBall (2 : ℂ) 1 := by
+    change ¬dist ((4 : ℝ) : ℂ) (2 : ℂ) ≤ 1
+    rw [hdist]
+    norm_num
+  obtain ⟨l, u, hl, hlu, hu, _, hsphere, _⟩ :=
+    exists_closedBall_lineMap_cuts (by norm_num) hz ha hb
+  have hlow := (hsphere (1 / 4)).mp (by norm_num [Metric.mem_sphere, heval, hdist])
+  have hhigh := (hsphere (3 / 4)).mp (by norm_num [Metric.mem_sphere, heval, hdist])
+  have hcut : l = 1 / 4 ∧ u = 3 / 4 := by
+    rcases hlow with h | h <;> rcases hhigh with h' | h' <;> constructor <;> linarith
+  refine ⟨l, u, hl, hlu, hu, ?_⟩
+  rw [hcut.1, hcut.2]
+  change (Route.line 0 4 |>.trisect (1 / 4) (1 - 3 / 4) 1).endpoint false = 1 ∧
+    (Route.line 0 4 |>.trisect (1 / 4) (1 - 3 / 4) 1).endpoint true = 3
+  rw [Route.endpoint_trisect, Route.endpoint_trisect]
+  change (Route.line 0 4).eval 0 (1 / 4) = 1 ∧
+    (Route.line 0 4).eval 0 (1 - (1 - 3 / 4)) = 3
+  rw [Route.eval_line, Route.eval_line, heval, heval]
+  norm_num
+
+-- Reconnect the horizontal and vertical diameters without a crossing.
+example : Disjoint (segment ℝ (1 : ℂ) Complex.I) (segment ℝ (-1) (-Complex.I)) := by
+  apply disjoint_segments_of_antipodal_pairs (z := 0) (ρ := 1)
+  · simp
+  · simp
+  · intro h
+    have hi := congrArg Complex.im h
+    norm_num at hi
+  · rw [midpoint_eq_smul_add, add_neg_cancel, smul_zero]
+  · rw [midpoint_eq_smul_add, add_neg_cancel, smul_zero]
 
 end CslibFrontierTests.PolygonalTrisection
