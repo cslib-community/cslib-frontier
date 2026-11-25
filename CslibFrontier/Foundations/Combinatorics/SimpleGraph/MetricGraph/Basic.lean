@@ -806,35 +806,30 @@ private theorem rawDist_triangle (W : WeightedGraph V) (p q r : RawPoint W.graph
     obtain ⟨c, e, hce⟩ := viaEndpoints_case W q r
     rw [hab, hce]
     exact viaEndpoints_le_branch_add_branch W p q r a b c e
-  have hdv : ∀ d₁ t₁ d₂ t₂, d₁.edge = d₂.edge →
+  have hdv : ∀ (r : RawPoint W.graph) d₁ t₁ d₂ t₂, d₁.edge = d₂.edge →
       viaEndpoints W (.edge d₁ t₁) r ≤
         directDist W d₁ d₂ t₁ t₂ + viaEndpoints W (.edge d₂ t₂) r := by
-    intro d₁ t₁ d₂ t₂ he
+    intro r d₁ t₁ d₂ t₂ he
     obtain ⟨c, e, hce⟩ := viaEndpoints_case W (.edge d₂ t₂) r
     rw [hce]
     obtain ⟨hoff, hv⟩ := endOff_le_directDist_add_endOff W he t₁ t₂ c
     have hle := viaEndpoints_le W (.edge d₁ t₁) r (if d₁ = d₂ then c else !c) e
     rw [hv] at hle
     linarith
-  have hvd : ∀ (p r : RawPoint W.graph) d₂ t₂ d₃ t₃, d₂.edge = d₃.edge →
+  have hvd : ∀ (p : RawPoint W.graph) d₂ t₂ d₃ t₃, d₂.edge = d₃.edge →
       viaEndpoints W p (.edge d₃ t₃) ≤
         viaEndpoints W p (.edge d₂ t₂) + directDist W d₂ d₃ t₂ t₃ := by
-    intro p r d₂ t₂ d₃ t₃ he
+    intro p d₂ t₂ d₃ t₃ he
     rw [viaEndpoints_comm W p (.edge d₃ t₃), viaEndpoints_comm W p (.edge d₂ t₂), add_comm,
       directDist_comm W he]
-    obtain ⟨c, e, hce⟩ := viaEndpoints_case W (.edge d₂ t₂) p
-    rw [hce]
-    obtain ⟨hoff, hv⟩ := endOff_le_directDist_add_endOff W he.symm t₃ t₂ c
-    have hle := viaEndpoints_le W (.edge d₃ t₃) p (if d₃ = d₂ then c else !c) e
-    rw [hv] at hle
-    linarith
+    exact hdv p d₃ t₃ d₂ t₂ he.symm
   rcases rawDist_cases W q r with h2 | ⟨d₂, t₂, d₃, t₃, rfl, rfl, he23, h2⟩
   · rcases rawDist_cases W p q with h1 | ⟨d₁, t₁, d₂, t₂, rfl, rfl, he12, h1⟩ <;> rw [h1, h2]
     · exact (rawDist_le_viaEndpoints W _ _).trans hvv
-    · exact (rawDist_le_viaEndpoints W _ _).trans (hdv _ _ _ _ he12)
+    · exact (rawDist_le_viaEndpoints W _ _).trans (hdv _ _ _ _ _ he12)
   · rcases rawDist_cases W p (.edge d₂ t₂) with h1 | ⟨d₁, t₁, d₂', t₂', rfl, ⟨⟩, he12, h1⟩ <;>
       rw [h1, h2]
-    · exact (rawDist_le_viaEndpoints W _ _).trans (hvd p p _ _ _ _ he23)
+    · exact (rawDist_le_viaEndpoints W _ _).trans (hvd p _ _ _ _ he23)
     · exact (rawDist_le_directDist W (he12.trans he23) _ _).trans
         (directDist_triangle W he12 he23 _ _ _)
 
@@ -859,11 +854,9 @@ private theorem rawDist_eq_zero_of_rel (W : WeightedGraph V) {p q : RawPoint W.g
           exact ⟨false, rfl, rfl⟩
         | edge d t =>
           simp only [RawPoint.toVertex?] at hr
-          split_ifs at hr with ht0 ht1
-          · subst ht0; simp only [Option.some.injEq] at hr; subst hr
-            exact ⟨false, rfl, by simp [RawPoint.endOff]⟩
-          · subst ht1; simp only [Option.some.injEq] at hr; subst hr
-            exact ⟨true, rfl, by simp [RawPoint.endOff]⟩
+          split_ifs at hr with ht0 ht1 <;> cases hr
+          · exact ⟨false, rfl, by simp [RawPoint.endOff, ht0]⟩
+          · exact ⟨true, rfl, by simp [RawPoint.endOff, ht1]⟩
       obtain ⟨bp, hvp, hop⟩ := end_of_some p hp
       obtain ⟨bq, hvq, hoq⟩ := end_of_some q hq
       refine le_antisymm ?_ (rawDist_nonneg W p q)
@@ -919,15 +912,10 @@ private theorem rel_of_rawDist_eq_zero [Finite V] (W : WeightedGraph V)
       cases r with
       | vertex v => cases br <;> rfl
       | edge d t =>
-        have hpos := W.dart_weight_pos d
-        cases br
-        · simp only [RawPoint.endOff, mul_eq_zero] at hbr
-          have ht : t = 0 := Subtype.ext (hbr.resolve_right hpos.ne')
-          simp [RawPoint.toVertex?, RawPoint.endV, ht]
-        · simp only [RawPoint.endOff, mul_eq_zero] at hbr
-          have ht : (1 : ℝ) - t = 0 := hbr.resolve_right hpos.ne'
-          have ht1 : t = 1 := Subtype.ext (by change (t : ℝ) = 1; linarith)
-          simp [RawPoint.toVertex?, RawPoint.endV, ht1]
+        cases br <;>
+          simp only [RawPoint.endOff, mul_eq_zero, (W.dart_weight_pos d).ne', or_false] at hbr
+        · simp [RawPoint.toVertex?, RawPoint.endV, (Subtype.ext hbr : t = 0)]
+        · simp [RawPoint.toVertex?, RawPoint.endV, (Subtype.ext (sub_eq_zero.mp hbr).symm : t = 1)]
     have haV := toVertex_of_endOff a ba h1
     have hbV := toVertex_of_endOff b bb h3
     simp only [rawRel, haV, hbV, heqV]
