@@ -59,6 +59,15 @@ positions remain data; invalid guards execute the existing whole-State identity 
 @[expose] def transposeSchedule (I : State Rel) (js : List ℕ) : State Rel :=
   js.foldl (fun J j => transposeAdjacent g w J j) I
 
+private theorem transposeSchedule_snoc (I : State Rel) (js : List ℕ) (j : ℕ) :
+    transposeSchedule g w I (js ++ [j]) = transposeAdjacent g w (transposeSchedule g w I js) j := by
+  simp only [transposeSchedule, List.foldl_append, List.foldl_cons, List.foldl_nil]
+
+private theorem countP_snoc (n : ℕ) (js : List ℕ) (j : ℕ) :
+    (js ++ [j]).countP (fun t => decide (t + 1 < n)) =
+      js.countP (fun t => decide (t + 1 < n)) + if j + 1 < n then 1 else 0 := by
+  simp
+
 /-- An all-invalid schedule preserves the entire input, including malformed surplus data. -/
 theorem transposeSchedule_eq_self (I : State Rel) (js : List ℕ)
     (h : ∀ j ∈ js, I.ports.length ≤ j + 1) : transposeSchedule g w I js = I := by
@@ -74,7 +83,7 @@ theorem accepted_transposeSchedule (I : State Rel) (js : List ℕ) (h : I.Accept
   induction js using List.reverseRecOn with
   | nil => exact h
   | append_singleton js j ih =>
-    rw [transposeSchedule, List.foldl_append, List.foldl_cons, List.foldl_nil]
+    rw [transposeSchedule_snoc]
     exact accepted_transposeAdjacent g w _ j ih
 
 /-- Exact arity is preserved for every raw schedule, independently of semantics. -/
@@ -83,8 +92,7 @@ theorem wellFormed_transposeSchedule_iff (I : State Rel) (js : List ℕ) :
   induction js using List.reverseRecOn with
   | nil => rfl
   | append_singleton js j ih =>
-    rw [transposeSchedule, List.foldl_append, List.foldl_cons, List.foldl_nil,
-      wellFormed_transposeAdjacent_iff]
+    rw [transposeSchedule_snoc, wellFormed_transposeAdjacent_iff]
     exact ih
 
 /-- The exact component recurrence counts only successful guards. The symbol word keeps
@@ -101,15 +109,11 @@ theorem components_transposeSchedule (I : State Rel) (js : List ℕ) :
   | nil => simp [transposeSchedule]
   | append_singleton js j ih =>
     dsimp only at ih ⊢
-    rw [transposeSchedule, List.foldl_append, List.foldl_cons, List.foldl_nil]
-    rw [← transposeSchedule]
+    rw [transposeSchedule_snoc]
     have hc := counts_transposeAdjacent g w (transposeSchedule g w I js) j
     have hr := relations_transposeAdjacent g w (transposeSchedule g w I js) j
     rw [ih.2.2.1] at hc hr
-    have hk : (js++[j]).countP (fun t => decide (t+1<I.ports.length)) =
-        js.countP (fun t => decide (t+1<I.ports.length)) +
-          (if j+1<I.ports.length then 1 else 0) := by simp
-    rw [hk]
+    rw [countP_snoc]
     by_cases h : j+1<I.ports.length <;>
       simp only [h, ↓reduceIte, add_zero] at *
     · rcases hc with ⟨hq, hm, hp⟩
@@ -182,9 +186,7 @@ theorem recover_transposeSchedule (I : State Rel) (js : List ℕ) (τ : ℕ → 
     let J := transposeSchedule g w I js
     have hp := (components_transposeSchedule g w I js).2.2.1
     let e := if j+1<I.ports.length then 1 else 0
-    have hstep := recover_step g w J j τ (by
-      simpa only [J, transposeSchedule, List.foldl_append, List.foldl_cons,
-      List.foldl_nil] using ht)
+    have hstep := recover_step g w J j τ (by rwa [transposeSchedule_snoc] at ht)
     rw [hp] at hstep
     have hprior := ih (fun z => τ (2^e*z)) hstep.1
     have hk : (js++[j]).countP (fun t => decide (t+1<I.ports.length)) =
@@ -197,8 +199,7 @@ theorem recover_transposeSchedule (I : State Rel) (js : List ℕ) (τ : ℕ → 
       ac_rfl
     refine ⟨?_, ?_⟩
     · simpa only [hass] using hprior.1
-    · rw [transposeSchedule, List.foldl_append, List.foldl_cons, List.foldl_nil,
-        ← transposeSchedule]
+    · rw [transposeSchedule_snoc]
       change (transposeAdjacent g w J j).ports.map τ = _
       rw [hstep.2, hprior.2, List.foldl_append, List.foldl_cons, List.foldl_nil]
       simp only [hass]
@@ -256,8 +257,7 @@ theorem eval_transposeSchedule_iff (I : State Rel) (js : List ℕ) (σ : ℕ →
         have hp := (components_transposeSchedule g w I js).2.2.1
         rw [hp] at he
         refine ⟨τ, ?_, ?_⟩
-        · simpa only [J, transposeSchedule, List.foldl_append, List.foldl_cons,
-      List.foldl_nil] using ht
+        · rwa [transposeSchedule_snoc]
         intro z
         have h := (he (2^(js.countP (fun t => decide (t+1<I.ports.length)))*z)).trans (ha z)
         simpa [List.countP_append, pow_add, Nat.mul_assoc, Nat.mul_comm, Nat.mul_left_comm]
@@ -304,21 +304,15 @@ theorem name_width_transposeSchedule_le (I : State Rel) (js : List ℕ) (W : ℕ
           simpa only [List.append_assoc, List.cons_append, List.nil_append] using hs.symm
         exact congrArg (fun ps => State.mk J.body ps J.rotation) hps
       rw [← hJ, hlen] at hb
-      have hz' := hb z (by simpa only [J, transposeSchedule, List.foldl_append,
-        List.foldl_cons, List.foldl_nil] using hz)
-      have hk : (js++[j]).countP (fun t => decide (t+1<I.ports.length)) =
-          js.countP (fun t => decide (t+1<I.ports.length)) + 1 := by simp [h]
-      rw [hk]
+      have hz' := hb z (by rwa [transposeSchedule_snoc] at hz)
+      rw [countP_snoc, ite_eq_left h]
       exact hz'.trans (by omega)
     · intro z hz
       have hbad : J.ports.length ≤ j+1 := by rw [hp]; omega
       have heq : transposeSchedule g w I (js++[j]) = J := by
-        rw [transposeSchedule, List.foldl_append, List.foldl_cons, List.foldl_nil,
-          ← transposeSchedule, transposeAdjacent_invalid g w J j hbad]
+        rw [transposeSchedule_snoc, transposeAdjacent_invalid g w J j hbad]
       rw [heq] at hz
-      have hk : (js++[j]).countP (fun t => decide (t+1<I.ports.length)) =
-          js.countP (fun t => decide (t+1<I.ports.length)) := by simp [h]
-      rw [hk]
+      rw [countP_snoc, ite_eq_right h, add_zero]
       exact ih z hz
 
 private theorem prefix_storage (I : State Rel) (js : List ℕ) :
@@ -340,13 +334,10 @@ private theorem prefix_storage (I : State Rel) (js : List ℕ) :
       have hs := storage_transposeAdjacent g w J j hgood
       have hn := counts_transposeAdjacent g w J j
       simp only [ite_eq_left hgood, one_mul] at hn
-      have hk : (js++[j]).countP (fun t => decide (t+1<I.ports.length)) =
-          js.countP (fun t => decide (t+1<I.ports.length)) + 1 := by simp [h]
       dsimp only
-      rw [hk]
+      rw [countP_snoc, ite_eq_left h]
       refine ⟨by omega, fun _ => ?_⟩
-      rw [transposeSchedule, List.foldl_append, List.foldl_cons, List.foldl_nil,
-        ← transposeSchedule]
+      rw [transposeSchedule_snoc]
       change (transposeAdjacent g w J j).rotation.successor.length =
         2 * ((transposeAdjacent g w J j).body.occurrences.length + I.ports.length) ∧
         ∀ v ∈ (transposeAdjacent g w J j).rotation.successor,
@@ -354,12 +345,9 @@ private theorem prefix_storage (I : State Rel) (js : List ℕ) :
             I.ports.length + 4)).size
       simpa only [hn.2.1, hp] using hs
     · have hbad : J.ports.length ≤ j+1 := by rw [hp]; omega
-      have hk : (js++[j]).countP (fun t => decide (t+1<I.ports.length)) =
-          js.countP (fun t => decide (t+1<I.ports.length)) := by simp [h]
       dsimp only
-      rw [hk]
-      rw [transposeSchedule, List.foldl_append, List.foldl_cons, List.foldl_nil,
-        ← transposeSchedule, transposeAdjacent_invalid g w J j hbad]
+      rw [countP_snoc, ite_eq_right h, add_zero, transposeSchedule_snoc,
+        transposeAdjacent_invalid g w J j hbad]
       exact ih
 
 private def symbolMass (encRel : Rel ↪ List Bool) (F : CSP Rel ℕ) : ℕ :=

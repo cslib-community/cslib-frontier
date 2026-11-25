@@ -346,14 +346,11 @@ private theorem isMergedCert_mem_PPolyOn (hNP : NP encBits ⊆ PPolyOn encBits) 
   have hq1 : ComputableInPolyTime (fun q : MergeInput × List Bool => q.1) encQ encMerge :=
     fst encMerge encBits
   have hn : ComputableInPolyTime (fun q : MergeInput × List Bool => q.1.header.arity)
-      encQ encUnary := by
-    fun_prop
+      encQ encUnary := by fun_prop
   have hs : ComputableInPolyTime (fun q : MergeInput × List Bool => q.1.header.size)
-      encQ encUnary := by
-    fun_prop
+      encQ encUnary := by fun_prop
   have hp : ComputableInPolyTime (fun q : MergeInput × List Bool => q.1.header.subcube)
-      encQ encBits := by
-    fun_prop
+      encQ encBits := by fun_prop
   have hw₀ := computableInPolyTime_mergeCert₀.comp' hq1
   have hw₁ := computableInPolyTime_mergeCert₁.comp' hq1
   have hcert := computableInPolyTime_mergeCertLength.comp' hq1
@@ -440,8 +437,7 @@ theorem circuitMinMergeLanguage_mem_PPolyOn (hNP : NP encBits ⊆ PPolyOn encBit
       bitsGetDWithInput (by fun_prop) computableInPolyTime_mergeStateWidth false
     simpa [Bool.and_eq_true] using PPolyOn.of_computableInPolyTime (bool_and' hok₀ hok₁)
   have hj_q : ComputableInPolyTime
-      (fun q : MergeInput × List Bool => q.1.header.bitIndex) encQ encUnary := by
-    fun_prop
+      (fun q : MergeInput × List Bool => q.1.header.bitIndex) encQ encUnary := by fun_prop
   have hbit_q : {q : MergeInput × List Bool |
       (q.1.header.bitIndex == 0 || q.2.getD (q.1.header.bitIndex - 1) false) = true} ∈
       PPolyOn encQ := by
@@ -579,18 +575,11 @@ private theorem drop_one_ofFn_subcubeState_eq {n s : ℕ} {f : BooleanFunction n
   refine List.ext_getElem hdlen fun i h1 h2 => ?_
   rw [List.getElem_drop, List.getElem_ofFn, Bool.eq_iff_iff, subcubeState_eq_true_iff]
   have hi : i < w.length := h2
-  have h1i : ((1 + i : ℕ) == 0) = false := by
-    rw [beq_eq_false_iff_ne]
-    omega
-  have hsub : 1 + i - 1 = i := by omega
-  simp only [h1i, Bool.false_or, hsub]
-  constructor
-  · rintro ⟨w', hw', hbit⟩
-    obtain rfl : w' = w := isMinSubcubeCert_unique hw' hw
-    rwa [List.getD_eq_getElem _ _ hi] at hbit
-  · intro hbit
-    refine ⟨w, hw, ?_⟩
-    rwa [List.getD_eq_getElem _ _ hi]
+  simp only [show ((1 + i : ℕ) == 0) = false from beq_eq_false_iff_ne.2 (by omega), Bool.false_or,
+    show 1 + i - 1 = i by omega]
+  refine ⟨fun ⟨w', hw', hbit⟩ => ?_, fun hbit => ⟨w, hw, by rwa [List.getD_eq_getElem _ _ hi]⟩⟩
+  obtain rfl : w' = w := isMinSubcubeCert_unique hw' hw
+  rwa [List.getD_eq_getElem _ _ hi] at hbit
 
 private theorem mergeOk₀_append_subcubeState (n s : ℕ) (f : BooleanFunction n) (p : List Bool)
     (j : ℕ) :
@@ -726,22 +715,16 @@ private theorem complexity_mergeVec_le (L : Language Bool) (n s : ℕ) (p : List
 private theorem complexity_single_comp_proj_le {m : ℕ} (g : Bool → Bool) (i₀ : Fin m) :
     complexity interpretation (single fun x : BitString m => g (x i₀)) ≤ 1 := by
   cases h0 : g false <;> cases h1 : g true
-  · have h : (fun x : BitString m => g (x i₀)) = fun _ => false := by
-      funext x; cases x i₀ <;> assumption
-    rw [h]
-    exact (Synthesis.of_forall_eq_const (s := inputs m) false (fun _ => rfl)).complexity_le
-  · have h : (fun x : BitString m => g (x i₀)) = fun x => x i₀ := by
-      funext x; cases x i₀ <;> assumption
-    rw [h, complexity_single_proj]
+  · exact (Synthesis.of_forall_eq_const (s := inputs m) false fun x => by
+      cases x i₀ <;> assumption).complexity_le
+  · rw [show (fun x : BitString m => g (x i₀)) = fun x => x i₀ from
+      funext fun x => by cases x i₀ <;> assumption, complexity_single_proj]
     omega
-  · have h : (fun x : BitString m => g (x i₀)) = fun x => !(x i₀) := by
-      funext x; cases x i₀ <;> simp [h0, h1]
-    rw [h]
+  · rw [show (fun x : BitString m => g (x i₀)) = fun x => !(x i₀) from
+      funext fun x => by cases x i₀ <;> simp [h0, h1]]
     simpa [complexity_single_proj] using complexity_not_le (fun x : BitString m => x i₀)
-  · have h : (fun x : BitString m => g (x i₀)) = fun _ => true := by
-      funext x; cases x i₀ <;> assumption
-    rw [h]
-    exact (Synthesis.of_forall_eq_const (s := inputs m) true (fun _ => rfl)).complexity_le
+  · exact (Synthesis.of_forall_eq_const (s := inputs m) true fun x => by
+      cases x i₀ <;> assumption).complexity_le
 
 private theorem isSubcubeCert_of_length_eq {n s : ℕ} {f : BooleanFunction n} {p w : List Bool}
     (hp : p.length = n) :
@@ -1014,11 +997,8 @@ theorem P_ne_NP_of_yesSet_hard
     (h : ∀ c > 0, ∃ (s : ℕ → ℕ) (n : ℕ),
       2 ^ n * c * (n + s n + 1) ^ c <
         complexity interpretation (single ((GapMCSP.yesSet s).slice (2 ^ n)))) :
-    P encBits ≠ NP encBits := by
-  intro hEq
-  refine not_NP_subset_PPoly_of_yesSet_hard h ?_
-  rw [← hEq]
-  exact P_subset_PPolyOn
+    P encBits ≠ NP encBits :=
+  fun hEq => not_NP_subset_PPoly_of_yesSet_hard h (hEq ▸ P_subset_PPolyOn)
 
 /-- **Hardness magnification for `MCSP[n ^ k]` against `NP ⊆ P/poly`**
 [McKayMurrayWilliams2019, Theorem 1.4, third bullet]: if for some `k` and every `c > 0`, there is
@@ -1048,10 +1028,7 @@ theorem P_ne_NP_of_yesSet_pow_hard (k : ℕ)
     (h : ∀ c > 0, ∃ n : ℕ,
       2 ^ n * c * (n + 1) ^ c <
         complexity interpretation (single ((GapMCSP.yesSet fun m => m ^ k).slice (2 ^ n)))) :
-    P encBits ≠ NP encBits := by
-  intro hEq
-  refine not_NP_subset_PPoly_of_yesSet_pow_hard k h ?_
-  rw [← hEq]
-  exact P_subset_PPolyOn
+    P encBits ≠ NP encBits :=
+  fun hEq => not_NP_subset_PPoly_of_yesSet_pow_hard k h (hEq ▸ P_subset_PPolyOn)
 
 end Cslib.MCSP

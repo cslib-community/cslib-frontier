@@ -197,9 +197,7 @@ theorem exists_sequentiallyConsistent_not_linearizable :
       have ht := congrArg List.length (heqS true)
       rw [History.procSubhistory_flatMap_toEvents, History.length_flatMap_toEvents] at hf ht
       have hp_sum := filter_proc_bool_length_sum cs
-      have hf_val : (History.procSubhistory (History.complete H) false).length = 2 := rfl
-      have ht_val : (History.procSubhistory (History.complete H) true).length = 2 := rfl
-      rw [hf_val] at hf; rw [ht_val] at ht
+      change 2 = _ at hf ht
       omega
     match cs, hlen_cs with
     | [c₀, c₁], _ =>
@@ -276,10 +274,7 @@ theorem exists_obj_sequentiallyConsistent_not_global :
     refine ⟨History.objSubhistory H x, History.IsExtension.refl (hwfH.objSubhistory x),
       Sx, ⟨rfl, rfl, rfl, rfl, trivial⟩, ?_, ?_⟩
     · intro y; cases x <;> cases y <;> (unfold registerSeqSpec; rw [SeqSpec.mem_ofMachine_allowed])
-      · exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, trivial⟩
-      · trivial
-      · trivial
-      · exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, trivial⟩
+        <;> first | trivial | exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, trivial⟩
     · intro p; cases x <;> cases p <;> rfl
   · rintro ⟨H', ⟨R, hrespR, rfl, hwf'⟩, S, hseqS, hlegS, heqS⟩
     have hR_nil : R = [] :=
@@ -321,9 +316,8 @@ theorem exists_obj_sequentiallyConsistent_not_global :
       have hb := hc_cnt b
       dsimp only [countProcCalls] at hb ⊢
       omega
-    have hj_ord : ∀ b {j0 j1} (hj0 : j0 < cs.length) (hj1 : j1 < cs.length),
-        opIdAt cs j0 hj0 = ⟨b, 0⟩ → opIdAt cs j1 hj1 = ⟨b, 1⟩ → j0 < j1 := by
-      intro b j0 j1 hj0 hj1 hop0 hop1
+    have hj_ord b {j0 j1} (hj0 : j0 < cs.length) (hj1 : j1 < cs.length)
+        (hop0 : opIdAt cs j0 hj0 = ⟨b, 0⟩) (hop1 : opIdAt cs j1 hj1 = ⟨b, 1⟩) : j0 < j1 := by
       have hpr := History.prec_of_same_proc_lt (e₀ := ⟨b, 0⟩) (e₁ := ⟨b, 1⟩) rfl
         (by dsimp only; omega) (hc_S b 0 (by omega)) (hc_S b 1 (by omega))
       rw [← hop0, ← hop1] at hpr

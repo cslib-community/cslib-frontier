@@ -452,57 +452,45 @@ private theorem bssStateAt_length (xl : List (BSSAction P V)) :
     bssStateAt xl xl.length = bssRun (bssInit P V) xl := by
   simp only [bssStateAt, List.take_length]
 
+private theorem bssAppendSingleton_at (xl : List (BSSAction P V)) (act : BSSAction P V)
+    {i : ℕ} (hi : i < (xl ++ [act]).length) :
+    (∃ hilt : i < xl.length,
+      bssStateAt (xl ++ [act]) i = bssStateAt xl i ∧ (xl ++ [act])[i] = xl[i]) ∨
+    (i = xl.length ∧
+      bssStateAt (xl ++ [act]) i = bssRun (bssInit P V) xl ∧ (xl ++ [act])[i] = act) := by
+  simp only [List.length_append, List.length_singleton] at hi
+  by_cases hlt : i < xl.length
+  · exact Or.inl ⟨hlt, bssStateAt_append_of_le xl act (Nat.le_of_lt hlt),
+      List.getElem_append_left hlt⟩
+  · have heq : i = xl.length := by omega
+    subst heq
+    refine Or.inr ⟨rfl, ?_, ?_⟩
+    · rw [bssStateAt_append_of_le xl act (le_refl _), bssStateAt_length]
+    · simp [List.getElem_append_right (le_refl _)]
+
+private theorem broadcastIn_append (xl : List (BSSAction P V)) (act : BSSAction P V) :
+    BroadcastIn (xl ++ [act]) =
+      BroadcastIn xl ∪ {b | emittedPacket (bssRun (bssInit P V) xl) act = some b} := by
+  ext b
+  refine ⟨fun ⟨i, hi, hem⟩ => ?_, ?_⟩
+  · rcases bssAppendSingleton_at xl act hi with ⟨hlt, hst, hget⟩ | ⟨_, hst, hget⟩
+    · exact .inl ⟨i, hlt, by rwa [hst, hget] at hem⟩
+    · exact .inr (by rwa [hst, hget] at hem)
+  · rintro (⟨i, hi, hem⟩ | hem)
+    · refine ⟨i, by simp; omega, ?_⟩
+      rwa [bssStateAt_append_of_le xl act hi.le, List.getElem_append_left hi]
+    · exact ⟨xl.length, by simp, by simpa [bssStateAt_append_of_le, bssStateAt_length] using hem⟩
+
 private theorem broadcastIn_append_none {xl : List (BSSAction P V)} {act : BSSAction P V}
     (hnone : emittedPacket (bssRun (bssInit P V) xl) act = none) :
     BroadcastIn (xl ++ [act]) = BroadcastIn xl := by
-  ext b
-  simp only [BroadcastIn, Set.mem_ofPred, List.length_append, List.length_singleton]
-  constructor
-  · rintro ⟨i, hi, hem⟩
-    by_cases hlt : i < xl.length
-    · rw [bssStateAt_append_of_le xl act (Nat.le_of_lt hlt), List.getElem_append_left hlt] at hem
-      exact ⟨i, hlt, hem⟩
-    · have heq : i = xl.length := by omega
-      subst heq
-      rw [bssStateAt_append_of_le xl act (le_refl _), bssStateAt_length,
-        List.getElem_append_right (le_refl _)] at hem
-      simp only [Nat.sub_self, List.getElem_cons_zero] at hem
-      rw [hnone] at hem
-      cases hem
-  · rintro ⟨i, hi, hem⟩
-    refine ⟨i, by omega, ?_⟩
-    rw [bssStateAt_append_of_le xl act (Nat.le_of_lt hi), List.getElem_append_left hi]
-    exact hem
+  simp [broadcastIn_append, hnone]
 
 private theorem broadcastIn_append_some {xl : List (BSSAction P V)} {act : BSSAction P V}
     {pkt : Packet P V} (hsome : emittedPacket (bssRun (bssInit P V) xl) act = some pkt) :
     BroadcastIn (xl ++ [act]) = insert pkt (BroadcastIn xl) := by
-  ext b
-  simp only [BroadcastIn, Set.mem_ofPred, Set.mem_insert_iff, List.length_append,
-    List.length_singleton]
-  constructor
-  · rintro ⟨i, hi, hem⟩
-    by_cases hlt : i < xl.length
-    · right
-      rw [bssStateAt_append_of_le xl act (Nat.le_of_lt hlt), List.getElem_append_left hlt] at hem
-      exact ⟨i, hlt, hem⟩
-    · left
-      have heq : i = xl.length := by omega
-      subst heq
-      rw [bssStateAt_append_of_le xl act (le_refl _), bssStateAt_length,
-        List.getElem_append_right (le_refl _)] at hem
-      simp only [Nat.sub_self, List.getElem_cons_zero] at hem
-      rw [hsome] at hem
-      exact (Option.some.inj hem).symm
-  · rintro (rfl | ⟨i, hi, hem⟩)
-    · refine ⟨xl.length, by omega, ?_⟩
-      rw [bssStateAt_append_of_le xl act (le_refl _), bssStateAt_length,
-        List.getElem_append_right (le_refl _)]
-      simp only [Nat.sub_self, List.getElem_cons_zero]
-      exact hsome
-    · refine ⟨i, by omega, ?_⟩
-      rw [bssStateAt_append_of_le xl act (Nat.le_of_lt hi), List.getElem_append_left hi]
-      exact hem
+  rw [broadcastIn_append, hsome, Set.insert_eq, Set.union_comm]
+  simp
 
 /-- One step of `bssStep` never decreases any coordinate of any process's vector clock. -/
 private theorem bssStep_vt_le (s : BSSState P V) (act : BSSAction P V) (q : P) :
@@ -625,22 +613,6 @@ private theorem bssValidTrace_append_iff (F : Set P) (s₀ : BSSState P V)
   | cons a xl ih =>
     simp only [List.cons_append, bssValidTrace, bssRun, List.foldl_cons]
     exact (and_congr_right fun _ => ih (bssStep s₀ a)).trans and_assoc.symm
-
-private theorem bssAppendSingleton_at (xl : List (BSSAction P V)) (act : BSSAction P V)
-    {i : ℕ} (hi : i < (xl ++ [act]).length) :
-    (∃ hilt : i < xl.length,
-      bssStateAt (xl ++ [act]) i = bssStateAt xl i ∧ (xl ++ [act])[i] = xl[i]) ∨
-    (i = xl.length ∧
-      bssStateAt (xl ++ [act]) i = bssRun (bssInit P V) xl ∧ (xl ++ [act])[i] = act) := by
-  simp only [List.length_append, List.length_singleton] at hi
-  by_cases hlt : i < xl.length
-  · exact Or.inl ⟨hlt, bssStateAt_append_of_le xl act (Nat.le_of_lt hlt),
-      List.getElem_append_left hlt⟩
-  · have heq : i = xl.length := by omega
-    subst heq
-    refine Or.inr ⟨rfl, ?_, ?_⟩
-    · rw [bssStateAt_append_of_le xl act (le_refl _), bssStateAt_length]
-    · simp [List.getElem_append_right (le_refl _)]
 
 private theorem nonBroadcast_emitted_spec {F : Set P} {xl : List (BSSAction P V)}
     {s : BSSState P V} (hinv : BSSInv F xl s) {act : BSSAction P V}
@@ -926,24 +898,12 @@ private theorem bssInv_of_validTrace {F : Set P} {xl : List (BSSAction P V)}
       exact bssInv_of_vt_delivered_eq hinv rfl (fun _ => rfl) (fun _ => rfl)
         hinv.halted_mem hinv.inFlight_wf hinv.pending_wf
 
-/-! ### Integrity and duplicate freedom -/
+private theorem bssInv_of_mTr {F : Set P} {xl : List (BSSAction P V)} {s : BSSState P V}
+    (hmtr : (bssLTS F).MTr (bssInit P V) xl s) : BSSInv F xl s := by
+  obtain ⟨hv, rfl⟩ := (bssLTS_mTr_iff F (bssInit P V) xl s).mp hmtr
+  exact bssInv_of_validTrace hv
 
-/-- Broadcast packets along a valid trace are uniquely determined by `(sender, ts sender)`. -/
-private theorem eq_of_sender_eq_of_ts_sender_eq {F : Set P} {xl : List (BSSAction P V)}
-    {s : BSSState P V}
-    (hmtr : (bssLTS F).MTr (bssInit P V) xl s)
-    {b₁ b₂ : Packet P V} (hb₁ : b₁ ∈ BroadcastIn xl) (hb₂ : b₂ ∈ BroadcastIn xl)
-    (hsend : b₁.sender = b₂.sender) (hts : b₁.ts b₁.sender = b₂.ts b₂.sender) :
-    b₁ = b₂ := by
-  obtain ⟨hv, _⟩ := (bssLTS_mTr_iff F (bssInit P V) xl s).mp hmtr
-  have hinv := bssInv_of_validTrace hv
-  obtain ⟨i, hi, hbi⟩ := hb₁
-  obtain ⟨j, hj, hbj⟩ := hb₂
-  rcases lt_trichotomy i j with hij | rfl | hji
-  · exact absurd hts (ne_of_lt (hinv.same_sender_lt i j hi hj b₁ b₂ hij hbi hbj hsend).2)
-  · rw [hbi] at hbj
-    exact Option.some.inj hbj
-  · exact absurd hts.symm (ne_of_lt (hinv.same_sender_lt j i hj hi b₂ b₁ hji hbj hbi hsend.symm).2)
+/-! ### Integrity and duplicate freedom -/
 
 /-- Single-group single-hop `CBCAST` uniform-integrity step (toward #7297, after
 [BirmanSchiperStephenson1991], §5.1, p. 281 and [HadzilacosToueg1994], §3.1, p. 10 & §3.8, p. 14):
@@ -952,9 +912,8 @@ in any execution of `bssLTS F` (for arbitrary `F : Set P`), every packet deliver
 theorem bss_integrity {F : Set P} {xl : List (BSSAction P V)} {s : BSSState P V}
     (hmtr : (bssLTS F).MTr (bssInit P V) xl s) (q : P) {pkt : Packet P V}
     (hdeliv : pkt ∈ (s.proc q).delivered) :
-    pkt ∈ BroadcastIn xl := by
-  obtain ⟨hv, rfl⟩ := (bssLTS_mTr_iff F (bssInit P V) xl s).mp hmtr
-  exact (bssInv_of_validTrace hv).delivered_mem q pkt hdeliv
+    pkt ∈ BroadcastIn xl :=
+  (bssInv_of_mTr hmtr).delivered_mem q pkt hdeliv
 
 /-- Single-group single-hop `CBCAST` duplicate-freedom step (toward #7297, after
 [BirmanSchiperStephenson1991], §5.1, p. 281 and [HadzilacosToueg1994], §3.1, p. 10 & §3.8, p. 14):
@@ -962,9 +921,8 @@ in any reachable state of `bssLTS F` (for arbitrary `F : Set P`), every process 
 `(s.proc q).delivered` contains no duplicate packets. -/
 theorem bss_no_duplicates {F : Set P} {xl : List (BSSAction P V)} {s : BSSState P V}
     (hmtr : (bssLTS F).MTr (bssInit P V) xl s) (q : P) :
-    (s.proc q).delivered.Nodup := by
-  obtain ⟨hv, rfl⟩ := (bssLTS_mTr_iff F (bssInit P V) xl s).mp hmtr
-  exact (bssInv_of_validTrace hv).delivered_nodup q
+    (s.proc q).delivered.Nodup :=
+  (bssInv_of_mTr hmtr).delivered_nodup q
 
 /-! ### Vector-clock characterization and causal delivery order -/
 
@@ -986,6 +944,23 @@ private theorem broadcastIn_take_subset (xl : List (BSSAction P V)) (j : ℕ) :
   have htake_eq : (xl.take j).take u = xl.take u :=
     List.take_take.trans (by simp [Nat.min_eq_left (by omega : u ≤ j)])
   exact ⟨u, by omega, by simpa [bssStateAt, htake_eq, List.getElem_take] using hbu⟩
+
+/-- If `q`'s clock after the prefix `xl.take j` covers the sender coordinate of a broadcast packet,
+then `q` had delivered that packet by then. -/
+private theorem mem_delivered_take_of_ts_le {F : Set P} {xl : List (BSSAction P V)}
+    (hv : bssValidTrace F (bssInit P V) xl) {pkt : Packet P V} (hpkt : pkt ∈ BroadcastIn xl)
+    (j : ℕ) {q : P} (hle : pkt.ts pkt.sender ≤ ((bssStateAt xl j).proc q).vt pkt.sender) :
+    pkt ∈ ((bssStateAt xl j).proc q).delivered := by
+  have hinv := bssInv_of_validTrace hv
+  have hinv_j := bssInv_of_validTrace (validTrace_take hv j)
+  obtain ⟨b, hb, hs, ht⟩ :=
+    hinv_j.exists_delivered_of_le_vt q _ _ (hinv.bcast_sender_bounds pkt hpkt).1 hle
+  obtain ⟨i, hi, hbi⟩ := broadcastIn_take_subset xl j (hinv_j.delivered_mem q b hb)
+  obtain ⟨i', hi', hpi⟩ := hpkt
+  rcases lt_trichotomy i i' with h | rfl | h
+  · exact ((hinv.same_sender_lt i i' hi hi' b pkt h hbi hpi hs).2.ne (hs.symm ▸ ht)).elim
+  · cases hbi.symm.trans hpi; exact hb
+  · exact ((hinv.same_sender_lt i' i hi' hi pkt b h hpi hbi hs.symm).2.ne' (hs.symm ▸ ht)).elim
 
 private theorem same_sender_coord_lt_of_ts_lt {F : Set P} {xl : List (BSSAction P V)}
     (hinv : BSSInv F xl (bssRun (bssInit P V) xl)) {b₁ b₂ : Packet P V}
@@ -1021,37 +996,21 @@ theorem bss_causalPrec_iff_ts_lt {F : Set P} {xl : List (BSSAction P V)} {s : BS
     CausalPrec xl b₁ b₂ ↔ b₁.ts < b₂.ts := by
   obtain ⟨hv, rfl⟩ := (bssLTS_mTr_iff F (bssInit P V) xl s).mp hmtr
   have hinv := bssInv_of_validTrace hv
-  constructor
-  · intro hprec
-    clear hb₁ hb₂
+  refine ⟨fun hprec => ?_, fun hlt => ?_⟩
+  · clear hb₁ hb₂
     induction hprec with
     | single hstep => exact causalStep_ts_lt hv hstep
     | tail _ hstep ih => exact lt_trans ih (causalStep_ts_lt hv hstep)
-  · intro hlt
-    by_cases hsend : b₁.sender = b₂.sender
-    · obtain ⟨i, hi, hbi⟩ := hb₁
-      obtain ⟨j, hj, hbj⟩ := hb₂
-      rcases lt_trichotomy i j with hij | rfl | hji
-      · exact Relation.TransGen.single (Or.inl ⟨i, j, hi, hj, hij, hbi, hbj, hsend⟩)
-      · rw [hbi] at hbj
-        cases Option.some.inj hbj
-        exact absurd hlt (lt_irrefl _)
-      · exact absurd hlt (lt_asymm (hinv.same_sender_lt j i hj hi b₂ b₁ hji hbj hbi hsend.symm).1)
-    · obtain ⟨j, hj, hbj⟩ := hb₂
-      have hb₂_spec := hinv.bcast_emitted_spec j hj b₂ hbj
-      have hk1 : 1 ≤ b₁.ts b₁.sender := (hinv.bcast_sender_bounds b₁ hb₁).1
-      have hkle : b₁.ts b₁.sender ≤ ((bssStateAt xl j).proc b₂.sender).vt b₁.sender := by
-        have hle_coord : b₁.ts b₁.sender ≤ b₂.ts b₁.sender := (le_of_lt hlt) b₁.sender
-        rwa [hb₂_spec, bssNextTimestamp, Function.update_of_ne hsend] at hle_coord
-      have hinv_j := bssInv_of_validTrace (validTrace_take hv j)
-      obtain ⟨b', hb'_del, hb'_send, hb'_ts⟩ :=
-        hinv_j.exists_delivered_of_le_vt b₂.sender b₁.sender (b₁.ts b₁.sender) hk1 hkle
-      have hb'_mem : b' ∈ BroadcastIn xl :=
-        broadcastIn_take_subset xl j (hinv_j.delivered_mem b₂.sender b' hb'_del)
-      have hb'_eq : b' = b₁ :=
-        eq_of_sender_eq_of_ts_sender_eq hmtr hb'_mem hb₁ hb'_send (hb'_send.symm ▸ hb'_ts)
-      subst hb'_eq
-      exact Relation.TransGen.single (Or.inr ⟨hb₁, j, hj, hbj, hb'_del⟩)
+  obtain ⟨j, hj, hbj⟩ := hb₂
+  by_cases hsend : b₁.sender = b₂.sender
+  · obtain ⟨i, hi, hbi⟩ := hb₁
+    rcases lt_trichotomy i j with hij | rfl | hji
+    · exact .single (Or.inl ⟨i, j, hi, hj, hij, hbi, hbj, hsend⟩)
+    · cases hbi.symm.trans hbj; exact (lt_irrefl _ hlt).elim
+    · exact absurd hlt (lt_asymm (hinv.same_sender_lt j i hj hi b₂ b₁ hji hbj hbi hsend.symm).1)
+  refine .single (Or.inr ⟨hb₁, j, hj, hbj, mem_delivered_take_of_ts_le hv hb₁ j ?_⟩)
+  have h := hlt.le b₁.sender
+  rwa [hinv.bcast_emitted_spec j hj b₂ hbj, bssNextTimestamp, Function.update_of_ne hsend] at h
 
 private theorem local_bcast_ts_le_vt {F : Set P} {xl : List (BSSAction P V)}
     (hinv : BSSInv F xl (bssRun (bssInit P V) xl)) {k : ℕ} (hk_lt_len : k < xl.length)
@@ -1083,112 +1042,59 @@ theorem bss_causal_delivery {F : Set P} {xl : List (BSSAction P V)} {s : BSSStat
   have hts_lt : b₁.ts < b₂.ts := (bss_causalPrec_iff_ts_lt hmtr hb₁ hb₂).mp hprec
   obtain ⟨hv, rfl⟩ := (bssLTS_mTr_iff F (bssInit P V) xl s).mp hmtr
   have hinv := bssInv_of_validTrace hv
-  have hk1 : 1 ≤ b₁.ts b₁.sender := (hinv.bcast_sender_bounds b₁ hb₁).1
-  -- Consider the first prefix of `xl` after which `b₂ ∈ delivered` at `q`.
-  have hex : ∃ m ≤ xl.length, b₂ ∈ ((bssStateAt xl m).proc q).delivered :=
-    ⟨xl.length, le_refl _, by simpa [bssStateAt_length] using hdel₂⟩
-  let m := Nat.find hex
-  have hm_spec := Nat.find_spec hex
-  have hm_le : m ≤ xl.length := hm_spec.1
-  have hm_del₂ : b₂ ∈ ((bssStateAt xl m).proc q).delivered := hm_spec.2
-  have hm_pos : 0 < m := by
-    by_contra hm0
-    have hm_zero : m = 0 := by omega
-    rw [hm_zero] at hm_del₂
-    simp [bssStateAt, bssRun, bssInit] at hm_del₂
-  let k := m - 1
-  have hk_lt_m : k < m := by omega
+  -- Consider the step `k` of `xl` at which `b₂` enters `delivered` at `q`.
+  have hex : ∃ m, m ≤ xl.length ∧ b₂ ∈ ((bssStateAt xl m).proc q).delivered :=
+    ⟨xl.length, le_rfl, by rwa [bssStateAt_length]⟩
+  obtain ⟨hm_le, hm_del₂⟩ := Nat.find_spec hex
+  obtain ⟨k, hk⟩ : ∃ k, Nat.find hex = k + 1 := Nat.exists_eq_add_one_of_ne_zero fun h => by
+    rw [h] at hm_del₂; simp [bssStateAt, bssRun, bssInit] at hm_del₂
   have hk_lt_len : k < xl.length := by omega
-  have hnot_del₂_k : b₂ ∉ ((bssStateAt xl k).proc q).delivered := by
-    intro hcontra
-    exact Nat.find_min hex hk_lt_m ⟨by omega, hcontra⟩
-  have htake_succ : xl.take m = xl.take k ++ [xl[k]] := by
-    have hm_eq : m = k + 1 := by omega
-    rw [hm_eq, List.take_add_one, List.getElem?_eq_getElem hk_lt_len, Option.toList_some]
-  have hstate_m : bssStateAt xl m = bssStep (bssStateAt xl k) xl[k] := by
-    simp only [bssStateAt, htake_succ, bssRun_append]
-    rfl
-  have hv_m : bssValidTrace F (bssInit P V) (xl.take m) := validTrace_take hv m
-  rw [htake_succ] at hv_m
-  obtain ⟨hv_k, hen_k⟩ := (bssValidTrace_append_iff F (bssInit P V) (xl.take k) xl[k]).mp hv_m
-  have hinv_k := bssInv_of_validTrace hv_k
-  -- Show `b₁` was already delivered in `bssStateAt xl k`!
-  have hb₁_in_k : b₁ ∈ ((bssStateAt xl k).proc q).delivered := by
-    suffices hkle : b₁.ts b₁.sender ≤ ((bssStateAt xl k).proc q).vt b₁.sender by
-      obtain ⟨b', hb'_del, hb'_send, hb'_ts⟩ :=
-        hinv_k.exists_delivered_of_le_vt q b₁.sender (b₁.ts b₁.sender) hk1 hkle
-      have hb'_mem : b' ∈ BroadcastIn xl :=
-        broadcastIn_take_subset xl k (hinv_k.delivered_mem q b' hb'_del)
-      have hmtr_xl : (bssLTS F).MTr (bssInit P V) xl (bssRun (bssInit P V) xl) :=
-        (bssLTS_mTr_iff F (bssInit P V) xl _).mpr ⟨hv, rfl⟩
-      have hb'_eq : b' = b₁ :=
-        eq_of_sender_eq_of_ts_sender_eq hmtr_xl hb'_mem hb₁ hb'_send (hb'_send.symm ▸ hb'_ts)
-      rwa [← hb'_eq]
-    -- Case-split on the action `xl[k]` that caused `b₂` to enter `delivered` at `q`.
-    rw [hstate_m] at hm_del₂
+  have hnot_del₂_k : b₂ ∉ ((bssStateAt xl k).proc q).delivered := fun h =>
+    Nat.find_min hex (by omega : k < Nat.find hex) ⟨by omega, h⟩
+  have htake : xl.take (k + 1) = xl.take k ++ [xl[k]] := by
+    rw [List.take_add_one, List.getElem?_eq_getElem hk_lt_len, Option.toList_some]
+  have hen_k : BSSEnabled F (bssStateAt xl k) xl[k] :=
+    ((bssValidTrace_append_iff F _ _ _).mp (htake ▸ validTrace_take hv (k + 1))).2
+  replace hm_del₂ : b₂ ∈ ((bssStep (bssStateAt xl k) xl[k]).proc q).delivered := by
+    rw [hk] at hm_del₂
+    simpa only [bssStateAt, htake, bssRun, List.foldl_append, List.foldl_cons, List.foldl_nil]
+      using hm_del₂
+  -- `b₁` was already delivered at `q` before step `k`.
+  have hb₁_k : b₁ ∈ ((bssStateAt xl k).proc q).delivered := by
+    refine mem_delivered_take_of_ts_le hv hb₁ k ?_
     cases hp : xl[k] with
     | broadcast p payload | crashBroadcast p _ payload =>
       rw [hp] at hm_del₂
       rcases eq_or_ne p q with rfl | hpq
       · simp only [bssStep, bssExecBroadcast, bssExecCrashBroadcast, Function.update_self,
-          List.mem_append, List.mem_singleton] at hm_del₂
-        rcases hm_del₂ with hcontra | hb₂_eq
-        · exact absurd hcontra hnot_del₂_k
-        · rw [hb₂_eq] at hts_lt
-          exact local_bcast_ts_le_vt hinv hk_lt_len hb₁ hts_lt (by simp [hp, emittedPacket])
-      · exact (hnot_del₂_k (by
-          simpa only [bssStep, bssExecBroadcast, bssExecCrashBroadcast,
-            Function.update_of_ne hpq.symm] using hm_del₂)).elim
+          List.mem_append, List.mem_singleton, hnot_del₂_k, false_or] at hm_del₂
+        subst hm_del₂
+        exact local_bcast_ts_le_vt hinv hk_lt_len hb₁ hts_lt (by simp [hp, emittedPacket])
+      · simp [bssStep, bssExecBroadcast, bssExecCrashBroadcast, Function.update_of_ne hpq.symm,
+          hnot_del₂_k] at hm_del₂
     | deliver p pkt =>
       rw [hp] at hm_del₂ hen_k
       rcases eq_or_ne p q with rfl | hpq
       · simp only [bssStep, bssExecDeliver, Function.update_self, List.mem_append,
-          List.mem_singleton] at hm_del₂
-        rcases hm_del₂ with hcontra | hb₂_eq
-        · exact absurd hcontra hnot_del₂_k
-        · rw [← hb₂_eq] at hen_k
-          have hdeliv_guard : Deliverable ((bssStateAt xl k).proc p).vt b₂ := hen_k.2.2
-          by_cases hsend : b₁.sender = b₂.sender
-          · have hlt_coord := same_sender_coord_lt_of_ts_lt hinv hb₁ hb₂ hsend hts_lt
-            rw [hsend, hdeliv_guard.1] at hlt_coord; rw [hsend]; omega
-          · exact le_trans ((le_of_lt hts_lt) b₁.sender) (hdeliv_guard.2 b₁.sender hsend)
-      · exact (hnot_del₂_k (by
-          simpa only [bssStep, bssExecDeliver, Function.update_of_ne hpq.symm] using hm_del₂)).elim
-    | recv _ =>
+          List.mem_singleton, hnot_del₂_k, false_or] at hm_del₂
+        rw [← hm_del₂] at hen_k
+        by_cases hsend : b₁.sender = b₂.sender
+        · have := same_sender_coord_lt_of_ts_lt hinv hb₁ hb₂ hsend hts_lt
+          rw [hsend, hen_k.2.2.1] at this; rw [hsend]; omega
+        · exact (hts_lt.le b₁.sender).trans (hen_k.2.2.2 b₁.sender hsend)
+      · simp [bssStep, bssExecDeliver, Function.update_of_ne hpq.symm, hnot_del₂_k] at hm_del₂
+    | recv _ | crash _ | stutter =>
       rw [hp] at hm_del₂
       exact (hnot_del₂_k (by
-        simpa only [bssStep, bssExecRecv, Function.apply_update (fun _ => BSSProcState.delivered),
-          Function.update_eq_self] using hm_del₂)).elim
-    | crash _ =>
-      rw [hp] at hm_del₂
-      exact (hnot_del₂_k (by
-        simpa only [bssStep, bssExecCrash, Function.apply_update (fun _ => BSSProcState.delivered),
-          Function.update_eq_self] using hm_del₂)).elim
-    | stutter => rw [hp] at hm_del₂; exact absurd hm_del₂ hnot_del₂_k
-  -- Now `b₁ ∈ delivered` at step `k`, while `b₂` is appended at step `m = k + 1`!
-  have hpref_k_m : ((bssStateAt xl k).proc q).delivered <+:
-      ((bssStateAt xl m).proc q).delivered := by
-    rw [hstate_m]
-    exact bssStep_delivered_prefix (bssStateAt xl k) xl[k] q
-  have hpref_m_end : ((bssStateAt xl m).proc q).delivered <+:
+        simpa only [bssStep, bssExecRecv, bssExecCrash, Function.update_eq_self,
+          Function.apply_update (fun _ => BSSProcState.delivered)] using hm_del₂)).elim
+  -- `delivered` only grows by appending, and `b₂` is appended after step `k`.
+  obtain ⟨tail, hl_eq⟩ : ((bssStateAt xl k).proc q).delivered <+:
       ((bssRun (bssInit P V) xl).proc q).delivered := by
-    have hsplit : xl = xl.take m ++ xl.drop m := (List.take_append_drop m xl).symm
-    conv_rhs => rw [hsplit, bssRun_append]
-    exact bssRun_delivered_prefix (bssStateAt xl m) (xl.drop m) q
-  have hpref_k_end := hpref_k_m.trans hpref_m_end
-  have hb₁_end : b₁ ∈ ((bssRun (bssInit P V) xl).proc q).delivered :=
-    hpref_k_end.subset hb₁_in_k
-  refine ⟨hb₁_end, ?_⟩
-  set l_k := ((bssStateAt xl k).proc q).delivered
-  set l_end := ((bssRun (bssInit P V) xl).proc q).delivered
-  obtain ⟨tail, hl_eq⟩ := hpref_k_end
-  have hidx₁_lt : l_k.idxOf b₁ < l_k.length := List.idxOf_lt_length_of_mem hb₁_in_k
-  have hidx₁_eq : l_end.idxOf b₁ = l_k.idxOf b₁ := by
-    rw [← hl_eq, List.idxOf_append_of_mem hb₁_in_k]
-  have hidx₂_ge : l_k.length ≤ l_end.idxOf b₂ := by
-    rw [← hl_eq, List.idxOf_append_of_notMem hnot_del₂_k]
-    omega
-  omega
+    simpa only [bssStateAt, ← bssRun_append, List.take_append_drop] using
+      bssRun_delivered_prefix (bssStateAt xl k) (xl.drop k) q
+  rw [← hl_eq, List.idxOf_append_of_mem hb₁_k, List.idxOf_append_of_notMem hnot_del₂_k]
+  exact ⟨List.mem_append_left _ hb₁_k, by have := List.idxOf_lt_length_of_mem hb₁_k; omega⟩
 
 end Invariants
 
@@ -1277,30 +1183,9 @@ private theorem omega_pending_persist {F : Set P} {ss : ωSequence (BSSState P V
     have hpend_d : pkt ∈ ((ss (k + d)).proc q).pending := ih (Nat.le_add_right k d) hnot_d
     obtain ⟨_, hstep⟩ := he (k + d)
     rw [← Nat.add_assoc, hstep] at hnot_del ⊢
-    cases hact : xs (k + d) with
-    | broadcast _ _ =>
-      simpa only [bssStep, bssExecBroadcast, Function.apply_update (fun _ => BSSProcState.pending),
-        Function.update_eq_self] using hpend_d
-    | crashBroadcast _ _ _ =>
-      simpa only [bssStep, bssExecCrashBroadcast,
-        Function.apply_update (fun _ => BSSProcState.pending), Function.update_eq_self]
-        using hpend_d
-    | recv m =>
-      rcases eq_or_ne q m.dest with rfl | hqm
-      · simp only [bssStep, bssExecRecv, Function.update_self]
-        exact Multiset.mem_cons_of_mem hpend_d
-      · simpa only [bssStep, bssExecRecv, Function.update_of_ne hqm] using hpend_d
-    | deliver p pkt' =>
-      rw [hact] at hnot_del
-      rcases eq_or_ne q p with rfl | hqp
-      · simp only [bssStep, bssExecDeliver, Function.update_self, List.mem_append,
-          List.mem_singleton] at hnot_del ⊢
-        exact (Multiset.mem_erase_of_ne fun heq => hnot_del (Or.inr heq)).mpr hpend_d
-      · simpa only [bssStep, bssExecDeliver, Function.update_of_ne hqp] using hpend_d
-    | crash _ =>
-      simpa only [bssStep, bssExecCrash, Function.apply_update (fun _ => BSSProcState.pending),
-        Function.update_eq_self] using hpend_d
-    | stutter => exact hpend_d
+    cases hact : xs (k + d) <;> simp only [hact, bssStep, bssExecBroadcast, bssExecCrashBroadcast,
+      bssExecRecv, bssExecDeliver, bssExecCrash, Function.update_apply] at hnot_del ⊢ <;>
+      (try split_ifs at hnot_del ⊢) <;> simp_all [Multiset.mem_erase_of_ne]
 
 private theorem vt_sender_lt_of_not_delivered {F : Set P} {ss : ωSequence (BSSState P V)}
     {xs : ωSequence (BSSAction P V)} (hinit : ss 0 = bssInit P V)
@@ -1308,24 +1193,10 @@ private theorem vt_sender_lt_of_not_delivered {F : Set P} {ss : ωSequence (BSSS
     (hpkt_in : pkt ∈ BroadcastIn (xs.extract 0 j))
     (hnot_del : pkt ∉ ((ss j).proc q).delivered) :
     ((ss j).proc q).vt pkt.sender < pkt.ts pkt.sender := by
-  by_contra hge_neg
-  have hgt : pkt.ts pkt.sender ≤ ((ss j).proc q).vt pkt.sender := by omega
-  have hmtr_j := omega_mTr_prefix hinit he j
-  obtain ⟨hv_j, hrun_j⟩ := (bssLTS_mTr_iff F (bssInit P V) (xs.extract 0 j) (ss j)).mp hmtr_j
-  have hinv_j := bssInv_of_validTrace hv_j
-  have hk1 : 1 ≤ pkt.ts pkt.sender := (hinv_j.bcast_sender_bounds pkt hpkt_in).1
-  rw [hrun_j] at hgt
-  obtain ⟨b', hb'_del, hb'_send, hb'_ts⟩ :=
-    hinv_j.exists_delivered_of_le_vt q pkt.sender (pkt.ts pkt.sender) hk1 hgt
-  have hb'_bcast : b' ∈ BroadcastIn (xs.extract 0 j) := hinv_j.delivered_mem q b' hb'_del
-  have hmtr_run : (bssLTS F).MTr (bssInit P V) (xs.extract 0 j)
-      (bssRun (bssInit P V) (xs.extract 0 j)) :=
-    (bssLTS_mTr_iff F (bssInit P V) (xs.extract 0 j) _).mpr ⟨hv_j, rfl⟩
-  have hb'_eq : b' = pkt :=
-    eq_of_sender_eq_of_ts_sender_eq hmtr_run hb'_bcast hpkt_in hb'_send
-      (hb'_send.symm ▸ hb'_ts)
-  rw [hb'_eq, ← hrun_j] at hb'_del
-  exact hnot_del hb'_del
+  obtain ⟨hv, hrun⟩ := (bssLTS_mTr_iff F _ _ _).mp (omega_mTr_prefix hinit he j)
+  have h := mem_delivered_take_of_ts_le hv hpkt_in (xs.extract 0 j).length (q := q)
+  rw [bssStateAt_length, ← hrun] at h
+  exact not_le.mp (mt h hnot_del)
 
 /-- Once a buffered packet `pkt` at `q` satisfies `Deliverable` at step `k`, it remains buffered
 and `Deliverable` at every subsequent step `j ≥ k` until `q` delivers `pkt`. -/
@@ -1336,17 +1207,11 @@ theorem deliverable_stable_until_delivered {F : Set P} {ss : ωSequence (BSSStat
     (hnot_del : pkt ∉ ((ss j).proc q).delivered) :
     pkt ∈ ((ss j).proc q).pending ∧ Deliverable ((ss j).proc q).vt pkt := by
   have hpend_j := omega_pending_persist he hkj hpend hnot_del
-  refine ⟨hpend_j, ?_⟩
   have hvt_le := omega_vt_mono he hkj q
-  refine ⟨?_, fun r hr => le_trans (hdeliv.2 r hr) (hvt_le r)⟩
-  have hle_low : ((ss k).proc q).vt pkt.sender ≤ ((ss j).proc q).vt pkt.sender :=
-    hvt_le pkt.sender
-  have hmtr_j := omega_mTr_prefix hinit he j
-  obtain ⟨hv_j, hrun_j⟩ := (bssLTS_mTr_iff F (bssInit P V) (xs.extract 0 j) (ss j)).mp hmtr_j
-  have hpkt_bcast : pkt ∈ BroadcastIn (xs.extract 0 j) := by
-    rw [hrun_j] at hpend_j
-    exact ((bssInv_of_validTrace hv_j).pending_wf q pkt hpend_j).1
-  have hlt := vt_sender_lt_of_not_delivered hinit he hpkt_bcast hnot_del
+  refine ⟨hpend_j, ?_, fun r hr => le_trans (hdeliv.2 r hr) (hvt_le r)⟩
+  have hlt := vt_sender_lt_of_not_delivered hinit he
+    ((bssInv_of_mTr (omega_mTr_prefix hinit he j)).pending_wf q pkt hpend_j).1 hnot_del
+  have hle : ((ss k).proc q).vt pkt.sender ≤ ((ss j).proc q).vt pkt.sender := hvt_le pkt.sender
   have h1 := hdeliv.1
   omega
 
@@ -1356,21 +1221,21 @@ private theorem broadcastIn_extract_mono (xs : ωSequence (BSSAction P V)) {M N 
       BroadcastIn (xs.extract 0 N : List (BSSAction P V)) :=
   extract_take_eq xs hMN ▸ broadcastIn_take_subset (xs.extract 0 N) M
 
+private theorem emittedPacket_extract {F : Set P} {ss : ωSequence (BSSState P V)}
+    {xs : ωSequence (BSSAction P V)} (hinit : ss 0 = bssInit P V)
+    (he : (bssLTS F).OmegaExecution ss xs) {i N : ℕ} (hi : i < (xs.extract 0 N).length) :
+    emittedPacket (bssStateAt (xs.extract 0 N) i) (xs.extract 0 N)[i] =
+      emittedPacket (ss i) (xs i) := by
+  simp only [ωSequence.length_extract, Nat.sub_zero] at hi
+  obtain ⟨_, hrun⟩ := (bssLTS_mTr_iff F _ _ _).mp (omega_mTr_prefix hinit he i)
+  simp [bssStateAt, extract_take_eq xs hi.le, ← hrun, hi]
+
 private theorem emittedPacket_mem_broadcastIn {F : Set P} {ss : ωSequence (BSSState P V)}
     {xs : ωSequence (BSSAction P V)} (hinit : ss 0 = bssInit P V)
     (he : (bssLTS F).OmegaExecution ss xs) {k : ℕ} {b : Packet P V}
     (hem : emittedPacket (ss k) (xs k) = some b) :
-    b ∈ BroadcastIn (xs.extract 0 (k + 1)) := by
-  have hlen : k < (xs.extract 0 (k + 1)).length := by
-    simp [ωSequence.length_extract]
-  refine ⟨k, hlen, ?_⟩
-  have hmtr_k := omega_mTr_prefix hinit he k
-  obtain ⟨_, hrun_k⟩ := (bssLTS_mTr_iff F (bssInit P V) (xs.extract 0 k) (ss k)).mp hmtr_k
-  have htake : (xs.extract 0 (k + 1)).take k = xs.extract 0 k :=
-    extract_take_eq xs (Nat.le_succ k)
-  have hget : (xs.extract 0 (k + 1))[k] = xs k := by
-    rw [ωSequence.get_extract (by omega), Nat.zero_add]
-  simp [bssStateAt, htake, ← hrun_k, hget, hem]
+    b ∈ BroadcastIn (xs.extract 0 (k + 1)) :=
+  ⟨k, by simp, (emittedPacket_extract hinit he _).trans hem⟩
 
 private theorem causalPrec_extract_mono {F : Set P} {ss : ωSequence (BSSState P V)}
     {xs : ωSequence (BSSAction P V)} (hinit : ss 0 = bssInit P V)
@@ -1379,13 +1244,19 @@ private theorem causalPrec_extract_mono {F : Set P} {ss : ωSequence (BSSState P
     (hb₁ : b₁ ∈ BroadcastIn (xs.extract 0 M))
     (hb₂ : b₂ ∈ BroadcastIn (xs.extract 0 M))
     (hprec : CausalPrec (xs.extract 0 M) b₁ b₂) :
-    CausalPrec (xs.extract 0 N) b₁ b₂ := by
-  have hmtrM := omega_mTr_prefix hinit he M
-  have hmtrN := omega_mTr_prefix hinit he N
-  have hlt := (bss_causalPrec_iff_ts_lt hmtrM hb₁ hb₂).mp hprec
-  exact (bss_causalPrec_iff_ts_lt hmtrN
-    (broadcastIn_extract_mono xs hMN hb₁)
-    (broadcastIn_extract_mono xs hMN hb₂)).mpr hlt
+    CausalPrec (xs.extract 0 N) b₁ b₂ :=
+  (bss_causalPrec_iff_ts_lt (omega_mTr_prefix hinit he N) (broadcastIn_extract_mono xs hMN hb₁)
+    (broadcastIn_extract_mono xs hMN hb₂)).mpr
+    ((bss_causalPrec_iff_ts_lt (omega_mTr_prefix hinit he M) hb₁ hb₂).mp hprec)
+
+/-- A packet emitted by one step carries its sender's incremented clock and is delivered locally
+by that step. -/
+private theorem emittedPacket_spec {s : BSSState P V} {act : BSSAction P V} {b : Packet P V}
+    (h : emittedPacket s act = some b) :
+    b.ts = bssNextTimestamp (s.proc b.sender).vt b.sender ∧
+      b ∈ ((bssStep s act).proc b.sender).delivered := by
+  cases act <;> simp only [emittedPacket, Option.some.injEq, reduceCtorEq] at h <;> subst h <;>
+    simp [bssBroadcastPacket, bssStep, bssExecBroadcast, bssExecCrashBroadcast]
 
 /-! ### Liveness under packet transmission and atomic multicast -/
 
@@ -1403,140 +1274,61 @@ theorem bss_live_of_packetSentTo {F : Set P} {ss : ωSequence (BSSState P V)}
     (hsent_b : PacketSentTo q ss xs b)
     (hsent_pred : ∀ b', OmegaCausalPrec ss xs b' b → PacketSentTo q ss xs b') :
     ∃ k, b ∈ ((ss k).proc q).delivered := by
-  suffices hmain : ∀ w : ℕ, ∀ b : Packet P V, vtWeight b.ts = w →
-      PacketSentTo q ss xs b →
-      (∀ b', OmegaCausalPrec ss xs b' b → PacketSentTo q ss xs b') →
-      ∃ k, b ∈ ((ss k).proc q).delivered from
-    hmain (vtWeight b.ts) b rfl hsent_b hsent_pred
-  intro w
-  induction w using Nat.strongRecOn with
+  obtain ⟨w, hw⟩ : ∃ w, vtWeight b.ts = w := ⟨_, rfl⟩
+  induction w using Nat.strongRecOn generalizing b with
   | ind w ih =>
-    intro b hw hsb hspred
-    obtain ⟨k₀, hem_b, hdest_b⟩ := hsb
-    have hb_in : b ∈ BroadcastIn (xs.extract 0 (k₀ + 1)) :=
-      emittedPacket_mem_broadcastIn hinit he hem_b
-    rcases hdest_b with hself | hinFlight
-    · -- Case 1: `q = b.sender`; `q` delivered `b` locally immediately at step `k₀ + 1`.
-      refine ⟨k₀ + 1, ?_⟩
-      obtain ⟨_, hstep⟩ := he k₀
-      rw [hstep]
-      cases hact : xs k₀ with
-      | broadcast p payload =>
-        rw [hact] at hem_b
-        simp only [emittedPacket, Option.some.injEq] at hem_b
-        have hpq : p = q := by rw [← hself, ← hem_b]; rfl
-        subst hpq hem_b
-        simp [bssStep, bssExecBroadcast]
-      | crashBroadcast p dests payload =>
-        rw [hact] at hem_b
-        simp only [emittedPacket, Option.some.injEq] at hem_b
-        have hpq : p = q := by rw [← hself, ← hem_b]; rfl
-        subst hpq hem_b
-        simp [bssStep, bssExecCrashBroadcast]
-      | recv _ | deliver _ _ | crash _ | stutter =>
-        rw [hact] at hem_b; simp [emittedPacket] at hem_b
-    · -- Case 2: `b.sender ≠ q` and `⟨q, b⟩ ∈ (ss (k₀ + 1)).inFlight`.
-      obtain ⟨k₁, hk₁_ge, hrecv⟩ := hfair.fair_recv ⟨q, b⟩ hq (k₀ + 1) hinFlight
-      have hb_pend : b ∈ ((ss (k₁ + 1)).proc q).pending := by
-        obtain ⟨_, hstep⟩ := he k₁
-        rw [hstep, hrecv]
-        simp [bssStep, bssExecRecv]
-      have hcoord : ∀ r : P, ∃ kr,
-          (if r = b.sender then b.ts b.sender - 1 else b.ts r) ≤ ((ss kr).proc q).vt r := by
-        intro r
-        set target := if r = b.sender then b.ts b.sender - 1 else b.ts r
-        by_cases ht0 : target = 0
-        · exact ⟨0, by omega⟩
-        · have ht1 : 1 ≤ target := by omega
-          have hmtr_k₀ := omega_mTr_prefix hinit he k₀
-          obtain ⟨hv_k₀, hrun_k₀⟩ :=
-            (bssLTS_mTr_iff F (bssInit P V) (xs.extract 0 k₀) (ss k₀)).mp hmtr_k₀
-          have hinv_k₀ := bssInv_of_validTrace hv_k₀
-          have hb_ts_eq : b.ts = bssNextTimestamp ((ss k₀).proc b.sender).vt b.sender := by
-            cases hact : xs k₀ with
-            | broadcast p payload =>
-              rw [hact] at hem_b
-              cases Option.some.inj hem_b
-              rfl
-            | crashBroadcast p dests payload =>
-              rw [hact] at hem_b
-              cases Option.some.inj hem_b
-              rfl
-            | recv _ | deliver _ _ | crash _ | stutter =>
-              rw [hact] at hem_b; simp [emittedPacket] at hem_b
-          have htarget_le_vt : target ≤ ((ss k₀).proc b.sender).vt r := by
-            simp only [target]
-            by_cases hrs : r = b.sender
-            · subst hrs
-              simp only [↓reduceIte, hb_ts_eq, bssNextTimestamp, Function.update_self]
-              omega
-            · simp only [hrs, ↓reduceIte, hb_ts_eq, bssNextTimestamp, Function.update_of_ne hrs]
-              exact le_rfl
-          rw [hrun_k₀] at htarget_le_vt
-          obtain ⟨b_r, hb_r_del, hb_r_send, hb_r_ts⟩ :=
-            hinv_k₀.exists_delivered_of_le_vt b.sender r target ht1 htarget_le_vt
-          have hb_r_in_k₀ : b_r ∈ BroadcastIn (xs.extract 0 k₀) :=
-            hinv_k₀.delivered_mem b.sender b_r hb_r_del
-          have hb_r_in : b_r ∈ BroadcastIn (xs.extract 0 (k₀ + 1)) :=
-            broadcastIn_extract_mono xs (Nat.le_succ k₀) hb_r_in_k₀
-          have hb_r_lt_b : b_r.ts < b.ts := by
-            have hle_s : b_r.ts ≤ ((ss k₀).proc b.sender).vt :=
-              hrun_k₀ ▸ hinv_k₀.ts_le_vt b.sender b_r hb_r_del
-            exact lt_of_le_of_lt hle_s (hb_ts_eq ▸ lt_update_self_iff.mpr (Nat.lt_succ_self _))
-          have hmtr_k₀1 := omega_mTr_prefix hinit he (k₀ + 1)
-          have hprec_r : CausalPrec (xs.extract 0 (k₀ + 1)) b_r b :=
-            (bss_causalPrec_iff_ts_lt hmtr_k₀1 hb_r_in hb_in).mpr hb_r_lt_b
-          have hoprec_r : OmegaCausalPrec ss xs b_r b :=
-            ⟨k₀ + 1, hb_r_in, hb_in, hprec_r⟩
-          have hw_lt : vtWeight b_r.ts < w := hw ▸ vtWeight_strictMono hb_r_lt_b
-          have hsent_b_r : PacketSentTo q ss xs b_r := hspred b_r hoprec_r
-          have hsent_pred_r : ∀ b'', OmegaCausalPrec ss xs b'' b_r →
-              PacketSentTo q ss xs b'' := by
-            intro b'' ⟨M, hb''_M, hb_r_M, hprec''⟩
-            let K := max M (k₀ + 1)
-            have hprec''_K :=
-              causalPrec_extract_mono hinit he (Nat.le_max_left M (k₀ + 1)) hb''_M hb_r_M hprec''
-            have hprec_r_K :=
-              causalPrec_extract_mono hinit he (Nat.le_max_right M (k₀ + 1)) hb_r_in hb_in hprec_r
-            exact hspred b'' ⟨K,
-              broadcastIn_extract_mono xs (Nat.le_max_left M (k₀ + 1)) hb''_M,
-              broadcastIn_extract_mono xs (Nat.le_max_right M (k₀ + 1)) hb_in,
-              hprec''_K.trans hprec_r_K⟩
-          obtain ⟨kr, hkr_del⟩ := ih (vtWeight b_r.ts) hw_lt b_r rfl hsent_b_r hsent_pred_r
-          refine ⟨kr, ?_⟩
-          have hmtr_kr := omega_mTr_prefix hinit he kr
-          obtain ⟨hv_kr, hrun_kr⟩ :=
-            (bssLTS_mTr_iff F (bssInit P V) (xs.extract 0 kr) (ss kr)).mp hmtr_kr
-          rw [hrun_kr] at hkr_del ⊢
-          have hle_kr := (bssInv_of_validTrace hv_kr).ts_le_vt q b_r hkr_del r
-          change target ≤ ((bssRun (bssInit P V) (xs.extract 0 kr)).proc q).vt r
-          rw [← hb_r_ts]
-          exact hle_kr
-      choose krFn hkrFn using hcoord
-      let K := max (k₁ + 1) (Finset.univ.sup krFn)
-      by_cases hdel_K : b ∈ ((ss K).proc q).delivered
-      · exact ⟨K, hdel_K⟩
-      · have hk₁_le_K : k₁ + 1 ≤ K := Nat.le_max_left _ _
-        have hpend_K : b ∈ ((ss K).proc q).pending :=
-          omega_pending_persist he hk₁_le_K hb_pend hdel_K
-        have hdeliv_K : Deliverable ((ss K).proc q).vt b := by
-          have hall : ∀ r : P,
-              (if r = b.sender then b.ts b.sender - 1 else b.ts r) ≤ ((ss K).proc q).vt r := by
-            intro r
-            have hr_le : krFn r ≤ K :=
-              le_trans (Finset.le_sup (f := krFn) (Finset.mem_univ r)) (Nat.le_max_right _ _)
-            exact le_trans (hkrFn r) (omega_vt_mono he hr_le q r)
-          refine ⟨?_, fun r hr => ?_⟩
-          · have hlow := hall b.sender
-            simp only [↓reduceIte] at hlow
-            have hb_in_K : b ∈ BroadcastIn (xs.extract 0 K) :=
-              broadcastIn_extract_mono xs (by omega) hb_in
-            have hlt := vt_sender_lt_of_not_delivered hinit he hb_in_K hdel_K
-            omega
-          · have hr_le := hall r
-            simpa [hr] using hr_le
-        obtain ⟨j, _, hj_del⟩ := hfair.fair_deliver q hq b K hpend_K hdeliv_K
-        exact ⟨j, hj_del⟩
+  obtain ⟨k₀, hem_b, hdest_b⟩ := hsent_b
+  have hb_in := emittedPacket_mem_broadcastIn hinit he hem_b
+  obtain ⟨hb_ts, hb_del⟩ := emittedPacket_spec hem_b
+  obtain ⟨_, hstep₀⟩ := he k₀
+  rcases hdest_b with hself | hinFlight
+  · -- Case 1: `q = b.sender`; `q` delivered `b` locally immediately at step `k₀ + 1`.
+    exact ⟨k₀ + 1, by rw [hstep₀, ← hself]; exact hb_del⟩
+  -- Case 2: `⟨q, b⟩ ∈ (ss (k₀ + 1)).inFlight`. By induction, `q` eventually delivers every packet
+  -- that `b.sender` had delivered before broadcasting `b`.
+  obtain ⟨k₁, hk₁_ge, hrecv⟩ := hfair.fair_recv ⟨q, b⟩ hq (k₀ + 1) hinFlight
+  have hb_pend : b ∈ ((ss (k₁ + 1)).proc q).pending := by
+    obtain ⟨_, hstep⟩ := he k₁
+    rw [hstep, hrecv]
+    simp [bssStep, bssExecRecv]
+  have hinv₀ := bssInv_of_mTr (omega_mTr_prefix hinit he k₀)
+  have hcoord : ∀ r, ∃ kr, ((ss k₀).proc b.sender).vt r ≤ ((ss kr).proc q).vt r := by
+    intro r
+    rcases Nat.eq_zero_or_pos (((ss k₀).proc b.sender).vt r) with h0 | h1
+    · exact ⟨0, by omega⟩
+    obtain ⟨b_r, hb_r_del, rfl, hb_r_ts⟩ := hinv₀.exists_delivered_of_le_vt b.sender r _ h1 le_rfl
+    have hb_r_in := broadcastIn_extract_mono xs (Nat.le_succ k₀)
+      (hinv₀.delivered_mem b.sender b_r hb_r_del)
+    have hb_r_lt : b_r.ts < b.ts := lt_of_le_of_lt (hinv₀.ts_le_vt b.sender b_r hb_r_del)
+      (hb_ts ▸ lt_update_self_iff.mpr (Nat.lt_succ_self _))
+    have hprec_r :=
+      (bss_causalPrec_iff_ts_lt (omega_mTr_prefix hinit he (k₀ + 1)) hb_r_in hb_in).mpr hb_r_lt
+    obtain ⟨kr, hkr⟩ := ih (vtWeight b_r.ts) (hw ▸ vtWeight_strictMono hb_r_lt)
+      (hsent_pred b_r ⟨k₀ + 1, hb_r_in, hb_in, hprec_r⟩)
+      (fun b'' ⟨M, hb''_M, hb_r_M, hprec''⟩ => hsent_pred b'' ⟨max M (k₀ + 1),
+        broadcastIn_extract_mono xs (le_max_left _ _) hb''_M,
+        broadcastIn_extract_mono xs (le_max_right _ _) hb_in,
+        (causalPrec_extract_mono hinit he (le_max_left _ _) hb''_M hb_r_M hprec'').trans
+          (causalPrec_extract_mono hinit he (le_max_right _ _) hb_r_in hb_in hprec_r)⟩) rfl
+    exact ⟨kr, hb_r_ts.symm.trans_le
+      ((bssInv_of_mTr (omega_mTr_prefix hinit he kr)).ts_le_vt q b_r hkr b_r.sender)⟩
+  choose krFn hkrFn using hcoord
+  let K := max (k₁ + 1) (Finset.univ.sup krFn)
+  have hk₁_le_K : k₁ + 1 ≤ K := le_max_left _ _
+  by_cases hdel_K : b ∈ ((ss K).proc q).delivered
+  · exact ⟨K, hdel_K⟩
+  have hvt (r : P) : ((ss k₀).proc b.sender).vt r ≤ ((ss K).proc q).vt r :=
+    (hkrFn r).trans (omega_vt_mono he
+      ((Finset.le_sup (f := krFn) (Finset.mem_univ r)).trans (le_max_right _ _)) q r)
+  have hlt := vt_sender_lt_of_not_delivered hinit he
+    (broadcastIn_extract_mono xs (by omega) hb_in) hdel_K
+  refine (hfair.fair_deliver q hq b K (omega_pending_persist he hk₁_le_K hb_pend hdel_K)
+    ⟨?_, fun r hr => ?_⟩).imp fun _ h => h.2
+  · have := hvt b.sender
+    rw [hb_ts, bssNextTimestamp, Function.update_self] at hlt ⊢
+    omega
+  · rw [hb_ts, bssNextTimestamp, Function.update_of_ne hr]
+    exact hvt r
 
 /-- Predicate stating that an action is not a mid-multicast partial crash (`crashBroadcast`). -/
 @[expose]
@@ -1558,38 +1350,18 @@ theorem bss_live_of_atomic_multicast {F : Set P} {ss : ωSequence (BSSState P V)
   have hsent_all : ∀ k' b', emittedPacket (ss k') (xs k') = some b' →
       PacketSentTo q ss xs b' := by
     intro k' b' hem'
-    refine ⟨k', hem', ?_⟩
-    by_cases hsq : b'.sender = q
-    · exact Or.inl hsq
-    · right
-      obtain ⟨_, hstep⟩ := he k'
-      rw [hstep]
-      cases hact : xs k' with
-      | broadcast p payload =>
-        rw [hact] at hem'
-        simp only [emittedPacket, Option.some.injEq] at hem'
-        subst hem'
-        simp only [bssStep, bssExecBroadcast, Multiset.mem_add, Multiset.mem_map]
-        right
-        exact ⟨q, Finset.mem_def.mp (Finset.mem_erase.mpr ⟨Ne.symm hsq, Finset.mem_univ q⟩), rfl⟩
-      | crashBroadcast p dests payload =>
-        have hfalse := hatomic k'
-        rw [hact] at hfalse
-        cases hfalse
-      | recv _ | deliver _ _ | crash _ | stutter =>
-        rw [hact] at hem'; simp [emittedPacket] at hem'
+    refine ⟨k', hem', or_iff_not_imp_left.mpr fun hsq => ?_⟩
+    obtain ⟨_, hstep⟩ := he k'
+    have hat := hatomic k'
+    rw [hstep]
+    cases hact : xs k' <;> simp only [hact, emittedPacket, reduceCtorEq, Option.some.injEq,
+      IsAtomicMulticastAction] at hem' hat
+    subst hem'
+    simp only [bssBroadcastPacket] at hsq
+    simp [bssStep, bssExecBroadcast, Multiset.mem_erase_of_ne (Ne.symm hsq)]
   refine bss_live_of_packetSentTo hinit he hfair hq (hsent_all k₀ b hem) ?_
-  intro b' ⟨N, ⟨i, hi, hbi⟩, _, _⟩
-  have hiN : i < N := by simp only [ωSequence.length_extract, Nat.sub_zero] at hi; exact hi
-  have hmtr_i := omega_mTr_prefix hinit he i
-  obtain ⟨_, hrun_i⟩ := (bssLTS_mTr_iff F (bssInit P V) (xs.extract 0 i) (ss i)).mp hmtr_i
-  have htake : (xs.extract 0 N).take i = xs.extract 0 i :=
-    extract_take_eq xs (Nat.le_of_lt hiN)
-  have hget : (xs.extract 0 N)[i] = xs i := by
-    rw [ωSequence.get_extract (by omega), Nat.zero_add]
-  have hem_i : emittedPacket (ss i) (xs i) = some b' := by
-    simpa [bssStateAt, htake, ← hrun_i, hget] using hbi
-  exact hsent_all i b' hem_i
+  rintro b' ⟨N, ⟨i, hi, hbi⟩, -⟩
+  exact hsent_all i b' ((emittedPacket_extract hinit he hi).symm.trans hbi)
 
 /-- Bundled single-group `CBCAST` safety and atomic-multicast liveness specification (toward #7297)
 satisfied by `bssLTS F` for an arbitrary crash-fault set `F : Set P`: uniform integrity, duplicate
