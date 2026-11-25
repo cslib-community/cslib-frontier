@@ -103,15 +103,10 @@ theorem sccIndexCode_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → List (Fin N)
     forwardDFSCode_spec hN adj wb Mc hmc hfit hregs hNv hcsr
   obtain ⟨s₂, hs₂_ex, hs₂_rcsr, hs₂_off, hs₂_edge, hs₂_out, hs₂_fr⟩ :=
     transposeCSRCode_spec adj wb Mc hmc hfit
-      ((hs₁_fr cZero (by decide)).trans hregs.czero)
-      ((hs₁_fr cOne (by decide)).trans hregs.cone)
-      ((hs₁_fr nVerts (by decide)).trans hNv)
-      ((hs₁_fr offB (by decide)).trans hregs.hoff)
-      ((hs₁_fr edgeB (by decide)).trans hregs.hedge)
-      ((hs₁_fr curB (by decide)).trans hcur)
-      ((hs₁_fr revOffB (by decide)).trans hroff)
-      ((hs₁_fr revEdgeB (by decide)).trans hredge)
-      hs₁_csr
+      (by wram_simp [hs₁_fr, hregs.czero]) (by wram_simp [hs₁_fr, hregs.cone])
+      (by wram_simp [hs₁_fr, hNv]) (by wram_simp [hs₁_fr, hregs.hoff])
+      (by wram_simp [hs₁_fr, hregs.hedge]) (by wram_simp [hs₁_fr, hcur])
+      (by wram_simp [hs₁_fr, hroff]) (by wram_simp [hs₁_fr, hredge]) hs₁_csr
   have hs₂_fr0 : ∀ r : Fin 28, r.val < 18 → r ≠ offB → r ≠ edgeB → s₂.regs r = x.regs r :=
     fun r hr hno hne => (hs₂_fr r hr hno hne).trans (hs₁_fr r hr)
   let s₃ := s₂.set finB (kFinAddr wb N Mc)
@@ -321,8 +316,8 @@ private theorem revCopyLoop_spec {N w : ℕ} (O P : ℕ) (hOP : O + N ≤ P)
       · wram_simp
     obtain ⟨y, hy_ex, hy_cp, hy_low, hy_fr⟩ :=
       revCopyLoop_spec O P hOP hfit f rem (k + 1) x₁ (by omega) hx₁_ord hx₁_cp
-        ((hx₁_fr cOne (by decide)).trans hc1) ((hx₁_fr nVerts (by decide)).trans hNv)
-        ((hx₁_fr ordB (by decide)).trans hO) ((hx₁_fr outReg (by decide)).trans hP) hx₁_i
+        (by wram_simp [hx₁_fr, hc1]) (by wram_simp [hx₁_fr, hNv]) (by wram_simp [hx₁_fr, hO])
+        (by wram_simp [hx₁_fr, hP]) hx₁_i
     have hlt : (Cond.lt iReg nVerts).Holds x := by
       change x.regs iReg < x.regs nVerts; omega
     exact ⟨y, (hx₁_ex.loop_iter hlt hy_ex).mono (by omega), hy_cp,
@@ -501,9 +496,7 @@ theorem computesListInTime_topoProgram :
       (fun G _ => 128 * (G.n + G.m + 1)) (fun G w => Fits w G.wordBound) topoWords := by
   intro G w hfit _
   obtain ⟨y, ⟨steps, hsteps, hexec⟩, hylist, hyfit⟩ := topoCode_spec G hfit
-  refine ⟨steps + 1, ?_, by dsimp only; omega⟩
-  have hex := hexec.executesList outReg (by rwa [hylist])
-  rwa [hylist] at hex
+  exact ⟨steps + 1, hylist ▸ hexec.executesList outReg (by rwa [hylist]), by dsimp only; omega⟩
 
 /-- `sccProgram` computes `sccWords` in `O(n + m)` instructions
 (`Program.ComputesListInTime`). -/
@@ -512,9 +505,7 @@ theorem computesListInTime_sccProgram :
       (fun G _ => 256 * (G.n + G.m + 1)) (fun G w => Fits w G.wordBound) sccWords := by
   intro G w hfit _
   obtain ⟨y, ⟨steps, hsteps, hexec⟩, hylist, hyfit⟩ := sccCode_spec G hfit
-  refine ⟨steps + 1, ?_, by dsimp only; omega⟩
-  have hex := hexec.executesList outReg (by rwa [hylist])
-  rwa [hylist] at hex
+  exact ⟨steps + 1, hylist ▸ hexec.executesList outReg (by rwa [hylist]), by dsimp only; omega⟩
 
 /-- `topoProgram` does not read the word width. -/
 theorem not_readsWidth_topoProgram : ¬ topoProgram.ReadsWidth := by
