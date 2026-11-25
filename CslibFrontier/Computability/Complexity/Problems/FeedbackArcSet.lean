@@ -253,6 +253,7 @@ theorem toFeedbackArcSet_mem_iff (x : FeedbackVertexSetInstance) :
   constructor
   · rintro ⟨S, -, hcard, hacyc⟩
     obtain ⟨g, -, hg⟩ := exists_rank_of_isDirAcyclic hacyc
+    -- Remove the vertices whose arcs `2v → 2v + 1` or `2v + 1 → 2w` were removed.
     refine ⟨(S.image fun e => e.1 / 2).filter (· ∈ G.vertices),
       fun v hv => (Finset.mem_filter.1 hv).2,
       (Finset.card_filter_le _ _).trans (Finset.card_image_le.trans hcard),
@@ -266,6 +267,7 @@ theorem toFeedbackArcSet_mem_iff (x : FeedbackVertexSetInstance) :
     omega
   · rintro ⟨R, hRV, hcard, hacyc⟩
     obtain ⟨f, hflt, hf⟩ := exists_rank_of_isDirAcyclic hacyc
+    -- Remove the arcs `2v → 2v + 1` of the removed vertices.
     refine ⟨R.image fun v => (2 * v, 2 * v + 1), fun e he => ?_,
       Finset.card_image_le.trans hcard, isDirAcyclic_of_rank
         (f := splitRank R f (G.deleteVerts R).vertices.toFinset.card) fun a b hab => ?_⟩
