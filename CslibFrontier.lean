@@ -1042,6 +1042,7 @@ public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpFastOpPr
 public import CslibFrontier.MachineLearning.PACLearning.Compression.Agnostic
 public import CslibFrontier.GameTheory.Mechanism.Online.PostedPrice
 public import CslibFrontier.DataStructure.Stack.Native
+public import CslibFrontier.Computability.Circuit.Arithmetic.BalancedCuts
 public import CslibFrontier.DataStructure.StateTransition.Module
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.PartialDerivativeEvaluation
 public import CslibFrontier.Tactic.CertificatePreparation
@@ -5516,6 +5517,7 @@ public import CslibFrontier.Logics.FirstOrder.Encoding.Power
 public import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.DyadicSummation
 public import CslibFrontier.Computability.Complexity.Problems.CSP.OneHot3
 public import CslibFrontier.Crypto.Primitives.Hash.MGF1
+public import CslibFrontier.Foundations.Data.Finset.BiUnionFinTwo
 public import CslibFrontier.Computability.Probabilistic.Oracle.SingleOracle
 public import CslibFrontier.Logics.FirstOrder.Ordered.Tuple.Flatten
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.Batch
