@@ -776,12 +776,6 @@ private theorem dpStep_foldl_le_init [AddCommGroup W] [LinearOrder W]
       · exact hb
 
 omit [Fintype V] in
-private theorem dpStep_le_prev [AddCommGroup W] [LinearOrder W]
-    (M : CostNetwork V W) (arcs : List (ResArc V)) (prev : V → W × List (ResArc V)) (v : V) :
-    (dpStep M arcs prev v).1 ≤ (prev v).1 :=
-  dpStep_foldl_le_init M prev v arcs (prev v)
-
-omit [Fintype V] in
 private theorem dpStep_foldl_le_of_mem [AddCommGroup W] [LinearOrder W]
     (M : CostNetwork V W) (prev : V → W × List (ResArc V)) {v : V} {a : ResArc V}
     (ha_dst : a.dst = v) :
@@ -817,7 +811,7 @@ private theorem dpRelax_le_walkCost [AddCommGroup W] [LinearOrder W] [IsOrderedA
         | zero => rfl
         | succ m ihm =>
           rw [dpRelax, Function.iterate_succ_apply']
-          exact (dpStep_le_prev M arcs _ v).trans ihm
+          exact (dpStep_foldl_le_init M (dpRelax M arcs m) v arcs (dpRelax M arcs m v)).trans ihm
       exact hk (k + 1)
     · rw [List.concat_eq_append] at hw hlen ⊢
       obtain ⟨hw₀, ha_pos, ha_dst⟩ :=
