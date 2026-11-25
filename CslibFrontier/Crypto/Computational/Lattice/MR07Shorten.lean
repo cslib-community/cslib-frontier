@@ -113,14 +113,9 @@ theorem sqNormProd_le_pow {S : Fin n → E} {B : ℝ} (hB : ∀ i, ‖S i‖ ^ 2
     _ = B ^ n := by simp
 
 private theorem pi_norm_update_le {S : Fin n → E} {i : Fin n} {u : E} (hu : ‖u‖ ≤ ‖S‖) :
-    ‖Function.update S i u‖ ≤ ‖S‖ := by
-  rw [pi_norm_le_iff_of_nonneg (norm_nonneg S)]
-  intro j
-  by_cases hji : j = i
-  · subst hji
-    simpa only [Function.update_self] using hu
-  · rw [Function.update_of_ne hji]
-    exact norm_le_pi_norm S j
+    ‖Function.update S i u‖ ≤ ‖S‖ :=
+  (pi_norm_le_iff_of_nonneg (norm_nonneg S)).2
+    ((Function.forall_update_iff S fun _ v => ‖v‖ ≤ ‖S‖).2 ⟨hu, fun j _ => norm_le_pi_norm S j⟩)
 
 /-- The replacement vector `u` has norm at most `(13 / 16) * ‖S‖`. -/
 theorem shortenStep_norm_le {S : Fin n → E} {t u : E}
@@ -309,8 +304,7 @@ theorem shortenSteps_lt_bound {E : Type*} [NormedAddCommGroup E] [InnerProductSp
     (hstep : ∀ j < k, sqNormProd (seq (j + 1)) ≤ (13 / 16 : ℝ) ^ 2 * sqNormProd (seq j))
     (hli : LinearIndependent ℝ (seq k)) (hGram : HasIntegralGram (seq k)) :
     k < shortenRoundBound n B := by
-  by_contra hge
-  push Not at hge
+  by_contra! hge
   have hchain : ∀ m ≤ k, sqNormProd (seq m) ≤ ((13 / 16 : ℝ) ^ 2) ^ m * sqNormProd (seq 0) := by
     intro m hm
     induction m with
