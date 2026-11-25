@@ -269,8 +269,8 @@ public theorem exists_shiftedCounter_of_polyTime_toCNF {α : Type} {encA : α �
         (2 + (p + 1) ^ b₀) * Y ^ B₁ := by
       have hd₂ : Y ^ d₂ ≤ Y ^ B₁ := Nat.pow_le_pow_right hY1 (by dsimp only [B₁]; omega)
       have hd₁ : Y ^ d₁ ≤ Y ^ B₁ := Nat.pow_le_pow_right hY1 (by dsimp only [B₁]; omega)
-      have h3 := (hφ_pow b₀).trans
-        (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hY1 (show q * b₀ ≤ B₁ by dsimp only [B₁]; omega)))
+      have h3 := (hφ_pow b₀).trans (Nat.mul_le_mul_left _
+        (Nat.pow_le_pow_right hY1 (show q * b₀ ≤ B₁ by dsimp only [B₁]; omega)))
       nlinarith
     have hpair_d₃ : ((encPair encNat encNat (fPow x, countCNF (fCNF x))).length + 1) ^ d₃ ≤
         M ^ d₃ * Y ^ (B₁ * d₃) := by

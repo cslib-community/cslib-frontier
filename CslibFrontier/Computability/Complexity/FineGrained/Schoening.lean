@@ -346,7 +346,8 @@ theorem inv_le_hit (hk : 3 ≤ k) (d : ℕ) :
         (3 * d + 1) := by
     rw [← Nat.cast_one, ← Nat.cast_sub (by omega)]
     exact_mod_cast hnat
-  have hD : (0 : ℝ) < (k : ℝ) ^ (k - 3) * ((k : ℝ) - 1) ^ d * (3 * d + 1) * (k : ℝ) ^ (i + (i + d)) :=
+  have hD : (0 : ℝ) <
+      (k : ℝ) ^ (k - 3) * ((k : ℝ) - 1) ^ d * (3 * d + 1) * (k : ℝ) ^ (i + (i + d)) :=
     mul_pos (mul_pos (mul_pos (pow_pos hk0 _) (pow_pos hpos1 d)) (by positivity)) (pow_pos hk0 _)
   calc
     _ = ((k : ℝ) - 1) ^ (k - 3) * (k : ℝ) ^ (i + (i + d)) /

@@ -551,7 +551,8 @@ private theorem divMod_iterate_bitBound (a b : List ℚ) {B : ℕ}
     have hBbt : Bbt ≤ 2 ^ E := hexp _ (by omega)
     have hfin (X Y : ℕ) (hX : X ≤ 2 ^ (E + 1)) (hY : Y ≤ 2 ^ (E + 1)) :
         X * Y ^ k ≤ 2 ^ ((a.length + 1) * (E + 1)) :=
-      calc X * Y ^ k ≤ 2 ^ (E + 1) * (2 ^ (E + 1)) ^ k := Nat.mul_le_mul hX (Nat.pow_le_pow_left hY k)
+      calc X * Y ^ k ≤ 2 ^ (E + 1) * (2 ^ (E + 1)) ^ k :=
+            Nat.mul_le_mul hX (Nat.pow_le_pow_left hY k)
         _ = 2 ^ ((k + 1) * (E + 1)) := by rw [← pow_succ', ← pow_mul, mul_comm]
         _ ≤ _ := Nat.pow_le_pow_right zero_lt_two (Nat.mul_le_mul_right _ (by omega))
     have hDk_le := hfin Da W (by omega) (hwlc_le.trans (by omega))
@@ -860,7 +861,7 @@ theorem sturmSeqList_computableInPolyTime :
           dsimp only [encSturmIterStateFields]
           rw [length_encPair, length_encPair]
           dsimp only
-          show _ ≤ 431 * (L + 1) ^ 6
+          change _ ≤ 431 * (L + 1) ^ 6
           omega
     convert hiter using 1
     funext cs

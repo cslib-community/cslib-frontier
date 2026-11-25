@@ -376,7 +376,8 @@ theorem value_le (B Z K μ : ℕ) (hBK : B ≤ K) (hμ : 0 < μ) (V : List Bool 
               have hq : (2 : ℚ) ^ κ * countFrom g V (p ++ List.ofFn m) ≤
                   μ * 2 ^ ((List.ofFn c).count true) * N := by
                 exact_mod_cast hle
-              linarith [mul_le_mul_of_nonneg_left hq (by positivity : (0 : ℚ) ≤ μ ^ verifierMoves g)]
+              linarith [mul_le_mul_of_nonneg_left hq
+                (by positivity : (0 : ℚ) ≤ μ ^ verifierMoves g)]
             linarith
         · rw [decide_eq_false hloc, Bool.toNat_false, Nat.cast_zero, zero_mul]
           linarith
