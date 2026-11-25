@@ -89,23 +89,19 @@ theorem Circuit.eval_projOutcomes {C : Circuit m} (p : (Fin m → Bool) → Prop
     eval C (projOutcomes p ψ) = projOutcomes p (eval C ψ) := by
   ext y
   simp only [eval, unitaryEquiv_apply, projOutcomes_apply, mulVec, dotProduct]
-  split_ifs with hy
-  · refine sum_congr rfl fun x _ => ?_
-    by_cases hx : p x
-    · rw [ite_eq_left hx]
-    · rw [ite_eq_right hx, not_imp_comm.mp (hp y x) (fun h => hx (h.mp hy)), zero_mul, zero_mul]
-  · refine sum_eq_zero fun x _ => ?_
-    by_cases hx : p x
-    · rw [not_imp_comm.mp (hp y x) (fun h => hy (h.mpr hx)), zero_mul]
-    · rw [ite_eq_right hx, mul_zero]
+  rw [show (if p y then ∑ x, (matrix C : Matrix _ _ ℂ) y x * ψ x else 0) =
+    ∑ x, if p y then (matrix C : Matrix _ _ ℂ) y x * ψ x else 0 by split_ifs <;> simp]
+  refine sum_congr rfl fun x _ => ?_
+  by_cases h0 : (matrix C : Matrix _ _ ℂ) y x = 0
+  · simp [h0]
+  · simp [hp y x h0]
 
 /-- A circuit none of whose gates acts on qubit `j` commutes with projecting onto a value of
 `j`. -/
 theorem Circuit.eval_projOutcomes_bit {C : Circuit m} {j : Fin m}
     (hC : ∀ g ∈ C, ∀ i, g.wires i ≠ j) (b : Bool) (ψ : Qubits m) :
     eval C (projOutcomes (fun y => y j = b) ψ) = projOutcomes (fun y => y j = b) (eval C ψ) :=
-  eval_projOutcomes _ (fun y x hyx => by
-    rw [not_not.mp (mt (matrix_eq_zero_of_ne hC) hyx)]) ψ
+  eval_projOutcomes _ (fun _ _ hyx => by rw [not_not.mp (mt (matrix_eq_zero_of_ne hC) hyx)]) ψ
 
 namespace GateCode
 
@@ -113,31 +109,9 @@ namespace GateCode
 theorem wires_mem_of_toPlacedGate? {b : Bool} {t : ℕ} {cs : List ℕ} {pg : PlacedGate m}
     (h : toPlacedGate? m (b, t, cs) = some pg) (i : Fin pg.arity) :
     (pg.wires i : ℕ) ∈ t :: cs := by
-  match b, cs, h with
-  | true, [], h =>
-    simp only [toPlacedGate?] at h
-    split_ifs at h with ht
-    cases h
-    fin_cases i
-    exact List.mem_cons_self ..
-  | false, [], h =>
-    simp only [toPlacedGate?] at h
-    split_ifs at h with ht
-    cases h
-    fin_cases i
-    exact List.mem_cons_self ..
-  | false, [c], h =>
-    simp only [toPlacedGate?] at h
-    split_ifs at h with ht
-    cases h
-    fin_cases i <;> simp
-  | false, [c₁, c₂], h =>
-    simp only [toPlacedGate?] at h
-    split_ifs at h with ht
-    cases h
-    fin_cases i <;> simp
-  | true, _ :: _, h => simp [toPlacedGate?] at h
-  | false, _ :: _ :: _ :: _, h => simp [toPlacedGate?] at h
+  (rcases b with _ | _ <;> rcases cs with _ | ⟨c₁, _ | ⟨c₂, _ | _⟩⟩ <;>
+    simp only [toPlacedGate?] at h <;> try split_ifs at h) <;>
+    cases h <;> fin_cases i <;> first | exact List.mem_cons_self .. | simp
 
 /-- **A well-formed gate is its own inverse.** -/
 theorem eval_eval_of_toPlacedGate? {g : GateCode} {pg : PlacedGate m} (hg : WellFormed m g)
@@ -267,12 +241,8 @@ theorem classicalStep_addControl (g : GateCode) (c : Fin m) (y : Fin m → Bool)
     classicalStep (addControl c g) y = if y c then classicalStep g y else y := by
   obtain ⟨b, t, cs⟩ := g
   refine funext_readBit fun j => ?_
-  rw [readBit_classicalStep]
-  by_cases hc : y c
-  · rw [ite_eq_left hc, readBit_classicalStep]
-    by_cases h₁ : j = t <;> by_cases h₂ : t < m <;> simp [addControl, hc, h₁, h₂]
-  · rw [ite_eq_right hc]
-    simp [addControl, hc]
+  by_cases hc : y c <;> by_cases h₁ : j = t <;> by_cases h₂ : t < m <;>
+    simp [readBit_classicalStep, addControl, hc, h₁, h₂]
 
 theorem classicalUnrun_addControl {gs : List GateCode} {c : Fin m}
     (h : ∀ b t cs, (b, t, cs) ∈ gs → t ≠ c) (y : Fin m → Bool) :
@@ -280,14 +250,11 @@ theorem classicalUnrun_addControl {gs : List GateCode} {c : Fin m}
   induction gs with
   | nil => simp
   | cons g gs ih =>
-    rw [List.map_cons, classicalUnrun_cons, classicalUnrun_cons,
-      ih (fun b t cs hg' => h b t cs (List.mem_cons_of_mem _ hg')), classicalStep_addControl]
-    by_cases hc : y c
-    · have hU : classicalUnrun gs y c = y c := by
-        simpa using readBit_classicalUnrun_of_forall_ne
-          (fun b t cs hg' => h b t cs (List.mem_cons_of_mem _ hg')) y
-      simp only [hc, ite_true, hU]
-    · simp only [hc, Bool.false_eq_true, ite_false]
+    have hgs := fun b t cs hg' => h b t cs (List.mem_cons_of_mem _ hg')
+    have hU : classicalUnrun gs y c = y c :=
+      by simpa using readBit_classicalUnrun_of_forall_ne hgs y
+    rw [List.map_cons, classicalUnrun_cons, classicalUnrun_cons, ih hgs, classicalStep_addControl]
+    cases hc : y c <;> simp [hc, hU]
 
 /-- Classical codes with an extra control are classical only if the codes without it are, and
 then no code targets the control. -/
@@ -295,11 +262,8 @@ theorem isClassical_of_addControl {gs : List GateCode} {c : ℕ}
     (h : IsClassical m (gs.map (addControl c))) :
     IsClassical m gs ∧ ∀ b t cs, (b, t, cs) ∈ gs → t ≠ c := by
   refine ⟨fun ⟨b, t, cs⟩ hg => ?_, fun b t cs hg => ?_⟩ <;>
-  · obtain ⟨h₁, hw⟩ := h _ (List.mem_map_of_mem hg)
-    simp only [addControl] at h₁ hw
-    subst h₁
-    obtain ⟨hlen, hnd, hlt⟩ := hw
-    simp only [List.length_cons, List.nodup_cons, List.mem_cons, not_or, List.mem_cons,
+  · obtain ⟨rfl, hlen, hnd, hlt⟩ := h _ (List.mem_map_of_mem hg)
+    simp only [List.length_cons, List.nodup_cons, List.mem_cons, not_or,
       forall_eq_or_imp] at hlen hnd hlt
     first
     | exact ⟨rfl, by omega, List.nodup_cons.mpr ⟨hnd.1.2, hnd.2.2⟩,
