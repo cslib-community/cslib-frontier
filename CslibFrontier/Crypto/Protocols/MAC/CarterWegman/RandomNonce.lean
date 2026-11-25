@@ -253,13 +253,10 @@ theorem probOracleComp_randomNonceSimHandler_not_nodup_le {α : Type}
         rw [bind_pure_decide_apply_true]
         simpa only [List.length_map, one_div] using
           Probability.PMF.toOuterMeasure_uniformOfFintype_mem_list_le (s.map (fun e => e.1.2))
-    · intro q s _ x hmem _
-      cases q with
-      | inl num =>
-        supp_cases hmem [OracleComp.sumHandler, StateT.lift] with ⟨_, -, rfl⟩
+    · rintro (num | m) s _ x hmem _
+      · supp_cases hmem [OracleComp.sumHandler, StateT.lift] with ⟨_, -, rfl⟩
         simp
-      | inr m =>
-        supp_cases hmem [OracleComp.sumHandler, randomNonceSimHandler] with ⟨_, _, rfl⟩
+      · supp_cases hmem [OracleComp.sumHandler, randomNonceSimHandler] with ⟨_, _, rfl⟩
         simp
     · rw [← div_eq_mul_inv]
       congr 1
@@ -455,11 +452,8 @@ private theorem sum_range_div_add_max_le (Q cN cY : ℕ) (ε : ℝ≥0∞) :
     rw [← ENNReal.mul_div_mul_left _ _ (by norm_num : (2 : ℝ≥0∞) ≠ 0) ENNReal.ofNat_ne_top]
     gcongr
     exact_mod_cast hsum_nat
-  have hmax : max ε (cY : ℝ≥0∞)⁻¹ ≤ (cY : ℝ≥0∞)⁻¹ + ε := by
-    rw [add_comm]
-    exact max_le_add_of_nonneg zero_le zero_le
   rw [add_assoc]
-  exact add_le_add hsum hmax
+  exact add_le_add hsum ((max_le_add_of_nonneg zero_le zero_le).trans_eq (add_comm _ _))
 
 /-- **Ideal randomized Carter–Wegman SUF-CMA security (`∑ i < Q` + `max` bound)**, a step of the
 proof of [BonehShoup2023], Theorem 7.9 (Section 7.4, p. 270), with a truly random function in place
@@ -678,9 +672,8 @@ theorem isOraclePPT_prfRandomNonceToPrfDistinguisher
     have hnonceLen : nonce.length = np.1 := BitString.length_of_mem_support_uniformList hnonce
     exact ⟨by dsimp only; enc_len [hnonceLen, BitString.length_listXor],
       by dsimp only; enc_len [hnonceLen, BitString.length_listXor]⟩
-  · have hcond' : (request.2.length == msgLen np.1) = false := Bool.eq_false_iff.mpr hcond
-    simp only [hcond', Bool.false_eq_true, ↓reduceIte, OracleComp.supportWith_pure,
-      Set.mem_singleton_iff] at hresult
+  · simp only [Bool.eq_false_iff.mpr hcond, Bool.false_eq_true, ↓reduceIte,
+      OracleComp.supportWith_pure, Set.mem_singleton_iff] at hresult
     subst hresult
     exact ⟨by simp, by enc_len⟩
 
@@ -860,12 +853,11 @@ private theorem step_cwRandomNonceLogHandler_randomFunctionOracle
       simp only [id_eq, List.map_append, List.map_singleton, List.reverse_cons,
         ofRandomBitTriple, BitString.ofFn_ofList hcond]
       exact hsub.append (List.Sublist.refl _)
-  · have hcond' : (msg.length == msgLen n) = false := Bool.eq_false_iff.mpr hcond
-    simp only [hcond', Bool.false_eq_true, ↓reduceIte, ProbOracleComp.runWith_pure,
-      OracleComp.interpret_pure, ProbComp.eval_pure, PMF.pure_map, PMF.support_pure,
-      Set.mem_singleton_iff]
-    refine ⟨trivial, ?_⟩
-    rintro _ _ _ ⟨⟩
+  · simp only [Bool.eq_false_iff.mpr hcond, Bool.false_eq_true, ↓reduceIte,
+      ProbOracleComp.runWith_pure, OracleComp.interpret_pure, ProbComp.eval_pure, PMF.pure_map,
+      PMF.support_pure, Set.mem_singleton_iff]
+    refine ⟨trivial, fun _ _ _ h => ?_⟩
+    cases h
     exact hsub
 
 /-- **Ideal-game bound for `prfRandomNonceToPrfDistinguisher`**, a step of the proof of

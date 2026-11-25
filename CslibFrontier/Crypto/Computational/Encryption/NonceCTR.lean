@@ -392,15 +392,12 @@ private theorem nonceCTRHandler_eq_ite (nonceLen : ℕ → ℕ) (n : ℕ) (b : B
   cases hdec : NonceCipher.unitCPACodec.decodeQuery ((), word) with
   | none =>
     have hfalse : (frame (unframe word) ++ frame (unframe (dropFrame word)) ++
-        dropFrame (dropFrame word) == word) = false := by
-      rw [beq_eq_false_iff_ne]
-      intro heq
-      have hsome : NonceCipher.unitCPACodec.decodeQuery ((), word) =
-          some (⟨unframe word, unframe (dropFrame word)⟩, (), dropFrame (dropFrame word)) :=
-        (NonceCipher.unitCPACodec.decodeQuery_eq_some_iff _ _).mpr (Prod.ext rfl heq)
-      simp [hdec] at hsome
-    rw [hfalse]
-    rfl
+        dropFrame (dropFrame word) == word) = false :=
+      beq_eq_false_iff_ne.mpr fun heq => nomatch hdec.symm.trans
+        ((NonceCipher.unitCPACodec.decodeQuery_eq_some_iff ((), word)
+          (⟨unframe word, unframe (dropFrame word)⟩, (), dropFrame (dropFrame word))).mpr
+          (Prod.ext rfl (by simpa [NonceCipher.unitCPACodec, List.append_assoc] using heq)))
+    simp only [hfalse, Bool.false_eq_true, ↓reduceIte]
   | some q =>
     rcases q with ⟨⟨m₀, m₁⟩, ⟨⟩, nonce⟩
     have hword : frame m₀ ++ (frame m₁ ++ nonce) = word := by
@@ -759,8 +756,7 @@ private theorem eval_prfIdealGame_nonceCTRSimView {nonceLen : ℕ → ℕ} {n : 
         simp only [ProbOracleComp.runWith_map, PMF.map_comp, Function.comp_def, Prod.map, id_eq]
         refine ⟨fun a state' hmem => ?_, ?_⟩
         · rw [PMF.mem_support_map_iff] at hmem
-          obtain ⟨ksRes, hksRes, heq⟩ := hmem
-          cases heq
+          obtain ⟨ksRes, hksRes, ⟨⟩⟩ := hmem
           exact hsuppKs ksRes hksRes
         · trans ((ProbOracleComp.runWith (fun req => lazyRandomFunctionOracle n n req.2)
               (ctrKeystreamQueries n (nonceCTRCounter n (nonceLen n) nonce 0)
@@ -1009,10 +1005,9 @@ theorem advantage_cpaExperiment_unscaledNonceCTRAdversary
           (true :: (List.zipWith Bool.xor (List.replicate n true) (y 1) ++ y 2)).take (2 * n + 1) =
             true :: (List.zipWith Bool.xor (List.replicate n true) (y 1) ++ y 2) :=
         List.take_of_length_le (by simp [hxorLen, hyLen, Nat.two_mul])
-      have hneBlock : List.zipWith Bool.xor (List.replicate n true) (y 1) ≠ y 1 := by
-        have hlen1 : (y 1).length = n := hyLen 1
-        rw [← hlen1]
-        exact zipWith_xor_replicate_true_ne (y 1) (List.ne_nil_of_length_pos (by omega))
+      have hneBlock : List.zipWith Bool.xor (List.replicate n true) (y 1) ≠ y 1 :=
+        hyLen 1 ▸ zipWith_xor_replicate_true_ne (y 1)
+          (List.ne_nil_of_length_pos ((hyLen 1).symm ▸ hn))
       dsimp only [MessagePair.select, cond]
       rw [hct1True, hr2Take, List.drop_succ_cons, List.drop_zero, List.take_left' hxorLen,
         beq_eq_false_iff_ne.mpr hneBlock]

@@ -464,13 +464,10 @@ private theorem nodup_spends_of_validTraceFrom
       refine ⟨?_, ih h.2⟩
       intro hmem
       obtain ⟨s, hs, heq⟩ := List.mem_map.mp hmem
-      have hfalse := not_hasSpentNullifier_of_validTraceFrom h.2 s hs
-      have htrue : hasSpentNullifier (acc ++ [.spend sr]) s.ctx s.nullifier = true := by
-        simp only [hasSpentNullifier, List.any_eq_true]
-        refine ⟨.spend sr, by simp, ?_⟩
-        simp only [decide_eq_true_eq]
-        exact ⟨(Prod.mk.inj heq).1.symm, (Prod.mk.inj heq).2.symm⟩
-      simp [hfalse] at htrue
+      have htrue : hasSpentNullifier (acc ++ [.spend sr]) s.ctx s.nullifier = true :=
+        List.any_eq_true.mpr ⟨.spend sr, by simp,
+          decide_eq_true ⟨(Prod.mk.inj heq).1.symm, (Prod.mk.inj heq).2.symm⟩⟩
+      simp [not_hasSpentNullifier_of_validTraceFrom h.2 s hs] at htrue
 
 /-- Every request in a `validTrace` satisfies its local check (`acceptLocal`). -/
 theorem acceptLocal_of_validTrace
@@ -664,13 +661,11 @@ theorem findNoteForgery_eq_some [DecidableEq Nullifier] [DecidableEq Context]
       tok = ⟨s.inputPayload, s.signature⟩ ∧
         s.inputNote ∉ reqs.map (fun r => r.outputPayload.message) := by
   simp only [findNoteForgery, List.findSome?_eq_some_iff] at h
-  obtain ⟨prefixSp, s, suffixSp, hsp, hfound, hnone⟩ := h
+  obtain ⟨_, s, _, hsp, hfound, _⟩ := h
   by_cases hmem : s.inputNote ∈ reqs.map (fun r => r.outputPayload.message)
   · simp [hmem] at hfound
   · simp only [hmem, ↓reduceIte, Option.some.injEq] at hfound
-    refine ⟨s, ?_, hfound.symm, hmem⟩
-    rw [hsp]
-    simp
+    exact ⟨s, by simp [hsp], hfound.symm, hmem⟩
 
 /-! ### Part II: Adaptive game, reduction to `AnonymousToken`, and probability bound -/
 
@@ -1005,11 +1000,7 @@ private theorem extractedConservationAccept_imp_extractedAccept
     simp only [acceptLocal, Bool.and_eq_true] at hloc
     simp only [extractedAccept, toExtractedExecution, reqs, hforg, Option.getD_some,
       Token.valid, SpendRequest.inputPayload, Bool.and_eq_true, decide_eq_true_eq]
-    refine ⟨hloc.1.1, ?_⟩
-    change ((run.log.filterMap fun p => p.2.map fun σ => (p.1.outputPayload, σ)).map
-        fun entry => entry.1.message) |> (s.inputNote ∉ ·)
-    rw [hlog_map]
-    exact hnotmem
+    exact ⟨hloc.1.1, by rwa [hlog_map]⟩
 
 /-- Extracted-model reduction step, original to this library; it couples the
 credit-conservation game to `Cslib.Crypto.AnonymousToken.extractedExperiment`. Any adversary
@@ -1112,12 +1103,7 @@ private theorem isBindingCollision_noteBindingCollision
     (h : checkBindingWitness (Credit.target com Prod.mk) w = true) :
     CS.isBindingCollision k (noteBindingCollision com w) = true := by
   have ⟨_, hne, hcom⟩ := (checkBindingWitness_prod_mk_iff com w).mp h
-  simp only [Crypto.Commitment.Scheme.isBindingCollision, noteBindingCollision, Bool.and_eq_true]
-  refine ⟨⟨decide_eq_true hne, ?_⟩, ?_⟩
-  · rw [hverify]
-    exact decide_eq_true rfl
-  · rw [hverify]
-    exact decide_eq_true hcom.symm
+  simp [Crypto.Commitment.Scheme.isBindingCollision, noteBindingCollision, hverify, hne, hcom]
 
 /-- `noteBindingCollision` on a found witness. With no witness it returns a trivial pair that
 opens `com default default 0 default` twice to the same message, which is never a collision. -/
