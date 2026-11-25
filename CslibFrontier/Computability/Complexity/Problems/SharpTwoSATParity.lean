@@ -18,15 +18,15 @@ import Mathlib.Logic.Equiv.Basic
 /-!
 # Linear-size parity queries for the two-query reduction to #2SAT
 
-The queries implement the selector and parity-chain construction of
-[BannachDemaineGomezHecher2026, §3, equation (3.3) and Theorem 3.8]. The formalization folds
-the clause indicators into the parity selectors. We count extensions by fixing the source
-assignment and summing over the parity chain. At each step, the difference between the numbers
-of extensions that keep or flip the state is one for a satisfied clause and zero for a
-falsified clause.
+The queries adapt the parity counter of [BannachDemaineGomezHecher2026, §3.1–3.2].
+A selector names a pair of consecutive parity states, eliminating the separate clause
+indicator. This changes the queries in (3.2) and can change their individual counts.
+The proof recovers the difference identity of (3.3) using a signed sum over paths.
+At each step, the difference between the numbers of extensions that keep or flip the
+state is one for a satisfied clause and zero for a falsified clause.
 
-The output is an ordinary CNF with binary natural-variable labels. Its model count is over
-occurring variables, and tautologies expose the same assignment universe in both queries.
+The output is an ordinary CNF with binary natural-variable labels. Both queries count
+assignments over their occurring variables, which include all source and auxiliary variables.
 The size and model-count results supply the combinatorial part of the #SH transfer in
 [MITHardnessGroup2026SH, §6, Corollary 6.1].
 
@@ -62,40 +62,6 @@ private theorem mem_choices (ab : Choice) : ab ∈ choices := by
   rcases ab with ⟨a, b⟩
   cases a <;> cases b <;> decide
 
-private def declare {φ : CNF ℕ} (v : Var φ) : Clause (Var φ) := [(v, false), (v, true)]
-
-private def declarations (φ : CNF ℕ) : CNF (Var φ) :=
-  (φ.distinctVars.attach.map fun v =>
-    declare (.inl ⟨v.1, List.mem_toFinset.mpr (CNF.mem_distinctVars.mp v.2)⟩)) ++
-  ((List.finRange (φ.length + 1)).map (fun i => declare (state i)) ++
-    (List.finRange φ.length).flatMap fun i => choices.map fun ab => declare (selector i ab))
-
-private theorem declare_mem_declarations (φ : CNF ℕ) (v : Var φ) :
-    declare v ∈ declarations φ := by
-  rcases v with v | (i | ⟨i, ab⟩)
-  · apply List.mem_append.mpr
-    left
-    apply List.mem_map.mpr
-    exact ⟨⟨v, CNF.mem_distinctVars.mpr (List.mem_toFinset.mp v.2)⟩, List.mem_attach _ _, rfl⟩
-  · apply List.mem_append.mpr
-    right
-    apply List.mem_append.mpr
-    left
-    exact List.mem_map.mpr ⟨i, List.mem_finRange _, rfl⟩
-  · apply List.mem_append.mpr
-    right
-    apply List.mem_append.mpr
-    right
-    exact List.mem_flatMap.mpr
-      ⟨i, List.mem_finRange _, List.mem_map.mpr ⟨ab, mem_choices ab, rfl⟩⟩
-
-private theorem eval_declarations (φ : CNF ℕ) (σ : Var φ → Bool) :
-    (declarations φ).eval σ = true := by
-  have h (v : Var φ) : (declare v).eval σ = true := by cases hv : σ v <;> simp [declare, hv]
-  simp only [declarations, CNF.eval_append, Bool.and_eq_true, CNF.eval_map_eq_true_iff,
-    CNF.eval_flatMap_eq_true_iff]
-  exact ⟨fun _ _ => h _, fun _ _ => h _, fun _ _ _ _ => h _⟩
-
 private def gate {φ : CNF ℕ} (s : Var φ) (l : Literal (Var φ)) : Clause (Var φ) :=
   [(s, false), l]
 
@@ -117,7 +83,7 @@ private def stepClauses (φ : CNF ℕ) (i : Fin φ.length) (ab : Choice) : CNF (
 
 private def typedQuery (φ : CNF ℕ) (odd : Bool) : CNF (Var φ) :=
   [(state 0, false)] :: [(state (Fin.last φ.length), odd)] ::
-    (declarations φ ++ (List.finRange φ.length).flatMap fun i => choices.flatMap (stepClauses φ i))
+    (List.finRange φ.length).flatMap fun i => choices.flatMap (stepClauses φ i)
 
 private theorem vars_typedQuery (φ : CNF ℕ) (odd : Bool) :
     (typedQuery φ odd).vars.toFinset = Finset.univ := by
@@ -125,7 +91,28 @@ private theorem vars_typedQuery (φ : CNF ℕ) (odd : Bool) :
   intro v
   apply List.mem_toFinset.mpr
   apply CNF.mem_vars.mpr
-  exact ⟨declare v, by simp [typedQuery, declare_mem_declarations], false, by simp [declare]⟩
+  have hstep (i : Fin φ.length) (ab : Choice) {c : Clause (Var φ)}
+      (hc : c ∈ stepClauses φ i ab) : c ∈ typedQuery φ odd :=
+    List.mem_cons_of_mem _ (List.mem_cons_of_mem _ (List.mem_flatMap.mpr
+      ⟨i, List.mem_finRange _, List.mem_flatMap.mpr ⟨ab, mem_choices ab, hc⟩⟩))
+  rcases v with v | (i | ⟨i, ab⟩)
+  · obtain ⟨c, hc, b, hl⟩ := CNF.mem_vars.mp (List.mem_toFinset.mp v.property)
+    obtain ⟨j, hj, rfl⟩ := List.mem_iff_getElem.mp hc
+    let idx : Fin φ.length := ⟨j, hj⟩
+    let l : {l // l ∈ φ[idx]} := ⟨(v.val, b), hl⟩
+    let g := gate (selector idx (false, true)) (sourceLiteral idx l)
+    refine ⟨g, hstep idx (false, true) ?_, !b, ?_⟩
+    · exact List.mem_cons_of_mem _ (List.mem_cons_of_mem _ (List.mem_map.mpr
+        ⟨l, List.mem_attach _ _, rfl⟩))
+    · exact List.mem_cons_of_mem _ (List.mem_singleton.mpr rfl)
+  · refine Fin.lastCases ?_ (fun j => ?_) i
+    · exact ⟨[(state (Fin.last φ.length), odd)], List.mem_cons_of_mem _ List.mem_cons_self,
+        odd, List.mem_cons_self⟩
+    · let g := gate (selector j (false, false)) (state j.castSucc, false)
+      exact ⟨g, hstep j (false, false) List.mem_cons_self, false,
+        List.mem_cons_of_mem _ List.mem_cons_self⟩
+  · let g := gate (selector i ab) (state i.castSucc, ab.1)
+    exact ⟨g, hstep i ab List.mem_cons_self, false, List.mem_cons_self⟩
 
 private theorem eval_stepClauses_iff {φ : CNF ℕ} (σ : Var φ → Bool) (i : Fin φ.length)
     (ab : Choice) :
@@ -155,7 +142,7 @@ private theorem eval_typedQuery_iff (φ : CNF ℕ) (σ : Var φ → Bool) (odd :
         validChoices (φ[i].eval (φ.extendAssignment (sourceAssignment σ)))
           (σ (state i.castSucc)) (σ (state i.succ)) (fun ab => σ (selector i ab)) := by
   rw [typedQuery]
-  simp only [CNF.eval_cons, CNF.eval_append, Bool.and_eq_true, eval_declarations, true_and,
+  simp only [CNF.eval_cons, Bool.and_eq_true,
     Clause.eval_cons, Clause.eval_nil, Bool.or_false, Literal.eval_eq_true_iff]
   refine and_congr_right fun _ => and_congr_right fun _ => ?_
   simp only [CNF.eval_flatMap_eq_true_iff, List.mem_finRange, mem_choices, true_implies,
@@ -341,9 +328,6 @@ private theorem label_injective (φ : CNF ℕ) : Function.Injective (label (φ :
 
 private theorem length_clause_typedQuery (φ : CNF ℕ) (odd : Bool) {c : Clause (Var φ)}
     (hc : c ∈ typedQuery φ odd) : c.length ≤ 2 := by
-  have hdeclare : ∀ c ∈ declarations φ, c.length ≤ 2 := by
-    simp only [declarations, List.mem_append, List.mem_map, List.mem_flatMap]
-    rintro _ (⟨_, _, rfl⟩ | ⟨_, _, rfl⟩ | ⟨_, _, _, _, rfl⟩) <;> exact le_rfl
   have hstep (i : Fin φ.length) (ab : Choice) : ∀ c ∈ stepClauses φ i ab, c.length ≤ 2 := by
     simp only [stepClauses, List.mem_cons]
     rintro _ (rfl | rfl | hm)
@@ -353,11 +337,10 @@ private theorem length_clause_typedQuery (φ : CNF ℕ) (odd : Bool) {c : Clause
       · cases hm
       · obtain ⟨_, _, rfl⟩ := List.mem_map.mp hm
         exact le_rfl
-  simp only [typedQuery, List.mem_cons, List.mem_append, List.mem_flatMap] at hc
-  rcases hc with rfl | rfl | hc | ⟨i, _, ab, _, hc⟩
+  simp only [typedQuery, List.mem_cons, List.mem_flatMap] at hc
+  rcases hc with rfl | rfl | ⟨i, _, ab, _, hc⟩
   · exact Nat.le_succ 1
   · exact Nat.le_succ 1
-  · exact hdeclare _ hc
   · exact hstep i ab _ hc
 
 /-- The even or odd parity query, with the original variables and the chain auxiliaries assigned
@@ -386,19 +369,9 @@ theorem sharpSAT_eq_parityQuery_sub (φ : CNF ℕ) :
   have h := modelCount_typedQuery_sub φ
   omega
 
-private theorem length_declarations_le (φ : CNF ℕ) :
-    (declarations φ).length ≤ φ.numVars + 5 * φ.length + 1 := by
-  have h := List.length_flatMap_le (l := List.finRange φ.length)
-    (f := fun i => choices.map fun ab => declare (selector i ab))
-    (k := 4) (fun _ _ => by simp [choices])
-  simp only [declarations, List.length_append, List.length_map, List.length_attach,
-    CNF.length_distinctVars, List.length_finRange]
-  rw [List.length_finRange] at h
-  omega
-
 private theorem length_parityQuery_le (φ : CNF ℕ) (odd : Bool)
     (hφ : ∀ c ∈ φ, c.length ≤ 3) :
-    (parityQuery φ odd).length ≤ φ.numVars + 25 * φ.length + 3 := by
+    (parityQuery φ odd).length ≤ 20 * φ.length + 2 := by
   have hblocks := List.length_flatMap_le
     (l := List.finRange φ.length) (f := fun i => choices.flatMap (stepClauses φ i))
     (k := 20) (fun i _ => by
@@ -409,9 +382,7 @@ private theorem length_parityQuery_le (φ : CNF ℕ) (odd : Bool)
           split_ifs <;> simp only [List.length_cons, List.length_nil, List.length_map,
             List.length_attach] <;> omega)
       exact h.trans (by decide))
-  have hdecl := length_declarations_le φ
-  simp only [parityQuery, typedQuery, CNF.relabel, List.length_map, List.length_cons,
-    List.length_append]
+  simp only [parityQuery, typedQuery, CNF.relabel, List.length_map, List.length_cons]
   rw [List.length_finRange] at hblocks
   omega
 
@@ -419,7 +390,7 @@ private theorem length_parityQuery_le (φ : CNF ℕ) (odd : Bool)
 graph, measured as occurring variables plus clauses. The additive constant covers empty inputs. -/
 theorem size_parityQuery_le (φ : CNF ℕ) (odd : Bool) (hφ : ∀ c ∈ φ, c.length ≤ 3) :
     (parityQuery φ odd).numVars + (parityQuery φ odd).length ≤
-      80 * (φ.numVars + φ.length + 1) := by
+      60 * φ.length + 6 := by
   have hv := CNF.numVars_le_mul_length (width_parityQuery φ odd)
   have hc := length_parityQuery_le φ odd hφ
   omega
