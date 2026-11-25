@@ -249,6 +249,25 @@ theorem profile_source_lookup (p : ClauseProfile) {v j : ℕ}
   · change (profileGeometry p).terminalVariables.idxOf v % 3 = j
     rw [hidx, ht.2.2, Nat.mod_eq_of_lt hj3]
 
+private theorem source_incidence_port {φ : CNF ℕ} {d : Graph.OrthogonalDrawing}
+    (hd : Graph.IsPlanarOrthogonalDrawing (SAT.incidenceGraph φ) d) {i : ℕ}
+    (hi : i < φ.length)
+    (h : LocalGeometry.PrefixCheck (profilePrefixGeometry (clauseProfile φ[i])))
+    {e : LocalIncidence} (he : e ∈ (clauseGeometry φ d i φ[i]).incidenceRoutes) {j : ℕ}
+    (hget : (profileVariables (clauseProfile φ[i])).getD e.variableIndex (.inl (.inl 0)) =
+      .inl (.inl j)) :
+    ∃ (j' : Fin 3), j'.val = j ∧ j < φ[i].length ∧
+      e.variableIndex ∈ (profilePrefixGeometry (clauseProfile φ[i])).terminalVariables ∧
+      (clauseGeometry φ d i φ[i]).variablePosition e.variableIndex =
+        collarOuterPort ((clausePorts φ d i).side j') := by
+  have hends := collaredProfile_incidence_endpoints _ h (clausePorts_spec hd hi).1 he
+  have hv :
+      e.variableIndex < (profilePrefixGeometry (clauseProfile φ[i])).variablePositions.length := by
+    simpa only [collaredPrefixGeometry, List.length_map, List.length_zipIdx] using hends.2.1
+  obtain ⟨hjSrc, hj3, hidx, hterm, -⟩ := profile_source_lookup _ hv hget
+  refine ⟨⟨j, hj3⟩, rfl, lt_of_lt_of_le hjSrc (profileSource_length_le φ[i]), hterm, ?_⟩
+  rw [hidx, clauseGeometry_source_point φ d i φ[i] ⟨j, hj3⟩ hjSrc]
+
 /-- Every actual emitted incidence is properly orthogonal and continuously simple.
 Source placeholders are spliced at the sole contact of their clause box with the inherited
 route; auxiliary incidences retain their finite prefix. -/
@@ -260,28 +279,19 @@ theorem positiveIncidenceRoute_regular {φ : CNF ℕ} {d : Graph.OrthogonalDrawi
     IsOrthogonal (positiveIncidenceRoute φ d i φ[i] e) ∧
       IsSimple (positiveIncidenceRoute φ d i φ[i] e) := by
   have hstem := positiveStem_regular hd hi φ[i] h he
-  have hends := collaredProfile_incidence_endpoints (clauseProfile φ[i]) h
-    (clausePorts_spec hd hi).1 he
-  have hv :
-      e.variableIndex < (profilePrefixGeometry (clauseProfile φ[i])).variablePositions.length := by
-    simpa only [collaredPrefixGeometry, List.length_map, List.length_zipIdx] using hends.2.1
   unfold positiveIncidenceRoute
   split
   next j hj =>
-    have hm := profile_source_lookup _ hv hj
-    let j' : Fin 3 := ⟨j, hm.2.1⟩
-    have hjSource : j < φ[i].length :=
-      lt_of_lt_of_le hm.1 (profileSource_length_le φ[i])
+    obtain ⟨j', rfl, hjSource, -, hpoint⟩ := source_incidence_port hd hi h he hj
     have hlast : (positiveStem φ d i e).getLast? =
         some (positiveBoxOrigin φ d i + collarOuterPort ((clausePorts φ d i).side j')) := by
-      rw [hstem.2.2.2, hm.2.2.1, clauseGeometry_source_point φ d i φ[i] j' hm.1]
+      rw [hstem.2.2.2, hpoint]
     have hhead := positiveExterior_head hd hi j' hjSource
     have hext := positiveExterior_regular hd hi hjSource
     exact ⟨isOrthogonal_join hlast hhead hstem.1 hext.1,
-      isSimple_join hlast hhead hstem.2.1 hext.2 (by
-        intro z hz hw
-        exact positiveExterior_box_contact hd hi j' hjSource hw
-          (positiveStem_in_box hd hi φ[i] he hz))⟩
+      isSimple_join hlast hhead hstem.2.1 hext.2 fun z hz hw =>
+        positiveExterior_box_contact hd hi j' hjSource hw
+          (positiveStem_in_box hd hi φ[i] he hz)⟩
   next => exact ⟨hstem.1, hstem.2.1⟩
 
 /-- Collaring preserves exactly the allowed local clause and auxiliary endpoint contacts.
@@ -429,21 +439,12 @@ theorem positiveStem_other_exterior_disjoint {φ : CNF ℕ} {d : Graph.Orthogona
     (hget : (profileVariables (clauseProfile φ[i])).getD f.variableIndex (.inl (.inl 0)) =
       .inl (.inl j)) :
     Disjoint (support (positiveStem φ d i e)) (support (positiveExterior φ d i j)) := by
-  have hends := collaredProfile_incidence_endpoints _ h (clausePorts_spec hd hi).1 hf
-  have hv :
-      f.variableIndex < (profilePrefixGeometry (clauseProfile φ[i])).variablePositions.length := by
-    simpa only [collaredPrefixGeometry, List.length_map, List.length_zipIdx] using hends.2.1
-  have hm := profile_source_lookup _ hv hget
-  let j' : Fin 3 := ⟨j, hm.2.1⟩
-  have hj : j < φ[i].length := lt_of_lt_of_le hm.1 (profileSource_length_le φ[i])
+  obtain ⟨j', rfl, hj, hterm, hpoint⟩ := source_incidence_port hd hi h hf hget
   rw [Set.disjoint_left]
   intro z hz hw
   have hzport := positiveExterior_box_contact hd hi j' hj hw
     (positiveStem_in_box hd hi φ[i] he hz)
-  have hpoint : (clauseGeometry φ d i φ[i]).variablePosition f.variableIndex =
-      collarOuterPort ((clausePorts φ d i).side j') := by
-    rw [hm.2.2.1, clauseGeometry_source_point φ d i φ[i] j' hm.1]
-  apply positiveStem_other_terminal_not_mem_support hd hi φ[i] h he hf hne hm.2.2.2.1
+  apply positiveStem_other_terminal_not_mem_support hd hi φ[i] h he hf hne hterm
   rw [hpoint, ← hzport]
   exact hz
 
@@ -458,16 +459,9 @@ theorem positiveIncidenceRoute_join_endpoints {φ : CNF ℕ} {d : Graph.Orthogon
       .inl (.inl j)) :
     ∃ q : Point, (positiveStem φ d i e).getLast? = some q ∧
       (positiveExterior φ d i j).head? = some q := by
-  have hends := collaredProfile_incidence_endpoints _ h (clausePorts_spec hd hi).1 he
-  have hv :
-      e.variableIndex < (profilePrefixGeometry (clauseProfile φ[i])).variablePositions.length := by
-    simpa only [collaredPrefixGeometry, List.length_map, List.length_zipIdx] using hends.2.1
-  have hm := profile_source_lookup _ hv hget
-  let j' : Fin 3 := ⟨j, hm.2.1⟩
-  have hj : j < φ[i].length := lt_of_lt_of_le hm.1 (profileSource_length_le φ[i])
+  obtain ⟨j', rfl, hj, -, hpoint⟩ := source_incidence_port hd hi h he hget
   refine ⟨positiveBoxOrigin φ d i + collarOuterPort ((clausePorts φ d i).side j'), ?_,
     positiveExterior_head hd hi j' hj⟩
-  rw [(positiveStem_regular hd hi φ[i] h he).2.2.2, hm.2.2.1,
-    clauseGeometry_source_point φ d i φ[i] j' hm.1]
+  rw [(positiveStem_regular hd hi φ[i] h he).2.2.2, hpoint]
 
 end Cslib.Complexity.SAT.ExactOne

@@ -179,15 +179,13 @@ then `L < F`. -/
 private theorem lt_of_clock_lt {c e L F : ℕ}
     (h : (c + 1) * (L + 1) ^ (e + 1) < c * (F * (L + 1) ^ e) + c) : L < F := by
   by_contra hF
-  have hP : 1 ≤ (L + 1) ^ e := Nat.one_le_pow _ _ (Nat.succ_pos L)
-  have h₁ : (F + 1) * (L + 1) ^ e ≤ (L + 1) ^ (e + 1) := by
-    rw [Nat.pow_succ, Nat.mul_comm _ (L + 1)]
-    exact Nat.mul_le_mul_right _ (by omega)
-  have h₂ := Nat.mul_le_mul_left (c + 1) h₁
-  have h₃ := Nat.mul_le_mul_left c hP
-  have h₄ : (c + 1) * ((F + 1) * (L + 1) ^ e) =
-      c * (F * (L + 1) ^ e) + c * (L + 1) ^ e + (F + 1) * (L + 1) ^ e := by ring
-  nlinarith
+  have h₁ : c * (F * (L + 1) ^ e) + c ≤ (c + 1) * (L + 1) ^ (e + 1) := calc
+    c * (F * (L + 1) ^ e) + c ≤ c * (F * (L + 1) ^ e) + c * (L + 1) ^ e :=
+      Nat.add_le_add_left (Nat.le_mul_of_pos_right _ (Nat.pow_pos (Nat.succ_pos L))) _
+    _ = c * ((F + 1) * (L + 1) ^ e) := by ring
+    _ ≤ (c + 1) * ((L + 1) * (L + 1) ^ e) := by gcongr <;> omega
+    _ = (c + 1) * (L + 1) ^ (e + 1) := by rw [pow_succ']
+  omega
 
 /-- **Fixed-parameter tractable problems have kernels** [CaiChenDowneyFellows1997]: run the
 decider with a clock `(c + 1) (L + 1) ^ (e + 1)`; on timeout the instance is short. -/
@@ -197,9 +195,7 @@ theorem hasKernel_of_mem_FPT [Nonempty α] (hA : A ∈ FPT enc κ) : HasKernel e
   · exact ⟨_, _, isKernelization_const a₀ h⟩
   obtain ⟨f, e, c, t, s, ht, k, State, hfin, tm, htm⟩ := hA
   have ht' : ∀ a, t a ≤ c * (f (κ a) * ((enc a).length + 1) ^ e) + c := fun a => by
-    have := ht a
-    dsimp only at this
-    exact_mod_cast this
+    have := ht a; dsimp only at this; exact_mod_cast this
   have : Fintype State := Fintype.ofFinite State
   let eS : State ↪ ℕ := (Fintype.equivFin State).toEmbedding.trans Fin.valEmbedding
   -- the clock, in unary
@@ -210,11 +206,8 @@ theorem hasKernel_of_mem_FPT [Nonempty α] (hA : A ∈ FPT enc κ) : HasKernel e
   -- polynomial time
   have hN : ComputableInPolyTime N enc encUnary := by
     have hL := ComputableInPolyTime.encoding_length enc
-    have hS : ComputableInPolyTime (fun a => (enc a).length + 1) enc encUnary :=
-      ComputableInPolyTime.unary_add.comp (hL.prod (ComputableInPolyTime.const 1))
-    have hP := (ComputableInPolyTime.unary_pow (e + 1)).comp hS
-    exact ComputableInPolyTime.unary_mul.comp
-      ((ComputableInPolyTime.const (c + 1)).prod hP)
+    dsimp only [N]
+    fun_prop
   have hin : ComputableInPolyTime (fun a => (desc eS eBit tm, (enc a).map eBit, N a)) enc
       (encPair eDesc (encPair (encList encUnary) encUnary)) :=
     (ComputableInPolyTime.const _).prod
@@ -225,50 +218,26 @@ theorem hasKernel_of_mem_FPT [Nonempty α] (hA : A ∈ FPT enc κ) : HasKernel e
   have hverdict : ComputableInPolyTime Diagonal.verdict eOut encBool :=
     Diagonal.computableInO_verdict.computableInPolyTime
       (.of_forall_le 1 2 fun _ => by simp) (.of_forall_le 1 1 fun _ => by simp)
-  have hK : ComputableInPolyTime K enc enc :=
-    ComputableInPolyTime.ite' (hverdict.comp hr)
-      (ComputableInPolyTime.ite'
-        ((ComputableInPolyTime.snd (encList encUnary) encBool).comp hr)
-        (ComputableInPolyTime.const n) ComputableInPolyTime.id')
-      (ComputableInPolyTime.const y)
+  have hK : ComputableInPolyTime K enc enc := by dsimp only [K]; fun_prop
   -- the behaviour of the clocked run
-  have hrun : ∀ a, (K a = y ∧ a ∈ A) ∨ (K a = n ∧ a ∉ A) ∨
+  have hrun (a : α) : (K a = y ∧ a ∈ A) ∨ (K a = n ∧ a ∉ A) ∨
       (K a = a ∧ (enc a).length < f (κ a)) := by
-    intro a
     obtain ⟨hcomp, hrt, -⟩ := htm a
     obtain ⟨h, hht, hh⟩ := exists_haltsAt_of_runsInTime hrt
     have hr_eq : r a = ((tm.runFrom (tm.initCfg (enc a)) (N a)).output.map eBit,
         (tm.runFrom (tm.initCfg (enc a)) (N a)).state.isNone) :=
       universal_desc eS eBit tm (enc a) (N a)
     by_cases hhN : h ≤ N a
-    · have hrN := hh.runFrom_eq hhN
-      have hhalt : (tm.runFrom (tm.initCfg (enc a)) (N a)).state = none := by
-        rw [hrN]
-        exact hh.halted
-      have hout : (tm.runFrom (tm.initCfg (enc a)) (N a)).output = [indicator A a] := by
-        rw [hrN]
-        exact output_haltsAt hcomp hh
-      rw [hout, hhalt] at hr_eq
+    · rw [hh.runFrom_eq hhN, hh.halted, output_haltsAt hcomp hh] at hr_eq
       by_cases haA : a ∈ A
-      · left
-        have hi : indicator A a = true := by simp [indicator, haA]
-        refine ⟨?_, haA⟩
-        simp only [K, hr_eq, hi, Diagonal.verdict]
-        simp
-      · right; left
-        have hi : indicator A a = false := by simp [indicator, haA]
-        refine ⟨?_, haA⟩
-        simp only [K, hr_eq, hi, Diagonal.verdict]
-        simp [eBit]
-    · right; right
-      have hnot : (tm.runFrom (tm.initCfg (enc a)) (N a)).state.isNone = false := by
-        rw [Option.isNone_eq_false_iff, Option.isSome_iff_ne_none]
-        exact fun h' => hhN (hh.le_of_halted h')
+      · exact .inl ⟨by simp [K, hr_eq, indicator, haA, Diagonal.verdict], haA⟩
+      · exact .inr (.inl ⟨by simp [K, hr_eq, indicator, haA, Diagonal.verdict, eBit], haA⟩)
+    · have hnot : (tm.runFrom (tm.initCfg (enc a)) (N a)).state.isNone = false :=
+        Option.isNone_eq_false_iff.mpr
+          (Option.isSome_iff_ne_none.mpr fun h' => hhN (hh.le_of_halted h'))
       rw [hnot] at hr_eq
-      refine ⟨?_, lt_of_clock_lt (c := c) (lt_of_lt_of_le (not_le.mp hhN)
-        (hht.trans (ht' a)))⟩
-      simp only [K, hr_eq, Diagonal.verdict]
-      simp
+      exact .inr (.inr ⟨by simp [K, hr_eq, Diagonal.verdict],
+        lt_of_clock_lt (c := c) (lt_of_lt_of_le (not_le.mp hhN) (hht.trans (ht' a)))⟩)
   refine ⟨K, fun k => f k + (enc y).length + (enc n).length + κ y + κ n + k,
     ⟨hK, fun a => ?_, fun a => ?_, fun a => ?_⟩⟩
   · rcases hrun a with ⟨h₁, h₂⟩ | ⟨h₁, h₂⟩ | ⟨h₁, -⟩ <;> rw [h₁]
