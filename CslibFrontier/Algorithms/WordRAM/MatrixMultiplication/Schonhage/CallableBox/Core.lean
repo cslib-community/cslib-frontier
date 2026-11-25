@@ -96,9 +96,8 @@ theorem exec_core {W b m t N : ℕ}
   have hp' : ExecWithin (sourceWidth N qs.length) (BoxProduct.program true) v p
       (BoxProduct.timeBound (21 * m) m t qs) := by
     simpa only [htwo] using hp
-  have hwindow : Fits W (b + 2 ^ sourceWidth N qs.length) := hfit.of_le (by
-    change b + windowSize N qs.length ≤ _
-    omega)
+  have hwindow : Fits W (b + 2 ^ sourceWidth N qs.length) :=
+    hfit.of_le (by change b + windowSize N qs.length ≤ _; omega)
   obtain ⟨y, hy, ymatch, yframe⟩ := MemoryWindow.execWithin hp'
     (BoxProduct.not_readsWidth true) sbound smatch (setup_fits hfit).1 hwindow
   have hI : Fits W (QueriedProduct.inputEnd m N qs.length + 1) := by
@@ -123,8 +122,6 @@ theorem exec_core {W b m t N : ℕ}
     fun a ha => (yframe a ha).trans (congrFun smem a)⟩
   intro a ha
   change y.mem (b + a) % 2 ^ sourceWidth N qs.length = _
-  rw [ymatch.mem, pf a (by omega)]
-  change s.mem (b + a) % 2 ^ sourceWidth N qs.length = _
-  rw [smem, hinput a ha, Nat.mod_eq_of_lt (hi'.2 a)]
+  rw [ymatch.mem, pf a (by omega), vinput a ha, hinput a ha]
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.CallableBoxProduct

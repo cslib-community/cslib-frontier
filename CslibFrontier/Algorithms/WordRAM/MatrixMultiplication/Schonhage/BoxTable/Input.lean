@@ -86,18 +86,10 @@ theorem exec_input {w L m t A B : ℕ} (a b : Fin (10 ^ L) → ℤ)
       unfold addressBound valueBase recordBase directoryBase
       dsimp only [K, S] at hKS hT
       omega)) hmag
-  have he : ExecWithin (w + 2) program x y (timeBound L m t - 1) := by
-    apply (hu.seq (hv.seq hy)).mono
-    simp only [timeBound, geometryTime, tileTime, count_eligible_eq_card_boxes]
-    omega
-  refine ⟨hi, y, he, he.bounded (Data.Bounded.init hi), ?_, ?_, ?_, ?_,
-    ?_, ?_, ?_, yvalues, ?_⟩
-  · regs_frame
-  · regs_frame
-  · regs_frame
-  · regs_frame
-  · regs_frame
-  · regs_frame
+  have he : ExecWithin (w + 2) program x y (timeBound L m t - 1) := (hu.seq (hv.seq hy)).mono
+    (by simp only [timeBound, geometryTime, tileTime, count_eligible_eq_card_boxes]; omega)
+  refine ⟨hi, y, he, he.bounded (Data.Bounded.init hi), by regs_frame, by regs_frame,
+    by regs_frame, by regs_frame, by regs_frame, by regs_frame, ?_, yvalues, ?_⟩
   · intro s hs
     rw [yframe _ (by unfold valueBase recordBase; omega)]
     exact vcat.directory s hs

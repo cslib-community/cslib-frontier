@@ -83,9 +83,7 @@ theorem exec_arithmeticForm {w q t₁ t₂ A : ℕ} (base dst : Fin 64) (sign : 
   have hdisj (t : ℕ) (ht : t * q + q ≤ 4 * q) :
       x.regs base + t * q + q ≤ x.regs dst ∨ x.regs dst + q ≤ x.regs base + t * q ∨
         x.regs base + t * q = x.regs dst := by
-    rcases hsep with h | h
-    · exact Or.inl (by omega)
-    · exact Or.inr (Or.inl (by omega))
+    omega
   wram_call (Signed.ArrayArithmetic.exec
       (decide (sign < 0)) (z.comap f) (fun j => u (t₁ * q + j)) (fun j => u (t₂ * q + j))
       hzl hbound (fun _ hj => hu _ (by omega)) (fun _ hj => hu _ (by omega))

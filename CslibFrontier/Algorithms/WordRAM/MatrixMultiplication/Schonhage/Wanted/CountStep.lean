@@ -81,9 +81,8 @@ theorem exec_countStep {w L m N Q n : ℕ} (hm : m ≤ L) (pairs : ℕ → ℕ �
   have hγf : Fits w γ := hf _ (by omega)
   have hpf : Fits w (β * B) := hf _ (by omega)
   have hkf : Fits w (key n) := hf _ (by omega)
-  have hcf : Fits w (countAddress L Q + key n) := hf _ (by
-    unfold countAddress tableAddress inputLimit
-    omega)
+  have hcf : Fits w (countAddress L Q + key n) :=
+    hf _ (by unfold countAddress tableAddress inputLimit; omega)
   have hload : x.mem (countAddress L Q + key n) = c := hcounts _ ht
   have hI : x.mem (n * 2 + 5) = I :=
     (congrArg x.mem (by omega : n * 2 + 5 = 5 + 2 * n)).trans hinput.1
@@ -114,8 +113,7 @@ theorem exec_countStep {w L m N Q n : ℕ} (hm : m ≤ L) (pairs : ℕ → ℕ �
   · intro a ha'
     have hne : a ≠ countAddress L Q + ((pairs n).1 / bandSize L m * numBands L m N +
         (pairs n).2 / bandSize L m) := by
-      change a ≠ countAddress L Q + key n
-      rcases ha' with ha' | ha' <;> omega
+      change a ≠ countAddress L Q + key n; omega
     wram_simp [hne]
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Wanted

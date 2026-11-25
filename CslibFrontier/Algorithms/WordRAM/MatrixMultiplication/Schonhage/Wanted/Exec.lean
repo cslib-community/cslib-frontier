@@ -69,50 +69,31 @@ theorem exec_program {w L m N Q : ℕ} (hm : m ≤ L) (pairs : ℕ → ℕ × �
       bf _ (Or.inl (by omega)), af _ (Or.inl hbound)]
     exact hinput i hi
   obtain ⟨c, hc, cp, ccounts, cf⟩ := exec_countQueries hm pairs hpairs b bp bin bz hfit
-  have hkeys : ∀ i < Q, key i < numBands L m N ^ 2 := by
-    intro i hi
-    exact tileKey_lt hm _ (hpairs i hi).1 (hpairs i hi).2
+  have hkeys : ∀ i < Q, key i < numBands L m N ^ 2 := fun i hi =>
+    tileKey_lt hm _ (hpairs i hi).1 (hpairs i hi).2
   obtain ⟨p, hp, pp, poff, pcur, plast, pf⟩ := exec_prefix key hkeys c cp ccounts hfit
-  have pinput (addr : ℕ) (hi : addr < inputLimit Q) : p.mem addr = x.mem addr := by
-    rw [pf _ (Or.inl (by omega)), cf _ (Or.inl (by omega)),
-      bf _ (Or.inl (by omega)), af _ (Or.inl hi)]
   have pin (i : ℕ) (hi : i < Q) : p.mem (5 + 2 * i) = (pairs i).1 ∧
       p.mem (5 + 2 * i + 1) = (pairs i).2 := by
     have hbound : 5 + 2 * i + 1 < inputLimit Q := by unfold inputLimit; omega
-    rw [pinput _ (by omega), pinput _ hbound]
-    exact hinput i hi
+    rw [pf _ (Or.inl (by omega)), cf _ (Or.inl (by omega)),
+      pf _ (Or.inl (by omega)), cf _ (Or.inl (by omega))]
+    exact bin i hi
   have ptable (gh : Fin (K0 L m) × Fin (K0 L m)) :
       p.mem (tableAddress L Q + (MaskTable.pairRank gh).val) = (MaskTable.selectedMask gh).val := by
     have hr : (MaskTable.pairRank gh).val < 2 ^ L :=
       (MaskTable.pairRank gh).isLt.trans_le (Nat.choose_le_two_pow L m)
     have htable : tableAddress L Q + (MaskTable.pairRank gh).val < countAddress L Q := by
-      unfold countAddress
-      omega
+      unfold countAddress; omega
     rw [pf _ (Or.inl (by omega)), cf _ (Or.inl htable), bf _ (Or.inl htable)]
     exact atable gh
   obtain ⟨y, hy, yp, yout, _, yf⟩ := exec_scatter hm pairs hpairs p pp pin ptable pcur hfit
   refine ⟨y, ?_, yp, yout, ?_, ?_, ?_⟩
-  · have hrest := hb.seq (hc.seq (hp.seq hy))
-    have hfull := ha.seq hrest
-    apply hfull.mono
-    unfold timeBound
-    nlinarith
+  · exact (ha.seq (hb.seq (hc.seq (hp.seq hy)))).mono (by unfold timeBound; nlinarith)
   · intro t ht
-    have hlow : offsetAddress L m N Q + t < cursorAddressBase L m N Q := by
-      unfold cursorAddressBase
-      omega
-    rw [yf _ (Or.inl hlow)]
-    exact poff t ht
-  · rw [yf _ (Or.inl (by unfold cursorAddressBase; omega))]
-    exact plast
+    rw [yf _ (Or.inl (by unfold cursorAddressBase; omega)), poff t ht]
+  · rw [yf _ (Or.inl (by unfold cursorAddressBase; omega)), plast]
   · intro addr hi
-    rw [yf _ (by rcases hi with hi | hi <;> omega),
-      pf _ (by rcases hi with hi | hi <;> omega),
-      cf _ (by rcases hi with hi | hi <;> omega),
-      bf _ (by rcases hi with hi | hi <;> omega)]
-    apply af addr
-    rcases hi with hi | hi
-    · exact Or.inl hi
-    · exact Or.inr (by unfold countAddress at horder; omega)
+    rw [yf _ (by omega), pf _ (by omega), cf _ (by omega), bf _ (by omega),
+      af addr (by unfold countAddress at horder; omega)]
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Wanted
