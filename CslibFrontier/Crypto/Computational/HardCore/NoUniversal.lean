@@ -70,8 +70,7 @@ theorem computableInPolyTime_appendPredicate {f : List Bool → List Bool}
     {b : List Bool → Bool} (hf : ComputableInPolyTime f encBits encBits)
     (hb : ComputableInPolyTime b encBits encBool) :
     ComputableInPolyTime (appendPredicate f b) encBits encBits := by
-  unfold appendPredicate
-  polytime
+  unfold appendPredicate; polytime
 
 /-- An inverter for `f` from an inverter for `appendPredicate f b`: guess the appended bit
 uniformly and run the given inverter on the extended image. -/
@@ -84,14 +83,11 @@ noncomputable def guessBitInverter (adversary : Inverter) : Inverter :=
 theorem isPPT_guessBitInverter {adversary : Inverter} (ha : IsPPT encBits adversary) :
     IsPPT encBits (guessBitInverter adversary) := by
   apply IsPPTOn.isPPT
-  have hp := ComputableInPolyTime.id'
-    (encIn := encPair (encPair encUnary encBits) encBool)
-  have hword := ComputableInPolyTime.bitsAppend hp.fst'.snd'
-    (ComputableInPolyTime.bitsCons hp.snd' (ComputableInPolyTime.const []))
-  have hcontinue := ha.preprocess hp.fst'.fst' hword
+  have hp := ComputableInPolyTime.id' (encIn := encPair (encPair encUnary encBits) encBool)
   simpa only [guessBitInverter] using
     (isPPTOn_uniform_bool (encPair encUnary encBits)).bind_with
-      (second := fun pair bit => adversary pair.1 (pair.2 ++ [bit])) hcontinue
+      (ha.preprocess hp.fst'.fst' (hp.fst'.snd'.bitsAppend
+        (hp.snd'.bitsCons (ComputableInPolyTime.const []))))
 
 /-- **Inversion reduction.** Guessing the appended bit loses at most a factor two: the guess is
 right with probability one half, and then the extended image is distributed exactly as in the game
@@ -117,8 +113,7 @@ theorem succProbability_inversionGame_appendPredicate_le (f : List Bool → List
         by_cases h : f z ++ [b z] = f x ++ [bit]
         · rw [List.append_inj_left' h rfl, beq_self_eq_true, PMF.pure_apply_self]
           exact PMF.coe_le_one _ _
-        · rw [beq_false_of_ne h]
-          simp
+        · simp [beq_false_of_ne h]
     rw [PMF.bind_bind, PMF.bind_apply (PMF.uniformOfFintype Bool), tsum_bool]
     simp only [PMF.uniformOfFintype_apply, Fintype.card_bool, Nat.cast_ofNat]
     rw [mul_add, ← mul_assoc, ← mul_assoc, ENNReal.mul_inv_cancel (by norm_num) (by norm_num),
@@ -126,10 +121,8 @@ theorem succProbability_inversionGame_appendPredicate_le (f : List Bool → List
     cases b x
     · exact (key false).trans le_self_add
     · exact (key true).trans le_add_self
-  calc Game.succProbability (ProbComp.eval (inversionGame (appendPredicate f b) adversary n))
-      ≤ (2 * ProbComp.eval (inversionGame f (guessBitInverter adversary) n) true).toNNReal :=
-        ENNReal.toNNReal_mono (ENNReal.mul_ne_top (by simp) (PMF.apply_ne_top _ _)) h
-    _ = _ := by rw [ENNReal.toNNReal_mul]; simp [Game.succProbability, ENNReal.toNNReal_ofNat]
+  simpa [Game.succProbability, ENNReal.toNNReal_mul, ENNReal.toNNReal_ofNat] using
+    ENNReal.toNNReal_mono (ENNReal.mul_ne_top (by simp) (PMF.apply_ne_top _ _)) h
 
 /-- **Appending a polynomial-time bit preserves one-wayness.** If `f` is one-way and `b` is
 computable in polynomial time, then `f'(x) = (f(x), b(x))` is one-way. -/
@@ -158,8 +151,7 @@ theorem predictionAdvantage_lastBitPredictor (f : List Bool → List Bool) (b : 
   have hgame : ProbComp.eval (predictionGame (appendPredicate f b) b lastBitPredictor n) =
       PMF.pure true := by
     simp only [predictionGame, predictionExperiment, lastBitPredictor, appendPredicate,
-      List.getLastD_concat, bind_pure_comp, map_pure, BEq.rfl, ProbComp.eval_map,
-      BitString.eval_sampleList]
+      List.getLastD_concat, bind_pure_comp, map_pure, BEq.rfl, ProbComp.eval_map]
     exact PMF.map_const _ _
   apply NNReal.coe_injective
   rw [predictionAdvantage, Game.coe_guessingAdvantage, Game.succProbability, hgame]
@@ -170,11 +162,8 @@ witness predictor ignores the length parameter, so `b` is also not a hard-core o
 of [Goldreich, Definition 7.6][Goldreich2007DraftR4], whose predictor receives only `f'(x)`. -/
 theorem not_hardCore_appendPredicate (f : List Bool → List Bool) (b : List Bool → Bool) :
     ¬ HardCore (appendPredicate f b) b := fun h => by
-  have hneg := h.unpredictable lastBitPredictor
-    computableInPolyTime_getLastD.isPPT
-  have hconst : predictionAdvantage (appendPredicate f b) b lastBitPredictor = fun _ => 1 / 2 :=
-    funext (predictionAdvantage_lastBitPredictor f b)
-  rw [hconst] at hneg
+  have hneg := h.unpredictable lastBitPredictor computableInPolyTime_getLastD.isPPT
+  rw [funext (predictionAdvantage_lastBitPredictor f b)] at hneg
   exact not_negligible_const (by norm_num) hneg
 
 /-- **[Goldreich, Exercise 7.8][Goldreich2007DraftR4]: no universal hard-core predicate, in the
@@ -200,9 +189,7 @@ well, so it is stronger than Definition 7.6 and this conclusion is formally weak
 source's. The constructive theorem `Cslib.Crypto.OneWay.exists_oneWay_lastBit_eq` matches
 Goldreich's exercise. -/
 theorem OneWay.not_exists_universal_hardCore {f : List Bool → List Bool} (hf : OneWay f) :
-    ¬ ∃ b : List Bool → Bool, ∀ g : List Bool → List Bool, OneWay g → HardCore g b := by
-  rintro ⟨b, hb⟩
-  exact not_hardCore_appendPredicate f b
-    (hb _ (hf.appendPredicate (hb f hf).polyTime))
+    ¬ ∃ b : List Bool → Bool, ∀ g : List Bool → List Bool, OneWay g → HardCore g b :=
+  fun ⟨b, hb⟩ => not_hardCore_appendPredicate f b (hb _ (hf.appendPredicate (hb f hf).polyTime))
 
 end Cslib.Crypto
