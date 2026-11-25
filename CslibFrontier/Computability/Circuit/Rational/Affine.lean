@@ -205,23 +205,16 @@ variable (q : ℚ) (i : Fin n) (a : Fin (ratSignature.Arity .add) → Formula n)
 
 private theorem realized_add : realized c X (.gate .add a) =
     fromBlocks (realized c X (a 0)) 0 0 (realized c X (a 1)) := by
-  change (fromBlocks (pencil (a 0)) 0 0 (pencil (a 1))).map (Affine.eval c X) = _
-  rw [fromBlocks_map]
-  simp
+  simp [realized, pencil, fromBlocks_map]
 
 private theorem realized_mul : realized c X (.gate .mul m) =
     fromBlocks (realized c X (m 0)) (-colR c (m 0) * rowR c (m 1)) 0 (realized c X (m 1)) := by
-  change (fromBlocks (pencil (m 0)) (-Affine.constMatrix (col (m 0) * row (m 1))) 0
-    (pencil (m 1))).map (Affine.eval c X) = _
-  rw [fromBlocks_map, Matrix.map_neg _ (map_neg _)]
+  rw [realized, pencil, fromBlocks_map, Matrix.map_neg _ (map_neg _)]
   simp [Matrix.map_mul, Matrix.neg_mul, rowR, colR]
 
 private theorem realized_inv : realized c X (.gate .inv b) =
     fromBlocks (realized c X (b 0)) (colR c (b 0)) (rowR c (b 0)) 0 := by
-  change (fromBlocks (pencil (b 0)) (Affine.constMatrix (col (b 0)))
-    (Affine.constMatrix (row (b 0))) 0).map (Affine.eval c X) = _
-  rw [fromBlocks_map]
-  simp [rowR, colR]
+  simp [realized, pencil, fromBlocks_map, rowR, colR]
 
 private theorem rowR_add : rowR c (.gate .add a) = fromCols (rowR c (a 0)) (rowR c (a 1)) :=
   fromCols_map _ _ _
@@ -230,68 +223,49 @@ private theorem colR_add : colR c (.gate .add a) = fromRows (colR c (a 0)) (colR
   fromRows_map _ _ _
 
 private theorem rowR_mul : rowR c (.gate .mul m) = fromCols (rowR c (m 0)) 0 := by
-  change (fromCols (row (m 0)) 0).map c = _
-  rw [fromCols_map]
-  simp
+  simp [rowR, row, fromCols_map]
 
 private theorem colR_mul : colR c (.gate .mul m) = fromRows 0 (colR c (m 1)) := by
-  change (fromRows 0 (col (m 1))).map c = _
-  rw [fromRows_map]
-  simp
+  simp [colR, col, fromRows_map]
 
 private theorem rowR_inv : rowR c (.gate .inv b) = fromCols 0 (-1) := by
-  change (fromCols (0 : Matrix Unit (Index (b 0)) ℚ) (-1)).map c = _
-  rw [fromCols_map, Matrix.map_neg _ (map_neg _)]
+  rw [rowR, row, fromCols_map, Matrix.map_neg _ (map_neg _)]
   simp
 
 private theorem colR_inv : colR c (.gate .inv b) = fromRows 0 1 := by
-  change (fromRows (0 : Matrix (Index (b 0)) Unit ℚ) 1).map c = _
-  rw [fromRows_map]
-  simp
+  simp [colR, col, fromRows_map]
 
-private theorem realized_input : realized c X (.input i) = fromBlocks 1 (-scalar (X i)) 0 1 := by
-  change (fromBlocks (Affine.constMatrix (1 : Matrix Unit Unit ℚ))
-    (Matrix.of fun _ _ => -Affine.varForm i) 0 (Affine.constMatrix 1)).map (Affine.eval c X) = _
+private theorem realized_leaf (a : Affine.Form n) (r : R) (ha : Affine.eval c X a = r) :
+    (fromBlocks (Affine.constMatrix (1 : Matrix Unit Unit ℚ))
+      (Matrix.of fun _ _ => -a) 0 (Affine.constMatrix (1 : Matrix Unit Unit ℚ))).map
+      (Affine.eval c X) = fromBlocks 1 (-scalar r) 0 1 := by
   rw [fromBlocks_map]
   simp only [Affine.eval_constMatrix, Matrix.map_one c (map_zero c) (map_one c),
     Matrix.map_zero, map_zero]
   congr 1
   ext
-  simp [scalar, Matrix.map, Matrix.of_apply]
+  simp [scalar, ha]
+
+private theorem realized_input : realized c X (.input i) = fromBlocks 1 (-scalar (X i)) 0 1 :=
+  realized_leaf c X _ _ (Affine.eval_variable c X i)
 
 private theorem realized_const (args : Fin (ratSignature.Arity (.const q)) → Formula n) :
-    realized c X (.gate (.const q) args) = fromBlocks 1 (-scalar (c q)) 0 1 := by
-  change (fromBlocks (Affine.constMatrix (1 : Matrix Unit Unit ℚ))
-    (Matrix.of fun _ _ => -Affine.constant q) 0 (Affine.constMatrix 1)).map
-      (Affine.eval c X) = _
-  rw [fromBlocks_map]
-  simp only [Affine.eval_constMatrix, Matrix.map_one c (map_zero c) (map_one c),
-    Matrix.map_zero, map_zero]
-  congr 1
-  ext
-  simp [scalar, Matrix.map, Matrix.of_apply]
+    realized c X (.gate (.const q) args) = fromBlocks 1 (-scalar (c q)) 0 1 :=
+  realized_leaf c X _ _ (Affine.eval_constant c X q)
 
 private theorem rowR_input : rowR c (.input i) = fromCols 1 0 := by
-  change (fromCols (1 : Matrix Unit Unit ℚ) 0).map c = _
-  rw [fromCols_map]
-  simp
+  simp [rowR, row, fromCols_map]
 
 private theorem colR_input : colR c (.input i) = fromRows 0 1 := by
-  change (fromRows 0 (1 : Matrix Unit Unit ℚ)).map c = _
-  rw [fromRows_map]
-  simp
+  simp [colR, col, fromRows_map]
 
 private theorem rowR_const (args : Fin (ratSignature.Arity (.const q)) → Formula n) :
     rowR c (.gate (.const q) args) = fromCols 1 0 := by
-  change (fromCols (1 : Matrix Unit Unit ℚ) 0).map c = _
-  rw [fromCols_map]
-  simp
+  simp [rowR, row, fromCols_map]
 
 private theorem colR_const (args : Fin (ratSignature.Arity (.const q)) → Formula n) :
     colR c (.gate (.const q) args) = fromRows 0 1 := by
-  change (fromRows 0 (1 : Matrix Unit Unit ℚ)).map c = _
-  rw [fromRows_map]
-  simp
+  simp [colR, col, fromRows_map]
 
 end Native
 
@@ -538,20 +512,19 @@ private theorem inverseNodes_length (f : Formula n) : (inverseNodes f).length �
 theorem nodeCount_le_of_mem_inverseNodes {f h : Formula n} (hh : h ∈ inverseNodes f) :
     h.nodeCount ≤ f.nodeCount := by
   induction f using inductionOn with
-  | var i => simp at hh
-  | const q => simp at hh
+  | var _ | const _ => simp at hh
   | add f g ihf ihg =>
     rcases List.mem_append.mp hh with hh | hh
-    · have := ihf hh; simp only [nodeCount_add]; omega
-    · have := ihg hh; simp only [nodeCount_add]; omega
+    · exact (ihf hh).trans (by simp only [nodeCount_add]; omega)
+    · exact (ihg hh).trans (by simp only [nodeCount_add]; omega)
   | mul f g ihf ihg =>
     rcases List.mem_append.mp hh with hh | hh
-    · have := ihf hh; simp only [nodeCount_mul]; omega
-    · have := ihg hh; simp only [nodeCount_mul]; omega
+    · exact (ihf hh).trans (by simp only [nodeCount_mul]; omega)
+    · exact (ihg hh).trans (by simp only [nodeCount_mul]; omega)
   | inv f ih =>
     rcases List.mem_cons.mp hh with rfl | hh
     · rfl
-    · have := ih hh; simp only [nodeCount_inv]; omega
+    · exact (ih hh).trans (by simp only [nodeCount_inv]; omega)
 
 /-- A formula with at most `s` nodes has at most `s + 1` certificates, each of dimension at most
 `2 * s + 1`. -/
@@ -618,11 +591,8 @@ private theorem normalized_pencil {ι : Type*} [Fintype ι] [DecidableEq ι] [Al
     L.map (homogeneous (algebraMap ℚ R) Z) =
       Matrix.scalar ι (Z 0) * L.map (eval (algebraMap ℚ R) (fun i => u * Z i.succ)) := by
   funext i j
-  change homogeneous (algebraMap ℚ R) Z (L i j) =
-    (Matrix.diagonal (fun _ : ι => Z 0) *
-      L.map (eval (algebraMap ℚ R) (fun i => u * Z i.succ)) : Matrix ι ι R) i j
-  rw [Matrix.diagonal_mul]
-  exact normalized Z u hu (L i j)
+  simpa only [Matrix.map_apply, Matrix.scalar_apply, Matrix.diagonal_mul] using
+    normalized Z u hu (L i j)
 
 /-- If `Z 0` is a unit `z` and the homogenized pencil is a unit, then the normalized affine pencil
 at `i ↦ z⁻¹ * Z i.succ` is a unit. -/
