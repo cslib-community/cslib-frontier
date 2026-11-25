@@ -373,15 +373,11 @@ theorem length_encState_le {Inv : Invariant X A Y} {H F : ℕ} {σ : State X A Y
   have hHF : H * (2 * F + 1) ≤ 2 * H * F + H := by rw [Nat.mul_add, Nat.mul_one]; ring_nf; omega
   rcases σ with ⟨st, r, v⟩
   rcases hreg with ⟨x, hr, hx⟩ | ⟨y, hr, hy⟩ <;> simp only [Prod.mk.injEq] at hr <;>
-    obtain ⟨rfl, rfl⟩ := hr
-  · have := hnode x hx
+    obtain ⟨rfl, rfl⟩ := hr <;>
     simp only [length_encPair, encOption_some, encOption_none, List.length_cons,
       List.length_nil] at hstack ⊢
-    nlinarith
-  · have := hvalue y hy
-    simp only [length_encPair, encOption_some, encOption_none, List.length_cons,
-      List.length_nil] at hstack ⊢
-    nlinarith
+  · nlinarith [hnode x hx]
+  · nlinarith [hvalue y hy]
 
 private theorem pow_absorb (K₀ z : ℕ) (hz : 1 ≤ z) :
     K₀ * (5 * z + 1) ^ K₀ + 5 * z ≤ (K₀ * 6 ^ K₀ + K₀ + 6) * z ^ (K₀ * 6 ^ K₀ + K₀ + 6) := by
@@ -390,9 +386,7 @@ private theorem pow_absorb (K₀ z : ℕ) (hz : 1 ≤ z) :
     calc (5 * z + 1) ^ K₀ ≤ (6 * z) ^ K₀ := Nat.pow_le_pow_left (by omega) _
       _ = 6 ^ K₀ * z ^ K₀ := Nat.mul_pow _ _ _
       _ ≤ 6 ^ K₀ * z ^ K := Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hz (by omega))
-  have hz' : z ≤ z ^ K := by
-    calc z = z ^ 1 := (pow_one z).symm
-      _ ≤ z ^ K := Nat.pow_le_pow_right hz (by omega)
+  have hz' : z ≤ z ^ K := Nat.le_self_pow (by omega) z
   calc K₀ * (5 * z + 1) ^ K₀ + 5 * z ≤ K₀ * (6 ^ K₀ * z ^ K) + 5 * z ^ K := by gcongr
     _ = (K₀ * 6 ^ K₀ + 5) * z ^ K := by ring
     _ ≤ K * z ^ K := Nat.mul_le_mul_right _ (by omega)
