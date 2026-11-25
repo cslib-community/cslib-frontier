@@ -70,14 +70,11 @@ noncomputable def weightedTrial (source : ProbComp α) (mask test : α → ProbC
 private theorem gate_probability (mask test : ProbComp Bool) :
     Pr[mask >>= fun active => if active then test else ProbComp.uniform Bool] =
       1 / 2 + Pr[mask] * (Pr[test] - 1 / 2) := by
-  have htotal := PMF.toReal_true_add_toReal_false (ProbComp.eval mask)
   simp only [ProbComp.eval_bind, PMF.bind_apply_toReal, Fintype.sum_bool,
-    Bool.false_eq_true, ite_false, ite_true]
-  have hfair : Pr[ProbComp.uniform Bool] = 1 / 2 := by
-    simp [PMF.uniformOfFintype_apply]
-  rw [hfair]
-  change _ = 1 / 2 + Pr[mask] * _
-  nlinarith
+    Bool.false_eq_true, ite_false, ite_true, PMF.toReal_false_eq_one_sub,
+    ProbComp.eval_uniform, PMF.uniformOfFintype_apply]
+  norm_num
+  ring
 
 /-- Acceptance above a fair baseline is exactly the mask-weighted trial bias. -/
 theorem weightedTrial_probability [Fintype α] (source : ProbComp α)
@@ -188,14 +185,10 @@ theorem randomSign_good_probability (candidates : ProbComp (List Bool))
       PMF.toOuterMeasure_rate_ge (ProbComp.eval candidates) (fun code => ProbComp.eval (test code))
         {true} hthreshold
   have hnegative : 1 - Pr[candidates >>= test] - threshold ≤ negative := by
-    have h := PMF.toOuterMeasure_rate_ge (ProbComp.eval candidates)
-      (fun code => ProbComp.eval (Bool.not <$> test code)) {true} hthreshold
-    have h' : Pr[candidates >>= fun code => Bool.not <$> test code] - threshold ≤
-      ((ProbComp.eval candidates).toOuterMeasure
-        {code | threshold ≤ Pr[Bool.not <$> test code]}).toReal := by
-      simpa only [ProbComp.eval_bind,
-        PMF.toOuterMeasure_apply_singleton] using h
-    simpa only [← map_bind, ProbComp.probability_not, negative] using h'
+    simpa only [← ProbComp.eval_bind, ← map_bind, PMF.toOuterMeasure_apply_singleton,
+      ProbComp.probability_not, negative] using
+      PMF.toOuterMeasure_rate_ge (ProbComp.eval candidates)
+        (fun code => ProbComp.eval (Bool.not <$> test code)) {true} hthreshold
   have hlaw : ((ProbComp.eval (randomSign candidates)).toOuterMeasure
       {code | threshold ≤ Pr[signedTest test code]}).toReal =
       (positive + negative) / 2 := by
@@ -360,15 +353,8 @@ theorem isPPTOn_signedTest {Param : Type} {input : Param ↪ List Bool}
     (htest : IsPPTOn (encPair input encBits) encBool
       (fun pair => test pair.1 pair.2)) (hcode : ComputableInPolyTime code input encBits) :
     IsPPTOn input encBool (fun a => signedTest (test a) (code a)) := by
-  have hhead : ComputableInPolyTime (fun a => (code a).headD false) input encBool := by
-    fun_prop
   unfold signedTest
-  apply IsPPTOn.map_with
-  · ppt
-  · apply ComputableInPolyTime.ite' (encC := encBool)
-    · exact hhead.comp (ComputableInPolyTime.fst input encBool)
-    · exact ComputableInPolyTime.bool_not.comp (ComputableInPolyTime.snd input encBool)
-    · exact ComputableInPolyTime.snd input encBool
+  exact IsPPTOn.map_with (by ppt) (by fun_prop)
 
 attribute [program_certificate] isPPTOn_signedTest
 
@@ -394,17 +380,10 @@ theorem isPPTOn_learn {Param : Type} {input : Param ↪ List Bool}
     (hgap : ComputableInPolyTime inverseGap input encUnary) :
     IsPPTOn input encBits (fun a =>
       learn (candidates a) (test a) (confidence a) (inverseGap a)) := by
-  have hcount : ComputableInPolyTime
-      (fun a => (confidence a + 1) * (4 * inverseGap a) ^ 2) input encUnary := by fun_prop
-  have htrials : ComputableInPolyTime
-      (fun a => (confidence a + 1) * (8 * inverseGap a) ^ 2) input encUnary := by fun_prop
-  have htest' : IsPPTOn (encPair (encPair input encBits) encBits) encBool
-      (fun p => test p.1.1 p.2) := htest.preprocess
-    ((ComputableInPolyTime.fst (encPair input encBits) encBits).fst'.prod
-      (ComputableInPolyTime.snd (encPair input encBits) encBits))
   have hsigned := isPPTOn_signedTest (test := fun p : Param × List Bool => test p.1)
-    htest' (ComputableInPolyTime.snd input encBits)
-  exact IsPPTOn.sampleBest [] (isPPTOn_randomSign hcandidates) hsigned hcount htrials
+    (htest.preprocess ((ComputableInPolyTime.fst _ _).fst'.prod (ComputableInPolyTime.snd _ _)))
+    (ComputableInPolyTime.snd input encBits)
+  exact IsPPTOn.sampleBest [] (isPPTOn_randomSign hcandidates) hsigned (by fun_prop) (by fun_prop)
 
 attribute [program_certificate hcandidates] isPPTOn_learn
 

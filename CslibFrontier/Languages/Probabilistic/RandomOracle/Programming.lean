@@ -13,6 +13,7 @@ import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Union
 import CslibFrontier.Probability.PMF.Uniform
+import CslibFrontier.Tactic.SuppCases
 
 /-!
 # Random-oracle min-entropy programming and birthday collision bounds
@@ -491,29 +492,18 @@ private theorem length_cache_flaggedLazyProgramHandler_le [BEq Query]
       (flaggedLazyProgramHandler dist active inactive samplePre point finish q st).support) :
     x.2.1.1.length ≤ st.1.1.length + 1 := by
   obtain ⟨⟨cache, log⟩, b⟩ := st
-  simp only [flaggedLazyProgramHandler, withBadFlag, PMF.mem_support_map_iff] at hx
-  obtain ⟨⟨ans, ⟨cache', log'⟩, b'⟩, hmem, rfl⟩ := hx
+  supp_cases hx [flaggedLazyProgramHandler, withBadFlag] with ⟨⟨ans, ⟨cache', log'⟩, b'⟩, hmem, rfl⟩
   dsimp only [Prod.map, id_eq]
   cases q with
   | inl req =>
-    dsimp only [lazyProgramStep] at hmem
-    split_ifs at hmem with h
-    · obtain ⟨ts, -, hmem⟩ := (PMF.mem_support_bind_iff _ _ _).mp hmem
-      obtain ⟨res, hm, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hmem
-      have hc : res.2 = cache' := (Prod.mk.inj (Prod.mk.inj (Prod.mk.inj heq).2).1).1
-      subst hc
-      rcases (mem_support_memoize_iff _ _ _ _).mp hm with ⟨-, hnext⟩ | ⟨-, -, hnext⟩
+    supp_cases hmem [lazyProgramStep] with
+      ⟨_, ts, -, res, hm, -, ⟨rfl, -⟩, -⟩ | ⟨_, res, -, -, ⟨rfl, -⟩, -⟩
+    · rcases (mem_support_memoize_iff _ _ _ _).mp hm with ⟨-, hnext⟩ | ⟨-, -, hnext⟩
       · rw [hnext]; exact Nat.le_succ _
       · rw [hnext, List.length_cons]
-    · obtain ⟨res, -, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hmem
-      have hc : cache = cache' := (Prod.mk.inj (Prod.mk.inj (Prod.mk.inj heq).2).1).1
-      subst hc
-      exact Nat.le_succ _
+    · exact Nat.le_succ _
   | inr q =>
-    dsimp only [lazyProgramStep] at hmem
-    obtain ⟨res, hm, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hmem
-    have hc : res.2 = cache' := (Prod.mk.inj (Prod.mk.inj (Prod.mk.inj heq).2).1).1
-    subst hc
+    supp_cases hmem [lazyProgramStep] with ⟨res, hm, -, ⟨rfl, -⟩, -⟩
     rcases (mem_support_memoize_iff _ _ _ _).mp hm with ⟨-, hnext⟩ | ⟨-, -, hnext⟩
     · rw [hnext]; exact Nat.le_succ _
     · rw [hnext, List.length_cons]

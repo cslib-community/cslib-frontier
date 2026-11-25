@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.WordRAM.Randomized.LoopSegment
 public import CslibFrontier.Computability.WordRAM.Randomized.Law
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Tactic.SuppCases
 
 /-!
 # Observation laws for randomized loop segments
@@ -106,9 +107,7 @@ theorem trans {g : Data r → β} {ν : PMF β} {κ : β → PMF α}
     simpa only [Nat.add_zero] using
       (hstep z.1 (hsup₁ z hz).1).2.1.bind fun _ => .pure _ 0
   · intro z hz
-    obtain ⟨a, ha, hrest⟩ := OracleComp.mem_supportWith_bind_iff.mp hz
-    obtain ⟨b, hb, hfinal⟩ := OracleComp.mem_supportWith_bind_iff.mp hrest
-    cases OracleComp.eq_of_mem_supportWith_pure hfinal
+    supp_cases hz with ⟨a, ha, b, hb, rfl⟩
     exact ⟨((hstep a.1 (hsup₁ a ha).1).2.2.1 b hb).1,
       Nat.add_le_add (hsup₁ a ha).2 ((hstep a.1 (hsup₁ a ha).1).2.2.1 b hb).2⟩
   · rw [← hlaw₁]

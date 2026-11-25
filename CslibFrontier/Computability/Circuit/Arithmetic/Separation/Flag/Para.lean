@@ -47,12 +47,12 @@ theorem madd_self (M : Mt m) : M + M = 0 := by
   exact CharTwo.add_self_eq_zero _
 
 /-- The squared sides minus the squared diagonals of the quadrangle a, a+M, a+M+N, a+N. -/
-def defect (w : Mt m → Mt m → ℝ) (a M N : Mt m) : ℝ :=
+@[expose] def defect (w : Mt m → Mt m → ℝ) (a M N : Mt m) : ℝ :=
   w a (a + M) ^ 2 + w (a + M) (a + M + N) ^ 2 + w (a + M + N) (a + N) ^ 2 + w a (a + N) ^ 2 -
     (w a (a + M + N) ^ 2 + w (a + M) (a + N) ^ 2)
 
 /-- The squared distance n_a(M) from `a` to `a + M`. -/
-def nn (w : Mt m → Mt m → ℝ) (a M : Mt m) : ℝ := w a (a + M) ^ 2
+@[expose] def nn (w : Mt m → Mt m → ℝ) (a M : Mt m) : ℝ := w a (a + M) ^ 2
 
 theorem sum_defect (hw : ∀ a b, w a b = w b a) (M N : Mt m) :
     ∑ a, defect w a M N = 2 * (∑ a, nn w a M + ∑ a, nn w a N - ∑ a, nn w a (M + N)) := by
@@ -121,7 +121,8 @@ theorem exists_X (M : Mt m) : ∃ (p q : GLM (Fin m)) (S : Finset (Fin m)),
     M = X p q S := exists_factor M
 
 /-- The sum of |a, a + p·E·q|² over all a and all invertible p, q. -/
-noncomputable def MD (w : Mt m → Mt m → ℝ) (E : Mt m) : ℝ := ∑ a, DM (fun M => w a (a + M)) E
+@[expose] noncomputable def MD (w : Mt m → Mt m → ℝ) (E : Mt m) : ℝ :=
+  ∑ a, DM (fun M => w a (a + M)) E
 
 theorem MD_eq (S : Finset (Fin m)) : MD w (dg S) =
     ∑ p : GLM (Fin m), ∑ q : GLM (Fin m), ∑ a, nn w a (X p q S) := by
@@ -142,7 +143,7 @@ theorem sum_all_defect (hw : ∀ a b, w a b = w b a) {S T : Finset (Fin m)} (h :
   rw [X_union p q h]
 
 /-- The scalar product B_a(M, N) = ½(n_a(M+N) − n_a(M) − n_a(N)). -/
-noncomputable def BB (w : Mt m → Mt m → ℝ) (a M N : Mt m) : ℝ :=
+@[expose] noncomputable def BB (w : Mt m → Mt m → ℝ) (a M N : Mt m) : ℝ :=
     (nn w a (M + N) - nn w a M - nn w a N) / 2
 
 theorem BB_comm (a M N : Mt m) : BB w a M N = BB w a N M := by

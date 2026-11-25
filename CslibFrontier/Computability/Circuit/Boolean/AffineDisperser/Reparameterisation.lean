@@ -50,32 +50,30 @@ open AffineDisperserCore.State
 
 variable {n : ℕ} {f : BooleanFunction n}
 
+private theorem ne_of_not_paired {S : State n} {z : ℕ} (hz : ¬ S.Paired z) {pr : ℕ × ℕ}
+    (hpr : pr ∈ S.pairs) : pr.1 ≠ z ∧ pr.2 ≠ z :=
+  ⟨fun he => hz ⟨pr, hpr, Or.inl he⟩, fun he => hz ⟨pr, hpr, Or.inr he⟩⟩
+
+private theorem pairTame_update {k : ℕ} {τ : BitString k → ℕ → Bool} {z : ℕ}
+    {g : BitString k → Bool} {pr : ℕ × ℕ} (h1 : pr.1 ≠ z) (h2 : pr.2 ≠ z)
+    (ht : PairTame τ pr) :
+    PairTame (fun u => Function.update (τ u) z (g u)) pr := by
+  rcases ht with ht | ht | ht
+  · exact Or.inl fun u v => by simpa only [Function.update_of_ne h1] using ht u v
+  · exact Or.inr (Or.inl fun u v => by simpa only [Function.update_of_ne h2] using ht u v)
+  · exact Or.inr (Or.inr fun u v => by
+      simpa only [Function.update_of_ne h1, Function.update_of_ne h2] using ht u v)
+
 /-! ### Affine reparameterisation (AR) -/
 
 /-- The affine reparameterisation preserves validity. -/
 theorem Valid.swap {S : State n} (hS : S.Valid f) {x Q : ℕ} {c : Bool} {T : Finset ℕ}
-    (h : S.SwapOK x Q c T) : (S.swap x Q c T).Valid f := by
-  have hnx : ∀ pr ∈ S.pairs, pr.1 ≠ x ∧ pr.2 ≠ x := fun pr hpr =>
-    ⟨fun he => h.unpaired ⟨pr, hpr, Or.inl he⟩, fun he => h.unpaired ⟨pr, hpr, Or.inr he⟩⟩
-  refine Valid.swap_of hS h fun k τ hτ htame => ?_
-  refine hS.phi_affine k (fun u => Function.update (τ u) x
-      (τ u Q + c + ∑ j ∈ T.erase x, τ u j))
-    (isAffine_update hτ x (isAffine_add_add_sum hτ Q c (T.erase x))) fun pr hpr => ?_
-  obtain ⟨hx1, hx2⟩ := hnx pr hpr
-  rcases htame pr hpr with ht | ht | ht
-  · exact Or.inl fun u v => by
-      dsimp only
-      rw [Function.update_of_ne hx1, Function.update_of_ne hx1]
-      exact ht u v
-  · exact Or.inr (Or.inl fun u v => by
-      dsimp only
-      rw [Function.update_of_ne hx2, Function.update_of_ne hx2]
-      exact ht u v)
-  · exact Or.inr (Or.inr fun u v => by
-      dsimp only
-      rw [Function.update_of_ne hx1, Function.update_of_ne hx1,
-        Function.update_of_ne hx2, Function.update_of_ne hx2]
-      exact ht u v)
+    (h : S.SwapOK x Q c T) : (S.swap x Q c T).Valid f :=
+  Valid.swap_of hS h fun k τ hτ htame =>
+    hS.phi_affine k (fun u => Function.update (τ u) x (τ u Q + c + ∑ j ∈ T.erase x, τ u j))
+      (isAffine_update hτ x (isAffine_add_add_sum hτ Q c (T.erase x))) fun pr hpr =>
+      let ⟨hx1, hx2⟩ := ne_of_not_paired h.unpaired hpr
+      pairTame_update hx1 hx2 (htame pr hpr)
 
 /-! ### Quadratic reparameterisation (QR) -/
 
@@ -85,25 +83,20 @@ private theorem isAffine_mul_of_pairTame {k : ℕ} {τ : BitString k → ℕ →
     {x y : ℕ} (ht : PairTame τ (x, y)) (α β : Bool) :
     IsAffine fun u => (τ u x + α) * (τ u y + β) := by
   intro u v w
-  dsimp only
-  have hy := congrFun (hτ u v w) y
-  have hx := congrFun (hτ u v w) x
-  simp only [Pi.add_apply] at hx hy
+  have hy : τ (u + v + w) y = τ u y + τ v y + τ w y := congrFun (hτ u v w) y
+  have hx : τ (u + v + w) x = τ u x + τ v x + τ w x := congrFun (hτ u v w) x
+  dsimp only [PairTame] at ht ⊢
   rcases ht with ht | ht | ht
-  · have h0 : ∀ u', τ u' x = τ 0 x := fun u' => ht u' 0
-    rw [h0 (u + v + w), h0 u, h0 v, h0 w, hy]
+  · rw [ht (u + v + w) 0, ht u 0, ht v 0, ht w 0, hy]
     generalize τ 0 x = a; generalize τ u y = b₁; generalize τ v y = b₂; generalize τ w y = b₃
     revert a b₁ b₂ b₃ α β; decide
-  · have h0 : ∀ u', τ u' y = τ 0 y := fun u' => ht u' 0
-    rw [h0 (u + v + w), h0 u, h0 v, h0 w, hx]
+  · rw [ht (u + v + w) 0, ht u 0, ht v 0, ht w 0, hx]
     generalize τ 0 y = a; generalize τ u x = b₁; generalize τ v x = b₂; generalize τ w x = b₃
     revert a b₁ b₂ b₃ α β; decide
-  · have h0 : ∀ u', τ u' x = τ u' y + (τ 0 x + τ 0 y) := fun u' => by
+  · have h0 (u') : τ u' x = τ u' y + (τ 0 x + τ 0 y) := by
       have := ht u' 0
-      simp only at this
       rw [← this]
-      generalize τ u' x = a; generalize τ u' y = b
-      revert a b; decide
+      generalize τ u' x = a; generalize τ u' y = b; revert a b; decide
     rw [h0 (u + v + w), h0 u, h0 v, h0 w, hy]
     generalize τ 0 x + τ 0 y = a; generalize τ u y = b₁; generalize τ v y = b₂
     generalize τ w y = b₃
@@ -175,26 +168,24 @@ private theorem pair_mem (hS : S.Valid f) : ∀ pr ∈ (S.quad x y z G D α β �
   · exact ⟨Finset.mem_insert_of_mem (Finset.mem_erase.2 ⟨h.x_ne_z, h.mem_x⟩),
       Finset.mem_insert_of_mem (Finset.mem_erase.2 ⟨h.y_ne_z, h.mem_y⟩), h.x_ne_y⟩
   · obtain ⟨h1, h2, h12⟩ := hS.pair_mem pr hpr
-    have hz1 : pr.1 ≠ z := fun he => h.unpaired_z ⟨pr, hpr, Or.inl he⟩
-    have hz2 : pr.2 ≠ z := fun he => h.unpaired_z ⟨pr, hpr, Or.inr he⟩
+    obtain ⟨hz1, hz2⟩ := ne_of_not_paired h.unpaired_z hpr
     exact ⟨Finset.mem_insert_of_mem (Finset.mem_erase.2 ⟨hz1, h1⟩),
       Finset.mem_insert_of_mem (Finset.mem_erase.2 ⟨hz2, h2⟩), h12⟩
 
 private theorem pairs_disjoint (hS : S.Valid f) : ∀ pr ∈ (S.quad x y z G D α β γ c).pairs,
     ∀ pr' ∈ (S.quad x y z G D α β γ c).pairs, pr ≠ pr' →
       pr.1 ≠ pr'.1 ∧ pr.1 ≠ pr'.2 ∧ pr.2 ≠ pr'.1 ∧ pr.2 ≠ pr'.2 := by
-  have hnew : ∀ pr ∈ S.pairs, x ≠ pr.1 ∧ x ≠ pr.2 ∧ y ≠ pr.1 ∧ y ≠ pr.2 := fun pr hpr =>
-    ⟨fun he => h.unpaired_x ⟨pr, hpr, Or.inl he.symm⟩,
-      fun he => h.unpaired_x ⟨pr, hpr, Or.inr he.symm⟩,
-      fun he => h.unpaired_y ⟨pr, hpr, Or.inl he.symm⟩,
-      fun he => h.unpaired_y ⟨pr, hpr, Or.inr he.symm⟩⟩
+  have hnew (pr) (hpr : pr ∈ S.pairs) : x ≠ pr.1 ∧ x ≠ pr.2 ∧ y ≠ pr.1 ∧ y ≠ pr.2 :=
+    let ⟨hx1, hx2⟩ := ne_of_not_paired h.unpaired_x hpr
+    let ⟨hy1, hy2⟩ := ne_of_not_paired h.unpaired_y hpr
+    ⟨hx1.symm, hx2.symm, hy1.symm, hy2.symm⟩
   intro pr hpr pr' hpr' hne
   rcases Finset.mem_insert.1 hpr with rfl | hpr <;>
     rcases Finset.mem_insert.1 hpr' with rfl | hpr'
   · exact absurd rfl hne
   · exact hnew pr' hpr'
   · obtain ⟨h1, h2, h3, h4⟩ := hnew pr hpr
-    exact ⟨Ne.symm h1, Ne.symm h3, Ne.symm h2, Ne.symm h4⟩
+    exact ⟨h1.symm, h3.symm, h2.symm, h4.symm⟩
   · exact hS.pairs_disjoint pr hpr pr' hpr' hne
 
 private theorem affine (hS : S.Valid f) {k : ℕ} {τ : BitString k → ℕ → Bool} (hτ : IsAffine τ)
@@ -205,21 +196,15 @@ private theorem affine (hS : S.Valid f) {k : ℕ} {τ : BitString k → ℕ → 
     ?_, fun pr hpr => ?_, fun u j hj => ?_⟩
   · refine isAffine_update hτ z fun u v w => ?_
     have hm := isAffine_mul_of_pairTame hτ (htame (x, y) (Finset.mem_insert_self _ _)) α β u v w
-    have hD := congrFun (hτ u v w) D
-    simp only [Pi.add_apply] at hm hD
-    simp only [hD, hm]
-    generalize τ u D = a₁; generalize τ v D = a₂; generalize τ w D = a₃
-    generalize (τ u x + α) * (τ u y + β) = b₁; generalize (τ v x + α) * (τ v y + β) = b₂
-    generalize (τ w x + α) * (τ w y + β) = b₃
-    cases a₁ <;> cases a₂ <;> cases a₃ <;> cases b₁ <;> cases b₂ <;> cases b₃ <;> cases γ <;>
-      cases c <;> rfl
-  · have hz1 : pr.1 ≠ z := fun he => h.unpaired_z ⟨pr, hpr, Or.inl he⟩
-    have hz2 : pr.2 ≠ z := fun he => h.unpaired_z ⟨pr, hpr, Or.inr he⟩
-    rcases htame pr (Finset.mem_insert_of_mem hpr) with ht | ht | ht
-    · exact Or.inl fun u v => by simp only [Function.update_of_ne hz1]; exact ht u v
-    · exact Or.inr (Or.inl fun u v => by simp only [Function.update_of_ne hz2]; exact ht u v)
-    · exact Or.inr (Or.inr fun u v => by
-        simp only [Function.update_of_ne hz1, Function.update_of_ne hz2]; exact ht u v)
+    dsimp only at hm
+    have hD : τ (u + v + w) D = τ u D + τ v D + τ w D := congrFun (hτ u v w) D
+    have hadd : ∀ a₁ a₂ a₃ b₁ b₂ b₃ : Bool,
+        (a₁ + a₂ + a₃) + (b₁ + b₂ + b₃) = (a₁ + b₁) + (a₂ + b₂) + (a₃ + b₃) := by decide
+    have hconst : ∀ a₁ a₂ a₃ k : Bool,
+        (a₁ + a₂ + a₃) + k = (a₁ + k) + (a₂ + k) + (a₃ + k) := by decide
+    rw [hD, hm, hconst _ _ _ γ, hadd, hconst _ _ _ c]
+  · obtain ⟨hz1, hz2⟩ := ne_of_not_paired h.unpaired_z hpr
+    exact pairTame_update hz1 hz2 (htame pr (Finset.mem_insert_of_mem hpr))
   · have hjG : j ≠ G := fun he => hS.wf.notMem_gates_of_mem_params hj (he ▸ h.mem_G)
     simp only [quadValue, Function.update_of_ne hjG]
 
@@ -228,54 +213,47 @@ end QuadOK
 /-- The quadratic reparameterisation preserves validity. -/
 theorem Valid.quad {S : State n} (hS : S.Valid f) {x y z G D : ℕ} {α β γ c : Bool}
     (h : S.QuadOK x y z G D α β γ c) : (S.quad x y z G D α β γ c).Valid f := by
-  have hgp : ∀ {i}, i ∈ S.gates → i ∉ S.params := fun hg => hS.wf.notMem_params_of_mem_gates hg
-  have hxG : x ≠ G := fun he => hgp h.mem_G (he ▸ h.mem_x)
-  have hyG : y ≠ G := fun he => hgp h.mem_G (he ▸ h.mem_y)
+  have hneG {i} (hi : i ∈ S.params) : i ≠ G := fun he =>
+    hS.wf.notMem_params_of_mem_gates h.mem_G (he ▸ hi)
   set σ := quadValue x y z G D α β γ c
-  have hσ : ∀ val i, i ≠ z → i ≠ G → σ val i = val i := fun val i hz hG => by
+  have hσ (val i) (hz : i ≠ z) (hG : i ≠ G) : σ val i = val i := by
     simp only [σ, quadValue, Function.update_of_ne hG, Function.update_of_ne hz]
-  have hσz : ∀ val, σ val z = val D + ((val x + α) * (val y + β) + γ) + c := fun val => by
-    have hzG : z ≠ G := by rintro rfl; exact hgp h.mem_G h.mem_z
-    simp only [σ, quadValue, Function.update_of_ne hzG, Function.update_self]
+  have hσz (val) : σ val z = val D + ((val x + α) * (val y + β) + γ) + c := by
+    simp only [σ, quadValue, Function.update_of_ne (hneG h.mem_z), Function.update_self]
   refine Valid.of_transport hS (σ := σ) (hS.wf.quad h.toQuadOK)
     { pair_mem := h.pair_mem hS
       pairs_disjoint := h.pairs_disjoint hS
-      phi := fun val => hS.phi_congr _ _ fun j hj => ?_
+      phi := fun val => hS.phi_congr _ _ fun j hj => by
+        simp only [σ, quadValue, Function.update_of_ne (hneG hj)]
       phi_affine := fun k τ hτ htame => by
         obtain ⟨τ', hτ', htame', hagree⟩ := h.affine hS hτ htame
         have hcomp := hS.phi_affine k τ' hτ' htame'
-        have heq : (S.quad x y z G D α β γ c).phi ∘ τ = S.phi ∘ τ' := by
-          funext u
-          exact hS.phi_congr _ _ fun j hj => by
-            have hjG : j ≠ G := fun he => hgp h.mem_G (he ▸ hj)
-            simpa only [σ, quadValue, Function.update_of_ne hjG] using (hagree u j hj).symm
+        have heq : (S.quad x y z G D α β γ c).phi ∘ τ = S.phi ∘ τ' := funext fun u =>
+          hS.phi_congr _ _ fun j hj => by
+            simpa only [σ, quadValue, Function.update_of_ne (hneG hj)] using (hagree u j hj).symm
         rwa [heq]
       congr := fun val val' hv j hj => ?_
       inj := fun val val' hv j hj => ?_
       consistent := fun val hval => (h.toQuadOK.consistent hS.wf hval).1
       locus := fun _ _ => trivial
       out := fun val hval _ => (h.toQuadOK.consistent hS.wf hval).2 }
-  · have hjG : j ≠ G := by rintro rfl; exact hgp h.mem_G hj
-    simp only [σ, quadValue, Function.update_of_ne hjG]
-  · have hjG : j ≠ G := fun he => hgp h.mem_G (he ▸ hj)
-    by_cases hjz : j = z
+  · by_cases hjz : j = z
     · subst hjz
-      have hD := hv D (Finset.mem_insert_self _ _)
-      have hx := hv x (Finset.mem_insert_of_mem (Finset.mem_erase.2 ⟨h.x_ne_z, h.mem_x⟩))
-      have hy := hv y (Finset.mem_insert_of_mem (Finset.mem_erase.2 ⟨h.y_ne_z, h.mem_y⟩))
-      rw [hσz, hσz, hD, hx, hy]
-    · rw [hσ val j hjz hjG, hσ val' j hjz hjG]
+      rw [hσz, hσz, hv D (Finset.mem_insert_self _ _),
+        hv x (Finset.mem_insert_of_mem (Finset.mem_erase.2 ⟨h.x_ne_z, h.mem_x⟩)),
+        hv y (Finset.mem_insert_of_mem (Finset.mem_erase.2 ⟨h.y_ne_z, h.mem_y⟩))]
+    · rw [hσ val j hjz (hneG hj), hσ val' j hjz (hneG hj)]
       exact hv j (Finset.mem_insert_of_mem (Finset.mem_erase.2 ⟨hjz, hj⟩))
   · rcases Finset.mem_insert.1 hj with rfl | hj
     · have hz := hv z h.mem_z
       have hx := hv x h.mem_x
       have hy := hv y h.mem_y
-      rw [hσ val x h.x_ne_z hxG, hσ val' x h.x_ne_z hxG] at hx
-      rw [hσ val y h.y_ne_z hyG, hσ val' y h.y_ne_z hyG] at hy
+      rw [hσ val x h.x_ne_z (hneG h.mem_x), hσ val' x h.x_ne_z (hneG h.mem_x)] at hx
+      rw [hσ val y h.y_ne_z (hneG h.mem_y), hσ val' y h.y_ne_z (hneG h.mem_y)] at hy
       rw [hσz, hσz, hx, hy] at hz
       simpa using hz
     · have := hv j (Finset.mem_of_mem_erase hj)
-      have hjG : j ≠ G := fun he => hgp h.mem_G (he ▸ Finset.mem_of_mem_erase hj)
+      have hjG := hneG (Finset.mem_of_mem_erase hj)
       rwa [hσ val j (Finset.ne_of_mem_erase hj) hjG,
         hσ val' j (Finset.ne_of_mem_erase hj) hjG] at this
 

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.Lean.Dijkstra.Native.Word
+import CslibFrontier.DataStructure.StateTransition.ClientMap
 
 /-!
 # Shared reached-state reasoning for native Dijkstra clients
@@ -367,14 +368,10 @@ theorem abstractLoopStep_extract {n K V w a : ℕ}
   have hrmap : (Memory.spec 0).clientResult s extract =
       Option.map (fun p => (p.1.val, p.2))
         ((spec n K V).clientResult (M.abs s) (queue .extractMin)) := by
-    rw [hex, ← PFunctor.FreeM.bind_pure_comp, StateTransitionSpec.clientResult,
-      StateTransitionSpec.runClient_bind]
-    simp only [Function.comp_apply, StateTransitionSpec.runClient_pure']
-    exact congrArg (Option.map fun p : Fin n × ℕ => (p.1.val, p.2)) hres
+    rw [hex, StateTransitionSpec.clientResult]
+    simp only [client_simps, hres]
   have hsmap : (Memory.spec 0).clientState s extract = (Memory.spec 0).clientState s q := by
-    rw [hex, ← PFunctor.FreeM.bind_pure_comp, StateTransitionSpec.clientState,
-      StateTransitionSpec.runClient_bind]
-    rfl
+    simp only [hex, StateTransitionSpec.clientState, client_simps]
   cases hq : (spec n K V).clientResult (M.abs s) (queue .extractMin) with
   | none => exact Or.inl (by simp only [hrmap, hq, Option.map_none])
   | some uk =>

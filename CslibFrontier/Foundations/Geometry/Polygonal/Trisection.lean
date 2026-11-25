@@ -17,7 +17,8 @@ import Mathlib.Tactic.FinCases
 Cut the first and last segments at positive outgoing times. The three routes follow
 the original traversal order and preserve all real points of the original route.
 The parameter law identifies the ends of each new route exactly, including when both
-cuts lie in one original segment. This is original finite geometry.
+cuts lie in one original segment. `exists_subroute_between` restricts to an interval
+with cuts on any two ordered source segments. This is original finite geometry.
 -/
 
 public section
@@ -291,5 +292,98 @@ theorem support_trisect (p : Route) {s t : ℝ}
         refine Set.mem_iUnion.mpr
           ⟨2, ((p.trisect s t 2).mem_support_iff _).mpr ⟨0, u, hu, ?_⟩⟩
         rw [p.eval_trisect_last, hr']
+
+/-- Cut out a nonempty portion of a route between local times `s` on segment `i` and `t`
+on segment `j`. The new segments keep the original interval of indices in order,
+with affine time reparameterization only at the cut ends. If `i` and
+`j` differ, their local times are independent. -/
+theorem exists_subroute_between (p : Route) (i j : Fin p.segments) (hij : i ≤ j)
+    {s t : ℝ} (hs : s ∈ Set.Ico 0 1) (ht : t ∈ Set.Ioc 0 1)
+    (hst : i = j → s < t) :
+    ∃ q : Route, ∃ e : Fin q.segments ≃o Set.Icc i j,
+      q.start = p.eval i s ∧ q.finish = p.eval j t ∧ ∀ k,
+        let lo := if (e k).val = i then s else 0
+        let hi := if (e k).val = j then t else 1
+        0 ≤ lo ∧ lo < hi ∧ hi ≤ 1 ∧ ∀ u : ℝ,
+          q.eval k u = p.eval (e k).val (AffineMap.lineMap lo hi u) := by
+  have hij' : i.val ≤ j.val := hij
+  let r : Route := ⟨j.val - i.val, fun k => p.point ⟨i.val + k.val, by
+    have hk : k.val < j.val - i.val + 2 := k.isLt
+    have hj : j.val < p.bends + 1 := j.isLt
+    omega⟩⟩
+  let q := r.cutEnds s (1 - t)
+  let source (k : Fin r.segments) : Fin p.segments := ⟨i.val + k.val, by
+    have hk := k.isLt
+    change k.val < j.val - i.val + 1 at hk
+    have hj := j.isLt
+    omega⟩
+  let e : Fin q.segments ≃o Set.Icc i j := {
+    toEquiv := {
+      toFun k := ⟨source k, by
+        have hk := k.isLt
+        change k.val < j.val - i.val + 1 at hk
+        change i.val ≤ i.val + k.val ∧ i.val + k.val ≤ j.val
+        omega⟩
+      invFun k := ⟨k.val.val - i.val, by
+        have hk : k.val.val ≤ j.val := k.property.2
+        change k.val.val - i.val < j.val - i.val + 1
+        omega⟩
+      left_inv := fun k => Fin.ext (by change i.val + k.val - i.val = k.val; omega)
+      right_inv := fun k => Subtype.ext (Fin.ext (by
+        have hk : i.val ≤ k.val.val := k.property.1
+        change i.val + (k.val.val - i.val) = k.val.val
+        omega)) }
+    map_rel_iff' := by
+      intro a b
+      change i.val + a.val ≤ i.val + b.val ↔ a.val ≤ b.val
+      omega }
+  have heval (k : Fin q.segments) (u : ℝ) : r.eval k u = p.eval (e k).val u := rfl
+  have hfirst : (e 0).val = i := Fin.ext (by change i.val + 0 = i.val; omega)
+  have hlast : (e (Fin.last r.bends)).val = j :=
+    Fin.ext (by change i.val + (j.val - i.val) = j.val; omega)
+  refine ⟨q, e, ?_, ?_, ?_⟩
+  · change (r.cutEnds s (1 - t)).endpoint false = _
+    rw [endpoint_cutEnds]
+    change r.eval 0 s = _
+    exact (heval 0 s).trans (congrArg (fun k => p.eval k s) hfirst)
+  · change (r.cutEnds s (1 - t)).endpoint true = _
+    rw [endpoint_cutEnds]
+    change r.eval (Fin.last r.bends) (1 - (1 - t)) = _
+    rw [sub_sub_cancel]
+    exact (heval (Fin.last r.bends) t).trans (congrArg (fun k => p.eval k t) hlast)
+  · intro k
+    let lo := if (e k).val = i then s else 0
+    let hi := if (e k).val = j then t else 1
+    have hki : k.val = 0 ↔ (e k).val = i := by
+      constructor
+      · intro hk
+        exact Fin.ext (by change i.val + k.val = i.val; omega)
+      · intro h
+        have h' : i.val + k.val = i.val := congrArg Fin.val h
+        omega
+    have hkj : k.val + 1 = r.segments ↔ (e k).val = j := by
+      change k.val + 1 = j.val - i.val + 1 ↔ _
+      constructor
+      · intro hk
+        exact Fin.ext (by change i.val + k.val = j.val; omega)
+      · intro h
+        have h' : i.val + k.val = j.val := congrArg Fin.val h
+        omega
+    have hlo : r.cutLower s k = lo := by simp only [cutLower, lo, hki]
+    have hhi : r.cutUpper (1 - t) k = hi := by simp only [cutUpper, hi, hkj, sub_sub_cancel]
+    have hbounds : 0 ≤ lo ∧ lo < hi ∧ hi ≤ 1 := by
+      dsimp only [lo, hi]
+      split_ifs with h₁ h₂ h₂
+      · exact ⟨hs.1, hst (h₁.symm.trans h₂), ht.2⟩
+      · exact ⟨hs.1, hs.2, le_rfl⟩
+      · exact ⟨le_rfl, ht.1, ht.2⟩
+      · exact ⟨le_rfl, zero_lt_one, le_rfl⟩
+    obtain ⟨hl, hlt, hh⟩ := hbounds
+    refine ⟨hl, hlt, hh, fun u => ?_⟩
+    calc
+      q.eval k u = r.eval k (r.cutTime s (1 - t) k u) := r.eval_cutEnds s (1 - t) k u
+      _ = p.eval (e k).val (r.cutTime s (1 - t) k u) := heval k _
+      _ = p.eval (e k).val (AffineMap.lineMap lo hi u) :=
+        congrArg (p.eval (e k).val) (congrArg₂ (fun a b : ℝ => AffineMap.lineMap a b u) hlo hhi)
 
 end Cslib.Polygonal.Route

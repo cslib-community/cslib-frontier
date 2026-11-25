@@ -136,13 +136,6 @@ section Specs
 
 variable {w : ℕ}
 
-/-- A contract extended with the registers the program preserves. -/
-theorem exists_execWithin_preserves {c : Code .standard 28} {x : Data 28} {T : ℕ}
-    {P : Data 28 → Prop} (h : ∃ y, ExecWithin w c x y T ∧ P y) :
-    ∃ y, ExecWithin w c x y T ∧ P y ∧ ∀ i, c.Preserves i → y.regs i = x.regs i := by
-  obtain ⟨y, hy, hP⟩ := h
-  exact ⟨y, hy, hP, fun _ hi => hy.regs_eq hi⟩
-
 /-- **Scanning a clause** at `cl` leaves in `has`, `unit` and `bad` the abstract state of its
 literals that `F` does not mark, and leaves memory unchanged. -/
 theorem scanClause_spec (F : Literal ℕ → Bool) (c : Clause ℕ) (x : Data 28) (M : ℕ)
@@ -206,9 +199,6 @@ theorem hintLoop_spec (db : List (ℕ × Clause ℕ)) (hints : List ℕ) (trail 
     have hc : (Cond.lt ptr hend).Holds x := by simp only [Cond.holds_lt, hhe]; omega
     obtain ⟨hlit, hrest⟩ := holdsList_cons_iff.mp hl
     have hhM' := hhM h (by simp)
-    have : Fits w (h + h) := hw.of_le (by omega)
-    have : Fits w (T + (h + h)) := hw.of_le (by omega)
-    have : Fits w (x.regs ptr + 1) := hw.of_le (by omega)
     refine WP.exists_execWithin (WP.loop_iter hc ?_)
     unfold hintBody
     rcases hfind : db.find? (·.1 == h) with _ | e
@@ -222,7 +212,6 @@ theorem hintLoop_spec (db : List (ℕ × Clause ℕ)) (hints : List ℕ) (trail 
     · obtain ⟨hpos, hltT, hcl⟩ := (htab h).2 e hfind
       simp only [tcell] at hpos hltT hcl
       have he : e ∈ db := List.mem_of_find?_eq_some hfind
-      have : Fits w (x.mem (T + (h + h))) := hw.of_le (by omega)
       have hne : x.mem (T + (h + h)) ≠ 0 := by omega
       wram_exec [hlit, hone, hT, hzero, hne]
       wram_call (scanClause_spec (w := w) (falseOn trail) e.2 _ M)
@@ -251,9 +240,6 @@ theorem hintLoop_spec (db : List (ℕ × Clause ℕ)) (hints : List ℕ) (trail 
           by_cases hall : ls.all (· == l) = true
           · simp only [hf, scanOf, hall, Bool.not_true, Bool.toNat_false, Bool.toNat_true]
               at hyh hyu hyb
-            have : Fits w (litCode l + litCode l) := hw.of_le (by omega)
-            have : Fits w (litCode l + litCode l + 1) := hw.of_le (by omega)
-            have : Fits w (T + (litCode l + litCode l + 1)) := hw.of_le (by omega)
             have hyptr : y.regs ptr = x.regs ptr + 1 := by regs_frame
             have hOA : OnlyAsg T x.mem (Function.update x.mem (acell T (litCode l)) s) :=
               OnlyAsg.update T _ s x.mem
@@ -302,8 +288,6 @@ theorem propagate_spec (db : List (ℕ × Clause ℕ)) (hints : List ℕ) (trail
       OnlyAsg T x.mem y.mem ∧ (∃ trail', TrailAt y.mem T s trail') ∧
       y.regs zero = 0 ∧ y.regs one = 1 ∧ y.regs tbase = T ∧ y.regs stamp = s := by
   obtain ⟨hlen, hrest⟩ := holdsList_cons_iff.mp hl
-  have : Fits w (x.regs ptr + 1) := hw.of_le (by omega)
-  have : Fits w (x.regs ptr + 1 + hints.length) := hw.of_le (by omega)
   refine WP.exists_execWithin ?_
   unfold propagate
   wram_exec [hlen, hone, hzero]
