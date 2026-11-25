@@ -4,8 +4,12 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Matthew Doty
 -/
 
+module
+-- upstream: local-only (tests)
+
 import CslibFrontier.Algorithms.LinearAlgebra.LyapunovCertificate
-import Mathlib.Algebra.Order.Star.Real
+import Mathlib.Analysis.Calculus.Deriv.Prod
+import Mathlib.Analysis.SpecialFunctions.ExpDeriv
 
 /-! # Tests for linear time-invariant flows and the quadratic Lyapunov criterion
 
@@ -20,6 +24,8 @@ import Mathlib.Algebra.Order.Star.Real
   exponential stability of all trajectories. Corrupted certificates are rejected, and so is every
   certificate with `P = 1`, although `A` is stable: rejection is not instability.
 -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.LinearLyapunov
 
