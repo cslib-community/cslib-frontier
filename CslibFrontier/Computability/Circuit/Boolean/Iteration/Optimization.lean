@@ -77,7 +77,9 @@ theorem exists_le_add_add_two_mul_sqrt (a b M N : ℕ) (hb : 0 < b) (hba : b ≤
     refine ⟨1, by omega, hN, ?_⟩
     simp only [Nat.mul_one, Nat.div_one, Nat.cast_add, Nat.cast_mul, Nat.cast_one]
     change (a : ℝ) + b * (M + 1) ≤ a + b + 2 * z
-    rw [mul_add, mul_one]; dsimp only [q] at hqz; linarith only [hqz, hz0]
+    rw [mul_add, mul_one]
+    dsimp only [q] at hqz
+    linarith only [hqz, hz0]
   have hqa : (a : ℝ) ≤ q := (not_le.mp hsmall).le
   have hza : (a : ℝ) ≤ z := Real.le_sqrt_of_sq_le <| by
     rw [sq]; exact mul_le_mul_of_nonneg_right hqa ha.le

@@ -94,7 +94,9 @@ theorem exists_run {n : ℕ} {P : Series F (Ch S J × Γ)} (hP : RatLe n P) :
     have hlen : w.length + j = t := by simpa using (congrArg List.length hw).symm
     have hproj : proj w = tup (fun s => proj w (.tp s false)) u := by
       rw [Matched, hw, emit_idle] at hm
-      funext z; rcases z with ⟨s, false | true⟩ | j; exacts [rfl, (hm.1 s).symm, hm.2 j]
+      funext z
+      rcases z with ⟨s, false | true⟩ | j
+      exacts [rfl, (hm.1 s).symm, hm.2 j]
     have hlen2 := sum_length_proj w; rw [hproj, sum_length_tup] at hlen2
     refine ho ⟨⟨fun s => proj w (.tp s false), w⟩, ?_, List.ofFn_injective ?_⟩
     · simp only [coe_sigma, Set.mem_sigma_iff, mem_coe, mem_filter, mem_fib, mem_contents]

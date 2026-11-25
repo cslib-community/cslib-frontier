@@ -265,7 +265,9 @@ theorem boxReject_apply_none_le (hβ : β ≤ γ) (hv : v ∈ intBox ι β) :
   set m := Fintype.card ι
   have hb : (0 : ℝ) < 2 * γ + 1 := by positivity
   have hx : ((2 * (γ - β) + 1 : ℕ) : ℝ) / (2 * γ + 1) = 1 + -(2 * β / (2 * γ + 1)) := by
-    rw [Nat.cast_add, Nat.cast_mul, Nat.cast_sub hβ]; field_simp; ring
+    rw [Nat.cast_add, Nat.cast_mul, Nat.cast_sub hβ]
+    field_simp
+    ring
   have hbern := one_add_mul_le_pow (a := -(2 * (β : ℝ) / (2 * γ + 1)))
     (by rw [neg_le_neg_iff, div_le_iff₀ hb]; linarith [(Nat.cast_le (α := ℝ)).mpr hβ]) m
   have hreal : (1 : ℝ) ≤ 2 * m * β / (2 * γ + 1) +

@@ -148,7 +148,9 @@ theorem run_succ {n k : ℕ} (W : Fin (k + 3) → Fin (k + 3) → ℕ) (part : F
   have hlast : lastTwo 0 (maOrder W) = (s, t) := by simp [lastTwo, hp]
   rw [run]; dsimp only
   generalize hst' : lastTwo 0 (maOrder W) = st
-  rw [hlast] at hst'; subst hst'; simp only [hst, ↓reduceDIte]
+  rw [hlast] at hst'
+  subst hst'
+  simp only [hst, ↓reduceDIte]
 
 /-- **The Stoer–Wagner algorithm** [StoerWagner1997]: one side of a minimum cut of the multigraph
 `W` on `Fin n`, and its weight. With fewer than two vertices there is no non-trivial cut, and the
@@ -220,7 +222,9 @@ theorem run_spec {n : ℕ} {W₀ : Fin n → Fin n → ℕ} :
     refine ⟨isNonTrivialCut_pullbackCut hC.surj (isNonTrivialCut_singleton (by simp) 1),
       (cutWeight_pullbackCut hC _).trans (cutWeight_singleton hW 1),
       le_antisymm ?_ (minCut_le_rowDeg (by simp) hW 1)⟩
-    dsimp only [run]; rw [le_minCut_iff (by simp)]; intro B hB
+    dsimp only [run]
+    rw [le_minCut_iff (by simp)]
+    intro B hB
     rw [cutWeight_fin_two hW hB, ← cutWeight_singleton hW,
       ← cutWeight_fin_two hW (isNonTrivialCut_singleton (by simp) 1)]
   | k + 1, W, part, hC => by

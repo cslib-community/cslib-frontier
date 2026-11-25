@@ -102,7 +102,9 @@ theorem ClauseSet.Sparsification.exists_sum_choose_le {k : ℕ} (hk : 1 ≤ k) {
       _ = ((2 : ℝ) ^ (ε / 2 * N)) ^ α := by
           rw [hr, ← pow_mul, ← Real.rpow_natCast, ← Real.rpow_natCast,
             ← Real.rpow_mul (by norm_num), ← Real.rpow_mul (by norm_num)]
-          congr 1; push_cast; ring
+          congr 1
+          push_cast
+          ring
   exact (sum_choose_le_exp_mul_pow Λ ρ (T : ℝ) hTR1).trans
     ((mul_le_mul hexp hTρ (by positivity) (by positivity)).trans_eq
       (by rw [← Real.rpow_add (by norm_num)]; ring_nf))

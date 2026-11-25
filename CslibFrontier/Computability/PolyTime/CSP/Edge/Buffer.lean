@@ -147,7 +147,9 @@ abbrev encFlip := encPair (encList encBool) (encList encUnary)
 theorem poly_flip :
     ComputableInPolyTime (fun p : List Bool × List ℕ => flip p.1 p.2)
       encFlip (encList encBool) := by
-  unfold flip; simp only [List.contains_eq_mem]; fun_prop
+  unfold flip
+  simp only [List.contains_eq_mem]
+  fun_prop
 
 theorem poly_validWith {α : Type} {e : α ↪ List Bool}
     {F : α → CSP Table ℕ} {bits : α → List Bool}
@@ -174,7 +176,9 @@ theorem record_index {F : CSP Table ℕ} (o : Occurrence F) :
     (CSP.occurrences F).idxOf o.record = occurrenceIndex o := by
   rw [occurrences_eq_map_incidenceList]
   simp only [List.idxOf, List.findIdx_map, occurrenceIndex]
-  congr 1; funext p; simp [Occurrence.record_injective.eq_iff]
+  congr 1
+  funext p
+  simp [Occurrence.record_injective.eq_iff]
 
 theorem read_record {F : CSP Table ℕ} (bits : List Bool) (o : Occurrence F) :
     readRecord F bits o.record = labeling F bits o := by

@@ -113,7 +113,10 @@ theorem measureReal_sum_integral_gt_le {f : Fin T → (Fin T → Z) → Z → �
       (b - a) * √(T * log (1 / δ) / 2) := by
     rw [show (b - a) * √(T * log (1 / δ) / 2) = √((b - a) ^ 2 * (T * log (1 / δ) / 2)) by
       rw [sqrt_mul (sq_nonneg _), sqrt_sq (sub_nonneg.2 hle)]]
-    congr 1; push_cast; simp only [Real.norm_of_nonneg (sub_nonneg.2 hle)]; ring
+    congr 1
+    push_cast
+    simp only [Real.norm_of_nonneg (sub_nonneg.2 hle)]
+    ring
   simp only [Set.mem_ofPred_eq, hsq, Finset.sum_sub_distrib] at hS ⊢; linarith
 
 /-- **High-probability online-to-batch conversion.** If `f t S` depends only on the examples

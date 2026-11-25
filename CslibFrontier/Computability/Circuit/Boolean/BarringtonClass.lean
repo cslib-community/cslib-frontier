@@ -164,7 +164,9 @@ theorem exists_four_pow_formulaDepth_le_of_mem_NC_one (hL : L ∈ NC 1) :
   obtain ⟨c, hc⟩ := mem_NC_one_iff_formulaDepth_le.1 hL
   refine ⟨fun n => 2 ^ (2 * c * (Nat.log 2 n + 1)), polynomiallyBounded_two_pow_mul_log _,
     fun n => (Nat.pow_le_pow_right (by decide) (hc n)).trans_eq ?_⟩
-  dsimp only; rw [mul_assoc, pow_mul 2 2]; rfl
+  dsimp only
+  rw [mul_assoc, pow_mul 2 2]
+  rfl
 
 /-- **Barrington's theorem for NC¹ over `A₅`.** For a language in NC¹ there is a polynomially
 bounded `s` such that, at every length `n ≠ 0` and for every `5`-cycle `σ`, a program over the

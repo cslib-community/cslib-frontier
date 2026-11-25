@@ -259,7 +259,9 @@ the shortest-walk costs of `P`, with each tree edge replaced by the edges of its
 completion. -/
 theorem kmbEdges_eq {P : ∀ u v : V, G.Walk u v} (hP : IsShortestWalkOracle w G P) (R : List V) :
     kmbEdges w P R = expandEdges P (steinerMST (metricCompletion w G) R) := by
-  unfold kmbEdges; congr 2 with u v : 2; exact hP.walkWeight_eq u v
+  unfold kmbEdges
+  congr 2 with u v : 2
+  exact hP.walkWeight_eq u v
 
 /-- The heuristic returns a Steiner subgraph. -/
 theorem isSteinerSubgraph_kmbEdges (P : ∀ u v : V, G.Walk u v) (R : List V) :
