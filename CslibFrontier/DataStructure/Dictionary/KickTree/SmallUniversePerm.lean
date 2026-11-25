@@ -345,11 +345,11 @@ theorem dist_permTupleKernel_nrBlock_le {ι₀ ι₁ ι₂ T : Type*}
       hgood_dist).trans ?_
     gcongr
     rw [toOuterMeasure_uniformOfFintype_toReal]
+    have hRL : Function.Injective fun i => (R₀ i, L₀ i) := fun i₁ i₂ h =>
+      x.injective ((nrSplitEquiv a').injective
+        (Prod.ext (congrArg Prod.snd h) (congrArg Prod.fst h)))
     let S₀ : Finset (Fin (2 ^ nrHalfHigh a') × Fin (2 ^ nrHalfLow a')) :=
-      (univ : Finset T).map ⟨fun i => (R₀ i, L₀ i), fun i₁ i₂ h => by
-        have hsplit : nrSplitEquiv a' (x i₁) = nrSplitEquiv a' (x i₂) :=
-          Prod.ext (congrArg Prod.snd h) (congrArg Prod.fst h)
-        exact x.injective ((nrSplitEquiv a').injective hsplit)⟩
+      (univ : Finset T).map ⟨_, hRL⟩
     have hS₀_card : #S₀ = Fintype.card T := by simp [S₀]
     have hfeistel := dens_not_injOn_feistelHead_le (hh₀.isPairwiseIndependentHash le_rfl) S₀
     rw [hS₀_card, dens_eq_card_div_card, NNRat.cast_div, NNRat.cast_natCast,
@@ -359,30 +359,15 @@ theorem dist_permTupleKernel_nrBlock_le {ι₀ ι₁ ι₂ T : Type*}
           (S₀ : Set (Fin (2 ^ nrHalfHigh a') × Fin (2 ^ nrHalfLow a')))} := by
       refine card_le_card fun s₀ hs₀ => ?_
       rw [mem_filter] at hs₀ ⊢
-      refine ⟨mem_univ s₀, fun hInj => hs₀.2 fun i₁ i₂ heq => ?_⟩
-      have h1 : (R₀ i₁, L₀ i₁) ∈ S₀ := mem_map.mpr ⟨i₁, mem_univ i₁, rfl⟩
-      have h2 : (R₀ i₂, L₀ i₂) ∈ S₀ := mem_map.mpr ⟨i₂, mem_univ i₂, rfl⟩
-      have heq' := hInj h1 h2 heq
-      have hsplit : nrSplitEquiv a' (x i₁) = nrSplitEquiv a' (x i₂) :=
-        Prod.ext (congrArg Prod.snd heq') (congrArg Prod.fst heq')
-      exact x.injective ((nrSplitEquiv a').injective hsplit)
+      exact ⟨mem_univ s₀, fun hInj => hs₀.2 fun i₁ i₂ heq => hRL (hInj
+        (mem_map.mpr ⟨i₁, mem_univ i₁, rfl⟩) (mem_map.mpr ⟨i₂, mem_univ i₂, rfl⟩) heq)⟩
     exact (div_le_div_of_nonneg_right (Nat.cast_le.mpr hsub) (Nat.cast_nonneg _)).trans hfeistel
-  have hpow_hi : (2 ^ nrHalfLow a' : ℝ) ≤ (2 ^ nrHalfHigh a' : ℝ) := by
-    exact_mod_cast Nat.pow_le_pow_right two_pos (nrHalfLow_le_nrHalfHigh a')
-  have hpow_a : (2 ^ nrHalfLow a' : ℝ) ≤ (2 ^ a' : ℝ) := by
-    exact_mod_cast Nat.pow_le_pow_right two_pos (nrHalfLow_le a')
-  have hdiv_hi :
-      ((Fintype.card T * (Fintype.card T - 1) : ℕ) : ℝ) / (2 * (2 ^ nrHalfHigh a' : ℝ)) ≤
+  have hdiv {b : ℕ} (hb : nrHalfLow a' ≤ b) :
+      ((Fintype.card T * (Fintype.card T - 1) : ℕ) : ℝ) / (2 * (2 ^ b : ℝ)) ≤
         ((Fintype.card T * (Fintype.card T - 1) : ℕ) : ℝ) / (2 * (2 ^ nrHalfLow a' : ℝ)) := by
-    gcongr
-  have hdiv_a :
-      ((Fintype.card T * (Fintype.card T - 1) : ℕ) : ℝ) / (2 * (2 ^ a' : ℝ)) ≤
-        ((Fintype.card T * (Fintype.card T - 1) : ℕ) : ℝ) / (2 * (2 ^ nrHalfLow a' : ℝ)) := by
-    gcongr
-  set num : ℝ := ((Fintype.card T * (Fintype.card T - 1) : ℕ) : ℝ)
-  set den : ℝ := 2 * (2 ^ nrHalfLow a' : ℝ)
-  have hsum3 : num / den + num / den + num / den = 3 * num / den := by ring
-  linarith
+    gcongr; norm_num
+  rw [mul_div_assoc]
+  linarith [hdiv (nrHalfLow_le_nrHalfHigh a'), hdiv (nrHalfLow_le a')]
 
 
 /-! ## Section 2: Composed Naor–Reingold blocks and Case B sharded bijection -/
