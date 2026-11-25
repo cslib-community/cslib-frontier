@@ -152,11 +152,15 @@ theorem toTM_seq (first : MultiTapeMachine k Symbol State₀ Empty Id)
   | inl state =>
     simp only [Sum.elim_inl, MultiTapeTM.adaptedTr, MultiTapeNTM.Adapter.mapState, id_eq,
       MultiTapeTM.tr_ofTr]
-    cases first.tr state symbol work Empty.elim with | step => rfl | query o => exact o.elim
+    cases first.tr state symbol work Empty.elim with
+    | step action symbol move => rfl
+    | query oracle next => exact oracle.elim
   | inr state =>
     simp only [Sum.elim_inr, MultiTapeTM.adaptedTr, MultiTapeNTM.Adapter.mapState, id_eq,
       MultiTapeTM.tr_ofTr]
-    cases second.tr state symbol work Empty.elim with | step => rfl | query o => exact o.elim
+    cases second.tr state symbol work Empty.elim with
+    | step action symbol move => rfl
+    | query oracle next => exact oracle.elim
 
 /-- List interpretation of sequencing is exact list bind, retaining repeated equal endpoints.
 The phase bounds are actual halting bounds. Excluding stuck branches is a separate obligation,
@@ -177,36 +181,42 @@ theorem interpret_runConfigFrom_seq_list (oracle : (q : Query) → List (spec q)
           (second.runConfigFrom choose query secondTime (start second result))).map right) := by
   induction firstTime generalizing cfg with
   | zero =>
+    have hhalt := hfirst cfg (by simp)
     simp only [Nat.zero_add, runConfigFrom_zero, OracleComp.interpret_pure,
       List.pure_def, List.flatMap_singleton]
-    rw [left_halted second cfg (hfirst cfg (by simp)),
-      Sequential.runConfigFrom_right first second choose hchoose, OracleComp.interpret_map]
+    rw [left_halted second cfg hhalt, Sequential.runConfigFrom_right first second choose hchoose,
+      OracleComp.interpret_map]
     rfl
   | succ firstTime ih =>
     by_cases hhalt : cfg.tapes.state = none
-    · simp only [runConfigFrom_halted first choose query _ cfg hhalt, OracleComp.interpret_pure,
+    · have hsecond' := hsecond cfg (by simp [hhalt])
+      simp only [runConfigFrom_halted first choose query _ cfg hhalt, OracleComp.interpret_pure,
         List.pure_def, List.flatMap_singleton]
       rw [left_halted second cfg hhalt, Sequential.runConfigFrom_right first second choose hchoose,
         OracleComp.interpret_map, Nat.add_comm (firstTime + 1) secondTime,
         interpret_runConfigFrom_add_of_halted_list second choose query oracle _
-          secondTime (firstTime + 1) (hsecond cfg (by simp [hhalt]))]
+          secondTime (firstTime + 1) hsecond']
       rfl
-    · have hmem {next} (hnext : next ∈ OracleComp.interpret oracle
-          (first.runConfigFrom choose query 1 cfg)) {final}
-          (hfinal : final ∈ OracleComp.interpret oracle
-            (first.runConfigFrom choose query firstTime next)) :
-          final ∈ OracleComp.interpret oracle
-            (first.runConfigFrom choose query (firstTime + 1) cfg) := by
-        rw [Nat.add_comm, runConfigFrom_add, OracleComp.interpret_bind]
-        exact List.mem_flatMap.mpr ⟨next, hnext, hfinal⟩
-      rw [show firstTime + 1 + secondTime = 1 + (firstTime + secondTime) by lia, runConfigFrom_add,
+    · have hsplit : firstTime + 1 = 1 + firstTime := by lia
+      have hstep : firstTime + 1 + secondTime = 1 + (firstTime + secondTime) := by lia
+      rw [hstep, runConfigFrom_add,
         Sequential.runConfigFrom_one first second choose hchoose query cfg hhalt,
-        OracleComp.interpret_bind, OracleComp.interpret_map,
-        Nat.add_comm firstTime 1, runConfigFrom_add, OracleComp.interpret_bind]
-      change List.flatMap _ (List.map _ _) = List.flatMap _ (List.flatMap _ _)
-      rw [List.flatMap_map, List.flatMap_assoc]
-      exact List.flatMap_congr fun next hnext => ih next
-        (fun _ hf => hfirst _ (hmem hnext hf)) (fun _ hf => hsecond _ (hmem hnext hf))
+        OracleComp.interpret_bind, OracleComp.interpret_map]
+      change List.flatMap _ (List.map _ _) = _
+      rw [List.flatMap_map, hsplit, runConfigFrom_add, OracleComp.interpret_bind]
+      change List.flatMap _ _ = List.flatMap _ (List.flatMap _ _)
+      rw [List.flatMap_assoc]
+      apply List.flatMap_congr
+      intro next hnext
+      apply ih
+      · intro final hfinal
+        apply hfirst final
+        rw [hsplit, runConfigFrom_add, OracleComp.interpret_bind]
+        exact List.mem_flatMap.mpr ⟨next, hnext, hfinal⟩
+      · intro final hfinal
+        apply hsecond final
+        rw [hsplit, runConfigFrom_add, OracleComp.interpret_bind]
+        exact List.mem_flatMap.mpr ⟨next, hnext, hfinal⟩
 
 /-- Sequential halting bounds add even when the first stopping time depends on random choices.
 The equality retains the final configuration and the interpreter's private state. -/
@@ -232,39 +242,43 @@ theorem run_interpret_runConfigFrom_seq {OracleState : Type}
           (fun (final, s') => (right final, s'))) := by
   induction firstTime generalizing cfg s with
   | zero =>
+    have hhalt := hfirst (cfg, s) (by simp)
     simp only [Nat.zero_add, runConfigFrom_zero, OracleComp.interpret_pure, StateT.run_pure,
       Probability.PMF.monad_pure_eq_pure, PMF.pure_bind]
-    rw [left_halted second cfg (hfirst (cfg, s) (by simp)),
-      Sequential.runConfigFrom_right first second choose hchoose,
+    rw [left_halted second cfg hhalt, Sequential.runConfigFrom_right first second choose hchoose,
       OracleComp.interpret_map, StateT.run_map, PMF.monad_map_eq_map]
   | succ firstTime ih =>
     by_cases hhalt : cfg.tapes.state = none
-    · simp only [runConfigFrom_halted first choose query _ cfg hhalt, OracleComp.interpret_pure,
+    · have hsecond' := hsecond (cfg, s) (by simp [hhalt])
+      simp only [runConfigFrom_halted first choose query _ cfg hhalt, OracleComp.interpret_pure,
         StateT.run_pure, Probability.PMF.monad_pure_eq_pure, PMF.pure_bind]
       rw [left_halted second cfg hhalt, Sequential.runConfigFrom_right first second choose hchoose,
         OracleComp.interpret_map, StateT.run_map, PMF.monad_map_eq_map,
         Nat.add_comm (firstTime + 1) secondTime,
         run_interpret_runConfigFrom_add_of_halted second choose query oracle _
-          secondTime (firstTime + 1) s (hsecond (cfg, s) (by simp [hhalt]))]
-    · have hmem {next s'} (hnext : (next, s') ∈ ((OracleComp.interpret oracle
-          (first.runConfigFrom choose query 1 cfg)).run s).support) {final}
-          (hfinal : final ∈ ((OracleComp.interpret oracle
-            (first.runConfigFrom choose query firstTime next)).run s').support) :
-          final ∈ ((OracleComp.interpret oracle
-            (first.runConfigFrom choose query (firstTime + 1) cfg)).run s).support := by
-        rw [Nat.add_comm, runConfigFrom_add, OracleComp.interpret_bind, StateT.run_bind,
-          Probability.PMF.monad_bind_eq_bind]
-        exact (PMF.mem_support_bind_iff ..).mpr ⟨(next, s'), hnext, hfinal⟩
-      rw [show firstTime + 1 + secondTime = 1 + (firstTime + secondTime) by lia, runConfigFrom_add,
+          secondTime (firstTime + 1) s hsecond']
+    · have hsplit : firstTime + 1 = 1 + firstTime := by lia
+      have hstep : firstTime + 1 + secondTime = 1 + (firstTime + secondTime) := by lia
+      rw [hstep, runConfigFrom_add,
         Sequential.runConfigFrom_one first second choose hchoose query cfg hhalt,
         OracleComp.interpret_bind, StateT.run_bind, Probability.PMF.monad_bind_eq_bind,
-        OracleComp.interpret_map, StateT.run_map, PMF.monad_map_eq_map, PMF.bind_map,
-        Nat.add_comm firstTime 1, runConfigFrom_add, OracleComp.interpret_bind, StateT.run_bind,
+        OracleComp.interpret_map, StateT.run_map, PMF.monad_map_eq_map, PMF.bind_map]
+      rw [hsplit, runConfigFrom_add, OracleComp.interpret_bind, StateT.run_bind,
         Probability.PMF.monad_bind_eq_bind, PMF.bind_bind]
       apply Probability.PMF.bind_congr_on_support
       rintro ⟨next, s'⟩ hnext
-      exact ih next s' (fun _ hf => hfirst _ (hmem hnext hf))
-        (fun _ hf => hsecond _ (hmem hnext hf))
+      dsimp only [Function.comp_def]
+      apply ih
+      · intro final hfinal
+        apply hfirst final
+        rw [hsplit, runConfigFrom_add, OracleComp.interpret_bind, StateT.run_bind,
+          Probability.PMF.monad_bind_eq_bind]
+        exact (PMF.mem_support_bind_iff _ _ _).mpr ⟨(next, s'), hnext, hfinal⟩
+      · intro final hfinal
+        apply hsecond final
+        rw [hsplit, runConfigFrom_add, OracleComp.interpret_bind, StateT.run_bind,
+          Probability.PMF.monad_bind_eq_bind]
+        exact (PMF.mem_support_bind_iff _ _ _).mpr ⟨(next, s'), hnext, hfinal⟩
 
 /-- A deterministic preparation phase hands its exact restored configuration to the continuation. -/
 theorem run_interpret_runConfigFrom_seq_pure {OracleState : Type}
@@ -305,10 +319,10 @@ theorem run_interpret_runFrom_seq {OracleState : Type}
       ((OracleComp.interpret oracle (first.runConfigFrom choose query firstTime cfg)).run s).bind
         (fun result => (OracleComp.interpret oracle
           (second.runFrom choose query secondTime (start second result.1))).run result.2) := by
+  have h := congrArg (PMF.map (fun result => (result.1.tapes.output, result.2)))
+    (run_interpret_runConfigFrom_seq first second choose hchoose query oracle cfg firstTime
+      secondTime s hfirst hsecond)
   simpa [runFrom, OracleComp.interpret_map, StateT.run_map, PMF.map_bind, PMF.map_comp,
-    Function.comp_def, right] using
-    congrArg (PMF.map fun result => (result.1.tapes.output, result.2))
-      (run_interpret_runConfigFrom_seq first second choose hchoose query oracle cfg firstTime
-        secondTime s hfirst hsecond)
+    Function.comp_def, right] using h
 
 end Turing.MultiTapeMachine
