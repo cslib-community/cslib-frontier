@@ -177,15 +177,11 @@ lemma SDDominates.add {n : ℕ} {π : Equiv.Perm (Fin n)} {x₁ y₁ x₂ y₂ :
 
 lemma sdDominatesStrict_iff_ne {n : ℕ} (π : Equiv.Perm (Fin n)) (x y : Fin n → ℝ) :
     SDDominatesStrict π x y ↔ SDDominates π x y ∧ x ≠ y := by
-  constructor
-  · rintro ⟨hdom, k, hk⟩
-    refine ⟨hdom, fun h => ?_⟩
-    subst h
+  refine ⟨fun ⟨hdom, k, hk⟩ => ⟨hdom, ?_⟩, fun ⟨hdom, hne⟩ => ⟨hdom, ?_⟩⟩
+  · rintro rfl
     exact lt_irrefl _ hk
-  · rintro ⟨hdom, hne⟩
-    refine ⟨hdom, ?_⟩
-    by_contra! hle
-    exact hne (eq_of_upperContourSum_eq π fun k => le_antisymm (hle k) (hdom k))
+  · by_contra! hle
+    exact hne (hdom.antisymm hle)
 
 lemma SDDominatesStrict.not_reverse {n : ℕ} {π : Equiv.Perm (Fin n)} {x y : Fin n → ℝ}
     (h : SDDominatesStrict π x y) : ¬ SDDominates π y x := by
@@ -396,11 +392,7 @@ theorem IsSDStrategyProof.upperContour_eq {n : ℕ} {φ : AssignmentRule n}
       upperContourSum (p i) (φ (Function.update p i π') i) k := by
   have h1 : upperContourSum (p i) (φ (Function.update p i π') i) k ≤
       upperContourSum (p i) (φ p i) k := hsp p i π' k
-  have hback : Function.update (Function.update p i π') i (p i) = p := by
-    ext j k'
-    by_cases hj : j = i
-    · subst hj; simp
-    · simp [Function.update_of_ne hj]
+  have hback : Function.update (Function.update p i π') i (p i) = p := by simp
   have h2 := hsp (Function.update p i π') i (p i) k
   rw [hback, Function.update_self] at h2
   have hcongr : ∀ x : Fin n → ℝ,
@@ -424,54 +416,21 @@ theorem IsSDStrategyProof.adjSwap_invariance {n : ℕ} {φ : AssignmentRule n}
     φ (Function.update p i π') i (p i k) +
       φ (Function.update p i π') i (p i ⟨k.val + 1, hk⟩) =
     φ p i (p i k) + φ p i (p i ⟨k.val + 1, hk⟩) := by
-  have hperm : ∀ r : Fin n, π' r =
-      if r = k then p i ⟨k.val + 1, hk⟩
-      else if r = ⟨k.val + 1, hk⟩ then p i k
-      else p i r := by
-    intro r
-    rw [hswap, Equiv.Perm.mul_apply]
-    by_cases h1 : r = k
-    · subst h1; simp [Equiv.swap_apply_left]
-    · by_cases h2 : r = ⟨k.val + 1, hk⟩
-      · subst h2
-        have hne : (⟨k.val + 1, hk⟩ : Fin n) ≠ k := by
-          simp [Fin.ext_iff]
-        simp [hne]
-      · simp only [h1, h2, ↓reduceIte]
-        exact Equiv.swap_apply_of_ne_of_ne (fun h => h1 ((p i).injective h))
-          (fun h => h2 ((p i).injective h))
-  have hsymm : ∀ r : Fin n, π'.symm (p i r) =
-      if r = k then ⟨k.val + 1, hk⟩
-      else if r = ⟨k.val + 1, hk⟩ then k
-      else r := by
-    intro r
-    rw [Equiv.symm_apply_eq]
-    by_cases h1 : r = k
-    · subst h1
-      have hne : (⟨r.val + 1, hk⟩ : Fin n) ≠ r := by simp [Fin.ext_iff]
-      simp [hperm, hne]
-    · by_cases h2 : r = ⟨k.val + 1, hk⟩
-      · subst h2
-        simp [hperm]
-      · simp [hperm, h1, h2]
+  have hsymm : ∀ r : Fin n, π'.symm (p i r) = Equiv.swap k ⟨k.val + 1, hk⟩ r := fun r => by
+    rw [Equiv.symm_apply_eq, hswap, Equiv.Perm.mul_apply, ← (p i).injective.swap_apply,
+      Equiv.swap_apply_self]
   have huc : ∀ s : Fin n, s ≠ k →
       upperContourSum (p i) (φ p i) s =
         upperContourSum (p i) (φ (Function.update p i π') i) s := by
     intro s hs
     refine hsp.upperContour_eq p i π' s fun o => ?_
     obtain ⟨r, rfl⟩ := (p i).surjective o
-    rw [Equiv.symm_apply_apply, hsymm r]
-    by_cases h1 : r = k
-    · subst h1
-      simp only [↓reduceIte, Fin.le_def]
-      have : r.val ≠ s.val := fun heq => hs (Fin.ext heq.symm)
-      omega
-    · by_cases h2 : r = ⟨k.val + 1, hk⟩
-      · subst h2
-        simp only [h1, ↓reduceIte, Fin.le_def]
-        have : s.val ≠ k.val := fun heq => hs (Fin.ext heq)
-        omega
-      · simp [h1, h2]
+    have hs' : s.val ≠ k.val := fun h => hs (Fin.ext h)
+    rw [Equiv.symm_apply_apply, hsymm r, Equiv.swap_apply_def]
+    split_ifs with h1 h2
+    · subst h1; simp only [Fin.le_def]; omega
+    · subst h2; simp only [Fin.le_def]; omega
+    · exact Iff.rfl
   refine ⟨fun r hr1 hr2 => ?_, ?_⟩
   · by_cases hr0 : r.val = 0
     · have hu := huc r hr1
@@ -551,11 +510,9 @@ lemma exists_simple_tradeCycle {n : ℕ} {p : Profile n} {P : Matrix (Fin n) (Fi
       simpa only [hmod] using hrel
   have hm2 : 2 ≤ m := by
     by_contra hlt
-    have hm1 : m = 1 := by omega
-    have hself := hget_chain 0 hm_pos
-    have h0 : (0 + 1) % m = 0 := by rw [hm1]
-    simp only [h0] at hself
-    obtain ⟨_, _, hlt'⟩ := hself
+    have h0 : (0 + 1) % m = 0 := by rw [show m = 1 by omega]
+    obtain ⟨_, _, hlt'⟩ := hget_chain 0 hm_pos
+    simp only [h0] at hlt'
     exact lt_irrefl _ hlt'
   refine ⟨m, hm2, fun j => (x :: t)[m - 1 - j.val]'(by omega), ?_, ?_⟩
   · intro i j hij
@@ -703,13 +660,8 @@ theorem isSDEfficient_iff_isAcyclicTrade {n : ℕ} (p : Profile n) (P : Matrix (
     refine ⟨hP, ?_⟩
     rintro ⟨Q, hQ, hweak, i₀, hstrict⟩
     let R : Finset (Fin n) := Finset.univ.filter fun a => ∃ i : Fin n, Q i a ≠ P i a
-    have hRne : R.Nonempty := by
-      have hne : Q i₀ ≠ P i₀ := ((sdDominatesStrict_iff_ne _ _ _).mp hstrict).2
-      have hex : ∃ a, Q i₀ a ≠ P i₀ a := by
-        by_contra! hall
-        exact hne (funext hall)
-      obtain ⟨a, ha⟩ := hex
-      exact ⟨a, Finset.mem_filter.mpr ⟨Finset.mem_univ _, i₀, ha⟩⟩
+    obtain ⟨a₀, ha₀⟩ := Function.ne_iff.mp ((sdDominatesStrict_iff_ne _ _ _).mp hstrict).2
+    have hRne : R.Nonempty := ⟨a₀, Finset.mem_filter.mpr ⟨Finset.mem_univ _, i₀, ha₀⟩⟩
     obtain ⟨rank, -, hrank⟩ :=
       hacyc.exists_rank Finset.univ fun _ _ _ => ⟨Finset.mem_univ _, Finset.mem_univ _⟩
     obtain ⟨a, haR, hmin⟩ := Finset.exists_min_image R rank hRne
