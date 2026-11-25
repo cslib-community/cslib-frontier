@@ -332,11 +332,11 @@ private theorem ncard_edgeCut_insert_add [Finite E] {G : Multigraph V E} (hloop 
   exact hu
 
 /-- **Greedy `1`-vertex flips.** Starting from any subset `A₀` of a finite loopless cubic
-multigraph `G` and any `0 ≤ μ ≤ 3 / 20`, repeatedly moving vertices with at least two incident cut
+multigraph `G` and any `μ ≤ 3 / 20`, repeatedly moving vertices with at least two incident cut
 edges to the opposite side yields `A*` such that both `A*` and `A*ᶜ` have at most one cut edge per
 vertex, without increasing `|G.edgeCut|`, `lyap μ G`, or `|X| + |G.edgeCut X|` on either side. -/
 private theorem exists_greedy_flipped [Finite V] [Finite E] {G : Multigraph V E}
-    (hloop : G.Loopless) (h3 : ∀ v, (G.incidenceSet v).ncard = 3) {μ : ℝ} (hμ0 : 0 ≤ μ)
+    (hloop : G.Loopless) (h3 : ∀ v, (G.incidenceSet v).ncard = 3) {μ : ℝ}
     (hμ : μ ≤ 3 / 20) (A₀ : Set V) :
     ∃ A : Set V,
       (G.edgeCut A).ncard ≤ (G.edgeCut A₀).ncard ∧
@@ -346,88 +346,40 @@ private theorem exists_greedy_flipped [Finite V] [Finite E] {G : Multigraph V E}
       (Aᶜ).ncard + (G.edgeCut A).ncard ≤ (A₀ᶜ).ncard + (G.edgeCut A₀).ncard ∧
       (∀ v ∈ A, (G.incidenceSet v ∩ G.edgeCut A).ncard ≤ 1) ∧
       (∀ v ∈ Aᶜ, (G.incidenceSet v ∩ G.edgeCut A).ncard ≤ 1) := by
-  classical
-  have := Fintype.ofFinite V
-  let Adm : Set (Finset V) := {F : Finset V |
-    let A : Set V := (F : Set V)
-    (G.edgeCut A).ncard ≤ (G.edgeCut A₀).ncard ∧
-    lyap μ G A ≤ lyap μ G A₀ ∧
-    lyap μ G Aᶜ ≤ lyap μ G A₀ᶜ ∧
-    A.ncard + (G.edgeCut A).ncard ≤ A₀.ncard + (G.edgeCut A₀).ncard ∧
-    (Aᶜ).ncard + (G.edgeCut A).ncard ≤ (A₀ᶜ).ncard + (G.edgeCut A₀).ncard}
-  have hA₀_mem : A₀.toFinset ∈ Adm := by
-    have hcoe : ((A₀.toFinset : Finset V) : Set V) = A₀ := Set.coe_toFinset A₀
-    dsimp only [Adm]
-    rw [mem_ofPred_eq]
-    simp only [hcoe]
-    exact ⟨le_rfl, le_rfl, le_rfl, le_rfl, le_rfl⟩
-  obtain ⟨F, hF, hmin⟩ :=
-    (measure fun F : Finset V => (G.edgeCut (F : Set V)).ncard).wf.has_min
-      Adm ⟨A₀.toFinset, hA₀_mem⟩
-  set A : Set V := (F : Set V)
-  obtain ⟨hb, hLA, hLAc, hsumA, hsumAc⟩ := hF
-  -- Flipping `v ∉ S` into `S` when `2 ≤ |inc(v) ∩ ∂S|` strictly decreases cut, `lyap`, and `|·|+b`.
+  -- `Le T S`: `T` is no worse than `S` in each of the five tracked quantities.
+  let Le (T S : Set V) : Prop :=
+    (G.edgeCut T).ncard ≤ (G.edgeCut S).ncard ∧ lyap μ G T ≤ lyap μ G S ∧
+      lyap μ G Tᶜ ≤ lyap μ G Sᶜ ∧ T.ncard + (G.edgeCut T).ncard ≤ S.ncard + (G.edgeCut S).ncard ∧
+      (Tᶜ).ncard + (G.edgeCut T).ncard ≤ (Sᶜ).ncard + (G.edgeCut S).ncard
+  have le_compl {S T : Set V} (h : Le T S) : Le Tᶜ Sᶜ := by
+    simp only [Le, compl_compl, G.edgeCut_compl]
+    exact ⟨h.1, h.2.2.1, h.2.1, h.2.2.2.2, h.2.2.2.1⟩
+  obtain ⟨A, hA, hmin⟩ := (measure fun S : Set V => (G.edgeCut S).ncard).wf.has_min
+    {S | Le S A₀} ⟨A₀, le_rfl, le_rfl, le_rfl, le_rfl, le_rfl⟩
+  have hno {T : Set V} (hT : Le T A) (hlt : (G.edgeCut T).ncard < (G.edgeCut A).ncard) : False :=
+    hmin T ⟨hT.1.trans hA.1, hT.2.1.trans hA.2.1, hT.2.2.1.trans hA.2.2.1,
+      hT.2.2.2.1.trans hA.2.2.2.1, hT.2.2.2.2.trans hA.2.2.2.2⟩ hlt
+  -- Flipping `v ∉ S` into `S` when `2 ≤ |inc(v) ∩ ∂S|` strictly decreases the cut, keeping `Le`.
   have step_insert {S : Set V} {v : V} (hv : v ∉ S)
       (h2 : 2 ≤ (G.incidenceSet v ∩ G.edgeCut S).ncard) :
-      (G.edgeCut (insert v S)).ncard < (G.edgeCut S).ncard ∧
-      lyap μ G (insert v S) ≤ lyap μ G S ∧
-      lyap μ G (insert v S)ᶜ ≤ lyap μ G Sᶜ ∧
-      (insert v S).ncard + (G.edgeCut (insert v S)).ncard ≤ S.ncard + (G.edgeCut S).ncard ∧
-      ((insert v S)ᶜ).ncard + (G.edgeCut (insert v S)).ncard ≤
-        (Sᶜ).ncard + (G.edgeCut S).ncard := by
+      (G.edgeCut (insert v S)).ncard < (G.edgeCut S).ncard ∧ Le (insert v S) S := by
     have hcut := ncard_edgeCut_insert_add hloop h3 hv
-    have hlt_cut : (G.edgeCut (insert v S)).ncard + 1 ≤ (G.edgeCut S).ncard := by omega
-    have hcard_ins : (insert v S).ncard = S.ncard + 1 := ncard_insert_of_notMem hv (toFinite S)
-    have hcompl_eq : Sᶜ = insert v (insert v S)ᶜ := by
-      ext x; simp only [mem_compl_iff, mem_insert_iff]; by_cases hx : x = v <;> simp [hx, hv]
-    have hcard_compl : (Sᶜ).ncard = ((insert v S)ᶜ).ncard + 1 := by
-      rw [hcompl_eq, ncard_insert_of_notMem (by simp) (toFinite _)]
-    have hlt_real : ((G.edgeCut (insert v S)).ncard : ℝ) + 1 ≤ ((G.edgeCut S).ncard : ℝ) := by
-      exact_mod_cast hlt_cut
-    have hins_real : ((insert v S).ncard : ℝ) = (S.ncard : ℝ) + 1 := by exact_mod_cast hcard_ins
-    have hc_real : (((insert v S)ᶜ).ncard : ℝ) + 1 = ((Sᶜ).ncard : ℝ) := by
-      exact_mod_cast hcard_compl.symm
-    refine ⟨by omega, ?_, ?_, by omega, by omega⟩
-    · simp only [lyap, hins_real]
-      nlinarith
-    · simp only [lyap, G.edgeCut_compl]
-      nlinarith
-  refine ⟨A, hb, hLA, hLAc, hsumA, hsumAc, ?_, ?_⟩
-  · intro v hv
+    have hins : (insert v S).ncard = S.ncard + 1 := ncard_insert_of_notMem hv (toFinite S)
+    have hcompl : (Sᶜ).ncard = ((insert v S)ᶜ).ncard + 1 := by
+      rw [← ncard_insert_of_notMem (show v ∉ (insert v S)ᶜ by simp) (toFinite _)]
+      congr 1; ext x; by_cases hx : x = v <;> simp [hx, hv]
+    have hlt : ((G.edgeCut (insert v S)).ncard : ℝ) + 1 ≤ (G.edgeCut S).ncard := by
+      exact_mod_cast (by omega : (G.edgeCut (insert v S)).ncard + 1 ≤ (G.edgeCut S).ncard)
+    refine ⟨by omega, by omega, ?_, ?_, by omega, by omega⟩ <;>
+      simp only [lyap, G.edgeCut_compl, hins, hcompl, Nat.cast_add, Nat.cast_one] <;> nlinarith
+  refine ⟨A, hA.1, hA.2.1, hA.2.2.1, hA.2.2.2.1, hA.2.2.2.2, fun v hv => ?_, fun v hv => ?_⟩ <;>
     by_contra hgt
-    have h2 : 2 ≤ (G.incidenceSet v ∩ G.edgeCut Aᶜ).ncard := by
-      rw [G.edgeCut_compl]; omega
-    have hv_not : v ∉ Aᶜ := by simp [hv]
-    obtain ⟨hlt, hL1, hL2, hs1, hs2⟩ := step_insert hv_not h2
-    have hcompl : (insert v Aᶜ)ᶜ = (F.erase v : Set V) := by
-      ext x
-      simp only [A, mem_compl_iff, mem_insert_iff, Finset.mem_coe, Finset.mem_erase, not_or,
-        not_not, ne_eq]
-    let F' := F.erase v
-    have hA' : (F' : Set V) = (insert v Aᶜ)ᶜ := hcompl.symm
-    have hcut_eq : (G.edgeCut (F' : Set V)).ncard = (G.edgeCut (insert v Aᶜ)).ncard := by
-      rw [hA', G.edgeCut_compl]
-    have hlt' : (G.edgeCut (F' : Set V)).ncard < (G.edgeCut A).ncard := by
-      rw [hcut_eq]; rw [G.edgeCut_compl] at hlt; exact hlt
-    rw [compl_compl] at hL2 hs2
-    rw [G.edgeCut_compl] at hs1 hs2
-    refine hmin F' ⟨hlt'.le.trans hb, ?_, ?_, ?_, ?_⟩ hlt'
-    · rw [hA']; exact hL2.trans hLA
-    · rw [hA', compl_compl]; exact hL1.trans hLAc
-    · rw [hA', G.edgeCut_compl]; exact hs2.trans hsumA
-    · rw [hA', compl_compl, G.edgeCut_compl]; exact hs1.trans hsumAc
-  · intro v hv
-    by_contra hgt
-    have h2 : 2 ≤ (G.incidenceSet v ∩ G.edgeCut A).ncard := by omega
-    obtain ⟨hlt, hL1, hL2, hs1, hs2⟩ := step_insert hv h2
-    let F' := insert v F
-    have hA' : (F' : Set V) = insert v A := by simp [F', A]
-    have hlt' : (G.edgeCut (F' : Set V)).ncard < (G.edgeCut A).ncard := by rwa [hA']
-    refine hmin F' ⟨hlt'.le.trans hb, ?_, ?_, ?_, ?_⟩ hlt'
-    · rw [hA']; exact hL1.trans hLA
-    · rw [hA']; exact hL2.trans hLAc
-    · rw [hA']; exact hs1.trans hsumA
-    · rw [hA']; exact hs2.trans hsumAc
+  · obtain ⟨hlt, hle⟩ :=
+      step_insert (S := Aᶜ) (v := v) (by simpa using hv) (by rw [G.edgeCut_compl]; omega)
+    rw [G.edgeCut_compl] at hlt
+    exact hno (by simpa only [compl_compl] using le_compl hle) (by rwa [G.edgeCut_compl])
+  · obtain ⟨hlt, hle⟩ := step_insert hv (by omega)
+    exact hno hle hlt
 
 end GreedyFlips
 
@@ -1863,7 +1815,7 @@ private theorem exists_levelZero_partition {V E : Type*} [Finite V] [Finite E] {
     linarith only [hcut_r, hk_sum_r, hS_upper', hcarv_h, hδh_nonneg]
   -- Apply greedy flips to `A₀`.
   obtain ⟨A, hbA, hLA, hLAc, hsumA, hsumAc, hminA, hminAc⟩ :=
-    exists_greedy_flipped hloop h3 hμ_pos.le hμ_lt.le A₀
+    exists_greedy_flipped hloop h3 hμ_lt.le A₀
   refine ⟨A, Aᶜ, disjoint_compl_right, union_compl_self A, ?_, ?_, ?_,
     hLA.trans hlyap_A₀, hLAc.trans hlyap_R₀, hminA, by simpa only [G.edgeCut_compl] using hminAc⟩
   · have hr : (A.ncard : ℝ) + ((G.edgeCut A).ncard : ℝ) ≤
