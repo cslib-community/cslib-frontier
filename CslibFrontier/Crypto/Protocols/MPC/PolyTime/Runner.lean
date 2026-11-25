@@ -424,8 +424,7 @@ private theorem computableInPolyTime_step1Wires {α : Type} {input : α ↪ List
         (fun q : Bool × (Fin (m - 1) → Bool) => ProbComp.completeShares m q.1 q.2 i)
         (encPair encBool (encPi encBool)) encBool :=
       of_finite _
-    have hbody := hcomp.comp (hbit.prod hrow)
-    exact mapToBitsWithInput (range.comp hN) hbody
+    exact mapToBitsWithInput (range.comp hN) (hcomp.comp (hbit.prod hrow))
   simpa only [step1Wires, List.flatten_eq_flatMap, List.flatMap_map, id_eq] using
     bitsFlatten (mapConst (List.finRange m) fun s _ => hsender s)
 
@@ -466,8 +465,7 @@ private theorem isOraclePPTOn_realPairCall (m : ℕ) (p : OrderedPair m) :
       (encPair encBool encBits) (encPair encBool encBool) :=
     (fst encBool encBits).prod
       (comp' (headD (encA := encBool) (encL := encBits) false) (snd encBool encBits))
-  have hsecond := hq.map_with (f := fun c₀ raw => (c₀, raw.headD false)) hpost
-  exact hc₀.bind hsecond
+  exact hc₀.bind (hq.map_with (f := fun c₀ raw => (c₀, raw.headD false)) hpost)
 
 /-- Sequential execution of `realPairCall m p x` along `L : List (OrderedPair m)`. -/
 private noncomputable def realPairsCalls (m : ℕ) (x : Fin m → Bool × Bool) :
@@ -883,9 +881,8 @@ private theorem computableInPolyTime_buildOutItems {α : Type} {input : α ↪ L
   have ha_shares : ComputableInPolyTime
       (fun p : α × ℕ => fun s : Fin m =>
         ((wires p.1) s).getD ((outputs p.1).getD (r.val * k p.1 + p.2) 0) false)
-      (encPair input encUnary) (encPi encBool) := by
-    refine pi fun s => ?_
-    exact listGetD_binary (encA := encBool) false
+      (encPair input encUnary) (encPi encBool) :=
+    pi fun s => listGetD_binary (encA := encBool) false
       (((pi_apply encBits s).comp hwires).comp (fst input encUnary)) hwIdx
   have hy_bit : ComputableInPolyTime
       (fun p : α × ℕ => if r ∈ I then (y_bits p.1 r).getD p.2 false else false)
@@ -923,8 +920,7 @@ private theorem isOraclePPTOn_realOutCore (m : ℕ) [NeZero m] :
     (tagEncoding := encFinite (OutItem m))
     (tag := id) (branch := fun item _ => realOutCore m item) id' ?_).congr
     fun _ _ _ _ => rfl
-  intro item
-  exact (((isOraclePPTOn_realPairsCalls m (orderedPairs m)).preprocess
+  exact fun item => (((isOraclePPTOn_realPairsCalls m (orderedPairs m)).preprocess
     (const (fun s => (item.2.1 s, GMWCircuit.constShare true s)))).map
     (of_finite (fun tr =>
       finishOutStep m item.1
@@ -943,8 +939,7 @@ private theorem isPPTOn_simOutCore (m : ℕ) [NeZero m] (I : Finset (Fin m)) :
     (tag := id) (branch := fun item _ => simOutCore m I item)
     ComputableInPolyTime.id' ?_).congr
     fun _ => rfl
-  intro item
-  exact isPPTOn_simMulCore m (encStep3Acc m) I item.2.2 _ (finishOutStep m item.1)
+  exact fun item => isPPTOn_simMulCore m (encStep3Acc m) I item.2.2 _ (finishOutStep m item.1)
 
 /-- Single Step 3 output-coordinate transition in `realRunWord`. -/
 private noncomputable def realOutStep (m : ℕ) [NeZero m] (item : OutItem m) (acc : Step3Acc m) :
