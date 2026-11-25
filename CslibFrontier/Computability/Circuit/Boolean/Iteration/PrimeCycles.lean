@@ -171,31 +171,6 @@ theorem power_apply_mod (T : ℕ) (r : BitVec m) (b : BitVec K) :
   simp only [power, classWord_pack, posWord_pack, ← advance_mod (ℓ r) _ T]
   rfl
 
-/-- Every positive length divides the product of positive lengths, so that power is the identity. -/
-private theorem power_prod_eq_id :
-    power (K := K) ℓ (∏ r ∈ Finset.univ.filter (fun r => 0 < ℓ r), ℓ r) = id := by
-  funext x
-  simp only [power, id]
-  unfold advance
-  split_ifs with h
-  · have hd : ℓ (classWord x) ∣ ∏ r ∈ Finset.univ.filter (fun r => 0 < ℓ r), ℓ r :=
-      Finset.dvd_prod_of_mem _ (Finset.mem_filter.mpr ⟨Finset.mem_univ _, h.1⟩)
-    rw [Nat.add_mod, Nat.mod_eq_zero_of_dvd hd, Nat.add_zero, Nat.mod_mod,
-      Nat.mod_eq_of_lt h.2]
-    simp
-  · simp
-
-/-- When every cycle length is below `2 ^ K`, `step ℓ` is a bijection on `BitString (m + K)`. -/
-theorem step_bijective (hℓ : ∀ r, ℓ r < 2 ^ K) : Function.Bijective (step (K := K) ℓ) := by
-  set P := ∏ r ∈ Finset.univ.filter (fun r => 0 < ℓ r), ℓ r
-  have hP : 0 < P := Finset.prod_pos fun r hr => (Finset.mem_filter.mp hr).2
-  have hid := power_prod_eq_id (K := K) ℓ
-  have h1 (x : BitString (m + K)) : power ℓ (P - 1) (step ℓ x) = x := by
-    rw [step, power_add ℓ hℓ, Nat.add_sub_cancel' hP, hid]; rfl
-  have h2 (x : BitString (m + K)) : step ℓ (power ℓ (P - 1) x) = x := by
-    rw [step, power_add ℓ hℓ, Nat.sub_add_cancel hP, hid]; rfl
-  exact ⟨Function.LeftInverse.injective h1, Function.RightInverse.surjective h2⟩
-
 /-- Two powers agree iff the exponents agree modulo every nontrivial cycle length. -/
 theorem power_eq_power_iff (hℓ : ∀ r, ℓ r < 2 ^ K) (S T : ℕ) :
     power (K := K) ℓ S = power ℓ T ↔ ∀ r, 1 < ℓ r → S ≡ T [MOD ℓ r] := by
@@ -234,6 +209,16 @@ theorem order_pos : 0 < order ℓ :=
 private theorem dvd_order {r : BitVec m} (hr : 1 < ℓ r) : ℓ r ∣ order ℓ :=
   Finset.dvd_prod_of_mem _ (Finset.mem_filter.mpr ⟨Finset.mem_univ _, hr⟩)
 
+/-- When every cycle length is below `2 ^ K`, `step ℓ` is a bijection on `BitString (m + K)`. -/
+theorem step_bijective (hℓ : ∀ r, ℓ r < 2 ^ K) : Function.Bijective (step (K := K) ℓ) := by
+  have hperiod : power (K := K) ℓ (order ℓ) = power ℓ 0 :=
+    (power_eq_power_iff ℓ hℓ _ _).mpr fun r hr => Nat.modEq_zero_iff_dvd.mpr (dvd_order ℓ hr)
+  have hinv : Function.LeftInverse (power ℓ (order ℓ - 1)) (step (K := K) ℓ) := by
+    intro x
+    rw [step, power_add ℓ hℓ, Nat.add_sub_cancel' (order_pos ℓ), hperiod, power_zero]
+    rfl
+  exact hinv.injective.bijective_of_finite
+
 /-- Pairwise coprimality of the nontrivial cycle lengths. -/
 def LengthsCoprime : Prop := ((active ℓ : Finset (BitVec m)) : Set (BitVec m)).Pairwise
   fun r s => (ℓ r).Coprime (ℓ s)
@@ -249,15 +234,14 @@ theorem modEq_order_iff (hc : LengthsCoprime ℓ) (S T : ℕ) :
     fun r hr s hs hrs => Nat.coprime_iff_isRelPrime.mp (hc hr hs hrs)
   constructor
   · exact fun h r hr => Nat.ModEq.of_dvd (dvd_order ℓ hr) h
-  · intro h
-    rcases le_total S T with hST | hST
-    · rw [Nat.modEq_iff_dvd' hST]
-      exact Finset.prod_dvd_of_isRelPrime hrel fun r hr =>
-        (Nat.modEq_iff_dvd' hST).mp (h r (Finset.mem_filter.mp hr).2)
-    · refine Nat.ModEq.symm ?_
-      rw [Nat.modEq_iff_dvd' hST]
-      exact Finset.prod_dvd_of_isRelPrime hrel fun r hr =>
-        (Nat.modEq_iff_dvd' hST).mp (h r (Finset.mem_filter.mp hr).2).symm
+  · have combine {A B : ℕ} (hAB : A ≤ B) (h : ∀ r, 1 < ℓ r → A ≡ B [MOD ℓ r]) :
+        A ≡ B [MOD order ℓ] :=
+      (Nat.modEq_iff_dvd' hAB).mpr (Finset.prod_dvd_of_isRelPrime hrel fun r hr =>
+        (Nat.modEq_iff_dvd' hAB).mp (h r (Finset.mem_filter.mp hr).2))
+    intro h
+    rcases le_total S T with hST | hTS
+    · exact combine hST h
+    · exact (combine hTS fun r hr => (h r hr).symm).symm
 
 /-- With pairwise coprime nontrivial lengths, `(step ℓ)^[S] = (step ℓ)^[T]` iff
 `S ≡ T [MOD order ℓ]`. -/
