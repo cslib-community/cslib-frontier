@@ -185,17 +185,8 @@ private theorem contractCostCellProg_eval {w n ws k B_k : ℕ} (r x0 u col : Fin
       memoryCost_bind', memoryCost_read, clientResult_read, clientState_read,
       memoryCost_bind', memoryCost_read, clientResult_read, clientState_read,
       memoryCost_bind', memoryCost_read, clientResult_read, clientState_read]
-    split_ifs
-    · simp only [memoryCost_bind', memoryCost_read, clientResult_read,
-        memoryCost_signedSubProg, memoryCost_write, client_simps]
-      omega
-    · simp only [memoryCost_bind', memoryCost_write, client_simps]; omega
-    · simp only [memoryCost_bind', memoryCost_write, client_simps]; omega
-    · simp only [memoryCost_bind', memoryCost_read, memoryCost_write, client_simps]
-      omega
-    · simp only [memoryCost_bind', memoryCost_write, client_simps]; omega
-    · simp only [memoryCost_bind', memoryCost_write, client_simps]; omega
-    · simp only [memoryCost_bind', memoryCost_write, client_simps]; omega
+    split_ifs <;> simp only [memoryCost_bind', memoryCost_read, clientResult_read,
+      memoryCost_signedSubProg, memoryCost_write, client_simps] <;> omega
   · unfold contractCostCellProg
     dsimp only [q]
     simp only [client_simps, hm_u, hm_c, ha_uc, hc_uc, hbe_u, hbx_c]
@@ -377,35 +368,67 @@ private theorem fillContractRowProg_spec {w n ws k B_k : ℕ} (r x0 uFin : Fin n
         ⟨Function.update sr.mem (nextCostBase ws n + uFin.1 * n + col)
           (Signed.encode (contractReducedCostTable a c f inCycle bEntry bExit x0)[uFin.1][col]),
           sr.frontier⟩
+      have hsr1 (addr : ℕ) (h : addr ≠ nextCostBase ws n + uFin.1 * n + col) :
+          sr1.mem addr = sr.mem addr := Function.update_of_ne h _ _
       have hadj_ev := contractAdjCellProg_eval r x0 uFin colFin a inCycle bEntry bExit
         sr1 hk hws (by dsimp only [sr1]; rw [hfr_r]; exact hf)
-        (fun x y => by
+        (fun x y => (hsr1 _ (by
           have := List.mul_add_lt_sq x.isLt y.isLt
-          dsimp only [sr1]
-          rw [Function.update_of_ne (by dsimp only [curAdjBase, nextCostBase]; omega)]
-          exact ha_r x y)
-        (fun y => by
+          dsimp only [curAdjBase, nextCostBase]; omega)).trans (ha_r x y))
+        (fun y => (hsr1 _ (by
           have := y.isLt
-          dsimp only [sr1]
-          rw [Function.update_of_ne
-            (by dsimp only [frameMaskBase, frameBase, nextCostBase]; omega)]
-          exact hm_r y)
-        (fun x => by
+          dsimp only [frameMaskBase, frameBase, nextCostBase]; omega)).trans (hm_r y))
+        (fun x => (hsr1 _ (by
           have := x.isLt
-          dsimp only [sr1]
-          rw [Function.update_of_ne
-            (by dsimp only [frameBEntryBase, frameBase, nextCostBase]; omega)]
-          exact hbe_r x)
-        (fun y => by
+          dsimp only [frameBEntryBase, frameBase, nextCostBase]; omega)).trans (hbe_r x))
+        (fun y => (hsr1 _ (by
           have := y.isLt
-          dsimp only [sr1]
-          rw [Function.update_of_ne
-            (by dsimp only [frameBExitBase, frameBase, nextCostBase]; omega)]
-          exact hbx_r y)
+          dsimp only [frameBExitBase, frameBase, nextCostBase]; omega)).trans (hbx_r y))
       have hcost_s := hcost_ev.2.2.2
       have hadj_s := hadj_ev.2.2
       dsimp only [ra, colFin] at hcost_s hadj_s
-      refine ⟨hcost_ev.1, ?_, ?_, ?_, ?_, ?_⟩
+      have hrow_le : uFin.1 * n + n ≤ n * n := by
+        simpa [Nat.succ_mul] using Nat.mul_le_mul_right n hu_lt
+      have hout : ∀ addr, ¬(nextAdjBase ws n + uFin.1 * n ≤ addr ∧
+            addr < nextAdjBase ws n + uFin.1 * n + n ∨
+          nextCostBase ws n + uFin.1 * n ≤ addr ∧ addr < nextCostBase ws n + uFin.1 * n + n) →
+          ((Memory.spec 0).clientState sr (contractRowStep (ra, col))).mem addr = sr.mem addr := by
+        intro addr haddr
+        unfold contractRowStep
+        dsimp only [ra, colFin]
+        simp only [client_simps, hcost_s, hadj_s, sr1]
+        dsimp only [nextAdjBase, nextCostBase] at haddr ⊢
+        rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
+      have hfr_step :
+          ((Memory.spec 0).clientState sr (contractRowStep (ra, col))).frontier = sr.frontier := by
+        unfold contractRowStep
+        dsimp only [ra, colFin]
+        dsimp only [sr1] at hadj_s
+        simp only [client_simps, hcost_s, hadj_s]
+      refine ⟨hcost_ev.1, ?_, ?_, hfr_step, hout, ?_, hfr_step.trans hfr_r,
+        fun u0 c0 => (hout _ (by
+          have := List.mul_add_lt_sq u0.isLt c0.isLt
+          dsimp only [curAdjBase, nextAdjBase, nextCostBase]; omega)).trans (ha_r u0 c0),
+        fun u0 c0 => (hout _ (by
+          have := List.mul_add_lt_sq u0.isLt c0.isLt
+          dsimp only [curCostBase, nextAdjBase, nextCostBase]; omega)).trans (hc_r u0 c0),
+        fun y => (hout _ (by
+          have := y.isLt
+          dsimp only [frameMaskBase, frameBase, nextAdjBase, nextCostBase]; omega)).trans
+            (hm_r y),
+        fun x => (hout _ (by
+          have := x.isLt
+          dsimp only [frameParentBase, frameBase, nextAdjBase, nextCostBase]; omega)).trans
+            (hfp_r x),
+        fun u0 => (hout _ (by
+          have := u0.isLt
+          dsimp only [frameBEntryBase, frameBase, nextAdjBase, nextCostBase]; omega)).trans
+            (hbe_r u0),
+        fun c0 => (hout _ (by
+          have := c0.isLt
+          dsimp only [frameBExitBase, frameBase, nextAdjBase, nextCostBase]; omega)).trans
+            (hbx_r c0),
+        ?_⟩
       · unfold contractRowStep
         refine validHistory_bind_step hcost_ev.2.1 ?_
         rw [hcost_s]
@@ -419,69 +442,23 @@ private theorem fillContractRowProg_spec {w n ws k B_k : ℕ} (r x0 uFin : Fin n
         omega
       · unfold contractRowStep
         dsimp only [ra, colFin]
-        dsimp only [sr1] at hadj_s
-        simp only [client_simps, hcost_s, hadj_s]
-      · intro addr haddr
+        simp only [client_simps, hcost_s, hadj_s, sr1]
+      · intro c0 hc0
         unfold contractRowStep
         dsimp only [ra, colFin]
         simp only [client_simps, hcost_s, hadj_s, sr1]
-        dsimp only [nextAdjBase, nextCostBase] at haddr ⊢
-        rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-      · unfold contractRowStep
-        dsimp only [ra, colFin]
-        simp only [client_simps, hcost_s, hadj_s, sr1]
-        refine ⟨trivial, hfr_r, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-        · intro u0 c0
-          have := List.mul_add_lt_sq u0.isLt c0.isLt
-          rw [Function.update_of_ne (by dsimp only [curAdjBase, nextAdjBase]; omega),
-            Function.update_of_ne (by dsimp only [curAdjBase, nextCostBase]; omega)]
-          exact ha_r u0 c0
-        · intro u0 c0
-          have := List.mul_add_lt_sq u0.isLt c0.isLt
-          rw [Function.update_of_ne (by dsimp only [curCostBase, nextAdjBase]; omega),
-            Function.update_of_ne (by dsimp only [curCostBase, nextCostBase]; omega)]
-          exact hc_r u0 c0
-        · intro y
-          have := y.isLt
-          rw [Function.update_of_ne
-              (by dsimp only [frameMaskBase, frameBase, nextAdjBase]; omega),
-            Function.update_of_ne
-              (by dsimp only [frameMaskBase, frameBase, nextCostBase]; omega)]
-          exact hm_r y
-        · intro x
-          have := x.isLt
-          rw [Function.update_of_ne
-              (by dsimp only [frameParentBase, frameBase, nextAdjBase]; omega),
-            Function.update_of_ne
-              (by dsimp only [frameParentBase, frameBase, nextCostBase]; omega)]
-          exact hfp_r x
-        · intro u0
-          have := u0.isLt
-          rw [Function.update_of_ne
-              (by dsimp only [frameBEntryBase, frameBase, nextAdjBase]; omega),
-            Function.update_of_ne
-              (by dsimp only [frameBEntryBase, frameBase, nextCostBase]; omega)]
-          exact hbe_r u0
-        · intro c0
-          have := c0.isLt
-          rw [Function.update_of_ne
-              (by dsimp only [frameBExitBase, frameBase, nextAdjBase]; omega),
-            Function.update_of_ne
-              (by dsimp only [frameBExitBase, frameBase, nextCostBase]; omega)]
-          exact hbx_r c0
-        · intro c0 hc0
-          by_cases heq : c0.1 = col
-          · have hc0_eq : c0 = colFin := Fin.ext heq
-            subst hc0_eq
-            simp only [Function.update_self, colFin]
-            rw [Function.update_of_ne (by dsimp only [nextAdjBase, nextCostBase]; omega),
-              Function.update_self]
-            simp
-          · rw [Function.update_of_ne (by omega),
-              Function.update_of_ne (by dsimp only [nextAdjBase, nextCostBase]; omega),
-              Function.update_of_ne (by dsimp only [nextAdjBase, nextCostBase]; omega),
-              Function.update_of_ne (by omega)]
-            exact hcur c0 (by omega))
+        by_cases heq : c0.1 = col
+        · have hc0_eq : c0 = colFin := Fin.ext heq
+          subst hc0_eq
+          simp only [Function.update_self, colFin]
+          rw [Function.update_of_ne (by dsimp only [nextAdjBase, nextCostBase]; omega),
+            Function.update_self]
+          simp
+        · rw [Function.update_of_ne (by omega),
+            Function.update_of_ne (by dsimp only [nextAdjBase, nextCostBase]; omega),
+            Function.update_of_ne (by dsimp only [nextAdjBase, nextCostBase]; omega),
+            Function.update_of_ne (by omega)]
+          exact hcur c0 (by omega))
     0 s ⟨rfl, rfl, ha_s, hc_s, hm_s, hfp_s, hbe_s, hbx_s, fun _ h => absurd h (Nat.not_lt_zero _)⟩
   obtain ⟨hsafe, hvh, hmc, hfr_end, hmod_end, _, _, _, _, _, _, _, _, hdone_end⟩ := hrow
   unfold fillContractRowProg
