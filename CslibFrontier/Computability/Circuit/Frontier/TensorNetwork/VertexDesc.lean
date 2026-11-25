@@ -290,21 +290,16 @@ theorem entryCertificate_le
       rw [hn]; rfl
     constructor
     · rw [htime]
-      have h1 : 2 * (cr * Z ^ D) + Z ^ D + ci * 3 ^ di * Z ^ D ≤ G * Z ^ D := by
-        have : (2 * cr + 1 + ci * 3 ^ di) * Z ^ D ≤ G * Z ^ D := Nat.mul_le_mul_right _ (by omega)
-        have e : (2 * cr + 1 + ci * 3 ^ di) * Z ^ D =
-            2 * (cr * Z ^ D) + Z ^ D + ci * 3 ^ di * Z ^ D := by ring
-        omega
+      have h1 : 2 * (cr * Z ^ D) + Z ^ D + ci * 3 ^ di * Z ^ D ≤ G * Z ^ D :=
+        calc _ = (2 * cr + 1 + ci * 3 ^ di) * Z ^ D := by ring
+          _ ≤ _ := Nat.mul_le_mul_right _ (by omega)
       have h2 : G * Z ^ D ≤ (G + D) * P * Z ^ (G + D) :=
         Nat.mul_le_mul ((Nat.le_add_right G D).trans (Nat.le_mul_of_pos_right _ hP1)) hZD
       omega
     · rw [hspace]
-      have h1 : 2 * (cr' * Z ^ D) + Z ^ D + ci' * 3 ^ di' * Z ^ D ≤ G * Z ^ D := by
-        have : (2 * cr' + 1 + ci' * 3 ^ di') * Z ^ D ≤ G * Z ^ D :=
-          Nat.mul_le_mul_right _ (by omega)
-        have e : (2 * cr' + 1 + ci' * 3 ^ di') * Z ^ D =
-            2 * (cr' * Z ^ D) + Z ^ D + ci' * 3 ^ di' * Z ^ D := by ring
-        omega
+      have h1 : 2 * (cr' * Z ^ D) + Z ^ D + ci' * 3 ^ di' * Z ^ D ≤ G * Z ^ D :=
+        calc _ = (2 * cr' + 1 + ci' * 3 ^ di') * Z ^ D := by ring
+          _ ≤ _ := Nat.mul_le_mul_right _ (by omega)
       omega
   · -- A packet: the input of the packet evaluator, then the evaluator.
     have hpt' : (NativeCertificate.ofPolyTime (packetInput_polyTime (encT := encT))).time
@@ -352,11 +347,9 @@ theorem entryCertificate_le
         exact Nat.mul_le_mul_left _ hG1
       omega
     · rw [hspace]
-      have h1 : 2 * (cr' * Z ^ D) + Z ^ D + cp' * Z ^ D + K₀ * Z ^ D ≤ G * Z ^ D := by
-        have : (2 * cr' + 1 + cp' + K₀) * Z ^ D ≤ G * Z ^ D := Nat.mul_le_mul_right _ (by omega)
-        have e : (2 * cr' + 1 + cp' + K₀) * Z ^ D =
-            2 * (cr' * Z ^ D) + Z ^ D + cp' * Z ^ D + K₀ * Z ^ D := by ring
-        omega
+      have h1 : 2 * (cr' * Z ^ D) + Z ^ D + cp' * Z ^ D + K₀ * Z ^ D ≤ G * Z ^ D :=
+        calc _ = (2 * cr' + 1 + cp' + K₀) * Z ^ D := by ring
+          _ ≤ _ := Nat.mul_le_mul_right _ (by omega)
       omega
 
 end Evaluator
