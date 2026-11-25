@@ -86,13 +86,9 @@ private theorem two_pow_le_length (hq : 2 ≤ q) (hk : 10 * q ^ 2 + 1 ≤ k) :
   set B := 10 * q ^ 2 + 1
   set t := k / B
   have ht : 0 < t := Nat.div_pos hk (by omega)
-  have htB : t * B ≤ k := Nat.div_mul_le_self k B
-  refine two_pow_succ_le_length_greedyMasks (by nlinarith) ?_
-  have : 10 * (q * t) ^ 2 < t * B * t := by
-    simp only [B]
-    nlinarith
-  calc 10 * (q * t) ^ 2 < t * B * t := this
-    _ ≤ k * t := Nat.mul_le_mul_right t htB
+  exact two_pow_succ_le_length_greedyMasks (by nlinarith)
+    (lt_of_lt_of_le (b := t * B * t) (by simp only [B]; nlinarith)
+      (Nat.mul_le_mul_right t (Nat.div_mul_le_self k B)))
 
 private theorem mem_of_lt (hq : 2 ≤ q) (hk : 10 * q ^ 2 + 1 ≤ k)
     (hi : i < 2 ^ (k / (10 * q ^ 2 + 1) + 1)) :
@@ -145,19 +141,15 @@ private theorem paddedDesign_two_pow (q k i : ℕ) :
 private theorem computableInPolyTime_paddedDesign (q : ℕ) :
     ComputableInPolyTime (paddedDesign q) (encPair (encPair encUnary encNat) encUnary) encBits := by
   set enc := encPair (encPair encUnary encNat) encUnary
-  have hk : ComputableInPolyTime (fun x : (ℕ × ℕ) × ℕ => x.1.1) enc encUnary :=
-    (ComputableInPolyTime.fst encUnary encNat).comp (.fst _ _)
-  have hi : ComputableInPolyTime (fun x : (ℕ × ℕ) × ℕ => x.1.2) enc encNat :=
-    (ComputableInPolyTime.snd encUnary encNat).comp (.fst _ _)
-  have hN : ComputableInPolyTime (fun x : (ℕ × ℕ) × ℕ => x.2) enc encUnary := .snd _ _
   have hs : ComputableInPolyTime (fun x : (ℕ × ℕ) × ℕ => min x.1.1 (Nat.log 2 x.2)) enc
       encUnary :=
-    ComputableInPolyTime.unary_min' hk
-      (ComputableInPolyTime.binary_log_two.comp (ComputableInPolyTime.unary_to_binary.comp hN))
+    .unary_min' ((ComputableInPolyTime.fst encUnary encNat).comp (.fst _ _))
+      (ComputableInPolyTime.binary_log_two.comp
+        (ComputableInPolyTime.unary_to_binary.comp (.snd _ _)))
   have ht := (ComputableInPolyTime.unary_div_const (10 * q ^ 2 + 1)).comp hs
-  have hblock := ComputableInPolyTime.unary_mul' (.const q) ht
-  have hmasks := computableInPolyTime_greedyMasks hs hblock ht (by growth_poly)
-  exact ComputableInPolyTime.listGetD_binary (encA := encBits) [] hmasks hi
+  exact ComputableInPolyTime.listGetD_binary (encA := encBits) []
+    (computableInPolyTime_greedyMasks hs (.unary_mul' (.const q) ht) ht (by growth_poly))
+    ((ComputableInPolyTime.snd encUnary encNat).comp (.fst _ _))
 
 /-- **The greedy set system is exponential-time computable.** On inputs `(k, i)` with `k` in
 unary and `i` in binary, `expDesign q` is computable within time `O(2 ^ (δ k) (L + 1) ^ e)`, for
@@ -167,14 +159,12 @@ theorem computableInExpTime_expDesign (q : ℕ) :
       (encPair encUnary encNat) encBits (fun p => p.1) δ := by
   obtain ⟨C, D, h⟩ := (computableInPolyTime_paddedDesign q).exists_computableInO_pad
     (ν := fun p : ℕ × ℕ => p.1) (.fst _ _)
-  have heq : (fun p : ℕ × ℕ => expDesign q p.1 p.2) = fun p => paddedDesign q (p, 2 ^ p.1) :=
-    funext fun p => (paddedDesign_two_pow q p.1 p.2).symm
-  rw [heq]
+  rw [show (fun p : ℕ × ℕ => expDesign q p.1 p.2) = fun p => paddedDesign q (p, 2 ^ p.1) from
+    funext fun p => (paddedDesign_two_pow q p.1 p.2).symm]
   refine ⟨D, Complexity.ComputableInExpTime.of_computableInO h C D fun p => ?_⟩
   rw [show (D : ℝ) * (p.1 : ℝ) = ((D * p.1 : ℕ) : ℝ) by push_cast; ring, Real.rpow_natCast]
   push_cast
-  ring_nf
-  rfl
+  ring_nf; rfl
 
 /-- **Goldreich Exercise 8.19** [Goldreich2007DraftR4]: for every `γ > 0` there is an
 exponential-time computable set system `S` as in Condition 2 of Theorem 8.18, with
@@ -194,10 +184,9 @@ theorem exists_computableInExpTime_design {γ : ℝ} (hγ : 0 < γ) :
   set q := max 2 ⌈γ⁻¹⌉₊
   set B := 10 * q ^ 2 + 1
   have hq : 2 ≤ q := le_max_left _ _
-  have hγq : 1 ≤ γ * q := by
-    have : γ⁻¹ ≤ (q : ℝ) := (Nat.le_ceil _).trans (by exact_mod_cast le_max_right _ _)
-    calc (1 : ℝ) = γ * γ⁻¹ := (mul_inv_cancel₀ hγ.ne').symm
-      _ ≤ γ * q := mul_le_mul_of_nonneg_left this hγ.le
+  have hγq : 1 ≤ γ * q :=
+    (mul_inv_cancel₀ hγ.ne').symm.trans_le <| mul_le_mul_of_nonneg_left
+      ((Nat.le_ceil _).trans (by exact_mod_cast le_max_right _ _)) hγ.le
   have hB : (0 : ℝ) < B := by positivity
   obtain ⟨δ, hδ⟩ := computableInExpTime_expDesign q
   refine ⟨fun p => expDesign q p.1 p.2, fun k => if B ≤ k then 2 ^ (k / B + 1) else 0,
@@ -208,32 +197,21 @@ theorem exists_computableInExpTime_design {γ : ℝ} (hγ : 0 < γ) :
     exact ⟨length_expDesign hq hk hi, card_maskBlock_expDesign hq hk hi⟩
   · have hk : B ≤ k := by by_contra h; simp [h] at hi
     simp only [hk, ite_true] at hi hj
-    have h := card_maskBlock_inter_expDesign_le hq hk hi hj hij
-    calc (#(maskBlock k (expDesign q k i) ∩ maskBlock k (expDesign q k j)) : ℝ)
-        ≤ (k / B : ℕ) := by exact_mod_cast h
-      _ ≤ γ * q * (k / B : ℕ) := le_mul_of_one_le_left (Nat.cast_nonneg _) hγq
-      _ = γ * ((q * (k / B) : ℕ) : ℝ) := by push_cast; ring
+    exact (Nat.cast_le.mpr (card_maskBlock_inter_expDesign_le hq hk hi hj hij)).trans
+      ((le_mul_of_one_le_left (Nat.cast_nonneg _) hγq).trans_eq (by push_cast; ring))
   · have hkB : B ≤ k := by omega
     simp only [hkB, ite_true]
     -- `⌊k / B⌋ ≥ k / (2 B)` once `k ≥ 2 B`
-    have hfloor : (k : ℝ) / B - 1 < (k / B : ℕ) := by
-      have hlt : k < (k / B + 1) * B := by
-        rw [Nat.add_mul, one_mul]
-        exact Nat.lt_div_mul_add (by omega)
-      have hlt' : (k : ℝ) < ((k / B : ℕ) + 1) * B := by exact_mod_cast hlt
-      rw [sub_lt_iff_lt_add, div_lt_iff₀ hB]
-      exact hlt'
-    have hk2 : (2 * B : ℝ) ≤ k := by exact_mod_cast hk
     have hhalf : 1 / (2 * B) * (k : ℝ) ≤ (k / B : ℕ) := by
-      have : 1 / (2 * B) * (k : ℝ) = (k : ℝ) / B - (k : ℝ) / (2 * B) := by field_simp; ring
-      rw [this]
-      have : (1 : ℝ) ≤ k / (2 * B) := by rw [le_div_iff₀ (by positivity)]; linarith
+      rw [one_div, mul_inv_rev, mul_assoc, inv_mul_le_iff₀ hB]
+      have : (k : ℝ) < (k / B : ℕ) * B + B := mod_cast Nat.lt_div_mul_add (by omega : 0 < B)
+      have : (2 * B : ℝ) ≤ k := mod_cast hk
       linarith
-    refine ⟨hhalf.trans ?_, ?_⟩
-    · push_cast
-      exact le_mul_of_one_le_left (Nat.cast_nonneg _) (by exact_mod_cast hq.trans' (by norm_num))
-    · push_cast
-      rw [← Real.rpow_natCast]
-      exact Real.rpow_le_rpow_of_exponent_le (by norm_num) (by push_cast; linarith)
+    refine ⟨hhalf.trans (by
+      push_cast
+      exact le_mul_of_one_le_left (Nat.cast_nonneg _) (by exact_mod_cast (by omega : 1 ≤ q))), ?_⟩
+    push_cast
+    rw [← Real.rpow_natCast]
+    exact Real.rpow_le_rpow_of_exponent_le (by norm_num) (by push_cast; linarith)
 
 end Cslib.Crypto.PRG.NisanWigderson
