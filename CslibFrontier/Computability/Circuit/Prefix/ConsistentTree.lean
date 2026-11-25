@@ -1923,7 +1923,8 @@ private theorem exists_rippleOptimalPrefixCircuit {N k : ℕ} (hk : 2 ≤ k) (hN
         · intro j hj
           by_cases hjeq : j = m + 1
           · subst hjeq
-            exact ⟨v', by simp only [B₂, PrefixBuilder.assignOut, ↓reduceIte], hv'_lo, hv'_hi, hv'_d⟩
+            exact ⟨v', by simp only [B₂, PrefixBuilder.assignOut, ↓reduceIte], hv'_lo, hv'_hi,
+              hv'_d⟩
           · obtain ⟨w, hw_eq, hw_lo, hw_hi, hw_d⟩ := hout_lt j (by omega)
             refine ⟨e₁.emb w, ?_, ?_, ?_, ?_⟩
             · simp only [B₂, PrefixBuilder.assignOut, hjeq, ↓reduceIte, B₁,
