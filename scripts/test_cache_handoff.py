@@ -1546,6 +1546,34 @@ class AncestorHandoffTests(unittest.TestCase):
         self.assertTrue(output.getvalue().startswith(
             "::warning title=Build handoff unavailable::Build handoff unavailable: none;"))
 
+    def test_pr_base_and_ancestor_skip_ltar_carryover_and_record_restored_output(self):
+        env_pr = self.pr_merge()
+        self.downloads = []
+        gh_out = self.base / "gh_output_pr"
+        with patch.object(handoff, "retain_matching_ltars") as retain, \
+                contextlib.redirect_stdout(io.StringIO()):
+            handoff.restore(self.root, {**env_pr, "GITHUB_OUTPUT": str(gh_out)},
+                            pr_base=True, api=self.api, downloader=self.download)
+        retain.assert_not_called()
+        self.assertEqual(gh_out.read_text(), "restored=true\n")
+
+        gh_out_warm = self.base / "gh_output_warm"
+        with contextlib.redirect_stdout(io.StringIO()):
+            handoff.restore(self.root, {**env_pr, "GITHUB_OUTPUT": str(gh_out_warm),
+                                        "RESTORED_LAKE_KEY": f"lake-key-{self.chain[1]}"},
+                            pr_base=True, api=self.fail, downloader=self.fail)
+        self.assertEqual(gh_out_warm.read_text(), "restored=true\n")
+
+        self.history(2)
+        self.handoff(1)
+        gh_out_anc = self.base / "gh_output_anc"
+        with patch.object(handoff, "retain_matching_ltars") as retain_anc, \
+                contextlib.redirect_stdout(io.StringIO()):
+            handoff.restore_ancestor(self.root, {**self.env, "GITHUB_OUTPUT": str(gh_out_anc)},
+                                     api=self.api, downloader=self.download)
+        retain_anc.assert_not_called()
+        self.assertEqual(gh_out_anc.read_text(), "restored=true\n")
+
 
 if __name__ == "__main__":
     unittest.main()
