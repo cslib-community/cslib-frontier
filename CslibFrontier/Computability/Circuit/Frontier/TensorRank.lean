@@ -224,11 +224,7 @@ theorem exists_threeTensorHard (K : Type*) [Field K] {n : ℕ} {U : Type*} [Fint
   let BadP (p : Fin n → Fin 3) : Finset (Finset (Fin n → U)) :=
     Finset.univ.filter fun S => Tensor.Rank r (partitionThreeTensor K p (S : Set (Fin n → U)))
   let BalFin : Finset (Fin n → Fin 3) := Finset.univ.filter (BalancedTripartition n)
-  have hBal_card : BalFin.card ≤ 3 ^ n := by
-    calc BalFin.card
-        ≤ (Finset.univ : Finset (Fin n → Fin 3)).card :=
-          Finset.card_le_card (Finset.filter_subset _ _)
-      _ = 3 ^ n := by simp
+  have hBal_card : BalFin.card ≤ 3 ^ n := (Finset.card_filter_le _ _).trans (by simp)
   have hBadP_le (p : Fin n → Fin 3) (hp : p ∈ BalFin) :
       (BadP p).card ≤ (3 * q ^ n + 1) ^ (3 * r * q ^ (n / 3 + 2)) := by
     have hbal : BalancedTripartition n p := (Finset.mem_filter.mp hp).2
@@ -244,45 +240,19 @@ theorem exists_threeTensorHard (K : Type*) [Field K] {n : ℕ} {U : Type*} [Fint
     have hbij : (BadP p).card =
         (Finset.univ.filter fun T : Finset (X₀ × X₁ × X₂) =>
           Tensor.Rank r (indicatorThreeTensor K (T : Set (X₀ × X₁ × X₂)))).card := by
-      refine Finset.card_bij (fun S _ => finEqv.symm S) ?_ ?_ ?_
-      · intro S hS
-        have hrk := (Finset.mem_filter.mp hS).2
-        refine Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_⟩
-        have hten_eq :
-            indicatorThreeTensor K (X₀ := X₀) (X₁ := X₁) (X₂ := X₂) ↑(finEqv.symm S) =
-              partitionThreeTensor K (U := U) p ↑S := by
-          funext x₀ x₁ x₂
-          simp only [indicatorThreeTensor, partitionThreeTensor, finEqv, Equiv.coe_fn_symm_mk,
-            Finset.mem_coe, Finset.mem_map, Function.Embedding.coeFn_mk]
-          have hiff : (∃ a ∈ S, eqv.symm a = (x₀, x₁, x₂)) ↔ eqv (x₀, x₁, x₂) ∈ S :=
-            ⟨fun ⟨a, ha, he⟩ => by rw [← he, Equiv.apply_symm_apply]; exact ha,
-             fun hm => ⟨_, hm, Equiv.symm_apply_apply _ _⟩⟩
-          split_ifs with h1 h2 h2
-          · rfl
-          · exact absurd (hiff.mp h1) h2
-          · exact absurd (hiff.mpr h2) h1
-          · rfl
-        rwa [hten_eq]
-      · intro S₁ _ S₂ _ heq
-        exact finEqv.symm.injective heq
-      · intro T hT
-        refine ⟨finEqv T, Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_⟩,
-          finEqv.symm_apply_apply T⟩
-        have hrk := (Finset.mem_filter.mp hT).2
-        have hten_eq :
-            partitionThreeTensor K (U := U) p ↑(finEqv T) =
-              indicatorThreeTensor K (X₀ := X₀) (X₁ := X₁) (X₂ := X₂) ↑T := by
-          funext x₀ x₁ x₂
-          simp only [partitionThreeTensor, indicatorThreeTensor, finEqv, Equiv.coe_fn_mk,
-            Finset.mem_coe, Finset.mem_map, Equiv.toEmbedding_apply]
-          have hiff : (∃ a ∈ T, eqv a = eqv (x₀, x₁, x₂)) ↔ (x₀, x₁, x₂) ∈ T :=
-            ⟨fun ⟨a, ha, he⟩ => eqv.injective he ▸ ha, fun hm => ⟨_, hm, rfl⟩⟩
-          split_ifs with h1 h2 h2
-          · rfl
-          · exact absurd (hiff.mp h1) h2
-          · exact absurd (hiff.mpr h2) h1
-          · rfl
-        rwa [hten_eq]
+      refine Finset.card_equiv finEqv.symm fun S => ?_
+      have hten_eq :
+          indicatorThreeTensor K (X₀ := X₀) (X₁ := X₁) (X₂ := X₂) ↑(finEqv.symm S) =
+            partitionThreeTensor K (U := U) p ↑S := by
+        funext x₀ x₁ x₂
+        simp only [indicatorThreeTensor, partitionThreeTensor, finEqv, Equiv.coe_fn_symm_mk,
+          Finset.mem_coe, Finset.mem_map_equiv, Equiv.symm_symm]
+        split_ifs with h1 h2 h2
+        · rfl
+        · exact absurd h1 h2
+        · exact absurd h2 h1
+        · rfl
+      simp only [BadP, Finset.mem_filter, Finset.mem_univ, true_and, hten_eq]
     rw [hbij]
     have hcard_prod : Fintype.card X₀ * Fintype.card X₁ * Fintype.card X₂ = q ^ n := by
       have hc := Fintype.card_congr eqv
@@ -1246,10 +1216,7 @@ theorem innerSize_gt_of_threeTensorHard (K : Type*) [Field K] [CharZero K]
   · obtain ⟨p, hbal, hrk⟩ := exists_balanced_rank_of_read_ncard K c I Acc
     rw [hS_eq] at hrk
     have hexp_le : (2 * (m / 3 + 1) : ℕ) ≤ (2 / 3 - δ) * (n : ℝ) := by
-      have hdiv3 : ((m / 3 : ℕ) : ℝ) ≤ (m : ℝ) / 3 := by
-        have hnat : 3 * (m / 3) ≤ m := Nat.mul_div_le m 3
-        have hc : ((3 * (m / 3) : ℕ) : ℝ) ≤ (m : ℝ) := Nat.cast_le.mpr hnat
-        push_cast at hc; linarith only [hc]
+      have hdiv3 : ((m / 3 : ℕ) : ℝ) ≤ (m : ℝ) / 3 := by exact_mod_cast Nat.cast_div_le
       have hn_large : 2 ≤ δ * (n : ℝ) := (le_max_left 2 K_const).trans hn_K
       push_cast
       linarith only [hm_low, hdiv3, hn_large]
@@ -1319,10 +1286,7 @@ theorem innerSize_gt_of_threeTensorHard (K : Type*) [Field K] [CharZero K]
     set V_card : ℝ := (Nat.card (Compiler.Vertex c) : ℝ)
     have hV_nonneg : 0 ≤ V_card := Nat.cast_nonneg _
     set fuel : ℕ := ∑ k : Fin 3, (n / 3 - {i : Fin n | p₀ i = k}.ncard)
-    have hdiv3_n : ((n / 3 : ℕ) : ℝ) ≤ (n : ℝ) / 3 := by
-      have hnat : 3 * (n / 3) ≤ n := Nat.mul_div_le n 3
-      have hc : ((3 * (n / 3) : ℕ) : ℝ) ≤ (n : ℝ) := Nat.cast_le.mpr hnat
-      push_cast at hc; linarith only [hc]
+    have hdiv3_n : ((n / 3 : ℕ) : ℝ) ≤ (n : ℝ) / 3 := by exact_mod_cast Nat.cast_div_le
     have hdef_part (k : Fin 3) :
         ((n / 3 - {i : Fin n | p₀ i = k}.ncard : ℕ) : ℝ) ≤
           δ * (n : ℝ) + ξ * V_card + (C₀ : ℝ) := by
