@@ -17,13 +17,15 @@ import Mathlib.Data.Finset.Max
 /-!
 # Order of incident components from crossing parity
 
-A closed passage through a vertex rules out alternation with a second passage whose
-other vertices are disjoint from the first. This yields a consecutive component at a cut vertex
-and rules out interleaving one component of a separating pair with its complement.
+For two closed passages that meet only at one vertex, even crossing parity rules out
+alternation there. This yields a consecutive component at a cut vertex and rules out
+interleaving one component of a separating pair with its complement.
 
 ## Main results
 
 * `exists_consecutive_component_darts` finds a consecutive class in one vertex's port order.
+* `decide_alternates_eq_sum_crossings_of_disjoint_induced_paths` relates the local order of
+  two pairs joined by disjoint paths to the parity of their four crossing counts.
 * `not_alternates_of_component_after_deleting_pair` forbids interleaving with the complement
   of a chosen component, even if the two outside darts enter different components.
 * `exists_separating_component_rank_interval` identifies the first and last darts of that
@@ -53,6 +55,23 @@ private theorem regular_dart_endpoints_ne {G : Graph} {D : PolygonalDrawing G}
   · exact (regular_edge_endpoints_ne hreg e).symm
   · exact regular_edge_endpoints_ne hreg e
 
+private theorem supports_of_passages_meeting_at {G : Graph}
+    {D : PolygonalDrawing G} {v : ℕ} (hreg : D.HasRegularContacts)
+    {x y : Fin G.edges.length → Bool} (P : ClosedPassages G x) (Q : ClosedPassages G y)
+    (i : Fin P.count) (j : Fin Q.count)
+    (hPi : ∀ k, (P.dart k false).vertex = v → k = i)
+    (hQj : ∀ l, (Q.dart l false).vertex = v → l = j)
+    (hmeet : ∀ e f : Dart G, x e.1 = true → y f.1 = true → e.vertex = f.vertex → e.vertex = v) :
+    (∀ e, x e = true → y e = true → False) ∧
+      ∀ k l, (P.dart k false).vertex = (Q.dart l false).vertex → k = i ∧ l = j := by
+  constructor
+  · intro e he hf
+    exact regular_edge_endpoints_ne hreg e ((hmeet (e, false) (e, false) he hf rfl).trans
+      (hmeet (e, true) (e, true) he hf rfl).symm)
+  · intro k l hkl
+    have hk := hmeet _ _ (P.supported k false) (Q.supported l false) hkl
+    exact ⟨hPi k hk, hQj l (hkl.symm.trans hk)⟩
+
 private theorem not_alternates_of_passages_meeting_at {G : Graph}
     {D : PolygonalDrawing G} {r : RotationSystem G} {v : ℕ}
     (hR : D.Realizes r) (hreg : D.HasRegularContacts)
@@ -68,15 +87,68 @@ private theorem not_alternates_of_passages_meeting_at {G : Graph}
     (hQj : ∀ l, (Q.dart l false).vertex = v → l = j)
     (hmeet : ∀ e f : Dart G, x e.1 = true → y f.1 = true → e.vertex = f.vertex → e.vertex = v) :
     ¬r.Alternates (P.dart i false) (P.dart i true) (Q.dart j false) (Q.dart j true) := by
-  have hdisjoint (e : Fin G.edges.length) (he : x e = true) (hf : y e = true) : False := by
-    exact regular_edge_endpoints_ne hreg e ((hmeet (e, false) (e, false) he hf rfl).trans
-      (hmeet (e, true) (e, true) he hf rfl).symm)
+  obtain ⟨hdisjoint, hunique⟩ := supports_of_passages_meeting_at hreg P Q i j hPi hQj hmeet
   exact P.not_alternates_of_unique_shared_passages Q hR hreg hsimple hvertices hdeclared
     hdisjoint (fun e f he hf => heven e f (fun h => hdisjoint e he (h ▸ hf))
-      (fun s t => hmeet (e, s) (f, t) he hf)) i j (by
-        intro k l hkl
-        have hk := hmeet _ _ (P.supported k false) (Q.supported l false) hkl
-        exact ⟨hPi k hk, hQj l (hkl.symm.trans hk)⟩)
+      (fun s t => hmeet (e, s) (f, t) he hf)) i j hunique
+
+private theorem exists_passages_of_disjoint_induced_paths {G : Graph}
+    {v : ℕ} {a b c d : Dart G} {S T : Set ℕ} (hvS : v ∉ S) (hvT : v ∉ T)
+    (hST : Disjoint S T)
+    (ha : a.vertex = v) (hb : b.vertex = v) (hc : c.vertex = v) (hd : d.vertex = v)
+    (hab : a ≠ b) (hcd : c ≠ d)
+    (ha' : a.reverse.vertex ∈ S) (hb' : b.reverse.vertex ∈ S)
+    (hc' : c.reverse.vertex ∈ T) (hd' : d.reverse.vertex ∈ T)
+    (hreach₁ : (G.toSimpleGraph.induce S).Reachable
+      ⟨a.reverse.vertex, ha'⟩ ⟨b.reverse.vertex, hb'⟩)
+    (hreach₂ : (G.toSimpleGraph.induce T).Reachable
+      ⟨c.reverse.vertex, hc'⟩ ⟨d.reverse.vertex, hd'⟩) :
+    ∃ (x y : Fin G.edges.length → Bool) (P : ClosedPassages G x) (Q : ClosedPassages G y)
+      (i : Fin P.count) (j : Fin Q.count),
+      P.dart i false = a ∧ P.dart i true = b ∧ Q.dart j false = c ∧ Q.dart j true = d ∧
+        (∀ k, (P.dart k false).vertex = v → k = i) ∧
+        (∀ l, (Q.dart l false).vertex = v → l = j) ∧
+        ∀ e f : Dart G, x e.1 = true → y f.1 = true → e.vertex = f.vertex → e.vertex = v := by
+  obtain ⟨x, P, i, hPa, hPb, hPi, hPx⟩ :=
+    exists_through_darts_of_induced_reachable hvS a b ha hb hab ha' hb' hreach₁
+  obtain ⟨y, Q, j, hQc, hQd, hQj, hQy⟩ :=
+    exists_through_darts_of_induced_reachable hvT c d hc hd hcd hc' hd' hreach₂
+  refine ⟨x, y, P, Q, i, j, hPa, hPb, hQc, hQd, hPi, hQj, ?_⟩
+  intro e f he hf hef
+  by_contra hn
+  obtain ⟨heS, _⟩ := hPx e he hn
+  obtain ⟨hfT, _⟩ := hQy f hf (hef ▸ hn)
+  exact Set.disjoint_left.mp hST heS (hef.symm ▸ hfT)
+
+open Classical in
+/-- In an independently even drawing, two pairs of darts at `v` whose opposite ends
+are joined in disjoint vertex sets avoiding `v` alternate exactly when the crossings
+between their incident edge pairs have odd total parity. -/
+theorem decide_alternates_eq_sum_crossings_of_disjoint_induced_paths {G : Graph}
+    {D : PolygonalDrawing G} {r : RotationSystem G} {v : ℕ} {a b c d : Dart G}
+    (hR : D.Realizes r) (hreg : D.HasRegularContacts)
+    (hsimple : ∀ e, (D.route e).IsSimple)
+    (hvertices : Set.InjOn D.vertex {w | w ∈ G.vertices})
+    (hdeclared : ∀ e : Dart G, e.vertex ∈ G.vertices)
+    (heven : D.EvenCrossings (fun _ => False))
+    {S T : Set ℕ} (hvS : v ∉ S) (hvT : v ∉ T) (hST : Disjoint S T)
+    (ha : a.vertex = v) (hb : b.vertex = v) (hc : c.vertex = v) (hd : d.vertex = v)
+    (hab : a ≠ b) (hcd : c ≠ d)
+    (ha' : a.reverse.vertex ∈ S) (hb' : b.reverse.vertex ∈ S)
+    (hc' : c.reverse.vertex ∈ T) (hd' : d.reverse.vertex ∈ T)
+    (hreach₁ : (G.toSimpleGraph.induce S).Reachable
+      ⟨a.reverse.vertex, ha'⟩ ⟨b.reverse.vertex, hb'⟩)
+    (hreach₂ : (G.toSimpleGraph.induce T).Reachable
+      ⟨c.reverse.vertex, hc'⟩ ⟨d.reverse.vertex, hd'⟩) :
+    decide (r.Alternates a b c d) =
+      ∑ f ∈ {c.1, d.1}, ∑ e ∈ {a.1, b.1}, (D.route e).intersectionParity (D.route f) := by
+  obtain ⟨x, y, P, Q, i, j, hPa, hPb, hQc, hQd, hPi, hQj, hmeet⟩ :=
+    exists_passages_of_disjoint_induced_paths hvS hvT hST ha hb hc hd hab hcd
+      ha' hb' hc' hd' hreach₁ hreach₂
+  obtain ⟨hdisjoint, hunique⟩ := supports_of_passages_meeting_at hreg P Q i j hPi hQj hmeet
+  simpa only [hPa, hPb, hQc, hQd] using
+    P.decide_alternates_eq_sum_crossings_of_unique_shared_passages Q hR hreg hsimple
+      hvertices hdeclared hdisjoint heven i j hunique
 
 /-- Two pairs of darts at `v` cannot alternate if their opposite ends can be joined
 in disjoint induced vertex sets avoiding `v`. Every pair of distinct edges that meets
@@ -101,16 +173,9 @@ theorem not_alternates_of_disjoint_induced_paths {G : Graph}
   have hports := halt
   obtain ⟨hab, hcd, _, _, _, _, hvab, hvcd, hvac, _⟩ := hports
   have hc := hvac.symm.trans ha
-  obtain ⟨x, P, i, hPa, hPb, hPi, hPx⟩ :=
-    exists_through_darts_of_induced_reachable hvS a b ha (hvab.symm.trans ha) hab ha' hb' hreach₁
-  obtain ⟨y, Q, j, hQc, hQd, hQj, hQy⟩ :=
-    exists_through_darts_of_induced_reachable hvT c d hc (hvcd.symm.trans hc) hcd hc' hd' hreach₂
-  have hmeet (e f : Dart G) (he : x e.1 = true) (hf : y f.1 = true)
-      (hef : e.vertex = f.vertex) : e.vertex = v := by
-    by_contra hn
-    obtain ⟨heS, _⟩ := hPx e he hn
-    obtain ⟨hfT, _⟩ := hQy f hf (hef ▸ hn)
-    exact Set.disjoint_left.mp hST heS (hef.symm ▸ hfT)
+  obtain ⟨x, y, P, Q, i, j, hPa, hPb, hQc, hQd, hPi, hQj, hmeet⟩ :=
+    exists_passages_of_disjoint_induced_paths hvS hvT hST ha (hvab.symm.trans ha)
+      hc (hvcd.symm.trans hc) hab hcd ha' hb' hc' hd' hreach₁ hreach₂
   exact not_alternates_of_passages_meeting_at hR hreg hsimple hvertices hdeclared heven
     P Q i j hPi hQj hmeet (by rwa [hPa, hPb, hQc, hQd])
 
