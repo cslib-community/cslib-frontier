@@ -231,7 +231,6 @@ public theorem computesTidily_stepTM (hVN : V ≠ N) (hVF : V ≠ F) (hNF : N �
   · rintro _ _ _ _ _ ⟨_, _, _, _, ⟨-, -, _, _, ⟨-, rfl⟩, ⟨-, rfl⟩, rfl⟩, ⟨_, _, _, _, ⟨-, -, rfl⟩,
       ⟨_, _, _, _, ⟨-, hv, rfl⟩, ⟨-, rfl, rfl⟩, rfl⟩, rfl⟩, rfl⟩
     exact ⟨hv, by simp⟩
-  · omega
-  · omega
+  all_goals omega
 
 end Turing.MultiTapeTM
