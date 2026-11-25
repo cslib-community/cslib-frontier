@@ -98,16 +98,10 @@ theorem signedAdjacency_apply (S : Finset ι) (v : (ι → Bool) → ℝ) (x : �
     signedAdjacency S v x = ∑ i ∈ S, chi ℝ {j ∈ S | j < i} x * v (update x i (!x i)) :=
   rfl
 
-/-- Flipping a bit `i` below `j` negates the sign of the edges in direction `j`. -/
-private theorem chi_filter_lt_update_of_lt {S : Finset ι} {i j : ι} (hi : i ∈ S) (hij : i < j)
-    (x : ι → Bool) :
-    chi ℝ {k ∈ S | k < j} (update x i (!x i)) = -chi ℝ {k ∈ S | k < j} x :=
-  chi_update_not_of_mem (mem_filter.2 ⟨hi, hij⟩) x
-
 /-- Flipping a bit `j` not below `i` keeps the sign of the edges in direction `i`. -/
 private theorem chi_filter_lt_update_of_le {S : Finset ι} {i j : ι} (hij : i ≤ j) (x : ι → Bool)
     (b : Bool) : chi ℝ {k ∈ S | k < i} (update x j b) = chi ℝ {k ∈ S | k < i} x :=
-  chi_update_of_notMem (by simp only [mem_filter, not_and, not_lt]; exact fun _ => hij) x b
+    chi_update_of_notMem (by simp only [mem_filter, not_and, not_lt]; exact fun _ => hij) x b
 
 /-- The two paths from `x` around the square of directions `i < j` carry opposite signs. -/
 private theorem square_sign {S : Finset ι} {i j : ι} (hi : i ∈ S) (hij : i < j)
@@ -117,7 +111,7 @@ private theorem square_sign {S : Finset ι} {i j : ι} (hi : i ∈ S) (hij : i <
       -(chi ℝ {k ∈ S | k < j} x * (chi ℝ {k ∈ S | k < i} (update x j (!x j)) *
         v (update (update x j (!x j)) i (!update x j (!x j) i)))) := by
   rw [update_of_ne hij.ne', update_of_ne hij.ne, update_comm hij.ne',
-    chi_filter_lt_update_of_lt hi hij, chi_filter_lt_update_of_le hij.le]
+    chi_update_not_of_mem (mem_filter.2 ⟨hi, hij⟩), chi_filter_lt_update_of_le hij.le]
   ring
 
 /-- **The signed adjacency operator squares to `|S|`**: the diagonal terms each contribute the
@@ -137,26 +131,21 @@ theorem signedAdjacency_signedAdjacency (S : Finset ι) (v : (ι → Bool) → �
   have hanti (i j : ι) (hi : i ∈ S) (hj : j ∈ S) :
       (if j = i then 0 else T i j) = -(if i = j then 0 else T j i) := by
     rcases lt_trichotomy i j with hij | rfl | hij
-    · simp only [hij.ne', hij.ne, ↓reduceIte, hT]
-      exact square_sign hi hij v x
+    · simp only [hij.ne', hij.ne, ↓reduceIte, hT]; exact square_sign hi hij v x
     · simp
-    · simp only [hij.ne', hij.ne, ↓reduceIte, hT]
-      rw [square_sign hj hij v x, neg_neg]
+    · simp only [hij.ne', hij.ne, ↓reduceIte, hT, square_sign hj hij v x, neg_neg]
   -- split off the diagonal; the rest is its own negative
   have hsplit : ∑ i ∈ S, ∑ j ∈ S, T i j = ∑ i ∈ S, ∑ j ∈ S, (if j = i then T i j else 0) +
       ∑ i ∈ S, ∑ j ∈ S, (if j = i then 0 else T i j) := by
-    rw [← sum_add_distrib]
-    exact sum_congr rfl fun i _ => by
-      rw [← sum_add_distrib]
-      exact sum_congr rfl fun j _ => by split_ifs <;> simp
+    simp only [← sum_add_distrib]
+    exact sum_congr rfl fun i _ => sum_congr rfl fun j _ => by split_ifs <;> simp
   have hoff : ∑ i ∈ S, ∑ j ∈ S, (if j = i then 0 else T i j) = 0 := by
     have h := sum_comm (s := S) (t := S) (f := fun i j => if j = i then (0 : ℝ) else T i j)
     rw [sum_congr rfl fun j hj => sum_congr rfl fun i hi => hanti i j hi hj] at h
     simp only [sum_neg_distrib] at h
     linarith
   rw [hsplit, hoff, add_zero]
-  simp only [sum_ite_eq', hdiag]
-  rw [sum_ite_of_true fun _ h => h, sum_const, nsmul_eq_mul]
+  simp only [sum_ite_eq', hdiag, sum_ite_of_true fun _ h => h, sum_const, nsmul_eq_mul]
 
 /-- The eigenspaces of the signed adjacency operator along a nonempty `S` for `√|S|` and `-√|S|`
 together span all functions on the cube: `v` is `1 / (2√|S|)` times the difference of
@@ -174,13 +163,10 @@ private theorem eigenspace_sup_eigenspace_signedAdjacency {S : Finset ι} (hS : 
   have hminus : A v - c • v ∈ A.eigenspace (-c) := by
     rw [Module.End.mem_eigenspace_iff, map_sub, map_smul, signedAdjacency_signedAdjacency, ← hc]
     module
-  have hv : v = (2 * c)⁻¹ • (A v + c • v) + (-(2 * c)⁻¹) • (A v - c • v) := by
-    rw [smul_add, smul_sub, smul_smul, smul_smul, neg_mul]
-    have : (2 * c)⁻¹ * c = 2⁻¹ := by field_simp
-    rw [this]
-    module
-  rw [hv]
-  exact Submodule.add_mem_sup (Submodule.smul_mem _ _ hplus) (Submodule.smul_mem _ _ hminus)
+  suffices v = (2 * c)⁻¹ • (A v + c • v) + (-(2 * c)⁻¹) • (A v - c • v) from
+    this ▸ Submodule.add_mem_sup (Submodule.smul_mem _ _ hplus) (Submodule.smul_mem _ _ hminus)
+  rw [smul_add, smul_sub, smul_smul, smul_smul, neg_mul, show (2 * c)⁻¹ * c = 2⁻¹ by field_simp]
+  module
 
 variable [Fintype ι]
 
@@ -225,17 +211,13 @@ private theorem exists_nonneg_ne_zero_sqrt_card_mul_le_sum_of_linearOrder
     ∃ v : (ι → Bool) → ℝ, 0 ≤ v ∧ v ≠ 0 ∧ (∀ y ∉ V, v y = 0) ∧ ∀ x,
       √(#S : ℝ) * v x ≤ ∑ i ∈ S with update x i (!x i) ∈ V, v (update x i (!x i)) := by
   rcases S.eq_empty_or_nonempty with rfl | hS
-  · -- the indicator of `V`, which is nonempty
-    obtain ⟨x, hx⟩ := card_pos.1 (Nat.pos_of_ne_zero fun h => by
-      rw [h, mul_zero] at hV
-      exact Nat.not_lt_zero _ hV)
+  · obtain ⟨x, hx⟩ := card_pos.1 (Nat.pos_of_ne_zero fun h => by rw [h] at hV; lia)
     refine ⟨fun y => if y ∈ V then 1 else 0, fun y => by dsimp only; split_ifs <;> norm_num,
       fun h => by simpa [hx] using congrFun h x, fun y hy => by simp [hy], fun y => by simp⟩
   obtain ⟨μ, hμ, hdim⟩ := exists_abs_eq_sqrt_two_pow_le_two_mul_finrank hS
   obtain ⟨v, hvE, hv0, hvV⟩ := exists_ne_zero_mem_eigenspace_and_eq_zero_of_notMem hV S μ hdim
   have hAv : signedAdjacency S v = μ • v := Module.End.mem_eigenspace_iff.1 hvE
-  -- the absolute values of an eigenfunction vanishing outside `V`
-  refine ⟨fun y => |v y|, fun y => abs_nonneg _, fun h => hv0 (funext fun y =>
+  refine ⟨fun y => |v y|, fun _ => abs_nonneg _, fun h => hv0 (funext fun y =>
     abs_eq_zero.1 (congrFun h y)), fun y hy => by simp only [hvV y hy, abs_zero], fun x => ?_⟩
   calc √(#S : ℝ) * |v x| = |signedAdjacency S v x| := by
         rw [hAv, Pi.smul_apply, smul_eq_mul, abs_mul, hμ]
@@ -243,10 +225,8 @@ private theorem exists_nonneg_ne_zero_sqrt_card_mul_le_sum_of_linearOrder
         rw [signedAdjacency_apply]
         refine (abs_sum_le_sum_abs _ _).trans (sum_le_sum fun i _ => ?_)
         rw [abs_mul, abs_chi, one_mul]
-    _ = ∑ i ∈ S with update x i (!x i) ∈ V, |v (update x i (!x i))| := by
-        refine (sum_filter_of_ne fun i _ h => ?_).symm
-        by_contra hi
-        exact h (by rw [hvV _ hi, abs_zero])
+    _ = ∑ i ∈ S with update x i (!x i) ∈ V, |v (update x i (!x i))| :=
+        (sum_filter_of_ne fun i _ h => by_contra fun hi => h (by rw [hvV _ hi, abs_zero])).symm
 
 end LinearOrder
 
@@ -274,17 +254,11 @@ theorem exists_mem_sqrt_card_le_card_update_mem [Fintype ι] [DecidableEq ι]
     {V : Finset (ι → Bool)} (hV : 2 ^ Fintype.card ι < 2 * #V) (S : Finset ι) :
     ∃ x ∈ V, √(#S : ℝ) ≤ #{i ∈ S | update x i (!x i) ∈ V} := by
   obtain ⟨v, hv, hv0, hvV, hS⟩ := exists_nonneg_ne_zero_sqrt_card_mul_le_sum hV S
-  -- a point where `v` is largest
   obtain ⟨x, -, hx⟩ := exists_max_image univ v univ_nonempty
-  have hpos : 0 < v x := by
-    by_contra h
-    exact hv0 (funext fun y => le_antisymm ((hx y (mem_univ y)).trans (not_lt.1 h)) (hv y))
-  have hxV : x ∈ V := by
-    by_contra h
-    rw [hvV x h] at hpos
-    exact lt_irrefl 0 hpos
+  have hpos : 0 < v x := lt_of_not_ge fun h =>
+    hv0 (funext fun y => le_antisymm ((hx y (mem_univ y)).trans h) (hv y))
+  have hxV : x ∈ V := by_contra fun h => hpos.ne' (hvV x h)
   refine ⟨x, hxV, le_of_mul_le_mul_right ((hS x).trans ?_) hpos⟩
-  rw [← nsmul_eq_mul]
-  exact sum_le_card_nsmul _ _ _ fun i _ => hx _ (mem_univ _)
+  simpa only [nsmul_eq_mul] using sum_le_card_nsmul _ _ _ fun i _ => hx _ (mem_univ _)
 
 end Cslib.BitString

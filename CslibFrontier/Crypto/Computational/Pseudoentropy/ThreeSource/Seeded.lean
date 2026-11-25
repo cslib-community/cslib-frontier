@@ -80,33 +80,30 @@ theorem isPolyTime_hashSamples {α : Type} {input : α ↪ List Bool}
     ComputableInPolyTime (fun a => hashSamples (count a) (seedBits a) (bound a)
       (observationBits a) (labelBits a) (remainingBits a) (samples a)
       (firstKey a) (middleKey a) (lastKey a)) input encBits := by
-  let sampleEncoding := encPair (encPair encBits encBool) encBits
-  have houter := ComputableInPolyTime.fst input sampleEncoding
-  have hsample := ComputableInPolyTime.snd input sampleEncoding
-  have hpad := ComputableInPolyTime.bitsPadWord (hbound.comp houter) hsample.fst'.fst'
-  have hobservationWords := ComputableInPolyTime.mapWithInput
-    (encB := encBits)
-    (f := fun a (sample : (List Bool × Bool) × List Bool) => padWord (bound a) sample.1.1)
-    hsamples (by simpa only [Function.comp_def] using hpad)
-  have hobservations := ComputableInPolyTime.bitsFlatten hobservationWords
-  have hlabelWord := ComputableInPolyTime.mapToBitsWithInput
-    (f := fun (_ : α) (sample : (List Bool × Bool) × List Bool) => sample.1.2)
-    hsamples hsample.fst'.snd'
-  have hlabels := ComputableInPolyTime.bitsRowWithInput hcount
-    (ComputableInPolyTime.const 0) hlabelWord
-  have hseedWords := (ComputableInPolyTime.map
-    (ComputableInPolyTime.snd (encPair encBits encBool) encBits)).comp hsamples
+  let sampleEnc := encPair (encPair encBits encBool) encBits
+  have hsample := ComputableInPolyTime.snd input sampleEnc
+  have hobs := ComputableInPolyTime.bitsFlatten <|
+    ComputableInPolyTime.mapWithInput (encB := encBits)
+      (f := fun a (sample : (List Bool × Bool) × List Bool) => padWord (bound a) sample.1.1)
+      hsamples (by simpa only [Function.comp_def] using
+        ComputableInPolyTime.bitsPadWord (hbound.comp (.fst input sampleEnc)) hsample.fst'.fst')
+  have hlabels := ComputableInPolyTime.bitsRowWithInput hcount (.const 0) <|
+    ComputableInPolyTime.mapToBitsWithInput
+      (f := fun (_ : α) (sample : (List Bool × Bool) × List Bool) => sample.1.2)
+      hsamples hsample.fst'.snd'
   have hseeds := ComputableInPolyTime.bitsRowWithInput
-    (ComputableInPolyTime.unary_mul.comp (hcount.prod hseed))
-    (ComputableInPolyTime.const 0) (ComputableInPolyTime.bitsFlatten hseedWords)
-  have hfirstHash := LinearHash.computableInPolyTime_wordHash hobservation hfirst hobservations
-  have hmiddleHash := LinearHash.computableInPolyTime_wordHash hlabel hmiddle hlabels
-  have hlastHash := LinearHash.computableInPolyTime_wordHash hremaining hlast hseeds
-  have h := ComputableInPolyTime.bitsAppend
-    (ComputableInPolyTime.bitsAppend (ComputableInPolyTime.bitsAppend hfirst hfirstHash)
-      (ComputableInPolyTime.bitsAppend hmiddle hmiddleHash))
-    (ComputableInPolyTime.bitsAppend hlast hlastHash)
-  simpa only [hashSamples, List.map_map, Function.comp_def] using h
+    (ComputableInPolyTime.unary_mul.comp (hcount.prod hseed)) (.const 0) <|
+    ComputableInPolyTime.bitsFlatten
+      ((ComputableInPolyTime.map (.snd (encPair encBits encBool) encBits)).comp hsamples)
+  simpa only [hashSamples, List.map_map, Function.comp_def] using
+    ComputableInPolyTime.bitsAppend
+      (ComputableInPolyTime.bitsAppend
+        (ComputableInPolyTime.bitsAppend hfirst
+          (LinearHash.computableInPolyTime_wordHash hobservation hfirst hobs))
+        (ComputableInPolyTime.bitsAppend hmiddle
+          (LinearHash.computableInPolyTime_wordHash hlabel hmiddle hlabels)))
+      (ComputableInPolyTime.bitsAppend hlast
+        (LinearHash.computableInPolyTime_wordHash hremaining hlast hseeds))
 
 attribute [program_certificate] isPolyTime_hashSamples
 
@@ -141,21 +138,18 @@ theorem isPolyTime_generate {α : Type} {input : α ↪ List Bool}
     ComputableInPolyTime (fun a => generate (count a) (seedBits a) (bound a)
       (observationBits a) (labelBits a) (remainingBits a) (evaluate a) (tape a)) input encBits := by
   have hcb := ComputableInPolyTime.unary_mul' hcount hseed
-  have hcoins := ComputableInPolyTime.bitsTakeWithInput htape hcb
   have htape1 := ComputableInPolyTime.bitsDropWithInput htape hcb
   have hrk := ComputableInPolyTime.unary_mul' hremaining hcb
-  have hlastKey := ComputableInPolyTime.bitsTakeWithInput htape1 hrk
   have htape2 := ComputableInPolyTime.bitsDropWithInput htape1 hrk
   have hlc := ComputableInPolyTime.unary_mul' hlabel hcount
-  have hmiddleKey := ComputableInPolyTime.bitsTakeWithInput htape2 hlc
-  have hfirstKey := ComputableInPolyTime.bitsDropWithInput htape2 hlc
-  have hrows := ComputableInPolyTime.bitsRowsWithInput hcount hseed hcoins
-  have hsamples := ComputableInPolyTime.mapWithInput
-    (f := fun a seed => (evaluate a seed, seed)) hrows
-    (hevaluate.prod (ComputableInPolyTime.snd input encBits))
-  unfold generate
   exact isPolyTime_hashSamples hcount hseed hbound hobservation hlabel hremaining
-    hsamples hfirstKey hmiddleKey hlastKey
+    (ComputableInPolyTime.mapWithInput (f := fun a seed => (evaluate a seed, seed))
+      (ComputableInPolyTime.bitsRowsWithInput hcount hseed
+        (ComputableInPolyTime.bitsTakeWithInput htape hcb))
+      (hevaluate.prod (.snd input encBits)))
+    (ComputableInPolyTime.bitsDropWithInput htape2 hlc)
+    (ComputableInPolyTime.bitsTakeWithInput htape2 hlc)
+    (ComputableInPolyTime.bitsTakeWithInput htape1 hrk)
 
 attribute [program_certificate] isPolyTime_generate
 
@@ -204,12 +198,8 @@ theorem eval_hashSamples (count seedBits bound observationBits labelBits remaini
         (uniformList (observationBits * (count * (2 * bound + 1)))).map fun firstKey =>
           hashSamples count seedBits bound observationBits labelBits remainingBits samples
             firstKey middleKey lastKey) := by
-  have hfits : ∀ observation ∈ samples.map (fun sample => sample.1.1),
-      observation.length ≤ bound := by
-    intro observation hobservation
-    obtain ⟨sample, hsample, rfl⟩ := List.mem_map.mp hobservation
-    exact hbound sample hsample
-  have hlength := length_flatten_padWord bound _ hfits
+  have hlength := length_flatten_padWord bound (samples.map fun s => s.1.1) (fun _ hobs => by
+    obtain ⟨sample, hsample, rfl⟩ := List.mem_map.mp hobs; exact hbound sample hsample)
   simp only [List.length_map, hcount, List.map_map, Function.comp_def] at hlength
   simp only [ProbComp.eval_bind, extractWordSeeds, extractWordLabels, extractMatrixLabels,
     extractLabels, finish, extractWordObservations, LinearHash.extract,
@@ -232,12 +222,9 @@ theorem eval_generate (count seedBits bound observationBits labelBits remainingB
       (by simp only [bind_pure_comp, ProbComp.eval_map, BitString.eval_sampleList])]
   simp only [PMF.bind_map, Function.comp_def]
   congr 1 with coins : 1
-  symm
-  apply eval_hashSamples
-  · simp only [List.length_map, length_listRows]
-  · intro sample hsample
-    obtain ⟨seed, hseed, rfl⟩ := List.mem_map.mp hsample
-    exact hbound seed (length_of_mem_listRows hseed)
+  refine (eval_hashSamples _ _ _ _ _ _ _ (by simp [length_listRows]) fun _ hsample => ?_).symm
+  obtain ⟨seed, hseed, rfl⟩ := List.mem_map.mp hsample
+  exact hbound seed (length_of_mem_listRows hseed)
 
 /-- Every correctly sized seed produces the advertised fixed output length. -/
 theorem length_generate (count seedBits bound observationBits labelBits remainingBits : ℕ)
@@ -248,19 +235,16 @@ theorem length_generate (count seedBits bound observationBits labelBits remainin
       seedLength count seedBits bound observationBits labelBits remainingBits) :
     (generate count seedBits bound observationBits labelBits remainingBits evaluate tape).length =
       outputLength count seedBits bound observationBits labelBits remainingBits := by
-  apply length_extract count seedBits bound observationBits labelBits remainingBits
-    (do
-      let seed ← BitString.sampleList seedBits
-      return (evaluate seed, seed))
-  · intro sample hsample
-    simp only [bind_pure_comp, ProbComp.eval_map, BitString.eval_sampleList,
+  refine length_extract count seedBits bound observationBits labelBits remainingBits
+    (do let seed ← BitString.sampleList seedBits; return (evaluate seed, seed))
+    (fun _ hsample => ?_) ?_
+  · simp only [bind_pure_comp, ProbComp.eval_map, BitString.eval_sampleList,
       PMF.mem_support_map_iff] at hsample
     obtain ⟨seed, hseed, rfl⟩ := hsample
     exact hbound seed (mem_support_uniformList_iff.mp hseed)
   · rw [← eval_generate count seedBits bound observationBits labelBits remainingBits
       evaluate hbound]
-    exact (PMF.mem_support_map_iff _ _ _).mpr
-      ⟨tape, mem_support_uniformList_iff.mpr htape, rfl⟩
+    exact (PMF.mem_support_map_iff _ _ _).mpr ⟨tape, mem_support_uniformList_iff.mpr htape, rfl⟩
 
 /-- The sampler's saved-seed evaluator implements the exact ensemble in the security theorem.
 The observation bound only concerns outcomes in the support of the finite pair. -/
