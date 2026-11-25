@@ -1905,11 +1905,13 @@ private theorem exists_rippleOptimalPrefixCircuit {N k : ℕ} (hk : 2 ≤ k) (hN
           have hd_last := B.depth_addMul_last v inp h0 hmid h1
           have hd_inp : B.program.wireDepths inp = 0 := rfl
           dsimp only [B₁, v'] at *; omega
-        refine ⟨g + 1, B₂, v', ?_, ?_, hv'_d, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-        · simp only [B₂, PrefixBuilder.assignOut, B₁, v', PrefixBuilder.addMul, liftWireVal_last,
+        have hv'_lo : B₂.lo v' = 0 := by
+          simp only [B₂, PrefixBuilder.assignOut, B₁, v', PrefixBuilder.addMul, liftWireVal_last,
             hv_lo]
-        · simp only [B₂, PrefixBuilder.assignOut, B₁, v', PrefixBuilder.addMul, liftWireVal_last,
+        have hv'_hi : B₂.hi v' = m + 2 := by
+          simp only [B₂, PrefixBuilder.assignOut, B₁, v', PrefixBuilder.addMul, liftWireVal_last,
             hinp_hi]
+        refine ⟨g + 1, B₂, v', hv'_lo, hv'_hi, hv'_d, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
         · have := B₁.uses_assignOut_self hmN v' hnone₁
           have := B.uses_addMul_last v inp h0 hmid h1
           dsimp only [B₁, B₂, v'] at *; omega
@@ -1921,11 +1923,7 @@ private theorem exists_rippleOptimalPrefixCircuit {N k : ℕ} (hk : 2 ≤ k) (hN
         · intro j hj
           by_cases hjeq : j = m + 1
           · subst hjeq
-            refine ⟨v', by simp only [B₂, PrefixBuilder.assignOut, ↓reduceIte], ?_, ?_, hv'_d⟩
-            · simp only [B₂, PrefixBuilder.assignOut, B₁, v', PrefixBuilder.addMul,
-                liftWireVal_last, hv_lo]
-            · simp only [B₂, PrefixBuilder.assignOut, B₁, v', PrefixBuilder.addMul,
-                liftWireVal_last, hinp_hi]
+            exact ⟨v', by simp only [B₂, PrefixBuilder.assignOut, ↓reduceIte], hv'_lo, hv'_hi, hv'_d⟩
           · obtain ⟨w, hw_eq, hw_lo, hw_hi, hw_d⟩ := hout_lt j (by omega)
             refine ⟨e₁.emb w, ?_, ?_, ?_, ?_⟩
             · simp only [B₂, PrefixBuilder.assignOut, hjeq, ↓reduceIte, B₁,
@@ -2002,10 +2000,8 @@ theorem exists_optimalPrefixCircuit_of_le_maxCircuitWidthUpper {N k D : ℕ}
     have hpref_lb : ∀ r ≤ D, r ≤ prefSum r - 1 := by
       intro r hr
       have h_lb : r ≤ ∑ m ∈ Finset.range r, w m := by
-        calc
-          r = ∑ _m ∈ Finset.range r, 1 := by
-            rw [Finset.sum_const, Finset.card_range, smul_eq_mul, Nat.mul_one]
-          _ ≤ ∑ m ∈ Finset.range r, w m := Finset.sum_le_sum fun m hm =>
+        simpa only [Finset.card_range, smul_eq_mul, Nat.mul_one] using
+          Finset.card_nsmul_le_sum (Finset.range r) w 1 fun m hm =>
             (hw_bd m (Nat.lt_of_lt_of_le (Finset.mem_range.mp hm) hr)).1
       simp only [prefSum]
       omega
