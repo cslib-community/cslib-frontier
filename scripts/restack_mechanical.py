@@ -135,8 +135,10 @@ def driver_merge(root: Path, head: str, main: str, scripts: Path) -> str:
 
 def write_aggregates(root: Path, tree: str, sides: tuple[str, str, str]) -> str:
     """`tree` with each aggregate replaced by what `lake exe mk_all` writes for it, as
-    `check_restack` derives it; `sides` (merge base, `main`, head) settle the module style."""
+    `check_restack` derives it; `sides` (merge base, `main`, head) settle the module style
+    and import order."""
     entries = cr.tree_entries(root, tree)
+    hash_order = cr.aggregate_hash_order(tuple(cr.commit_hash_order(root, side) for side in sides))
     try:
         roots = cr.library_roots(root, tree, entries)
         replaced = {}
@@ -148,7 +150,7 @@ def write_aggregates(root: Path, tree: str, sides: tuple[str, str, str]) -> str:
                                      "here")
             style, _ = cr.aggregate_style(tuple(cr.blob(root, side, path) for side in sides),
                                           cr.blob(root, tree, path) or b"")
-            content = cr.canonical_aggregate(entries, *roots[path], style)
+            content = cr.canonical_aggregate(entries, *roots[path], style, hash_order=hash_order)
             replaced[path] = git_input(root, content, "hash-object", "-w", "--stdin")
     except cr.Underivable as error:
         raise Refused(f"cannot derive what `mk_all` writes: {error}") from None

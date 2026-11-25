@@ -166,6 +166,39 @@ class RestackMechanicalTests(unittest.TestCase):
         self.assertEqual((self.git("status", "--porcelain", "--ignored"),
                           self.git("rev-parse", "HEAD")), before)
 
+    def alphabetical_rollout_base(self) -> None:
+        """Set `main` to a pre-#8486 commit without `aggregate_order.py` and with `A`, `C`, `D`, `E`
+        in alphabetical order (`mk_all` hash order is `A`, `D`, `C`, `E`)."""
+        self.on_main({"scripts/aggregate_order.py": None,
+                      "CslibFrontier/Ant.lean": None, "CslibFrontier/Cap.lean": None,
+                      "CslibFrontier/Emu.lean": None, **modules("A", "C", "D", "E"),
+                      "CslibFrontier.lean": aggregate("A", "C", "D", "E")})
+
+    def rollout_hash_order_on_main(self) -> None:
+        self.on_main({"scripts/aggregate_order.py":
+                      (ROOT / "scripts" / "aggregate_order.py").read_text(),
+                      "CslibFrontier.lean": aggregate("A", "D", "C", "E")})
+
+    def test_alphabetical_pr_adding_module_is_restacked_across_hash_rollout(self) -> None:
+        self.alphabetical_rollout_base()
+        approved = self.feature({"CslibFrontier.lean": aggregate("A", "B", "C", "D", "E"),
+                                 **modules("B")})
+        self.rollout_hash_order_on_main()
+        code, out = self.run_script(approved, "--push")
+        new = self.assert_restacked(approved, code, out)
+        self.assertIn("in: CslibFrontier.lean", out)
+        self.assertEqual(self.git("show", f"{new}:CslibFrontier.lean"),
+                         aggregate("A", "D", "C", "B", "E").rstrip("\n"))
+
+    def test_alphabetical_pr_without_aggregate_change_crosses_hash_rollout(self) -> None:
+        self.alphabetical_rollout_base()
+        approved = self.feature({"Lib.lean": LIB.replace("y := 2", "y := 3")})
+        self.rollout_hash_order_on_main()
+        code, out = self.run_script(approved, "--push", "--allow-clean")
+        new = self.assert_restacked(approved, code, out)
+        self.assertEqual(self.git("show", f"{new}:CslibFrontier.lean"),
+                         aggregate("A", "D", "C", "E").rstrip("\n"))
+
     def test_bibliography_conflict_is_merged_by_key_and_pushed(self) -> None:
         approved = self.feature({"references.bib": bib(entry("a"), entry("b"), entry("c"),
                                                        entry("e"))})

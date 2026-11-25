@@ -4,10 +4,12 @@
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 
-from aggregate_order import import_key
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from aggregate_order import import_key  # noqa: E402
 
 
 ROOT = Path(__file__).resolve().parents[1]

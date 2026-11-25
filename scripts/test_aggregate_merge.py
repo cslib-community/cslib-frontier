@@ -8,12 +8,14 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
 
-import aggregate_merge as verifier
-from aggregate_order import import_key
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import aggregate_merge as verifier  # noqa: E402
+from aggregate_order import import_key  # noqa: E402
 
 
 class AggregateMergeTests(unittest.TestCase):

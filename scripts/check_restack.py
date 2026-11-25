@@ -9,7 +9,9 @@ commit that NEW is based on, using `git merge-tree`. That replay is what the mer
 queue would build from the approved head on that `main`. NEW passes when its tree equals the replay
 exactly: every path, mode and byte. The only exceptions are the `mk_all` aggregates (`AGGREGATES`).
 Each one in NEW passes exactly when it is what `lake exe mk_all` writes for NEW's own tree: the
-sorted imports of every module below the library root that NEW's `lakefile.toml` names. The style
+sorted imports of every module below the library root that NEW's `lakefile.toml` names, in hash
+order (#8486) or in the alphabetical order used before #8486 when NEW's base predates that rollout
+(unless APPROVED itself switches the order). The style
 (`module` with `public import`, or plain `import`) is taken three-way from the first lines of the
 aggregate in the approved change's base, the new base and APPROVED: the style they all share, or
 APPROVED's when the approved change switches it (which the result reports), and otherwise the
@@ -76,6 +78,9 @@ import subprocess
 import sys
 import tomllib
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from aggregate_order import import_key  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -320,11 +325,11 @@ def library_roots(root: Path, commit: str, entries: dict[str, str]) -> dict[str,
 
 
 def canonical_aggregate(entries: dict[str, str], source: str, directory: str,
-                        module_style: bool) -> bytes:
+                        module_style: bool, *, hash_order: bool = True) -> bytes:
     """What `scripts/MkAll.lean` writes for the library root `directory`: an import of every module
     file below it, named relative to the library's `source` directory, in `mk_all`'s hash order
-    (`aggregate_order.import_key`), after the module-style preamble when `module_style` holds."""
-    from aggregate_order import import_key
+    (`aggregate_order.import_key`) when `hash_order` holds and alphabetically otherwise, after the
+    module-style preamble when `module_style` holds."""
     names = []
     for path, mode in entries.items():
         if not path.startswith(f"{directory}/"):
@@ -337,8 +342,57 @@ def canonical_aggregate(entries: dict[str, str], source: str, directory: str,
                 raise Underivable(f"`mk_all` would not import `{path}` by a plain module name")
             names.append(".".join(parts))
     keyword = b"public import " if module_style else b"import "
-    imports = b"\n".join(keyword + name.encode() for name in sorted(names, key=import_key))
+    ordered = sorted(names, key=import_key) if hash_order else sorted(names)
+    imports = b"\n".join(keyword + name.encode() for name in ordered)
     return (MODULE_PREAMBLE if module_style else b"") + imports + b"\n"
+
+
+def commit_hash_order(root: Path, commit: str) -> bool | None:
+    """Whether `mk_all` at `commit` orders imports by hash (`True`) or alphabetically (`False`),
+    or `None` when a synthetic commit without `scripts/MkAll.lean` does not distinguish them."""
+    mk_all = blob(root, commit, "scripts/MkAll.lean")
+    if mk_all is not None:
+        return b"importHash" in mk_all
+    found: set[bool] = set()
+    for path in AGGREGATES:
+        content = blob(root, commit, path)
+        if content is None or any(CONFLICT_MARKER.match(line) for line in content.splitlines()):
+            continue
+        names = []
+        for line in content.splitlines():
+            if line.startswith(b"public import "):
+                names.append(line[len(b"public import "):].decode("utf-8", "replace"))
+            elif line.startswith(b"import "):
+                names.append(line[len(b"import "):].decode("utf-8", "replace"))
+        by_hash = names == sorted(names, key=import_key)
+        by_name = names == sorted(names)
+        if by_hash != by_name:
+            found.add(by_hash)
+    if len(found) == 1:
+        return next(iter(found))
+    if blob(root, commit, "scripts/aggregate_order.py") is not None:
+        return True
+    if blob(root, commit, "scripts/check_restack.py") is not None:
+        return False
+    return None
+
+
+def aggregate_hash_order(orders: tuple[bool | None, bool | None, bool | None]) -> bool:
+    """Whether `mk_all` should write an aggregate in hash order (`True`) or alphabetical order
+    (`False`), given `commit_hash_order` at the approved change's base, the new base and the
+    approved head.
+
+    When the approved change itself switches a settled order (`base != approved`), the approved
+    head's order wins; otherwise the new base's order rules when settled (so preflight on an older
+    head checks its base's alphabetical order while a restack onto current `main` requires hash
+    order), falling back to the approved head's or base's settled order and defaulting to `True`."""
+    base, onto, approved = orders
+    if base is not None and approved is not None and base != approved:
+        return approved
+    for candidate in (onto, approved, base):
+        if candidate is not None:
+            return candidate
+    return True
 
 
 def module_style(content: bytes) -> bool | None:
@@ -391,6 +445,7 @@ def check_aggregates(root: Path, sides: tuple[str, str, str], replayed: str, new
         roots = library_roots(root, new, entries)
     except Underivable as error:
         return canonical, wrong, {path: str(error) for path in present}, switched
+    hash_order = aggregate_hash_order(tuple(commit_hash_order(root, side) for side in sides))
     for path in present:
         replayed_content = blob(root, replayed, path)
         try:
@@ -400,7 +455,7 @@ def check_aggregates(root: Path, sides: tuple[str, str, str], replayed: str, new
                 raise Underivable("the replay has no such file to take the module style from")
             base, onto, approved = (blob(root, side, path) for side in sides)
             style, switch = aggregate_style((base, onto, approved), replayed_content)
-            expected = canonical_aggregate(entries, *roots[path], style)
+            expected = canonical_aggregate(entries, *roots[path], style, hash_order=hash_order)
         except Underivable as error:
             underivable[path] = str(error)
             continue

@@ -226,6 +226,50 @@ class RestackTests(unittest.TestCase):
         self.assertEqual(code, 1, out)
         self.assertIn("in plain style, which the approved change switches it to", out)
 
+    def alphabetical_rollout_base(self) -> None:
+        """Replace the fixture library with `A`, `C`, `D`, `E` in pre-#8486 alphabetical order;
+        their `mk_all` hash order is `A`, `D`, `C`, `E`."""
+        self.on_main({".gitattributes": "# no aggregate merge driver\n",
+                      "CslibFrontier/Ant.lean": None, "CslibFrontier/Cap.lean": None,
+                      "CslibFrontier/Emu.lean": None, **modules("A", "C", "D", "E"),
+                      "CslibFrontier.lean": aggregate("A", "C", "D", "E")})
+
+    def test_alphabetical_pr_with_unchanged_aggregate_crosses_hash_rollout(self) -> None:
+        self.alphabetical_rollout_base()
+        approved = self.feature({"Lib.lean": LIB.replace("def y := 2", "def y := 3")})
+        self.on_main({"CslibFrontier.lean": aggregate("A", "D", "C", "E")})
+        # Preflight validates the alphabetical order in force at the approved head's base.
+        code, out = self.check(approved, approved)
+        self.assertEqual(code, 0, out)
+        self.git("checkout", "-q", "-b", "unsorted", approved)
+        unsorted = self.commit("unsorted", {"CslibFrontier.lean": aggregate("C", "A", "D", "E")})
+        self.assertEqual(self.check(approved, unsorted)[0], 1)
+        # Restacking onto post-rollout `main` requires hash order.
+        code, out = self.check(approved, self.merge_main())
+        self.assertEqual(code, 0, out)
+        alphabetical = self.commit("alphabetical", {
+            "CslibFrontier.lean": aggregate("A", "C", "D", "E")})
+        code, out = self.check(approved, alphabetical)
+        self.assertEqual(code, 1, out)
+        self.assertIn("CslibFrontier.lean: not what `lake exe mk_all` writes", out)
+
+    def test_alphabetical_pr_adding_module_crosses_hash_rollout(self) -> None:
+        self.alphabetical_rollout_base()
+        approved = self.feature({"CslibFrontier.lean": aggregate("A", "B", "C", "D", "E"),
+                                 **modules("B")})
+        self.on_main({"CslibFrontier.lean": aggregate("A", "D", "C", "E")})
+        code, out = self.check(approved, approved)
+        self.assertEqual(code, 0, out)
+        new = self.merge_main({"CslibFrontier.lean": aggregate("A", "D", "C", "B", "E")})
+        code, out = self.check(approved, new)
+        self.assertEqual(code, 0, out)
+        self.assertIn("unlike the replay: CslibFrontier.lean", out)
+        alphabetical = self.commit("alphabetical", {
+            "CslibFrontier.lean": aggregate("A", "B", "C", "D", "E")})
+        code, out = self.check(approved, alphabetical)
+        self.assertEqual(code, 1, out)
+        self.assertIn("CslibFrontier.lean: not what `lake exe mk_all` writes", out)
+
     def stack(self, lower_final: str) -> tuple[str, str, str]:
         """An upper PR approved on a lower PR that then lands, squashed, as `lower_final`.
 
@@ -805,6 +849,18 @@ class AggregateStyleTests(unittest.TestCase):
                 self.assertEqual(self.style(*versions, self.PLAIN), (False, False))
                 with self.assertRaises(check_restack.Underivable):
                     self.style(*versions, self.CONFLICT)
+
+
+class AggregateOrderTests(unittest.TestCase):
+    def test_order_follows_new_base_unless_approved_switches_it(self) -> None:
+        order = check_restack.aggregate_hash_order
+        self.assertFalse(order((False, False, False)))
+        self.assertTrue(order((False, True, False)))
+        self.assertTrue(order((False, False, True)))
+        self.assertFalse(order((True, True, False)))
+        self.assertFalse(order((None, None, False)))
+        self.assertTrue(order((None, True, False)))
+        self.assertTrue(order((None, None, None)))
 
 
 class AggregateListTests(unittest.TestCase):
