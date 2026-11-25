@@ -395,11 +395,8 @@ private theorem step_push {S : State α} {w : ℕ} (hw : w < S.table.length) (hn
   cand _ h := h
   done v := by
     by_cases hv : w = v
-    · subst hv
-      simp [State.Done, push, hnone]
-    · unfold State.Done
-      rw [get_push_ne S hv]
-      simp [push, Ne.symm hv]
+    · subst hv; simp [State.Done, push, hnone]
+    · simp only [State.Done, get_push_ne S hv]; simp [push, Ne.symm hv]
   length := length_push S w f
   stack v hv := by
     rcases List.mem_cons.1 hv with rfl | hv
@@ -799,47 +796,30 @@ private theorem inv_scan {labels : List α} (hlabels : ∀ a, a ∈ labels) {g :
       cases hS : S.get v with
       | none =>
         -- newly visited during this scan: it is on the stack
-        have : ¬ v ∈ (adj g u |>.foldl (visit labels) S1).stack → False := by
-          intro hns
-          have hdone : (adj g u |>.foldl (visit labels) S1).Done v := ⟨hv, hns⟩
-          have hd1 := (hstep.done v).1 hdone
-          have : (S1.get v).isSome := hd1.1
-          simp [show S1.get v = S.get v from rfl, hS] at this
-        by_contra hcon
-        push Not at hcon
-        exact this hcon.1
+        refine Or.inl (by_contra fun hns => ?_)
+        have : (S1.get v).isSome := ((hstep.done v).1 ⟨hv, hns⟩).1
+        simp [show S1.get v = S.get v from rfl, hS] at this
       | some f =>
         rcases h.fresh v (by simp [hS]) h0 with hv' | hv'
         · rw [hst] at hv'
           rcases List.mem_cons.1 hv' with rfl | hv'
           · right; rw [hstep.comp]; simp [S1]
           · -- still on the stack: a done slot stays done
-            rcases em (v ∈ (adj g u |>.foldl (visit labels) S1).stack) with hin | hnin
-            · exact Or.inl hin
-            · have hT : (adj g u |>.foldl (visit labels) S1).Done v :=
-                ⟨by rw [hstep.get v f hS]; rfl, hnin⟩
-              have := ((hstep.done v).1 hT).2
-              exact absurd hv' this
+            exact Or.inl (by_contra fun hnin =>
+              ((hstep.done v).1 ⟨by rw [hstep.get v f hS]; rfl, hnin⟩).2 hv')
         · right; rw [hstep.comp]; simp [S1, hv']
     · have hdone : ∀ w, (adj g u |>.foldl (visit labels) S1).Done w → w = u ∨ S.Done w := by
         intro w hw
         have hw1 := (hstep.done w).1 hw
-        by_cases hwu : w = u
-        · exact Or.inl hwu
-        · right
-          refine ⟨hw1.1, ?_⟩
-          rw [hst]
-          simp only [List.mem_cons, not_or]
-          exact ⟨hwu, hw1.2⟩
+        refine or_iff_not_imp_left.2 fun hwu => ⟨hw1.1, ?_⟩
+        rw [hst, List.mem_cons, not_or]
+        exact ⟨hwu, hw1.2⟩
       have hsettled_adj := foldl_visit_settled labels (adj g u) hb
         (fun e he => (mem_adj.1 he).2) hu
       intro e he hd
       by_cases hinc : e.src = u ∨ e.dst = u
       · exact hsettled_adj e (mem_adj.2 ⟨he, hinc⟩)
-      · push Not at hinc
-        have hold : S.Done e.src ∨ S.Done e.dst := by grind
-        have hS1 : S1.Settled e := h.settled e he hold
-        exact hS1.mono hstep
+      · exact State.Settled.mono (S := S1) (h.settled e he (by grind)) hstep
 
 private theorem inv_iterate_scan {labels : List α} (hlabels : ∀ a, a ∈ labels)
     {g : Graph (α → α)} (hinj : ∀ e ∈ g.edges, Function.Injective e.constraint) {τ : ℕ → α}
@@ -891,22 +871,16 @@ private theorem inv_start {g : Graph (α → α)} {τ : ℕ → α} {S : State �
     · rw [hne v hvs] at hv
       exact absurd hv (by simpa using h0)
   · intro e he hd
-    have hold : (S.get e.src).isSome ∨ (S.get e.dst).isSome := by
+    have hc := h.closed e he
+    have hsrc : (S.get e.src).isSome := by
       rcases hd with ⟨hd, hns⟩ | ⟨hd, hns⟩
-      · have : e.src ≠ s := by rintro rfl; simp [start] at hns
-        exact Or.inl (by rwa [hne _ this] at hd)
-      · have : e.dst ≠ s := by rintro rfl; simp [start] at hns
-        exact Or.inr (by rwa [hne _ this] at hd)
-    have hboth : (S.get e.src).isSome ∧ (S.get e.dst).isSome := by
-      have := h.closed e he
-      rcases hold with h1 | h1
-      · exact ⟨h1, this ▸ h1⟩
-      · exact ⟨this.symm ▸ h1, h1⟩
-    obtain ⟨f, hf⟩ := Option.isSome_iff_exists.1 hboth.1
-    obtain ⟨k, hk⟩ := Option.isSome_iff_exists.1 hboth.2
-    have hsrc : e.src ≠ s := by rintro rfl; simp [hnone] at hf
+      · rwa [hne _ (by rintro rfl; simp [start] at hns)] at hd
+      · rwa [hc, ← hne _ (by rintro rfl; simp [start] at hns)]
+    obtain ⟨f, hf⟩ := Option.isSome_iff_exists.1 hsrc
+    obtain ⟨k, hk⟩ := Option.isSome_iff_exists.1 (hc ▸ hsrc)
+    have hsrc' : e.src ≠ s := by rintro rfl; simp [hnone] at hf
     have hdst : e.dst ≠ s := by rintro rfl; simp [hnone] at hk
-    refine ⟨f, k, by rw [hne _ hsrc, hf], by rw [hne _ hdst, hk], fun a _ => ?_⟩
+    refine ⟨f, k, by rw [hne _ hsrc', hf], by rw [hne _ hdst, hk], fun a _ => ?_⟩
     rw [h.const _ _ hf, h.const _ _ hk]
     exact h.sat e he
 
@@ -992,29 +966,21 @@ private theorem good_settle [Inhabited α] {labels : List α} (hlabels : ∀ a, 
     intro v f hv hvc a
     cases h0v : S0.get v with
     | none =>
-      rcases h.fresh v (by simp [hv]) (by simp [h0v]) with h1 | h1
-      · simp [hstack] at h1
-      · exact absurd h1 hvc
+      exact absurd ((h.fresh v (by simp [hv]) (by simp [h0v])).resolve_left (by simp [hstack])) hvc
     | some f0 =>
-      have := h.old v f0 h0v
-      rw [hv] at this
-      cases this
-      rw [h0.const v f h0v a, h0.const v f h0v c]
+      obtain rfl : f0 = f := Option.some.inj ((h.old v f0 h0v).symm.trans hv)
+      rw [h0.const v f0 h0v a, h0.const v f0 h0v c]
   have hval : ∀ v f, S.get v = some f → (settle labels S).get v = some (fun _ => f c) := by
     intro v f hv
-    rw [settle_get]
+    rw [settle_get, hv]
     split_ifs with hvc
-    · rw [hv]; rfl
-    · rw [hv]; congr 1 with a : 1; exact hold v f hv hvc a
+    · rfl
+    · exact congrArg some (funext (hold v f hv hvc))
   have hτ' : ∀ v f, S.get v = some f →
       ((settle labels S).get v).elim (τ v) (fun f => f default) = f c := by
     intro v f hv; rw [hval v f hv]; rfl
-  have hclosed : ∀ e ∈ g.edges, (S.get e.src).isSome ∨ (S.get e.dst).isSome → S.Settled e := by
-    intro e he hor
-    apply h.settled e he
-    rcases hor with h1 | h1
-    · exact Or.inl ⟨h1, by simp [hstack]⟩
-    · exact Or.inr ⟨h1, by simp [hstack]⟩
+  have hclosed : ∀ e ∈ g.edges, (S.get e.src).isSome ∨ (S.get e.dst).isSome → S.Settled e :=
+    fun e he hor => h.settled e he (hor.imp (⟨·, by simp [hstack]⟩) (⟨·, by simp [hstack]⟩))
   refine ⟨?_, ?_, ?_, ?_⟩
   · rw [settle_length]; exact h.length
   · intro v f hv a
