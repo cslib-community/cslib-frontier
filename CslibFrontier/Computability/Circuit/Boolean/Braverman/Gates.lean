@@ -303,16 +303,13 @@ private theorem exists_sum_mul_prod_le {X : Type*} [Fintype X] {p q : ℝ} (hp0 
       fun S => ∑ x, (μ x * ∏ i, f x (T i)) * f x S
     refine ⟨Fin.cons (α := fun _ => Fin K → Bool) S T, ?_⟩
     have hcons (x : X) : ∏ i, f x (Fin.cons (α := fun _ => Fin K → Bool) S T i) =
-        f x S * ∏ i, f x (T i) := by
-      rw [Fin.prod_univ_succ]
-      rfl
+        f x S * ∏ i, f x (T i) := Fin.prod_univ_succ _
     have hterm (x : X) : (μ x * ∏ i, f x (T i)) * bernoulliAverage p (f x) ≤
         q * (μ x * ∏ i, f x (T i)) := by
       rcases (hμ x).lt_or_eq with hx | hx
       · rw [mul_comm q]
         exact mul_le_mul_of_nonneg_left (hfq x hx) (hw x)
-      · rw [← hx]
-        simp only [zero_mul, mul_zero, le_refl]
+      · simp only [← hx, zero_mul, mul_zero, le_refl]
     calc ∑ x, μ x * ∏ i, f x (Fin.cons (α := fun _ => Fin K → Bool) S T i)
         = ∑ x, (μ x * ∏ i, f x (T i)) * f x S := by
           refine sum_congr rfl fun x _ => ?_
@@ -364,22 +361,16 @@ private theorem le_bernoulliAverage_exactlyOne {p : ℝ} (hp0 : 0 ≤ p) (hp1 : 
     · exact_mod_cast card_le_one.2 fun a ha c hc => by
         simp only [mem_filter, mem_univ, true_and] at ha hc
         by_contra hac
-        have := hc.2.2 a hac ha.1
-        rw [ha.2.1] at this
-        exact Bool.true_eq_false_eq_False this
-    · have h0 : #{i ∈ ({i | b i = false} : Finset (Fin K)) |
+        simpa [ha.2.1] using hc.2.2 a hac ha.1
+    · -- a qualifying `i` would be the only zero of `b` in `S`
+      have h0 : #{i ∈ ({i | b i = false} : Finset (Fin K)) |
           S i = true ∧ ∀ j, j ≠ i → b j = false → S j = false} = 0 := by
-        refine card_eq_zero.2 (filter_eq_empty_iff.2 fun i hi hQ => h ?_)
-        simp only [mem_filter, mem_univ, true_and] at hi
-        refine card_eq_one.2 ⟨i, ext fun j => ?_⟩
-        simp only [mem_filter, mem_univ, true_and, mem_singleton]
-        constructor
-        · rintro ⟨hS, hb⟩
-          by_contra hji
-          rw [hQ.2 j hji hb] at hS
-          exact Bool.false_ne_true hS
-        · rintro rfl
-          exact ⟨hQ.1, hi⟩
+        refine card_eq_zero.2 (filter_eq_empty_iff.2 fun i hi hQ =>
+          h (card_eq_one.2 ⟨i, ext fun j => ?_⟩))
+        simp only [mem_filter, mem_univ, true_and, mem_singleton] at hi ⊢
+        refine ⟨fun ⟨hS, hb⟩ => ?_, fun hji => hji ▸ ⟨hQ.1, hi⟩⟩
+        by_contra hji
+        simp [hQ.2 j hji hb] at hS
       rw [h0, Nat.cast_zero]
   calc _ = ∑ i with b i = false, bernoulliAverage p (fun S => ∏ j, g i j (S j)) := by
         rw [sum_congr rfl fun i hi => hprod i (by simpa using hi), sum_const, nsmul_eq_mul]
@@ -393,9 +384,7 @@ private theorem nine_div_fifty_le {r z : ℕ} (h₁ : 2 ^ r ≤ z) (h₂ : z < 2
     (9 / 50 : ℝ) ≤ z * (1 / 2 ^ (r + 1) * (1 - 1 / 2 ^ (r + 1)) ^ (z - 1)) := by
   set N : ℝ := 2 ^ (r + 1) with hN
   have hz1 : 1 ≤ z := le_trans (Nat.one_le_two_pow) h₁
-  have hN2 : (2 : ℝ) ≤ N := by
-    rw [hN, pow_succ]
-    nlinarith [one_le_pow₀ (M₀ := ℝ) (a := 2) (n := r) (by norm_num)]
+  have hN2 : (2 : ℝ) ≤ N := le_self_pow₀ (by norm_num) (by omega)
   have hzN : (z : ℝ) * 2 ≥ N := by
     rw [hN, pow_succ]
     exact_mod_cast Nat.mul_le_mul_right 2 h₁
@@ -473,9 +462,7 @@ theorem exists_sum_andMiss_le {X : Type*} [Fintype X] (hK : K < 2 ^ ℓ) (ν : X
   let f (x : X) (S : Fin K → Bool) : ℝ :=
     if #{j | S j = true ∧ u x j = false} = 1 then 0 else 1
   have hμ (r : Fin ℓ) (x : X) : 0 ≤ μ r x := by grind
-  have hf (x : X) (S : Fin K → Bool) : 0 ≤ f x S := by
-    simp only [f]
-    split_ifs <;> norm_num
+  have hf (x : X) (S : Fin K → Bool) : 0 ≤ f x S := by unfold f; split_ifs <;> norm_num
   have hfq (r : Fin ℓ) (x : X) (hx : 0 < μ r x) :
       bernoulliAverage (1 / 2 ^ ((r : ℕ) + 1)) (f x) ≤ 41 / 50 := by
     have hc : 0 < z x ∧ Nat.log 2 (z x) = r := by grind
@@ -510,12 +497,10 @@ theorem exists_sum_andMiss_le {X : Type*} [Fintype X] (hK : K < 2 ^ ℓ) (ν : X
   have hsum (x : X) : ∑ r, μ r x ≤ ν x := by
     simp only [μ]
     rw [sum_ite, sum_const_zero, add_zero, sum_const, nsmul_eq_mul]
-    have hcard : #{r : Fin ℓ | 0 < z x ∧ Nat.log 2 (z x) = r} ≤ 1 :=
-      card_le_one.2 fun a ha c hc => by
+    have hcard : (#{r : Fin ℓ | 0 < z x ∧ Nat.log 2 (z x) = r} : ℝ) ≤ 1 := by
+      exact_mod_cast card_le_one.2 fun a ha c hc => by
         simp only [mem_filter, mem_univ, true_and] at ha hc
         exact Fin.ext (ha.2.symm.trans hc.2)
-    have : ((#{r : Fin ℓ | 0 < z x ∧ Nat.log 2 (z x) = r} : ℕ) : ℝ) ≤ 1 := by
-      exact_mod_cast hcard
     nlinarith [hν x]
   calc ∑ x with AndMiss S (u x), ν x
       = ∑ x, if AndMiss S (u x) then ν x else 0 := sum_filter _ _
