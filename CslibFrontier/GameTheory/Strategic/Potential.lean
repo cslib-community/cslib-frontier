@@ -177,7 +177,9 @@ theorem IsGeneralizedOrdinalPotential.le_of_reflTransGen {Φ : (∀ i, S i) → 
     (hst : Relation.ReflTransGen (flip G.Improves) s t) : Φ t ≤ Φ s := by
   induction hst with
   | refl => exact le_rfl
-  | tail _ hbc ih => obtain ⟨i, a, rfl, hlt⟩ := hbc; exact (h _ i a hlt).le.trans ih
+  | tail _ hbc ih =>
+    obtain ⟨i, a, rfl, hlt⟩ := hbc
+    exact (h _ i a hlt).le.trans ih
 
 /-- [MondererShapley1996], Corollary 2.2, for generalized ordinal potentials: a game with finitely
 many (and at least one) profiles and a generalized ordinal potential has a pure Nash equilibrium.

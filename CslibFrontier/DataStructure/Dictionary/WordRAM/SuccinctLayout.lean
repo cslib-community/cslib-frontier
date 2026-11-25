@@ -146,25 +146,29 @@ def gmAt (base U V w n_max h_space : ℕ) (mem : ℕ → ℕ) (idx : ℕ) : ℕ 
 /-- Value range invariant for `quotAt`: every entry is `< 2 ^ quotientBits U n_max`. -/
 theorem quotAt_lt (base U w n_max h_space : ℕ) (mem : ℕ → ℕ) (idx : ℕ) :
     quotAt base U w n_max h_space mem idx < 2 ^ quotientBits U n_max := by
-  unfold quotAt; split_ifs
+  unfold quotAt
+  split_ifs
   exacts [readPacked_lt .., by positivity]
 
 /-- Value range invariant for `valAt`: every entry is `< 2 ^ valBits V`. -/
 theorem valAt_lt (base U V w n_max h_space : ℕ) (mem : ℕ → ℕ) (idx : ℕ) :
     valAt base U V w n_max h_space mem idx < 2 ^ valBits V := by
-  unfold valAt; split_ifs
+  unfold valAt
+  split_ifs
   exacts [readPacked_lt .., by positivity]
 
 /-- Value range invariant for `lmAt`: every entry is `< 2 ^ effBucketPosBits n_max`. -/
 theorem lmAt_lt (base U V w n_max h_space : ℕ) (mem : ℕ → ℕ) (p : ℕ × ℕ) :
     lmAt base U V w n_max h_space mem p < 2 ^ effBucketPosBits n_max := by
-  unfold lmAt; split_ifs
+  unfold lmAt
+  split_ifs
   exacts [readPacked_lt .., by positivity]
 
 /-- Value range invariant for `gmAt`: every entry is `< 2 ^ globalPtrBits n_max`. -/
 theorem gmAt_lt (base U V w n_max h_space : ℕ) (mem : ℕ → ℕ) (idx : ℕ) :
     gmAt base U V w n_max h_space mem idx < 2 ^ globalPtrBits n_max := by
-  unfold gmAt; split_ifs
+  unfold gmAt
+  split_ifs
   exacts [readPacked_lt .., by positivity]
 
 /-- On zero-initialized table memory `[base + h_space, base + totalSpace)`, `quotAt` is identically
@@ -173,10 +177,14 @@ theorem quotAt_zero_of_init {base U V w n_max h_space : ℕ} (hw : 0 < w) {mem :
     (hzero : ∀ a, base + h_space ≤ a → a < base + totalSpace U V w n_max h_space → mem a = 0) :
     quotAt base U w n_max h_space mem = fun _ => 0 := by
   funext idx
-  unfold quotAt; split_ifs with hidx
+  unfold quotAt
+  split_ifs with hidx
   · have := wordOffset_add_one_lt_packedWords (k := quotientBits U n_max) hw hidx
-    exact readPacked_zero (hzero _ (by wram_omega) (by wram_omega))
-      (hzero _ (by wram_omega) (by wram_omega))
+    exact readPacked_zero
+      (hzero _ (by wram_omega)
+        (by wram_omega))
+      (hzero _ (by wram_omega)
+        (by wram_omega))
   · rfl
 
 /-- On zero-initialized table memory `[base + h_space, base + totalSpace)`, `valAt` is identically
@@ -185,10 +193,14 @@ theorem valAt_zero_of_init {base U V w n_max h_space : ℕ} (hw : 0 < w) {mem : 
     (hzero : ∀ a, base + h_space ≤ a → a < base + totalSpace U V w n_max h_space → mem a = 0) :
     valAt base U V w n_max h_space mem = fun _ => 0 := by
   funext idx
-  unfold valAt; split_ifs with hidx
+  unfold valAt
+  split_ifs with hidx
   · have := wordOffset_add_one_lt_packedWords (k := valBits V) hw hidx
-    exact readPacked_zero (hzero _ (by wram_omega) (by wram_omega))
-      (hzero _ (by wram_omega) (by wram_omega))
+    exact readPacked_zero
+      (hzero _ (by wram_omega)
+        (by wram_omega))
+      (hzero _ (by wram_omega)
+        (by wram_omega))
   · rfl
 
 /-- On zero-initialized table memory `[base + h_space, base + totalSpace)`, `lmAt` is identically
@@ -197,13 +209,17 @@ theorem lmAt_zero_of_init {base U V w n_max h_space : ℕ} (hw : 0 < w) {mem : �
     (hzero : ∀ a, base + h_space ≤ a → a < base + totalSpace U V w n_max h_space → mem a = 0) :
     lmAt base U V w n_max h_space mem = fun _ => 0 := by
   funext ⟨c, idx⟩
-  unfold lmAt; dsimp only
+  unfold lmAt
+  dsimp only
   split_ifs with hp
   · have := wordOffset_add_one_lt_packedWords (k := effBucketPosBits n_max) hw hp.2
     have hsub : c * lmSubWords n_max w + lmSubWords n_max w ≤ 9 * lmSubWords n_max w :=
       Nat.add_one_mul c (lmSubWords n_max w) ▸ Nat.mul_le_mul_right _ hp.1
-    exact readPacked_zero (hzero _ (by wram_omega) (by wram_omega))
-      (hzero _ (by wram_omega) (by wram_omega))
+    exact readPacked_zero
+      (hzero _ (by wram_omega)
+        (by wram_omega))
+      (hzero _ (by wram_omega)
+        (by wram_omega))
   · rfl
 
 /-- On zero-initialized table memory `[base + h_space, base + totalSpace)`, `gmAt` is identically
@@ -212,10 +228,14 @@ theorem gmAt_zero_of_init {base U V w n_max h_space : ℕ} (hw : 0 < w) {mem : �
     (hzero : ∀ a, base + h_space ≤ a → a < base + totalSpace U V w n_max h_space → mem a = 0) :
     gmAt base U V w n_max h_space mem = fun _ => 0 := by
   funext idx
-  unfold gmAt; split_ifs with hidx
+  unfold gmAt
+  split_ifs with hidx
   · have := wordOffset_add_one_lt_packedWords (k := globalPtrBits n_max) hw hidx
-    exact readPacked_zero (hzero _ (by wram_omega) (by wram_omega))
-      (hzero _ (by wram_omega) (by wram_omega))
+    exact readPacked_zero
+      (hzero _ (by wram_omega)
+        (by wram_omega))
+      (hzero _ (by wram_omega)
+        (by wram_omega))
   · rfl
 
 /-- If two memories agree on `[base + h_space, base + totalSpace)`, they have identical `quotAt`,
@@ -229,23 +249,31 @@ theorem arrays_congr_of_eq_on {base U V w n_max h_space : ℕ} (hw : 0 < w) {mem
       gmAt base U V w n_max h_space mem₁ = gmAt base U V w n_max h_space mem₂ := by
   refine ⟨funext fun idx => ?_, funext fun idx => ?_, funext fun ⟨c, idx⟩ => ?_,
     funext fun idx => ?_⟩
-  · unfold quotAt; split_ifs with hidx
-    · exact readPacked_congr hw
-        (fun a ⟨ha1, ha2⟩ => heq a (by wram_omega [ha1]) (by wram_omega [ha2])) hidx
+  · unfold quotAt
+    split_ifs with hidx
+    · exact readPacked_congr hw (fun a ⟨ha1, ha2⟩ =>
+        heq a (by wram_omega [ha1])
+          (by wram_omega [ha2])) hidx
     · rfl
-  · unfold valAt; split_ifs with hidx
-    · exact readPacked_congr hw
-        (fun a ⟨ha1, ha2⟩ => heq a (by wram_omega [ha1]) (by wram_omega [ha2])) hidx
+  · unfold valAt
+    split_ifs with hidx
+    · exact readPacked_congr hw (fun a ⟨ha1, ha2⟩ =>
+        heq a (by wram_omega [ha1])
+          (by wram_omega [ha2])) hidx
     · rfl
-  · unfold lmAt; split_ifs with hp
+  · unfold lmAt
+    split_ifs with hp
     · have hsub : c * lmSubWords n_max w + lmSubWords n_max w ≤ 9 * lmSubWords n_max w :=
         Nat.add_one_mul c (lmSubWords n_max w) ▸ Nat.mul_le_mul_right _ hp.1
-      exact readPacked_congr hw
-        (fun a ⟨ha1, ha2⟩ => heq a (by wram_omega [ha1]) (by wram_omega [ha2, hsub])) hp.2
+      exact readPacked_congr hw (fun a ⟨ha1, ha2⟩ =>
+        heq a (by wram_omega [ha1])
+          (by wram_omega [ha2, hsub])) hp.2
     · rfl
-  · unfold gmAt; split_ifs with hidx
-    · exact readPacked_congr hw
-        (fun a ⟨ha1, ha2⟩ => heq a (by wram_omega [ha1]) (by wram_omega [ha2])) hidx
+  · unfold gmAt
+    split_ifs with hidx
+    · exact readPacked_congr hw (fun a ⟨ha1, ha2⟩ =>
+        heq a (by wram_omega [ha1])
+          (by wram_omega [ha2])) hidx
     · rfl
 
 end Cslib.DataStructure.Dictionary.WordRAM.Succinct

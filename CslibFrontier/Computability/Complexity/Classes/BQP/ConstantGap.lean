@@ -140,8 +140,10 @@ theorem mem_BQP_of_gap {A : Set α} {s c : ℝ} (hsc : s < c) (F : UniformCircui
     (hF : ∀ a, (a ∈ A → c ≤ F.acceptProb (enc a)) ∧ (a ∉ A → F.acceptProb (enc a) ≤ s)) :
     A ∈ BQP enc := by
   rcases lt_or_ge s 0 with hs | hs
-  · have hA (a : α) : a ∈ A := by
-      by_contra ha; linarith [(hF a).2 ha, F.acceptProb_nonneg (enc a)]
+  · -- no instance accepts with probability below `0`: every instance is a member
+    have hA (a : α) : a ∈ A := by
+      by_contra ha
+      linarith [(hF a).2 ha, F.acceptProb_nonneg (enc a)]
     refine ⟨(F.threshold (fun _ => 0) (fun _ => 0) (.const _) (.const _)).appendNot,
       fun a => ⟨fun _ => ?_, fun ha => absurd (hA a) ha⟩⟩
     rw [UniformCircuitFamily.acceptProb_appendNot,

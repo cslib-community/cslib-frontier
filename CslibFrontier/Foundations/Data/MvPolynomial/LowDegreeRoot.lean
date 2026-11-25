@@ -116,7 +116,8 @@ theorem truncateTotalDegree_root_eq [CharZero F] {P : Polynomial (MvPolynomial �
       Polynomial.coeff_C_mul, map_sub, map_one, map_mul, constantCoeff_C, ← haa,
       inv_mul_cancel₀ ha, sub_self]
   have hfix : G.eval f = f := by
-    rw [hG, Polynomial.eval_sub, Polynomial.eval_X, Polynomial.eval_mul, hroot, mul_zero, sub_zero]
+    rw [hG, Polynomial.eval_sub, Polynomial.eval_X, Polynomial.eval_mul, hroot, mul_zero,
+      sub_zero]
   exact truncateTotalDegree_eq_of_sub_mem (Polynomial.sub_sum_coeff_pow_mem_of_eval_eq
     (F := F) h0 h1 (mem_idealOfVars_iff_constantCoeff.2 hf0) hfix le_rfl)
 
@@ -165,15 +166,18 @@ theorem exists_shift_eq_truncate_sum_of_root [CharZero F]
     exact hj1 (funext fun x => by rw [hall x, map_zero])
   set φ : MvPolynomial σ F →+* MvPolynomial σ F := (shift x₀ : _ →ₐ[F] _).toRingHom
   have hcc (p : MvPolynomial σ F) : constantCoeff (φ p) = eval x₀ p := by
-    rw [constantCoeff_eq]; exact coeff_zero_shift x₀ p
+    rw [constantCoeff_eq]
+    exact coeff_zero_shift x₀ p
   have hmapeval (R : Polynomial (MvPolynomial σ F)) :
       (R.map φ).eval (shift x₀ f) = φ (R.eval f) := by
-    rw [Polynomial.eval_map]; exact Polynomial.eval₂_hom φ f
+    rw [Polynomial.eval_map]
+    exact Polynomial.eval₂_hom φ f
   set α := eval x₀ f
   set Q := Polynomial.taylor (C α) ((Polynomial.derivative^[j] P).map φ) with hQ
   set f₁ := shift x₀ f - C α with hf₁
   have hf₁0 : constantCoeff f₁ = 0 := by
-    rw [hf₁, map_sub, constantCoeff_C, sub_eq_zero]; exact hcc f
+    rw [hf₁, map_sub, constantCoeff_C, sub_eq_zero]
+    exact hcc f
   have hQroot : Q.eval f₁ = 0 := by
     rw [hQ, Polynomial.taylor_eval, hf₁, sub_add_cancel, hmapeval, hj0, map_zero]
   have hcceval (R : Polynomial (MvPolynomial σ F)) (z : MvPolynomial σ F) :

@@ -99,7 +99,9 @@ theorem IsTotallyRegular.submatrix (hA : A.IsTotallyRegular) {f : m' → m} {g :
 
 /-- The transpose of a totally regular matrix is totally regular. -/
 theorem IsTotallyRegular.transpose (hA : A.IsTotallyRegular) : Aᵀ.IsTotallyRegular :=
-  fun k f g hf hg => by rw [← transpose_submatrix, det_transpose]; exact hA k g f hg hf
+  fun k f g hf hg => by
+    rw [← transpose_submatrix, det_transpose]
+    exact hA k g f hg hf
 
 /-- The transpose of `A` is totally regular exactly when `A` is. -/
 theorem transpose_isTotallyRegular_iff (A : Matrix m n R) :
@@ -210,9 +212,12 @@ theorem isTotallyRegular_cauchyNat_zmod {q : ℕ} [Fact q.Prime] {N : ℕ} (hq :
     (cauchyNat (ZMod q) N).IsTotallyRegular := by
   have hcast {a b : ℕ} (ha : a < q) (hb : b < q) (h : (a : ZMod q) = b) : a = b := by
     rwa [ZMod.natCast_eq_natCast_iff', Nat.mod_eq_of_lt ha, Nat.mod_eq_of_lt hb] at h
-  exact isTotallyRegular_cauchy (fun _ _ h => Fin.ext (hcast (by omega) (by omega) h))
-    (fun _ _ h => Fin.ext (by have := hcast (by omega) (by omega) h; omega))
-    fun _ _ h => by have := hcast (by omega) (by omega) h; omega
+  refine isTotallyRegular_cauchy (fun _ _ h => Fin.ext (hcast (by omega) (by omega) h))
+    (fun _ _ h => Fin.ext ?_) fun _ _ h => ?_
+  · have := hcast (by omega) (by omega) h
+    omega
+  · have := hcast (by omega) (by omega) h
+    omega
 
 end Cauchy
 

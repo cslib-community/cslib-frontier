@@ -56,7 +56,8 @@ theorem exists_choose_interpolant (k t : ℕ) (value : ℕ → ℤ) :
     | base => omega
     | succ w hw prev =>
       rw [hstep, ha w hw (by omega)]
-      have := prev (by omega); omega
+      have := prev (by omega)
+      omega
 
 /-- A squarefree monomial survives at a Boolean point precisely when its variables
 belong to the support of the point. Thus the j-th elementary symmetric value counts j-subsets. -/
@@ -71,9 +72,11 @@ private theorem eval_esymm_on_support {n : ℕ} (x : Finset (Fin n)) (j : ℕ) :
     · exact (ite_eq_left h).symm ▸ prod_eq_one fun i hi => by simp [h hi]
     · obtain ⟨i, hi, hx⟩ := Finset.not_subset.mp h
       exact (ite_eq_right h).symm ▸ prod_eq_zero hi (by simp [hx])
+  have filter_eq : ((univ : Finset (Fin n)).powersetCard j).filter (· ⊆ x) = x.powersetCard j := by
+    ext s
+    simp [and_comm]
   simp_rw [indicator]
-  rw [← Finset.sum_filter, show ((univ : Finset (Fin n)).powersetCard j).filter (· ⊆ x) =
-    x.powersetCard j by ext s; simp [and_comm]]
+  rw [← Finset.sum_filter, filter_eq]
   simp
 
 /-- Integer multilinear interpolation on consecutive layers of a Boolean cube.
@@ -89,7 +92,8 @@ theorem exists_multilinear_of_consecutive_weights (n k t : ℕ) (value : ℕ →
     totalDegree_finsetSum_le fun j _ => (totalDegree_mul _ _).trans <| by
       rw [totalDegree_C, zero_add, esymm]
       refine totalDegree_finsetSum_le fun s hs => (totalDegree_finsetProd _ _).trans ?_
-      have := (mem_powersetCard.mp hs).2; have := j.isLt
+      have := (mem_powersetCard.mp hs).2
+      have := j.isLt
       simp; omega,
     fun i => (degreeOf_sum_le ..).trans <| Finset.sup_le fun _ _ =>
       (degreeOf_C_mul_le ..).trans <| by

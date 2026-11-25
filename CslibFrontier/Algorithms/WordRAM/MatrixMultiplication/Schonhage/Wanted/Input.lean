@@ -83,11 +83,13 @@ theorem input_fits {w L m N : ℕ} (hm : m ≤ L) (qs : List (Fin N × Fin N))
     (hfit : Fits w (wordBudget L m N qs.length)) : InputFits w (input L m qs) := by
   have hl := local_fits hfit
   have := memoryLimit_eq L m N qs.length
-  have := Nat.zero_le (2 ^ L); have := Nat.zero_le (10 ^ L)
+  have := Nat.zero_le (2 ^ L)
+  have := Nat.zero_le (10 ^ L)
   have hfN : Fits w N := hl.of_le (by omega)
   refine ⟨hl.of_le (by
       have := input_length L m qs
-      unfold inputLimit at this; omega),
+      unfold inputLimit at this
+      omega),
     fun v hv => ?_⟩
   simp only [input, List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hv
   rcases hv with (rfl | rfl | rfl | rfl) | hv
@@ -97,7 +99,9 @@ theorem input_fits {w L m N : ℕ} (hm : m ≤ L) (qs : List (Fin N × Fin N))
   · exact hl.of_le (by omega)
   · obtain ⟨i, _, hv⟩ := List.mem_flatMap.mp hv
     obtain ⟨s, rfl⟩ := List.mem_ofFn.mp hv
-    split; exacts [hfN.of_le (qs.get i).1.isLt.le, hfN.of_le (qs.get i).2.isLt.le]
+    split
+    · exact hfN.of_le (qs.get i).1.isLt.le
+    · exact hfN.of_le (qs.get i).2.isLt.le
 
 /-- Complete execution from the actual initialized list, with guaranteed input fit and a
 bounded returned state. All auxiliary tables, counts, offsets and codes are computed natively. -/

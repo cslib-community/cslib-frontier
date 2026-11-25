@@ -114,11 +114,12 @@ private theorem selectIndex_spec (score : ℕ → ℕ) {n t : ℕ} (hn : 0 < n) 
   have hneighbor := indices_neighbors hn ht
   have hcover (i : ℕ) (_ : i < n) (_ : i + 1 = t ∨ i = t) :
       i = left t ∨ i = right n t := by wram_omega
-  unfold selectIndex; split_ifs with hs
+  unfold selectIndex
+  split_ifs with hs
   · exact ⟨hi.2, hneighbor.2, fun i h1 h2 =>
       (hcover i h1 h2).elim (fun e => e ▸ hs.le) fun e => e ▸ le_rfl⟩
   · exact ⟨hi.1, hneighbor.1, fun i h1 h2 =>
-      (hcover i h1 h2).elim (fun e => e ▸ le_rfl) fun e => by subst e; omega⟩
+      (hcover i h1 h2).elim (fun e => e ▸ le_rfl) fun e => by rw [e]; omega⟩
 
 /-- Thirteen instructions load the candidates. Selection adds four or five instructions,
 including control flow, and prefers the left candidate when exclusive-or values tie. -/

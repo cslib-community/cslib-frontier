@@ -105,14 +105,16 @@ theorem sum_productWeight_mul_eval_vertex {p : ∀ i, S i → ℝ} (hp : ∀ i, 
   simp only [eval_monomial, Finsupp.prod_fintype _ _ fun _ => pow_zero _,
     show ∀ x : (Σ i, S i) → ℝ, ∏ v, x v ^ m v = ∏ i, ∏ b, x ⟨i, b⟩ ^ m ⟨i, b⟩ from
       fun _ => Fintype.prod_sigma _]
-  rw [show (∑ s, productWeight p s * (f.coeff m * ∏ i, ∏ b, vertex s ⟨i, b⟩ ^ m ⟨i, b⟩)) =
-    f.coeff m * ∑ s, ∏ i, (p i (s i) * ∏ b, vertex s ⟨i, b⟩ ^ m ⟨i, b⟩) by
-      rw [mul_sum]
-      exact sum_congr rfl fun s _ => by rw [productWeight_def, prod_mul_distrib]; ring]
-  dsimp only [vertex]
-  rw [← Fintype.prod_sum (fun i c => p i c * ∏ b, (if c = b then (1 : ℝ) else 0) ^ m ⟨i, b⟩)]
-  exact congrArg (f.coeff m * ·)
-    (prod_congr rfl fun i _ => sum_mul_prod_ite_pow (hp i) (hf m hm i))
+  calc ∑ s, productWeight p s * (f.coeff m * ∏ i, ∏ b, vertex s ⟨i, b⟩ ^ m ⟨i, b⟩)
+      = f.coeff m * ∑ s, ∏ i, (p i (s i) * ∏ b, vertex s ⟨i, b⟩ ^ m ⟨i, b⟩) := by
+        rw [mul_sum]
+        exact sum_congr rfl fun s _ => by rw [productWeight_def, prod_mul_distrib]; ring
+    _ = f.coeff m * ∏ i, ∑ c, p i c * ∏ b, (if c = b then (1 : ℝ) else 0) ^ m ⟨i, b⟩ := by
+        dsimp only [vertex]
+        rw [← Fintype.prod_sum (fun i c => p i c * ∏ b, (if c = b then (1 : ℝ) else 0) ^ m ⟨i, b⟩)]
+    _ = f.coeff m * ∏ i, ∏ b, Sigma.uncurry p ⟨i, b⟩ ^ m ⟨i, b⟩ :=
+        congrArg (f.coeff m * ·)
+          (prod_congr rfl fun i _ => sum_mul_prod_ite_pow (hp i) (hf m hm i))
 
 namespace CostGame
 

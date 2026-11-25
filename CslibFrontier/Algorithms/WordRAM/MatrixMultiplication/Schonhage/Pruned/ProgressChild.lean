@@ -40,13 +40,16 @@ theorem NodeProgress.child_source {L f a0 b0 n d p E base : ℕ}
       Signed.encode (c v)) (v : Leaf n) :
     u.mem (base + (p + k.val * 10 ^ d) + 10 ^ (d + 1) * (Encoding.leafIndex v).val) =
       Signed.encode (sliceAt c (Encoding.termDigits k) v) := by
-  have hd : d < L := by have := hx.depth_add; omega
+  have hd : d < L := by
+    have := hx.depth_add
+    omega
   let t := Encoding.termDigits k
   have hnot := notMem_nodeWrites_before (L := L) (d := d) (hx.source_before hbase (Fin.cons t v))
-  rw [show base + (p + k.val * 10 ^ d) + 10 ^ (d + 1) * (Encoding.leafIndex v).val =
-    base + p + 10 ^ d * (Encoding.leafIndex (Fin.cons t v)).val by
-      rw [leafIndex_cons, Encoding.termDigits.symm_apply_apply k, pow_succ]; ring,
-    hpush _ (fun h => hnot (childWrites_subset_nodeWrites hd h)), hy.footprint _ hnot]
+  have haddr : base + (p + k.val * 10 ^ d) + 10 ^ (d + 1) * (Encoding.leafIndex v).val =
+      base + p + 10 ^ d * (Encoding.leafIndex (Fin.cons t v)).val := by
+    rw [leafIndex_cons, Encoding.termDigits.symm_apply_apply k, pow_succ]
+    ring
+  rw [haddr, hpush _ (fun h => hnot (childWrites_subset_nodeWrites hd h)), hy.footprint _ hnot]
   exact hc (Fin.cons t v)
 
 /-- The computed child state satisfies the concrete node-entry assertion and has a budget
@@ -62,9 +65,13 @@ theorem exec_progress_child {w L f a0 b0 n d p E : ℕ}
         (childSet S (Encoding.termDigits k)) z ∧
       Modifies (childWrites L f d) y.mem z.mem ∧
       Fits w (nodeBudget L f a0 b0 (y.regs epoch + 1) n) := by
-  have hd : d < L := by have := hx.depth_add; omega
-  have hpow := Nat.pow_le_pow_right (by decide : 1 ≤ (10 : ℕ))
-    (by have := hx.depth_add; omega : n + 1 ≤ L)
+  have hd : d < L := by
+    have := hx.depth_add
+    omega
+  have hnL : n + 1 ≤ L := by
+    have := hx.depth_add
+    omega
+  have hpow := Nat.pow_le_pow_right (by decide : 1 ≤ (10 : ℕ)) hnL
   let input := fun i => y.mem (f + 4 * (L + 1) + d * 10 ^ L + i)
   have hscan := hy.scan_eq hx k
   have hE := hy.epoch_child_le k.isLt
@@ -73,12 +80,17 @@ theorem exec_progress_child {w L f a0 b0 n d p E : ℕ}
     hy.regs hy.level_eq hd hy.mode_eq (hy.frame 0) hx.card_le (hy.frame 1) hx.prefix_lt
     (hy.frame 2) (hy.frame 3) k.isLt input (fun _ _ => rfl)
     (fun i hi => (hy.requests i hi ▸ hx.read_lt hi).trans_le hpow) hy.timestamps
-    (hscan ▸ hne.image _) (hfit.of_le (by unfold nodeBudget; omega))
-  refine ⟨z, hz, ⟨hregs, by have := hx.depth_add; omega,
-    by rw [pow_succ]; nlinarith only [hx.prefix_lt, k.isLt], hlevel, hmode,
+    (hscan ▸ hne.image _) (hfit.of_le (by
+      unfold nodeBudget
+      omega))
+  refine ⟨z, hz, ⟨hregs, ?_, ?_, hlevel, hmode,
     hactive.trans hy.active_eq, hepoch, fun j => ?_,
     by simpa only [input, hscan] using hrequests⟩,
     hframe, hfit.of_le (nodeBudget_child_le hE)⟩
+  · have := hx.depth_add
+    omega
+  · rw [pow_succ]
+    nlinarith only [hx.prefix_lt, k.isLt]
   change z.mem (f + 4 * (d + 1) + j.val) =
     ![(childSet S (Encoding.termDigits k)).card, p + k.val * 10 ^ d, 10 ^ (d + 1), 0] j
   fin_cases j

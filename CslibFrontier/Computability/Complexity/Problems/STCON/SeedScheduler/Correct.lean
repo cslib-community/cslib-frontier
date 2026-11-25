@@ -80,7 +80,8 @@ theorem configurationSeedScheduler_correct {m : Type → Type} [AlternativeMonad
   have endpointVal (v : Fin ((I.n - 1) + 1) × Fin I.n) :
       (index (root size.subdivision.chainBound v)).val =
         (subdivisionIndex I bound (root bound v)).val := by
-    rw [configurationSubdivisionIndex_val]; simp only [subdivisionIndex_root_val]
+    rw [configurationSubdivisionIndex_val]
+    simp only [subdivisionIndex_root_val]
     rw [congrArg (fun p : SeedSearchParameters => p.search.subdivision.chainBound) hparams]
   have hsource : (⟨setup.sourceID, hs⟩ : Fin size.subdivision.vertexCount) =
       index (root size.subdivision.chainBound source) :=
@@ -93,7 +94,8 @@ theorem configurationSeedScheduler_correct {m : Type → Type} [AlternativeMonad
       List.ofFn (originalRootID index) := by
     refine List.ext_getElem ?_ fun i _ hi => ?_
     · simpa only [List.length_ofFn] using configurationSeedSearchSetup_originalCount ntm c input
-    · simp only [List.getElem_ofFn]; apply Fin.ext
+    · simp only [List.getElem_ofFn]
+      apply Fin.ext
       rw [originalRootID, configurationSubdivisionIndex_val]
       exact configurationSeedSearchSetup_originalSourceID_eq ntm c input
         ⟨i, by simpa only [List.length_ofFn] using hi⟩
@@ -118,10 +120,11 @@ theorem configurationSeedScheduler_correct {m : Type → Type} [AlternativeMonad
       (BitString.equivFin _).symm i = fun j : Fin (codeLength I.n (I.n - 1)) =>
         i.val.testBit j.val :=
     funext fun _ => BitString.equivFin_symm_apply ..
-  refine ⟨result, hrun, ?_, ?_, hreach.trans (layeredDigraph_reachable_iff I)⟩
-  · rw [← bitsOfRank]; exact hmin
-  · intro i hi
-    rw [← bitsOfRank]; exact hleast i hi
+  refine ⟨result, hrun, ?_, fun i hi => ?_, hreach.trans (layeredDigraph_reachable_iff I)⟩
+  · rw [← bitsOfRank]
+    exact hmin
+  · rw [← bitsOfRank]
+    exact hleast i hi
 
 /-- Evaluate the mathematical controller with exact adjacency and membership answers
 for the request's seed and source in the original input's subdivision. The input fixes the
@@ -186,6 +189,9 @@ theorem configurationSeedSchedulerReference_correct
   intro seed src
   obtain ⟨verdict, hscan, hcorrect⟩ := configurationSeedSchedulerReferenceScan_correct
     ntm c input ⟨setup, seed.val, src.val⟩ src.isLt
-  exact ⟨verdict, congrArg (· :: []) hscan, by cases verdict; exacts [hcorrect.2, hcorrect]⟩
+  refine ⟨verdict, congrArg (· :: []) hscan, ?_⟩
+  cases verdict with
+  | bad _ => exact hcorrect.2
+  | decided _ => exact hcorrect
 
 end Cslib.Complexity.STCON

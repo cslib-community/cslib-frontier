@@ -130,9 +130,13 @@ private theorem exists_pcpVerifier_of_gap {Input : Type} (input : Input ↪ List
   have hV : V.PolyTime input :=
     Graph.polyTime_reductionVerifier width repeats decodeLabel hgraph heval
   have hcoins (x : Input) : V.coins x ≤ repeats * constant * (Nat.log 2 (input x).length + 1) := by
+    change repeats * Nat.clog 2 (graph x).edges.length ≤
+      repeats * constant * (Nat.log 2 (input x).length + 1)
     have hb : (graph x).edges.length ≤ c₀ * ((input x).length + 1) ^ d₀ := by simpa using hbound x
-    exact (Nat.mul_le_mul_left _ ((by gcongr : Nat.clog 2 _ ≤ Nat.clog 2 _).trans
-      (hconstant _))).trans_eq (Nat.mul_assoc _ _ _).symm
+    calc _ ≤ repeats * Nat.clog 2 (c₀ * ((input x).length + 1) ^ d₀) := by gcongr
+      _ ≤ repeats * (constant * (Nat.log 2 (input x).length + 1)) :=
+        Nat.mul_le_mul_left _ (hconstant _)
+      _ = _ := (Nat.mul_assoc _ _ _).symm
   let compile : Input × List Bool → List Bool :=
     fun p => PCPVerifier.answers (proof p) (V.queryTable p.1)
   refine ⟨V, compile, repeats * constant, repeats * (2 * width), hV, ⟨hcoins, ?_, ?_, ?_⟩,
