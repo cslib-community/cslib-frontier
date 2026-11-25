@@ -70,23 +70,17 @@ theorem getElem_outputList (mem : ℕ → ℕ) (v i : ℕ) (hi : i < (outputList
 its entries. -/
 theorem outputList_eq_iff {mem : ℕ → ℕ} {v : ℕ} {l : List ℕ} :
     outputList mem v = l ↔ mem v = l.length ∧ Block.HoldsList (v + 1) l mem := by
-  constructor
-  · rintro rfl
-    refine ⟨(length_outputList mem v).symm, fun i => ?_⟩
-    change mem (v + 1 + i.val) = (outputList mem v)[i.val]
-    rw [getElem_outputList]
-  · rintro ⟨hlen, hl⟩
-    refine List.ext_getElem (by simp [hlen]) fun i hi _ => ?_
-    rw [getElem_outputList]
-    exact hl.get i (by simpa [hlen] using hi)
+  refine ⟨?_, fun ⟨hlen, hl⟩ => List.ext_getElem (by simp [hlen]) fun i hi _ => by
+    rw [getElem_outputList]; exact hl.get i (by simpa [hlen] using hi)⟩
+  rintro rfl
+  exact ⟨(length_outputList mem v).symm, fun i => (getElem_outputList mem v i.val i.isLt).symm⟩
 
 /-- Returning address `0` of the initial memory outputs the input. -/
 theorem outputList_init (input : List ℕ) :
     outputList (Data.init input : Data r).mem 0 = input := by
   refine outputList_eq_iff.2 ⟨rfl, fun i => ?_⟩
   change (Data.init input : Data r).mem (0 + 1 + i.val) = input[i.val]
-  rw [Nat.zero_add, Nat.add_comm, Data.init_mem_succ]
-  simp [List.getD_eq_getElem?_getD]
+  simp [Nat.add_comm, Data.init_mem_succ, List.getD_eq_getElem?_getD]
 
 /-- In `Data.init input`, the slice starting at address `1` holds `input`. -/
 theorem Block.holdsList_init (input : List ℕ) :
@@ -128,20 +122,17 @@ theorem Program.ComputesListInTime.mono {p : Program B r} {encode : ℕ → α �
     {time time' : α → ℕ → ℕ} {allowed allowed' : α → ℕ → Prop} {f : α → List ℕ}
     (h : p.ComputesListInTime encode time allowed f) (ht : ∀ a w, time a w ≤ time' a w)
     (ha : ∀ a w, allowed' a w → allowed a w) :
-    p.ComputesListInTime encode time' allowed' f := by
-  intro a w hw hi
-  obtain ⟨n, he, hn⟩ := h a w (ha a w hw) hi
-  exact ⟨n, he, hn.trans (ht a w)⟩
+    p.ComputesListInTime encode time' allowed' f := fun a w hw hi =>
+  let ⟨n, he, hn⟩ := h a w (ha a w hw) hi
+  ⟨n, he, hn.trans (ht a w)⟩
 
 /-- A structured execution followed by `halt out` returns the array at the address in `out`,
 with one more instruction. -/
 theorem Exec.executesList {w : ℕ} {c : Code B r} {x y : Data r} {n : ℕ} (h : Exec w c x y n)
     (out : Fin r) (hfit : Fits w (y.regs out + (outputList y.mem (y.regs out)).length)) :
-    ExecutesList w (c.program out) ⟨0, x⟩ (outputList y.mem (y.regs out)) (n + 1) := by
-  have hr := h.runs (pc := 0) (p := c.program out) (Program.Contains.self _).append_left
-  have hh : step w (c.program out) ⟨0 + c.size, y⟩ = .halt (y.regs out) :=
-    step_halt (by simp [Code.program])
-  exact ⟨_, n, _, hr, hh, rfl, hfit, rfl⟩
+    ExecutesList w (c.program out) ⟨0, x⟩ (outputList y.mem (y.regs out)) (n + 1) :=
+  ⟨_, n, _, h.runs (pc := 0) (p := c.program out) (Program.Contains.self _).append_left,
+    step_halt (by simp [Code.program]), rfl, hfit, rfl⟩
 
 /-- A structured certificate leaving the address of `f a` in register `out` computes `f`, with
 one more instruction for the final halt. -/
@@ -180,9 +171,7 @@ theorem getElem?_parkHalts_of_lt {pc : ℕ} (h : pc < p.length) :
 
 theorem getElem?_parkHalts_park (i : Fin r) :
     p.parkHalts[p.length + i]? = some (.jump (p.length + i)) := by
-  rw [parkHalts, List.getElem?_append_right (by simp), List.length_map,
-    Nat.add_sub_cancel_left, List.getElem?_ofFn]
-  simp
+  rw [parkHalts, List.getElem?_append_right (by simp)]; simp
 
 /-- Every non-halting step of `p` is a step of `p.parkHalts`. -/
 theorem next_parkHalts {w : ℕ} {s t : State r} (h : Next w p s t) : Next w p.parkHalts s t := by
@@ -190,11 +179,10 @@ theorem next_parkHalts {w : ℕ} {s t : State r} (h : Next w p s t) : Next w p.p
   cases hp : p[s.pc]? with
   | none => simp [hp] at h
   | some i =>
-    have hlt : s.pc < p.length := (List.getElem?_eq_some_iff.mp hp).1
-    rw [getElem?_parkHalts_of_lt hlt, hp, Option.map_some]
+    rw [getElem?_parkHalts_of_lt (List.getElem?_eq_some_iff.mp hp).1, hp, Option.map_some]
     rw [hp] at h
     cases i with
-    | halt => simp only at h; cases h
+    | halt => cases h
     | _ => exact h
 
 /-- Every run of `p` is a run of `p.parkHalts`. -/
@@ -210,17 +198,13 @@ theorem next_parkHalts_of_halt {w v : ℕ} {s : State r} (h : step w p s = .halt
   cases hp : p[s.pc]? with
   | none => simp [hp] at h
   | some ins =>
-    have hlt : s.pc < p.length := (List.getElem?_eq_some_iff.mp hp).1
     rw [hp] at h
     cases ins with
     | halt i =>
       refine ⟨i, Outcome.halt.inj h, step_jump ?_⟩
-      rw [getElem?_parkHalts_of_lt hlt, hp, Option.map_some]
-      rfl
+      rw [getElem?_parkHalts_of_lt (List.getElem?_eq_some_iff.mp hp).1, hp]; rfl
     | op o => simp only at h; split at h <;> cases h
-    | jump => simp only at h; cases h
-    | branch => simp only at h; cases h
-    | rand => simp only at h; cases h
+    | _ => cases h
 
 /-- A parked state steps to itself. -/
 theorem next_parkHalts_park {w : ℕ} (i : Fin r) (x : Data r) :
@@ -244,9 +228,8 @@ theorem ExecutesList.runs_parkHalts {w : ℕ} {p : Program B r} {s : State r} {l
       outputList x.mem (x.regs i) = l := by
   obtain ⟨t, m, v, hr, hh, hl, -, rfl⟩ := h
   obtain ⟨i, hv, hn⟩ := Program.next_parkHalts_of_halt hh
-  refine ⟨i, t.data, ?_, hv ▸ hl⟩
-  have h₁ := (Program.runs_parkHalts hr).tail _ _ _ _ hn
-  have h₂ := h₁.trans (Program.runs_parkHalts_park i t.data (N - (m + 1)))
-  rwa [Nat.add_sub_cancel' hN] at h₂
+  have h₂ := ((Program.runs_parkHalts hr).tail _ _ _ _ hn).trans
+    (Program.runs_parkHalts_park i t.data (N - (m + 1)))
+  exact ⟨i, t.data, Nat.add_sub_cancel' hN ▸ h₂, hv ▸ hl⟩
 
 end Cslib.WordRAM
