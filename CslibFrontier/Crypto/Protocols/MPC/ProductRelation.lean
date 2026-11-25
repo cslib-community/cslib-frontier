@@ -162,19 +162,14 @@ theorem DealerExtra.toDeal_c_of_lt {q m : ℕ}
     (t : Fin m → TripleShare (ZMod q)) (e : DealerExtra q m)
     {k : Fin (2 * m + 1)} (hk1 : m < k.1) :
     (e.toDeal t).c k = e.cTail ⟨k.1 - (m + 1), by omega⟩ := by
-  have hk0 : k.1 ≠ 0 := by omega
-  have hk1' : ¬ k.1 ≤ m := by omega
-  simp only [DealerExtra.toDeal, hk0, ↓reduceDIte, hk1']
+  simp only [DealerExtra.toDeal, show k.1 ≠ 0 by omega, show ¬ k.1 ≤ m by omega, ↓reduceDIte]
 
 @[simp] theorem DealerExtra.toDeal_triples {q m : ℕ}
     (t : Fin m → TripleShare (ZMod q)) (e : DealerExtra q m) :
     (e.toDeal t).triples = t := by
-  ext k
-  · simp only [PartyDeal.triples, DealerExtra.toDeal_a, Fin.cons_succ]
-  · simp only [PartyDeal.triples, DealerExtra.toDeal_b, Fin.cons_succ]
-  · simp only [PartyDeal.triples]
-    rw [DealerExtra.toDeal_c_of_le t e (by dsimp; omega) (by dsimp; omega)]
-    simp only [Nat.add_sub_cancel, Fin.eta]
+  ext k <;> simp only [PartyDeal.triples, DealerExtra.toDeal_a, DealerExtra.toDeal_b, Fin.cons_succ]
+  rw [DealerExtra.toDeal_c_of_le t e (by dsimp; omega) (by dsimp; omega)]
+  simp only [Nat.add_sub_cancel, Fin.eta]
 
 /-- Evaluation nodes `k ↦ (k : ZMod q)` for `Fin n`. -/
 @[expose] def natNodes (q n : ℕ) (k : Fin n) : ZMod q := (k.1 : ZMod q)
@@ -195,11 +190,9 @@ variable {q m : ℕ} [Fact (Nat.Prime q)]
   Lagrange.interpolate Finset.univ (natNodes q (n + 1)) v
 
 theorem interpPoly_natDegree_le {n : ℕ} (v : Fin (n + 1) → ZMod q) (hn : n + 1 ≤ q) :
-    (interpPoly v).natDegree ≤ n := by
-  have hdeg : (interpPoly v).degree ≤ (n : WithBot ℕ) := by
-    have h := Lagrange.degree_interpolate_le v (injOn_natNodes q (n + 1) hn)
-    simpa [interpPoly] using h
-  exact Polynomial.natDegree_le_of_degree_le hdeg
+    (interpPoly v).natDegree ≤ n :=
+  Polynomial.natDegree_le_of_degree_le <| by
+    simpa [interpPoly] using Lagrange.degree_interpolate_le v (injOn_natNodes q (n + 1) hn)
 
 theorem eval_interpPoly {n : ℕ} (v : Fin (n + 1) → ZMod q) (hn : n + 1 ≤ q)
     (k : Fin (n + 1)) : (interpPoly v).eval (k.1 : ZMod q) = v k :=
@@ -244,22 +237,13 @@ theorem discrepancyPoly_ne_zero_of_not_productRelations {d₁ d₂ : PartyDeal q
     (hnot : ¬ ProductRelations d₁.triples d₂.triples) :
     discrepancyPoly d₁ d₂ ≠ 0 := by
   intro hzero
-  apply hnot
-  intro k
-  have hev := congrArg (Polynomial.eval ((k.1 + 1 : ℕ) : ZMod q)) hzero
+  refine hnot fun k => ?_
+  have hev := congrArg (Polynomial.eval (k.succ.1 : ZMod q)) hzero
   simp only [discrepancyPoly, Polynomial.eval_sub, Polynomial.eval_mul, Polynomial.eval_add,
-    Polynomial.eval_zero, sub_eq_zero, Nat.cast_add, Nat.cast_one] at hev
-  have hkA1 := eval_interpPoly d₁.a (by omega) k.succ
-  have hkA2 := eval_interpPoly d₂.a (by omega) k.succ
-  have hkB1 := eval_interpPoly d₁.b (by omega) k.succ
-  have hkB2 := eval_interpPoly d₂.b (by omega) k.succ
-  have hkC1 := eval_interpPoly d₁.c (by omega) ⟨k.1 + 1, by omega⟩
-  have hkC2 := eval_interpPoly d₂.c (by omega) ⟨k.1 + 1, by omega⟩
-  simp only [Fin.val_succ, Nat.cast_add, Nat.cast_one] at hkA1 hkA2 hkB1 hkB2
-  simp only [Nat.cast_add, Nat.cast_one] at hkC1 hkC2
-  dsimp [PartyDeal.triples, PartyDeal.polyA, PartyDeal.polyB, PartyDeal.polyC] at hev ⊢
-  rw [← hkA1, ← hkA2, ← hkB1, ← hkB2, ← hkC1, ← hkC2]
-  exact hev
+    Polynomial.eval_zero, sub_eq_zero, PartyDeal.polyA, PartyDeal.polyB, PartyDeal.polyC,
+    eval_interpPoly _ (by omega : m + 1 ≤ q) k.succ] at hev
+  rwa [show (k.succ.1 : ZMod q) = ((⟨k.1 + 1, by omega⟩ : Fin (2 * m + 1)).1 : ZMod q) from rfl,
+    eval_interpPoly d₁.c (by omega), eval_interpPoly d₂.c (by omega)] at hev
 
 end FieldProps
 
@@ -271,12 +255,10 @@ abbrev Challenge (q m : ℕ) : Type :=
 theorem card_challenge (q m : ℕ) [NeZero q] (hm : m + 1 ≤ q) :
     Fintype.card (Challenge q m) = q - m - 1 := by
   let S : Finset (ZMod q) := Finset.univ.image (natNodes q (m + 1))
-  have hcardS : S.card = m + 1 := by
-    rw [Finset.card_image_of_injOn (injOn_natNodes q (m + 1) hm), Finset.card_fin]
-  have hsub : Fintype.card (Challenge q m) = Fintype.card { r : ZMod q // r ∉ S } := by
-    refine Fintype.card_congr (Equiv.subtypeEquivRight fun r => ?_)
-    simp [S, natNodes, eq_comm]
-  rw [hsub, Fintype.card_subtype_compl, Fintype.card_coe, ZMod.card q, hcardS]
+  rw [Fintype.card_congr (Equiv.subtypeEquivRight fun r => by simp [S, natNodes, eq_comm] :
+      Challenge q m ≃ { r : ZMod q // r ∉ S }),
+    Fintype.card_subtype_compl, Fintype.card_coe, ZMod.card q,
+    Finset.card_image_of_injOn (injOn_natNodes q (m + 1) hm), Finset.card_fin]
   omega
 
 theorem nonempty_challenge (q m : ℕ) [NeZero q] (hm : m + 1 < q) :
@@ -416,44 +398,25 @@ theorem discrepancyPoly_eq_zero_of_productRelations {q m : ℕ} [Fact (Nat.Prime
     rw [show d₁.polyC.eval (k.1 : ZMod q) = d₁.c k from eval_interpPoly d₁.c (by omega) k,
       show d₂.polyC.eval (k.1 : ZMod q) = d₂.c k from eval_interpPoly d₂.c (by omega) k]
     by_cases hk0 : k.1 = 0
-    · have hk0_eq : k = 0 := Fin.ext hk0
-      rw [hk0_eq]
-      have hA1 := eval_interpPoly d₁.a (by omega) 0
-      have hA2 := eval_interpPoly d₂.a (by omega) 0
-      have hB1 := eval_interpPoly d₁.b (by omega) 0
-      have hB2 := eval_interpPoly d₂.b (by omega) 0
-      simp only [Fin.val_zero, Nat.cast_zero] at hA1 hA2 hB1 hB2
-      dsimp only [PartyDeal.polyA, PartyDeal.polyB]
-      simp only [Fin.val_zero, Nat.cast_zero, hA1, hA2, hB1, hB2]
-      simp only [d₁, d₂, DealerExtra.toDeal_a, DealerExtra.toDeal_b, Fin.cons_zero,
+    · obtain rfl : k = 0 := Fin.ext hk0
+      rw [show ((0 : Fin (2 * m + 1)).1 : ZMod q) = ((0 : Fin (m + 1)).1 : ZMod q) from rfl]
+      simp only [PartyDeal.polyA, PartyDeal.polyB, eval_interpPoly _ (by omega : m + 1 ≤ q) 0,
+        d₁, d₂, DealerExtra.toDeal_a, DealerExtra.toDeal_b, Fin.cons_zero,
         DealerExtra.toDeal_c_zero, honestC2_a0, honestC2_b0, honestC2_c0]
       ring
     · by_cases hk1 : k.1 ≤ m
       · let j : Fin m := ⟨k.1 - 1, by omega⟩
-        have hj1 : k.1 = j.1 + 1 := by simp [j]; omega
-        have hA1 := eval_interpPoly d₁.a (by omega) j.succ
-        have hA2 := eval_interpPoly d₂.a (by omega) j.succ
-        have hB1 := eval_interpPoly d₁.b (by omega) j.succ
-        have hB2 := eval_interpPoly d₂.b (by omega) j.succ
-        simp only [Fin.val_succ, ← hj1] at hA1 hA2 hB1 hB2
-        dsimp only [PartyDeal.polyA, PartyDeal.polyB]
-        rw [hA1, hA2, hB1, hB2]
-        simp only [d₁, d₂, DealerExtra.toDeal_a, DealerExtra.toDeal_b, Fin.cons_succ]
-        rw [DealerExtra.toDeal_c_of_le t₁ e₁ hk0 hk1,
-          DealerExtra.toDeal_c_of_le t₂ (honestC2 t₁ t₂ e₁ a02 b02) hk0 hk1]
+        rw [congrArg Nat.cast (by simp [j]; omega : k.1 = j.succ.1)]
+        simp only [PartyDeal.polyA, PartyDeal.polyB,
+          eval_interpPoly _ (by omega : m + 1 ≤ q) j.succ, d₁, d₂, DealerExtra.toDeal_a,
+          DealerExtra.toDeal_b, Fin.cons_succ, DealerExtra.toDeal_c_of_le _ _ hk0 hk1]
         exact hrel j
-      · let j : Fin m := ⟨k.1 - (m + 1), by omega⟩
-        have hj1 : m + 1 + j.1 = k.1 := by simp [j]; omega
-        have hlt : m < k.1 := by omega
+      · have hlt : m < k.1 := by omega
         rw [DealerExtra.toDeal_c_of_lt t₁ e₁ hlt,
           DealerExtra.toDeal_c_of_lt t₂ (honestC2 t₁ t₂ e₁ a02 b02) hlt]
-        simp only [d₂, honestC2_cTail, j, hj1]
-        have hd2A : (interpPoly (Fin.cons a02 fun x => (t₂ x).a)) = d₂.polyA := by
-          simp [d₂, PartyDeal.polyA]
-        have hd2B : (interpPoly (Fin.cons b02 fun x => (t₂ x).b)) = d₂.polyB := by
-          simp [d₂, PartyDeal.polyB]
-        rw [hd2A, hd2B]
-        simp only [d₁, Polynomial.eval_mul, Polynomial.eval_add]
+        simp only [d₁, d₂, honestC2_cTail, show m + 1 + (k.1 - (m + 1)) = k.1 by omega,
+          PartyDeal.polyA, PartyDeal.polyB, DealerExtra.toDeal_a, DealerExtra.toDeal_b,
+          honestC2_a0, honestC2_b0, Polynomial.eval_mul, Polynomial.eval_add]
         ring
   exact Polynomial.eq_zero_of_natDegree_lt_card_of_eval_eq_zero _ hinj heval
     (by rw [Fintype.card_fin]; exact Nat.lt_succ_of_le (discrepancyPoly_natDegree_le d₁ d₂ hm))
@@ -477,22 +440,17 @@ theorem eval_honestProtocol_eq_pure {q m : ℕ} [Fact (Nat.Prime q)] (hm : 2 * m
         let dd ← deal t₁ t₂
         honestPartiesRun q m hm dd.1 dd.2) =
       PMF.pure (true, true) := by
-  have hm' : m + 1 < q := succ_lt_of_two_mul_lt hm
-  have : Nonempty (Challenge q m) := nonempty_challenge q m hm'
-  have hsub : ProbComp.eval (do
-        let dd ← deal t₁ t₂
-        honestPartiesRun q m hm dd.1 dd.2) =
-      (ProbComp.eval (deal t₁ t₂)).bind fun _ => PMF.pure (true, true) := by
-    rw [ProbComp.eval_bind]
-    refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun dd hdd => ?_
-    simp only [deal, ProbComp.eval_bind, ProbComp.eval_pure, PMF.mem_support_bind_iff,
-      PMF.mem_support_pure_iff] at hdd
-    rcases hdd with ⟨e₁, _, a02, _, b02, _, hdd'⟩
-    rcases hdd'.symm with rfl
-    ext y
-    rw [honestPartiesRun, ProbComp.eval_bind]
-    refine Cslib.Probability.PMF.bind_apply_of_forall _ fun r => ?_
+  have : Nonempty (Challenge q m) := nonempty_challenge q m (succ_lt_of_two_mul_lt hm)
+  rw [ProbComp.eval_bind, show (ProbComp.eval (deal t₁ t₂)).bind
+      (fun dd => ProbComp.eval (honestPartiesRun q m hm dd.1 dd.2)) =
+      (ProbComp.eval (deal t₁ t₂)).bind (fun _ => PMF.pure (true, true)) from
+    Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun dd hdd => ?_, PMF.bind_const]
+  simp only [deal, ProbComp.eval_bind, ProbComp.eval_pure, PMF.mem_support_bind_iff,
+    PMF.mem_support_pure_iff] at hdd
+  obtain ⟨e₁, -, a02, -, b02, -, rfl⟩ := hdd
+  ext y
+  rw [honestPartiesRun, ProbComp.eval_bind]
+  exact Cslib.Probability.PMF.bind_apply_of_forall _ fun r => by
     rw [ProbComp.eval_pure, verifyPair_of_honest hm hrel e₁ a02 b02 r]
-  rw [hsub, PMF.bind_const]
 
 end Cslib.Crypto.Protocols.MPC.ProductRelation
