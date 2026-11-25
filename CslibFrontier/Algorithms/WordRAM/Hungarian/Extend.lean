@@ -82,8 +82,6 @@ theorem exec_extendCode {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ} {r j₁ 
   let tree' := vset s.tree i₀ true
   let bestRow' : Fin n → Fin n := fun j =>
     if vget used' j = false ∧ hgRed c s.y s.z i₀ j < vget s.minv j then i₀ else bestRow j
-  have hf_u1 : Fits w (bC + n * n + 3 * n + j₁.val) := hfit.of_le (by have := j₁.isLt; omega)
-  have hf_t0 : Fits w (bC + n * n + 4 * n + i₀.val) := hfit.of_le (by have := i₀.isLt; omega)
   have hstep₀ : ∃ y₀,
       ExecWithin w (ram[ addr ← baseUsed + rj1; *addr ← one; addr ← baseTree + ri0; *addr ← one ])
         x y₀ 4 ∧
@@ -91,7 +89,8 @@ theorem exec_extendCode {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ} {r j₁ 
       y₀.mem = Function.update (Function.update x.mem (bC + n * n + 3 * n + j₁.val) 1)
         (bC + n * n + 4 * n + i₀.val) 1 := by
     refine WP.exists_execWithin ?_
-    wram_exec [hb.hbaseUsed, hb.hbaseTree, hb.hone, hrj1, hri0, hf_u1, hf_t0]
+    have := j₁.isLt; have := i₀.isLt
+    wram_exec [hb.hbaseUsed, hb.hbaseTree, hb.hone, hrj1, hri0]
     exact ⟨fun i hi => by wram_simp, rfl⟩
   obtain ⟨y₀, he₀, hr₀, hm₀⟩ := hstep₀
   have hused₀ : ∀ j : Fin n, y₀.mem (bC + n * n + 3 * n + j.val) =
@@ -161,18 +160,16 @@ theorem exec_extendCode {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ} {r j₁ 
     have hred_nonneg : 0 ≤ hgRed c s.y s.z i₀ j := hSI.feas i₀ j
     have hred_eq' : C (i₀, j) + (-vget s.z j).toNat - (vget s.y i₀).toNat =
         (hgRed c s.y s.z i₀ j).toNat := hred_eq
-    have hf1 : Fits w (dB + y.regs idx) := hfit.of_le (by simp only [dB]; omega)
-    have hf2 : Fits w (bC + n * n + 3 * n + y.regs idx) := hfit.of_le (by omega)
-    have hf3 : Fits w (i₀.val * n) := hfit.of_le (by omega)
-    have hf4 : Fits w (i₀.val * n + y.regs idx) := hfit.of_le (by omega)
-    have hf5 : Fits w (bC + (i₀.val * n + y.regs idx)) := hfit.of_le (by omega)
-    have hf6 : Fits w (bC + n * n + n + y.regs idx) := hfit.of_le (by omega)
-    have hf7 : Fits w (C (i₀, j) + (-vget s.z j).toNat) := hfit.of_le (by omega)
-    have hf8 : Fits w (bC + n * n + i₀.val) := hfit.of_le (by have := i₀.isLt; omega)
-    have hf9 : Fits w (C (i₀, j) + (-vget s.z j).toNat - (vget s.y i₀).toNat) :=
-      hfit.of_le (by omega)
-    have hf10 : Fits w (bC + n * n + 5 * n + y.regs idx) := hfit.of_le (by omega)
-    have hf11 : Fits w (y.regs idx + 1) := hfit.of_le (by omega)
+    have hi0 := i₀.isLt
+    have hlt_iff : C (i₀, j) + (-vget s.z j).toNat - (vget s.y i₀).toNat < (vget s.minv j).toNat ↔
+        hgRed c s.y s.z i₀ j < vget s.minv j := by
+      rw [hred_eq']; omega
+    have heB : eB (y.regs idx) = if vget used' j = false ∧
+        C (i₀, j) + (-vget s.z j).toNat - (vget s.y i₀).toNat < (vget s.minv j).toNat
+        then i₀.val else (bestRow j).val := by
+      change (if hk : y.regs idx < n then (bestRow' ⟨y.regs idx, hk⟩).val else 0) = _
+      simp only [hlt, dite_true, hlt_iff]
+      exact apply_ite Fin.val _ _ _
     have hstep : ∃ z, ExecWithin w relaxBestRowBody y z 23 ∧
         z.mem = Function.update y.mem (dB + y.regs idx) (eB (y.regs idx)) ∧
         (∀ i : Fin 28, i.val < 21 → z.regs i = x.regs i) ∧
@@ -180,42 +177,15 @@ theorem exec_extendCode {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ} {r j₁ 
       refine WP.exists_execWithin ?_
       unfold relaxBestRowBody
       by_cases hu : vget used' j = true
-      · have hu_val : (if vget used' j = true then 1 else 0) = 1 := ite_eq_left hu
-        have heq_e : (bestRow j).val = eB (y.regs idx) := by
-          simp only [eB, hlt, dite_true]
-          change _ = (bestRow' j).val
-          simp [bestRow', hu]
-        wram_exec [hby.hbaseBestRow, hby.hbaseUsed, hby.hzero, hby.hone,
-          hbest_j, hu_j, hu_val, hf1, hf2, hf11]
-        exact ⟨by wram_simp [dB, heq_e], fun i hi => by wram_simp [hr i hi], by wram_simp⟩
+      · wram_exec [hby.hbaseBestRow, hby.hbaseUsed, hby.hzero, hby.hone, hbest_j, hu_j, hu]
+        exact ⟨by wram_simp [dB, heB, hu, Bool.true_eq_false, false_and],
+          fun i hi => by wram_simp [hr i hi], by wram_simp⟩
       · have huf : vget used' j = false := Bool.eq_false_iff.mpr hu
-        have hu_val : (if vget used' j = true then 1 else 0) = 0 := ite_eq_right hu
-        by_cases hlt_r : C (i₀, j) + (-vget s.z j).toNat - (vget s.y i₀).toNat <
-            (vget s.minv j).toNat
-        · have hlt_z : hgRed c s.y s.z i₀ j < vget s.minv j := by
-            rw [hred_eq'] at hlt_r
-            omega
-          have heq_e : i₀.val = eB (y.regs idx) := by
-            simp only [eB, hlt, dite_true]
-            change _ = (bestRow' j).val
-            simp [bestRow', huf, hlt_z]
-          wram_exec [hby.hbaseBestRow, hby.hbaseUsed, hby.hzero, hby.hone, hby.hrn, hby.hbaseC,
-            hby.hbaseNZ, hby.hbaseY, hby.hbaseMinv, hri0_y, hbest_j, hu_j, hu_val,
-            hC_ij, hnz_j, hy_i, hm_j, hle_sub, hlt_r,
-            hf1, hf2, hf3, hf4, hf5, hf6, hf7, hf8, hf9, hf10, hf11]
-          exact ⟨by wram_simp [dB, heq_e], fun i hi => by wram_simp [hr i hi], by wram_simp⟩
-        · have hlt_z : ¬hgRed c s.y s.z i₀ j < vget s.minv j := by
-            rw [hred_eq'] at hlt_r
-            omega
-          have heq_e : (bestRow j).val = eB (y.regs idx) := by
-            simp only [eB, hlt, dite_true]
-            change _ = (bestRow' j).val
-            simp [bestRow', huf, hlt_z]
-          wram_exec [hby.hbaseBestRow, hby.hbaseUsed, hby.hzero, hby.hone, hby.hrn, hby.hbaseC,
-            hby.hbaseNZ, hby.hbaseY, hby.hbaseMinv, hri0_y, hbest_j, hu_j, hu_val,
-            hC_ij, hnz_j, hy_i, hm_j, hle_sub, hlt_r,
-            hf1, hf2, hf3, hf4, hf5, hf6, hf7, hf8, hf9, hf10, hf11]
-          exact ⟨by wram_simp [dB, heq_e], fun i hi => by wram_simp [hr i hi], by wram_simp⟩
+        wram_exec [hby.hbaseBestRow, hby.hbaseUsed, hby.hzero, hby.hone, hby.hrn, hby.hbaseC,
+          hby.hbaseNZ, hby.hbaseY, hby.hbaseMinv, hri0_y, hbest_j, hu_j, huf, hC_ij, hnz_j, hy_i,
+          hm_j, hle_sub]
+        all_goals
+          exact ⟨by wram_simp [dB, heB, huf, hc], fun i hi => by wram_simp [hr i hi], by wram_simp⟩
     obtain ⟨z, he, hmz, hrz, hiz⟩ := hstep
     obtain ⟨hm', hf'⟩ := prefix_write_step hm hf hmz
     exact ⟨z, he, ⟨hrz, hm', hf'⟩, hiz⟩
@@ -270,21 +240,23 @@ theorem exec_extendCode {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ} {r j₁ 
     have hred_nonneg : 0 ≤ hgRed c s.y s.z i₀ j := hSI.feas i₀ j
     have hred_eq' : C (i₀, j) + (-vget s.z j).toNat - (vget s.y i₀).toNat =
         (hgRed c s.y s.z i₀ j).toNat := hred_eq
-    have hf1 : Fits w (dM + y.regs idx) := hfit.of_le (by simp only [dM]; omega)
-    have hf2 : Fits w (bC + n * n + 3 * n + y.regs idx) := hfit.of_le (by omega)
-    have hf3 : Fits w (i₀.val * n) := hfit.of_le (by omega)
-    have hf4 : Fits w (i₀.val * n + y.regs idx) := hfit.of_le (by omega)
-    have hf5 : Fits w (bC + (i₀.val * n + y.regs idx)) := hfit.of_le (by omega)
-    have hf6 : Fits w (bC + n * n + n + y.regs idx) := hfit.of_le (by omega)
-    have hf7 : Fits w (C (i₀, j) + (-vget s.z j).toNat) := hfit.of_le (by omega)
-    have hf8 : Fits w (bC + n * n + i₀.val) := hfit.of_le (by have := i₀.isLt; omega)
-    have hf9 : Fits w (C (i₀, j) + (-vget s.z j).toNat - (vget s.y i₀).toNat) :=
-      hfit.of_le (by omega)
-    have hf10 : Fits w (y.regs idx + 1) := hfit.of_le (by omega)
+    have hi0 := i₀.isLt
     have hminv_ext : vget (hgExtend c s j₁ i₀).minv j =
         if vget used' j = true then vget s.minv j
         else min (vget s.minv j) (hgRed c s.y s.z i₀ j) := by
       simpa only [hgExtend] using hgRelax_minv (c := c) _ i₀ j₁ j
+    have heM : eM (y.regs idx) = if vget used' j = false ∧
+        C (i₀, j) + (-vget s.z j).toNat - (vget s.y i₀).toNat < (vget s.minv j).toNat
+        then C (i₀, j) + (-vget s.z j).toNat - (vget s.y i₀).toNat else (vget s.minv j).toNat := by
+      change (if hk : y.regs idx < n then
+        (vget (hgExtend c s j₁ i₀).minv ⟨y.regs idx, hk⟩).toNat else 0) = _
+      simp only [hlt, dite_true]
+      change (vget (hgExtend c s j₁ i₀).minv j).toNat = _
+      rw [hminv_ext, hred_eq']
+      by_cases hu : vget used' j = true
+      · simp only [hu, ↓reduceIte, Bool.true_eq_false, false_and]
+      · simp only [Bool.eq_false_iff.mpr hu, Bool.false_eq_true, ↓reduceIte, true_and, min_def]
+        split_ifs <;> omega
     have hstep : ∃ z, ExecWithin w relaxMinvBody y z 21 ∧
         z.mem = Function.update y.mem (dM + y.regs idx) (eM (y.regs idx)) ∧
         (∀ i : Fin 28, i.val < 21 → z.regs i = x.regs i) ∧
@@ -292,41 +264,14 @@ theorem exec_extendCode {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ} {r j₁ 
       refine WP.exists_execWithin ?_
       unfold relaxMinvBody
       by_cases hu : vget used' j = true
-      · have hu_val : (if vget used' j = true then 1 else 0) = 1 := ite_eq_left hu
-        have heq_e : (vget s.minv j).toNat = eM (y.regs idx) := by
-          simp only [eM, hlt, dite_true]
-          change _ = (vget (hgExtend c s j₁ i₀).minv j).toNat
-          rw [hminv_ext, ite_eq_left hu]
-        wram_exec [hby.hbaseMinv, hby.hbaseUsed, hby.hzero, hby.hone,
-          hm_j, hu_j, hu_val, hf1, hf2, hf10]
-        exact ⟨by wram_simp [dM, heq_e], fun i hi => by wram_simp [hr i hi], by wram_simp⟩
-      · have hu_val : (if vget used' j = true then 1 else 0) = 0 := ite_eq_right hu
-        by_cases hlt_r : C (i₀, j) + (-vget s.z j).toNat - (vget s.y i₀).toNat <
-            (vget s.minv j).toNat
-        · have heq_e : C (i₀, j) + (-vget s.z j).toNat - (vget s.y i₀).toNat =
-              eM (y.regs idx) := by
-            simp only [eM, hlt, dite_true]
-            change _ = (vget (hgExtend c s j₁ i₀).minv j).toNat
-            rw [hminv_ext, ite_eq_right hu, hred_eq']
-            simp only [min_def]
-            split_ifs <;> omega
-          wram_exec [hby.hbaseMinv, hby.hbaseUsed, hby.hzero, hby.hone, hby.hrn, hby.hbaseC,
-            hby.hbaseNZ, hby.hbaseY, hri0_y, hm_j, hu_j, hu_val,
-            hC_ij, hnz_j, hy_i, hle_sub, hlt_r,
-            hf1, hf2, hf3, hf4, hf5, hf6, hf7, hf8, hf9, hf10]
-          exact ⟨by wram_simp [dM, heq_e], fun i hi => by wram_simp [hr i hi], by wram_simp⟩
-        · have heq_e : (vget s.minv j).toNat = eM (y.regs idx) := by
-            simp only [eM, hlt, dite_true]
-            change _ = (vget (hgExtend c s j₁ i₀).minv j).toNat
-            rw [hminv_ext, ite_eq_right hu]
-            rw [hred_eq'] at hlt_r
-            simp only [min_def]
-            split_ifs <;> omega
-          wram_exec [hby.hbaseMinv, hby.hbaseUsed, hby.hzero, hby.hone, hby.hrn, hby.hbaseC,
-            hby.hbaseNZ, hby.hbaseY, hri0_y, hm_j, hu_j, hu_val,
-            hC_ij, hnz_j, hy_i, hle_sub, hlt_r,
-            hf1, hf2, hf3, hf4, hf5, hf6, hf7, hf8, hf9, hf10]
-          exact ⟨by wram_simp [dM, heq_e], fun i hi => by wram_simp [hr i hi], by wram_simp⟩
+      · wram_exec [hby.hbaseMinv, hby.hbaseUsed, hby.hzero, hby.hone, hm_j, hu_j, hu]
+        exact ⟨by wram_simp [dM, heM, hu, Bool.true_eq_false, false_and],
+          fun i hi => by wram_simp [hr i hi], by wram_simp⟩
+      · have huf : vget used' j = false := Bool.eq_false_iff.mpr hu
+        wram_exec [hby.hbaseMinv, hby.hbaseUsed, hby.hzero, hby.hone, hby.hrn, hby.hbaseC,
+          hby.hbaseNZ, hby.hbaseY, hri0_y, hm_j, hu_j, huf, hC_ij, hnz_j, hy_i, hle_sub]
+        all_goals
+          exact ⟨by wram_simp [dM, heM, huf, hc], fun i hi => by wram_simp [hr i hi], by wram_simp⟩
     obtain ⟨z, he, hmz, hrz, hiz⟩ := hstep
     obtain ⟨hm', hf'⟩ := prefix_write_step hm hf hmz
     exact ⟨z, he, ⟨hrz, hm', hf'⟩, hiz⟩
