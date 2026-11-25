@@ -62,14 +62,20 @@ theorem arg_parabolaChord_lt_iff {a b c : ℝ} (ha : 0 ≤ a) (hab : a < b) (hac
     (parabolaPoint b - parabolaPoint a).arg <
       (parabolaPoint c - parabolaPoint a).arg ↔ b < c := by
   have him {x : ℝ} (hx : a < x) : 0 < (parabolaPoint x - parabolaPoint a).im := by
-    change 0 < x ^ 2 - a ^ 2; nlinarith [mul_pos (sub_pos.mpr hx) (show 0 < x + a by linarith)]
-  have hb := him hab; have hc := him hac
-  rw [arg_lt_arg_iff_det_pos hb.ne' hc.ne' (iff_of_false (not_lt.mpr hb.le) (not_lt.mpr hc.le)),
-    show (parabolaPoint b - parabolaPoint a).re * (parabolaPoint c - parabolaPoint a).im -
+    change 0 < x ^ 2 - a ^ 2
+    have hsum : 0 < x + a := by linarith
+    nlinarith only [mul_pos (sub_pos.mpr hx) hsum]
+  have hb := him hab
+  have hc := him hac
+  rw [arg_lt_arg_iff_det_pos hb.ne' hc.ne'
+    (iff_of_false (not_lt.mpr hb.le) (not_lt.mpr hc.le))]
+  have hdet :
+      (parabolaPoint b - parabolaPoint a).re * (parabolaPoint c - parabolaPoint a).im -
         (parabolaPoint b - parabolaPoint a).im * (parabolaPoint c - parabolaPoint a).re =
-        ((b - a) * (c - a)) * (c - b) by
-      simp only [parabolaPoint, Complex.sub_re, Complex.sub_im]; ring,
-    mul_pos_iff_of_pos_left (mul_pos (sub_pos.mpr hab) (sub_pos.mpr hac)), sub_pos]
+          ((b - a) * (c - a)) * (c - b) := by
+    simp only [parabolaPoint, Complex.sub_re, Complex.sub_im]
+    ring
+  rw [hdet, mul_pos_iff_of_pos_left (mul_pos (sub_pos.mpr hab) (sub_pos.mpr hac)), sub_pos]
 
 private noncomputable def chordMap (a b : ℝ) : ℝ →ᵃ[ℝ] ℂ :=
   AffineMap.lineMap (⟨0, -a * b⟩ : ℂ) ⟨1, a + b - a * b⟩
@@ -97,20 +103,33 @@ theorem mem_openChord_iff {a b : ℝ} (hab : a ≠ b) (z : ℂ) :
     z ∈ openSegment ℝ (parabolaPoint a) (parabolaPoint b) ↔
       z.re ∈ Set.Ioo (min a b) (max a b) ∧ z.im = (a + b) * z.re - a * b := by
   rw [openChord_eq_image, openSegment_eq_Ioo' hab]
-  exact ⟨fun ⟨x, hx, h⟩ => by rw [← h, chordMap_apply]; exact ⟨hx, rfl⟩,
-    fun ⟨hx, hy⟩ => ⟨z.re, hx, by rw [chordMap_apply]; exact Complex.ext rfl hy.symm⟩⟩
+  constructor
+  · rintro ⟨x, hx, rfl⟩
+    rw [chordMap_apply]
+    exact ⟨hx, rfl⟩
+  · rintro ⟨hx, hy⟩
+    refine ⟨z.re, hx, ?_⟩
+    rw [chordMap_apply]
+    exact Complex.ext rfl hy.symm
 
 /-- A closed chord contains only its two parabola endpoints, even when they coincide. -/
 theorem parabolaPoint_mem_segment_iff (a b x : ℝ) :
     parabolaPoint x ∈ segment ℝ (parabolaPoint a) (parabolaPoint b) ↔ x = a ∨ x = b := by
-  refine ⟨fun hx => ?_, fun h => h.elim (· ▸ left_mem_segment ℝ _ _) (· ▸ right_mem_segment ℝ _ _)⟩
-  have himage := image_segment ℝ (chordMap a b) a b
-  rw [chordMap_left, chordMap_right] at himage
-  obtain ⟨y, -, hy⟩ := himage.symm ▸ hx
-  rw [chordMap_apply, parabolaPoint, Complex.ext_iff] at hy; dsimp only at hy
-  rcases hy with ⟨rfl, hy⟩
-  exact (mul_eq_zero.mp (show (y - a) * (y - b) = 0 by linarith)).imp
-    sub_eq_zero.mp sub_eq_zero.mp
+  constructor
+  · intro hx
+    have himage := image_segment ℝ (chordMap a b) a b
+    rw [chordMap_left, chordMap_right] at himage
+    obtain ⟨y, _, hy⟩ := himage.symm ▸ hx
+    have hre := congrArg Complex.re hy
+    have him := congrArg Complex.im hy
+    rw [chordMap_apply] at hre him
+    change y = x at hre
+    change (a + b) * y - a * b = x ^ 2 at him
+    have hprod : (x - a) * (x - b) = 0 := by rw [hre] at him; nlinarith only [him]
+    exact (mul_eq_zero.mp hprod).imp sub_eq_zero.mp sub_eq_zero.mp
+  · rintro (rfl | rfl)
+    · exact left_mem_segment ℝ _ _
+    · exact right_mem_segment ℝ _ _
 
 private noncomputable def chordResidual (a b : ℝ) : ℂ →ᵃ[ℝ] ℝ :=
   (a + b) • Complex.reCLM.toLinearMap.toAffineMap - AffineMap.const ℝ ℂ (a * b) -
@@ -118,25 +137,37 @@ private noncomputable def chordResidual (a b : ℝ) : ℂ →ᵃ[ℝ] ℝ :=
 
 private theorem residual_parabola (a b x : ℝ) :
     chordResidual a b (parabolaPoint x) = (x - a) * (b - x) := by
-  change (a + b) * x - a * b - x ^ 2 = _; ring
+  change (a + b) * x - a * b - x ^ 2 = _
+  ring
 
 private theorem residual_ne_zero {a b x : ℝ} (hax : a ≠ x) (hbx : b ≠ x) :
-    chordResidual a b (parabolaPoint x) ≠ 0 :=
-  residual_parabola a b x ▸ mul_ne_zero (sub_ne_zero.mpr hax.symm) (sub_ne_zero.mpr hbx)
+    chordResidual a b (parabolaPoint x) ≠ 0 := by
+  rw [residual_parabola]
+  exact mul_ne_zero (sub_ne_zero.mpr hax.symm) (sub_ne_zero.mpr hbx)
 
 private theorem residual_pos_iff (a b x : ℝ) :
     0 < chordResidual a b (parabolaPoint x) ↔ x ∈ Set.Ioo (min a b) (max a b) := by
   rw [residual_parabola, mul_pos_iff]
   simp only [sub_pos, sub_neg, Set.mem_Ioo]
-  rcases le_total a b with hab | hab <;>
-    simp only [min_eq_left, max_eq_right, min_eq_right, max_eq_left, hab]
-  · exact ⟨fun h => h.elim id fun h => by linarith, .inl⟩
-  · exact ⟨fun h => h.elim (fun h => by linarith) fun h => ⟨h.2, h.1⟩, fun h => .inr ⟨h.2, h.1⟩⟩
+  rcases le_total a b with hab | hab
+  · rw [min_eq_left hab, max_eq_right hab]
+    constructor
+    · rintro (h | h)
+      · exact h
+      · exfalso; linarith [h.1, h.2]
+    · exact Or.inl
+  · rw [min_eq_right hab, max_eq_left hab]
+    constructor
+    · rintro (h | h)
+      · exfalso; linarith [h.1, h.2]
+      · exact ⟨h.2, h.1⟩
+    · exact fun h => Or.inr ⟨h.2, h.1⟩
 
 private theorem im_gt_sq_of_mem_openChord {a b : ℝ} (hab : a ≠ b) {z : ℂ}
     (hz : z ∈ openSegment ℝ (parabolaPoint a) (parabolaPoint b)) : z.re ^ 2 < z.im := by
   obtain ⟨hbetween, hline⟩ := (mem_openChord_iff hab z).mp hz
-  have hpos := residual_parabola a b z.re ▸ (residual_pos_iff a b z.re).mpr hbetween
+  have hpos := (residual_pos_iff a b z.re).mpr hbetween
+  rw [residual_parabola] at hpos
   nlinarith only [hpos, hline]
 
 private theorem openChord_inter_nonempty_iff {a b c d : ℝ}
@@ -146,31 +177,46 @@ private theorem openChord_inter_nonempty_iff {a b c d : ℝ}
       openSegment ℝ (parabolaPoint c) (parabolaPoint d)).Nonempty ↔
         Xor (c ∈ Set.Ioo (min a b) (max a b)) (d ∈ Set.Ioo (min a b) (max a b)) := by
   let f := (chordResidual a b).comp (chordMap c d)
-  have hc : f c = chordResidual a b (parabolaPoint c) :=
-    congrArg (chordResidual a b) (chordMap_left c d)
-  have hd : f d = chordResidual a b (parabolaPoint d) :=
-    congrArg (chordResidual a b) (chordMap_right c d)
+  have hc : f c = chordResidual a b (parabolaPoint c) := by
+    change chordResidual a b (chordMap c d c) = _
+    rw [chordMap_left]
+  have hd : f d = chordResidual a b (parabolaPoint d) := by
+    change chordResidual a b (chordMap c d d) = _
+    rw [chordMap_right]
+  have hc0 : f c ≠ 0 := by rw [hc]; exact residual_ne_zero hac hbc
+  have hd0 : f d ≠ 0 := by rw [hd]; exact residual_ne_zero had hbd
   have hsign : 0 ∈ openSegment ℝ (f c) (f d) ↔
       Xor (c ∈ Set.Ioo (min a b) (max a b)) (d ∈ Set.Ioo (min a b) (max a b)) := by
-    rw [Cslib.zero_mem_openSegment_iff_xor_pos (hc ▸ residual_ne_zero hac hbc)
-      (hd ▸ residual_ne_zero had hbd), hc, hd, residual_pos_iff, residual_pos_iff]
-  rw [← hsign, ← image_openSegment ℝ f c d]
-  refine ⟨fun ⟨z, hz, hw⟩ => ?_, fun ⟨x, hx, hfx⟩ => ?_⟩
-  · obtain ⟨x, hx, hzx⟩ := openChord_eq_image c d ▸ hw
+    rw [Cslib.zero_mem_openSegment_iff_xor_pos hc0 hd0, hc, hd, residual_pos_iff,
+      residual_pos_iff]
+  constructor
+  · rintro ⟨z, hz, hw⟩
+    apply hsign.mp
+    rw [← image_openSegment ℝ f c d]
+    obtain ⟨x, hx, hzx⟩ := openChord_eq_image c d ▸ hw
     refine ⟨x, hx, ?_⟩
+    have hline := ((mem_openChord_iff hab z).mp hz).2
     change chordResidual a b (chordMap c d x) = 0
-    rw [hzx]; change (a + b) * z.re - a * b - z.im = 0
-    linarith only [((mem_openChord_iff hab z).mp hz).2]
-  · have hcdz : chordMap c d x ∈ openSegment ℝ (parabolaPoint c) (parabolaPoint d) :=
-      openChord_eq_image c d ▸ ⟨x, hx, rfl⟩
-    have hline : (chordMap c d x).im = (a + b) * (chordMap c d x).re - a * b := by
-      change (a + b) * (chordMap c d x).re - a * b - (chordMap c d x).im = 0 at hfx
+    rw [hzx]
+    change (a + b) * z.re - a * b - z.im = 0
+    linarith only [hline]
+  · intro h
+    have hzero := hsign.mpr h
+    rw [← image_openSegment ℝ f c d] at hzero
+    obtain ⟨x, hx, hfx⟩ := hzero
+    let z := chordMap c d x
+    have hcdz : z ∈ openSegment ℝ (parabolaPoint c) (parabolaPoint d) := by
+      rw [openChord_eq_image]
+      exact ⟨x, hx, rfl⟩
+    have hline : z.im = (a + b) * z.re - a * b := by
+      change (a + b) * z.re - a * b - z.im = 0 at hfx
       linarith only [hfx]
-    have hpos : 0 < chordResidual a b (parabolaPoint (chordMap c d x).re) := by
-      change 0 < (a + b) * (chordMap c d x).re - a * b - (chordMap c d x).re ^ 2
-      linarith only [hline, im_gt_sq_of_mem_openChord hcd hcdz]
-    exact ⟨chordMap c d x,
-      (mem_openChord_iff hab _).mpr ⟨(residual_pos_iff a b _).mp hpos, hline⟩, hcdz⟩
+    have hpos : 0 < chordResidual a b (parabolaPoint z.re) := by
+      have hstrict := im_gt_sq_of_mem_openChord hcd hcdz
+      change 0 < (a + b) * z.re - a * b - z.re ^ 2
+      linarith only [hline, hstrict]
+    refine ⟨z, ?_, hcdz⟩
+    exact (mem_openChord_iff hab z).mpr ⟨(residual_pos_iff a b z.re).mp hpos, hline⟩
 
 /-- Supporting slopes differ when two nondegenerate parabola chords have a common open
 point and the first endpoint of the second differs from both endpoints of the first. -/
@@ -179,12 +225,15 @@ theorem parabolaChord_slope_ne_of_mem_inter {a b c d : ℝ}
     (hz : z ∈ openSegment ℝ (parabolaPoint a) (parabolaPoint b))
     (hz' : z ∈ openSegment ℝ (parabolaPoint c) (parabolaPoint d)) :
     a + b ≠ c + d := by
-  intro hsum
   have hza := ((mem_openChord_iff hab z).mp hz).2
   have hzc := ((mem_openChord_iff hcd z).mp hz').2
-  rw [show d = a + b - c by linarith] at hzc
-  exact mul_ne_zero (sub_ne_zero.mpr hac.symm) (sub_ne_zero.mpr hbc.symm)
-    (show (c - a) * (c - b) = 0 by nlinarith only [hza, hzc])
+  apply sub_ne_zero.mp
+  intro hsum
+  have hsumz : (a + b - (c + d)) * z.re = 0 := by rw [hsum, zero_mul]
+  have hsumc : (a + b - (c + d)) * c = 0 := by rw [hsum, zero_mul]
+  have hprod : (c - a) * (c - b) = 0 := by
+    nlinarith only [hsumz, hsumc, hza, hzc]
+  exact (mul_ne_zero (sub_ne_zero.mpr hac.symm) (sub_ne_zero.mpr hbc.symm)) hprod
 
 /-- Two nondegenerate parabola chords have at most one common interior point when the
 first endpoint of the second chord differs from both endpoints of the first. The other
@@ -198,9 +247,11 @@ theorem parabolaChord_inter_subsingleton {a b c d : ℝ}
   have hzc := ((mem_openChord_iff hcd z).mp hz.2).2
   have hwa := ((mem_openChord_iff hab w).mp hw.1).2
   have hwc := ((mem_openChord_iff hcd w).mp hw.2).2
-  have hre : z.re = w.re := sub_eq_zero.mp ((mul_eq_zero.mp (show (a + b - (c + d)) *
-    (z.re - w.re) = 0 by nlinarith only [hza, hzc, hwa, hwc])).resolve_left
-      (sub_ne_zero.mpr (parabolaChord_slope_ne_of_mem_inter hab hcd hac hbc hz.1 hz.2)))
+  have hslope : a + b - (c + d) ≠ 0 := sub_ne_zero.mpr
+    (parabolaChord_slope_ne_of_mem_inter hab hcd hac hbc hz.1 hz.2)
+  have hprod : (a + b - (c + d)) * (z.re - w.re) = 0 := by
+    nlinarith only [hza, hzc, hwa, hwc]
+  have hre : z.re = w.re := sub_eq_zero.mp ((mul_eq_zero.mp hprod).resolve_left hslope)
   exact Complex.ext hre (by rw [hza, hwa, hre])
 
 /-- Four distinct parabola endpoints have exactly one common chord-interior point precisely
@@ -211,9 +262,12 @@ theorem existsUnique_parabolaChord_inter_iff {a b c d : ℝ}
     (hbc : b ≠ c) (hbd : b ≠ d) :
     (∃! z : ℂ, z ∈ openSegment ℝ (parabolaPoint a) (parabolaPoint b) ∧
       z ∈ openSegment ℝ (parabolaPoint c) (parabolaPoint d)) ↔
-        Xor (c ∈ Set.Ioo (min a b) (max a b)) (d ∈ Set.Ioo (min a b) (max a b)) :=
-  ⟨fun ⟨z, hz, _⟩ => (openChord_inter_nonempty_iff hab hcd hac had hbc hbd).mp ⟨z, hz⟩, fun h => by
+        Xor (c ∈ Set.Ioo (min a b) (max a b)) (d ∈ Set.Ioo (min a b) (max a b)) := by
+  constructor
+  · rintro ⟨z, hz, _⟩
+    exact (openChord_inter_nonempty_iff hab hcd hac had hbc hbd).mp ⟨z, hz⟩
+  · intro h
     obtain ⟨z, hz⟩ := (openChord_inter_nonempty_iff hab hcd hac had hbc hbd).mpr h
-    exact ⟨z, hz, fun w hw => parabolaChord_inter_subsingleton hab hcd hac hbc hw hz⟩⟩
+    exact ⟨z, hz, fun w hw => parabolaChord_inter_subsingleton hab hcd hac hbc hw hz⟩
 
 end Cslib.Polygonal
