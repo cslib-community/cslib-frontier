@@ -96,33 +96,21 @@ private theorem FWInv.step {S : Set V} {D : Matrix V V (MinTropical R)} (h : FWI
         rfl
       have hnd₁ : (i :: (s ++ [k])).Nodup := hnd.sublist (by simp)
       have hnd₂ : (k :: u).Nodup := hnd.sublist (by simp)
-      have hS₁ : ∀ v ∈ (s ++ [k]).dropLast, v ∈ S := by
-        intro v hv
+      have hS₁ : ∀ v ∈ (s ++ [k]).dropLast, v ∈ S := fun v hv => by
         rw [List.dropLast_concat] at hv
-        have hvk : v ≠ k := by
-          intro he
-          rw [he] at hv
-          have : (s ++ k :: u).Nodup := (List.nodup_cons.1 hnd).2
-          exact (List.nodup_append.1 this).2.2 k hv k (by simp) rfl
-        have := hS v (by
-          rw [List.dropLast_append_of_ne_nil (by simp)]
-          exact List.mem_append_left _ hv)
-        simpa [hvk] using this
-      have hS₂ : ∀ v ∈ u.dropLast, v ∈ S := by
-        intro v hv
-        have hvk : v ≠ k := by
-          intro he
-          rw [he] at hv
-          exact (List.nodup_cons.1 hnd₂).1 (List.dropLast_subset _ hv)
+        have hvk : v ≠ k := fun he =>
+          (List.nodup_append.1 (List.nodup_cons.1 hnd).2).2.2 k (he ▸ hv) k List.mem_cons_self rfl
         have hmem : v ∈ (s ++ k :: u).dropLast := by
           rw [List.dropLast_append_of_ne_nil (List.cons_ne_nil _ _)]
-          apply List.mem_append_right
-          cases u with
-          | nil => simp at hv
-          | cons a u' =>
-            rw [List.dropLast_cons_of_ne_nil (List.cons_ne_nil _ _)]
-            exact List.mem_cons_of_mem _ hv
-        simpa [hvk] using hS v hmem
+          exact List.mem_append_left _ hv
+        exact (Set.mem_insert_iff.1 (hS v hmem)).resolve_left hvk
+      have hS₂ : ∀ v ∈ u.dropLast, v ∈ S := fun v hv => by
+        have hvk : v ≠ k := fun he => (List.nodup_cons.1 hnd₂).1 (he ▸ List.dropLast_subset _ hv)
+        have hmem : v ∈ (s ++ k :: u).dropLast := by
+          rw [List.dropLast_append_of_ne_nil (List.cons_ne_nil _ _),
+            List.dropLast_cons_of_ne_nil (by rintro rfl; simp at hv)]
+          exact List.mem_append_right _ (List.mem_cons_of_mem _ hv)
+        exact (Set.mem_insert_iff.1 (hS v hmem)).resolve_left hvk
       have h1 := h.complete i (s ++ [k]) hnd₁ hS₁
       have h2 := h.complete k u hnd₂ hS₂
       rw [hlast₁] at h1
