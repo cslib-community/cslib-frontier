@@ -1356,8 +1356,7 @@ theorem Network.Flow.isMinCostOfValue_iff_isMinCost [Fintype V] [DecidableEq V]
       · exact (f.value_eq_zero_of_s_eq_t hst).symm
       · rfl
     exact hmin g.toNetworkFlow hgval
-  · intro hmin g hg
-    exact hmin (g.toCostFlowOfVal cost hg)
+  · exact fun hmin g hg => hmin (g.toCostFlowOfVal cost hg)
 
 /-- **Klein's negative-cycle optimality theorem for `s`-`t` flows** ([Klein1967], pp. 205–220,
 locator not re-verified against primary PDF): an `s`-`t` flow `f` has minimum cost among all flows
