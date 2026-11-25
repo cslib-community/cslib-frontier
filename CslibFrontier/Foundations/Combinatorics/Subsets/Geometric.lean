@@ -42,15 +42,11 @@ private theorem one_add_pow_le_two_of_mul_le_half {q : ℝ} {n : ℕ}
   have hB := one_add_mul_le_pow (a := -q) (by linarith) n
   have hprod : (1 + q) ^ n * (1 - q) ^ n ≤ 1 := by
     rw [← mul_pow]
-    apply pow_le_one₀
-    · nlinarith
-    · nlinarith
+    exact pow_le_one₀ (by nlinarith) (by nlinarith)
   have hmul := mul_le_mul_of_nonneg_left hB (pow_nonneg (by linarith : 0 ≤ 1 + q) n)
-  have hnonneg : 0 ≤ (1 + q) ^ n := pow_nonneg (by linarith) n
   have hhalf : (1 + q) ^ n * (1 / 2) ≤ (1 + q) ^ n * (1 + n * -q) := by gcongr; linarith
-  have hsame : (1 + -q) ^ n = (1 - q) ^ n := by rw [sub_eq_add_neg]
-  rw [hsame] at hmul
-  linarith
+  rw [← sub_eq_add_neg] at hmul
+  linarith [pow_nonneg (by linarith : 0 ≤ 1 + q) n]
 
 /-- The total geometric weight of nonempty subsets is at most one if `card s * q ≤ 1 / 2`.
 The empty ambient set is allowed. -/
@@ -77,24 +73,17 @@ theorem card_filter_card_lt_add_one_le_pow {α : Type*} [Fintype α]
     (hn : 2 ≤ Fintype.card α) (t : ℕ) :
     #{S : Finset α | S.card < t} + 1 ≤ Fintype.card α ^ t := by
   classical
-  have hsum : ∀ k : ℕ,
-      (∑ j ∈ range k, Fintype.card α ^ j) + 1 ≤ Fintype.card α ^ k := by
-    intro k
-    rw [Nat.geomSum_eq hn k]
-    have hdiv := Nat.div_le_self (Fintype.card α ^ k - 1) (Fintype.card α - 1)
-    have hpos : 0 < Fintype.card α ^ k := pow_pos (by omega) k
-    omega
   cases t with
   | zero => simp
   | succ t =>
-    have heq : #{S : Finset α | S.card < t + 1} =
-        ∑ j ∈ range (t + 1), (Fintype.card α).choose j := by
-      simpa only [Nat.lt_succ_iff] using card_filter_card_le_eq_sum_choose (α := α) t
-    rw [heq]
+    simp only [Nat.lt_succ_iff, card_filter_card_le_eq_sum_choose]
     have hchoose : (∑ j ∈ range (t + 1), (Fintype.card α).choose j) ≤
         ∑ j ∈ range (t + 1), Fintype.card α ^ j :=
       sum_le_sum fun j _ => Nat.choose_le_pow _ _
-    exact (Nat.add_le_add_right hchoose 1).trans (hsum (t + 1))
+    have hdiv := Nat.div_le_self (Fintype.card α ^ (t + 1) - 1) (Fintype.card α - 1)
+    have hpos : 0 < Fintype.card α ^ (t + 1) := pow_pos (by omega) (t + 1)
+    rw [Nat.geomSum_eq hn] at hchoose
+    omega
 
 /-- The small-subset estimate with an ambient upper bound on the ground-set cardinality.
 This includes ground sets of size zero or one when the ambient bound is at least two. -/
@@ -108,9 +97,7 @@ theorem card_filter_card_lt_add_one_le_pow_of_card_le {α : Type*} [Fintype α]
   cases t with
   | zero => simp
   | succ t =>
-    simp only [Nat.lt_succ_iff]
-    rw [card_filter_card_le_eq_sum_choose, card_filter_card_le_eq_sum_choose]
-    simp only [Fintype.card_fin]
+    simp only [Nat.lt_succ_iff, card_filter_card_le_eq_sum_choose, Fintype.card_fin]
     exact sum_le_sum fun j _ => Nat.choose_le_choose j hcard
 
 end Finset

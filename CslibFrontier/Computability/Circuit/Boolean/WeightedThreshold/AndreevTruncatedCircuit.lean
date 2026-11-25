@@ -327,14 +327,24 @@ private theorem andreevVarianceProxy_of_balanced {b m : ℕ} (hbal : b * m = 2 ^
   rw [show (b : ℝ) * m = 2 ^ b by exact_mod_cast hbal]
   ring
 
-/-- `4 √(v L') ≤ C √(N L)` from `16 v L' ≤ C² N L`. -/
-private theorem four_mul_sqrt_le {a x C : ℝ} (hC : 0 ≤ C) (h : 16 * a ≤ C ^ 2 * x) :
-    4 * Real.sqrt a ≤ C * Real.sqrt x := by
-  rw [show (4 : ℝ) = Real.sqrt 16 by
-    rw [show (16 : ℝ) = 4 ^ 2 by norm_num, Real.sqrt_sq (by norm_num)],
-    ← Real.sqrt_mul (by norm_num), show C = Real.sqrt (C ^ 2) from (Real.sqrt_sq hC).symm,
-    ← Real.sqrt_mul (sq_nonneg C)]
-  exact Real.sqrt_le_sqrt h
+private theorem balanced_radius_le {b m r : ℕ} (hbal : b * m = 2 ^ b)
+    {δ L A C : ℝ} (hL : 0 ≤ L) (hC : 0 ≤ C) (hA : 20 * A ≤ C ^ 2)
+    (hlog : Real.log (16 * andreevVarianceProxy b m / (2 ^ r * δ)) ≤ A * L) :
+    (andreevTruncationRadius b m r δ : ℝ) ≤ C * Real.sqrt (2 ^ b * L) + 1 := by
+  refine (andreevTruncationRadius_le b m r δ).trans (add_le_add_left ?_ 1)
+  rw [← Real.sqrt_sq (show (0 : ℝ) ≤ 4 by norm_num), ← Real.sqrt_mul (sq_nonneg _),
+    ← Real.sqrt_sq hC, ← Real.sqrt_mul (sq_nonneg _)]
+  apply Real.sqrt_le_sqrt
+  rw [andreevVarianceProxy_of_balanced hbal] at hlog ⊢
+  linarith only [mul_le_mul_of_nonneg_left hlog (by positivity : 0 ≤ 20 * (2 : ℝ) ^ b),
+    mul_le_mul_of_nonneg_right hA (by positivity : 0 ≤ (2 : ℝ) ^ b * L)]
+
+private theorem size_andreevTruncatedCircuit_real_le {b r : ℕ} (hr : r ≤ b) (m R : ℕ) :
+    ((andreevTruncatedCircuit b m r R).size : ℝ) ≤ 4 * (2 : ℝ) ^ r * (R + 1) + 1 := by
+  have hsub : ((2 ^ r - 1 : ℕ) : ℝ) ≤ 2 ^ r := by exact_mod_cast Nat.sub_le _ _
+  rw [size_andreevTruncatedCircuit hr]
+  push_cast
+  gcongr
 
 /-- **Thm. 7, Part 1, at balance**: if `k m = N` and `0 < δ ≤ 1 / 2`, the truncated circuit with
 radius `andreevTruncationRadius b m b δ` has at most `64 n √(n log (1 / δ))` gates, so
@@ -362,20 +372,13 @@ theorem size_andreevTruncatedCircuit_le_of_balanced {b m : ℕ} (hbal : b * m = 
   set R := andreevTruncationRadius b m b δ
   have hNL : 1 / 2 ≤ N * L := by
     simpa only [one_mul] using mul_le_mul hN hL2 (by norm_num) (by linarith only [hN])
-  have hR : (R : ℝ) ≤ 11 * Real.sqrt (N * L) + 1 := by
-    refine (andreevTruncationRadius_le b m b δ).trans
-      (add_le_add_left (four_mul_sqrt_le (C := 11) (by norm_num) ?_) 1)
-    rw [hv] at h20 ⊢
-    linarith only [mul_le_mul_of_nonneg_left h20 (by linarith only [hN] : (0 : ℝ) ≤ 20 * N), hNL]
+  have hR : (R : ℝ) ≤ 11 * Real.sqrt (N * L) + 1 :=
+    balanced_radius_le hbal (by linarith only [hL2]) (by norm_num) (by norm_num) h20
   have hX : 1 / 2 ≤ Real.sqrt (N * L) := by
     rw [Real.le_sqrt (by norm_num) (by linarith only [hNL])]
     linarith only [hNL]
-  have hsize : ((andreevTruncatedCircuit b m b R).size : ℝ) ≤ 4 * N * (R + 1) + 1 := by
-    rw [size_andreevTruncatedCircuit le_rfl]
-    push_cast
-    have hsub : ((2 ^ b - 1 : ℕ) : ℝ) ≤ N := by simp only [N]; exact_mod_cast Nat.sub_le _ _
-    linarith only [mul_le_mul_of_nonneg_right hsub (by positivity : (0 : ℝ) ≤ R + 1)]
-  calc ((andreevTruncatedCircuit b m b R).size : ℝ) ≤ 4 * N * (R + 1) + 1 := hsize
+  calc ((andreevTruncatedCircuit b m b R).size : ℝ) ≤ 4 * N * (R + 1) + 1 :=
+        size_andreevTruncatedCircuit_real_le le_rfl m R
     _ ≤ 64 * N * Real.sqrt (N * L) := by
         have hR' : (R : ℝ) + 1 ≤ 15 * Real.sqrt (N * L) := by linarith only [hR, hX]
         have h1 : 1 / 2 ≤ N * Real.sqrt (N * L) := by
@@ -484,26 +487,17 @@ theorem andreevTruncatedCircuit_part_two_of_balanced {b m : ℕ} (hbal : b * m =
     calc Real.log (16 * (5 / 4 * N) / (2 ^ r * ε)) ≤ Real.log ((1 / ε) ^ 3) := by gcongr
       _ = 3 * L := by rw [Real.log_pow]; push_cast; ring
   have hNL1 : 1 ≤ N * L := one_le_mul_of_one_le_of_one_le hN hL1
-  have hR : (R : ℝ) ≤ 8 * Real.sqrt (N * L) + 1 := by
-    refine (andreevTruncationRadius_le b m r ε).trans
-      (add_le_add_left (four_mul_sqrt_le (C := 8) (by norm_num) ?_) 1)
-    rw [hv] at hlog ⊢
-    linarith only [mul_le_mul_of_nonneg_left hlog (by linarith only [hN] : (0 : ℝ) ≤ 20 * N), hNL1]
+  have hR : (R : ℝ) ≤ 8 * Real.sqrt (N * L) + 1 :=
+    balanced_radius_le hbal (by linarith only [hL1]) (by norm_num) (by norm_num) hlog
   have hX : 1 ≤ Real.sqrt (N * L) := Real.one_le_sqrt.2 hNL1
   have hn : N ≤ n := by simp only [N, n]; exact_mod_cast Nat.le_add_right _ _
   have hL0 : 0 ≤ L := by linarith only [hL1]
   have hsqrt : Real.sqrt (N * L) ≤ Real.sqrt (n * L) :=
     Real.sqrt_le_sqrt (mul_le_mul_of_nonneg_right hn hL0)
   -- Gates: `G + 1 ≤ 4 q (R + 1) + 1 ≤ 2600 ε² N √(N L)`.
-  have hG : ((4 * (2 ^ r - 1) * (R + 1) : ℕ) : ℝ) ≤ 4 * (64 * ε ^ 2 * N) * (R + 1) := by
-    have hsub : (((2 ^ r - 1 : ℕ)) : ℝ) ≤ 64 * ε ^ 2 * N :=
-      (show (((2 ^ r - 1 : ℕ)) : ℝ) ≤ 2 ^ r by exact_mod_cast Nat.sub_le _ _).trans hq
-    push_cast
-    gcongr
   have hsize : (C.size : ℝ) ≤ 2600 * ε ^ 2 * N * Real.sqrt (N * L) := by
-    simp only [C]
-    rw [size_andreevTruncatedCircuit hrb.le]
-    push_cast at hG ⊢
+    refine (size_andreevTruncatedCircuit_real_le hrb.le m R).trans ?_
+    have hG : 4 * (2 : ℝ) ^ r * (R + 1) ≤ 4 * (64 * ε ^ 2 * N) * (R + 1) := by gcongr
     have hR' : (R : ℝ) + 1 ≤ 10 * Real.sqrt (N * L) := by linarith only [hR, hX]
     have h1 : 1 ≤ ε ^ 2 * N * Real.sqrt (N * L) := one_le_mul_of_one_le_of_one_le hεN hX
     linarith only [hG, h1,

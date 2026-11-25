@@ -60,16 +60,13 @@ theorem exists_program_of_isSlpStep (inp : Fin n → Inp → Fin D) (fn : ℕ �
     (h : ∀ k < p, IsSlpStep inp fn k) :
     ∃ P : Program (fullSignature 2 (Fin D)) n p,
       ∀ (k : Fin p) x, P.eval fullInterpretation (fun i => inp i x) k = fn k x := by
-  have step : ∀ j : Fin p, ∃ line : Line (fullSignature 2 (Fin D)) n j, ∀ x,
-      fn j x = line.eval fullInterpretation (fun i => inp i x) fun t => fn t x := by
-    intro j
+  choose line hline using fun j : Fin p => show ∃ line : Line (fullSignature 2 (Fin D)) n j,
+      ∀ x, fn j x = line.eval fullInterpretation (fun i => inp i x) fun t => fn t x by
     rcases h j j.isLt with ⟨i, hi⟩ | ⟨c, hc⟩ | ⟨i, hi, k, hk, φ, hφ⟩
-    · exact ⟨⟨.fn fun a => a 0, (![Wire.input i, Wire.input i] : Fin 2 → Wire n j)⟩,
-        fun x => by rw [hi]; rfl⟩
+    · exact ⟨⟨.fn (· 0), ![.input i, .input i]⟩, fun x => by rw [hi]; rfl⟩
     · exact ⟨⟨.con c, Fin.elim0⟩, fun x => by rw [hc]; rfl⟩
-    · exact ⟨⟨.fn fun a => φ (a 0) (a 1),
-        (![Wire.gate ⟨i, hi⟩, Wire.gate ⟨k, hk⟩] : Fin 2 → Wire n j)⟩, fun x => by rw [hφ]; rfl⟩
-  choose line hline using step
+    · exact ⟨⟨.fn fun a => φ (a 0) (a 1), ![.gate ⟨i, hi⟩, .gate ⟨k, hk⟩]⟩,
+        fun x => by rw [hφ]; rfl⟩
   obtain ⟨P, hP, -⟩ := Program.exists_eval_eq_of_prefixLines fullInterpretation
     (fun x i => inp i x) line (fun x j => fn j x) fun x j => hline j x
   exact ⟨P, fun k x => congrFun (hP x) k⟩
@@ -84,47 +81,40 @@ theorem exists_isSlpStep_of_program [NeZero D] (inp : Fin n → Inp → Fin D) {
   classical
   induction P with
   | empty =>
-    refine ⟨fun m x => if h : m < n then inp ⟨m, h⟩ x else 0, fun k hk => ?_, fun i => ?_,
-      fun k => k.elim0⟩
-    · exact Or.inl ⟨⟨k, by omega⟩, funext fun x => by simp [show k < n by omega]⟩
-    · funext x
-      simp
+    exact ⟨fun m x => if h : m < n then inp ⟨m, h⟩ x else 0,
+      fun k hk => .inl ⟨⟨k, by omega⟩, funext fun x => by simp [show k < n by omega]⟩,
+      fun _ => funext fun _ => by simp, fun k => k.elim0⟩
   | @gate g P line ih =>
     obtain ⟨fn, hs, hin, hg⟩ := ih
     let I : Interpretation (fullSignature 2 (Fin D)) (Fin D) := fullInterpretation
-    let new : Inp → Fin D := fun x => line.eval I (fun i => inp i x) (P.eval I fun i => inp i x)
+    let new : Inp → Fin D := fun x => line.eval I (inp · x) (P.eval I (inp · x))
     -- the step index of a wire, and its value
-    let idx : Wire n g → ℕ := fun w => Wire.elim (fun i => (i : ℕ)) (fun j => n + j) w
-    have hidx : ∀ w, idx w < n + g := fun w => by cases w <;> simp [idx, Wire.elim]; omega
-    have hval : ∀ w x, fn (idx w) x = Wire.elim (fun i => inp i x) (P.eval I fun i => inp i x) w :=
-      fun w x => by
-        cases w with
-        | input i => simp [idx, Wire.elim, hin i]
-        | gate j => simp [idx, Wire.elim, hg j x, I]
-    have hne : ∀ m < n + g, Function.update fn (n + g) new m = fn m := fun m hm =>
+    let idx : Wire n g → ℕ := Wire.elim (fun i => i) (n + ·)
+    have hidx (w) : idx w < n + g := by
+      cases w <;> simp only [idx, Wire.elim] <;> omega
+    have hval (w x) : fn (idx w) x = Wire.elim (inp · x) (P.eval I (inp · x)) w := by
+      cases w with
+      | input i => simp [idx, Wire.elim, hin i]
+      | gate j => simp [idx, Wire.elim, hg j x, I]
+    have hne (m) (hm : m < n + g) : Function.update fn (n + g) new m = fn m :=
       Function.update_of_ne (by omega) _ _
-    refine ⟨Function.update fn (n + g) new, fun k hk => ?_, fun i => ?_, fun k x => ?_⟩
+    refine ⟨Function.update fn (n + g) new, fun k hk => ?_,
+      fun i => funext fun x => by rw [hne i (by omega), hin i], fun k x => ?_⟩
     · rcases Nat.lt_succ_iff_lt_or_eq.1 (show k < n + g + 1 by omega) with hk | rfl
       · rcases hs k hk with ⟨i, h1⟩ | ⟨c, h1⟩ | ⟨i, hi, j, hj, φ, h1⟩
-        · exact Or.inl ⟨i, by rw [hne k hk, h1]⟩
-        · exact Or.inr (Or.inl ⟨c, by rw [hne k hk, h1]⟩)
-        · refine Or.inr (Or.inr ⟨i, hi, j, hj, φ, fun x => ?_⟩)
-          rw [hne k hk, hne i (by omega), hne j (by omega), h1]
+        · exact .inl ⟨i, by rw [hne k hk, h1]⟩
+        · exact .inr (.inl ⟨c, by rw [hne k hk, h1]⟩)
+        · exact .inr (.inr ⟨i, hi, j, hj, φ, fun x => by
+            rw [hne k hk, hne i (by omega), hne j (by omega), h1]⟩)
       · rw [IsSlpStep, Function.update_self]
-        obtain ⟨op, wires⟩ := line
+        rcases line with ⟨op, w⟩
         cases op with
-        | con c => exact Or.inr (Or.inl ⟨c, funext fun x => rfl⟩)
+        | con c => exact .inr (.inl ⟨c, funext fun _ => rfl⟩)
         | fn f =>
-          let w : Fin 2 → Wire n g := wires
-          refine Or.inr (Or.inr ⟨idx (w 0), hidx _, idx (w 1), hidx _,
-            fun a b => f ![a, b], fun x => ?_⟩)
+          refine .inr (.inr ⟨idx (w (0 : Fin 2)), hidx _, idx (w (1 : Fin 2)), hidx _,
+            (f ![·, ·]), fun x => ?_⟩)
           rw [hne _ (hidx _), hne _ (hidx _), hval, hval]
-          change f _ = f _
-          congr 1
-          funext i
-          fin_cases i <;> rfl
-    · funext x
-      rw [hne i (by omega), hin i]
+          exact congrArg f (funext fun i => by fin_cases i <;> rfl)
     · induction k using Fin.lastCases with
       | last =>
         rw [Program.eval_gate_last, Fin.val_last, Function.update_self]

@@ -109,10 +109,10 @@ theorem realize_convert {d m k : ℕ} (B : (language L).Term α)
     choose R hR hRv using fun i : Fin (k + 1) =>
       exists_word (B.realize v) (lt_of_le_of_lt (hqb i) hV)
     have hdigit (i : Fin k) : ((x i).realize v).val ≤ V ∧ q i.succ * A ≤ V := by
-      have := hqs i
-      have := hqb i.castSucc
-      dsimp [V, A] at *
-      exact ⟨by lia, by nlinarith⟩
+      have hbound : ((x i).realize v).val + A * q i.succ ≤ V :=
+        (hqs i).symm.le.trans (hqb i.castSucc)
+      exact ⟨(Nat.le_add_right _ _).trans hbound,
+        (Nat.mul_comm _ _).le.trans ((Nat.le_add_left _ _).trans hbound)⟩
     choose D hD hDv using fun i => exists_word (B.realize v) (lt_of_le_of_lt (hdigit i).1 hV)
     choose T hT hTv using fun i => exists_word (B.realize v) (lt_of_le_of_lt (hdigit i).2 hV)
     let w : ((Fin (k + 1) ⊕ Fin 2 × Fin k) × Fin d) → Fin n := fun p =>
@@ -129,7 +129,7 @@ theorem realize_convert {d m k : ℕ} (B : (language L).Term α)
         hT i, hD i, hR i.castSucc, ?_⟩
       · rw [hRv, hTv]
       · rw [hTv, hDv, hRv, hqs i]
-        dsimp [A]
-        ring
+        change q i.succ * A + ((x i).realize v).val = ((x i).realize v).val + A * q i.succ
+        ac_rfl
 
 end Cslib.Logic.FO.Ordered.Radix

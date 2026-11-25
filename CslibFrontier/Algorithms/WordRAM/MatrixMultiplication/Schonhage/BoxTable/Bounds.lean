@@ -48,48 +48,37 @@ theorem admissionWidth_pos (L m t A B : ℕ) : 0 < admissionWidth L m t A B := b
 theorem admission_bounds {W L m t A B : ℕ} (hW : admissionWidth L m t A B ≤ W) :
     0 < W - 2 ∧ Fits W (addressBound L m t) ∧
       GenericRAM.Signed.Fits (W - 2) (magnitudeBound L A B : ℕ) := by
-  have hs : Nat.clog 2 (magnitudeBound L A B + addressBound L m t + 1) ≤
-      (W - 2) - 1 := by unfold admissionWidth at hW; omega
-  have hmag : magnitudeBound L A B < 2 ^ ((W - 2) - 1) :=
-    fits_of_lt_clog_le
-      (by omega : magnitudeBound L A B < magnitudeBound L A B + addressBound L m t + 1) hs
-  have hw : 0 < W - 2 := by unfold admissionWidth at hW; omega
-  refine ⟨hw, ?_, hw, ?_, ?_⟩
-  · exact fits_of_lt_clog_le
-      (by omega : addressBound L m t < magnitudeBound L A B + addressBound L m t + 1) (by omega)
-  · have hn : 0 ≤ (magnitudeBound L A B : ℤ) := Int.natCast_nonneg _
-    have hp : 0 ≤ (2 : ℤ) ^ ((W - 2) - 1) := by positivity
-    omega
-  · exact_mod_cast hmag
+  unfold admissionWidth at hW
+  have hs : Nat.clog 2 (magnitudeBound L A B + addressBound L m t + 1) ≤ (W - 2) - 1 := by omega
+  have hmag : magnitudeBound L A B < 2 ^ ((W - 2) - 1) := fits_of_lt_clog_le (by omega) hs
+  refine ⟨by omega, fits_of_lt_clog_le (by omega) (hs.trans (by omega)), by omega, ?_,
+    by exact_mod_cast hmag⟩
+  have : 0 ≤ (2 : ℤ) ^ ((W - 2) - 1) := by positivity
+  omega
 
 /-- The existing finite cardinality law controls the per-tile memoization cost. -/
 theorem tileTime_le (L m t : ℕ) (hm : m ≤ L) (ht : t ≤ m) :
     tileTime L m t ≤ 328 * (m + 1) * ∑ d ∈ Finset.Icc t m, beta L m d + 8 := by
-  have hb := card_boxes_le L m t hm ht
   unfold tileTime
-  nlinarith only [hb]
+  nlinarith only [card_boxes_le L m t hm ht]
 
 /-- Under the usual depth bound, shared geometry is polynomial-depth times the existing
 encoding-array length. This setup is independent of the number of tiles. -/
 theorem geometryTime_le (L m t : ℕ) (hm : m ≤ L) :
     geometryTime L m t ≤ 64 * (L + 1) ^ 2 * 10 ^ L := by
   have hp : 1 ≤ 10 ^ L := Nat.one_le_pow L _ (by decide)
-  have hh : m - t + 1 ≤ L + 1 := by omega
-  have hs := Nat.mul_le_mul_right (10 ^ L) hh
-  have hc := Nat.mul_le_mul_left (11 * L + 28) hs
-  have hsmall : 4 * L + 20 ≤ (4 * L + 20) * 10 ^ L := by
-    simpa only [Nat.mul_one] using Nat.mul_le_mul_left (4 * L + 20) hp
   calc
-    geometryTime L m t ≤ (4 * L + 20) * 10 ^ L +
-        (11 * L + 28) * ((L + 1) * 10 ^ L) := Nat.add_le_add hsmall hc
+    geometryTime L m t ≤ (4 * L + 20) * 10 ^ L + (11 * L + 28) * ((L + 1) * 10 ^ L) :=
+        Nat.add_le_add (by simpa only [Nat.mul_one] using Nat.mul_le_mul_left (4 * L + 20) hp)
+          (Nat.mul_le_mul_left _ (Nat.mul_le_mul_right _ (by omega)))
     _ = (4 * L + 20 + (11 * L + 28) * (L + 1)) * 10 ^ L := by ring
     _ ≤ 64 * (L + 1) ^ 2 * 10 ^ L := Nat.mul_le_mul_right _ (by nlinarith)
 
 /-- The directory and descriptors are shared; a retained tile adds exactly one word per box. -/
 theorem allocation_le (L m t : ℕ) :
     memoryEnd L m t - directoryBase L ≤ 5 * ((m - t + 1) * 10 ^ L) := by
-  have hk := Nat.count_le (Eligible L (m - t)) (n := (m - t + 1) * 10 ^ L)
-  rw [count_eligible_eq_card_boxes] at hk
+  have hk := count_eligible_eq_card_boxes L m t ▸
+    Nat.count_le (Eligible L (m - t)) (n := (m - t + 1) * 10 ^ L)
   unfold memoryEnd valueBase recordBase
   omega
 
