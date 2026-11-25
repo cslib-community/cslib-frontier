@@ -268,15 +268,9 @@ theorem unitPath_not_endpoints (G : Graph)
     List.mem_map.2 ⟨_, List.mem_range.2
       (List.idxOf_lt_length_iff.2 (edgeEndpoint_mem G hG hi side)), rfl⟩
   have he := unitPath_endpoints G hG hloop hi
-  constructor
-  · intro hp
-    apply hcenter
-    rw [← Option.some.inj (he.1.symm.trans hp)]
-    exact hcenters false
-  · intro hp
-    apply hcenter
-    rw [← Option.some.inj (he.2.symm.trans hp)]
-    exact hcenters true
+  refine ⟨fun hp => hcenter ?_, fun hp => hcenter ?_⟩
+  · exact Option.some.inj (he.1.symm.trans hp) ▸ hcenters false
+  · exact Option.some.inj (he.2.symm.trans hp) ▸ hcenters true
 
 /-- An occupied point away from source centers has a genuine predecessor and successor at
 every occurrence index. Together with `unitPath_nodup`, that occurrence index is unique. -/
@@ -298,9 +292,10 @@ theorem unitPath_interior_index (G : Graph)
 
 private theorem pair_mem_at {r : Route} {k : ℕ} (hk : k + 1 < r.length) :
     (r[k], r[k + 1]) ∈ r.consecutivePairs := by
-  have hlen : k < r.consecutivePairs.length := by grind
-  have hm : r.consecutivePairs[k] ∈ r.consecutivePairs := List.getElem_mem hlen
-  simpa only [List.consecutivePairs, List.getElem_zip, List.getElem_tail] using hm
+  have hlen : k < r.consecutivePairs.length := by
+    simp only [List.consecutivePairs, List.length_zip, List.length_tail]; omega
+  simpa only [List.consecutivePairs, List.getElem_zip, List.getElem_tail] using
+    List.getElem_mem hlen
 
 /-- The two actual predecessor/successor lookups at a nonvertex cell are unit neighbors. -/
 theorem unitPath_neighbor_lengths (G : Graph)
@@ -508,18 +503,20 @@ private theorem listed_on_upper_track {n e f u v : ℕ} (hu : u < n) (hv : v < n
     (s t : Fin 3) {p : Point} (hp : p ∈ Layout.route n f u v s t)
     (hy : p.2 = Layout.track n e) :
     p = (Layout.column u s, Layout.track n f) ∨ p = (Layout.column v t, Layout.track n f) := by
-  have hcu : (Layout.center u).2 < Layout.track n e := by grind [Layout.center, Layout.track]
-  have hcv : (Layout.center v).2 < Layout.track n e := by grind [Layout.center, Layout.track]
+  have hcu : (Layout.center u).2 < Layout.track n e := by
+    simp only [Layout.center, Layout.track]; omega
+  have hcv : (Layout.center v).2 < Layout.track n e := by
+    simp only [Layout.center, Layout.track]; omega
   have heu := Layout.elbow_below_track (e := e) hu s
   have hev := Layout.elbow_below_track (e := e) hv t
   simp only [Layout.route, List.mem_cons, List.not_mem_nil, or_false] at hp
   rcases hp with rfl | rfl | rfl | rfl | rfl | rfl
-  · exfalso; omega
-  · exfalso; omega
+  · exact False.elim (by omega)
+  · exact False.elim (by omega)
   · exact Or.inl rfl
   · exact Or.inr rfl
-  · exfalso; omega
-  · exfalso; omega
+  · exact False.elim (by omega)
+  · exact False.elim (by omega)
 
 /-- A crossing is not any listed point of either original polygonal route, including its
 elbows and upper endpoints. Thus no crossing occurs at a bend. -/
@@ -534,21 +531,21 @@ theorem BridgeStemCrossing.not_listed {G : Graph}
     List.idxOf_lt_length_iff.2 (edgeEndpoint_mem G hG hk b)
   have hrow : p.2 = Layout.track G.vertices.length i := congrArg Prod.snd hc.point
   have hx := hc.horizontal
+  dsimp only [pathColumn] at hx
   have hy := hc.vertical hG hj
   constructor
   · intro hp
     rw [getElem_orthogonalRoutes_endpoint G G.canonicalPorts hi] at hp
-    have htop := listed_on_upper_track (hindex i hi false) (hindex i hi true) _ _ hp hrow
-    rcases htop with heq | heq
-    · have heq' : p.1 = G.pathColumn i false := congrArg Prod.fst heq
-      omega
-    · have heq' : p.1 = G.pathColumn i true := congrArg Prod.fst heq
+    rcases listed_on_upper_track (hindex i hi false) (hindex i hi true) _ _ hp hrow with
+      heq | heq <;>
+      have : p.1 = _ := congrArg Prod.fst heq <;>
       omega
   · intro hp
     rw [getElem_orthogonalRoutes_endpoint G G.canonicalPorts hj] at hp
-    have htop := listed_on_upper_track (hindex j hj false) (hindex j hj true) _ _ hp hrow
-    rcases htop with heq | heq <;>
-      have heq' : p.2 = Layout.track G.vertices.length j := congrArg Prod.snd heq <;> omega
+    rcases listed_on_upper_track (hindex j hj false) (hindex j hj true) _ _ hp hrow with
+      heq | heq <;>
+      have : p.2 = Layout.track G.vertices.length j := congrArg Prod.snd heq <;>
+      omega
 
 /-- A strict crossing produces actual consecutive opposite horizontal/vertical unit neighbors
 on its two paths. Both the positions and their traversal order come from the canonical data. -/
@@ -570,34 +567,22 @@ theorem BridgeStemCrossing.neighbors {G : Graph}
   constructor
   · rw [unitPath_eq_subdivide G hG hloop hi,
       getElem_orthogonalRoutes_endpoint G G.canonicalPorts hi]
-    apply subdivide_horizontal hri
+    exact subdivide_horizontal hri
       (a := (G.pathColumn i false, Layout.track G.vertices.length i))
       (b := (G.pathColumn i true, Layout.track G.vertices.length i))
-    · simp [Layout.route, List.consecutivePairs, pathColumn]
-    · rfl
-    · exact hpy
-    · exact hx
+      (by simp [Layout.route, List.consecutivePairs, pathColumn]) rfl hpy hx
   · rw [unitPath_eq_subdivide G hG hloop hj,
       getElem_orthogonalRoutes_endpoint G G.canonicalPorts hj]
-    cases side
-    · apply subdivide_vertical hrj
-        (a := Layout.elbow (G.vertices.idxOf (G.edgeEndpoint j false))
-          (portAt G.canonicalPorts j false))
-        (b := (G.pathColumn j false, Layout.track G.vertices.length j))
-      · simp [Layout.route, List.consecutivePairs, pathColumn]
-      · rfl
-      · exact hpx
-      · dsimp only
-        omega
-    · apply subdivide_vertical hrj
-        (a := (G.pathColumn j true, Layout.track G.vertices.length j))
-        (b := Layout.elbow (G.vertices.idxOf (G.edgeEndpoint j true))
-          (portAt G.canonicalPorts j true))
-      · simp [Layout.route, List.consecutivePairs, pathColumn]
-      · rfl
-      · exact hpx
-      · dsimp only
-        omega
+    let e := Layout.elbow (G.vertices.idxOf (G.edgeEndpoint j side))
+      (portAt G.canonicalPorts j side)
+    let t := (G.pathColumn j side, Layout.track G.vertices.length j)
+    have hseg : (if side then (t, e) else (e, t)) ∈
+        (Layout.route G.vertices.length j (G.vertices.idxOf (G.edgeEndpoint j false))
+          (G.vertices.idxOf (G.edgeEndpoint j true)) (portAt G.canonicalPorts j false)
+          (portAt G.canonicalPorts j true)).consecutivePairs := by
+      cases side <;> simp [e, t, Layout.route, List.consecutivePairs, pathColumn]
+    cases side <;>
+      exact subdivide_vertical hrj hseg rfl hpx (by dsimp only [e, t]; omega)
 
 /-- Every actual nonvertex contact has one horizontally straight path and one vertically
 straight path, with opposite immediate unit neighbors. -/
