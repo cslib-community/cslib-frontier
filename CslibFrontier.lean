@@ -6503,6 +6503,7 @@ public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MetricGraph.Su
 public import CslibFrontier.Foundations.Computability.RecursiveInEvalnPrimrec
 public import CslibFrontier.Computability.Circuit.NNF.Basic
 public import CslibFrontier.Foundations.Combinatorics.Expander.Walk
+public import CslibFrontier.Computability.Interactive.Debate.TwoBlock
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatPow
 public import CslibFrontier.Computability.Circuit.Frontier.LowerBound
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.DegreeTwo
