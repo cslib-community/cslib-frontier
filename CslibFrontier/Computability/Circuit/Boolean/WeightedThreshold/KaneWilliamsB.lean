@@ -451,15 +451,8 @@ theorem card_eval_eq_kaneWilliamsB_le_of_unforced_mean_le (hℓ : 0 < ℓ)
         kaneWilliamsB r ℓ (embedUpdate (kaneWilliamsLiveVar n k ℓ σ) w u)} : ℝ) ≤ 2 ^ k := by
       exact_mod_cast (card_le_univ _).trans_eq (by simp)
     have hγ2 : 0 ≤ 2 ^ k * ((1 + γ) / 2) := by positivity
-    by_cases hb : kaneWilliamsMessage n k ℓ w ∈ bad
-    · have : (0 : ℝ) ≤ 2 ^ k * (if Q < U σ w then 1 else 0) := by positivity
-      simp only [hb, ↓reduceIte, mul_one]; linarith only [hle, hγ2, this]
-    by_cases hq : Q < U σ w
-    · simp only [hq, ↓reduceIte, mul_one]
-      have : (0 : ℝ) ≤ 2 ^ k * (if kaneWilliamsMessage n k ℓ w ∈ bad then 1 else 0) := by
-        positivity
-      linarith only [hle, hγ2, this]
-    simp only [hb, hq, ↓reduceIte, mul_zero, add_zero]
+    split_ifs with hb hq hq
+    any_goals linarith only [hle, hγ2, h2k]
     have hh : IsDepthTwoOverWeights (W σ) Q
         fun u => f (embedUpdate (kaneWilliamsLiveVar n k ℓ σ) w u) :=
       (hU σ w).mono (not_lt.mp hq)
@@ -541,21 +534,18 @@ theorem one_le_of_threshold_eq_kaneWilliamsB_of_unforced_mean_le {t : ℕ} (hℓ
   have hN0 : 0 < N := by positivity
   have h2k : (0 : ℝ) < 2 ^ k := by positivity
   have hcardZ : (Fintype.card (BitString k) : ℝ) = 2 ^ k := by simp
-  by_contra hlt
-  push Not at hlt
+  by_contra! hlt
   -- some restriction has a good message and at most `Q` survivors
   obtain ⟨σ, w, hgood, hq⟩ : ∃ σ w, kaneWilliamsMessage n k ℓ w ∉ bad ∧ U σ w ≤ Q := by
-    by_contra hno
-    push Not at hno
+    by_contra! hno
     have hcover (σ : Fin k → Fin ℓ) : N ≤
         (#{w : BitString (n + k * ℓ) | kaneWilliamsMessage n k ℓ w ∈ bad} : ℝ) +
           #{w : BitString (n + k * ℓ) | Q < U σ w} := by
       have hsub : (univ : Finset (BitString (n + k * ℓ))) ⊆
           (univ.filter fun w => kaneWilliamsMessage n k ℓ w ∈ bad) ∪
-            univ.filter fun w => Q < U σ w := fun w _ => by
-        by_cases hb : kaneWilliamsMessage n k ℓ w ∈ bad
-        · exact mem_union_left _ (mem_filter.mpr ⟨mem_univ w, hb⟩)
-        · exact mem_union_right _ (mem_filter.mpr ⟨mem_univ w, hno σ w hb⟩)
+            univ.filter fun w => Q < U σ w := fun w _ =>
+        mem_union.2 <| (em (kaneWilliamsMessage n k ℓ w ∈ bad)).imp
+          (mem_filter.mpr ⟨mem_univ w, ·⟩) (mem_filter.mpr ⟨mem_univ w, hno σ w ·⟩)
       have hcard := (card_le_card hsub).trans (card_union_le _ _)
       rw [card_univ] at hcard
       have hcardN : (Fintype.card (BitString (n + k * ℓ)) : ℝ) = N := by rw [hN]; simp
@@ -586,14 +576,12 @@ theorem one_le_of_threshold_eq_kaneWilliamsB_of_unforced_mean_le {t : ℕ} (hℓ
   rw [hcardZ] at hdisc
   -- the word of `x ≠ 0` is nearly balanced
   have hbal : |∑ u, signVal (r u ⬝ᵥ x)| ≤ δ * 2 ^ k := by
-    have h := abs_sum_signVal_dotProduct_le hr hx0
-    rwa [hcardZ] at h
+    simpa only [hcardZ] using abs_sum_signVal_dotProduct_le hr hx0
   -- every restricted vote has correlation below `γ`
   have hsmall (o : Fin t) : ∑ u, signVal (V u o) * signVal (r u ⬝ᵥ x) ≤ γ * 2 ^ k := by
     have hh : IsDepthTwoOverWeights (W σ) Q
         fun u => v (embedUpdate (kaneWilliamsLiveVar n k ℓ σ) w u) o := (hU σ w o).mono hq
-    by_contra hgt
-    push Not at hgt
+    by_contra! hgt
     exact hgood (mem_filter.mpr ⟨mem_univ _, σ, c, _, hh, hgt.le.trans (le_abs_self _)⟩)
   have hsum : ∑ o, ∑ u, signVal (V u o) * signVal (r u ⬝ᵥ x) ≤ t * (γ * 2 ^ k) := by
     refine (sum_le_sum fun o _ => hsmall o).trans ?_
