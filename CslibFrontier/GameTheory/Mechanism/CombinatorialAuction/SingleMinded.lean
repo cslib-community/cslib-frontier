@@ -679,6 +679,10 @@ private theorem mem_foldl_greedyStep_of_not_mem {N M : Type*} [DecidableEq N] [D
     · exact (hxl h).elim
   · exact fun hx => subset_foldl_greedyStep b l W hx
 
+private theorem mem_of_mem_greedySelect {N M : Type*} [DecidableEq N] [DecidableEq M]
+    (b : N → SingleMindedBid M) {l : List N} {x : N} (hx : x ∈ greedySelect b l) : x ∈ l :=
+  (foldl_greedyStep_subset_union b l ∅ hx).resolve_left (Finset.notMem_empty x)
+
 private theorem isCompatible_foldl_greedyStep {N M : Type*} [DecidableEq N] [DecidableEq M]
     (b : N → SingleMindedBid M) (l : List N) {W : Finset N} (hW : IsCompatible b W) :
     IsCompatible b (l.foldl (greedyStep b) W) := by
@@ -732,10 +736,7 @@ private theorem mem_greedySelect_append_cons {N M : Type*} [DecidableEq N] [Deci
   simp only [greedySelect, List.foldl_append, List.foldl_cons]
   rw [mem_foldl_greedyStep_of_not_mem b l₂ _ h2]
   set W₁ := l₁.foldl (greedyStep b) ∅
-  have hi_not : i ∉ W₁ := fun hi => by
-    rcases foldl_greedyStep_subset_union b l₁ ∅ hi with h | h
-    · exact (Finset.notMem_empty _ h)
-    · exact h1 h
+  have hi_not : i ∉ W₁ := fun hi => h1 (mem_of_mem_greedySelect b hi)
   change i ∈ greedyStep b W₁ i ↔ ∀ j ∈ W₁, Disjoint (b i).bundle (b j).bundle
   unfold greedyStep
   split_ifs with hdisj
@@ -843,52 +844,32 @@ theorem losWinners_isCompatible {N M : Type*} [Fintype N] [LinearOrder N] [Decid
     (b : N → SingleMindedBid M) : IsCompatible b (losWinners b) :=
   isCompatible_foldl_greedyStep b _ (by simp [IsCompatible])
 
-private theorem losSort_split {N M : Type*} [Fintype N] [LinearOrder N]
-    (b : N → SingleMindedBid M) (i : N) :
+private theorem losSort_split {N M : Type*} [LinearOrder N]
+    (b : N → SingleMindedBid M) {s : Finset N} {i : N} (hi : i ∈ s) :
     ∃ l₁ l₂ : List N,
-      losSort b Finset.univ = l₁ ++ i :: l₂ ∧
-      losSort b (Finset.univ.erase i) = l₁ ++ l₂ ∧
+      losSort b s = l₁ ++ i :: l₂ ∧
+      losSort b (s.erase i) = l₁ ++ l₂ ∧
       i ∉ l₁ ∧ i ∉ l₂ ∧
       (∀ k ∈ l₁, losLt b k i) ∧ (∀ k ∈ l₂, losLt b i k) := by
-  have hi : i ∈ losSort b Finset.univ := (mem_losSort b _ i).2 (Finset.mem_univ i)
-  obtain ⟨l₁, l₂, heq⟩ := List.append_of_mem hi
-  have hnd : (l₁ ++ i :: l₂).Nodup := heq ▸ losSort_nodup b Finset.univ
-  have hp : (l₁ ++ i :: l₂).Pairwise (losLt b) := heq ▸ losSort_pairwise_losLt b Finset.univ
-  have hnd_mid : i ∉ l₁ ∧ i ∉ l₂ ∧ (l₁ ++ l₂).Nodup := by
-    rw [List.nodup_append] at hnd
-    rcases hnd with ⟨hnd1, hnd2, hdisj⟩
-    have hcons := List.nodup_cons.1 hnd2
-    refine ⟨fun h => hdisj i h i (List.mem_cons_self ..) rfl, hcons.1, ?_⟩
-    exact List.nodup_append.2 ⟨hnd1, hcons.2,
-      fun a ha b hb => hdisj a ha b (List.mem_cons_of_mem i hb)⟩
-  have hp_sub : (l₁ ++ l₂).Pairwise (losLt b) :=
-    hp.sublist (by simp)
-  have hbefore : ∀ k ∈ l₁, losLt b k i := by
-    intro k hk
-    exact (List.pairwise_append.1 hp).2.2 k hk i (List.mem_cons_self ..)
-  have hafter : ∀ k ∈ l₂, losLt b i k := by
-    intro k hk
-    exact (List.pairwise_cons.1 (List.pairwise_append.1 hp).2.1).1 k hk
-  have hmem : ∀ k, k ∈ l₁ ++ l₂ ↔ k ∈ Finset.univ.erase i := by
-    intro k
-    constructor
-    · intro hk
-      rw [Finset.mem_erase]
-      refine ⟨?_, Finset.mem_univ k⟩
-      rintro rfl
-      rcases List.mem_append.1 hk with h | h
-      · exact hnd_mid.1 h
-      · exact hnd_mid.2.1 h
-    · intro hk
-      have hne : k ≠ i := (Finset.mem_erase.1 hk).1
-      have hmem_all : k ∈ l₁ ++ i :: l₂ := heq ▸ (mem_losSort b Finset.univ k).2 (Finset.mem_univ k)
-      rcases List.mem_append.1 hmem_all with h | h
-      · exact List.mem_append_left _ h
-      · rcases List.mem_cons.1 h with rfl | h'
-        · exact (hne rfl).elim
-        · exact List.mem_append_right _ h'
-  exact ⟨l₁, l₂, heq, losSort_eq_of_pairwise hnd_mid.2.2 hmem hp_sub,
-    hnd_mid.1, hnd_mid.2.1, hbefore, hafter⟩
+  obtain ⟨l₁, l₂, heq⟩ := List.append_of_mem ((mem_losSort b s i).2 hi)
+  have hnd : (l₁ ++ i :: l₂).Nodup := heq ▸ losSort_nodup b s
+  have hp : (l₁ ++ i :: l₂).Pairwise (losLt b) := heq ▸ losSort_pairwise_losLt b s
+  have hi₁ : i ∉ l₁ := fun h => (List.nodup_append.1 hnd).2.2 i h i (List.mem_cons_self ..) rfl
+  have hi₂ : i ∉ l₂ := (List.nodup_cons.1 (List.nodup_append.1 hnd).2.1).1
+  refine ⟨l₁, l₂, heq, losSort_eq_of_pairwise (hnd.sublist (by simp)) (fun k => ?_)
+    (hp.sublist (by simp)), hi₁, hi₂,
+    fun k hk => (List.pairwise_append.1 hp).2.2 k hk i (List.mem_cons_self ..),
+    fun k hk => (List.pairwise_cons.1 (List.pairwise_append.1 hp).2.1).1 k hk⟩
+  rw [Finset.mem_erase, ← mem_losSort b s, heq]
+  simp only [List.mem_append, List.mem_cons]
+  constructor
+  · rintro (h | h)
+    · exact ⟨fun hk => hi₁ (hk ▸ h), Or.inl h⟩
+    · exact ⟨fun hk => hi₂ (hk ▸ h), Or.inr (Or.inr h)⟩
+  · rintro ⟨hne, h | rfl | h⟩
+    · exact Or.inl h
+    · exact (hne rfl).elim
+    · exact Or.inr h
 
 /-- Key characterization of `losWinners`: bidder `i` wins if and only if its bundle is disjoint
 from every bidder in `losWinnersWithout b i` that precedes `i` in `losLt b`. -/
@@ -896,7 +877,7 @@ theorem mem_losWinners_iff {N M : Type*} [Fintype N] [LinearOrder N] [DecidableE
     (b : N → SingleMindedBid M) (i : N) :
     i ∈ losWinners b ↔
       ∀ j ∈ losWinnersWithout b i, losLt b j i → Disjoint (b i).bundle (b j).bundle := by
-  obtain ⟨l₁, l₂, h1, h2, hni1, hni2, hbef, haft⟩ := losSort_split b i
+  obtain ⟨l₁, l₂, h1, h2, hni1, hni2, hbef, haft⟩ := losSort_split b (Finset.mem_univ i)
   unfold losWinners losWinnersWithout
   rw [h1, h2, mem_greedySelect_append_cons b hni1 hni2]
   have hnd : (l₁ ++ l₂).Nodup := h2 ▸ losSort_nodup b (Finset.univ.erase i)
@@ -905,11 +886,9 @@ theorem mem_losWinners_iff {N M : Type*} [Fintype N] [LinearOrder N] [DecidableE
   constructor
   · intro h j hj hlt
     have hj_in_l1 : j ∈ l₁ := by
-      rcases foldl_greedyStep_subset_union b (l₁ ++ l₂) ∅ hj with he | hmem
-      · exact (Finset.notMem_empty _ he).elim
-      · rcases List.mem_append.1 hmem with h' | h'
-        · exact h'
-        · exact (losLt_asymm b (haft j h') hlt).elim
+      rcases List.mem_append.1 (mem_of_mem_greedySelect b hj) with h' | h'
+      · exact h'
+      · exact (losLt_asymm b (haft j h') hlt).elim
     have hjn2 : j ∉ l₂ := hdisj j hj_in_l1
     have hj1 : j ∈ greedySelect b l₁ := by
       unfold greedySelect at hj ⊢
@@ -917,57 +896,39 @@ theorem mem_losWinners_iff {N M : Type*} [Fintype N] [LinearOrder N] [DecidableE
       exact (mem_foldl_greedyStep_of_not_mem b l₂ _ hjn2).1 hj
     exact h j hj1
   · intro h j hj
-    have hj1_mem : j ∈ l₁ := by
-      rcases foldl_greedyStep_subset_union b l₁ ∅ hj with he | hm
-      · exact (Finset.notMem_empty _ he).elim
-      · exact hm
     have hj_w : j ∈ greedySelect b (l₁ ++ l₂) := by
       unfold greedySelect at hj ⊢
       rw [List.foldl_append]
       exact subset_foldl_greedyStep b l₂ _ hj
-    exact h j hj_w (hbef j hj1_mem)
+    exact h j hj_w (hbef j (mem_of_mem_greedySelect b hj))
 
 private theorem mem_greedySelect_losSort_iff {N M : Type*} [LinearOrder N] [DecidableEq M]
     (b : N → SingleMindedBid M) {s : Finset N} {k : N} (hk : k ∈ s) :
     k ∈ greedySelect b (losSort b s) ↔
       ∀ j ∈ greedySelect b (losSort b s), losLt b j k → Disjoint (b k).bundle (b j).bundle := by
-  have hk_mem : k ∈ losSort b s := (mem_losSort b s k).2 hk
-  obtain ⟨l₁, l₂, heq⟩ := List.append_of_mem hk_mem
-  have hnd : (l₁ ++ k :: l₂).Nodup := heq ▸ losSort_nodup b s
-  have hp : (l₁ ++ k :: l₂).Pairwise (losLt b) := heq ▸ losSort_pairwise_losLt b s
-  have hnk1 : k ∉ l₁ := fun h =>
-    (List.nodup_append.1 hnd).2.2 k h k (List.mem_cons_self ..) rfl
-  have hnk2 : k ∉ l₂ := (List.nodup_cons.1 (List.nodup_append.1 hnd).2.1).1
-  have hbef : ∀ j ∈ l₁, losLt b j k :=
-    fun j hj => (List.pairwise_append.1 hp).2.2 j hj k (List.mem_cons_self ..)
-  have haft : ∀ j ∈ l₂, losLt b k j :=
-    fun j hj => (List.pairwise_cons.1 (List.pairwise_append.1 hp).2.1).1 j hj
+  obtain ⟨l₁, l₂, h1, h2, hnk1, hnk2, hbef, haft⟩ := losSort_split b hk
+  have hnd : (l₁ ++ l₂).Nodup := h2 ▸ losSort_nodup b (s.erase k)
   have hdisj : ∀ j ∈ l₁, j ∉ k :: l₂ := fun j hj1 hj2 =>
-    (List.nodup_append.1 hnd).2.2 j hj1 j hj2 rfl
-  rw [heq, mem_greedySelect_append_cons b hnk1 hnk2]
+    (List.mem_cons.1 hj2).elim (fun h => hnk1 (h ▸ hj1))
+      fun h => (List.nodup_append.1 hnd).2.2 j hj1 j h rfl
+  rw [h1, mem_greedySelect_append_cons b hnk1 hnk2]
   constructor
   · intro h j hj hlt
     have hj_l1 : j ∈ l₁ := by
-      rcases foldl_greedyStep_subset_union b (l₁ ++ k :: l₂) ∅ hj with he | hm
-      · exact (Finset.notMem_empty _ he).elim
-      · rcases List.mem_append.1 hm with h' | h'
-        · exact h'
-        · rcases List.mem_cons.1 h' with rfl | h''
-          · exact (losLt_irrefl b _ hlt).elim
-          · exact (losLt_asymm b (haft j h'') hlt).elim
+      rcases List.mem_append.1 (mem_of_mem_greedySelect b hj) with h' | h'
+      · exact h'
+      · rcases List.mem_cons.1 h' with rfl | h''
+        · exact (losLt_irrefl b _ hlt).elim
+        · exact (losLt_asymm b (haft j h'') hlt).elim
     have hj' : j ∈ (l₁ ++ k :: l₂).foldl (greedyStep b) ∅ := hj
     rw [List.foldl_append] at hj'
     exact h j ((mem_foldl_greedyStep_of_not_mem b (k :: l₂) _ (hdisj j hj_l1)).1 hj')
   · intro h j hj
-    have hj_l1 : j ∈ l₁ := by
-      rcases foldl_greedyStep_subset_union b l₁ ∅ hj with he | hm
-      · exact (Finset.notMem_empty _ he).elim
-      · exact hm
     have hj_all : j ∈ greedySelect b (l₁ ++ k :: l₂) := by
       unfold greedySelect at hj ⊢
       rw [List.foldl_append]
       exact subset_foldl_greedyStep b (k :: l₂) _ hj
-    exact h j hj_all (hbef j hj_l1)
+    exact h j hj_all (hbef j (mem_of_mem_greedySelect b hj))
 
 private theorem mem_losWinners_iff_earlier_winners {N M : Type*} [Fintype N] [LinearOrder N]
     [DecidableEq M] (b : N → SingleMindedBid M) (i : N) :
@@ -984,10 +945,7 @@ private theorem mem_losWinnersWithout_iff_earlier {N M : Type*} [Fintype N] [Lin
 private theorem losWinnersWithout_subset_ne {N M : Type*} [Fintype N] [LinearOrder N]
     [DecidableEq M] (b : N → SingleMindedBid M) {i j : N}
     (hj : j ∈ losWinnersWithout b i) : j ≠ i := by
-  unfold losWinnersWithout greedySelect at hj
-  rcases foldl_greedyStep_subset_union b (losSort b (Finset.univ.erase i)) ∅ hj with he | hm
-  · exact (Finset.notMem_empty _ he).elim
-  · exact (Finset.mem_erase.1 ((mem_losSort b (Finset.univ.erase i) j).1 hm)).1
+  exact (Finset.mem_erase.1 ((mem_losSort b _ j).1 (mem_of_mem_greedySelect b hj))).1
 
 /-- An empty-bundle bidder never conflicts with any winner and hence always wins in `losWinners`. -/
 theorem mem_losWinners_of_bundle_empty {N M : Type*} [Fintype N] [LinearOrder N] [DecidableEq M]
@@ -1094,9 +1052,8 @@ theorem losPayment_eq_criticalValue {N M : Type*} [Fintype N] [LinearOrder N] [D
       simpa only [Finset.mem_image] using hm
     have hnd_ij : ¬ Disjoint (b i).bundle (b jStar).bundle :=
       (Finset.mem_filter.1 hjStar_mem).2
-    have hi_ne : (b i).bundle.Nonempty := by
-      rw [Finset.not_disjoint_iff] at hnd_ij
-      exact ⟨hnd_ij.choose, hnd_ij.choose_spec.1⟩
+    have hi_ne : (b i).bundle.Nonempty :=
+      (Finset.not_disjoint_iff_nonempty_inter.1 hnd_ij).mono Finset.inter_subset_left
     have hsq_pos : 0 < Real.sqrt (b i).bundle.card :=
       Real.sqrt_pos.2 (Nat.cast_pos.2 hi_ne.card_pos)
     have hsMax_nn : 0 ≤ sMax := by
@@ -1343,8 +1300,7 @@ private theorem sum_optBlocked_le {N M : Type*} [LinearOrder N] [Fintype M]
     refine Finset.sum_le_sum fun j hj => ?_
     rcases hspec j hj with ⟨hle, hnd⟩
     have hj_ne : (b j).bundle.Nonempty := by
-      rw [Finset.not_disjoint_iff] at hnd
-      exact ⟨hnd.choose, hnd.choose_spec.2⟩
+      classical exact (Finset.not_disjoint_iff_nonempty_inter.1 hnd).mono Finset.inter_subset_right
     have hsc_j_le : losScore (b j) ≤ losScore (b i) := by
       rcases hle with rfl | hlt
       · exact le_rfl
@@ -1403,15 +1359,8 @@ theorem losWinners_approx {N M : Type*} [Fintype N] [LinearOrder N] [Fintype M] 
   have hsplit : ∀ s : Finset N, ∑ j ∈ s, (b j).value =
       ∑ j ∈ s.filter (fun j => (b j).bundle = ∅), (b j).value +
       ∑ j ∈ s.filter (fun j => (b j).bundle.Nonempty), (b j).value := fun s => by
-    have hdisj : Disjoint (s.filter fun j => (b j).bundle = ∅)
-        (s.filter fun j => (b j).bundle.Nonempty) :=
-      Finset.disjoint_filter.2 fun _ _ he hne => hne.ne_empty he
-    have hunion : s.filter (fun j => (b j).bundle = ∅) ∪
-        s.filter (fun j => (b j).bundle.Nonempty) = s := by
-      ext j
-      simp only [Finset.mem_union, Finset.mem_filter, Finset.nonempty_iff_ne_empty]
-      tauto
-    rw [← Finset.sum_union hdisj, hunion]
+    rw [← Finset.sum_filter_add_sum_filter_not s (fun j => (b j).bundle = ∅)]
+    simp only [← Finset.nonempty_iff_ne_empty]
   have hopt_part := hsplit opt
   have hW_part := hsplit W
   have hsubEmpty : optEmpty ⊆ wEmpty := fun j hj => by
@@ -1432,9 +1381,8 @@ theorem losWinners_approx {N M : Type*} [Fintype N] [LinearOrder N] [Fintype M] 
         exact hjW ((mem_losWinners_iff_earlier_winners b j).2 hnone)
       obtain ⟨i, hiW, hilt, hnd⟩ := hblock
       have hnd' : ¬ Disjoint (b i).bundle (b j).bundle := fun h => hnd h.symm
-      have hine : (b i).bundle.Nonempty := by
-        rw [Finset.not_disjoint_iff] at hnd'
-        exact ⟨hnd'.choose, hnd'.choose_spec.1⟩
+      have hine : (b i).bundle.Nonempty :=
+        (Finset.not_disjoint_iff_nonempty_inter.1 hnd').mono Finset.inter_subset_left
       exact ⟨i, Finset.mem_filter.2 ⟨hiW, hine⟩, Or.inr hilt, hnd'⟩
   let owner : N → N := fun j => if hj : j ∈ optPos then (hblock_exists j hj).choose else j
   have hmaps : ∀ j ∈ optPos, owner j ∈ wPos := fun j hj => by
@@ -1455,9 +1403,8 @@ theorem losWinners_approx {N M : Type*} [Fintype N] [LinearOrder N] [Fintype M] 
           exact (hblock_exists j hjPos).choose_spec.2
       _ = Real.sqrt (Fintype.card M) * ∑ i ∈ wPos, (b i).value :=
           (Finset.mul_sum _ _ _).symm
-  have h1_le_sqrt : (1 : ℝ) ≤ Real.sqrt (Fintype.card M) := by
-    have hm : (1 : ℝ) ≤ Fintype.card M := by exact_mod_cast Fintype.card_pos (α := M)
-    simpa only [Real.sqrt_one] using Real.sqrt_le_sqrt hm
+  have h1_le_sqrt : (1 : ℝ) ≤ Real.sqrt (Fintype.card M) :=
+    Real.one_le_sqrt.2 (by exact_mod_cast Fintype.card_pos (α := M))
   have hwEmpty_nn : 0 ≤ ∑ i ∈ wEmpty, (b i).value := Finset.sum_nonneg fun i _ => hb i
   calc ∑ j ∈ opt, (b j).value
       = ∑ j ∈ optEmpty, (b j).value + ∑ j ∈ optPos, (b j).value := hopt_part
