@@ -40,7 +40,8 @@ namespace Cslib.Polygonal.Route
   simp only [finish, replaceBends, Fin.lastCases_last]
 
 @[simp] theorem point_replaceBends (p : Route) (bend : Fin p.bends → ℂ) (j : Fin p.bends) :
-    (p.replaceBends bend).point j.succ.castSucc = bend j := by
+    (p.replaceBends bend).point j.castSucc.succ = bend j := by
+  rw [← Fin.castSucc_succ]
   change (Fin.lastCases p.finish (Fin.cases p.start bend) j.succ.castSucc : ℂ) = _
   rw [Fin.lastCases_castSucc, Fin.cases_succ]
 
@@ -102,7 +103,7 @@ theorem exists_replaceBends_avoiding_spans {ι : Type*} [Finite ι]
       rw [start_replaceBends, dist_self]
       exact hpositive i
     · change dist (r.point l.succ.castSucc) _ < tolerance i
-      rw [point_replaceBends]
+      rw [Fin.castSucc_succ, point_replaceBends]
       exact (hnear ⟨i, l⟩).trans (hδi i)
   · simpa only [bend, Sigma.eta] using hinj
   · intro d
