@@ -2758,6 +2758,7 @@ public import CslibFrontier.Computability.Complexity.Classes.MIP.Arithmetization
 public import CslibFrontier.Computability.Complexity.Classes.MIP.Defs
 public import CslibFrontier.Computability.Complexity.Classes.MIP.NEXP
 public import CslibFrontier.Computability.Complexity.Classes.MIP.OptimalProver
+public import CslibFrontier.Computability.Complexity.Classes.MaxNP
 public import CslibFrontier.Computability.Complexity.Classes.Measure.Basic
 public import CslibFrontier.Computability.Complexity.Classes.Measure.Conservation
 public import CslibFrontier.Computability.Complexity.Classes.Measure.DTIME
