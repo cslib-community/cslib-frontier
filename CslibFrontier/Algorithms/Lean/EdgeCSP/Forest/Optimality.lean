@@ -43,11 +43,9 @@ variable {Rel V : Type*} {F : CSP Rel V} [DecidableEq V]
 private theorem outgoing_injective {sem : Rel → List Bool → Bool}
     {f : OccurrenceLabeling F Bool} {rs : List V} {es : Log F}
     (hg : Grown sem f rs es) {a b : Occurrence F}
-    (ha : a ∈ es.outgoing) (hb : b ∈ es.outgoing) (he : a.var = b.var) : a = b := by
-  have hn : (es.outgoing.map Occurrence.var).Nodup := by
-    rw [← Log.children_eq_map_outgoing]
-    exact hg.children_nodup
-  exact List.inj_on_of_nodup_map hn ha hb he
+    (ha : a ∈ es.outgoing) (hb : b ∈ es.outgoing) (he : a.var = b.var) : a = b :=
+  List.inj_on_of_nodup_map (by rw [← Log.children_eq_map_outgoing]; exact hg.children_nodup)
+    ha hb he
 
 private theorem incoming_saturated {sem : Rel → List Bool → Bool}
     {f : OccurrenceLabeling F Bool} {rs : List V} {es : Log F}
@@ -55,15 +53,9 @@ private theorem incoming_saturated {sem : Rel → List Bool → Bool}
     (ha : a ∈ es.used.toFinset \ es.outgoing.toFinset)
     (hb : b ∈ partners sem f a) : b ∈ es.outgoing.toFinset := by
   obtain ⟨hau, hao⟩ := mem_sdiff.mp ha
-  have ham : a ∈ es.arcs.map Arc.occurrence := by
-    rw [Log.map_arcs_occurrence]
-    exact List.mem_toFinset.mp hau
-  obtain ⟨c, hc, rfl⟩ := List.mem_map.mp ham
-  have hci : c.incoming = true := by
-    cases hi : c.incoming
-    · exact (hao (List.mem_toFinset.mpr (Log.mem_outgoing_of_arc hc hi))).elim
-    · rfl
-  obtain ⟨d, hd, he, hi, _⟩ := hg.saturated hc hci hb
+  obtain ⟨c, hc, rfl⟩ := List.mem_map.mp (by rwa [Log.map_arcs_occurrence, ← List.mem_toFinset])
+  obtain ⟨d, hd, he, hi, _⟩ := hg.saturated hc (Bool.eq_true_of_not_eq_false fun hi =>
+    hao (List.mem_toFinset.mpr (Log.mem_outgoing_of_arc hc hi))) hb
   exact List.mem_toFinset.mpr (he ▸ Log.mem_outgoing_of_arc hd hi)
 
 /-- Count changes by constraint positions, applying the local exchange bound on each actual
@@ -83,49 +75,30 @@ private theorem local_changes_le {sem : Rel → List Bool → Bool}
     apply (hM i).card_disagree_le (hf i) (hg i)
     · exact disjoint_left.mpr fun j hjI hjO =>
         disjoint_left.mp hIO (mem_filter.mp hjI).2 (mem_filter.mp hjO).2
-    · intro a ha b hb hba hv
-      have hab : (⟨i, a⟩ : Occurrence F) ≠ ⟨i, b⟩ := sigma_mk_injective.ne hba.symm
-      have hbO : (⟨i, b⟩ : Occurrence F) ∈ O := by
-        apply hs _ (mem_filter.mp ha).2
-        apply (mem_partners sem f _ _).mpr
-        refine ⟨rfl, hF.var_ne_of_constraint_eq rfl hab, ?_⟩
-        rw [pairFlip_eq f hab]
-        exact EdgeInstance.validLabeling_flipOn_pair hf i a b hv
-      exact hb (mem_filter.mpr ⟨mem_univ b, hbO⟩)
-  have hsum := sum_le_sum (fun i (_ : i ∈ (univ : Finset (Fin F.length))) => hlocal i)
+    · exact fun a ha b hb hba hv => hb <| mem_filter.mpr ⟨mem_univ b,
+        hs _ (mem_filter.mp ha).2 _ <| (mem_partners sem f _ _).mpr
+          ⟨rfl, hF.var_ne_of_constraint_eq rfl (sigma_mk_injective.ne hba.symm),
+            pairFlip_eq f (sigma_mk_injective.ne hba.symm) ▸
+              EdgeInstance.validLabeling_flipOn_pair hf i a b hv⟩⟩
   have hcount (P : Finset (Occurrence F)) :
       (∑ i : Fin F.length, ((univ.filter fun j => (⟨i, j⟩ : Occurrence F) ∈ P).filter
-        fun j => f ⟨i, j⟩ ≠ g ⟨i, j⟩).card) =
-      (P.filter fun o => f o ≠ g o).card := by
-    calc
-      _ = ∑ i : Fin F.length, ∑ j : Fin F[i].scope.length,
-          if (⟨i, j⟩ : Occurrence F) ∈ P ∧ f ⟨i, j⟩ ≠ g ⟨i, j⟩ then (1 : ℕ) else 0 := by
-        simp only [sum_boole, filter_filter, Nat.cast_id]
-        rfl
-      _ = ∑ o : Occurrence F, if o ∈ P ∧ f o ≠ g o then 1 else 0 :=
-        (Fintype.sum_sigma (fun o : Occurrence F =>
-          if o ∈ P ∧ f o ≠ g o then (1 : ℕ) else 0)).symm
-      _ = _ := by
-        rw [sum_boole]
-        apply congrArg Finset.card
-        ext o
-        simp
-  rwa [hcount I, hcount O] at hsum
+        fun j => f ⟨i, j⟩ ≠ g ⟨i, j⟩).card) = (P.filter fun o => f o ≠ g o).card := by
+    simp only [filter_filter, card_filter]
+    rw [← Fintype.sum_sigma (fun o : Occurrence F => if o ∈ P ∧ f o ≠ g o then 1 else 0),
+      ← card_filter, ← card_filter]
+    exact congrArg card (ext fun o => by simp only [mem_filter, mem_univ, true_and])
+  simpa only [hcount] using sum_le_sum fun i (_ : i ∈ univ) => hlocal i
 
 private theorem fiber_card (hF : EdgeInstance F) (s : Finset (Occurrence F))
     (o : Occurrence F) :
     (s.filter fun a => a.var = o.var).card =
       (if o ∈ s then 1 else 0) + (if hF.partner o ∈ s then 1 else 0) := by
   have he : (s.filter fun a => a.var = o.var) =
-      (({o, hF.partner o} : Finset (Occurrence F)).filter fun a => a ∈ s) := by
+      ({o, hF.partner o} : Finset (Occurrence F)).filter (· ∈ s) := by
     ext a
     simp only [mem_filter, mem_insert, mem_singleton]
-    constructor
-    · rintro ⟨ha, hv⟩
-      exact ⟨hF.eq_or_eq_partner hv, ha⟩
-    · rintro ⟨rfl | rfl, ha⟩
-      · exact ⟨ha, rfl⟩
-      · exact ⟨ha, (hF.partner_variable o).symm⟩
+    exact ⟨fun ⟨ha, hv⟩ => ⟨hF.eq_or_eq_partner hv, ha⟩,
+      by rintro ⟨rfl | rfl, ha⟩; exacts [⟨ha, rfl⟩, ⟨ha, (hF.partner_variable o).symm⟩]⟩
   rw [he]
   by_cases ho : o ∈ s <;> by_cases hp : hF.partner o ∈ s <;>
     simp [filter_insert, filter_singleton, ho, hp, hF.partner_ne o]
@@ -143,36 +116,25 @@ private theorem variable_accounting (hF : EdgeInstance F)
       (if Inconsistent g o.var then 1 else 0) +
         ((I.filter fun a => f a ≠ g a).filter fun a => a.var = o.var).card := by
   rw [fiber_card hF, fiber_card hF]
-  have hdis (a : Occurrence F) (ha : a ∈ I) : a ∉ O :=
-    fun hb => disjoint_left.mp hIO ha hb
-  have hdis' (a : Occurrence F) (ha : a ∈ O) : a ∉ I :=
-    fun hb => disjoint_left.mp hIO hb ha
+  have hIO' := disjoint_left.mp hIO
   by_cases hinc : Inconsistent f o.var
   · have hi := hr o hinc
     have hip := hr (hF.partner o) (by rwa [← hF.partner_variable o])
-    have hn := hdis o hi
-    have hnp := hdis (hF.partner o) hip
-    simp only [hinc, ↓reduceIte, mem_filter, hn, hnp, hi, hip, false_and, true_and]
+    simp only [hinc, ↓reduceIte, mem_filter, hIO' hi, hIO' hip, hi, hip, false_and, true_and]
     simp only [hF.inconsistent_iff] at hinc ⊢
-    cases h₁ : f o <;> cases h₂ : f (hF.partner o) <;>
-      cases h₃ : g o <;> cases h₄ : g (hF.partner o) <;> simp_all
+    split_ifs <;> first | omega | simp_all
   · by_cases hout : o ∈ O
-    · obtain ⟨hip, _⟩ := ho o hout
-      have hni := hdis' o hout
-      have hnp := hdis (hF.partner o) hip
-      simp only [hinc, ↓reduceIte, mem_filter, hout, hip, hni, hnp, false_and, true_and]
+    · have hip := (ho o hout).1
+      have hni : o ∉ I := fun h => hIO' h hout
+      simp only [hinc, ↓reduceIte, mem_filter, hout, hip, hni, hIO' hip, false_and, true_and]
       simp only [hF.inconsistent_iff] at hinc ⊢
-      cases h₁ : f o <;> cases h₂ : f (hF.partner o) <;>
-        cases h₃ : g o <;> cases h₄ : g (hF.partner o) <;> simp_all
+      split_ifs <;> first | omega | simp_all
     · by_cases houtp : hF.partner o ∈ O
-      · obtain ⟨hi, _⟩ := ho (hF.partner o) houtp
-        rw [hF.partner_partner] at hi
-        have hnip := hdis' (hF.partner o) houtp
-        simp only [hinc, ↓reduceIte, mem_filter, hout, houtp, hi, hnip,
-          false_and, true_and]
+      · have hi := hF.partner_partner o ▸ (ho (hF.partner o) houtp).1
+        have hnip : hF.partner o ∉ I := fun h => hIO' h houtp
+        simp only [hinc, ↓reduceIte, mem_filter, hout, houtp, hi, hnip, false_and, true_and]
         simp only [hF.inconsistent_iff] at hinc ⊢
-        cases h₁ : f o <;> cases h₂ : f (hF.partner o) <;>
-          cases h₃ : g o <;> cases h₄ : g (hF.partner o) <;> simp_all
+        split_ifs <;> first | omega | simp_all
       · simp [hinc, hout, houtp]
 
 private theorem global_changes_le (hF : EdgeInstance F)
@@ -190,19 +152,16 @@ private theorem global_changes_le (hF : EdgeInstance F)
           ((I.filter fun a => f a ≠ g a).filter fun a => a.var = v).card := by
     obtain ⟨o, rfl⟩ := (exists_occurrence_iff v).mpr (List.mem_toFinset.mp hv)
     exact variable_accounting hF f g I O hIO hr ho o
-  have hs := sum_le_sum hpoint
   have hfiber (s : Finset (Occurrence F)) :
       (∑ v ∈ vs, (s.filter fun a => a.var = v).card) = s.card :=
-    (card_eq_sum_card_fiberwise (fun a _ => List.mem_toFinset.mpr a.var_mem)).symm
+    (card_eq_sum_card_fiberwise fun a _ => List.mem_toFinset.mpr a.var_mem).symm
   have hd (l : OccurrenceLabeling F Bool) :
       (∑ v ∈ vs, if Inconsistent l v then 1 else 0) = (defects l).card := by
     rw [sum_boole]
-    apply congrArg Finset.card
-    ext v
-    simp only [mem_filter, mem_defects, vs, List.mem_toFinset]
-    exact and_iff_right_of_imp fun h =>
-      (exists_occurrence_iff v).mp (by obtain ⟨o, p, hv, _, _⟩ := h; exact ⟨o, hv⟩)
-  simpa only [sum_add_distrib, hfiber, hd] using hs
+    exact congrArg card <| ext fun v => by
+      simp only [mem_filter, mem_defects, vs, List.mem_toFinset]
+      exact and_iff_right_of_imp fun ⟨o, _, hv, _, _⟩ => (exists_occurrence_iff v).mp ⟨o, hv⟩
+  simpa only [sum_add_distrib, hfiber, hd] using sum_le_sum hpoint
 
 /-- Lemma 45 of [KazdaKolmogorovRolinek2018], printed pp. 0:22–23, by an alternative
 counting proof. A fresh executable search returning exhaustion certifies that its valid base
@@ -212,31 +171,23 @@ theorem search_exhausted_isOptimalLabeling (sem : Rel → List Bool → Bool)
     (f : OccurrenceLabeling F Bool) (hF : EdgeInstance F)
     (hf : ValidLabeling sem f) (hM : EdgeInstance.EvenConstraints sem F)
     {es : Log F} (hs : search sem f = .exhausted es) : IsOptimalLabeling sem f := by
-  have hg := search_grown sem f hF
-  rw [hs] at hg
+  have hg := search_grown sem f hF; rw [hs] at hg
   have hc := search_exhausted_frontier sem f hs
-  let O := es.outgoing.toFinset
-  let I := es.used.toFinset \ O
-  have hIO : Disjoint I O := disjoint_left.mpr fun _ hi ho => (mem_sdiff.mp hi).2 ho
-  have hroot (o : Occurrence F) (hi : Inconsistent f o.var) : o ∈ I := by
-    refine mem_sdiff.mpr ⟨List.mem_toFinset.mpr (hc o (Or.inl ((mem_roots f _).mpr hi))), ?_⟩
-    exact fun ho => hg.outgoing_not_root (List.mem_toFinset.mp ho) ((mem_roots f _).mpr hi)
-  have hout (o : Occurrence F) (ho : o ∈ O) :
-      hF.partner o ∈ I ∧ ¬ Inconsistent f o.var := by
+  let O := es.outgoing.toFinset; let I := es.used.toFinset \ O
+  have hIO : Disjoint I O := disjoint_sdiff_self_left
+  have hroot (o : Occurrence F) (hi : Inconsistent f o.var) : o ∈ I :=
+    mem_sdiff.mpr ⟨List.mem_toFinset.mpr (hc o (Or.inl ((mem_roots f _).mpr hi))),
+      fun ho => hg.outgoing_not_root (List.mem_toFinset.mp ho) ((mem_roots f _).mpr hi)⟩
+  have hout (o : Occurrence F) (ho : o ∈ O) : hF.partner o ∈ I ∧ ¬ Inconsistent f o.var := by
     have hom := List.mem_toFinset.mp ho
-    have hvis := Log.Grown.used_visited hg (es.outgoing_subset_used hom)
-    have hpvis : es.Visited (roots f) (hF.partner o).var := by
-      rwa [← hF.partner_variable o]
-    refine ⟨mem_sdiff.mpr ⟨List.mem_toFinset.mpr (hc _ hpvis), ?_⟩, ?_⟩
-    · intro hp
-      exact hF.partner_ne o (outgoing_injective hg hom (List.mem_toFinset.mp hp)
-        (hF.partner_variable o))
-    · intro hi
-      exact hg.outgoing_not_root hom ((mem_roots f _).mpr hi)
+    refine ⟨mem_sdiff.mpr ⟨List.mem_toFinset.mpr (hc _ (hF.partner_variable o ▸
+        Log.Grown.used_visited hg (es.outgoing_subset_used hom))),
+      fun hp => hF.partner_ne o (outgoing_injective hg hom (List.mem_toFinset.mp hp)
+        (hF.partner_variable o))⟩,
+      fun hi => hg.outgoing_not_root hom ((mem_roots f _).mpr hi)⟩
   refine ⟨hf, fun g hvalid => ?_⟩
-  have hlocal := local_changes_le hF hM hf hvalid I O hIO
-    (fun _ ha _ hb => incoming_saturated hg ha hb)
-  have hglobal := global_changes_le hF f g I O hIO hroot hout
+  have := local_changes_le hF hM hf hvalid I O hIO fun _ ha _ hb => incoming_saturated hg ha hb
+  have := global_changes_le hF f g I O hIO hroot hout
   omega
 
 end Cslib.Logic.PL.CSP.Forest
