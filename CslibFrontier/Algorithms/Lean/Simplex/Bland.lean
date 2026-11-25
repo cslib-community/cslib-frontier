@@ -12,10 +12,7 @@ public import Mathlib.Data.Finset.Max
 public import Mathlib.Data.Fintype.Card
 import Mathlib.Algebra.Module.Pi
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
-import Mathlib.Algebra.Order.Module.Defs
-import Mathlib.Data.Finset.Card
 import Mathlib.Data.Finset.Powerset
-import Mathlib.Order.Bounds.Basic
 import Mathlib.Order.Interval.Finset.Nat
 import Mathlib.Tactic.Linarith
 

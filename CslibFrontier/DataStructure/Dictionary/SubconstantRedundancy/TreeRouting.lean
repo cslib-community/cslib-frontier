@@ -498,9 +498,8 @@ noncomputable def stepCoordEquiv (seeds : P.SeedAssignment) {m : ℕ} (h1 : 1 �
     P.LevelCoord m ≃ P.LevelCoord (m + 1) where
   toFun := fun (u_m, id_m, q_m) =>
     let prim_next := seeds.routeIdToPrimEquiv h1 hm (u_m, id_m)
-    let ir := seeds.primSuccToIdRemEquiv h1 hm prim_next
-    let ir2 := ir.2
-    (ir.1, ir2.1, quotMergeEquiv h1 (q_m, ir2.2))
+    let ⟨u_next, id_next, rem_m⟩ := seeds.primSuccToIdRemEquiv h1 hm prim_next
+    (u_next, id_next, quotMergeEquiv h1 (q_m, rem_m))
   invFun := fun (u_next, id_next, q_next) =>
     let qr := (quotMergeEquiv (P := P) h1).symm q_next
     let prim_next := (seeds.primSuccToIdRemEquiv h1 hm).symm (u_next, id_next, qr.2)
@@ -517,9 +516,8 @@ noncomputable def stepCoordEquiv (seeds : P.SeedAssignment) {m : ℕ} (h1 : 1 �
     (hm : m < P.depth) (c : P.LevelCoord m) :
     seeds.stepCoordEquiv h1 hm c =
       let prim_next := seeds.routeIdToPrimEquiv h1 hm (c.node, c.id)
-      let ir := seeds.primSuccToIdRemEquiv h1 hm prim_next
-      let ir2 := ir.2
-      (ir.1, ir2.1, quotMergeEquiv h1 (c.quot, ir2.2)) := by rfl
+      let ⟨u_next, id_next, rem_m⟩ := seeds.primSuccToIdRemEquiv h1 hm prim_next
+      (u_next, id_next, quotMergeEquiv h1 (c.quot, rem_m)) := by rfl
 
 /-- Multi-level coordinate bijection `Fin P.paddedUniv ≃ P.LevelCoord ℓ` for `1 ≤ ℓ ≤ depth`. -/
 noncomputable def levelCoordEquiv (seeds : P.SeedAssignment) :

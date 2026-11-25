@@ -20,6 +20,9 @@ twice still costs one. Circuit fanout and reuse of nonlinear intermediate values
 Every affine Boolean function has Fourier norm one, and every Boolean function on at most two
 bits has Fourier norm at most two. The joint workspace bound of `SpectralNorm` therefore gives
 Fourier norm at most `2 ^ m` for an output of a circuit with nonlinear cost `m`.
+Every output Fourier coefficient is also an integer multiple of `2 ^ (-m)`. This denominator
+invariant can give lower bounds even when the Fourier norm is small; `MajorityNonlinear`
+applies it to majority.
 
 ## Main definitions
 
@@ -29,6 +32,8 @@ Fourier norm at most `2 ^ m` for an output of a circuit with nonlinear cost `m`.
 
 * `Cslib.Circuits.Circuit.sum_abs_fourierCoeff_signVal_eval_le_two_pow_nonlinearCost`:
   the Fourier norm of any output is at most two to the number of nonaffine gates.
+* `Cslib.Circuits.Circuit.exists_fourierCoeff_signVal_eval_eq_intCast_div_two_pow_nonlinearCost`:
+  each output coefficient has denominator dividing two to the number of nonaffine gates.
 -/
 
 public section
@@ -63,6 +68,17 @@ theorem sum_abs_fourierCoeff_le_two_pow_nonlinearCost (I : Interpretation σ Boo
       sum_abs_fourierCoeff_signVal_le_two_of_card_le_two
         (by simpa only [Fintype.card_fin] using hArity) (I op)
 
+private theorem exists_fourierCoeff_eq_intCast_div_two_pow_nonlinearCost
+    (I : Interpretation σ Bool) (op : σ.Op) (hArity : σ.Arity op ≤ 2)
+    (S : Finset (Fin (σ.Arity op))) :
+    ∃ z : ℤ, fourierCoeff (fun x => signVal (I op x)) S =
+      z / (2 : ℝ) ^ nonlinearCost I op := by
+  by_cases h : IsAffine (I op)
+  · simpa [nonlinearCost, h] using exists_fourierCoeff_signVal_eq_intCast_of_isAffine h S
+  · simpa [nonlinearCost, h] using
+      exists_fourierCoeff_signVal_eq_intCast_div_two_of_card_le_two
+        (by simpa only [Fintype.card_fin] using hArity) (I op) S
+
 end Boolean
 
 /-- A circuit over any Boolean basis of fan-in at most two has output Fourier norm at most
@@ -74,5 +90,16 @@ theorem Circuit.sum_abs_fourierCoeff_signVal_eval_le_two_pow_nonlinearCost
       (2 : ℝ) ^ c.program.cost (Boolean.nonlinearCost I) :=
   c.sum_abs_fourierCoeff_signVal_eval_le_two_pow_cost I (Boolean.nonlinearCost I)
     (fun op => Boolean.sum_abs_fourierCoeff_le_two_pow_nonlinearCost I op (hArity op)) j
+
+/-- Every Fourier coefficient of a circuit with `m` nonaffine binary gates is an integer
+multiple of `2 ^ (-m)`. Affine gates, fanout and arbitrary reuse are free. -/
+theorem Circuit.exists_fourierCoeff_signVal_eval_eq_intCast_div_two_pow_nonlinearCost
+    {σ : Signature.{u}} {n m : ℕ} (c : Circuit σ n m) (I : Interpretation σ Bool)
+    (hArity : ∀ op, σ.Arity op ≤ 2) (j : Fin m) (S : Finset (Fin n)) :
+    ∃ z : ℤ, fourierCoeff (fun x => signVal (c.eval I x j)) S =
+      z / (2 : ℝ) ^ c.program.cost (Boolean.nonlinearCost I) :=
+  c.exists_fourierCoeff_signVal_eval_eq_intCast_div_two_pow_cost I (Boolean.nonlinearCost I)
+    (fun op => Boolean.exists_fourierCoeff_eq_intCast_div_two_pow_nonlinearCost I op
+      (hArity op)) j S
 
 end Cslib.Circuits

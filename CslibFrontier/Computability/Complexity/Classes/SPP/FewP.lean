@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Classes.FewP
 public import CslibFrontier.Computability.Complexity.Classes.SPP
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 public import CslibFrontier.Foundations.Data.BitString.List
 public import CslibFrontier.Foundations.Data.BitString.List.Binary
 import CslibFrontier.Computability.Complexity.Classes.SharpP.Closure
@@ -47,6 +48,7 @@ exactly when `c` is the largest certificate above the last one listed.
 
 ## Main definitions
 
+* `Cslib.Complexity.SortedSubsets.State`: the state of a left-to-right scan of slots.
 * `Cslib.Complexity.SortedSubsets.step`: read one slot of a listing.
 * `Cslib.Complexity.SortedSubsets.verifier`: the verifier counting the listings of a given parity.
 
@@ -72,44 +74,53 @@ open Finset Turing.MultiTapeTM BitString
 
 namespace SortedSubsets
 
-/-- The state of a scan of slots: whether the slots read so far are well formed, the parity of the
-number of certificates listed, whether an empty slot has been read, whether a certificate has been
-listed, and the last certificate listed. -/
-abbrev State := Bool × Bool × Bool × Bool × List Bool
+/-- The state of a scan of slots. -/
+structure State where
+  /-- Whether the slots read so far are well formed. -/
+  ok : Bool
+  /-- Whether an odd number of certificates has been listed. -/
+  parity : Bool
+  /-- Whether an empty slot has been read. -/
+  ended : Bool
+  /-- Whether a certificate has been listed. -/
+  started : Bool
+  /-- The last certificate listed. -/
+  prev : List Bool
+  deriving DecidableEq
 
 /-- The state before any slot is read. -/
-def init : State := (true, false, false, false, [])
+def init : State := ⟨true, false, false, false, []⟩
 
 /-- Read one slot, a flag bit followed by a certificate. A flagged slot lists its certificate, which
 must be accepted by `acc`, come before every empty slot, and exceed the last certificate listed in
 binary value; an empty slot must hold only bits `false`. -/
 def step (acc : List Bool → Bool) (s : State) (slot : List Bool) : State :=
   if slot.headD false then
-    (s.1 && !s.2.2.1 && acc slot.tail &&
-        (!s.2.2.2.1 || decide (binaryValue s.2.2.2.2 < binaryValue slot.tail)),
-      !s.2.1, s.2.2.1, true, slot.tail)
-  else (s.1 && !slot.tail.any (fun b => b), s.2.1, true, s.2.2.2.1, s.2.2.2.2)
+    ⟨s.ok && !s.ended && acc slot.tail &&
+        (!s.started || decide (binaryValue s.prev < binaryValue slot.tail)),
+      !s.parity, s.ended, true, slot.tail⟩
+  else ⟨s.ok && !slot.tail.any (fun b => b), s.parity, true, s.started, s.prev⟩
 
 /-- A final state is accepted for the parity `b` when it is well formed and lists a number of
 certificates of parity `b`. -/
-def accepts (b : Bool) (s : State) : Bool := s.1 && s.2.1 == b
+def accepts (b : Bool) (s : State) : Bool := s.ok && s.parity == b
 
 /-- The sign of a final state: `0` if malformed, otherwise `1` or `-1` by the parity of the number
 of certificates listed. -/
-def sign (s : State) : ℤ := if s.1 then (if s.2.1 then -1 else 1) else 0
+def sign (s : State) : ℤ := if s.ok then (if s.parity then -1 else 1) else 0
 
 /-- The sign of a state is its acceptance for the even parity minus its acceptance for the odd
 parity. -/
 private theorem sign_eq_sub (s : State) : sign s =
     (if accepts false s = true then 1 else 0) - (if accepts true s = true then 1 else 0) := by
-  obtain ⟨ok, par, _⟩ := s
+  obtain ⟨ok, par, _, _, _⟩ := s
   cases ok <;> cases par <;> simp [accepts, sign]
 
 /-- The certificates of length `len` accepted by `acc` that may be listed after the state `s`: above
 the last certificate listed, if any. -/
 def above (acc : List Bool → Bool) (len : ℕ) (s : State) : Finset (Fin len → Bool) :=
   univ.filter fun x => acc (List.ofFn x) = true ∧
-    (s.2.2.2.1 = false ∨ binaryValue s.2.2.2.2 < binaryValue (List.ofFn x))
+    (s.started = false ∨ binaryValue s.prev < binaryValue (List.ofFn x))
 
 /-- The words of `k` slots of `len + 1` bits read from the state `s`, counted with the sign of the
 final state. -/
@@ -157,7 +168,7 @@ private theorem card_filter_isGreatest {A : Finset (Fin len → Bool)} (hA : A.N
 /-- Listing `c` leaves no accepted certificate above it exactly when `c` is the largest accepted
 certificate that may be listed. -/
 private theorem above_eq_empty_iff {s : State} {c : Fin len → Bool} (hc : c ∈ above acc len s)
-    (o p e : Bool) : above acc len (o, p, e, true, List.ofFn c) = ∅ ↔
+    (o p e : Bool) : above acc len ⟨o, p, e, true, List.ofFn c⟩ = ∅ ↔
       ∀ x ∈ above acc len s, binaryValue (List.ofFn x) ≤ binaryValue (List.ofFn c) := by
   simp only [above, mem_filter, mem_univ, true_and, Bool.true_eq_false, false_or] at hc ⊢
   rw [Finset.eq_empty_iff_forall_notMem]
@@ -169,16 +180,16 @@ private theorem above_eq_empty_iff {s : State} {c : Fin len → Bool} (hc : c �
 
 /-- A flagged slot read from a well-formed state before any empty slot. -/
 private theorem step_true_cons (par started : Bool) (prev : List Bool) (c : Fin len → Bool) :
-    step acc (true, par, false, started, prev) (true :: List.ofFn c) =
-      (acc (List.ofFn c) && (!started || decide (binaryValue prev < binaryValue (List.ofFn c))),
-        !par, false, true, List.ofFn c) :=
+    step acc ⟨true, par, false, started, prev⟩ (true :: List.ofFn c) =
+      ⟨acc (List.ofFn c) && (!started || decide (binaryValue prev < binaryValue (List.ofFn c))),
+        !par, false, true, List.ofFn c⟩ :=
   rfl
 
-/-- A flagged slot holding `c` keeps the state `(true, par, false, started, prev)` well formed
+/-- A flagged slot holding `c` keeps the state `⟨true, par, false, started, prev⟩` well formed
 exactly when `c` may be listed after it. -/
 private theorem cond_eq_true_iff {par started : Bool} {prev : List Bool} {c : Fin len → Bool} :
     (acc (List.ofFn c) && (!started || decide (binaryValue prev < binaryValue (List.ofFn c)))) =
-      true ↔ c ∈ above acc len (true, par, false, started, prev) := by
+      true ↔ c ∈ above acc len ⟨true, par, false, started, prev⟩ := by
   cases started <;> simp [above]
 
 /-- **The signed count of the listings.** From a well-formed state, the words of `k` slots,
@@ -186,8 +197,8 @@ counted with the sign of the parity of the certificates listed, sum to the sign 
 when an empty slot has been read or no accepted certificate is above the last one listed, and to
 `0` otherwise, provided at most `k` accepted certificates are above it. -/
 theorem signedSum_eq (k : ℕ) (s : State)
-    (hk : s.1 = true → s.2.2.1 = false → (above acc len s).card ≤ k) :
-    signedSum acc len k s = if s.2.2.1 = false ∧ (above acc len s).Nonempty then 0 else sign s := by
+    (hk : s.ok = true → s.ended = false → (above acc len s).card ≤ k) :
+    signedSum acc len k s = if s.ended = false ∧ (above acc len s).Nonempty then 0 else sign s := by
   induction k generalizing s with
   | zero =>
     unfold signedSum
@@ -197,7 +208,7 @@ theorem signedSum_eq (k : ℕ) (s : State)
       Finset.sum_singleton]
     split_ifs with h
     · obtain ⟨hended, hne⟩ := h
-      cases hok : s.1
+      cases hok : s.ok
       · simp [sign, hok]
       · exact absurd (card_eq_zero.1 (Nat.le_zero.1 (hk hok hended))) hne.ne_empty
     · rfl
@@ -206,7 +217,7 @@ theorem signedSum_eq (k : ℕ) (s : State)
     obtain ⟨ok, par, ended, started, prev⟩ := s
     cases ok
     · -- a malformed state stays malformed
-      have hfail (slot : List Bool) : (step acc (false, par, ended, started, prev) slot).1 =
+      have hfail (slot : List Bool) : (step acc ⟨false, par, ended, started, prev⟩ slot).ok =
           false := by
         unfold step
         split <;> simp
@@ -217,13 +228,13 @@ theorem signedSum_eq (k : ℕ) (s : State)
       simp [sign, hfail]
     -- an empty first slot
     have hsum₀ : ∑ c : Fin len → Bool, signedSum acc len k
-        (step acc (true, par, ended, started, prev) (false :: List.ofFn c)) =
+        (step acc ⟨true, par, ended, started, prev⟩ (false :: List.ofFn c)) =
           if par then -1 else 1 := by
       have hc (c : Fin len → Bool) : signedSum acc len k
-          (step acc (true, par, ended, started, prev) (false :: List.ofFn c)) =
+          (step acc ⟨true, par, ended, started, prev⟩ (false :: List.ofFn c)) =
             if (!(List.ofFn c).any (fun b => b)) = true then (if par then -1 else 1) else 0 := by
-        have hstep : step acc (true, par, ended, started, prev) (false :: List.ofFn c) =
-            (!(List.ofFn c).any (fun b => b), par, true, started, prev) := by
+        have hstep : step acc ⟨true, par, ended, started, prev⟩ (false :: List.ofFn c) =
+            ⟨!(List.ofFn c).any (fun b => b), par, true, started, prev⟩ := by
           simp [step]
         rw [hstep, ih _ (fun _ h => by simp at h)]
         simp [sign]
@@ -233,14 +244,14 @@ theorem signedSum_eq (k : ℕ) (s : State)
     cases ended
     · -- before any empty slot
       have hcard := hk rfl rfl
-      set A := above acc len (true, par, false, started, prev) with hA
+      set A := above acc len ⟨true, par, false, started, prev⟩ with hA
       have hc (c : Fin len → Bool) : signedSum acc len k
-          (step acc (true, par, false, started, prev) (true :: List.ofFn c)) =
+          (step acc ⟨true, par, false, started, prev⟩ (true :: List.ofFn c)) =
             if c ∈ A ∧ ∀ x ∈ A, binaryValue (List.ofFn x) ≤ binaryValue (List.ofFn c) then
               (if par then 1 else -1) else 0 := by
         rw [step_true_cons]
         by_cases hmem : c ∈ A
-        · have hsub : above acc len (true, !par, false, true, List.ofFn c) ⊆ A.erase c := by
+        · have hsub : above acc len ⟨true, !par, false, true, List.ofFn c⟩ ⊆ A.erase c := by
             intro x hx
             simp only [hA, above, mem_filter, mem_univ, true_and, Bool.true_eq_false,
               false_or] at hmem hx
@@ -250,20 +261,20 @@ theorem signedSum_eq (k : ℕ) (s : State)
             rcases hmem.2 with h | h
             · exact Or.inl h
             · exact Or.inr (h.trans hx.2)
-          have hle : (above acc len (true, !par, false, true, List.ofFn c)).card ≤ k := by
+          have hle : (above acc len ⟨true, !par, false, true, List.ofFn c⟩).card ≤ k := by
             have := card_le_card hsub
             rw [card_erase_of_mem hmem] at this
             omega
-          rw [(cond_eq_true_iff (par := par)).2 hmem, ih (true, !par, false, true, List.ofFn c)
+          rw [(cond_eq_true_iff (par := par)).2 hmem, ih ⟨true, !par, false, true, List.ofFn c⟩
             (fun _ _ => hle)]
           have hiff := above_eq_empty_iff hmem true (!par) false
           by_cases hmax : ∀ x ∈ A, binaryValue (List.ofFn x) ≤ binaryValue (List.ofFn c)
-          · have hempty : ¬ (above acc len (true, !par, false, true, List.ofFn c)).Nonempty :=
+          · have hempty : ¬ (above acc len ⟨true, !par, false, true, List.ofFn c⟩).Nonempty :=
               Finset.not_nonempty_iff_eq_empty.2 (hiff.2 hmax)
             rw [ite_eq_right_of_eq_false _ _ (eq_false fun h => hempty h.2),
               ite_eq_left_of_eq_true _ _ (eq_true ⟨hmem, hmax⟩)]
             cases par <;> rfl
-          · have hne : (above acc len (true, !par, false, true, List.ofFn c)).Nonempty :=
+          · have hne : (above acc len ⟨true, !par, false, true, List.ofFn c⟩).Nonempty :=
               Finset.nonempty_iff_ne_empty.2 fun h => hmax (hiff.1 h)
             rw [ite_eq_left_of_eq_true _ _ (eq_true ⟨rfl, hne⟩),
               ite_eq_right_of_eq_false _ _ (eq_false fun h => hmax h.2)]
@@ -288,8 +299,8 @@ theorem signedSum_eq (k : ℕ) (s : State)
         simp [sign]
     · -- after an empty slot only the words of `false`s are well formed
       have hfail (c : Fin len → Bool) : signedSum acc len k
-          (step acc (true, par, true, started, prev) (true :: List.ofFn c)) = 0 := by
-        have hstep : (step acc (true, par, true, started, prev) (true :: List.ofFn c)).1 =
+          (step acc ⟨true, par, true, started, prev⟩ (true :: List.ofFn c)) = 0 := by
+        have hstep : (step acc ⟨true, par, true, started, prev⟩ (true :: List.ofFn c)).ok =
             false := by
           simp [step]
         rw [ih _ (fun h => by rw [hstep] at h; exact absurd h (by simp))]
@@ -309,16 +320,17 @@ def verifier (enc : α ↪ List Bool) (p q : Polynomial ℕ) (V : α × List Boo
   accepts b ((listRows (q.eval (enc x.1).length) (p.eval (enc x.1).length + 1) x.2).foldl
     (step fun c => V (x.1, c)) init)
 
-/-- The encoding of the states of a scan. -/
-private abbrev encState : State ↪ List Bool :=
-  encPair encBool (encPair encBool (encPair encBool (encPair encBool encBits)))
+/-- The encoding of the states of a scan: `ok`, `parity`, `ended`, `started` as framed Booleans,
+followed by `prev` as raw bits. -/
+enc_structure encState : State where
+  ok : encBool, parity : encBool, ended : encBool, started : encBool, prev : encBits
 
 /-- A slot grows the encoded state by at most its length. -/
 private theorem length_encState_step (acc : List Bool → Bool) (s : State) (slot : List Bool) :
     (encState (step acc s slot)).length ≤ (encState s).length + slot.length := by
   unfold step
-  split <;> simp only [length_encPair, encBool_apply, List.length_singleton, encBits_apply,
-    List.length_tail] <;> omega
+  split <;> simp only [encState_apply, length_encPair, encBool_apply, List.length_singleton,
+    encBits_apply, List.length_tail] <;> omega
 
 /-- **The verifiers are polynomial-time.** -/
 theorem computableInPolyTime_verifier {enc : α ↪ List Bool} {V : α × List Bool → Bool}
@@ -330,7 +342,7 @@ theorem computableInPolyTime_verifier {enc : α ↪ List Bool} {V : α × List B
   have hQ : ComputableInPolyTime (fun x : α × List Bool => q.eval (enc x.1).length)
       (encPair enc encBits) encUnary := by fun_prop
   have hlt : ComputableInPolyTime
-      (fun x : (α × State) × List Bool => decide (binaryValue x.1.2.2.2.2.2 < binaryValue x.2.tail))
+      (fun x : (α × State) × List Bool => decide (binaryValue x.1.2.prev < binaryValue x.2.tail))
       (encPair (encPair enc encState) encBits) encBool :=
     ComputableInPolyTime.binary_lt' (by fun_prop) (by fun_prop)
   have hstep : ComputableInPolyTime

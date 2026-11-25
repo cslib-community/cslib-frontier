@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Circuit.Arithmetic.DepthFive.Params
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # The balanced layer schedule
@@ -184,13 +185,12 @@ theorem discrepancy_le (i j : ℕ) :
       fun t => absurd t.isLt (by omega)
     simp [ρ, hk, ha]
   · have hm' : (0 : ℝ) < p.m := by exact_mod_cast hm
-    have h' : (p.n : ℝ) * a ≤ p.k * (a + u) + p.n := by exact_mod_cast h
     have hn : (p.n : ℝ) = p.k + p.m := by exact_mod_cast p.hkm.symm
     rw [ρ, ← sub_nonneg]
     have : 1 + (p.k : ℝ) / p.m - (a - p.k / p.m * u) =
         (p.k * (a + u) + p.n - p.n * a) / p.m := by
       rw [hn]; field_simp; ring
     rw [this]
-    exact div_nonneg (by linarith) hm'.le
+    exact div_nonneg (by cast_linarith [h]) hm'.le
 
 end Cslib.Circuits.DepthFive.Params

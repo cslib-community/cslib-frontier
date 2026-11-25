@@ -466,7 +466,7 @@ private theorem bareissElimCols_poly_of_bound {γ : Type} {encIn : γ ↪ List B
   unfold bareissElimCols bareissInit
   have hpoly_bound : PolyBounded (fun x => (encIn x).length)
       (fun x => bareissStateSizeBound (toTable x).numRows (toTable x).numCols (B x).size) := by
-    unfold bareissStateSizeBound; growth_poly
+    growth_poly
   refine (ComputableInPolyTime.foldlWith_spec
     (encP := encBool) (encA := encUnary) (encB := BareissState.enc)
     (par := fun _ => false) (list := fun x => List.range (colLimit x))
@@ -527,14 +527,7 @@ private theorem bareissElim_clearDenoms_poly {α : Type} {encIn : α ↪ List Bo
       PolyBounded.self.mono fun M => (ratTable_encoding_bounds M).2.1
     have hsizeB : PolyBounded (fun M => (RatTable.enc M).length)
         (fun M => (2 ^ ((M.numCols + 1) * (RatTable.enc M).length)).size) := by
-      refine (by growth_poly : PolyBounded _
-          fun M => ((RatTable.enc M).length + 1) * (RatTable.enc M).length + 1).mono fun M => ?_
-      have hsize : (2 ^ ((M.numCols + 1) * (RatTable.enc M).length)).size ≤
-          (M.numCols + 1) * (RatTable.enc M).length + 1 :=
-        Nat.size_le.mpr (Nat.pow_lt_pow_right (by omega) (Nat.lt_succ_self _))
-      exact hsize.trans
-        (Nat.add_le_add_right
-          (Nat.mul_le_mul_right _ (Nat.add_le_add_right (ratTable_encoding_bounds M).2.1 1)) 1)
+      growth_poly [@Nat.size_pow, fun M => (ratTable_encoding_bounds M).2.1]
     exact bareissElimCols_poly_of_bound (by fun_prop) (by fun_prop) clearDenoms_wellFormed
       (fun _ => le_refl _) hrows hcols hsizeB
       fun M i j => clearDenoms_abs_le M (ratTable_encoding_bounds M).2.2 i j
@@ -582,16 +575,8 @@ private theorem bareissElimCols_aug_poly {α : Type} {encIn : α ↪ List Bool}
         fun sys => Nat.add_le_add_right (linearSystemInput_encoding_bounds sys).2.1 1
     have hsizeB : PolyBounded (fun sys => (LinearSystemInput.enc sys).length)
         (fun sys => (Bfn sys).size) := by
-      refine (by growth_poly : PolyBounded _ fun sys =>
-          ((LinearSystemInput.enc sys).length + 2) * (LinearSystemInput.enc sys).length + 1).mono
-        fun sys => ?_
       dsimp only [Bfn]
-      have hsize : (2 ^ ((sys.matrix.numCols + 2) * (LinearSystemInput.enc sys).length)).size ≤
-          (sys.matrix.numCols + 2) * (LinearSystemInput.enc sys).length + 1 :=
-        Nat.size_le.mpr (Nat.pow_lt_pow_right (by omega) (Nat.lt_succ_self _))
-      have hmc := (linearSystemInput_encoding_bounds sys).2.1
-      exact hsize.trans
-        (Nat.add_le_add_right (Nat.mul_le_mul_right _ (Nat.add_le_add_right hmc 2)) 1)
+      growth_poly [@Nat.size_pow, fun sys => (linearSystemInput_encoding_bounds sys).2.1]
     refine bareissElimCols_poly_of_bound (by fun_prop) (by fun_prop)
       (fun sys => clearDenoms_wellFormed _)
       (fun sys => by simp only [clearDenoms, augmentRatTable]; omega)

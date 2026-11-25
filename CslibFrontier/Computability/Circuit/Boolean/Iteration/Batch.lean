@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.InputTime
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.SharedDictionary
 public import CslibFrontier.Computability.Circuit.Replication
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Algebra.Order.Floor.Ring
 import Mathlib.Tactic.GCongr
 import Mathlib.Tactic.Linarith
@@ -470,9 +471,7 @@ theorem batched_fixed_power_on_optimized (c : Circuit signature n n)
     hcard
   obtain ⟨out, hout, hs⟩ := batched_fixed_power_on c S r T L hS hrN hL
   refine ⟨out, hout, ?_⟩
-  have hs' : (out.size : ℝ) ≤ 100000 * (batchBudget n c.size S.card r L : ℝ) := by
-    exact_mod_cast hs
-  linarith only [hopt, hs']
+  cast_linarith only [hopt, hs]
 
 /-- **Square-root batched fixed powers.** -/
 theorem batched_fixed_power_optimized (c : Circuit signature n n) (r T : ℕ) (hr : 0 < r)
@@ -484,9 +483,7 @@ theorem batched_fixed_power_optimized (c : Circuit signature n n) (r T : ℕ) (h
     le_rfl
   obtain ⟨out, hout, hs⟩ := batched_fixed_power c r T L hrN hL
   refine ⟨out, hout, ?_⟩
-  have hs' : (out.size : ℝ) ≤ 100000 * (batchBudget n c.size (2 ^ n) r L : ℝ) := by
-    exact_mod_cast hs
-  linarith only [hopt, hs']
+  cast_linarith only [hopt, hs]
 
 /-! ### Batched input times -/
 

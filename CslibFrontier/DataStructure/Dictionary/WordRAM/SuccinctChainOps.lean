@@ -328,8 +328,7 @@ theorem realizes_prependIfIndexedGen :
       (WordEncoding.encode (α := Unit))
       PrependIfIndexedGenPre
       (fun _ _ => 0) := by
-  have hp := realizes_lmPrependGen
-  realize
+  realize [realizes_lmPrependGen]
   (
     rcases d with ⟨⟨dp, d1⟩, d2⟩
     obtain ⟨⟨U, V, w₀, n_max, h_space, hw, hnU, hU, hV, rfl⟩, henv⟩ := h.1
@@ -474,8 +473,7 @@ theorem realizes_unlinkIfIndexedGen :
       (WordEncoding.encode (α := Unit))
       UnlinkIfIndexedGenPre
       (fun _ _ => 0) := by
-  have hu := realizes_lmUnlinkGen
-  realize
+  realize [realizes_lmUnlinkGen]
   (
     rcases d with ⟨⟨dp, d1⟩, d2⟩
     obtain ⟨⟨U, V, w₀, n_max, h_space, hw, hnU, hU, hV, rfl⟩, henv⟩ := h.1

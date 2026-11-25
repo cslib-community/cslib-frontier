@@ -84,8 +84,9 @@ def orGate (u v : Fin 3) : Fin 3 × Fin 3 × Fin 3 :=
 
 /-- The coloring of the six vertices of the clause gadget for inputs colored `u`, `v`, `w`. -/
 def gadgetColor (u v w : Fin 3) : Fin 6 → Fin 3 :=
-  ![(orGate u v).1, (orGate u v).2.1, (orGate u v).2.2, (orGate (orGate u v).2.2 w).1,
-    (orGate (orGate u v).2.2 w).2.1, (orGate (orGate u v).2.2 w).2.2]
+  let ⟨c₀, c₁, c₂⟩ := orGate u v
+  let ⟨c₃, c₄, c₅⟩ := orGate c₂ w
+  ![c₀, c₁, c₂, c₃, c₄, c₅]
 
 /-- The edges of the clause gadget with inputs `u`, `v`, `w` and palette `t`, `f`, `b` are
 properly colored by `g`: vertices `0, 1, 2` and `3, 4, 5` are triangles, `0` is joined to `u`,

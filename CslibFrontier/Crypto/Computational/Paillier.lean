@@ -74,8 +74,10 @@ part of this file.
   `unitOrOne`: at `N = 143`, `n = 0`, and `m₁ = m₂ = 0`, a fresh ciphertext `encNat 1` has mass
   `44 / 256 = 11 / 64`, while multiplying two independent encryptions gives mass
   `2316 / 65536 = 579 / 16384`. The scheme at a fixed modulus with exactly uniform randomness,
-  in `CslibFrontier.Crypto.Computational.Paillier.Finite`, satisfies both conditions. The IND-CPA
-  reduction ([KatzLindell2020], Theorem 15.13) is in
+  in `CslibFrontier.Crypto.Computational.Paillier.Finite`, satisfies both conditions.
+  `CslibFrontier.Crypto.Computational.Paillier.Statistical` bounds the statistical distance for
+  the implemented word algorithms by `10 / 2 ^ n` when both modulus factors have at least `n`
+  bits. The IND-CPA reduction ([KatzLindell2020], Theorem 15.13) is in
   `CslibFrontier.Crypto.Computational.Paillier.Security`.
 
 ## References
@@ -313,7 +315,9 @@ not established here (and fails for the dyadic sampler plus `unitOrOne`: at `N =
 `m₁ = m₂ = 0`, fresh `encNat 1` has probability mass `44 / 256 = 11 / 64`, whereas multiplying two
 independent encryptions yields mass `2316 / 65536 = 579 / 16384`). The fixed-modulus scheme in
 `CslibFrontier.Crypto.Computational.Paillier.Finite` satisfies it
-(`Cslib.Crypto.eval_mul_paillierEncrypt`). -/
+(`Cslib.Crypto.eval_mul_paillierEncrypt`). For the word algorithm,
+`Cslib.Crypto.Paillier.closeTo_addCiphertexts` in `Paillier.Statistical` bounds the statistical
+distance by `10 / 2 ^ n` when both modulus factors have at least `n` bits. -/
 theorem decrypt_addCiphertexts {gen : ℕ → ProbComp Desc} {n : ℕ} {keys : List Bool × List Bool}
     (hkeys : keys ∈ (ProbComp.eval (keyGen gen n)).support) {m₁ m₂ : ℕ} {ct₁ ct₂ : List Bool}
     (hct₁ : ct₁ ∈ (ProbComp.eval (encrypt n keys.1 m₁)).support)

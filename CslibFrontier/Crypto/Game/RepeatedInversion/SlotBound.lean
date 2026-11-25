@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Crypto.Game.RepeatedInversion
 public import CslibFrontier.Crypto.Game.Inversion
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.RunLogAgree
 import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Probability.PMF.Bind
@@ -235,8 +236,7 @@ theorem succProbability_repeatedIterateExperiment_le_sum (idx : Q → ℕ) (samp
       D.map fun w => chainVerify f d (w.1.map f^[d]) (idx w.2.1.1) w.2.1.2 &&
         chainConsistent idx f d w.2.1.1 w.2.1.2 w.2.2 := by
     rw [repeatedIterateExperiment, eval_forgeExperiment_eq, hD, PMF.map_bind]
-    simp only [chainKeyGen, ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind,
-      PMF.map_comp]
+    simp only [chainKeyGen, pmf_norm]
     rfl
   have hstep : ∀ g ∈ Finset.range (n * d),
       (D.map fun w => slotHit idx f d g w.1 w.2) true ≤ ProbComp.eval (inversionExperiment
@@ -255,9 +255,7 @@ theorem succProbability_repeatedIterateExperiment_le_sum (idx : Q → ℕ) (samp
           pure (chainSlot f d (front ++ x₀ :: back) (idx q)))).map
             (slotHit idx f d g (front ++ x₀ :: back)) := by
       rw [hD, ← hrep]
-      simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind,
-        PMF.map_bind, PMF.map_comp]
-      rfl
+      simp only [pmf_norm]
     have hR : ProbComp.eval (inversionExperiment (f^[g % d] <$> sample) f
           (slotInverter idx sample f n d g A)) =
         (ProbComp.eval sample).bind fun x₀ =>
@@ -270,9 +268,7 @@ theorem succProbability_repeatedIterateExperiment_le_sum (idx : Q → ℕ) (samp
             else chainSlot f d (front ++ default :: back) (idx q)))).map fun z =>
           f (if idx z.1.1 / d = g / d ∧ idx z.1.1 % d ≤ g % d then
             f^[g % d - idx z.1.1 % d] z.1.2 else default) == f (f^[g % d] x₀) := by
-      simp only [inversionExperiment, slotInverter, ProbComp.eval_bind, ProbComp.eval_pure,
-        ProbComp.eval_map, PMF.bind_bind, PMF.pure_bind, PMF.bind_map,
-        ← ProbOracleComp.map_fst_eval_runLog, Function.comp_def]
+      simp only [inversionExperiment, slotInverter, ← ProbOracleComp.map_fst_eval_runLog, pmf_norm]
       rfl
     rw [hL, hR]
     refine PMF.bind_apply_mono_on_support _ _ fun x₀ _ => ?_

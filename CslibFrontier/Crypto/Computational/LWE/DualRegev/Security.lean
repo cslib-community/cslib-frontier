@@ -23,6 +23,7 @@ import CslibFrontier.Probability.StatisticalDistance
 import CslibFrontier.Tactic.Negligible
 import CslibFrontier.Tactic.PMFSwap
 import CslibFrontier.Tactic.PPT
+import CslibFrontier.Tactic.UniformRelabel
 
 /-!
 # Generated-key dual-Regev IND-CPA security from decision LWE
@@ -888,13 +889,15 @@ private theorem uniform_split_publicKey {m n w : ℕ} :
     (PMF.uniformOfFintype (_root_.Matrix (Fin (m + 1)) (Fin n) (ZMod (2 ^ w)))).map
       (fun B => (((fun i j => B i.succ j, fun j => B 0 j) : PublicKey n m w))) =
         PMF.uniformOfFintype (PublicKey n m w) := by
-  let e : _root_.Matrix (Fin (m + 1)) (Fin n) (ZMod (2 ^ w)) ≃ PublicKey n m w :=
-    { toFun := fun B => ((fun i j => B i.succ j, fun j => B 0 j) : PublicKey n m w)
-      invFun := fun pk =>
-        _root_.Matrix.of (Fin.cons (α := fun _ => Fin n → ZMod (2 ^ w)) pk.2 (fun r => pk.1 r))
-      left_inv := fun B => by ext i j; refine Fin.cases rfl (fun _ => rfl) i
-      right_inv := fun pk => by refine Prod.ext (by ext i j; simp) (by ext j; simp) }
-  exact PMF.uniformOfFintype_map_equiv e
+  relabel_uniform (fun (B : _root_.Matrix (Fin (m + 1)) (Fin n) (ZMod (2 ^ w))) =>
+    (((fun i j => B i.succ j, fun j => B 0 j) : PublicKey n m w)))
+  · intro B₁ B₂ h
+    ext i j
+    refine Fin.cases (congrFun (Prod.mk.inj h).2 j)
+      (fun k => congrFun (congrFun (Prod.mk.inj h).1 k) j) i
+  · simp only [Fintype.card_prod]
+    rw [Fintype.card_congr Matrix.of.symm, Fintype.card_congr Matrix.of.symm]
+    simp [pow_succ]
 
 private theorem uniform_split_lweMatrix {m n w : ℕ} :
     (PMF.uniformOfFintype (_root_.Matrix (Fin (m + 1)) (Fin (n + 1)) (ZMod (2 ^ w)))).map
@@ -902,26 +905,21 @@ private theorem uniform_split_lweMatrix {m n w : ℕ} :
         ((fun i => M i.succ 0, M 0 0) : Ciphertext m w))) =
       (PMF.uniformOfFintype (PublicKey n m w)).bind fun pk =>
         (PMF.uniformOfFintype (Ciphertext m w)).map fun c => (pk, c) := by
-  let e : _root_.Matrix (Fin (m + 1)) (Fin (n + 1)) (ZMod (2 ^ w)) ≃
-      PublicKey n m w × Ciphertext m w :=
-    { toFun := fun M =>
-        (((fun i j => M i.succ j.succ, fun j => M 0 j.succ) : PublicKey n m w),
-          ((fun i => M i.succ 0, M 0 0) : Ciphertext m w))
-      invFun := fun p => _root_.Matrix.of
-        (Fin.cons (α := fun _ => Fin (n + 1) → ZMod (2 ^ w))
-          (Fin.cons (α := fun _ => ZMod (2 ^ w)) p.2.2 p.1.2)
-          (fun i => Fin.cons (α := fun _ => ZMod (2 ^ w)) (p.2.1 i) (fun j => p.1.1 i j)))
-      left_inv := fun M => by
-        ext i j
-        refine Fin.cases ?_ (fun _ => ?_) i <;> refine Fin.cases rfl (fun _ => rfl) j
-      right_inv := fun p => by
-        refine Prod.ext (Prod.ext (by ext i j; simp) (by ext j; simp))
-          (Prod.ext (by ext i; simp) (by simp)) }
-  calc
-    _ = PMF.uniformOfFintype (PublicKey n m w × Ciphertext m w) :=
-      PMF.uniformOfFintype_map_equiv e
-    _ = _ := by
-      rw [← PMF.uniformOfFintype_prod]
+  relabel_uniform (fun (M : _root_.Matrix (Fin (m + 1)) (Fin (n + 1)) (ZMod (2 ^ w))) =>
+    ((((fun i j => M i.succ j.succ, fun j => M 0 j.succ) : PublicKey n m w),
+      ((fun i => M i.succ 0, M 0 0) : Ciphertext m w))))
+  · intro M₁ M₂ h
+    rcases Prod.mk.inj h with ⟨hpk, hc⟩
+    rcases Prod.mk.inj hpk with ⟨hA, hu⟩
+    rcases Prod.mk.inj hc with ⟨hb, hc₀⟩
+    ext i j
+    refine Fin.cases
+      (Fin.cases hc₀ (fun c => congrFun hu c) j)
+      (fun r => Fin.cases (congrFun hb r) (fun c => congrFun (congrFun hA r) c) j) i
+  · simp only [Fintype.card_prod]
+    rw [Fintype.card_congr Matrix.of.symm, Fintype.card_congr Matrix.of.symm]
+    simp
+    ring
 
 private theorem distinguishingGame_realEnsemble (n m w η : ℕ → ℕ)
     (adversary : Encryption.Adversary) (security : ℕ) :
@@ -984,18 +982,10 @@ private theorem distinguishingGame_uniformEnsemble (n m w : ℕ → ℕ)
       simp only [PMF.bind_map, PMF.bind_bind, Function.comp_def]
       pmf_swap with bit pk choice
       let msg := if bit then Encryption.ChoiceOut.msg₁ choice else Encryption.ChoiceOut.msg₀ choice
-      let shift : Ciphertext (m security) (w security) :=
-        (0, LWE.encodeBit (w security) msg)
-      have hshift := congrArg
-        (fun law : PMF (Ciphertext (m security) (w security)) =>
-          law.bind fun c =>
-            (ProbComp.eval (adversary.guess security (Encryption.ChoiceOut.state choice)
-              (serializeCiphertext c))).bind fun guess => PMF.pure (guess ^^ bit))
-        (PMF.uniformOfFintype_map_equiv (Equiv.addRight shift))
-      simp only [shift, msg, PMF.bind_map, Function.comp_def, Equiv.coe_addRight, Prod.add_def,
-        add_zero] at hshift
-      dsimp only [PMF.map]
-      exact hshift
+      relabel_uniform (Equiv.addRight ((0, LWE.encodeBit (w security) msg) :
+        Ciphertext (m security) (w security)))
+      simp only [Equiv.coe_addRight, Prod.add_def, add_zero, msg]
+      rfl
 
 /-- The statistical hiding error `sqrt(2 ^ (w * n) / 2 ^ m)` from replacing `(A, eᵀ A)` by uniform
 `(A, u)`. -/

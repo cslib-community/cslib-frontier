@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.DPLL.Steps
+import CslibFrontier.Computability.WordRAM.InputArray
 import CslibFrontier.Computability.WordRAM.SymbolicExec.ListLoop
 
 /-!
@@ -97,6 +98,20 @@ theorem answerList_answer (N : ℕ) (φ : CNF ℕ) :
       simp [hd] at hπ
     | unsat _ => rfl
 
+/-- The memory of the input `encode N φ` of length `E` is that of the empty trail, with the end of
+the clauses at `T = E + 1`. -/
+theorem memAt_init (N : ℕ) (φ : CNF ℕ) (hN : ∀ c ∈ φ, ∀ l ∈ c, l.1 < N) :
+    MemAt φ N ((encode N φ).length + 1) (Data.init (encode N φ) : Data 32).mem [] := by
+  have hlen : (encode N φ).length = 1 + (φ.flatMap encodeClause).length := by
+    simp [encode]; omega
+  have hF : HoldsList 2 (φ.flatMap encodeClause) (Data.init (encode N φ) : Data 32).mem := by
+    have h := Data.init_realizes_append (r := 32) [N] (φ.flatMap encodeClause) []
+    simp only [List.length_singleton, List.append_nil, List.singleton_append] at h
+    exact h
+  exact ⟨hF, by omega, hN,
+    fun l hl => by rw [Data.init_mem_of_length_lt (by omega)]; simp [Trail.lits],
+    holdsList_nil _ _, by simp [TrailOK]⟩
+
 /-- **The solver on the word RAM** ends with the output `answerWords N φ` at the address in
 `out`. -/
 theorem solver_spec (N : ℕ) (φ : CNF ℕ) (hN : ∀ c ∈ φ, ∀ l ∈ c, l.1 < N)
@@ -112,23 +127,11 @@ theorem solver_spec (N : ℕ) (φ : CNF ℕ) (hN : ∀ c ∈ φ, ∀ l ∈ c, l.
   have hLF : L = 1 + (φ.flatMap encodeClause).length := by simp [hL, hinputeq]; omega
   rw [← hL] at hfit ⊢
   have hfit' : Fits w (T + 5 * N + 2) := hfit.of_le (by omega)
-  have hzeroT : ∀ a, T ≤ a → (Data.init input : Data 32).mem a = 0 := fun a ha => by
-    change (if a = 0 then input.length else input.getD (a - 1) 0) = 0
-    simp only [show ¬a = 0 by omega, ↓reduceIte]
-    rw [List.getD_eq_getElem?_getD, List.getElem?_eq_none (by omega)]
-    rfl
-  have hF : HoldsList 2 (φ.flatMap encodeClause) (Data.init input : Data 32).mem := fun i => by
-    change (Data.init input : Data 32).mem (2 + i.val) = (φ.flatMap encodeClause)[i.val]
-    rw [show 2 + i.val = (1 + i.val) + 1 by omega, Data.init_mem_succ]
-    simp only [hinputeq, Nat.add_comm 1 i.val, List.getD_cons_succ]
-    rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem i.isLt]
-    rfl
   have hm0 : (Data.init input : Data 32).mem 0 = L := by rw [Data.init_mem_zero, hL]
   have hm1 : (Data.init input : Data 32).mem 1 = N := by
     rw [Data.init_mem_succ]; simp [hinputeq]
-  have hmem : MemAt φ N T (Data.init input : Data 32).mem [] :=
-    ⟨hF, by omega, hN, fun l hl => by rw [hzeroT _ (by omega)]; simp [Trail.lits],
-      holdsList_nil _ _, by simp [TrailOK]⟩
+  have hmem : MemAt φ N T (Data.init input : Data 32).mem [] := by
+    rw [hT, hL]; exact memAt_init N φ hN
   obtain ⟨k, hk, hrun⟩ := Trail.run_answer φ
   refine WP.exists_execWithin ?_
   unfold solver setup

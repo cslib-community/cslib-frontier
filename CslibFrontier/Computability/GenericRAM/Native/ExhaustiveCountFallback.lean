@@ -119,12 +119,30 @@ open Cslib.BitString Cslib.Complexity Cslib.Logic.PL Turing.MultiTapeTM
 
 /-! ### Streaming Boolean-Cube Predicate Counter Infrastructure -/
 
+/-- Decoded `n`-bit word `s.1.2` in a `BooleanFold` callback input `((n, word), ((n, p), z))`. -/
+abbrev stepWord {P : Type} (s : (ℕ × List Bool) × ((ℕ × P) × ℕ)) : List Bool := s.1.2
+
+/-- Retained `(n, payload)` pair `s.2.1` in a `BooleanFold` callback input. -/
+abbrev stepInput {P : Type} (s : (ℕ × List Bool) × ((ℕ × P) × ℕ)) : ℕ × P := s.2.1
+
+/-- Retained problem payload `s.2.1.2` in a `BooleanFold` callback input. -/
+abbrev stepPayload {P : Type} (s : (ℕ × List Bool) × ((ℕ × P) × ℕ)) : P := s.2.1.2
+
+/-- Running match counter `s.2.2` in a `BooleanFold` callback input. -/
+abbrev stepCount {P : Type} (s : (ℕ × List Bool) × ((ℕ × P) × ℕ)) : ℕ := s.2.2
+
+/-- Retained input pair `r.2.2.1` in a `BooleanFold` outer state `(idx, (width, (x, count)))`. -/
+abbrev foldPayload {α : Type} (r : ℕ × (ℕ × (α × ℕ))) : α := r.2.2.1
+
+/-- Running match count `r.2.2.2` in a `BooleanFold` outer state `(idx, (width, (x, count)))`. -/
+abbrev foldCount {α : Type} (r : ℕ × (ℕ × (α × ℕ))) : ℕ := r.2.2.2
+
 /-- One streaming `BooleanFold` callback step for counting `n`-bit words satisfying `pred`: retains
-the captured input `s.2.1 = (n, payload)` and increments the binary counter `s.2.2` when
-`pred payload word` holds on the current decoded `n`-bit word `s.1.2`. -/
+the captured input `stepInput s = (n, payload)` and increments the binary counter `stepCount s` when
+`pred payload word` holds on the current decoded `n`-bit word `stepWord s`. -/
 def countStep {P : Type} (pred : P → List Bool → Bool)
     (s : (ℕ × List Bool) × ((ℕ × P) × ℕ)) : (ℕ × P) × ℕ :=
-  (s.2.1, if pred s.2.1.2 s.1.2 then s.2.2 + 1 else s.2.2)
+  (stepInput s, if pred (stepPayload s) (stepWord s) then stepCount s + 1 else stepCount s)
 
 section StreamingCore
 
@@ -186,7 +204,7 @@ theorem computableInPolyTime_countStep {pred : P → List Bool → Bool}
 noncomputable def countPredicateCertificate {pred : P → List Bool → Bool}
     (hpred : ComputableInPolyTime (fun q : P × List Bool => pred q.1 q.2) (encPair encP encBits)
       encBool) :
-    NativeCertificate (fun x : ℕ × P => (BooleanFold.run (countStep pred) x.1 (x, 0)).2.2.2)
+    NativeCertificate (fun x : ℕ × P => foldCount (BooleanFold.run (countStep pred) x.1 (x, 0)))
       (encPair encUnary encP) encNat :=
   NativeCertificate.snd (NativeCertificate.snd (NativeCertificate.snd
     (BooleanFold.certificate
@@ -239,8 +257,8 @@ iterates over `0 ≤ idx < 2 ^ n` via `BooleanFold.run` without materializing `e
 live state `((n, sys), Z)` and incrementing `Z` whenever every equation in `sys` evaluates to
 `false` (`0 ∈ 𝔽₂`) under `(lowBits n idx).getD v false` (variables `v ≥ n` default to `false`). -/
 def countSystemExhaustive (x : ℕ × List (List (List ℕ))) : ℕ :=
-  (BooleanFold.run
-    (countStep fun sys word => evalSystem sys (fun v => word.getD v false)) x.1 (x, 0)).2.2.2
+  foldCount (BooleanFold.run
+    (countStep fun sys word => evalSystem sys (fun v => word.getD v false)) x.1 (x, 0))
 
 /-- Project a sparse equation `eq : List (List ℕ)` onto `Finset (Finset (Fin n))` by intersecting
 each monomial with `{0, …, n - 1}`. -/
@@ -249,25 +267,25 @@ def equationToFinset (n : ℕ) (eq : List (List ℕ)) : Finset (Finset (Fin n)) 
 
 /-- At every prefix `j`, the retained payload in `countSystemPrefix x j` equals `x = (n, sys)`. -/
 @[simp] theorem countSystemPrefix_payload (x : ℕ × List (List (List ℕ))) (j : ℕ) :
-    (countSystemPrefix x j).2.2.1 = x :=
+    foldPayload (countSystemPrefix x j) = x :=
   prefix_payload_eq _ x j
 
 /-- At every prefix `j`, the running count `Z` equals the number of indices `idx < j` whose decoded
 `n`-bit word satisfies `evalSystem`. -/
 theorem countSystemPrefix_count_eq (x : ℕ × List (List (List ℕ))) (j : ℕ) :
-    (countSystemPrefix x j).2.2.2 =
+    foldCount (countSystemPrefix x j) =
       ((List.range j).map (lowBits x.1)).countP
         (fun word => evalSystem x.2 (fun v => word.getD v false)) :=
   prefix_count_eq _ x j
 
 /-- Unconditional prefix count bound `Z ≤ j` for `countSystemPrefix`. -/
 theorem countSystemPrefix_le_index (x : ℕ × List (List (List ℕ))) (j : ℕ) :
-    (countSystemPrefix x j).2.2.2 ≤ j :=
+    foldCount (countSystemPrefix x j) ≤ j :=
   prefix_count_le_index _ x j
 
 /-- **Prefix invariant `Z ≤ j ≤ 2 ^ n`** for `countSystemPrefix` along the `2 ^ n` traversal. -/
 theorem countSystemPrefix_invariant (x : ℕ × List (List (List ℕ))) {j : ℕ} (hj : j ≤ 2 ^ x.1) :
-    (countSystemPrefix x j).2.2.2 ≤ j ∧ j ≤ 2 ^ x.1 :=
+    foldCount (countSystemPrefix x j) ≤ j ∧ j ≤ 2 ^ x.1 :=
   ⟨countSystemPrefix_le_index x j, hj⟩
 
 /-- `countSystemExhaustive (n, sys)` equals the cardinality of the `BitString n` assignments whose
@@ -463,30 +481,30 @@ live state `((n, φ), Z)` and incrementing `Z` when `φ.eval (fun v => (lowBits 
 is `true`. Variable indices `v ≥ n` default to `false`; to interpret `countCNFExhaustive (n, φ)` as
 the satisfying-assignment count on `n` declared variables, require `∀ v ∈ φ.vars, v < n`. -/
 def countCNFExhaustive (x : ℕ × CNF ℕ) : ℕ :=
-  (BooleanFold.run
-    (countStep fun φ word => φ.eval (fun v => word.getD v false)) x.1 (x, 0)).2.2.2
+  foldCount (BooleanFold.run
+    (countStep fun φ word => φ.eval (fun v => word.getD v false)) x.1 (x, 0))
 
 /-- At every prefix `j`, the retained payload in `countCNFPrefix x j` equals `x = (n, φ)`. -/
 @[simp] theorem countCNFPrefix_payload (x : ℕ × CNF ℕ) (j : ℕ) :
-    (countCNFPrefix x j).2.2.1 = x :=
+    foldPayload (countCNFPrefix x j) = x :=
   prefix_payload_eq _ x j
 
 /-- At every prefix `j`, the running count `Z` equals the number of indices `idx < j` whose decoded
 `n`-bit word satisfies `φ`. -/
 theorem countCNFPrefix_count_eq (x : ℕ × CNF ℕ) (j : ℕ) :
-    (countCNFPrefix x j).2.2.2 =
+    foldCount (countCNFPrefix x j) =
       ((List.range j).map (lowBits x.1)).countP
         (fun word => x.2.eval (fun v => word.getD v false)) :=
   prefix_count_eq _ x j
 
 /-- Unconditional prefix count bound `Z ≤ j` for `countCNFPrefix`. -/
 theorem countCNFPrefix_le_index (x : ℕ × CNF ℕ) (j : ℕ) :
-    (countCNFPrefix x j).2.2.2 ≤ j :=
+    foldCount (countCNFPrefix x j) ≤ j :=
   prefix_count_le_index _ x j
 
 /-- **Prefix invariant `Z ≤ j ≤ 2 ^ n`** for `countCNFPrefix` along the `2 ^ n` traversal. -/
 theorem countCNFPrefix_invariant (x : ℕ × CNF ℕ) {j : ℕ} (hj : j ≤ 2 ^ x.1) :
-    (countCNFPrefix x j).2.2.2 ≤ j ∧ j ≤ 2 ^ x.1 :=
+    foldCount (countCNFPrefix x j) ≤ j ∧ j ≤ 2 ^ x.1 :=
   ⟨countCNFPrefix_le_index x j, hj⟩
 
 /-- `countCNFExhaustive (n, φ)` equals the cardinality of the `BitString n` assignments whose

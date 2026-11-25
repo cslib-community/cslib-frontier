@@ -17,6 +17,7 @@ import CslibFrontier.Foundations.Combinatorics.SimpleGraph.IndepNum
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Log
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # Independent Set, Clique and Vertex Cover are NP-hard to approximate
@@ -352,8 +353,7 @@ theorem polyTimeReducible_GapExactThreeSAT_GapVertexCover (hs : s < 1) :
       exact_mod_cast Graph.le_indepNum_iff.2 ((SAT.toIndependentSet_mem_iff φ).2 hsat)
     simp only [GapVertexCover, PromiseProblem.mem_yes_gapMin, hred φ h3,
       SAT.vertexCoverNum_toIndependentSet h3]
-    push_cast
-    linarith
+    cast_linarith
   · obtain ⟨h3, hval⟩ := (mem_no_GapExactThreeSAT hs).1 hφ
     have hm : (0 : ℝ) < φ.length := by
       exact_mod_cast CNF.length_pos_of_unsatVal_pos (by linarith)
@@ -382,8 +382,7 @@ theorem polyTimeReducible_GapExactThreeSAT_GapVertexCoverFraction (hs : s < 1) {
     change ((SAT.toIndependentSet φ).graph.vertexCoverNum : ℝ) ≤
       2 / 3 * (SAT.toIndependentSet φ).graph.vertices.toFinset.card
     rw [SAT.vertexCoverNum_toIndependentSet h3, SAT.card_toFinset_vertices_toIndependentSet h3]
-    push_cast
-    linarith
+    cast_linarith
   · obtain ⟨h3, hval⟩ := (mem_no_GapExactThreeSAT hs).1 hφ
     have hm : (0 : ℝ) < φ.length := by
       exact_mod_cast CNF.length_pos_of_unsatVal_pos (by linarith)
@@ -392,8 +391,7 @@ theorem polyTimeReducible_GapExactThreeSAT_GapVertexCoverFraction (hs : s < 1) {
     change L * (SAT.toIndependentSet φ).graph.vertices.toFinset.card <
       ((SAT.toIndependentSet φ).graph.vertexCoverNum : ℝ)
     rw [SAT.vertexCoverNum_toIndependentSet h3, SAT.card_toFinset_vertices_toIndependentSet h3]
-    push_cast
-    nlinarith
+    cast_nlinarith
 
 /-! ### Inapproximability -/
 

@@ -62,9 +62,10 @@ world, giving `advantage_ddhOTReceiverGame_le` (`≤ ddhAdv + 9 / 2 ^ n`).
 
 ## Main definitions
 
-* `Cslib.Crypto.Protocols.MPC.DDHOTSenderBitCoins` and
+* `Cslib.Crypto.Protocols.MPC.DDHOTSenderBitCoins`,
+  `Cslib.Crypto.Protocols.MPC.encDDHOTSenderBitCoins`, and
   `Cslib.Crypto.Protocols.MPC.DDHOTSenderBitCoins.toSenderCoins`: the sender's five raw fair-coin
-  bit strings and their projection to `DDHOTSenderCoins q`.
+  bit strings, their encoding, and their projection to `DDHOTSenderCoins q`.
 * `Cslib.Crypto.Protocols.MPC.DDHOTSenderViewWords`,
   `Cslib.Crypto.Protocols.MPC.DDHOTReceiverViewWords`, their encodings, and
   `Cslib.Crypto.Protocols.MPC.DDHOTViewWords`: a party's view as words, preserving raw coin bit
@@ -125,6 +126,12 @@ structure DDHOTSenderBitCoins where
   coinR₁Bits : List Bool
   /-- Raw bit string from which branch `1` coin `s₁` is derived. -/
   coinS₁Bits : List Bool
+
+/-- The encoding of the sender's raw coins in the fair-coin DDH transfer: its five bit strings in
+turn, all but the last framed. -/
+enc_structure encDDHOTSenderBitCoins : DDHOTSenderBitCoins where
+  exponentBits : encBits, coinR₀Bits : encBits, coinS₀Bits : encBits, coinR₁Bits : encBits,
+  coinS₁Bits : encBits
 
 /-- Project the sender's five raw bit strings into `DDHOTSenderCoins q` by interpreting each bit
 string as a binary natural number modulo `q`. -/

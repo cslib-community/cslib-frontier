@@ -25,6 +25,7 @@ import CslibFrontier.Computability.Probabilistic.UniformNat
 import CslibFrontier.Crypto.Computational.DiffieHellman.SampleExp
 import CslibFrontier.Crypto.Game.FourHop
 import CslibFrontier.Crypto.Game.Statistical
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.StatisticalDistance
@@ -247,11 +248,9 @@ private theorem advantage_eval_kemRealGame_ddhRealGame_le
       (ProbComp.eval (F.sampleExp n (d n))).bind fun a =>
         (ProbComp.eval (F.sampleExp n (d n))).bind fun b =>
           k (a : ZMod (F.order (d n))) (b : ZMod (F.order (d n))) := by
-    simp only [kemRealGame, kemRealGameWith,
-      elGamalKeyGenProb, hashedElGamalEncapsProb, ProbComp.eval_bind,
-      ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind, dropFrame_encPair_encBits,
-      encodeElGamalPublicKey_eq_encode, F.smul_encode, smul_smul,
-      mul_comm _ (_ : ZMod (F.order (d n))), k]
+    simp only [kemRealGame, kemRealGameWith, elGamalKeyGenProb, hashedElGamalEncapsProb,
+      dropFrame_encPair_encBits, encodeElGamalPublicKey_eq_encode, F.smul_encode, smul_smul,
+      mul_comm _ (_ : ZMod (F.order (d n))), k, pmf_norm]
   have hddh :
       F.ddhRealGame (fun m => PMF.pure (d m)) (F.kemToDDHDistinguisher H distinguisher) n =
       (PMF.uniformOfFintype (ZMod (F.order (d n)))).bind fun α =>
@@ -284,10 +283,9 @@ private theorem advantage_kdfIdealGame_eval_kemIdealGame_le (keyLen : ℕ → �
       (ProbComp.eval (F.sampleExp n (d n))).bind fun a =>
         (ProbComp.eval (F.sampleExp n (d n))).bind fun b =>
           k (a : ZMod (F.order (d n))) (b : ZMod (F.order (d n))) := by
-    simp only [kemIdealGame, kemIdealGameWith, kemRealGameWith,
-      elGamalKeyGenProb, hashedElGamalEncapsProb, ProbComp.eval_bind,
-      ProbComp.eval_pure, Cslib.BitString.eval_sampleList, PMF.bind_bind, PMF.pure_bind,
-      encodeElGamalPublicKey_eq_encode, F.smul_encode, k]
+    simp only [kemIdealGame, kemIdealGameWith, kemRealGameWith, elGamalKeyGenProb,
+      hashedElGamalEncapsProb, Cslib.BitString.eval_sampleList, encodeElGamalPublicKey_eq_encode,
+      F.smul_encode, k, pmf_norm]
   have hkdf :
       F.kdfIdealGame (fun m => PMF.pure (d m)) keyLen
         (F.kemToKDFDistinguisher distinguisher) n =
@@ -552,9 +550,8 @@ theorem advantage_gameOn_elGamalMsgCPAGameOn_le {Msg : Type}
       (ProbComp.eval (F.sampleExp n (d n))).bind fun a =>
         (ProbComp.eval (F.sampleExp n (d n))).bind fun b =>
           k (a : ZMod (F.order (d n))) (b : ZMod (F.order (d n))) := by
-    simp only [gameOn, elGamalKeyGenProb, elGamalEncryptProb, ProbComp.eval_bind,
-      ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind, apply_ite ProbComp.eval,
-      encodeElGamalPublicKey_eq_encode, k]
+    simp only [gameOn, elGamalKeyGenProb, elGamalEncryptProb, apply_ite ProbComp.eval,
+      encodeElGamalPublicKey_eq_encode, k, pmf_norm]
     pmf_swap with a choice
     by_cases hv : valid n
         (encPair F.encDesc encBits
@@ -644,8 +641,7 @@ theorem eval_fst_elGamalKeyGenProb (d : ℕ → F.Desc) (n : ℕ) :
         encPair F.encDesc encBits (d n, F.encode (d n) keys.1)) <$>
           (F.elGamalProbExplicitCoinPKE n (d n)).keyGen) := by
   simp only [elGamalKeyGenProb, elGamalExplicitCoinPKEWith, encodeElGamalPublicKey_eq_encode,
-    ProbComp.eval_map, ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind, PMF.pure_map,
-    PMF.bind_map, Function.comp_def]
+    pmf_norm]
 
 /-- On an encoded public key `(d n, encode u)` and encoded group element `encode x`,
 `elGamalEncryptProb (fun _ w => w)` has the same output distribution as encoding both components of
@@ -658,8 +654,6 @@ theorem eval_elGamalEncryptProb_encode (d : ℕ → F.Desc) (n : ℕ)
         encPair encBits encBits (F.encode (d n) ct.1, F.encode (d n) ct.2)) <$>
           (F.elGamalProbExplicitCoinPKE n (d n)).encrypt u x) := by
   simp only [elGamalEncryptProb, elGamalExplicitCoinPKEWith, Protocols.ExplicitCoinPKE.encrypt,
-    dropFrame_encPair_encBits, F.encodeElGamalEncrypt_encode, elGamalEncrypt, ProbComp.eval_map,
-    ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind, PMF.pure_map, PMF.bind_map,
-    Function.comp_def]
+    dropFrame_encPair_encBits, F.encodeElGamalEncrypt_encode, elGamalEncrypt, pmf_norm]
 
 end Cslib.Crypto.PrimeOrderGroupFamily

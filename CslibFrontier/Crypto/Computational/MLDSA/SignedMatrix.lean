@@ -10,8 +10,6 @@ module
 public import CslibFrontier.Crypto.Computational.MLDSA.ExpandAProgramming
 public import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
 public import CslibFrontier.Languages.Probabilistic.Oracle.Substitution
-import all CslibFrontier.Crypto.Computational.MLDSA.ExpandAProgramming
-import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204ResponseBinding
 import CslibFrontier.Languages.Probabilistic.Vector
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.PMF.Bool
@@ -46,7 +44,9 @@ private theorem matrix_of_programmed_keyGen (H : Xofs) (s : Level) (seed : Fixed
     let G := H.withMatrixPrefixes s rho (programMatrixPrefixes s t A)
     G.keyGen s seed = some keys → G.expandA s (keys.publicKey.take 32) = some A := by
   intro rho G hk
-  have seedEq : keys.publicKey.take 32 = rho := publicSeed_of_keyGen (H := G) hk
+  have seedEq : keys.publicKey.take 32 = rho := by
+    simpa only [rho, G, Xofs.expandKeySeed, Xofs.withMatrixPrefixes_h256] using
+      publicSeed_of_keyGen (H := G) hk
   obtain ⟨r, sk, hr, hpk, _, _⟩ := privateKey_of_keyGen hk
   have present : G.expandA s (keys.publicKey.take 32) = some sk.A := by
     rwa [hpk, take_encodePublic]
@@ -142,7 +142,7 @@ private def runAtSetup (s : Level) (adv : ClassicalForger)
 
 /-- Sample the seed and the SHAKE128 matrix prefixes at its derived public address. The
 entire shared XOF and optional setup are retained for subsequent signing and public queries. -/
-noncomputable def matrixSetup (H : Xofs) (s : Level) :
+@[expose] noncomputable def matrixSetup (H : Xofs) (s : Level) :
     PMF (Xofs × Option (PublicMatrix s × KeyPair)) := do
   let seed ← PMF.uniformOfFintype (FixedBytes 32)
   let t ← PMF.uniformOfFintype (MatrixPrefixes s)
@@ -198,7 +198,8 @@ theorem keyGen_of_mem_programmedMatrixSetup {H G : Xofs} {s : Level} {A B : Publ
     obtain ⟨hA, hkeys⟩ := hk
     subst B
     subst pair
-    exact ⟨rfl, rfl, ⟨seed, hg⟩, matrix_of_programmed_keyGen H s seed t A keys hg⟩
+    exact ⟨Xofs.withMatrixPrefixes_h256 .., rfl, ⟨seed, hg⟩,
+      matrix_of_programmed_keyGen H s seed t A keys hg⟩
 
 /-- Run the adaptive classical forger after sampling the actual random matrix prefixes. -/
 noncomputable def signedMatrixTrial (H : Xofs) (s : Level) (adv : ClassicalForger) :
@@ -238,15 +239,15 @@ def repeatedDigestMatrixSolver (H : Xofs) (s : Level) (adv : ClassicalForger) (A
   vectorOfTrial <$> programmedSigningTrial H s adv A
 
 /-- The strong chosen-message win event on the completed trial. -/
-def SignedMatrixTrial.wins {s : Level} (u : SignedMatrixTrial s) : Bool :=
+@[expose] def SignedMatrixTrial.wins {s : Level} (u : SignedMatrixTrial s) : Bool :=
   u.xofs.winsForgery s u.publicKey u.forgery u.log
 
 /-- The full digest of the output is present in a successful signing reply. -/
-private def SignedMatrixTrial.repeatsDigest {s : Level} (u : SignedMatrixTrial s) : Bool :=
+@[expose] def SignedMatrixTrial.repeatsDigest {s : Level} (u : SignedMatrixTrial s) : Bool :=
   u.log.any fun g => g.signature.take (digestBytes s) == u.forgery.signature.take (digestBytes s)
 
 /-- A strong forgery whose full digest is absent from the signing log. -/
-def SignedMatrixTrial.newDigestWin {s : Level} (u : SignedMatrixTrial s) : Bool :=
+@[expose] def SignedMatrixTrial.newDigestWin {s : Level} (u : SignedMatrixTrial s) : Bool :=
   u.wins && !u.repeatsDigest
 
 /-- Run the log extractor and check its two raw inputs at the full FIPS digest length in the

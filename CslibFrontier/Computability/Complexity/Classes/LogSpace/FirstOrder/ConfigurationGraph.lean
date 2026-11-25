@@ -119,14 +119,23 @@ noncomputable def nextFormula (lengthFormula : (language L).Formula (Fin 1))
     Formula.iInf fun i : Fin k => tapeFormula L (a.workTapes i)
       (X (.head i)) (X (.left i)) (X (.right i)) (Y (.head i)) (Y (.left i)) (Y (.right i))
 
+/-- Scanned input symbol `t.2.1` of a transition table entry `t`. -/
+abbrev instrInputSym (t : Instruction k State) : Option Bool := t.2.1
+
+/-- Scanned work-tape symbols `t.2.2.1` of a transition table entry `t`. -/
+abbrev instrWorkSyms (t : Instruction k State) : Fin k → Option Bool := t.2.2.1
+
+/-- Transition action `t.2.2.2` of a transition table entry `t`. -/
+abbrev instrAction (t : Instruction k State) : Action k Bool State := t.2.2.2
+
 /-- The registers `X` have the observations of the transition table entry `t`: its control
 state, the input symbol under the input head and the work-tape head symbols. -/
 noncomputable def matchFormula (inputFormula : Option Bool → (language L).Formula (Fin 1))
     (t : Instruction k State) (X : Register k → (language L).Term α) :
     (language L).Formula α :=
   natEq L (stateCode (some t.1)) (X .control) ⊓
-    (inputFormula t.2.1).subst (fun _ => X .inputPos) ⊓
-    Formula.iInf fun i : Fin k => natEq L (symbolCode (t.2.2.1 i)) (X (.head i))
+    (inputFormula (instrInputSym t)).subst (fun _ => X .inputPos) ⊓
+    Formula.iInf fun i : Fin k => natEq L (symbolCode (instrWorkSyms t i)) (X (.head i))
 
 /-- **One step of the configuration graph on register tuples**: either `X` is halted and
 `Y = X`, or `X` has the observations of some transition table entry and `Y` is its successor. -/
@@ -137,7 +146,7 @@ noncomputable def stepFormula (inputFormula : Option Bool → (language L).Formu
       Formula.iInf fun i => (Y i).equal (X i)) ⊔
     Formula.iSup fun j : Fin (instructions ntm).length =>
       matchFormula L inputFormula ((instructions ntm).get j) X ⊓
-        nextFormula L lengthFormula ((instructions ntm).get j).2.2.2 X Y
+        nextFormula L lengthFormula (instrAction ((instructions ntm).get j)) X Y
 
 /-- The registers `X` are the start registers of `ntm`. -/
 noncomputable def startFormula (ntm : MultiTapeNTM k Bool State)
@@ -260,8 +269,8 @@ theorem realize_matchFormula {inputFormula : Option Bool → (language L).Formul
     (t : Instruction k State) (X : Register k → (language L).Term α) (v : α → Fin N) :
     (matchFormula L inputFormula t X).Realize v ↔
       ((X .control).realize v).val = stateCode (some t.1) ∧
-        inputAt w ((X .inputPos).realize v).val = t.2.1 ∧
-        ∀ i, ((X (.head i)).realize v).val = symbolCode (t.2.2.1 i) := by
+        inputAt w ((X .inputPos).realize v).val = instrInputSym t ∧
+        ∀ i, ((X (.head i)).realize v).val = symbolCode (instrWorkSyms t i) := by
   have hsubst : Formula.Realize ((inputFormula t.2.1).subst fun _ => X .inputPos) v ↔
       (inputFormula t.2.1).Realize ![(X .inputPos).realize v] := by
     change BoundedFormula.Realize _ _ _ ↔ _

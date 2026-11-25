@@ -460,7 +460,7 @@ theorem IsEmbedding.exists_vertex_relocation_radius {G : Graph} {D : PolygonalDr
       rw [direction, relocated_active_germ D v ρ a d hd]
     have hold (d : Dart G) (hd : d.vertex = v) :
         ((D.cutPort ρ d - D.vertex v).arg : Real.Angle) = D.direction d := by
-      rw [← hd, hD.arg_cutPort_sub hρ]
+      rw [← hd, D.arg_cutPort_sub hρ d (hD.germ_ne_zero d)]
       rfl
     simpa only [hnew z hz, hnew y hy, hnew x hx, hold z hz, hold y hy, hold x hx] using horder
   · have hy : y.vertex ≠ v := fun h => hx (hxy.trans h)

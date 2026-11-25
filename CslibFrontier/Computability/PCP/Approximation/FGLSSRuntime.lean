@@ -21,6 +21,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.FunProp
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Log
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import Mathlib.Data.List.DropRight
 
 /-!
@@ -279,15 +280,7 @@ private theorem polyGraphFrom (hV : V.PolyTime enc) :
     have h := id' (encIn := encPair (encPair enc encUnary) encBits)
     have hw := (length_list encNat).comp (hV.queries.comp (h.fst'.fst'.prod h.snd'))
     have hlog := ComputableInPolyTime.unary_log_two.comp h.fst'.snd'
-    have henum := bitsEnumList_of_polyBounded (unary_min' hw hlog)
-      ((PolyBounded.self.add (.const 1)).mono fun p => by
-        have hn := Nat.pow_log_le_add_one 2 p.1.2
-        have hle := Nat.pow_le_pow_right (by decide : 0 < (2 : ℕ))
-          (min_le_right (V.queries (p.1.1, p.2)).length (Nat.log 2 p.1.2))
-        change 2 ^ min (V.queries (p.1.1, p.2)).length (Nat.log 2 p.1.2) ≤
-          (encPair (encPair enc encUnary) encBits p).length + 1
-        simp only [length_encPair, encUnary_apply, List.length_replicate]
-        omega)
+    have henum := bitsEnumList_of_polyBounded (unary_min' hw hlog) (by growth_poly)
     have hmap := ComputableInPolyTime.mapWith
       (ComputableInPolyTime.id' (encIn := encView)) h.snd' henum
     exact ComputableInPolyTime.filterWith hkeep h.fst'.fst' hmap
@@ -344,14 +337,7 @@ theorem computableInPolyTime_fglssEdgeList (hV : V.PolyTime enc) {c d : ℕ}
     (hq : ∀ a ρ, ρ.length = V.coins a → (V.queries (a, ρ)).length ≤ d) :
     ComputableInPolyTime V.fglssEdgeList enc encGraph := by
   let size := fun a => 2 ^ (V.coins a + d) * ((enc a).length + 1)
-  have hsize : PolyBounded (fun a => (enc a).length) size :=
-    (((PolyBounded.of_polynomiallyBounded _
-        (Cslib.polynomiallyBounded_two_pow_mul_log c)).mul (.const (2 ^ d))).mul
-      (PolyBounded.self.add (.const 1))).mono fun a => by
-      dsimp only [size]
-      rw [Nat.pow_add]
-      exact Nat.mul_le_mul_right _
-        (Nat.mul_le_mul_right _ (Nat.pow_le_pow_right (by decide) (hcoins a)))
+  have hsize : PolyBounded (fun a => (enc a).length) size := by growth_poly
   obtain ⟨T, S, hT, hS, h⟩ := V.computableInO_fglssEdgeList hV (fun _ => d) hq
   exact h.computableInPolyTime (hT.comp hsize) (hS.comp hsize)
 

@@ -10,9 +10,7 @@ module
 public import CslibFrontier.Init
 public import Mathlib.MeasureTheory.Integral.Bochner.Basic
 public import Mathlib.Topology.EMetricSpace.Lipschitz
-import Mathlib.Algebra.QuadraticDiscriminant
 import Mathlib.MeasureTheory.Function.L2Space
-import Mathlib.MeasureTheory.Function.LpSeminorm.CompareExp
 
 /-!
 # Cauchy–Schwarz for real integrals and integrability of moments

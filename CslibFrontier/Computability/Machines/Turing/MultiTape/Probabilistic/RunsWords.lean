@@ -40,6 +40,8 @@ oracle state.
 * `Turing.MultiTapePTM.RunsWords.law_bind`: the law of a run composed of two phases, from the
   law of each phase, when the first phase's tapes determine its program value.
 * `Turing.MultiTapePTM.RunsWords.seq_bind`: sequence two `RunsWords` phases.
+* `Turing.MultiTapePTM.RunsWords.map_iff`: a run of `f <$> program` is a run of `program` whose
+  tape and output maps are precomposed with `f`.
 * `Turing.MultiTapePTM.RunsWords.of_nil_output`: an initial output prefix is retained automatically.
 * `Turing.MultiTapePTM.RunsWords.of_first_step_mapState`: lift a `RunsWords` specification across a
   deterministic first-step dispatch into a state-mapped submachine.
@@ -298,15 +300,32 @@ theorem congr (h : machine.RunsWords x ws₀ out₀ time program ws₁ emit)
   rw [← heq OracleState oracle s]
   exact h OracleState oracle s cfg htapes hbuf
 
+/-- A run of `f <$> program` is a run of `program` whose tape and output maps are precomposed with
+`f`. -/
+theorem map_iff (f : α → β) (ws₁' : β → Fin k → List Bool) (emit' : β → List Bool) :
+    machine.RunsWords x ws₀ out₀ time (f <$> program) ws₁' emit' ↔
+      machine.RunsWords x ws₀ out₀ time program (fun a => ws₁' (f a)) (fun a => emit' (f a)) := by
+  constructor
+  all_goals
+    intro h OracleState oracle s cfg htapes hbuf
+    obtain ⟨hlaw, hclean⟩ := h OracleState oracle s cfg htapes hbuf
+    refine ⟨?_, hclean⟩
+    rw [hlaw, ProbOracleComp.runWith_map, PMF.map_comp]
+    rfl
+
 /-- Map a function across the program result when the tape and output maps factor through it. -/
 theorem of_map (f : α → β) (ws₁' : β → Fin k → List Bool) (emit' : β → List Bool)
     (h : machine.RunsWords x ws₀ out₀ time program (fun a => ws₁' (f a)) (fun a => emit' (f a))) :
-    machine.RunsWords x ws₀ out₀ time (f <$> program) ws₁' emit' := by
-  intro OracleState oracle s cfg htapes hbuf
-  obtain ⟨hlaw, hclean⟩ := h OracleState oracle s cfg htapes hbuf
-  refine ⟨?_, hclean⟩
-  rw [hlaw, ProbOracleComp.runWith_map, PMF.map_comp]
-  rfl
+    machine.RunsWords x ws₀ out₀ time (f <$> program) ws₁' emit' :=
+  (map_iff f ws₁' emit').mpr h
+
+/-- The forward direction of `map_iff`: a run of `f <$> program` is a run of `program` with the
+result map moved into the tape and output maps. -/
+theorem of_mapped_program (f : α → β) {ws₁' : β → Fin k → List Bool}
+    {emit' : β → List Bool}
+    (h : machine.RunsWords x ws₀ out₀ time (f <$> program) ws₁' emit') :
+    machine.RunsWords x ws₀ out₀ time program (fun a => ws₁' (f a)) (fun a => emit' (f a)) :=
+  (map_iff f ws₁' emit').mp h
 
 /-- Lift a deterministic `TransformsTapes` specification to `ofDeterministic`. -/
 theorem of_transformsTapes {tm : MultiTapeTM k Bool State}

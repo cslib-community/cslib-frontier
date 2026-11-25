@@ -12,10 +12,6 @@ public import Mathlib.Analysis.SpecialFunctions.Pow.Real
 public import Mathlib.Topology.MetricSpace.Lipschitz
 import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Analysis.MeanInequalitiesPow
-import Mathlib.Tactic.FieldSimp
-import Mathlib.Tactic.GCongr
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Positivity
 
 /-!
 # Root errors and the homogeneous loss

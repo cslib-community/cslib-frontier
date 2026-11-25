@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Primitives.Garbling.Games
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Tactic.PMFSwap
 
@@ -163,8 +164,7 @@ private theorem eval_prvSimExperiment_false_prvIndToSim (hCompat : Φ.Compatible
     (S : PrvSimulator Λ) (A : PrvIndAdversary Fn σ) :
     ProbComp.eval (prvSimExperiment G Φ k S (prvIndToSim G Φ A) false) =
       PMF.uniformOfFintype Bool := by
-  simp only [prvSimExperiment, prvIndToSim, ProbComp.eval_bind, ProbComp.eval_uniform,
-    ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
+  simp only [prvSimExperiment, prvIndToSim, ProbComp.eval_uniform, pmf_norm]
   refine ((PMF.bind_const (ProbComp.eval (A.choose ())) _).symm.trans ?_).symm
   congr 1 with ⟨pair, st⟩ : 1
   by_cases hV : prvIndValid G Φ pair
@@ -189,8 +189,7 @@ private theorem eval_prvSimExperiment_true_prvIndToSim (hCompat : Φ.Compatible 
     ProbComp.eval (prvSimExperiment G Φ k S (prvIndToSim G Φ A) true) =
       ProbComp.eval (Experiment.guessBit (prvIndExperiment G Φ k A)) := by
   rw [Experiment.eval_guessBit]
-  simp only [prvSimExperiment, prvIndToSim, prvIndExperiment, ProbComp.eval_bind,
-    ProbComp.eval_uniform, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind, PMF.map_bind]
+  simp only [prvSimExperiment, prvIndToSim, prvIndExperiment, ProbComp.eval_uniform, pmf_norm]
   pmf_swap with c
   congr 1 with ⟨pair, st⟩ : 1
   by_cases hV : prvIndValid G Φ pair
@@ -227,8 +226,7 @@ theorem eval_prvSimExperiment_prvSimFromInverter (hCompat : Φ.Compatible G)
     (b : Bool) :
     ProbComp.eval (prvSimExperiment G Φ k (prvSimFromInverter G k M) B b) =
       ProbComp.eval (prvIndExperiment G Φ k (prvSimToInd G Φ M B) b) := by
-  simp only [prvSimExperiment, prvIndExperiment, prvSimFromInverter, prvSimToInd,
-    ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
+  simp only [prvSimExperiment, prvIndExperiment, prvSimFromInverter, prvSimToInd, pmf_norm]
   congr 1 with ⟨q, st⟩ : 1
   have hvalid_iff :
       prvIndValid G Φ ⟨M (Φ.phi q.fn) (G.ev q.fn q.input), q⟩ ↔ q.input.length = G.inLen q.fn := by
@@ -279,8 +277,7 @@ private theorem eval_obvSimExperiment_false_obvIndToSim (hCompat : Φ.Compatible
     (S : ObvSimulator Λ) (A : ObvIndAdversary Fn σ) :
     ProbComp.eval (obvSimExperiment G Φ k S (obvIndToSim G Φ A) false) =
       PMF.uniformOfFintype Bool := by
-  simp only [obvSimExperiment, obvIndToSim, ProbComp.eval_bind, ProbComp.eval_uniform,
-    ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
+  simp only [obvSimExperiment, obvIndToSim, ProbComp.eval_uniform, pmf_norm]
   refine ((PMF.bind_const (ProbComp.eval (A.choose ())) _).symm.trans ?_).symm
   congr 1 with ⟨pair, st⟩ : 1
   by_cases hV : obvIndValid G Φ pair
@@ -304,8 +301,7 @@ private theorem eval_obvSimExperiment_true_obvIndToSim (hCompat : Φ.Compatible 
     ProbComp.eval (obvSimExperiment G Φ k S (obvIndToSim G Φ A) true) =
       ProbComp.eval (Experiment.guessBit (obvIndExperiment G Φ k A)) := by
   rw [Experiment.eval_guessBit]
-  simp only [obvSimExperiment, obvIndToSim, obvIndExperiment, ProbComp.eval_bind,
-    ProbComp.eval_uniform, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind, PMF.map_bind]
+  simp only [obvSimExperiment, obvIndToSim, obvIndExperiment, ProbComp.eval_uniform, pmf_norm]
   pmf_swap with c
   congr 1 with ⟨pair, st⟩ : 1
   by_cases hV : obvIndValid G Φ pair
@@ -342,8 +338,7 @@ theorem eval_obvSimExperiment_obvSimFromInverter (hCompat : Φ.Compatible G) {M 
     (hInv : Φ.IsInverter M) (k : ℕ) (B : ObvSimAdversary Fn σ) (b : Bool) :
     ProbComp.eval (obvSimExperiment G Φ k (obvSimFromInverter G k M) B b) =
       ProbComp.eval (obvIndExperiment G Φ k (obvSimToInd G Φ M B) b) := by
-  simp only [obvSimExperiment, obvIndExperiment, obvSimFromInverter, obvSimToInd,
-    ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
+  simp only [obvSimExperiment, obvIndExperiment, obvSimFromInverter, obvSimToInd, pmf_norm]
   congr 1 with ⟨q, st⟩ : 1
   have hvalid_iff :
       obvIndValid G Φ ⟨obvInverterQuery G M (Φ.phi q.fn), q⟩ ↔ q.input.length = G.inLen q.fn := by

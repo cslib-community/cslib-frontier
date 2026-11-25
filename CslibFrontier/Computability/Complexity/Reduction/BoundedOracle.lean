@@ -251,8 +251,7 @@ theorem computableInPolyTime_run_word [Finite Operation] {α : Type} {input : α
       (answerSize := ansMax a) (fun w hw => (ho_len w).trans (Nat.mul_le_mul_left co
         (Nat.pow_le_pow_left (Nat.add_le_add_right hw 1) do'))) hi
   have hbound : PolyBounded (fun a => (input a).length)
-      (fun a => cf * ((input a).length + clk a + ansMax a + 1)) := by
-    dsimp only [clk, ansMax]; growth_poly
+      (fun a => cf * ((input a).length + clk a + ansMax a + 1)) := by growth_poly
   have hit := ComputableInPolyTime.iterate hcount
     (ComputableInPolyTime.finiteConfig_init (by fun_prop) _)
     (machine.computableInPolyTime_answerStep_word horacle) hbound
@@ -343,7 +342,7 @@ theorem exists_computableInO_run_word [Finite Operation] {α : Type} {input : α
   obtain ⟨c₀, e₀, hc₀⟩ := (show PolyBounded (fun a => (input a).length)
     (fun a => ((input a).length + 1) ^ dn + ((input a).length + 1) ^ di +
       (B a + 1) ^ do' + stepPoly a + sgMax a + B a + (clk a + 1) ^ 2 + clk a) by
-    dsimp only [stepPoly, B, ansMax, sgMax, clk]; growth_poly).exists_le
+    growth_poly).exists_le
   refine ⟨c₀, e₀, fun a => c₀ * ((input a).length + 1) ^ e₀, by growth_poly,
     hwhole.mono_le (fun a => ?_) (fun a => ?_)⟩
   · have hfin := Nat.pow_le_pow_left (Nat.add_le_add_right (hlen a le_rfl) 1) do'
@@ -693,9 +692,7 @@ noncomputable def compCapPoly {oracle₁ oracle₂ : List Bool → List Bool} {f
   let hqb := IsOraclePPTOn.query_bounds R₁.isOraclePPTOn
   let c₁ := Classical.choose hqb
   let d₁ := Classical.choose (Classical.choose_spec hqb)
-  let hcap₂ : PolyBounded List.length R₂.alenCap := by
-    simpa only [encUnary_apply, List.length_replicate, encBits_apply] using
-      R₂.computableInPolyTime_alenCap.polyBounded_length
+  let hcap₂ : PolyBounded List.length R₂.alenCap := by growth_poly [R₂.computableInPolyTime_alenCap]
   let hex₂ := hcap₂.exists_le
   let c₂ := Classical.choose hex₂
   let d₂ := Classical.choose (Classical.choose_spec hex₂)
@@ -770,8 +767,7 @@ private theorem comp_respects_bound {oracle₁ oracle₂ : List Bool → List Bo
       forall_queriesWith_of_probQueriesSatisfy (fun q => oracle₁ q.2) (R₁.program a)
         (Classical.choose_spec (Classical.choose_spec hqb) a).2 q hq
     have hcap₂_poly : PolyBounded List.length R₂.alenCap := by
-      simpa only [encUnary_apply, List.length_replicate, encBits_apply] using
-        R₂.computableInPolyTime_alenCap.polyBounded_length
+      growth_poly [R₂.computableInPolyTime_alenCap]
     let hex₂ := hcap₂_poly.exists_le
     have hcap₂_le := Classical.choose_spec (Classical.choose_spec hex₂) q.2
     have hcap_eval : (compCapPoly R₁ R₂).eval (encA a).length =
@@ -1595,7 +1591,7 @@ theorem decidableInExpTime {A : Set α} {B : Set β} {μA : α → ℕ} {μB : �
     (fun a => ((encA a).length + 1) ^ dn + ((encA a).length + 1) ^ di +
       (stateBound a + 1) ^ da + (clk a + 1) * (stepPoly a + stateBound a +
         (clk a + 1) ^ 2 + (clk a + 1) ^ e + 1)) by
-    dsimp only [stepPoly, stateBound, clk]; growth_poly).exists_le
+    growth_poly).exists_le
   refine DecidableInExpTime.of_computableInO hloop (fun a => by
     change a ∈ A ↔ (stepGuard^[clk a] (initSt a)).2.tapes.output.headD false = true
     rw [hiter_eq a (clk a)]

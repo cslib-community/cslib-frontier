@@ -52,8 +52,9 @@ bounds.
   and marginals of `piFin`.
 * `Cslib.Probability.PMF.piFin_bind`, `Cslib.Probability.PMF.piFin_pair`: coordinatewise kernels
   and pairing of `piFin`.
-* `Cslib.Probability.PMF.iid_map`, `Cslib.Probability.PMF.iid_eq_pi`,
-  `Cslib.Probability.PMF.iid_uniformOfFintype`: images, finite products, and uniform tuples.
+* `Cslib.Probability.PMF.iid_map`, `Cslib.Probability.PMF.iid_bind_update`,
+  `Cslib.Probability.PMF.iid_eq_pi`, `Cslib.Probability.PMF.iid_uniformOfFintype`: images,
+  coordinate resampling, finite products, and uniform tuples.
 * `Cslib.Probability.PMF.bind_uniformOfFintype_fin_three`,
   `Cslib.Probability.PMF.bind_uniformOfFintype_fin_four`: a uniform triple or quadruple is three
   or four independent uniform draws.
@@ -208,6 +209,50 @@ image. -/
 theorem iid_map (μ : PMF α) (g : α → β) (k : ℕ) :
     iid (μ.map g) k = (iid μ k).map (fun v i => g (v i)) := by
   rw [← piFin_const, ← piFin_const, piFin_map]
+
+/-- Resampling one coordinate of independent draws leaves the joint distribution `iid μ k`
+unchanged. -/
+theorem iid_bind_update (μ : PMF α) {k : ℕ} (j : Fin k) :
+    ((iid μ k).bind fun v => μ.bind fun y => PMF.pure (Function.update v j y)) = iid μ k := by
+  classical
+  ext w
+  let sw : (Fin k → α) × α ≃ (Fin k → α) × α :=
+    { toFun := fun (v, y) => (Function.update v j y, v j)
+      invFun := fun (v, y) => (Function.update v j y, v j)
+      left_inv := fun (v, y) => by simp [Function.update_idem]
+      right_inv := fun (v, y) => by simp [Function.update_idem] }
+  have lhs : ((iid μ k).bind fun v => μ.bind fun y => PMF.pure (Function.update v j y)) w =
+      ∑' p : (Fin k → α) × α,
+        (∏ i, μ (p.1 i)) * (μ p.2 * (PMF.pure (Function.update p.1 j p.2)) w) := by
+    rw [tsum_prod']
+    simp only [PMF.bind_apply, iid_apply]
+    refine tsum_congr fun v => (ENNReal.tsum_mul_left ..).symm
+  rw [lhs, ← sw.tsum_eq]
+  have hterm (p : (Fin k → α) × α) :
+      (∏ i, μ ((sw p).1 i)) * (μ (sw p).2 *
+        (PMF.pure (Function.update (sw p).1 j (sw p).2)) w) =
+        if p.1 = w then (∏ i, μ (w i)) * μ p.2 else 0 := by
+    rcases p with ⟨v, y⟩
+    change (∏ i, μ (Function.update v j y i)) *
+      (μ (v j) * (PMF.pure (Function.update (Function.update v j y) j (v j))) w) = _
+    rw [Function.update_idem, Function.update_eq_self, PMF.pure_apply]
+    by_cases hvw : v = w
+    · subst hvw
+      simp only [↓reduceIte, mul_one]
+      rw [← Finset.mul_prod_erase Finset.univ (fun i => μ (Function.update v j y i))
+          (Finset.mem_univ j),
+        ← Finset.mul_prod_erase Finset.univ (fun i => μ (v i)) (Finset.mem_univ j),
+        Function.update_self]
+      have heq : ∀ i ∈ Finset.univ.erase j,
+          μ (Function.update v j y i) = μ (v i) := fun i hi => by
+        rw [Function.update_of_ne (Finset.ne_of_mem_erase hi)]
+      rw [Finset.prod_congr rfl heq]
+      ring
+    · have hne : w ≠ v := Ne.symm hvw
+      simp [hvw, hne]
+  simp_rw [hterm]
+  rw [tsum_prod', tsum_eq_single w (fun v hv => by simp [hv])]
+  simp only [↓reduceIte, ENNReal.tsum_mul_left, PMF.tsum_coe, mul_one, iid_apply]
 
 /-- On a finite type, independent draws form the product distribution `pi`. -/
 theorem iid_eq_pi [Finite α] (μ : PMF α) (k : ℕ) : iid μ k = pi (fun _ : Fin k => μ) := by

@@ -11,11 +11,6 @@ public import CslibFrontier.Init
 public import Mathlib.Analysis.Convex.Strong
 public import Mathlib.Order.Filter.Extr
 public import Mathlib.Analysis.InnerProductSpace.Basic
-import Mathlib.Tactic.FieldSimp
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.LinearCombination
-import Mathlib.Tactic.NormNum
-import Mathlib.Tactic.Positivity
 
 /-!
 # Strongly convex functions: scaling, quadratic growth and stability

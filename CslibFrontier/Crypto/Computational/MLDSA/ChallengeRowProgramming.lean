@@ -8,8 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.MLDSA.FIPS204
+-- Reads private `Trace`, `parse`, `signedTail`, and `inBall_signedTail`, plus `sampleInBallBytes`.
 import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
-import all CslibFrontier.Crypto.Primitives.ByteString
 import CslibFrontier.Probability.PMF.Uniform
 import Mathlib.Data.Fintype.Sort
 

@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.P
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Foundations.Data.List.Fold
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.KernelNormalForm
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import Mathlib.Data.Fintype.Basic
 
 /-!
@@ -187,8 +188,7 @@ theorem pair {program : α → WordOracleComp Operation γ} {f : α → β}
   obtain ⟨hops, k, Control, hfinite, source, c, d, hsource⟩ := hprogram
   refine of_polyBounded (appendPTM prepare source)
     (time := fun a => cp * ((input a).length + 1) ^ dp + c * ((input a).length + 1) ^ d)
-    ((PolyBounded.of_forall_le cp dp fun _ => le_rfl).add
-      (.of_forall_le c d fun _ => le_rfl)) fun a => ?_
+    (by growth_poly) fun a => ?_
   have h := (hprepare a).append fun _ _ _ _ _ _ => hsource a
   simp only [encBits, Function.Embedding.coe_refl, id_eq, pure_bind] at h
   rw [Functor.map_map] at h ⊢
@@ -276,9 +276,8 @@ theorem cond {condition : α → Bool} {yes no : α → WordOracleComp Operation
   obtain ⟨hops, k₁, Control₁, hfinite₁, yesMachine, c₁, d₁, hyesMachine⟩ := hyes
   obtain ⟨_, k₂, Control₂, hfinite₂, noMachine, c₂, d₂, hnoMachine⟩ := hno
   refine of_polyBounded (itePTM tester yesMachine noMachine)
-    (((((PolyBounded.of_forall_le ct dt fun _ => le_rfl).add
-      (.of_forall_le c₁ d₁ fun _ => le_rfl)).add (.of_forall_le c₂ d₂ fun _ => le_rfl))).add
-        (.const 10)) fun a => ?_
+    (time := fun a => ct * ((input a).length + 1) ^ dt + c₁ * ((input a).length + 1) ^ d₁ +
+      c₂ * ((input a).length + 1) ^ d₂ + 10) (by growth_poly) fun a => ?_
   have hite := ComputesTidily.ite (w := test a) (htester a)
     (fun _ => hyesMachine a) (fun _ => hnoMachine a)
   cases hc : condition a with

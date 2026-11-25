@@ -12,6 +12,7 @@ public import CslibFrontier.DataStructure.CellProbe.Randomized.ObliviousSequence
 public import CslibFrontier.DataStructure.Dictionary.Dynamic.Spec
 public import CslibFrontier.Probability.PMF.Uniform
 public import Mathlib.Data.Finset.Sort
+import CslibFrontier.Tactic.UniformRelabel
 import CslibFrontier.Foundations.Data.List.RowMajor
 import Mathlib.Data.Fintype.CardEmbedding
 import Mathlib.Data.Fintype.Powerset
@@ -1242,21 +1243,9 @@ private theorem sampleHardDist_eq_uniformOfFintype_map {U V n : ℕ} (hU : 2 * n
       (PMF.uniformOfFintype (HardSeed U V n)).map (fun p => seq p.1.1 p.1.2 p.2) := by
   let _ : Nonempty (Fin (2 * n) ↪ Fin U) := ⟨Fin.castLEEmb hU⟩
   let _ : Nonempty (Fin V) := ⟨⟨0, hV⟩⟩
-  let assoc := (Equiv.prodAssoc (Fin (2 * n) ↪ Fin U) (Fin (2 * n) → Fin V) (Equiv.Perm (Fin n)))
-  simp only [sampleHardDist, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
-    ← _root_.PMF.bind_pure_comp, Function.comp_def]
-  have hinner : ∀ keys : Fin (2 * n) ↪ Fin U,
-      ((PMF.uniformOfFintype (Fin (2 * n) → Fin V)).bind fun vals =>
-        (PMF.uniformOfFintype (Equiv.Perm (Fin n))).map fun delPerm => seq keys vals delPerm) =
-      (PMF.uniformOfFintype ((Fin (2 * n) → Fin V) × Equiv.Perm (Fin n))).map
-        (fun vp => seq keys vp.1 vp.2) := fun keys =>
-    PMF.uniformOfFintype_bind_map (fun vals delPerm => seq keys vals delPerm)
-  refine (congrArg (_root_.PMF.bind _) (funext hinner)).trans ?_
-  rw [PMF.uniformOfFintype_bind_map
-    (fun (keys : Fin (2 * n) ↪ Fin U) (vp : (Fin (2 * n) → Fin V) × Equiv.Perm (Fin n)) =>
-      seq keys vp.1 vp.2),
-    ← PMF.uniformOfFintype_map_equiv assoc, _root_.PMF.map_comp, ← _root_.PMF.bind_pure_comp]
-  rfl
+  simp only [sampleHardDist]
+  relabel_uniform
+    (Equiv.prodAssoc (Fin (2 * n) ↪ Fin U) (Fin (2 * n) → Fin V) (Equiv.Perm (Fin n))).symm
 
 theorem insertQueryDeleteDist_eq_uniformOfFintype_map {U V n : ℕ} (hU : 2 * n ≤ U) (hV : 1 ≤ V) :
     letI : Nonempty (Fin (2 * n) ↪ Fin U) := ⟨Fin.castLEEmb hU⟩

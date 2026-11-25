@@ -77,10 +77,7 @@ private theorem storeFields_exec (source : Fin (extra + 1) → Fin (regs + 2))
       funext n
       simp only [Function.comp_apply, Record.mk.injEq, true_and]
       funext g
-      by_cases hg : g = f
-      · subst hg
-        by_cases mem : g ∈ fields <;> simp [mem]
-      · by_cases mem : g ∈ fields <;> simp [mem, hg]
+      by_cases hg : g = f <;> by_cases mem : g ∈ fields <;> simp [mem, hg]
 
 /-- Allocation initializes all fields in `extra + 3` instructions. It appends exactly one
 record and preserves every register except cursor zero. The new node is a represented leaf,

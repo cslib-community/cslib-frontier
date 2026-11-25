@@ -18,6 +18,7 @@ import CslibFrontier.Probability.Product
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.EncLen
 import CslibFrontier.Tactic.FinIndex
+import CslibFrontier.Tactic.UniformRelabel
 
 /-!
 # The Naor–Reingold pseudorandom function from Decisional Diffie–Hellman
@@ -521,25 +522,6 @@ theorem naorReingoldHybridGame_self (d : F.Desc) (n : ℕ)
     simp [naorReingoldHybridEval]
   simp_rw [hfn, PMF.bind_const]
 
-private def boolProdEquiv (α : Type*) : (α × α) ≃ (Bool → α) where
-  toFun p b := if b then p.2 else p.1
-  invFun f := (f false, f true)
-  left_inv p := by simp
-  right_inv f := by funext b; cases b <;> rfl
-
-private def prefixTableEquiv (α : Type*) (k : ℕ) :
-    (BitString k → α × α) ≃ (BitString (k + 1) → α) :=
-  ((Equiv.piCongrRight fun _ : BitString k => boolProdEquiv α).trans
-    (Equiv.curry (BitString k) Bool α).symm).trans
-    (Equiv.arrowCongr
-      ((Fin.snocEquiv fun _ : Fin (k + 1) => Bool).symm.trans (Equiv.prodComm _ _)).symm
-      (Equiv.refl α))
-
-private theorem prefixTableEquiv_apply {α : Type*} (k : ℕ) (T : BitString k → α × α)
-    (p : BitString (k + 1)) :
-    prefixTableEquiv α k T p = if p (Fin.last k) then (T (Fin.init p)).2 else (T (Fin.init p)).1 :=
-  rfl
-
 /-- Evaluating the level-`k` child table `T : BitString k → F.Carrier d × F.Carrier d` followed by
 the depth-`(k + 1)` suffix exponent product. -/
 def naorReingoldTableEval (d : F.Desc) {n : ℕ} (k : ℕ) (hk : k < n)
@@ -609,22 +591,26 @@ theorem multiDDHRandomTupleLaw_naorReingoldLevelTest (d : F.Desc) {n : ℕ} (k :
       F.naorReingoldHybridGame d n (k + 1) adv := by
   unfold naorReingoldLevelTest
   rw [PMF.bind_const]
-  simp only [multiDDHRandomTupleLaw, naorReingoldHybridGame, PMF.monad_bind_eq_bind, PMF.bind_map,
-    Function.comp_def]
-  rw [← PMF.uniformOfFintype_map_equiv (prefixTableEquiv (ZMod (F.order d)) k), PMF.bind_map]
-  congr 1 with B : 1
-  dsimp only [Function.comp_apply]
-  congr 1 with α : 1
-  congr 1 with x : 1
-  rw [naorReingoldTableEval, naorReingoldHybridEval]
-  have hpref : prefixTableEquiv (ZMod (F.order d)) k B (BitString.zeroExtend (d' := k + 1) x) =
-      if x ⟨k, hk⟩ then (B (BitString.zeroExtend (d' := k) x)).2
-      else (B (BitString.zeroExtend (d' := k) x)).1 := by
-    rw [prefixTableEquiv_apply, BitString.init_zeroExtend_succ,
+  simp only [multiDDHRandomTupleLaw, naorReingoldHybridGame]
+  relabel_uniform (fun (T : BitString k → ZMod (F.order d) × ZMod (F.order d))
+      (p : BitString (k + 1)) =>
+    if p (Fin.last k) then (T (Fin.init p)).2 else (T (Fin.init p)).1) with B
+  · intro T₁ T₂ h
+    funext s
+    have hf := congrFun h (Fin.snoc s false)
+    have ht := congrFun h (Fin.snoc s true)
+    simp only [Fin.snoc_last, Bool.false_eq_true, ↓reduceIte, Fin.init_snoc] at hf ht
+    exact Prod.ext hf ht
+  · simp only [Fintype.card_pi, Fintype.card_prod, Finset.prod_const, Finset.card_univ, ← sq,
+      ← pow_mul]
+    congr 1
+    simp [pow_succ']
+  · congr 1 with α : 1
+    congr 1 with x : 1
+    rw [naorReingoldTableEval, naorReingoldHybridEval, BitString.init_zeroExtend_succ,
       BitString.last_zeroExtend_succ hk]
-  rw [hpref]
-  rcases Bool.eq_false_or_eq_true (x ⟨k, hk⟩) with hxk | hxk <;>
-    simp [hxk, smul_smul, mul_comm]
+    rcases Bool.eq_false_or_eq_true (x ⟨k, hk⟩) with hxk | hxk <;>
+      simp [hxk, smul_smul, mul_comm]
 
 /-- **Single-level Naor–Reingold prefix-hybrid bound**: for every `k < n`, the advantage between
 `naorReingoldHybridGame` at depth `k` and depth `k + 1` is at most the DDH distinguishing advantage

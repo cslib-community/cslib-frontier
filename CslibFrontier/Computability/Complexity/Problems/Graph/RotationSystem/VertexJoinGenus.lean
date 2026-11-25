@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.VertexJoinComponents
+import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Equality
 import CslibFrontier.Foundations.GroupTheory.Perm.InvariantPredicate
 import CslibFrontier.Foundations.GroupTheory.Perm.SelectedOrbitJoin
 
@@ -18,6 +19,8 @@ The literal `mergeVertices` successor swap joins two different old vertex compon
 Its vertex and face orbit counts each decrease by one in their union, and every indexed
 edge is retained. The argument counts all permutation orbits, including fixed points.
 Declared point components require no darts and retain their conventional Euler equation.
+The same genus-zero conclusion applies when the joined rotation is given in different
+indexed dart coordinates, as in rejoining a split vertex.
 -/
 
 public section
@@ -162,5 +165,39 @@ theorem numericalGenusZero_mergeVertices_of_not_sameComponent {G : Graph}
   simp only [hph] at hv hf
   rw [card_componentFaceIndices, s.count_faceRepresentatives_eq_card_componentFace hH]
   split_ifs at hsource hv hf <;> omega
+
+/-- Joining corners in different components preserves numerical genus zero in any
+reversal-preserving dart coordinates. The new endpoint fibers are determined by the
+conjugated successor permutation. -/
+theorem numericalGenusZero_of_join_swap {G H : Graph} (r : RotationSystem G)
+    (s : RotationSystem H) (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices)
+    (hH : ∀ v ∈ H.incidenceVertices, v ∈ H.vertices) (hr : r.NumericalGenusZero)
+    (a b : Dart G) (hsep : ¬SameComponent G a.vertex b.vertex) (e : Dart G ≃ Dart H)
+    (hrev : ∀ d, e d.reverse = (e d).reverse)
+    (hjoin : ∀ d, e ((r.rotate * swap a b) d) = s.rotate (e d)) :
+    s.NumericalGenusZero := by
+  have hne : a.vertex ≠ b.vertex := fun h => hsep (h ▸ .refl (vertex_mem hG a))
+  let t := r.mergeVertices a b hne
+  let m := mergeDartEquiv a b
+  let f := m.symm.trans e
+  have hperm (d : Dart (mergeGraph a b)) : f (t.rotate d) = s.rotate (f d) := by
+    obtain ⟨d, rfl⟩ := m.surjective d
+    simpa only [t, m, f, rotate_mergeVertices, Equiv.permCongr_apply, Equiv.trans_apply,
+      Equiv.symm_apply_apply] using hjoin d
+  have hv (d g : Dart (mergeGraph a b)) : (f d).vertex = (f g).vertex ↔ d.vertex = g.vertex := by
+    rw [← s.sameCycle_iff, ← t.sameCycle_iff]
+    exact Perm.sameCycle_equiv_iff f t.rotate s.rotate hperm d g
+  have hf (d : Dart (mergeGraph a b)) : f d.reverse = (f d).reverse := by
+    obtain ⟨d, rfl⟩ := m.surjective d
+    simpa only [f, m, Equiv.trans_apply, ← mergeDartEquiv_reverse, Equiv.symm_apply_apply]
+      using hrev d
+  have ht : (t.transport f hv : RotationSystem H) = s := by
+    apply ext_rotate
+    apply Equiv.ext
+    intro d
+    change f (t.rotate (f.symm d)) = s.rotate d
+    simpa only [Equiv.apply_symm_apply] using hperm (f.symm d)
+  have hz := r.numericalGenusZero_mergeVertices_of_not_sameComponent hG hr a b hne hsep
+  exact ht ▸ t.numericalGenusZero_transport f hv hf (mergeGraph_endpoints_declared a b hG) hH hz
 
 end Cslib.Complexity.Graph.RotationSystem

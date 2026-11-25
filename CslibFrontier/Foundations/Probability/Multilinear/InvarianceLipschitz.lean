@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.Probability.Multilinear.Invariance
 public import Mathlib.Topology.EMetricSpace.Lipschitz
 import CslibFrontier.Foundations.MeasureTheory.Integral.CauchySchwarz
 import CslibFrontier.Foundations.Probability.SmoothTests
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # The Basic Invariance Principle for Lipschitz test functions
@@ -69,14 +70,13 @@ private theorem mul_nine_pow_le (k : ℕ) : k * 9 ^ k ≤ 16 ^ k := by
 /-- The arithmetic of Corollary 11.68: `k 9ᵏ ε / 12 ≤ (9/16 · 2ᵏ · ε^(1/4))⁴`. -/
 private theorem mul_nine_pow_mul_div_le (k : ℕ) {ε : ℝ} (hε : 0 ≤ ε) :
     k * 9 ^ k * ε / 12 ≤ (9 / 16 * 2 ^ k * ε ^ (1 / 4 : ℝ)) ^ 4 := by
-  have hk : (k : ℝ) * 9 ^ k ≤ 16 ^ k := by exact_mod_cast mul_nine_pow_le k
   have he : (ε ^ (1 / 4 : ℝ)) ^ 4 = ε := by
     rw [← Real.rpow_natCast, ← Real.rpow_mul hε]
     norm_num
   rw [mul_pow, mul_pow, he, ← pow_mul, mul_comm k 4, pow_mul]
   have h16 : (0 : ℝ) ≤ 16 ^ k * ε := by positivity
   norm_num
-  nlinarith
+  cast_nlinarith [mul_nine_pow_le k]
 
 variable {ι : Type*} [Fintype ι] [DecidableEq ι] (μ ν : ι → Measure ℝ)
   [∀ i, IsProbabilityMeasure (μ i)] [∀ i, IsProbabilityMeasure (ν i)]

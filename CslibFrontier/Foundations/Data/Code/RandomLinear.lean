@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Data.Code.BallVolume
 public import Mathlib.Data.Matrix.Mul
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.GroupTheory.Index
 import Mathlib.LinearAlgebra.Matrix.ToLin
 
@@ -122,8 +123,7 @@ theorem one_sub_inv_two_pow_lt_card_filter_le_hammingDist {k n d t : ℕ} (hd : 
   have hsplit : (#good : ℝ) = 2 ^ (k * n) - #goodᶜ := by
     have := card_compl_add_card good
     rw [hcard] at this
-    have hR : (#goodᶜ : ℝ) + #good = 2 ^ (k * n) := by exact_mod_cast this
-    linarith
+    cast_linarith [this]
   have hpos : (0 : ℝ) < 2 ^ (k * n) := by positivity
   have hbadR : (#goodᶜ : ℝ) * 2 ^ n ≤ #X * #B * 2 ^ (k * n) := by exact_mod_cast hbadcard
   -- The light words: none if `d = 0`, and at most `2 ^ (n H₂(d / n))` otherwise.
@@ -136,8 +136,7 @@ theorem one_sub_inv_two_pow_lt_card_filter_le_hammingDist {k n d t : ℕ} (hd : 
     have hα₀ : (0 : ℝ) ≤ d / n := by positivity
     have hα : (d / n : ℝ) ≤ 1 / 2 := by
       rw [div_le_iff₀ hnR]
-      have : (2 * d : ℝ) ≤ n := by exact_mod_cast hd
-      linarith
+      cast_linarith [hd]
     have hsub : B ⊆ ({y | hammingDist 0 y ≤ d - 1} : Finset (Fin n → ZMod 2)) := by
       intro y hy
       simp only [B, mem_filter, mem_univ, true_and] at hy

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Computational.SIS.MLKEM.Family
 public import CslibFrontier.Crypto.Computational.SIS.MLKEM.Security
 public import CslibFrontier.Crypto.Computational.LWE.Module.Native
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Crypto.Game.CloseTo
 import CslibFrontier.Tactic.Negligible
@@ -444,7 +445,7 @@ theorem isPPT_keyReduction [∀ κ, NeZero (P κ).q] (hP : ComputableInPolyTime 
     exact (ComputableInPolyTime.encDetWord hPHC hpkHC (by fun_prop) (by fun_prop)).isPPTOn
   · intro κ M t
     simp only [keyReduction, mlweKeyReduction, mlweWordReduction, keySamplePublicKey_encodeSample,
-      wordAdversary, ProbComp.eval_bind, ProbComp.eval_map, PMF.bind_map, Function.comp_def]
+      wordAdversary, pmf_norm]
     refine congrArg _ (funext fun choice => ?_)
     simp only [Encryption.ChoiceOut.msg₀, Encryption.ChoiceOut.msg₁, Encryption.ChoiceOut.msgs,
       Encryption.ChoiceOut.state, select_getD]
@@ -470,7 +471,7 @@ theorem isPPT_ciphertextReduction [∀ κ, NeZero (P κ).q]
   intro κ M w
   simp only [ciphertextReduction, mlweReduction, mlweWordReduction,
     extendedSamplePublicKey_encodeSample, extendedSampleCiphertext_encodeSample, wordAdversary,
-    ProbComp.eval_bind, ProbComp.eval_map, PMF.bind_map, Function.comp_def]
+    pmf_norm]
   refine congrArg _ (funext fun choice => ?_)
   simp only [Encryption.ChoiceOut.msg₀, Encryption.ChoiceOut.msg₁, Encryption.ChoiceOut.msgs,
     Encryption.ChoiceOut.state, select_getD]
@@ -525,9 +526,7 @@ private theorem eval_cpaExperiment_eq (A : Encryption.WordAdversary) (b : Bool) 
         let coins ← BitString.sampleList (coinLength (P κ))
         return encDetWord (P κ) (encodePublicKey keys.1) (if b then choice.1.2 else choice.1.1)
           coins) from rfl, h]
-    simp only [ExplicitCoinPKE.toPKE, ExplicitCoinPKE.encrypt, toExplicitCoinPKE,
-      ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind, PMF.bind_map,
-      Function.comp_def]
+    simp only [ExplicitCoinPKE.toPKE, ExplicitCoinPKE.encrypt, toExplicitCoinPKE, pmf_norm]
   · simp only [hv, Bool.false_eq_true, ite_false, PMF.bind_const, ProbComp.eval_pure]
 
 /-- **The word game is the two-stage experiment up to the matrix sampler.** At each `κ` and

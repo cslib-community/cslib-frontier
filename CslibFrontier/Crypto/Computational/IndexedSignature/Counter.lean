@@ -122,10 +122,9 @@ def counterEufCmaGame (adversary : Forger) (n : ℕ) : ProbComp Bool := do
   let out ← (OracleComp.interpret
     (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
       (S.counterSigningOracle n keys.2)) (adversary n keys.1)).run (0, [])
-  let msig := out.1
-  let state := out.2
-  return decide ((requestDecoder.decode msig.2).1 < S.capacity n) && !state.2.contains msig.1 &&
-    S.counterVerify keys.1 msig.1 msig.2
+  let ⟨⟨msg, sig⟩, _, signed⟩ := out
+  return decide ((requestDecoder.decode sig).1 < S.capacity n) && !signed.contains msg &&
+    S.counterVerify keys.1 msg sig
 
 variable {S}
 
@@ -299,8 +298,8 @@ def counterForger (bound : ℕ → ℕ → ℕ) (adversary : Forger) : IndexedFo
   let out ← (OracleComp.interpret
     (OracleComp.sumHandler (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
       (S.counterHandler n bound)) (adversary n pk)).run 0
-  let msig := out.1
-  return ((requestDecoder.decode msig.2).1, msig.1, (requestDecoder.decode msig.2).2)
+  let ⟨⟨msg, sig⟩, _⟩ := out
+  return ((requestDecoder.decode sig).1, msg, (requestDecoder.decode sig).2)
 
 /-! ### Exact simulation -/
 

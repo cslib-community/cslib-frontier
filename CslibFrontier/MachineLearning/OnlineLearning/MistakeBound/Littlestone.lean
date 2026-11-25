@@ -12,46 +12,57 @@ public import CslibFrontier.MachineLearning.OnlineLearning.MistakeBound.Basic
 /-!
 # Mistake trees and the Littlestone dimension
 
-A complete `k`-mistake tree for a concept class `C` [Littlestone1988, §3, Definition 2] is a
-complete binary tree of height `k`. Its root is `C`, each internal node `C'` is labelled with an
-instance `x`, the two children of `C'` are the subclasses of `C'` with `c x = false` and with
-`c x = true`, and every node is nonempty. `HasMistakeTree d C` states that such a tree of height
-`d` exists. It is defined by recursion on `d`, so it needs no tree data type: a tree of height
-`d + 1` is a root instance `x` such that both restrictions `versionSpace C [(x, y)]` have trees of
-height `d`. `hasMistakeTree_iff_exists_tree` relates it to the explicit form of
-[ShalevShwartzBenDavid2014, §21.1]: an instance tree, given as a map from the paths
-`List Bool` to the instances, whose root-to-leaf paths of length `d` are all realizable by `C`.
+A complete `d`-mistake tree for a concept class `C : ConceptClass α β`
+[Littlestone1988, §3, Definition 2; DanielySabatoBenDavidShalevShwartz2015] is a complete binary
+tree of height `d`. Its root is `C`, each internal node `C'` is labelled with an instance `x` and
+two distinct branch labels `y₀ ≠ y₁` in `β`, the two children of `C'` are the restrictions
+`versionSpace C' [(x, y₀)]` and `versionSpace C' [(x, y₁)]`, and every leaf is nonempty. When
+`β = Bool`, the two distinct branch labels are necessarily `false` and `true`
+(`hasMistakeTree_succ_bool`), recovering Littlestone's binary mistake trees. `HasMistakeTree d C`
+states by recursion on `d` that such a tree of height `d` exists. `hasMistakeTree_iff_exists_tree`
+identifies it with the explicit shattered-tree presentation (`MistakeTree` and
+`MistakeTree.Shatters`) of [ShalevShwartzBenDavid2014, §21.1] and
+[DanielySabatoBenDavidShalevShwartz2015]: a complete binary tree of height `d` with instances at
+internal nodes and distinct labels on sibling edges whose `2 ^ d` root-to-leaf paths are all
+realizable by `C`.
 
 The **Littlestone dimension** `littlestoneDim C : ℕ∞` is the supremum of the heights of the
-complete mistake trees for `C`. Littlestone writes it `K(C)` and sets `K(∅) = -1`; here
-`littlestoneDim ∅ = 0`, and a class with complete mistake trees of every height has dimension `⊤`.
+complete mistake trees for `C` (called the multiclass Littlestone dimension when `|β| > 2`).
+Littlestone writes the binary quantity `K(C)` and sets `K(∅) = -1`; here `littlestoneDim ∅ = 0`,
+and a class with complete mistake trees of every height has dimension `⊤`.
 
-**Lower bound** [Littlestone1988, §3, Lemma 1]. An adversary walking down a complete `d`-mistake
-tree forces every deterministic learner to err `d` times: at each node it presents the label of
-the node and then reveals the opposite of the learner's prediction
-(`exists_realizable_mistakes_eq`). Hence `littlestoneDim C ≤ mistakeBound A C` for every learner
-`A` (`littlestoneDim_le_mistakeBound`), and `littlestoneDim C ≤ optimalMistakeBound C`. The matching
-upper bound, attained by the standard optimal algorithm, is in
-`CslibFrontier.MachineLearning.OnlineLearning.MistakeBound.SOA`.
+**Lower bound** [Littlestone1988, §3, Lemma 1; DanielySabatoBenDavidShalevShwartz2015]. An
+adversary walking down a complete `d`-mistake tree forces every deterministic learner to err `d`
+times: at a node `(x, y₀, y₁)` with `y₀ ≠ y₁`, at least one of `y₀` and `y₁` differs from the
+learner's prediction `A h x` (`exists_realizable_mistakes_eq`). Hence
+`littlestoneDim C ≤ mistakeBound A C` for every learner `A` (`littlestoneDim_le_mistakeBound`), and
+`littlestoneDim C ≤ optimalMistakeBound C`. The matching upper bound, attained by the multiclass
+standard optimal algorithm, is in `CslibFrontier.MachineLearning.OnlineLearning.MistakeBound.SOA`.
 
 ## Main definitions
 
 * `Cslib.MachineLearning.OnlineLearning.MistakeBound.HasMistakeTree`: existence of a complete
   mistake tree of a given height.
-* `Cslib.MachineLearning.OnlineLearning.MistakeBound.littlestoneDim`: the Littlestone dimension.
+* `Cslib.MachineLearning.OnlineLearning.MistakeBound.MistakeTree`: explicit complete binary mistake
+  trees of height `d` with distinct sibling edge labels, together with `MistakeTree.path` and
+  `MistakeTree.Shatters`.
+* `Cslib.MachineLearning.OnlineLearning.MistakeBound.littlestoneDim`: the (binary or multiclass)
+  Littlestone dimension.
 
 ## Main results
 
-* `Cslib.MachineLearning.OnlineLearning.MistakeBound.hasMistakeTree_iff_exists_tree`: the explicit
-  form of mistake trees.
+* `Cslib.MachineLearning.OnlineLearning.MistakeBound.hasMistakeTree_iff_exists_tree`: equivalence
+  between recursive `HasMistakeTree` and explicit shattered mistake trees (`MistakeTree.Shatters`).
 * `Cslib.MachineLearning.OnlineLearning.MistakeBound.exists_realizable_mistakes_eq`: a complete
   `d`-mistake tree forces `d` mistakes on a realizable sequence of length `d`.
 * `Cslib.MachineLearning.OnlineLearning.MistakeBound.littlestoneDim_le_mistakeBound`:
-  [Littlestone1988, §3, Lemma 1], every deterministic learner makes at least `littlestoneDim C`
-  mistakes in the worst case.
+  [Littlestone1988, §3, Lemma 1; DanielySabatoBenDavidShalevShwartz2015], every deterministic
+  learner makes at least `littlestoneDim C` mistakes in the worst case.
 
 ## References
 
+* [A. Daniely, S. Sabato, S. Ben-David, S. Shalev-Shwartz, *Multiclass Learnability and the ERM
+  Principle*][DanielySabatoBenDavidShalevShwartz2015]
 * [N. Littlestone, *Learning quickly when irrelevant attributes abound: a new linear-threshold
   algorithm*][Littlestone1988]
 * [S. Shalev-Shwartz, S. Ben-David, *Understanding Machine Learning: From Theory to
@@ -64,112 +75,163 @@ namespace Cslib.MachineLearning.OnlineLearning.MistakeBound
 
 open PACLearning (ConceptClass)
 
-variable {α : Type*}
+universe u v
+variable {α : Type u} {β : Type v}
 
-/-- `HasMistakeTree d C`: the class `C` has a complete mistake tree of height `d`
-[Littlestone1988, §3, Definition 2]. A tree of height `0` is a nonempty root; a tree of height
-`d + 1` labels the root with an instance `x` and has, for both labels `y`, a tree of height `d` for
-the concepts of `C` with `c x = y`. -/
-@[expose] def HasMistakeTree : ℕ → ConceptClass α Bool → Prop
+/-- `HasMistakeTree d C`: the class `C : ConceptClass α β` has a complete mistake tree of height `d`
+[Littlestone1988, §3, Definition 2; DanielySabatoBenDavidShalevShwartz2015]. A tree of height `0` is
+a nonempty root; a tree of height `d + 1` labels the root with an instance `x` and two distinct
+labels `y₀ ≠ y₁` such that both restrictions `versionSpace C [(x, y₀)]` and
+`versionSpace C [(x, y₁)]` have complete mistake trees of height `d`. -/
+@[expose] def HasMistakeTree : ℕ → ConceptClass α β → Prop
   | 0, C => C.Nonempty
-  | d + 1, C => ∃ x : α, ∀ y : Bool, HasMistakeTree d (versionSpace C [(x, y)])
+  | d + 1, C =>
+    ∃ (x : α) (y₀ y₁ : β), y₀ ≠ y₁ ∧
+      HasMistakeTree d (versionSpace C [(x, y₀)]) ∧
+      HasMistakeTree d (versionSpace C [(x, y₁)])
 
-@[simp] theorem hasMistakeTree_zero {C : ConceptClass α Bool} :
+@[simp] theorem hasMistakeTree_zero {C : ConceptClass α β} :
     HasMistakeTree 0 C ↔ C.Nonempty := Iff.rfl
 
-theorem hasMistakeTree_succ {d : ℕ} {C : ConceptClass α Bool} :
-    HasMistakeTree (d + 1) C ↔ ∃ x : α, ∀ y : Bool, HasMistakeTree d (versionSpace C [(x, y)]) :=
+theorem hasMistakeTree_succ {d : ℕ} {C : ConceptClass α β} :
+    HasMistakeTree (d + 1) C ↔
+      ∃ (x : α) (y₀ y₁ : β), y₀ ≠ y₁ ∧
+        HasMistakeTree d (versionSpace C [(x, y₀)]) ∧
+        HasMistakeTree d (versionSpace C [(x, y₁)]) :=
   Iff.rfl
 
-theorem HasMistakeTree.nonempty {d : ℕ} {C : ConceptClass α Bool} (h : HasMistakeTree d C) :
+/-- For Boolean labels, a root with two distinct branch labels is simply an instance `x` whose
+`false` and `true` restrictions both admit trees of height `d`. -/
+theorem hasMistakeTree_succ_bool {d : ℕ} {C : ConceptClass α Bool} :
+    HasMistakeTree (d + 1) C ↔ ∃ x : α, ∀ y : Bool, HasMistakeTree d (versionSpace C [(x, y)]) := by
+  constructor
+  · rintro ⟨x, y₀, y₁, hne, h0, h1⟩
+    refine ⟨x, fun y => ?_⟩
+    cases y₀ <;> cases y₁ <;> cases y <;> simp_all
+  · exact fun ⟨x, hx⟩ => ⟨x, false, true, Bool.false_ne_true, hx false, hx true⟩
+
+theorem HasMistakeTree.nonempty {d : ℕ} {C : ConceptClass α β} (h : HasMistakeTree d C) :
     C.Nonempty := by
   induction d generalizing C with
   | zero => exact h
   | succ d ih =>
-    obtain ⟨x, hx⟩ := h
-    exact Set.Nonempty.mono (versionSpace_subset _ _) (ih (hx true))
+    obtain ⟨_, _, _, -, h0, -⟩ := h
+    exact Set.Nonempty.mono (versionSpace_subset _ _) (ih h0)
 
-theorem HasMistakeTree.mono {d : ℕ} {C C' : ConceptClass α Bool} (h : HasMistakeTree d C)
+theorem HasMistakeTree.mono {d : ℕ} {C C' : ConceptClass α β} (h : HasMistakeTree d C)
     (hCC' : C ⊆ C') : HasMistakeTree d C' := by
   induction d generalizing C C' with
   | zero => exact Set.Nonempty.mono hCC' h
   | succ d ih =>
-    obtain ⟨x, hx⟩ := h
-    exact ⟨x, fun y => ih (hx y) (versionSpace_mono hCC' _)⟩
+    obtain ⟨x, y₀, y₁, hne, h0, h1⟩ := h
+    exact ⟨x, y₀, y₁, hne, ih h0 (versionSpace_mono hCC' _), ih h1 (versionSpace_mono hCC' _)⟩
 
 /-- Pruning a complete mistake tree gives complete mistake trees of every smaller height. -/
-theorem HasMistakeTree.of_le {d e : ℕ} {C : ConceptClass α Bool} (h : HasMistakeTree d C)
+theorem HasMistakeTree.of_le {d e : ℕ} {C : ConceptClass α β} (h : HasMistakeTree d C)
     (hed : e ≤ d) : HasMistakeTree e C := by
   induction e generalizing d C with
   | zero => exact h.nonempty
   | succ e ih =>
     obtain ⟨d, rfl⟩ : ∃ d', d = d' + 1 := ⟨d - 1, by omega⟩
-    obtain ⟨x, hx⟩ := h
-    exact ⟨x, fun y => ih (hx y) (by omega)⟩
+    obtain ⟨x, y₀, y₁, hne, h0, h1⟩ := h
+    exact ⟨x, y₀, y₁, hne, ih h0 (by omega), ih h1 (by omega)⟩
 
-/-! ### The explicit form -/
+/-! ### Explicit shattered mistake trees -/
 
-/-- The labelled path through the instance tree `T : List Bool → α` along the labels `ys`: the
-node reached by the labels `zs` is labelled with the instance `T zs`. -/
-def treePath (T : List Bool → α) : List Bool → List (α × Bool)
-  | [] => []
-  | y :: ys => (T [], y) :: treePath (fun zs => T (y :: zs)) ys
+/-- An explicit complete binary mistake tree of height `d` with instances in `α` and edge labels in
+`β` [Littlestone1988, §3, Definition 2; ShalevShwartzBenDavid2014, §21.1;
+DanielySabatoBenDavidShalevShwartz2015]. A leaf has height `0`; an internal node of height `d + 1`
+queries an instance `x` and branches on two distinct labels `y₀ ≠ y₁` into subtrees of height
+`d`. -/
+inductive MistakeTree (α : Type u) (β : Type v) : ℕ → Type (max u v)
+  /-- The empty tree of height `0`. -/
+  | leaf : MistakeTree α β 0
+  /-- An internal node querying `x` with distinct branch labels `y₀ ≠ y₁` on its `false` and `true`
+  children. -/
+  | node {d : ℕ} (x : α) (y₀ y₁ : β) (hne : y₀ ≠ y₁)
+      (left right : MistakeTree α β d) : MistakeTree α β (d + 1)
 
-@[simp] theorem treePath_nil (T : List Bool → α) : treePath T [] = [] := by
-  rw [treePath]
+/-- The labelled sequence of length `d` along the root-to-leaf path `bs : Fin d → Bool` of a
+complete mistake tree `T`. At each step `false` follows the `left` (`y₀`) branch and `true` follows
+the `right` (`y₁`) branch. -/
+@[expose] def MistakeTree.path : {d : ℕ} → MistakeTree α β d → (Fin d → Bool) → List (α × β)
+  | 0, .leaf, _ => []
+  | _ + 1, .node x y₀ y₁ _ left right, bs =>
+    if bs 0 then (x, y₁) :: right.path (bs ∘ Fin.succ)
+    else (x, y₀) :: left.path (bs ∘ Fin.succ)
 
-@[simp] theorem treePath_cons (T : List Bool → α) (y : Bool) (ys : List Bool) :
-    treePath T (y :: ys) = (T [], y) :: treePath (fun zs => T (y :: zs)) ys := by
-  rw [treePath]
+@[simp] theorem MistakeTree.path_leaf (bs : Fin 0 → Bool) :
+    (MistakeTree.leaf : MistakeTree α β 0).path bs = [] := rfl
 
-/-- The explicit form of mistake trees [ShalevShwartzBenDavid2014, §21.1]: `C` has a complete
-mistake tree of height `d` iff some instance tree has all its labelled root-to-leaf paths of
-length `d` realizable by `C`. The instance space must be nonempty to label the leaves when
-`d = 0`. -/
-theorem hasMistakeTree_iff_exists_tree [Nonempty α] {d : ℕ} {C : ConceptClass α Bool} :
-    HasMistakeTree d C ↔
-      ∃ T : List Bool → α, ∀ ys : List Bool, ys.length = d → Realizable C (treePath T ys) := by
+@[simp] theorem MistakeTree.path_node {d : ℕ} (x : α) (y₀ y₁ : β) (hne : y₀ ≠ y₁)
+    (left right : MistakeTree α β d) (bs : Fin (d + 1) → Bool) :
+    (MistakeTree.node x y₀ y₁ hne left right).path bs =
+      if bs 0 then (x, y₁) :: right.path (bs ∘ Fin.succ)
+      else (x, y₀) :: left.path (bs ∘ Fin.succ) := rfl
+
+@[simp] theorem MistakeTree.length_path {d : ℕ} (T : MistakeTree α β d) (bs : Fin d → Bool) :
+    (T.path bs).length = d := by
+  induction T with
+  | leaf => rfl
+  | node _ _ _ _ left right ihL ihR =>
+    simp only [MistakeTree.path]
+    split <;> simp [ihL, ihR]
+
+/-- A mistake tree `T` *shatters* `C` when every root-to-leaf path of `T` is realizable by `C`
+[DanielySabatoBenDavidShalevShwartz2015; ShalevShwartzBenDavid2014, §21.1]. -/
+@[expose] def MistakeTree.Shatters {d : ℕ} (T : MistakeTree α β d) (C : ConceptClass α β) : Prop :=
+  ∀ bs : Fin d → Bool, Realizable C (T.path bs)
+
+/-- Equivalence between recursive `HasMistakeTree` and explicit shattered mistake trees
+[ShalevShwartzBenDavid2014, §21.1; DanielySabatoBenDavidShalevShwartz2015]: `C` has a complete
+mistake tree of height `d` iff some `MistakeTree α β d` shatters `C`. -/
+theorem hasMistakeTree_iff_exists_tree {d : ℕ} {C : ConceptClass α β} :
+    HasMistakeTree d C ↔ ∃ T : MistakeTree α β d, T.Shatters C := by
   induction d generalizing C with
   | zero =>
     constructor
-    · intro hC
-      refine ⟨fun _ => Classical.arbitrary α, fun ys hys => ?_⟩
-      rw [List.length_eq_zero_iff] at hys
-      subst hys
-      simpa using hC
+    · exact fun hC => ⟨.leaf, fun _ => realizable_nil.mpr hC⟩
     · rintro ⟨T, hT⟩
-      simpa using hT [] rfl
+      cases T
+      exact realizable_nil.mp (hT Fin.elim0)
   | succ d ih =>
     constructor
-    · rintro ⟨x, hx⟩
-      choose T hT using fun y => ih.mp (hx y)
-      refine ⟨fun ys => match ys with
-        | [] => x
-        | y :: zs => T y zs, fun ys hys => ?_⟩
-      rcases ys with _ | ⟨y, ys⟩
-      · simp at hys
-      · exact realizable_cons.mpr (hT y ys (by simpa using hys))
+    · rintro ⟨x, y₀, y₁, hne, h0, h1⟩
+      obtain ⟨T₀, hT₀⟩ := ih.mp h0
+      obtain ⟨T₁, hT₁⟩ := ih.mp h1
+      refine ⟨.node x y₀ y₁ hne T₀ T₁, fun bs => ?_⟩
+      simp only [MistakeTree.path]
+      split
+      · exact realizable_cons.mpr (hT₁ (bs ∘ Fin.succ))
+      · exact realizable_cons.mpr (hT₀ (bs ∘ Fin.succ))
     · rintro ⟨T, hT⟩
-      refine ⟨T [], fun y => ih.mpr ⟨fun zs => T (y :: zs), fun ys hys => ?_⟩⟩
-      exact realizable_cons.mp (hT (y :: ys) (by simp [hys]))
+      rcases T with _ | ⟨x, y₀, y₁, hne, left, right⟩
+      refine ⟨x, y₀, y₁, hne, ih.mpr ⟨left, fun bs => ?_⟩, ih.mpr ⟨right, fun bs => ?_⟩⟩
+      · have h := hT (Fin.cons false bs)
+        simp only [MistakeTree.path, Fin.cons_zero, Bool.false_eq_true, ↓reduceIte,
+          Fin.cons_comp_succ] at h
+        exact realizable_cons.mp h
+      · have h := hT (Fin.cons true bs)
+        simp only [MistakeTree.path, Fin.cons_zero, ↓reduceIte, Fin.cons_comp_succ] at h
+        exact realizable_cons.mp h
 
 /-! ### The Littlestone dimension -/
 
-/-- The Littlestone dimension `K(C)` [Littlestone1988, §3]: the supremum of the heights of the
-complete mistake trees for `C`, in `ℕ∞`. It is `0` for the empty class, where Littlestone sets
-`K(∅) = -1`. -/
-noncomputable def littlestoneDim (C : ConceptClass α Bool) : ℕ∞ :=
+/-- The Littlestone dimension [Littlestone1988, §3; DanielySabatoBenDavidShalevShwartz2015]: the
+supremum of the heights of the complete mistake trees for `C`, in `ℕ∞`. It is `0` for the empty
+class, where Littlestone sets `K(∅) = -1`. -/
+noncomputable def littlestoneDim (C : ConceptClass α β) : ℕ∞ :=
   ⨆ (d : ℕ) (_ : HasMistakeTree d C), (d : ℕ∞)
 
-theorem le_littlestoneDim_of_hasMistakeTree {d : ℕ} {C : ConceptClass α Bool}
+theorem le_littlestoneDim_of_hasMistakeTree {d : ℕ} {C : ConceptClass α β}
     (h : HasMistakeTree d C) : (d : ℕ∞) ≤ littlestoneDim C :=
   le_iSup₂ (f := fun (d : ℕ) (_ : HasMistakeTree d C) => (d : ℕ∞)) d h
 
-theorem littlestoneDim_le_iff {C : ConceptClass α Bool} {m : ℕ∞} :
+theorem littlestoneDim_le_iff {C : ConceptClass α β} {m : ℕ∞} :
     littlestoneDim C ≤ m ↔ ∀ d : ℕ, HasMistakeTree d C → (d : ℕ∞) ≤ m := by
   simp [littlestoneDim]
 
-theorem hasMistakeTree_of_le_littlestoneDim {d : ℕ} {C : ConceptClass α Bool} (hC : C.Nonempty)
+theorem hasMistakeTree_of_le_littlestoneDim {d : ℕ} {C : ConceptClass α β} (hC : C.Nonempty)
     (hd : (d : ℕ∞) ≤ littlestoneDim C) : HasMistakeTree d C := by
   by_contra hnot
   have hlt : ∀ e : ℕ, HasMistakeTree e C → e < d := fun e he => by
@@ -185,34 +247,34 @@ theorem hasMistakeTree_of_le_littlestoneDim {d : ℕ} {C : ConceptClass α Bool}
 
 /-- For a nonempty class, `d ≤ littlestoneDim C` iff `C` has a complete mistake tree of
 height `d`. -/
-theorem natCast_le_littlestoneDim_iff {d : ℕ} {C : ConceptClass α Bool} (hC : C.Nonempty) :
+theorem natCast_le_littlestoneDim_iff {d : ℕ} {C : ConceptClass α β} (hC : C.Nonempty) :
     (d : ℕ∞) ≤ littlestoneDim C ↔ HasMistakeTree d C :=
   ⟨hasMistakeTree_of_le_littlestoneDim hC, le_littlestoneDim_of_hasMistakeTree⟩
 
-theorem littlestoneDim_mono {C C' : ConceptClass α Bool} (h : C ⊆ C') :
+theorem littlestoneDim_mono {C C' : ConceptClass α β} (h : C ⊆ C') :
     littlestoneDim C ≤ littlestoneDim C' :=
   littlestoneDim_le_iff.mpr fun _ hd => le_littlestoneDim_of_hasMistakeTree (hd.mono h)
 
-@[simp] theorem littlestoneDim_empty : littlestoneDim (∅ : ConceptClass α Bool) = 0 :=
+@[simp] theorem littlestoneDim_empty : littlestoneDim (∅ : ConceptClass α β) = 0 :=
   le_antisymm
     (littlestoneDim_le_iff.mpr fun _ hd => absurd hd.nonempty Set.not_nonempty_empty) bot_le
 
-/-- If both restrictions of `C` at `x` are nonempty, the Littlestone dimension of `C` exceeds the
-smaller of their dimensions: complete trees for both combine under a root labelled `x`. -/
-theorem min_littlestoneDim_add_one_le (C : ConceptClass α Bool) (x : α)
-    (h0 : (versionSpace C [(x, false)]).Nonempty) (h1 : (versionSpace C [(x, true)]).Nonempty) :
-    min (littlestoneDim (versionSpace C [(x, false)]))
-        (littlestoneDim (versionSpace C [(x, true)])) + 1 ≤ littlestoneDim C := by
-  have key : ∀ n : ℕ, (n : ℕ∞) ≤ min (littlestoneDim (versionSpace C [(x, false)]))
-      (littlestoneDim (versionSpace C [(x, true)])) → ((n + 1 : ℕ) : ℕ∞) ≤ littlestoneDim C := by
+/-- If `y₀ ≠ y₁` and both restrictions of `C` at `(x, y₀)` and `(x, y₁)` are nonempty, the
+Littlestone dimension of `C` exceeds the smaller of their dimensions: complete trees for both
+combine under a root labelled `(x, y₀, y₁)`. -/
+theorem min_littlestoneDim_add_one_le (C : ConceptClass α β) (x : α) {y₀ y₁ : β} (hne : y₀ ≠ y₁)
+    (h0 : (versionSpace C [(x, y₀)]).Nonempty) (h1 : (versionSpace C [(x, y₁)]).Nonempty) :
+    min (littlestoneDim (versionSpace C [(x, y₀)]))
+        (littlestoneDim (versionSpace C [(x, y₁)])) + 1 ≤ littlestoneDim C := by
+  have key : ∀ n : ℕ, (n : ℕ∞) ≤ min (littlestoneDim (versionSpace C [(x, y₀)]))
+      (littlestoneDim (versionSpace C [(x, y₁)])) → ((n + 1 : ℕ) : ℕ∞) ≤ littlestoneDim C := by
     intro n hn
     rw [le_min_iff] at hn
-    refine le_littlestoneDim_of_hasMistakeTree ⟨x, fun y => ?_⟩
-    cases y
-    · exact hasMistakeTree_of_le_littlestoneDim h0 hn.1
-    · exact hasMistakeTree_of_le_littlestoneDim h1 hn.2
-  generalize hm : min (littlestoneDim (versionSpace C [(x, false)]))
-    (littlestoneDim (versionSpace C [(x, true)])) = m at key
+    exact le_littlestoneDim_of_hasMistakeTree
+      ⟨x, y₀, y₁, hne, hasMistakeTree_of_le_littlestoneDim h0 hn.1,
+        hasMistakeTree_of_le_littlestoneDim h1 hn.2⟩
+  generalize hm : min (littlestoneDim (versionSpace C [(x, y₀)]))
+    (littlestoneDim (versionSpace C [(x, y₁)])) = m at key
   induction m using ENat.recTopCoe with
   | top =>
     rw [top_add, top_le_iff]
@@ -222,37 +284,55 @@ theorem min_littlestoneDim_add_one_le (C : ConceptClass α Bool) (x : α)
 
 /-! ### The lower bound -/
 
+section LowerBound
+
+variable [DecidableEq β]
+
 /-- From a complete `d`-mistake tree, an adversary forces any learner, after any history, to err
-on each of `d` rounds of a sequence realizable by `C` [Littlestone1988, §3, proof of Lemma 1]. -/
-theorem exists_realizable_mistakesFrom_eq (A : OnlineLearner α) {d : ℕ}
-    {C : ConceptClass α Bool} (hd : HasMistakeTree d C) (h : List (α × Bool)) :
-    ∃ S : List (α × Bool), S.length = d ∧ Realizable C S ∧ mistakesFrom A h S = d := by
+on each of `d` rounds of a sequence realizable by `C`
+[Littlestone1988, §3, proof of Lemma 1; DanielySabatoBenDavidShalevShwartz2015]. -/
+theorem exists_realizable_mistakesFrom_eq (A : OnlineLearner α β) {d : ℕ}
+    {C : ConceptClass α β} (hd : HasMistakeTree d C) (h : List (α × β)) :
+    ∃ S : List (α × β), S.length = d ∧ Realizable C S ∧ mistakesFrom A h S = d := by
   induction d generalizing C h with
-  | zero => exact ⟨[], rfl, by simpa using hd, rfl⟩
+  | zero => exact ⟨[], rfl, realizable_nil.mpr hd, rfl⟩
   | succ d ih =>
-    obtain ⟨x, hx⟩ := hd
-    let y := !A h x
-    obtain ⟨S, hlen, hreal, hmis⟩ := ih (hx y) (h ++ [(x, y)])
+    obtain ⟨x, y₀, y₁, hne, h0, h1⟩ := hd
+    let y : β := if A h x = y₀ then y₁ else y₀
+    have hy_tree : HasMistakeTree d (versionSpace C [(x, y)]) := by
+      dsimp only [y]
+      split <;> assumption
+    have hy_ne : A h x ≠ y := by
+      dsimp only [y]
+      split
+      · rename_i heq
+        exact heq ▸ hne
+      · rename_i hne0
+        exact hne0
+    obtain ⟨S, hlen, hreal, hmis⟩ := ih hy_tree (h ++ [(x, y)])
     refine ⟨(x, y) :: S, by simp [hlen], realizable_cons.mpr hreal, ?_⟩
-    rw [mistakesFrom_cons, hmis]
-    simp [y, add_comm]
+    rw [mistakesFrom_cons, ite_eq_right hy_ne, hmis]
+    omega
 
 /-- A complete `d`-mistake tree for `C` forces every deterministic learner to err on all `d`
 rounds of some sequence of length `d` realizable by `C`. -/
-theorem exists_realizable_mistakes_eq (A : OnlineLearner α) {d : ℕ}
-    {C : ConceptClass α Bool} (hd : HasMistakeTree d C) :
-    ∃ S : List (α × Bool), S.length = d ∧ Realizable C S ∧ mistakes A S = d :=
+theorem exists_realizable_mistakes_eq (A : OnlineLearner α β) {d : ℕ}
+    {C : ConceptClass α β} (hd : HasMistakeTree d C) :
+    ∃ S : List (α × β), S.length = d ∧ Realizable C S ∧ mistakes A S = d :=
   exists_realizable_mistakesFrom_eq A hd []
 
-/-- **Littlestone's lower bound** [Littlestone1988, §3, Lemma 1]: every deterministic learner
-makes at least `littlestoneDim C` mistakes in the worst case. -/
-theorem littlestoneDim_le_mistakeBound (A : OnlineLearner α) (C : ConceptClass α Bool) :
+/-- **Littlestone's lower bound** [Littlestone1988, §3, Lemma 1;
+DanielySabatoBenDavidShalevShwartz2015]: every deterministic learner makes at least
+`littlestoneDim C` mistakes in the worst case. -/
+theorem littlestoneDim_le_mistakeBound (A : OnlineLearner α β) (C : ConceptClass α β) :
     littlestoneDim C ≤ mistakeBound A C := littlestoneDim_le_iff.mpr fun d hd => by
   obtain ⟨S, -, hS, hm⟩ := exists_realizable_mistakes_eq A hd
   exact hm ▸ mistakes_le_mistakeBound hS
 
-theorem littlestoneDim_le_optimalMistakeBound (C : ConceptClass α Bool) :
+theorem littlestoneDim_le_optimalMistakeBound (C : ConceptClass α β) :
     littlestoneDim C ≤ optimalMistakeBound C :=
   le_optimalMistakeBound_iff.mpr fun A => littlestoneDim_le_mistakeBound A C
+
+end LowerBound
 
 end Cslib.MachineLearning.OnlineLearning.MistakeBound

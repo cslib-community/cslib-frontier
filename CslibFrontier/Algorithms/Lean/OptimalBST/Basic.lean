@@ -12,9 +12,7 @@ public import CslibFrontier.DataStructure.SearchTree.Cost
 public import Mathlib.Algebra.BigOperators.Intervals
 public import Mathlib.Algebra.Order.Monoid.Defs
 public import Mathlib.Order.Interval.Finset.Nat
-import Mathlib.Algebra.Order.Interval.Finset.SuccPred
 import Mathlib.Tactic.Abel
-import Mathlib.Tactic.SplitIfs
 
 /-!
 # Optimal binary search trees: the interval recurrence

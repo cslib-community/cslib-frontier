@@ -14,6 +14,7 @@ import CslibFrontier.Computability.Probabilistic.PPT.PairCapture
 import CslibFrontier.Crypto.Computational.DiffieHellman.Blinded
 import CslibFrontier.Crypto.Computational.DiffieHellman.SampleExp
 import CslibFrontier.Crypto.Game.Order
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Tactic.Negligible
 
@@ -131,9 +132,7 @@ theorem eval_owExperiment_elGamalExplicitCoinPKE (A : G → G × G → ProbComp 
       ProbComp.eval (cdhExperiment q g
         (elGamalOWToCDH ((fun γ : ZMod q => γ • g) <$> ($ᵗ ZMod q)) A)) := by
   simp only [PKE.owExperiment, ExplicitCoinPKE.toPKE, ExplicitCoinPKE.encrypt,
-    elGamalExplicitCoinPKEWith, cdhExperiment, elGamalOWToCDH,
-    ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_uniform, ProbComp.eval_pure,
-    PMF.bind_bind, PMF.pure_bind, PMF.bind_map, Function.comp_def]
+    elGamalExplicitCoinPKEWith, cdhExperiment, elGamalOWToCDH, ProbComp.eval_uniform, pmf_norm]
   refine congrArg (PMF.bind _) (funext fun α => ?_)
   rw [PMF.bind_comm]
   refine congrArg (PMF.bind _) (funext fun β => ?_)
@@ -202,8 +201,7 @@ theorem isPPTOn_encode_sampleGroupElem :
     F.computableInPolyTime_encode_natCast_smul hd (.snd _ _)
       (F.computableInPolyTime_encode_generator hd)
   exact (hsample.map_with (f := f) hsmul).congr fun p => by
-    simp only [f, ProbComp.eval_map, ProbComp.eval_bind, ProbComp.eval_pure, ← PMF.bind_pure_comp,
-      PMF.bind_bind, PMF.pure_bind, Function.comp_def]
+    simp only [f, ← PMF.bind_pure_comp, pmf_norm]
 
 /-- The reduction `ℬ` for a prime-order group family ([BonehShoup2023], Section 12.6.2, p. 500):
 `elGamalOWToCDH` in each group, with `y` drawn from `sampleGroupElem n d`. -/
@@ -240,9 +238,8 @@ theorem isPPT_elGamalOWToCDHAdversary {F : PrimeOrderGroupFamily} {A : F.ElGamal
       ((hd.comp (ComputableInPolyTime.fst _ _)).prod ((ComputableInPolyTime.const 1).prod
         ((ComputableInPolyTime.snd _ _).prod (hy.comp (ComputableInPolyTime.fst _ _)))))
   refine (IsPPTOn.bind_pair hsample (hrunA.map_with (f := fpost) hpost)).congr fun x => ?_
-  simp only [fpost, ProbComp.eval_map, ProbComp.eval_bind, ProbComp.eval_pure,
-    PMF.map, Function.comp_def, PMF.bind_bind, PMF.pure_bind, F.decodeElGamal_encode,
-    elGamalDecrypt, Nat.cast_one, one_smul]
+  simp only [fpost, PMF.map, F.decodeElGamal_encode, elGamalDecrypt, Nat.cast_one, one_smul,
+    pmf_norm]
 
 /-- **Attack Game 12.6 for multiplicative ElGamal over a group family** ([BonehShoup2023],
 Section 12.6, p. 495, and Section 12.6.2): draw the group description from `setup n` and run
@@ -273,8 +270,7 @@ theorem advantage_elGamalOWGame_cdhGame_le (setup : ℕ → PMF F.Desc) (A : F.E
   unfold elGamalOWToCDHAdversary sampleGroupElem
   rw [key, key, ProbComp.eval_map, ProbComp.eval_map, ProbComp.eval_uniform, PMF.bind_map,
     PMF.bind_map, Game.advantage_comm]
-  simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind,
-    Function.comp_def]
+  simp only [pmf_norm]
   exact_mod_cast F.advantage_bind_sampleExp_le n d fun δ =>
     ProbComp.eval (cdhExperiment (F.order d) (F.generator d)
       fun u v => A n d u (v, δ • F.generator d) >>= fun x => pure (δ • F.generator d - x))
@@ -319,9 +315,7 @@ theorem advantage_elGamalOWProbGame_elGamalOWGame_le (setup : ℕ → PMF F.Desc
           (ProbComp.eval (F.sampleExp n d)).bind fun b =>
             k (a : ZMod (F.order d)) (m : ZMod (F.order d)) (b : ZMod (F.order d)) := by
     simp only [PKE.owExperiment, ExplicitCoinPKE.toPKE, ExplicitCoinPKE.encrypt,
-      elGamalExplicitCoinPKEWith, sampleGroupElem, ProbComp.eval_bind,
-      ProbComp.eval_map, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind, PMF.bind_map,
-      Function.comp_def, k]
+      elGamalExplicitCoinPKEWith, sampleGroupElem, k, pmf_norm]
   have hideal : ProbComp.eval (PKE.owExperiment
       (elGamalExplicitCoinPKE (F.order d) (F.generator d)).toPKE
       ((fun γ : ZMod (F.order d) => γ • F.generator d) <$> ($ᵗ ZMod (F.order d))) (A n d)) =
@@ -329,9 +323,7 @@ theorem advantage_elGamalOWProbGame_elGamalOWGame_le (setup : ℕ → PMF F.Desc
         (PMF.uniformOfFintype (ZMod (F.order d))).bind fun γ =>
           (PMF.uniformOfFintype (ZMod (F.order d))).bind fun β => k α γ β := by
     simp only [PKE.owExperiment, ExplicitCoinPKE.toPKE, ExplicitCoinPKE.encrypt,
-      elGamalExplicitCoinPKEWith, ProbComp.eval_bind, ProbComp.eval_map,
-      ProbComp.eval_uniform, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind, PMF.bind_map,
-      Function.comp_def, k]
+      elGamalExplicitCoinPKEWith, ProbComp.eval_uniform, k, pmf_norm]
   rw [hprob, hideal]
   exact F.advantage_bind_sampleExp_triple_le n d k
 

@@ -15,6 +15,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Log
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Log
 
 /-!
@@ -258,25 +259,12 @@ theorem P_eq_BPP_of_canonicalDerandomizer {G : List Bool → List Bool} {ℓ : �
         (ComputableInPolyTime.unary_to_binary.comp (ComputableInPolyTime.encoding_length enc))
     have hseed : ComputableInPolyTime seed enc encUnary := by
       simp only [hseed_def]; fun_prop
-    have hbudget (d : ℕ) : PolyBounded (fun x => (enc x).length) fun x => 2 ^ (d * seed x) := by
-      refine PolyBounded.of_polynomiallyBounded (fun x => (enc x).length)
-        (bound := fun N => 2 ^ (d * K) * 2 ^ (d * e * e₁ * (Nat.log 2 N + 1)))
-        ((PolynomiallyBounded.const _).mul (polynomiallyBounded_two_pow_mul_log _)) |>.mono
-        fun x => le_of_eq ?_
-      rw [← pow_add]; simp only [hseed_def]; ring_nf
     have hT : Monotone fun k => (2 ^ k * (ℓ k + 1)) ^ D := fun a b h =>
       Nat.pow_le_pow_left (Nat.mul_le_mul (Nat.pow_le_pow_right two_pos h)
         (Nat.add_le_add_right (hG.monotone h) 1)) D
     have hGbound : PolyBounded (fun x => (enc x).length) fun x =>
-        (2 ^ seed x * (ℓ (seed x) + 1)) ^ D :=
-      ((PolyBounded.const (4 ^ D)).mul (hbudget (2 * D))).mono fun x => by
-        have hℓ := hG.le_two_pow (seed x)
-        calc (2 ^ seed x * (ℓ (seed x) + 1)) ^ D ≤ (2 ^ seed x * (4 * 2 ^ seed x)) ^ D := by
-              refine Nat.pow_le_pow_left (Nat.mul_le_mul_left _ ?_) D
-              rw [pow_succ] at hℓ
-              have := Nat.one_le_two_pow (n := seed x)
-              omega
-          _ = 4 ^ D * 2 ^ (2 * D * seed x) := by ring
+        (2 ^ seed x * (ℓ (seed x) + 1)) ^ D := by
+      growth_poly [hG.le_two_pow]
     have hGq : ComputableInPolyTime (fun q : α × List Bool => G (q.2.take (seed q.1)))
         (encPair enc encBits) encBits :=
       ComputableInO.computableInPolyTime_take hT hGO hseed hGbound
@@ -287,7 +275,7 @@ theorem P_eq_BPP_of_canonicalDerandomizer {G : List Bool → List Bool} {ℓ : �
     have hgen : ComputableInPolyTime (fun q : α × List Bool => gen q.1 q.2)
         (encPair enc encBits) encBits :=
       ComputableInPolyTime.bitsTakeWithInput hGq hm
-    exact computableInPolyTime_seedDecider hV hgen hseed ((hbudget 1).mono fun x => by simp)
+    exact computableInPolyTime_seedDecider hV hgen hseed (by growth_poly)
   · -- correctness on every instance
     obtain ⟨hpB, hcB⟩ := hB x
     have hBℓ : c₁ * ((enc x).length + 1) ^ a₁ ≤ ℓ (seed x) := by

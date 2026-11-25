@@ -13,6 +13,7 @@ public import Mathlib.Data.Nat.Log
 import CslibFrontier.Foundations.Combinatorics.Expander.TannerCode
 import CslibFrontier.Foundations.Data.Code.HammingBound
 import CslibFrontier.Probability.SmallBias.Random
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Analysis.Complex.ExponentialBounds
 
 /-!
@@ -80,7 +81,6 @@ private theorem shift_condition {B μ ℓ : ℕ} (hB : 1 ≤ B) (hμ : 1 ≤ μ)
     2 * 2 ^ Fintype.card (Fin ℓ) * Real.exp (-((1 / (200 * B * μ : ℝ)) ^ 2 *
       ((320000 * B ^ 2 * μ ^ 3 : ℕ) : ℝ) / 2)) < 1 := by
   rw [Fintype.card_fin]
-  have hBr : (1 : ℝ) ≤ B := by exact_mod_cast hB
   have hμr : (1 : ℝ) ≤ μ := by exact_mod_cast hμ
   have hexp : (1 / (200 * B * μ : ℝ)) ^ 2 * ((320000 * B ^ 2 * μ ^ 3 : ℕ) : ℝ) / 2 = 4 * μ := by
     push_cast
@@ -96,14 +96,14 @@ private theorem shift_condition {B μ ℓ : ℕ} (hB : 1 ≤ B) (hμ : 1 ≤ μ)
   have he4 : (8 : ℝ) < Real.exp 4 := by
     have := Real.exp_one_gt_two
     have h4 : Real.exp 4 = Real.exp 1 ^ 4 := by rw [← Real.exp_nat_mul]; norm_num
-    rw [h4]; nlinarith [pow_lt_pow_left₀ this (by norm_num) (by norm_num : (4 : ℕ) ≠ 0)]
+    rw [h4]; cast_nlinarith [hB, pow_lt_pow_left₀ this (by norm_num) (by norm_num : (4 : ℕ) ≠ 0)]
   have hpow : (8 : ℝ) ^ μ < Real.exp (4 * μ) := by
     rw [show (4 : ℝ) * μ = μ * 4 by ring, Real.exp_nat_mul]
     exact pow_lt_pow_left₀ he4 (by norm_num) (by omega)
   have hpos := Real.exp_pos (4 * μ)
   rw [Real.exp_neg]
   rw [mul_inv_lt_iff₀ hpos, one_mul]
-  linarith
+  cast_linarith
 
 /-- The quotient `⌈d / N⌉ = (d + N - 1) / N` satisfies `d ≤ N ⌈d / N⌉` and
 `N (⌈d / N⌉ - 1) < d`. -/
@@ -170,9 +170,8 @@ private theorem le_of_tanner_bound {B μ d k ℓ m w : ℕ} (hB : 1 ≤ B) (hμ 
     rw [e] at h1
     have := le_of_mul_le_mul_left h1 hdR
     rwa [div_le_iff₀ (by positivity), mul_comm (w : ℝ) _] at this
-  have hmR : (m : ℝ) ≤ 2 ^ ℓ * d := by exact_mod_cast hℓ
   have : (m : ℝ) ≤ 20000 * B ^ 2 * μ ^ 2 * w := by
-    rw [hNR] at h2; nlinarith
+    rw [hNR] at h2; cast_nlinarith [hℓ]
   exact_mod_cast this
 
 /-- **Initial parity tests** [OpenAI2026ETH, Lemma 6.1]. Let `n, B ≥ 1` and `m ≤ B n`, and put

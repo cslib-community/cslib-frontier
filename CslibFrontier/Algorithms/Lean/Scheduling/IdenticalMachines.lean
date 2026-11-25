@@ -17,7 +17,6 @@ import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Data.List.GetD
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Ring
 
 /-!
 # List Scheduling on Identical Machines

@@ -7,11 +7,8 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Init
 public import CslibFrontier.Probability.StochasticDomination.Adapted
-public import CslibFrontier.Probability.StochasticDomination.PoissonBinomial
 public import Mathlib.Probability.Process.HittingTime
-import Mathlib.MeasureTheory.Function.ConditionalExpectation.Basic
 import Mathlib.MeasureTheory.Function.ConditionalExpectation.Real
 import Mathlib.MeasureTheory.Integral.Bochner.Basic
 

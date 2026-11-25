@@ -10,6 +10,7 @@ module
 public import CslibFrontier.GameTheory.Mechanism.Bayesian
 public import CslibFrontier.GameTheory.Mechanism.Vickrey
 import CslibFrontier.GameTheory.Mechanism.OptimalAuction
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Analysis.SpecialFunctions.Integrals.Basic
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
@@ -113,8 +114,7 @@ private theorem unif_Iio {a : ℝ} (ha : 0 ≤ a) :
   rw [measureReal_congr Iio_ae_eq_Iic, unif_Iic ha]
 
 private theorem coeff_pos {n : ℕ} (hn : 2 ≤ n) : 0 < ((n : ℝ) - 1) / n := by
-  have h2 : (2 : ℝ) ≤ n := by exact_mod_cast hn
-  exact div_pos (by linarith) (by linarith)
+  exact div_pos (by cast_linarith [hn]) (by cast_linarith)
 
 private theorem coeff_nonneg (n : ℕ) : 0 ≤ ((n : ℝ) - 1) / n := by
   rcases Nat.eq_zero_or_pos n with rfl | hn

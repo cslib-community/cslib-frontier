@@ -39,9 +39,12 @@ parallel arcs and self-loops are permitted):
 
 ## Main results
 
-* `Cslib.Multidigraph.IsDipath.zip_tail_vertices`, `Cslib.Multidigraph.IsDipath.isChain_toDigraph`,
-  `Cslib.Multidigraph.isDipath_pmap_zip_tail`: correspondence between arc dipaths and vertex
-  chains.
+* `Cslib.Multidigraph.IsDipath.nodup`, `Cslib.Multidigraph.IsDipath.zip_tail_vertices`,
+  `Cslib.Multidigraph.IsDipath.isChain_toDigraph`,
+  `Cslib.Multidigraph.IsDipath.reflTransGen_toDigraph`,
+  `Cslib.Multidigraph.isDipath_pmap_zip_tail`,
+  `Cslib.Multidigraph.exists_isDipath_iff_reflTransGen`: arc duplicate-freeness, correspondence
+  between arc dipaths and vertex chains, and equivalence with reachability in `toDigraph`.
 * `Cslib.Multidigraph.isArcCut_outArcs`, `Cslib.Multidigraph.isSeparator_of_forall_src_tgt`,
   `Cslib.Multidigraph.isVertexCut_of_forall_src_tgt`: certificates for arc cuts, separators, and
   vertex cuts.
@@ -129,6 +132,94 @@ theorem IsDipath.isChain_toDigraph {s t : V} {q : List E} (hq : IsDipath src tgt
     | cons y ys =>
       exact List.isChain_cons_cons.mpr ⟨hall (x, y) List.mem_cons_self,
         ih fun p hp => hall p (List.mem_cons_of_mem (x, y) hp)⟩
+
+/-- Every simple directed path `IsDipath src tgt s t q` uses each arc at most once (`q.Nodup`),
+because its visited target vertices `q.map tgt` are duplicate-free. -/
+theorem IsDipath.nodup {s t : V} {q : List E} (hq : IsDipath src tgt s t q) : q.Nodup :=
+  (List.nodup_cons.mp hq.2.1).2.of_map tgt
+
+private theorem reflTransGen_of_isChain_adj {R : V → V → Prop} :
+    ∀ {l : List V} {u v : V}, l.IsChain R → l.head? = some u → l.getLast? = some v →
+      Relation.ReflTransGen R u v
+  | [], _, _, _, hu, _ => by simp at hu
+  | [x], _, _, _, hu, hv => by
+    obtain rfl := Option.some.inj hu
+    obtain rfl := Option.some.inj hv
+    exact .refl
+  | x :: y :: rest, u, v, hc, hu, hv => by
+    obtain rfl : x = u := Option.some.inj hu
+    rw [List.isChain_cons_cons] at hc
+    exact .head hc.1 (reflTransGen_of_isChain_adj hc.2 rfl (by simpa using hv))
+
+/-- Every multidigraph dipath from `s` to `t` witnesses reachability in `toDigraph src tgt`. -/
+theorem IsDipath.reflTransGen_toDigraph {s t : V} {q : List E} (hq : IsDipath src tgt s t q) :
+    Relation.ReflTransGen (toDigraph src tgt).Adj s t :=
+  reflTransGen_of_isChain_adj hq.isChain_toDigraph rfl hq.getLast?_vertices
+
+private theorem isDipath_tail_of_mem_map_tgt {b v a : V} :
+    ∀ {q : List E}, IsDipath src tgt b v q → a ∈ q.map tgt → ∃ q', IsDipath src tgt a v q'
+  | [], _, hmem => by simp at hmem
+  | e :: qs, hq, hmem => by
+    simp only [List.map_cons, List.mem_cons] at hmem
+    have hnd_cons : (b :: tgt e :: qs.map tgt).Nodup := hq.2.1
+    have hnd_tail : (tgt e :: qs.map tgt).Nodup := (List.nodup_cons.mp hnd_cons).2
+    have hchain_qs : qs.IsChain (fun x y => tgt x = src y) := by
+      rcases qs with _ | ⟨e', rest⟩
+      · exact List.isChain_nil
+      · exact (List.isChain_cons_cons.mp hq.1).2
+    have hhd_qs : ∀ x ∈ qs.head?, src x = tgt e := by
+      rcases qs with _ | ⟨e', rest⟩
+      · intro _ h; simp at h
+      · intro x hx
+        obtain rfl : e' = x := Option.some.inj hx
+        exact (List.isChain_cons_cons.mp hq.1).1.symm
+    have hnil_qs : qs = [] → tgt e = v := fun hnil => by
+      subst hnil
+      exact hq.2.2.2.2 e rfl
+    have hlast_qs : ∀ x ∈ qs.getLast?, tgt x = v := by
+      rcases qs with _ | ⟨e', rest⟩
+      · intro _ h; simp at h
+      · intro x hx
+        exact hq.2.2.2.2 x (by simpa using hx)
+    have hq_tail : IsDipath src tgt (tgt e) v qs :=
+      ⟨hchain_qs, hnd_tail, hhd_qs, hnil_qs, hlast_qs⟩
+    rcases hmem with rfl | hmem_qs
+    · exact ⟨qs, hq_tail⟩
+    · exact isDipath_tail_of_mem_map_tgt hq_tail hmem_qs
+
+/-- A simple directed `s`–`t` path of arcs exists in `(src, tgt)` if and only if `t` is reachable
+from `s` in `toDigraph src tgt` (loop removal shortcuts any directed walk to a simple dipath). -/
+theorem exists_isDipath_iff_reflTransGen {s t : V} :
+    (∃ q, IsDipath src tgt s t q) ↔ Relation.ReflTransGen (toDigraph src tgt).Adj s t := by
+  classical
+  refine ⟨fun ⟨q, hq⟩ => hq.reflTransGen_toDigraph, fun h => ?_⟩
+  induction h using Relation.ReflTransGen.head_induction_on with
+  | refl =>
+    exact ⟨[], List.isChain_nil, List.nodup_singleton _, fun _ h => by simp at h,
+      fun _ => rfl, fun _ h => by simp at h⟩
+  | @head a b hab _ ih =>
+    obtain ⟨e, hsrc, htgt⟩ := hab
+    obtain ⟨q, hq⟩ := ih
+    by_cases hab_eq : a = b
+    · subst hab_eq
+      exact ⟨q, hq⟩
+    · by_cases hmem : a ∈ q.map tgt
+      · exact isDipath_tail_of_mem_map_tgt hq hmem
+      · refine ⟨e :: q, ?_, ?_, ?_, by simp, ?_⟩
+        · rcases q with _ | ⟨e', qs⟩
+          · exact List.isChain_singleton e
+          · exact List.isChain_cons_cons.mpr ⟨htgt.trans (hq.2.2.1 e' rfl).symm, hq.1⟩
+        · rw [List.map_cons, htgt]
+          exact List.nodup_cons.mpr ⟨by simp [hab_eq, hmem], hq.2.1⟩
+        · intro x hx
+          obtain rfl : e = x := Option.some.inj hx
+          exact hsrc
+        · rcases q with _ | ⟨e', qs⟩
+          · intro x hx
+            obtain rfl : e = x := Option.some.inj hx
+            exact htgt.trans (hq.2.2.2.1 rfl)
+          · intro x hx
+            exact hq.2.2.2.2 x (by simpa using hx)
 
 end DipathVertices
 

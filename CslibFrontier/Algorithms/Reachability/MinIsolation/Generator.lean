@@ -11,8 +11,6 @@ public import CslibFrontier.Algorithms.Reachability.MinIsolation.AllPairs
 public import CslibFrontier.Foundations.Data.Code.JustesenFamily
 
 import CslibFrontier.Foundations.Data.Nat.BinarySize
-import Mathlib.Algebra.Order.Ring.GeomSum
-import Mathlib.Data.Fintype.BigOperators
 import Mathlib.NumberTheory.Padics.PadicVal.Basic
 import Mathlib.Tactic.Ring
 
@@ -47,7 +45,6 @@ public section
 namespace Cslib.Reachability.Hoza
 
 open Code.JustesenFamily
-open Finset
 
 private theorem vertexWeight_lt_pow {V : Type*} {ℓ : ℕ} (code : V → Fin ℓ → Bool)
     (seed : Fin ℓ → Bool) (i : ℕ) (v : V) :
@@ -55,27 +52,8 @@ private theorem vertexWeight_lt_pow {V : Type*} {ℓ : ℕ} (code : V → Fin �
   by_cases hi : i = 0
   · simp only [vertexWeight, hi, ↓reduceIte]
     positivity
-  simp only [vertexWeight, hi, ↓reduceIte]
-  calc
-    (∑ j, coefficient i j * (code v j).toNat * (seed j).toNat) ≤ ∑ j, coefficient i j := by
-      apply sum_le_sum
-      intro j _
-      cases code v j <;> cases seed j <;> simp
-    _ = 6 ^ padicValNat 2 i * ∑ k ∈ range ℓ, 6 ^ k := by
-      rw [mul_sum, ← Fin.sum_univ_eq_sum_range]
-      calc
-        (∑ j, coefficient i j) = ∑ j, coefficient i (Fin.revPerm j) :=
-          (Equiv.sum_comp Fin.revPerm _).symm
-        _ = _ := by
-          refine sum_congr rfl fun j _ => ?_
-          have hj := j.isLt
-          simp only [coefficient, scaleAccumulatedWeight, Fin.revPerm_apply, Fin.val_rev]
-          congr 2
-          omega
-    _ < 6 ^ (padicValNat 2 i + ℓ) := by
-      rw [pow_add]
-      exact Nat.mul_lt_mul_of_pos_left (Nat.geomSum_lt (by decide) fun _ hk => mem_range.mp hk)
-        (by positivity)
+  · simp only [vertexWeight, hi, ↓reduceIte]
+    exact MinIsolation.BaseSix.levelWeight_lt_pow (padicValNat 2 i) (code v) seed
 
 /-- Evaluate the weight of a vertex from its layer, column, and binary seed. -/
 @[expose] def generatedWeight {w n : ℕ} (seed : Fin (codeLength w n) → Bool)

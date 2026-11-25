@@ -7,10 +7,13 @@ Authors: Christian Reitwiessner
 module
 -- upstream: candidate
 
-public import CslibFrontier.Probability.MarkovChain.HittingTime
 public import CslibFrontier.Foundations.Combinatorics.Expander.Harmonic
+public import CslibFrontier.Foundations.Combinatorics.Expander.Lazy
 public import CslibFrontier.Foundations.Combinatorics.Expander.Walk
+public import CslibFrontier.Probability.MarkovChain.HittingTime
+public import CslibFrontier.Probability.MarkovChain.Spectral
 public import Mathlib.Combinatorics.SimpleGraph.Metric
+import CslibFrontier.Probability.PMF.Expect
 import Mathlib.Combinatorics.SimpleGraph.Connectivity.Connected
 
 /-!
@@ -58,6 +61,14 @@ alone fails, so the hypothesis `|D| ≤ n` is kept.
 * `Cslib.RotationMap.hittingTime_randomWalk_le_length_mul`,
   `Cslib.RotationMap.hittingTime_randomWalk_le_hundred_mul`,
   `Cslib.RotationMap.ten_mul_card_filter_walkAt_ne_le`: exercise 7.9(d).
+* `Cslib.RotationMap.isReversible_uniform_randomWalk`,
+  `Cslib.RotationMap.stepOp_randomWalk`,
+  `Cslib.RotationMap.spectralContraction_randomWalk`: reversibility, transition-operator agreement,
+  and equality between `G.randomWalk.spectralContraction` and `G.spectralExpansion`.
+* `Cslib.RotationMap.distToStationary_randomWalk_le`,
+  `Cslib.RotationMap.mixingTime_randomWalk_le`,
+  `Cslib.RotationMap.mixingTime_lazy_randomWalk_le_of_edgeExpansion`: total-variation and
+  mixing-time bounds for regular and lazy regular random walks from spectral and edge expansion.
 
 ## References
 
@@ -376,5 +387,154 @@ theorem isStationary_randomWalk_iff (hG : G.toSimpleGraph.Connected) (π : PMF V
   ext x
   rw [PMF.uniformOfFintype_apply, hconst x]
   exact (ENNReal.eq_inv_of_mul_eq_one_left (by rwa [mul_comm] at hsum))
+
+/-! ### Spectral expansion and total-variation mixing -/
+
+section SpectralMixing
+
+open scoped BigOperators
+
+omit [DecidableEq V] in
+/-- On a regular multigraph, `G.randomWalk` satisfies detailed balance with respect to the uniform
+distribution. -/
+theorem isReversible_uniform_randomWalk [Nonempty V] :
+    G.randomWalk.IsReversible (PMF.uniformOfFintype V) := by
+  classical
+  intro x y
+  rw [PMF.uniformOfFintype_apply, PMF.uniformOfFintype_apply, randomWalk_apply, randomWalk_apply,
+    G.edgeCount_comm x y]
+
+omit [DecidableEq V] in
+/-- The Markov transition operator `G.randomWalk.stepOp` equals `G.walk`. -/
+@[simp]
+theorem stepOp_randomWalk : G.randomWalk.stepOp = G.walk := by
+  ext1 f
+  funext x
+  rw [MarkovChain.stepOp_apply, walk_apply]
+  change ∑ y, (((PMF.uniformOfFintype D).map (G.neighbor x)) y).toReal * f y =
+    𝔼 i, f (G.neighbor x i)
+  rw [Cslib.Probability.PMF.sum_map_mul, Fintype.expect_eq_sum_div_card, sum_div]
+  refine sum_congr rfl fun i _ => ?_
+  rw [PMF.uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast, inv_mul_eq_div]
+
+omit [Fintype V] [DecidableEq V] in
+/-- The random walk on the lazy multigraph `G.lazy` is the lazy chain `G.randomWalk.lazy`. -/
+theorem randomWalk_lazy : G.lazy.randomWalk = G.randomWalk.lazy := by
+  classical
+  ext x y
+  refine (ENNReal.toReal_eq_toReal_iff' ((G.lazy.randomWalk x).apply_ne_top y)
+    ((G.randomWalk.lazy x).apply_ne_top y)).mp ?_
+  have hd : (0 : ℝ) < Fintype.card D := Nat.cast_pos.mpr Fintype.card_pos
+  have hlhs : G.lazy.edgeCount x y = G.edgeCount x y + if y = x then Fintype.card D else 0 := by
+    rw [edgeCount_eq_card_filter, edgeCount_eq_card_filter, card_filter, card_filter,
+      Fintype.sum_sum_type]
+    simp only [neighbor_lazy_inl, neighbor_lazy_inr]
+    congr 1
+    rcases eq_or_ne y x with rfl | hyx
+    · simp
+    · simp [hyx, Ne.symm hyx]
+  have hne1 : (2 : ℝ≥0∞)⁻¹ * G.randomWalk x y ≠ ⊤ :=
+    ENNReal.mul_ne_top (by simp) ((G.randomWalk x).apply_ne_top y)
+  have hne2 : (if y = x then (2 : ℝ≥0∞)⁻¹ else 0) ≠ ⊤ := by split_ifs <;> simp
+  rw [G.lazy.randomWalk_apply, MarkovChain.lazy_apply, ENNReal.toReal_div, ENNReal.toReal_natCast,
+    ENNReal.toReal_natCast, Fintype.card_sum, Nat.cast_add, hlhs, Nat.cast_add,
+    ENNReal.toReal_add hne1 hne2, ENNReal.toReal_mul, G.randomWalk_apply, ENNReal.toReal_div,
+    ENNReal.toReal_natCast, ENNReal.toReal_natCast, ENNReal.toReal_inv, ENNReal.toReal_ofNat]
+  split_ifs with hyx <;> simp <;> field_simp [hd.ne'] <;> ring
+
+omit [DecidableEq V] in
+/-- **Spectral contraction of a regular random walk**: `λ_*(G.randomWalk, uniform) = λ(G)`. -/
+theorem spectralContraction_randomWalk [Nonempty V] :
+    G.randomWalk.spectralContraction (PMF.uniformOfFintype V) = G.spectralExpansion := by
+  have hunif (g : V → ℝ) :
+      ∑ v, (PMF.uniformOfFintype V v).toReal * g v = 𝔼 v, g v := by
+    rw [Fintype.expect_eq_sum_div_card, sum_div]
+    refine sum_congr rfl fun v _ => ?_
+    rw [PMF.uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast, inv_mul_eq_div]
+  refine le_antisymm ?_ ?_
+  · refine ((isStationary_uniform_randomWalk (G := G)).spectralContraction_le_iff
+      G.spectralExpansion_nonneg).mpr fun f hf => ?_
+    rw [hunif] at hf
+    rw [stepOp_randomWalk, hunif, hunif]
+    exact G.expect_walk_sq_le_spectralExpansion_sq_mul hf
+  · refine G.spectralExpansion_le
+      (G.randomWalk.spectralContraction_nonneg (PMF.uniformOfFintype V)) fun f hf => ?_
+    rw [← hunif] at hf
+    have hle :=
+      (isStationary_uniform_randomWalk (G := G)).sum_mul_stepOp_sq_le_spectralContraction hf
+    rwa [stepOp_randomWalk, hunif, hunif] at hle
+
+omit [DecidableEq V] in
+/-- **Total-variation contraction of a regular random walk**:
+`d(t) ≤ (1 / 2) √(|V| - 1) · λ(G)^t`. -/
+theorem distToStationary_randomWalk_le [Nonempty V] (t : ℕ) :
+    G.randomWalk.distToStationary (PMF.uniformOfFintype V) t ≤
+      (1 / 2) * Real.sqrt (Fintype.card V - 1) * G.spectralExpansion ^ t := by
+  have hcard : (0 : ℝ) < Fintype.card V := Nat.cast_pos.mpr Fintype.card_pos
+  have hmin (v : V) : (Fintype.card V : ℝ)⁻¹ ≤ (PMF.uniformOfFintype V v).toReal := by
+    rw [PMF.uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast]
+  have hd := (isReversible_uniform_randomWalk (G := G)).distToStationary_le_of_le_toReal
+    (inv_pos.mpr hcard) hmin t
+  rw [spectralContraction_randomWalk] at hd
+  refine hd.trans_eq ?_
+  have hratio : (1 - (Fintype.card V : ℝ)⁻¹) / (Fintype.card V : ℝ)⁻¹ = Fintype.card V - 1 := by
+    field_simp [hcard.ne']
+  rw [hratio]
+
+omit [DecidableEq V] in
+/-- **Mixing-time bound for a regular random walk** from `λ(G) < 1`:
+`t_mix(ε) ≤ ⌈(1 - λ(G))⁻¹ ((1 / 2) log |V| + log(1 / (2 ε)))⌉₊`. -/
+theorem mixingTime_randomWalk_le [Nonempty V] (hlam : G.spectralExpansion < 1)
+    {ε : ℝ} (hε : 0 < ε) :
+    G.randomWalk.mixingTime (PMF.uniformOfFintype V) ε ≤
+      (⌈(1 - G.spectralExpansion)⁻¹ *
+        ((1 / 2) * Real.log (Fintype.card V) + Real.log (1 / (2 * ε)))⌉₊ : ℕ) := by
+  have hcard : (0 : ℝ) < Fintype.card V := Nat.cast_pos.mpr Fintype.card_pos
+  have hmin (v : V) : (Fintype.card V : ℝ)⁻¹ ≤ (PMF.uniformOfFintype V v).toReal := by
+    rw [PMF.uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast]
+  have hgap_eq : G.randomWalk.absSpectralGap (PMF.uniformOfFintype V) =
+      1 - G.spectralExpansion := by
+    linarith [G.randomWalk.one_sub_absSpectralGap (PMF.uniformOfFintype V),
+      G.spectralContraction_randomWalk]
+  have hgap : 0 < G.randomWalk.absSpectralGap (PMF.uniformOfFintype V) := by linarith
+  have hinv_v : 1 / (Fintype.card V : ℝ)⁻¹ = Fintype.card V := by rw [one_div, inv_inv]
+  refine ((isReversible_uniform_randomWalk (G := G)).mixingTime_le_of_absSpectralGap_pos
+    (inv_pos.mpr hcard) hmin hgap hε).trans_eq ?_
+  congr 2
+  rw [hgap_eq, hinv_v]
+
+/-- **Cheeger mixing-time bound for the lazy random walk on a regular multigraph**:
+if `0 < h(G)`, then `G.randomWalk.lazy` mixes to within `ε` of uniform in at most
+`⌈(4 |D|² / h(G)²) ((1 / 2) log |V| + log(1 / (2 ε)))⌉₊` steps. -/
+theorem mixingTime_lazy_randomWalk_le_of_edgeExpansion [Nontrivial V]
+    (hh : 0 < G.edgeExpansion) {ε : ℝ} (hε : 0 < ε) :
+    G.randomWalk.lazy.mixingTime (PMF.uniformOfFintype V) ε ≤
+      (⌈(4 * (Fintype.card D : ℝ) ^ 2 / G.edgeExpansion ^ 2) *
+        ((1 / 2) * Real.log (Fintype.card V) + Real.log (1 / (2 * ε)))⌉₊ : ℕ) := by
+  rw [← randomWalk_lazy (G := G)]
+  have hD : (0 : ℝ) < Fintype.card D := Nat.cast_pos.mpr Fintype.card_pos
+  have hgap_lb : G.edgeExpansion ^ 2 / (4 * (Fintype.card D : ℝ) ^ 2) ≤
+      1 - G.lazy.spectralExpansion := by
+    linarith [G.spectralExpansion_lazy_le_one_sub_edgeExpansion_sq_div]
+  have hpos_lb : 0 < G.edgeExpansion ^ 2 / (4 * (Fintype.card D : ℝ) ^ 2) := by positivity
+  have hlam : G.lazy.spectralExpansion < 1 := by linarith
+  refine (mixingTime_randomWalk_le (G := G.lazy) hlam hε).trans ?_
+  set L := (1 / 2) * Real.log (Fintype.card V) + Real.log (1 / (2 * ε))
+  by_cases hL : L ≤ 0
+  · have hnp : (1 - G.lazy.spectralExpansion)⁻¹ * L ≤ 0 :=
+      mul_nonpos_of_nonneg_of_nonpos (inv_nonneg.mpr (by linarith)) hL
+    rw [Nat.ceil_eq_zero.mpr hnp]
+    exact zero_le
+  push Not at hL
+  have hinv : (1 - G.lazy.spectralExpansion)⁻¹ ≤
+      4 * (Fintype.card D : ℝ) ^ 2 / G.edgeExpansion ^ 2 := by
+    calc (1 - G.lazy.spectralExpansion)⁻¹
+        ≤ (G.edgeExpansion ^ 2 / (4 * (Fintype.card D : ℝ) ^ 2))⁻¹ :=
+          inv_anti₀ hpos_lb hgap_lb
+      _ = 4 * (Fintype.card D : ℝ) ^ 2 / G.edgeExpansion ^ 2 := inv_div _ _
+  exact ENat.natCast_le_natCast.mpr
+    (Nat.ceil_mono (mul_le_mul_of_nonneg_right hinv hL.le))
+
+end SpectralMixing
 
 end Cslib.RotationMap

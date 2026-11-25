@@ -13,6 +13,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Replay.Simulation
 import CslibFrontier.Tactic.EncLen
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import Cslib.Foundations.Data.Polynomial.Monotone
 
 /-!
@@ -177,13 +178,11 @@ theorem isOraclePPTOn_search {input : α ↪ List Bool} {u : α → List Bool} {
       omega)
     rw [← Nat.size_eq_bits_len] at hsize
     enc_len [encNat_apply]
-  have hNpoly : PolyBounded (fun a => (input a).length) N :=
-    hN.polyBounded_length.mono fun _ => by simp [encUnary_apply]
   exact (IsOraclePPTOn.iterateWith_spec
     (step := fun a s => OracleComp.interpret ProbOracleComp.query (searchQuery (u a) s))
     hN hinit hstep (fun a i s => s.2 = N a - i ∧ s.1 + 2 ^ s.2 ≤ 2 ^ N a)
     (fun a => ⟨by simp, by simp⟩) hpreserve
-    (((PolyBounded.const 3).mul hNpoly).add (.const 1)) hbound).1.map
+    (size := fun a => 3 * N a + 1) (by growth_poly) hbound).1.map
     (ComputableInPolyTime.fst encNat encUnary)
 
 end BinarySearch

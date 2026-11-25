@@ -15,6 +15,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Max
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Foundations.Data.BitString.ShortWords
 import Mathlib.Data.List.GetD
 
@@ -323,14 +324,8 @@ to `eInS` and `eOut`. -/
 theorem computableInPolySpace_budgetedUniversal :
     ComputableInPolySpace budgetedUniversal eInS eOut := by
   obtain ⟨c, hc, hl⟩ := computableInO_budgetedUniversal
-  refine ComputableInPolySpace.of_inSpace
-    (PolyBounded.of_forall_le 76 1 fun ⟨d, x, t, b⟩ => ?_) ⟨_, c, hc, hl⟩
-  have hB := budgetSpace_le d x b t
-  have hxlen : x.length ≤ (encList encUnary x).length := length_le_length_encList encUnary x
-  have hnat : (encNat (x.length + 1)).length ≤ x.length + 1 := length_encNat_le_self (x.length + 1)
-  have hmax : x.foldr max 0 ≤ (encList encUnary x).length := listMax_le_length_encList_encUnary x
-  simp only [eInS, length_encPair, encUnary_apply, List.length_replicate, descLen, pow_one] at hB ⊢
-  omega
+  exact ComputableInPolySpace.of_inSpace
+    (by growth_poly [budgetSpace_le, listMax_le_length_encList_encUnary]) ⟨_, c, hc, hl⟩
 
 /-! ### Visited-cell-budgeted universal simulation (`spaceBoundedUniversal`) -/
 
@@ -652,35 +647,8 @@ theorem computableInPolyTime_init :
 /-- `step` is computable in polynomial time on contexts `eCtx`. -/
 @[fun_prop]
 theorem computableInPolyTime_step :
-    ComputableInPolyTime (fun c : Ctx => step c.desc c.input c.cfg) eCtx (encPair eCfg eSym) := by
-  refine step_inO.computableInPolyTime
-    (PolyBounded.of_forall_le 3 3 fun c => ?_)
-    (PolyBounded.of_forall_le 1 1 fun c => by simp)
-  rcases c with ⟨⟨d, x⟩, cfg⟩
-  have htapes : cfg.workTapes.length ≤ (eCtx ((d, x), cfg)).length := by
-    have h₁ := length_le_length_encList eTape cfg.workTapes
-    simp only [eCtx, eCfg_apply, length_encPair] at h₁ ⊢
-    omega
-  have htable : d.table.length ≤ (eCtx ((d, x), cfg)).length := by
-    have h₁ := table_le d
-    simp only [eCtx, descLen, length_encPair] at h₁ ⊢
-    omega
-  have hdesc : (eDesc d).length ≤ (eCtx ((d, x), cfg)).length := by
-    simp only [eCtx, length_encPair]; omega
-  have hinput : (encList encUnary x).length ≤ (eCtx ((d, x), cfg)).length := by
-    simp only [eCtx, length_encPair]; omega
-  have hpos : (encNat cfg.inputPos).length ≤ (eCtx ((d, x), cfg)).length := by
-    simp only [eCtx, eCfg_apply, length_encPair]; omega
-  unfold stepTime
-  dsimp only [Ctx.desc, Ctx.input, Ctx.cfg] at *
-  generalize (eCtx ((d, x), cfg)).length = L at *
-  have h₁ : (cfg.workTapes.length + d.table.length + 1) * ((eDesc d).length + 1) *
-      (L + 1) ≤ 2 * (L + 1) * (L + 1) * (L + 1) :=
-    Nat.mul_le_mul (Nat.mul_le_mul (by omega) (by omega)) le_rfl
-  have h₂ : ((encList encUnary x).length + 1) * ((encNat cfg.inputPos).length + 1) ^ 2 ≤
-      (L + 1) * (L + 1) ^ 2 :=
-    Nat.mul_le_mul (by omega) (Nat.pow_le_pow_left (by omega) 2)
-  nlinarith
+    ComputableInPolyTime (fun c : Ctx => step c.desc c.input c.cfg) eCtx (encPair eCfg eSym) :=
+  step_inO.computableInPolyTime (by growth_poly [table_le]) (by growth_poly)
 
 /-- Keeping the first two output symbols after appending an optional symbol is computable in
 polynomial time. -/

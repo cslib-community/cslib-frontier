@@ -122,6 +122,10 @@ abbrev len2 : ℕ := 3
 /-- The total number of WOTS+ chains, Equation (5.4). -/
 abbrev len (p : SecurityBytes) : ℕ := len1 p + len2
 
+/-- Every standardized WOTS+ signature and public-key package has at most 67 blocks. -/
+theorem len_le_67 (p : SecurityBytes) : len p ≤ 67 := by
+  cases p <;> decide
+
 /-- An `n`-byte message consumed by WOTS+. -/
 abbrev Message (p : SecurityBytes) := Fin p.count → Byte
 

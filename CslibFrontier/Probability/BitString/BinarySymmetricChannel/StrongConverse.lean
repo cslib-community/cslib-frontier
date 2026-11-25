@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Probability.BitString.BinarySymmetricChannel
-public import Mathlib.Algebra.Order.BigOperators.Expect
 public import Mathlib.Analysis.SpecialFunctions.BinaryEntropy
 public import Mathlib.Analysis.SpecialFunctions.Log.Base
 public import Mathlib.Order.Filter.AtTopBot.Defs

@@ -199,8 +199,7 @@ theorem realizes_loop :
       (Equiv.funUnique (Fin 1) ℕ).symm.toEmbedding
       (fun w (d, k) s => Shape w d k s)
       (fun (d, k) s => whileWork guard step (fun _ _ => 0) d (Nat.log 2 k) k s) := by
-  have hStep := realizes_step
-  realize
+  realize [realizes_step]
   intro hv
   refine whileSafe_of_measure _ _ _ w _ (Shape w d.1) (fun k _ => Nat.log 2 k)
     (fun k _ _ hz hk => by

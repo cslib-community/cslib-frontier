@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.ForestQuerySynthesis
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.NavigationSynthesis
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.Optimization
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Tactic.GCongr
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
@@ -172,8 +173,6 @@ theorem forest_reachability_optimized (c : Circuit signature n n) :
   obtain ⟨L, hL, hLN, hopt⟩ := exists_powerBudget_le_optimizedBudget n c.size (2 ^ n) le_rfl
   obtain ⟨out, hout, hs⟩ := forest_reachability_circuit c L hL hLN
   refine ⟨out, hout, ?_⟩
-  have hs' : (out.size : ℝ) ≤ 4500000 * (powerBudget n c.size (2 ^ n) L : ℝ) := by
-    exact_mod_cast hs
-  linarith
+  cast_linarith [hs]
 
 end Cslib.Circuits.Boolean.Iteration

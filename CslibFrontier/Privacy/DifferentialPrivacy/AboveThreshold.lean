@@ -125,7 +125,7 @@ theorem aboveThresholdAux_apply_le {ν : PMF ℤ} {c : ℝ≥0∞} {s : ℤ} (hc
           (aboveThresholdAux ν U l).map (Option.map Nat.succ)) o =
         (if U ≤ x + v then PMF.pure (some 0) o else 0) +
           (if U ≤ x + v then 0 else (aboveThresholdAux ν U l).map (Option.map Nat.succ) o) := by
-      split_ifs <;> simp
+      split_ifs <;> simp only [zero_add, add_zero]
     simp only [aboveThresholdAux, PMF.bind_apply, hsplit, mul_add]
     rw [tsum_add, tsum_add, mul_add]
     gcongr ?_ + ?_
@@ -141,11 +141,11 @@ theorem aboveThresholdAux_apply_le {ν : PMF ℤ} {c : ℝ≥0∞} {s : ℤ} (hc
         calc ν v * PMF.pure (some 0) o ≤ (c * ν (v + 2 * s)) * PMF.pure (some 0) o := by
               gcongr; exact hν v
           _ = c * (ν (v + 2 * s) * PMF.pure (some 0) o) := by ring
-      · simp [hv]
+      · simp only [hv, ↓reduceIte, mul_zero, zero_le]
     · rw [← ENNReal.tsum_mul_left]
       refine tsum_le_tsum fun v => ?_
       by_cases hv : T ≤ a + v
-      · simp [hv]
+      · simp only [hv, ↓reduceIte, mul_zero, zero_le]
       · have hv' : ¬ T + s ≤ b + v := by
           intro h
           linarith [hab'.2]
@@ -191,6 +191,17 @@ theorem DifferentiallyPrivate.aboveThresholdMechanism {D : Type*} {Adj : D → D
     _ = ENNReal.ofReal (Real.exp ε₁) * ENNReal.ofReal (Real.exp ε₂) *
           (ρ (r + s) * aboveThresholdAux ν (T + r + s) (fs.map fun f => f y) o) := by ring
 
+private theorem discreteLaplace_pair_shift {s₁ s₂ a : ℝ} (hs₁ : 0 < s₁) (hs₂ : 0 < s₂)
+    {Δ : ℕ} (h₁ : (Δ : ℝ) / s₁ = a) (h₂ : (2 * Δ : ℝ) / s₂ = a) :
+    (∀ r, discreteLaplace s₁ hs₁ r ≤ ENNReal.ofReal (Real.exp a) *
+      discreteLaplace s₁ hs₁ (r + Δ)) ∧
+    (∀ v, discreteLaplace s₂ hs₂ v ≤ ENNReal.ofReal (Real.exp a) *
+      discreteLaplace s₂ hs₂ (v + 2 * Δ)) :=
+  ⟨fun r => h₁ ▸ discreteLaplace_apply_le s₁ hs₁ r Δ
+      (by push_cast; rw [abs_of_nonneg (by positivity)]),
+   fun v => h₂ ▸ discreteLaplace_apply_le s₂ hs₂ v (2 * Δ)
+     (by push_cast; rw [abs_of_nonneg (by positivity)])⟩
+
 /-- AboveThreshold with discrete Laplace noise: for queries of sensitivity `Δ ≥ 1` (an integer),
 threshold noise of scale `2 Δ / ε` and query noise of scale `4 Δ / ε` give `(ε, 0)`-differential
 privacy, however many queries are asked. This is the discrete-noise analogue of
@@ -202,17 +213,10 @@ theorem differentiallyPrivate_aboveThreshold_discreteLaplace {D : Type*} {Adj : 
       (aboveThresholdMechanism (discreteLaplace (2 * Δ / ε) (by positivity))
         (discreteLaplace (4 * Δ / ε) (by positivity)) T fs) ε 0 := by
   have hΔ' : (0 : ℝ) < Δ := by exact_mod_cast hΔ
-  have h₁ : (Δ : ℝ) / (2 * Δ / ε) = ε / 2 := by field_simp
-  have h₂ : (2 * Δ : ℝ) / (4 * Δ / ε) = ε / 2 := by field_simp; ring
+  obtain ⟨hρ, hν⟩ := discreteLaplace_pair_shift (s₁ := 2 * Δ / ε) (s₂ := 4 * Δ / ε)
+    (Δ := Δ) (a := ε / 2) (by positivity) (by positivity) (by field_simp) (by field_simp; ring)
   have := DifferentiallyPrivate.aboveThresholdMechanism (Adj := Adj) (T := T) (fs := fs)
-    (s := Δ) (ε₁ := ε / 2) (ε₂ := ε / 2) (by positivity) (by exact_mod_cast hfs)
-    (fun r => by
-      have := discreteLaplace_apply_le (2 * Δ / ε) (by positivity) (Δ := Δ) r Δ (by simp)
-      rwa [h₁] at this)
-    (fun v => by
-      have := discreteLaplace_apply_le (4 * Δ / ε) (by positivity) (Δ := 2 * Δ) v (2 * Δ)
-        (by push_cast; rw [abs_of_nonneg (by positivity)])
-      rwa [h₂] at this)
+    (s := Δ) (ε₁ := ε / 2) (ε₂ := ε / 2) (by positivity) (by exact_mod_cast hfs) hρ hν
   rwa [add_halves] at this
 
 /-- The accuracy condition of [DworkRoth2014, Definition 3.9] for the answers `as`, threshold `T`
@@ -230,7 +234,7 @@ theorem ThresholdAccurate.length_le {T α : ℝ} {as : List ℝ} {i : ℕ}
     (h : ThresholdAccurate T α as (some i)) (has : ∀ j (hj : j + 1 < as.length), as[j] < T - α) :
     as.length ≤ i + 1 := by
   induction as generalizing i with
-  | nil => simp
+  | nil => exact Nat.zero_le _
   | cons a as ih =>
     cases i with
     | zero =>
@@ -242,8 +246,8 @@ theorem ThresholdAccurate.length_le {T α : ℝ} {as : List ℝ} {i : ℕ}
     | succ i =>
       simp only [ThresholdAccurate] at h
       have := ih h.2 fun j hj => by
-        have := has (j + 1) (by simp only [List.length_cons]; omega)
-        simpa using this
+        simpa only [List.getElem_cons_succ] using
+          has (j + 1) (by simp only [List.length_cons]; omega)
       simp only [List.length_cons]
       omega
 
@@ -256,13 +260,16 @@ theorem aboveThresholdAux_toOuterMeasure_not_thresholdAccurate_le (ν : PMF ℤ)
   classical
   induction as with
   | nil =>
-    simp [aboveThresholdAux, ThresholdAccurate]
+    rw [aboveThresholdAux]
+    simp only [ThresholdAccurate, not_true_eq_false, Set.ofPred_false,
+      PMF.toOuterMeasure_pure_apply, Set.mem_empty_iff_false, ↓reduceIte, zero_le]
   | cons a as ih =>
     rw [aboveThresholdAux]
     refine (Probability.PMF.toOuterMeasure_bind_failure_le ν _ {v : ℤ | α₂ < |(v : ℝ)|}ᶜ _
       (as.length * ν.toOuterMeasure {v | α₂ < |(v : ℝ)|}) fun v _ hv => ?_).trans_eq ?_
     · have habs := abs_le.mp hr
-      have hvabs := abs_le.mp (by simpa using hv : |(v : ℝ)| ≤ α₂)
+      have hvabs := abs_le.mp
+        (by simpa only [Set.mem_compl_iff, Set.mem_ofPred_eq, not_lt] using hv)
       split_ifs with hle
       · rw [PMF.toOuterMeasure_pure_apply]
         split_ifs with hbad
@@ -290,7 +297,8 @@ theorem aboveThreshold_toOuterMeasure_not_thresholdAccurate_le (ρ ν : PMF ℤ)
         as.length * ν.toOuterMeasure {v | α₂ < |(v : ℝ)|} := by
   rw [aboveThreshold, ← compl_compl {r : ℤ | α₁ < |(r : ℝ)|}]
   exact Probability.PMF.toOuterMeasure_bind_failure_le ρ _ _ _ _ fun r _ hr =>
-    aboveThresholdAux_toOuterMeasure_not_thresholdAccurate_le ν (by simpa using hr) as
+    aboveThresholdAux_toOuterMeasure_not_thresholdAccurate_le ν
+      (by simpa only [Set.mem_compl_iff, Set.mem_ofPred_eq, not_lt] using hr) as
 
 /-- Accuracy of AboveThreshold with discrete Laplace noise (scales `2 / ε` and `4 / ε`): on `k`
 answers it is `α`-accurate except with probability at most `β`, for
@@ -305,8 +313,9 @@ theorem aboveThreshold_discreteLaplace_toOuterMeasure_not_thresholdAccurate_le {
   set k := as.length
   set L := Real.log (k + 1) + Real.log (2 / β) with hL
   have hk : (0 : ℝ) < k + 1 := by positivity
-  have hL0 : 0 ≤ L := add_nonneg (Real.log_nonneg (by simp)) (Real.log_nonneg (by
-    rw [le_div_iff₀ hβ]; linarith))
+  have hL0 : 0 ≤ L := add_nonneg
+    (Real.log_nonneg (by simp only [le_add_iff_nonneg_left, Nat.cast_nonneg]))
+    (Real.log_nonneg (by rw [le_div_iff₀ hβ]; linarith))
   have hsplit : 8 * L / ε = 4 * L / ε + 4 * L / ε := by ring
   rw [hsplit]
   refine (aboveThreshold_toOuterMeasure_not_thresholdAccurate_le _ _ T as).trans ?_
@@ -417,17 +426,12 @@ theorem differentiallyPrivate_sparse_discreteLaplace {Adj : D → D → Prop} {T
         (discreteLaplace (4 * c * Δ / ε) (by positivity)) T qs c) ε 0 := by
   have hΔ' : (0 : ℝ) < Δ := by exact_mod_cast hΔ
   have hc' : (0 : ℝ) < c := by exact_mod_cast hc
-  have h₁ : (Δ : ℝ) / (2 * c * Δ / ε) = ε / (2 * c) := by field_simp
-  have h₂ : (2 * Δ : ℝ) / (4 * c * Δ / ε) = ε / (2 * c) := by field_simp; ring
+  obtain ⟨hρ, hν⟩ := discreteLaplace_pair_shift (s₁ := 2 * c * Δ / ε) (s₂ := 4 * c * Δ / ε)
+    (Δ := Δ) (a := ε / (2 * c)) (by positivity) (by positivity) (by field_simp)
+    (by field_simp; ring)
   have := DifferentiallyPrivate.sparse (Adj := Adj) (T := T) (qs := qs)
     (s := Δ) (ε₁ := ε / (2 * c)) (ε₂ := ε / (2 * c)) (by positivity) (by exact_mod_cast hqs)
-    (fun r => by
-      have := discreteLaplace_apply_le (2 * c * Δ / ε) (by positivity) (Δ := Δ) r Δ (by simp)
-      rwa [h₁] at this)
-    (fun v => by
-      have := discreteLaplace_apply_le (4 * c * Δ / ε) (by positivity) (Δ := 2 * Δ) v (2 * Δ)
-        (by push_cast; rw [abs_of_nonneg (by positivity)])
-      rwa [h₂] at this) c
+    hρ hν c
   have hε' : (c : ℝ) * (ε / (2 * c) + ε / (2 * c)) = ε := by field_simp; ring
   rwa [hε'] at this
 

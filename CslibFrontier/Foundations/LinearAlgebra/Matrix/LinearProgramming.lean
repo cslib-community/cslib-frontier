@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Farkas
 public import Mathlib.LinearAlgebra.Matrix.RowCol
 public import Mathlib.Order.Bounds.Defs
+public import Mathlib.Algebra.Order.Group.PosPart
 import Mathlib.Algebra.Order.Pi
 import Mathlib.Data.Fintype.Lattice
 import Mathlib.Order.Bounds.Basic
@@ -31,6 +32,10 @@ programming; nothing here is copied from them or from [DvorakKolmogorov2024].
 
 ## Main results
 
+* `Matrix.dotProduct_le_dotProduct_add_parts_of_mulVec_le`: residual-corrected weak duality,
+  with bounds required only on the relevant end of each variable's range.
+* `Matrix.dotProduct_le_dotProduct_add_max_of_mulVec_le`: residual-corrected weak duality
+  for bounded variables.
 * `Matrix.dotProduct_le_dotProduct_of_mulVec_le`: weak duality.
 * `Matrix.exists_dual_eq_of_bddAbove`: a feasible primal with objective bounded above has a
   primal solution and a dual solution of equal value.
@@ -59,16 +64,84 @@ open Matrix
 
 namespace Matrix
 
-variable {K : Type*} [Field K] [LinearOrder K] [IsStrictOrderedRing K]
 variable {ι κ : Type*} [Fintype ι] [Fintype κ]
+
+section OrderedRing
+
+variable {K : Type*} [CommRing K] [LinearOrder K] [IsStrictOrderedRing K]
+
+/-- Residual-corrected weak duality. For the residual `d = c - y ᵥ* A`, only the upper
+bound on a variable with positive residual and the lower bound on a variable with negative
+residual are needed. This is the exact-coefficient step towards interval LP bounds (#6981). -/
+theorem dotProduct_le_dotProduct_add_parts_of_mulVec_le {A : Matrix ι κ K}
+    {b : ι → K} {c x l u : κ → K} {y : ι → K}
+    (hx : A *ᵥ x ≤ b) (hy : 0 ≤ y)
+    (hl : ∀ j, (c - y ᵥ* A) j < 0 → l j ≤ x j)
+    (hu : ∀ j, 0 < (c - y ᵥ* A) j → x j ≤ u j) :
+    c ⬝ᵥ x ≤ y ⬝ᵥ b +
+      ((c - y ᵥ* A)⁺ ⬝ᵥ u - (c - y ᵥ* A)⁻ ⬝ᵥ l) := by
+  let d := c - y ᵥ* A
+  have hpos : d⁺ ⬝ᵥ x ≤ d⁺ ⬝ᵥ u := by
+    unfold dotProduct
+    apply Finset.sum_le_sum
+    intro j _
+    rw [Pi.posPart_apply]
+    by_cases hj : 0 < d j
+    · exact mul_le_mul_of_nonneg_left (hu j hj) (posPart_nonneg _)
+    · rw [posPart_eq_zero.mpr (le_of_not_gt hj), zero_mul, zero_mul]
+  have hneg : d⁻ ⬝ᵥ l ≤ d⁻ ⬝ᵥ x := by
+    unfold dotProduct
+    apply Finset.sum_le_sum
+    intro j _
+    rw [Pi.negPart_apply]
+    by_cases hj : d j < 0
+    · exact mul_le_mul_of_nonneg_left (hl j hj) (negPart_nonneg _)
+    · rw [negPart_eq_zero.mpr (le_of_not_gt hj), zero_mul, zero_mul]
+  have hd : d ⬝ᵥ x = d⁺ ⬝ᵥ x - d⁻ ⬝ᵥ x := by
+    rw [← sub_dotProduct, posPart_sub_negPart]
+  have hres : d ⬝ᵥ x = c ⬝ᵥ x - y ⬝ᵥ (A *ᵥ x) := by
+    rw [show d = c - y ᵥ* A from rfl, sub_dotProduct, ← dotProduct_mulVec]
+  have hdual := dotProduct_le_dotProduct_of_nonneg_left hx hy
+  change c ⬝ᵥ x ≤ y ⬝ᵥ b + (d⁺ ⬝ᵥ u - d⁻ ⬝ᵥ l)
+  linarith
+
+/-- With two-sided variable bounds, the residual correction can equivalently be written
+as the sum of the worse endpoint products. The vector `y` need not be dual feasible. -/
+theorem dotProduct_le_dotProduct_add_max_of_mulVec_le {A : Matrix ι κ K}
+    {b : ι → K} {c x l u : κ → K} {y : ι → K}
+    (hx : A *ᵥ x ≤ b) (hy : 0 ≤ y) (hl : l ≤ x) (hu : x ≤ u) :
+    c ⬝ᵥ x ≤ y ⬝ᵥ b +
+      ∑ j, max ((c - y ᵥ* A) j * l j) ((c - y ᵥ* A) j * u j) := by
+  let d := c - y ᵥ* A
+  have h := dotProduct_le_dotProduct_add_parts_of_mulVec_le (c := c) hx hy
+    (fun j _ => hl j) (fun j _ => hu j)
+  have heq : d⁺ ⬝ᵥ u - d⁻ ⬝ᵥ l = ∑ j, max (d j * l j) (d j * u j) := by
+    simp only [dotProduct, ← Finset.sum_sub_distrib, Pi.posPart_apply, Pi.negPart_apply]
+    apply Finset.sum_congr rfl
+    intro j _
+    by_cases hj : 0 ≤ d j
+    · rw [posPart_eq_self.mpr hj, negPart_eq_zero.mpr hj, zero_mul, sub_zero,
+        max_eq_right (mul_le_mul_of_nonneg_left ((hl j).trans (hu j)) hj)]
+    · have hj' := le_of_not_ge hj
+      rw [posPart_eq_zero.mpr hj', negPart_eq_neg.mpr hj', zero_mul, zero_sub, neg_mul,
+        neg_neg, max_eq_left (mul_le_mul_of_nonpos_left ((hl j).trans (hu j)) hj')]
+  change c ⬝ᵥ x ≤ y ⬝ᵥ b + ∑ j, max (d j * l j) (d j * u j)
+  rw [← heq]
+  exact h
+
+end OrderedRing
+
+variable {K : Type*} [Field K] [LinearOrder K] [IsStrictOrderedRing K]
 
 /-- **Weak duality**: the value of a primal solution `A *ᵥ x ≤ b` is at most the value of any dual
 solution `0 ≤ y`, `y ᵥ* A = c` [Schrijver1986, Section 7.4]. -/
 theorem dotProduct_le_dotProduct_of_mulVec_le {A : Matrix ι κ K} {b : ι → K} {c : κ → K}
     {x : κ → K} {y : ι → K} (hx : A *ᵥ x ≤ b) (hy : 0 ≤ y) (hyA : y ᵥ* A = c) :
     c ⬝ᵥ x ≤ y ⬝ᵥ b := by
-  rw [← hyA, ← dotProduct_mulVec]
-  exact dotProduct_le_dotProduct_of_nonneg_left hx hy
+  have h := dotProduct_le_dotProduct_add_parts_of_mulVec_le (c := c) (l := 0) (u := 0) hx hy
+    (fun j hj => False.elim (by simp [hyA] at hj))
+    (fun j hj => False.elim (by simp [hyA] at hj))
+  simpa using h
 
 /-- A linear objective bounded above on a nonempty polyhedron `A *ᵥ x ≤ b` attains its maximum at
 a point `x`, certified by a dual solution `y` of the same value [Schrijver1986, Section 7.4]. -/
@@ -260,10 +333,11 @@ theorem exists_dual_le_of_forall_le (A : Matrix ι κ K) (b : ι → K) (c : κ 
 /-- **Weak duality** for the canonical pair [MatousekGartner2007, Chapter 6]. -/
 theorem dotProduct_le_dotProduct_of_nonneg_of_mulVec_le {A : Matrix ι κ K} {b : ι → K}
     {c : κ → K} {x : κ → K} {y : ι → K} (hx : 0 ≤ x) (hAx : A *ᵥ x ≤ b) (hy : 0 ≤ y)
-    (hc : c ≤ y ᵥ* A) : c ⬝ᵥ x ≤ y ⬝ᵥ b :=
-  calc c ⬝ᵥ x ≤ (y ᵥ* A) ⬝ᵥ x := dotProduct_le_dotProduct_of_nonneg_right hc hx
-    _ = y ⬝ᵥ (A *ᵥ x) := (dotProduct_mulVec y A x).symm
-    _ ≤ y ⬝ᵥ b := dotProduct_le_dotProduct_of_nonneg_left hAx hy
+    (hc : c ≤ y ᵥ* A) : c ⬝ᵥ x ≤ y ⬝ᵥ b := by
+  have h := dotProduct_le_dotProduct_add_parts_of_mulVec_le (c := c) (l := 0) (u := 0) hAx hy
+    (fun j _ => hx j)
+    (fun j hj => False.elim ((not_lt_of_ge (sub_nonpos.mpr (hc j))) hj))
+  simpa using h
 
 omit [Fintype ι] in
 private theorem fromRows_neg_one_mulVec_le_iff [DecidableEq κ] (A : Matrix ι κ K) (b : ι → K)

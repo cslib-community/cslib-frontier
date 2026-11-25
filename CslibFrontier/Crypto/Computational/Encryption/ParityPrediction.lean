@@ -14,6 +14,7 @@ public import CslibFrontier.Foundations.Data.BitString.ListParity
 public import CslibFrontier.Foundations.Data.BitString.List.Operations
 import CslibFrontier.Foundations.Data.BitString.Flip
 import CslibFrontier.Foundations.Data.BitString.DeltaMatroid.Basic
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.BitString.List
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Uniform
@@ -149,8 +150,7 @@ private theorem parityReduction_advantage_eq {K M C : Type} (E : Cipher K M C)
       ProbComp.eval (E.oneTimeExperiment sampleKey valid
         (parityReduction sampleMessage flip par A) false) = ProbComp.eval exp := by
     simp only [Cipher.oneTimeExperiment, parityReduction, exp, lrExperiment,
-      MessagePair.select_false, ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind,
-      PMF.pure_bind]
+      MessagePair.select_false, pmf_norm]
     rw [PMF.bind_comm]
     refine Probability.PMF.bind_congr_on_support _ _ _ fun m₀ hm₀ => ?_
     simp [hvalid m₀ hm₀, ← PMF.bind_pure_comp, Function.comp_def]
@@ -168,7 +168,7 @@ private theorem parityReduction_advantage_eq {K M C : Type} (E : Cipher K M C)
           (parityReduction sampleMessage flip par A) true) =
           (ProbComp.eval sampleMessage).bind fun m₀ => body (flip m₀) := by
       simp only [Cipher.oneTimeExperiment, parityReduction, lrExperiment, MessagePair.select_true,
-        ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
+        pmf_norm]
       rw [PMF.bind_comm]
       refine Probability.PMF.bind_congr_on_support _ _ _ fun m₀ hm₀ => ?_
       have hp : par m₀ = !(par (flip m₀)) := by
@@ -182,8 +182,7 @@ private theorem parityReduction_advantage_eq {K M C : Type} (E : Cipher K M C)
       rw [PMF.bind_map]
       rfl
     rw [heq, hmap]
-    simp only [exp, body, ProbComp.eval_bind, ProbComp.eval_pure, ← PMF.bind_pure_comp,
-      PMF.bind_bind, PMF.pure_bind, Function.comp_def]
+    simp only [exp, body, ← PMF.bind_pure_comp, pmf_norm]
   rw [Game.coe_guessingAdvantage, Experiment.advantage, heval0, heval1, Game.coe_advantage,
     Game.succProbability_not, Game.failProbability_eq,
     NNReal.coe_sub (Game.succProbability_le_one _), NNReal.coe_one]
@@ -350,8 +349,7 @@ theorem parityWordAdvantage_eq_half_mul_demKeyGameOn (msgLen keyLen : ℕ → �
       simp only [demKeyGameOn, E_word, valid, Cipher.oneTimeExperiment, lrExperiment,
         parityWordToDEMAdversary, parityReduction, ChoiceOut.msg₀, ChoiceOut.msg₁,
         MessagePair.select_false, MessagePair.select_true, Bool.false_eq_true, ↓reduceIte,
-        ProbComp.eval_bind, ProbComp.eval_pure, BitString.wordParity_cons, BitString.wordParity_nil,
-        Bool.xor_false, PMF.bind_bind, PMF.pure_bind]
+        BitString.wordParity_cons, BitString.wordParity_nil, Bool.xor_false, pmf_norm]
   rw [parityWordAdvantage, Game.advantage, hgame false, hgame true]
   exact parityReduction_advantage_eq E_word (BitString.sampleList (keyLen n))
     (BitString.sampleList (msgLen n)) (flipLastBitWord (msgLen n)) BitString.wordParity

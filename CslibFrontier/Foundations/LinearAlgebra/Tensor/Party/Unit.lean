@@ -308,7 +308,7 @@ end UpperFunctional
 
 /-- The *wire exponent* of a spectral point between the parties `p` and `q`: `log₂` of its value
 at the wire of dimension `2` (the `d_φ(p, q)` of Lemma A.2 of [AnthropicVPVNP2026]). -/
-noncomputable def SpectralPoint.wireExponent (F : SpectralPoint K I) (p q : I) : ℝ :=
+@[expose] noncomputable def SpectralPoint.wireExponent (F : SpectralPoint K I) (p q : I) : ℝ :=
   Real.logb 2 (F (wire K 2 p q))
 
 end Cslib.PartyTensor

@@ -8,10 +8,6 @@ module
 
 public import CslibFrontier.Init
 public import Mathlib.NumberTheory.Chebyshev
-import Mathlib.Data.Nat.Choose.Factorization
-import Mathlib.Data.Nat.GCD.BigOperators
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Ring
 
 /-!
 # Counting the primes up to m, in natural numbers

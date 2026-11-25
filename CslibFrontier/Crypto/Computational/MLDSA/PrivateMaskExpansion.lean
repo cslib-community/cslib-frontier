@@ -8,15 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.MLDSA.AdaptiveKeySeed
+-- Reads private `Test`, `hit`, `changed`, `gap`, and `gap_bind_le`.
 import all CslibFrontier.Crypto.Computational.MLDSA.SigningQueryComparison
-import all CslibFrontier.Crypto.Computational.MLDSA.MaskSeedQuery
-import all CslibFrontier.Crypto.Computational.MLDSA.PrivateMaskSeedGame
-import all CslibFrontier.Crypto.Computational.MLDSA.SigningMaskSeeds
-import all CslibFrontier.Crypto.Computational.MLDSA.RandomXofMatrix
-import all CslibFrontier.Crypto.Computational.MLDSA.SigningHedges
-import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
-import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
-import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
 import CslibFrontier.Probability.PMF.UniformExtend
 import CslibFrontier.Tactic.PMFSwap
 
@@ -288,9 +281,7 @@ private theorem verify_maskStreams {a b n : ℕ} (base : Xofs) (ha : 528 ≤ a)
       H.h256.readBytes keys.publicKey 64 := by
     apply raw
     obtain ⟨rho, sk, _, enc, _, _⟩ := privateKey_of_keyGen hk
-    rw [Keccak.length_bytesToBitsLE, enc]
-    simp only [encodePublic, List.length_append]
-    rw [FixedBytes.length_toList, length_packCoeffs]
+    rw [Keccak.length_bytesToBitsLE, enc, length_encodePublic, FixedBytes.length_toList]
     cases s <;> decide
   refine verify_eq_of_reads (G := maskStreams base ha t T₁ T₂ rows) (H := H) s keys.publicKey
     rfl raw (by decide) (nonce_commitment_ne s) ?_ f

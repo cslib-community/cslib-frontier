@@ -270,19 +270,20 @@ private theorem Op.net_cases (i : Fin n) (op : Op n Γ) :
     op.net i = 0 ∨ (op.net i = 1 ∧ ∃ γ, op = .push i γ) ∨ (op.net i = -1 ∧ ∃ γ, op = .pop i γ) := by
   cases op with
   | nop => exact .inl rfl
-  | push j γ =>
-    by_cases hj : j = i
-    · subst hj
-      exact .inr (.inl ⟨by simp [Op.net], γ, rfl⟩)
-    · exact .inl (by simp [Op.net, hj])
-  | pop j γ =>
-    by_cases hj : j = i
-    · subst hj
-      exact .inr (.inr ⟨by simp [Op.net], γ, rfl⟩)
-    · exact .inl (by simp [Op.net, hj])
+  | push j γ => by_cases hj : j = i <;> simp [Op.net, hj]
+  | pop j γ => by_cases hj : j = i <;> simp [Op.net, hj]
 
 private theorem take_eq_extract (w : List β) (b : ℕ) : w.take b = w.extract 0 b := by
   simp [List.extract]
+
+private theorem exists_first_pop_cons {d d' : ℕ} {i : Fin n} {μ : α × Op n Γ}
+    {u : List (α × Op n Γ)} (hstep : (d : ℤ) + μ.2.net i = d') (hu : (d' : ℤ) + net i u = 0)
+    (hk : ∀ k, 0 ≤ (d' : ℤ) + net i (u.take k)) :
+    (d : ℤ) + net i (μ :: u) = 0 ∧ ∀ k, 0 ≤ (d : ℤ) + net i ((μ :: u).take k) := by
+  refine ⟨by rw [net_cons]; omega, fun k => ?_⟩
+  cases k with
+  | zero => simp
+  | succ k => rw [List.take_succ_cons, net_cons]; have := hk k; omega
 
 /-- The first point where the height of stack `i`, starting at `d`, drops below zero is a pop on
 stack `i`. -/
@@ -295,39 +296,17 @@ theorem exists_first_pop (i : Fin n) :
     rw [net_cons] at hv
     rcases Op.net_cases i op with h | ⟨h, γ, rfl⟩ | ⟨h, γ, rfl⟩
     · obtain ⟨u, b, δ, u', rfl, hu, hk⟩ := exists_first_pop i v d (by rw [h] at hv; omega)
-      refine ⟨(a, op) :: u, b, δ, u', rfl, by rw [net_cons, h]; omega, fun k => ?_⟩
-      cases k with
-      | zero => simp
-      | succ k =>
-        rw [List.take_succ_cons, net_cons, h]
-        have := hk k
-        omega
+      exact ⟨(a, op) :: u, b, δ, u', rfl, exists_first_pop_cons (by simp [h]) hu hk⟩
     · obtain ⟨u, b, δ, u', rfl, hu, hk⟩ :=
         exists_first_pop i v (d + 1) (by rw [h] at hv; push_cast; omega)
-      refine ⟨(a, .push i γ) :: u, b, δ, u', rfl, by rw [net_cons, h]; push_cast at hu; omega,
-        fun k => ?_⟩
-      cases k with
-      | zero => simp
-      | succ k =>
-        rw [List.take_succ_cons, net_cons, h]
-        have := hk k
-        push_cast at this
-        omega
+      exact ⟨(a, .push i γ) :: u, b, δ, u', rfl,
+        exists_first_pop_cons (by simp [Op.net]) hu hk⟩
     · rcases d with _ | d
       · exact ⟨[], a, γ, v, rfl, by simp, fun k => by simp⟩
       · obtain ⟨u, b, δ, u', rfl, hu, hk⟩ :=
           exists_first_pop i v d (by rw [h] at hv; push_cast at hv; omega)
-        refine ⟨(a, .pop i γ) :: u, b, δ, u', rfl, by rw [net_cons, h]; push_cast; omega,
-          fun k => ?_⟩
-        cases k with
-        | zero =>
-          simp only [List.take_zero, net_nil]
-          omega
-        | succ k =>
-          rw [List.take_succ_cons, net_cons, h]
-          have := hk k
-          push_cast
-          omega
+        exact ⟨(a, .pop i γ) :: u, b, δ, u', rfl,
+          exists_first_pop_cons (by simp [Op.net]) hu hk⟩
 
 /-- If no prefix of `u` pops below the initial height of stack `j` and `u` ends strictly above it,
 then some push on stack `j` in `u` is still pending at the end of `u`. -/
@@ -461,14 +440,8 @@ private theorem configLTS_mTr_length {M : MPDA n State α Γ} {c c' : Config n S
   | stepL htr _ ih =>
     rw [ih, net_cons]
     rcases (configLTS_tr.mp htr).2.cases i with ⟨h, h'⟩ | ⟨γ, h, h'⟩ | ⟨γ, h, h'⟩
-    · rw [h, h']
-      omega
-    · rw [h, h', List.length_cons]
-      push_cast
-      omega
-    · rw [h, h', List.length_cons]
-      push_cast
-      omega
+    · rw [h, h']; omega
+    all_goals rw [h, h', List.length_cons]; push_cast; omega
 
 /-- The label sequence of a run from empty stacks to empty stacks is balanced. -/
 theorem balanced_of_configLTS_mTr {M : MPDA n State α Γ} {s s' : State}

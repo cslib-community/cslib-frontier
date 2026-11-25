@@ -328,14 +328,15 @@ theorem expectedCost_directional_le_cond_rate (d : ℕ) (x : (Fin d → Bool) �
     have hTT : (directionalRate - 1 / 2) * (directionalRate ^ d * directionalRate) =
         2 * directionalRate ^ d := by
       linear_combination (directionalRate ^ d / 2) * hα2
+    have hTF : (directionalRate - 1 / 2) * directionalRate ^ d + directionalRate ^ d / 2 =
+        directionalRate ^ d * directionalRate := by ring
     have hFF : (directionalRate - 1 / 2) * directionalRate ^ d ≤
-        directionalRate ^ d * directionalRate := by
-      nlinarith
+        directionalRate ^ d * directionalRate := by linarith
     revert h₀ h₁
     cases nandTree d (fun p => x (Fin.cons false p)) <;>
       cases nandTree d (fun p => x (Fin.cons true p)) <;>
       simp only [Bool.cond_false, Bool.cond_true, Bool.false_and, Bool.and_false, Bool.true_and,
-        Bool.not_false, Bool.not_true, add_zero] <;> intro h₀ h₁ <;> nlinarith
+        Bool.not_false, Bool.not_true, add_zero] <;> intro h₀ h₁ <;> linarith
 
 /-- The sharp bound on every input: at most `(α - 1 / 2) α ^ d` expected queries at depth `d`. -/
 theorem expectedCost_directional_le_rate (d : ℕ) (x : (Fin d → Bool) → Bool) :
@@ -346,7 +347,7 @@ theorem expectedCost_directional_le_rate (d : ℕ) (x : (Fin d → Bool) → Boo
   cases hv : nandTree d x <;> rw [hv] at h
   · exact h
   · rw [Bool.cond_true] at h
-    nlinarith
+    exact h.trans (le_mul_of_one_le_left hA (by linarith))
 
 end NandTree
 
@@ -390,15 +391,16 @@ theorem zeroErrorComplexity_andOrTree_le (k : ℕ) : zeroErrorComplexity (andOrT
   let ⟨_, hμ, hc⟩ := exists_computes_zero_expectedCost_andOrTree_le k
   zeroErrorComplexity_le hμ hc
 
+private theorem pow_rpow_logb_eq {a b : ℝ} (ha : 0 < a) (ha1 : a ≠ 1) (hb : 0 < b) (k : ℕ) :
+    (a ^ k) ^ Real.logb a b = b ^ k := by
+  rw [← Real.rpow_natCast, ← Real.rpow_mul ha.le, mul_comm, Real.rpow_mul ha.le,
+    Real.rpow_logb ha ha1 hb, Real.rpow_natCast]
+
 /-- `R₀(T_{2,k}) ≤ n ^ (log₄ 3) ≈ n ^ 0.793` for the AND–OR tree `T_{2,k}` on `n = 4 ^ k`
 leaves. -/
 theorem zeroErrorComplexity_andOrTree_le_rpow (k : ℕ) :
     zeroErrorComplexity (andOrTree k) ≤ ((4 : ℝ) ^ k) ^ Real.logb 4 3 := by
-  have h : ((4 : ℝ) ^ k) ^ Real.logb 4 3 = 3 ^ k := by
-    rw [← Real.rpow_natCast, ← Real.rpow_mul (by norm_num), mul_comm,
-      Real.rpow_mul (by norm_num), Real.rpow_logb (by norm_num) (by norm_num) (by norm_num),
-      Real.rpow_natCast]
-  rw [h]
+  rw [pow_rpow_logb_eq (by norm_num) (by norm_num) (by norm_num)]
   exact zeroErrorComplexity_andOrTree_le k
 
 /-- **Randomness helps for the AND–OR tree**: `R₀(T_{2,k}) < D(T_{2,k})` for `k ≥ 1`. -/
@@ -432,11 +434,8 @@ theorem zeroErrorComplexity_andOrTree_le_rpow_rate (k : ℕ) :
     zeroErrorComplexity (andOrTree k) ≤
       (directionalRate - 1 / 2) * ((4 : ℝ) ^ k) ^ Real.logb 2 directionalRate := by
   have hα : 0 < directionalRate := by linarith [three_halves_lt_directionalRate]
-  have h : ((4 : ℝ) ^ k) ^ Real.logb 2 directionalRate = directionalRate ^ (2 * k) := by
-    rw [show (4 : ℝ) ^ k = (2 : ℝ) ^ (2 * k) by rw [pow_mul]; norm_num, ← Real.rpow_natCast,
-      ← Real.rpow_mul (by norm_num), mul_comm, Real.rpow_mul (by norm_num),
-      Real.rpow_logb (by norm_num) (by norm_num) hα, Real.rpow_natCast]
-  rw [h]
+  rw [show (4 : ℝ) ^ k = (2 : ℝ) ^ (2 * k) by rw [pow_mul]; norm_num,
+    pow_rpow_logb_eq (by norm_num) (by norm_num) hα]
   exact zeroErrorComplexity_andOrTree_le_rate k
 
 end Cslib.QueryComplexity

@@ -35,10 +35,11 @@ are the recursion of `eraseM`, with the scan and the equality test of `lookupM`.
 on entering each node of the search path, including the path of `popMinM` to the successor, and
 once more for each sibling a repair inspects, so a descent visits at most two nodes per level.
 The pure operations are the `Id` instantiations with `leI` and `visit := pure ()`.
-`eraseRestM` takes the child before the triples together with the computation of its erasure, so
-that the definitions are structurally recursive and `@[expose]`d: `decide` evaluates erasure on
-concrete trees from other modules, and the monadic constructor equations hold by `rfl`. Costs are
-not stated here.
+`eraseRestM` takes the child before the triples together with its erasure as a delayed
+computation, a function from `Unit`: the recursion is then structural, so the definitions are
+`@[expose]`d and `decide` evaluates erasure on concrete trees from other modules, the monadic
+constructor equations hold by `rfl`, and the erasure of a child is run only where the search
+descends, in `Id` as in any other monad. Costs are not stated here.
 
 ## Main definitions
 
@@ -156,14 +157,14 @@ mutual
   | .leaf => pure .leaf
   | .node first rest => do
     visit
-    let p ← eraseRestM t le visit k first (eraseSubtreeM t le visit k first) rest
+    let p ← eraseRestM t le visit k first (fun _ => eraseSubtreeM t le visit k first) rest
     pure (.node p.1 p.2)
 
-/-- Erasure among the triples after the child `prev`, whose erasure is `prevErased`. -/
+/-- Erasure among the triples after the child `prev`, whose erasure is `prevErased ()`. -/
 @[expose] def eraseRestM (t : ℕ) (le : α → α → m Bool) (visit : m Unit) (k : α)
-    (prev : BTree α β) (prevErased : m (BTree α β)) :
+    (prev : BTree α β) (prevErased : Unit → m (BTree α β)) :
     List (Triple α β) → m (BTree α β × List (Triple α β))
-  | [] => do return (← prevErased, [])
+  | [] => do return (← prevErased (), [])
   | (k', v', c) :: rest => do
     if ← le k k' then
       if ← le k' k then
@@ -176,12 +177,12 @@ mutual
             let p ← rebalanceRightM t visit c' k₃ v₃ c₃ rest₃
             pure (prev, (k₂, v₂, p.1) :: p.2)
       else
-        rebalanceRightM t visit (← prevErased) k' v' c rest
+        rebalanceRightM t visit (← prevErased ()) k' v' c rest
     else
       match rest with
       | [] => do rebalanceLastM t visit prev k' v' (← eraseSubtreeM t le visit k c)
       | _ :: _ => do
-        let p ← eraseRestM t le visit k c (eraseSubtreeM t le visit k c) rest
+        let p ← eraseRestM t le visit k c (fun _ => eraseSubtreeM t le visit k c) rest
         pure (prev, (k', v', p.1) :: p.2)
 end
 
@@ -210,19 +211,19 @@ theorem eraseSubtreeM_node (t : ℕ) (le : α → α → m Bool) (visit : m Unit
     (first : BTree α β) (rest : List (Triple α β)) :
     eraseSubtreeM t le visit k (.node first rest) = (do
       visit
-      let p ← eraseRestM t le visit k first (eraseSubtreeM t le visit k first) rest
+      let p ← eraseRestM t le visit k first (fun _ => eraseSubtreeM t le visit k first) rest
       pure (.node p.1 p.2)) := rfl
 
 /-- Past the last triple, the erasure of the preceding child is the result. -/
 theorem eraseRestM_nil (t : ℕ) (le : α → α → m Bool) (visit : m Unit) (k : α)
-    (prev : BTree α β) (prevErased : m (BTree α β)) :
-    eraseRestM t le visit k prev prevErased [] = (do return (← prevErased, [])) := rfl
+    (prev : BTree α β) (prevErased : Unit → m (BTree α β)) :
+    eraseRestM t le visit k prev prevErased [] = (do return (← prevErased (), [])) := rfl
 
 /-- At a triple: on equality, replace the entry by the least entry of its child and repair the
 child; below the key, erase from the preceding child and repair it against this child; above
 it, move on, repairing the last child against its left sibling. -/
 theorem eraseRestM_cons (t : ℕ) (le : α → α → m Bool) (visit : m Unit) (k : α)
-    (prev : BTree α β) (prevErased : m (BTree α β)) (k' : α) (v' : β) (c : BTree α β)
+    (prev : BTree α β) (prevErased : Unit → m (BTree α β)) (k' : α) (v' : β) (c : BTree α β)
     (rest : List (Triple α β)) :
     eraseRestM t le visit k prev prevErased ((k', v', c) :: rest) = (do
       if ← le k k' then
@@ -236,12 +237,12 @@ theorem eraseRestM_cons (t : ℕ) (le : α → α → m Bool) (visit : m Unit) (
               let p ← rebalanceRightM t visit c' k₃ v₃ c₃ rest₃
               pure (prev, (k₂, v₂, p.1) :: p.2)
         else
-          rebalanceRightM t visit (← prevErased) k' v' c rest
+          rebalanceRightM t visit (← prevErased ()) k' v' c rest
       else
         match rest with
         | [] => do rebalanceLastM t visit prev k' v' (← eraseSubtreeM t le visit k c)
         | _ :: _ => do
-          let p ← eraseRestM t le visit k c (eraseSubtreeM t le visit k c) rest
+          let p ← eraseRestM t le visit k c (fun _ => eraseSubtreeM t le visit k c) rest
           pure (prev, (k', v', p.1) :: p.2)) := rfl
 
 /-- The least entry of the empty tree does not exist, and nothing is visited. -/
@@ -310,9 +311,9 @@ termination_by sizeOf tr
 /-- A monad morphism commutes with erasure among the triples of a node. -/
 theorem _root_.Cslib.IsMonadHom.map_eraseRestM (hf : IsMonadHom m n f) (t : ℕ)
     (le : α → α → m Bool) (visit : m Unit) (k : α) (prev : BTree α β)
-    (prevErased : m (BTree α β)) (rest : List (Triple α β)) :
+    (prevErased : Unit → m (BTree α β)) (rest : List (Triple α β)) :
     f (eraseRestM t le visit k prev prevErased rest) =
-      eraseRestM t (fun a b => f (le a b)) (f visit) k prev (f prevErased) rest := by
+      eraseRestM t (fun a b => f (le a b)) (f visit) k prev (fun u => f (prevErased u)) rest := by
   match rest with
   | [] => simp [eraseRestM_nil, hf.map_bind, hf.map_pure]
   | (k', v', c) :: rest =>
@@ -712,7 +713,7 @@ variable {α β : Type} [LinearOrder α] {t : ℕ} {k : α}
 /-- Pure erasure among the triples after `prev`, whose erasure is `prevErased`. -/
 @[expose] def eraseRest (t : ℕ) (k : α) (prev prevErased : BTree α β)
     (rest : List (Triple α β)) : BTree α β × List (Triple α β) :=
-  Id.run (eraseRestM t leI (pure ()) k prev (pure prevErased) rest)
+  Id.run (eraseRestM t leI (pure ()) k prev (fun _ => pure prevErased) rest)
 
 /-- Remove the entry with key `k`, if any, from a B-tree of minimum degree `t`: the `Id`
 instantiation of `eraseM`. An emptied root collapses into its only child. -/
@@ -723,9 +724,11 @@ instantiation of `eraseM`. An emptied root collapses into its only child. -/
 theorem eraseSubtree_def (tr : BTree α β) :
     eraseSubtree t k tr = Id.run (eraseSubtreeM t leI (pure ()) k tr) := (rfl)
 
-/-- `eraseRest` is the `Id` instantiation of `eraseRestM`, with `prevErased` returned purely. -/
+/-- `eraseRest` is the `Id` instantiation of `eraseRestM`, with `prevErased` wrapped in a
+constant thunk. -/
 theorem eraseRest_def (prev pe : BTree α β) (rest : List (Triple α β)) :
-    eraseRest t k prev pe rest = Id.run (eraseRestM t leI (pure ()) k prev (pure pe) rest) := (rfl)
+    eraseRest t k prev pe rest =
+      Id.run (eraseRestM t leI (pure ()) k prev (fun _ => pure pe) rest) := (rfl)
 
 /-- `erase` is the `Id` instantiation of `eraseM`. -/
 theorem erase_def (tr : BTree α β) : erase t k tr = Id.run (eraseM t leI (pure ()) k tr) := (rfl)

@@ -40,6 +40,10 @@ strings have density `C(2 m, m) / 4 ^ m`
 (`BitString.expect_ite_card_filter_eq` in `Data.BitString.AgreeExpect`). The book instead compares
 two expansions of the noise operator applied to the tie indicator.
 
+For an even number `2 m` of bits, ties are accepted by `majority`. Pairing each string with its
+complement shows that the constant Fourier coefficient is `-C(2 m, m) / 4 ^ m`
+(`BitString.fourierCoeff_signVal_majority_two_mul_empty`).
+
 From the explicit formula, no coefficient exceeds the one on a singleton, `C(2 m, m) / 4 ^ m`,
 since `C(m, j) ≤ C(2 m, 2 j)`, and up to size `m` the coefficients decrease in size, by the ratio
 `|S| / (2 m - |S|)` from `|S|` to `|S| + 2`
@@ -83,6 +87,8 @@ across the levels.
   odd number of bits is odd, and its derivative is the tie indicator.
 * `Cslib.BitString.fourierCoeff_signVal_majority_of_even`,
   `Cslib.BitString.fourierCoeff_signVal_majority_of_card_eq`: the Fourier coefficients of majority.
+* `Cslib.BitString.fourierCoeff_signVal_majority_two_mul_empty`: the constant coefficient for an
+  even number of inputs, with ties accepted.
 * `Cslib.BitString.fourierCoeff_signVal_majority_singleton`,
   `Cslib.BitString.abs_fourierCoeff_signVal_majority_le_singleton`,
   `Cslib.BitString.abs_fourierCoeff_signVal_majority_le_of_card_le`: the largest coefficients of
@@ -149,6 +155,47 @@ private theorem sum_powersetCard_chi (s : Finset ι) (x : ι → Bool) (m j : �
 theorem isOdd_majority (m : ℕ) : IsOdd (majority (2 * m + 1)) := fun x => by
   rw [show (x + fun _ => true) = fun i => !x i from funext fun i => Bool.xor_true (x i),
     majority_eq_strictMajority, strictMajority_not, majority_eq_strictMajority]
+
+/-- The constant Fourier coefficient of majority on `2 m` bits is the negative probability of
+a tie: complementary inputs cancel except when both have weight `m`, where both are accepted. -/
+theorem fourierCoeff_signVal_majority_two_mul_empty (m : ℕ) :
+    fourierCoeff (fun x => signVal (majority (2 * m) x)) ∅ =
+      -((2 * m).choose m / (4 : ℝ) ^ m) := by
+  let f : (Fin (2 * m) → Bool) → ℝ := fun x => signVal (majority (2 * m) x)
+  have hcomp : (𝔼 x, f (x + fun _ => true)) = 𝔼 x, f x :=
+    Fintype.expect_equiv (Equiv.addRight (fun _ : Fin (2 * m) => true)) _ _ fun _ => rfl
+  have hpair (x : Fin (2 * m) → Bool) :
+      f x + f (x + fun _ => true) = (-2 : ℝ) * (if weight x = m then 1 else 0) := by
+    have hnot := weight_not_add x
+    simp only [Fintype.card_fin] at hnot
+    have hhalf : (2 * m + 1) / 2 = m := by omega
+    change signVal (majority (2 * m) x) +
+      signVal (majority (2 * m) (x + fun _ => true)) = _
+    rw [show (x + fun _ => true) = (fun i => !x i) from
+      funext fun i => Bool.xor_true (x i)]
+    rcases lt_trichotomy (weight x) m with hlt | heq | hgt
+    · simp [majority, threshold_apply, hhalf, show ¬m ≤ weight x by omega,
+        show m ≤ weight (fun i => !x i) by omega, ne_of_lt hlt]
+    · norm_num [majority, threshold_apply, hhalf, heq,
+        show m ≤ weight (fun i => !x i) by omega]
+    · simp [majority, threshold_apply, hhalf, show m ≤ weight x by omega,
+        show ¬m ≤ weight (fun i => !x i) by omega, ne_of_gt hgt]
+  have htie :
+      (𝔼 x : Fin (2 * m) → Bool, if weight x = m then (1 : ℝ) else 0) =
+        (2 * m).choose m / (4 : ℝ) ^ m := by
+    change (𝔼 x : Fin (2 * m) → Bool,
+      if #{i ∈ univ | x i = true} = m then (1 : ℝ) else 0) = _
+    rw [expect_ite_card_filter_eq, card_univ, Fintype.card_fin, pow_mul]
+    norm_num
+  have hmean : (𝔼 x, f x) + (𝔼 x, f x) =
+      (-2 : ℝ) * ((2 * m).choose m / (4 : ℝ) ^ m) := by
+    calc
+      _ = 𝔼 x, (f x + f (x + fun _ => true)) := by rw [expect_add_distrib, hcomp]
+      _ = (-2 : ℝ) * ((2 * m).choose m / (4 : ℝ) ^ m) := by
+        simp only [hpair, ← mul_expect, htie]
+  rw [fourierCoeff_empty]
+  change (𝔼 x, f x) = _
+  linarith
 
 /-- **The derivative of majority** in `i`, read as signs, is the indicator that exactly half of
 the other `2 m` bits are true, that is, that `i` is pivotal

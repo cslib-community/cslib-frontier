@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Equivalent
 public import Mathlib.Basic.Real.Basic
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
+import Mathlib.Tactic.Linarith
 
 /-!
 # Upper functionals and spectral points
@@ -27,7 +28,8 @@ normalized on unit tensors.
 An upper functional is monotone for restriction and constant on equivalence classes, at least `1`
 at a nonzero tensor and at most the rank; a spectral point is multiplicative on products of
 families and on powers, and can be pulled back along a map of parties (`SpectralPoint.pull`,
-`t ↦ φ (π t)`).
+`t ↦ φ (π t)`). Over a field, the *support point* is `1` at every tensor with a nonzero entry and
+`0` at the zero tensor (`SpectralPoint.support`, the first example after Definition A.1).
 
 The rank in coordinates: `t ≤ unit K I r` holds exactly when `t` is a sum of `r` products of
 vectors (`PartyTensor.le_unit_iff`), if there is a party.
@@ -37,6 +39,7 @@ vectors (`PartyTensor.le_unit_iff`), if there is a party.
 * `Cslib.PartyTensor.UpperFunctional`: upper functionals.
 * `Cslib.PartyTensor.SpectralPoint`: spectral points, multiplicative upper functionals.
 * `Cslib.PartyTensor.SpectralPoint.pull`: the pull-back along a map of parties.
+* `Cslib.PartyTensor.SpectralPoint.support`: the support point.
 
 ## Main results
 
@@ -219,6 +222,48 @@ value of its push-forward, in which the leg `j` is held by `π j`. -/
   le_sum s b h := F.le_sum _ _ (h.push π)
 
 @[simp] theorem pull_apply (π : J → I) (t : PartyTensor K J) : F.pull π t = F (push π t) := rfl
+
+private theorem entry_eq_zero_of_coveredBy {κ : Type} [Fintype κ] {s : PartyTensor K I}
+    {b : κ → PartyTensor K I} (h : s.CoveredBy b) (hb : ∀ k y, (b k).entry y = 0) (x) :
+    s.entry x = 0 := by
+  obtain ⟨L, hL⟩ := h
+  rw [hL x]
+  exact Finset.sum_eq_zero fun k _ => Finset.sum_eq_zero fun y _ => by simp [hb k y]
+
+open Classical in
+/-- The *support point*: `1` at every tensor with a nonzero entry and `0` at the zero tensor (the
+first example after Definition A.1). -/
+noncomputable def support (K : Type) [Field K] (I : Type) [Fintype I] [DecidableEq I] :
+    SpectralPoint K I where
+  toFun t := if ∃ x, t.entry x ≠ 0 then 1 else 0
+  nonneg t := by split_ifs <;> norm_num
+  map_one := ite_eq_left ⟨fun _ => (), one_ne_zero⟩
+  map_mul s t := by
+    have key : (∃ z, (s * t).entry z ≠ 0) ↔ (∃ x, s.entry x ≠ 0) ∧ ∃ y, t.entry y ≠ 0 := by
+      constructor
+      · rintro ⟨z, hz⟩
+        rw [mul_entry] at hz
+        exact ⟨⟨_, left_ne_zero_of_mul hz⟩, _, right_ne_zero_of_mul hz⟩
+      · rintro ⟨⟨x, hx⟩, y, hy⟩
+        exact ⟨fun p => (x p, y p), mul_ne_zero hx hy⟩
+    by_cases hs : ∃ x, s.entry x ≠ 0 <;> by_cases ht : ∃ y, t.entry y ≠ 0 <;> simp [key, hs, ht]
+  le_sum s b h := by
+    have h0 : ∀ k, (0 : ℝ) ≤ if ∃ x, (b k).entry x ≠ 0 then 1 else 0 := fun k => by
+      split_ifs <;> norm_num
+    split_ifs with hs
+    · by_contra hlt
+      obtain ⟨x, hx⟩ := hs
+      refine hx (entry_eq_zero_of_coveredBy h (fun k y => ?_) x)
+      by_contra hy
+      have := Finset.single_le_sum (fun k _ => h0 k) (Finset.mem_univ k)
+      rw [ite_eq_left ⟨y, hy⟩] at this
+      linarith
+    · exact Finset.sum_nonneg fun k _ => h0 k
+
+open Classical in
+@[simp] theorem support_apply {K : Type} [Field K] (t : PartyTensor K I) :
+    support K I t = if ∃ x, t.entry x ≠ 0 then 1 else 0 := by
+  rfl
 
 end SpectralPoint
 

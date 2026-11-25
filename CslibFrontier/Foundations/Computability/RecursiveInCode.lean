@@ -183,7 +183,7 @@ which returns `g`, this is Mathlib's `Nat.Partrec.Code.eval`. -/
       (Nat.rfind fun n => (fun m => m = 0) <$> eval g cf (Nat.pair a (n + m))).map (· + m)
 
 /-- Embed a code for an ordinary partial recursive function into the oracle code language. -/
-def ofPartrec : Nat.Partrec.Code → Code
+@[expose] def ofPartrec : Nat.Partrec.Code → Code
   | .zero => .zero
   | .succ => .succ
   | .left => .left

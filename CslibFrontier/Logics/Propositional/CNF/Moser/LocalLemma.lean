@@ -29,7 +29,8 @@ for exact `k`-CNF formulas (`CNF.IsExactDistinct`), using independent fair coin 
 * Under the slack symmetric bound `e (d + 1) ≤ (1 - ε) * 2 ^ k`, the parallel Moser–Tardos
   algorithm (`MoserTardos.Parallel`) terminates in `O(log (φ.length / d) / ε)` expected parallel
   rounds for every valid parallel selection rule, including the computable greedy MIS rule
-  `Moser.greedyParallelCNF`.
+  `Moser.greedyParallelCNF`. Almost sure termination at a satisfying assignment needs only the
+  sequential bound `e (d + 1) ≤ 2 ^ k`.
 * Using **lopsided Moser–Tardos** (`MoserTardos.Lopsided`, [MoserTardos2010, Section 6]), we show
   that two violated clause events can only be lopsidependent when they *conflict*
   (`Moser.Conflicts`: one contains a literal and the other its negation). Thus `e (d' + 1) ≤ 2 ^ k`
@@ -59,7 +60,8 @@ for exact `k`-CNF formulas (`CNF.IsExactDistinct`), using independent fair coin 
   `Cslib.Logic.PL.Moser.lintegral_parallelRounds_le_of_exp_mul_le`,
   `Cslib.Logic.PL.Moser.ae_exists_eval_parallelRun_of_exp_mul_le`,
   `Cslib.Logic.PL.Moser.ae_exists_eval_parallelRun_greedy_of_exp_mul_le`: constructive parallel
-  `k`-SAT expected-round bounds and almost sure termination under `e (d + 1) ≤ (1 - ε) * 2 ^ k`.
+  `k`-SAT expected-round bounds under `e (d + 1) ≤ (1 - ε) * 2 ^ k`, and almost sure termination
+  at a satisfying assignment under `e (d + 1) ≤ 2 ^ k`.
 * `Cslib.Logic.PL.Moser.not_lopsidependent_of_not_conflicts`: non-conflicting clauses are not
   lopsidependent.
 * `Cslib.Logic.PL.Moser.lintegral_resamplings_le_of_conflict_exp_mul_le`,
@@ -453,11 +455,12 @@ theorem lintegral_parallelRounds_le_of_exp_mul_le {k d : ℕ} {ε : ℝ} {φ : C
       (degree_card_le hdeg) (fun j => (measureReal_violated hφ j).le) hε
       (exp_mul_inv_pow_le hlll) hrule
 
-/-- Under `e (d + 1) ≤ (1 - ε) * 2 ^ k` with `ε ∈ (0, 1]`, almost surely every admissible parallel
-clause-resampling rule reaches a satisfying assignment of `φ` in finitely many parallel rounds. -/
-theorem ae_exists_eval_parallelRun_of_exp_mul_le {k d : ℕ} {ε : ℝ} {φ : CNF (Fin n)}
+/-- Under `e (d + 1) ≤ 2 ^ k`, the bound of the sequential theorem, almost surely every
+admissible parallel clause-resampling rule reaches a satisfying assignment of `φ` in finitely many
+parallel rounds. -/
+theorem ae_exists_eval_parallelRun_of_exp_mul_le {k d : ℕ} {φ : CNF (Fin n)}
     (hφ : φ.IsExactDistinct k) (hdeg : ∀ i : Fin φ.length, degree φ i ≤ d)
-    (hε : ε ∈ Set.Ioc 0 1) (hlll : Real.exp 1 * (d + 1) ≤ (1 - ε) * 2 ^ k)
+    (hlll : Real.exp 1 * (d + 1) ≤ 2 ^ k)
     {psel : (∀ p : Fin n × ℕ, (fun _ : Fin n => Bool) p.1) → List (Fin φ.length) →
       List (Fin φ.length)}
     (hrule : MoserTardos.IsValidParallelRule (clauseVbl φ) (violated φ) psel) :
@@ -466,18 +469,18 @@ theorem ae_exists_eval_parallelRun_of_exp_mul_le {k d : ℕ} {ε : ℝ} {φ : CN
         (MoserTardos.parallelRun (α := fun _ : Fin n => Bool) psel T N)) = true :=
   ae_eval_of_ae_notMem_violated φ _ (MoserTardos.ae_exists_forall_notMem_parallelRun_symmetric
     (fairCoin (n := n)) (clauseVbl φ) (violated φ) (measurableSet_violated φ)
-    (violated_dependsOn φ) (degree_card_le hdeg) (fun j => (measureReal_violated hφ j).le) hε
-    (exp_mul_inv_pow_le hlll) hrule)
+    (violated_dependsOn φ) (degree_card_le hdeg) (fun j => (measureReal_violated hφ j).le)
+    (exp_mul_inv_pow_le (by simpa using hlll)) hrule)
 
-/-- Under `e (d + 1) ≤ (1 - ε) * 2 ^ k` with `ε ∈ (0, 1]`, almost surely `greedyParallelCNF`
-reaches a satisfying assignment of `φ` in finitely many parallel rounds. -/
-theorem ae_exists_eval_parallelRun_greedy_of_exp_mul_le {k d : ℕ} {ε : ℝ} {φ : CNF (Fin n)}
+/-- Under `e (d + 1) ≤ 2 ^ k`, almost surely `greedyParallelCNF` reaches a satisfying assignment of
+`φ` in finitely many parallel rounds. -/
+theorem ae_exists_eval_parallelRun_greedy_of_exp_mul_le {k d : ℕ} {φ : CNF (Fin n)}
     (hφ : φ.IsExactDistinct k) (hdeg : ∀ i : Fin φ.length, degree φ i ≤ d)
-    (hε : ε ∈ Set.Ioc 0 1) (hlll : Real.exp 1 * (d + 1) ≤ (1 - ε) * 2 ^ k) :
+    (hlll : Real.exp 1 * (d + 1) ≤ 2 ^ k) :
     ∀ᵐ T ∂MoserTardos.table (fairCoin (n := n)),
       ∃ N, φ.eval (MoserTardos.current (clauseVbl φ) T
         (MoserTardos.parallelRun (α := fun _ : Fin n => Bool) (greedyParallelCNF φ) T N)) = true :=
-  ae_exists_eval_parallelRun_of_exp_mul_le hφ hdeg hε hlll (isValidParallelRule_greedyParallelCNF φ)
+  ae_exists_eval_parallelRun_of_exp_mul_le hφ hdeg hlll (isValidParallelRule_greedyParallelCNF φ)
 
 end ParallelMT
 

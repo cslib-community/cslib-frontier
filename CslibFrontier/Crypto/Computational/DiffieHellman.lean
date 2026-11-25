@@ -23,6 +23,7 @@ import CslibFrontier.Computability.Probabilistic.Repeat
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Foundations.Data.Nat.Bits
 import CslibFrontier.Languages.Probabilistic.Concentration
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Uniform
@@ -718,8 +719,7 @@ theorem advantage_ddhRerandomizeLaw_ddhSelfReduceDistinguisher_le
       (PMF.uniformOfFintype (ZMod (F.order d))).bind fun r =>
         (PMF.uniformOfFintype (ZMod (F.order d))).bind fun s₁ =>
           (PMF.uniformOfFintype (ZMod (F.order d))).bind fun s₂ => k r s₁ s₂ := by
-    simp only [ddhRerandomizeLaw, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind,
-      PMF.pure_bind]
+    simp only [ddhRerandomizeLaw, pmf_norm]
     rfl
   have hself : ProbComp.eval (F.ddhSelfReduceDistinguisher distinguisher n d u v w) =
       (ProbComp.eval (F.sampleExp n d)).bind fun r =>
@@ -748,15 +748,13 @@ theorem advantage_ddhRerandomizeLaw_ddhSelfReduceDistinguisher_le
 theorem ddhRealTupleLaw_bind_eq (distinguisher : F.DDHDistinguisher) (n : ℕ) (d : F.Desc) :
     ((F.ddhRealTupleLaw d).bind fun (u, v, w) => ProbComp.eval (distinguisher n d u v w)) =
       ProbComp.eval (ddhRealExperiment (F.order d) (F.generator d) (distinguisher n d)) := by
-  simp only [ddhRealTupleLaw, eval_ddhRealExperiment, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind]
+  simp only [ddhRealTupleLaw, eval_ddhRealExperiment, pmf_norm]
 
 /-- Running a distinguisher on the uniform random DDH tuple is the random DDH experiment. -/
 theorem ddhRandomTupleLaw_bind_eq (distinguisher : F.DDHDistinguisher) (n : ℕ) (d : F.Desc) :
     ((F.ddhRandomTupleLaw d).bind fun (u, v, w) => ProbComp.eval (distinguisher n d u v w)) =
       ProbComp.eval (ddhRandomExperiment (F.order d) (F.generator d) (distinguisher n d)) := by
-  simp only [ddhRandomTupleLaw, eval_ddhRandomExperiment, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind]
+  simp only [ddhRandomTupleLaw, eval_ddhRandomExperiment, pmf_norm]
 
 /-- On any fixed real DDH triple, `ddhSelfReduceDistinguisher` accepts within `3 / 2 ^ n` of the
 real DDH experiment. -/

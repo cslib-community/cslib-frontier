@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.GameTheory.Congestion.Basic
 public import CslibFrontier.GameTheory.Strategic.Smooth
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Data.Fintype.EquivFin
@@ -77,8 +78,7 @@ theorem HasAffineLatencies.monotone_latency {C : CongestionGame ι S E} (h : C.H
   obtain ⟨a, b, ha, -, hl⟩ := h
   intro k l hkl
   rw [hl, hl]
-  have : (k : ℝ) ≤ l := by exact_mod_cast hkl
-  nlinarith [ha e]
+  cast_nlinarith [hkl, ha e]
 
 /-- The inequality of Christodoulou and Koutsoupias [ChristodoulouKoutsoupias2005], as cited in
 [Roughgarden2015], Example 2.5: `y (z + 1) ≤ 5/3 y² + 1/3 z²` for all natural numbers `y`, `z`. -/
@@ -92,8 +92,7 @@ theorem mul_add_one_le_five_thirds_sq_add_one_third_sq (y z : ℕ) :
         · interval_cases z <;> norm_num
         · have : (2 : ℝ) ≤ z := by exact_mod_cast hz
           nlinarith
-      push_cast
-      nlinarith
+      cast_nlinarith
   · have : (2 : ℝ) ≤ y := by exact_mod_cast hy
     nlinarith [sq_nonneg ((3 : ℝ) * y - 2 * z)]
 
@@ -112,10 +111,7 @@ theorem isSmooth_of_hasAffineLatencies (h : C.HasAffineLatencies) :
     rw [toCostGame_cost, Function.update_self]
     refine Finset.sum_le_sum fun e _ => ?_
     rw [hl, hl]
-    have hle : (C.load (Function.update s i (s' i)) e : ℝ) ≤ C.load s e + 1 := by
-      exact_mod_cast C.load_update_le s i (s' i) e
-    push_cast
-    nlinarith [ha e]
+    cast_nlinarith [C.load_update_le s i (s' i) e, ha e]
   calc ∑ i, C.toCostGame.cost i (Function.update s i (s' i))
       ≤ ∑ i, ∑ e ∈ C.resources i (s' i), C.latency e (C.load s e + 1) :=
         Finset.sum_le_sum fun i _ => hdev i
@@ -128,8 +124,7 @@ theorem isSmooth_of_hasAffineLatencies (h : C.HasAffineLatencies) :
         have hk := mul_add_one_le_five_thirds_sq_add_one_third_sq (C.load s' e) (C.load s e)
         have : (0 : ℝ) ≤ C.load s e := Nat.cast_nonneg _
         have : (0 : ℝ) ≤ C.load s' e := Nat.cast_nonneg _
-        push_cast
-        nlinarith [mul_le_mul_of_nonneg_left hk (ha e), hb e]
+        cast_nlinarith [mul_le_mul_of_nonneg_left hk (ha e), hb e]
     _ = 5 / 3 * C.toCostGame.socialCost s' + 1 / 3 * C.toCostGame.socialCost s := by
         rw [socialCost_toCostGame, socialCost_toCostGame, Finset.sum_add_distrib,
           Finset.mul_sum, Finset.mul_sum]

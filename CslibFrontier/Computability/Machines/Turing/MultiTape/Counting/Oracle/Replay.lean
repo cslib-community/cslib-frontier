@@ -289,10 +289,10 @@ theorem filterMap_replayResult_terminal
     (fuel : ℕ) (cfg : Config k Symbol Control Operation input) {S : Type}
     (oracle : Operation × List Symbol → S → List Symbol × S) (s : S) :
     (indexWords bound fuel).filterMap (fun word =>
-        (machine.replayResult cfg word oracle s).filter fun result =>
-          result.1.2.tapes.state.isNone) =
-      (machine.runOccurrenceTrace fuel cfg oracle s).filter fun result =>
-        result.1.2.tapes.state.isNone := by
+        (machine.replayResult cfg word oracle s).filter fun ⟨⟨_, finalCfg⟩, _⟩ =>
+          finalCfg.tapes.state.isNone) =
+      (machine.runOccurrenceTrace fuel cfg oracle s).filter fun ⟨⟨_, finalCfg⟩, _⟩ =>
+        finalCfg.tapes.state.isNone := by
   rw [← machine.filterMap_replayResult bound hpos hbound fuel cfg oracle s,
     List.filter_filterMap]
 
@@ -305,9 +305,9 @@ theorem countP_replayResult_terminal
     (oracle : Operation × List Symbol → S → List Symbol × S) (s : S)
     (verdict : List Symbol → Bool) :
     (indexWords bound fuel).countP (fun word => (machine.replayResult cfg word oracle s).any
-        fun result => result.1.2.tapes.state.isNone && verdict result.1.2.tapes.output) =
-      (machine.runOccurrenceTrace fuel cfg oracle s).countP
-        (fun result => result.1.2.tapes.state.isNone && verdict result.1.2.tapes.output) := by
+        fun ⟨⟨_, finalCfg⟩, _⟩ => finalCfg.tapes.state.isNone && verdict finalCfg.tapes.output) =
+      (machine.runOccurrenceTrace fuel cfg oracle s).countP fun ⟨⟨_, finalCfg⟩, _⟩ =>
+        finalCfg.tapes.state.isNone && verdict finalCfg.tapes.output := by
   rw [← machine.filterMap_replayResult bound hpos hbound fuel cfg oracle s,
     List.countP_filterMap]
   congr 1 with word : 1

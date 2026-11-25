@@ -110,10 +110,7 @@ theorem reduce_mem_iff (x : Instance q) : reduce H hq x âˆˆ PlaneWordAndOrNCL â†
 /-- The actual H-word to plane-word instance map is polynomial-time in the shared encodings. -/
 theorem computableInPolyTime_reduce : ComputableInPolyTime (reduce H hq) (encInstance q)
     encPlaneWordAndOrNCL := by
-  have hs := encInstance_source_polyTime q
-    (ComputableInPolyTime.id' (encIn := encInstance q))
-  have ht := encInstance_target_polyTime q
-    (ComputableInPolyTime.id' (encIn := encInstance q))
+  open scoped Instance in
   have htest : ComputableInPolyTime (fun x : Instance q =>
       decide (x.source.length = x.target.length)) (encInstance q) encBool := by fun_prop
   have hcompile : ComputableInPolyTime (fun x : Instance q =>

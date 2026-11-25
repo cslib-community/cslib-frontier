@@ -80,16 +80,10 @@ theorem recomputeHeight_mkNode (zero maxSucc : M.Op) (encode : ℕ → M.Value)
   let value := encode (mkNode (label.data 0) left right).cachedHeight
   have height : encode (BinaryTree.node label l r).height = value := by
     simp [value, BinaryTree.height, lh, rh, Nat.add_comm]
-  have keepL : updateData l label.address field value = l := by
-    apply updateData_eq_self
-    intro p u hp eq
-    have bad := distinct (.bit0 p) .one u label hp rfl eq
-    cases bad
-  have keepR : updateData r label.address field value = r := by
-    apply updateData_eq_self
-    intro p u hp eq
-    have bad := distinct (.bit1 p) .one u label hp rfl eq
-    cases bad
+  have keepL : updateData l label.address field value = l :=
+    updateData_eq_self _ _ _ _ fun p u hp eq => nomatch distinct (.bit0 p) .one u label hp rfl eq
+  have keepR : updateData r label.address field value = r :=
+    updateData_eq_self _ _ _ _ fun p u hp eq => nomatch distinct (.bit1 p) .one u label hp rfl eq
   have shape : updateData (.node label l r) label.address field value =
       .node { label with data := Function.update label.data field value } l r := by
     simp only [updateData, BinaryTree.map, ↓reduceIte]

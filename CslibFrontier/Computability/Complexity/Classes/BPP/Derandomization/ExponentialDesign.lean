@@ -16,6 +16,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Log
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Max
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListBinaryLookup
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 
 /-!
 # An exponential-time set system for the Nisan–Wigderson generator
@@ -155,16 +156,8 @@ private theorem computableInPolyTime_paddedDesign (q : ℕ) :
       (ComputableInPolyTime.binary_log_two.comp (ComputableInPolyTime.unary_to_binary.comp hN))
   have ht := (ComputableInPolyTime.unary_div_const (10 * q ^ 2 + 1)).comp hs
   have hblock := ComputableInPolyTime.unary_mul' (.const q) ht
-  have hmasks := computableInPolyTime_greedyMasks hs hblock ht ?_
-  · exact ComputableInPolyTime.listGetD_binary (encA := encBits) [] hmasks hi
-  · refine PolyBounded.self.mono fun x => ?_
-    calc 2 ^ min x.1.1 (Nat.log 2 x.2) ≤ 2 ^ Nat.log 2 x.2 :=
-          Nat.pow_le_pow_right (by norm_num) (min_le_right _ _)
-      _ ≤ x.2 + 1 := by
-          rcases Nat.eq_zero_or_pos x.2 with h | h
-          · simp [h]
-          · exact (Nat.pow_log_le_self 2 h.ne').trans (Nat.le_succ _)
-      _ ≤ (enc x).length := by simp [enc, length_frame]
+  have hmasks := computableInPolyTime_greedyMasks hs hblock ht (by growth_poly)
+  exact ComputableInPolyTime.listGetD_binary (encA := encBits) [] hmasks hi
 
 /-- **The greedy set system is exponential-time computable.** On inputs `(k, i)` with `k` in
 unary and `i` in binary, `expDesign q` is computable within time `O(2 ^ (δ k) (L + 1) ^ e)`, for

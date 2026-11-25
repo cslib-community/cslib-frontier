@@ -68,41 +68,14 @@ def ofCircuitFamily (F : UniformCircuitFamily) : UniformOracleCircuitFamily wher
       outputWidth := 1
       instructions := (F.gates (2 * n + 1 + ℓ)).map fun g => .gate (false, g) }
   computableInPolyTime_description := by
-    have hsecurity : ComputableInPolyTime OracleInputSize.securityParameter
-        encOracleInputSize encUnary :=
-      encOracleInputSize_securityParameter_polyTime ComputableInPolyTime.id'
-    have hclassical : ComputableInPolyTime OracleInputSize.classicalInputLength
-        encOracleInputSize encUnary :=
-      encOracleInputSize_classicalInputLength_polyTime ComputableInPolyTime.id'
-    have hinputLength : ComputableInPolyTime
-        (fun s : OracleInputSize => 2 * s.securityParameter + 1 + s.classicalInputLength)
-        encOracleInputSize encUnary :=
-      ComputableInPolyTime.unary_add'
-        (ComputableInPolyTime.unary_add'
-          (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2) hsecurity)
-          (ComputableInPolyTime.const 1)) hclassical
-    have hwidth : ComputableInPolyTime
-        (fun s : OracleInputSize => F.width (2 * s.securityParameter + 1 + s.classicalInputLength))
-        encOracleInputSize encUnary := F.computableInPolyTime_width.comp hinputLength
+    open scoped OracleInputSize OracleCircuitDescription in
+    have hw := F.computableInPolyTime_width
+    have hg := F.computableInPolyTime_gates
     have hphase : ComputableInPolyTime (fun g : GateCode => (false, g))
-        encGateCode encPhaseGateCode := (ComputableInPolyTime.const false).prod
-          ComputableInPolyTime.id'
-    have horacle : ComputableInPolyTime
-        (fun g : GateCode => OracleGateCode.gate (false, g)) encGateCode encOracleGateCode :=
-      OracleGateCode.computableInPolyTime_gate hphase
-    have hmap : ComputableInPolyTime
-        (List.map fun g : GateCode => OracleGateCode.gate (false, g))
-        (encList encGateCode) (encList encOracleGateCode) :=
-      (ComputableInPolyTime.map horacle)
-    have hgates : ComputableInPolyTime
-        (fun s : OracleInputSize =>
-          (F.gates (2 * s.securityParameter + 1 + s.classicalInputLength)).map
-            fun g => OracleGateCode.gate (false, g))
-        encOracleInputSize (encList encOracleGateCode) :=
-      hmap.comp (F.computableInPolyTime_gates.comp hinputLength)
-    exact encOracleCircuitDescription_mk_polyTime hwidth (ComputableInPolyTime.const 0)
-      (ComputableInPolyTime.const 0) (ComputableInPolyTime.const 0)
-      (ComputableInPolyTime.const 1) hgates
+        encGateCode encPhaseGateCode := by
+      unfold encPhaseGateCode
+      fun_prop
+    fun_prop
   wellFormed n ℓ := by
     refine ⟨?_, ?_, ?_, ?_⟩
     · change 2 * n + 1 + ℓ ≤ F.width (2 * n + 1 + ℓ)

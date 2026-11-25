@@ -418,15 +418,10 @@ theorem exists_computableInO_run [Finite Operation] {α : Type}
         exact (Nat.size_le.mpr Nat.lt_two_pow_self).trans (Nat.le_succ _)
       have h₃ := Nat.pow_le_pow_left (Nat.add_le_add_right h₁ 1) do'
       omega)
-  refine ⟨_, _, ?_, h.of_enc_eq (g := fun a => OracleComp.interpret (m := Id)
+  refine ⟨_, _, by growth_poly, h.of_enc_eq (g := fun a => OracleComp.interpret (m := Id)
     (fun q => [g q.2]) (machine.run (pure false) (fun op word => OracleComp.query (op, word))
       (c * ((input a).length + 1) ^ d) (input a))) fun a => by
     rw [interpret_run_pure_false]; rfl⟩
-  exact PolyBounded.mono (PolyBounded.of_polynomiallyBounded (fun a => (input a).length)
-    (bound := fun L => (L + 1) ^ dn + (L + 1) ^ di +
-      ((cf * (L + c * (L + 1) ^ d + 1 + 1) + 1) ^ e + cg * (c * (L + 1) ^ d + 1) ^ dg) +
-      cf * (L + c * (L + 1) ^ d + 1 + 1) + (c * (L + 1) ^ d + 1) +
-      (cf * (L + c * (L + 1) ^ d + 1 + 1) + 1) ^ do') (by fun_prop)) fun a => le_rfl
 
 
 /-- **An instruction against a polynomial-time oracle is polynomial-time.** Against an oracle

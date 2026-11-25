@@ -99,6 +99,7 @@ def literalCircuit (n : ℕ) (l : Literal ℕ) : Circuit signature n 1 :=
   split_ifs <;> cases b <;> simp_all [interpretation]
 
 /-- A single literal costs at most one gate. -/
+@[circuit_bound]
 theorem size_literalCircuit_le (n : ℕ) (l : Literal ℕ) : (literalCircuit n l).size ≤ 1 := by
   unfold literalCircuit
   split_ifs <;> simp
@@ -137,16 +138,7 @@ def clauseCircuit (n : ℕ) (c : Clause ℕ) : Circuit signature n 1 :=
 /-- A balanced clause uses at most two gates per literal and one empty-clause fallback. -/
 theorem size_clauseCircuit_le (n : ℕ) (c : Clause ℕ) :
     (clauseCircuit n c).size ≤ 2 * c.length + 1 := by
-  have hsum : ((c.map (literalCircuit n)).map Circuit.size).sum ≤ c.length := by
-    calc _ ≤ (c.map (fun _ => 1)).sum := by
-          rw [List.map_map]
-          exact List.sum_le_sum (fun l _ => size_literalCircuit_le n l)
-      _ = c.length := by simp
-  have h := Circuit.size_balanced_le clauseJoin
-    (Circuit.oneGate (σ := signature) (n := n) (.const false) Fin.elim0)
-    (c.map (literalCircuit n))
-  simp only [clauseJoin, Circuit.size_oneGate, List.length_map, Nat.mul_one] at h
-  exact h.trans (by omega)
+  circuit_bound [clauseCircuit, clauseJoin]
 
 /-- Compute all clause values on the original declared inputs. -/
 def scoreCircuit (F : Instance) : Circuit signature F.1 F.2.length :=

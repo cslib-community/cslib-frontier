@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Controller.Program
 public import CslibFrontier.Computability.Probabilistic.Oracle.Parameter
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListPrimitives
+import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Tactic.SuppCases
 
 /-!
@@ -183,9 +184,7 @@ private theorem transcript_cost_phase {State : Type} (cost : Operation → ℕ)
     (after.map fun ⟨⟨operation, _⟩, _⟩ => cost operation).sum =
       (before.map fun ⟨⟨operation, _⟩, _⟩ => cost operation).sum +
         2 * cost (.inl .gate) + cost (.inl .query) := by
-  supp_cases h [phase, gate, command, ProbOracleComp.runWith_bind,
-    ProbOracleComp.runWith_map, ProbOracleComp.runWith_query,
-    ProbOracleComp.runWith_pure, OracleComp.withTranscript]
+  supp_cases h [phase, gate, command, runWith_norm, OracleComp.withTranscript]
   simp only [Prod.map_snd, id_eq, List.map_cons, List.sum_cons]
   omega
 
@@ -199,14 +198,10 @@ private theorem transcript_cost_round {State : Type} (cost : Operation → ℕ)
     (after.map fun ⟨⟨operation, _⟩, _⟩ => cost operation).sum =
       (before.map fun ⟨⟨operation, _⟩, _⟩ => cost operation).sum +
         (2 * cost (.inl .gate) + cost (.inl .query) + cost (.inr ())) := by
-  rw [round, ProbOracleComp.runWith_bind] at h
-  rw [PMF.mem_support_bind_iff] at h
-  obtain ⟨⟨next, middle, seen⟩, hnext, hphase⟩ := h
+  supp_cases h [round, runWith_norm] with ⟨⟨next, middle, seen⟩, hnext, hphase⟩
   have hcost := transcript_cost_phase cost oracle next hphase
-  supp_cases hnext [requestBit, ProbOracleComp.runWith_map,
-    ProbOracleComp.runWith_query, OracleComp.withTranscript]
-  simp only [List.map_cons, List.sum_cons] at hcost
-  dsimp only [Prod.map, id] at hcost ⊢
+  supp_cases hnext [requestBit, runWith_norm, OracleComp.withTranscript]
+  simp only [List.map_cons, List.sum_cons] at hcost ⊢
   omega
 
 private theorem transcript_cost_walk {State : Type} (cost : Operation → ℕ)
@@ -221,12 +216,11 @@ private theorem transcript_cost_walk {State : Type} (cost : Operation → ℕ)
         count * (2 * cost (.inl .gate) + cost (.inl .query) + cost (.inr ())) := by
   induction count generalizing state final result before after with
   | zero =>
-    supp_cases h [walk, OracleComp.iterate_zero, ProbOracleComp.runWith_pure]
+    supp_cases h [walk, OracleComp.iterate_zero, runWith_norm]
     simp only [Nat.zero_mul, Nat.add_zero]
   | succ count ih =>
-    rw [walk, OracleComp.iterate_succ, ProbOracleComp.runWith_bind] at h
-    rw [PMF.mem_support_bind_iff] at h
-    obtain ⟨⟨next, middle, seen⟩, hwalk, hround⟩ := h
+    supp_cases h [walk, OracleComp.iterate_succ, runWith_norm] with
+      ⟨⟨next, middle, seen⟩, hwalk, hround⟩
     have hfirst := ih hwalk
     have hlast := transcript_cost_round cost oracle next hround
     rw [Nat.succ_mul]
@@ -242,9 +236,7 @@ private theorem transcript_cost_prepare {State : Type} (cost : Operation → ℕ
     (after.map fun ⟨⟨operation, _⟩, _⟩ => cost operation).sum =
       (before.map fun ⟨⟨operation, _⟩, _⟩ => cost operation).sum +
         3 * cost (.inl .gate) := by
-  supp_cases h [prepare, gate, command, ProbOracleComp.runWith_bind,
-    ProbOracleComp.runWith_map, ProbOracleComp.runWith_query,
-    ProbOracleComp.runWith_pure, OracleComp.withTranscript]
+  supp_cases h [prepare, gate, command, runWith_norm, OracleComp.withTranscript]
   simp only [Prod.map_snd, id_eq, List.map_cons, List.sum_cons]
   omega
 
@@ -260,16 +252,9 @@ theorem transcript_cost_program {State : Type} (cost : Operation → ℕ)
     (transcript.map fun ⟨⟨operation, _⟩, _⟩ => cost operation).sum =
       (2 * count + 4) * cost (.inl .gate) + count * cost (.inl .query) +
         count * cost (.inr ()) + cost (.inl .measure) := by
-  rw [program, ProbOracleComp.runWith_bind] at h
-  rw [PMF.mem_support_bind_iff] at h
-  obtain ⟨⟨_, first, prepared⟩, hprepare, h⟩ := h
-  rw [ProbOracleComp.runWith_bind] at h
-  rw [PMF.mem_support_bind_iff] at h
-  obtain ⟨⟨_, second, walked⟩, hwalk, h⟩ := h
-  have hfirst := transcript_cost_prepare cost oracle hprepare
-  have hsecond := transcript_cost_walk cost oracle count hwalk
-  supp_cases h [gate, command, requestBit, ProbOracleComp.runWith_bind,
-    ProbOracleComp.runWith_map, ProbOracleComp.runWith_query, OracleComp.withTranscript]
+  supp_cases h [program, gate, command, requestBit, runWith_norm, OracleComp.withTranscript]
+  have hfirst := transcript_cost_prepare cost oracle ‹_›
+  have hsecond := transcript_cost_walk cost oracle count ‹_›
   simp only [List.map_nil, List.sum_nil, Nat.zero_add] at hfirst
   simp only [Prod.map_snd, id_eq, List.map_cons, List.sum_cons]
   rw [hsecond, hfirst]

@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.WeightedThreshold.Cut
 public import Mathlib.Analysis.Real.Sqrt
 import CslibFrontier.Computability.Circuit.Frontier.IncidenceComponents
 import CslibFrontier.Foundations.Combinatorics.HypergraphCut
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
 
@@ -299,8 +300,7 @@ theorem le_inputGates_of_inputSupport_card_le (p : Program signature n g)
     rw [div_mul_eq_mul_div, le_div_iff₀ (by positivity : (0 : ℝ) < T + 1)]
     have h' : ((T + 1 : ℕ) : ℝ) * F.card ≤ (d : ℝ) * (inputGates p).card :=
       by exact_mod_cast hF
-    push_cast at h'
-    nlinarith
+    cast_nlinarith
   nlinarith
 
 /-- The support-sensitive bound for a native single-output threshold circuit whose output

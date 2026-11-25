@@ -21,6 +21,7 @@ import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Crypto.Negligible.InversePolynomial
 import CslibFrontier.Languages.Probabilistic.Oracle.Codec
 import CslibFrontier.Tactic.EncLen
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Tactic.PolyTime
 
 /-!
@@ -184,9 +185,8 @@ theorem isOraclePPT_wordBirthdayDistinguisher {blockLen Q : ℕ → ℕ}
     ComputableInPolyTime.binary_min_unary' hQ (ComputableInPolyTime.binary_two_pow.comp hblockLen)
   have hinit : ComputableInPolyTime (fun _ : ℕ => (([] : List (List Bool)), false))
       encUnary (encPair (encList encBits) encBool) := ComputableInPolyTime.const _
-  have hg : ComputableInPolyTime (fun n => 4 * blockLen n + 10) encUnary encUnary := by polytime
   have hpoly : PolyBounded (fun n => (encUnary n).length) (fun n => 4 * blockLen n + 10) := by
-    simpa only [encUnary_apply, List.length_replicate] using hg.polyBounded_length
+    growth_poly
   have hgrowth : ∀ n (state next : List (List Bool) × Bool),
       next ∈ OracleComp.support (wordBirthdayStep blockLen n state) →
       (encPair (encList encBits) encBool next).length ≤

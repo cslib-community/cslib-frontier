@@ -12,9 +12,6 @@ public import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation
 public import Mathlib.Data.Matrix.Block
 public import Mathlib.Data.Matrix.ColumnRowPartitioned
 import Mathlib.Analysis.Convex.Combination
-import Mathlib.LinearAlgebra.Matrix.ToLin
-import Mathlib.Tactic.Abel
-import Mathlib.Tactic.Positivity
 
 /-!
 # Reductions between extended formulations

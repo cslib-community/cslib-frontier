@@ -9,7 +9,6 @@ module
 
 public import CslibFrontier.Foundations.NumberTheory.PrimeCollision
 public import CslibFrontier.Foundations.NumberTheory.PrimeWindow
-import Mathlib.Analysis.SpecialFunctions.Pow.Real
 
 /-!
 # Collisions in closed prime windows

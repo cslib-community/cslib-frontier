@@ -9,10 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Fusion.Cyclic.Compiler
 public import CslibFrontier.Computability.Circuit.Iteration
-import Mathlib.Algebra.Order.BigOperators.Group.Finset
-import Mathlib.Algebra.Order.BigOperators.Group.List
 import Mathlib.Data.Finset.Card
-import Mathlib.Tactic.Linarith
 import CslibFrontier.Computability.Circuit.Simps
 
 /-!
@@ -227,52 +224,24 @@ theorem size_joinFormula {r : ℕ} (seed : Bool) (fs : List (Formula Monotone.si
       List.length_cons]
     lia
 
-private theorem size_ite_input_le {r : ℕ} (p : Prop) [Decidable p] (i : Fin r) :
-    (if p then Formula.input i else Monotone.const false :
-      Formula Monotone.signature r).size ≤ 1 := by
-  split <;> simp [Monotone.const]
-
 /-- Reading a closure coordinate uses at most two gates per input seed and pair value. -/
+@[circuit_bound]
 theorem size_readFormula_le (s : Set ↥(targetᶜ)) :
     (readFormula target input pairs s).size ≤ 2 * (n + pairs.length) + 1 := by
   classical
-  rw [readFormula, size_joinFormula]
-  set L := List.ofFn (fun i : Fin n =>
-      if Subtype.val ⁻¹' input i ⊆ s then Formula.input (Fin.castAdd (pairs.length + 1) i)
-      else Monotone.const false) ++
-    List.ofFn (fun j : Fin pairs.length =>
-      if (pairs.get j).1 ∩ (pairs.get j).2 ⊆ s then Formula.input (Fin.natAdd n j.castSucc)
-      else Monotone.const false) with hL
-  have hsum := List.sum_le_length_nsmul (L.map (·.size)) 1 fun x hx => by
-    obtain ⟨F, hF, rfl⟩ := List.mem_map.1 hx
-    rcases List.mem_append.1 hF with h | h <;> obtain ⟨i, rfl⟩ := List.mem_ofFn.1 h <;>
-      exact size_ite_input_le _ _
-  have hlen : L.length = n + pairs.length := by simp [hL]
-  simp only [List.length_map, smul_eq_mul, mul_one, hlen] at hsum
-  rw [hlen]
-  lia
+  circuit_bound [readFormula, size_joinFormula, Monotone.const]
 
 /-- The update circuit has at most `(t + 1) (4 (n + t) + 3)` gates for `t` pairs. -/
+@[circuit_bound]
 theorem size_updateCircuit_le :
     (updateCircuit target input pairs).size ≤
       (pairs.length + 1) * (4 * (n + pairs.length) + 3) := by
-  rw [updateCircuit, Circuit.size_pi]
-  calc ∑ j, (updateFormula target input pairs j).toCircuit.size
-      ≤ ∑ _j : Fin (pairs.length + 1), (4 * (n + pairs.length) + 3) := by
-        refine Finset.sum_le_sum fun j _ => ?_
-        rw [Formula.size_toCircuit]
-        induction j using Fin.lastCases with
-        | last =>
-          rw [updateFormula, Fin.lastCases_last]
-          exact (size_readFormula_le target input pairs ∅).trans (by lia)
-        | cast j =>
-          rw [updateFormula, Fin.lastCases_castSucc]
-          have h₁ := size_readFormula_le target input pairs (pairs.get j).1
-          have h₂ := size_readFormula_le target input pairs (pairs.get j).2
-          simp only [Monotone.and, Formula.size_gate, Fin.sum_univ_two, Matrix.cons_val_zero,
-            Matrix.cons_val_one, Matrix.cons_val_fin_one]
-          lia
-    _ = (pairs.length + 1) * (4 * (n + pairs.length) + 3) := by simp
+  have : ∀ j : Fin (pairs.length + 1),
+      (updateFormula target input pairs j).size ≤ 4 * (n + pairs.length) + 3 := fun j => by
+    induction j using Fin.lastCases with
+    | last => circuit_bound [updateFormula, Fin.lastCases_last]
+    | cast j => circuit_bound [updateFormula, Fin.lastCases_castSucc, Monotone.and]
+  circuit_bound [updateCircuit]
 
 /-- Each propagation round charges the gates of one update circuit. -/
 theorem size_stageCircuit (k : ℕ) :
@@ -322,12 +291,7 @@ noncomputable def PairCover.toCircuit (c : PairCover target input) :
 gates in total, counting unions and constants. -/
 theorem PairCover.size_toCircuit_le (c : PairCover target input) :
     c.toCircuit.size ≤ 4 * (c.pairs.length + 1) ^ 2 * (n + c.pairs.length + 1) := by
-  have hr := PairClosureCompiler.size_readFormula_le target input c.pairs ∅
-  have hu := PairClosureCompiler.size_updateCircuit_le target input c.pairs
-  rw [PairCover.toCircuit, Circuit.size_comp, PairClosureCompiler.size_stageCircuit,
-    Formula.size_toCircuit]
-  have hk := Nat.mul_le_mul_left c.pairs.length hu
-  nlinarith
+  circuit_bound [PairCover.toCircuit, PairClosureCompiler.size_stageCircuit]
 
 /-- Every unrestricted pair cover yields a quadratic upper bound for native AND complexity. -/
 theorem PairCover.ecomplexityFrom_le_sq (c : PairCover target input) :

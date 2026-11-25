@@ -7,17 +7,12 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Init
 public import CslibFrontier.Probability.Azuma
-public import CslibFrontier.Probability.PoissonBinomial
-public import CslibFrontier.Probability.StochasticDomination.Basic
 public import CslibFrontier.Probability.StochasticDomination.PoissonBinomial
 public import Mathlib.Probability.Kernel.IonescuTulcea.Traj
 public import Mathlib.Probability.Process.Filtration
-import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.ToReal
-import Mathlib.MeasureTheory.Function.ConditionalExpectation.Basic
 import Mathlib.MeasureTheory.Function.ConditionalExpectation.PullOut
 import Mathlib.MeasureTheory.Function.ConditionalExpectation.Real
 import Mathlib.Probability.Process.Adapted
@@ -205,10 +200,10 @@ private theorem integral_pbValue_step_diff {Ω : Type*} [m : MeasurableSpace Ω]
     (ps : List I) {f : ℕ → ℝ} (hf : Monotone f) {C : ℝ} (hC : ∀ j, |f j| ≤ C)
     {k : ℕ} (hk : k < ps.length) :
     ∃ D : Ω → ℝ, (∀ ω, 0 ≤ D ω) ∧
-      Integrable (fun ω => (ps[k] : ℝ) * D ω) P ∧
+      Integrable (fun ω => D ω * (ps[k] : ℝ)) P ∧
       Integrable (fun ω => D ω * P[(A k).indicator (fun _ => (1 : ℝ)) | ℱ k] ω) P ∧
       ∃ base : ℝ,
-        ∫ ω, pbValue ps f k (adaptedCount A k ω) ∂P = base + ∫ ω, (ps[k] : ℝ) * D ω ∂P ∧
+        ∫ ω, pbValue ps f k (adaptedCount A k ω) ∂P = base + ∫ ω, D ω * (ps[k] : ℝ) ∂P ∧
         ∫ ω, pbValue ps f (k + 1) (adaptedCount A (k + 1) ω) ∂P =
           base + ∫ ω, D ω * P[(A k).indicator (fun _ => (1 : ℝ)) | ℱ k] ω ∂P := by
   have hC0 : 0 ≤ C := (abs_nonneg (f 0)).trans (hC 0)
@@ -229,9 +224,9 @@ private theorem integral_pbValue_step_diff {Ω : Type*} [m : MeasurableSpace Ω]
         have hI_bd : |Iₖ ω| ≤ 1 := by by_cases hω : ω ∈ A k <;> simp [Iₖ, hω]
         simpa [abs_mul] using mul_le_mul (hD_bd ω) hI_bd (abs_nonneg _) (by positivity))
   have hbase_int := integrable_pbValue (P := P) ℱ hA ps hC (k + 1) k
-  have hDp_int : Integrable (fun ω => (ps[k] : ℝ) * D ω) P :=
+  have hDp_int : Integrable (fun ω => D ω * (ps[k] : ℝ)) P :=
     (Integrable.of_bound (hD_sm.mono (ℱ.le k)).aestronglyMeasurable (2 * C)
-      (ae_of_all _ hD_bd)).const_mul _
+      (ae_of_all _ hD_bd)).mul_const _
   have hDce_int : Integrable (fun ω => D ω * P[Iₖ | ℱ k] ω) P := by
     have h0 : (fun _ : Ω => (0 : ℝ)) ≤ᵐ[P] P[Iₖ | ℱ k] :=
       condExp_nonneg (ae_of_all _ fun ω => Set.indicator_nonneg (fun _ _ => zero_le_one) ω)
@@ -248,8 +243,8 @@ private theorem integral_pbValue_step_diff {Ω : Type*} [m : MeasurableSpace Ω]
     simpa [Real.norm_eq_abs, abs_mul] using mul_le_mul (hD_bd ω) (abs_le.mpr ⟨by linarith, hω1⟩)
       (abs_nonneg _) (by positivity)
   have hsplit_lhs : (fun ω => pbValue ps f k (adaptedCount A k ω)) =
-      fun ω => pbValue ps f (k + 1) (adaptedCount A k ω) + (ps[k] : ℝ) * D ω :=
-    funext fun ω => pbValue_step ps f hk (adaptedCount A k ω)
+      fun ω => pbValue ps f (k + 1) (adaptedCount A k ω) + D ω * (ps[k] : ℝ) := funext fun ω => by
+    rw [pbValue_step ps f hk (adaptedCount A k ω), mul_comm (ps[k] : ℝ)]
   have hsplit_rhs : (fun ω => pbValue ps f (k + 1) (adaptedCount A (k + 1) ω)) =
       fun ω => pbValue ps f (k + 1) (adaptedCount A k ω) + D ω * Iₖ ω := funext fun ω => by
     rw [adaptedCount_succ]
@@ -262,6 +257,17 @@ private theorem integral_pbValue_step_diff {Ω : Type*} [m : MeasurableSpace Ω]
     exact (integral_condExp (ℱ.le k)).symm.trans
       (integral_congr_ae (condExp_mul_of_stronglyMeasurable_left hD_sm hDI_int hI_int))
 
+private lemma add_integral_mul_le {Ω : Type*} [MeasurableSpace Ω] {P : Measure Ω}
+    {D f g : Ω → ℝ} {base lhs rhs : ℝ}
+    (hl : lhs = base + ∫ ω, D ω * f ω ∂P) (hr : rhs = base + ∫ ω, D ω * g ω ∂P)
+    (hD : ∀ ω, 0 ≤ D ω) (hf : Integrable (fun ω => D ω * f ω) P)
+    (hg : Integrable (fun ω => D ω * g ω) P) (hfg : f ≤ᵐ[P] g) :
+    lhs ≤ rhs := by
+  rw [hl, hr]
+  refine add_le_add_right (integral_mono_ae hf hg ?_) base
+  filter_upwards [hfg] with ω hω
+  exact mul_le_mul_of_nonneg_left hω (hD ω)
+
 private theorem integral_pbValue_le_succ {Ω : Type*} [m : MeasurableSpace Ω] {P : Measure Ω}
     [IsProbabilityMeasure P] (ℱ : Filtration ℕ m) {A : ℕ → Set Ω}
     (hA : ∀ t, MeasurableSet[ℱ (t + 1)] (A t))
@@ -272,11 +278,7 @@ private theorem integral_pbValue_le_succ {Ω : Type*} [m : MeasurableSpace Ω] {
       ∫ ω, pbValue ps f (k + 1) (adaptedCount A (k + 1) ω) ∂P := by
   rcases integral_pbValue_step_diff P ℱ hA ps hf hC hk with
     ⟨D, hD_nn, hDp_int, hDce_int, base, h1, h2⟩
-  rw [h1, h2]
-  refine add_le_add_right (integral_mono_ae hDp_int hDce_int ?_) base
-  filter_upwards [hp] with ω hω
-  rw [mul_comm (ps[k] : ℝ) (D ω)]
-  exact mul_le_mul_of_nonneg_left hω (hD_nn ω)
+  exact add_integral_mul_le h1 h2 hD_nn hDp_int hDce_int hp
 
 private theorem integral_pbValue_succ_le {Ω : Type*} [m : MeasurableSpace Ω] {P : Measure Ω}
     [IsProbabilityMeasure P] (ℱ : Filtration ℕ m) {A : ℕ → Set Ω}
@@ -288,11 +290,7 @@ private theorem integral_pbValue_succ_le {Ω : Type*} [m : MeasurableSpace Ω] {
       ∫ ω, pbValue ps f k (adaptedCount A k ω) ∂P := by
   rcases integral_pbValue_step_diff P ℱ hA ps hf hC hk with
     ⟨D, hD_nn, hDp_int, hDce_int, base, h1, h2⟩
-  rw [h1, h2]
-  refine add_le_add_right (integral_mono_ae hDce_int hDp_int ?_) base
-  filter_upwards [hp] with ω hω
-  rw [mul_comm (ps[k] : ℝ) (D ω)]
-  exact mul_le_mul_of_nonneg_left hω (hD_nn ω)
+  exact add_integral_mul_le h2 h1 hD_nn hDce_int hDp_int hp
 
 private theorem pbValue_zero_Ici_eq_real (ps : List I) (r : ℕ) :
     pbValue ps ((Set.Ici r).indicator (fun _ => (1 : ℝ))) 0 0 =

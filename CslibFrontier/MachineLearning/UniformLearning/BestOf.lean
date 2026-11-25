@@ -294,14 +294,10 @@ theorem learns_bestOf_of_success [NeZero k] {A : QueryLearner ι Ω} {μ : PMF �
       _ = η / 2 := by
           rw [Real.exp_neg, Real.exp_log (by positivity), inv_div]
   -- some agreement estimate is off by `t θ` with probability at most `η / 2`
-  have h2 : Real.exp (-2 * t * θ ^ 2) ≤ η / (4 * k) := by
-    calc Real.exp (-2 * t * θ ^ 2) ≤ Real.exp (-Real.log (4 * k / η)) :=
-          Real.exp_le_exp.2 (by linarith)
-      _ = η / (4 * k) := by
-          rw [Real.exp_neg, Real.exp_log (by positivity), inv_div]
   have h3 : 2 * k * Real.exp (-2 * t * θ ^ 2) ≤ η / 2 := by
-    calc 2 * k * Real.exp (-2 * t * θ ^ 2) ≤ 2 * k * (η / (4 * k)) := by gcongr
-      _ = η / 2 := by field_simp; ring
+    rw [show -2 * t * θ ^ 2 = -(1 * (2 * t * θ ^ 2)) by ring]
+    exact Real.mul_exp_neg_le_of_log le_rfl (by positivity) one_pos (by positivity)
+      (by rwa [div_one, show 2 * (k : ℝ) / (η / 2) = 4 * k / η by ring])
   linarith
 
 /-- **From weak to confident learning.** If `A` outputs a hypothesis with agreement at least

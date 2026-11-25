@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Oracle
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Partrec
-public import CslibFrontier.Foundations.Computability.RecursiveInCode
+public import CslibFrontier.Foundations.Computability.RecursiveInUniform
 
 /-!
 # Relative computation of finite oracle machine runs
@@ -168,62 +168,7 @@ theorem primrec_stepWith (M : OracleDesc) :
 private abbrev oracleFunction (oracle : ℕ → Bool) : ℕ →. ℕ :=
   fun n => Part.some (oracle n).toNat
 
-private def HasCode (f : (ℕ → Bool) → ℕ →. ℕ) : Prop :=
-  ∃ c : Nat.RecursiveIn.Code, ∀ oracle, c.eval (oracleFunction oracle) = f oracle
-
-namespace HasCode
-
-open Nat.RecursiveIn (Code)
-
-private theorem of_primrec {f : ℕ → ℕ} (hf : Nat.Primrec f) :
-    HasCode (fun _ n => Part.some (f n)) := by
-  obtain ⟨c, hc⟩ := Nat.Partrec.Code.exists_code.mp (Nat.Partrec.of_primrec hf)
-  exact ⟨Code.ofPartrec c, fun oracle => (Code.eval_ofPartrec _ _).trans hc⟩
-
-private theorem oracle : HasCode oracleFunction :=
-  ⟨.oracle, fun _ => rfl⟩
-
-private theorem comp {f h : (ℕ → Bool) → ℕ →. ℕ} (hf : HasCode f) (hh : HasCode h) :
-    HasCode (fun oracle n => h oracle n >>= f oracle) := by
-  obtain ⟨cf, hcf⟩ := hf
-  obtain ⟨ch, hch⟩ := hh
-  exact ⟨.comp cf ch, fun oracle => by rw [Code.eval, hcf, hch]⟩
-
-private theorem pair {f h : (ℕ → Bool) → ℕ →. ℕ} (hf : HasCode f) (hh : HasCode h) :
-    HasCode (fun oracle n => Nat.pair <$> f oracle n <*> h oracle n) := by
-  obtain ⟨cf, hcf⟩ := hf
-  obtain ⟨ch, hch⟩ := hh
-  exact ⟨.pair cf ch, fun oracle => by rw [Code.eval, hcf, hch]⟩
-
-private theorem prec {f h : (ℕ → Bool) → ℕ →. ℕ} (hf : HasCode f) (hh : HasCode h) :
-    HasCode (fun oracle p =>
-      let (a, n) := Nat.unpair p
-      n.rec (f oracle a) fun y ih => do
-        let i ← ih
-        h oracle (Nat.pair a (Nat.pair y i))) := by
-  obtain ⟨cf, hcf⟩ := hf
-  obtain ⟨ch, hch⟩ := hh
-  exact ⟨.prec cf ch, fun oracle => by rw [Code.eval, hcf, hch]⟩
-
-private theorem rfind {f : (ℕ → Bool) → ℕ →. ℕ} (hf : HasCode f) :
-    HasCode (fun oracle a =>
-      Nat.rfind fun n => (fun m => m = 0) <$> f oracle (Nat.pair a n)) := by
-  obtain ⟨c, hc⟩ := hf
-  exact ⟨Code.rfind c, fun oracle => by
-    funext a
-    rw [Code.eval_rfind, hc]⟩
-
-private theorem of_eq {f h : (ℕ → Bool) → ℕ →. ℕ} (hf : HasCode f)
-    (hh : ∀ oracle n, f oracle n = h oracle n) : HasCode h := by
-  obtain ⟨c, hc⟩ := hf
-  exact ⟨c, fun oracle => (hc oracle).trans (funext (hh oracle))⟩
-
-private theorem recursiveIn {f : (ℕ → Bool) → ℕ →. ℕ} (hf : HasCode f)
-    (oracle : ℕ → Bool) : Nat.RecursiveIn {oracleFunction oracle} (f oracle) := by
-  obtain ⟨c, hc⟩ := hf
-  exact Code.exists_code.mpr ⟨c, hc oracle⟩
-
-end HasCode
+open Nat.RecursiveIn.Code (HasUniformCode)
 
 private abbrev RunState := List ℕ × Config
 
@@ -234,7 +179,7 @@ private theorem primrec_decodeRunState (M : OracleDesc) : Primrec (decodeRunStat
   Primrec.option_getD.comp Primrec.decode (Primrec.const ([], M.init))
 
 private theorem hasCode_encodedStep (M : OracleDesc) :
-    HasCode (fun oracle n =>
+    HasUniformCode oracleFunction (fun oracle n =>
       let (x, c) := decodeRunState M n
       Part.some (Encodable.encode (x, M.step oracle x c))) := by
   let getState := primrec_decodeRunState M
@@ -250,9 +195,10 @@ private theorem hasCode_encodedStep (M : OracleDesc) :
       ((primrec_stepWith M).comp ((Primrec.fst.comp unpack).pair
         ((Primrec.snd.comp unpack).pair answer))))
   have hnat := Primrec.nat_iff.mp (hnext.comp Primrec.unpair)
-  have hcall := HasCode.oracle.comp (HasCode.of_primrec hrequest)
-  refine ((HasCode.of_primrec hnat).comp
-    ((HasCode.of_primrec Nat.Primrec.id).pair hcall)).of_eq ?_
+  have hcall :=
+    (HasUniformCode.oracle (o := oracleFunction)).comp (HasUniformCode.of_primrec hrequest)
+  refine ((HasUniformCode.of_primrec hnat).comp
+    ((HasUniformCode.of_primrec Nat.Primrec.id).pair hcall)).of_eq ?_
   intro oracle n
   simp only [id_eq, ← Part.pure_eq_some, pure_bind, map_pure, pure_seq, Nat.unpair_pair]
   cases hb : oracle (decodeRunState M n).2.queryLength <;> simp [step, hb]
@@ -263,7 +209,7 @@ private theorem primrec_decodeInput : Primrec decodeInput :=
   Primrec.option_getD.comp Primrec.decode (Primrec.const [])
 
 private theorem hasCode_encodedRun (M : OracleDesc) :
-    HasCode (fun oracle p =>
+    HasUniformCode oracleFunction (fun oracle p =>
       let (n, t) := p.unpair
       let x := decodeInput n
       Part.some (Encodable.encode (x, M.runFor oracle x t))) := by
@@ -272,9 +218,10 @@ private theorem hasCode_encodedRun (M : OracleDesc) :
   have hproject : Nat.Primrec fun p : ℕ => p.unpair.2.unpair.2 :=
     Primrec.nat_iff.mp ((Primrec.snd.comp Primrec.unpair).comp
       (Primrec.snd.comp Primrec.unpair))
-  refine (HasCode.prec (HasCode.of_primrec hinit)
-    ((hasCode_encodedStep M).comp (HasCode.of_primrec hproject))).of_eq ?_
+  refine (HasUniformCode.prec (HasUniformCode.of_primrec hinit)
+    ((hasCode_encodedStep M).comp (HasUniformCode.of_primrec hproject))).of_eq ?_
   intro oracle p
+  rw [Nat.unpaired]
   rcases hp : p.unpair with ⟨n, t⟩
   clear hp p
   dsimp only
@@ -315,14 +262,15 @@ theorem mem_eval_iff (M : OracleDesc) (oracle : ℕ → Bool) (x out : List ℕ)
 
 
 private theorem hasCode_haltTime (M : OracleDesc) :
-    HasCode (fun oracle n =>
+    HasUniformCode oracleFunction (fun oracle n =>
       Nat.rfind fun t => Part.some (M.runFor oracle (decodeInput n) t).ordinary.state.isNone) := by
   have hflag : Nat.Primrec fun p =>
       (decodeRunState M p).2.ordinary.state.isSome.toNat :=
     Primrec.nat_iff.mp ((Primrec.dom_bool Bool.toNat).comp (Primrec.option_isSome.comp
       (primrec_scfg_state.comp (Config.primrec_ordinary.comp
         (Primrec.snd.comp (primrec_decodeRunState M))))))
-  refine (HasCode.rfind ((HasCode.of_primrec hflag).comp (hasCode_encodedRun M))).of_eq ?_
+  refine (HasUniformCode.rfind
+    ((HasUniformCode.of_primrec hflag).comp (hasCode_encodedRun M))).of_eq ?_
   intro oracle n
   congr 1
   funext t
@@ -331,13 +279,13 @@ private theorem hasCode_haltTime (M : OracleDesc) :
   cases (M.runFor oracle (decodeInput n) t).ordinary.state <;> rfl
 
 private theorem hasCode_evalEncoded (M : OracleDesc) :
-    HasCode (fun oracle n =>
+    HasUniformCode oracleFunction (fun oracle n =>
       (M.eval oracle (decodeInput n)).map Encodable.encode) := by
   have hout : Nat.Primrec fun n => Encodable.encode (decodeRunState M n).2.output :=
     Primrec.nat_iff.mp (Primrec.encode.comp
       (Config.primrec_output.comp (Primrec.snd.comp (primrec_decodeRunState M))))
-  have hrun := (HasCode.of_primrec hout).comp (hasCode_encodedRun M)
-  refine (hrun.comp ((HasCode.of_primrec Nat.Primrec.id).pair (hasCode_haltTime M))).of_eq ?_
+  have hrun := (HasUniformCode.of_primrec hout).comp (hasCode_encodedRun M)
+  refine (hrun.comp ((HasUniformCode.of_primrec Nat.Primrec.id).pair (hasCode_haltTime M))).of_eq ?_
   intro oracle n
   simp only [eval, Part.map_map, decodeRunState, Part.bind_some_eq_map, Function.comp_def,
     id_eq, Part.map_eq_map, Part.map_some, Encodable.encode_prod_val, Part.bind_eq_bind]

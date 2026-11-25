@@ -20,6 +20,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.FunPropLists
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Exponential
 import CslibFrontier.Tactic.EncLen
 
@@ -191,16 +192,8 @@ private theorem exists_computableInO_brute (d : ℕ) : ∃ K, ComputableInO
   obtain ⟨D, hacc⟩ := exists_computableInO_accepts d
   have hpoly : PolyBounded
       (fun q : List Bool × List Bool × List Bool =>
-        (encPair encBits (encPair encBits encBits) q).length) (accBound d D) :=
-    (PolyBounded.of_polynomiallyBounded _
-      (bound := fun n => ((n + 1) ^ D + n + n + 1) ^ 4 * (n + 1) ^ (2 * d + 6))
-      (by fun_prop)).mono fun q => by
-        have hsize : q.1.length ≤ (encPair encBits (encPair encBits encBits) q).length ∧
-            q.2.1.length ≤ (encPair encBits (encPair encBits encBits) q).length ∧
-            q.2.2.length ≤ (encPair encBits (encPair encBits encBits) q).length := by enc_len
-        obtain ⟨h₁, h₂, h₃⟩ := hsize
-        simp only [accBound]
-        gcongr
+        (encPair encBits (encPair encBits encBits) q).length) (accBound d D) := by
+    growth_poly
   have hpacc := hacc.computableInPolyTime hpoly hpoly
   have hℓ : ComputableInPolyTime (fun q : List Bool × List Bool => certLen d q.2.length)
       (encPair encBits encBits) encUnary := by

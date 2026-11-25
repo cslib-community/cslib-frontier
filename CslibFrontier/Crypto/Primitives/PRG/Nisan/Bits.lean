@@ -41,6 +41,8 @@ after that theorem attributes to Nisan as well.
 ## Main results
 
 * `Cslib.Crypto.PRG.Nisan.card_bitSeed`: seeds have `n + k (3 n - 1)` bits.
+* `Cslib.Crypto.PRG.Nisan.abs_dens_eval_bitGenerator_sub_le`: Nisan's generator on bit strings
+  fools read-once branching programs with any finite set of states.
 * `Cslib.Crypto.PRG.Nisan.secure_bitGenerator`: Nisan's generator on bit strings is secure against
   read-once branching programs.
 * `Cslib.Crypto.PRG.Nisan.secure_bitGenerator_of_le`: the parameters of Nisan's theorem.
@@ -82,16 +84,16 @@ def bitGenerator (n k : ℕ) : Generator (BitSeed n k) (BitString (2 ^ k * n)) :
     bitGenerator n k z = blocksEquiv.symm (blocks toeplitzHash k z.1 z.2) :=
   rfl
 
-/-- **Nisan's generator on bit strings fools read-once branching programs** [Nisan1992]: no
-read-once branching program of width `w` on `2 ^ k n` bits distinguishes the output of
-`bitGenerator n k` from a uniform bit string with advantage more than
-`(2 ^ k - 1) w / (2 √(2 ^ n))`. -/
-theorem secure_bitGenerator (n k w : ℕ) :
-    (bitGenerator n k).Secure (IsReadOnceTest w)
-      ((2 ^ k - 1) * w / (2 * NNReal.sqrt (2 ^ n))) := by
-  rintro _ ⟨P, rfl⟩
-  rw [Generator.advantage, Generator.toReal_realExperiment_pure,
-    Generator.toReal_idealExperiment_pure]
+/-- **Nisan's generator on bit strings fools read-once branching programs with any states**
+[Nisan1992]: for every read-once branching program `P` on `2 ^ k n` bits with a finite set `S` of
+states, the probability that `P` accepts the output of `bitGenerator n k` on a uniform seed differs
+from the probability that it accepts a uniform bit string by at most
+`(2 ^ k - 1) |S| / (2 √(2 ^ n))`. -/
+theorem abs_dens_eval_bitGenerator_sub_le {S : Type*} [Fintype S] (n k : ℕ)
+    (P : ReadOnceProgram (2 ^ k * n) S Bool) :
+    |(dens {z : BitSeed n k | P.eval (bitGenerator n k z) = true} : ℝ) -
+        dens {y : BitString (2 ^ k * n) | P.eval y = true}| ≤
+      (2 ^ k - 1) * Fintype.card S / (2 * √(2 ^ n)) := by
   have huni : (dens {y : BitString (2 ^ k * n) | P.eval y = true} : ℝ) =
       dens {u : Fin (2 ^ k) → BitString n | P.blocks.eval u = true} := by
     simp only [← Fintype.expect_boole, ReadOnceProgram.eval_blocks]
@@ -102,10 +104,24 @@ theorem secure_bitGenerator (n k w : ℕ) :
       dens {z : BitSeed n k | P.blocks.eval (blocks toeplitzHash k z.1 z.2) = true} := by
     simp only [ReadOnceProgram.eval_blocks]
     rfl
-  have hk : (1 : ℝ≥0) ≤ 2 ^ k := one_le_pow₀ one_le_two
   have := abs_dens_eval_blocks_sub_le isPairwiseIndependentHash_toeplitzHash_bool k P.blocks
-  rw [Fintype.card_fin, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin] at this
+  rw [Fintype.card_fun, Fintype.card_bool, Fintype.card_fin] at this
   rw [hgen, huni]
+  exact_mod_cast this
+
+/-- **Nisan's generator on bit strings fools read-once branching programs** [Nisan1992]: no
+read-once branching program of width `w` on `2 ^ k n` bits distinguishes the output of
+`bitGenerator n k` from a uniform bit string with advantage more than
+`(2 ^ k - 1) w / (2 √(2 ^ n))`. -/
+theorem secure_bitGenerator (n k w : ℕ) :
+    (bitGenerator n k).Secure (IsReadOnceTest w)
+      ((2 ^ k - 1) * w / (2 * NNReal.sqrt (2 ^ n))) := by
+  rintro _ ⟨P, rfl⟩
+  rw [Generator.advantage, Generator.toReal_realExperiment_pure,
+    Generator.toReal_idealExperiment_pure]
+  have hk : (1 : ℝ≥0) ≤ 2 ^ k := one_le_pow₀ one_le_two
+  have := abs_dens_eval_bitGenerator_sub_le n k P
+  rw [Fintype.card_fin] at this
   simp only [NNReal.coe_div, NNReal.coe_mul, NNReal.coe_sub hk, NNReal.coe_pow, NNReal.coe_ofNat,
     NNReal.coe_one, NNReal.coe_natCast, Real.coe_sqrt]
   exact_mod_cast this

@@ -10,9 +10,6 @@ module
 public import CslibFrontier.Init
 public import Mathlib.Analysis.SpecialFunctions.Complex.CircleAddChar
 public import CslibFrontier.Foundations.Algebra.Shear
-import Mathlib.Analysis.Complex.Basic
-import Mathlib.LinearAlgebra.FiniteDimensional.Basic
-import Mathlib.NumberTheory.LegendreSymbol.AddCharacter
 
 /-!
 # The discrete Fourier transform on `ZMod N × ZMod N`

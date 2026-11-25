@@ -100,14 +100,11 @@ theorem contents_eq {w : List (Symbol × Op n Γ)} (hw : WellNested w)
     have h₃ := Op.apply_pop.mp (configLTS_tr.mp hpop).2
     rw [ih hw, h₁] at h₃
     funext j
+    have hj' := congrFun h₃ j
     by_cases hj : j = i
     · subst hj
-      have := congrFun h₃ j
-      simp only [Function.update_self, List.cons.injEq, true_and] at this
-      exact this.symm
-    · have := congrFun h₃ j
-      simp only [ne_eq, hj, not_false_eq_true, Function.update_of_ne] at this
-      exact this.symm
+      simpa only [Function.update_self, List.cons.injEq, true_and] using hj'.symm
+    · simpa [hj] using hj'.symm
 
 /-- A well-nested run of the control lifts to a run on configurations that starts and ends with
 the same, arbitrary, stack contents. -/
@@ -120,9 +117,7 @@ theorem configLTS_mTr {w : List (Symbol × Op n Γ)} (hw : WellNested w)
     exact .refl
   | nop _ ih =>
     obtain ⟨s₁, htr, hrest⟩ := LTS.MTr.cons_iff.mp h
-    have hnop : M.configLTS.Tr ⟨s, σ⟩ (_, .nop) ⟨s₁, σ⟩ :=
-      configLTS_tr.mpr ⟨htr, Op.apply_nop.mpr rfl⟩
-    exact .stepL hnop (ih hrest σ)
+    exact .stepL (s2 := ⟨s₁, σ⟩) (configLTS_tr.mpr ⟨htr, Op.apply_nop.mpr rfl⟩) (ih hrest σ)
   | @pushPop a b i γ w w' _ _ ih ih' =>
     obtain ⟨s₁, hpush, hrest⟩ := LTS.MTr.cons_iff.mp h
     obtain ⟨s₂, hw, hrest⟩ := LTS.MTr.split hrest

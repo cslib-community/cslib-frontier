@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Analysis.Lattice.Dual
-public import CslibFrontier.Foundations.Probability.Gaussian.Discrete
 public import CslibFrontier.Foundations.Probability.Gaussian.SmoothingParameter
 public import Mathlib.Probability.Moments.SubGaussian
 

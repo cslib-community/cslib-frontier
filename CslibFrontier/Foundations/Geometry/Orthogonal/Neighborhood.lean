@@ -230,16 +230,16 @@ theorem segmentWalk_infix_subdivide {r : Route} (hr : IsOrthogonal r) {e : Point
         exact ht.trans hj
 
 /-- Horizontal strict interior neighborhoods survive subdivision of an entire route. -/
-theorem subdivide_horizontal {r : Route} (hr : IsOrthogonal r) {e : Point × Point}
-    (he : e ∈ r.consecutivePairs) {p : Point} (hab : e.1.2 = e.2.2) (hp : p.2 = e.1.2)
-    (hx : min e.1.1 e.2.1 < p.1 ∧ p.1 < max e.1.1 e.2.1) :
+theorem subdivide_horizontal {r : Route} (hr : IsOrthogonal r) {a b : Point}
+    (he : (a, b) ∈ r.consecutivePairs) {p : Point} (hab : a.2 = b.2) (hp : p.2 = a.2)
+    (hx : min a.1 b.1 < p.1 ∧ p.1 < max a.1 b.1) :
     StraightThrough (subdivide r) p (1, 0) :=
   (segmentWalk_horizontal hab hp hx).infix (segmentWalk_infix_subdivide hr he)
 
 /-- Vertical strict interior neighborhoods survive subdivision of an entire route. -/
-theorem subdivide_vertical {r : Route} (hr : IsOrthogonal r) {e : Point × Point}
-    (he : e ∈ r.consecutivePairs) {p : Point} (hab : e.1.1 = e.2.1) (hp : p.1 = e.1.1)
-    (hy : min e.1.2 e.2.2 < p.2 ∧ p.2 < max e.1.2 e.2.2) :
+theorem subdivide_vertical {r : Route} (hr : IsOrthogonal r) {a b : Point}
+    (he : (a, b) ∈ r.consecutivePairs) {p : Point} (hab : a.1 = b.1) (hp : p.1 = a.1)
+    (hy : min a.2 b.2 < p.2 ∧ p.2 < max a.2 b.2) :
     StraightThrough (subdivide r) p (0, 1) :=
   (segmentWalk_vertical hab hp hy).infix (segmentWalk_infix_subdivide hr he)
 

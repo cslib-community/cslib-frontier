@@ -10,7 +10,6 @@ module
 public import CslibFrontier.Foundations.Probability.Gaussian.Multivariate
 public import CslibFrontier.Foundations.Probability.Gaussian.Sheppard
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.Arccos
-import CslibFrontier.Foundations.MeasureTheory.Constructions.BorelSpace.Order
 import CslibFrontier.Foundations.Probability.Gaussian.Correlated
 import CslibFrontier.Foundations.Probability.Gaussian.Real
 import Mathlib.Analysis.SpecialFunctions.PolarCoord
@@ -110,15 +109,11 @@ private theorem angular_crossing_integral_le {c θ : ℝ} (hc0 : 0 ≤ c) (hcπ 
     by_cases h : φ ∈ Icc (-c) c
     · simp [g, hiff.mpr h, h]
     · simp [g, mt hiff.mp h, h]
-  have hint_g : ∫ φ in (-π)..π, g φ = 2 * c := by
-    have hcongr : ∫ φ in (-π)..π, g φ =
-        ∫ φ in (-π)..π, (Icc (-c) c).indicator (fun _ => (1 : ℝ)) φ :=
-      intervalIntegral.integral_congr (by
-        rw [uIcc_of_le (by linarith [pi_pos])]
-        exact hg_Icc)
-    rw [hcongr, intervalIntegral.integral_of_le (by linarith [pi_pos]),
+  have hint_Icc {a b : ℝ} (ha : -π ≤ a) (hab : a ≤ b) (hb : b ≤ π) :
+      ∫ φ in (-π)..π, (Icc a b).indicator (fun _ => (1 : ℝ)) φ = b - a := by
+    rw [intervalIntegral.integral_of_le (by linarith [pi_pos]),
       integral_indicator measurableSet_Icc, Measure.restrict_restrict measurableSet_Icc]
-    have hsub : Icc (-c) c ∩ Ioc (-π) π = Icc (-c) c \ {-π} := by
+    have hsub : Icc a b ∩ Ioc (-π) π = Icc a b \ {-π} := by
       ext x
       simp only [mem_inter_iff, mem_Icc, mem_Ioc, Set.mem_sdiff, mem_singleton_iff]
       refine ⟨fun ⟨hx, hx'⟩ => ⟨hx, ne_of_gt hx'.1⟩, fun ⟨hx, hne⟩ => ⟨hx, ?_, by linarith⟩⟩
@@ -126,6 +121,13 @@ private theorem angular_crossing_integral_le {c θ : ℝ} (hc0 : 0 ≤ c) (hcπ 
     rw [hsub, setIntegral_const, smul_eq_mul, mul_one, Measure.real,
       measure_sdiff_null (measure_singleton (-π)), Real.volume_Icc,
       ENNReal.toReal_ofReal (by linarith)]
+  have hint_g : ∫ φ in (-π)..π, g φ = 2 * c := by
+    have hcongr : ∫ φ in (-π)..π, g φ =
+        ∫ φ in (-π)..π, (Icc (-c) c).indicator (fun _ => (1 : ℝ)) φ :=
+      intervalIntegral.integral_congr (by
+        rw [uIcc_of_le (by linarith [pi_pos])]
+        exact hg_Icc)
+    rw [hcongr, hint_Icc (by linarith) (by linarith) hcπ]
     ring
   have hint_g_shift : ∫ φ in (-π)..π, g (φ - θ) = 2 * c := by
     rw [intervalIntegral.integral_comp_sub_right]
@@ -177,16 +179,7 @@ private theorem angular_crossing_integral_le {c θ : ℝ} (hc0 : 0 ≤ c) (hcπ 
           exact mul_nonneg (hg0 _) (hg0 _)
       have hmono := intervalIntegral.integral_mono_on (by linarith [pi_pos]) hind_ii hprod_ii hpt
       refine le_trans ?_ hmono
-      rw [intervalIntegral.integral_of_le (by linarith [pi_pos]),
-        integral_indicator measurableSet_Icc, Measure.restrict_restrict measurableSet_Icc]
-      have hsub : Icc (θ - c) c ∩ Ioc (-π) π = Icc (θ - c) c \ {-π} := by
-        ext x
-        simp only [mem_inter_iff, mem_Icc, mem_Ioc, Set.mem_sdiff, mem_singleton_iff]
-        refine ⟨fun ⟨hx, hx'⟩ => ⟨hx, ne_of_gt hx'.1⟩, fun ⟨hx, hne⟩ => ⟨hx, ?_, by linarith⟩⟩
-        exact lt_of_le_of_ne (by linarith) (Ne.symm hne)
-      rw [hsub, setIntegral_const, smul_eq_mul, mul_one, Measure.real,
-        measure_sdiff_null (measure_singleton (-π)), Real.volume_Icc,
-        ENNReal.toReal_ofReal (by linarith)]
+      rw [hint_Icc (by linarith) (by linarith) hcπ]
       linarith
     linarith
 

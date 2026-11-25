@@ -79,8 +79,7 @@ theorem circuitCheck_eval_execute (C : Circuit (arithSignature F) (p + k) m)
           (if circuitVerify C statement (voleSample u v delta).receiverView first r reply
             then some () else none), result)) := by
   rw [voleWorld_eval]
-  simp only [voleIdealDist, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
-    PMF.bind_bind, PMF.pure_bind]
+  simp only [voleIdealDist, pmf_norm]
   congr 1 with u : 1
   congr 1 with v : 1
   simp only [Verifier.execute, interp_norm, interpret_liftProver, circuitCheck_output]
@@ -178,8 +177,7 @@ theorem toOuterMeasure_circuitVerify_le (C : Circuit (arithSignature F) (p + k) 
       (fun i => v (circuitMulInput C i 1).castSucc) (fun i => v (circuitMulOutput C i).castSucc)
       (fun r => (reply r).map fun ab =>
         (ab.1 - u (Fin.last _), ab.2 - v (Fin.last _))) hmul
-    simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
-      PMF.bind_map, Function.comp_def] at hbound ⊢
+    simp only [pmf_norm] at hbound ⊢
     refine le_trans ?_ hbound
     rw [PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_bind_apply]
     refine tsum_le_tsum fun r => mul_le_mul_of_nonneg_left ?_ zero_le
@@ -249,8 +247,7 @@ theorem circuitCheck_sound (C : Circuit (arithSignature F) (p + k) m) :
       let response ← senderLaw (first.2 r)
       let answer ← senderLaw response
       return answer.1)
-  simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind,
-    PMF.pure_bind, PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_pure_apply] at hbound ⊢
+  simp only [PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_pure_apply, pmf_norm] at hbound ⊢
   convert hbound using 1
   simp [senderLaw]
 

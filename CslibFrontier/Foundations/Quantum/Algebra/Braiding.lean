@@ -12,6 +12,7 @@ public import CslibFrontier.Foundations.Data.BitString.Basic
 public import CslibFrontier.Foundations.Data.BitString.Sign
 public import CslibFrontier.Foundations.Data.BitString.OddPairs
 import CslibFrontier.Tactic.CommuteLeft
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Algebra.Order.Chebyshev
 
 /-!
@@ -255,8 +256,7 @@ private theorem norm_braid_sq_le [Fintype ι] [DecidableEq ι] (φ : AlgState A)
             (f := ![x, x, y, y, κX, κX, z, w])
           simp only [Finset.card_univ, Fintype.card_fin, Fin.sum_univ_eight, Matrix.cons_val]
             at hCS
-          push_cast at hCS
-          linarith
+          cast_linarith
   -- half of the `c` have `a · c = 1`: twice the masked average of the bound
   have hβ := BitString.le_two_mul_expect_ite_of_forall ha hpt
   have hmask : 𝔼 c, (if a ⬝ᵥ c = true then 8 * R c else 0) ≤ 𝔼 c, 8 * R c :=

@@ -12,7 +12,6 @@ public import CslibFrontier.GameTheory.Bimatrix.LemkeHowson
 public import Mathlib.Data.Matrix.ColumnRowPartitioned
 public import Mathlib.Data.Fintype.Sum
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
-import Mathlib.Data.Fintype.Card
 
 /-!
 # Best response polytopes and the odd number of Nash equilibria

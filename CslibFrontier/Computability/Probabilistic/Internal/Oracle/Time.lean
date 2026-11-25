@@ -25,6 +25,7 @@ import CslibFrontier.Tactic.EncLen
 
 public import CslibFrontier.Computability.Probabilistic.Oracle.Time.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.Oracle.Normalization
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 
 /-! # Internal machine constructions for explicit oracle time
 
@@ -939,11 +940,8 @@ theorem length_le (h : ComputesOracleInTime output t program) (n : ℕ) (aux : L
 /-- A polynomially bounded parameterized halting oracle schedule gives `IsOraclePPT`. -/
 theorem isOraclePPT (ht : PolyBounded (fun p : ℕ × ℕ => p.1 + p.2) (Function.uncurry t))
     (h : ComputesOracleInTime output t program) :
-    IsOraclePPT output program := by
-  refine IsOraclePPTOn.isOraclePPT (h.on.isOraclePPTOn ?_)
-  refine ht.comp (g := fun input : ℕ × List Bool => (input.1, input.2.length)) ?_
-  refine PolyBounded.of_forall_le 1 1 fun input => ?_
-  enc_len [pow_one, one_mul]
+    IsOraclePPT output program :=
+  IsOraclePPTOn.isOraclePPT (h.on.isOraclePPTOn (by growth_poly))
 
 end ComputesOracleInTime
 

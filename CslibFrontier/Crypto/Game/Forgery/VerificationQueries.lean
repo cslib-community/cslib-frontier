@@ -11,6 +11,7 @@ public import CslibFrontier.Crypto.Game.Forgery
 public import CslibFrontier.Crypto.Primitives.PRF.Finite
 public import CslibFrontier.Languages.Probabilistic.UniformNat.ModIndex
 public import CslibFrontier.Languages.Probabilistic.UntilBad.PlantedQuery
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Lens
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Languages.Probabilistic.UniformNat.LowerBound
@@ -1123,8 +1124,7 @@ theorem eval_realExperiment_vqMacToPrfAdversary {Key D R : Type} [Fintype Key] [
         (vqForgeExperiment (((), ·) <$> ProbComp.uniform Key)
           (Signer.ofSign fun k m => pure (F k m))
           (fun _ k m σ => decide (F k m = σ)) A) := by
-  simp only [PRF.realExperiment, vqForgeExperiment, ProbComp.eval_bind, ProbComp.eval_map,
-    ProbComp.eval_pure, PMF.bind_map, Function.comp_def]
+  simp only [PRF.realExperiment, vqForgeExperiment, pmf_norm]
   refine PMF.bind_congr_on_support _ _ _ fun key _ => ?_
   rw [eval_run_vqMacToPrfAdversary_pure]
   have hkey_oracle :
@@ -1179,8 +1179,7 @@ private theorem succProbability_forgeExperiment_uniformFunction_le {D R : Type} 
           (Signer.ofSign fun f m => pure (f m))
           (fun _ f m σ => decide (f m = σ)) freshMessage B) =
       ProbComp.eval (PRF.idealExperiment test) := by
-    simp only [forgeExperiment, PRF.idealExperiment, ProbComp.eval_bind, ProbComp.eval_map,
-      ProbComp.eval_pure, PMF.bind_map, Function.comp_def]
+    simp only [forgeExperiment, PRF.idealExperiment, pmf_norm]
     refine PMF.bind_congr_on_support _ _ _ fun f _ => ?_
     have hlog :
         ProbComp.eval (OracleComp.interpret
@@ -1277,8 +1276,7 @@ private theorem succProbability_forgeExperiment_uniformFunction_le {D R : Type} 
         by_contra hsome
         exact hfresh (hinv m hsome)
       simp only [decide_eq_true hfresh, ↓reduceIte, ProbOracleComp.runWith_map,
-        ProbOracleComp.runWith_query, memoize_of_none _ _ _ hnone, PMF.monad_bind_eq_bind,
-        PMF.monad_pure_eq_pure, PMF.map_bind, PMF.pure_map, Prod.map_fst]
+        ProbOracleComp.runWith_query, memoize_of_none _ _ _ hnone, Prod.map_fst, pmf_norm]
       rw [PMF.bind_apply, tsum_fintype, Finset.sum_eq_single σ]
       · simp [PMF.uniformOfFintype_apply]
       · intro r _ hr

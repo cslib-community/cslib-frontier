@@ -9,7 +9,6 @@ module
 
 public import CslibFrontier.Foundations.Probability.Gaussian.Measure
 public import CslibFrontier.Foundations.Probability.Gaussian.Smoothing
-public import CslibFrontier.Foundations.Probability.Gaussian.SmoothingParameter
 public import CslibFrontier.Foundations.MeasureTheory.Group.ConvolutionDensity
 
 public import Mathlib.MeasureTheory.Measure.TotalVariation.Basic

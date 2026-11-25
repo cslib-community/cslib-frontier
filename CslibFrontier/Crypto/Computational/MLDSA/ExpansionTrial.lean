@@ -8,15 +8,9 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.MLDSA.PriorCommitmentRefresh
+-- Reads private `Boundary`, `Mask`, `Register`, `abs_common_bind`, and `commitmentTrialGame`.
 import all CslibFrontier.Crypto.Computational.MLDSA.PriorCommitmentRefresh
-import all CslibFrontier.Crypto.Computational.MLDSA.RandomXofMask
-import all CslibFrontier.Crypto.Computational.MLDSA.QuantumCommitmentRegister
-import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
-import all CslibFrontier.Crypto.Computational.MLDSA.PrivateMaskExpansion
-import all CslibFrontier.Crypto.Computational.MLDSA.CommitmentContinuation
-import all CslibFrontier.Crypto.Computational.MLDSA.SigningQueryComparison
-import all CslibFrontier.Crypto.Computational.MLDSA.SigningHedges
-import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
+import CslibFrontier.Crypto.Computational.MLDSA.RandomXofMask
 
 /-!
 # Refreshing a digest in the byte-row signing experiment
@@ -44,27 +38,15 @@ private theorem replace_row_mask {α : Type} (s : Level) (j : Fin 814)
     (PMF.uniformOfFintype (FixedBytes 2 → FixedBytes (maskPolyBytes s))).bind
       (fun row => score (rowMasks s row)) := by
   classical
-  have law := iid_maskFromRow s
-  change (PMF.uniformOfFintype _).map (rowMasks s) = _ at law
-  let U := PMF.uniformOfFintype (Coefficients s)
-  let read (c : Coefficients s) := fun i => ringRow (c i)
-  have box : U.map read = signingMaskLaw s.params (by cases s <;> decide) := maskLaw_coefficients s
+  have law : (PMF.uniformOfFintype _).map (rowMasks s) =
+      PMF.iid (signingMaskLaw s.params (by cases s <;> decide)) 814 := iid_maskFromRow s
   let rerun (v : Fin 814 → Fin s.params.ℓ → Poly) :=
     (signingMaskLaw s.params (by cases s <;> decide)).bind fun y => score (Function.update v j y)
   change (PMF.bind _ (rerun ∘ rowMasks s)) = PMF.bind _ (score ∘ rowMasks s)
-  rw [← PMF.bind_map, ← PMF.bind_map, law, ← box,
-    PMF.iid_map, PMF.iid_uniformOfFintype, PMF.bind_map, PMF.bind_map]
-  simp only [rerun, ← box, PMF.bind_map]
-  have commute (v : Fin 814 → Coefficients s) (c : Coefficients s) :
-      Function.update (fun i => read (v i)) j (read c) =
-      fun i => read (Function.update v j c i) := by
-    funext i
-    by_cases h : i = j <;> simp [h, Function.update_of_ne]
-  change (PMF.bind (PMF.uniformOfFintype (Fin 814 → Coefficients s)) (fun v =>
-    U.bind fun c => score (Function.update (fun i => read (v i)) j (read c)))) = _
-  simp_rw [commute]
-  exact PMF.uniformOfFintype_bind_bind_adaptiveUpdate (fun _ => j) (fun _ _ => rfl)
-    (fun v => score (fun i => read (v i)))
+  rw [← PMF.bind_map, ← PMF.bind_map, law]
+  simpa only [rerun, PMF.bind_bind, PMF.pure_bind] using
+    congrArg (fun p => p.bind score)
+      (PMF.iid_bind_update (signingMaskLaw s.params (by cases s <;> decide)) j)
 
 -- Separate the tests before the selected nonce. A terminal error prevents further attempts.
 private theorem split_firstAccepted (step : ℕ) (tryAt : ℕ → Option (Option (List Byte)))

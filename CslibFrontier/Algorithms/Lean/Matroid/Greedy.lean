@@ -14,6 +14,7 @@ public import Mathlib.Algebra.Order.Monoid.Defs
 public import Mathlib.Combinatorics.Matroid.Basic
 public import Mathlib.Data.List.Sort
 import CslibFrontier.Foundations.Data.List.EraseDups
+import CslibFrontier.Foundations.Data.List.MergeSort
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Algebra.Order.BigOperators.Group.List
 import Mathlib.Combinatorics.Matroid.IndepAxioms
@@ -271,38 +272,6 @@ theorem _root_.Cslib.IsMonadHom.map_greedyMaxIndepM {α : Type} {β : Type*} [De
 
 /-! ### Stability bridge to `List.insertionSort` for symbolic proof reduction -/
 
-private theorem orderedInsert_append_eq {α : Type*} (r : α → α → Prop) [DecidableRel r]
-    (a : α) : ∀ (l₁ l₂ : List α),
-      (∀ b ∈ l₁, ¬ r a b) → (∀ c ∈ l₂, r a c) →
-      List.orderedInsert r a (l₁ ++ l₂) = l₁ ++ a :: l₂
-  | [], [], _, _ => by simp
-  | [], c :: l₂, _, hl₂ => by
-    simp [hl₂ c List.mem_cons_self]
-  | b :: l₁, l₂, hl₁, hl₂ => by
-    have hnb : ¬ r a b := hl₁ b List.mem_cons_self
-    simp [hnb, orderedInsert_append_eq r a l₁ l₂ (fun x hx => hl₁ x (List.mem_cons_of_mem b hx))
-      hl₂]
-
-private theorem mergeSort_decide_eq_insertionSort {α : Type*} (r : α → α → Prop) [DecidableRel r]
-    (htrans : ∀ a b c, r a b → r b c → r a c)
-    (htotal : ∀ a b, r a b ∨ r b a) :
-    ∀ xs : List α, xs.mergeSort (fun a b => decide (r a b)) = xs.insertionSort r
-  | [] => by simp
-  | a :: l => by
-    have tr : ∀ x y z, decide (r x y) = true → decide (r y z) = true → decide (r x z) = true := by
-      grind
-    have tot : ∀ x y, (decide (r x y) || decide (r y x)) = true := by grind
-    obtain ⟨l₁, l₂, hcons, hl, hnot⟩ := List.mergeSort_cons tr tot a l
-    have hpw : (l₁ ++ a :: l₂).Pairwise (fun x y => decide (r x y) = true) :=
-      hcons ▸ List.pairwise_mergeSort tr tot (a :: l)
-    have hl₂ : ∀ c ∈ l₂, r a c := fun c hc =>
-      of_decide_eq_true ((List.pairwise_cons.mp (List.pairwise_append.mp hpw).2.1).1 c hc)
-    have hl₁ : ∀ b ∈ l₁, ¬ r a b := fun b hb hrab => by
-      have hnb := hnot b hb
-      simp [hrab] at hnb
-    rw [hcons, List.insertionSort_cons, ← mergeSort_decide_eq_insertionSort r htrans htotal l, hl]
-    exact (orderedInsert_append_eq r a l₁ l₂ hl₁ hl₂).symm
-
 /-- `List.mergeSort` and `List.insertionSort` are both stable, so `greedyMaxBasis` equals
 `greedySelect` over `xs.insertionSort (fun a b => w b ≤ w a)` even when distinct elements share a
 weight. This allows `simp` to evaluate `greedyMaxBasis` symbolically on concrete lists without
@@ -311,7 +280,7 @@ theorem greedyMaxBasis_eq_insertionSort {α : Type*} {β : Type*} [DecidableEq �
     (indep : Finset α → Bool) (w : α → β) (xs : List α) :
     greedyMaxBasis indep w xs = greedySelect indep (xs.insertionSort (fun a b => w b ≤ w a)) := by
   rw [greedyMaxBasis,
-    mergeSort_decide_eq_insertionSort (fun a b => w b ≤ w a)
+    List.mergeSort_decide_eq_insertionSort (fun a b => w b ≤ w a)
       (fun _ _ _ h1 h2 => h2.trans h1) (fun a b => le_total (w b) (w a))]
 
 /-- `List.insertionSort` rewriting form of `greedyMinBasis`, preserving ties by stability. -/
@@ -319,7 +288,7 @@ theorem greedyMinBasis_eq_insertionSort {α : Type*} {β : Type*} [DecidableEq �
     (indep : Finset α → Bool) (w : α → β) (xs : List α) :
     greedyMinBasis indep w xs = greedySelect indep (xs.insertionSort (fun a b => w a ≤ w b)) := by
   rw [greedyMinBasis,
-    mergeSort_decide_eq_insertionSort (fun a b => w a ≤ w b)
+    List.mergeSort_decide_eq_insertionSort (fun a b => w a ≤ w b)
       (fun _ _ _ h1 h2 => h1.trans h2) (fun a b => le_total (w a) (w b))]
 
 /-! ## Structural properties of the greedy scan -/

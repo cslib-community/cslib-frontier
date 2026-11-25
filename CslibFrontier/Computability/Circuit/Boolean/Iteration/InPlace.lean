@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.Iteration.Optimization
 import CslibFrontier.Computability.Circuit.Boolean.Iteration.Encoded
 import CslibFrontier.Foundations.Combinatorics.FunctionalGraph
 import Cslib.Computability.Circuit.Composition
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Tactic.GCongr
 import Mathlib.Tactic.Linarith
 
@@ -380,10 +381,7 @@ theorem inplace_fixed_power_optimized (e : Config Q Γ n h → BitString w)
     (reach_card_le_two_pow M e he)
   obtain ⟨out, hout, hs⟩ := inplace_fixed_power M e c hstep ι hι _ le_rfl T L hL
   refine ⟨out, hout, ?_⟩
-  have hs' : (out.size : ℝ) ≤ ι.size + 40000 * (powerBudget w c.size (reach M n).card L : ℝ) := by
-    exact_mod_cast hs
-  have hm := optimizedBudget_mono (w := w) (s := c.size) hR
-  linarith
+  cast_linarith [optimizedBudget_mono (w := w) (s := c.size) hR, hs]
 
 /-- The alphabet bound: the storage term is the number of configurations. -/
 theorem inplace_configs_optimized (e : Config Q Γ n h → BitString w)

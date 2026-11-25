@@ -14,6 +14,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Compo
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.QueryTake
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Deterministic
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Tactic.EncLen
 
 /-!
@@ -329,11 +330,8 @@ theorem length_le (h : ComputesInTime output t program) (n : ℕ) (aux : List Bo
 /-- A polynomially bounded parameterized halting schedule gives `IsPPT`. -/
 theorem isPPT (ht : PolyBounded (fun p : ℕ × ℕ => p.1 + p.2) (Function.uncurry t))
     (h : ComputesInTime output t program) :
-    IsPPT output program := by
-  refine IsPPTOn.isPPT (h.on.isPPTOn ?_)
-  refine ht.comp (g := fun input : ℕ × List Bool => (input.1, input.2.length)) ?_
-  refine PolyBounded.of_forall_le 1 1 fun input => ?_
-  enc_len [pow_one, one_mul]
+    IsPPT output program :=
+  IsPPTOn.isPPT (h.on.isPPTOn (by growth_poly))
 
 end ComputesInTime
 

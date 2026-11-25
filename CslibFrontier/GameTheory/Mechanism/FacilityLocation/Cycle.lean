@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MetricGraph.Cycle
 import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MetricGraph.CycleDarts
 import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MetricGraph.NearVertex
+import CslibFrontier.Foundations.Data.Fintype.UpdateInduction
 public import CslibFrontier.GameTheory.Mechanism.FacilityLocation.Basic
 public import CslibFrontier.GameTheory.Mechanism.FacilityLocation.Dictatorship
 import CslibFrontier.GameTheory.Mechanism.FacilityLocation.Interval
@@ -75,7 +76,7 @@ private theorem coalition_sp {ι G : Type*} [Finite ι] [DecidableEq ι] [Metric
     (hf_sp : (Mechanism.deterministic f).IsStrategyProof) (S : Finset ι) (a b : G)
     (x : ι → G) (hx : ∀ i ∈ S, x i = a) :
     dist a (f x) ≤ dist a (f fun i => if i ∈ S then b else x i) := by
-  refine profile_update_induction (P := fun z => dist a (f x) ≤ dist a (f z)) le_rfl ?_
+  refine Function.update_induction (P := fun z => dist a (f x) ≤ dist a (f z)) le_rfl ?_
   intro z _ hz i hzi hne
   have hiS : i ∈ S := by by_contra h; exact hne (by simp [hzi, h])
   have hstep := (Mechanism.isStrategyProof_deterministic_iff f).mp hf_sp z i b

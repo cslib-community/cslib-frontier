@@ -7,8 +7,9 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Distributed.ConcurrentObjects.Linearizability
+public import CslibFrontier.Computability.Distributed.ConcurrentObjects.Linearizability.Basic
 public import CslibFrontier.Computability.Distributed.ConcurrentObjects.Progress
+import CslibFrontier.Computability.Distributed.ConcurrentObjects.Linearizability.Nonblocking
 
 /-!
 # Treiber's Lock-Free `CAS` Stack (Fresh-Node Step)

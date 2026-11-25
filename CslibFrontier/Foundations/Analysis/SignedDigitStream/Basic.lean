@@ -11,12 +11,6 @@ public import CslibFrontier.Init
 public import Mathlib.Analysis.SpecificLimits.Normed
 public import Mathlib.Basic.Real.Basic
 public import Mathlib.Topology.Algebra.InfiniteSum.Basic
-import Mathlib.Analysis.Normed.Group.InfiniteSum
-import Mathlib.Tactic.FieldSimp
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Positivity
-import Mathlib.Tactic.Ring
-import Mathlib.Topology.Algebra.InfiniteSum.NatInt
 
 /-!
 # Avizienis signed-digit streams and approximation residues

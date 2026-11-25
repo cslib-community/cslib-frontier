@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.GameTheory.Mechanism.FacilityLocation.Basic
+import CslibFrontier.Foundations.Data.Fintype.UpdateInduction
 import Mathlib.Data.Finset.Fold
 
 /-!
@@ -371,7 +372,7 @@ private lemma profile_mono_of_sp [DecidableEq ι] {f : (ι → Set.Icc a b) → 
     (hf_sp : ∀ x i z, dist (f x) (x i) ≤ dist (f (Function.update x i z)) (x i))
     {x y : ι → Set.Icc a b} (hxy : ∀ i, (x i : ℝ) ≤ (y i : ℝ)) :
     (f x : ℝ) ≤ (f y : ℝ) := by
-  refine profile_update_induction (P := fun z => (f x : ℝ) ≤ f z) le_rfl ?_
+  refine Function.update_induction (P := fun z => (f x : ℝ) ≤ f z) le_rfl ?_
   intro z _ hfz i hzi _
   have h := coord_mono_of_sp hf_sp z i (z₁ := x i) (z₂ := y i) (hxy i)
   rw [← hzi, Function.update_eq_self] at h
@@ -409,7 +410,7 @@ private lemma no_jump_at_midpoint [DecidableEq ι] {f : (ι → Set.Icc a b) →
   have hphase1 : c - 9 * η < (f (Function.update y i₀ wPt) : ℝ) ∧
       (f (Function.update y i₀ wPt) : ℝ) ≤ c - 7 * η ∧
       c + 8 * η ≤ (f (Function.update y i₀ tPt) : ℝ) := by
-    refine profile_update_induction (y := y) (P := fun z =>
+    refine Function.update_induction (y := y) (P := fun z =>
       c - 9 * η < (f (Function.update z i₀ wPt) : ℝ) ∧
       (f (Function.update z i₀ wPt) : ℝ) ≤ c - 7 * η ∧
       c + 8 * η ≤ (f (Function.update z i₀ tPt) : ℝ)) ⟨hfw_lo, hfw_hi, hft_lo⟩ ?_

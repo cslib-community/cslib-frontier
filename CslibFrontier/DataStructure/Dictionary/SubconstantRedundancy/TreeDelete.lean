@@ -476,12 +476,11 @@ theorem deleteAndGetQuotient_spec
       (∀ (j : ℕ) (_hj2 : 2 ≤ j) (hj : j ≤ ℓ),
         P.nLow j <
           (st.seeds.activeAt (P.paddedDom d) j (hj.trans hℓ) (P.ancestorAt hj u)).card) →
-      let res := st.deleteAndGetQuotient scheme ℓ h1 hℓ u (st.seeds.idAt ℓ h1 hℓ z)
-      let out := res.2
-      out.1 = st.seeds.quotAt ℓ h1 hℓ z ∧
-      out.2 = vz ∧
+      let ⟨st', quot, val⟩ := st.deleteAndGetQuotient scheme ℓ h1 hℓ u (st.seeds.idAt ℓ h1 hℓ z)
+      quot = st.seeds.quotAt ℓ h1 hℓ z ∧
+      val = vz ∧
       ∃ storeLvl' : Fin P.paddedUniv → ℕ,
-        DeletePrefixPost scheme st res.1 d storeLvl storeLvl' ℓ hℓ z := by
+        DeletePrefixPost scheme st st' d storeLvl storeLvl' ℓ hℓ z := by
   intro ℓ
   induction ℓ with
   | zero => intro h1; omega

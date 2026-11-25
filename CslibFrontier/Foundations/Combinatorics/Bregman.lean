@@ -13,6 +13,7 @@ public import Mathlib.Data.Fintype.Perm
 public import Mathlib.LinearAlgebra.Matrix.Permanent
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.LogSum
 import CslibFrontier.Foundations.Data.Matrix.Permanent.ZeroOne
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.GroupTheory.Perm.DomMulAct
 
 /-!
@@ -111,8 +112,7 @@ private theorem row_identity (s : Finset β) {k : β} (hk : k ∈ s) :
   have h2 : (#s : ℝ) * bregmanWeight #s = Real.log (#s).factorial := mul_bregmanWeight _
   rw [hs, Nat.factorial_succ, Nat.cast_mul, Real.log_mul (by positivity) (by positivity)] at h2
   rw [← hcompl, hs] at *
-  push_cast at *
-  linarith
+  cast_linarith
 
 universe u v
 

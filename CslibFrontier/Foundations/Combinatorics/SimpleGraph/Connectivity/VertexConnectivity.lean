@@ -376,4 +376,35 @@ theorem edgeDisjoint_of_injective_internallyDisjoint {G : SimpleGraph V} {u v : 
     have hj := support_eq_pair_of_mem_edges_of_isPath (hW j) (heuv ▸ hej)
     exact hij (hinj (Walk.ext_support (hi.trans hj.symm)))
 
+/-- A vertex outside a component of `G - v` can reach `v` while avoiding that component,
+provided it could reach `v` in `G`. In particular, all such vertices lie in the same
+component of the complement if `G` is connected. -/
+theorem Reachable.avoiding_component_after_delete {G : SimpleGraph V} {u v : V}
+    (h : G.Reachable u v) (C : (G.induce {w | w ≠ v}).ConnectedComponent)
+    (hu : u ∉ Subtype.val '' C.supp) :
+    (G.induce (Subtype.val '' C.supp)ᶜ).Reachable
+      ⟨u, hu⟩ ⟨v, fun ⟨x, _, hx⟩ => x.property hx⟩ := by
+  let A := (Subtype.val '' C.supp)ᶜ
+  have hv : v ∈ A := fun ⟨x, _, hx⟩ => x.property hx
+  have walk {a b : V} (p : G.Walk a b) :
+      ∀ ha : a ∈ A, b = v → (G.induce A).Reachable ⟨a, ha⟩ ⟨v, hv⟩ := by
+    induction p with
+    | nil =>
+      intro ha h
+      subst h
+      exact .rfl
+    | @cons a b c hab p ih =>
+      intro ha hc
+      by_cases hav : a = v
+      · subst hav
+        exact .rfl
+      have hb : b ∈ A := by
+        rintro ⟨y, hy, rfl⟩
+        have hadj : (G.induce {w | w ≠ v}).Adj ⟨a, hav⟩ y := hab
+        exact ha ⟨⟨a, hav⟩, (C.mem_supp_congr_adj hadj).mpr hy, rfl⟩
+      exact (SimpleGraph.Adj.reachable (G := G.induce A) (show
+        (G.induce A).Adj ⟨a, ha⟩ ⟨b, hb⟩ from hab)).trans (ih hb hc)
+  obtain ⟨p⟩ := h
+  exact walk p hu rfl
+
 end SimpleGraph

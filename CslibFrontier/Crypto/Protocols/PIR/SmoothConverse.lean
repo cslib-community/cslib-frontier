@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.LocallyDecodable.OneQuery
 public import CslibFrontier.Crypto.Protocols.PIR.Statistical
 public import CslibFrontier.Languages.Probabilistic.Rational
 public import CslibFrontier.Languages.Probabilistic.Vector
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.Semantics
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bool
@@ -448,7 +449,7 @@ theorem expectedReads_smoothDecoder_le (P : Scheme ι S R Q A) [Fintype S] [Deci
         (ProbComp.eval (P.serverQuery (eS.symm k) i)).bind
           (fun q => ProbComp.eval (smoothSlotCoins P i₀ i (eS.symm k) q)) := by
     rw [smoothCoins, P.eval_serverQuery]
-    simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind, PMF.pure_map, PMF.bind_map]
+    simp only [pmf_norm]
     refine congrArg (ProbComp.eval (P.query i)).bind (funext fun rq => ?_)
     have hconst : ∀ g : Bool,
         ((ProbComp.eval (OracleComp.pi fun idx : Fin (Fintype.card S) =>
@@ -460,7 +461,6 @@ theorem expectedReads_smoothDecoder_le (P : Scheme ι S R Q A) [Fintype S] [Deci
         smoothSlotCoins P i₀ i (eS.symm idx) (rq.2 (eS.symm idx)))).map (fun slots => slots k)) = _
       rw [ProbComp.eval_pi, Probability.PMF.pi_map_eval]
     rw [congrArg (ProbComp.eval (ProbComp.uniform Bool)).bind (funext hconst), PMF.bind_const]
-    rfl
   rcases j with ⟨⟨s₀, q₀⟩, idx₀⟩
   have hS_pos : 0 < Fintype.card S := Fintype.card_pos_iff.mpr ⟨s₀⟩
   have hQ_pos : 0 < Fintype.card Q := Fintype.card_pos_iff.mpr ⟨q₀⟩
@@ -577,8 +577,7 @@ theorem toReal_decodeLaw_smoothDecoder_ge (P : Scheme ι S R Q A) [Fintype S]
                 else
                   PMF.pure g := by
       simp only [smoothDecoder, smoothCoins, decodeLaw_bind, decodeLaw_sample,
-        ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform, PMF.bind_bind,
-        PMF.pure_bind, decodeLaw_smoothDecoder_branch]
+        ProbComp.eval_uniform, decodeLaw_smoothDecoder_branch, pmf_norm]
       rfl
     rw [hpmf, PMF.bind_apply]
     refine tsum_congr fun rq => ?_
@@ -836,8 +835,7 @@ theorem decodeLaw_smoothDecoder_of_isPrivate (P : Scheme ι S R Q A) [Fintype S]
       PMF.pure_bind]
     simp [ProbComp.eval_uniform, PMF.map]
   simp only [smoothDecoder, smoothCoins, decodeLaw_bind, decodeLaw_sample, P.eval_run,
-    ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform, PMF.bind_bind, PMF.pure_bind,
-    decodeLaw_smoothDecoder_branch]
+    ProbComp.eval_uniform, decodeLaw_smoothDecoder_branch, pmf_norm]
   rw [PMF.map]
   refine congrArg (ProbComp.eval (P.query i)).bind (funext fun rq => ?_)
   have hconst : ∀ g : Bool,

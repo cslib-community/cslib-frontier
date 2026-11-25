@@ -239,11 +239,10 @@ theorem classicalRun_moveCodes (hnp : n + p ≤ m) (hm : m ≤ W) (hW : n + 2 * 
         moveInCodes n p W (2 * R) := mem_moveInCodes.mpr ⟨j, hj, i, hi, rfl⟩
     have := readBit_classicalRun_of_mem (fun g hg => by
         obtain ⟨j, hj, i, hi, rfl⟩ := mem_moveInCodes.mp hg
-        have := hslotN hj hi
-        dsimp only
-        omega) (nodup_moveInCodes (by omega)) hinRead
+        exact hslotN hj hi) (nodup_moveInCodes (by omega)) hinRead
         (glue (blockEmb n (witBlock_le hW)) Z X) hg
-    simp only [List.all_cons, List.all_nil, Bool.and_true] at this
+    simp only [GateCode.target_mk, GateCode.controls_mk, List.all_cons, List.all_nil,
+      Bool.and_true] at this
     have hle := le_add_mul (W := W) (i := i + n) (j := j)
     rw [this, hGwit hj hi, hGoff fun q h => ?_, hX _ (by omega), Bool.false_xor]
     have := q.2
@@ -281,12 +280,10 @@ theorem classicalRun_moveCodes (hnp : n + p ≤ m) (hm : m ≤ W) (hW : n + 2 * 
         moveOutCodes n p W (2 * R) := mem_moveOutCodes.mpr ⟨j, hj, i, hi, rfl⟩
     have := readBit_classicalRun_of_mem (fun g hg => by
         obtain ⟨j, hj, i, hi, rfl⟩ := mem_moveOutCodes.mp hg
-        have := lt_width_of_lt (R := R) (hwitW hj hi)
-        have := hslotN hj hi
-        dsimp only
-        omega) nodup_moveOutCodes houtRead
+        exact lt_width_of_lt (R := R) (hwitW hj hi)) nodup_moveOutCodes houtRead
         (classicalRun (moveInCodes n p W (2 * R)) (glue (blockEmb n (witBlock_le hW)) Z X)) hg
-    simp only [List.all_cons, List.all_nil, Bool.and_true] at this
+    simp only [GateCode.target_mk, GateCode.controls_mk, List.all_cons, List.all_nil,
+      Bool.and_true] at this
     have hw := hwitW hj hi
     rw [this, hIn hj hi, hIn' (fun j' hj' i' hi' h => by
         have := le_add_mul (W := W) (i := i' + n) (j := j')

@@ -138,6 +138,66 @@ theorem rayCrosses_iff_exists (a b z : ℂ) :
           nlinarith [ht.2]
       · simpa only [lineMap_re, ht', horizontalIntercept] using hre
 
+private theorem intercept_lineMap_left {a b : ℂ} (hab : a.im ≠ b.im)
+    {t : ℝ} (ht : t ≠ 0) (h : ℝ) :
+    horizontalIntercept a (AffineMap.lineMap a b t) h = horizontalIntercept a b h := by
+  have hden : b.im - a.im ≠ 0 := sub_ne_zero.mpr hab.symm
+  simp only [horizontalIntercept, lineMap_im, lineMap_re, add_sub_cancel_left]
+  field_simp [ht, hden]
+
+open Classical in
+private theorem decide_rayCrosses_split_of_im_lt {a b : ℂ} (hab : a.im < b.im)
+    (z : ℂ) {t : ℝ} (ht : t ∈ Set.Ioo 0 1) :
+    decide (RayCrosses a (AffineMap.lineMap a b t) z) +
+      decide (RayCrosses (AffineMap.lineMap a b t) b z) = decide (RayCrosses a b z) := by
+  let m := AffineMap.lineMap a b t
+  change decide (RayCrosses a m z) + decide (RayCrosses m b z) =
+    decide (RayCrosses a b z)
+  have ham : a.im < m.im := by
+    change a.im < (AffineMap.lineMap a b t).im
+    rw [lineMap_im]
+    nlinarith [mul_pos ht.1 (sub_pos.mpr hab)]
+  have hmb : m.im < b.im := by
+    change (AffineMap.lineMap a b t).im < b.im
+    rw [lineMap_im]
+    nlinarith [mul_pos (sub_pos.mpr ht.2) (sub_pos.mpr hab)]
+  have hleft : horizontalIntercept a m z.im = horizontalIntercept a b z.im :=
+    intercept_lineMap_left hab.ne (ne_of_gt ht.1) z.im
+  have hright : horizontalIntercept m b z.im = horizontalIntercept a b z.im := by
+    rw [horizontalIntercept_reverse hmb.ne.symm]
+    change horizontalIntercept b (AffineMap.lineMap a b t) z.im = _
+    rw [← AffineMap.lineMap_apply_one_sub b a t,
+      intercept_lineMap_left hab.ne.symm (sub_ne_zero.mpr ht.2.ne.symm),
+      horizontalIntercept_reverse hab.ne]
+  simp only [RayCrosses, min_eq_left ham.le, min_eq_left hmb.le, min_eq_left hab.le,
+    max_eq_right ham.le, max_eq_right hmb.le, max_eq_right hab.le, hleft, hright]
+  by_cases hz : z.im < m.im
+  · simp [hz, not_le.mpr hz, hz.trans hmb, Bool.add_eq_xor]
+  · have hmz : m.im ≤ z.im := le_of_not_gt hz
+    simp [hz, hmz, ham.le.trans hmz, Bool.add_eq_xor]
+
+open Classical in
+/-- Splitting a segment at an interior affine parameter preserves its ray-crossing
+parity. If the observation is at the cut height, only the upper half contributes. -/
+theorem decide_rayCrosses_split (a b z : ℂ) {t : ℝ} (ht : t ∈ Set.Ioo 0 1) :
+    decide (RayCrosses a (AffineMap.lineMap a b t) z) +
+      decide (RayCrosses (AffineMap.lineMap a b t) b z) = decide (RayCrosses a b z) := by
+  rcases lt_trichotomy a.im b.im with hab | hab | hab
+  · exact decide_rayCrosses_split_of_im_lt hab z ht
+  · have hm : (AffineMap.lineMap a b t).im = a.im := by
+      rw [lineMap_im, hab, sub_self, mul_zero, add_zero]
+    rw [decide_eq_false (not_rayCrosses_of_im_eq hm.symm z),
+      decide_eq_false (not_rayCrosses_of_im_eq (hm.trans hab) z),
+      decide_eq_false (not_rayCrosses_of_im_eq hab z)]
+    rfl
+  · have ht' : 1 - t ∈ Set.Ioo (0 : ℝ) 1 := ⟨sub_pos.mpr ht.2, sub_lt_self _ ht.1⟩
+    have h := decide_rayCrosses_split_of_im_lt hab z ht'
+    rw [AffineMap.lineMap_apply_one_sub,
+      rayCrosses_reverse (AffineMap.lineMap a b t) b z,
+      rayCrosses_reverse a (AffineMap.lineMap a b t) z,
+      rayCrosses_reverse a b z, add_comm] at h
+    exact h
+
 /-- Away from the endpoint heights and the supporting-line intercept, the ray-crossing
 test is constant in a neighborhood. This is a statement about an actual open neighborhood
 in the real plane, rather than finitely many test points. It does not handle cancellation

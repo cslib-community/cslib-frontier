@@ -53,11 +53,17 @@ finite type.
 - `NatarajanShatters.subset`, `NatarajanShatters.superset`: (anti)monotonicity.
 - `NatarajanShatters.of_restrict`: N-shattering transfers from the restriction of a class to
   sample points back to the points themselves.
-- `natarajanShatters_iff_setShatters`, `natarajanDim_eq_evcDim`: with `Bool` labels the Natarajan
-  dimension is the VC dimension.
+- `NatarajanShatters.image_comp`, `natarajanShatters_image_equiv_comp`,
+  `natarajanDim_image_equiv_comp`: invariance under injective and bijective label maps.
+- `natarajanShatters_iff_setShatters`, `natarajanDim_eq_evcDim`, `natarajanDim_eq_evcDim_of_equiv`,
+  `hasFiniteNatarajanDim_iff_hasFiniteVCDim`: with two labels the Natarajan dimension is the VC
+  dimension.
+- `natarajanSum_two`: at `k = 2` labels, `natarajanSum` reduces to the binary Sauer–Shelah sum
+  `∑_{i ≤ d} (n choose i)`.
 - `ncard_le_natarajanSum`, `ncard_restriction_le_natarajanSum`: **Natarajan's lemma** for sets of
   labelings and for the labelings a class realizes on sample points.
-- `natarajanSum_le`, `ncard_le_card_pow_natarajanDim`: the polynomial form of Lemma 29.4.
+- `natarajanSum_le_sum_choose_mul`, `natarajanSum_le`, `ncard_le_card_pow_natarajanDim`: the
+  polynomial form of Lemma 29.4.
 
 ## References
 
@@ -153,6 +159,38 @@ theorem NatarajanShatters.of_restrict {C : ConceptClass α β} {e : γ → α} {
     · rintro x ⟨⟨i, hi, rfl⟩, hx⟩
       simpa only [Function.comp_apply, hg i hi] using h₁ i ⟨hi, fun h => hx h.2⟩
 
+/-- Post-composing concepts with an injective map on labels preserves N-shattering. -/
+theorem NatarajanShatters.image_comp {C : ConceptClass α β} {W : Set α} {g : β → γ}
+    (hg : Function.Injective g) (hW : NatarajanShatters C W) :
+    NatarajanShatters ((g ∘ ·) '' C) W := by
+  obtain ⟨f₀, f₁, hne, h⟩ := hW
+  refine ⟨g ∘ f₀, g ∘ f₁, fun x hx => hg.ne (hne x hx), fun B hB => ?_⟩
+  obtain ⟨c, hc, h₀, h₁⟩ := h B hB
+  exact ⟨g ∘ c, ⟨c, hc, rfl⟩, fun x hx => congrArg g (h₀ x hx),
+    fun x hx => congrArg g (h₁ x hx)⟩
+
+/-- N-shattering is invariant under relabeling by an equivalence `e : β ≃ γ`. -/
+@[simp] theorem natarajanShatters_image_equiv_comp {C : ConceptClass α β} {W : Set α}
+    (e : β ≃ γ) : NatarajanShatters ((e ∘ ·) '' C) W ↔ NatarajanShatters C W := by
+  refine ⟨fun h => ?_, fun h => h.image_comp e.injective⟩
+  have h' := h.image_comp e.symm.injective
+  have himg : (e.symm ∘ ·) '' ((e ∘ ·) '' C) = C := by
+    ext c
+    simp only [Set.mem_image, exists_exists_and_eq_and]
+    constructor
+    · rintro ⟨c', hc', rfl⟩
+      convert hc'
+      ext x
+      exact e.symm_apply_apply (c' x)
+    · intro hc
+      exact ⟨c, hc, funext fun x => e.symm_apply_apply (c x)⟩
+  rwa [himg] at h'
+
+/-- The Natarajan dimension is invariant under relabeling by an equivalence `e : β ≃ γ`. -/
+@[simp] theorem natarajanDim_image_equiv_comp (C : ConceptClass α β) (e : β ≃ γ) :
+    natarajanDim ((e ∘ ·) '' C) = natarajanDim C := by
+  simp only [natarajanDim, natarajanShatters_image_equiv_comp]
+
 /-- With `Bool` labels, N-shattering is ordinary shattering. -/
 theorem natarajanShatters_iff_setShatters {C : ConceptClass α Bool} {W : Set α} :
     NatarajanShatters C W ↔ SetShatters C W := by
@@ -186,10 +224,33 @@ theorem natarajanShatters_iff_setShatters {C : ConceptClass α Bool} {W : Set α
 theorem natarajanDim_eq_evcDim (C : ConceptClass α Bool) : natarajanDim C = evcDim C := by
   simp only [natarajanDim, evcDim, natarajanShatters_iff_setShatters]
 
+/-- For any two-element label type `e : β ≃ Bool` (for instance `finTwoEquiv : Fin 2 ≃ Bool`),
+the Natarajan dimension agrees with the VC dimension of the relabeled binary class. -/
+theorem natarajanDim_eq_evcDim_of_equiv (C : ConceptClass α β) (e : β ≃ Bool) :
+    natarajanDim C = evcDim ((e ∘ ·) '' C) :=
+  (natarajanDim_image_equiv_comp C e).symm.trans (natarajanDim_eq_evcDim _)
+
+/-- With Boolean labels, finite Natarajan dimension coincides with finite VC dimension. -/
+theorem hasFiniteNatarajanDim_iff_hasFiniteVCDim {C : ConceptClass α Bool} :
+    HasFiniteNatarajanDim C ↔ HasFiniteVCDim C := by
+  rw [HasFiniteNatarajanDim, natarajanDim_eq_evcDim, ne_eq, evcDim_eq_top_iff, not_not]
+
 /-- Every finite N-shattered set has size at most the Natarajan dimension. -/
 theorem NatarajanShatters.card_le_natarajanDim {C : ConceptClass α β} {W : Finset α}
     (hW : NatarajanShatters C ↑W) : (W.card : ℕ∞) ≤ natarajanDim C :=
   le_iSup₂_of_le W hW le_rfl
+
+/-- Every finite set N-shattered by a class of finite Natarajan dimension has size at most the
+untopped Natarajan dimension. -/
+theorem NatarajanShatters.card_le_untop_natarajanDim {C : ConceptClass α β}
+    (hC : HasFiniteNatarajanDim C) {W : Finset α} (hW : NatarajanShatters C ↑W) :
+    W.card ≤ (natarajanDim C).untop hC :=
+  Nat.cast_le.mp ((WithTop.coe_untop _ hC).symm ▸ hW.card_le_natarajanDim)
+
+/-- Evaluating the untopped Natarajan dimension from an equation `natarajanDim C = d`. -/
+theorem untop_natarajanDim_eq {C : ConceptClass α β} (hC : HasFiniteNatarajanDim C) {d : ℕ}
+    (hd : natarajanDim C = d) : (natarajanDim C).untop hC = d :=
+  Nat.cast_inj.mp ((WithTop.coe_untop _ hC).trans hd)
 
 /-- Bounding the Natarajan dimension amounts to bounding every finite N-shattered set. -/
 theorem natarajanDim_le_iff {C : ConceptClass α β} {d : ℕ∞} :
@@ -239,6 +300,19 @@ is exposed so that clients can evaluate the bound. -/
   simp
 
 @[simp] theorem natarajanSum_zero_right (n k : ℕ) : natarajanSum n k 0 = 1 := by
+  simp [natarajanSum]
+
+/-- With at most one label no pair of distinct labels exists, so `natarajanSum n k d = 1`. -/
+@[simp] theorem natarajanSum_of_le_one (n d : ℕ) {k : ℕ} (hk : k ≤ 1) : natarajanSum n k d = 1 := by
+  have hk2 : k.choose 2 = 0 := Nat.choose_eq_zero_of_lt (by omega)
+  simp only [natarajanSum, hk2]
+  rw [sum_range_succ']
+  simp
+
+/-- At `k = 2` labels, `(2 choose 2) = 1`, so `natarajanSum` reduces to the binary Sauer–Shelah
+sum `∑_{i ≤ d} (n choose i)`. -/
+@[simp] theorem natarajanSum_two (n d : ℕ) :
+    natarajanSum n 2 d = ∑ i ∈ range (d + 1), n.choose i := by
   simp [natarajanSum]
 
 /-- Pascal's rule for `natarajanSum`. -/
@@ -452,10 +526,10 @@ private theorem two_mul_choose_two_le (k : ℕ) : 2 * k.choose 2 ≤ k ^ 2 := by
   rw [Nat.choose_two_right, sq]
   exact (Nat.mul_div_le _ _).trans (Nat.mul_le_mul_left _ (Nat.sub_le _ _))
 
-/-- The polynomial form of Natarajan's lemma: with at least one label,
-`∑_{i ≤ d} (n choose i) (k choose 2) ^ i` is at most `(n + 1) ^ d k ^ (2 d)`. -/
-theorem natarajanSum_le (n d : ℕ) {k : ℕ} (hk : 0 < k) :
-    natarajanSum n k d ≤ (n + 1) ^ d * k ^ (2 * d) := by
+/-- Factored upper bound on `natarajanSum`: with at least one label,
+`∑_{i ≤ d} (n choose i) (k choose 2) ^ i ≤ (∑_{i ≤ d} (n choose i)) k ^ (2 d)`. -/
+theorem natarajanSum_le_sum_choose_mul (n d : ℕ) {k : ℕ} (hk : 0 < k) :
+    natarajanSum n k d ≤ (∑ i ∈ range (d + 1), n.choose i) * k ^ (2 * d) := by
   have hK : k.choose 2 ≤ k ^ 2 := by have := two_mul_choose_two_le k; omega
   calc natarajanSum n k d ≤ ∑ i ∈ range (d + 1), n.choose i * (k ^ 2) ^ d := by
         refine sum_le_sum fun i hi => Nat.mul_le_mul_left _ ?_
@@ -463,8 +537,14 @@ theorem natarajanSum_le (n d : ℕ) {k : ℕ} (hk : 0 < k) :
           _ ≤ (k ^ 2) ^ d :=
             Nat.pow_le_pow_right (by positivity) (Nat.lt_succ_iff.1 (mem_range.1 hi))
     _ = (∑ i ∈ range (d + 1), n.choose i) * (k ^ 2) ^ d := (sum_mul _ _ _).symm
-    _ ≤ (n + 1) ^ d * (k ^ 2) ^ d := Nat.mul_le_mul_right _ (sum_range_choose_le_add_one_pow n d)
-    _ = (n + 1) ^ d * k ^ (2 * d) := by rw [← pow_mul]
+    _ = (∑ i ∈ range (d + 1), n.choose i) * k ^ (2 * d) := by rw [← pow_mul]
+
+/-- The polynomial form of Natarajan's lemma: with at least one label,
+`∑_{i ≤ d} (n choose i) (k choose 2) ^ i` is at most `(n + 1) ^ d k ^ (2 d)`. -/
+theorem natarajanSum_le (n d : ℕ) {k : ℕ} (hk : 0 < k) :
+    natarajanSum n k d ≤ (n + 1) ^ d * k ^ (2 * d) :=
+  (natarajanSum_le_sum_choose_mul n d hk).trans
+    (Nat.mul_le_mul_right _ (sum_range_choose_le_add_one_pow n d))
 
 /-- **Natarajan's lemma** in the form of [ShalevShwartzBenDavid2014, Lemma 29.4]: a class on a
 finite domain `α` with `k` labels has at most `|α| ^ Ndim(C) k ^ (2 Ndim(C))` members. -/
@@ -476,7 +556,7 @@ theorem ncard_le_card_pow_natarajanDim [Fintype α] [Fintype β] (C : ConceptCla
   have hdC : natarajanDim C = d := (WithTop.coe_untop _ _).symm
   set e := (Fintype.equivFin α).symm
   have hC : ∀ W : Finset α, NatarajanShatters C ↑W → W.card ≤ d :=
-    fun _ hW => Nat.cast_le.mp (hdC ▸ hW.card_le_natarajanDim)
+    fun _ hW => hW.card_le_untop_natarajanDim (hasFiniteNatarajanDim_of_finite C)
   have hcard : ((· ∘ e) '' C).ncard = C.ncard :=
     Set.ncard_image_of_injective C fun f g hfg => by
       funext a

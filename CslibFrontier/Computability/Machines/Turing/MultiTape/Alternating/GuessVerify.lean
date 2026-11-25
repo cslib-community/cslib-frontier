@@ -50,6 +50,9 @@ steps (`Turing.MultiTapeATM.acceptsWithin_add_iff_of_next_eq`,
   `Turing.MultiTapeATM.haltsWithin_add_iff_of_next_eq`: moves that do not matter.
 * `Turing.MultiTapeATM.acceptsWithin_iff_of_phase`, `Turing.MultiTapeATM.haltsWithin_iff_of_phase`:
   a phase of `τ` running steps whose two moves agree.
+* `Turing.MultiTapeATM.exists_acceptsWithin_iff_of_lift`: a halting run of a deterministic machine
+  lifted into an alternating machine is a phase.
+* `Turing.MultiTapeATM.acceptsWithin_iff_of_phase_trans`: consecutive phases form one phase.
 * `Turing.MultiTapeATM.HaltsWithin.mono`: halting within `n` moves is halting within more.
 * `Turing.MultiTapeATM.GuessVerify.haltsWithin_lift_tag`: halting through the guessing phase.
 * `Turing.MultiTapeATM.GuessVerify.acceptsWithin_lift_none`,
@@ -254,6 +257,49 @@ theorem acceptsWithin_iff_of_phase {f : Cfg k Bool State input → Cfg k Bool St
     simp only [hn, false_and, iff_false]
     obtain ⟨q, hq⟩ := Option.ne_none_iff_exists'.mp (hrun n (by omega))
     exact not_acceptsWithin_zero atm hq
+
+/-- **A lifted deterministic phase.** Let `L` lift the configurations of a deterministic machine
+`D` to configurations of `atm`, so that both moves from the lift of a running configuration lead to
+the lift of its step, and lifts of running configurations run. Along a run of `D` from `c` to a
+halted `d`, for some number `τ` of moves, `L c` accepts within `n` moves exactly when `τ ≤ n` and
+`L d` accepts within `n - τ`. -/
+theorem exists_acceptsWithin_iff_of_lift {S : Type} {D : MultiTapeTM k Bool S}
+    (L : Cfg k Bool S input → Cfg k Bool State input)
+    (hstep : ∀ b (c : Cfg k Bool S input), c.state ≠ none → atm.next b (L c) = L (D.step c))
+    (hrun : ∀ c : Cfg k Bool S input, c.state ≠ none → (L c).state ≠ none)
+    {t : ℕ} {c d : Cfg k Bool S input} (hd : D.runFrom c t = d) (ht : d.state = none) :
+    ∃ τ, ∀ n, atm.AcceptsWithin n (L c) ↔ τ ≤ n ∧ atm.AcceptsWithin (n - τ) (L d) := by
+  subst hd
+  induction t generalizing c with
+  | zero => exact ⟨0, fun n => by simp [MultiTapeTM.runFrom]⟩
+  | succ t ih =>
+    obtain ⟨τ, hτ⟩ := ih (c := D.step c) ht
+    change ∃ τ, ∀ n, atm.AcceptsWithin n (L c) ↔
+      τ ≤ n ∧ atm.AcceptsWithin (n - τ) (L (D.runFrom (D.step c) t))
+    by_cases hc : c.state = none
+    · refine ⟨τ, fun n => ?_⟩
+      rw [← hτ n, MultiTapeTM.step_of_halt hc]
+    · refine ⟨τ + 1, fun n => ?_⟩
+      cases n with
+      | zero =>
+        obtain ⟨q, hq⟩ := Option.ne_none_iff_exists'.mp (hrun c hc)
+        exact iff_of_false (not_acceptsWithin_zero atm hq) (fun h => absurd h.1 (by omega))
+      | succ m =>
+        rw [acceptsWithin_succ_of_next_eq (fun b => hstep b c hc), hτ m,
+          Nat.add_sub_add_right, Nat.add_le_add_iff_right]
+
+/-- **Consecutive phases.** A phase of `τ₁` moves from `c` to `d` followed by a phase of `τ₂` moves
+from `d` to `e` is a phase of `τ₁ + τ₂` moves from `c` to `e`. -/
+theorem acceptsWithin_iff_of_phase_trans {c d e : Cfg k Bool State input} {τ₁ τ₂ : ℕ}
+    (h₁ : ∀ n, atm.AcceptsWithin n c ↔ τ₁ ≤ n ∧ atm.AcceptsWithin (n - τ₁) d)
+    (h₂ : ∀ n, atm.AcceptsWithin n d ↔ τ₂ ≤ n ∧ atm.AcceptsWithin (n - τ₂) e) (n : ℕ) :
+    atm.AcceptsWithin n c ↔ τ₁ + τ₂ ≤ n ∧ atm.AcceptsWithin (n - (τ₁ + τ₂)) e := by
+  rw [h₁, h₂, Nat.sub_sub]
+  constructor
+  · rintro ⟨h, h', he⟩
+    exact ⟨by omega, he⟩
+  · rintro ⟨h, he⟩
+    exact ⟨by omega, by omega, he⟩
 
 end Deterministic
 

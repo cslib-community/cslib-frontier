@@ -9,18 +9,6 @@ module
 
 public import CslibFrontier.Init
 public import Mathlib.Analysis.SpecialFunctions.Log.Base
-public import Mathlib.Data.Nat.Log
-public import Mathlib.Order.Filter.AtTopBot.Basic
-public import Mathlib.Topology.Instances.Real.Lemmas
-
-import Mathlib.Algebra.Order.Floor.Semiring
-import Mathlib.Analysis.SpecialFunctions.Log.Basic
-import Mathlib.Data.Fintype.BigOperators
-import Mathlib.Data.List.Nodup
-import Mathlib.Tactic.FieldSimp
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Positivity
-import Mathlib.Tactic.Ring
 
 /-!
 # The distinct-parsing bound

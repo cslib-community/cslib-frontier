@@ -55,6 +55,9 @@ pigeons one at a time; only the explicit bound for each `h` is formalized.
 * `Cslib.Logic.PL.CNF.Derivation.pow_half_le_size_pigeonhole`: `(n / 2 + 1) ^ (n / 2)` nodes
   [BeyersdorffGalesiLauria2010, Theorem 2].
 * `Cslib.Logic.PL.CNF.pow_lt_two_mul_leafCount_pigeonhole`: the same bound for DPLL search trees.
+* `Cslib.Logic.PL.CNF.Derivation.pow_half_le_leafCount_relabel_pigeonhole`,
+  `Cslib.Logic.PL.CNF.pow_half_le_leafCount_relabel_pigeonhole`: `(n / 2 + 1) ^ (n / 2)` leaves of
+  tree-like refutations and of DPLL search trees for `PHP^m_n` with renamed variables.
 
 ## References
 
@@ -455,6 +458,20 @@ theorem pow_half_le_size_pigeonhole (hnm : n < m) (d : (pigeonhole m n).Derivati
     (n / 2 + 1) ^ (n / 2) ≤ d.size :=
   (Nat.pow_le_pow_left (by omega) _).trans (pow_le_size_pigeonhole (n / 2) hnm d)
 
+/-- **Relabelled pigeonhole formulas.** For `m > n` and an injective map `f` renaming the variables
+of `PHP^m_n`, every tree-like refutation of the renamed formula has at least
+`(n / 2 + 1) ^ (n / 2)` leaves [BeyersdorffGalesiLauria2010, Theorem 2]. -/
+theorem pow_half_le_leafCount_relabel_pigeonhole {W : Type*} [DecidableEq W]
+    {f : Fin m × Fin n → W} (hf : Function.Injective f) (hnm : n < m)
+    (d : ((pigeonhole m n).relabel f).Derivation []) :
+    (n / 2 + 1) ^ (n / 2) ≤ d.toDecisionTree.leafCount := by
+  obtain ⟨d', hs⟩ := exists_size_eq_of_relabel hf d
+  have h₁ := d.two_mul_leafCount_toDecisionTree
+  have h₂ := d'.two_mul_leafCount_toDecisionTree
+  have hle := (Nat.pow_le_pow_left (by omega : n / 2 + 1 ≤ n + 1 - n / 2) (n / 2)).trans
+    (d'.pow_le_leafCount_pigeonhole (n / 2) hnm)
+  omega
+
 end Derivation
 
 /-- **DPLL search trees for the pigeonhole principle**: for `m > n` and every `h`, a decision tree
@@ -465,6 +482,17 @@ theorem pow_lt_two_mul_leafCount_pigeonhole (h : ℕ) (hnm : n < m)
   obtain ⟨d, hd⟩ := ht.exists_derivation
   have := d.pow_le_size_pigeonhole h hnm
   omega
+
+/-- **DPLL search trees for relabelled pigeonhole formulas**: for `m > n` and an injective map `f`
+renaming the variables of `PHP^m_n`, a decision tree finding a falsified clause of the renamed
+formula has at least `(n / 2 + 1) ^ (n / 2)` leaves [BeyersdorffGalesiLauria2010, Theorem 2]. -/
+theorem pow_half_le_leafCount_relabel_pigeonhole {W : Type*} {f : Fin m × Fin n → W}
+    (hf : Function.Injective f) (hnm : n < m) {t : DecisionTree W (Clause W)}
+    (ht : t.FindsFalsifiedClause ((pigeonhole m n).relabel f)) :
+    (n / 2 + 1) ^ (n / 2) ≤ t.leafCount := by
+  classical
+  obtain ⟨d, hd⟩ := ht.exists_derivation_leafCount_le
+  exact (d.pow_half_le_leafCount_relabel_pigeonhole hf hnm).trans hd
 
 end CNF
 

@@ -399,6 +399,45 @@ end Test
 
 /-! ### Quantitative soundness -/
 
+/-- Linear interpolation of `g₁, g₂ : (Fin n → F) → F` along the first coordinate through `t₁` and
+`t₂`. -/
+def sliceInterpolant {n : ℕ} (t₁ t₂ : F) (g₁ g₂ : (Fin n → F) → F) (x : Fin (n + 1) → F) : F :=
+  g₁ (Fin.tail x) + (x 0 - t₁) / (t₂ - t₁) * (g₂ (Fin.tail x) - g₁ (Fin.tail x))
+
+/-- Restricting `sliceInterpolant t₁ t₂ g₁ g₂` along direction `0` gives the affine line through
+`(t₁, g₁ (Fin.tail x))` and `(t₂, g₂ (Fin.tail x))` when `t₁ ≠ t₂`. -/
+theorem lineRestrict_sliceInterpolant_zero {n : ℕ} (t₁ t₂ : F) (g₁ g₂ : (Fin n → F) → F)
+    (x : Fin (n + 1) → F) :
+    lineRestrict (sliceInterpolant t₁ t₂ g₁ g₂) x 0 = fun t =>
+      g₁ (Fin.tail x) + (t - t₁) / (t₂ - t₁) * (g₂ (Fin.tail x) - g₁ (Fin.tail x)) := by
+  classical
+  funext t
+  simp only [sliceInterpolant, lineRestrict, Fin.tail_update_zero, update_self]
+
+/-- Interpolating two multilinear functions on `F ^ n` along the first coordinate yields a
+multilinear function on `F ^ (n + 1)`. -/
+theorem isMultilinear_sliceInterpolant {n : ℕ} (t₁ t₂ : F) {g₁ g₂ : (Fin n → F) → F}
+    (hg₁ : IsMultilinear g₁) (hg₂ : IsMultilinear g₂) :
+    IsMultilinear (sliceInterpolant t₁ t₂ g₁ g₂) := by
+  classical
+  intro x i
+  induction i using Fin.cases with
+  | zero =>
+    rw [lineRestrict_sliceInterpolant_zero]
+    exact ⟨(g₂ (Fin.tail x) - g₁ (Fin.tail x)) / (t₂ - t₁),
+      g₁ (Fin.tail x) - t₁ * ((g₂ (Fin.tail x) - g₁ (Fin.tail x)) / (t₂ - t₁)),
+      fun t => by ring⟩
+  | succ j =>
+    have hsucc : lineRestrict (sliceInterpolant t₁ t₂ g₁ g₂) x j.succ = fun t =>
+        lineRestrict g₁ (Fin.tail x) j t +
+          (x 0 - t₁) / (t₂ - t₁) *
+            (lineRestrict g₂ (Fin.tail x) j t - lineRestrict g₁ (Fin.tail x) j t) := by
+      funext t
+      simp only [sliceInterpolant, lineRestrict, Fin.tail_update_succ,
+        update_of_ne (Fin.succ_ne_zero j).symm]
+    rw [hsucc]
+    exact (hg₁ _ j).add (((hg₂ _ j).sub (hg₁ _ j)).const_mul _)
+
 section Soundness
 
 variable [Fintype F] [DecidableEq F] {n : ℕ}
@@ -459,30 +498,9 @@ theorem exists_isMultilinear_hammingDist_le_of_slices (f : (Fin (n + 1) → F) �
       Fintype.card F * (hammingDist (fun y => f (Fin.cons t₁ y)) g₁ +
         hammingDist (fun y => f (Fin.cons t₂ y)) g₂) := by
   have hd : t₂ - t₁ ≠ 0 := sub_ne_zero.mpr h12.symm
-  -- The interpolation of `g₁` and `g₂` in the first coordinate.
-  let g : (Fin (n + 1) → F) → F := fun x =>
-    g₁ (Fin.tail x) + (x 0 - t₁) / (t₂ - t₁) * (g₂ (Fin.tail x) - g₁ (Fin.tail x))
-  have hg0 (x : Fin (n + 1) → F) : lineRestrict g x 0 = fun t =>
-      g₁ (Fin.tail x) + (t - t₁) / (t₂ - t₁) * (g₂ (Fin.tail x) - g₁ (Fin.tail x)) := by
-    funext t
-    simp only [g, lineRestrict, Fin.tail_update_zero, update_self]
-  have hg : IsMultilinear g := by
-    intro x i
-    induction i using Fin.cases with
-    | zero =>
-      rw [hg0]
-      exact ⟨(g₂ (Fin.tail x) - g₁ (Fin.tail x)) / (t₂ - t₁),
-        g₁ (Fin.tail x) - t₁ * ((g₂ (Fin.tail x) - g₁ (Fin.tail x)) / (t₂ - t₁)),
-        fun t => by ring⟩
-    | succ j =>
-      have : lineRestrict g x j.succ = fun t => lineRestrict g₁ (Fin.tail x) j t +
-          (x 0 - t₁) / (t₂ - t₁) *
-            (lineRestrict g₂ (Fin.tail x) j t - lineRestrict g₁ (Fin.tail x) j t) := by
-        funext t
-        simp only [g, lineRestrict, Fin.tail_update_succ,
-          update_of_ne (Fin.succ_ne_zero j).symm]
-      rw [this]
-      exact (hg₁ _ j).add (((hg₂ _ j).sub (hg₁ _ j)).const_mul _)
+  let g := sliceInterpolant t₁ t₂ g₁ g₂
+  have hg0 := lineRestrict_sliceInterpolant_zero t₁ t₂ g₁ g₂
+  have hg : IsMultilinear g := isMultilinear_sliceInterpolant t₁ t₂ hg₁ hg₂
   refine ⟨g, hg, ?_⟩
   -- Every point where `f` and `g` differ is wrong in direction `0`, or lies over a point where
   -- one of the two slices differs from its approximation.

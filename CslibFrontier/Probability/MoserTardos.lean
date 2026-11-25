@@ -59,7 +59,9 @@ every other event sharing a variable with `A i` (the hypothesis of the asymmetri
   the same bound dominates the count under every valid rule, so the bound also holds for the outer
   expectation.
 * `Cslib.Probability.MoserTardos.ae_exists_run_eq_none`: almost surely the algorithm stops after
-  finitely many steps, for every valid rule.
+  finitely many steps, for every valid rule. The step it rests on,
+  `Cslib.Probability.MoserTardos.ae_exists_forall_isLog_length_le_of_bound`, says that almost
+  surely the valid logs on the table have bounded length; the parallel algorithm uses it too.
 * `Cslib.Probability.MoserTardos.ae_exists_forall_notMem_run`: almost surely a valid rule that
   stops only when no event occurs reaches an assignment avoiding every event;
   `ae_exists_forall_notMem_run_greedy` is the case of the greedy rule.
@@ -498,7 +500,9 @@ theorem measurable_iSup_count [DecidableEq ι] [Countable ι] (A : ι → Set (�
   exact Measurable.ite (measurableSet_isLog vbl A hAm w) measurable_const measurable_const
 
 omit [Fintype V] [∀ v, MeasurableSpace (α v)] [∀ v, IsProbabilityMeasure (μ v)] in
-private theorem length_le_sum_iSup_count [DecidableEq ι] [Fintype ι] (A : ι → Set (∀ v, α v))
+/-- The length of a valid log is at most the sum over the events of the largest number of steps
+labelled with that event in a valid log on the same table. -/
+theorem length_le_sum_iSup_count [DecidableEq ι] [Fintype ι] (A : ι → Set (∀ v, α v))
     {T : ∀ p : V × ℕ, α p.1} {w : List ι} (hw : IsLog vbl A T w) :
     (w.length : ℝ≥0∞) ≤ ∑ i, ⨆ (w' : List ι) (_ : IsLog vbl A T w'), (w'.count i : ℝ≥0∞) := by
   have hlen : (w.length : ℝ≥0∞) = ∑ i, (w.count i : ℝ≥0∞) := by
@@ -544,6 +548,18 @@ theorem exists_measurable_ge_resamplings_of_bound [DecidableEq ι] [Countable ι
     fun _ hsel T => resamplings_le_iSup_count vbl A hsel i T⟩
 
 omit [Fintype V] [∀ v, IsProbabilityMeasure (μ v)] in
+/-- Generic deduction from per-event expected supremum bounds to a bound on the integral of the
+measurable majorant `∑ i, ⨆ (w valid), w.count i`. Pointwise bounds by this sum, such as
+`resamplings_le_iSup_count` for a sequential run and `length_le_sum_iSup_count` for any valid log,
+turn into expectation bounds through it. -/
+theorem lintegral_sum_iSup_count_le_of_bound [DecidableEq ι] [Fintype ι]
+    (A : ι → Set (∀ v, α v)) (hAm : ∀ i, MeasurableSet (A i)) {c : ι → ℝ≥0∞}
+    (hc : ∀ i, ∫⁻ T, ⨆ (w : List ι) (_ : IsLog vbl A T w), (w.count i : ℝ≥0∞) ∂table μ ≤ c i) :
+    ∫⁻ T, ∑ i, ⨆ (w : List ι) (_ : IsLog vbl A T w), (w.count i : ℝ≥0∞) ∂table μ ≤ ∑ i, c i := by
+  rw [lintegral_finsetSum _ fun i _ => measurable_iSup_count vbl A hAm i]
+  exact sum_le_sum fun i _ => hc i
+
+omit [Fintype V] [∀ v, IsProbabilityMeasure (μ v)] in
 /-- Generic deduction from per-event expected supremum bounds to the expected total number of
 resamplings. -/
 theorem lintegral_sum_resamplings_le_of_bound [DecidableEq ι] [Fintype ι]
@@ -551,13 +567,33 @@ theorem lintegral_sum_resamplings_le_of_bound [DecidableEq ι] [Fintype ι]
     (hc : ∀ i, ∫⁻ T, ⨆ (w : List ι) (_ : IsLog vbl A T w), (w.count i : ℝ≥0∞) ∂table μ ≤ c i)
     {sel : (∀ p : V × ℕ, α p.1) → List ι → Option ι}
     (hsel : ∀ T w j, sel T w = some j → current vbl T w ∈ A j) :
-    ∫⁻ T, ∑ i, resamplings sel i T ∂table μ ≤ ∑ i, c i := by
-  calc ∫⁻ T, ∑ i, resamplings sel i T ∂table μ
-      ≤ ∫⁻ T, ∑ i, ⨆ (w : List ι) (_ : IsLog vbl A T w), (w.count i : ℝ≥0∞) ∂table μ :=
-        lintegral_mono fun T => sum_le_sum fun i _ => resamplings_le_iSup_count vbl A hsel i T
-    _ = ∑ i, ∫⁻ T, ⨆ (w : List ι) (_ : IsLog vbl A T w), (w.count i : ℝ≥0∞) ∂table μ :=
-        lintegral_finsetSum _ fun i _ => measurable_iSup_count vbl A hAm i
-    _ ≤ _ := sum_le_sum fun i _ => hc i
+    ∫⁻ T, ∑ i, resamplings sel i T ∂table μ ≤ ∑ i, c i :=
+  (lintegral_mono fun T => sum_le_sum fun i _ => resamplings_le_iSup_count vbl A hsel i T).trans
+    (lintegral_sum_iSup_count_le_of_bound μ vbl A hAm hc)
+
+omit [Fintype V] [∀ v, IsProbabilityMeasure (μ v)] in
+/-- Generic deduction from finite per-event expected supremum bounds: almost surely the valid
+logs on the table have bounded length. Any procedure whose logs are valid and grow at every
+step, sequential or parallel, therefore stops almost surely. -/
+theorem ae_exists_forall_isLog_length_le_of_bound [Finite ι] (A : ι → Set (∀ v, α v))
+    (hAm : ∀ i, MeasurableSet (A i))
+    (hc : ∀ [DecidableEq ι] (i : ι),
+      ∫⁻ T, ⨆ (w : List ι) (_ : IsLog vbl A T w), (w.count i : ℝ≥0∞) ∂table μ ≠ ∞) :
+    ∀ᵐ T ∂table μ, ∃ N : ℕ, ∀ w : List ι, IsLog vbl A T w → w.length ≤ N := by
+  classical
+  have := Fintype.ofFinite ι
+  have hmeas : Measurable fun T : ∀ p : V × ℕ, α p.1 =>
+      ∑ i, ⨆ (w : List ι) (_ : IsLog vbl A T w), (w.count i : ℝ≥0∞) :=
+    Finset.measurable_sum _ fun i _ => measurable_iSup_count vbl A hAm i
+  have hint : ∫⁻ T, ∑ i, ⨆ (w : List ι) (_ : IsLog vbl A T w),
+      (w.count i : ℝ≥0∞) ∂table μ ≠ ∞ := by
+    rw [lintegral_finsetSum _ fun i _ => measurable_iSup_count vbl A hAm i]
+    exact ENNReal.sum_ne_top.2 fun i _ => hc i
+  filter_upwards [ae_lt_top hmeas hint] with T hT
+  obtain ⟨N, hN⟩ := ENNReal.exists_nat_gt hT.ne
+  refine ⟨N, fun w hw => ?_⟩
+  have hlt : (w.length : ℝ≥0∞) < N := (length_le_sum_iSup_count vbl A hw).trans_lt hN
+  exact_mod_cast hlt.le
 
 omit [Fintype V] [∀ v, IsProbabilityMeasure (μ v)] in
 /-- Generic deduction from finite per-event expected supremum bounds to almost sure termination
@@ -569,22 +605,12 @@ theorem ae_exists_run_eq_none_of_bound [Finite ι] (A : ι → Set (∀ v, α v)
     {sel : (∀ p : V × ℕ, α p.1) → List ι → Option ι}
     (hsel : ∀ T w i, sel T w = some i → current vbl T w ∈ A i) :
     ∀ᵐ T ∂table μ, ∃ n, sel T (run sel T n) = none := by
-  classical
-  have := Fintype.ofFinite ι
-  have hmeas : Measurable fun T : ∀ p : V × ℕ, α p.1 =>
-      ∑ i, ⨆ (w : List ι) (_ : IsLog vbl A T w), (w.count i : ℝ≥0∞) :=
-    Finset.measurable_sum _ fun i _ => measurable_iSup_count vbl A hAm i
-  have hint : ∫⁻ T, ∑ i, ⨆ (w : List ι) (_ : IsLog vbl A T w),
-      (w.count i : ℝ≥0∞) ∂table μ ≠ ∞ := by
-    rw [lintegral_finsetSum _ fun i _ => measurable_iSup_count vbl A hAm i]
-    exact ENNReal.sum_ne_top.2 fun i _ => hc i
-  filter_upwards [ae_lt_top hmeas hint] with T hT
+  filter_upwards [ae_exists_forall_isLog_length_le_of_bound μ vbl A hAm hc] with T ⟨N, hN⟩
   by_contra hne
   simp only [not_exists] at hne
-  obtain ⟨n, hn⟩ := ENNReal.exists_nat_gt hT.ne
-  have hlen := length_le_sum_iSup_count vbl A (isLog_run vbl A hsel T n)
-  rw [length_run_of_forall hne n] at hlen
-  exact lt_irrefl _ (hlen.trans_lt hn)
+  have hlen := hN _ (isLog_run vbl A hsel T (N + 1))
+  rw [length_run_of_forall hne (N + 1)] at hlen
+  omega
 
 omit [Fintype V] [∀ v, IsProbabilityMeasure (μ v)] in
 /-- Generic deduction from finite per-event expected supremum bounds to almost sure success for

@@ -25,6 +25,7 @@ import CslibFrontier.Probability.Uniform
 import CslibFrontier.Tactic.ENNRealToReal
 import CslibFrontier.Tactic.PMFSwap
 import CslibFrontier.Tactic.SuppCases
+import CslibFrontier.Tactic.UniformRelabel
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
@@ -626,16 +627,11 @@ theorem evenMansourIdealGame_eq_lazy (program : OracleComp (EvenMansourSpec G) B
 Even–Mansour game is identically distributed to the ideal game. -/
 theorem evenMansourRealGame_liftLeft_eq_ideal (program : OracleComp (PermOracleSpec G) Bool) :
     evenMansourRealGame (liftLeft program) = evenMansourIdealGame (liftLeft program) := by
-  have hkey (k₀ k₁ : G) :
-      ((PMF.uniformOfFintype (Equiv.Perm G)).bind fun π =>
-        PMF.pure (evalTwoPerms (evenMansourEquiv π k₀ k₁) (1 : Equiv.Perm G) (liftLeft program))) =
-      ((PMF.uniformOfFintype (Equiv.Perm G)).bind fun E =>
-        PMF.pure (evalTwoPerms E (1 : Equiv.Perm G) (liftLeft program))) := by
-    conv_rhs => rw [← PMF.uniformOfFintype_map_equiv (evenMansourPermEquiv k₀ k₁), PMF.bind_map]
-    rfl
   simp only [evenMansourRealGame, evenMansourIdealGame, evalEvenMansour, pmf_norm]
+  simp_rw [evalTwoPerms_liftLeft _ _ (1 : Equiv.Perm G) program]
   pmf_hoist (PMF.uniformOfFintype (G × G))
-  simp_rw [evalTwoPerms_liftLeft _ _ (1 : Equiv.Perm G) program, hkey, PMF.bind_const]
+  drop_uniform with k
+  relabel_uniform (evenMansourPermEquiv k.1 k.2)
 
 /-- Any adversary that queries only the cipher oracle (`liftLeft`) has zero advantage between the
 real Even–Mansour game and the ideal game. -/

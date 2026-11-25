@@ -294,8 +294,8 @@ private theorem refineLeftLoop_spec {cs : List ℚ} (hsep : (ofCoeffList cs).Sep
     have hleL : vm ≤ vu := hvu ▸ sturmVariationsList_antitone hsep hum.le
     have hleR : vv ≤ vm := hvv ▸ sturmVariationsList_antitone hsep hmv.le
     simp only [refineLeftLoop]
-    split_ifs with hvm_eq hem
-    · have hvm' : vm = vu := hvm_eq
+    by_cases hvm_eq : vm = vu
+    · rw [ite_eq_left hvm_eq]
       have hcntL : sturmVariationsList (sturmSeqList cs) u - vm = 0 := by rw [← hvu]; omega
       have hcntR : vm - sturmVariationsList (sturmSeqList cs) v = 1 := by rw [← hvv]; omega
       have hnoL {r : ℝ} := no_root_Ioc_of_card_eq_zero hsep hum.le hcntL (r := r)
@@ -304,32 +304,29 @@ private theorem refineLeftLoop_spec {cs : List ℚ} (hsep : (ofCoeffList cs).Sep
       refine ⟨hiso, hum, le_rfl, fun r => (heq_mv r).trans ⟨fun ⟨hmr, hrv, hrr⟩ =>
         ⟨(Rat.cast_lt.mpr hum).trans hmr, hrv, hrr⟩, fun ⟨hur, hrv, hrr⟩ =>
         ⟨lt_of_not_ge fun hrm => hnoL hur hrm hrr, hrv, hrr⟩⟩⟩
-    · have hcntL : sturmVariationsList (sturmSeqList cs) u - vm = 1 := by
+    · rw [ite_eq_right hvm_eq]
+      have hcntL : sturmVariationsList (sturmSeqList cs) u - vm = 1 := by
         dsimp only [vm, m] at *; rw [← hvu]; omega
       have hcntR : vm - sturmVariationsList (sturmSeqList cs) v = 0 := by
         dsimp only [vm, m] at *; rw [← hvv]; omega
       have hle_m : ∀ {r : ℝ}, r ≤ v →
           ((ofCoeffList cs).map (algebraMap ℚ ℝ)).IsRoot r → r ≤ m := fun hrv hrr =>
         le_of_not_gt fun hmr => no_root_Ioc_of_card_eq_zero hsep hmv.le hcntR hmr hrv hrr
-      have hm_root : ((ofCoeffList cs).map (algebraMap ℚ ℝ)).IsRoot (m : ℝ) :=
-        (eval_rat_eq_zero_iff cs m).mp hem
-      obtain ⟨_, _, hr₀_uniq⟩ := unique_root_Ioc_of_card_eq_one hsep hum.le hcntL
-      obtain ⟨hiso, hequiv⟩ := singleton_isolating_of_Ioc hum hmv.le hm_root fun r hur hrv hrr =>
-        (hr₀_uniq r ⟨hur, hle_m hrv hrr, hrr⟩).trans
-          (hr₀_uniq m ⟨Rat.cast_lt.mpr hum, le_rfl, hm_root⟩).symm
-      exact ⟨hiso, hum, hmv.le, hequiv⟩
-    · have hcntL : sturmVariationsList (sturmSeqList cs) u - vm = 1 := by
-        dsimp only [vm, m] at *; rw [← hvu]; omega
-      have hcntR : vm - sturmVariationsList (sturmSeqList cs) v = 0 := by
-        dsimp only [vm, m] at *; rw [← hvv]; omega
-      have hle_m : ∀ {r : ℝ}, r ≤ v →
-          ((ofCoeffList cs).map (algebraMap ℚ ℝ)).IsRoot r → r ≤ m := fun hrv hrr =>
-        le_of_not_gt fun hmr => no_root_Ioc_of_card_eq_zero hsep hmv.le hcntR hmr hrv hrr
-      obtain ⟨ih_iso, ih_low, ih_up, ih_eq⟩ := refineLeftLoop_spec hsep fuel (depth + 1)
-        u m vu vm (by omega) hum hvu rfl (by omega) hu_root (dyadic_half_width_le hwidth).1
-      exact ⟨ih_iso, ih_low, ih_up.trans hmv.le, fun r => (ih_eq r).trans
-        ⟨fun ⟨hur, hrm, hrr⟩ => ⟨hur, hrm.trans (Rat.cast_le.mpr hmv.le), hrr⟩,
-          fun ⟨hur, hrv, hrr⟩ => ⟨hur, hle_m hrv hrr, hrr⟩⟩⟩
+      by_cases hem : evalCoeffList m (CoeffList.trim cs) = 0
+      · rw [ite_eq_left hem]
+        have hm_root : ((ofCoeffList cs).map (algebraMap ℚ ℝ)).IsRoot (m : ℝ) :=
+          (eval_rat_eq_zero_iff cs m).mp hem
+        obtain ⟨_, _, hr₀_uniq⟩ := unique_root_Ioc_of_card_eq_one hsep hum.le hcntL
+        obtain ⟨hiso, hequiv⟩ := singleton_isolating_of_Ioc hum hmv.le hm_root fun r hur hrv hrr =>
+          (hr₀_uniq r ⟨hur, hle_m hrv hrr, hrr⟩).trans
+            (hr₀_uniq m ⟨Rat.cast_lt.mpr hum, le_rfl, hm_root⟩).symm
+        exact ⟨hiso, hum, hmv.le, hequiv⟩
+      · rw [ite_eq_right hem]
+        obtain ⟨ih_iso, ih_low, ih_up, ih_eq⟩ := refineLeftLoop_spec hsep fuel (depth + 1)
+          u m vu vm (by omega) hum hvu rfl (by omega) hu_root (dyadic_half_width_le hwidth).1
+        exact ⟨ih_iso, ih_low, ih_up.trans hmv.le, fun r => (ih_eq r).trans
+          ⟨fun ⟨hur, hrm, hrr⟩ => ⟨hur, hrm.trans (Rat.cast_le.mpr hmv.le), hrr⟩,
+            fun ⟨hur, hrv, hrr⟩ => ⟨hur, hle_m hrv hrr, hrr⟩⟩⟩
 
 private theorem refineLeftRoot_spec {cs : List ℚ} (hsep : (ofCoeffList cs).Separable)
     {u v : ℚ} (huv : u < v) {vu vv : ℕ}
@@ -428,7 +425,7 @@ private theorem isolateIoc_spec {cs : List ℚ} (hsep : (ofCoeffList cs).Separab
     have hvu_ge : vv ≤ vu := hvu ▸ hvv ▸ sturmVariationsList_antitone hsep huv
     unfold isolateIoc; dsimp only
     split_ifs with hc0 hc1
-    · exact ⟨fun _ h => absurd h List.not_mem_nil, List.Pairwise.nil, by simp [hc0],
+    · exact ⟨fun _ h => absurd h List.not_mem_nil, List.Pairwise.nil, by rw [hc0, List.length_nil],
         fun _ h => absurd h List.not_mem_nil, fun _ ⟨hur, hrv, hrr⟩ =>
           (no_root_Ioc_of_card_eq_zero hsep huv (hvu ▸ hvv ▸ hc0) hur hrv hrr).elim⟩
     · have huv_lt : u < v := lt_of_le_of_ne huv fun h => by subst h; omega
@@ -437,7 +434,7 @@ private theorem isolateIoc_spec {cs : List ℚ} (hsep : (ofCoeffList cs).Separab
       obtain ⟨hiso, hlow, hup, hstrict, hequiv⟩ :=
         refineLeftRoot_spec hsep huv_lt hvu hvv hc1 hwidth0
       exact ⟨by rintro _ h; obtain rfl := List.mem_singleton.mp h; exact ⟨hiso, hlow, hup, hstrict⟩,
-        List.pairwise_singleton _ _, by simp [hc1],
+        List.pairwise_singleton _ _, by rw [List.length_singleton, hc1],
         fun _ h r hr => by obtain rfl := List.mem_singleton.mp h
                            exact ⟨((hequiv r).mp hr).1, ((hequiv r).mp hr).2.1⟩,
         fun r hr => ⟨_, List.mem_singleton_self _, ((hequiv r).mpr hr).1,

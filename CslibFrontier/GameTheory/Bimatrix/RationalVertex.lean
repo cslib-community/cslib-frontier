@@ -7,13 +7,10 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Data.Int.Radix
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.IntegerKernel
-public import CslibFrontier.Foundations.LinearAlgebra.Matrix.VertexOrientation
 public import CslibFrontier.GameTheory.Bimatrix.BestResponsePolytope
 public import CslibFrontier.GameTheory.Bimatrix.ShapleyOrientation
-public import Mathlib.LinearAlgebra.Matrix.Adjugate
 import Mathlib.LinearAlgebra.Matrix.AbsoluteValue
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith

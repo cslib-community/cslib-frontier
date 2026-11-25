@@ -12,6 +12,7 @@ public import Mathlib.Data.Fintype.Perm
 import CslibFrontier.Probability.PMF.Support
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Tactic.FinIndex
+import CslibFrontier.Tactic.UniformRelabel
 
 /-!
 # Random-permutation toy SPIR scheme with client preprocessing
@@ -154,33 +155,6 @@ theorem toyScheme_isCorrectWith_one (n k : ℕ) : (toyScheme n k).IsCorrectWith 
 
 /-! ### Perfect data privacy -/
 
-/-- Involution on server randomness `r : Fin n → Bool` that shifts `r m` by
-`xor (D₀ (π.symm m)) (D₁ (π.symm m))`. -/
-private def maskEquiv {n : ℕ} (D₀ D₁ : Fin n → Bool) (π : Equiv.Perm (Fin n)) :
-    (Fin n → Bool) ≃ (Fin n → Bool) where
-  toFun r m := xor (r m) (xor (D₀ (π.symm m)) (D₁ (π.symm m)))
-  invFun r m := xor (r m) (xor (D₀ (π.symm m)) (D₁ (π.symm m)))
-  left_inv r := by
-    funext m
-    simp
-  right_inv r := by
-    funext m
-    simp
-
-private theorem maskEquiv_maskedDB {n : ℕ} (D₀ D₁ : Fin n → Bool) (π : Equiv.Perm (Fin n))
-    (r : Fin n → Bool) :
-    (fun i => xor (D₀ i) (maskEquiv D₀ D₁ π r (π i))) = fun i => xor (D₁ i) (r (π i)) := by
-  funext i
-  simp only [maskEquiv, Equiv.coe_fn_mk, Equiv.symm_apply_apply]
-  cases D₀ i <;> cases D₁ i <;> cases r (π i) <;> rfl
-
-private theorem maskEquiv_comp_query {n k : ℕ} {D₀ D₁ : Fin n → Bool} {Q : Fin k → Fin n}
-    (hD : D₀ ∘ Q = D₁ ∘ Q) (π : Equiv.Perm (Fin n)) (r : Fin n → Bool) :
-    maskEquiv D₀ D₁ π r ∘ (π ∘ Q) = r ∘ (π ∘ Q) := by
-  funext j
-  have hDj : D₀ (Q j) = D₁ (Q j) := congrFun hD j
-  simp [maskEquiv, Function.comp_apply, hDj]
-
 /-- `toyScheme n k` is perfectly data private (`IsPerfectlyDataPrivate`). -/
 theorem toyScheme_isPerfectlyDataPrivate (n k : ℕ) : (toyScheme n k).IsPerfectlyDataPrivate := by
   intro D₀ D₁ Q hD
@@ -192,10 +166,18 @@ theorem toyScheme_isPerfectlyDataPrivate (n k : ℕ) : (toyScheme n k).IsPerfect
   symm
   congr 1
   funext π
-  rw [← Cslib.Probability.PMF.uniformOfFintype_bind_equiv (maskEquiv D₀ D₁ π)]
-  congr 1
-  funext r
-  rw [maskEquiv_maskedDB D₀ D₁ π r, maskEquiv_comp_query hD π r]
+  relabel_uniform
+    (fun (r : Fin n → Bool) m => xor (r m) (xor (D₀ (π.symm m)) (D₁ (π.symm m)))) with r
+  have hq :
+      ((fun m => xor (r m) (xor (D₀ (π.symm m)) (D₁ (π.symm m)))) ∘ (π ∘ Q)) = r ∘ (π ∘ Q) := by
+    funext j
+    have hDj : D₀ (Q j) = D₁ (Q j) := congrFun hD j
+    simp [Function.comp_apply, hDj]
+  rw [hq]
+  congr 1; congr 1; congr 1
+  funext i
+  simp only [Equiv.symm_apply_apply]
+  cases D₀ i <;> cases D₁ i <;> cases r (π i) <;> rfl
 
 /-! ### Server privacy on injective query tuples and repeated-query counterexample -/
 
@@ -231,12 +213,11 @@ theorem toyScheme_isPerfectlyPrivateOn_injective (n k : ℕ) :
     ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure]
   congr 1
   funext r
-  rw [← Cslib.Probability.PMF.uniformOfFintype_bind_equiv (Equiv.mulRight σ)]
-  congr 1
-  funext π
-  have hcomp : ((Equiv.mulRight σ) π) ∘ Q₀ = π ∘ Q₁ := by
+  relabel_uniform (Equiv.mulRight σ⁻¹) with π
+  have hcomp : ((Equiv.mulRight σ⁻¹) π) ∘ Q₁ = π ∘ Q₀ := by
     rw [← hσ]
-    rfl
+    ext j
+    simp [Equiv.mulRight]
   rw [hcomp]
 
 /-- When `k ≤ 1`, every query tuple `Q : Fin k → Fin n` is injective, so `toyScheme n k` is
@@ -346,34 +327,6 @@ theorem parallelToyScheme_isCorrect (n k : ℕ) : (parallelToyScheme n k).IsCorr
   simp only [Scheme.run, Scheme.runAt, parallelToyScheme, bind_assoc, pure_bind,
     parallel_xor_cancel_query, ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_const]
 
-/-- Involution on the server randomness family that shifts `r j m` by
-`xor (D₀ ((π j).symm m)) (D₁ ((π j).symm m))`. -/
-private def parallelMaskEquiv {n k : ℕ} (D₀ D₁ : Fin n → Bool)
-    (π : Fin k → Equiv.Perm (Fin n)) : (Fin k → Fin n → Bool) ≃ (Fin k → Fin n → Bool) where
-  toFun r j m := xor (r j m) (xor (D₀ ((π j).symm m)) (D₁ ((π j).symm m)))
-  invFun r j m := xor (r j m) (xor (D₀ ((π j).symm m)) (D₁ ((π j).symm m)))
-  left_inv r := by
-    funext j m
-    simp
-  right_inv r := by
-    funext j m
-    simp
-
-private theorem parallelMaskEquiv_maskedDB {n k : ℕ} (D₀ D₁ : Fin n → Bool)
-    (π : Fin k → Equiv.Perm (Fin n)) (r : Fin k → Fin n → Bool) :
-    (fun j i => xor (D₀ i) (parallelMaskEquiv D₀ D₁ π r j (π j i))) =
-      fun j i => xor (D₁ i) (r j (π j i)) := by
-  funext j i
-  simp only [parallelMaskEquiv, Equiv.coe_fn_mk, Equiv.symm_apply_apply]
-  cases D₀ i <;> cases D₁ i <;> cases r j (π j i) <;> rfl
-
-private theorem parallelMaskEquiv_query {n k : ℕ} {D₀ D₁ : Fin n → Bool} {Q : Fin k → Fin n}
-    (hD : D₀ ∘ Q = D₁ ∘ Q) (π : Fin k → Equiv.Perm (Fin n)) (r : Fin k → Fin n → Bool)
-    (j : Fin k) :
-    parallelMaskEquiv D₀ D₁ π r j (π j (Q j)) = r j (π j (Q j)) := by
-  have hDj : D₀ (Q j) = D₁ (Q j) := congrFun hD j
-  simp [parallelMaskEquiv, hDj]
-
 /-- `parallelToyScheme n k` is perfectly data private (`IsPerfectlyDataPrivate`). -/
 theorem parallelToyScheme_isPerfectlyDataPrivate (n k : ℕ) :
     (parallelToyScheme n k).IsPerfectlyDataPrivate := by
@@ -386,10 +339,19 @@ theorem parallelToyScheme_isPerfectlyDataPrivate (n k : ℕ) :
   symm
   congr 1
   funext π
-  rw [← Cslib.Probability.PMF.uniformOfFintype_bind_equiv (parallelMaskEquiv D₀ D₁ π)]
-  congr 1
-  funext r
-  simp only [parallelMaskEquiv_maskedDB D₀ D₁ π r, parallelMaskEquiv_query hD π r]
+  relabel_uniform (fun (r : Fin k → Fin n → Bool) j m =>
+    xor (r j m) (xor (D₀ ((π j).symm m)) (D₁ ((π j).symm m)))) with r
+  have hq : (fun j => xor (r j (π j (Q j)))
+      (xor (D₀ ((π j).symm (π j (Q j)))) (D₁ ((π j).symm (π j (Q j)))))) =
+      fun j => r j (π j (Q j)) := by
+    funext j
+    have hDj : D₀ (Q j) = D₁ (Q j) := congrFun hD j
+    simp [hDj]
+  simp only [hq]
+  congr 1; congr 1; congr 1
+  funext j i
+  simp only [Equiv.symm_apply_apply]
+  cases D₀ i <;> cases D₁ i <;> cases r j (π j i) <;> rfl
 
 /-- `parallelToyScheme n k` is perfectly private (`IsPerfectlyPrivate`) for every pair of batch
 tuples, repeated indices included: composing each `π j` with the transposition of `Q₀ j` and
@@ -397,17 +359,11 @@ tuples, repeated indices included: composing each `π j` with the transposition 
 theorem parallelToyScheme_isPerfectlyPrivate (n k : ℕ) :
     (parallelToyScheme n k).IsPerfectlyPrivate := by
   intro D Q₀ Q₁
-  obtain ⟨e, he⟩ : ∃ e : (Fin k → Equiv.Perm (Fin n)) ≃ (Fin k → Equiv.Perm (Fin n)),
-      ∀ π j, e π j (Q₀ j) = π j (Q₁ j) :=
-    ⟨Equiv.piCongrRight fun j => Equiv.mulRight (Equiv.swap (Q₀ j) (Q₁ j)),
-      fun π j => by simp⟩
   simp only [Scheme.serverView, Scheme.serverViewAt, parallelToyScheme, bind_assoc, pure_bind,
     ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure]
   congr 1
   funext r
-  rw [← Cslib.Probability.PMF.uniformOfFintype_bind_equiv e]
-  congr 1
-  funext π
-  simp only [he]
+  relabel_uniform (Equiv.piCongrRight fun j => Equiv.mulRight (Equiv.swap (Q₀ j) (Q₁ j))) with π
+  simp
 
 end Cslib.Crypto.Protocols.PIR.Symmetric.Preprocessing

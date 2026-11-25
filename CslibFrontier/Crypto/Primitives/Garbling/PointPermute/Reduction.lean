@@ -12,6 +12,7 @@ public import CslibFrontier.Languages.Probabilistic.UniformNat
 import CslibFrontier.Probability.BitString.List
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Uniform
+import CslibFrontier.Tactic.UniformRelabel
 import CslibFrontier.Crypto.Game.Hybrid
 import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
@@ -146,10 +147,8 @@ private theorem uniformList_map_keyFn_permFn (k n s : ℕ) :
         rw [← hperms, ← hkeys, PMF.bind_map]
         simp only [PMF.map_comp, Function.comp_def]
     _ = _ := by
-        rw [← PMF.uniformOfFintype_map_equiv (Equiv.prodComm (Wire n s → Bool)
-          (Wire n s × Bool → BitString (k + 1))), ← Cslib.Probability.PMF.uniformOfFintype_prod,
-          PMF.map_bind]
-        simp only [PMF.map_comp, Function.comp_def, Equiv.prodComm_apply, Prod.swap_prod_mk]
+        relabel_uniform (Equiv.prodComm (Wire n s → Bool)
+          (Wire n s × Bool → BitString (k + 1)))
 
 variable (family : List Bool → List Bool → List Bool)
 

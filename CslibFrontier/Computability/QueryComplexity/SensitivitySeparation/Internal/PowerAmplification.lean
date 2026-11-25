@@ -89,7 +89,7 @@ theorem power_amplification {I : Type} [Fintype I]
   have hAr : 1 < (A : ℝ) := by exact_mod_cast hA
   have hBr : (A : ℝ) ^ 2 < (B : ℝ) := by exact_mod_cast hB
   have hAp : 0 < (A : ℝ) := by linarith
-  have hB1 : 1 < (B : ℝ) := by nlinarith
+  have hB1 : 1 < (B : ℝ) := by exact_mod_cast (Nat.one_lt_pow two_ne_zero hA).trans hB
   have hBp : 0 < (B : ℝ) := by linarith
   have hBn : 0 < B := by exact_mod_cast hBp
   have hbf : 0 < blockSensitivityAt f (fun _ => false) := lt_of_lt_of_le hBn hb

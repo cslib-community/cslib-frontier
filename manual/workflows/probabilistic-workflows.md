@@ -1629,17 +1629,26 @@ A proof that starts from `h : x ∈ m.support` usually needs the intermediate re
 `OracleComp.support` (so `ProbComp`), into existentials in program order, then applies the
 `rcases` pattern. A uniform draw contributes only its witness, a returned pair is split into its
 components, and a conditional becomes a disjunction, so a pattern such as `⟨-, h⟩ | ⟨-, h⟩` splits
-it. Without `with`, `supp_cases h` destructures completely, substitutes every equation that has a
-local variable on one side and closes the goal when two different constructors are equated, such
-as `false = true`; the names it introduces are inaccessible, so use this form when the rest of the
-proof refers to hypotheses only by type, through `‹_›`, `assumption` or `omega`.
+it. A dependent conditional `if hc : c then p hc else q hc` of `PMF`s also splits: the first
+witness of each branch is the proof of its condition, so `⟨hc, h⟩ | ⟨hc, h⟩` keeps the proof used
+by the selected distribution. A dependent conditional of oracle programs is not covered; use
+`split_ifs at h` first. Without `with`, `supp_cases h` destructures completely, substitutes every
+equation that has a local variable on one side and closes the goal when two different
+constructors are equated, such as `false = true`; the names it introduces are inaccessible, so
+use this form when the rest of the proof refers to hypotheses only by type, through `‹_›`,
+`assumption` or `omega`.
 
 When `m` is a definition or a local `let`, pass it as in `supp_cases h [realRoundHandler]` or
 `supp_cases h [ν_det]`; the same list takes a hypothesis that decides a condition. The tactic fails
 when `h` is not a support membership, and when `supp_norm` cannot rewrite it, usually because
 something needs unfolding first. `simp only [supp_norm] at h` gives the rewritten form without
-destructuring it. Membership in a `dite` and an `ExecRand` derivation are not covered; induct on
-the derivation and call `supp_cases` in each case, as the proofs in
+destructuring it. For stateful executions, import
+[Oracle/Norm.lean](../../CslibFrontier/Languages/Probabilistic/Oracle/Norm.lean) and use
+`supp_cases h [runWith_norm, program_def]`. This shares the priority-ordered run normalizer with
+game proofs and keeps joint result/state support hypotheses for opaque subprograms; see the
+transcript proofs in
+[Oracle/Vector.lean](../../CslibFrontier/Languages/Probabilistic/Oracle/Vector.lean).
+An `ExecRand` derivation still needs induction; call `supp_cases` in each case, as the proofs in
 [Structured.lean](../../CslibFrontier/Computability/WordRAM/Randomized/Structured.lean) do. The
 checked examples, including the failure messages, are in
 [SuppCases.lean](../../CslibFrontierTests/SuppCases.lean).
@@ -1883,7 +1892,8 @@ bounded cache. Without a budget, use `run_interpret_simulation_of_invariant` or
 [Simulation.lean](../../CslibFrontier/Languages/Probabilistic/Simulation.lean). The open-round loops
 of [CCA/Interleaved.lean](../../CslibFrontier/Crypto/Computational/Encryption/CCA/Interleaved.lean)
 and the certification and key-expansion hops of
-[TreeSignature/Security.lean](../../CslibFrontier/Crypto/Computational/TreeSignature/Security.lean)
+[TreeSignature/IdealToLazy.lean](../../CslibFrontier/Crypto/Computational/TreeSignature/IdealToLazy.lean)
+and [TreeSignature/LazyToIndexed.lean](../../CslibFrontier/Crypto/Computational/TreeSignature/LazyToIndexed.lean)
 are worked clients.
 
 ## Pass a query adapter through an eager/lazy game hop

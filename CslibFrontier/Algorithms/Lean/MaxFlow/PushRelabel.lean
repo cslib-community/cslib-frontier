@@ -67,9 +67,11 @@ executable scheduler.
 ## Limitations
 
 The bounds count operations; no cost is charged for selecting an operation, so this is not a
-machine running-time bound. Only the generic algorithm is treated: the FIFO and relabel-to-front
-(`O(|V|³)`) and highest-label (`O(|V|² √|E|)`) selection rules, gap and global relabelling
-heuristics, and dynamic trees ([GoldbergTarjan1988]) are not formalized.
+machine running-time bound. Only the generic algorithm is treated here: see
+`CslibFrontier.Algorithms.Lean.MaxFlow.RelabelToFront` for the pure relabel-to-front scheduler and
+its `O(|V|³)` push/relabel operation, discharge, and current-arc advance count bounds. Word-RAM
+running times (`O(|V|³)`), FIFO and highest-label (`O(|V|² √|E|)`) selection rules, gap and global
+relabelling heuristics, and dynamic trees ([GoldbergTarjan1988]) are not formalized here.
 
 ## References
 
@@ -230,6 +232,26 @@ theorem numNonsatPushes_cons (σ : State N) (o : Op V) (os : List (Op V)) :
 theorem numSatPushesAt_cons (a b : V) (σ : State N) (o : Op V) (os : List (Op V)) :
     σ.numSatPushesAt a b (o :: os) =
       (if o = .push a b ∧ σ.IsSatPush o then 1 else 0) + (σ.apply o).numSatPushesAt a b os := rfl
+
+theorem run_append (σ : State N) :
+    ∀ (os₁ os₂ : List (Op V)), σ.run (os₁ ++ os₂) = (σ.run os₁).run os₂
+  | [], _ => rfl
+  | o :: os₁, os₂ => run_append (σ.apply o) os₁ os₂
+
+theorem isRun_append {σ : State N} :
+    ∀ {os₁ os₂ : List (Op V)}, σ.IsRun os₁ → (σ.run os₁).IsRun os₂ → σ.IsRun (os₁ ++ os₂)
+  | [], _, _, h₂ => h₂
+  | _ :: _, _, h₁, h₂ => ⟨h₁.1, isRun_append h₁.2 h₂⟩
+
+theorem numNonsatPushes_append (σ : State N) :
+    ∀ (os₁ os₂ : List (Op V)),
+      σ.numNonsatPushes (os₁ ++ os₂) =
+        σ.numNonsatPushes os₁ + (σ.run os₁).numNonsatPushes os₂
+  | [], _ => by simp [numNonsatPushes, countOps]
+  | o :: os₁, os₂ => by
+    simp only [List.cons_append, numNonsatPushes_cons, run_cons,
+      numNonsatPushes_append (σ.apply o) os₁ os₂]
+    omega
 
 /-- Every operation of a run is a relabel, a saturating push or a nonsaturating push. -/
 theorem length_eq (σ : State N) (os : List (Op V)) :

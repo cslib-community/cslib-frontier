@@ -10,12 +10,12 @@ module
 public import CslibFrontier.Computability.Circuit.Boolean.ACC0.Basic
 public import CslibFrontier.Computability.Circuit.Boolean.SymAnd
 public import CslibFrontier.Computability.Circuit.Boolean.SymAnd.Collapse
+public import CslibFrontier.Computability.Circuit.Boolean.SymAnd.Restrict
+public import CslibFrontier.Computability.Circuit.Depth
+public import CslibFrontier.Foundations.BooleanAnalysis.LowDegree.OrTest
 public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryField
-import CslibFrontier.Computability.Circuit.Boolean.SymAnd.Restrict
-import CslibFrontier.Computability.Circuit.Depth
 import CslibFrontier.Computability.Circuit.Program
 import CslibFrontier.Foundations.BooleanAnalysis.LowDegree.Choose
-import CslibFrontier.Foundations.BooleanAnalysis.LowDegree.OrTest
 import CslibFrontier.Foundations.BooleanAnalysis.Symmetrization
 import CslibFrontier.Foundations.Data.Nat.Choose.PrimePowerDvd
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Log
@@ -108,7 +108,7 @@ namespace ACC0ToSymAnd
 abbrev Slot (n g m : ℕ) : Type := Wire n g ⊕ (Fin g × Fin (m + 1) × Fin (m + 1))
 
 /-- The prime `p` and digit `i` read by the `MOD_m` gates: `p` prime with `p ^ (i + 1) ∣ m`. -/
-def rel (m : ℕ) : Finset (Fin (m + 1) × Fin (m + 1)) :=
+@[expose] def rel (m : ℕ) : Finset (Fin (m + 1) × Fin (m + 1)) :=
   {pi | (pi.1 : ℕ).Prime ∧ (pi.1 : ℕ) ^ ((pi.2 : ℕ) + 1) ∣ m}
 
 /-- Membership in `rel m`. -/
@@ -122,7 +122,7 @@ theorem card_rel_le (m : ℕ) : #(rel m) ≤ (m + 1) ^ 2 := by
     _ = (m + 1) ^ 2 := by simp [sq]
 
 /-- The primes `p ≤ m`. -/
-def primes (m : ℕ) : List ℕ := (List.range (m + 1)).filter fun p => decide p.Prime
+@[expose] def primes (m : ℕ) : List ℕ := (List.range (m + 1)).filter fun p => decide p.Prime
 
 /-- Membership in `primes m`. -/
 theorem mem_primes {m p : ℕ} : p ∈ primes m ↔ p < m + 1 ∧ p.Prime := by
@@ -136,11 +136,11 @@ theorem length_primes_le (m : ℕ) : (primes m).length ≤ m + 1 :=
 abbrev Seed (ℓ : ℕ) : Type := Cslib.BinaryField (2 * ℓ + 2)
 
 /-- The power basis of the seeds over `𝔽₂`. -/
-noncomputable def seedBasis (ℓ : ℕ) : Module.Basis (Fin (2 * ℓ + 2)) (ZMod 2) (Seed ℓ) :=
+@[expose] noncomputable def seedBasis (ℓ : ℕ) : Module.Basis (Fin (2 * ℓ + 2)) (ZMod 2) (Seed ℓ) :=
   Cslib.BinaryField.basis (by omega)
 
 /-- An injective numbering of the wires by `[0, n + g)`. -/
-def widx {n g : ℕ} : Wire n g → ℕ
+@[expose] def widx {n g : ℕ} : Wire n g → ℕ
   | .input i => i
   | .gate k => n + k
 
@@ -171,7 +171,7 @@ variable {n g m ℓ : ℕ}
 
 /-- The integer polynomial evaluating gate `k` with line `L` from the slots `u` of seed `r`: NOT is
 `1 - y`; OR is the seeded OR test and AND its dual; `MOD_m` is the OR of its digit tests. -/
-noncomputable def linePoly (r : Seed ℓ) (k : Fin g) (L : Line Unbounded.extSignature n g)
+@[expose] noncomputable def linePoly (r : Seed ℓ) (k : Fin g) (L : Line Unbounded.extSignature n g)
     (u : Slot n g m → Bool) : ℤ :=
   match L with
   | ⟨.ac .not, ws⟩ => 1 - bitVal ℤ (u (.inl (ws (0 : Fin 1))))
@@ -183,7 +183,7 @@ noncomputable def linePoly (r : Seed ℓ) (k : Fin g) (L : Line Unbounded.extSig
 
 /-- The `MOD_2` layer polynomial of seed `r`: every gate is evaluated by `linePoly`; the other
 slots keep their values. -/
-noncomputable def combineQ (P : Program Unbounded.extSignature n g) (r : Seed ℓ) :
+@[expose] noncomputable def combineQ (P : Program Unbounded.extSignature n g) (r : Seed ℓ) :
     Slot n g m → (Slot n g m → Bool) → ℤ
   | .inl (.input i) => fun u => bitVal ℤ (u (.inl (.input i)))
   | .inl (.gate k) => linePoly r k (P.lines k)
@@ -191,14 +191,14 @@ noncomputable def combineQ (P : Program Unbounded.extSignature n g) (r : Seed �
 
 /-- The sum of the `e`-element monomials of the arguments of `L`, which is `C(c, e)` for `c` the
 number of true arguments. -/
-noncomputable def digitPoly (L : Line Unbounded.extSignature n g) (e : ℕ)
+@[expose] noncomputable def digitPoly (L : Line Unbounded.extSignature n g) (e : ℕ)
     (u : Slot n g m → Bool) : ℤ :=
   ∑ S ∈ (univ : Finset (Fin (Unbounded.extSignature.Arity L.op))).powersetCard e,
     monomial ℤ S fun a => u (.inl (L.wires a))
 
 /-- The `MOD_{p₀}` layer polynomial: the digit test slots of `p₀` read `digitPoly`; the other
 slots keep their values. -/
-noncomputable def digitQ (P : Program Unbounded.extSignature n g) (p₀ : ℕ) :
+@[expose] noncomputable def digitQ (P : Program Unbounded.extSignature n g) (p₀ : ℕ) :
     Slot n g m → (Slot n g m → Bool) → ℤ
   | .inl w => fun u => bitVal ℤ (u (.inl w))
   | .inr (k, pi) =>
@@ -217,10 +217,10 @@ namespace SLayer
 variable {F S : Type*}
 
 /-- The layer of one seed. -/
-def atSeed (L : SLayer F S) (r : F) : ModPolyLayer S := ⟨L.p, L.q r⟩
+@[expose] def atSeed (L : SLayer F S) (r : F) : ModPolyLayer S := ⟨L.p, L.q r⟩
 
 /-- All seeds side by side: the layer on `F × S` acting on each row by the layer of its seed. -/
-def lift (L : SLayer F S) : ModPolyLayer (F × S) :=
+@[expose] def lift (L : SLayer F S) : ModPolyLayer (F × S) :=
   ⟨L.p, fun t v => L.q t.1 t.2 fun s => v (t.1, s)⟩
 
 /-- Running the lifted layers acts on each row as the layers of its seed. -/
@@ -240,12 +240,12 @@ theorem run_lift (Ls : List (SLayer F S)) (v : F × S → Bool) (r : F) (s : S) 
 end SLayer
 
 /-- One round: the `MOD_p` digit layers for the primes `p ≤ m`, then the `MOD_2` layer. -/
-noncomputable def macroS (P : Program Unbounded.extSignature n g) (m ℓ : ℕ) :
+@[expose] noncomputable def macroS (P : Program Unbounded.extSignature n g) (m ℓ : ℕ) :
     List (SLayer (Seed ℓ) (Slot n g m)) :=
   ⟨2, fun r => combineQ P r⟩ :: (primes m).map fun p₀ => ⟨p₀, fun _ => digitQ P p₀⟩
 
 /-- `d` rounds. -/
-noncomputable def towerS (P : Program Unbounded.extSignature n g) (m ℓ : ℕ) :
+@[expose] noncomputable def towerS (P : Program Unbounded.extSignature n g) (m ℓ : ℕ) :
     ℕ → List (SLayer (Seed ℓ) (Slot n g m))
   | 0 => []
   | d + 1 => macroS P m ℓ ++ towerS P m ℓ d
@@ -409,7 +409,7 @@ theorem map_atSeed_macroS (P : Program Unbounded.extSignature n g) (r : Seed ℓ
   rfl
 
 /-- After `j` rounds, the slots `u` hold the correct value of every wire of depth at most `j`. -/
-def WiresOK (P : Program Unbounded.extSignature n g) (m : ℕ) (x : Fin n → Bool) (j : ℕ)
+@[expose] def WiresOK (P : Program Unbounded.extSignature n g) (m : ℕ) (x : Fin n → Bool) (j : ℕ)
     (u : Slot n g m → Bool) : Prop :=
   ∀ w, P.wireDepths w ≤ j → u (.inl w) = P.trace (Unbounded.extInterpretation (modGate m)) x w
 
@@ -550,7 +550,7 @@ theorem card_not_good_le (P : Program Unbounded.extSignature n g) (m : ℕ) (x :
 /-! ### The majority over the seeds -/
 
 /-- The majority over the seeds `r` of the slot `(r, o)`, as a `SYM ∘ AND` circuit of fan-in `1`. -/
-noncomputable def top (ℓ : ℕ) {S : Type*} (o : S) : SymAnd (Seed ℓ × S) where
+@[expose] noncomputable def top (ℓ : ℕ) {S : Type*} (o : S) : SymAnd (Seed ℓ × S) where
   gates := (univ : Finset (Seed ℓ)).val.map fun r => {(r, o)}
   out c := decide (Fintype.card (Seed ℓ) < 2 * c)
 
@@ -714,7 +714,7 @@ theorem card_seed_slot_lt (hN : n + g < 2 ^ ℓ) :
 
 /-- The input read by each slot: the input wires of every seed read their input; the other slots
 read nothing (they start `false`). -/
-def slotInput : Seed ℓ × Slot n g m → Option (Fin n)
+@[expose] def slotInput : Seed ℓ × Slot n g m → Option (Fin n)
   | (_, .inl (.input i)) => some i
   | (_, .inl (.gate _)) => none
   | (_, .inr _) => none
@@ -728,8 +728,8 @@ theorem slotInput_elim (x : Fin n → Bool) (t : Seed ℓ × Slot n g m) :
 seeds of `2ℓ + 2` bits and `d` rounds: the majority over the seeds of slot `o`, collapsed through
 the towers (`SymAnd.collapseRun` with bound `3 ((m + 1) ^ 2 + ℓ + 1)`) and restricted to the
 inputs. -/
-noncomputable def compile (P : Program Unbounded.extSignature n g) (m ℓ d : ℕ) (o : Wire n g) :
-    SymAnd (Fin n) :=
+@[expose] noncomputable def compile (P : Program Unbounded.extSignature n g) (m ℓ d : ℕ)
+    (o : Wire n g) : SymAnd (Fin n) :=
   (SymAnd.collapseRun (top ℓ (Sum.inl o : Slot n g m)) ((towerS P m ℓ d).map SLayer.lift)
     (3 * ((m + 1) ^ 2 + ℓ + 1))).restrict slotInput
 
@@ -740,7 +740,7 @@ open ACC0ToSymAnd in
 `2 (⌊log₂ (n + s)⌋ + 1) + 2` bits and `d` rounds, where `s` is the size and `d` the depth of `C`.
 It is specified only for `m > 0` (`Circuit.eval_toSymAnd`); for `m = 0` it is well-typed but no
 theorem describes it. -/
-noncomputable def _root_.Cslib.Circuits.Circuit.toSymAnd {n : ℕ}
+@[expose] noncomputable def _root_.Cslib.Circuits.Circuit.toSymAnd {n : ℕ}
     (C : Circuit Unbounded.extSignature n 1) (m : ℕ) : SymAnd (Fin n) :=
   compile C.program m (Nat.log 2 (n + C.size) + 1) C.depth (C.outputs 0)
 

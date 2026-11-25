@@ -546,17 +546,23 @@ theorem ntails_lt_maxTailItems_of_r_lt {n_max : ℕ} {gm : ℕ → ℕ} {b : ℕ
     Finset.card_erase_of_mem (Finset.mem_range.mpr hd_new_lt), Finset.card_range] at hcard
   omega
 
-/-- Parameter-free `Memory.Prog` operation appending one tail item to bucket `b = d.2.2` at
-`base = d.2.1`. -/
+/-- Base address `d.2.1` in a parameter-free `(DictParams, (base, b))` bucket call. -/
+abbrev tailCallBase (d : DictParams × (ℕ × ℕ)) : ℕ := d.2.1
+
+/-- Bucket index `d.2.2` in a parameter-free `(DictParams, (base, b))` bucket call. -/
+abbrev tailCallBucket (d : DictParams × (ℕ × ℕ)) : ℕ := d.2.2
+
+/-- Parameter-free `Memory.Prog` operation appending one tail item to bucket `b = tailCallBucket d`
+at `base = tailCallBase d`. -/
 @[expose]
 def appendTailItemGenProg (d : DictParams × (ℕ × ℕ)) : Memory.Prog ℕ := do
-  let r_b ← readGMGenProg (d.1, (d.2.1, 4 + 3 * d.2.2 + 1))
-  let t_new ← readGMGenProg (d.1, (d.2.1, 1))
-  let d_new := d.2.2 * dpTailCap d.1 + r_b
-  writeGMGenProg (d.1, ((d.2.1, dpGmTailPtrBase d.1 + d_new), t_new))
-  writeGMGenProg (d.1, ((d.2.1, dpGmTailOwnerBase d.1 + t_new), d_new))
-  writeGMGenProg (d.1, ((d.2.1, 4 + 3 * d.2.2 + 1), r_b + 1))
-  let _ ← writeGMGenProg (d.1, ((d.2.1, 1), t_new + 1))
+  let r_b ← readGMGenProg (d.1, (tailCallBase d, 4 + 3 * tailCallBucket d + 1))
+  let t_new ← readGMGenProg (d.1, (tailCallBase d, 1))
+  let d_new := tailCallBucket d * dpTailCap d.1 + r_b
+  writeGMGenProg (d.1, ((tailCallBase d, dpGmTailPtrBase d.1 + d_new), t_new))
+  writeGMGenProg (d.1, ((tailCallBase d, dpGmTailOwnerBase d.1 + t_new), d_new))
+  writeGMGenProg (d.1, ((tailCallBase d, 4 + 3 * tailCallBucket d + 1), r_b + 1))
+  let _ ← writeGMGenProg (d.1, ((tailCallBase d, 1), t_new + 1))
   pure t_new
 
 /-- `Memory.Prog` operation appending one tail item to bucket `b = d.2` at `base = d.1`
@@ -662,8 +668,8 @@ def AppendTailItemPre (U V w₀ n_max h_space w base b : ℕ) (s : Memory.State)
 /-- Parameter-free precondition for `appendTailItemGenProg`. -/
 @[expose]
 def AppendTailItemGenPre (w : ℕ) (d : DictParams × (ℕ × ℕ)) (s : Memory.State) : Prop :=
-  let base := d.2.1
-  let b := d.2.2
+  let base := tailCallBase d
+  let b := tailCallBucket d
   let gm := gmAt base (dpU d.1) (dpV d.1) (dpW d.1) (dpNMax d.1) (dpHSpace d.1) s.mem
   DictEnvGen w d.1 base ∧
   TailBijection (dpNMax d.1) gm (fun b' => gm (gmRIdx b')) (gm 1) ∧
@@ -712,7 +718,8 @@ theorem realizes_appendTailItemGen :
       (WordEncoding.encode (α := DictParams × (ℕ × ℕ))) (WordEncoding.encode (α := ℕ))
       AppendTailItemGenPre
       (fun _ _ => 0) := by
-  realizeDictWith [appendTailItemGenPre_mk] using [realizes_readGMGen, realizes_writeGMGen]
+  realizeDictWith [appendTailItemGenPre_mk, tailCallBase, tailCallBucket] using
+    [realizes_readGMGen, realizes_writeGMGen]
   all_goals
     obtain ⟨hdict, h2⟩ := h
     have hb_pos := h2.2.2.2
@@ -721,27 +728,27 @@ theorem realizes_appendTailItemGen :
     | dictSide
     | exact fits_of_le_globalMetaLen hdict hb_pos hw hnU hU (by omega)
 
-/-- Parameter-free `Memory.Prog` operation removing the last tail item of bucket `b = d.2.2` at
-`base = d.2.1`. -/
+/-- Parameter-free `Memory.Prog` operation removing the last tail item of bucket
+`b = tailCallBucket d` at `base = tailCallBase d`. -/
 @[expose]
 def removeLastTailItemGenProg (d : DictParams × (ℕ × ℕ)) : Memory.Prog Unit := do
-  let r_b ← readGMGenProg (d.1, (d.2.1, 4 + 3 * d.2.2 + 1))
+  let r_b ← readGMGenProg (d.1, (tailCallBase d, 4 + 3 * tailCallBucket d + 1))
   let r_del := r_b - 1
   let t_del ← readGMGenProg (d.1,
-    (d.2.1, dpGmTailPtrBase d.1 + (d.2.2 * dpTailCap d.1 + r_del)))
-  let n_tails ← readGMGenProg (d.1, (d.2.1, 1))
+    (tailCallBase d, dpGmTailPtrBase d.1 + (tailCallBucket d * dpTailCap d.1 + r_del)))
+  let n_tails ← readGMGenProg (d.1, (tailCallBase d, 1))
   let t_last := n_tails - 1
-  let d_last ← readGMGenProg (d.1, (d.2.1, dpGmTailOwnerBase d.1 + t_last))
+  let d_last ← readGMGenProg (d.1, (tailCallBase d, dpGmTailOwnerBase d.1 + t_last))
   let g_last := dpNMaxSubOne d.1 - t_last
   let g_del := dpNMaxSubOne d.1 - t_del
-  let q_move ← readQuotGenProg (d.1, (d.2.1, g_last))
-  writeQuotGenProg (d.1, ((d.2.1, g_del), q_move))
-  let v_move ← readValGenProg (d.1, (d.2.1, g_last))
-  writeValGenProg (d.1, ((d.2.1, g_del), v_move))
-  writeGMGenProg (d.1, ((d.2.1, dpGmTailPtrBase d.1 + d_last), t_del))
-  writeGMGenProg (d.1, ((d.2.1, dpGmTailOwnerBase d.1 + t_del), d_last))
-  writeGMGenProg (d.1, ((d.2.1, 4 + 3 * d.2.2 + 1), r_del))
-  writeGMGenProg (d.1, ((d.2.1, 1), t_last))
+  let q_move ← readQuotGenProg (d.1, (tailCallBase d, g_last))
+  writeQuotGenProg (d.1, ((tailCallBase d, g_del), q_move))
+  let v_move ← readValGenProg (d.1, (tailCallBase d, g_last))
+  writeValGenProg (d.1, ((tailCallBase d, g_del), v_move))
+  writeGMGenProg (d.1, ((tailCallBase d, dpGmTailPtrBase d.1 + d_last), t_del))
+  writeGMGenProg (d.1, ((tailCallBase d, dpGmTailOwnerBase d.1 + t_del), d_last))
+  writeGMGenProg (d.1, ((tailCallBase d, 4 + 3 * tailCallBucket d + 1), r_del))
+  writeGMGenProg (d.1, ((tailCallBase d, 1), t_last))
 
 /-- `Memory.Prog` operation removing the last tail item of bucket `b = d.2` at `base = d.1`
 (`0 < bucketBits n_max`, `1 ≤ gm (gmRIdx b)`), compacting the tail pool by moving the payload at
@@ -884,8 +891,8 @@ def RemoveLastTailItemPre (U V w₀ n_max h_space w base b : ℕ) (s : Memory.St
 /-- Parameter-free precondition for `removeLastTailItemGenProg`. -/
 @[expose]
 def RemoveLastTailItemGenPre (w : ℕ) (d : DictParams × (ℕ × ℕ)) (s : Memory.State) : Prop :=
-  let base := d.2.1
-  let b := d.2.2
+  let base := tailCallBase d
+  let b := tailCallBucket d
   let gm := gmAt base (dpU d.1) (dpV d.1) (dpW d.1) (dpNMax d.1) (dpHSpace d.1) s.mem
   DictEnvGen w d.1 base ∧
   TailBijection (dpNMax d.1) gm (fun b' => gm (gmRIdx b')) (gm 1) ∧
@@ -957,7 +964,7 @@ theorem realizes_removeLastTailItemGen :
       (WordEncoding.encode (α := DictParams × (ℕ × ℕ))) (WordEncoding.encode (α := Unit))
       RemoveLastTailItemGenPre
       (fun _ _ => 0) := by
-  realizeDictWith [removeLastTailItemGenPre_mk] using
+  realizeDictWith [removeLastTailItemGenPre_mk, tailCallBase, tailCallBucket] using
     [realizes_readGMGen, realizes_writeGMGen, realizes_readQuotGen, realizes_writeQuotGen,
       realizes_readValGen, realizes_writeValGen]
   all_goals

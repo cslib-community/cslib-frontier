@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import Mathlib.LinearAlgebra.Matrix.PosDef
 public import Mathlib.MeasureTheory.Measure.Lebesgue.VolumeOfBalls
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Analysis.Matrix.Order
 import Mathlib.Tactic.Module
 
@@ -235,9 +236,8 @@ theorem centralCutShape_of_two_le_card (A : Matrix ι ι ℝ) (a : ι → ℝ)
     centralCutShape A a = ((Fintype.card ι : ℝ) ^ 2 / ((Fintype.card ι : ℝ) ^ 2 - 1)) •
       (A - (2 / ((Fintype.card ι : ℝ) + 1)) •
         vecMulVec (centralCutDir A a) (centralCutDir A a)) := by
-  have h2 : (2 : ℝ) ≤ Fintype.card ι := by exact_mod_cast h
   have hnn : (Fintype.card ι : ℝ) ^ 2 - 1 ≠ 0 :=
-    ne_of_gt (sub_pos.2 (one_lt_pow₀ (by linarith only [h2]) two_ne_zero))
+    ne_of_gt (sub_pos.2 (one_lt_pow₀ (by cast_linarith only [h]) two_ne_zero))
   have hn1 : (Fintype.card ι : ℝ) + 1 ≠ 0 := by positivity
   simp only [centralCutShape]
   match_scalars <;> field_simp; ring

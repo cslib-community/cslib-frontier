@@ -16,6 +16,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Tactic.PolyTime
 import Mathlib.Data.List.GetD
 
 /-!
@@ -79,7 +80,11 @@ section
 
 variable {γ : Type} {encIn : γ ↪ List Bool}
 
+attribute [local fun_prop] computableInPolyTime_know computableInPolyTime_consistent
+  WeftOne.computableInPolyTime_claimsValid
+
 /-- Listing the wire-value pairs is polynomial-time. -/
+@[local fun_prop]
 private theorem computableInPolyTime_claimUniverse {n L : γ → ℕ}
     (hn : ComputableInPolyTime n encIn encUnary) (hL : ComputableInPolyTime L encIn encUnary) :
     ComputableInPolyTime (fun a => claimUniverse (n a) (L a)) encIn
@@ -103,13 +108,10 @@ private theorem computableInPolyTime_certs (d : ℕ) {n o : γ → ℕ}
     (ho : ComputableInPolyTime o encIn encNat) :
     ComputableInPolyTime (fun a => certs d (n a) (gates a) (o a)) encIn
       (encList (encList (encPair encUnary encBool))) := by
-  have hL : ComputableInPolyTime (fun a => (gates a).length) encIn encUnary := by fun_prop
-  have hU := ComputableInPolyTime.listsUpTo (computableInPolyTime_claimUniverse hn hL) (2 ^ d)
+  have hU := ComputableInPolyTime.listsUpTo
+    (computableInPolyTime_claimUniverse (L := fun a => (gates a).length) hn (by fun_prop)) (2 ^ d)
   unfold certs
-  refine ComputableInPolyTime.filterWithInput hU ?_
-  have hp := ComputableInPolyTime.id' (encIn := encPair encIn (encList (encPair encUnary encBool)))
-  exact WeftOne.computableInPolyTime_claimsValid d (hn.comp hp.fst') (hg.comp hp.fst')
-    (ho.comp hp.fst') hp.snd'
+  polytime
 
 /-- Listing the brackets is polynomial-time for a fixed depth. -/
 private theorem computableInPolyTime_brackets (d : ℕ) {n kk : γ → ℕ}
@@ -125,15 +127,13 @@ private theorem computableInPolyTime_indexLists (d : ℕ) {kk : γ → ℕ}
   ComputableInPolyTime.listsUpTo (by fun_prop) _
 
 /-- The partial input of a bracket is polynomial-time. -/
+@[local fun_prop]
 private theorem computableInPolyTime_knowList {n kk : γ → ℕ} {P : γ → List (ℕ × ℕ)}
     (hn : ComputableInPolyTime n encIn encUnary) (hkk : ComputableInPolyTime kk encIn encUnary)
     (hP : ComputableInPolyTime P encIn (encList (encPair encUnary encUnary))) :
     ComputableInPolyTime (fun a => knowList (n a) (kk a) (P a)) encIn
       (encList (encOption encBool)) := by
-  unfold knowList
-  refine ComputableInPolyTime.mapWithInput (by fun_prop) ?_
-  have hp := ComputableInPolyTime.id' (encIn := encPair encIn encUnary)
-  exact computableInPolyTime_know (hkk.comp hp.fst') (hP.comp hp.fst') hp.snd'
+  polytime [knowList]
 
 /-- Comparing with a negated value, as a decidable equality. -/
 private theorem beq_some_not_eq (v : Option Bool) (b : Bool) :
@@ -141,6 +141,7 @@ private theorem beq_some_not_eq (v : Option Bool) (b : Bool) :
   cases b <;> exact Bool.beq_eq_decide_eq _ _
 
 /-- Refutation is polynomial-time. -/
+@[local fun_prop]
 private theorem computableInPolyTime_refutes {n kk : γ → ℕ}
     {gates : γ → List (Unbounded.Op × List ℕ)}
     {cl : γ → List (ℕ × Bool)} {P : γ → List (ℕ × ℕ)}
@@ -152,18 +153,13 @@ private theorem computableInPolyTime_refutes {n kk : γ → ℕ}
       encBool := by
   unfold refutes
   simp only [beq_some_not_eq]
-  have hchecks := WeftOne.computableInPolyTime_checks hn hg hcl
-  have hK := computableInPolyTime_kleeneEval (computableInPolyTime_knowList hn hkk hP) hg
-  refine ComputableInPolyTime.anyWithInput hchecks ?_
-  have hp := ComputableInPolyTime.id' (encIn := encPair encIn (encPair encNat encBool))
-  have hval := ComputableInPolyTime.listGetD_binary (encA := encOption encBool) none
-    (hK.comp hp.fst') hp.snd'.fst'
-  have hrhs : ComputableInPolyTime
-      (fun q : γ × (ℕ × Bool) => if q.2.2 then some false else some true) _
-      (encOption encBool) :=
-    ComputableInPolyTime.ite' hp.snd'.snd' (ComputableInPolyTime.const _)
-      (ComputableInPolyTime.const _)
-  exact ComputableInPolyTime.decide_eq' hval hrhs
+  refine ComputableInPolyTime.anyWithInput (WeftOne.computableInPolyTime_checks hn hg hcl) ?_
+  have hval := ComputableInPolyTime.listGetD_binary
+    (encIn := encPair encIn (encPair encNat encBool)) (encA := encOption encBool)
+    (encL := encList (encOption encBool)) (i := fun p => p.2.1) none
+    ((computableInPolyTime_kleeneEval (computableInPolyTime_knowList hn hkk hP) hg).comp
+      (ComputableInPolyTime.fst _ _)) (by fun_prop)
+  polytime
 
 /-- The adjacency, with the list inequality as a decidable equality. -/
 private theorem vadj_eq (n kk : ℕ) (gates : List (Unbounded.Op × List ℕ)) (v w : Vertex) :
@@ -179,23 +175,9 @@ private theorem computableInPolyTime_vadj {n kk : γ → ℕ} {gates : γ → Li
     (hg : ComputableInPolyTime gates encIn (encList (Circuit.encGate encOp))) :
     ComputableInPolyTime (fun p : γ × (Vertex × Vertex) => vadj (n p.1) (kk p.1) (gates p.1)
       p.2.1 p.2.2) (encPair encIn (encPair encVertex encVertex)) encBool := by
+  open scoped Vertex in
   simp only [vadj_eq]
-  have hp := ComputableInPolyTime.id' (encIn := encPair encIn (encPair encVertex encVertex))
-  have hv := hp.snd'.fst'
-  have hw := hp.snd'.snd'
-  have href := computableInPolyTime_refutes (hn.comp hp.fst') (hkk.comp hp.fst')
-    (hg.comp hp.fst') (encVertex_claims_polyTime hv)
-    (encVertex_bracket_polyTime hw)
-  have hcons := computableInPolyTime_consistent (encVertex_bracket_polyTime hv)
-    (encVertex_bracket_polyTime hw)
-  have hfst : ∀ {f : γ × (Vertex × Vertex) → List (ℕ × ℕ)},
-      ComputableInPolyTime f (encPair encIn (encPair encVertex encVertex)) encBracket →
-      ComputableInPolyTime (fun q => (f q).map Prod.fst)
-        (encPair encIn (encPair encVertex encVertex)) (encList encUnary) := fun hf => by
-    fun_prop
-  have heq := ComputableInPolyTime.decide_eq' (hfst (encVertex_bracket_polyTime hv))
-    (hfst (encVertex_bracket_polyTime hw))
-  fun_prop
+  polytime
 
 /-- Listing the vertices is polynomial-time for a fixed depth. -/
 private theorem computableInPolyTime_vertices (d : ℕ) {n kk o : γ → ℕ}

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Circuit.Frontier.BranchingProgram
 public import Mathlib.Analysis.SpecialFunctions.Log.Base
 import CslibFrontier.Foundations.Data.Set.Card
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Logic.Equiv.Prod
@@ -410,8 +411,7 @@ private theorem le_mul_logb_of_ncard_le {ι U : Type*} [Finite ι] [Finite U] [N
     Real.logb_mul (by positivity) (by positivity),
     Real.logb_mul (by positivity) (by positivity),
     Real.logb_pow, Real.logb_pow, Real.logb_self_eq_one hq1] at hlog
-  push_cast at hlog
-  linarith
+  cast_linarith
 
 /-- A deterministic relation `R : M → M → Prop` on a finite state space `M` has at most `|M|`
 related pairs. -/

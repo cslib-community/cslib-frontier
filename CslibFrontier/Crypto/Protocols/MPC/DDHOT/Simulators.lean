@@ -14,6 +14,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Crypto.Computational.DiffieHellman.SampleExp
+import CslibFrontier.Crypto.Protocols.MPC.EmptyCoalition
 import CslibFrontier.Foundations.Data.ZMod.NatCast
 import CslibFrontier.Tactic.Negligible
 import CslibFrontier.Tactic.PMFSwap
@@ -33,8 +34,8 @@ This module gives uniform strict-PPT simulator families for all four static coal
 and proves stand-alone `ProtocolFamily.SemiHonestSecure` of `ddhOTProbFamily` under `F.DDH setup`
 (`DDH.ddhOTProbFamily_semiHonestSecure`) as a step toward [BonehShoup2023], Section 23.5.7.2,
 Theorem 23.7 (p. 1058; #5829, #5293):
-* `I = ∅` (no corrupted parties): `ddhOTEmptySim` reproduces the real joint distribution with
-  zero advantage;
+* `I = ∅` (no corrupted parties): `SimulatorFamily.empty` reproduces the real joint distribution
+  with zero advantage;
 * `I = {0}` (corrupted sender): `ddhOTSenderSimProb` draws the sender's five raw bit strings from
   `sampleDDHOTSenderBitCoins n d` (matching the real sender's coin law with zero loss) and one
   receiver bit string from `sampleExpBits n d`, achieving unconditional statistical security with
@@ -418,22 +419,15 @@ theorem isPPT_ddhOTReceiverSimProb : F.ddhOTReceiverSimProb.IsPPT F.ddhOTEncodin
 
 /-! ### Empty and full coalitions -/
 
-/-- Simulator for `I = ∅` (no corrupted parties): returns the unique empty view table. -/
-private def ddhOTEmptySim : SimulatorFamily F.ddhOTProbFamily ∅ :=
-  fun _ _ _ _ => pure fun i => nomatch i.2
-
-/-- `ddhOTEmptySim` is PPT for `ddhOTEncoding`. -/
-private theorem isPPT_ddhOTEmptySim : F.ddhOTEmptySim.IsPPT F.ddhOTEncoding :=
-  (ComputableInPolyTime.dpi fun i : (∅ : Finset (Fin 2)) => nomatch i.2).isPPTOn.congr fun _ => rfl
-
-/-- When no party is corrupted, `ddhOTEmptySim` reproduces `ddhOTProbProtocol`'s real joint law
-exactly. -/
+/-- When no party is corrupted, `SimulatorFamily.empty` reproduces `ddhOTProbProtocol`'s real joint
+law exactly. -/
 private theorem idealJoint_ddhOTProb_empty (n : ℕ) (d : F.Desc)
     (x : (i : Fin 2) → OTIn (F.Carrier d) i) :
-    ProbComp.eval (idealJoint (otFunctionality (F.Carrier d)) ∅ (F.ddhOTEmptySim n d) x) =
+    ProbComp.eval (idealJoint (otFunctionality (F.Carrier d)) ∅
+        (SimulatorFamily.empty F.ddhOTProbFamily n d) x) =
       (F.ddhOTProbProtocol n d).realJoint noOracleWorld ∅ x := by
   simp only [ddhOTProbProtocol, evalWith_ddhOTProtocolWith, Protocol.realJoint, eval_idealJoint,
-    otFunctionality, Functionality.ofDeterministic, ddhOTEmptySim, ProbComp.eval_pure,
+    otFunctionality, Functionality.ofDeterministic, SimulatorFamily.empty, ProbComp.eval_pure,
     PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.pure_bind, PMF.pure_map, PMF.map_bind,
     Prod.map, id]
   have hconst (raw₀ : DDHOTSenderBitCoins) (bBits : List Bool) :
@@ -441,7 +435,7 @@ private theorem idealJoint_ddhOTProb_empty (n : ℕ) (d : F.Desc)
           (DDHOTSenderBitCoins.toSenderCoins (F.order d))
           (fun bs : List Bool => (BitString.binaryValue bs : ZMod (F.order d))) x raw₀ bBits),
         otOutputs x) =
-        ((fun i : (∅ : Finset (Fin 2)) => nomatch i.2), otOutputs x) :=
+        ((fun i : (∅ : Finset (Fin 2)) => isEmptyElim i), otOutputs x) :=
     Prod.ext (funext fun i => nomatch i.2) rfl
   simp only [hconst, PMF.bind_const]
 
@@ -732,7 +726,7 @@ Under `F.DDH setup`, `F.ddhOTProbFamily`—whose parties draw raw fair-coin bit 
 (p. 1059) and [Lindell2017], Section 4.2, Definition 4.1 (p. 7)—satisfies
 `ProtocolFamily.SemiHonestSecure` across every static coalition `I : Finset (Fin 2)` with
 certified uniform strict-PPT simulators and DDH reduction:
-* `I = ∅` (no corruption): exact simulation (`ddhOTEmptySim`, advantage `0`);
+* `I = ∅` (no corruption): exact simulation (`SimulatorFamily.empty`, advantage `0`);
 * `I = {0}` (corrupted sender): unconditional statistical simulation (`ddhOTSenderSimProb`,
   advantage `≤ 2 / 2 ^ n`);
 * `I = {1}` (corrupted receiver): computational simulation (`ddhOTReceiverSimProb`) via the
@@ -749,7 +743,7 @@ theorem DDH.ddhOTProbFamily_semiHonestSecure {F : PrimeOrderGroupFamily} {setup 
     · left; ext i; fin_cases i <;> simp [h0, h1]
   rcases hcases with rfl | rfl | rfl | rfl
   · exact ProtocolFamily.SemiHonestSecure.of_perfect
-      F.isPPT_ddhOTEmptySim F.idealJoint_ddhOTProb_empty
+      (SimulatorFamily.isPPT_empty _) F.idealJoint_ddhOTProb_empty
   · exact F.ddhOTProbFamily_semiHonestSecure_sender setup
   · refine ⟨F.ddhOTReceiverSimProb, F.isPPT_ddhOTReceiverSimProb, fun Z hZ => ?_⟩
     have hB := hDDH _ (F.isPPT_ddhOTReceiverToDDHDistinguisher hZ)

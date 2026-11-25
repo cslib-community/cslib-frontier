@@ -317,10 +317,9 @@ theorem setupCorrect_lweEncryptFuzzyExtractor_of_decoderCorrectWithError
   intro w w' hdis
   rw [hammingDist_comm, hammingDist_eq_hammingNorm, neg_add_eq_sub] at hdis
   rw [← ENNReal.coe_le_coe]
-  simp only [Game.failProbability, ENNReal.coe_toNNReal (PMF.apply_ne_top _ _),
-    setupReproduceGame, FuzzyExtractor.reproduceGame, FuzzyExtractor.reproduceCheck,
-    lweEncryptFuzzyExtractor, symEncrypt, ProbComp.eval_bind, ProbComp.eval_pure,
-    ProbComp.eval_uniform, PMF.bind_bind, PMF.pure_bind]
+  simp only [Game.failProbability, ENNReal.coe_toNNReal (PMF.apply_ne_top _ _), setupReproduceGame,
+    FuzzyExtractor.reproduceGame, FuzzyExtractor.reproduceCheck, lweEncryptFuzzyExtractor,
+    symEncrypt, ProbComp.eval_uniform, pmf_norm]
   pmf_hoist (PMF.uniformOfFintype (Fin n → ZMod q))
   pmf_hoist (PMF.uniformOfFintype (Fin l → Bool))
   pmf_hoist (PMF.uniformOfFintype (Matrix (Fin l) (Fin n) (ZMod q)))
@@ -614,7 +613,7 @@ private theorem eval_encryptShiftOracle_eq {m n l q : ℕ} [NeZero q]
       encryptShiftOracle t A (A.mulVec s + w) B (B.mulVec s + e) δ) =
       ProbComp.eval (strongReuseOracle (lweEncryptFuzzyExtractor m n l q E decode) t A w δ) := by
   simp only [encryptShiftOracle, strongReuseOracle, lweEncryptFuzzyExtractor, symEncrypt,
-    ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform, PMF.bind_bind, PMF.pure_bind]
+    ProbComp.eval_uniform, pmf_norm]
   conv_rhs => rw [← Probability.PMF.uniformOfFintype_bind_equiv (Equiv.addLeft s)]
   pmf_swap
   simp only [Equiv.coe_addLeft, Matrix.mulVec_add]
@@ -665,13 +664,13 @@ private theorem eval_encryptSimRun_eq {m n l q : ℕ} [NeZero q] {σ : Type}
         fun values => ProbComp.eval (encryptSimRun t A ⟨A.mulVec s + w, B, h⟩ adv values) := by
     rw [ProbComp.eval_replicate, hblock, Probability.PMF.pi_bind]
     rw [← Probability.PMF.pi_uniformOfFintype]
-    simp only [Probability.PMF.pi_map, PMF.bind_map, PMF.map_bind, PMF.bind_bind, Function.comp_def]
+    simp only [Probability.PMF.pi_map, pmf_norm]
   have hfresh : (fun δ (u : Unit) => block >>= fun value => oracle value δ u) = fun δ =>
       StateT.lift (block >>= fun value =>
         encryptShiftOracle t A (A.mulVec s + w) value.1 value.2 δ) := by
     funext δ u; simp only [oracle, StateT.lift, bind_assoc]
   rw [hblocks]
-  simp only [ProbComp.eval_bind, ProbComp.eval_map, PMF.map_bind, PMF.map_comp] at hpresample
+  simp only [pmf_norm] at hpresample
   simp only [encryptSimRun, ProbComp.eval_bind, ProbComp.eval_pure]
   refine hpresample.trans ?_
   change PMF.map Prod.fst (ProbComp.eval ((ProbOracleComp.runState _ fun δ (u : Unit) =>
@@ -742,13 +741,10 @@ theorem realGame_encryptRealReduction {St : Type}
   have h := realGame_encrypt_embed E decode W t Q adv hQ fun st rStar =>
     ProbComp.eval (adv.guess st rStar)
   simp only [LWE.realGame, LWE.eval_realExperiment, encryptLWEErrorLaw, encryptRealReduction,
-    ProbComp.eval_bind, ProbComp.eval_uniform, PMF.monad_bind_eq_bind,
-    PMF.bind_bind, PMF.pure_bind]
+    ProbComp.eval_uniform, pmf_norm]
   refine h.trans ?_
   simp only [strongReuseRealGame, Game.withSetup, strongReuseRealExperiment,
-    lweEncryptFuzzyExtractor, symEncrypt,
-    ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform,
-    PMF.bind_bind, PMF.pure_bind]
+    lweEncryptFuzzyExtractor, symEncrypt, ProbComp.eval_uniform, pmf_norm]
 
 /-- The real LWE game against `encryptIdealReduction t Q adv` is identically distributed to
 the strong-reusability ideal game `strongReuseIdealGame` of `lweEncryptFuzzyExtractor`, for an
@@ -770,13 +766,10 @@ theorem realGame_encryptIdealReduction {St : Type}
   have h := realGame_encrypt_embed E decode W t Q adv hQ fun st _ =>
     (PMF.uniformOfFintype (Fin l → Bool)).bind fun u => ProbComp.eval (adv.guess st u)
   simp only [LWE.realGame, LWE.eval_realExperiment, encryptLWEErrorLaw, encryptIdealReduction,
-    ProbComp.eval_bind, ProbComp.eval_uniform, PMF.monad_bind_eq_bind,
-    PMF.bind_bind, PMF.pure_bind]
+    ProbComp.eval_uniform, pmf_norm]
   refine h.trans ?_
   simp only [strongReuseIdealGame, Game.withSetup, strongReuseIdealExperiment,
-    lweEncryptFuzzyExtractor, symEncrypt,
-    ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform,
-    PMF.bind_bind, PMF.pure_bind]
+    lweEncryptFuzzyExtractor, symEncrypt, ProbComp.eval_uniform, pmf_norm]
 
 private theorem uniform_mask_encodeHalfBits_eq {l q : ℕ} [NeZero q] {St α : Type}
     (G : (Fin l → ZMod q) → PMF St) (H : St → (Fin l → Bool) → PMF α) :
@@ -1160,9 +1153,8 @@ private theorem eval_queryWords (t Q : ℕ → ℕ) (A : WordReuseAdversary)
     by_cases hlen : word.length = m κ * w κ
     · simp only [OracleCodec.wordOracle, c, shiftCodec, hlen, ↓reduceIte, StateT.run_map]
       simp only [blockOracle, StateT.run, hlen, ↓reduceIte, O, OracleComp.withSampleList,
-        StateT.lift, encryptShiftOracle, ProbComp.eval_map, ProbComp.eval_bind,
-        ProbComp.eval_pure, ProbComp.eval_replicate_sampleBinaryNat, ProbComp.eval_uniform,
-        PMF.map_bind, PMF.bind_map, PMF.pure_map, PMF.bind_bind, PMF.pure_bind, Function.comp_def]
+        StateT.lift, encryptShiftOracle, ProbComp.eval_replicate_sampleBinaryNat,
+        ProbComp.eval_uniform, pmf_norm]
       congr 1 with x : 1; congr 1 with r' : 1
       rw [encBitString_apply, leakWordOf_eq, List.tail_drop]; rfl
     · simp only [blockOracle, StateT.run, hlen, ↓reduceIte, OracleCodec.wordOracle, c, shiftCodec,
@@ -1184,8 +1176,7 @@ private theorem eval_realWords (t Q : ℕ → ℕ) (A : WordReuseAdversary)
     ProbComp.eval (realWords t Q A x) =
       ProbComp.eval (encryptRealReduction t Q A x.secParam x.matrix x.target) := by
   simp only [realWords, encryptRealReduction, FuzzyExtractor.encryptRealReduction,
-    ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_uniform, PMF.bind_map,
-    Function.comp_def, encBitString_apply]
+    ProbComp.eval_uniform, encBitString_apply, pmf_norm]
   congr 1 with r : 1
   rw [eval_queryWords]
   rfl
@@ -1196,8 +1187,7 @@ private theorem eval_idealWords (t Q : ℕ → ℕ) (A : WordReuseAdversary)
     ProbComp.eval (idealWords t Q A x) =
       ProbComp.eval (encryptIdealReduction t Q A x.secParam x.matrix x.target) := by
   simp only [idealWords, encryptIdealReduction, FuzzyExtractor.encryptIdealReduction,
-    ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_uniform, PMF.bind_map,
-    Function.comp_def, encBitString_apply]
+    ProbComp.eval_uniform, encBitString_apply, pmf_norm]
   congr 1 with r : 1
   rw [eval_queryWords]
   rfl

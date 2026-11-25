@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.StreamFold
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Comp
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.SelectTapes
 import CslibFrontier.Foundations.Data.Fin.Embedding
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
@@ -156,34 +157,23 @@ public theorem ComputableTidilyInTimeAndSpace.multiPassFold {α σ : Type u} {γ
   let N : Fin (M + 4) := ⟨M + 1, by omega⟩
   let F : Fin (M + 4) := ⟨M + 2, by omega⟩
   let C : Fin (M + 4) := ⟨M + 3, by omega⟩
-  have hVN : V ≠ N := by simp [V, N, Fin.ext_iff]
-  have hVF : V ≠ F := by simp [V, F, Fin.ext_iff]
-  have hNF : N ≠ F := by simp [N, F, Fin.ext_iff]
-  have hVC : V ≠ C := by simp [V, C, Fin.ext_iff]
+  have ⟨hVN, hVF, hNF, hVC⟩ : V ≠ N ∧ V ≠ F ∧ N ≠ F ∧ V ≠ C := by
+    simp [V, N, F, C, Fin.ext_iff]
   obtain ⟨eI, heI⟩ := Fin.exists_embedding_eq (K := M + 4) (by omega) (Fin.last kI) V
-  obtain ⟨eE, heE⟩ := Fin.exists_embedding_eq (K := M + 4) (by omega)
-    (Fin.natAdd kE (0 : Fin 2)) V
-  obtain ⟨eN, heN, heN'⟩ := Fin.exists_embedding_eq₂ (K := M + 4) (by omega)
-    (i := Fin.natAdd (kN + 1) (0 : Fin 2)) (o := (Fin.last kN).castAdd 2)
-    (by simp [Fin.ext_iff]) hVN
-  obtain ⟨eF, heF⟩ := Fin.exists_embedding_eq (K := M + 4) (by omega)
-    (Fin.natAdd kF (0 : Fin 2)) V
-  obtain ⟨ePE, hePE⟩ := Fin.exists_embedding_eq (K := M + 4) (by omega)
-    (Fin.natAdd kPE (0 : Fin 2)) V
-  obtain ⟨ePN, hePN, hePN'⟩ := Fin.exists_embedding_eq₂ (K := M + 4) (by omega)
-    (i := Fin.natAdd (kPN + 1) (0 : Fin 2)) (o := (Fin.last kPN).castAdd 2)
-    (by simp [Fin.ext_iff]) hVN
-  obtain ⟨eC, heC, heC'⟩ := Fin.exists_embedding_eq₂ (K := M + 4) (by omega)
-    (i := Fin.natAdd (kC + 1) (0 : Fin 2)) (o := (Fin.last kC).castAdd 2)
-    (by simp [Fin.ext_iff]) hVC
+  obtain ⟨eE, hE⟩ := TransformsTapes.exists_extendTapes_self (K := M + 4)
+    (tmE.inputFromWord true) (by omega) V fun a => (htmE a).inputFromWord true
+  obtain ⟨eN, hN⟩ := TransformsTapes.exists_extendTapes_pair (K := M + 4)
+    (tmN.onWords true) (by simp [Fin.ext_iff]) (by omega) hVN fun a => (htmN a).onWords true
+  obtain ⟨eF, hF⟩ := TransformsTapes.exists_extendTapes_self (K := M + 4)
+    (tmF.inputFromWord true) (by omega) V fun a => (htmF a).inputFromWord true
+  obtain ⟨ePE, hPE⟩ := TransformsTapes.exists_extendTapes_self (K := M + 4)
+    (tmPE.inputFromWord true) (by omega) V fun a => (htmPE a).inputFromWord true
+  obtain ⟨ePN, hPN⟩ := TransformsTapes.exists_extendTapes_pair (K := M + 4)
+    (tmPN.onWords true) (by simp [Fin.ext_iff]) (by omega) hVN fun a => (htmPN a).onWords true
+  obtain ⟨eC, hC⟩ := TransformsTapes.exists_extendTapes_pair (K := M + 4)
+    (tmC.onWords true) (by simp [Fin.ext_iff]) (by omega) hVC fun a => (htmC a).onWords true
   -- the machines on the common tapes
   have hI := fun a => (htmI a).outputToWord_onTape heI
-  have hE := fun a => (htmE a).inputFromWord_extendTapes true heE
-  have hN := fun a => (htmN a).onWords_extendTapes true heN heN'
-  have hF := fun a => (htmF a).inputFromWord_extendTapes true heF
-  have hPE := fun a => (htmPE a).inputFromWord_extendTapes true hePE
-  have hPN := fun a => (htmPN a).onWords_extendTapes true hePN hePN'
-  have hC := fun a => (htmC a).onWords_extendTapes true heC heC'
   set D := cfr + cuf + cfl + cI + cN + cF + cPE + cPN₁ + cPN + cC₁ + cC + M + 100 with hD
   -- the state type nests the states of eight machines, beyond the default instance size limit
   refine ⟨2000 * (D * D * D), _, _, by set_option synthInstance.maxSize 1024 in infer_instance,
@@ -276,13 +266,9 @@ public theorem ComputableTidilyInTimeAndSpace.multiPassFold {α σ : Type u} {γ
         (fun _ ws => ws = Function.update (fun _ => []) V (frame (encS (ms i n))))
         (fun _ ws ws' em => ws' = ws ∧ em = encE' (passEmit (ms i n)))
         (T + 3 * (D * (L + 1)) + 4) (Sm + 3 * (D * (L + 1)) + 4 * L + 3 * (M + 4) + 12) := by
-      refine (hPE (ms i n)).imp (fun _ _ h => h) (fun _ _ _ _ _ h => h) ?_ ?_
+      refine (hPE (ms i n)).imp (fun _ _ h => h) (fun _ _ _ _ _ h => h) ?_ ?_ <;>
       · have := hTe
-        have := hmul₂ cuf (by omega) _ hn₀
-        have := hmul cPE (by omega) _ hn₀
-        simp only [id_eq, encFramed_apply, length_frame]
-        omega
-      · have := hSe
+        have := hSe
         have := hmul₂ cuf (by omega) _ hn₀
         have := hmul cPE (by omega) _ hn₀
         simp only [id_eq, encFramed_apply, length_frame]
@@ -291,15 +277,9 @@ public theorem ComputableTidilyInTimeAndSpace.multiPassFold {α σ : Type u} {γ
         (fun _ ws => ws = Function.update (fun _ => []) V (frame (encS (ms i n))))
         (fun _ ws ws' em => ws' = Function.update ws N (frame (encS (ps (i + 1)))) ∧ em = [])
         (T + 10 * (D * (L + 1)) + 7) (Sm + 20 * (D * (L + 1)) + 4 * (M + 4) + 20) := by
-      refine (hPN (ms i n)).imp (fun _ _ h => h) (fun _ _ _ _ _ h => h) ?_ ?_
+      refine (hPN (ms i n)).imp (fun _ _ h => h) (fun _ _ _ _ _ h => h) ?_ ?_ <;>
       · have := hTe
-        have := hmul₂ cuf (by omega) _ hn₀
-        have := hmul cPN₁ (by omega) _ hn₀
-        have := hmul cfr (by omega) _ hn₁
-        have := hmul cPN (by omega) _ hn₁
-        simp only [Function.comp_apply, id_eq, encFramed_apply, length_frame, hendS]
-        omega
-      · have := hSe
+        have := hSe
         have := hmul₂ cuf (by omega) _ hn₀
         have := hmul cPN₁ (by omega) _ hn₀
         have := hmul cfr (by omega) _ hn₁
@@ -313,16 +293,9 @@ public theorem ComputableTidilyInTimeAndSpace.multiPassFold {α σ : Type u} {γ
       have hfl1 : (flagWord (cont (ps (i + 1)))).length ≤ 1 := by
         unfold flagWord; split_ifs <;> simp
       refine (hC (ps (i + 1))).imp (fun _ _ h => h)
-        (fun _ _ _ _ _ ⟨h, he⟩ => ⟨by rw [h]; simp [cs], he⟩) ?_ ?_
+        (fun _ _ _ _ _ ⟨h, he⟩ => ⟨by rw [h]; simp [cs], he⟩) ?_ ?_ <;>
       · have := hTe
-        have := hmul₂ cuf (by omega) _ hn₁
-        have := hmul cC₁ (by omega) _ hn₁
-        have := hc2 cfl (by omega) 1 le_rfl
-        have := hc2 cC (by omega) 1 le_rfl
-        simp only [Function.comp_apply, id_eq, encFramed_apply, length_frame, encBool_apply,
-          List.length_singleton, encBits_apply]
-        omega
-      · have := hSe
+        have := hSe
         have := hmul₂ cuf (by omega) _ hn₁
         have := hmul cC₁ (by omega) _ hn₁
         have := hc2 cfl (by omega) 1 le_rfl

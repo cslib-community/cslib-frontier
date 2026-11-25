@@ -372,9 +372,7 @@ theorem balance_correct (zero maxSucc : M.Op) (heavy le : M.Test) (encode : ℕ 
   have qtop : q.ptr 1 = s.ptr 1 := (qptr 1 (by simp [layout])).trans (by simp)
   have q6 : q.ptr 6 = q.ptr 0 :=
     ((qptr 6 (by simp [layout])).trans (by simp [cursor])).trans qcur.symm
-  have qrep : Represents q.heap parent (.node label l r) := by
-    rw [qheap]
-    exact rep
+  have qrep : Represents q.heap parent (.node label l r) := qheap ▸ rep
   have testL : M.evalTest heavy (q.data 1) (q.data 2) =
       decide (B.cachedHeight + 1 < A.cachedHeight) := by
     rw [d1, d2, ml.heightValue, mr.heightValue, heavy_spec]
@@ -404,12 +402,12 @@ theorem balance_correct (zero maxSucc : M.Op) (heavy le : M.Test) (encode : ℕ 
           fun holds => hR (of_decide_eq_true (testR.symm.trans holds))
         obtain ⟨t, run, heap, rt, mt, dt, -⟩ := recomputeHeight_mkNode zero maxSucc encode
           zero_spec max_spec field notKey q label l r A B parent qrep distinct ml mr hl hr qcur
+        have keep {r : Fin 7} (hr : r ≠ 2) : t.ptr r = q.ptr r :=
+          run.ptr_keep [2] (by pm_frame) (by simp [hr])
         refine ⟨t, _, (ExecWithin.branch_neg notL (ExecWithin.branch_neg notR run)).mono
-          (by omega), ⟨rt, ?_, dt, rfl, ?_, ?_, run.ptr_keep [2] (by pm_frame) (by simp),
-          fun z hz => ?_⟩⟩
+          (by omega), ⟨rt, ?_, dt, rfl, (keep (r := 0) (by decide)).trans qcur,
+          (keep (r := 6) (by decide)).trans q6, keep (r := 1) (by decide), fun z hz => ?_⟩⟩
         · simpa [AVLTree.balance, hL, hR] using mt
-        · exact (run.ptr_keep [2] (by pm_frame) (by simp)).trans qcur
-        · exact (run.ptr_keep [2] (by pm_frame) (by simp)).trans q6
         · rw [heap]
           exact List.getElem?_modify_ne _ _ fun e =>
             hz ((mem_addresses_iff ..).mpr ⟨.one, label, rfl, e⟩)

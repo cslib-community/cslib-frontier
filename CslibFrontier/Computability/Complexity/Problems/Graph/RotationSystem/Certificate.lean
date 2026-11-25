@@ -485,16 +485,7 @@ theorem sameComponent_reverse {G : Graph}
   · rw [h]
     exact .refl he
   · refine ⟨hd, he, SimpleGraph.Adj.reachable ?_⟩
-    change G.toSimpleGraph.Adj d.vertex d.reverse.vertex
-    rw [toSimpleGraph_adj]
-    refine ⟨h, ?_⟩
-    have hm : G.edges.getD d.1.val (0, 0) ∈ G.edges := by
-      rw [List.getD_eq_getElem _ _ d.1.isLt]
-      exact List.getElem_mem _
-    rcases d with ⟨i, b⟩
-    cases b
-    · exact Or.inl hm
-    · exact Or.inr hm
+    exact d.adj_vertex_reverse h
 
 /-- A face successor stays in the same edge component. -/
 theorem sameComponent_faceNext {G : Graph} (r : RotationSystem G)

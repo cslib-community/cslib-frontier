@@ -12,10 +12,7 @@ public import CslibFrontier.Algorithms.Lean.Matroid.PSystem
 public import CslibFrontier.Algorithms.Lean.Submodular.Greedy
 public import Cslib.Foundations.Control.Monad.IsMonadHom
 import CslibFrontier.Foundations.Data.List.EraseDups
-import Mathlib.Algebra.Order.BigOperators.Group.Finset
-import Mathlib.Data.Finset.Max
 import Mathlib.Combinatorics.Matroid.IndepAxioms
-import Mathlib.Data.Fintype.Fin
 
 /-!
 # Greedy Submodular Maximization over Matroids and `p`-Systems

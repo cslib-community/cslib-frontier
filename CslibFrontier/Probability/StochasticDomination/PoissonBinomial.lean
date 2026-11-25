@@ -7,12 +7,8 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Init
 public import CslibFrontier.Probability.PoissonBinomial
 public import CslibFrontier.Probability.StochasticDomination.Basic
-public import Mathlib.Probability.Distributions.Binomial
-import CslibFrontier.Probability.PMF
-import CslibFrontier.Probability.PMF.Coin
 import CslibFrontier.Probability.PMF.ToReal
 
 /-!

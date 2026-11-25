@@ -127,7 +127,8 @@ theorem Realizes.exists_contraction_split {G : Graph} {u v : ℕ}
   obtain ⟨cut, L, hmem, hcoe, hlt⟩ := hR.exists_contraction_angle_lift r huv
   let θ : ℂ → ℝ := fun x => L ((x - D.vertex v).arg : Real.Angle)
   have hangle (d : I) : ((P d - D.vertex v).arg : Real.Angle) = D.direction d.val := by
-    have h := congrArg (fun t : ℝ => (t : Real.Angle)) (hD.arg_cutPort_sub hρ d.val)
+    have h := congrArg (fun t : ℝ => (t : Real.Angle))
+      (D.arg_cutPort_sub hρ d.val (hD.germ_ne_zero d.val))
     simpa only [d.property, direction] using h
   have hθ (d : I) : θ (P d) = L (D.direction d.val) := congrArg L (hangle d)
   have hsphere (d : I) : P d ∈ Metric.sphere (D.vertex v) ρ := by

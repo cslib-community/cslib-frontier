@@ -8,14 +8,11 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import CslibFrontier.Foundations.Analysis.Lattice.Minimum
-public import CslibFrontier.Foundations.Probability.Gaussian.Discrete
 public import CslibFrontier.Foundations.Probability.Gaussian.SmoothingParameter
-public import Mathlib.Analysis.InnerProductSpace.Basic
 public import Mathlib.Analysis.SpecialFunctions.Log.Basic
-public import Mathlib.LinearAlgebra.BilinearForm.DualLattice
 
 import CslibFrontier.Foundations.Probability.Gaussian.ShiftBounds
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Analysis.SpecificLimits.Normed
 
 /-!
@@ -596,9 +593,8 @@ theorem smoothingParameter_le_sqrt_log_mul_successiveMinimum
     have hlam : 0 < successiveMinimum L (finrank ℝ E) :=
       (minimum_pos hLne).trans_le (minimum_le_successiveMinimum L hLne hnpos le_rfl)
     have harg : 1 < 2 * (finrank ℝ E : ℝ) * (1 + 1 / ε) := by
-      have hn1 : (1 : ℝ) ≤ (finrank ℝ E : ℝ) := by exact_mod_cast hnpos
       have hinv : 0 < 1 / ε := one_div_pos.mpr hε
-      nlinarith
+      cast_nlinarith [hnpos]
     have hsqrt : 0 < Real.sqrt (Real.log (2 * (finrank ℝ E : ℝ) * (1 + 1 / ε)) / Real.pi) :=
       Real.sqrt_pos.mpr (div_pos (Real.log_pos harg) Real.pi_pos)
     let s := Real.sqrt (Real.log (2 * (finrank ℝ E : ℝ) * (1 + 1 / ε)) / Real.pi) *

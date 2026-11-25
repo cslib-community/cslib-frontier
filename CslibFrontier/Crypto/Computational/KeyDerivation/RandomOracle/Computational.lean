@@ -25,6 +25,7 @@ import CslibFrontier.Computability.Probabilistic.QueryBounds
 import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Computability.Probabilistic.UniformNat.ModIndex
 import CslibFrontier.Foundations.Data.BitString.List
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
 import CslibFrontier.Languages.Probabilistic.RandomOracle.QueryHit
@@ -340,8 +341,7 @@ private theorem idealLazy_listGuessOutput_eq_eager {X S T : ℕ → Type}
   refine congrArg ((sample n).bind ·) (funext fun s => ?_)
   rw [idealLazyListLaw_eq_memoize hdecS]
   unfold roToListGuess
-  simp only [ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure, PMF.bind_bind,
-    PMF.bind_map, PMF.pure_bind, Function.comp_def]
+  simp only [ProbComp.eval_uniform, pmf_norm]
   rw [PMF.bind_comm]
   refine congrArg ((uniformOfFintype (T n)).bind ·) (funext fun t => ?_)
   have h := RandomOracle.runWith_memoize_mem_eq_eager_runLog
@@ -467,9 +467,8 @@ theorem roAdvantage_toRODistinguisher_le_listGuessAdvantage {X S T : ℕ → Typ
     rw [← idealLazy_listGuessOutput_eq_eager hdecS encT sample info D n]
     unfold listGuessOutput idealLazyListLaw
     refine congrArg ((sample n).bind ·) (funext fun s => ?_)
-    simp only [lazyROToListGuess, ProbComp.eval_bind, ProbOracleComp.eval_runState,
-      ProbComp.eval_pure, ProbComp.eval_map, eval_cachedSamplerOracle, hunif, PMF.map,
-      PMF.bind_bind, PMF.pure_bind, Function.comp_def]
+    simp only [lazyROToListGuess, ProbOracleComp.eval_runState, eval_cachedSamplerOracle, hunif,
+      PMF.map, pmf_norm]
   rw [listGuessAdvantage, heq, ← listGuessAdvantage]
   exact roAdvantage_le_listGuessAdvantage (sample n) (info n) (toRODistinguisher decS encT D n)
 
@@ -545,8 +544,7 @@ theorem isPPT_lazyROToListGuess {X S T : ℕ → Type}
         have hq : encS n s = entry.1 := (hdecS n entry.1 s).mp hdec
         simp [hdec, hq, ih htail]
   refine hprog.congr fun p => ?_
-  simp only [lazyROToListGuess, ProbComp.eval_map, ProbComp.eval_bind, ProbComp.eval_pure,
-    PMF.map_bind, PMF.bind_map, PMF.pure_map, Function.comp_def]
+  simp only [lazyROToListGuess, pmf_norm]
   refine congrArg ((ProbComp.eval (sampleT p.1)).bind ·) (funext fun t => ?_)
   rw [PMF.map]
   refine PMF.bind_congr_on_support _ _ _ fun rc hrc => ?_
@@ -619,9 +617,8 @@ theorem isPPT_lazyROToGuess {X S T : ℕ → Type}
         ProbComp.sampleModIndex (width p.1) (Q p.1)) :=
     hlist.bind_with (hsample.map_with hpick)
   refine hprog.congr fun p => ?_
-  simp only [lazyROToGuess, ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure,
-    PMF.map, PMF.bind_bind, PMF.pure_bind, Function.comp_def, List.getD_eq_getElem?_getD,
-    List.getElem?_map, Option.getD_map]
+  simp only [lazyROToGuess, PMF.map, List.getD_eq_getElem?_getD, List.getElem?_map, Option.getD_map,
+    pmf_norm]
 
 /-- **Concrete singleton-guessing inequality of Theorem 8.10** ([BonehShoup2023], §8.10.2,
 pp. 331–332), accounting for fair-coin index and digest sampling: when `sampleT n` is within
@@ -653,7 +650,7 @@ theorem roAdvantage_toRODistinguisher_le_mul_guessAdvantage_add {X S T : ℕ →
           (lazyROToGuess width Q defaultS decS encT sampleT D n) true +
           (Q n : ℝ≥0∞) / 2 ^ width n := by
     unfold listGuessOutput guessOutput lazyROToGuess
-    simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
+    simp only [pmf_norm]
     refine PMF.bind_apply_le_mul_bind_apply_add_on_support (sample n) fun s hs => ?_
     refine PMF.bind_apply_le_mul_bind_apply_add_on_support _ fun l hl => ?_
     have hlen : l.length ≤ Q n := length_le_of_mem_support_lazyROToListGuess (hQ s hs) hl

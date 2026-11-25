@@ -68,6 +68,7 @@ This computation and conclusion are ours and are not formalized.
 * `Cslib.BitString.monotone_tribes`: Tribes is monotone.
 * `Cslib.BitString.expect_bitVal_tribes`: the probability that Tribes is true.
 * `Cslib.BitString.expect_prod_tribe`: the tribes are independent.
+* `Cslib.BitString.card_eq_sum_card_tribePart`: `#T` equals the sum of `#(tribePart T j)`.
 * `Cslib.BitString.one_div_two_le_pow_tribesSize`,
   `Cslib.BitString.pow_tribesSize_add_one_lt_one_div_two`,
   `Cslib.BitString.two_pow_sub_one_le_tribesSize`, `Cslib.BitString.tribesSize_lt_two_pow`: the
@@ -405,7 +406,7 @@ private theorem card_tribePart (T : Finset (Fin (s * w))) (j : Fin s) :
   rfl
 
 /-- The size of a set of coordinates is the sum of the sizes of its parts in the tribes. -/
-private theorem card_eq_sum_card_tribePart (T : Finset (Fin (s * w))) :
+theorem card_eq_sum_card_tribePart (T : Finset (Fin (s * w))) :
     #T = ∑ j, #(tribePart T j) := by
   simp only [card_tribePart, sum_card_tribe_inter]
 

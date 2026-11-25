@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Boolean.WeightedThreshold.LTF
 public import CslibFrontier.Foundations.Combinatorics.LittlewoodOfford
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # Random restriction lemmas for linear threshold functions
@@ -299,9 +300,8 @@ theorem card_not_forcedToConst_ltfEval_le {ι : Type*} [Fintype ι] [DecidableEq
     have hki_pos : (0 : ℝ) < (ltfWeightRank a i : ℝ) :=
       Nat.cast_pos.mpr (one_le_ltfWeightRank (mem_inter.mp hi).2)
     have hsqrt_le : Real.sqrt (ltfWeightRank a i) ≤ 2 * Real.sqrt (k' i + 1) := by
-      have hnat : (ltfWeightRank a i : ℝ) ≤ 2 * ((k' i : ℝ) + 1) := by exact_mod_cast hcase i hi
       have hsq := Real.sqrt_le_sqrt (show (ltfWeightRank a i : ℝ) ≤ (2 : ℝ) ^ 2 * ((k' i : ℝ) + 1)
-        by linarith)
+        by cast_linarith [hcase i hi])
       rwa [Real.sqrt_mul (by positivity), Real.sqrt_sq (by positivity)] at hsq
     rw [div_eq_mul_one_div]; refine mul_le_mul_of_nonneg_left ?_ (by positivity)
     rw [div_le_iff₀ (by positivity), mul_assoc, one_div_mul_eq_div, ← mul_div_assoc,

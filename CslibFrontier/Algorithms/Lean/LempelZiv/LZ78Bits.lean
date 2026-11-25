@@ -10,14 +10,8 @@ module
 public import CslibFrontier.Algorithms.Lean.LempelZiv.LZ78Count
 public import CslibFrontier.Foundations.Data.BitString.Counter
 public import CslibFrontier.Foundations.Data.BitString.List.Binary
-public import Mathlib.Algebra.BigOperators.Group.Finset.Basic
-public import Mathlib.Logic.Equiv.Fin.Basic
 
 import CslibFrontier.Foundations.Data.BitString.Binary
-import Mathlib.Algebra.Order.BigOperators.Group.Finset
-import Mathlib.Data.Fintype.Card
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Positivity
 
 /-!
 # The LZ78 bit code and its length

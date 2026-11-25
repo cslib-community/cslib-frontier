@@ -228,12 +228,6 @@ theorem exists_computableInO_simulate (F : NetworkFamily encN value Admissible c
       omega
   -- Collect the polynomial overhead.
   let V : List Bool × ℕ → ℕ := fun c => pG (sz c) + sz c + 2 * (a * (sz c + 1) ^ d + U c)
-  have hszp : PolyBounded sz sz := PolyBounded.self
-  have hcntp : PolyBounded sz fun c => (encNat (scheduleCount F.heads c.2)).length := by growth_poly
-  have hPcp : PolyBounded sz fun c => (encNat (paddedTime c.2 + 1)).length := hPc.polyBounded_length
-  have hZp : PolyBounded sz Z := by growth_poly
-  have hYp : PolyBounded sz Y := by growth_poly
-  have hUp : PolyBounded sz U := by growth_poly
   have hVp : PolyBounded sz V := by growth_poly
   obtain ⟨k₀, d₀, hV⟩ := hVp.exists_le
   -- The simulation's time and space.

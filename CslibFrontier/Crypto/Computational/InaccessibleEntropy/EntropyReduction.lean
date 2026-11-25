@@ -22,6 +22,7 @@ import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF.ToReal
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.Uniform
+import CslibFrontier.Tactic.UniformRelabel
 
 /-!
 # Accessible-entropy reduction and 1-bit shrinking output hashing
@@ -638,27 +639,6 @@ theorem isPPT_shrunkHashEscapeInverter {n₁ m₁ s : ℕ → ℕ}
       (ComputableInPolyTime.bitsTakeWithInput (ComputableInPolyTime.snd _ encBits)
         (hwidth.comp (ComputableInPolyTime.fst _ encBits)))
 
-private def shrunkTupleEquiv (n₁ m₁ s : ℕ) :
-    (BitString n₁ × (Fin n₁ → BitString n₁) ×
-      (Fin (outHashLen n₁ s) → BitString (inputHashOutLen n₁ m₁))) ≃
-      BitString (shrunkHashInLen n₁ m₁ s) where
-  toFun t := Cslib.BitString.ofList (shrunkHashInLen n₁ m₁ s)
-    (ShrunkHashInput.mk ⟨t.1, t.2.1⟩ t.2.2).packWord
-  invFun b :=
-    let v := ShrunkHashInput.unpackWord n₁ m₁ s (List.ofFn b)
-    (v.inner.base, v.inner.inRows, v.outRows)
-  left_inv := fun ⟨z, iRows, oRows⟩ => by
-    dsimp only
-    rw [Cslib.BitString.ofFn_ofList (ShrunkHashInput.mk ⟨z, iRows⟩ oRows).length_packWord,
-      ShrunkHashInput.unpackWord_packWord]
-  right_inv b := by
-    dsimp only
-    have hpack := ShrunkHashInput.packWord_unpackWord (n₁ := n₁) (m₁ := m₁) (s := s)
-      (raw := List.ofFn b) List.length_ofFn
-    rcases hv : ShrunkHashInput.unpackWord n₁ m₁ s (List.ofFn b) with ⟨⟨_, _⟩, _⟩
-    rw [hv] at hpack
-    rw [hpack, Cslib.BitString.ofList_ofFn]
-
 private theorem uniformList_shrunkHashInLen_eq (n₁ m₁ s : ℕ) :
     Cslib.BitString.uniformList (shrunkHashInLen n₁ m₁ s) =
       (PMF.uniformOfFintype (BitString n₁)).bind fun z =>
@@ -666,18 +646,29 @@ private theorem uniformList_shrunkHashInLen_eq (n₁ m₁ s : ℕ) :
           (PMF.uniformOfFintype
             (Fin (outHashLen n₁ s) → BitString (inputHashOutLen n₁ m₁))).map fun oRows =>
               (ShrunkHashInput.mk ⟨z, iRows⟩ oRows).packWord := by
-  simp only [PMF.uniformOfFintype_bind_map, Cslib.BitString.uniformList,
-    ← PMF.uniformOfFintype_map_equiv (shrunkTupleEquiv n₁ m₁ s), PMF.map_comp]
-  exact congrArg (PMF.uniformOfFintype _).map (funext fun t =>
-    Cslib.BitString.ofFn_ofList (ShrunkHashInput.mk ⟨t.1, t.2.1⟩ t.2.2).length_packWord)
+  rw [Cslib.BitString.uniformList]
+  relabel_uniform (fun t : BitString n₁ × (Fin n₁ → BitString n₁) ×
+      (Fin (outHashLen n₁ s) → BitString (inputHashOutLen n₁ m₁)) =>
+    Cslib.BitString.ofList (shrunkHashInLen n₁ m₁ s)
+      (ShrunkHashInput.mk ⟨t.1, t.2.1⟩ t.2.2).packWord) with t
+  · rintro ⟨z₁, i₁, o₁⟩ ⟨z₂, i₂, o₂⟩ h
+    have hpk := congrArg (fun b => ShrunkHashInput.unpackWord n₁ m₁ s (List.ofFn b)) h
+    simp only [Cslib.BitString.ofFn_ofList (ShrunkHashInput.mk _ _).length_packWord,
+      ShrunkHashInput.unpackWord_packWord, ShrunkHashInput.mk.injEq,
+      InputHashedInput.mk.injEq] at hpk
+    exact Prod.ext hpk.1.1 (Prod.ext hpk.1.2 hpk.2)
+  · simp only [Fintype.card_prod, Fintype.card_pi, Fintype.card_bool, Fintype.card_fin,
+      Finset.prod_const, Finset.card_univ, shrunkHashInLen, inputHashInLen, Cslib.BitString,
+      ← pow_mul, ← pow_add, Nat.mul_comm]
+    simp only [add_assoc]
+  · simp only [Cslib.BitString.ofFn_ofList (ShrunkHashInput.mk ⟨t.1, t.2.1⟩ t.2.2).length_packWord]
 
 private theorem uniformList_mul_eq_map_blocks (k m : ℕ) :
     Cslib.BitString.uniformList (k * m) =
       (PMF.uniformOfFintype (Fin k → BitString m)).map
         (fun rows => List.ofFn (Cslib.BitString.blocksEquiv.symm rows)) := by
-  rw [Cslib.BitString.uniformList,
-    ← PMF.uniformOfFintype_map_equiv Cslib.BitString.blocksEquiv.symm, PMF.map_comp]
-  rfl
+  rw [Cslib.BitString.uniformList]
+  relabel_uniform (Cslib.BitString.blocksEquiv (m := k) (k := m)).symm
 
 private abbrev shrunkBadIn {w₁ out₁ : ℕ} (f₁ : BitString w₁ → BitString out₁) (j₀ : ℕ)
     (L : BitString w₁ → Finset (BitString w₁)) (z : BitString w₁)

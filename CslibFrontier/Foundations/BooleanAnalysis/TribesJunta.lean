@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Foundations.BooleanAnalysis.TribesInfluence
 import CslibFrontier.Foundations.Data.BitString.AgreeExpect
 import CslibFrontier.Foundations.Data.Hamming
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # Tribes is far from every small junta
@@ -309,9 +310,8 @@ private theorem one_div_256_le_card_mul (hw : 1 ≤ w) (hs₁ : 2 ^ (w - 1) ≤ 
   have hA : 1 / 2 ≤ (1 - (2⁻¹ : ℝ) ^ w) ^ (s - t) :=
     hq.trans (pow_le_pow_of_le_one hq0 hq1 (Nat.sub_le _ _))
   have hB : 1 / 4 ≤ t * y := by
-    have h2 : (2 : ℝ) ^ (w - 1) ≤ 4 * t := by exact_mod_cast hs₁.trans ht
     rw [hy, inv_pow, le_mul_inv_iff₀ (by positivity)]
-    linarith
+    cast_linarith [hs₁.trans ht]
   have hC : 1 / 16 ≤ (1 - y) ^ (t - 1) := by
     rcases Nat.lt_or_ge w 2 with hw2 | hw2
     · have hw1 : w = 1 := by omega
@@ -405,9 +405,7 @@ theorem exists_totalInfluence_le_lt_card_of_dependsOn {K : ℝ} (hK : 4 ≤ K) :
       rw [← pow_succ']
       congr 1
       omega
-    have hs₁' : (2 : ℝ) ^ (w - 1) ≤ tribesSize w := by exact_mod_cast hs₁
-    have hw' : (2 : ℝ) ≤ w := by exact_mod_cast hw2'
-    have : (4 * #J : ℝ) ≤ 3 * (tribesSize w * w) := by nlinarith
+    have : (4 * #J : ℝ) ≤ 3 * (tribesSize w * w) := by cast_nlinarith [hw2', hs₁]
     exact_mod_cast this
 
 end Cslib.BitString

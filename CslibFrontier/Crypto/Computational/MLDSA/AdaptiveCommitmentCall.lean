@@ -11,15 +11,9 @@ public import CslibFrontier.Crypto.Computational.MLDSA.ExpansionTrial
 import CslibFrontier.Languages.Probabilistic.Semantics
 import CslibFrontier.Probability.PMF.Bind
 public import CslibFrontier.Crypto.Computational.MLDSA.RejectedCommitmentWrites
-import all CslibFrontier.Crypto.Computational.MLDSA.PriorCommitmentRefresh
-import all CslibFrontier.Crypto.Computational.MLDSA.DigestSigningQueries
+-- Reads private `installedAttempt`, `retryCall`, and `freshDigestSigningCall` internals.
 import all CslibFrontier.Crypto.Computational.MLDSA.RejectedCommitmentWrites
-import all CslibFrontier.Crypto.Computational.MLDSA.CommitmentContinuation
-import all CslibFrontier.Crypto.Computational.MLDSA.SigningQueryComparison
-import all CslibFrontier.Crypto.Computational.MLDSA.QuantumCommitmentRegister
-import all CslibFrontier.Crypto.Computational.MLDSA.PrivateMaskExpansion
-import all CslibFrontier.Crypto.Computational.MLDSA.RandomXofMask
-import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
+-- Reads private `prefixRun`, `prefixRun_eq`, and `expansionTrialGame` internals.
 import all CslibFrontier.Crypto.Computational.MLDSA.ExpansionTrial
 
 /-!

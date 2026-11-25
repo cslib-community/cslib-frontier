@@ -15,6 +15,7 @@ import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.Product
 import CslibFrontier.Tactic.PMFSwap
 import CslibFrontier.Tactic.SuppCases
+import CslibFrontier.Tactic.UniformRelabel
 import Mathlib.Algebra.Order.Chebyshev
 
 /-!
@@ -149,44 +150,29 @@ theorem bad_reply_le [DecidableEq H] (first : PMF S)
 private def glue (j : Fin q) (b : Fin q → H) (t : H) (r : Fin q → H) : Fin q → H :=
   fun i => if i < j then b i else if i = j then t else r i
 
-/-- Gluing is the first component of an equivalence, whose other components are the unused
-parts of `b` and `r`. -/
-private def glueEquiv (j : Fin q) :
-    (Fin q → H) × H × (Fin q → H) ≃ (Fin q → H) × (Fin q → H) × H where
-  toFun x := (glue j x.1 x.2.1 x.2.2, fun i => if i < j then x.2.2 i else x.1 i, x.2.2 j)
-  invFun y := (fun i => if i < j then y.1 i else y.2.1 i, y.1 j,
-    fun i => if i < j then y.2.1 i else if i = j then y.2.2 else y.1 i)
-  left_inv x := by
-    obtain ⟨b, t, r⟩ := x
-    simp only [glue, lt_self_iff_false, ite_false, ite_true, Prod.mk.injEq]
-    refine ⟨funext fun i => ?_, trivial, funext fun i => ?_⟩
-    · split_ifs <;> rfl
-    · by_cases h₁ : i < j <;> by_cases h₂ : i = j <;> simp [h₁, h₂]
-  right_inv y := by
-    obtain ⟨x, z, u⟩ := y
-    simp only [lt_self_iff_false, ite_false, ite_true, Prod.mk.injEq]
-    refine ⟨funext fun i => ?_, funext fun i => ?_, trivial⟩
-    · by_cases h₁ : i < j <;> by_cases h₂ : i = j <;> simp [glue, h₁, h₂]
-    · split_ifs <;> rfl
-
 /-- Gluing independent uniform parts gives uniform answers. -/
 private theorem bind_glue {γ : Type} (j : Fin q) (k : (Fin q → H) → PMF γ) :
     ((PMF.uniformOfFintype (Fin q → H)).bind fun b => (PMF.uniformOfFintype H).bind fun t =>
       (PMF.uniformOfFintype (Fin q → H)).bind fun r => k (glue j b t r)) =
       (PMF.uniformOfFintype (Fin q → H)).bind k := by
-  have hprod : ((PMF.uniformOfFintype (Fin q → H)).bind fun b =>
-      (PMF.uniformOfFintype H).bind fun t => (PMF.uniformOfFintype (Fin q → H)).bind fun r =>
-        PMF.pure (b, t, r)) = PMF.uniformOfFintype ((Fin q → H) × H × (Fin q → H)) := by
-    rw [← Probability.PMF.uniformOfFintype_prod, ← Probability.PMF.uniformOfFintype_prod]
-    simp only [pmf_norm, PMF.map]
-  have hfst : (PMF.uniformOfFintype ((Fin q → H) × H × (Fin q → H))).map
-      (fun x => glue j x.1 x.2.1 x.2.2) = PMF.uniformOfFintype (Fin q → H) := by
-    have := Probability.PMF.uniformOfFintype_prod_map_fst (α := Fin q → H)
-      (β := (Fin q → H) × H)
-    rw [← Probability.PMF.uniformOfFintype_map_equiv (glueEquiv j), PMF.map_comp] at this
-    exact this
-  conv_rhs => rw [← hfst, ← hprod]
-  simp only [pmf_norm]
+  conv_rhs =>
+    rw [← Probability.PMF.uniformOfFintype_prod_map_fst (α := Fin q → H)
+      (β := (Fin q → H) × H), PMF.bind_map]
+  relabel_uniform (fun (x : (Fin q → H) × H × (Fin q → H)) =>
+    (glue j x.1 x.2.1 x.2.2, fun i => if i < j then x.2.2 i else x.1 i, x.2.2 j))
+  rintro ⟨b₁, t₁, r₁⟩ ⟨b₂, t₂, r₂⟩ h
+  simp only [Prod.mk.injEq] at h
+  rcases h with ⟨hg, hbr, hrj⟩
+  refine Prod.ext (funext fun i => ?_) (Prod.ext ?_ (funext fun i => ?_))
+  · by_cases hi : i < j
+    · simpa [glue, hi] using congrFun hg i
+    · simpa [hi] using congrFun hbr i
+  · simpa [glue] using congrFun hg j
+  · by_cases hi : i < j
+    · simpa [hi] using congrFun hbr i
+    · by_cases heq : i = j
+      · exact heq ▸ hrj
+      · simpa [glue, hi, heq] using congrFun hg i
 
 omit [Fintype H] [Nonempty H] in
 private theorem glue_self (j : Fin q) (b : Fin q → H) (t : H) (r : Fin q → H) :

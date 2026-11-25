@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Combinatorics.Expander.Basic
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # A lower bound on the spectral expansion
@@ -206,10 +207,8 @@ theorem one_div_sqrt_two_mul_le_spectralExpansion (G : RotationMap V D)
   refine le_trans ?_ (G.sqrt_le_spectralExpansion (by omega))
   rw [one_div, ← Real.sqrt_inv]
   apply Real.sqrt_le_sqrt
-  have h1 : (2 * Fintype.card D : ℝ) ≤ Fintype.card V := by exact_mod_cast hDV
-  have h2 : (1 : ℝ) ≤ Fintype.card D := by exact_mod_cast hD
-  rw [inv_eq_one_div, div_le_div_iff₀ (by positivity) (by nlinarith)]
-  nlinarith
+  rw [inv_eq_one_div, div_le_div_iff₀ (by positivity) (by cast_nlinarith [hD, hDV])]
+  cast_nlinarith
 
 end RotationMap
 

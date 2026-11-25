@@ -48,6 +48,7 @@ dictatorial.
 
 ## Main definitions
 
+* `Profile.toTopSet`: moves a set `S` of alternatives to the top of every voter's ranking.
 * `SocialChoiceFunction V A`: functions from profiles to alternatives.
 * `SocialChoiceFunction.IsStrategyProof`: no voter gains by misreporting.
 * `SocialChoiceFunction.IsMaskinMonotone`: Maskin monotonicity (strong positive association).
@@ -220,8 +221,11 @@ theorem isStrategyProof_iff_isMaskinMonotone [Finite V] :
     f.IsStrategyProof ↔ f.IsMaskinMonotone :=
   ⟨IsStrategyProof.isMaskinMonotone, IsMaskinMonotone.isStrategyProof⟩
 
-/-- Every voter moves the alternatives of `S` to the top of their ranking. -/
-private def raise (P : Profile V A) (S : Set A) : Profile V A := fun i => (P i).toTopSet S
+/-- Move the alternatives of `S` to the top of every voter's ranking ([Nisan2007],
+Definition 9.9). -/
+@[expose] def _root_.Cslib.GameTheory.SocialChoice.Profile.toTopSet {V : Type*}
+    (P : Profile V A) (S : Set A) : Profile V A :=
+  fun i => (P i).toTopSet S
 
 /-- If `a` is in the range and every voter ranks it at the top, the outcome is `a`. -/
 private theorem IsMaskinMonotone.apply_eq_of_isTop (hf : f.IsMaskinMonotone) {a : A}
@@ -231,17 +235,17 @@ private theorem IsMaskinMonotone.apply_eq_of_isTop (hf : f.IsMaskinMonotone) {a 
 
 /-- **Unanimity**: if `a` is in the range and every voter ranks `a` above `b`, the outcome is not
 `b`. -/
-private theorem IsMaskinMonotone.apply_ne (hf : f.IsMaskinMonotone) {a b : A}
+theorem IsMaskinMonotone.apply_ne (hf : f.IsMaskinMonotone) {a b : A}
     (ha : a ∈ Set.range f) (hab : a ≠ b) {P : Profile V A} (h : ∀ i, (P i).Prefers a b) :
     f P ≠ b := by
   intro hPb
   have hb : b ∈ ({a, b} : Set A) := Set.mem_insert_of_mem a rfl
   -- Moving `a` and `b` to the top leaves the outcome `b`.
-  have h1 : f (raise P {a, b}) = f P := hf.apply_eq fun i y hy => by
+  have h1 : f (P.toTopSet {a, b}) = f P := hf.apply_eq fun i y hy => by
     rw [hPb] at hy ⊢
     exact ((P i).toTopSet_prefers_of_mem hb).2 (Or.inr hy)
   -- But everyone now ranks `a` at the top.
-  have h2 : f (raise P {a, b}) = a := hf.apply_eq_of_isTop ha fun i x hx => by
+  have h2 : f (P.toTopSet {a, b}) = a := hf.apply_eq_of_isTop ha fun i x hx => by
     by_cases hxb : x = b
     · subst hxb
       exact ((P i).toTopSet_prefers_iff_of_mem (Set.mem_insert a _) hb).2 (h i)
@@ -251,17 +255,17 @@ private theorem IsMaskinMonotone.apply_ne (hf : f.IsMaskinMonotone) {a b : A}
 
 /-- **The claim** of [Nisan2007] (proof of Lemmas 9.10 and 9.11): if every voter moves the
 alternatives of a set `S` meeting the range to the top, the outcome lies in `S`. -/
-private theorem IsMaskinMonotone.apply_raise_mem (hf : f.IsMaskinMonotone) {S : Set A}
-    {a : A} (haS : a ∈ S) (ha : a ∈ Set.range f) (P : Profile V A) : f (raise P S) ∈ S := by
+theorem IsMaskinMonotone.apply_toTopSet_mem (hf : f.IsMaskinMonotone) {S : Set A}
+    {a : A} (haS : a ∈ S) (ha : a ∈ Set.range f) (P : Profile V A) : f (P.toTopSet S) ∈ S := by
   by_contra hc
-  exact hf.apply_ne (b := f (raise P S)) ha (fun h => hc (h ▸ haS))
+  exact hf.apply_ne (b := f (P.toTopSet S)) ha (fun h => hc (h ▸ haS))
     (fun i => (P i).toTopSet_prefers_of_mem_of_notMem haS hc) rfl
 
 /-- If the outcome after moving `S` to the top lies in `T ⊆ S`, it is also the outcome after
 moving `T` to the top. -/
-private theorem IsMaskinMonotone.apply_raise_of_subset (hf : f.IsMaskinMonotone)
-    {S T : Set A} (hTS : T ⊆ S) (P : Profile V A) (hT : f (raise P S) ∈ T) :
-    f (raise P T) = f (raise P S) := by
+private theorem IsMaskinMonotone.apply_toTopSet_of_subset (hf : f.IsMaskinMonotone)
+    {S T : Set A} (hTS : T ⊆ S) (P : Profile V A) (hT : f (P.toTopSet S) ∈ T) :
+    f (P.toTopSet T) = f (P.toTopSet S) := by
   refine hf.apply_eq fun i y hy => ?_
   change ((P i).toTopSet T).Prefers _ y
   rw [(P i).toTopSet_prefers_of_mem hT]
@@ -272,17 +276,17 @@ private theorem IsMaskinMonotone.apply_raise_of_subset (hf : f.IsMaskinMonotone)
   · exact Or.inl hyT
 
 /-- If the outcome lies in `S`, it does not change when every voter moves `S` to the top. -/
-private theorem IsMaskinMonotone.apply_raise_of_mem (hf : f.IsMaskinMonotone)
-    {S : Set A} {P : Profile V A} (hP : f P ∈ S) : f (raise P S) = f P :=
+theorem IsMaskinMonotone.apply_toTopSet_of_mem (hf : f.IsMaskinMonotone)
+    {S : Set A} {P : Profile V A} (hP : f P ∈ S) : f (P.toTopSet S) = f P :=
   hf.apply_eq fun i _ hy => ((P i).toTopSet_prefers_of_mem hP).2 (Or.inr hy)
 
 /-- **Independence of irrelevant alternatives** for moving a set `S` meeting the range to the
 top: the outcome only depends on the voters' rankings within `S`. -/
-private theorem IsMaskinMonotone.apply_raise_congr (hf : f.IsMaskinMonotone)
+theorem IsMaskinMonotone.apply_toTopSet_congr (hf : f.IsMaskinMonotone)
     {S : Set A} {a : A} (haS : a ∈ S) (ha : a ∈ Set.range f) {P Q : Profile V A}
     (hPQ : ∀ i x y, x ∈ S → y ∈ S → ((P i).Prefers x y ↔ (Q i).Prefers x y)) :
-    f (raise Q S) = f (raise P S) := by
-  have hm := hf.apply_raise_mem haS ha P
+    f (Q.toTopSet S) = f (P.toTopSet S) := by
+  have hm := hf.apply_toTopSet_mem haS ha P
   refine hf.apply_eq fun i y hy => ?_
   change ((Q i).toTopSet S).Prefers _ y
   change ((P i).toTopSet S).Prefers _ y at hy
@@ -300,24 +304,24 @@ variable (hf : f.IsMaskinMonotone)
 include hf
 
 /-- The outcome after every voter moves `a` and `b` to the top is `a` or `b`. -/
-private theorem IsMaskinMonotone.apply_raise_pair (P : Profile V A) {a b : A}
-    (ha : a ∈ Set.range f) : f (raise P {a, b}) = a ∨ f (raise P {a, b}) = b := by
-  have := hf.apply_raise_mem (Set.mem_insert a {b}) ha P
+theorem IsMaskinMonotone.apply_toTopSet_pair (P : Profile V A) {a b : A}
+    (ha : a ∈ Set.range f) : f (P.toTopSet {a, b}) = a ∨ f (P.toTopSet {a, b}) = b := by
+  have := hf.apply_toTopSet_mem (Set.mem_insert a {b}) ha P
   simpa only [Set.mem_insert_iff, Set.mem_singleton_iff] using this
 
 /-- Transitivity of the induced social ranking ([Nisan2007], proof of Lemma 9.10). -/
-private theorem IsMaskinMonotone.apply_raise_pair_trans (P : Profile V A) {a b c : A}
-    (ha : a ∈ Set.range f) (hab : f (raise P {a, b}) = a) (hbc : f (raise P {b, c}) = b) :
-    f (raise P {a, c}) = a := by
+theorem IsMaskinMonotone.apply_toTopSet_pair_trans (P : Profile V A) {a b c : A}
+    (ha : a ∈ Set.range f) (hab : f (P.toTopSet {a, b}) = a)
+    (hbc : f (P.toTopSet {b, c}) = b) : f (P.toTopSet {a, c}) = a := by
   by_cases h₁ : a = b
   · subst h₁; exact hbc
   by_cases h₂ : b = c
   · subst h₂; exact hab
   by_cases h₃ : a = c
   · subst h₃
-    have := hf.apply_raise_mem (Set.mem_insert a {a}) ha P
+    have := hf.apply_toTopSet_mem (Set.mem_insert a {a}) ha P
     simpa only [Set.pair_eq_singleton, Set.mem_singleton_iff] using this
-  have hm := hf.apply_raise_mem (Set.mem_insert a {b, c}) ha P
+  have hm := hf.apply_toTopSet_mem (Set.mem_insert a {b, c}) ha P
   have hsub : ∀ {x y : A}, x ∈ ({a, b, c} : Set A) → y ∈ ({a, b, c} : Set A) →
       ({x, y} : Set A) ⊆ {a, b, c} := fun hx hy =>
     Set.insert_subset hx (Set.singleton_subset_iff.2 hy)
@@ -326,17 +330,17 @@ private theorem IsMaskinMonotone.apply_raise_pair_trans (P : Profile V A) {a b c
   have hc' : c ∈ ({a, b, c} : Set A) := Set.mem_insert_of_mem a (Set.mem_insert_of_mem b rfl)
   simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hm
   rcases hm with hx | hx | hx
-  · have hm : f (raise P {a, b, c}) ∈ ({a, c} : Set A) := by
+  · have hm : f (P.toTopSet {a, b, c}) ∈ ({a, c} : Set A) := by
       rw [hx]; exact Set.mem_insert a {c}
-    rw [hf.apply_raise_of_subset (hsub ha' hc') P hm, hx]
+    rw [hf.apply_toTopSet_of_subset (hsub ha' hc') P hm, hx]
   · -- The outcome on `{a, b, c}` is `b`, so it is also the outcome on `{a, b}`.
-    have hm : f (raise P {a, b, c}) ∈ ({a, b} : Set A) := by
+    have hm : f (P.toTopSet {a, b, c}) ∈ ({a, b} : Set A) := by
       rw [hx]; exact Set.mem_insert_of_mem a rfl
-    have := hf.apply_raise_of_subset (hsub ha' hb') P hm
+    have := hf.apply_toTopSet_of_subset (hsub ha' hb') P hm
     exact absurd (hab.symm.trans (this.trans hx)) h₁
-  · have hm : f (raise P {a, b, c}) ∈ ({b, c} : Set A) := by
+  · have hm : f (P.toTopSet {a, b, c}) ∈ ({b, c} : Set A) := by
       rw [hx]; exact Set.mem_insert_of_mem b rfl
-    have := hf.apply_raise_of_subset (hsub hb' hc') P hm
+    have := hf.apply_toTopSet_of_subset (hsub hb' hc') P hm
     exact absurd (hbc.symm.trans (this.trans hx)) h₂
 
 /-- Every voter extends their ranking of the range of `f` to `A` with `Ranking.extend r₀`. -/
@@ -348,21 +352,21 @@ private def extendProfile (r₀ : Ranking A) (P : Profile V (Set.range f)) : Pro
 least as high as `b` when the outcome after every voter moves `a` and `b` to the top is `a`. -/
 private noncomputable def induced (r₀ : Ranking A) : SocialWelfareFunction V (Set.range f) :=
   fun P =>
-  { AtLeast := fun a b => f (raise (extendProfile r₀ P) {(a : A), (b : A)}) = a
+  { AtLeast := fun a b => f ((extendProfile r₀ P).toTopSet {(a : A), (b : A)}) = a
     total := fun a b => by
-      rcases hf.apply_raise_pair (extendProfile r₀ P) (b := (b : A)) a.2 with h | h
+      rcases hf.apply_toTopSet_pair (extendProfile r₀ P) (b := (b : A)) a.2 with h | h
       · exact Or.inl h
       · right
         rw [Set.pair_comm]
         exact h
-    trans := fun a _ _ hab hbc => hf.apply_raise_pair_trans _ a.2 hab hbc }
+    trans := fun a _ _ hab hbc => hf.apply_toTopSet_pair_trans _ a.2 hab hbc }
 
 /-- The induced social welfare function is weakly Pareto ([Nisan2007], proof of Lemma 9.11). -/
 private theorem isPareto_induced [Nonempty V] (r₀ : Ranking A) : (induced hf r₀).IsPareto := by
   intro P a b h hba
   obtain ⟨i⟩ := ‹Nonempty V›
   have hab : (a : A) ≠ b := fun he => (P i).ne_of_prefers (h i) (Subtype.ext he)
-  refine hf.apply_ne a.2 hab (P := raise (extendProfile r₀ P) {(b : A), (a : A)})
+  refine hf.apply_ne a.2 hab (P := (extendProfile r₀ P).toTopSet {(b : A), (a : A)})
     (fun j => ?_) hba
   exact ((r₀.extend (P j)).toTopSet_prefers_iff_of_mem (Set.mem_insert_of_mem _ rfl)
     (Set.mem_insert _ _)).2 ((r₀.extend_prefers_of_mem (P j) a.2 b.2).2 (h j))
@@ -371,9 +375,9 @@ private theorem isPareto_induced [Nonempty V] (r₀ : Ranking A) : (induced hf r
 ([Nisan2007], proof of Lemma 9.11). -/
 private theorem isIIA_induced (r₀ : Ranking A) : (induced hf r₀).IsIIA := by
   intro P Q a b h
-  change f (raise (extendProfile r₀ P) {(a : A), (b : A)}) = a ↔
-    f (raise (extendProfile r₀ Q) {(a : A), (b : A)}) = a
-  rw [hf.apply_raise_congr (Set.mem_insert (a : A) _) a.2 (P := extendProfile r₀ P)
+  change f ((extendProfile r₀ P).toTopSet {(a : A), (b : A)}) = a ↔
+    f ((extendProfile r₀ Q).toTopSet {(a : A), (b : A)}) = a
+  rw [hf.apply_toTopSet_congr (Set.mem_insert (a : A) _) a.2 (P := extendProfile r₀ P)
     (Q := extendProfile r₀ Q) fun i x y hx hy => ?_]
   have hab : (r₀.extend (P i)).Prefers a b ↔ (r₀.extend (Q i)).Prefers a b := by
     rw [r₀.extend_prefers_of_mem _ a.2 b.2, r₀.extend_prefers_of_mem _ a.2 b.2]
@@ -412,10 +416,10 @@ theorem isDictatorial_of_isMaskinMonotone [Finite V] (hf : f.IsMaskinMonotone)
   let P' : Profile V (Set.range f) := fun i => (P i).restrict (Set.range f)
   have hsoc := hn P' ⟨x, hx⟩ ⟨f P, ⟨P, rfl⟩⟩ ((P n).restrict_prefers.2 hnx)
   apply hsoc
-  change f (raise (extendProfile r₀ P') {f P, x}) = f P
-  rw [hf.apply_raise_congr (Set.mem_insert (f P) _) ⟨P, rfl⟩ (P := P)
+  change f ((extendProfile r₀ P').toTopSet {f P, x}) = f P
+  rw [hf.apply_toTopSet_congr (Set.mem_insert (f P) _) ⟨P, rfl⟩ (P := P)
     (Q := extendProfile r₀ P') fun i y z hy hz => ?_]
-  · exact hf.apply_raise_of_mem (Set.mem_insert _ _)
+  · exact hf.apply_toTopSet_of_mem (Set.mem_insert _ _)
   · have hS : ({f P, x} : Set A) ⊆ Set.range f :=
       Set.insert_subset ⟨P, rfl⟩ (Set.singleton_subset_iff.2 hx)
     exact ((r₀.extend_prefers_of_mem (P' i) (hS hy) (hS hz)).trans (P i).restrict_prefers).symm

@@ -12,6 +12,7 @@ public import Mathlib.Algebra.BigOperators.Group.Finset.Defs
 public import Mathlib.Algebra.BigOperators.Group.List.Basic
 public import Mathlib.Data.Nat.Prime.Defs
 public import Mathlib.Order.Interval.Finset.Nat
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.NumberTheory.Chebyshev
 
 /-!
@@ -165,8 +166,7 @@ theorem four_pow_le_mul_prod_primesIoc (L : ℕ) :
     rw [← Real.log_le_log_iff (by positivity) (by positivity)]
     push_cast
     rw [Real.log_pow, Real.log_mul (by positivity) hPr.ne', Real.log_pow]
-    push_cast
-    linarith
+    cast_linarith
   exact_mod_cast hreal
 
 end Cslib

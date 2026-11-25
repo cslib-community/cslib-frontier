@@ -212,8 +212,8 @@ message. -/
   let out ← (OracleComp.interpret
     (OracleComp.sumHandler (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
       (signHandler S T depth n)) (adversary n pk)).run []
-  let msig := out.1
-  return (msig.1.length == n) && !out.2.contains msig.1 && verify S depth pk msig.1 msig.2
+  let ⟨⟨msg, sig⟩, queried⟩ := out
+  return (msg.length == n) && !queried.contains msg && verify S depth pk msg sig
 
 /-- The coin adversary: at the PRF's parameter `M`, recover `n` with `inv` and simulate the tree
 game there; outside the range of `N`, output `false`. -/

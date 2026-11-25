@@ -19,6 +19,7 @@ import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Tactic.Negligible
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.PPT
+import CslibFrontier.Tactic.UniformRelabel
 
 /-!
 # Word-level Even–Mansour block cipher and ideal-permutation PRP security
@@ -913,37 +914,6 @@ private theorem evalProbTwoPerms_evenMansourWordAdapter {α : Type} (n : ℕ)
   · simp [evenMansourWordQuery, evenMansourTwoPermWordOracle, strongRandomPermOracle, hq,
       Probability.PMF.monad_pure_eq_pure]
 
-private def twoKeyEquiv (n : ℕ) : BitString (2 * n) ≃ BitString n × BitString n where
-  toFun z :=
-    (BitString.ofList n (splitTwoKeys n (List.ofFn z)).1,
-     BitString.ofList n (splitTwoKeys n (List.ofFn z)).2)
-  invFun p := BitString.ofList (2 * n) (List.ofFn p.1 ++ List.ofFn p.2)
-  left_inv z := by
-    have hz : (List.ofFn z).length = 2 * n := List.length_ofFn
-    have h1 : (splitTwoKeys n (List.ofFn z)).1 = (List.ofFn z).take n :=
-      splitTwoKeys_fst_eq_take n (List.ofFn z)
-    have h2 : (splitTwoKeys n (List.ofFn z)).2 = (List.ofFn z).drop n := by
-      simp only [splitTwoKeys, keyBlock, one_mul]
-      exact List.take_of_length_le (by simp only [List.length_drop, hz]; omega)
-    dsimp only
-    rw [BitString.ofFn_ofList (length_splitTwoKeys_fst hz),
-      BitString.ofFn_ofList (length_splitTwoKeys_snd hz), h1, h2, List.take_append_drop,
-      BitString.ofList_ofFn]
-  right_inv p := by
-    obtain ⟨k₁, k₂⟩ := p
-    have hlen : (List.ofFn k₁ ++ List.ofFn k₂).length = 2 * n := by
-      simp only [List.length_append, List.length_ofFn]
-      omega
-    dsimp only
-    rw [BitString.ofFn_ofList hlen]
-    have h1 : (splitTwoKeys n (List.ofFn k₁ ++ List.ofFn k₂)).1 = List.ofFn k₁ := by
-      simp only [splitTwoKeys, keyBlock, zero_mul, List.drop_zero,
-        List.take_left' List.length_ofFn]
-    have h2 : (splitTwoKeys n (List.ofFn k₁ ++ List.ofFn k₂)).2 = List.ofFn k₂ := by
-      simp only [splitTwoKeys, keyBlock, one_mul, List.drop_left' List.length_ofFn,
-        List.take_of_length_le List.length_ofFn.le]
-    rw [h1, h2, BitString.ofList_ofFn, BitString.ofList_ofFn]
-
 /-- Evaluating `evenMansourWordRealGame` produces the exact same distribution as running
 `EvenMansour.evenMansourProbRealGame` on `evenMansourWordAdapter`. -/
 private theorem eval_evenMansourWordRealGame (adversary : EvenMansourDistinguisher) (n : ℕ) :
@@ -952,13 +922,28 @@ private theorem eval_evenMansourWordRealGame (adversary : EvenMansourDistinguish
   simp only [pmf_norm, evenMansourWordRealGame, EvenMansour.evenMansourProbRealGame,
     ProbComp.eval_uniform, BitString.eval_sampleList, ProbOracleComp.eval_run]
   congr 1 with π : 1
-  rw [← PMF.uniformOfFintype_map_equiv (twoKeyEquiv n), PMF.bind_map, BitString.uniformList,
-    PMF.bind_map]
-  congr 1 with z : 1
-  simp only [Function.comp_apply, twoKeyEquiv, Equiv.coe_fn_mk,
-    evalProbTwoPerms_evenMansourWordAdapter]
-  congr 2 with request : 1
-  rw [evenMansourKeyedWordOracle_eq_twoPermWordOracle π List.length_ofFn request]
+  rw [BitString.uniformList]
+  relabel_uniform (fun z : BitString (2 * n) =>
+    (BitString.ofList n (splitTwoKeys n (List.ofFn z)).1,
+     BitString.ofList n (splitTwoKeys n (List.ofFn z)).2)) with p
+  · intro z₁ z₂ h
+    have h1 (z : BitString (2 * n)) :
+        List.ofFn (BitString.ofList n (splitTwoKeys n (List.ofFn z)).1) ++
+          List.ofFn (BitString.ofList n (splitTwoKeys n (List.ofFn z)).2) = List.ofFn z := by
+      have hz : (List.ofFn z).length = 2 * n := List.length_ofFn
+      have h2 : (splitTwoKeys n (List.ofFn z)).2 = (List.ofFn z).drop n := by
+        simp only [splitTwoKeys, keyBlock, one_mul]
+        exact List.take_of_length_le (by simp only [List.length_drop, hz]; omega)
+      rw [BitString.ofFn_ofList (length_splitTwoKeys_fst hz),
+        BitString.ofFn_ofList (length_splitTwoKeys_snd hz), splitTwoKeys_fst_eq_take, h2,
+        List.take_append_drop]
+    have hL : List.ofFn z₁ = List.ofFn z₂ := by
+      rw [← h1 z₁, ← h1 z₂, (Prod.mk.inj h).1, (Prod.mk.inj h).2]
+    simpa [BitString.ofList_ofFn] using congrArg (BitString.ofList (2 * n)) hL
+  · simp [Fintype.card_prod, two_mul, pow_add]
+  · simp only [evalProbTwoPerms_evenMansourWordAdapter]
+    congr 2 with request : 1
+    rw [evenMansourKeyedWordOracle_eq_twoPermWordOracle π List.length_ofFn request]
 
 /-- Evaluating `singleKeyEvenMansourWordRealGame` produces the exact same distribution as running
 `EvenMansour.singleKeyEvenMansourProbRealGame` on `evenMansourWordAdapter`. -/

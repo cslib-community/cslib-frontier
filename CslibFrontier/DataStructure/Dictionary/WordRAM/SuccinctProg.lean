@@ -495,9 +495,8 @@ theorem realizes_readQuotGen :
       (WordEncoding.encode (α := DictParams × (ℕ × ℕ))) (WordEncoding.encode (α := ℕ))
       (fun w' d _ => DictEnvGen w' d.1 d.2.1 ∧ d.2.2 < dpNMax d.1)
       (fun _ _ => 0) := by
-  have hrp := realizes_readPackedGen
   unfold readQuotGenProg
-  realizeDict
+  realizeDict using [realizes_readPackedGen]
   rcases henv with ⟨rfl, hspace⟩
   exact ⟨n_max, rfl, hw, quotientBits_le_of_le_pow hU.le, h.2,
     hspace.of_le (by wram_omega)⟩
@@ -507,9 +506,8 @@ theorem realizes_writeQuotGen :
       (WordEncoding.encode (α := DictParams × ((ℕ × ℕ) × ℕ))) (WordEncoding.encode (α := Unit))
       (fun w' d _ => DictEnvGen w' d.1 d.2.1.1 ∧ d.2.1.2 < dpNMax d.1)
       (fun _ _ => 0) := by
-  have hwp := realizes_writePackedGen
   unfold writeQuotGenProg
-  realizeDict
+  realizeDict using [realizes_writePackedGen]
   rcases henv with ⟨rfl, hspace⟩
   exact ⟨n_max, rfl, hw, quotientBits_le_of_le_pow hU.le, h.2,
     hspace.of_le (by wram_omega)⟩
@@ -519,9 +517,8 @@ theorem realizes_readValGen :
       (WordEncoding.encode (α := DictParams × (ℕ × ℕ))) (WordEncoding.encode (α := ℕ))
       (fun w' d _ => DictEnvGen w' d.1 d.2.1 ∧ d.2.2 < dpNMax d.1)
       (fun _ _ => 0) := by
-  have hrp := realizes_readPackedGen
   unfold readValGenProg
-  realizeDict
+  realizeDict using [realizes_readPackedGen]
   rcases henv with ⟨rfl, hspace⟩
   exact ⟨n_max, rfl, hw, Nat.clog_le_of_le_pow hV, h.2,
     hspace.of_le (by wram_omega)⟩
@@ -531,9 +528,8 @@ theorem realizes_writeValGen :
       (WordEncoding.encode (α := DictParams × ((ℕ × ℕ) × ℕ))) (WordEncoding.encode (α := Unit))
       (fun w' d _ => DictEnvGen w' d.1 d.2.1.1 ∧ d.2.1.2 < dpNMax d.1)
       (fun _ _ => 0) := by
-  have hwp := realizes_writePackedGen
   unfold writeValGenProg
-  realizeDict
+  realizeDict using [realizes_writePackedGen]
   rcases henv with ⟨rfl, hspace⟩
   exact ⟨n_max, rfl, hw, Nat.clog_le_of_le_pow hV, h.2,
     hspace.of_le (by wram_omega)⟩
@@ -571,9 +567,8 @@ theorem realizes_readGMGen :
       (WordEncoding.encode (α := DictParams × (ℕ × ℕ))) (WordEncoding.encode (α := ℕ))
       (fun w' d _ => DictEnvGen w' d.1 d.2.1 ∧ d.2.2 < globalMetaLen (dpNMax d.1))
       (fun _ _ => 0) := by
-  have hrp := realizes_readPackedGen
   unfold readGMGenProg
-  realizeDict
+  realizeDict using [realizes_readPackedGen]
   rcases henv with ⟨rfl, hspace⟩
   exact ⟨globalMetaLen n_max, rfl, hw, globalPtrBits_le_of_lt_pow hnU hU, h.2,
     hspace.of_le (by wram_omega)⟩
@@ -583,9 +578,8 @@ theorem realizes_writeGMGen :
       (WordEncoding.encode (α := DictParams × ((ℕ × ℕ) × ℕ))) (WordEncoding.encode (α := Unit))
       (fun w' d _ => DictEnvGen w' d.1 d.2.1.1 ∧ d.2.1.2 < globalMetaLen (dpNMax d.1))
       (fun _ _ => 0) := by
-  have hwp := realizes_writePackedGen
   unfold writeGMGenProg
-  realizeDict
+  realizeDict using [realizes_writePackedGen]
   rcases henv with ⟨rfl, hspace⟩
   exact ⟨globalMetaLen n_max, rfl, hw, globalPtrBits_le_of_lt_pow hnU hU, h.2,
     hspace.of_le (by wram_omega)⟩

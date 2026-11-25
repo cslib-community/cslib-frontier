@@ -390,31 +390,28 @@ private lemma run_triple (X : ℕ) (cs : Fin (k + k + 1) → ℕ)
         simp only [update_of_ne h1, update_self]
       · simp only [update_of_ne h1, update_of_ne h2]
 
-/-- Move scratch back onto the target stack, then start adding the digit. -/
-private lemma run_back (T : ℕ) (cs : Fin (k + k + 1) → ℕ) (hT : cs tmp = T) :
-    (simulator tm).runFrom (cfg (some ⟨q, inp, sc, cur, .back j⟩) pos cs out) (T + 1) =
-      cfg (some ⟨q, inp, sc, cur,
-          .addDigit j ⟨digit (written (tm.tr q inp sc) sc j), digit_lt _⟩⟩) pos
-        (update (update cs tmp 0) (target j (dir tm q inp sc j))
-          (cs (target j (dir tm q inp sc j)) + T)) out := by
-  have hne := target_ne_tmp j (dir tm q inp sc j)
+/-- Drain `tmp` onto `dst`, then advance the control state. -/
+private lemma run_drainTmp {p p' : Control k State} (dst : Fin (k + k + 1)) (hne : dst ≠ tmp)
+    (hz : ∀ {cs : Fin (k + k + 1) → ℕ}, cs tmp = 0 →
+      ∀ inp, ctl tm p inp (fun i => decide (cs i = 0)) = ⟨0, fun _ => 0, none, some p'⟩)
+    (hs : ∀ {cs : Fin (k + k + 1) → ℕ} {T : ℕ}, cs tmp = T + 1 →
+      ∀ inp, ctl tm p inp (fun i => decide (cs i = 0)) = ⟨0, transfer tmp dst, none, some p⟩)
+    (T : ℕ) (cs : Fin (k + k + 1) → ℕ) (hT : cs tmp = T) :
+    (simulator tm).runFrom (cfg (some p) pos cs out) (T + 1) =
+      cfg (some p') pos (update (update cs tmp 0) dst (cs dst + T)) out := by
   induction T generalizing cs with
   | zero =>
-    have e : update (update cs tmp 0) (target j (dir tm q inp sc j))
-        (cs (target j (dir tm q inp sc j)) + 0) = cs := by
+    have e : update (update cs tmp 0) dst (cs dst + 0) = cs := by
       rw [(congrArg (update cs tmp) hT.symm).trans (update_eq_self tmp cs)]
       simp only [Nat.add_zero, update_eq_self]
-    rw [e, runFrom_succ_of_ctl tm pos out
-      (c' := ⟨q, inp, sc, cur, .addDigit j ⟨digit (written (tm.tr q inp sc) sc j), digit_lt _⟩⟩)
-      (mv := fun _ => 0) (fun _ => by simp [ctl, hT]), moveCounters_zero]
+    rw [e, runFrom_succ_of_ctl tm pos out (hz hT), moveCounters_zero]
     rfl
   | succ T ih =>
-    rw [runFrom_succ_of_ctl tm pos out (c' := ⟨q, inp, sc, cur, .back j⟩)
-        (mv := transfer tmp (target j (dir tm q inp sc j))) (fun _ => by simp [ctl, hT]),
-      moveCounters_transfer _ hne.symm, ih _ (by simp [hne.symm, hT])]
+    rw [runFrom_succ_of_ctl tm pos out (hs hT), moveCounters_transfer _ hne.symm,
+      ih _ (by simp [hne.symm, hT])]
     congr 1
     funext i
-    by_cases h2 : i = target j (dir tm q inp sc j)
+    by_cases h2 : i = dst
     · subst h2
       simp only [update_self]
       omega
@@ -422,6 +419,16 @@ private lemma run_back (T : ℕ) (cs : Fin (k + k + 1) → ℕ) (hT : cs tmp = T
       · subst h1
         simp only [update_of_ne h2, update_self]
       · simp only [update_of_ne h1, update_of_ne h2]
+
+/-- Move scratch back onto the target stack, then start adding the digit. -/
+private lemma run_back (T : ℕ) (cs : Fin (k + k + 1) → ℕ) (hT : cs tmp = T) :
+    (simulator tm).runFrom (cfg (some ⟨q, inp, sc, cur, .back j⟩) pos cs out) (T + 1) =
+      cfg (some ⟨q, inp, sc, cur,
+          .addDigit j ⟨digit (written (tm.tr q inp sc) sc j), digit_lt _⟩⟩) pos
+        (update (update cs tmp 0) (target j (dir tm q inp sc j))
+          (cs (target j (dir tm q inp sc j)) + T)) out :=
+  run_drainTmp tm pos out _ (target_ne_tmp j (dir tm q inp sc j))
+    (fun h0 _ => by simp [ctl, h0]) (fun hS _ => by simp [ctl, hS]) T cs hT
 
 /-- Add the pushed digit to the target stack. -/
 private lemma run_addDigit (δ : ℕ) (hδ : δ < 3) (cs : Fin (k + k + 1) → ℕ) :
@@ -515,32 +522,9 @@ private lemma run_restore (T : ℕ) (r : Fin 3) (cs : Fin (k + k + 1) → ℕ) (
     (simulator tm).runFrom (cfg (some ⟨q, inp, sc, cur, .restore j r⟩) pos cs out) (T + 1) =
       cfg (some ⟨q, inp, sc, update cur j (symbol r), phaseAt k (j + 1)⟩) pos
         (update (update cs tmp 0) (source j (dir tm q inp sc j))
-          (cs (source j (dir tm q inp sc j)) + T)) out := by
-  have hne := source_ne_tmp j (dir tm q inp sc j)
-  induction T generalizing cs with
-  | zero =>
-    have e : update (update cs tmp 0) (source j (dir tm q inp sc j))
-        (cs (source j (dir tm q inp sc j)) + 0) = cs := by
-      rw [(congrArg (update cs tmp) hT.symm).trans (update_eq_self tmp cs)]
-      simp only [Nat.add_zero, update_eq_self]
-    rw [e, runFrom_succ_of_ctl tm pos out
-      (c' := ⟨q, inp, sc, update cur j (symbol r), phaseAt k (j + 1)⟩)
-      (mv := fun _ => 0) (fun _ => by simp [ctl, hT]), moveCounters_zero]
-    rfl
-  | succ T ih =>
-    rw [runFrom_succ_of_ctl tm pos out (c' := ⟨q, inp, sc, cur, .restore j r⟩)
-        (mv := transfer tmp (source j (dir tm q inp sc j))) (fun _ => by simp [ctl, hT]),
-      moveCounters_transfer _ hne.symm, ih _ (by simp [hne.symm, hT])]
-    congr 1
-    funext i
-    by_cases h2 : i = source j (dir tm q inp sc j)
-    · subst h2
-      simp only [update_self]
-      omega
-    · by_cases h1 : i = tmp
-      · subst h1
-        simp only [update_of_ne h2, update_self]
-      · simp only [update_of_ne h1, update_of_ne h2]
+          (cs (source j (dir tm q inp sc j)) + T)) out :=
+  run_drainTmp tm pos out _ (source_ne_tmp j (dir tm q inp sc j))
+    (fun h0 _ => by simp [ctl, h0]) (fun hS _ => by simp [ctl, hS]) T cs hT
 
 /-- One simulated move of tape `j`: push the written symbol behind the head and pop the cell
 ahead of it into the scanned symbol. -/

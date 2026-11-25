@@ -16,6 +16,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List.Size
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Tactic.EncLen
 
 /-!
@@ -107,13 +108,10 @@ private theorem length_encPartialCut_assignVertex_le (edges : List WeightedEdge)
 theorem computableInPolyTime_derandomizedCutState :
     ComputableInPolyTime derandomizedCutState (encList encWeightedEdge) encPartialCut := by
   have hrounds := computableInPolyTime_distinctVertices
-  have hpoly :
-      PolyBounded (fun edges => (encList encWeightedEdge edges).length)
-        (fun edges => 4 * (encList encNat (distinctVertices edges)).length + 4) :=
-    ((PolyBounded.const 4).mul hrounds.polyBounded_length).add (.const 4)
   exact maxCutGreedyInput.computableInPolyTime_run_nat hrounds (const PartialCut.empty)
-    computableInPolyTime_assignVertex computableInPolyTime_scaledUncut hpoly
-    length_encPartialCut_assignVertex_le
+    computableInPolyTime_assignVertex computableInPolyTime_scaledUncut
+    (growth := fun edges => 4 * (encList encNat (distinctVertices edges)).length + 4)
+    (by growth_poly) length_encPartialCut_assignVertex_le
 
 /-- **Deterministic conditional-expectations `MaxCut` runs in polynomial time** on multi-tape
 Turing machines. -/

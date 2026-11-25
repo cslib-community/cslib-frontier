@@ -452,6 +452,12 @@ theorem dict_objCoeff {N : ℕ} {u : Fin (n + n)} (hu : ¬Basic N u) :
     (dict n N : Dictionary (Fin (n + n)) K).objCoeff u = cost n N (pair u) := by
   simp [dict, hu]
 
+private theorem dict_coeff_flipped (N : ℕ) (j : Fin n) :
+    (dict n N : Dictionary (Fin (n + n)) K).coeff (var j (flipped N j))
+      (var j (!flipped N j)) = -1 := by
+  rw [dict_coeff (basic_var_self (n := n) N j) (not_basic_var_not (n := n) N j),
+    pair_var, pair_var, rowCoeff_self]
+
 /-- **The pivot step**: at the lowest zero bit `j` of `N`, pivoting `dict n N` on the leaving
 basic variable of pair `j` and the entering nonbasic variable of pair `j` yields `dict n (N + 1)`.
 -/
@@ -461,9 +467,7 @@ theorem pivot_dict {N : ℕ} {j : Fin n} (hj : N.testBit j = false)
       dict n (N + 1) := by
   have hrb := basic_var_self (n := n) N j
   have hsb := not_basic_var_not (n := n) N j
-  have hcrs : (dict n N : Dictionary (Fin (n + n)) K).coeff (var j (flipped N j))
-      (var j (!flipped N j)) = -1 := by
-    rw [dict_coeff hrb hsb, pair_var, pair_var, rowCoeff_self]
+  have hcrs := dict_coeff_flipped (K := K) N j
   have hrr : (dict n N : Dictionary (Fin (n + n)) K).rhs (var j (flipped N j)) = rowConst N j := by
     rw [dict_rhs hrb, pair_var]
   have hcs : (dict n N : Dictionary (Fin (n + n)) K).objCoeff (var j (!flipped N j)) =
@@ -632,9 +636,7 @@ theorem blandLeaving_dict {N : ℕ} {j : Fin n} (hj : N.testBit j = false) :
       some (var j (flipped N j)) := by
   have hrb := basic_var_self (n := n) N j
   have hsb := not_basic_var_not (n := n) N j
-  have hcrs : (dict n N : Dictionary (Fin (n + n)) K).coeff (var j (flipped N j))
-      (var j (!flipped N j)) = -1 := by
-    rw [dict_coeff hrb hsb, pair_var, pair_var, rowCoeff_self]
+  have hcrs := dict_coeff_flipped (K := K) N j
   have hratio : (dict n N : Dictionary (Fin (n + n)) K).ratio (var j (!flipped N j))
       (var j (flipped N j)) = rowConst N j := by
     rw [Dictionary.ratio, hcrs, dict_rhs hrb, pair_var, neg_neg, div_one]

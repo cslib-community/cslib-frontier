@@ -62,7 +62,7 @@ structure CrossingLength (N : ℤ × ℤ → ℝ) : Prop where
       + τ * (N (X - V) ^ 2 + N (Y - U) ^ 2) + (N (n - n') ^ 2 + N (k - k') ^ 2) / (2 * τ)
 
 /-- `N` is homogeneous along the natural numbers. -/
-def IsHomogeneous (N : ℤ × ℤ → ℝ) : Prop := ∀ (m : ℕ) h, N (m • h) = m * N h
+@[expose] def IsHomogeneous (N : ℤ × ℤ → ℝ) : Prop := ∀ (m : ℕ) h, N (m • h) = m * N h
 
 namespace CrossingLength
 
@@ -194,11 +194,11 @@ structure CrossingMetrics (W : ℕ → Bool → ℤ × ℤ → ℤ × ℤ → �
 variable {W : ℕ → Bool → ℤ × ℤ → ℤ × ℤ → ℝ} {Λ : ℝ}
 
 /-- The distance of the translates `P + u` and `P + v`, as a window function of `P`. -/
-def translateDist (W : ℕ → Bool → ℤ × ℤ → ℤ × ℤ → ℝ) (u v : ℤ × ℤ) : WindowFn :=
+@[expose] def translateDist (W : ℕ → Bool → ℤ × ℤ → ℤ × ℤ → ℝ) (u v : ℤ × ℤ) : WindowFn :=
   fun n b i k => W n b ((i, k) + u) ((i, k) + v)
 
 /-- The root mean square of the distances of `P` and `P + h`. -/
-noncomputable def meanLength (W : ℕ → Bool → ℤ × ℤ → ℤ × ℤ → ℝ) (h : ℤ × ℤ) : ℝ :=
+@[expose] noncomputable def meanLength (W : ℕ → Bool → ℤ × ℤ → ℤ × ℤ → ℝ) (h : ℤ × ℤ) : ℝ :=
   (translateDist W 0 h).rms
 
 namespace CrossingMetrics

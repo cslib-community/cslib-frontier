@@ -8,6 +8,7 @@ module
 -- upstream: candidate (Mathlib, `Mathlib/Probability/Combinatorics/BinomialRandomGraph/`)
 
 public import CslibFrontier.Foundations.Probability.Combinatorics.BinomialRandomGraph.Connectivity
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Probability.Moments.Variance
 
 /-!
@@ -316,9 +317,8 @@ private theorem one_div_mul_one_sub_pow_le {n : ℕ} (hn : 0 < n) {p : ℝ} (hp0
     nlinarith
   have h4 : Real.exp (-(n * (p / (1 - p)))) ≤ (1 - p) ^ (n - 1) := by
     have hr : 0 ≤ p / (1 - p) := div_nonneg hp0 hq.le
-    have hcast : ((n - 1 : ℕ) : ℝ) ≤ n := by exact_mod_cast Nat.sub_le n 1
     calc Real.exp (-(n * (p / (1 - p)))) ≤ Real.exp (-((n - 1 : ℕ) * (p / (1 - p)))) :=
-          Real.exp_le_exp.2 (by nlinarith)
+          Real.exp_le_exp.2 (by cast_nlinarith [Nat.sub_le n 1])
       _ = Real.exp (-(p / (1 - p))) ^ (n - 1) := by rw [← Real.exp_nat_mul]; ring_nf
       _ ≤ (1 - p) ^ (n - 1) := pow_le_pow_left₀ (Real.exp_pos _).le h1' _
   have h5 : Real.exp (-(n * p + 2 * (Real.log n ^ 2 / n))) ≤ (1 - p) ^ (n - 1) := by

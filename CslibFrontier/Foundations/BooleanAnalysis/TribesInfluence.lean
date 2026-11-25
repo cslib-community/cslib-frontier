@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.Tribes
 public import CslibFrontier.Foundations.BooleanAnalysis.Variance
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.LogTwoPow
 import CslibFrontier.Foundations.Data.BitString.AgreeExpect
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Analysis.Complex.ExponentialBounds
 
 /-!
@@ -188,14 +189,13 @@ theorem totalInfluence_tribes_le (w : ℕ) :
   · simp
   have hA : (1 - (2⁻¹ : ℝ) ^ w) ^ (tribesSize w - 1) ≤ 1 :=
     pow_le_one₀ (one_sub_inv_two_pow_nonneg w) (one_sub_inv_two_pow_le_one w)
-  have h2 : (tribesSize w : ℝ) < 2 ^ w := by exact_mod_cast tribesSize_lt_two_pow w
   have hpow := two_pow_eq_two_mul hw
   have hy : (2⁻¹ : ℝ) ^ (w - 1) * 2 ^ (w - 1) = 1 := by
     rw [← mul_pow]
     norm_num
   rw [Nat.cast_mul]
   have hy0 : (0 : ℝ) ≤ 2⁻¹ ^ (w - 1) := by positivity
-  have hsy : (tribesSize w : ℝ) * 2⁻¹ ^ (w - 1) ≤ 2 := by nlinarith
+  have hsy : (tribesSize w : ℝ) * 2⁻¹ ^ (w - 1) ≤ 2 := by cast_nlinarith [tribesSize_lt_two_pow w]
   calc (tribesSize w * w : ℝ) * (2⁻¹ ^ (w - 1) * (1 - 2⁻¹ ^ w) ^ (tribesSize w - 1))
       ≤ (tribesSize w * w : ℝ) * (2⁻¹ ^ (w - 1) * 1) := by gcongr
     _ = (tribesSize w * 2⁻¹ ^ (w - 1)) * w := by ring
@@ -208,16 +208,14 @@ private theorem influence_tribes_le_of (hw : 2 ≤ w) (hs₁ : 2 ^ (w - 1) ≤ s
     rw [influence_tribes]
     exact mul_le_of_le_one_right (by positivity)
       (pow_le_one₀ (one_sub_inv_two_pow_nonneg w) (one_sub_inv_two_pow_le_one w))
-  have hw' : (2 : ℝ) ≤ w := by exact_mod_cast hw
   have hN₁ : ((2 : ℝ) ^ (w - 1)) ≤ ((s * w : ℕ) : ℝ) := by
     have : 2 ^ (w - 1) ≤ s * w := hs₁.trans (Nat.le_mul_of_pos_right _ (by omega))
     exact_mod_cast this
   have hNpos : (0 : ℝ) < ((s * w : ℕ) : ℝ) := lt_of_lt_of_le (by positivity) hN₁
   have hyN : (2⁻¹ : ℝ) ^ (w - 1) * ((s * w : ℕ) : ℝ) ≤ 2 * w := by
-    have h2 : (s : ℝ) < 2 ^ w := by exact_mod_cast hs₂
     have hpow := two_pow_eq_two_mul (show 1 ≤ w by omega)
     rw [Nat.cast_mul, inv_pow, ← div_eq_inv_mul, div_le_iff₀ (by positivity)]
-    nlinarith
+    cast_nlinarith [hs₂, hw]
   have hlog : ((w - 1 : ℕ) : ℝ) * Real.log 2 ≤ Real.log ((s * w : ℕ) : ℝ) := by
     rw [← Real.log_pow]
     exact Real.log_le_log (by positivity) hN₁
@@ -228,7 +226,7 @@ private theorem influence_tribes_le_of (hw : 2 ≤ w) (hs₁ : 2 ^ (w - 1) ≤ s
   rw [hcast] at hlog
   refine hinf.trans ?_
   rw [le_div_iff₀ hNpos]
-  nlinarith
+  cast_nlinarith
 
 /-- **Upper bound on the influences of Tribes** [O'Donnell, Proposition 4.13][ODonnell2014], in
 explicit form: on `n = s w` bits with `s = tribesSize w` and `w ≥ 2`, every bit has influence at

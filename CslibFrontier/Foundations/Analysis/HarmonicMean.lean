@@ -14,10 +14,6 @@ public import Mathlib.Algebra.Order.Pi
 public import Mathlib.Analysis.Convex.Function
 import CslibFrontier.Foundations.Data.Finset.Expect
 import Mathlib.Algebra.Order.BigOperators.Expect
-import Mathlib.Tactic.FieldSimp
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Positivity
-import Mathlib.Tactic.Ring
 
 /-!
 # Harmonic means on finite types

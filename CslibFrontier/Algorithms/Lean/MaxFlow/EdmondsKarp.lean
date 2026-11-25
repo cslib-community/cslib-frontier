@@ -117,6 +117,14 @@ theorem card_symArcs_le_card_sq [DecidableEq V] :
     N.symArcs.card ≤ Fintype.card V * Fintype.card V :=
   (Finset.card_le_univ _).trans_eq (Fintype.card_prod V V)
 
+theorem card_symArcs_le_mul_pred [DecidableEq V] :
+    N.symArcs.card ≤ Fintype.card V * (Fintype.card V - 1) := by
+  have hsub : N.symArcs ⊆ Finset.univ.offDiag := fun e he => by
+    simp only [symArcs, Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_offDiag] at he ⊢
+    exact he.1
+  exact (Finset.card_le_card hsub).trans_eq <| by
+    rw [Finset.offDiag_card, Finset.card_univ, ← Nat.mul_sub_one]
+
 namespace Flow
 
 variable {N}

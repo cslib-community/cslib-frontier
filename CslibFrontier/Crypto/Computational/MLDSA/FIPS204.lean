@@ -42,6 +42,8 @@ namespace Cslib.Crypto.MLDSA.FIPS204
 
 open Cslib.Probability
 
+/-! ### XOFs and parameter levels -/
+
 /-- The two XOFs used by FIPS 204. Each SHAKE variant has a single raw-bit input space,
 shared by key generation, signing, verification and external queries. -/
 @[ext] structure Xofs where
@@ -96,6 +98,8 @@ abbrev Poly := Fin 256 → ZMod 8380417
 
 /-- The coefficient representation of the public module matrix for the selected parameter set. -/
 abbrev PublicMatrix (s : Level) := Matrix (Fin s.params.k) (Fin s.params.ℓ) Poly
+
+/-! ### Coefficient bit-packing -/
 
 /-- Pack fixed-width nonnegative coefficients in row-major, low-bit-first order. -/
 def packCoeffs {rows : ℕ} (width : ℕ) (coeff : Fin rows → Fin 256 → ℕ) : List Byte :=
@@ -152,6 +156,8 @@ private theorem unpack_packCoeffs {rows width : ℕ} (coeff : Fin rows → Fin 2
   simpa only [flat, show idx.val / 256 = i.val by dsimp [idx]; omega,
     show idx.val % 256 = j.val by dsimp [idx]; omega, Fin.eta] using
     BitString.lsbValue_lowBits (hc i j)
+
+/-! ### Matrix expansion (Algorithms 30 and 32) -/
 
 /-- FIPS 204 Algorithm 14 reads the low 23 bits of three little-endian bytes. -/
 @[expose] def nttCandidate (a b c : Byte) : ℕ :=
@@ -224,7 +230,7 @@ private def tabulate {α : Type} (n : ℕ) (f : Fin n → Option α) : Option (F
 
 /-- Algorithms 30 and 32, returning the matrix in coefficient representation. Each SHAKE128
 stream absorbs `ρ || column || row` and may consume 894 bytes (Appendix C, Table 3). -/
-def Xofs.expandA (H : Xofs) (s : Level) (rho : List Byte) :
+@[expose] def Xofs.expandA (H : Xofs) (s : Level) (rho : List Byte) :
     Option (PublicMatrix s) := do
   let matrix ← Vector.ofFnM fun row : Fin s.params.k =>
     Vector.ofFnM fun col : Fin s.params.ℓ =>
@@ -239,6 +245,8 @@ theorem Xofs.expandA_congr {H K : Xofs} (ha : K.h128 = H.h128) (s : Level) (rho 
 
 /-- FIPS 202 specialization of `Xofs.expandA`. -/
 abbrev expandA := Xofs.expandA Xofs.shake
+
+/-! ### Secret vector expansion (Algorithms 31 and 33) -/
 
 private def boundedCoeff (η halfByte : ℕ) : Option (ZMod 8380417) :=
   if η = 2 then
@@ -332,6 +340,8 @@ private theorem lookup_of_tabulate {α : Type} {n : ℕ} {f : Fin n → Option �
   simp only [tabulate, Option.map_eq_map, Option.map_eq_some_iff] at h
   obtain ⟨arr, ha, rfl⟩ := h
   exact lookup f arr ha i
+
+/-! ### Key encodings and key generation (Algorithm 6) -/
 
 /-- Public-key bytes of Algorithm 6, lines 6–8: concatenate the matrix seed and the ten
 high bits of each coefficient of the full public vector, in row and coefficient order. -/
@@ -612,6 +622,8 @@ theorem privateKey_of_keyGen {H : Xofs} {s : Level} {seed : FixedBytes 32} {keys
 def keyGenPublic (s : Level) (seed : FixedBytes 32) : Option (List Byte) :=
   KeyPair.publicKey <$> keyGen s seed
 
+/-! ### Challenge sampling (Algorithm 29) -/
+
 namespace ChallengeRow
 
 -- Retaining each rejected byte and the unconsumed suffix also permits programming the raw row.
@@ -687,6 +699,8 @@ theorem inBall_of_sampleInBallBytes {s : Level} {bytes : List Byte} {c : Poly}
 theorem inBall_of_sampleInBall {H : Xofs} {s : Level} {digest : List Byte} {c : Poly}
     (h : H.sampleInBall s digest = some c) : InBall s.params.τ c :=
   inBall_of_sampleInBallBytes h
+
+/-! ### Hints and signature encoding (Algorithms 21, 26, and 27) -/
 
 /-- The components of a FIPS 204 signature after Algorithm 27 has checked its encoding. -/
 structure Signature (s : Level) where
@@ -1013,6 +1027,7 @@ theorem sigDecode_encodeSignature (s : Level) (σ : Signature s)
     Option.some.injEq]
   congr 2; exact funext₂ coeff
 
+/-! ### Public-key decoding -/
 
 private def decodeRounded (s : Level) (bytes : List Byte) (i : Fin s.params.k) (j : Fin 256) :
     Fin 1024 :=
@@ -1073,6 +1088,8 @@ private theorem highTerm_publicKey (s : Level) (bytes : List Byte) (matrix) :
     simp only [show (8192 : ZMod (2 ^ 13)) = 0 by decide, mul_zero, ZMod.valMinAbs_zero]
   simp only [power2Round, hval, hrem, sub_zero]
   push_cast; norm_num
+
+/-! ### Message representatives and commitment inputs -/
 
 /-- The raw SHAKE256 input for the message representative, with its public-key hash prefix. -/
 @[expose] def representativeInput (tr : List Byte) (formatted : List Bool) : List Bool :=
@@ -1197,6 +1214,8 @@ expanded challenge. -/
   fun i => useHintVec s.params.q s.params.γ₂ (σ.h i)
     (moduleSISMap pk.A σ.z i - negacyclicMul c (pk.t i))
 
+/-! ### Verification (Algorithms 3 and 8) -/
+
 private abbrev Signature.acceptDigest {s : Level} (σ : Signature s) (digest : Unit → List Byte) :
     Bool :=
   decide (ResponseShort s.params σ.z) && decide (digest () = σ.digest)
@@ -1267,6 +1286,14 @@ def Xofs.verifyWithExpansion (H : Xofs) (s : Level) (expand : List Byte → Opti
 
 /-- FIPS 202 specialization of `Xofs.verifyWithExpansion`. -/
 abbrev verifyWithExpansion := Xofs.verifyWithExpansion Xofs.shake
+
+/-- Acceptance by `Xofs.verifyWithExpansion` implies the Algorithm 3 context length bound. -/
+theorem context_length_of_verifyWithExpansion {H : Xofs} {s : Level}
+    {expand : List Byte → Option (PublicMatrix s)} {pk : List Byte} {msg : List Bool}
+    {ctx sig : List Byte} (hv : H.verifyWithExpansion s expand pk msg ctx sig = some true) :
+    ctx.length ≤ 255 := by
+  by_contra hc
+  simp [Xofs.verifyWithExpansion, guard, hc] at hv
 
 /-- On freshly encoded public bytes, the verifier reads exactly the published seed. Once its
 matrix has been obtained from the shared oracle it can be reused in the digest check. -/
@@ -1464,6 +1491,8 @@ theorem verifyWithExpansion_of_recovered {H : Xofs} {s : Level}
     (H.messageRepresentative _ (formatMessage f.message f.context)) = _ at hd
   simp [Xofs.verifyWithExpansion, Xofs.verifyInternalWith, guard, len, hctx, hσ, hc, hA, Xofs.check,
     hz, hintedCommitment_encodePublic, hd]
+
+/-! ### Self-target witness extraction and reduction -/
 
 private theorem solution_of_compressed {s : Level} {hash : Hash s.params}
     {pk : MLDSA.PublicKey s.params} {μ : List Bool} {σ : Signature s} {c : Poly}

@@ -15,6 +15,7 @@ import CslibFrontier.Foundations.Data.Finset.Expect
 import CslibFrontier.Foundations.Data.Nat.Card
 import CslibFrontier.Foundations.Data.Set.Card
 import CslibFrontier.Foundations.Probability.EfronStein
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.BigOperators.Expect
@@ -105,8 +106,7 @@ theorem one_sub_two_pow_le_tangent (k₀ : ℕ) {k : ℕ} (hk : 1 ≤ k) :
       have hd : d + 1 ≤ 2 ^ d := Nat.succ_le_of_lt d.lt_two_pow_self
       have hnat : k₀ + 2 ≤ 2 ^ d + k := by omega
       have hreal : (k₀ + 2 : ℝ) ≤ ((2 ^ d + k : ℕ) : ℝ) := by exact_mod_cast hnat
-      push_cast at hreal
-      linarith
+      cast_linarith
   have hdiv : ((k₀ : ℝ) + 2) / (2 : ℝ) ^ k₀ ≤ (1 / 2 : ℝ) ^ (k - 1) + (k : ℝ) / (2 : ℝ) ^ k₀ := by
     rw [← mul_div_cancel_left₀ ((1 / 2 : ℝ) ^ (k - 1)) hpos.ne', ← add_div]
     exact div_le_div_of_nonneg_right hcore hpos.le
@@ -247,11 +247,7 @@ private theorem abs_card_filter_sub_le {α : Type*} [Fintype α]
     (Finset.card_le_card hsub₁).trans (Finset.card_union_le _ _)
   have h2 : (Finset.univ.filter q).card ≤ (Finset.univ.filter p).card + T.card :=
     (Finset.card_le_card hsub₂).trans (Finset.card_union_le _ _)
-  have h1R : ((Finset.univ.filter p).card : ℝ) ≤ (Finset.univ.filter q).card + T.card := by
-    exact_mod_cast h1
-  have h2R : ((Finset.univ.filter q).card : ℝ) ≤ (Finset.univ.filter p).card + T.card := by
-    exact_mod_cast h2
-  exact abs_le.mpr ⟨by linarith, by linarith⟩
+  exact abs_le.mpr ⟨by cast_linarith [h2, h1], by cast_linarith⟩
 
 /-- Updating coordinate `u` of `ω` changes `# {x | P x ω}` by at most `# {x | u ∈ S x}` whenever
 `P x` depends only on `S x`. -/

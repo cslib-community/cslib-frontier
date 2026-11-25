@@ -35,8 +35,10 @@ proving that any median minimizes `∑ i, |x i - y|` over `ℝ`.
 ## Main results
 
 * `Fintype.IsOrderStatistic.unique`, `Fintype.orderStatistic_isOrderStatistic`,
-  `Fintype.orderStatistic_eq_of_isOrderStatistic`, `Fintype.orderStatistic_fin_eq_mergeSort`:
-  uniqueness, rank characterization, and merge-sort correspondence.
+  `Fintype.orderStatistic_eq_of_isOrderStatistic`, `Fintype.orderStatistic_fin_eq_mergeSort`,
+  `Fintype.lt_orderStatistic_iff`, `Fintype.orderStatistic_comp_equiv`:
+  uniqueness, rank and threshold characterizations, merge-sort correspondence, and permutation
+  invariance.
 * `Fintype.sum_abs_sub_le_of_median_counts`, `Fintype.sum_abs_sub_lowerMedian_le`,
   `Fintype.sum_abs_sub_upperMedian_le`: on `ℝ`, any point with at most `|ι| / 2` elements strictly
   on each side (and in particular `lowerMedian x` and `upperMedian x`) minimizes `∑ i, |x i - y|`.
@@ -167,6 +169,56 @@ theorem orderStatistic_fin_eq_mergeSort {n : ℕ} (x : Fin (n + 1) → α) {k : 
     exact hlist.countP_lt_le
   · rw [hperm.countP_eq]
     exact hlist.lt_countP_le
+
+/-- Threshold characterization of the `k`-th order statistic: `t < orderStatistic x k` if and only
+if at most `k` indices satisfy `x i ≤ t`. -/
+theorem lt_orderStatistic_iff [Nonempty ι] (x : ι → α) {k : ℕ} (hk : k < Fintype.card ι) (t : α) :
+    t < orderStatistic x k ↔ (Finset.univ.filter fun i => x i ≤ t).card ≤ k := by
+  classical
+  have hos := orderStatistic_isOrderStatistic x hk
+  constructor
+  · intro ht
+    have hsub : (Finset.univ.filter fun i => x i ≤ t) ⊆
+        (Finset.univ.filter fun i => x i < orderStatistic x k) := fun i hi =>
+      Finset.mem_filter.mpr ⟨Finset.mem_univ i, (Finset.mem_filter.mp hi).2.trans_lt ht⟩
+    exact (Finset.card_le_card hsub).trans hos.2.1
+  · intro hcard
+    by_contra hnot
+    have hle : orderStatistic x k ≤ t := le_of_not_gt hnot
+    have hsub : (Finset.univ.filter fun i => x i ≤ orderStatistic x k) ⊆
+        (Finset.univ.filter fun i => x i ≤ t) := fun i hi =>
+      Finset.mem_filter.mpr ⟨Finset.mem_univ i, (Finset.mem_filter.mp hi).2.trans hle⟩
+    have hlt := hos.2.2.trans_le (Finset.card_le_card hsub)
+    omega
+
+/-- Reindexing a family along an equivalence preserves every order statistic. -/
+theorem orderStatistic_comp_equiv {ι' : Type*} [Fintype ι'] [Nonempty ι] [Nonempty ι']
+    (e : ι' ≃ ι) (x : ι → α) (k : ℕ) :
+    orderStatistic (x ∘ e) k = orderStatistic x k := by
+  classical
+  rw [orderStatistic_eq_min, orderStatistic_eq_min x, Fintype.card_congr e]
+  set k' := min k (Fintype.card ι - 1)
+  have hk' : k' < Fintype.card ι :=
+    Nat.lt_of_le_of_lt (min_le_right _ _) (Nat.sub_lt Fintype.card_pos zero_lt_one)
+  have hk'_ι' : k' < Fintype.card ι' := by rwa [Fintype.card_congr e]
+  refine orderStatistic_eq_of_isOrderStatistic hk'_ι' ?_
+  have hos := orderStatistic_isOrderStatistic x hk'
+  have hcard : ∀ (p : α → Prop) [DecidablePred p],
+      (Finset.univ.filter fun c : ι' => p ((x ∘ e) c)).card =
+        (Finset.univ.filter fun i : ι => p (x i)).card := fun p _ =>
+    Finset.card_bij (fun c _ => e c)
+      (fun c hc => Finset.mem_filter.mpr ⟨Finset.mem_univ _, (Finset.mem_filter.mp hc).2⟩)
+      (fun _ _ _ _ h => e.injective h)
+      (fun i hi => ⟨e.symm i, Finset.mem_filter.mpr ⟨Finset.mem_univ _, by
+        simpa only [Function.comp_apply, Equiv.apply_symm_apply] using
+          (Finset.mem_filter.mp hi).2⟩, e.apply_symm_apply i⟩)
+  refine ⟨?_, ?_, ?_⟩
+  · obtain ⟨i, hi⟩ := hos.1
+    exact ⟨e.symm i, by simp only [Function.comp_apply, Equiv.apply_symm_apply, hi]⟩
+  · rw [hcard (· < orderStatistic x k')]
+    exact hos.2.1
+  · rw [hcard (· ≤ orderStatistic x k')]
+    exact hos.2.2
 
 end Lemmas
 

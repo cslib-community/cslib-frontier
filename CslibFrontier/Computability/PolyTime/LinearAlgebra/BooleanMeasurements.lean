@@ -16,6 +16,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Foundations.Data.List.OfFn
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Data.List.GetD
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Tactic.EncLen
 
 /-!
@@ -253,11 +254,9 @@ theorem exists_computableInO_search {encC : C ↪ List Bool}
   have hc := NativeCertificate.ofPolyTime_isPolynomial optionBits_polyTime
   have hlen : PolyBounded (fun p : C × ℕ => (encPair encC encUnary p).length)
       (fun p => (encOption (encList encBool) (search matOf targetOf p)).length) := by
-    refine PolyBounded.of_forall_le 3 1 fun p => ?_
-    have h := GenericRAM.BooleanSearch.length_prefix_result_le
-      (test matOf targetOf) p (2 ^ p.2)
-    change (encOption (encList encBool) (search matOf targetOf p)).length ≤ 3 * p.2 + 1 at h
-    enc_len [pow_one]
+    unfold search GenericRAM.BooleanSearch.run
+    growth_poly [fun p => GenericRAM.BooleanSearch.length_prefix_result_le
+      (test matOf targetOf) p (2 ^ p.2)]
   refine ⟨fun p => P p + codec.time (search matOf targetOf p),
     fun p => Q p + codec.space (search matOf targetOf p),
     hP.add (hc.1.comp hlen), hQ.add (hc.2.comp hlen), ?_⟩

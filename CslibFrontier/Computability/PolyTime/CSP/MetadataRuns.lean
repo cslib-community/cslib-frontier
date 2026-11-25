@@ -17,6 +17,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeLoops
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List.Size
 import CslibFrontier.Foundations.Data.Nat.BinarySize
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Tactic.EncLen
 
 /-!
@@ -84,14 +85,9 @@ private def sizeParameter (encRel : Rel ↪ List Bool) (p : State Rel × List �
 
 private theorem sizeParameter_poly (encRel : Rel ↪ List Bool) :
     PolyBounded (fun p => (encStateMetadata encRel p).length) (sizeParameter encRel) := by
-  have hi := ComputableInPolyTime.fst (encState encRel) (encList encNat)
-  have hb := encState_body_polyTime encRel hi
-  have hm := (computableInPolyTime_length_vars encRel encNat).comp hb
-  have hM : PolyBounded (fun p => (encStateMetadata encRel p).length)
-      (fun p : State Rel × List ℕ => p.1.body.occurrences.length) := by
-    simpa only [Function.comp_apply,encUnary_apply,List.length_replicate,
-      CSP.vars_length_eq_occurrences] using hm.polyBounded_length
-  exact (PolyBounded.self.add hM).add (.const 1)
+  have hm := (computableInPolyTime_length_vars encRel encNat).comp
+    (encState_body_polyTime encRel (ComputableInPolyTime.fst (encState encRel) (encList encNat)))
+  growth_poly [fun F => (CSP.vars_length_eq_occurrences (F := F)).symm]
 
 private theorem resource_size (encRel : Rel ↪ List Bool) (p : State Rel × List ℕ)
     (J : State Rel) (h : resource p.1 J) :
@@ -170,8 +166,7 @@ theorem computableInPolyTime_closeMetadataRuns (encRel : Rel ↪ List Bool) :
   have hstep := step_poly encRel
   have hbound : PolyBounded (fun p => (encStateMetadata encRel p).length)
       (fun p => 64*(4*sizeParameter encRel p+1)^3) := by
-    exact (PolyBounded.const 64).mul
-      ((((PolyBounded.const 4).mul (sizeParameter_poly encRel)).add (.const 1)).pow 3)
+    growth_poly [sizeParameter_poly encRel]
   have hfold := ComputableInPolyTime.foldlWith_spec
     (encP := encList encNat) (encA := encNat) (encL := encList encNat)
     (par := fun p : State Rel × List ℕ => p.2) (list := fun p => p.2)

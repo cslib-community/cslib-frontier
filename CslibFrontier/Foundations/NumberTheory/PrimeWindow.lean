@@ -12,10 +12,9 @@ public import Mathlib.Analysis.SpecialFunctions.Log.Base
 public import Mathlib.Analysis.SpecialFunctions.Pow.Real
 public import Mathlib.NumberTheory.PrimeCounting
 import CslibFrontier.Foundations.NumberTheory.CentralBinomPrimes
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Analysis.Complex.ExponentialBounds
-import Mathlib.Data.Nat.Prime.Factorial
 import Mathlib.NumberTheory.Bertrand
-import Mathlib.NumberTheory.Primorial
 import Mathlib.Analysis.Convex.SpecificFunctions.Deriv
 
 /-!
@@ -192,9 +191,7 @@ private theorem exists_nat_window {x : ℝ} (hx : 4 ≤ x) :
   have hlow : (⌈x⌉₊ : ℝ) ≤ 2 * n + 2 := by exact_mod_cast (by omega : ⌈x⌉₊ ≤ 2 * n + 2)
   have hhigh : (2 * n + 1 : ℝ) ≤ (⌈x⌉₊ : ℝ) := by exact_mod_cast (by omega : 2 * n + 1 ≤ ⌈x⌉₊)
   refine ⟨n, by omega, by linarith, by linarith, fun p hnp hp2n => ?_⟩
-  have hnp' : (n : ℝ) + 1 ≤ p := by exact_mod_cast hnp
-  have hp2n' : (p : ℝ) ≤ 2 * n := by exact_mod_cast hp2n
-  exact ⟨by linarith, by linarith⟩
+  exact ⟨by cast_linarith [hp2n, hnp], by cast_linarith⟩
 
 /-- For every real `x ≥ 4` there is a prime `p` with `x/2 ≤ p < x`, by Bertrand's postulate. -/
 theorem exists_prime_half_le_and_lt (x : ℝ) (hx : 4 ≤ x) :
@@ -246,9 +243,8 @@ theorem exists_forall_mul_div_log_le_card_primes :
     obtain ⟨p, hprime, hlow, hhigh⟩ := exists_prime_half_le_and_lt x hx
     have hone : (1 : ℝ) ≤ S.card := by
       exact_mod_cast Finset.card_pos.mpr ⟨p, hS p hprime hlow hhigh⟩
-    have hn : (n : ℝ) ≤ 16562 := by exact_mod_cast hsmall.le
     calc 1 / 66248 * (x / Real.log x) ≤ 1 / 66248 * (x / 1) := by gcongr
-      _ ≤ 1 := by linarith
+      _ ≤ 1 := by cast_linarith [hsmall.le]
       _ ≤ (S.card : ℝ) := hone
 
 /-!

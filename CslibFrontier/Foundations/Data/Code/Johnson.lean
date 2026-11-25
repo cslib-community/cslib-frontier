@@ -13,7 +13,6 @@ import CslibFrontier.Foundations.Combinatorics.SetFamily.PairwiseIntersection
 import CslibFrontier.Foundations.Data.Code.Plotkin
 import CslibFrontier.Foundations.Data.Hamming
 import Mathlib.Algebra.Order.Chebyshev
-import Mathlib.Data.List.GetD
 
 /-!
 # The Johnson bound
@@ -216,26 +215,21 @@ theorem exists_listCode_listDecodes {M : Type*} [Finite M] [Nonempty M]
       C.encode = enc ∧ C.ListDecodes (e / Fintype.card ι) := by
   classical
   have := Fintype.ofFinite M
-  -- the messages whose codewords are within distance `e`
-  let S : (ι → α) → Finset M := fun w => {x | hammingDist (enc x) w ≤ e}
-  have hS (w : ι → α) : #(S w) ≤ Fintype.card ι * (d - e) := by
-    have hC : (d : ℕ∞) ≤ minDist ((univ.image enc : Finset (ι → α)) : Set (ι → α)) := by
-      rwa [coe_image, coe_univ, Set.image_univ]
-    calc #(S w) = #{c ∈ univ.image enc | hammingDist c w ≤ e} := by
-          rw [filter_image, card_image_of_injective _ henc]
-      _ ≤ _ := card_filter_hammingDist_le_le hC h w
-  refine ⟨⟨enc, fun w k => (S w).toList.getD k (Classical.arbitrary M)⟩, rfl, fun x w hx => ?_⟩
-  have hxe : hammingDist (enc x) w ≤ e := by
-    rcases Nat.eq_zero_or_pos (Fintype.card ι) with hn | hn
-    · have := hammingDist_le_card_fintype (x := enc x) (y := w)
-      omega
-    · rw [div_mul_cancel₀ _ (by positivity)] at hx
-      exact_mod_cast hx
-  have hx : x ∈ (S w).toList := mem_toList.2 (mem_filter.2 ⟨mem_univ x, hxe⟩)
-  obtain ⟨i, hi, hix⟩ := List.mem_iff_getElem.1 hx
-  refine ⟨⟨i, hi.trans_le ((length_toList _).trans_le (hS w))⟩, ?_⟩
-  change (S w).toList.getD i _ = x
-  rw [List.getD_eq_getElem _ _ hi, hix]
+  have hrange : Set.range enc = ((univ.image enc : Finset (ι → α)) : Set (ι → α)) := by
+    rw [coe_image, coe_univ, Set.image_univ]
+  have hC : (d : ℕ∞) ≤ minDist ((univ.image enc : Finset (ι → α)) : Set (ι → α)) :=
+    hrange ▸ hd
+  have hn : (Fintype.card ι : ℝ) ≠ 0 := by
+    refine Nat.cast_ne_zero.2 fun h0 => ?_
+    simp [h0] at h
+  rw [← isListDecodable_range_iff_exists_listCode henc, hrange, isListDecodable_finset_iff]
+  intro w
+  calc #{c ∈ univ.image enc |
+          (hammingDist c w : ℝ) ≤ (e : ℝ) / Fintype.card ι * Fintype.card ι}
+      = #{c ∈ univ.image enc | hammingDist c w ≤ e} := by
+        refine congrArg Finset.card (filter_congr fun c _ => ?_)
+        rw [div_mul_cancel₀ _ hn, Nat.cast_le]
+    _ ≤ Fintype.card ι * (d - e) := card_filter_hammingDist_le_le hC h w
 
 /-! ### The q-ary Johnson bound -/
 
@@ -444,8 +438,7 @@ theorem card_filter_hammingDist_le_mul_le_of_mul_le [Nonempty α] {C : Finset (�
       rcases le_total d n with hdn | hdn
       · rw [Nat.cast_sub hdn]
       · rw [Nat.sub_eq_zero_of_le hdn]
-        push_cast
-        linarith [(Nat.cast_le (α := ℤ)).2 hdn]
+        exact sub_nonpos.mpr (Nat.cast_le.mpr hdn)
     exact mul_le_mul_of_nonneg_left this h0
   have hgoal : ((M * (B - X) : ℕ) : ℤ) ≤ (((q - 1) * n * d : ℕ) : ℤ) := by
     push_cast [Nat.cast_sub hBX.le, Nat.cast_sub hq]

@@ -99,9 +99,9 @@ def intEquivNatSumNat : ℤ ≃ ℕ ⊕ ℕ where
 /-- Equivalence between `Key` and its tuple of fields. -/
 def Key.equivTuple : Key ≃ ℕ × Option ℕ × List (Option ℕ) where
   toFun k := (k.state, k.input, k.work)
-  invFun p := ⟨p.1, p.2.1, p.2.2⟩
+  invFun := fun (state, input, work) => ⟨state, input, work⟩
   left_inv k := by cases k; rfl
-  right_inv p := by rcases p with ⟨_, _, _⟩; rfl
+  right_inv := fun (_, _, _) => rfl
 
 instance : Primcodable Key :=
   Primcodable.ofEquiv _ Key.equivTuple
@@ -110,9 +110,9 @@ instance : Primcodable Key :=
 def Act.equivTuple :
     Act ≃ SignType × List (Option (Option ℕ) × SignType) × Option ℕ × Option ℕ where
   toFun a := (a.inputTape, a.workTapes, a.output, a.state)
-  invFun p := ⟨p.1, p.2.1, p.2.2.1, p.2.2.2⟩
+  invFun := fun (inputTape, workTapes, output, state) => ⟨inputTape, workTapes, output, state⟩
   left_inv a := by cases a; rfl
-  right_inv p := by rcases p with ⟨_, _, _, _⟩; rfl
+  right_inv := fun (_, _, _, _) => rfl
 
 instance : Primcodable Act :=
   Primcodable.ofEquiv _ Act.equivTuple
@@ -120,9 +120,9 @@ instance : Primcodable Act :=
 /-- Equivalence between `Desc` and its tuple of fields. -/
 def Desc.equivTuple : Desc ≃ ℕ × ℕ × List (Key × Act) where
   toFun d := (d.tapes, d.q₀, d.table)
-  invFun p := ⟨p.1, p.2.1, p.2.2⟩
+  invFun := fun (tapes, q₀, table) => ⟨tapes, q₀, table⟩
   left_inv d := by cases d; rfl
-  right_inv p := by rcases p with ⟨_, _, _⟩; rfl
+  right_inv := fun (_, _, _) => rfl
 
 instance : Primcodable Desc :=
   Primcodable.ofEquiv _ Desc.equivTuple
@@ -130,9 +130,9 @@ instance : Primcodable Desc :=
 /-- Equivalence between `Universal.Tape` and its tuple of fields (with `ℤ` encoded as `ℕ ⊕ ℕ`). -/
 def Tape.equivTuple : Tape ≃ (ℕ ⊕ ℕ) × List (Option ℕ) × List (Option ℕ) where
   toFun t := (intEquivNatSumNat t.head, t.left, t.right)
-  invFun p := ⟨intEquivNatSumNat.symm p.1, p.2.1, p.2.2⟩
+  invFun := fun (head, left, right) => ⟨intEquivNatSumNat.symm head, left, right⟩
   left_inv t := by rcases t with ⟨_, _, _⟩; simp
-  right_inv p := by rcases p with ⟨_, _, _⟩; simp
+  right_inv := fun (_, _, _) => by simp
 
 instance : Primcodable Tape :=
   Primcodable.ofEquiv _ Tape.equivTuple
@@ -140,9 +140,9 @@ instance : Primcodable Tape :=
 /-- Equivalence between `SCfg` and its tuple of fields. -/
 def SCfg.equivTuple : SCfg ≃ Option ℕ × ℕ × List Tape where
   toFun c := (c.state, c.inputPos, c.workTapes)
-  invFun p := ⟨p.1, p.2.1, p.2.2⟩
+  invFun := fun (state, inputPos, workTapes) => ⟨state, inputPos, workTapes⟩
   left_inv c := by cases c; rfl
-  right_inv p := by rcases p with ⟨_, _, _⟩; rfl
+  right_inv := fun (_, _, _) => rfl
 
 instance : Primcodable SCfg :=
   Primcodable.ofEquiv _ SCfg.equivTuple
@@ -246,7 +246,7 @@ theorem primrec_inputSymbol : Primrec₂ inputSymbol := by
     by_cases hp : p = 0 <;> simp [hp]
 
 theorem primrec_moveInput :
-    Primrec fun p : ℕ × Option ℕ × SignType => moveInput p.1 p.2.1 p.2.2 := by
+    Primrec fun ((pos, sym, dir) : ℕ × Option ℕ × SignType) => moveInput pos sym dir := by
   have hisPos : Primrec fun p : ℕ × Option ℕ × SignType => decide (p.2.2 = .pos) :=
     (Primrec.eq.comp (Primrec.snd.comp Primrec.snd) (Primrec.const SignType.pos)).decide
   have hisNeg : Primrec fun p : ℕ × Option ℕ × SignType => decide (p.2.2 = .neg) :=
@@ -337,7 +337,7 @@ theorem primrec_act_state : Primrec Act.state :=
   Primrec.snd.comp (Primrec.snd.comp (Primrec.snd.comp (Primrec.of_equiv (e := Act.equivTuple))))
 
 theorem primrec_act_apply :
-    Primrec fun p : Act × List ℕ × SCfg => p.1.apply p.2.1 p.2.2 := by
+    Primrec fun ((act, x, cfg) : Act × List ℕ × SCfg) => act.apply x cfg := by
   have hc : Primrec fun p : Act × List ℕ × SCfg => p.2.2 := Primrec.snd.comp Primrec.snd
   have hx : Primrec fun p : Act × List ℕ × SCfg => p.2.1 := Primrec.fst.comp Primrec.snd
   have hinp : Primrec fun p : Act × List ℕ × SCfg =>
@@ -351,10 +351,11 @@ theorem primrec_act_apply :
       applyTapes p.2.2.workTapes p.1.workTapes :=
     primrec_applyTapes.comp (primrec_scfg_workTapes.comp hc)
       (primrec_act_workTapes.comp Primrec.fst)
-  exact (primrec_scfg_mk (primrec_act_state.comp Primrec.fst) hmove hwork).of_eq fun _ => rfl
+  exact (primrec_scfg_mk (primrec_act_state.comp Primrec.fst) hmove hwork).of_eq
+    fun ⟨_, _, _⟩ => rfl
 
 theorem primrec_scfg_key :
-    Primrec fun p : SCfg × List ℕ × ℕ => p.1.key p.2.1 p.2.2 := by
+    Primrec fun ((cfg, x, q) : SCfg × List ℕ × ℕ) => cfg.key x q := by
   have hinp : Primrec fun p : SCfg × List ℕ × ℕ => inputSymbol p.2.1 p.1.inputPos :=
     primrec_inputSymbol.comp (Primrec.fst.comp Primrec.snd)
       (primrec_scfg_inputPos.comp Primrec.fst)
@@ -362,7 +363,8 @@ theorem primrec_scfg_key :
     Primrec.list_map (primrec_scfg_workTapes.comp Primrec.fst)
       (primrec_tape_read.comp Primrec.snd).to₂
   exact ((Primrec.of_equiv_symm (e := Key.equivTuple)).comp
-    (Primrec.pair (Primrec.snd.comp Primrec.snd) (Primrec.pair hinp hwork))).of_eq fun _ => rfl
+    (Primrec.pair (Primrec.snd.comp Primrec.snd) (Primrec.pair hinp hwork))).of_eq
+      fun ⟨_, _, _⟩ => rfl
 
 /-- A table lookup by a scanned-symbol key is primitive recursive in the table and key. -/
 theorem primrec_find_table {Entry : Type*} [Primcodable Entry] :
@@ -396,7 +398,7 @@ theorem primrec_desc_table : Primrec Desc.table :=
   Primrec.snd.comp (Primrec.snd.comp (Primrec.of_equiv (e := Desc.equivTuple)))
 
 theorem primrec_step :
-    Primrec fun p : Desc × List ℕ × SCfg => step p.1 p.2.1 p.2.2 := by
+    Primrec fun ((d, x, cfg) : Desc × List ℕ × SCfg) => step d x cfg := by
   have hd : Primrec fun p : Desc × List ℕ × SCfg => p.1 := Primrec.fst
   have hx : Primrec fun p : Desc × List ℕ × SCfg => p.2.1 := Primrec.fst.comp Primrec.snd
   have hc : Primrec fun p : Desc × List ℕ × SCfg => p.2.2 := Primrec.snd.comp Primrec.snd
@@ -437,6 +439,7 @@ theorem primrec_step :
       cases p.1.table.find? (·.1 = p.2.2.key p.2.1 q) <;> rfl
   exact (Primrec.option_casesOn (primrec_scfg_state.comp hc) hnone hsome).of_eq
     fun ⟨d, x, c⟩ => by
+      dsimp only
       unfold step
       cases c.state <;> rfl
 
@@ -446,7 +449,7 @@ theorem primrec_output_append :
   exact Primrec.list_append.comp Primrec.fst (Primrec.optionToList.comp Primrec.snd)
 
 theorem primrec_stepOut :
-    Primrec fun p : (Desc × List ℕ) × (SCfg × List ℕ) => stepOut p.1.1 p.1.2 p.2 := by
+    Primrec fun (((d, x), out) : (Desc × List ℕ) × (SCfg × List ℕ)) => stepOut d x out := by
   have hst : Primrec fun p : (Desc × List ℕ) × (SCfg × List ℕ) =>
       step p.1.1 p.1.2 p.2.1 :=
     primrec_step.comp
@@ -455,7 +458,7 @@ theorem primrec_stepOut :
         (Primrec.pair (Primrec.snd.comp Primrec.fst) (Primrec.fst.comp Primrec.snd)))
   exact (Primrec.pair (Primrec.fst.comp hst)
     (primrec_output_append.comp (Primrec.snd.comp Primrec.snd)
-      (Primrec.snd.comp hst))).of_eq fun _ => rfl
+      (Primrec.snd.comp hst))).of_eq fun ⟨⟨_, _⟩, _⟩ => rfl
 
 theorem primrec_init : Primrec init := by
   have hrep : Primrec fun d : Desc => List.replicate d.tapes (⟨0, [], []⟩ : Tape) :=
@@ -467,7 +470,7 @@ theorem primrec_init : Primrec init := by
 
 /-- The universal simulator `Universal.simulate` is primitive recursive. -/
 theorem primrec_simulate :
-    Primrec fun p : Desc × List ℕ × ℕ => simulate p.1 p.2.1 p.2.2 := by
+    Primrec fun ((d, x, steps) : Desc × List ℕ × ℕ) => simulate d x steps := by
   have hiter : Primrec fun p : Desc × List ℕ × ℕ =>
       (stepOut p.1 p.2.1)^[p.2.2] (init p.1, []) :=
     Primrec.nat_iterate (Primrec.snd.comp Primrec.snd)
@@ -479,7 +482,8 @@ theorem primrec_simulate :
   have hisNone : Primrec fun o : Option ℕ => o.isNone :=
     (Primrec.not.comp Primrec.option_isSome).of_eq fun o => by cases o <;> rfl
   exact (Primrec.pair (Primrec.snd.comp hiter)
-    (hisNone.comp (primrec_scfg_state.comp (Primrec.fst.comp hiter)))).of_eq fun _ => rfl
+    (hisNone.comp (primrec_scfg_state.comp (Primrec.fst.comp hiter)))).of_eq
+      fun ⟨_, _, _⟩ => rfl
 
 /-! ## Partial recursive evaluation of `Desc` -/
 

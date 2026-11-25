@@ -8,15 +8,11 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Analysis.Lattice.Dual
-public import CslibFrontier.Foundations.Probability.Gaussian.Discrete
 public import CslibFrontier.Foundations.Probability.Gaussian.SmoothingParameter
 public import CslibFrontier.Foundations.Probability.IndependentSumNorm
-public import Mathlib.MeasureTheory.Function.LpSpace.Basic
 
-import CslibFrontier.Foundations.Probability.Gaussian.Poisson
 import CslibFrontier.Foundations.Probability.Gaussian.ShiftBounds
 import Mathlib.Analysis.Calculus.SmoothSeries
-import Mathlib.Analysis.InnerProductSpace.PiL2
 import Mathlib.Analysis.Real.Pi.Bounds
 import Mathlib.Probability.ProbabilityMassFunction.Integrals
 

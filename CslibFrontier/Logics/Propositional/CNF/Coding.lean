@@ -207,18 +207,10 @@ theorem critical_congr {x : BitString N} {i : Fin N} {c c' : Clause (Fin N)}
 critical at at most `2 ^ (N - v)` inputs, since they all agree on its variables. -/
 private theorem card_filter_critical_le (c : Clause (Fin N)) (i : Fin N) :
     #{x : BitString N | Critical x c i} ≤ 2 ^ (N - (c.map Prod.fst).toFinset.card) := by
-  set V := (c.map Prod.fst).toFinset
-  rcases ({x : BitString N | Critical x c i} : Finset _).eq_empty_or_nonempty with h | ⟨x₀, hx₀⟩
-  · rw [h, card_empty]
-    exact Nat.zero_le _
-  have hx₀ := (mem_filter.1 hx₀).2
-  calc #{x : BitString N | Critical x c i}
-      ≤ #{y : BitString N | ∀ u ∉ Vᶜ, y u = x₀ u} := card_le_card fun x hx => ?_
-    _ = 2 ^ (N - #V) := by
-        rw [BitString.card_filter_forall_notMem_eq, card_compl, Fintype.card_fin]
+  refine (BitString.card_le_of_forall_agree fun x hx x₀ hx₀ u hu => ?_).trans_eq
+    (by rw [Fintype.card_fin])
   have hx := (mem_filter.1 hx).2
-  refine mem_filter.2 ⟨mem_univ _, fun u hu => ?_⟩
-  rw [notMem_compl] at hu
+  have hx₀ := (mem_filter.1 hx₀).2
   obtain ⟨l, hl, rfl⟩ := List.mem_map.1 (List.mem_toFinset.1 hu)
   by_cases hli : l = (i, x i)
   · -- the literal of `i` true under `x₀` is in the clause too, so it is `l`
