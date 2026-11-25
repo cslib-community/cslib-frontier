@@ -208,6 +208,13 @@ theorem certify_append (n : ℕ) (k bits : List Bool) (a : Bool) :
       certifyStep S T coins n k (certify S T coins n k bits) a :=
   List.foldl_concat _ _ _ _
 
+private theorem verify_signAt (n : ℕ) (hcap : 2 ≤ S.capacity n) (k path : List Bool)
+    (a : Bool) (msg : List Bool) :
+    S.verify (nodeKey S T coins n k path).1 a.toNat msg
+      (signAt S T coins k path (nodeKey S T coins n k path).2 a.toNat msg) = true :=
+  S.verify_sign n (nodeKey S T coins n k path) (T.keyGenWith_mem_support n _) a.toNat
+    (by cases a <;> simp <;> omega) msg _ (T.signWith_mem_support _ _ _ _)
+
 /-- The chain reaches the node `bits` with its key, issues one certificate per bit, and its
 certificates verify from the root when both indices are below the capacity. -/
 theorem certify_spec (n : ℕ) (hcap : 2 ≤ S.capacity n) (k bits : List Bool) :
@@ -227,13 +234,7 @@ theorem certify_spec (n : ℕ) (hcap : 2 ≤ S.capacity n) (k bits : List Bool) 
     refine ⟨by simp [hlen], ?_⟩
     rw [List.zip_append hlen.symm, List.foldl_append, hchain]
     simp only [List.zip_cons_cons, List.zip_nil_right, List.foldl_cons, List.foldl_nil, verifyStep,
-      Bool.true_and]
-    have hu : a.toNat < S.capacity n := by cases a <;> simp <;> omega
-    have hv := S.verify_sign n (nodeKey S T coins n k bits) (T.keyGenWith_mem_support n _) a.toNat
-      hu (nodeKey S T coins n k (bits ++ [a])).1
-      (signAt S T coins k bits (nodeKey S T coins n k bits).2 a.toNat
-        (nodeKey S T coins n k (bits ++ [a])).1) (T.signWith_mem_support _ _ _ _)
-    rw [hv]
+      Bool.true_and, verify_signAt n hcap k bits a]
 
 /-- **Completeness at a leaf**: a signature at a leaf of length `depth n ≥ 1` verifies under the
 public key of the root. -/
@@ -244,15 +245,10 @@ theorem verify_signWithLeaf (n : ℕ) (hcap : 2 ≤ S.capacity n) (hdepth : 1 �
   obtain ⟨hpath, hkey, hlen, hchain⟩ :=
     certify_spec (T := T) (coins := coins) n hcap k leaf.dropLast
   simp only [← certify.eq_1] at hpath hkey hlen hchain
-  have hu : (leaf.getLastD false).toNat < S.capacity n := by
-    cases leaf.getLastD false <;> simp <;> omega
-  have hv := S.verify_sign n (nodeKey S T coins n k leaf.dropLast) (T.keyGenWith_mem_support n _)
-    _ hu msg (signAt S T coins k leaf.dropLast (nodeKey S T coins n k leaf.dropLast).2
-      (leaf.getLastD false).toNat msg) (T.signWith_mem_support _ _ _ _)
   simp only [verify, signWithLeaf, encodeSignature, signatureDecoder.decode_enc,
-    keyDecoder.decode_enc, hchain, hpath, hkey, hleaf, beq_self_eq_true, Bool.true_and]
-  rw [hlen, List.length_dropLast, hleaf, Nat.sub_add_cancel hdepth, beq_self_eq_true, Bool.true_and,
-    hv, Bool.and_self]
+    keyDecoder.decode_enc, hchain, hpath, hkey, hlen, List.length_dropLast, hleaf,
+    Nat.sub_add_cancel hdepth, beq_self_eq_true, Bool.true_and,
+    verify_signAt n hcap k leaf.dropLast (leaf.getLastD false) msg]
 
 /-- Every supported key pair is `((n, root public key), (n, k))` for a `k` of length
 `keyLen n`. -/
@@ -403,30 +399,28 @@ theorem computableInPolyTime_certify :
       ((((ComputableInPolyTime.fst _ _).prod (.const [])).trans
         (computableInPolyTime_nodeKey (T := T) hcoins)).prod (.const []))))
     (computableInPolyTime_certifyStep (T := T) hcoins)
-    (fun x consumed state => CertState.node state = consumed ∧
-      CertState.keyPair state = nodeKey S T coins x.parameter x.secret consumed ∧
-      (CertState.certificates state).length = consumed.length ∧
-      ∀ e ∈ CertState.certificates state, e.1.length ≤ Bk x ∧ e.2.length ≤ Bs x)
+    (fun x consumed state => state.1 = consumed ∧
+      state.2.1 = nodeKey S T coins x.parameter x.secret consumed ∧
+      state.2.2.length = consumed.length ∧
+      ∀ e ∈ state.2.2, e.1.length ≤ Bk x ∧ e.2.length ≤ Bs x)
     (fun x => ⟨rfl, rfl, rfl, by simp⟩) ?_
     (size := fun x => 2 * x.bits.length + 6 * Bk x + 5 +
       x.bits.length * (4 * Bk x + 2 * Bs x + 3))
     ?_ ?_).1
   · rintro x consumed ⟨path, key, certs⟩ a hprefix ⟨hpath, hkey, hlen, hcerts⟩
-    dsimp only [CertState.node, CertState.keyPair, CertState.certificates]
-      at hpath hkey hlen hcerts
+    dsimp only at hpath hkey hlen hcerts
     have hconsumed : consumed.length + 1 ≤ x.bits.length := by simpa using hprefix.length_le
     subst hpath hkey
     refine ⟨rfl, rfl, by simp [certifyStep, hlen], fun e he => ?_⟩
     simp only [certifyStep, List.mem_append, List.mem_singleton] at he
     rcases he with he | rfl
     · exact hcerts e he
-    · exact ⟨(hkeyLe x (by simp; omega)).1,
-        hsigLe x (by omega) (hkeyLe x (by omega)).2 (by cases a <;> simp)
-          (hkeyLe x (by simp; omega)).1⟩
+    · have hk := hkeyLe x (path := path) (by omega)
+      have hk' := hkeyLe x (path := path ++ [a]) (by simp; omega)
+      exact ⟨hk'.1, hsigLe x (by omega) hk.2 (by cases a <;> simp) hk'.1⟩
   · growth_poly
   · rintro x consumed ⟨path, key, certs⟩ hprefix ⟨hpath, hkey, hlen, hcerts⟩
-    dsimp only [CertState.node, CertState.keyPair, CertState.certificates]
-      at hpath hkey hlen hcerts
+    dsimp only at hpath hkey hlen hcerts
     have hconsumed : consumed.length ≤ x.bits.length := hprefix.length_le
     have hk := hkeyLe x hconsumed
     have hlist : (encList (encPair encBits encBits) certs).length ≤
@@ -502,28 +496,23 @@ private theorem computableInPolyTime_chainCheck :
       (encPair encBits (encPair encBits (encList (encPair encBits encBits))))
       (encPair encBool encBits) := by
   let encIn := encPair encBits (encPair encBits (encList (encPair encBits encBits)))
-  have h2 := ComputableInPolyTime.snd encBits
-    (encPair encBits (encList (encPair encBits encBits)))
   have hzip : ComputableInPolyTime
       (fun q : List Bool × List Bool × List (List Bool × List Bool) =>
         (q.2.1.take (q.2.1.length - 1)).zip q.2.2)
       encIn (encList (encPair encBool (encPair encBits encBits))) :=
-    (((h2.fst'.bitsTakeWithInput (h2.fst'.length_bits_comp.unary_sub' (.const 1))).trans
-      ComputableInPolyTime.bitsToList).prod h2.snd').trans
-      (ComputableInPolyTime.zip encBool (encPair encBits encBits))
-  have hs1 := (ComputableInPolyTime.fst (encPair encBool (encPair encBool encBits))
-    (encPair encBool (encPair encBits encBits))).snd'
-  have hs2 := ComputableInPolyTime.snd (encPair encBool (encPair encBool encBits))
-    (encPair encBool (encPair encBits encBits))
+    (ComputableInPolyTime.zip encBool (encPair encBits encBits)).comp
+      ((ComputableInPolyTime.bitsToList.comp (by fun_prop)).prod (by fun_prop))
   have hstep' : ComputableInPolyTime
       (fun p : (Bool × (Bool × List Bool)) × (Bool × (List Bool × List Bool)) =>
         verifyStep S p.1.2 p.2)
       (encPair (encPair encBool (encPair encBool encBits))
         (encPair encBool (encPair encBits encBits)))
       (encPair encBool encBits) :=
-    (hs1.fst'.bool_and'
-      ((hs1.snd'.prod ((hs2.fst'.trans (.of_finite Bool.toNat)).prod hs2.snd')).trans
-        S.verify_polyTime)).prod hs2.snd'.fst'
+    ((by fun_prop : ComputableInPolyTime _ _ encBool).bool_and'
+      (S.verify_polyTime.comp
+        ((by fun_prop : ComputableInPolyTime _ _ encBits).prod
+          (((ComputableInPolyTime.of_finite Bool.toNat).comp (by fun_prop)).prod
+            (by fun_prop))))).prod (by fun_prop)
   refine ComputableInPolyTime.foldlWith_of_bounded_growth
     (encP := encBool) (encA := encPair encBool (encPair encBits encBits))
     (encL := encList (encPair encBool (encPair encBits encBits)))
@@ -532,7 +521,7 @@ private theorem computableInPolyTime_chainCheck :
       (q.2.1.take (q.2.1.length - 1)).zip q.2.2)
     (init := fun q => (true, q.1))
     (step := fun _ state e => verifyStep S state e)
-    (.const false) hzip ((ComputableInPolyTime.const true).prod (.fst _ _)) hstep'
+    (.const false) hzip (by fun_prop) hstep'
     (growth := fun q => (encIn q).length + 3)
     (PolyBounded.self.add (.const 3)) ?_
   intro q state e he
