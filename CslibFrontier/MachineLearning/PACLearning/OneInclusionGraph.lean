@@ -196,11 +196,11 @@ private theorem card_oneInclusionEdges_fin_le :
         (oneInclusionEdges (T false)).card + (oneInclusionEdges (T true)).card ≤
           (oneInclusionEdges (T false ∪ T true)).card +
             (oneInclusionEdges (T false ∩ T true)).card := by
-      rw [← card_union_add_card_inter]
       have hinter : oneInclusionEdges (T false) ∩ oneInclusionEdges (T true) =
           oneInclusionEdges (T false ∩ T true) := by
         ext e; simp only [mem_inter, mem_oneInclusionEdges]; tauto
-      exact hinter ▸ Nat.add_le_add_right (card_le_card (union_subset
+      rw [← card_union_add_card_inter, hinter]
+      exact Nat.add_le_add_right (card_le_card (union_subset
         (oneInclusionEdges_mono subset_union_left) (oneInclusionEdges_mono subset_union_right))) _
     have hsh_union : ∀ W : Finset (Fin n),
         SetShatters (↑(T false ∪ T true) : Set (Fin n → Bool)) ↑W → W.card ≤ d := by
@@ -224,7 +224,8 @@ private theorem card_oneInclusionEdges_fin_le :
       · have h0 : T false ∩ T true = ∅ := by
           by_contra h
           obtain ⟨g, hg⟩ := nonempty_iff_ne_empty.2 h
-          have := hsh_inter ∅ fun T hT => ⟨g, hg, by simp_all⟩
+          have := hsh_inter ∅ fun U hU => ⟨g, hg, by
+            obtain rfl := Set.subset_empty_iff.mp (by simpa using hU); simp⟩
           omega
         rw [h0]; simp [oneInclusionEdges]
       · have := card_oneInclusionEdges_fin_le (d := d) fun W hW => by
@@ -249,13 +250,36 @@ theorem card_oneInclusionEdges_le_mul_card [DecidableEq ι] [Fintype ι] {d : �
     fun f₁ f₂ h => funext fun i => by simpa using congrFun h (e.symm i)
   have hcard_S : S'.card = S.card := card_image_of_injective S hinj_fn
   have hedg_eq : (oneInclusionEdges S).card = (oneInclusionEdges S').card := by
-    rw [← card_image_of_injective _ (f := fun p : ι × (ι → Bool) => (e.symm p.1, p.2 ∘ e))
-      fun p q h => Prod.ext (e.symm.injective (congrArg Prod.fst h)) (hinj_fn (congrArg Prod.snd h))]
-    congr 1; ext ⟨j, g⟩
-    obtain ⟨i, rfl⟩ := e.symm.surjective j
-    obtain ⟨f, rfl⟩ : ∃ f, g = f ∘ e := ⟨g ∘ e.symm, by ext; simp⟩
-    simp [S', mem_oneInclusionEdges, ← Function.update_comp_equiv, hinj_fn.mem_finset_image,
-      hinj_fn.eq_iff]
+    refine card_bij (fun p _ => (e.symm p.1, p.2 ∘ e)) ?_ ?_ ?_
+    · rintro ⟨i, f⟩ hp
+      rcases mem_oneInclusionEdges.mp hp with ⟨hfS, hfi, hupdS⟩
+      dsimp only at hfS hfi hupdS ⊢
+      have hupd : Function.update (f ∘ e) (e.symm i) true = Function.update f i true ∘ e := by
+        ext j
+        by_cases hj : j = e.symm i
+        · subst hj; simp
+        · have hej : e j ≠ i := fun h => hj (by rw [← h, Equiv.symm_apply_apply])
+          simp [hj, hej]
+      exact mem_oneInclusionEdges.mpr ⟨mem_image_of_mem _ hfS, by simp [hfi],
+        hupd ▸ mem_image_of_mem _ hupdS⟩
+    · rintro ⟨i₁, f₁⟩ _ ⟨i₂, f₂⟩ _ heq
+      rcases Prod.mk.inj heq with ⟨hi, hf⟩
+      exact Prod.ext (e.symm.injective hi) (hinj_fn hf)
+    · rintro ⟨j, g⟩ hp
+      rcases mem_oneInclusionEdges.mp hp with ⟨hgS', hgj, hupdS'⟩
+      dsimp only at hgS' hgj hupdS'
+      rcases mem_image.mp hgS' with ⟨f, hfS, rfl⟩
+      rcases mem_image.mp hupdS' with ⟨f', hf'S, hf'eq⟩
+      have hf'_upd : f' = Function.update f (e j) true := by
+        apply hinj_fn
+        dsimp only
+        rw [hf'eq]
+        ext k
+        by_cases hkj : k = j
+        · subst hkj; simp
+        · simp [hkj, e.injective.ne hkj]
+      refine ⟨(e j, f), mem_oneInclusionEdges.mpr ⟨hfS, hgj, hf'_upd ▸ hf'S⟩, ?_⟩
+      simp
   have hS' : ∀ W : Finset (Fin (Fintype.card ι)),
       SetShatters (S' : Set (Fin (Fintype.card ι) → Bool)) ↑W → W.card ≤ d := fun W hW =>
     SetShatters.card_le_of_comp hS (by simpa only [S', coe_image] using hW)
@@ -568,7 +592,19 @@ theorem card_leaveOneOut_mistakes_le {C : ConceptClass α Bool} {d m : ℕ}
       insert (Z t).1 (Finset.univ.image fun j : Fin m => (t.removeNth Z j).1) = UZ := by
     intro t
     ext a
-    simp [UZ, Fin.exists_iff_succAbove t, Fin.removeNth, eq_comm (a := a)]
+    constructor
+    · intro ha
+      rcases mem_insert.mp ha with ha0 | ha_img
+      · exact mem_image.mpr ⟨t, mem_univ t, ha0.symm⟩
+      · rcases mem_image.mp ha_img with ⟨j, _, hj⟩
+        exact mem_image.mpr ⟨t.succAbove j, mem_univ _, hj⟩
+    · intro ha
+      rcases mem_image.mp ha with ⟨s, _, hs⟩
+      by_cases hst : s = t
+      · exact mem_insert.mpr (Or.inl (hs.symm.trans (congrArg (fun k => (Z k).1) hst)))
+      · obtain ⟨j, hj⟩ := Fin.exists_succAbove_eq hst
+        refine mem_insert.mpr (Or.inr (mem_image.mpr ⟨j, mem_univ j, ?_⟩))
+        simpa only [Fin.removeNth, hj] using hs
   let M : Finset (Fin (m + 1)) := Finset.univ.filter fun t : Fin (m + 1) =>
     oneInclusionLearner C (t.removeNth Z) (Z t).1 ≠ (Z t).2
   let gZ : ↑UZ → Bool := fun u => c u.1
@@ -642,8 +678,9 @@ private theorem mul_lintegral_error_oneInclusionLearner_le {C : ConceptClass α 
   have hsum_eq : (m + 1 : ℝ≥0∞) *
       ∫⁻ S, error D (oneInclusionLearner C S) ∂Measure.pi (fun _ : Fin m => D) =
       ∑ t : Fin (m + 1), μ {Z | oneInclusionLearner C (t.removeNth Z) (Z t).1 ≠ (Z t).2} := by
-    rw [← Finset.sum_congr rfl fun t _ => lintegral_error_eq_leaveOneOut hmeas D t]
-    simp
+    have hcard : (m + 1 : ℝ≥0∞) = ((Finset.univ : Finset (Fin (m + 1))).card : ℕ) := by simp
+    rw [hcard, ← nsmul_eq_mul, ← Finset.sum_const]
+    exact Finset.sum_congr rfl fun t _ => lintegral_error_eq_leaveOneOut hmeas D t
   rw [hsum_eq]
   have hmeas_t : ∀ t : Fin (m + 1),
       MeasurableSet {Z : LabeledSample α Bool (m + 1) |
@@ -664,7 +701,15 @@ private theorem mul_lintegral_error_oneInclusionLearner_le {C : ConceptClass α 
     _ ≤ ∫⁻ _, (d : ℝ≥0∞) ∂μ := by
         refine lintegral_mono_ae ?_
         filter_upwards [hD.ae_realizable (m + 1)] with Z hZ
-        simp only [Set.indicator_apply, Set.mem_ofPred_eq, Pi.one_apply, Finset.sum_boole]
+        have hcount : ∑ t : Fin (m + 1),
+            {Z : LabeledSample α Bool (m + 1) |
+              oneInclusionLearner C (t.removeNth Z) (Z t).1 ≠ (Z t).2}.indicator 1 Z =
+            ((Finset.univ.filter fun t : Fin (m + 1) =>
+              oneInclusionLearner C (t.removeNth Z) (Z t).1 ≠ (Z t).2).card : ℝ≥0∞) := by
+          rw [Finset.card_filter, Nat.cast_sum]
+          refine Finset.sum_congr rfl fun t _ => ?_
+          by_cases h : oneInclusionLearner C (t.removeNth Z) (Z t).1 ≠ (Z t).2 <;> simp [h]
+        rw [hcount]
         exact_mod_cast card_leaveOneOut_mistakes_le hC hZ
     _ = d := by rw [lintegral_const, measure_univ, mul_one]
 
