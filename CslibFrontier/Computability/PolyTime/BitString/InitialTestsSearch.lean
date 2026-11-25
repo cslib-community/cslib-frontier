@@ -145,9 +145,11 @@ theorem two_mul_qG_mul_cG_le_three_mul {n m B : ℕ} (hn : 1 ≤ n) (hm : 1 ≤ 
   rcases Nat.eq_zero_or_pos (ellG m B) with h0 | hpos
   · have hq : qG m B = 1 := by simp only [qG, h0, pow_zero]
     have h1 := le_qG_mul_dG hm hB; have h2 : dG m B ≤ m := Nat.min_le_left _ _
-    rw [hq, one_mul] at h1; rw [hq, mul_one]
-    have : 8 * B * cG m B + 1 ≤ m + 8 * B := by omega
-    nlinarith
+    have hd : dG m B = m := by rw [hq, one_mul] at h1; omega
+    rw [hq, mul_one]; rw [hd] at hmul
+    have : B * (8 * cG m B) = 8 * B * cG m B := by ring
+    have : B * (12 * n) = 12 * (B * n) := by ring
+    have := Nat.lt_of_mul_lt_mul_left (by omega : B * (8 * cG m B) < B * (12 * n)); omega
   · have h8_le_dG : 8 * B ≤ dG m B := by
       rw [dG_eq_of_ellG_pos hpos, initialRowWeightBound]
       have := Nat.mul_le_mul_left (320000 * B)
@@ -155,8 +157,12 @@ theorem two_mul_qG_mul_cG_le_three_mul {n m B : ℕ} (hn : 1 ≤ n) (hm : 1 ≤ 
       have : 320000 * B * (B * (Nat.log 2 m + 1) ^ 3) =
         320000 * B ^ 2 * (Nat.log 2 m + 1) ^ 3 := by ring
       omega
+    have : B * (4 * (2 * qG m B * cG m B)) = qG m B * (8 * B * cG m B) := by ring
     have := Nat.mul_le_mul_left (qG m B) (by omega : 8 * B * cG m B ≤ 2 * dG m B)
-    nlinarith [qG_mul_dG_lt_two_mul hm hB]
+    have : qG m B * (2 * dG m B) = 2 * (qG m B * dG m B) := by ring
+    have := qG_mul_dG_lt_two_mul hm hB; have : B * (4 * (3 * n)) = 12 * (B * n) := by ring
+    have : B * (4 * (2 * qG m B * cG m B)) < B * (4 * (3 * n)) := by omega
+    have := Nat.lt_of_mul_lt_mul_left this; omega
 private theorem hDist_succ_eq {m B : ℕ} (hm : 1 ≤ m) (hB : 1 ≤ B) :
     hDist m B + 1 = (dG m B + 100 * B * mu m - 1) / (100 * B * mu m) := by
   have hd : 1 ≤ dG m B := dG_pos hm hB; have hM : 0 < 100 * B * mu m := by positivity
