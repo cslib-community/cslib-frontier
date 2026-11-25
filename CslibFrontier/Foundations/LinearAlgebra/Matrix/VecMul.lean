@@ -5,7 +5,8 @@ Authors: Samuel Schlesinger
 -/
 
 module
--- upstream: candidate (Mathlib, `Mathlib/Data/Matrix/Mul.lean`, next to `Matrix.vecMul_eq_sum`)
+-- upstream: candidate (Cslib, beside `Cslib.Code.interleavedLinear` in
+-- `Cslib/Foundations/Data/Code/Interleaved.lean`)
 
 public import CslibFrontier.Init
 public import Mathlib.Data.Matrix.Mul

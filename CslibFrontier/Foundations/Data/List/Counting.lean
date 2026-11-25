@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Init
 public import Mathlib.Data.List.Basic
+import Mathlib.Algebra.Order.BigOperators.Group.List
+import Mathlib.Algebra.Order.Group.Nat
 import Mathlib.Data.List.Nodup
 
 /-!
@@ -52,16 +54,13 @@ theorem List.length_flatMap_of_forall_length_eq {α β : Type*} {l : List α} {f
     rw [List.flatMap_cons, List.length_append, List.length_cons, Nat.succ_mul,
       h a List.mem_cons_self, ih fun b hb => h b (List.mem_cons_of_mem _ hb), Nat.add_comm]
 
-/-- Terms of at most `B` each, one for each element of `l`, sum to at most `|l| B`. -/
+/-- Terms of at most `B` each, one for each element of `l`, sum to at most `|l| B`. This is
+Mathlib's `List.sum_le_length_nsmul` for a mapped list of natural numbers, stated with `*`; the
+`circuit_bound` tactic builds proofs with it by name. -/
 theorem List.sum_map_le_length_mul {α : Type*} {l : List α} {f : α → ℕ} {B : ℕ}
     (h : ∀ a ∈ l, f a ≤ B) : (l.map f).sum ≤ l.length * B := by
-  induction l with
-  | nil => simp
-  | cons a l ih =>
-    have ha := h a List.mem_cons_self
-    have hl := ih fun b hb => h b (List.mem_cons_of_mem _ hb)
-    rw [List.map_cons, List.sum_cons, List.length_cons, Nat.succ_mul]
-    omega
+  simpa only [List.length_map, Nat.nsmul_eq_mul] using
+    List.sum_le_length_nsmul (l.map f) B (List.forall_mem_map.2 h)
 
 /-- Membership in a list as a scan of the list, the form in which polynomial-time membership tests
 are certified. -/

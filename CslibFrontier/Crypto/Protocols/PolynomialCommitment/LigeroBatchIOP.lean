@@ -141,11 +141,6 @@ theorem ligeroPowWeights_apply {F : Type*} [Semiring F] (m : ℕ) (z : F) (i : F
     ligeroPowWeights m z i = z ^ (i : ℕ) :=
   rfl
 
-private lemma vecMul_ligeroPowWeights_eq_sum_pow {F : Type*} [CommSemiring F] {m n : ℕ}
-    (z : F) (M : Matrix (Fin m) (Fin n) F) :
-    ligeroPowWeights m z ᵥ* M = fun j => ∑ i : Fin m, z ^ (i : ℕ) • Function.swap M j i :=
-  Matrix.vecMul_eq_sum_smul_swap (ligeroPowWeights m z) M
-
 /-- Round specification of a weight-parameterized batched proximity reduction with batching
 challenge space `BatchChal`, message length `l`, codeword length `n`, and `q` column queries. -/
 abbrev ligeroBatchProximitySpec (BatchChal : Type) (l n q : ℕ) (F : Type) : Spec :=
@@ -375,8 +370,8 @@ theorem ligeroCurveProximityReduction_reedSolomon_rbrSound
   have hbound := toOuterMeasure_sum_pow_smul_reedSolomon_close_le hα
     (by simpa only [Fintype.card_fin] using hunique)
     (forall_lt_interleaved_reedSolomon_of_not_mem hM)
-  simpa only [codeOfGenerator_reedSolomonGenerator, vecMul_ligeroPowWeights_eq_sum_pow,
-    Fintype.card_fin] using hbound
+  simpa only [codeOfGenerator_reedSolomonGenerator, Matrix.vecMul_eq_sum_smul_swap,
+    ligeroPowWeights_apply, Fintype.card_fin] using hbound
 
 /-- **Plain-model soundness of single-scalar `ligeroCurveProximityReduction` in the
 unique-decoding regime** (`2 * e + k ≤ n`) against every adaptive prover strategy. -/
@@ -414,8 +409,8 @@ theorem ligeroCurveProximityReduction_reedSolomon_rbrSound_johnson_exact
     (by simpa only [Fintype.card_fin] using hinterp)
     (by simpa only [Fintype.card_fin] using hroot)
     (forall_lt_interleaved_reedSolomon_of_not_mem hM)
-  simpa only [codeOfGenerator_reedSolomonGenerator, vecMul_ligeroPowWeights_eq_sum_pow,
-    Fintype.card_fin] using hbound
+  simpa only [codeOfGenerator_reedSolomonGenerator, Matrix.vecMul_eq_sum_smul_swap,
+    ligeroPowWeights_apply, Fintype.card_fin] using hbound
 
 /-- **Round-by-round soundness of single-scalar `ligeroCurveProximityReduction` up to `1 - √ρ - η`
 (original explicit-constant variant)** (in the setting of
@@ -437,8 +432,8 @@ theorem ligeroCurveProximityReduction_reedSolomon_rbrSound_johnson_of_eta
     (by simpa only [Fintype.card_fin] using hkn) hη
     (by simpa only [Fintype.card_fin] using he)
     (forall_lt_interleaved_reedSolomon_of_not_mem hM)
-  simpa only [codeOfGenerator_reedSolomonGenerator, vecMul_ligeroPowWeights_eq_sum_pow,
-    Fintype.card_fin] using hbound
+  simpa only [codeOfGenerator_reedSolomonGenerator, Matrix.vecMul_eq_sum_smul_swap,
+    ligeroPowWeights_apply, Fintype.card_fin] using hbound
 
 /-- **Plain-model soundness of single-scalar `ligeroCurveProximityReduction` up to `1 - √ρ - η`
 (original explicit-constant variant)** against every adaptive prover strategy. -/
@@ -826,8 +821,8 @@ theorem ligeroCurveEvalReduction_reedSolomon_rbrSound
   have hbound := toOuterMeasure_sum_pow_smul_reedSolomon_close_le hα
     (by simpa only [Fintype.card_fin] using hunique)
     (forall_lt_interleaved_reedSolomon_of_not_mem hM)
-  simpa only [codeOfGenerator_reedSolomonGenerator, vecMul_ligeroPowWeights_eq_sum_pow,
-    Fintype.card_fin] using hbound
+  simpa only [codeOfGenerator_reedSolomonGenerator, Matrix.vecMul_eq_sum_smul_swap,
+    ligeroPowWeights_apply, Fintype.card_fin] using hbound
 
 /-- **Plain-model soundness of single-scalar `ligeroBatchEvalReduction` across the Reed–Solomon
 unique-decoding radius** (`2 * e + k ≤ n`). -/
@@ -1346,7 +1341,8 @@ theorem rsCurveBatchProximityBCS_romSoundness_unique {F : Type}
       have hb := toOuterMeasure_sum_pow_smul_reedSolomon_close_le hα
         (by simpa only [Fintype.card_fin] using hunique)
         (forall_lt_interleaved_reedSolomon_of_not_mem hM)
-      simpa only [vecMul_ligeroPowWeights_eq_sum_pow, Fintype.card_fin] using hb)
+      simpa only [Matrix.vecMul_eq_sum_smul_swap, ligeroPowWeights_apply, Fintype.card_fin]
+        using hb)
     hdec defaultSym σ hMT hFS hV
 
 /-- **Two-channel BCS/ROM soundness of single-scalar `rsCurveBatchProximityIOP` up to `1 - √ρ - η`
@@ -1385,7 +1381,8 @@ theorem rsCurveBatchProximityBCS_romSoundness_johnson_of_eta {F : Type}
         (by simpa only [Fintype.card_fin] using hk) hη
         (by simpa only [Fintype.card_fin] using he)
         (forall_lt_interleaved_reedSolomon_of_not_mem hM)
-      simpa only [vecMul_ligeroPowWeights_eq_sum_pow, Fintype.card_fin] using hb)
+      simpa only [Matrix.vecMul_eq_sum_smul_swap, ligeroPowWeights_apply, Fintype.card_fin]
+        using hb)
     hdec defaultSym σ hMT hFS hV
 
 end BatchProximityIOP

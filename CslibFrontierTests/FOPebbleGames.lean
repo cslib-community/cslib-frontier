@@ -160,8 +160,7 @@ theorem partialIsoOn_graph_iff {S : Set (Fin 2)} {a : Fin 2 → V} {b : Fin 2 �
   · intro h i hi j hj
     refine ⟨h.eq_iff i hi j hj, ?_⟩
     have := h.relMap_iff adj ![i, j] (by intro t; fin_cases t <;> assumption)
-    simp only [Matrix.comp_vecCons, Matrix.comp_vecEmpty] at this
-    exact this
+    simpa only [Matrix.comp_vecCons, Matrix.comp_vecEmpty] using this
   · intro h
     refine ⟨fun i hi j hj => (h i hi j hj).1, fun {l} R f hf => ?_⟩
     cases R

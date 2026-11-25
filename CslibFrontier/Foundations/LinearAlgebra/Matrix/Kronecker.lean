@@ -13,7 +13,7 @@ public import Mathlib.LinearAlgebra.Matrix.Rank
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rank
 
 /-!
-# The rank of a Kronecker product, and its action on vectors
+# Negation, rank and action on vectors of a Kronecker product
 
 Negating either factor negates a Kronecker product (`Matrix.neg_kronecker`,
 `Matrix.kronecker_neg`), as for scalar multiplication in Mathlib's `Matrix.smul_kronecker`.
@@ -31,6 +31,7 @@ Over a field, a matrix of rank `r` factors through `r`-dimensional space
 
 ## Main results
 
+* `Matrix.neg_kronecker`, `Matrix.kronecker_neg`: `(-A) ⊗ₖ B = -(A ⊗ₖ B) = A ⊗ₖ (-B)`.
 * `Matrix.kronecker_mulVec_mul`: `(A ⊗ₖ B)(x ⊗ y) = Ax ⊗ By`.
 * `Matrix.kronecker_one_mulVec_apply`, `Matrix.one_kronecker_mulVec_apply`: the action of `A ⊗ₖ 1`
   and `1 ⊗ₖ B`.

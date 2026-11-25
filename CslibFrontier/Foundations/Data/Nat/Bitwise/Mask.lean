@@ -5,7 +5,8 @@ Authors: Samuel Schlesinger
 -/
 
 module
--- upstream: candidate (Mathlib, `Mathlib/Data/Nat/Bitwise.lean`)
+-- upstream: candidate (Lean core, beside `Nat.and_lt_two_pow` in
+-- `Init/Data/Nat/Bitwise/Lemmas.lean`)
 
 public import CslibFrontier.Init
 

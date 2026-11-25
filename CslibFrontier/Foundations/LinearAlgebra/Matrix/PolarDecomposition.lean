@@ -29,6 +29,8 @@ the trace of the positive modulus, is nonnegative and vanishes only at zero.
 * `Matrix.exists_unitary_mul_eq_of_conjTranspose_mul_eq`: align two equal Gram factors.
 * `Matrix.exists_unitary_polar`: factor a square matrix into a unitary and its positive modulus.
 * `Matrix.traceNorm_eq_max_re_trace`: a unitary attains the trace norm by maximizing overlap.
+* `Matrix.traceNorm_nonneg`, `Matrix.traceNorm_eq_zero_iff`: the trace norm is nonnegative and
+  vanishes only at zero.
 -/
 
 public section
