@@ -188,8 +188,7 @@ to `encodeHalfBit q b` decodes back to `b` under the `[3q / 8, 5q / 8]` threshol
 theorem decodeThresholdBit_intCast_add_encodeHalfBit (b : Bool) (z : ℤ)
     (hz : 8 * z.natAbs + 4 ≤ q) :
     decodeThresholdBit q ((z : ZMod q) + encodeHalfBit q b) = b := by
-  have hz' : -(z.natAbs : ℤ) ≤ z ∧ z ≤ (z.natAbs : ℤ) :=
-    abs_le.mp (by rw [← Int.abs_eq_natAbs])
+  have hz' : -(z.natAbs : ℤ) ≤ z ∧ z ≤ (z.natAbs : ℤ) := abs_le.mp (by rw [← Int.abs_eq_natAbs])
   have hmod (x : ℤ) (hx : 0 ≤ x) (hx' : x < q) : (((x : ZMod q).val : ℕ) : ℤ) = x := by
     rw [ZMod.val_intCast, Int.emod_eq_of_lt hx hx']
   cases b
@@ -197,16 +196,13 @@ theorem decodeThresholdBit_intCast_add_encodeHalfBit (b : Bool) (z : ℤ)
       decide_eq_false_iff_not, not_and_or, not_le]
     by_cases hnonneg : 0 ≤ z
     · exact Or.inl (by have := hmod z hnonneg (by omega); omega)
-    · have hcast : ((z + (q : ℤ) : ℤ) : ZMod q) = (z : ZMod q) := by simp
-      have hval := hmod (z + q) (by omega) (by omega)
-      rw [hcast] at hval
+    · have hval := hmod (z + q) (by omega) (by omega)
+      simp only [Int.cast_add, Int.cast_natCast, CharP.cast_eq_zero, add_zero] at hval
       exact Or.inr (by omega)
   · simp only [encodeHalfBit, ↓reduceIte, decodeThresholdBit, decide_eq_true_eq]
-    have hcast : (z : ZMod q) + ((q / 2 : ℕ) : ZMod q) =
-        ((z + ((q / 2 : ℕ) : ℤ) : ℤ) : ZMod q) := by
-      rw [Int.cast_add, Int.cast_natCast]
     have hval := hmod (z + ((q / 2 : ℕ) : ℤ)) (by omega) (by omega)
-    rw [hcast]
+    rw [show (z : ZMod q) + ((q / 2 : ℕ) : ZMod q) = ((z + ((q / 2 : ℕ) : ℤ) : ℤ) : ZMod q) by
+      rw [Int.cast_add, Int.cast_natCast]]
     omega
 
 /-- If a residue `e : ZMod q` has centered representative `e.valMinAbs` satisfying
@@ -519,13 +515,11 @@ theorem encryptLWEErrorLaw_pi (χ : PMF (ZMod q)) (Q : ℕ) :
         (Probability.PMF.pi fun _ : Fin l => χ) Q =
       Probability.PMF.pi fun _ : Fin (m + (Q + 1) * l) => χ := by
   set E := Probability.PMF.pi fun _ : Fin l => χ
-  have hlaw : encryptLWEErrorLaw (Probability.PMF.pi fun _ : Fin m => χ) E Q =
+  rw [show encryptLWEErrorLaw (Probability.PMF.pi fun _ : Fin m => χ) E Q =
       ((Probability.PMF.pi fun _ : Fin m => χ).bind fun w =>
         (E.bind fun e₀ => (Probability.PMF.pi fun _ : Fin Q => E).map (e₀, ·)).map (w, ·)).map
-          (splitRowsEquiv m l Q (ZMod q)) := by
-    simp only [encryptLWEErrorLaw, PMF.map_bind, PMF.map_comp, Function.comp_def]
-    rfl
-  rw [hlaw]
+          (splitRowsEquiv m l Q (ZMod q)) by
+    simp only [encryptLWEErrorLaw, PMF.map_bind, PMF.map_comp, Function.comp_def]; rfl]
   ext f
   rw [Probability.PMF.map_equiv_apply, Probability.PMF.bind_map_prodMk_apply,
     Probability.PMF.bind_map_prodMk_apply]
@@ -648,34 +642,32 @@ private theorem eval_encryptSimRun_eq {m n l q : ℕ} [NeZero q] {σ : Type}
       StateT Unit ProbComp (EncryptHelper m n l q × (Fin l → Bool)) :=
     fun (B', b) δ => StateT.lift (encryptShiftOracle t A (A.mulVec s + w) B' b δ)
   have hpresample := congrArg (PMF.map Prod.fst) (hQ.eval_presample block (0, 0) oracle ())
-  have hblock : ProbComp.eval block =
-      (PMF.uniformOfFintype (Matrix (Fin l) (Fin n) (ZMod q))).bind fun B' =>
-        (ProbComp.eval E).map fun e => (B', B'.mulVec s + e) := by
-    simp only [block, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure]; rfl
   have hhonest (δ : Fin m → ZMod q) : ProbComp.eval (block >>= fun value =>
       encryptShiftOracle t A (A.mulVec s + w) value.1 value.2 δ) =
       ProbComp.eval (strongReuseOracle (lweEncryptFuzzyExtractor m n l q E decode) t A w δ) := by
     rw [← eval_encryptShiftOracle_eq E decode t A s w δ]; simp only [block, bind_assoc, pure_bind]
-  have hblocks : ((PMF.uniformOfFintype (Fin Q → Matrix (Fin l) (Fin n) (ZMod q))).bind
+  rw [show ((PMF.uniformOfFintype (Fin Q → Matrix (Fin l) (Fin n) (ZMod q))).bind
       fun B_vec => (Probability.PMF.pi (fun _ : Fin Q => ProbComp.eval E)).bind fun e_vec =>
         ProbComp.eval (encryptSimRun t A ⟨A.mulVec s + w, B, h⟩ adv
           (List.ofFn fun k => (B_vec k, (B_vec k).mulVec s + e_vec k)))) =
       (ProbComp.eval (OracleComp.replicate Q block)).bind
-        fun values => ProbComp.eval (encryptSimRun t A ⟨A.mulVec s + w, B, h⟩ adv values) := by
-    rw [ProbComp.eval_replicate, hblock, Probability.PMF.pi_bind]
-    rw [← Probability.PMF.pi_uniformOfFintype]
-    simp only [Probability.PMF.pi_map, pmf_norm]
-  have hfresh : (fun δ (u : Unit) => block >>= fun value => oracle value δ u) = fun δ =>
-      StateT.lift (block >>= fun value =>
-        encryptShiftOracle t A (A.mulVec s + w) value.1 value.2 δ) := by
-    funext δ u; simp only [oracle, StateT.lift, bind_assoc]
-  rw [hblocks]
+        fun values => ProbComp.eval (encryptSimRun t A ⟨A.mulVec s + w, B, h⟩ adv values) by
+    rw [ProbComp.eval_replicate, show ProbComp.eval block =
+        (PMF.uniformOfFintype (Matrix (Fin l) (Fin n) (ZMod q))).bind fun B' =>
+          (ProbComp.eval E).map fun e => (B', B'.mulVec s + e) by
+      simp only [block, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure]; rfl,
+      Probability.PMF.pi_bind, ← Probability.PMF.pi_uniformOfFintype]
+    simp only [Probability.PMF.pi_map, pmf_norm]]
   simp only [pmf_norm] at hpresample
   simp only [encryptSimRun, ProbComp.eval_bind, ProbComp.eval_pure]
   refine hpresample.trans ?_
   change PMF.map Prod.fst (ProbComp.eval ((ProbOracleComp.runState _ fun δ (u : Unit) =>
     block >>= fun value => oracle value δ u).run ())) = _
-  rw [hfresh, ProbOracleComp.runState_lift, ProbComp.eval_map, PMF.map_comp]
+  rw [show (fun δ (u : Unit) => block >>= fun value => oracle value δ u) = fun δ =>
+      StateT.lift (block >>= fun value =>
+        encryptShiftOracle t A (A.mulVec s + w) value.1 value.2 δ) by
+    funext δ u; simp only [oracle, StateT.lift, bind_assoc],
+    ProbOracleComp.runState_lift, ProbComp.eval_map, PMF.map_comp]
   simp only [Function.comp_def, ProbOracleComp.eval_run, hhonest]; exact PMF.map_id _
 
 private theorem realGame_encrypt_embed {St : Type}
@@ -738,13 +730,11 @@ theorem realGame_encryptRealReduction {St : Type}
       strongReuseRealGame
         (ProbComp.uniform (Matrix (Fin m) (Fin n) (ZMod q)))
         (lweEncryptFuzzyExtractor m n l q E decode) W t adv := by
-  have h := realGame_encrypt_embed E decode W t Q adv hQ fun st rStar =>
-    ProbComp.eval (adv.guess st rStar)
   simp only [LWE.realGame, LWE.eval_realExperiment, encryptLWEErrorLaw, encryptRealReduction,
-    ProbComp.eval_uniform, pmf_norm]
-  refine h.trans ?_
-  simp only [strongReuseRealGame, Game.withSetup, strongReuseRealExperiment,
-    lweEncryptFuzzyExtractor, symEncrypt, ProbComp.eval_uniform, pmf_norm]
+    strongReuseRealGame, Game.withSetup, strongReuseRealExperiment, lweEncryptFuzzyExtractor,
+    symEncrypt, ProbComp.eval_uniform, pmf_norm]
+  exact realGame_encrypt_embed E decode W t Q adv hQ fun st rStar =>
+    ProbComp.eval (adv.guess st rStar)
 
 /-- The real LWE game against `encryptIdealReduction t Q adv` is identically distributed to
 the strong-reusability ideal game `strongReuseIdealGame` of `lweEncryptFuzzyExtractor`, for an
@@ -763,13 +753,11 @@ theorem realGame_encryptIdealReduction {St : Type}
       strongReuseIdealGame
         (ProbComp.uniform (Matrix (Fin m) (Fin n) (ZMod q)))
         (lweEncryptFuzzyExtractor m n l q E decode) W t adv := by
-  have h := realGame_encrypt_embed E decode W t Q adv hQ fun st _ =>
-    (PMF.uniformOfFintype (Fin l → Bool)).bind fun u => ProbComp.eval (adv.guess st u)
   simp only [LWE.realGame, LWE.eval_realExperiment, encryptLWEErrorLaw, encryptIdealReduction,
-    ProbComp.eval_uniform, pmf_norm]
-  refine h.trans ?_
-  simp only [strongReuseIdealGame, Game.withSetup, strongReuseIdealExperiment,
-    lweEncryptFuzzyExtractor, symEncrypt, ProbComp.eval_uniform, pmf_norm]
+    strongReuseIdealGame, Game.withSetup, strongReuseIdealExperiment, lweEncryptFuzzyExtractor,
+    symEncrypt, ProbComp.eval_uniform, pmf_norm]
+  exact realGame_encrypt_embed E decode W t Q adv hQ fun st _ =>
+    (PMF.uniformOfFintype (Fin l → Bool)).bind fun u => ProbComp.eval (adv.guess st u)
 
 private theorem uniform_mask_encodeHalfBits_eq {l q : ℕ} [NeZero q] {St α : Type}
     (G : (Fin l → ZMod q) → PMF St) (H : St → (Fin l → Bool) → PMF α) :
@@ -1016,12 +1004,9 @@ private theorem keyWord_eq_cipherRowsWord {rows n w : ℕ} (b : Fin rows → ZMo
   simp only [keyWord, cipherRowsWord, Cslib.Matrix.toBinary_eq, _root_.Matrix.of_apply,
     List.ofFn_succ, List.ofFn_zero, List.flatten_cons, List.flatten_nil, List.append_nil,
     List.flatMap_def, List.map_range_eq_ofFn, BitString.lowBits_eq_ofFn_val]
-  congr 1
-  apply congrArg List.ofFn
-  funext i
-  congr 2
-  funext k
-  congr 2
+  congr 1; apply congrArg List.ofFn
+  funext i; congr 2
+  funext k; congr 2
   simp only [Pi.add_apply, Nat.cast_add, Nat.cast_sum, List.sum_ofFn, Nat.cast_mul, hb, hB, hx,
     hr, natCast_halfOf, _root_.Matrix.mulVec, dotProduct, encodeHalfBits]
 
@@ -1090,12 +1075,10 @@ private theorem blockAt_entries {m n l Q w : ℕ}
   · rw [show blockAt M b k = (0, 0) by simp [blockAt, hk]]
     have hzero (i : Fin l) (j : ℕ) : Cslib.Matrix.binaryEntry (n + 1) w
         (Cslib.Matrix.toBinary (LWE.augmentedMatrix M b)) (m + l + l * k + i.val) j = 0 := by
-      apply Cslib.Matrix.binaryEntry_eq_zero_of_length_le
-      rw [Cslib.Matrix.length_toBinary]
-      have hmul := Nat.mul_le_mul_left l (not_lt.mp hk)
+      apply Cslib.Matrix.binaryEntry_eq_zero_of_length_le; rw [Cslib.Matrix.length_toBinary]
       have hrow : m + (Q + 1) * l ≤ m + l + l * k + i.val := by
-        rw [Nat.add_mul, Nat.one_mul, Nat.mul_comm Q l]
-        omega
+        have := Nat.mul_le_mul_left l (not_lt.mp hk)
+        rw [Nat.add_mul, Nat.one_mul, Nat.mul_comm Q l]; omega
       exact Nat.mul_le_mul_right w
         ((Nat.mul_le_mul_right (n + 1) hrow).trans (Nat.le_add_right _ _))
     exact ⟨fun i => by simp [hzero], fun i j => by simp [hzero]⟩
@@ -1178,8 +1161,7 @@ private theorem eval_realWords (t Q : ℕ → ℕ) (A : WordReuseAdversary)
   simp only [realWords, encryptRealReduction, FuzzyExtractor.encryptRealReduction,
     ProbComp.eval_uniform, encBitString_apply, pmf_norm]
   congr 1 with r : 1
-  rw [eval_queryWords]
-  rfl
+  rw [eval_queryWords]; rfl
 
 /-- The word program of `LWEFamily.encryptIdealReduction` has its law. -/
 private theorem eval_idealWords (t Q : ℕ → ℕ) (A : WordReuseAdversary)
@@ -1189,8 +1171,7 @@ private theorem eval_idealWords (t Q : ℕ → ℕ) (A : WordReuseAdversary)
   simp only [idealWords, encryptIdealReduction, FuzzyExtractor.encryptIdealReduction,
     ProbComp.eval_uniform, encBitString_apply, pmf_norm]
   congr 1 with r : 1
-  rw [eval_queryWords]
-  rfl
+  rw [eval_queryWords]; rfl
 
 /-! ### Polynomial-time computation of the words -/
 
@@ -1415,16 +1396,13 @@ theorem stronglyReusable_lweEncryptFuzzyExtractor {m n l w : ℕ → ℕ}
         (encEncryptHelper (m κ) (n κ) (l κ) (w κ)))
       (fun κ => encEncryptHelper (m κ) (n κ) (l κ) (w κ)) (fun κ => encBitString (l κ))
       (fun A => A.IsPPT ∧ ∀ κ view, (A.query κ view).IsQueryBounded (Q κ)) := by
-  intro source hsource A ⟨hA, hQ⟩
-  rw [Set.mem_singleton_iff] at hsource
-  subst hsource
-  have hreal := hLWE _ (LWEFamily.isPPT_encryptRealReduction hm hn hl hw ht (Q := Q) hA)
-  have hideal := hLWE _ (LWEFamily.isPPT_encryptIdealReduction hm hn hl hw ht (Q := Q) hA)
-  refine negligible_of_le (hreal.add hideal) fun κ => ?_
+  rintro _ rfl A ⟨hA, hQ⟩
+  refine negligible_of_le
+    ((hLWE _ (LWEFamily.isPPT_encryptRealReduction hm hn hl hw ht (Q := Q) hA)).add
+      (hLWE _ (LWEFamily.isPPT_encryptIdealReduction hm hn hl hw ht (Q := Q) hA))) fun κ => ?_
   have h := strongReuseAdvantage_lweEncryptFuzzyExtractor_le (E κ) (decode κ)
     (PMF.pi fun _ => χ κ) (t κ) (Q κ) (LWEFamily.typedAdversary m n l w A κ)
     fun _ _ => OracleCodec.isQueryBounded_adapt _ (hQ κ _)
-  rw [hE, encryptLWEErrorLaw_pi] at h
-  exact h
+  rwa [hE, encryptLWEErrorLaw_pi] at h
 
 end Cslib.Crypto.FuzzyExtractor

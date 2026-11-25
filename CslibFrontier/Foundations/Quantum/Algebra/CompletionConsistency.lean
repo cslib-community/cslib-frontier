@@ -117,16 +117,16 @@ theorem expect_one_sub_agreement_le_of_distance {X : Type*} [Fintype X]
     (hρ : (𝔼 x, ∑ a, φ.norm ((Q x).effect a - (R x).effect a) ^ 2) ≤ ρ) :
     (𝔼 x, (1 - agreement φ (P x) (R x))) ≤ σ + √ρ := by
   let D (x : X) := ∑ a, φ.norm ((Q x).effect a - (R x).effect a) ^ 2
-  have hD (x : X) : 0 ≤ D x := sum_nonneg fun a _ => sq_nonneg _
   calc
-    _ ≤ 𝔼 x, (1 - agreement φ (P x) (Q x) + √(D x)) := by
-      refine expect_le_expect fun x _ => ?_
-      have h := (abs_le.mp (abs_agreement_sub_right_le φ (P x) (Q x) (R x))).2
-      change agreement φ (P x) (Q x) - agreement φ (P x) (R x) ≤ √(D x) at h
-      linarith only [h]
+    _ ≤ 𝔼 x, (1 - agreement φ (P x) (Q x) + √(D x)) :=
+      expect_le_expect fun x _ => by
+        have h : agreement φ (P x) (Q x) - agreement φ (P x) (R x) ≤ √(D x) :=
+          (abs_le.mp (abs_agreement_sub_right_le φ (P x) (Q x) (R x))).2
+        linarith only [h]
     _ ≤ _ := by
       rw [expect_add_distrib]
-      exact add_le_add hσ ((Fintype.expect_sqrt_le_sqrt_expect D hD).trans (Real.sqrt_le_sqrt hρ))
+      exact add_le_add hσ ((Fintype.expect_sqrt_le_sqrt_expect D
+        fun _ => sum_nonneg fun _ _ => sq_nonneg _).trans (Real.sqrt_le_sqrt hρ))
 
 /-- Successful mass changes by at most the state norm of the difference of
 the two failure effects. -/
@@ -151,17 +151,16 @@ theorem sum_norm_sub_sq_map_le_of_agreement {β : Type*} [Fintype β] [Decidable
     (happrox : (∑ a, φ.norm (R.effect a - P.effect a) ^ 2) ≤ ρ) :
     ∑ b, φ.norm ((R.map f).effect b - (P.map f).effect b) ^ 2 ≤ 8 * δ + 4 * √ρ := by
   have hcross : 1 - (δ + √ρ) ≤ agreement φ L P := by
-    have h := (abs_agreement_sub_right_le φ L R P).trans (Real.sqrt_le_sqrt happrox)
-    linarith only [(abs_le.mp h).2, hag]
+    linarith only [(abs_le.mp ((abs_agreement_sub_right_le φ L R P).trans
+      (Real.sqrt_le_sqrt happrox))).2, hag]
   have hR := sum_norm_sub_sq_le_of_agreement φ (L.map f) (R.map f)
     (fun b => commute_map_map L R hLR f f b b)
     (hag.trans (agreement_le_agreement_map φ L R f hLR))
   have hP := sum_norm_sub_sq_le_of_agreement φ (L.map f) (P.map f)
     (fun b => commute_map_map L P hLP f f b b)
     (hcross.trans (agreement_le_agreement_map φ L P f hLP))
-  have htriangle := sum_norm_sub_sq_triangle φ (R.map f) (L.map f) (P.map f)
-  have hs (b : β) := φ.norm_sub_comm ((R.map f).effect b) ((L.map f).effect b)
-  simp only [hs] at htriangle
-  linarith only [hR, hP, htriangle]
+  have htri := sum_norm_sub_sq_triangle φ (R.map f) (L.map f) (P.map f)
+  simp only [fun b => φ.norm_sub_comm ((R.map f).effect b) ((L.map f).effect b)] at htri
+  linarith only [hR, hP, htri]
 
 end Cslib.Quantum.Measurement

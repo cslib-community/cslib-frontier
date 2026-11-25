@@ -253,36 +253,19 @@ theorem runTrials_succ (spec : BlockRejectionSpec α) (t : ℕ) :
         match o with
         | some a => PMF.pure (some a)
         | none => spec.runTrials t := by
-  have hmul : (t + 1) * spec.width = spec.width + t * spec.width := by
-    rw [Nat.succ_mul, Nat.add_comm]
   unfold runTrials singleLaw
-  rw [hmul]
-  have hsplit := BitString.uniformList_bind_split spec.width (t * spec.width)
+  rw [show (t + 1) * spec.width = spec.width + t * spec.width by rw [Nat.succ_mul, Nat.add_comm]]
+  refine (BitString.uniformList_bind_split spec.width (t * spec.width)
     (fun front rest => PMF.pure (match spec.attempt front with
       | some a => some a
-      | none => spec.decodeTrials t rest))
-  calc
-    (BitString.uniformList (spec.width + t * spec.width)).map (spec.decodeTrials (t + 1)) =
-        (BitString.uniformList (spec.width + t * spec.width)).bind
-          (fun tape => PMF.pure (match spec.attempt (tape.take spec.width) with
-            | some a => some a
-            | none => spec.decodeTrials t (tape.drop spec.width))) := rfl
-    _ = (BitString.uniformList spec.width).bind (fun front =>
-          (BitString.uniformList (t * spec.width)).bind (fun rest =>
-            PMF.pure (match spec.attempt front with
-              | some a => some a
-              | none => spec.decodeTrials t rest))) := hsplit
-    _ = ((BitString.uniformList spec.width).map spec.attempt).bind (fun o =>
-          match o with
-          | some a => PMF.pure (some a)
-          | none => (BitString.uniformList (t * spec.width)).map (spec.decodeTrials t)) := by
-      rw [PMF.bind_map]
-      congr 1
-      funext front
-      simp only [Function.comp_apply]
-      cases spec.attempt front with
-      | some a => simp [PMF.bind_const]
-      | none => rfl
+      | none => spec.decodeTrials t rest))).trans ?_
+  rw [PMF.bind_map]
+  congr 1
+  funext front
+  simp only [Function.comp_apply]
+  cases spec.attempt front with
+  | some a => simp [PMF.bind_const]
+  | none => rfl
 
 /-- Failure probability after `t` trials is `rejectProb ^ t`. -/
 theorem runTrials_none (spec : BlockRejectionSpec α) (t : ℕ) :
@@ -305,29 +288,14 @@ theorem runTrials_some (spec : BlockRejectionSpec α) (t : ℕ) (a : α) :
   | zero => simp
   | succ t ih =>
     classical
-    rw [runTrials_succ, PMF.bind_apply, tsum_option_eq, ih, Finset.sum_range_succ]
+    rw [runTrials_succ, PMF.bind_apply, tsum_option_eq, ih, geom_sum_succ]
     have hsome : ∑' b : α, spec.singleLaw (some b) *
-        (PMF.pure (some b) : PMF (Option α)) (some a) = spec.singleLaw (some a) := by
-      rw [tsum_eq_single a]
-      · simp
-      · intro b hb
-        simp [hb.symm]
+        (PMF.pure (some b) : PMF (Option α)) (some a) = spec.singleLaw (some a) :=
+      (tsum_eq_single a fun b hb => by simp [hb.symm]).trans (by simp)
     rw [hsome]
     change spec.rejectProb * (spec.singleLaw (some a) * ∑ j ∈ Finset.range t, spec.rejectProb ^ j) +
       spec.singleLaw (some a) = _
-    have hgeom : ∀ m : ℕ, (∑ j ∈ Finset.range m, spec.rejectProb ^ j) * spec.rejectProb + 1 =
-        (∑ j ∈ Finset.range m, spec.rejectProb ^ j) + spec.rejectProb ^ m := fun m => by
-      induction m with
-      | zero => simp
-      | succ k ihk =>
-        rw [Finset.sum_range_succ, add_mul, add_right_comm _ _ 1, ihk, ← pow_succ, add_assoc]
-    calc
-      spec.rejectProb * (spec.singleLaw (some a) * ∑ j ∈ Finset.range t, spec.rejectProb ^ j) +
-          spec.singleLaw (some a) =
-          spec.singleLaw (some a) *
-            ((∑ j ∈ Finset.range t, spec.rejectProb ^ j) * spec.rejectProb + 1) := by ring
-      _ = spec.singleLaw (some a) *
-            ((∑ j ∈ Finset.range t, spec.rejectProb ^ j) + spec.rejectProb ^ t) := by rw [hgeom t]
+    ring
 
 private theorem mul_geom_sum_eq_one_sub_pow {r : ℝ≥0∞} (hr : r ≤ 1) (t : ℕ) :
     (1 - r) * ∑ j ∈ Finset.range t, r ^ j = 1 - r ^ t := by
@@ -335,15 +303,9 @@ private theorem mul_geom_sum_eq_one_sub_pow {r : ℝ≥0∞} (hr : r ≤ 1) (t :
   | zero => simp
   | succ t ih =>
     have hpow : r ^ t ≤ 1 := pow_le_one₀ zero_le hr
-    have hpow_succ : r ^ (t + 1) ≤ r ^ t := by
-      rw [pow_succ]
-      exact mul_le_of_le_one_right' hr
-    rw [Finset.sum_range_succ, mul_add, ih]
-    have hterm : (1 - r) * r ^ t = r ^ t - r ^ (t + 1) := by
-      rw [ENNReal.sub_mul (fun _ _ => ne_top_of_le_ne_top ENNReal.one_ne_top hpow), one_mul,
-        pow_succ']
-    rw [hterm]
-    exact tsub_add_tsub_cancel hpow hpow_succ
+    rw [Finset.sum_range_succ, mul_add, ih, ENNReal.sub_mul fun _ _ =>
+      ne_top_of_le_ne_top ENNReal.one_ne_top hpow, one_mul, ← pow_succ']
+    exact tsub_add_tsub_cancel hpow (pow_le_pow_of_le_one zero_le hr t.le_succ)
 
 /-- When a single trial outputs `some a` with probability `acceptProb * target a`, `t` trials
 output `some a` with probability `(1 - rejectProb ^ t) * target a`. -/
@@ -394,25 +356,18 @@ theorem dist_runCapped_eq [Fintype α] {spec : BlockRejectionSpec α} {target : 
       r.toReal * ∑ b ∈ Finset.univ.erase fallback, (target b).toReal := by
     rw [Finset.mul_sum]
     refine Finset.sum_congr rfl fun b hb => ?_
-    have hne : b ≠ fallback := Finset.ne_of_mem_erase hb
-    rw [hval b, ite_eq_right hne, add_zero,
+    rw [hval b, ite_eq_right (Finset.ne_of_mem_erase hb), add_zero,
       show (1 - r.toReal) * (target b).toReal - (target b).toReal =
         -(r.toReal * (target b).toReal) by ring,
       abs_neg, abs_of_nonneg (mul_nonneg ENNReal.toReal_nonneg ENNReal.toReal_nonneg)]
-  have hsum :
-      (target fallback).toReal + ∑ b ∈ Finset.univ.erase fallback, (target b).toReal = 1 := by
-    rw [Finset.add_sum_erase _ (fun b => (target b).toReal) (Finset.mem_univ fallback)]
-    exact PMF.sum_toReal target
-  have hfb_le : (target fallback).toReal ≤ 1 := PMF.toReal_apply_le_one target fallback
-  have hfb : |(spec.runCapped fallback t fallback).toReal - (target fallback).toReal| =
-      r.toReal * (1 - (target fallback).toReal) := by
-    rw [hval fallback, ite_eq_left rfl,
-      show (1 - r.toReal) * (target fallback).toReal + r.toReal - (target fallback).toReal =
-        r.toReal * (1 - (target fallback).toReal) by ring,
-      abs_of_nonneg (mul_nonneg ENNReal.toReal_nonneg (by linarith))]
   have herase : ∑ b ∈ Finset.univ.erase fallback, (target b).toReal =
-      1 - (target fallback).toReal := by linarith
-  rw [hfb, hrest, herase]
+      1 - (target fallback).toReal := eq_sub_of_add_eq' <|
+    (Finset.add_sum_erase _ _ (Finset.mem_univ fallback)).trans (PMF.sum_toReal target)
+  rw [hrest, herase, hval fallback, ite_eq_left rfl,
+    show (1 - r.toReal) * (target fallback).toReal + r.toReal - (target fallback).toReal =
+      r.toReal * (1 - (target fallback).toReal) by ring,
+    abs_of_nonneg (mul_nonneg ENNReal.toReal_nonneg
+      (sub_nonneg.2 (PMF.toReal_apply_le_one target fallback)))]
   ring
 
 theorem dist_runCapped_le [Fintype α] {spec : BlockRejectionSpec α} {target : PMF α}
@@ -481,15 +436,9 @@ theorem toDDGTree_generates {spec : BlockRejectionSpec α} {target : PMF α}
       refine ENNReal.Tendsto.mul_const ?_ (Or.inr (PMF.apply_ne_top target a))
       exact ENNReal.Tendsto.sub tendsto_const_nhds hpow (Or.inr ENNReal.zero_ne_top)
     rw [tsub_zero, one_mul] at hsub
-    have hle : ∀ t : ℕ, (1 - spec.rejectProb ^ t) * target a ≤ spec.toDDGTree.outputProb a := by
-      intro t
-      have hdiv : (t * spec.width) / spec.width = t := Nat.mul_div_cancel t hw
-      calc
-        (1 - spec.rejectProb ^ t) * target a =
-            spec.toDDGTree.run (t * spec.width) (some a) := by
-          rw [run_toDDGTree, hdiv, runTrials_some_of_singleLaw h]
-        _ ≤ spec.toDDGTree.outputProb a := spec.toDDGTree.run_le_outputProb _ a
-    exact le_of_tendsto' hsub hle
+    refine le_of_tendsto' hsub fun t => ?_
+    have := spec.toDDGTree.run_le_outputProb (t * spec.width) a
+    rwa [run_toDDGTree, Nat.mul_div_cancel t hw, runTrials_some_of_singleLaw h] at this
 
 /-- Closed-form expected fair-bit cost of `toDDGTree`: `(width : ℝ≥0∞) / acceptProb` whenever
 `0 < width` (including `⊤` when `acceptProb = 0`). -/
@@ -497,23 +446,11 @@ theorem expectedFlips_toDDGTree (spec : BlockRejectionSpec α) (hw : 0 < spec.wi
     spec.toDDGTree.expectedFlips = (spec.width : ℝ≥0∞) / spec.acceptProb := by
   unfold DDGTree.expectedFlips
   simp_rw [run_toDDGTree, runTrials_none]
-  let e : ℕ × Fin spec.width ≃ ℕ :=
-    { toFun := fun p => p.1 * spec.width + p.2.val
-      invFun := fun n => (n / spec.width, ⟨n % spec.width, Nat.mod_lt n hw⟩)
-      left_inv := fun ⟨q, r⟩ => by
-        ext
-        · dsimp only
-          rw [Nat.mul_comm, Nat.mul_add_div hw, Nat.div_eq_of_lt r.isLt, Nat.add_zero]
-        · dsimp only
-          rw [Nat.mul_comm, Nat.mul_add_mod, Nat.mod_eq_of_lt r.isLt]
-      right_inv := fun n => by
-        dsimp only
-        rw [Nat.mul_comm, Nat.div_add_mod] }
-  rw [← e.tsum_eq]
-  have hdiv : ∀ p : ℕ × Fin spec.width,
-      (e p) / spec.width = p.1 := fun ⟨q, r⟩ => by
-    change (q * spec.width + r.val) / spec.width = q
-    rw [Nat.mul_comm, Nat.mul_add_div hw, Nat.div_eq_of_lt r.isLt, Nat.add_zero]
+  have : NeZero spec.width := ⟨hw.ne'⟩
+  rw [← (Nat.divModEquiv spec.width).symm.tsum_eq]
+  have hdiv (p : ℕ × Fin spec.width) : (Nat.divModEquiv spec.width).symm p / spec.width = p.1 := by
+    rw [Nat.divModEquiv_symm_apply, Nat.mul_comm, Nat.mul_add_div hw, Nat.div_eq_of_lt p.2.isLt,
+      Nat.add_zero]
   simp_rw [hdiv]
   rw [tsum_prod']
   simp_rw [tsum_fintype]
@@ -526,14 +463,8 @@ theorem expectedFlips_toDDGTree_le_two_mul {spec : BlockRejectionSpec α}
     (hw : 0 < spec.width) (hacc : (1 / 2 : ℝ≥0∞) ≤ spec.acceptProb) :
     spec.toDDGTree.expectedFlips ≤ 2 * (spec.width : ℝ≥0∞) := by
   rw [expectedFlips_toDDGTree spec hw, div_eq_mul_inv]
-  have hinv : spec.acceptProb⁻¹ ≤ (1 / 2 : ℝ≥0∞)⁻¹ := ENNReal.inv_le_inv.mpr hacc
-  have htwo : (1 / 2 : ℝ≥0∞)⁻¹ = 2 := by
-    rw [one_div, inv_inv]
-  rw [htwo] at hinv
-  calc
-    (spec.width : ℝ≥0∞) * spec.acceptProb⁻¹ ≤ (spec.width : ℝ≥0∞) * 2 :=
-      mul_le_mul_right hinv _
-    _ = 2 * (spec.width : ℝ≥0∞) := mul_comm _ _
+  exact (mul_le_mul_right ((ENNReal.inv_le_inv.mpr hacc).trans_eq (by rw [one_div, inv_inv]))
+    _).trans_eq (mul_comm _ _)
 
 private theorem runTrials_none_le_of_one_half_le {spec : BlockRejectionSpec α}
     (hacc : (1 / 2 : ℝ≥0∞) ≤ spec.acceptProb) (t : ℕ) :
@@ -573,32 +504,16 @@ strictly below `n`. -/
 private theorem singleLaw_finCutoffSpec_some {n k : ℕ} (hnk : n ≤ 2 ^ k) (i : Fin n) :
     (finCutoffSpec n k).singleLaw (some i) = ((2 ^ k : ℕ) : ℝ≥0∞)⁻¹ := by
   let f : ℕ → Option (Fin n) := Fin.ofNat? n
-  have hmap : (finCutoffSpec n k).singleLaw =
-      ((PMF.uniformOfFintype (Fin (2 ^ k))).map Fin.val).map f := by
-    calc
-      (finCutoffSpec n k).singleLaw =
-          (BitString.uniformList k).map (f ∘ BitString.binaryValue) := rfl
-      _ = ((BitString.uniformList k).map BitString.binaryValue).map f :=
-        (PMF.map_comp _ _ _).symm
-      _ = ((PMF.uniformOfFintype (Fin (2 ^ k))).map Fin.val).map f := by
-        rw [BitString.uniformList_binaryValue]
-  rw [hmap, PMF.map_comp, PMF.map_apply, tsum_fintype]
-  have hi : i.val < 2 ^ k := lt_of_lt_of_le i.isLt hnk
-  rw [Finset.sum_eq_single ⟨i.val, hi⟩]
+  change ((BitString.uniformList k).map (f ∘ BitString.binaryValue)) (some i) = _
+  rw [← PMF.map_comp, BitString.uniformList_binaryValue, PMF.map_comp, PMF.map_apply,
+    tsum_fintype, Finset.sum_eq_single ⟨i.val, i.isLt.trans_le hnk⟩]
   · simp [f, i.isLt, PMF.uniformOfFintype_apply]
   · intro j _ hj
-    simp only [Function.comp_apply, f, Fin.ofNat?]
-    by_cases hlt : j.val < n
-    · simp only [hlt, ↓reduceDIte]
-      split_ifs with heq
-      · exfalso
-        apply hj
-        ext
-        exact (congrArg Fin.val (Option.some.inj heq)).symm
-      · rfl
-    · simp [hlt]
-  · intro hnot
-    exact False.elim (hnot (Finset.mem_univ _))
+    refine ite_eq_right fun heq => hj (Fin.ext ?_)
+    simp only [Function.comp_apply, f, Fin.ofNat?] at heq
+    split_ifs at heq
+    exact (congrArg Fin.val (Option.some.inj heq)).symm
+  · simp
 
 private theorem acceptProb_finCutoffSpec {n k : ℕ} (hnk : n ≤ 2 ^ k) :
     (finCutoffSpec n k).acceptProb = (n : ℝ≥0∞) / ((2 ^ k : ℕ) : ℝ≥0∞) := by
@@ -708,11 +623,8 @@ theorem expectedFlips_uniformFinTree_two_pow (k : ℕ) :
     rw [ite_eq_left (by simp : 2 ^ 0 = 1), Nat.cast_zero]
     exact expectedFlips_constZeroFinTree _
   | succ k =>
-    have h2 : 2 ≤ 2 ^ (k + 1) := by
-      rw [pow_succ]
-      have : 1 ≤ 2 ^ k := Nat.one_le_pow k 2 (by decide)
-      omega
-    rw [expectedFlips_uniformFinTree_of_two_le h2, Nat.clog_pow _ _ Nat.one_lt_two,
+    rw [expectedFlips_uniformFinTree_of_two_le (Nat.le_self_pow k.succ_ne_zero 2),
+      Nat.clog_pow _ _ Nat.one_lt_two,
       ENNReal.mul_div_cancel_right (by positivity) (ENNReal.natCast_ne_top _)]
 
 /-- For every `n ≥ 1`, `uniformFinTree n` reads at most `2 * Nat.clog 2 n` fair bits in
@@ -767,52 +679,25 @@ private theorem singleLaw_subsetDyadicSpec_some {α : Type*} [DecidableEq α] {m
     (subsetDyadicSpec m enum S).singleLaw (some a) =
       if a ∈ S then ((dyadicSize m : ℕ) : ℝ≥0∞)⁻¹ else 0 := by
   have hmk : m ≤ 2 ^ (Nat.log 2 m + 1) := (lt_dyadicSize m).le
-  set K := 2 ^ (Nat.log 2 m + 1)
   let g : ℕ → Option α := fun v =>
     if h : v < m then (if enum ⟨v, h⟩ ∈ S then some (enum ⟨v, h⟩) else none) else none
-  have hmap : (subsetDyadicSpec m enum S).singleLaw =
-      ((PMF.uniformOfFintype (Fin K)).map Fin.val).map g := by
-    calc
-      (subsetDyadicSpec m enum S).singleLaw =
-          (BitString.uniformList (Nat.log 2 m + 1)).map (g ∘ BitString.binaryValue) := rfl
-      _ = ((BitString.uniformList (Nat.log 2 m + 1)).map BitString.binaryValue).map g :=
-        (PMF.map_comp _ _ _).symm
-      _ = ((PMF.uniformOfFintype (Fin K)).map Fin.val).map g := by
-        rw [BitString.uniformList_binaryValue]
-  rw [hmap, PMF.map_comp, PMF.map_apply, tsum_fintype]
+  change ((BitString.uniformList (Nat.log 2 m + 1)).map (g ∘ BitString.binaryValue)) (some a) = _
+  rw [← PMF.map_comp, BitString.uniformList_binaryValue, PMF.map_comp, PMF.map_apply,
+    tsum_fintype]
   split_ifs with haS
   · obtain ⟨i, rfl⟩ := hcov a haS
-    have hiK : i.val < K := lt_of_lt_of_le i.isLt hmk
-    rw [Finset.sum_eq_single ⟨i.val, hiK⟩]
-    · simp [g, i.isLt, haS, PMF.uniformOfFintype_apply, dyadicSize, K]
+    rw [Finset.sum_eq_single ⟨i.val, i.isLt.trans_le hmk⟩]
+    · simp [g, i.isLt, haS, PMF.uniformOfFintype_apply, dyadicSize]
     · intro j _ hj
-      simp only [Function.comp_apply, g]
-      by_cases hlt : j.val < m
-      · simp only [hlt, ↓reduceDIte]
-        by_cases hmS : enum ⟨j.val, hlt⟩ ∈ S
-        · simp only [hmS, ↓reduceIte]
-          split_ifs with heq
-          · exfalso
-            apply hj
-            ext
-            exact (congrArg Fin.val (hinj (Option.some.inj heq))).symm
-          · rfl
-        · simp [hmS]
-      · simp [hlt]
-    · intro hnot
-      exact False.elim (hnot (Finset.mem_univ _))
-  · refine Finset.sum_eq_zero fun j _ => ?_
-    simp only [Function.comp_apply, g]
-    by_cases hlt : j.val < m
-    · simp only [hlt, ↓reduceDIte]
-      by_cases hmS : enum ⟨j.val, hlt⟩ ∈ S
-      · simp only [hmS, ↓reduceIte]
-        split_ifs with heq
-        · exfalso
-          exact haS (Option.some.inj heq ▸ hmS)
-        · rfl
-      · simp [hmS]
-    · simp [hlt]
+      refine ite_eq_right fun heq => hj (Fin.ext ?_)
+      simp only [Function.comp_apply, g] at heq
+      split_ifs at heq with hlt hmS
+      exact (congrArg Fin.val (hinj (Option.some.inj heq))).symm
+    · simp
+  · refine Finset.sum_eq_zero fun j _ => ite_eq_right fun heq => ?_
+    simp only [Function.comp_apply, g] at heq
+    split_ifs at heq with hlt hmS
+    exact haS (Option.some.inj heq ▸ hmS)
 
 theorem acceptProb_subsetDyadicSpec {α : Type*} [DecidableEq α] {m : ℕ} {enum : Fin m → α}
     (hinj : Function.Injective enum) {S : Finset α}

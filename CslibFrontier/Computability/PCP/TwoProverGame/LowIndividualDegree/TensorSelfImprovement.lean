@@ -76,13 +76,10 @@ private theorem exists_leftSelfImprovementCertificate (M : Q → POVM Ans ι) :
   classical
   obtain ⟨T, Z, hZ, hle, hslack, _, _, _⟩ := exists_selfImprovement_trace_certificate (d := d)
     (decodedPoint (fun q => (M q).toMeasurement))
-  refine ⟨T.toPOVM, Z, hZ, hle, ?_, ?_⟩
-  · intro g
+  refine ⟨T.toPOVM, Z, hZ, hle, fun g => ?_, fun g => ?_⟩ <;>
     rw [← averagePolynomialPointEffect_leftMeasurement]
-    exact OrderHomClass.mono (kroneckerOne (κ := κ)) (hle g)
-  · intro g
-    rw [← averagePolynomialPointEffect_leftMeasurement]
-    change kroneckerOne (κ := κ) (T.effect g) * kroneckerOne Z =
+  · exact OrderHomClass.mono (kroneckerOne (κ := κ)) (hle g)
+  · change kroneckerOne (κ := κ) (T.effect g) * kroneckerOne Z =
       kroneckerOne (T.effect g) * kroneckerOne (averagePolynomialPointEffect
         (decodedPoint (fun q => (M q).toMeasurement)) g)
     rw [← map_mul, ← map_mul, hslack]
@@ -157,10 +154,8 @@ theorem exists_tensorSelfImprovement
     (fun g u b => Measurement.commute_map_right (C.alice (.point u)) decodePoint _
       (fun a =>
         (commute_kroneckerOne_oneKronecker ((S.alice (.point u)).effect a) (G.effect g)).symm) b)
-  refine ⟨T, Z, hZ, hlocal,
-    ?_, hpoint, hgap, hstrong⟩
-  exact (sub_le_sub hinput (mul_le_mul_of_nonneg_left (Real.sqrt_le_sqrt hcopy)
-    (by norm_num))).trans hmass
+  exact ⟨T, Z, hZ, hlocal, (sub_le_sub hinput (mul_le_mul_of_nonneg_left (Real.sqrt_le_sqrt hcopy)
+    (by norm_num))).trans hmass, hpoint, hgap, hstrong⟩
 
 private theorem sandwichedPolynomial_effect_lift {J : Type*} [CStarAlgebra J]
     [PartialOrder J] [StarOrderedRing J]
@@ -224,18 +219,14 @@ private theorem selfImprovement_budget (m δ ε r : ℝ) (hm : 1 ≤ m)
   have hr' := Real.sqrt_nonneg r
   have ht : 0 ≤ t := by dsimp [t]; positivity
   constructor
-  · apply (Real.sqrt_le_iff).2
-    constructor
-    · positivity
-    · nlinarith only [Real.sq_sqrt hδ, hδ]
+  · exact Real.sqrt_le_iff.2 ⟨by positivity, by nlinarith only [Real.sq_sqrt hδ, hδ]⟩
   · have hinner : 6 * (2 * δ + 4 * ε + r) ≤ (6 * t) ^ 2 := by
       dsimp only [t]
       nlinarith only [Real.sq_sqrt hδ, Real.sq_sqrt hε, Real.sq_sqrt hr, hδ, hε, hr,
         mul_nonneg hδ' hε', mul_nonneg hδ' hr', mul_nonneg hε' hr']
     calc
       √ξ ≤ √(m * (6 * t) ^ 2) := Real.sqrt_le_sqrt (mul_le_mul_of_nonneg_left hinner (by linarith))
-      _ = √m * (6 * t) := by
-        rw [Real.sqrt_mul (by linarith), Real.sqrt_sq (by positivity)]
+      _ = √m * (6 * t) := by rw [Real.sqrt_mul (by linarith), Real.sqrt_sq (by positivity)]
       _ ≤ m * (6 * t) := mul_le_mul_of_nonneg_right (Real.sqrt_le_self_iff.mpr (Or.inr hm))
         (by positivity)
       _ = 6 * m * t := by ring
@@ -283,17 +274,11 @@ theorem exists_symmetricSelfImprovement
   obtain ⟨hδsqrt, hξsqrt⟩ := selfImprovement_budget m δ ε r hm hδ hε hr
   have ht : 0 ≤ t := by dsimp [t]; positivity
   have hmt : t ≤ m * t := le_mul_of_one_le_left ht hm
-  have hδt : √δ ≤ t := by
-    dsimp only [t]
-    linarith only [Real.sqrt_nonneg ε, Real.sqrt_nonneg r]
-  have hrt : √r ≤ t := by
-    dsimp only [t]
-    linarith only [Real.sqrt_nonneg ε, Real.sqrt_nonneg δ]
+  have hδt : √δ ≤ t := by dsimp only [t]; linarith only [Real.sqrt_nonneg ε, Real.sqrt_nonneg r]
+  have hrt : √r ≤ t := by dsimp only [t]; linarith only [Real.sqrt_nonneg ε, Real.sqrt_nonneg δ]
   have hδmt := hδt.trans hmt
   have hrmt' := hrt.trans hmt
-  have hz : ζ = 100 * (m * t) := by
-    change 100 * m * t = 100 * (m * t)
-    ring
+  have hz : ζ = 100 * (m * t) := mul_assoc _ _ _
   have hL (q : Q) : (C.alice q).IsProjective :=
     QuantumStrategy.leftMeasurement_isProjective (S.alice q) (hprojective q)
   have hR (q : Q) : (C.bob q).IsProjective := by
@@ -351,8 +336,8 @@ theorem exists_symmetricSelfImprovement
       Commute ((evaluatePolynomialMeasurement R u).effect (some a))
         ((decodedPoint C.alice u).effect b) := by
     rw [evaluatePolynomialMeasurement_effect_some]
-    refine Commute.sum_left _ _ _ fun g _ => ?_
-    exact Measurement.commute_map_right (C.alice (.point u)) decodePoint _ (fun c =>
+    exact Commute.sum_left _ _ _ fun g _ =>
+      Measurement.commute_map_right (C.alice (.point u)) decodePoint _ (fun c =>
       (commute_kroneckerOne_oneKronecker
         ((S.alice (.point u)).effect c) (H.effect (some g))).symm) b
   rw [hleft] at hmass hpoint hgap
@@ -389,12 +374,9 @@ theorem exists_symmetricSelfImprovement
       change 5 * √(2 * δ) + 5 * √ξ + 2 * √ξ + m * d / Fintype.card F ≤ ζ
       rw [mul_div_assoc, hz]
       change 5 * √(2 * δ) + 5 * √ξ + 2 * √ξ + m * r ≤ 100 * (m * t)
-      have hrs : r ≤ √r := by
-        apply (Real.le_sqrt hr hr).2
-        nlinarith only [mul_nonneg hr (sub_nonneg.mpr hsmall)]
-      have hrmt : m * r ≤ m * t := by
-        apply mul_le_mul_of_nonneg_left _ (by linarith)
-        exact hrs.trans hrt
+      have hrs : r ≤ √r :=
+        (Real.le_sqrt hr hr).2 (by nlinarith only [mul_nonneg hr (sub_nonneg.mpr hsmall)])
+      have hrmt : m * r ≤ m * t := mul_le_mul_of_nonneg_left (hrs.trans hrt) (by linarith)
       linarith only [hδsqrt, hξsqrt, hδmt, hrmt, hmt, ht]
     · have hmass_le : (C.state L.successfulEffect).re ≤ 1 := by
         apply C.state.re_apply_le_one

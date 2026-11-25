@@ -85,18 +85,14 @@ theorem exec_lookupLoop {w L m t C : ℕ} (x : Data registers) (π : Cube L)
         (if Nat.count (fun i => raw i = 9) (y.regs Reg.level) = 0 then 0 else 1) = 0 := by
       intro hstar
       have hn := rawCubeDigit_no_fixed_before_star hπ hk hstar
-      have hz : Nat.count (fun i => raw i = 9) (y.regs Reg.level) = 0 :=
-        Nat.count_of_forall_not (fun i hi hh => hn ⟨i, hi, hh⟩)
-      rw [hz]
-      rfl
+      rw [Nat.count_of_forall_not (fun i hi hh => hn ⟨i, hi, hh⟩)]; rfl
     obtain ⟨z, hz, hzm, hzl, hzp, hzc, hzs, hzf, hzv, hzi, hframe⟩ :=
       exec_lookupDigit y hk (rawCubeDigit_le_ten π _) (Nat.count_le _)
         (Nat.count_le _) (lookupCompletion_lt (fun i _ => rawCubeDigit_le_ten π i))
         hseenle horder hp.cube (by rw [hm]; exact hread _ hk) rfl hs hf hc hv hinv
         hpower hp.nil hp.one hp.nine hp.ten hfit
     have hpz : LookupParameters L C z := by regs_frame
-    refine ⟨z, hz, ⟨hpz, hzm.trans hm, ?_, ?_, ?_, ?_, ?_, hzi⟩, hzl⟩
-    · exact hzp
+    refine ⟨z, hz, ⟨hpz, hzm.trans hm, hzp, ?_, ?_, ?_, ?_, hzi⟩, hzl⟩
     · simpa only [lookupCompletion] using hzc
     · simpa only [Nat.count_succ] using hzs
     · simpa only [Nat.count_succ] using hzf

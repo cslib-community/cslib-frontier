@@ -26,6 +26,7 @@ import CslibFrontier.Foundations.Data.List.Lookup
 import CslibFrontier.Foundations.Data.List.OfFn
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.UniformNat.Residue
+import CslibFrontier.Tactic.SuppCases
 
 /-!
 # Weak reusability of the common-matrix fuzzy extractor
@@ -440,12 +441,10 @@ private theorem length_le_of_mem_support_simHandler {m n w t : ℕ} {helper : Li
     reply.length ≤ m * w := by
   unfold simHandler at h
   split_ifs at h
-  · simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.support_bind, PMF.support_pure,
-      Set.mem_iUnion, Set.mem_singleton_iff] at h
-    obtain ⟨coins, _, rfl⟩ := h
+  · supp_cases h with ⟨coins, _, rfl⟩
     simp [replyWordOf, List.length_flatMap, BitString.length_lowBits]
-  · simp only [ProbComp.eval_pure, PMF.support_pure, Set.mem_singleton_iff] at h
-    simp [h]
+  · supp_cases h
+    simp
 
 /-- **`commonMatrixSimulator` is PPT.** When `m, k, l, w, t` are computable in polynomial time in
 unary, the simulator of a uniform strict oracle PPT word adversary is a uniform strict PPT FMR
@@ -531,9 +530,7 @@ theorem isPPT_commonMatrixSimulator (hm : ComputableInPolyTime m encUnary encUna
     (initial := fun _ => ()) (resources := fun x _ => m x.secParam * w x.secParam)
     computableInPolyTime_view hhandler (ComputableInPolyTime.const ()) (fun _ _ => True)
     (fun _ => trivial) hresources fun x request state _ result hresult => by
-      simp only [StateT.lift, ProbComp.eval_bind, ProbComp.eval_pure, PMF.support_bind,
-        PMF.support_pure, Set.mem_iUnion, Set.mem_singleton_iff] at hresult
-      obtain ⟨reply, hreply, rfl⟩ := hresult
+      supp_cases hresult [StateT.lift] with ⟨reply, hreply, rfl⟩
       exact ⟨trivial, length_le_of_mem_support_simHandler hreply, Nat.le_add_right _ _⟩
   have hguess : IsPPTOn (encPair input (encPair encBits (encFinEnum Unit))) encBool
       (fun p => A.guess p.1.secParam p.2.1 (keyWord p.1.key)) :=

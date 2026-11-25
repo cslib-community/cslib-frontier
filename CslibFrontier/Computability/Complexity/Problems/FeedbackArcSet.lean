@@ -139,16 +139,9 @@ private theorem computableInPolyTime_backArcs :
 private theorem computableInPolyTime_check :
     ComputableInPolyTime check (encPair encFeedbackArcSet (encList encNat)) encBool := by
   have hb := computableInPolyTime_backArcs
-  have hl : ComputableInPolyTime (fun x : FeedbackArcSetInstance × List ℕ =>
-      (selectDistinct (backArcs x.1.graph x.2)
-        (List.replicate (backArcs x.1.graph x.2).length true)).length)
-      (encPair encFeedbackArcSet (encList encNat)) encUnary :=
-    (length_list _).comp ((computableInPolyTime_selectDistinct _).comp
-      (hb.prod ((bitsReplicate true).comp ((length_list _).comp hb))))
-  have hk : ComputableInPolyTime (fun x : FeedbackArcSetInstance × List ℕ => x.1.bound)
-      (encPair encFeedbackArcSet (encList encNat)) encNat := by
-    fun_prop
-  exact binary_le' (unary_to_binary.comp hl) hk
+  exact binary_le' (unary_to_binary.comp ((length_list _).comp
+    ((computableInPolyTime_selectDistinct _).comp
+      (hb.prod ((bitsReplicate true).comp ((length_list _).comp hb)))))) (by fun_prop)
 
 private theorem check_iff (x : FeedbackArcSetInstance × List ℕ) :
     check x = true ↔ (backArcs x.1.graph x.2).toFinset.card ≤ x.1.bound := by
@@ -165,10 +158,9 @@ private theorem mem_of_certifies {G : Graph} {k : ℕ} {ρ : List ℕ} (h : Cert
   classical
   refine ⟨(backArcs G ρ).toFinset, fun e he => (mem_backArcs.1 (List.mem_toFinset.1 he)).1, h,
     isDirAcyclic_of_rank (f := colorOf G ρ) fun u v huv => ?_⟩
-  rw [dirAdj_deleteArcs, List.mem_toFinset, mem_backArcs] at huv
-  obtain ⟨⟨hu, hv, huv⟩, hback⟩ := huv
-  by_contra hlt
-  exact hback ⟨huv, hu, hv, Nat.le_of_not_lt hlt⟩
+  obtain ⟨⟨hu, hv, huv⟩, hback⟩ := by
+    rwa [dirAdj_deleteArcs, List.mem_toFinset, mem_backArcs] at huv
+  exact Nat.lt_of_not_ge fun hle => hback ⟨huv, hu, hv, hle⟩
 
 /-- A member has a numbering, at most the number of distinct declared vertices, listed along the
 vertex list, whose back arcs lie in a feedback arc set. -/
@@ -180,12 +172,10 @@ private theorem exists_certifies {G : Graph} {k : ℕ}
   obtain ⟨S, -, hcard, hacyc⟩ := h
   obtain ⟨f, hflt, hf⟩ := exists_rank_of_isDirAcyclic hacyc
   refine ⟨f, fun v hv => (hflt v hv).le, (Finset.card_le_card fun e he => ?_).trans hcard⟩
-  rw [List.mem_toFinset, mem_backArcs] at he
-  obtain ⟨he, h1, h2, hle⟩ := he
+  obtain ⟨he, h1, h2, hle⟩ := mem_backArcs.1 (List.mem_toFinset.1 he)
   rw [colorOf_map h1, colorOf_map h2] at hle
   by_contra hS
-  have := hf e.1 e.2 (dirAdj_deleteArcs.2 ⟨⟨h1, h2, he⟩, hS⟩)
-  omega
+  exact not_lt_of_ge hle (hf e.1 e.2 (dirAdj_deleteArcs.2 ⟨⟨h1, h2, he⟩, hS⟩))
 
 /-- `FeedbackArcSet` belongs to `NP`, with a listed numbering as the witness. -/
 theorem mem_NP : FeedbackArcSet ∈ NP encFeedbackArcSet := by
@@ -218,17 +208,15 @@ theorem dirAdj_splitVertices {G : Graph} {a b : ℕ} :
       (∃ v ∈ G.vertices, a = 2 * v ∧ b = 2 * v + 1) ∨
         ∃ u v, G.DirAdj u v ∧ a = 2 * u + 1 ∧ b = 2 * v := by
   simp only [DirAdj, splitVertices, List.mem_append, List.mem_map, Prod.mk.injEq, Prod.exists]
-  constructor
+  refine ⟨?_, ?_⟩
   · rintro ⟨ha, hb, ⟨v, hv, rfl, rfl⟩ | ⟨u, v, he, rfl, rfl⟩⟩
     · exact Or.inl ⟨v, hv, rfl, rfl⟩
     · refine Or.inr ⟨u, v, ⟨?_, ?_, he⟩, rfl, rfl⟩
-      · obtain ⟨w, hw, h⟩ | ⟨w, hw, h⟩ := ha
+      · rcases ha with ⟨w, _, h⟩ | ⟨w, hw, h⟩
         · omega
-        · obtain rfl : w = u := by omega
-          exact hw
-      · obtain ⟨w, hw, h⟩ | ⟨w, hw, h⟩ := hb
-        · obtain rfl : w = v := by omega
-          exact hw
+        · exact (by omega : w = u) ▸ hw
+      · rcases hb with ⟨w, hw, h⟩ | ⟨w, _, h⟩
+        · exact (by omega : w = v) ▸ hw
         · omega
   · rintro (⟨v, hv, rfl, rfl⟩ | ⟨u, v, ⟨hu, hv, he⟩, rfl, rfl⟩)
     · exact ⟨Or.inl ⟨v, hv, rfl⟩, Or.inr ⟨v, hv, rfl⟩, Or.inl ⟨v, hv, rfl, rfl⟩⟩
@@ -244,15 +232,12 @@ private def splitRank (R : Finset ℕ) (f : ℕ → ℕ) (M w : ℕ) : ℕ :=
 
 private theorem splitRank_even (R : Finset ℕ) (f : ℕ → ℕ) (M v : ℕ) :
     splitRank R f M (2 * v) = if v ∈ R then 2 * M + 1 else 2 * f v + 1 := by
-  have h1 : 2 * v / 2 = v := by omega
-  have h2 : 2 * v % 2 = 0 := by omega
-  simp only [splitRank, h1, h2, ↓reduceIte]
+  simp only [splitRank, show 2 * v / 2 = v by omega, show 2 * v % 2 = 0 by omega, ↓reduceIte]
 
 private theorem splitRank_odd (R : Finset ℕ) (f : ℕ → ℕ) (M v : ℕ) :
     splitRank R f M (2 * v + 1) = if v ∈ R then 0 else 2 * f v + 2 := by
-  have h1 : (2 * v + 1) / 2 = v := by omega
-  have h2 : ¬(2 * v + 1) % 2 = 0 := by omega
-  simp only [splitRank, h1, h2, ↓reduceIte]
+  simp only [splitRank, show (2 * v + 1) / 2 = v by omega,
+    show ¬(2 * v + 1) % 2 = 0 by omega, ↓reduceIte]
 
 /-- The vertex-splitting reduction: the split graph with the same `k`. -/
 @[expose]
@@ -273,14 +258,12 @@ theorem toFeedbackArcSet_mem_iff (x : FeedbackVertexSetInstance) :
       fun v hv => (Finset.mem_filter.1 hv).2,
       (Finset.card_filter_le _ _).trans (Finset.card_image_le.trans hcard),
       isDirAcyclic_of_rank (f := fun v => g (2 * v + 1)) fun u v huv => ?_⟩
-    rw [dirAdj_deleteVerts] at huv
-    obtain ⟨⟨hu, hv, he⟩, huR, hvR⟩ := huv
+    obtain ⟨⟨hu, hv, he⟩, huR, hvR⟩ := dirAdj_deleteVerts.1 huv
     simp only [Finset.mem_filter, Finset.mem_image, not_and] at huR hvR
-    have h1 : (2 * u + 1, 2 * v) ∉ S := fun h => huR ⟨_, h, by simp only; omega⟩ hu
-    have h2 : (2 * v, 2 * v + 1) ∉ S := fun h => hvR ⟨_, h, by simp only; omega⟩ hv
     have := hg _ _ (dirAdj_deleteArcs.2 ⟨dirAdj_splitVertices.2 (Or.inr ⟨u, v, ⟨hu, hv, he⟩,
-      rfl, rfl⟩), h1⟩)
-    have := hg _ _ (dirAdj_deleteArcs.2 ⟨dirAdj_splitVertices.2 (Or.inl ⟨v, hv, rfl, rfl⟩), h2⟩)
+      rfl, rfl⟩), fun h => huR ⟨_, h, by simp only; omega⟩ hu⟩)
+    have := hg _ _ (dirAdj_deleteArcs.2 ⟨dirAdj_splitVertices.2 (Or.inl ⟨v, hv, rfl, rfl⟩),
+      fun h => hvR ⟨_, h, by simp only; omega⟩ hv⟩)
     omega
   · rintro ⟨R, hRV, hcard, hacyc⟩
     obtain ⟨f, hflt, hf⟩ := exists_rank_of_isDirAcyclic hacyc
@@ -290,22 +273,20 @@ theorem toFeedbackArcSet_mem_iff (x : FeedbackVertexSetInstance) :
         (f := splitRank R f (G.deleteVerts R).vertices.toFinset.card) fun a b hab => ?_⟩
     · obtain ⟨v, hv, rfl⟩ := Finset.mem_image.1 he
       exact List.mem_append_left _ (List.mem_map.2 ⟨v, hRV v hv, rfl⟩)
-    · rw [dirAdj_deleteArcs, dirAdj_splitVertices] at hab
-      obtain ⟨⟨v, hv, rfl, rfl⟩ | ⟨u, v, huv, rfl, rfl⟩, hS⟩ := hab
-      · have hvR : v ∉ R := fun h => hS (Finset.mem_image.2 ⟨v, h, rfl⟩)
-        simp only [splitRank_even, splitRank_odd, hvR, ↓reduceIte]
+    · obtain ⟨⟨v, hv, rfl, rfl⟩ | ⟨u, v, huv, rfl, rfl⟩, hS⟩ := by
+        rwa [dirAdj_deleteArcs, dirAdj_splitVertices] at hab
+      · simp only [splitRank_even, splitRank_odd,
+          show v ∉ R from fun h => hS (Finset.mem_image.2 ⟨v, h, rfl⟩), ↓reduceIte]
         omega
       · rw [splitRank_even, splitRank_odd]
         by_cases huR : u ∈ R
         · simp only [huR, ↓reduceIte]
           split <;> omega
-        · have hu := hflt u (mem_deleteVerts_vertices.2 ⟨huv.1, huR⟩)
+        · have := hflt u (mem_deleteVerts_vertices.2 ⟨huv.1, huR⟩)
           by_cases hvR : v ∈ R
-          · simp only [huR, hvR, ↓reduceIte]
-            omega
+          · simp only [huR, hvR, ↓reduceIte]; omega
           · have := hf u v (dirAdj_deleteVerts.2 ⟨huv, huR, hvR⟩)
-            simp only [huR, hvR, ↓reduceIte]
-            omega
+            simp only [huR, hvR, ↓reduceIte]; omega
 
 /-- The vertex-splitting reduction is polynomial-time. -/
 @[fun_prop]

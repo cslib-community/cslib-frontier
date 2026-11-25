@@ -90,17 +90,12 @@ theorem mem_lossClass [DecidableEq β] {C : ConceptClass α β} {f : α × β �
 pattern on labeled points is determined by the labeling of their domain points. -/
 theorem growthFunction_lossClass_le (C : ConceptClass α Bool) (m : ℕ) :
     growthFunction (lossClass C) m ≤ growthFunction C m := by
-  refine growthFunction_le fun x => ?_
-  have hsub : restriction (lossClass C) x ⊆
-      (fun v i => decide (v i ≠ (x i).2)) '' restriction C (fun i => (x i).1) := by
-    intro w hw
-    obtain ⟨_, ⟨h, hh, rfl⟩, hw⟩ := mem_restriction.1 hw
-    exact ⟨fun i => h (x i).1, mem_restriction.2 ⟨h, hh, fun _ => rfl⟩, funext hw⟩
-  calc (restriction (lossClass C) x).ncard
-      ≤ ((fun v i => decide (v i ≠ (x i).2)) '' restriction C (fun i => (x i).1)).ncard :=
-        Set.ncard_le_ncard hsub (Set.toFinite _)
-    _ ≤ (restriction C (fun i => (x i).1)).ncard := Set.ncard_image_le (Set.toFinite _)
-    _ ≤ growthFunction C m := ncard_restriction_le_growthFunction C _
+  refine growthFunction_le fun x =>
+    ((Set.ncard_le_ncard (t := (fun v i => decide (v i ≠ (x i).2)) ''
+        restriction C fun i => (x i).1) (fun w hw => ?_) (Set.toFinite _)).trans
+      (Set.ncard_image_le (Set.toFinite _))).trans (ncard_restriction_le_growthFunction C _)
+  obtain ⟨_, ⟨h, hh, rfl⟩, hw⟩ := mem_restriction.1 hw
+  exact ⟨fun i => h (x i).1, mem_restriction.2 ⟨h, hh, fun _ => rfl⟩, funext hw⟩
 
 /-- The loss class shatters no larger finite sets than `C`: two labeled points of a set shattered
 by `lossClass C` have distinct domain points, and their domain points are shattered by `C`. -/
@@ -110,46 +105,32 @@ theorem card_le_of_setShatters_lossClass {C : ConceptClass α Bool} {d : ℕ}
   classical
   -- Two points of `W` with the same domain point would have to be misclassified together.
   have hinj : Set.InjOn Prod.fst (W : Set (α × Bool)) := by
-    rintro ⟨x, y⟩ hp ⟨x', y'⟩ hq (rfl : x = x')
+    rintro ⟨x, y⟩ hp ⟨_, y'⟩ hq rfl
     by_contra hne
-    have hyy : y ≠ y' := fun h => hne (by rw [h])
     obtain ⟨f, hf, hfW⟩ := hW {(x, y), (x, y')}
       (Set.insert_subset_iff.2 ⟨hp, Set.singleton_subset_iff.2 hq⟩)
     obtain ⟨h, -, rfl⟩ := mem_lossClass.1 hf
-    have h1 : (x, y) ∈ ({(x, y), (x, y')} : Set (α × Bool)) := Set.mem_insert _ _
-    have h2 : (x, y') ∈ ({(x, y), (x, y')} : Set (α × Bool)) := Set.mem_insert_of_mem _ rfl
-    rw [← hfW] at h1 h2
-    simp only [Set.mem_inter_iff, Set.mem_preimage, Set.mem_singleton_iff,
-      decide_eq_true_eq] at h1 h2
-    have ha : h x ≠ y := h1.1
-    have hb : h x ≠ y' := h2.1
-    cases hx : h x <;> cases y <;> cases y' <;> simp_all
+    have h1 := Set.ext_iff.1 hfW (x, y)
+    have h2 := Set.ext_iff.1 hfW (x, y')
+    simp only [Set.mem_inter_iff, Set.mem_preimage, Set.mem_singleton_iff, decide_eq_true_eq,
+      Set.mem_insert_iff, true_or, or_true, iff_true] at h1 h2
+    cases h x <;> cases y <;> cases y' <;> simp_all
   -- The domain points of `W` are shattered by `C`.
-  have hsh : SetShatters C ↑(W.image Prod.fst) := by
-    intro U hU
-    obtain ⟨f, hf, hfW⟩ := hW {p | p ∈ W ∧ decide (p.1 ∈ U) ≠ p.2} fun p hp => hp.1
+  have hsh : SetShatters C ↑(W.image Prod.fst) := fun U hU => by
+    obtain ⟨f, hf, hfW⟩ := hW {p | p ∈ W ∧ decide (p.1 ∈ U) ≠ p.2} fun _ hp => hp.1
     obtain ⟨h, hh, rfl⟩ := mem_lossClass.1 hf
-    have hlab : ∀ p ∈ W, h p.1 = decide (p.1 ∈ U) := by
-      rintro ⟨a, y⟩ hp
-      have key : h a ≠ y ↔ decide (a ∈ U) ≠ y := by
-        have := congrArg ((a, y) ∈ ·) hfW
-        simp only [eq_iff_iff, Set.mem_inter_iff, Set.mem_preimage, Set.mem_singleton_iff,
-          decide_eq_true_eq, Finset.mem_coe, Set.mem_ofPred_eq] at this
-        simpa [hp] using this
-      revert key
-      cases h a <;> cases y <;> cases decide (a ∈ U) <;> simp
-    refine ⟨h, hh, ?_⟩
-    ext a
+    have hlab {a : α} {y : Bool} (hp : (a, y) ∈ W) : h a = decide (a ∈ U) := by
+      have key := Set.ext_iff.1 hfW (a, y)
+      simp only [Set.mem_inter_iff, Set.mem_preimage, Set.mem_singleton_iff, decide_eq_true_eq,
+        Finset.mem_coe, Set.mem_ofPred_eq, hp, true_and] at key
+      revert key; cases h a <;> cases y <;> cases decide (a ∈ U) <;> simp
+    refine ⟨h, hh, Set.ext fun a => ?_⟩
     simp only [Set.mem_inter_iff, Set.mem_preimage, Set.mem_singleton_iff, Finset.coe_image,
       Set.mem_image, Finset.mem_coe]
-    constructor
-    · rintro ⟨hha, p, hp, rfl⟩
-      rwa [hlab p hp, decide_eq_true_eq] at hha
-    · intro ha
-      obtain ⟨p, hp, rfl⟩ := Finset.mem_image.1 (Finset.mem_coe.1 (hU ha))
-      exact ⟨by rw [hlab p hp, decide_eq_true_eq]; exact ha, p, hp, rfl⟩
-  calc W.card = (W.image Prod.fst).card := (Finset.card_image_of_injOn hinj).symm
-    _ ≤ d := hC _ hsh
+    refine ⟨fun ⟨hha, ⟨_, y⟩, hp, rfl⟩ => by rwa [hlab hp, decide_eq_true_eq] at hha, fun ha => ?_⟩
+    obtain ⟨p, hp, rfl⟩ := Finset.mem_image.1 (Finset.mem_coe.1 (hU ha))
+    exact ⟨by rwa [hlab hp, decide_eq_true_eq], p, hp, rfl⟩
+  exact (Finset.card_image_of_injOn hinj).symm.trans_le (hC _ hsh)
 
 variable [MeasurableSpace α]
 
@@ -160,13 +141,10 @@ theorem IsConsistent.ae_not_isEpsNet_of_lt_error [MeasurableSpace β] [Decidable
     {D : Measure (α × β)} [SigmaFinite D] (hD : IsRealizableBy D C) (ε : ℝ) :
     ∀ᵐ S ∂Measure.pi (fun _ : Fin m => D),
       ENNReal.ofReal ε < error D (A S) → ¬ IsEpsNet D (lossClass C) ε S := by
-  filter_upwards [hA.ae_mem_versionSpace hD] with S hS hlt hnet
-  obtain ⟨hAC, hAS⟩ := hS
-  have hset : {z : α × β | decide (A S z.1 ≠ z.2) = true} = {p | A S p.1 ≠ p.2} := by
-    ext z
-    simp only [Set.mem_ofPred_eq, decide_eq_true_eq]
-  obtain ⟨i, hi⟩ := hnet _ ⟨A S, hAC, rfl⟩ (by rw [hset]; exact le_of_lt hlt)
-  simp only [hAS i, ne_eq, not_true_eq_false, decide_false, Bool.false_eq_true] at hi
+  filter_upwards [hA.ae_mem_versionSpace hD] with S ⟨hAC, hAS⟩ hlt hnet
+  obtain ⟨i, hi⟩ := hnet _ ⟨A S, hAC, rfl⟩
+    (by simpa only [error, decide_eq_true_eq] using le_of_lt hlt)
+  simp [hAS i] at hi
 
 variable [MeasurableSingletonClass α] [Countable α]
 
@@ -224,11 +202,9 @@ theorem isPACLearnerFor_realizableDistributions_of_vcSampleSize_le {C : ConceptC
   · exact isPACLearnerFor_realizableDistributions_empty (fun _ _ => false) ε δ
   obtain ⟨A, hA⟩ := exists_isConsistent (m := m) hne
   refine ⟨A, fun D _ hD => ?_⟩
-  have h := hA.measure_pi_lt_error_le_of_vcSampleSize_le hC hD (by exact_mod_cast ε.2.1)
-    (by exact_mod_cast ε.2.2.le) (by exact_mod_cast δ.2.1) (by exact_mod_cast δ.2.2.le) hm
-  rw [ENNReal.ofReal_coe_nnreal, ENNReal.ofReal_coe_nnreal] at h
-  rw [IsRealizableBy.optimalError_eq_zero hD, zero_add]
-  exact h
+  simpa only [ENNReal.ofReal_coe_nnreal, IsRealizableBy.optimalError_eq_zero hD, zero_add] using
+    hA.measure_pi_lt_error_le_of_vcSampleSize_le hC hD (by exact_mod_cast ε.2.1)
+      (by exact_mod_cast ε.2.2.le) (by exact_mod_cast δ.2.1) (by exact_mod_cast δ.2.2.le) hm
 
 /-- The realizable sample complexity of a class of finite VC dimension on a countable domain is at
 most `⌈(8 / ε) (vcDim C log (48 / ε) + log (4 / δ))⌉`. -/

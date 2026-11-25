@@ -155,15 +155,13 @@ private theorem kernelRow_defect_le {q : ℝ} (R : ℕ) {u v : V} (huv : G.Adj u
   · -- Only the entry of `u` is nonzero, so `z` lies on the sphere of radius `R` around `u`.
     have hd := edist_eq_dist_of_le hu
     rw [hd] at h hu ⊢
-    have hR : G.dist u z = R := by
-      have hlt : R < G.dist u z + 1 := by exact_mod_cast (lt_of_not_ge hv).trans_le h
-      have hle : G.dist u z ≤ R := by exact_mod_cast hu
-      omega
-    rw [hR, ite_eq_left le_rfl, ite_eq_left rfl, ← pow_mul, mul_comm R 2, pow_mul]
+    have hlt : R < G.dist u z + 1 := by exact_mod_cast (lt_of_not_ge hv).trans_le h
+    have hle : G.dist u z ≤ R := by exact_mod_cast hu
+    rw [show G.dist u z = R by omega, ite_eq_left le_rfl, ite_eq_left rfl,
+      ← pow_mul, mul_comm R 2, pow_mul]
     have hP : 0 ≤ (q ^ 2) ^ R := by positivity
     nlinarith [mul_le_mul_of_nonneg_right hκ hP, mul_nonneg hP hIv]
-  · rw [ite_eq_right hu]
-    simpa using hRHS
+  · simpa [hu] using hRHS
 
 variable [Fintype V]
 
@@ -173,7 +171,7 @@ private theorem one_le_norm_kernelRow (q : ℝ) (R : ℕ) (v : V) : 1 ≤ ‖ker
     rw [EuclideanSpace.real_norm_sq_eq]
     calc (1 : ℝ) = kernelRow G q R v v ^ 2 := by rw [kernelRow_self, one_pow]
       _ ≤ ∑ z, kernelRow G q R v z ^ 2 :=
-        single_le_sum (f := fun z => kernelRow G q R v z ^ 2) (fun z _ => sq_nonneg _)
+        single_le_sum (f := fun z => kernelRow G q R v z ^ 2) (fun _ _ => sq_nonneg _)
           (mem_univ v)
   nlinarith [norm_nonneg (kernelRow G q R v)]
 
@@ -215,11 +213,9 @@ private theorem card_edist_eq_le {D : ℕ} (hD : 2 ≤ D) (hdeg : ∀ v, G.degre
     rw [h0, card_singleton, pow_zero, mul_one]
     omega
   | succ d =>
-    have h := SimpleGraph.card_edist_eq_add_one_le hdeg u d
-    rw [Nat.cast_add, Nat.cast_one]
-    refine h.trans (Nat.mul_le_mul_left D ?_)
-    rw [pow_succ]
-    exact Nat.le_mul_of_pos_right _ (by omega)
+    rw [Nat.cast_add, Nat.cast_one, pow_succ]
+    exact (SimpleGraph.card_edist_eq_add_one_le hdeg u d).trans
+      (Nat.mul_le_mul_left D (Nat.le_mul_of_pos_right _ (by omega)))
 
 /-- **Correlation of adjacent kernel rows.** In a graph of maximum degree `D ≥ 2`, the kernel
 rows of adjacent vertices have inner product at least `κ = 2 q / (1 + q ^ 2)` times the mean of
@@ -237,25 +233,16 @@ theorem le_inner_kernelRow {D : ℕ} (hD : 2 ≤ D) (hdeg : ∀ v, G.degree v �
         kernelRow G q R u z * kernelRow G q R v z) := by
     rw [sum_sub_distrib, ← sum_div, ← mul_sum, sum_add_distrib]
     simp only [mul_comm (kernelRow G q R v _)]
-  have hle := sum_le_sum fun z (_ : z ∈ univ) => kernelRow_defect_le (q := q) R huv z
-  have hcount : ∑ z, (q ^ 2) ^ R / 2 *
-        ((if G.edist u z = R then (1 : ℝ) else 0) + (if G.edist v z = R then 1 else 0)) =
-      (q ^ 2) ^ R / 2 * ((#{z | G.edist u z = R} : ℝ) + #{z | G.edist v z = R}) := by
-    rw [← mul_sum, sum_add_distrib, sum_boole, sum_boole]
-  have hD' : ((D - 1 : ℕ) : ℝ) = D - 1 := by
-    rw [Nat.cast_sub (by omega), Nat.cast_one]
+  have hle := (sum_le_sum fun z (_ : z ∈ univ) => kernelRow_defect_le (q := q) R huv z).trans_eq
+    (by rw [← mul_sum, sum_add_distrib, sum_boole, sum_boole])
   have hu : (#{z | G.edist u z = R} : ℝ) ≤ D * (D - 1) ^ R := by
-    rw [← hD']
+    rw [← Nat.cast_one, ← Nat.cast_sub (by omega)]
     exact_mod_cast card_edist_eq_le hD hdeg u R
   have hv : (#{z | G.edist v z = R} : ℝ) ≤ D * (D - 1) ^ R := by
-    rw [← hD']
+    rw [← Nat.cast_one, ← Nat.cast_sub (by omega)]
     exact_mod_cast card_edist_eq_le hD hdeg v R
-  have hP : 0 ≤ (q ^ 2) ^ R := by positivity
-  have hbound : (q ^ 2) ^ R / 2 * ((#{z | G.edist u z = R} : ℝ) + #{z | G.edist v z = R}) ≤
-      D * ((D - 1) * q ^ 2) ^ R := by
-    rw [mul_pow]
-    nlinarith [mul_le_mul_of_nonneg_left (add_le_add hu hv) hP]
-  linarith
+  rw [mul_pow]
+  nlinarith [mul_le_mul_of_nonneg_left (add_le_add hu hv) (by positivity : 0 ≤ (q ^ 2) ^ R)]
 
 /-- **Correlation of adjacent unit kernel rows.** In a graph of maximum degree `D ≥ 2` and for a
 nonnegative ratio `q`, the unit kernel rows of adjacent vertices have inner product at least

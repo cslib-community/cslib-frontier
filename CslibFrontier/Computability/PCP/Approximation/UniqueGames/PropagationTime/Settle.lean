@@ -89,6 +89,15 @@ def settleCode : Code .standard 34 := ram[
   ⟪.loop (.lt rRem rCompLen) freezeCompBody⟫;
   rCompLen ← rZero ]
 
+private theorem execWithin_inc_rRem {L w : ℕ} {g : Graph (Fin L → Fin L)} {z : Data 34}
+    (hw : Fits w (z.regs rRem + 1)) (hC : ConstRegs g z) :
+    ∃ z', ExecWithin w (ram[ rRem ← rRem + rOne ] : Code .standard 34) z z' 1 ∧
+      ConstRegs g z' ∧ z'.regs rChosen = z.regs rChosen ∧ z'.regs rRem = z.regs rRem + 1 ∧
+      z'.regs rCompLen = z.regs rCompLen ∧ z'.regs rOuterIdx = z.regs rOuterIdx ∧
+      z'.mem = z.mem := by
+  wram_exec [hC.one]
+  exact ⟨by wram_simp [hC], by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
+
 /-- Specification for `settleCode`. -/
 theorem settleCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L))
     (S : State (Fin L)) (x : Data 34) (hS : StateAt g S x) (hw : Fits w (wordBound g)) :
@@ -234,28 +243,19 @@ theorem settleCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L))
             simp only [Cond.holds_eq, hz1T1, hvis0, hz1C.one, Nat.zero_ne_one, not_false_eq_true]
           have hnop_rem : ExecWithin w (.op (.copy rRem rRem)) z1 z1 1 :=
             ⟨1, le_rfl, exec_nop rRem z1⟩
-          have hinc : ∃ z2, ExecWithin w
-              (ram[ rRem ← rRem + rOne ] : Code .standard 34) z1 z2 1 ∧
-              ConstRegs g z2 ∧ z2.regs rChosen = chosen.val ∧ z2.regs rRem = k + 1 ∧
-              z2.regs rCompLen = S.comp.length ∧ z2.regs rOuterIdx = x.regs rOuterIdx ∧
-              z2.mem = z.mem := by
-            wram_exec [hz1C.one, hz1Rem]
-            exact ⟨by wram_simp [hz1C], by wram_simp [hz1Ch], by wram_simp, by wram_simp [hz1CL],
-              by wram_simp [hz1Idx], by wram_simp [hz1m]⟩
-          obtain ⟨z2, hz2_ex, hz2C, hz2Ch, hz2Rem, hz2CL, hz2Idx, hz2m⟩ := hinc
+          obtain ⟨z2, hz2_ex, hz2C, hz2Ch, hz2Rem, hz2CL, hz2Idx, hz2m⟩ :=
+            execWithin_inc_rRem (g := g) (z := z1) (by rwa [hz1Rem]) hz1C
+          rw [hz1Ch] at hz2Ch
+          rw [hz1Rem] at hz2Rem
+          rw [hz1CL] at hz2CL
+          rw [hz1Idx] at hz2Idx; rw [hz1m] at hz2m
           have hsame_tab : tabAt (k + 1) = tabAt k := by
-            rw [htab_next]
             have hgv' : (tabAt k).getD v none = none := hgv
-            rw [hgv']
-            simp only [freeze, Option.map_none]
-            apply List.ext_getElem (by simp only [List.length_set])
-            intro i hi1 hi2
-            rw [List.getElem_set]
-            split_ifs with hiv
-            · subst hiv
-              simpa only [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi2,
-                Option.getD_some] using hgv'.symm
-            · rfl
+            simp only [htab_next, hgv', freeze, Option.map_none]
+            exact List.ext_getElem (by simp) fun i hi1 hi2 => by
+              rw [List.getElem_set]; split_ifs with hiv
+              · subst hiv; simpa [List.getD_eq_getElem?_getD, hi2] using hgv'.symm
+              · rfl
           refine ⟨z2, (hz1_ex.seq ((ExecWithin.branch_neg hc_br hnop_rem).seq hz2_ex)).mono
               (by omega),
             ⟨?_, hz2Ch, hz2CL, hz2Idx, hz2m ▸ hzCM⟩, hz2Rem⟩
@@ -315,21 +315,14 @@ theorem settleCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L))
               (by rw [hz2Lab]; exact ⟨hz2C, hz2T2, hz2T3, hz2Ch, hz2Rem, hz2CL, hz2Idx,
                 fun _ h => by omega, fun addr _ => congrFun hz2m addr⟩)
           rw [hz2Lab, Nat.sub_zero] at hz3_ex
-          have hinc : ∃ z4, ExecWithin w
-              (ram[ rRem ← rRem + rOne ] : Code .standard 34) z3 z4 1 ∧
-              ConstRegs g z4 ∧ z4.regs rChosen = chosen.val ∧ z4.regs rRem = k + 1 ∧
-              z4.regs rCompLen = S.comp.length ∧ z4.regs rOuterIdx = x.regs rOuterIdx ∧
-              z4.mem = z3.mem := by
-            wram_exec [hz3C.one, hz3Rem]
-            exact ⟨by wram_simp [hz3C], by wram_simp [hz3Ch], by wram_simp,
-              by wram_simp [hz3CL], by wram_simp [hz3Idx], by wram_simp⟩
-          obtain ⟨z4, hz4_ex, hz4C, hz4Ch, hz4Rem, hz4CL, hz4Idx, hz4m⟩ := hinc
+          obtain ⟨z4, hz4_ex, hz4C, hz4Ch, hz4Rem, hz4CL, hz4Idx, hz4m⟩ :=
+            execWithin_inc_rRem (g := g) (z := z3) (by rwa [hz3Rem]) hz3C
           have hfr_low : ∀ a < tabBase g, z4.mem a = z.mem a := fun a ha => by
             rw [hz4m]; exact hz3Fr a (by omega)
           refine ⟨z4, (hz1_ex.seq ((ExecWithin.branch_pos hc_br (hz2_ex.seq hz3_ex)).seq
               hz4_ex)).mono (by omega),
-            ⟨?_, hz4Ch, hz4CL, hz4Idx, hzCM.frame fun a ha1 _ => by
-              rw [hz4m]; exact hz3Fr a (by wram_omega)⟩, hz4Rem⟩
+            ⟨?_, hz3Ch ▸ hz4Ch, hz3CL ▸ hz4CL, hz3Idx ▸ hz4Idx, hzCM.frame fun a ha1 _ => by
+              rw [hz4m]; exact hz3Fr a (by wram_omega)⟩, hz3Rem ▸ hz4Rem⟩
           have hlen_k : (tabAt k).length = slots g := hzT.len_table
           have hgv' : (tabAt k).getD v none = some fn := hgv
           refine ⟨hz4C, hzT.inp.frame (fun a ha => hfr_low a (by wram_omega)),

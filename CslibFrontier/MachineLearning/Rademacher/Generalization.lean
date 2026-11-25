@@ -182,15 +182,12 @@ private theorem ciSup_expect_sub_swapSamples_le {m : ℕ} {F : Set (Z → ℝ)} 
   rcases isEmpty_or_nonempty F with hFe | hFe
   · simp only [Real.iSup_of_isEmpty, add_zero, le_refl]
   refine ciSup_le fun f => ?_
-  rw [expect_sub_swapSamples]
-  have hsplit : 𝔼 i, signVal (σ i) * ((f : Z → ℝ) (p.2 i) - (f : Z → ℝ) (p.1 i)) =
-      𝔼 i, signVal (σ i) * (f : Z → ℝ) (p.2 i) +
+  have hsplit : (𝔼 i, signVal (σ i) * ((f : Z → ℝ) (p.2 i) - (f : Z → ℝ) (p.1 i))) =
+      (𝔼 i, signVal (σ i) * (f : Z → ℝ) (p.2 i)) +
         𝔼 i, signVal (!σ i) * (f : Z → ℝ) (p.1 i) := by
     rw [← Finset.expect_add_distrib]
-    refine Finset.expect_congr rfl fun i _ => ?_
-    rw [signVal_not]
-    ring
-  rw [hsplit]
+    exact Finset.expect_congr rfl fun _ _ => by rw [signVal_not]; ring
+  rw [expect_sub_swapSamples, hsplit]
   exact add_le_add
     (le_ciSup (bddAbove_range_expect_signVal_mul (fun (g : F) i => (g : Z → ℝ) (p.2 i))
       (fun g _ => hF g g.2 _) σ) f)
@@ -205,13 +202,13 @@ private theorem expect_ciSup_swapSamples_le {m : ℕ} {F : Set (Z → ℝ)} {B :
     𝔼 σ : Fin m → Bool,
         ⨆ f : F, 𝔼 i, ((f : Z → ℝ) ((swapSamples σ p).2 i) - (f : Z → ℝ) ((swapSamples σ p).1 i)) ≤
       empiricalRademacherComplexity F p.2 + empiricalRademacherComplexity F p.1 := by
-  have hinv : Function.Involutive fun (σ : Fin m → Bool) i => !σ i :=
-    fun σ => funext fun i => Bool.not_not _
   refine (Finset.expect_le_expect fun σ _ => ciSup_expect_sub_swapSamples_le hF σ p).trans_eq ?_
   rw [Finset.expect_add_distrib, empiricalRademacherComplexity_def,
     empiricalRademacherComplexity_def, rademacherAverage_def, rademacherAverage_def]
   congr 1
-  exact Fintype.expect_equiv (Function.Involutive.toPerm _ hinv) _ _ fun σ => rfl
+  exact Fintype.expect_equiv
+    (Function.Involutive.toPerm (fun (σ : Fin m → Bool) i => !σ i)
+      fun σ => funext fun _ => Bool.not_not _) _ _ fun _ => rfl
 
 /-- Second symmetrization step: the ghost-sample gap is at most twice the Rademacher
 complexity. -/
@@ -225,37 +222,27 @@ private theorem sum_sum_ciSup_le (D : PMF Z) {m : ℕ} {F : Set (Z → ℝ)} {B 
   set W : (Fin m → Z) × (Fin m → Z) → ℝ := fun p => (P p.1).toReal * (P p.2).toReal
   set G : (Fin m → Z) × (Fin m → Z) → ℝ :=
     fun p => ⨆ f : F, 𝔼 i, ((f : Z → ℝ) (p.2 i) - (f : Z → ℝ) (p.1 i))
-  have hLHS : ∑ S : Fin m → Z, (P S).toReal * ∑ S' : Fin m → Z, (P S').toReal *
-      ⨆ f : F, 𝔼 i, ((f : Z → ℝ) (S' i) - (f : Z → ℝ) (S i)) = ∑ p, W p * G p := by
-    rw [← Finset.univ_product_univ, Finset.sum_product]
-    simp only [Finset.mul_sum, mul_assoc, W, G]
   have hsym (σ : Fin m → Bool) : ∑ p, W p * G p = ∑ p, W p * G (swapSamples σ p) :=
-    (Fintype.sum_equiv (Function.Involutive.toPerm _ (swapSamples_involutive σ)) _ _ fun p => by
-      change W p * G (swapSamples σ p) = W (swapSamples σ p) * G (swapSamples σ p)
-      rw [show W (swapSamples σ p) = W p from weight_swapSamples D σ p]).symm
-  have hexp : ∑ p, W p * G p = ∑ p, W p * 𝔼 σ : Fin m → Bool, G (swapSamples σ p) := by
-    calc ∑ p, W p * G p = 𝔼 σ : Fin m → Bool, ∑ p, W p * G p := (Fintype.expect_const _).symm
-      _ = 𝔼 σ : Fin m → Bool, ∑ p, W p * G (swapSamples σ p) :=
-          Finset.expect_congr rfl fun σ _ => hsym σ
-      _ = ∑ p, 𝔼 σ : Fin m → Bool, W p * G (swapSamples σ p) := Finset.expect_sum_comm ..
-      _ = ∑ p, W p * 𝔼 σ : Fin m → Bool, G (swapSamples σ p) := by simp only [Finset.mul_expect]
-  have hR : ∑ S : Fin m → Z, (P S).toReal * empiricalRademacherComplexity F S =
-      rademacherComplexity D F m := (rademacherComplexity_def D F m).symm
-  have hP : ∑ S : Fin m → Z, (P S).toReal = 1 := Probability.PMF.sum_toReal P
-  calc _ = ∑ p, W p * G p := hLHS
-    _ = ∑ p, W p * 𝔼 σ : Fin m → Bool, G (swapSamples σ p) := hexp
-    _ ≤ ∑ p, W p * (empiricalRademacherComplexity F p.2 + empiricalRademacherComplexity F p.1) :=
-        by gcongr with p; exact expect_ciSup_swapSamples_le hF p
-    _ = 2 * rademacherComplexity D F m := by
+    (Fintype.sum_equiv (Function.Involutive.toPerm _ (swapSamples_involutive σ)) _ _ fun p =>
+      congrArg (· * G (swapSamples σ p)) (weight_swapSamples D σ p).symm).symm
+  calc ∑ S : Fin m → Z, (P S).toReal * ∑ S' : Fin m → Z, (P S').toReal * G (S, S')
+      = ∑ p, W p * G p := by
         rw [← Finset.univ_product_univ, Finset.sum_product]
-        have h1 : ∀ S : Fin m → Z, ∑ S' : Fin m → Z, W (S, S') *
-            (empiricalRademacherComplexity F S' + empiricalRademacherComplexity F S) =
-            (P S).toReal * rademacherComplexity D F m +
-              (P S).toReal * empiricalRademacherComplexity F S := by
-          intro S
-          simp only [W, mul_add, Finset.sum_add_distrib, mul_assoc, ← Finset.mul_sum, ← hR]
-          rw [← Finset.sum_mul, hP, one_mul]
-        simp only [h1, Finset.sum_add_distrib, ← Finset.sum_mul, hP, one_mul, hR]
+        simp only [Finset.mul_sum, mul_assoc, W]
+    _ = ∑ p, W p * 𝔼 σ : Fin m → Bool, G (swapSamples σ p) := by
+        rw [← Fintype.expect_const (ι := Fin m → Bool) (∑ p, W p * G p),
+          Finset.expect_congr rfl fun σ _ => hsym σ, Finset.expect_sum_comm]
+        simp only [Finset.mul_expect]
+    _ ≤ ∑ p, W p * (empiricalRademacherComplexity F p.2 + empiricalRademacherComplexity F p.1) := by
+        gcongr with p
+        exact expect_ciSup_swapSamples_le hF p
+    _ = 2 * rademacherComplexity D F m := by
+        have hR := (rademacherComplexity_def D F m).symm
+        have hP : ∑ S : Fin m → Z, (P S).toReal = 1 := Probability.PMF.sum_toReal P
+        rw [← Finset.univ_product_univ, Finset.sum_product]
+        dsimp only [W]
+        simp only [mul_add, Finset.sum_add_distrib, mul_assoc, ← Finset.mul_sum, ← hR,
+          ← Finset.sum_mul, hP, one_mul]
         ring
 
 /-- **Symmetrization** [MohriRostamizadehTalwalkar2018, (3.8)–(3.13)]: for a class bounded by
@@ -340,21 +327,15 @@ private theorem exp_neg_two_mul_sq_le {m : ℕ} (hm : 0 < m) {a b δ : ℝ} (hab
   have hm' : (0 : ℝ) < m := Nat.cast_pos.2 hm
   have hba : 0 < b - a := sub_pos.2 hab
   rcases le_or_gt δ 1 with hδ1 | hδ1
-  · have hL : 0 ≤ Real.log (1 / δ) / (2 * m) :=
-      div_nonneg (Real.log_nonneg (by rw [le_div_iff₀ hδ]; linarith)) (by positivity)
-    rw [mul_pow, Real.sq_sqrt hL]
-    have : -2 * ((b - a) ^ 2 * (Real.log (1 / δ) / (2 * m))) / ((b - a) ^ 2 / m) =
-        Real.log δ := by
+  · have hdiv :
+        -2 * ((b - a) ^ 2 * (Real.log (1 / δ) / (2 * m))) / ((b - a) ^ 2 / m) = Real.log δ := by
       rw [one_div, Real.log_inv]
       field_simp
-    rw [this, Real.exp_log hδ]
-  · have hL : Real.log (1 / δ) / (2 * m) ≤ 0 :=
-      div_nonpos_of_nonpos_of_nonneg (Real.log_nonpos (by positivity)
-        (by rw [div_le_one hδ]; exact hδ1.le)) (by positivity)
-    rw [Real.sqrt_eq_zero'.2 hL]
-    simp only [mul_zero, ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow, zero_div,
-      Real.exp_zero]
-    exact hδ1.le
+    rw [mul_pow, Real.sq_sqrt (div_nonneg (Real.log_nonneg (by rw [le_div_iff₀ hδ]; linarith))
+      (by positivity)), hdiv, Real.exp_log hδ]
+  · rw [Real.sqrt_eq_zero'.2 (div_nonpos_of_nonpos_of_nonneg (Real.log_nonpos (by positivity)
+      ((div_le_one hδ).2 hδ1.le)) (by positivity))]
+    simpa using hδ1.le
 
 /-- `∑ i < m, ((b - a) / m)² = (b - a)² / m`. -/
 private theorem sum_div_sq {m : ℕ} (hm : 0 < m) (c : ℝ) :
@@ -384,14 +365,14 @@ theorem rademacherComplexity_generalization_bound (D : PMF Z) {m : ℕ} (hm : 0 
     abs_le_max_abs_abs (hF f hf z).1 (hF f hf z).2
   have hmean : ∑ S, (P S).toReal * Φ S ≤ 2 * rademacherComplexity D F m :=
     sum_pi_mul_ciSup_sub_le_two_mul_rademacherComplexity D hm hB
-  have hε : 0 ≤ ε := mul_nonneg (sub_pos.2 hab).le (Real.sqrt_nonneg _)
-  have htail := (hasBoundedDifferences_ciSup_sub D hm hab.le hF).pi_ge_mean_add (fun _ => D) hε
+  have htail := (hasBoundedDifferences_ciSup_sub D hm hab.le hF).pi_ge_mean_add (fun _ => D)
+    (mul_nonneg (sub_pos.2 hab).le (Real.sqrt_nonneg _)) (ε := ε)
   rw [sum_div_sq hm] at htail
   have hsub : {S | ∃ f ∈ F, 𝔼 i, f (S i) + 2 * rademacherComplexity D F m + ε <
       ∑ z, (D z).toReal * f z} ⊆ {S | (∑ S', (P S').toReal * Φ S') + ε ≤ Φ S} := by
     rintro S ⟨f, hf, hlt⟩
-    have := le_ciSup (bddAbove_range_sub D hm hB S) ⟨f, hf⟩
-    dsimp only at this
+    have hsup := le_ciSup (bddAbove_range_sub D hm hB S) ⟨f, hf⟩
+    dsimp only at hsup
     change (∑ S', (P S').toReal * Φ S') + ε ≤ Φ S
     linarith
   calc _ ≤ (P.toOuterMeasure {S | (∑ S', (P S').toReal * Φ S') + ε ≤ Φ S}).toReal :=
@@ -418,13 +399,11 @@ theorem empiricalRademacherComplexity_generalization_bound (D : PMF Z) {m : ℕ}
   rw [one_div_div] at h1
   set P := Probability.PMF.pi fun _ : Fin m => D
   set ε := (b - a) * √(Real.log (2 / δ) / (2 * m))
-  have hε : 0 ≤ ε := mul_nonneg (sub_pos.2 hab).le (Real.sqrt_nonneg _)
   have hexp : Real.exp (-2 * ε ^ 2 / ((b - a) ^ 2 / m)) ≤ δ / 2 := by
-    have := exp_neg_two_mul_sq_le hm hab (half_pos hδ)
-    rwa [one_div_div] at this
+    simpa only [one_div_div] using exp_neg_two_mul_sq_le hm hab (half_pos hδ)
   -- McDiarmid's lower tail for `R̂_S(F)` at confidence `δ / 2`.
   have htail := (hasBoundedDifferences_empiricalRademacherComplexity (m := m) hab.le
-    hF).pi_le_mean_sub (fun _ => D) hε
+    hF).pi_le_mean_sub (fun _ => D) (mul_nonneg (sub_pos.2 hab).le (Real.sqrt_nonneg _)) (ε := ε)
   rw [sum_div_sq hm, ← rademacherComplexity_def] at htail
   have hsub : {S : Fin m → Z | ∃ f ∈ F, 𝔼 i, f (S i) + 2 * empiricalRademacherComplexity F S +
       3 * ε < ∑ z, (D z).toReal * f z} ⊆

@@ -167,14 +167,10 @@ theorem equation_iff_toWeierstrass (x y : F) :
     M.Equation (M.B * x) (M.B * y) ↔ M.toWeierstrass.toAffine.Equation x y := by
   have hB : M.B ≠ 0 := M.B_ne_zero
   have hq := (ofCubic M.A 1 0).quadraticTwist_equation_iff (inv_ne_zero hB) (M.B * x) (M.B ^ 2 * y)
-  have hx : M.B⁻¹ * (M.B * x) = x := by rw [← mul_assoc, inv_mul_cancel₀ hB, one_mul]
   have hy : M.B⁻¹ ^ 2 * (M.B ^ 2 * y) = y := by
-    rw [← mul_assoc, ← mul_pow, inv_mul_cancel₀ hB, one_pow, one_mul]
-  have heq : M.B⁻¹ * (M.B ^ 2 * y) ^ 2 = M.B * (M.B * y) ^ 2 := by
-    calc M.B⁻¹ * (M.B ^ 2 * y) ^ 2
-        = (M.B⁻¹ * M.B) * (M.B * (M.B * y) ^ 2) := by ring
-      _ = M.B * (M.B * y) ^ 2 := by rw [inv_mul_cancel₀ hB, one_mul]
-  rw [← toWeierstrass_eq_quadraticTwist, hx, hy] at hq
+    rw [inv_pow, inv_mul_cancel_left₀ (pow_ne_zero 2 hB)]
+  have heq : M.B⁻¹ * (M.B ^ 2 * y) ^ 2 = M.B * (M.B * y) ^ 2 := by field_simp
+  rw [← toWeierstrass_eq_quadraticTwist, inv_mul_cancel_left₀ hB, hy] at hq
   rw [hq, heq, Equation]
   simp only [ofCubic_a₂, ofCubic_a₄, ofCubic_a₆]
   rw [show (M.B * x) ^ 3 + M.A * (M.B * x) ^ 2 + 1 * (M.B * x) + 0 =
@@ -315,8 +311,8 @@ private lemma four_dvd_of_twoTorsion (M : MontgomeryCurve F) (h2 : (2 : F) ≠ 0
   have := M.isElliptic_toWeierstrass h2
   have hB : M.B ≠ 0 := M.B_ne_zero
   have hr0 : r ≠ 0 := fun h ↦ M.discr_ne_zero (by rw [← hr, h]; norm_num)
-  let x₁ : F := (-M.A + r) / (2 * M.B)
-  let x₂ : F := (-M.A - r) / (2 * M.B)
+  let x₁ : F := (-M.A + 1 * r) / (2 * M.B)
+  let x₂ : F := (-M.A + -1 * r) / (2 * M.B)
   have hroot_ne (s : F) (hs : s ^ 2 = 1) : (-M.A + s * r) / (2 * M.B) ≠ 0 := by
     intro h
     have hA : M.A = s * r := by
@@ -327,9 +323,8 @@ private lemma four_dvd_of_twoTorsion (M : MontgomeryCurve F) (h2 : (2 : F) ≠ 0
       rw [hs, one_mul, hr] at this
       linear_combination this
     exact mul_ne_zero h2 h2 h4
-  have hx₁0 : x₁ ≠ 0 := by simpa [x₁] using hroot_ne 1 (one_pow 2)
-  have hx₂0 : x₂ ≠ 0 := by
-    simpa [x₂, sub_eq_add_neg, neg_one_mul] using hroot_ne (-1) (by norm_num)
+  have hx₁0 : x₁ ≠ 0 := hroot_ne 1 (one_pow 2)
+  have hx₂0 : x₂ ≠ 0 := hroot_ne (-1) (by norm_num)
   have hx₁₂ : x₁ ≠ x₂ := by
     intro h
     have hmul : (2 : F) * r = 0 := by
@@ -341,28 +336,19 @@ private lemma four_dvd_of_twoTorsion (M : MontgomeryCurve F) (h2 : (2 : F) ≠ 0
   have hEq0 : M.toWeierstrass.toAffine.Equation 0 0 := by
     rw [← M.equation_iff_toWeierstrass, Equation]
     simp
-  have hEq1 : M.toWeierstrass.toAffine.Equation x₁ 0 := by
+  have hEqs (s : F) (hs : s ^ 2 = 1) :
+      M.toWeierstrass.toAffine.Equation ((-M.A + s * r) / (2 * M.B)) 0 := by
     rw [← M.equation_iff_toWeierstrass, Equation]
-    have hBx : M.B * x₁ = (-M.A + r) / 2 := by
-      dsimp [x₁]
-      field_simp [hB]
-    have hfac : ((-M.A + r) / 2) ^ 3 + M.A * ((-M.A + r) / 2) ^ 2 + (-M.A + r) / 2 =
-        ((-M.A + r) / 8) * (r ^ 2 - (M.A ^ 2 - 4)) := by
+    have hBx : M.B * ((-M.A + s * r) / (2 * M.B)) = (-M.A + s * r) / 2 := by field_simp
+    have hfac : ((-M.A + s * r) / 2) ^ 3 + M.A * ((-M.A + s * r) / 2) ^ 2 + (-M.A + s * r) / 2 =
+        ((-M.A + s * r) / 8) * ((s * r) ^ 2 - (M.A ^ 2 - 4)) := by
       have h8 : (8 : F) ≠ 0 := by rw [show (8 : F) = 2 ^ 3 by ring]; exact pow_ne_zero 3 h2
       field_simp
       ring
-    rw [hBx, mul_zero, zero_pow two_ne_zero, mul_zero, hfac, sub_eq_zero.mpr hr, mul_zero]
-  have hEq2 : M.toWeierstrass.toAffine.Equation x₂ 0 := by
-    rw [← M.equation_iff_toWeierstrass, Equation]
-    have hBx : M.B * x₂ = (-M.A - r) / 2 := by
-      dsimp [x₂]
-      field_simp [hB]
-    have hfac : ((-M.A - r) / 2) ^ 3 + M.A * ((-M.A - r) / 2) ^ 2 + (-M.A - r) / 2 =
-        ((-M.A - r) / 8) * (r ^ 2 - (M.A ^ 2 - 4)) := by
-      have h8 : (8 : F) ≠ 0 := by rw [show (8 : F) = 2 ^ 3 by ring]; exact pow_ne_zero 3 h2
-      field_simp
-      ring
-    rw [hBx, mul_zero, zero_pow two_ne_zero, mul_zero, hfac, sub_eq_zero.mpr hr, mul_zero]
+    rw [hBx, mul_zero, zero_pow two_ne_zero, mul_zero, hfac, mul_pow, hs, one_mul,
+      sub_eq_zero.mpr hr, mul_zero]
+  have hEq1 : M.toWeierstrass.toAffine.Equation x₁ 0 := hEqs 1 (one_pow 2)
+  have hEq2 : M.toWeierstrass.toAffine.Equation x₂ 0 := hEqs (-1) (by norm_num)
   let P₀ : M.toWeierstrass.toAffine.Point := Affine.Point.mk hEq0
   let P₁ : M.toWeierstrass.toAffine.Point := Affine.Point.mk hEq1
   let P₂ : M.toWeierstrass.toAffine.Point := Affine.Point.mk hEq2
@@ -371,9 +357,7 @@ private lemma four_dvd_of_twoTorsion (M : MontgomeryCurve F) (h2 : (2 : F) ≠ 0
       zero_mem' := zero_add 0
       add_mem' := fun {a b} ha hb ↦ by
         change (a + b) + (a + b) = 0
-        calc (a + b) + (a + b) = (a + a) + (b + b) := by abel
-          _ = 0 + 0 := by rw [ha, hb]
-          _ = 0 := zero_add 0
+        rw [add_add_add_comm, ha, hb, zero_add]
       neg_mem' := fun {a} ha ↦ by
         change -a + -a = 0
         rw [← neg_add, ha, neg_zero] }
@@ -411,18 +395,10 @@ private lemma four_dvd_of_twoTorsion (M : MontgomeryCurve F) (h2 : (2 : F) ≠ 0
           rw [hzero, hsub, mul_zero, mul_zero, sub_zero] at hid
           have h4 : (4 : F) ≠ 0 := by rw [show (4 : F) = 2 ^ 2 by ring]; exact pow_ne_zero 2 h2
           exact (mul_eq_zero.mp hid).resolve_left (mul_ne_zero h4 (pow_ne_zero 3 hB))
-        rcases mul_eq_zero.mp hfac with h0 | h0
-        · rcases mul_eq_zero.mp h0 with rfl | h0
-          · simp [P₀, Affine.Point.mk]
-          · obtain rfl := sub_eq_zero.mp h0
-            simp [P₁, Affine.Point.mk]
-        · obtain rfl := sub_eq_zero.mp h0
-          simp [P₂, Affine.Point.mk]
+        simp only [mul_eq_zero, sub_eq_zero] at hfac
+        rcases hfac with (rfl | rfl) | rfl <;> simp [P₀, P₁, P₂, Affine.Point.mk]
     · rcases hP with rfl | rfl | rfl | rfl
-      · exact H.zero_mem
-      · exact hHP0
-      · exact hHP1
-      · exact hHP2
+      exacts [H.zero_mem, hHP0, hHP1, hHP2]
   have hcard : Nat.card H = 4 := by
     have hp0 : P₀ ≠ 0 := Affine.Point.some_ne_zero _
     have hp1 : P₁ ≠ 0 := Affine.Point.some_ne_zero _
@@ -430,21 +406,9 @@ private lemma four_dvd_of_twoTorsion (M : MontgomeryCurve F) (h2 : (2 : F) ≠ 0
     have hp01 : P₀ ≠ P₁ := fun h ↦ hx₁0 (Affine.Point.some.inj h).1.symm
     have hp02 : P₀ ≠ P₂ := fun h ↦ hx₂0 (Affine.Point.some.inj h).1.symm
     have hp12 : P₁ ≠ P₂ := fun h ↦ hx₁₂ (Affine.Point.some.inj h).1
-    have hfin : ({0, P₀, P₁, P₂} : Finset M.toWeierstrass.toAffine.Point).card = 4 := by
-      rw [Finset.card_insert_of_notMem, Finset.card_insert_of_notMem,
-        Finset.card_insert_of_notMem, Finset.card_singleton] <;>
-        simp [hp0.symm, hp1.symm, hp2.symm, hp01, hp02, hp12]
-    have heqv : H ≃ ({0, P₀, P₁, P₂} : Finset M.toWeierstrass.toAffine.Point) :=
-      { toFun := fun ⟨P, hP⟩ ↦ ⟨P, by
-          have hP' : P ∈ (H : Set M.toWeierstrass.toAffine.Point) := hP
-          rw [hSet] at hP'
-          simpa using hP'⟩
-        invFun := fun ⟨P, hP⟩ ↦ ⟨P, by
-          have : P ∈ (H : Set M.toWeierstrass.toAffine.Point) := by simpa [hSet] using hP
-          exact this⟩
-        left_inv := fun _ ↦ rfl
-        right_inv := fun _ ↦ rfl }
-    rw [Nat.card_congr heqv, Nat.card_eq_fintype_card, Fintype.card_coe, hfin]
+    rw [← SetLike.coe_sort_coe, hSet, Nat.card_coe_set_eq, Set.ncard_insert_of_notMem,
+      Set.ncard_insert_of_notMem, Set.ncard_pair hp12] <;>
+      simp [hp0.symm, hp1.symm, hp2.symm, hp01, hp02]
   rw [← hcard]
   exact AddSubgroup.card_addSubgroup_dvd_card H
 

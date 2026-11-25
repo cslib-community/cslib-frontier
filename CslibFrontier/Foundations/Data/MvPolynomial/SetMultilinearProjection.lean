@@ -149,17 +149,14 @@ theorem mem_range_blockMonomial_iff {blk : σ → Fin d} {S : Finset (Fin d)} {m
     rw [blockMonomial_apply]
     split_ifs with hS hxv
     · have hv : v ∈ m.support := hxv ▸ (hx _).1
-      have := hle hv
-      rw [ite_eq_left hS] at this
+      have := (hle hv).trans_eq (ite_eq_left hS)
       have := Finsupp.mem_support_iff.1 hv
       omega
     · by_contra hne
       have hv : v ∈ m.support := Finsupp.mem_support_iff.2 (Ne.symm hne)
       exact hxv (hinj (hx _).1 hv (hx _).2)
     · by_contra hne
-      have hv : v ∈ m.support := Finsupp.mem_support_iff.2 (Ne.symm hne)
-      have := hle hv
-      rw [ite_eq_right hS] at this
+      have := (hle (Finsupp.mem_support_iff.2 (Ne.symm hne))).trans_eq (ite_eq_right hS)
       exact hne (by omega)
 
 /-- The weight that sends each variable to the unit vector of its block computes the block
@@ -191,9 +188,8 @@ directions (original). -/
 theorem mapDomain_mem_range_blockMonomial_iff {τ : Type*} {blk : σ → Fin d} {blk' : τ → Fin d}
     (e : σ → τ) (he : ∀ v, blk' (e v) = blk v) {S : Finset (Fin d)} {m : σ →₀ ℕ} :
     m.mapDomain e ∈ Set.range (blockMonomial blk' S) ↔ m ∈ Set.range (blockMonomial blk S) := by
-  rw [mem_range_blockMonomial_iff, mem_range_blockMonomial_iff, ← Finsupp.mapDomain_comp]
-  have : blk' ∘ e = blk := funext he
-  rw [this]
+  rw [mem_range_blockMonomial_iff, mem_range_blockMonomial_iff, ← Finsupp.mapDomain_comp,
+    show blk' ∘ e = blk from funext he]
 
 end Monomial
 

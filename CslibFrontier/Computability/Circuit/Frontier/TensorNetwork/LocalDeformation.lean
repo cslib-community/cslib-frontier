@@ -102,10 +102,6 @@ theorem map_localDeformation {R : Type*} [CommRing R] [Algebra ℚ R] (N : Tenso
           (C (t : R) + C (2 ^ (a + 1)) * X) := by
   rw [← coe_mapRingHom, localDeformation, ← deformedContraction_map, ← coe_compRingHom_apply,
     ← deformedContraction_map, map_map, map_map, map_map]
-  have hlin : (C (t : ℚ) + C ((2 : ℚ) ^ (a + 1)) * X).map (algebraMap ℚ R) =
-      C (t : R) + C (2 ^ (a + 1)) * X := by
-    rw [Polynomial.map_add, Polynomial.map_mul, Polynomial.map_C, Polynomial.map_C,
-      Polynomial.map_X, map_intCast, map_pow, map_ofNat]
   congr 1
   · congr 1
     ext x : 1
@@ -116,7 +112,9 @@ theorem map_localDeformation {R : Type*} [CommRing R] [Algebra ℚ R] (N : Tenso
       coe_compRingHom_apply]
     split_ifs with hp
     · rw [Polynomial.map_map, hκ, ← Polynomial.map_map,
-        map_localKernel ht (sub_mem_cauchyGrid (hslot e) (hslot e')), Polynomial.map_comp, hlin]
+        map_localKernel ht (sub_mem_cauchyGrid (hslot e) (hslot e')), Polynomial.map_comp,
+        Polynomial.map_add, Polynomial.map_mul, Polynomial.map_C, Polynomial.map_C,
+        Polynomial.map_X, map_intCast, map_pow, map_ofNat]
     · rw [Polynomial.map_zero, Polynomial.map_zero, zero_comp]
 
 /-- **Values of the local deformation.** Under a ring homomorphism `π : B → R'`, the value of the
@@ -148,31 +146,26 @@ theorem natDegree_deformedContraction_le {R : Type*} [CommRing R] (N : TensorNet
     (side : V → Bool) (W : Matrix E E R[X]) {d : ℕ} (hW : ∀ e e', (W e e').natDegree ≤ d) :
     ((N.map C).deformedContraction side W).natDegree ≤ Fintype.card E * d := by
   unfold deformedContraction
-  refine natDegree_sum_le_of_forall_le _ _ fun X _ => natDegree_sum_le_of_forall_le _ _
-    fun Y _ => ?_
-  have hc : ∀ s : Finset V, ∀ x : E → Bool, (∏ v ∈ s, (N.map C).tensor v x).natDegree = 0 :=
-    fun s x => by simp only [map_tensor, ← map_prod, natDegree_C]
-  have hv : ∀ e, (W.mulVec (fun e' => if X e' then (1 : R[X]) else 0) e).natDegree ≤ d := by
-    intro e
-    refine natDegree_sum_le_of_forall_le _ _ fun e' _ => ?_
-    dsimp only
-    split_ifs
-    · rw [mul_one]; exact hW e e'
-    · rw [mul_zero, natDegree_zero]; exact Nat.zero_le _
-  have hprod : (∏ e, affineFactor (Y e)
-      (W.mulVec (fun e' => if X e' then (1 : R[X]) else 0) e)).natDegree ≤ Fintype.card E * d := by
-    refine (natDegree_prod_le _ _).trans ?_
-    rw [← smul_eq_mul, ← Finset.card_univ, ← Finset.sum_const]
-    refine Finset.sum_le_sum fun e _ => ?_
-    unfold affineFactor
-    split_ifs
-    · exact hv e
-    · exact (natDegree_sub_le _ _).trans (max_le (by rw [natDegree_one]; exact Nat.zero_le _)
-        (hv e))
-  refine (natDegree_mul_le).trans ?_
+  refine natDegree_sum_le_of_forall_le _ _ fun X _ => natDegree_sum_le_of_forall_le _ _ fun Y _ =>
+    natDegree_mul_le.trans ?_
+  have hc (s : Finset V) (x : E → Bool) : (∏ v ∈ s, (N.map C).tensor v x).natDegree = 0 := by
+    simp only [map_tensor, ← map_prod, natDegree_C]
   have h2 := natDegree_mul_le (p := ∏ v ∈ Finset.univ.filter (side · = true), (N.map C).tensor v Y)
     (q := ∏ v ∈ Finset.univ.filter (side · = false), (N.map C).tensor v X)
   rw [hc, hc] at h2
+  have hv (e : E) : (W.mulVec (fun e' => if X e' then (1 : R[X]) else 0) e).natDegree ≤ d :=
+    natDegree_sum_le_of_forall_le _ _ fun e' _ => by
+      dsimp only
+      split_ifs
+      exacts [(mul_one (W e e')).symm ▸ hW e e', by simp]
+  have hprod : (∏ e, affineFactor (Y e)
+      (W.mulVec (fun e' => if X e' then (1 : R[X]) else 0) e)).natDegree ≤ Fintype.card E * d :=
+    (natDegree_prod_le _ _).trans ((Finset.sum_le_card_nsmul _ _ d fun e _ => by
+      unfold affineFactor
+      split_ifs
+      · exact hv e
+      · exact (natDegree_sub_le _ _).trans (max_le (by simp) (hv e))).trans_eq
+        (by rw [Finset.card_univ, smul_eq_mul]))
   omega
 
 /-- On the grid, the local kernel has degree at most `2 L - 1`, `L = 2 ^ a`. -/
@@ -199,7 +192,7 @@ theorem natDegree_localDeformation_le (N : TensorNetwork B Bool V E) (side : V �
   split_ifs
   · exact natDegree_map_le.trans
       (natDegree_localKernel_le ht (sub_mem_cauchyGrid (hslot e) (hslot e')))
-  · rw [natDegree_zero]; exact Nat.zero_le _
+  · simp
 
 /-- The deformed contraction `F(T)` along the Cauchy matrix of a packing into packets of `L` slots
 has degree at most `M (2 L - 1)` for `M` edges (§D.4.3 of [OpenAI2026ETH], p. 59). -/
@@ -214,7 +207,7 @@ theorem natDegree_deformedContraction_cauchyMatrix_le {R : Type*} [CommRing R] [
   split_ifs
   · exact natDegree_map_le.trans
       (natDegree_cauchyKernel (sub_mem_cauchyGrid (hslot e) (hslot e'))).le
-  · rw [Polynomial.map_zero, natDegree_zero]; exact Nat.zero_le _
+  · simp
 
 end TensorNetwork
 

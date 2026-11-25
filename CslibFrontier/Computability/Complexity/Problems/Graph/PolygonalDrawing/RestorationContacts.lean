@@ -95,16 +95,11 @@ theorem split_spoke_connector_contact {G : Graph} {u v : ℕ}
     exact ⟨hs0, Or.inl ⟨hdu, ht0⟩⟩
   · have hdv := ((contractionLift_vertex_eq_iff G u v d.val).mp d.property).resolve_left hdu
     simp only [restoredVertex, ite_eq_right hdu, ite_eq_left hdv] at heq
-    have hsep' : (-f) a < (-f) b := by change -f a < -f b; linarith
-    have hport : (-f) b < (-f) (D.cutPort ρ d.val) := by
-      change -f b < -f (D.cutPort ρ d.val)
-      linarith [hpb d hdv]
-    have hrev : AffineMap.lineMap b (D.cutPort ρ d.val) s =
-        AffineMap.lineMap b a (1 - t) := by
-      rw [AffineMap.lineMap_apply_one_sub]
-      exact heq
-    obtain ⟨hs0, ht0⟩ := split_connector_contact (-f) hsep' hport hs
-      ⟨by linarith [ht.2], by linarith [ht.1]⟩ hrev
+    obtain ⟨hs0, ht0⟩ := split_connector_contact (-f)
+      (by change -f a < -f b; linarith)
+      (by change -f b < -f (D.cutPort ρ d.val); linarith [hpb d hdv]) hs
+      ⟨by linarith [ht.2], by linarith [ht.1]⟩
+      (heq.trans (AffineMap.lineMap_apply_one_sub b a t).symm)
     exact ⟨hs0, Or.inr ⟨hdv, by linarith⟩⟩
 
 /-- A split spoke visits a restored source vertex only at its own original end. -/
@@ -120,24 +115,22 @@ theorem split_spoke_vertex_contact {G : Graph} {u v : ℕ}
     (heq : AffineMap.lineMap (D.restoredVertex a b (contractionLift G u v d.val).vertex)
       (D.cutPort ρ d.val) s = D.restoredVertex a b w) :
     s = 0 ∧ (contractionLift G u v d.val).vertex = w := by
-  rcases hw with hwu | hwv
+  rcases hw.imp Eq.symm Eq.symm with rfl | rfl
   · have hconn : AffineMap.lineMap (D.restoredVertex a b (contractionLift G u v d.val).vertex)
         (D.cutPort ρ d.val) s = AffineMap.lineMap a b (0 : ℝ) := by
-      have h := heq.trans (congrArg (D.restoredVertex a b) hwu)
-      simpa only [restoredVertex, ↓reduceIte, AffineMap.lineMap_apply_zero] using h
+      simpa only [restoredVertex, ↓reduceIte, AffineMap.lineMap_apply_zero] using heq
     obtain ⟨hs0, hu | hv⟩ := D.split_spoke_connector_contact ρ a b f hsep hpa hpb d hs
       ⟨le_rfl, by norm_num⟩ hconn
-    · exact ⟨hs0, hu.1.trans hwu.symm⟩
+    · exact ⟨hs0, hu.1⟩
     · norm_num at hv
   · have hconn : AffineMap.lineMap (D.restoredVertex a b (contractionLift G u v d.val).vertex)
         (D.cutPort ρ d.val) s = AffineMap.lineMap a b (1 : ℝ) := by
-      have h := heq.trans (congrArg (D.restoredVertex a b) hwv)
       simpa only [restoredVertex, ite_eq_right huv.symm, ↓reduceIte,
-        AffineMap.lineMap_apply_one] using h
+        AffineMap.lineMap_apply_one] using heq
     obtain ⟨hs0, hu | hv⟩ := D.split_spoke_connector_contact ρ a b f hsep hpa hpb d hs
       ⟨by norm_num, le_rfl⟩ hconn
     · norm_num at hu
-    · exact ⟨hs0, hv.1.trans hwv.symm⟩
+    · exact ⟨hs0, hv.1⟩
 
 /-- An interior spoke can meet an exterior route only at its own cut port and
 corresponding actual end. The radius's exterior-contact property is supplied by
@@ -195,10 +188,7 @@ theorem outsideRoute_ne_center_of_contacts {G : Graph} (D : PolygonalDrawing G)
     (e : Fin G.2.length) (i : Fin (D.outsideRoute v ρ e).segments) {t : ℝ}
     (ht : t ∈ Set.Icc 0 1) : (D.outsideRoute v ρ e).eval i t ≠ D.vertex v := by
   intro heq
-  have hball : (D.outsideRoute v ρ e).eval i t ∈ Metric.closedBall (D.vertex v) ρ := by
-    rw [heq]
-    exact Metric.mem_closedBall_self hρ.le
-  obtain ⟨side, _, hv, hp⟩ := hcut e i t ht hball
+  obtain ⟨side, _, hv, hp⟩ := hcut e i t ht (heq.symm ▸ Metric.mem_closedBall_self hρ.le)
   have hdist := hports (e, side) hv
   rw [← hp, heq, dist_self] at hdist
   exact hρ.ne hdist
@@ -277,8 +267,7 @@ theorem IsEmbedding.prepend_outsideRoute_simple {G : Graph} {D : PolygonalDrawin
     rw [hstart] at heq
     obtain ⟨hs1, side, hside, hat⟩ :=
       hD.spoke_outsideRoute_contact v hρ hcut ha (e, false) he e j hs ht heq
-    have htag : side = false := (congrArg Prod.snd hside).symm
-    subst side
+    cases hside
     exact Or.inl ⟨hs1, hat⟩
 
 /-- Attach a new last spoke to an actual exterior piece. The old first end, if
@@ -306,10 +295,9 @@ theorem IsEmbedding.append_outsideRoute_simple {G : Graph} {D : PolygonalDrawing
         (D.outsideRoute v ρ e).eval j s := by
       rw [AffineMap.lineMap_apply_one_sub, ← hfinish]
       exact heq.symm
-    obtain ⟨ht1, side, hside, hat⟩ := hD.spoke_outsideRoute_contact v hρ hcut hb
+    obtain ⟨_, side, hside, hat⟩ := hD.spoke_outsideRoute_contact v hρ hcut hb
       (e, true) he e j ⟨by linarith [ht.2], by linarith [ht.1]⟩ hs hrev
-    have htag : side = true := (congrArg Prod.snd hside).symm
-    subst side
+    cases hside
     exact Or.inl ⟨hat, by linarith⟩
 
 /-- Reattach two independent ends of a cut route, permitting precisely the intended
@@ -339,9 +327,7 @@ theorem IsEmbedding.attach_outsideRoute_simple {G : Graph} {D : PolygonalDrawing
   have hsphere : D.cutPort ρ (e, true) ∈ Metric.sphere (D.vertex v) ρ := by
     rw [Metric.mem_sphere]
     simpa only [he₁] using hD.dist_cutPort hρ.le (e, true)
-  have hp' : (Route.prepend a p).IsSimple :=
-    hD.prepend_outsideRoute_simple v hρ hcut ha e he₀ hp
-  apply hp'.append
+  apply (hD.prepend_outsideRoute_simple v hρ hcut ha e he₀ hp).append
   · rw [hfinish']
     intro heq
     exact Set.disjoint_left.mp Metric.sphere_disjoint_ball hsphere (heq.symm ▸ hb)
@@ -349,34 +335,22 @@ theorem IsEmbedding.attach_outsideRoute_simple {G : Graph} {D : PolygonalDrawing
     induction j using Fin.cases with
     | zero =>
       rw [Route.eval_prepend_zero, hstart, hfinish'] at heq
-      have hrev : AffineMap.lineMap a (D.cutPort ρ (e, false)) s =
-          AffineMap.lineMap b (D.cutPort ρ (e, true)) (1 - t) := by
-        rw [AffineMap.lineMap_apply_one_sub]
-        exact heq
-      obtain ⟨hs0, ht0⟩ := hspokes s (1 - t) hs ⟨by linarith [ht.2], by linarith [ht.1]⟩ hrev
-      right
-      refine ⟨?_, by linarith⟩
-      simp [Route.AtEnd, Route.position, hs0]
+      obtain ⟨hs0, ht0⟩ := hspokes s (1 - t) hs ⟨by linarith [ht.2], by linarith [ht.1]⟩
+        (heq.trans (AffineMap.lineMap_apply_one_sub b _ t).symm)
+      exact Or.inr ⟨by simp [Route.AtEnd, Route.position, hs0], by linarith⟩
     | succ j =>
       change Fin p.segments at j
-      have heq' : p.eval j s = AffineMap.lineMap (Route.prepend a p).finish b t :=
-        (Route.eval_prepend_succ a p j s).symm.trans heq
-      rw [hfinish'] at heq'
       have hrev : AffineMap.lineMap b (D.cutPort ρ (e, true)) (1 - t) = p.eval j s := by
-        rw [AffineMap.lineMap_apply_one_sub]
-        exact heq'.symm
-      obtain ⟨ht1, side, hside, hat⟩ := hD.spoke_outsideRoute_contact v hρ hcut hb
+        rw [AffineMap.lineMap_apply_one_sub, ← hfinish']
+        exact ((Route.eval_prepend_succ a p j s).symm.trans heq).symm
+      obtain ⟨_, side, hside, hat⟩ := hD.spoke_outsideRoute_contact v hρ hcut hb
         (e, true) he₁ e j ⟨by linarith [ht.2], by linarith [ht.1]⟩ hs hrev
-      have htag : side = true := (congrArg Prod.snd hside).symm
-      subst side
-      left
-      refine ⟨?_, by linarith⟩
+      cases hside
+      refine Or.inl ⟨?_, by linarith⟩
       change (Route.prepend a p).position j.succ s = (Route.prepend a p).segments
-      calc
-        _ = 1 + p.position j s := Route.position_prepend_succ a p j s
-        _ = _ := by
-          rw [show p.position j s = p.segments from hat, Route.segments_prepend]
-          push_cast
-          ring
+      rw [Route.position_prepend_succ a p j s, show p.position j s = p.segments from hat,
+        Route.segments_prepend]
+      push_cast
+      ring
 
 end Cslib.Complexity.Graph.PolygonalDrawing

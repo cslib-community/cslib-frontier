@@ -134,8 +134,7 @@ private theorem length_gateRow {width : ℕ} {g : Op × List ℕ} (h : ∀ i ∈
     (gateRow width g).length = 3 + 2 * width := by
   rw [gateRow, List.length_append, List.length_append, Op.length_bits,
     length_unaryField _ _ (List.getD_le_of_forall_le h 0),
-    length_unaryField _ _ (List.getD_le_of_forall_le h 1)]
-  omega
+    length_unaryField _ _ (List.getD_le_of_forall_le h 1)]; omega
 
 /-- A row reads as its gate, when the gate has the arity of its operation. -/
 private theorem readRow_gateRow {width : ℕ} {g : Op × List ℕ}
@@ -144,13 +143,12 @@ private theorem readRow_gateRow {width : ℕ} {g : Op × List ℕ}
   obtain ⟨op, args⟩ := g
   have h₀ := length_unaryField _ _ (List.getD_le_of_forall_le h 0)
   have h₁ := length_unaryField _ _ (List.getD_le_of_forall_le h 1)
-  have hop : ∀ j < 3, (gateRow width (op, args)).getD j false = op.bits.getD j false := by
-    intro j hj
+  have hop (j : ℕ) (hj : j < 3) :
+      (gateRow width (op, args)).getD j false = op.bits.getD j false := by
     rw [gateRow, List.append_assoc, List.getD_append _ _ _ _ (by simpa using hj)]
   have hdrop₀ : ((gateRow width (op, args)).drop 3).take width =
       unaryField width (args.getD 0 0) := by
-    rw [gateRow, List.append_assoc, List.drop_left' (Op.length_bits op),
-      List.take_left' h₀]
+    rw [gateRow, List.append_assoc, List.drop_left' (Op.length_bits op), List.take_left' h₀]
   have hdrop₁ : ((gateRow width (op, args)).drop (3 + width)).take width =
       unaryField width (args.getD 1 0) := by
     rw [gateRow, List.append_assoc, ← List.drop_drop, List.drop_left' (Op.length_bits op),
@@ -158,15 +156,10 @@ private theorem readRow_gateRow {width : ℕ} {g : Op × List ℕ}
   simp only [readRow, hop 0 (by omega), hop 1 (by omega), hop 2 (by omega), Op.ofBits_bits,
     hdrop₀, hdrop₁, count_unaryField]
   refine Prod.ext rfl ?_
-  dsimp only at harity ⊢
   cases op with
   | const b => simp_all
-  | not =>
-    obtain ⟨a, rfl⟩ := List.length_eq_one_iff.1 harity
-    rfl
-  | and | or =>
-    obtain ⟨a, b, rfl⟩ := List.length_eq_two.1 harity
-    rfl
+  | not => obtain ⟨_, rfl⟩ := List.length_eq_one_iff.1 harity; rfl
+  | and | or => obtain ⟨_, _, rfl⟩ := List.length_eq_two.1 harity; rfl
 
 /-! ### Certificates -/
 
@@ -175,15 +168,13 @@ def certLength (n s : ℕ) : ℕ := s + (n + s) + s * (3 + 2 * (n + s))
 
 /-- Certificate length is monotone in the number of inputs. -/
 theorem certLength_mono_left {m n : ℕ} (h : m ≤ n) (s : ℕ) : certLength m s ≤ certLength n s := by
-  unfold certLength
-  gcongr
+  unfold certLength; gcongr
 
 /-- The certificate length is at most `3 (n + s + 1) ^ 2`. -/
 theorem certLength_le_three_mul_sq (n s : ℕ) : certLength n s ≤ 3 * (n + s + 1) ^ 2 := by
-  have h : 3 * (n + s + 1) ^ 2 =
+  have : 3 * (n + s + 1) ^ 2 =
       certLength n s + (3 * n ^ 2 + s ^ 2 + 4 * n * s + 5 * n + s + 3) := by
-    unfold certLength
-    ring
+    unfold certLength; ring
   omega
 
 /-- The certificate of a circuit with `n` inputs and at most `s` gates, given by its gate list and
@@ -209,12 +200,11 @@ theorem length_certificate {n s : ℕ} {gates : List (Op × List ℕ)} {output :
     (hs : gates.length ≤ s) (houtput : output ≤ n + s)
     (hgates : ∀ g ∈ gates, ∀ i ∈ g.2, i ≤ n + s) :
     (certificate n s gates output).length = certLength n s := by
-  have hrows : (gates.flatMap (gateRow (n + s))).length = gates.length * (3 + 2 * (n + s)) := by
-    rw [List.length_flatMap, List.map_congr_left fun g hg => length_gateRow (hgates g hg),
-      List.map_const', List.sum_replicate, smul_eq_mul]
-  rw [certificate, List.length_append, List.length_append, List.length_append, hrows,
-    length_unaryField _ _ hs, length_unaryField _ _ houtput, List.length_replicate, certLength,
-    Nat.add_assoc _ (gates.length * _), ← Nat.add_mul, Nat.add_sub_cancel' hs]
+  rw [certificate, List.length_append, List.length_append, List.length_append, List.length_flatMap,
+    List.map_congr_left fun g hg => length_gateRow (hgates g hg), List.map_const',
+    List.sum_replicate, smul_eq_mul, length_unaryField _ _ hs, length_unaryField _ _ houtput,
+    List.length_replicate, certLength, Nat.add_assoc _ (gates.length * _), ← Nat.add_mul,
+    Nat.add_sub_cancel' hs]
 
 /-- **A certificate reads as the code of its circuit**, whatever bits follow it. -/
 theorem readCertificate_certificate_append {n s : ℕ} {gates : List (Op × List ℕ)} {output : ℕ}
@@ -222,20 +212,15 @@ theorem readCertificate_certificate_append {n s : ℕ} {gates : List (Op × List
     (houtput : output ≤ n + s) (extra : List Bool) :
     readCertificate n s (certificate n s gates output ++ extra) = (gates, output) := by
   have hgate (j : ℕ) (hj : j < gates.length) :
-      gates[j].2.length = signature.Arity gates[j].1 ∧ ∀ i ∈ gates[j].2, i ≤ n + s := by
-    obtain ⟨h₁, h₂⟩ := hcode.getElem j hj
-    exact ⟨h₁, fun i hi => by have := h₂ i hi; omega⟩
-  have hgates : ∀ g ∈ gates, ∀ i ∈ g.2, i ≤ n + s := by
-    intro g hg
-    obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hg
-    exact (hgate j hj).2
-  have hk := length_unaryField _ _ hs
-  have ho := length_unaryField _ _ houtput
+      gates[j].2.length = signature.Arity gates[j].1 ∧ ∀ i ∈ gates[j].2, i ≤ n + s :=
+    let ⟨h₁, h₂⟩ := hcode.getElem j hj; ⟨h₁, fun i hi => by have := h₂ i hi; omega⟩
+  have hgates : ∀ g ∈ gates, ∀ i ∈ g.2, i ≤ n + s := fun g hg =>
+    let ⟨j, hj, h⟩ := List.getElem_of_mem hg; h ▸ (hgate j hj).2
+  have hk := length_unaryField _ _ hs; have ho := length_unaryField _ _ houtput
   simp only [readCertificate, certificate, List.append_assoc]
   rw [List.take_left' hk, count_unaryField, ← List.drop_drop, List.drop_left' hk,
     List.take_left' ho, count_unaryField, List.drop_left' ho]
-  refine Prod.ext ?_ rfl
-  refine List.ext_getElem (by simp) fun j h₁ h₂ => ?_
+  refine Prod.ext (List.ext_getElem (by simp) fun j _ h₂ => ?_) rfl
   simp only [BitString.listRows, List.getElem_map, List.getElem_range]
   rw [BitString.listRow_flatMap_append _ _ (fun g hg => length_gateRow (hgates g hg)) _ j h₂,
     readRow_gateRow (hgate j h₂).1 (hgate j h₂).2]
@@ -244,22 +229,19 @@ theorem readCertificate_certificate_append {n s : ℕ} {gates : List (Op × List
 theorem readCertificate_certificate_code_append {n s : ℕ} (c : Circuit signature n 1)
     (hs : c.size ≤ s) (extra : List Bool) :
     readCertificate n s (certificate n s c.code.1 (c.outputs 0).toNat ++ extra) =
-      (c.code.1, (c.outputs 0).toNat) := by
-  exact readCertificate_certificate_append c.isCodeFrom_code
-    (by rw [Circuit.length_code_fst]; exact hs)
-    (by have := (c.outputs 0).toNat_lt; omega) extra
+      (c.code.1, (c.outputs 0).toNat) :=
+  readCertificate_certificate_append c.isCodeFrom_code
+    (Circuit.length_code_fst c ▸ hs) (by have := (c.outputs 0).toNat_lt; omega) extra
 
 /-- The certificate of a circuit with at most `s` gates has length `certLength n s`. -/
 theorem length_certificate_code {n s : ℕ} (c : Circuit signature n 1) (hs : c.size ≤ s) :
-    (certificate n s c.code.1 (c.outputs 0).toNat).length = certLength n s := by
-  have hcode := c.isCodeFrom_code
-  refine length_certificate (by rw [Circuit.length_code_fst]; exact hs)
-    (by have := (c.outputs 0).toNat_lt; omega) ?_
-  intro g hg i hi
-  obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hg
-  have := (hcode.getElem j hj).2 i hi
-  have : j < c.size := by rwa [Circuit.length_code_fst] at hj
-  omega
+    (certificate n s c.code.1 (c.outputs 0).toNat).length = certLength n s :=
+  length_certificate (Circuit.length_code_fst c ▸ hs)
+    (by have := (c.outputs 0).toNat_lt; omega) fun g hg i hi => by
+      obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hg
+      have := (c.isCodeFrom_code.getElem j hj).2 i hi
+      have : j < c.size := Circuit.length_code_fst c ▸ hj
+      omega
 
 /-! ### Reading certificates in polynomial time -/
 
@@ -269,24 +251,22 @@ open ComputableInPolyTime
 private theorem computableInPolyTime_readRow :
     ComputableInPolyTime (fun p : ℕ × List Bool => readRow p.1 p.2)
       (encPair encUnary encBits) encGate := by
-  have hop : ComputableInPolyTime (fun p : ℕ × List Bool =>
-      Op.ofBits (p.2.getD 0 false, p.2.getD 1 false, p.2.getD 2 false))
-      (encPair encUnary encBits) encOp :=
-    (of_finite (encIn := encPair encBool (encPair encBool encBool)) Op.ofBits).comp (by fun_prop)
-  have hc₀ : ComputableInPolyTime (fun p : ℕ × List Bool =>
-      ((p.2.drop 3).take p.1).count true) (encPair encUnary encBits) encNat :=
-    unary_to_binary.comp (by fun_prop)
+  have hc₀ : ComputableInPolyTime (fun p : ℕ × List Bool => ((p.2.drop 3).take p.1).count true)
+      (encPair encUnary encBits) encNat := unary_to_binary.comp (by fun_prop)
   have hc₁ : ComputableInPolyTime (fun p : ℕ × List Bool =>
       ((p.2.drop (3 + p.1)).take p.1).count true) (encPair encUnary encBits) encNat :=
     unary_to_binary.comp (by fun_prop)
   unfold readRow
-  refine finite_cases (tagEncoding := encOp) (branch := fun op p => (op,
+  exact finite_cases (tagEncoding := encOp) (branch := fun op (p : ℕ × List Bool) => (op,
     [((p.2.drop 3).take p.1).count true, ((p.2.drop (3 + p.1)).take p.1).count true].take
-      (signature.Arity op))) hop fun op => (const op).prod ?_
-  cases op with
-  | const b => exact const []
-  | not => exact cons' hc₀ (const [])
-  | and | or => exact cons' hc₀ (cons' hc₁ (const []))
+      (signature.Arity op)))
+    ((of_finite (encIn := encPair encBool (encPair encBool encBool)) Op.ofBits).comp
+      (show ComputableInPolyTime (fun p : ℕ × List Bool =>
+        (p.2.getD 0 false, p.2.getD 1 false, p.2.getD 2 false)) _ _ by fun_prop))
+    fun op => (const op).prod <| match op with
+      | .const _ => const []
+      | .not => cons' hc₀ (const [])
+      | .and | .or => cons' hc₀ (cons' hc₁ (const []))
 
 /-- Checking that a list of gates is a code is polynomial-time, with the number of inputs in
 unary. -/
@@ -294,8 +274,8 @@ unary. -/
 theorem computableInPolyTime_codeCheck {γ : Type} {encIn : γ ↪ List Bool}
     {n : γ → ℕ} {gates : γ → List (Op × List ℕ)} (hn : ComputableInPolyTime n encIn encUnary)
     (hgates : ComputableInPolyTime gates encIn (encList encGate)) :
-    ComputableInPolyTime (fun a => codeCheck signature (n a) (gates a)) encIn encBool := by
-  exact Circuits.computableInPolyTime_codeCheck (σ := signature) (of_finite _) hn hgates
+    ComputableInPolyTime (fun a => codeCheck signature (n a) (gates a)) encIn encBool :=
+  Circuits.computableInPolyTime_codeCheck (σ := signature) (of_finite _) hn hgates
 
 /-- **Reading certificates is polynomial-time**, for the number of inputs and the number of gates
 in unary. -/
@@ -305,24 +285,13 @@ theorem computableInPolyTime_readCertificate {γ : Type} {encIn : γ ↪ List Bo
     (hs : ComputableInPolyTime s encIn encUnary)
     (hw : ComputableInPolyTime w encIn encBits) :
     ComputableInPolyTime (fun a => readCertificate (n a) (s a) (w a)) encIn
-      (encPair (encList encGate) encNat) := by
-  unfold readCertificate
-  have hk : ComputableInPolyTime (fun a => ((w a).take (s a)).count true) encIn encUnary :=
-    bitsCountWithInput (bitsTakeWithInput hw hs) (const true)
-  have hwidth : ComputableInPolyTime (fun a => 3 + 2 * (n a + s a)) encIn encUnary := by
-    fun_prop
-  have hdrop : ComputableInPolyTime (fun a => (w a).drop (s a + (n a + s a))) encIn encBits :=
-    bitsDropWithInput hw (by fun_prop)
-  have hrows : ComputableInPolyTime (fun a => BitString.listRows (((w a).take (s a)).count
-      true) (3 + 2 * (n a + s a)) ((w a).drop (s a + (n a + s a)))) encIn (encList encBits) :=
-    bitsRowsWithInput hk hwidth hdrop
-  have hout : ComputableInPolyTime (fun a => (((w a).drop (s a)).take (n a + s a)).count true)
-      encIn encUnary :=
-    bitsCountWithInput (bitsTakeWithInput (bitsDropWithInput hw hs) (by fun_prop)) (const true)
-  have hpair : ComputableInPolyTime (fun p : γ × List Bool => (n p.1 + s p.1, p.2))
-      (encPair encIn encBits) (encPair encUnary encBits) := by
-    fun_prop
-  exact (mapWithInput hrows (computableInPolyTime_readRow.comp hpair)).prod
-    (unary_to_binary.comp hout)
+      (encPair (encList encGate) encNat) :=
+  (mapWithInput (bitsRowsWithInput (bitsCountWithInput (bitsTakeWithInput hw hs) (const true))
+      (by fun_prop) (bitsDropWithInput hw (by fun_prop)))
+    (computableInPolyTime_readRow.comp (show ComputableInPolyTime
+      (fun p : γ × List Bool => (n p.1 + s p.1, p.2)) (encPair encIn encBits)
+      (encPair encUnary encBits) by fun_prop))).prod
+    (unary_to_binary.comp (bitsCountWithInput
+      (bitsTakeWithInput (bitsDropWithInput hw hs) (by fun_prop)) (const true)))
 
 end Cslib.Circuits.Boolean

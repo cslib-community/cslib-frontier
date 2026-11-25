@@ -207,10 +207,6 @@ private theorem successor_some_spec {d w stackBase₀ sp₀ base query ans : ℕ
         ExecWithin w successorUnwind s₁ z (21 * d + T) := by
   have ha : Fits w (base + span d) := hfit.of_le (by omega)
   have hbase4 : Fits w (base + 4) := ha.of_le (by have := five_le_span d; omega)
-  have hz := hs.zero_eq; have ho := hs.one_eq; have htwo := hs.two_eq
-  have hthree := hs.three_eq; have hfour := hs.four_eq; have hfive := hs.five_eq
-  have hsb := hs.stackBase_eq; have hsp_eq := hs.sp_eq; have hp := hs.p_eq
-  have hx := hs.x_eq; have hrun := hs.runFlag_eq
   have hheader := hr.header
   rcases hb : tree.bounds with _ | ⟨m, M⟩ <;> rw [hb] at hheader
   · exfalso
@@ -223,10 +219,8 @@ private theorem successor_some_spec {d w stackBase₀ sp₀ base query ans : ℕ
     apply successor_some_finish hs
     apply WP.exists_execWithin
     unfold successorDescentBody readAt finishMin
-    wram_exec [hz, ho, hp, hx, hpres, hm, hlt_m]
-    exact ⟨by wram_simp, ⟨by wram_simp [hz], by wram_simp [ho], by wram_simp [hfive],
-      by wram_simp [hsb], by wram_simp [hsp_eq], by wram_simp,
-      by wram_simp [hans_eq], by wram_simp⟩⟩
+    wram_exec* [hpres, hm, hlt_m]
+    exact ⟨by wram_simp, by constructor <;> wram_simp * [hans_eq]⟩
   cases tree with
   | leaf b =>
     obtain rfl : b = some (m, M) := hb
@@ -238,10 +232,8 @@ private theorem successor_some_spec {d w stackBase₀ sp₀ base query ans : ℕ
     apply successor_some_finish hs
     apply WP.exists_execWithin
     unfold successorDescentBody readAt finishMax
-    wram_exec [hz, ho, htwo, hthree, hp, hx, hpres, hm, hM, hq, splitSize, hlt_m, hlt_M]
-    exact ⟨by wram_simp, ⟨by wram_simp [hz], by wram_simp [ho], by wram_simp [hfive],
-      by wram_simp [hsb], by wram_simp [hsp_eq], by wram_simp,
-      by wram_simp [hans_eq], by wram_simp⟩⟩
+    wram_exec* [hpres, hm, hM, hq, splitSize, hlt_m, hlt_M]
+    exact ⟨by wram_simp, by constructor <;> wram_simp * [hans_eq]⟩
   | @node d b summary cluster =>
     obtain rfl : b = some (m, M) := hb
     have hlt_M : query < M := by
@@ -326,8 +318,7 @@ private theorem successor_some_spec {d w stackBase₀ sp₀ base query ans : ℕ
       apply summary_branch hc_max
       apply WP.exists_execWithin
       unfold successorDescentBody readAt coordinates descendSummary pushFrame
-      wram_exec [hz, ho, htwo, hthree, hfour, hfive, hsp_eq, hp, hx,
-        hpres, hm, hM, hq, hspan, splitSize, childSpan, hlt_m, hlt_M, hqne, hch0]
+      wram_exec* [hpres, hm, hM, hq, hspan, splitSize, childSpan, hlt_m, hlt_M, hqne, hch0]
       exact ⟨by struct_frame hs, ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩,
         by mem_frame⟩
     | some cbounds =>
@@ -364,9 +355,8 @@ private theorem successor_some_spec {d w stackBase₀ sp₀ base query ans : ℕ
             (∀ a, a < sp₀ ∨ sp₀ + 4 ≤ a → next.mem a = s.mem a) := by
           apply WP.exists_execWithin
           unfold successorDescentBody readAt coordinates descendCluster pushFrame
-          wram_exec [hz, ho, htwo, hthree, hfour, hfive, hsp_eq, hp, hx,
-            hpres, hm, hM, hq, hspan, splitSize, childSpan, hlt_m, hlt_M, hqne, hch_ne0, hcM,
-            hlo_mx]
+          wram_exec* [hpres, hm, hM, hq, hspan, splitSize, childSpan, hlt_m, hlt_M, hqne,
+            hch_ne0, hcM, hlo_mx]
           exact ⟨by struct_frame hs,
             ⟨by wram_simp, by wram_simp [i], by wram_simp, by wram_simp⟩, by mem_frame⟩
         refine successor_push_step hs hsp_le hdisj hfit hstep (hr.2.2 i) hend
@@ -390,9 +380,8 @@ private theorem successor_some_spec {d w stackBase₀ sp₀ base query ans : ℕ
         apply summary_branch hc_max
         apply WP.exists_execWithin
         unfold successorDescentBody readAt coordinates descendSummary pushFrame
-        wram_exec [hz, ho, htwo, hthree, hfour, hfive, hsp_eq, hp, hx,
-          hpres, hm, hM, hq, hspan, splitSize, childSpan, hlt_m, hlt_M, hqne, hch_ne0, hcM,
-          hlo_mx]
+        wram_exec* [hpres, hm, hM, hq, hspan, splitSize, childSpan, hlt_m, hlt_M, hqne,
+          hch_ne0, hcM, hlo_mx]
         exact ⟨by struct_frame hs, ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩,
           by mem_frame⟩
 
@@ -407,9 +396,6 @@ private theorem successor_none_spec {d w stackBase₀ sp₀ base query : ℕ} {t
       s₁.regs found = 0 ∧ s₁.regs out = 0 ∧ s₁.mem = s.mem := by
   have ha : Fits w (base + span d) := hfit.of_le (by omega)
   have hbase4 : Fits w (base + 4) := ha.of_le (by have := five_le_span d; omega)
-  have hz := hs.zero_eq; have ho := hs.one_eq; have htwo := hs.two_eq
-  have hsb := hs.stackBase_eq; have hsp_eq := hs.sp_eq; have hp := hs.p_eq
-  have hx := hs.x_eq; have hrun := hs.runFlag_eq
   have hheader := hr.header
   have hstep : ∃ s₁, ExecWithin w successorDescentBody s s₁ 42 ∧
       s₁.regs zero = 0 ∧ s₁.regs runFlag = 0 ∧ s₁.regs stackBase = stackBase₀ ∧
@@ -418,9 +404,8 @@ private theorem successor_none_spec {d w stackBase₀ sp₀ base query : ℕ} {t
     unfold successorDescentBody readAt finishNone
     rcases hb : tree.bounds with _ | ⟨m, M⟩ <;> rw [hb] at hheader
     · have hempty : s.mem base = 0 := hheader.1
-      wram_exec [hz, hp, hempty]
-      exact ⟨by wram_simp [hz], by wram_simp, by wram_simp [hsb], by wram_simp [hsp_eq],
-        by wram_simp, by wram_simp, by wram_simp⟩
+      wram_exec* [hempty]
+      and_intros <;> wram_simp *
     · obtain ⟨hpres_raw, ⟨hm, hM⟩, _⟩ := hheader
       have hpres : s.mem base = 1 := hpres_raw
       have hnot_M : ¬query < M := by
@@ -430,12 +415,11 @@ private theorem successor_none_spec {d w stackBase₀ sp₀ base query : ℕ} {t
       have hnot_m : ¬query < m := by
         have := (ht.extrema_of_bounds hb).1
         omega
-      wram_exec [hz, ho, htwo, hp, hx, hpres, hm, hM, hnot_m, hnot_M]
-      exact ⟨by wram_simp [hz], by wram_simp, by wram_simp [hsb], by wram_simp [hsp_eq],
-        by wram_simp, by wram_simp, by wram_simp⟩
+      wram_exec* [hpres, hm, hM, hnot_m, hnot_M]
+      and_intros <;> wram_simp *
   obtain ⟨s₁, he, hz₁, hk₁, hsb₁, hsp₁, hfound₁, hout₁, hmem₁⟩ := hstep
   refine ⟨s₁, he.loop_once (cond := .lt zero runFlag) ?_ ?_, hsb₁, hsp₁, hfound₁, hout₁, hmem₁⟩
-  · simp only [Cond.holds_lt, hz, hrun]
+  · simp only [Cond.holds_lt, hs.zero_eq, hs.runFlag_eq]
     decide
   · simp only [Cond.holds_lt, hz₁, hk₁, lt_self_iff_false, not_false_eq_true]
 

@@ -159,15 +159,8 @@ private theorem ClusterWitness.partialIso {m k : ℕ} {a : Fin k → M} {b : Fin
       have heq := (W.entry p).isNbhdIso.partialIso.eq_iff u v
       simp only [Function.comp_apply, hu, hv] at heq
       exact heq
-    · have ha : a i ≠ a j := fun h => by
-        have hsep := W.sepM i j hij
-        rw [h, SimpleGraph.edist_self] at hsep
-        exact absurd ( (one_le_cast_two_pow m).trans_lt hsep ) (by simp)
-      have hb : b i ≠ b j := fun h => by
-        have hsep := W.sepN i j hij
-        rw [h, SimpleGraph.edist_self] at hsep
-        exact absurd ( (one_le_cast_two_pow m).trans_lt hsep ) (by simp)
-      exact iff_of_false ha hb
+    · exact iff_of_false (fun h => by simpa [h] using W.sepM i j hij)
+        (fun h => by simpa [h] using W.sepN i j hij)
   · rcases Nat.eq_zero_or_pos l with rfl | hl
     · rw [Subsingleton.elim (a ∘ f) Fin.elim0, Subsingleton.elim (b ∘ f) Fin.elim0]
       exact W.nullary R
@@ -179,8 +172,7 @@ private theorem ClusterWitness.partialIso {m k : ℕ} {a : Fin k → M} {b : Fin
         have hb : b ∘ f = (b ∘ (W.entry p).idx) ∘ g := funext fun q => congrArg b (hg q).symm
         rw [ha, hb]
         exact (W.entry p).isNbhdIso.partialIso.relMap_iff R g
-      · simp only [not_forall] at hall
-        obtain ⟨q, hq⟩ := hall
+      · obtain ⟨q, hq⟩ := not_forall.mp hall
         have farM : 1 < (gaifmanGraph L M).edist (a (f q)) (a (f i₀)) :=
           (one_le_cast_two_pow m).trans_lt (W.sepM (f q) (f i₀) hq)
         have farN : 1 < (gaifmanGraph L N).edist (b (f q)) (b (f i₀)) :=
@@ -420,9 +412,7 @@ private theorem ClusterWitness.forth [Finite M] {m k : ℕ} {a : Fin k → M} {b
     have hEq : ∀ (p : Fin W.c) {z : M}, z ∈ BM p → H z = (W.entry p).isoFun z := by
       intro p z hzp
       have hz : ∃ q, z ∈ BM q := ⟨p, hzp⟩
-      have hp : hz.choose = p := by
-        by_contra hne
-        exact disjM hne hz.choose_spec hzp
+      have hp : hz.choose = p := by_contra fun hne => disjM hne hz.choose_spec hzp
       simp only [H, hz, dite_true]
       rw [hp]
     have hBij : Set.BijOn H SM SN := by
@@ -439,10 +429,7 @@ private theorem ClusterWitness.forth [Finite M] {m k : ℕ} {a : Fin k → M} {b
         have hw₂ : (W.entry p₁).isoFun z₁ ∈ BN p₂ := by
           rw [h12]
           exact (W.entry p₂).isNbhdIso.mapsTo_ball (by omega) hz₂p
-        have hp : p₁ = p₂ := by
-          by_contra hne
-          exact disjN hne hw₁ hw₂
-        subst hp
+        obtain rfl : p₁ = p₂ := by_contra fun hne => disjN hne hw₁ hw₂
         exact ((W.entry p₁).isNbhdIso.mono (by omega : 2 ^ m ≤ 2 ^ (m + 1) - 1)).bijOn.injOn
           hz₁p hz₂p h12
       · obtain ⟨p, hwp⟩ := Set.mem_iUnion.1 hw
@@ -665,13 +652,7 @@ private theorem gaifmanGraph_or_eq_and {V : Type*} (R : V → V → Prop) (S : V
   rw [gaifmanGraph_relStructure]
   ext x y
   simp only [SimpleGraph.fromRel_adj]
-  exact ⟨fun ⟨hne, h⟩ => ⟨hne, by
-      rcases h with (h | ⟨rfl, _⟩) | (h | ⟨rfl, _⟩)
-      · exact .inl h
-      · exact absurd rfl hne
-      · exact .inr h
-      · exact absurd rfl hne⟩,
-    fun ⟨hne, h⟩ => ⟨hne, h.imp Or.inl Or.inl⟩⟩
+  grind
 
 /-- Any bijection `φ : V ≃ V` preserving a base relation `R` globally and preserving self-loops on
 the radius-`d` ball around `c` restricts to a radius-`d` neighborhood isomorphism. -/
@@ -1144,17 +1125,11 @@ private theorem exists_dirSumPath_hanfEquiv {k d : ℕ} (hd : d < 2 ^ (k + 1) - 
         0 d Fin.elim0 Fin.elim0 ∧
       (letI := relStructure (dirSumPathRel S₁); (Fin m ⊕ Fin m) ⊨ twoLoopSentence k) ∧
       ¬ (letI := relStructure (dirSumPathRel S₂); (Fin m ⊕ Fin m) ⊨ twoLoopSentence k) := by
-  have hk1 : 2 ≤ 2 ^ (k + 1) := by
-    have := @Nat.one_le_two_pow k
-    rw [pow_succ]
-    omega
-  have hk2 : 4 ≤ 2 ^ (k + 2) := by
-    rw [pow_succ _ (k + 1)]
-    omega
+  have hk := @Nat.one_le_two_pow k
+  have hk1 : 2 ^ (k + 1) = 2 * 2 ^ k := by rw [pow_succ, mul_comm]
+  have hk2 : 2 ^ (k + 2) = 4 * 2 ^ k := by rw [pow_succ, pow_succ]; omega
   set D := 2 ^ (k + 2) - 2
-  have hD_2d : 2 * d + 2 ≤ D := by
-    have : 2 ^ (k + 2) = 2 * 2 ^ (k + 1) := by rw [pow_succ, mul_comm]
-    omega
+  have hD_2d : 2 * d + 2 ≤ D := by omega
   set m := D + 1
   let S₁ : Fin m ⊕ Fin m → Prop
     | .inl x => (x : ℕ) = 0 ∨ (x : ℕ) = D
@@ -1212,9 +1187,7 @@ private theorem exists_dirSumPath_hanfEquiv {k d : ℕ} (hd : d < 2 ^ (k + 1) - 
   · -- `M ⊨ twoLoopSentence k`, witnessed at the midpoint `2 ^ (k + 1) - 1`.
     let _ := relStructure (dirSumPathRel S₁)
     rw [realize_twoLoopSentence]
-    have hD_split : D = (2 ^ (k + 1) - 1) + (2 ^ (k + 1) - 1) := by
-      have : 2 ^ (k + 2) = 2 * 2 ^ (k + 1) := by rw [pow_succ, mul_comm]
-      omega
+    have hD_split : D = (2 ^ (k + 1) - 1) + (2 ^ (k + 1) - 1) := by omega
     refine ⟨.inl ⟨2 ^ (k + 1) - 1, by omega⟩, ?_, ?_⟩
     · rw [realize_fwdStrict_dirSumPathRel]
       exact ⟨⟨0, by omega⟩, .inl rfl, by dsimp only; omega, by simp⟩

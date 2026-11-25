@@ -480,9 +480,8 @@ theorem advantage_hashThenPRFWord_le_add_collision {keyLen inLen outLen : ℕ �
   refine (advantage_hashThenPRFWord_le_add_multiQuery valid H F hH hF A n).trans ?_
   refine add_le_add le_rfl (UHF.succProbability_multiQueryGame_le_collisionPairReduction
     (fun k => pure k) (fun k _ => valid k) (hashThenPRFWordHash keyLen inLen H) []
-    (fun p => hashThenPRFWordIdealQueries outLen valid A (p.1, [])) n ?_)
-  intro _ _ _ hms
-  exact length_le_of_mem_support_hashThenPRFWordIdealQueries hQ hms
+    (fun p => hashThenPRFWordIdealQueries outLen valid A (p.1, [])) n
+    fun _ _ _ hms => length_le_of_mem_support_hashThenPRFWordIdealQueries hQ hms)
 
 /-- Theorem 7.7 of [BonehShoup2023], v0.6, §7.3, printed pp. 262–265, for product keys and
 uniform strict oracle-PPT tests. The components provide efficient hash evaluation, domain

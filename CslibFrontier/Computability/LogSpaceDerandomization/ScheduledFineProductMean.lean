@@ -120,24 +120,11 @@ theorem scheduled_fineProductMean_le {Γ Υ : Type*} [Fintype Γ] [Fintype Υ]
   have ha := hb.trans_le hba
   have hf : 0 < f := (mul_pos hc₁ hb).trans_le hbf
   have hπb : 0 < πb := (mul_pos hcb hb).trans_le hlower
-  by_cases hV : Nonempty V
-  swap
-  · have hemp : ∀ γ, ({x | X γ x} : Finset V) = ∅ := fun _ =>
-      filter_eq_empty_iff.mpr fun x _ => (hV ⟨x⟩).elim
-    have hlhs : rowNormPow 4 N u (fun (σ : Γ × Υ) x => X σ.1 x) (fun σ y => Ya σ.2 y)
-        (fun _ x y => conditionalTableMean (fun σ x => X σ.1 x) (fun σ y => Ya σ.2 y)
-          (fun σ x y => (b / a) * (f / πf) * (πa / πb) * E σ x y) x y) = 0 := by
-      simp [rowNormPow, hemp]
-    rw [hlhs]
-    positivity
-  obtain ⟨y₀⟩ := hV
-  have hπa : 0 < πa := by
-    have hle : (dens {τ | Yb τ y₀} : ℝ) ≤ dens {τ | Ya τ y₀} := by
-      exact_mod_cast Finset.dens_le_dens fun τ hτ => by
-        simp only [mem_filter, mem_univ, true_and] at hτ ⊢
-        exact hsub τ y₀ hτ
-    rw [hYbπ y₀, hYaπ y₀] at hle
-    exact hπb.trans_le hle
+  rcases isEmpty_or_nonempty V with hV | ⟨⟨y₀⟩⟩
+  · exact (Eq.le (by simp [rowNormPow] : _ = (0 : ℝ))).trans (by positivity)
+  have hle : (dens {τ | Yb τ y₀} : ℝ) ≤ dens {τ | Ya τ y₀} := by
+    exact_mod_cast Finset.dens_le_dens fun τ hτ => by simpa using hsub τ y₀ (by simpa using hτ)
+  have hπa : 0 < πa := hπb.trans_le (by rwa [hYbπ y₀, hYaπ y₀] at hle)
   have core (πf' : ℝ) (hπf' : 0 < πf') :
       rowNormPow 4 N u (fun (σ : Γ × Υ) x => X σ.1 x) (fun σ y => Ya σ.2 y)
         (fun _ x y => conditionalTableMean (fun (σ : Γ × Υ) x => X σ.1 x)

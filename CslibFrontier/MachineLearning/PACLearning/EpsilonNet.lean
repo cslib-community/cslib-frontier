@@ -96,8 +96,7 @@ private theorem card_filter_swap_mul_two_pow_le {m k : ℕ} (a b : Fin m → Boo
     (∀ i, (if σ i then b i else a i) = false) ∧
       k ≤ (Finset.univ.filter fun i => (if σ i then a i else b i) = true).card
   rcases Good.eq_empty_or_nonempty with h | ⟨σ₀, hσ₀⟩
-  · rw [h, Finset.card_empty, zero_mul]
-    exact Nat.zero_le _
+  · simp [h]
   obtain ⟨h0, hk⟩ := (Finset.mem_filter.1 hσ₀).2
   have hfilt : (Finset.univ.filter fun i => (if σ₀ i then a i else b i) = true) =
       Finset.univ.filter fun i => (a i || b i) = true := by
@@ -181,12 +180,10 @@ private theorem card_filter_swapSamples_mem_mul_two_pow_le (G : ConceptClass Z B
       simp only [v, hσG, ↓reduceDIte, x, Fin.append_right]
     generalize (hw σ hσG).choose = g at h1 h2 hva hvb
     refine Finset.mem_filter.2 ⟨Finset.mem_univ _, fun i => ?_, ?_⟩
-    · rw [hva, hvb]
-      have := h1 i
-      simp only [fst_swapSamples_apply] at this
-      cases hσi : σ i
-      · simpa [hσi] using this
-      · simpa [hσi] using this
+    · have := h1 i
+      rw [fst_swapSamples_apply] at this
+      rw [hva, hvb]
+      cases hσi : σ i <;> simpa [hσi] using this
     · refine h2.trans_eq (congrArg Finset.card (Finset.filter_congr fun i _ => ?_))
       rw [hva, hvb, snd_swapSamples_apply]
       cases σ i <;> rfl
@@ -228,10 +225,7 @@ theorem le_of_vcSampleSize_le {d m : ℕ} {ε δ N : ℝ} (hε : 0 < ε) (hε1 :
   have hdlog : 0 ≤ (d : ℝ) * Real.log (48 / ε) := mul_nonneg (Nat.cast_nonneg d) hlogT
   have h8 : 8 ≤ ε * m := by linarith
   refine ⟨h8, ?_⟩
-  have hexp : ((m + m : ℕ) : ℝ) / (48 / ε) = ε * m / 24 := by
-    push_cast
-    field_simp
-    ring
+  have hexp : ((m + m : ℕ) : ℝ) / (48 / ε) = ε * m / 24 := by push_cast; field_simp; ring
   have hlog2 : ε * m / 3 ≤ ε * m / 2 * Real.log 2 := by nlinarith [Real.log_two_gt_d9]
   rw [Real.log_div (by norm_num) hδ.ne', show (4 : ℝ) = 2 ^ 2 by norm_num, Real.log_pow] at hm
   calc 2 * N
@@ -306,8 +300,7 @@ private theorem measure_pi_card_lt_le_half (μ : Measure Z) [IsProbabilityMeasur
   rw [hpre, ← Measure.map_apply hgm (Set.toFinite _).measurableSet, hmap,
     PMF.toMeasure_apply_eq_toOuterMeasure]
   set score : Fin m → Bool → ℝ := fun _ b => if b = true then 1 else 0
-  have hscore : ∀ i b, b ∈ q.support → score i b ∈ Set.Icc (0 : ℝ) 1 := by
-    intro i b _
+  have hscore : ∀ i b, b ∈ q.support → score i b ∈ Set.Icc (0 : ℝ) 1 := fun i b _ => by
     cases b <;> simp [score]
   have hqt : q true = μ {z | g z = true} := by
     rw [Measure.toPMF_apply, Measure.map_apply (measurable_of_countable g)
@@ -340,9 +333,8 @@ private theorem measure_pi_card_lt_le_half (μ : Measure Z) [IsProbabilityMeasur
           rw [Real.exp_neg, inv_lt_comm₀ (Real.exp_pos 1) (by norm_num)]
           norm_num
           linarith [Real.exp_one_gt_d9]
-  have hle := measure_mono (μ := (Cslib.Probability.PMF.pi fun _ : Fin m => q).toOuterMeasure)
-    hsub
-  refine hle.trans ?_
+  refine (measure_mono (μ := (Cslib.Probability.PMF.pi fun _ : Fin m => q).toOuterMeasure)
+    hsub).trans ?_
   ennreal_to_real
   linarith [hch, hexp]
 
@@ -399,22 +391,17 @@ theorem measure_pi_not_isEpsNet_mul_two_pow_le (μ : Measure Z) [IsProbabilityMe
     have hlow := measure_pi_card_lt_le_half μ g hgε hm
     rw [← hcompl, prob_compl_eq_one_sub .of_discrete] at hlow
     refine le_trans ?_ (measure_mono hsub)
-    have h1 := tsub_le_iff_right.1 hlow
     refine ENNReal.le_of_add_le_add_left (a := 1 / 2) (by simp) ?_
     rw [ENNReal.add_halves]
-    exact h1
+    exact tsub_le_iff_right.1 hlow
   have hJB : ν B ≤
       2 * ((Measure.pi fun _ : Fin m => μ).prod (Measure.pi fun _ : Fin m => μ) J) :=
     measure_le_two_mul_measure_prod ν ν B .of_discrete hfib
   have hρJ := measure_doubleSampleEvent_mul_two_pow_le μ G m k
   calc ν B * 2 ^ k
       ≤ 2 * ((Measure.pi fun _ : Fin m => μ).prod (Measure.pi fun _ : Fin m => μ) J) *
-          2 ^ k := by
-        gcongr
-    _ = 2 * ((Measure.pi fun _ : Fin m => μ).prod (Measure.pi fun _ : Fin m => μ) J *
-          2 ^ k) :=
-        mul_assoc _ _ _
-    _ ≤ 2 * growthFunction G (m + m) := by gcongr
+          2 ^ k := by gcongr
+    _ ≤ 2 * growthFunction G (m + m) := by rw [mul_assoc]; gcongr
 
 /-- The ε-net theorem in `δ` form: if `8 ≤ εm` and `2 Π_G(2m) ≤ δ 2 ^ ⌈εm/2⌉`, then `m` i.i.d.
 samples fail to be an ε-net with probability at most `δ`. -/

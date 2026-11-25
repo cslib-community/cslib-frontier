@@ -222,21 +222,19 @@ coefficient of each mode. -/
 
 theorem localForm_congr {X X' : E → Bool} {e : E}
     (h : ∀ e', S.packet e' = S.packet e → S.group (N.tgt e') = S.group (N.src e) → X e' = X' e') :
-    S.localForm X e = S.localForm X' e := by
-  refine sum_congr rfl fun e' _ => ?_
-  by_cases h0 : S.localPart e e' = 0
-  · rw [h0, zero_mul, zero_mul]
-  · obtain ⟨hp, hg⟩ := S.localPart_ne_zero e e' h0
-    rw [h e' hp hg]
+    S.localForm X e = S.localForm X' e :=
+  sum_congr rfl fun e' _ => by
+    rcases eq_or_ne (S.localPart e e') 0 with h0 | h0
+    · simp [h0]
+    · rw [h e' (S.localPart_ne_zero e e' h0).1 (S.localPart_ne_zero e e' h0).2]
 
 theorem modeValue_congr {X X' : E → Bool} {Z : M}
     (h : ∀ e, S.packet e = S.modePacket Z → S.group (N.tgt e) = S.source Z → X e = X' e) :
-    S.modeValue X Z = S.modeValue X' Z := by
-  refine sum_congr rfl fun e _ => ?_
-  by_cases h0 : S.form Z e = 0
-  · rw [h0, zero_mul, zero_mul]
-  · obtain ⟨hp, hg⟩ := S.form_ne_zero Z e h0
-    rw [h e hp.symm hg.symm]
+    S.modeValue X Z = S.modeValue X' Z :=
+  sum_congr rfl fun e _ => by
+    rcases eq_or_ne (S.form Z e) 0 with h0 | h0
+    · simp [h0]
+    · rw [h e (S.form_ne_zero Z e h0).1.symm (S.form_ne_zero Z e h0).2.symm]
 
 /-- The form of a row port splits into its local form and its modes. -/
 theorem mulVec_apply (X : E → Bool) (e : E) :
@@ -387,28 +385,25 @@ private theorem prod_block (Y X : E → Bool) (k : P × G) :
   set c : M → ℕ := fun Z => #{e | φ e = some Z} with hc
   by_cases hv : ∀ e Z, φ e = some Z → S.targetBlock Z = k
   · rw [sum_eq_single c]
-    · rw [ite_eq_left ⟨hv, fun Z _ => rfl⟩]
+    · rw [ite_eq_left ⟨hv, fun _ _ => rfl⟩]
     · intro β hβ hne
       refine ite_eq_right fun h => hne (funext fun Z => ?_)
       by_cases hZ : S.targetBlock Z = k
       · exact (h.2 Z hZ).symm
-      · rw [(mem_filter.mp hβ).2 Z hZ]
-        exact (card_eq_zero.mpr (filter_eq_empty_iff.mpr fun e _ he => hZ (hv e Z he))).symm
+      · simp [c, (mem_filter.mp hβ).2 Z hZ, filter_eq_empty_iff.mpr fun e _ he => hZ (hv e Z he)]
     · intro hn
-      refine absurd ?_ hn
-      simp only [mem_filter, Fintype.mem_piFinset, mem_range]
-      refine ⟨fun Z => Nat.lt_succ_of_le ((card_filter_le _ _).trans ?_), fun Z hZ => ?_⟩
-      · rw [card_univ]
-        exact Fintype.card_subtype_le _
-      · exact card_eq_zero.mpr (filter_eq_empty_iff.mpr fun e _ he => hZ (hv e Z he))
+      refine absurd (mem_filter.mpr ⟨Fintype.mem_piFinset.mpr fun _ => mem_range.mpr ?_,
+        fun Z hZ => card_eq_zero.mpr (filter_eq_empty_iff.mpr fun e _ he => hZ (hv e Z he))⟩) hn
+      refine Nat.lt_succ_of_le ((card_filter_le _ _).trans ?_)
+      rw [card_univ]
+      exact Fintype.card_subtype_le _
   · push Not at hv
     obtain ⟨e, Z, he, hZ⟩ := hv
-    rw [sum_eq_zero fun β _ => ite_eq_right fun h => hZ (h.1 e Z he)]
+    rw [sum_eq_zero fun _ _ => ite_eq_right fun h => hZ (h.1 e Z he)]
     refine mul_eq_zero_of_left (prod_eq_zero (mem_univ e) ?_) _
     rw [he, choiceTerm]
     refine mul_eq_zero_of_right _ (by_contra fun h0 => hZ ?_)
-    obtain ⟨hp, hg⟩ := S.coeff_ne_zero e.1 Z h0
-    rw [targetBlock, hp, hg]
+    rw [targetBlock, (S.coeff_ne_zero e.1 Z h0).1, (S.coeff_ne_zero e.1 Z h0).2]
     exact e.2
 
 omit [Fintype E] [DecidableEq E] in
@@ -419,32 +414,23 @@ private theorem prod_sum_blockBox (n : ℕ) [Fintype P] [Fintype G] (f : P × G 
         ∏ k, f k (fun Z => if S.targetBlock Z = k then β Z else 0) := by
   rw [prod_univ_sum]
   refine sum_nbij' (fun x Z => x (S.targetBlock Z) Z)
-    (fun β k Z => if S.targetBlock Z = k then β Z else 0) ?_ ?_ ?_ ?_ ?_
-  · intro x hx
-    simp only [Fintype.mem_piFinset, mem_filter] at hx ⊢
-    exact fun Z => (hx (S.targetBlock Z)).1 Z
-  · intro β hβ
-    simp only [Fintype.mem_piFinset, mem_filter, mem_range] at hβ ⊢
-    refine fun k => ⟨fun Z => ?_, fun Z hZ => ite_eq_right hZ⟩
-    split_ifs
-    exacts [hβ Z, Nat.succ_pos n]
-  · intro x hx
-    simp only [Fintype.mem_piFinset, mem_filter] at hx
-    funext k Z
-    split_ifs with h
-    · subst h
-      rfl
-    · exact ((hx k).2 Z h).symm
-  · intro β _
-    funext Z
-    simp only [ite_true]
-  · intro x hx
-    simp only [Fintype.mem_piFinset, mem_filter] at hx
-    refine prod_congr rfl fun k _ => congrArg (f k) (funext fun Z => ?_)
-    split_ifs with h
-    · subst h
-      rfl
-    · exact (hx k).2 Z h
+    (fun β k Z => if S.targetBlock Z = k then β Z else 0)
+    (fun x hx => Fintype.mem_piFinset.mpr fun Z =>
+      Fintype.mem_piFinset.mp (mem_filter.mp (Fintype.mem_piFinset.mp hx (S.targetBlock Z))).1 Z)
+    (fun β hβ => Fintype.mem_piFinset.mpr fun k => mem_filter.mpr
+      ⟨Fintype.mem_piFinset.mpr fun Z => by
+        split_ifs
+        exacts [Fintype.mem_piFinset.mp hβ Z, mem_range.mpr (Nat.succ_pos n)],
+        fun _ hZ => ite_eq_right hZ⟩)
+    (fun x hx => funext fun k => funext fun Z => by
+      split_ifs with h
+      · exact h ▸ rfl
+      · exact ((mem_filter.mp (Fintype.mem_piFinset.mp hx k)).2 Z h).symm)
+    (fun _ _ => funext fun _ => ite_eq_left rfl)
+    fun x hx => prod_congr rfl fun k _ => congrArg (f k) <| funext fun Z => by
+      split_ifs with h
+      · exact h ▸ rfl
+      · exact (mem_filter.mp (Fintype.mem_piFinset.mp hx k)).2 Z h
 
 /-- **Mode expansion.** The product of all affine factors is a sum over exponent tuples of the
 product of the block coefficients times the mode monomial. -/
@@ -575,29 +561,21 @@ private theorem child_tensor_inl_groupBits (β : M → ℕ) (g : G) (v : {v // S
     (S.child β g).tensor (.inl v) (S.groupBits Y X g) =
       if S.side v.1 then N.tensor v.1 Y else N.tensor v.1 X := by
   simp only [child]
-  split_ifs with hv
-  · refine N.tensor_congr v.1 _ _ fun e he => ?_
-    by_cases hs : N.src e = v.1
-    · simp only [hs, dite_true, Sum.elim_inl]
-    · have ht : N.tgt e = v.1 := he.resolve_left hs
-      have := S.side_tgt e
-      rw [ht, hv] at this
-      exact absurd this (by decide)
-  · refine N.tensor_congr v.1 _ _ fun e he => ?_
-    by_cases ht : N.tgt e = v.1
-    · simp only [ht, dite_true, Sum.elim_inr]
-    · have hs : N.src e = v.1 := he.resolve_right ht
-      have := S.side_src e
-      rw [hs] at this
-      exact absurd this hv
+  split_ifs with hv <;> refine N.tensor_congr v.1 _ _ fun e he => ?_
+  · by_cases hs : N.src e = v.1
+    · simp [hs]
+    · exact absurd (he.resolve_left hs ▸ S.side_tgt e) (by simp [hv])
+  · by_cases ht : N.tgt e = v.1
+    · simp [ht]
+    · exact absurd (he.resolve_right ht ▸ S.side_src e) hv
 
 /-- On the bits of its group, a packet of a child reads the row and column bits. -/
 private theorem child_tensor_inr_groupBits (β : M → ℕ) (g : G) (q : P) (Y X : E → Bool) :
     (S.child β g).tensor (.inr q) (S.groupBits Y X g) = S.packetTensor β q g Y X := by
   simp only [child]
-  refine S.packetTensor_congr β q g (fun e _ hg => ?_) (fun e _ hg => ?_)
-  · simp only [hg, dite_true, Sum.elim_inl]
-  · simp only [hg, dite_true, Sum.elim_inr]
+  refine S.packetTensor_congr β q g (fun _ _ hg => ?_) (fun _ _ hg => ?_)
+  · simp [hg]
+  · simp [hg]
 
 /-- **The weight of an assignment factors over the groups.** For every tuple `β`, the term of
 the expanded deformed contraction at the row bits `Y` and column bits `X` is the product, over the
@@ -609,17 +587,12 @@ private theorem weight_eq_prod_child [Fintype V] [Fintype P] [Fintype G] (β : M
         ((∏ k, S.blockCoeff k β Y X) * ∏ Z, S.modeValue X Z ^ β Z) =
       ∏ g, ∏ x, (S.child β g).tensor x (S.groupBits Y X g) := by
   simp only [Fintype.prod_sum_type, S.child_tensor_inl_groupBits, S.child_tensor_inr_groupBits,
-    prod_mul_distrib]
+    prod_mul_distrib, packetTensor]
   rw [Fintype.prod_fiberwise S.group (fun v => if S.side v then N.tensor v Y else N.tensor v X),
-    prod_ite]
+    prod_ite, Fintype.prod_prod_type (f := fun k => S.blockCoeff k β Y X), prod_comm (s := univ),
+    ← prod_fiberwise univ S.sourceBlock, Fintype.prod_prod_type,
+    prod_comm (f := fun q g => ∏ Z with S.sourceBlock Z = (q, g), S.modeValue X Z ^ β Z)]
   simp only [Bool.not_eq_true]
-  have hk : ∏ k, S.blockCoeff k β Y X = ∏ g, ∏ q, S.blockCoeff (q, g) β Y X := by
-    rw [Fintype.prod_prod_type, prod_comm]
-  have hZ : ∏ Z, S.modeValue X Z ^ β Z =
-      ∏ g, ∏ q, ∏ Z with S.sourceBlock Z = (q, g), S.modeValue X Z ^ β Z := by
-    rw [prod_comm, ← Fintype.prod_prod_type (f := fun k => ∏ Z with S.sourceBlock Z = k,
-      S.modeValue X Z ^ β Z), prod_fiberwise]
-  simp only [packetTensor, prod_mul_distrib, hk, hZ]
 
 /-- Splitting the row and column bits by group. -/
 private def splitBits :

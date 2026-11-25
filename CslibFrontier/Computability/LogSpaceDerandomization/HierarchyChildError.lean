@@ -71,24 +71,14 @@ theorem rawPositiveSample_sub_le (l bin : ℕ) (t : RawTask k)
         estimated canonical x y := by
   let R := rawRequests l bin t source midpoint endpoint b
   let T := univ.filter (fun z => estimated R.left x z ≠ 0 ∨ canonical R.left x z ≠ 0)
+  have hT : ∀ z ∉ T, estimated R.left x z = 0 ∧ canonical R.left x z = 0 := fun z hz => by
+    simpa only [T, mem_filter, mem_univ, true_and, not_or, not_not] using hz
   have he : (∑ z, estimated R.left x z * estimated R.right z y) =
-      ∑ z ∈ T, estimated R.left x z * estimated R.right z y := by
-    symm
-    apply sum_subset (filter_subset _ _)
-    intro z _ hz
-    have hz0 : estimated R.left x z = 0 := by
-      by_contra hn
-      exact hz (mem_filter.mpr ⟨mem_univ _, Or.inl hn⟩)
-    rw [hz0, zero_mul]
+      ∑ z ∈ T, estimated R.left x z * estimated R.right z y :=
+    (sum_subset (filter_subset _ _) fun z _ hz => by rw [(hT z hz).1, zero_mul]).symm
   have hc : (∑ z, canonical R.left x z * canonical R.right z y) =
-      ∑ z ∈ T, canonical R.left x z * canonical R.right z y := by
-    symm
-    apply sum_subset (filter_subset _ _)
-    intro z _ hz
-    have hz0 : canonical R.left x z = 0 := by
-      by_contra hn
-      exact hz (mem_filter.mpr ⟨mem_univ _, Or.inr hn⟩)
-    rw [hz0, zero_mul]
+      ∑ z ∈ T, canonical R.left x z * canonical R.right z y :=
+    (sum_subset (filter_subset _ _) fun z _ hz => by rw [(hT z hz).2, zero_mul]).symm
   have hs := abs_sum_mul_sub_mul_le T
     (estimated R.left x) (canonical R.left x)
     (fun z => estimated R.right z y) (fun z => canonical R.right z y)
@@ -281,11 +271,9 @@ theorem incomingChildren_mem_Icc {q : ℕ}
       Set.Icc 0 (max (2 * HP.Q HP.toHierarchyParams.atomCap) (2 * CB)) := by
     unfold normalizedRequest
     split_ifs
-    · apply (show Set.Icc (0 : ℝ) (2 * CB) ⊆
-          Set.Icc 0 (max (2 * HP.Q HP.toHierarchyParams.atomCap) (2 * CB)) from
-          fun _ hv => ⟨hv.1, hv.2.trans (le_max_right _ _)⟩)
-      exact DenseRowRecipe.normalized_mem_Icc _ _ _ _ _ _ _ hCB hcutoff
-        (fun v => ⟨HP.ρ_nonneg v, HP.ρ_le_one v⟩) _ _ _ _ _
+    · exact Set.Icc_subset_Icc_right (le_max_right _ _)
+        (DenseRowRecipe.normalized_mem_Icc _ _ _ _ _ _ _ hCB hcutoff
+          (fun v => ⟨HP.ρ_nonneg v, HP.ρ_le_one v⟩) _ _ _ _ _)
     · exact hzero
   cases ht : r.task with
   | row stage task =>
@@ -308,20 +296,16 @@ theorem canonicalRequestChild_mem_Icc {q : ℕ}
   | baseNormalized stage bin =>
     simp only [canonicalRequestChild, ht, denseChild, normalizedRequest]
     split_ifs
-    · apply (show Set.Icc (0 : ℝ) (2 * CB) ⊆
-          Set.Icc 0 (max (2 * HP.Q HP.toHierarchyParams.atomCap) (2 * CB)) from
-          fun _ hv => ⟨hv.1, hv.2.trans (le_max_right _ _)⟩)
-      exact DenseRowRecipe.normalized_mem_Icc _ _ _ _ _ _ _ hCB hcutoff hρ _ _ _ _ _
+    · exact Set.Icc_subset_Icc_right (le_max_right _ _)
+        (DenseRowRecipe.normalized_mem_Icc _ _ _ _ _ _ _ hCB hcutoff hρ _ _ _ _ _)
     · exact hzero
   | row stage task =>
     cases task <;> simp only [canonicalRequestChild, ht]
     all_goals first
     | exact hzero
     | (split_ifs with hr
-       · apply (show Set.Icc (0 : ℝ) (2 * HP.Q HP.toHierarchyParams.atomCap) ⊆
-             Set.Icc 0 (max (2 * HP.Q HP.toHierarchyParams.atomCap) (2 * CB)) from
-             fun _ hv => ⟨hv.1, hv.2.trans (le_max_left _ _)⟩)
-         exact selectedRequest_mem_Icc HP D ident r _ _ _ _ σ x y
+       · exact Set.Icc_subset_Icc_right (le_max_left _ _)
+           (selectedRequest_mem_Icc HP D ident r _ _ _ _ σ x y)
        · exact hzero)
   | _ => simpa [canonicalRequestChild, ht] using hzero
 
@@ -339,9 +323,7 @@ theorem residual_left_support_midpoint
       canonicalRequestChild HP D ident C cutoff h ρ K r σ x z ≠ 0 →
       midpoint.retains (channels D) σ (ident z) := by
   dsimp only
-  intro hs
-  by_contra hz
-  rcases hs with hs | hs
+  rintro (hs | hs) <;> by_contra hz
   · exact hs (incomingChildren_zero_off_usage HP D ident Kc bounded raw prep maximum _ σ x z hz)
   · exact hs (canonicalRequestChild_zero_off_usage HP D ident C cutoff h ρ K _ σ x z hz)
 

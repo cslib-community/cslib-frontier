@@ -94,9 +94,7 @@ theorem eventually_lt_mul_card_of_ledger_min {r : ℕ} (hr : 2 ≤ r) {A : ℝ} 
     eventually_ge_atTop 1] with n hn hfreen hbign hn1
   intro σ I Acc c special _ M _ _ hfan L hE hS
   set o := c.outputs 0
-  have hSeq : S n = {x | c.program.trace I x o ∈ Acc} := by
-    ext x
-    exact hS x
+  have hSeq : S n = {x | c.program.trace I x o ∈ Acc} := Set.ext hS
   rw [hSeq] at hfreen hbign
   have hK1 := hfreen.pos
   have hKS : K n ≤ {x | c.program.trace I x o ∈ Acc}.ncard :=
@@ -125,8 +123,7 @@ theorem eventually_lt_mul_card_of_ledger_min {r : ℕ} (hr : 2 ≤ r) {A : ℝ} 
           (Nat.add_le_add_left (Compiler.maxDegreeLE hr hfan' _) _))
     have hR : (N.readAt (π.symm ⟨t, ht⟩)).ncard ≤ 1 :=
       Compiler.ncard_readAt_le (I.withConstants (L.readout 1)) (fun _ => univ) _
-    have : a ≤ (N.frontier π t).ncard + (r + 2) := by simp only [a]; omega
-    exact_mod_cast this
+    exact_mod_cast (show a ≤ (N.frontier π t).ncard + (r + 2) by simp only [a]; omega)
   have hρ : (N.cycleRankOn W : ℝ) + nW ≤ s + 1 := by
     have h := Compiler.cycleRankOn_add_ncard_readIn_le (I.withConstants (L.readout 1))
       (fun _ => univ) hfan' (N.edgeCut_component (π.symm ⟨t, ht⟩))
@@ -154,9 +151,8 @@ theorem eventually_lt_mul_card_of_ledger_min {r : ℕ} (hr : 2 ≤ r) {A : ℝ} 
     have h := hcount.trans (Nat.mul_le_mul_right _
       (Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ hK2)))
     exact_mod_cast h
-  have hSpos : (0 : ℝ) < {x | c.program.trace I x o ∈ Acc}.ncard := by
-    have : 0 < {x | c.program.trace I x o ∈ Acc}.ncard := lt_of_lt_of_le hK1 hKS
-    exact_mod_cast this
+  have hSpos : (0 : ℝ) < {x | c.program.trace I x o ∈ Acc}.ncard :=
+    Nat.cast_pos.mpr (hK1.trans_le hKS)
   have hlogS : Real.logb q {x | c.program.trace I x o ∈ Acc}.ncard ≤
       2 * Real.logb q (K n) + Real.logb q (V + 1) + Real.logb q E + min a nW := by
     have hK0 : (0 : ℝ) < K n := by exact_mod_cast hK1
@@ -178,10 +174,8 @@ theorem eventually_lt_mul_card_of_ledger_min {r : ℕ} (hr : 2 ≤ r) {A : ℝ} 
   have hmin1 : ((min a nW : ℕ) : ℝ) ≤ a := by exact_mod_cast min_le_left a nW
   have hmin2 : ((min a nW : ℕ) : ℝ) ≤ nW := by exact_mod_cast min_le_right a nW
   rw [← hs]
-  refine hn s V (N.cycleRankOn W) (N.frontier π t).ncard (Nat.cast_nonneg _) (Nat.cast_nonneg _)
-    hV ?_ ?_ (hπ t ht t le_rfl (by omega)).2
-  · linarith
-  · linarith
+  exact hn s V (N.cycleRankOn W) (N.frontier π t).ncard (Nat.cast_nonneg _) (Nat.cast_nonneg _)
+    hV (by linarith) (by linarith) (hπ t ht t le_rfl (by omega)).2
 
 /-- **The tightened frontier lower bound with a ledger (`|U| ^ k · |M|`).** Under the hypotheses of
 `eventually_lt_mul_card_of_ledger_min`, if `k log |U| + log |M| ≤ β(n)`, then `(r - 1) s >

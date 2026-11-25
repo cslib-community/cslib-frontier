@@ -30,6 +30,7 @@ import CslibFrontierResults.Entries.KellyMechanism
 import CslibFrontierResults.Entries.LoadBalancing
 import CslibFrontierResults.Entries.LocalConnection
 import CslibFrontierResults.Entries.LocallyDecodable
+import CslibFrontierResults.Entries.LupanovFormula
 import CslibFrontierResults.Entries.LupanovRectifier
 import CslibFrontierResults.Entries.MACVerificationQueries
 import CslibFrontierResults.Entries.MajorityMultiplicativeComplexity
@@ -63,6 +64,7 @@ import CslibFrontierResults.Entries.RandomOracleKDF
 import CslibFrontierResults.Entries.RelabelToFront
 import CslibFrontierResults.Entries.Roberts
 import CslibFrontierResults.Entries.SamplableNotComputable
+import CslibFrontierResults.Entries.SatisfiabilityHypothesis
 import CslibFrontierResults.Entries.SecurityEconomics
 import CslibFrontierResults.Entries.SelfClosingDoor
 import CslibFrontierResults.Entries.SergeevAdditiveMultiplicative

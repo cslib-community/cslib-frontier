@@ -290,8 +290,8 @@ theorem leavesRest_cons : leavesRest ((k, c) :: rest) = c.leaves ++ leavesRest r
     leavesRest rest = rest.flatMap fun e => e.child.leaves := by
   induction rest with
   | nil => rfl
-  | cons e rest ih =>
-    obtain ⟨k, c⟩ := e
+  | cons e _ ih =>
+    rcases e with ⟨k, c⟩
     simp [leavesRest_cons, ih]
 
 /-- The entries of a leaf. -/
@@ -326,8 +326,8 @@ theorem heightRest_cons :
 theorem heightRest_le_iff {n : ℕ} : heightRest rest ≤ n ↔ ∀ e ∈ rest, e.child.height + 1 ≤ n := by
   induction rest with
   | nil => simp [heightRest_nil]
-  | cons e rest ih =>
-    obtain ⟨k, c⟩ := e
+  | cons e _ ih =>
+    rcases e with ⟨k, c⟩
     simp [heightRest_cons, ih]
 
 /-- Mapping a leaf maps the values of its entries. -/
@@ -343,8 +343,8 @@ theorem heightRest_le_iff {n : ℕ} : heightRest rest ≤ n ↔ ∀ e ∈ rest, 
     mapRest f rest = rest.map fun e : Branch α β => (e.1, e.child.map f) := by
   induction rest with
   | nil => rfl
-  | cons e rest ih =>
-    obtain ⟨k, c⟩ := e
+  | cons e _ ih =>
+    rcases e with ⟨k, c⟩
     simp [mapRest, ih]
 
 /-- A leaf has no children. -/
@@ -679,8 +679,8 @@ variable {rest : List (Branch α β)} {t n : ℕ}
     occupiedRest t rest = rest.all fun e => occupied t e.child := by
   induction rest with
   | nil => rfl
-  | cons e rest ih =>
-    obtain ⟨k, c⟩ := e
+  | cons e _ ih =>
+    rcases e with ⟨k, c⟩
     simp [occupiedRest, ih]
 
 /-- `balancedRest n` checks that every child among the branches is balanced and of height `n`. -/
@@ -688,8 +688,8 @@ variable {rest : List (Branch α β)} {t n : ℕ}
     balancedRest n rest = rest.all fun e => balanced e.child && e.child.height == n := by
   induction rest with
   | nil => rfl
-  | cons e rest ih =>
-    obtain ⟨k, c⟩ := e
+  | cons e _ ih =>
+    rcases e with ⟨k, c⟩
     simp [balancedRest, ih, Bool.and_assoc]
 
 /-- `occupied` decides `Occupied`. -/
@@ -701,11 +701,9 @@ variable {rest : List (Branch α β)} {t n : ℕ}
   | node first rest ih₁ ih₂ =>
     rw [occupied, occupiedRest_eq_all]
     simp only [Bool.and_eq_true, decide_eq_true_eq, List.all_eq_true, ih₁]
-    constructor
-    · rintro ⟨⟨⟨h₁, h₂⟩, h₃⟩, h₄⟩
-      exact .node h₁ h₂ h₃ fun e he => (ih₂ e he).1 (h₄ e he)
-    · intro h
-      exact ⟨⟨⟨h.le_width, h.width_le⟩, h.first⟩, fun e he => (ih₂ e he).2 (h.of_mem_rest he)⟩
+    exact ⟨fun ⟨⟨⟨h₁, h₂⟩, h₃⟩, h₄⟩ => .node h₁ h₂ h₃ fun e he => (ih₂ e he).1 (h₄ e he),
+      fun h => ⟨⟨⟨h.le_width, h.width_le⟩, h.first⟩,
+        fun e he => (ih₂ e he).2 (h.of_mem_rest he)⟩⟩
 
 /-- `balanced` decides `Balanced`. -/
 @[simp] theorem balanced_iff : balanced tr = true ↔ Balanced tr := by
@@ -714,11 +712,9 @@ variable {rest : List (Branch α β)} {t n : ℕ}
   | node first rest ih₁ ih₂ =>
     rw [balanced, balancedRest_eq_all]
     simp only [Bool.and_eq_true, beq_iff_eq, List.all_eq_true, ih₁]
-    constructor
-    · rintro ⟨h₁, h₂⟩
-      exact .node h₁ (fun e he => (ih₂ e he).1 (h₂ e he).1) fun e he => (h₂ e he).2
-    · intro h
-      exact ⟨h.first, fun e he => ⟨(ih₂ e he).2 (h.of_mem_rest he), h.height_of_mem_rest he⟩⟩
+    exact ⟨fun ⟨h₁, h₂⟩ => .node h₁ (fun e he => (ih₂ e he).1 (h₂ e he).1)
+        fun e he => (h₂ e he).2,
+      fun h => ⟨h.first, fun e he => ⟨(ih₂ e he).2 (h.of_mem_rest he), h.height_of_mem_rest he⟩⟩⟩
 
 variable [LinearOrder α]
 
@@ -736,8 +732,8 @@ theorem belowLater_iff :
     separatedRest rest = rest.all fun e => separated e.child := by
   induction rest with
   | nil => rfl
-  | cons e rest ih =>
-    obtain ⟨k, c⟩ := e
+  | cons e _ ih =>
+    rcases e with ⟨k, c⟩
     simp [separatedRest, ih]
 
 /-- `separated` decides `Separated`. -/
@@ -747,12 +743,11 @@ theorem belowLater_iff :
   | node first rest ih₁ ih₂ =>
     rw [separated, separatedRest_eq_all]
     simp only [Bool.and_eq_true, List.all_eq_true, decide_eq_true_eq, ih₁, belowLater_iff]
-    constructor
-    · rintro ⟨⟨⟨⟨h₁, h₂⟩, h₃⟩, h₄⟩, h₅⟩
-      exact .node h₁ (fun e he => (ih₂ e he).1 (h₂ e he)) h₃ h₄ h₅
-    · intro h
-      exact ⟨⟨⟨⟨h.first, fun e he => (ih₂ e he).2 (h.of_mem_rest he)⟩,
-        fun e he p hp => h.le_of_mem he hp⟩, h.pairwise⟩, fun e he p hp => h.lt_of_mem_first he hp⟩
+    exact ⟨fun ⟨⟨⟨⟨h₁, h₂⟩, h₃⟩, h₄⟩, h₅⟩ =>
+        .node h₁ (fun e he => (ih₂ e he).1 (h₂ e he)) h₃ h₄ h₅,
+      fun h => ⟨⟨⟨⟨h.first, fun e he => (ih₂ e he).2 (h.of_mem_rest he)⟩,
+        fun e he p hp => h.le_of_mem he hp⟩, h.pairwise⟩,
+        fun e he p hp => h.lt_of_mem_first he hp⟩⟩
 
 /-- `isWF` decides `IsWF`. -/
 @[simp] theorem isWF_iff : isWF t tr = true ↔ IsWF t tr := by

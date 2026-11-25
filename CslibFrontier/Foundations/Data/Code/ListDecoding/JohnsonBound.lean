@@ -202,9 +202,7 @@ theorem tendsto_johnsonRadius_atTop (δ : ℝ) :
     have hq1 : q - 1 ≠ 0 := sub_ne_zero.2 hq.ne'
     field_simp
   have hinner : Tendsto (fun q : ℝ => 1 - q * δ / (q - 1)) atTop (nhds (1 - δ)) := by
-    have hmul : Tendsto (fun q : ℝ => q / (q - 1) * δ) atTop (nhds (1 * δ)) :=
-      hqsub.mul_const δ
-    simpa only [div_mul_eq_mul_div, one_mul] using tendsto_const_nhds.sub hmul
+    simpa only [div_mul_eq_mul_div, one_mul] using tendsto_const_nhds.sub (hqsub.mul_const δ)
   have hsqrt : Tendsto (fun q : ℝ => Real.sqrt (1 - q * δ / (q - 1))) atTop
       (nhds (Real.sqrt (1 - δ))) :=
     (Real.continuous_sqrt.tendsto (1 - δ)).comp hinner
@@ -252,12 +250,8 @@ private theorem qary_johnson_denom_ge {q n d e : ℕ} (hq : 2 ≤ q) (hn : 0 < n
     · exact hle.trans (sq_nonneg s)
     · exact (Real.sq_sqrt hge).ge
   have hθx : s + ε ≤ θ - x := by linarith
-  have hsq_step : s ^ 2 + 2 * s * ε + ε ^ 2 ≤ (θ - x) ^ 2 := by
-    have h1 : (s + ε) ^ 2 ≤ (θ - x) ^ 2 := pow_le_pow_left₀ (by positivity) hθx 2
-    linarith
   have hdiff : ε ^ 2 ≤ (θ - x) ^ 2 - (θ ^ 2 - θ * δ) := by
-    have : 0 ≤ 2 * s * ε := by positivity
-    linarith
+    nlinarith [pow_le_pow_left₀ (by positivity) hθx 2, mul_nonneg hs0 hε.le]
   have hq0 : (q : ℝ) ≠ 0 := by positivity
   have hinner_id :
       ((q : ℝ) - 1) * (1 - x) ^ 2 + x ^ 2 - ((q : ℝ) - 1) * (1 - δ) =
@@ -381,17 +375,13 @@ theorem isListDecodable_of_le_johnsonRadius [Nonempty ι] [Fintype α]
     have hθ : 0 < 1 - 1 / (q : ℝ) := sub_pos.2 ((div_lt_one (zero_lt_one.trans hqR)).2 hqR)
     have hθ1 : 1 - 1 / (q : ℝ) ≤ 1 := sub_le_self 1 (by positivity)
     have hq0 : (0 : ℝ) < q := by positivity
-    have hnum : (1 - 1 / (q : ℝ)) ≤ ((q : ℝ) - 1) * δ / q := by
-      have h1 : (1 - 1 / (q : ℝ)) * 1 ≤ (1 - 1 / (q : ℝ)) * δ :=
-        mul_le_mul_of_nonneg_left hδ1 hθ.le
-      have h2 : (1 - 1 / (q : ℝ)) * δ = ((q : ℝ) - 1) * δ / q := by field_simp [hq0.ne']
-      linarith
+    have hθq : (1 - 1 / (q : ℝ)) * q = q - 1 := by field_simp
     have hden : ε ^ 2 ≤ 1 - 1 / (q : ℝ) := by
       have : ε ^ 2 ≤ (1 - 1 / (q : ℝ)) ^ 2 := pow_le_pow_left₀ hε.le hε_le 2
       nlinarith
-    calc (1 : ℝ) ≤ (1 - 1 / (q : ℝ)) / ε ^ 2 := (one_le_div (sq_pos_of_pos hε)).2 hden
-      _ ≤ (((q : ℝ) - 1) * δ / q) / ε ^ 2 := div_le_div_of_nonneg_right hnum (sq_nonneg ε)
-      _ = ((q : ℝ) - 1) * δ / (q * ε ^ 2) := by ring
+    rw [le_div_iff₀ (by positivity), one_mul]
+    nlinarith [mul_le_mul_of_nonneg_left hden hq0.le,
+      mul_le_mul_of_nonneg_left hδ1 (sub_pos.2 hqR).le]
   -- Non-degenerate regime `d ≤ n`: apply `Code.card_filter_hammingDist_le_mul_le_of_mul_le`.
   have : Nonempty α := Fintype.card_pos_iff.1 (by omega)
   refine isListDecodable_iff_forall_finset.2 fun w B hB => ?_
@@ -414,14 +404,12 @@ theorem isListDecodable_of_le_johnsonRadius [Nonempty ι] [Fintype α]
       Nat.cast_sub hdn, Nat.cast_sub hen] at h1
     exact (mul_le_mul_of_nonneg_left hdenom (Nat.cast_nonneg _)).trans h1
   have hB_le : (#B : ℝ) ≤ ((q : ℝ) - 1) * δ / (q * ε ^ 2) := by
-    rw [le_div_iff₀ (by positivity)]
     have hdn_eq : ((q : ℝ) - 1) * δ * n ^ 2 = ((q : ℝ) - 1) * n * d := by
       dsimp only [δ]
       field_simp
-    have hmul : (#B : ℝ) * (q * ε ^ 2) * n ^ 2 ≤ ((q : ℝ) - 1) * δ * n ^ 2 := by
-      rw [hdn_eq]
-      nlinarith [hjohnR]
-    exact le_of_mul_le_mul_right hmul (sq_pos_of_pos hnR)
+    rw [le_div_iff₀ (by positivity)]
+    refine le_of_mul_le_mul_right ?_ (sq_pos_of_pos hnR)
+    linarith [hjohnR]
   exact Nat.le_floor hB_le
 
 /-- **The alphabet-free (`q → ∞`) real Johnson bound** [Johnson1962] (locator unverified),
@@ -464,9 +452,7 @@ theorem isListDecodable_of_le_johnsonRadiusLimit [Nonempty ι] {C : Set (ι → 
     have : ρ ≤ 1 - s - ε := hρ
     linarith
   have hdenom : (n : ℝ) ^ 2 * ε ^ 2 ≤ ((n : ℝ) - e) ^ 2 - (n : ℝ) * ((n : ℝ) - d) := by
-    have hsq : s ^ 2 + 2 * s * ε + ε ^ 2 ≤ (1 - x) ^ 2 := by
-      have := pow_le_pow_left₀ (by positivity) h1x 2
-      linarith
+    have hsq := pow_le_pow_left₀ (by positivity) h1x 2
     have he_eq : (e : ℝ) = x * n := by dsimp only [x]; field_simp
     have hd_eq : (d : ℝ) = δ * n := by dsimp only [δ]; field_simp
     rw [he_eq, hd_eq]
@@ -493,13 +479,9 @@ theorem isListDecodable_of_le_johnsonRadiusLimit [Nonempty ι] {C : Set (ι → 
     gcongr
     exact Nat.sub_le d e
   have hB_le : (#B : ℝ) ≤ δ / ε ^ 2 := by
-    have hmul : (#B : ℝ) * ε ^ 2 ≤ δ := by
-      have : (#B : ℝ) * ((n : ℝ) ^ 2 * ε ^ 2) ≤ (n : ℝ) * d := hjohnR.trans hrhs
-      have hdn_eq : δ * (n : ℝ) ^ 2 = (n : ℝ) * d := by dsimp only [δ]; field_simp
-      rw [← hdn_eq] at this
-      have hn2 : (0 : ℝ) < (n : ℝ) ^ 2 := sq_pos_of_pos hnR
-      nlinarith
-    exact (le_div_iff₀ (sq_pos_of_pos hε)).2 hmul
+    have hdn_eq : δ * (n : ℝ) ^ 2 = (n : ℝ) * d := by dsimp only [δ]; field_simp
+    rw [le_div_iff₀ (sq_pos_of_pos hε)]
+    nlinarith [hjohnR.trans hrhs, sq_pos_of_pos hnR]
   exact Nat.le_floor hB_le
 
 /-- **Combinatorial list-decodability of Reed–Solomon codes up to the Johnson radius**
@@ -522,17 +504,10 @@ theorem isListDecodable_reedSolomon [Nonempty ι] {F : Type*} [Field F] [Decidab
   set n : ℕ := Fintype.card ι
   have hnR : (0 : ℝ) < n := Nat.cast_pos.2 Fintype.card_pos
   have hd_eq : ((n - k + 1 : ℕ) : ℝ) / n = 1 - ((k - 1 : ℕ) : ℝ) / n := by
-    have hle : k - 1 ≤ n := by omega
-    have hcast : ((n - k + 1 : ℕ) : ℝ) = (n : ℝ) - ((k - 1 : ℕ) : ℝ) := by
-      have : n - k + 1 = n - (k - 1) := by omega
-      rw [this, Nat.cast_sub hle]
-    rw [hcast, sub_div, div_self hnR.ne']
-  have h1sub : 1 - (((n - k + 1 : ℕ) : ℝ) / n) = ((k - 1 : ℕ) : ℝ) / n := by
-    rw [hd_eq]
-    ring
+    rw [show n - k + 1 = n - (k - 1) by omega, Nat.cast_sub (by omega), sub_div,
+      div_self hnR.ne']
   have hρ' : ρ ≤ johnsonRadiusLimit (((n - k + 1 : ℕ) : ℝ) / n) - ε := by
-    rw [johnsonRadiusLimit, h1sub]
-    exact hρ
+    rwa [johnsonRadiusLimit, hd_eq, sub_sub_cancel]
   have h := isListDecodable_of_le_johnsonRadiusLimit (le_minDist_reedSolomon hα k) hε hρ'
   convert h using 3
   exact hd_eq.symm

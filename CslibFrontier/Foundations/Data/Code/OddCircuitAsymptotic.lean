@@ -67,15 +67,9 @@ open Finset Real
 private theorem mul_log_exp_one_div_le {u : ℝ} (hu : 0 < u) : u * log (exp 1 / u) ≤ 2 * √u := by
   have hs : 0 < √u := sqrt_pos.2 hu
   have hl := one_sub_inv_le_log_of_pos hs
-  have hlog : log u = 2 * log √u := by
-    have := Real.log_pow (√u) 2
-    rw [sq_sqrt hu.le] at this
-    rw [this]; norm_num
-  have hsu : √u * √u = u := mul_self_sqrt hu.le
+  have hlog : log u = 2 * log √u := by rw [log_sqrt hu.le]; ring
   rw [log_div (exp_pos 1).ne' hu.ne', log_exp, hlog]
-  have : u * (√u)⁻¹ = √u := by
-    calc u * (√u)⁻¹ = √u * √u * (√u)⁻¹ := by rw [hsu]
-      _ = √u := by rw [mul_assoc, mul_inv_cancel₀ hs.ne', mul_one]
+  have : u * (√u)⁻¹ = √u := by rw [← div_eq_mul_inv, div_sqrt]
   nlinarith [mul_le_mul_of_nonneg_left hl hu.le]
 
 /-- `sinh 1 - 1 < 1 / 2`. -/
@@ -189,10 +183,8 @@ private theorem le_card_mul {n m N : ℕ} {V R δ : ℝ} (hV2n : V ≤ 2 ^ n) (h
   have hmn' : m + 1 ≤ n := ((pow_lt_pow_iff_right₀ one_lt_two).1 hmn).le
   have hcard : (2 : ℝ) ^ n / 2 ^ (m + 1) ≤ N := by
     rw [div_eq_mul_inv, ← pow_sub₀ (2 : ℝ) two_ne_zero hmn']; exact_mod_cast hN
-  have hV : 0 ≤ V := by
-    have := (by positivity : (0 : ℝ) ≤ 2 ^ m)
-    have : 0 < V / 2 ^ m := lt_of_lt_of_le (by positivity) hτ1
-    exact (div_pos_iff_of_pos_right (by positivity)).1 this |>.le
+  have hV : 0 ≤ V :=
+    ((div_pos_iff_of_pos_right (by positivity)).1 (lt_of_lt_of_le (by positivity) hτ1)).le
   calc δ / 8 * n * 2 ^ n ≤ 2 ^ n * (V / 2 ^ m) / 2 := by
         have : δ * n / 8 ≤ V / 2 ^ m / 2 := by linarith
         nlinarith
@@ -227,25 +219,15 @@ theorem exists_parityCheckCode_of_fourierBounds {ε : ℝ} (hε : 0 < ε) (hε2 
   have hnN₀ : N₀ ≤ n := le_of_max_le_left hn
   have hn' := le_of_max_le_right hn
   have hn2 : 2 ≤ n := le_of_max_le_left hn'
-  have hnC : C < n := by
-    have := le_of_max_le_left (le_of_max_le_right hn')
-    have h := Nat.le_ceil C
-    have : ((⌈C⌉₊ + 1 : ℕ) : ℝ) ≤ n := by exact_mod_cast this
-    cast_linarith
-  have hn8 : 8 / δ < n := by
-    have := le_of_max_le_right (le_of_max_le_right hn')
-    have h := Nat.le_ceil (8 / δ)
-    have : ((⌈8 / δ⌉₊ + 1 : ℕ) : ℝ) ≤ n := by exact_mod_cast this
-    cast_linarith
+  have hnC : C < n := Nat.lt_of_ceil_lt (le_of_max_le_left (le_of_max_le_right hn'))
+  have hn8 : 8 / δ < n := Nat.lt_of_ceil_lt (le_of_max_le_right (le_of_max_le_right hn'))
   have hδn : 8 < δ * n := by rwa [div_lt_iff₀ hδ, mul_comm] at hn8
   have hn2' : (2 : ℝ) ≤ n := by exact_mod_cast hn2
   have hnpos : (0 : ℝ) < n := by linarith
   have hlg : 1 ≤ logb 2 n := by
     rw [le_logb_iff_rpow_le one_lt_two hnpos, rpow_one]; exact hn2'
   have hd2 : (2 : ℝ) ≤ d := by nlinarith
-  obtain ⟨w, rfl⟩ : ∃ w, d = w + 1 := ⟨d - 1, by
-    have : 2 ≤ d := by exact_mod_cast hd2
-    omega⟩
+  obtain ⟨w, rfl⟩ := Nat.exists_eq_add_one_of_ne_zero (by rintro rfl; norm_num at hd2 : d ≠ 0)
   push_cast at hKd hdn hd2
   have hw1 : (1 : ℝ) ≤ w := by linarith
   have hw : K₁ * logb 2 n ≤ w := by nlinarith
@@ -257,9 +239,8 @@ theorem exists_parityCheckCode_of_fourierBounds {ε : ℝ} (hε : 0 < ε) (hε2 
     rw [hB, card_filter_ne_zero_hammingNorm_lt]; push_cast; rfl
   have hnV : (n : ℝ) ≤ #B := by
     rw [hVsum]
-    have h1 : (1 : ℕ) ∈ Ico 1 (w + 1) := mem_Ico.2 ⟨le_rfl, by
-      have : (1 : ℝ) ≤ w := hw1; have : 1 ≤ w := by exact_mod_cast this
-      omega⟩
+    have h1 : (1 : ℕ) ∈ Ico 1 (w + 1) :=
+      mem_Ico.2 ⟨le_rfl, Nat.lt_succ_of_le (Nat.one_le_cast.1 hw1)⟩
     have := single_le_sum (f := fun i => (n.choose i : ℝ)) (fun i _ => by positivity) h1
     simpa using this
   have hVpos : (0 : ℝ) < #B := by linarith

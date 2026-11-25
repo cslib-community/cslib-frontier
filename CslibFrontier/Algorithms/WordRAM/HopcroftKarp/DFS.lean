@@ -266,40 +266,36 @@ private theorem exec_dfsLevel {w bOff k : ℕ} {inst : SparseInstance}
             rw [ite_eq_right (Nat.succ_ne_zero d)] at hact_c
             have hcov_back : VisCovers
                 (hkDfs inst.graph inst.adj mate dist f (d + 1) w₀ (vset vis v true) []).1
-                (augPairs ++ path) := by
-              refine ⟨hfr.hcovers.1, fun e he => hcov_child.2 e ?_⟩
-              simp only [List.mem_append] at he ⊢
-              rcases he with he | he
-              · exact Or.inl he
-              · exact Or.inr (Or.inl he)
+                (augPairs ++ path) :=
+              ⟨hfr.hcovers.1, fun e he => hcov_child.2 e (by
+                simp only [List.mem_append] at he ⊢
+                exact he.elim Or.inl (Or.inr ∘ Or.inl))⟩
             have haug_le : augPairs.length ≤ inst.r := by
               have := hfr.hcovers.length_le
               simp only [List.length_append] at this
               omega
+            have hc_d {a} (ha : DfsSubtreeOutside inst bOff d a) : y_pop.mem a = x.mem a :=
+              (hf_c a (by simp only [DfsSubtreeOutside] at ha ⊢; omega)).trans (hf_sub_p a ha)
             have hfr_pop : DfsFrame inst bOff k mate dist augPairs d path u (pre ++ [v])
                 (hkDfs inst.graph inst.adj mate dist f (d + 1) w₀ (vset vis v true) []).1
                 y_pop :=
               { hplen := hfr.hplen
                 hcovers := hcov_back
                 hb := hfr_p.hb.of_eq fun i hi => hr_c i (by omega)
-                hcsr := hfr_p.hcsr.of_outside fun a ha =>
-                  hf_c a (by simp only [DfsSubtreeOutside]; omega)
-                hmate := hfr_p.hmate.of_outside fun a ha =>
-                  hf_c a (by simp only [DfsSubtreeOutside]; omega)
-                hdM := hfr_p.hdM.of_outside fun a ha =>
-                  hf_c a (by simp only [DfsSubtreeOutside]; omega)
+                hcsr := hfr.hcsr.of_outside fun a ha =>
+                  hc_d (by simp only [DfsSubtreeOutside]; omega)
+                hmate := hfr.hmate.of_outside fun a ha =>
+                  hc_d (by simp only [DfsSubtreeOutside]; omega)
+                hdM := hfr.hdM.of_outside fun a ha => hc_d (by simp only [DfsSubtreeOutside]; omega)
                 hvisM := hvis_c
-                haugM := hfr_p.haugM.of_outside haug_le fun a ha =>
-                  hf_c a (by simp only [DfsSubtreeOutside]; omega)
+                haugM := hfr.haugM.of_outside haug_le fun a ha =>
+                  hc_d (by simp only [DfsSubtreeOutside]; omega)
                 hstack := fun i hi => by
-                  rw [hf_c _ (by simp only [DfsSubtreeOutside]; omega),
-                    hf_c _ (by simp only [DfsSubtreeOutside]; omega),
-                    hf_sub_p _ (by simp only [DfsSubtreeOutside]; omega),
-                    hf_sub_p _ (by simp only [DfsSubtreeOutside]; omega)]
+                  rw [hc_d (by simp only [DfsSubtreeOutside]; omega),
+                    hc_d (by simp only [DfsSubtreeOutside]; omega)]
                   exact hfr.hstack i hi
                 hsu := by
-                  rw [hf_c _ (by simp only [DfsSubtreeOutside]; omega),
-                    hf_sub_p _ (by simp only [DfsSubtreeOutside]; omega)]
+                  rw [hc_d (by simp only [DfsSubtreeOutside]; omega)]
                   exact hfr.hsu
                 hsp := by
                   rw [hf_c _ (by simp only [DfsSubtreeOutside]; omega)]
@@ -308,17 +304,9 @@ private theorem exec_dfsLevel {w bOff k : ℕ} {inst : SparseInstance}
                 hrd := by simpa using hact_c.2
                 hal := hal_c
                 hact := hact_c.1 }
-            have hpot_rem : dfsPot inst mate
-                (hkDfsLevel inst.graph mate dist (decide (f + 1 = 0)) d
-                  (dfsNext inst.graph inst.adj mate dist (f + 1) d) u vs
-                  (hkDfs inst.graph inst.adj mate dist f (d + 1) w₀
-                    (vset vis v true) []).1 []).1 ≤
-                dfsPot inst mate
-                  (hkDfs inst.graph inst.adj mate dist f (d + 1) w₀
-                    (vset vis v true) []).1 :=
-              (hkDfsLevel_pure_props (f + 1) d
-                (fun w' vis₀ ps₀ hc => hkDfs_pure_props f (d + 1) w' vis₀ ps₀ hc)
-                u vs _ (augPairs ++ path) hcov_back).2.1
+            have hpot_rem := (hkDfsLevel_pure_props (mate := mate) (dist := dist) (f + 1) d
+              (fun w' vis₀ ps₀ hc => hkDfs_pure_props f (d + 1) w' vis₀ ps₀ hc)
+              u vs _ (augPairs ++ path) hcov_back).2.1
             have hrem := ih (pre ++ [v]) _ y_pop hsplit' hfr_pop
             dsimp only [DfsLevelPost] at hrem
             cases hr2 : (hkDfsLevel inst.graph mate dist (decide (f + 1 = 0)) d
@@ -328,25 +316,21 @@ private theorem exec_dfsLevel {w bOff k : ℕ} {inst : SparseInstance}
             | some q =>
               rw [hr2] at hrem
               obtain ⟨z, he_rem, hr_z, hal_z, hvis_z, haug_z, hf_z⟩ := hrem
-              have he_c := htrans_c z _ he_rem
-              refine ⟨z, (ExecWithin.loop_iter hc_loop he_push he_c).mono
+              exact ⟨z, (ExecWithin.loop_iter hc_loop he_push (htrans_c z _ he_rem)).mono
                 (by simp only [List.length_cons]; omega),
                 fun i hi => (hr_z i hi).trans ((hr_c i hi).trans (hr_p i hi)),
-                hal_z, hvis_z, haug_z, fun a ha => ?_⟩
-              exact (hf_z a ha).trans
-                ((hf_c a (by simp only [DfsSubtreeOutside]; omega)).trans (hf_all_p a ha))
+                hal_z, hvis_z, haug_z, fun a ha =>
+                  (hf_z a ha).trans ((hf_c a (by simp only [DfsSubtreeOutside]; omega)).trans
+                    (hf_all_p a ha))⟩
             | none =>
               rw [hr2] at hrem
               obtain ⟨y_end, htrans_rem, hr_end, hal_end, hact_end, hvis_end, hf_end⟩ := hrem
-              refine ⟨y_end, fun z T_after he_after =>
+              exact ⟨y_end, fun z T_after he_after =>
                 (ExecWithin.loop_iter hc_loop he_push
                   (htrans_c z _ (htrans_rem z T_after he_after))).mono
                   (by simp only [List.length_cons]; omega),
                 fun i hi => (hr_end i hi).trans ((hr_c i hi).trans (hr_p i hi)),
-                hal_end, hact_end, hvis_end, fun a ha => ?_⟩
-              have ha_c : DfsSubtreeOutside inst bOff (d + 1) a := by
-                simp only [DfsSubtreeOutside] at ha ⊢; omega
-              exact (hf_end a ha).trans ((hf_c a ha_c).trans (hf_sub_p a ha))
+                hal_end, hact_end, hvis_end, fun a ha => (hf_end a ha).trans (hc_d ha)⟩
         · exact exec_dfsLevel_skip hd_le_k hk_le hsplit hfr
             (Or.inr (Or.inr ⟨hvv, w₀, hmv, fun h => hdw h.2⟩)) hfit
             (by simp [hkDfsLevel, hGu, hvv, hmv, hdw])
@@ -479,20 +463,19 @@ private theorem exec_dfsRootsLoop {w bOff k : ℕ} {inst : SparseInstance}
         rw [← hu_val]
         rfl
       obtain ⟨x_in, he_in, hr_in, hrd_in, hal_in, hact_in, hmem_in⟩ := hset
+      have hin_out {a} (ha : ¬(bOff + inst.m + 1 + inst.numEdges + 2 * inst.r + 3 * inst.m ≤ a ∧
+          a < bOff + inst.m + 1 + inst.numEdges + 2 * inst.r + 5 * inst.m + 5)) :
+          x_in.mem a = x.mem a := by
+        rw [hmem_in, Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
       have hfr_in : DfsFrame inst bOff k mate dist augPairs 0 [] u [] vis x_in :=
         { hplen := rfl
           hcovers := by simpa using hcovers
           hb := hb.of_eq fun i hi => hr_in i (by omega)
-          hcsr := hcsr.of_outside fun a ha => by
-            rw [hmem_in, Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-          hmate := hmate.of_outside fun a ha => by
-            rw [hmem_in, Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-          hdM := hdM.of_outside fun a ha => by
-            rw [hmem_in, Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-          hvisM := hvisM.of_outside fun a ha => by
-            rw [hmem_in, Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-          haugM := haugM.of_outside hcovers.length_le fun a ha => by
-            rw [hmem_in, Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
+          hcsr := hcsr.of_outside fun a ha => hin_out (by omega)
+          hmate := hmate.of_outside fun a ha => hin_out (by omega)
+          hdM := hdM.of_outside fun a ha => hin_out (by omega)
+          hvisM := hvisM.of_outside fun a ha => hin_out (by omega)
+          haugM := haugM.of_outside hcovers.length_le fun a ha => hin_out (by omega)
           hstack := fun _ hi => absurd hi (Nat.not_lt_zero _)
           hsu := by
             simp only [Nat.add_zero, hmem_in]
@@ -551,18 +534,17 @@ private theorem exec_dfsRootsLoop {w bOff k : ℕ} {inst : SparseInstance}
           rw [hr2] at hdfs hcov_R hacc_eq
           obtain ⟨z_mid, he_dfs, hr_mid, hal_mid, hvis_mid, haug_mid, hf_mid⟩ := hdfs
           simp only [List.nil_append] at hal_mid haug_mid
-          have he_full := wrap_root z_mid he_dfs hr_mid
-          have hq_len : q.length = k + 1 := hcov_R.2
           refine ⟨z_mid.set qHead (pre.length + 1), augPairs ++ q,
-            he_full.mono (by rw [List.length_append, hq_len]; omega),
-            by simp, fun i hi => by wram_simp [(hr_mid i (by omega)).trans (hr_in i (by omega))],
-            by wram_simp, by wram_simp [hal_mid], hcov_R.1, ?_, hvis_mid, haug_mid,
-            fun a ha => ?_⟩
-          · rw [hacc_eq]
-            simp [hfin_eq, Finset.union_comm]
-          · dsimp only [Data.set]
-            rw [hf_mid a ha, hmem_in, Function.update_of_ne (by omega),
-              Function.update_of_ne (by omega)]
+            (wrap_root z_mid he_dfs hr_mid).mono (by rw [List.length_append, hcov_R.2]; omega),
+            by simp,
+            fun i hi => by
+              have hri := (hr_mid i (by omega)).trans (hr_in i (by omega))
+              wram_simp [hri],
+            by wram_simp,
+            by wram_simp [hal_mid], hcov_R.1, ?_, hvis_mid, haug_mid,
+            fun a ha => (hf_mid a ha).trans (hin_out (by omega))⟩
+          rw [hacc_eq]
+          simp [hfin_eq, Finset.union_comm]
         | none =>
           rw [hr2] at hdfs hcov_R hacc_eq
           obtain ⟨y_mid, htrans, hr_mid, hal_mid, hact_mid, hvis_mid, hf_mid⟩ := hdfs
@@ -570,21 +552,23 @@ private theorem exec_dfsRootsLoop {w bOff k : ℕ} {inst : SparseInstance}
           have hc_exit : ¬(Cond.eq active one).Holds y_mid := by
             rw [Cond.holds_eq, hact_mid, (hr_mid one (by decide)).trans hfr_in.hb.hone]
             simp
-          have he_dfs := htrans y_mid 2 (ExecWithin.loop_exit hc_exit)
-          have he_full := wrap_root y_mid he_dfs hr_mid
           have haug_ymid : AugMem inst bOff augPairs y_mid.mem :=
             hfr_in.haugM.of_outside hcovers.length_le fun a ha =>
               hf_mid a (by simp only [DfsSubtreeOutside]; omega)
           refine ⟨y_mid.set qHead (pre.length + 1), augPairs,
-            he_full.mono (by omega), le_refl _,
-            fun i hi => by wram_simp [(hr_mid i (by omega)).trans (hr_in i (by omega))],
-            by wram_simp, by wram_simp [hal_mid], hcov_R, ?_, hvis_mid, haug_ymid,
-            fun a ha => ?_⟩
-          · rw [hacc_eq]
-            simp [hfin_eq]
-          · dsimp only [Data.set]
-            rw [hf_mid a (by simp only [DfsSubtreeOutside]; omega), hmem_in,
-              Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
+            (wrap_root y_mid (htrans y_mid 2 (ExecWithin.loop_exit hc_exit)) hr_mid).mono
+              (by omega),
+            le_refl _,
+            fun i hi => by
+              have hri := (hr_mid i (by omega)).trans (hr_in i (by omega))
+              wram_simp [hri],
+            by wram_simp,
+            by wram_simp [hal_mid], hcov_R, ?_,
+            hvis_mid, haug_ymid,
+            fun a ha => (hf_mid a (by simp only [DfsSubtreeOutside]; omega)).trans
+              (hin_out (by omega))⟩
+          rw [hacc_eq]
+          simp [hfin_eq]
       obtain ⟨x₁, aug₁, he_body, hlen_le₁, hr₁, hqh₁, hal₁, hcov₁, hfin₁, hvis₁, haug₁, hf₁⟩ :=
         hbody_exec
       have hb₁ : BaseRegs inst bOff x₁ := hb.of_eq fun i hi => hr₁ i (by omega)
@@ -623,21 +607,19 @@ private theorem exec_dfsRootsLoop {w bOff k : ℕ} {inst : SparseInstance}
         dsimp only [x_chk]
         wram_simp
         exact henc_ne1
-      have hnop : ExecWithin w (ram[ tmp ← zero ] : Code .standard 34)
-          x_chk (x_chk.set tmp 0) 1 := by
-        refine WP.execWithin ?_
-        wram_exec [hb_chk.hzero]
-        rfl
+      have hnop : ExecWithin w (ram[ tmp ← zero ] : Code .standard 34) x_chk (x_chk.set tmp 0) 1 :=
+        by
+          refine WP.execWithin ?_
+          wram_exec [hb_chk.hzero]
+          rfl
       have hqh_chk : x_chk.regs qHead = pre.length := by
-        dsimp only [x_chk]; wram_simp [hqh]
+        dsimp only [x_chk]
+        wram_simp [hqh]
       have hinc : ExecWithin w (ram[ qHead ← qHead + one ] : Code .standard 34)
           (x_chk.set tmp 0) ((x_chk.set tmp 0).set qHead (pre.length + 1)) 1 := by
         refine WP.execWithin ?_
         wram_exec [hqh_chk, hb_chk.hone]
         rfl
-      have he_skip : ExecWithin w dfsRootBody x
-          ((x_chk.set tmp 0).set qHead (pre.length + 1)) 6 :=
-        he_chk.seq ((hnop.branch_neg hc_nval1).seq hinc)
       let x₁ := (x_chk.set tmp 0).set qHead (pre.length + 1)
       have hb₁ : BaseRegs inst bOff x₁ :=
         hb.of_eq fun i hi => by dsimp only [x₁, x_chk]; wram_simp
@@ -647,13 +629,15 @@ private theorem exec_dfsRootsLoop {w bOff k : ℕ} {inst : SparseInstance}
           (by dsimp only [x₁, x_chk]; wram_simp [hrk])
           (by dsimp only [x₁, x_chk]; wram_simp; simp)
           (by dsimp only [x₁, x_chk]; wram_simp [hal])
-      refine ⟨y, augPairs', (ExecWithin.loop_iter hc_loop he_skip he_rest).mono ?_,
+      refine ⟨y, augPairs',
+        (ExecWithin.loop_iter hc_loop (he_chk.seq ((hnop.branch_neg hc_nval1).seq hinc))
+          he_rest).mono ?_,
         hlen_le₂,
-        fun i hi => (hr₂ i hi).trans (by dsimp only [x₁, x_chk]; wram_simp),
-        hal₂, hcov₂, by simpa [hkDfsRoots, hdu0] using hfin₂, haug₂,
-        fun a ha => hf₂ a ha⟩
-      simp only [List.map_cons, List.sum_cons]
-      omega
+        fun i hi => (hr₂ i hi).trans (by
+          dsimp only [x₁, x_chk]
+          wram_simp),
+        hal₂, hcov₂, by simpa [hkDfsRoots, hdu0] using hfin₂, haug₂, hf₂⟩
+      simp only [List.map_cons, List.sum_cons]; omega
 
 private theorem exec_applyAugCode {w bOff : ℕ} {inst : SparseInstance}
     {mate : Vector (Option (Fin inst.m)) inst.r}

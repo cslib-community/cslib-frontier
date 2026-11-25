@@ -120,14 +120,6 @@ private theorem tendsto_gfun_of_tendsto_phi (θ x₀ : ℝ) {l : Filter ℝ}
     rwa [mul_zero] at this
   exact squeeze_zero h0 h1 h2
 
-private theorem tendsto_gfun_atBot (θ x₀ : ℝ) :
-    Tendsto (gfun (J := J) (sj := sj) (h := h) θ x₀) atBot (𝓝 0) :=
-  tendsto_gfun_of_tendsto_phi θ x₀ tendsto_phi_atBot
-
-private theorem tendsto_gfun_atTop (θ x₀ : ℝ) :
-    Tendsto (gfun (J := J) (sj := sj) (h := h) θ x₀) atTop (𝓝 0) :=
-  tendsto_gfun_of_tendsto_phi θ x₀ tendsto_phi_atTop
-
 /-- **IBP, low part.** -/
 theorem ibp_low {θ x₀ : ℝ} (hsi : 0 < si) (hsj : 0 < sj) (hθ : Real.sin θ ≠ 0) :
     ∫ x₁, indA I si h x₀ x₁ * kernel (J := J) (sj := sj) (h := h) θ x₀ x₁ ∂gaussianReal 0 1 =
@@ -154,10 +146,8 @@ theorem ibp_low {θ x₀ : ℝ} (hsi : 0 < si) (hsj : 0 < sj) (hθ : Real.sin θ
       (f := gfun (J := J) (sj := sj) (h := h) θ x₀)
       (f' := fun x₁ => -(phi x₁ * kernel (J := J) (sj := sj) (h := h) θ x₀ x₁))
       (continuous_gfun θ x₀).continuousWithinAt
-      (fun x _ => by
-        have := hasDerivAt_g (J := J) (h := h) hsj hθ x₀ x
-        unfold gfun kernel; exact this)
-      (integrableOn_deriv_g θ x₀ _) (tendsto_gfun_atBot θ x₀)
+      (fun x _ => hasDerivAt_g (J := J) (h := h) hsj hθ x₀ x)
+      (integrableOn_deriv_g θ x₀ _) (tendsto_gfun_of_tendsto_phi θ x₀ tendsto_phi_atBot)
     rw [integral_neg, sub_zero] at hftc
     linarith
   · rw [ite_eq_right hx, neg_zero]
@@ -190,10 +180,8 @@ theorem ibp_high {θ x₀ : ℝ} (hsi : 0 < si) (hsj : 0 < sj) (hθ : Real.sin �
       (f := gfun (J := J) (sj := sj) (h := h) θ x₀)
       (f' := fun x₁ => -(phi x₁ * kernel (J := J) (sj := sj) (h := h) θ x₀ x₁))
       (continuous_gfun θ x₀).continuousWithinAt
-      (fun x _ => by
-        have := hasDerivAt_g (J := J) (h := h) hsj hθ x₀ x
-        unfold gfun kernel; exact this)
-      (integrableOn_deriv_g θ x₀ _) (tendsto_gfun_atTop θ x₀)
+      (fun x _ => hasDerivAt_g (J := J) (h := h) hsj hθ x₀ x)
+      (integrableOn_deriv_g θ x₀ _) (tendsto_gfun_of_tendsto_phi θ x₀ tendsto_phi_atTop)
     rw [integral_neg, zero_sub] at hftc
     linarith
   · rw [ite_eq_right hx]

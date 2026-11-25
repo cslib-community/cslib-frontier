@@ -123,22 +123,13 @@ instance instDecidableIsUnenvied (A : BundleAllocation n m) (s : Fin n) :
   inferInstanceAs (Decidable (∀ i : Fin n, ¬ V.envies A i s))
 
 theorem envyEdgeCount_le (A : BundleAllocation n m) : V.envyEdgeCount A ≤ n * (n - 1) := by
-  have hcard : ∀ i : Fin n, (V.envyTargets A i).card ≤ n - 1 := by
-    intro i
-    have hsub : V.envyTargets A i ⊆ Finset.univ \ {i} := by
-      intro j hj
-      have hlt : V.envies A i j := (Finset.mem_filter.1 hj).2
-      exact Finset.mem_sdiff.2 ⟨Finset.mem_univ j,
-        Finset.notMem_singleton.2 fun hji => lt_irrefl _ (hji ▸ hlt)⟩
-    calc
-      (V.envyTargets A i).card ≤ (Finset.univ \ {i}).card := Finset.card_le_card hsub
-      _ = n - 1 := by
-        rw [Finset.card_sdiff_of_subset (Finset.singleton_subset_iff.2 (Finset.mem_univ i)),
-          Finset.card_univ, Fintype.card_fin, Finset.card_singleton]
-  calc
-    V.envyEdgeCount A = ∑ i : Fin n, (V.envyTargets A i).card := rfl
-    _ ≤ ∑ _i : Fin n, (n - 1) := Finset.sum_le_sum fun i _ => hcard i
-    _ = n * (n - 1) := by simp
+  have hcard (i : Fin n) : (V.envyTargets A i).card ≤ n - 1 := by
+    calc (V.envyTargets A i).card
+        ≤ (Finset.univ.erase i).card := Finset.card_le_card fun j hj =>
+          Finset.mem_erase.2 ⟨fun hji => lt_irrefl _ (hji ▸ (Finset.mem_filter.1 hj).2),
+            Finset.mem_univ j⟩
+      _ = n - 1 := by simp
+  simpa [envyEdgeCount] using Finset.sum_le_sum fun i (_ : i ∈ Finset.univ) => hcard i
 
 /-- Assigning a fresh good `g` to an unenvied agent `s` preserves `EF1` for any monotone valuation.
 -/
@@ -148,36 +139,27 @@ theorem IsEF1.giveGood_of_isUnenvied {V : MonotoneValuation n m R} {A : BundleAl
     V.IsEF1 (A.giveGood s g hg) := by
   intro i j
   have hmono_i : V.val i (A.bundle i) ≤ V.val i ((A.giveGood s g hg).bundle i) := by
-    by_cases his : i = s
-    · subst his
-      rw [BundleAllocation.giveGood_bundle_self]
+    rcases eq_or_ne i s with rfl | his
+    · rw [BundleAllocation.giveGood_bundle_self]
       exact V.mono i (Finset.subset_insert _ _)
     · rw [BundleAllocation.giveGood_bundle_of_ne A g hg his]
-  by_cases hjs : j = s
-  · subst hjs
-    right
+  rcases eq_or_ne j s with rfl | hjs
+  · right
     rw [BundleAllocation.giveGood_bundle_self]
     have hg_not : g ∉ A.bundle j := fun hmem =>
       hg (BundleAllocation.mem_allocatedGoods.2 ⟨j, hmem⟩)
     refine ⟨g, Finset.mem_insert_self g _, ?_⟩
-    have hsdiff : insert g (A.bundle j) \ {g} = A.bundle j := by
-      rw [Finset.sdiff_singleton_eq_erase, Finset.erase_insert hg_not]
-    rw [hsdiff]
+    rw [Finset.sdiff_singleton_eq_erase, Finset.erase_insert hg_not]
     exact (not_lt.1 (hUn i)).trans hmono_i
   · rw [BundleAllocation.giveGood_bundle_of_ne A g hg hjs]
-    rcases hEF1 i j with hle | ⟨g', hg', hle⟩
-    · exact Or.inl (hle.trans hmono_i)
-    · exact Or.inr ⟨g', hg', hle.trans hmono_i⟩
+    exact (hEF1 i j).imp (·.trans hmono_i) fun ⟨g', hg', hle⟩ => ⟨g', hg', hle.trans hmono_i⟩
 
 /-- Permuting bundles via `σ` so every agent weakly improves preserves `EF1`. -/
 theorem IsEF1.relabel_of_le {V : MonotoneValuation n m R} {A : BundleAllocation n m}
     (hEF1 : V.IsEF1 A) {σ : Equiv.Perm (Fin n)}
     (himp : ∀ i : Fin n, V.val i (A.bundle i) ≤ V.val i (A.bundle (σ i))) :
-    V.IsEF1 (A.relabel σ) := by
-  intro i j
-  rcases hEF1 i (σ j) with hle | ⟨g, hg, hle⟩
-  · exact Or.inl (hle.trans (himp i))
-  · exact Or.inr ⟨g, hg, hle.trans (himp i)⟩
+    V.IsEF1 (A.relabel σ) :=
+  fun i j => (hEF1 i (σ j)).imp (·.trans (himp i)) fun ⟨g, hg, hle⟩ => ⟨g, hg, hle.trans (himp i)⟩
 
 /-- Rotating bundles along any nontrivial envy-improving permutation strictly decreases the total
 number of directed edges in the envy graph ([LiptonMarkakisMosselSaberi2004]). -/
@@ -188,38 +170,24 @@ theorem envyEdgeCount_relabel_lt {A : BundleAllocation n m} {σ : Equiv.Perm (Fi
   obtain ⟨i₀, hi₀⟩ := hne
   let S' (i : Fin n) : Finset (Fin n) :=
     Finset.univ.filter fun k => V.val i (A.bundle (σ i)) < V.val i (A.bundle k)
-  have hcard_eq : ∀ i : Fin n, (V.envyTargets (A.relabel σ) i).card = (S' i).card := by
-    intro i
-    have hmap : (V.envyTargets (A.relabel σ) i).map σ.toEmbedding = S' i := by
-      ext k
-      rw [Finset.mem_map]
-      dsimp only [S']
-      rw [Finset.mem_filter]
-      constructor
-      · rintro ⟨j, hj, rfl⟩
-        exact ⟨Finset.mem_univ _, (Finset.mem_filter.1 hj).2⟩
-      · rintro ⟨-, hk⟩
-        refine ⟨σ.symm k, Finset.mem_filter.2 ⟨Finset.mem_univ _, ?_⟩, by simp⟩
-        simpa [envies] using hk
-    rw [← hmap, Finset.card_map]
-  have hsub : ∀ i : Fin n, S' i ⊆ V.envyTargets A i := by
-    intro i k hk
-    have hlt : V.val i (A.bundle (σ i)) < V.val i (A.bundle k) := (Finset.mem_filter.1 hk).2
-    have hle : V.val i (A.bundle i) ≤ V.val i (A.bundle (σ i)) := by
-      rcases himp i with hEq | henv
-      · rw [hEq]
-      · exact henv.le
-    exact Finset.mem_filter.2 ⟨Finset.mem_univ k, lt_of_le_of_lt hle hlt⟩
-  refine Finset.sum_lt_sum (fun i _ => ?_) ⟨i₀, Finset.mem_univ i₀, ?_⟩
-  · rw [hcard_eq i]
-    exact Finset.card_le_card (hsub i)
-  · rw [hcard_eq i₀]
-    refine Finset.card_lt_card (Finset.ssubset_iff_subset_ne.2 ⟨hsub i₀, fun hEq => ?_⟩)
-    have henv₀ : V.envies A i₀ (σ i₀) := (himp i₀).resolve_left hi₀
-    have hmemA : σ i₀ ∈ V.envyTargets A i₀ :=
-      Finset.mem_filter.2 ⟨Finset.mem_univ _, henv₀⟩
-    rw [← hEq] at hmemA
-    exact lt_irrefl _ (Finset.mem_filter.1 hmemA).2
+  have hcard_eq (i : Fin n) : (V.envyTargets (A.relabel σ) i).card = (S' i).card := by
+    rw [← Finset.card_map σ.toEmbedding]
+    congr 1
+    ext k
+    simp only [S', Finset.mem_map, Finset.mem_filter, Finset.mem_univ, true_and,
+      Equiv.toEmbedding_apply]
+    exact ⟨fun ⟨j, hj, hjk⟩ => hjk ▸ (Finset.mem_filter.1 hj).2,
+      fun hk => ⟨σ.symm k, Finset.mem_filter.2 ⟨Finset.mem_univ _, by simpa [envies] using hk⟩,
+        by simp⟩⟩
+  have hsub (i : Fin n) : S' i ⊆ V.envyTargets A i := fun k hk =>
+    Finset.mem_filter.2 ⟨Finset.mem_univ k,
+      lt_of_le_of_lt ((himp i).elim (fun h => by rw [h]) le_of_lt) (Finset.mem_filter.1 hk).2⟩
+  refine Finset.sum_lt_sum (fun i _ => hcard_eq i ▸ Finset.card_le_card (hsub i))
+    ⟨i₀, Finset.mem_univ i₀, hcard_eq i₀ ▸ Finset.card_lt_card
+      (Finset.ssubset_iff_subset_ne.2 ⟨hsub i₀, fun hEq => ?_⟩)⟩
+  have hmemA : σ i₀ ∈ S' i₀ :=
+    hEq ▸ Finset.mem_filter.2 ⟨Finset.mem_univ _, (himp i₀).resolve_left hi₀⟩
+  exact lt_irrefl _ (Finset.mem_filter.1 hmemA).2
 
 /-- Computable directed envy-cycle permutation when every agent in `A` is envied by someone:
 each agent on the chosen directed cycle receives the bundle it envied, and all other agents keep
@@ -288,43 +256,33 @@ private theorem envyCyclePerm_spec (hn : 0 < n) (A : BundleAllocation n m)
     (hno : ¬ (Finset.univ.filter fun s => V.IsUnenvied A s).Nonempty) :
     (∀ x : Fin n, V.envyCyclePerm hn A hno x = x ∨ V.envies A x (V.envyCyclePerm hn A hno x)) ∧
       ∃ x₀ : Fin n, V.envyCyclePerm hn A hno x₀ ≠ x₀ := by
-  have hEnv : ∀ j : Fin n, (Finset.univ.filter fun i => V.envies A i j).Nonempty := by
-    intro j
+  have hEnv (j : Fin n) : (Finset.univ.filter fun i => V.envies A i j).Nonempty := by
     by_contra hemp
-    apply hno
-    refine ⟨j, Finset.mem_filter.2 ⟨Finset.mem_univ j, fun i hi => hemp ?_⟩⟩
-    exact ⟨i, Finset.mem_filter.2 ⟨Finset.mem_univ i, hi⟩⟩
+    exact hno ⟨j, Finset.mem_filter.2
+      ⟨Finset.mem_univ j, fun i hi => hemp ⟨i, Finset.mem_filter.2 ⟨Finset.mem_univ i, hi⟩⟩⟩⟩
   let pred (j : Fin n) : Fin n := (Finset.univ.filter fun i => V.envies A i j).min' (hEnv j)
-  have hpred_env : ∀ j : Fin n, V.envies A (pred j) j := fun j =>
+  have hpred_env (j : Fin n) : V.envies A (pred j) j :=
     (Finset.mem_filter.1 ((Finset.univ.filter fun i => V.envies A i j).min'_mem (hEnv j))).2
   let j₀ : Fin n := pred^[n] ⟨0, hn⟩
   let O : Finset (Fin n) := (Finset.range n).image fun k => pred^[k] j₀
   set σ := V.envyCyclePerm hn A hno
-  have hτ_apply : ∀ y : Fin n, σ.symm y = if y ∈ O then pred y else y := fun _ => rfl
-  constructor
-  · intro x
-    let y := σ x
-    have hτy : σ.symm y = x := σ.symm_apply_apply x
-    rw [hτ_apply] at hτy
-    by_cases hyO : y ∈ O
+  have hτ_apply (y : Fin n) : σ.symm y = if y ∈ O then pred y else y := rfl
+  refine ⟨fun x => ?_, j₀, fun hEq => ?_⟩
+  · have hτy : (if σ x ∈ O then pred (σ x) else σ x) = x := by
+      simpa only [hτ_apply] using σ.symm_apply_apply x
+    by_cases hyO : σ x ∈ O
     · rw [ite_eq_left hyO] at hτy
-      right
-      have henv : V.envies A (pred y) y := hpred_env y
-      rwa [hτy] at henv
-    · rw [ite_eq_right hyO] at hτy
-      exact Or.inl hτy
-  · refine ⟨j₀, fun hEq => ?_⟩
-    have hj₀O : j₀ ∈ O := by
-      have h0 : pred^[0] j₀ = j₀ := rfl
-      exact h0 ▸ Finset.mem_image_of_mem _ (Finset.mem_range.2 hn)
-    have hτj₀ : σ.symm j₀ = j₀ := by
+      have henv := hpred_env (σ x)
+      exact Or.inr (by rwa [hτy] at henv)
+    · exact Or.inl (by rwa [ite_eq_right hyO] at hτy)
+  · have hj₀O : j₀ ∈ O :=
+      Finset.mem_image.2 ⟨0, Finset.mem_range.2 hn, rfl⟩
+    have hτj₀ : σ.symm j₀ = j₀ :=
       calc
         σ.symm j₀ = σ.symm (σ j₀) := by rw [hEq]
         _ = j₀ := σ.symm_apply_apply j₀
     rw [hτ_apply, ite_eq_left hj₀O] at hτj₀
-    have henv := hpred_env j₀
-    rw [hτj₀] at henv
-    exact lt_irrefl _ henv
+    exact lt_irrefl _ (hτj₀ ▸ hpred_env j₀)
 
 /-- Fuel-bounded envy-cycle elimination loop. -/
 @[expose] def eliminateCyclesAux (hn : 0 < n) : ℕ → BundleAllocation n m → UnenviedStep n m
@@ -357,9 +315,8 @@ private theorem eliminateCyclesAux_spec (hn : 0 < n) :
     · rw [dite_eq_left h]
       exact ⟨(Finset.mem_filter.1 ((Finset.univ.filter fun s => V.IsUnenvied A s).min'_mem h)).2,
         hEF1, rfl, le_rfl⟩
-    · exfalso
-      obtain ⟨himp, hne⟩ := V.envyCyclePerm_spec hn A h
-      have hlt := V.envyEdgeCount_relabel_lt himp hne
+    · obtain ⟨himp, hne⟩ := V.envyCyclePerm_spec hn A h
+      have := V.envyEdgeCount_relabel_lt himp hne
       omega
   | k + 1, A, hfuel, hEF1 => by
     dsimp only [eliminateCyclesAux]
@@ -369,19 +326,13 @@ private theorem eliminateCyclesAux_spec (hn : 0 < n) :
         hEF1, rfl, Nat.zero_le _⟩
     · rw [dite_eq_right h]
       obtain ⟨himp, hne⟩ := V.envyCyclePerm_spec hn A h
-      have hlt : V.envyEdgeCount (A.relabel (V.envyCyclePerm hn A h)) < V.envyEdgeCount A :=
-        V.envyEdgeCount_relabel_lt himp hne
-      have hle_val : ∀ i : Fin n,
-          V.val i (A.bundle i) ≤ V.val i (A.bundle (V.envyCyclePerm hn A h i)) := by
-        intro i
-        rcases himp i with hEq | henv
-        · rw [hEq]
-        · exact henv.le
-      have hEF1' : V.IsEF1 (A.relabel (V.envyCyclePerm hn A h)) := hEF1.relabel_of_le hle_val
+      have hlt := V.envyEdgeCount_relabel_lt himp hne
+      have hEF1' : V.IsEF1 (A.relabel (V.envyCyclePerm hn A h)) :=
+        hEF1.relabel_of_le fun i => (himp i).elim (fun h => by rw [h]) le_of_lt
       obtain ⟨hUn, hEF1_res, halloc, hswaps⟩ :=
         eliminateCyclesAux_spec hn k (A.relabel (V.envyCyclePerm hn A h)) (by omega) hEF1'
-      refine ⟨hUn, hEF1_res, ?_, Nat.succ_le_succ hswaps⟩
-      rw [halloc, BundleAllocation.allocatedGoods_relabel]
+      exact ⟨hUn, hEF1_res, halloc.trans (BundleAllocation.allocatedGoods_relabel _ _),
+        Nat.succ_le_succ hswaps⟩
 
 /-- Eliminates all directed envy cycles from `A`, returning an `EF1`-preserving relabeling with an
 unenvied agent in at most `n * (n - 1)` cycle rotations. -/
@@ -424,31 +375,25 @@ private theorem lmmsSteps_spec (hn : 0 < n) :
         res.totalCycleSwaps ≤ k * (n * (n - 1))
   | 0, _ => by
     dsimp only [lmmsSteps]
-    refine ⟨V.isEF1_empty, fun x => ?_, Nat.zero_le _⟩
-    simp
+    exact ⟨V.isEF1_empty, fun _ => by simp, Nat.zero_le _⟩
   | k + 1, hk => by
     obtain ⟨hEF1_prev, halloc_prev, hswaps_prev⟩ := lmmsSteps_spec hn k (Nat.le_of_succ_le hk)
     set prev := V.lmmsSteps hn k (Nat.le_of_succ_le hk)
     obtain ⟨hUn, hEF1_cyc, halloc_cyc, hswaps_cyc⟩ := V.eliminateCycles_spec hn hEF1_prev
-    set cyc := V.eliminateCycles hn prev.alloc
     let g : Fin m := ⟨k, hk⟩
-    have hg : g ∉ cyc.alloc.allocatedGoods := by
+    have hg : g ∉ (V.eliminateCycles hn prev.alloc).alloc.allocatedGoods := by
       rw [halloc_cyc, halloc_prev]
       exact Nat.lt_irrefl k
     dsimp only [lmmsSteps]
     rw [dite_eq_left hg]
     refine ⟨hEF1_cyc.giveGood_of_isUnenvied hUn hg, fun x => ?_, ?_⟩
-    · rw [BundleAllocation.allocatedGoods_giveGood, halloc_cyc, Finset.mem_insert, halloc_prev]
-      constructor
-      · rintro (rfl | hlt)
-        · exact Nat.lt_succ_self k
-        · exact Nat.lt_succ_of_lt hlt
-      · intro hlt
-        rcases Nat.lt_succ_iff_lt_or_eq.1 hlt with hlt' | heq
-        · exact Or.inr hlt'
-        · exact Or.inl (Fin.ext heq)
+    · rw [BundleAllocation.allocatedGoods_giveGood, halloc_cyc, Finset.mem_insert, halloc_prev,
+        Fin.ext_iff]
+      dsimp only [g]
+      exact ⟨fun h => h.elim (fun heq => by omega) Nat.lt_succ_of_lt,
+        fun hlt => (Nat.lt_succ_iff_lt_or_eq.1 hlt).symm⟩
     · calc
-        prev.totalCycleSwaps + cyc.cycleSwaps
+        prev.totalCycleSwaps + (V.eliminateCycles hn prev.alloc).cycleSwaps
             ≤ k * (n * (n - 1)) + n * (n - 1) := Nat.add_le_add hswaps_prev hswaps_cyc
         _ = (k + 1) * (n * (n - 1)) := (Nat.succ_mul k (n * (n - 1))).symm
 

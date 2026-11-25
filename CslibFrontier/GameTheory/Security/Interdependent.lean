@@ -206,37 +206,19 @@ theorem isPureNash_toCostGame_iff (s : ι → Bool) :
         (s i = false → G.criticalCost i s ≤ G.investCost i) := by
   refine ⟨fun hN i => ⟨fun hT => ?_, fun hF => ?_⟩, fun h i b => ?_⟩
   · have hle := hN i false
-    have hself : s = update s i true := by
-      ext j; by_cases hj : j = i
-      · subst hj; simpa only [update_self] using hT
-      · simp only [update_of_ne hj]
-    conv_lhs at hle => rw [hself]
+    conv_lhs at hle => rw [← update_eq_self i s, hT]
     linarith [G.cost_update_false_sub_cost_update_true i s]
   · have hle := hN i true
-    have hself : s = update s i false := by
-      ext j; by_cases hj : j = i
-      · subst hj; simpa only [update_self] using hF
-      · simp only [update_of_ne hj]
-    conv_lhs at hle => rw [hself]
+    conv_lhs at hle => rw [← update_eq_self i s, hF]
     linarith [G.cost_update_false_sub_cost_update_true i s]
   · obtain ⟨hT, hF⟩ := h i
-    cases hs : s i
-    · have hself : s = update s i false := by
-        ext j; by_cases hj : j = i
-        · subst hj; simpa only [update_self] using hs
-        · simp only [update_of_ne hj]
-      cases b
-      · rw [← hself]
-      · conv_lhs => rw [hself]
-        linarith [hF hs, G.cost_update_false_sub_cost_update_true i s]
-    · have hself : s = update s i true := by
-        ext j; by_cases hj : j = i
-        · subst hj; simpa only [update_self] using hs
-        · simp only [update_of_ne hj]
-      cases b
-      · conv_lhs => rw [hself]
-        linarith [hT hs, G.cost_update_false_sub_cost_update_true i s]
-      · rw [← hself]
+    cases hs : s i <;> cases b
+    · rw [← hs, update_eq_self]
+    · conv_lhs => rw [← update_eq_self i s, hs]
+      linarith [hF hs, G.cost_update_false_sub_cost_update_true i s]
+    · conv_lhs => rw [← update_eq_self i s, hs]
+      linarith [hT hs, G.cost_update_false_sub_cost_update_true i s]
+    · rw [← hs, update_eq_self]
 
 theorem isPureNash_allTrue_iff :
     G.toCostGame.IsPureNash (fun _ => true) ↔ ∀ i, G.investCost i ≤ G.directProb i * G.loss i := by
@@ -317,76 +299,44 @@ private theorem iterate_fixed_of_monotone_extensive {f : (ι → Bool) → (ι �
     (hf : Monotone f) {s₀ : ι → Bool} (h0 : s₀ ≤ f s₀) :
     f (f^[Fintype.card ι] s₀) = f^[Fintype.card ι] s₀ := by
   classical
-  have hchain : ∀ k, f^[k] s₀ ≤ f^[k + 1] s₀ := by
-    intro k
+  have hchain : ∀ k, f^[k] s₀ ≤ f^[k + 1] s₀ := fun k => by
     induction k with
     | zero => exact h0
     | succ k ih =>
       rw [Function.iterate_succ_apply', Function.iterate_succ_apply' f (k + 1)]
       exact hf ih
   by_contra hne
-  -- Strict growth at step `Fintype.card ι` implies strict growth at every earlier step `k < |ι|`.
-  have hstrict : ∀ k ≤ Fintype.card ι, k ≤ (univ.filter fun i => f^[k] s₀ i = true).card := by
+  -- If `f^[|ι|] s₀` is not fixed, no earlier iterate `k ≤ |ι|` is fixed either, so the count of
+  -- `true` coordinates grows strictly on each of `|ι| + 1` steps — exceeding `|ι|`.
+  have hstrict : ∀ k ≤ Fintype.card ι + 1, k ≤ (univ.filter fun i => f^[k] s₀ i = true).card := by
     intro k hk
     induction k with
     | zero => exact Nat.zero_le _
     | succ k ih =>
-      have hk_lt : k < Fintype.card ι := Nat.lt_of_succ_le hk
-      have hne_k : f^[k] s₀ ≠ f^[k + 1] s₀ := by
-        intro heq
-        apply hne
-        have hfix : ∀ m, f^[k + m] s₀ = f^[k] s₀ := by
-          intro m
+      have hne_k : f^[k] s₀ ≠ f^[k + 1] s₀ := fun heq => hne <| by
+        have hfix : ∀ m, f^[k + m] s₀ = f^[k] s₀ := fun m => by
           induction m with
           | zero => rfl
           | succ m ihm =>
             rw [← Nat.add_assoc, Function.iterate_succ_apply', ihm,
               ← Function.iterate_succ_apply' f k s₀, heq]
         have h1 := hfix (Fintype.card ι - k)
-        have h2 := hfix (Fintype.card ι - k + 1)
-        rw [Nat.add_sub_of_le hk_lt.le] at h1
-        rw [show k + (Fintype.card ι - k + 1) = Fintype.card ι + 1 by omega,
-          Function.iterate_succ_apply'] at h2
-        exact h2.trans h1.symm
-      obtain ⟨j, hj⟩ : ∃ j, f^[k] s₀ j = false ∧ f^[k + 1] s₀ j = true := by
-        by_contra hall
-        push Not at hall
-        apply hne_k
-        ext i
-        cases hki : f^[k] s₀ i
-        · cases hk1 : f^[k + 1] s₀ i
-          · rfl
-          · exact False.elim (hall i hki hk1)
-        · have : true ≤ f^[k + 1] s₀ i := hki ▸ hchain k i
-          exact (le_antisymm (Bool.le_true _) this).symm
-      have hssub : (univ.filter fun i => f^[k] s₀ i = true) ⊂
-          (univ.filter fun i => f^[k + 1] s₀ i = true) := by
-        rw [ssubset_iff_of_subset]
-        · refine ⟨j, ?_, ?_⟩
-          · simp only [mem_filter, mem_univ, hj.2, and_self]
-          · simp only [mem_filter, mem_univ, hj.1, Bool.false_eq_true, and_false, not_false_eq_true]
-        · intro i hi
-          simp only [mem_filter, mem_univ, true_and] at hi ⊢
-          have : true ≤ f^[k + 1] s₀ i := hi ▸ hchain k i
-          exact le_antisymm (Bool.le_true _) this
-      exact Nat.succ_le_of_lt (lt_of_le_of_lt (ih hk_lt.le) (card_lt_card hssub))
-  -- At step `|ι|`, all coordinates are already `true`, so step `|ι| + 1` cannot strictly grow.
-  have hfull : (univ.filter fun i => f^[Fintype.card ι] s₀ i = true).card = Fintype.card ι :=
-    le_antisymm (card_filter_le _ _) (hstrict (Fintype.card ι) le_rfl)
-  have hall_true : f^[Fintype.card ι] s₀ = fun _ => true := by
-    have heq := eq_of_subset_of_card_le
-      (filter_subset (fun j => f^[Fintype.card ι] s₀ j = true) univ) (by rw [card_univ, hfull])
-    ext i
-    have hi : i ∈ univ.filter (fun j => f^[Fintype.card ι] s₀ j = true) := by
-      rw [heq]
-      exact mem_univ i
-    exact (mem_filter.mp hi).2
-  apply hne
-  ext i
-  have hc := hchain (Fintype.card ι) i
-  rw [Function.iterate_succ_apply', hall_true] at hc
-  rw [hall_true]
-  exact le_antisymm (Bool.le_true _) hc
+        rw [Nat.add_sub_of_le (Nat.le_of_succ_le_succ hk)] at h1
+        rw [h1]
+        exact (Function.iterate_succ_apply' f k s₀).symm.trans heq.symm
+      have hsub : (univ.filter fun i => f^[k] s₀ i = true) ⊆
+          (univ.filter fun i => f^[k + 1] s₀ i = true) := fun i hi => by
+        simp only [mem_filter, mem_univ, true_and] at hi ⊢
+        exact le_antisymm (Bool.le_true _) (hi ▸ hchain k i)
+      have hne_set : (univ.filter fun i => f^[k] s₀ i = true) ≠
+          (univ.filter fun i => f^[k + 1] s₀ i = true) := fun hset => hne_k <| funext fun i =>
+        Bool.eq_iff_iff.mpr
+          (by simpa only [mem_filter, mem_univ, true_and] using Finset.ext_iff.mp hset i)
+      exact Nat.succ_le_of_lt (lt_of_le_of_lt (ih (Nat.le_of_succ_le hk))
+        (card_lt_card (ssubset_of_subset_of_ne hsub hne_set)))
+  have hle := (hstrict (Fintype.card ι + 1) le_rfl).trans (card_filter_le _ _)
+  rw [card_univ] at hle
+  omega
 
 /-- **Heal–Kunreuther Theorem 1, constructive least pure Nash equilibrium**
 ([HealKunreuther2007], §3, Theorem 1, p. 9): iterating synchronous best response `|ι|` times from
@@ -460,30 +410,20 @@ theorem IsCriticalCoalition.tipsAll (hp : ∀ i, 0 ≤ G.directProb i) (hL : ∀
     (h0 : ∀ j i, 0 ≤ G.contagion j i) (h1 : ∀ j i, G.contagion j i ≤ 1)
     {M : Finset ι} (hM : G.IsCriticalCoalition M) : G.TipsAll M := by
   have h1step : G.cascadeStep M (fun i => decide (i ∈ M)) = fun _ => true := by
-    ext j
-    simp only [cascadeStep]
-    by_cases hj : j ∈ M
-    · simp only [hj, decide_true, Bool.true_or]
-    · simp only [hj, decide_false, Bool.false_or, decide_eq_true_eq]
-      exact hM j hj
-  have hiter : ∀ k ≥ 1, (G.cascadeStep M)^[k] (fun i => decide (i ∈ M)) = fun _ => true := by
-    intro k hk
+    ext j; by_cases hj : j ∈ M <;> simp [cascadeStep, hj, hM j]
+  have htop : G.cascadeStep M (fun _ => true) = fun _ => true := by
+    have hle := G.cascadeStep_mono hp hL h0 h1 M
+      (a := fun i => decide (i ∈ M)) (b := fun _ => true) fun _ => Bool.le_true _
+    rw [h1step] at hle
+    exact le_antisymm (fun _ => Bool.le_true _) hle
+  rcases hcard : Fintype.card ι with _ | k
+  · ext i; exact (Fintype.card_eq_zero_iff.mp hcard).elim i
+  · unfold TipsAll
+    rw [hcard, Function.iterate_succ_apply, h1step]
+    clear hcard
     induction k with
-    | zero => omega
-    | succ k ih =>
-      rcases Nat.eq_zero_or_pos k with rfl | hpos
-      · exact h1step
-      · rw [Function.iterate_succ_apply', ih hpos]
-        ext j
-        have hle := G.cascadeStep_mono hp hL h0 h1 M
-          (a := fun i => decide (i ∈ M)) (b := fun _ => true) (fun _ => Bool.le_true _) j
-        rw [h1step] at hle
-        exact le_antisymm (Bool.le_true _) hle
-  by_cases hcard : Fintype.card ι = 0
-  · have hEmpty : IsEmpty ι := Fintype.card_eq_zero_iff.mp hcard
-    ext i
-    exact hEmpty.elim i
-  · exact hiter (Fintype.card ι) (Nat.pos_of_ne_zero hcard)
+    | zero => rfl
+    | succ k ih => rw [Function.iterate_succ_apply', ih, htop]
 
 /-- **Self-enforcing persistence after tipping**: if a coalition `M` whose own members satisfy
 `investCost m ≤ directProb m * loss m` triggers a full cascade (`TipsAll M`), then `fun _ => true`
@@ -532,20 +472,20 @@ theorem isCriticalCoalition_of_higher_contagion {qExt : ι → ℝ}
       G.investCost k / (G.directProb k * G.loss k) ≤
         G.investCost j / (G.directProb j * G.loss j))
     (hCrit : G.IsCriticalCoalition M') : G.IsCriticalCoalition M := by
-  -- Helper rewriting `noContagionProb i (seed S)` as `∏ u ∈ univ \ (insert i S), (1 - qExt u)`.
+  -- `noContagionProb i (seed S)` is the product of `1 - qExt u` over `u ∉ insert i S`.
   have hprod_eq : ∀ (S : Finset ι) (i : ι),
-      G.noContagionProb i (fun u => decide (u ∈ S)) =
-        ∏ u ∈ (univ.erase i) \ S, (1 - qExt u) := fun S i => by
-    simp only [noContagionProb]
-    have hset : (univ.erase i).filter (fun j => !decide (j ∈ S)) = (univ.erase i) \ S := by
-      ext u
-      simp only [mem_filter, mem_sdiff, Bool.not_eq_true', decide_eq_false_iff_not]
-    rw [hset]
-    exact prod_congr rfl fun u hu => by
-      rw [hContagion u i (ne_of_mem_erase (mem_sdiff.mp hu).1)]
-  -- Equal-cardinality domination implies `∏ u ∈ A, (1 - qExt u) ≤ ∏ u ∈ B, (1 - qExt u)` whenever
-  -- `B \ A` has smaller `1 - qExt` (larger `qExt`) than `A \ B`, so removing `M` leaves larger
-  -- `(1 - qExt)` factors outside `M` than outside `M'`.
+      G.noContagionProb i (fun u => decide (u ∈ S)) = ∏ u ∈ univ \ insert i S, (1 - qExt u) :=
+    fun S i => by
+      simp only [noContagionProb]
+      have hset : (univ.erase i).filter (fun j => !decide (j ∈ S)) = univ \ insert i S := by
+        ext u
+        simp only [mem_filter, mem_erase, mem_sdiff, mem_insert, mem_univ, Bool.not_eq_true',
+          decide_eq_false_iff_not, not_or, and_true, true_and]
+      rw [hset]
+      exact prod_congr rfl fun u hu => by
+        rw [hContagion u i fun h => (mem_sdiff.mp hu).2 (mem_insert.mpr (Or.inl h))]
+  -- Equal-cardinality domination: `∏ x ∈ X, (1 - qExt x) ≤ ∏ y ∈ Y, (1 - qExt y)` when every
+  -- `y ∈ Y` has smaller `qExt` than every `x ∈ X`.
   have hbij_prod : ∀ (X Y : Finset ι), X.card = Y.card →
       (∀ x ∈ X, ∀ y ∈ Y, qExt y ≤ qExt x) →
       ∏ x ∈ X, (1 - qExt x) ≤ ∏ y ∈ Y, (1 - qExt y) := by
@@ -557,132 +497,55 @@ theorem isCriticalCoalition_of_higher_contagion {qExt : ι → ℝ}
       ← prod_coe_sort X]
     exact prod_le_prod₀ (fun x _ => sub_nonneg.mpr (hq1 x.1))
       fun x _ => sub_le_sub_left (hOrd x.1 x.2 (hbij x).1 (hbij x).2) 1
-  have hcard_diff : (M \ M').card = (M' \ M).card := by
-    have h1 := card_sdiff_add_card_inter M M'
-    have h2 := card_sdiff_add_card_inter M' M
-    rw [inter_comm] at h2
-    omega
+  -- Comparing the complements of two equal-size seeds `A`, `B`: their common part
+  -- `univ \ (A ∪ B)` cancels, leaving `A \ B ⊆ M \ M'` against `B \ A ⊆ M' \ M`.
+  have hcompl : ∀ A B : Finset ι, A.card = B.card → A \ B ⊆ M \ M' → B \ A ⊆ M' \ M →
+      ∏ u ∈ univ \ B, (1 - qExt u) ≤ ∏ u ∈ univ \ A, (1 - qExt u) := by
+    have hsplit : ∀ S T : Finset ι, ∏ u ∈ univ \ S, (1 - qExt u) =
+        (∏ u ∈ T \ S, (1 - qExt u)) * ∏ u ∈ univ \ (T ∪ S), (1 - qExt u) := fun S T => by
+      have hset : (univ \ S) \ (univ \ (T ∪ S)) = T \ S := by
+        ext
+        simp only [mem_sdiff, mem_univ, true_and, mem_union, not_or]
+        tauto
+      rw [← prod_sdiff (sdiff_subset_sdiff (subset_refl univ) subset_union_right), hset]
+    intro A B hAB hA hB
+    rw [hsplit B A, hsplit A B, union_comm B A]
+    exact mul_le_mul_of_nonneg_right (hbij_prod _ _ (card_sdiff_comm hAB)
+      fun x hx y hy => hDom x (hA hx) y (hB hy)) (prod_nonneg fun u _ => sub_nonneg.mpr (hq1 u))
   intro i hiM
-  by_cases hiM' : i ∈ M'
-  · -- `i ∈ M' \ M`: choose `j ∈ M \ M'` (nonempty since `i ∈ M' \ M` and `|M \ M'| = |M' \ M|`).
-    have hi_diff : i ∈ M' \ M := mem_sdiff.mpr ⟨hiM', hiM⟩
-    have hpos_diff : 0 < (M \ M').card := by
-      rw [hcard_diff]
-      exact card_pos.mpr ⟨i, hi_diff⟩
-    obtain ⟨j, hj_diff⟩ := card_pos.mp hpos_diff
-    have hjM : j ∈ M := (mem_sdiff.mp hj_diff).1
-    have hj_not_M' : j ∉ M' := (mem_sdiff.mp hj_diff).2
-    have hj_crit := hCrit j hj_not_M'
-    -- Compare `noContagionProb i (seed M)` with `noContagionProb j (seed M')`.
-    -- `(univ.erase j) \ M'` vs `(univ.erase i) \ M`:
-    -- Note `(univ \ insert j M')` vs `(univ \ insert i M)`!
-    -- Specifically, `insert i M = insert i ((M ∩ M') ∪ (M \ M'))` and
-    -- `insert j M' = insert j ((M ∩ M') ∪ (M' \ M))`.
-    have hset_eq : ∀ (a : ι) (S : Finset ι), (univ.erase a) \ S = univ \ insert a S := by
-      intro a S
-      ext u
-      simp only [mem_sdiff, mem_erase, mem_univ, true_and, and_true, mem_insert, not_or]
-    have hA_sub : insert i M \ insert j M' = (M \ M').erase j := by
-      ext u
-      simp only [mem_sdiff, mem_insert, mem_erase, not_or]
-      constructor
-      · rintro ⟨rfl | huM, hne_j, hu_not_M'⟩
-        · exact False.elim (hu_not_M' hiM')
-        · exact ⟨hne_j, huM, hu_not_M'⟩
-      · rintro ⟨hne_j, huM, hu_not_M'⟩
-        exact ⟨Or.inr huM, hne_j, hu_not_M'⟩
-    have hB_sub : insert j M' \ insert i M = (M' \ M).erase i := by
-      ext u
-      simp only [mem_sdiff, mem_insert, mem_erase, not_or]
-      constructor
-      · rintro ⟨rfl | huM', hne_i, hu_not_M⟩
-        · exact False.elim (hu_not_M hjM)
-        · exact ⟨hne_i, huM', hu_not_M⟩
-      · rintro ⟨hne_i, huM', hu_not_M⟩
-        exact ⟨Or.inr huM', hne_i, hu_not_M⟩
-    have hcard_er : ((M \ M').erase j).card = ((M' \ M).erase i).card := by
-      rw [card_erase_of_mem hj_diff, card_erase_of_mem hi_diff, hcard_diff]
-    have hprod_er : ∏ u ∈ (M \ M').erase j, (1 - qExt u) ≤
-        ∏ u ∈ (M' \ M).erase i, (1 - qExt u) :=
-      hbij_prod _ _ hcard_er fun x hx y hy =>
-        hDom x (mem_of_mem_erase hx) y (mem_of_mem_erase hy)
-    -- Multiply both sides by the common complement `univ \ (insert i M ∪ insert j M')`.
-    set Cset := univ \ (insert i M ∪ insert j M')
-    have hpart_j : (univ.erase j) \ M' = Cset ∪ ((M \ M').erase j) := by
-      rw [hset_eq, ← hA_sub]
-      ext u
-      simp only [Cset, mem_union, mem_sdiff, mem_univ, true_and, not_or]
-      by_cases hu : u ∈ insert i M <;> tauto
-    have hpart_i : (univ.erase i) \ M = Cset ∪ ((M' \ M).erase i) := by
-      rw [hset_eq, ← hB_sub]
-      ext u
-      simp only [Cset, mem_union, mem_sdiff, mem_univ, true_and, not_or]
-      by_cases hu : u ∈ insert j M' <;> tauto
-    have hdisj_j : Disjoint Cset ((M \ M').erase j) := by
-      rw [← hA_sub, disjoint_left]
-      intro u huC huA
-      exact (mem_sdiff.mp huC).2 ( mem_union_left _ (mem_sdiff.mp huA).1)
-    have hdisj_i : Disjoint Cset ((M' \ M).erase i) := by
-      rw [← hB_sub, disjoint_left]
-      intro u huC huB
-      exact (mem_sdiff.mp huC).2 (mem_union_right _ (mem_sdiff.mp huB).1)
-    have hnoContagion_le : G.noContagionProb j (fun u => decide (u ∈ M')) ≤
-        G.noContagionProb i (fun u => decide (u ∈ M)) := by
-      rw [hprod_eq, hprod_eq, hpart_j, hpart_i, prod_union hdisj_j, prod_union hdisj_i]
-      exact mul_le_mul_of_nonneg_left hprod_er (prod_nonneg fun u _ => sub_nonneg.mpr (hq1 u))
-    have hpLi_pos : 0 < G.directProb i * G.loss i := mul_pos (hp i) (hL i)
-    have hpLj_pos : 0 < G.directProb j * G.loss j := mul_pos (hp j) (hL j)
-    have hj_div : G.investCost j / (G.directProb j * G.loss j) ≤
-        G.noContagionProb j (fun u => decide (u ∈ M')) := by
-      rw [div_le_iff₀ hpLj_pos, mul_comm]
-      simpa only [criticalCost] using hj_crit
-    have hi_div : G.investCost i / (G.directProb i * G.loss i) ≤
-        G.noContagionProb i (fun u => decide (u ∈ M)) :=
-      (hReluct j hj_diff i hi_diff).trans (hj_div.trans hnoContagion_le)
-    rw [criticalCost]
-    have := (div_le_iff₀ hpLi_pos).mp hi_div
-    linarith
-  · -- `i ∉ M ∪ M'`: `M'` already tipped `i`, and `M` removes larger `qExt` than `M'`.
-    have hi_crit := hCrit i hiM'
-    set Cset := (univ.erase i) \ (M ∪ M')
-    have hpart_M' : (univ.erase i) \ M' = Cset ∪ (M \ M') := by
-      ext u
-      simp only [Cset, mem_union, mem_sdiff, mem_erase]
-      constructor
-      · rintro ⟨⟨hui, hu_univ⟩, hu_not_M'⟩
-        by_cases huM : u ∈ M
-        · exact Or.inr ⟨huM, hu_not_M'⟩
-        · exact Or.inl ⟨⟨hui, hu_univ⟩, fun h => h.elim huM hu_not_M'⟩
-      · rintro (⟨⟨hui, hu_univ⟩, hu_not_both⟩ | ⟨huM, hu_not_M'⟩)
-        · exact ⟨⟨hui, hu_univ⟩, fun h => hu_not_both (Or.inr h)⟩
-        · exact ⟨⟨fun h => hiM (h ▸ huM), mem_univ u⟩, hu_not_M'⟩
-    have hpart_M : (univ.erase i) \ M = Cset ∪ (M' \ M) := by
-      ext u
-      simp only [Cset, mem_union, mem_sdiff, mem_erase]
-      constructor
-      · rintro ⟨⟨hui, hu_univ⟩, hu_not_M⟩
-        by_cases huM' : u ∈ M'
-        · exact Or.inr ⟨huM', hu_not_M⟩
-        · exact Or.inl ⟨⟨hui, hu_univ⟩, fun h => h.elim hu_not_M huM'⟩
-      · rintro (⟨⟨hui, hu_univ⟩, hu_not_both⟩ | ⟨huM', hu_not_M⟩)
-        · exact ⟨⟨hui, hu_univ⟩, fun h => hu_not_both (Or.inl h)⟩
-        · exact ⟨⟨fun h => hiM' (h ▸ huM'), mem_univ u⟩, hu_not_M⟩
-    have hdisj_M' : Disjoint Cset (M \ M') := by
-      rw [disjoint_left]
-      intro u huC huD
-      exact (mem_sdiff.mp huC).2 (mem_union_left _ (mem_sdiff.mp huD).1)
-    have hdisj_M : Disjoint Cset (M' \ M) := by
-      rw [disjoint_left]
-      intro u huC huD
-      exact (mem_sdiff.mp huC).2 (mem_union_right _ (mem_sdiff.mp huD).1)
-    have hnoContagion_le : G.noContagionProb i (fun u => decide (u ∈ M')) ≤
-        G.noContagionProb i (fun u => decide (u ∈ M)) := by
-      rw [hprod_eq, hprod_eq, hpart_M', hpart_M, prod_union hdisj_M', prod_union hdisj_M]
-      exact mul_le_mul_of_nonneg_left (hbij_prod _ _ hcard_diff hDom)
-        (prod_nonneg fun u _ => sub_nonneg.mpr (hq1 u))
-    calc G.investCost i ≤ G.criticalCost i (fun u => decide (u ∈ M')) := hi_crit
-      _ ≤ G.criticalCost i (fun u => decide (u ∈ M)) :=
-          mul_le_mul_of_nonneg_left hnoContagion_le (mul_pos (hp i) (hL i)).le
+  -- Compare `i` with an agent `j ∉ M'` tipped by `M'`: a member of `M \ M'` when `i ∈ M'`
+  -- (it exists since `|M \ M'| = |M' \ M|`), and `i` itself otherwise.
+  obtain ⟨j, hjM', hcardAB, hA, hB, hrel⟩ : ∃ j, j ∉ M' ∧
+      (insert i M).card = (insert j M').card ∧ insert i M \ insert j M' ⊆ M \ M' ∧
+      insert j M' \ insert i M ⊆ M' \ M ∧ G.investCost i / (G.directProb i * G.loss i) ≤
+        G.investCost j / (G.directProb j * G.loss j) := by
+    by_cases hiM' : i ∈ M'
+    · obtain ⟨j, hj⟩ := card_pos.mp ((card_sdiff_comm hcard).symm ▸
+        card_pos.mpr ⟨i, mem_sdiff.mpr ⟨hiM', hiM⟩⟩ : 0 < (M \ M').card)
+      obtain ⟨hjM, hjM'⟩ := mem_sdiff.mp hj
+      refine ⟨j, hjM', by rw [card_insert_of_notMem hiM, card_insert_of_notMem hjM', hcard],
+        fun u hu => ?_, fun u hu => ?_, hReluct j hj i (mem_sdiff.mpr ⟨hiM', hiM⟩)⟩
+      · simp only [mem_sdiff, mem_insert, not_or] at hu ⊢
+        obtain ⟨rfl | huM, -, hu'⟩ := hu
+        exacts [absurd hiM' hu', ⟨huM, hu'⟩]
+      · simp only [mem_sdiff, mem_insert, not_or] at hu ⊢
+        obtain ⟨rfl | huM', -, hu'⟩ := hu
+        exacts [absurd hjM hu', ⟨huM', hu'⟩]
+    · refine ⟨i, hiM', by rw [card_insert_of_notMem hiM, card_insert_of_notMem hiM', hcard],
+        fun u hu => ?_, fun u hu => ?_, le_rfl⟩ <;>
+        simp only [mem_sdiff, mem_insert, not_or] at hu ⊢ <;>
+        exact ⟨hu.1.resolve_left hu.2.1, hu.2.2⟩
+  have hle : G.noContagionProb j (fun u => decide (u ∈ M')) ≤
+      G.noContagionProb i (fun u => decide (u ∈ M)) := by
+    rw [hprod_eq, hprod_eq]
+    exact hcompl _ _ hcardAB hA hB
+  have hj_div : G.investCost j / (G.directProb j * G.loss j) ≤
+      G.noContagionProb j (fun u => decide (u ∈ M')) := by
+    rw [div_le_iff₀ (mul_pos (hp j) (hL j)), mul_comm]
+    simpa only [criticalCost] using hCrit j hjM'
+  rw [criticalCost]
+  have := (div_le_iff₀ (mul_pos (hp i) (hL i))).mp (hrel.trans (hj_div.trans hle))
+  linarith
 
 /-! ### Correlated equilibria and Roughgarden `(1, μ)`-smoothness / Price of Anarchy -/
 
@@ -769,21 +632,11 @@ theorem isSmooth_toCostGame {μ : ℝ}
     simpa only [CostGame.socialCost, sum_add_distrib] using sum_le_sum fun i _ => hpt i
   have hswap : (∑ i, ∑ j ∈ (univ.erase i).filter (fun j => !s j), G.contagion j i * G.loss i) =
       ∑ j ∈ univ.filter (fun j => !s j), ∑ i ∈ univ.erase j, G.contagion j i * G.loss i := by
-    have h1 : ∀ i, ∑ j ∈ (univ.erase i).filter (fun j => !s j), G.contagion j i * G.loss i =
-        ∑ j ∈ univ.filter (fun j => !s j), if j ≠ i then G.contagion j i * G.loss i else 0 :=
-      fun i => by
-        rw [← sum_filter]
-        refine sum_congr ?_ fun _ _ => rfl
-        ext j
-        simp only [mem_filter, mem_erase, mem_univ, true_and]
-        tauto
-    simp_rw [h1]
+    have he : ∀ a : ι, univ.erase a = univ.filter (· ≠ a) := fun a => by ext; simp [and_comm]
+    simp only [he, filter_filter, sum_filter]
     rw [sum_comm]
     refine sum_congr rfl fun j _ => ?_
-    rw [← sum_filter]
-    refine sum_congr ?_ fun _ _ => rfl
-    ext i
-    simp only [mem_filter, mem_erase, mem_univ, true_and, and_true, ne_comm]
+    by_cases hsj : (!s j) = true <;> simp [hsj, ne_comm]
   -- Step 3: For each `j` with `!s j`, `directProb j * loss j ≤ cost j s`, while investing `j` have
   -- `0 ≤ μ * cost j s`.
   have hbound_j : ∑ j ∈ univ.filter (fun j => !s j),
@@ -993,28 +846,11 @@ theorem eq_const_of_isPureNash_symmetricIDSSpec {ι : Type*} [Fintype ι] [Decid
     have h := (hNash iN).2 hiN
     rwa [(symmetricIDSSpec_criticalCost_eq_geom_sum p q L c iN s).2, hcard_iN] at h
   have hpL_pos : 0 < p * L := mul_pos hp0 hL
-  have hpq_pos : 0 < p * q := mul_pos hp0 hq0
-  have hpq_le1 : p * q ≤ 1 := by nlinarith
-  have hbase_nonneg : 0 ≤ 1 - p * q := by linarith
   have hU_pos : 1 ≤ U.card := card_pos.mpr ⟨iN, hiN_mem⟩
-  -- Since `0 < c ≤ p L (1 - pq)^{|U|}` and `p L > 0`, we must have `0 < 1 - pq < 1`.
-  have hpow_pos : 0 < (1 - p * q) ^ U.card := by
-    by_contra hnp
-    have h0 : (1 - p * q) ^ U.card = 0 :=
-      le_antisymm (le_of_not_gt hnp) (pow_nonneg hbase_nonneg _)
-    rw [h0, mul_zero] at hS_le
-    linarith
-  have hbase_pos : 0 < 1 - p * q := by
-    by_contra hnp
-    have h0 : 1 - p * q = 0 := le_antisymm (le_of_not_gt hnp) hbase_nonneg
-    rw [h0, zero_pow (Nat.pos_iff_ne_zero.mp hU_pos)] at hpow_pos
-    exact lt_irrefl 0 hpow_pos
-  have hpow_prev_pos : 0 < (1 - p * q) ^ (U.card - 1) := pow_pos hbase_pos _
-  have hpow_split : (1 - p * q) ^ U.card = (1 - p * q) ^ (U.card - 1) * (1 - p * q) := by
-    conv_lhs => rw [← Nat.sub_add_cancel hU_pos, pow_succ]
-  have hpow_lt : (1 - p * q) ^ U.card < (1 - p * q) ^ (U.card - 1) := by
-    rw [hpow_split]
-    exact mul_lt_of_lt_one_right hpow_prev_pos (by linarith)
+  have hbase_pos : 0 < 1 - p * q := lt_of_le_of_ne (by nlinarith) fun h => by
+    rw [← h, zero_pow (by omega), mul_zero] at hS_le; linarith
+  have hpow_lt : (1 - p * q) ^ U.card < (1 - p * q) ^ (U.card - 1) :=
+    pow_lt_pow_right_of_lt_one₀ hbase_pos (by nlinarith) (by omega)
   linarith [mul_lt_mul_of_pos_left hpow_lt hpL_pos]
 
 /-- **Pigouvian non-investment tax uniqueness** ([KunreutherHeal2003], §3, p. 13): levying a tax
@@ -1046,13 +882,9 @@ theorem isCoarseCorrelatedEquilibrium_symmetricIDSSpec_taxed_unique
     have hcrit_ge : p * L * (1 - p * q) ^ (Fintype.card ι - 1) ≤ G.criticalCost i s := by
       rw [(symmetricIDSSpec_criticalCost_eq_geom_sum p q L (c - t) i s).2]
       exact mul_le_mul_of_nonneg_left hpow_ge (mul_nonneg hp0 hL)
-    have hself : s = update s i false := by
-      ext j; by_cases hj : j = i
-      · subst hj; simpa only [update_self] using hsi
-      · simp only [update_of_ne hj]
     have hdiff := G.cost_update_false_sub_cost_update_true i s
+    conv at hdiff => enter [1, 1]; rw [← hsi, update_eq_self]
     have hinv : G.investCost i = c - t := rfl
-    rw [← hself, hinv] at hdiff
     linarith
   -- Every `s ∈ σ.weights.support` must therefore be `fun _ => true`.
   have hsupp : ∀ s ∈ σ.weights.support, s = fun _ => true := by
@@ -1071,11 +903,7 @@ theorem isCoarseCorrelatedEquilibrium_symmetricIDSSpec_taxed_unique
       cases hs'i : s' i
       · exact mul_le_mul_of_nonneg_left (hdom i s' hs'i).le
           (Convexity.StdSimplex.weights_nonneg s')
-      · have hself : update s' i true = s' := by
-          ext j; by_cases hj : j = i
-          · subst hj; simpa only [update_self] using hs'i.symm
-          · simp only [update_of_ne hj]
-        rw [hself]
+      · rw [← hs'i, update_eq_self]
     have hstrict : ∑ s' ∈ σ.weights.support,
         σ.weights s' * G.toCostGame.cost i (update s' i true) <
         ∑ s' ∈ σ.weights.support, σ.weights s' * G.toCostGame.cost i s' :=
@@ -1131,15 +959,11 @@ theorem symmetricIDSSpec_isMixedNash_and_correlated_strict_improvement
       InterdependentSecuritySpec.contagionProb_allTrue, mul_zero, add_zero, symmetricIDSSpec]
   have hcard_other : ∀ (i : Fin 2) (s : Fin 2 → Bool),
       ((univ.erase i).filter (fun j => !s j)).card = if s (1 - i) then 0 else 1 := fun i s => by
-    fin_cases i <;> simp only [Fin.zero_eta, Fin.mk_one]
-    · have her : univ.erase (0 : Fin 2) = {1} := by decide
-      have h10 : (1 : Fin 2) - 0 = 1 := by decide
-      simp only [her, h10, filter_singleton]
-      cases s 1 <;> simp
-    · have her : univ.erase (1 : Fin 2) = {0} := by decide
-      have h11 : (1 : Fin 2) - 1 = 0 := by decide
-      simp only [her, h11, filter_singleton]
-      cases s 0 <;> simp
+    fin_cases i <;> simp only [Fin.zero_eta, Fin.mk_one,
+      show univ.erase (0 : Fin 2) = {1} by decide, show univ.erase (1 : Fin 2) = {0} by decide,
+      show (1 : Fin 2) - 0 = 1 by decide, show (1 : Fin 2) - 1 = 0 by decide, filter_singleton]
+    · cases s 1 <;> simp
+    · cases s 0 <;> simp
   have hcost_eval : ∀ (i : Fin 2) (s : Fin 2 → Bool),
       G.cost i s =
         if s i then c + (if s (1 - i) then 0 else p * q * L)
@@ -1152,37 +976,26 @@ theorem symmetricIDSSpec_isMixedNash_and_correlated_strict_improvement
       (∑ s : Fin 2 → Bool, F s) = ∑ b0 : Bool, ∑ b1 : Bool, F ![b0, b1] := fun F =>
     (Fintype.sum_equiv (finTwoArrowEquiv Bool).symm (fun u : Bool × Bool => F ![u.1, u.2]) F
       fun _ => rfl).symm.trans (Fintype.sum_prod_type fun u : Bool × Bool => F ![u.1, u.2])
+  have h1_sub_θ : (1 - θ) * (p ^ 2 * q * L) = p * L - c := by
+    dsimp only [θ]
+    field_simp [hden.ne']
+    ring
   -- Evaluate `deviationCost mix i b` for `b = true` and `b = false`.
   have hdev_true : ∀ i : Fin 2, G.deviationCost mix i true = c + (1 - θ) * p * q * L := fun i => by
     rw [CostGame.deviationCost_def, hexp_fin2]
-    fin_cases i <;> simp only [Fin.zero_eta, Fin.mk_one]
-    · simp only [Fintype.sum_bool, productWeight_def, Fin.prod_univ_two, hcost_eval, mix,
-        Fin.isValue, update_self, show (1 : Fin 2) - 0 = 1 by decide,
-        update_of_ne (by decide : (1 : Fin 2) ≠ 0), Matrix.cons_val_zero, Matrix.cons_val_one,
-        ↓reduceIte, Bool.false_eq_true]
-      ring
-    · simp only [Fintype.sum_bool, productWeight_def, Fin.prod_univ_two, hcost_eval, mix,
-        Fin.isValue, update_self, show (1 : Fin 2) - 1 = 0 by decide,
-        update_of_ne (by decide : (0 : Fin 2) ≠ 1), Matrix.cons_val_zero, Matrix.cons_val_one,
-        ↓reduceIte, Bool.false_eq_true]
-      ring
+    fin_cases i <;> simp only [Fin.zero_eta, Fin.mk_one, Fintype.sum_bool, productWeight_def,
+      Fin.prod_univ_two, hcost_eval, mix, Fin.isValue, update_self,
+      show (1 : Fin 2) - 0 = 1 by decide, show (1 : Fin 2) - 1 = 0 by decide,
+      update_of_ne (by decide : (1 : Fin 2) ≠ 0), update_of_ne (by decide : (0 : Fin 2) ≠ 1),
+      Matrix.cons_val_zero, Matrix.cons_val_one, ↓reduceIte, Bool.false_eq_true] <;> ring
   have hdev_false : ∀ i : Fin 2,
       G.deviationCost mix i false = c + (1 - θ) * p * q * L := fun i => by
-    have h1_sub_θ : (1 - θ) * (p ^ 2 * q * L) = p * L - c := by
-      dsimp only [θ]
-      field_simp [hden.ne']
-      ring
     rw [CostGame.deviationCost_def, hexp_fin2]
-    fin_cases i <;> simp only [Fin.zero_eta, Fin.mk_one]
-    · simp only [Fintype.sum_bool, productWeight_def, Fin.prod_univ_two, hcost_eval, mix,
-        Fin.isValue, update_self, show (1 : Fin 2) - 0 = 1 by decide,
-        update_of_ne (by decide : (1 : Fin 2) ≠ 0), Matrix.cons_val_zero, Matrix.cons_val_one,
-        ↓reduceIte, Bool.false_eq_true]
-      nlinarith [h1_sub_θ]
-    · simp only [Fintype.sum_bool, productWeight_def, Fin.prod_univ_two, hcost_eval, mix,
-        Fin.isValue, update_self, show (1 : Fin 2) - 1 = 0 by decide,
-        update_of_ne (by decide : (0 : Fin 2) ≠ 1), Matrix.cons_val_zero, Matrix.cons_val_one,
-        ↓reduceIte, Bool.false_eq_true]
+    fin_cases i <;> simp only [Fin.zero_eta, Fin.mk_one, Fintype.sum_bool, productWeight_def,
+      Fin.prod_univ_two, hcost_eval, mix, Fin.isValue, update_self,
+      show (1 : Fin 2) - 0 = 1 by decide, show (1 : Fin 2) - 1 = 0 by decide,
+      update_of_ne (by decide : (1 : Fin 2) ≠ 0), update_of_ne (by decide : (0 : Fin 2) ≠ 1),
+      Matrix.cons_val_zero, Matrix.cons_val_one, ↓reduceIte, Bool.false_eq_true] <;>
       nlinarith [h1_sub_θ]
   have hMixed_wf : ∀ i, IsMixedStrategy (mix i) := fun _ =>
     isMixedStrategy_iff.2
@@ -1191,25 +1004,19 @@ theorem symmetricIDSSpec_isMixedNash_and_correlated_strict_improvement
   have hMixed : G.IsMixedNash mix := by
     refine ⟨hMixed_wf, fun i a => ?_⟩
     rw [← G.sum_mul_deviationCost_eq_expectedCost mix (hMixed_wf i).sum_eq_one]
-    cases a
-    · simp only [Fintype.sum_bool, mix, ↓reduceIte, Bool.false_eq_true, hdev_true i, hdev_false i]
-      linarith
-    · simp only [Fintype.sum_bool, mix, ↓reduceIte, Bool.false_eq_true, hdev_true i, hdev_false i]
+    cases a <;>
+      simp only [Fintype.sum_bool, mix, ↓reduceIte, Bool.false_eq_true, hdev_true i,
+        hdev_false i] <;>
       linarith
   -- Construct the public-signal correlated equilibrium `σ`.
-  have hTrue_N : G.IsPureNash (fun _ => true) := by
-    rw [(symmetricIDSSpec (Fin 2) p q L c).isPureNash_allTrue_iff]
-    intro _
-    exact hHigh.le
-  have hFalse_N : G.IsPureNash (fun _ => false) := by
-    rw [(symmetricIDSSpec (Fin 2) p q L c).isPureNash_allFalse_iff]
-    intro i
-    have h := (symmetricIDSSpec_criticalCost_eq_geom_sum p q L c i (fun _ => false)).2
-    have hcard : ((univ.erase i).filter (fun _ : Fin 2 => !false)).card = 1 := by
-      rw [hcard_other i (fun _ => false)]
-      rfl
-    rw [h, hcard, pow_one]
-    exact hLow.le
+  have hTrue_N : G.IsPureNash (fun _ => true) :=
+    (symmetricIDSSpec (Fin 2) p q L c).isPureNash_allTrue_iff.mpr fun _ => hHigh.le
+  have hFalse_N : G.IsPureNash (fun _ => false) :=
+    (symmetricIDSSpec (Fin 2) p q L c).isPureNash_allFalse_iff.mpr fun i => by
+      rw [(symmetricIDSSpec_criticalCost_eq_geom_sum p q L c i (fun _ => false)).2,
+        hcard_other i (fun _ => false)]
+      simp only [Bool.false_eq_true, ↓reduceIte, pow_one]
+      exact hLow.le
   let σ : Convexity.StdSimplex ℝ (Fin 2 → Bool) :=
     .duple (fun _ => true) (fun _ => false) (s := θ) (t := 1 - θ) hθ0.le (by linarith) (by ring)
   have hCE : G.IsCorrelatedEquilibrium σ :=
@@ -1230,12 +1037,7 @@ theorem symmetricIDSSpec_isMixedNash_and_correlated_strict_improvement
       simp only [Fintype.sum_bool, mix, ↓reduceIte, Bool.false_eq_true, hdev_true i, hdev_false i]
       ring
     have hFF : G.cost i (fun _ => false) = p * L + (1 - p) * p * q * L := by
-      rw [hcost_eval]
-      simp only [Bool.false_eq_true, ↓reduceIte]
-    have h1_sub_θ : (1 - θ) * (p ^ 2 * q * L) = p * L - c := by
-      dsimp only [θ]
-      field_simp [hden.ne']
-      ring
+      rw [hcost_eval]; simp only [Bool.false_eq_true, ↓reduceIte]
     rw [hexp_i, hσ_sum, hcost_TT i, hFF]
     nlinarith [h1_sub_θ]
 
@@ -1284,52 +1086,19 @@ theorem symmetricIDSSpec_poa_eq_inv_one_sub {q L : ℝ} (hq0 : 0 < q) (hq1 : q <
     have h1 := (symmetricIDSSpec_cost_allFalse_eq_geom_sum 1 1 q L (L * (1 - q)) 1).2
     simp only [CostGame.socialCost, Fin.sum_univ_two, G, h0, h1]
     ring
-  refine ⟨hSmooth, hFalse, hTrue, fun s => ?_, ?_⟩
-  · cases hs0 : s 0 <;> cases hs1 : s 1
-    · have heq : s = fun _ => false := funext fun i => by fin_cases i <;> assumption
-      rw [heq, hsoc_T, hsoc_F]
+  refine ⟨hSmooth, hFalse, hTrue, fun s => sum_le_sum fun i _ => ?_, ?_⟩
+  · -- At `p = 1`, `c = L * (1 - q)`, every player's cost is at least `L * (1 - q)` pointwise.
+    have hcont_nn : 0 ≤ G.contagionProb i s := sub_nonneg.mpr <|
+      G.noContagionProb_le_one (fun _ _ => by simp [G, symmetricIDSSpec, hq0.le])
+        (fun _ _ => by simp [G, symmetricIDSSpec, hq1.le]) i s
+    dsimp only [InterdependentSecuritySpec.toCostGame]
+    simp only [show ∀ j, G.investCost j = L * (1 - q) from fun _ => rfl,
+      show ∀ j, G.loss j = L from fun _ => rfl, show ∀ j, G.directProb j = 1 from fun _ => rfl]
+    cases s i <;> simp only [↓reduceIte, Bool.false_eq_true,
+      InterdependentSecuritySpec.contagionProb_allTrue, mul_zero, add_zero, sub_self, zero_mul] <;>
       nlinarith
-    · rw [hsoc_T]
-      simp only [CostGame.socialCost, Fin.sum_univ_two]
-      have h0_c : G.toCostGame.cost 0 s = L := by
-        simp only [G, InterdependentSecuritySpec.toCostGame, hs0, Bool.false_eq_true, ↓reduceIte,
-          symmetricIDSSpec]
-        ring
-      have h1_c : G.toCostGame.cost 1 s = L * (1 - q) + L * q := by
-        have hc1 : ((univ.erase (1 : Fin 2)).filter (fun j => !s j)).card = 1 := by
-          have her : univ.erase (1 : Fin 2) = {0} := by decide
-          rw [her, filter_true_of_mem (fun x hx => by rw [mem_singleton.mp hx]; simp [hs0]),
-            card_singleton]
-        dsimp only [G, InterdependentSecuritySpec.toCostGame]
-        simp only [hs1, ↓reduceIte]
-        rw [InterdependentSecuritySpec.contagionProb, symmetricIDSSpec_noContagionProb, hc1]
-        dsimp only [symmetricIDSSpec]
-        ring
-      rw [h0_c, h1_c]
-      nlinarith
-    · rw [hsoc_T]
-      simp only [CostGame.socialCost, Fin.sum_univ_two]
-      have h0_c : G.toCostGame.cost 0 s = L * (1 - q) + L * q := by
-        have hc0 : ((univ.erase (0 : Fin 2)).filter (fun j => !s j)).card = 1 := by
-          have her : univ.erase (0 : Fin 2) = {1} := by decide
-          rw [her, filter_true_of_mem (fun x hx => by rw [mem_singleton.mp hx]; simp [hs1]),
-            card_singleton]
-        dsimp only [G, InterdependentSecuritySpec.toCostGame]
-        simp only [hs0, ↓reduceIte]
-        rw [InterdependentSecuritySpec.contagionProb, symmetricIDSSpec_noContagionProb, hc0]
-        dsimp only [symmetricIDSSpec]
-        ring
-      have h1_c : G.toCostGame.cost 1 s = L := by
-        simp only [G, InterdependentSecuritySpec.toCostGame, hs1, Bool.false_eq_true, ↓reduceIte,
-          symmetricIDSSpec]
-        ring
-      rw [h0_c, h1_c]
-      nlinarith
-    · have heq : s = fun _ => true := funext fun i => by fin_cases i <;> assumption
-      rw [heq]
   · rw [hsoc_F, hsoc_T]
-    have hne : 1 - q ≠ 0 := by linarith
-    field_simp [hne]
+    field_simp [(by linarith : 1 - q ≠ 0)]
 
 /-- **Pure-Nash Price of Anarchy in the Prisoner's Dilemma IDS regime** (original, motivated by the
 Prisoner's Dilemma regime `p * L < c` in [KunreutherHeal2003], §2, Table 3, p. 9): when

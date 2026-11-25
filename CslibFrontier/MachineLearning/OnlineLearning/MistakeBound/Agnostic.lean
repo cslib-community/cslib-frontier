@@ -134,25 +134,17 @@ theorem mem_mistakeRounds {A : OnlineLearner α Bool} {S : List (α × Bool)} {t
     t ∈ mistakeRounds A S ↔ ∃ ht : t < S.length, A (S.take t) S[t].1 ≠ S[t].2 := by
   simp only [mistakeRounds, Finset.mem_map, Finset.mem_filter, Finset.mem_univ, true_and,
     Fin.valEmbedding_apply]
-  constructor
-  · rintro ⟨a, ha, rfl⟩
-    exact ⟨a.2, ha⟩
-  · rintro ⟨ht, h⟩
-    exact ⟨⟨t, ht⟩, h, rfl⟩
+  exact ⟨fun ⟨a, ha, heq⟩ => heq ▸ ⟨a.2, ha⟩, fun ⟨ht, h⟩ => ⟨⟨t, ht⟩, h, rfl⟩⟩
 
 /-- Negating `A`'s prediction in round `t` exactly when `t` is one of its mistakes gives the label
 of round `t`. -/
 private theorem ite_mem_mistakeRounds (A : OnlineLearner α Bool) (S : List (α × Bool)) {t : ℕ}
     (ht : t < S.length) :
     (if t ∈ mistakeRounds A S then !A (S.take t) S[t].1 else A (S.take t) S[t].1) = S[t].2 := by
-  by_cases hm : t ∈ mistakeRounds A S
-  · rw [ite_eq_left hm]
-    obtain ⟨_, hne⟩ := mem_mistakeRounds.mp hm
-    revert hne
-    cases A (S.take t) S[t].1 <;> cases S[t].2 <;> simp
-  · rw [ite_eq_right hm]
-    by_contra hne
-    exact hm (mem_mistakeRounds.mpr ⟨ht, hne⟩)
+  split_ifs with hm
+  · obtain ⟨_, hne⟩ := mem_mistakeRounds.mp hm
+    cases hA : A (S.take t) S[t].1 <;> cases hS : S[t].2 <;> simp_all
+  · exact Classical.not_not.mp fun hne => hm (mem_mistakeRounds.mpr ⟨ht, hne⟩)
 
 /-- Negating `A` at its mistakes on `S` recovers the labels of `S`: the self-labelled history of
 the first `n` instances is the first `n` examples. -/
@@ -185,14 +177,9 @@ theorem mistakes_flipExpert_mistakeRounds (A : OnlineLearner α Bool) (c : α �
     mistakes (flipExpert A (mistakeRounds A (S.map fun p => (p.1, c p.1)))) S =
       S.countP fun p => c p.1 ≠ p.2 := by
   rw [← mistakesFrom_classifier c [] S, ← mistakes, mistakes_eq_card, mistakes_eq_card]
-  congr 1
-  refine Finset.filter_congr fun t _ => ?_
-  have hlen : (t : ℕ) < (S.map fun p => (p.1, c p.1)).length := by simp
-  have hh : (S.take t).map Prod.fst = ((S.map fun p => (p.1, c p.1)).take t).map Prod.fst := by
-    simp [← List.map_take, List.map_map, Function.comp_def]
-  have := flipExpert_mistakeRounds A _ hlen hh
-  simp only [List.getElem_map] at this
-  exact Iff.of_eq (congrArg (· ≠ S[t].2) this)
+  refine congrArg Finset.card (Finset.filter_congr fun t _ => Iff.of_eq (congrArg (· ≠ S[t].2) ?_))
+  simpa using flipExpert_mistakeRounds A (S.map fun p => (p.1, c p.1))
+    (t := t) (h := S.take t) (by simp) (by simp [← List.map_take, List.map_map, Function.comp_def])
 
 /-! ### The agnostic learner -/
 
@@ -202,11 +189,7 @@ def flipSets (T d : ℕ) : Finset (Finset ℕ) :=
 
 theorem mem_flipSets {T d : ℕ} {I : Finset ℕ} : I ∈ flipSets T d ↔ I ⊆ range T ∧ I.card ≤ d := by
   simp only [flipSets, mem_biUnion, mem_range, mem_powersetCard]
-  constructor
-  · rintro ⟨j, hj, hI, rfl⟩
-    exact ⟨hI, by omega⟩
-  · rintro ⟨hI, hd⟩
-    exact ⟨I.card, by omega, hI, rfl⟩
+  exact ⟨fun ⟨_, hj, hI, heq⟩ => ⟨hI, by omega⟩, fun ⟨hI, hd⟩ => ⟨I.card, by omega, hI, rfl⟩⟩
 
 /-- There are at most `∑_{j ≤ d} (T choose j) ≤ (T + 1) ^ d` sets of at most `d` rounds below
 `T`. Compare [BenDavidPalShalevShwartz2009, §3.2, eq. (7)]: for `d = Ldim(C)` it bounds the sum
@@ -242,14 +225,13 @@ theorem expectedMistakes_agnosticSOA_le {C : ConceptClass α Bool} {d : ℕ}
       (S.countP fun p => c p.1 ≠ p.2) + 2 * √(T * d * Real.log (T + 1)) := by
   set Sc := S.map fun p => (p.1, c p.1) with hSc
   have hI : mistakeRounds (soa C) Sc ∈ flipSets T d := by
-    refine mem_flipSets.mpr ⟨fun t ht => ?_, ?_⟩
-    · obtain ⟨ht, _⟩ := mem_mistakeRounds.mp ht
-      rw [hSc, List.length_map] at ht
-      exact mem_range.mpr (by omega)
+    refine mem_flipSets.mpr ⟨fun t ht => mem_range.mpr ?_, ?_⟩
+    · have := (mem_mistakeRounds.mp ht).1
+      rw [hSc, List.length_map] at this
+      omega
     · rw [card_mistakeRounds]
-      have hr : Realizable C ([] ++ Sc) := by
-        simpa [hSc, List.map_map, Function.comp_def] using realizable_map hc (S.map Prod.fst)
-      have h1 := mistakesFrom_soa_le C [] Sc hr
+      have h1 := mistakesFrom_soa_le C [] Sc
+        (by simpa [hSc, List.map_map, Function.comp_def] using realizable_map hc (S.map Prod.fst))
       rw [versionSpace_nil] at h1
       exact ENat.natCast_le_natCast.mp (h1.trans hC)
   have hNpos : (0 : ℝ) < Fintype.card (flipSets T d) := by exact_mod_cast Fintype.card_pos
@@ -259,10 +241,8 @@ theorem expectedMistakes_agnosticSOA_le {C : ConceptClass α Bool} {d : ℕ}
             rw [Fintype.card_coe]
             exact_mod_cast card_flipSets_le_two_pow T d)
       _ = T * Real.log 2 := Real.log_pow _ _
-      _ ≤ T * 1 := by
-          gcongr
-          linarith [Real.log_le_sub_one_of_pos (by norm_num : (0 : ℝ) < 2)]
-      _ = T := mul_one _
+      _ ≤ T := by
+          nlinarith [Real.log_le_sub_one_of_pos zero_lt_two]
   have hNd : Real.log (Fintype.card (flipSets T d)) ≤ d * Real.log (T + 1) :=
     calc Real.log (Fintype.card (flipSets T d)) ≤ Real.log (((T : ℝ) + 1) ^ d) :=
           Real.log_le_log hNpos (by
@@ -310,14 +290,9 @@ theorem exists_mistakes_eq_length_of_const_mem {C : ConceptClass α Bool}
       ∃ c ∈ C, 2 * S.countP (fun p => c p.1 ≠ p.2) ≤ n := by
   set S := (Adversary.cover x).transcript A n
   refine ⟨S, Adversary.length_transcript _ A n, mistakes_transcript_cover A x n, ?_⟩
-  have hsum : ∀ S : List (α × Bool),
-      S.countP (fun p => true ≠ p.2) + S.countP (fun p => false ≠ p.2) = S.length := by
-    intro S
+  have h : S.countP (fun p => true ≠ p.2) + S.countP (fun p => false ≠ p.2) = S.length := by
     rw [List.length_eq_countP_add_countP (fun p => true ≠ p.2)]
-    congr 1
-    refine List.countP_congr fun p _ => ?_
-    cases p.2 <;> simp
-  have h := hsum S
+    exact congrArg (_ + ·) (List.countP_congr fun p _ => by cases p.2 <;> simp)
   rw [Adversary.length_transcript] at h
   by_cases ht : 2 * S.countP (fun p => true ≠ p.2) ≤ n
   · exact ⟨_, htrue, ht⟩

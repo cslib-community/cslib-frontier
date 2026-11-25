@@ -221,10 +221,10 @@ theorem uniform_bind_decode_bind_apply_false_le_of_failProbability_le {m n q : �
     (hk : ∀ A, k A (some s) = PMF.pure true) {δ : ℝ≥0}
     (hδ : Game.failProbability (decodeGame decode s e) ≤ δ) :
     ((PMF.uniformOfFintype (Matrix (Fin m) (Fin n) (ZMod q))).bind fun A =>
-      (ProbComp.eval (decode A (A.mulVec s + e))).bind (k A)) false ≤ δ := by
-  refine (uniform_bind_decode_bind_apply_false_le decode s e k hk).trans ?_
-  have := ENNReal.coe_le_coe.mpr hδ
-  rwa [Game.failProbability, ENNReal.coe_toNNReal (PMF.apply_ne_top _ _)] at this
+      (ProbComp.eval (decode A (A.mulVec s + e))).bind (k A)) false ≤ δ :=
+  (uniform_bind_decode_bind_apply_false_le decode s e k hk).trans <| by
+    simpa only [Game.failProbability, ENNReal.coe_toNNReal (PMF.apply_ne_top _ _)] using
+      ENNReal.coe_le_coe.mpr hδ
 
 /-- Pointwise bound on the reproduction failure probability of `decodeThenExtract`:
 whenever `decodeGame decode s (w - w')` fails with probability at most `δ` for every secret `s`,

@@ -393,9 +393,7 @@ private theorem menuHistory_step_gate (p : Program signature n g) (dir : Fin g �
   · rw [ite_eq_right hact]
     dsimp only [BlockKind.Step]
     by_cases hin : gate ∈ inputGates p
-    · have haS : dir gate ∈ S := by
-        by_contra hnot
-        exact hact ⟨hin, hnot⟩
+    · have haS : dir gate ∈ S := by_contra fun hnot => hact ⟨hin, hnot⟩
       have hdg : gate ∈ directionGates p dir (dir gate) :=
         (mem_directionGates p dir (dir gate) gate).mpr ⟨hin, rfl⟩
       refine ⟨fun _ => 0,
@@ -408,12 +406,9 @@ private theorem menuHistory_step_gate (p : Program signature n g) (dir : Fin g �
       have hlt : (dir gate).val < d + gate.val := by omega
       have hscale_sum : (∑ k, inputWeight p gate k * (x k).toNat) =
           scale gate * ∑ k, w (dir gate) k * (x k).toNat := by
-        have hw := hdir gate hin
         rw [mul_sum]
         refine sum_congr rfl fun k _ => ?_
-        have hwk := congrFun hw k
-        simp only [Pi.smul_apply, smul_eq_mul] at hwk
-        rw [hwk, mul_assoc]
+        rw [congrFun (hdir gate hin) k, Pi.smul_apply, smul_eq_mul, mul_assoc]
       simp [menuHistory, hlt, haS, trueMenuTable, hscale_sum]
     · refine ⟨fun _ => 0,
         fun η _ => (η.1, Function.update η.2 gate
@@ -515,9 +510,8 @@ theorem cost_menuBlockDecomposition (p : Program signature n g)
     refine prod_congr rfl fun a _ => ?_
     change (∏ x ∈ directionGates p dir a, if dir x ∈ S then 1 else 4) = _
     have hconst : (∏ x ∈ directionGates p dir a, if dir x ∈ S then 1 else 4) =
-        ∏ _x ∈ directionGates p dir a, (if a ∈ S then 1 else 4) := by
-      refine prod_congr rfl fun x hx => ?_
-      rw [(mem_directionGates p dir a x).mp hx |>.2]
+        ∏ _x ∈ directionGates p dir a, (if a ∈ S then 1 else 4) :=
+      prod_congr rfl fun x hx => by rw [((mem_directionGates p dir a x).mp hx).2]
     rw [hconst, prod_const]
     by_cases ha : a ∈ S <;> simp [ha]
   rw [hfirst, hsecond, ← prod_mul_distrib]

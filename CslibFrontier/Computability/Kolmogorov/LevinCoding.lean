@@ -203,11 +203,9 @@ theorem two_inv_pow_complexity_le_universalProb {α : Type*} {M : DescriptionMet
     (hM : M.IsPrefixFree) {x : α} (hx : M.ecomplexity x ≠ ⊤) :
     (2 : ℝ)⁻¹ ^ M.complexity x ≤ M.universalProb x := by
   obtain ⟨p, hp, hlen⟩ := exists_length_eq_ecomplexity hx
-  have hplen : p.length = M.complexity x := by
-    rw [← natCast_complexity hx] at hlen
-    exact_mod_cast hlen
-  rw [← hplen]
-  exact (hM.summable_universalProb_program x).le_tsum ⟨p, hp⟩ fun _ _ => by positivity
+  have hplen : p.length = M.complexity x :=
+    ENat.natCast_inj.mp (hlen.trans (natCast_complexity hx).symm)
+  exact hplen ▸ (hM.summable_universalProb_program x).le_tsum ⟨p, hp⟩ fun _ _ => by positivity
 
 theorem two_inv_pow_complexity_universalPrefix_le (x : ℕ) :
     (2 : ℝ)⁻¹ ^ universalPrefix.complexity x ≤ universalPrefix.universalProb x :=
@@ -261,22 +259,14 @@ theorem isLowerSemicomputable_of_computable_monotone_tendsto {α : Type*} [Primc
         ((Primrec.nat_add.comp Primrec.id (Primrec.const 1)).to_comp.comp
           (Computable.snd.comp (Computable.snd.comp Computable.fst))))
   refine (ComputablePred.rePred_exists hpred).of_eq fun ⟨x, a, b⟩ => ?_
-  constructor
-  · rintro ⟨t, ht⟩
-    have hden_pos : (0 : ℝ) < (den x t : ℝ) := Nat.cast_pos.mpr (hpos x t)
-    have hb_pos : (0 : ℝ) < ((b + 1 : ℕ) : ℝ) := Nat.cast_pos.mpr (Nat.succ_pos b)
-    have hfrac : (a : ℝ) / ((b + 1 : ℕ) : ℝ) < (num x t : ℝ) / (den x t : ℝ) :=
-      (div_lt_div_iff₀ hb_pos hden_pos).mpr (by exact_mod_cast ht)
-    exact hfrac.trans_le ((hmono x).ge_of_tendsto (htend x) t)
-  · intro hlt
-    have hev : ∀ᶠ t in atTop,
-        (a : ℝ) / ((b + 1 : ℕ) : ℝ) < (num x t : ℝ) / (den x t : ℝ) :=
-      (htend x).eventually_const_lt hlt
-    obtain ⟨t, ht⟩ := hev.exists
-    refine ⟨t, ?_⟩
-    have hden_pos : (0 : ℝ) < (den x t : ℝ) := Nat.cast_pos.mpr (hpos x t)
-    have hb_pos : (0 : ℝ) < ((b + 1 : ℕ) : ℝ) := Nat.cast_pos.mpr (Nat.succ_pos b)
-    exact_mod_cast (div_lt_div_iff₀ hb_pos hden_pos).mp ht
+  have hb_pos : (0 : ℝ) < ((b + 1 : ℕ) : ℝ) := Nat.cast_pos.mpr (Nat.succ_pos b)
+  have hiff (t : ℕ) : a * den x t < num x t * (b + 1) ↔
+      (a : ℝ) / ((b + 1 : ℕ) : ℝ) < (num x t : ℝ) / (den x t : ℝ) := by
+    rw [div_lt_div_iff₀ hb_pos (Nat.cast_pos.mpr (hpos x t))]
+    exact_mod_cast Iff.rfl
+  simp_rw [hiff]
+  exact ⟨fun ⟨t, ht⟩ => ht.trans_le ((hmono x).ge_of_tendsto (htend x) t),
+    fun hlt => ((htend x).eventually_const_lt hlt).exists⟩
 
 /-! ### Enumerating algorithmic probability of a prefix-free code -/
 
@@ -351,10 +341,7 @@ private theorem primrec_list_filter_fst {β : Type*} [Primcodable β]
   refine hflat.of_eq fun bx => ?_
   induction codeProgramTable c bx.2 with
   | nil => simp
-  | cons hd tl ih =>
-    by_cases h : flt bx.1 hd.2 = true
-    · simp [h, ih]
-    · simp [h, ih]
+  | cons hd tl ih => by_cases h : flt bx.1 hd.2 = true <;> simp [h, ih]
 
 /-- Maximum length among a finite list of binary codewords. -/
 @[expose] def codeMaxLen (L : List (List Bool)) : ℕ :=
@@ -387,18 +374,14 @@ private theorem natCast_sum_two_pow_sub_length (m : ℕ) (L : List (List Bool))
   induction L with
   | nil => simp
   | cons a rest ih =>
-    have ha : a.length ≤ m := hle a List.mem_cons_self
-    have hrest := ih fun w hw => hle w (List.mem_cons_of_mem a hw)
-    have hinv : (2 : ℝ)⁻¹ ^ a.length * (2 : ℝ) ^ a.length = 1 := by
-      rw [← mul_pow, inv_mul_cancel₀ (by norm_num), one_pow]
-    have ha' : (2 : ℝ) ^ (m - a.length) = (2 : ℝ)⁻¹ ^ a.length * (2 : ℝ) ^ m := by
+    have ha' : (2 : ℝ) ^ (m - a.length) = (2 : ℝ)⁻¹ ^ a.length * (2 : ℝ) ^ m :=
       calc (2 : ℝ) ^ (m - a.length)
           = (2 : ℝ)⁻¹ ^ a.length * ((2 : ℝ) ^ (m - a.length) * (2 : ℝ) ^ a.length) := by
-            rw [mul_left_comm, hinv, mul_one]
+            rw [mul_left_comm, ← mul_pow, inv_mul_cancel₀ two_ne_zero, one_pow, mul_one]
         _ = (2 : ℝ)⁻¹ ^ a.length * (2 : ℝ) ^ m := by
-            rw [pow_sub_mul_pow (2 : ℝ) ha]
-    simp only [List.map_cons, List.sum_cons, add_mul]
-    rw [Nat.cast_add, Nat.cast_pow, Nat.cast_ofNat, ha', hrest]
+            rw [pow_sub_mul_pow (2 : ℝ) (hle a List.mem_cons_self)]
+    simp only [List.map_cons, List.sum_cons, Nat.cast_add, Nat.cast_pow, Nat.cast_ofNat, add_mul,
+      ha', ih fun w hw => hle w (List.mem_cons_of_mem a hw)]
 
 /-- Casting `codeScaledSum L` to `ℝ` equals the dyadic Kraft sum of `L` scaled by
 `2 ^ codeMaxLen L`. -/
@@ -436,22 +419,16 @@ private theorem isLowerSemicomputable_code_filtered {β : Type*} [Primcodable β
       (num b n : ℝ) / (den b n : ℝ) =
         ((L b n).map fun w : List Bool => (2 : ℝ)⁻¹ ^ w.length).sum :=
     fun b n => codeScaledSum_cast (L b n)
-  have hmono : ∀ b, Monotone fun n => (num b n : ℝ) / (den b n : ℝ) := by
-    intro b m n hmn
-    dsimp only
-    rw [hval b m, hval b n]
+  have hmono (b : β) : Monotone fun n => (num b n : ℝ) / (den b n : ℝ) := fun m n hmn => by
     obtain ⟨t, ht⟩ := codeProgramTable_prefix c hmn
-    have hpref : L b m <+: L b n := by
+    have ⟨tail, htail⟩ : L b m <+: L b n := by
       dsimp only [L]
       rw [← ht, List.filter_append, List.map_append]
       exact List.prefix_append _ _
-    obtain ⟨tail, htail⟩ := hpref
-    rw [← htail, List.map_append, List.sum_append]
-    have hnonneg : 0 ≤ (tail.map fun w : List Bool => (2 : ℝ)⁻¹ ^ w.length).sum :=
-      List.sum_nonneg fun _ hr => by
-        obtain ⟨_, _, rfl⟩ := List.mem_map.mp hr
-        positivity
-    linarith
+    simp only [hval, ← htail, List.map_append, List.sum_append, le_add_iff_nonneg_right]
+    exact List.sum_nonneg fun _ hr => by
+      obtain ⟨_, _, rfl⟩ := List.mem_map.mp hr
+      positivity
   have htend : ∀ b, Tendsto (fun n => (num b n : ℝ) / (den b n : ℝ)) atTop
       (𝓝 (∑' p : {p : List Bool // ∃ y, (ofCode c).Produces p y ∧ flt b y = true},
         (2 : ℝ)⁻¹ ^ p.1.length)) := by
@@ -495,37 +472,24 @@ private theorem isLowerSemicomputable_code_filtered {β : Type*} [Primcodable β
       exact hs.sum_le_tsum F fun _ _ => by positivity
     rw [Metric.tendsto_atTop]
     intro ε hε
-    have ht : ∃ F₀ : Finset S, (∑' p : S, (2 : ℝ)⁻¹ ^ p.1.length) - ε <
+    obtain ⟨F₀, hF₀⟩ : ∃ F₀ : Finset S, (∑' p : S, (2 : ℝ)⁻¹ ^ p.1.length) - ε <
         ∑ p ∈ F₀, (2 : ℝ)⁻¹ ^ p.1.length := by
       by_contra! hall
-      have := hs.tsum_le_of_sum_le hall
-      linarith
-    obtain ⟨F₀, hF₀⟩ := ht
-    have hex_n : ∀ p : S, ∃ n, p.1 ∈ L b n := by
-      intro ⟨p, y, hp, hy⟩
-      obtain ⟨n, hn⟩ := produces_iff_exists_mem_codeProgramTable.mp hp
-      refine ⟨n, List.mem_map.mpr ⟨(p, y), List.mem_filter.mpr ⟨hn, hy⟩, rfl⟩⟩
+      linarith [hs.tsum_le_of_sum_le hall]
+    have hex_n : ∀ p : S, ∃ n, p.1 ∈ L b n := fun ⟨p, y, hp, hy⟩ =>
+      let ⟨n, hn⟩ := produces_iff_exists_mem_codeProgramTable.mp hp
+      ⟨n, List.mem_map.mpr ⟨(p, y), List.mem_filter.mpr ⟨hn, hy⟩, rfl⟩⟩
     classical
-    let N : ℕ := F₀.sup fun p => Nat.find (hex_n p)
-    refine ⟨N, fun n hn => ?_⟩
-    have hsub : F₀.image Subtype.val ⊆ (L b n).toFinset := by
-      intro w hw
-      obtain ⟨p, hpF, rfl⟩ := Finset.mem_image.mp hw
-      have hpn : Nat.find (hex_n p) ≤ n := (Finset.le_sup hpF).trans hn
-      obtain ⟨t, ht⟩ := codeProgramTable_prefix c hpn
-      have hmem : p.1 ∈ L b n := by
+    refine ⟨F₀.sup fun p => Nat.find (hex_n p), fun n hn => ?_⟩
+    have hsub : F₀.image Subtype.val ⊆ (L b n).toFinset :=
+      Finset.image_subset_iff.mpr fun p hpF => by
+        obtain ⟨t, ht⟩ := codeProgramTable_prefix c ((Finset.le_sup hpF).trans hn)
         have hm := Nat.find_spec (hex_n p)
         dsimp only [L] at hm ⊢
-        rw [← ht, List.filter_append, List.map_append, List.mem_append]
-        exact Or.inl hm
-      exact List.mem_toFinset.mpr hmem
-    have hsum_F₀ : ∑ p ∈ F₀, (2 : ℝ)⁻¹ ^ p.1.length =
-        ∑ w ∈ F₀.image Subtype.val, (2 : ℝ)⁻¹ ^ w.length :=
-      (Finset.sum_image (f := fun w : List Bool => (2 : ℝ)⁻¹ ^ w.length)
-        fun _ _ _ _ h => Subtype.ext h).symm
-    have hle_approx : ∑ p ∈ F₀, (2 : ℝ)⁻¹ ^ p.1.length ≤
-        (num b n : ℝ) / (den b n : ℝ) := by
-      rw [hsum_F₀, hsum_eq n]
+        exact List.mem_toFinset.mpr (by simp [← ht, List.filter_append, hm])
+    have hle_approx : ∑ p ∈ F₀, (2 : ℝ)⁻¹ ^ p.1.length ≤ (num b n : ℝ) / (den b n : ℝ) := by
+      rw [← Finset.sum_image (f := fun w : List Bool => (2 : ℝ)⁻¹ ^ w.length)
+        fun _ _ _ _ h => Subtype.ext h, hsum_eq n]
       exact Finset.sum_le_sum_of_subset_of_nonneg hsub fun _ _ _ => by positivity
     rw [Real.dist_eq, abs_lt]
     constructor <;> linarith [hle_tsum n]
@@ -543,15 +507,12 @@ theorem isLowerSemicomputable_universalProb_of_partrec_eval {α : Type*} [Primco
     rw [ofCode_produces_iff, hc]
     simp only [Part.coe_some, Part.bind_some, Part.mem_map_iff, encodek, hprod]
     exact ⟨fun ⟨x, hx, hxy⟩ => ⟨x, hxy.symm, hx⟩, fun ⟨x, hxy, hx⟩ => ⟨x, hx, hxy.symm⟩⟩
-  have hpf_c : (ofCode c).IsPrefixFree := by
-    rintro p₁ ⟨y₁, h₁⟩ p₂ ⟨y₂, h₂⟩ hpref
-    obtain ⟨x₁, _, hx₁⟩ := (hcode_eq p₁ y₁).mp h₁
-    obtain ⟨x₂, _, hx₂⟩ := (hcode_eq p₂ y₂).mp h₂
-    exact hM p₁ ⟨x₁, hx₁⟩ p₂ ⟨x₂, hx₂⟩ hpref
+  have hpf_c : (ofCode c).IsPrefixFree :=
+    hM.anti fun p ⟨y, hy⟩ =>
+      let ⟨x, _, hx⟩ := (hcode_eq p y).mp hy
+      ⟨x, hx⟩
   have hflt : Primrec₂ fun (x : α) (y : ℕ) => decide (y = encode x) :=
-    Primrec₂.mk <| (Primrec.ite (Primrec.eq.comp Primrec.snd (Primrec.encode.comp Primrec.fst))
-      (Primrec.const true) (Primrec.const false)).of_eq fun p => by
-        by_cases h : p.2 = encode p.1 <;> simp [h]
+    Primrec₂.mk (Primrec.eq.comp Primrec.snd (Primrec.encode.comp Primrec.fst)).decide
   refine (isLowerSemicomputable_code_filtered hpf_c hflt).of_eq fun ⟨x, a, b⟩ => ?_
   have heq : M.universalProb x =
       ∑' p : {p : List Bool // ∃ y, (ofCode c).Produces p y ∧ decide (y = encode x) = true},
@@ -638,14 +599,11 @@ theorem isLowerSemicomputable_universalProb_marginal :
     IsLowerSemicomputable fun x : ℕ =>
       ∑' y : ℕ, universalPrefix.universalProb (Nat.pair x y) := by
   obtain ⟨c, hc⟩ := isPartrec_universalPrefix.exists_produces_iff
-  have hpf : (ofCode c).IsPrefixFree := by
-    rintro p₁ ⟨y₁, h₁⟩ p₂ ⟨y₂, h₂⟩ hpref
-    exact isPrefixFree_universalPrefix p₁ ⟨y₁, (hc p₁ y₁).mpr h₁⟩ p₂ ⟨y₂, (hc p₂ y₂).mpr h₂⟩ hpref
+  have hpf : (ofCode c).IsPrefixFree :=
+    isPrefixFree_universalPrefix.anti fun p ⟨y, hy⟩ => ⟨y, (hc p y).mpr hy⟩
   have hflt : Primrec₂ fun (x z : ℕ) => decide (z.unpair.1 = x) :=
-    Primrec₂.mk <| (Primrec.ite
-      (Primrec.eq.comp (Primrec.fst.comp (Primrec.unpair.comp Primrec.snd)) Primrec.fst)
-      (Primrec.const true) (Primrec.const false)).of_eq fun p => by
-        by_cases h : p.2.unpair.1 = p.1 <;> simp [h]
+    Primrec₂.mk
+      (Primrec.eq.comp (Primrec.fst.comp (Primrec.unpair.comp Primrec.snd)) Primrec.fst).decide
   refine (isLowerSemicomputable_code_filtered hpf hflt).of_eq fun ⟨x, a, b⟩ => ?_
   have heq :
       ∑' y : ℕ, universalPrefix.universalProb (Nat.pair x y) =
@@ -763,133 +721,79 @@ theorem exists_le_complexity_of_isLowerSemicomputable {α : Type*} [Primcodable 
         (Primrec.pair (Primrec.nat_add.comp (Primrec.snd.comp Primrec.snd) (Primrec.const 2))
           (Primrec.fst.comp Primrec.snd))
     exact (Primrec.ite hpred hsome (Primrec.const Option.none)).to_comp.of_eq fun _ => rfl
-  have hreq_spec : ∀ s x k, req s = some (k + 2, x) → (2 : ℝ)⁻¹ ^ (k + 1) < μ x := by
-    intro s x k hs
-    dsimp only [req] at hs
-    split_ifs at hs with hacc
-    simp only [Option.map_eq_some_iff] at hs
-    obtain ⟨⟨x', k'⟩, hdec, hpair⟩ := hs
-    obtain ⟨hk, rfl⟩ := Prod.mk.inj hpair
-    have hk' : k' = k := Nat.add_right_cancel hk
-    subst hk'
-    have hdom : (e.eval (encode (x', k'))).Dom := by
-      have hsome : (Code.evaln s.unpair.2 e s.unpair.1).isSome = true :=
-        (Bool.and_eq_true _ _ |>.mp hacc).1
-      obtain ⟨y, hy⟩ := Option.isSome_iff_exists.mp hsome
-      have hs1 : encode (x', k') = s.unpair.1 := mem_decode₂.mp hdec
-      exact Part.dom_iff_mem.mpr ⟨y, Code.evaln_complete.mpr ⟨s.unpair.2, hs1 ▸ hy⟩⟩
-    exact (he (x', k')).mpr hdom
-  have hreq_unique : ∀ {s₁ s₂ x₁ x₂ k₁ k₂},
-      req s₁ = some (k₁ + 2, x₁) → req s₂ = some (k₂ + 2, x₂) →
-      x₁ = x₂ → k₁ = k₂ → s₁ = s₂ := by
-    intro s₁ s₂ x₁ x₂ k₁ k₂ hs₁ hs₂ hx hk
-    subst hx hk
-    dsimp only [req] at hs₁ hs₂
-    split_ifs at hs₁ with h1
-    split_ifs at hs₂ with h2
-    simp only [Option.map_eq_some_iff] at hs₁ hs₂
-    obtain ⟨⟨x₁', k₁'⟩, hdec1, hp1⟩ := hs₁
-    obtain ⟨⟨x₂', k₂'⟩, hdec2, hp2⟩ := hs₂
-    have hxk1 : (x₁', k₁') = (x₁, k₁) :=
-      Prod.ext (Prod.mk.inj hp1).2 (Nat.add_right_cancel (Prod.mk.inj hp1).1)
-    have hxk2 : (x₂', k₂') = (x₁, k₁) :=
-      Prod.ext (Prod.mk.inj hp2).2 (Nat.add_right_cancel (Prod.mk.inj hp2).1)
-    have hdec_eq : s₁.unpair.1 = s₂.unpair.1 := by
-      have hz1 : encode (x₁, k₁) = s₁.unpair.1 := mem_decode₂.mp (hxk1 ▸ hdec1)
-      have hz2 : encode (x₁, k₁) = s₂.unpair.1 := mem_decode₂.mp (hxk2 ▸ hdec2)
-      exact hz1.symm.trans hz2
-    have ht_eq : s₁.unpair.2 = s₂.unpair.2 := by
-      have hc1 := Bool.and_eq_true _ _ |>.mp h1
-      have hc2 := Bool.and_eq_true _ _ |>.mp h2
-      obtain ⟨y₁, hy₁⟩ := Option.isSome_iff_exists.mp hc1.1
-      obtain ⟨y₂, hy₂⟩ := Option.isSome_iff_exists.mp hc2.1
-      by_contra hne
+  have hreq_eq {s ℓ : ℕ} {x : α} : req s = some (ℓ, x) ↔
+      ∃ k, ℓ = k + 2 ∧ firstAccept s = true ∧ s.unpair.1 = encode (x, k) := by
+    dsimp only [req, dec2]
+    split_ifs with hacc
+    · cases hdec : decode₂ (α × ℕ) s.unpair.1 with
+      | none =>
+        refine ⟨fun h => by simp [Option.map] at h, fun ⟨k', _, _, hs1⟩ => ?_⟩
+        have := decode₂_eq_some.mpr hs1.symm
+        simp [hdec] at this
+      | some ak =>
+        rcases ak with ⟨a, k⟩
+        have henc : encode (a, k) = s.unpair.1 := mem_decode₂.mp hdec
+        change some (k + 2, a) = some (ℓ, x) ↔ _
+        simp only [Option.some.injEq, Prod.mk.injEq, hacc, true_and]
+        refine ⟨fun ⟨hℓ, hx⟩ => ⟨k, hℓ.symm, hx ▸ henc.symm⟩, fun ⟨k', hℓ, hs1⟩ => ?_⟩
+        obtain ⟨rfl, rfl⟩ := encode_injective (henc.trans hs1)
+        exact ⟨hℓ.symm, rfl⟩
+    · simp [hacc]
+  have hreq_spec {s k : ℕ} {x : α} (hs : req s = some (k + 2, x)) :
+      (2 : ℝ)⁻¹ ^ (k + 1) < μ x := by
+    obtain ⟨k', hk, hacc, hz⟩ := hreq_eq.mp hs
+    have hk' : k' = k := by omega
+    subst k'
+    obtain ⟨y, hy⟩ := Option.isSome_iff_exists.mp (Bool.and_eq_true _ _ |>.mp hacc).1
+    exact (he (x, k)).mpr (Part.dom_iff_mem.mpr ⟨y, Code.evaln_complete.mpr ⟨s.unpair.2, hz ▸ hy⟩⟩)
+  have hnot_lt {a b : ℕ} (hab : a.unpair.2 < b.unpair.2) (hz : a.unpair.1 = b.unpair.1)
+      (ha : firstAccept a = true) (hb : firstAccept b = true) : False := by
+    obtain ⟨y, hy⟩ := Option.isSome_iff_exists.mp (Bool.and_eq_true _ _ |>.mp ha).1
+    rcases Bool.or_eq_true _ _ |>.mp (Bool.and_eq_true _ _ |>.mp hb).2 with h0 | hnone
+    · exact absurd (of_decide_eq_true h0) (by omega)
+    · have hsome := Code.evaln_mono (show a.unpair.2 ≤ b.unpair.2 - 1 by omega) (hz ▸ hy)
+      simp [Option.mem_def.mp hsome] at hnone
+  have hreq_unique {s₁ s₂ : ℕ} {x : α} {k : ℕ}
+      (hs₁ : req s₁ = some (k + 2, x)) (hs₂ : req s₂ = some (k + 2, x)) : s₁ = s₂ := by
+    obtain ⟨k₁, hk₁, ha₁, hz₁⟩ := hreq_eq.mp hs₁
+    obtain ⟨k₂, hk₂, ha₂, hz₂⟩ := hreq_eq.mp hs₂
+    have hk₁' : k₁ = k := by omega
+    have hk₂' : k₂ = k := by omega
+    subst k₁ k₂
+    have hz : s₁.unpair.1 = s₂.unpair.1 := hz₁.trans hz₂.symm
+    have ht : s₁.unpair.2 = s₂.unpair.2 := by
       rcases lt_trichotomy s₁.unpair.2 s₂.unpair.2 with hlt | heq | hlt
-      · rcases Bool.or_eq_true _ _ |>.mp hc2.2 with h0 | hnone
-        · have : s₂.unpair.2 = 0 := of_decide_eq_true h0
-          omega
-        · have hle_prev : s₁.unpair.2 ≤ s₂.unpair.2 - 1 := by omega
-          have hsome := Code.evaln_mono hle_prev hy₁
-          rw [hdec_eq] at hsome
-          simp [Option.mem_def.mp hsome] at hnone
-      · exact hne heq
-      · rcases Bool.or_eq_true _ _ |>.mp hc1.2 with h0 | hnone
-        · have : s₁.unpair.2 = 0 := of_decide_eq_true h0
-          omega
-        · have hle_prev : s₂.unpair.2 ≤ s₁.unpair.2 - 1 := by omega
-          have hsome := Code.evaln_mono hle_prev hy₂
-          rw [← hdec_eq] at hsome
-          simp [Option.mem_def.mp hsome] at hnone
-    exact Nat.pair_unpair s₁ ▸ Nat.pair_unpair s₂ ▸ congrArg₂ Nat.pair hdec_eq ht_eq
-  have hbound : ∀ n : ℕ, ∑ i ∈ Finset.range n,
+      · exact (hnot_lt hlt hz ha₁ ha₂).elim
+      · exact heq
+      · exact (hnot_lt hlt hz.symm ha₂ ha₁).elim
+    exact Nat.pair_unpair s₁ ▸ Nat.pair_unpair s₂ ▸ congrArg₂ Nat.pair hz ht
+  have hbound (n : ℕ) : ∑ i ∈ Finset.range n,
       (match req i with | Option.none => (0 : ℝ) | some (ℓ, _) => (2 : ℝ)⁻¹ ^ ℓ) ≤ 1 := by
-    intro n
     classical
     let I := (Finset.range n).filter fun i => (req i).isSome
-    let tag : I → α × ℕ := fun i =>
+    let tag (i : I) : α × ℕ :=
       let ℓx := (req i.1).get (Finset.mem_filter.mp i.2).2
       (ℓx.2, ℓx.1 - 2)
-    have htag_inj : Function.Injective tag := by
-      intro i₁ i₂ hteq
-      have hi1 := (Finset.mem_filter.mp i₁.2).2
-      have hi2 := (Finset.mem_filter.mp i₂.2).2
-      obtain ⟨⟨ℓ₁, x₁⟩, hs₁⟩ := Option.isSome_iff_exists.mp hi1
-      obtain ⟨⟨ℓ₂, x₂⟩, hs₂⟩ := Option.isSome_iff_exists.mp hi2
-      have hℓ1 : 2 ≤ ℓ₁ := by
-        dsimp only [req] at hs₁
-        split_ifs at hs₁
-        obtain ⟨_, _, hpair⟩ := Option.map_eq_some_iff.mp hs₁
-        exact (Prod.mk.inj hpair).1 ▸ le_add_self
-      have hℓ2 : 2 ≤ ℓ₂ := by
-        dsimp only [req] at hs₂
-        split_ifs at hs₂
-        obtain ⟨_, _, hpair⟩ := Option.map_eq_some_iff.mp hs₂
-        exact (Prod.mk.inj hpair).1 ▸ le_add_self
-      dsimp only [tag] at hteq
-      simp only [hs₁, hs₂, Option.get_some] at hteq
-      obtain ⟨hx, hk⟩ := Prod.mk.inj hteq
-      have hs₁' : req i₁.1 = some ((ℓ₁ - 2) + 2, x₁) := by rw [Nat.sub_add_cancel hℓ1]; exact hs₁
-      have hs₂' : req i₂.1 = some ((ℓ₂ - 2) + 2, x₂) := by rw [Nat.sub_add_cancel hℓ2]; exact hs₂
-      exact Subtype.ext (hreq_unique hs₁' hs₂' hx hk)
+    have htag_spec (i : I) : req i.1 = some ((tag i).2 + 2, (tag i).1) := by
+      obtain ⟨⟨ℓ, x⟩, hsi⟩ := Option.isSome_iff_exists.mp (Finset.mem_filter.mp i.2).2
+      obtain ⟨k, rfl, -, -⟩ := hreq_eq.mp hsi
+      simp [tag, hsi]
+    have htag_inj : Function.Injective tag := fun i₁ i₂ hteq =>
+      Subtype.ext (hreq_unique (htag_spec i₁) (hteq ▸ htag_spec i₂))
     let S : Finset (α × ℕ) := I.attach.image tag
     have hsum_I : ∑ i ∈ Finset.range n,
         (match req i with | Option.none => (0 : ℝ) | some (ℓ, _) => (2 : ℝ)⁻¹ ^ ℓ) =
         ∑ p ∈ S, (2 : ℝ)⁻¹ ^ (p.2 + 2) := by
-      have hite : ∑ i ∈ Finset.range n,
+      have h1 : ∑ i ∈ Finset.range n,
           (match req i with | Option.none => (0 : ℝ) | some (ℓ, _) => (2 : ℝ)⁻¹ ^ ℓ) =
-          ∑ i ∈ Finset.range n, if (req i).isSome then
-            (match req i with | Option.none => (0 : ℝ) | some (ℓ, _) => (2 : ℝ)⁻¹ ^ ℓ) else 0 :=
-        Finset.sum_congr rfl fun i _ => by cases req i <;> simp
-      rw [hite, ← Finset.sum_filter (p := fun i => (req i).isSome)]
-      have hfilt : ∑ i ∈ I,
-          (match req i with | Option.none => (0 : ℝ) | some (ℓ, _) => (2 : ℝ)⁻¹ ^ ℓ) =
-          ∑ i ∈ I.attach, (2 : ℝ)⁻¹ ^ ((tag i).2 + 2) := by
-        refine (Finset.sum_attach I fun i =>
-          match req i with | Option.none => (0 : ℝ) | some (ℓ, _) => (2 : ℝ)⁻¹ ^ ℓ).symm.trans ?_
-        refine Finset.sum_congr rfl fun i _ => ?_
-        have hi := (Finset.mem_filter.mp i.2).2
-        obtain ⟨⟨ℓ, x⟩, hsi⟩ := Option.isSome_iff_exists.mp hi
-        have hℓ : 2 ≤ ℓ := by
-          dsimp only [req] at hsi
-          split_ifs at hsi
-          obtain ⟨_, _, hpair⟩ := Option.map_eq_some_iff.mp hsi
-          exact (Prod.mk.inj hpair).1 ▸ le_add_self
-        dsimp only [tag]
-        simp [hsi, Nat.sub_add_cancel hℓ]
-      rw [hfilt, Finset.sum_image fun a _ b _ h => htag_inj h]
-    have hS_lt : ∀ p ∈ S, (2 : ℝ)⁻¹ ^ (p.2 + 1) < μ p.1 := by
-      intro p hp
+          ∑ i ∈ I, (match req i with | Option.none => (0 : ℝ) | some (ℓ, _) => (2 : ℝ)⁻¹ ^ ℓ) := by
+        rw [Finset.sum_filter]
+        exact Finset.sum_congr rfl fun i _ => by cases req i <;> simp
+      rw [h1, ← Finset.sum_attach I, Finset.sum_image fun _ _ _ _ h => htag_inj h]
+      exact Finset.sum_congr rfl fun i _ => by rw [htag_spec i]
+    have hS_lt : ∀ p ∈ S, (2 : ℝ)⁻¹ ^ (p.2 + 1) < μ p.1 := fun p hp => by
       obtain ⟨i, -, rfl⟩ := Finset.mem_image.mp hp
-      have hi := (Finset.mem_filter.mp i.2).2
-      obtain ⟨⟨ℓ, x⟩, hsi⟩ := Option.isSome_iff_exists.mp hi
-      have hℓ : 2 ≤ ℓ := by
-        dsimp only [req] at hsi
-        split_ifs at hsi
-        obtain ⟨_, _, hpair⟩ := Option.map_eq_some_iff.mp hsi
-        exact (Prod.mk.inj hpair).1 ▸ le_add_self
-      dsimp only [tag]
-      simp only [hsi, Option.get_some]
-      exact hreq_spec i.1 x (ℓ - 2) (by rw [Nat.sub_add_cancel hℓ]; exact hsi)
+      exact hreq_spec (htag_spec i)
     rw [hsum_I, ← Finset.sum_fiberwise_of_maps_to (t := S.image Prod.fst)
       (fun p hp => Finset.mem_image_of_mem Prod.fst hp) (fun p => (2 : ℝ)⁻¹ ^ (p.2 + 2))]
     calc ∑ x ∈ S.image Prod.fst, ∑ p ∈ S with p.1 = x, (2 : ℝ)⁻¹ ^ (p.2 + 2)
@@ -922,33 +826,21 @@ theorem exists_le_complexity_of_isLowerSemicomputable {α : Type*} [Primcodable 
       _ ≤ 1 := hle
   obtain ⟨c, hc⟩ := hU.kraftChaitin_of_sum_le_one hreq_comp hbound
   refine ⟨c + 2, fun x k hk => ?_⟩
-  have hev : ∃ t, firstAccept (Nat.pair (encode (x, k)) t) = true := by
-    have hdom : (e.eval (encode (x, k))).Dom := (he (x, k)).mp hk
-    obtain ⟨y, hy⟩ := Part.dom_iff_mem.mp hdom
-    obtain ⟨t, ht⟩ := Code.evaln_complete.mp hy
-    have hex_t : ∃ m, (Code.evaln m e (encode (x, k))).isSome = true :=
-      ⟨t, Option.isSome_iff_exists.mpr ⟨y, ht⟩⟩
-    classical
-    let t₀ := Nat.find hex_t
-    have ht₀ : (Code.evaln t₀ e (encode (x, k))).isSome = true := Nat.find_spec hex_t
-    refine ⟨t₀, ?_⟩
-    simp only [firstAccept, Nat.unpair_pair, ht₀, Bool.true_and, Bool.or_eq_true,
-      decide_eq_true_eq]
-    by_cases h0 : t₀ = 0
-    · exact Or.inl h0
-    · refine Or.inr ?_
-      have hmin : (Code.evaln (t₀ - 1) e (encode (x, k))).isSome ≠ true :=
-        Nat.find_min hex_t (by omega)
-      cases hprev : Code.evaln (t₀ - 1) e (encode (x, k)) with
-      | none => rfl
-      | some v => exact absurd (Option.isSome_iff_exists.mpr ⟨v, hprev⟩) hmin
-  obtain ⟨t, ht⟩ := hev
-  have hreq_val : req (Nat.pair (encode (x, k)) t) = some (k + 2, x) := by
-    dsimp only [req]
-    rw [ite_eq_left_of_eq_true _ _ (eq_true ht), Nat.unpair_pair]
-    simp [dec2, decode₂_eq_some]
-  have hle_k := hc (Nat.pair (encode (x, k)) t) (k + 2) x hreq_val
-  calc U.ecomplexity x ≤ ((k + 2 : ℕ) : ℕ∞) + c := hle_k
+  obtain ⟨y, hy⟩ := Part.dom_iff_mem.mp ((he (x, k)).mp hk)
+  obtain ⟨t₁, ht₁⟩ := Code.evaln_complete.mp hy
+  classical
+  have hex_t : ∃ m, (Code.evaln m e (encode (x, k))).isSome = true :=
+    ⟨t₁, Option.isSome_iff_exists.mpr ⟨y, ht₁⟩⟩
+  let t := Nat.find hex_t
+  have ht : firstAccept (Nat.pair (encode (x, k)) t) = true := by
+    simp only [firstAccept, t, Nat.unpair_pair, Nat.find_spec hex_t, Bool.true_and,
+      Bool.or_eq_true, decide_eq_true_eq]
+    exact or_iff_not_imp_left.mpr fun h0 => Option.isNone_iff_eq_none.mpr
+      (Option.not_isSome_iff_eq_none.mp
+        (Nat.find_min hex_t (Nat.sub_lt (Nat.pos_of_ne_zero h0) Nat.one_pos)))
+  have hreq_val : req (Nat.pair (encode (x, k)) t) = some (k + 2, x) :=
+    hreq_eq.mpr ⟨k, rfl, ht, Nat.unpair_pair _ _ ▸ rfl⟩
+  calc U.ecomplexity x ≤ ((k + 2 : ℕ) : ℕ∞) + c := hc _ (k + 2) x hreq_val
     _ = (k : ℕ∞) + ((c + 2 : ℕ) : ℕ∞) := by push_cast; ring
 
 namespace DescriptionMethod
@@ -984,24 +876,18 @@ theorem MinorizesPrefixPartrec.exists_le_two_pow_mul_complexity_of_isLowerSemico
   refine ⟨hfin, ?_⟩
   have hpow_anti : ∀ {a b : ℕ}, a ≤ b → (2 : ℝ)⁻¹ ^ b ≤ (2 : ℝ)⁻¹ ^ a := fun hab =>
     pow_le_pow_of_le_one (by positivity) (by norm_num) hab
-  by_cases h0 : k₀ = 0
-  · have hμ_le_1 : μ x ≤ 1 := (hsummable.le_tsum x fun _ _ => hnonneg _).trans hle
-    have hcomp_le : U.complexity x ≤ c := by omega
-    calc μ x ≤ 1 := hμ_le_1
-      _ = (2 : ℝ) ^ c * (2 : ℝ)⁻¹ ^ c := by
-        rw [← mul_pow, mul_inv_cancel₀ (by norm_num), one_pow]
-      _ ≤ (2 : ℝ) ^ c * (2 : ℝ)⁻¹ ^ U.complexity x :=
-        mul_le_mul_of_nonneg_left (hpow_anti hcomp_le) (by positivity)
-  · have hnot : ¬ ((2 : ℝ)⁻¹ ^ k₀ < μ x) := by
-      have hm := Nat.find_min hex (show k₀ - 1 < k₀ by omega)
-      simpa [Nat.sub_add_cancel (Nat.pos_of_ne_zero h0)] using hm
-    have hμ_le : μ x ≤ (2 : ℝ)⁻¹ ^ k₀ := le_of_not_gt hnot
-    calc μ x ≤ (2 : ℝ)⁻¹ ^ k₀ := hμ_le
-      _ = (2 : ℝ) ^ c * ((2 : ℝ)⁻¹ ^ c * (2 : ℝ)⁻¹ ^ k₀) := by
-        rw [← mul_assoc, ← mul_pow, mul_inv_cancel₀ (by norm_num), one_pow, one_mul]
-      _ = (2 : ℝ) ^ c * (2 : ℝ)⁻¹ ^ (k₀ + c) := by rw [← pow_add, add_comm c k₀]
-      _ ≤ (2 : ℝ) ^ c * (2 : ℝ)⁻¹ ^ U.complexity x :=
-        mul_le_mul_of_nonneg_left (hpow_anti hkle) (by positivity)
+  have hμ_le : μ x ≤ (2 : ℝ)⁻¹ ^ k₀ := by
+    by_cases h0 : k₀ = 0
+    · simpa [h0] using (hsummable.le_tsum x fun _ _ => hnonneg _).trans hle
+    · refine le_of_not_gt ?_
+      simpa [Nat.sub_add_cancel (Nat.pos_of_ne_zero h0)] using
+        Nat.find_min hex (show k₀ - 1 < k₀ by omega)
+  calc μ x ≤ (2 : ℝ)⁻¹ ^ k₀ := hμ_le
+    _ = (2 : ℝ) ^ c * (2 : ℝ)⁻¹ ^ (k₀ + c) := by
+      rw [pow_add, mul_comm ((2 : ℝ)⁻¹ ^ k₀), ← mul_assoc, ← mul_pow,
+        mul_inv_cancel₀ two_ne_zero, one_pow, one_mul]
+    _ ≤ (2 : ℝ) ^ c * (2 : ℝ)⁻¹ ^ U.complexity x :=
+      mul_le_mul_of_nonneg_left (hpow_anti hkle) (by positivity)
 
 end DescriptionMethod
 

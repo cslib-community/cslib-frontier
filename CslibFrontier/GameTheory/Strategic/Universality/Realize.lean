@@ -75,21 +75,15 @@ private theorem sum_mul_prod_ite_pow {T : Type*} [Fintype T] [DecidableEq T] {q 
     ∑ c, q c * ∏ b, (if c = b then (1 : ℝ) else 0) ^ e b = ∏ b, q b ^ e b := by
   by_cases h0 : ∀ b, e b = 0
   · simp [h0, hq]
-  · simp only [not_forall] at h0
-    obtain ⟨b₀, hb₀⟩ := h0
+  · obtain ⟨b₀, hb₀⟩ := not_forall.mp h0
     have heb₀ : e b₀ = 1 := by
       have := single_le_sum (fun b _ => Nat.zero_le (e b)) (mem_univ b₀)
       omega
-    have hrest : ∀ b, b ≠ b₀ → e b = 0 := by
-      intro b hb
-      have := add_le_add (single_le_sum (fun b _ => Nat.zero_le (e b)) (mem_univ b))
-        (le_refl (e b₀))
+    have hrest (b : T) (hb : b ≠ b₀) : e b = 0 := by
       rw [← sum_erase_add _ _ (mem_univ b₀),
         ← add_sum_erase _ _ (mem_erase.2 ⟨hb, mem_univ b⟩)] at he
-      have := Nat.zero_le (∑ x ∈ (univ.erase b₀).erase b, e x)
       omega
-    have hprod : ∀ x : T → ℝ, ∏ b, x b ^ e b = x b₀ := by
-      intro x
+    have hprod (x : T → ℝ) : ∏ b, x b ^ e b = x b₀ := by
       rw [← mul_prod_erase _ _ (mem_univ b₀), heb₀, pow_one,
         prod_eq_one fun b hb => by rw [hrest b (ne_of_mem_erase hb), pow_zero], mul_one]
     simp only [hprod]
@@ -108,22 +102,19 @@ theorem sum_productWeight_mul_eval_vertex {p : ∀ i, S i → ℝ} (hp : ∀ i, 
   simp only [map_sum, mul_sum]
   rw [sum_comm]
   refine sum_congr rfl fun m hm => ?_
-  simp only [eval_monomial, Finsupp.prod_fintype _ _ fun _ => pow_zero _]
-  have key : ∀ x : (Σ i, S i) → ℝ, ∏ v, x v ^ m v = ∏ i, ∏ b, x ⟨i, b⟩ ^ m ⟨i, b⟩ :=
-    fun x => Fintype.prod_sigma _
-  simp only [key]
+  simp only [eval_monomial, Finsupp.prod_fintype _ _ fun _ => pow_zero _,
+    show ∀ x : (Σ i, S i) → ℝ, ∏ v, x v ^ m v = ∏ i, ∏ b, x ⟨i, b⟩ ^ m ⟨i, b⟩ from
+      fun _ => Fintype.prod_sigma _]
   calc ∑ s, productWeight p s * (f.coeff m * ∏ i, ∏ b, vertex s ⟨i, b⟩ ^ m ⟨i, b⟩)
       = f.coeff m * ∑ s, ∏ i, (p i (s i) * ∏ b, vertex s ⟨i, b⟩ ^ m ⟨i, b⟩) := by
         rw [mul_sum]
-        refine sum_congr rfl fun s _ => ?_
-        rw [productWeight_def, prod_mul_distrib]
-        ring
+        exact sum_congr rfl fun s _ => by rw [productWeight_def, prod_mul_distrib]; ring
     _ = f.coeff m * ∏ i, ∑ c, p i c * ∏ b, (if c = b then (1 : ℝ) else 0) ^ m ⟨i, b⟩ := by
-        rw [Fintype.prod_sum (fun i c => p i c * ∏ b, (if c = b then (1 : ℝ) else 0) ^ m ⟨i, b⟩)]
-        rfl
-    _ = f.coeff m * ∏ i, ∏ b, Sigma.uncurry p ⟨i, b⟩ ^ m ⟨i, b⟩ := by
-        congr 1
-        exact prod_congr rfl fun i _ => sum_mul_prod_ite_pow (hp i) (hf m hm i)
+        dsimp only [vertex]
+        rw [← Fintype.prod_sum (fun i c => p i c * ∏ b, (if c = b then (1 : ℝ) else 0) ^ m ⟨i, b⟩)]
+    _ = f.coeff m * ∏ i, ∏ b, Sigma.uncurry p ⟨i, b⟩ ^ m ⟨i, b⟩ :=
+        congrArg (f.coeff m * ·)
+          (prod_congr rfl fun i _ => sum_mul_prod_ite_pow (hp i) (hf m hm i))
 
 namespace CostGame
 
@@ -141,12 +132,9 @@ theorem deviationCost_realize {g : ∀ i, S i → MvPolynomial (Σ i, S i) ℝ}
     {p : ∀ i, S i → ℝ} (hp : ∀ i, ∑ a, p i a = 1) (i : ι) (a : S i) :
     (realize g).deviationCost p i a = eval (Sigma.uncurry p) (g i a) := by
   rw [deviationCost_def, ← sum_productWeight_mul_eval_vertex hp (hg i a)]
-  refine sum_congr rfl fun s _ => ?_
+  refine sum_congr rfl fun s _ => congrArg (productWeight p s * ·) ?_
   simp only [realize, update_self]
-  congr 1
-  refine eval₂Hom_congr' rfl (fun v hv _ => ?_) rfl
-  have hvi : v.1 ≠ i := hgi i a v hv
-  simp [vertex, update_of_ne hvi]
+  exact eval₂Hom_congr' rfl (fun v hv _ => by simp [vertex, update_of_ne (hgi i a v hv)]) rfl
 
 /-- The totally mixed Nash equilibria of `realize g`, when `g` satisfies the hypotheses of Lemma 4
 and `g i (a₀ i) = 0` for a base strategy `a₀ i` of each player: the positive profiles, with each
@@ -157,16 +145,9 @@ theorem isTotallyMixedNash_realize_iff {g : ∀ i, S i → MvPolynomial (Σ i, S
     (realize g).IsTotallyMixedNash p ↔ (∀ i a, 0 < p i a) ∧ (∀ i, ∑ a, p i a = 1) ∧
       ∀ i a, eval (Sigma.uncurry p) (g i a) = 0 := by
   rw [isTotallyMixedNash_iff]
-  refine and_congr_right fun _ => ?_
-  constructor
-  · rintro ⟨hsum, heq⟩
-    refine ⟨hsum, fun i a => ?_⟩
-    have := heq i a (a₀ i)
-    rwa [deviationCost_realize hg hgi hsum, deviationCost_realize hg hgi hsum, h₀, map_zero]
-      at this
-  · rintro ⟨hsum, hzero⟩
-    refine ⟨hsum, fun i a b => ?_⟩
-    rw [deviationCost_realize hg hgi hsum, deviationCost_realize hg hgi hsum, hzero, hzero]
+  refine and_congr_right fun _ => and_congr_right fun hsum => ?_
+  simp only [deviationCost_realize hg hgi hsum]
+  exact ⟨fun heq i a => by simpa [h₀] using heq i a (a₀ i), fun hz i a b => by rw [hz, hz]⟩
 
 end CostGame
 

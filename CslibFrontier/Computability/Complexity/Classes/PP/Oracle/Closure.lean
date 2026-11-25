@@ -58,14 +58,11 @@ theorem PolyTimeReducible.mem_PPWithOracle {L : Set α} {L' : Set β}
   obtain ⟨f, hf, hLL'⟩ := h
   obtain ⟨p, V, hV, hVL'⟩ := hL'
   obtain ⟨q, hpq⟩ := hf.exists_polynomial_eval_length_le p
-  let W : α × List Bool → Bool := fun x =>
-    V (f x.1, x.2.take (p.eval (encB (f x.1)).length))
-  have hW : ComputableInPolyTimeWithOracle A W (encPair enc encBits) encBool :=
+  refine ⟨q, fun x => V (f x.1, x.2.take (p.eval (encB (f x.1)).length)),
     hV.preprocess (g := fun x : α × List Bool =>
-      (f x.1, x.2.take (p.eval (encB (f x.1)).length))) (by fun_prop)
-  refine ⟨q, W, hW, fun a => ?_⟩
+      (f x.1, x.2.take (p.eval (encB (f x.1)).length))) (by fun_prop), fun a => ?_⟩
   rw [hLL' a, hVL' (f a)]
-  exact (majority_take_iff (hpq a) (fun _ => rfl)).symm
+  exact (majority_take_iff (hpq a) fun _ => rfl).symm
 
 /-- Reducing the oracle preserves relativized PP, including the uniform resource certificate
 of its verifier. -/

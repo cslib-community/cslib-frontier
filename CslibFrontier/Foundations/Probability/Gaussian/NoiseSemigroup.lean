@@ -72,22 +72,20 @@ theorem gaussianNoiseOp_gaussianNoiseOp {ρ₁ ρ₂ : ℝ} (hρ₁ : |ρ₁| �
   set γ := Measure.pi fun _ : ι => gaussianReal 0 1
   obtain ⟨α, hα, e₁, e₂⟩ := exists_noise_split hρ₁ hρ₂
   set σ := √(1 - (ρ₁ * ρ₂) ^ 2)
-  have hρ : |ρ₁ * ρ₂| ≤ 1 :=
-    (abs_mul ρ₁ ρ₂).trans_le ((mul_le_of_le_one_left (abs_nonneg _) hρ₁).trans hρ₂)
   have hA := measurePreserving_gaussianNoise (ι := ι) hα
-  have hP := measurePreserving_gaussianNoise (ι := ι) hρ
-  have hT := hP.comp ((MeasurePreserving.id γ).prod hA)
-  filter_upwards [(hT.integrable_comp_of_integrable hf).prod_right_ae,
+  have hP := measurePreserving_gaussianNoise (ι := ι)
+    ((abs_mul ρ₁ ρ₂).trans_le ((mul_le_of_le_one_left (abs_nonneg _) hρ₁).trans hρ₂))
+  filter_upwards [((hP.comp ((MeasurePreserving.id γ).prod hA)).integrable_comp_of_integrable
+      hf).prod_right_ae,
     (hP.integrable_comp_of_integrable hf).prod_right_ae] with z hz hz'
   have hmap := integral_map (μ := γ.prod γ) hA.aemeasurable
     (f := fun y => f fun i => ρ₁ * ρ₂ * z i + σ * y i)
     (by rw [hA.map_eq]; exact hz'.aestronglyMeasurable)
   rw [hA.map_eq] at hmap
   calc gaussianNoiseOp ρ₁ (gaussianNoiseOp ρ₂ f) z
-      = ∫ g, ∫ h, f (fun i => ρ₁ * ρ₂ * z i + σ * (α * g i + √(1 - α ^ 2) * h i)) ∂γ ∂γ := by
-        refine integral_congr_ae (ae_of_all _ fun g => integral_congr_ae (ae_of_all _ fun h => ?_))
-        refine congrArg f (funext fun i => ?_)
-        linear_combination (-g i) * e₁ - h i * e₂
+      = ∫ g, ∫ h, f (fun i => ρ₁ * ρ₂ * z i + σ * (α * g i + √(1 - α ^ 2) * h i)) ∂γ ∂γ :=
+        integral_congr_ae <| ae_of_all _ fun g => integral_congr_ae <| ae_of_all _ fun h =>
+          congrArg f (funext fun i => by linear_combination (-g i) * e₁ - h i * e₂)
     _ = ∫ q, f (fun i => ρ₁ * ρ₂ * z i + σ * (α * q.1 i + √(1 - α ^ 2) * q.2 i)) ∂γ.prod γ :=
         (integral_prod _ hz).symm
     _ = gaussianNoiseOp (ρ₁ * ρ₂) f z := hmap.symm
@@ -97,35 +95,35 @@ private theorem tendsto_eLpNorm_gaussianNoiseOp_sub_of_bcf (g : (ι → ℝ) →
     Tendsto (fun ρ => eLpNorm (gaussianNoiseOp ρ g - ⇑g) 1
       (Measure.pi fun _ : ι => gaussianReal 0 1)) (𝓝[<] 1) (𝓝 0) := by
   set γ := Measure.pi fun _ : ι => gaussianReal 0 1
-  have hρ : ∀ᶠ ρ in 𝓝[<] (1 : ℝ), |ρ| ≤ 1 := by
-    filter_upwards [Ioo_mem_nhdsLT (show (-1 : ℝ) < 1 by norm_num)] with ρ h
-    exact abs_le.2 ⟨h.1.le, h.2.le⟩
+  have hρ : ∀ᶠ ρ in 𝓝[<] (1 : ℝ), |ρ| ≤ 1 :=
+    Filter.Eventually.mono (Ioo_mem_nhdsLT (show (-1 : ℝ) < 1 by norm_num)) fun _ h =>
+      abs_le.2 ⟨h.1.le, h.2.le⟩
   have hg := g.continuous.aestronglyMeasurable (μ := γ)
-  have hc (z y : ι → ℝ) : Continuous fun ρ : ℝ => g fun i => ρ * z i + √(1 - ρ ^ 2) * y i :=
-    g.continuous.comp (by fun_prop)
   -- pointwise convergence `U_ρ g z → g z`, by dominated convergence in `g`
   have hpt (z : ι → ℝ) : Tendsto (fun ρ => gaussianNoiseOp ρ g z) (𝓝[<] 1) (𝓝 (g z)) := by
     have h := tendsto_integral_filter_of_dominated_convergence (μ := γ) (l := 𝓝[<] (1 : ℝ))
-      (F := fun ρ y => g fun i => ρ * z i + √(1 - ρ ^ 2) * y i) (f := fun _ => g z) (fun _ => ‖g‖)
-      (.of_forall fun ρ => (g.continuous.comp (by fun_prop)).aestronglyMeasurable)
-      (.of_forall fun ρ => ae_of_all _ fun y => g.norm_coe_le_norm _) (integrable_const _)
-      (ae_of_all _ fun y => by simpa using ((hc z y).tendsto 1).mono_left nhdsWithin_le_nhds)
+      (F := fun ρ y => g fun i => ρ * z i + √(1 - ρ ^ 2) * y i) (f := fun _ => g z)
+      (fun _ => ‖g‖) (.of_forall fun _ => (g.continuous.comp (by fun_prop)).aestronglyMeasurable)
+      (.of_forall fun _ => ae_of_all _ fun _ => g.norm_coe_le_norm _) (integrable_const _)
+      (ae_of_all _ fun y => by
+        have hc : Continuous fun ρ : ℝ => g fun i => ρ * z i + √(1 - ρ ^ 2) * y i :=
+          g.continuous.comp (by fun_prop)
+        simpa using (hc.tendsto 1).mono_left nhdsWithin_le_nhds)
     simp only [integral_const, probReal_univ, one_smul] at h
     exact h
   have h := tendsto_lintegral_filter_of_dominated_convergence' (μ := γ)
     (F := fun ρ z => ‖gaussianNoiseOp ρ g z - g z‖ₑ) (f := 0) (fun _ => 2 * ‖g‖ₑ)
     (hρ.mono fun ρ h => ((hg.gaussianNoiseOp h).sub hg).aemeasurable.eNorm)
-    (.of_forall fun ρ => ae_of_all _ fun z => ?_) (by simp [lintegral_const, ENNReal.mul_eq_top])
+    (.of_forall fun ρ => ae_of_all _ fun z => eNorm_sub_le.trans <| by
+      rw [two_mul]
+      exact add_le_add (eNorm_le_iff_norm_le.2 <| (norm_integral_le_of_norm_le_const (C := ‖g‖)
+        (ae_of_all _ fun _ => g.norm_coe_le_norm _)).trans (by simp))
+        (eNorm_le_iff_norm_le.2 (g.norm_coe_le_norm z)))
+    (by simp [lintegral_const, ENNReal.mul_eq_top])
     (ae_of_all _ fun z => by simpa using ((hpt z).sub_const (g z)).eNorm)
-  · simp only [Pi.zero_apply, lintegral_zero] at h
-    refine h.congr' (hρ.mono fun ρ h => ?_)
-    exact (eLpNorm_one_eq_lintegral_eNorm ((hg.gaussianNoiseOp h).sub hg)).symm
-  · refine (eNorm_sub_le).trans ?_
-    rw [two_mul]
-    gcongr
-    · exact eNorm_le_iff_norm_le.2 <| (norm_integral_le_of_norm_le_const (C := ‖g‖)
-        (ae_of_all _ fun y => g.norm_coe_le_norm _)).trans (by simp)
-    · exact eNorm_le_iff_norm_le.2 (g.norm_coe_le_norm z)
+  simp only [Pi.zero_apply, lintegral_zero] at h
+  exact h.congr' (hρ.mono fun _ h =>
+    (eLpNorm_one_eq_lintegral_eNorm ((hg.gaussianNoiseOp h).sub hg)).symm)
 
 /-- **Continuity of the noise operator at `ρ = 1`** [O'Donnell, Proposition 11.17][ODonnell2014]
 (Exercise 11.6(a)): for `f ∈ L¹(γⁿ)`, `‖U_ρ f - f‖₁ → 0` as `ρ → 1⁻`. -/

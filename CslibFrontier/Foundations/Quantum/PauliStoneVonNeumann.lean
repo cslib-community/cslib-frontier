@@ -173,32 +173,24 @@ theorem sum_X_mul_codeProj_mul_X : ∑ z, R.X z * R.codeProj * R.X z = 1 := by
   rw [inv_mul_cancel₀ (pow_ne_zero _ two_ne_zero), one_smul]
 
 omit [Fintype ι] [DecidableEq ι] in
-private theorem boolVec_add_eq_zero_iff {z z' : ι → Bool} : z + z' = 0 ↔ z = z' := by
-  constructor
-  · intro h
-    have := congrArg (· + z') h
-    simpa [add_assoc, BitString.add_self] using this
-  · rintro rfl
-    exact BitString.add_self z
+private theorem boolVec_add_eq_zero_iff {z z' : ι → Bool} : z + z' = 0 ↔ z = z' :=
+  ⟨fun h => by simpa [add_assoc, BitString.add_self] using congrArg (· + z') h,
+    fun h => h ▸ BitString.add_self z⟩
 
 /-- `Eᴴ X(z) X(z') E = δ_{z,z'}` for an isometry `E` onto the code space. -/
 private theorem isometry_X_mul_X {L : Type*} [DecidableEq L] {E : Matrix κ L ℂ}
     (hEE : Eᴴ * E = 1) (hPE : R.codeProj * E = E) (z z' : ι → Bool) :
     Eᴴ * (R.X z * R.X z') * E = if z = z' then 1 else 0 := by
   have hEPh : Eᴴ * R.codeProj = Eᴴ := by
-    rw [← conjTranspose_conjTranspose (R.codeProj), ← conjTranspose_mul, R.isHermitian_codeProj.eq,
-      hPE]
-  rw [R.X_mul]
-  calc Eᴴ * R.X (z + z') * E = (Eᴴ * R.codeProj) * R.X (z + z') * (R.codeProj * E) := by
-        rw [hEPh, hPE]
+    rw [← R.isHermitian_codeProj.eq, ← conjTranspose_mul, hPE]
+  calc Eᴴ * (R.X z * R.X z') * E
+      = (Eᴴ * R.codeProj) * R.X (z + z') * (R.codeProj * E) := by rw [R.X_mul, hEPh, hPE]
     _ = Eᴴ * (R.codeProj * R.X (z + z') * R.codeProj) * E := by simp only [Matrix.mul_assoc]
-    _ = _ := by
+    _ = if z = z' then 1 else 0 := by
       rw [codeProj_mul_X_mul_codeProj]
       by_cases h : z = z'
-      · rw [ite_eq_left (boolVec_add_eq_zero_iff.mpr h), ite_eq_left h, Matrix.mul_assoc, hPE, hEE]
-      · rw [ite_eq_right (fun h' => h (boolVec_add_eq_zero_iff.mp h')), ite_eq_right h,
-          Matrix.mul_zero,
-          Matrix.zero_mul]
+      · simp [h, Matrix.mul_assoc, hPE, hEE]
+      · simp [h, boolVec_add_eq_zero_iff]
 /-- The code space has an isometry: `E` with `Eᴴ E = 1` and `E Eᴴ = Π`. -/
 theorem exists_isometry_codeProj : ∃ L : Finset κ, ∃ E : Matrix κ L ℂ,
     Eᴴ * E = 1 ∧ E * Eᴴ = R.codeProj :=
@@ -234,32 +226,26 @@ theorem exists_unitary_eq_pauli : ∃ (L : Finset κ) (Φ : Matrix κ ((ι → B
       rw [Matrix.mul_apply, Fintype.sum_prod_type, Matrix.sum_apply]
       exact sum_congr rfl fun z _ => rfl
     rw [e, sum_X_mul_codeProj_mul_X]
-  have hX : ∀ a, R.X a * Φ = Φ * (pauliXPow a ⊗ₖ (1 : Matrix L L ℂ)) := fun a => by
+  have hΦ_kron (A : Matrix (ι → Bool) (ι → Bool) ℂ) (i : κ) (z : ι → Bool) (l : L) :
+      (Φ * (A ⊗ₖ (1 : Matrix L L ℂ))) i (z, l) = ∑ z', (R.X z' * E) i l * A z' z := by
+    rw [Matrix.mul_apply, Fintype.sum_prod_type]
+    refine sum_congr rfl fun z' _ => ?_
+    simp [Φ, Matrix.one_apply]
+  have hX (a : ι → Bool) : R.X a * Φ = Φ * (pauliXPow a ⊗ₖ (1 : Matrix L L ℂ)) := by
     ext i ⟨z, l⟩
-    rw [Matrix.mul_apply, Matrix.mul_apply, Fintype.sum_prod_type,
-      sum_eq_single (z + a) (fun z' _ hz' => by
-        refine sum_eq_zero fun l' _ => ?_
-        rw [kronecker_apply, pauliXPow_apply, ite_eq_right]
-        · simp
-        · intro h; apply hz'; rw [h, BitString.add_cancel_right]) (by simp)]
-    rw [sum_eq_single l (fun l' _ hl' => by simp [hl'])
-      (by simp)]
-    simp only [Φ, Matrix.of_apply, kronecker_apply, pauliXPow_apply, BitString.add_cancel_right,
-      ite_true, Matrix.one_apply_eq, mul_one]
-    rw [← Matrix.mul_apply, ← Matrix.mul_assoc, R.X_mul, add_comm]
-  have hZ : ∀ b, R.Z b * Φ = Φ * (pauliZPow b ⊗ₖ (1 : Matrix L L ℂ)) := fun b => by
+    rw [hΦ_kron]
+    have hiff : ∀ z', (z = z' + a) ↔ (z' = z + a) := fun z' => by
+      constructor <;> rintro rfl <;> simp
+    simp only [pauliXPow_apply, hiff, mul_ite, mul_one, mul_zero, sum_ite_eq', mem_univ, ite_true]
+    change (R.X a * (R.X z * E)) i l = _
+    rw [← Matrix.mul_assoc, R.X_mul, add_comm]
+  have hZ (b : ι → Bool) : R.Z b * Φ = Φ * (pauliZPow b ⊗ₖ (1 : Matrix L L ℂ)) := by
     ext i ⟨z, l⟩
-    rw [Matrix.mul_apply, Matrix.mul_apply, Fintype.sum_prod_type,
-      sum_eq_single z (fun z' _ hz' => by
-        refine sum_eq_zero fun l' _ => ?_
-        rw [kronecker_apply, pauliZPow_apply, ite_eq_right hz']
-        simp) (by simp)]
-    rw [sum_eq_single l (fun l' _ hl' => by simp [hl'])
-      (by simp)]
-    simp only [Φ, Matrix.of_apply, kronecker_apply, pauliZPow_apply, ite_true,
-      Matrix.one_apply_eq, mul_one]
-    rw [← Matrix.mul_apply, ← Matrix.mul_assoc, R.Z_mul_X, Matrix.smul_mul, Matrix.mul_assoc,
-      hZE, Matrix.smul_apply, smul_eq_mul, dotProduct_comm, mul_comm]
+    rw [hΦ_kron]
+    simp only [pauliZPow_apply, mul_ite, mul_zero, sum_ite_eq', mem_univ, ite_true]
+    change (R.Z b * (R.X z * E)) i l = _
+    rw [← Matrix.mul_assoc, R.Z_mul_X, Matrix.smul_mul, Matrix.mul_assoc, hZE,
+      Matrix.smul_apply, smul_eq_mul, dotProduct_comm, mul_comm]
   refine ⟨L, Φ, hΦΦ, hΦΦ', fun a => ?_, fun b => ?_⟩
   · rw [← hX, Matrix.mul_assoc, hΦΦ', Matrix.mul_one]
   · rw [← hZ, Matrix.mul_assoc, hΦΦ', Matrix.mul_one]

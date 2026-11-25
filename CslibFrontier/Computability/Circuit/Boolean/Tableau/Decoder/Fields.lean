@@ -501,8 +501,7 @@ theorem allGates_fieldGates {p : ℕ → Op × List ℕ → Prop}
     intro k hk
     rw [sum_range_map_const (len := s + cb + tb) (fun j => by simp), allGates_map_range]
     intro i hi
-    have := hchain k hk i hi
-    convert this using 2
+    convert hchain k hk i hi using 2
     simp only [chainBase]
     omega
   · rw [treeGates, allGates_flatMap_range]
@@ -510,14 +509,12 @@ theorem allGates_fieldGates {p : ℕ → Op × List ℕ → Prop}
     simp only [List.length_map, List.length_range]
     rw [sum_range_two_pow, allGates_map_range]
     intro q hq
-    have := htree ℓ (by omega) q hq
-    convert this using 2
+    convert htree ℓ (by omega) q hq using 2
     simp only [treeBase, chainBase]
     omega
   · rw [allGates_map_range]
     intro i hi
-    have := hor i hi
-    convert this using 2
+    convert hor i hi using 2
     simp only [orBase, treeBase, chainBase]
     omega
 
@@ -626,8 +623,7 @@ theorem allGates_consistentAt_fieldGates (hm : Nat.size x.length ≤ s + cb + tb
         have h₂ : idx / 16 % 2 ^ Nat.size x.length ≠ i := by omega
         simp [Op.value, h₁, hlt.le, h₂]
       · by_cases heq : idx / 16 % 2 ^ Nat.size x.length = i
-        · have h₁ : ¬ idx / 16 % 2 ^ Nat.size x.length ≤ i - 1 := by omega
-          simp [Op.value, heq]
+        · simp [Op.value, heq]
         · have h₁ : ¬ idx / 16 % 2 ^ Nat.size x.length ≤ i - 1 := by omega
           have h₂ : ¬ idx / 16 % 2 ^ Nat.size x.length ≤ i := by omega
           simp [Op.value, h₁, h₂, heq]

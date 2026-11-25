@@ -94,25 +94,20 @@ private theorem exists_polylogBound_clock_le_pow_five (k : ℕ) : ∃ M, ∀ {n 
   have hL : L₀ < Nat.size m := Nat.lt_size.mpr ((le_max_right _ _).trans hm)
   -- `2 ^ size m ≤ 2 m`, so `34 (size m + 1) ^ (k + 5) < 2 m`.
   have hpow : 2 ^ Nat.size m ≤ 2 * m := by
-    have : 2 ^ (Nat.size m - 1) ≤ m := Nat.lt_size.mp (by omega)
-    calc 2 ^ Nat.size m = 2 * 2 ^ (Nat.size m - 1) := by
-          rw [← pow_succ']
-          congr 1
-          omega
-      _ ≤ 2 * m := by omega
+    rw [show Nat.size m = Nat.size m - 1 + 1 by omega, pow_succ']
+    exact Nat.mul_le_mul_left 2 (Nat.lt_size.mp (by omega))
   have hY := hL₀ (Nat.size m) hL.le
   have hlt : m < 2 ^ Nat.size m := Nat.lt_size_self m
-  have hℓ : Nat.size m + 1 ≤ 2 ^ Nat.size m := Nat.lt_two_pow_self
   have hlogn : Nat.log 2 (n + 1) ≤ Nat.size m := by
     calc Nat.log 2 (n + 1) ≤ Nat.log 2 (2 ^ Nat.size m) := Nat.log_mono_right (by omega)
       _ = Nat.size m := Nat.log_pow (by norm_num) _
   have hJ : (m * (Nat.size m + 1)) ^ 4 + 1 ≤ 2 ^ (8 * Nat.size m) := by
     have h₁ : m * (Nat.size m + 1) < 2 ^ Nat.size m * 2 ^ Nat.size m :=
-      Nat.mul_lt_mul_of_lt_of_le hlt hℓ (Nat.pow_pos (by norm_num))
-    have h₂ : (m * (Nat.size m + 1)) ^ 4 < (2 ^ Nat.size m * 2 ^ Nat.size m) ^ 4 :=
-      Nat.pow_lt_pow_left h₁ (by norm_num)
-    calc _ ≤ (2 ^ Nat.size m * 2 ^ Nat.size m) ^ 4 := h₂
-      _ = 2 ^ (8 * Nat.size m) := by rw [← pow_add, ← pow_mul]; ring_nf
+      Nat.mul_lt_mul_of_lt_of_le hlt Nat.lt_two_pow_self (Nat.pow_pos (by norm_num))
+    calc _ ≤ (2 ^ Nat.size m * 2 ^ Nat.size m) ^ 4 := Nat.pow_lt_pow_left h₁ (by norm_num)
+      _ = 2 ^ (8 * Nat.size m) := by
+        rw [← pow_add, ← pow_mul]
+        ring_nf
   have hlogJ : Nat.log 2 ((m * (Nat.size m + 1)) ^ 4 + 1) ≤ 8 * Nat.size m := by
     calc _ ≤ Nat.log 2 (2 ^ (8 * Nat.size m)) := Nat.log_mono_right hJ
       _ = 8 * Nat.size m := Nat.log_pow (by norm_num) _
@@ -146,19 +141,14 @@ theorem exists_mem_RAMTIME_pow_five_notMem_RAMTIME {T : ℕ → ℕ} (hT : TimeC
       A ∉ RAMTIME .additive encBits T := by
   obtain ⟨k, hk⟩ := exists_DTIME_not_subset_DTIME_of_clock_polylog
   obtain ⟨M, hM⟩ := exists_polylogBound_clock_le_pow_five k
-  have hpow : Turing.MultiTapeTM.ComputableInPolyTime (fun m : ℕ => m ^ 4) encNat encNat :=
-    ComputableInPolyTime.binary_pow' ComputableInPolyTime.id' (ComputableInPolyTime.const 4)
   have hJ : TimeConstructible fun n => (T n * (Nat.size (T n) + 1)) ^ 4 :=
-    hT.mul_size_succ.comp_of_computableInPolyTime hpow fun n => Nat.le_self_pow (by norm_num) _
-  have hsep := hk (f := fun n => (n + T n + 1) ^ 4 * (Nat.size n + 1) ^ 3)
-    (g := fun n => T n ^ 5) hJ
-    (fun c => Eventually.frequently <| by
-      filter_upwards [eventually_ge_atTop (max 1 (2 ^ (82 * c)))] with n hc
-      exact mul_overhead_add_le_clock c (hn n) (hc.trans (hn n)))
-    (by
-      filter_upwards [eventually_ge_atTop M] with n hM'
-      exact hM (hn n) (hM'.trans (hn n)))
-  obtain ⟨A, hAg, hAf⟩ := Set.not_subset.mp hsep
+    hT.mul_size_succ.comp_of_computableInPolyTime
+      (ComputableInPolyTime.binary_pow' .id' (.const 4)) fun n => Nat.le_self_pow (by norm_num) _
+  obtain ⟨A, hAg, hAf⟩ := Set.not_subset.mp <|
+    hk (f := fun n => (n + T n + 1) ^ 4 * (Nat.size n + 1) ^ 3) (g := fun n => T n ^ 5) hJ
+      (fun c => Eventually.frequently <| (eventually_ge_atTop (max 1 (2 ^ (82 * c)))).mono
+        fun n hc => mul_overhead_add_le_clock c (hn n) (hc.trans (hn n)))
+      ((eventually_ge_atTop M).mono fun n hM' => hM (hn n) (hM'.trans (hn n)))
   exact ⟨A, DTIME_subset_RAMTIME_additive (by fun_prop) hAg,
     fun h => hAf (RAMTIME_additive_subset_DTIME hT h)⟩
 

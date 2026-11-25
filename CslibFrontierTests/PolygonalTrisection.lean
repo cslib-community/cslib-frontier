@@ -41,11 +41,13 @@ example : (∀ k : Fin 3, (p.trisect (1 / 3) (1 / 3) k).IsSimple) ∧
     p.support_trisect (by norm_num) (by norm_num) (by norm_num)⟩
 
 -- The local time of the first cut can exceed that of the last cut on a later segment.
--- The joined point at 8 is still reached at the end of the first retained segment.
-example : ∃ q : Route, q.start = 7 ∧ q.finish = 9 ∧ (8 : ℂ) ∈ q.support := by
+-- The shared node at 8 represents one chain position under both segment labels.
+example : ∃ q : Route, q.start = 7 ∧ q.finish = 9 ∧ (8 : ℂ) ∈ q.support ∧
+    ∃ k l : Fin q.segments, k ≠ l ∧ q.eval k 1 = 8 ∧ q.eval l 0 = 8 ∧
+      q.position k 1 = q.position l 0 := by
   let r : Route := ⟨2, ![0, 4, 8, 12]⟩
   have hne : (1 : Fin r.segments) ≠ 2 := by decide
-  obtain ⟨q, e, hstart, hfinish, hseg⟩ := r.exists_subroute_between 1 2 (by decide)
+  obtain ⟨q, e, hstart, hfinish, hseg, hpositions⟩ := r.exists_subroute_between 1 2 (by decide)
     (s := 3 / 4) (t := 1 / 4) (by norm_num [Set.mem_Ico]) (by norm_num [Set.mem_Ioc])
     (fun h => (hne h).elim)
   refine ⟨q, hstart.trans ?_, hfinish.trans ?_, ?_⟩
@@ -54,16 +56,31 @@ example : ∃ q : Route, q.start = 7 ∧ q.finish = 9 ∧ (8 : ℂ) ∈ q.suppor
   · change AffineMap.lineMap (8 : ℂ) 12 (1 / 4) = 9
     norm_num [AffineMap.lineMap_apply_module', Complex.real_smul]
   · let i : Set.Icc (1 : Fin r.segments) 2 := ⟨1, ⟨by decide, by decide⟩⟩
+    let j : Set.Icc (1 : Fin r.segments) 2 := ⟨2, ⟨by decide, by decide⟩⟩
     let k := e.symm i
+    let l := e.symm j
     have hk : (e k).val = (1 : Fin r.segments) := congrArg Subtype.val (e.apply_symm_apply i)
+    have hl : (e l).val = (2 : Fin r.segments) := congrArg Subtype.val (e.apply_symm_apply j)
+    have hkl : k ≠ l := fun h => hne (hk.symm.trans (h.symm ▸ hl))
     obtain ⟨_, _, _, heval⟩ := hseg k
     have hend : q.eval k 1 = 8 := by
       have he := heval 1
-      rw [AffineMap.lineMap_apply_one, hk, ite_eq_right hne] at he
+      simp only [AffineMap.lineMap_apply_one, hk, ite_eq_right hne] at he
       refine he.trans ?_
       change AffineMap.lineMap (4 : ℂ) 8 (1 : ℝ) = 8
       exact AffineMap.lineMap_apply_one _ _
-    exact hend ▸ q.at_mem_support k (by simp)
+    obtain ⟨_, _, _, heval⟩ := hseg l
+    have hbegin : q.eval l 0 = 8 := by
+      have he := heval 0
+      simp only [AffineMap.lineMap_apply_zero, hl, ite_eq_right hne.symm] at he
+      refine he.trans ?_
+      change AffineMap.lineMap (8 : ℂ) 12 (0 : ℝ) = 8
+      exact AffineMap.lineMap_apply_zero _ _
+    refine ⟨hend ▸ q.at_mem_support k (by simp), k, l, hkl, hend, hbegin, ?_⟩
+    apply hpositions k l (by simp) (by simp)
+    simp only [AffineMap.lineMap_apply_one, AffineMap.lineMap_apply_zero, hk, hl,
+      ite_eq_right hne, ite_eq_right hne.symm]
+    norm_num [Route.position, r]
 
 -- The final chord's first point represents the second cut in the old parameter.
 example : ∃ (j : Fin p.segments) (r : ℝ), r ∈ Set.Icc 0 1 ∧

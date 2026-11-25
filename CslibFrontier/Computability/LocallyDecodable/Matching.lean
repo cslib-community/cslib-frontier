@@ -101,29 +101,20 @@ private theorem exists_maximal_matching [DecidableEq P] (H : Finset (Finset P))
     ∃ M ⊆ H, (M : Set (Finset P)).PairwiseDisjoint id ∧
       ∀ e ∈ H, ∃ j ∈ M.biUnion id, j ∈ e := by
   classical
-  let matchings : Finset (Finset (Finset P)) :=
-    H.powerset.filter fun M => (M : Set (Finset P)).PairwiseDisjoint id
-  have hmem0 : (∅ : Finset (Finset P)) ∈ matchings := by
-    simp [matchings]
-  obtain ⟨M, hM, hmax⟩ := matchings.exists_max_image Finset.card ⟨∅, hmem0⟩
+  let matchings := H.powerset.filter fun M : Finset (Finset P) =>
+    (M : Set (Finset P)).PairwiseDisjoint id
+  obtain ⟨M, hM, hmax⟩ := matchings.exists_max_image Finset.card ⟨∅, by simp [matchings]⟩
   simp only [matchings, mem_filter, mem_powerset] at hM
   refine ⟨M, hM.1, hM.2, fun e he => ?_⟩
-  by_contra hmiss
-  push Not at hmiss
+  by_contra! hmiss
   have hdisj : ∀ e' ∈ M, Disjoint e e' := fun e' he' =>
-    Finset.disjoint_left.mpr fun j hje hje' =>
-      hmiss j (mem_biUnion.mpr ⟨e', he', hje'⟩) hje
+    Finset.disjoint_left.mpr fun j hje hje' => hmiss j (mem_biUnion.mpr ⟨e', he', hje'⟩) hje
   have heM : e ∉ M := by
     intro heM
-    obtain ⟨j, hj⟩ := hne e he
+    obtain ⟨_, hj⟩ := hne e he
     exact Finset.disjoint_left.mp (hdisj e heM) hj hj
-  have hpd : ((insert e M : Finset (Finset P)) : Set (Finset P)).PairwiseDisjoint id := by
-    rw [coe_insert]
-    exact hM.2.insert fun e' he' _ => hdisj e' he'
-  have hins : insert e M ∈ matchings := by
-    simp only [matchings, mem_filter, mem_powerset]
-    exact ⟨Finset.insert_subset he hM.1, hpd⟩
-  have hle := hmax (insert e M) hins
+  have hle := hmax (insert e M) (mem_filter.mpr ⟨mem_powerset.mpr (insert_subset he hM.1),
+    coe_insert e M ▸ hM.2.insert fun e' he' _ => hdisj e' he'⟩)
   rw [Finset.card_insert_of_notMem heM] at hle
   omega
 
@@ -139,8 +130,7 @@ private theorem toReal_uniformOfFintype_eq_const [Fintype ι] [DecidableEq ι] (
   have hev : (PMF.uniformOfFintype (ι → Bool)).toOuterMeasure {x | b = x i} =
       ((PMF.uniformOfFintype (ι → Bool)).map fun x => x i) b := by
     rw [PMF.toOuterMeasure_apply, PMF.map_apply]
-    refine tsum_congr fun x => ?_
-    by_cases hx : b = x i <;> simp [hx]
+    exact tsum_congr fun x => by by_cases hx : b = x i <;> simp [hx]
   rw [hev, hmap, PMF.uniformOfFintype_apply, Fintype.card_bool, Nat.cast_ofNat,
     ENNReal.toReal_inv, ENNReal.toReal_ofNat, one_div]
 
@@ -180,12 +170,10 @@ theorem exists_decodingMatching_of_nonadaptivePlan [Fintype ι] [DecidableEq ι]
     have hpt (plan : NonadaptivePlan P Γ q) :
         acc plan ≤ (1 / 2 + η) + (1 / 2) * (if plan ∈ good then (1 : ℝ) else 0) := by
       by_cases h : plan ∈ good
-      · rw [ite_eq_left h, mul_one]
-        have hle : acc plan ≤ 1 := by
-          have := ENNReal.toReal_mono ENNReal.one_ne_top
-            (Probability.PMF.toOuterMeasure_le_one (PMF.uniformOfFintype (ι → Bool))
-              {x | plan.eval (C x) = x i})
-          simpa only [ENNReal.toReal_one] using this
+      · have hle : acc plan ≤ 1 := by
+          simpa only [ENNReal.toReal_one] using ENNReal.toReal_mono ENNReal.one_ne_top
+            (Probability.PMF.toOuterMeasure_le_one _ {x | plan.eval (C x) = x i})
+        rw [ite_eq_left h]
         linarith
       · rw [ite_eq_right h, mul_zero, add_zero]
         exact le_of_not_ge h
@@ -212,18 +200,14 @@ theorem exists_decodingMatching_of_nonadaptivePlan [Fintype ι] [DecidableEq ι]
   let goodPlans : Finset (NonadaptivePlan P Γ q) :=
     Finset.univ.filter fun plan => plan ∈ good ∧ plan ∈ planLaw.support
   let H : Finset (Finset P) := goodPlans.image NonadaptivePlan.querySet
-  have hH_ne : ∀ e ∈ H, e.Nonempty := by
-    intro e he
+  have hH_ne : ∀ e ∈ H, e.Nonempty := fun e he => by
     obtain ⟨plan, hplan, rfl⟩ := mem_image.mp he
-    simp only [goodPlans, mem_filter, mem_univ, true_and] at hplan
     by_contra hemp
-    rw [Finset.not_nonempty_iff_eq_empty] at hemp
-    have hhalf := acc_eq_half_of_querySet_eq_empty (C := C) i plan hemp
-    have hge : 1 / 2 + η ≤ acc plan := hplan.1
-    change 1 / 2 + η ≤ _ at hge
-    linarith
-  have hH_card : ∀ e ∈ H, e.card ≤ q := by
-    intro e he
+    have hge : 1 / 2 + η ≤ acc plan := (mem_filter.mp hplan).2.1
+    dsimp only [acc] at hge
+    linarith [acc_eq_half_of_querySet_eq_empty (C := C) i plan
+      (Finset.not_nonempty_iff_eq_empty.mp hemp)]
+  have hH_card : ∀ e ∈ H, e.card ≤ q := fun e he => by
     obtain ⟨plan, _, rfl⟩ := mem_image.mp he
     exact plan.card_querySet_le
   -- Step 3: extract a maximal matching `M ⊆ H`.
@@ -237,26 +221,23 @@ theorem exists_decodingMatching_of_nonadaptivePlan [Fintype ι] [DecidableEq ι]
     else fun _ => false
   have hpredict_correct : ∀ e ∈ M,
       1 / 2 + η ≤ ((PMF.uniformOfFintype (ι → Bool)).toOuterMeasure
-        {x | predict e (e.restrict (C x)) = x i}).toReal := by
-    intro e heM
+        {x | predict e (e.restrict (C x)) = x i}).toReal := fun e heM => by
     have heH : e ∈ H := hMH heM
-    let plan := (mem_image.mp heH).choose
-    have hspec := (mem_image.mp heH).choose_spec
-    have hgood_plan : 1 / 2 + η ≤ acc plan := (mem_filter.mp hspec.1).2.1
-    have heval (x : ι → Bool) : predict e (e.restrict (C x)) = plan.eval (C x) := by
+    have heval (x : ι → Bool) :
+        predict e (e.restrict (C x)) = (mem_image.mp heH).choose.eval (C x) := by
       simp only [predict, dite_eq_left heH]
-      exact plan.restrictEval_restrict (C x)
-    simpa only [heval] using hgood_plan
+      exact (mem_image.mp heH).choose.restrictEval_restrict (C x)
+    have hg : 1 / 2 + η ≤ acc (mem_image.mp heH).choose :=
+      (mem_filter.mp (mem_image.mp heH).choose_spec.1).2.1
+    simpa only [acc, heval] using hg
   refine ⟨⟨M, hMpd, fun e he => hH_ne e (hMH he), fun e he => hH_card e (hMH he),
     predict, hpredict_correct⟩, ?_⟩
   -- Step 4: bound `2 (ε - η) |P| ≤ q c |M|` via smoothness and the union bound on `V = ⋃ M`.
   rcases Nat.eq_zero_or_pos (Fintype.card P) with hP0 | hPpos
-  · have hM0 : M = ∅ := by
-      by_contra hne
-      obtain ⟨e, heM⟩ := Finset.nonempty_iff_ne_empty.mpr hne
+  · obtain rfl : M = ∅ := eq_empty_iff_forall_notMem.mpr fun e heM => by
       obtain ⟨j, _⟩ := hH_ne e (hMH heM)
       exact absurd (Fintype.card_pos_iff.mpr ⟨j⟩) (by omega)
-    simp [hP0, hM0]
+    simp [hP0]
   · set V : Finset P := M.biUnion id
     have hV_card : V.card ≤ q * M.card := by
       calc V.card ≤ ∑ e ∈ M, e.card := Finset.card_biUnion_le
@@ -264,41 +245,32 @@ theorem exists_decodingMatching_of_nonadaptivePlan [Fintype ι] [DecidableEq ι]
         _ = q * M.card := by rw [Finset.sum_const, smul_eq_mul, mul_comm]
     have hhit_le : (planLaw.toOuterMeasure good).toReal ≤
         ∑ j ∈ V, (planLaw.toOuterMeasure {plan | j ∈ plan.querySet}).toReal := by
-      simp only [Probability.PMF.toOuterMeasure_apply_toReal]
+      simp only [Probability.PMF.toOuterMeasure_apply_toReal, Set.mem_ofPred_eq]
       rw [Finset.sum_comm]
       refine Finset.sum_le_sum fun plan _ => ?_
-      by_cases hp : plan ∈ good
-      · rw [ite_eq_left hp]
-        by_cases hsupp : plan ∈ planLaw.support
-        · have heH : plan.querySet ∈ H :=
-            mem_image_of_mem _ (mem_filter.mpr ⟨mem_univ _, hp, hsupp⟩)
-          obtain ⟨j₀, hj₀V, hj₀e⟩ := hMhit plan.querySet heH
-          have hle := Finset.single_le_sum (f := fun j =>
-              if j ∈ plan.querySet then (planLaw plan).toReal else 0)
-            (fun j _ => by split_ifs <;> [exact ENNReal.toReal_nonneg; exact le_rfl]) hj₀V
-          have hle' : (planLaw plan).toReal ≤
-              ∑ j ∈ V, if j ∈ plan.querySet then (planLaw plan).toReal else 0 := by
-            simpa only [hj₀e, ↓reduceIte] using hle
-          refine hle'.trans (le_of_eq ?_)
-          refine Finset.sum_congr rfl fun j _ => ?_
-          by_cases hj : j ∈ plan.querySet <;> simp [hj]
-        · have hz : planLaw plan = 0 := (PMF.apply_eq_zero_iff _ _).mpr hsupp
-          rw [hz, ENNReal.toReal_zero]
-          exact Finset.sum_nonneg fun j _ => by split_ifs <;> simp
-      · rw [ite_eq_right hp]
-        exact Finset.sum_nonneg fun j _ => by
-          split_ifs <;> [exact ENNReal.toReal_nonneg; exact le_rfl]
+      by_cases hp : plan ∈ good ∧ plan ∈ planLaw.support
+      · obtain ⟨j₀, hj₀V, hj₀e⟩ :=
+          hMhit plan.querySet (mem_image_of_mem _ (mem_filter.mpr ⟨mem_univ _, hp⟩))
+        refine (?_ : _ ≤ _).trans
+          (Finset.single_le_sum (fun _ _ => by split_ifs <;> positivity) hj₀V)
+        simp only [hp.1, hj₀e, ↓reduceIte, le_rfl]
+      · have h0 : (if plan ∈ good then (planLaw plan).toReal else 0) = 0 := by
+          by_cases hg : plan ∈ good
+          · simp [hg, (PMF.apply_eq_zero_iff _ _).mpr fun hs => hp ⟨hg, hs⟩]
+          · simp [hg]
+        rw [h0]
+        exact Finset.sum_nonneg fun _ _ => by split_ifs <;> positivity
+    have hn : (0 : ℝ) < Fintype.card P := by exact_mod_cast hPpos
+    obtain ⟨j₀⟩ := Fintype.card_pos_iff.mp hPpos
     have hc_nonneg : 0 ≤ c := by
-      obtain ⟨j₀⟩ := Fintype.card_pos_iff.mp hPpos
-      have h0 : (0 : ℝ) ≤ c / Fintype.card P := ENNReal.toReal_nonneg.trans (hsmooth j₀)
-      have hn : (0 : ℝ) < Fintype.card P := by exact_mod_cast hPpos
-      exact (div_nonneg_iff.mp h0).elim (fun h => h.1) (fun h => absurd hn (not_lt.mpr h.2))
+      have h1 := (mul_nonneg ENNReal.toReal_nonneg hn.le).trans
+        (mul_le_mul_of_nonneg_right (hsmooth j₀) hn.le)
+      rwa [div_mul_cancel₀ _ hn.ne'] at h1
     have hbound : 2 * (ε - η) ≤ (V.card : ℝ) * (c / Fintype.card P) :=
       hgood_prob.trans <| hhit_le.trans <| by
         calc ∑ j ∈ V, (planLaw.toOuterMeasure {plan | j ∈ plan.querySet}).toReal
             ≤ ∑ _j ∈ V, (c / Fintype.card P) := Finset.sum_le_sum fun j _ => hsmooth j
           _ = (V.card : ℝ) * (c / Fintype.card P) := by rw [Finset.sum_const, nsmul_eq_mul]
-    have hn : (0 : ℝ) < Fintype.card P := by exact_mod_cast hPpos
     have hmul : 2 * (ε - η) * Fintype.card P ≤ (V.card : ℝ) * c := by
       have h := mul_le_mul_of_nonneg_right hbound hn.le
       have hcancel : (V.card : ℝ) * (c / Fintype.card P) * Fintype.card P = (V.card : ℝ) * c := by
@@ -372,14 +344,12 @@ theorem IsSmoothDecoder.exists_decodingMatching_of_nonadaptivePlan [Fintype ι] 
     (hε : 0 < ε) (i : ι) :
     ∃ M : DecodingMatching C i q (ε / 2),
       ε * Fintype.card P ≤ q * c * M.edges.card := by
-  have h := Code.exists_decodingMatching_of_nonadaptivePlan (C := C) (c := c) (ε := ε) (η := ε / 2)
-    i (ProbComp.eval (planLaw i)) (by linarith)
-    (average_acc_of_isSmoothDecoder hA i)
-    (fun j => (toReal_toOuterMeasure_mem_querySet_le_expectedReads (planLaw i)
-      (C fun _ => false) j).trans (hA.smooth _ i j))
-  obtain ⟨M, hM⟩ := h
-  refine ⟨M, ?_⟩
-  linarith
+  obtain ⟨M, hM⟩ := Code.exists_decodingMatching_of_nonadaptivePlan (C := C) (c := c) (ε := ε)
+    (η := ε / 2) i (ProbComp.eval (planLaw i)) (by linarith)
+    (average_acc_of_isSmoothDecoder hA i) fun j =>
+      (toReal_toOuterMeasure_mem_querySet_le_expectedReads (planLaw i)
+        (C fun _ => false) j).trans (hA.smooth _ i j)
+  exact ⟨M, by linarith⟩
 
 /-- Hypergraph matching extraction from a `Code.nonadaptive` smooth decoder. -/
 theorem IsSmoothDecoder.exists_decodingMatching_of_nonadaptive [Fintype ι] [DecidableEq ι]
@@ -389,17 +359,13 @@ theorem IsSmoothDecoder.exists_decodingMatching_of_nonadaptive [Fintype ι] [Dec
     (hA : IsSmoothDecoder C q c ε fun i => nonadaptive (coins i) (Q i) (output i))
     (hε : 0 < ε) (i : ι) :
     ∃ M : DecodingMatching C i q (ε / 2),
-      ε * Fintype.card P ≤ q * c * M.edges.card := by
-  have hplan : IsSmoothDecoder C q c ε fun i =>
-      nonadaptivePlan (nonadaptivePlanOf (coins i) (Q i) (output i)) :=
-    { isQueryBounded := fun i => isQueryBounded_nonadaptivePlan _
-      correct := fun x i => by
-        rw [decodeLaw_nonadaptivePlanOf]
-        exact hA.correct x i
-      smooth := fun x i j => by
-        rw [expectedReads_nonadaptivePlanOf]
-        exact hA.smooth x i j }
-  exact hplan.exists_decodingMatching_of_nonadaptivePlan hε i
+      ε * Fintype.card P ≤ q * c * M.edges.card :=
+  IsSmoothDecoder.exists_decodingMatching_of_nonadaptivePlan
+    (planLaw := fun i => nonadaptivePlanOf (coins i) (Q i) (output i))
+    { isQueryBounded := fun _ => isQueryBounded_nonadaptivePlan _
+      correct := fun x i => by simpa only [decodeLaw_nonadaptivePlanOf] using hA.correct x i
+      smooth := fun x i j => by simpa only [expectedReads_nonadaptivePlanOf] using hA.smooth x i j }
+    hε i
 
 /-- Hypergraph matching extraction from a non-adaptive `(q, δ, ε)` local decoder: smooths with no
 advantage loss (`c = q / δ`) to obtain a matching with `δ ε |P| ≤ q ^ 2 |M|`. -/
@@ -411,13 +377,12 @@ theorem IsLocalDecoder.exists_decodingMatching_of_nonadaptivePlan [Fintype ι] [
     ∃ M : DecodingMatching C i q (ε / 2),
       δ * ε * Fintype.card P ≤ (q : ℝ) ^ 2 * M.edges.card := by
   classical
-  have hs := isSmoothDecoder_mask_nonadaptivePlan hA hδ (C fun _ => false)
-  obtain ⟨M, hM⟩ := hs.exists_decodingMatching_of_nonadaptivePlan hε i
+  obtain ⟨M, hM⟩ := (isSmoothDecoder_mask_nonadaptivePlan hA hδ
+    (C fun _ => false)).exists_decodingMatching_of_nonadaptivePlan hε i
   refine ⟨M, ?_⟩
-  have hmul := mul_le_mul_of_nonneg_left hM hδ.le
-  have hrhs : δ * ((q : ℝ) * ((q : ℝ) / δ) * M.edges.card) = (q : ℝ) ^ 2 * M.edges.card := by
-    field_simp [hδ.ne']
-  linarith
+  linarith [mul_le_mul_of_nonneg_left hM hδ.le,
+    show δ * ((q : ℝ) * ((q : ℝ) / δ) * M.edges.card) = (q : ℝ) ^ 2 * M.edges.card by
+      field_simp [hδ.ne']]
 
 /-- **Hypergraph matching extraction from an arbitrary (possibly adaptive) `(q, δ, ε)` local
 decoder**: reduces adaptivity with factor `|Γ| ^ -(q - 1)`, smooths heavy positions, and extracts
@@ -431,21 +396,16 @@ theorem IsLocalDecoder.exists_decodingMatching [Fintype ι] [DecidableEq ι] [Fi
       δ * ε * Fintype.card P ≤ (q : ℝ) ^ 2 * (Fintype.card Γ : ℝ) ^ (q - 1) * M.edges.card := by
   classical
   have hΓ : (0 : ℝ) < (Fintype.card Γ : ℝ) ^ (q - 1) :=
-    pow_pos (by exact_mod_cast Fintype.card_pos) _
-  have hε' : 0 < ε / (Fintype.card Γ : ℝ) ^ (q - 1) := div_pos hε hΓ
-  have hs := hA.isSmoothDecoder_adaptive hδ (C fun _ => false)
-  obtain ⟨M, hM⟩ := hs.exists_decodingMatching_of_nonadaptivePlan hε' i
-  have hdiv : ε / (Fintype.card Γ : ℝ) ^ (q - 1) / 2 =
-      ε / (2 * (Fintype.card Γ : ℝ) ^ (q - 1)) := by ring
+    pow_pos (Nat.cast_pos.mpr Fintype.card_pos) _
+  obtain ⟨M, hM⟩ := (hA.isSmoothDecoder_adaptive hδ
+    (C fun _ => false)).exists_decodingMatching_of_nonadaptivePlan (div_pos hε hΓ) i
   refine ⟨⟨M.edges, M.pairwiseDisjoint, M.nonempty_of_mem, M.card_le_of_mem, M.predict,
-    fun e he => by rw [← hdiv]; exact M.correct e he⟩, ?_⟩
-  have hmul := mul_le_mul_of_nonneg_left hM (mul_pos hδ hΓ).le
-  have hlhs : δ * (Fintype.card Γ : ℝ) ^ (q - 1) *
-      (ε / (Fintype.card Γ : ℝ) ^ (q - 1) * Fintype.card P) = δ * ε * Fintype.card P := by
-    field_simp [hΓ.ne']
-  have hrhs : δ * (Fintype.card Γ : ℝ) ^ (q - 1) * ((q : ℝ) * ((q : ℝ) / δ) * M.edges.card) =
-      (q : ℝ) ^ 2 * (Fintype.card Γ : ℝ) ^ (q - 1) * M.edges.card := by
-    field_simp [hδ.ne']
-  linarith
+    fun e he => by simpa only [div_div, mul_comm _ (2 : ℝ)] using M.correct e he⟩, ?_⟩
+  linarith [mul_le_mul_of_nonneg_left hM (mul_pos hδ hΓ).le,
+    show δ * (Fintype.card Γ : ℝ) ^ (q - 1) *
+        (ε / (Fintype.card Γ : ℝ) ^ (q - 1) * Fintype.card P) = δ * ε * Fintype.card P by
+      field_simp [hΓ.ne'],
+    show δ * (Fintype.card Γ : ℝ) ^ (q - 1) * ((q : ℝ) * ((q : ℝ) / δ) * M.edges.card) =
+        (q : ℝ) ^ 2 * (Fintype.card Γ : ℝ) ^ (q - 1) * M.edges.card by field_simp [hδ.ne']]
 
 end Cslib.Code

@@ -194,20 +194,10 @@ theorem le_expect_mul_noiseOp_iff_lpNorm_le_lpNorm_noiseOp {r s ρ : ℝ} (hr : 
     ∀ g : (ι → Bool) → ℝ, (∀ x, 0 < g x) →
       lpNorm (1 + s) g ≤ lpNorm (1 + r⁻¹) (noiseOp ρ g) := by
   have hr0 : r ≠ 0 := hr.ne
-  have hq0 : 1 + r⁻¹ ≠ 0 := by
-    intro h
-    apply hr1
-    field_simp at h
-    linarith
+  have hq0 : 1 + r⁻¹ ≠ 0 := fun h => hr1 (by field_simp at h; linarith)
   have hq1 : 1 + r⁻¹ ≠ 1 := by simpa using hr.ne
-  have hconj : (1 + r⁻¹) / (1 + r⁻¹ - 1) = 1 + r := by
-    rw [add_sub_cancel_left]
-    field_simp
-    ring
-  have hconj' : (1 + r) / (1 + r - 1) = 1 + r⁻¹ := by
-    rw [add_sub_cancel_left]
-    field_simp
-    ring
+  have hconj : (1 + r⁻¹) / (1 + r⁻¹ - 1) = 1 + r := by rw [add_sub_cancel_left]; field_simp; ring
+  have hconj' : (1 + r) / (1 + r - 1) = 1 + r⁻¹ := by rw [add_sub_cancel_left]; field_simp; ring
   constructor
   · intro h g hg
     -- test against `h = (T_ρ g) ^ (1 / r)`, the equality case of the reverse Hölder inequality
@@ -255,10 +245,7 @@ theorem lpNorm_mul_lpNorm_le_expect_mul_noiseOp_of_lt_neg_one {r s ρ : ℝ} (hr
     linarith [div_nonpos_of_nonneg_of_nonpos (sub_nonneg.2 hrs) (by linarith : r ≤ 0)]
   have hρs : ρ ≤ √((1 - (1 + s)) / (1 - (1 + r⁻¹))) := by
     rwa [show (1 - (1 + s)) / (1 - (1 + r⁻¹)) = r * s by field_simp; ring]
-  have hconj : (1 + r) / (1 + r - 1) = 1 + r⁻¹ := by
-    rw [add_sub_cancel_left]
-    field_simp
-    ring
+  have hconj : (1 + r) / (1 + r - 1) = 1 + r⁻¹ := by rw [add_sub_cancel_left]; field_simp; ring
   refine le_expect_mul_noiseOp_of_unit_of_pos (by linarith) (by linarith) hρ hρ1
     (fun f g hf hg => ?_) hf hg
   have h1 := lpNorm_le_lpNorm_noiseOp_of_unit hq0 hqp (by linarith) hρ hρs hg
@@ -301,11 +288,10 @@ theorem lpNorm_le_lpNorm_noiseOp {p q ρ : ℝ} (hq : q ≠ 0) (hqp : q < p) (hp
     (hf : ∀ x, 0 ≤ f x) :
     lpNorm p f ≤ lpNorm q (noiseOp ρ f) := by
   by_cases h0 : ∀ x, f x = 0
-  · have hf0 : lpNorm p f = 0 := by
-      simp [lpNorm, h0, Real.zero_rpow hp.ne', Real.zero_rpow (inv_ne_zero hp.ne')]
-    exact hf0 ▸ lpNorm_nonneg _ _
-  push Not at h0
-  obtain ⟨y, hy⟩ := h0
+  · rw [show lpNorm p f = 0 by
+      simp [lpNorm, h0, Real.zero_rpow hp.ne', Real.zero_rpow (inv_ne_zero hp.ne')]]
+    exact lpNorm_nonneg _ _
+  obtain ⟨y, hy⟩ := not_forall.1 h0
   have hq1 : q - 1 < 0 := by linarith
   have hq1' : q - 1 ≠ 0 := hq1.ne
   have hq1'' : 1 - q ≠ 0 := by intro h; linarith
@@ -324,11 +310,9 @@ theorem lpNorm_le_lpNorm_noiseOp {p q ρ : ℝ} (hq : q ≠ 0) (hqp : q < p) (hp
     · exact lpNorm_mul_lpNorm_le_expect_mul_noiseOp (r := (q - 1)⁻¹) (s := p - 1)
         (by rw [lt_inv_of_neg (by norm_num) hq1]; linarith) hr.le (by linarith) (by linarith) hρ
         (by rwa [hrs]) (fun x => (Real.rpow_pos_of_pos (hT x) (q - 1)).le) hf
-    · refine lpNorm_mul_lpNorm_le_expect_mul_noiseOp_of_lt_neg_one (r := (q - 1)⁻¹) (s := p - 1)
-        ?_ (by linarith) (by linarith) (by rw [hrs]; exact hσ1.le) hρ (by rwa [hrs])
-        (fun x => Real.rpow_pos_of_pos (hT x) (q - 1)) hf
-      rw [inv_lt_of_neg hq1 (by norm_num)]
-      linarith
+    · exact lpNorm_mul_lpNorm_le_expect_mul_noiseOp_of_lt_neg_one (r := (q - 1)⁻¹) (s := p - 1)
+        (by rw [inv_lt_of_neg hq1 (by norm_num)]; linarith) (by linarith) (by linarith)
+        (by rw [hrs]; exact hσ1.le) hρ (by rwa [hrs]) (fun x => Real.rpow_pos_of_pos (hT x) _) hf
   simp only [mul_comm (_ ^ (q - 1)), heq, add_sub_cancel] at key
   rw [mul_comm (lpNorm q _)] at key
   exact le_of_mul_le_mul_left key hh
@@ -351,9 +335,7 @@ theorem lpNorm_le_lpNorm_noiseOp_of_neg {p q ρ : ℝ} (hqp : q < p) (hp : p < 0
   have hq1' : q - 1 ≠ 0 := hq1.ne
   have hq1'' : 1 - q ≠ 0 := by intro h; linarith
   have hr : (q - 1)⁻¹ < 0 := inv_lt_zero.2 hq1
-  have hr' : -1 < (q - 1)⁻¹ := by
-    rw [lt_inv_of_neg (by norm_num) hq1]
-    linarith
+  have hr' : -1 < (q - 1)⁻¹ := by rw [lt_inv_of_neg (by norm_num) hq1]; linarith
   have hσ1 : (1 - p) / (1 - q) ≤ 1 := div_le_one_of_le₀ (by linarith) (by linarith)
   have hρ1 : ρ ≤ 1 := hρ'.trans (Real.sqrt_le_one.2 hσ1)
   have hrs : (p - 1) * (q - 1)⁻¹ = (1 - p) / (1 - q) := by field_simp; ring
@@ -380,8 +362,8 @@ private theorem expect_indicator_mul_noiseOp_of_expect_eq_one {A : Set (ι → B
   have hA1 (x : ι → Bool) : A.indicator (1 : (ι → Bool) → ℝ) x = 1 := by
     linarith [congrFun h1 x, Pi.zero_apply (M := fun _ : ι → Bool => ℝ) x]
   simp only [hA1, one_mul]
-  have h := expect_mul_noiseOp_comm ρ (fun _ => (1 : ℝ)) (B.indicator 1)
-  simpa only [one_mul, noiseOp_const] using h
+  simpa only [one_mul, noiseOp_const] using
+    expect_mul_noiseOp_comm ρ (fun _ => (1 : ℝ)) (B.indicator 1)
 
 /-- **The Reverse Small-Set Expansion Theorem for `ρ < 1`**: let `0 ≤ ρ < 1`, and let `A` and `B`
 have volumes `exp (-a ^ 2 / 2)` and `exp (-b ^ 2 / 2)` with `a, b ≥ 0`. Then the probability that
@@ -418,10 +400,7 @@ theorem exp_le_expect_indicator_mul_noiseOp_indicator {ρ a b : ℝ} (hρ : 0 �
   have hq0 : 0 < q := by positivity
   have hp1 : p ≤ 1 := (div_le_one hab).2 (by nlinarith [mul_nonneg hρ hb])
   have hq1 : q ≤ 1 := (div_le_one hba).2 (by nlinarith [mul_nonneg hρ ha])
-  have hpq : (p - 1) * (q - 1) = ρ ^ 2 := by
-    rw [hp, hq]
-    field_simp
-    ring
+  have hpq : (p - 1) * (q - 1) = ρ ^ 2 := by rw [hp, hq]; field_simp; ring
   have h := lpNorm_mul_lpNorm_le_expect_mul_noiseOp (r := p - 1) (s := q - 1) (by linarith)
     (by linarith) (by linarith) (by linarith) hρ (by rw [hpq, Real.sqrt_sq hρ])
     (f := A.indicator 1) (g := B.indicator 1) (Set.indicator_nonneg fun _ _ => zero_le_one)

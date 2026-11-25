@@ -192,20 +192,15 @@ private theorem level {N M a a' A c c' : ℕ} {P P' : ℝ} (hN : 0 < N) (hM : 16
     rw [← add_div, div_eq_one_iff_eq hAR.ne', hA]; push_cast; ring
   have hle' : (c' : ℝ) / N ≤ c / N := by gcongr
   obtain ⟨hπ, h1, h2⟩ := choose_real hsum hd hd' hle' hγ
-  have h8 : 4 * (2 / (M : ℝ)) = 8 / M := by ring
-  rw [h8] at h1 h2
-  have ha : 0 < a := by
-    rcases Nat.eq_zero_or_pos a with h | h
-    · rw [h, Nat.cast_zero, zero_div] at hπ; norm_num at hπ
-    · exact h
-  have hcpos : 0 < c := by
-    rcases Nat.eq_zero_or_pos c with h | h
-    · rw [h, Nat.cast_zero, zero_div] at h1
-      have : (0 : ℝ) < (1 - 8 / M) * (a / A) :=
-        mul_pos (by rw [sub_pos, div_lt_one (by linarith only [hMR])]; linarith only [hMR])
-          (by positivity)
-      linarith only [h1, this]
-    · exact h
+  rw [show 4 * (2 / (M : ℝ)) = 8 / M by ring] at h1 h2
+  have ha : 0 < a := Nat.pos_of_ne_zero fun h => by
+    rw [h, Nat.cast_zero, zero_div] at hπ; norm_num at hπ
+  have hcpos : 0 < c := Nat.pos_of_ne_zero fun h => by
+    rw [h, Nat.cast_zero, zero_div] at h1
+    have : (0 : ℝ) < (1 - 8 / M) * (a / A) :=
+      mul_pos (by rw [sub_pos, div_lt_one (by linarith only [hMR])]; linarith only [hMR])
+        (by positivity)
+    linarith only [h1, this]
   refine ⟨ha, hcpos, ?_, ?_⟩
   · simpa only [show (1 - 8 / (M : ℝ)) * (a / A) * (N * A) = (1 - 8 / M) * N * a by field_simp,
       show (c : ℝ) / N * (N * A) = c * A by field_simp] using
@@ -340,13 +335,9 @@ private theorem step_failure {S : α → ℕ → ProbComp (Option (List Bool))} 
       (bad false)ᶜ {s' | ¬ R.Good x p (i + 1) s'}
       (ENNReal.ofReal ((1 / 2 : ℝ) ^ (t + R.len x + 1))) (fun c₀ _ hc₀ => by
         rw [ProbComp.eval_map, PMF.toOuterMeasure_map_apply]
-        refine le_trans (MeasureTheory.measure_mono ?_) (hbadE true)
-        intro c₁ hc₁
+        refine le_trans (MeasureTheory.measure_mono fun c₁ hc₁ => ?_) (hbadE true)
         by_contra hc₁'
-        apply hc₁
-        refine R.good_next hi hs hS ?_ ?_
-        · simpa [bad] using hc₀
-        · simpa [bad] using hc₁')
+        exact hc₁ (R.good_next hi hs hS (by simpa [bad] using hc₀) (by simpa [bad] using hc₁')))
     rw [compl_compl] at h
     exact h.trans (add_le_add (hbadE false) le_rfl)
   ennreal_to_real at hle
@@ -389,8 +380,7 @@ private theorem approxWithin_of_good {x : α} {p : ℕ} (hp : 0 < p) {s : State 
     have hm := mul_le_mul_of_nonneg_right hbern (by positivity : (0 : ℝ) ≤ p + 1)
     linarith only [hm, hℓ, show (1 + (ℓ : ℝ) * -(1 / (2 * (ℓ + 1) * (p + 1)))) * (p + 1) =
       p + 1 - ℓ * (1 / (2 * (ℓ + 1) * (p + 1))) * (p + 1) by ring]
-  rw [abs_sub_le_iff]
-  constructor
+  refine abs_sub_le_iff.2 ⟨?_, ?_⟩
   · rw [div_sub' hdenR.ne', div_le_div_iff₀ hdenR hpR]
     have hm1 := mul_le_mul_of_nonneg_right h5 (by positivity : (0 : ℝ) ≤ p + 1)
     have hm2 := mul_le_mul_of_nonneg_left hKp hnum
@@ -425,13 +415,10 @@ theorem estimate_eq_zero (S : α → ℕ → ProbComp (Option (List Bool))) {x :
       obtain ⟨c₀, c₁, -, -, rfl⟩ := R.mem_support_step hs'
       have hlen : 0 < R.len s.1 := by omega
       refine ⟨?_, R.card_child_eq_zero hlen hW _, Nat.mul_pos hden (by omega)⟩
-      simp only [next]
-      rw [R.len_child s.1 hlen]
+      rw [next, R.len_child s.1 hlen]
       omega) s hs
   obtain ⟨-, hW, hden⟩ := hinv
-  have hnil : [] ∉ W s.1 := fun h => by
-    rw [Finset.card_eq_zero] at hW
-    simp [hW] at h
+  have hnil : [] ∉ W s.1 := fun h => by simp [Finset.card_eq_zero.mp hW] at h
   exact ⟨by simp [hnil], hden⟩
 
 /-- **Accuracy of the sampling-to-counting estimator**: if `S x q` is within total-variation
@@ -469,8 +456,7 @@ theorem approxWithin_estimate {S : α → ℕ → ProbComp (Option (List Bool))}
     rw [this]
     calc (1 / 2 : ℝ) ^ t * (ℓ * (1 / 2) ^ ℓ) ≤ (1 / 2 : ℝ) ^ t * 1 := by
           gcongr
-          rw [one_div_pow, mul_one_div, div_le_one (by positivity)]
-          exact h2
+          rwa [one_div_pow, mul_one_div, div_le_one (by positivity)]
       _ = (1 / 2 : ℝ) ^ t := mul_one _
   rw [estimate, ProbComp.eval_map, PMF.toOuterMeasure_map_apply]
   set μ := ProbComp.eval (OracleComp.iterate ℓ (R.step S ℓ p t) (x, 1, 1))

@@ -304,9 +304,7 @@ private theorem unreached_update_of_none {dm : Dictionary.State n} {v : Fin n} (
   have : (Finset.univ.filter fun w => Function.update dm v (some x) w = none) =
       (Finset.univ.filter fun w => dm w = none).erase v := by
     ext w
-    by_cases hw : w = v
-    · subst hw; simp
-    · simp [hw]
+    rcases eq_or_ne w v with rfl | hw <;> simp [*]
   rw [unreached, this, Finset.card_erase_of_mem (by simpa using hv), unreached]
   have : 0 < (Finset.univ.filter fun w => dm w = none).card :=
     Finset.card_pos.mpr ⟨v, by simpa using hv⟩
@@ -317,30 +315,19 @@ private theorem unreached_update_of_some {dm : Dictionary.State n} {v : Fin n} {
   unfold unreached
   congr 1
   ext w
-  by_cases hw : w = v
-  · subst hw; simp [hv]
-  · simp [hw]
+  rcases eq_or_ne w v with rfl | hw <;> simp [*]
 
 private theorem syncQ_update {T : Finset (Fin n)} {dm : Dictionary.State n} {v : Fin n}
     (hv : v ∉ T) (x : Option ℕ) :
     Function.update (syncQ T dm) v x = syncQ T (Function.update dm v x) := by
   funext w
-  by_cases hw : w = v
-  · subst hw; simp [syncQ, hv]
-  · simp [syncQ, hw]
+  rcases eq_or_ne w v with rfl | hw <;> simp [syncQ, *]
 
 private theorem card_dom_lt {dm : Dictionary.State n} {v : Fin n} (hv : dm v = none) :
     (Dictionary.dom dm).card < n := by
-  have hsub : Dictionary.dom dm ⊆ Finset.univ.erase v := by
-    intro w hw
-    rw [Finset.mem_erase]
-    refine ⟨?_, Finset.mem_univ w⟩
-    rintro rfl
-    simp [Dictionary.dom, hv] at hw
-  have := Finset.card_le_card hsub
-  rw [Finset.card_erase_of_mem (Finset.mem_univ v), Finset.card_univ, Fintype.card_fin] at this
-  have := v.pos
-  omega
+  have := Finset.card_lt_univ_of_notMem (s := Dictionary.dom dm) (x := v)
+    (by simp [Dictionary.dom, hv])
+  rwa [Fintype.card_fin] at this
 
 private theorem Runs.of_runClient {s s' : (spec n K V).State} {p : (spec n K V).Client Unit}
     {hist : List (spec n K V).Op} {b : ℕ} (h : (spec n K V).runClient s p = ((), s', hist))
@@ -571,12 +558,9 @@ private theorem tentative_scanMap_apply (du : ℕ) (es : List (Fin n × ℕ))
       ListInstance.relaxEdges du es v
         (if w = v then min (tentative dm v) (du + c) else tentative dm v)
     congr 1
-    by_cases hw : w = v
-    · subst hw
-      rw [ite_eq_left rfl]
-      simp only [tentative, Function.update_self, elim_relaxOpt]
-    · rw [ite_eq_right hw]
-      simp only [tentative, Function.update_of_ne (Ne.symm hw)]
+    rcases eq_or_ne w v with rfl | hw
+    · simp only [tentative, Function.update_self, elim_relaxOpt, ↓reduceIte]
+    · simp only [tentative, Function.update_of_ne hw.symm, hw, ↓reduceIte]
 
 /-- Scanning the edges out of `u` relaxes the tentative distances. -/
 private theorem tentative_scanMap (G : ListInstance) {dm : Dictionary.State G.n} {u : Fin G.n}
@@ -612,14 +596,11 @@ private theorem Good.visit {G : ListInstance} {T : Finset (Fin G.n)} {dm : Dicti
   have hmin : ∀ v ∉ T, tentative dm u ≤ tentative dm v := by
     intro v hv
     rcases hdv : dm v with _ | dv
-    · rw [tentative_of_none hdv]
-      exact le_top
+    · exact tentative_of_none hdv ▸ le_top
     · rw [tentative_of_some hdv, hDu]
       exact_mod_cast IndexedMinPQ.findMin_key_le hf (v := v) (k' := dv)
         (by simp [syncQ, hv, hdv])
-  have hfin : tentative dm u ≠ ⊤ := by
-    rw [hDu]
-    exact ENat.natCast_ne_top du
+  have hfin : tentative dm u ≠ ⊤ := hDu ▸ ENat.natCast_ne_top du
   -- Every edge out of `u` into `u` or a visited vertex is already relaxed.
   have hset : ∀ v c, (v, c) ∈ G.adj u → v ∈ insert u T →
       ∃ dv, dm v = some dv ∧ dv ≤ du + c := by
@@ -648,9 +629,8 @@ private theorem Good.visit {G : ListInstance} {T : Finset (Fin G.n)} {dm : Dicti
     have := Finset.card_le_univ (insert u T)
     rwa [Finset.card_insert_of_notMem huT, Fintype.card_fin] at this
   have hduW : du ≤ T.card * G.maxWeight := by
-    have h : tentative dm u ≤ ((T.card * G.toInstance.maxWeight : ℕ) : ℕ∞) :=
-      hgood.inv.bound u hfin
-    rw [hDu] at h
+    have h : (du : ℕ∞) ≤ ((T.card * G.toInstance.maxWeight : ℕ) : ℕ∞) :=
+      hDu ▸ hgood.inv.bound u hfin
     have h' : du ≤ T.card * G.toInstance.maxWeight := by exact_mod_cast h
     exact h'.trans (Nat.mul_le_mul_left _ G.toInstance_maxWeight_le)
   have hbound : ∀ v c, (v, c) ∈ G.adj u → du + c ≤ K ∧ du + c < V := by
@@ -730,9 +710,8 @@ private theorem loop_runs (G : ListInstance) (hK : G.n * G.maxWeight ≤ K)
       refine ⟨dist, hdist, ?_⟩
       have hsync : Function.update (syncQ T dm) u none = syncQ (insert u T) dm := by
         funext v
-        by_cases hv : v = u
-        · subst hv
-          simp [syncQ]
+        rcases eq_or_ne v u with rfl | hv
+        · simp [syncQ]
         · simp [syncQ, hv]
       have hcard : (IndexedMinPQ.dom (syncQ (insert u T) dm)).card + 1 =
           (IndexedMinPQ.dom (syncQ T dm)).card := by
@@ -773,9 +752,8 @@ private theorem dijkstra_runs (G : ListInstance) (hK : G.n * G.maxWeight ≤ K)
   set dm₀ := Function.update (Dictionary.empty G.n) G.source (some 0) with hdm₀
   have htent : tentative dm₀ = Function.update (fun _ => ⊤) G.source 0 := by
     funext v
-    by_cases hv : v = G.source
-    · subst hv
-      simp [dm₀, tentative_of_some]
+    rcases eq_or_ne v G.source with rfl | hv
+    · simp [dm₀, tentative_of_some]
     · rw [Function.update_of_ne hv, tentative_of_none (by simp [dm₀, hv, Dictionary.empty])]
   have hgood : Good G ∅ dm₀ :=
     ⟨fun v hv => absurd hv (Finset.notMem_empty v),
@@ -785,9 +763,8 @@ private theorem dijkstra_runs (G : ListInstance) (hK : G.n * G.maxWeight ≤ K)
   refine ⟨dist, hdist, ?_⟩
   have hq₀ : Function.update (IndexedMinPQ.empty G.n) G.source (some 0) = syncQ ∅ dm₀ := by
     funext v
-    by_cases hv : v = G.source
-    · subst hv
-      simp [syncQ, dm₀]
+    rcases eq_or_ne v G.source with rfl | hv
+    · simp [syncQ, dm₀]
     · simp [syncQ, dm₀, hv, IndexedMinPQ.empty, Dictionary.empty]
   have hrun : (spec G.n K V).runClient (init G) (dijkstra G.source) =
       ((spec G.n K V).clientResult (syncQ ∅ dm₀, dm₀, G.adj) (loop G.n),

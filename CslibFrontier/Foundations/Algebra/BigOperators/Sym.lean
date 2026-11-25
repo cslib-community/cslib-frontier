@@ -16,16 +16,17 @@ import Mathlib.Data.Fintype.BigOperators
 
 `Fintype.sum_sum_ite_eq_two_nsmul_sum_sym2`: summing a function of the unordered pair `s(a, b)`
 over the ordered pairs `(a, b)` of distinct elements counts every unordered pair that is not on
-the diagonal twice.
+the diagonal twice. `Fintype.sum_subtype_not_isDiag`: a sum over the unordered pairs off the
+diagonal, as a subtype, is a sum over all unordered pairs that leaves out the diagonal.
 
 ## Main results
 
-* `Fintype.sum_sum_ite_eq_two_nsmul_sum_sym2`.
+* `Fintype.sum_sum_ite_eq_two_nsmul_sum_sym2`, `Fintype.sum_subtype_not_isDiag`.
 
 ## References
 
 * [Anthropic, *VP ≠ VNP over every field*, paper and Lean formalization][AnthropicVPVNP2026],
-  module `Nc.Tow.FromPrice` (`sum_off`)
+  modules `Nc.Tow.FromPrice` (`sum_off`) and `Paper.Laws`
 -/
 
 public section
@@ -51,3 +52,11 @@ theorem Fintype.sum_sum_ite_eq_two_nsmul_sum_sym2 {α M : Type*} [Fintype α] [D
       simp [or_comm]
     rw [hf, Finset.sum_pair (by simp [hab]), ite_eq_right hab, ite_eq_right (Ne.symm hab),
       ite_eq_right (mt Sym2.mk_isDiag_iff.1 hab), Sym2.eq_swap, two_nsmul]
+
+/-- A sum over the unordered pairs off the diagonal, as a subtype, is the sum over all unordered
+pairs that leaves out the diagonal. -/
+theorem Fintype.sum_subtype_not_isDiag {α M : Type*} [Fintype α] [DecidableEq α]
+    [AddCommMonoid M] (f : Sym2 α → M) :
+    ∑ e : {q : Sym2 α // ¬ q.IsDiag}, f e = ∑ q : Sym2 α, if q.IsDiag then 0 else f q := by
+  rw [← Finset.sum_subtype (univ.filter fun q : Sym2 α => ¬ q.IsDiag) (by simp) f, sum_filter]
+  simp only [ite_not]

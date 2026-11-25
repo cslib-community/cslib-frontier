@@ -146,9 +146,7 @@ variable (atm : MultiTapeATM k Bool State) {input : List Bool} {n : ℕ}
 /-- A halted configuration accepts exactly when its output is `[true]`. -/
 theorem acceptsWithin_of_halted (h : c.state = none) :
     atm.AcceptsWithin n c ↔ c.output = [true] := by
-  cases n with
-  | zero => simp [AcceptsWithin, h]
-  | succ n => simp [AcceptsWithin, h]
+  cases n <;> simp [AcceptsWithin, h]
 
 /-- A running configuration does not accept without moves. -/
 theorem not_acceptsWithin_zero {q : State} (h : c.state = some q) : ¬atm.AcceptsWithin 0 c := by
@@ -174,18 +172,16 @@ variable {atm}
 theorem AcceptsWithin.mono {n' : ℕ} (h : atm.AcceptsWithin n c) (hn : n ≤ n') :
     atm.AcceptsWithin n' c := by
   induction n generalizing n' c with
-  | zero =>
-    obtain ⟨hhalt, hout⟩ := h
-    exact (atm.acceptsWithin_of_halted hhalt).mpr hout
+  | zero => exact (atm.acceptsWithin_of_halted h.1).mpr h.2
   | succ n ih =>
     obtain ⟨n', rfl⟩ : ∃ m, n' = m + 1 := ⟨n' - 1, by omega⟩
     rcases hs : c.state with _ | q
     · exact (atm.acceptsWithin_of_halted hs).mpr ((atm.acceptsWithin_of_halted hs).mp h)
     · cases hq : atm.universal q
-      · obtain ⟨b, hb⟩ := (atm.acceptsWithin_succ_of_existential hs hq).mp h
-        exact (atm.acceptsWithin_succ_of_existential hs hq).mpr ⟨b, ih hb (by omega)⟩
-      · have hb := (atm.acceptsWithin_succ_of_universal hs hq).mp h
-        exact (atm.acceptsWithin_succ_of_universal hs hq).mpr fun b => ih (hb b) (by omega)
+      · rw [atm.acceptsWithin_succ_of_existential hs hq] at h ⊢
+        exact h.imp fun _ hb => ih hb (by omega)
+      · rw [atm.acceptsWithin_succ_of_universal hs hq] at h ⊢
+        exact fun b => ih (h b) (by omega)
 
 /-- If every list of `t` moves from `c` reaches a halted configuration, acceptance within any
 number of moves is acceptance within `t`. -/
@@ -194,23 +190,21 @@ theorem AcceptsWithin.of_halted_stepCoins {t : ℕ}
     (h : atm.AcceptsWithin n c) : atm.AcceptsWithin t c := by
   induction t generalizing n c with
   | zero =>
-    have hhalt : c.state = none := ht [] rfl
-    exact (atm.acceptsWithin_of_halted hhalt).mpr ((atm.acceptsWithin_of_halted hhalt).mp h)
+    have hs : c.state = none := ht [] rfl
+    exact (atm.acceptsWithin_of_halted hs).mpr ((atm.acceptsWithin_of_halted hs).mp h)
   | succ t ih =>
     rcases hs : c.state with _ | q
     · exact (atm.acceptsWithin_of_halted hs).mpr ((atm.acceptsWithin_of_halted hs).mp h)
-    · obtain ⟨n, rfl⟩ : ∃ m, n = m + 1 := by
-        cases n with
-        | zero => exact absurd h (atm.not_acceptsWithin_zero hs)
-        | succ m => exact ⟨m, rfl⟩
-      have ht' (b : Bool) : ∀ coins : List Bool, coins.length = t →
-          (atm.toPTM.stepCoins coins (atm.next b c)).state = none :=
-        fun coins hlen => ht (b :: coins) (by simp [hlen])
-      cases hq : atm.universal q
-      · obtain ⟨b, hb⟩ := (atm.acceptsWithin_succ_of_existential hs hq).mp h
-        exact (atm.acceptsWithin_succ_of_existential hs hq).mpr ⟨b, ih (ht' b) hb⟩
-      · have hb := (atm.acceptsWithin_succ_of_universal hs hq).mp h
-        exact (atm.acceptsWithin_succ_of_universal hs hq).mpr fun b => ih (ht' b) (hb b)
+    · cases n with
+      | zero => exact absurd h (atm.not_acceptsWithin_zero hs)
+      | succ n =>
+        have ht' (b : Bool) (coins : List Bool) (hlen : coins.length = t) :=
+          ht (b :: coins) (by simp [hlen])
+        cases hq : atm.universal q
+        · rw [atm.acceptsWithin_succ_of_existential hs hq] at h ⊢
+          exact h.imp fun b => ih (ht' b)
+        · rw [atm.acceptsWithin_succ_of_universal hs hq] at h ⊢
+          exact fun b => ih (ht' b) (h b)
 
 end Acceptance
 
@@ -228,8 +222,8 @@ theorem state_stepCoins_eq_none (h : atm.toPTM.toNTM.RunsInTime input t)
   obtain ⟨p, hhead, hp, hlast⟩ :=
     (atm.toPTM.exists_runPath_toNTM_iff (c := atm.toPTM.toNTM.initCfg input)).mpr
       ⟨coins, hlen, rfl⟩
-  rw [← hlast]
-  exact h ⟨p, hhead⟩ (by simp [MultiTapeNTM.ComputationPath.time, MultiTapeNTM.RunPath.time, hp])
+  exact hlast ▸ h ⟨p, hhead⟩
+    (by simp [MultiTapeNTM.ComputationPath.time, MultiTapeNTM.RunPath.time, hp])
 
 /-- **Time bounds through moves.** Every computation path of at least `t` steps ends halted
 exactly when every list of `t` moves from the initial configuration reaches a halted
@@ -237,14 +231,14 @@ configuration. -/
 theorem runsInTime_iff_stepCoins : atm.toPTM.toNTM.RunsInTime input t ↔
     ∀ coins : List Bool, coins.length = t →
       (atm.toPTM.stepCoins coins (atm.toPTM.toNTM.initCfg input)).state = none := by
-  refine ⟨fun h _ hlen => state_stepCoins_eq_none h hlen, fun h p hp => ?_⟩
-  have ht : t < p.length + 1 := Nat.lt_succ_of_le hp
-  obtain ⟨coins, hlen, hcoins⟩ := (atm.toPTM.exists_runPath_toNTM_iff).mp
-    ⟨p.toRunPath.take ⟨t, ht⟩, RelSeries.head_take .., rfl, RelSeries.last_take _ _⟩
-  have hhalt : (p.toRunPath ⟨t, ht⟩).Halted := by
+  refine ⟨fun h _ => state_stepCoins_eq_none h, fun h p hp => ?_⟩
+  obtain ⟨coins, hlen, hcoins⟩ := atm.toPTM.exists_runPath_toNTM_iff.mp
+    ⟨p.toRunPath.take ⟨t, Nat.lt_succ_of_le hp⟩, RelSeries.head_take .., rfl,
+      RelSeries.last_take _ _⟩
+  have hhalt : (p.toRunPath ⟨t, Nat.lt_succ_of_le hp⟩).Halted := by
     rw [← hcoins, show p.head = atm.toPTM.toNTM.initCfg input from p.head_eq]
     exact h coins hlen
-  exact (MultiTapeNTM.RunPath.last_eq_of_halted p.toRunPath _ hhalt) ▸ hhalt
+  exact MultiTapeNTM.RunPath.last_eq_of_halted p.toRunPath _ hhalt ▸ hhalt
 
 end Time
 
@@ -275,20 +269,15 @@ theorem acceptsWithin_iff_exists_stepCoins (h : ∀ q, atm.universal q = false) 
   | succ n ih =>
     rcases hs : c.state with _ | q
     · rw [atm.acceptsWithin_of_halted hs]
-      constructor
-      · intro hout
-        exact ⟨List.replicate (n + 1) false, List.length_replicate .., by
-          rw [stepCoins_of_halted atm hs]; exact ⟨hs, hout⟩⟩
-      · rintro ⟨coins, -, -, hout⟩
-        rwa [stepCoins_of_halted atm hs] at hout
-    · rw [atm.acceptsWithin_succ_of_existential hs (h q)]
-      constructor
-      · rintro ⟨b, hb⟩
-        obtain ⟨coins, hlen, hcoins⟩ := ih.mp hb
-        exact ⟨b :: coins, by simp [hlen], hcoins⟩
-      · rintro ⟨coins, hlen, hcoins⟩
-        obtain ⟨b, coins, rfl⟩ := List.exists_cons_of_length_eq_add_one hlen
-        exact ⟨b, ih.mpr ⟨coins, by simpa using hlen, hcoins⟩⟩
+      refine ⟨fun hout => ⟨List.replicate (n + 1) false, List.length_replicate, ?_⟩,
+        fun ⟨coins, _, _, hout⟩ => by rwa [stepCoins_of_halted atm hs] at hout⟩
+      rw [stepCoins_of_halted atm hs]
+      exact ⟨hs, hout⟩
+    · simp only [atm.acceptsWithin_succ_of_existential hs (h q), ih]
+      refine ⟨fun ⟨b, coins, hlen, hcoins⟩ => ⟨b :: coins, by simp [hlen], hcoins⟩, ?_⟩
+      rintro ⟨coins, hlen, hcoins⟩
+      obtain ⟨b, coins, rfl⟩ := List.exists_cons_of_length_eq_add_one hlen
+      exact ⟨b, coins, by simpa using hlen, hcoins⟩
 
 /-- **Without universal states an alternating machine is nondeterministic**: under a time bound,
 it accepts exactly when the nondeterministic machine of its table accepts. -/
@@ -297,14 +286,13 @@ theorem accepts_iff_toNTM_accepts (h : ∀ q, atm.universal q = false) {t : ℕ}
     atm.Accepts input ↔ atm.toPTM.toNTM.Accepts input := by
   rw [accepts_iff_acceptsWithin ht, acceptsWithin_iff_exists_stepCoins h,
     MultiTapeNTM.accepts_iff_exists_time_eq ht]
-  constructor
+  refine ⟨?_, fun ⟨p, hp, hout⟩ => ?_⟩
   · rintro ⟨coins, hlen, -, hout⟩
     obtain ⟨p, hhead, hp, hlast⟩ :=
       (atm.toPTM.exists_runPath_toNTM_iff (c := atm.toPTM.toNTM.initCfg input)).mpr
         ⟨coins, hlen, rfl⟩
     exact ⟨⟨p, hhead⟩, hp, hlast ▸ hout⟩
-  · rintro ⟨p, hp, hout⟩
-    obtain ⟨coins, hlen, hcoins⟩ := (atm.toPTM.exists_runPath_toNTM_iff).mp
+  · obtain ⟨coins, hlen, hcoins⟩ := atm.toPTM.exists_runPath_toNTM_iff.mp
       ⟨p.toRunPath, p.head_eq, hp, rfl⟩
     exact ⟨coins, hlen, state_stepCoins_eq_none ht hlen, hcoins ▸ hout⟩
 

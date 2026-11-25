@@ -96,17 +96,17 @@ theorem input_nonneg (hC0 : ∀ x y, 0 ≤ C x y) (i : ℕ) (x y : V) : 0 ≤ (C
 most `i`, and the input of step `i + 1` at most `i + 1` [OpenAI2026LogSpace, Lemma 4.2]. -/
 theorem sum_input_le (hC1 : C *ᵥ 1 ≤ 1) :
     ∀ i x, ∑ y, (C + F i * C) x y ≤ i + 1 ∧ ∑ y, F i x y ≤ i := by
-  have hrow : ∀ z, ∑ y, C z y ≤ 1 := fun z => by simpa [mulVec, dotProduct] using hC1 z
-  have hinput : ∀ i x, ∑ y, F i x y ≤ i → ∑ y, (C + F i * C) x y ≤ i + 1 := fun i x hi => by
-    calc ∑ y, (C + F i * C) x y = ∑ y, C x y + ∑ z, F i x z * ∑ y, C z y := by
-          simp only [Matrix.add_apply, Matrix.mul_apply, sum_add_distrib, mul_sum]
-          rw [sum_comm]
-      _ ≤ 1 + ∑ z, F i x z * 1 := add_le_add (hrow x) (sum_le_sum fun z _ =>
-          mul_le_mul_of_nonneg_left (hrow z) (hF.nonneg i x z))
-      _ ≤ i + 1 := by simp only [mul_one]; linarith
+  have hrow (z) : ∑ y, C z y ≤ 1 := by simpa [mulVec, dotProduct] using hC1 z
+  have hinput (i x) (hi : ∑ y, F i x y ≤ i) : ∑ y, (C + F i * C) x y ≤ i + 1 := by
+    simp only [Matrix.add_apply, Matrix.mul_apply, sum_add_distrib]
+    rw [sum_comm]
+    simp_rw [← mul_sum]
+    refine (add_le_add (hrow x) (sum_le_sum fun z _ =>
+      mul_le_mul_of_nonneg_left (hrow z) (hF.nonneg i x z))).trans ?_
+    simpa only [mul_one, add_comm] using add_le_add_right hi 1
   intro i
   induction i with
-  | zero => intro x; simpa [hF.zero] using hinput 0 x (by simp [hF.zero])
+  | zero => exact fun x => ⟨by simpa using hinput 0 x (by simp [hF.zero]), by simp [hF.zero]⟩
   | succ i ih =>
     intro x
     have hsum : ∑ y, F (i + 1) x y ≤ (i + 1 : ℕ) := by
@@ -143,25 +143,21 @@ variable {A : Finset V}
 [OpenAI2026LogSpace, Lemma 4.2]. -/
 theorem input_mem_and_mem (hA : ∀ x y, C x y ≠ 0 → x ∈ A ∧ y ∈ A) :
     ∀ i x y, ((C + F i * C) x y ≠ 0 → x ∈ A ∧ y ∈ A) ∧ (F i x y ≠ 0 → x ∈ A ∧ y ∈ A) := by
-  have hinput : ∀ i, (∀ x y, F i x y ≠ 0 → x ∈ A ∧ y ∈ A) →
-      ∀ x y, (C + F i * C) x y ≠ 0 → x ∈ A ∧ y ∈ A := fun i hi x y h => by
+  have hinput (i) (hi : ∀ x y, F i x y ≠ 0 → x ∈ A ∧ y ∈ A) (x y)
+      (h : (C + F i * C) x y ≠ 0) : x ∈ A ∧ y ∈ A := by
     by_contra hxy
-    apply h
-    have hCxy : C x y = 0 := by by_contra h'; exact hxy (hA x y h')
-    simp only [Matrix.add_apply, Matrix.mul_apply, hCxy, zero_add]
-    refine sum_eq_zero fun z _ => ?_
-    by_cases hE : F i x z = 0
-    · rw [hE, zero_mul]
-    by_cases hCz : C z y = 0
-    · rw [hCz, mul_zero]
-    exact absurd ⟨(hi x z hE).1, (hA z y hCz).2⟩ hxy
+    refine h ?_
+    simp only [Matrix.add_apply, Matrix.mul_apply,
+      show C x y = 0 from by_contra fun h' => hxy (hA x y h'), zero_add]
+    refine sum_eq_zero fun z _ => by_contra fun hz => hxy ?_
+    exact ⟨(hi x z (left_ne_zero_of_mul hz)).1, (hA z y (right_ne_zero_of_mul hz)).2⟩
   intro i
   induction i with
   | zero =>
-    have h0 : ∀ x y, F 0 x y ≠ 0 → x ∈ A ∧ y ∈ A := fun x y h => by simp [hF.zero] at h
+    have h0 (x y) (h : F 0 x y ≠ 0) : x ∈ A ∧ y ∈ A := absurd (by simp [hF.zero]) h
     exact fun x y => ⟨hinput 0 h0 x y, h0 x y⟩
   | succ i ih =>
-    have hi : ∀ x y, F (i + 1) x y ≠ 0 → x ∈ A ∧ y ∈ A := fun x y h =>
+    have hi (x y) (h : F (i + 1) x y ≠ 0) : x ∈ A ∧ y ∈ A :=
       (ih x y).1 fun h' => h (le_antisymm (h' ▸ hF.le_input i x y) (hF.nonneg_succ i x y))
     exact fun x y => ⟨hinput _ hi x y, hi x y⟩
 
@@ -180,10 +176,8 @@ theorem isStrictUpperTriangular [Preorder V] (hC : C.IsStrictUpperTriangular) (i
   induction i with
   | zero => intro x y _; simp [hF.zero]
   | succ i ih =>
-    intro x y hxy
-    have h := hF.le_input i x y
-    rw [(hC.add (ih.mul hC)) hxy] at h
-    exact le_antisymm h (hF.nonneg_succ i x y)
+    exact fun x y hxy =>
+      le_antisymm ((hC.add (ih.mul hC)) hxy ▸ hF.le_input i x y) (hF.nonneg_succ i x y)
 
 theorem input_isStrictUpperTriangular [Preorder V] (hC : C.IsStrictUpperTriangular) (i : ℕ) :
     (C + F i * C).IsStrictUpperTriangular :=
@@ -284,30 +278,25 @@ theorem pilotMax_mono {i j : ℕ} (hij : i ≤ j) (y : V) :
 theorem exists_lt_pilotInput_of_lt_pilotMax {a : ℝ} (ha : 0 ≤ a) {k : ℕ} {y : V}
     (h : a < pilotMax c γ U C k y) : ∃ i < k, a < U (pilotInput c γ U C i) y := by
   induction k with
-  | zero => exact absurd h (not_lt.mpr ha)
+  | zero => exact absurd h ha.not_gt
   | succ k ih =>
-    rw [pilotMax_succ, Pi.sup_apply, lt_sup_iff] at h
-    rcases h with h | h
+    rcases lt_sup_iff.mp (by rwa [pilotMax_succ, Pi.sup_apply] at h) with h | h
     · obtain ⟨i, hi, hU⟩ := ih h
-      exact ⟨i, by omega, hU⟩
-    · exact ⟨k, by omega, h⟩
+      exact ⟨i, Nat.lt_succ_of_lt hi, hU⟩
+    · exact ⟨k, Nat.lt_succ_self k, h⟩
 
 /-- **The pilot is a correction sequence** when the base cutoff satisfies `0 ≤ c t ≤ t` for
 `t ≥ 0` and the multipliers lie in `[0, 1]` [OpenAI2026LogSpace, Lemma 4.2]. -/
 theorem isCorrectionSeq_pilotCorrection (hC0 : ∀ x y, 0 ≤ C x y) (hc0 : ∀ t, 0 ≤ c t)
     (hct : ∀ t, 0 ≤ t → c t ≤ t) (hγ0 : ∀ t, 0 ≤ γ t) (hγ1 : ∀ t, γ t ≤ 1) :
     IsCorrectionSeq C (pilotCorrection c γ U C) := by
-  have hnonneg : ∀ i x y, 0 ≤ pilotCorrection c γ U C (i + 1) x y := fun i x y => by
-    rw [pilotCorrection_succ_apply]; exact mul_nonneg (hc0 _) (hγ0 _)
-  have hall : ∀ i x y, 0 ≤ pilotCorrection c γ U C i x y := fun i x y => by
-    cases i with
-    | zero => simp
-    | succ i => exact hnonneg i x y
-  refine ⟨rfl, hnonneg, fun i x y => ?_⟩
-  rw [pilotCorrection_succ_apply]
-  have hG : 0 ≤ pilotInput c γ U C i x y :=
-    add_nonneg (hC0 x y) (sum_nonneg fun z _ => mul_nonneg (hall i x z) (hC0 z y))
-  exact (mul_le_of_le_one_right (hc0 _) (hγ1 _)).trans (hct _ hG)
+  have hnonneg (i x y) : 0 ≤ pilotCorrection c γ U C (i + 1) x y :=
+    mul_nonneg (hc0 _) (hγ0 _)
+  refine ⟨rfl, hnonneg, fun i x y => (mul_le_of_le_one_right (hc0 _) (hγ1 _)).trans (hct _ ?_)⟩
+  refine add_nonneg (hC0 x y) (sum_nonneg fun z _ => mul_nonneg ?_ (hC0 z y))
+  cases i with
+  | zero => simp [pilot]
+  | succ i => exact hnonneg i x z
 
 /-- **The actual correction is at most the pilot.** Run the fixed-multiplier recursion with the
 cutoffs `φ y t = c t * γ (M_k y)`, the final pilot multiplier. For a monotone nonnegative `c` and

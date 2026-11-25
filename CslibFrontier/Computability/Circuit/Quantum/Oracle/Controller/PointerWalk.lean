@@ -91,14 +91,10 @@ classical word is unused; the device keeps all three qubits throughout the run. 
 
 /-- The phase subroutine's native machine branches only on its one-bit classical address. -/
 theorem isOraclePPTOn_phase : IsOraclePPTOn encBool encBool phase := by
-  apply IsOraclePPTOn.finite_cases (branch := fun address _ => phase address)
-    ComputableInPolyTime.id'
-  intro address
-  unfold phase
-  exact (isOraclePPTOn_gate encBool _).bind
-    ((isOraclePPTOn_command encUnit _ _).bind
-      ((isOraclePPTOn_gate encUnit _).bind
-        (ComputableInPolyTime.const address).isOraclePPTOn))
+  refine IsOraclePPTOn.finite_cases (branch := fun address _ => phase address) .id'
+    fun address => ?_
+  exact (isOraclePPTOn_gate encBool _).bind ((isOraclePPTOn_command encUnit _ _).bind
+    ((isOraclePPTOn_gate encUnit _).bind (ComputableInPolyTime.const address).isOraclePPTOn))
 
 /-- The loop body reads one bounded service reply and makes its next query depend on it. -/
 theorem isOraclePPTOn_round : IsOraclePPTOn encBool encBool round :=
@@ -107,9 +103,8 @@ theorem isOraclePPTOn_round : IsOraclePPTOn encBool encBool round :=
 /-- One native machine generates the entire adaptive loop. The encoded classical loop state has
 length exactly one under every possible word reply, so its growth allowance is zero. -/
 theorem isOraclePPTOn_walk : IsOraclePPTOn encUnary encBool walk := by
-  refine IsOraclePPTOn.iterate_of_bounded_growth (growth := 0)
-    ComputableInPolyTime.id' (.const false) isOraclePPTOn_round ?_
-  intro address next _
+  refine IsOraclePPTOn.iterate_of_bounded_growth (growth := 0) .id' (.const false)
+    isOraclePPTOn_round fun _ _ _ => ?_
   simp only [encBool_apply, List.length_singleton, Nat.add_zero, le_refl]
 
 private theorem isOraclePPTOn_prepare {α : Type} (input : α ↪ List Bool) :
@@ -120,12 +115,9 @@ private theorem isOraclePPTOn_prepare {α : Type} (input : α ↪ List Bool) :
 /-- A native certificate for preparation, all adaptive rounds and terminal measurement. It
 quantifies over arbitrary stateful word oracles, not only the intended quantum handler. -/
 theorem isOraclePPT_program : IsOraclePPT encBool program := by
-  apply IsOraclePPTOn.isOraclePPT
-  unfold program
-  apply (isOraclePPTOn_prepare (encPair encUnary encBits)).bind_with
-  apply (isOraclePPTOn_walk.preprocess (by fun_prop)).bind
-  exact (isOraclePPTOn_gate encBool _).bind
-    (isOraclePPTOn_requestBit encUnit (.inl .measure) (.const (encUnary 0)))
+  refine IsOraclePPTOn.isOraclePPT ((isOraclePPTOn_prepare (encPair encUnary encBits)).bind_with
+    ((isOraclePPTOn_walk.preprocess (by fun_prop)).bind ((isOraclePPTOn_gate encBool _).bind
+      (isOraclePPTOn_requestBit encUnit (.inl .measure) (.const (encUnary 0))))))
 
 /-- Every address branch makes two elementary calls and one coherent query. -/
 theorem isCostBounded_phase (cost : Operation → ℕ) (address : Bool) :
@@ -164,9 +156,7 @@ theorem isCostBounded_program (cost : Operation → ℕ) (count : ℕ) (input : 
       (program count input)
       ((2 * count + 4) * cost (.inl .gate) + count * cost (.inl .query) +
         count * cost (.inr ()) + cost (.inl .measure)) := by
-  have hprepare :
-      OracleComp.IsCostBounded (Sum.elim (fun _ => 0) (fun request => cost request.1))
-        prepare (3 * cost (.inl .gate)) :=
+  have hprepare : OracleComp.IsCostBounded _ prepare (3 * cost (.inl .gate)) :=
     ((isCostBounded_command cost (.inl .gate) _).bind fun _ =>
       (isCostBounded_command cost (.inl .gate) _).bind fun _ =>
         isCostBounded_command cost (.inl .gate) _).mono (by omega)

@@ -141,7 +141,7 @@ theorem Design.extend_apply_of_notMem (i : Fin m) (x : Fin n → α) (w : Fin �
 @[simp]
 theorem Design.restrict_extend (i : Fin m) (x : Fin n → α) (w : Fin ℓ → α) :
     D.restrict i (D.extend i x w) = x := by
-  ext k
+  ext
   simp
 
 /-- Overwriting the `i`-th block of `z` by its own bits gives `z`. -/
@@ -157,9 +157,7 @@ theorem Design.extend_restrict (i : Fin m) (z : Fin ℓ → α) : D.extend i (D.
 theorem Design.extend_extend (i : Fin m) (x y : Fin n → α) (w : Fin ℓ → α) :
     D.extend i y (D.extend i x w) = D.extend i y w := by
   ext k
-  by_cases hk : k ∈ D.block i
-  · simp only [Design.extend, dite_eq_left hk]
-  · simp only [Design.extend, dite_eq_right hk]
+  by_cases hk : k ∈ D.block i <;> simp [Design.extend, hk]
 
 /-- The positions of the `i`-th block lying in the `j`-th block are as many as the elements the
 two blocks share. -/
@@ -189,9 +187,9 @@ theorem Design.dependsOn_restrict_extend (i j : Fin m) (w : Fin ℓ → α) :
   ext k
   simp only [Design.restrict_apply, Design.extend]
   split_ifs with h
-  · refine hxy _ ?_
-    simp only [Design.overlap, coe_filter, mem_univ, true_and, Set.mem_ofPred_eq,
-      orderEmbOfFin_orderIsoOfFin_symm, orderEmbOfFin_mem]
+  · exact hxy _ (by
+      simp only [Design.overlap, coe_filter, mem_univ, true_and, Set.mem_ofPred_eq,
+        orderEmbOfFin_orderIsoOfFin_symm, orderEmbOfFin_mem])
   · rfl
 
 /-- The map `(w, x) ↦ (D.extend i x w, D.restrict i w)`, swapping the `i`-th block of `w` with

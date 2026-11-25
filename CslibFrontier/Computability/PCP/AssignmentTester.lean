@@ -185,8 +185,7 @@ private theorem forall_hadamardCode_tensor_equationCoeff_iff_and {C : α → α 
     split_ifs with hpp'
     · rfl
     · exact h p p' hpp'
-  · rw [hadamardCode_tensor_equationCoeff_inr, equationRhs, Sum.elim_inr]
-    rfl
+  · rw [hadamardCode_tensor_equationCoeff_inr, equationRhs, Sum.elim_inr]; rfl
 
 /-- **The quadratic equations of a constraint**: their solutions are exactly the one-hot encodings
 of the labels satisfying the constraint. -/
@@ -195,41 +194,29 @@ theorem forall_hadamardCode_tensor_equationCoeff_iff {C : α → α → Prop}
     (∀ e, hadamardCode (tensor x x) (equationCoeff C e) = equationRhs e) ↔
       ∃ σ : Fin 2 → α, C (σ 0) (σ 1) ∧ x = oneHot σ := by
   rw [forall_hadamardCode_tensor_equationCoeff_iff_and]
-  constructor
+  refine ⟨?_, ?_⟩
   · rintro ⟨hpair, hsum⟩
     -- Every end has a set variable.
     have hex (b : Fin 2) : ∃ a, x (b, a) = true := by
       by_contra! h
-      have h0 : ∑ a, x (b, a) = 0 :=
-        sum_eq_zero fun a _ ↦ by simpa [Bool.zero_eq_false] using h a
-      rw [hsum b] at h0
-      exact absurd h0 (by decide)
+      exact absurd ((sum_eq_zero fun a _ ↦ by simp [h a, Bool.zero_eq_false]).symm.trans (hsum b))
+        (by decide)
     choose σ hσ using hex
     -- Two variables of the same end, or of the two ends violating `C`, are never both set.
-    have hboth {p p' : Fin 2 × α} (hp : x p = true) (hp' : x p' = true) : Compatible C p p' := by
-      by_contra hpp'
-      have h := hpair p p' hpp'
-      rw [hp, hp', Bool.and_self] at h
-      exact absurd h (by decide)
+    have hboth {p p' : Fin 2 × α} (hp : x p = true) (hp' : x p' = true) : Compatible C p p' :=
+      by_contra fun hpp' ↦ by simpa [hp, hp'] using hpair p p' hpp'
     refine ⟨σ, ?_, funext fun ⟨b, a⟩ ↦ ?_⟩
     · obtain ⟨τ, hτ, h0, h1⟩ := hboth (hσ 0) (hσ 1)
-      have hτσ : τ = σ := funext <| Fin.forall_fin_two.2 ⟨h0, h1⟩
-      rwa [hτσ] at hτ
-    · rw [oneHot_apply]
-      by_cases ha : σ b = a
-      · rw [← ha, hσ b]
-        exact (decide_eq_true rfl).symm
-      · rw [decide_eq_false ha]
-        by_contra hx
-        obtain ⟨τ, -, hτ, hτ'⟩ := hboth (Bool.not_eq_false _ ▸ hx) (hσ b)
-        exact ha (hτ'.symm.trans hτ)
+      rwa [funext (Fin.forall_fin_two.2 ⟨h0, h1⟩)] at hτ
+    · by_cases ha : σ b = a
+      · simpa [← ha] using hσ b
+      · simp only [oneHot_apply, decide_eq_false ha, Bool.eq_false_iff]
+        exact fun hx ↦ let ⟨_, _, hτ, hτ'⟩ := hboth hx (hσ b); ha (hτ'.symm.trans hτ)
   · rintro ⟨σ, hσ, rfl⟩
-    refine ⟨fun p p' hpp' ↦ ?_, fun b ↦ ?_⟩
-    · rw [oneHot_apply, oneHot_apply]
-      by_contra h
-      simp only [Bool.not_eq_false, Bool.and_eq_true, decide_eq_true_eq] at h
+    refine ⟨fun p p' hpp' ↦ Bool.eq_false_iff.2 fun h ↦ ?_, fun b ↦ ?_⟩
+    · simp only [oneHot_apply, Bool.and_eq_true, decide_eq_true_eq] at h
       exact hpp' ⟨σ, hσ, h.1, h.2⟩
-    · simp_rw [oneHot_apply]
+    · simp only [oneHot_apply]
       rw [sum_eq_single (σ b) (fun a _ ha ↦ decide_eq_false (Ne.symm ha)) (by simp)]
       exact decide_eq_true rfl
 
@@ -244,12 +231,9 @@ the end `b`, read at `r`. -/
 private theorem hadamardCode_endEmbed (x : Fin 2 × α → Bool) (b : Fin 2) (r : α → Bool) :
     hadamardCode x (endEmbed b r) = hadamardCode (fun a ↦ x (b, a)) r := by
   rw [hadamardCode_apply, hadamardCode_apply, dotProduct, dotProduct, Fintype.sum_prod_type,
-    sum_eq_single b]
-  · simp [endEmbed]
-  · intro b' _ hb'
-    simp only [endEmbed, decide_eq_false hb', Bool.false_and]
-    exact sum_eq_zero fun _ _ ↦ mul_zero _
-  · simp
+    sum_eq_single b (fun b' _ hb' ↦ sum_eq_zero fun _ _ ↦ by
+      simp only [endEmbed, decide_eq_false hb', Bool.false_and]; exact mul_zero _) (by simp)]
+  simp [endEmbed]
 
 /-- The Hadamard encoding of the one-hot encoding of the labels `σ`, read at `endEmbed b r`, is the
 long code of the label of the end `b`, read at `r`. -/
@@ -257,10 +241,9 @@ private theorem hadamardCode_oneHot_endEmbed (σ : Fin 2 → α) (b : Fin 2) (r 
     hadamardCode (oneHot σ) (endEmbed b r) = longCode (σ b) r := by
   rw [hadamardCode_endEmbed, longCode_eq_hadamardCode]
   congr 1 with a : 1
-  by_cases h : σ b = a
-  · subst h
-    simp
-  · simp [h, Ne.symm h, Bool.zero_eq_false]
+  rcases eq_or_ne (σ b) a with rfl | h
+  · simp
+  · simp [h, h.symm, Bool.zero_eq_false]
 
 /-! ### The checks, as local tests -/
 
@@ -388,35 +371,27 @@ private theorem expect_hammingDist_div_le_one_sub_acceptProb_inputTest
   -- Self-correction reads the encoding of `x` correctly with probability at least `1 - 2ε`.
   have hsc (b : Fin 2) (r : α → Bool) : 𝔼 y, (1 - if selfCorrect f (endEmbed b r) y =
       hadamardCode x (endEmbed b r) then (1 : ℝ) else 0) ≤ 2 * ε := by
-    have h := one_sub_two_mul_le_expect_selfCorrect_hadamardCode hf (endEmbed b r)
-    rw [expect_sub_distrib, Fintype.expect_const]
-    linarith
+    have := one_sub_two_mul_le_expect_selfCorrect_hadamardCode hf (endEmbed b r)
+    rw [expect_sub_distrib, Fintype.expect_const]; linarith
   calc 𝔼 b, (hammingDist (T b) (fun r ↦ hadamardCode x (endEmbed b r)) : ℝ) / 2 ^ Fintype.card α
       = 𝔼 b, 𝔼 r, 𝔼 _y : Fin 2 × α → Bool,
           if T b r ≠ hadamardCode x (endEmbed b r) then (1 : ℝ) else 0 := by
-        have h (g g' : (α → Bool) → Bool) : (hammingDist g g' : ℝ) / 2 ^ Fintype.card α =
-            𝔼 r, if g r ≠ g' r then 1 else 0 := by
-          rw [← hammingDist_div_eq_expect, Fintype.card_fun, Fintype.card_bool, Nat.cast_pow,
-            Nat.cast_ofNat]
-        simp only [h, Fintype.expect_const]
+        congr 1 with b
+        simp only [Fintype.expect_const]
+        rw [← hammingDist_div_eq_expect, Fintype.card_fun, Fintype.card_bool, Nat.cast_pow,
+          Nat.cast_ofNat]
     _ ≤ 𝔼 b, 𝔼 r, 𝔼 y, ((1 - if T b r = selfCorrect f (endEmbed b r) y then (1 : ℝ) else 0) +
           (1 - if selfCorrect f (endEmbed b r) y = hadamardCode x (endEmbed b r) then (1 : ℝ)
             else 0)) := by
         gcongr with b _ r _ y _
         exact one_sub_boole_le fun h h' ↦ h.trans h'
-    _ = 1 - (inputTest α).acceptProb (Sum.elim (fun p ↦ T p.1 p.2) f) + 𝔼 b, 𝔼 r, 𝔼 y,
-          (1 - if selfCorrect f (endEmbed b r) y = hadamardCode x (endEmbed b r) then (1 : ℝ)
-            else 0) := by
+    _ ≤ 1 - (inputTest α).acceptProb (Sum.elim (fun p ↦ T p.1 p.2) f) + 2 * ε := by
         rw [acceptProb_inputTest]
-        simp only [expect_add_distrib]
-        congr 1
-        simp only [expect_sub_distrib, Fintype.expect_const]
-    _ ≤ 1 - (inputTest α).acceptProb (Sum.elim (fun p ↦ T p.1 p.2) f) + 𝔼 _b : Fin 2,
-          𝔼 _r : α → Bool, 2 * ε := by
-        gcongr with b _ r _
-        exact hsc b r
-    _ = 1 - (inputTest α).acceptProb (Sum.elim (fun p ↦ T p.1 p.2) f) + 2 * ε := by
-        simp only [Fintype.expect_const]
+        simp only [expect_add_distrib, expect_sub_distrib, Fintype.expect_const]
+        have := expect_le_expect (s := Finset.univ) fun b _ ↦
+          expect_le_expect (s := Finset.univ) fun r _ ↦ hsc b r
+        simp only [expect_sub_distrib, Fintype.expect_const] at this
+        linarith
 
 /-! ### The tester -/
 
@@ -536,25 +511,19 @@ private theorem acceptProb_le (π : Pos α → Bool) :
       (hadamardTester C).acceptProb π ≤
         (inputTest α).acceptProb (Sum.elim (fun p ↦ inputTable π p.1 p.2) (linTable π)) := by
   open LocalTest in
-  refine ⟨?_, ?_, ?_, ?_, ?_⟩
-  · refine (acceptProb_and_le_left _ π).trans_eq ?_
-    rw [acceptProb_map]
-    exact acceptProb_blrTest _
-  · refine (acceptProb_and_le_right _ π).trans <| (acceptProb_and_le_left _ π).trans_eq ?_
-    rw [acceptProb_map]
-    exact acceptProb_blrTest _
-  · refine (acceptProb_and_le_right _ π).trans <| (acceptProb_and_le_right _ π).trans <|
-      (acceptProb_and_le_left _ π).trans_eq ?_
-    rw [acceptProb_map, Sum.comp_elim]
-    exact acceptProb_tensorTest _ _
-  · refine (acceptProb_and_le_right _ π).trans <| (acceptProb_and_le_right _ π).trans <|
-      (acceptProb_and_le_right _ π).trans <| (acceptProb_and_le_left _ π).trans_eq ?_
-    rw [acceptProb_map]
-    exact acceptProb_equationTest _ _ _
-  · refine (acceptProb_and_le_right _ π).trans <| (acceptProb_and_le_right _ π).trans <|
-      (acceptProb_and_le_right _ π).trans <| (acceptProb_and_le_right _ π).trans_eq ?_
-    rw [acceptProb_map, Sum.comp_elim]
-    rfl
+  refine ⟨(acceptProb_and_le_left _ π).trans_eq
+      (by rw [acceptProb_map]; exact acceptProb_blrTest _),
+    (acceptProb_and_le_right _ π).trans ((acceptProb_and_le_left _ π).trans_eq
+      (by rw [acceptProb_map]; exact acceptProb_blrTest _)),
+    (acceptProb_and_le_right _ π).trans ((acceptProb_and_le_right _ π).trans
+      ((acceptProb_and_le_left _ π).trans_eq
+        (by rw [acceptProb_map, Sum.comp_elim]; exact acceptProb_tensorTest _ _))),
+    (acceptProb_and_le_right _ π).trans ((acceptProb_and_le_right _ π).trans
+      ((acceptProb_and_le_right _ π).trans ((acceptProb_and_le_left _ π).trans_eq
+        (by rw [acceptProb_map]; exact acceptProb_equationTest _ _ _)))),
+    (acceptProb_and_le_right _ π).trans ((acceptProb_and_le_right _ π).trans
+      ((acceptProb_and_le_right _ π).trans ((acceptProb_and_le_right _ π).trans_eq
+        (by rw [acceptProb_map, Sum.comp_elim]; rfl))))⟩
 
 /-! ### Soundness -/
 
@@ -575,18 +544,15 @@ private theorem inputDist_eq (π : Pos α → Bool) (σ : Fin 2 → α) :
     Nat.cast_ofNat]
 
 theorem inputDist_nonneg (π : Pos α → Bool) (σ : Fin 2 → α) : 0 ≤ inputDist π σ := by
-  rw [inputDist_eq]
-  positivity
+  rw [inputDist_eq]; positivity
 
 theorem inputDist_le_one (π : Pos α → Bool) (σ : Fin 2 → α) : inputDist π σ ≤ 1 := by
   have h (b : Fin 2) :
       (hammingDist (inputTable π b) (longCode (σ b)) : ℝ) / 2 ^ Fintype.card α ≤ 1 := by
     rw [div_le_one (by positivity)]
-    have := hammingDist_le_card_fintype (x := inputTable π b) (y := longCode (σ b))
-    rw [Fintype.card_fun, Fintype.card_bool] at this
-    exact_mod_cast this
-  rw [inputDist_eq]
-  linarith [h 0, h 1]
+    simpa [Fintype.card_fun, Fintype.card_bool] using
+      (Nat.cast_le (α := ℝ)).2 (hammingDist_le_card_fintype (x := inputTable π b) (y := _))
+  rw [inputDist_eq]; linarith [h 0, h 1]
 
 /-- The distance of each table from the long code of its label is at most twice the distance of
 the tables. -/
@@ -594,8 +560,7 @@ theorem hammingDist_inputTable_div_le (π : Pos α → Bool) (σ : Fin 2 → α)
     (hammingDist (inputTable π b) (longCode (σ b)) : ℝ) / 2 ^ Fintype.card α ≤
       2 * inputDist π σ := by
   have h (b : Fin 2) :
-      0 ≤ (hammingDist (inputTable π b) (longCode (σ b)) : ℝ) / 2 ^ Fintype.card α := by
-    positivity
+      0 ≤ (hammingDist (inputTable π b) (longCode (σ b)) : ℝ) / 2 ^ Fintype.card α := by positivity
   rw [inputDist_eq]
   fin_cases b <;> simp only [Fin.zero_eta, Fin.mk_one] <;> linarith [h 0, h 1]
 
@@ -662,24 +627,21 @@ theorem inputDist_honestProof (σ : Fin 2 → α) : inputDist (honestProof σ) �
 constraint passes on every random string. -/
 theorem passes_honestProof {σ : Fin 2 → α} (hσ : C (σ 0) (σ 1))
     (ω : Rand α) : (hadamardTester C).Passes (honestProof σ) ω := by
-  have h₁ (ι : Type _) [Fintype ι] [DecidableEq ι] (x : ι → Bool) :=
-    ((blrTest ι).acceptProb_eq_one_iff (π := hadamardCode x)).1
-      (by rw [acceptProb_blrTest, blrAcceptance_hadamardCode])
-  have h₃ := ((tensorTest (Fin 2 × α)).acceptProb_eq_one_iff
-    (π := Sum.elim (hadamardCode (oneHot σ)) (hadamardCode (tensor (oneHot σ) (oneHot σ))))).1
-    (by rw [acceptProb_tensorTest, tensorTestAcceptance_hadamardCode])
-  have h₄ := ((equationTest (equationCoeff C) equationRhs).acceptProb_eq_one_iff
-    (π := hadamardCode (tensor (oneHot σ) (oneHot σ)))).1
-    (by rw [acceptProb_equationTest, equationTestAcceptance_hadamardCode
-      (forall_hadamardCode_tensor_equationCoeff_iff.2 ⟨σ, hσ, rfl⟩)])
   obtain ⟨ω₁, ω₂, ω₃, ω₄, b, r, y⟩ := ω
-  simp only [hadamardTester, test, LocalTest.passes_and, LocalTest.passes_map]
-  refine ⟨h₁ _ _ ω₁, h₁ _ _ ω₂, ?_, h₄ ω₄, ?_⟩
-  · rw [Sum.comp_elim]
-    exact h₃ ω₃
-  · rw [Sum.comp_elim]
-    change longCode (σ b) r = selfCorrect (hadamardCode (oneHot σ)) (endEmbed b r) y
-    rw [selfCorrect_hadamardCode, hadamardCode_oneHot_endEmbed]
+  simp only [hadamardTester, test, LocalTest.passes_and, LocalTest.passes_map, Sum.comp_elim]
+  refine ⟨((blrTest _).acceptProb_eq_one_iff (π := hadamardCode _)).1
+      (by rw [acceptProb_blrTest, blrAcceptance_hadamardCode]) ω₁,
+    ((blrTest _).acceptProb_eq_one_iff (π := hadamardCode _)).1
+      (by rw [acceptProb_blrTest, blrAcceptance_hadamardCode]) ω₂,
+    ((tensorTest (Fin 2 × α)).acceptProb_eq_one_iff
+      (π := Sum.elim (hadamardCode (oneHot σ)) (hadamardCode (tensor (oneHot σ) (oneHot σ))))).1
+      (by rw [acceptProb_tensorTest, tensorTestAcceptance_hadamardCode]) ω₃,
+    ((equationTest (equationCoeff C) equationRhs).acceptProb_eq_one_iff
+      (π := hadamardCode (tensor (oneHot σ) (oneHot σ)))).1
+      (by rw [acceptProb_equationTest, equationTestAcceptance_hadamardCode
+        (forall_hadamardCode_tensor_equationCoeff_iff.2 ⟨σ, hσ, rfl⟩)]) ω₄, ?_⟩
+  change longCode (σ b) r = selfCorrect (hadamardCode (oneHot σ)) (endEmbed b r) y
+  rw [selfCorrect_hadamardCode, hadamardCode_oneHot_endEmbed]
 
 /-- **Completeness of the Hadamard assignment tester**: the honest proof for labels satisfying the
 constraint is accepted with probability one. -/

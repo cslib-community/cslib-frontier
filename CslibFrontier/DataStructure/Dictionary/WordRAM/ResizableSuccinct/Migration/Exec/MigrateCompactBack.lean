@@ -130,13 +130,8 @@ theorem migrateCompactBackCode_exec {U V w N_old N_new n base : ℕ}
     ((hz₄b.set (hfit_nm.of_le (Nat.le_add_right _ _))).set
       (hfit_nm.of_le (by dsimp only [newMeta]; linarith only [h225_old]))).set
       (hfit_nm.of_le (Nat.le_add_left _ _))
-  have hms₇ : memoryState mFr z₇.toData = ⟨z₄.mem, peakF⟩ :=
-    Memory.State.ext rfl (by
-      dsimp only [memoryState, z₇, z₆, z₅, RData.set, RData.toData]
-      rw [Function.update_of_ne (mReg_ne (by decide) : mFr ≠ mCur),
-        Function.update_of_ne (mReg_ne (by decide) : mFr ≠ mTmpB),
-        Function.update_of_ne (mReg_ne (by decide) : mFr ≠ mTmpA)]
-      exact hz₄_fr_reg)
+  have hms₇ : memoryState mFr z₇.toData = ⟨z₄.mem, peakF⟩ := Memory.State.ext rfl
+    (by simp [memoryState, z₇, z₆, z₅, RData.set, RData.toData, hz₄_fr_reg, peakF])
   have hin_cl1 : z₇.regs ∘ srcCopyLeft = WordEncoding.encode ((newMeta, base), offNew) :=
     (regs_pairSrc
       (regs_pairSrc (regs_reg1_eq mTmpA (by simp [z₇, z₆, z₅, RData.set]))
@@ -162,21 +157,11 @@ theorem migrateCompactBackCode_exec {U V w N_old N_new n base : ℕ}
   have hz₈_keep7 : ∀ reg, reg ≠ mFr → reg.val < 160 → z₈.regs reg = z₇.regs reg :=
     fun reg h1 h160 => hframe_reg_cl1 reg h1 (mkTmp_ne_reg _ h160 (fun a => Fin.elim0 a))
   -- Leftward copy #2: `[arenaB, arenaB + iwNew)` -> `[base + offNew, base + offNew + iwNew)`
-  have hz₈_base : z₈.regs mBase = base :=
-    (hz₈_keep7 mBase (mReg_ne (by decide)) (mReg_lt_160 _)).trans
-      (by simp [z₇, z₆, z₅, RData.set, hz₄_base])
-  have hz₈_off : z₈.regs mOffNew = offNew :=
-    (hz₈_keep7 mOffNew (mReg_ne (by decide)) (mReg_lt_160 _)).trans
-      (by simp [z₇, z₆, z₅, RData.set, hz₄_off])
-  have hz₈_ar : z₈.regs mArena = arenaB :=
-    (hz₈_keep7 mArena (mReg_ne (by decide)) (mReg_lt_160 _)).trans
-      (by simp [z₇, z₆, z₅, RData.set, hz₄_ar])
-  have hz₈_iwn : z₈.regs mIwNew = iwNew :=
-    (hz₈_keep7 mIwNew (mReg_ne (by decide)) (mReg_lt_160 _)).trans
-      (by simp [z₇, z₆, z₅, RData.set, hz₄_iwn])
-  have hz₈_pf : z₈.regs mPeakFront = peakF :=
-    (hz₈_keep7 mPeakFront (mReg_ne (by decide)) (mReg_lt_160 _)).trans
-      (by simp [z₇, z₆, z₅, RData.set, hz₄_pf, peakF])
+  obtain ⟨hz₈_base, hz₈_off, hz₈_ar, hz₈_iwn, hz₈_pf⟩ : z₈.regs mBase = base ∧
+      z₈.regs mOffNew = offNew ∧ z₈.regs mArena = arenaB ∧ z₈.regs mIwNew = iwNew ∧
+      z₈.regs mPeakFront = peakF := by
+    simp (disch := decide) [hz₈_keep7, z₇, z₆, z₅, RData.set, hz₄_base, hz₄_off, hz₄_ar,
+      hz₄_iwn, hz₄_pf, peakF]
   set z₉ := z₈.set mItemBase (base + offNew)
   have hfit_ib : Fits w (base + offNew) :=
     hfit_nm.of_le (by dsimp only [newMeta]; linarith only [h225_old])
@@ -201,14 +186,8 @@ theorem migrateCompactBackCode_exec {U V w N_old N_new n base : ℕ}
   have hz₁₂b : z₁₂.Bounded w :=
     (((hz₈b.set hfit_ib).set hfit_nm).set hfit_ib).set
       (hfit_ar.of_le (by linarith only [hiwn_le_aw]))
-  have hms₁₂ : memoryState mFr z₁₂.toData = ⟨z₈.mem, peakF⟩ :=
-    Memory.State.ext rfl (by
-      dsimp only [memoryState, z₁₂, z₁₁, z₁₀, z₉, RData.set, RData.toData]
-      rw [Function.update_of_ne (mReg_ne (by decide) : mFr ≠ mCur),
-        Function.update_of_ne (mReg_ne (by decide) : mFr ≠ mTmpB),
-        Function.update_of_ne (mReg_ne (by decide) : mFr ≠ mTmpA),
-        Function.update_of_ne (mReg_ne (by decide) : mFr ≠ mItemBase)]
-      exact hz₈_fr_reg)
+  have hms₁₂ : memoryState mFr z₁₂.toData = ⟨z₈.mem, peakF⟩ := Memory.State.ext rfl
+    (by simp [memoryState, z₁₂, z₁₁, z₁₀, z₉, RData.set, RData.toData, hz₈_fr_reg])
   have hin_cl2 : z₁₂.regs ∘ srcCopyLeft = WordEncoding.encode ((arenaB, base + offNew), iwNew) :=
     (regs_pairSrc
       (regs_pairSrc (regs_reg1_eq mTmpA (by simp [z₁₂, z₁₁, z₁₀, RData.set]))
@@ -234,15 +213,9 @@ theorem migrateCompactBackCode_exec {U V w N_old N_new n base : ℕ}
   have hz₁₃_keep12 : ∀ reg, reg ≠ mFr → reg.val < 160 → z₁₃.regs reg = z₁₂.regs reg :=
     fun reg h1 h160 => hframe_reg_cl2 reg h1 (mkTmp_ne_reg _ h160 (fun a => Fin.elim0 a))
   -- Shrink `[frNew, peakF)`
-  have hz₁₃_ib : z₁₃.regs mItemBase = base + offNew :=
-    (hz₁₃_keep12 mItemBase (mReg_ne (by decide)) (mReg_lt_160 _)).trans
-      (by simp [z₁₂, z₁₁, z₁₀, z₉, RData.set])
-  have hz₁₃_iwn : z₁₃.regs mIwNew = iwNew :=
-    (hz₁₃_keep12 mIwNew (mReg_ne (by decide)) (mReg_lt_160 _)).trans
-      (by simp [z₁₂, z₁₁, z₁₀, z₉, RData.set, hz₈_iwn])
-  have hz₁₃_pf : z₁₃.regs mPeakFront = peakF :=
-    (hz₁₃_keep12 mPeakFront (mReg_ne (by decide)) (mReg_lt_160 _)).trans
-      (by simp [z₁₂, z₁₁, z₁₀, z₉, RData.set, hz₈_pf])
+  obtain ⟨hz₁₃_ib, hz₁₃_iwn, hz₁₃_pf⟩ : z₁₃.regs mItemBase = base + offNew ∧
+      z₁₃.regs mIwNew = iwNew ∧ z₁₃.regs mPeakFront = peakF := by
+    simp (disch := decide) [hz₁₃_keep12, z₁₂, z₁₁, z₁₀, z₉, RData.set, hz₈_iwn, hz₈_pf]
   let frNew := base + offNew + iwNew
   have hfrNew_le : frNew ≤ peakF := by
     rw [hpeak_ar]; dsimp only [frNew, arenaB, newMeta]
@@ -292,33 +265,10 @@ theorem migrateCompactBackCode_exec {U V w N_old N_new n base : ℕ}
     hrep_z₄ hcard hvals hcpl_z₄ hmeta_reloc hitem_reloc
   have hz_abi_of : ∀ reg : Fin rResize, reg.val < 5 → reg ≠ mFr → z.regs reg = z₄.regs reg :=
     fun reg hlt5 hne_fr => by
-      have h160 : reg.val < 160 := Nat.lt_trans hlt5 (by decide)
-      have hne_idx : reg ≠ mIdx := ne_mReg_of_lt_five hlt5 (by decide)
-      have hne_one : reg ≠ mOne := ne_mReg_of_lt_five hlt5 (by decide)
-      have hne_zero : reg ≠ mZero := ne_mReg_of_lt_five hlt5 (by decide)
-      have hne_k : reg ≠ mK := ne_mReg_of_lt_five hlt5 (by decide)
-      have hne_cur : reg ≠ mCur := ne_mReg_of_lt_five hlt5 (by decide)
-      have hne_ta : reg ≠ mTmpA := ne_mReg_of_lt_five hlt5 (by decide)
-      have hne_tb : reg ≠ mTmpB := ne_mReg_of_lt_five hlt5 (by decide)
-      have hne_ib : reg ≠ mItemBase := ne_mReg_of_lt_five hlt5 (by decide)
-      calc z.regs reg
-          = z₁₅.regs reg := by
-              dsimp only [z, shrinkPost]
-              rw [Function.update_of_ne hne_idx, Function.update_of_ne hne_one,
-                Function.update_of_ne hne_zero]
-        _ = z₁₃.regs reg := by
-              dsimp only [z₁₅, z₁₄, RData.set]
-              rw [Function.update_of_ne hne_k, Function.update_of_ne hne_cur]
-        _ = z₁₂.regs reg := hz₁₃_keep12 reg hne_fr h160
-        _ = z₈.regs reg := by
-              dsimp only [z₁₂, z₁₁, z₁₀, z₉, RData.set]
-              rw [Function.update_of_ne hne_cur, Function.update_of_ne hne_tb,
-                Function.update_of_ne hne_ta, Function.update_of_ne hne_ib]
-        _ = z₇.regs reg := hz₈_keep7 reg hne_fr h160
-        _ = z₄.regs reg := by
-              dsimp only [z₇, z₆, z₅, RData.set]
-              rw [Function.update_of_ne hne_cur, Function.update_of_ne hne_tb,
-                Function.update_of_ne hne_ta]
+      have hne : ∀ c : Fin 160, 5 ≤ c.val → reg ≠ mReg c := fun _ => ne_mReg_of_lt_five hlt5
+      have h160 : reg.val < 160 := by omega
+      simp [z, shrinkPost, z₁₅, z₁₄, RData.set, hne, hz₁₃_keep12 reg hne_fr h160, z₁₂, z₁₁, z₁₀,
+        z₉, hz₈_keep7 reg hne_fr h160, z₇, z₆, z₅]
   have hpeak_lin := migratePeakWords_le_linear (V := V) hw hhdr_z₄.fits_U hV hn hev
   have hoff_lin : offNew ≤ 504 * n + 439 :=
     (offCompItems_le_linear hw hNU_new hhdr_z₄.fits_U).trans (by linarith only [hN_new_2n])
@@ -335,12 +285,7 @@ theorem migrateCompactBackCode_exec {U V w N_old N_new n base : ℕ}
     Nat.mul_le_mul_left migFactor (by
       dsimp only [iwNew] at hc_cl2; linarith only [hc_cl2, hiwn_lin])
   have hc_sh_lin : 4 * (peakF - frNew) + 5 ≤ 6056 * n + 3549 := by
-    have hsub : peakF - frNew ≤ migratePeakWords U V w N_old n := by
-      dsimp only [peakF, frNew]
-      exact (Nat.sub_le_sub_left
-        (by linarith only [h225_new] : base ≤ base + offNew + iwNew) _).trans_eq
-        (Nat.add_sub_cancel_left _ _)
-    linarith only [hsub, hpeak_lin]
+    dsimp only [peakF, frNew]; clear * - hpeak_lin; omega
   have hex_back :=
     hex_c5.seq_eq (hex_c6.seq_eq (hex_c7.seq_eq
       ((hex_cl1.mono hc_cl1_mul (fun _ h => h)).seq_eq
