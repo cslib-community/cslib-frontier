@@ -83,15 +83,11 @@ theorem incomingMomentBudget_le_payment {q : ℕ}
   have hb0 : 0 ≤ cB := by dsimp [cB, gridMass, rate]; positivity
   have hr0 : 0 ≤ cR := by dsimp [cR, cB, gridMass, rate]; positivity
   have ha0 : 0 ≤ cA := by dsimp [cA, gridMass, rate]; positivity
-  have hd (σ : Environment P J) (x y : ZMod P) :
-      child req.direct σ x y ∈ Set.Icc 0 (2 * CB) :=
-    normalizedRequest_mem_Icc HP D req.direct binCutoff hCB hbin _ _ σ x y
-  have hr (σ : Environment P J) (x y : ZMod P) :
-      child req.right σ x y ∈ Set.Icc 0 (2 * CB) :=
-    normalizedRequest_mem_Icc HP D req.right binCutoff hCB hbin _ _ σ x y
-  have ha (σ : Environment P J) (x y : ZMod P) :
-      child neg σ x y ∈ Set.Icc 0 (2 * HP.Q HP.toHierarchyParams.atomCap) :=
-    selectedRequest_mem_Icc HP D id neg Kc _ _ _ σ x y
+  have hscale {c M : ℝ} {f : Environment P J → ZMod P → ZMod P → ℝ} (hc : 0 ≤ c)
+      (hf : ∀ σ x y, f σ x y ∈ Set.Icc 0 M) (σ : Environment P J) (x y : ZMod P) :
+      |c * f σ x y| ≤ c * M := by
+    rw [abs_of_nonneg (mul_nonneg hc (hf σ x y).1)]
+    exact mul_le_mul_of_nonneg_left (hf σ x y).2 hc
   have ratioB (y : ZMod P) :
       HierarchyTask.usageRatio (channels D) terminal req.direct y =
         gridMass P k / gridMass P (max k kb) :=
@@ -109,23 +105,16 @@ theorem incomingMomentBudget_le_payment {q : ℕ}
   have direct := grid_row_moment_le D R.source ks ss H hks
     (retainedMask R.terminal (side P k) D st)
     (fun σ x y => cB * child req.direct σ x y) (B := cB * (2 * CB)) (mul_nonneg hb0 (by positivity))
-    (fun σ x y => by
-      rw [abs_of_nonneg (mul_nonneg hb0 (hd σ x y).1)]
-      exact mul_le_mul_of_nonneg_left (hd σ x y).2 hb0)
+    (hscale hb0 (normalizedRequest_mem_Icc HP D req.direct binCutoff hCB hbin _ _))
   have right := grid_row_moment_le D R.midpoint km sm H hkm
     (retainedMask R.terminal (side P k) D st)
     (fun σ x y => cR * child req.right σ x y) (B := cR * (2 * CB)) (mul_nonneg hr0 (by positivity))
-    (fun σ x y => by
-      rw [abs_of_nonneg (mul_nonneg hr0 (hr σ x y).1)]
-      exact mul_le_mul_of_nonneg_left (hr σ x y).2 hr0)
+    (hscale hr0 (normalizedRequest_mem_Icc HP D req.right binCutoff hCB hbin _ _))
   have negative := grid_row_moment_le D R.source ks ss H hks
     (retainedMask R.terminal (side P k) D st)
     (fun σ x y => cA * child neg σ x y)
-    (B := cA * (2 * HP.Q HP.toHierarchyParams.atomCap))
-    (by positivity)
-    (fun σ x y => by
-      rw [abs_of_nonneg (mul_nonneg ha0 (ha σ x y).1)]
-      exact mul_le_mul_of_nonneg_left (ha σ x y).2 ha0)
+    (B := cA * (2 * HP.Q HP.toHierarchyParams.atomCap)) (by positivity)
+    (hscale ha0 (selectedRequest_mem_Icc HP D id neg Kc _ _ _))
   have coeff : 0 ≤ (HP.K : ℝ) ^ 3 * (2 * HP.Q HP.toHierarchyParams.atomCap) ^ 4 *
       Kc * (rate km / rate ks) := by unfold rate; positivity
   have result := mul_le_mul_of_nonneg_left
@@ -162,6 +151,11 @@ namespace Matrix.HierarchyParams.H4RankEnvironment.NormalizedMoments
 open Finset Cslib Cslib.Probability Cslib.RowCompression
 variable {P J : ℕ} [Fact P.Prime]
 attribute [local instance] Classical.propDecidable
+
+private lemma walkRate_pos (J : ℕ) : (0 : ℝ) < 1 - 1 / (155648 * (J + 1) * (4 : ℝ) ^ 4) := by
+  rw [sub_pos, div_lt_one (by positivity)]
+  have : (0 : ℝ) ≤ J := Nat.cast_nonneg J
+  nlinarith
 
 /-- Numerical actual first noise at budget i+1, with the inverse rate fourth power intact.
 The width-dependent payment comes from actual child ranges, not a budget hypothesis. -/
@@ -225,15 +219,10 @@ theorem actualFirstSignal_noise_le_dyadic {q : ℕ} (hq : 0 < q)
       (actualNoiseEntry R.source R.terminal (side P ks) (side P k) Lt D ss st k G
         (firstSignalIncrement F k second) initial 0 i) ≤
       (ε * (64 : ℝ)⁻¹ ^ dyadicSlack m i) ^ 4 := by
-  have hden : (1 : ℝ) < 155648 * (J + 1) * (4 : ℝ) ^ 4 := by
-    have : (0 : ℝ) ≤ J := Nat.cast_nonneg J
-    nlinarith
-  have hr : 0 < 1 - 1 / (155648 * (J + 1) * (4 : ℝ) ^ 4) :=
-    sub_pos.mpr ((div_lt_one (by linarith)).mpr hden)
   have hpay : 0 ≤ firstSignalPayment HP P Kc ks km k kb CB := by
     unfold firstSignalPayment gridMass rate
     positivity
-  have hp := spectralWalkLength_payment hr (sub_lt_self _ (by positivity))
+  have hp := spectralWalkLength_payment (walkRate_pos J) (sub_lt_self _ (by positivity))
     (mul_nonneg (by positivity) hpay) hε (dyadicSlack m i) (steps (i + 1)) hsteps
   have hn := actualFirstSignal_noise_le_payment hq HP hK D R Horizon l bin ks km k kb Lt
     hks hkm ss sm st Kc hKc binCutoff hCB hbin raw prep maximum steps G hG second initial hz i
@@ -316,12 +305,7 @@ theorem actualEstimatedFirstSignal_noise_le_dyadic
         (firstSignalIncrement F kt second) initial 0 i) ≤
       (ε * (64 : ℝ)⁻¹ ^ dyadicSlack m i) ^ 4 := by
   dsimp only
-  have hden : (1 : ℝ) < 155648 * (J + 1) * (4 : ℝ) ^ 4 := by
-    have : (0 : ℝ) ≤ J := Nat.cast_nonneg J
-    nlinarith
-  have hr : 0 < 1 - 1 / (155648 * (J + 1) * (4 : ℝ) ^ 4) :=
-    sub_pos.mpr ((div_lt_one (by linarith)).mpr hden)
-  have hp := spectralWalkLength_payment hr (sub_lt_self _ (by positivity))
+  have hp := spectralWalkLength_payment (walkRate_pos J) (sub_lt_self _ (by positivity))
     (show 0 ≤ (rate kt)⁻¹ ^ 4 * 32 * (16 * P *
       (estimatedResidualBound HP P km kt n kb CB) ^ 4) from by positivity)
     hε (dyadicSlack m i) (steps (i + 1)) hsteps
