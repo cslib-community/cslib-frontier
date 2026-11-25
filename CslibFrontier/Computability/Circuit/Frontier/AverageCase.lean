@@ -462,10 +462,7 @@ theorem multiaryAverageCaseBound_of_layoutBound {A : ℝ} (hA : 0 < A) (hlayout 
   intro σ I Acc c hfan hsize
   obtain ⟨c', heval, hfan_c', hmult, hsize_c'⟩ := c.exists_eval_eq_multiarySize_size_le I
   have hfan' : c'.FanInAtMost 2 := hfan_c' 2 hfan
-  have hacc_eq : {x : Fin n → U | c.eval I x 0 ∈ Acc} = {x | c'.eval I x 0 ∈ Acc} := by
-    ext x
-    simp [congrFun (congrFun heval x) 0]
-  rw [hacc_eq]
+  rw [← heval]
   have hK2 : 2 ≤ K' n := le_max_right _ _
   have hS : RectangleBias (S n) (K' n) (b n) := hbiasn.mono (le_max_left _ _)
   have hb : 0 ≤ b n := hS.nonneg (by
