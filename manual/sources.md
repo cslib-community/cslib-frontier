@@ -2311,6 +2311,11 @@ Om Swostik Mishra and Rahul Santhanam. *An Explicit `3.5n - o(n)` Size Lower Bou
 
 Jayadev Misra, David Gries. “Finding Repeated Elements.” *Science of Computer Programming* 2(2), 143–152, 1982. https://doi.org/10.1016/0167-6423(82)90012-0 . Bibliographic data from search summaries of the DOI record; the Misra–Gries statements formalized here follow the presentation of [chakrabarti25](#chakrabarti25), Unit 1. The journal text was not inspected in this pass.
 
+<a id="mithardnessgroup2026sh"></a>
+## mithardnessgroup2026sh
+
+MIT Hardness Group, Josh Brunner, Erik D. Demaine, Fabian Frei, Timothy Gomez, Markus Hecher, Jeffery Li and Jayson Lynch. *ETH is Dead, Long Live SH*. arXiv:2611.02650v2, 16 November 2026. [Versioned PDF](https://arxiv.org/pdf/2611.02650v2). The independent source review checked §1 and footnotes 1–2 (pp. 1–2) for the decision SH input-size conventions, §2.1, Lemma 2.1 (p. 5) for the decision fixed-width size formulation, and §3, Theorem 3.1 (p. 8) for exponent transfer. The library uses occurring variables in `CNF ℕ` and allows polynomial overhead in the native binary encoding length. The counting half of Lemma 2.1 is tracked in [#8457](https://github.com/cslib-community/cslib-frontier/issues/8457). [Independent review](https://github.com/cslib-community/cslib-frontier/pull/8539#pullrequestreview-6055020260).
+
 <a id="mitzenmacherupfal17"></a>
 ## mitzenmacherupfal17
 

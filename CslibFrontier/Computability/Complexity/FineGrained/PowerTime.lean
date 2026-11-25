@@ -29,6 +29,8 @@ length of its output.
 
 * `Cslib.Complexity.DecidableInPowerExpTime.of_reduction`: transfer along a reduction with an
   exponential time bound and a power bound on the target parameter.
+* `Cslib.Complexity.DecidableInPowerExpTime.of_polyTime_reduction`: the polynomial-time
+  reduction specialization.
 -/
 
 public section
