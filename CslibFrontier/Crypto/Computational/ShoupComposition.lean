@@ -1098,9 +1098,7 @@ theorem computableInPolyTime_shoupPackMasks {γ : Type} {encIn : γ ↪ List Boo
       · simp only [htrig, Bool.false_eq_true, ↓reduceIte]
         exact ⟨by omega, h2, h3, h4⟩)
     (size := fun a => 8 * (iStar a + b a + shoupMasksLen (b a) (t a)) + 20)
-    (ComputableInPolyTime.polyBounded (show ComputableInPolyTime
-      (fun a => 8 * (iStar a + b a + shoupMasksLen (b a) (t a)) + 20) encIn encUnary from
-      by fun_prop))
+    (ComputableInPolyTime.polyBounded (by fun_prop))
     fun a _ acc _ ⟨h1, h2, h3, h4⟩ => by
       simp only [encShoupPackAcc_apply, length_encPair, encUnary_apply, encBits_apply,
         List.length_replicate, h3, h4]; omega
