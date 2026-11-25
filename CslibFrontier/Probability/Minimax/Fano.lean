@@ -245,16 +245,8 @@ theorem fano_minimax_prob_ge_of_klDiv_center [Finite X] [MeasurableSpace X]
   obtain ⟨ψ, hψ⟩ := exists_decoder_err_imp_ge hpack est
   have havg := fano_avg_testing_error_ge_of_klDiv_center hV P hQ hβ ψ
   obtain ⟨v, hv⟩ := exists_mem_ge_of_avg_ge havg
-  refine ⟨v, hv.trans ?_⟩
-  rw [toOuterMeasure_apply_toReal, toOuterMeasure_apply_toReal]
-  refine Finset.sum_le_sum fun x _ => ?_
-  simp only [Set.mem_ofPred_eq]
-  by_cases herr : ψ x ≠ v
-  · rw [ite_eq_left herr, ite_eq_left (hψ x v herr)]
-  · rw [ite_eq_right herr]
-    split_ifs
-    · exact ENNReal.toReal_nonneg
-    · exact le_rfl
+  exact ⟨v, hv.trans (ENNReal.toReal_mono (toOuterMeasure_ne_top _ _)
+    ((P v).toOuterMeasure.mono fun x hx => hψ x v hx))⟩
 
 private theorem minimax_risk_ge_of_avg_testing_error [Fintype X] [Nonempty V]
     (P : V → PMF X) {c : ℝ}
