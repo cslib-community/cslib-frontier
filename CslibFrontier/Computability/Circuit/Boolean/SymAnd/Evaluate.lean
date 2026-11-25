@@ -2537,6 +2537,20 @@ private theorem extractMatched_buckets_flatMap (c : Bool) (buckets : List (List 
       have hself := extractMatched_bucket_append false key out_v Q hQ []
       simpa [extractMatched] using hself.symm
 
+/-- A `flatMap` over `List.range N` whose blocks vanish away from `a < N` is the block at `a`. -/
+private theorem flatMap_range_eq_of_eq_nil {β : Type*} {N a : ℕ} (ha : a < N) {f : ℕ → List β}
+    (hf : ∀ v < N, v ≠ a → f v = []) : (List.range N).flatMap f = f a := by
+  induction N with
+  | zero => omega
+  | succ N ih =>
+    rw [List.range_succ, List.flatMap_append, List.flatMap_singleton]
+    by_cases haN : a = N
+    · have h0 : (List.range N).flatMap f = [] := List.flatMap_eq_nil_iff.2 fun v hv =>
+        have := List.mem_range.1 hv; hf v (by omega) (by omega)
+      rw [h0, List.nil_append, haN]
+    · rw [ih (by omega) fun v hv => hf v (by omega), hf N (by omega) (Ne.symm haN),
+        List.append_nil]
+
 /-- The AND count of `x.toSymAnd out` at input index `k` counts the gate sets inside
 `maskSet x.n k`. -/
 private theorem count_toSymAnd_equivFin_symm (x : SymAndInstance) (out : ℕ → Bool) (k : ℕ)
@@ -2607,9 +2621,7 @@ private theorem truthTableList_eq_pipeline (x : SymAndInstance) (out : ℕ → B
         ((List.range (s + 1)).filter fun j =>
           evalBits (Nat.size s) (Nat.bits j) == v)).reverse = _
       rw [hsplit]
-      by_cases hvs : v ≤ s
-      · simp [hvs]
-      · simp [hvs]
+      by_cases hvs : v ≤ s <;> simp [hvs]
     have hq_filter := queryEntriesFrom_filter_eq 0 s g hg_le v
     by_cases hvs : v ≤ s
     · rw [dite_eq_left hvs, htab_filter]
@@ -2653,36 +2665,23 @@ private theorem truthTableList_eq_pipeline (x : SymAndInstance) (out : ℕ → B
     dsimp only [extracted]
     rw [hjoined_buckets, heq, List.flatMap_map, List.flatMap_map]
     simp only [id_eq]
-    have hmap_ext : ∀ l : List ℕ, (∀ v ∈ l, v ∈ List.range (2 ^ Nat.size s)) →
-        l.flatMap (fun v => extractMatched false ((tabulateOut out s ++ queryEntries g).filter
-          (fun p => evalBits (Nat.size s) p.1 == v))) =
-        l.flatMap (fun v => if hv : v ≤ s then
-          ((List.range g.length).filter (fun j => g[j]?.getD 0 == v)).map
-            fun j => (Nat.bits j, out v)
-          else []) := by
-      intro l hl
-      induction l with
-      | nil => rfl
-      | cons v vs ih =>
-        rw [List.flatMap_cons, List.flatMap_cons, ih fun u hu => hl u (List.mem_cons_of_mem _ hu)]
-        congr 1
-        have hs := hbucket_shape v (hl v (List.mem_cons_self ..))
-        by_cases hvs : v ≤ s
-        · rw [dite_eq_left hvs] at hs ⊢
-          rw [hs]
-          have hba := extractMatched_bucket_append false (Nat.bits v) (out v)
-            (((List.range g.length).filter (fun j => g[j]?.getD 0 == v)).map
-              fun j => (Nat.bits v, (true, (j, false))))
-            (fun q hq => by
-              rw [List.mem_map] at hq; obtain ⟨j, _, rfl⟩ := hq; rfl) []
-          rw [extractMatched]
-          simp only [Bool.false_eq_true, ↓reduceIte]
-          simp only [extractMatched, List.append_nil, List.map_map] at hba
-          exact hba
-        · rw [dite_eq_right hvs] at hs ⊢
-          rw [hs]
-          rfl
-    exact hmap_ext _ fun _ hv => hv
+    refine List.flatMap_congr fun v hv => ?_
+    have hs := hbucket_shape v hv
+    by_cases hvs : v ≤ s
+    · rw [dite_eq_left hvs] at hs ⊢
+      rw [hs]
+      have hba := extractMatched_bucket_append false (Nat.bits v) (out v)
+        (((List.range g.length).filter (fun j => g[j]?.getD 0 == v)).map
+          fun j => (Nat.bits v, (true, (j, false))))
+        (fun q hq => by
+          rw [List.mem_map] at hq; obtain ⟨j, _, rfl⟩ := hq; rfl) []
+      rw [extractMatched]
+      simp only [Bool.false_eq_true, ↓reduceIte]
+      simp only [extractMatched, List.append_nil, List.map_map] at hba
+      exact hba
+    · rw [dite_eq_right hvs] at hs ⊢
+      rw [hs]
+      rfl
   have hrestored_eq : restored = (List.range (2 ^ x.n)).map fun k => (Nat.bits k, out g[k]!) := by
     dsimp only [restored]
     rw [radixSortLSB_eq]
@@ -2697,18 +2696,6 @@ private theorem truthTableList_eq_pipeline (x : SymAndInstance) (out : ℕ → B
         set vk := g[k]
         have hvk_le : vk ≤ s := hg_le vk (List.getElem_mem hk_lt_g)
         have hvk_lt : vk < 2 ^ Nat.size s := Nat.size_le.1 (Nat.size_le_size hvk_le)
-        have hr_split : List.range (2 ^ Nat.size s) =
-            List.range vk ++
-              ([vk] ++ (List.range (2 ^ Nat.size s - vk - 1)).map (· + (vk + 1))) := by
-          have h1 : 2 ^ Nat.size s = vk + (1 + (2 ^ Nat.size s - vk - 1)) := by omega
-          conv_lhs => rw [h1, List.range_add]
-          congr 1
-          rw [List.range_add, List.map_append, List.map_map]
-          simp only [List.range_one, List.map_singleton, Nat.add_zero, List.singleton_append]
-          congr 2
-          funext a
-          dsimp
-          omega
         have hother_nil : ∀ v ∈ List.range (2 ^ Nat.size s), v ≠ vk →
             (if hv : v ≤ s then
               ((List.range g.length).filter (fun j => g[j]?.getD 0 == v)).map
@@ -2746,39 +2733,11 @@ private theorem truthTableList_eq_pipeline (x : SymAndInstance) (out : ℕ → B
             List.filter_congr fun j _ => Bool.and_comm _ _
           rw [hfilt_congr, hf_eq, List.map_singleton]
           simp [List.getElem!_eq_getElem?_getD, List.getElem?_eq_getElem hk_lt_g, vk]
-        rw [hr_split, List.map_append, List.map_append, List.map_cons, List.map_nil,
-          List.flatMap_append, List.flatMap_append, List.flatMap_cons, List.flatMap_nil]
-        simp only [id_eq]
-        have hl1 : ((List.range vk).map fun v => if hv : v ≤ s then
-              ((List.range g.length).filter (fun j => g[j]?.getD 0 == v)).map
-                fun j => (Nat.bits j, out v)
-            else []).flatMap (fun a => a.filter fun r => evalBits x.n r.1 == k) = [] := by
-          refine List.flatMap_eq_nil_iff.2 fun b hb => ?_
-          rw [List.mem_map] at hb; obtain ⟨v, hv, rfl⟩ := hb
-          exact hother_nil v (List.mem_range.2 ((List.mem_range.1 hv).trans hvk_lt)) (by
-            have := List.mem_range.1 hv; omega)
-        have hl2 : (((List.range (2 ^ Nat.size s - vk - 1)).map (· + (vk + 1))).map fun v =>
-            if hv : v ≤ s then
-              ((List.range g.length).filter (fun j => g[j]?.getD 0 == v)).map
-                fun j => (Nat.bits j, out v)
-            else []).flatMap (fun a => a.filter fun r => evalBits x.n r.1 == k) = [] := by
-          refine List.flatMap_eq_nil_iff.2 fun b hb => ?_
-          rw [List.mem_map] at hb; obtain ⟨v, hv, rfl⟩ := hb
-          rw [List.mem_map] at hv; obtain ⟨t, ht, rfl⟩ := hv
-          have ht_lt := List.mem_range.1 ht
-          exact hother_nil (t + (vk + 1)) (List.mem_range.2 (by omega)) (by omega)
-        rw [hl1, hl2, List.nil_append, List.append_nil, List.append_nil]
-        exact hvk_eq
-      have hmap_gen : ∀ l : List ℕ, (∀ k ∈ l, k < 2 ^ x.n) →
-          l.flatMap (fun k => extracted.filter fun r => evalBits x.n r.1 == k) =
-            l.map fun k => (Nat.bits k, out g[k]!) := by
-        intro l hl
-        induction l with
-        | nil => rfl
-        | cons k ks ih =>
-          rw [List.flatMap_cons, hflat k (hl k (List.mem_cons_self ..)), List.singleton_append,
-            List.map_cons, ih fun m hm => hl m (List.mem_cons_of_mem _ hm)]
-      exact hmap_gen _ (fun k hk => List.mem_range.1 hk)
+        rw [List.flatMap_map]
+        exact (flatMap_range_eq_of_eq_nil hvk_lt fun v hv hne =>
+          hother_nil v (List.mem_range.2 hv) hne).trans hvk_eq
+      rw [List.map_eq_flatMap]
+      exact List.flatMap_congr fun k hk => hflat k (List.mem_range.1 hk)
     exact heq_map
   rw [hrestored_eq, List.map_map]
   refine List.ext_getElem (by simp [SymAndInstance.truthTableList]) fun k hk1 hk2 => ?_
