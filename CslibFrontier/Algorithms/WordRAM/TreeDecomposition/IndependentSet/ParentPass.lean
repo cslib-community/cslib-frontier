@@ -96,8 +96,7 @@ theorem getD_parentPass_raw (LB LP : List ℕ) (old best : Array ℕ) {c s : ℕ
     simp only [parentPass]
     rw [Array.getD_eq_getD_getElem?, Array.getElem?_push, size_parentPass]
     by_cases hsc : s = c
-    · subst hsc
-      simp
+    · simp [hsc]
     · simp only [hsc, ↓reduceIte, ← Array.getD_eq_getD_getElem?, ih (by omega)]
 
 /-- Every entry of `parentPassPrefix` is bounded by `capO + capB`. -/
@@ -105,8 +104,7 @@ theorem mem_parentPassPrefix_le {LB LP oldL bestL : List ℕ} {capO capB k : ℕ
     (hold : ∀ x ∈ oldL, x ≤ capO) (hbest : ∀ x ∈ bestL, x ≤ capB) :
     ∀ x ∈ parentPassPrefix LB LP oldL bestL k, x ≤ capO + capB := by
   intro x hx
-  unfold parentPassPrefix at hx
-  rw [List.mem_ofFn] at hx
+  rw [parentPassPrefix, List.mem_ofFn] at hx
   obtain ⟨i, rfl⟩ := hx
   have ho : oldL[i] ≤ capO := hold _ (List.getElem_mem i.isLt)
   split_ifs
@@ -278,16 +276,13 @@ theorem parentPassProg_spec {w : ℕ} (args : ParentPassArgs)
         ((Memory.spec w).clientHistory st (parentPassStep (args, curS))) := by
       unfold parentPassStep
       dsimp only
-      refine validHistory_read_bind hold_addr_lt ?_
-      refine validHistory_bind_step hv_rk ?_
+      refine validHistory_read_bind hold_addr_lt (validHistory_bind_step hv_rk ?_)
       rw [hst_rk, hr_rk]
-      refine validHistory_read_bind hbest_addr_lt ?_
-      exact validHistory_write_bind hold_addr_lt hnew_fit (validHistory_pure w st₁ _)
+      exact validHistory_read_bind hbest_addr_lt
+        (validHistory_write_bind hold_addr_lt hnew_fit (validHistory_pure w st₁ _))
     have hout₁ : ∀ addr, (addr < args.tblPPtr ∨ args.tblPPtr + args.tblPLen ≤ addr) →
-        st₁.mem addr = s.mem addr := fun addr haddr => by
-      change Function.update st.mem (args.tblPPtr + curS) newVal addr = s.mem addr
-      rw [Function.update_of_ne (by omega)]
-      exact hout addr haddr
+        st₁.mem addr = s.mem addr := fun addr haddr =>
+      (Function.update_of_ne (by omega) _ _).trans (hout addr haddr)
     have hpfx_next : HoldsIn args.tblPPtr (parentPassPrefix LB LP oldL bestL (curS + 1)) st₁ := by
       have hnew_eq : oldL[curS] + bestL.getD (restrictMask LB LP curS) 0 = newVal := by
         dsimp only [newVal, rKey]
@@ -396,10 +391,7 @@ theorem parentPassProg_realizes :
   · rw [hres_ev]; omega
   · rw [hst_ev]; exact hfr
   · rw [hst_ev]
-    intro addr haddr
-    change Function.update t.mem (d.tblPPtr + curS) _ addr = s.mem addr
-    rw [Function.update_of_ne (by omega)]
-    exact hout addr haddr
+    exact fun addr haddr => (Function.update_of_ne (by omega) _ _).trans (hout addr haddr)
   · have hrk_lt' : restrictMask LB LP curS < bestL.length := by rwa [← hr_rk]
     have heq_v : t.mem (d.tblPPtr + curS) + t.mem (d.bestPtr + rk) =
         oldL[curS] + bestL.getD (restrictMask LB LP curS) 0 := by
