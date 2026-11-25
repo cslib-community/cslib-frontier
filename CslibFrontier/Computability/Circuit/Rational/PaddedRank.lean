@@ -57,18 +57,13 @@ private lemma polynomialMap_single (M : ℕ) (b : Fin M) :
     polynomialMap M (Pi.single b (1 : K)) = X ^ b.val := by
   ext j
   by_cases hj : j < M
-  · rw [polynomialMap_coeff M _ ⟨j, hj⟩, coeff_X_pow]
-    simp [Pi.single_apply, Fin.ext_iff, eq_comm]
-  · rw [polynomialMap_coeff_high M _ j (Nat.le_of_not_gt hj)]
-    rw [coeff_X_pow]
-    have hb : b.val ≠ j := by omega
-    simp [Ne.symm hb]
+  · simp [polynomialMap_coeff M _ ⟨j, hj⟩, coeff_X_pow, Pi.single_apply, Fin.ext_iff, eq_comm]
+  · simp [polynomialMap_coeff_high M _ j (Nat.le_of_not_gt hj), coeff_X_pow,
+      show j ≠ b.val by omega]
 
 /-- The inverse of `taylorCoordinates M a` is `taylorCoordinates M (-a)`. -/
 lemma taylorCoordinates_symm (M : ℕ) (a : K) :
-    (taylorCoordinates M a).symm = taylorCoordinates M (-a) := by
-  ext x i
-  rfl
+    (taylorCoordinates M a).symm = taylorCoordinates M (-a) := by ext x i; rfl
 
 /-- `(reverseCoordinates M).symm` reverses the index `j` to `j.rev`. -/
 lemma reverseCoordinates_symm_apply (M : ℕ) (x : Fin M → K) :
@@ -80,19 +75,12 @@ lemma reverseTaylor_symm_matrix (M : ℕ) (a : K) (i j : Fin M) :
     LinearMap.toMatrix' (reverseTaylorCoordinates M a).symm.toLinearMap i j =
       (((X + C (-a)) ^ j.rev.val : K[X]).coeff i.val) := by
   rw [LinearMap.toMatrix'_apply]
-  simp only [reverseTaylorCoordinates, LinearEquiv.trans_symm,
-    LinearEquiv.coe_toLinearMap, LinearEquiv.trans_apply, reverseCoordinates_symm_apply]
-  rw [taylorCoordinates_symm]
-  have he : (fun k : Fin M => (Pi.single j (1 : K) : Fin M → K) k.rev) =
-      (Pi.single j.rev (1 : K) : Fin M → K) := by
-    funext k
-    simp only [Pi.single_apply]
-    have hh : k.rev = j ↔ k = j.rev := by
-      constructor <;> intro h
-      · rw [← Fin.rev_rev k, h]
-      · rw [h, Fin.rev_rev]
-    congr 1
-    exact propext hh
+  simp only [reverseTaylorCoordinates, LinearEquiv.trans_symm, LinearEquiv.coe_toLinearMap,
+    LinearEquiv.trans_apply, reverseCoordinates_symm_apply, taylorCoordinates_symm]
+  have he : (fun k : Fin M => (Pi.single j (1 : K) : Fin M → K) k.rev) = Pi.single j.rev 1 :=
+    funext fun k => by
+      simp only [Pi.single_apply]
+      exact if_congr ⟨fun h => by rw [← Fin.rev_rev k, h], fun h => by rw [h, Fin.rev_rev]⟩ rfl rfl
   rw [he, taylorCoordinates_apply, polynomialMap_single, taylor_X_pow]
 
 /-- The reverse-Taylor test matrix over the univariate polynomial ring in t.
@@ -115,37 +103,28 @@ private lemma embed_X_pow (a : ℕ) : embed ((X : K[X]) ^ a) = HahnSeries.single
 
 /-- Mapping `embed` over `full M a` gives the matrix of `testMap M a`. -/
 lemma full_embed (M : ℕ) (a : K) :
-    (embed.mapMatrix (full M a)) = LinearMap.toMatrix' (testMap M a) := by
-  apply Matrix.ext
-  intro i j
-  change embed (full M a i j) = testMap M a (Pi.single j 1) i
-  simp only [full, map_sum, map_mul, embed_C, embed_X_pow]
-  change _ = liftMap (reverseTaylorCoordinates M a).symm.toLinearMap
-    (weightMap Fin.val (liftMap (taylorCoordinates M a).toLinearMap (Pi.single j 1))) i
-  rw [liftMap_apply]
-  apply Finset.sum_congr rfl
-  intro r _
-  rw [reverseTaylor_symm_matrix]
-  have hin : liftMap (taylorCoordinates M a).toLinearMap (Pi.single j (1 : F K)) r =
-      HahnSeries.C ((((X + C a) ^ j.val : K[X]).coeff r.val)) := by
-    rw [liftMap_apply]
-    simp [Pi.single_apply, taylorCoordinates_apply, polynomialMap_single]
-  simp only [weightMap, LinearMap.coe_mk, AddHom.coe_mk, hin]
-  ring
+    (embed.mapMatrix (full M a)) = LinearMap.toMatrix' (testMap M a) :=
+  Matrix.ext fun i j => by
+    change embed (full M a i j) = liftMap (reverseTaylorCoordinates M a).symm.toLinearMap
+      (weightMap Fin.val (liftMap (taylorCoordinates M a).toLinearMap (Pi.single j 1))) i
+    simp only [full, map_sum, map_mul, embed_C, embed_X_pow, liftMap_apply]
+    refine Finset.sum_congr rfl fun r _ => ?_
+    have hin : liftMap (taylorCoordinates M a).toLinearMap (Pi.single j (1 : F K)) r =
+        HahnSeries.C ((((X + C a) ^ j.val : K[X]).coeff r.val)) := by
+      rw [liftMap_apply]
+      simp [Pi.single_apply, taylorCoordinates_apply, polynomialMap_single]
+    simp only [reverseTaylor_symm_matrix, weightMap, LinearMap.coe_mk, AddHom.coe_mk, hin]
+    ring
 
 private lemma full_natDegree_le (M : ℕ) (a : K) (i j : Fin M) :
-    (full M a i j).natDegree ≤ M - 1 := by
-  apply natDegree_sum_le_of_forall_le
-  intro r _
-  apply (natDegree_C_mul_le _ _).trans
-  simpa using Nat.le_sub_one_of_lt r.isLt
+    (full M a i j).natDegree ≤ M - 1 :=
+  natDegree_sum_le_of_forall_le _ _ fun r _ =>
+    (natDegree_C_mul_le _ _).trans (by simpa using Nat.le_sub_one_of_lt r.isLt)
 
 /-- Every entry of `padded M N a` has polynomial degree at most `M - 1`. -/
 lemma padded_natDegree_le (M N : ℕ) (a : K) (i j : Fin M) :
     (padded M N a i j).natDegree ≤ M - 1 := by
-  by_cases hj : j.val < N
-  · simpa [padded, hj] using full_natDegree_le M a i j
-  · simp [padded, hj]
+  by_cases hj : j.val < N <;> simp [padded, hj, full_natDegree_le]
 
 end
 end Rational.TestPolynomial
@@ -169,18 +148,10 @@ lemma raw_apply {w q M : ℕ} (A : Fin w → Matrix (Fin q) (Fin q) (F K))
     (R : Fin w → Matrix (Fin M) (Fin M) (F K)) (f : Fin q × Fin M → F K) (α : Fin q)
     (j : Fin M) :
     (raw A R).mulVec f (α, j) = ∑ i, ∑ γ, A i α γ * (R i).mulVec (fun b => f (γ, b)) j := by
-  simp only [Matrix.mulVec, dotProduct, raw, Finset.sum_mul, Fintype.sum_prod_type]
-  rw [Finset.sum_comm (s := (Finset.univ : Finset (Fin w)))
-    (t := (Finset.univ : Finset (Fin q)))]
-  apply Finset.sum_congr rfl
-  intro γ _
-  rw [Finset.sum_comm]
-  apply Finset.sum_congr rfl
-  intro i _
-  rw [Finset.mul_sum]
-  apply Finset.sum_congr rfl
-  intro b _
-  ring
+  simp only [Matrix.mulVec, dotProduct, raw, Finset.sum_mul, Finset.mul_sum, Fintype.sum_prod_type,
+    mul_assoc]
+  conv_rhs => rw [Finset.sum_comm]
+  exact Finset.sum_congr rfl fun γ _ => Finset.sum_comm
 
 /-- Pad vectors in the truncated column space with zeros. -/
 def extend (q M N : ℕ) : (Fin q × Fin N → F K) →ₗ[F K] (Fin q × Fin M → F K) where
@@ -190,18 +161,14 @@ def extend (q M N : ℕ) : (Fin q × Fin N → F K) →ₗ[F K] (Fin q × Fin M 
 
 omit [CharZero K] in
 private lemma extend_low (q M N : ℕ) (f : Fin q × Fin N → F K) (α : Fin q) (j : Fin M) :
-    N ≤ ↑j → extend q M N f (α, j) = 0 := by
-  intro hj
-  simp [extend, not_lt.mpr hj]
+    N ≤ ↑j → extend q M N f (α, j) = 0 :=
+  fun hj => by simp [extend, not_lt.mpr hj]
 
 omit [CharZero K] in
 /-- Zero-padding from `N` to `M` columns is injective when `N ≤ M`. -/
 lemma extend_injective (q M N : ℕ) (hNM : N ≤ M) :
-    Function.Injective (extend (K := K) q M N) := by
-  intro f g h
-  funext ⟨α, j⟩
-  have hh := congrFun h (α, ⟨j.val, j.isLt.trans_le hNM⟩)
-  simpa [extend, j.isLt] using hh
+    Function.Injective (extend (K := K) q M N) := fun f g h =>
+  funext fun ⟨α, j⟩ => by simpa [extend, j.isLt] using congrFun h (α, ⟨j.val, j.isLt.trans_le hNM⟩)
 
 omit [CharZero K] in
 private lemma padded_mulVec_low (M N : ℕ) (a : K) (f : Fin M → F K)
@@ -210,8 +177,7 @@ private lemma padded_mulVec_low (M N : ℕ) (a : K) (f : Fin M → F K)
   rw [← Matrix.toLin'_toMatrix' (testMap M a), ← full_embed M a, Matrix.toLin'_apply]
   funext i
   simp only [Matrix.mulVec, dotProduct, RingHom.mapMatrix_apply, Matrix.map_apply]
-  apply Finset.sum_congr rfl
-  intro j _
+  refine Finset.sum_congr rfl fun j _ => ?_
   by_cases hj : j.val < N
   · simp [padded, hj]
   · simp [padded, hj, hf j (Nat.le_of_not_gt hj)]
@@ -226,32 +192,23 @@ theorem rank_ge (w B M N q e : ℕ) (hw : 1 ≤ w) (hN : 1 ≤ N)
     (hX : Function.Injective (blockEval A X)) :
     q * N ≤ (raw A (fun i => embed.mapMatrix (padded M N (points i)))).rank := by
   let R := fun i => embed.mapMatrix (padded M N (points i))
-  let L := (raw A R).mulVecLin.comp (extend q M N)
-  have hi : Function.Injective L := by
-    apply (LinearMap.ker_eq_bot).mp
-    rw [LinearMap.ker_eq_bot']
+  have hi : Function.Injective ((raw A R).mulVecLin.comp (extend q M N)) := by
+    rw [← LinearMap.ker_eq_bot, LinearMap.ker_eq_bot']
     intro v hv
     let f : Fin q → Fin M → F K := fun α j => extend q M N v (α, j)
     have hf : ∀ α j, N ≤ j.val → f α j = 0 := extend_low q M N v
-    have hker : ∀ α, ∑ i, ∑ γ, A i α γ • testMap M (points i) (f γ) = 0 := by
-      intro α
-      funext j
-      have hh := congrFun hv (α, j)
-      change (raw A R).mulVec (extend q M N v) (α, j) = 0 at hh
-      rw [raw_apply] at hh
-      simpa only [R, f, padded_mulVec_low M N _ _ (hf _),
-        Finset.sum_apply, Pi.smul_apply, smul_eq_mul, Pi.zero_apply] using hh
+    have hker : ∀ α, ∑ i, ∑ γ, A i α γ • testMap M (points i) (f γ) = 0 := fun α =>
+      funext fun j => by
+        have hh : (raw A R).mulVec (extend q M N v) (α, j) = 0 := congrFun hv (α, j)
+        simpa only [raw_apply, R, f, padded_mulVec_low M N _ _ (hf _),
+          Finset.sum_apply, Pi.smul_apply, smul_eq_mul, Pi.zero_apply] using hh
     have hzero := rectangular_kernel_zero w B M N q e hw hN hMN hq he points hp A X hX f hf hker
-    have hext : extend q M N v = 0 := by
-      funext ⟨α, j⟩
-      exact congrFun (congrFun hzero α) j
-    apply extend_injective q M N (by omega)
-    simpa only [map_zero] using hext
+    exact extend_injective q M N (by omega)
+      (by simpa only [map_zero] using funext fun ⟨α, j⟩ => congrFun (congrFun hzero α) j)
   let E := LinearMap.toMatrix' (extend (K := K) q M N)
   have hE : E.mulVecLin = extend q M N := Matrix.toLin'_toMatrix' _
   have hr : (raw A R * E).rank = q * N := by
-    rw [Matrix.rank, Matrix.mulVecLin_mul, hE]
-    rw [LinearMap.finrank_range_of_inj hi]
+    rw [Matrix.rank, Matrix.mulVecLin_mul, hE, LinearMap.finrank_range_of_inj hi]
     simp
   exact hr ▸ Matrix.rank_mul_le_left (raw A R) E
 
@@ -260,15 +217,10 @@ satisfies `(q - 1) * M < q * N`. -/
 lemma numeric_gap (w B M N q : ℕ) (hq : 1 ≤ q) (hqB : q ≤ B)
     (hMN : M = N + 2 * w ^ 3 * B) (hM : B * (2 * w ^ 3 * B) < M) : (q - 1) * M < q * N := by
   have hh : q * (2 * w ^ 3 * B) < M := (Nat.mul_le_mul_right _ hqB).trans_lt hM
-  have hq' : q - 1 + 1 = q := by omega
-  have heq : q * M = (q - 1) * M + M := by
-    calc
-      _ = (q - 1 + 1) * M := by rw [hq']
-      _ = _ := by ring
-  have heq' : q * N + q * (2 * w ^ 3 * B) = (q - 1) * M + M := by
-    calc
-      _ = q * M := by rw [hMN]; ring
-      _ = _ := heq
+  have heq : q * N + q * (2 * w ^ 3 * B) = (q - 1) * M + M := by
+    calc q * N + q * (2 * w ^ 3 * B) = q * M := by rw [hMN]; ring
+      _ = (q - 1 + 1) * M := by rw [Nat.sub_add_cancel hq]
+      _ = (q - 1) * M + M := by ring
   omega
 
 end
@@ -288,10 +240,8 @@ private lemma map_taylor_coeff (φ : K →+* E) (a : K) (j r : ℕ) :
 
 private lemma full_map (φ : K →+* E) (M : ℕ) (a : K) (i j : Fin M) :
     (full M a i j).map φ = full M (φ a) i j := by
-  unfold full
-  rw [Polynomial.map_sum]
-  apply Finset.sum_congr rfl
-  intro r _
+  rw [full, full, Polynomial.map_sum]
+  refine Finset.sum_congr rfl fun r _ => ?_
   simp only [Polynomial.map_mul, Polynomial.map_C, Polynomial.map_pow, Polynomial.map_X, map_mul]
   rw [map_taylor_coeff φ (-a), map_taylor_coeff φ a, map_neg]
 
@@ -305,10 +255,7 @@ lemma eval₂_padded (φ : K →+* E) (M N : ℕ) (a : K) (i j : Fin M) :
     (padded M N a i j).eval₂ (HahnSeries.C.comp φ) (HahnSeries.single 1 1) =
       embed (padded M N (φ a) i j) := by
   rw [← padded_map φ M N a i j]
-  change (padded M N a i j).eval₂ ((HahnSeries.C : E →+* F E).comp φ)
-      (HahnSeries.single (1 : ℤ) 1) =
-    ((padded M N a i j).map φ).eval₂ HahnSeries.C (HahnSeries.single 1 1)
-  rw [Polynomial.eval₂_map]
+  exact (Polynomial.eval₂_map φ (HahnSeries.C : E →+* F E) (HahnSeries.single (1 : ℤ) 1)).symm
 
 end
 end Rational.TestPolynomial

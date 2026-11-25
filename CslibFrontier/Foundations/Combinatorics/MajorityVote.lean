@@ -86,12 +86,9 @@ theorem card_filter_card_filter_le_le_pow (G : Finset Ω) (hG : Fintype.card Ω 
   have hgN : g ≤ N := card_le_univ G
   have hbg : b ≤ g := by omega
   rcases Nat.eq_zero_or_pos b with hb | hb
-  · -- every element lies in `G`, so no tuple of positive length is bad
-    rcases Nat.eq_zero_or_pos r with rfl | hr
+  · rcases Nat.eq_zero_or_pos r with rfl | hr
     · simpa using card_le_univ bad
-    have hGu : G = univ := eq_univ_of_card G (by omega)
-    have : bad = ∅ := filter_false_of_mem fun ω _ => by simp [hGu]; omega
-    simp [this]
+    · simp [bad, eq_univ_of_card G (by omega), show ¬2 * r ≤ r by omega]
   have hg : 0 < g := lt_of_lt_of_le hb hbg
   let w : Ω → ℕ := fun a => if a ∈ G then b else g
   -- the weights of all tuples sum to `(2 g b) ^ (2 r)`
@@ -102,33 +99,26 @@ theorem card_filter_card_filter_le_le_pow (G : Finset Ω) (hG : Fintype.card Ω 
       ← compl_eq_univ_sdiff, card_compl]
     ring
   -- a bad tuple has weight at least `(g b) ^ r`
-  have hweight : ∀ ω ∈ bad, (g * b) ^ r ≤ ∏ i, w (ω i) := by
-    intro ω hω
+  have hweight : ∀ ω ∈ bad, (g * b) ^ r ≤ ∏ i, w (ω i) := fun ω hω => by
     have hk := (mem_filter.1 hω).2
     set k := (univ.filter fun i => ω i ∈ G).card
-    have hc := card_filter_add_card_filter_not (s := (univ : Finset (Fin (2 * r))))
-      (fun i => ω i ∈ G)
+    have hc := card_filter_add_card_filter_not (s := (univ : Finset (Fin (2 * r)))) (ω · ∈ G)
     rw [card_univ, Fintype.card_fin] at hc
     have hprod : ∏ i, w (ω i) = b ^ k * g ^ (2 * r - k) := by
-      simp only [w]
-      rw [prod_ite, prod_const, prod_const]
-      congr 2
-      omega
+      simp only [w, prod_ite, prod_const]; congr 2; omega
     have e1 : g ^ (2 * r - k) = g ^ (r - k) * g ^ r := by rw [← pow_add]; congr 1; omega
     have e2 : b ^ r = b ^ k * b ^ (r - k) := by rw [← pow_add]; congr 1; omega
-    have : b ^ (r - k) ≤ g ^ (r - k) := Nat.pow_le_pow_left hbg _
     rw [hprod, e1, mul_pow, e2]
     calc g ^ r * (b ^ k * b ^ (r - k)) = b ^ k * b ^ (r - k) * g ^ r := by ring
       _ ≤ b ^ k * g ^ (r - k) * g ^ r := by gcongr
       _ = b ^ k * (g ^ (r - k) * g ^ r) := by ring
-  have hmarkov : (g * b) ^ r * bad.card ≤ (2 * g * b) ^ (2 * r) := by
-    rw [← hsum, mul_comm, ← smul_eq_mul, ← sum_const]
-    exact (sum_le_sum hweight).trans
-      (sum_le_sum_of_subset_of_nonneg (subset_univ _) fun _ _ _ => Nat.zero_le _)
-  have hpos : 0 < (g * b) ^ r := by positivity
-  refine Nat.le_of_mul_le_mul_left ?_ hpos
-  calc (g * b) ^ r * bad.card ≤ (2 * g * b) ^ (2 * r) := hmarkov
-    _ = (g * b) ^ r * (4 * g * b) ^ r := by rw [pow_mul, ← mul_pow]; ring
+  refine Nat.le_of_mul_le_mul_left ?_ (by positivity : 0 < (g * b) ^ r)
+  calc (g * b) ^ r * bad.card
+      ≤ ∑ ω : Fin (2 * r) → Ω, ∏ i, w (ω i) := by
+        rw [mul_comm, ← smul_eq_mul, ← sum_const]
+        exact (sum_le_sum hweight).trans
+          (sum_le_sum_of_subset_of_nonneg (subset_univ _) fun _ _ _ => Nat.zero_le _)
+    _ = (g * b) ^ r * (4 * g * b) ^ r := by rw [hsum, pow_mul, ← mul_pow]; ring
 
 /-- **Majority votes at an inverse-polynomial advantage.** If `G` has density at least
 `1 / 2 + 1 / q` in `Ω`, that is `2 |Ω| ≤ q (2 |G| - |Ω|)`, then at most a fifth of the
@@ -139,32 +129,26 @@ theorem five_mul_card_filter_card_filter_le_sq_le [Nonempty Ω] (G : Finset Ω) 
       (univ.filter fun i => ω i ∈ G).card ≤ q ^ 2).card ≤ Fintype.card Ω ^ (2 * q ^ 2) := by
   set N := Fintype.card Ω
   set g := G.card
+  set D := 2 * g - N
   have hN : 0 < N := Fintype.card_pos
   have hgN : g ≤ N := card_le_univ G
-  have hD : 0 < 2 * g - N := Nat.pos_of_ne_zero fun h => by rw [h, mul_zero] at hG; omega
+  have hD : 0 < D := Nat.pos_of_ne_zero fun h => by rw [h, mul_zero] at hG; omega
   have hbad := card_filter_card_filter_le_le_pow G (by omega) (q ^ 2)
-  -- in the reals, with `x = D ^ 2 / N ^ 2` for `D = 2 g - N`, we have `4 g (N - g) = N ^ 2 (1 - x)`
-  set D := 2 * g - N
-  have hNr : (0 : ℝ) < N := by exact_mod_cast hN
+  have hNr : (0 : ℝ) < N := Nat.cast_pos.mpr hN
   have h4 : ((4 * g * (N - g) : ℕ) : ℝ) = (N : ℝ) ^ 2 * (1 - (D : ℝ) ^ 2 / (N : ℝ) ^ 2) := by
-    have : (D : ℝ) = 2 * g - N := by rw [Nat.cast_sub (by omega)]; push_cast; ring
-    rw [Nat.cast_mul, Nat.cast_mul, Nat.cast_sub hgN, this]
-    field_simp
-    ring
-  have hx₀ : (0 : ℝ) ≤ (D : ℝ) ^ 2 / (N : ℝ) ^ 2 := by positivity
-  have hx₁ : (D : ℝ) ^ 2 / (N : ℝ) ^ 2 ≤ 1 := by
-    rw [div_le_one (by positivity)]
-    exact pow_le_pow_left₀ (Nat.cast_nonneg _) (by exact_mod_cast (by omega : D ≤ N)) 2
+    rw [Nat.cast_mul, Nat.cast_mul, Nat.cast_sub hgN, show (D : ℝ) = 2 * g - N by
+      rw [Nat.cast_sub (by omega)]; push_cast; ring]
+    field_simp; ring
+  have hx₁ : (D : ℝ) ^ 2 / (N : ℝ) ^ 2 ≤ 1 := (div_le_one (by positivity)).mpr <|
+    pow_le_pow_left₀ (Nat.cast_nonneg _) (by exact_mod_cast (by omega : D ≤ N)) 2
   have hrx : (4 : ℝ) ≤ ((q ^ 2 : ℕ) : ℝ) * ((D : ℝ) ^ 2 / (N : ℝ) ^ 2) := by
-    rw [Nat.cast_pow, ← mul_div_assoc, le_div_iff₀ (by positivity), ← mul_pow]
-    cast_nlinarith [hG]
-  have hB := one_sub_pow_mul_one_add_mul_le_one hx₀ hx₁ (q ^ 2)
+    rw [Nat.cast_pow, ← mul_div_assoc, le_div_iff₀ (by positivity), ← mul_pow]; cast_nlinarith [hG]
+  have hB := one_sub_pow_mul_one_add_mul_le_one (by positivity) hx₁ (q ^ 2)
   have key : (5 : ℝ) * ((4 * g * (N - g) : ℕ) : ℝ) ^ q ^ 2 ≤ (N : ℝ) ^ (2 * q ^ 2) := by
     rw [h4, mul_pow, ← pow_mul, mul_comm 2]
-    have h1 : (0 : ℝ) ≤ (1 - (D : ℝ) ^ 2 / (N : ℝ) ^ 2) ^ q ^ 2 := pow_nonneg (by linarith) _
-    nlinarith [pow_pos hNr (q ^ 2 * 2)]
-  have : 5 * (4 * g * (N - g)) ^ q ^ 2 ≤ N ^ (2 * q ^ 2) := by exact_mod_cast key
-  exact (Nat.mul_le_mul_left 5 hbad).trans this
+    nlinarith [pow_nonneg (by linarith : (0 : ℝ) ≤ 1 - (D : ℝ) ^ 2 / (N : ℝ) ^ 2) (q ^ 2),
+      pow_pos hNr (q ^ 2 * 2)]
+  exact (Nat.mul_le_mul_left 5 hbad).trans (by exact_mod_cast key)
 
 /-- **Majority votes.** If at least two thirds of `Ω` lie in `G`, then at most an `(8 / 9) ^ r`
 fraction of the `2 r`-tuples have at most `r` entries in `G`: the case of
@@ -175,13 +159,12 @@ theorem card_filter_card_filter_le_le (G : Finset Ω) (hG : 2 * Fintype.card Ω 
       ≤ 8 ^ r * Fintype.card Ω ^ (2 * r) := by
   set N := Fintype.card Ω
   have hgN : G.card ≤ N := card_le_univ G
-  have hbad := card_filter_card_filter_le_le_pow G (by omega) r
   have hnum : 9 * (4 * G.card * (N - G.card)) ≤ 8 * N ^ 2 := by
     obtain ⟨b, hb⟩ : ∃ b, N = G.card + b := ⟨N - G.card, by omega⟩
     rw [hb, Nat.add_sub_cancel_left]
-    have h1 : 2 * b ≤ G.card := by omega
-    nlinarith [Nat.mul_le_mul h1 (by omega : b ≤ 2 * G.card)]
-  calc 9 ^ r * _ ≤ 9 ^ r * (4 * G.card * (N - G.card)) ^ r := Nat.mul_le_mul_left _ hbad
+    nlinarith [Nat.mul_le_mul (by omega : 2 * b ≤ G.card) (by omega : b ≤ 2 * G.card)]
+  calc 9 ^ r * _ ≤ 9 ^ r * (4 * G.card * (N - G.card)) ^ r :=
+        Nat.mul_le_mul_left _ (card_filter_card_filter_le_le_pow G (by omega) r)
     _ = (9 * (4 * G.card * (N - G.card))) ^ r := (mul_pow _ _ _).symm
     _ ≤ (8 * N ^ 2) ^ r := Nat.pow_le_pow_left hnum r
     _ = 8 ^ r * N ^ (2 * r) := by rw [mul_pow, ← pow_mul, mul_comm 2]
@@ -208,23 +191,19 @@ theorem exists_forall_lt_card_filter_mem {X : Type*} [Fintype X] [Nonempty Ω] {
   set N := Fintype.card Ω
   let bad : X → Finset (Fin (2 * R) → Ω) := fun x =>
     univ.filter fun ω => (univ.filter fun i => ω i ∈ good x).card ≤ R
-  have hcover : (univ : Finset (Fin (2 * R) → Ω)) ⊆ univ.biUnion bad := fun ω _ => by
-    obtain ⟨x, hx⟩ := h ω
-    exact mem_biUnion.2 ⟨x, mem_univ _, mem_filter.2 ⟨mem_univ _, hx⟩⟩
+  have hcover : (univ : Finset (Fin (2 * R) → Ω)) ⊆ univ.biUnion bad := fun ω _ =>
+    let ⟨x, hx⟩ := h ω; mem_biUnion.2 ⟨x, mem_univ _, mem_filter.2 ⟨mem_univ _, hx⟩⟩
   have hcard := (card_le_card hcover).trans card_biUnion_le
   rw [card_univ, Fintype.card_fun, Fintype.card_fin] at hcard
-  have hsum : 9 ^ R * ∑ x, (bad x).card ≤ 2 ^ n * (8 ^ R * N ^ (2 * R)) := by
-    rw [mul_sum]
-    calc ∑ x, 9 ^ R * (bad x).card ≤ ∑ _x : X, 8 ^ R * N ^ (2 * R) :=
-          sum_le_sum fun x _ => card_filter_card_filter_le_le (good x) (hgood x) R
-      _ ≤ 2 ^ n * (8 ^ R * N ^ (2 * R)) := by
-          rw [sum_const, card_univ, smul_eq_mul]
-          exact Nat.mul_le_mul_right _ hX
-  have hpos : 0 < N ^ (2 * R) := pow_pos Fintype.card_pos _
-  have := (Nat.mul_le_mul_left (9 ^ R) hcard).trans hsum
-  rw [← mul_assoc] at this
-  exact absurd (this.trans_lt (Nat.mul_lt_mul_of_pos_right (two_pow_mul_eight_pow_lt n) hpos))
-    (lt_irrefl _)
+  have hsum : 9 ^ R * N ^ (2 * R) ≤ 2 ^ n * 8 ^ R * N ^ (2 * R) := by
+    calc 9 ^ R * N ^ (2 * R) ≤ 9 ^ R * ∑ x, (bad x).card := Nat.mul_le_mul_left _ hcard
+      _ = ∑ x, 9 ^ R * (bad x).card := mul_sum ..
+      _ ≤ ∑ _x : X, 8 ^ R * N ^ (2 * R) :=
+        sum_le_sum fun x _ => card_filter_card_filter_le_le (good x) (hgood x) R
+      _ ≤ 2 ^ n * 8 ^ R * N ^ (2 * R) := by
+        rw [sum_const, card_univ, smul_eq_mul, mul_assoc]; exact Nat.mul_le_mul_right _ hX
+  exact absurd (hsum.trans_lt (Nat.mul_lt_mul_of_pos_right (two_pow_mul_eight_pow_lt n)
+    (pow_pos Fintype.card_pos _))) (lt_irrefl _)
 
 omit [DecidableEq Ω] in
 /-- **One good element for many tests at once.** If each of at most `2 ^ n` tests is passed by at
@@ -234,13 +213,9 @@ theorem exists_forall_exists_apply_mem {X : Type*} [Fintype X] [Nonempty Ω] {n 
     (hgood : ∀ x, Fintype.card Ω ≤ 2 * (good x).card) :
     ∃ ω : Fin (n + 1) → Ω, ∀ x, ∃ i, ω i ∈ good x := by
   classical
-  apply exists_cover_of_scaled_card_lt (fun ω x => ω ∈ good x) 1 2 (n + 1)
-  · intro x
-    rw [Fintype.card_subtype_compl, Fintype.card_coe]
-    have := hgood x
-    have := card_le_univ (good x)
-    lia
-  · simpa only [one_pow, mul_one] using
-      hX.trans_lt (Nat.pow_lt_pow_right (by decide) (by lia))
+  refine exists_cover_of_scaled_card_lt (fun ω x => ω ∈ good x) 1 2 (n + 1) (fun x => ?_)
+    (by simpa only [one_pow, mul_one] using hX.trans_lt (Nat.pow_lt_pow_right (by decide) (by lia)))
+  rw [Fintype.card_subtype_compl, Fintype.card_coe]
+  have := hgood x; have := card_le_univ (good x); lia
 
 end Cslib
