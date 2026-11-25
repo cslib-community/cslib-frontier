@@ -8,6 +8,7 @@ module
 -- upstream: local-only (tests)
 
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalJacobianEvaluation
+import CslibFrontier.Computability.Complexity.RealAlgebraic.CoordinateFingerprintWitness
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCandidates
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCoefficients
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCoefficientSign
@@ -425,5 +426,28 @@ example :
   exact C.criticalCoordinateFingerprintLabelResidue_cast (fun _ => 0) (fun _ => hF) z
     (by decide) 5 2 z (by decide) (-1) (by change 0 < 101; decide)
     (by decide) (by decide) (by decide)
+
+-- The assembled family exposes the counting certificate with ordinary imports.
+example :
+    let F : MvPolynomial (Fin 1) ℤ := X 0
+    let C : Controlled (fun _ : ℕ => F) encNat 0 :=
+      Controlled.coordinate (.const 1) (fun _ => 0) (.const 0)
+    let labels := C.criticalCoordinateFingerprintLabels (d := fun _ => 1) Decoder.nat
+      (fun _ => 0) (fun _ => by decide) (fun _ => (totalDegree_X_le 0).trans (by decide))
+      (.const 1) (.const 0) (.const 5) (.const 2) (.const (-1)) (fun _ => by decide)
+      (fun _ => by decide)
+    labels.evaluate ∈ CountingFunction 20 (encEvaluation encNat) encNat := by
+  intro F C labels
+  exact labels.evaluate_mem
+
+-- A shared word represents different signed targets at two coordinate addresses.
+example : ∃ word : List Bool, word.length = coordinateFingerprintWitnessWidth 2 2 ∧
+    decodeCoordinateFingerprint 2 word 0 = ⟨3, 2, -5⟩ ∧
+    decodeCoordinateFingerprint 2 word 1 = ⟨5, 4, 9⟩ := by
+  let f : Fin 2 → CoordinateFingerprint := fun i => if i = 0 then ⟨3, 2, -5⟩ else ⟨5, 4, 9⟩
+  have hf (i : Fin 2) : (f i).Bounded 2 := by
+    fin_cases i <;> unfold CoordinateFingerprint.Bounded <;> decide
+  obtain ⟨word, hw, hd⟩ := exists_coordinateFingerprintWitness f hf
+  exact ⟨word, hw, hd 0, hd 1⟩
 
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation

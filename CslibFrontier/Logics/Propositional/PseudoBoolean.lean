@@ -175,6 +175,16 @@ theorem linVal_insertCoeff (σ : ℕ → Bool) (v : ℕ) (a : ℤ) (L : List (�
   | case2 => simp; ring -- u = v: add to coefficient
   | case3 u b L hne ih => simp [ih]; ring -- u ≠ v: recurse
 
+/-- Adding a coefficient for a variable not in the linear form appends it. -/
+theorem insertCoeff_of_not_mem {v : ℕ} {a : ℤ} {L : List (ℕ × ℤ)} (h : v ∉ L.map Prod.fst) :
+    insertCoeff v a L = L ++ [(v, a)] := by
+  induction L with
+  | nil => rfl
+  | cons e L ih =>
+    obtain ⟨u, b⟩ := e
+    simp only [List.map_cons, List.mem_cons, not_or] at h
+    simp [insertCoeff, Ne.symm h.1, ih h.2]
+
 /-- The value of a term is its signed coefficient times its variable, plus its coefficient if
 its literal is negative. -/
 theorem termVal_eq (σ : ℕ → Bool) (t : ℕ × Literal ℕ) :

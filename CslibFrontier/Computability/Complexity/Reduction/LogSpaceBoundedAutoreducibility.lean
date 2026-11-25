@@ -78,12 +78,8 @@ theorem activeSelfQuery_logspace {r : α → ℕ} {q : α × ℕ → α}
     ComputableInLogSpace (activeSelfQuery encA r q) encA encBool := by
   have henc : ComputableInLogSpace (fun a : α => encA a) encA encBits :=
     ComputableInLogSpace.of_eq fun _ => rfl
-  have heq : ComputableInLogSpace
-      (fun p : α × ℕ => decide (encA (q p) = encA p.1))
-      (encPair encA encUnary) encBool := by fun_prop
-  unfold activeSelfQuery
-  apply (ComputableInLogSpace.bitsAny id).comp'
-  logspace
+  have := ComputableInLogSpace.bitsAny id
+  logspace [activeSelfQuery]
 
 /-- Suppress all queries when a logspace test determines the answer. Otherwise preserve the
 original generator and evaluator. Only active queries in the surviving branch must avoid input. -/
