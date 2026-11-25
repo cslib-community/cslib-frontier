@@ -343,8 +343,7 @@ theorem Computes.boolMatrixWeight_le_sq_pred_mul_size [Fintype α] [Fintype β]
   classical
   have hKpos : 0 < K := hA.pos
   rcases eq_or_lt_of_le (show 1 ≤ K by omega) with rfl | hK2
-  · rw [hA.boolMatrixWeight_eq_zero]
-    exact Nat.zero_le _
+  · exact hA.boolMatrixWeight_eq_zero ▸ Nat.zero_le _
   set inSet : V → Finset β := fun v => univ.filter fun j => Nonempty (C.Walk (C.inp j) v)
   set outSet : V → Finset α := fun v => univ.filter fun i => Nonempty (C.Walk v (C.out i))
   set smallIn : V → Finset β :=
@@ -378,9 +377,7 @@ theorem Computes.boolMatrixWeight_le_sq_pred_mul_size [Fintype α] [Fintype β]
       exact False.elim (hne rfl)
     | @cons u v z he q' ih =>
       intro hz _ hju huK
-      have hjin : j ∈ smallIn u := by
-        simp only [smallIn, huK, ↓reduceIte]
-        exact hju
+      have hjin : j ∈ smallIn u := by simpa only [smallIn, huK, ↓reduceIte] using hju
       by_cases hv_out : v = z
       · subst hv_out
         subst hz

@@ -106,10 +106,8 @@ theorem minimal_period_circuit (c : Circuit signature n n) (L : ℕ)
         have hle := cycleLength_le_two_pow f x
         have hpow : 2 ^ (n + 1) = 2 * 2 ^ n := by rw [pow_succ']
         omega
-      have hbound3 : cycleLength f x < 2 ^ (n + 3) := by
-        have hle := cycleLength_le_two_pow f x
-        have hpow : 2 ^ (n + 3) = 8 * 2 ^ n := by rw [pow_add]; ring
-        omega
+      have hbound3 : cycleLength f x < 2 ^ (n + 3) :=
+        hbound.trans_le (Nat.pow_le_pow_right two_pos (by omega))
       dsimp only [ell]
       simp only [hl x, canonicalLabel, labelLength_labelBits, BitVec.toNat_setWidth,
         BitVec.toNat_ofNat]
@@ -216,9 +214,7 @@ theorem visit_schedule_optimized (c : Circuit signature n n) :
   obtain ⟨out, ho, hs⟩ := visit_schedule_circuit c L hL hLN
   refine ⟨out, ho, fun z T => ?_, ?_⟩
   · rw [← visitScheduleCount_spec]
-    congr 1
-    ext t
-    exact and_congr_right (fun _ => ho z t)
+    exact congrArg Set.ncard (Set.ext fun t => and_congr_right fun _ => ho z t)
   · have hs' : (out.size : ℝ) ≤
       5000000 * (powerBudget n c.size (2 ^ n) L : ℝ) := by exact_mod_cast hs
     linarith

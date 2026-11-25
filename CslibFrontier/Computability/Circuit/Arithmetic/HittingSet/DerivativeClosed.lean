@@ -142,9 +142,8 @@ theorem not_X_pow_dvd_aeval_logSeries (hindep : AlgebraicIndependent F[X] (logSe
   -- expand `f` in the basis
   set u := g.repr ⟨f, hf⟩ with hu
   have hfu : Ψ f = ∑ j, u j • h j := by
-    have h₁ := congrArg (fun v : V => Ψ (v : MvPolynomial (Fin n) F)) (g.sum_repr ⟨f, hf⟩)
-    simp only [Submodule.coe_sum, Submodule.coe_smul, map_sum, map_smul] at h₁
-    exact h₁.symm
+    simpa only [Submodule.coe_sum, Submodule.coe_smul, map_sum, map_smul] using
+      (congrArg (fun v : V => Ψ (v : MvPolynomial (Fin n) F)) (g.sum_repr ⟨f, hf⟩)).symm
   obtain ⟨j₀, hj₀⟩ : ∃ j, u j ≠ 0 := by
     by_contra hall
     refine hf0 (hΨinj ?_)
@@ -172,23 +171,18 @@ theorem not_X_pow_dvd_aeval_logSeries (hindep : AlgebraicIndependent F[X] (logSe
     rw [← hWh, Derivation.wronskian, ← smul_eq_mul, ← h₀]
     exact congrArg det (congrArg _ (funext hlin))
   have hdvdw : PowerSeries.X ^ k ∣ (w : F⟦X⟧) := by
-    have h₁ : PowerSeries.X ^ k ∣ algebraMap F F⟦X⟧ (u j₀) * (w : F⟦X⟧) := by
-      rw [← hdet, show (fun m : Fin r => (logDelta F n)^[m] (Ψ f)) =
-        (PowerSeries.X : F⟦X⟧) ^ k • c from
-        funext fun m => by rw [hc m, Pi.smul_apply, smul_eq_mul], det_updateCol_smul]
-      exact dvd_mul_right _ _
-    have h₂ : (w : F⟦X⟧) = algebraMap F F⟦X⟧ (u j₀)⁻¹ * (algebraMap F F⟦X⟧ (u j₀) * w) := by
-      rw [← mul_assoc, ← map_mul, inv_mul_cancel₀ hj₀, map_one, one_mul]
-    rw [h₂]
-    exact Dvd.dvd.mul_left h₁ _
+    refine ((isUnit_iff_ne_zero.2 hj₀).map (algebraMap F F⟦X⟧)).dvd_mul_left.1 ?_
+    rw [← hdet, show (fun m : Fin r => (logDelta F n)^[m] (Ψ f)) =
+      (PowerSeries.X : F⟦X⟧) ^ k • c from
+      funext fun m => by rw [hc m, Pi.smul_apply, smul_eq_mul], det_updateCol_smul]
+    exact dvd_mul_right _ _
   -- but `w` is a nonzero polynomial of degree less than `k`
   refine hwne ?_
   rw [← Polynomial.coe_zero, Polynomial.coe_inj]
   ext d
   rw [Polynomial.coeff_zero]
   by_cases hd : d < k
-  · have := PowerSeries.X_pow_dvd_iff.1 hdvdw d hd
-    rwa [Polynomial.coeff_coe] at this
+  · simpa only [Polynomial.coeff_coe] using PowerSeries.X_pow_dvd_iff.1 hdvdw d hd
   · exact Polynomial.coeff_eq_zero_of_natDegree_lt (by omega)
 
 end Cslib.Circuits.Arithmetic

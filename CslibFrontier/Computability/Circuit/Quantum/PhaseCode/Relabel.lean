@@ -52,27 +52,28 @@ theorem toPlacedGate?_relabel (e : Fin m ↪ Fin N) (ρ : ℕ → ℕ)
     rw [hρ ⟨i, hi⟩]
     exact (e ⟨i, hi⟩).isLt
   have hinj {i j : ℕ} (hi : i < m) (hj : j < m) (hij : i ≠ j) : ρ i ≠ ρ j := by
-    intro h
-    apply hij
-    have he : e ⟨i, hi⟩ = e ⟨j, hj⟩ := Fin.ext ((hρ ⟨i, hi⟩).symm.trans (h.trans (hρ ⟨j, hj⟩)))
-    exact congrArg Fin.val (e.injective he)
+    rw [hρ ⟨i, hi⟩, hρ ⟨j, hj⟩, Ne, Fin.val_inj, e.injective.eq_iff, Fin.mk.injEq]
+    exact hij
+  have hemb {k : ℕ} (A : Fin k ↪ Fin m) (A' : Fin k ↪ Fin N) (hA : ∀ i, (A' i : ℕ) = ρ (A i)) :
+      A' = A.trans e :=
+    Function.Embedding.ext fun i => Fin.ext ((hA i).trans (hρ (A i)))
   have key {k : ℕ} (U : Gate k) (A : Fin k ↪ Fin m) (A' : Fin k ↪ Fin N)
-      (hA : ∀ i, A' i = e (A i)) :
+      (hA : ∀ i, (A' i : ℕ) = ρ (A i)) :
       (⟨k, U, A'⟩ : PlacedGate N) = PlacedGate.mapWires e ⟨k, U, A⟩ := by
-    simp only [PlacedGate.mapWires, PlacedGate.mk.injEq, heq_eq_eq, true_and]
-    exact Function.Embedding.ext hA
+    rw [hemb A A' hA]
+    rfl
   match c, hc with
   | (false, true, t, []), hc =>
     have ht : t < m := hc.1
     simp only [relabel, toPlacedGate?, GateCode.toPlacedGate?, ht, hlt ht, ↓reduceDIte,
       List.map_nil, Option.map_some, Option.some.injEq]
-    exact key _ _ _ fun i => by fin_cases i; exact Fin.ext (hρ ⟨t, ht⟩)
+    exact key _ _ _ fun i => by fin_cases i; rfl
   | (false, true, t, _ :: _), hc => exact absurd hc.2 (List.cons_ne_nil _ _)
   | (false, false, t, []), hc =>
     have ht : t < m := hc.2.2 t (List.mem_cons_self ..)
     simp only [relabel, toPlacedGate?, GateCode.toPlacedGate?, ht, hlt ht, ↓reduceDIte,
       List.map_nil, Option.map_some, Option.some.injEq]
-    exact key _ _ _ fun i => by fin_cases i; exact Fin.ext (hρ ⟨t, ht⟩)
+    exact key _ _ _ fun i => by fin_cases i; rfl
   | (false, false, t, [c]), hc =>
     obtain ⟨-, hnd, hw⟩ := hc
     have ht : t < m := hw t (by simp)
@@ -82,10 +83,7 @@ theorem toPlacedGate?_relabel (e : Fin m ↪ Fin N) (ρ : ℕ → ℕ)
       dite_eq_left (show c < m ∧ t < m ∧ c ≠ t from ⟨hcontrol, ht, hct⟩),
       dite_eq_left (show ρ c < N ∧ ρ t < N ∧ ρ c ≠ ρ t from
         ⟨hlt hcontrol, hlt ht, hinj hcontrol ht hct⟩), Option.map_some, Option.some.injEq]
-    exact key _ _ _ fun i => by
-      fin_cases i
-      · exact Fin.ext (hρ ⟨c, hcontrol⟩)
-      · exact Fin.ext (hρ ⟨t, ht⟩)
+    exact key _ _ _ fun i => by fin_cases i <;> rfl
   | (false, false, t, [c₁, c₂]), hc =>
     obtain ⟨-, hnd, hw⟩ := hc
     have ht : t < m := hw t (by simp)
@@ -101,18 +99,13 @@ theorem toPlacedGate?_relabel (e : Fin m ↪ Fin N) (ρ : ℕ → ℕ)
           exact ⟨hlt hc₁, hlt hc₂, hlt ht, hinj hc₁ hc₂ (by omega),
             hinj hc₁ ht (by omega), hinj hc₂ ht (by omega)⟩),
       Option.map_some, Option.some.injEq]
-    exact key _ _ _ fun i => by
-      fin_cases i
-      · exact Fin.ext (hρ ⟨c₁, hc₁⟩)
-      · exact Fin.ext (hρ ⟨c₂, hc₂⟩)
-      · exact Fin.ext (hρ ⟨t, ht⟩)
+    exact key _ _ _ fun i => by fin_cases i <;> rfl
   | (false, false, _, _ :: _ :: _ :: _), hc => exact absurd hc.1 (by simp)
   | (true, inv, t, []), hc =>
     have ht : t < m := hc.2.2 t (List.mem_cons_self ..)
     simp only [relabel, toPlacedGate?, ht, hlt ht, ↓reduceDIte, List.map_nil, Option.map_some,
       Option.some.injEq, PlacedGate.mapWires_ctrlPhase]
-    apply congrArg (fun A : Fin 1 ↪ Fin N => PlacedGate.ctrlPhase inv A)
-    exact Function.Embedding.ext fun i => by fin_cases i; exact Fin.ext (hρ ⟨t, ht⟩)
+    exact congrArg (PlacedGate.ctrlPhase inv) (hemb _ _ fun i => by fin_cases i; rfl)
   | (true, inv, t, [c]), hc =>
     obtain ⟨-, hnd, hw⟩ := hc
     have ht : t < m := hw t (by simp)
@@ -123,11 +116,7 @@ theorem toPlacedGate?_relabel (e : Fin m ↪ Fin N) (ρ : ℕ → ℕ)
       dite_eq_left (show ρ c < N ∧ ρ t < N ∧ ρ c ≠ ρ t from
         ⟨hlt hcontrol, hlt ht, hinj hcontrol ht hct⟩), Option.map_some, Option.some.injEq,
       PlacedGate.mapWires_ctrlPhase]
-    apply congrArg (fun A : Fin 2 ↪ Fin N => PlacedGate.ctrlPhase inv A)
-    exact Function.Embedding.ext fun i => by
-      fin_cases i
-      · exact Fin.ext (hρ ⟨c, hcontrol⟩)
-      · exact Fin.ext (hρ ⟨t, ht⟩)
+    exact congrArg (PlacedGate.ctrlPhase inv) (hemb _ _ fun i => by fin_cases i <;> rfl)
   | (true, _, _, _ :: _ :: _), hc => exact absurd hc.1 (by simp)
 
 end PhaseGateCode

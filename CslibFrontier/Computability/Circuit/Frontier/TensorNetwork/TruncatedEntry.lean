@@ -157,7 +157,6 @@ theorem exists_entryAdmissible_specNet (C : ℕ) :
     have hLL : (DescribedNetwork.encDescribed encT G).length ≤ L' :=
       DescribedNetwork.length_encDescribed_le_specNet P ℓ fl ζ G
     set n := s + L' with hn
-    have hn1 : 1 ≤ n + 1 := by omega
     obtain ⟨hT, hS⟩ := hent u hu bs hbs
     have hbase : C * (s + (DescribedNetwork.encDescribed encT G).length + 1) ^ C ≤
         C * (n + 1) ^ C :=
@@ -176,25 +175,13 @@ theorem exists_entryAdmissible_specNet (C : ℕ) :
         (encList encNat (entry u.2 bs)).length + 1) ^ K₁ ≤ a * (n + 1) ^ d := by
       refine le_trans ?_ (had n)
       exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (by omega) _)
-    have hpow {c e : ℕ} (hc : c ≤ C + a + d) (he : e ≤ C + a + d) :
-        c * (n + 1) ^ e ≤ (C + a + d) * (n + 1) ^ (C + a + d) :=
-      Nat.mul_le_mul hc (Nat.pow_le_pow_right hn1 he)
     have h2 : 2 ^ (C * ceilNineTenths s) ≤ 2 ^ ((C + a + d) * ceilNineTenths s) :=
       Nat.pow_le_pow_right (by norm_num) (Nat.mul_le_mul_right _ (by omega))
     have hX1 : 1 ≤ 2 ^ ((C + a + d) * ceilNineTenths s) := Nat.one_le_two_pow
     have hsplit : C * (n + 1) ^ C + a * (n + 1) ^ d ≤
-        (C + a + d) * (n + 1) ^ (C + a + d) := by
-      have e1 := hpow (c := C) (e := C) (by omega) (by omega)
-      have e2 := hpow (c := a) (e := d) (by omega) (by omega)
-      have e3 : C * (n + 1) ^ (C + a + d) + a * (n + 1) ^ (C + a + d) ≤
-          (C + a + d) * (n + 1) ^ (C + a + d) := by
-        rw [← Nat.add_mul]
-        exact Nat.mul_le_mul_right _ (by omega)
-      have e1' : C * (n + 1) ^ C ≤ C * (n + 1) ^ (C + a + d) :=
-        Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hn1 (by omega))
-      have e2' : a * (n + 1) ^ d ≤ a * (n + 1) ^ (C + a + d) :=
-        Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hn1 (by omega))
-      omega
+        (C + a + d) * (n + 1) ^ (C + a + d) :=
+      calc _ ≤ C * (n + 1) ^ (C + a + d) + a * (n + 1) ^ (C + a + d) := by gcongr <;> omega
+        _ ≤ _ := by rw [← Nat.add_mul]; exact Nat.mul_le_mul_right _ (by omega)
     refine ⟨?_, ?_⟩
     · change (specEntryCertificate entry ce).time ((u.2, P, ℓ, fl, ζ), bs) ≤
         (C + a + d) * (n + 1) ^ (C + a + d) * 2 ^ ((C + a + d) * ceilNineTenths s)
@@ -202,13 +189,9 @@ theorem exists_entryAdmissible_specNet (C : ℕ) :
         hT.trans (Nat.mul_le_mul (hbase) h2)
       have hA2 : a * (n + 1) ^ d ≤ a * (n + 1) ^ d * 2 ^ ((C + a + d) * ceilNineTenths s) :=
         Nat.le_mul_of_pos_right _ hX1
-      calc (specEntryCertificate entry ce).time ((u.2, P, ℓ, fl, ζ), bs)
-          ≤ C * (n + 1) ^ C * 2 ^ ((C + a + d) * ceilNineTenths s) +
-              a * (n + 1) ^ d * 2 ^ ((C + a + d) * ceilNineTenths s) := by
-            omega
-        _ = (C * (n + 1) ^ C + a * (n + 1) ^ d) * 2 ^ ((C + a + d) * ceilNineTenths s) := by
-            ring
-        _ ≤ (C + a + d) * (n + 1) ^ (C + a + d) * 2 ^ ((C + a + d) * ceilNineTenths s) := by gcongr
+      have := Nat.mul_le_mul_right (2 ^ ((C + a + d) * ceilNineTenths s)) hsplit
+      rw [Nat.add_mul] at this
+      omega
     · change (specEntryCertificate entry ce).space ((u.2, P, ℓ, fl, ζ), bs) ≤
         (C + a + d) * (n + 1) ^ (C + a + d)
       have := hS.trans hbase
