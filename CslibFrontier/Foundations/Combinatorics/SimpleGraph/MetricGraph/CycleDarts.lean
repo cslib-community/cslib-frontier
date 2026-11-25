@@ -150,14 +150,12 @@ theorem circleMap_eq_edgePoint_of_eventually (hc : c.IsCycle) {d : W.graph.Dart}
       rcases edgePoint_eq_vertex_iff.mp heq with ⟨h, _⟩ | ⟨h, _⟩
       · exact absurd (congrArg Subtype.val h) hu.1.ne'
       · exact absurd (congrArg Subtype.val h) hu.2.ne
-  have hsub : Set.Ioo (0 : ℝ) 1 ⊆ E := by
-    refine isPreconnected_Ioo.subset_left_of_subset_union hEopen
+  have hsub : Set.Ioo (0 : ℝ) 1 ⊆ E :=
+    isPreconnected_Ioo.subset_left_of_subset_union hEopen
       (isOpen_Ioo.sdiff isClosed_closure : IsOpen (Set.Ioo (0 : ℝ) 1 \ closure E))
-      (Set.disjoint_left.mpr fun x hx hx' => hx'.2 (subset_closure hx)) (fun x hx => ?_)
+      (Set.disjoint_left.mpr fun x hx hx' => hx'.2 (subset_closure hx))
+      (fun x hx => (em (x ∈ closure E)).imp (fun h => hEcl ⟨h, hx⟩) fun h => ⟨hx, h⟩)
       ⟨t₀, ht₀, ht₀, h⟩
-    by_cases hxcl : x ∈ closure E
-    · exact Or.inl (hEcl ⟨hxcl, hx⟩)
-    · exact Or.inr ⟨hx, hxcl⟩
   have hEq : Set.EqOn F G (Set.Icc 0 1) := by
     rw [← closure_Ioo zero_ne_one]
     exact Set.EqOn.closure (fun x hx => (hsub hx).2.self_of_nhds) hF hG
@@ -255,27 +253,14 @@ theorem IsShortestCycle.exists_walk_dist_eq [Finite V] {v₀ : V} {c : W.graph.W
   have hperm : cv.edges.Perm c.edges := (c.rotate_edges v hv).perm
   have hLcv : walkLength W.weight cv = L := (hperm.map W.weight).sum_eq
   have hscv : IsShortestCycle W cv := ⟨hcv, fun {u} c' hc' => hLcv.symm ▸ hs.2 c' hc'⟩
-  have hxcv : x ∈ cv.support := by
-    cases hc_eq : c with
-    | nil => exact absurd hs.1.not_nil (by simp [hc_eq])
-    | @cons _ b _ hadj_c q_c =>
-      have hxt : x ∈ c.support.tail := by
-        rw [hc_eq, Walk.support_cons, List.tail_cons]
-        rw [hc_eq, Walk.support_cons, List.mem_cons] at hx
-        rcases hx with rfl | hx
-        · exact Walk.end_mem_support q_c
-        · exact hx
-      exact List.mem_of_mem_tail ((c.support_rotate v hv).mem_iff.mpr hxt)
+  have hxcv : x ∈ cv.support := (c.mem_support_rotate_iff v hv).mpr hx
   let q₁ : W.graph.Walk v x := cv.takeUntil x hxcv
   let q₂ : W.graph.Walk x v := cv.dropUntil x hxcv
   have happ : q₁.append q₂ = cv := cv.take_spec hxcv
   let ℓ₁ : ℝ := walkLength W.weight q₁
   have hℓ₁_nn : 0 ≤ ℓ₁ := walkLength_nonneg W.weight W.weight_nonneg q₁
   have hℓ₂_nn : 0 ≤ walkLength W.weight q₂ := walkLength_nonneg W.weight W.weight_nonneg q₂
-  have hsum : ℓ₁ + walkLength W.weight q₂ = L := by
-    have h := congrArg (walkLength W.weight) happ
-    rw [walkLength_append, hLcv] at h
-    exact h
+  have hsum : ℓ₁ + walkLength W.weight q₂ = L := by rw [← hLcv, ← happ, walkLength_append]
   have hwp : circleMap hcv ℓ₁ = vertex x := by
     rw [circleMap_eq_walkPoint hcv hℓ₁_nn (hLcv ▸ (by linarith : ℓ₁ ≤ L)), ← happ,
       walkPoint_append_of_le q₁ q₂ le_rfl, walkPoint_ge q₁ le_rfl]
@@ -325,11 +310,9 @@ private theorem walkLength_le_of_detour {v₀ v x : V} {c : W.graph.Walk v₀ v�
   have hle_c : walkLength W.weight c ≤ walkLength W.weight cyc :=
     hs.2 cyc (Path.cons_isCycle q hadj hnot_mem)
   have hq_le : walkLength W.weight (q : W.graph.Walk d.snd v) ≤
-      walkLength W.weight (p_d : W.graph.Walk d.snd x) + walkLength W.weight p_c := by
-    have h1 := walkLength_bypass_le W.weight W.weight_nonneg
-      ((p_d : W.graph.Walk d.snd x).append p_c)
-    rw [walkLength_append] at h1
-    exact h1
+      walkLength W.weight (p_d : W.graph.Walk d.snd x) + walkLength W.weight p_c :=
+    (walkLength_bypass_le W.weight W.weight_nonneg
+      ((p_d : W.graph.Walk d.snd x).append p_c)).trans_eq (walkLength_append _ _ _)
   have hcyc_len : walkLength W.weight cyc =
       W.weight d.edge + walkLength W.weight (q : W.graph.Walk d.snd v) := by
     dsimp only [cyc]
