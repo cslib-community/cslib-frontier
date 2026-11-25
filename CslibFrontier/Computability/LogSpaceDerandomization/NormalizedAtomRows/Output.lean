@@ -206,10 +206,7 @@ lemma root_dist {scale : ℝ} (hs : 0 < scale) :
     calc _ ≤ B*1*(4*(|v-v'|/scale)) := mul_le_mul (mul_le_mul (hbound x') (hrbound q')
       (abs_nonneg _) hB) hh (abs_nonneg _) (by positivity)
          _ = _ := by ring
-  have htri : |(a-a')*b*c+a'*(b-b')*c+a'*b'*(c-c')| ≤
-      |(a-a')*b*c|+|a'*(b-b')*c|+|a'*b'*(c-c')| :=
-    (abs_add_le _ _).trans (add_le_add (abs_add_le _ _) le_rfl)
-  apply htri.trans
+  refine ((abs_add_le _ _).trans (add_le_add (abs_add_le _ _) le_rfl)).trans ?_
   have hn1 : 0 ≤ 2*Lq := by positivity
   have hn2 : 0 ≤ 2*B*(Lr:ℝ) := by positivity
   have hn3 : 0 ≤ 4*B/scale := by positivity
@@ -219,8 +216,7 @@ lemma root_dist {scale : ℝ} (hs : 0 < scale) :
 lemma rank_pos : 0 < HP.K := by
   have hg := HP.gate
   have hh : 0 ≤ 32 * (HP.k : ℝ) / HP.η := by positivity
-  have h : (0 : ℝ) < HP.K := by linarith
-  exact_mod_cast h
+  exact_mod_cast (by linarith : (0 : ℝ) < HP.K)
 
 /-- The fourth root has a uniform range independent of input magnitudes. -/
 lemma root_range (scale x v q : ℝ) :
@@ -244,18 +240,14 @@ lemma root_range (scale x v q : ℝ) :
 
 /-- The actual entry threshold is separated from the closed rank gate. -/
 lemma threshold_margin : 3*HP.η₂ < HP.θ := by
-  have h1 := HP.η₂_lt
-  have h2 := HP.δ₁_lt
-  have h3 := HP.δ₀_lt_δ₁
-  linarith [HP.θ_pos]
+  linarith [HP.θ_pos, HP.η₂_lt, HP.δ₁_lt, HP.δ₀_lt_δ₁]
 
 
 /-- The actual hierarchy rank exceeds the singleton domain. -/
 lemma rank_gt_one : 1 < HP.K := by
   have hg := HP.gate
   have hh : 0 ≤ 32 * (HP.k : ℝ) / HP.η := by positivity
-  have h : (1 : ℝ) < HP.K := by linarith
-  exact_mod_cast h
+  exact_mod_cast (by linarith : (1 : ℝ) < HP.K)
 
 /-- All actual normalized compressed states have fewer than K nonzero retained endpoints,
 including arbitrary defaults and arbitrary second signals. -/
