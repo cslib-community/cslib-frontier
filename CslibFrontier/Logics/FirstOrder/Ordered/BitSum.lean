@@ -111,16 +111,13 @@ private theorem realize_leafChecks (m h k : (language L).Term α)
       (fun r => (w r).relabel Sum.inl) (zero L) (.var (.inr ())) z (Sum.elim v u)
       (by simp) (by fo_simp; exact hspace)
   fo_simp [leafChecks, hd, not_le]
-  constructor
-  · intro hc q hq
-    rcases hc (fun _ => q) hq with ⟨hx, hn⟩ | ⟨hx, hn⟩
+  refine ⟨fun hc q hq => ?_, fun hc q hq => ?_⟩
+  · rcases hc (fun _ => q) hq with ⟨hx, hn⟩ | ⟨hx, hn⟩
     · simpa only [hx, Bool.toNat_true] using hn
     · simpa only [Bool.eq_false_iff.mpr hx, Bool.toNat_false] using hn
-  · intro hc q hq
-    have hn := hc (q ()) hq
-    cases hx : (x.realize v).val.testBit (q ()).val with
-    | false => exact Or.inr ⟨by decide, by simpa only [hx, Bool.toNat_false] using hn⟩
-    | true => exact Or.inl ⟨rfl, by simpa only [hx, Bool.toNat_true] using hn⟩
+  · cases hx : (x.realize v).val.testBit (q ()).val <;>
+      simpa only [hx, Bool.toNat_false, Bool.toNat_true, Bool.false_eq_true, not_false_eq_true,
+        not_true_eq_false, true_and, false_and, true_or, or_false, false_or] using hc (q ()) hq
 
 private theorem realize_nodeChecks (m h : (language L).Term α)
     (w : Fin 8 → (language L).Term α) (v : α → Fin n)
@@ -232,18 +229,16 @@ private theorem packedFormula_sound (v : Fin 2 → Fin n)
 private theorem packedFormula_complete (v : Fin 2 → Fin n) (hn : 257 ≤ n)
     (hy : (v 1).val = (v 0).val.bitIndices.length) : (packedFormula L).Realize v := by
   obtain ⟨h, m, hp, hmax, hhk, hkd, hspace, hm⟩ := exists_parameters hn
-  have hh : h < n := by lia
   have hk : 2 ^ m < n := by lia
-  have hd : 2 * h < n := by lia
   have h4 : 4 * 2 ^ m ≤ 8 * h := by lia
   let w : Fin 8 → Fin n := fun r =>
     ⟨BitString.sumTreeWords (v 0).val.testBit m h r,
       lt_of_lt_of_le (BitString.sumTreeWords_lt _ _ _ _) (by lia : 2 ^ h ≤ n)⟩
   let u : Fin 5 ⊕ Fin 8 → Fin n := Sum.elim
-    ![⟨h, hh⟩, ⟨m, hm⟩, ⟨2 ^ m, hk⟩, ⟨2 * h, hd⟩, ⟨8 * h, hspace⟩] w
-  have hx : (v 0).val < 2 ^ (2 ^ m) := by
-    have hxmax : (v 0).val ≤ n - 1 := by have := (v 0).isLt; lia
-    exact lt_of_lt_of_le (lt_of_le_of_lt hxmax hmax)
+    ![⟨h, lt_of_le_of_lt (Nat.le_mul_of_pos_left h (by decide)) hspace⟩, ⟨m, hm⟩, ⟨2 ^ m, hk⟩,
+      ⟨2 * h, lt_of_le_of_lt (Nat.mul_le_mul_right h (by decide)) hspace⟩, ⟨8 * h, hspace⟩] w
+  have hx : (v 0).val < 2 ^ (2 ^ m) :=
+    lt_of_lt_of_le (lt_of_le_of_lt (Nat.le_sub_one_of_lt (v 0).isLt) hmax)
       (Nat.pow_le_pow_right (by decide) (by lia))
   have hcount (j q : ℕ) (hj : j ≤ m) : BitString.sumTree (v 0).val.testBit j q < n :=
     lt_of_le_of_lt ((BitString.sumTree_le _ _ _).trans
@@ -315,15 +310,9 @@ public theorem realize_bitSum (v : Fin 2 → Fin n) :
 public theorem existsUnique_bitSum (x : Fin n) :
     ∃! y : Fin n, (bitSum L).Realize ![x, y] := by
   have hle : x.val.bitIndices.length ≤ x.val := by
-    have h := List.length_le_sum_of_one_le (x.val.bitIndices.map (fun i => 2 ^ i)) (by
-      intro i hi
-      obtain ⟨j, _, rfl⟩ := List.mem_map.mp hi
-      exact Nat.one_le_two_pow)
-    simpa only [List.length_map, Nat.sum_map_two_pow_bitIndices] using h
-  refine ⟨⟨_, lt_of_le_of_lt hle x.isLt⟩, ?_, ?_⟩
-  · exact (realize_bitSum _).mpr rfl
-  · intro y hy
-    apply Fin.ext
-    simpa only [realize_bitSum, Matrix.cons_val_one, Matrix.cons_val_zero] using hy
+    simpa only [List.length_map, Nat.sum_map_two_pow_bitIndices] using
+      List.length_le_sum_of_one_le (x.val.bitIndices.map (2 ^ ·)) (by simp [Nat.one_le_two_pow])
+  refine ⟨⟨_, lt_of_le_of_lt hle x.isLt⟩, (realize_bitSum _).mpr rfl, fun y hy => Fin.ext ?_⟩
+  simpa only [realize_bitSum, Matrix.cons_val_one, Matrix.cons_val_zero] using hy
 
 end Cslib.Logic.FO.Ordered

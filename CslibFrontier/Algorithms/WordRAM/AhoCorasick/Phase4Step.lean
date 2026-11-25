@@ -133,10 +133,8 @@ private theorem exec_failLoop (inp : Input) (w : ℕ) (hvalid : inp.Valid)
           (by rw [h52, h51]; exact ha_lt) (by rw [hs2, hs1, h52, h51]; exact hr7_2)
       rw [h52, h51] at hstop_ex hnm_ex
       rw [hs2, hs1] at hnm_ex
-      have hnot_node : ¬IsNode inp.patterns (inp.trie.strOf (x.regs rState) ++ [x.regs r5]) := by
-        intro his
-        have hpos_t := (hchar _ hu_lt _ ha_lt).1 his
-        omega
+      have hnot_node : ¬IsNode inp.patterns (inp.trie.strOf (x.regs rState) ++ [x.regs r5]) :=
+        fun his => absurd ((hchar _ hu_lt _ ha_lt).1 his) (by omega)
       have hnm_step :
           nextMove inp.patterns (inp.trie.strOf (x.regs rState)) (x.regs r5) =
             nextMove inp.patterns (inp.trie.strOf (inp.bfs.fail (x.regs rState))) (x.regs r5) := by
@@ -203,25 +201,20 @@ theorem exec_stepCode (inp : Input) (w : ℕ) (hvalid : inp.Valid)
       wram_exec [hL₂.h_sigma, hL₂.h_trieBase, hs2, h52, h51, ht_read, hf_m, hf_a, hf_t]
       exact ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
   have hLy := hL₂.of_preserves he_fin
-  have hu'_props :
+  obtain ⟨hu'_str, hu'_depth⟩ :
       inp.trie.strOf u' = nextMove inp.patterns (inp.trie.strOf u_ex) a ∧
         inp.trie.depth u' ≤ inp.trie.depth u_ex + 1 := by
     rcases hT.trie_spec u_ex hu_ex_lt a ha_lt with h0 | ⟨_, hstr⟩
     · obtain rfl : u_ex = 0 := by omega
-      have hnot_node : ¬IsNode inp.patterns ([] ++ [a]) := fun his => by
-        have := (hchar 0 hT.one_le a ha_lt).1 (by rwa [hT.str_zero])
-        omega
-      rw [show u' = 0 from h0, hT.str_zero, hT.depth_zero,
-        nextMove_of_not_isNode_of_eq_nil hnot_node rfl]
-      exact ⟨rfl, Nat.zero_le _⟩
-    · have hnode_u' : IsNode inp.patterns (inp.trie.strOf u_ex ++ [a]) := by
-        rw [← hstr]; exact hnode u' hu'_lt
-      refine ⟨hstr.trans (nextMove_of_isNode hnode_u').symm, ?_⟩
+      have hnot_node : ¬IsNode inp.patterns ([] ++ [a]) := fun his =>
+        absurd ((hchar 0 hT.one_le a ha_lt).1 (by rwa [hT.str_zero])) (by omega)
+      simp only [show u' = 0 from h0, hT.str_zero, hT.depth_zero,
+        nextMove_of_not_isNode_of_eq_nil hnot_node rfl, Nat.zero_le, and_self]
+    · refine ⟨hstr.trans (nextMove_of_isNode (hstr ▸ hnode u' hu'_lt)).symm, ?_⟩
       rw [hT.depth_eq u' hu'_lt, hstr, List.length_append, List.length_singleton,
         ← hT.depth_eq u_ex hu_ex_lt]
-  refine ⟨y, u', hu'_lt,
-    (he_c0.seq (he_fl.seq he_fin)).mono (by have := hu'_props.2; omega),
-    hLy, hmy.trans (hm2.trans hm1), hsy, hu'_props.1.trans hnm_ex, by have := hu'_props.2; omega,
+  refine ⟨y, u', hu'_lt, (he_c0.seq (he_fl.seq he_fin)).mono (by omega),
+    hLy, hmy.trans (hm2.trans hm1), hsy, hu'_str.trans hnm_ex, by omega,
     h1y.trans (h12.trans h11), h2y.trans (h22.trans h21),
     h3y.trans (h32.trans h31), h5y.trans (h52.trans h51)⟩
 

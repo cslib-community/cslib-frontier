@@ -63,30 +63,20 @@ theorem numbered_singleton (c : Clause ℕ) (j : ℕ) : numbered [c] j = [(j, c)
 
 theorem fst_lt_of_mem_numbered {ψ : CNF ℕ} {j : ℕ} {e : ℕ × Clause ℕ} (he : e ∈ numbered ψ j) :
     e.1 < j + ψ.length := by
-  induction ψ generalizing j with
-  | nil => simp [numbered] at he
-  | cons c ψ ih =>
-    simp only [numbered, List.zipIdx_cons, List.map_cons, List.mem_cons] at he
-    rcases he with rfl | he
-    · simp
-    · have := ih (j := j + 1) (by simpa [numbered] using he)
-      simp only [List.length_cons]; omega
+  obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp he
+  simp only [numbered, List.length_map, List.length_zipIdx] at hi
+  simp only [numbered, List.getElem_map, List.getElem_zipIdx]
+  omega
 
 /-- The database `checkLRAT` starts from. -/
 theorem zipIdx_map_eq_numbered (φ : CNF ℕ) :
     φ.zipIdx.map (fun e => (e.2 + 1, e.1)) = numbered φ 1 := by
-  suffices ∀ n, (φ.zipIdx n).map (fun e => (e.2 + 1, e.1)) = numbered φ (n + 1) from this 0
-  induction φ with
-  | nil => simp [numbered]
-  | cons c φ ih =>
-    intro n
-    simp only [List.zipIdx_cons, List.map_cons, numbered] at ih ⊢
-    rw [ih (n + 1)]
+  refine List.ext_getElem (by simp [numbered]) fun i _ _ => ?_
+  simp only [numbered, List.getElem_map, List.getElem_zipIdx]
+  exact Prod.ext (by omega) rfl
 
-theorem map_snd_numbered (ψ : CNF ℕ) (j : ℕ) : (numbered ψ j).map Prod.snd = ψ := by
-  induction ψ generalizing j with
-  | nil => rfl
-  | cons c ψ ih => simpa [numbered, List.zipIdx_cons] using ih (j + 1)
+theorem map_snd_numbered (ψ : CNF ℕ) (j : ℕ) : (numbered ψ j).map Prod.snd = ψ :=
+  List.ext_getElem (by simp [numbered]) fun _ _ _ => by simp [numbered]
 
 theorem snd_mem_of_mem_numbered {ψ : CNF ℕ} {j : ℕ} {e : ℕ × Clause ℕ} (he : e ∈ numbered ψ j) :
     e.2 ∈ ψ := by
