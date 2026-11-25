@@ -72,66 +72,46 @@ theorem exec_of_count {w D T : ℕ} (counter : Code .standard 128) (score : ℕ 
       simpa only [Cond.holds_lt, hsq, hyD] using hc
     have hk : y.regs Reg.cursor ≤ Nat.sqrt D := Nat.le_sqrt.2 hupper.le
     have hkD : y.regs Reg.cursor ≤ D := hk.trans (Nat.sqrt_le_self D)
-    have hsquare : y.regs Reg.cursor * y.regs Reg.cursor ≤ (D + 2) * (D + 2) :=
-      Nat.mul_self_le_mul_self (by omega)
     have hnew : (y.regs Reg.cursor + 1) * (y.regs Reg.cursor + 1) ≤ (D + 2) * (D + 2) :=
       Nat.mul_self_le_mul_self (by omega)
-    have hfourFit : Fits w (4 * (y.regs Reg.cursor * y.regs Reg.cursor)) := hfit.of_le (by
-      have hm := Nat.mul_le_mul_left 4 hsquare
-      simpa only [Nat.mul_assoc] using hm.trans (Nat.le_add_right _ _))
+    have hsquare : y.regs Reg.cursor * y.regs Reg.cursor ≤ (D + 2) * (D + 2) :=
+      Nat.mul_self_le_mul_self (by omega)
+    have hfourFit : Fits w (4 * (y.regs Reg.cursor * y.regs Reg.cursor)) :=
+      hfit.of_le (by rw [Nat.mul_assoc]; omega)
     have hnewFit : Fits w ((y.regs Reg.cursor + 1) * (y.regs Reg.cursor + 1)) :=
       hfit.of_le (by rw [Nat.mul_assoc]; omega)
-    have htrialFit : Fits w (y.regs Reg.cursor + 2) := hfit.of_le (by
-      have hsmall : D + 2 ≤ (D + 2) * (D + 2) := by
-        simpa only [Nat.mul_one] using
-          Nat.mul_le_mul_left (D + 2) (show 1 ≤ D + 2 by omega)
-      rw [Nat.mul_assoc]
-      omega)
-    let u := y.set Reg.fourSquare (4 * (y.regs Reg.cursor * y.regs Reg.cursor))
-    have hprep : ExecWithin w (ram[ Reg.fourSquare ← Reg.four * Reg.square ]) y u 1 := by
-      wram_exec [hf, hsq]
-    have huk : u.regs Reg.cursor = y.regs Reg.cursor := by
-      simp +decide [u, Reg.cursor, Reg.fourSquare]
-    have huStatic : ∀ i, 131 ≤ i.val ∧ i.val ≤ 136 → u.regs i = x.regs i := fun i hi => by
-      have hne : i ≠ Reg.fourSquare := fun h => by subst h; exact absurd hi (by decide)
-      simp only [u, Data.set_regs, Function.update_of_ne hne, hstatic i hi]
-    obtain ⟨v, hv, hvbest, hvSource, hvr⟩ := exec_candidate_bestBefore counter score Source u
-      (by simpa +decide [u, Reg.zero, Reg.fourSquare] using hz)
-      (by simpa +decide [u, Reg.one, Reg.fourSquare] using ho)
-      (by regs_frame) (by simpa only [huk] using hk2)
-      (by simpa only [huk] using hupper) (by simp [u, huk])
-      (by simpa only [huk] using htrialFit) hSource
-      (by simpa +decide [u, Reg.cursor, Reg.best, Reg.bestCount, Reg.found, Reg.fourSquare]
-        using hbest)
-      (by
-        intro a ha hmeta hwindow
+    have htrialFit : Fits w (y.regs Reg.cursor + 2) :=
+      hfit.of_le (by have := Nat.le_mul_self (D + 2); rw [Nat.mul_assoc]; omega)
+    refine WP.exists_execWithin_preserves
+      (P := fun i => 131 ≤ i.val ∧ i.val ≤ 136)
+      (fun i hi => (preserves_input counter i (Or.inl hi)).2) ?_
+    unfold body
+    wram_exec [hf, hsq]
+    have huStatic : ∀ i, 131 ≤ i.val ∧ i.val ≤ 136 →
+        (y.set Reg.fourSquare (4 * (y.regs Reg.cursor * y.regs Reg.cursor))).regs i = x.regs i :=
+      fun i hi => by
+        rw [Data.set_regs_of_ne (by intro h; subst h; exact absurd hi (by decide)), hstatic i hi]
+    wram_call (exec_candidate_bestBefore (D := D) counter score Source _
+      (by wram_simp [hz]) (by wram_simp [ho]) (by wram_simp [hyD])
+      (by wram_simp [hk2]) (by wram_simp [hupper]) (by wram_simp)
+      (by wram_simp [htrialFit]) hSource (by wram_simp [hbest])
+      (fun a ha hmeta hwindow => by
         obtain ⟨b, hb, hbscore, hbSource⟩ := hcount a ha
           (fun i hi => (hmeta i (by omega)).trans (huStatic i hi))
           (by simpa only [hmeta Reg.cursor (by decide)] using hwindow)
-        exact ⟨b, hb, by simpa only [hmeta Reg.cursor (by decide)] using hbscore, hbSource⟩)
+        exact ⟨b, hb, by simpa only [hmeta Reg.cursor (by decide)] using hbscore, hbSource⟩))
+      with v ⟨hvbest, hvSource, hvr⟩
     have hvk : v.regs Reg.cursor = y.regs Reg.cursor := by regs_frame
-    have hvone : v.regs Reg.one = 1 := by regs_frame
-    obtain ⟨z, hzrun, hzk, hzsq, hzm, hzr⟩ := exec_advance v hvone
-      (by simpa only [hvk] using hnewFit)
+    wram_call (exec_advance v (by regs_frame) (by simpa only [hvk] using hnewFit))
+      with z ⟨hzk, hzsq, hzm, hzr⟩
     have hzk' : z.regs Reg.cursor = y.regs Reg.cursor + 1 := by simpa only [hvk] using hzk
-    have he : ExecWithin w (body counter) y z (T + 7 * Nat.sqrt D + 18) :=
-      (hprep.seq (hv.seq hzrun)).mono (by rw [huk]; omega)
-    refine ⟨z, he, ?_, ?_⟩
-    · refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-      · intro i hi
-        exact (he.regs_eq ((preserves_input counter i (Or.inl hi)).2)).trans (hstatic i hi)
-      · regs_frame
-      · regs_frame
-      · regs_frame
-      · rw [hzk']; omega
-      · rw [hzk']; omega
-      · simpa only [hvk, hzk'] using hzsq
-      · rw [hzk']
-        simpa only [huk, hzr Reg.best (by decide) (by decide),
-          hzr Reg.bestCount (by decide) (by decide), hzr Reg.found (by decide) (by decide)]
-          using hvbest
-      · simpa only [hzm] using hvSource
-    · rw [hzk']; omega
+    refine ⟨by wram_simp; omega, fun hpres => ⟨⟨fun i hi => (hpres i hi).trans (hstatic i hi),
+      by regs_frame, by regs_frame, by regs_frame, by omega, by omega,
+      by simpa only [hvk, hzk'] using hzsq, ?_, by simpa only [hzm] using hvSource⟩, by omega⟩⟩
+    rw [hzk']
+    simpa only [Data.set_regs_of_ne (by decide : Reg.cursor ≠ Reg.fourSquare),
+      hzr Reg.best (by decide) (by decide), hzr Reg.bestCount (by decide) (by decide),
+      hzr Reg.found (by decide) (by decide)] using hvbest
   refine WP.exists_execWithin_preserves
     (P := fun i => (131 ≤ i.val ∧ i.val ≤ 136) ∨ 143 ≤ i.val)
     (fun i hi => preserves_input counter i hi) ?_
@@ -140,12 +120,7 @@ theorem exec_of_count {w D T : ℕ} (counter : Code .standard 128) (score : ℕ 
   wram_exec
   wram_call (ExecWithin.loop_invariant I (fun y => Nat.sqrt D + 1 - y.regs Reg.cursor) hbody
     ⟨fun i hi => by
-      have hne : i ≠ Reg.one ∧ i ≠ Reg.zero ∧ i ≠ Reg.four ∧ i ≠ Reg.cursor ∧ i ≠ Reg.square ∧
-          i ≠ Reg.best ∧ i ≠ Reg.bestCount ∧ i ≠ Reg.found := by
-        refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
-          (intro h; subst h; exact absurd hi (by decide))
-      wram_simp [hne.1, hne.2.1, hne.2.2.1, hne.2.2.2.1, hne.2.2.2.2.1, hne.2.2.2.2.2.1,
-        hne.2.2.2.2.2.2.1, hne.2.2.2.2.2.2.2],
+      repeat rw [Data.set_regs_of_ne (by intro h; subst h; exact absurd hi (by decide))],
      by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp; omega,
      by wram_simp, by wram_simp; exact bestBefore_initial D score, hx⟩)
     with y ⟨⟨hstatic, _, _, _, _, _, hsq, hbest, hSource⟩, hstop⟩
@@ -156,8 +131,8 @@ theorem exec_of_count {w D T : ℕ} (counter : Code .standard 128) (score : ℕ 
   refine ⟨?_, fun hpres => ⟨hfound, hwindow, hvalue,
     by simpa only [hvalue] using hminimum, hSource, fun i hi => hpres i hi⟩⟩
   wram_simp
-  have hm := Nat.mul_le_mul_right (T + 7 * Nat.sqrt D + 20) (Nat.sub_le (Nat.sqrt D + 1) 2)
-  have hcost : T + 7 * Nat.sqrt D + 18 + 2 = T + 7 * Nat.sqrt D + 20 := by omega
-  rw [hcost]; omega
+  have := Nat.mul_le_mul_right (T + 7 * Nat.sqrt D + 20) (Nat.sub_le (Nat.sqrt D + 1) 2)
+  rw [show T + 7 * Nat.sqrt D + 18 + 2 = T + 7 * Nat.sqrt D + 20 by omega]
+  omega
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.PrimeSelection
