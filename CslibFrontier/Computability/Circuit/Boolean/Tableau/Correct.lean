@@ -381,23 +381,13 @@ private theorem val_acc_last (hn : x.length < 2 * T) (htT : t + 1 ≤ T) (q : Sc
   rcases q with s | ⟨i, s⟩
   · simp only [termSem, readSem, Cfg.inputSymbol_eq_inputAt]
     have := cfg.inputPos.isLt
-    constructor
-    · rintro ⟨c', -, h, hs⟩
-      rw [h, hs]
-    · intro h
-      exact ⟨cfg.inputPos.val, by omega, rfl, h⟩
+    exact ⟨fun ⟨_, _, h, hs⟩ => h ▸ hs, fun h => ⟨cfg.inputPos.val, by omega, rfl, h⟩⟩
   · simp only [termSem, readSem, Cfg.workTapeSymbols]
     have hb : |cfg.workTapePos i| ≤ t := abs_workTapePos_runFrom_le (tm := tm) x t i
     rw [abs_le] at hb
-    constructor
-    · rintro ⟨c', -, h, hs⟩
-      rw [h, hs]
-    · intro h
-      refine ⟨(cfg.workTapePos i + T).toNat, ?_, ?_, ?_⟩
-      · omega
-      · omega
-      · rw [show (((cfg.workTapePos i + T).toNat : ℕ) : ℤ) - T = cfg.workTapePos i by omega]
-        exact h
+    refine ⟨fun ⟨_, _, h, hs⟩ => h ▸ hs, fun h => ⟨(cfg.workTapePos i + T).toNat,
+      by omega, by omega, ?_⟩⟩
+    rwa [show (((cfg.workTapePos i + T).toNat : ℕ) : ℤ) - T = cfg.workTapePos i by omega]
 
 /-! ### Situations and attributes -/
 
@@ -483,12 +473,9 @@ private theorem val_act (hn : x.length < 2 * T) (htT : t + 1 ≤ T) {c : ℕ} (v
   rcases hq : cfg.state with _ | q
   · simp [actSem, hq, Feature.not_holds_sit hq]
   · simp only [actSem, hq, Feature.holds_sit_iff_eq hq]
-    constructor
-    · rintro ⟨j', hj', h⟩
-      rwa [hj'] at h
-    · intro h
-      exact ⟨Fintype.equivFin _ (cfg.situation q), sitOf_equivFin _, by
-        rw [sitOf_equivFin]; exact h⟩
+    exact ⟨fun ⟨_, hj', h⟩ => by rwa [hj'] at h,
+      fun h => ⟨Fintype.equivFin _ (cfg.situation q), sitOf_equivFin _, by
+        rwa [sitOf_equivFin]⟩⟩
 
 /-! ### The gadgets of the features -/
 
@@ -721,9 +708,7 @@ theorem eval_circuit {n T : ℕ} (hn : n < 2 * T) (y : BitString n) :
     (circuit tm n T).eval interpretation y 0 =
       decide (OutView.ofList (tm.runFrom (tm.initCfg (List.ofFn y)) T).output = .one true) := by
   rw [Circuit.eval_eq_evalOutput, code_circuit, toNat_outputs_circuit]
-  have h := evalOutput_gates tm (T := T) (x := List.ofFn y) (by simpa using hn)
-  simp only [List.length_ofFn] at h
-  exact h
+  simpa using evalOutput_gates tm (T := T) (x := List.ofFn y) (by simpa using hn)
 
 end Boolean.Tableau
 

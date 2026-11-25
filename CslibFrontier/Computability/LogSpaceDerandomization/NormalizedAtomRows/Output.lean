@@ -59,13 +59,10 @@ private lemma denominatorRoot_bounds (v : ℝ) : 1 ≤ denominatorRoot v ∧ den
   have hp := denominatorRoot_pow v
   have hi1 : 1 ≤ (clip v)⁻¹ := (one_le_inv₀ hpos).mpr hc.2
   have hi2 : (clip v)⁻¹ ≤ 2 := (inv_le_comm₀ hpos (by norm_num : (0:ℝ)<2)).mpr (by simpa using hc.1)
-  constructor
-  · by_contra h
-    have hlt : denominatorRoot v ^ 4 < (1:ℝ)^4 := pow_lt_pow_left₀ (not_le.mp h) hr0 (by decide)
+  refine ⟨by_contra fun h => ?_, by_contra fun h => ?_⟩
+  · have := pow_lt_pow_left₀ (not_le.mp h) hr0 four_ne_zero
     nlinarith
-  · by_contra h
-    have hlt : (2:ℝ)^4 < denominatorRoot v ^ 4 := pow_lt_pow_left₀ (not_le.mp h) (by norm_num)
-      (by decide)
+  · have := pow_lt_pow_left₀ (not_le.mp h) (by norm_num) four_ne_zero
     nlinarith
 private lemma denominatorRoot_dist (v w : ℝ) :
     |denominatorRoot v - denominatorRoot w| ≤ 4 * |v-w| := by
@@ -214,9 +211,8 @@ lemma root_dist {scale : ℝ} (hs : 0 < scale) :
 
 /-- The actual hierarchy rank is positive. -/
 lemma rank_pos : 0 < HP.K := by
-  have hg := HP.gate
   have hh : 0 ≤ 32 * (HP.k : ℝ) / HP.η := by positivity
-  exact_mod_cast (by linarith : (0 : ℝ) < HP.K)
+  exact_mod_cast (by linarith [HP.gate] : (0 : ℝ) < HP.K)
 
 /-- The fourth root has a uniform range independent of input magnitudes. -/
 lemma root_range (scale x v q : ℝ) :
@@ -245,9 +241,8 @@ lemma threshold_margin : 3*HP.η₂ < HP.θ := by
 
 /-- The actual hierarchy rank exceeds the singleton domain. -/
 lemma rank_gt_one : 1 < HP.K := by
-  have hg := HP.gate
   have hh : 0 ≤ 32 * (HP.k : ℝ) / HP.η := by positivity
-  exact_mod_cast (by linarith : (1 : ℝ) < HP.K)
+  exact_mod_cast (by linarith [HP.gate] : (1 : ℝ) < HP.K)
 
 /-- All actual normalized compressed states have fewer than K nonzero retained endpoints,
 including arbitrary defaults and arbitrary second signals. -/

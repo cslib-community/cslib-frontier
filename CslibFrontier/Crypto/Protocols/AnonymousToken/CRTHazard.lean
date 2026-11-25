@@ -323,14 +323,9 @@ theorem candidateLabel_ne_of_ne {IV : Type} {nMult lam nMask : ℕ}
     let tbl := honestCRTMaskTable iv L0 uPrefix wPrefix active F maskInput h5
     candidateLabel tbl wStar e ≠ L0 e ∧ candidateLabel tbl wStar e ≠ L0 e + uPrefix := by
   intro tbl
-  have hact_diff : candidateLabel tbl wStar e ≠ tbl.activeLabel e := by
-    intro heq
-    have hd : tbl.dPrefix + wStar = 0 := by
-      have hsum := congrArg (tbl.activeLabel e + ·) heq
-      rw [candidateLabel, add_assoc, ← add_assoc (tbl.activeLabel e) (tbl.activeLabel e),
-        zmod2_vec_add_self, zero_add] at hsum
-      exact hsum
-    exact hnonzero hd
+  have hact_diff : candidateLabel tbl wStar e ≠ tbl.activeLabel e := fun heq => hnonzero <| by
+    simpa only [candidateLabel, add_assoc, ← add_assoc (tbl.activeLabel e) (tbl.activeLabel e),
+      zmod2_vec_add_self, zero_add] using congrArg (tbl.activeLabel e + ·) heq
   have hother : candidateLabel tbl wStar e ≠ tbl.activeLabel e + uPrefix := by
     intro heq
     have hw : tbl.dPrefix + wStar = uPrefix := by
@@ -519,24 +514,16 @@ theorem crtPrefixTest_wrong_guess_prob {IV : Type} [Fintype IV] [DecidableEq IV]
       H5Query IV nMult lam → Fin nMask → ZMod 2 := eSplit.symm
   have hnotMem₀ (e : Fin nMult) : (⟨iv, e, L0 e⟩ : H5Query IV nMult lam) ∉ I := by
     intro hmem
-    rw [Finset.mem_image] at hmem
-    obtain ⟨i, -, hi⟩ := hmem
-    have hlab : candFun (sub i) = L0 e := congrArg H5Query.label hi
-    have hgate : sub i = e := congrArg H5Query.gate hi
-    subst hgate
-    have ⟨h0, _⟩ := candidateLabel_ne_of_ne iv L0 uPrefix wPrefix wStar active F maskInput
-      (fun _ _ => 0) hne hnonzero (sub i)
-    exact h0 hlab
+    obtain ⟨i, -, hi⟩ := Finset.mem_image.mp hmem
+    obtain rfl : sub i = e := congrArg H5Query.gate hi
+    exact (candidateLabel_ne_of_ne iv L0 uPrefix wPrefix wStar active F maskInput
+      (fun _ _ => 0) hne hnonzero (sub i)).1 (congrArg H5Query.label hi)
   have hnotMem₁ (e : Fin nMult) : (⟨iv, e, L0 e + uPrefix⟩ : H5Query IV nMult lam) ∉ I := by
     intro hmem
-    rw [Finset.mem_image] at hmem
-    obtain ⟨i, -, hi⟩ := hmem
-    have hlab : candFun (sub i) = L0 e + uPrefix := congrArg H5Query.label hi
-    have hgate : sub i = e := congrArg H5Query.gate hi
-    subst hgate
-    have ⟨_, h1⟩ := candidateLabel_ne_of_ne iv L0 uPrefix wPrefix wStar active F maskInput
-      (fun _ _ => 0) hne hnonzero (sub i)
-    exact h1 hlab
+    obtain ⟨i, -, hi⟩ := Finset.mem_image.mp hmem
+    obtain rfl : sub i = e := congrArg H5Query.gate hi
+    exact (candidateLabel_ne_of_ne iv L0 uPrefix wPrefix wStar active F maskInput
+      (fun _ _ => 0) hne hnonzero (sub i)).2 (congrArg H5Query.label hi)
   have hnotMemAct (e : Fin nMult) :
       (⟨iv, e, if active e then L0 e + uPrefix else L0 e⟩ : H5Query IV nMult lam) ∉ I := by
     cases active e <;> simp [hnotMem₀, hnotMem₁]
@@ -766,20 +753,10 @@ theorem crtIssueSpendAdversary_advantage_ge {IV : Type} [Fintype IV] [DecidableE
     1 - ((2 : ℝ)⁻¹ ^ (nMask * rSub) + (2 : ℝ)⁻¹ ^ lam) ≤
       (Game.advantage (g false) (g true) : ℝ) := by
   intro g
-  have hfalse : g false = PMF.pure true := by
-    simp only [g, crtIssueSpendGame, crtIssueSpendAdversary, Bool.false_eq_true, ↓reduceIte,
-      PMF.bind_const]
-    have hstep : ∀ h5 u₀,
-        ProbComp.eval ((crtPrefixTest sub Hsub
-          (honestCRTMaskTable iv₀ L0₀ u₀ nf₀ active₀ F maskInput₀ h5)
-          (fun i => h5 ⟨iv₀, sub i,
-            (honestCRTMaskTable iv₀ L0₀ u₀ nf₀ active₀ F maskInput₀ h5).activeLabel (sub i)⟩)
-          nf₀).run (fun q => pure (h5 q))) = PMF.pure true := fun h5 u₀ =>
-      crtPrefixTest_honest_true sub Hsub F hHF iv₀ L0₀ u₀ nf₀ active₀ maskInput₀ h5
-    simp only [hstep, PMF.bind_const]
   have hfalse_succ : Game.succProbability (g false) = 1 := by
-    rw [hfalse]
-    simp [Game.succProbability]
+    have hstep (h5 u₀) :=
+      crtPrefixTest_honest_true sub Hsub F hHF iv₀ L0₀ u₀ nf₀ active₀ maskInput₀ h5
+    simp [g, crtIssueSpendGame, crtIssueSpendAdversary, hstep, PMF.bind_const, Game.succProbability]
   have htrue_le : (g true true) ≤ (2 : ℝ≥0∞)⁻¹ ^ (nMask * rSub) + (2 : ℝ≥0∞)⁻¹ ^ lam := by
     simp only [g, crtIssueSpendGame, crtIssueSpendAdversary, ↓reduceIte, PMF.bind_const]
     exact crtPrefixTest_wrong_guess_le sub Hsub hsurj iv₀ L0₀ nf₀ nf₁ active₀ F maskInput₀ hne
@@ -910,17 +887,7 @@ theorem crtSpendPrefixTest_correct {IV : Type} {nMult wBal wRand nMask kGates rS
   have h1 := crtPrefixTest_honest_true sub Hsub F hHF iv L0 uPrefix wPrefix active maskInput h5
   dsimp only at h1
   rw [crtPrefixTest_run, ProbComp.eval_pure] at h1
-  dsimp only [wPrefix, tbl, hActive]
-  by_contra hnot
-  have hf : crtPrefixEval sub Hsub
-      (honestCRTMaskTable iv L0 uPrefix (packBalancePrefix tReal rReal) active F maskInput h5)
-      (fun i => h5 ⟨iv, sub i,
-        (honestCRTMaskTable iv L0 uPrefix (packBalancePrefix tReal rReal) active F maskInput
-          h5).activeLabel (sub i)⟩)
-      h5 (packBalancePrefix tReal rReal) = false := Bool.eq_false_iff.mpr hnot
-  rw [hf] at h1
-  have hzero := congrArg (fun p : PMF Bool => p false) h1
-  simp at hzero
+  simpa [wPrefix, tbl, hActive] using congrArg (· true) h1
 
 /-- When `tReal` differs from every balance candidate in `guesses`, a `crtSpendPrefixTest` scan
 false-accepts with probability at most
@@ -1075,20 +1042,10 @@ theorem crtSpendBalancePrefix_advantage_ge {IV : Type} [Fintype IV] [DecidableEq
     1 - (2 : ℝ) ^ wRand * ((2 : ℝ)⁻¹ ^ (nMask * rSub) + (2 : ℝ)⁻¹ ^ (wBal + wRand)) ≤
       (Game.advantage (g false) (g true) : ℝ) := by
   intro g
-  have hfalse : g false = PMF.pure true := by
-    simp only [g, crtSpendBalancePrefixGame, Bool.false_eq_true, ↓reduceIte]
-    have h1 : ∀ h5 u,
-        ProbComp.eval ((crtSpendPrefixTest sub Hsub
-          (honestCRTMaskTable iv L0 u (packBalancePrefix t₀ rReal) active F maskInput h5)
-          (fun i => h5 ⟨iv, sub i,
-            (honestCRTMaskTable iv L0 u (packBalancePrefix t₀ rReal) active F maskInput
-              h5).activeLabel (sub i)⟩)
-          (balancePrefixGuesses wBal wRand t₀)).run (fun q => pure (h5 q))) = PMF.pure true :=
-      fun h5 u => crtSpendPrefixTest_correct sub Hsub F hHF iv L0 u t₀ rReal active maskInput h5
-    simp only [h1, PMF.bind_const]
   have hfalse_succ : Game.succProbability (g false) = 1 := by
-    rw [hfalse]
-    simp [Game.succProbability]
+    have h1 (h5 u) :=
+      crtSpendPrefixTest_correct sub Hsub F hHF iv L0 u t₀ rReal active maskInput h5
+    simp [g, crtSpendBalancePrefixGame, h1, PMF.bind_const, Game.succProbability]
   have htrue_le : (g true true) ≤
       ((2 ^ wRand : ℕ) : ℝ≥0∞) *
         ((2 : ℝ≥0∞)⁻¹ ^ (nMask * rSub) + (2 : ℝ≥0∞)⁻¹ ^ (wBal + wRand)) := by
@@ -1215,19 +1172,9 @@ theorem rFirst_breaks_witnessKnowingZK {IV : Type} [Fintype IV] [DecidableEq IV]
             ProbComp.eval ((crtPrefixTest sub Hsub tbl hActive r).run (fun q => pure (h5 q)))
     1 - (2 : ℝ)⁻¹ ^ (nMask * rSub) ≤ (Game.advantage gReal gSim : ℝ) := by
   intro gReal gSim
-  have hreal : gReal = PMF.pure true := by
-    simp only [gReal]
-    have h1 : ∀ h5,
-        ProbComp.eval ((crtPrefixTest sub Hsub
-          (honestCRTMaskTable iv L0 uPrefix r active F maskInput h5)
-          (fun i => h5 ⟨iv, sub i,
-            (honestCRTMaskTable iv L0 uPrefix r active F maskInput h5).activeLabel (sub i)⟩)
-          r).run (fun q => pure (h5 q))) = PMF.pure true :=
-      fun h5 => crtPrefixTest_honest_true sub Hsub F hHF iv L0 uPrefix r active maskInput h5
-    simp only [h1, PMF.bind_const]
   have hreal_succ : Game.succProbability gReal = 1 := by
-    rw [hreal]
-    simp [Game.succProbability]
+    have h1 (h5) := crtPrefixTest_honest_true sub Hsub F hHF iv L0 uPrefix r active maskInput h5
+    simp [gReal, h1, PMF.bind_const, Game.succProbability]
   -- Under `gSim`, `cmultSim` is uniform and independent of `(hActive, h5 at L*)`.
   have hsim_val : gSim true ≤ (2 : ℝ≥0∞)⁻¹ ^ (nMask * rSub) := by
     have hinner : ∀ (dSim : Fin lam → ZMod 2)

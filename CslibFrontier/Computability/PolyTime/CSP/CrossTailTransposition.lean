@@ -81,16 +81,12 @@ theorem accepted_transposeTail (I : State Rel) (hI : I.Accepted) :
   unfold transposeTail
   split_ifs with h
   · exact hI
-  · have h0 := accepted_insert g w I hI
-    have h1 := accepted_rotateRight _ h0
-    have h2 := accepted_rotateRight _ h1
-    have h3 := accepted_rotateRight _ h2
-    have h4 := accepted_rotateRight _ h3
-    have h5 := accepted_rotateRight _ h4
-    have h6 := accepted_hideHead _ (accepted_fuseHead _ h5)
-    have h7 := accepted_rotateRight _ h6
-    have h8 := accepted_hideHead _ (accepted_fuseHead _ h7)
-    exact accepted_rotateLeft _ (accepted_rotateLeft _ h8)
+  · exact accepted_rotateLeft _ (accepted_rotateLeft _
+      (accepted_hideHead _ (accepted_fuseHead _
+        (accepted_rotateRight _ (accepted_hideHead _ (accepted_fuseHead _
+          (accepted_rotateRight _ (accepted_rotateRight _ (accepted_rotateRight _
+            (accepted_rotateRight _ (accepted_rotateRight _
+              (accepted_insert g w I hI))))))))))))
 
 attribute [local fun_prop] computableInPolyTime_insert computableInPolyTime_rotateRight
   computableInPolyTime_rotateLeft computableInPolyTime_fuseHead computableInPolyTime_hideHead
@@ -165,22 +161,16 @@ private theorem long_fields (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
       rfl
   have hE0 : E.map u0 = E := hE Y rfl
   have hp6 : J6.ports = [3, 5, 7] ++ E ++ [X] := by
-    have hp := h6.2
-    change J6.ports = ([3, 5, 7] ++ E ++ [X]).map u0 at hp
-    rw [hp]
-    simp only [List.map_append, List.map_cons, List.map_nil, hE0]
-    simp [u0, X]
+    rw [h6.2]
+    simp [u0, X, hE0]
   have h7 := right_fields J6 ([3, 5, 7] ++ E) X
     (by simpa only [List.append_assoc] using hp6)
   have h8 := seam_fields J7 X 3 ([5, 7] ++ E)
     (by simpa only [J7, List.append_assoc, List.cons_append, List.nil_append] using h7.2)
   have hE1 : E.map u1 = E := hE X rfl
   have hp8 : J8.ports = [5, 7] ++ E := by
-    have hp := h8.2
-    change J8.ports = ([5, 7] ++ E).map u1 at hp
-    rw [hp]
-    simp only [List.map_append, List.map_cons, List.map_nil, hE1]
-    rfl
+    rw [h8.2]
+    simp [u1, hE1]
   have hb8 : J8.body = (J0.body.relabel u0).relabel u1 := by
     rw [show J8.body = _ from h8.1, show J7.body = _ from h7.1,
       show J6.body = _ from h6.1, show J5.body = _ from h5.1,

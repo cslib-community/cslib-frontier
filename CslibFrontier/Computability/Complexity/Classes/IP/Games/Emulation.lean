@@ -271,12 +271,10 @@ theorem value_le (B Z K μ : ℕ) (hBK : B ≤ K) (hμ : 0 < μ) (V : List Bool 
   | nil =>
     rw [shape, AMGame.value_nil, check_nil, verifierMoves_nil, countFrom_nil]
     by_cases h : κ = 0 ∧ V p = true
-    · obtain ⟨rfl, hV⟩ := h
-      simp [hV]
-    · have : (decide (κ = 0) && V p) = false := by
-        simpa [Bool.and_eq_true, decide_eq_true_eq] using h
-      rw [this]
-      simp only [Bool.toNat_false, Nat.cast_zero]
+    · simp [h.1, h.2]
+    · have hf : (decide (κ = 0) && V p) = false :=
+        Bool.eq_false_iff.2 (by simpa [Bool.and_eq_true] using h)
+      simp only [hf, Bool.toNat_false, Nat.cast_zero]
       positivity
   | cons x g ih =>
     obtain ⟨_ | _, n⟩ := x
@@ -389,9 +387,7 @@ theorem value_le (B Z K μ : ℕ) (hBK : B ≤ K) (hμ : 0 < μ) (V : List Bool 
       have hb' : ∀ b ∈ range (B + 1), (∑ r : Fin (B * (n + Z) + B) → Bool,
           if r ∈ bad b then (1 : ℚ) else 0) ≤ 2 ^ K * 2 ^ (B * (n + Z) + B) / (μ * 2 ^ B) := by
         intro b _
-        have hfilt : (univ.filter fun r => r ∈ bad b) = bad b := by
-          ext r; simp only [mem_filter, mem_univ, true_and]
-        rw [sum_boole, hfilt, le_div_iff₀ (by positivity)]
+        rw [sum_boole, filter_mem_eq_inter, univ_inter, le_div_iff₀ (by positivity)]
         have := hbad b
         calc (#(bad b) : ℚ) * (μ * 2 ^ B) = ((μ * #(bad b) * 2 ^ B : ℕ) : ℚ) := by
               push_cast; ring
@@ -494,13 +490,9 @@ theorem one_sub_le_value (B Z K : ℕ) (hBK : B ≤ K) (hZ : B + K ≤ Z) (V : L
               rw [← sum_filter, sum_const, smul_eq_mul, mul_comm]
       -- pigeonhole: some `β` carries a `1 / (B + 1)` share
       obtain ⟨β, hβ, hβU⟩ : ∃ β ∈ range (B + 1), 2 ^ κ ≤ (B + 1) * (2 ^ β * #(U β)) := by
-        by_contra hcon
-        push Not at hcon
-        have h1 : (B + 1) * ∑ β ∈ range (B + 1), 2 ^ β * #(U β) <
-            ∑ _β ∈ range (B + 1), 2 ^ κ := by
-          rw [mul_sum]
-          exact sum_lt_sum_of_nonempty nonempty_range_add_one hcon
-        rw [sum_const, card_range, smul_eq_mul] at h1
+        by_contra! hcon
+        have h1 := sum_lt_sum_of_nonempty nonempty_range_add_one hcon
+        rw [← mul_sum, sum_const, card_range, smul_eq_mul] at h1
         have h2 := Nat.mul_le_mul_left (B + 1) hsumU
         omega
       have hβB : β ≤ B := Nat.lt_succ_iff.1 (mem_range.1 hβ)
@@ -549,30 +541,21 @@ theorem one_sub_le_value (B Z K : ℕ) (hBK : B ≤ K) (hZ : B + K ≤ Z) (V : L
               (List.ofFn r ++ (List.ofFn y ++ t))).toNat : ℚ)) (mem_univ _)))
           linarith
         · rw [sub_zero]
-          have h0 : 0 ∈ S.image (affineHash (affineSeedEquiv B (n + Z) r)) := by
-            by_contra h
-            exact hr (mem_filter.2 ⟨mem_univ _, h⟩)
+          have h0 : 0 ∈ S.image (affineHash (affineSeedEquiv B (n + Z) r)) :=
+            by_contra fun h => hr (mem_filter.2 ⟨mem_univ _, h⟩)
           obtain ⟨x, hxS, hx0⟩ := mem_image.1 h0
           obtain ⟨⟨m, z⟩, hmz, rfl⟩ := mem_map.1 hxS
           obtain ⟨hm, hz⟩ := mem_product.1 hmz
-          have hm' := (mem_filter.1 hm).2
-          have hz' := (mem_filter.1 hz).2
           let c : Fin B → Bool := fun i => decide (i.val < β)
-          have hc : (List.ofFn c).count true = β := count_ofFn_lt B β hβB
           refine le_trans ?_ (le_sup' _ (mem_univ (Fin.append c (Fin.append m z))))
-          rw [value_verifier_inner, hc]
-          have hloc : affineHash (affineSeedEquiv B (n + Z) r) (Fin.append m z) = 0 ∧
-              (!((List.ofFn z).take (Z + κ - (β + K))).any fun b => b) = true := ⟨hx0, hz'⟩
-          rw [decide_eq_true hloc, Bool.toNat_true, Nat.cast_one, one_mul]
-          exact ih hg' β hβB _ hm'
+          rw [value_verifier_inner, count_ofFn_lt B β hβB,
+            decide_eq_true ⟨hx0, (mem_filter.1 hz).2⟩, Bool.toNat_true, Nat.cast_one, one_mul]
+          exact ih hg' β hβB _ (mem_filter.1 hm).2
       -- average over Arthur's seeds
       rw [value_verifier, verifierMoves_verifier, le_div_iff₀ hP]
       refine le_trans ?_ (sum_le_sum fun r _ => hpt r)
       rw [sum_sub_distrib, sum_const, card_univ, Fintype.card_fun, Fintype.card_bool,
-        Fintype.card_fin, nsmul_eq_mul, sum_boole]
-      have hfilt : (univ.filter fun r : Fin (B * (n + Z) + B) → Bool => r ∈ miss) = miss := by
-        ext r; simp only [mem_filter, mem_univ, true_and]
-      rw [hfilt]
+        Fintype.card_fin, nsmul_eq_mul, sum_boole, filter_mem_eq_inter, univ_inter]
       push_cast
       nlinarith
     · -- prover move

@@ -257,14 +257,10 @@ theorem isGreatest_quadraticForm_adjMatrix [Fintype V]
       (Set.range fun x : Convexity.StdSimplex K V =>
         (x.weights : V → K) ⬝ᵥ G.adjMatrix K *ᵥ (x.weights : V → K))
       (1 - 1 / (G.cliqueNum : K)) := by
-  refine ⟨?_, ?_⟩
-  · obtain ⟨S, hS⟩ := G.exists_isNClique_cliqueNum
-    have hpos : 1 ≤ G.cliqueNum := Nat.one_le_iff_ne_zero.2 G.cliqueNum_ne_zero_of_finite
-    obtain ⟨x, hxeq⟩ :=
-      exists_stdSimplex_quadraticForm_adjMatrix_eq_of_isNClique (K := K) G hpos hS
-    exact ⟨x, hxeq⟩
-  · rintro _ ⟨x, rfl⟩
-    exact quadraticForm_adjMatrix_le_stdSimplex G x
+  refine ⟨?_, fun _ ⟨x, hx⟩ => hx ▸ quadraticForm_adjMatrix_le_stdSimplex G x⟩
+  obtain ⟨S, hS⟩ := G.exists_isNClique_cliqueNum
+  exact exists_stdSimplex_quadraticForm_adjMatrix_eq_of_isNClique G
+    (Nat.one_le_iff_ne_zero.2 G.cliqueNum_ne_zero_of_finite) hS
 
 /-- **The Motzkin–Straus theorem** over `ℝ` in `sSup` form (attributed to [MotzkinStraus1965];
 the published text is uninspected, and [MotzkinStraus1965] includes a factor of `1 / 2` from
@@ -334,10 +330,8 @@ theorem exists_nonneg_dotProduct_copositiveCliqueMatrix_lt_zero_iff [Fintype V]
     have hms := quadraticForm_adjMatrix_le_stdSimplex G y
     -- If `ω < k`, then `(k - 1) * (1 - 1 / ω) ≤ k - 2`, contradicting `hylt`.
     by_contra hlt
-    have hωk : (G.cliqueNum : K) + 1 ≤ k := by
-      exact_mod_cast (Nat.not_le.mp hlt : G.cliqueNum + 1 ≤ k)
-    have hωK : (0 : K) < G.cliqueNum := by
-      exact_mod_cast Nat.pos_of_ne_zero G.cliqueNum_ne_zero_of_finite
+    have hωk : (G.cliqueNum : K) + 1 ≤ k := mod_cast Nat.not_le.mp hlt
+    have hωK : (0 : K) < G.cliqueNum := mod_cast Nat.pos_of_ne_zero G.cliqueNum_ne_zero_of_finite
     have h1 : 1 ≤ ((k : K) - 1) * (1 / G.cliqueNum) := by
       rw [mul_one_div, le_div_iff₀ hωK]
       linarith

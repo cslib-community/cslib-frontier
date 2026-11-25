@@ -81,8 +81,7 @@ theorem eventually_rayParity_rightGerm {ι : Type*} [Fintype ι]
     · by_cases hv : v.im < 0 <;> simp [correction, p, v, hv, Bool.mul_eq_and, Bool.zero_eq_false]
     · intro e _ hne
       by_cases hep : rayEndpoint a b e = p
-      · have harg : turnArg (rayEndVector a b e) ≠ turnArg v :=
-          fun h => hne (hdistinct e hep h)
+      · have harg : turnArg (rayEndVector a b e) ≠ turnArg v := mt (hdistinct e hep) hne
         simp [correction, harg, Bool.mul_eq_and, Bool.zero_eq_false]
       · simp [correction, hep]
     · simp
@@ -110,9 +109,8 @@ theorem eventually_rayParity_rightGerm {ι : Type*} [Fintype ι]
     have hbit (P : Prop) [Decidable P] :
         (if P then x i else 0) = x i * decide P := by
       by_cases h : P <;> simp [h, Bool.mul_eq_and, Bool.zero_eq_false]
-    simp only [hbit, Bool.false_eq_true, ↓reduceIte]
     by_cases ha : a i = p <;> by_cases hb : b i = p <;>
-      simp [ha, hb, add_comm]
+      simp [hbit, ha, hb, add_comm]
   filter_upwards [eventually_rayParity_germ a b x hheight p v
     (rayEndVector_im_ne_zero a b hheight k) hremote] with t ht hpos
   rw [ht hpos, hdelta, ← hcorrect, add_assoc, hsum]
@@ -157,10 +155,9 @@ theorem rayGermColor_ends_add_eq_crossings {ι : Type*} [Fintype ι]
     rw [hfinite.eventually_all]
     intro t ht
     obtain ⟨j, hj⟩ := Set.mem_iUnion.mp ht
-    have ht' : t ∈ Set.Ioo (0 : ℝ) 1 := hj.1
-    filter_upwards [isOpen_Iio.mem_nhds ht'.1, isOpen_Iio.mem_nhds (sub_pos.mpr ht'.2)]
+    filter_upwards [isOpen_Iio.mem_nhds hj.1.1, isOpen_Iio.mem_nhds (sub_pos.mpr hj.1.2)]
       with s hlo hhi
-    exact ⟨hlo, by linarith [show s < 1 - t from hhi]⟩
+    exact ⟨hlo, lt_sub_comm.mp hhi⟩
   have h0 := eventually_rayParity_rightGerm a b x hheight heven (i, false)
     (hremote false) (hdistinct false)
   have h1 := eventually_rayParity_rightGerm a b x hheight heven (i, true)
@@ -198,13 +195,11 @@ theorem rayGermColor_ends_add_eq_crossings {ι : Type*} [Fintype ι]
         (openSegment ℝ (a j) (b j) ∩ openSegment ℝ (a i) (b i)).Nonempty := by
         constructor
         · rintro ⟨z, hjz, hz⟩
-          rw [← image_openSegment ℝ point] at hz
-          obtain ⟨s, hs, rfl⟩ := hz
-          have hs' := (convex_Ioo (0 : ℝ) 1).openSegment_subset ht ht' hs
-          exact ⟨point s, hjz, lineMap_mem_openSegment ℝ _ _ hs'⟩
+          obtain ⟨s, hs, rfl⟩ := (image_openSegment ℝ point _ _).symm ▸ hz
+          exact ⟨point s, hjz,
+            lineMap_mem_openSegment ℝ _ _ ((convex_Ioo (0 : ℝ) 1).openSegment_subset ht ht' hs)⟩
         · rintro ⟨z, hjz, hz⟩
-          rw [openSegment_eq_image_lineMap] at hz
-          obtain ⟨s, hs, rfl⟩ := hz
+          obtain ⟨s, hs, rfl⟩ := openSegment_eq_image_lineMap ℝ (a i) (b i) ▸ hz
           refine ⟨point s, hjz, ?_⟩
           rw [← image_openSegment ℝ point, openSegment_eq_Ioo hlt]
           exact ⟨s, hthits s (Set.mem_iUnion.mpr ⟨j, hs, hj, hx, hjz⟩), rfl⟩

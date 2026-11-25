@@ -129,9 +129,9 @@ theorem power2Round_low_mem_Ioc (hd : 0 < d) (r : ZMod q) :
   have : NeZero (2 ^ d) := ⟨by positivity⟩
   have h := ZMod.valMinAbs_mem_Ioc (((r.val : ℤ) : ZMod (2 ^ d)))
   have hpow : (2 : ℕ) ^ d = 2 * 2 ^ (d - 1) := by
-    conv_lhs => rw [← Nat.succ_pred_eq_of_pos hd]
-    rw [pow_succ]
-    rw [Nat.pred_eq_sub_one, Nat.mul_comm]
+    cases d with
+    | zero => omega
+    | succ d => simp [pow_succ']
   change power2Rem q d r * 2 ∈ Set.Ioc (-((2 ^ d : ℕ) : ℤ)) ((2 ^ d : ℕ) : ℤ) at h
   change power2Rem q d r ∈ Set.Ioc (-(2 ^ (d - 1) : ℤ)) (2 ^ (d - 1) : ℤ)
   simp only [Set.mem_Ioc] at h ⊢
@@ -271,28 +271,15 @@ theorem highBits_lt (hγ : 0 < γ₂) (hdvd : 2 * γ₂ ∣ q - 1) (hq : 1 < q) 
   · rw [highBits, decompose_of_wrap h]
     -- `q - 1 = m · 2 γ₂ ≥ 1` forces `m ≥ 1`.
     have hq' : (1 : ℤ) < q := by exact_mod_cast hq
-    rcases Nat.eq_zero_or_pos m with hm0 | hm0
-    · rw [hm0] at hqm
-      push_cast at hqm
-      linarith
-    · change (0 : ℤ) < m
-      exact_mod_cast hm0
+    push_cast at hqm
+    nlinarith
   · rw [highBits, decompose_of_not_wrap h]
     obtain ⟨k, hk⟩ := dvd_sub_centeredRem (γ₂ := γ₂) r
     rw [hk, Int.mul_ediv_cancel_left _ (by positivity)]
     push_cast at hk hqm
     -- `r⁺ - r₀ = 2 γ₂ k ≤ q - 2 + γ₂ < q - 1 + 2 γ₂`, so `k ≤ m`, and `k ≠ m` off the wrap case.
-    have hk_le : k ≤ m := by
-      by_contra hlt
-      have hlt : (m : ℤ) + 1 ≤ k := by omega
-      have : (2 * γ₂ : ℤ) * (m + 1) ≤ 2 * γ₂ * k :=
-        mul_le_mul_of_nonneg_left (by omega) (by positivity)
-      nlinarith
-    have hk_ne : k ≠ m := by
-      intro hkm
-      apply h
-      rw [hk, hkm, hqm]
-      ring
+    have hk_lt : k < (m : ℤ) + 1 := by nlinarith
+    have hk_ne : k ≠ m := fun hkm => h (by rw [hk, hkm, hqm]; ring)
     omega
 
 /-- The centered remainder of `r` is the unique `c ∈ (-γ₂, γ₂]` congruent to `r⁺` modulo

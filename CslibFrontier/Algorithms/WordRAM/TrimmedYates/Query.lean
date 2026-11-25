@@ -242,18 +242,15 @@ private theorem exec_qLongBranch {w d s baseFree outBase qWorkStart rootF rootG 
   have hhigh_nd : (ys.map (C \ ·)).Nodup := hys_spec.1.map_on fun Y₁ h₁ Y₂ h₂ heq => by
     rw [← Finset.sdiff_sdiff_eq_self (hys_sub Y₁ h₁), heq,
       Finset.sdiff_sdiff_eq_self (hys_sub Y₂ h₂)]
-  have hhigh_mem : ∀ X, X ∈ ys.map (C \ ·) ↔ X ⊆ C ∧ s ≤ #X := by
-    intro X
+  have hhigh_mem : ∀ X, X ∈ ys.map (C \ ·) ↔ X ⊆ C ∧ s ≤ #X := fun X => by
     simp only [List.mem_map]
-    constructor
+    refine ⟨?_, fun ⟨hXC, hsX⟩ => ⟨C \ X, (hys_spec.2 _).mpr ⟨hcList_tf ▸ sdiff_subset, ?_⟩,
+      Finset.sdiff_sdiff_eq_self hXC⟩⟩
     · rintro ⟨Y, hY, rfl⟩
       have := ((hys_spec.2 Y).mp hY).2
       rw [Finset.card_sdiff_of_subset (hys_sub Y hY)]
       exact ⟨sdiff_subset, by omega⟩
-    · rintro ⟨hXC, hsX⟩
-      refine ⟨C \ X, (hys_spec.2 _).mpr ⟨hcList_tf ▸ sdiff_subset, ?_⟩,
-        Finset.sdiff_sdiff_eq_self hXC⟩
-      rw [Finset.card_sdiff_of_subset hXC]; omega
+    · rw [Finset.card_sdiff_of_subset hXC]; omega
   -- Run the three high-domain Yates transforms with the precomputed low stages as fallback.
   obtain ⟨w₃, he_w3, hw₃_dp, hw₃_dl, hw₃_fr, hw₃_cut, hw₃_mem⟩ :
       ∃ w₃, ExecWithin w qHighPrepCode w₂ w₃ 5 ∧ w₃.regs Reg.entryPtr = qWorkStart + d ∧
@@ -310,10 +307,9 @@ private theorem exec_qLongBranch {w d s baseFree outBase qWorkStart rootF rootG 
   obtain ⟨n_el, hn_el, hex_el⟩ :=
     he_w0.seq (he_low.seq (he_flip.seq (he_w3.seq (he_qtr.seq (he_w5.seq he_get)))))
   rw [hsum_Hq, hys_len, hhigh_len] at hn_el
-  refine ⟨w₆, ⟨n_el + 2, longBranch_budget_le hH_pos1 hcList_le_d hHq_le hn_el,
-    Exec.branch_neg (by simp [Cond.holds_lt, hclen, hs_reg, hsC]) hex_el⟩, hw₆_val, fun a ha => ?_⟩
-  rw [hw₆_mem, hw₅_mem]
-  exact hw₄_below a ha
+  exact ⟨w₆, ⟨n_el + 2, longBranch_budget_le hH_pos1 hcList_le_d hHq_le hn_el,
+    Exec.branch_neg (by simp [Cond.holds_lt, hclen, hs_reg, hsC]) hex_el⟩, hw₆_val,
+    fun a ha => (congrFun (hw₆_mem.trans hw₅_mem) a).trans (hw₄_below a ha)⟩
 
 theorem exec_queryStep {w d s baseFree outBase rootF rootG qPtr preFs preGs preHs
     W H_pos spVal : ℕ}
@@ -408,11 +404,9 @@ theorem exec_queryStep {w d s baseFree outBase rootF rootG qPtr preFs preGs preH
           (hv₀_mem ▸ hpreOut_tr.congr_below hu₁_ob) hf_ob hfit_d (hfit_mask.of_le (setMask_lt C).le)
       rw [hpreOut_eq C (by omega)] at hv₁_val
       obtain ⟨n_b, hn_b, hex_b⟩ := he_ld.seq he_get
-      refine ⟨v₁, ⟨n_b + 1, shortBranch_budget_le hH_pos1 hn_b,
+      exact ⟨v₁, ⟨n_b + 1, shortBranch_budget_le hH_pos1 hn_b,
         Exec.branch_pos (by simp [Cond.holds_lt, hu₁_clen, hu₁_s, hlt_Cs]) hex_b⟩, hv₁_val,
-        fun a ha => ?_⟩
-      rw [hv₁_mem, hv₀_mem]
-      exact hu₁_below a ha
+        fun a ha => (congrFun (hv₁_mem.trans hv₀_mem) a).trans (hu₁_below a ha)⟩
     · exact exec_qLongBranch u₁ (by regs_frame) (by regs_frame) (by regs_frame) hu₁_s
         (by regs_frame) (by regs_frame) hu₁_clen (by regs_frame) (by regs_frame) (by regs_frame)
         (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)

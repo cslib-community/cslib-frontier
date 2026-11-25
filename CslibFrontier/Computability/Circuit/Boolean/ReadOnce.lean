@@ -242,12 +242,8 @@ theorem eval_eq_of_eq_on_leafSupport (F : PosFormula n) {x y : BitString n}
     (h : ∀ i ∈ F.leafSupport, x i = y i) : F.eval x = F.eval y := by
   induction F with
   | var i => exact h i (Finset.mem_singleton_self i)
-  | and L R ihL ihR =>
-    simp only [eval_and]
-    rw [ihL fun i hi => h i (Finset.mem_union_left _ hi),
-      ihR fun i hi => h i (Finset.mem_union_right _ hi)]
-  | or L R ihL ihR =>
-    simp only [eval_or]
+  | and L R ihL ihR | or L R ihL ihR =>
+    simp only [eval_and, eval_or]
     rw [ihL fun i hi => h i (Finset.mem_union_left _ hi),
       ihR fun i hi => h i (Finset.mem_union_right _ hi)]
 
@@ -835,24 +831,18 @@ theorem Circuit.exists_litFormula_of_cost_binaryCost_le (hn : 0 < n) (c : Circui
     (hsupp : n ≤ c.inputSupport.card) (hcost : c.program.cost binaryCost + 1 ≤ n) :
     ∃ F : LitFormula n, (∀ x, F.eval x = c.eval interpretation x 0) ∧ F.leafSize = n := by
   let frontier : Finset (Wire n c.size) := {c.outputs 0}
-  have hsub : c.inputSupport ⊆ frontier.biUnion c.program.wireSupport := by
-    intro i hi
-    rw [Circuit.mem_inputSupport] at hi
-    obtain ⟨o, ho⟩ := hi
-    rw [Subsingleton.elim o 0] at ho
-    exact Finset.mem_biUnion.mpr ⟨c.outputs 0, Finset.mem_singleton_self _, ho⟩
+  have hsub : c.inputSupport ⊆ frontier.biUnion c.program.wireSupport := fun i hi => by
+    obtain ⟨o, ho⟩ := Circuit.mem_inputSupport.mp hi
+    exact Finset.mem_biUnion.mpr ⟨c.outputs 0, Finset.mem_singleton_self _,
+      Subsingleton.elim o 0 ▸ ho⟩
   have hcard_le := Finset.card_le_card hsub
   have hf_card : frontier.card = 1 := Finset.card_singleton _
-  have hcard : frontier.card + c.program.cost binaryCost ≤
-      (frontier.biUnion c.program.wireSupport).card := by
-    omega
-  have hcost_eq : 1 + c.program.cost binaryCost = n := by
-    have := c.card_inputSupport_le_cost_binaryCost
-    omega
+  have hbound := c.card_inputSupport_le_cost_binaryCost
   obtain ⟨F, hF_eval, hF_sum⟩ :=
-    c.program.exists_litFormula_of_card_biUnion_wireSupport_ge hn frontier hcard
+    c.program.exists_litFormula_of_card_biUnion_wireSupport_ge hn frontier (by omega)
   refine ⟨F (c.outputs 0), fun x => hF_eval _ (Finset.mem_singleton_self _) x, ?_⟩
-  simpa [frontier, hcost_eq] using hF_sum
+  rw [Finset.sum_singleton] at hF_sum
+  omega
 
 /-- **Unfolding a tight binary-cost circuit into a positive read-once formula**
 [Ilango2020FOCS, Section III.B; ECCC TR20-183, Section 3, Claim 13, p. 24]: if `c` is a one-output

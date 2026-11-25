@@ -731,20 +731,16 @@ theorem countSetup_exec (k c : ℕ) (φ : CNF (Fin n)) {w : ℕ}
       y.regs bLen = (ppzDigits k n c).length ∧
       HoldsList ((k :: c :: encode φ).length + 1 + 2 * n) (ppzDigits k n c) y.mem ∧
       y.regs out = 0 := by
-  obtain ⟨L, hL⟩ : ∃ L, (k :: c :: encode φ).length = L := ⟨_, rfl⟩
-  rw [hL] at hw ⊢
-  have hfr : RoundFrame φ 4 (L + 1) (ampSetupData k c φ).mem (ampSetupData k c φ) := by
-    have := (ampSetup_exec k c φ (hw.of_le (by rw [hL]; omega))).2
-    rwa [hL] at this
+  set L := (k :: c :: encode φ).length with hL
+  have hfr := (ampSetup_exec k c φ (hw.of_le (by omega))).2
   have hDb : (ampSetupData k c φ).regs bBase = L + 1 + 2 * n := by
-    simp +decide [ampSetupData, hL]; omega
+    simp +decide [ampSetupData, ← hL]; omega
   have hDe : (ampSetupData k c φ).regs eReg = ppzExp k n := by simp +decide [ampSetupData]
   have hDc : (ampSetupData k c φ).regs cReg = c := by simp +decide [ampSetupData]
-  have hDo : (ampSetupData k c φ).regs out = 0 := by simp +decide [ampSetupData]
   obtain ⟨y, hy, hyl, hyh, hym⟩ := countSetup_spec (ampSetupData k c φ) hfr.zero_eq hfr.one_eq
     hDb hDe hDc (hw.of_le (by simp only [ppzCounterLen]; omega))
   exact ⟨y, hy, hfr.of_exec_mem_lt (by decide) hy fun a ha => hym a (by omega),
-    by rw [hy.regs_eq (by decide), hDb], hyl, hyh, by rw [hy.regs_eq (by decide), hDo]⟩
+    (hy.regs_eq (by decide)).trans hDb, hyl, hyh, hy.regs_eq (by decide)⟩
 
 /-! ### The algorithm -/
 
@@ -809,16 +805,16 @@ theorem ampProgram_spec (k c : ℕ) (hk : 1 ≤ k) (φ : CNF (Fin n)) {w : ℕ}
   obtain ⟨hhalt, hcalls, hpost, hlaw⟩ := hall.program out (T' := ampTime k n c L)
     (by
       simp only [ampTime, ampRoundTime, roundCoreTime, countTime]
-      have h1 := Nat.mul_le_mul_left n (show 28 * (encodeClauses φ).length + 40 ≤ 28 * L + 40 by
-        omega)
+      have h1 := Nat.mul_le_mul_left n
+        (show 28 * (encodeClauses φ).length + 40 ≤ 28 * L + 40 by omega)
       have h2 := Nat.mul_le_mul_left (ppzRounds k n c)
         (show n * (28 * (encodeClauses φ).length + 40) + 6 + 12 * (encodeClauses φ).length + 35 ≤
           n * (28 * L + 40) + 12 * L + 41 by omega)
       omega)
     RandCfg.accepts fun _ _ => rfl
-  refine ⟨hhalt, hcalls, fun cfg hcfg => ?_, hlaw⟩
-  obtain ⟨d, rfl, -, hd⟩ := hpost cfg hcfg
-  exact ⟨_, d, rfl, hd⟩
+  exact ⟨hhalt, hcalls, fun cfg hcfg =>
+    let ⟨d, hcfg', _, hd⟩ := hpost cfg hcfg
+    ⟨_, d, hcfg', hd⟩, hlaw⟩
 
 /-- **Failure probability.** The program outputs something other than `1` with probability exactly
 `(1 - p) ^ R`, where `R = ppzRounds k n c` and `p = roundSuccessProb φ` is the probability that one
@@ -857,8 +853,7 @@ theorem ampTime_le {k : ℕ} (hk : 1 ≤ k) (n c L : ℕ) :
     (ampTime k n c L : ℝ) ≤
       200 * ((n + L + 1 : ℕ) : ℝ) ^ 2 * (2 : ℝ) ^ ((1 - 1 / (k : ℝ)) * n) * (c + 1) := by
   set X := (2 : ℝ) ^ ((1 - 1 / (k : ℝ)) * n)
-  obtain ⟨N, hN⟩ : ∃ N, n + L + 1 = N := ⟨_, rfl⟩
-  rw [hN]
+  set N := n + L + 1 with hN
   have hX1 : 1 ≤ X := Real.one_le_rpow one_le_two (mul_nonneg (sub_nonneg.mpr
     (div_le_one_of_le₀ (by exact_mod_cast hk) (Nat.cast_nonneg k))) (Nat.cast_nonneg n))
   -- the number of rounds
@@ -882,16 +877,13 @@ theorem ampTime_le {k : ℕ} (hk : 1 ≤ k) (n c L : ℕ) :
       (ppzRounds k n c : ℝ) * ((n * (28 * L + 40) + 12 * L + 41 : ℕ) : ℝ) +
         ((5 * ppzExp k n + 19 * ppzCounterLen k n c + 63 : ℕ) : ℝ) := by
     simp only [ampTime]; push_cast; ring
-  have hSr : ((5 * ppzExp k n + 19 * ppzCounterLen k n c + 63 : ℕ) : ℝ) ≤
-      82 * (N : ℝ) ^ 2 * (c + 1) := by
-    exact_mod_cast hS
-  have hc0 : (0 : ℝ) ≤ c := Nat.cast_nonneg c
-  have hN0 : (0 : ℝ) ≤ (N : ℝ) ^ 2 := by positivity
   have hT : (ppzRounds k n c : ℝ) * ((n * (28 * L + 40) + 12 * L + 41 : ℕ) : ℝ) ≤
       (2 * X * c) * (41 * (N : ℝ) ^ 2) :=
-    mul_le_mul hR (by exact_mod_cast hP) (Nat.cast_nonneg _) (by positivity)
+    mul_le_mul hR (mod_cast hP) (Nat.cast_nonneg _) (by positivity)
+  have hSr : ((5 * ppzExp k n + 19 * ppzCounterLen k n c + 63 : ℕ) : ℝ) ≤
+      82 * (N : ℝ) ^ 2 * (c + 1) := mod_cast hS
   rw [hexp]
-  nlinarith [mul_le_mul_of_nonneg_left hX1 (mul_nonneg hN0 (by linarith : (0 : ℝ) ≤ c + 1)),
-    mul_nonneg (mul_nonneg hN0 (by linarith : (0 : ℝ) ≤ X)) hc0]
+  nlinarith [mul_le_mul_of_nonneg_left hX1 (by positivity : (0 : ℝ) ≤ (N : ℝ) ^ 2 * (c + 1)),
+    show (0 : ℝ) ≤ (N : ℝ) ^ 2 * X * c by positivity]
 
 end Cslib.Algorithms.WordRAM.PPZ

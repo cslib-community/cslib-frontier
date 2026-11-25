@@ -154,12 +154,9 @@ theorem toWeierstrass_Δ :
 
 /-- When `2 ≠ 0` in `F`, `M.toWeierstrass` is an elliptic curve. -/
 theorem isElliptic_toWeierstrass (h2 : (2 : F) ≠ 0) : M.toWeierstrass.IsElliptic := by
-  have h16 : (16 : F) ≠ 0 := by
-    rw [show (16 : F) = 2 ^ 4 by norm_num]
-    exact pow_ne_zero 4 h2
   refine ⟨isUnit_iff_ne_zero.mpr ?_⟩
-  rw [toWeierstrass_Δ]
-  exact div_ne_zero (mul_ne_zero h16 M.discr_ne_zero) (pow_ne_zero 6 M.B_ne_zero)
+  rw [toWeierstrass_Δ, show (16 : F) = 2 ^ 4 by norm_num]
+  exact div_ne_zero (mul_ne_zero (pow_ne_zero 4 h2) M.discr_ne_zero) (pow_ne_zero 6 M.B_ne_zero)
 
 /-- Affine solutions `(B x, B y)` of `M.Equation` correspond to affine solutions `(x, y)` of
 `M.toWeierstrass`. -/
@@ -241,18 +238,14 @@ noncomputable def toShortWeierstrass : WeierstrassCurve F :=
 `M.toWeierstrass` via Mathlib's `WeierstrassCurve.toShortNF`. -/
 theorem toShortWeierstrass_eq_toShortNF [Invertible (2 : F)] [Invertible (3 : F)] :
     M.toShortWeierstrass = M.toWeierstrass.toShortNF • M.toWeierstrass := by
-  have hC : (VariableChange.mk 1 (-M.A / (3 * M.B)) 0 0 : VariableChange F) =
-      M.toWeierstrass.toShortNF := by
-    rw [WeierstrassCurve.toShortNF]
-    have h2nf : M.toWeierstrass.toCharNeTwoNF = 1 := by
-      rw [WeierstrassCurve.toCharNeTwoNF]
-      simp only [toWeierstrass, ofCubic_a₁, ofCubic_a₃, neg_zero, mul_zero]
-      rfl
-    rw [h2nf, mul_one, one_smul]
-    congr 1
-    simp only [toWeierstrass, ofCubic_a₂, invOf_eq_inv]
-    ring
-  rw [toShortWeierstrass, hC]
+  have h2nf : M.toWeierstrass.toCharNeTwoNF = 1 := by
+    rw [WeierstrassCurve.toCharNeTwoNF]
+    simp only [toWeierstrass, ofCubic_a₁, ofCubic_a₃, neg_zero, mul_zero]
+    rfl
+  rw [toShortWeierstrass, WeierstrassCurve.toShortNF, h2nf, mul_one, one_smul]
+  congr 2
+  simp only [toWeierstrass, ofCubic_a₂, invOf_eq_inv]
+  ring
 
 /-- When `3 ≠ 0`, `M.toShortWeierstrass` is in short Weierstrass normal form (`a₁ = a₂ = a₃ = 0`).
 -/
@@ -273,11 +266,9 @@ theorem not_isShortNF_toShortWeierstrass (h3 : (3 : F) = 0) (hA : M.A ≠ 0) :
   intro hnf
   have ha2 : M.toShortWeierstrass.a₂ = M.A / M.B := by
     simp only [toShortWeierstrass, toWeierstrass, variableChange_a₂, ofCubic_a₁, ofCubic_a₂,
-      inv_one, Units.val_one]
-    rw [h3]
+      inv_one, Units.val_one, h3]
     ring
-  have h0 : M.A / M.B = 0 := ha2.symm.trans hnf.a₂
-  exact hA (div_eq_zero_iff.mp h0 |>.resolve_right M.B_ne_zero)
+  exact hA ((div_eq_zero_iff.mp (ha2.symm.trans hnf.a₂)).resolve_right M.B_ne_zero)
 
 /-- Affine solutions `(B x - A / 3, B y)` of `M.Equation` correspond to affine solutions `(x, y)`
 of `M.toShortWeierstrass`, without requiring `3 ≠ 0`. -/

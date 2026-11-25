@@ -101,11 +101,8 @@ theorem exists_card_mul_sum_choose_le_pow_mul (C : Finset (ι → α)) (e : ℕ)
           exact sum_comm
       _ = ∑ _c ∈ C, V := sum_congr rfl fun c _ => hball c
       _ = #C * V := by rw [sum_const, smul_eq_mul]
-  have hsum : ∑ _w : ι → α, #C * V ≤
-      ∑ w : ι → α, Fintype.card α ^ Fintype.card ι * #{c ∈ C | hammingDist c w ≤ e} := by
-    rw [sum_const, card_univ, Fintype.card_fun, smul_eq_mul, ← mul_sum, hcount]
-  obtain ⟨w, -, hw⟩ := exists_le_of_sum_le univ_nonempty hsum
-  exact ⟨w, hw⟩
+  refine (exists_le_of_sum_le univ_nonempty (?_ : ∑ _w : ι → α, #C * V ≤ _)).imp fun _ hw => hw.2
+  rw [sum_const, card_univ, Fintype.card_fun, smul_eq_mul, ← mul_sum, hcount]
 
 /-- **The Elias–Bassalygo bound**, finite form [Bassalygo1965], [GuruswamiRudraSudan2019,
 Section 8.1]: a code `C` of length `n` and minimum distance at least `d` over `q` letters
@@ -183,20 +180,15 @@ theorem rate_le_of_lt_johnsonRadius [Fintype ι] [Nonempty ι] [Fintype α] [Dec
     rw [Nat.cast_zero, zero_div, johnsonRadius_zero_right] at he
     exact (div_nonneg (Nat.cast_nonneg e) hnR.le).not_gt he
   rcases Nat.eq_zero_or_pos #C with hC0 | hCpos
-  · have hrate0 : rate (C : Set (ι → α)) = 0 := by simp [rate, hC0]
-    rw [hrate0]
-    have h1 : 0 ≤ 1 - Real.qaryEntropy q ((e : ℝ) / n) / Real.log q := by
-      rw [sub_nonneg, div_le_one hlogq]
-      exact qaryEntropy_le_log hq (by positivity) ((div_le_one hnR).2 (by exact_mod_cast hen))
-    have hfac : 1 ≤ ((q : ℝ) - 1) * n * d * (n + 1) := by
-      have hq1 : (1 : ℝ) ≤ (q : ℝ) - 1 := by linarith [show (2 : ℝ) ≤ q by exact_mod_cast hq]
-      have hn1 : (1 : ℝ) ≤ n := by exact_mod_cast hn0
-      have hd1 : (1 : ℝ) ≤ d := by exact_mod_cast hd0
-      exact one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le
-        (one_le_mul_of_one_le_of_one_le hq1 hn1) hd1) (by linarith)
-    have hlog_nn : 0 ≤ Real.logb q (((q : ℝ) - 1) * n * d * (n + 1)) / n :=
-      div_nonneg (Real.logb_nonneg hqR hfac) hnR.le
-    linarith
+  · rw [show rate (C : Set (ι → α)) = 0 by simp [rate, hC0]]
+    have h1 : 0 ≤ 1 - Real.qaryEntropy q ((e : ℝ) / n) / Real.log q :=
+      sub_nonneg.2 ((div_le_one hlogq).2
+        (qaryEntropy_le_log hq (by positivity) ((div_le_one hnR).2 (by exact_mod_cast hen))))
+    have hfac : 1 ≤ ((q : ℝ) - 1) * n * d * (n + 1) :=
+      one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le
+        (one_le_mul_of_one_le_of_one_le (by linarith [show (2 : ℝ) ≤ q from mod_cast hq])
+          (mod_cast hn0)) (mod_cast hd0)) (by linarith)
+    linarith [div_nonneg (Real.logb_nonneg hqR hfac) hnR.le]
   have : Nonempty α := Fintype.card_pos_iff.1 (by omega)
   have heb := card_mul_sum_choose_le hd hhyp.1 hhyp.2
   set V : ℕ := ∑ j ∈ range (e + 1), n.choose j * (q - 1) ^ j
@@ -288,17 +280,14 @@ theorem eventually_rate_le_one_sub_qaryEntropy_johnsonRadius
   have h_nconst :
       ∀ᶠ s in l, Real.log (2 * q) ≤ ε / 4 * Real.log q * (Fintype.card (ιs s) : ℝ) :=
     (hnR.eventually_ge_atTop (Real.log (2 * q) / (ε / 4 * Real.log q))).mono fun s hs => by
-      have h1 : Real.log (2 * q) ≤ (Fintype.card (ιs s) : ℝ) * (ε / 4 * Real.log q) :=
-        (div_le_iff₀ (by positivity)).1 hs
-      linarith
+      linarith [(div_le_iff₀ (by positivity)).1 hs]
   have h_nlog :
       ∀ᶠ s in l, Real.log (Fintype.card (ιs s)) ≤
         ε / 12 * Real.log q * (Fintype.card (ιs s) : ℝ) := by
     have := Real.isLittleO_log_id_atTop.bound (c := ε / 12 * Real.log q) (by positivity)
     filter_upwards [hnR.eventually this, hnR.eventually_ge_atTop 1] with s hs hs1
-    rw [Real.norm_eq_abs, Real.norm_eq_abs, id, abs_of_nonneg (Real.log_nonneg hs1),
-      abs_of_nonneg (by linarith)] at hs
-    exact hs
+    simpa only [Real.norm_eq_abs, id, abs_of_nonneg (Real.log_nonneg hs1),
+      abs_of_nonneg (by linarith : (0 : ℝ) ≤ Fintype.card (ιs s))] using hs
   filter_upwards [h_n1, h_nη, h_nconst, h_nlog] with s hs1 hsη hsconst hslog
   have : Nonempty (ιs s) := Fintype.card_pos_iff.1 hs1
   set n : ℕ := Fintype.card (ιs s)
@@ -317,18 +306,14 @@ theorem eventually_rate_le_one_sub_qaryEntropy_johnsonRadius
   have hJη0 : 0 ≤ J - η / 2 := by linarith
   have he_le : (e : ℝ) ≤ (J - η / 2) * n := Nat.floor_le (mul_nonneg hJη0 hnR'.le)
   have he_lt : (J - η / 2) * n - 1 < e := sub_lt_iff_lt_add.2 (Nat.lt_floor_add_one _)
-  have h1_le_halfηn : 1 ≤ η / 2 * n := by
-    rw [div_le_iff₀ hηpos] at hsη
-    linarith
   have he_lower : J - η ≤ (e : ℝ) / n := by
     rw [le_div_iff₀ hnR']
-    linarith
+    linarith [(div_le_iff₀ hηpos).1 hsη]
   have he_upper : (e : ℝ) / n ≤ J - η / 2 := (div_le_iff₀ hnR').2 he_le
   have he_radius : (e : ℝ) / n < johnsonRadius q ((d : ℝ) / n) := by linarith
   have hfinite := rate_le_of_lt_johnsonRadius (C := C s) hq hdmin hdn he_radius
-  have hdistJ : dist ((e : ℝ) / n) J < η₀ := by
-    rw [Real.dist_eq, abs_lt]
-    constructor <;> linarith
+  have hdistJ : dist ((e : ℝ) / n) J < η₀ :=
+    Real.dist_eq ((e : ℝ) / n) J ▸ abs_lt.2 ⟨by linarith, by linarith⟩
   have hent' : (Real.qaryEntropy q J - Real.qaryEntropy q ((e : ℝ) / n)) / Real.log q ≤ ε / 2 := by
     have := hη₀ hdistJ
     rw [Real.dist_eq, abs_lt] at this

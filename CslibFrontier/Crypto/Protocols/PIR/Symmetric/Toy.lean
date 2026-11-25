@@ -165,11 +165,9 @@ theorem toyScheme_isPerfectlyDataPrivate (n k : ℕ) : (toyScheme n k).IsPerfect
   funext π
   relabel_uniform
     (fun (r : Fin n → Bool) m => xor (r m) (xor (D₀ (π.symm m)) (D₁ (π.symm m)))) with r
-  have hq :
-      ((fun m => xor (r m) (xor (D₀ (π.symm m)) (D₁ (π.symm m)))) ∘ (π ∘ Q)) = r ∘ (π ∘ Q) := by
-    funext j
-    have hDj : D₀ (Q j) = D₁ (Q j) := congrFun hD j
-    simp [Function.comp_apply, hDj]
+  have hDj (j) : D₀ (Q j) = D₁ (Q j) := congrFun hD j
+  have hq : ((fun m => xor (r m) (xor (D₀ (π.symm m)) (D₁ (π.symm m)))) ∘ (π ∘ Q)) =
+      r ∘ (π ∘ Q) := funext fun j => by simp [Function.comp_apply, hDj j]
   rw [hq]
   congr 1; congr 1; congr 1
   funext i
@@ -204,10 +202,7 @@ theorem toyScheme_isPerfectlyPrivateOn_injective (n k : ℕ) :
   congr 1
   funext r
   relabel_uniform (Equiv.mulRight σ⁻¹) with π
-  have hcomp : (Equiv.mulRight σ⁻¹ π) ∘ (σ ∘ Q₀) = π ∘ Q₀ := by
-    ext j
-    simp [Equiv.mulRight]
-  rw [hcomp]
+  simp [Function.comp_def, Equiv.mulRight]
 
 /-- When `k ≤ 1`, every query tuple `Q : Fin k → Fin n` is injective, so `toyScheme n k` is
 unconditionally perfectly private (`IsPerfectlyPrivate`). -/
@@ -317,12 +312,10 @@ theorem parallelToyScheme_isPerfectlyDataPrivate (n k : ℕ) :
   funext π
   relabel_uniform (fun (r : Fin k → Fin n → Bool) j m =>
     xor (r j m) (xor (D₀ ((π j).symm m)) (D₁ ((π j).symm m)))) with r
+  have hDj (j) : D₀ (Q j) = D₁ (Q j) := congrFun hD j
   have hq : (fun j => xor (r j (π j (Q j)))
       (xor (D₀ ((π j).symm (π j (Q j)))) (D₁ ((π j).symm (π j (Q j)))))) =
-      fun j => r j (π j (Q j)) := by
-    funext j
-    have hDj : D₀ (Q j) = D₁ (Q j) := congrFun hD j
-    simp [hDj]
+      fun j => r j (π j (Q j)) := funext fun j => by simp [hDj j]
   simp only [hq]
   congr 1; congr 1; congr 1
   funext j i

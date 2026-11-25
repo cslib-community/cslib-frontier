@@ -235,12 +235,10 @@ theorem anchorRule_exists_sub {k n C : ℕ} {c : ZMod n → ℕ}
   obtain ⟨d, hd⟩ : ∃ d : ℕ, (d : ℤ) = ((k * (C - 1) : ℕ) : ℤ) - e :=
     ⟨_, Int.toNat_of_nonneg (by omega)⟩
   refine ⟨d, by omega, ?_⟩
-  have hv : v - (d : ZMod n) = v - ((k * (C - 1) : ℕ) : ZMod n) + (e : ZMod n) := by
-    rw [← Int.cast_natCast (R := ZMod n) d, hd]
-    push_cast
-    ring
-  rw [hv]
-  exact hae
+  convert hae using 2
+  rw [← Int.cast_natCast (R := ZMod n) d, hd]
+  push_cast
+  ring
 
 /-! ### Filling -/
 
@@ -312,19 +310,12 @@ theorem fillRule_isSolution {L : Type*} {R : L → L → Prop} {q : L} {W : ℕ 
   set P : ZMod n → ℕ := fun v => firstTrue (fun i : ℕ => a (v - (i : ZMod n))) (D + 1) with hP
   set Q : ZMod n → ℕ := fun v => firstTrue (fun i : ℕ => a (v + ((i : ZMod n) + 1))) (D + 1)
     with hQ
-  have happly : ∀ v, (fillRule W D).apply a v = W (P v + Q v + 1) (P v) := by
-    intro v
-    have e1 : (fun i : ℕ => window a v (-(i : ℤ))) = fun i : ℕ => a (v - (i : ZMod n)) := by
-      funext i
-      simp only [window]
-      push_cast
-      rw [sub_eq_add_neg]
+  have happly : ∀ v, (fillRule W D).apply a v = W (P v + Q v + 1) (P v) := fun v => by
+    have e1 : (fun i : ℕ => window a v (-(i : ℤ))) = fun i : ℕ => a (v - (i : ZMod n)) :=
+      funext fun i => by simp [window, sub_eq_add_neg]
     have e2 : (fun i : ℕ => window a v ((i : ℤ) + 1)) =
-        fun i : ℕ => a (v + ((i : ZMod n) + 1)) := by
-      funext i
-      simp only [window]
-      push_cast
-      rfl
+        fun i : ℕ => a (v + ((i : ZMod n) + 1)) :=
+      funext fun i => by simp [window]
     simp only [LocalRule.apply, fillRule, e1, e2, hP, hQ]
   have hPspec : ∀ v, P v ≤ D ∧ a (v - P v) = true ∧ ∀ i < P v, a (v - i) = false := by
     intro v
@@ -480,11 +471,7 @@ theorem IsFlexible.exists_solvesLCL {L : Type*} {R : L → L → Prop} {q : L} {
   refine ⟨(flexibleRule W (K - 1) s).toAlgorithm, fun x hx hxn => ?_⟩
   rcases Nat.eq_zero_or_pos n with rfl | hn
   · exact absurd (hxn 0) (Nat.not_lt_zero _)
-  have : (flexibleRule W (K - 1) s).toAlgorithm.run x ((K - 1) * (s + 2 * 3 ^ (K - 1) + 2) + 1) =
-      (flexibleRule W (K - 1) s).apply x := by
-    rw [← flexibleRadius_eq]
-    exact funext fun v => LocalRule.toAlgorithm_run _ x v
-  rw [this]
+  rw [← flexibleRadius_eq, funext (LocalRule.toAlgorithm_run _ x)]
   exact flexibleRule_isSolution (fun m hm => (hW m (by omega)).1)
     (fun m hm => (hW m (by omega)).2.1) (fun m hm => (hW m (by omega)).2.2) (by omega) hs hx hxn
 

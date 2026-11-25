@@ -55,18 +55,15 @@ namespace EdgeInstance
 omit [DecidableEq V] in
 /-- A returned scan pair satisfies the predicate. -/
 theorem findPair_spec {P : Occurrence F × Occurrence F → Prop} [DecidablePred P]
-    {a : Occurrence F × Occurrence F} (ha : findPair F P = some a) : P a := by
-  have ht := List.find?_some (p := fun a => decide (P a)) ha
-  exact of_decide_eq_true ht
+    {a : Occurrence F × Occurrence F} (ha : findPair F P = some a) : P a :=
+  of_decide_eq_true (List.find?_some (p := fun a => decide (P a)) ha)
 
 omit [DecidableEq V] in
 /-- A failed scan rules out every pair, since all incidences are enumerated. -/
 theorem findPair_none {P : Occurrence F × Occurrence F → Prop} [DecidablePred P]
     (hn : findPair F P = none) (o p : Occurrence F) : ¬ P (o, p) := by
-  have hm : (o, p) ∈ (incidenceList F).product (incidenceList F) :=
-    List.mem_product.mpr ⟨mem_incidenceList o, mem_incidenceList p⟩
-  have he := List.find?_eq_none.mp hn (o, p) hm
-  simpa only [decide_eq_true_eq] using he
+  simpa only [decide_eq_true_eq] using List.find?_eq_none.mp hn (o, p)
+    (List.mem_product.mpr ⟨mem_incidenceList o, mem_incidenceList p⟩)
 
 /-- A first-phase exchange repairs an f-consistent variable at which g has a new defect. -/
 @[expose] def RepairMove (sem : Rel → List Bool → Bool)
@@ -153,18 +150,13 @@ theorem exists_start_ne (h : EdgeInstance F) {sem : Rel → List Bool → Bool}
     (hlt : (defects g).card < (defects f).card) (x : V) :
     ∃ r, r ≠ x ∧ Inconsistent f r ∧ ¬ Inconsistent g r := by
   have hp := h.card_defects_mod_two_eq hM hf hg
-  have htwo : (defects g).card + 2 ≤ (defects f).card := by omega
   by_contra hn
-  have hcover : defects f ⊆ insert x (defects g) := by
-    intro v hv
+  have hcover : defects f ⊆ insert x (defects g) := fun v hv => by
     by_cases he : v = x
     · exact mem_insert.mpr (Or.inl he)
-    · have hm : Inconsistent g v := by
-        by_contra hh
-        exact hn ⟨v, he, mem_defects.mp hv, hh⟩
-      exact mem_insert_of_mem (mem_defects.mpr hm)
-  have hb := card_le_card hcover
-  have hi := card_insert_le x (defects g)
+    · exact mem_insert_of_mem (mem_defects.mpr (of_not_not fun hh =>
+        hn ⟨v, he, mem_defects.mp hv, hh⟩))
+  have := (card_le_card hcover).trans (card_insert_le x (defects g))
   omega
 
 /-- A second-phase move follows an incidence disagreement at the current endpoint. -/
@@ -468,17 +460,11 @@ theorem isOptimalLabeling_iff_no_augmentingWalk (h : EdgeInstance F)
     {sem : Rel → List Bool → Bool} (hM : EvenConstraints sem F)
     {f : OccurrenceLabeling F Bool} :
     IsOptimalLabeling sem f ↔ ValidLabeling sem f ∧ ¬ ∃ w : Walk F, w.IsAugmenting sem f := by
-  constructor
-  · rintro ⟨hf, hopt⟩
-    refine ⟨hf, ?_⟩
-    intro hw
-    obtain ⟨g, hg, hlt⟩ := (h.exists_improvement_iff_exists_augmentingWalk hM hf).mpr hw
-    exact (Nat.not_lt_of_ge (hopt g hg)) hlt
-  · rintro ⟨hf, hn⟩
-    refine ⟨hf, fun g hg => ?_⟩
-    by_contra hlt
-    exact hn ((h.exists_improvement_iff_exists_augmentingWalk hM hf).mp
-      ⟨g, hg, Nat.lt_of_not_ge hlt⟩)
+  refine ⟨fun ⟨hf, hopt⟩ => ⟨hf, fun hw => ?_⟩,
+    fun ⟨hf, hn⟩ => ⟨hf, fun g hg => not_lt.mp fun hlt =>
+      hn ((h.exists_improvement_iff_exists_augmentingWalk hM hf).mp ⟨g, hg, hlt⟩)⟩⟩
+  obtain ⟨g, hg, hlt⟩ := (h.exists_improvement_iff_exists_augmentingWalk hM hf).mpr hw
+  exact (hopt g hg).not_gt hlt
 
 end EdgeInstance
 

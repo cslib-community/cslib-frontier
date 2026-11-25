@@ -267,8 +267,7 @@ private theorem card_ne_le_of_step {Ω T S : Type*} [Fintype Ω] [Fintype T] [De
             if F q.1 (R n q.1 q.2) t ≠ G (R n q.1 q.2) t then 1 else 0 := by
       intro q t
       by_cases hq : X n q.1 q.2 = R n q.1 q.2
-      · rw [hq]
-        simp
+      · simp [hq]
       · rw [ite_eq_left hq]
         split_ifs <;> norm_num
     rw [hcard, Finset.natCast_card_filter, Fintype.sum_prod_type]
@@ -315,12 +314,9 @@ private theorem card_snap_pow_ne_le {Ω : Type*} [Fintype Ω] (d n₁ : ℕ)
     · rw [ite_eq_left hb]
       have h1 : (#{t : Fin (2 ^ d) | snapMatrix d (pow R y) t ≠ snapMatrix d (R ^ n₁) t} : ℝ) ≤
           2 ^ d := by exact_mod_cast (Finset.card_le_univ _).trans_eq (Fintype.card_fin _)
-      have h2 : 0 ≤ c := by positivity
-      linarith
+      linarith [show (0 : ℝ) ≤ c by positivity]
     · rw [ite_eq_right hb, zero_add]
-      refine card_snapMatrix_ne_le d fun i j => ?_
-      by_contra h
-      exact hb ⟨i, j, lt_of_not_ge h⟩
+      exact card_snapMatrix_ne_le d fun i j => not_lt.mp fun h => hb ⟨i, j, h⟩
   rw [Finset.natCast_card_filter, Fintype.sum_prod_type]
   calc ∑ y : Ω, ∑ t : Fin (2 ^ d),
         (if snapMatrix d (pow R y) t ≠ snapMatrix d (R ^ n₁) t then (1 : ℝ) else 0)
@@ -414,9 +410,8 @@ theorem dens_snapIter_far_le_of_two_le {Ω : Type*} [Fintype Ω] (d : ℕ) {n₁
   refine NNRat.cast_le.2 (Finset.dens_le_dens fun p => ?_)
   simp only [mem_rowFarSet]
   rintro ⟨i, hi⟩
-  refine ⟨i, lt_of_le_of_lt ?_ hi⟩
   have hgeom : ∑ k ∈ range n₂, (n₁ : ℝ) ^ k ≤ (n₁ : ℝ) ^ n₂ := by
     exact_mod_cast (Nat.geomSum_lt hn₁ fun k hk => Finset.mem_range.1 hk).le
-  gcongr
+  exact ⟨i, lt_of_le_of_lt (by gcongr) hi⟩
 
 end Cslib.Probability.SaksZhou

@@ -112,12 +112,10 @@ and `xi • ((q / qi) • g) = (q / qi) • (x • g)`, then `xi ≡ x [MOD qi]`
 theorem pohligHellman_subgroup_modEq {M : Type*} [Group M] (g : M) {q qi : ℕ}
     (hg : orderOf g = q) (hq : 0 < q) (hqi : qi ∣ q) (x xi : ℕ)
     (h : (g ^ (q / qi)) ^ xi = (g ^ x) ^ (q / qi)) : xi ≡ x [MOD qi] := by
-  have hord : orderOf (g ^ (q / qi)) = qi := by
-    have := orderOf_pow_orderOf_div (x := g) (n := qi) (by rw [hg]; omega) (by rw [hg]; exact hqi)
-    rwa [hg] at this
-  have hswap : (g ^ x) ^ (q / qi) = (g ^ (q / qi)) ^ x := by
-    rw [← pow_mul, ← pow_mul, mul_comm]
-  rwa [hswap, pow_eq_pow_iff_modEq, hord] at h
+  have hord : orderOf (g ^ (q / qi)) = qi :=
+    hg ▸ orderOf_pow_orderOf_div (x := g) (n := qi) (hg ▸ hq.ne') (hg.symm ▸ hqi)
+  rw [show (g ^ x) ^ (q / qi) = (g ^ (q / qi)) ^ x by rw [← pow_mul, mul_comm, pow_mul]] at h
+  rwa [pow_eq_pow_iff_modEq, hord] at h
 
 /-- **Pohlig–Hellman CRT uniqueness** ([KatzLindell2020], Section 10.2.1, p. 375): let `g` have
 order `q = ∏ qs` with pairwise coprime `qs`, let `h = g ^ x`, and let `sol qi` solve each subgroup
@@ -168,8 +166,7 @@ theorem pohligHellman_step {M : Type*} [Group M] (g : M) {q : ℕ} (hg : orderOf
     have h0 := Nat.div_add_mod x D
     have h2 : x + (q - x % D) = D * (x / D) + q := by omega
     rw [h2]; ring
-  have e2 : q / p * t = D * m * t := by rw [hqp]
-  rw [← pow_add, ← pow_mul, ← pow_mul, hqm, e1, e2, pow_eq_pow_iff_modEq, hg]
+  rw [← pow_add, ← pow_mul, ← pow_mul, hqm, e1, hqp, pow_eq_pow_iff_modEq, hg]
   unfold Nat.ModEq
   rw [Nat.add_mul_mod_self_left, show q = D * m * p by rw [hm]; ring, Nat.mul_mod_mul_left,
     Nat.mul_mod_mul_left, Nat.mul_left_cancel_iff (Nat.mul_pos hD hm0), Nat.mod_eq_of_lt ht,
@@ -264,10 +261,8 @@ theorem smoothDivisorSeq_not_dvd_div {q T m : ℕ} (hq : 0 < q) (hqm : q < 2 ^ m
           Nat.mul_dvd_mul_right (ih'.trans (smoothDivisorSeq_mono q T (by omega))) ℓ
         _ = smoothDivisorSeq q T (j * T + (ℓ - 2) + 1) := hstep.symm
         _ ∣ smoothDivisorSeq q T ((j + 1) * T) := smoothDivisorSeq_mono q T hkN
-  have h1 : ℓ ^ m ∣ q := (key m le_rfl).trans hN
-  have h2 : ℓ ^ m ≤ q := Nat.le_of_dvd hq h1
-  have h3 : 2 ^ m ≤ ℓ ^ m := Nat.pow_le_pow_left hℓ2 m
-  omega
+  exact absurd (Nat.le_of_dvd hq ((key m le_rfl).trans hN))
+    (not_le_of_gt (hqm.trans_le (Nat.pow_le_pow_left hℓ2 m)))
 
 /-- **Coprimality of the smooth divisor and its cofactor**: for `0 < q < 2 ^ m` and `0 < T`,
 `smoothDivisorSeq q T (m * T)` and `q / smoothDivisorSeq q T (m * T)` are coprime. -/

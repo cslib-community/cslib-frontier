@@ -107,25 +107,17 @@ the degrees and the edge bound. -/
 theorem active_eq_true (hB : ∀ d M p, Active C m d M p → ActiveBounds C m d M p)
     (h : OnSchedule C m x) (hA : Active C m x.depth x.edges x.prec) : active x = true := by
   have hb := hB _ _ _ hA
-  have hpts : numPoints x ≤ 2 ^ x.fl.length := by
-    unfold numPoints slots
-    rw [h.scale_eq, h.fl_eq]
-    exact hb.points_le.trans (Nat.pow_le_pow_right (by norm_num)
-      (four_mul_log_le_length_modulus m))
-  simp only [active, decide_eq_true_eq, levels, slots, h.scale_eq]
-  refine ⟨hA.leafSize_lt, hb.one_le_taper, hb.taper_le_edges, ?_, h.degree_le, ?_,
-    h.edges_lt_bound⟩
-  · rw [slotBits_eq]; omega
-  · simpa only [numPoints, slots, h.scale_eq] using hpts
+  simp only [active, decide_eq_true_eq, levels, numPoints, slots, h.scale_eq, h.fl_eq]
+  exact ⟨hA.leafSize_lt, hb.one_le_taper, hb.taper_le_edges, by rw [slotBits_eq]; omega,
+    h.degree_le, hb.points_le.trans (Nat.pow_le_pow_right (by norm_num)
+      (four_mul_log_le_length_modulus m)), h.edges_lt_bound⟩
 
 /-- An active call on the schedule is active in the schedule: it has more than `leafSize m`
 edges. -/
 theorem active_of_active (h : OnSchedule C m x) (ha : active x = true) :
     Active C m x.depth x.edges x.prec := by
-  have ha' := ha
-  simp only [active, decide_eq_true_eq] at ha'
   rcases h.small_or_active with hs | hA
-  · rw [h.scale_eq] at ha'
+  · simp only [active, decide_eq_true_eq, h.scale_eq] at ha
     omega
   · exact hA
 
@@ -146,9 +138,7 @@ theorem depth_add_two_le (hB : ∀ d M p, Active C m d M p → ActiveBounds C m 
 /-- The level of the `j`-th node of positive multiplicity is below `u`. -/
 theorem level_lt_levels_of_lt {j : ℕ} (hj : j < (nodes x).length) :
     level x ((nodes x).getD j 0) < levels x := by
-  have hkmem : (nodes x).getD j 0 ∈ nodes x := by
-    rw [List.getD_eq_getElem _ _ hj]; exact List.getElem_mem hj
-  obtain ⟨hk, -, hq⟩ := mem_nodes.mp hkmem
+  obtain ⟨hk, -, hq⟩ := mem_nodes.mp (List.getD_eq_getElem _ _ hj ▸ List.getElem_mem hj)
   rw [level_eq hk]
   exact padicValInt_lt_of_taperMult_pos_left (by rwa [← mult_eq _ _ hk])
 
@@ -217,12 +207,9 @@ theorem onSchedule_root_logPrecision {x₀ : Call T} (hC : 1 ≤ C)
     (hdeg : ∀ v ∈ x₀.net.vertices, v.1.length ≤ degreeBound m)
     (hb : x₀.bound = m + 1) (hd : x₀.depth = 0) (hp : x₀.prec ≤ C * m * (Nat.log 2 m + 1)) :
     OnSchedule C m x₀ := by
-  refine ⟨hs, hfl, hwf, hdeg, by omega, ?_⟩
-  by_cases hl : x₀.edges ≤ leafSize m
-  · exact Or.inl hl
-  · refine Or.inr ?_
-    rw [hd, he]
-    exact Active.root_logPrecision (Nat.le_mul_of_pos_left m hC) (by omega) hp
+  refine ⟨hs, hfl, hwf, hdeg, by omega, or_iff_not_imp_left.mpr fun hl => ?_⟩
+  rw [hd, he]
+  exact Active.root_logPrecision (Nat.le_mul_of_pos_left m hC) (by omega) hp
 
 /-- A root of linear precision is on the same schedule. -/
 theorem onSchedule_root {x₀ : Call T} (hC : 1 ≤ C) (hs : x₀.scale = m) (he : x₀.edges = m)
@@ -253,12 +240,8 @@ theorem length_cursorList_le {ws : ℕ → List ℕ} {ps : ℕ → ℕ} {T n r B
     (cursorList ws ps T n r).length ≤ T * n * B * r := by
   have hnode : ∀ t < T, (nodeBlock ws ps n r t).length ≤ n * B * r := fun t ht => by
     simp only [nodeBlock, pointBlock, groupBlock, List.length_flatMap, List.length_map,
-      List.length_range, List.map_const', List.sum_replicate, smul_eq_mul]
-    have : ((List.range n).map fun _ =>
-        (BudgetTuples.budgetTuples (ws t) (ps t)).length * r).sum ≤ n * (B * r) := by
-      rw [List.map_const', List.sum_replicate, smul_eq_mul, List.length_range]
-      exact Nat.mul_le_mul_left _ (Nat.mul_le_mul_right _ (hB t ht))
-    simpa [Nat.mul_assoc] using this
+      List.length_range, List.map_const', List.sum_replicate, smul_eq_mul, ← Nat.mul_assoc]
+    exact Nat.mul_le_mul_right r (Nat.mul_le_mul_left n (hB t ht))
   simp only [cursorList, List.length_flatMap]
   calc ((List.range T).map fun t => (nodeBlock ws ps n r t).length).sum
       ≤ ((List.range T).map fun _ => n * B * r).sum :=

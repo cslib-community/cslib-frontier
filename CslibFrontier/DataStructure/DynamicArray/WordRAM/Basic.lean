@@ -231,14 +231,12 @@ theorem append_exec {w : ℕ} {vs : List ℕ} {x : Data 12} (hr : Rep vs x)
     all_goals wram_simp [hz_ptr, hz_cap, hz_front, potential, List.length_append,
       List.length_singleton, hlen_eq]
     any_goals omega
-    · have := i.isLt
-      simp only [List.length_append, List.length_singleton] at this
-      by_cases hi : i.val < vs.length
+    · rcases lt_or_eq_of_le (Nat.lt_succ_iff.mp (by simpa using i.isLt)) with hi | hi
       · wram_simp
         rw [← hz_ptr, hz_copy _ (by omega)]
         exact (hr.contents ⟨i, hi⟩).trans (List.getElem_append_left hi).symm
       · wram_simp
-        simp [show i.val = vs.length by omega]
+        simp [hi]
     · intro a ha
       wram_simp
       exact hz_frame a (by omega)
@@ -246,13 +244,11 @@ theorem append_exec {w : ℕ} {vs : List ℕ} {x : Data 12} (hr : Rep vs x)
     refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, fun i => ?_⟩, ?_, ?_, ?_⟩
     all_goals wram_simp [potential, List.length_append, List.length_singleton, hlen_eq]
     any_goals omega
-    · have := i.isLt
-      simp only [List.length_append, List.length_singleton] at this
-      by_cases hi : i.val < vs.length
+    · rcases lt_or_eq_of_le (Nat.lt_succ_iff.mp (by simpa using i.isLt)) with hi | hi
       · wram_simp
         exact (hr.contents ⟨i, hi⟩).trans (List.getElem_append_left hi).symm
       · wram_simp
-        simp [show i.val = vs.length by omega]
+        simp [hi]
     · intro a ha
       wram_simp
 
@@ -357,14 +353,8 @@ structure BoundedRep (w : ℕ) (vs : List ℕ) (x : Data 12) : Prop where
 theorem arguments_fit {w : ℕ} (h1 : Fits w 1) {vs : List ℕ} (o : Op)
     (hv : (spec w).valid vs o) (i : Fin 12) : Fits w ((implementation w).encode o i) := by
   cases o with
-  | append v =>
-    change Fits w (if i = dest then 0 else v)
-    split
-    exacts [fits_zero w, hv.1]
-  | get idx =>
-    change Fits w (if i = dest then 1 else idx)
-    split
-    exacts [h1, hv.2]
+  | append v => by_cases hi : i = dest <;> simp [implementation, hi, fits_zero, hv.1]
+  | get idx => by_cases hi : i = dest <;> simp [implementation, hi, h1, hv.2]
 
 /-- Argument delivery preserves `Rep` because `dest` and `arg` are not persistent representation
 registers. -/
@@ -451,8 +441,7 @@ theorem amortized_uniform {w : ℕ} (h1 : Fits w 1) :
       DynamicProgram.OperationTrace.instructions potential (fun _ _ => 52) :=
   DataStructure.Amortized.ofFn fun {vs c o a c' trace} hr hv he => by
     obtain ⟨s', hstep, _, h⟩ := (amortized h1).step hr hv he
-    have hs : s' = ((spec w).stepFn vs o).1 := congrArg Prod.fst hstep
-    subst hs
+    obtain rfl : s' = ((spec w).stepFn vs o).1 := congrArg Prod.fst hstep
     cases o <;> simp only [charge] at h ⊢ <;> omega
 
 /-- Every concrete call modifies only cells below `y.regs frontier`. -/
@@ -557,14 +546,10 @@ theorem run_appendAll {w : ℕ} (h1 : Fits w 1) {vs : List ℕ} {x : Data 12}
       15 + DataStructure.total DynamicProgram.OperationTrace.instructions traces +
         potential vs y ≤ 15 + vs.length * 52 ∧
       (vs ≠ [] → y.regs frontier < 4 * vs.length) := by
-  have hv : (spec w).ValidHistory [] ((spec w).clientHistory [] (appendAll vs)) :=
-    validHistory_appendAll hvals (by simpa using hlen)
-  have h := run_initialized h1 (appendAll vs) hx hv
-  dsimp only [DataStructure.StateTransitionSpec.clientResult,
+  simpa [DataStructure.StateTransitionSpec.clientResult,
     DataStructure.StateTransitionSpec.clientState,
-    DataStructure.StateTransitionSpec.clientHistory] at h
-  rw [runClient_appendAll] at h
-  simpa using h
+    DataStructure.StateTransitionSpec.clientHistory] using
+    run_initialized h1 (appendAll vs) hx (validHistory_appendAll hvals (by simpa using hlen))
 
 end Cslib.DataStructure.DynamicArray.WordRAM
 

@@ -198,16 +198,12 @@ private theorem common_open_indicator {a b c d : ℂ}
       apply difference_boundary_ne_zero hab hcd ha hb hc hd
       · exact ⟨le_max_left _ _, (hLH.trans_le (min_le_left _ _)).le⟩
       · exact ⟨le_max_right _ _, (hLH.trans_le (min_le_right _ _)).le⟩
-      · rcases le_total a.im c.im with h | h
-        · exact Or.inr (Or.inr (Or.inl (max_eq_right h)))
-        · exact Or.inl (max_eq_left h)
+      · rcases max_choice a.im c.im with h | h <;> simp [L, h]
     have hH : differenceMap a b c d H ≠ 0 := by
       apply difference_boundary_ne_zero hab hcd ha hb hc hd
       · exact ⟨((le_max_left _ _).trans_lt hLH).le, min_le_left _ _⟩
       · exact ⟨((le_max_right _ _).trans_lt hLH).le, min_le_right _ _⟩
-      · rcases le_total b.im d.im with h | h
-        · exact Or.inr (Or.inl (min_eq_left h))
-        · exact Or.inr (Or.inr (Or.inr (min_eq_right h)))
+      · rcases min_choice b.im d.im with h | h <;> simp [H, h]
     have hroot : (∃ h ∈ Set.Ioo L H, differenceMap a b c d h = 0) ↔
         0 ∈ openSegment ℝ (differenceMap a b c d L) (differenceMap a b c d H) := by
       rw [← image_openSegment ℝ (differenceMap a b c d) L H]
@@ -239,19 +235,17 @@ private theorem sweep_identity_ordered {a b c d : ℂ}
     have hsign : c.re < horizontalIntercept a b c.im ↔
         0 < differenceMap a b c d c.im := by
       rw [differenceMap_apply, horizontalIntercept_left, sub_pos]
-    rw [show RayCrosses a b c ↔ (a.im ≤ c.im ∧ c.im < b.im) ∧
-        0 < differenceMap a b c d c.im by
-      simp only [RayCrosses, min_eq_left hab.le, max_eq_right hab.le, hsign, and_assoc]]
-    by_cases h : a.im ≤ c.im ∧ c.im < b.im <;> simp [h, f, Bool.zero_eq_false]
+    by_cases h : a.im ≤ c.im ∧ c.im < b.im <;>
+      simp [RayCrosses, min_eq_left hab.le, max_eq_right hab.le, ← and_assoc, hsign, h, f,
+        Bool.zero_eq_false]
   have hD : decide (RayCrosses a b d) =
       if a.im ≤ d.im ∧ d.im < b.im then f d.im else 0 := by
     have hsign : d.re < horizontalIntercept a b d.im ↔
         0 < differenceMap a b c d d.im := by
       rw [differenceMap_apply, horizontalIntercept_right hcd.ne, sub_pos]
-    rw [show RayCrosses a b d ↔ (a.im ≤ d.im ∧ d.im < b.im) ∧
-        0 < differenceMap a b c d d.im by
-      simp only [RayCrosses, min_eq_left hab.le, max_eq_right hab.le, hsign, and_assoc]]
-    by_cases h : a.im ≤ d.im ∧ d.im < b.im <;> simp [h, f, Bool.zero_eq_false]
+    by_cases h : a.im ≤ d.im ∧ d.im < b.im <;>
+      simp [RayCrosses, min_eq_left hab.le, max_eq_right hab.le, ← and_assoc, hsign, h, f,
+        Bool.zero_eq_false]
   have hA : decide (Sweep c d a) =
       if c.im < a.im ∧ a.im ≤ d.im then f a.im else 0 := by
     have hsign : horizontalIntercept c d a.im < a.re ↔

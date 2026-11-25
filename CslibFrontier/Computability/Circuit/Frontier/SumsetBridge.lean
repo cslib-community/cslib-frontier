@@ -144,9 +144,8 @@ theorem denseRectangleFree_of_eventually_rectangleBias {U : Type u} [Finite U] [
       have hB : K n ≤ (univ : Set (↥Xᶜ → U)).ncard := by
         rw [ncard_univ, Nat.card_fun, Nat.card_coe_set_eq]
         exact hKpow.trans (Nat.pow_le_pow_right hq_pos hXc)
-      have hrect_univ : rectangle X (univ : Set (X → U)) univ = univ := by
-        ext x
-        simp [rectangle]
+      have hrect_univ : rectangle X (univ : Set (X → U)) univ = univ :=
+        Set.ext fun _ => by simp [rectangle]
       have hcard_univ : ((univ : Set (Fin n → U)).ncard : ℝ) = (q : ℝ) ^ n := by
         rw [ncard_univ, Nat.card_fun, Nat.card_eq_fintype_card (α := Fin n), Fintype.card_fin]
         push_cast
@@ -163,11 +162,10 @@ theorem denseRectangleFree_of_eventually_rectangleBias {U : Type u} [Finite U] [
         rw [← hcard_univ]
         exact_mod_cast ncard_le_ncard (subset_univ (S n)) (toFinite _)
       have hlog_low : Real.log (1 / 2 - c') + n * Real.log q ≤ Real.log (S n).ncard := by
-        have := (Real.log_le_log_iff (by positivity) hS_pos).mpr hS_lower
-        rwa [Real.log_mul hgap.ne' hqn_pos.ne', Real.log_pow] at this
+        simpa only [Real.log_mul hgap.ne' hqn_pos.ne', Real.log_pow] using
+          (Real.log_le_log_iff (by positivity) hS_pos).mpr hS_lower
       have hlog_high : Real.log (S n).ncard ≤ n * Real.log q := by
-        have := (Real.log_le_log_iff hS_pos hqn_pos).mpr hS_upper
-        rwa [Real.log_pow] at this
+        simpa only [Real.log_pow] using (Real.log_le_log_iff hS_pos hqn_pos).mpr hS_upper
       rw [abs_of_nonneg (by linarith)]
       linarith
     rw [isLittleO_iff]
@@ -208,11 +206,8 @@ private theorem padLeft_domRestrict_add_padRight_domRestrict {n : ℕ} (X : Set 
     [DecidablePred (· ∈ X)] (x : BitString n) :
     padLeft X (X.domRestrict x) + padRight X (Xᶜ.domRestrict x) = x := by
   funext i
-  by_cases hi : i ∈ X
-  · simp only [Pi.add_apply, padLeft, padRight, dite_eq_left hi, Set.domRestrict,
-      ← Bool.zero_eq_false, add_zero]
-  · simp only [Pi.add_apply, padLeft, padRight, dite_eq_right hi, Set.domRestrict,
-      ← Bool.zero_eq_false, zero_add]
+  by_cases hi : i ∈ X <;>
+    simp [padLeft, padRight, hi, Set.domRestrict, ← Bool.zero_eq_false]
 
 private theorem padLeft_injective {n : ℕ} (X : Set (Fin n)) [DecidablePred (· ∈ X)] :
     Function.Injective (padLeft X) := by
@@ -284,12 +279,12 @@ theorem rectangleBias_of_isSumsetExtractor {n m k : ℕ} {ε : ℝ}
   let R := rectangle X A B
   let S : Set (BitString n) := {x | ext x j = val}
   let _ : Fintype R := Fintype.ofFinite R
-  have hcardA : Fintype.card A = A.ncard := by
-    rw [← Nat.card_eq_fintype_card, Nat.card_coe_set_eq]
-  have hcardB : Fintype.card B = B.ncard := by
-    rw [← Nat.card_eq_fintype_card, Nat.card_coe_set_eq]
-  have hcardR : Fintype.card R = R.ncard := by
-    rw [← Nat.card_eq_fintype_card, Nat.card_coe_set_eq]
+  have hcardA : Fintype.card A = A.ncard :=
+    Nat.card_eq_fintype_card.symm.trans (Nat.card_coe_set_eq A)
+  have hcardB : Fintype.card B = B.ncard :=
+    Nat.card_eq_fintype_card.symm.trans (Nat.card_coe_set_eq B)
+  have hcardR : Fintype.card R = R.ncard :=
+    Nat.card_eq_fintype_card.symm.trans (Nat.card_coe_set_eq R)
   have hA_pos : 0 < Fintype.card A :=
     hcardA ▸ lt_of_lt_of_le (pow_pos Nat.zero_lt_two k) hA
   have hB_pos : 0 < Fintype.card B :=

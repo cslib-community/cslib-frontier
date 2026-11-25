@@ -115,11 +115,7 @@ theorem exists_forall_parityOn_incidence_eq_xor [Finite V]
   refine ⟨update τ e !τ e, fun v => ?_⟩
   rw [parityOn_incidence_update_not, hτ]
   simp only [Multigraph.mem_incidence_of_ends_eq hab]
-  rcases eq_or_ne v a with rfl | hva
-  · simp [hne]
-  · rcases eq_or_ne v b with rfl | hvb
-    · simp [hva, hne]
-    · simp [hva, hvb]
+  rcases eq_or_ne v a with rfl | hva <;> rcases eq_or_ne v b with rfl | hvb <;> simp [*]
 
 variable [Fintype V]
 
@@ -161,7 +157,7 @@ theorem exists_forall_parityOn_incidence_eq (hG : (Multigraph.toSimpleGraph ends
     rw [apply_ite (parityOnAddMonoidHom _), map_zero, parityOnAddMonoidHom_apply, hτ, hite]
     rfl
   have hv : ∑ w, χ w * decide (v = w) = χ v := by
-    rw [sum_eq_single v (fun w _ hw => by rw [decide_eq_false (Ne.symm hw)]; exact mul_zero _)
+    rw [sum_eq_single v (fun _ _ hw => mul_eq_zero_of_right _ (decide_eq_false hw.symm))
       (by simp), decide_eq_true rfl]
     exact mul_one _
   rw [key, parityOn_eq_sum]
@@ -173,9 +169,7 @@ set other than the set of all vertices are satisfiable, whatever the charges. -/
 theorem exists_forall_mem_parityOn_incidence_eq (hG : (Multigraph.toSimpleGraph ends).Connected)
     (χ : V → Bool) {S : Finset V} (hS : S ≠ univ) :
     ∃ σ : E → Bool, ∀ v ∈ S, parityOn (Multigraph.incidence ends v) σ = χ v := by
-  have ⟨u, hu⟩ : ∃ u, u ∉ S := by
-    by_contra! h'
-    exact hS (eq_univ_of_forall h')
+  obtain ⟨u, hu⟩ := Classical.not_forall.1 fun h => hS (eq_univ_of_forall h)
   obtain ⟨σ, hσ⟩ := exists_forall_parityOn_incidence_eq hG χ u
   exact ⟨σ, fun v hv => by
     rw [hσ, decide_eq_false (ne_of_mem_of_not_mem hv hu), Bool.and_false, Bool.false_xor]⟩

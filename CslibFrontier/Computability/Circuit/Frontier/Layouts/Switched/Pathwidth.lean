@@ -95,14 +95,11 @@ theorem rank_lt_rank {y : Fin n → ℝ} {u v : Fin n} (h : y u < y v) :
 /-- For injective `y`, rank order equals label order. -/
 theorem rank_lt_iff {y : Fin n → ℝ} (hy : Function.Injective y) {u v : Fin n} :
     rank y u < rank y v ↔ y u < y v := by
-  constructor
-  · intro h
-    rcases lt_trichotomy (y u) (y v) with h' | h' | h'
-    · exact h'
-    · rw [hy h'] at h
-      exact absurd h (lt_irrefl _)
-    · exact absurd (rank_lt_rank h') (not_lt.mpr h.le)
-  · exact rank_lt_rank
+  refine ⟨fun h => ?_, rank_lt_rank⟩
+  rcases lt_trichotomy (y u) (y v) with h' | h' | h'
+  · exact h'
+  · exact absurd (hy h' ▸ h) (lt_irrefl _)
+  · exact absurd (rank_lt_rank h') h.not_gt
 
 /-- For injective `y`, weak rank order equals weak label order. -/
 theorem rank_le_iff {y : Fin n → ℝ} (hy : Function.Injective y) {u v : Fin n} :
@@ -142,18 +139,10 @@ theorem card_rank_eq_le {y : Fin n → ℝ} (hy : Function.Injective y) (i : ℕ
 theorem rank_lt_lowerCount_iff (y : Fin n → ℝ) (v : Fin n) :
     rank y v < (Finset.univ.filter fun u => y u ≤ 0).card ↔ y v ≤ 0 := by
   classical
-  constructor
-  · intro h
-    by_contra hv
-    push Not at hv
-    apply absurd h
-    apply not_lt.mpr
-    apply Finset.card_le_card
-    intro u hu
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hu ⊢
+  refine ⟨fun h => by_contra fun hv => h.not_ge (Finset.card_le_card fun u hu => ?_), fun hv => ?_⟩
+  · simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hu ⊢
     linarith
-  · intro hv
-    apply lt_of_lt_of_le _ (Finset.card_le_card
+  · apply lt_of_lt_of_le _ (Finset.card_le_card
       (s := Finset.univ.filter fun u => y u < y v ∨ u = v) _)
     · rw [Finset.filter_or, Finset.card_union_of_disjoint]
       · simp only [rank, Finset.filter_eq', Finset.mem_univ, ite_true, Finset.card_singleton]

@@ -491,12 +491,9 @@ theorem min_le_card_outputBottomGates (c : Circuit signature (2 ^ b + b * m) 1)
   have hL0 : 0 ≤ Real.logb 2 ((G : ℝ) + 1) := Real.logb_nonneg one_lt_two (by linarith)
   have hL : Real.logb 2 ((G : ℝ) + 1) ≤ 2 * b := by
     have hGN : (G : ℝ) + 1 ≤ 2 ^ (2 * b) := by
-      have : G < 2 ^ (2 * b) := by
-        have h' : (G : ℝ) < ((2 ^ (2 * b) : ℕ) : ℝ) := by
-          have : ((2 ^ (2 * b) : ℕ) : ℝ) = ((2 : ℝ) ^ b) ^ 2 := by push_cast; ring
-          rw [this]; exact hbig
-        exact_mod_cast h'
-      exact_mod_cast this
+      have hpow : ((2 ^ (2 * b) : ℕ) : ℝ) = ((2 : ℝ) ^ b) ^ 2 := by push_cast; ring
+      have hlt : G < 2 ^ (2 * b) := Nat.cast_lt.mp (hpow.symm ▸ hbig)
+      exact_mod_cast hlt
     calc Real.logb 2 ((G : ℝ) + 1) ≤ Real.logb 2 ((2 : ℝ) ^ (2 * b)) :=
           Real.logb_le_logb_of_le one_lt_two (by linarith) hGN
       _ = 2 * b := by exact_mod_cast Real.logb_two_pow (2 * b)
@@ -554,10 +551,8 @@ theorem pow_mul_andreevCubeSplitBound_le_of_depthTwoInputs {G : ℕ} (bottom : F
     (m : ℝ) ^ b * andreevCubeSplitBound b G ≤ ((m ^ b - (m - 1) ^ b : ℕ) : ℝ) * G := by
   set c := depthTwoInputs bottom args u v θ
   obtain ⟨top, htop⟩ : ∃ top, c.outputs 0 = .gate top := ⟨_, rfl⟩
-  have hB : #(outputBottomGates c 0) ≤ G := by
-    have := card_outputBottomGates_lt_size htop
-    have hs : c.size = G + 1 := size_depthTwoInputs ..
-    omega
+  have hB : #(outputBottomGates c 0) ≤ G :=
+    Nat.lt_succ_iff.mp ((card_outputBottomGates_lt_size htop).trans_eq (size_depthTwoInputs ..))
   have hmain := pow_mul_andreevCubeSplitBound_le c (depth_depthTwoInputs_le ..) hcomp
     fun k hk => isSignCoherent_inputWeight_depthTwoInputs bottom args u v θ hcoh htop
       (by rwa [outputBottomGates_of_gate htop] at hk)
@@ -580,10 +575,8 @@ theorem le_of_balanced_of_depthTwoInputs {G : ℕ} (bottom : Fin G → Op)
     (2 : ℝ) ^ b * ((2 : ℝ) ^ b - 3 * b - 1) / (3 * (b : ℝ) ^ 3) ≤ G := by
   set c := depthTwoInputs bottom args u v θ
   obtain ⟨top, htop⟩ : ∃ top, c.outputs 0 = .gate top := ⟨_, rfl⟩
-  have hB : #(outputBottomGates c 0) ≤ G := by
-    have := card_outputBottomGates_lt_size htop
-    have hs : c.size = G + 1 := size_depthTwoInputs ..
-    omega
+  have hB : #(outputBottomGates c 0) ≤ G :=
+    Nat.lt_succ_iff.mp ((card_outputBottomGates_lt_size htop).trans_eq (size_depthTwoInputs ..))
   refine (le_card_outputBottomGates_of_balanced c (depth_depthTwoInputs_le ..) hcomp
     (fun k hk => isSignCoherent_inputWeight_depthTwoInputs bottom args u v θ hcoh htop
       (by rwa [outputBottomGates_of_gate htop] at hk)) hbal).trans ?_

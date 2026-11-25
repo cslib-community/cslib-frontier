@@ -240,14 +240,8 @@ private theorem foldl_gossipEmitStep_mono (emit : S → Finset Fact)
     obtain ⟨src, dst⟩ := hop
     obtain ⟨ih_rep, ih_em⟩ := ih (gossipEmitStep emit st (src, dst))
     refine ⟨fun p => le_trans ?_ (ih_rep p), fun p => Finset.Subset.trans ?_ (ih_em p)⟩
-    · simp only [gossipEmitStep]
-      by_cases hpd : p = dst
-      · subst hpd; simp [le_sup_left]
-      · simp [Function.update_of_ne hpd]
-    · simp only [gossipEmitStep]
-      by_cases hpd : p = dst
-      · subst hpd; simp only [Function.update_self]; exact Finset.subset_union_left
-      · simp [Function.update_of_ne hpd]
+    · rcases eq_or_ne p dst with rfl | hpd <;> simp [gossipEmitStep, *, le_sup_left]
+    · rcases eq_or_ne p dst with rfl | hpd <;> simp [gossipEmitStep, *]
 
 omit [Fintype P] in
 private theorem foldl_gossipEmitStep_emitted_sub_of_monotone {emit : S → Finset Fact}
@@ -260,20 +254,12 @@ private theorem foldl_gossipEmitStep_emitted_sub_of_monotone {emit : S → Finse
   | nil => exact hem
   | cons hop tl ih =>
     obtain ⟨src, dst⟩ := hop
-    refine ih (gossipEmitStep emit st (src, dst)) ?_ ?_
-    · intro p
-      simp only [gossipEmitStep]
-      by_cases hpd : p = dst
-      · subst hpd; simp [sup_le (hrep p) (hrep src)]
-      · simp [Function.update_of_ne hpd, hrep p]
-    · intro p
-      simp only [gossipEmitStep]
-      by_cases hpd : p = dst
-      · subst hpd
-        simp only [Function.update_self]
-        exact Finset.union_subset (hem p) (hmono (sup_le (hrep p) (hrep src)))
-      · simp only [Function.update_of_ne hpd]
-        exact hem p
+    refine ih (gossipEmitStep emit st (src, dst)) (fun p => ?_) fun p => ?_
+    · rcases eq_or_ne p dst with rfl | hpd <;>
+        simp [gossipEmitStep, *, sup_le (hrep _) (hrep _), hrep p]
+    · rcases eq_or_ne p dst with rfl | hpd
+      · simpa [gossipEmitStep] using Finset.union_subset (hem _) (hmono (sup_le (hrep _) (hrep _)))
+      · simp [gossipEmitStep, Function.update_of_ne hpd, hem p]
 
 /-- Every monotone query `emit : S → Finset Fact` is coordination-free consistent over any
 nonempty finite replica set `P`. -/
@@ -484,11 +470,8 @@ theorem semilatticeCoordinationFreeConsistent_gcounterThreshold
 theorem monotone_gcounterThresholdBool {Q : Type*} [Fintype Q] (k : ℕ) :
     Monotone (gcounterThresholdBool (Q := Q) k) := by
   intro c₁ c₂ hc
-  simp only [gcounterThresholdBool]
-  by_cases h₁ : k ≤ c₁.value
-  · have h₂ : k ≤ c₂.value := le_trans h₁ (GCounter.mono_value hc)
-    simp [h₁, h₂]
-  · simp [h₁]
+  simp only [gcounterThresholdBool, Bool.le_iff_imp, decide_eq_true_eq]
+  exact fun h => h.trans (GCounter.mono_value hc)
 
 theorem semilatticeObservableConsistent_gcounterThresholdBool
     (P : Type*) [Fintype P] [DecidableEq P] [Nonempty P]
@@ -586,12 +569,8 @@ theorem not_semilatticeCoordinationFreeConsistent_gcounterExactCount
     simp only [GCounter.value, c₁]
     rw [Finset.sum_eq_single q₀ (fun x _ hx => Function.update_of_ne hx ..) (by simp),
       Function.update_self]
-  have hc₂_val : c₂.value = k + 1 := by
-    simp [c₂, GCounter.value_inc, hc₁_val]
-  have hle : c₁ ≤ c₂ := GCounter.le_inc q₀ c₁
-  have hmem₁ : () ∈ gcounterExactCountEmit k c₁ := by
-    simp [gcounterExactCountEmit, hc₁_val]
-  have hmem₂ : () ∈ gcounterExactCountEmit k c₂ := hmono hle hmem₁
-  simp [gcounterExactCountEmit, hc₂_val] at hmem₂
+  have hmem₂ : () ∈ gcounterExactCountEmit k c₂ :=
+    hmono (GCounter.le_inc q₀ c₁) (by simp [gcounterExactCountEmit, hc₁_val])
+  simp [gcounterExactCountEmit, c₂, GCounter.value_inc, hc₁_val] at hmem₂
 
 end Cslib.Distributed.CRDT

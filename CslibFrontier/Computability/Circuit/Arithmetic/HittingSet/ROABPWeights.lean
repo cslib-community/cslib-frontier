@@ -188,19 +188,16 @@ private theorem exists_isolates_subtrees [Fact p.Prime] (hp : 2 * n * (w ^ 2) ^ 
         l.height ≤ h ∧ r.height ≤ h := fun {l r} hh => by
       rw [Bracketing.height] at hh
       exact max_le_iff.1 (Nat.le_of_succ_le_succ hh)
-    have hPmem : ∀ x ∈ P, ∃ l r, Bracketing.node l r ∈ t.subtrees ∧ l.height ≤ h ∧
-        r.height ≤ h ∧ x ∈ (S l + S r).offDiag := fun x hx => by
+    have hP : ∀ x ∈ P, x.1 ≠ x.2 ∧ (∀ i, x.1 i ≤ δ) ∧ ∀ i, x.2 i ≤ δ := fun x hx => by
       rw [hPdef, levelPairs, mem_biUnion] at hx
       obtain ⟨s, hs, hxs⟩ := hx
       rw [mem_filter, List.mem_toFinset] at hs
       cases s with
       | leaf i => exact absurd hxs (notMem_empty x)
-      | node l r => exact ⟨l, r, hs.1, (hheight hs.2).1, (hheight hs.2).2, hxs⟩
-    have hP : ∀ x ∈ P, x.1 ≠ x.2 ∧ (∀ i, x.1 i ≤ δ) ∧ ∀ i, x.2 i ≤ δ := fun x hx => by
-      obtain ⟨l, r, hs, hl, hr, hxs⟩ := hPmem x hx
-      rw [mem_offDiag] at hxs
-      exact ⟨hxs.2.2, (mem_monomialsLE.1 (hTsub hs hl hr hxs.1)).1,
-        (mem_monomialsLE.1 (hTsub hs hl hr hxs.2.1)).1⟩
+      | node l r =>
+        rw [mem_offDiag] at hxs
+        exact ⟨hxs.2.2, (mem_monomialsLE.1 (hTsub hs.1 (hheight hs.2).1 (hheight hs.2).2 hxs.1)).1,
+          (mem_monomialsLE.1 (hTsub hs.1 (hheight hs.2).1 (hheight hs.2).2 hxs.2.1)).1⟩
     have hPcard : P.card * n < p := by
       refine lt_of_le_of_lt (Nat.mul_le_mul_right n ?_) hp
       rw [hPdef, levelPairs]
@@ -278,18 +275,14 @@ theorem exists_isolating_weight [Fact p.Prime] (hp : 2 * n * (w ^ 2) ^ 4 * n < p
         (segmentCoeff M l) (monomialsLE l δ) S := by
   classical
   rcases eq_or_ne l [] with rfl | hne
-  · refine ⟨[], Nat.zero_le _, fun x hx => absurd hx List.not_mem_nil, {0}, ?_, ?_, ?_⟩
-    · exact singleton_subset_iff.2 (mem_monomialsLE.2 ⟨fun _ => Nat.zero_le _, fun _ _ => rfl⟩)
-    · rw [coe_singleton]
-      exact Set.injOn_singleton _ _
-    · intro m hm hm0
-      exact absurd (mem_singleton.2 (Finsupp.ext fun i =>
-        (mem_monomialsLE.1 hm).2 i List.not_mem_nil)) hm0
+  · refine ⟨[], Nat.zero_le _, fun x hx => absurd hx List.not_mem_nil, {0},
+      singleton_subset_iff.2 (mem_monomialsLE.2 ⟨fun _ => Nat.zero_le _, fun _ _ => rfl⟩),
+      by simp, fun m hm hm0 => (hm0 (mem_singleton.2
+        (Finsupp.ext fun i => (mem_monomialsLE.1 hm).2 i List.not_mem_nil))).elim⟩
   · obtain ⟨t, rfl, hth⟩ := Bracketing.exists_leaves_eq l hne
     obtain ⟨a, hlen, hap, hS⟩ := exists_isolates_subtrees (F := F) hp hδ M hl t.height
     obtain ⟨S, -, hiso⟩ := hS t t.self_mem_subtrees le_rfl
-    refine ⟨a, ?_, hap, S, hiso⟩
-    rw [hlen]
-    exact hth.trans (Nat.clog_mono_right 2 (by simpa using hl.length_le_card))
+    exact ⟨a, hlen.trans_le
+      (hth.trans (Nat.clog_mono_right 2 (by simpa using hl.length_le_card))), hap, S, hiso⟩
 
 end Cslib.Circuits.Arithmetic

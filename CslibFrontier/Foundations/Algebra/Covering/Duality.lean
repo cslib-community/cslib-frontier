@@ -82,20 +82,15 @@ private theorem thm_duality_exchange {C : M} {A : B → M} {η : ℝ} (hη : 0 <
       (∀ j, u j < k₀ + 1) ∧ D.CoveredBy (C ^ (k₀ + 1)) (fun j => C ^ u j * (∏ β, A β ^ v j β)) ∧
       ∑ j, η ^ (∑ β, v j β) ≤ 1 := by
   let c := h.raise hη (Nat.le_succ k₀)
-  obtain ⟨κ, _, u, v, hu, hc, hW⟩ : ∃ (κ : Type) (_ : Fintype κ) (u : κ → ℕ) (v : κ → B → ℕ),
-      (∀ j, u j + ∑ β, v j β = k₀ + 1) ∧
-      D.CoveredBy (1 * C ^ (k₀ + 1)) (fun j => C ^ u j * ∏ β, A β ^ v j β) ∧
-      ∑ j, η ^ (∑ β, v j β) ≤ W :=
-    ⟨c.Index, inferInstance, c.u, c.v, c.level_eq, c.coveredBy, c.weight_le⟩
-  rw [one_mul] at hc
-  have hlt : ∑ j, η ^ (∑ β, v j β) < 1 := hW.trans_lt hW1
-  refine ⟨κ, inferInstance, u, v, hu, fun j => ?_, hc, hlt.le⟩
+  refine ⟨c.Index, inferInstance, c.u, c.v, c.level_eq, fun j => ?_,
+    one_mul (C ^ (k₀ + 1)) ▸ c.coveredBy, (c.weight_le.trans_lt hW1).le⟩
   by_contra hge
-  have h2 : ∑ β, v j β = 0 := by have := hu j; omega
-  have h3 := Finset.single_le_sum (f := fun j => η ^ (∑ β, v j β))
-    (fun j _ => by positivity) (Finset.mem_univ j)
-  simp only [h2, pow_zero] at h3
-  linarith
+  have h2 : ∑ β, c.v j β = 0 := by
+    have := c.level_eq j
+    omega
+  have h3 := (Finset.single_le_sum (f := fun j => η ^ (∑ β, c.v j β))
+    (fun _ _ => by positivity) (Finset.mem_univ j)).trans_lt (c.weight_le.trans_lt hW1)
+  simp only [h2, pow_zero, lt_self_iff_false] at h3
 
 /-- Proof of Theorem A.6: in `C^N`, replace `C^k` by this cover as long as some term contains it.
 The total weight never increases, so it stays at most `1`, and each final term has fewer than `k`

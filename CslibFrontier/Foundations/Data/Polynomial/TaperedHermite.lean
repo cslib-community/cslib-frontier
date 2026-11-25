@@ -83,10 +83,9 @@ private theorem two_pow_padicValInt_dvd (x : ℤ) : (2 : ℤ) ^ padicValInt 2 x 
   exact_mod_cast padicValInt_dvd (p := 2) x
 
 private theorem not_two_pow_succ_padicValInt_dvd {x : ℤ} (hx : x ≠ 0) :
-    ¬(2 : ℤ) ^ (padicValInt 2 x + 1) ∣ x := fun h => by
-  have := ((padicValInt_dvd_iff (p := 2) (padicValInt 2 x + 1) x).mp
-    (by exact_mod_cast h)).resolve_left hx
-  omega
+    ¬(2 : ℤ) ^ (padicValInt 2 x + 1) ∣ x := fun h =>
+  Nat.not_succ_le_self _
+    (((padicValInt_dvd_iff (p := 2) _ x).mp (by exact_mod_cast h)).resolve_left hx)
 
 private theorem le_padicValInt_two {x : ℤ} {n : ℕ} (hx : x ≠ 0) (h : (2 : ℤ) ^ n ∣ x) :
     n ≤ padicValInt 2 x :=
@@ -121,17 +120,14 @@ private theorem padicValInt_two_sub_of_lt {x y : ℤ} (hx : x ≠ 0)
 /-- Two integers of the same 2-adic valuation `i` differ by a multiple of `2 ^ (i + 1)`. -/
 private theorem two_pow_succ_dvd_sub {x y : ℤ} (hx : x ≠ 0) (hy : y ≠ 0)
     (h : padicValInt 2 x = padicValInt 2 y) : (2 : ℤ) ^ (padicValInt 2 x + 1) ∣ x - y := by
-  have hdx := two_pow_padicValInt_dvd x
-  have hdy := two_pow_padicValInt_dvd y
   have hnx := not_two_pow_succ_padicValInt_dvd hx
-  have hny := not_two_pow_succ_padicValInt_dvd hy
-  rw [← h] at hdy hny
-  generalize padicValInt 2 x = i at hdx hnx hdy hny ⊢
-  obtain ⟨x', rfl⟩ := hdx
-  obtain ⟨y', rfl⟩ := hdy
-  have hox : ¬(2 : ℤ) ∣ x' := fun ⟨c, hc⟩ => hnx ⟨c, by rw [hc, pow_succ]; ring⟩
-  have hoy : ¬(2 : ℤ) ∣ y' := fun ⟨c, hc⟩ => hny ⟨c, by rw [hc, pow_succ]; ring⟩
-  rw [← mul_sub, pow_succ]
+  have hny : ¬(2 : ℤ) ^ (padicValInt 2 x + 1) ∣ y := h ▸ not_two_pow_succ_padicValInt_dvd hy
+  obtain ⟨x', hxx'⟩ := two_pow_padicValInt_dvd x
+  obtain ⟨y', hyy'⟩ : (2 : ℤ) ^ padicValInt 2 x ∣ y := h ▸ two_pow_padicValInt_dvd y
+  have hox : ¬(2 : ℤ) ∣ x' := fun ⟨c, hc⟩ => hnx ⟨c, hxx'.trans (by rw [hc, pow_succ]; ring)⟩
+  have hoy : ¬(2 : ℤ) ∣ y' := fun ⟨c, hc⟩ => hny ⟨c, hyy'.trans (by rw [hc, pow_succ]; ring)⟩
+  have hsub : x - y = 2 ^ padicValInt 2 x * (x' - y') := by linarith [hxx', hyy']
+  rw [hsub, pow_succ]
   exact mul_dvd_mul_left _ (by omega)
 
 /-! ### The dyadic grid -/
@@ -425,9 +421,7 @@ theorem neg_le_padicValRat_eval_zero_hermiteBasis_taper (u h : ℕ)
       padicValRat 2 ((hermiteBasis ((Ico (-(2 : ℤ) ^ a) (2 ^ a)).erase 0)
         (fun q : ℤ => (q : ℚ)) (fun q => h * (u - padicValInt 2 q)) t).eval 0) :=
   neg_le_padicValRat_eval_zero_hermiteBasis_dyadic (m := fun k => h * (u - k))
-    (fun k => by
-      rw [← mul_add_one]
-      exact Nat.mul_le_mul_left h (by omega)) ht ht0
+    (fun k => (Nat.mul_le_mul_left h (by omega)).trans_eq (Nat.mul_add_one h _)) ht ht0
 
 end Dyadic
 

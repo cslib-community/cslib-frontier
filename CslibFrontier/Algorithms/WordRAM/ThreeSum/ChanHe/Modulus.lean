@@ -238,13 +238,12 @@ private structure LocalFits (w : ℕ) (x : Data 64) : Prop where
 private theorem localFits_of_budget {w : ℕ} (x : Data 64) (h : Fits (w + 2) (budget x)) :
     LocalFits w x := by
   have hb := budget_bounds x 0
-  refine ⟨fun j => h.of_le (budget_bounds x j).1,
-    fun j => h.of_le (budget_bounds x j).2.1, h.of_le hb.2.2.1,
-    h.of_le hb.2.2.2.1, h.of_le hb.2.2.2.2.1, ?_, ?_, ?_,
+  exact ⟨fun j => h.of_le (budget_bounds x j).1, fun j => h.of_le (budget_bounds x j).2.1,
+    h.of_le hb.2.2.1, h.of_le hb.2.2.2.1, h.of_le hb.2.2.2.2.1,
+    fun j => h.of_le (budget_bounds x j).2.2.2.2.2.1,
+    fun j => h.of_le (budget_bounds x j).2.2.2.2.2.2.1,
+    fun j => h.of_le (budget_bounds x j).2.2.2.2.2.2.2.1,
     h.of_le hb.2.2.2.2.2.2.2.2.1, h.of_le hb.2.2.2.2.2.2.2.2.2⟩
-  · exact fun j => h.of_le (budget_bounds x j).2.2.2.2.2.1
-  · exact fun j => h.of_le (budget_bounds x j).2.2.2.2.2.2.1
-  · exact fun j => h.of_le (budget_bounds x j).2.2.2.2.2.2.2.1
 
 /-- One search with its factor bounded by the largest candidate. -/
 def searchTime (x : Data 64) : ℕ :=
@@ -282,12 +281,9 @@ private theorem exec_search {w : ℕ} (x y : Data 64) (values : Fin 3 → ℕ �
   have hc : y.regs CollisionTest.card = x.regs CollisionTest.card := hy.1 _ (by decide)
   have hM : y.regs Search.factor * x.regs Search.limit ≤ x.regs Search.limit ^ 2 := by
     simpa only [pow_two] using Nat.mul_le_mul_right (x.regs Search.limit) hfactorle
-  have hybitmap : ∀ q ≤ y.regs Search.limit,
+  have hybitmap (q : ℕ) (hq : q ≤ y.regs Search.limit) :
       y.mem (y.regs Search.primes + q) = if q.Prime then 1 else 0 := by
-    intro q hq
-    rw [hm] at hq
-    rw [hp, hy.2 _ (by omega)]
-    exact hbitmap q hq
+    rw [hp, hy.2 _ (by omega), hbitmap q (hm ▸ hq)]
   obtain ⟨z, he, hr, hmem, ha⟩ := Search.exec y values hfactor
     (by rw [hm]; exact hmod.of_natAbs_le hM)
     (by simpa only [hm] using hfits.limit) (by simpa only [hp, hm] using hfits.bitmap)
@@ -300,16 +296,13 @@ private theorem exec_search {w : ℕ} (x y : Data 64) (values : Fin 3 → ℕ �
     (by simpa only [hl, hc, pow_two] using hfits.product)
     (by simpa only [hs, hl, hk] using hsk) (by simpa only [hk, hl, hd] using hkd)
     (same_input hy hsk hinput) (by simpa only [hl] using hinj)
-  refine ⟨z, he.mono ?_, ?_, ?_⟩
+  refine ⟨z, he.mono ?_, ?_, by simpa only [hm, hl, hc] using ha⟩
   · simp only [hm, hl, searchTime]
     gcongr
-  · refine ⟨?_, fun a ha => (hmem a (by simpa only [hk] using ha)).trans (hy.2 a ha)⟩
-    intro i hi
-    by_cases hid : i = digits
-    · subst i
-      exact (he.regs_eq (Search.preserves_caller _ (by decide))).trans (hy.1 _ hi)
+  · refine ⟨fun i hi => ?_, fun a ha => (hmem a (hk ▸ ha)).trans (hy.2 a ha)⟩
+    rcases eq_or_ne i digits with rfl | hid
+    · exact (he.regs_eq (Search.preserves_caller _ (by decide))).trans (hy.1 _ hi)
     · exact (hr i (by dsimp only [Parameter] at hi; omega)).trans (hy.1 i hi)
-  · simpa only [hm, hl, hc] using ha
 
 private theorem same_set {x y : Data 64} (h : Same x y) (i : Fin 64)
     (hi : ¬Parameter i) (v : ℕ) : Same x (y.set i v) := by
@@ -480,12 +473,9 @@ theorem exec {w : ℕ} (x : Data 64) (values : Fin 3 → ℕ → ℤ)
     simpa only [BinOp.eval, hfvalue, hfanswer] using
       (ExecWithin.bin (f := .mul) (d := output) (i := first) (j := Search.answer) hprod)
   have hsame : Same x (f.set output (p * q)) := same_set hfs output (by decide) _
-  refine ⟨f.set output (p * q), ?_, hsame.1, hsame.2, ?_, ?_⟩
-  · exact (ha.seq (hb.seq (hc.seq (hd.seq (he.seq (hf.seq hfinish)))))).mono
-      (by dsimp only [cost]; omega)
-  · simpa +decide [output, first] using hfvalue
-  · change p * q = modulus Q (x.regs digits) (S 0) (S 1) (S 2)
-    rfl
+  exact ⟨f.set output (p * q),
+    (ha.seq (hb.seq (hc.seq (hd.seq (he.seq (hf.seq hfinish)))))).mono (by dsimp [cost]; omega),
+    hsame.1, hsame.2, by simpa +decide [output, first] using hfvalue, rfl⟩
 
 /-- The finite selector program never reads the word width. -/
 theorem not_readsWidth : ¬program.ReadsWidth := by decide
