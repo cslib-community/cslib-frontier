@@ -64,20 +64,19 @@ theorem navigation_circuit (c : Circuit signature n n) (L : ℕ)
       out.Computes interpretation (fun z =>
         navigationBits (c.eval interpretation) (inputLeft z) (inputRight z)) ∧
       out.size ≤ navigationBudget n c.size L := by
-  let f := c.eval interpretation
   obtain ⟨depth, hd, hds⟩ := checkpoint_depth_circuit c L hL hLN
   obtain ⟨label, hl, hls⟩ := cycle_label_circuit c L hL hLN
   obtain ⟨transient, htr, htrs⟩ := forest_transient_circuit c L hL hLN
-  have hnav := synthesis_navigation_given_flag f depth hd label hl transient htr
-  obtain ⟨out, hout, hsize⟩ := hnav.exists_circuit_outputs
-  refine ⟨out, hout, hsize.trans ?_⟩
+  obtain ⟨out, hout, hsize⟩ :=
+    (synthesis_navigation_given_flag _ depth hd label hl transient htr).exists_circuit_outputs
+  refine ⟨out, hout, ?_⟩
   unfold navigationBudget
   omega
 
 /-- Every component of `navigationBudget` fits within `4500000 * powerBudget`. -/
 theorem navigationBudget_le (n s L : ℕ) :
     navigationBudget n s L ≤ 4500000 * powerBudget n s (2 ^ n) L := by
-  have h := navigationOverhead_le n s (2 ^ n) L
+  have := navigationOverhead_le n s (2 ^ n) L
   unfold navigationBudget
   omega
 
@@ -95,15 +94,10 @@ theorem reachability_hitting_time (c : Circuit signature n n) :
       (out.size : ℝ) ≤ 9000000 * optimizedBudget n c.size (2 ^ n) := by
   obtain ⟨L, hL, hLN, ho⟩ := exists_powerBudget_le_optimizedBudget n c.size (2 ^ n) le_rfl
   obtain ⟨out, hout, hs⟩ := navigation_circuit c L hL hLN
-  refine ⟨out, ?_, ?_, ?_⟩
-  · intro z
-    rw [hout z]
-    exact navigationBits_flag _ _ _
-  · intro z hz
-    rw [hout z] at hz ⊢
+  refine ⟨out, fun z => (hout z).symm ▸ navigationBits_flag _ _ _, fun z hz => ?_, ?_⟩
+  · rw [hout z] at hz ⊢
     exact navigationBits_time _ _ _ ((navigationBits_flag _ _ _).mp hz)
-  · have hs' : (out.size : ℝ) ≤
-        4500000 * (powerBudget n c.size (2 ^ n) L : ℝ) := by
+  · have : (out.size : ℝ) ≤ 4500000 * (powerBudget n c.size (2 ^ n) L : ℝ) := by
       exact_mod_cast hs.trans (navigationBudget_le n c.size L)
     linarith
 

@@ -92,8 +92,7 @@ theorem DecidesInTime.mem_iff_exists_checkChoices {ntm : MultiTapeNTM k Bool Sta
       exists_runClosedCoins_choiceTable p ((h a).1 p hp.ge) hout
     rw [hp] at hlen
     refine ⟨coins ++ List.replicate (L - coins.length) false, by
-      simp only [List.length_append, List.length_replicate]; omega, ?_⟩
-    simp [checkChoices, hcoins]
+      simp only [List.length_append, List.length_replicate]; omega, by simp [checkChoices, hcoins]⟩
   · rintro ⟨w, -, hw⟩
     exact accepts_of_runClosedCoins_choiceTable (coins := w) (by simpa [checkChoices] using hw)
 
@@ -107,12 +106,7 @@ theorem DecidesInTime.isVerifier {ntm : MultiTapeNTM k Bool State} {A : Set α} 
       (Polynomial.C (Nat.card (Turing.Action k Bool State) * c) * (Polynomial.X + 1) ^ d)
       (ntm.checkChoices enc) A := by
   intro a
-  have heval : (Polynomial.C (Nat.card (Turing.Action k Bool State) * c) *
-      (Polynomial.X + 1) ^ d).eval (enc a).length =
-      Nat.card (Turing.Action k Bool State) * (c * ((enc a).length + 1) ^ d) := by
-    simp [mul_assoc]
-  rw [heval]
-  exact h.mem_iff_exists_checkChoices le_rfl
+  simpa [mul_assoc] using h.mem_iff_exists_checkChoices (a := a) le_rfl
 
 end Turing.MultiTapeNTM
 

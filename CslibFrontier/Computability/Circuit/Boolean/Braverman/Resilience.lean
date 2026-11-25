@@ -205,29 +205,18 @@ theorem coalitionInfluence_le_of_independence_le {D : PMF (BitString n)} {d p t 
   set E := undeterminedCircuit C Q
   have hE (x : BitString n) :
       (if IsUndetermined Q (fun x => C.eval Unbounded.interpretation x 0) x then (1 : ℝ) else 0) =
-        bitVal ℝ (E.eval Unbounded.interpretation x 0) := by
-    have h : IsUndetermined Q (fun x => C.eval Unbounded.interpretation x 0) x ↔
-        E.eval Unbounded.interpretation x 0 = true := by
-      rw [isUndetermined_iff_of_monotone hmono, eval_undeterminedCircuit, Bool.and_eq_true,
-        Bool.not_eq_true']
-    exact if_congr h rfl rfl
+        bitVal ℝ (E.eval Unbounded.interpretation x 0) :=
+    if_congr (by simp [E, isUndetermined_iff_of_monotone hmono, eval_undeterminedCircuit]) rfl rfl
   have h4 : 4 ≤ 2 ^ p := (Nat.pow_le_pow_right two_pos hp).trans' (by norm_num)
   have hfools := fools_of_independence_le (by omega) E
     ((fanInAtMost_undeterminedCircuit hfan Q).mono (max_le le_rfl (by omega)))
     (by rw [size_undeterminedCircuit]; exact hsize)
     ((depth_undeterminedCircuit_le C Q).trans (by omega)) ht hD
-  have hX : coalitionInfluence D Q (fun x => C.eval Unbounded.interpretation x 0) =
-      ∑ x, (D x).toReal * bitVal ℝ (E.eval Unbounded.interpretation x 0) :=
-    sum_congr rfl fun x _ => by rw [hE]
-  have hU : coalitionInfluence (Probability.PMF.uniformOfFintype (BitString n)) Q
-      (fun x => C.eval Unbounded.interpretation x 0) =
-      𝔼 x, bitVal ℝ (E.eval Unbounded.interpretation x 0) := by
-    rw [coalitionInfluence_uniformOfFintype]
-    exact expect_congr rfl fun x _ => hE x
-  rw [hX]
-  rw [hU] at hQ
-  have := (abs_le.1 hfools).2
-  linarith
+  rw [show coalitionInfluence D Q (fun x => C.eval Unbounded.interpretation x 0) =
+    ∑ x, (D x).toReal * bitVal ℝ (E.eval Unbounded.interpretation x 0) from
+    sum_congr rfl fun x _ => by rw [hE]]
+  rw [coalitionInfluence_uniformOfFintype, expect_congr rfl fun x _ => hE x] at hQ
+  linarith [(abs_le.1 hfools).2]
 
 /-- **The bias under polylogarithmic independence, with the exact independence function
 `independence`**

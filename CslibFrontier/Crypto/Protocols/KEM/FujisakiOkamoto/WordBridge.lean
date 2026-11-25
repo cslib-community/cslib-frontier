@@ -410,15 +410,12 @@ private theorem hKeyEmb_apply (n : ℕ) (b : Bool) (m : BitString (P.msgLen n))
 /-- A word in the `H` domain names a typed `H` request, whose word triple it encodes. -/
 private theorem typedHQuery_of_isHQuery {n : ℕ} {w : List Bool} (h : P.isHQuery n w = true) :
     ∃ x, P.typedHQuery n w = some x ∧ hKeyEmb P n x = hQueryDecoder.decode w := by
-  have hy := h
-  unfold isHQuery at hy
   unfold typedHQuery
   rcases hd : hQueryDecoder.decode w with ⟨b, m, c⟩
-  rw [hd] at hy
-  simp only [Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at hy
+  have hy : (encHQuery (false, m, c) = w ∧ m.length = P.msgLen n) ∧ c.length ≤ P.ctLen n := by
+    simpa only [isHQuery, hd, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] using h
   simp only [h, ↓reduceIte]
-  refine ⟨_, rfl, ?_⟩
-  rw [hKeyEmb_apply, BitString.ofFn_ofList hy.1.2, toCiphertext_val hy.2]
+  exact ⟨_, rfl, by rw [hKeyEmb_apply, BitString.ofFn_ofList hy.1.2, toCiphertext_val hy.2]⟩
 
 private theorem typedHQuery_of_not_isHQuery {n : ℕ} {w : List Bool}
     (h : ¬P.isHQuery n w = true) : P.typedHQuery n w = none := by
@@ -691,11 +688,7 @@ private theorem simFilterWordHandler_G
         simHashG (CT := List Bool) (K := List Bool) (BitString.sampleList (P.coinLen n)) w
       else pure [] := by
   funext st
-  by_cases h : w.length = P.msgLen n
-  · simp only [simFilterWordHandler, h, ↓reduceIte]
-    rfl
-  · simp only [simFilterWordHandler, h, ↓reduceIte]
-    rfl
+  by_cases h : w.length = P.msgLen n <;> simp only [simFilterWordHandler, h, ↓reduceIte] <;> rfl
 
 private theorem simFilterWordHandler_H
     (d : ℕ → List Bool → List (List Bool × List Bool) → List Bool → Bool) (n : ℕ)
@@ -984,22 +977,11 @@ private theorem exists_savedCoins (hP : P.IsEfficient)
 /-- Each typed query makes at most one call. -/
 private theorem isQueryBounded_typedQuery (n : ℕ) (op : CCAOp) (w : List Bool) :
     OracleComp.IsQueryBounded (P.typedQuery keyLen n op w) 1 := by
-  cases op with
-  | G =>
-    simp only [typedQuery]
-    split
-    · exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (OracleComp.IsCostBounded.query _)
-    · exact .pure _ _
-  | H =>
-    simp only [typedQuery]
-    split
-    · exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (OracleComp.IsCostBounded.query _)
-    · exact .pure _ _
-  | decaps =>
-    simp only [typedQuery]
-    split
-    · exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (OracleComp.IsCostBounded.query _)
-    · exact .pure _ _
+  cases op <;> simp only [typedQuery] <;> split
+  all_goals
+    first
+    | exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (OracleComp.IsCostBounded.query _)
+    | exact .pure _ _
 
 /-- **Query bounds of the saved-coin view.** Every coin value and challenge makes at most
 `savedCoinBudget c d keyC keyD n` queries to `G`, as many to `H` and as many to decapsulation. -/
@@ -1101,10 +1083,8 @@ private theorem mem_support_finiteKeyGenNotBot {n : ℕ} {pk : List Bool}
     dk.pk = pk ∧ (pk, dk.sk) ∈ (ProbComp.eval (P.keyGen n)).support := by
   simp only [Scheme.keyGenNotBot, finiteScheme, finitePKE, ProbComp.eval_bind,
     ProbComp.eval_pure, PMF.support_bind, PMF.support_pure, Set.mem_iUnion,
-    Set.mem_singleton_iff, exists_prop] at h
-  obtain ⟨⟨pk', sk'⟩, hkeys, s, -, heq⟩ := h
-  simp only [Prod.mk.injEq] at heq
-  obtain ⟨rfl, rfl⟩ := heq
+    Set.mem_singleton_iff, exists_prop, Prod.mk.injEq] at h
+  obtain ⟨⟨_, _⟩, hkeys, _, -, rfl, rfl⟩ := h
   exact ⟨rfl, hkeys⟩
 
 /-- **A word experiment is the typed experiment** of the saved-coin view, at a parameter where

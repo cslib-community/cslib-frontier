@@ -61,18 +61,14 @@ theorem isSolution_responseDifference (hP : P.Valid) (hγq : 4 * P.γ₂ < P.q)
   let v := residual d pk σ'
   refine ⟨?_, ?_, ?_⟩
   · intro he
-    have hzz : σ.z = σ'.z := by
-      funext i j
-      have h := congrFun (congrFun he (Fin.natAdd P.k i)) j
-      simp only [responseDifference, Fin.append_right, difference, Pi.zero_apply, sub_eq_zero] at h
-      exact ZMod.injective_valMinAbs h
-    apply hne
-    apply CompressedSignature.ext hzz _ hc
-    funext i j
+    have hzz : σ.z = σ'.z := funext fun i => funext fun j => ZMod.injective_valMinAbs <| by
+      simpa [responseDifference, difference, sub_eq_zero] using
+        congrFun (congrFun he (Fin.natAdd P.k i)) j
+    refine hne (CompressedSignature.ext hzz (funext fun i => funext fun j => ?_) hc)
     apply useHint_injective hP.γ₂_pos hP.two_mul_γ₂_dvd hγq
       (compressedVerifierCommitment P d pk σ'.z σ'.c i j)
-    have h := congrFun (congrFun hw i) j
-    simpa only [CompressedSignature.recover, useHintVec, hzz, hc] using h
+    simpa only [CompressedSignature.recover, useHintVec, hzz, hc] using
+      congrFun (congrFun hw i) j
   · refine Fin.addCases (fun i j => ?_) (fun i j => ?_)
     · simp only [responseDifference, Fin.append_left, difference, residual]
       apply le_trans (abs_sub _ _)
@@ -92,11 +88,10 @@ theorem isSolution_responseDifference (hP : P.Valid) (hγq : 4 * P.γ₂ < P.q)
       funext i
       refine Fin.addCases (fun a => ?_) (fun b => ?_) i <;>
         funext j <;> simp [responseDifference, difference, u, v]
-    rw [hcast, ModuleSIS.moduleSISMap_hermiteMatrix]
     have hlinear : moduleSISMap pk.A (σ.z - σ'.z) =
         moduleSISMap pk.A σ.z - moduleSISMap pk.A σ'.z :=
       eq_sub_iff_add_eq.mpr (by rw [← moduleSISMap_add, sub_add_cancel])
-    rw [hlinear]
+    rw [hcast, ModuleSIS.moduleSISMap_hermiteMatrix, hlinear]
     funext i j
     have h := congrArg (fun w : Fin P.k → Fin P.n → ℤ =>
       ((w i j * (2 * P.γ₂ : ℕ) : ℤ) : ZMod P.q)) hw
@@ -147,9 +142,8 @@ theorem succProbability_responseCollisionGame_le_hermite [NeZero P.q] (hP : P.Va
   apply Probability.PMF.bind_apply_mono_on_support
   intro A _
   apply Probability.PMF.map_true_mono
-  intro p _ hw
+  rintro p _ hw
   simp only [decide_eq_true_eq] at hw ⊢
-  obtain ⟨hne, hc, he, hz, hz'⟩ := hw
-  exact isSolution_responseDifference hP hγq d ⟨A, p.t⟩ hne hc he hz hz'
+  exact isSolution_responseDifference hP hγq d ⟨A, p.t⟩ hw.1 hw.2.1 hw.2.2.1 hw.2.2.2.1 hw.2.2.2.2
 
 end Cslib.Crypto.MLDSA

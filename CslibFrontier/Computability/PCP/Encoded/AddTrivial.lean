@@ -93,8 +93,7 @@ theorem WellFormed.addTrivial {g : Graph C} (hg : g.WellFormed) (truth : C)
 /-- Self-loops stay in the declared vertex set, including when it is empty. -/
 theorem WellFormed.addLoops {g : Graph C} (hg : g.WellFormed) (truth : C) :
     (g.addLoops truth).WellFormed := by
-  apply hg.addTrivial truth
-  intro p hp
+  refine hg.addTrivial truth fun p hp => ?_
   obtain ⟨v, hv, rfl⟩ := List.mem_map.mp hp
   exact ⟨List.mem_range.mp hv, List.mem_range.mp hv⟩
 
@@ -113,19 +112,13 @@ theorem satisfiable_addTrivial_iff (g : Graph C) (eval : C → α → α → Boo
     (truth : C) (htruth : ∀ a b, eval truth a b = true) (extra : List (ℕ × ℕ)) :
     ((g.addTrivial truth extra).toGraph eval).Satisfiable ↔ (g.toGraph eval).Satisfiable := by
   rw [← ConstraintGraph.satisfiable_comap_iff ((g.addTrivial truth extra).toGraph eval)
-    (List.appendIndexEquiv g.edges (extra.map fun p => ⟨p.1, p.2, truth⟩)).surjective]
-  rw [show ((g.addTrivial truth extra).toGraph eval).comap
-      (List.appendIndexEquiv g.edges (extra.map fun p => ⟨p.1, p.2, truth⟩)) =
-      (g.toGraph eval).union
-        ((Graph.mk g.vertices (extra.map fun p => ⟨p.1, p.2, truth⟩)).toGraph eval) from
-    toGraph_append g.vertices g.edges _ eval]
-  rw [ConstraintGraph.satisfiable_union_iff]
-  constructor
-  · rintro ⟨σ, hσ, _⟩
-    exact ⟨σ, hσ⟩
-  · rintro ⟨σ, hσ⟩
-    refine ⟨σ, hσ, fun i => ?_⟩
-    simp [ConstraintGraph.Satisfies, toGraph, List.get_eq_getElem, htruth]
+      (List.appendIndexEquiv g.edges (extra.map fun p => ⟨p.1, p.2, truth⟩)).surjective,
+    show ((g.addTrivial truth extra).toGraph eval).comap
+        (List.appendIndexEquiv g.edges (extra.map fun p => ⟨p.1, p.2, truth⟩)) = _ from
+      toGraph_append g.vertices g.edges _ eval,
+    ConstraintGraph.satisfiable_union_iff]
+  exact ⟨fun ⟨σ, hσ, _⟩ => ⟨σ, hσ⟩, fun ⟨σ, hσ⟩ => ⟨σ, hσ, fun _ => by
+    simp [ConstraintGraph.Satisfies, toGraph, List.get_eq_getElem, htruth]⟩⟩
 
 /-- Appending universally accepting constraints scales the value by the fraction of original
 edges. This also covers empty input and output edge sets. -/
@@ -135,14 +128,11 @@ theorem unsatVal_addTrivial (g : Graph C) (eval : C → α → α → Bool)
       (g.edges.length : ℝ) / (g.edges.length + extra.length) * (g.toGraph eval).unsatVal := by
   change ((Graph.mk g.vertices
     (g.edges ++ extra.map fun p => Edge.mk p.1 p.2 truth)).toGraph eval).unsatVal = _
-  rw [← ConstraintGraph.unsatVal_comap_equiv
-    ((Graph.mk g.vertices
-      (g.edges ++ extra.map fun p => Edge.mk p.1 p.2 truth)).toGraph eval)
-    (List.appendIndexEquiv g.edges (extra.map fun p => ⟨p.1, p.2, truth⟩)), toGraph_append]
-  rw [ConstraintGraph.unsatVal_union_of_forall_rel]
-  · simp
-  · intro i a b
-    simp [toGraph, List.get_eq_getElem, htruth]
+  rw [← ConstraintGraph.unsatVal_comap_equiv _
+      (List.appendIndexEquiv g.edges (extra.map fun p => ⟨p.1, p.2, truth⟩)), toGraph_append,
+    ConstraintGraph.unsatVal_union_of_forall_rel _ _ fun _ _ _ => by
+      simp [toGraph, List.get_eq_getElem, htruth]]
+  simp
 
 /-- Adding universally accepting self-loops preserves satisfiability. -/
 theorem satisfiable_addLoops_iff (g : Graph C) (eval : C → α → α → Bool)
@@ -158,8 +148,7 @@ theorem unsatVal_addLoops (g : Graph C) (eval : C → α → α → Bool)
       (g.edges.length : ℝ) / (g.edges.length + g.vertices) * (g.toGraph eval).unsatVal := by
   change ((g.addTrivial truth
     ((List.range g.vertices).map fun v => (v, v))).toGraph eval).unsatVal = _
-  have h := g.unsatVal_addTrivial eval truth htruth
-    ((List.range g.vertices).map fun v => (v, v))
-  simpa only [List.length_map, List.length_range] using h
+  simpa only [List.length_map, List.length_range] using
+    g.unsatVal_addTrivial eval truth htruth ((List.range g.vertices).map fun v => (v, v))
 
 end Cslib.PCP.Encoded.Graph

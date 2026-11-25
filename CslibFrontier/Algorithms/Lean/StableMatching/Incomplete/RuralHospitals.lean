@@ -60,13 +60,12 @@ theorem matchedProposers_subset_deferredAcceptance {ν : PartialMatching m n} (h
   intro p hp
   rw [mem_matchedProposers] at hp ⊢
   obtain ⟨r, hr⟩ := Option.isSome_iff_exists.1 hp
-  have hlt : I.propRank p (ν p) < I.propRank p none := by
-    rw [hr]; exact (I.propRank_some_lt_none_iff p r).2 (hν.1 p r hr).1
+  have hlt : I.propRank p (ν p) < I.propRank p none :=
+    hr ▸ (I.propRank_some_lt_none_iff p r).2 (hν.1 p r hr).1
   cases hμ : I.deferredAcceptance p with
   | some _ => rfl
   | none =>
-    have := I.propRank_deferredAcceptance_le_of_isStable hν p
-    rw [hμ] at this
+    have := hμ ▸ I.propRank_deferredAcceptance_le_of_isStable hν p
     omega
 
 /-- A receiver matched by deferred acceptance is matched in every stable matching. -/
@@ -75,15 +74,13 @@ theorem matchedReceivers_deferredAcceptance_subset {ν : PartialMatching m n}
   intro r hr
   rw [mem_matchedReceivers] at hr ⊢
   obtain ⟨p, hp⟩ := Option.isSome_iff_exists.1 hr
-  have hlt : I.recvRank r (I.deferredAcceptance.symm r) < I.recvRank r none := by
-    rw [hp]
-    exact (I.recvRank_some_lt_none_iff r p).2
+  have hlt : I.recvRank r (I.deferredAcceptance.symm r) < I.recvRank r none :=
+    hp ▸ (I.recvRank_some_lt_none_iff r p).2
       (I.isIndividuallyRational_deferredAcceptance p r (PEquiv.eq_some_iff _ |>.1 hp)).2
   cases hνr : ν.symm r with
   | some _ => rfl
   | none =>
-    have := I.isReceiverPessimal_deferredAcceptance.2 ν hν r
-    rw [hνr] at this
+    have := hνr ▸ I.isReceiverPessimal_deferredAcceptance.2 ν hν r
     omega
 
 /-- Every stable matching matches the same proposers as deferred acceptance. -/
@@ -118,19 +115,13 @@ receivers that the stable matchings `μ` and `ν` leave unmatched coincide. -/
 theorem unmatched_eq_of_isStable {μ ν : PartialMatching m n} (hμ : I.IsStable μ)
     (hν : I.IsStable ν) :
     {p | μ p = none} = {p | ν p = none} ∧ {r | μ.symm r = none} = {r | ν.symm r = none} := by
-  have hP := I.matchedProposers_eq_of_isStable hμ hν
-  have hR := I.matchedReceivers_eq_of_isStable hμ hν
   constructor
   · ext p
-    have := congrArg (p ∈ ·) hP
-    simp only [mem_matchedProposers, eq_iff_iff, Option.isSome_iff_ne_none, ne_eq,
-      not_iff_not] at this
-    exact this
+    simpa only [Set.mem_ofPred_eq, mem_matchedProposers, eq_iff_iff, Option.isSome_iff_ne_none,
+      ne_eq, not_iff_not] using congrArg (p ∈ ·) (I.matchedProposers_eq_of_isStable hμ hν)
   · ext r
-    have := congrArg (r ∈ ·) hR
-    simp only [mem_matchedReceivers, eq_iff_iff, Option.isSome_iff_ne_none, ne_eq,
-      not_iff_not] at this
-    exact this
+    simpa only [Set.mem_ofPred_eq, mem_matchedReceivers, eq_iff_iff, Option.isSome_iff_ne_none,
+      ne_eq, not_iff_not] using congrArg (r ∈ ·) (I.matchedReceivers_eq_of_isStable hμ hν)
 
 /-- All stable matchings have the same number of pairs. -/
 theorem card_matchedProposers_eq_of_isStable {μ ν : PartialMatching m n} (hμ : I.IsStable μ)

@@ -85,9 +85,7 @@ theorem testShift_sound (confidence inverseTolerance densityNumerator densityDen
   have hcutoff : (↑(densityNumerator * (32 * rateDenominator + rateNumerator)) : ℝ) /
       ↑(32 * densityDenominator * rateDenominator) =
       (densityNumerator : ℝ) / densityDenominator *
-        (1 + (rateNumerator : ℝ) / rateDenominator / 32) := by
-    push_cast
-    field_simp
+        (1 + (rateNumerator : ℝ) / rateDenominator / 32) := by push_cast; field_simp
   unfold testShift
   apply ProbComp.testProbabilityLT_error_pow_of_bounds confidence inverseTolerance _ _
     htolerance (by positivity) trial <;> rw [hcutoff] <;> nlinarith [hprecision]
@@ -106,9 +104,7 @@ theorem testMajority_sound (confidence inverseTolerance densityNumerator density
             (ProbComp.eval trial true).toReal}).toReal ≤ (1 / 2 : ℝ) ^ confidence := by
   have hd : (0 : ℝ) < densityDenominator := by exact_mod_cast hdensity
   have hcutoff : (↑(13 * densityNumerator) : ℝ) / ↑(32 * densityDenominator) =
-      13 * ((densityNumerator : ℝ) / densityDenominator) / 32 := by
-    push_cast
-    field_simp
+      13 * ((densityNumerator : ℝ) / densityDenominator) / 32 := by push_cast; field_simp
   unfold testMajority
   apply ProbComp.testProbabilityLT_error_pow_of_bounds confidence inverseTolerance _ _
     htolerance (by positivity) trial <;> rw [hcutoff] <;> linarith
@@ -136,8 +132,8 @@ theorem testMajority_source_sound {α : Type} (source : ProbComp α)
   simp only [ProbComp.eval_map, map_listNonpositiveMargin_true] at h
   refine (ENNReal.toReal_mono (Cslib.Probability.PMF.toOuterMeasure_ne_top _ _)
     (MeasureTheory.measure_mono ?_)).trans h
-  intro stop hbad
-  cases stop <;> simp only [Set.mem_ofPred_eq, Bool.false_eq_true, ite_false, ite_true] at hbad ⊢
+  rintro (_ | _) hbad <;>
+    simp only [Set.mem_ofPred_eq, Bool.false_eq_true, ite_false, ite_true] at hbad ⊢
   · exact hbad
   · exact fun hgood =>
       hbad ((listStrictMajority_error_le (ProbComp.eval source) votes truth).trans hgood)
@@ -174,32 +170,20 @@ theorem testShift_weights_sound {α : Type} [Fintype α] (source : ProbComp α)
 theorem majority_precision_of_inverse (inverseDensity : ℕ) {δ : ℝ}
     (hdensity : 1 ≤ inverseDensity * δ) :
     (1 : ℝ) / (32 * inverseDensity : ℕ) ≤ δ / 32 := by
-  have hi : 0 < inverseDensity := by
-    by_contra h
-    have hz : inverseDensity = 0 := by lia
-    norm_num [hz] at hdensity
-  apply (div_le_iff₀ (by positivity : (0 : ℝ) < (32 * inverseDensity : ℕ))).mpr
-  push_cast
-  nlinarith
+  have hi : 0 < inverseDensity := Nat.pos_of_ne_zero fun hz => by norm_num [hz] at hdensity
+  rw [div_le_iff₀ (by positivity : (0 : ℝ) < (32 * inverseDensity : ℕ))]
+  push_cast; nlinarith
 
 /-- Natural inverse bounds give a sufficient shift-test tolerance when the weight rate is `γδ`.
 The reciprocal precision and hence the number of trials remain polynomial in these bounds. -/
 theorem shift_precision_of_inverse (inverseGamma inverseDensity : ℕ) {γ δ : ℝ}
     (hgamma : 1 ≤ inverseGamma * γ) (hdensity : 1 ≤ inverseDensity * δ) :
     (1 : ℝ) / (32 * inverseGamma * inverseDensity ^ 2 : ℕ) ≤ δ * (γ * δ) / 32 := by
-  have hg : 0 < inverseGamma := by
-    by_contra h
-    have hz : inverseGamma = 0 := by lia
-    norm_num [hz] at hgamma
-  have hd : 0 < inverseDensity := by
-    by_contra h
-    have hz : inverseDensity = 0 := by lia
-    norm_num [hz] at hdensity
-  have hproduct := one_le_mul_of_one_le_of_one_le hgamma (one_le_pow₀ hdensity (n := 2))
-  apply (div_le_iff₀
-    (by positivity : (0 : ℝ) < (32 * inverseGamma * inverseDensity ^ 2 : ℕ))).mpr
-  push_cast
-  nlinarith
+  have hg : 0 < inverseGamma := Nat.pos_of_ne_zero fun hz => by norm_num [hz] at hgamma
+  have hd : 0 < inverseDensity := Nat.pos_of_ne_zero fun hz => by norm_num [hz] at hdensity
+  have := one_le_mul_of_one_le_of_one_le hgamma (one_le_pow₀ hdensity (n := 2))
+  rw [div_le_iff₀ (by positivity : (0 : ℝ) < (32 * inverseGamma * inverseDensity ^ 2 : ℕ))]
+  push_cast; nlinarith
 
 section Efficiency
 
@@ -219,8 +203,7 @@ theorem isPPTOn_testShift (htrial : IsPPTOn input encBool trial)
       (densityNumerator a) (densityDenominator a)
       (rateNumerator a) (rateDenominator a) (trial a)) := by
   unfold testShift
-  apply htrial.testProbabilityLT
-  all_goals polytime
+  apply htrial.testProbabilityLT <;> polytime
 
 /-- Efficient trials and unary parameters give a strict PPT majority decision. -/
 theorem isPPTOn_testMajority (htrial : IsPPTOn input encBool trial)
@@ -231,8 +214,7 @@ theorem isPPTOn_testMajority (htrial : IsPPTOn input encBool trial)
     IsPPTOn input encBool (fun a => testMajority (confidence a) (inverseTolerance a)
       (densityNumerator a) (densityDenominator a) (trial a)) := by
   unfold testMajority
-  apply htrial.testProbabilityLT
-  all_goals polytime
+  apply htrial.testProbabilityLT <;> polytime
 
 attribute [program_certificate] isPPTOn_testShift isPPTOn_testMajority
 

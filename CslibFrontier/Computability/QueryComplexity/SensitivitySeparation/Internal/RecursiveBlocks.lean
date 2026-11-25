@@ -59,15 +59,9 @@ def rowLift {k r : ℕ} {I : Type} (i : Fin k) (B : Finset I) :
 @[simp] private theorem mem_rowLift {k r : ℕ} {I : Type} (i : Fin k) (B : Finset I)
     (p : (Fin k × Fin r) × I) : p ∈ rowLift (r := r) i B ↔ p.1.1 = i ∧ p.2 ∈ B := by
   rcases p with ⟨⟨j, c⟩, a⟩
-  unfold rowLift
-  rw [Finset.mem_map]
-  constructor
-  · rintro ⟨⟨c', b⟩, hb, hp⟩
-    change ((i, c'), b) = ((j, c), a) at hp
-    cases hp
-    exact ⟨rfl, (Finset.mem_product.mp hb).2⟩
-  · rintro ⟨rfl, ha⟩
-    exact ⟨(c, a), Finset.mem_product.mpr ⟨Finset.mem_univ _, ha⟩, rfl⟩
+  simp only [rowLift, Finset.mem_map, Function.Embedding.coeFn_mk, Prod.mk.injEq, Prod.exists]
+  exact ⟨fun ⟨_, b, hb, ⟨hi, _⟩, hba⟩ => ⟨hi.symm, hba ▸ (Finset.mem_product.mp hb).2⟩,
+    fun ⟨rfl, ha⟩ => ⟨c, a, Finset.mem_product.mpr ⟨Finset.mem_univ c, ha⟩, ⟨rfl, rfl⟩, rfl⟩⟩
 
 /-- If `0 < r` and `B` is nonempty, then `rowLift i B` is nonempty. -/
 theorem rowLift_nonempty {k r : ℕ} {I : Type} (i : Fin k) (B : Finset I)
@@ -77,18 +71,15 @@ theorem rowLift_nonempty {k r : ℕ} {I : Type} (i : Fin k) (B : Finset I)
 
 /-- Blocks lifted to distinct rows are disjoint. -/
 private theorem rowLift_disjoint_of_ne {k r : ℕ} {I : Type} (i j : Fin k)
-    (B C : Finset I) (hij : i ≠ j) : Disjoint (rowLift (r := r) i B) (rowLift j C) := by
-  apply Finset.disjoint_left.mpr
-  intro p hp hq
-  exact hij (((mem_rowLift i B p).mp hp).1.symm.trans ((mem_rowLift j C p).mp hq).1)
+    (B C : Finset I) (hij : i ≠ j) : Disjoint (rowLift (r := r) i B) (rowLift j C) :=
+  Finset.disjoint_left.mpr fun p hp hq =>
+    hij (((mem_rowLift i B p).mp hp).1.symm.trans ((mem_rowLift j C p).mp hq).1)
 
 /-- Lifts of disjoint child blocks are disjoint, whichever rows they are lifted to. -/
 private theorem rowLift_disjoint {k r : ℕ} {I : Type} (i j : Fin k) (B C : Finset I)
-    (hBC : Disjoint B C) : Disjoint (rowLift (r := r) i B) (rowLift j C) := by
-  apply Finset.disjoint_left.mpr
-  intro p hp hq
-  exact Finset.disjoint_left.mp hBC ((mem_rowLift i B p).mp hp).2
-    ((mem_rowLift j C p).mp hq).2
+    (hBC : Disjoint B C) : Disjoint (rowLift (r := r) i B) (rowLift j C) :=
+  Finset.disjoint_left.mpr fun p hp hq =>
+    Finset.disjoint_left.mp hBC ((mem_rowLift i B p).mp hp).2 ((mem_rowLift j C p).mp hq).2
 
 /-- If the blocks `blocks a` are pairwise disjoint, then the lifts `rowLift a.1 (blocks a.2)`
 indexed by `a : Fin k × K` are pairwise disjoint. -/
@@ -98,10 +89,7 @@ theorem rowLift_family_disjoint {k r : ℕ} {I K : Type} (blocks : K → Finset 
       Disjoint (rowLift (r := r) a.1 (blocks a.2)) (rowLift b.1 (blocks b.2)) := by
   intro a b hab
   by_cases hrow : a.1 = b.1
-  · apply rowLift_disjoint
-    apply hB
-    intro hcol
-    exact hab (Prod.ext hrow hcol)
+  · exact rowLift_disjoint _ _ _ _ (hB fun hcol => hab (Prod.ext hrow hcol))
   · exact rowLift_disjoint_of_ne _ _ _ _ hrow
 
 open scoped Classical in
@@ -135,13 +123,11 @@ theorem recursiveFamily_rowLift {k r h : ℕ} {I : Type} [DecidableEq ((Fin k ×
     (hB : ∀ q, F q (BitString.flipOn B (fun _ => false)) = true) (i : Fin k) (q : Fin h) :
     recursiveFamily T label F q
       (BitString.flipOn (rowLift i B) (fun _ => false)) = true := by
-  apply (recursiveFamily_eq_true_iff _ _ _ _ _).mpr
-  refine ⟨i, (rowClause_eq_true_iff _ _ _ _ _ _).mpr ⟨?_, ?_⟩⟩
-  · intro c
-    rw [recursiveChild_rowLift_same]
+  rw [recursiveFamily_eq_true_iff]
+  refine ⟨i, (rowClause_eq_true_iff _ _ _ _ _ _).mpr ⟨fun c => ?_, fun j hij => ?_⟩⟩
+  · rw [recursiveChild_rowLift_same]
     exact hB _
-  · intro j hij
-    rw [recursiveChild_rowLift_other _ _ _ _ (T.ne_of_adj hij).symm]
+  · rw [recursiveChild_rowLift_other _ _ _ _ (T.ne_of_adj hij).symm]
     exact hzero _
 
 end Internal

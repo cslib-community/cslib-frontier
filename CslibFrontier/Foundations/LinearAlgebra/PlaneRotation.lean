@@ -64,8 +64,7 @@ theorem reflection_comp_reflection (Ra Rb : E →ₗ[K] E) {a e : E} {γ : ℝ}
     Rb (Ra ((Real.cos φ : K) • a + (Real.sin φ : K) • e)) =
       -((Real.cos (φ - 2 * γ) : K) • a + (Real.sin (φ - 2 * γ) : K) • e) := by
   have hsc : (Real.sin γ : K) ^ 2 + (Real.cos γ : K) ^ 2 = 1 := by
-    rw [← RCLike.ofReal_pow, ← RCLike.ofReal_pow, ← RCLike.ofReal_add,
-      Real.sin_sq_add_cos_sq, RCLike.ofReal_one]
+    exact_mod_cast Real.sin_sq_add_cos_sq γ
   have hea : (Real.sin γ : K) • ((Real.sin γ : K) • a + (Real.cos γ : K) • e) +
       (Real.cos γ : K) • ((Real.cos γ : K) • a - (Real.sin γ : K) • e) = a := by
     linear_combination (norm := module) hsc • a
@@ -99,9 +98,7 @@ theorem iterate_reflection_comp_reflection (Ra Rb : E →ₗ[K] E) {a e : E} {γ
   induction T with
   | zero => simp
   | succ T ih =>
-    have hφ : φ - 2 * T * γ - 2 * γ = φ - 2 * ((T + 1 : ℕ) : ℝ) * γ := by
-      push_cast
-      ring
+    have hφ : φ - 2 * T * γ - 2 * γ = φ - 2 * ((T + 1 : ℕ) : ℝ) * γ := by push_cast; ring
     rw [Function.iterate_succ_apply', ih, map_smul, map_smul,
       reflection_comp_reflection Ra Rb ha he hb hb', hφ, pow_succ, mul_neg_one, neg_smul,
       smul_neg]

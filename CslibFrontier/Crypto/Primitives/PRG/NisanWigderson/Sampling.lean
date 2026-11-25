@@ -192,9 +192,8 @@ theorem exists_half_add_div_le_trialAgreement (hm : 0 < m) {ε : ℝ}
       (Generator.idealExperiment (fun y => PMF.pure (test y)) true).toReal) :
     ∃ t : Trial ℓ m, 1 / 2 + ε / m ≤ (trialAgreement D f test t : ℝ) := by
   have : NeZero m := ⟨hm.ne'⟩
-  obtain ⟨t, -, ht⟩ := exists_le_of_le_expect univ_nonempty
+  simpa only [mem_univ, true_and] using exists_le_of_le_expect univ_nonempty
     (half_add_div_le_expect_trialAgreement D f test hm hε)
-  exact ⟨t, ht⟩
 
 /-- **Sampling the advice**, exact form. Let `0 < m` and let a deterministic test accept generated
 strings with probability at least `ε` more than uniform ones. For every `θ < 1`, a uniformly random
@@ -221,10 +220,7 @@ theorem div_two_mul_le_dens_goodTrials (hm : 0 < m) {ε : ℝ} (hε₀ : 0 ≤ �
   refine le_trans ?_ (Fintype.expect_sub_le_dens_filter
     (fun t => mod_cast trialAgreement_le_one D f test t) (by positivity))
   have h := half_add_div_le_expect_trialAgreement D f test hm hε
-  have hm' : (0 : ℝ) < m := by exact_mod_cast hm
-  have hsplit : ε / m = ε / (2 * m) + ε / (2 * m) := by
-    field_simp
-    ring
+  have hsplit : ε / (2 * m) = ε / m / 2 := by ring
   linarith
 
 /-- **Repeated sampling.** Let `0 < m`, `0 ≤ ε`, and let a deterministic test accept generated
@@ -237,9 +233,8 @@ theorem one_sub_pow_le_dens_exists_mem_goodTrials (hm : 0 < m) {ε : ℝ} (hε�
     1 - (1 - ε / (2 * m)) ^ k ≤ (dens {ts : Fin k → Trial ℓ m |
       ∃ j, ts j ∈ goodTrials D f test (1 / 2 + ε / (2 * m))} : ℝ) := by
   have : NeZero m := ⟨hm.ne'⟩
-  have h := Fintype.one_sub_pow_le_dens_filter_exists_apply_mem (ι := Fin k)
-    (div_two_mul_le_dens_goodTrials D f test hm hε₀ hε)
-  rwa [Fintype.card_fin] at h
+  simpa only [Fintype.card_fin] using Fintype.one_sub_pow_le_dens_filter_exists_apply_mem
+    (ι := Fin k) (div_two_mul_le_dens_goodTrials D f test hm hε₀ hε)
 
 /-- **Repeated sampling** [Hirahara2018]. Let `0 < m`, `0 ≤ ε`, and let a deterministic test
 accept generated strings with probability at least `ε` more than uniform ones. If `2 m ≤ k ε`,
@@ -255,8 +250,7 @@ theorem half_le_dens_exists_mem_goodTrials (hm : 0 < m) {ε : ℝ} (hε₀ : 0 �
   have hm' : (0 : ℝ) < 2 * m := by positivity
   refine Fintype.half_le_dens_filter_exists_apply_mem (ι := Fin k) (by positivity)
     (div_two_mul_le_dens_goodTrials D f test hm hε₀ hε) ?_
-  rw [Fintype.card_fin, ← mul_div_assoc, le_div_iff₀ hm', one_mul]
-  exact hk
+  rwa [Fintype.card_fin, ← mul_div_assoc, le_div_iff₀ hm', one_mul]
 
 end NisanWigderson
 

@@ -42,22 +42,25 @@ private theorem sum_split {n : ℕ} (x : Finset (Fin n)) (f : ℕ → ℕ → �
       ∑ s ∈ x.powerset, ∑ q ∈ xᶜ.powerset, f s.card (s.card + q.card) := by
   classical
   rw [← sum_product']
-  refine sum_nbij' (fun y => (x ∩ y, xᶜ ∩ y)) (fun p => p.1 ∪ p.2) ?_ (by simp) ?_ ?_ ?_
-  · simp
+  refine sum_nbij' (fun y => (x ∩ y, xᶜ ∩ y)) (fun p => p.1 ∪ p.2) (by simp) (by simp) ?_ ?_ ?_
   · intro y _
-    ext i; by_cases h : i ∈ x <;> simp [h]
-  · rintro ⟨s,q⟩ h
-    obtain ⟨hs,hq⟩ : s ⊆ x ∧ q ⊆ xᶜ := by simpa using h
-    apply Prod.ext
+    ext i
+    by_cases h : i ∈ x <;> simp [h]
+  · rintro ⟨s, q⟩ h
+    obtain ⟨hs, hq⟩ : s ⊆ x ∧ q ⊆ xᶜ := by simpa using h
+    refine Prod.ext ?_ ?_
     · change x ∩ (s ∪ q) = s
-      ext i; simp only [mem_inter, mem_union]; grind [mem_compl]
+      rw [inter_union_distrib_left, inter_eq_right.2 hs,
+        disjoint_iff_inter_eq_empty.1 (Disjoint.mono_right hq disjoint_compl_right), union_empty]
     · change xᶜ ∩ (s ∪ q) = q
-      ext i; simp only [mem_inter, mem_union]; grind [mem_compl]
+      rw [inter_union_distrib_left,
+        disjoint_iff_inter_eq_empty.1 (Disjoint.mono_right hs disjoint_compl_left),
+        inter_eq_right.2 hq, empty_union]
   · intro y _
-    have hd : Disjoint (x ∩ y) (xᶜ ∩ y) :=
-      disjoint_compl_right.mono inter_subset_left inter_subset_left
-    have hu : (x ∩ y) ∪ (xᶜ ∩ y) = y := by ext i; by_cases h : i ∈ x <;> simp [h]
-    rw [← card_union_of_disjoint hd, hu]
+    rw [← card_union_of_disjoint (disjoint_compl_right.mono inter_subset_left inter_subset_left)]
+    congr 2
+    ext i
+    by_cases h : i ∈ x <;> simp [h]
 
 /-- Count central-weight columns whose overlap with a given row misses the interpolation band. -/
 theorem card_off_band_row (n lo hi k t : ℕ) (x : Finset (Fin n)) :
@@ -74,12 +77,9 @@ theorem card_off_band_row (n lo hi k t : ℕ) (x : Finset (Fin n)) :
     _ = _ := sum_split x f
     _ = _ := by
       rw [sum_by_size x (fun j => ∑ q ∈ xᶜ.powerset, f j (j + q.card))]
-      apply sum_congr rfl
-      intro j _
+      refine sum_congr rfl fun j _ => ?_
       rw [sum_by_size xᶜ (fun b => f j (j + b)), card_compl, Fintype.card_fin, mul_sum]
-      apply sum_congr rfl
-      intro b _
-      simp [f, mul_ite]
+      exact sum_congr rfl fun b _ => by simp [f, mul_ite]
 
 /-- Count ordered off-band pairs whose row and column both have central weight. -/
 theorem card_off_band_pair (n lo hi k t : ℕ) :
@@ -102,17 +102,11 @@ theorem card_off_band_pair (n lo hi k t : ℕ) :
           ((x ∩ y).card < k ∨ k + t ≤ (x ∩ y).card) then 1 else 0) := by
       rw [← sum_product']
       simp
-    _ = ∑ x : Finset (Fin n), weight x.card := by
-      apply sum_congr rfl
-      intro x _
+    _ = ∑ x : Finset (Fin n), weight x.card := sum_congr rfl fun x _ => by
       by_cases h : lo ≤ x.card ∧ x.card ≤ hi
       · simpa [weight, h, h.1, h.2, row, ← sum_filter] using card_off_band_row n lo hi k t x
-      · by_cases l : lo ≤ x.card
-        · have u : ¬x.card ≤ hi := fun hu => h ⟨l, hu⟩
-          simp [weight, l, u]
-        · simp [weight, l]
-    _ = _ := by
-      have h := sum_by_size (univ : Finset (Fin n)) weight
-      simpa [weight, row, mul_ite] using h
+      · simp only [weight, h, ↓reduceIte]
+        exact sum_eq_zero fun y _ => ite_eq_right_iff.2 fun hy => (h ⟨hy.1, hy.2.1⟩).elim
+    _ = _ := by simpa [weight, row, mul_ite] using sum_by_size (univ : Finset (Fin n)) weight
 
 end Cslib

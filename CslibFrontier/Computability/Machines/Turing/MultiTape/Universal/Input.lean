@@ -68,8 +68,7 @@ private theorem input_state (p : ℕ) (x : List ℕ) (j : ℕ) :
     | nil => simp
     | cons a l ih =>
       rw [List.foldl_cons, ih]
-      simp only [inputNext, List.length_cons, Nat.sub_sub]
-      omega
+      simp only [inputNext, List.length_cons]; omega
   exact hfold _ _
 
 private theorem input_emission (p : ℕ) (x : List ℕ) :
@@ -224,10 +223,8 @@ private theorem inputSymbol_pair_inO :
     let V := (B q + 1) ^ 2 * (2 * q.2[j] + 1)
     have hv : (B q + 1) ^ 2 ≤ V := Nat.le_mul_of_pos_right _ (by omega)
     have ha : q.2[j] + 1 ≤ V := by
-      have hp : 1 ≤ (B q + 1) ^ 2 := by nlinarith
-      have := Nat.mul_le_mul_right (2 * q.2[j] + 1) hp
       dsimp only [V]
-      nlinarith
+      nlinarith [Nat.pow_pos (a := B q + 1) (n := 2) (by omega)]
     have hp := (Nat.pow_le_pow_left (Nat.add_le_add_right hb 1) 2).trans hv
     have hl : B q + 1 ≤ V := (Nat.le_self_pow two_ne_zero _).trans hv
     have hn := Nat.mul_le_mul_left cN (show
@@ -249,8 +246,7 @@ private theorem inputSymbol_pair_inO :
       (encPair encNat encUnary (streamState q.1 inputNext q.2 j, q.2[j])).length + 1 ≤
         2 * B q + N q + 2 by enc_len)
     dsimp only
-    rw [Nat.add_mul]
-    omega
+    rw [Nat.add_mul]; omega
   · intro q j _
     exact (hstate q j).trans (Nat.le_add_right _ _)
   · intro q j hj
@@ -272,10 +268,8 @@ public theorem inputSymbol_stream_inO :
   refine ((inputSymbol_pair_inO.comp hswap).mono 8 (fun q => ?_) (fun q => ?_)).of_enc_eq
     (fun _ => rfl)
   · simp only [length_encPair]
-    have hb : (encNat q.2).length + 1 ≤ ((encNat q.2).length + 1) ^ 2 :=
-      Nat.le_self_pow two_ne_zero _
-    have hn := Nat.mul_le_mul_left ((encList encUnary q.1).length + 1) hb
-    nlinarith
+    nlinarith [Nat.mul_le_mul_left ((encList encUnary q.1).length + 1)
+      (Nat.le_self_pow two_ne_zero ((encNat q.2).length + 1))]
   · enc_len
 
 end Turing.MultiTapeTM.Universal

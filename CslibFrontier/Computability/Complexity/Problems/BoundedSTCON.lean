@@ -61,16 +61,14 @@ variable (I : BoundedSTCONInstance)
 /-- Capping the binary bound at the vertex count preserves bounded reachability. -/
 theorem capped_iff :
     Relation.RelatesWithinSteps I.graph.Adj I.graph.s I.graph.t I.cap ↔ I ∈ BoundedSTCON := by
-  constructor
-  · exact fun h => h.mono (Nat.min_le_left _ _)
-  · intro h
-    change Relation.RelatesWithinSteps I.graph.Adj I.graph.s I.graph.t I.bound at h
-    by_cases hb : I.bound ≤ I.graph.n
-    · simpa [cap, Nat.min_eq_left hb] using h
-    · have hshort := (Relation.reflTransGen_iff_relatesWithinSteps
+  refine ⟨fun h => h.mono (Nat.min_le_left _ _), fun h => ?_⟩
+  change Relation.RelatesWithinSteps I.graph.Adj I.graph.s I.graph.t I.bound at h
+  by_cases hb : I.bound ≤ I.graph.n
+  · simpa [cap, Nat.min_eq_left hb] using h
+  · simpa [cap, Nat.min_eq_right (Nat.le_of_not_le hb)] using
+      (Relation.reflTransGen_iff_relatesWithinSteps
         (r := I.graph.Adj) (a := I.graph.s) (b := I.graph.t)
         (N := I.graph.n) (by simp)).mp h.reflTransGen
-      simpa [cap, Nat.min_eq_right (by omega : I.graph.n ≤ I.bound)] using hshort
 
 /-- Number a vertex in a layer by `layer * n + vertex`. -/
 @[expose] def node (layer : Fin (I.cap + 1)) (vertex : Fin I.graph.n) :
@@ -123,11 +121,8 @@ private theorem lift {v : Fin I.graph.n} {k : ℕ}
 source-to-target walk within the given bound. Zero bounds and coinciding terminals are included. -/
 theorem layered_mem_iff : I.layered ∈ STCON ↔ I ∈ BoundedSTCON := by
   rw [← I.capped_iff]
-  constructor
-  · intro h
-    simpa [layered, node] using I.project h
-  · intro h
-    exact I.lift (Relation.relatesWithinSteps_iff_relatesInSteps_reflGen.mp h) le_rfl
+  exact ⟨fun h => by simpa [layered, node] using I.project h,
+    fun h => I.lift (Relation.relatesWithinSteps_iff_relatesInSteps_reflGen.mp h) le_rfl⟩
 
 end BoundedSTCONInstance
 

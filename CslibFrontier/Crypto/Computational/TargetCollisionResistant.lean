@@ -483,24 +483,20 @@ theorem length_mem_uowhfLeaves {M : ℕ} {msg : List Bool} {w : List Bool}
 theorem uowhfLeaves_injective_of_length_eq {M : ℕ} (hM : 1 ≤ M) {m₀ m₁ : List Bool}
     (hlen : m₀.length = m₁.length) (heq : uowhfLeaves M m₀ = uowhfLeaves M m₁) :
     m₀ = m₁ := by
-  cases m₀ with
-  | nil => exact (List.length_eq_zero_iff.mp hlen.symm).symm
-  | cons b₀ bs₀ =>
-    cases m₁ with
-    | nil => cases hlen
-    | cons b₁ bs₁ =>
-      refine List.ext_getElem hlen fun idx h₀ h₁ => ?_
-      simp only [uowhfLeaves, List.isEmpty_cons, Bool.false_eq_true, ↓reduceIte, hlen] at heq
-      have hr : idx < (List.range (b₁ :: bs₁).length).length := by
-        simpa only [List.length_range] using h₁
-      have hcell : padOrTake M [(b₀ :: bs₀).getD idx false] =
-          padOrTake M [(b₁ :: bs₁).getD idx false] := by
-        simpa only [List.getElem?_map, List.getElem?_eq_getElem hr, List.getElem_range,
-          Option.map_some, Option.some.injEq] using congrArg (fun l => l[idx]?) heq
-      obtain ⟨M', rfl⟩ : ∃ M', M = M' + 1 := ⟨M - 1, by omega⟩
-      simpa only [padOrTake, List.singleton_append, List.take_succ_cons, List.headD_cons,
-        List.getD_eq_getElem _ _ h₀, List.getD_eq_getElem _ _ h₁] using
-        congrArg (fun w => w.headD false) hcell
+  refine List.ext_getElem hlen fun idx h₀ h₁ => ?_
+  have hm₀ : m₀.isEmpty = false :=
+    List.isEmpty_eq_false_iff.mpr (List.ne_nil_of_length_pos (by omega))
+  have hm₁ : m₁.isEmpty = false :=
+    List.isEmpty_eq_false_iff.mpr (List.ne_nil_of_length_pos (by omega))
+  simp only [uowhfLeaves, hm₀, hm₁, Bool.false_eq_true, ↓reduceIte, hlen] at heq
+  have hr : idx < (List.range m₁.length).length := by simpa only [List.length_range] using h₁
+  have hcell : padOrTake M [m₀.getD idx false] = padOrTake M [m₁.getD idx false] := by
+    simpa only [List.getElem?_map, List.getElem?_eq_getElem hr, List.getElem_range,
+      Option.map_some, Option.some.injEq] using congrArg (fun l => l[idx]?) heq
+  obtain ⟨M', rfl⟩ : ∃ M', M = M' + 1 := ⟨M - 1, by omega⟩
+  simpa only [padOrTake, List.singleton_append, List.take_succ_cons, List.headD_cons,
+    List.getD_eq_getElem _ _ h₀, List.getD_eq_getElem _ _ h₁] using
+    congrArg (fun w => w.headD false) hcell
 
 @[program_certificate]
 theorem computableInPolyTime_uowhfLeaves :
@@ -854,11 +850,11 @@ theorem exists_uowhfCandidateInput_collision
     have hLn_eq : L m₀ n = L m₁ n := by
       obtain ⟨w₀, hw₀, hw₀_len⟩ := htop_singleton hm₀_pow
       obtain ⟨w₁, hw₁, hw₁_len⟩ := htop_singleton hm₁_pow
-      have hpad_eq : w₀ = w₁ := by
-        dsimp only [L] at hw₀ hw₁
-        simpa only [hw₀, hw₁, List.headD_cons, padOrTake_eq_self hw₀_len,
-          padOrTake_eq_self hw₁_len] using hroot_eq
-      rw [hw₀, hw₁, hpad_eq]
+      rw [hw₀, hw₁]
+      refine congrArg (· :: []) ?_
+      dsimp only [L] at hw₀ hw₁
+      simpa only [hw₀, hw₁, List.headD_cons, padOrTake_eq_self hw₀_len,
+        padOrTake_eq_self hw₁_len] using hroot_eq
     obtain ⟨i, hi_lt, hLi_ne, hLi_succ⟩ := exists_step_eq_of_ne (L m₀) (L m₁) hL0_ne hLn_eq
     have hstep_i (m : List Bool) :
         L m (i + 1) = uowhfTreeStep h n κ M (BitString.listRow κ i K) (L m i) := by
@@ -897,16 +893,13 @@ theorem exists_uowhfCandidateInput_collision
       · exact hrefute hk heven
       · exact hrefute hk hodd
     · simp only [uowhfCandidateInput, hi_lt, ↓reduceIte]
-      have hgt1' : ¬ (L m₁ i).length ≤ 1 := hLi_len_eq ▸ hgt1
-      simp only [uowhfTreeStep, hgt1, hgt1', ↓reduceIte] at hLi_succ
+      simp only [uowhfTreeStep, hgt1, ↓reduceIte, ← hLi_len_eq] at hLi_succ
       have hr₀ : j < (List.range (((L m₀ i).length + 1) / 2)).length := by
         simpa only [List.length_range] using hj_half
-      have hr₁ : j < (List.range (((L m₁ i).length + 1) / 2)).length := by
-        simpa only [List.length_range, ← hLi_len_eq] using hj_half
       have hj_entry := congrArg (fun l => l[j]?) hLi_succ
-      simp only [List.getElem?_map, List.getElem?_eq_getElem hr₀,
-        List.getElem?_eq_getElem hr₁, List.getElem_range, Option.map_some,
-        Option.some.injEq, padOrTake_eq_self (BitString.length_listRow κ i K)] at hj_entry
+      simp only [List.getElem?_map, List.getElem?_eq_getElem hr₀, List.getElem_range,
+        Option.map_some, Option.some.injEq, padOrTake_eq_self (BitString.length_listRow κ i K)]
+        at hj_entry
       rwa [padOrTake_eq_self (hlen_h _ _ (BitString.length_listRow κ i K)
           (length_uowhfPairInput M (L m₀ i) j)),
         padOrTake_eq_self (hlen_h _ _ (BitString.length_listRow κ i K)
@@ -1002,12 +995,10 @@ private theorem uniformList_bind_three_split {α : Type*} (a b c : ℕ)
 private theorem listRow_eq_drop_take_of_le {κ n i : ℕ} (hi : i ≤ n) {K : List Bool}
     (hK : K.length = (n + 1) * κ) :
     (K.drop (i * κ)).take κ = BitString.listRow κ i K := by
-  have hrem : κ ≤ (K.drop (i * κ)).length := by
-    rw [List.length_drop, hK]
-    have : (i + 1) * κ ≤ (n + 1) * κ := Nat.mul_le_mul_right κ (by omega)
-    have : i * κ + κ = (i + 1) * κ := by ring
-    omega
-  unfold BitString.listRow; rw [List.take_append_of_le_length hrem]
+  have hle : i * κ + κ ≤ (n + 1) * κ := by
+    simpa only [Nat.add_mul, Nat.one_mul] using Nat.mul_le_mul_right κ (Nat.add_le_add_right hi 1)
+  unfold BitString.listRow
+  exact (List.take_append_of_le_length (by rw [List.length_drop, hK]; omega)).symm
 
 /-- **Concrete security bound for `uowhfTreeHash`**: at any security parameter `n ≥ 1` with
 `n ≤ blockLen n`, `1 ≤ maxBlocks n`, and every supported message pair `(m₀, m₁)` of `adversary`
@@ -1108,9 +1099,8 @@ theorem succProbability_targetCollisionGame_uowhfTreeHash_le
       rw [uowhfCandidateInput_take_eq h hi_le K m₁]
   have hcover : ∀ t ∈ μ.support, W t = true → ∃ s : Fin (dyadicSize bound), Wi s t = true := by
     rintro ⟨choice, K, m₁⟩ ht hW
-    simp only [μ, PMF.mem_support_bind_iff, PMF.mem_support_map_iff] at ht
-    obtain ⟨choice', hchoice, K', hK, ⟨m₁', hm₁, htuple⟩⟩ := ht
-    injection htuple with h1 h23; injection h23 with h2 h3; subst h1 h2 h3
+    simp only [μ, PMF.mem_support_bind_iff, PMF.mem_support_map_iff, Prod.mk.injEq] at ht
+    obtain ⟨choice', hchoice, K', hK, m₁', hm₁, rfl, rfl, rfl⟩ := ht
     obtain ⟨_, _, hne, hcol⟩ := isCollision_eq_true_iff.mp hW
     obtain ⟨hm₀_B, hm₀_pow⟩ := hm₀_bound choice' hchoice
     obtain ⟨i, hi_le, j, hj_lt, hx_ne, hx_col⟩ :=

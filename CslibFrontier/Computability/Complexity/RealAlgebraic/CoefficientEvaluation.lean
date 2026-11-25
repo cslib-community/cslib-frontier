@@ -61,18 +61,16 @@ theorem coefficientResidue_mem {α : Type} {enc : α ↪ List Bool} {a : ℕ}
     (fun w => coefficientResidue (p w) (k w) (fun z => value (w, z))) ∈
       CountingFunction (a + 1) enc encNat := by
   have hp' := hp.comp (ComputableInPolyTime.fst enc encNat)
-  have hk' := hk.comp (ComputableInPolyTime.fst enc encNat)
-  have he := ComputableInPolyTime.binary_sub'
-    (ComputableInPolyTime.binary_sub' hp' (.const 1)) hk'
   have hpower := CountingFunction.powMod (a := a) (CountingFunction.of_polyTime hp')
     (CountingFunction.of_polyTime (ComputableInPolyTime.snd enc encNat))
-    (CountingFunction.of_polyTime he)
-  have hsum := CountingFunction.sum_range D (CountingFunction.nat_mul hv hpower) hp
-  have hmod := CountingFunction.nat_mod hsum (CountingFunction.of_polyTime hp)
-  have hsub := CountingFunction.map
-    (CountingFunction.prod (CountingFunction.of_polyTime hp) hmod)
-    ComputableInPolyTime.binary_sub
-  exact CountingFunction.nat_mod hsub (CountingFunction.of_polyTime hp)
+    (CountingFunction.of_polyTime (ComputableInPolyTime.binary_sub'
+      (ComputableInPolyTime.binary_sub' hp' (.const 1)) (hk.comp (.fst enc encNat))))
+  exact CountingFunction.nat_mod
+    (CountingFunction.map (CountingFunction.prod (CountingFunction.of_polyTime hp)
+      (CountingFunction.nat_mod (CountingFunction.sum_range D
+        (CountingFunction.nat_mul hv hpower) hp) (CountingFunction.of_polyTime hp)))
+      ComputableInPolyTime.binary_sub)
+    (CountingFunction.of_polyTime hp)
 
 /-- The total evaluator represents the actual polynomial coefficient in the field.
 Correctness uses values only on the canonical representatives below `p`. -/
@@ -83,13 +81,9 @@ theorem coefficientResidue_cast {p : ℕ} [Fact p.Prime]
     (coefficientResidue p k value : ZMod p) = P.coeff k := by
   have hp : p.Prime := Fact.out
   unfold coefficientResidue
-  rw [ZMod.natCast_mod, Nat.cast_sub (Nat.mod_lt _ hp.pos).le,
-    ZMod.natCast_self, ZMod.natCast_mod, zero_sub]
-  rw [Polynomial.coeff_eq_neg_sum_range_eval P k hP hk]
-  congr 1
-  rw [Nat.cast_sum]
-  apply Finset.sum_congr rfl
-  intro z hz
+  rw [ZMod.natCast_mod, Nat.cast_sub (Nat.mod_lt _ hp.pos).le, ZMod.natCast_self,
+    ZMod.natCast_mod, zero_sub, Polynomial.coeff_eq_neg_sum_range_eval P k hP hk, Nat.cast_sum]
+  refine congrArg (- ·) (Finset.sum_congr rfl fun z hz => ?_)
   rw [Nat.cast_mul, hvalue z (Finset.mem_range.mp hz),
     powMod_of_ne_zero hp.ne_zero, ZMod.natCast_mod, Nat.cast_pow]
 

@@ -86,24 +86,21 @@ variable {V W : Type} {encV : V ↪ List Bool} {encW : W ↪ List Bool}
 theorem Literal.computableInPolyTime_negate (enc : V ↪ List Bool) :
     ComputableInPolyTime Std.Sat.Literal.negate
       (encPair enc encBool) (encPair enc encBool) := by
-  unfold Std.Sat.Literal.negate
-  fun_prop
+  fun_prop [Std.Sat.Literal.negate]
 
 /-- Construct an implication from literals, with a positive conclusion. -/
 @[fun_prop]
 theorem Clause.computableInPolyTime_impLits (enc : V ↪ List Bool) :
     ComputableInPolyTime (fun p : List (Literal V) × V => Clause.impLits p.1 p.2)
       (encPair (encClause enc) enc) (encClause enc) := by
-  unfold Clause.impLits
-  fun_prop
+  fun_prop [Clause.impLits]
 
 /-- Construct an implication from positive hypotheses and a positive conclusion. -/
 @[fun_prop]
 theorem Clause.computableInPolyTime_imp (enc : V ↪ List Bool) :
     ComputableInPolyTime (fun p : List V × V => Clause.imp p.1 p.2)
       (encPair (encList enc) enc) (encClause enc) := by
-  unfold Clause.imp
-  fun_prop
+  fun_prop [Clause.imp]
 
 /-- Relabelling a clause is polynomial-time whenever the renaming function is. -/
 @[fun_prop]
@@ -126,8 +123,7 @@ theorem CNF.computableInPolyTime_relabel {f : V → W}
 theorem CNF.computableInPolyTime_vars (enc : V ↪ List Bool) :
     ComputableInPolyTime (CNF.vars (V := V))
       (encCNFOver enc) (encList enc) := by
-  unfold CNF.vars
-  fun_prop
+  fun_prop [CNF.vars]
 
 /-- The number of literals in a polynomial-time clause, in unary, is polynomial-time. -/
 theorem Clause.computableInPolyTime_length {α : Type} {input : α ↪ List Bool}
@@ -175,9 +171,7 @@ theorem CNF.computableInPolyTime_distinctVars [DecidableEq V] (enc : V ↪ List 
 theorem CNF.computableInPolyTime_numVars [DecidableEq V] (enc : V ↪ List Bool) :
     ComputableInPolyTime (CNF.numVars (V := V))
       (encCNFOver enc) encUnary := by
-  have e : (CNF.numVars (V := V)) = fun φ => φ.distinctVars.length :=
-    funext fun φ => (CNF.length_distinctVars φ).symm
-  rw [e]
+  rw [← funext CNF.length_distinctVars]
   fun_prop
 
 /-- Encoding of a literal occurrence: unary clause and position indices with an encoded literal,
@@ -191,8 +185,7 @@ enc_structure encOccurrence (enc : V ↪ List Bool) : Occurrence V where
 theorem computableInPolyTime_occurrences (enc : V ↪ List Bool) :
     ComputableInPolyTime (occurrences (V := V))
       (encCNFOver enc) (encList (encOccurrence enc)) := by
-  unfold occurrences
-  fun_prop
+  fun_prop [occurrences]
 
 /-- Evaluating a computed literal is polynomial-time under an assignment that is polynomial-time
 in the input and the variable. The literal's certificate comes first, so that it fixes the
@@ -203,8 +196,7 @@ theorem Literal.computableInPolyTime_eval {α : Type} {input : α ↪ List Bool}
     (hl : ComputableInPolyTime l input (encPair encV encBool))
     (hσ : ComputableInPolyTime (fun p : α × V => σ p.1 p.2) (encPair input encV) encBool) :
     ComputableInPolyTime (fun a => Literal.eval (σ a) (l a)) input encBool := by
-  unfold Literal.eval
-  fun_prop
+  fun_prop [Literal.eval]
 
 /-- Evaluating a computed clause is polynomial-time under an assignment that is polynomial-time
 in the input and the variable. -/
@@ -214,8 +206,7 @@ theorem Clause.computableInPolyTime_eval {α : Type} {input : α ↪ List Bool}
     (hc : ComputableInPolyTime c input (encClause encV))
     (hσ : ComputableInPolyTime (fun p : α × V => σ p.1 p.2) (encPair input encV) encBool) :
     ComputableInPolyTime (fun a => Clause.eval (σ a) (c a)) input encBool := by
-  unfold Clause.eval
-  fun_prop
+  fun_prop [Clause.eval]
 
 /-- Evaluating a computed formula is polynomial-time under an assignment that is polynomial-time
 in the input and the variable. -/
@@ -225,8 +216,7 @@ theorem CNF.computableInPolyTime_eval {α : Type} {input : α ↪ List Bool}
     (hφ : ComputableInPolyTime φ input (encCNFOver encV))
     (hσ : ComputableInPolyTime (fun p : α × V => σ p.1 p.2) (encPair input encV) encBool) :
     ComputableInPolyTime (fun a => CNF.eval (σ a) (φ a)) input encBool := by
-  unfold CNF.eval
-  fun_prop
+  fun_prop [CNF.eval]
 
 /-- Evaluating a formula under the assignment numbered by `i` on a list of variables is
 polynomial-time. -/
@@ -249,16 +239,14 @@ polynomial-time. -/
 theorem computableInPolyTime_countUnsat_mem [DecidableEq V] (enc : V ↪ List Bool) :
     ComputableInPolyTime (fun p : CNF V × List V => p.1.countUnsat fun v => decide (v ∈ p.2))
       (encPair (encCNFOver enc) (encList enc)) encUnary := by
-  unfold CNF.countUnsat
-  fun_prop
+  fun_prop [CNF.countUnsat]
 
 /-- Construct the clause requiring at least one listed variable to hold. -/
 @[fun_prop]
 theorem CNF.computableInPolyTime_atLeastOne (enc : V ↪ List Bool) :
     ComputableInPolyTime (CNF.atLeastOne (V := V))
       (encList enc) (encCNFOver enc) := by
-  unfold CNF.atLeastOne
-  fun_prop
+  fun_prop [CNF.atLeastOne]
 
 /-- Construct the clauses forbidding two distinct listed variables from both holding.
 The list may contain repeated variables. -/
@@ -273,8 +261,7 @@ theorem CNF.computableInPolyTime_atMostOne [DecidableEq V] (enc : V ↪ List Boo
 theorem CNF.computableInPolyTime_exactlyOne [DecidableEq V] (enc : V ↪ List Bool) :
     ComputableInPolyTime (CNF.exactlyOne (V := V))
       (encList enc) (encCNFOver enc) := by
-  unfold CNF.exactlyOne
-  fun_prop
+  fun_prop [CNF.exactlyOne]
 
 /-- The entire input-dependent renaming is polynomial-time for any original variable encoding.
 Its output indices use unary encoding and are bounded by the input's number of occurrences. -/
@@ -282,7 +269,6 @@ Its output indices use unary encoding and are bounded by the input's number of o
 theorem CNF.isPolyTime_compact [DecidableEq V] (enc : V ↪ List Bool) :
     ComputableInPolyTime (CNF.compact (V := V))
       (encCNFOver enc) (encCNFOver encUnary) := by
-  unfold CNF.compact CNF.relabel Clause.relabel Prod.map
-  fun_prop
+  fun_prop [CNF.compact, CNF.relabel, Clause.relabel, Prod.map]
 
 end Cslib.Logic.PL

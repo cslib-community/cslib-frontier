@@ -73,21 +73,12 @@ theorem isPolyTime_generate {α : Type} {input : α ↪ List Bool}
     (hseed : ComputableInPolyTime seed input encBits) :
     ComputableInPolyTime
       (fun a => generate (seedBits a) (commonBits a) (generator a) (seed a)) input encBits := by
-  have htakeSeed : ComputableInPolyTime (fun a => (seed a).take (seedBits a)) input encBits :=
-    ComputableInPolyTime.bitsTakeWithInput hseed hseedBits
-  have hdropSeed : ComputableInPolyTime (fun a => (seed a).drop (seedBits a)) input encBits :=
-    ComputableInPolyTime.bitsDropWithInput hseed hseedBits
-  have hgen : ComputableInPolyTime
-      (fun a => generator a ((seed a).take (seedBits a))) input encBits :=
-    hgenerator.comp (ComputableInPolyTime.id'.prod htakeSeed)
-  have happ : ComputableInPolyTime
-      (fun a => generator a ((seed a).take (seedBits a)) ++ (seed a).drop (seedBits a))
-      input encBits :=
-    ComputableInPolyTime.bitsAppend hgen hdropSeed
-  have hlen : ComputableInPolyTime (fun a => commonBits a + 1) input encUnary :=
-    ComputableInPolyTime.unary_succ.comp hcommon
-  unfold generate
-  exact ComputableInPolyTime.bitsTakeWithInput happ hlen
+  have hgen := hgenerator.comp
+    (ComputableInPolyTime.id'.prod (ComputableInPolyTime.bitsTakeWithInput hseed hseedBits))
+  have happ := ComputableInPolyTime.bitsAppend hgen
+    (ComputableInPolyTime.bitsDropWithInput hseed hseedBits)
+  exact ComputableInPolyTime.bitsTakeWithInput happ
+    (ComputableInPolyTime.unary_succ.comp hcommon)
 
 attribute [program_certificate] isPolyTime_generate
 
@@ -150,12 +141,11 @@ theorem isPPTOn_test {α : Type} {input : α ↪ List Bool}
   have hpadding := ComputableInPolyTime.sampleList
     (ComputableInPolyTime.unary_sub' hcommon hseedBits)
   have hcaller := ComputableInPolyTime.fst input encBits
-  have hpaddingWord := ComputableInPolyTime.snd input encBits
-  have hjoined := ComputableInPolyTime.bitsAppend (hword.comp hcaller) hpaddingWord
-  have hlimit := ComputableInPolyTime.unary_add' (hcommon.comp hcaller)
-    (ComputableInPolyTime.const 1)
-  have hprepared := hcaller.prod (ComputableInPolyTime.bitsTakeWithInput hjoined hlimit)
-  exact hpadding.bind_with (hadversary.preprocess hprepared)
+  have hjoined := ComputableInPolyTime.bitsAppend (hword.comp hcaller)
+    (ComputableInPolyTime.snd input encBits)
+  have hlimit := ComputableInPolyTime.unary_succ.comp (hcommon.comp hcaller)
+  exact hpadding.bind_with <| hadversary.preprocess <|
+    hcaller.prod (ComputableInPolyTime.bitsTakeWithInput hjoined hlimit)
 
 /-- Padding preserves the tested distinguishing advantage exactly. -/
 theorem advantage_eq {seedBits outputBits commonBits : ℕ} (generator : List Bool → List Bool)
@@ -171,7 +161,6 @@ theorem advantage_eq {seedBits outputBits commonBits : ℕ} (generator : List Bo
       ((uniformList outputBits).bind
         (fun word => ProbComp.eval (test seedBits commonBits adversary word))) := by
   rw [generate_distribution generator hfits, ← ideal_distribution hexpands]
-  simp only [PMF.monad_bind_eq_bind]
-  simp only [pmf_norm, test, BitString.eval_sampleList]
+  simp only [PMF.monad_bind_eq_bind, pmf_norm, test, BitString.eval_sampleList]
 
 end Cslib.Crypto.GeneratorPadding

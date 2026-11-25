@@ -55,8 +55,8 @@ theorem slot_lt
   · change 0 < budget
     omega
   · change (if b then 1 else 0) < budget
-    cases b <;> simp only [ite_true, ite_false, Bool.false_eq_true] <;> omega
-  · have he := (cell N A v).diagram.num_lt e.val
+    cases b <;> simp <;> omega
+  · have := (cell N A v).diagram.num_lt e.val
     change 2 + (cell N A v).diagram.num e.val < budget
     change (cell N A v).top.length + (cell N A v).diagram.innerCount + 2 ≤ budget at hb
     omega
@@ -67,46 +67,35 @@ private theorem owner_eq_of_code_eq
     Numbering.edgeOwner N A e = Numbering.edgeOwner N A f := by
   have he := slot_lt N A budget hbudget e
   have hf := slot_lt N A budget hbudget f
-  apply order.injective
-  apply Fin.ext
-  by_contra hne
+  refine order.injective (Fin.ext (by_contradiction fun hne => ?_))
+  unfold code at h
   rcases lt_or_gt_of_ne hne with hlt | hgt
-  · have hm := Nat.mul_le_mul_left budget (Nat.succ_le_of_lt hlt)
-    simp only [Nat.mul_succ] at hm
-    unfold code at h
-    omega
-  · have hm := Nat.mul_le_mul_left budget (Nat.succ_le_of_lt hgt)
-    simp only [Nat.mul_succ] at hm
-    unfold code at h
-    omega
+  · have := Nat.mul_le_mul_left budget (Nat.succ_le_of_lt hlt)
+    rw [Nat.mul_succ] at this; omega
+  · have := Nat.mul_le_mul_left budget (Nat.succ_le_of_lt hgt)
+    rw [Nat.mul_succ] at this; omega
 
 private theorem eq_of_owner_slot_eq {e f : Edge C R ⊕ Private N A}
     (howner : Numbering.edgeOwner N A e = Numbering.edgeOwner N A f)
     (hslot : slot N A e = slot N A f) : e = f := by
-  rcases e with (c | ⟨r, b⟩) | ⟨v, e⟩ <;>
-    rcases f with (d | ⟨r', b'⟩) | ⟨v', f⟩
-  all_goals dsimp only [slot, Numbering.edgeOwner] at howner hslot
+  rcases e with (c | ⟨r, b⟩) | ⟨v, e⟩ <;> rcases f with (d | ⟨r', b'⟩) | ⟨v', f⟩ <;>
+    dsimp only [slot, Numbering.edgeOwner] at howner hslot
   · exact congrArg (Sum.inl ∘ Sum.inl) (Sum.inl.inj (Sum.inr.inj howner))
   · cases howner
   · change 0 = 2 + _ at hslot
     omega
   · cases howner
-  · have hr : r = r' := Sum.inr.inj (Sum.inr.inj howner)
-    subst r'
+  · obtain rfl : r = r' := Sum.inr.inj (Sum.inr.inj howner)
     cases b <;> cases b' <;> simp_all
   · change (if b then 1 else 0) = 2 + _ at hslot
     cases b <;> simp only [ite_true, ite_false, Bool.false_eq_true] at hslot <;> omega
   · change 2 + _ = 0 at hslot
     omega
-  · change 2 + _ = (if b' then 1 else 0) at hslot
+  · change 2 + _ = if b' then 1 else 0 at hslot
     cases b' <;> simp only [ite_true, ite_false, Bool.false_eq_true] at hslot <;> omega
-  · change v = v' at howner
-    subst v'
-    have hn : (cell N A v).diagram.num e.val = (cell N A v).diagram.num f.val := by
-      change 2 + _ = 2 + _ at hslot
-      exact Nat.add_left_cancel hslot
-    have heq := (cell N A v).diagram.num_injective hn
-    exact congrArg (fun e => Sum.inr (⟨v, e⟩ : Private N A)) (Subtype.ext heq)
+  · obtain rfl : v = v' := howner
+    exact congrArg (fun e => Sum.inr (⟨v, e⟩ : Private N A)) <| Subtype.ext <|
+      (cell N A v).diagram.num_injective (Nat.add_left_cancel (hslot : 2 + _ = 2 + _))
 
 /-- Bounded slots in distinct source cells give distinct natural wire names. -/
 theorem code_injective

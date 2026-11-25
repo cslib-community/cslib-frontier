@@ -44,19 +44,15 @@ def window (t : RawTape Symbol) (pos : ℤ) : Finset ℤ :=
 
 @[simp] theorem card_window (t : RawTape Symbol) (pos : ℤ) :
     (t.window pos).card = t.span := by
-  rw [window, Int.card_Icc]
-  unfold span
-  omega
+  rw [window, Int.card_Icc, span]; omega
 
 /-- A tape step stores precisely its previous window and its new head position. -/
 theorem window_step (t : RawTape Symbol) (a : Option (Option Symbol) × SignType) (pos : ℤ) :
     (t.step a).window (pos + a.2) = insert (pos + a.2) (t.window pos) := by
-  ext z
-  simp only [window, Finset.mem_Icc, Finset.mem_insert]
   rcases a with ⟨w, d⟩
-  cases d <;>
-    simp only [length_left_step, length_right_step, SignType.cast, add_zero]
-  all_goals omega
+  ext z
+  cases d <;> simp only [window, Finset.mem_Icc, Finset.mem_insert, length_left_step,
+    length_right_step, SignType.cast, add_zero] <;> omega
 
 /-- The action on work tape `i`; a halted machine neither writes nor moves. -/
 @[expose] noncomputable def nativeAction (tm : MultiTapeTM k Symbol State)
@@ -114,11 +110,9 @@ theorem visited_succ (tm : MultiTapeTM k Symbol State)
   simp only [MultiTapeNTM.RunPath.mem_visitedByTapeHead_ofDeterministic, Finset.mem_insert]
   constructor
   · rintro ⟨m, hm, hz⟩
-    by_cases h : m = n + 1
-    · exact .inl (h ▸ hz).symm
-    · exact .inr ⟨m, by omega, hz⟩
-  · rintro (hz | ⟨m, hm, hz⟩)
-    · exact ⟨n + 1, by omega, hz.symm⟩
+    exact if h : m = n + 1 then .inl (h ▸ hz).symm else .inr ⟨m, by omega, hz⟩
+  · rintro (rfl | ⟨m, hm, hz⟩)
+    · exact ⟨n + 1, by omega, rfl⟩
     · exact ⟨m, by omega, hz⟩
 
 /-- Every stored cell has been visited, and every visited cell remains stored. -/

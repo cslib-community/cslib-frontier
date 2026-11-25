@@ -850,8 +850,7 @@ theorem mem_support_resampleSingleComp {base c_exp n_max U M : ℕ} {x : Data 19
     have := add_cuckooK_lt_singleHashSpace hlt
     refine ⟨by simpa [resampleSingleSteps, hlt] using hsteps, by wram_simp [hz0], ?_, ?_,
       fun a ha => hout a (by omega)⟩
-    · unfold SingleTableRep
-      rw [decide_eq_true hlt]
+    · rw [SingleTableRep, decide_eq_true hlt]
       exact htab'
     · unfold SingleSeedRep extractSingleSeed
       revert hseed'
@@ -862,9 +861,7 @@ theorem mem_support_resampleSingleComp {base c_exp n_max U M : ℕ} {x : Data 19
       DoubleTabulation.mem_support_resampleComp hbase hz₀
     refine ⟨by simp [resampleSingleSteps, hlt, hsteps], by wram_simp [hz0], ?_, ?_,
       fun a ha => hout a (singleHashSpace_of_not_lt hlt ▸ ha)⟩
-    · unfold SingleTableRep
-      rw [decide_eq_false hlt]
-      trivial
+    · simp only [SingleTableRep, SingleTableRepAux, decide_eq_false hlt]
     · unfold SingleSeedRep extractSingleSeed
       revert hseed'
       rw [decide_eq_false hlt]
@@ -1038,18 +1035,10 @@ private theorem map_pair_extractSingleSeed_eval_resampleHashPairComp
     exact map_pair_extractSingleSeed_eval_resampleSecondBlockComp
       (htab.2.congr_of_footprint (block2_in_of_block1_out hframe1))
   rw [hcongr]
-  have hbind :
-      (resampleSingleComp hashBase c_exp n_max U M x).eval.bind
-        (fun z1 : Data 19 × ℕ =>
-          (PMF.uniformOfFintype (SingleSeed c_exp n_max U M)).map
-            (extractSingleSeed hashBase c_exp n_max U M z1.1.mem, ·)) =
-      (((resampleSingleComp hashBase c_exp n_max U M x).eval).map
-          (fun z1 => extractSingleSeed hashBase c_exp n_max U M z1.1.mem)).bind
-        (fun θ₁ => (PMF.uniformOfFintype (SingleSeed c_exp n_max U M)).map (θ₁, ·)) := by
-    rw [PMF.bind_map]
-    rfl
-  rw [hbind, map_extractSingleSeed_eval_resampleSingleComp,
-    PMF.uniformOfFintype_prod]
+  erw [← PMF.bind_map (resampleSingleComp hashBase c_exp n_max U M x).eval
+    (fun z1 => extractSingleSeed hashBase c_exp n_max U M z1.1.mem)
+    (fun θ₁ => (PMF.uniformOfFintype (SingleSeed c_exp n_max U M)).map (θ₁, ·))]
+  rw [map_extractSingleSeed_eval_resampleSingleComp, PMF.uniformOfFintype_prod]
 
 /-- **Exact uniformity of `resampleHashPairComp`**: the extracted seed
 `extractSeed hashBase c_exp n_max U M z.1.mem` is distributed according to

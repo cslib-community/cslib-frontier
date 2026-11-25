@@ -82,7 +82,6 @@ so no extra negation is introduced, even at the two ends of a closed route. -/
 The equation holds for all real parameters, including outside the unit interval. -/
 theorem eval_reverse (p : Route) (i : Fin p.reverse.segments) (t : ℝ) :
     p.reverse.eval i t = p.eval i.rev (1 - t) := by
-  change Fin (p.bends + 1) at i
   change AffineMap.lineMap (p.point i.castSucc.rev) (p.point i.succ.rev) t =
     AffineMap.lineMap (p.point i.rev.castSucc) (p.point i.rev.succ) (1 - t)
   rw [Fin.rev_castSucc, Fin.rev_succ, AffineMap.lineMap_apply_one_sub]
@@ -100,14 +99,13 @@ private theorem atEnd_reverse (p : Route) (i : Fin p.reverse.segments) (t : ℝ)
   change (p.reverse.position i t = if b then (p.segments : ℝ) else 0) ↔ _
   rw [position_reverse]
   cases b <;> simp only [AtEnd, Bool.not_false, Bool.not_true, Bool.false_eq_true, ↓reduceIte] <;>
-    constructor <;> intro h <;> linarith
+    exact ⟨fun _ => by linarith, fun _ => by linarith⟩
 
 /-- Reversal preserves the full continuum of actual support points. -/
 @[simp] theorem support_reverse (p : Route) : p.reverse.support = p.support := by
-  have sub (r : Route) : r.reverse.support ⊆ r.support := by
-    intro z hz
-    obtain ⟨i, t, ht, heq⟩ := (r.reverse.mem_support_iff z).mp hz
-    exact (r.mem_support_iff z).mpr
+  have sub (r : Route) : r.reverse.support ⊆ r.support := fun z hz =>
+    let ⟨i, t, ht, heq⟩ := (r.reverse.mem_support_iff z).mp hz
+    (r.mem_support_iff z).mpr
       ⟨i.rev, 1 - t, Set.Icc.one_sub_mem ht, (eval_reverse r i t).symm.trans heq⟩
   exact Set.Subset.antisymm (sub p) (by simpa only [reverse_reverse] using sub p.reverse)
 
@@ -115,18 +113,11 @@ private theorem atEnd_reverse (p : Route) (i : Fin p.reverse.segments) (t : ℝ)
 two ends of a closed route. Both closing alternatives are swapped by the end-tag map. -/
 theorem IsSimple.reverse {p : Route} (hp : p.IsSimple) : p.reverse.IsSimple := by
   intro i j s t hs ht heq
-  have heq' : p.eval i.rev (1 - s) = p.eval j.rev (1 - t) := by
-    simpa only [eval_reverse] using heq
-  rcases hp i.rev j.rev (1 - s) (1 - t) (Set.Icc.one_sub_mem hs)
-      (Set.Icc.one_sub_mem ht) heq' with h | ⟨h0, h1⟩ | ⟨h1, h0⟩
-  · left
-    rw [position_reverse, position_reverse, h]
-  · right
-    right
-    exact ⟨(atEnd_reverse p i s true).mpr h0, (atEnd_reverse p j t false).mpr h1⟩
-  · right
-    left
-    exact ⟨(atEnd_reverse p i s false).mpr h1, (atEnd_reverse p j t true).mpr h0⟩
+  rcases hp i.rev j.rev (1 - s) (1 - t) (Set.Icc.one_sub_mem hs) (Set.Icc.one_sub_mem ht)
+      (by simpa only [eval_reverse] using heq) with h | ⟨h0, h1⟩ | ⟨h1, h0⟩
+  · exact .inl (by rw [position_reverse, position_reverse, h])
+  · exact .inr (.inr ⟨(atEnd_reverse p i s true).mpr h0, (atEnd_reverse p j t false).mpr h1⟩)
+  · exact .inr (.inl ⟨(atEnd_reverse p i s false).mpr h1, (atEnd_reverse p j t true).mpr h0⟩)
 
 /-- A reversed one-segment route is literally the one-segment route with swapped ends. -/
 @[simp] theorem reverse_line (a b : ℂ) : (line a b).reverse = line b a := by

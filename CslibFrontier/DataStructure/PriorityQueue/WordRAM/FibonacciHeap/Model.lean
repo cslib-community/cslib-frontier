@@ -123,38 +123,28 @@ theorem IsCircList.insertAfter {n : ℕ} {left right : Fin n → ℕ} {h u : Fin
   have huh : u ≠ h := fun e => hu (e ▸ List.mem_cons_self)
   have hu_tail : u ∉ tail := fun m => hu (List.mem_cons_of_mem h m)
   have hnodup' : (h :: u :: tail).Nodup := by
-    rw [List.nodup_cons] at hnodup ⊢
-    refine ⟨?_, List.nodup_cons.mpr ⟨hu_tail, hnodup.2⟩⟩
-    simp only [List.mem_cons, not_or]
-    exact ⟨huh.symm, hnodup.1⟩
+    simp only [List.nodup_cons, List.mem_cons, not_or] at hnodup ⊢
+    exact ⟨⟨huh.symm, hnodup.1⟩, hu_tail, hnodup.2⟩
   rcases tail with _ | ⟨a, rest⟩
+  · obtain rfl : r = h := Fin.ext (hr.symm.trans hc.1)
+    exact ⟨hnodup', by
+      simp only [ChainLinks, Function.update_self, Function.update_of_ne huh, and_self]⟩
   · simp only [ChainLinks] at hc
-    have hrh : r = h := Fin.ext (hr.symm.trans hc.1)
-    subst hrh
-    refine ⟨hnodup', ?_⟩
-    simp only [ChainLinks, Function.update_self, Function.update_of_ne huh, and_self]
-  · simp only [ChainLinks] at hc
-    have hra : r = a := Fin.ext (hr.symm.trans hc.1)
-    subst hra
-    have hr_ne_h : r ≠ h := fun e => (List.nodup_cons.mp hnodup).1 (e ▸ List.mem_cons_self)
+    obtain rfl : r = a := Fin.ext (hr.symm.trans hc.1)
+    obtain ⟨hh_not, hnd_r⟩ := List.nodup_cons.mp hnodup
+    have hr_ne_h : r ≠ h := fun e => hh_not (e ▸ List.mem_cons_self)
     have hu_ne_r : u ≠ r := fun e => hu_tail (e ▸ List.mem_cons_self)
-    have hr_not_rest : r ∉ rest := (List.nodup_cons.mp (List.nodup_cons.mp hnodup).2).1
-    have hh_not_rest : h ∉ rest := fun m =>
-      (List.nodup_cons.mp hnodup).1 (List.mem_cons_of_mem r m)
-    have hu_not_rest : u ∉ rest := fun m => hu_tail (List.mem_cons_of_mem r m)
-    refine ⟨hnodup', ?_⟩
-    dsimp only [ChainLinks]
-    refine ⟨by simp [Function.update_self],
-      by simp [Function.update_of_ne hu_ne_r, Function.update_self],
-      by simp [Function.update_of_ne huh, Function.update_self],
-      by simp [Function.update_self],
-      hc.2.2.frame ?_ ?_ ?_⟩
+    refine ⟨hnodup', ⟨?_, ?_, ?_, ?_, hc.2.2.frame ?_ ?_ ?_⟩⟩
+    · simp only [Function.update_self]
+    · simp only [Function.update_of_ne hu_ne_r, Function.update_self]
+    · simp only [Function.update_of_ne huh, Function.update_self]
+    · simp only [Function.update_self]
     · simp only [Function.update_of_ne hr_ne_h.symm, Function.update_of_ne huh.symm]
     · simp only [Function.update_of_ne hr_ne_h, Function.update_of_ne hu_ne_r.symm]
     · intro x hx
-      have hxr : x ≠ r := fun e => hr_not_rest (e ▸ hx)
-      have hxu : x ≠ u := fun e => hu_not_rest (e ▸ hx)
-      have hxh : x ≠ h := fun e => hh_not_rest (e ▸ hx)
+      have hxr : x ≠ r := fun e => (List.nodup_cons.mp hnd_r).1 (e ▸ hx)
+      have hxu : x ≠ u := fun e => hu_tail (List.mem_cons_of_mem r (e ▸ hx))
+      have hxh : x ≠ h := fun e => hh_not (List.mem_cons_of_mem r (e ▸ hx))
       simp only [Function.update_of_ne hxr, Function.update_of_ne hxu, Function.update_of_ne hxh,
         and_self]
 
@@ -189,20 +179,16 @@ theorem IsCircList.rotate_to {n : ℕ} {left right : Fin n → ℕ} {L₁ L₂ :
   induction L₁ generalizing L₂ with
   | nil => simpa only [List.append_nil, List.nil_append] using hL
   | cons x xs ih =>
-    have hrot : IsCircList left right ((xs ++ v :: L₂) ++ [x]) := hL.rotate_one
-    have heq : (xs ++ v :: L₂) ++ [x] = xs ++ v :: (L₂ ++ [x]) := by simp
-    rw [heq] at hrot
-    have hih := ih hrot
-    simpa only [List.append_assoc, List.singleton_append] using hih
+    have hrot : IsCircList left right (xs ++ v :: (L₂ ++ [x])) := by
+      simpa only [List.append_eq, List.cons_append, List.append_assoc] using hL.rotate_one
+    simpa only [List.append_assoc, List.singleton_append] using ih hrot
 
 /-- Any member `v ∈ L` of a circular list can be rotated to the head while preserving `Perm`. -/
 theorem IsCircList.exists_head {n : ℕ} {left right : Fin n → ℕ} {L : List (Fin n)} {v : Fin n}
     (hL : IsCircList left right L) (hv : v ∈ L) :
     ∃ tail, IsCircList left right (v :: tail) ∧ (v :: tail).Perm L := by
   obtain ⟨L₁, L₂, rfl⟩ := List.append_of_mem hv
-  refine ⟨L₂ ++ L₁, hL.rotate_to, ?_⟩
-  have h1 : (v :: (L₂ ++ L₁)).Perm ((v :: L₂) ++ L₁) := List.Perm.refl _
-  exact h1.trans List.perm_append_comm
+  exact ⟨L₂ ++ L₁, hL.rotate_to, List.perm_append_comm (l₁ := v :: L₂)⟩
 
 private theorem ChainLinks.end_eq {n : ℕ} {left right : Fin n → ℕ} {first : Fin n} :
     ∀ (u : Fin n) (us : List (Fin n)) (hne : u :: us ≠ []),
@@ -294,14 +280,10 @@ theorem fib_sum_pred_add_two (k : ℕ) :
   | succ m ih =>
     rcases m with _ | m
     · decide
-    · rw [Finset.sum_range_succ, ← Nat.add_assoc, ih]
-      have hsub : (m + 1 - 1) + 2 = m + 2 := by omega
-      have h1 : m + 1 + 2 = (m + 2) + 1 := by omega
-      have h2 : m + 1 + 1 + 2 = (m + 2) + 2 := by omega
-      have hfib : Nat.fib ((m + 2) + 2) = Nat.fib (m + 2) + Nat.fib ((m + 2) + 1) :=
-        Nat.fib_add_two
-      rw [hsub, h1, h2, hfib]
-      exact Nat.add_comm _ _
+    · rw [Finset.sum_range_succ, ← Nat.add_assoc, ih, Nat.add_sub_cancel,
+        show m + 1 + 2 = (m + 2) + 1 from rfl, show m + 1 + 1 + 2 = (m + 2) + 2 from rfl,
+        Nat.add_comm]
+      exact Nat.fib_add_two.symm
 
 /-- Exponential lower bound on even-index Fibonacci numbers without golden-ratio reals:
 `2 ^ m ≤ fib (2 * m + 2)` for all `m : ℕ`. -/

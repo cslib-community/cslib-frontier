@@ -114,8 +114,8 @@ private theorem Inv.cut {S : Finset (Fin I.n)} {D : Fin I.n → ℕ∞} (h : I.I
     ∃ x ∉ S, D x ≤ p.addWeight I.arrowWeight := by
   induction p with
   | nil =>
-    refine ⟨I.source, hv, ?_⟩
-    exact h.source.le.trans_eq (Quiver.Path.addWeight_nil (V := I.Vertex) I.arrowWeight _).symm
+    exact ⟨I.source, hv,
+      h.source.le.trans_eq (Quiver.Path.addWeight_nil (V := I.Vertex) I.arrowWeight _).symm⟩
   | @cons b v p e ih =>
     rw [Quiver.Path.addWeight_cons (V := I.Vertex) I.arrowWeight p e]
     by_cases hb : b ∈ S
@@ -127,26 +127,19 @@ private theorem Inv.cut {S : Finset (Fin I.n)} {D : Fin I.n → ℕ∞} (h : I.I
         _ ≤ p.addWeight I.arrowWeight + I.arrowWeight e :=
           add_le_add (I.dist_le_addWeight p) le_rfl
     · obtain ⟨x, hx, hxp⟩ := ih hb
-      refine ⟨x, hx, ?_⟩
-      exact hxp.trans (le_add_right le_rfl)
+      exact ⟨x, hx, hxp.trans (le_add_right le_rfl)⟩
 
 /-- The invariant holds with no vertex visited, the source at tentative distance `0` and every
 other vertex at `⊤`. -/
 theorem Inv.init : I.Inv ∅ (Function.update (fun _ => ⊤) I.source 0) := by
   classical
-  refine ⟨by simp, ?_, ?_, ?_, ?_⟩
+  refine ⟨by simp, ?_,
+    by simp,
+    by simp, ?_⟩
   · intro v
-    by_cases hv : v = I.source
-    · subst v
-      simp [I.dist_self]
-    · simp [Function.update_of_ne hv]
-  · simp
-  · simp
+    rcases eq_or_ne v I.source with rfl | hv <;> simp [I.dist_self, Function.update_of_ne, *]
   · intro v hv
-    by_cases heq : v = I.source
-    · subst v
-      simp
-    · simp [Function.update_of_ne heq] at hv
+    rcases eq_or_ne v I.source with rfl | heq <;> simp [Function.update_of_ne, *] at hv ⊢
 
 /-- **Dijkstra's step.** Visiting an unvisited vertex `u` of least finite tentative distance and
 relaxing its edges keeps the invariant. -/
@@ -166,14 +159,9 @@ theorem Inv.step {S : Finset (Fin I.n)} {D : Fin I.n → ℕ∞} (h : I.Inv S D)
     | some c =>
       simp only [relax, he]
       exact le_min (h.dist_le v) (hexact ▸ I.dist_le_edge he)
-  have hold (a) (ha : a ∈ S) : I.relax D u a = D a := by
-    apply le_antisymm (I.relax_le D u a)
-    rw [h.eq_of_mem a ha]
-    exact hlower a
-  have hself : I.relax D u u = D u := by
-    apply le_antisymm (I.relax_le D u u)
-    rw [hexact]
-    exact hlower u
+  have hold (a) (ha : a ∈ S) : I.relax D u a = D a :=
+    le_antisymm (I.relax_le D u a) (h.eq_of_mem a ha ▸ hlower a)
+  have hself : I.relax D u u = D u := le_antisymm (I.relax_le D u u) (hexact ▸ hlower u)
   have hcard : S.card * I.maxWeight ≤ (insert u S).card * I.maxWeight :=
     Nat.mul_le_mul_right _ (Finset.card_le_card (Finset.subset_insert _ _))
   refine ⟨?_, hlower, ?_, ?_, ?_⟩
@@ -212,12 +200,9 @@ theorem Inv.eq_dist {S : Finset (Fin I.n)} {D : Fin I.n → ℕ∞} (h : I.Inv S
   by_cases hv : v ∈ S
   · exact h.eq_of_mem v hv
   · rw [hdone v hv]
-    apply le_antisymm _ le_top
-    apply le_iInf
-    intro p
+    refine le_antisymm (le_iInf fun p => ?_) le_top
     obtain ⟨x, hx, hxp⟩ := h.cut I p hv
-    rw [hdone x hx] at hxp
-    exact hxp
+    exact hdone x hx ▸ hxp
 
 end Instance
 

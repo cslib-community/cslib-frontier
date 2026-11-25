@@ -91,8 +91,7 @@ theorem sub_maxDegree_le_card_allowedColors (x : V → Fin q) (w : V) :
   have h1 : ((G.neighborFinset w).image x).card ≤ G.maxDegree :=
     Finset.card_image_le.trans (G.degree_le_maxDegree w)
   have h2 := Finset.le_card_sdiff ((G.neighborFinset w).image x) Finset.univ
-  rw [Finset.card_univ, Fintype.card_fin] at h2
-  rw [allowedColors]
+  simp only [allowedColors, Finset.card_univ, Fintype.card_fin] at h2 ⊢
   omega
 
 theorem allowedColors_nonempty (hq : G.maxDegree < q) (x : V → Fin q) (w : V) :
@@ -156,11 +155,7 @@ theorem frozenColorings_empty {b : V → Fin q} (hb : G.IsProperColoring b) :
   ext x
   simp only [mem_frozenColorings, Finset.notMem_empty, not_false_eq_true, forall_const,
     Finset.mem_singleton]
-  constructor
-  · rintro ⟨-, h⟩
-    exact funext h
-  · rintro rfl
-    exact ⟨hb, fun _ => rfl⟩
+  exact ⟨fun ⟨_, h⟩ => funext h, fun h => ⟨h ▸ hb, fun _ => congrFun h _⟩⟩
 
 /-- Freezing one more vertex `v` at its color in `b` keeps the colorings with `x v = b v`. -/
 theorem frozenColorings_erase (U : Finset V) (b : V → Fin q) (v : V) :
@@ -168,29 +163,18 @@ theorem frozenColorings_erase (U : Finset V) (b : V → Fin q) (v : V) :
   ext x
   simp only [Finset.mem_filter, mem_frozenColorings, Finset.mem_erase, not_and_or, not_not,
     ne_eq]
-  constructor
-  · rintro ⟨hx, hb⟩
-    exact ⟨⟨hx, fun u hu => hb u (Or.inr hu)⟩, hb v (Or.inl rfl)⟩
-  · rintro ⟨⟨hx, hb⟩, hv⟩
-    refine ⟨hx, fun u hu => ?_⟩
-    rcases hu with rfl | hu
-    · exact hv
-    · exact hb u hu
+  exact ⟨fun ⟨hx, hb⟩ => ⟨⟨hx, fun u hu => hb u (.inr hu)⟩, hb v (.inl rfl)⟩,
+    fun ⟨⟨hx, hb⟩, hv⟩ => ⟨hx, fun u hu => hu.elim (· ▸ hv) (hb u)⟩⟩
 
 /-- Recoloring a vertex of a proper coloring with an allowed color gives a proper coloring. -/
 theorem IsProperColoring.update_of_mem {x : V → Fin q} (hx : G.IsProperColoring x) {w : V}
     {c : Fin q} (hc : c ∈ G.allowedColors x w) : G.IsProperColoring (Function.update x w c) := by
   rw [SimpleGraph.mem_allowedColors] at hc
   intro u v huv
-  by_cases hu : u = w
-  · subst hu
-    rw [Function.update_self, Function.update_of_ne (G.ne_of_adj huv).symm]
-    exact (hc v huv).symm
-  · by_cases hv : v = w
-    · subst hv
-      rw [Function.update_self, Function.update_of_ne hu]
-      exact hc u huv.symm
-    · rw [Function.update_of_ne hu, Function.update_of_ne hv]
-      exact hx u v huv
+  rcases eq_or_ne u w with rfl | hu
+  · simpa [Function.update_of_ne (G.ne_of_adj huv).symm] using (hc v huv).symm
+  · rcases eq_or_ne v w with rfl | hv
+    · simpa [Function.update_of_ne hu] using hc u huv.symm
+    · simpa [Function.update_of_ne hu, Function.update_of_ne hv] using hx u v huv
 
 end SimpleGraph

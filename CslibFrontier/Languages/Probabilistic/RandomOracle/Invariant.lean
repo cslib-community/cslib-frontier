@@ -63,18 +63,12 @@ private theorem mem_support_answer_invariant [DecidableEq ι] (dist : (q : ι) �
   | none =>
     supp_cases hmem [RandomOracle.answer_of_none dist cache q hq] with ⟨v, hv, rfl, rfl⟩
     refine ⟨Function.update_self q (some v) cache, fun q' v' hq' => ?_, fun q' v' hq' => ?_⟩
-    · have hne : q' ≠ q := by
-        rintro rfl
-        rw [hq] at hq'
-        cases hq'
+    · have hne : q' ≠ q := fun h => Option.some_ne_none _ (hq'.symm.trans (h ▸ hq))
       rw [Function.update_of_ne hne, hq']
-    · by_cases hne : q' = q
-      · subst hne
-        rw [Function.update_self] at hq'
-        cases hq'
-        exact hv
-      · rw [Function.update_of_ne hne] at hq'
-        exact hsupp q' v' hq'
+    · rcases eq_or_ne q' q with rfl | hne
+      · rw [Function.update_self] at hq'
+        exact Option.some.inj hq' ▸ hv
+      · exact hsupp q' v' (by rwa [Function.update_of_ne hne] at hq')
 
 /-- Multi-step invariant of `runWith (RandomOracle.answer dist)`: any outcome `(res, cache')` in
 the support of a run from `cache` produces a final cache `cache'` extending `cache` whose entries
@@ -98,9 +92,8 @@ theorem mem_support_runWith_answer_invariant [DecidableEq ι] (dist : (q : ι) �
     obtain ⟨hq_ans, hsub₁, hsupp₁⟩ := mem_support_answer_invariant dist q hsupp hans
     obtain ⟨hsub₂, hsupp', heval⟩ := ih ans hsupp₁ hcont
     refine ⟨fun q' v' h => hsub₂ q' v' (hsub₁ q' v' h), hsupp', fun h hh => ?_⟩
-    have hq_eq : h q = ans := hh q ans (hsub₂ q ans hq_ans)
-    rw [PFunctor.FreeM.bind_eq_bind]
-    simp only [evalPure_bind, evalPure_query, hq_eq]
+    simp only [PFunctor.FreeM.bind_eq_bind, evalPure_bind, evalPure_query,
+      hh q ans (hsub₂ q ans hq_ans)]
     exact heval h hh
 
 /-- Extend a partial cache `cache` to a total deterministic oracle by returning `v` when

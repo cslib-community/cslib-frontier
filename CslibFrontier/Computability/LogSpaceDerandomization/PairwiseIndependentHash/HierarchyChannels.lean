@@ -141,10 +141,9 @@ theorem stageSide_le_stageModulus (l : ℕ) : stageSide M l ≤ stageModulus M l
   exact Nat.le_mul_of_pos_left _ (by positivity)
 
 theorem stageSide_pos (l : ℕ) : 0 < stageSide M l := by
-  by_contra h
-  have hz : stageSide M l ≤ 0 := Nat.le_of_not_gt h
-  have hp := (ceilDiv_le_iff_le_mul (by positivity : 0 < (2 : ℕ) ^ l)).1 hz
-  have hprime := (stageModulus_prime M l).pos
+  refine Nat.pos_of_ne_zero fun h => ?_
+  have := (ceilDiv_le_iff_le_mul (by positivity : 0 < (2 : ℕ) ^ l)).1 (Nat.le_zero.2 h)
+  have := (stageModulus_prime M l).pos
   omega
 
 /-- The seeds of the affine channel of stage `l`: affine maps `𝔽_(P_l) → 𝔽_(P_l) ^ H`. -/
@@ -170,25 +169,20 @@ theorem retentionChannels_stageChannel {V : ℕ → Type*} {ident : ∀ l, V l �
       (2 ^ H) 4 := by
   set P := stageModulus M l
   have hP : max (2 ^ l) (M l) ≤ P := le_stageModulus M l
-  have hinj : Function.Injective fun v => ((ident l v : ℕ) : ZMod P) := by
-    intro a b hab
+  have hinj : Function.Injective fun v => ((ident l v : ℕ) : ZMod P) := fun a b hab => by
     have h := congrArg ZMod.val hab
-    simp only at h
-    rw [ZMod.val_cast_of_lt ((hM l a).trans_le ((le_max_right _ _).trans hP)),
-      ZMod.val_cast_of_lt ((hM l b).trans_le ((le_max_right _ _).trans hP))] at h
-    exact hident l h
+    rwa [ZMod.val_cast_of_lt ((hM l a).trans_le ((le_max_right _ _).trans hP)),
+      ZMod.val_cast_of_lt ((hM l b).trans_le ((le_max_right _ _).trans hP)),
+      (hident l).eq_iff] at h
   have hPa : 1 ≤ (P : ℝ) * (2⁻¹ : ℝ) ^ l := by
-    have h2 : ((2 : ℝ) ^ l) ≤ P := by exact_mod_cast (le_max_left _ _).trans hP
     calc (1 : ℝ) = 2 ^ l * (2⁻¹ : ℝ) ^ l := by rw [← mul_pow]; norm_num
-      _ ≤ P * (2⁻¹ : ℝ) ^ l := mul_le_mul_of_nonneg_right h2 (by positivity)
-  have h := retentionChannels_affineRetains (P := P) (H := H) hinj hPa
-    (pow_le_one₀ (by norm_num) (by norm_num))
-  have hrate : ((2⁻¹ : ℝ) ^ l) ^ H = ((2 : ℝ) ^ H)⁻¹ ^ l := by
+      _ ≤ P * (2⁻¹ : ℝ) ^ l := mul_le_mul_of_nonneg_right
+        (by exact_mod_cast (le_max_left _ _).trans hP) (by positivity)
+  have hrate : ((2 : ℝ) ^ H)⁻¹ ^ l = ((2⁻¹ : ℝ) ^ l) ^ H := by
     rw [← pow_mul, ← inv_pow, ← pow_mul, mul_comm]
-  rw [hrate] at h
   unfold stageChannel
-  rw [stageSide_eq_ceil]
-  exact h
+  rw [stageSide_eq_ceil, hrate]
+  exact retentionChannels_affineRetains hinj hPa (pow_le_one₀ (by norm_num) (by norm_num))
 
 end Cslib.Probability
 

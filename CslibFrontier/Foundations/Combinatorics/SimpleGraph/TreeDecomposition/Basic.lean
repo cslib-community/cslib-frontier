@@ -228,10 +228,8 @@ theorem etreewidth_le_width [Fintype ι] (D : G.TreeDecomposition ι) :
 
 theorem exists_width_eq_etreewidth (h : G.etreewidth ≠ ⊤) :
     ∃ n, ∃ D : G.TreeDecomposition (Fin n), (D.width : ℕ∞) = G.etreewidth := by
-  have : Nonempty (Σ n : ℕ, G.TreeDecomposition (Fin n)) := by
-    by_contra hne
-    rw [not_nonempty_iff] at hne
-    exact h (iInf_of_empty _)
+  have : Nonempty (Σ n : ℕ, G.TreeDecomposition (Fin n)) :=
+    not_isEmpty_iff.1 fun _ => h (iInf_of_empty _)
   obtain ⟨⟨n, D⟩, hD⟩ := ciInf_mem (fun D : (Σ n : ℕ, G.TreeDecomposition (Fin n)) =>
     (D.2.width : ℕ∞))
   exact ⟨n, D, hD⟩
@@ -249,11 +247,10 @@ theorem etreewidth_ne_top [Finite V] : G.etreewidth ≠ ⊤ := by
 
 /-- `etreewidth G = ⊤` exactly when the vertex type is infinite, whatever the edges of `G`. -/
 theorem etreewidth_eq_top_iff : G.etreewidth = ⊤ ↔ Infinite V := by
-  refine ⟨fun h => ?_, fun h => ?_⟩
-  · by_contra hV
-    have := not_infinite_iff_finite.1 hV
-    exact etreewidth_ne_top h
-  · exact iInf_eq_top.2 fun D => absurd D.2.finite (not_finite_iff_infinite.2 h)
+  refine ⟨fun h => by_contra fun hV => ?_,
+    fun h => iInf_eq_top.2 fun D => absurd D.2.finite (not_finite_iff_infinite.2 h)⟩
+  have := not_infinite_iff_finite.1 hV
+  exact etreewidth_ne_top h
 
 /-- The treewidth of `G`: the least width of a tree decomposition of `G` with finitely many nodes.
 This is meaningful for finite `V`, where such a decomposition always exists. For infinite `V` it is

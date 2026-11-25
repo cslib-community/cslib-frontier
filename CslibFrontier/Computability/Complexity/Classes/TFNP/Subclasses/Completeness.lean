@@ -60,17 +60,11 @@ theorem exists_uniformCircuitCodes {n m : α → ℕ} {F : α × List Bool → L
   obtain ⟨circuits, hcode, hsem⟩ := CircuitValue.exists_uniformCircuitFamily hn hm hF
   refine ⟨fun a => (circuits a).code, hcode, fun a u hu => ?_⟩
   let x (i : Fin (n a)) := u.getD i.val false
-  have hx : List.ofFn x = u := by
-    apply List.ext_getElem (by simp [hu])
-    intro i hi hj
-    simp only [List.getElem_ofFn]
-    exact List.getD_eq_getElem _ _ hj
+  have hx : List.ofFn x = u := List.ext_getElem (by simp [hu])
+    fun i _ hj => by simp only [List.getElem_ofFn, x, List.getD_eq_getElem _ _ hj]
   rw [← hx, evalCircuitOutputs_code]
-  apply List.ext_getElem (by simp [hlen a _ (List.length_ofFn)])
-  intro i hi hj
-  simp only [List.getElem_ofFn]
-  rw [hsem a x]
-  exact List.getD_eq_getElem _ _ hj
+  refine List.ext_getElem (by simp [hlen a _ List.length_ofFn]) fun i _ hj => ?_
+  simp only [List.getElem_ofFn, hsem a x, List.getD_eq_getElem _ _ hj]
 
 private theorem exists_endomorphismCodes {n : α → ℕ} {F : α × List Bool → List Bool}
     (hn : ComputableInPolyTime n enc encUnary)
@@ -95,12 +89,8 @@ theorem pigeonRel_searchReducible_Pigeon {n : α → ℕ} {F : α × List Bool �
   change pigeonRel (fun a => n a) (fun p => evalCircuitCode (n p.1) (code p.1) p.2) a w at hw
   obtain ⟨hw, h⟩ := hw
   change w.length = 2 * n a at hw
-  have hu : (w.take (n a)).length = n a := by
-    simp only [List.length_take]
-    omega
-  have hv : (w.drop (n a)).length = n a := by
-    simp only [List.length_drop]
-    omega
+  have hu : (w.take (n a)).length = n a := by simp only [List.length_take]; omega
+  have hv : (w.drop (n a)).length = n a := by simp only [List.length_drop]; omega
   exact ⟨hw, by simpa only [hsem a _ hu, hsem a _ hv] using h⟩
 
 /-- A uniform polynomial-time end-of-line family reduces to its circuit presentation. -/
@@ -162,14 +152,13 @@ private theorem exists_costCodes {n : α → ℕ} {C : α × List Bool → ℕ}
       (fun p : α × List Bool => binaryWord (m p.1) (C p)) (encPair enc encBits) encBits := by
     have hbits := (ComputableInPolyTime.of_eq (f := Nat.bits)
       (encIn := encNat) (encOut := encBits) fun _ => rfl).comp hC
-    have hwidth := (hm).comp
-      (ComputableInPolyTime.fst enc encBits)
     have hpadding := ComputableInPolyTime.unary_sub.comp
-      (hwidth.prod (ComputableInPolyTime.length_bits.comp hbits))
-    have hplain := ComputableInPolyTime.bitsAppend
-      ((ComputableInPolyTime.bitsReplicate false).comp hpadding)
-      (ComputableInPolyTime.bitsReverse.comp hbits)
-    simpa only [binaryWord, Function.comp_def] using hplain
+      ((hm.comp (ComputableInPolyTime.fst enc encBits)).prod
+        (ComputableInPolyTime.length_bits.comp hbits))
+    simpa only [binaryWord, Function.comp_def] using
+      ComputableInPolyTime.bitsAppend
+        ((ComputableInPolyTime.bitsReplicate false).comp hpadding)
+        (ComputableInPolyTime.bitsReverse.comp hbits)
   have hword_len (a : α) (u : List Bool) (hu : u.length = n a) :
       (binaryWord (m a) (C (a, u))).length = m a := by
     have := hbits a u hu
