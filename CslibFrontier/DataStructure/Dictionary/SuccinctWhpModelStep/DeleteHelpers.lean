@@ -506,9 +506,9 @@ theorem dict_map_after_delete {c U V n_max b loc_del loc_last : ℕ}
             ⟨loc, hloc, (hother b' hb' hbb loc hloc).1.symm.trans hqe,
               (hother b' hb' hbb loc hloc).2.symm.trans hve⟩⟩
 
-private theorem bufEnsurePath_itemBucket_and_eq (bChar rKey : ℕ) :
+private theorem bufEnsurePath_allocations (bChar rKey : ℕ) :
     ∀ (rem off : ℕ) (tr : BufTrie) (cur : ℕ),
-      (bufEnsurePath bChar rKey rem off tr cur).1.itemBucket = tr.itemBucket ∧
+      (bufEnsurePath bChar rKey rem off tr cur).1.itemAlloc = tr.itemAlloc ∧
       tr.nodeAlloc ≤ (bufEnsurePath bChar rKey rem off tr cur).1.nodeAlloc ∧
       ((bufEnsurePath bChar rKey rem off tr cur).1.nodeAlloc = tr.nodeAlloc →
         (bufEnsurePath bChar rKey rem off tr cur).1 = tr ∧
@@ -520,7 +520,7 @@ private theorem bufEnsurePath_itemBucket_and_eq (bChar rKey : ℕ) :
     set ch := laneGet bChar rKey off
     by_cases h0 : tr.trieChild cur ch = 0
     · simp only [h0, ↓reduceIte]
-      obtain ⟨hb, hle, _⟩ := bufEnsurePath_itemBucket_and_eq bChar rKey rem (off + 1)
+      obtain ⟨items, hle, _⟩ := bufEnsurePath_allocations bChar rKey rem (off + 1)
         { tr with
           nodeAlloc := tr.nodeAlloc + 1
           trieChild := Function.update tr.trieChild cur
@@ -528,10 +528,12 @@ private theorem bufEnsurePath_itemBucket_and_eq (bChar rKey : ℕ) :
           nodeParent := Function.update tr.nodeParent tr.nodeAlloc cur
           nodeChar := Function.update tr.nodeChar tr.nodeAlloc ch
           nodeLeafItem := Function.update tr.nodeLeafItem tr.nodeAlloc 0 } tr.nodeAlloc
-      dsimp only at hb hle
-      exact ⟨hb, by omega, fun heq => absurd heq (by omega)⟩
+      dsimp only at items hle
+      exact ⟨items, Nat.le_of_succ_le hle, fun heq => by
+        rw [heq] at hle
+        exact (Nat.lt_irrefl _ hle).elim⟩
     · simp only [h0, ↓reduceIte]
-      exact bufEnsurePath_itemBucket_and_eq bChar rKey rem (off + 1) tr (tr.trieChild cur ch)
+      exact bufEnsurePath_allocations bChar rKey rem (off + 1) tr (tr.trieChild cur ch)
 
 private theorem bufDelete_checkSlot_some {cTab bChar rKey id b' loc' : ℕ} {tr : BufTrie}
     (h : bufCheckSlot (bufDelete cTab bChar tr rKey) id = some (b', loc')) :
@@ -567,26 +569,22 @@ private theorem insert_same_bucket_checkSlot_some {cTab bChar rKey b loc_old loc
     rw [hnone_pres id hn] at hchk; cases hchk
   obtain ⟨⟨b₁, loc₁⟩, hchk1⟩ := Option.ne_none_iff_exists'.mp hnot_none
   refine ⟨loc₁, ?_⟩
-  have hb₁ : tr.itemBucket id = b₁ := by
-    dsimp only [bufCheckSlot] at hchk1
-    split_ifs at hchk1 with hid hc
-    injection hchk1 with hp; exact (Prod.mk.inj hp).1
-  obtain ⟨_, _, heq_fn⟩ := bufEnsurePath_itemBucket_and_eq bChar rKey cTab 0 tr 0
-  set p := bufEnsurePath bChar rKey cTab 0 tr 0
+  have bucket_of_hit {t : BufTrie} {bucket loc : ℕ}
+      (h : bufCheckSlot t id = some (bucket, loc)) : t.itemBucket id = bucket := by
+    dsimp only [bufCheckSlot] at h
+    split at h
+    · split at h
+      · exact congrArg Prod.fst (Option.some.inj h)
+      · cases h
+    · cases h
+  obtain ⟨hp_ia, _, heq_fn⟩ := bufEnsurePath_allocations bChar rKey cTab 0 tr 0
+  set p := bufEnsurePath bChar rKey cTab 0 tr 0 with hp
   have hid1_nz : p.1.nodeLeafItem p.2 ≠ 0 := by
     intro hz
     have hia_succ : (bufInsert cTab bChar tr rKey b loc_new).itemAlloc = p.1.itemAlloc + 1 := by
       dsimp only [bufInsert]; simp [p, hz]
-    have hp_ia : p.1.itemAlloc = tr.itemAlloc := by
-      have : ∀ rem off (t : BufTrie) cur,
-          (bufEnsurePath bChar rKey rem off t cur).1.itemAlloc = t.itemAlloc := by
-        intro rem; induction rem with
-        | zero => intros; rfl
-        | succ rem ih =>
-          intro off t cur; dsimp only [bufEnsurePath]
-          split_ifs <;> apply ih
-      exact this cTab 0 tr 0
-    omega
+    rw [hia_eq, hp_ia] at hia_succ
+    exact Nat.ne_of_lt (Nat.lt_succ_self _) hia_succ
   have hp_na : p.1.nodeAlloc = tr.nodeAlloc := by
     have : (bufInsert cTab bChar tr rKey b loc_new).nodeAlloc = p.1.nodeAlloc := by
       dsimp only [bufInsert]; simp [p, hid1_nz]
@@ -599,26 +597,12 @@ private theorem insert_same_bucket_checkSlot_some {cTab bChar rKey b loc_old loc
   split_ifs at hlk with hcond
   have hb_old : tr.itemBucket (p.1.nodeLeafItem p.2 - 1) = b := by
     rw [← htr_eq]; injection hlk with hp; exact (Prod.mk.inj hp).1
-  have hb' : (bufInsert cTab bChar tr rKey b loc_new).itemBucket id = b' := by
-    dsimp only [bufCheckSlot] at hchk
-    split_ifs at hchk with hid hc
-    injection hchk with hp; exact (Prod.mk.inj hp).1
-  have hupd_ib : (bufInsert cTab bChar tr rKey b loc_new).itemBucket id = tr.itemBucket id := by
-    have hbi : bufInsert cTab bChar tr rKey b loc_new =
-        { p.1 with
-          nodeActive := Function.update p.1.nodeActive p.2 1
-          itemBucket := Function.update p.1.itemBucket (p.1.nodeLeafItem p.2 - 1) b
-          itemLoc := Function.update p.1.itemLoc (p.1.nodeLeafItem p.2 - 1) loc_new } := by
-      dsimp only [bufInsert, p]
-      exact ite_eq_right hid1_nz
-    rw [hbi]
-    dsimp only
-    by_cases hid_eq : id = p.1.nodeLeafItem p.2 - 1
-    · rw [hid_eq, Function.update_self]
-      exact hb_old.symm
-    · rw [Function.update_of_ne hid_eq, htr_eq]
-  have hbeq : b₁ = b' := by rw [← hb₁, ← hupd_ib, hb']
-  rwa [← hbeq]
+  have buckets : (bufInsert cTab bChar tr rKey b loc_new).itemBucket = tr.itemBucket := by
+    simp only [bufInsert, ← hp, hid1_nz, ↓reduceIte]
+    rw [← hb_old, htr_eq, Function.update_eq_self]
+  have heq := (bucket_of_hit hchk1).symm.trans
+    ((congrFun buckets id).symm.trans (bucket_of_hit hchk))
+  simpa only [heq] using hchk1
 
 private theorem rKeyAt_lt {c U n_max : ℕ} (θ : SeedWhp c U n_max) (fs : FastState)
     (b loc : ℕ) : fs.rKeyAt c U n_max θ b loc < 2 ^ (cTabWhp c * bCharWhp n_max) := by
