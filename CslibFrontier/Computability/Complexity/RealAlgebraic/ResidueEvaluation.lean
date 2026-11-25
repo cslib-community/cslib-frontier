@@ -53,9 +53,8 @@ theorem residueAddress_polyTime {α : Type} {enc : α ↪ List Bool}
     {ell : α → ℕ} {j : α → List ℕ}
     (hell : ComputableInPolyTime ell enc encNat)
     (hj : ComputableInPolyTime j enc (encList encNat)) :
-    ComputableInPolyTime (fun w => residueAddress (ell w) (j w)) enc (encList encNat) := by
-  exact ComputableInPolyTime.mapWithInput hj (by
-    fun_prop)
+    ComputableInPolyTime (fun w => residueAddress (ell w) (j w)) enc (encList encNat) :=
+  ComputableInPolyTime.mapWithInput hj (by fun_prop)
 
 /-- Constructing the residue from uniform modular numerator and relation
  evaluations costs five function levels, independently of arity and degree. -/
@@ -71,31 +70,29 @@ theorem residueValue_mem {α : Type} {enc : α ↪ List Bool} {a : ℕ}
     (fun w => residueValue (p w) (n w) (ell w) (B w)
       (fun z => v (w, z)) (fun i z => r (w, i, z))) ∈
         CountingFunction (a + 5) enc encNat := by
-  have hp' := hp.comp (ComputableInPolyTime.fst enc encNat)
-  have hn' := hn.comp (ComputableInPolyTime.fst enc encNat)
-  have hell' := hell.comp (ComputableInPolyTime.fst enc encNat)
-  have hB' := hB.comp (ComputableInPolyTime.fst enc encNat)
-  have hj := gridPoint_polyTime (ComputableInPolyTime.binary_add' hB' (.const 1)) hn'
-    (ComputableInPolyTime.snd enc encNat)
-  have hβ := residueAddress_polyTime hell' hj
+  have fst := ComputableInPolyTime.fst enc encNat
+  have hj := gridPoint_polyTime (.binary_add' (hB.comp fst) (.const 1)) (hn.comp fst)
+    (.snd enc encNat)
   have hv' : (fun q : (α × ℕ) × List ℕ => v (q.1.1, q.2)) ∈
       CountingFunction a (encPair (encPair enc encNat) (encList encNat)) encNat :=
     CountingFunction.preprocess hv (by fun_prop)
   have hr' : (fun q : (α × ℕ) × (ℕ × List ℕ) => r (q.1.1, q.2)) ∈
       CountingFunction a (encPair (encPair enc encNat) (encPair encNat (encList encNat))) encNat :=
     CountingFunction.preprocess hr (by fun_prop)
-  have hc := powerProductCoefficient_mem (Decoder.pair E Decoder.nat) hp' hn' hβ hj hv' hr'
+  have hc := powerProductCoefficient_mem (Decoder.pair E Decoder.nat) (hp.comp fst) (hn.comp fst)
+    (residueAddress_polyTime (hell.comp fst) hj) hj hv' hr'
   have hguard : ComputableInPolyTime
       (fun q : α × ℕ => decide ((gridPoint (B q.1 + 1) (n q.1) q.2).sum ≤ B q.1))
       (encPair enc encNat) encBool := by
     have hsum := ComputableInPolyTime.binary_sum.comp hj
     fun_prop
-  have hterm := CountingFunction.ite (CountingFunction.of_polyTime hguard) hc
-    (CountingFunction.of_polyTime (ComputableInPolyTime.const 0))
-  have hsum := CountingFunction.sum_range E hterm
-    (ComputableInPolyTime.binary_pow' (ComputableInPolyTime.binary_add' hB (.const 1)) hn)
   simpa only [residueValue, decide_eq_true_eq, Function.comp_apply] using
-    CountingFunction.nat_mod hsum (CountingFunction.of_polyTime hp)
+    CountingFunction.nat_mod
+      (CountingFunction.sum_range E
+        (CountingFunction.ite (CountingFunction.of_polyTime hguard) hc
+          (CountingFunction.of_polyTime (.const 0)))
+        (.binary_pow' (.binary_add' hB (.const 1)) hn))
+      (CountingFunction.of_polyTime hp)
 
 private theorem sum_residue_grid {M : Type*} [AddCommMonoid M] (B n : ℕ)
     (F : (Fin n → ℕ) → M) :
@@ -103,40 +100,22 @@ private theorem sum_residue_grid {M : Type*} [AddCommMonoid M] (B n : ℕ)
       F (fun i => (gridPoint (B + 1) n s)[i.val]?.getD 0)) =
         ∑ j ∈ indices n B, F j := by
   classical
-  have hpoint (s : ℕ) (i : Fin n) :
-      (gridPoint (B + 1) n s)[i.val]?.getD 0 = s / (B + 1) ^ i.val % (B + 1) :=
-    gridPoint_get i.isLt
-  simp_rw [hpoint]
+  simp_rw [fun s (i : Fin n) => gridPoint_get (p := B + 1) (r := s) i.isLt]
   rw [← Fin.sum_univ_eq_sum_range]
-  calc
-    _ = ∑ z : Fin n → Fin (B + 1), F (fun i => (z i).val) :=
-      (finFunctionFinEquiv : (Fin n → Fin (B + 1)) ≃ Fin ((B + 1) ^ n)).symm.sum_comp
-        (fun z => F (fun i => (z i).val))
-    _ = ∑ j ∈ indices n B, F j := by
-      apply Finset.sum_bij (fun z _ => fun i => (z i).val)
-      · intro z _
-        exact mem_indices.mpr (fun i => by have := (z i).isLt; omega)
-      · intro z _ w _ h
-        funext i
-        exact Fin.ext (congrFun h i)
-      · intro j hj
-        exact ⟨fun i => ⟨j i, by have := mem_indices.mp hj i; omega⟩, Finset.mem_univ _, rfl⟩
-      · intro z _
-        rfl
+  refine ((finFunctionFinEquiv : (Fin n → Fin (B + 1)) ≃ Fin ((B + 1) ^ n)).symm.sum_comp
+    (fun z => F (fun i => (z i).val))).trans (Finset.sum_bij (fun z _ i => (z i).val)
+      (fun z _ => mem_indices.mpr fun i => Nat.lt_succ_iff.mp (z i).isLt)
+      (fun _ _ _ _ h => funext fun i => Fin.ext (congrFun h i))
+      (fun j hj => ⟨fun i => ⟨j i, Nat.lt_succ_iff.mpr (mem_indices.mp hj i)⟩,
+        Finset.mem_univ _, rfl⟩)
+      fun _ _ => rfl)
 
 private theorem grid_sum (b n s : ℕ) :
     (gridPoint b n s).sum =
       (∑ i : Fin n, (gridPoint b n s)[i.val]?.getD 0) := by
   change ((List.range n).map (fun i => s / b ^ i % b)).sum = _
   rw [← List.sum_toFinset _ List.nodup_range, List.toFinset_range, Finset.sum_range]
-  apply Finset.sum_congr rfl
-  intro i _
-  exact (gridPoint_get i.isLt).symm
-
-private theorem address_grid (ell b n s : ℕ) (i : Fin n) :
-    (residueAddress ell (gridPoint b n s))[i.val]?.getD 0 =
-      ell - 1 + ell * (gridPoint b n s)[i.val]?.getD 0 := by
-  simp [residueAddress, gridPoint, i.isLt]
+  exact Finset.sum_congr rfl fun i _ => (gridPoint_get i.isLt).symm
 
 /-- The constructed evaluator computes the actual residue, using only
  canonical finite-field evaluation points and bounded base-address indices. -/
@@ -153,8 +132,7 @@ theorem residueValue_cast {p n ell B : ℕ} [Fact p.Prime] (hell : 1 ≤ ell)
     (residueValue p n ell B value rvalue : ZMod p) = residue ell r v := by
   have hbound (s : ℕ) (i : Fin n) : (gridPoint (B + 1) n s)[i.val]?.getD 0 ≤ B := by
     rw [gridPoint_get i.isLt]
-    have := Nat.mod_lt (s / (B + 1) ^ i.val) (by omega : 0 < B + 1)
-    omega
+    exact Nat.lt_succ_iff.mp (Nat.mod_lt _ (Nat.succ_pos B))
   have hterm (s : ℕ) :
       ((if (gridPoint (B + 1) n s).sum ≤ B then
         powerProductCoefficient p n (residueAddress ell (gridPoint (B + 1) n s))
@@ -164,35 +142,31 @@ theorem residueValue_cast {p n ell B : ℕ} [Fact p.Prime] (hell : 1 ≤ ell)
     by_cases hs : (gridPoint (B + 1) n s).sum ≤ B
     · rw [ite_eq_left hs]
       have hsum : (∑ i, j i) ≤ B := by simpa only [grid_sum] using hs
-      have hprod := Nat.mul_le_mul_left (ell - 1) hsum
       have heq : B + (ell - 1) * B = ell * B := by
-        calc
-          _ = (1 + (ell - 1)) * B := by ring
-          _ = _ := by congr 1; omega
+        rw [show ell * B = (1 + (ell - 1)) * B from congrArg (· * B) (by omega)]
+        ring
       have hdeg : (v * ∏ i, r i ^ j i).totalDegree < p - 1 := by
-        have hb := (numerator_degree r hr v j).trans (Nat.add_le_add hv hprod)
+        have hb := (numerator_degree r hr v j).trans
+          (Nat.add_le_add hv (Nat.mul_le_mul_left (ell - 1) hsum))
         rw [heq] at hb
         rw [Nat.mul_add, Nat.mul_one] at hcut
         omega
       have he (i : Fin n) : target ell j i < p - 1 := by
-        have hi := Nat.mul_le_mul_left ell (hbound s i)
+        have hi : ell * j i ≤ ell * B := Nat.mul_le_mul_left ell (hbound s i)
         change ell - 1 + ell * j i < p - 1
-        change ell * j i ≤ ell * B at hi
         rw [Nat.mul_add, Nat.mul_one] at hcut
         omega
-      exact powerProductCoefficient_cast v r j (target ell j) _ _ value rvalue hdeg he
-        (fun i => address_grid ell (B + 1) n s i) (fun _ => rfl) hvalue hrvalue
+      exact powerProductCoefficient_cast v r j (target ell j)
+        (residueAddress ell (gridPoint (B + 1) n s)) (gridPoint (B + 1) n s) value rvalue hdeg he
+        (fun i => by simp [residueAddress, gridPoint, i.isLt, target, j]) (fun _ => rfl)
+        hvalue hrvalue
     · rw [ite_eq_right hs, Nat.cast_zero]
-      apply Eq.symm
-      apply term_eq_zero_of_degree_lt hell r hr
-      change v.totalDegree < n * (ell - 1) + (∑ i, j i)
-      have hh : B < (∑ i, j i) := by
-        rw [grid_sum] at hs
-        exact Nat.lt_of_not_ge hs
+      refine (term_eq_zero_of_degree_lt hell r hr v j ?_).symm
+      have : B < ∑ i, j i := Nat.lt_of_not_ge (grid_sum (B + 1) n s ▸ hs)
+      change v.totalDegree < n * (ell - 1) + ∑ i, j i
       omega
   rw [residueValue, ZMod.natCast_mod, Nat.cast_sum]
   simp_rw [hterm]
-  rw [sum_residue_grid B n (fun j => term ell r v j)]
-  exact (residue_eq_truncated hell r hr v hv).symm
+  exact (sum_residue_grid B n (term ell r v)).trans (residue_eq_truncated hell r hr v hv).symm
 
 end Cslib.Complexity.RealAlgebraic

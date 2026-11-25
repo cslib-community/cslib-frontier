@@ -105,22 +105,20 @@ theorem exists_oracleFormula_separating_approxMCSP {s₁ s₂ k : ℕ → ℕ} {
   obtain ⟨ωs, hyes, hno⟩ := exists_seeds_approxMCSP (s₁ := s₁) hk hs
     (card_computableFunctions_le_two_pow n (s₂ n))
   set ℓ := approxMCSPQueryEncLength n (s₂ n) (k n)
-  let w : Fin (2 ^ n) → List (Formula signature (2 ^ n)) := fun j =>
+  let w (j : Fin (2 ^ n)) : List (Formula signature (2 ^ n)) :=
     succinctWord n (Finset.univ.image (ωs j)) (s₂ n)
-  have hw : ∀ j, (w j).length ≤ ℓ := fun j => by
-    simp only [w, length_succinctWord]
-    refine ofFunctionEncLength_le_approxMCSPQueryEncLength ?_
-    exact Finset.card_image_le.trans (by simp)
+  have hw (j) : (w j).length ≤ ℓ := by
+    simpa only [w, length_succinctWord] using
+      ofFunctionEncLength_le_approxMCSPQueryEncLength (Finset.card_image_le.trans (by simp))
   let Es : List (OracleFormula (2 ^ n)) := List.ofFn fun j => OracleFormula.query (w j)
-  refine ⟨OracleFormula.all Es, ?_, ?_, ?_, ?_, fun T hT => ?_, fun T hT => ?_⟩
+  refine ⟨OracleFormula.all Es, ?_, by simp [Es, Function.comp_def], ?_, ?_,
+    fun T hT => ?_, fun T hT => ?_⟩
   · rw [OracleFormula.leafSize_all]
-    refine (List.sum_le_length_nsmul _ ℓ ?_).trans (by simp [Es])
-    intro x hx
-    obtain ⟨E, hE, rfl⟩ := List.mem_map.mp hx
+    refine (List.sum_le_length_nsmul _ ℓ fun x hx => ?_).trans (by simp [Es])
+    obtain ⟨_, hE, rfl⟩ := List.mem_map.mp hx
     obtain ⟨j, rfl⟩ := List.mem_ofFn.mp hE
     exact (OracleFormula.leafSize_query_le
       fun _ h => leafSize_le_one_of_mem_succinctWord h).trans (hw j)
-  · simp [Es, Function.comp_def]
   · refine OracleFormula.maxQueryArity_all_le fun E hE => ?_
     obtain ⟨j, rfl⟩ := List.mem_ofFn.mp hE
     simpa using hw j
@@ -133,15 +131,8 @@ theorem exists_oracleFormula_separating_approxMCSP {s₁ s₂ k : ℕ → ℕ} {
     exact (eval_query_succinctWord_eq_true_iff _ _ _ T).mpr (hyes T hT j)
   · rw [OracleFormula.eval_all, decide_eq_false_iff_not, not_forall]
     obtain ⟨j, hj⟩ := hno T hT
-    refine ⟨OracleFormula.query (w j), fun h => hj ?_⟩
-    exact (eval_query_succinctWord_eq_true_iff _ _ _ T).mp (h (List.mem_ofFn.mpr ⟨j, rfl⟩))
-
-/-- A truth-table word has power-of-two length. -/
-private theorem exists_length_eq_two_pow_of_mem_truthTableLanguage
-    {C : ∀ n, Set (BooleanFunction n)} {w : List Bool} (hw : w ∈ truthTableLanguage C) :
-    ∃ n, w.length = 2 ^ n := by
-  obtain ⟨n, h, -⟩ := hw
-  exact ⟨n, h⟩
+    exact ⟨OracleFormula.query (w j), fun h =>
+      hj ((eval_query_succinctWord_eq_true_iff _ _ _ T).mp (h (List.mem_ofFn.mpr ⟨j, rfl⟩)))⟩
 
 /-- **The Oliveira–Santhanam construction in `LocalFormulaClass` form**
 [ChenHiraharaOliveiraPichRajgopalSanthanam2020, Appendix A.2, Proposition 63, \[OS18\] bullet,
@@ -156,37 +147,29 @@ theorem localFormulaClass_approxMCSP {s₁ s₂ k : ℕ → ℕ} (hk : ∀ n, 1 
       (fun m => m * approxMCSPQueryEncLength (Nat.log 2 m) (s₂ (Nat.log 2 m)) (k (Nat.log 2 m)))
       (GapMCSP.yesSet s₁) (ApproxMCSP.noSet s₂ k) := by
   refine OracleModel.LocalClass.of_two_pow succinctMCSPOracle
-    (fun _ => exists_length_eq_two_pow_of_mem_truthTableLanguage)
-    (fun _ => exists_length_eq_two_pow_of_mem_truthTableLanguage)
-    (fun _ _ => ⟨OracleFormula.tt, ?_⟩) fun n => ?_
-  · simp [formulaModel]
-  · obtain ⟨E, hS, hq, hℓ, ha, hyes, hno⟩ :=
-      exists_oracleFormula_separating_approxMCSP (s₁ := s₁) (hk n) (hs n)
-    simp only [Nat.log_pow Nat.one_lt_two]
-    exact ⟨E, hS, hq, hℓ, ha, hyes, hno⟩
+    (fun _ ⟨n, h, _⟩ => ⟨n, h⟩) (fun _ ⟨n, h, _⟩ => ⟨n, h⟩)
+    (fun _ _ => ⟨OracleFormula.tt, by simp [formulaModel]⟩) fun n => ?_
+  obtain ⟨E, hS, hq, hℓ, ha, hyes, hno⟩ :=
+    exists_oracleFormula_separating_approxMCSP (s₁ := s₁) (hk n) (hs n)
+  simp only [Nat.log_pow Nat.one_lt_two]
+  exact ⟨E, hS, hq, hℓ, ha, hyes, hno⟩
 
 /-- An explicit polynomial bound on the fan-in of the oracle gates, `poly(s * k)`, when
 `n ≤ s`. -/
 theorem approxMCSPQueryEncLength_le_poly {n s k : ℕ} (hn : n ≤ s) (hk : 1 ≤ k) :
     approxMCSPQueryEncLength n s k ≤ 98 * (k * (s + 1)) ^ 3 := by
   have hlog := computableFunctionsLogBound_le_poly n s
-  have hlog' : computableFunctionsLogBound n s + 2 ≤ 7 * (s + 1) ^ 2 := by nlinarith
-  have hk' : 1 ≤ k * (s + 1) := Nat.one_le_iff_ne_zero.mpr (by positivity)
   unfold approxMCSPQueryEncLength SuccinctMCSP.ofFunctionEncLength
-  have h1 : k * (computableFunctionsLogBound n s + 2) ≤ 7 * k * (s + 1) ^ 2 := by nlinarith
-  have h2 : 8 * n + 10 ≤ 10 * (s + 1) := by omega
   have h3 : k * (computableFunctionsLogBound n s + 2) * (8 * n + 10) ≤
-      70 * (k * (s + 1)) ^ 3 := by
-    calc k * (computableFunctionsLogBound n s + 2) * (8 * n + 10)
-        ≤ (7 * k * (s + 1) ^ 2) * (10 * (s + 1)) := Nat.mul_le_mul h1 h2
-      _ = 70 * k * (s + 1) ^ 3 := by ring
-      _ ≤ 70 * (k * (s + 1)) ^ 3 := by
-        rw [mul_pow, ← mul_assoc]
-        exact Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ (Nat.le_self_pow (by decide) k))
-  have h4 : 4 * n + 3 + s ≤ 28 * (k * (s + 1)) ^ 3 := by
-    have : s + 1 ≤ k * (s + 1) := Nat.le_mul_of_pos_left _ hk
-    have : k * (s + 1) ≤ (k * (s + 1)) ^ 3 := Nat.le_self_pow (by decide) _
-    omega
+      70 * (k * (s + 1)) ^ 3 := calc
+    _ ≤ (k * (7 * (s + 1) ^ 2)) * (10 * (s + 1)) :=
+      Nat.mul_le_mul (Nat.mul_le_mul_left k (by nlinarith)) (by omega)
+    _ = 70 * k * (s + 1) ^ 3 := by ring
+    _ ≤ 70 * (k * (s + 1)) ^ 3 := by
+      rw [mul_pow, ← mul_assoc]
+      exact Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ (Nat.le_self_pow (by decide) k))
+  have : s + 1 ≤ (k * (s + 1)) ^ 3 :=
+    (Nat.le_mul_of_pos_left _ hk).trans (Nat.le_self_pow (by decide) _)
   omega
 
 end Cslib.Circuits.Boolean
@@ -212,24 +195,14 @@ theorem noSetReal_le_noSet {s : ℕ → ℕ} {δ : ℕ → ℝ} (hδ : ∀ n, 0 
   have hlt := hf g hg
   generalize (Finset.univ.filter fun x => g x = _).card = a at hlt ⊢
   have hk1 : 1 ≤ ⌈1 / δ n⌉₊ := Nat.ceil_pos.mpr (by have := hδ n; positivity)
-  have hkδ : 1 ≤ (⌈1 / δ n⌉₊ : ℝ) * δ n := by
-    rw [← div_le_iff₀ (hδ n)]
-    exact Nat.le_ceil (1 / δ n)
-  have hpow : (0 : ℝ) < 2 ^ n := by positivity
-  have hreal : (⌈1 / δ n⌉₊ : ℝ) * a ≤ ((⌈1 / δ n⌉₊ : ℝ) - 1) * 2 ^ n := by
-    have hk0 : (0 : ℝ) ≤ ⌈1 / δ n⌉₊ := Nat.cast_nonneg _
-    have h1 : (⌈1 / δ n⌉₊ : ℝ) * a ≤ ⌈1 / δ n⌉₊ * ((1 - δ n) * 2 ^ n) := by gcongr
-    have h2 : (⌈1 / δ n⌉₊ : ℝ) * ((1 - δ n) * 2 ^ n) ≤ ((⌈1 / δ n⌉₊ : ℝ) - 1) * 2 ^ n := by
-      have : (⌈1 / δ n⌉₊ : ℝ) * ((1 - δ n) * 2 ^ n) =
-          ((⌈1 / δ n⌉₊ : ℝ) - ⌈1 / δ n⌉₊ * δ n) * 2 ^ n := by ring
-      rw [this]
-      exact mul_le_mul_of_nonneg_right (by linarith) hpow.le
-    exact h1.trans h2
-  have hcast : ((⌈1 / δ n⌉₊ - 1 : ℕ) : ℝ) = (⌈1 / δ n⌉₊ : ℝ) - 1 := by
-    rw [Nat.cast_sub hk1, Nat.cast_one]
+  have hkδ : 1 ≤ (⌈1 / δ n⌉₊ : ℝ) * δ n := (div_le_iff₀ (hδ n)).mp (Nat.le_ceil _)
+  have hreal : (⌈1 / δ n⌉₊ : ℝ) * a ≤ ((⌈1 / δ n⌉₊ : ℝ) - 1) * 2 ^ n :=
+    (mul_le_mul_of_nonneg_left hlt.le (Nat.cast_nonneg _)).trans <| by
+      rw [show (⌈1 / δ n⌉₊ : ℝ) * ((1 - δ n) * 2 ^ n) =
+        ((⌈1 / δ n⌉₊ : ℝ) - ⌈1 / δ n⌉₊ * δ n) * 2 ^ n by ring]
+      exact mul_le_mul_of_nonneg_right (by linarith) (by positivity)
   exact_mod_cast (show ((⌈1 / δ n⌉₊ * a : ℕ) : ℝ) ≤ (((⌈1 / δ n⌉₊ - 1) * 2 ^ n : ℕ) : ℝ) by
-    push_cast [hcast]
-    exact hreal)
+    push_cast [Nat.cast_sub hk1]; exact hreal)
 
 end Cslib.ApproxMCSP
 
