@@ -74,12 +74,7 @@ theorem HasValueDensity.integral_virtualValue_eq_zero {μ : Measure ℝ} [IsFini
     ∫ v, virtualValue μ f v ∂μ = 0 := by
   have hkey := hμ.integral_payment_eq_integral_virtualValue_mul (g := fun _ => (1 : ℝ))
     measurable_const (B := 1) (fun _ _ => by norm_num)
-  have hlhs : (fun v : ℝ => v * 1 - ∫ _ in (0 : ℝ)..v, (1 : ℝ)) = fun _ => 0 := by
-    funext v
-    rw [intervalIntegral.integral_const, smul_eq_mul]
-    ring
-  rw [hlhs, integral_zero] at hkey
-  simpa only [mul_one] using hkey.symm
+  simpa [intervalIntegral.integral_const] using hkey.symm
 
 namespace Vickrey
 
@@ -215,10 +210,8 @@ theorem integral_sum_payment_reserve_le_vickrey_succ
         (Measure.pi fun _ : Fin n => μ) :=
       integrable_finsetSum _ fun i _ => integrable_virtualValue_mul (fun _ => hμ) i
         (measurable_reserveAllocation hφm i) (fun v hv => hB_res v hv i)
-    have hmap := integral_map hmp.measurable.aemeasurable
-      (by rw [hmp.map_eq]; exact hFint.aestronglyMeasurable)
-    rw [hmp.map_eq] at hmap
-    rw [hmap]
+    rw [← hmp.map_eq, integral_map hmp.measurable.aemeasurable
+      (hmp.map_eq.symm ▸ hFint.aestronglyMeasurable)]
     exact integral_congr_ae (.of_forall fun _ =>
       Finset.sum_congr rfl fun _ _ => by simp only [auxAllocation, Fin.snoc_castSucc])
   rw [haux_eq]

@@ -255,9 +255,8 @@ theorem computableInPolyTime_tableQueries (d : ℕ) :
     refine Nat.mul_le_mul ?_ ?_
     · rw [tableArity, mul_comm, pow_mul]
       exact Nat.pow_le_pow_left hpow d
-    · have := Nat.mul_le_mul_left d hclog
-      rw [tableArity]
-      omega
+    · rw [tableArity]
+      nlinarith
   · have hsub : ComputableInPolyTime (fun p : (ℕ × List Bool) × List Bool =>
         p.1.1 - tableArity d p.1.1) (encPair (encPair encUnary encBits) encBits) encUnary :=
       unary_sub.comp ((fst _ _).fst'.prod (harity.comp (fst _ _)))
@@ -343,9 +342,7 @@ theorem eventually_tableArity (c : ℕ) :
     have hpow : n ^ (c + 2) ≤ 2 ^ ((c + 2) * t) := by
       rw [mul_comm, pow_mul]
       exact Nat.pow_le_pow_left hn2 _
-    have hpos : 0 < 5 * ((c + 2) * t) := by
-      have : 0 < t := by omega
-      positivity
+    have hpos : 0 < 5 * ((c + 2) * t) := mul_pos (by decide) (mul_pos (by omega) (by omega))
     refine (Nat.le_div_iff_mul_le hpos).2 ?_
     calc (c * (3 * n + 2) ^ c + 2) * (5 * ((c + 2) * t))
         ≤ (c * (5 ^ c * n ^ c) + 2 * n ^ c) * (5 * ((c + 2) * (2 * n))) := by gcongr; omega
@@ -378,10 +375,8 @@ theorem not_pseudorandomFunction_of_MCSP_mem_BPP (h : MCSP ∈ BPP MCSP.encInsta
     rw [eval_prfRealGame_mcspDistinguisher family hmn, BitString.uniformList, PMF.bind_map,
       PMF.toReal_uniformOfFintype_bind_apply]
     refine Finset.le_expect Finset.univ_nonempty fun key _ => ?_
-    refine two_thirds_le_toReal_eval_mcspRun hdec (MCSP.mk_truthTable_mem_iff.2 ?_)
-    have := hc (List.ofFn key) m (by simpa using hmn)
-    rw [List.length_ofFn] at this
-    exact this.trans hsize
+    refine two_thirds_le_toReal_eval_mcspRun hdec (MCSP.mk_truthTable_mem_iff.2 (le_trans ?_ hsize))
+    simpa using hc (List.ofFn key) m (by simpa using hmn)
   -- It accepts a random truth table with probability at most `1 / 3 + 1 / 12`.
   have hideal :
       (ProbComp.eval (prfIdealGame id id (mcspDistinguisher p V (c + 2)) n) true).toReal ≤
@@ -410,8 +405,7 @@ theorem not_pseudorandomFunction_of_MCSP_mem_BPP (h : MCSP ∈ BPP MCSP.encInsta
           _ = 2 ^ (4 + 2 ^ m / 4) := by rw [pow_add]
           _ ≤ 2 ^ 2 ^ m := Nat.pow_le_pow_right two_pos (by omega)
       rw [div_le_iff₀ (by positivity)]
-      have : (12 : ℝ) * 2 ^ (2 ^ m / 4) ≤ 2 ^ 2 ^ m := by exact_mod_cast hnat
-      linarith
+      linarith [show (12 : ℝ) * 2 ^ (2 ^ m / 4) ≤ 2 ^ 2 ^ m by exact_mod_cast hnat]
     calc 𝔼 table, (ProbComp.eval (mcspRun p V ⟨m,
           MCSP.truthTable m (KabanetsCai.restrictTable n m hn table), 2 ^ m / (5 * m)⟩)
             true).toReal

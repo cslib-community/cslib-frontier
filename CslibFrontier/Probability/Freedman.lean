@@ -111,10 +111,8 @@ private theorem mem_support_seqProcess_succ (step : ∀ t : ℕ, (Fin t → α) 
     Fin.init h ∈ (seqProcess step k).support ∧
       h (Fin.last k) ∈ (step k (Fin.init h)).support := by
   simp only [seqProcess, PMF.mem_support_bind_iff, PMF.mem_support_map_iff] at hh
-  obtain ⟨p, hp, x, hx, heq⟩ := hh
-  have hp_eq : p = Fin.init h := by simpa using congrArg Fin.init heq
-  have hx_eq : x = h (Fin.last k) := by simpa using congrFun heq (Fin.last k)
-  exact ⟨hp_eq ▸ hp, hx_eq ▸ hp_eq ▸ hx⟩
+  obtain ⟨p, hp, x, hx, rfl⟩ := hh
+  simpa [Fin.init_snoc, Fin.snoc_last] using ⟨hp, hx⟩
 
 private theorem mem_support_seqProcess_take (step : ∀ t : ℕ, (Fin t → α) → PMF α) :
     ∀ {n k : ℕ} (hk : k ≤ n) {h : Fin n → α},
@@ -529,10 +527,8 @@ theorem seqProcess_bernstein_le_le (step : ∀ t : ℕ, (Fin t → α) → PMF �
     ((seqProcess step n).toOuterMeasure {h : Fin n → α | X n h ≤ X 0 Fin.elim0 - ε}).toReal ≤
       Real.exp (-ε ^ 2 / (2 * ((∑ k ∈ Finset.range n, vStep k) + b * ε / 3))) := by
   have heq : {h : Fin n → α | X n h ≤ X 0 Fin.elim0 - ε} =
-      {h : Fin n → α | -X 0 Fin.elim0 + ε ≤ -X n h} := by
-    ext h
-    change X n h ≤ X 0 Fin.elim0 - ε ↔ -X 0 Fin.elim0 + ε ≤ -X n h
-    constructor <;> intro <;> linarith
+      {h : Fin n → α | -X 0 Fin.elim0 + ε ≤ -X n h} :=
+    congrArg Set.ofPred (funext fun _ => propext ⟨fun _ => by linarith, fun _ => by linarith⟩)
   rw [heq]
   refine seqProcess_bernstein_ge_le step (fun k h => -X k h) vStep hb hε n hvStep
     (fun k hk h hh => ?_) (fun k hk h hh x hx => ?_) (fun k hk h hh => ?_)
@@ -541,12 +537,9 @@ theorem seqProcess_bernstein_le_le (step : ∀ t : ℕ, (Fin t → α) → PMF �
       funext fun _ => by ring
     rw [hneg, tsum_neg]
     exact neg_nonpos.mpr (hmean k hk h hh)
-  · have hsub : -X (k + 1) (Fin.snoc h x) - -X k h = -(X (k + 1) (Fin.snoc h x) - X k h) := by
-      ring
-    simpa only [hsub, abs_neg] using hbdd k hk h hh x hx
-  · have hsq (x : α) :
-        (-X (k + 1) (Fin.snoc h x) - -X k h) ^ 2 = (X (k + 1) (Fin.snoc h x) - X k h) ^ 2 := by
-      ring
+  · simpa only [neg_sub_neg, abs_sub_comm] using hbdd k hk h hh x hx
+  · have hsq (x : α) : (-X (k + 1) (Fin.snoc h x) - -X k h) ^ 2 =
+        (X (k + 1) (Fin.snoc h x) - X k h) ^ 2 := by ring
     simpa only [hsq] using hvar k hk h hh
 
 /-- **Sequential Bernstein inequality, two-sided tail** for martingales with bounded increments. -/

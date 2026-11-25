@@ -155,15 +155,10 @@ private theorem mul_div_rpow_tsum_le {α : ℝ} (hα : 1 < α) {u v : X → ℝ�
   · obtain ⟨x₀, hu₀, hv₀⟩ := hsupp
     have htop : u x₀ * (u x₀ / v x₀) ^ t = ⊤ := by
       rw [hv₀, ENNReal.div_zero hu₀, ENNReal.top_rpow_of_pos ht, ENNReal.mul_top hu₀]
-    have hle := le_tsum (fun x => u x * (u x / v x) ^ t) x₀
-    rw [htop, top_le_iff] at hle
-    exact le_top.trans_eq hle.symm
+    exact le_top.trans (htop ▸ le_tsum (fun x => u x * (u x / v x) ^ t) x₀)
   have hsupp' (x : X) (hu : u x ≠ 0) : v x ≠ 0 := fun hv => hsupp ⟨x, hu, hv⟩
-  have hV0 : V ≠ 0 := by
-    intro h0
-    apply hU0
-    rw [tsum_eq_zero_iff] at h0 ⊢
-    exact fun x => by_contra fun hu => hsupp' x hu (h0 x)
+  have hV0 : V ≠ 0 := fun h0 => hU0 <|
+    tsum_eq_zero_iff.mpr fun x => by_contra fun hu => hsupp' x hu (tsum_eq_zero_iff.mp h0 x)
   set M : ℝ≥0∞ := ∑' x, u x * (u x / v x) ^ t
   rcases eq_or_ne M ⊤ with hM_top | hM_top
   · exact hM_top ▸ le_top

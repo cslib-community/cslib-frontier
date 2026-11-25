@@ -132,8 +132,7 @@ theorem eval_sampleBoundedIndex_sentinel (bound : ℕ) :
   have hmin (i : Fin (dyadicSize bound)) : bound = min bound i.val ↔ bound ≤ i.val := by omega
   simp only [PMF.map_apply, tsum_fintype, PMF.uniformOfFintype_apply, Fintype.card_fin, hmin]
   rw [← Finset.sum_filter]
-  simp only [Finset.sum_const, nsmul_eq_mul, hcard]
-  simp [intervalFailure, div_eq_mul_inv]
+  simp [intervalFailure, div_eq_mul_inv, hcard]
 
 /-- The retry law, including the remaining failure event. All unused draws are integrated out. -/
 theorem eval_sampleUniformInterval_succ (bound attempts : ℕ) :
@@ -183,22 +182,17 @@ private theorem retry_some (bound value : ℕ) (next : PMF (Option ℕ)) :
       (if i = bound then μ bound * next (some value) else 0) +
         (if i = value ∧ value < bound then μ value else 0) := by
     rcases lt_trichotomy i bound with hi | rfl | hi
-    · by_cases hiv : i = value
-      · subst i
-        simp [hi, hi.ne]
-      · simp [hi, hi.ne, hiv, Ne.symm hiv]
+    · rcases eq_or_ne i value with rfl | hiv
+      · simp [hi, hi.ne]
+      · simp [hi, hi.ne, hiv, hiv.symm]
     · simp [show ¬(i = value ∧ value < i) by omega]
     · rw [show μ i = 0 from capped_eq_zero hi]
       simp [hi.ne', show ¬(i = value ∧ value < bound) by omega]
   change (∑' i, μ i * (if i < bound then PMF.pure (some i) else next) (some value)) = _
   simp_rw [hterm]
   rw [tsum_add]
-  simp only [tsum_ite_eq]
-  rw [show μ bound = (intervalFailure bound : ℝ≥0∞) from eval_sampleBoundedIndex_sentinel bound]
-  by_cases hv : value < bound
-  · simp only [hv, and_true, ↓reduceIte, tsum_ite_eq]
-    rw [show μ value = (dyadicSize bound : ℝ≥0∞)⁻¹ from eval_sampleBoundedIndex_lt _ _ hv]
-  · simp [hv]
+  by_cases hv : value < bound <;>
+    simp [hv, μ, eval_sampleBoundedIndex_sentinel, eval_sampleBoundedIndex_lt]
 
 /-- The exact exhaustion probability after a finite number of attempts. -/
 theorem eval_sampleUniformInterval_none (bound attempts : ℕ) :
@@ -337,11 +331,8 @@ private theorem expectedCost_sampleList (width : ℕ) :
   | zero => simp [BitString.sampleList]
   | succ k ih =>
     rw [BitString.sampleList, OracleComp.expectedCost_bind, hu]
-    have htail (b : Bool) : OracleComp.expectedCost ProbComp.unifOracle (fun _ => 1)
-        (BitString.sampleList k >>= fun xs => pure (b :: xs)) = k := by
-      simp [ih]
-    simp_rw [htail]
-    rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul, Nat.cast_succ, add_comm]
+    simp only [OracleComp.expectedCost_bind, OracleComp.expectedCost_pure, add_zero,
+      ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul, ih, Nat.cast_succ, add_comm]
 
 /-- **Expected fair-bit cost of early stopping.** Whatever the attempt budget,
 `sampleUniformIntervalRetry bound attempts` draws at most `2 * bound.size` fair bits in
@@ -450,9 +441,7 @@ private theorem optional_map_density {α β : Type} (μ : PMF (Option α)) (ν :
     Option.some.injEq]
   simp_rw [h]
   rw [PMF.map_apply, ← ENNReal.tsum_mul_left]
-  apply tsum_congr
-  intro a
-  split_ifs <;> simp
+  exact tsum_congr fun a => by split_ifs <;> simp
 
 /-- Gather successful coordinates, preserving the entire failure event. -/
 def collectBox (values : List (Option ℤ)) : Option (List ℤ) :=
@@ -516,15 +505,12 @@ private theorem gather_iid_apply (μ : PMF (Option ℤ)) {n : ℕ} (f : Fin n �
       ∏ i, μ (some (f i)) := by
   classical
   rw [PMF.map_apply, tsum_eq_single (fun i => some (f i))]
-  · have hcollect : collectBox (List.ofFn (fun i => some (f i))) = some (List.ofFn f) := by
-      rw [collectBox_eq_some, List.map_ofFn]
-      rfl
-    rw [ite_eq_left hcollect.symm, PMF.iid_apply]
+  · simp [eq_comm (a := some (List.ofFn f)), collectBox_eq_some, List.map_ofFn,
+      Function.comp_def, PMF.iid_apply]
   · intro g hg
-    refine ite_eq_right fun h => hg ?_
-    have heq := (collectBox_eq_some _ _).mp h.symm
-    rw [List.map_ofFn] at heq
-    exact List.ofFn_injective heq
+    rw [ite_eq_right]
+    simpa [eq_comm (a := some (List.ofFn f)), collectBox_eq_some, List.map_ofFn,
+      List.ofFn_injective.eq_iff, Function.comp_def] using hg
 
 private theorem gather_off_length (μ : PMF (Option ℤ)) (n : ℕ) (out : List ℤ)
     (hlen : out.length ≠ n) :

@@ -660,32 +660,21 @@ theorem seq_expected_amortized {U V w base : ℕ} {x₀ : RData rResize}
   have hob_fit : ObliviousPeakFits w base C.peakSpaceBound [] ops :=
     obliviousPeakFits_of_succinctWords hw_pos hU_pos hU hV_pos hvh hfit_ops
   have hfit₀' : Fits w (base + C.spaceBound []) := by
-    change Fits w (base + epochSpaceBound U V w [])
-    rwa [epochSpaceBound_nil]
+    simpa only [C, obliviousImpl, epochSpaceBound_nil] using hfit₀
   obtain ⟨ν₀, ν_final, T_ops, he_init, hcaller₀, hex, hfin, hcontract, hcost⟩ :=
     C.seq_expected ops hx₀ hfr₀ (fun j => Fin.elim0 j) hfit₀' hv_seq hob_fit
-  have he_init' : ExecRCodeDist w (initCode U V w) x₀ (ν₀.map LatentRState.data)
-      initSteps (base + 8) := by
-    change ExecRCodeDist w (initCode U V w) x₀ (ν₀.map LatentRState.data)
-      initSteps (base + epochSpaceBound U V w []) at he_init
-    rwa [epochSpaceBound_nil] at he_init
+  rw [show C.spaceBound [] = 8 from epochSpaceBound_nil U V w] at he_init
   have htr_eq : ∀ t ∈ ν_final.support,
       t.transcript = ((Dynamic.spec U V U).run (Dictionary.empty U) ops).2 := by
     rw [(Dynamic.spec U V U).toObliviousSequenceSpec_contract_iff_of_hasStepFn
       (Dictionary.empty U) hvh] at hcontract
-    intro t ht
-    exact hcontract t.transcript ((PMF.mem_support_map_iff _ _ _).mpr ⟨t, ht, rfl⟩)
+    exact fun t ht => hcontract t.transcript ((PMF.mem_support_map_iff _ _ _).mpr ⟨t, ht, rfl⟩)
   have hsp_le : C.spaceBound ops ≤ Dynamic.succinctWords 1355 441 U V w n_fin :=
     epochSpaceBound_le_succinctWords hw_pos hU_pos hU hV_pos hvh
-  refine ⟨ν₀, ν_final, T_ops, he_init', hcaller₀, hex, fun t ht => ?_, ?_⟩
+  refine ⟨ν₀, ν_final, T_ops, he_init, hcaller₀, hex, fun t ht => ?_, ?_⟩
   · obtain ⟨hbdd, ⟨hlo, hhi, hreg⟩, hmem⟩ := hfin t ht
     exact ⟨hbdd, ⟨hlo, hhi.trans (Nat.add_le_add_left hsp_le base), hreg⟩, hmem, htr_eq t ht⟩
-  · have htc : C.totalCharge ops = ops.length * resizableCharge := by
-      simp [C, obliviousImpl, ObliviousSequenceImpl.totalCharge]
-    change (initSteps : ℝ≥0∞) + T_ops ≤
-      (initSteps : ℝ≥0∞) + ((0 : ℕ) : ℝ≥0∞) + (C.totalCharge ops : ℝ≥0∞) at hcost
-    rw [Nat.cast_zero, add_zero, htc] at hcost
-    exact hcost
+  · simpa [C, obliviousImpl, ObliviousSequenceImpl.totalCharge] using hcost
 
 /-- **Standard-Basis End-to-End Expected-Amortized Resizable Succinct Dictionary
 (`seq_expected_amortized_standard`):**

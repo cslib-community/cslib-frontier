@@ -147,13 +147,9 @@ private theorem stateFrom_joinSketch (ω : Fin (2 * r) → Fin k → ι) (q : Jo
       add_zero]
   | cons x s ih =>
     rw [Algorithm.stateFrom_cons, ih]
-    cases x with
-    | inl a =>
-      simp only [joinSketch, Sum.elim_inl, List.filterMap_cons, Sum.getLeft?_inl,
-        Sum.getRight?_inl, List.map_cons, List.sum_cons, add_assoc]
-    | inr a =>
-      simp only [joinSketch, Sum.elim_inr, List.filterMap_cons, Sum.getLeft?_inr,
-        Sum.getRight?_inr, List.map_cons, List.sum_cons, add_assoc]
+    cases x <;> simp only [joinSketch, Sum.elim_inl, Sum.elim_inr, List.filterMap_cons,
+      Sum.getLeft?_inl, Sum.getRight?_inl, Sum.getLeft?_inr, Sum.getRight?_inr,
+      List.map_cons, List.sum_cons, add_assoc]
 
 /-- After the stream `s`, the counters with seed `θ` hold `∑_{a ∈ F} sgn (h θ a)` and
 `∑_{a ∈ G} sgn (h θ a)`, where `F` and `G` are the items tagged `Sum.inl` and `Sum.inr`. -/
@@ -222,13 +218,9 @@ private theorem dens_medianOfMeans_joinSize_error_le [Fintype ι] [DecidableEq �
     rw [ha, Nat.cast_zero, zero_mul]
   have hF {w : List α} (hw : w.toFinset ⊆ T) :
       ((freqMoment 2 w : ℕ) : ℝ) = ∑ a ∈ T, ((w.count a : ℝ)) ^ 2 := by
-    rw [freqMoment_eq_sum_of_subset two_ne_zero hw]
-    push_cast
-    rfl
+    simp only [freqMoment_eq_sum_of_subset two_ne_zero hw, Nat.cast_sum, Nat.cast_pow]
   have hJ : ((joinSize u v : ℕ) : ℝ) = ∑ a ∈ T, (u.count a : ℝ) * v.count a := by
-    rw [joinSize_eq_sum_of_subset (T := T) subset_union_left]
-    push_cast
-    rfl
+    simp only [joinSize_eq_sum_of_subset (T := T) subset_union_left, Nat.cast_sum, Nat.cast_mul]
   set g : ι → ℝ := fun θ => (∑ a ∈ T, (u.count a : ℝ) * sgn (h θ a)) *
     ∑ a ∈ T, (v.count a : ℝ) * sgn (h θ a)
   have hg : (fun θ => (∑ a ∈ u.toFinset, (u.count a : ℝ) * sgn (h θ a)) *

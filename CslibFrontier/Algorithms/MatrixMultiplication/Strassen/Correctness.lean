@@ -66,7 +66,6 @@ theorem multiply_eq_coefficients {p : ℕ} (hp : p ≠ 0) (k : ℕ)
     have ht : i / q < 4 := (Nat.div_lt_iff_lt_mul hq).mpr (by simpa only [← hs] using hi)
     generalize htdef : i / q = t at ht
     have he : t * q + j = i := by
-      dsimp only [j]
       rw [← htdef, Nat.mul_comm]
       exact Nat.div_add_mod i q
     -- Each quarter of an input array agrees with the corresponding quadrant.
@@ -77,8 +76,8 @@ theorem multiply_eq_coefficients {p : ℕ} (hp : p ≠ 0) (k : ℕ)
       have hm := Nat.mul_le_mul_right q (show t ≤ 3 by omega)
       exact (hA (t * q + s) (by rw [hs]; omega)).trans
         (quarter_coefficients hp k M ht hs')
-    have hqa := hquarter M a hA
-    have hqb := hquarter N b hB
+    have hqa (t : ℕ) (ht : t < 4 := by decide) := hquarter M a hA t ht
+    have hqb (t : ℕ) (ht : t < 4 := by decide) := hquarter N b hB t ht
     -- Agreement is preserved by sums and differences of quadrants.
     have hadd {x y : ℕ → ℤ} {X Y : ℕ → ℕ → CyclicIntRing p}
         (hx : ∀ s < q, x s = coefficients hp X s) (hy : ∀ s < q, y s = coefficients hp Y s) :
@@ -90,30 +89,15 @@ theorem multiply_eq_coefficients {p : ℕ} (hp : p ≠ 0) (k : ℕ)
         ∀ s < q, (x - y) s = coefficients hp (X - Y) s := fun s hs' => by
       rw [coefficients_sub]
       exact congrArg₂ (· - ·) (hx s hs') (hy s hs')
-    have h₁ := ih (submatrix k 0 M + submatrix k 3 M) (submatrix k 0 N + submatrix k 3 N)
-      (quarter q 0 a + quarter q 3 a) (quarter q 0 b + quarter q 3 b)
-      (hadd (hqa 0 (by decide)) (hqa 3 (by decide)))
-      (hadd (hqb 0 (by decide)) (hqb 3 (by decide))) hj
-    have h₂ := ih (submatrix k 2 M + submatrix k 3 M) (submatrix k 0 N)
-      (quarter q 2 a + quarter q 3 a) (quarter q 0 b)
-      (hadd (hqa 2 (by decide)) (hqa 3 (by decide))) (hqb 0 (by decide)) hj
-    have h₃ := ih (submatrix k 0 M) (submatrix k 1 N - submatrix k 3 N)
-      (quarter q 0 a) (quarter q 1 b - quarter q 3 b)
-      (hqa 0 (by decide)) (hsub (hqb 1 (by decide)) (hqb 3 (by decide))) hj
-    have h₄ := ih (submatrix k 3 M) (submatrix k 2 N - submatrix k 0 N)
-      (quarter q 3 a) (quarter q 2 b - quarter q 0 b)
-      (hqa 3 (by decide)) (hsub (hqb 2 (by decide)) (hqb 0 (by decide))) hj
-    have h₅ := ih (submatrix k 0 M + submatrix k 1 M) (submatrix k 3 N)
-      (quarter q 0 a + quarter q 1 a) (quarter q 3 b)
-      (hadd (hqa 0 (by decide)) (hqa 1 (by decide))) (hqb 3 (by decide)) hj
-    have h₆ := ih (submatrix k 2 M - submatrix k 0 M) (submatrix k 0 N + submatrix k 1 N)
-      (quarter q 2 a - quarter q 0 a) (quarter q 0 b + quarter q 1 b)
-      (hsub (hqa 2 (by decide)) (hqa 0 (by decide)))
-      (hadd (hqb 0 (by decide)) (hqb 1 (by decide))) hj
-    have h₇ := ih (submatrix k 1 M - submatrix k 3 M) (submatrix k 2 N + submatrix k 3 N)
-      (quarter q 1 a - quarter q 3 a) (quarter q 2 b + quarter q 3 b)
-      (hsub (hqa 1 (by decide)) (hqa 3 (by decide)))
-      (hadd (hqb 2 (by decide)) (hqb 3 (by decide))) hj
+    have ih' {X Y a' b'} (ha : ∀ s < q, a' s = coefficients hp X s)
+        (hb : ∀ s < q, b' s = coefficients hp Y s) := ih X Y a' b' ha hb hj
+    have h₁ := ih' (hadd (hqa 0) (hqa 3)) (hadd (hqb 0) (hqb 3))
+    have h₂ := ih' (hadd (hqa 2) (hqa 3)) (hqb 0)
+    have h₃ := ih' (hqa 0) (hsub (hqb 1) (hqb 3))
+    have h₄ := ih' (hqa 3) (hsub (hqb 2) (hqb 0))
+    have h₅ := ih' (hadd (hqa 0) (hqa 1)) (hqb 3)
+    have h₆ := ih' (hsub (hqa 2) (hqa 0)) (hadd (hqb 0) (hqb 1))
+    have h₇ := ih' (hsub (hqa 1) (hqa 3)) (hadd (hqb 2) (hqb 3))
     have hR : coefficients hp
         (fun r s => ∑ c ∈ Finset.range (2 ^ (k + 1)), M r c * N c s) i =
         coefficients hp (submatrix k t
