@@ -76,6 +76,11 @@ private theorem four_mul_card_le_of_four_le_index {G : Type*} [Group G] {K : Sub
 private theorem unitsMap_neg_one {A n : ℕ} (h : A ∣ n) : unitsMap h (-1) = -1 :=
   Units.ext (by simp [unitsMap_def])
 
+private theorem pow_two_mul_eq_one {n m : ℕ} {a : (ZMod n)ˣ} (ha : a ∈ powEqOneOrNegOne n m) :
+    a ^ (2 * m) = 1 := by
+  rw [pow_mul']
+  rcases mem_powEqOneOrNegOne.1 ha with ha | ha <;> rw [ha] <;> simp
+
 /-- The Chinese remainder theorem for units, through `unitsMap`. -/
 private theorem exists_unitsMap_eq {A B : ℕ} (h : A.Coprime B) (u : (ZMod A)ˣ) (v : (ZMod B)ˣ) :
     ∃ c : (ZMod (A * B))ˣ, unitsMap (dvd_mul_right A B) c = u ∧
@@ -171,10 +176,8 @@ private theorem exists_not_mem_of_prime_mul_prime {p q m : ℕ} (hp : p.Prime) (
   have key : ∀ r : ℕ, r.Prime → (∀ w : (ZMod r)ˣ, w ∈ powEqOneOrNegOne r m) → r - 1 ∣ 2 * m := by
     intro r hr hall
     have : Fact r.Prime := ⟨hr⟩
-    have hexp : Monoid.exponent (ZMod r)ˣ ∣ 2 * m := by
-      refine Monoid.exponent_dvd_iff_forall_pow_eq_one.2 fun w => ?_
-      rw [pow_mul']
-      rcases mem_powEqOneOrNegOne.1 (hall w) with hw | hw <;> rw [hw] <;> simp
+    have hexp : Monoid.exponent (ZMod r)ˣ ∣ 2 * m :=
+      Monoid.exponent_dvd_iff_forall_pow_eq_one.2 fun w => pow_two_mul_eq_one (hall w)
     rwa [IsCyclic.exponent_eq_card, Nat.card_eq_fintype_card, ZMod.card_units] at hexp
   exact hpq (eq_of_sub_one_dvd hp.one_lt.le hq.one_lt.le ((key p hp h.1).trans hm)
     ((key q hq h.2).trans hm))
@@ -286,10 +289,7 @@ theorem four_mul_card_powEqOneOrNegOne_le {n m : ℕ} [NeZero n] (hodd : Odd n) 
           _ ≤ p ^ 2 := Nat.pow_le_pow_left hp3 2
           _ ≤ p ^ (e - 1) := Nat.pow_le_pow_right hp.pos (by omega)
     have hT : powEqOneOrNegOne n m ≤ (powMonoidHom (2 * m) : (ZMod n)ˣ →* (ZMod n)ˣ).ker :=
-      fun a ha => by
-        change a ^ (2 * m) = 1
-        rw [pow_mul']
-        rcases mem_powEqOneOrNegOne.1 ha with ha | ha <;> rw [ha] <;> simp
+      fun a ha => MonoidHom.mem_ker.2 (pow_two_mul_eq_one ha)
     rw [Nat.card_eq_fintype_card (α := (ZMod n)ˣ), ZMod.card_units_eq_totient, mul_comm]
     exact (Nat.mul_le_mul (Subgroup.card_le_of_le hT) hp4).trans (Nat.le_of_dvd
       (Nat.totient_pos.2 (by omega)) (card_ker_mul_pow_dvd_totient hp he (hn_eq ▸ dvd_rfl) h1 hm))
