@@ -209,8 +209,7 @@ theorem SignatureScheme.OneTimeEUFCMA.exists_oneWay {S : SignatureScheme}
   let f (seed : List Bool) : List Bool :=
     encPair encUnary encBits (param seed.length, (evaluate (param seed.length) seed).1)
   have hsched : ComputableInPolyTime schedule encUnary encUnary := by
-    dsimp only [schedule]
-    fun_prop
+    dsimp only [schedule]; fun_prop
   have hparam_unary : ComputableInPolyTime param encUnary encUnary :=
     GeneratorReindex.isPolyTime_parameter hsched .id'
   have hparam : ComputableInPolyTime (fun seed : List Bool => param seed.length)
@@ -708,8 +707,7 @@ private theorem lamport_pointwise_le {f : List Bool → List Bool}
         exact (lamportScheme f hf).length_le_one_of_mem_support_run_oneTimeSigningOracle n
           (encList encBits w) (adversary n pk) hsupp
       have hwin' := hwin
-      dsimp only [win] at hwin'
-      simp only [Bool.and_eq_true, beq_iff_eq] at hwin'
+      simp only [win, Bool.and_eq_true, beq_iff_eq] at hwin'
       obtain ⟨⟨hmsg_len, hnot_mem⟩, hver⟩ := hwin'
       obtain ⟨i, hi, hagree⟩ := exists_unqueried_index hn hmsg_len hqlen hnot_mem
       let jStar := 2 * i + (out.1.1.getD i false).toNat
@@ -798,9 +796,8 @@ theorem succProbability_eufOneTimeGame_lamport_le {f : List Bool → List Bool}
         inverterAt, BitString.eval_sampleList, eval_sampleDyadicIndex]
       rw [PMF.bind_comm]
       rfl
-    have htrial_eq : ∀ j < 2 * n,
+    have htrial_eq (j : ℕ) (hj : j < 2 * n) :
         μ.bind (fun w => (runWith (pkOf w) (dummySkOf w j)).map (invWin w j)) = trial j := by
-      intro j hj
       dsimp only [μ, trial, inverterAt]
       rw [eval_replicate_split (BitString.sampleList n) hj]
       simp only [hj, ↓reduceIte, BitString.eval_sampleList, lamportSimKeys, ProbComp.eval_bind,
@@ -843,16 +840,14 @@ theorem succProbability_eufOneTimeGame_lamport_le {f : List Bool → List Bool}
     have hmono := ENNReal.toNNReal_mono hsum_ne_top htotal_ennreal
     rwa [ENNReal.toNNReal_sum fun j _ => PMF.apply_ne_top _ _] at hmono
   · obtain rfl : n = 0 := by omega
-    have hvalid0 : valid 0 [] = true := hvalid [] rfl
     have hinv0 :
         ProbComp.eval (inversionGameOn f valid (lamportInverter f hf adversary) 0) =
           PMF.pure true := by
       simp only [inversionGameOn, lamportInverter, Nat.mul_zero, Nat.not_lt_zero, ↓reduceIte,
         ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList,
-        BitString.uniformList_zero, PMF.pure_bind, PMF.bind_const, hvalid0, beq_self_eq_true,
+        BitString.uniformList_zero, PMF.pure_bind, PMF.bind_const, hvalid [] rfl, beq_self_eq_true,
         Bool.and_self]
-    rw [hinv0]
-    simp only [Game.succProbability, PMF.pure_apply_self, ENNReal.toNNReal_one, mul_one,
+    simp only [hinv0, Game.succProbability, PMF.pure_apply_self, ENNReal.toNNReal_one, mul_one,
       Nat.mul_zero]
     exact (Game.succProbability_le_one _).trans (by exact_mod_cast dyadicSize_pos 0)
 
