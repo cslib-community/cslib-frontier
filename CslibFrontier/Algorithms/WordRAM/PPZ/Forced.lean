@@ -67,8 +67,7 @@ def optCode : Option Bool → ℕ
   | some b => b.toNat
   | none => 2
 
-theorem optCode_le_two (o : Option Bool) : optCode o ≤ 2 := by
-  rcases o with _ | _ | _ <;> decide
+theorem optCode_le_two (o : Option Bool) : optCode o ≤ 2 := by rcases o with _ | _ | _ <;> decide
 
 /-- The partial assignment `τ` is stored as the words `optCode (τ i)` from address `base`. -/
 def PartialAt (mem : ℕ → ℕ) (base : ℕ) (τ : Fin n → Option Bool) : Prop :=
