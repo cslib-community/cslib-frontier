@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpModelStep
+import CslibFrontier.Foundations.Logic.Function.UpdateKernel
 -- `import all`: reads private epoch/invariant-transfer helpers (`curEp_ne_oldEp`,
 -- `core_and_om_of_inLiveTree_eq`, `step_of_inLiveTree_eq`) from `Common`.
 import all CslibFrontier.DataStructure.Dictionary.SuccinctWhpModelTick.Common
@@ -77,17 +78,17 @@ private theorem BufMapRel.untag_one {M tag b₀ loc₀ : ℕ} {bktCnt : ℕ → 
     · rcases hbl with ⟨rfl, rfl⟩
       rw [Function.update_self, Function.update_self] at hst'
       exact hne hst'
-    · rw [update_update_apply_of_ne hbl] at hst'
+    · rw [Function.update_update_apply_of_ne hbl] at hst'
       exact hbl (hinj b hb loc hloc hst' heq)
   · rw [Function.update_of_ne hrk, hrel.2 rk b loc]
     refine ⟨fun ⟨hb, hloc, hst, heq⟩ => ⟨hb, hloc, ?_, heq⟩,
       fun ⟨hb, hloc, hst', heq⟩ => ⟨hb, hloc, ?_, heq⟩⟩
-    · rwa [update_update_apply_of_ne (fun ⟨hb', hl'⟩ => hrk (hb' ▸ hl' ▸ heq.symm))]
+    · rwa [Function.update_update_apply_of_ne (fun ⟨hb', hl'⟩ => hrk (hb' ▸ hl' ▸ heq.symm))]
     · by_cases hbl : b = b₀ ∧ loc = loc₀
       · rcases hbl with ⟨rfl, rfl⟩
         rw [Function.update_self, Function.update_self] at hst'
         exact absurd hst' hne
-      · rwa [update_update_apply_of_ne hbl] at hst'
+      · rwa [Function.update_update_apply_of_ne hbl] at hst'
 
 private def epochTickStage3Finish (s : FastState) : FastState :=
   if (s.buf s.oldEp).itemAlloc ≤ s.stageCursor then
@@ -192,7 +193,7 @@ theorem epochTickStage3_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
         · rcases hbl with ⟨rfl, rfl⟩
           rw [Function.update_self, Function.update_self, hst₀]
           simp [inLiveTree]
-        · rw [update_update_apply_of_ne hbl]
+        · rw [Function.update_update_apply_of_ne hbl]
       have hc' : CoreFastInv c U V n_max θ fs' dict :=
         { hth := hc.hth
           curEp_or := hc.curEp_or
@@ -207,11 +208,11 @@ theorem epochTickStage3_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
             by_cases hbl : b = b₀ ∧ loc = loc₀
             · rcases hbl with ⟨rfl, rfl⟩
               simp
-            · rw [update_update_apply_of_ne hbl]
+            · rw [Function.update_update_apply_of_ne hbl]
               exact hc.locState_active b hb loc hloc
           locState_inactive := fun b loc hnot => by
             dsimp only [fs']
-            rw [update_update_apply_of_ne (fun ⟨rfl, rfl⟩ => hnot ⟨hb₀, hl₀⟩)]
+            rw [Function.update_update_apply_of_ne (fun ⟨rfl, rfl⟩ => hnot ⟨hb₀, hl₀⟩)]
             exact hc.locState_inactive b loc hnot
           active_item := hc.active_item
           quot_inj := hc.quot_inj
@@ -241,7 +242,7 @@ theorem epochTickStage3_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
               · rcases hbl with ⟨rfl, rfl⟩
                 rw [Function.update_self, Function.update_self] at h2
                 omega
-              · rwa [update_update_apply_of_ne hbl] at h2
+              · rwa [Function.update_update_apply_of_ne hbl] at h2
             exact hc.rKey_buf_inj b₁ hb₁ l₁ hl₁ b₂ hb₂ l₂ hl₂
               (h2_orig b₁ hb₁ l₁ hl₁ h2₁) (h2_orig b₂ hb₂ l₂ hl₂ h2₂) hrkeq
           bufCur_valid := by
@@ -257,7 +258,7 @@ theorem epochTickStage3_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
               rw [Function.update_self, Function.update_self, hst₀]
               have := curEp_ne_oldEp hc.curEp_or
               omega
-            · rw [update_update_apply_of_ne hbl]
+            · rw [Function.update_update_apply_of_ne hbl]
           bufOld_valid := by
             have hst_eq : fs'.rebStage = 3 := hs3
             have hold_eq : fs'.oldEp = oldEp := rfl

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.DataStructure.PackedLane
+import CslibFrontier.Foundations.Logic.Function.UpdateKernel
 
 /-!
 # Bounded-Depth Character Trie Buffer (`BufTrie`) for Deamortized Salt Collisions
@@ -487,15 +488,6 @@ private structure BufTrieInv (cTab bChar : ℕ) (tr : BufTrie) (depth : ℕ → 
     tr.itemLeaf (tr.nodeLeafItem u - 1) = u ∧
     ∃ k < 2 ^ (cTab * bChar), bufWalk bChar tr.trieChild k cTab 0 0 = some u
 
-/-- Updating entry `(a, b)` of a two-argument function leaves every other entry unchanged. -/
-theorem update_update_apply_of_ne {α β γ : Type*} [DecidableEq α] [DecidableEq β]
-    {f : α → β → γ} {a x : α} {b y : β} {val : γ} (h : ¬(x = a ∧ y = b)) :
-    Function.update f a (Function.update (f a) b val) x y = f x y := by
-  by_cases hx : x = a
-  · subst hx
-    simp [show y ≠ b from fun hy => h ⟨rfl, hy⟩]
-  · simp [hx]
-
 private theorem BufTrieInv.child_lt {cTab bChar : ℕ} {tr : BufTrie} {depth : ℕ → ℕ}
     (hinv : BufTrieInv cTab bChar tr depth) (v c : ℕ) (hnz : tr.trieChild v c ≠ 0) :
     v < tr.trieChild v c := by
@@ -521,7 +513,7 @@ private theorem BufTrieInv.allocStep {cTab bChar cur ch off : ℕ} {tr : BufTrie
     (∀ v c, tr.trieChild v c ≠ 0 → tr'.trieChild v c = tr.trieChild v c) := by
   intro u tr' depth'
   have hmono : ∀ v c, tr.trieChild v c ≠ 0 → tr'.trieChild v c = tr.trieChild v c :=
-    fun v c hnz => update_update_apply_of_ne fun ⟨hv, hc⟩ => hnz (hv ▸ hc ▸ h0)
+    fun v c hnz => Function.update_update_apply_of_ne fun ⟨hv, hc⟩ => hnz (hv ▸ hc ▸ h0)
   refine ⟨⟨by dsimp [tr']; omega,
     fun w hw_ge => by
       dsimp only [tr'] at hw_ge ⊢
@@ -550,7 +542,7 @@ private theorem BufTrieInv.allocStep {cTab bChar cur ch off : ℕ} {tr : BufTrie
       simp only [Function.update_self]
       exact ⟨fun _ => ⟨hinv.alloc, by omega, trivial, trivial⟩,
         fun _ => by have := hinv.alloc; omega⟩
-    · rw [update_update_apply_of_ne hvc]
+    · rw [Function.update_update_apply_of_ne hvc]
       refine ⟨fun hnz => ?_, fun ⟨h1, _⟩ => by omega⟩
       obtain ⟨h1, h2, h3, h4⟩ := (hinv.iff v c).mp hnz
       rw [Function.update_of_ne (by omega : tr.trieChild v c ≠ u),
@@ -640,7 +632,7 @@ private theorem bufEnsurePath_props {cTab bChar rKey : ℕ} :
         · have := hnew1 v c hne1; rw [hna_step] at this; omega
         · rw [not_ne_iff.mp hne1] at hne ⊢
           have hvc : v = cur ∧ c = ch :=
-            by_contra fun hvc => hne (update_update_apply_of_ne hvc)
+            by_contra fun hvc => hne (Function.update_update_apply_of_ne hvc)
           rcases hvc with ⟨rfl, rfl⟩; simp [tr_step]
       · exact Or.inr ⟨by simp [bufWalk, ch, nxt, h0],
           bufWalk_le_leaf hinv1.child_lt rem (off + 1) u _ rKey hw_rem⟩
@@ -937,12 +929,12 @@ theorem ClearableBufTrie.clearOne_step {tr : BufTrie} (hc : ClearableBufTrie tr)
         by_cases hvc : tr.nodeParent w = p ∧ tr.nodeChar w = ch
         · have : w = u := by rw [← hc_w, hvc.1, hvc.2, (hedge u (by omega) (by omega)).2]
           omega
-        · rw [update_update_apply_of_ne hvc, hc_w],
+        · rw [Function.update_update_apply_of_ne hvc, hc_w],
       fun v c hnz => by
         dsimp only at hnz ⊢
         by_cases hvc : v = p ∧ c = ch
         · rcases hvc with ⟨rfl, rfl⟩; simp at hnz
-        · rw [update_update_apply_of_ne hvc] at hnz ⊢
+        · rw [Function.update_update_apply_of_ne hvc] at hnz ⊢
           obtain ⟨h1, h2, h3, h4⟩ := hchild v c hnz
           have hne_u : tr.trieChild v c ≠ u := fun heq => hvc ⟨h3 ▸ heq ▸ rfl, h4 ▸ heq ▸ rfl⟩
           exact ⟨h1, by omega, h3, h4⟩⟩, by omega⟩
