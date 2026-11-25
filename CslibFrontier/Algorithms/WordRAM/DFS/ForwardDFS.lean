@@ -163,9 +163,8 @@ private theorem forwardDFSLoop_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → Li
         rw [List.getElem_append_right (by simp; omega)]
         simp [q']
     · rw [hfold_cons] at ha; dsimp only at ha; rw [List.length_append] at ha
-      have h2 := hy_out a (by dsimp only [kVisAddr, kOrdAddr, kStkAddr] at *; omega)
-      have h1 := hy₁_out a (by dsimp only [kVisAddr, kOrdAddr, kStkAddr] at *; omega)
-      exact h2.trans h1
+      exact (hy_out a (by dsimp only [kVisAddr, kOrdAddr, kStkAddr] at *; omega)).trans
+        (hy₁_out a (by dsimp only [kVisAddr, kOrdAddr, kStkAddr] at *; omega))
     · rw [hy_fr reg hreg]
       wram_simp [x₂, hy₁_fr reg (.inl (by omega)), st_u]
 
@@ -218,8 +217,7 @@ theorem forwardDFSCode_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → List (Fin 
     rw [csrOffset_eq_outDegreeSum]
     unfold outDegreeSum
     rw [← List.sum_toFinset _ hnd_ord, ← List.sum_toFinset _ (List.nodup_finRange N), huniv_ord]
-    have huniv2 : (List.finRange N).toFinset = Finset.univ := by ext v; simp
-    rw [huniv2]
+    rw [show (List.finRange N).toFinset = Finset.univ by ext v; simp]
   rw [hfold_eq] at hy_ex hy_ord hy_out
   rw [hlen_ord, hout_ord] at hy_ex
   simp only [List.length_finRange, Nat.add_zero] at hy_ex hy_ord hy_out
