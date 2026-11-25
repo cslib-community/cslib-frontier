@@ -257,10 +257,7 @@ theorem realizes_readLocStateGen :
     subst w_in
     have hw : 0 < w := by omega
     have hw2 : 2 ≤ w := by omega
-    have hidx : b * totalLoc + loc < M * totalLoc := by
-      calc b * totalLoc + loc < b * totalLoc + totalLoc := Nat.add_lt_add_left hloc_lt _
-        _ = (b + 1) * totalLoc := by ring
-        _ ≤ M * totalLoc := Nat.mul_le_mul_right _ hb_lt
+    have hidx : b * totalLoc + loc < M * totalLoc := mul_add_lt_mul_bound hb_lt hloc_lt
     have hw_off_lt := wordOffset_add_one_lt_packedWords (k := 2) hw hidx
     have hb_off_lt : bitOffset 2 w (b * totalLoc + loc) < w := bitOffset_lt hw
     obtain ⟨hof_st, hof_res, _⟩ := locStateOffsetProg_spec (totalLoc := totalLoc) (w := w)
@@ -296,11 +293,7 @@ theorem readLocStateGenProg_spec {c U V w n_max base b loc : ℕ} {s : Memory.St
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
   have hw := henv.2.1
   have hidx : b * totalLocalCoordsWhp n_max + loc <
-      numBucketsWhp n_max * totalLocalCoordsWhp n_max := by
-    calc b * totalLocalCoordsWhp n_max + loc
-        < b * totalLocalCoordsWhp n_max + totalLocalCoordsWhp n_max := Nat.add_lt_add_left hloc _
-      _ = (b + 1) * totalLocalCoordsWhp n_max := by ring
-      _ ≤ numBucketsWhp n_max * totalLocalCoordsWhp n_max := Nat.mul_le_mul_right _ hb
+      numBucketsWhp n_max * totalLocalCoordsWhp n_max := mul_add_lt_mul_bound hb hloc
   have hw_lt := wordOffset_add_one_lt_packedWords (k := 2) hw hidx
   have hseg := (WhpLargeEnv.seg_end_le c U V w n_max).2.2.2.1
   obtain ⟨hof_st, hof_res, hof_mc⟩ :=
@@ -421,10 +414,7 @@ theorem realizes_writeLocStateGen :
     obtain ⟨M, hw_in, hw3, h2T, hb_lt, hloc_lt, hfit_seg⟩ := h
     subst w_in
     have hw : 0 < w := by omega
-    have hidx : b * totalLoc + loc < M * totalLoc := by
-      calc b * totalLoc + loc < b * totalLoc + totalLoc := Nat.add_lt_add_left hloc_lt _
-        _ = (b + 1) * totalLoc := by ring
-        _ ≤ M * totalLoc := Nat.mul_le_mul_right _ hb_lt
+    have hidx : b * totalLoc + loc < M * totalLoc := mul_add_lt_mul_bound hb_lt hloc_lt
     have hw_off_lt := wordOffset_add_one_lt_packedWords (k := 2) hw hidx
     have hb_off_lt : bitOffset 2 w (b * totalLoc + loc) < w := bitOffset_lt hw
     obtain ⟨hof_st, hof_res, _⟩ := locStateOffsetProg_spec (totalLoc := totalLoc) (w := w)
@@ -470,10 +460,7 @@ theorem writeLocStateGenProg_spec {c U V w n_max base b loc val : ℕ} {s : Memo
     omega
   set totalLoc := totalLocalCoordsWhp n_max
   set idx := b * totalLoc + loc
-  have hidx : idx < numBucketsWhp n_max * totalLoc := by
-    calc b * totalLoc + loc < b * totalLoc + totalLoc := Nat.add_lt_add_left hloc _
-      _ = (b + 1) * totalLoc := by ring
-      _ ≤ numBucketsWhp n_max * totalLoc := Nat.mul_le_mul_right _ hb
+  have hidx : idx < numBucketsWhp n_max * totalLoc := mul_add_lt_mul_bound hb hloc
   have hseg := (WhpLargeEnv.seg_end_le c U V w n_max).2.2.2.1
   have hseg_b : base + offLocState c U V w n_max +
       packedWords (numBucketsWhp n_max * totalLoc) 2 w ≤
@@ -1129,10 +1116,7 @@ private theorem permEvalActDestProg_invariant {c U V w n_max base mode x : ℕ} 
         by_cases hb : x / capFrontWhp n_max < numBucketsWhp n_max
         · simp only [hb, ↓reduceIte]
           refine ⟨?_, ?_, ?_⟩
-          · rw [clientState_bind, clientState_readPackedGen]
-            split_ifs
-            · rw [clientState_bind, clientState_readPackedGen]; split_ifs <;> rfl
-            · rfl
+          · repeat' first | rw [clientState_bind, clientState_readPackedGen] | split_ifs | rfl
           · rw [clientResult_bind, clientState_readPackedGen]
             split_ifs
             · rw [clientResult_bind, clientState_readPackedGen]
@@ -1156,19 +1140,7 @@ private theorem permEvalActDestProg_invariant {c U V w n_max base mode x : ℕ} 
             pIdx
           have hk_cb : enc % capBackWhp n_max < capBackWhp n_max := Nat.mod_lt _ hcb
           refine ⟨?_, ?_, ?_⟩
-          · rw [clientState_bind, clientState_readPackedGen, clientResult_readPackedGen]
-            split_ifs with hb
-            · rw [clientState_bind, clientState_readPackedGen]
-              split_ifs
-              · rfl
-              · rw [clientState_bind, clientState_readPackedGen]
-                split_ifs
-                · rw [clientState_bind, clientState_readPackedGen]
-                  split_ifs <;> rfl
-                · rfl
-              · rfl
-              · rfl
-            · rfl
+          · repeat' first | rw [clientState_bind, clientState_readPackedGen] | split_ifs | rfl
           · rw [clientResult_bind, clientState_readPackedGen, clientResult_readPackedGen]
             split_ifs with hb
             · rw [clientResult_bind, clientState_readPackedGen]
@@ -1189,13 +1161,8 @@ private theorem permEvalActDestProg_invariant {c U V w n_max base mode x : ℕ} 
               rw [clientState_readPackedGen]
               split_ifs
               · exact validProg_pure _
-              · have hbk_lt : (enc / capBackWhp n_max) * capBackWhp n_max +
-                    enc % capBackWhp n_max < numBucketsWhp n_max * capBackWhp n_max := by
-                  calc _ < (enc / capBackWhp n_max) * capBackWhp n_max + capBackWhp n_max :=
-                        Nat.add_lt_add_left hk_cb _
-                    _ = (enc / capBackWhp n_max + 1) * capBackWhp n_max := by ring
-                    _ ≤ numBucketsWhp n_max * capBackWhp n_max := Nat.mul_le_mul_right _ hb
-                refine validProg_bind (validProg_readPacked hw hbk_lt hbp_b) ?_
+              · refine validProg_bind (validProg_readPacked hw (mul_add_lt_mul_bound hb hk_cb)
+                  hbp_b) ?_
                 rw [clientState_readPackedGen]
                 split_ifs
                 · refine validProg_bind (validProg_readPacked hw (by omega) hfb_b) ?_
@@ -1208,18 +1175,11 @@ private theorem permEvalActDestProg_invariant {c U V w n_max base mode x : ℕ} 
       · simp only [hps, ↓reduceIte]; exact ⟨rfl, hn_pos, validProg_pure _⟩
   · simp only [hm, ↓reduceIte]
     refine ⟨?_, ?_, ?_⟩
-    · rw [clientState_bind, clientState_readPackedGen]
-      split_ifs
-      · rw [clientState_bind, hsb_st]
-        split_ifs with hb
-        · rw [clientState_bind, clientState_readPackedGen]
-          split_ifs
-          · rfl
-          · rfl
-          · rw [clientState_bind, clientState_readPackedGen]; split_ifs <;> rfl
-          · rfl
-        · rfl
-      · rfl
+    · repeat' first
+        | rw [clientState_bind, clientState_readPackedGen]
+        | rw [clientState_bind, hsb_st]
+        | split_ifs
+        | rfl
     · rw [clientResult_bind, clientState_readPackedGen]
       split_ifs
       · rw [clientResult_bind, hsb_st]
@@ -2506,23 +2466,10 @@ theorem fastToCsrGenProg_spec {c U V w n_max base : ℕ} {θ : SeedWhp c U n_max
   set fb := buildFbStart M fs.bktCount
   set prt := mkPermRt c U V w n_max base
   obtain ⟨hcsr, _⟩ := hv.fastToCsr_spec
-  have hfb_mono : ∀ x y, x ≤ y → y ≤ M → fb x ≤ fb y := by
-    intro x y hxy hy
-    induction y with
-    | zero =>
-      have hx0 : x = 0 := by omega
-      subst hx0
-      exact le_rfl
-    | succ y ihy =>
-      rcases Nat.eq_or_lt_of_le hxy with rfl | hlt
-      · exact le_rfl
-      · exact (ihy (Nat.le_of_lt_succ hlt) (by omega)).trans (hcsr.2.1 y (by omega))
   have hfb_le_n : ∀ x ≤ M, fb x ≤ n_max := fun x hx =>
-    (hfb_mono x M hx le_rfl).trans hcsr.2.2.1
-  have hfb_adj : ∀ b < M, fb (b + 1) = fb b + fs.bktCount b := by
-    intro b hb
-    dsimp only [fb, buildFbStart]
-    simp [hb]
+    ((monotone_nat_of_le_succ (f := fb) fun _ => Nat.le_add_right _ _) hx).trans hcsr.2.2.1
+  have hfb_cnt : ∀ b < M, fb b + fs.bktCount b ≤ n_max := fun b hb => by
+    simpa only [fb, buildFbStart, hb, ↓reduceIte] using hfb_le_n (b + 1) hb
   obtain ⟨hmk_st, hmk_res, _, hmk_vp⟩ := mkPermRtGenProg_spec (c := c) (U := U) (V := V)
     (w := w) (n_max := n_max) (base := base) hth s
   obtain ⟨-, -, -, -, hfb_b, -⟩ := perm_seg_le c U V w n_max base
@@ -2538,8 +2485,7 @@ theorem fastToCsrGenProg_spec {c U V w n_max base : ℕ} {θ : SeedWhp c U n_max
   have hfb0 : ∀ x ≤ 0,
       readPacked (base + offFbStart c U V w n_max) (globalPtrBits n_max) w s0.mem x = fb x := by
     intro x hx
-    have hx0 : x = 0 := by omega
-    subst hx0
+    obtain rfl := Nat.le_zero.mp hx
     exact readPacked_writePacked_self _ _ _ _ _ (Nat.two_pow_pos _)
   have hout0 : ∀ a, (a < base + offFbStart c U V w n_max ∨ base + offBackPtr c U V w n_max ≤ a) →
       s0.mem a = s.mem a := by
@@ -2649,9 +2595,7 @@ theorem fastToCsrGenProg_spec {c U V w n_max base : ℕ} {θ : SeedWhp c U n_max
             clientResult_readPackedGen, hbm_s' (x / capFrontWhp n_max) hb]
           by_cases hloc : x % capFrontWhp n_max < fs.bktCount (x / capFrontWhp n_max)
           · have hfb_lt : fb (x / capFrontWhp n_max) + x % capFrontWhp n_max < n_max := by
-              have := hfb_adj (x / capFrontWhp n_max) hb
-              have := hfb_le_n (x / capFrontWhp n_max + 1) hb
-              omega
+              have := hfb_cnt _ hb; omega
             have h1 : fb (x / capFrontWhp n_max) < n_max := by omega
             have h2 : x % capFrontWhp n_max < n_max - fb (x / capFrontWhp n_max) := by omega
             simp only [hloc, ↓reduceIte, clientResult_bind, hcs,
@@ -2672,9 +2616,7 @@ theorem fastToCsrGenProg_spec {c U V w n_max base : ℕ} {θ : SeedWhp c U n_max
         have hk_cb : enc % capBackWhp n_max < capBackWhp n_max := Nat.mod_lt _ hcb
         by_cases hb : enc / capBackWhp n_max < numBucketsWhp n_max
         · have hcnt_le : fs.bktCount (enc / capBackWhp n_max) ≤ n_max := by
-            have := hfb_adj (enc / capBackWhp n_max) hb
-            have := hfb_le_n (enc / capBackWhp n_max + 1) hb
-            omega
+            have := hfb_cnt _ hb; omega
           have hn_gt : ¬(n_max < fs.bktCount (enc / capBackWhp n_max)) := Nat.not_lt.mpr hcnt_le
           simp only [hb, ↓reduceIte, clientResult_bind, hcs,
             clientResult_readPackedGen, hbm_s' (enc / capBackWhp n_max) hb, hn_gt]
@@ -2691,9 +2633,7 @@ theorem fastToCsrGenProg_spec {c U V w n_max base : ℕ} {θ : SeedWhp c U n_max
                   x - numBucketsWhp n_max * capFrontWhp n_max
               · have hfb_lt : fb (enc / capBackWhp n_max) +
                     (capFrontWhp n_max + enc % capBackWhp n_max) < n_max := by
-                  have := hfb_adj (enc / capBackWhp n_max) hb
-                  have := hfb_le_n (enc / capBackWhp n_max + 1) hb
-                  omega
+                  have := hfb_cnt _ hb; omega
                 have h1 : fb (enc / capBackWhp n_max) < n_max := by omega
                 have h2 : capFrontWhp n_max + enc % capBackWhp n_max <
                     n_max - fb (enc / capBackWhp n_max) := by omega
@@ -2731,11 +2671,9 @@ theorem fastToCsrGenProg_spec {c U V w n_max base : ℕ} {θ : SeedWhp c U n_max
   · rw [hst_eq]
     refine SeedWhpMemRep.congr_hash hw (fun a ha1 ha2 => ?_) hseed
     dsimp only [offHashBkt] at ha1
-    have h_eq : s_fin.mem a = s.mem a := by
-      dsimp only [s_fin]
-      rw [Function.update_of_ne (by omega)]
-      exact (hp_out a (Or.inl ha2)).trans (hout_fb a (Or.inl (by omega)))
-    exact h_eq.symm
+    dsimp only [s_fin]
+    rw [Function.update_of_ne (by omega)]
+    exact ((hp_out a (Or.inl ha2)).trans (hout_fb a (Or.inl (by omega)))).symm
   · rw [hst_eq]
     refine ⟨?_, fun b hb => ?_, fun i hi => ⟨?_, ?_⟩⟩
     · dsimp only [s_fin, hdrMode]
@@ -2765,11 +2703,9 @@ theorem fastToCsrGenProg_spec {c U V w n_max base : ℕ} {θ : SeedWhp c U n_max
     rw [Function.update_of_ne (by omega)]
     rcases ha with ha_lo | ha_hi
     · exact (hp_out a (Or.inl (by omega))).trans (hout_fb a (Or.inl (by omega)))
-    · have hls : base + offLocState c U V w n_max ≤ a := by
-        have := hseg.2.2.2.1; omega
-      have hbp : base + offBackPtr c U V w n_max ≤ a := by
-        have := hseg.2.2.2.2.2.2.1; omega
-      exact (hp_out a (Or.inr hls)).trans (hout_fb a (Or.inr hbp))
+    · have := hseg.2.2.2.1
+      have := hseg.2.2.2.2.2.2.1
+      exact (hp_out a (Or.inr (by omega))).trans (hout_fb a (Or.inr (by omega)))
 
 /-- Exact evaluation of `permEvalActDestProg` in mode `mode ≠ 1` (`csrToFast`). -/
 theorem clientResult_permEvalActDestProg_of_ne_one {c U V w n_max base mode x : ℕ}
