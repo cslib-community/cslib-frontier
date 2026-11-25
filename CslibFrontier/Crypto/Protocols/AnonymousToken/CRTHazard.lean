@@ -53,8 +53,9 @@ are outside this module's scope.
 * `crtPrefixEval`, `crtPrefixTest`: deterministic evaluation and `kGates`-query `H5` parity test.
 * `crtIssueSpendGame`, `crtIssueSpendAdversary`: Issue-to-Spend unlinkability break when `nf`
   occupies the CRT prefix.
-* `crtSpendPrefixTest`, `crtSpendBalancePrefixGame`, `crtSpendBalancePrefixAdversary`: Spend-time
-  brute-force distinguisher over trailing randomness when public balance `t` enters the CRT prefix.
+* `crtSpendPrefixTest`, `packBalancePrefix`, `balancePrefixGuesses`,
+  `crtSpendBalancePrefixGame`: Spend-time brute-force distinguisher over trailing randomness
+  when public balance `t` enters the CRT prefix.
 * `rFirstCRTMaskView`, `rFirstDecoupledView`: witness-order repair placing fresh uniform opening
   `r` in the first `lam` prefix bits.
 
@@ -70,7 +71,8 @@ are outside this module's scope.
 * `crtIssueSpendAdversary_isQueryBounded`, `crtIssueSpendAdversary_advantage_ge`: Issue-to-Spend
   unlinkability break when `nf` sits in the CRT prefix (accounting for the `d₁ = nf₀` collision).
 * `crtSpendPrefixTest_isQueryBounded`, `crtSpendPrefixTest_correct`,
-  `crtSpendPrefixTest_wrong_t_le`: Spend-time `(t, r_lo)` brute-force distinguishing bound.
+  `crtSpendPrefixTest_wrong_t_le`, `crtSpendBalancePrefix_advantage_ge`: Spend-time `(t, r_lo)`
+  brute-force distinguishing bound.
 * `rFirstCRTMaskView_eq`, `rFirst_breaks_witnessKnowingZK`: placing uniform `r` first makes the
   `H5`-unqueried CRT view independent of all semantic state (`Game.advantage = 0`) while a
   witness-knowing distinguisher given `r` still distinguishes real tables from uniform ones.
