@@ -109,10 +109,9 @@ theorem isReadOnceTest_parityOn {L w : ℕ} (hw : 2 ≤ w) (S : Finset (Fin L)) 
 private theorem expect_signVal {α : Type*} [Fintype α] [Nonempty α] (f : α → Bool) :
     𝔼 a, signVal (f a) = 1 - 2 * ((dens {a | f a = true} : ℚ≥0) : ℝ) := by
   have hc : (0 : ℝ) < Fintype.card α := by exact_mod_cast Fintype.card_pos
-  have h (a : α) : signVal (f a) = 1 - 2 * (if f a = true then 1 else 0 : ℝ) := by
-    cases f a <;> norm_num [signVal]
   rw [Fintype.expect_eq_sum_div_card, nnratCast_dens]
-  simp_rw [h]
+  simp_rw [fun a => show signVal (f a) = 1 - 2 * (if f a = true then 1 else 0 : ℝ) by
+    cases f a <;> norm_num [signVal]]
   rw [sum_sub_distrib, ← mul_sum, sum_boole]
   field_simp
   simp
@@ -125,9 +124,7 @@ theorem Generator.Secure.isSmallBias {k ℓ s : ℕ} {G : Generator (Fin k → B
     {ε : ℝ≥0} (hs : 1 ≤ s) (hG : G.Secure (IsReadOnceTest (2 ^ s)) ε) :
     IsSmallBias (2 * ε) G.outputDist := by
   intro S hS
-  have hw : 2 ≤ 2 ^ s := by
-    calc 2 = 2 ^ 1 := (pow_one 2).symm
-      _ ≤ 2 ^ s := Nat.pow_le_pow_right two_pos hs
+  have hw : 2 ≤ 2 ^ s := (pow_one 2).symm.trans_le (Nat.pow_le_pow_right two_pos hs)
   have h := hG _ (isReadOnceTest_parityOn hw S)
   rw [Generator.advantage, Generator.toReal_realExperiment_pure,
     Generator.toReal_idealExperiment_pure] at h
@@ -143,9 +140,8 @@ theorem Generator.Secure.isSmallBias {k ℓ s : ℕ} {G : Generator (Fin k → B
   rw [Generator.outputDist, bias_uniformOfFintype_map]
   simp_rw [chi_eq_signVal_parityOn]
   rw [expect_signVal]
-  rw [hU] at h
-  rw [abs_le] at h ⊢
-  constructor <;> linarith [h.1, h.2]
+  rw [hU, abs_le] at h
+  exact abs_le.2 ⟨by linarith [h.2], by linarith [h.1]⟩
 
 /-- **The stretch of space-bounded pseudorandom generators** ([Goldreich, Exercise
 8.25(2)][Goldreich2007DraftR4], corrected): a generator `G : {0,1}^k → {0,1}^ℓ` that fools the
@@ -154,8 +150,7 @@ hypothesis `ε < 1` does not suffice (`exists_secure_not_isSmallBias`). -/
 theorem Generator.Secure.lt_two_pow {k ℓ s : ℕ} {G : Generator (Fin k → Bool) (Fin ℓ → Bool)}
     {ε : ℝ≥0} (hs : 1 ≤ s) (hε : (ε : ℝ) < 1 / 2) (hG : G.Secure (IsReadOnceTest (2 ^ s)) ε) :
     ℓ < 2 ^ k := by
-  have h := card_lt_card_of_isSmallBias (by linarith) (hG.isSmallBias hs)
-  simpa using h
+  simpa using card_lt_card_of_isSmallBias (by linarith) (hG.isSmallBias hs)
 
 /-- **Counterexample to the printed Exercises 8.38 and 8.25(2)** [Goldreich][Goldreich2007DraftR4]:
 the generator `σ ↦ σσ` on one seed bit fools every test, however large its space, with error
@@ -168,16 +163,13 @@ theorem exists_secure_not_isSmallBias :
   -- Each output word has probability `1/2` (equal bits) or `0`, against `1/4` under uniform.
   have hcases : ∀ x : Fin (2 ^ 1) → Bool,
       #{σ : Fin 1 → Bool | (fun _ => σ 0 : Fin (2 ^ 1) → Bool) = x} = 1 ∨
-        #{σ : Fin 1 → Bool | (fun _ => σ 0 : Fin (2 ^ 1) → Bool) = x} = 0 := by
-    decide
+        #{σ : Fin 1 → Bool | (fun _ => σ 0 : Fin (2 ^ 1) → Bool) = x} = 0 := by decide
   have hdist : dist G.outputDist (PMF.uniformOfFintype (Fin (2 ^ 1) → Bool)) = 1 / 2 := by
     rw [PMF.dist_eq]
     have hx (x : Fin (2 ^ 1) → Bool) : |(G.outputDist x).toReal -
         (PMF.uniformOfFintype (Fin (2 ^ 1) → Bool) x).toReal| = 1 / 4 := by
       rw [Generator.outputDist, toReal_uniformOfFintype_map_apply, PMF.uniformOfFintype_apply,
-        nnratCast_dens]
-      have hG : ⇑G = fun σ _ => σ 0 := rfl
-      rw [hG]
+        nnratCast_dens, show ⇑G = fun σ _ => σ 0 from rfl]
       simp only [Fintype.card_pi, Fintype.card_bool, prod_const, card_univ, Fintype.card_fin,
         ENNReal.toReal_inv]
       rcases hcases x with h | h <;> rw [h] <;> norm_num
@@ -185,14 +177,10 @@ theorem exists_secure_not_isSmallBias :
       Fintype.card_fin, nsmul_eq_mul]
     norm_num
   refine ⟨G, fun A _ => ?_, fun hG => ?_⟩
-  · have h := PMF.abs_bind_apply_toReal_sub_le_dist G.outputDist
-      (PMF.uniformOfFintype (Fin (2 ^ 1) → Bool)) A true
-    rw [hdist] at h
-    rw [Generator.advantage]
-    exact_mod_cast h
+  · rw [Generator.advantage]
+    exact_mod_cast hdist ▸ PMF.abs_bind_apply_toReal_sub_le_dist G.outputDist _ A true
   · have h := hG univ univ_nonempty
-    have hpar (σ : Fin 1 → Bool) : parityOn univ (G σ) = false := by
-      revert σ; decide
+    have hpar : ∀ σ : Fin 1 → Bool, parityOn univ (G σ) = false := by decide
     rw [Generator.outputDist, bias_uniformOfFintype_map] at h
     simp_rw [chi_eq_signVal_parityOn, hpar] at h
     rw [Finset.expect_const univ_nonempty] at h

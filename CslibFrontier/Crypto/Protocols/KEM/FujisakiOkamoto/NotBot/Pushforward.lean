@@ -111,15 +111,10 @@ private theorem bind_keyTable_reindex [Fintype M] [Fintype CT] [Finite K]
       (S.readIndex_injective G pk sk),
     PMF.bind_map]
   congr 1 with f : 1
-  simp only [Function.comp_apply]
-  refine congrArg₂ F ?_ ?_
-  · funext x
-    rcases x with ⟨_ | _, m, c⟩
-    · simp only [readIndex, coupledH]
-      split_ifs <;> rfl
-    · rfl
-  · funext c
-    simp only [readIndex, coupledFb]
+  refine congrArg₂ F (funext fun | (false, m, c) => ?_ | (true, _, _) => rfl) (funext fun c => ?_)
+  · simp only [readIndex, coupledH]
+    split_ifs <;> rfl
+  · simp only [readIndex, coupledFb]
     split_ifs <;> rfl
 
 /-- Reading the independent tables `(Hq, Hraw)` through `coupledH` gives an independent table
@@ -139,8 +134,7 @@ private theorem eagerFbHandler_reindex (S : Scheme PK SK M R CT K) (G : M → R)
         { sk := sk, pk := pk, fallback := s } cStar q =
       S.eagerCoupledHandler G Hq Hraw pk sk cStar q := by
   cases q with
-  | G m => rfl
-  | H x => rfl
+  | G m | H x => rfl
   | decaps c =>
     simp only [eagerFbHandler, eagerCoupledHandler, ROQuery.dispatch]
     by_cases hc : c = cStar
@@ -150,9 +144,8 @@ private theorem eagerFbHandler_reindex (S : Scheme PK SK M R CT K) (G : M → R)
       | none => simp [coupledFb, hd]
       | some m' =>
         have henc := encT_of_decT_eq_some hd
-        have hdec := dec_of_decT_eq_some hd
         simp only [encT] at henc
-        simp [coupledH, henc, hdec]
+        simp [coupledH, henc, dec_of_decT_eq_some hd]
 
 /-- **Re-indexing the random oracles of `FO-notbot`**: the eager coupled game and the eager game
 with decoupled implicit-rejection keys have the same output distribution. -/
@@ -164,30 +157,18 @@ theorem eagerCoupledGame_eq_eagerFbGame [Fintype M] [Finite R] [Fintype CT] [Fin
     PMF.pure_bind]
   congr 1 with ⟨pk, sk⟩ : 1
   dsimp only
-  symm
-  calc _ = (ProbComp.eval S.sampleMsg).bind fun _ =>
-        S.coinTable.bind fun G =>
-          (S.keyTable CT).bind fun Hq =>
-            (S.keyTable (Bool × M × CT)).bind fun Hraw =>
-              (S.keyTable CT).bind fun _ =>
-                (ProbComp.eval S.sampleMsg).bind fun mStar =>
-                  (ProbComp.eval S.sampleKey).bind fun kRand =>
-                    OracleComp.interpret
-                      (S.eagerCoupledHandler G Hq Hraw pk sk (encT S.pke G pk mStar))
-                      (A ⟨pk, encT S.pke G pk mStar, if b = true then kRand else
-                        S.coupledH G Hq Hraw pk sk (false, mStar, encT S.pke G pk mStar)⟩) := by
-        congr 1 with s : 1
-        congr 1 with G : 1
-        rw [bind_keyTable_reindex S G pk sk]
-        congr 1 with Hq : 1
-        congr 1 with Hraw : 1
-        congr 1 with Hfb' : 1
-        congr 1 with mStar : 1
-        congr 1 with kRand : 1
-        congr 1
-        funext q
-        exact S.eagerFbHandler_reindex G Hq Hfb' Hraw pk sk s _ q
-    _ = _ := by simp only [PMF.bind_const]
+  refine (PMF.bind_const (ProbComp.eval S.sampleMsg) _).symm.trans ?_
+  congr 1 with s : 1
+  congr 1 with G : 1
+  rw [bind_keyTable_reindex S G pk sk]
+  congr 1 with Hq : 1
+  congr 1 with Hraw : 1
+  refine (PMF.bind_const (S.keyTable CT) _).symm.trans ?_
+  congr 1 with Hfb' : 1
+  congr 1 with mStar : 1
+  congr 1 with kRand : 1
+  congr 1
+  exact funext fun q => (S.eagerFbHandler_reindex G Hq Hfb' Hraw pk sk s _ q).symm
 
 end Scheme
 
