@@ -414,83 +414,39 @@ private theorem card_cfgTag_fiber {U n m g : ℕ} (c : InnerKeyConfig U n m g)
     (b : Bool × Bool × Bool × Bool) :
     Fintype.card {x : Fin U // cfgTag c x = b} = cfgFiberCard U n m g b := by
   rw [Fintype.card_subtype]
-  have hDK (x : Fin U) : x ∈ c.D → x ∈ c.K := fun h => c.D_sub h
-  have hAK (x : Fin U) : x ∈ c.A → x ∉ c.K := fun h => Finset.disjoint_left.mp c.disj_AK h
-  have hBK (x : Fin U) : x ∈ c.B → x ∉ c.K := fun h => Finset.disjoint_left.mp c.disj_BK h
+  have hS (S : Finset (Fin U)) {b₁ b₂ b₃ b₄ : Bool}
+      (h : ∀ x, (x ∈ c.D → x ∈ c.K) → (x ∈ c.A → x ∉ c.K) → (x ∈ c.B → x ∉ c.K) →
+        (cfgTag c x = (b₁, b₂, b₃, b₄) ↔ x ∈ S) := by
+        intro x; simp only [cfgTag, Prod.mk.injEq, decide_eq_true_eq, decide_eq_false_iff_not,
+          Finset.mem_sdiff, Finset.mem_inter, Finset.mem_union, Finset.mem_univ]; tauto) :
+      (Finset.univ.filter fun x => cfgTag c x = (b₁, b₂, b₃, b₄)).card = S.card :=
+    congrArg Finset.card (Finset.ext fun x => by
+      simpa using h x (fun h => c.D_sub h) (fun h => Finset.disjoint_left.mp c.disj_AK h)
+        (fun h => Finset.disjoint_left.mp c.disj_BK h))
+  have hAB := Finset.card_union_add_card_inter c.A c.B
+  have hAB' := Finset.card_le_card (Finset.inter_subset_left (s₁ := c.A) (s₂ := c.B))
+  simp only [c.card_A, c.card_B, c.card_inter] at hAB hAB'
   rcases b with ⟨bK, bD, bA, bB⟩
-  have hemp {b' : Bool × Bool × Bool × Bool} (hb : ∀ x, cfgTag c x = b' → False) :
-      (Finset.univ.filter fun x => cfgTag c x = b').card = 0 :=
-    Finset.card_eq_zero.mpr (Finset.filter_eq_empty_iff.mpr fun x _ => hb x)
-  have hbad {b₁ b₂ b₃ b₄ : Bool}
-      (hc_imp : ∀ x, (decide (x ∈ c.K) = b₁ ∧ decide (x ∈ c.D) = b₂ ∧
-        decide (x ∈ c.A) = b₃ ∧ decide (x ∈ c.B) = b₄) → False) :
-      (Finset.univ.filter fun x => cfgTag c x = (b₁, b₂, b₃, b₄)).card = 0 :=
-    hemp fun x h => hc_imp x (by simpa only [cfgTag, Prod.mk.injEq] using h)
   cases bK <;> cases bD <;> cases bA <;> cases bB
-  · have hS : (Finset.univ.filter fun x => cfgTag c x = (false, false, false, false)) =
-        Finset.univ \ (c.K ∪ (c.A ∪ c.B)) := by
-      ext x; have := hDK x; simp only [Finset.mem_filter, Finset.mem_univ, true_and, cfgTag,
-        Prod.mk.injEq, decide_eq_false_iff_not, Finset.mem_sdiff, Finset.mem_union]; tauto
-    have huAB : (c.A ∪ c.B).card = 2 * m - g := by
-      have := Finset.card_union_add_card_inter c.A c.B
-      have := Finset.card_le_card (Finset.inter_subset_left (s₁ := c.A) (s₂ := c.B))
-      rw [c.card_A, c.card_B, c.card_inter] at *; omega
-    have hu : (c.K ∪ (c.A ∪ c.B)).card = n + (2 * m - g) := by
-      rw [Finset.card_union_of_disjoint
-        (Finset.disjoint_union_right.mpr ⟨c.disj_AK.symm, c.disj_BK.symm⟩), c.card_K, huAB]
-    have hs := Finset.card_sdiff_add_card_eq_card (Finset.subset_univ (c.K ∪ (c.A ∪ c.B)))
-    rw [hS, cfgFiberCard]; simp only [Finset.card_univ, Fintype.card_fin, hu] at hs; omega
-  · have hS : (Finset.univ.filter fun x => cfgTag c x = (false, false, false, true)) =
-        c.B \ (c.A ∩ c.B) := by
-      ext x; have := hBK x; have := hDK x
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and, cfgTag, Prod.mk.injEq,
-        decide_eq_true_eq, decide_eq_false_iff_not, Finset.mem_sdiff, Finset.mem_inter]; tauto
-    have hs := Finset.card_sdiff_add_card_eq_card
-      (Finset.inter_subset_right (s₁ := c.A) (s₂ := c.B))
-    rw [hS, cfgFiberCard]; rw [c.card_inter, c.card_B] at hs; omega
-  · have hS : (Finset.univ.filter fun x => cfgTag c x = (false, false, true, false)) =
-        c.A \ (c.A ∩ c.B) := by
-      ext x; have := hAK x; have := hDK x
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and, cfgTag, Prod.mk.injEq,
-        decide_eq_true_eq, decide_eq_false_iff_not, Finset.mem_sdiff, Finset.mem_inter]; tauto
-    have hs := Finset.card_sdiff_add_card_eq_card (Finset.inter_subset_left (s₁ := c.A) (s₂ := c.B))
-    rw [hS, cfgFiberCard]; rw [c.card_inter, c.card_A] at hs; omega
-  · have hS : (Finset.univ.filter fun x => cfgTag c x = (false, false, true, true)) =
-        c.A ∩ c.B := by
-      ext x; have := hAK x; have := hDK x
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and, cfgTag, Prod.mk.injEq,
-        decide_eq_true_eq, decide_eq_false_iff_not, Finset.mem_inter]; tauto
-    rw [hS, cfgFiberCard, c.card_inter]
-  · exact hbad fun x h => by
-      simp only [decide_eq_true_eq, decide_eq_false_iff_not] at h; exact h.1 (hDK x h.2.1)
-  · exact hbad fun x h => by
-      simp only [decide_eq_true_eq, decide_eq_false_iff_not] at h; exact h.1 (hDK x h.2.1)
-  · exact hbad fun x h => by
-      simp only [decide_eq_true_eq, decide_eq_false_iff_not] at h; exact h.1 (hDK x h.2.1)
-  · exact hbad fun x h => by
-      simp only [decide_eq_true_eq, decide_eq_false_iff_not] at h; exact h.1 (hDK x h.2.1)
-  · have hS : (Finset.univ.filter fun x => cfgTag c x = (true, false, false, false)) =
-        c.K \ c.D := by
-      ext x; have := hAK x; have := hBK x
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and, cfgTag, Prod.mk.injEq,
-        decide_eq_true_eq, decide_eq_false_iff_not, Finset.mem_sdiff]; tauto
-    have hs := Finset.card_sdiff_add_card_eq_card c.D_sub
-    rw [hS, cfgFiberCard]; rw [c.card_D, c.card_K] at hs; omega
-  · exact hbad fun x h => by
-      simp only [decide_eq_true_eq, decide_eq_false_iff_not] at h; exact hBK x h.2.2.2 h.1
-  · exact hbad fun x h => by
-      simp only [decide_eq_true_eq, decide_eq_false_iff_not] at h; exact hAK x h.2.2.1 h.1
-  · exact hbad fun x h => by simp only [decide_eq_true_eq] at h; exact hAK x h.2.2.1 h.1
-  · have hS : (Finset.univ.filter fun x => cfgTag c x = (true, true, false, false)) = c.D := by
-      ext x; have := hDK x; have := hAK x; have := hBK x
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and, cfgTag, Prod.mk.injEq,
-        decide_eq_true_eq, decide_eq_false_iff_not]; tauto
-    rw [hS, cfgFiberCard, c.card_D]
-  · exact hbad fun x h => by
-      simp only [decide_eq_true_eq, decide_eq_false_iff_not] at h; exact hBK x h.2.2.2 h.1
-  · exact hbad fun x h => by
-      simp only [decide_eq_true_eq, decide_eq_false_iff_not] at h; exact hAK x h.2.2.1 h.1
-  · exact hbad fun x h => by simp only [decide_eq_true_eq] at h; exact hAK x h.2.2.1 h.1
+  all_goals try exact Finset.card_eq_zero.mpr (Finset.filter_eq_empty_iff.mpr fun x _ h => by
+    simp only [cfgTag, Prod.mk.injEq, decide_eq_true_eq, decide_eq_false_iff_not] at h
+    first
+      | exact h.1 (c.D_sub h.2.1)
+      | exact Finset.disjoint_left.mp c.disj_AK h.2.2.1 h.1
+      | exact Finset.disjoint_left.mp c.disj_BK h.2.2.2 h.1)
+  · refine (hS (Finset.univ \ (c.K ∪ (c.A ∪ c.B)))).trans ?_
+    rw [Finset.card_sdiff_of_subset (Finset.subset_univ _), Finset.card_union_of_disjoint
+      (Finset.disjoint_union_right.mpr ⟨c.disj_AK.symm, c.disj_BK.symm⟩), c.card_K,
+      Finset.card_univ, Fintype.card_fin, cfgFiberCard]
+    omega
+  · refine (hS (c.B \ (c.A ∩ c.B))).trans ?_
+    rw [Finset.card_sdiff_of_subset Finset.inter_subset_right, c.card_B, c.card_inter]; rfl
+  · refine (hS (c.A \ (c.A ∩ c.B))).trans ?_
+    rw [Finset.card_sdiff_of_subset Finset.inter_subset_left, c.card_A, c.card_inter]; rfl
+  · exact (hS (c.A ∩ c.B)).trans c.card_inter
+  · refine (hS (c.K \ c.D)).trans ?_
+    rw [Finset.card_sdiff_of_subset c.D_sub, c.card_K, c.card_D]; rfl
+  · exact (hS c.D).trans c.card_D
 
 private theorem exists_perm_innerKeyConfig {U n m g : ℕ}
     (c₁ c₂ : InnerKeyConfig U n m g) : ∃ τ : Equiv.Perm (Fin U), c₁.perm τ = c₂ := by
@@ -508,11 +464,8 @@ private theorem exists_perm_innerKeyConfig {U n m g : ℕ}
         (τ.symm y ∈ c₁.A ↔ y ∈ c₂.A) ∧ (τ.symm y ∈ c₁.B ↔ y ∈ c₂.B) := by
     have h := htag (τ.symm y); rw [τ.apply_symm_apply] at h
     simpa only [cfgTag, Prod.mk.injEq, decide_eq_decide] using h.symm
-  refine ⟨τ, InnerKeyConfig.ext ?_ ?_ ?_ ?_⟩
-  · ext y; dsimp only [InnerKeyConfig.perm]; rw [Finset.mem_map_equiv]; exact (hiff y).1
-  · ext y; dsimp only [InnerKeyConfig.perm]; rw [Finset.mem_map_equiv]; exact (hiff y).2.1
-  · ext y; dsimp only [InnerKeyConfig.perm]; rw [Finset.mem_map_equiv]; exact (hiff y).2.2.1
-  · ext y; dsimp only [InnerKeyConfig.perm]; rw [Finset.mem_map_equiv]; exact (hiff y).2.2.2
+  refine ⟨τ, InnerKeyConfig.ext ?_ ?_ ?_ ?_⟩ <;> ext y <;>
+    simp only [InnerKeyConfig.perm, Finset.mem_map_equiv, hiff]
 
 private def segSlotEquiv (off m N : ℕ) (h : off + m ≤ N) :
     Fin m ≃ {i : Fin N // off ≤ i.val ∧ i.val < off + m} where
@@ -599,6 +552,13 @@ private theorem toReal_le_inv_card_of_const {β : Type*} [Fintype β] (q : PMF �
   have hsum := PMF.sum_toReal q
   simp_rw [fun y => hconst y y₀, Finset.sum_const, Finset.card_univ, nsmul_eq_mul] at hsum
   rw [inv_eq_one_div, le_div_iff₀ hpos, mul_comm, hsum]
+
+private theorem sum_toReal_mul_le_of_support {α : Type*} [Fintype α] (p : PMF α) {f g : α → ℝ}
+    (h : ∀ a ∈ p.support, f a ≤ g a) : ∑ a, (p a).toReal * f a ≤ ∑ a, (p a).toReal * g a :=
+  Finset.sum_le_sum fun a _ => by
+    by_cases ha : a ∈ p.support
+    · exact mul_le_mul_of_nonneg_left (h a ha) ENNReal.toReal_nonneg
+    · simp [(PMF.apply_eq_zero_iff p a).mpr ha]
 
 /-- Single-segment probe-capped consistency on `HardKeyValSeed` ([LiLiangYuZhou2023], Definition 4.3
 and Section 5.1, adapted with the deterministic `c = 1` probe cap `|S_A|, |S_B| ≤ m * t`). -/
@@ -857,57 +817,25 @@ private theorem log_innerPool_budget_le {U V n m g w : ℕ} {γ R t pW : ℝ}
     rw [Real.logb_mul (by norm_num) hm_pos.ne', show (4 : ℝ) = (2 : ℝ) ^ (2 : ℕ) by norm_num,
       Real.logb_pow, Real.logb_self_eq_one (by norm_num : (1 : ℝ) < 2)] at hl
     norm_num at hl; linarith
-  have hhalf_Umg : (1 / 2) * ((m : ℝ) * Real.logb 2 U) - (1 / 2) * (m : ℝ) -
-      (1 / 2) * ((m : ℝ) * Real.logb 2 m) ≤ Real.logb 2 ((U - m).choose (m - g)) := by
-    calc (1 / 2) * ((m : ℝ) * Real.logb 2 U) - (1 / 2) * (m : ℝ) -
-          (1 / 2) * ((m : ℝ) * Real.logb 2 m)
-        = ((m : ℝ) / 2) * (Real.logb 2 U - 1 - Real.logb 2 m) := by ring
-      _ ≤ _ := (mul_le_mul_of_nonneg_right hm_ge_half hlog_Um_ge).trans h_Umg2
+  have hhalf_Umg := mul_le_mul_of_nonneg_right hm_ge_half hlog_Um_ge
   have hlog_m_ge : (1 - γ / 2) * Real.logb 2 n ≤ Real.logb 2 m := by
     have hl := Real.logb_le_logb_of_le (by norm_num : (1 : ℝ) < 2)
       (Real.rpow_pos_of_pos hn_pos _) hm_lo
     rwa [Real.logb_rpow_eq_mul_logb_of_pos hn_pos] at hl
-  have hm_logm : (1 / 2) * ((m : ℝ) * Real.logb 2 n) - (1 / 4) * (γ * (m : ℝ) * Real.logb 2 n) ≤
-      (1 / 2) * ((m : ℝ) * Real.logb 2 m) := by
-    calc (1 / 2) * ((m : ℝ) * Real.logb 2 n) - (1 / 4) * (γ * (m : ℝ) * Real.logb 2 n)
-        = ((m : ℝ) / 2) * ((1 - γ / 2) * Real.logb 2 n) := by ring
-      _ ≤ ((m : ℝ) / 2) * Real.logb 2 m := mul_le_mul_of_nonneg_left hlog_m_ge (by positivity)
-      _ = (1 / 2) * ((m : ℝ) * Real.logb 2 m) := by ring
-  have hlog_Un : Real.logb 2 ((U : ℝ) / (n : ℝ)) = Real.logb 2 U - Real.logb 2 n :=
-    Real.logb_div hU_pos.ne' hn_pos.ne'
-  have hbudget' : R + 11 * (m : ℝ) + 6 * (m : ℝ) * t + γ * (m : ℝ) * (w : ℝ) +
-      (3 / 2) * (γ * (m : ℝ) * Real.logb 2 U) ≤
-      (1 / 2) * ((m : ℝ) * Real.logb 2 U) - (1 / 2) * ((m : ℝ) * Real.logb 2 n) :=
-    calc R + 11 * (m : ℝ) + 6 * (m : ℝ) * t + γ * (m : ℝ) * (w : ℝ) +
-          (3 / 2) * (γ * (m : ℝ) * Real.logb 2 U)
-        = R + 11 * (m : ℝ) + 6 * (m : ℝ) * t + γ * (m : ℝ) * (w : ℝ) +
-          (3 / 2) * γ * (m : ℝ) * Real.logb 2 U := by ring
-      _ ≤ ((m : ℝ) / 2) * Real.logb 2 ((U : ℝ) / (n : ℝ)) := hbudget
-      _ = (1 / 2) * ((m : ℝ) * Real.logb 2 U) - (1 / 2) * ((m : ℝ) * Real.logb 2 n) := by
-          rw [hlog_Un]; ring
+  have hm_logm := mul_le_mul_of_nonneg_left hlog_m_ge (by positivity : (0 : ℝ) ≤ (m : ℝ) / 2)
+  rw [Real.logb_div hU_pos.ne' hn_pos.ne'] at hbudget
   have hlog_nU : Real.logb 2 n ≤ Real.logb 2 U :=
     Real.logb_le_logb_of_le (by norm_num) hn_pos (by exact_mod_cast (show n ≤ U by omega))
   have hlogU_nn : 0 ≤ Real.logb 2 U :=
     Real.logb_nonneg (by norm_num) (by exact_mod_cast (show 1 ≤ U by omega))
-  have hγ_nU : (1 / 4) * (γ * (m : ℝ) * Real.logb 2 n) ≤
-      (1 / 2) * (γ * (m : ℝ) * Real.logb 2 U) := by
-    have h1 := mul_le_mul_of_nonneg_left hlog_nU (show 0 ≤ (1 / 4) * (γ * (m : ℝ)) by positivity)
-    have h2 := mul_le_mul_of_nonneg_right
-      (show (1 / 4) * (γ * (m : ℝ)) ≤ (1 / 2) * (γ * (m : ℝ)) by linarith [mul_pos hγ hm_pos])
-      hlogU_nn
-    linarith [show (1 / 4) * (γ * (m : ℝ)) * Real.logb 2 n =
-      (1 / 4) * (γ * (m : ℝ) * Real.logb 2 n) by ring,
-      show (1 / 4) * (γ * (m : ℝ)) * Real.logb 2 U =
-      (1 / 4) * (γ * (m : ℝ) * Real.logb 2 U) by ring,
-      show (1 / 2) * (γ * (m : ℝ)) * Real.logb 2 U =
-      (1 / 2) * (γ * (m : ℝ) * Real.logb 2 U) by ring]
+  have hγm := (mul_pos hγ hm_pos).le
+  have hγ_nU := mul_le_mul_of_nonneg_left hlog_nU hγm
+  have hγ_U := mul_nonneg hγm hlogU_nn
   have hm_ge2 : (2 : ℝ) ≤ (m : ℝ) := by exact_mod_cast (show 2 ≤ m by omega)
   have hmg_le_m : ((m - g : ℕ) : ℝ) ≤ (m : ℝ) := by exact_mod_cast Nat.sub_le m g
   have hlog_pW : Real.logb 2 pW ≤ (-γ * (m : ℝ)) * Real.logb 2 U := by
-    have hlin : Real.logb 2 pW ≤ -(γ * (m : ℝ) * Real.logb 2 U) := by
-      linarith [hineq, hlog_tgt, h_mg, h_Um, h_Umg1, hhalf_Umg, h_nm, hm_logm, hbudget', hγ_nU,
-        hm_ge2, hmg_le_m]
-    exact hlin.trans_eq (by ring)
+    linarith [hineq, hlog_tgt, h_mg, h_Um, h_Umg1, h_Umg2, hhalf_Umg, h_nm, hm_logm, hbudget,
+      hγ_nU, hγ_U, hm_ge2, hmg_le_m]
   rw [← Real.logb_rpow_eq_mul_logb_of_pos hU_pos] at hlog_pW
   have hrpow := Real.rpow_le_rpow_of_exponent_le (by norm_num : (1 : ℝ) ≤ 2) hlog_pW
   rwa [Real.rpow_logb (by norm_num) (by norm_num) hpW_pos,
@@ -1162,21 +1090,13 @@ private theorem prob_innerPool_eq_le {U V n t₀ m g cells w : ℕ} {γ R t : �
           right_inv := fun ⟨s, _⟩ => omega_ext (by simpa using hun_inv τ.symm s) (by ext x; simp) }
       let eCfg : InnerKeyConfig U n m g ≃ InnerKeyConfig U n m g :=
         { toFun := InnerKeyConfig.perm τ, invFun := InnerKeyConfig.perm τ.symm
-          left_inv := fun c => InnerKeyConfig.ext (by ext x; simp [InnerKeyConfig.perm])
-            (by ext x; simp [InnerKeyConfig.perm]) (by ext x; simp [InnerKeyConfig.perm])
-            (by ext x; simp [InnerKeyConfig.perm])
-          right_inv := fun c => InnerKeyConfig.ext (by ext x; simp [InnerKeyConfig.perm])
-            (by ext x; simp [InnerKeyConfig.perm]) (by ext x; simp [InnerKeyConfig.perm])
-            (by ext x; simp [InnerKeyConfig.perm]) }
+          left_inv := fun c => by ext <;> simp [InnerKeyConfig.perm]
+          right_inv := fun c => by ext <;> simp [InnerKeyConfig.perm] }
       have hcomm_c (ω : Ω) : cfg (eΩ₃ ω) = eCfg (cfg ω) := by
         rcases ω with ⟨s, ⟨B, hB⟩⟩
-        refine InnerKeyConfig.ext ?_ ?_ ?_ rfl
-        · ext x; simp [cfg, cfgOfPk, eΩ₃, eCfg, unSeed, InnerKeyConfig.perm, pkeyActive,
-            HardKeyValSeed.permKeyEmb, ← Equiv.eq_symm_apply]
-        · ext x; simp [cfg, cfgOfPk, eΩ₃, eCfg, unSeed, InnerKeyConfig.perm, pkeyDelEmb,
-            HardKeyValSeed.permKeyEmb, ← Equiv.eq_symm_apply]
-        · ext x; simp [cfg, cfgOfPk, eΩ₃, eCfg, unSeed, InnerKeyConfig.perm, pkeyInsEmb,
-            HardKeyValSeed.permKeyEmb, ← Equiv.eq_symm_apply]
+        refine InnerKeyConfig.ext ?_ ?_ ?_ rfl <;> ext x <;>
+          simp [cfg, cfgOfPk, eΩ₃, eCfg, unSeed, InnerKeyConfig.perm, pkeyActive, pkeyDelEmb,
+            pkeyInsEmb, HardKeyValSeed.permKeyEmb, ← Equiv.eq_symm_apply]
       exact map_uniform_apply_equiv cfg eΩ₃ eCfg hcomm_c c₁
     have hmul_cfg (o₀ : ObsT) (c₀ : InnerKeyConfig U n m g) (v₀ : ↥(c₀.K ∪ c₀.B) → Fin V) :
         ((Fintype.card ObsT * V ^ (n + m) : ℕ) : ℝ) * (q (o₀, ⟨c₀, v₀⟩)).toReal =
@@ -1534,34 +1454,16 @@ private theorem prob_innerPool_eq_le {U V n t₀ m g cells w : ℕ} {γ R t : �
       exact (clog_two_lt_logb_add_one (Nat.choose_pos (by omega))).le
     simp only [msg, List.length_append, Nat.cast_add]; linarith
   have hsep_exp : ∑ ω : Ω, (p ω).toReal * ((m₄ ω).length : ℝ) ≤ 4 * (m : ℝ) * t + 7 := by
-    have hmap_eq : (∑ ab : Finset (Fin cells) × Finset (Fin cells),
-        ((p.map fun ω => (S_B ω, S_A ω \ S_B ω)) ab).toReal * ((enc_sep ab).length : ℝ)) =
-        ∑ ω : Ω, (p ω).toReal * ((m₄ ω).length : ℝ) := by
-      simp_rw [PMF.map_apply_toReal, Finset.sum_mul]; rw [Finset.sum_comm]
-      exact Finset.sum_congr rfl fun ω _ => by simp [m₄]
-    have hcard_rhs : (∑ ab : Finset (Fin cells) × Finset (Fin cells),
-        ((p.map fun ω => (S_B ω, S_A ω \ S_B ω)) ab).toReal * ((ab.1.card + ab.2.card : ℕ) : ℝ)) ≤
-        2 * (m : ℝ) * t := by
-      simp_rw [PMF.map_apply_toReal, Finset.sum_mul]; rw [Finset.sum_comm]
-      have h1 : (∑ x : Ω, ∑ y : Finset (Fin cells) × Finset (Fin cells),
-          (if y = (S_B x, S_A x \ S_B x) then (p x).toReal else 0) *
-            ((y.1.card + y.2.card : ℕ) : ℝ)) =
-          ∑ x : Ω, (p x).toReal * (((S_B x).card + (S_A x \ S_B x).card : ℕ) : ℝ) :=
-        Finset.sum_congr rfl fun x _ => by simp
-      rw [h1]
-      calc ∑ x : Ω, (p x).toReal * (((S_B x).card + (S_A x \ S_B x).card : ℕ) : ℝ)
-          ≤ ∑ x : Ω, (p x).toReal * (2 * (m : ℝ) * t) := by
-            refine Finset.sum_le_sum fun x _ => ?_
-            by_cases hx : (p x).toReal = 0
-            · rw [hx, zero_mul, zero_mul]
-            · have hxs : x ∈ p.support :=
-                (_root_.PMF.mem_support_iff p x).mpr (fun h0 => hx (by simp [h0]))
-              obtain ⟨_, hSA_c, hSB_c⟩ := hp_supp x hxs
-              have hsd : ((S_A x \ S_B x).card : ℝ) ≤ ((S_A x).card : ℝ) :=
-                Nat.cast_le.mpr (Finset.card_le_card Finset.sdiff_subset)
-              refine mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg
-              push_cast; linarith
-        _ = 2 * (m : ℝ) * t := by rw [← Finset.sum_mul, PMF.sum_toReal p, one_mul]
+    have hcard : ∑ ω : Ω, (p ω).toReal * (((S_B ω).card + (S_A ω \ S_B ω).card : ℕ) : ℝ) ≤
+        ∑ ω : Ω, (p ω).toReal * (2 * (m : ℝ) * t) :=
+      sum_toReal_mul_le_of_support p fun ω hω => by
+        obtain ⟨_, hSA_c, hSB_c⟩ := hp_supp ω hω
+        have hsd : ((S_A ω \ S_B ω).card : ℝ) ≤ ((S_A ω).card : ℝ) :=
+          Nat.cast_le.mpr (Finset.card_le_card Finset.sdiff_subset)
+        push_cast; linarith
+    rw [← Finset.sum_mul, PMF.sum_toReal p, one_mul] at hcard
+    rw [PMF.sum_map_mul, PMF.sum_map_mul] at hsep_len
+    dsimp only at hsep_len
     linarith [hsep_len]
   have hexp_msg : ∑ ω : Ω, (p ω).toReal * ((msg ω).length : ℝ) ≤
       Real.logb 2 (U.choose m) + Real.logb 2 (U.choose n) + ((n + m : ℕ) : ℝ) * Real.logb 2 V +
@@ -1570,17 +1472,11 @@ private theorem prob_innerPool_eq_le {U V n t₀ m g cells w : ℕ} {γ R t : �
     set C_const := Real.logb 2 (U.choose m) + (m : ℝ) * Real.logb 2 V + ((cells * w : ℕ) : ℝ) +
       Real.logb 2 ((n + m).choose m) + Real.logb 2 (n.choose m) +
       2 * (m : ℝ) * t + γ * (m : ℝ) * (w : ℝ) + 4
-    have hpt : ∑ ω : Ω, (p ω).toReal * ((msg ω).length : ℝ) ≤
-        ∑ ω : Ω, ((p ω).toReal * C_const + (p ω).toReal * ((m₄ ω).length : ℝ)) := by
-      refine Finset.sum_le_sum fun ω _ => ?_
-      by_cases h0 : (p ω).toReal = 0
-      · simp [h0]
-      · have hω : ω ∈ p.support :=
-          (_root_.PMF.mem_support_iff p ω).mpr (fun h => h0 (by simp [h]))
-        have hl := hlen_rest ω hω
-        rw [← mul_add]
-        exact mul_le_mul_of_nonneg_left (by dsimp [C_const]; linarith) ENNReal.toReal_nonneg
-    rw [Finset.sum_add_distrib, ← Finset.sum_mul, PMF.sum_toReal p, one_mul] at hpt
+    have hpt := sum_toReal_mul_le_of_support p (f := fun ω => ((msg ω).length : ℝ))
+      (g := fun ω => C_const + ((m₄ ω).length : ℝ))
+      fun ω hω => by have := hlen_rest ω hω; dsimp only [C_const]; linarith
+    simp only [mul_add, Finset.sum_add_distrib] at hpt
+    rw [← Finset.sum_mul, PMF.sum_toReal p, one_mul] at hpt
     push_cast; dsimp [C_const] at hpt; linarith [hspace, hsep_exp]
   exact log_innerPool_budget_le hU hV hm_n hg hγ hm_lo hbudget
     (ENNReal.toReal_pos hW0 (PMF.apply_ne_top (μ.map W) true))
