@@ -196,9 +196,13 @@ private lemma recordQueryDomain_of_cacheDomains_mem {uCache : U → Cache X}
     (hmem : PermQuery.toCacheEntry ⟨q.2, a⟩ ∈ uCache q.1) :
     recordQueryDomain (fun μ => cacheDomains (uCache μ)) q a =
       fun μ => cacheDomains (uCache μ) := by
-  ext μ z <;> by_cases hμ : μ = q.1 <;> simp [recordQueryDomain, hμ]
-  · rintro rfl; exact mem_cacheDomains_fst.mpr ⟨_, hmem⟩
-  · rintro rfl; exact mem_cacheDomains_snd.mpr ⟨_, hmem⟩
+  ext μ z <;> rcases eq_or_ne μ q.1 with rfl | hμ
+  · simp only [recordQueryDomain, Function.update_self, Finset.mem_insert, or_iff_right_iff_imp]
+    rintro rfl; exact mem_cacheDomains_fst.mpr ⟨_, hmem⟩
+  · simp [recordQueryDomain, hμ]
+  · simp only [recordQueryDomain, Function.update_self, Finset.mem_insert, or_iff_right_iff_imp]
+    rintro rfl; exact mem_cacheDomains_snd.mpr ⟨_, hmem⟩
+  · simp [recordQueryDomain, hμ]
 
 omit [DecidableEq U] [Fintype V] [DecidableEq X] [Fintype X] [Nonempty X] in
 /-- The pooled cache of all keys `μ` in the fiber `f⁻¹(ν)`. -/
