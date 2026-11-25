@@ -330,19 +330,9 @@ private theorem sum_rrvPotential_snoc {t d : ℕ} (prev : List (Fin t → Fin d)
       simp only [Finset.mem_univ, ↓reduceIte]
       ring
     have hpow : (d + 1) ^ (t - u) = (d + 1) * (d + 1) ^ (t - (u + 1)) := by
-      have hsub : t - u = (t - (u + 1)) + 1 := by omega
-      rw [hsub, pow_succ']
-    calc ∑ v : Fin d,
-            ((∏ a : Fin u, if chosen a = g ⟨a.1, lt_of_lt_of_le a.2 hu.le⟩ then 2 * d else d) *
-              (if v = g ⟨u, hu⟩ then 2 * d else d)) * (d + 1) ^ (t - (u + 1))
-        = (∏ a : Fin u, if chosen a = g ⟨a.1, lt_of_lt_of_le a.2 hu.le⟩ then 2 * d else d) *
-            (d + 1) ^ (t - (u + 1)) * ∑ v : Fin d, (if v = g ⟨u, hu⟩ then 2 * d else d) := by
-          rw [Finset.mul_sum]
-          refine Finset.sum_congr rfl fun v _ => by ring
-      _ = (∏ a : Fin u, if chosen a = g ⟨a.1, lt_of_lt_of_le a.2 hu.le⟩ then 2 * d else d) *
-            (d + 1) ^ (t - (u + 1)) * (d * (d + 1)) := by rw [hsumv]
-      _ = d * ((∏ a : Fin u, if chosen a = g ⟨a.1, lt_of_lt_of_le a.2 hu.le⟩ then 2 * d else d) *
-            (d + 1) ^ (t - u)) := by rw [hpow]; ring
+      rw [show t - u = t - (u + 1) + 1 by omega, pow_succ']
+    rw [← Finset.sum_mul, ← Finset.mul_sum, hsumv, hpow]
+    ring
   induction prev with
   | nil => simp [rrvPotential]
   | cons g gs ih =>
@@ -1105,18 +1095,12 @@ theorem isLinearStrongExtractor_trevisan {ℓ t m n : ℕ} {r k ε L : ℝ}
     exact (Finset.sum_range_sub (fun j => ((trevHybrid D enc X j).map T true).toReal) m).symm
   have hm_pos : (0 : ℝ) < m := by exact_mod_cast hm
   -- Pigeonhole over the `m` hybrid gaps to pick `i : Fin m` with gap `> ε / m`.
-  obtain ⟨i, hi_gap⟩ : ∃ i : Fin m,
+  obtain ⟨i, -, hi_gap⟩ : ∃ i ∈ (Finset.univ : Finset (Fin m)),
       ε / m < ((trevHybrid D enc X (i.1 + 1)).map T true).toReal -
         ((trevHybrid D enc X i.1).map T true).toReal := by
-    by_contra hno
-    push Not at hno
-    have hsum : ∑ i : Fin m, (((trevHybrid D enc X (i.1 + 1)).map T true).toReal -
-        ((trevHybrid D enc X i.1).map T true).toReal) ≤ ε := by
-      calc ∑ i : Fin m, (((trevHybrid D enc X (i.1 + 1)).map T true).toReal -
-              ((trevHybrid D enc X i.1).map T true).toReal)
-          ≤ ∑ _i : Fin m, ε / m := Finset.sum_le_sum fun i _ => hno i
-        _ = ε := by rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul,
-            mul_div_cancel₀ _ hm_pos.ne']
+    refine Finset.exists_lt_of_sum_lt ?_
+    rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul,
+      mul_div_cancel₀ _ hm_pos.ne']
     linarith
   -- By `strongGuess_avg_eq`, some `(w₀, b₀, u₀)` achieves average agreement `> 1 / 2 + ε / m`.
   have havg := strongGuess_avg_eq D enc X T i
@@ -1130,14 +1114,9 @@ theorem isLinearStrongExtractor_trevisan {ℓ t m n : ℕ} {r k ε L : ℝ}
                 (2 : ℝ) ^ t) := by linarith
   have hex_avg {α : Type} [Fintype α] (μ : PMF α) (f : α → ℝ) {c : ℝ}
       (hc : c < ∑ a, (μ a).toReal * f a) : ∃ a, c < f a := by
-    by_contra hno
-    push Not at hno
-    have hle : ∑ a, (μ a).toReal * f a ≤ c := by
-      calc ∑ a, (μ a).toReal * f a
-          ≤ ∑ a, (μ a).toReal * c := Finset.sum_le_sum fun a _ =>
-              mul_le_mul_of_nonneg_left (hno a) ENNReal.toReal_nonneg
-        _ = c := by rw [← Finset.sum_mul, PMF.sum_toReal, one_mul]
-    linarith
+    obtain ⟨a, -, ha⟩ := Finset.exists_lt_of_sum_lt (f := fun a => (μ a).toReal * c)
+      (g := fun a => (μ a).toReal * f a) (by rwa [← Finset.sum_mul, PMF.sum_toReal, one_mul])
+    exact ⟨a, lt_of_mul_lt_mul_left ha ENNReal.toReal_nonneg⟩
   obtain ⟨w₀, hw₀⟩ := hex_avg _ _ havg_gt
   obtain ⟨b₀, hb₀⟩ := hex_avg _ _ hw₀
   obtain ⟨u₀, hu₀⟩ := hex_avg _ _ hb₀
@@ -1158,23 +1137,17 @@ theorem isLinearStrongExtractor_trevisan {ℓ t m n : ℕ} {r k ε L : ℝ}
   have hB_mass : ε / (2 * m) < ∑ x ∈ B, (X x).toReal := by
     have hsplit : ∑ x : BitString n, (X x).toReal * agree x ≤
         (∑ x ∈ B, (X x).toReal) + (1 / 2 + ε / (2 * m)) := by
-      rw [← Finset.sum_filter_add_sum_filter_not Finset.univ
-        (fun x => 1 / 2 + ε / (2 * m) ≤ agree x)]
-      have h1 : ∑ x ∈ B, (X x).toReal * agree x ≤ ∑ x ∈ B, (X x).toReal :=
-        Finset.sum_le_sum fun x _ =>
-          mul_le_of_le_one_right ENNReal.toReal_nonneg (hagree_le_one x)
-      have h2 : ∑ x ∈ Finset.univ.filter (fun x => ¬ 1 / 2 + ε / (2 * m) ≤ agree x),
-            (X x).toReal * agree x ≤ 1 / 2 + ε / (2 * m) := by
-        calc _ ≤ ∑ x ∈ Finset.univ.filter (fun x => ¬ 1 / 2 + ε / (2 * m) ≤ agree x),
-                  (X x).toReal * (1 / 2 + ε / (2 * m)) :=
-                Finset.sum_le_sum fun x hx =>
-                  mul_le_mul_of_nonneg_left (le_of_not_ge (Finset.mem_filter.mp hx).2)
-                    ENNReal.toReal_nonneg
-          _ ≤ ∑ x : BitString n, (X x).toReal * (1 / 2 + ε / (2 * m)) :=
-                Finset.sum_le_univ_sum_of_nonneg fun x =>
-                  mul_nonneg ENNReal.toReal_nonneg (by positivity)
-          _ = 1 / 2 + ε / (2 * m) := by rw [← Finset.sum_mul, PMF.sum_toReal, one_mul]
-      exact add_le_add h1 h2
+      calc _ ≤ ∑ x : BitString n, ((if 1 / 2 + ε / (2 * m) ≤ agree x then (X x).toReal else 0) +
+            (X x).toReal * (1 / 2 + ε / (2 * m))) := by
+            refine Finset.sum_le_sum fun x _ => ?_
+            have h0 := ENNReal.toReal_nonneg (a := X x)
+            have h1 := hagree_le_one x
+            have hc : (0 : ℝ) ≤ 1 / 2 + ε / (2 * m) := by positivity
+            split_ifs with h
+            · nlinarith
+            · nlinarith [le_of_not_ge h]
+        _ = _ := by rw [Finset.sum_add_distrib, ← Finset.sum_filter, ← Finset.sum_mul,
+            PMF.sum_toReal, one_mul]
     have hhalf : ε / m = ε / (2 * m) + ε / (2 * m) := by field_simp; ring
     linarith
   -- Upper bound `#B` by `L * 2 ^ (r * m)` via overlap table enumeration + list decoding.
@@ -1205,27 +1178,19 @@ theorem isLinearStrongExtractor_trevisan {ℓ t m n : ℕ} {r k ε L : ℝ}
       rw [Nat.cast_pow, Nat.cast_ofNat, ← Real.rpow_natCast (2 : ℝ), Nat.cast_pow, Nat.cast_ofNat]
     rw [hprod_eq]
     refine Real.rpow_le_rpow_of_exponent_le one_le_two ?_
-    have hsum_eq : ∑ j : Fin i, (2 : ℝ) ^ #(D.overlap i (Fin.castLE i.isLt.le j)) =
-        ∑ j : Fin i, (2 : ℝ) ^ #(D.block i ∩ D.block (Fin.castLE i.isLt.le j)) :=
-      Finset.sum_congr rfl fun j _ => by rw [D.card_overlap]
-    rw [hsum_eq]
-    exact D.sum_two_pow_inter_le i
+    simpa only [D.card_overlap] using D.sum_two_pow_inter_le i
   have hB_card : (#B : ℝ) ≤ L * (2 : ℝ) ^ (r * m) := by
     calc (#B : ℝ)
-        ≤ (#(Finset.univ.biUnion fun τ : TableType =>
-            Finset.univ.filter fun x : BitString n =>
-              (1 / 2 + ε / (2 * m)) * (2 : ℝ) ^ t ≤
-                #{z_i : BitString t | enc x z_i = strongGuess D T i w₀ b₀ u₀ τ z_i}) : ℝ) := by
-          exact_mod_cast Finset.card_le_card hB_sub
-      _ ≤ ∑ τ : TableType,
+        ≤ ∑ τ : TableType,
             (#(Finset.univ.filter fun x : BitString n =>
               (1 / 2 + ε / (2 * m)) * (2 : ℝ) ^ t ≤
                 #{z_i : BitString t | enc x z_i = strongGuess D T i w₀ b₀ u₀ τ z_i}) : ℝ) := by
-          exact_mod_cast Finset.card_biUnion_le
+          exact_mod_cast (Finset.card_le_card hB_sub).trans Finset.card_biUnion_le
       _ ≤ ∑ _τ : TableType, L := Finset.sum_le_sum fun τ _ => hlist (strongGuess D T i w₀ b₀ u₀ τ)
       _ = (Fintype.card TableType : ℝ) * L := by simp
-      _ ≤ (2 : ℝ) ^ (r * m) * L := mul_le_mul_of_nonneg_right hcard_table hL
-      _ = L * (2 : ℝ) ^ (r * m) := mul_comm _ _
+      _ ≤ L * (2 : ℝ) ^ (r * m) := by
+          rw [mul_comm]
+          exact mul_le_mul_of_nonneg_left hcard_table hL
   have hmass_upper : ∑ x ∈ B, (X x).toReal ≤ L * (2 : ℝ) ^ (r * m) * (2 : ℝ) ^ (-k) := by
     calc ∑ x ∈ B, (X x).toReal
         ≤ ∑ _x ∈ B, (2 : ℝ) ^ (-k) := Finset.sum_le_sum fun x _ => (le_minEntropy_iff X).mp hX x
