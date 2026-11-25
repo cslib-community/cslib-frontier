@@ -445,26 +445,16 @@ private theorem sum_logb_choose_le_conditionalEntropy_outerTarget (withQueries :
   have hA_inv (γ : G) (s : HardKeyValSeed U V n) :
       (actInsSeed t_st (F * m) ht_end γ s).insertedSet t_st (F * m) ht_end =
         s.insertedSet t_st (F * m) ht_end := by
-    ext u; simp only [HardKeyValSeed.insertedSet, segInsertedKeys_apply, Finset.mem_image,
-      Finset.mem_univ, true_and]
-    constructor
-    · rintro ⟨r, rfl⟩
-      simp only [actInsSeed, Equiv.coe_fn_mk, Function.Embedding.trans_apply,
-        Equiv.coe_toEmbedding]
-      have hidx : (⟨n + (t_st + r.val), by have := r.isLt; omega⟩ : Fin (2 * n)) =
-          ⟨n + t_st + r.val, by have := r.isLt; omega⟩ := Fin.ext (by dsimp; omega)
-      rw [hidx, actInsKeyPerm_ins ht_end γ]
-      exact ⟨γ r, congrArg s.keys (Fin.ext (by dsimp; omega))⟩
-    · rintro ⟨r, rfl⟩
-      refine ⟨γ.symm r, ?_⟩
-      simp only [actInsSeed, Equiv.coe_fn_mk, Function.Embedding.trans_apply,
-        Equiv.coe_toEmbedding]
-      have hidx : (⟨n + (t_st + (γ.symm r).val), by have := (γ.symm r).isLt; omega⟩ :
-          Fin (2 * n)) = ⟨n + t_st + (γ.symm r).val, by have := (γ.symm r).isLt; omega⟩ :=
-        Fin.ext (by dsimp; omega)
-      rw [hidx, actInsKeyPerm_ins ht_end γ]
-      refine congrArg s.keys (Fin.ext ?_)
-      simp; omega
+    have hseg : segInsertedKeys (actInsSeed t_st (F * m) ht_end γ s).keys t_st (F * m) ht_end =
+        γ.toEmbedding.trans (segInsertedKeys s.keys t_st (F * m) ht_end) :=
+      Function.Embedding.ext fun r => by
+        simp only [actInsSeed, segInsertedKeys_apply, Equiv.coe_fn_mk,
+          Function.Embedding.trans_apply, Equiv.coe_toEmbedding]
+        have hidx : (⟨n + (t_st + r.val), by have := r.isLt; omega⟩ : Fin (2 * n)) =
+            ⟨n + t_st + r.val, by have := r.isLt; omega⟩ := Fin.ext (by dsimp; omega)
+        rw [hidx, actInsKeyPerm_ins ht_end γ]
+        exact congrArg s.keys (Fin.ext (by dsimp; omega))
+    rw [HardKeyValSeed.insertedSet, HardKeyValSeed.insertedSet, hseg, image_perm_trans]
   have hd_inv (γ : G) (s : HardKeyValSeed U V n) :
       (fun r => segDeletedKeys (actInsSeed t_st (F * m) ht_end γ s).keys s.delPerm
         t_st (F * m) ht_end r) =
@@ -542,25 +532,13 @@ private theorem sum_logb_choose_le_conditionalEntropy_outerTarget (withQueries :
           (Finset.univ.filter fun γ : G =>
             piOf (actInsSeed t_st (F * m) ht_end γ s) = π₂).card := by
       let δ : H := fun i => (π₂ i).trans (π₁ i).symm
-      refine Finset.card_bij (fun γ _ => (blockPerm δ).trans γ)
-        (fun γ hγ => ?_)
-        (fun γ₁ _ γ₂ _ h => by
-          ext x
-          have hx := congrArg (fun e : G => e ((blockPerm δ).symm x)) h
-          change ((blockPerm δ).trans γ₁) ((blockPerm δ).symm x) =
-            ((blockPerm δ).trans γ₂) ((blockPerm δ).symm x) at hx
-          rw [Equiv.trans_apply, Equiv.trans_apply, Equiv.apply_symm_apply] at hx
-          exact congrArg Fin.val hx)
-        (fun γ hγ => ⟨(blockPerm δ).symm.trans γ, ?_, by ext x; simp⟩)
-      · rw [Finset.mem_filter] at hγ ⊢; refine ⟨Finset.mem_univ _, ?_⟩
-        rw [hpi_block, hγ.2]; funext i; ext r; simp [δ]
-      · rw [Finset.mem_filter] at hγ ⊢; refine ⟨Finset.mem_univ _, ?_⟩
-        have hsymm : (blockPerm δ).symm = blockPerm (fun i => (δ i).symm) := by
-          apply Equiv.ext; intro x
-          obtain ⟨⟨i, r⟩, rfl⟩ := finProdFinEquiv.surjective x
-          apply (blockPerm δ).injective
-          rw [Equiv.apply_symm_apply, blockPerm_apply, blockPerm_apply, Equiv.apply_symm_apply]
-        rw [hsymm, hpi_block, hγ.2]; funext i; ext r; simp [δ]
+      refine Finset.card_equiv (Equiv.mulRight (blockPerm δ)) fun γ => ?_
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and, Equiv.coe_mulRight]
+      rw [show γ * blockPerm δ = (blockPerm δ).trans γ from rfl, hpi_block]
+      refine ⟨fun h => h ▸ funext fun i => ?_, fun h => funext fun i => ?_⟩
+      · ext r; simp [δ]
+      · exact Equiv.ext fun r => by
+          simpa [δ] using congrArg (fun e => e ((π₂ i).symm (π₁ i r))) (congrFun h i)
     have hpart : ∑ π' : H,
         (Finset.univ.filter fun γ : G => piOf (actInsSeed t_st (F * m) ht_end γ s) = π').card =
           Fintype.card G := by
