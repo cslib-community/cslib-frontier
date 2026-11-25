@@ -44,21 +44,19 @@ namespace Instance
 `G.wordBound`. -/
 theorem inputFits_encode (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
     InputFits w G.encode := by
-  refine ⟨hfit.of_le (by rw [G.encode_length]; unfold wordBound; omega), fun v hv => ?_⟩
-  simp only [encode, List.mem_cons, List.mem_flatMap] at hv
-  rcases hv with rfl | rfl | ⟨c, hc, hvc⟩
-  · exact hfit.of_le (by unfold wordBound; omega)
-  · exact hfit.of_le (by unfold wordBound; omega)
-  · simp only [encodeClauseBy, List.mem_cons, List.mem_map] at hvc
-    rcases hvc with rfl | ⟨ℓ, _, rfl⟩
-    · have hle : c.length ≤ G.totalLits := List.le_sum_of_mem (List.mem_map_of_mem hc)
-      exact hfit.of_le (by unfold wordBound; omega)
-    · have hlt : litCodeBy Fin.val ℓ < 2 * G.n := by
-        have := ℓ.1.isLt
-        have := Bool.toNat_le ℓ.2
-        unfold litCodeBy
-        omega
-      exact hfit.of_le (by unfold wordBound; omega)
+  refine ⟨hfit.of_le (by simp only [G.encode_length, wordBound]; omega),
+    fun v hv => hfit.of_le ?_⟩
+  unfold wordBound
+  simp only [encode, List.mem_cons, List.mem_flatMap, encodeClauseBy, List.mem_map] at hv
+  rcases hv with rfl | rfl | ⟨c, hc, rfl | ⟨ℓ, _, rfl⟩⟩
+  · omega
+  · omega
+  · have hle : c.length ≤ G.totalLits := List.le_sum_of_mem (List.mem_map_of_mem hc)
+    omega
+  · have := ℓ.1.isLt
+    have := Bool.toNat_le ℓ.2
+    unfold litCodeBy
+    omega
 
 end Instance
 
@@ -195,11 +193,10 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
         ((hpos_n0.branch_pos hcond_n0).branch_pos hcond_chk))).mono (by omega), hob_y, ?_⟩
       rw [hob_y, outputList_eq_iff]
       have hans : answerWords G = [1] := by
-        cases G with
-        | mk n φ =>
-          dsimp only at hn0 hφ_nil
-          subst hn0 hφ_nil
-          rfl
+        rcases G with ⟨n, φ⟩
+        dsimp only at hn0 hφ_nil
+        subst hn0 hφ_nil
+        rfl
       rw [hans]
       refine ⟨by wram_simp [y_n0]; rfl, fun ⟨i, hi⟩ => ?_⟩
       obtain rfl : i = 0 := by simpa using hi
@@ -294,12 +291,11 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
             wram_exec [hs₈_ob, hs₈_0]
           refine ⟨s₈.write G.outAddrBase 0, (hneg.branch_neg hncond_ok).mono (by omega),
             hs₈_ob, ?_⟩
-          rw [outputList_eq_iff]
           have hans : answerWords G = [] := by
             dsimp only [answerWords, solveFin, solve, extractAssignment]
             rw [hchk, hok_all]
             rfl
-          rw [hans]
+          rw [outputList_eq_iff, hans]
           exact ⟨Data.write_mem_self _ _ _, Block.holdsList_nil _ _⟩
         · have hs₈_ok1 : s₈.regs compIdxReg = 1 := by rw [hs₈_ok, hok_all]; rfl
           have hcond_ok : (Cond.eq compIdxReg cOne).Holds s₈ := by

@@ -291,13 +291,8 @@ instance (N : Fin (n + 1) → ℕ) (s : KuhnSimplex (n + 1)) (k : Fin (n + 2)) :
 
 /-- `mate` is an involution. -/
 theorem mate_mate (k : Fin (n + 2)) : mate (mate k) = k := by
-  unfold mate
-  have h : (Fin.last (n + 1) : Fin (n + 2)) ≠ 0 := Fin.last_pos.ne'
-  by_cases hk0 : k = 0
-  · simp [hk0, h]
-  · by_cases hkl : k = Fin.last (n + 1)
-    · simp [hkl, h]
-    · simp [hk0, hkl]
+  by_cases hk0 : k = 0 <;> by_cases hkl : k = Fin.last (n + 1) <;>
+    simp [mate, hk0, hkl, Fin.last_pos.ne']
 
 private theorem finRotate_symm_zero : (finRotate (n + 1)).symm 0 = Fin.last n := by
   rw [Equiv.symm_apply_eq, finRotate_last]
@@ -488,21 +483,15 @@ theorem isDoor_across {c : (Fin (n + 1) → ℕ) → Fin (n + 2)} {N : Fin (n + 
   by_cases hk0 : k = 0
   · subst hk0
     obtain ⟨j', rfl⟩ := Fin.exists_succ_eq.mpr hj
-    refine ⟨j'.castSucc, ?_, ?_⟩
-    · rw [mate_zero]
-      exact (Fin.castSucc_lt_last j').ne
-    · rw [vertex_across_zero (fun i hi => h.1 rfl i hi), hja]
+    exact ⟨j'.castSucc, mate_zero.symm ▸ (Fin.castSucc_lt_last j').ne,
+      (congrArg c (vertex_across_zero (h.1 rfl) j')).trans hja⟩
   · by_cases hkl : k = Fin.last (n + 1)
     · subst hkl
       obtain ⟨j', rfl⟩ := Fin.exists_castSucc_eq.mpr hj
-      refine ⟨j'.succ, ?_, ?_⟩
-      · rw [mate_last]
-        exact Fin.succ_ne_zero j'
-      · rw [vertex_across_last, hja]
-    · refine ⟨j, ?_, ?_⟩
-      · rw [mate_of_ne hk0 hkl]
-        exact hj
-      · rw [vertex_across_of_ne hk0 hkl hj, hja]
+      exact ⟨j'.succ, mate_last.symm ▸ Fin.succ_ne_zero j',
+        (congrArg c (vertex_across_last s j')).trans hja⟩
+    · exact ⟨j, (mate_of_ne hk0 hkl).symm ▸ hj,
+        (congrArg c (vertex_across_of_ne hk0 hkl hj)).trans hja⟩
 
 /-! ### Boundary doors -/
 
@@ -586,13 +575,7 @@ private theorem vertex_ofFace_succ (t : KuhnSimplex n) (k : Fin (n + 1)) :
 private theorem ofFace_mem {N : Fin (n + 1) → ℕ} (hN : 0 < N 0) {t : KuhnSimplex n} :
     ofFace t ∈ kuhnSimplices (n + 1) N ↔ t ∈ kuhnSimplices n (Fin.tail N) := by
   simp only [mem_kuhnSimplices, ofFace]
-  constructor
-  · intro h i
-    exact h i.succ
-  · intro h i
-    refine Fin.cases ?_ (fun i => ?_) i
-    · exact hN
-    · exact h i
+  exact ⟨fun h i => h i.succ, fun h => Fin.cases hN h⟩
 
 /-- The colouring induced on the face `x 0 = 0`, with colours lowered by one. -/
 private def faceColoring (c : (Fin (n + 1) → ℕ) → Fin (n + 2)) (q : Fin n → ℕ) :
@@ -619,16 +602,13 @@ private theorem isHypergridSperner_faceColoring {N : Fin (n + 1) → ℕ}
     {c : (Fin (n + 1) → ℕ) → Fin (n + 2)} (hc : IsHypergridSperner N c) :
     IsHypergridSperner (Fin.tail N) (faceColoring c) := by
   intro q hq i
-  have h0 := ne_zero_of_cons hc hq
-  have hs := faceColoring_succ h0
+  have hs := faceColoring_succ (ne_zero_of_cons hc hq)
   obtain ⟨h1, h2⟩ := hc _ (cons_le hq) i.succ
   rw [Fin.cons_succ] at h1 h2
-  refine ⟨fun hqi => ?_, fun hqi heq => ?_⟩
-  · have := h1 hqi
-    rw [← hs] at this
-    fin_index
-  · apply h2 hqi
-    rw [← hs, heq]
+  refine ⟨fun hqi => ?_, fun hqi heq => h2 hqi (hs.symm.trans (congrArg Fin.succ heq))⟩
+  have := h1 hqi
+  rw [← hs] at this
+  fin_index
 
 private theorem isDoor_ofFace_iff {N : Fin (n + 1) → ℕ}
     {c : (Fin (n + 1) → ℕ) → Fin (n + 2)}
