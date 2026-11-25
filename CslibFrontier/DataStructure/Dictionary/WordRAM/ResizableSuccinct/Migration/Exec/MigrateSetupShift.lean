@@ -324,6 +324,8 @@ theorem migrateSetupShiftCode_exec {U V w N_old n n_init base : ℕ}
     rw [← hkeep_8_to_12 reg h160 (by simp [hfr', hta, hres, hcur, hidx, hz, ho]),
       ← hs₁₃_keep12 reg hfr' h160 hoff hhs]
     exact (Function.update_of_ne hhb _ _).trans (Function.update_of_ne hcur _ _)
+  have hky : ∀ reg : Fin rResize, 16 ≤ reg.val ∧ reg.val < 150 → y.regs reg = s₈.regs reg :=
+    fun reg h => hkeep_8_to_y reg (by omega) (by clear * - h; simp [Fin.ext_iff]; omega)
   have hpeak_lin := migratePeakWords_le_linear (V := V) hw hsplit₈.root_hdr.fits_U hV hn hev
   have hiwo_lin := compactedItemWords_le_linear (U := U) (V := V) (w := w) (N := N_old) (n := n)
     hw hU.le hV
@@ -352,9 +354,8 @@ theorem migrateSetupShiftCode_exec {U V w N_old n n_init base : ℕ}
     ⟨s_fix_old, hinv_old, (congrArg (totalSlots N_old) hgm_old_y).trans htot_old, hcpl_old_y⟩,
     ?_, ?_, ?_, hs₁₃_nm, ?_, ?_, ?_, ?_, ?_, ?_,
     fun i => ?_, fun i => ?_, fun i => ?_, fun i => ?_⟩
-  · exact abiPreserved_trans habi₈ ⟨hkeep_8_to_y mBase (mReg_lt_160 _) (by simp),
-      hkeep_8_to_y mTag (mReg_lt_160 _) (by simp), hkeep_8_to_y mArgU (mReg_lt_160 _) (by simp),
-      hkeep_8_to_y mArgV (mReg_lt_160 _) (by simp)⟩
+  · exact abiPreserved_trans habi₈ (abiPreserved_of_lt_five fun r h5 hr =>
+      hkeep_8_to_y r (by omega) (by clear * - h5 hr; simp [Fin.ext_iff] at hr ⊢; omega))
   · intro addr haddr
     rw [hym, hs₁₃_mem_eq,
       hframe_wp2 addr (fun h => by dsimp only [newMeta] at h; linarith only [haddr, h.1]),
@@ -372,14 +373,10 @@ theorem migrateSetupShiftCode_exec {U V w N_old n n_init base : ℕ}
   · exact (hkeep_8_to_y mPeakFront (mReg_lt_160 _) (by simp)).trans hs₈_pf
   · exact (hkeep_8_to_y mOldItemDst (mReg_lt_160 _) (by simp)).trans hs₈_oid
   · simp [y, RData.set]
-  · exact (hkeep_8_to_y _ (mOldHp_lt_160 i) (by clear * -; simp [Fin.ext_iff]; omega)).trans
-      (hs₈_ohp i)
-  · exact (hkeep_8_to_y _ (mOldCp_lt_160 i) (by clear * -; simp [Fin.ext_iff]; omega)).trans
-      (hs₈_ocp i)
-  · exact (hkeep_8_to_y _ (mNewHp_lt_160 i) (by clear * -; simp [Fin.ext_iff]; omega)).trans
-      (hs₈_nhp i)
-  · exact (hkeep_8_to_y _ (mNewCp_lt_160 i) (by clear * -; simp [Fin.ext_iff]; omega)).trans
-      (hs₈_ncp i)
+  · exact (hky _ (by simp only [val_mOldHp]; omega)).trans (hs₈_ohp i)
+  · exact (hky _ (by simp only [val_mOldCp]; omega)).trans (hs₈_ocp i)
+  · exact (hky _ (by simp only [val_mNewHp]; omega)).trans (hs₈_nhp i)
+  · exact (hky _ (by simp only [val_mNewCp]; omega)).trans (hs₈_ncp i)
 
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct
