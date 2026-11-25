@@ -192,54 +192,33 @@ private lemma replay_group_mTr {Q : Finset P} {s₀ s₁ u₀ : NetState P S M V
         by_cases hqp : q = p
         · subst hqp; simp only [↓reduceIte, hp_eq]
         · simp only [hqp, ↓reduceIte, hproc₀ q hqQ]
-      · have hne : q ≠ p := fun h => hq_not (h ▸ hpQ)
-        dsimp only [applyResult]
-        simp only [hne, ↓reduceIte]
-      · dsimp only [applyResult] at hm ⊢
-        rcases Finset.mem_union.mp hm with hold | hnew
-        · exact Finset.mem_union_left _ (hmsgs₀ pkt hsrc hold)
-        · exact Finset.mem_union_right _ hnew
-      · dsimp only [applyResult]
-        refine ⟨fun hm => ?_, fun hm => Finset.mem_union_left _ hm⟩
-        rcases Finset.mem_union.mp hm with hold | hnew
-        · exact hold
-        · obtain ⟨db, _, heq⟩ := Finset.mem_image.mp hnew
-          have hsrc_eq : pkt.src = p := (congrArg Packet.src heq).symm
-          exact absurd (hsrc_eq ▸ hpQ) hsrc
-    cases act with
-    | localStep p lbl =>
-      obtain ⟨hen, rfl⟩ := htr
-      have hp_eq := hproc₀ p hactQ
-      let res := π.onLocal p lbl (s.proc p)
-      let u' := applyResult p res u₀
-      have htr_u : π.lts.Tr u₀ (.localStep p lbl) u' := by
-        dsimp only [lts]
-        rw [hp_eq]
-        exact ⟨hen, rfl⟩
-      obtain ⟨hp', hnp', hm', hnm'⟩ := happly p hactQ res hp_eq
-      obtain ⟨u₁, hmtr₁, hp₁, hnp₁, hnm₁⟩ := ih hrestQ hp' hm'
-      exact ⟨u₁, LTS.MTr.stepL htr_u hmtr₁, hp₁,
-        fun q hq => (hnp₁ q hq).trans (hnp' q hq),
-        fun pkt hpkt => (hnm₁ pkt hpkt).trans (hnm' pkt hpkt)⟩
-    | deliver pkt =>
-      obtain ⟨hpkt_mem, rfl⟩ := htr
-      obtain ⟨hsrcQ, hdestQ⟩ := hactQ
-      have hdest_eq := hproc₀ pkt.dest hdestQ
-      let res := π.onRecv pkt.src pkt.dest pkt.body (s.proc pkt.dest)
-      let u' := applyResult pkt.dest res u₀
-      have htr_u : π.lts.Tr u₀ (.deliver pkt) u' := by
-        dsimp only [lts]
-        rw [hdest_eq]
-        exact ⟨hmsgs₀ pkt hsrcQ hpkt_mem, rfl⟩
-      obtain ⟨hp', hnp', hm', hnm'⟩ := happly pkt.dest hdestQ res hdest_eq
-      obtain ⟨u₁, hmtr₁, hp₁, hnp₁, hnm₁⟩ := ih hrestQ hp' hm'
-      exact ⟨u₁, LTS.MTr.stepL htr_u hmtr₁, hp₁,
-        fun q hq => (hnp₁ q hq).trans (hnp' q hq),
-        fun pkt' hpkt' => (hnm₁ pkt' hpkt').trans (hnm' pkt' hpkt')⟩
-    | stutter =>
-      obtain rfl := htr
-      obtain ⟨u₁, hmtr₁, hp₁, hnp₁, hnm₁⟩ := ih hrestQ hproc₀ hmsgs₀
-      exact ⟨u₁, LTS.MTr.stepL rfl hmtr₁, hp₁, hnp₁, hnm₁⟩
+      · simp only [applyResult, show q ≠ p from fun h => hq_not (h ▸ hpQ), ↓reduceIte]
+      · exact Finset.mem_union.mpr ((Finset.mem_union.mp hm).imp (hmsgs₀ pkt hsrc) id)
+      · refine ⟨fun hm => (Finset.mem_union.mp hm).resolve_right fun hnew => ?_,
+          Finset.mem_union_left _⟩
+        obtain ⟨db, _, rfl⟩ := Finset.mem_image.mp hnew
+        exact hsrc hpQ
+    -- Replay the first step from `u₀`, then the rest by induction.
+    obtain ⟨u', htr_u, hp', hnp', hm', hnm'⟩ : ∃ u', π.lts.Tr u₀ act u' ∧
+        (∀ q ∈ Q, u'.proc q = s'.proc q) ∧ (∀ q ∉ Q, u'.proc q = u₀.proc q) ∧
+        (∀ pkt : Packet P M, pkt.src ∈ Q → pkt ∈ s'.msgs → pkt ∈ u'.msgs) ∧
+        (∀ pkt : Packet P M, pkt.src ∉ Q → (pkt ∈ u'.msgs ↔ pkt ∈ u₀.msgs)) := by
+      cases act with
+      | localStep p lbl =>
+        obtain ⟨hen, rfl⟩ := htr
+        have hp_eq := hproc₀ p hactQ
+        exact ⟨_, ⟨hp_eq ▸ hen, by rw [hp_eq]⟩, happly p hactQ _ hp_eq⟩
+      | deliver pkt =>
+        obtain ⟨hpkt_mem, rfl⟩ := htr
+        have hdest_eq := hproc₀ pkt.dest hactQ.2
+        exact ⟨_, ⟨hmsgs₀ pkt hactQ.1 hpkt_mem, by rw [hdest_eq]⟩,
+          happly pkt.dest hactQ.2 _ hdest_eq⟩
+      | stutter =>
+        obtain rfl := htr
+        exact ⟨u₀, rfl, hproc₀, fun _ _ => rfl, hmsgs₀, fun _ _ => Iff.rfl⟩
+    obtain ⟨u₁, hmtr₁, hp₁, hnp₁, hnm₁⟩ := ih hrestQ hp' hm'
+    exact ⟨u₁, .stepL htr_u hmtr₁, hp₁, fun q hq => (hnp₁ q hq).trans (hnp' q hq),
+      fun pkt hpkt => (hnm₁ pkt hpkt).trans (hnm' pkt hpkt)⟩
 
 
 end AsyncQuorumProtocol
@@ -259,15 +238,8 @@ theorem not_synod_safe_of_disjoint_quorums {P S L M V : Type*}
   obtain ⟨xl₁, s₁, hgrp₁, hmtr₁, q₁, hq₁, w₁, hout₁⟩ := hdec₁ v₁
   obtain ⟨xl₂, s₂, hgrp₂, hmtr₂, q₂, hq₂, w₂, hout₂⟩ := hdec₂ v₂
   -- Uniform validity forces `w₁ = v₁` and `w₂ = v₂`:
-  have hw₁ : v₁ = w₁ := by
-    obtain ⟨_, hval₁⟩ := hsafe (fun _ => v₁) s₁ ⟨xl₁, hmtr₁⟩
-    obtain ⟨_, h_eq⟩ := hval₁ q₁ w₁ hout₁
-    exact h_eq
-  have hw₂ : v₂ = w₂ := by
-    obtain ⟨_, hval₂⟩ := hsafe (fun _ => v₂) s₂ ⟨xl₂, hmtr₂⟩
-    obtain ⟨_, h_eq⟩ := hval₂ q₂ w₂ hout₂
-    exact h_eq
-  subst hw₁ hw₂
+  obtain ⟨_, rfl⟩ := (hsafe (fun _ => v₁) s₁ ⟨xl₁, hmtr₁⟩).2 q₁ w₁ hout₁
+  obtain ⟨_, rfl⟩ := (hsafe (fun _ => v₂) s₂ ⟨xl₂, hmtr₂⟩).2 q₂ w₂ hout₂
   -- Replay `xl₁` then `xl₂` from hybrid input `inp p := if p ∈ Q₁ then v₁ else v₂`:
   let inp : P → V := fun p => if p ∈ Q₁ then v₁ else v₂
   obtain ⟨u₁, hmtr_u₁, hp₁, hnp₁, hnm₁⟩ :=
@@ -288,8 +260,7 @@ theorem not_synod_safe_of_disjoint_quorums {P S L M V : Type*}
     rw [hnp₂ q₁ hq₁_not_Q₂, hp₁ q₁ hq₁, hout₁]
   have hu₂_q₂ : (u₂.proc q₂).out = some v₂ := by
     rw [hp₂ q₂ hq₂, hout₂]
-  have heq : v₁ = v₂ := (hsafe inp u₂ hreach_u₂).1 q₁ q₂ v₁ v₂ hu₂_q₁ hu₂_q₂
-  exact hne heq
+  exact hne ((hsafe inp u₂ hreach_u₂).1 q₁ q₂ v₁ v₂ hu₂_q₁ hu₂_q₂)
 
 /-- Original split-brain impossibility corollary at `2 ≤ |P| ≤ 2t` over `AsyncQuorumProtocol`: over
 any nontrivial value domain `[Nontrivial V]`, when `2 ≤ Fintype.card P ≤ 2 * t`, no
