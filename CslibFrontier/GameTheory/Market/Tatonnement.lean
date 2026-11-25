@@ -295,7 +295,9 @@ theorem isWeakApproxEquilibrium_of_priceRatio_le {xHat : I → G → ℝ} {pHat 
       have h_chain := (mul_expenditure_le_of_le hp_ge_min hy.1).trans
         (hy.2.trans (expenditure_le_mul_of_le hp_le_max (E.endowment_nonneg i)))
       exact (inv_mul_le_iff₀ hr_pos).2 <| by
-        dsimp only [r]; rw [div_mul_eq_mul_div]; exact (le_div_iff₀' hαMin_pos).2 h_chain
+        dsimp only [r]
+        rw [div_mul_eq_mul_div]
+        exact (le_div_iff₀' hαMin_pos).2 h_chain
     have huy_le_r : E.utility i y ≤ r * E.utility i (xHat i) :=
       (inv_mul_le_iff₀ hr_pos).1
         ((hray i hy.1 (inv_pos.2 hr_pos) (inv_le_one_of_one_le₀ hr_ge_1)).trans
@@ -540,7 +542,9 @@ theorem priceRatio_le_of_isWalrasianEquilibrium_phantomExcessDemand [Nonempty G]
   set n : ℝ := (Fintype.card G : ℝ)
   have hn_pos : 0 < n := Nat.cast_pos.2 Fintype.card_pos
   have hph_le : phantomDemand η p k ≤ 1 + η := by
-    have := heq.2 k; rw [phantomExcessDemand_apply] at this; linarith [hX_nn heq.1 k]
+    have := heq.2 k
+    rw [phantomExcessDemand_apply] at this
+    linarith [hX_nn heq.1 k]
   have hexp_ge : η * p j ≤ expenditure p (fun _ => η) := by
     rw [expenditure_eq_sum]
     have := single_le_sum (f := fun l => p l * η)
@@ -1095,7 +1099,9 @@ theorem sum_sq_phantomExcessDemand_le [Nonempty G] {Z' : (G → ℝ) → G → �
   have hp_pos : ∀ g, 0 < p g := fun g => (by positivity : 0 < η / (4 * n)).trans_le (hp g).1
   let X : G → ℝ := fun g => Z p g + (1 + η)
   have hX_pos : ∀ g, 0 ≤ X g := fun g => by
-    have := neg_one_add_le_phantomExcessDemand hη0.le hX_nn hp_pos g; dsimp only [X, Z]; linarith
+    have := neg_one_add_le_phantomExcessDemand hη0.le hX_nn hp_pos g
+    dsimp only [X, Z]
+    linarith
   obtain ⟨gMin, -, hgMin⟩ := exists_min_image univ p univ_nonempty
   obtain ⟨gMax, -, hgMax⟩ := exists_max_image univ p univ_nonempty
   have hX_sum_le : ∑ g : G, X g ≤ (5 * n / η) * (2 * n) := by
@@ -1222,7 +1228,9 @@ theorem exists_le_tatonnementIter_sep_lt [Nonempty G] {Z : (G → ℝ) → G →
       have h1 := mul_le_mul_of_nonneg_left hsep_ge (by positivity : 0 ≤ 2 * s)
       have h2 := mul_le_mul_of_nonneg_left (hnorm p hp_in) (sq_nonneg s)
       have h3 : 2 * s * δ - s ^ 2 * L ^ 2 = (δ / L) ^ 2 := by
-        dsimp only [s]; field_simp [hL_pos.ne']; ring
+        dsimp only [s]
+        field_simp [hL_pos.ne']
+        ring
       exact (min_le_left _ _).trans (by linarith)
     · rw [tatonnementStep_of_not_mem Z η δ hp_in]
       set low := η / (2 * (n : ℝ))

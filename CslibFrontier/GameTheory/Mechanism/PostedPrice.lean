@@ -287,7 +287,9 @@ theorem acceptMechanism_isGroupStrategyProof [Finite ι] {p : ι → ℝ} {accep
     obtain ⟨k, _, hk_diff, hbefore⟩ :=
       exists_min_le (P := fun k => ¬ (accept k (v k) ↔ accept k (b k))) hj₀
     have hkS : k ∈ S := by
-      by_contra hnotS; rw [hout k hnotS] at hk_diff; exact hk_diff Iff.rfl
+      by_contra hnotS
+      rw [hout k hnotS] at hk_diff
+      exact hk_diff Iff.rfl
     have halloc_eq : acceptAllocation accept b k =
         acceptAllocation accept (Function.update v k (b k)) k :=
       acceptAllocation_congr (by
@@ -337,7 +339,9 @@ theorem acceptMechanism_strongGroupStrategyProof [Finite ι] {p : ι → ℝ} {a
     have hk_acc_diff : ¬ (accept k (v k) ↔ accept k (b k)) := fun hiff =>
       hk_diff ⟨fun h => ⟨hiff.mp h.1, hno_prev_b⟩, fun h => ⟨hiff.mpr h.1, hno_prev_v⟩⟩
     have hkS : k ∈ S := by
-      by_contra hnotS; rw [hout k hnotS] at hk_acc_diff; exact hk_acc_diff Iff.rfl
+      by_contra hnotS
+      rw [hout k hnotS] at hk_acc_diff
+      exact hk_acc_diff Iff.rfl
     have hle_u := hcoal k hkS
     simp only [Mechanism.utility, acceptMechanism] at hle_u
     refine hno_tie k hkS ?_
@@ -954,7 +958,9 @@ theorem integral_sum_payment_le_two_mul_virtualPostedPrices [LinearOrder ι]
         t * (1 - allReject v) + ∑ i, priorReject i v * excess i (v i) := by
     filter_upwards [hae_pos_ne] with v hv
     have h1 : t * (1 - allReject v) = ∑ i, t * (postedPrice p).allocation v i := by
-      dsimp only [allReject]; rw [← Finset.mul_sum]; ring
+      dsimp only [allReject]
+      rw [← Finset.mul_sum]
+      ring
     rw [h1, ← Finset.sum_add_distrib]
     refine Finset.sum_congr rfl fun i _ => ?_
     have hthr : IsReserveThreshold (fun z => virtualValue (μ i) (f i) z - t) (p i) :=

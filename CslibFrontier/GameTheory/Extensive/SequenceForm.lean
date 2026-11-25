@@ -289,9 +289,13 @@ theorem exists_infoSeqExt_of_seqVar_ne_nil [DecidableEq ι] [∀ j h, Nonempty (
       σ = SeqVar.infoSeqExt hpr h.2 a := by
   obtain ⟨z, post, hz⟩ := σ.2
   have hdrop : σ.1 = σ.1.dropLast ++ [σ.1.getLast hne] := (List.dropLast_append_getLast hne).symm
-  generalize hq : σ.1.getLast hne = q; rcases q with ⟨h, a⟩; rw [hq] at hdrop
+  generalize hq : σ.1.getLast hne = q
+  rcases q with ⟨h, a⟩
+  rw [hq] at hdrop
   have hseq : z.seq i = σ.1.dropLast ++ ⟨h, a⟩ :: post := by
-    rw [← hz]; nth_rw 1 [hdrop]; rw [List.append_assoc, List.singleton_append]
+    rw [← hz]
+    nth_rw 1 [hdrop]
+    rw [List.append_assoc, List.singleton_append]
   obtain ⟨v, hv, hpre⟩ := z.exists_node_of_seq_append σ.1.dropLast post h a hseq
   refine ⟨⟨h, ⟨v, hv⟩⟩, a, Subtype.ext ?_⟩
   rw [hdrop, ← hpre, hpr.playerSeq_eq_infoSeq hv]; rfl
@@ -941,7 +945,9 @@ theorem mem_extremePoints_isRealizationPlan_iff [DecidableEq ι] [∀ j h, Finty
     obtain ⟨s, hs_pos⟩ := hμ.exists_pos
     refine ⟨s, ?_⟩
     have hsum_er : ∑ t ∈ univ.erase s, μ t = 1 - μ s := by
-      have := hμ.sum_eq_one; rw [← add_sum_erase univ μ (mem_univ s)] at this; linarith
+      have := hμ.sum_eq_one
+      rw [← add_sum_erase univ μ (mem_univ s)] at this
+      linarith
     by_cases hs1 : μ s = 1
     · have hrest := (sum_eq_zero_iff_of_nonneg fun t _ => hμ.nonneg t).1 (by linarith)
       rw [hplan, ← add_sum_erase univ _ (mem_univ s), hs1, one_smul,
@@ -1046,7 +1052,9 @@ theorem seqPolyMat_mulVec_le_iff [DecidableEq ι] [∀ j h, Fintype (Act j h)]
         have h := hle (.inr (.inr σ₀)); rw [hmul_nn, seqPolyRhs_inr_inr] at h; linarith,
       funext fun r => ?_⟩
     have h1 := hle (.inl r); have h2 := hle (.inr (.inl r))
-    rw [hmul_pos, seqPolyRhs_inl] at h1; rw [hmul_neg, seqPolyRhs_inr_inl] at h2; linarith
+    rw [hmul_pos, seqPolyRhs_inl] at h1
+    rw [hmul_neg, seqPolyRhs_inr_inl] at h2
+    linarith
   · rintro ⟨hnn, heq⟩ (r | r | σ₀)
     · exact (congrFun heq r).le
     · rw [hmul_neg, heq, seqPolyRhs]

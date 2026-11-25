@@ -595,8 +595,12 @@ theorem networkCost_starGraph (α : ℝ) (r : V) :
   rw [networkCost_def, hedge]
   have hcast : (∑ u : V, ∑ v : V, ((starGraph r).dist u v : ℝ)) =
       ((2 * (Fintype.card V - 1) ^ 2 : ℕ) : ℝ) := by
-    rw [← hsum]; push_cast; rfl
-  rw [hcast]; push_cast; ring
+    rw [← hsum]
+    push_cast
+    rfl
+  rw [hcast]
+  push_cast
+  ring
 
 /-- Closed-form real social cost of the complete graph `⊤` on `n = Fintype.card V` vertices:
 `α · n.choose 2 + n(n - 1)`. -/
@@ -1490,7 +1494,9 @@ private theorem mul_nonBridge_neighbors_le {α : ℝ} (hα₀ : 0 ≤ α) {s : P
                 have : ¬ G.dist u w < Gv.dist u w := fun h => hw (mem_filter.mpr ⟨mem_univ w, h⟩)
                 omega
           _ = (∑ w : V, G.dist u w) + 2 * d * #(W v) := by
-            rw [sum_add_distrib]; simp only [sum_ite_mem, univ_inter, sum_const, smul_eq_mul]; ring
+            rw [sum_add_distrib]
+            simp only [sum_ite_mem, univ_inter, sum_const, smul_eq_mul]
+            ring
       have hne_le := hs.playerCost_le hα₀ (by rw [hGv_eq]; exact hGv_conn u)
       have hsum_real :
           (∑ w : V, ((formedGraph (Function.update s u ((s u).erase v))).dist u w : ℝ)) ≤
@@ -1796,7 +1802,9 @@ theorem IsPureNash.diam_le_two_mul_sqrt_add_one {α : ℝ} (hα₀ : 0 ≤ α) {
   calc ((formedGraph s).diam : ℝ)
       ≤ Real.sqrt (4 * α + 1) := hs.diam_le_sqrt_four_mul_add_one hα₀
     _ ≤ Real.sqrt ((2 * Real.sqrt α + 1) ^ 2) := Real.sqrt_le_sqrt <| by
-        have := Real.sq_sqrt hα₀; have := Real.sqrt_nonneg α; nlinarith
+        have := Real.sq_sqrt hα₀
+        have := Real.sqrt_nonneg α
+        nlinarith
     _ = 2 * Real.sqrt α + 1 := Real.sqrt_sq (by positivity)
 
 /-- **`O(√α)` Price of Anarchy** ([FabrikantLuthraManevaPapadimitriouShenker2003];

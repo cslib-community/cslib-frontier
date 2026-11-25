@@ -374,7 +374,10 @@ private lemma eq_zero_of_sum_pert_weights {n B : ℕ} {K_B : ℤ}
       (fun k hk => by simp only [Finset.mem_range] at hk; simp only [hk, ↓reduceDIte]; omega)
       (fun j _ => Fin.ext (by simp only [show n - 1 - j.1 < n by omega, ↓reduceDIte]; omega))
       fun k hk => by
-        simp only [Finset.mem_range] at hk; simp only [a, hk, ↓reduceDIte]; congr 2; omega
+        simp only [Finset.mem_range] at hk
+        simp only [a, hk, ↓reduceDIte]
+        congr 2
+        omega
   have hradix : ∑ k ∈ Finset.range (n + 1), a k * K_B ^ k = 0 := by
     rw [Finset.sum_range_succ, hlow]
     simp only [a, Nat.lt_irrefl, ↓reduceDIte, ↓reduceIte, Finset.sum_mul, ← Finset.sum_add_distrib]
@@ -401,7 +404,10 @@ theorem isNondegenerateSystem_pertP {m n H : ℕ} {B : Matrix (Fin m) (Fin n) �
     IsNondegenerateSystem ((intMatP B).map Int.cast : Matrix (Fin m ⊕ Fin n) (Fin m) K)
       (fun r => (pertRhsPInt m n K_B r : K)) := by
   rw [isNondegenerateSystem_iff]
-  intro x _; by_contra hlt; push Not at hlt; rw [Fintype.card_fin] at hlt
+  intro x _
+  by_contra hlt
+  push Not at hlt
+  rw [Fintype.card_fin] at hlt
   set T := tightRows ((intMatP B).map Int.cast : Matrix (Fin m ⊕ Fin n) (Fin m) K)
     (fun r => (pertRhsPInt m n K_B r : K)) x
   let M : Matrix (Fin m) T ℤ := fun i r => intMatP B r.1 i

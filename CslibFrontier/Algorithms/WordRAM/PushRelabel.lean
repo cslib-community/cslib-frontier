@@ -614,7 +614,9 @@ private theorem out_eq_ofState (inst : Instance) (hst : inst.s ≠ inst.t) :
       (RTFState.init inst.toNetwork (defaultAdj inst.n) (nonTermFin inst.toNetwork))
     inst.out = RelabelToFrontOutput.ofState r.1 r.2 := by
   have hst' : inst.toNetwork.s ≠ inst.toNetwork.t := hst
-  rw [out_eq_id inst hst]; unfold relabelToFrontWith; rw [ite_eq_right hst']
+  rw [out_eq_id inst hst]
+  unfold relabelToFrontWith
+  rw [ite_eq_right hst']
 
 private theorem two_le_n_of_ne (inst : Instance) (hst : inst.s ≠ inst.t) : 2 ≤ inst.n := by
   simpa [Finset.card_pair hst] using Finset.card_le_univ ({inst.s, inst.t} : Finset (Fin inst.n))
@@ -656,7 +658,9 @@ private theorem excess_sink_eq_value (inst : Instance) (f : inst.toNetwork.Prefl
     (hst : inst.s ≠ inst.t) (hz : ∀ v, v ≠ inst.s → v ≠ inst.t → f.excess v = 0) :
     (f.toFlow hz).value = f.excess inst.t := by
   have hsum : ∑ v : Fin inst.n, f.excess v = 0 := by
-    unfold Preflow.excess; rw [Finset.sum_sub_distrib, Finset.sum_comm]; omega
+    unfold Preflow.excess
+    rw [Finset.sum_sub_distrib, Finset.sum_comm]
+    omega
   rw [← Finset.add_sum_erase _ _ (Finset.mem_univ inst.s),
     ← Finset.add_sum_erase _ _ (Finset.mem_erase.mpr ⟨hst.symm, Finset.mem_univ _⟩),
     Finset.sum_eq_zero fun v hv =>
@@ -1295,7 +1299,9 @@ private theorem initNonTermCode_spec (inst : Instance) {w : ℕ} (hw : Fits w in
     obtain ⟨z, hz_ex, rfl⟩ : ∃ z,
         ExecWithin w (ram[ rPos ← zero; rIdx ← zero ] : Code .standard 32) x₄ z 2 ∧
           z = (x₄.set rPos 0).set rIdx 0 := by
-      refine WP.exists_execWithin ?_; wram_exec [hx₄_P.1.hzero]; rfl
+      refine WP.exists_execWithin ?_
+      wram_exec [hx₄_P.1.hzero]
+      rfl
     exact hz_ex
   set x₅ := (x₄.set rPos 0).set rIdx 0
   have hx₅_ctx : CtxInv inst x₅ := (hx₄_P.1.set (by decide)).set (by decide)
@@ -1350,7 +1356,9 @@ private theorem initNonTermCode_spec (inst : Instance) {w : ℕ} (hw : Fits w in
       refine ⟨⟨(hzc.set (by decide)).set (by decide), by omega, hzca,
         by rw [htake]; wram_simp [hpos], fun i hi => ?_⟩, by wram_simp⟩
       have hi' : i < pfx.length := htake ▸ hi
-      change z.mem _ = _; rw [List.getElem_of_eq htake hi]; exact hmem_p i hi'
+      change z.mem _ = _
+      rw [List.getElem_of_eq htake hi]
+      exact hmem_p i hi'
     · by_cases hkt : k = inst.t.val
       · rw [ite_eq_right (by simp [show vk = inst.t from Fin.ext hkt] :
             ¬ (vk ≠ inst.s ∧ vk ≠ inst.t))] at htake
@@ -1358,7 +1366,9 @@ private theorem initNonTermCode_spec (inst : Instance) {w : ℕ} (hw : Fits w in
         refine ⟨⟨(hzc.set (by decide)).set (by decide), by omega, hzca,
           by rw [htake]; wram_simp [hpos], fun i hi => ?_⟩, by wram_simp⟩
         have hi' : i < pfx.length := htake ▸ hi
-        change z.mem _ = _; rw [List.getElem_of_eq htake hi]; exact hmem_p i hi'
+        change z.mem _ = _
+        rw [List.getElem_of_eq htake hi]
+        exact hmem_p i hi'
       · have hnt : vk ≠ inst.s ∧ vk ≠ inst.t :=
           ⟨fun h => hks (congrArg Fin.val h), fun h => hkt (congrArg Fin.val h)⟩
         rw [ite_eq_left hnt] at htake
@@ -1701,7 +1711,9 @@ private theorem pushBody_spec (inst : Instance) {w : ℕ} (hw : Fits w inst.word
   have hnew_fvu : s.pr.flow v u - rev = (s.pr.flow.push u v) v u := by
     change _ = Preflow.pushFun s.pr.flow u v δ v u; simp [Preflow.pushFun, huv, huv.symm, rev]
   have hexu_new : (s.pr.flow.excess u).toNat - δ = ((s.pr.flow.push u v).excess u).toNat := by
-    have := s.pr.flow.excess_nonneg hact.1; have := s.pr.flow.excess_push_self huv; omega
+    have := s.pr.flow.excess_nonneg hact.1
+    have := s.pr.flow.excess_push_self huv
+    omega
   obtain ⟨hf_vn, hf_vnu, _, hf_fvu⟩ := fits_arc hw v u
   obtain ⟨hf_un, hf_unv, _, hf_fuv⟩ := fits_arc hw u v
   obtain ⟨hf_eu, _, _, _⟩ := fits_vtx hw u
@@ -1852,7 +1864,9 @@ private theorem pushBody_spec (inst : Instance) {w : ℕ} (hw : Fits w inst.word
           Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
         exact hxca.hexcess v hvs
       have hexv_new : (s.pr.flow.excess v).toNat + δ = ((s.pr.flow.push u v).excess v).toNat := by
-        have := s.pr.flow.excess_nonneg hvs; have := s.pr.flow.excess_push_target huv; omega
+        have := s.pr.flow.excess_nonneg hvs
+        have := s.pr.flow.excess_push_target huv
+        omega
       have hf_exv_new : Fits w ((s.pr.flow.excess v).toNat + δ) :=
         fits_val_of_le_n_maxCap hw
           (hexv_new.symm ▸ preflow_excess_le inst (s.pr.flow.push u v) v hvs)
@@ -1998,7 +2012,9 @@ private theorem dischargeCode_spec (inst : Instance) {w : ℕ} (hw : Fits w inst
         by simp [hzrel], (congrArg DischargeOutput.ca hd_eq).symm.trans hdca,
         by simpa [congrArg DischargeOutput.relabeled hd_eq] using hrel_eq⟩, ?_⟩
       rw [hpot_y, dischargePot_eq inst u hs' hzca, hnr, hd_eq]
-      dsimp only [s']; simp only [List.length_cons, Nat.mul_add, Nat.mul_one]; omega
+      dsimp only [s']
+      simp only [List.length_cons, Nat.mul_add, Nat.mul_one]
+      omega
     · have hk_lt : k < inst.n := by omega
       let v : Fin inst.n := ⟨k, hk_lt⟩
       have hcur_cons : s.cur u = v :: (List.finRange inst.n).drop (k + 1) :=
@@ -2028,14 +2044,18 @@ private theorem dischargeCode_spec (inst : Instance) {w : ℕ} (hw : Fits w inst
         have hbr : ExecWithin w dischargeBody y z 50 := execWithin_branch_neg hkn' hif le_rfl
         have hnr : s.pr.numRelabels (discharge (defaultAdj inst.n) id u s).ops =
             (s.pr.apply (.push u v)).numRelabels (discharge (defaultAdj inst.n) id u s').ops := by
-          rw [hd_eq, State.numRelabels_cons]; dsimp only [s']; simp [Op.IsRelabel]
+          rw [hd_eq, State.numRelabels_cons]
+          dsimp only [s']
+          simp [Op.IsRelabel]
         refine ⟨z, 50, hbr, ⟨hzc, hzpos.trans hy₁_pos, hzu,
           fun a ha => (hztop a (by omega)).trans (hy₁_mem ▸ hytop a ha),
           s', k, bRel, hs', hzca, hzex, hzhu.trans hy₁_hu, hk_le, hzcur, hdrop,
           hzrel.trans hy₁_rel, (congrArg DischargeOutput.ca hd_eq).symm.trans hdca,
           by rw [← congrArg DischargeOutput.relabeled hd_eq, hrel_eq]⟩, ?_⟩
         rw [hpot_y, dischargePot_eq inst u hs' hzca, hnr, hd_eq]
-        dsimp only [s']; simp only [List.length_cons]; omega
+        dsimp only [s']
+        simp only [List.length_cons]
+        omega
       · obtain ⟨z, hz_ex, hzc, hzca, hzpos, hzu, hzrel, hzcur, hzex, hzhu, hzmem⟩ :=
           advanceCode_spec inst hw hk_lt hs hdrop hy₁_ctx hy₁_ca hy₁_u hy₁_cur
         obtain ⟨hs', hd_eq⟩ := discharge_advance_step hadj hs hact hcur_cons hadm
@@ -2051,7 +2071,9 @@ private theorem dischargeCode_spec (inst : Instance) {w : ℕ} (hw : Fits w inst
           hk_lt, hzcur, by simp [s'], hzrel.trans hy₁_rel,
           (congrArg DischargeOutput.ca hd_eq).symm.trans hdca,
           by rw [← congrArg DischargeOutput.relabeled hd_eq, hrel_eq]⟩, ?_⟩
-        rw [hpot_y, dischargePot_eq inst u hs' hzca, hd_eq]; dsimp only [s']; omega
+        rw [hpot_y, dischargePot_eq inst u hs' hzca, hd_eq]
+        dsimp only [s']
+        omega
   have hx₁_I : I' x₁ :=
     ⟨hx₁_ctx, hx₁_pos, hx₁_u, fun _ _ => hx₁_mem ▸ rfl,
       s₀, k₀, false, hs₀, hx₁_mem ▸ hxca, hx₁_exr, hx₁_hu, hk₀, hx₁_cur, hdrop₀,
@@ -2393,7 +2415,9 @@ private theorem outerCode_spec (inst : Instance) {w : ℕ} (hw : Fits w inst.wor
     rw [List.length_append, ← hst_end_mem.hord.hrPos] at h1
     exact List.eq_nil_of_length_eq_zero (by omega)
   have hca_eq : st_end.ca = r₀.2.ca := by
-    rw [← hr_end_eq, rtfLoop.eq_def]; dsimp only; rw [htodo_nil]
+    rw [← hr_end_eq, rtfLoop.eq_def]
+    dsimp only
+    rw [htodo_nil]
   obtain ⟨_, _, _, _, hrel_le, _, hdis_le, _, hops_le, htot_le⟩ :=
     relabelToFrontDense_correct (N := inst.toNetwork) hst
   have hout_of := out_eq_ofState inst hst
@@ -2444,7 +2468,9 @@ private theorem cutAndOutputCode_spec (inst : Instance) {w : ℕ} (hw : Fits w i
     hz
   have hval := hcaInv.prInv.valid
   have hout_flow : inst.out.flow = st_end.ca.pr.flow.toFlow hz' := by
-    rw [hout_of]; simp only [RelabelToFrontOutput.ofState]; rw [dite_eq_left hz']
+    rw [hout_of]
+    simp only [RelabelToFrontOutput.ofState]
+    rw [dite_eq_left hz']
   have hout_cut : inst.out.cut = gapCut st_end.ca.pr.height := by rw [hout_of]; rfl
   have hflow_val : inst.maxFlowValue = (st_end.ca.pr.flow.excess inst.t).toNat := by
     have h1 := inst.natCast_maxFlowValue
@@ -2729,7 +2755,9 @@ private theorem solver_spec (inst : Instance) {w : ℕ} (hw : Fits w inst.wordBo
       (T' := (5 * inst.n * inst.n + 40 * inst.n + 18) + (590 * inst.n ^ 3 + 76 * inst.n ^ 2 + 2) +
         (19 * inst.n * inst.n + 24 * inst.n + 20) + 2) (by omega)
     refine ⟨y₄, (hy₁_ex.seq hbr).mono ?_, hy₄_ctx.houtBase, hy₄_acc, hy₄_out⟩
-    unfold prTime; rw [hsub]; nlinarith
+    unfold prTime
+    rw [hsub]
+    nlinarith
 
 /-- **`O(|V|³)` Word-RAM relabel-to-front maximum flow & minimum gap cut (`ExecutesList`).**
 For any instance `inst` and word width `w` satisfying `Fits w inst.wordBound`, `program` halts

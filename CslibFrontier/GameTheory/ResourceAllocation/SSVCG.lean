@@ -275,7 +275,9 @@ private theorem update_pos {θ : ι → ℝ} (hθ : ∀ j, 0 < θ j) {i : ι} {t
 omit [Fintype ι] in
 private theorem hybridGame_update_self (M : SSVCGMechanism ι) (U : ι → ℝ → ℝ) (θ : ι → ℝ)
     (i : ι) (t : ℝ) : M.hybridGame U (Function.update θ i t) i = M.hybridGame U θ i := by
-  unfold hybridGame; congr 1; ext j
+  unfold hybridGame
+  congr 1
+  ext j
   rcases eq_or_ne j i with rfl | hji <;> simp [*]
 
 omit [Fintype ι] in

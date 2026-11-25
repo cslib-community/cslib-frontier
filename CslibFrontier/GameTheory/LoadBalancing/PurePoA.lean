@@ -370,7 +370,9 @@ theorem IsIdentical.makespan_eq_opt_of_three_jobs_two_machines
       have hi₂₃ : i₂ ≠ i₃ := fun h =>
         hi₃_notS (h ▸ hS_eq ▸ mem_insert_of_mem (mem_singleton_self i₂))
       have hpig : τ i₁ = τ i₂ ∨ τ i₁ = τ i₃ ∨ τ i₂ = τ i₃ := by
-        generalize τ i₁ = a; generalize τ i₂ = b; generalize τ i₃ = c
+        generalize τ i₁ = a
+        generalize τ i₂ = b
+        generalize τ i₃ = c
         fin_cases a <;> fin_cases b <;> fin_cases c <;> decide
       rw [hload_jstar]
       rcases hpig with h | h | h
@@ -604,7 +606,9 @@ theorem card_speedPrefix_step_of_sum_speed_le (G : LoadBalancingGame ι M) (L : 
   classical
   by_cases hne : (P (k + 1)).Nonempty
   · have hsub : P (k + 1) ⊆ P k := fun j hj => (hP k j).mpr fun j' hj' => by
-      have := (hP (k + 1) j).mp hj j' hj'; push_cast at this; linarith
+      have := (hP (k + 1) j).mp hj j' hj'
+      push_cast at this
+      linarith
     have hsum := hspeed_sum hne
     obtain ⟨jmin, hjmin, hmin⟩ := exists_min_image (P (k + 1)) G.speed hne
     set smin : ℝ := G.speed jmin
@@ -844,7 +848,10 @@ theorem exists_isPureNash_makespan_eq_mul_optMakespan {K : ℝ} (hK : 1 ≤ K) :
   have hloadOpt : ∀ j : Fin 2, U.load Aopt j = 1 := fun j => by
     rw [load, sum_filter, Fin.sum_univ_two]; fin_cases j <;> simp [U, Aopt]
   have hNE : U.toCostGame.IsPureNash A := (U.isPureNash_iff A).mpr fun i k hk => by
-    rw [hloadA, hloadA]; simp only [U, A, id_eq] at hk ⊢; rw [ite_eq_right hk.symm]; linarith
+    rw [hloadA, hloadA]
+    simp only [U, A, id_eq] at hk ⊢
+    rw [ite_eq_right hk.symm]
+    linarith
   have hmsA : U.makespan A = K := le_antisymm ((U.makespan_le_iff A).mpr fun j => (hloadA j).le)
     (hloadA 0 ▸ U.load_le_makespan A 0)
   have hopt : U.optMakespan = 1 := le_antisymm

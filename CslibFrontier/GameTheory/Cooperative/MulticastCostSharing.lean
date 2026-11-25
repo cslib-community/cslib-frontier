@@ -1018,7 +1018,9 @@ private theorem localNetWelfare_twoPassReceivers_eq_subtreeSurplus
       rw [M.localNetWelfare_eq_zero_of_empty hemp]
       have : M.nodeWelfare b v = 0 := by
         rw [M.nodeWelfare_eq, hno_res, Finset.sum_empty, Finset.sum_eq_zero hch_zero, add_zero]
-      have := M.edgeCost_nonneg v; unfold subtreeSurplus at hsurp_nonneg ⊢; linarith
+      have := M.edgeCost_nonneg v
+      unfold subtreeSurplus at hsurp_nonneg ⊢
+      linarith
     · rw [M.localNetWelfare_decomp hne, subtreeSurplus, M.nodeWelfare_eq,
         show (R₂.filter fun i => M.loc i = v) = Finset.univ.filter fun i : A => M.loc i = v by
           ext i; simp only [R₂, twoPassReceivers, Finset.mem_filter, Finset.mem_univ, true_and]
@@ -1387,7 +1389,9 @@ theorem twoPassPayment_eq_mcMechanism_payment {b : A → ℝ} (hb : ∀ j, 0 ≤
         have hch : ∑ c ∈ M.tree.children (M.loc i), M.upMsg b' c =
             ∑ c ∈ M.tree.children (M.loc i), M.upMsg b c :=
           Finset.sum_congr rfl fun c hc => hoff c fun hci => by
-            have := M.tree.depth_of_mem_children hc; have := hci.depth_le; omega
+            have := M.tree.depth_of_mem_children hc
+            have := hci.depth_le
+            omega
         let Floc := Finset.univ.filter fun j : A => M.loc j = M.loc i
         have hi_mem : i ∈ Floc := by simp [Floc]
         have hsum_b' : ∑ j ∈ Floc, max (b' j) 0 = (∑ j ∈ Floc, max (b j) 0) - b i := by
@@ -1472,7 +1476,9 @@ theorem twoPassPayment_eq_mcMechanism_payment {b : A → ℝ} (hb : ∀ j, 0 ≤
     cases hth : M.topDownThreshold b (M.loc i) with
     | none => rw [hth] at hdrop_match; dsimp only [upDrop] at hdrop_match ⊢; linarith
     | some m =>
-      rw [hth] at hdrop_match; dsimp only [upDrop] at hdrop_match ⊢; rw [← hdrop_match]
+      rw [hth] at hdrop_match
+      dsimp only [upDrop] at hdrop_match ⊢
+      rw [← hdrop_match]
       rcases le_total (b i) m with h | h
       · rw [min_eq_left h, max_eq_left (by linarith)]; ring
       · rw [min_eq_right h, max_eq_right (by linarith)]; ring
@@ -1944,7 +1950,9 @@ theorem exists_welfareLoss_gt_harmonic_sub_one
       have ha_in_S : seq t₀ ∈ S := by
         obtain ⟨x, hxS, hx_eq⟩ := Finset.mem_image.mp (Finset.min'_mem idxSet (hSne.image _))
         have : seq t₀ = x := by
-          change eqv t₀ = x; dsimp only [t₀]; rw [← hx_eq, eqv.apply_symm_apply]
+          change eqv t₀ = x
+          dsimp only [t₀]
+          rw [← hx_eq, eqv.apply_symm_apply]
         rwa [this]
       have hS_sub : S ⊆ W ∪ (Finset.univ.filter fun s : Fin n => t₀ ≤ s).image seq :=
         fun x hxS => by
@@ -2142,7 +2150,9 @@ theorem pathBottomShare_injective (k : ℕ) : Function.Injective (pathBottomShar
     have hanc_bot : (pathMulticast k).tree.IsAncestor ⟨n + 1, hn_lt⟩
         ((pathMulticast k).loc (Sum.inr ())) := by
       change (pathRootedTree k).IsAncestor ⟨n + 1, hn_lt⟩ ⟨k + 1, by omega⟩
-      rw [pathRootedTree_isAncestor_iff]; dsimp; omega
+      rw [pathRootedTree_isAncestor_iff]
+      dsimp
+      omega
     have hedge : (pathMulticast k).edgeCost ⟨n + 1, hn_lt⟩ = (L : ℝ) * ((L + 1 : ℝ) ^ n) := by
       simp only [pathMulticast, show ¬ (n + 1 = 0 ∨ n + 1 = k + 1) by omega, ↓reduceIte]
       push_cast [L]; rfl

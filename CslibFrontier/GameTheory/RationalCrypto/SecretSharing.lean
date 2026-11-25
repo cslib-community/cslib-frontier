@@ -773,7 +773,9 @@ theorem hasBackwardInductionDominance_gradualReleaseGame (R : ReconstructionGame
     split_ifs with hm1
     · nlinarith [R.prefs.uMinus_lt_uPlus, hq_pos ⟨m', hm'⟩]
     · have hm_eq : ⟨m', hm'⟩ = (⟨T - 1, Nat.sub_lt (by omega) zero_lt_one⟩ : Fin T) := by
-        ext; dsimp; omega
+        ext
+        dsimp
+        omega
       rw [hm_eq, hq_last (by omega)]
       linarith [R.prefs.uAll_lt_uPlus]
   refine ⟨fun i => ⟨fun s hs => ?_, ?_⟩, fun i r hr => ?_⟩

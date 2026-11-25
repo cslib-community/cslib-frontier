@@ -870,7 +870,9 @@ theorem twoBidderClinching_budget_manipulation {m : ℝ} (hm : 0 < m) :
   have hhon_u : ((twoBidderClinchingMechanism m).outcome θ).utility (fun k => (θ k).val) 1 =
       1 / 4 := by
     dsimp only [Outcome.utility]; rw [hhon_x, hhon_p]
-    simp only [θ, Matrix.cons_val_one, Matrix.cons_val_zero]; field_simp [hm.ne']; norm_num
+    simp only [θ, Matrix.cons_val_one, Matrix.cons_val_zero]
+    field_simp [hm.ne']
+    norm_num
   have hdev_le : (1 : ℝ) ≤ 1 + Real.log 2 := by linarith
   have hdev_x : ((twoBidderClinchingMechanism m).outcome (Function.update θ 1 b')).alloc 1 =
       m / 2 := by

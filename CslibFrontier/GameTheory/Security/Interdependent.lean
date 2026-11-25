@@ -504,7 +504,9 @@ theorem isCriticalCoalition_of_higher_contagion {qExt : ι → ℝ}
     have hsplit : ∀ S T : Finset ι, ∏ u ∈ univ \ S, (1 - qExt u) =
         (∏ u ∈ T \ S, (1 - qExt u)) * ∏ u ∈ univ \ (T ∪ S), (1 - qExt u) := fun S T => by
       have hset : (univ \ S) \ (univ \ (T ∪ S)) = T \ S := by
-        ext; simp only [mem_sdiff, mem_univ, true_and, mem_union, not_or]; tauto
+        ext
+        simp only [mem_sdiff, mem_univ, true_and, mem_union, not_or]
+        tauto
       rw [← prod_sdiff (sdiff_subset_sdiff (subset_refl univ) subset_union_right), hset]
     intro A B hAB hA hB
     rw [hsplit B A, hsplit A B, union_comm B A]
@@ -975,7 +977,9 @@ theorem symmetricIDSSpec_isMixedNash_and_correlated_strict_improvement
     (Fintype.sum_equiv (finTwoArrowEquiv Bool).symm (fun u : Bool × Bool => F ![u.1, u.2]) F
       fun _ => rfl).symm.trans (Fintype.sum_prod_type fun u : Bool × Bool => F ![u.1, u.2])
   have h1_sub_θ : (1 - θ) * (p ^ 2 * q * L) = p * L - c := by
-    dsimp only [θ]; field_simp [hden.ne']; ring
+    dsimp only [θ]
+    field_simp [hden.ne']
+    ring
   -- Evaluate `deviationCost mix i b` for `b = true` and `b = false`.
   have hdev_true : ∀ i : Fin 2, G.deviationCost mix i true = c + (1 - θ) * p * q * L := fun i => by
     rw [CostGame.deviationCost_def, hexp_fin2]

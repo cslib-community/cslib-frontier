@@ -513,7 +513,9 @@ theorem isTreePassOutput_treePassUpstream {M : GraphicalGame ι S} (hT : M.graph
       (fun c : UpstreamNeighbors hT r i => treePassUpstream hT hroot c.1) =
         (treePassNode hT hroot i).witness := fun i => funext fun ⟨c, hc_ne, hc_par⟩ => by
     unfold treePassUpstream; conv_lhs => rw [treePassNode]
-    simp only [hc_ne, ↓reduceDIte]; cases hc_par; rfl
+    simp only [hc_ne, ↓reduceDIte]
+    cases hc_par
+    rfl
   refine ⟨?_, fun v hv => ?_⟩
   · rw [treePassUpstream_root, hwit_fun r]
     have hnr : treePassNode hT hroot r =
@@ -615,7 +617,9 @@ private theorem localDeviationPayoff_induceSubgame (M : GraphicalGame ι S) (U :
   rw [localNeighborPayoff_def, localNeighborPayoff_def]
   refine congrArg (M.localPayoff i.1) (funext fun ⟨k, hk⟩ => ?_)
   by_cases hki : k = i.1
-  · rcases i with ⟨i₀, hi₀⟩; subst hki; simp
+  · rcases i with ⟨i₀, hi₀⟩
+    subst hki
+    simp
   · have hne : (⟨k, hclosed i.2 (hk.resolve_left hki)⟩ : U) ≠ i :=
       fun h => hki (congrArg Subtype.val h)
     simp only [hki, hne, ↓reduceDIte]; rfl
@@ -725,7 +729,9 @@ theorem sum_abs_prod_sub_prod_le.{u₁, u₂} {α : Type u₁} [Fintype α] [Dec
     let α' := {j : α // j ≠ j₀}
     have hcard' : Fintype.card α' = n := by
       have hc := Fintype.card_subtype_compl (fun j : α => j = j₀)
-      rw [Fintype.card_subtype_eq] at hc; dsimp [α']; omega
+      rw [Fintype.card_subtype_eq] at hc
+      dsimp [α']
+      omega
     have herase : univ.erase j₀ = univ.filter (fun j : α => j ≠ j₀) := by ext j; simp
     let e := (Equiv.piSplitAt j₀ T).symm
     have hprod_split : ∀ (r : ∀ j, T j → ℝ) (a : T j₀) (v : ∀ j : α', T j.1),
@@ -896,7 +902,9 @@ theorem nearestGridStrategy_mem_binaryTauGrid {m : ℕ} (hm : 1 ≤ m) (x : Bool
 private theorem floor_mul_add_half_le {m : ℕ} {x : Bool → ℝ} (hx : IsMixedStrategy x) :
     ⌊(m : ℝ) * x false + 1 / 2⌋₊ ≤ m := by
   have hx1 : x false ≤ 1 := by
-    have hsum := hx.sum_eq_one; simp only [Fintype.sum_bool] at hsum; linarith [hx.nonneg true]
+    have hsum := hx.sum_eq_one
+    simp only [Fintype.sum_bool] at hsum
+    linarith [hx.nonneg true]
   exact Nat.lt_succ_iff.mp ((Nat.floor_lt' (Nat.succ_ne_zero m)).mpr (by push_cast; nlinarith))
 
 private theorem abs_mul_sub_floor_le_half {m : ℕ} {x : Bool → ℝ} (hx : IsMixedStrategy x) :

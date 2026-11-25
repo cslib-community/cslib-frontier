@@ -499,7 +499,9 @@ theorem IsNondegenerate.eq_of_support_subset_of_isPureBestResponse₁ {G : Bimat
   by_cases hbr_t₁ : ∀ i' : M, (G.A *ᵥ (y + t₁ • d)) i' ≤ (G.A *ᵥ (y + t₁ • d)) i₀
   · have hy_t₁ := hmix_of_le t₁ ht₁_pos.le le_rfl
     have hj₁_zero : (y + t₁ • d) j₁ = 0 := by
-      simp only [t₁, Pi.add_apply, Pi.smul_apply, smul_eq_mul]; field_simp [hj₁_neg.ne]; ring
+      simp only [t₁, Pi.add_apply, Pi.smul_apply, smul_eq_mul]
+      field_simp [hj₁_neg.ne]
+      ring
     have hlt_supp : (Function.support (y + t₁ • d)).ncard < (Function.support y).ncard :=
       Set.ncard_lt_ncard (lt_of_le_of_ne (hsupp_ray t₁) fun heq => by
         have hj₁_in : j₁ ∈ Function.support y := hy_j₁_pos.ne'

@@ -340,7 +340,9 @@ theorem numCuts_selfridgeConwayQ_eq_two_of_eq {v : Fin 3 → CakeValuation}
   set c1 := (RWQuery.cutIn (0 : Fin 3) 0 1 (1 / 3)).eval oracle
   set c2 := (RWQuery.cutIn (0 : Fin 3) c1 1 (1 / 3)).eval oracle
   have hu1_const : (evalThree 1 (scInitialPieces c1 c2)).eval oracle = fun _ => 1 / 3 := by
-    rw [eval_evalThree ho 1]; funext k; simpa only [CakeValuation.pieceVal, h10] using hv0_X k
+    rw [eval_evalThree ho 1]
+    funext k
+    simpa only [CakeValuation.pieceVal, h10] using hv0_X k
   simp [hu1_const]
 
 /-- When Player `1` has a unique strictly largest initial piece among `[0, c₁], [c₁, c₂], [c₂, 1]`,

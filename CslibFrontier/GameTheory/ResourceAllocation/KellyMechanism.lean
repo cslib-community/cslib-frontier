@@ -415,7 +415,9 @@ theorem IsSocialOptimum.swap_deriv_le {G : KellyGame ι} {d : ι → ℝ} (hd : 
     have hx_feas : G.IsFeasibleAllocation x := by
       refine ⟨fun k => ?_, ?_⟩
       · by_cases hkj : k = j
-        · subst hkj; simp only [x, Function.update_self]; linarith [hd.1.1 k, ht.1]
+        · subst hkj
+          simp only [x, Function.update_self]
+          linarith [hd.1.1 k, ht.1]
         · by_cases hki : k = i
           · subst hki; simp only [x, d₁, Function.update_of_ne hkj, Function.update_self]
             linarith [ht.2]
@@ -1217,7 +1219,9 @@ theorem kellyTightGame_spec {n : ℕ} (hn : 2 ≤ n) :
   have hslope_pos : 0 < (n : ℝ) / (2 * (n : ℝ) - 1) := div_pos (by linarith) h2n1_pos
   have hslope_le : (n : ℝ) / (2 * (n : ℝ) - 1) ≤ 1 := (div_le_one h2n1_pos).mpr (by linarith)
   have hU : ∀ i, IsAdmissibleUtility ((kellyTightGame n).utility i) := fun i => by
-    unfold kellyTightGame; dsimp only; split_ifs
+    unfold kellyTightGame
+    dsimp only
+    split_ifs
     · simpa only [one_mul] using isAdmissibleUtility_linear (a := 1) zero_lt_one
     · exact isAdmissibleUtility_linear hslope_pos
   have hU0 : ∀ i, (kellyTightGame n).utility i 0 = 0 := fun i => by
@@ -1240,7 +1244,9 @@ theorem kellyTightGame_spec {n : ℕ} (hn : 2 ≤ n) :
   have halloc_ne : ∀ i : Fin (n + 1), i ≠ 0 →
       (kellyTightGame n).allocation (kellyTightBid n) i = 1 / (2 * (n : ℝ)) := fun i hi => by
     unfold KellyGame.allocation; rw [hsum_bid]
-    simp only [kellyTightGame, kellyTightBid, hi, ↓reduceIte]; field_simp; ring
+    simp only [kellyTightGame, kellyTightBid, hi, ↓reduceIte]
+    field_simp
+    ring
   have hne : (kellyTightGame n).IsNashEquilibrium (kellyTightBid n) := by
     rw [isNashEquilibrium_iff_kkt (by simp [kellyTightGame] : 0 < (kellyTightGame n).capacity) hU]
     have herase : ∀ i, 0 < ∑ j ∈ Finset.univ.erase i, kellyTightBid n j := fun i => by
@@ -1262,7 +1268,9 @@ theorem kellyTightGame_spec {n : ℕ} (hn : 2 ≤ n) :
           rw [show (kellyTightGame n).utility 0 = fun t => 1 * t from
             funext fun _ => by simp [kellyTightGame]]
           exact derivWithin_linear (by norm_num)
-        rw [hd]; simp only [kellyTightGame, div_one]; norm_num
+        rw [hd]
+        simp only [kellyTightGame, div_one]
+        norm_num
       · rw [halloc_ne i hi]
         have hd : derivWithin ((kellyTightGame n).utility i) (Ici 0) (1 / (2 * (n : ℝ))) =
             (n : ℝ) / (2 * (n : ℝ) - 1) := by
@@ -1288,7 +1296,9 @@ theorem kellyTightGame_spec {n : ℕ} (hn : 2 ≤ n) :
       by simp [kellyTightGame, opt]⟩, fun x hx => ?_⟩
     rw [hopt_welfare]
     exact (Finset.sum_le_sum fun i _ => by
-      unfold kellyTightGame; dsimp only; split_ifs
+      unfold kellyTightGame
+      dsimp only
+      split_ifs
       · exact le_rfl
       · exact mul_le_of_le_one_left (hx.1 i) hslope_le).trans hx.2
   have hne_welfare :

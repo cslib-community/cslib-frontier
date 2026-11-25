@@ -108,7 +108,9 @@ theorem NodeLayout.mono_frontier {inst : MWISInstance} {descBase : ℕ}
     rw [hp.2.2 (descBase + 4 * i.val + 2) (by omega)]
     exact ⟨hlen, hlo, ht.mono_frontier hp⟩
   tbl_disj i j hij := by
-    have := h.desc_hi; have := i.isLt; have := j.isLt
+    have := h.desc_hi
+    have := i.isLt
+    have := j.isLt
     rw [hp.2.2 (descBase + 4 * i.val + 2) (by omega),
       hp.2.2 (descBase + 4 * j.val + 2) (by omega)]
     exact h.tbl_disj i j hij
@@ -151,7 +153,9 @@ theorem NodeLayout.update_table {inst : MWISInstance} {descBase : ℕ}
         have := i.isLt
         rw [hlow_eq (descBase + 4 * i.val + 2) (by omega)]
         by_cases hip : i = p
-        · subst hip; rw [Function.update_self]; exact ⟨hnew_len, hp_lo, hholdP⟩
+        · subst hip
+          rw [Function.update_self]
+          exact ⟨hnew_len, hp_lo, hholdP⟩
         · rw [Function.update_of_ne hip]
           obtain ⟨hlen, hlo, ht⟩ := h.tbl_holds i
           refine ⟨hlen, hlo, ⟨hfr ▸ ht.1, ht.2.frame fun a ha1 ha2 => ?_⟩⟩
@@ -468,7 +472,9 @@ theorem initNodesProg_spec {w : ℕ} (inst : MWISInstance) {s₀ : Memory.State}
       simp only [hmem_len]; rfl
     have hres_step' : (Memory.spec 0).clientResult st (initNodeStep (descBase, ⟨curRaw, k⟩)) =
         ⟨bagPtr + bagLen, k + 1⟩ := by
-      rw [hres_step]; dsimp only [bagPtr, bagLen]; simp only [hmem_len]
+      rw [hres_step]
+      dsimp only [bagPtr, bagLen]
+      simp only [hmem_len]
     have hv_step : (Memory.spec w).ValidHistory st
         ((Memory.spec w).clientHistory st (initNodeStep (descBase, ⟨curRaw, k⟩))) := by
       unfold initNodeStep; dsimp only

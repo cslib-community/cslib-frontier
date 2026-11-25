@@ -841,7 +841,9 @@ theorem exec_bfsCode {w bOff : ℕ} {inst : SparseInstance}
       p.2.length + (Finset.univ.filter fun w₀ => vget p.1 w₀ = none).card ≤ inst.m := by
     have hlen_eq : p.2.length = (Finset.univ.filter fun w₀ => ¬ vget p.1 w₀ = none).card := by
       rw [← List.toFinset_card_of_nodup hnd₂]
-      congr 1; ext w₀; simp [← hiff₂ w₀]
+      congr 1
+      ext w₀
+      simp [← hiff₂ w₀]
     rw [hlen_eq, Nat.add_comm, Finset.card_filter_add_card_filter_not]
     simp
   obtain ⟨y₃, he₃, hr₃, hdM₃, hrk₃, hrf₃, hf₃⟩ :=

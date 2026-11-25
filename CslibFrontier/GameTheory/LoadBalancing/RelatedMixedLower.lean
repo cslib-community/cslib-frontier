@@ -226,7 +226,12 @@ private theorem RelatedMixedLowerMachine.ext_val {k B : ℕ}
     {m₁ m₂ : RelatedMixedLowerMachine k B}
     (ht : m₁.tier = m₂.tier) (hs : m₁.slot.val = m₂.slot.val) (hc : m₁.copy = m₂.copy) :
     m₁ = m₂ := by
-  cases m₁; cases m₂; cases ht; cases hc; cases Fin.ext hs; rfl
+  cases m₁
+  cases m₂
+  cases ht
+  cases hc
+  cases Fin.ext hs
+  rfl
 
 private theorem relatedMixedLowerOpt_injective (k B : ℕ) :
     Function.Injective (relatedMixedLowerOpt k B) := by
@@ -291,7 +296,9 @@ private theorem add_two_pow_div_ge {a b : ℕ} (h : b ≤ a) :
     rw [mul_div_cancel_left₀ _ (by positivity)]
   have h2 : ((a - b : ℕ) : ℝ) + 1 ≤ (2 : ℝ) ^ (a - b) := by
     exact_mod_cast Nat.lt_two_pow_self (n := a - b)
-  rw [hdiv]; rw [Nat.cast_sub h] at h2; linarith
+  rw [hdiv]
+  rw [Nat.cast_sub h] at h2
+  linarith
 
 /-- For `k ≥ 1` and `B ≥ 1`, `relatedMixedLower k B` has strictly positive optimal makespan. -/
 theorem optMakespan_relatedMixedLower_pos (k B : ℕ) [NeZero B] (hk : 1 ≤ k) :
@@ -420,7 +427,9 @@ theorem isMixedNash_relatedMixedLowerNE {k B : ℕ} [NeZero B] (hk : 1 ≤ k) :
           have hlt : (x.tier.val : ℝ) + 1 ≤ (k : ℝ) - 1 := by
             have := x.tier.isLt
             have h2 : ((x.tier.val + 1 : ℕ) : ℝ) ≤ ((k - 1 : ℕ) : ℝ) := by exact_mod_cast (by omega)
-            rw [Nat.cast_sub hk] at h2; push_cast at h2; linarith
+            rw [Nat.cast_sub hk] at h2
+            push_cast at h2
+            linarith
           push_cast; linarith
         · rw [ite_eq_right hj'_last]; simp only [relatedMixedLower]
           by_cases hrt : x.tier.val + 1 ≤ j'.tier.val
@@ -752,7 +761,9 @@ private theorem equilibrium_cost_relatedMixedLowerNE_le_k {k B : ℕ} [NeZero B]
   cases x with
   | inl t =>
     have hxeq : y = relatedMixedDetTarget k B t := by
-      by_contra hne; rw [relatedMixedLowerNE_inl, ite_eq_right hne] at hpos; exact lt_irrefl 0 hpos
+      by_contra hne
+      rw [relatedMixedLowerNE_inl, ite_eq_right hne] at hpos
+      exact lt_irrefl 0 hpos
     subst hxeq
     have hnotlast : (relatedMixedDetTarget k B t).tier ≠ Fin.last k := by
       intro h; have hv := congrArg Fin.val h; simp only [relatedMixedDetTarget, Fin.val_last] at hv
@@ -912,7 +923,9 @@ theorem exists_relatedMixedNash_makespan_ge_log_div_log_log_log {m : ℕ} [NeZer
         simp_rw [hp_embed]
         exact (hbase_NE.1 (eJ i)).sum_eq_one
       · have hj_lt : j.val < Mfn k := by
-          by_contra h; simp only [p, dite_eq_right h] at hpos; exact lt_irrefl 0 hpos
+          by_contra h
+          simp only [p, dite_eq_right h] at hpos
+          exact lt_irrefl 0 hpos
         rw [hE_eq j, hE_eq j', dite_eq_left hj_lt]
         simp only [G, p, dite_eq_left hj_lt] at hpos ⊢
         by_cases hj'_lt : j'.val < Mfn k
