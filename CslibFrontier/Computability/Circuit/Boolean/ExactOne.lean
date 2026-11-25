@@ -389,15 +389,11 @@ private theorem evalCode_seqExactlyOneStep (x : List Bool) (prefixGates : List (
       dsimp only [p3]
       rw [show x.length + k + 2 = x.length + p2.length from by omega,
         getD_evalCode_append_bin, Op.value]
-      have hread_s1 : (evalCode interpretation false x p2).getD seen1 false =
-          (evalCode interpretation false x prefixGates).getD seen1 false := by
+      have hread {u : ℕ} (hu : u < x.length + k) : (evalCode interpretation false x p2).getD u
+          false = (evalCode interpretation false x prefixGates).getD u false := by
         dsimp only [p2, p1]
-        rw [List.append_assoc, getD_evalCode_append_of_lt hs1_lt]
-      have hread_w : (evalCode interpretation false x p2).getD w false =
-          (evalCode interpretation false x prefixGates).getD w false := by
-        dsimp only [p2, p1]
-        rw [List.append_assoc, getD_evalCode_append_of_lt hw]
-      rw [hread_s1, hread_w, hs1]
+        rw [List.append_assoc, getD_evalCode_append_of_lt hu]
+      rw [hread hs1_lt, hread hw, hs1]
       cases (evalCode interpretation false x prefixGates).getD w false <;>
         rcases count with _ | _ | c <;> simp [Nat.add_assoc]
     have hns2' : (evalCode interpretation false x p3).getD (x.length + k + 1) false =
