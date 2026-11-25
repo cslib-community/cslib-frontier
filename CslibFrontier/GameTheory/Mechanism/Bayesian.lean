@@ -100,6 +100,20 @@ private theorem coe_projIcc_of_mem {h : ℝ} (hh : 0 ≤ h) {z : ℝ} (hz : z �
     (projIcc 0 h hh z : ℝ) = z := by
   rw [projIcc_of_mem hh hz]
 
+/-- Composing a function with `projIcc 0 h hh` preserves its integral over `[0, u]` for
+`u ∈ [0, h]`. -/
+private theorem intervalIntegral_comp_projIcc {f : ℝ → ℝ} {h : ℝ} (hh : 0 ≤ h) {u : ℝ}
+    (hu : u ∈ Icc 0 h) :
+    ∫ z in (0 : ℝ)..u, f (projIcc 0 h hh z) = ∫ z in (0 : ℝ)..u, f z :=
+  intervalIntegral.integral_congr fun z hz => by
+    rw [uIcc_of_le hu.1] at hz
+    rw [coe_projIcc_of_mem hh ⟨hz.1, hz.2.trans hu.2⟩]
+
+/-- Composing a monotone function on `[0, h]` with `projIcc 0 h hh` is globally monotone. -/
+private theorem monotone_comp_projIcc {f : ℝ → ℝ} {h : ℝ} (hh : 0 ≤ h)
+    (hf : MonotoneOn f (Icc 0 h)) : Monotone (fun z => f (projIcc 0 h hh z)) :=
+  fun _ _ hab => hf (Subtype.prop _) (Subtype.prop _) (monotone_projIcc hh hab)
+
 /-- The one-bidder mechanism that runs the curves `X`, `P` on the bid projected to `[0, h]`. Above
 `h` it is constant, so a type `v > h` behaves like the type `h`. -/
 private noncomputable def clampMechanism (X P : ℝ → ℝ) {h : ℝ} (hh : 0 ≤ h) : Mechanism Unit :=
@@ -116,8 +130,8 @@ private theorem clampMechanism_isDSIC {X P : ℝ → ℝ} {h : ℝ} (hh : 0 ≤ 
   · have hhv : h ≤ v := le_of_not_ge hvh
     rw [projIcc_of_right_le hh hhv]
     have h1 := hT h ⟨hh, le_rfl⟩ _ hw
-    have h2 := hT.monotoneOn hw ⟨hh, le_rfl⟩ hw.2
-    nlinarith
+    have h2 := mul_le_mul_of_nonneg_left (hT.monotoneOn hw ⟨hh, le_rfl⟩ hw.2) (sub_nonneg.mpr hhv)
+    linarith
 
 /-- **Payment identity on an interval.** Incentive compatibility on `[0, h]` determines the payment
 curve from the allocation curve and `P(0)`: `P(v) = P(0) + v X(v) − ∫₀ᵛ X`. -/
@@ -126,13 +140,10 @@ theorem IsTruthfulOn.payment_eq {X P : ℝ → ℝ} {h : ℝ} (hT : IsTruthfulOn
     P v = P 0 + (v * X v - ∫ z in (0 : ℝ)..v, X z) := by
   have hh : 0 ≤ h := hv.1.trans hv.2
   have := (clampMechanism_isDSIC hh hT).payment_eq () (b := fun _ => v) (fun _ => hv.1)
-  simp only [clampMechanism, myersonPayment, Function.update_self] at this
-  rw [coe_projIcc_of_mem hh hv, coe_projIcc_of_mem hh ⟨le_rfl, hh⟩] at this
-  rw [this]
-  congr 2
-  refine intervalIntegral.integral_congr fun z hz => ?_
-  rw [uIcc_of_le hv.1] at hz
-  rw [coe_projIcc_of_mem hh ⟨hz.1, hz.2.trans hv.2⟩]
+  simp only [clampMechanism, myersonPayment, Function.update_self,
+    coe_projIcc_of_mem hh hv, coe_projIcc_of_mem hh ⟨le_rfl, hh⟩,
+    intervalIntegral_comp_projIcc hh hv] at this
+  exact this
 
 /-- **Sufficiency on an interval.** A monotone allocation curve on `[0, h]` with the payments of the
 payment identity is incentive compatible on `[0, h]`. -/
@@ -141,19 +152,12 @@ theorem isTruthfulOn_of_payment_eq {X P : ℝ → ℝ} {h : ℝ} (hX : MonotoneO
     IsTruthfulOn X P (Icc 0 h) := by
   intro v hv w hw
   have hh : 0 ≤ h := hv.1.trans hv.2
-  set g := fun z => X (projIcc 0 h hh z)
-  have hg : Monotone g := fun a b hab =>
-    hX (Subtype.prop _) (Subtype.prop _) (monotone_projIcc hh hab)
-  have hD := myerson_isDSIC (x := fun b (_ : Unit) => g (b ()))
-    (fun _ b _ => hg.monotoneOn _) () (fun _ => w) v (fun _ => hw.1) hv.1
-  simp only [Mechanism.utility, myerson, myersonPayment, Function.update_self] at hD
-  have hint : ∀ u ∈ Icc 0 h, ∫ z in (0 : ℝ)..u, g z = ∫ z in (0 : ℝ)..u, X z := by
-    intro u hu
-    refine intervalIntegral.integral_congr fun z hz => ?_
-    rw [uIcc_of_le hu.1] at hz
-    simp only [g]
-    rw [coe_projIcc_of_mem hh ⟨hz.1, hz.2.trans hu.2⟩]
-  simp only [g, coe_projIcc_of_mem hh hv, coe_projIcc_of_mem hh hw, hint v hv, hint w hw] at hD
+  have hD := myerson_isDSIC (x := fun b (_ : Unit) => X (projIcc 0 h hh (b ())))
+    (fun _ _ _ => (monotone_comp_projIcc hh hX).monotoneOn _) () (fun _ => w) v
+    (fun _ => hw.1) hv.1
+  simp only [Mechanism.utility, myerson, myersonPayment, Function.update_self,
+    coe_projIcc_of_mem hh hv, coe_projIcc_of_mem hh hw,
+    intervalIntegral_comp_projIcc hh hv, intervalIntegral_comp_projIcc hh hw] at hD
   rw [hP v hv, hP w hw]
   linarith
 
@@ -319,8 +323,7 @@ theorem IsBayesNash.integral_payment_eq_integral_interimAllocation
     obtain ⟨v, hv⟩ := ((hμ i).ae_mem).exists
     exact hv.1.trans hv.2
   set g := fun z => M.interimAllocation μ β i (β i (projIcc 0 (h i) hh z)) with hgdef
-  have hg : Monotone g := fun a b hab =>
-    hM.monotoneOn i (Subtype.prop _) (Subtype.prop _) (monotone_projIcc hh hab)
+  have hg : Monotone g := monotone_comp_projIcc hh (hM.monotoneOn i)
   have hgB : ∀ z ∈ Icc 0 (h i), |g z| ≤ B := by
     intro z _
     have hc : (projIcc 0 (h i) hh z : ℝ) ∈ Icc 0 (h i) := Subtype.prop _
@@ -331,23 +334,15 @@ theorem IsBayesNash.integral_payment_eq_integral_interimAllocation
     rw [Real.norm_eq_abs]
     refine hB _ fun j => ?_
     rcases eq_or_ne j i with rfl | hj
-    · rw [Function.update_self]
-      exact hM.nonneg hc
-    · rw [Function.update_of_ne hj]
-      exact hM.nonneg (hv j)
-  have hgI : ∀ z ∈ Icc 0 (h i), ∫ t in (0 : ℝ)..z, g t =
-      ∫ t in (0 : ℝ)..z, M.interimAllocation μ β i (β i t) := by
-    intro z hz
-    refine intervalIntegral.integral_congr fun t ht => ?_
-    rw [uIcc_of_le hz.1] at ht
-    simp only [hgdef, coe_projIcc_of_mem hh ⟨ht.1, ht.2.trans hz.2⟩]
+    · rw [Function.update_self]; exact hM.nonneg hc
+    · rw [Function.update_of_ne hj]; exact hM.nonneg (hv j)
   have key := (hμ i).integral_payment_eq_integral_virtualValue_mul hg.measurable hgB
   have hPint := integrable_interimPayment M β i hp
   have hPae : (fun z => M.interimPayment μ β i (β i z)) =ᵐ[μ i]
       fun z => M.interimPayment μ β i (β i 0) + (z * g z - ∫ t in (0 : ℝ)..z, g t) := by
     filter_upwards [(hμ i).ae_mem] with z hz
-    rw [hM.interimPayment_eq hz, hgI z hz]
-    simp only [hgdef, coe_projIcc_of_mem hh hz]
+    simp only [hgdef, hM.interimPayment_eq hz, coe_projIcc_of_mem hh hz]
+    rw [intervalIntegral_comp_projIcc (f := fun t => M.interimAllocation μ β i (β i t)) hh hz]
   have hQint : Integrable (fun z => z * g z - ∫ t in (0 : ℝ)..z, g t) (μ i) := by
     refine (hPint.sub (integrable_const (M.interimPayment μ β i (β i 0)))).congr ?_
     filter_upwards [hPae] with z hz

@@ -88,11 +88,13 @@ theorem expect_sqrt_card_ker_mulVecLin_le :
       have hone : (1 : ℝ) ≤ Real.sqrt (Nat.card K) :=
         Real.one_le_sqrt.mpr ((by exact_mod_cast Fintype.card_pos :
           (1 : ℝ) ≤ Fintype.card F).trans hq)
-      have hfactor := mul_nonneg (sub_nonneg.mpr hone) (sub_nonneg.mpr hs)
       suffices bound : Real.sqrt (Nat.card K) - 1 ≤ ((Nat.card K : ℝ) - 1) / b by linarith
-      apply (le_div_iff₀ hb).2
-      dsimp only [b]
-      nlinarith [Real.sq_sqrt (Nat.cast_nonneg (Nat.card K))]
+      rw [le_div_iff₀ hb]
+      calc (Real.sqrt (Nat.card K) - 1) * b
+          ≤ (Real.sqrt (Nat.card K) - 1) * (Real.sqrt (Nat.card K) + 1) := by
+            have := sub_nonneg.mpr hone; dsimp only [b]; gcongr
+        _ = Real.sqrt (Nat.card K) ^ 2 - 1 := by ring
+        _ = (Nat.card K : ℝ) - 1 := by rw [Real.sq_sqrt (Nat.cast_nonneg _)]
   refine (expect_le_expect fun A _ => point A).trans ?_
   rw [expect_add_distrib, Fintype.expect_const, ← expect_div, expect_sub_distrib,
     Fintype.expect_const, expect_card_ker_mulVecLin]

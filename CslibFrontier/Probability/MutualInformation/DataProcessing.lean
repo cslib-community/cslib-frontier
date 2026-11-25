@@ -104,22 +104,13 @@ theorem condMutualInfo_map_pair_self [Finite γ] [Finite α] [Finite β]
       condMutualInfo (ν.map fun ω => (C ω, A ω, B ω)) := by
   rw [condMutualInfo_map, condMutualInfo_map,
     entropy_map_eq_of_comp ν (F := fun ω => (C ω, A ω)) (G := fun ω => (C ω, A ω, C ω))
-      (e := fun p => (p.1, p.2, p.1))
-      (fun _ _ h => Prod.ext (congrArg (fun q : γ × α × γ => q.1) h)
-        (congrArg (fun q : γ × α × γ => q.2.1) h))
-      (fun _ _ => rfl),
+      (e := fun p => (p.1, p.2, p.1)) (fun ⟨_, _⟩ ⟨_, _⟩ h => by cases h; rfl) (fun _ _ => rfl),
     entropy_map_eq_of_comp ν (F := fun ω => (C ω, B ω)) (G := fun ω => (C ω, B ω, C ω))
-      (e := fun p => (p.1, p.2, p.1))
-      (fun _ _ h => Prod.ext (congrArg (fun q : γ × β × γ => q.1) h)
-        (congrArg (fun q : γ × β × γ => q.2.1) h))
-      (fun _ _ => rfl),
+      (e := fun p => (p.1, p.2, p.1)) (fun ⟨_, _⟩ ⟨_, _⟩ h => by cases h; rfl) (fun _ _ => rfl),
     entropy_map_eq_of_comp ν (F := fun ω => (C ω, A ω, B ω))
       (G := fun ω => (C ω, (A ω, C ω), (B ω, C ω)))
       (e := fun p => (p.1, (p.2.1, p.1), (p.2.2, p.1)))
-      (fun _ _ h => Prod.ext (congrArg (fun q : γ × (α × γ) × (β × γ) => q.1) h)
-        (Prod.ext (congrArg (fun q : γ × (α × γ) × (β × γ) => q.2.1.1) h)
-          (congrArg (fun q : γ × (α × γ) × (β × γ) => q.2.2.1) h)))
-      (fun _ _ => rfl)]
+      (fun ⟨_, _, _⟩ ⟨_, _, _⟩ h => by cases h; rfl) (fun _ _ => rfl)]
 
 /-- Symmetry of conditional mutual information in its two foreground variables:
 `I(A; B | C) = I(B; A | C)`. -/
@@ -256,25 +247,12 @@ theorem mutualInfo_bind_pair_indep [Finite α] [Finite β] [Finite γ] [Finite �
   let joint := source.bind fun ab => c₀.bind fun r₀ => c₁.map fun r₁ => ((ab.1, r₀), (ab.2, r₁))
   have hfst : joint.map Prod.fst =
       (source.map Prod.fst).bind fun a => c₀.map (a, ·) := by
-    simp only [joint, PMF.map_bind, PMF.map_comp, Function.comp_def]
-    calc source.bind (fun ab => c₀.bind fun r₀ => c₁.map (Function.const δ (ab.1, r₀)))
-        = source.bind (fun ab => c₀.map (ab.1, ·)) := by
-          congr 1 with ab : 1
-          simp only [PMF.map_const]
-          rfl
-      _ = (source.map Prod.fst).bind fun a => c₀.map (a, ·) := by
-          rw [PMF.bind_map]
-          rfl
+    simp only [joint, PMF.map_bind, PMF.map_comp, Function.comp_def, PMF.bind_map]
+    exact congrArg source.bind (funext fun ab => congrArg c₀.bind (funext fun r₀ =>
+      c₁.map_const (ab.1, r₀)))
   have hsnd : joint.map Prod.snd =
       (source.map Prod.snd).bind fun b => c₁.map (b, ·) := by
-    simp only [joint, PMF.map_bind, PMF.map_comp, Function.comp_def]
-    calc source.bind (fun ab => c₀.bind (fun _ => c₁.map (ab.2, ·)))
-        = source.bind (fun ab => c₁.map (ab.2, ·)) := by
-          congr 1 with ab : 1
-          exact PMF.bind_const c₀ _
-      _ = (source.map Prod.snd).bind fun b => c₁.map (b, ·) := by
-          rw [PMF.bind_map]
-          rfl
+    simp only [joint, PMF.map_bind, PMF.map_comp, Function.comp_def, PMF.bind_const, PMF.bind_map]
   have hjoint : entropy joint = entropy source + entropy c₀ + entropy c₁ := by
     let e : (α × β) × (γ × δ) ≃ (α × γ) × (β × δ) := Equiv.prodProdProdComm α β γ δ
     have heq : joint = (source.bind fun ab => (c₀.bind fun r₀ => c₁.map (r₀, ·)).map (ab, ·)).map
@@ -321,10 +299,8 @@ theorem mutualInfo_eq_entropy_map_snd_sub_logb_of_const_fiber [Finite α] [Finit
       intro a
       by_cases ha : a ∈ (p.map Prod.fst).support
       · rw [hcond_supp a ha]
-      · have h0 : (p.map Prod.fst) a = 0 := by
-          by_contra hne0
-          exact ha hne0
-        rw [h0, ENNReal.toReal_zero, zero_mul, zero_mul]
+      · rw [PMF.mem_support_iff, not_not] at ha
+        rw [ha, ENNReal.toReal_zero, zero_mul, zero_mul]
     rw [Finset.sum_congr rfl fun a _ => hterm a, ← Finset.sum_mul, sum_toReal, one_mul]
   rw [mutualInfo_eq_entropy_map_snd_sub_conditionalEntropy, hcond]
 
