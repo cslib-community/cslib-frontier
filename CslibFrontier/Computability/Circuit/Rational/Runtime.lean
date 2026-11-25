@@ -247,11 +247,7 @@ private theorem optionSome' {β : Type} {encB : β ↪ List Bool} {f : α → β
     ComputableInPolyTime (fun x => some (f x)) encIn (encOption encB) :=
   (optionSome encB).comp hf
 
-@[local fun_prop]
-private theorem length_list_comp {β : Type} {encB : β ↪ List Bool} {l : α → List β}
-    (hl : ComputableInPolyTime l encIn (encList encB)) :
-    ComputableInPolyTime (fun x => (l x).length) encIn encUnary :=
-  (length_list encB).comp hl
+attribute [local fun_prop] length_list'
 
 /-- Enumerating the encoded tuples across the `{1, …, H}³` grid is polynomial-time. -/
 @[fun_prop]

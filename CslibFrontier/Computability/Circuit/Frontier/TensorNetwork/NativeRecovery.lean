@@ -1018,17 +1018,6 @@ attribute [local irreducible] ComputableInPolyTime
 
 variable {α : Type} {encIn : α ↪ List Bool}
 
-private theorem lengthPolyTime {β : Type} {encB : β ↪ List Bool} {l : α → List β}
-    (hl : ComputableInPolyTime l encIn (encList encB)) :
-    ComputableInPolyTime (fun x => (l x).length) encIn encUnary :=
-  (ComputableInPolyTime.length_list encB).comp hl
-
-private theorem getDPolyTime {P : α → List (List ℕ)} {k : α → ℕ}
-    (hP : ComputableInPolyTime P encIn (encList (encList encNat)))
-    (hk : ComputableInPolyTime k encIn encUnary) :
-    ComputableInPolyTime (fun x => (P x).getD (k x) []) encIn (encList encNat) :=
-  (ComputableInPolyTime.listGetD (encA := encList encNat) []).comp (hP.prod hk)
-
 /-- A binary natural as a one-coordinate list. -/
 private theorem singletonPolyTime {n : α → ℕ} (hn : ComputableInPolyTime n encIn encNat) :
     ComputableInPolyTime (fun x => [n x]) encIn (encList encNat) :=
@@ -1063,9 +1052,9 @@ theorem computableInPolyTime_twoVal {b d : α → ℕ} (hb : ComputableInPolyTim
           (ComputableInPolyTime.unary_add' h2 (ComputableInPolyTime.const 1)))))
       (ComputableInPolyTime.const 0)
   refine (ComputableInPolyTime.ite (ComputableInPolyTime.beq hd (ComputableInPolyTime.const 0))
-    (ComputableInPolyTime.const 0) (lengthPolyTime (ComputableInPolyTime.filterWithInput
+    (ComputableInPolyTime.const 0) (ComputableInPolyTime.filterWithInput
       (test := fun x i => d x % 2 ^ (i + 1) == 0) (ComputableInPolyTime.range.comp hb)
-      htest))).of_enc_eq fun x => ?_
+      htest).length_list').of_enc_eq fun x => ?_
   by_cases h : d x = 0 <;> simp [twoVal, h, beq_eq_decide]
 
 /-- `2 ^ (a + 1)` in unary, from `2 ^ a` in unary. -/
@@ -1347,7 +1336,7 @@ theorem computableInPolyTime_nodeTerm {N a u h Δ k : α → ℕ} {fl : α → L
       (computableInPolyTime_mul (hN.comp hx) (hfl.comp hx)
         (computableInPolyTime_coeffMult (hN.comp hx) (hfl.comp hx) (ha.comp hx) (hL.comp hx)
           (hu.comp hx) (hh.comp hx) (hΔ.comp hx) (hk.comp hx) hj)
-        (getDPolyTime (hQ.comp hx) hj)), inferInstance, inferInstance⟩
+        ((hQ.comp hx).listGetDWithInput hj [])), inferInstance, inferInstance⟩
     ⟨polyBounded_reducedLength hN hfl, fun x S j _ =>
       (length_encList_add_le _ _ _ _).trans (Nat.le_add_left _ _)⟩
 
@@ -1407,7 +1396,7 @@ theorem computableInPolyTime_storeValue {W : α → List (List (List ℕ))} {k :
   have h2 := ComputableInPolyTime.snd encIn encUnary
   have hrow := (ComputableInPolyTime.listGetD (encA := encList (encList encNat)) []).comp
     ((hW.comp h1).prod h2)
-  have hlen := lengthPolyTime hW
+  have hlen := hW.length_list'
   have hmax : ComputableInPolyTime (fun x => max (W x).length (k x + 1)) encIn encUnary :=
     (ComputableInPolyTime.unary_add' hlen (ComputableInPolyTime.unary_sub'
       (ComputableInPolyTime.unary_add' hk (ComputableInPolyTime.const 1)) hlen)).of_enc_eq

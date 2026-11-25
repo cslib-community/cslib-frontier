@@ -1032,11 +1032,7 @@ attribute [local irreducible] ComputableInPolyTime encIntBin encNat encUnary
 
 variable {α : Type} {encIn : α ↪ List Bool}
 
-@[local fun_prop]
-private theorem length_listIntBin {l : α → List ℤ}
-    (hl : ComputableInPolyTime l encIn (encList encIntBin)) :
-    ComputableInPolyTime (fun x => (l x).length) encIn encUnary :=
-  (length_list encIntBin).comp hl
+attribute [local fun_prop] length_list'
 
 /-- `polyNorm1 l` is bounded exponentially in `(encList encIntBin l).length`. -/
 theorem polyNorm1_le_two_pow_encList (l : List ℤ) :
@@ -1079,7 +1075,7 @@ theorem polyNorm1_le_two_pow_encList (l : List ℤ) :
     (hp : ComputableInPolyTime p encIn (encList encIntBin))
     (hq : ComputableInPolyTime q encIn (encList encIntBin)) :
     ComputableInPolyTime (fun x => polyMul (p x) (q x)) encIn (encList encIntBin) :=
-  computableInPolyTime_mulZJet (unary_add' (length_listIntBin hp) (length_listIntBin hq)) hp hq
+  computableInPolyTime_mulZJet (unary_add' hp.length_list' hq.length_list') hp hq
 
 /-- Polynomial-time certificate for monic division by $Y^2 - Y$ (`divModByH`). -/
 @[fun_prop] theorem computableInPolyTime_divModByH {p : α → List ℤ}
