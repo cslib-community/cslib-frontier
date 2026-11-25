@@ -635,12 +635,10 @@ private theorem gusfieldAt_ghStep {n : ℕ} {W : Fin n → Fin n → ℕ} {r : F
   obtain ⟨hlow, hpar', hwt'⟩ := ghStep_spec (r := r.1) (B := M) hk hkr hpar (hP ⟨k, hk⟩)
   set X : Finset (Fin n) := Finset.univ.filter fun x =>
     ((Memory.spec 0).clientState st (ekProg (ghCtx n M, (k, (res.1 ⟨k, hk⟩).1)))).mem
-      (distBase n + x.1) < n with hX
+      (distBase n + x.1) < n
   have hmemX : ∀ x : Fin n, x ∈ X ↔
       ((Memory.spec 0).clientState st (ekProg (ghCtx n M, (k, (res.1 ⟨k, hk⟩).1)))).mem
-        (distBase n + x.1) < n := fun x => by
-    rw [hX, Finset.mem_filter]
-    exact and_iff_right (Finset.mem_univ x)
+        (distBase n + x.1) < n := fun x => Finset.mem_filter_univ x
   have hspec : (⟨k, hk⟩ : Fin n) ≠ res.1 ⟨k, hk⟩ →
       IsMinCutBetween (cutWeight W) ⟨k, hk⟩ (res.1 ⟨k, hk⟩) X ∧
         (Memory.spec 0).clientResult st (ekProg (ghCtx n M, (k, (res.1 ⟨k, hk⟩).1))) =
@@ -653,22 +651,14 @@ private theorem gusfieldAt_ghStep {n : ℕ} {W : Fin n → Fin n → ℕ} {r : F
     if a = ⟨k, hk⟩ ∧ b = res.1 ⟨k, hk⟩ then
       (Memory.spec 0).clientResult st (ekProg (ghCtx n M, (k, (res.1 ⟨k, hk⟩).1)))
     else val a b
-  have hC' : ∀ a b, a ≠ b → IsMinCutBetween (cutWeight W) a b (C' a b) := by
-    intro a b hab
-    by_cases h : a = ⟨k, hk⟩ ∧ b = res.1 ⟨k, hk⟩
-    · obtain ⟨rfl, rfl⟩ := h
-      simp only [C', and_self, ↓reduceIte]
-      exact (hspec hab).1
-    · simp only [C', h, ↓reduceIte]
-      exact hC a b hab
-  have hval' : ∀ a b, a ≠ b → val' a b = cutWeight W (C' a b) := by
-    intro a b hab
-    by_cases h : a = ⟨k, hk⟩ ∧ b = res.1 ⟨k, hk⟩
-    · obtain ⟨rfl, rfl⟩ := h
-      simp only [val', C', and_self, ↓reduceIte]
-      exact (hspec hab).2
-    · simp only [val', C', h, ↓reduceIte]
-      exact hval a b hab
+  have hC' : ∀ a b, a ≠ b → IsMinCutBetween (cutWeight W) a b (C' a b) := fun a b hab => by
+    dsimp only [C']; split_ifs with h
+    · obtain ⟨rfl, rfl⟩ := h; exact (hspec hab).1
+    · exact hC a b hab
+  have hval' : ∀ a b, a ≠ b → val' a b = cutWeight W (C' a b) := fun a b hab => by
+    dsimp only [val', C']; split_ifs with h
+    · obtain ⟨rfl, rfl⟩ := h; exact (hspec hab).2
+    · exact hval a b hab
   have hpre : gusfieldWeightLoop C' val' r ((List.finRange n).take k) (fun _ => r)
       (fun _ => 0) = res := by
     rw [← hres]
