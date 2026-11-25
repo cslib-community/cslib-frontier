@@ -254,12 +254,9 @@ theorem leCam_max_ge_of_klDiv [MeasurableSpace X] [MeasurableSingletonClass X]
     (hsep0 : 0 ≤ sep) (hloss₀ : ∀ t, 0 ≤ loss t θ₀) (hloss₁ : ∀ t, 0 ≤ loss t θ₁)
     (hsep : ∀ t, sep ≤ loss t θ₀ + loss t θ₁) (est : X → T) :
     (sep / 2) * (1 - Real.sqrt ((klDiv p₀.toMeasure p₁.toMeasure).toReal / 2)) ≤
-      max (∑ x, (p₀ x).toReal * loss (est x) θ₀) (∑ x, (p₁ x).toReal * loss (est x) θ₁) := by
-  have hd := dist_le_sqrt_toReal_klDiv_div_two hsupp
-  have hmono : (sep / 2) * (1 - Real.sqrt ((klDiv p₀.toMeasure p₁.toMeasure).toReal / 2)) ≤
-      (sep / 2) * (1 - dist p₀ p₁) :=
-    mul_le_mul_of_nonneg_left (by linarith) (by positivity)
-  exact hmono.trans (leCam_max_ge p₀ p₁ hloss₀ hloss₁ hsep est)
+      max (∑ x, (p₀ x).toReal * loss (est x) θ₀) (∑ x, (p₁ x).toReal * loss (est x) θ₁) :=
+  (mul_le_mul_of_nonneg_left (sub_le_sub_left (dist_le_sqrt_toReal_klDiv_div_two hsupp) 1)
+    (by positivity)).trans (leCam_max_ge p₀ p₁ hloss₀ hloss₁ hsep est)
 
 /-- **I.i.d. Le Cam–Pinsker minimax bound**: from `n` i.i.d. observations under `p₀` or `p₁`
 (`p₀.support ⊆ p₁.support`), worst-case expected loss is at least
@@ -270,12 +267,9 @@ theorem leCam_iid_max_ge_of_klDiv [MeasurableSpace X] [MeasurableSingletonClass 
     (hsep : ∀ t, sep ≤ loss t θ₀ + loss t θ₁) (est : (Fin n → X) → T) :
     (sep / 2) * (1 - Real.sqrt (n * (klDiv p₀.toMeasure p₁.toMeasure).toReal / 2)) ≤
       max (∑ x, (iid p₀ n x).toReal * loss (est x) θ₀)
-        (∑ x, (iid p₁ n x).toReal * loss (est x) θ₁) := by
-  have hd := dist_iid_le_sqrt_mul_klDiv_div_two hsupp n
-  have hmono : (sep / 2) * (1 - Real.sqrt (n * (klDiv p₀.toMeasure p₁.toMeasure).toReal / 2)) ≤
-      (sep / 2) * (1 - dist (iid p₀ n) (iid p₁ n)) :=
-    mul_le_mul_of_nonneg_left (by linarith) (by positivity)
-  exact hmono.trans (leCam_max_ge (iid p₀ n) (iid p₁ n) hloss₀ hloss₁ hsep est)
+        (∑ x, (iid p₁ n x).toReal * loss (est x) θ₁) :=
+  (mul_le_mul_of_nonneg_left (sub_le_sub_left (dist_iid_le_sqrt_mul_klDiv_div_two hsupp n) 1)
+    (by positivity)).trans (leCam_max_ge (iid p₀ n) (iid p₁ n) hloss₀ hloss₁ hsep est)
 
 /-- **Le Cam–`χ²` minimax bound** on `PMF`: when `p₀.support ⊆ p₁.support` and `0 ≤ sep`,
 worst-case expected loss is at least `(sep / 2) · (1 - √(χ²(p₀ ‖ p₁)) / 2)`. -/
@@ -284,12 +278,9 @@ theorem leCam_max_ge_of_chiSquare {p₀ p₁ : PMF X} (hsupp : p₀.support ⊆ 
     (hloss₀ : ∀ t, 0 ≤ loss t θ₀) (hloss₁ : ∀ t, 0 ≤ loss t θ₁)
     (hsep : ∀ t, sep ≤ loss t θ₀ + loss t θ₁) (est : X → T) :
     (sep / 2) * (1 - Real.sqrt (chiSquare p₀ p₁) / 2) ≤
-      max (∑ x, (p₀ x).toReal * loss (est x) θ₀) (∑ x, (p₁ x).toReal * loss (est x) θ₁) := by
-  have hd := dist_le_sqrt_chiSquare_div_two hsupp
-  have hmono : (sep / 2) * (1 - Real.sqrt (chiSquare p₀ p₁) / 2) ≤
-      (sep / 2) * (1 - dist p₀ p₁) :=
-    mul_le_mul_of_nonneg_left (by linarith) (by positivity)
-  exact hmono.trans (leCam_max_ge p₀ p₁ hloss₀ hloss₁ hsep est)
+      max (∑ x, (p₀ x).toReal * loss (est x) θ₀) (∑ x, (p₁ x).toReal * loss (est x) θ₁) :=
+  (mul_le_mul_of_nonneg_left (sub_le_sub_left (dist_le_sqrt_chiSquare_div_two hsupp) 1)
+    (by positivity)).trans (leCam_max_ge p₀ p₁ hloss₀ hloss₁ hsep est)
 
 end Finite
 
@@ -327,11 +318,15 @@ theorem toReal_klDiv_coin_perturbed_le {δ : ℝ} (hδ : |δ| ≤ 1 / 6)
     rw [div_add_div _ _ hden1.ne' hden2.ne']
     congr 1
     ring
-  rw [hcomb]
+  rw [hcomb, div_le_iff₀ (by positivity)]
+  have hsq : δ ^ 2 ≤ 1 / 36 := by
+    rw [← sq_abs]
+    calc |δ| ^ 2 ≤ (1 / 6) ^ 2 := by gcongr
+      _ = 1 / 36 := by norm_num
   have hprod : 2 / 9 ≤ (1 / 2 + δ) * (1 / 2 - δ) := by
-    nlinarith [habs.1, habs.2]
-  rw [div_le_iff₀ (by positivity)]
-  nlinarith
+    linarith [show (1 / 2 + δ) * (1 / 2 - δ) = 1 / 4 - δ ^ 2 by ring]
+  calc 4 * δ ^ 2 = 18 * δ ^ 2 * (2 / 9) := by ring
+    _ ≤ 18 * δ ^ 2 * ((1 / 2 + δ) * (1 / 2 - δ)) := by gcongr
 
 /-- Symmetric `1 / (6 √n)`-perturbed fair coins `pBit : Bool → I` for sample size `n ≥ 1`, with
 full `Bool` support and single-flip divergence `D(coin (pBit b) ‖ coin (pBit (!b))) ≤ 1 / (2 n)`. -/
@@ -388,6 +383,29 @@ private theorem leCam_perturbed_coin_factor_ge {n : ℕ} (hn : 0 < n) {kl : ℝ}
       (by rw [show (1 / 4 : ℝ) = (1 / 2) ^ 2 by norm_num, Real.sqrt_sq (by norm_num)])
   linarith
 
+private theorem bernoulli_perturbed_minimax_lower_bound {n : ℕ} (hn : 0 < n)
+    {loss : ℝ → I → ℝ} {sep : ℝ} (hsep0 : 0 ≤ sep)
+    (hloss : ∀ q t, 0 ≤ loss t q)
+    (hsep : ∀ p₀ p₁ : I, (p₀ : ℝ) = 1 / 2 - 1 / (6 * Real.sqrt n) →
+      (p₁ : ℝ) = 1 / 2 + 1 / (6 * Real.sqrt n) → ∀ t, sep ≤ loss t p₀ + loss t p₁)
+    (est : (Fin n → Bool) → ℝ) :
+    ∃ p : I, sep / 4 ≤ ∑ x : Fin n → Bool, (iid (coin p) n x).toReal * loss (est x) p := by
+  obtain ⟨pBit, hpF, hpT, hsupp, hkl⟩ := exists_coin_perturbed_klDiv_le hn
+  set R : Bool → ℝ := fun b =>
+    ∑ x : Fin n → Bool, (iid (coin (pBit b)) n x).toReal * loss (est x) (pBit b)
+  have hbound : sep / 4 ≤ max (R false) (R true) := by
+    calc sep / 4 = (sep / 2) * (1 / 2) := by ring
+      _ ≤ (sep / 2) * (1 - Real.sqrt ((n : ℝ) *
+            (klDiv (coin (pBit false)).toMeasure (coin (pBit true)).toMeasure).toReal / 2)) :=
+          mul_le_mul_of_nonneg_left (leCam_perturbed_coin_factor_ge hn (hkl false)) (by positivity)
+      _ ≤ max (R false) (R true) :=
+          leCam_iid_max_ge_of_klDiv (hsupp false true) n (loss := loss)
+            (θ₀ := pBit false) (θ₁ := pBit true) (sep := sep) hsep0
+            (hloss (pBit false)) (hloss (pBit true)) (hsep _ _ hpF hpT) est
+  rcases max_choice (R false) (R true) with h0 | h1
+  · exact ⟨pBit false, hbound.trans_eq h0⟩
+  · exact ⟨pBit true, hbound.trans_eq h1⟩
+
 /-- **`Ω(1 / n)` minimax lower bound for Bernoulli mean estimation under squared error**: for every
 sample size `n ≥ 1` and every estimator `est : (Fin n → Bool) → ℝ`, some bias `p ∈ [0, 1]` has
 expected squared error at least `1 / (72 n)`. -/
@@ -395,29 +413,23 @@ theorem bernoulli_mean_minimax_sq_lower_bound {n : ℕ} (hn : 0 < n)
     (est : (Fin n → Bool) → ℝ) :
     ∃ p : I, 1 / (72 * (n : ℝ)) ≤
       ∑ x : Fin n → Bool, (iid (coin p) n x).toReal * (est x - (p : ℝ)) ^ 2 := by
-  obtain ⟨pBit, hpF, hpT, hsupp, hkl⟩ := exists_coin_perturbed_klDiv_le hn
   set δ : ℝ := 1 / (6 * Real.sqrt n)
   have hn_pos : (0 : ℝ) < n := Nat.cast_pos.mpr hn
-  have hδ_sq : δ ^ 2 = 1 / (36 * (n : ℝ)) := by
-    simp only [δ]; field_simp; rw [Real.sq_sqrt hn_pos.le]; ring
-  have hlecam := leCam_iid_max_ge_of_klDiv (hsupp false true) n
-    (loss := fun t (q : I) => (t - (q : ℝ)) ^ 2) (θ₀ := pBit false) (θ₁ := pBit true)
-    (sep := 2 * δ ^ 2) (by positivity) (fun t => sq_nonneg _) (fun t => sq_nonneg _)
-    (fun t => by rw [hpF, hpT]; nlinarith [sq_nonneg (t - 1 / 2)]) est
-  have hfac := leCam_perturbed_coin_factor_ge hn (hkl false)
-  have hbound : 1 / (72 * (n : ℝ)) ≤
-      max (∑ x, (iid (coin (pBit false)) n x).toReal * (est x - (pBit false : ℝ)) ^ 2)
-        (∑ x, (iid (coin (pBit true)) n x).toReal * (est x - (pBit true : ℝ)) ^ 2) := by
-    refine le_trans ?_ hlecam
-    calc 1 / (72 * (n : ℝ)) = (2 * δ ^ 2 / 2) * (1 / 2) := by rw [hδ_sq]; ring
-      _ ≤ (2 * δ ^ 2 / 2) *
-            (1 - Real.sqrt ((n : ℝ) *
-              (klDiv (coin (pBit false)).toMeasure (coin (pBit true)).toMeasure).toReal / 2)) :=
-          mul_le_mul_of_nonneg_left hfac (by positivity)
-  rcases max_choice (∑ x, (iid (coin (pBit false)) n x).toReal * (est x - (pBit false : ℝ)) ^ 2)
-    (∑ x, (iid (coin (pBit true)) n x).toReal * (est x - (pBit true : ℝ)) ^ 2) with h0 | h1
-  · exact ⟨pBit false, h0 ▸ hbound⟩
-  · exact ⟨pBit true, h1 ▸ hbound⟩
+  have hsep_eq : 2 * δ ^ 2 / 4 = 1 / (72 * (n : ℝ)) := by
+    simp only [δ]
+    field_simp
+    rw [Real.sq_sqrt hn_pos.le]
+    ring
+  rw [← hsep_eq]
+  exact bernoulli_perturbed_minimax_lower_bound hn
+    (loss := fun t (q : I) => (t - (q : ℝ)) ^ 2) (sep := 2 * δ ^ 2) (by positivity)
+    (fun _ _ => sq_nonneg _)
+    (fun p₀ p₁ hp₀ hp₁ t => by
+      rw [hp₀, hp₁]
+      linarith [sq_nonneg (t - 1 / 2),
+        show (t - (1 / 2 - δ)) ^ 2 + (t - (1 / 2 + δ)) ^ 2 =
+          2 * (t - 1 / 2) ^ 2 + 2 * δ ^ 2 by ring])
+    est
 
 /-- **`Ω(1 / √n)` minimax lower bound for Bernoulli mean estimation under absolute error**: for
 every sample size `n ≥ 1` and every estimator `est : (Fin n → Bool) → ℝ`, some bias `p ∈ [0, 1]` has
@@ -426,33 +438,20 @@ theorem bernoulli_mean_minimax_abs_lower_bound {n : ℕ} (hn : 0 < n)
     (est : (Fin n → Bool) → ℝ) :
     ∃ p : I, 1 / (12 * Real.sqrt n) ≤
       ∑ x : Fin n → Bool, (iid (coin p) n x).toReal * |est x - (p : ℝ)| := by
-  obtain ⟨pBit, hpF, hpT, hsupp, hkl⟩ := exists_coin_perturbed_klDiv_le hn
   set δ : ℝ := 1 / (6 * Real.sqrt n)
-  have hlecam := leCam_iid_max_ge_of_klDiv (hsupp false true) n
-    (loss := fun t (q : I) => |t - (q : ℝ)|) (θ₀ := pBit false) (θ₁ := pBit true)
-    (sep := 2 * δ) (by positivity) (fun t => abs_nonneg _) (fun t => abs_nonneg _)
-    (fun t => by
-      rw [hpF, hpT]
+  have hsep_eq : 2 * δ / 4 = 1 / (12 * Real.sqrt n) := by simp only [δ]; ring
+  rw [← hsep_eq]
+  exact bernoulli_perturbed_minimax_lower_bound hn
+    (loss := fun t (q : I) => |t - (q : ℝ)|) (sep := 2 * δ) (by positivity)
+    (fun _ _ => abs_nonneg _)
+    (fun p₀ p₁ hp₀ hp₁ t => by
+      rw [hp₀, hp₁]
       have htri := abs_sub_le (1 / 2 + δ) t (1 / 2 - δ)
       rw [abs_sub_comm (1 / 2 + δ) t] at htri
       have hsub : |(1 / 2 + δ) - (1 / 2 - δ)| = 2 * δ := by
         rw [show (1 / 2 + δ) - (1 / 2 - δ) = 2 * δ by ring, abs_of_pos (by positivity)]
       linarith)
     est
-  have hfac := leCam_perturbed_coin_factor_ge hn (hkl false)
-  have hbound : 1 / (12 * Real.sqrt n) ≤
-      max (∑ x, (iid (coin (pBit false)) n x).toReal * |est x - (pBit false : ℝ)|)
-        (∑ x, (iid (coin (pBit true)) n x).toReal * |est x - (pBit true : ℝ)|) := by
-    refine le_trans ?_ hlecam
-    calc 1 / (12 * Real.sqrt n) = (2 * δ / 2) * (1 / 2) := by simp only [δ]; ring
-      _ ≤ (2 * δ / 2) *
-            (1 - Real.sqrt ((n : ℝ) *
-              (klDiv (coin (pBit false)).toMeasure (coin (pBit true)).toMeasure).toReal / 2)) :=
-          mul_le_mul_of_nonneg_left hfac (by positivity)
-  rcases max_choice (∑ x, (iid (coin (pBit false)) n x).toReal * |est x - (pBit false : ℝ)|)
-    (∑ x, (iid (coin (pBit true)) n x).toReal * |est x - (pBit true : ℝ)|) with h0 | h1
-  · exact ⟨pBit false, h0 ▸ hbound⟩
-  · exact ⟨pBit true, h1 ▸ hbound⟩
 
 end BernoulliMinimax
 
