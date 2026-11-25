@@ -69,13 +69,8 @@ private theorem scan_prefix (L A : List Γ) (w : List (Symbol Γ Q)) :
   induction L generalizing A w with
   | nil => rfl
   | cons a L ih =>
-    calc
-      _ = scan A (L.reverse.map (fun a => (sym (a, false) : Symbol Γ Q)) ++
-          sym (a, false) :: w) := by
-        simp only [List.reverse_cons, List.map_append, List.map_cons, List.map_nil,
-          List.append_assoc, List.cons_append, List.nil_append]
-      _ = scan (L ++ A) (sym (a, false) :: w) := ih A _
-      _ = scan ((a :: L) ++ A) w := rfl
+    simpa only [List.reverse_cons, List.map_append, List.map_cons, List.map_nil,
+      List.append_assoc, List.cons_append, List.nil_append, scan] using ih A (sym (a, false) :: w)
 
 private theorem decode_frame (L R : List Γ) (middle : List (Symbol Γ Q)) :
     decode (frame L middle R) =
@@ -83,23 +78,16 @@ private theorem decode_frame (L R : List Γ) (middle : List (Symbol Γ Q)) :
   simp only [frame, decode, List.append_assoc, scan_prefix, List.append_nil]
 
 private theorem decode_word (c : MicroCfg Γ Q) : decode (word c) = some c := by
-  cases c with
-  | stable c =>
-    rcases c with ⟨q, a, L, R⟩
-    simp only [word, decode_frame, List.cons_append, List.nil_append, scan, readRight_map,
+  rcases c with ⟨q, a, L, R⟩ | ⟨phase, q, a, b, L, R⟩
+  · simp only [word, decode_frame, List.cons_append, List.nil_append, scan, readRight_map,
       Option.map_some]
-  | moving phase c =>
-    rcases c with ⟨q, a, b, L, R⟩
-    cases phase <;>
-      simp only [word, decode_frame, List.cons_append, List.nil_append, scan, readRight_map,
-        Option.map_some, ↓reduceIte]
+  · cases phase <;> simp only [word, decode_frame, List.cons_append, List.nil_append, scan,
+      readRight_map, Option.map_some, ↓reduceIte]
 
 omit [DecidableEq Q] in
 /-- A tape word determines its complete phased configuration. -/
 theorem word_injective : Function.Injective (word (Γ := Γ) (Q := Q)) := by
   classical
-  intro c d h
-  have h' := congrArg decode h
-  simpa only [decode_word, Option.some.injEq] using h'
+  exact fun _ _ h => by simpa only [decode_word, Option.some.injEq] using congrArg decode h
 
 end Cslib.Complexity.NCL.TM0Window.Rules

@@ -132,25 +132,20 @@ private theorem computableInPolyTime_encForgePost (E : SymmetricCipher) :
           !pair.2.2.contains ((E.decrypt pair.1.1 pair.1.2 pair.2.1).getD []))
       (encPair (encPair encUnary encBits) (encPair encBits (encList encBits))) encBool := by
   let EOut := encPair (encPair encUnary encBits) (encPair encBits (encList encBits))
-  have hdecArg : ComputableInPolyTime
-      (fun pair : (ℕ × List Bool) × (List Bool × List (List Bool)) =>
-        (pair.1.1, pair.1.2, pair.2.1))
-      EOut (encPair encUnary (encPair encBits encBits)) := by
-    dsimp only [EOut]; fun_prop
   have hdec : ComputableInPolyTime
       (fun pair : (ℕ × List Bool) × (List Bool × List (List Bool)) =>
         E.decrypt pair.1.1 pair.1.2 pair.2.1)
       EOut (encOption encBits) :=
-    E.decrypt_polyTime.comp hdecArg
-  have hisSome := hdec.optionIsSome
-  have hgetD := ComputableInPolyTime.optionGetDWithInput hdec (ComputableInPolyTime.const [])
-  have hlist : ComputableInPolyTime
-      (fun pair : (ℕ × List Bool) × (List Bool × List (List Bool)) => pair.2.2)
-      EOut (encList encBits) := by
-    dsimp only [EOut]; fun_prop
-  have hcontains := ComputableInPolyTime.contains hlist hgetD
+    E.decrypt_polyTime.comp (show ComputableInPolyTime
+      (fun pair : (ℕ × List Bool) × (List Bool × List (List Bool)) =>
+        (pair.1.1, pair.1.2, pair.2.1))
+      EOut (encPair encUnary (encPair encBits encBits)) by fun_prop)
+  have hcontains := ComputableInPolyTime.contains
+    (show ComputableInPolyTime (fun pair : (ℕ × List Bool) × (List Bool × List (List Bool)) =>
+      pair.2.2) EOut (encList encBits) by fun_prop)
+    (ComputableInPolyTime.optionGetDWithInput hdec (ComputableInPolyTime.const []))
   exact ComputableInPolyTime.bool_and.comp
-    (hisSome.prod (ComputableInPolyTime.bool_not.comp hcontains))
+    (hdec.optionIsSome.prod (ComputableInPolyTime.bool_not.comp hcontains))
 
 /-- The fresh-message encryption unforgeability experiment is uniformly strict PPT in the unary
 security parameter. -/
@@ -292,17 +287,11 @@ theorem succProbability_encForgeGame_le_ciGame (E : SymmetricCipher)
     rw [Bool.eq_false_iff]
     intro hmemCt
     obtain ⟨pair, hpairMem, hpairSnd⟩ := List.mem_map.mp (List.contains_iff_mem.mp hmemCt)
-    have ⟨hmsgLen, hctSupport⟩ := hinv pair hpairMem
-    have hdec : E.decrypt n k out.1 = some pair.1 := by
-      rw [← hpairSnd]
-      exact E.decrypt_encrypt n k hk pair.1 hmsgLen pair.2 hctSupport
+    obtain ⟨hmsgLen, hctSupport⟩ := hinv pair hpairMem
     have hmemMsg : ((E.decrypt n k out.1).getD []) ∈ out.2.map Prod.fst := by
-      rw [hdec, Option.getD_some]
+      rw [← hpairSnd, E.decrypt_encrypt n k hk pair.1 hmsgLen pair.2 hctSupport, Option.getD_some]
       exact List.mem_map_of_mem hpairMem
-    have hcontainsMsg : (out.2.map Prod.fst).contains ((E.decrypt n k out.1).getD []) = true :=
-      List.contains_iff_mem.mpr hmemMsg
-    rw [hwin.2] at hcontainsMsg
-    contradiction
+    exact Bool.false_ne_true (hwin.2.symm.trans (List.contains_iff_mem.mpr hmemMsg))
   · simp [(ProbComp.eval (E.keyGen n)).apply_eq_zero_iff k |>.mpr hk]
 
 /-- Ciphertext integrity (`CiphertextIntegrity`) implies fresh-message encryption unforgeability
@@ -512,14 +501,12 @@ theorem succProbability_encForgeGame_encryptThenMAC_le (E : SymmetricCipher) (M 
     rw [OracleComp.interpret_map, StateT.run_map]
     simp only [_root_.PMF.monad_map_eq_map, PMF.bind_map, Function.comp_def]
   simp only [hinner]
-  rw [PMF.bind_comm (ProbComp.eval (M.keyGen n))]
-  have hkeyGen : ProbComp.eval ((encryptThenMAC E M hctLen).keyGen n) =
-      (ProbComp.eval (E.keyGen n)).bind (fun ke =>
-        (ProbComp.eval (M.keyGen n)).bind (fun km =>
-          PMF.pure (encPair encBits encBits (ke, km)))) := by
-    simp only [encryptThenMAC, ProbComp.eval_bind, ProbComp.eval_pure]
-  rw [hkeyGen]
-  simp only [PMF.bind_bind, PMF.pure_bind]
+  rw [PMF.bind_comm (ProbComp.eval (M.keyGen n)),
+    show (encryptThenMAC E M hctLen).keyGen n = (do
+      let ke ← E.keyGen n
+      let km ← M.keyGen n
+      return encPair encBits encBits (ke, km)) from rfl]
+  simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
   refine ENNReal.toNNReal_mono (PMF.apply_ne_top _ true) ?_
   rw [PMF.bind_apply, PMF.bind_apply]
   refine tsum_le_tsum fun ke => ?_
@@ -529,7 +516,7 @@ theorem succProbability_encForgeGame_encryptThenMAC_le (E : SymmetricCipher) (M 
     refine tsum_le_tsum fun km => ?_
     by_cases hkm : km ∈ (ProbComp.eval (M.keyGen n)).support
     · refine mul_le_mul_of_nonneg_left ?_ zero_le
-      rw [ ← ProbOracleComp.eval_run_interpret,
+      rw [← ProbOracleComp.eval_run_interpret,
         eval_run_encForgeOracle_encryptThenMAC_eq E M hctLen n ke km (adversary n []),
         eval_run_etmToMACHandler_signingOracle_eq E M hctLen n tagBound ke km hke hkm
           htagBound (adversary n []),
@@ -541,26 +528,19 @@ theorem succProbability_encForgeGame_encryptThenMAC_le (E : SymmetricCipher) (M 
       split_ifs at hwin with hcond
       · simp only [Bool.and_eq_true, Bool.not_eq_true'] at hwin hcond
         have hpairCond : ((encPair encBits encBits (unframe out.1, dropFrame out.1) == out.1) &&
-            (E.decrypt n ke (unframe out.1)).isSome) = true := by
-          rw [Bool.and_eq_true]
-          exact ⟨hcond.1.1, hwin.1⟩
+            (E.decrypt n ke (unframe out.1)).isSome) = true :=
+          (Bool.and_eq_true _ _).mpr ⟨hcond.1.1, hwin.1⟩
         simp only [hpairCond, ↓reduceIte, hcond.1.2, hcond.2, Bool.true_and, Bool.and_true,
           Bool.not_eq_true']
         rw [Bool.eq_false_iff]
         intro hmemCt
         obtain ⟨pair, hpairMem, hpairSnd⟩ := List.mem_map.mp (List.contains_iff_mem.mp hmemCt)
-        have ⟨hmsgLen, hctSupport⟩ := hinv pair hpairMem
-        have hdec : E.decrypt n ke (unframe out.1) = some pair.1 := by
-          rw [← hpairSnd]
-          exact E.decrypt_encrypt n ke hke pair.1 hmsgLen pair.2 hctSupport
+        obtain ⟨hmsgLen, hctSupport⟩ := hinv pair hpairMem
         have hmemMsg : ((E.decrypt n ke (unframe out.1)).getD []) ∈ out.2.map Prod.fst := by
-          rw [hdec, Option.getD_some]
+          rw [← hpairSnd, E.decrypt_encrypt n ke hke pair.1 hmsgLen pair.2 hctSupport,
+            Option.getD_some]
           exact List.mem_map_of_mem hpairMem
-        have hcontainsMsg :
-            (out.2.map Prod.fst).contains ((E.decrypt n ke (unframe out.1)).getD []) = true :=
-          List.contains_iff_mem.mpr hmemMsg
-        rw [hwin.2] at hcontainsMsg
-        contradiction
+        exact Bool.false_ne_true (hwin.2.symm.trans (List.contains_iff_mem.mpr hmemMsg))
       · simp at hwin
     · simp [(ProbComp.eval (M.keyGen n)).apply_eq_zero_iff km |>.mpr hkm]
   · simp [(ProbComp.eval (E.keyGen n)).apply_eq_zero_iff ke |>.mpr hke]

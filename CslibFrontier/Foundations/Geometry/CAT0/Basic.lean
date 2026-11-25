@@ -76,16 +76,13 @@ theorem IsPointAt.symm {x v b : X} {t : ℝ} (h : IsPointAt x v t b) : IsPointAt
 
 theorem IsPointAt.dist_left {x v b : X} {t : ℝ} (h0 : 0 ≤ t) (h1 : t ≤ 1)
     (h : IsPointAt x v t b) : dist x b = t * dist x v := by
-  have hx : dist x b ≤ t * dist x v := by
-    refine (pow_le_pow_iff_left₀ dist_nonneg (by positivity) two_ne_zero).1 ?_
-    nlinarith [h x, dist_self x]
+  have hx : dist x b ≤ t * dist x v := (pow_le_pow_iff_left₀ dist_nonneg (by positivity)
+    two_ne_zero).1 (by nlinarith [h x, dist_self x])
   have hv : dist b v ≤ (1 - t) * dist x v := by
-    refine (pow_le_pow_iff_left₀ dist_nonneg (by nlinarith [dist_nonneg (x := x) (y := v)])
+    refine (pow_le_pow_iff_left₀ dist_nonneg (mul_nonneg (sub_nonneg.2 h1) dist_nonneg)
       two_ne_zero).1 ?_
     have := h v
-    rw [dist_self, dist_comm v x] at this
-    rw [dist_comm b v]
-    linarith
+    rw [dist_self, dist_comm v x, dist_comm v b] at this; linarith
   linarith [dist_triangle x b v]
 
 theorem IsPointAt.dist_right {x v b : X} {t : ℝ} (h0 : 0 ≤ t) (h1 : t ≤ 1)
@@ -130,12 +127,10 @@ theorem dist_mid_sq_le (x v z : X) :
   linarith [isPointAt_mid x v z]
 
 theorem dist_mid_left (x v : X) : dist x (mid x v) = dist x v / 2 := by
-  rw [(isPointAt_mid x v).dist_left (by norm_num) (by norm_num)]
-  ring
+  rw [(isPointAt_mid x v).dist_left (by norm_num) (by norm_num)]; ring
 
 theorem dist_mid_right (x v : X) : dist (mid x v) v = dist x v / 2 := by
-  rw [(isPointAt_mid x v).dist_right (by norm_num) (by norm_num)]
-  ring
+  rw [(isPointAt_mid x v).dist_right (by norm_num) (by norm_num)]; ring
 
 end mid
 
@@ -144,15 +139,11 @@ distance from both with the CN inequality. This restates the bundled axiom only;
 comparison-triangle definition. -/
 theorem _root_.Cslib.completeCAT0Space_iff : CompleteCAT0Space X ↔ CompleteSpace X ∧ ∀ x v : X, ∃ m,
     dist x m = dist x v / 2 ∧ dist m v = dist x v / 2 ∧
-      ∀ z, dist z m ^ 2 ≤ dist z x ^ 2 / 2 + dist z v ^ 2 / 2 - (dist x v / 2) ^ 2 := by
-  constructor
-  · intro h
-    exact ⟨h.toCompleteSpace, fun x v => ⟨mid x v, dist_mid_left x v, dist_mid_right x v,
-      fun z => by linarith [dist_mid_sq_le x v z]⟩⟩
-  · rintro ⟨hc, h⟩
-    refine { hc with exists_mid := fun x v => ?_ }
-    obtain ⟨m, -, -, hm⟩ := h x v
-    exact ⟨m, fun z => by linarith [hm z]⟩
+      ∀ z, dist z m ^ 2 ≤ dist z x ^ 2 / 2 + dist z v ^ 2 / 2 - (dist x v / 2) ^ 2 :=
+  ⟨fun h => ⟨h.toCompleteSpace, fun x v => ⟨mid x v, dist_mid_left x v, dist_mid_right x v,
+    fun z => by linarith [dist_mid_sq_le x v z]⟩⟩,
+    fun ⟨hc, h⟩ => { hc with exists_mid x v :=
+      ⟨(h x v).choose, fun z => by linarith [(h x v).choose_spec.2.2 z]⟩ }⟩
 
 /-! ### Barycenters -/
 
@@ -168,18 +159,16 @@ variance inequality `∑ wᵢ|bxᵢ|² + (∑ wᵢ)|yb|² ≤ ∑ wᵢ|yxᵢ|²`
 theorem IsBarycenter.unique {w : ι → ℝ} {x : ι → X} {b b' : X} (hw : 0 < ∑ i, w i)
     (h : IsBarycenter w x b) (h' : IsBarycenter w x b') : b = b' := by
   have h1 := h b'
-  have h2 := h' b
   rw [dist_comm] at h1
-  have h3 : (∑ i, w i) * dist b b' ^ 2 ≤ 0 := by linarith
-  exact dist_eq_zero.1 <| (sq_nonpos_iff _).1 <| nonpos_of_mul_nonpos_right h3 hw
+  exact dist_eq_zero.1 <| (sq_nonpos_iff _).1 <| nonpos_of_mul_nonpos_right (by linarith [h' b]) hw
 
 /-- A surjective isometry maps barycenters to barycenters. -/
 theorem IsBarycenter.map {Y : Type*} [MetricSpace Y] {w : ι → ℝ} {x : ι → X} {b : X}
     (h : IsBarycenter w x b) {f : X → Y} (hf : Isometry f) (hs : Function.Surjective f) :
     IsBarycenter w (fun i => f (x i)) (f b) := by
   intro y
-  obtain ⟨y, rfl⟩ := hs y
-  simpa only [hf.dist_eq] using h y
+  obtain ⟨x₀, rfl⟩ := hs y
+  simpa only [hf.dist_eq] using h x₀
 
 /-- Barycenters do not depend on the names of the points. -/
 theorem IsBarycenter.comp_equiv {κ : Type*} [Fintype κ] {w : ι → ℝ} {x : ι → X} {b : X}
