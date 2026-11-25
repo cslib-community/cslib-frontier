@@ -28,6 +28,7 @@ import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.BranchGrowth
 import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.DegreePieceSeparation
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CoordinateCriticalLimit
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalCoercive
+import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalMinimumValue
 import CslibFrontier.Foundations.Data.MvPolynomial.Degrees
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.RelativeValueSection
 import Mathlib.LinearAlgebra.Matrix.Charpoly.Coeff
@@ -798,5 +799,21 @@ example : ∀ᶠ v : ℝ in Filter.atTop, v < v ^ 2 := by
   refine Polynomial.eventually_lt_of_eval₂_pow_eq_zero P hP hdegree Filter.tendsto_id
     (Filter.tendsto_pow_atTop (by decide : (2 : ℕ) ≠ 0)) ?_
   exact Filter.Eventually.of_forall fun v => by simp [P]
+
+-- For the constant input r², the minimum varies jointly and diverges exactly when r is nonzero.
+example :
+    let F (r : ℝ) : MvPolynomial (Fin 1) ℝ := C (r ^ 2)
+    let a : Fin 1 → ℝ := fun _ => 0
+    Continuous (fun q : ℝ × Set.Ici (0 : ℝ) => criticalMinimumValue 1 a (F q.1) q.2.val) ∧
+      ∀ r, r ≠ 0 ↔ Filter.Tendsto (criticalMinimumValue 1 a (F r)) Filter.atTop Filter.atTop := by
+  intro F a
+  have hFn (r : ℝ) (z : Fin 1 → ℝ) : 0 ≤ eval z (F r) := by simp [F, sq_nonneg]
+  refine ⟨continuous_criticalMinimumValue (by decide) (by decide) a (fun _ => le_rfl)
+    F ?_ hFn, ?_⟩
+  · simp only [F, eval_C]
+    fun_prop
+  · intro r
+    simpa [F] using (not_exists_zero_iff_tendsto_criticalMinimumValue
+      (by decide : 1 ≤ 1) (by decide) a (fun _ => le_rfl) (F r) (hFn r))
 
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation

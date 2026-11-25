@@ -6668,6 +6668,7 @@ public import CslibFrontier.Foundations.Analysis.Calculus.LipschitzDeriv
 public import CslibFrontier.Foundations.Analysis.Calculus.LipschitzSmoothing
 public import CslibFrontier.Foundations.Analysis.Calculus.ParametricIntegralExp
 public import CslibFrontier.Foundations.Analysis.Calculus.Taylor
+public import CslibFrontier.Foundations.Analysis.CoerciveMinimum
 public import CslibFrontier.Foundations.Analysis.Complex.ConjugateProduct
 public import CslibFrontier.Foundations.Analysis.Convex.Ellipsoid
 public import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation
