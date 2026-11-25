@@ -116,42 +116,38 @@ theorem effect_correct (S : Scalars M L) (i : Instr M L) {w : ℕ} {x : State M 
     simpa only [effect, effectTime, h.data] using
       (ExecWithin.copy (B := .standard) (w := w) (x := y) (d := dataReg L r) (s := dataReg L s))
   | loadPtr r f b =>
-    obtain ⟨z, he, hz⟩ := read_spec h hv hf b f.val (ptrField_lt_stride f) (ptrReg L r)
+    refine (read_spec h hv hf b f.val (ptrField_lt_stride f) (ptrReg L r)
       (target := (Instr.loadPtr r f b).effect x) (by simp [Instr.effect, State.deref, ·, h])
-      fun a n hp hn z hz => by
-        simpa [Instr.effect, State.deref, hp, hn, hz.heapPtr a n hn f] using
-          (hz.scratch (addrReg L) (by simp) (cellAddr L a f.val)).setPtr r (n.ptr f)
-    exact ⟨z, he, hz, trivial⟩
+      fun a n hp hn z hz => ?_).imp fun _ h => ⟨h.1, h.2, trivial⟩
+    simpa [Instr.effect, State.deref, hp, hn, hz.heapPtr a n hn f] using
+      (hz.scratch (addrReg L) (by simp) (cellAddr L a f.val)).setPtr r (n.ptr f)
   | loadData r f b =>
-    obtain ⟨z, he, hz⟩ := read_spec h hv hf b _ (dataField_lt_stride f) (dataReg L r)
+    refine (read_spec h hv hf b _ (dataField_lt_stride f) (dataReg L r)
       (target := (Instr.loadData r f b).effect x) (by simp [Instr.effect, State.deref, ·, h])
-      fun a n hp hn z hz => by
-        simpa [Instr.effect, State.deref, hp, hn, hz.heapData a n hn f] using
-          (hz.scratch (addrReg L) (by simp) (cellAddr L a _)).setData r (n.data f)
-    exact ⟨z, he, hz, trivial⟩
+      fun a n hp hn z hz => ?_).imp fun _ h => ⟨h.1, h.2, trivial⟩
+    simpa [Instr.effect, State.deref, hp, hn, hz.heapData a n hn f] using
+      (hz.scratch (addrReg L) (by simp) (cellAddr L a _)).setData r (n.data f)
   | storePtr f b r =>
-    obtain ⟨z, he, hz⟩ := write_spec h hv hf b f.val (ptrField_lt_stride f) (ptrReg L r)
+    refine (write_spec h hv hf b f.val (ptrField_lt_stride f) (ptrReg L r)
       (by simp [Fin.ext_iff]; omega) (target := (Instr.storePtr f b r).effect x)
-      (by simp [Instr.effect, State.modify, ·, h]) fun a n hp hn z hz => by
-        simpa [Instr.effect, State.modify, hp, hz.ptr r] using
-          (hz.scratch (addrReg L) (by simp) (cellAddr L a f.val)).writePtr a f (x.ptr r)
-    exact ⟨z, he, hz, trivial⟩
+      (by simp [Instr.effect, State.modify, ·, h]) fun a n hp hn z hz => ?_).imp
+        fun _ h => ⟨h.1, h.2, trivial⟩
+    simpa [Instr.effect, State.modify, hp, hz.ptr r] using
+      (hz.scratch (addrReg L) (by simp) (cellAddr L a f.val)).writePtr a f (x.ptr r)
   | storeData f b r =>
-    obtain ⟨z, he, hz⟩ := write_spec h hv hf b _ (dataField_lt_stride f) (dataReg L r)
+    refine (write_spec h hv hf b _ (dataField_lt_stride f) (dataReg L r)
       (by simp [Fin.ext_iff]; omega) (target := (Instr.storeData f b r).effect x)
-      (by simp [Instr.effect, State.modify, ·, h]) fun a n hp hn z hz => by
-        simpa [Instr.effect, State.modify, hp, hz.data r] using
-          (hz.scratch (addrReg L) (by simp) (cellAddr L a _)).writeData a f (x.data r)
-    exact ⟨z, he, hz, trivial⟩
+      (by simp [Instr.effect, State.modify, ·, h]) fun a n hp hn z hz => ?_).imp
+        fun _ h => ⟨h.1, h.2, trivial⟩
+    simpa [Instr.effect, State.modify, hp, hz.data r] using
+      (hz.scratch (addrReg L) (by simp) (cellAddr L a _)).writeData a f (x.data r)
   | op o d a b =>
     have hout : Cslib.WordRAM.Fits w (S.encode (M.evalOp o (x.data a) (x.data b))) := by
       simpa [Instr.effect, State.setData] using hf'.data d
     obtain ⟨z, he, hz⟩ := S.op_spec w o (dataReg L d) (dataReg L a) (dataReg L b)
       y (x.data a) (x.data b) (h.data a) (h.data b) hs hout
     exact ⟨z, he, h.setData_of_frame d _ hz.result hz.frame hz.memory, trivial⟩
-  | create r =>
-    obtain ⟨z, he, hz⟩ := S.create_spec r h hf'
-    exact ⟨z, he, hz, trivial⟩
+  | create r => exact (S.create_spec r h hf').imp fun _ h => ⟨h.1, h.2, trivial⟩
   | ifTest p a b t =>
     have hone : 1 < 2 ^ w := lt_of_le_of_lt (by simp [nodeAddr]) hf.free
     obtain ⟨z, he, hz⟩ := S.test_spec w p (valueReg L) (dataReg L a) (dataReg L b)
