@@ -82,8 +82,7 @@ namespace BitString
 of the edge. -/
 theorem isSensitiveCoord_update_not_iff {f : BooleanFunction n} {x : BitString n} {i : Fin n} :
     IsSensitiveCoord f (update x i (!x i)) i ↔ IsSensitiveCoord f x i := by
-  simp only [IsSensitiveCoord, update_self, Bool.not_not, update_idem, update_eq_self]
-  exact ne_comm
+  simp only [IsSensitiveCoord, update_self, Bool.not_not, update_idem, update_eq_self, ne_comm]
 
 /-- **Summing over the sensitive edges from either end**: each edge of the sensitivity graph in
 direction `i` is counted once from each of its ends. -/
@@ -127,8 +126,7 @@ coordinates. -/
 theorem neighborFinset_sensitivityGraph (f : BooleanFunction n) (x : BitString n) :
     (sensitivityGraph f).neighborFinset x =
       (sensitiveCoords f x).image fun i => update x i (!x i) := by
-  ext y
-  simp [sensitivityGraph_adj]
+  ext; simp [sensitivityGraph_adj]
 
 /-- The adjacency matrix of the sensitivity graph sums over the neighbors across sensitive
 coordinates: `(A_f v)(x) = ∑_{i sensitive at x} v(x ⊕ eᵢ)`. -/
@@ -157,12 +155,12 @@ theorem inner_toEuclideanCLM_adjMatrix_sensitivityGraph (f : BooleanFunction n)
     ⟪WithLp.toLp 2 u, Matrix.toEuclideanCLM (𝕜 := ℝ) ((sensitivityGraph f).adjMatrix ℝ)
       (WithLp.toLp 2 v)⟫ =
       ∑ x, ∑ i ∈ sensitiveCoords f x, u x * v (update x i (!x i)) := by
-  rw [Matrix.inner_toEuclideanCLM]
-  simp only [dotProduct, adjMatrix_sensitivityGraph_mulVec_apply, mul_sum]
+  simp only [Matrix.inner_toEuclideanCLM, dotProduct, adjMatrix_sensitivityGraph_mulVec_apply,
+    mul_sum]
 
 private theorem norm_toLp_sq (v : BitString n → ℝ) :
-    ‖(WithLp.toLp 2 v : EuclideanSpace ℝ (BitString n))‖ ^ 2 = ∑ x, v x ^ 2 := by
-  rw [EuclideanSpace.real_norm_sq_eq]
+    ‖(WithLp.toLp 2 v : EuclideanSpace ℝ (BitString n))‖ ^ 2 = ∑ x, v x ^ 2 :=
+  EuclideanSpace.real_norm_sq_eq _
 
 /-- **Lower criterion**: a nonzero nonnegative `v` with `c v(x) ≤ (A_f v)(x)` at every point
 witnesses `c ≤ λ(f)`. -/
@@ -175,14 +173,10 @@ theorem le_spectralSensitivity_of_le_sum {f : BooleanFunction n} {v : BitString 
   have hw : 0 < ‖w‖ := norm_pos_iff.2 fun h0 => hv0 (congrArg WithLp.ofLp h0)
   have h₁ : c * ‖w‖ ^ 2 ≤ inner ℝ w (A w) := by
     rw [norm_toLp_sq, inner_toEuclideanCLM_adjMatrix_sensitivityGraph, mul_sum]
-    refine sum_le_sum fun x _ => ?_
-    rw [← mul_sum]
-    have hx : 0 ≤ v x := hv x
-    nlinarith [mul_nonneg hx (sub_nonneg.2 (h x))]
-  have h₂ : inner ℝ w (A w) ≤ ‖A‖ * ‖w‖ ^ 2 := by
-    refine (real_inner_le_norm _ _).trans ?_
-    have := A.le_opNorm w
-    nlinarith [norm_nonneg w]
+    exact sum_le_sum fun x _ => by
+      rw [← mul_sum]; nlinarith [hv x, mul_nonneg (hv x) (sub_nonneg.2 (h x))]
+  have h₂ : inner ℝ w (A w) ≤ ‖A‖ * ‖w‖ ^ 2 :=
+    (real_inner_le_norm _ _).trans (by have := A.le_opNorm w; nlinarith [norm_nonneg w])
   exact le_of_mul_le_mul_right (h₁.trans h₂) (pow_pos hw 2)
 
 /-- **Upper criterion**: `λ(f) ≤ K` if `⟨u, A_f w⟩ ≤ K` for all nonnegative unit vectors `u`
@@ -195,40 +189,25 @@ theorem spectralSensitivity_le_of_forall_sum_le {f : BooleanFunction n} {K : ℝ
   refine ContinuousLinearMap.opNorm_le_bound _ hK fun z => ?_
   set A := Matrix.toEuclideanCLM (𝕜 := ℝ) ((sensitivityGraph f).adjMatrix ℝ)
   set y := A z
-  set a := ‖y‖
-  set b := ‖z‖
   rcases (norm_nonneg y).eq_or_lt with ha | ha
-  · change ‖y‖ ≤ K * b
-    rw [← ha]
-    positivity
+  · rw [← ha]; positivity
   rcases (norm_nonneg z).eq_or_lt with hb | hb
-  · have hz : z = 0 := norm_eq_zero.1 hb.symm
-    simp [y, hz] at ha
-  -- `a² = ⟨y, A z⟩` is at most the form at the absolute values of `y` and `z`
-  have hy : y = WithLp.toLp 2 y.ofLp := rfl
-  have hz : z = WithLp.toLp 2 z.ofLp := rfl
-  have h₁ : a ^ 2 ≤ ∑ x, ∑ i ∈ sensitiveCoords f x,
+  · simp [y, norm_eq_zero.1 hb.symm] at ha
+  have h₁ : ‖y‖ ^ 2 ≤ ∑ x, ∑ i ∈ sensitiveCoords f x,
       |y.ofLp x| * |z.ofLp (update x i (!x i))| := by
     rw [← real_inner_self_eq_norm_sq]
-    change inner ℝ y (A z) ≤ _
-    rw [hy, hz, inner_toEuclideanCLM_adjMatrix_sensitivityGraph]
-    refine sum_le_sum fun x _ => sum_le_sum fun i _ => ?_
-    rw [← abs_mul]
-    exact le_abs_self _
-  -- the form at the normalized absolute values is at most `K`
+    change inner ℝ (WithLp.toLp 2 y.ofLp) (A (WithLp.toLp 2 z.ofLp)) ≤ _
+    rw [inner_toEuclideanCLM_adjMatrix_sensitivityGraph]
+    exact sum_le_sum fun x _ => sum_le_sum fun i _ => by rw [← abs_mul]; exact le_abs_self _
   have hsq (v : EuclideanSpace ℝ (BitString n)) (hv : 0 < ‖v‖) :
       ∑ x, (|v.ofLp x| / ‖v‖) ^ 2 = 1 := by
-    have := norm_toLp_sq v.ofLp
-    simp only [div_pow, sq_abs, ← sum_div]
-    rw [← this]
+    simp only [div_pow, sq_abs, ← sum_div, ← norm_toLp_sq]
     exact div_self (pow_pos hv 2).ne'
-  have h₂ := h (fun x => |y.ofLp x| / a) (fun x => |z.ofLp x| / b)
-    (fun x => div_nonneg (abs_nonneg _) ha.le) (fun x => div_nonneg (abs_nonneg _) hb.le)
+  have h₂ := h (fun x => |y.ofLp x| / ‖y‖) (fun x => |z.ofLp x| / ‖z‖)
+    (fun _ => div_nonneg (abs_nonneg _) ha.le) (fun _ => div_nonneg (abs_nonneg _) hb.le)
     (hsq y ha) (hsq z hb)
-  have h₃ : ∑ x, ∑ i ∈ sensitiveCoords f x, |y.ofLp x| / a * (|z.ofLp (update x i (!x i))| / b) =
-      (∑ x, ∑ i ∈ sensitiveCoords f x, |y.ofLp x| * |z.ofLp (update x i (!x i))|) / (a * b) := by
-    simp only [sum_div, div_mul_div_comm]
-  rw [h₃, div_le_iff₀ (mul_pos ha hb)] at h₂
+  simp only [div_mul_div_comm, ← sum_div] at h₂
+  rw [div_le_iff₀ (mul_pos ha hb)] at h₂
   nlinarith
 
 /-- **Spectral sensitivity is at most sensitivity**: `λ(f) ≤ s(f)`, the second step of Huang's
@@ -236,9 +215,9 @@ proof [AaronsonBenDavidKothariRaoTal2021]. By `2 u(x) w(y) ≤ u(x)² + w(y)²`,
 vectors is at most half the sum of `s_x(f) u(x)²` and `s_y(f) w(y)²` over the points. -/
 theorem spectralSensitivity_le_sensitivity (f : BooleanFunction n) :
     spectralSensitivity f ≤ sensitivity f := by
-  refine spectralSensitivity_le_of_forall_sum_le (Nat.cast_nonneg _) fun u w hu hw hu1 hw1 => ?_
+  refine spectralSensitivity_le_of_forall_sum_le (Nat.cast_nonneg _) fun u w _ _ hu1 hw1 => ?_
   have hdeg (v : BitString n → ℝ) (hv1 : ∑ x, v x ^ 2 = 1) :
-      ∑ x, ∑ _i ∈ sensitiveCoords f x, v x ^ 2 ≤ sensitivity f := by
+      ∑ x, ∑ _i ∈ sensitiveCoords f x, v x ^ 2 ≤ sensitivity f :=
     calc ∑ x, ∑ _i ∈ sensitiveCoords f x, v x ^ 2 = ∑ x, (sensitivityAt f x : ℝ) * v x ^ 2 := by
           simp [sum_const, sensitivityAt]
       _ ≤ ∑ x, (sensitivity f : ℝ) * v x ^ 2 := sum_le_sum fun x _ =>
@@ -246,15 +225,13 @@ theorem spectralSensitivity_le_sensitivity (f : BooleanFunction n) :
             (sq_nonneg _)
       _ = sensitivity f := by rw [← mul_sum, hv1, mul_one]
   have h₁ := hdeg u hu1
-  have h₂ := hdeg w hw1
-  rw [← sum_sum_sensitiveCoords_update f fun _ y => w y ^ 2] at h₂
+  have h₂ := sum_sum_sensitiveCoords_update f (fun _ y => w y ^ 2) ▸ hdeg w hw1
   have h₃ : ∑ x, ∑ i ∈ sensitiveCoords f x, u x * w (update x i (!x i)) ≤
       (∑ x, ∑ _i ∈ sensitiveCoords f x, u x ^ 2 +
         ∑ x, ∑ i ∈ sensitiveCoords f x, w (update x i (!x i)) ^ 2) / 2 := by
-    rw [← sum_add_distrib, sum_div]
-    refine sum_le_sum fun x _ => ?_
-    rw [← sum_add_distrib, sum_div]
-    exact sum_le_sum fun i _ => by nlinarith [sq_nonneg (u x - w (update x i (!x i)))]
+    simp only [← sum_add_distrib, sum_div]
+    exact sum_le_sum fun x _ => sum_le_sum fun i _ =>
+      by nlinarith [sq_nonneg (u x - w (update x i (!x i)))]
   linarith
 
 end BitString
@@ -269,8 +246,7 @@ Theorem 1, from the proof of [Huang2019]. -/
 theorem degree_le_spectralSensitivity_sq (f : BooleanFunction n) :
     (degree f : ℝ) ≤ spectralSensitivity f ^ 2 := by
   rcases Nat.eq_zero_or_pos (degree f) with h0 | hpos
-  · rw [h0, Nat.cast_zero]
-    positivity
+  · rw [h0, Nat.cast_zero]; positivity
   rw [degree_eq_totalDegree_signVal] at hpos ⊢
   obtain ⟨S, hS, hne⟩ := exists_card_eq_totalDegree_fourierCoeff_ne_zero hpos.ne'
   obtain ⟨V, hV, hsens⟩ := exists_two_pow_lt_two_mul_card_forall_isSensitiveCoord hne
@@ -279,14 +255,12 @@ theorem degree_le_spectralSensitivity_sq (f : BooleanFunction n) :
   have h : √(#S : ℝ) ≤ spectralSensitivity f := by
     refine le_spectralSensitivity_of_le_sum hv hv0 fun x => ?_
     by_cases hx : x ∈ V
-    · refine (hvS x).trans (sum_le_sum_of_subset_of_nonneg (fun i hi => ?_) fun i _ _ => hv _)
-      obtain ⟨hiS, hiV⟩ := mem_filter.1 hi
-      exact mem_sensitiveCoords.2 (hsens x hx i hiS hiV)
-    · rw [hvV x hx, mul_zero]
-      exact sum_nonneg fun i _ => hv _
-  rw [← hS]
-  calc (#S : ℝ) = √(#S : ℝ) ^ 2 := (Real.sq_sqrt (Nat.cast_nonneg _)).symm
-    _ ≤ spectralSensitivity f ^ 2 := by gcongr
+    · exact (hvS x).trans (sum_le_sum_of_subset_of_nonneg
+        (fun i hi => mem_sensitiveCoords.2 (hsens x hx i (mem_filter.1 hi).1 (mem_filter.1 hi).2))
+        fun _ _ _ => hv _)
+    · rw [hvV x hx, mul_zero]; exact sum_nonneg fun _ _ => hv _
+  rw [← hS, ← Real.sq_sqrt (Nat.cast_nonneg #S)]
+  gcongr
 
 end QueryComplexity
 

@@ -78,16 +78,13 @@ def rename (π : ℕ → ℕ) (I : Instance) : Instance :=
 
 @[simp] theorem rename_id (I : Instance) : I.rename id = I := by
   obtain ⟨cs, obj, pres⟩ := I
-  have ht : ∀ t, renameTerm id t = t := fun ⟨a, v, b⟩ => rfl
-  have hc : ∀ c : PBConstr, renameConstr id c = c := fun ⟨ts, d⟩ => by
+  have hc (c : PBConstr) : renameConstr id c = c := by
+    rcases c with ⟨ts, d⟩
     simp only [renameConstr, PBConstr.mk.injEq, and_true]
-    conv_rhs => rw [← List.map_id ts]
-    exact List.map_congr_left fun t _ => ht t
-  have ho : ∀ f : Objective, renameObj id f = f := fun ⟨l, k⟩ => by simp [renameObj]
-  have hcs : cs.map (renameConstr id) = cs := by
-    conv_rhs => rw [← List.map_id cs]
-    exact List.map_congr_left fun c _ => hc c
-  cases obj <;> cases pres <;> simp [rename, hcs, ho]
+    exact (List.map_congr_left fun ⟨_, _, _⟩ _ => rfl).trans (List.map_id ts)
+  have hcs : cs.map (renameConstr id) = cs :=
+    (List.map_congr_left fun c _ => hc c).trans (List.map_id cs)
+  cases obj <;> cases pres <;> simp [rename, renameObj, hcs]
 
 /-- The variables of the constraints and of the objective. -/
 def vars (I : Instance) : Set ℕ :=
@@ -116,9 +113,7 @@ theorem mem_allVars_of_preserved {I : Instance} {P : List ℕ} (hP : I.preserved
 
 theorem holds_renameConstr (π : ℕ → ℕ) (c : PBConstr) (σ : ℕ → Bool) :
     (renameConstr π c).Holds σ ↔ c.Holds (σ ∘ π) := by
-  suffices lhs σ (renameConstr π c).terms = lhs (σ ∘ π) c.terms by
-    unfold Holds; rw [this]; rfl
-  simp only [renameConstr, lhs, List.map_map]
+  simp only [Holds, renameConstr, lhs, List.map_map]
   rfl
 
 theorem eval_renameObj (π : ℕ → ℕ) (f : Objective) (σ : ℕ → Bool) :
@@ -190,12 +185,10 @@ theorem valuesVia_eq {α : Type*} {e : ℕ → α} {I : Instance} {P : List ℕ}
   · rintro ⟨τ, hτ, rfl⟩
     exact ⟨τ ∘ e, hτ, rfl⟩
   · rintro ⟨σ, hσ, rfl⟩
-    refine ⟨fun a => σ (Function.invFunOn e (I.vars ∪ {v | v ∈ P}) a), ?_⟩
-    have hag : ∀ v ∈ I.vars ∪ {v | v ∈ P},
-        (fun a => σ (Function.invFunOn e (I.vars ∪ {v | v ∈ P}) a)) (e v) = σ v :=
-      fun v hv => congrArg σ (he.leftInvOn_invFunOn hv)
-    obtain ⟨h1, h2, h3⟩ := values_congr (P := P) (I := I) hag
-    exact ⟨h1.2 hσ, by simp only [Function.comp_def] at h2 h3 ⊢; rw [h2, h3]; rfl⟩
+    let τ (a : α) := σ (Function.invFunOn e (I.vars ∪ {v | v ∈ P}) a)
+    obtain ⟨h1, h2, h3⟩ := values_congr (P := P) (I := I)
+      (σ := τ ∘ e) fun v hv => congrArg σ (he.leftInvOn_invFunOn hv)
+    exact ⟨τ, h1.2 hσ, Prod.ext h2.symm h3.symm⟩
 
 /-- An injective renaming keeps the values and projections. -/
 theorem values_rename_eq {π : ℕ → ℕ} {I : Instance} {P : List ℕ}
@@ -210,27 +203,21 @@ theorem satisfiable_iff (I : Instance) : I.Satisfiable ↔ (I.values []).Nonempt
 /-- A property of the value and projection of some solution. -/
 theorem exists_iff (I : Instance) (P : List ℕ) (p : ℤ → List Bool → Prop) :
     (∃ σ, (∀ c ∈ I.constraints, c.Holds σ) ∧ p (objValue I.objective σ) (proj P σ)) ↔
-      ∃ x ∈ I.values P, p x.1 x.2 := by
-  refine ⟨fun ⟨σ, hσ, h⟩ => ⟨_, mem_values.2 ⟨σ, hσ, rfl⟩, h⟩, fun ⟨x, hx, h⟩ => ?_⟩
-  obtain ⟨σ, hσ, rfl⟩ := mem_values.1 hx
-  exact ⟨σ, hσ, h⟩
+      ∃ x ∈ I.values P, p x.1 x.2 :=
+  ⟨fun ⟨σ, hσ, h⟩ => ⟨_, ⟨σ, hσ, rfl⟩, h⟩, fun ⟨_, ⟨σ, hσ, rfl⟩, h⟩ => ⟨σ, hσ, h⟩⟩
 
 /-- The projections of the solutions. -/
 theorem projections_eq (I : Instance) (P : List ℕ) :
-    projections I.constraints P = Prod.snd '' I.values P := by
-  ext l
-  refine ⟨fun ⟨σ, hσ, hl⟩ => ⟨_, mem_values.2 ⟨σ, hσ, rfl⟩, hl⟩, fun ⟨x, hx, hl⟩ => ?_⟩
-  obtain ⟨σ, hσ, rfl⟩ := mem_values.1 hx
-  exact ⟨σ, hσ, hl⟩
+    projections I.constraints P = Prod.snd '' I.values P :=
+  Set.ext fun _ => ⟨fun ⟨σ, hσ, hl⟩ => ⟨_, ⟨σ, hσ, rfl⟩, hl⟩,
+    fun ⟨_, ⟨σ, hσ, rfl⟩, hl⟩ => ⟨σ, hσ, hl⟩⟩
 
 /-- The projections of the solutions of value at most `v`. -/
 theorem image_solsLE (I : Instance) (P : List ℕ) (v : ℤ) :
-    proj P '' I.solsLE v = Prod.snd '' {x ∈ I.values P | x.1 ≤ v} := by
-  ext l
-  refine ⟨fun ⟨σ, ⟨hσ, hv⟩, hl⟩ => ⟨_, ⟨mem_values.2 ⟨σ, hσ, rfl⟩, hv⟩, hl⟩,
-    fun ⟨x, ⟨hx, hv⟩, hl⟩ => ?_⟩
-  obtain ⟨σ, hσ, rfl⟩ := mem_values.1 hx
-  exact ⟨σ, ⟨hσ, hv⟩, hl⟩
+    proj P '' I.solsLE v = Prod.snd '' {x ∈ I.values P | x.1 ≤ v} :=
+  Set.ext fun _ =>
+    ⟨fun ⟨σ, ⟨hσ, hv⟩, hl⟩ => ⟨_, ⟨⟨σ, hσ, rfl⟩, hv⟩, hl⟩,
+      fun ⟨_, ⟨⟨σ, hσ, rfl⟩, hv⟩, hl⟩ => ⟨σ, ⟨hσ, hv⟩, hl⟩⟩
 
 /-! ### Output guarantees -/
 
@@ -243,7 +230,7 @@ private theorem nonempty_solsLE_rename {π : ℕ → ℕ} {I : Instance} (hπ : 
     (v : ℤ) : ((I.rename π).solsLE v).Nonempty ↔ (I.solsLE v).Nonempty := by
   have h := values_rename_eq (P := []) (I := I) (hπ.mono (by simp))
   simp only [List.map_nil] at h
-  have key : ∀ J : Instance, (J.solsLE v).Nonempty ↔ ∃ x ∈ J.values [], x.1 ≤ v := fun J =>
+  have key (J : Instance) : (J.solsLE v).Nonempty ↔ ∃ x ∈ J.values [], x.1 ≤ v :=
     ⟨fun ⟨σ, hσ, hv⟩ => (exists_iff J [] fun o _ => o ≤ v).1 ⟨σ, hσ, hv⟩,
       fun h => let ⟨σ, hσ, hv⟩ := (exists_iff J [] fun o _ => o ≤ v).2 h; ⟨σ, hσ, hv⟩⟩
   rw [key, key, h]
@@ -260,40 +247,33 @@ theorem semOutput_rename_iff {π : ℕ → ℕ} {I O : Instance} {b : Option ℤ
     semOutput (I.rename π) b (O.rename π) g ↔ semOutput I b O g := by
   have hI : I.vars ⊆ I.allVars ∪ O.allVars := fun v hv => .inl (vars_subset_allVars I hv)
   have hO : O.vars ⊆ I.allVars ∪ O.allVars := fun v hv => .inr (vars_subset_allVars O hv)
-  have hsat : ∀ J : Instance, Set.InjOn π J.vars →
-      ((J.rename π).Satisfiable ↔ J.Satisfiable) := fun J hJ => by
+  have hsat (J : Instance) (hJ : Set.InjOn π J.vars) :
+      (J.rename π).Satisfiable ↔ J.Satisfiable := by
     have h := values_rename_eq (P := []) (I := J) (hJ.mono (by simp))
     simp only [List.map_nil] at h
     rw [satisfiable_iff, satisfiable_iff, h]
   cases g with
-  | derivable =>
-    exact imp_congr (hsat I (hπ.mono hI)) (hsat O (hπ.mono hO))
-  | equisatisfiable =>
-    exact iff_congr (hsat I (hπ.mono hI)) (hsat O (hπ.mono hO))
+  | derivable => exact imp_congr (hsat I (hπ.mono hI)) (hsat O (hπ.mono hO))
+  | equisatisfiable => exact iff_congr (hsat I (hπ.mono hI)) (hsat O (hπ.mono hO))
   | equioptimal =>
     exact forall_congr' fun v => imp_congr_right fun _ =>
       iff_congr (nonempty_solsLE_rename (hπ.mono hI) v) (nonempty_solsLE_rename (hπ.mono hO) v)
   | equienumerable =>
     simp only [semOutput]
-    have hPS : ∀ {P}, I.preserved = some P → ∀ v ∈ P, v ∈ I.allVars ∪ O.allVars :=
-      fun hP v hv => .inl (mem_allVars_of_preserved hP hv)
-    have hQS : ∀ {Q}, O.preserved = some Q → ∀ v ∈ Q, v ∈ I.allVars ∪ O.allVars :=
-      fun hQ v hv => .inr (mem_allVars_of_preserved hQ hv)
-    constructor
+    refine ⟨?_, fun ⟨P, Q, hP, hQ, hbij⟩ =>
+      ⟨P.map π, Q.map π, by simp [rename, hP], by simp [rename, hQ], fun v hv => ?_⟩⟩
     · rintro ⟨P', Q', hP', hQ', hbij⟩
-      change Option.map _ I.preserved = some P' at hP'
-      change Option.map _ O.preserved = some Q' at hQ'
       obtain ⟨P, hP, rfl⟩ := Option.map_eq_some_iff.1 hP'
       obtain ⟨Q, hQ, rfl⟩ := Option.map_eq_some_iff.1 hQ'
       refine ⟨P, Q, hP, hQ, fun v hv => ?_⟩
-      have h := hbij v hv
-      rwa [image_solsLE_rename (injOn_vars hπ hI (hPS hP)),
-        image_solsLE_rename (injOn_vars hπ hO (hQS hQ))] at h
-    · rintro ⟨P, Q, hP, hQ, hbij⟩
-      refine ⟨P.map π, Q.map π, by simp [rename, hP], by simp [rename, hQ], fun v hv => ?_⟩
-      rw [image_solsLE_rename (injOn_vars hπ hI (hPS hP)),
-        image_solsLE_rename (injOn_vars hπ hO (hQS hQ))]
-      exact hbij v hv
+      simpa only [image_solsLE_rename
+          (injOn_vars hπ hI fun _ hv => .inl (mem_allVars_of_preserved hP hv)),
+        image_solsLE_rename
+          (injOn_vars hπ hO fun _ hv => .inr (mem_allVars_of_preserved hQ hv))] using hbij v hv
+    · simpa only [image_solsLE_rename
+          (injOn_vars hπ hI fun _ hv => .inl (mem_allVars_of_preserved hP hv)),
+        image_solsLE_rename
+          (injOn_vars hπ hO fun _ hv => .inr (mem_allVars_of_preserved hQ hv))] using hbij v hv
 
 end Instance
 

@@ -217,12 +217,9 @@ private theorem lorRun_map_eq {γ : Type} [Finite γ] (D : PMF γ) (answer : Boo
       (pi fun _ : Fin q => D).bind fun rows => lorRunRows answer adversary bit q rows state := by
   induction q generalizing state with
   | zero =>
-    have hpi : (pi fun _ : Fin 0 => D) = PMF.pure finZeroElim := by
-      ext rows
-      have : rows = finZeroElim := Subsingleton.elim _ _
-      subst this
-      simp
-    simp [lorRun, lorRunRows, hpi]
+    rw [show (pi fun _ : Fin 0 => D) = PMF.pure finZeroElim from
+      PMF.ext fun rows => by rw [Subsingleton.elim rows finZeroElim]; simp]
+    simp [lorRun, lorRunRows]
   | succ q ih =>
     rw [pi_fin_succ]
     simp only [lorRun, lorRunRows, PMF.monad_bind_eq_bind, PMF.bind_map, Function.comp_def, ih,
@@ -281,24 +278,18 @@ private theorem lorGame_uniform_eq_bind (Q : ℕ) (adversary : LoRAdversary n m 
   congr 1 with A : 1
   rw [PMF.bind_comm]
   congr 1 with state : 1
-  have hrows : PMF.uniformOfFintype (Matrix (Fin Q) (Fin m) Bool) =
-      pi fun _ : Fin Q => PMF.uniformOfFintype (Fin m → Bool) :=
-    (PMF.pi_uniformOfFintype).symm
-  rw [hrows, lorRun_map_eq, PMF.bind_bind]
+  rw [show PMF.uniformOfFintype (Matrix (Fin Q) (Fin m) Bool) =
+      pi fun _ : Fin Q => PMF.uniformOfFintype (Fin m → Bool) from PMF.pi_uniformOfFintype.symm,
+    lorRun_map_eq, PMF.bind_bind]
   congr 1 with X : 1
-  have hmul : _root_.Matrix.map (X : Matrix (Fin Q) (Fin m) Bool)
-      (fun bit => (bit.toNat : ZMod (2 ^ w))) * A =
-      fun i => coinVector w (X i) ᵥ* A := by
+  rw [show _root_.Matrix.map (X : Matrix (Fin Q) (Fin m) Bool)
+      (fun bit => (bit.toNat : ZMod (2 ^ w))) * A = fun i => coinVector w (X i) ᵥ* A by
     ext i j
     simp only [Matrix.mul_apply, Matrix.vecMul, dotProduct, coinVector]
-    refine Finset.sum_congr rfl fun k _ => ?_
-    rfl
-  rw [hmul]
-  refine congrArg (fun dist : PMF State => dist.bind adversary.guess) ?_
-  change lorRunRows (fun μ row => coinVector w row ᵥ* A + Pi.single 0 (LWE.encodeBit w μ))
-    adversary bit Q X state = _
-  exact lorRunRows_comp (fun μ c => c + Pi.single 0 (LWE.encodeBit w μ))
-    (fun x => coinVector w x ᵥ* A) adversary bit Q X state
+    rfl]
+  exact congrArg (fun dist : PMF State => dist.bind adversary.guess)
+    (lorRunRows_comp (fun μ c => c + Pi.single 0 (LWE.encodeBit w μ))
+      (fun x => coinVector w x ᵥ* A) adversary bit Q X state)
 
 private theorem idealLorGame_eq_bind (Q : ℕ) (adversary : LoRAdversary n m w State)
     (bit : Bool) :
@@ -310,10 +301,8 @@ private theorem idealLorGame_eq_bind (Q : ℕ) (adversary : LoRAdversary n m w S
   congr 1 with A : 1
   rw [PMF.bind_comm]
   congr 1 with state : 1
-  have hrows : PMF.uniformOfFintype (Matrix (Fin Q) (Fin (n + 1)) (ZMod (2 ^ w))) =
-      pi fun _ : Fin Q => PMF.uniformOfFintype (Ciphertext n w) :=
-    (PMF.pi_uniformOfFintype).symm
-  rw [hrows]
+  rw [show PMF.uniformOfFintype (Matrix (Fin Q) (Fin (n + 1)) (ZMod (2 ^ w))) =
+      pi fun _ : Fin Q => PMF.uniformOfFintype (Ciphertext n w) from PMF.pi_uniformOfFintype.symm]
   have hmap := lorRun_map_eq (PMF.uniformOfFintype (Ciphertext n w))
     (fun μ c => c + Pi.single 0 (LWE.encodeBit w μ)) adversary bit Q state
   simp only [uniform_map_add] at hmap
@@ -340,13 +329,11 @@ theorem lorGame_uniform_advantage_le (Q : ℕ) (adversary : LoRAdversary n m w S
         (lorGame (PMF.uniformOfFintype (PublicKey n m w)) Q adversary true) : ℝ) ≤
       Q * Real.sqrt ((2 : ℝ) ^ ((n + 1) * w) / (2 : ℝ) ^ m) := by
   rw [Game.advantage_eq_nndist, coe_nndist]
-  have hfalse := dist_lorGame_uniform_ideal_le Q adversary false
-  have htrue := dist_lorGame_uniform_ideal_le Q adversary true
-  have htriangle := dist_triangle_right
-    (lorGame (PMF.uniformOfFintype (PublicKey n m w)) Q adversary false)
-    (lorGame (PMF.uniformOfFintype (PublicKey n m w)) Q adversary true)
-    (idealLorGame Q adversary)
-  linarith
+  linarith [dist_lorGame_uniform_ideal_le Q adversary false,
+    dist_lorGame_uniform_ideal_le Q adversary true,
+    dist_triangle_right (lorGame (PMF.uniformOfFintype (PublicKey n m w)) Q adversary false)
+      (lorGame (PMF.uniformOfFintype (PublicKey n m w)) Q adversary true)
+      (idealLorGame Q adversary)]
 
 /-- The single-challenge experiment: draw a public matrix from `keys` and run the left-or-right
 experiment `lrExperiment` with Regev encryption. Every challenge pair is admissible. The typed
@@ -408,8 +395,7 @@ noncomputable def lorDistinguisher (Q : ℕ) (adversary : LoRAdversary n m w Sta
 theorem lorGame_eq_bind_lorDistinguisher (keys : PMF (PublicKey n m w)) (Q : ℕ)
     (adversary : LoRAdversary n m w State) (bit : Bool) :
     lorGame keys Q adversary bit = keys.bind (lorDistinguisher Q adversary bit) := by
-  simp only [lorGame, PMF.monad_bind_eq_bind]
-  congr 1 with A : 1
+  refine congrArg keys.bind (funext fun A => ?_)
   simp only [lorDistinguisher, lorGame, PMF.monad_bind_eq_bind, PMF.pure_bind]
 
 /-- Concrete adaptive `Q`-query left-or-right security under the actual public-key law: the
@@ -429,13 +415,12 @@ theorem lorGame_advantage_le (errorLaw : PMF (ZMod (2 ^ w))) (Q : ℕ)
         Q * Real.sqrt ((2 : ℝ) ^ ((n + 1) * w) / (2 : ℝ) ^ m) := by
   have huniform := lorGame_uniform_advantage_le Q adversary
   simp only [Game.advantage_eq_nndist, coe_nndist, lorGame_eq_bind_lorDistinguisher] at huniform ⊢
-  have h := dist_triangle4
-    ((LWE.publicMatrixLaw n m errorLaw).bind (lorDistinguisher Q adversary false))
-    ((PMF.uniformOfFintype (PublicKey n m w)).bind (lorDistinguisher Q adversary false))
-    ((PMF.uniformOfFintype (PublicKey n m w)).bind (lorDistinguisher Q adversary true))
-    ((LWE.publicMatrixLaw n m errorLaw).bind (lorDistinguisher Q adversary true))
-  rw [dist_comm ((PMF.uniformOfFintype (PublicKey n m w)).bind (lorDistinguisher Q adversary true))
-    ((LWE.publicMatrixLaw n m errorLaw).bind (lorDistinguisher Q adversary true))] at h
-  linarith
+  linarith [dist_triangle4
+      ((LWE.publicMatrixLaw n m errorLaw).bind (lorDistinguisher Q adversary false))
+      ((PMF.uniformOfFintype (PublicKey n m w)).bind (lorDistinguisher Q adversary false))
+      ((PMF.uniformOfFintype (PublicKey n m w)).bind (lorDistinguisher Q adversary true))
+      ((LWE.publicMatrixLaw n m errorLaw).bind (lorDistinguisher Q adversary true)),
+    dist_comm ((PMF.uniformOfFintype (PublicKey n m w)).bind (lorDistinguisher Q adversary true))
+      ((LWE.publicMatrixLaw n m errorLaw).bind (lorDistinguisher Q adversary true))]
 
 end Cslib.Crypto.Regev

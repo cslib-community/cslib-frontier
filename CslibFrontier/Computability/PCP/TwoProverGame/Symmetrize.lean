@@ -66,21 +66,17 @@ private noncomputable def roleState (ψ : EuclideanSpace ℂ (ι × κ)) :
 omit [DecidableEq ι] [DecidableEq κ] in
 private theorem norm_roleState (ψ : EuclideanSpace ℂ (ι × κ)) (hψ : ‖ψ‖ = 1) :
     ‖roleState ψ‖ = 1 := by
-  have hsum : (∑ p : ι × κ, ‖ψ.ofLp p‖ ^ 2) = 1 := by
-    have h := congrArg (· ^ 2) hψ
-    rw [EuclideanSpace.norm_eq, Real.sq_sqrt (by positivity), one_pow] at h
-    exact h
-  have hnorm : ‖WithLp.toLp 2 (roleVec ψ.ofLp)‖ = √(2 : ℝ) := by
-    rw [EuclideanSpace.norm_eq]
-    congr 1
-    simp only [Fintype.sum_prod_type, Fintype.sum_sum_type, roleVec,
-      norm_zero, zero_pow (by decide : (2 : ℕ) ≠ 0), sum_const_zero, zero_add, add_zero]
-    rw [Finset.sum_comm (γ := κ) (α := ι)]
-    rw [Fintype.sum_prod_type] at hsum
-    rw [hsum]
-    norm_num
+  have hsum : (∑ i, ∑ j, ‖ψ.ofLp (i, j)‖ ^ 2) = 1 := by
+    rw [EuclideanSpace.norm_eq] at hψ
+    have h1 : (∑ p, ‖ψ.ofLp p‖ ^ 2) = 1 := by
+      rw [← Real.sq_sqrt (Finset.sum_nonneg fun _ _ => sq_nonneg _), hψ, one_pow]
+    rwa [Fintype.sum_prod_type] at h1
   rw [roleState, norm_smul, norm_inv, Complex.norm_real, Real.norm_eq_abs,
-    abs_of_nonneg (Real.sqrt_nonneg _), hnorm, inv_mul_cancel₀ (by positivity)]
+    abs_of_nonneg (Real.sqrt_nonneg _), EuclideanSpace.norm_eq]
+  simp only [Fintype.sum_prod_type, Fintype.sum_sum_type, roleVec, norm_zero,
+    zero_pow (by decide : (2 : ℕ) ≠ 0), sum_const_zero, zero_add, add_zero]
+  rw [Finset.sum_comm (γ := κ) (α := ι), hsum, show (1 + 1 : ℝ) = 2 by norm_num,
+    inv_mul_cancel₀ (by positivity)]
 
 /-- Add the two possible assignments of player roles on disjoint local summands. -/
 noncomputable def symmetrize (S : QuantumStrategy Q Q A A ι κ) :
@@ -133,13 +129,9 @@ private theorem roleVec_coeff (v : ι × κ → ℂ)
       star v ⬝ᵥ ((X ⊗ₖ R.toBlocks₂₂) *ᵥ v) +
       star v ⬝ᵥ ((R.toBlocks₁₁ ⊗ₖ Y) *ᵥ v) := by
   simp only [dotProduct, Fintype.sum_prod_type, Fintype.sum_sum_type, Pi.star_apply, roleVec,
-    star_zero, zero_mul, sum_const_zero, zero_add, add_zero]
+    star_zero, zero_mul, sum_const_zero, zero_add, add_zero, roleVec_mulVec_inl_inr,
+    roleVec_mulVec_inr_inl]
   rw [Finset.sum_comm (γ := κ) (α := ι)]
-  congr 1
-  · exact sum_congr rfl fun i _ => sum_congr rfl fun j _ => by
-      rw [roleVec_mulVec_inl_inr]
-  · exact sum_congr rfl fun i _ => sum_congr rfl fun j _ => by
-      rw [roleVec_mulVec_inr_inl]
 
 /-- An observable on the other side of one symmetrized measurement is read through
 its two diagonal blocks. Each block contributes half of the corresponding
@@ -149,18 +141,16 @@ theorem symmetrize_expectation (S : QuantumStrategy Q Q A A ι κ) (q : Q) (a : 
     S.symmetrize.toCommuting.state ((S.symmetrize.alice q).effect a ⊗ₖ R) =
       (S.toCommuting.state ((S.alice q).effect a ⊗ₖ R.toBlocks₂₂) +
         S.toCommuting.state (R.toBlocks₁₁ ⊗ₖ (S.bob q).effect a)) / 2 := by
-  let t := ((Real.sqrt 2 : ℂ)⁻¹)
-  have ht : star t * t = (2 : ℂ)⁻¹ := by
-    dsimp only [t]
+  let t : ℂ := (Real.sqrt 2 : ℂ)⁻¹
+  have ht : star t * t = 2⁻¹ := by
     rw [star_inv₀, Complex.star_def, Complex.conj_ofReal, ← mul_inv, ← pow_two,
       ← Complex.ofReal_pow, Real.sq_sqrt (by norm_num)]
     norm_num
   change star (t • roleVec S.state.ofLp) ⬝ᵥ
       ((fromBlocks (S.alice q |>.effect a) 0 0 (S.bob q |>.effect a) ⊗ₖ R) *ᵥ
         (t • roleVec S.state.ofLp)) = _
-  rw [star_smul, mulVec_smul, smul_dotProduct, dotProduct_smul]
-  simp only [smul_eq_mul]
-  rw [← mul_assoc, ht, roleVec_coeff, ← div_eq_inv_mul]
+  rw [star_smul, mulVec_smul, smul_dotProduct, dotProduct_smul, smul_eq_mul, smul_eq_mul,
+    ← mul_assoc, ht, roleVec_coeff, ← div_eq_inv_mul]
   rfl
 
 /-- The correlation of the symmetrized strategy is the mean of the original
@@ -212,10 +202,8 @@ theorem symmetrize_agreement {V : Type*} [Fintype V] [DecidableEq V]
   rw [Finset.sum_comm (γ := B) (α := A), ← sum_add_distrib, sum_div]
   refine sum_congr rfl fun a _ => ?_
   rw [← sum_add_distrib, sum_div]
-  refine sum_congr rfl fun b _ => ?_
-  by_cases he : f a = g b
-  · simp only [he, ite_true, h]
-  · simp only [he, Ne.symm he, ite_false, zero_add, zero_div]
+  exact sum_congr rfl fun b _ =>
+    if he : f a = g b then by simp [he, h] else by simp [he, Ne.symm he]
 
 end Cslib.PCP.QuantumStrategy
 
@@ -235,21 +223,17 @@ theorem quantumWinProb_symmetrize (G : TwoProverGame Q Q A A)
     G.quantumWinProb S.symmetrize = G.quantumWinProb S := by
   classical
   let _ := Fintype.ofFinite Q
-  let score (p : Q → Q → A → A → ℝ) :=
-    ∑ x, ∑ y, (G.questions (x, y)).toReal * ∑ a, ∑ b,
-      if G.accepts x y a b then p x y a b else 0
+  let score (p : Q → Q → A → A → ℝ) := ∑ x, ∑ y, (G.questions (x, y)).toReal *
+    ∑ a, ∑ b, if G.accepts x y a b then p x y a b else 0
   let rev x y a b := S.prob y x b a
   have hrev : score rev = score S.prob := by
-    unfold score rev
+    dsimp only [score, rev]
     rw [Finset.sum_comm]
     refine sum_congr rfl fun x _ => sum_congr rfl fun y _ => ?_
-    rw [hquestions]
-    congr 1
-    rw [Finset.sum_comm]
-    exact sum_congr rfl fun a _ => sum_congr rfl fun b _ => by rw [haccepts]
-  have hmean (x y : Q) (a b : A) :
-      (if G.accepts x y a b then S.symmetrize.prob x y a b else 0) =
-        (if G.accepts x y a b then S.prob x y a b else 0) / 2 +
+    rw [hquestions, Finset.sum_comm]
+    exact congrArg _ (sum_congr rfl fun a _ => sum_congr rfl fun b _ => by rw [haccepts])
+  have hmean (x y a b) : (if G.accepts x y a b then S.symmetrize.prob x y a b else 0) =
+      (if G.accepts x y a b then S.prob x y a b else 0) / 2 +
         (if G.accepts x y a b then rev x y a b else 0) / 2 := by
     rw [QuantumStrategy.symmetrize_prob]
     split_ifs <;> (try dsimp only [rev]) <;> ring

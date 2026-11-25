@@ -104,7 +104,7 @@ theorem blackPebbleGame_tr {s : ℕ} {C D : Finset V} {m : Move V} :
 theorem BlackStep.eq_insert_of_mem {C D : Finset V} {m : Move V} (h : BlackStep G C m D)
     {x : V} (hxD : x ∈ D) (hxC : x ∉ C) : (∀ u, G.Adj u x → u ∈ C) ∧ D = insert x C := by
   cases h with
-  | @place v h =>
+  | place h =>
     rcases Finset.mem_insert.1 hxD with rfl | hx
     · exact ⟨h, rfl⟩
     · exact absurd hx hxC
@@ -123,13 +123,12 @@ theorem card_le_of_blackPebbleGame_mTr {s : ℕ} {C D : Finset V} {ms : List (Mo
   | stepL h _ ih => exact ih h.2
 
 theorem BlackPebblable.mono {s t : ℕ} (hst : s ≤ t) {v : V} (h : BlackPebblable G s v) :
-    BlackPebblable G t v := by
-  obtain ⟨ms, C, hC, hv⟩ := h
-  exact ⟨ms, C, blackPebbleGame_mTr_mono hst hC, hv⟩
+    BlackPebblable G t v :=
+  let ⟨ms, C, hC, hv⟩ := h; ⟨ms, C, blackPebbleGame_mTr_mono hst hC, hv⟩
 
-theorem BlackPebblable.one_le {s : ℕ} {v : V} (h : BlackPebblable G s v) : 1 ≤ s := by
-  obtain ⟨ms, C, hC, hv⟩ := h
-  exact (Finset.card_pos.2 ⟨v, hv⟩).trans_le (card_le_of_blackPebbleGame_mTr hC (by simp))
+theorem BlackPebblable.one_le {s : ℕ} {v : V} (h : BlackPebblable G s v) : 1 ≤ s :=
+  let ⟨_, _, hC, hv⟩ := h
+  (Finset.card_pos.2 ⟨v, hv⟩).trans_le (card_le_of_blackPebbleGame_mTr hC (by simp))
 
 /-- Removing the pebbles of `D` one at a time. -/
 theorem exists_blackPebbleGame_mTr_sdiff {s : ℕ} {C : Finset V} (hC : C.card ≤ s)
@@ -145,14 +144,10 @@ theorem exists_blackPebbleGame_mTr_sdiff {s : ℕ} {C : Finset V} (hC : C.card �
 /-- A vertex is pebblable exactly when some run ends with a pebble on that vertex alone. -/
 theorem blackPebblable_iff_exists_mTr_singleton {s : ℕ} {v : V} :
     BlackPebblable G s v ↔ ∃ ms, (blackPebbleGame G s).MTr ∅ ms {v} := by
-  constructor
-  · rintro ⟨ms, C, hC, hv⟩
-    obtain ⟨ms', h'⟩ := exists_blackPebbleGame_mTr_sdiff (G := G)
-      (card_le_of_blackPebbleGame_mTr hC (by simp)) (C.erase v)
-    rw [Finset.sdiff_erase_self hv] at h'
-    exact ⟨ms ++ ms', LTS.MTr.comp _ hC h'⟩
-  · rintro ⟨ms, h⟩
-    exact ⟨ms, {v}, h, Finset.mem_singleton_self v⟩
+  refine ⟨fun ⟨ms, C, hC, hv⟩ => ?_, fun ⟨ms, h⟩ => ⟨ms, {v}, h, Finset.mem_singleton_self v⟩⟩
+  obtain ⟨ms', h'⟩ := exists_blackPebbleGame_mTr_sdiff (G := G)
+    (card_le_of_blackPebbleGame_mTr hC (by simp)) (C.erase v)
+  exact ⟨ms ++ ms', LTS.MTr.comp _ hC (Finset.sdiff_erase_self hv ▸ h')⟩
 
 /-- Keeping the pebbles of `F` in place throughout a run costs at most `F.card` extra pebbles. -/
 theorem exists_blackPebbleGame_mTr_union {s : ℕ} {C D : Finset V} {ms : List (Move V)}
@@ -162,22 +157,18 @@ theorem exists_blackPebbleGame_mTr_union {s : ℕ} {C D : Finset V} {ms : List (
   | refl => exact ⟨[], .refl⟩
   | @stepL C₁ m C₂ ms C₃ hstep _ ih =>
     obtain ⟨ms', ih⟩ := ih
-    obtain ⟨hstep, hcard⟩ := hstep
     have hcard' : (C₂ ∪ F).card ≤ s + F.card :=
-      (Finset.card_union_le _ _).trans (Nat.add_le_add_right hcard _)
-    cases hstep with
+      (Finset.card_union_le _ _).trans (Nat.add_le_add_right hstep.2 _)
+    cases hstep.1 with
     | @place v hv =>
-      refine ⟨.place v :: ms', .stepL ⟨?_, hcard'⟩ ih⟩
-      rw [Finset.insert_union]
-      exact .place fun u hu => Finset.mem_union_left _ (hv u hu)
+      exact ⟨.place v :: ms', .stepL ⟨Finset.insert_union v C₁ F ▸
+        .place fun u hu => Finset.mem_union_left _ (hv u hu), hcard'⟩ ih⟩
     | @remove v =>
       by_cases hvF : v ∈ F
-      · rw [Finset.erase_union_of_mem hvF] at ih
-        exact ⟨ms', ih⟩
-      · have : C₁.erase v ∪ F = (C₁ ∪ F).erase v := by
-          rw [Finset.erase_union_distrib, Finset.erase_eq_of_notMem hvF]
-        refine ⟨.remove v :: ms', .stepL ⟨?_, hcard'⟩ ih⟩
-        rw [this]
+      · exact ⟨ms', Finset.erase_union_of_mem hvF C₁ ▸ ih⟩
+      · refine ⟨.remove v :: ms', .stepL ⟨?_, hcard'⟩ ih⟩
+        rw [show C₁.erase v ∪ F = (C₁ ∪ F).erase v by
+          rw [Finset.erase_union_distrib, Finset.erase_eq_of_notMem hvF]]
         exact .remove
 
 /-- Composition: if every predecessor of `v` lies in `ps` and can be pebbled with `s` pebbles,
@@ -185,9 +176,8 @@ then `v` can be pebbled with `t` pebbles whenever `#ps + 1 ≤ t` and `s + #ps �
 theorem BlackPebblable.of_forall_adj {s t : ℕ} {v : V} (ps : Finset V)
     (hps : ∀ u, G.Adj u v → u ∈ ps) (h : ∀ u ∈ ps, BlackPebblable G s u)
     (ht : ps.card + 1 ≤ t) (hst : s + ps.card ≤ t + 1) : BlackPebblable G t v := by
-  have key : ∀ Q : Finset V, (∀ u ∈ Q, BlackPebblable G s u) →
+  have key (Q : Finset V) : (∀ u ∈ Q, BlackPebblable G s u) →
       ∃ ms, (blackPebbleGame G (s + Q.card - 1)).MTr ∅ ms Q := by
-    intro Q
     induction Q using Finset.induction_on with
     | empty => exact fun _ => ⟨[], .refl⟩
     | @insert a Q haQ ih =>
@@ -200,40 +190,34 @@ theorem BlackPebblable.of_forall_adj {s t : ℕ} {v : V} (ps : Finset V)
       rw [Finset.card_insert_of_notMem haQ, show s + (Q.card + 1) - 1 = s + Q.card by omega]
       exact ⟨ms₁ ++ ms₃, LTS.MTr.comp _ (blackPebbleGame_mTr_mono (by omega) h₁) h₃⟩
   obtain ⟨ms, hms⟩ := key ps h
-  refine ⟨ms ++ [.place v], insert v ps,
-    LTS.MTr.stepR _ (blackPebbleGame_mTr_mono (by omega) hms) ⟨.place hps, ?_⟩,
-    Finset.mem_insert_self v ps⟩
-  exact (Finset.card_insert_le _ _).trans ht
+  exact ⟨ms ++ [.place v], insert v ps, LTS.MTr.stepR _ (blackPebbleGame_mTr_mono (by omega) hms)
+    ⟨.place hps, (Finset.card_insert_le _ _).trans ht⟩, Finset.mem_insert_self v ps⟩
 
 /-- On a finite graph without infinite descending chains of predecessors, every vertex can be
 pebbled with one pebble per vertex. -/
 theorem blackPebblable_fintypeCard [Fintype V] (hG : WellFounded G.Adj) (v : V) :
     BlackPebblable G (Fintype.card V) v := by
   classical
-  have hle : ∀ C : Finset V, C.card ≤ Fintype.card V := fun C => Finset.card_le_univ C
-  have key : ∀ v (C : Finset V), ∃ ms D, (blackPebbleGame G (Fintype.card V)).MTr C ms D ∧
-      C ⊆ D ∧ v ∈ D := by
-    intro v
-    induction v using hG.induction with
-    | _ v ih =>
-      intro C
-      have hpred : ∀ Q : Finset V, (∀ u ∈ Q, G.Adj u v) →
-          ∃ ms D, (blackPebbleGame G (Fintype.card V)).MTr C ms D ∧ C ⊆ D ∧ Q ⊆ D := by
-        intro Q
-        induction Q using Finset.induction_on with
-        | empty => exact fun _ => ⟨[], C, .refl, subset_rfl, Finset.empty_subset _⟩
-        | @insert a Q _ ihQ =>
-          intro hQ
-          obtain ⟨ms₁, D₁, h₁, hCD₁, hQD₁⟩ :=
-            ihQ fun u hu => hQ u (Finset.mem_insert_of_mem hu)
-          obtain ⟨ms₂, D₂, h₂, hD₁D₂, haD₂⟩ := ih a (hQ a (Finset.mem_insert_self a Q)) D₁
-          exact ⟨ms₁ ++ ms₂, D₂, LTS.MTr.comp _ h₁ h₂, hCD₁.trans hD₁D₂,
-            Finset.insert_subset haD₂ (hQD₁.trans hD₁D₂)⟩
-      obtain ⟨ms, D, hD, hCD, hpD⟩ :=
-        hpred (Finset.univ.filter fun u => G.Adj u v) fun u hu => (Finset.mem_filter.1 hu).2
-      refine ⟨ms ++ [.place v], insert v D, LTS.MTr.stepR _ hD ⟨.place fun u hu => hpD ?_, hle _⟩,
-        hCD.trans (Finset.subset_insert v D), Finset.mem_insert_self v D⟩
-      exact Finset.mem_filter.2 ⟨Finset.mem_univ u, hu⟩
+  have key (v : V) : ∀ C : Finset V, ∃ ms D,
+      (blackPebbleGame G (Fintype.card V)).MTr C ms D ∧ C ⊆ D ∧ v ∈ D := by
+    induction v using hG.induction with | _ v ih =>
+    intro C
+    have hpred (Q : Finset V) : (∀ u ∈ Q, G.Adj u v) →
+        ∃ ms D, (blackPebbleGame G (Fintype.card V)).MTr C ms D ∧ C ⊆ D ∧ Q ⊆ D := by
+      induction Q using Finset.induction_on with
+      | empty => exact fun _ => ⟨[], C, .refl, subset_rfl, Finset.empty_subset _⟩
+      | @insert a Q _ ihQ =>
+        intro hQ
+        obtain ⟨ms₁, D₁, h₁, hCD₁, hQD₁⟩ := ihQ fun u hu => hQ u (Finset.mem_insert_of_mem hu)
+        obtain ⟨ms₂, D₂, h₂, hD₁D₂, haD₂⟩ := ih a (hQ a (Finset.mem_insert_self a Q)) D₁
+        exact ⟨ms₁ ++ ms₂, D₂, LTS.MTr.comp _ h₁ h₂, hCD₁.trans hD₁D₂,
+          Finset.insert_subset haD₂ (hQD₁.trans hD₁D₂)⟩
+    obtain ⟨ms, D, hD, hCD, hpD⟩ :=
+      hpred (Finset.univ.filter (G.Adj · v)) fun _ hu => (Finset.mem_filter.1 hu).2
+    exact ⟨ms ++ [.place v], insert v D, LTS.MTr.stepR _ hD
+      ⟨.place fun u hu => hpD (Finset.mem_filter.2 ⟨Finset.mem_univ u, hu⟩),
+        Finset.card_le_univ _⟩,
+      hCD.trans (Finset.subset_insert v D), Finset.mem_insert_self v D⟩
   obtain ⟨ms, D, hD, -, hvD⟩ := key v ∅
   exact ⟨ms, D, hD, hvD⟩
 
@@ -246,9 +230,8 @@ theorem blackPebblable_blackPebblingPrice {s : ℕ} {v : V} (h : BlackPebblable 
   Nat.sInf_mem (s := {s | BlackPebblable G s v}) ⟨s, h⟩
 
 theorem blackPebblable_iff_blackPebblingPrice_le {s : ℕ} {v : V} (h : ∃ s, BlackPebblable G s v) :
-    BlackPebblable G s v ↔ blackPebblingPrice G v ≤ s := by
-  obtain ⟨s₀, h₀⟩ := h
-  exact ⟨blackPebblingPrice_le, fun hs => (blackPebblable_blackPebblingPrice h₀).mono hs⟩
+    BlackPebblable G s v ↔ blackPebblingPrice G v ≤ s :=
+  let ⟨_, h₀⟩ := h; ⟨blackPebblingPrice_le, (blackPebblable_blackPebblingPrice h₀).mono⟩
 
 /-- A vertex that no budget pebbles has price `0`. -/
 theorem blackPebblingPrice_eq_zero_of_forall_not {v : V} (h : ∀ s, ¬ BlackPebblable G s v) :
