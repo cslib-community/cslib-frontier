@@ -164,23 +164,26 @@ theorem count_eq {k : ℕ} {φ : CNF ℕ} (hk : ∀ c ∈ φ, c.length ≤ k) :
 
 /-! ### Resources -/
 
+private theorem guard_vars_bounds {k : ℕ} {φ : CNF ℕ} (hg : guard k φ = true) :
+    1 ≤ φ.vars.length ∧ φ.length ≤ φ.vars.length ∧ ∀ c ∈ φ, c.length ≤ k := by
+  obtain ⟨hne, hcl⟩ := guard_eq_true_iff.mp hg
+  have hm := length_le_length_vars fun c hc => (hcl c hc).1
+  exact ⟨Nat.lt_of_lt_of_le (List.length_pos_iff.mpr hne) hm, hm, fun c hc => (hcl c hc).2⟩
+
 /-- **Admissibility**: the clause network of a guarded formula with `N` literal occurrences is
 admissible at size `3 N`, its number of edges, with constant `k + 4`. -/
 theorem explicitAdmissible_clauseNetwork {k : ℕ} {φ : CNF ℕ} (hg : guard k φ = true) :
     ExplicitAdmissible (k + 4) (3 * φ.vars.length) (clauseNetwork k φ) := by
-  obtain ⟨hne, hcl⟩ := guard_eq_true_iff.mp hg
-  have hk : ∀ c ∈ φ, c.length ≤ k := fun c hc => (hcl c hc).2
-  have h1 : 1 ≤ φ.length := List.length_pos_iff.mpr hne
-  have hm := length_le_length_vars fun c hc => (hcl c hc).1
+  obtain ⟨hN, hm, hk⟩ := guard_vars_bounds hg
   have hlog : 1 ≤ Nat.log 2 (3 * φ.vars.length) := Nat.log_pos (by norm_num) (by omega)
   refine ⟨isRowsFirstBipartite_clauseNetwork k φ, ?_, ?_, ?_, length_table_clauseNetwork hk, ?_⟩
   · rw [numEdges_clauseNetwork]
-    nlinarith
+    exact Nat.le_mul_of_pos_left _ (by omega)
   · refine (maxDegree_clauseNetwork_le hk).trans ?_
-    have : max k 4 ≤ k + 4 := max_le (by omega) (by omega)
-    nlinarith
+    exact (max_le (by omega) (by omega)).trans (Nat.le_mul_of_pos_right _ hlog)
   · rw [length_vertices_clauseNetwork]
-    nlinarith
+    exact (show φ.length + 2 * φ.vars.length ≤ 3 * φ.vars.length by omega).trans
+      (Nat.le_mul_of_pos_left _ (by omega))
   · rw [numEdges_clauseNetwork]
 
 /-- The exponent of the contraction is at most `3 k K (m + 1) / √⌊log₂ (n + 2)⌋`. -/
@@ -188,8 +191,9 @@ theorem exponent_le {k K N m n : ℕ} (hN : 1 ≤ N) (hNm : N ≤ k * m) (hnN : 
     K * (3 * N) / Nat.sqrt (Nat.log 2 (3 * N)) ≤
       3 * k * K * (m + 1) / Nat.sqrt (Nat.log 2 (n + 2)) := by
   refine Nat.div_le_div ?_ (Nat.sqrt_le_sqrt (Nat.log_mono_right (by omega))) ?_
-  · have : K * (3 * N) ≤ K * (3 * (k * m)) := Nat.mul_le_mul_left _ (by omega)
-    nlinarith
+  · calc K * (3 * N) ≤ K * (3 * (k * m)) := Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ hNm)
+      _ = 3 * k * K * m := by ring
+      _ ≤ 3 * k * K * (m + 1) := Nat.mul_le_mul_left _ (Nat.le_succ m)
   · exact Nat.sqrt_eq_zero.not.mpr (Nat.log_pos (by norm_num) (by omega)).ne'
 
 /-- The exponent of the contraction is at most `3 K (N + 1) / √⌊log₂ (N + 2)⌋` for `N ≥ 1` literal
@@ -198,7 +202,8 @@ theorem exponent_le_occurrences {K N : ℕ} (hN : 1 ≤ N) :
     K * (3 * N) / Nat.sqrt (Nat.log 2 (3 * N)) ≤
       3 * K * (N + 1) / Nat.sqrt (Nat.log 2 (N + 2)) := by
   refine Nat.div_le_div ?_ (Nat.sqrt_le_sqrt (Nat.log_mono_right (by omega))) ?_
-  · nlinarith
+  · calc K * (3 * N) = 3 * K * N := by ring
+      _ ≤ 3 * K * (N + 1) := Nat.mul_le_mul_left _ (Nat.le_succ N)
   · exact Nat.sqrt_eq_zero.not.mpr (Nat.log_pos (by norm_num) (by omega)).ne'
 
 /-- The machine runs in polynomial space, and in time `2 ^ F φ` times a polynomial for every
@@ -212,9 +217,7 @@ private theorem expTimePolySpace_certificate (k : ℕ) :
   fastContractionAlgorithm.expTimePolySpace_branch (computableInPolyTime_guard k)
     (computableInPolyTime_contractionInput k) computableInPolyTime_fallback (k + 4) 1
     (fun φ => 3 * φ.vars.length) fun φ hg => by
-      obtain ⟨hne, hcl⟩ := guard_eq_true_iff.mp hg
-      have h1 : 1 ≤ φ.length := List.length_pos_iff.mpr hne
-      have hm := length_le_length_vars fun c hc => (hcl c hc).1
+      have hN := (guard_vars_bounds hg).1
       dsimp only [contractionInput]
       exact ⟨by omega, by omega, by omega, explicitAdmissible_clauseNetwork hg⟩
 
@@ -232,11 +235,8 @@ theorem exists_modelCounter (k : ℕ) :
   obtain ⟨K, h⟩ := expTimePolySpace_certificate k
   have hc := h (fun φ => 3 * k * K * (φ.length + 1) / Nat.sqrt (Nat.log 2 (φ.numVars + 2)))
     fun φ hg => by
-      obtain ⟨hne, hcl⟩ := guard_eq_true_iff.mp hg
-      have h1 : 1 ≤ φ.length := List.length_pos_iff.mpr hne
-      have hm := length_le_length_vars fun c hc => (hcl c hc).1
-      exact exponent_le (by omega) (CNF.length_vars_le_mul_length fun c hc => (hcl c hc).2)
-        (CNF.numVars_le_length_vars φ)
+      obtain ⟨hN, -, hk⟩ := guard_vars_bounds hg
+      exact exponent_le hN (CNF.length_vars_le_mul_length hk) (CNF.numVars_le_length_vars φ)
   obtain ⟨e, he⟩ := hc.computableInO
   exact ⟨count k, 3 * k * K, e, e, fun φ hk => count_eq hk, he⟩
 
@@ -255,11 +255,7 @@ theorem exists_modelCounter_occurrences (k : ℕ) :
         (fun φ => ((encCNF φ).length + 1) ^ b) := by
   obtain ⟨K, h⟩ := expTimePolySpace_certificate k
   have hc := h (fun φ => 3 * K * (φ.vars.length + 1) / Nat.sqrt (Nat.log 2 (φ.vars.length + 2)))
-    fun φ hg => by
-      obtain ⟨hne, hcl⟩ := guard_eq_true_iff.mp hg
-      have h1 : 1 ≤ φ.length := List.length_pos_iff.mpr hne
-      have hm := length_le_length_vars fun c hc => (hcl c hc).1
-      exact exponent_le_occurrences (by omega)
+    fun φ hg => exponent_le_occurrences (guard_vars_bounds hg).1
   obtain ⟨e, he⟩ := hc.computableInO
   exact ⟨count k, 3 * K, e, e, fun φ hk => count_eq hk, he⟩
 
