@@ -609,11 +609,14 @@ theorem exists_structure_realize_iff_toRaw (M : Type*) [Nonempty M] (φ : L.Sent
       (realize_toRaw (fun _ _ => Iff.rfl) φ fun w => w.elim Empty.elim Fin.elim0).1 h⟩
 
 /-- A sentence is finitely satisfiable iff its raw formula is. -/
-theorem finSat_iff_toRaw (φ : L.Sentence) : FinSat φ ↔ RawFormula.FinSat (toRaw φ) :=
-  ⟨fun ⟨M, hS, hf, hn, h⟩ =>
-    let ⟨I, ρ, h'⟩ := (exists_structure_realize_iff_toRaw M φ).1 ⟨hS, h⟩; ⟨M, hf, hn, I, ρ, h'⟩,
-   fun ⟨M, hf, hn, I, ρ, h⟩ =>
-    let ⟨hS, h'⟩ := (exists_structure_realize_iff_toRaw M φ).2 ⟨I, ρ, h⟩; ⟨M, hS, hf, hn, h'⟩⟩
+theorem finSat_iff_toRaw (φ : L.Sentence) : FinSat φ ↔ RawFormula.FinSat (toRaw φ) := by
+  constructor
+  · rintro ⟨M, hS, hf, hn, h⟩
+    obtain ⟨I, ρ, h'⟩ := (exists_structure_realize_iff_toRaw M φ).1 ⟨hS, h⟩
+    exact ⟨M, hf, hn, I, ρ, h'⟩
+  · rintro ⟨M, hf, hn, I, ρ, h⟩
+    obtain ⟨hS, h'⟩ := (exists_structure_realize_iff_toRaw M φ).2 ⟨I, ρ, h⟩
+    exact ⟨M, hS, hf, hn, h'⟩
 
 /-- A sentence is finitely valid iff its raw formula is. -/
 theorem finValid_iff_toRaw (φ : L.Sentence) : FinValid φ ↔ RawFormula.FinValid (toRaw φ) := by

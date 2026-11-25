@@ -260,9 +260,10 @@ private theorem pathSum_abpCombine {R : Type*} [CommRing R] {k₁ k₂ : ℕ}
         Pi.single_eq_of_ne (fun h => ha (Sum.inl.inj ((abpEquiv k₁ k₂).injective h))),
         Pi.single_eq_of_ne ha] using congrFun hq₁ a
   · simp only [q, Function.comp_apply, Equiv.symm_apply_apply, Sum.elim_inr]
-    rw [Pi.single_eq_of_ne (by
-      rw [← abpEquiv_inl_zero k₁ k₂]; exact fun h => nomatch (abpEquiv k₁ k₂).injective h),
-      zero_add]
+    have hne : abpEquiv k₁ k₂ (.inr b) ≠ 0 := by
+      rw [← abpEquiv_inl_zero k₁ k₂]
+      exact fun h => nomatch (abpEquiv k₁ k₂).injective h
+    rw [Pi.single_eq_of_ne hne, zero_add]
     exact hr b
 
 /-- A specialization branching program of size `k + 1` gives a projection of the

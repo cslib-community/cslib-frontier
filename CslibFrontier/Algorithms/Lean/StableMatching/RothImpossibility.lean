@@ -107,7 +107,7 @@ theorem isStable_padInstance_fixed {n : ℕ} (hn : 3 ≤ n) {I : Instance 3} {μ
     μ d = d := by
   by_contra hne
   have hd_not : ¬ d.val < 3 := by omega
-  have h0 : ((Equiv.swap ⟨0, lt_of_lt_of_le (by omega) hn⟩ d).symm d).val = 0 := by
+  have h0 : ((Equiv.swap ⟨0, lt_of_lt_of_le (Nat.zero_lt_succ 2) hn⟩ d).symm d).val = 0 := by
     rw [Equiv.symm_swap, Equiv.swap_apply_right]
   refine hμ d d
     ⟨lt_of_le_of_ne ?_ fun heq => hne ((padInstance hn I).propRank_injective d heq).symm,
@@ -145,17 +145,17 @@ private theorem isStable_restrict {n : ℕ} (hn : 3 ≤ n) {I : Instance 3} {μ 
     (hμ : (padInstance hn I).IsStable μ) :
     I.IsStable (restrictMatching hn μ (fun _ hd => isStable_padInstance_fixed hn hμ hd)) := by
   rintro p r ⟨hp, hr⟩
+  let p' : Fin n := ⟨p.val, lt_of_lt_of_le p.isLt hn⟩
+  let r' : Fin n := ⟨r.val, lt_of_lt_of_le r.isLt hn⟩
   let ρ := restrictMatching hn μ (fun _ hd => isStable_padInstance_fixed hn hμ hd)
-  refine hμ ⟨p.val, lt_of_lt_of_le p.isLt hn⟩ ⟨r.val, lt_of_lt_of_le r.isLt hn⟩ ⟨?_, ?_⟩
-  · change (padInstance hn I).propRank _ _ < (padInstance hn I).propRank _ _
-    rw [show μ ⟨p.val, lt_of_lt_of_le p.isLt hn⟩ = ⟨(ρ p).val, lt_of_lt_of_le (ρ p).isLt hn⟩ by
-        ext; rfl,
-      Fin.lt_def, padInstance_propRank_core, padInstance_propRank_core]
+  have hμp' : μ p' = ⟨(ρ p).val, lt_of_lt_of_le (ρ p).isLt hn⟩ := Fin.ext rfl
+  have hμr' : μ.symm r' = ⟨(ρ.symm r).val, lt_of_lt_of_le (ρ.symm r).isLt hn⟩ := Fin.ext rfl
+  refine hμ p' r' ⟨?_, ?_⟩
+  · change (padInstance hn I).propRank p' r' < (padInstance hn I).propRank p' (μ p')
+    rw [hμp', Fin.lt_def, padInstance_propRank_core, padInstance_propRank_core]
     exact hp
-  · change (padInstance hn I).recvRank _ _ < (padInstance hn I).recvRank _ _
-    rw [show μ.symm ⟨r.val, lt_of_lt_of_le r.isLt hn⟩ =
-        ⟨(ρ.symm r).val, lt_of_lt_of_le (ρ.symm r).isLt hn⟩ by ext; rfl,
-      Fin.lt_def, padInstance_recvRank_core, padInstance_recvRank_core]
+  · change (padInstance hn I).recvRank r' p' < (padInstance hn I).recvRank r' (μ.symm r')
+    rw [hμr', Fin.lt_def, padInstance_recvRank_core, padInstance_recvRank_core]
     exact hr
 
 /-- Any stable matching of `padInstance hn I` restricts on `{0, 1, 2}` to a stable matching of
@@ -224,9 +224,11 @@ theorem not_isStable_and_strategyProof_of_le {n : ℕ} (hn : 3 ≤ n) (M : Match
     have hsp : ((padInstance hn rothInstance).recvRank r0 ((M base).symm r0)).val ≤
         ((padInstance hn rothInstance).recvRank r0 ((M upd).symm r0)).val :=
       hr base r0 (extendPerm hn π)
-    rw [show (M base).symm r0 = ⟨(ρ.symm 0).val, lt_of_lt_of_le (ρ.symm 0).isLt hn⟩ by ext; rfl,
-      show (M upd).symm r0 = ⟨(ρ'.symm 0).val, lt_of_lt_of_le (ρ'.symm 0).isLt hn⟩ by ext; rfl,
-      padInstance_recvRank_core, padInstance_recvRank_core, h] at hsp
+    have hMbase : (M base).symm r0 = ⟨(ρ.symm 0).val, lt_of_lt_of_le (ρ.symm 0).isLt hn⟩ :=
+      Fin.ext rfl
+    have hMupd : (M upd).symm r0 = ⟨(ρ'.symm 0).val, lt_of_lt_of_le (ρ'.symm 0).isLt hn⟩ :=
+      Fin.ext rfl
+    rw [hMbase, hMupd, padInstance_recvRank_core, padInstance_recvRank_core, h] at hsp
     exact not_le_of_gt (rothInstance_receiver_gains (isStable_restrict hn hupd)) hsp
   · let π : Equiv.Perm (Fin 3) := permOfInjective ![0, 1, 2]
     let p1 : Fin n := ⟨(1 : Fin 3).val, lt_of_lt_of_le (1 : Fin 3).isLt hn⟩
@@ -237,9 +239,9 @@ theorem not_isStable_and_strategyProof_of_le {n : ℕ} (hn : 3 ≤ n) (M : Match
     have hsp : ((padInstance hn rothInstance).propRank p1 (M base p1)).val ≤
         ((padInstance hn rothInstance).propRank p1 (M upd p1)).val :=
       hp base p1 (extendPerm hn π)
-    rw [show M base p1 = ⟨(ρ 1).val, lt_of_lt_of_le (ρ 1).isLt hn⟩ by ext; rfl,
-      show M upd p1 = ⟨(ρ' 1).val, lt_of_lt_of_le (ρ' 1).isLt hn⟩ by ext; rfl,
-      padInstance_propRank_core, padInstance_propRank_core, h] at hsp
+    have hMbase : M base p1 = ⟨(ρ 1).val, lt_of_lt_of_le (ρ 1).isLt hn⟩ := Fin.ext rfl
+    have hMupd : M upd p1 = ⟨(ρ' 1).val, lt_of_lt_of_le (ρ' 1).isLt hn⟩ := Fin.ext rfl
+    rw [hMbase, hMupd, padInstance_propRank_core, padInstance_propRank_core, h] at hsp
     exact not_le_of_gt (rothInstance_proposer_gains (isStable_restrict hn hupd)) hsp
 
 /-! ### Sharp converse for complete lists: `n ≤ 2` -/
@@ -273,12 +275,12 @@ theorem isReceiverStrategyProof_deferredAcceptance_of_le_two {n : ℕ} (hn : n �
     · rw [htop]; exact Fin.zero_le _
     · have hrank1 : I.recvRank r (μ.symm r) = 1 := by omega
       by_cases hπ : π = I.recvPref r
-      · rw [show μ' = μ from congrArg Instance.deferredAcceptance <| instance_ext rfl <|
-          funext fun x => by
-            by_cases hx : x = r
-            · subst hx
-              simp [I', Instance.updateRecvPref, hπ]
-            · exact Function.update_of_ne hx π I.recvPref]
+      · have hI' : I' = I := instance_ext rfl <| funext fun x => by
+          by_cases hx : x = r
+          · subst hx
+            simp [I', Instance.updateRecvPref, hπ]
+          · exact Function.update_of_ne hx π I.recvPref
+        rw [show μ' = μ from congrArg Instance.deferredAcceptance hI']
       · have htop' : I'.recvRank r (μ.symm r) = 0 := by
           change (Function.update I.recvPref r π r).symm (μ.symm r) = 0
           rw [Function.update_self]
@@ -312,14 +314,16 @@ theorem isReceiverStrategyProof_deferredAcceptance_of_le_two {n : ℕ} (hn : n �
              by rw [Instance.RecvPrefers, hp₀_rankR, hrank1]; decide⟩
         have hle : I.propRank p₀ (μ' p₀) ≤ I.propRank p₀ (μ p₀) :=
           I'.isProposerOptimal_deferredAcceptance.2 μ hμ_stable' p₀
-        have hμ'_p₀ : μ' p₀ = μ p₀ := I.propRank_injective p₀
-          (by rw [hp₀_rankP] at hle ⊢; exact le_antisymm hle (Fin.zero_le _))
-        rw [show μ' = μ from Equiv.ext fun p => by
+        have hμ'_p₀ : μ' p₀ = μ p₀ := I.propRank_injective p₀ <| by
+          rw [hp₀_rankP] at hle ⊢
+          exact le_antisymm hle (Fin.zero_le _)
+        have hμ'_eq : μ' = μ := Equiv.ext fun p => by
           by_cases hp : p = p₀
           · rw [hp, hμ'_p₀]
           · have h1 := hμ'_p₀ ▸ μ'.injective.ne hp
             have h2 := μ.injective.ne hp
-            omega]
+            omega
+        rw [hμ'_eq]
 
 /-- Dual of `isReceiverStrategyProof_deferredAcceptance_of_le_two`: for `n ≤ 2`, receiver-proposing
 deferred acceptance is also strategy-proof for the proposers. -/

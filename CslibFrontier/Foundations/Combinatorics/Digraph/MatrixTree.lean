@@ -182,7 +182,9 @@ private def parentMatrix (f : {v // v ≠ r} → V) : Matrix {v // v ≠ r} {v /
 private theorem det_parentMatrix_of_not_acyclic {f : {v // v ≠ r} → V} (hf : ¬ Acyclic f) :
     (parentMatrix f : Matrix _ _ R).det = 0 := by
   classical
-  obtain ⟨v₀, hv₀⟩ : ∃ v₀, ∀ n, (withRoot f)^[n] v₀ ≠ r := by by_contra! h; exact hf h
+  obtain ⟨v₀, hv₀⟩ : ∃ v₀, ∀ n, (withRoot f)^[n] v₀ ≠ r := by
+    by_contra! h
+    exact hf h
   let C (v : V) : Prop := ∀ n, (withRoot f)^[n] v ≠ r
   have hC (i : {v // v ≠ r}) : C i ↔ C (f i) :=
     ⟨fun h n => by simpa [Function.iterate_succ_apply, withRoot_of_ne f i.2] using h (n + 1),
@@ -304,7 +306,9 @@ private theorem finprod_adjMatrix [Finite V] (G T : Digraph V) [DecidableRel G.A
   split_ifs with hTG
   · exact finprod_mem_eq_one_of_forall_eq_one (s := {p : V × V | T.Adj p.1 p.2})
       fun p hp => by simp [hTG hp]
-  · obtain ⟨v, w, hT, hG⟩ : ∃ v w, T.Adj v w ∧ ¬ G.Adj v w := by by_contra! h; exact hTG h
+  · obtain ⟨v, w, hT, hG⟩ : ∃ v w, T.Adj v w ∧ ¬ G.Adj v w := by
+      by_contra! h
+      exact hTG h
     exact (finprod_mem_eq_toFinset_prod _ {p : V × V | T.Adj p.1 p.2}).trans
       (Finset.prod_eq_zero (i := (v, w)) (by simpa using hT) (by simp [hG]))
 

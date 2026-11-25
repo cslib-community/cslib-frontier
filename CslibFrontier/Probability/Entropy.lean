@@ -112,9 +112,11 @@ theorem entropy_nonneg [Finite α] (p : PMF α) : 0 ≤ entropy p := by
 theorem entropy_eq_zero_of_subsingleton_support [Finite α] (p : PMF α)
     (h : p.support.Subsingleton) : entropy p = 0 := by
   obtain ⟨a, ha⟩ := p.support_nonempty
-  have hp : p = PMF.pure a := ((PMF.bind_pure p).symm.trans
-    (bind_congr_on_support _ _ _ fun _ hb => congrArg PMF.pure (h hb ha))).trans
-      (PMF.bind_const p _)
+  have hp : p = PMF.pure a :=
+    calc p = p.bind PMF.pure := (PMF.bind_pure p).symm
+      _ = p.bind (fun _ => PMF.pure a) :=
+          bind_congr_on_support _ _ _ fun _ hb => congrArg PMF.pure (h hb ha)
+      _ = PMF.pure a := PMF.bind_const p _
   simp [hp]
 
 /-- A uniform sample has the logarithm of its cardinality as entropy. -/
@@ -339,14 +341,15 @@ theorem conditionalEntropy_map_le_of_determined [Fintype α] [Finite β] [Fintyp
   · refine mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg
     by_cases hbad : bad b
     · simpa [hbad] using entropy_le_log_card (conditionalSnd joint b)
-    · simp only [hbad, ↓reduceIte, (entropy_eq_zero_of_subsingleton_support _ fun z hz w hw => by
-        obtain ⟨x, _, hx⟩ := (PMF.mem_support_map_iff _ _ _).mp
-          ((mem_support_conditionalSnd_iff joint b hb z).mp hz)
-        obtain ⟨y, _, hy⟩ := (PMF.mem_support_map_iff _ _ _).mp
-          ((mem_support_conditionalSnd_iff joint b hb w).mp hw)
-        exact (Prod.mk.inj hx).2.symm.trans <|
-          (hdetermined x y ((Prod.mk.inj hx).1 ▸ hbad)
-            ((Prod.mk.inj hx).1.trans (Prod.mk.inj hy).1.symm)).trans (Prod.mk.inj hy).2), le_rfl]
+    · suffices hzero : entropy (conditionalSnd joint b) = 0 by simp [hbad, hzero]
+      refine entropy_eq_zero_of_subsingleton_support _ fun z hz w hw => ?_
+      obtain ⟨x, _, hx⟩ := (PMF.mem_support_map_iff _ _ _).mp
+        ((mem_support_conditionalSnd_iff joint b hb z).mp hz)
+      obtain ⟨y, _, hy⟩ := (PMF.mem_support_map_iff _ _ _).mp
+        ((mem_support_conditionalSnd_iff joint b hb w).mp hw)
+      rcases Prod.mk.inj hx with ⟨hxb, rfl⟩
+      rcases Prod.mk.inj hy with ⟨hyb, rfl⟩
+      exact hdetermined x y (hxb ▸ hbad) (hxb.trans hyb.symm)
   · simp [(PMF.apply_eq_zero_iff (joint.map Prod.fst) b).mpr hb]
 
 open Classical in

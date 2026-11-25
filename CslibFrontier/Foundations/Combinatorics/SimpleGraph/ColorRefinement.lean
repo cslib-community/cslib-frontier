@@ -590,10 +590,11 @@ theorem forall_refinementColoring_eq_iff {χ₀ : V → α} {ψ₀ : W → α} {
   rcases le_total m (Fintype.card V + Fintype.card W) with hm | hm
   · exact refinementColoring_eq_of_le hm h
   let χ : V ⊕ W → α := Sum.elim χ₀ ψ₀
+  have hsum : (G ⊕g H).refinementColoring χ (Fintype.card V + Fintype.card W) (.inl v) =
+      (G ⊕g H).refinementColoring χ (Fintype.card V + Fintype.card W) (.inr w) := by
+    rwa [refinementColoring_sum_inl, refinementColoring_sum_inr]
   have hm' : (G ⊕g H).refinementColoring χ m (.inl v) =
-      (G ⊕g H).refinementColoring χ m (.inr w) :=
-    ker_refinementColoring_sum_le hm
-      (by change _ = _; rwa [refinementColoring_sum_inl, refinementColoring_sum_inr])
+      (G ⊕g H).refinementColoring χ m (.inr w) := ker_refinementColoring_sum_le hm hsum
   rwa [refinementColoring_sum_inl, refinementColoring_sum_inr] at hm'
 
 /-- Color refinement distinguishes two graphs in some round exactly when it distinguishes them in

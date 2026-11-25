@@ -94,8 +94,11 @@ def Row.product (rs : List (Row n)) (ss : List (Row m)) : List (Row (n + m)) :=
 theorem Row.mem_product {rs : List (Row n)} {ss : List (Row m)} {t : Row (n + m)} :
     t ∈ Row.product rs ss ↔ ∃ r ∈ rs, ∃ s ∈ ss, Fin.append r s = t := by
   simp only [Row.product, List.mem_map, List.mem_product, Prod.exists]
-  exact ⟨fun ⟨r, s, ⟨hr, hs⟩, h⟩ => ⟨r, hr, s, hs, h⟩,
-    fun ⟨r, hr, s, hs, h⟩ => ⟨r, s, ⟨hr, hs⟩, h⟩⟩
+  constructor
+  · rintro ⟨r, s, ⟨hr, hs⟩, rfl⟩
+    exact ⟨r, hr, s, hs, rfl⟩
+  · rintro ⟨r, hr, s, hs, rfl⟩
+    exact ⟨r, s, ⟨hr, hs⟩, rfl⟩
 
 /-- The rows of a cross join of conforming rows conform to the joined typing context. -/
 theorem Row.conforms_of_mem_product {Γ : Fin n → SqlType} {Δ : Fin m → SqlType}
@@ -133,11 +136,14 @@ theorem evalRow_eq_ok_iff {es : Fin k → Expr n} {r : Row n} {d : Row k} :
     exact Subsingleton.elim _ _
   | succ k ih =>
     simp only [evalRow, Fin.forall_fin_succ]
-    refine ⟨fun h => ?_, fun ⟨h₀, hs⟩ => ?_⟩
-    · obtain ⟨d₀, h₀, h⟩ := Except.bind_eq_ok.mp h
-      obtain ⟨ds, hds, ⟨⟩⟩ := Except.bind_eq_ok.mp h
+    constructor
+    · intro h
+      obtain ⟨d₀, h₀, h⟩ := Except.bind_eq_ok.mp h
+      obtain ⟨ds, hds, h⟩ := Except.bind_eq_ok.mp h
+      cases h
       exact ⟨h₀, ih.mp hds⟩
-    · rw [h₀, Except.ok_bind, ih.mpr hs, Except.ok_bind]
+    · rintro ⟨h₀, hs⟩
+      rw [h₀, Except.ok_bind, ih.mpr hs, Except.ok_bind]
       exact congrArg Except.ok (Matrix.cons_head_tail d)
 
 /-- A `SELECT` list succeeds exactly when each of its expressions does. -/
@@ -178,27 +184,30 @@ theorem toOption_filterRows (p : Expr n) (rs : List (Row n)) :
       if ∀ r ∈ rs, (p.evalTruth r).toOption.isSome then
         some (rs.filter fun r => (p.evalTruth r).toOption = some .true)
       else none := by
-  have key (r : Row n) :
+  have key : ∀ r : Row n,
       ((do return if (← p.evalTruth r).isTrue then some r else none :
         Except EvalError (Option (Row n)))).toOption =
         (p.evalTruth r).toOption.map fun t => if t.isTrue then some r else none := by
+    intro r
     cases p.evalTruth r <;> rfl
   rw [filterRows, Except.toOption_filterMapM]
   simp only [key, Option.isSome_map]
   split_ifs
   · rw [← List.filterMap_eq_filter]
     refine congrArg some (List.filterMap_congr fun r _ => ?_)
-    cases h : p.evalTruth r with
-    | error => simp [h, Option.guard]
-    | ok t => cases t <;> simp [h, Option.guard]
+    rcases h : p.evalTruth r with e | t
+    · simp [h, Option.guard]
+    · cases t <;> simp [h, Option.guard]
   · rfl
 
 /-- When `WHERE` succeeds, it keeps some of its input rows. -/
 theorem mem_of_filterRows_eq_ok {p : Expr n} {rs rs' : List (Row n)}
     (h : p.filterRows rs = .ok rs') {r : Row n} (hr : r ∈ rs') : r ∈ rs := by
-  have h' := (toOption_filterRows p rs).symm.trans (congrArg Except.toOption h)
+  have h' := congrArg Except.toOption h
+  rw [toOption_filterRows] at h'
   split_ifs at h'
-  · exact (List.mem_filter.mp (Option.some.inj h' ▸ hr)).1
+  · simp only [Except.toOption_ok, Option.some.injEq] at h'
+    exact (List.mem_filter.mp (h' ▸ hr)).1
   · simp at h'
 
 /-- Type soundness for predicates: on a conforming row, a boolean predicate has a truth value, or
@@ -378,7 +387,11 @@ theorem typeOf_select_eq_some {p : Expr n} {q : Query S n} {Γ : Fin n → SqlTy
     (select p q).typeOf = some Γ ↔ q.typeOf = some Γ ∧ p.typeOf Γ = some .bool := by
   simp only [typeOf, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.ite_none_right_eq_some,
     Option.some.injEq]
-  exact ⟨fun ⟨_, h, hp, rfl⟩ => ⟨h, hp⟩, fun ⟨h, hp⟩ => ⟨Γ, h, hp, rfl⟩⟩
+  constructor
+  · rintro ⟨Γ', h, hp, rfl⟩
+    exact ⟨h, hp⟩
+  · rintro ⟨h, hp⟩
+    exact ⟨Γ, h, hp, rfl⟩
 
 theorem typeOf_project_eq_some {es : Fin k → Expr n} {q : Query S n} {Δ : Fin k → SqlType} :
     (project es q).typeOf = some Δ ↔
@@ -387,7 +400,12 @@ theorem typeOf_project_eq_some {es : Fin k → Expr n} {q : Query S n} {Δ : Fin
   refine exists_congr fun Γ => and_congr_right fun _ => ?_
   split_ifs with h
   · simp only [Option.some.injEq]
-    exact ⟨by rintro rfl i; simp, fun hΔ => funext fun i => by simp [hΔ i]⟩
+    constructor
+    · rintro rfl i
+      simp
+    · intro hΔ
+      funext i
+      simp [hΔ i]
   · simp only [false_iff, not_forall]
     obtain ⟨i, hi⟩ := not_forall.mp h
     exact ⟨i, fun h' => hi (by simp [h'])⟩
@@ -399,14 +417,21 @@ theorem typeOf_join_eq_some {θ : Expr (n + m)} {q₁ : Query S n} {q₂ : Query
         θ.typeOf (Fin.append Γ Δ) = some .bool ∧ Fin.append Γ Δ = Γ' := by
   simp only [typeOf, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.ite_none_right_eq_some,
     Option.some.injEq]
-  exact ⟨fun ⟨Γ, h₁, Δ, h₂, hθ, h⟩ => ⟨Γ, Δ, h₁, h₂, hθ, h⟩,
-    fun ⟨Γ, Δ, h₁, h₂, hθ, h⟩ => ⟨Γ, h₁, Δ, h₂, hθ, h⟩⟩
+  constructor
+  · rintro ⟨Γ, h₁, Δ, h₂, hθ, rfl⟩
+    exact ⟨Γ, Δ, h₁, h₂, hθ, rfl⟩
+  · rintro ⟨Γ, Δ, h₁, h₂, hθ, rfl⟩
+    exact ⟨Γ, h₁, Δ, h₂, hθ, rfl⟩
 
 theorem typeOf_unionAll_eq_some {q₁ q₂ : Query S n} {Γ : Fin n → SqlType} :
     (unionAll q₁ q₂).typeOf = some Γ ↔ q₁.typeOf = some Γ ∧ q₂.typeOf = some Γ := by
   simp only [typeOf, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.ite_none_right_eq_some,
     Option.some.injEq]
-  exact ⟨fun ⟨_, h₁, h₂, rfl⟩ => ⟨h₁, h₂⟩, fun ⟨h₁, h₂⟩ => ⟨Γ, h₁, h₂, rfl⟩⟩
+  constructor
+  · rintro ⟨Γ', h₁, h₂, rfl⟩
+    exact ⟨h₁, h₂⟩
+  · rintro ⟨h₁, h₂⟩
+    exact ⟨Γ, h₁, h₂, rfl⟩
 
 @[simp] theorem typeOf_distinct (q : Query S n) : (distinct q).typeOf = q.typeOf := rfl
 

@@ -256,10 +256,12 @@ theorem card_exhausts_lt {k L : ℕ} (hφ : φ.IsExactDistinct k)
           (fun y => ((final φ k t (ext y)).assignment, log φ k t L (ext y) (fuel φ t)))
           (fun _ _ => by simp [BitString.mem_shortWords, length_log_le])
           fun y hy y' hy' h => funext fun i => ?_
-        have h1 := decode_run hφ hL t (ext y) (fuel φ t) i
-          (by rw [← final, length_trace_final_eq (mem_filter.mp hy).2]; exact i.2)
-        have h2 := decode_run hφ hL t (ext y') (fuel φ t) i
-          (by rw [← final, length_trace_final_eq (mem_filter.mp hy').2]; exact i.2)
+        have hlen {z} (hz : z ∈ univ.filter fun y => Exhausts φ k t (ext y)) :
+            (i : ℕ) < n + (run φ k t (ext z) (fuel φ t)).trace.length * k := by
+          rw [← final, length_trace_final_eq (mem_filter.mp hz).2]
+          exact i.2
+        have h1 := decode_run hφ hL t (ext y) (fuel φ t) i (hlen hy)
+        have h2 := decode_run hφ hL t (ext y') (fuel φ t) i (hlen hy')
         rw [← final] at h1 h2
         simpa only [ext, (Prod.mk.inj h).1, (Prod.mk.inj h).2, h2,
           Fin.val_injective.extend_apply] using h1.symm

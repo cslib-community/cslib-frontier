@@ -102,8 +102,9 @@ theorem rw'_inj {f f' : Bool} {w w' : List (Option (Bl K))} {u v : List (Sy M K)
     (h : rw' f w ++ u = rw' f' w' ++ v) : f = f' ∧ w = w' ∧ u = v := by
   simp only [rw', List.cons_append, List.cons.injEq, Sy.flag.injEq, List.append_assoc] at h
   obtain ⟨rfl, h⟩ := h
-  have hd (w : List (Option (Bl K))) : (Sy.dot : Sy M K) ∉ w.map ol := fun hw =>
-    let ⟨o, _, ho⟩ := List.mem_map.1 hw; ol_ne_dot o ho
+  have hd (w : List (Option (Bl K))) : (Sy.dot : Sy M K) ∉ w.map ol := fun hw => by
+    obtain ⟨o, _, ho⟩ := List.mem_map.1 hw
+    exact ol_ne_dot o ho
   obtain ⟨h1, h2⟩ := cut_inj (hd w) (hd w') h
   exact ⟨rfl, List.map_injective_iff.2 ol_inj h1, h2⟩
 
@@ -209,7 +210,10 @@ theorem emCo_bk_true (m : Bl K → List (NB M K)) (b : Bl K) :
   rw [flatten_ofFn_single (Fintype.equivFin (Bl K) b)]
   · simp [on]
   · intro k hk
-    simp [on, show b ≠ (Fintype.equivFin (Bl K)).symm k by rintro rfl; simp at hk]
+    have hne : b ≠ (Fintype.equivFin (Bl K)).symm k := by
+      rintro rfl
+      simp at hk
+    simp [on, hne]
 
 theorem emCo_other (m : Bl K → List (NB M K)) {z : Zc K} (h1 : z ≠ lsF)
     (h2 : ∀ b, z ≠ .tp (.bk b) true) : emCo m z = [] := by
@@ -243,7 +247,8 @@ theorem emPs_bk_false (p : Ps M K) (b : Bl K) :
     induction l with
     | nil => rfl
     | cons d l ih =>
-      rw [List.flatMap_cons, ih, List.filter_cons]; by_cases h : d.head = b <;> simp [h]
+      rw [List.flatMap_cons, ih, List.filter_cons]
+      by_cases h : d.head = b <;> simp [h]
   unfold emPs
   rw [emCo_other _ (by simp) (by simp)]
   simp only [h2, on, mem_barSet_bk, ↓reduceIte, List.append_nil, h3, encW, dOut, List.flatMap_map]

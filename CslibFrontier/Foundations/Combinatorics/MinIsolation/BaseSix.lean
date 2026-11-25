@@ -79,16 +79,22 @@ variable {α P : Type*} {ℓ : ℕ}
 /-- Every seeded level weight is strictly below `6 ^ (level + ℓ)`. -/
 theorem levelWeight_lt_pow (level : ℕ) (word seed : Fin ℓ → Bool) :
     levelWeight level word seed < 6 ^ (level + ℓ) := by
-  refine (sum_le_sum (g := fun j => levelBitCoeff level j)
-    fun j _ => by cases word j <;> cases seed j <;> simp).trans_lt ?_
-  rw [← Equiv.sum_comp Fin.revPerm, sum_congr rfl (g := fun j : Fin ℓ => 6 ^ level * 6 ^ j.val)
-    fun j _ => by
-      have := j.isLt
-      simp only [levelBitCoeff, Fin.revPerm_apply, Fin.val_rev]
-      congr 2; omega,
-    ← mul_sum, Fin.sum_univ_eq_sum_range, pow_add]
-  exact Nat.mul_lt_mul_of_pos_left
-    (Nat.geomSum_lt (by decide) fun _ hk => mem_range.mp hk) (by positivity)
+  calc levelWeight level word seed
+      ≤ ∑ j : Fin ℓ, levelBitCoeff level j :=
+        sum_le_sum fun j _ => by cases word j <;> cases seed j <;> simp
+    _ = ∑ j : Fin ℓ, levelBitCoeff level (Fin.revPerm j) :=
+        (Equiv.sum_comp Fin.revPerm _).symm
+    _ = 6 ^ level * ∑ k ∈ range ℓ, 6 ^ k := by
+        rw [mul_sum, ← Fin.sum_univ_eq_sum_range]
+        refine sum_congr rfl fun j _ => ?_
+        have hj := j.isLt
+        simp only [levelBitCoeff, Fin.revPerm_apply, Fin.val_rev]
+        congr 2
+        omega
+    _ < 6 ^ (level + ℓ) := by
+        rw [pow_add]
+        exact Nat.mul_lt_mul_of_pos_left
+          (Nat.geomSum_lt (by decide) fun _ hk => mem_range.mp hk) (by positivity)
 
 /-- Switching seed bit `j` from `false` to `true` increases `levelWeight` by the masked
 coefficient at `j`. -/
@@ -105,11 +111,14 @@ private theorem two_mul_sum_six_pow_le (m : ℕ) :
   induction m with
   | zero => simp
   | succ m ih =>
-    rw [sum_range_succ, Nat.add_sub_cancel_left, pow_one, sum_congr rfl
-      fun k hk => show (2 : ℕ) ^ (m + 1 - k) * 6 ^ k = 2 * (2 ^ (m - k) * 6 ^ k) by
-        have := mem_range.mp hk
-        rw [show m + 1 - k = m - k + 1 by omega, pow_succ]; ring,
-      ← mul_sum, pow_succ 6]
+    have hsum : (∑ k ∈ range m, (2 : ℕ) ^ (m + 1 - k) * 6 ^ k) =
+        2 * ∑ k ∈ range m, (2 : ℕ) ^ (m - k) * 6 ^ k := by
+      rw [mul_sum]
+      refine sum_congr rfl fun k hk => ?_
+      have := mem_range.mp hk
+      rw [show m + 1 - k = m - k + 1 by omega, pow_succ]
+      ring
+    rw [sum_range_succ, hsum, Nat.add_sub_cancel_left, pow_one, pow_succ 6]
     omega
 
 private theorem sum_six_pow_multiset_eq_sum_range (s : Multiset α) (level : α → ℕ) {m : ℕ}
@@ -119,11 +128,13 @@ private theorem sum_six_pow_multiset_eq_sum_range (s : Multiset α) (level : α 
   induction s using Multiset.induction_on with
   | empty => simp
   | cons a t ih =>
+    have hfilter (k : ℕ) :
+        ((a ::ₘ t).filter fun x => level x = k).card * 6 ^ k =
+          (if level a = k then 6 ^ k else 0) + (t.filter fun x => level x = k).card * 6 ^ k := by
+      rw [Multiset.filter_cons]
+      split_ifs <;> simp [Nat.add_mul, Nat.add_comm]
     rw [Multiset.map_cons, Multiset.sum_cons, ih fun x hx => hlt x (Multiset.mem_cons_of_mem hx)]
-    simp_rw [show ∀ k, ((a ::ₘ t).filter fun x => level x = k).card * 6 ^ k =
-        (if level a = k then 6 ^ k else 0) + (t.filter fun x => level x = k).card * 6 ^ k from
-      fun k => by rw [Multiset.filter_cons]; split_ifs <;> simp [Nat.add_mul, Nat.add_comm],
-      sum_add_distrib]
+    simp_rw [hfilter, sum_add_distrib]
     simp [sum_ite_eq, hlt a (Multiset.mem_cons_self a t)]
 
 /-- If every element of a multiset has level strictly below `m` and at most `2 ^ (m - k)`
@@ -247,11 +258,13 @@ private theorem suffix_change_le (δ : (Fin ℓ → Bool) → ℤ) {A : ℤ} (hA
     have hhead : |δ x' - δ x| ≤ 3 * (A * 6 ^ (ℓ - (k + 1))) := hstep x j (y j)
     have htri : |δ y - δ x| ≤ |δ y - δ x'| + |δ x' - δ x| := by
       simpa only [sub_add_sub_cancel] using abs_add_le (δ y - δ x') (δ x' - δ x)
-    rw [show 3 * (A * 6 ^ (ℓ - k)) = 18 * (A * 6 ^ (ℓ - (k + 1))) by
-      rw [show ℓ - k = ℓ - (k + 1) + 1 by omega, pow_succ]; ring]
+    have hscale : 3 * (A * 6 ^ (ℓ - k)) = 18 * (A * 6 ^ (ℓ - (k + 1))) := by
+      rw [show ℓ - k = ℓ - (k + 1) + 1 by omega, pow_succ]
+      ring
+    rw [hscale]
     omega
-  · rw [show x = y from funext fun i => hxy i (by have := i.isLt; omega),
-      sub_self, abs_zero, mul_zero]
+  · have heq : x = y := funext fun i => hxy i (by have := i.isLt; omega)
+    rw [heq, sub_self, abs_zero, mul_zero]
     positivity
 termination_by ℓ - k
 
@@ -264,8 +277,9 @@ private theorem eq_of_agrees_on_equal_bits {c d : Fin ℓ → Bool} (δ : (Fin �
     (hxy : ∀ j, c j = d j → x j = y j) : x = y := by
   classical
   by_contra hne
-  have hex : ∃ k : ℕ, ∃ j : Fin ℓ, j.val = k ∧ x j ≠ y j :=
-    let ⟨j, hj⟩ := Function.ne_iff.mp hne; ⟨j.val, j, rfl, hj⟩
+  have hex : ∃ k : ℕ, ∃ j : Fin ℓ, j.val = k ∧ x j ≠ y j := by
+    obtain ⟨j, hj⟩ := Function.ne_iff.mp hne
+    exact ⟨j.val, j, rfl, hj⟩
   obtain ⟨j, hj, hjdiff⟩ := Nat.find_spec hex
   have hsmall := suffix_change_le δ hA.le hstep (j.val + 1) j.isLt (update x j (y j)) y
     (update_agrees j fun i hi => by_contra fun hd => Nat.find_min hex (hj ▸ hi) ⟨i, rfl, hd⟩)

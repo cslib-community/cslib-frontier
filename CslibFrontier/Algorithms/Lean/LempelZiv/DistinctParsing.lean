@@ -82,16 +82,21 @@ theorem sum_tsub_length_le_of_nodup [Fintype α] {ws : List (List α)} (hws : ws
     (ws.map fun w => m - w.length).sum ≤
       ∑ i ∈ Finset.range m, (m - i) * Fintype.card α ^ i := by
   classical
-  rw [← List.sum_toFinset _ hws, show ∑ w ∈ ws.toFinset, (m - w.length) =
-    ∑ w ∈ ws.toFinset.filter (fun w => w.length < m), (m - w.length) by
-      rw [Finset.sum_filter]
-      exact Finset.sum_congr rfl fun _ _ => by split_ifs <;> omega,
-    ← Finset.sum_fiberwise_of_maps_to (g := List.length) (t := Finset.range m)
-      fun w hw => Finset.mem_range.2 (Finset.mem_filter.1 hw).2]
+  set s := ws.toFinset
+  have h1 : ∑ w ∈ s, (m - w.length) =
+      ∑ w ∈ s.filter (fun w => w.length < m), (m - w.length) := by
+    rw [Finset.sum_filter]
+    exact Finset.sum_congr rfl fun _ _ => by split_ifs <;> omega
+  rw [← List.sum_toFinset _ hws, h1, ← Finset.sum_fiberwise_of_maps_to (g := List.length)
+    (t := Finset.range m) fun w hw => Finset.mem_range.2 (Finset.mem_filter.1 hw).2]
   refine Finset.sum_le_sum fun i _ => ?_
-  rw [Finset.sum_congr rfl fun w hw => by rw [(Finset.mem_filter.1 hw).2],
-    Finset.sum_const, smul_eq_mul, Nat.mul_comm]
-  exact Nat.mul_le_mul_left _ Finset.card_filter_length_eq_le
+  calc ∑ w ∈ (s.filter fun w => w.length < m).filter (fun w => w.length = i), (m - w.length)
+      = ∑ w ∈ (s.filter fun w => w.length < m).filter (fun w => w.length = i), (m - i) :=
+        Finset.sum_congr rfl fun w hw => by rw [(Finset.mem_filter.1 hw).2]
+    _ = (m - i) * ((s.filter fun w => w.length < m).filter (fun w => w.length = i)).card := by
+        rw [Finset.sum_const, smul_eq_mul, Nat.mul_comm]
+    _ ≤ (m - i) * Fintype.card α ^ i :=
+        Nat.mul_le_mul_left _ Finset.card_filter_length_eq_le
 
 /-- `∑_{i < m} (m - i) k ^ i + (m + 2) ≤ 2 k ^ m` for `k ≥ 2`. -/
 private theorem sum_range_sub_mul_pow_add_le {k : ℕ} (hk : 2 ≤ k) (m : ℕ) :
@@ -99,11 +104,11 @@ private theorem sum_range_sub_mul_pow_add_le {k : ℕ} (hk : 2 ≤ k) (m : ℕ) 
   induction m with
   | zero => simp
   | succ m ih =>
-    rw [Finset.sum_range_succ', show ∑ i ∈ Finset.range m, (m + 1 - (i + 1)) * k ^ (i + 1) =
-      k * ∑ i ∈ Finset.range m, (m - i) * k ^ i by
-        rw [Finset.mul_sum]
-        exact Finset.sum_congr rfl fun i _ => by rw [Nat.add_sub_add_right, pow_succ]; ring,
-      pow_succ]
+    have hshift : ∑ i ∈ Finset.range m, (m + 1 - (i + 1)) * k ^ (i + 1) =
+        k * ∑ i ∈ Finset.range m, (m - i) * k ^ i := by
+      rw [Finset.mul_sum]
+      exact Finset.sum_congr rfl fun i _ => by rw [Nat.add_sub_add_right, pow_succ]; ring
+    rw [Finset.sum_range_succ', hshift, pow_succ]
     simp only [Nat.sub_zero, pow_zero, mul_one]
     nlinarith [Nat.mul_le_mul_left k ih]
 
@@ -186,6 +191,7 @@ theorem mul_logb_sub_le_of_forall_mul_le {k c n : ℕ} (hk : 2 ≤ k)
     · simp [L] at hLpos
     · linarith [Real.logb_nonpos hk1 (mod_cast h0.le) (not_lt.1 h)]
   have hlogn : Real.log n = L * Real.log k := by rw [hL, Real.logb, div_mul_cancel₀ _ hlogk.ne']
+  -- In the remaining case `log_k n ≥ 1`: otherwise `-log_k log_k n < 3`, so `t < 0`.
   have hL1 : 1 ≤ L := by_contra fun hlt => by
     have hlog2 : (1 : ℝ) / 2 ≤ Real.log 2 := by
       linarith [Real.one_sub_inv_le_log_of_pos (x := 2) (by norm_num)]
@@ -208,7 +214,9 @@ theorem mul_logb_sub_le_of_forall_mul_le {k c n : ℕ} (hk : 2 ≤ k)
   have hfl' : u < ⌊u⌋₊ + 1 := Nat.lt_floor_add_one u
   have hfl : (⌊u⌋₊ : ℝ) ≤ u := Nat.floor_le (by linarith)
   have hfl4 : 4 ≤ ⌊u⌋₊ := Nat.le_floor (mod_cast hu4.le)
-  have hmR : (m : ℝ) = ⌊u⌋₊ - 2 := by rw [hm, Nat.cast_sub (by omega)]; norm_num
+  have hmR : (m : ℝ) = ⌊u⌋₊ - 2 := by
+    rw [hm, Nat.cast_sub (by omega)]
+    norm_num
   -- `k ^ m * k ^ 2 * log_k n ≤ n`, since `m + 2 + log_k log_k n ≤ log_k n`.
   have hpow : (k : ℝ) ^ m * ((k : ℝ) ^ 2 * L) ≤ n := by
     have := Real.rpow_le_rpow_of_exponent_le hk1.le
@@ -245,10 +253,11 @@ private theorem mul_one_sub_epsilon_le {k c n : ℕ} (hk : 2 ≤ k)
   have hL0 : 0 ≤ L := logb_natCast_nonneg (mod_cast hk) n
   rcases hL0.lt_or_eq with hLpos | hL
   · rcases le_total r 1 with hr | hr
-    · rw [min_eq_right hr, show (1 - r) * L = L - Real.logb k L - 4 by
+    · have hrL : (1 - r) * L = L - Real.logb k L - 4 := by
         simp only [r]
         field_simp
-        ring]
+        ring
+      rw [min_eq_right hr, hrL]
       exact h
     · simp [min_eq_left hr]
   · simp [← hL]

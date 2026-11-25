@@ -198,7 +198,9 @@ private theorem influence_tribes_le_of (hw : 2 ≤ w) (hs₁ : 2 ^ (w - 1) ≤ s
     rw [Nat.cast_mul, inv_pow, ← div_eq_inv_mul, div_le_iff₀ (by positivity)]
     cast_nlinarith [hs₂, hw]
   have hlog : (w - 1 : ℝ) * Real.log 2 ≤ Real.log ((s * w : ℕ) : ℝ) := by
-    have hcast : (w - 1 : ℝ) = ((w - 1 : ℕ) : ℝ) := by rw [Nat.cast_sub (by omega)]; norm_num
+    have hcast : (w - 1 : ℝ) = ((w - 1 : ℕ) : ℝ) := by
+      rw [Nat.cast_sub (by omega)]
+      norm_num
     rw [hcast, ← Real.log_pow]
     exact Real.log_le_log (by positivity) hN₁
   have hl2 := Real.log_two_gt_d9
@@ -255,7 +257,8 @@ theorem three_div_four_le_expect_sub_expect_sq_tribes (hw : 2 ≤ w) :
   have hb := abs_expect_bitVal_tribes_sub_half_le (one_div_two_le_pow_tribesSize w)
     (pow_tribesSize_add_one_lt_one_div_two w)
   have hw4 : (2⁻¹ : ℝ) ^ w ≤ 1 / 4 :=
-    (pow_le_pow_of_le_one (by norm_num) (by norm_num) hw).trans (by norm_num)
+    calc (2⁻¹ : ℝ) ^ w ≤ 2⁻¹ ^ 2 := pow_le_pow_of_le_one (by norm_num) (by norm_num) hw
+      _ = 1 / 4 := by norm_num
   simp only [signVal_eq_one_sub_two_mul_bitVal, expect_sub_distrib, Fintype.expect_const,
     ← mul_expect]
   have := abs_le.1 (hb.trans hw4)

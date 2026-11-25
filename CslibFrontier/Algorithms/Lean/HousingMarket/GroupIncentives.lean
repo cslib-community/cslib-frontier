@@ -152,7 +152,9 @@ private theorem eq_ttcRounds_of_forall_rank_le {J : Instance n} {S : Finset (Fin
     (hle : ∀ i ∈ S, i ∈ R → I.rank i (J.ttc i) ≤ I.rank i (I.ttcRounds k R i)) :
     ∀ x ∈ R, J.ttc x = I.ttcRounds k R x := by
   induction k generalizing R with
-  | zero => intro x hx; simp_all
+  | zero =>
+    intro x hx
+    simp_all
   | succ k ih =>
     intro x hx
     set C := I.cycleAgents R

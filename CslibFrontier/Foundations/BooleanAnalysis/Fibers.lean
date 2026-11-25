@@ -162,14 +162,15 @@ probability-mass hypothesis. -/
 theorem uniformMass_le_rpow {ι : Type*} [Fintype ι]
     {X : Finset (ι → Bool)} (hX : X.Nonempty) {k : ℝ} (hdef : uniformDeficit X ≤ k)
     (x : ι → Bool) : uniformMass X x ≤ (2 : ℝ) ^ (k - Fintype.card ι) := by
-  have h1 : uniformMass X x ≤ 1 / (X.card : ℝ) := by
-    unfold uniformMass
-    split_ifs
-    · exact le_rfl
-    · positivity
-  refine h1.trans ?_
-  rw [card_eq_rpow_sub_uniformDeficit hX, one_div, ← Real.rpow_neg (by norm_num), neg_sub]
-  exact Real.rpow_le_rpow_of_exponent_le (by norm_num) (by linarith)
+  calc
+    _ ≤ 1 / (X.card : ℝ) := by
+      unfold uniformMass
+      split_ifs
+      · exact le_rfl
+      · positivity
+    _ = (2 : ℝ) ^ (uniformDeficit X - Fintype.card ι) := by
+      rw [card_eq_rpow_sub_uniformDeficit hX, one_div, ← Real.rpow_neg (by norm_num), neg_sub]
+    _ ≤ _ := Real.rpow_le_rpow_of_exponent_le (by norm_num) (by linarith)
 
 /-- Entropy deficit bounds the normalized density pointwise. -/
 theorem uniformDensity_le_rpow {ι : Type*} [Fintype ι] {X : Finset (ι → Bool)}
@@ -204,16 +205,19 @@ theorem exists_uniformDeficit_fiber_le {ι M : Type*} [Fintype ι] [Fintype M] [
       uniformDeficit (X.filter fun x => send x = a) ≤ uniformDeficit X + m := by
   obtain ⟨x, hx⟩ := hX
   have : Nonempty M := ⟨send x⟩
+  have hXpos : (0 : ℝ) < X.card := by exact_mod_cast card_pos.mpr ⟨x, hx⟩
   let b : ℝ := X.card / (2 : ℝ) ^ m
   have hb : Fintype.card M • b ≤ (X.card : ℝ) := by
     rw [nsmul_eq_mul]
-    exact (mul_le_mul_of_nonneg_right hm (by dsimp [b]; positivity)).trans_eq
-      (by dsimp [b]; field_simp)
+    calc
+      _ ≤ (2 : ℝ) ^ m * b := mul_le_mul_of_nonneg_right hm (by dsimp [b]; positivity)
+      _ = _ := by
+        dsimp [b]
+        field_simp
   obtain ⟨a, _, ha⟩ := exists_le_card_fiber_of_nsmul_le_card_of_maps_to
     (fun _ _ => mem_univ _) univ_nonempty (by simpa only [card_univ] using hb)
-  have hne : (X.filter fun x => send x = a).Nonempty := card_pos.mp <| by
-    have : (0 : ℝ) < X.card := by exact_mod_cast card_pos.mpr ⟨x, hx⟩
-    exact_mod_cast (show 0 < b by dsimp [b]; positivity).trans_le ha
+  have hne : (X.filter fun x => send x = a).Nonempty :=
+    card_pos.mp (by exact_mod_cast (show 0 < b by dsimp [b]; positivity).trans_le ha)
   refine ⟨a, hne, (uniformDeficit_le_iff hne).mpr ?_⟩
   dsimp only [b] at ha
   rw [card_eq_rpow_sub_uniformDeficit ⟨x, hx⟩, ← Real.rpow_sub (by norm_num)] at ha
@@ -513,12 +517,13 @@ theorem le_expect_uniformDeficit_coordinateFiber_le {ι : Type*} [Fintype ι] [D
     63 / 64 ≤ 𝔼 x ∈ X, if uniformDeficit (coordinateFiber X s x) ≤ 64 * k then
       (1 : ℝ) else 0 := by
   have hp : 0 < 64 * k := by positivity
-  have h := expect_le_expect (s := X) fun x _ => show
+  have hpoint (x : ι → Bool) :
       1 ≤ (if uniformDeficit (coordinateFiber X s x) ≤ 64 * k then (1 : ℝ) else 0) +
-        uniformDeficit (coordinateFiber X s x) / (64 * k) by
+        uniformDeficit (coordinateFiber X s x) / (64 * k) := by
     split_ifs with hx
     · linarith [div_nonneg (uniformDeficit_nonneg (coordinateFiber X s x)) hp.le]
     · simpa only [zero_add] using (le_div_iff₀ hp).mpr (by linarith)
+  have h := expect_le_expect (s := X) fun x _ => hpoint x
   rw [expect_const hX, expect_add_distrib, ← expect_div] at h
   have hd : (𝔼 x ∈ X, uniformDeficit (coordinateFiber X s x)) / (64 * k) ≤ 1 / 64 :=
     (div_le_div_of_nonneg_right

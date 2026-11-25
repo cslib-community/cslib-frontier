@@ -288,8 +288,10 @@ private lemma exists_of_forall₂ {α β : Type} {R : α → β → Prop} {l₁ 
   induction h with
   | nil => simp at hb
   | cons hab _ ih =>
-    exact (List.mem_cons.mp hb).elim (fun he => ⟨_, List.mem_cons_self .., he ▸ hab⟩)
-      fun hm => let ⟨a, ha, hr⟩ := ih hm; ⟨a, List.mem_cons_of_mem _ ha, hr⟩
+    rcases List.mem_cons.mp hb with rfl | hb
+    · exact ⟨_, List.mem_cons_self .., hab⟩
+    · obtain ⟨a, ha, h⟩ := ih hb
+      exact ⟨a, List.mem_cons_of_mem _ ha, h⟩
 
 private lemma forall₂_trans {α β γ : Type} {R : α → β → Prop} {S : β → γ → Prop}
     {T : α → γ → Prop} (H : ∀ a b c, R a b → S b c → T a c) {l₁ : List α} {l₂ : List β}
@@ -415,7 +417,9 @@ theorem WInv.restore_sim {d : Desc} {B h L : ℕ} (hDB : descLen d ≤ B) {w : W
     WInv (descLen d) B 0 (L + 2 * m) (restore r w (Windowed.sim d m (Windowed.extract r w)).1) := by
   have hf := forall₂_restore (forall₂_sim d m (Windowed.extract r w))
   refine ⟨state_sim le_rfl m hw.state, hf.length_eq ▸ hw.tapes,
-    fun t' ht' => by obtain ⟨_, -, hg⟩ := exists_of_forall₂ hf ht'; simp [hg.1],
+    fun t' ht' => by
+      obtain ⟨_, -, hg⟩ := exists_of_forall₂ hf ht'
+      simp [hg.1],
     fun t' ht' => by
       obtain ⟨t, ht, hg⟩ := exists_of_forall₂ hf ht'
       exact hg.2.trans (Nat.add_le_add_right (hw.cells t ht) _),

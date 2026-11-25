@@ -390,8 +390,11 @@ theorem Iso.wlColoring_comp (e : G ≃g H) (n : ℕ) (u : Fin k → V) :
     funext v
     change H.wlStepProfile (H.wlColoring n) (e ∘ u) (e v) =
       G.wlStepProfile (G.wlColoring n) u v
-    exact wlStepProfile_eq_iff.2 ⟨by rw [← Fin.comp_snoc]; exact e.tupleAtom_comp (Fin.snoc u v),
-      fun i => by rw [← Function.comp_update]; exact ih (Function.update u i v)⟩
+    refine wlStepProfile_eq_iff.2 ⟨?_, fun i => ?_⟩
+    · rw [← Fin.comp_snoc]
+      exact e.tupleAtom_comp (Fin.snoc u v)
+    · rw [← Function.comp_update]
+      exact ih (Function.update u i v)
 
 /-- Isomorphic finite graphs have the same `k`-WL histogram in every round. -/
 theorem Iso.wlHistogram_eq (e : G ≃g H) (k n : ℕ) :

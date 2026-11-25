@@ -122,14 +122,20 @@ private theorem subsetMobius_eq_sum (h : (ι → Bool) → ZMod 2) (S : Finset �
     subsetMobius (fun T => h fun i => decide (i ∈ T)) S = ∑ x with ∀ i ∉ S, x i = false, h x := by
   rw [subsetMobius]
   refine sum_nbij' (fun T i => decide (i ∈ T)) (fun x => univ.filter fun i => x i = true)
-    (fun T hT => mem_filter.mpr ⟨mem_univ _,
-      fun i hi => decide_eq_false fun hiT => hi (mem_powerset.mp hT hiT)⟩)
-    (fun x hx => mem_powerset.mpr fun i hi => by_contra fun hiS =>
-      Bool.false_ne_true (((mem_filter.mp hx).2 i hiS).symm.trans (mem_filter.mp hi).2))
-    (fun T _ => by ext; simp)
-    (fun x _ => by funext; simp) fun T _ => by
-      rw [zsmul_eq_mul, Int.cast_pow, Int.cast_neg, Int.cast_one, CharTwo.neg_one_eq_one, one_pow,
-        one_mul]
+    ?_ ?_ ?_ ?_ ?_
+  · exact fun T hT => mem_filter.mpr ⟨mem_univ _,
+      fun i hi => decide_eq_false fun hiT => hi (mem_powerset.mp hT hiT)⟩
+  · exact fun x hx => mem_powerset.mpr fun i hi => by_contra fun hiS =>
+      Bool.false_ne_true (((mem_filter.mp hx).2 i hiS).symm.trans (mem_filter.mp hi).2)
+  · intro T _
+    ext
+    simp
+  · intro x _
+    funext
+    simp
+  · intro T _
+    rw [zsmul_eq_mul, Int.cast_pow, Int.cast_neg, Int.cast_one, CharTwo.neg_one_eq_one, one_pow,
+      one_mul]
 
 /-- **The entries of the zero-sum matrix** over `ZMod 2`: the entry at `(I, J)` is the sum of `h`
 over the points vanishing on `I ∪ J`. -/
@@ -225,9 +231,12 @@ theorem zeroSumMatrix_exactWeight (a : ℕ) :
       cases hxi : x i <;> simp [S, hxi]
     · rintro ⟨rfl, rfl⟩
       refine ⟨fun i hi => by simpa using hi, ?_⟩
+      have hfalse : (univ.filter fun i => decide (i ∉ I.1) = false) = I.1 := by
+        ext
+        simp
       have h1 := card_filter_eq_false_eq_card_sub_weight fun i => decide (i ∉ I.1)
       have h2 := weight_le fun i => decide (i ∉ I.1)
-      rw [show (univ.filter fun i => decide (i ∉ I.1) = false) = I.1 by ext; simp, I.2] at h1
+      rw [hfalse, I.2] at h1
       omega
   rcases eq_or_ne I J with rfl | hIJ
   · rw [Matrix.one_apply_eq]

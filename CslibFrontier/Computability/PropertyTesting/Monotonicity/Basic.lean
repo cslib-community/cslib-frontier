@@ -115,7 +115,8 @@ theorem monotone_iff_forall_update_le [Finite ι] [DecidableEq ι] {β : Type*} 
   intro a b hab
   obtain ⟨i, c, hc, rfl⟩ := Pi.covBy_iff_exists_right_eq.1 hab
   obtain ⟨ha, rfl⟩ : a i = false ∧ c = true := by
-    have := hc.lt; revert this
+    have hlt := hc.lt
+    revert hlt
     cases a i <;> cases c <;> decide
   have := h a i
   rwa [update_eq_self_iff.2 ha.symm] at this

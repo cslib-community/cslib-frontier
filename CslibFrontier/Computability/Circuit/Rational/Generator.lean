@@ -241,12 +241,13 @@ lemma integer_grid {K : Type*} [Field K] [CharZero K] (P : List (MvPolynomial (F
   classical
   let S : Finset K := (Finset.range H).image (fun i => ((i + 1 : ℕ) : K))
   have hS : S.card = H := by
-    rw [Finset.card_image_of_injective _ fun i j h => by have := Nat.cast_injective h; omega,
+    rw [Finset.card_image_of_injective _ fun _ _ h => Nat.add_right_cancel (Nat.cast_injective h),
       Finset.card_range]
   obtain ⟨x, hx, hxp⟩ := FiniteGrid.simultaneous P hP d hd S (hS ▸ hH)
-  choose y hy using fun i =>
-    let ⟨k, hk, he⟩ := Finset.mem_image.mp (hx i); (⟨⟨k, Finset.mem_range.mp hk⟩, he⟩ :
-      ∃ k : Fin H, ((k.val + 1 : ℕ) : K) = x i)
+  have hm (i : Fin 3) : ∃ k : Fin H, ((k.val + 1 : ℕ) : K) = x i := by
+    obtain ⟨k, hk, he⟩ := Finset.mem_image.mp (hx i)
+    exact ⟨⟨k, Finset.mem_range.mp hk⟩, he⟩
+  choose y hy using hm
   exact ⟨y, fun p hp => funext hy ▸ hxp p hp⟩
 
 private lemma specialized_unit {K : Type*} [Field K] [CharZero K] {n q M N : ℕ} [NeZero M]
@@ -361,24 +362,36 @@ private theorem w_bound (n s : ℕ) : w n ≤ n + s + 1 := by unfold w; omega
 
 private theorem B_bound (n s : ℕ) : rankBound s ≤ 2 * (n + s + 1) := by unfold rankBound; omega
 
-private theorem delta_bound (n s : ℕ) : delta n s ≤ 4 * (n + s + 1) ^ 4 :=
-  (Nat.mul_le_mul (Nat.mul_le_mul_left 2 (Nat.pow_le_pow_left (w_bound n s) 3))
-    (B_bound n s)).trans_eq (by ring)
+private theorem delta_bound (n s : ℕ) : delta n s ≤ 4 * (n + s + 1) ^ 4 := by
+  calc delta n s ≤ 2 * (n + s + 1) ^ 3 * (2 * (n + s + 1)) := by
+         unfold delta
+         gcongr
+         · exact w_bound n s
+         · exact B_bound n s
+       _ = _ := by ring
 
 /-- `ambientDimension n s` is at most `16 * (n + s + 1) ^ 5`. -/
 theorem polynomial_M (n s : ℕ) : ambientDimension n s ≤ 16 * (n + s + 1) ^ 5 := by
-  exact (M_le n s).trans <|
-    (Nat.mul_le_mul_left 2 (Nat.mul_le_mul (B_bound n s) (delta_bound n s))).trans_eq (by ring)
+  calc ambientDimension n s ≤ 2 * (rankBound s * delta n s) := M_le n s
+       _ ≤ 2 * ((2 * (n + s + 1)) * (4 * (n + s + 1) ^ 4)) := by
+          gcongr
+          · exact B_bound n s
+          · exact delta_bound n s
+       _ = _ := by ring
 
 /-- The grid side length is polynomial in `n + s + 1`, for every `n`, including `n = 0`: the
 factor `s + 2` is bounded by `2 * (n + s + 1)`. -/
 theorem polynomial_H (n s : ℕ) : gridSize n s ≤ 49153 * (n + s + 1) ^ 17 := by
   have hp : 1 ≤ (n + s + 1) ^ 17 := Nat.one_le_iff_ne_zero.mpr (by positivity)
-  refine (Nat.add_le_add_left (Nat.mul_le_mul
-    (Nat.mul_le_mul (Nat.mul_le_mul_left 3 (show s + 2 ≤ 2 * (n + s + 1) by omega)) (B_bound n s))
-    (Nat.pow_le_pow_left (polynomial_M n s) 3)) 1).trans ?_
-  linarith [show 1 + 3 * (2 * (n + s + 1)) * (2 * (n + s + 1)) * (16 * (n + s + 1) ^ 5) ^ 3 =
-    1 + 49152 * (n + s + 1) ^ 17 by ring]
+  have hs : s + 2 ≤ 2 * (n + s + 1) := by omega
+  calc gridSize n s ≤
+        1 + 3 * (2 * (n + s + 1)) * (2 * (n + s + 1)) * (16 * (n + s + 1) ^ 5) ^ 3 := by
+         unfold gridSize
+         have hB := B_bound n s
+         have hM := polynomial_M n s
+         gcongr
+       _ = 1 + 49152 * (n + s + 1) ^ 17 := by ring
+       _ ≤ _ := by omega
 
 end Rational.Parameters
 

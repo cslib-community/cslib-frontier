@@ -109,8 +109,10 @@ private theorem exists_maximal_matching [DecidableEq P] (H : Finset (Finset P))
   by_contra! hmiss
   have hdisj : ∀ e' ∈ M, Disjoint e e' := fun e' he' =>
     Finset.disjoint_left.mpr fun j hje hje' => hmiss j (mem_biUnion.mpr ⟨e', he', hje'⟩) hje
-  have heM : e ∉ M := fun heM =>
-    let ⟨_, hj⟩ := hne e he; Finset.disjoint_left.mp (hdisj e heM) hj hj
+  have heM : e ∉ M := by
+    intro heM
+    obtain ⟨_, hj⟩ := hne e he
+    exact Finset.disjoint_left.mp (hdisj e heM) hj hj
   have hle := hmax (insert e M) (mem_filter.mpr ⟨mem_powerset.mpr (insert_subset he hM.1),
     coe_insert e M ▸ hM.2.insert fun e' he' _ => hdisj e' he'⟩)
   rw [Finset.card_insert_of_notMem heM] at hle
@@ -119,11 +121,12 @@ private theorem exists_maximal_matching [DecidableEq P] (H : Finset (Finset P))
 /-- A constant bit equals a uniformly random coordinate `x i` with probability `1 / 2`. -/
 private theorem toReal_uniformOfFintype_eq_const [Fintype ι] [DecidableEq ι] (i : ι) (b : Bool) :
     ((PMF.uniformOfFintype (ι → Bool)).toOuterMeasure {x | b = x i}).toReal = 1 / 2 := by
+  have hU : PMF.uniformOfFintype (ι → Bool) =
+      Probability.PMF.pi fun _ : ι => PMF.uniformOfFintype Bool := by
+    ext x
+    simp [PMF.uniformOfFintype_apply, Probability.PMF.pi_apply, ENNReal.inv_pow]
   have hmap : (PMF.uniformOfFintype (ι → Bool)).map (fun x => x i) = PMF.uniformOfFintype Bool := by
-    rw [show PMF.uniformOfFintype (ι → Bool) =
-      Probability.PMF.pi fun _ : ι => PMF.uniformOfFintype Bool by
-      ext x; simp [PMF.uniformOfFintype_apply, Probability.PMF.pi_apply, ENNReal.inv_pow],
-      Probability.PMF.pi_map_eval]
+    rw [hU, Probability.PMF.pi_map_eval]
   have hev : (PMF.uniformOfFintype (ι → Bool)).toOuterMeasure {x | b = x i} =
       ((PMF.uniformOfFintype (ι → Bool)).map fun x => x i) b := by
     rw [PMF.toOuterMeasure_apply, PMF.map_apply]
@@ -176,15 +179,21 @@ theorem exists_decodingMatching_of_nonadaptivePlan [Fintype ι] [DecidableEq ι]
         exact le_of_not_ge h
     have havg : ∑ plan, (planLaw plan).toReal * acc plan ≤
         (1 / 2 + η) + (1 / 2) * (planLaw.toOuterMeasure good).toReal := by
-      refine (Finset.sum_le_sum fun plan _ =>
-        mul_le_mul_of_nonneg_left (hpt plan) ENNReal.toReal_nonneg).trans_eq ?_
-      simp only [mul_add, Finset.sum_add_distrib, ← Finset.sum_mul, Probability.PMF.sum_toReal,
-        one_mul]
-      rw [show ∑ x, (planLaw x).toReal * ((1 / 2) * if x ∈ good then 1 else 0) =
-          (1 / 2) * ∑ x, (planLaw x).toReal * if x ∈ good then 1 else 0 by
-          rw [Finset.mul_sum]
-          exact Finset.sum_congr rfl fun _ _ => by ring,
-        ← Probability.PMF.toOuterMeasure_toReal_eq_sum_ite]
+      calc ∑ plan, (planLaw plan).toReal * acc plan
+          ≤ ∑ plan, (planLaw plan).toReal *
+              ((1 / 2 + η) + (1 / 2) * (if plan ∈ good then (1 : ℝ) else 0)) :=
+            Finset.sum_le_sum fun plan _ =>
+              mul_le_mul_of_nonneg_left (hpt plan) ENNReal.toReal_nonneg
+        _ = (1 / 2 + η) * (∑ plan, (planLaw plan).toReal) +
+              (1 / 2) * (∑ plan, (planLaw plan).toReal * if plan ∈ good then (1 : ℝ) else 0) := by
+            simp only [mul_add, Finset.sum_add_distrib, ← Finset.sum_mul]
+            congr 1
+            · ring
+            · rw [Finset.mul_sum]
+              exact Finset.sum_congr rfl fun plan _ => by ring
+        _ = (1 / 2 + η) + (1 / 2) * (planLaw.toOuterMeasure good).toReal := by
+            rw [Probability.PMF.sum_toReal, mul_one,
+              ← Probability.PMF.toOuterMeasure_toReal_eq_sum_ite]
     change 1 / 2 + ε ≤ ∑ plan, (planLaw plan).toReal * acc plan at hacc
     linarith
   -- Step 2: form the hypergraph `H` of query sets of supported good plans.
@@ -230,10 +239,10 @@ theorem exists_decodingMatching_of_nonadaptivePlan [Fintype ι] [DecidableEq ι]
       exact absurd (Fintype.card_pos_iff.mpr ⟨j⟩) (by omega)
     simp [hP0]
   · set V : Finset P := M.biUnion id
-    have hV_card : (V.card : ℝ) ≤ (q : ℝ) * M.card := by
-      exact_mod_cast Finset.card_biUnion_le.trans
-        ((Finset.sum_le_sum fun e he => hH_card e (hMH he)).trans_eq
-          (by rw [Finset.sum_const, smul_eq_mul, mul_comm]))
+    have hV_card : V.card ≤ q * M.card := by
+      calc V.card ≤ ∑ e ∈ M, e.card := Finset.card_biUnion_le
+        _ ≤ ∑ _e ∈ M, q := Finset.sum_le_sum fun e he => hH_card e (hMH he)
+        _ = q * M.card := by rw [Finset.sum_const, smul_eq_mul, mul_comm]
     have hhit_le : (planLaw.toOuterMeasure good).toReal ≤
         ∑ j ∈ V, (planLaw.toOuterMeasure {plan | j ∈ plan.querySet}).toReal := by
       simp only [Probability.PMF.toOuterMeasure_apply_toReal, Set.mem_ofPred_eq]
@@ -258,12 +267,19 @@ theorem exists_decodingMatching_of_nonadaptivePlan [Fintype ι] [DecidableEq ι]
         (mul_le_mul_of_nonneg_right (hsmooth j₀) hn.le)
       rwa [div_mul_cancel₀ _ hn.ne'] at h1
     have hbound : 2 * (ε - η) ≤ (V.card : ℝ) * (c / Fintype.card P) :=
-      hgood_prob.trans <| hhit_le.trans <|
-        (Finset.sum_le_sum (g := fun _ => c / Fintype.card P) fun j _ => hsmooth j).trans_eq
-          (by rw [Finset.sum_const, nsmul_eq_mul])
-    have hmul := (mul_le_mul_of_nonneg_right hbound hn.le).trans_eq
-      (by rw [mul_assoc, div_mul_cancel₀ _ hn.ne'])
-    exact hmul.trans ((mul_le_mul_of_nonneg_right hV_card hc_nonneg).trans_eq (by ring))
+      hgood_prob.trans <| hhit_le.trans <| by
+        calc ∑ j ∈ V, (planLaw.toOuterMeasure {plan | j ∈ plan.querySet}).toReal
+            ≤ ∑ _j ∈ V, (c / Fintype.card P) := Finset.sum_le_sum fun j _ => hsmooth j
+          _ = (V.card : ℝ) * (c / Fintype.card P) := by rw [Finset.sum_const, nsmul_eq_mul]
+    have hmul : 2 * (ε - η) * Fintype.card P ≤ (V.card : ℝ) * c := by
+      have h := mul_le_mul_of_nonneg_right hbound hn.le
+      have hcancel : (V.card : ℝ) * (c / Fintype.card P) * Fintype.card P = (V.card : ℝ) * c := by
+        rw [mul_assoc, div_mul_cancel₀ _ hn.ne']
+      linarith
+    have hV_real : (V.card : ℝ) ≤ (q : ℝ) * M.card := by exact_mod_cast hV_card
+    calc 2 * (ε - η) * Fintype.card P ≤ (V.card : ℝ) * c := hmul
+      _ ≤ ((q : ℝ) * M.card) * c := mul_le_mul_of_nonneg_right hV_real hc_nonneg
+      _ = q * c * M.card := by ring
 
 /-- The probability that a non-adaptive plan queries position `j` is at most its expected number of
 reads of `j`. -/

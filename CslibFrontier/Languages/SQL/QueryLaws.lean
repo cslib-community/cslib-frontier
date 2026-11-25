@@ -85,8 +85,10 @@ predicate is `TRUE`. -/
 theorem IsSafePredicate.filterRows_eq_ok {Γ : Fin n → SqlType} {p : Expr n}
     (hp : p.IsSafePredicate Γ) {rs : List (Row n)} (hrs : ∀ r ∈ rs, r.Conforms Γ) :
     p.filterRows rs = .ok (rs.filter fun r => (p.evalTruth r).toOption = some .true) := by
-  rw [← Except.toOption_eq_some_iff, toOption_filterRows, ite_eq_left fun r hr => by
-    obtain ⟨_, ht⟩ := hp.exists_evalTruth_eq_ok (hrs r hr); simp [ht]]
+  have hall : ∀ r ∈ rs, (p.evalTruth r).toOption.isSome := fun r hr => by
+    obtain ⟨t, ht⟩ := hp.exists_evalTruth_eq_ok (hrs r hr)
+    simp [ht]
+  rw [← Except.toOption_eq_some_iff, toOption_filterRows, ite_eq_left hall]
 
 /-- `TRUE` keeps every row. -/
 @[simp] theorem filterRows_true (rs : List (Row n)) :
@@ -113,11 +115,12 @@ conjunction. -/
 theorem toOption_evalTruth_and (c p : Expr n) (r : Row n) :
     ((binary .and c p).evalTruth r).toOption =
       (c.evalTruth r).toOption.bind fun s => (p.evalTruth r).toOption.map (s ⊓ ·) := by
-  rcases h₁ : c.eval r with _ | a; · simp [evalTruth, eval_binary, h₁]
-  rcases h₂ : p.eval r with _ | b
-  · rcases ha : a.toTruth <;> simp [evalTruth, eval_binary, h₁, h₂, ha]
-  · rcases ha : a.toTruth with _ | s <;> rcases hb : b.toTruth with _ | t <;>
-      simp [evalTruth, eval_binary, evalBinOp, h₁, h₂, ha, hb]
+  simp only [evalTruth, eval_binary, evalBinOp]
+  rcases c.eval r with _ | a
+  · rfl
+  rcases p.eval r with _ | b
+  · rcases ha : a.toTruth <;> simp [ha]
+  · rcases ha : a.toTruth with _ | s <;> rcases hb : b.toTruth with _ | t <;> simp [ha, hb]
 
 /-- `WHERE` on two lists one after the other is `WHERE` on their concatenation. -/
 theorem toOption_filterRows_append (p : Expr n) (rs ss : List (Row n)) :
@@ -222,8 +225,9 @@ theorem eval_select_of_isSafePredicate {q : Query S n} {Γ : Fin n → SqlType}
     (select p q).eval D =
       (List.filter fun r => (p.evalTruth r).toOption = some .true) <$> q.eval D := by
   rw [eval_select]
-  rcases h : q.eval D with _ | rs <;>
-    [rfl; exact hp.filterRows_eq_ok (conforms_of_eval_eq_ok hD hq h)]
+  rcases h : q.eval D with e | rs
+  · rfl
+  · exact hp.filterRows_eq_ok (conforms_of_eval_eq_ok hD hq h)
 
 /-- A join with a safe predicate over well-typed inputs filters the pairs of input rows, as
 `Query.eval_join_eq_ok_of_forall` says, whenever both inputs succeed. -/
@@ -237,8 +241,10 @@ theorem eval_join_of_isSafePredicate {q₁ : Query S n} {q₂ : Query S m} {Γ :
       return ((rs ×ˢ ss).filter fun (r, s) =>
           (θ.evalTruth (Fin.append r s)).toOption = some .true)
         |>.map fun (r, s) => Fin.append r s) := by
-  rcases hrs : q₁.eval D with _ | rs; · simp [eval_join, hrs]
-  rcases hss : q₂.eval D with _ | ss; · simp [eval_join, hrs, hss]
+  rcases hrs : q₁.eval D with _ | rs
+  · simp [eval_join, hrs]
+  rcases hss : q₂.eval D with _ | ss
+  · simp [eval_join, hrs, hss]
   exact eval_join_eq_ok_of_forall hrs hss fun r hr s hs => hθ.exists_evalTruth_eq_ok
     (Row.conforms_append_iff.mpr ⟨conforms_of_eval_eq_ok hD h₁ hrs r hr,
       conforms_of_eval_eq_ok hD h₂ hss s hs⟩)
@@ -386,25 +392,28 @@ theorem join_comm (θ : Expr (n + m)) (q₁ : Query S n) (q₂ : Query S m) :
     Equiv .bag (join θ q₁ q₂)
       (project (fun i => col (finAddFlip i)) (join (θ.rename finAddFlip) q₂ q₁)) := fun D _ => by
   simp only [eval_join, eval_project]
-  rcases q₁.eval D with _ | rs <;> rcases q₂.eval D with _ | ss
-  exacts [.none, .none, .none, by
-    have hcols : ∀ ts : List (Row (m + n)),
-        ts.mapM (Expr.evalRow fun i => col (finAddFlip i)) = .ok (ts.map (· ∘ finAddFlip)) :=
-      fun ts => Except.mapM_eq_ok_map fun t _ => Expr.evalRow_col_comp _ t
-    have hflip : ∀ t ∈ Row.product ss rs,
-        θ.evalTruth (t ∘ finAddFlip) = (θ.rename finAddFlip).evalTruth t :=
-      fun t _ => by simp only [Expr.evalTruth, Expr.eval_rename]
-    simp only [Except.ok_bind, Except.toOption_bind, hcols, Except.toOption_ok]
-    rw [show (((θ.rename finAddFlip).filterRows (Row.product ss rs)).toOption.bind
-        fun ts => some (ts.map (· ∘ finAddFlip))) =
-        (θ.filterRows ((Row.product ss rs).map (· ∘ finAddFlip))).toOption by
-      rw [Expr.toOption_filterRows_map hflip]
-      cases ((θ.rename finAddFlip).filterRows (Row.product ss rs)).toOption <;> rfl]
-    refine EquivLevel.Rel.filterRows (ℓ := .bag) ?_ fun _ _ => rfl
-    simp only [EquivLevel.rel_bag, Row.product, List.map_map]
-    exact ((List.perm_map_swap_product ss rs).map _).symm.trans (List.Perm.of_eq <| by
-      rw [List.map_map]
-      exact List.map_congr_left fun ⟨s, r⟩ _ => (Fin.append_comp_finAddFlip r s).symm)]
+  rcases q₁.eval D with e | rs <;> rcases q₂.eval D with e' | ss
+  · exact .none
+  · exact .none
+  · exact .none
+  have hcols : ∀ ts : List (Row (m + n)),
+      ts.mapM (Expr.evalRow fun i => col (finAddFlip i)) = .ok (ts.map (· ∘ finAddFlip)) :=
+    fun ts => Except.mapM_eq_ok_map fun t _ => Expr.evalRow_col_comp _ t
+  have hflip : ∀ t ∈ Row.product ss rs,
+      θ.evalTruth (t ∘ finAddFlip) = (θ.rename finAddFlip).evalTruth t :=
+    fun t _ => by simp only [Expr.evalTruth, Expr.eval_rename]
+  simp only [Except.ok_bind, Except.toOption_bind, hcols, Except.toOption_ok]
+  have hrhs : (((θ.rename finAddFlip).filterRows (Row.product ss rs)).toOption.bind
+      fun ts => some (ts.map (· ∘ finAddFlip))) =
+      (θ.filterRows ((Row.product ss rs).map (· ∘ finAddFlip))).toOption := by
+    rw [Expr.toOption_filterRows_map hflip]
+    rcases ((θ.rename finAddFlip).filterRows (Row.product ss rs)).toOption <;> rfl
+  rw [hrhs]
+  refine EquivLevel.Rel.filterRows (ℓ := .bag) ?_ fun _ _ => rfl
+  simp only [EquivLevel.rel_bag, Row.product, List.map_map]
+  refine ((List.perm_map_swap_product ss rs).map _).symm.trans (List.Perm.of_eq ?_)
+  rw [List.map_map]
+  exact List.map_congr_left fun ⟨s, r⟩ _ => (Fin.append_comp_finAddFlip r s).symm
 
 /-! ### `DISTINCT` -/
 

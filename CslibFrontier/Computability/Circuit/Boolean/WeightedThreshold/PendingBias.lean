@@ -314,12 +314,14 @@ theorem card_pendingBiasStates_le_pow_intWeight (p : Program signature n g) (k W
       gateWeight p ⟨k + i.val, by omega⟩ ⟨j.val, by have := i.isLt; omega⟩ = w i j)
     (hW : ∀ i ∈ rows, ∀ j : Fin k, (w i j).natAbs ≤ W) :
     (pendingBiasStates p k).card ≤ (1 + k * W) ^ rows.card := by
-  refine (card_pendingBiasStates_le_prod_intWeight p k rows hrows w hw).trans
-    ((show (∏ i ∈ rows, (1 + ∑ j : Fin k, (w i j).natAbs)) ≤ ∏ _i ∈ rows, (1 + k * W) from
-      prod_le_prod fun i hi => ?_).trans_eq (by simp))
-  have hsum : (∑ j : Fin k, (w i j).natAbs) ≤ k * W := by
-    simpa using sum_le_card_nsmul univ (fun j : Fin k => (w i j).natAbs) W fun j _ => hW i hi j
-  omega
+  refine (card_pendingBiasStates_le_prod_intWeight p k rows hrows w hw).trans ?_
+  calc
+    (∏ i ∈ rows, (1 + ∑ j : Fin k, (w i j).natAbs)) ≤ ∏ _i ∈ rows, (1 + k * W) := by
+      refine prod_le_prod fun i hi => ?_
+      have hsum : (∑ j : Fin k, (w i j).natAbs) ≤ k * W := by
+        simpa using sum_le_card_nsmul univ (fun j : Fin k => (w i j).natAbs) W fun j _ => hW i hi j
+      omega
+    _ = (1 + k * W) ^ rows.card := by simp
 
 /-- **Section 6.1 (Row-constant internal weights).** If every future gate `k + i` assigns a
 single weight `β i` to all `k` earlier gates, the pending-bias state depends only on the Hamming
@@ -440,12 +442,14 @@ most `(1 + Fintype.card ι * W) ^ r` values on the Boolean cube. -/
 theorem card_intSummary_le_pow {ι : Type*} [Fintype ι] [DecidableEq ι] {r W : ℕ}
     (R : Fin r → ι → ℤ) (hW : ∀ a i, (R a i).natAbs ≤ W) :
     (univ.image (intSummary R)).card ≤ (1 + Fintype.card ι * W) ^ r := by
-  refine (card_intSummary_le_prod R).trans
-    ((show (∏ a : Fin r, (1 + ∑ i : ι, (R a i).natAbs)) ≤ ∏ _a : Fin r, (1 + Fintype.card ι * W)
-      from prod_le_prod fun a _ => ?_).trans_eq (by simp))
-  have hsum : (∑ i : ι, (R a i).natAbs) ≤ Fintype.card ι * W := by
-    simpa using sum_le_card_nsmul univ (fun i : ι => (R a i).natAbs) W fun i _ => hW a i
-  omega
+  refine (card_intSummary_le_prod R).trans ?_
+  calc
+    (∏ a : Fin r, (1 + ∑ i : ι, (R a i).natAbs)) ≤ ∏ _a : Fin r, (1 + Fintype.card ι * W) := by
+      refine prod_le_prod fun a _ => ?_
+      have hsum : (∑ i : ι, (R a i).natAbs) ≤ Fintype.card ι * W := by
+        simpa using sum_le_card_nsmul univ (fun i : ι => (R a i).natAbs) W fun i _ => hW a i
+      omega
+    _ = (1 + Fintype.card ι * W) ^ r := by simp
 
 /-- **Proposition 9.1 (Integer summary product bound for inner product).** If an integer matrix
 `R : Fin r → ι → ℤ` determines the direct input weights of a threshold program computing

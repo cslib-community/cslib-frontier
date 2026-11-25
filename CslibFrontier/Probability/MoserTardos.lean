@@ -295,16 +295,25 @@ theorem lintegral_iSup_count_le_of_pass [Fintype V] [DecidableEq V] [DecidableEq
     ∫⁻ T, ⨆ (w : List ι) (_ : IsLog vbl A T w), (w.count i : ℝ≥0∞) ∂table μ ≤
       ENNReal.ofReal (x i / (1 - x i)) := by
   classical
-  refine (lintegral_mono fun T => iSup₂_le fun w hw => ?_).trans <|
-    (lintegral_iSup (measurable_passCountRel R Pass hPass_meas i)
-      fun _ _ h T => passCountRel_mono R Pass i T h).le.trans <|
-    iSup_le fun H => lintegral_passCountRel_le μ R hRr A Pass hPass_meas hPass_prob Γ hΓ hx hP i H
-  obtain ⟨W, hcard, hW⟩ := hPass_witness T i w.length w hw le_rfl
-  refine le_trans ?_ (le_iSup (fun H => passCountRel R Pass i H T) w.length)
-  rw [← hcard, passCountRel, card_eq_sum_ones, Nat.cast_sum, Nat.cast_one]
-  exact (sum_congr rfl fun S hS => (Set.indicator_of_mem (s := {T' | Pass S T'})
-    (hW S hS).2 (1 : (∀ p : V × ℕ, α p.1) → ℝ≥0∞)).symm).le.trans
-    (sum_le_sum_of_subset_of_nonneg (fun S hS => (hW S hS).1) fun _ _ _ => zero_le)
+  have hcount : ∀ T (w : List ι), IsLog vbl A T w →
+      (w.count i : ℝ≥0∞) ≤ ⨆ H, passCountRel R Pass i H T := by
+    intro T w hw
+    refine le_trans ?_ (le_iSup (fun H => passCountRel R Pass i H T) w.length)
+    obtain ⟨W, hcard, hW⟩ := hPass_witness T i w.length w hw le_rfl
+    rw [← hcard, passCountRel, card_eq_sum_ones, Nat.cast_sum, Nat.cast_one]
+    calc ∑ S ∈ W, (1 : ℝ≥0∞)
+        = ∑ S ∈ W, ({T' | Pass S T'} : Set (∀ p : V × ℕ, α p.1)).indicator 1 T :=
+          sum_congr rfl fun S hS => (Set.indicator_of_mem (s := {T' | Pass S T'})
+            (hW S hS).2 (1 : (∀ p : V × ℕ, α p.1) → ℝ≥0∞)).symm
+      _ ≤ _ := sum_le_sum_of_subset_of_nonneg (fun S hS => (hW S hS).1) fun _ _ _ => zero_le
+  calc ∫⁻ T, ⨆ (w : List ι) (_ : IsLog vbl A T w), (w.count i : ℝ≥0∞) ∂table μ
+      ≤ ∫⁻ T, ⨆ H, passCountRel R Pass i H T ∂table μ :=
+        lintegral_mono fun _ => iSup₂_le fun _ hw => hcount _ _ hw
+    _ = ⨆ H, ∫⁻ T, passCountRel R Pass i H T ∂table μ :=
+        lintegral_iSup (measurable_passCountRel R Pass hPass_meas i)
+          (fun _ _ h T => passCountRel_mono R Pass i T h)
+    _ ≤ _ := iSup_le fun H =>
+        lintegral_passCountRel_le μ R hRr A Pass hPass_meas hPass_prob Γ hΓ hx hP i H
 
 /-- **Moser–Tardos, for all valid logs at once** [MoserTardos2010, Theorem 1.2]. Under the
 local-lemma hypothesis, the expected supremum, over all valid logs `w` on the table, of the number

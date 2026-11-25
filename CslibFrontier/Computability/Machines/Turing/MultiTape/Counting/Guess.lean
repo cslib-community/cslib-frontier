@@ -221,9 +221,10 @@ private theorem word_of_runBranch (input : List Bool) (choices : List ℕ) :
       · rename_i hc
         obtain ⟨word, hlen, hrest, rfl⟩ :=
           ih (index + 1) (output ++ [choice == 1]) hi final hrun hhalt
-        refine ⟨(choice == 1) :: word, by simp only [List.length_cons]; lia, ?_,
-          by simp [List.append_assoc]⟩
-        rcases (by lia : choice = 0 ∨ choice = 1) with rfl | rfl <;> simp [hrest]
+        refine ⟨(choice == 1) :: word, ?_, ?_, by simp [List.append_assoc]⟩
+        · simp only [List.length_cons]
+          lia
+        · rcases (by lia : choice = 0 ∨ choice = 1) with rfl | rfl <;> simp [hrest]
       · simp at hrun
     · obtain rfl : index = input.length := by lia
       rw [runBranch_cons, step?_boundary] at hrun
@@ -268,16 +269,20 @@ theorem mem_branches_iff (input : List Bool) (fuel : ℕ) (choices : List ℕ) :
         ∃ word : List Bool, word.length = input.length ∧ choices = trace word := by
   rw [MultiTapeCTM.mem_branches_iff]
   simp only [runBranch_halted_iff]
-  exact ⟨by rintro ⟨hlen, _, w, hw, rfl, _⟩; exact ⟨by simpa [hw] using hlen, w, hw, rfl⟩,
-    by rintro ⟨hlen, w, hw, rfl⟩; exact ⟨by simpa [hw] using hlen, _, w, hw, rfl, rfl⟩⟩
+  constructor
+  · rintro ⟨hlen, final, word, hword, rfl, _⟩
+    exact ⟨by simpa [hword] using hlen, word, hword, rfl⟩
+  · rintro ⟨hlen, word, hword, rfl⟩
+    exact ⟨by simpa [hword] using hlen, _, word, hword, rfl, rfl⟩
 
 /-- Witness words and first-halting occurrence traces are in bijection. -/
 theorem trace_bijOn (input : List Bool) :
     Set.BijOn trace {word | word.length = input.length}
       (guessMachine.branches (input.length + 1) (Cfg.init guessMachine.initial input)) := by
-  exact ⟨fun word hword => (mem_branches_iff input _ _).mpr ⟨le_rfl, word, hword, rfl⟩,
-    trace_injective.injOn, fun _ hc =>
-      let ⟨_, word, hw, heq⟩ := (mem_branches_iff input _ _).mp hc; ⟨word, hw, heq.symm⟩⟩
+  refine ⟨fun word hword => (mem_branches_iff input _ _).mpr ⟨le_rfl, word, hword, rfl⟩,
+    trace_injective.injOn, fun _ hchoices => ?_⟩
+  obtain ⟨_, word, hword, heq⟩ := (mem_branches_iff input _ _).mp hchoices
+  exact ⟨word, hword, heq.symm⟩
 
 /-- The same bijection, enumerated by the existing fixed-width bit-string type. -/
 theorem branches_eq_image (input : List Bool) :

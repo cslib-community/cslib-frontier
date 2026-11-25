@@ -254,8 +254,10 @@ theorem IsFTRL.regret_le_div {R : E → ℝ} {η σ : ℝ} (h : IsFTRL K (fun y 
     ext
     exact div_eq_inv_mul _ _
   have hb := h.regret_le hscale (mul_pos (inv_pos.mpr hη) hσ) hℓ hL hu T
-  rwa [show ∑ t ∈ range T, L t ^ 2 / (2 * (η⁻¹ * σ)) = η / (2 * σ) * ∑ t ∈ range T, L t ^ 2 by
-    rw [mul_sum]; exact sum_congr rfl fun _ _ => by field_simp, ← sub_div] at hb
+  have e : ∑ t ∈ range T, L t ^ 2 / (2 * (η⁻¹ * σ)) = η / (2 * σ) * ∑ t ∈ range T, L t ^ 2 := by
+    rw [mul_sum]
+    exact sum_congr rfl fun _ _ => by field_simp
+  rwa [e, ← sub_div] at hb
 
 /-- **Tuned learning rate.** If `R` is `σ`-strongly convex on `K` with `R y - R z ≤ D ^ 2` for
 `y z ∈ K`, the losses are convex and `ℓ t (x t) - ℓ t y ≤ L * ‖x t - y‖` on `K`, then FTRL with
@@ -277,15 +279,20 @@ theorem IsFTRL.regret_le_sqrt {R : E → ℝ} {σ D L : ℝ} {T : ℕ} (hσ : 0 
   simp only [sum_const, card_range, nsmul_eq_mul] at hb
   -- `√(2 T / σ) = 2 / s`, since `s * √(2 T / σ) = √4 = 2`.
   have hsq : √(2 * T / σ) = 2 / s := by
-    rw [eq_div_iff hs0.ne', hs, ← sqrt_mul (by positivity),
-      show 2 * (T : ℝ) / σ * (2 * σ / T) = 2 ^ 2 by field_simp, sqrt_sq (by norm_num)]
+    rw [eq_div_iff hs0.ne', hs, ← sqrt_mul (by positivity)]
+    have : 2 * (T : ℝ) / σ * (2 * σ / T) = 2 ^ 2 := by field_simp
+    rw [this, sqrt_sq (by norm_num)]
   have e1 : (R u - R (x 0)) / (D / L * s) ≤ D * L / s := by
     rw [div_le_div_iff₀ hη hs0]
-    exact (mul_le_mul_of_nonneg_right hD2 hs0.le).trans_eq (by field_simp)
+    calc (R u - R (x 0)) * s ≤ D ^ 2 * s := mul_le_mul_of_nonneg_right hD2 hs0.le
+      _ = D * L * (D / L * s) := by field_simp
   have e2 : D / L * s / (2 * σ) * (T * L ^ 2) = D * L / s := by
-    rw [eq_div_iff hs0.ne', show D / L * s / (2 * σ) * (T * L ^ 2) * s =
-      D * L * T * (s * s) / (2 * σ) by field_simp, hss]
-    field_simp
+    rw [eq_div_iff hs0.ne']
+    calc D / L * s / (2 * σ) * (T * L ^ 2) * s = D * L * T * (s * s) / (2 * σ) := by
+          field_simp
+      _ = D * L := by
+          rw [hss]
+          field_simp
   rw [hsq, show D * L * (2 / s) = D * L / s + D * L / s by ring]
   linarith
 
@@ -301,7 +308,9 @@ theorem IsFTRL.regret_le_of_subgradient {f : ℕ → E → ℝ} {g : ℕ → E �
     ∑ t ∈ range T, (f t (x t) - f t u) ≤ ψ u - ψ (x 0) + ∑ t ∈ range T, ‖g t‖ ^ 2 / (2 * μ) := by
   refine (sum_le_sum fun t _ => ?_).trans
     (h.regret_le hψ hμ (fun t => (g t).toLinearMap.convexOn hψ.1) (L := fun t => ‖g t‖)
-      (fun t y _ => by rw [← map_sub]; exact (le_norm_self _).trans ((g t).le_opNorm _)) hu T)
+      (fun t y _ => by
+        rw [← map_sub]
+        exact (le_norm_self _).trans ((g t).le_opNorm _)) hu T)
   have := hsub t u hu
   rw [map_sub] at this; linarith
 
@@ -421,13 +430,17 @@ theorem lazyOGD_regret_le {f : ℕ → E → ℝ} (hne : K.Nonempty) (hc : IsCom
     field_simp
   have hb := (isFTRL_lazyOGD (grad := grad) (x₀ := x₀) hne hc hK hη).regret_le hψ
     (inv_pos.mpr hη) (fun _ => (innerₛₗ ℝ _).convexOn hK) (L := fun t => ‖grad t (x t)‖)
-    (fun t y _ => by rw [← inner_sub_right]; exact real_inner_le_norm _ _) hu T
+    (fun t y _ => by
+      rw [← inner_sub_right]
+      exact real_inner_le_norm _ _) hu T
   refine (sum_le_sum fun t _ => ?_).trans (hb.trans ?_)
   · have := hsub t (x t) (lazyOGD_mem hne hc hK t) u hu
     rw [inner_sub_right] at this; linarith
-  · rw [show ∑ t ∈ range T, ‖grad t (x t)‖ ^ 2 / (2 * η⁻¹) =
-      η / 2 * ∑ t ∈ range T, ‖grad t (x t)‖ ^ 2 by
-        rw [mul_sum]; exact sum_congr rfl fun _ _ => by field_simp]
+  · have e : ∑ t ∈ range T, ‖grad t (x t)‖ ^ 2 / (2 * η⁻¹) =
+        η / 2 * ∑ t ∈ range T, ‖grad t (x t)‖ ^ 2 := by
+      rw [mul_sum]
+      exact sum_congr rfl fun _ _ => by field_simp
+    rw [e]
     linarith [show 0 ≤ ‖x 0 - x₀‖ ^ 2 / (2 * η) by positivity]
 
 /-- **Tuned lazy projected online gradient descent**: if the gradients satisfy the subgradient
@@ -446,16 +459,23 @@ theorem lazyOGD_regret_le_fixed {f : ℕ → E → ℝ} (hne : K.Nonempty) (hc :
   set c := D / (G * √(T : ℝ)) with hcdef
   have hc0 : 0 < c := by positivity
   have h := lazyOGD_regret_le (x₀ := x₀) hne hc hK hc0 hsub hu T
-  have hgs : ∑ t ∈ range T, ‖grad t (lazyOGD K c grad x₀ t)‖ ^ 2 ≤ T * G ^ 2 :=
-    (sum_le_sum fun t _ => pow_le_pow_left₀ (norm_nonneg _)
-      (hG t _ (lazyOGD_mem hne hc hK t)) 2).trans_eq (by simp)
-  have e1 : ‖u - x₀‖ ^ 2 / (2 * c) ≤ G * D * √(T : ℝ) / 2 :=
-    (div_le_div_of_nonneg_right (pow_le_pow_left₀ (norm_nonneg _) hD 2)
-      (by positivity)).trans_eq (by rw [hcdef]; field_simp)
+  have hgs : ∑ t ∈ range T, ‖grad t (lazyOGD K c grad x₀ t)‖ ^ 2 ≤ T * G ^ 2 := by
+    calc ∑ t ∈ range T, ‖grad t (lazyOGD K c grad x₀ t)‖ ^ 2 ≤ ∑ _t ∈ range T, G ^ 2 :=
+          sum_le_sum fun t _ =>
+            pow_le_pow_left₀ (norm_nonneg _) (hG t _ (lazyOGD_mem hne hc hK t)) 2
+      _ = T * G ^ 2 := by simp
+  have hD2 : ‖u - x₀‖ ^ 2 ≤ D ^ 2 := pow_le_pow_left₀ (norm_nonneg _) hD 2
+  have e1 : ‖u - x₀‖ ^ 2 / (2 * c) ≤ G * D * √(T : ℝ) / 2 := by
+    calc ‖u - x₀‖ ^ 2 / (2 * c) ≤ D ^ 2 / (2 * c) := by gcongr
+      _ = G * D * √(T : ℝ) / 2 := by
+          rw [hcdef]
+          field_simp
   have e2 : c / 2 * (T * G ^ 2) = G * D * √(T : ℝ) / 2 := by
-    rw [show c / 2 * (T * G ^ 2) = (√(T : ℝ) * √(T : ℝ)) * (D / (G * √(T : ℝ)) * G ^ 2) / 2 by
-      rw [mul_self_sqrt hTr.le, hcdef]; ring]
-    field_simp
+    calc c / 2 * (T * G ^ 2) =
+          (√(T : ℝ) * √(T : ℝ)) * (D / (G * √(T : ℝ)) * G ^ 2) / 2 := by
+          rw [mul_self_sqrt hTr.le, hcdef]
+          ring
+      _ = G * D * √(T : ℝ) / 2 := by field_simp
   linarith [mul_le_mul_of_nonneg_left hgs (show 0 ≤ c / 2 by positivity)]
 
 end Euclidean

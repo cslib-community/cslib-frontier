@@ -112,7 +112,9 @@ private theorem isClique_iff_edgesOn_subset {G : SimpleGraph V} {t : Finset V} :
     G.IsClique (t : Set V) ↔ (edgesOn t : Set (Sym2 V)) ⊆ G.edgeSet :=
   ⟨fun h e he => by
     induction e using Sym2.ind with
-    | _ a b => obtain ⟨ha, hb, hab⟩ := mk_mem_edgesOn.1 he; exact h ha hb hab,
+    | _ a b =>
+      obtain ⟨ha, hb, hab⟩ := mk_mem_edgesOn.1 he
+      exact h ha hb hab,
    fun h _ ha _ hb hab => h (mk_mem_edgesOn.2 ⟨ha, hb, hab⟩)⟩
 
 end EdgesOn
@@ -194,17 +196,23 @@ variable [DecidableEq V]
 such a set is determined by the pair it shares and its remaining vertex. -/
 private theorem card_filter_card_inter_eq_two_le {s : Finset V} (hs : #s = 3) :
     #{t ∈ powersetCard 3 (univ : Finset V) | #(s ∩ t) = 2} ≤ 3 * (Fintype.card V - 3) := by
-  refine (card_le_card_of_injOn (fun t => (s ∩ t, t \ s))
-    (t := powersetCard 2 s ×ˢ powersetCard 1 (univ \ s)) (fun t ht => ?_)
-    fun a _ b _ h => ?_).trans_eq ?_
-  · rw [mem_coe, mem_filter, mem_powersetCard] at ht
+  set T : Finset (Finset V) := {t ∈ powersetCard 3 (univ : Finset V) | #(s ∩ t) = 2}
+  have hinj : Set.InjOn (fun t => (s ∩ t, t \ s)) (T : Set (Finset V)) := by
+    intro a _ b _ h
+    simp only [Prod.mk.injEq] at h
+    rw [← sdiff_union_inter a s, ← sdiff_union_inter b s, inter_comm a, inter_comm b, h.1, h.2]
+  have hmaps : Set.MapsTo (fun t => (s ∩ t, t \ s)) (T : Set (Finset V))
+      (powersetCard 2 s ×ˢ powersetCard 1 (univ \ s) : Finset _) := by
+    intro t ht
+    rw [mem_coe, mem_filter, mem_powersetCard] at ht
     simp only [coe_product, Set.mem_prod, mem_coe, mem_powersetCard]
     have := inter_comm t s ▸ card_sdiff_add_card_inter t s
     exact ⟨⟨inter_subset_left, ht.2⟩, sdiff_subset_sdiff (subset_univ t) le_rfl, by omega⟩
-  · simp only [Prod.mk.injEq] at h
-    rw [← sdiff_union_inter a s, ← sdiff_union_inter b s, inter_comm a, inter_comm b, h.1, h.2]
-  · rw [card_product, card_powersetCard, card_powersetCard, hs, card_univ_sdiff, hs,
-      Nat.choose_one_right]; rfl
+  calc #T ≤ #(powersetCard 2 s ×ˢ powersetCard 1 (univ \ s)) := card_le_card_of_injOn _ hmaps hinj
+    _ = 3 * (Fintype.card V - 3) := by
+      rw [card_product, card_powersetCard, card_powersetCard, hs, card_univ_sdiff, hs,
+        Nat.choose_one_right]
+      rfl
 
 omit [Fintype V] in
 /-- The pair probabilities of the triangle events. Two `3`-sets span `6`, `5` or `3` edges
@@ -214,16 +222,17 @@ private theorem binomialRandom_real_isClique_inter_le [Countable V] (p : I) {s t
     G(V, p).real ({G | G.IsClique (s : Set V)} ∩ {G | G.IsClique (t : Set V)}) ≤
       (p : ℝ) ^ 6 + (if s = t then (p : ℝ) ^ 3 else 0) +
         (if #(s ∩ t) = 2 then (p : ℝ) ^ 5 else 0) := by
-  rw [show {G : SimpleGraph V | G.IsClique (s : Set V)} ∩ {G | G.IsClique (t : Set V)} =
-      {G | ((edgesOn s ∪ edgesOn t : Finset (Sym2 V)) : Set (Sym2 V)) ⊆ G.edgeSet} by
-      ext G
-      simp only [Set.mem_inter_iff, Set.mem_ofPred_eq, isClique_iff_edgesOn_subset, coe_union,
-        Set.union_subset_iff],
-    binomialRandom_real_subset_edgeSet p _ fun e he => by
-      rcases mem_union.1 he with he | he <;> exact not_isDiag_of_mem_edgesOn he]
+  have hset : {G : SimpleGraph V | G.IsClique (s : Set V)} ∩ {G | G.IsClique (t : Set V)} =
+      {G | ((edgesOn s ∪ edgesOn t : Finset (Sym2 V)) : Set (Sym2 V)) ⊆ G.edgeSet} := by
+    ext G
+    simp only [Set.mem_inter_iff, Set.mem_ofPred_eq, isClique_iff_edgesOn_subset, coe_union,
+      Set.union_subset_iff]
+  rw [hset, binomialRandom_real_subset_edgeSet p _ fun e he => by
+    rcases mem_union.1 he with he | he <;> exact not_isDiag_of_mem_edgesOn he]
   have hcard : #(edgesOn s ∪ edgesOn t) + (#(s ∩ t)).choose 2 = 6 := by
     rw [← card_edgesOn, edgesOn_inter, card_union_add_card_inter, card_edgesOn, card_edgesOn,
-      hs, ht]; rfl
+      hs, ht]
+    rfl
   have hp0 : (0 : ℝ) ≤ p := p.2.1
   have hj : #(s ∩ t) ≤ 3 := hs ▸ card_le_card inter_subset_left
   by_cases hst : s = t
@@ -310,7 +319,8 @@ private theorem pow_three_le_sixteen_mul_choose {n : ℕ} (hn : 4 ≤ n) :
     have hc := Nat.choose_mul_factorial_mul_factorial (n := 4 + m) (k := 3) (by omega)
     have hf : (m + 1 + 3).factorial = (4 + m) * (3 + m) * (2 + m) * (m + 1).factorial := by
       rw [show m + 1 + 3 = (m + 1 + 2) + 1 by ring, Nat.factorial_succ, Nat.factorial_succ,
-        Nat.factorial_succ]; ring
+        Nat.factorial_succ]
+      ring
     rw [show (3 : ℕ).factorial = 6 from rfl, show 4 + m - 3 = m + 1 by omega,
       show 4 + m = m + 1 + 3 by ring, hf] at hc
     have hnat : (m + 1 + 3).choose 3 * 6 = (4 + m) * (3 + m) * (2 + m) :=
@@ -344,7 +354,9 @@ theorem binomialRandom_real_not_cliqueFree_three_le (n : ℕ) (p : I) :
   rw [Fintype.card_fin, show (3 : ℕ).choose 2 = 3 from rfl]
   have h := Nat.choose_le_pow_div (α := ℝ) 3 n
   rw [show ((3 : ℕ).factorial : ℝ) = 6 by norm_num [Nat.factorial]] at h
-  exact (mul_le_mul_of_nonneg_right h (pow_nonneg p.2.1 _)).trans_eq (by ring)
+  calc (n.choose 3 : ℝ) * (p : ℝ) ^ 3
+      ≤ (n : ℝ) ^ 3 / 6 * (p : ℝ) ^ 3 := mul_le_mul_of_nonneg_right h (pow_nonneg p.2.1 _)
+    _ = (n * p) ^ 3 / 6 := by ring
 
 /-- **Below the triangle threshold** [Alon and Spencer, Section 4.4][AlonSpencer2016]: if
 `n p(n) → 0`, then `G(n, p(n))` contains a triangle with probability tending to `0`. -/
@@ -361,9 +373,11 @@ contains a triangle with probability tending to `1`. -/
 theorem tendsto_binomialRandom_real_cliqueFree_three {p : ℕ → I}
     (hp : Tendsto (fun n : ℕ => (n : ℝ) * p n) atTop atTop) :
     Tendsto (fun n => G(Fin n, p n).real {G | G.CliqueFree 3}) atTop (𝓝 0) := by
-  refine squeeze_zero' (Eventually.of_forall fun _ => measureReal_nonneg) ?_
-    (by simpa using ((tendsto_pow_atTop (by norm_num : (3 : ℕ) ≠ 0) |>.comp hp).const_div_atTop
-      16).add (hp.const_div_atTop 48))
+  have hlim : Tendsto (fun n : ℕ => 16 / ((n : ℝ) * p n) ^ 3 + 48 / ((n : ℝ) * p n)) atTop
+      (𝓝 0) := by
+    simpa using ((tendsto_pow_atTop (by norm_num : (3 : ℕ) ≠ 0) |>.comp hp).const_div_atTop
+      16).add (hp.const_div_atTop 48)
+  refine squeeze_zero' (Eventually.of_forall fun _ => measureReal_nonneg) ?_ hlim
   filter_upwards [eventually_ge_atTop 4, hp.eventually_gt_atTop 0] with n hn hnp
   exact binomialRandom_real_cliqueFree_three_le hn (p n) (pos_of_mul_pos_right hnp n.cast_nonneg)
 
@@ -372,9 +386,10 @@ theorem tendsto_binomialRandom_real_cliqueFree_three {p : ℕ → I}
 to `1`. -/
 theorem tendsto_binomialRandom_real_not_cliqueFree_three_nhds_one {p : ℕ → I}
     (hp : Tendsto (fun n : ℕ => (n : ℝ) * p n) atTop atTop) :
-    Tendsto (fun n => G(Fin n, p n).real {G | ¬G.CliqueFree 3}) atTop (𝓝 1) :=
-  ((sub_zero (1 : ℝ)) ▸ (tendsto_binomialRandom_real_cliqueFree_three hp).const_sub 1).congr
-    fun _ => (probReal_compl_eq_one_sub (measurableSet_cliqueFree 3)).symm.trans
-      (by rw [Set.compl_ofPred])
+    Tendsto (fun n => G(Fin n, p n).real {G | ¬G.CliqueFree 3}) atTop (𝓝 1) := by
+  have h := (tendsto_binomialRandom_real_cliqueFree_three hp).const_sub 1
+  rw [sub_zero] at h
+  refine h.congr fun n => ?_
+  rw [← Set.compl_ofPred, probReal_compl_eq_one_sub (measurableSet_cliqueFree 3)]
 
 end SimpleGraph

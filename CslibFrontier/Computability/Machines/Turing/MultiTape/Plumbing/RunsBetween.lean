@@ -117,9 +117,10 @@ theorem step_shift (tm : MultiTapeTM k Symbol State) (δ : Fin k → ℤ)
   cases hq : c.state with
   | none => rw [step_of_halt (show (c.shift δ).state = none from hq), step_of_halt hq]
   | some q =>
-    rw [step_of_state (show (c.shift δ).state = some q from hq), step_of_state hq,
-      show (c.shift δ).workTapeSymbols = c.workTapeSymbols by
-        funext; simp [Cfg.workTapeSymbols, Cfg.shift],
+    have hw : (c.shift δ).workTapeSymbols = c.workTapeSymbols := by
+      funext
+      simp [Cfg.workTapeSymbols, Cfg.shift]
+    rw [step_of_state (show (c.shift δ).state = some q from hq), step_of_state hq, hw,
       show (c.shift δ).inputSymbol = c.inputSymbol from rfl]
     refine Cfg.ext rfl rfl (funext fun i => funext fun z => ?_)
       (funext fun _ => by simp only [Action.apply, Cfg.shift]; ring) rfl
@@ -179,8 +180,11 @@ theorem of_runFrom (h : tm.runFrom (c.withState (some tm.q₀)) t = c'.withState
 /-- A run between shifted configurations. -/
 theorem shift (h : RunsBetween tm c c' t s) (δ : Fin k → ℤ) :
     RunsBetween tm (c.shift δ) (c'.shift δ) t s := by
-  exact ⟨by rw [Cfg.shift_withState, runFrom_shift, h.1]; rfl,
-    by rw [Cfg.shift_withState, space_shift]; exact h.2⟩
+  refine ⟨?_, ?_⟩
+  · rw [Cfg.shift_withState, runFrom_shift, h.1]
+    rfl
+  · rw [Cfg.shift_withState, space_shift]
+    exact h.2
 
 /-- **Sequential composition.** -/
 theorem seq {State₁ : Type*} {tm₁ : MultiTapeTM k Symbol State₁} {c'' : Cfg k Symbol Unit input}
@@ -190,8 +194,10 @@ theorem seq {State₁ : Type*} {tm₁ : MultiTapeTM k Symbol State₁} {c'' : Cf
       (c.withState (some tm.q₀)).mapState (handOver tm₁.q₀) := rfl
   refine ⟨by rw [hl, runFrom_seq h₀.1 rfl h₁.1 rfl]; rfl, ?_⟩
   rw [hl]
-  exact (space_seq_le h₀.1 rfl (by rw [show (c'.withState (none : Option State)).withState _ =
-    c'.withState (some tm₁.q₀) from rfl, h₁.1]; rfl)).trans (Nat.add_le_add h₀.2 h₁.2)
+  refine (space_seq_le h₀.1 rfl ?_).trans (Nat.add_le_add h₀.2 h₁.2)
+  rw [show (c'.withState (none : Option State)).withState _ = c'.withState (some tm₁.q₀) from rfl,
+    h₁.1]
+  rfl
 
 /-- **A run on the tapes selected by an embedding.** The other tapes are left alone; each costs
 one cell. -/

@@ -181,8 +181,9 @@ theorem pairwise_isUnit_liftO_sub_digits {n : ℕ} (hn : n ≤ 2 ^ fl.length) :
   rcases lt_or_ge b fl.length with hb | hb
   · have := hall b hb
     rw [getD_map_testBit _ _ _ hb, getD_map_testBit _ _ _ hb] at this
-    revert this; cases (i : ℕ).testBit b <;> cases (j : ℕ).testBit b <;> simp
-  · have := Nat.pow_le_pow_right (by norm_num : 0 < 2) hb
+    revert this
+    cases (i : ℕ).testBit b <;> cases (j : ℕ).testBit b <;> simp
+  · have h2 : 2 ^ fl.length ≤ 2 ^ b := Nat.pow_le_pow_right (by norm_num) hb
     rw [Nat.testBit_lt_two_pow (by omega), Nat.testBit_lt_two_pow (by omega)]
 
 end Cslib.GaloisRingArith
@@ -270,11 +271,14 @@ theorem exists_ends {r : ℕ} (hD : D.IsRowsFirstBipartite r) {j : ℕ} (hj : j 
   refine ⟨s, r + t, by omega, by omega, by omega, by omega, by simpa using hsc,
     by simpa using htc, fun v hv hm => ?_⟩
   by_cases hvr : v < r
-  · exact Or.inl (hsu v (by simp; omega) (by simpa [List.getElem_take] using hm))
-  · have := htu (v - r) (by simp; omega) (by
+  · refine Or.inl (hsu v (by simp; omega) ?_)
+    simpa [List.getElem_take] using hm
+  · have htv : v - r = t := by
+      refine htu (v - r) (by simp; omega) ?_
       simp only [List.getElem_map, List.getElem_drop]
-      convert hm using 3; omega)
-    exact Or.inr (by omega)
+      convert hm using 3
+      omega
+    omega
 
 /-- **The vertices at an edge** of a rows-first network are its row and its column. -/
 theorem incident_eq {r : ℕ} (hD : D.IsRowsFirstBipartite r) {j : ℕ} (hj : j < D.numEdges) :
@@ -287,18 +291,24 @@ theorem incident_eq {r : ℕ} (hD : D.IsRowsFirstBipartite r) {j : ℕ} (hj : j 
     List.not_mem_nil, or_false]
   refine ⟨fun ⟨hv, hm⟩ => hu v hv (getD_map_fst v hv ▸ hm), ?_⟩
   rintro (rfl | rfl)
-  · exact ⟨hs, by rw [getD_map_fst _ hs]; exact List.count_pos_iff.mp (by omega)⟩
-  · exact ⟨ht, by rw [getD_map_fst _ ht]; exact List.count_pos_iff.mp (by omega)⟩
+  · refine ⟨hs, ?_⟩
+    rw [getD_map_fst _ hs]
+    exact List.count_pos_iff.mp (by omega)
+  · refine ⟨ht, ?_⟩
+    rw [getD_map_fst _ ht]
+    exact List.count_pos_iff.mp (by omega)
 
 /-- The first vertex at an edge of a rows-first network is a vertex. -/
 theorem getD_incident_zero_lt {r : ℕ} (hD : D.IsRowsFirstBipartite r) {j : ℕ}
     (hj : j < D.numEdges) : (D.incident j).getD 0 0 < D.vertices.length := by
-  obtain ⟨_, _, hs, _, -, -, -, -, h⟩ := incident_eq hD hj; rwa [h]
+  obtain ⟨_, _, hs, _, -, -, -, -, h⟩ := incident_eq hD hj
+  rwa [h]
 
 /-- The second vertex at an edge of a rows-first network is a vertex. -/
 theorem getD_incident_one_lt {r : ℕ} (hD : D.IsRowsFirstBipartite r) {j : ℕ}
     (hj : j < D.numEdges) : (D.incident j).getD 1 0 < D.vertices.length := by
-  obtain ⟨_, _, _, ht, -, -, -, -, h⟩ := incident_eq hD hj; rwa [h]
+  obtain ⟨_, _, _, ht, -, -, -, -, h⟩ := incident_eq hD hj
+  rwa [h]
 
 /-! ### The network of a described network -/
 

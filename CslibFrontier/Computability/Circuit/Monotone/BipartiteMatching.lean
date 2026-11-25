@@ -390,16 +390,16 @@ private theorem card_filter_repeatedRun_ne_mul_two_pow_le (hk : 0 < k) (x y : Bi
     (· ∈ repeatedRun p h i₀ ⁻¹' {q | ¬disjointness x y = q.run x y})
   by_cases hxy : disjointness x y = true
   · -- On disjoint sets the reduction never errs.
-    rw [show bad = ∅ from filter_eq_empty_iff.mpr fun σs _ => by
-      simp [repeatedRun, run_oneRun_of_disjointness hp hxy, hxy]]
-    simp
+    have hbad : bad = ∅ := filter_eq_empty_iff.mpr fun σs _ => by
+      simp [repeatedRun, run_oneRun_of_disjointness hp hxy, hxy]
+    simp [hbad]
   by_cases h₀ : x i₀ = true ∧ y i₀ = true
   · -- If `i₀` is in both sets, it never errs either.
     have : Nonempty (Fin k) := ⟨⟨0, hk⟩⟩
     rw [Bool.not_eq_true] at hxy
-    rw [show bad = ∅ from filter_eq_empty_iff.mpr fun σs _ => by
-      simp [repeatedRun, run_oneRun_of_mem hp h₀.1 h₀.2, hxy]]
-    simp
+    have hbad : bad = ∅ := filter_eq_empty_iff.mpr fun σs _ => by
+      simp [repeatedRun, run_oneRun_of_mem hp h₀.1 h₀.2, hxy]
+    simp [hbad]
   -- Otherwise it errs only when every run answers `true`.
   obtain ⟨ℓ, hxℓ, hyℓ⟩ : ∃ ℓ, x ℓ = true ∧ y ℓ = true := by
     simpa only [disjointness, decide_eq_true_eq, not_forall, Bool.and_eq_false_iff, not_or,

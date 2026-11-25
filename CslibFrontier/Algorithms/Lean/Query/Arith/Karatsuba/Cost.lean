@@ -171,7 +171,7 @@ theorem addCount_two_pow (k : ℕ) : 2 * addCount (2 ^ k) + 16 * 2 ^ k = 13 * 3 
 theorem mulCount_le_pow_clog (n : ℕ) : mulCount n ≤ 3 ^ Nat.clog 2 n := by
   simpa using Nat.add_mul_two_pow_clog_le_of_halving (T := mulCount) (a := 3) (c := 0) (α := 1)
     (β := 0) (by norm_num) (by norm_num)
-    (fun n hn => by rcases (by omega : n = 0 ∨ n = 1) with rfl | rfl <;> simp)
+    (fun | 0, _ | 1, _ => by simp)
     (fun n hn S hS => by
       rw [mulCount_of_two_le hn]
       linarith [hS (n / 2) (by omega), hS (n - n / 2) (by omega)]) n
@@ -181,7 +181,7 @@ theorem addCount_add_le_pow_clog (n : ℕ) :
     addCount n + 8 * 2 ^ Nat.clog 2 n ≤ 8 * 3 ^ Nat.clog 2 n := by
   refine Nat.add_mul_two_pow_clog_le_of_halving (T := addCount) (a := 3) (c := 4) (α := 8)
     (β := 8) (by norm_num) (by norm_num)
-    (fun n hn => by rcases (by omega : n = 0 ∨ n = 1) with rfl | rfl <;> simp)
+    (fun | 0, _ | 1, _ => by simp)
     (fun n hn S hS => ?_) n
   rw [addCount_of_two_le hn]
   have := hS (n / 2) (by omega)
@@ -210,9 +210,10 @@ theorem pow_log_le_mulCount {n : ℕ} (hn : n ≠ 0) : 3 ^ Nat.log 2 n ≤ mulCo
     have hlog : Nat.log 2 (n + 2) = Nat.log 2 ((n + 2) / 2) + 1 := by
       have := Nat.log_pos (b := 2) (by norm_num) (by omega : 2 ≤ n + 2)
       rw [Nat.log_div_base]; omega
+    have hmono : 3 ^ Nat.log 2 ((n + 2) / 2) ≤ 3 ^ Nat.log 2 (n + 2 - (n + 2) / 2) :=
+      Nat.pow_le_pow_right (by norm_num) (Nat.log_mono_right (by omega))
     rw [hlog, pow_succ]
-    linarith [ih₁ (by omega), ih₂ (by omega), Nat.pow_le_pow_right (n := 3) (by norm_num)
-      (Nat.log_mono_right (b := 2) (show (n + 2) / 2 ≤ n + 2 - (n + 2) / 2 by omega))]
+    linarith [ih₁ (by omega), ih₂ (by omega), hmono]
 
 /-- At most `n ^ 2` multiplications. -/
 theorem mulCount_le_sq (n : ℕ) : mulCount n ≤ n ^ 2 := by

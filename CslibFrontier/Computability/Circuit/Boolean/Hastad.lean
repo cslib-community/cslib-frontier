@@ -149,12 +149,15 @@ private theorem exists_dnf_of_trees {m : ℕ} (c : Bool) (t : Fin m → Decision
       nodup_of_mem_toDNF hu⟩
   · rw [Bool.eq_iff_iff, DNF.eval_eq_true_iff, decide_eq_true_iff]
     simp only [List.mem_flatten, List.mem_ofFn]
-    exact ⟨fun ⟨u, ⟨_, ⟨j, rfl⟩, hu⟩, hux⟩ =>
-      ⟨j, by rw [← eval_map (· != c), ← eval_toDNF, DNF.eval_eq_true_iff]; exact ⟨u, hu, hux⟩⟩,
-      fun ⟨j, hj⟩ =>
-      let ⟨u, hu, hux⟩ :=
-        (DNF.eval_eq_true_iff _ _).1 (by rwa [← eval_map (· != c), ← eval_toDNF] at hj)
-      ⟨u, ⟨_, ⟨j, rfl⟩, hu⟩, hux⟩⟩
+    constructor
+    · rintro ⟨u, ⟨_, ⟨j, rfl⟩, hu⟩, hux⟩
+      refine ⟨j, ?_⟩
+      rw [← eval_map (· != c), ← eval_toDNF, DNF.eval_eq_true_iff]
+      exact ⟨u, hu, hux⟩
+    · rintro ⟨j, hj⟩
+      rw [← eval_map (· != c), ← eval_toDNF, DNF.eval_eq_true_iff] at hj
+      obtain ⟨u, hu, hux⟩ := hj
+      exact ⟨u, ⟨_, ⟨j, rfl⟩, hu⟩, hux⟩
 
 /-- **Operations applied to shallow functions are narrow formulas in disjunctive normal form**, up
 to negation: a disjunction is the disjunction of the paths to `true` of decision trees for its
@@ -168,7 +171,9 @@ theorem exists_dnf_of_shallow {op : Op} (hop : op ≠ .not) {args : Fin op.arity
   | not => exact absurd rfl hop
   | and m =>
     obtain ⟨D, hD, heval⟩ := exists_dnf_of_trees true t hd
-    exact ⟨D, true, hD, fun y => by rw [heval, Bool.eq_iff_iff]; simp [ht]⟩
+    refine ⟨D, true, hD, fun y => ?_⟩
+    rw [heval, Bool.eq_iff_iff]
+    simp [ht]
   | or m =>
     obtain ⟨D, hD, heval⟩ := exists_dnf_of_trees false t hd
     exact ⟨D, false, hD, fun y => by simp [heval, ht]⟩

@@ -129,10 +129,10 @@ theorem expect_ciSup_sum_mul_signVal_le_of_hammingDist {ι κ : Type*} [Fintype 
     refine (hdist j hex.choose).trans ?_
     rw [hex.choose_spec, hammingDist_comm]
     have h4 : (4 * hammingDist v (ℓ j) * 4 ^ k : ℝ) ≤ n := by
-      exact_mod_cast (by
-        rw [show 4 * hammingDist v (ℓ j) * 4 ^ k = hammingDist v (ℓ j) * 4 ^ (k + 1) by ring]
-        exact (Nat.mul_le_mul_right _ hd).trans (Nat.div_mul_le_self n _) :
-        4 * hammingDist v (ℓ j) * 4 ^ k ≤ n)
+      exact_mod_cast calc
+        4 * hammingDist v (ℓ j) * 4 ^ k = hammingDist v (ℓ j) * 4 ^ (k + 1) := by ring
+        _ ≤ n / 4 ^ (k + 1) * 4 ^ (k + 1) := Nat.mul_le_mul_right _ hd
+        _ ≤ n := Nat.div_mul_le_self n _
     rw [div_pow, show ((2 : ℝ) ^ k) ^ 2 = 4 ^ k by rw [← pow_mul, mul_comm, pow_mul]; norm_num]
     rcases Nat.eq_zero_or_pos n with rfl | hn
     · simp only [CharP.cast_eq_zero, div_zero, zero_mul]; positivity
@@ -147,12 +147,14 @@ theorem expect_ciSup_sum_mul_signVal_le_of_hammingDist {ι κ : Type*} [Fintype 
     have hcard : ((T k).card : ℝ) ≤ (2 : ℝ) ^ (2 * d * (2 * k + 5)) := by
       have hsep (u : Fin n → Bool) (hu : u ∈ N k) (v : Fin n → Bool) (hv : v ∈ N k) (huv : u ≠ v) :
           (1 / 4 ^ (k + 1) : ℝ) * n ≤ hammingDist u v := by
+        have hlt : n < (n / 4 ^ (k + 1) + 1) * 4 ^ (k + 1) := by
+          rw [add_one_mul]
+          exact Nat.lt_div_mul_add (by positivity)
         rw [one_div_mul_eq_div, div_le_iff₀ (by positivity)]
-        exact_mod_cast ((Nat.lt_div_mul_add (b := 4 ^ (k + 1)) (by positivity)).trans_le <| by
-          rw [← add_one_mul]
-          exact Nat.mul_le_mul_right _ (hNsep k hu hv huv)).le
-      have hNC (u : Fin n → Bool) (hu : u ∈ N k) : u ∈ restriction C x :=
-        let ⟨j, hj⟩ := hVex u (hNV k hu); hj ▸ hℓ j
+        exact_mod_cast (hlt.trans_le (Nat.mul_le_mul_right _ (hNsep k hu hv huv))).le
+      have hNC (u : Fin n → Bool) (hu : u ∈ N k) : u ∈ restriction C x := by
+        obtain ⟨j, rfl⟩ := hVex u (hNV k hu)
+        exact hℓ j
       have hP := card_le_div_pow_of_le_hammingDist hC hNC (by positivity)
         (div_le_one_of_le₀ (one_le_pow₀ (by norm_num)) (by positivity)) hsep
       calc ((T k).card : ℝ) ≤ (N k).card := by
@@ -194,13 +196,17 @@ theorem expect_ciSup_sum_mul_signVal_le_of_hammingDist {ι κ : Type*} [Fintype 
         exact Real.sqrt_le_sqrt (by
           have := hlog2 k
           nlinarith [sq_nonneg ((k : ℝ) - 1), (Nat.cast_nonneg d : (0 : ℝ) ≤ d)])
-      exact (mul_le_mul_of_nonneg_left hs (by positivity)).trans_eq (by ring)
+      calc 2 * r / 2 ^ k * √(2 * Real.log ((T (k + 1)).card * (T k).card))
+          ≤ 2 * r / 2 ^ k * (√d * (k + 7)) := mul_le_mul_of_nonneg_left hs (by positivity)
+        _ = 2 * r * √d * (((k : ℝ) + 7) / 2 ^ k) := by ring
     have hsum : ∑ k ∈ range K, 2 * r / 2 ^ k *
-        √(2 * Real.log ((T (k + 1)).card * (T k).card)) ≤ 32 * r * √d :=
-      (sum_le_sum fun k _ => hterm k).trans <| by
-        rw [← mul_sum]
-        exact (mul_le_mul_of_nonneg_left (sum_range_add_seven_div_two_pow_le K)
-          (by positivity)).trans_eq (by ring)
+        √(2 * Real.log ((T (k + 1)).card * (T k).card)) ≤ 32 * r * √d := by
+      calc _ ≤ ∑ k ∈ range K, 2 * r * √d * (((k : ℝ) + 7) / 2 ^ k) :=
+            sum_le_sum fun k _ => hterm k
+        _ = 2 * r * √d * ∑ k ∈ range K, ((k : ℝ) + 7) / 2 ^ k := by rw [mul_sum]
+        _ ≤ 2 * r * √d * 16 :=
+            mul_le_mul_of_nonneg_left (sum_range_add_seven_div_two_pow_le K) (by positivity)
+        _ = 32 * r * √d := by ring
     rw [hT0, mul_zero, Real.sqrt_zero, mul_zero, zero_add] at hch
     have hres : r / 2 ^ K * √(Fintype.card κ) = r * √(Fintype.card κ) * (1 / 2) ^ K := by
       rw [one_div_pow]; ring

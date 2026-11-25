@@ -132,15 +132,14 @@ theorem survival_succ_of_ne {v x : V} (hx : x ≠ v) (t : ℕ) :
 
 /-- Survival probabilities are probabilities. -/
 theorem survival_le_one (v : V) : ∀ (t : ℕ) (x : V), survival P v t x ≤ 1
-  | 0, _ => by
-    unfold survival
-    split_ifs <;> simp
+  | 0, x => by unfold survival; split_ifs <;> simp
   | t + 1, x => by
     unfold survival
     split_ifs
     · exact zero_le_one
-    · exact (sum_le_sum (g := fun y => P x y) fun y _ =>
-        mul_le_of_le_one_right' (survival_le_one v t y)).trans_eq (sum_apply P x)
+    · calc ∑ y, P x y * survival P v t y ≤ ∑ y, P x y * 1 :=
+            sum_le_sum fun y _ => mul_le_mul_right (survival_le_one v t y) _
+        _ = 1 := by simp [sum_apply P x]
 
 theorem survival_ne_top (v : V) (t : ℕ) (x : V) : survival P v t x ≠ ⊤ :=
   ne_top_of_le_ne_top ENNReal.one_ne_top (survival_le_one v t x)
@@ -163,8 +162,9 @@ theorem survival_add_le {S : Set V} (hS : ∀ a ∈ S, ∀ b, P a b ≠ 0 → b 
       refine sum_le_sum fun y _ => ?_
       rcases eq_or_ne (P x y) 0 with h | h
       · simp [h]
-      · exact (mul_le_mul_right (survival_add_le hS hc t y (hS x hx y h)) _).trans_eq
-          (mul_left_comm _ _ _)
+      · calc P x y * survival P v (t + m) y ≤ P x y * (c * survival P v t y) :=
+              mul_le_mul_right (survival_add_le hS hc t y (hS x hx y h)) _
+          _ = c * (P x y * survival P v t y) := mul_left_comm _ _ _
 
 /-- Survival probabilities do not increase with time. -/
 theorem survival_succ_le (v : V) (t : ℕ) (x : V) :
@@ -181,10 +181,17 @@ hitting `v` from `y`. -/
 theorem survival_succ_add_le {v x : V} (hx : x ≠ v) (y : V) (t : ℕ) :
     survival P v (t + 1) x + P x y * (1 - survival P v t y) ≤ 1 := by
   rw [survival_succ_of_ne hx, ← add_sum_erase _ _ (mem_univ y)]
-  refine (add_le_add_left (add_le_add_right (sum_le_sum (g := fun z => P x z)
-    fun z _ => mul_le_of_le_one_right' (survival_le_one v t z)) _) _).trans_eq ?_
-  rw [add_right_comm, ← mul_add, add_tsub_cancel_of_le (survival_le_one v t y), mul_one,
-    add_sum_erase _ _ (mem_univ y), sum_apply P x]
+  calc P x y * survival P v t y + ∑ z ∈ univ.erase y, P x z * survival P v t z
+        + P x y * (1 - survival P v t y)
+      ≤ P x y * survival P v t y + ∑ z ∈ univ.erase y, P x z
+        + P x y * (1 - survival P v t y) := by
+        gcongr with z
+        exact mul_le_of_le_one_right' (survival_le_one v t z)
+    _ = P x y * (survival P v t y + (1 - survival P v t y)) + ∑ z ∈ univ.erase y, P x z := by
+        ring
+    _ = 1 := by
+        rw [add_tsub_cancel_of_le (survival_le_one v t y), mul_one, add_sum_erase _ _
+          (mem_univ y), sum_apply P x]
 
 /-- If `v` is reachable from `x` along transitions of positive probability, then the chain from
 `x` hits `v` within some finite time with positive probability. -/
@@ -222,9 +229,11 @@ theorem returnTime_eq (v : V) : returnTime P v = 1 + ∑ y, P v y * hittingTime 
 at most `E_x[τ_v] / (t + 1)`. -/
 theorem mul_survival_le_hittingTime (v : V) (t : ℕ) (x : V) :
     (t + 1 : ℝ≥0∞) * survival P v t x ≤ hittingTime P v x := by
-  rw [show (t + 1 : ℝ≥0∞) * survival P v t x = ∑ _ ∈ range (t + 1), survival P v t x by simp]
-  exact (sum_le_sum fun i hi => survival_antitone v x (Nat.lt_succ_iff.1 (mem_range.1 hi))).trans
-    (sum_le_tsum _)
+  calc (t + 1 : ℝ≥0∞) * survival P v t x = ∑ i ∈ range (t + 1), survival P v t x := by
+        simp
+    _ ≤ ∑ i ∈ range (t + 1), survival P v i x :=
+        sum_le_sum fun i hi => survival_antitone v x (Nat.lt_succ_iff.1 (mem_range.1 hi))
+    _ ≤ hittingTime P v x := sum_le_tsum _
 
 /-- **Finiteness of hitting times.** If every state of a set `S` closed under transitions reaches
 `v` along transitions of positive probability, the expected hitting time of `v` from every state
@@ -242,7 +251,9 @@ theorem hittingTime_ne_top {S : Set V}
   choose m hm using hm
   set M := univ.sup m + 1
   set c := univ.sup fun y => if y ∈ S then survival P v M y else 0
-  have hc1 : c < 1 := (Finset.sup_lt_iff (by simp)).mpr fun y _ => by
+  have hc1 : c < 1 := by
+    rw [Finset.sup_lt_iff (by simp)]
+    intro y _
     split_ifs with hy
     · exact (survival_antitone v y ((le_sup (mem_univ y)).trans (Nat.le_succ _))).trans_lt
         (hm y hy)
@@ -254,16 +265,23 @@ theorem hittingTime_ne_top {S : Set V}
     | zero => intro x _; simpa using survival_le_one v r x
     | succ k ih =>
       intro x hx
-      rw [show (k + 1) * M + r = (k * M + r) + M by ring, pow_succ']
-      exact (survival_add_le hS hcy _ x hx).trans (mul_le_mul_right (ih x hx) _)
+      calc survival P v ((k + 1) * M + r) x = survival P v ((k * M + r) + M) x := by
+            congr 1
+            ring
+        _ ≤ c * survival P v (k * M + r) x := survival_add_le hS hcy _ x hx
+        _ ≤ c * c ^ k := mul_le_mul_right (ih x hx) _
+        _ = c ^ (k + 1) := (pow_succ' c k).symm
   have : NeZero M := ⟨by omega⟩
   rw [hittingTime, ← (Nat.divModEquiv M).symm.tsum_eq, tsum_prod']
-  refine ne_top_of_le_ne_top (b := ∑' k : ℕ, (M : ℝ≥0∞) * c ^ k) ?_ (tsum_le_tsum fun k => ?_)
+  refine ne_top_of_le_ne_top (b := ∑' k : ℕ, (M : ℝ≥0∞) * c ^ k) ?_ ?_
   · rw [ENNReal.tsum_mul_left, ENNReal.tsum_geometric]
     exact ENNReal.mul_ne_top (ENNReal.natCast_ne_top M)
       (ENNReal.inv_ne_top.2 (tsub_pos_of_lt hc1).ne')
-  · rw [tsum_fintype]
-    exact (sum_le_sum (g := fun _ : Fin M => c ^ k) fun r _ => hgeom k r x hx).trans_eq (by simp)
+  · refine tsum_le_tsum fun k => ?_
+    rw [tsum_fintype]
+    calc ∑ r : Fin M, survival P v ((Nat.divModEquiv M).symm (k, r)) x
+        ≤ ∑ _r : Fin M, c ^ k := sum_le_sum fun r _ => hgeom k r x hx
+      _ = M * c ^ k := by simp
 
 /-! ### The triangle inequality -/
 
@@ -340,12 +358,16 @@ theorem survival_le_survival_add_sum (v w : V) :
 /-- **Triangle inequality** for expected hitting times: `E_x[τ_w] ≤ E_x[τ_v] + E_v[τ_w]`. -/
 theorem hittingTime_le_add (v w x : V) :
     hittingTime P w x ≤ hittingTime P v x + hittingTime P w v := by
-  refine (tsum_le_tsum fun t => survival_le_survival_add_sum v w t x).trans ?_
-  rw [tsum_add, ← hittingTime,
-    ← tsum_mul_tsum_eq_tsum_sum_range (fun j => P.firstHit v j x) (fun t => P.survival w t v),
-    ← hittingTime]
-  gcongr
-  exact mul_le_of_le_one_left' (tsum_firstHit_le_one v x)
+  calc hittingTime P w x
+      ≤ ∑' t, (survival P v t x +
+          ∑ j ∈ range (t + 1), firstHit P v j x * survival P w (t - j) v) :=
+        tsum_le_tsum fun t => survival_le_survival_add_sum v w t x
+    _ = hittingTime P v x + (∑' j, firstHit P v j x) * hittingTime P w v := by
+        rw [tsum_add, hittingTime, hittingTime, tsum_mul_tsum_eq_tsum_sum_range]
+    _ ≤ hittingTime P v x + 1 * hittingTime P w v := by
+        gcongr
+        exact tsum_firstHit_le_one v x
+    _ = hittingTime P v x + hittingTime P w v := by rw [one_mul]
 
 /-! ### Kac's formula -/
 

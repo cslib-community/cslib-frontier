@@ -115,10 +115,13 @@ theorem connect {R : Submodule F2 (Fin m → F2)} (hR : Module.finrank F2 R + 2 
 /-! ### Matrices u xᵀ -/
 
 theorem vec_ne_zero {u x : Fin m → F2} : vecMulVec u x ≠ 0 ↔ u ≠ 0 ∧ x ≠ 0 := by
-  refine ⟨fun h => ⟨by rintro rfl; simp at h, by rintro rfl; simp at h⟩, fun ⟨hu, hx⟩ h => ?_⟩
-  obtain ⟨i, hi⟩ := Function.ne_iff.1 hu
-  obtain ⟨j, hj⟩ := Function.ne_iff.1 hx
-  exact mul_ne_zero hi hj (by simpa [vecMulVec_apply] using congrFun (congrFun h i) j)
+  constructor
+  · intro h
+    refine ⟨?_, ?_⟩ <;> rintro rfl <;> simp at h
+  · rintro ⟨hu, hx⟩ h
+    obtain ⟨i, hi⟩ := Function.ne_iff.1 hu
+    obtain ⟨j, hj⟩ := Function.ne_iff.1 hx
+    exact mul_ne_zero hi hj (by simpa [vecMulVec_apply] using congrFun (congrFun h i) j)
 
 theorem colSpace_vec (u : Fin m → F2) {x : Fin m → F2} (hx : x ≠ 0) : colSpace (vecMulVec u x) =
     span F2 {u} := by

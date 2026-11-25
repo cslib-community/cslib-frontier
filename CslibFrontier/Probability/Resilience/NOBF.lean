@@ -90,13 +90,14 @@ noncomputable def extendUniform (Q : Finset ι) (D' : PMF (↥Qᶜ → Bool)) :
         (fun v i => if h : i ∈ Q then v ⟨i, h⟩ else u ⟨i, mem_compl.mpr h⟩)).map
           Qᶜ.restrict = PMF.pure u := by
     rw [PMF.map_comp]
+    have hfun : (fun (v : ↥Q → Bool) => Qᶜ.restrict fun i =>
+        if h : i ∈ Q then v ⟨i, h⟩ else u ⟨i, mem_compl.mpr h⟩) = Function.const _ u := by
+      funext _ ⟨i, hi⟩
+      exact dite_eq_right fun h => absurd h (mem_compl.mp hi)
     change PMF.map (fun (v : ↥Q → Bool) => Qᶜ.restrict fun i =>
         if h : i ∈ Q then v ⟨i, h⟩ else u ⟨i, mem_compl.mpr h⟩)
       (PMF.uniformOfFintype (↥Q → Bool)) = PMF.pure u
-    rw [show (fun (v : ↥Q → Bool) => Qᶜ.restrict fun i =>
-        if h : i ∈ Q then v ⟨i, h⟩ else u ⟨i, mem_compl.mpr h⟩) = Function.const _ u by
-      funext _ ⟨i, hi⟩
-      exact dite_eq_right fun h => absurd h (mem_compl.mp hi), PMF.map_const]
+    rw [hfun, PMF.map_const]
   simp_rw [hinner, PMF.bind_pure]
 
 /-- Any restriction `D.map T.restrict` preserves `k`-wise `ε`-bias. -/
@@ -130,19 +131,23 @@ theorem bias_extendUniform_of_not_disjoint {Q S : Finset ι} (hSQ : ¬Disjoint S
     have h1 : (∏ i ∈ S.filter (· ∈ Q),
         (-1 : ℝ) ^ ((if h : i ∈ Q then v ⟨i, h⟩ else u ⟨i, mem_compl.mpr h⟩).toNat)) =
         chi ℝ S_Q v := by
-      rw [← show S_Q.map (Function.Embedding.subtype (· ∈ Q)) = S.filter (· ∈ Q) by ext; simp [S_Q],
-        prod_map, chi]
+      have hmap : S_Q.map (Function.Embedding.subtype (· ∈ Q)) = S.filter (· ∈ Q) := by
+        ext i
+        simp [S_Q]
+      rw [← hmap, prod_map, chi]
       exact prod_congr rfl fun j _ => by simp [j.2]
     have h2 : (∏ i ∈ S.filter (· ∉ Q),
         (-1 : ℝ) ^ ((if h : i ∈ Q then v ⟨i, h⟩ else u ⟨i, mem_compl.mpr h⟩).toNat)) = c :=
       prod_congr rfl fun i hi => by simp [(mem_filter.mp hi).2]
     rw [h1, h2, mul_comm]
-  rw [show (∑ v : ↥Q → Bool, (PMF.uniformOfFintype (↥Q → Bool) v).toReal *
-      chi ℝ S (fun i => if h : i ∈ Q then v ⟨i, h⟩ else u ⟨i, mem_compl.mpr h⟩)) =
-      c * ∑ v : ↥Q → Bool, (PMF.uniformOfFintype (↥Q → Bool) v).toReal * chi ℝ S_Q v by
-    rw [mul_sum]
-    exact sum_congr rfl fun v _ => by rw [hchi v]; ring,
-    sum_uniformOfFintype_mul, expect_chi, ite_eq_right hS_Q_ne.ne_empty, mul_zero]
+  calc ∑ v : ↥Q → Bool, (PMF.uniformOfFintype (↥Q → Bool) v).toReal *
+        chi ℝ S (fun i => if h : i ∈ Q then v ⟨i, h⟩ else u ⟨i, mem_compl.mpr h⟩)
+      = c * ∑ v : ↥Q → Bool, (PMF.uniformOfFintype (↥Q → Bool) v).toReal * chi ℝ S_Q v := by
+        rw [mul_sum]
+        exact sum_congr rfl fun v _ => by rw [hchi v]; ring
+    _ = c * 0 := by
+        rw [sum_uniformOfFintype_mul, expect_chi, ite_eq_right hS_Q_ne.ne_empty]
+    _ = 0 := mul_zero c
 
 private theorem map_subtype_compl_eq {Q S : Finset ι} (hSQ : Disjoint S Q) :
     (S.subtype (· ∈ Qᶜ)).map (Function.Embedding.subtype (· ∈ Qᶜ)) = S := by
@@ -308,10 +313,9 @@ private theorem sum_bitVal_sub_le_coalitionInfluence_add_dist (Z D : PMF (ι →
   · rw [ite_eq_right hu, mul_zero, zero_add,
       fiberBitSum_eq_of_not_isUndetermined Z Q f hu,
       fiberBitSum_eq_of_not_isUndetermined D Q f hu, ← sub_mul]
-    have hb : 0 ≤ bitVal ℝ (f (defaultExtend Q u)) ∧ bitVal ℝ (f (defaultExtend Q u)) ≤ 1 := by
-      cases f (defaultExtend Q u) <;> norm_num
-    nlinarith [le_max_left (0 : ℝ) ((Z.map Qᶜ.restrict u).toReal - (D.map Qᶜ.restrict u).toReal),
-      le_max_right (0 : ℝ) ((Z.map Qᶜ.restrict u).toReal - (D.map Qᶜ.restrict u).toReal)]
+    cases f (defaultExtend Q u) <;>
+      simp only [bitVal, Bool.false_eq_true, ↓reduceIte, mul_zero, mul_one,
+        le_max_left, le_max_right]
 
 /-- **Sharp NOBF extraction lemma**: if `Z` and `D` agree on `Qᶜ` up to statistical distance
 `dist (Z.map Qᶜ.restrict) (D.map Qᶜ.restrict)`, then for any Boolean function `f`, the

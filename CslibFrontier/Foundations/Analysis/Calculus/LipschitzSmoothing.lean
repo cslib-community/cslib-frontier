@@ -101,10 +101,11 @@ private theorem abs_inv_mul_integral_le {f : ℝ → ℝ} {C : ℝ} (hC : 0 ≤ 
     (hf : ∀ t ∈ Ι 0 h, |f t| ≤ C) : |h⁻¹ * ∫ t in (0 : ℝ)..h, f t| ≤ C := by
   rcases eq_or_ne h 0 with rfl | hh
   · simpa using hC
-  have hb := norm_integral_le_of_norm_le_const (a := 0) (b := h) (f := f) hf
-  rw [Real.norm_eq_abs, sub_zero] at hb
+  have := norm_integral_le_of_norm_le_const (a := 0) (b := h) (f := f) hf
+  rw [Real.norm_eq_abs, sub_zero] at this
   rw [abs_mul, abs_inv]
-  exact (mul_le_mul_of_nonneg_left hb (by positivity)).trans_eq (by field_simp)
+  calc |h|⁻¹ * |∫ t in (0 : ℝ)..h, f t| ≤ |h|⁻¹ * (C * |h|) := by gcongr
+    _ = C := by field_simp
 
 /-- A moving average of a continuous function is a difference of antiderivatives. -/
 private theorem movingAverage_eq (hφ : Continuous φ) (s : ℝ) :
@@ -251,8 +252,11 @@ theorem abs_movingAverage_sub_le (hψ : LipschitzWith c ψ) (hh : 0 < h) (s : �
   rw [this]
   refine abs_inv_mul_integral_le (by positivity) fun t ht => ?_
   rw [uIoc_of_le hh.le] at ht
-  exact (by simpa [Real.dist_eq, abs_of_pos ht.1] using hψ.dist_le_mul (s + t) s :
-    |ψ (s + t) - ψ s| ≤ c * t).trans (mul_le_mul_of_nonneg_left ht.2 c.2)
+  calc |ψ (s + t) - ψ s| ≤ c * |s + t - s| := by
+        simpa [Real.dist_eq] using hψ.dist_le_mul (s + t) s
+    _ ≤ c * h := by
+        rw [add_sub_cancel_left, abs_of_pos ht.1]
+        exact mul_le_mul_of_nonneg_left ht.2 c.2
 
 /-- The `m`-fold moving average with window `h > 0` moves a `c`-Lipschitz function by at most
 `m c h`. -/
@@ -264,8 +268,10 @@ theorem abs_iterate_movingAverage_sub_le (hψ : LipschitzWith c ψ) (hh : 0 < h)
   | zero => simp
   | succ m ih =>
     rw [Function.iterate_succ_apply']
-    refine (abs_sub_le _ ((movingAverage h)^[m] ψ s) _).trans ?_
-    exact (add_le_add ((hlip m).abs_movingAverage_sub_le hh s) ih).trans_eq (by push_cast; ring)
+    calc _ ≤ |movingAverage h ((movingAverage h)^[m] ψ) s - (movingAverage h)^[m] ψ s| +
+          |(movingAverage h)^[m] ψ s - ψ s| := abs_sub_le _ _ _
+      _ ≤ c * h + m * c * h := add_le_add ((hlip m).abs_movingAverage_sub_le hh s) ih
+      _ = (m + 1 : ℕ) * c * h := by push_cast; ring
 
 /-- Iterated difference quotients of a `c`-Lipschitz function: `|D_hᵏ⁺¹ ψ| ≤ 2ᵏ c / hᵏ`. -/
 private theorem abs_iterate_diffQuot_le (hψ : LipschitzWith c ψ) (hh : 0 < h) (k : ℕ) (s : ℝ) :

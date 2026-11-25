@@ -132,10 +132,11 @@ private theorem ncard_setOf_ecomplexity_pair_le_eq (k u : ℕ) :
     (fun a b h => (Nat.pair_eq_pair.mp h).2 : Function.Injective (Nat.pair u))]
   congr 1
   ext z
-  exact ⟨fun ⟨v, hv, h⟩ => ⟨h ▸ hv, by simp [← h]⟩, fun ⟨hz, h⟩ =>
-    ⟨z.unpair.2, by
-      change M.ecomplexity (Nat.pair u z.unpair.2) ≤ k
-      rw [← h, Nat.pair_unpair]; exact hz, by simp [← h]⟩⟩
+  constructor
+  · rintro ⟨v, hv, rfl⟩
+    exact ⟨hv, by simp⟩
+  · rintro ⟨hz, rfl⟩
+    exact ⟨z.unpair.2, by simpa using hz, by simp⟩
 
 /-- Only finitely many `u` have at least `2 ^ l` partners `v` with `C(u, v) ≤ k`. -/
 theorem finite_setOf_two_pow_le_ncard (k l : ℕ) :
@@ -317,10 +318,11 @@ theorem exists_complexity_universal_add_condUniversal_le :
   obtain ⟨s, hs⟩ := exists_heavyEvent_eq_some_iff.mpr hlm
   obtain ⟨i, hi, hix⟩ := Nat.exists_mem_nthDistinctValue_of_finite (hrangeB ▸ hBfin) hs
   rw [hrangeB] at hi
-  have hiB : i < 2 ^ (k + 1 - l) :=
-    Nat.lt_of_mul_lt_mul_left (a := 2 ^ l) <|
-      (Nat.mul_lt_mul_of_pos_left hi (pow_pos Nat.two_pos l)).trans
-        (by rwa [← pow_add, Nat.add_sub_cancel' (by omega)])
+  have hiB : i < 2 ^ (k + 1 - l) := by
+    refine Nat.lt_of_mul_lt_mul_left (a := 2 ^ l) ?_
+    calc 2 ^ l * i < 2 ^ l * B.ncard := Nat.mul_lt_mul_of_pos_left hi (pow_pos Nat.two_pos l)
+      _ < 2 ^ (k + 1) := hBlt
+      _ = 2 ^ l * 2 ^ (k + 1 - l) := by rw [← pow_add, Nat.add_sub_cancel' (by omega)]
   have hisize : i.size ≤ k + 1 - l := Nat.size_le.mpr hiB
   have hjsize : j.size ≤ l + 1 := Nat.size_le.mpr (hj.trans hml)
   -- `i` is written with exactly `k + 1 - l` digits, so that `l` can be recovered

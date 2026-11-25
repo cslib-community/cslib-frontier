@@ -186,7 +186,10 @@ theorem mem_bag_top_of_adj {u w : V} (huw : G.Adj u w) (h : R.top w ≤ R.top u)
   obtain ⟨b, hb⟩ := R.exists_iterate_eq_top hws
   rcases le_or_gt a b with hab | hab
   · exact ha ▸ R.mem_bag_parent_iterate hws hb hab
-  · rw [le_antisymm (by rw [← ha, ← hb]; exact R.parent_iterate_antitone s hab.le) h]
+  · have h1 : R.top u ≤ R.top w := by
+      rw [← ha, ← hb]
+      exact R.parent_iterate_antitone s hab.le
+    rw [le_antisymm h1 h]
     exact R.mem_bag_top w
 
 /-- Every finite clique lies in some bag of a rooted tree decomposition: the topmost node of the
@@ -355,19 +358,23 @@ theorem exists_rooted [Finite ι] (D : G.TreeDecomposition ι) :
   -- Renumber the index tree as a parent-array tree and carry the bags along.
   obtain ⟨n, e, parent, parent_zero, parent_lt, hadj⟩ := D.isTree.exists_equiv_parentTree
   refine ⟨n, RootedTreeDecomposition.ofPreconnected parent parent_zero parent_lt
-    (fun i => D.bag (e i))
-    (fun v => let ⟨t, ht⟩ := D.exists_mem_bag v; ⟨e.symm t, by simpa using ht⟩)
-    (fun u v huv => let ⟨t, ht⟩ := D.exists_adj_mem_bag huv; ⟨e.symm t, by simpa using ht⟩)
-    (fun v => ?_), e, fun _ => rfl, fun i j => hadj i j⟩
-  -- Renumbering is an isomorphism from the index tree onto the parent-array tree.
-  let f : D.tree.induce {t | v ∈ D.bag t} →g
-      (parentTree parent).induce {i | v ∈ D.bag (e i)} :=
-    { toFun := fun t => ⟨e.symm t, by rw [Set.mem_ofPred_eq, e.apply_symm_apply]; exact t.2⟩
-      map_rel' := fun h => by
-        change (parentTree parent).Adj (e.symm _) (e.symm _)
-        simpa [hadj] using h }
-  exact (D.preconnected_bag v).map f fun ⟨i, hi⟩ =>
-    ⟨⟨e i, hi⟩, Subtype.ext (e.symm_apply_apply i)⟩
+    (fun i => D.bag (e i)) (fun v => ?_) (fun u v huv => ?_) (fun v => ?_),
+    e, fun _ => rfl, fun i j => hadj i j⟩
+  · obtain ⟨t, ht⟩ := D.exists_mem_bag v
+    exact ⟨e.symm t, by simpa using ht⟩
+  · obtain ⟨t, ht⟩ := D.exists_adj_mem_bag huv
+    exact ⟨e.symm t, by simpa using ht⟩
+  · -- Renumbering is an isomorphism from the index tree onto the parent-array tree.
+    let f : D.tree.induce {t | v ∈ D.bag t} →g
+        (parentTree parent).induce {i | v ∈ D.bag (e i)} :=
+      { toFun := fun t => ⟨e.symm t, by
+          rw [Set.mem_ofPred_eq, e.apply_symm_apply]
+          exact t.2⟩
+        map_rel' := fun h => by
+          change (parentTree parent).Adj (e.symm _) (e.symm _)
+          simpa [hadj] using h }
+    exact (D.preconnected_bag v).map f fun ⟨i, hi⟩ =>
+      ⟨⟨e i, hi⟩, Subtype.ext (e.symm_apply_apply i)⟩
 
 /-- Every tree decomposition with finitely many nodes has a rooted one of the same width. -/
 theorem exists_rooted_width_eq [Fintype ι] (D : G.TreeDecomposition ι) :

@@ -368,8 +368,12 @@ theorem card_mem_relabelRestrictedMonomials_le [Fintype ι] [DecidableEq ι] [De
     ∀ M' ∈ relabelRestrictedMonomials S e b 𝓜, #M' ≤ k := by
   intro M' hM'
   rcases mem_image.mp hM' with ⟨M, hM, rfl⟩
-  exact card_image_le.trans ((card_subtype _ _).trans_le
-    ((card_filter_le _ _).trans (card_le_of_mem_restrictMonomials hk hM)))
+  calc
+    #((M.subtype (· ∈ univ \ S)).image e)
+      ≤ #(M.subtype (· ∈ univ \ S)) := card_image_le
+    _ = #(M.filter (· ∈ univ \ S)) := card_subtype _ _
+    _ ≤ #M := card_filter_le _ _
+    _ ≤ k := card_le_of_mem_restrictMonomials hk hM
 
 /-- `relabelRestrictedMonomials` never increases the number of monomials. -/
 theorem card_relabelRestrictedMonomials_le [Fintype ι] [DecidableEq ι] [DecidableEq ι']
@@ -476,11 +480,16 @@ theorem varIncidence_relabelRestrictedMonomials_heavyVars_le [Fintype ι] [Decid
       (fun i => equationScope
         (relabelRestrictedMonomials
           (heavyVars univ F (fun i => equationScope (P i)) b₀) e b (P i))) w ≤ b₀ := by
-  refine (card_le_card fun i hi => ?_).trans
-    (varIncidence_equationScope_restrictMonomials_heavyVars_le univ F P b₀
-      (fun _ _ => subset_univ _) b (e.symm w).1)
-  exact mem_filter.mpr ⟨hIF (mem_filter.mp hi).1,
-    symm_mem_equationScope_restrictMonomials (mem_filter.mp hi).2⟩
+  let S := heavyVars univ F (fun i => equationScope (P i)) b₀
+  calc
+    varIncidence I (fun i => equationScope (relabelRestrictedMonomials S e b (P i))) w
+      ≤ varIncidence F (fun i => equationScope (restrictMonomials S b (P i))) (e.symm w).1 :=
+        card_le_card fun i hi => mem_filter.mpr
+          ⟨hIF (mem_filter.mp hi).1,
+            symm_mem_equationScope_restrictMonomials (mem_filter.mp hi).2⟩
+    _ ≤ b₀ :=
+        varIncidence_equationScope_restrictMonomials_heavyVars_le univ F P b₀
+          (fun _ _ => subset_univ _) b (e.symm w).1
 
 end BranchRelabeling
 
@@ -562,9 +571,11 @@ theorem mul_le_heavyThreshold_mul {M n s : ℕ} (hn : 1 ≤ n) :
 /-- When `1 ≤ n`, `M * s ≤ paperHeavyThreshold M n s * n`. -/
 theorem mul_le_paperHeavyThreshold_mul {M n s : ℕ} (hn : 1 ≤ n) :
     M * s ≤ paperHeavyThreshold M n s * n := by
-  rw [paperHeavyThreshold, Nat.mul_right_comm]
-  exact Nat.mul_le_mul_right s
-    (by simpa only [heavyThreshold, mul_one] using mul_le_heavyThreshold_mul (M := M) (s := 1) hn)
+  have hceil : M ≤ ((M + n - 1) / n) * n := by
+    simpa only [heavyThreshold, mul_one] using mul_le_heavyThreshold_mul (M := M) (s := 1) hn
+  calc
+    M * s ≤ (((M + n - 1) / n) * n) * s := Nat.mul_le_mul_right s hceil
+    _ = paperHeavyThreshold M n s * n := by rw [paperHeavyThreshold, Nat.mul_right_comm]
 
 /-- **§5.5 ($|S| \le n / s$)**: whenever `totalIncidence F scope * s ≤ b₀ * #V` and `1 ≤ s`, the
 heavy-variable set `heavyVars V F scope b₀` has cardinality at most `#V / s`. -/

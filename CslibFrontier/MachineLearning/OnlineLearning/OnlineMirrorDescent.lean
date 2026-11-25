@@ -143,10 +143,11 @@ theorem omd_step_le {K : Set E} {ψ : E → ℝ} {gradψ : E → E} {primal dual
       bregmanDiv ψ gradψ u x - bregmanDiv ψ gradψ u x' +
         η ^ 2 * (dual g) ^ 2 / (2 * μ) := by
   have hopt := hstep.2 u hu
-  rw [inner_add_left, real_inner_smul_left,
-    show ⟪g, u - x'⟫ = -⟪g, x' - u⟫ by rw [← neg_sub x' u, inner_neg_right],
-    show ⟪gradψ x' - gradψ x, u - x'⟫ = -⟪gradψ x - gradψ x', u - x'⟫ by
-      rw [← neg_sub (gradψ x) (gradψ x'), inner_neg_left]] at hopt
+  have hneg : ⟪g, u - x'⟫ = -⟪g, x' - u⟫ := by rw [← neg_sub x' u, inner_neg_right]
+  rw [inner_add_left, real_inner_smul_left, hneg] at hopt
+  have hgx : η * ⟪g, x' - u⟫ ≤ ⟪gradψ x' - gradψ x, u - x'⟫ := by linarith
+  have hsym : ⟪gradψ x' - gradψ x, u - x'⟫ = -⟪gradψ x - gradψ x', u - x'⟫ := by
+    rw [← neg_sub (gradψ x) (gradψ x'), inner_neg_left]
   have hsplit : η * ⟪g, x - u⟫ = η * ⟪g, x - x'⟫ + η * ⟪g, x' - u⟫ := by
     rw [show x - u = (x - x') + (x' - u) by abel, inner_add_right]
     ring
@@ -180,10 +181,13 @@ theorem omd_sum_inner_le_of_const {K : Set E} {ψ : E → ℝ} {gradψ : E → E
     rw [mul_div_cancel_left₀ _ hη.ne'] at hdiv
     exact hdiv.trans_eq (by field_simp)
   have hsum := (Finset.sum_le_sum hper).trans_eq (Finset.sum_add_distrib ..)
+  have hdual_sum :
+      ∑ t ∈ range T, η * (dual (grad t (x t))) ^ 2 / (2 * μ) =
+        η / (2 * μ) * ∑ t ∈ range T, (dual (grad t (x t))) ^ 2 := by
+    rw [Finset.mul_sum]
+    exact Finset.sum_congr rfl fun _ _ => by ring
   rw [← Finset.sum_div, Finset.sum_range_sub' (fun t => bregmanDiv ψ gradψ u (x t)) T,
-    show ∑ t ∈ range T, η * (dual (grad t (x t))) ^ 2 / (2 * μ) =
-      η / (2 * μ) * ∑ t ∈ range T, (dual (grad t (x t))) ^ 2 by
-      rw [Finset.mul_sum]; exact Finset.sum_congr rfl fun _ _ => by ring] at hsum
+    hdual_sum] at hsum
   have hnn : 0 ≤ bregmanDiv ψ gradψ u (x T) :=
     (by positivity : 0 ≤ μ / 2 * (primal (x T - u)) ^ 2).trans (hsc u hu (x T) (hx_mem T le_rfl))
   linarith [div_le_div_of_nonneg_right (sub_le_self (bregmanDiv ψ gradψ u (x 0)) hnn) hη.le]
@@ -208,13 +212,17 @@ theorem omd_regret_le_const {K : Set E} {ψ : E → ℝ} {gradψ : E → E}
       have hs := hsub t (mem_range.mp ht) (x t) (hx_mem t (mem_range.mp ht).le) u hu
       rw [← neg_sub (x t) u, inner_neg_right] at hs
       linarith
-  have hgs : ∑ t ∈ range T, (dual (grad t (x t))) ^ 2 ≤ (T : ℝ) * G ^ 2 :=
-    (Finset.sum_le_sum (g := fun _ => G ^ 2) fun t ht => sq_le_sq'
-      (by linarith [hdual_nonneg t (mem_range.mp ht), hG]) (hgrad t (mem_range.mp ht))).trans_eq
-      (by simp)
+  have hgs : ∑ t ∈ range T, (dual (grad t (x t))) ^ 2 ≤ (T : ℝ) * G ^ 2 := by
+    calc ∑ t ∈ range T, (dual (grad t (x t))) ^ 2
+        ≤ ∑ _t ∈ range T, G ^ 2 := Finset.sum_le_sum fun t ht =>
+          sq_le_sq' (by linarith [hdual_nonneg t (mem_range.mp ht), hG])
+            (hgrad t (mem_range.mp ht))
+      _ = (T : ℝ) * G ^ 2 := by simp
   have hterm : η / (2 * μ) * ∑ t ∈ range T, (dual (grad t (x t))) ^ 2 ≤
-      (T : ℝ) * η * G ^ 2 / (2 * μ) :=
-    (mul_le_mul_of_nonneg_left hgs (by positivity)).trans_eq (by ring)
+      (T : ℝ) * η * G ^ 2 / (2 * μ) := by
+    calc η / (2 * μ) * ∑ t ∈ range T, (dual (grad t (x t))) ^ 2
+        ≤ η / (2 * μ) * ((T : ℝ) * G ^ 2) := mul_le_mul_of_nonneg_left hgs (by positivity)
+      _ = (T : ℝ) * η * G ^ 2 / (2 * μ) := by ring
   linarith [omd_sum_inner_le_of_const hμ hη hpair hsc grad x T hx0 hstep hu,
     div_le_div_of_nonneg_right hB hη.le]
 
@@ -352,10 +360,13 @@ theorem omd_regret_le_sqrt {K : Set E} {ψ : E → ℝ} {gradψ : E → E}
       have hlt := mem_range.mp ht
       have hsq : (dual (grad t (x t))) ^ 2 ≤ G ^ 2 :=
         sq_le_sq' (by linarith [hdual_nonneg t hlt, hG]) (hgrad t hlt)
-      refine (div_le_div_of_nonneg_right
-        (mul_le_mul_of_nonneg_left hsq (hη_pos t).le) (by positivity)).trans_eq ?_
-      dsimp only [η]
-      field_simp
+      calc η t * (dual (grad t (x t))) ^ 2 / (2 * μ)
+          ≤ η t * G ^ 2 / (2 * μ) :=
+            div_le_div_of_nonneg_right (mul_le_mul_of_nonneg_left hsq (hη_pos t).le)
+              (by positivity)
+        _ = Real.sqrt (μ * D) * G / (2 * μ) * (1 / Real.sqrt ((t : ℝ) + 1)) := by
+            dsimp only [η]
+            field_simp
     have hterm2 := mul_le_mul_of_nonneg_left
       ((sum_range_one_div_sqrt_succ_le m).trans
         (by linarith : 2 * Real.sqrt ((m : ℝ) + 1) - 1 ≤ 2 * Real.sqrt ((m : ℝ) + 1)))

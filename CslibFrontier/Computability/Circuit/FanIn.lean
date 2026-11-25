@@ -121,7 +121,8 @@ private theorem Line.card_opened_le (line : Line σ n g) (w : σ.Op → ℕ)
       refine Finset.card_le_card_of_injOn Wire.castSucc (fun wire present => ?_)
         Wire.castSucc_injective.injOn
       rw [Finset.mem_coe, Finset.mem_erase]
-      exact ⟨by cases wire <;> simp [Fin.castSucc_ne_last], by simpa [prior] using present⟩
+      refine ⟨?_, by simpa [prior] using present⟩
+      cases wire <;> simp [Fin.castSucc_ne_last]
     have lineBound : lineInputs.card ≤ 1 + w line.op :=
       (Finset.card_image_le.trans_eq (by simp)).trans hw
     have erased := Finset.card_erase_of_mem lastSelected
@@ -194,8 +195,10 @@ private theorem Program.cost_le_of_fanInAtMost (p : Program σ n g) {r : ℕ} (h
   induction p with
   | empty => simp
   | gate p line ih =>
-    rw [Program.cost_gate, Nat.mul_succ, show max (r - 1) (σ.Arity line.op - 1) = r - 1 by
-      have := h.2; omega]
+    have hw : max (r - 1) (σ.Arity line.op - 1) = r - 1 := by
+      have := h.2
+      omega
+    rw [Program.cost_gate, Nat.mul_succ, hw]
     exact Nat.add_le_add (ih h.1) le_rfl
 
 /-- A fan-in-`r` circuit has at most `m + (r - 1) * c.size`

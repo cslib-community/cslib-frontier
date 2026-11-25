@@ -248,8 +248,10 @@ theorem gv_iff {P : Mach A M K} {σ : State M K} (hσ : Closed σ) (tr : List P.
             obtain ⟨j, -, hj⟩ := hm'
             simp only [Function.comp] at hj
             omega
-      have hf : Fire σ st := ⟨h1.1.symm, fun i => (hr i).1.symm, by simpa using h3.1, hload,
-        by rw [← h4, List.flatMap_cons]; exact List.prefix_append _ _⟩
+      have hf : Fire σ st := by
+        refine ⟨h1.1.symm, fun i => (hr i).1.symm, by simpa using h3.1, hload, ?_⟩
+        rw [← h4, List.flatMap_cons]
+        exact List.prefix_append _ _
       refine ⟨hf, (ih (hσ.nxt hf)).1 ⟨h1.2, fun i => (hr i).2, ?_, ?_, fun st' hst => ?_⟩⟩
       · rw [h3.2]
         exact List.map_congr_left fun j _ => by simp only [Function.comp, Mach.nxt]; omega
@@ -319,7 +321,8 @@ theorem SumTo.fin {P : Mach A M K} {σ : State M K} (hm : σ.mode ≠ P.mh) (F :
       st ∈ F → (∀ tr, tr ∈ R ↔ Seq P (nxt σ st) tr) ∧
         ∑ tr ∈ R, wts tr = S st ∧ ∀ tr ∈ R, (tr.length : ℤ) ≤ B := by
     by_cases hst : st ∈ F
-    · exact let ⟨R, hR⟩ := h st hst; ⟨R, fun _ => hR⟩
+    · obtain ⟨R, hR⟩ := h st hst
+      exact ⟨R, fun _ => hR⟩
     · exact ⟨∅, fun h => absurd h hst⟩
   choose R hR using h'
   refine ⟨F.biUnion fun st => (R st).image (st :: ·), fun tr => ?_, ?_, fun tr htr => ?_⟩
@@ -365,9 +368,11 @@ theorem SumTo.two {P : Mach A M K} {σ : State M K} (hm : σ.mode ≠ P.mh) (st 
     SumTo P σ (P.wt st.1 * S + P.wt st₁.1 * S₁) (B + 1) := by
   classical
   have h1 := SumTo.fin hm {st, st₁} (by simp [hst]) (fun st' => if st' = st then S else S₁) B
-    (by rintro st' hst'; rcases Finset.mem_insert.1 hst' with rfl | hst'
-        · simpa using h
-        · rw [Finset.mem_singleton.1 hst']; simpa [hne.symm] using h₁)
+    fun st' hst' => by
+      rcases Finset.mem_insert.1 hst' with rfl | hst'
+      · simpa using h
+      · rw [Finset.mem_singleton.1 hst']
+        simpa [hne.symm] using h₁
   simpa [Finset.sum_pair hne, hne.symm] using h1
 
 end SumTo

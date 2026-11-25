@@ -103,28 +103,36 @@ private theorem card_filter_exists_le_sum_mul_signVal_le {ι : Type*} {m : ℕ} 
     (#{σ : Fin m → Bool | ∃ j, m * ε / 2 ≤ ∑ i, b j i * signVal (σ i)} : ℝ) ≤
       2 ^ m * Real.exp (-(m * ε ^ 2 / 32)) := by
   set F : (Fin m → Bool) → ℝ := fun σ => ⨆ j, ∑ i, b j i * signVal (σ i) with hFdef
-  have hbdd (σ : Fin m → Bool) : BddAbove (Set.range fun j => ∑ i, b j i * signVal (σ i)) :=
-    ⟨m, by
-      rintro _ ⟨j, rfl⟩
-      exact (Finset.sum_le_sum (g := fun _ => (1 : ℝ)) fun i _ => (le_abs_self _).trans
-        (by rw [abs_mul, abs_signVal, mul_one]; exact hb j i)).trans_eq (by simp)⟩
+  have hbdd (σ : Fin m → Bool) : BddAbove (Set.range fun j => ∑ i, b j i * signVal (σ i)) := by
+    refine ⟨m, ?_⟩
+    rintro _ ⟨j, rfl⟩
+    calc ∑ i, b j i * signVal (σ i) ≤ ∑ _i : Fin m, (1 : ℝ) := Finset.sum_le_sum fun i _ =>
+          calc b j i * signVal (σ i) ≤ |b j i * signVal (σ i)| := le_abs_self _
+            _ = |b j i| := by rw [abs_mul, abs_signVal, mul_one]
+            _ ≤ 1 := hb j i
+      _ = m := by simp
   -- Changing one sign changes the maximal correlation by at most `2`.
   have hF : Probability.HasBoundedDifferences (α := fun _ : Fin m => Bool) F fun _ => 2 :=
     Probability.HasBoundedDifferences.ciSup (fun _ => by norm_num)
       (fun j => Probability.hasBoundedDifferences_sum (α := fun _ : Fin m => Bool)
         (score := fun i c => b j i * signVal c) fun i c c' => by
           rw [← mul_sub, abs_mul]
-          exact (mul_le_mul (hb j i) (by cases c <;> cases c' <;> norm_num [signVal])
-            (abs_nonneg _) zero_le_one).trans_eq (one_mul 2)) hbdd
+          calc |b j i| * |signVal c - signVal c'| ≤ 1 * 2 := by
+                gcongr
+                · exact hb j i
+                · cases c <;> cases c' <;> norm_num [signVal]
+            _ = 2 := one_mul 2) hbdd
   have hmc := card_filter_expect_add_le_le hF (t := m * ε / 4) (by positivity)
+  have hsum : ∑ _i : Fin m, (2 : ℝ) ^ 2 = m * 4 := by
+    rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
+    norm_num
   have hexp : 2 * ((m : ℝ) * ε / 4) ^ 2 / (m * 4) = m * ε ^ 2 / 32 := by
     rcases Nat.eq_zero_or_pos m with rfl | hm
     · simp
     · have : (0 : ℝ) < m := Nat.cast_pos.2 hm
-      field_simp; ring
-  rw [show ∑ _i : Fin m, (2 : ℝ) ^ 2 = m * 4 by
-    rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]; norm_num,
-    Fintype.card_fin, hexp] at hmc
+      field_simp
+      ring
+  rw [hsum, Fintype.card_fin, hexp] at hmc
   refine (Nat.cast_le.2 (Finset.card_le_card fun σ hσ => ?_)).trans hmc
   simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hσ ⊢
   obtain ⟨j, hj⟩ := hσ
@@ -171,8 +179,9 @@ theorem card_filter_swapSamples_exists_le_abs_le {Z : Type*} {G : ConceptClass Z
       cases g.1 (z.1 i) <;> cases g.1 (z.2 i) <;> norm_num
   have hnorm (s : ℝ) (hs : s ^ 2 = 1) (g : G) : ∑ i, (s * a g i) ^ 2 ≤ √m ^ 2 := by
     rw [Real.sq_sqrt (Nat.cast_nonneg m)]
-    exact (Finset.sum_le_sum fun i _ => (sq_le_one_iff_abs_le_one _).2 (hb s hs g i)).trans_eq
-      (by simp)
+    calc ∑ i, (s * a g i) ^ 2 ≤ ∑ _i : Fin m, (1 : ℝ) :=
+          Finset.sum_le_sum fun i _ => (sq_le_one_iff_abs_le_one _).2 (hb s hs g i)
+      _ = m := by simp
   have hdist (s : ℝ) (hs : s ^ 2 = 1) (g g' : G) :
       ∑ i, (s * a g i - s * a g' i) ^ 2 ≤
         4 * √m ^ 2 / ((m + m : ℕ) : ℝ) *
@@ -182,7 +191,8 @@ theorem card_filter_swapSamples_exists_le_abs_le {Z : Type*} {G : ConceptClass Z
     have hmR : (0 : ℝ) < m := Nat.cast_pos.2 hm
     have h4 : 4 * (m : ℝ) / ((m + m : ℕ) : ℝ) = 2 := by
       push_cast
-      field_simp; ring
+      field_simp
+      ring
     rw [Real.sq_sqrt hmR.le, h4, hham, Finset.mul_sum]
     refine Finset.sum_le_sum fun i _ => ?_
     rw [← mul_sub, mul_pow, hs, one_mul]

@@ -231,15 +231,19 @@ theorem dist_sq_add_dist_sq_le (x v y u : Y) :
   refine le_two_mul_of_forall dist_nonneg dist_nonneg fun τ hτ => ?_
   have hs1 : τ / (1 + τ) ≤ 1 := (div_le_one (by positivity)).2 (by linarith)
   have h := quadrilateral_aux x v y u (by positivity) hs1 (by positivity) hs1
-  rw [show 1 - τ / (1 + τ) = 1 / (1 + τ) by field_simp; ring] at h
+  have e1 : 1 - τ / (1 + τ) = 1 / (1 + τ) := by field_simp; ring
+  rw [e1] at h
   have h2 := mul_le_mul_of_nonneg_left h (show 0 ≤ (1 + τ) ^ 2 / τ by positivity)
-  rw [dist_comm v y, dist_comm v u] at h2
-  linarith [show (1 + τ) ^ 2 / τ * (τ / (1 + τ) * (1 / (1 + τ)) * dist x v ^ 2 +
-      τ / (1 + τ) * (1 / (1 + τ)) * dist y u ^ 2) = dist x v ^ 2 + dist y u ^ 2 by field_simp,
-    show (1 + τ) ^ 2 / τ * (1 / (1 + τ) * (1 / (1 + τ)) * dist x y ^ 2 +
-      1 / (1 + τ) * (τ / (1 + τ)) * dist x u ^ 2 + τ / (1 + τ) * (1 / (1 + τ)) * dist y v ^ 2 +
-      τ / (1 + τ) * (τ / (1 + τ)) * dist u v ^ 2) =
-      dist x y ^ 2 / τ + dist x u ^ 2 + dist y v ^ 2 + τ * dist u v ^ 2 by field_simp]
+  have e2 : (1 + τ) ^ 2 / τ * (τ / (1 + τ) * (1 / (1 + τ)) * dist x v ^ 2 +
+      τ / (1 + τ) * (1 / (1 + τ)) * dist y u ^ 2) = dist x v ^ 2 + dist y u ^ 2 := by
+    field_simp
+  have e3 : (1 + τ) ^ 2 / τ * (1 / (1 + τ) * (1 / (1 + τ)) * dist x y ^ 2 +
+      1 / (1 + τ) * (τ / (1 + τ)) * dist x u ^ 2 + τ / (1 + τ) * (1 / (1 + τ)) * dist v y ^ 2 +
+      τ / (1 + τ) * (τ / (1 + τ)) * dist v u ^ 2) =
+      dist x y ^ 2 / τ + dist x u ^ 2 + dist v y ^ 2 + τ * dist v u ^ 2 := by
+    field_simp
+  rw [e2, e3, dist_comm v y, dist_comm v u] at h2
+  linarith
 
 /-- **Part (b).** The squared diagonals of a quadrangle add up to at most its squared sides. -/
 theorem dist_sq_add_dist_sq_le_sides (x v y u : Y) :
@@ -366,10 +370,12 @@ private theorem flat_same (hp : dist x u = h) (hp' : dist y v = h) (hq : dist u 
   have h7 := dist_sq_add_dist_sq_le_sides x v u y
   simp only [ha.dist_left hs0 hs1, hb.dist_left hs0 hs1, hp, hp', hq, hq',
     dist_comm y a, dist_comm y x, dist_comm y u, dist_comm v y] at h2 h5 h6 h7
-  have h4 : dist a b = δ := by linarith [(sq_nonpos_iff (dist a b - δ)).1 (by linarith)]
+  have h4 : dist a b = δ := by
+    linarith [(sq_nonpos_iff (dist a b - δ)).1 (by linarith)]
   rw [h4] at h1
+  have h8 : dist x v ^ 2 + dist u y ^ 2 = 2 * h ^ 2 + 2 * δ ^ 2 := by linarith
   have h9 : s * dist x v ^ 2 + s * dist u y ^ 2 = s * (2 * h ^ 2 + 2 * δ ^ 2) := by
-    rw [← mul_add, show dist x v ^ 2 + dist u y ^ 2 = 2 * h ^ 2 + 2 * δ ^ 2 by linarith]
+    rw [← mul_add, h8]
   constructor <;> linarith
 
 /-- **Part (f), flat rectangles**, with `a` and `b` given by the inequality of the point at
@@ -386,10 +392,10 @@ theorem dist_sq_of_flat_of_isPointAt (hp : dist x u = h) (hp' : dist y v = h)
   have h1 := flat_parts hp hp' hq hq' hd2 hs0 hs1 ht0 ht1 ha hb
   have h7 := dist_sq_add_dist_sq_le_sides x v u y
   rw [hp, hq, hq', dist_comm v y, hp'] at h7
+  have h8 : dist x v ^ 2 = h ^ 2 + δ ^ 2 := by linarith
+  have h9 : dist u y ^ 2 = h ^ 2 + δ ^ 2 := by linarith
   rw [(flat_same hp hp' hq hq' hd2 ht0 ht1 ha' hb).1,
-    (flat_same hp hp' hq hq' hd2 hs0 hs1 ha hb').2,
-    show dist x v ^ 2 = h ^ 2 + δ ^ 2 by linarith,
-    show dist u y ^ 2 = h ^ 2 + δ ^ 2 by linarith] at h1
+    (flat_same hp hp' hq hq' hd2 hs0 hs1 ha hb').2, h8, h9] at h1
   linarith
 
 /-- **Part (f), flat rectangles.** If `|xy| = |uv| = δ`, `|xu| = |yv| = h`, both diagonals have

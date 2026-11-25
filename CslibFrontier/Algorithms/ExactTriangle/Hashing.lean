@@ -316,9 +316,13 @@ theorem sum_falsePositiveCount_le (hD : 16 ≤ D) (hκ : 1 ≤ κ) (hT : Weights
     · -- Otherwise this is the bound of `card_falsePositive_primes_le` for this triple.
       convert (card_falsePositive_primes_le wAB wBC wAC) hD hT t ht
   rw [hswap, Nat.cast_sum]
-  exact (Finset.sum_le_sum fun t _ => hterm t).trans_eq <| by
-    rw [Finset.sum_const, Finset.card_univ, Triangle.card, nsmul_eq_mul]
-    push_cast; ring
+  calc ∑ t : Triangle n,
+        (((Nat.sqrtPrimeWindow D).filter fun p => IsFalsePositive wAB wBC wAC p t).card : ℝ)
+      ≤ ∑ _t : Triangle n, Real.logb (Real.sqrt D / 2) (3 * (n : ℝ) ^ κ) :=
+        Finset.sum_le_sum fun t _ => hterm t
+    _ = (n : ℝ) ^ 3 * Real.logb (Real.sqrt D / 2) (3 * (n : ℝ) ^ κ) := by
+        rw [Finset.sum_const, Finset.card_univ, Triangle.card, nsmul_eq_mul]
+        push_cast; ring
 
 end Selection
 

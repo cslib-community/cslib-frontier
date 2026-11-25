@@ -280,10 +280,11 @@ theorem gramSchmidt_swap_self (b : Fin n → E) {i j : Fin n} (hij : (j : ℕ) =
   · rw [himg, Function.comp_apply, Equiv.swap_apply_left, ← span_gramSchmidt_Iio ℝ b i]
     have hexp := gramSchmidt_add_sum_coeff (𝕜 := ℝ) b j
     rw [Iio_succ_eq_insert hij, Finset.sum_insert (by simp)] at hexp
-    rw [show gramSchmidt ℝ b j + gramSchmidtCoeff ℝ b j i • gramSchmidt ℝ b i - b j =
-        -∑ l ∈ Finset.Iio i, gramSchmidtCoeff ℝ b j l • gramSchmidt ℝ b l by
+    have hsub : gramSchmidt ℝ b j + gramSchmidtCoeff ℝ b j i • gramSchmidt ℝ b i - b j =
+        -∑ l ∈ Finset.Iio i, gramSchmidtCoeff ℝ b j l • gramSchmidt ℝ b l := by
       conv_lhs => rw [hexp]
-      abel]
+      abel
+    rw [hsub]
     exact neg_mem (Submodule.sum_mem _ fun l hl =>
       Submodule.smul_mem _ _ (Submodule.subset_span ⟨l, Finset.mem_Iio.1 hl, rfl⟩))
   · rw [himg]
@@ -337,13 +338,15 @@ theorem IsSwapStep.potential_lt {δ : ℝ} {b c : Fin n → E} (h : IsSwapStep �
     (hb : LinearIndependent ℝ b) : potential c < δ * potential b := by
   obtain ⟨i, j, hij, rfl, hlt⟩ := h.exists_norm_sq_lt
   have hmem : (i : ℕ) + 1 ∈ Finset.range n := Finset.mem_range.2 (by omega)
-  rw [potential, potential, ← Finset.mul_prod_erase _ _ hmem, ← Finset.mul_prod_erase _ _ hmem,
+  have hrest : ∏ m ∈ (Finset.range n).erase (i + 1), gramPrefixDet (b ∘ Equiv.swap i j) m =
+      ∏ m ∈ (Finset.range n).erase (i + 1), gramPrefixDet b m :=
     Finset.prod_congr rfl fun m hm => by
+      obtain ⟨hne, hmn⟩ := Finset.mem_erase.1 hm
       rcases le_or_gt m i with hle | _
       · exact gramPrefixDet_swap_of_le hij hle
-      · exact gramPrefixDet_swap_of_lt hij (by have := (Finset.mem_erase.1 hm).1; omega)
-          (Finset.mem_range.1 (Finset.mem_erase.1 hm).2).le,
-    ← mul_assoc]
+      · exact gramPrefixDet_swap_of_lt hij (by omega) (Finset.mem_range.1 hmn).le
+  rw [potential, potential, ← Finset.mul_prod_erase _ _ hmem, ← Finset.mul_prod_erase _ _ hmem,
+    hrest, ← mul_assoc]
   refine mul_lt_mul_of_pos_right ?_ (Finset.prod_pos fun m _ => gramPrefixDet_pos hb m)
   rw [gramPrefixDet_succ, gramPrefixDet_succ, gramPrefixDet_swap_of_le hij le_rfl]
   nlinarith [gramPrefixDet_pos hb i]

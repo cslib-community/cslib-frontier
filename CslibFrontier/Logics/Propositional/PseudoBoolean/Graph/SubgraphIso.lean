@@ -306,7 +306,9 @@ private theorem isOPBName_isoName (a u : ℕ) : isOPBName (isoName a u) = true :
       · simp [isNameChar, Char.isAlphanum, Nat.isDigit_of_mem_toDecimal hc]
   rw [isOPBName, isoName, String.toList_ofList, hd, List.cons_append, List.cons_append]
   simp only [Bool.and_eq_true, List.all_eq_true]
-  exact ⟨by decide, fun c hc' => hc c (by rw [hd]; simpa using hc')⟩
+  refine ⟨by decide, fun c hc' => hc c ?_⟩
+  rw [hd]
+  simpa using hc'
 
 private theorem isoVar_lt (a : Fin p) (u : Fin t) : isoVar t a u < p * t :=
   val_finProdFinEquiv_eq_isoVar a u ▸ (finProdFinEquiv (a, u)).isLt

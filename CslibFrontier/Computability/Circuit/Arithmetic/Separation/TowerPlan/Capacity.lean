@@ -209,7 +209,9 @@ theorem edgeUnitBound_pow_le (hD : 0 < D) (hρ : 0 ≤ ρ) (hh : 0 < h)
     (edgeUnitBound FL Uu A lhat ρ : ℝ) ^ q * (Fintype.card (T.X 0) : ℝ) ^ p ≤
       (2 * (h : ℝ)) ^ q * normBound FL Uu A lhat ^ q := by
   have hD1 : (1 : ℝ) ≤ D := by exact_mod_cast hD
-  have h2h : (1 : ℝ) ≤ 2 * h := by linarith [(by exact_mod_cast hh : (1 : ℝ) ≤ h)]
+  have h2h : (1 : ℝ) ≤ 2 * h := by
+    have : (1 : ℝ) ≤ h := by exact_mod_cast hh
+    linarith
   have hk := normBound_nonneg (FL := FL) (Uu := Uu) (A := A) (lhat := lhat)
   have hDJ : (D : ℝ) ^ J ≤ Fintype.card (T.X 0) := by
     rw [show (Fintype.card (T.X 0) : ℝ) = D ^ J * Fintype.card (T.X J) by
@@ -255,8 +257,9 @@ theorem edgeUnitBound_pow_le (hD : 0 < D) (hρ : 0 ≤ ρ) (hh : 0 < h)
           gcongr
           exact le_self_pow₀ (one_le_pow₀ h2h) two_ne_zero
       _ = _ := by ring
-  exact le_trans (by gcongr; exact Nat.floor_le hb)
-    ((pow_le_pow_iff_left₀ (by positivity) (by positivity) two_ne_zero).1 key)
+  refine le_trans ?_ ((pow_le_pow_iff_left₀ (by positivity) (by positivity) two_ne_zero).1 key)
+  gcongr
+  exact Nat.floor_le hb
 
 /-- The bound for the norms, for routes of length at most `m` that use every edge at most
 `2 |X 0| m` times and at most `|X 0|` base parties. -/
@@ -272,14 +275,17 @@ theorem normBound_le (hm : 1 ≤ m) (hUu : Uu ≤ 2 * Fintype.card (T.X 0) * m)
   have hnR : (startBound T Uu A lhat : ℝ) ≤ 2 * m * (lhat + 2 * (X : ℝ) ^ 2) := by
     exact_mod_cast hn
   have h1 : (1 : ℝ) ≤ m * (lhat + 2 * (X : ℝ) ^ 2) := by
-    nlinarith [(by exact_mod_cast hX : (1 : ℝ) ≤ X), (by exact_mod_cast hm : (1 : ℝ) ≤ m),
+    nlinarith [(mod_cast hX : (1 : ℝ) ≤ X), (mod_cast hm : (1 : ℝ) ≤ m),
       (lhat.cast_nonneg : (0 : ℝ) ≤ lhat)]
   have p1 : √h * (r * X / 2) * startBound T Uu A lhat ≤
       √h * (r * X / 2) * (2 * m * (lhat + 2 * (X : ℝ) ^ 2)) := by gcongr
   have p2 : √FL.contraction * FL.scale / b * X ≤
-      √FL.contraction * FL.scale * X * (m * (lhat + 2 * (X : ℝ) ^ 2)) :=
-    (mul_le_mul_of_nonneg_right (div_le_self (by positivity) (by exact_mod_cast hb))
-      (Nat.cast_nonneg X)).trans (le_mul_of_one_le_right (by positivity) h1)
+      √FL.contraction * FL.scale * X * (m * (lhat + 2 * (X : ℝ) ^ 2)) := calc
+    _ ≤ √FL.contraction * FL.scale * X * 1 := by
+        rw [mul_one]
+        gcongr
+        exact div_le_self (by positivity) (by exact_mod_cast hb)
+    _ ≤ _ := by gcongr
   unfold normBound
   nlinarith [Real.sqrt_nonneg FL.contraction, p1, p2]
 

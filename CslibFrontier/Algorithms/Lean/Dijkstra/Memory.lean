@@ -175,11 +175,12 @@ theorem holds_inputGraph (G : ListInstance) :
   · rw [hoff _ u.isLt, hoff _ u.isLt.le, G.offset_succ u.isLt]
   · rw [hoff _ u.isLt, ← G.offset_n]
     exact Nat.mul_le_mul_left 2 (G.offset_mono u.isLt)
-  · rw [hoff _ u.isLt.le, show G.n + 4 + 2 * (G.offset u + i) = 2 * (G.offset u + i) + G.n + 4 by
-      omega]
+  · have haddr : G.n + 4 + 2 * (G.offset u + i) = 2 * (G.offset u + i) + G.n + 4 := by omega
+    rw [hoff _ u.isLt.le, haddr]
     exact G.init_target (r := 0) u hi
-  · rw [hoff _ u.isLt.le, show G.n + 4 + (2 * (G.offset u + i) + 1) =
-      2 * (G.offset u + i) + G.n + 5 by omega]
+  · have haddr : G.n + 4 + (2 * (G.offset u + i) + 1) = 2 * (G.offset u + i) + G.n + 5 := by
+      omega
+    rw [hoff _ u.isLt.le, haddr]
     exact G.init_weight (r := 0) u hi
 
 /-- What a degree query reads from the input adjacency arrays: the offsets of `u` and `u + 1` lie

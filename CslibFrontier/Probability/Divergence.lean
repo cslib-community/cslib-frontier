@@ -312,7 +312,8 @@ the product of its marginals. -/
 theorem entropy_eq_entropy_map_fst_add_entropy_map_snd_iff (joint : PMF (α × β)) :
     entropy joint = entropy (joint.map Prod.fst) + entropy (joint.map Prod.snd) ↔
       joint = (joint.map Prod.fst).bind fun a => (joint.map Prod.snd).map (a, ·) := by
-  let : MeasurableSpace α := ⊤; let : MeasurableSpace β := ⊤
+  let : MeasurableSpace α := ⊤
+  let : MeasurableSpace β := ⊤
   have h := entropy_map_fst_add_entropy_map_snd_sub_entropy joint
   rw [← toMeasure_bind_pair] at h
   refine ⟨fun heq => ?_, fun heq => ?_⟩

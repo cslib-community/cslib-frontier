@@ -100,9 +100,11 @@ theorem length_rot {K : Type} {n j : ℕ} (hj : j ≤ n) (x : Fin n → Bl K) :
 
 theorem length_encW_recs {M K : Type} {n j : ℕ} (hj : j ≤ n) (l : List (Rc n (Bl K))) :
     (encW (recs j l) : List (Sy M K)).length = l.length * (n + 3) := by
-  rw [length_encW (n := n + 1) fun r hr => by
-    obtain ⟨_, -, rfl⟩ := List.mem_map.1 hr; exact length_rot hj _]
-  simp [recs]
+  rw [length_encW (n := n + 1)]
+  · simp [recs]
+  · intro r hr
+    obtain ⟨_, -, rfl⟩ := List.mem_map.1 hr
+    exact length_rot hj _
 
 theorem canon_length {M K : Type} [Fintype K] [DecidableEq K] {n : ℕ}
     (l : List (Rc n (Bl K))) (k j : ℕ) (hjk : j + k = n) :
@@ -121,12 +123,12 @@ theorem canon_length {M K : Type} [Fintype K] [DecidableEq K] {n : ℕ}
     refine ⟨by rw [List.length_cons, h1], fun p hp => ?_⟩
     rcases List.mem_cons.mp hp with rfl | hp
     · refine ⟨by rw [cps, dIn_dl, length_encW_recs hj.le, hl], ?_⟩
-      rw [Finset.sum_congr rfl fun b _ => show
+      have h3 (b) :
           (((cps j hj (srt (bsl K) l j) : Ps M K).2 b).map
             (Subtype.val : NB M K → Sy M K)).length =
-          ((srt (bsl K) l j).filter fun r => r.2 ⟨j, hj⟩ = b).length * (n + 3) by
-        rw [cps, toNB_val _ (bar_encW _), dOut_dl, length_encW_recs (by omega)],
-        ← Finset.sum_mul, List.RadixSort.sum_filter, hl]
+          ((srt (bsl K) l j).filter fun r => r.2 ⟨j, hj⟩ = b).length * (n + 3) := by
+        rw [cps, toNB_val _ (bar_encW _), dOut_dl, length_encW_recs (by omega)]
+      rw [Finset.sum_congr rfl fun b _ => h3 b, ← Finset.sum_mul, List.RadixSort.sum_filter, hl]
     · exact h2 p hp
 
 /-- Exact total emitted length on the sorting, bucket, and comparison tapes under `IMU`. -/
@@ -220,45 +222,55 @@ theorem MX.total {A M K : Type} [Fintype K] [DecidableEq K] {P : Mach A M K}
     exact h2 _ (by simp)
   have e1 (i) : (emX P x (.tp (.rg i) true)).length =
       (x.steps.length + 1) * (x.init.length + 2) := by
-    rw [emX_rg_true, length_bws (n := x.init.length + 1) fun w hw => by
+    rw [emX_rg_true, length_bws (n := x.init.length + 1)]
+    · simp
+    · intro w hw
       rcases List.mem_append.mp hw with hw | hw
       · obtain ⟨s, hs, rfl⟩ := List.mem_map.mp hw
         exact hcw s hs _
-      · rw [List.mem_singleton.mp hw]; exact hend i]
-    simp
+      · rw [List.mem_singleton.mp hw]
+        exact hend i
   have e3 : (emX P x (.tp .cp true)).length = (x.steps.length + 1) * (x.init.length + 2) := by
-    rw [emX_cp_true, length_bws (n := x.init.length + 1) fun w hw => by
+    rw [emX_cp_true, length_bws (n := x.init.length + 1)]
+    · simp [hx.length_eq]
+    · intro w hw
       rcases List.mem_append.mp hw with hw | hw
       · obtain ⟨r, hr, rfl⟩ := List.mem_map.mp hw
         exact hx.len_cn.1 r hr
-      · rw [List.mem_singleton.mp hw]; simpa using hx.len_cn.2]
-    simp [hx.length_eq]
+      · rw [List.mem_singleton.mp hw]
+        simpa using hx.len_cn.2
   have e4 : (emX P x (.tp .fr true)).length = x.steps.length * (x.init.length + 2) := by
-    rw [emX_fr_true, length_bws (n := x.init.length + 1) fun w hw => by
-      obtain ⟨s, hs, rfl⟩ := List.mem_map.mp hw; exact hcw s hs _]
-    simp
+    rw [emX_fr_true, length_bws (n := x.init.length + 1)]
+    · simp
+    · intro w hw
+      obtain ⟨s, hs, rfl⟩ := List.mem_map.mp hw
+      exact hcw s hs _
   have e5 : (emX P x (.tp .lk true)).length = x.steps.length * (x.init.length + 5) := by
-    rw [emX_lk_true, hx.lk, length_encW (n := x.init.length + 3) fun r hr => by
+    rw [emX_lk_true, hx.lk, length_encW (n := x.init.length + 3)]
+    · simp [lks]
+    · intro r hr
       obtain ⟨c, hc, rfl⟩ := List.mem_map.1 hr
       obtain ⟨s, hs, rfl⟩ := List.mem_map.1 hc
-      simp [oc, cont, ldc, hx.len s hs]]
-    simp [lks]
+      simp [oc, cont, ldc, hx.len s hs]
   have e6 := imu_length (lsN_ne _ _) (hx.block ▸ hx.ls)
-  rw [show (lsN (x.init.length + 1) (x.steps.map nst)).length = 2 * x.steps.length + 1 by
-    simp [lsN, dfN]; ring] at e6
+  have hN : (lsN (x.init.length + 1) (x.steps.map nst)).length = 2 * x.steps.length + 1 := by
+    simp [lsN, dfN]; ring
+  rw [hN] at e6
+  have e7 : (emX P x (.tp .ls true)).length = (emU x.sort lsT).length := by rw [← emX_ls_true]
+  have e8 (b) : (emX P x (.tp (.bk b) true)).length =
+      (emU x.sort (.tp (.bk b) true)).length := by rw [← emX_bk]
+  have e9 (k) : (emX P x (.tp (.cm k) true)).length =
+      (emU x.sort (.tp (.cm k) true)).length := by rw [← emX_cm]
   rw [sum_Tp (fun s => (emX P x (.tp s true)).length),
     Finset.sum_congr rfl fun i _ => e1 i, emX_md_true, List.length_map, List.length_append,
-    List.length_map, List.length_singleton, e3, e4, e5,
-    show (emX P x (.tp .ls true)).length = (emU x.sort lsT).length by rw [← emX_ls_true],
-    Finset.sum_congr rfl fun b _ =>
-      show (emX P x (.tp (.bk b) true)).length = (emU x.sort (.tp (.bk b) true)).length by
-        rw [← emX_bk],
-    Finset.sum_congr rfl fun k _ =>
-      show (emX P x (.tp (.cm k) true)).length = (emU x.sort (.tp (.cm k) true)).length by
-        rw [← emX_cm]]
+    List.length_map, List.length_singleton, e3, e4, e5, e7,
+    Finset.sum_congr rfl fun b _ => e8 b, Finset.sum_congr rfl fun k _ => e9 k]
   simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]
-  rw [show ∀ a b c d e f g h' : ℕ,
-      a + b + c + d + e + f + g + h' = a + b + c + d + e + (f + g + h') by intros; ring, e6]
+  have e10 : ∀ a b c d e f g h' : ℕ,
+      a + b + c + d + e + f + g + h' = a + b + c + d + e + (f + g + h') := by
+    intros
+    omega
+  rw [e10, e6]
   unfold tU
   ring
 

@@ -139,8 +139,13 @@ theorem ChangesAtMost.pi [Preorder α] {ι : Type*} [Fintype ι] {β : ι → Ty
         by_contra! hno
         exact hS k hk (funext hno)
       exact Finset.mem_biUnion.mpr ⟨i, Finset.mem_univ i, Finset.mem_filter.mpr ⟨hk, hi⟩⟩
-  exact (Finset.card_le_card hsub).trans (Finset.card_biUnion_le.trans
-    (Finset.sum_le_sum fun i _ => hf i z hz _ fun _ hk => (Finset.mem_filter.mp hk).2))
+  calc S.card
+      ≤ (Finset.univ.biUnion fun i => S.filter fun k => f i (z k) ≠ f i (z (k + 1))).card :=
+        Finset.card_le_card hsub
+    _ ≤ ∑ i : ι, (S.filter fun k => f i (z k) ≠ f i (z (k + 1))).card :=
+        Finset.card_biUnion_le
+    _ ≤ ∑ i : ι, T i :=
+        Finset.sum_le_sum fun i _ => hf i z hz _ fun _ hk => (Finset.mem_filter.mp hk).2
 
 /-- A tuple of functions indexed by a finite set changes at most the sum of the individual
 change bounds. -/
@@ -226,13 +231,13 @@ private theorem card_nonconstant_groups_le {Ψ : α → β} {T : ℕ} (h : Chang
   have inj : Set.InjOn chg bad := fun g hg g' hg' heq => by
     obtain ⟨a1, a2, -⟩ := hchg g hg
     obtain ⟨b1, b2, -⟩ := hchg g' hg'
-    have e1 := Nat.div_eq_of_lt_le a1 (by rw [Nat.succ_mul]; exact a2)
-    have e2 := Nat.div_eq_of_lt_le b1 (by rw [Nat.succ_mul]; exact b2)
+    have e1 := Nat.div_eq_of_lt_le a1 (a2.trans_eq (Nat.succ_mul g L).symm)
+    have e2 := Nat.div_eq_of_lt_le b1 (b2.trans_eq (Nat.succ_mul g' L).symm)
     rw [← e1, ← e2, heq]
-  rw [← Finset.card_image_of_injOn inj]
-  exact h z hz _ fun i hi => by
-    obtain ⟨g, hg, rfl⟩ := Finset.mem_image.mp hi
-    exact (hchg g hg).2.2
+  calc bad.card = (bad.image chg).card := (Finset.card_image_of_injOn inj).symm
+    _ ≤ T := h z hz _ fun i hi => by
+      obtain ⟨g, hg, rfl⟩ := Finset.mem_image.mp hi
+      exact (hchg g hg).2.2
 
 /-- The nondecreasing order of a finite set along a linearly ordered key. -/
 private theorem exists_sorted_list {ι : Type*} (P : Finset ι) (key : ι → α) :
@@ -243,7 +248,9 @@ private theorem exists_sorted_list {ι : Type*} (P : Finset ι) (key : ι → α
   have hsorted : l.Pairwise (fun a b => decide (key a ≤ key b) = true) :=
     List.pairwise_mergeSort
       (fun a b c hab hbc => decide_eq_true ((of_decide_eq_true hab).trans (of_decide_eq_true hbc)))
-      (fun a b => by simp only [Bool.or_eq_true, decide_eq_true_eq]; exact le_total _ _) _
+      (fun a b => by
+        simp only [Bool.or_eq_true, decide_eq_true_eq]
+        exact le_total _ _) _
   refine ⟨l, hperm.length_eq.trans (Finset.length_toList P),
     hperm.nodup_iff.mpr (Finset.nodup_toList P),
     fun a => hperm.mem_iff.trans Finset.mem_toList, fun i j hi hj hij => ?_⟩
@@ -296,8 +303,11 @@ theorem ChangesAtMost.exists_sorted_group {ι κ : Type*} (P : Finset ι) (Q : F
     have hb := Finset.sum_card_bipartiteAbove_eq_sum_card_bipartiteBelow
       (s := Finset.range G) (t := Q) bad
     simp only [Finset.bipartiteAbove, Finset.bipartiteBelow] at hb
-    exact hb ▸ (Finset.sum_le_sum fun q hq => card_nonconstant_groups_le (hΨ q hq) hz L G
-      ).trans_eq (by rw [Finset.sum_const, Nat.nsmul_eq_mul, mul_comm])
+    calc ∑ g ∈ Finset.range G, (Q.filter fun q => bad g q).card
+        = ∑ q ∈ Q, ((Finset.range G).filter fun g => bad g q).card := hb
+      _ ≤ ∑ _q ∈ Q, T :=
+          Finset.sum_le_sum fun q hq => card_nonconstant_groups_le (hΨ q hq) hz L G
+      _ = T * Q.card := by rw [Finset.sum_const, Nat.nsmul_eq_mul, mul_comm]
   obtain ⟨g, hg, hgood⟩ := Finset.exists_le_of_sum_le (s := Finset.range G)
     (f := fun g => G * (Q.filter fun q => bad g q).card) (g := fun _ => T * Q.card)
     ⟨0, Finset.mem_range.mpr hG⟩ (by

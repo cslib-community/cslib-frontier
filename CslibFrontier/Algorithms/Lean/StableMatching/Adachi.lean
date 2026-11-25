@@ -375,13 +375,13 @@ private theorem fixedPt_mutual {ν : I.PreMatching} (hfix : Function.IsFixedPt I
   · have hr_will := I.bestWillingReceiver_mem (adachiMap_propPartner I ν p ▸ hprop.trans hp)
     simp only [willingReceivers, Finset.mem_filter, Finset.mem_univ, true_and] at hr_will
     have hle := I.recvOptRank_bestWillingProposer_le (ν := ν) (r := r) (p := p)
-      (by rw [willingProposers, Finset.mem_filter]; simp [hp])
+      (Finset.mem_filter.2 ⟨Finset.mem_univ _, hp.symm ▸ le_rfl⟩)
     rw [← adachiMap_recvPartner, hrecv] at hle
     exact (I.recvOptRank r).injective (le_antisymm hle hr_will)
   · have hp_will := I.bestWillingProposer_mem (adachiMap_recvPartner I ν r ▸ hrecv.trans hr)
     simp only [willingProposers, Finset.mem_filter, Finset.mem_univ, true_and] at hp_will
     have hle := I.propOptRank_bestWillingReceiver_le (ν := ν) (p := p) (r := r)
-      (by rw [willingReceivers, Finset.mem_filter]; simp [hr])
+      (Finset.mem_filter.2 ⟨Finset.mem_univ _, hr.symm ▸ le_rfl⟩)
     rw [← adachiMap_propPartner, hprop] at hle
     exact (I.propOptRank p).injective (le_antisymm hle hp_will)
 

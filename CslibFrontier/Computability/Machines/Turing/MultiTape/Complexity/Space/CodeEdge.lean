@@ -212,16 +212,18 @@ theorem computableInO_codeEdge :
     refine (ComputableInO.ite hhead hacc hstep).mono 6 (fun q => ?_) fun q => ?_ <;>
     · have ho := hout q
       have hp := hpair q
+      have hm : ((encBits q.2.output).length + 1) * ((encBits q.2.output).length + 1 + 1) ≤
+          ((encPair (encPair encBits encBits) encFiniteCfg q).length + 1) *
+            ((encPair (encPair encBits encBits) encFiniteCfg q).length + 1 + 1) :=
+        Nat.mul_le_mul (by omega) (by omega)
       simp only [Function.comp_apply, htrue]
-      split_ifs <;> nlinarith [Nat.mul_le_mul (by omega : (encBits q.2.output).length + 1 ≤
-        (encPair (encPair encBits encBits) encFiniteCfg q).length + 1) (by omega :
-        (encBits q.2.output).length + 1 + 1 ≤
-          (encPair (encPair encBits encBits) encFiniteCfg q).length + 1 + 1)]
+      split_ifs <;> nlinarith
   have hall := elim_decodeView (encC := encPair encBits encBits) (code := Prod.fst)
     (ComputableInO.fst encBits encBits) (fun p => length_le_encPair_left encBits encBits p) hg
   refine (hall.of_enc_eq fun p => congrArg encBool ?_).mono 4 (fun p => ?_) fun p => ?_
   · unfold codeEdge
-    option_match_to_elim; rfl
+    option_match_to_elim
+    rfl
   all_goals nlinarith [Nat.le_self_pow two_ne_zero (encPair encBits encBits p).length]
 
 end Turing.MultiTapeNTM
