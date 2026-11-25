@@ -347,9 +347,9 @@ theorem padicValRat_eval_zero_hermiteBasis_dyadic (m : ℕ → ℕ)
     have htq : ((t : ℚ) - q) ≠ 0 := sub_ne_zero.mpr (by exact_mod_cast hq.1.symm)
     rw [Ring.inverse_eq_inv, zero_sub]
     refine ⟨pow_ne_zero _ (mul_ne_zero (inv_ne_zero htq) (neg_ne_zero.mpr hq0)), ?_⟩
-    rw [padicValRat.pow, padicValRat.mul (inv_ne_zero htq) (neg_ne_zero.mpr hq0), padicValRat.inv, padicValRat.neg,
-      show (t : ℚ) - q = ((t - q : ℤ) : ℚ) by push_cast; ring, padicValRat.of_int,
-      padicValRat.of_int]
+    rw [padicValRat.pow, padicValRat.mul (inv_ne_zero htq) (neg_ne_zero.mpr hq0),
+      padicValRat.inv, padicValRat.neg, show (t : ℚ) - q = ((t - q : ℤ) : ℚ) by push_cast; ring,
+      padicValRat.of_int, padicValRat.of_int]
     ring
   rw [eval_hermiteBasis, padicValRat.prod _ fun q hq => (hfac q hq).1,
     sum_congr rfl fun q hq => (hfac q hq).2, sum_tapered_eq m ht ht0,
