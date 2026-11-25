@@ -97,14 +97,10 @@ containment free if no image is a subset of the image of a distinct message. -/
 /-- A subset encoding is containment free if and only if it is injective and its range is an
 antichain under subset inclusion. -/
 theorem containmentFree_iff {M α : Type*} (P : M → Finset α) :
-    ContainmentFree P ↔ Function.Injective P ∧ IsAntichain (· ⊆ ·) (Set.range P) := by
-  constructor
-  · intro h
-    refine ⟨fun m m' heq => by_contra fun hne => h hne (le_of_eq heq), ?_⟩
-    rintro _ ⟨m, rfl⟩ _ ⟨m', rfl⟩ hne
-    exact h (fun hmm' => hne (congrArg P hmm'))
-  · rintro ⟨hinj, hant⟩ m m' hne
-    exact hant ⟨m, rfl⟩ ⟨m', rfl⟩ (fun hP => hne (hinj hP))
+    ContainmentFree P ↔ Function.Injective P ∧ IsAntichain (· ⊆ ·) (Set.range P) :=
+  ⟨fun h => ⟨fun _ _ heq => by_contra fun hne => h hne heq.le,
+      by rintro _ ⟨m, rfl⟩ _ ⟨m', rfl⟩ hne; exact h fun hm => hne (congrArg P hm)⟩,
+    fun ⟨hinj, hant⟩ _ _ hne => hant ⟨_, rfl⟩ ⟨_, rfl⟩ fun hP => hne (hinj hP)⟩
 
 /-- Any injective map into subsets of a common cardinality `ℓ` is containment free. -/
 theorem containmentFree_of_injective_of_card_eq {M α : Type*} {P : M → Finset α} {ℓ : ℕ}
@@ -120,13 +116,10 @@ theorem card_le_choose_half_of_containmentFree {M α : Type*} [Fintype M] [Finty
     {P : M → Finset α} (hP : ContainmentFree P) :
     Fintype.card M ≤ (Fintype.card α).choose (Fintype.card α / 2) := by
   classical
-  have ⟨hinj, hant⟩ := (containmentFree_iff P).1 hP
+  obtain ⟨hinj, hant⟩ := (containmentFree_iff P).1 hP
   have hant_img : IsAntichain (· ⊆ ·)
-      ((Finset.univ.image P : Finset (Finset α)) : Set (Finset α)) := by
-    intro s hs t ht hne
-    rcases Finset.mem_image.1 (Finset.mem_coe.1 hs) with ⟨m, _, rfl⟩
-    rcases Finset.mem_image.1 (Finset.mem_coe.1 ht) with ⟨m', _, rfl⟩
-    exact hant ⟨m, rfl⟩ ⟨m', rfl⟩ hne
+      ((Finset.univ.image P : Finset (Finset α)) : Set (Finset α)) :=
+    hant.subset fun _ hs => let ⟨m, _, hm⟩ := Finset.mem_image.1 (Finset.mem_coe.1 hs); ⟨m, hm⟩
   simpa [Finset.card_image_of_injective _ hinj] using hant_img.sperner
 
 /-- The word construction underlying `P_opt` ([BonehShoup2023], Section 14.2.1, pp. 588–589):
@@ -144,17 +137,16 @@ def optSet (v w : ℕ) (m : BitString v) : Finset (Fin (v + w)) :=
 theorem mem_optSet_castAdd {v w : ℕ} (m : BitString v) (i : Fin v) :
     Fin.castAdd w i ∈ optSet v w m ↔ m i = true := by
   rw [optSet, mem_supportOfList]
-  have hlen : (List.ofFn m).length = v := List.length_ofFn
-  simp [optWord, List.getD_eq_getElem?_getD, List.getElem?_append_left (i.isLt.trans_eq hlen.symm)]
+  simp [optWord, List.getD_eq_getElem?_getD,
+    List.getElem?_append_left (i.isLt.trans_eq List.length_ofFn.symm)]
 
 /-- Membership in the checksum coordinates of `optSet v w m`. -/
 theorem mem_optSet_natAdd {v w : ℕ} (m : BitString v) (j : Fin w) :
     Fin.natAdd v j ∈ optSet v w m ↔ ((List.ofFn m).count false).testBit j.val = true := by
   rw [optSet, mem_supportOfList]
-  have hlen : (List.ofFn m).length = v := List.length_ofFn
   simp only [Fin.val_natAdd, optWord, List.getD_eq_getElem?_getD]
-  rw [List.getElem?_append_right (by omega), hlen, Nat.add_sub_cancel_left]
-  rw [List.getElem?_eq_getElem (by simp [length_lowBits])]
+  rw [List.getElem?_append_right (by simp), List.length_ofFn, Nat.add_sub_cancel_left,
+    List.getElem?_eq_getElem (by simp [length_lowBits])]
   simp [lowBits_eq_ofFn]
 
 /-- Lemma 14.3 ([BonehShoup2023], Section 14.2.1, pp. 588–589): `P_opt` is containment free
@@ -162,52 +154,39 @@ whenever `v < 2 ^ w` (in particular for the book's choice `w = 1 + Nat.clog 2 v`
 theorem optSet_containmentFree {v w : ℕ} (hv : v < 2 ^ w) :
     ContainmentFree (optSet v w) := by
   intro m m' hne hsub
-  have hcoord : ∀ i : Fin v, m i = true → m' i = true := fun i hi =>
+  have hcoord (i : Fin v) (hi : m i = true) : m' i = true :=
     (mem_optSet_castAdd m' i).1 (hsub ((mem_optSet_castAdd m i).2 hi))
-  have hne_i : ∃ i0 : Fin v, m i0 = false ∧ m' i0 = true := by
+  obtain ⟨i0, hm0, hm'0⟩ : ∃ i0 : Fin v, m i0 = false ∧ m' i0 = true := by
     by_contra hnone
-    apply hne; funext i
+    refine hne (funext fun i => ?_)
     have := not_exists.1 hnone i
-    specialize hcoord i
+    have := hcoord i
     cases hm : m i <;> cases hm' : m' i <;> simp_all
-  rcases hne_i with ⟨i0, hm0, hm'0⟩
-  have hssub : (Finset.univ.filter fun i : Fin v => m i = true) ⊂
-      Finset.univ.filter fun i : Fin v => m' i = true := by
-    rw [Finset.ssubset_iff_of_subset]
-    · exact ⟨i0, Finset.mem_filter.2 ⟨Finset.mem_univ _, hm'0⟩, by simp [hm0]⟩
-    · intro i hi
-      exact Finset.mem_filter.2
-        ⟨Finset.mem_univ _, hcoord i (Finset.mem_filter.1 hi).2⟩
-  have hweight : weight m < weight m' := Finset.card_lt_card hssub
-  have hsum : (List.ofFn m).count true + (List.ofFn m).count false = v := by
-    simpa [List.length_ofFn] using List.count_true_add_count_false (List.ofFn m)
-  have hsum' : (List.ofFn m').count true + (List.ofFn m').count false = v := by
-    simpa [List.length_ofFn] using List.count_true_add_count_false (List.ofFn m')
-  rw [count_true_ofFn] at hsum hsum'
-  have hlt : (List.ofFn m').count false < (List.ofFn m).count false := by omega
+  have hweight : weight m < weight m' := Finset.card_lt_card <|
+    (Finset.ssubset_iff_of_subset fun i hi =>
+      Finset.mem_filter.2 ⟨Finset.mem_univ _, hcoord i (Finset.mem_filter.1 hi).2⟩).2
+      ⟨i0, Finset.mem_filter.2 ⟨Finset.mem_univ _, hm'0⟩, by simp [hm0]⟩
+  have hsum := List.count_true_add_count_false (List.ofFn m)
+  have hsum' := List.count_true_add_count_false (List.ofFn m')
+  simp only [List.length_ofFn, count_true_ofFn] at hsum hsum'
   have hc_lt : (List.ofFn m).count false < 2 ^ w :=
     lt_of_le_of_lt (by simpa [List.length_ofFn] using (List.ofFn m).count_le_length) hv
-  have hle : (List.ofFn m).count false ≤ (List.ofFn m').count false := by
-    refine Nat.le_of_testBit fun j hj => ?_
-    have hjw : j < w := by
-      by_contra hge
-      have := Nat.testBit_lt_two_pow
-        (hc_lt.trans_le (Nat.pow_le_pow_right two_pos (not_lt.mp hge)))
-      exact Bool.false_ne_true (this.symm.trans hj)
-    exact (mem_optSet_natAdd m' ⟨j, hjw⟩).1 (hsub ((mem_optSet_natAdd m ⟨j, hjw⟩).2 hj))
+  have hle : (List.ofFn m).count false ≤ (List.ofFn m').count false :=
+    Nat.le_of_testBit fun j hj => by
+      have hjw : j < w := by_contra fun hge => Bool.false_ne_true <|
+        (Nat.testBit_lt_two_pow
+          (hc_lt.trans_le (Nat.pow_le_pow_right two_pos (not_lt.mp hge)))).symm.trans hj
+      exact (mem_optSet_natAdd m' ⟨j, hjw⟩).1 (hsub ((mem_optSet_natAdd m ⟨j, hjw⟩).2 hj))
   omega
 
 /-- Efficiency certificate for `P_opt`: computing `optWord w m` runs in polynomial time in
 `w` (unary) and `m` (bitstring). -/
 theorem optWord_polyTime :
     ComputableInPolyTime (fun p : ℕ × List Bool => optWord p.1 p.2)
-      (encPair encUnary encBits) encBits := by
-  unfold optWord
-  have hm := ComputableInPolyTime.snd encUnary encBits
-  have hw := ComputableInPolyTime.fst encUnary encBits
-  have hcnt := ComputableInPolyTime.bitsCountWithInput hm (ComputableInPolyTime.const false)
-  have hcnt_bin := ComputableInPolyTime.unary_to_binary.comp hcnt
-  exact ComputableInPolyTime.bitsAppend hm (ComputableInPolyTime.bitsLow hw hcnt_bin)
+      (encPair encUnary encBits) encBits :=
+  .bitsAppend (.snd encUnary encBits) (.bitsLow (.fst encUnary encBits)
+    (ComputableInPolyTime.unary_to_binary.comp
+      (.bitsCountWithInput (.snd encUnary encBits) (.const false))))
 
 /-- A fixed-size subset word encoding ([BonehShoup2023], Section 14.4, p. 593): maps a bitstring
 message via its big-endian binary value into `unrankCombination n ℓ`. This uses the library's
@@ -223,22 +202,18 @@ cardinality `ℓ` (`card_horsSet`) and is containment free (`horsSet_containment
 
 private theorem containmentFree_supportOfList_unrankCombination {M : Type*} {n ℓ : ℕ}
     {f : M → ℕ} (hf_inj : Function.Injective f) (hf_lt : ∀ m, f m < n.choose ℓ) :
-    ContainmentFree (fun m => supportOfList n (unrankCombination n ℓ (f m))) := by
-  refine containmentFree_of_injective_of_card_eq (ℓ := ℓ) ?_ ?_
-  · intro m m' heq
-    have hword := supportOfList_injective_of_length
-      (length_unrankCombination n ℓ _) (length_unrankCombination n ℓ _) heq
-    exact hf_inj (unrankCombination_injective (hf_lt m) (hf_lt m') hword)
-  · intro m
-    rw [card_supportOfList_of_length (length_unrankCombination n ℓ _),
+    ContainmentFree (fun m => supportOfList n (unrankCombination n ℓ (f m))) :=
+  containmentFree_of_injective_of_card_eq (ℓ := ℓ)
+    (fun m m' heq => hf_inj (unrankCombination_injective (hf_lt m) (hf_lt m')
+      (supportOfList_injective_of_length (length_unrankCombination n ℓ _)
+        (length_unrankCombination n ℓ _) heq)))
+    fun m => by rw [card_supportOfList_of_length (length_unrankCombination n ℓ _),
       count_true_unrankCombination (hf_lt m)]
 
 private theorem binaryValue_ofFn_lt_choose {n ℓ v : ℕ}
     (hbound : 2 ^ v ≤ n.choose ℓ) (m : BitString v) :
-    binaryValue (List.ofFn m) < n.choose ℓ := by
-  have hlt : binaryValue (List.ofFn m) < 2 ^ v := by
-    simpa [List.length_ofFn] using binaryValue_lt_two_pow (List.ofFn m)
-  exact lt_of_lt_of_le hlt hbound
+    binaryValue (List.ofFn m) < n.choose ℓ :=
+  lt_of_lt_of_le (by simpa [List.length_ofFn] using binaryValue_lt_two_pow (List.ofFn m)) hbound
 
 /-- Under `2 ^ v ≤ n.choose ℓ`, `horsSet n ℓ` produces subsets of cardinality `ℓ`
 ([BonehShoup2023], Section 14.4, p. 593). -/
@@ -259,12 +234,11 @@ theorem horsSet_containmentFree {n ℓ v : ℕ} (hbound : 2 ^ v ≤ n.choose ℓ
 in `(n, ℓ)` (unary) and `m` (bitstring). -/
 theorem horsWord_polyTime :
     ComputableInPolyTime (fun p : (ℕ × ℕ) × List Bool => horsWord p.1.1 p.1.2 p.2)
-      (encPair (encPair encUnary encUnary) encBits) encBits := by
-  unfold horsWord
-  have h1 := ComputableInPolyTime.fst (encPair encUnary encUnary) encBits
-  have h2 := ComputableInPolyTime.bitsBinaryValue.comp
-    (ComputableInPolyTime.snd (encPair encUnary encUnary) encBits)
-  exact Cslib.GenericRAM.SubsetPairFold.unrankCombination_polyTime.comp (h1.prod h2)
+      (encPair (encPair encUnary encUnary) encBits) encBits :=
+  Cslib.GenericRAM.SubsetPairFold.unrankCombination_polyTime.comp
+    ((ComputableInPolyTime.fst (encPair encUnary encUnary) encBits).prod
+      (ComputableInPolyTime.bitsBinaryValue.comp
+        (.snd (encPair encUnary encUnary) encBits)))
 
 /-- Converse to the finite-cardinality form of Sperner's theorem (not stated in
 [BonehShoup2023]): any finite message space with cardinality at most `n.choose (n / 2)` admits a
@@ -272,10 +246,9 @@ containment-free encoding into `Finset (Fin n)`. This is a pure existence result
 polynomial-time claim. -/
 theorem exists_containmentFree_of_card_le {M : Type*} [Fintype M] {n : ℕ}
     (hM : Fintype.card M ≤ n.choose (n / 2)) :
-    ∃ P : M → Finset (Fin n), ContainmentFree P := by
-  let f : M → ℕ := fun m => (Fintype.equivFin M m).val
-  have hf_inj : Function.Injective f := fun _ _ h => (Fintype.equivFin M).injective (Fin.ext h)
-  have hf_lt : ∀ m, f m < n.choose (n / 2) := fun m => (Fintype.equivFin M m).isLt.trans_le hM
-  exact ⟨_, containmentFree_supportOfList_unrankCombination hf_inj hf_lt⟩
+    ∃ P : M → Finset (Fin n), ContainmentFree P :=
+  ⟨_, containmentFree_supportOfList_unrankCombination (f := fun m => (Fintype.equivFin M m).val)
+    (fun _ _ h => (Fintype.equivFin M).injective (Fin.ext h))
+    fun m => (Fintype.equivFin M m).isLt.trans_le hM⟩
 
 end Cslib.Crypto.OneTimeSignature

@@ -166,15 +166,11 @@ abbrev Exec : Execution (spec α) (BinaryTree α) ℕ := Execution.ofStep step
 
 private theorem logb_two_add_one_le_nat_log (n : ℕ) :
     Real.logb 2 ((n : ℝ) + 1) ≤ (Nat.log 2 (n + 1) : ℝ) + 1 := by
-  have hlt : n + 1 < 2 ^ (Nat.log 2 (n + 1) + 1) :=
-    Nat.lt_pow_succ_log_self (by decide) (n + 1)
   have hle : ((n : ℝ) + 1) ≤ (2 : ℝ) ^ (Nat.log 2 (n + 1) + 1) := by
-    exact_mod_cast hlt.le
-  have hpos : (0 : ℝ) < (n : ℝ) + 1 := by grind
-  have hlog := Real.logb_le_logb_of_le (b := 2) (by norm_num) hpos hle
+    exact_mod_cast (Nat.lt_pow_succ_log_self (by decide) (n + 1)).le
+  have hlog := Real.logb_le_logb_of_le (b := 2) (by norm_num) (by positivity) hle
   rw [Real.logb_two_pow] at hlog
-  push_cast at hlog
-  linarith
+  push_cast at hlog; linarith
 
 omit [LinearOrder α] in
 theorem realOpCharge_le_amortizedCharge (s : Finset α) (o : Op α) :
@@ -199,26 +195,15 @@ theorem exec_unitPotential_amortized_le {s : Finset α} {t t' : BinaryTree α} {
     {a : (spec α).Result o} {n : ℕ} (hr : Rep s t) (he : Exec t o a t' n) :
     (n : ℝ) + unitPotential t' - unitPotential t ≤ realOpCharge s o := by
   obtain ⟨ht, rfl⟩ := hr
-  have hL : 0 ≤ Real.logb 2 (((elements t).card : ℝ) + 1) := by
-    have : (0 : ℝ) ≤ (elements t).card := Nat.cast_nonneg _
-    exact Real.logb_nonneg (by norm_num) (by linarith)
+  have hL : 0 ≤ Real.logb 2 (((elements t).card : ℝ) + 1) :=
+    Real.logb_nonneg (by norm_num) (by linarith [Nat.cast_nonneg (α := ℝ) (elements t).card])
   simp only [realOpCharge]
   cases o with
-  | contains x =>
-    cases he
-    linarith [contains_unitPotential_amortized_le ht x]
-  | insert x =>
-    cases he
-    linarith [insert_unitPotential_amortized_le ht x]
-  | delete x =>
-    cases he
-    linarith [erase_unitPotential_amortized_le ht x]
-  | minimum =>
-    cases he
-    linarith [minimum_unitPotential_amortized_le ht]
-  | successor x =>
-    cases he
-    linarith [successor_unitPotential_amortized_le ht x]
+  | contains x => cases he; linarith [contains_unitPotential_amortized_le ht x]
+  | insert x => cases he; linarith [insert_unitPotential_amortized_le ht x]
+  | delete x => cases he; linarith [erase_unitPotential_amortized_le ht x]
+  | minimum => cases he; linarith [minimum_unitPotential_amortized_le ht]
+  | successor x => cases he; linarith [successor_unitPotential_amortized_le ht x]
 
 /-- Single-tree `OrderedSet.spec α` dictionary analogue of the **Balance Theorem with Updates**
 ([SleatorTarjan1985b], Section 3, Theorem 6, p. 665; real-valued telescoping form): for any
@@ -231,16 +216,14 @@ theorem executes_amortized_real_le {β : Type} {p : (spec α).Client β}
     (total id ns : ℝ) + unitPotential t' - unitPotential t ≤
       realHistoryCost s history := by
   induction he generalizing s with
-  | pure a t =>
-    simp
-  | call hstep hrest ih =>
+  | pure => simp
+  | call hstep _ ih =>
     obtain ⟨ha, hr'⟩ := impl.correct_ofFn hr trivial hstep
-    have hop := exec_unitPotential_amortized_le hr hstep
     subst ha
+    have hop := exec_unitPotential_amortized_le hr hstep
     have htail := ih hr'
     simp only [total_cons, id_eq, StateTransitionSpec.runClient_liftBind, realHistoryCost_cons,
-      Nat.cast_add]
-      at htail ⊢
+      Nat.cast_add] at htail ⊢
     linarith
 
 /-- Starting from `.nil` (`SearchTree.rep_empty`), the real-valued total rotation count of any
@@ -252,9 +235,8 @@ theorem executes_rotations_le_realHistoryCost_of_empty {β : Type} {p : (spec α
     let (_, _, history) := (spec α).runClient ∅ p
     (total id ns : ℝ) ≤ realHistoryCost ∅ history := by
   have htel := executes_amortized_real_le rep_empty he
-  have hpot := unitPotential_nonneg t'
   simp only [unitPotential_nil] at htel
-  linarith
+  linarith [unitPotential_nonneg t']
 
 /-- Discrete `ℕ`-valued total rotation bound from an arbitrary initial tree `SearchTree.Rep s t`,
 charging `amortizedCharge` per operation plus the initial potential allowance
@@ -270,17 +252,15 @@ theorem executes_total_le {β : Type} {p : (spec α).Client β}
   have hhist :=
     realHistoryCost_le_totalCost s (let (_, _, history) := (spec α).runClient s p; history)
   dsimp only at htel hhist ⊢
-  have hpot_end := unitPotential_nonneg t'
+  obtain ⟨ht, helem⟩ := hr
+  have h1 := unitPotential_le_card_mul_logb ht
+  rw [helem] at h1
   have hpot_init : unitPotential t ≤ (s.card : ℝ) * ((Nat.log 2 (s.card + 1) : ℝ) + 1) := by
-    obtain ⟨ht, helem⟩ := hr
-    have h1 := unitPotential_le_card_mul_logb ht
-    rw [helem] at h1
-    have h2 := logb_two_add_one_le_nat_log s.card
-    have hcard_nn : (0 : ℝ) ≤ s.card := Nat.cast_nonneg _
-    nlinarith
-  refine Nat.cast_le (α := ℝ).mp ?_
-  push_cast
-  linarith
+    nlinarith [logb_two_add_one_le_nat_log s.card, Nat.cast_nonneg (α := ℝ) s.card]
+  exact_mod_cast (by push_cast; linarith [unitPotential_nonneg t'] :
+    (total id ns : ℝ) ≤
+      (((spec α).totalCost amortizedCharge s ((spec α).runClient s p).2.2 +
+        s.card * (Nat.log 2 (s.card + 1) + 1) : ℕ) : ℝ))
 
 /-- Single-tree `OrderedSet.spec α` dictionary analogue of the **Balance Theorem with Updates**
 ([SleatorTarjan1985b], Section 3, Theorem 6, p. 665; `ℕ`-valued `StateTransitionSpec.totalCost`
@@ -314,12 +294,9 @@ theorem run_correct {β : Type} (p : (spec α).Client β)
         (spec α).totalCost amortizedCharge s history +
           s.card * (Nat.log 2 (s.card + 1) + 1) := by
   have hexec := Execution.executes_run step p t
-  have htot := executes_total_le hr hexec
-  dsimp only at htot ⊢
   have hc :=
-    impl.correct_client hr ((spec α).validHistory_of_forall_valid (fun _ _ => trivial) s _)
-      hexec
-  exact ⟨hc.1, hc.2, htot⟩
+    impl.correct_client hr ((spec α).validHistory_of_forall_valid (fun _ _ => trivial) s _) hexec
+  exact ⟨hc.1, hc.2, executes_total_le hr hexec⟩
 
 /-- Running an adaptive `OrderedSet` client starting from `.nil` agrees with `Finset α` semantics,
 preserves `SearchTree.Rep`, and satisfies `total id (run .nil p).traces ≤ totalCost
@@ -330,7 +307,6 @@ theorem run_correct_empty {β : Type} (p : (spec α).Client β) :
       Rep finalState (run .nil p).state ∧
       total id (run .nil p).traces ≤
         (spec α).totalCost amortizedCharge ∅ history := by
-  have h := run_correct p rep_empty
-  simpa using h
+  simpa using run_correct p rep_empty
 
 end Cslib.DataStructure.SplayTree

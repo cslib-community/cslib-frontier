@@ -57,15 +57,13 @@ theorem bounded_sub_fourth_le_rootDistPow_atom
       ∑ b ∈ ({b | Y τ b} : Finset V), e τ a b)
       (fun τ _ => sum_nonneg fun a _ => sum_nonneg fun b _ => by dsimp only [e]; positivity)
       (mem_univ σ)
-  have hc : (Fintype.card Ω : ℝ) ≠ 0 := by
-    have : Nonempty Ω := ⟨σ⟩
-    exact_mod_cast Fintype.card_ne_zero
+  have : Nonempty Ω := ⟨σ⟩
+  have hc : (Fintype.card Ω : ℝ) ≠ 0 := mod_cast Fintype.card_ne_zero
   have heq : (N * u * Fintype.card Ω) * rootDistPow 4 N u X Y A A' =
       ∑ τ, ∑ a ∈ ({a | X τ a} : Finset V), ∑ b ∈ ({b | Y τ b} : Finset V), e τ a b := by
     simp only [rootDistPow, rowNormPow, expect_eq_sum_div_card, card_univ, e]
-    field_simp
-    norm_num
-  apply hscalar.trans
+    field_simp; norm_num
+  refine hscalar.trans ?_
   rw [mul_assoc, heq]
   norm_num only [e, one_div] at hterm ⊢
   exact mul_le_mul_of_nonneg_left hterm (by positivity)
@@ -83,18 +81,14 @@ theorem bounded_sub_fourth_le_of_root_budget
       q / (1 + (4 * B ^ ((3 : ℝ) / 4)) ^ 4 * (N * u * Fintype.card Ω)))
     (σ : Ω) (x y : V) (hx : X σ x) : |A σ x y - A' σ x y| ^ 4 ≤ q := by
   by_cases hy : Y σ y
-  · have hb := bounded_sub_fourth_le_rootDistPow_atom hN hu X Y A A' hA hA' σ x y hx hy
-    let c := (4 * B ^ ((3 : ℝ) / 4)) ^ 4 * (N * u * Fintype.card Ω)
+  · let c := (4 * B ^ ((3 : ℝ) / 4)) ^ 4 * (N * u * Fintype.card Ω)
     have hc : 0 ≤ c := by dsimp only [c]; positivity
-    apply hb.trans
-    change c * rootDistPow 4 N u X Y A A' ≤ q
-    apply (mul_le_mul_of_nonneg_left hbudget hc).trans
+    refine (bounded_sub_fourth_le_rootDistPow_atom hN hu X Y A A' hA hA' σ x y hx hy).trans
+      ((mul_le_mul_of_nonneg_left hbudget hc).trans ?_)
     change c * (q / (1 + c)) ≤ q
-    rw [← mul_div_assoc]
-    apply (div_le_iff₀ (by positivity)).mpr
+    rw [← mul_div_assoc, div_le_iff₀ (by positivity)]
     nlinarith
-  · simp only [hoff σ x y hy, sub_self, abs_zero, zero_pow (by decide : 4 ≠ 0)]
-    exact hq
+  · simpa only [hoff σ x y hy, sub_self, abs_zero, zero_pow (by decide : 4 ≠ 0)] using hq
 
 /-- An environment-dependent envelope integrates without extracting any atom. Repeating
 it across retained source/terminal pairs costs only the square of the vertex width. -/
@@ -107,23 +101,17 @@ theorem rowNormPow_fourth_le_expect_envelope {N u : ℝ} (hNu : 0 ≤ N * u)
   have hsum (σ : Ω) :
       (∑ x ∈ ({x | X σ x} : Finset V), ∑ y ∈ ({y | Y σ y} : Finset V), |F σ x y| ^ 4) ≤
         (Fintype.card V : ℝ) ^ 2 * q σ := by
-    calc
-      _ ≤ ∑ x ∈ ({x | X σ x} : Finset V), ∑ y ∈ ({y | Y σ y} : Finset V), q σ :=
-        sum_le_sum fun x hx => sum_le_sum fun y hy =>
-          hF σ x y (mem_filter.mp hx).2 (mem_filter.mp hy).2
-      _ ≤ (Fintype.card V : ℝ) ^ 2 * q σ := by
-        simp only [sum_const, nsmul_eq_mul]
-        have hx : (#({x | X σ x} : Finset V) : ℝ) ≤ Fintype.card V :=
-          by exact_mod_cast card_le_card (filter_subset _ _)
-        have hy : (#({y | Y σ y} : Finset V) : ℝ) ≤ Fintype.card V :=
-          by exact_mod_cast card_le_card (filter_subset _ _)
-        have hm := mul_le_mul_of_nonneg_right
-          (mul_le_mul hx hy (by positivity) (by positivity)) (hq σ)
-        nlinarith only [hm]
-  calc
-    _ ≤ (N * u)⁻¹ * 𝔼 σ, (Fintype.card V : ℝ) ^ 2 * q σ :=
-      mul_le_mul_of_nonneg_left (expect_le_expect fun σ _ => hsum σ) (inv_nonneg.mpr hNu)
-    _ = _ := by rw [← mul_expect]; ring
+    refine (sum_le_sum fun x hx => sum_le_sum fun y hy =>
+      hF σ x y (mem_filter.mp hx).2 (mem_filter.mp hy).2).trans ?_
+    simp only [sum_const, nsmul_eq_mul]
+    have hx : (#({x | X σ x} : Finset V) : ℝ) ≤ Fintype.card V :=
+      mod_cast card_le_card (filter_subset _ _)
+    have hy : (#({y | Y σ y} : Finset V) : ℝ) ≤ Fintype.card V :=
+      mod_cast card_le_card (filter_subset _ _)
+    nlinarith [mul_le_mul_of_nonneg_right (mul_le_mul hx hy (by positivity) (by positivity)) (hq σ)]
+  refine (mul_le_mul_of_nonneg_left (expect_le_expect fun σ _ => hsum σ)
+    (inv_nonneg.mpr hNu)).trans_eq ?_
+  rw [← mul_expect]; ring
 
 /-- Conditional Jensen on the same full environment, with no independence requirement.
 The fourth moment of the deterministic slice mean is at most the original row moment. -/
@@ -131,20 +119,17 @@ theorem rowNormPow_sliceMean_fourth_le {N u : ℝ} (hNu : 0 ≤ N * u)
     (X Y : Ω → V → Prop) [∀ σ x, Decidable (X σ x)] [∀ σ y, Decidable (Y σ y)]
     (F : Ω → V → V → ℝ) :
     rowNormPow 4 N u X Y (fun _ => rowSliceMean X Y F) ≤ rowNormPow 4 N u X Y F := by
-  apply (rowNormPow_le_of_conditional_expect_le hNu F (fun _ => rowSliceMean X Y F) 1 ?_).trans_eq
-    (one_mul _)
-  intro x y
+  refine (rowNormPow_le_of_conditional_expect_le hNu F (fun _ => rowSliceMean X Y F) 1
+    fun x y => ?_).trans_eq (one_mul _)
   let S := ({σ | X σ x ∧ Y σ y} : Finset Ω)
-  have h1 := sq_expect_le_expect_sq S (fun σ => F σ x y)
-  have h2 := sq_expect_le_expect_sq S (fun σ => F σ x y ^ 2)
-  have h3 := (pow_le_pow_left₀ (sq_nonneg _) h1 2).trans h2
   have h4 : |𝔼 σ ∈ S, F σ x y| ^ 4 ≤ 𝔼 σ ∈ S, |F σ x y| ^ 4 := by
-    simpa only [(by decide : Even (4 : ℕ)).pow_abs, ← pow_mul, Nat.reduceMul] using h3
+    simpa only [(by decide : Even (4 : ℕ)).pow_abs, ← pow_mul, Nat.reduceMul] using
+      (pow_le_pow_left₀ (sq_nonneg _) (sq_expect_le_expect_sq S fun σ => F σ x y) 2).trans
+        (sq_expect_le_expect_sq S fun σ => F σ x y ^ 2)
   change (𝔼 σ ∈ S, |𝔼 τ ∈ S, F τ x y| ^ 4) ≤ 1 * 𝔼 σ ∈ S, |F σ x y| ^ 4
   rcases S.eq_empty_or_nonempty with hs | hs
-  · simp only [hs, expect_empty, mul_zero, le_refl]
-  · rw [expect_const hs, one_mul]
-    exact h4
+  · simp [hs]
+  · rwa [expect_const hs, one_mul]
 
 set_option backward.isDefEq.respectTransparency false in
 /-- Bounded root error pays bias after conditional averaging on the identical slice.
@@ -157,16 +142,13 @@ theorem rowNormPow_sliceMean_sub_le_rootDistPow {N u B : ℝ} (hNu : 0 ≤ N * u
     rowNormPow 4 N u X Y (fun _ x y => rowSliceMean X Y A x y -
       rowSliceMean X Y A' x y) ≤
       (4 * B ^ ((3 : ℝ) / 4)) ^ 4 * rootDistPow 4 N u X Y A A' := by
-  have he : (fun _ x y => rowSliceMean X Y A x y - rowSliceMean X Y A' x y) =
-      (fun (_ : Ω) => rowSliceMean X Y (fun σ x y => A σ x y - A' σ x y)) := by
-    funext σ x y
-    simp only [rowSliceMean, expect_sub_distrib]
-  rw [he]
-  apply (rowNormPow_sliceMean_fourth_le hNu X Y _).trans
-  have hb := rowNormPow_sub_le_rootDistPow (s := 4) (N := N) (u := u) (X := X) (Y := Y)
+  rw [show (fun _ x y => rowSliceMean X Y A x y - rowSliceMean X Y A' x y) =
+    fun (_ : Ω) => rowSliceMean X Y (fun σ x y => A σ x y - A' σ x y) by
+      funext _ _ _; simp only [rowSliceMean, expect_sub_distrib]]
+  refine (rowNormPow_sliceMean_fourth_le hNu X Y _).trans ?_
+  simpa only [Nat.cast_ofNat, show ((4 : ℝ) - 1) / 4 = 3 / 4 by norm_num] using
+    rowNormPow_sub_le_rootDistPow (s := 4) (N := N) (u := u) (X := X) (Y := Y)
       (C := B) (H := A) (H' := A') (by decide : 4 ≠ 0) hNu
       (fun σ x y _ _ => hA σ x y) (fun σ x y _ _ => hA' σ x y)
-  norm_num only [Nat.cast_ofNat, show ((4 : ℝ) - 1) / 4 = 3 / 4 by norm_num] at hb
-  exact hb
 
 end Cslib
