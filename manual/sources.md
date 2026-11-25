@@ -2518,6 +2518,19 @@ Its checked clients illustrate 8 → 13 → 21 arithmetic bookkeeping and the
 21 → 24 → 25 → 26 sign/choice/language compatibility chain;
 characteristic coefficients, real geometry and the ETR theorem remain outside this development.
 
+<a id="openai-distinctness26"></a>
+## openai-distinctness26
+
+OpenAI. *The Matrix Multiplication Exponent Is Nine Fourths*. AI-authored preprint,
+24 November 2026, unrefereed. Bibliography key `OpenAI2026MatrixExponentNineFourths`.
+The subsection “Checking a tagged permutation” uses two distinctness tests. The signed sum in
+the second already cancels every input missing a requested record.
+[`TaggedPermutation.lean`](../CslibFrontier/Computability/Circuit/Boolean/ElementDistinctness/TaggedPermutation.lean)
+proves this single-test refinement and the reverse identity using a uniquely sorted table.
+The network reduction applies to a joint realization of any finite number of lists. A circuit
+for `m > 2` records of width `2 ⌈log₂ m⌉` yields a routing verifier at width `⌈log₂ m⌉ - 2`.
+[Pinned construction](https://github.com/openai/math/blob/3344da59991ed94f9ba711217b29c1d760badfa6/preprints/The-matrix-multiplication-exponent-is-nine-fourths-November-24-2026/build/list.tex#L11-L43).
+
 <a id="openai-logspace26"></a>
 ## openai-logspace26
 

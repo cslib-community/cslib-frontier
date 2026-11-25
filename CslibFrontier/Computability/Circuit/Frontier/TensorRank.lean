@@ -632,22 +632,6 @@ end Splicing
 
 section Rebalancing
 
-/-- Every input-reading vertex `.signal ⟨.input i, hi⟩` in `Compiler.graph c` has at most `1`
-incident edge (`Compiler.head ⟨.input i, hi⟩`). -/
-private theorem ncard_incidenceSet_site_le_one {σ : Signature} {n m : ℕ} {c : Circuit σ n m}
-    {i : Fin n} {v : Compiler.Vertex c} (hsite : Compiler.site c i = some v) :
-    ((Compiler.graph c).incidenceSet v).ncard ≤ 1 := by
-  obtain ⟨hi, rfl⟩ := Compiler.site_eq_some hsite
-  have hsub : (Compiler.graph c).incidenceSet (.signal ⟨.input i, hi⟩) ⊆
-      {Compiler.head ⟨.input i, hi⟩} := by
-    intro e he
-    rw [mem_singleton_iff]
-    rcases he with hs | ht
-    · exact Compiler.eq_head_of_src_eq_signal hs
-    · obtain ⟨a, ha, -⟩ := Compiler.exists_slot_of_tgt_eq_signal ht
-      nomatch ha
-  exact (ncard_le_ncard hsub (toFinite _)).trans (by simp)
-
 /-- Recoloring a single vertex `v₀` of degree at most `1` increases any pairwise cut
 `G.edgeCut {v | col v = k} ∩ G.edgeCut {v | col v = k + 1}` by at most `1`. -/
 private theorem ncard_crossCut_update_le {V E : Type*} [Finite E] [DecidableEq V]
@@ -782,7 +766,7 @@ private theorem exists_rebalanced_coloring {σ : Signature} {n : ℕ} (c : Circu
           rcases hs₀ : Compiler.site c i₀ with _ | v₀
           · exact Nat.le_add_right _ _
           · exact ncard_crossCut_update_le (Compiler.graph c) col
-              (ncard_incidenceSet_site_le_one hs₀) k_lo k
+              (Compiler.ncard_incidenceSet_site_le_one hs₀) k_lo k
         obtain ⟨p', col', hbal', hcompat', hcut'⟩ :=
           exists_rebalanced_coloring c fuel p₁ col₁ hcompat₁ (by omega)
         refine ⟨p', col', hbal', hcompat', fun k => ?_⟩

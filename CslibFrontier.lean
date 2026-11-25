@@ -1607,6 +1607,9 @@ public import CslibFrontier.Computability.Circuit.Boolean.DepthTime
 public import CslibFrontier.Computability.Circuit.Boolean.DepthTime.PolyTime
 public import CslibFrontier.Computability.Circuit.Boolean.DuplicateFlags
 public import CslibFrontier.Computability.Circuit.Boolean.ElementDistinctness
+public import CslibFrontier.Computability.Circuit.Boolean.ElementDistinctness.RoutingNetwork
+public import CslibFrontier.Computability.Circuit.Boolean.ElementDistinctness.TaggedPermutation
+public import CslibFrontier.Computability.Circuit.Boolean.ElementDistinctness.VolumeToSize
 public import CslibFrontier.Computability.Circuit.Boolean.Encoding
 public import CslibFrontier.Computability.Circuit.Boolean.Encoding.Certificate
 public import CslibFrontier.Computability.Circuit.Boolean.Encoding.PolyTime
@@ -1992,6 +1995,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.Compiler.Hypergraph.G
 public import CslibFrontier.Computability.Circuit.Frontier.Compiler.Hypergraph.Gaussian.ParamSelection
 public import CslibFrontier.Computability.Circuit.Frontier.Compiler.Hypergraph.Gaussian.WalkKernel
 public import CslibFrontier.Computability.Circuit.Frontier.Compiler.Network
+public import CslibFrontier.Computability.Circuit.Frontier.Compiler.OpenBitNetwork
 public import CslibFrontier.Computability.Circuit.Frontier.Correlation
 public import CslibFrontier.Computability.Circuit.Frontier.Correlation.Asymptotics
 public import CslibFrontier.Computability.Circuit.Frontier.Correlation.Circuit
@@ -2140,6 +2144,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.NativeC
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.NativeChildBounds
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.NativeChildPolyTime
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.NativeRecovery
+public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.Open
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.PacketEntry
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.PacketEvaluator
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.PacketTerms
