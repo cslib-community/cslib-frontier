@@ -58,12 +58,21 @@ theorem epochTick_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
       ValidEpochStage c U n_max θ fs1 ∧
       fs1.epochClock = fs.epochClock := by
     dsimp only [fs1, epochTickStage]
-    split_ifs with hs0 hs1 hs2 hs3 hs4
-    · exact epochTickStage0_spec hc hom hs0 hpre
-    · exact epochTickStage1_spec hc hom hs1 hpre
-    · exact epochTickStage2_spec hc hom hs2 hpre
-    · exact epochTickStage3_spec hc hom hs3 hpre
-    · exact epochTickStage4_spec hc hom hs4
+    by_cases hs0 : fs.rebStage = 0
+    · rw [ite_eq_left hs0]; exact epochTickStage0_spec hc hom hs0 hpre
+    rw [ite_eq_right hs0]
+    by_cases hs1 : fs.rebStage = 1
+    · rw [ite_eq_left hs1]; exact epochTickStage1_spec hc hom hs1 hpre
+    rw [ite_eq_right hs1]
+    by_cases hs2 : fs.rebStage = 2
+    · rw [ite_eq_left hs2]; exact epochTickStage2_spec hc hom hs2 hpre
+    rw [ite_eq_right hs2]
+    by_cases hs3 : fs.rebStage = 3
+    · rw [ite_eq_left hs3]; exact epochTickStage3_spec hc hom hs3 hpre
+    rw [ite_eq_right hs3]
+    by_cases hs4 : fs.rebStage = 4
+    · rw [ite_eq_left hs4]; exact epochTickStage4_spec hc hom hs4
+    rw [ite_eq_right hs4]
     have hs5 : fs.rebStage = 5 := by have := hc.rebStage_le; omega
     exact ⟨hc, hom, by simp [ValidEpochStage, hs5], rfl⟩
   obtain ⟨hc1, hom1, hstg1, _⟩ := hst1
