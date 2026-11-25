@@ -162,10 +162,9 @@ theorem reference_firstRank_eq (hη : 0 ≤ η) (hρ : ρ ≤ η) (hK : 0 < K) (
     have hz : z ≤ threshold s n ρ z w := le_threshold
     have hu0 : 0 ≤ threshold s n ρ z w := threshold_nonneg
     linarith
-  have hqreal : firstRank s K z w ≤ kthLargest K s (fun y => w y 0) := by
-    have hmax := le_max_iff.mp
-      (show firstRank s K z w ≤ max z (kthLargest K s fun y => w y 0) from le_rfl)
-    exact hmax.resolve_left (not_le.mpr hzq)
+  have hqreal : firstRank s K z w ≤ kthLargest K s (fun y => w y 0) :=
+    (le_max_iff.mp (show firstRank s K z w ≤ max z (kthLargest K s fun y => w y 0) from
+      le_rfl)).resolve_left (not_le.mpr hzq)
   have hq0 : 0 < firstRank s K z w := hη.trans_lt hq
   have hcard := (le_kthLargest_iff hK hq0).mp hqreal
   have hsub : ({y ∈ s | firstRank s K z w ≤ w y 0} : Finset ι) ⊆
@@ -176,8 +175,7 @@ theorem reference_firstRank_eq (hη : 0 ≤ η) (hρ : ρ ≤ η) (hK : 0 < K) (
     have hid : update s n K ρ z w y = w y :=
       update_eq_self_of_three_mul_le
         (h3u.le.trans ((hy.trans (le_abs_self _)).trans (abs_apply_le_entrySize (w y) 0)))
-    rw [hid]
-    exact hy
+    rwa [hid]
   exact ((le_kthLargest_iff hK hq0).mpr (hcard.trans (card_le_card hsub))).trans
     kthLargest_le_firstRank
 
@@ -224,9 +222,8 @@ theorem reference_update_output_eq {H : ℝ → ℝ → ℝ → ℝ} {g e : ℝ}
   · have heq : q' = q := reference_firstRank_eq hη hρ hK hKn hfirst hsecond hq
     rw [heq]
   have hqη : q ≤ η := not_lt.mp hq
-  have hq'η : q' ≤ η := by
-    have h := reference_firstRank_le (z := z) hη hρ hK hKn hfirst hsecond
-    exact h.trans (max_le le_rfl hqη)
+  have hq'η : q' ≤ η :=
+    (reference_firstRank_le (z := z) hη hρ hK hKn hfirst hsecond).trans (max_le le_rfl hqη)
   exact hflat _ _ _ _ ⟨firstRank_nonneg, hq'η⟩ ⟨firstRank_nonneg, hqη⟩
 
 section Iteration
@@ -245,11 +242,8 @@ theorem reference_iterate_bounds (hη : 0 ≤ η)
     have h (y : ι) (hy : y ∈ s) := reference_update_bounds (s := s) (n := n j) (K := K)
       (ρ := ρ j) (z := (iterate s n (fun _ => K) ρ (fun _ => 0) a j).defaultValue)
       hη (ih.1 y hy) (ih.2 y hy)
-    constructor
-    · intro y hy
-      simpa only [iterate_succ, advance, add_zero] using (h y hy).1
-    · intro y hy
-      simpa only [iterate_succ, advance, add_zero] using (h y hy).2
+    exact ⟨fun y hy => by simpa only [iterate_succ, advance, add_zero] using (h y hy).1,
+      fun y hy => by simpa only [iterate_succ, advance, add_zero] using (h y hy).2⟩
 
 /-- Stationary reference outputs survive any finite zero-increment compression schedule
 whose floors are at most `η` and whose capacities are at least the fixed rank `K`.
