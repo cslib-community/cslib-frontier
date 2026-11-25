@@ -59,11 +59,11 @@ theorem sum_univ_smul_by_parts_prefix {R M : Type*} [Ring R] [AddCommGroup M] [M
   have hprefix (k : Fin (n + 1)) :
       (∑ i ∈ range (k.val + 1), f i) = ∑ i ∈ Iic k, a i := by
     rw [Nat.range_succ_eq_Iic, ← map_valEmbedding_Iic, sum_map]
-    exact sum_congr rfl fun i _ => congrArg a (Fin.natCast_eq_mk i.isLt)
+    exact sum_congr rfl fun i _ => congrArg a (hofNat i)
   have htotal : ∑ i ∈ range (n + 1), f i = ∑ i, a i := by
     rw [← Fin.sum_univ_eq_sum_range]
     simp only [f, hofNat]
-  have hlast : g n = b (Fin.last n) := congrArg b (Fin.natCast_eq_mk (Nat.lt_succ_self n))
+  have hlast : g n = b (Fin.last n) := congrArg b (hofNat (Fin.last n))
   calc
     ∑ i, a i • b i = ∑ i ∈ range (n + 1), f i • g i := by
       rw [← Fin.sum_univ_eq_sum_range]
@@ -73,8 +73,8 @@ theorem sum_univ_smul_by_parts_prefix {R M : Type*} [Ring R] [AddCommGroup M] [M
         ← sum_neg_distrib, ← Fin.sum_univ_eq_sum_range _ n]
       congr 1
       refine sum_congr rfl fun i _ => ?_
-      have hcast : Fin.ofNat (n + 1) i.val = i.castSucc := Fin.natCast_eq_mk i.castSucc.isLt
-      have hsucc : Fin.ofNat (n + 1) (i.val + 1) = i.succ := Fin.natCast_eq_mk i.succ.isLt
+      have hcast : Fin.ofNat (n + 1) i.val = i.castSucc := hofNat i.castSucc
+      have hsucc : Fin.ofNat (n + 1) (i.val + 1) = i.succ := hofNat i.succ
       have hi := hprefix i.castSucc
       simp only [Fin.val_castSucc] at hi
       rw [hi]
