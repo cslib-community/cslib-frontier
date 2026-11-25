@@ -72,13 +72,10 @@ theorem dens_mul_homogeneousLoss_expect_le {Ω : Type*} [Fintype Ω] [DecidableE
     (dens S : ℝ) * homogeneousLoss s (𝔼 σ ∈ S, H σ) (𝔼 σ ∈ S, H' σ) ≤
       𝔼 σ, if σ ∈ S then homogeneousLoss s (H σ) (H' σ) else 0 := by
   classical
-  calc
-    _ ≤ (dens S : ℝ) * 𝔼 σ ∈ S, homogeneousLoss s (H σ) (H' σ) :=
-      mul_le_mul_of_nonneg_left (homogeneousLoss_expect_le S hs hH hH') (by positivity)
-    _ = _ := by
-      rw [expect_eq_dens_mul_expect_of_eq_zero S _ (fun σ hσ => ite_eq_right hσ)]
-      congr 1
-      exact expect_congr rfl fun σ hσ => (ite_eq_left hσ).symm
+  refine (mul_le_mul_of_nonneg_left (homogeneousLoss_expect_le S hs hH hH')
+    (by positivity)).trans_eq ?_
+  rw [expect_eq_dens_mul_expect_of_eq_zero S _ fun σ hσ => ite_eq_right hσ]
+  exact congrArg _ (expect_congr rfl fun σ hσ => (ite_eq_left hσ).symm)
 
 private theorem dens_mul_root_expect_sub_pow_le {Ω : Type*} [Fintype Ω] [DecidableEq Ω]
     (S : Finset Ω) {s : ℕ} (hs : s ≠ 0) {c : ℝ} (hc : 0 ≤ c) {H H' : Ω → ℝ}
@@ -88,29 +85,25 @@ private theorem dens_mul_root_expect_sub_pow_le {Ω : Type*} [Fintype Ω] [Decid
       (2 ^ (s - 1) * (s : ℝ) ^ s) * c *
         𝔼 σ, if σ ∈ S then |H σ ^ (s⁻¹ : ℝ) - H' σ ^ (s⁻¹ : ℝ)| ^ s else 0 := by
   classical
-  have hmean := rpow_inv_sub_pow_le_homogeneousLoss hs
-    (mul_nonneg hc (expect_nonneg hH)) (mul_nonneg hc (expect_nonneg hH'))
   have hpoint : (𝔼 σ, if σ ∈ S then homogeneousLoss s (H σ) (H' σ) else 0) ≤
       (s : ℝ) ^ s * 𝔼 σ, if σ ∈ S then |H σ ^ (s⁻¹ : ℝ) - H' σ ^ (s⁻¹ : ℝ)| ^ s else 0 := by
     rw [mul_expect]
-    refine expect_le_expect fun σ _ => ?_
-    split_ifs with hσ
-    · exact homogeneousLoss_le_rpow_inv_sub_pow hs (hH σ hσ) (hH' σ hσ)
-    · simp
+    exact expect_le_expect fun σ _ => by
+      split_ifs with hσ
+      · exact homogeneousLoss_le_rpow_inv_sub_pow hs (hH σ hσ) (hH' σ hσ)
+      · simp
   calc
     _ ≤ (dens S : ℝ) * (2 ^ (s - 1) * homogeneousLoss s
         (c * 𝔼 σ ∈ S, H σ) (c * 𝔼 σ ∈ S, H' σ)) :=
-      mul_le_mul_of_nonneg_left hmean (by positivity)
+      mul_le_mul_of_nonneg_left (rpow_inv_sub_pow_le_homogeneousLoss hs
+        (mul_nonneg hc (expect_nonneg hH)) (mul_nonneg hc (expect_nonneg hH'))) (by positivity)
     _ = (2 ^ (s - 1) * c) * ((dens S : ℝ) * homogeneousLoss s
         (𝔼 σ ∈ S, H σ) (𝔼 σ ∈ S, H' σ)) := by
-      rw [homogeneousLoss_mul hs hc]
-      ring
-    _ ≤ (2 ^ (s - 1) * c) *
-        𝔼 σ, if σ ∈ S then homogeneousLoss s (H σ) (H' σ) else 0 :=
-      mul_le_mul_of_nonneg_left (dens_mul_homogeneousLoss_expect_le S hs hH hH') (by positivity)
+      rw [homogeneousLoss_mul hs hc]; ring
     _ ≤ (2 ^ (s - 1) * c) * ((s : ℝ) ^ s *
         𝔼 σ, if σ ∈ S then |H σ ^ (s⁻¹ : ℝ) - H' σ ^ (s⁻¹ : ℝ)| ^ s else 0) :=
-      mul_le_mul_of_nonneg_left hpoint (by positivity)
+      mul_le_mul_of_nonneg_left
+        ((dens_mul_homogeneousLoss_expect_le S hs hH hH').trans hpoint) (by positivity)
     _ = _ := by ring
 
 variable {Ω V : Type*} [Fintype Ω] [Fintype V]
@@ -133,9 +126,7 @@ theorem conditionalTableMean_eq_expect_product {ι κ υ : Type*}
       𝔼 d ∈ (({t | X t x} : Finset ι) ×ˢ (univ : Finset κ)) ×ˢ ({t | Y t y} : Finset υ),
         H d x y := by
   unfold conditionalTableMean
-  congr 1
-  ext d
-  simp
+  exact congrArg₂ _ (by ext; simp) rfl
 
 variable {s : ℕ} {N u : ℝ} {X Y : Ω → V → Prop}
   [∀ σ x, Decidable (X σ x)] [∀ σ y, Decidable (Y σ y)]
@@ -162,21 +153,19 @@ theorem rootDistPow_conditionalTableMean_mul_le (hs : s ≠ 0) (hN : 0 < N) (hu 
   rw [rootDistPow, rowNormPow, expect_filtered_sum_eq]
   calc
     _ ≤ (N * u)⁻¹ * ∑ x, ∑ y, (2 ^ (s - 1) * (s : ℝ) ^ s) * c *
-        𝔼 σ, if X σ x ∧ Y σ y then |H σ x y ^ (s⁻¹ : ℝ) - H' σ x y ^ (s⁻¹ : ℝ)| ^ s else 0 := by
-      refine mul_le_mul_of_nonneg_left (sum_le_sum fun x _ => sum_le_sum fun y _ => ?_)
-        (by positivity)
-      have hmask := expect_mask_const ({σ | X σ x ∧ Y σ y} : Finset Ω)
-        (|(c * conditionalTableMean X Y H x y) ^ (s⁻¹ : ℝ) -
-          (c * conditionalTableMean X Y H' x y) ^ (s⁻¹ : ℝ)| ^ s)
-      simp only [mem_filter, mem_univ, true_and] at hmask
-      rw [hmask]
-      simpa only [conditionalTableMean, mem_filter, mem_univ, true_and] using
-        dens_mul_root_expect_sub_pow_le ({σ | X σ x ∧ Y σ y} : Finset Ω) hs hc
-          (fun σ _ => hH σ x y) (fun σ _ => hH' σ x y)
+        𝔼 σ, if X σ x ∧ Y σ y then |H σ x y ^ (s⁻¹ : ℝ) - H' σ x y ^ (s⁻¹ : ℝ)| ^ s else 0 :=
+      mul_le_mul_of_nonneg_left (sum_le_sum fun x _ => sum_le_sum fun y _ => by
+        have hmask := expect_mask_const ({σ | X σ x ∧ Y σ y} : Finset Ω)
+          (|(c * conditionalTableMean X Y H x y) ^ (s⁻¹ : ℝ) -
+            (c * conditionalTableMean X Y H' x y) ^ (s⁻¹ : ℝ)| ^ s)
+        simp only [mem_filter, mem_univ, true_and] at hmask
+        rw [hmask]
+        simpa only [conditionalTableMean, mem_filter, mem_univ, true_and] using
+          dens_mul_root_expect_sub_pow_le ({σ | X σ x ∧ Y σ y} : Finset Ω) hs hc
+            (fun σ _ => hH σ x y) (fun σ _ => hH' σ x y)) (by positivity)
     _ = _ := by
       rw [rootDistPow, rowNormPow, expect_filtered_sum_eq]
-      simp only [← mul_sum]
-      ring
+      simp only [← mul_sum]; ring
 
 /-- **Coarse-bin conditional product comparison**. The sample is the actual finite product
 mean multiplied by `(b / a) * (f / πf)`, as in (7.2) after division by `a`, with `b ≥ a`.
@@ -206,22 +195,11 @@ theorem rootDistPow_coarseProductMean_le {Z : Ω → V → Prop}
           CF * Kc * (f / u) * rootDistPow s N f Z Y B B') := by
   dsimp only
   have hb : 0 ≤ b := ha.le.trans hab
-  have hc : 0 ≤ (b / a) * (f / πf) := by positivity
-  calc
-    _ ≤ (2 ^ (s - 1) * (s : ℝ) ^ s) * ((b / a) * (f / πf)) *
-        rootDistPow s N u X Y
-          (fun σ x y => ∑ z ∈ ({z | Z σ z} : Finset V), F σ x z * B σ z y)
-          (fun σ x y => ∑ z ∈ ({z | Z σ z} : Finset V), F' σ x z * B' σ z y) :=
-      rootDistPow_conditionalTableMean_mul_le hs hN hu hc
-        (fun σ x y => sum_nonneg fun z _ => mul_nonneg (hF σ x z) (hB σ z y))
-        (fun σ x y => sum_nonneg fun z _ => mul_nonneg (hF' σ x z) (hB' σ z y))
-    _ ≤ (2 ^ (s - 1) * (s : ℝ) ^ s) * ((b / a) * (f / πf)) *
-        ((2 ^ (2 * (s - 1)) * (s : ℝ) ^ s) *
-          (CB * Kr * rootDistPow s N u X Z F F' +
-            CF * Kc * (f / u) * rootDistPow s N f Z Y B B')) :=
-      mul_le_mul_of_nonneg_left
-        (rootDistPow_mul_le hs hN hu hf hF hF' hB hB' hCF hCB hFbound hBbound hrow hcol)
-        (by positivity)
-    _ = _ := by ring
+  refine ((rootDistPow_conditionalTableMean_mul_le hs hN hu (by positivity)
+    (fun σ x y => sum_nonneg fun z _ => mul_nonneg (hF σ x z) (hB σ z y))
+    (fun σ x y => sum_nonneg fun z _ => mul_nonneg (hF' σ x z) (hB' σ z y))).trans
+    (mul_le_mul_of_nonneg_left
+      (rootDistPow_mul_le hs hN hu hf hF hF' hB hB' hCF hCB hFbound hBbound hrow hcol)
+      (by positivity))).trans_eq (by ring)
 
 end Cslib

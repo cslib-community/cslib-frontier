@@ -152,9 +152,8 @@ theorem evalWith_seqOTSteps {M : Type} {Out : Fin 2 → Type} (k : ℕ) {State :
     rw [seqOTSteps, Steps.evalWith_oracle]
     simp only [otWorld, otFunctionality, Functionality.ofDeterministic, ProbComp.eval_pure,
       PMF.pure_bind, ih, PMF.pure_map]
-    refine congrArg PMF.pure (funext fun i => Prod.ext (funext fun s => funext fun hs => ?_) rfl)
-    subst hs
-    rfl
+    exact congrArg PMF.pure (funext fun i =>
+      Prod.ext (funext fun s => funext fun hs => by subst hs; rfl) rfl)
 
 /-- The output of party `i` after `seqOTSteps`, on the transcript in which its answers are `ans`,
 is `output i` of its state and `ans`. -/
@@ -237,10 +236,10 @@ theorem evalWith_seqBatchOT (k : ℕ) (M : Type) (x : (i : Fin 2) → (batchOTSp
       PMF.pure (fun i => ⟨x i, (), seqOTReceived k i (batchOTRoundAnswers i (batchOTAnswer x i))⟩,
         batchOTAnswer x) := by
   rw [Protocol.evalWith_eq]
-  refine (congrArg _ (funext fun r => ?_)).trans (PMF.bind_const _ _)
+  refine (congrArg _ (funext fun _ => ?_)).trans (PMF.bind_const _ _)
   simp only [seqBatchOT, evalWith_seqOTSteps, PMF.pure_map, otOutputs_batchOTQueryAt]
-  refine congrArg PMF.pure (Prod.ext rfl (funext fun i => ?_))
-  exact (outputAt_seqOTSteps k _ _ i _ _).trans (batchOTAnswerOfRounds_batchOTRoundAnswers i _)
+  exact congrArg PMF.pure (Prod.ext rfl (funext fun i =>
+    (outputAt_seqOTSteps k _ _ i _ _).trans (batchOTAnswerOfRounds_batchOTRoundAnswers i _)))
 
 /-- **`seqBatchOT k M` is perfectly semi-honest private in the single-transfer hybrid model**: for
 every coalition, the simulator `seqBatchOTSim k M` on the coalition's inputs and outputs of
@@ -251,10 +250,8 @@ theorem perfectSemiHonestPrivate_seqBatchOT (k : ℕ) (M : Type) :
       (seqBatchOTSim k M) := by
   refine perfectSemiHonestPrivate_of_deterministic _ _ batchOTAnswer _ (fun I x => ?_)
     fun x r hr => ?_
-  · rw [evalWith_seqBatchOT, PMF.pure_map]
-    exact ProbComp.eval_pure _
-  · rw [evalWith_seqBatchOT, PMF.support_pure, Set.mem_singleton_iff] at hr
-    rw [hr]
+  · rw [evalWith_seqBatchOT, PMF.pure_map]; exact ProbComp.eval_pure _
+  · rw [evalWith_seqBatchOT, PMF.support_pure, Set.mem_singleton_iff] at hr; rw [hr]
 
 /-! ### Substituting a protocol for the single transfer -/
 
@@ -329,10 +326,10 @@ theorem semiHonestAdvantage_seqBatchOT_compose_le_sum_roundGame (k : ℕ) (M : T
             j).bind (roundGame fun op J q => ProbComp.eval (idealJoint (otWorld M op) J (S₂ J) q)))
           ((composeRoundEnv (seqBatchOT k M) (otWorld M) W₂ (fun _ => Sub) (fun _ => S₂) I x D
             j).bind (roundGame fun _ J q => Sub.realJoint W₂ J q)) := by
-  have h := semiHonestAdvantage_compose_le_sum_roundGame (seqBatchOT k M) (otWorld M) W₂
-    (fun _ => Sub) (fun _ => S₂) I x D (batchOTFunctionality k M) (seqBatchOTSim k M)
-  rwa [(perfectSemiHonestPrivate_seqBatchOT k M).semiHonestAdvantage_eq_zero, zero_add,
-    oracleRounds_seqBatchOTSchedule] at h
+  simpa only [(perfectSemiHonestPrivate_seqBatchOT k M).semiHonestAdvantage_eq_zero, zero_add,
+    oracleRounds_seqBatchOTSchedule] using
+    semiHonestAdvantage_compose_le_sum_roundGame (seqBatchOT k M) (otWorld M) W₂
+      (fun _ => Sub) (fun _ => S₂) I x D (batchOTFunctionality k M) (seqBatchOTSim k M)
 
 /-- **The environment of transfer `j` of call `i`**, for an outer protocol `P` that calls the
 batched transfer `batchOTSpec k M`, with every call run by `seqBatchOT k M` over a protocol `Sub`
@@ -437,22 +434,17 @@ theorem replacementBound_seqOTSteps_le {M : Type} {Out : Fin 2 → Type}
     replacementBound (otWorld M) W₂ (fun _ => Sub) (fun _ => S₂) I (seqOTSteps k query output) st
       D ≤ k * ε := by
   have hε' : ∀ J, J = I → ∀ q D,
-      (semiHonestAdvantage Sub W₂ (otFunctionality M) J (S₂ J) q D : ℝ≥0∞) ≤ ε := by
-    rintro J rfl
-    exact hε
+      (semiHonestAdvantage Sub W₂ (otFunctionality M) J (S₂ J) q D : ℝ≥0∞) ≤ ε :=
+    fun _ h => h ▸ hε
   induction k generalizing State with
   | zero =>
     rw [seqOTSteps, replacementBound]
     exact bot_le
   | succ k ih =>
     rw [seqOTSteps, replacementBound]
-    calc _ ≤ ε + ∑' r, (Sub.realJoint W₂ (subCoalition (Function.Embedding.refl (Fin 2)) I)
-            (fun s => query 0 s (st s))) r * (k * ε) :=
-          add_le_add (hε' _ (subCoalition_refl I) _ _)
-            (tsum_le_tsum fun r => mul_le_mul' le_rfl (ih _ _ _ _))
-      _ = ((k + 1 : ℕ) : ℝ≥0∞) * ε := by
-          rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul, Nat.cast_succ, add_mul, one_mul,
-            add_comm]
+    refine (add_le_add (hε' _ (subCoalition_refl I) _ _)
+      (tsum_le_tsum fun r => mul_le_mul' le_rfl (ih _ _ _ _))).trans_eq ?_
+    rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul, Nat.cast_succ, add_mul, one_mul, add_comm]
 
 /-- **The batched transfer over a statistically secure single transfer.** If every test has
 semi-honest advantage at most `ε` against `Sub`, for `otFunctionality M` with the simulator `S₂ I`
