@@ -192,9 +192,7 @@ theorem collapse_eq_collapse_iff {r r' : List Bool} (hv : H.valid r = true)
       rw [← H.lo_eq_of_header_eq hh hlen, ← H.hi_eq_of_header_eq hh hlen]
       exact H.mem_block hv'
     · rw [H.collapse_of_not_valid (by simpa using hv')] at h
-      have := (H.valid_collapse hv).1
-      rw [← h] at this
-      exact absurd this hv'
+      exact (hv' (h ▸ (H.valid_collapse hv).1)).elim
   · rintro ⟨h1, h2⟩
     obtain ⟨hv', hh⟩ := H.valid_of_mem_block hv hlen h1 h2
     rw [H.collapse_of_valid hv', H.collapse_of_valid hv, hh, hlen]
@@ -226,37 +224,30 @@ theorem binaryValue_collapse_le_iff {r y : List Bool} (hlen : r.length = y.lengt
   have hrc := H.binaryValue_le_binaryValue_collapse r
   unfold cdfNum
   split_ifs with hy
-  · constructor
-    · intro h
+  · refine ⟨fun h => by omega, fun h => ?_⟩
+    by_cases hvr : H.valid r = true
+    · by_contra hc
+      have hcr := H.binaryValue_collapse_add_one hvr
+      have hlo := (H.mem_block hvr).1
+      obtain ⟨hvy, hhy⟩ := H.valid_of_mem_block hvr hlen.symm (by omega) (by omega)
+      have hcy := H.binaryValue_collapse_add_one hvy
+      rw [hy] at hcy
+      have := H.hi_eq_of_header_eq hhy hlen.symm
       omega
-    · intro h
-      by_cases hvr : H.valid r = true
-      · by_contra hc
-        have hcr := H.binaryValue_collapse_add_one hvr
-        have hlo := (H.mem_block hvr).1
-        obtain ⟨hvy, hhy⟩ := H.valid_of_mem_block hvr hlen.symm (by omega) (by omega)
-        have hcy := H.binaryValue_collapse_add_one hvy
-        rw [hy] at hcy
-        have := H.hi_eq_of_header_eq hhy hlen.symm
-        omega
-      · rw [H.collapse_of_not_valid (by simpa using hvr)]
-        omega
+    · rw [H.collapse_of_not_valid (by simpa using hvr)]
+      omega
   · have hvy := H.valid_of_collapse_ne hy
     have hcy := H.binaryValue_collapse_add_one hvy
-    have hyc : BitString.binaryValue y < BitString.binaryValue (H.collapse y) := by
-      have hne : BitString.binaryValue (H.collapse y) ≠ BitString.binaryValue y := fun h =>
-        hy (BitString.binaryValue_injective_of_length_eq (H.length_collapse y) h)
-      have := H.binaryValue_le_binaryValue_collapse y
-      omega
-    constructor
-    · intro h
-      by_contra hc
+    have hyc : BitString.binaryValue y < BitString.binaryValue (H.collapse y) :=
+      (H.binaryValue_le_binaryValue_collapse y).lt_of_ne fun h =>
+        hy (BitString.binaryValue_injective_of_length_eq (H.length_collapse y) h.symm)
+    refine ⟨fun h => ?_, fun h => ?_⟩
+    · by_contra hc
       obtain ⟨hvr, hhr⟩ := H.valid_of_mem_block hvy hlen (by omega) (by omega)
       have hcr := H.binaryValue_collapse_add_one hvr
       have := H.hi_eq_of_header_eq hhr hlen
       omega
-    · intro h
-      have hloy := (H.mem_block hvy).1
+    · have hloy := (H.mem_block hvy).1
       by_cases hvr : H.valid r = true
       · by_contra hc
         have hcr := H.binaryValue_collapse_add_one hvr
@@ -276,11 +267,7 @@ theorem cdf_ensemble (y : List Bool) :
   apply PMF.toOuterMeasure_apply_eq_of_inter_support_eq
   ext r
   simp only [Set.mem_inter_iff, Set.mem_preimage, Set.mem_ofPred_eq]
-  constructor
-  · rintro ⟨h, hr⟩
-    exact ⟨(H.binaryValue_collapse_le_iff (Ensemble.uniform.length_eq _ _ hr)).mp h, hr⟩
-  · rintro ⟨h, hr⟩
-    exact ⟨(H.binaryValue_collapse_le_iff (Ensemble.uniform.length_eq _ _ hr)).mpr h, hr⟩
+  exact and_congr_left fun hr => H.binaryValue_collapse_le_iff (Ensemble.uniform.length_eq _ _ hr)
 
 theorem collapse_polyTime (hvalid : ComputableInPolyTime H.valid encBits encBool) :
     ComputableInPolyTime H.collapse encBits encBits := by
@@ -310,10 +297,8 @@ theorem collapse_polyTime (hvalid : ComputableInPolyTime H.valid encBits encBool
     let p : ℕ → Bool := fun k => H.valid (r.take k)
     have hlen : (H.header r).length ∈ L :=
       List.mem_range.mpr (Nat.lt_succ_of_le (H.length_header_le hv))
-    obtain ⟨t, ht⟩ := H.header_isPrefix r hv
     have htake_hdr : r.take (H.header r).length = H.header r :=
-      calc r.take (H.header r).length = (H.header r ++ t).take (H.header r).length := by rw [ht]
-        _ = H.header r := List.take_left
+      (List.prefix_iff_eq_take.mp (H.header_isPrefix r hv)).symm
     have hh := H.valid_of_isPrefix r (H.header r) hv (List.prefix_refl _)
     have hp_hdr : p (H.header r).length = true := by simp [p, htake_hdr, hh.1]
     cases hopt : L.find? p with
@@ -344,10 +329,9 @@ theorem collapse_polyTime (hvalid : ComputableInPolyTime H.valid encBits encBool
       if H.valid r then findHdr r ++ List.replicate (r.length - (findHdr r).length) true
       else r := by
     funext r
-    by_cases hv : H.valid r = true
+    cases hv : H.valid r
+    · simp only [collapse, hv, Bool.false_eq_true, ite_false]
     · simp only [collapse, hv, ite_true, hfindHdr hv]
-    · have hvf : H.valid r = false := Bool.eq_false_iff.mpr hv
-      simp only [collapse, hvf, Bool.false_eq_true, ite_false]
   rwa [heq]
 
 /-- **The collapsed ensemble is polynomial-time computable** when the header parser is. -/
