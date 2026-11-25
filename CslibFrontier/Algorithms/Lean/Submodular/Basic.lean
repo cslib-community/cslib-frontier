@@ -109,18 +109,12 @@ theorem IsSubmodular.insert_add_le [AddCommMonoid β] [Preorder β]
     {f : Finset α → β} (hf : IsSubmodular f)
     ⦃A B : Finset α⦄ (x : α) (hAB : A ⊆ B) (hx : x ∉ B) :
     f (insert x B) + f A ≤ f B + f (insert x A) := by
-  have hunion : B ∪ insert x A = insert x B := by
-    ext y
-    simp only [Finset.mem_union, Finset.mem_insert]
-    exact ⟨fun h => h.elim (Or.inr ∘ id) (fun h' => h'.elim Or.inl (Or.inr ∘ fun hA => hAB hA)),
-      fun h => h.elim (Or.inr ∘ Or.inl) Or.inl⟩
   have hinter : B ∩ insert x A = A := by
     ext y
     simp only [Finset.mem_inter, Finset.mem_insert]
-    refine ⟨fun ⟨hyB, hy⟩ => hy.elim (fun hyx => absurd (hyx ▸ hyB) hx) id,
+    exact ⟨fun ⟨hyB, hy⟩ => hy.elim (fun hyx => absurd (hyx ▸ hyB) hx) id,
       fun hyA => ⟨hAB hyA, Or.inr hyA⟩⟩
-  have h := hf B (insert x A)
-  rwa [hunion, hinter] at h
+  simpa only [Finset.union_insert, Finset.union_eq_left.mpr hAB, hinter] using hf B (insert x A)
 
 /-- When `f` is also monotone, `f (insert x B) + f A ≤ f B + f (insert x A)` holds for every `x`
 without needing `x ∉ B`. -/
@@ -141,29 +135,20 @@ private theorem union_add_le_of_insert_add_le
     ∀ {D : Finset α}, Disjoint A D → f (A ∪ D) + f I ≤ f A + f (I ∪ D) := by
   intro D
   induction D using Finset.cons_induction with
-  | empty =>
-    intro _
-    simp
+  | empty => simp
   | cons x D' hxD' ih =>
     intro hdisj
     rw [Finset.cons_eq_insert] at hdisj ⊢
-    have hxA : x ∉ A := (Finset.disjoint_insert_right.mp hdisj).1
-    have hdisj' : Disjoint A D' := (Finset.disjoint_insert_right.mp hdisj).2
-    have hstep1 : f (A ∪ D') + f I ≤ f A + f (I ∪ D') := ih hdisj'
-    have hsub : I ∪ D' ⊆ A ∪ D' := Finset.union_subset_union hIA (Finset.Subset.refl D')
-    have hx_not_AD' : x ∉ A ∪ D' := by
-      simp [hxA, hxD']
-    have hstep2 : f (insert x (A ∪ D')) + f (I ∪ D') ≤
-        f (A ∪ D') + f (insert x (I ∪ D')) :=
-      hdim x hsub hx_not_AD'
+    obtain ⟨hxA, hdisj'⟩ := Finset.disjoint_insert_right.mp hdisj
+    have hstep2 := hdim x (Finset.union_subset_union hIA (Finset.Subset.refl D'))
+      (by simp [hxA, hxD'])
     rw [Finset.union_insert x A D', Finset.union_insert x I D']
-    have hsum : (f (insert x (A ∪ D')) + f I) + (f (A ∪ D') + f (I ∪ D')) ≤
-        (f A + f (insert x (I ∪ D'))) + (f (A ∪ D') + f (I ∪ D')) := calc
+    exact le_of_add_le_add_right (a := f (A ∪ D') + f (I ∪ D')) <| calc
       (f (insert x (A ∪ D')) + f I) + (f (A ∪ D') + f (I ∪ D'))
           = (f (A ∪ D') + f I) + (f (insert x (A ∪ D')) + f (I ∪ D')) := by ac_rfl
-      _ ≤ (f A + f (I ∪ D')) + (f (A ∪ D') + f (insert x (I ∪ D'))) := add_le_add hstep1 hstep2
+      _ ≤ (f A + f (I ∪ D')) + (f (A ∪ D') + f (insert x (I ∪ D'))) :=
+          add_le_add (ih hdisj') hstep2
       _ = (f A + f (insert x (I ∪ D'))) + (f (A ∪ D') + f (I ∪ D')) := by ac_rfl
-    exact le_of_add_le_add_right hsum
 
 /-- Converse of diminishing returns: if adding an element `x ∉ B` has smaller incremental effect on
 `B` than on any subset `A ⊆ B`, then `f` is submodular. -/
@@ -174,13 +159,12 @@ theorem isSubmodular_of_insert_add_le
       A ⊆ B → x ∉ B → f (insert x B) + f A ≤ f B + f (insert x A)) :
     IsSubmodular f := by
   intro A B
-  have hdisj : Disjoint A (B \ A) := Finset.disjoint_sdiff
-  have h := union_add_le_of_insert_add_le hdim (Finset.inter_subset_left (s₂ := B)) hdisj
-  have hAB : A ∪ (B \ A) = A ∪ B := Finset.union_sdiff_self_eq_union
+  have h := union_add_le_of_insert_add_le (A := A) (D := B \ A) hdim
+    (Finset.inter_subset_left (s₂ := B)) Finset.disjoint_sdiff
   have hIB : (A ∩ B) ∪ (B \ A) = B := by
     ext y
     by_cases hyA : y ∈ A <;> simp [hyA]
-  rwa [hAB, hIB] at h
+  rwa [Finset.union_sdiff_self_eq_union, hIB] at h
 
 /-- **Diminishing-Returns Characterization of Submodularity** ([NemhauserWolseyFisher1978],
 Proposition 2.1), subtraction-free form valid over `ℕ`, `ℤ`, `ℚ`, and `ℝ`. -/
@@ -197,18 +181,16 @@ theorem IsSubmodular.marginalGain_le
     {f : Finset α → β} (hf : IsSubmodular f)
     ⦃A B : Finset α⦄ (x : α) (hAB : A ⊆ B) (hx : x ∉ B) :
     marginalGain f B x ≤ marginalGain f A x := by
-  have h := hf.insert_add_le x hAB hx
-  rw [marginalGain, marginalGain, sub_le_iff_le_add, sub_add_eq_add_sub, le_sub_iff_add_le]
-  simpa [add_comm] using h
+  simpa only [marginalGain, sub_le_iff_le_add, sub_add_eq_add_sub, le_sub_iff_add_le,
+    add_comm (f B)] using hf.insert_add_le x hAB hx
 
 theorem IsSubmodular.marginalGain_le_of_monotone
     [AddCommGroup β] [PartialOrder β] [IsOrderedAddMonoid β]
     {f : Finset α → β} (hf : IsSubmodular f) (hmono : Monotone f)
     ⦃A B : Finset α⦄ (x : α) (hAB : A ⊆ B) :
     marginalGain f B x ≤ marginalGain f A x := by
-  have h := hf.insert_add_le_of_monotone hmono x hAB
-  rw [marginalGain, marginalGain, sub_le_iff_le_add, sub_add_eq_add_sub, le_sub_iff_add_le]
-  simpa [add_comm] using h
+  simpa only [marginalGain, sub_le_iff_le_add, sub_add_eq_add_sub, le_sub_iff_add_le,
+    add_comm (f B)] using hf.insert_add_le_of_monotone hmono x hAB
 
 /-- **Diminishing-Returns Characterization of Submodularity** in terms of `marginalGain` over an
 ordered commutative group ([NemhauserWolseyFisher1978], Proposition 2.1). -/
@@ -219,12 +201,10 @@ theorem isSubmodular_iff_marginalGain_le
       ∀ ⦃A B : Finset α⦄ (x : α), A ⊆ B → x ∉ B → marginalGain f B x ≤ marginalGain f A x := by
   rw [isSubmodular_iff_insert_add_le]
   refine ⟨fun h A B x hAB hx => ?_, fun h A B x hAB hx => ?_⟩
-  · have h' := h x hAB hx
-    rw [marginalGain, marginalGain, sub_le_iff_le_add, sub_add_eq_add_sub, le_sub_iff_add_le]
-    simpa [add_comm] using h'
-  · have h' := h x hAB hx
-    rw [marginalGain, marginalGain, sub_le_iff_le_add, sub_add_eq_add_sub, le_sub_iff_add_le] at h'
-    simpa [add_comm] using h'
+  · simpa only [marginalGain, sub_le_iff_le_add, sub_add_eq_add_sub, le_sub_iff_add_le,
+      add_comm (f B)] using h x hAB hx
+  · simpa only [marginalGain, sub_le_iff_le_add, sub_add_eq_add_sub, le_sub_iff_add_le,
+      add_comm (f B)] using h x hAB hx
 
 end DiminishingReturns
 
@@ -240,23 +220,16 @@ private theorem sub_union_disjoint_le_sum_marginalGain
     ∀ {D : Finset α}, Disjoint S D → f (S ∪ D) - f S ≤ ∑ x ∈ D, marginalGain f S x := by
   intro D
   induction D using Finset.cons_induction with
-  | empty =>
-    intro _
-    simp
+  | empty => simp
   | cons x D' hxD' ih =>
     intro hdisj
     rw [Finset.cons_eq_insert] at hdisj ⊢
-    have hxS : x ∉ S := (Finset.disjoint_insert_right.mp hdisj).1
-    have hdisj' : Disjoint S D' := (Finset.disjoint_insert_right.mp hdisj).2
-    have hx_not_SD' : x ∉ S ∪ D' := by simp [hxS, hxD']
-    have hgain : marginalGain f (S ∪ D') x ≤ marginalGain f S x :=
-      hf.marginalGain_le x Finset.subset_union_left hx_not_SD'
-    have hrec : f (S ∪ D') - f S ≤ ∑ y ∈ D', marginalGain f S y := ih hdisj'
-    have hsplit : f (S ∪ insert x D') - f S =
-        marginalGain f (S ∪ D') x + (f (S ∪ D') - f S) := by
-      rw [Finset.union_insert x S D', marginalGain, sub_add_sub_cancel]
-    rw [hsplit, Finset.sum_insert hxD']
-    exact add_le_add hgain hrec
+    obtain ⟨hxS, hdisj'⟩ := Finset.disjoint_insert_right.mp hdisj
+    rw [Finset.union_insert x S D',
+      ← sub_add_sub_cancel (f (insert x (S ∪ D'))) (f (S ∪ D')) (f S), ← marginalGain,
+      Finset.sum_insert hxD']
+    exact add_le_add (hf.marginalGain_le x Finset.subset_union_left (by simp [hxS, hxD']))
+      (ih hdisj')
 
 /-- For any submodular function `f` (not necessarily monotone) and finite sets `S, T`,
 `f (S ∪ T) - f S ≤ ∑ x ∈ T \ S, marginalGain f S x` ([NemhauserWolseyFisher1978],
@@ -309,14 +282,12 @@ theorem isSubmodular_sum {ι : Type*} {α : Type*} {β : Type*} [DecidableEq α]
     IsSubmodular (fun S => ∑ i ∈ s, g i S) := by
   classical
   induction s using Finset.induction with
-  | empty =>
-    simpa using isSubmodular_const (α := α) (0 : β)
+  | empty => simpa using isSubmodular_const (α := α) (0 : β)
   | insert i s' hi ih =>
-    have hi_sub : IsSubmodular (g i) := hg i (Finset.mem_insert_self i s')
-    have hs'_sub : IsSubmodular (fun S => ∑ j ∈ s', g j S) :=
-      ih fun j hj => hg j (Finset.mem_insert_of_mem hj)
     intro A B
-    simpa [Finset.sum_insert hi] using (hi_sub.add hs'_sub) A B
+    simpa [Finset.sum_insert hi] using
+      ((hg i (Finset.mem_insert_self i s')).add
+        (ih fun j hj => hg j (Finset.mem_insert_of_mem hj))) A B
 
 theorem IsSubmodular.nsmul {α : Type*} {β : Type*} [DecidableEq α]
     [AddCommMonoid β] [Preorder β] [IsOrderedAddMonoid β]
@@ -324,10 +295,9 @@ theorem IsSubmodular.nsmul {α : Type*} {β : Type*} [DecidableEq α]
     IsSubmodular (fun S => n • f S) := by
   induction n with
   | zero =>
-    intro A B
+    intro _ _
     simp
-  | succ m ih =>
-    simpa [succ_nsmul] using ih.add hf
+  | succ m ih => simpa [succ_nsmul] using ih.add hf
 
 /-- Truncating a monotone function above at a constant `c` (`fun S => min (f S) c`) preserves
 monotonicity. -/
@@ -393,12 +363,11 @@ theorem monotone_modularSum {α : Type*} {β : Type*}
 theorem monotone_weightedCoverage {α : Type*} {U : Type*} {β : Type*} [DecidableEq U]
     [AddCommMonoid β] [PartialOrder β] [IsOrderedAddMonoid β]
     (cover : α → Finset U) {w : U → β} (hw : ∀ u, 0 ≤ w u) :
-    Monotone (weightedCoverage cover w) := by
-  intro A B hAB
-  refine Finset.sum_le_sum_of_subset_of_nonneg ?_ (fun u _ _ => hw u)
-  intro u hu
-  rcases Finset.mem_biUnion.mp hu with ⟨a, ha, hu_cov⟩
-  exact Finset.mem_biUnion.mpr ⟨a, hAB ha, hu_cov⟩
+    Monotone (weightedCoverage cover w) := fun _ _ hAB =>
+  Finset.sum_le_sum_of_subset_of_nonneg
+    (fun _ hu => let ⟨a, ha, hu_cov⟩ := Finset.mem_biUnion.mp hu
+      Finset.mem_biUnion.mpr ⟨a, hAB ha, hu_cov⟩)
+    fun u _ _ => hw u
 
 /-- Nonnegative weighted set coverage is submodular. -/
 theorem isSubmodular_weightedCoverage {α : Type*} {U : Type*} {β : Type*}
@@ -410,24 +379,17 @@ theorem isSubmodular_weightedCoverage {α : Type*} {U : Type*} {β : Type*}
   dsimp only [weightedCoverage]
   have hU : (A ∪ B).biUnion cover = A.biUnion cover ∪ B.biUnion cover := by
     ext u
-    simp only [Finset.mem_biUnion, Finset.mem_union]
-    exact ⟨fun ⟨a, ha, hu⟩ => ha.elim (fun hA => Or.inl ⟨a, hA, hu⟩) (fun hB => Or.inr ⟨a, hB, hu⟩),
-      fun h => h.elim (fun ⟨a, hA, hu⟩ => ⟨a, Or.inl hA, hu⟩)
-        (fun ⟨a, hB, hu⟩ => ⟨a, Or.inr hB, hu⟩)⟩
+    simp [or_and_right, exists_or]
+  have hsub : (A ∩ B).biUnion cover ⊆ A.biUnion cover ∩ B.biUnion cover := fun u hu => by
+    obtain ⟨a, haAB, hu_cov⟩ := Finset.mem_biUnion.mp hu
+    exact Finset.mem_inter.mpr ⟨Finset.mem_biUnion.mpr ⟨a, (Finset.mem_inter.mp haAB).1, hu_cov⟩,
+      Finset.mem_biUnion.mpr ⟨a, (Finset.mem_inter.mp haAB).2, hu_cov⟩⟩
   rw [hU]
-  have hsub : (A ∩ B).biUnion cover ⊆ A.biUnion cover ∩ B.biUnion cover := by
-    intro u hu
-    rcases Finset.mem_biUnion.mp hu with ⟨a, haAB, hu_cov⟩
-    rcases Finset.mem_inter.mp haAB with ⟨haA, haB⟩
-    exact Finset.mem_inter.mpr
-      ⟨Finset.mem_biUnion.mpr ⟨a, haA, hu_cov⟩, Finset.mem_biUnion.mpr ⟨a, haB, hu_cov⟩⟩
-  have hle : ∑ u ∈ (A ∩ B).biUnion cover, w u ≤
-      ∑ u ∈ A.biUnion cover ∩ B.biUnion cover, w u :=
-    Finset.sum_le_sum_of_subset_of_nonneg hsub fun u _ _ => hw u
   calc
     (∑ u ∈ A.biUnion cover ∪ B.biUnion cover, w u) + ∑ u ∈ (A ∩ B).biUnion cover, w u
         ≤ (∑ u ∈ A.biUnion cover ∪ B.biUnion cover, w u) +
-            ∑ u ∈ A.biUnion cover ∩ B.biUnion cover, w u := add_le_add le_rfl hle
+            ∑ u ∈ A.biUnion cover ∩ B.biUnion cover, w u :=
+          add_le_add le_rfl (Finset.sum_le_sum_of_subset_of_nonneg hsub fun u _ _ => hw u)
     _ = (∑ u ∈ A.biUnion cover, w u) + ∑ u ∈ B.biUnion cover, w u := Finset.sum_union_inter
 
 end Constructors

@@ -80,41 +80,25 @@ theorem crt_firstCircleFlag_sign (m : ι → ℤ) (c : ℕ → ι → ℤ) (X : 
     ∃ k ≤ K, FirstCircleFlag t (fun j => crtCircleApprox m B (c j)) k ∧
       (0 < X ↔ crtCircleApprox m B (c k) < 1 / 2) ∧
       (X < 0 ↔ 1 / 2 < crtCircleApprox m B (c k)) := by
-  have hP : (0 : ℚ) < (∏ i, m i : ℤ) := by
-    exact_mod_cast prod_pos fun i _ => hm i
+  have hP : (0 : ℚ) < (∏ i, m i : ℤ) := by exact_mod_cast prod_pos fun i _ => hm i
   let q : ℚ := (X : ℚ) / (∏ i, m i : ℤ)
   have hstart : |q| < a := by
-    rw [show |q| = |(X : ℚ)| / (∏ i, m i : ℤ) by
-      dsimp only [q]; rw [abs_div, abs_of_pos hP]]
-    exact (div_lt_iff₀ hP).mpr hmag
+    simpa only [q, abs_div, abs_of_pos hP, div_lt_iff₀ hP] using hmag
   have hXunit : (1 : ℚ) ≤ |(X : ℚ)| := by
-    have hi : 1 ≤ |X| := by
-      have := abs_pos.mpr hX
-      omega
-    exact_mod_cast hi
+    exact_mod_cast (by have := abs_pos.mpr hX; omega : 1 ≤ |X|)
   have hend : a ≤ |(2 : ℚ) ^ K * q| := by
-    dsimp only [q]
-    rw [abs_mul, abs_of_pos (pow_pos (by norm_num) K), abs_div, abs_of_pos hP,
-      ← mul_div_assoc]
-    apply (le_div_iff₀ hP).mpr
+    rw [abs_mul, abs_of_pos (pow_pos (by norm_num) K), abs_div, abs_of_pos hP, ← mul_div_assoc,
+      le_div_iff₀ hP]
     exact hcut.trans (le_mul_of_one_le_right (by positivity) hXunit)
-  have happrox : ∀ k ≤ K, CircleClose ε (crtCircleApprox m B (c k))
+  have happrox (k : ℕ) (hk : k ≤ K) : CircleClose ε (crtCircleApprox m B (c k))
       ((2 : ℚ) ^ k * q) := by
-    intro k hk
-    have h := crt_dyadicCircleApprox_close m (c k) ((2 : ℤ) ^ k * X) B hm hcop
-      (hc k hk) hprec
     simpa only [Int.cast_mul, Int.cast_pow, Int.cast_ofNat, mul_div_assoc, q,
-      crtCircleApprox] using h
+      crtCircleApprox] using crt_dyadicCircleApprox_close m (c k) ((2 : ℤ) ^ k * X) B hm hcop
+        (hc k hk) hprec
   obtain ⟨k, hk, hf, hs⟩ := firstCircleFlag_sign (fun j => crtCircleApprox m B (c j))
     hstart hend ht hε hlo hhi (fun j _ => dyadicCircleApprox_mem B _) happrox
-  have hpos : 0 < q ↔ 0 < X := by
-    dsimp only [q]
-    rw [lt_div_iff₀ hP, zero_mul]
-    exact Int.cast_pos
-  have hneg : q < 0 ↔ X < 0 := by
-    dsimp only [q]
-    rw [div_lt_iff₀ hP, zero_mul]
-    exact Int.cast_lt
-  exact ⟨k, hk, hf, hpos.symm.trans hs.1, hneg.symm.trans hs.2⟩
+  exact ⟨k, hk, hf,
+    by simpa only [q, lt_div_iff₀ hP, zero_mul, Int.cast_pos] using hs.1,
+    by simpa only [q, div_lt_iff₀ hP, zero_mul, Int.cast_lt_zero] using hs.2⟩
 
 end Cslib

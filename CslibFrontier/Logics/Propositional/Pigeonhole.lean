@@ -96,22 +96,19 @@ theorem eval_pigeonhole_eq_true_iff (σ : Fin m × Fin n → Bool) :
       (∀ i, ∃ j, σ (i, j) = true) ∧
         ∀ i i' j, σ (i, j) = true → σ (i', j) = true → i = i' := by
   rw [eval_eq_true_iff]
-  constructor
-  · intro h
-    refine ⟨fun i => (eval_pigeonClause σ i).1 (h _ (mem_pigeonhole.2 (Or.inl ⟨i, rfl⟩))),
-      fun i i' j hi hi' => ?_⟩
-    by_contra hne
-    rcases lt_or_gt_of_ne hne with hlt | hlt
-    · have := (eval_holeClause σ i i' j).1 (h _ (mem_pigeonhole.2 (Or.inr ⟨i, i', j, hlt, rfl⟩)))
+  refine ⟨fun h => ⟨fun i => (eval_pigeonClause σ i).1 (h _ (mem_pigeonhole.2 (.inl ⟨i, rfl⟩))),
+    fun i i' j hi hi' => by_contra fun hne => ?_⟩, ?_⟩
+  · rcases lt_or_gt_of_ne hne with hlt | hlt
+    · have := h _ (mem_pigeonhole.2 (.inr ⟨i, i', j, hlt, rfl⟩))
       simp_all
-    · have := (eval_holeClause σ i' i j).1 (h _ (mem_pigeonhole.2 (Or.inr ⟨i', i, j, hlt, rfl⟩)))
+    · have := h _ (mem_pigeonhole.2 (.inr ⟨i', i, j, hlt, rfl⟩))
       simp_all
-  · rintro ⟨hp, hh⟩ c hc
+  · rintro ⟨hp, hh⟩ _ hc
     rcases mem_pigeonhole.1 hc with ⟨i, rfl⟩ | ⟨i, i', j, hii', rfl⟩
     · exact (eval_pigeonClause σ i).2 (hp i)
     · rw [eval_holeClause]
       by_contra! h
-      exact hii'.ne (hh i i' j (Bool.not_eq_false _ ▸ h.1) (Bool.not_eq_false _ ▸ h.2))
+      exact hii'.ne (hh i i' j (by simpa using h.1) (by simpa using h.2))
 
 /-- **The pigeonhole principle**: `PHP^m_n` is satisfiable exactly when there are at most as many
 pigeons as holes. -/
@@ -131,8 +128,7 @@ theorem satisfiable_pigeonhole_iff : (pigeonhole m n).Satisfiable ↔ m ≤ n :=
 
 /-- `PHP^m_n` is unsatisfiable when there are more pigeons than holes. -/
 theorem not_satisfiable_pigeonhole (h : n < m) : ¬ (pigeonhole m n).Satisfiable := by
-  rw [satisfiable_pigeonhole_iff]
-  omega
+  rw [satisfiable_pigeonhole_iff]; omega
 
 /-- The pigeon clause for `n` holes has length `n`. -/
 @[simp] theorem length_pigeonClause (n : ℕ) (i : Fin m) : (pigeonClause n i).length = n := by
@@ -145,15 +141,13 @@ theorem not_satisfiable_pigeonhole (h : n < m) : ¬ (pigeonhole m n).Satisfiable
 /-- Every clause of `PHP^m_n` has at most `max n 2` literals. -/
 theorem length_le_of_mem_pigeonhole {c : Clause (Fin m × Fin n)} (hc : c ∈ pigeonhole m n) :
     c.length ≤ max n 2 := by
-  rcases mem_pigeonhole.1 hc with ⟨i, rfl⟩ | ⟨i, i', j, -, rfl⟩
-  · simp
-  · simp
+  rcases mem_pigeonhole.1 hc with ⟨i, rfl⟩ | ⟨i, i', j, -, rfl⟩ <;> simp
 
 /-- `PHP^m_n` has at most `m + n m²` clauses. -/
 theorem length_pigeonhole_le (m n : ℕ) : (pigeonhole m n).length ≤ m + n * m ^ 2 := by
   rw [pigeonhole, List.length_append, List.length_map, List.length_finRange]
-  refine Nat.add_le_add_left ?_ m
-  refine (List.length_flatMap_le (k := m ^ 2) fun j _ => ?_).trans_eq (by simp)
+  refine Nat.add_le_add_left ((List.length_flatMap_le (k := m ^ 2) fun j _ => ?_).trans_eq
+    (by simp)) m
   refine (List.length_flatMap_le (k := m) fun i _ => ?_).trans_eq (by simp [Nat.pow_two])
   rw [List.length_map]
   exact (List.length_filter_le _ _).trans (by simp)

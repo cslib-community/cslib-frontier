@@ -63,22 +63,18 @@ theorem integral_fourierChar_tsum_translate {L : Submodule ℤ E} [Countable L]
     inferInstanceAs (VAddInvariantMeasure L.toAddSubgroup E volume)
   let g : E → ℂ := fun x => Real.fourierChar (-⟪x, w⟫) • f x
   have hg : Integrable g := (Real.fourierIntegral_convergent_iff w).2 hf
-  have hinv (z : L) (x : E) :
-      Real.fourierChar (-⟪x + z, w⟫) = Real.fourierChar (-⟪x, w⟫) := by
+  have hinv (z : L) (x : E) : Real.fourierChar (-⟪x + z, w⟫) = Real.fourierChar (-⟪x, w⟫) := by
     simp only [inner_add_left, neg_add, AddChar.map_add_eq_mul, AddChar.map_neg_eq_inv,
       fourierChar_inner_eq_one hw z, inv_one, mul_one]
   calc
     _ = ∫ x in s, ∑' z : L, g (z +ᵥ x) := by
-      congr 1
-      funext x
+      congr 1 with x
       simp only [g, Submodule.vadd_def, vadd_eq_add, add_comm (↑_ : E) x, hinv, Circle.smul_def,
         smul_eq_mul, tsum_mul_left]
-    _ = ∑' z : L, ∫ x in s, g (z +ᵥ x) := by
-      apply integral_tsum
-      · exact fun z => (hg.1.comp_quasiMeasurePreserving
-          (measurePreserving_vadd z volume).quasiMeasurePreserving).restrict
-      · rw [← hs.lintegral_eq_tsum'' (‖g ·‖ₑ)]
-        exact ne_of_lt hg.2
+    _ = ∑' z : L, ∫ x in s, g (z +ᵥ x) :=
+      integral_tsum (fun z => (hg.1.comp_quasiMeasurePreserving
+        (measurePreserving_vadd z volume).quasiMeasurePreserving).restrict)
+        (hs.lintegral_eq_tsum'' (‖g ·‖ₑ) ▸ hg.2.ne)
     _ = ∫ x, g x := (hs.integral_eq_tsum'' g hg).symm
     _ = 𝓕 f w := rfl
 
