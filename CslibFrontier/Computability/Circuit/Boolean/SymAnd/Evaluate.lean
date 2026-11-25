@@ -1472,7 +1472,8 @@ private theorem computableInO_radixSortLSB_symBox {L : SymAndInstance → List (
       calc _ ≤ (x.n + 1) * (2 * (2 ^ x.n + ((encSymAndInstance x).length + 1)) *
               (10 ^ d * (x.n + 1) ^ d)) := by
             gcongr; exact pow_encNat_add_le x.n d
-        _ = 2 * (10 ^ d * ((2 ^ x.n + ((encSymAndInstance x).length + 1)) * (x.n + 1) ^ (d + 1))) := by
+        _ = 2 * (10 ^ d *
+            ((2 ^ x.n + ((encSymAndInstance x).length + 1)) * (x.n + 1) ^ (d + 1))) := by
             ring
         _ ≤ _ := Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ hbox)
     refine ⟨symBox_mono (by omega) (fun _ => le_rfl) x, enc_le_symBox (by omega) H x,
@@ -2550,6 +2551,21 @@ private theorem extractMatched_buckets_flatMap (c : Bool) (buckets : List (List 
       have hself := extractMatched_bucket_append false key out_v Q hQ []
       simpa [extractMatched] using hself.symm
 
+/-- The AND count of `x.toSymAnd out` at input index `k` counts the gate sets inside
+`maskSet x.n k`. -/
+private theorem count_toSymAnd_equivFin_symm (x : SymAndInstance) (out : ℕ → Bool) (k : ℕ)
+    (hk : k < 2 ^ x.n) :
+    (x.toSymAnd out).count ((BitString.equivFin x.n).symm ⟨k, hk⟩) =
+      (x.gates.map (gateSet x.n)).countP fun S => decide (S ⊆ maskSet x.n k) := by
+  have hmask_eq : Finset.univ.filter (fun i : Fin x.n =>
+      ((BitString.equivFin x.n).symm ⟨k, hk⟩) i = true) = maskSet x.n k := by
+    ext i
+    simp [BitString.equivFin_symm_apply, mem_maskSet]
+  have hg : (x.toSymAnd out).gateMultiplicity =
+      fun T => (x.gates.map (gateSet x.n)).count T := by
+    funext T; simp [gateMultiplicity, SymAndInstance.toSymAnd]
+  rw [count_eq_subsetZeta_filter, hmask_eq, hg, subsetZeta_listCount_eq_countP]
+
 private theorem truthTableList_eq_pipeline (x : SymAndInstance) (out : ℕ → Bool) :
     let g := yatesZeta x.n (countMasks x)
     let s := x.gates.length
@@ -2786,26 +2802,15 @@ private theorem truthTableList_eq_pipeline (x : SymAndInstance) (out : ℕ → B
     SymAndInstance.truthTableList, List.getElem_ofFn, SymAnd.eval, SymAndInstance.toSymAnd]
   congr 1
   rw [List.getElem!_eq_getElem?_getD, List.getElem?_eq_getElem hk_lt_g, Option.getD_some]
-  have hcnt := count_eq_subsetZeta_filter (x.toSymAnd out) ((BitString.equivFin x.n).symm ⟨k, hk⟩)
+  have hcnt := count_toSymAnd_equivFin_symm x out k hk
   dsimp only [SymAndInstance.toSymAnd] at hcnt
-  rw [hcnt]
   have hg_k : g[k]'hk_lt_g =
       (x.gates.map (gateSet x.n)).countP fun S => decide (S ⊆ maskSet x.n k) := by
     rw [← Option.some_inj, ← List.getElem?_eq_getElem hk_lt_g]
     dsimp only [g]
     rw [yatesZeta_countMasks_eq, List.getElem?_map, List.getElem?_range]
     all_goals simp [hk]
-  rw [hg_k]
-  have hmask_eq : Finset.univ.filter (fun i : Fin x.n =>
-      ((BitString.equivFin x.n).symm ⟨k, hk⟩) i = true) = maskSet x.n k := by
-    ext i
-    simp [BitString.equivFin_symm_apply, mem_maskSet]
-  rw [hmask_eq]
-  have hg : ({ gates := ↑(x.gates.map (gateSet x.n)), out := out } :
-      SymAnd (Fin x.n)).gateMultiplicity = fun T => (x.gates.map (gateSet x.n)).count T := by
-    funext T; simp [gateMultiplicity]
-  rw [hg]
-  exact (subsetZeta_listCount_eq_countP _ _).symm
+  rw [hcnt, hg_k]
 
 private theorem computableInO_gates_len :
     ∃ c, ComputableInO (fun x : SymAndInstance => x.gates.length) encSymAndInstance encNat
@@ -3029,7 +3034,8 @@ private theorem computableInO_queryEntries :
       have hy : (2 ^ x.n + ((encSymAndInstance x).length + 1) ^ c_y) * (x.n + 1) ^ c_y ≤
           symBox C_q (fun _ => 0) x := by
         simpa only [symBox, Nat.zero_add, Nat.mul_one] using
-          symBox_mono (by omega : c_y ≤ C_q) (fun _ => le_rfl) x (F₁ := fun _ => 0) (F₂ := fun _ => 0)
+          symBox_mono (by omega : c_y ≤ C_q) (fun _ => le_rfl) x (F₁ := fun _ => 0)
+            (F₂ := fun _ => 0)
       omega
   obtain ⟨c_w, hwrap_len⟩ := hwrap.length_le
   obtain ⟨K, hK⟩ : ∃ K, ∀ x : SymAndInstance,
@@ -3075,7 +3081,8 @@ private theorem computableInO_queryEntries :
       (Nat.pow_le_pow_left (by omega) d_f).trans (Nat.pow_le_pow_right (by omega) hdD)
     have hp1 := Nat.mul_le_mul_left ((yatesZeta x.n (countMasks x)).length + 1) hpow
     have hp2 := Nat.mul_le_mul_left ((yatesZeta x.n (countMasks x)).length + 1)
-      (Nat.le_self_pow (by omega : D ≠ 0) (Nat.log2 (0 + (yatesZeta x.n (countMasks x)).length + 1) +
+      (Nat.le_self_pow (by omega : D ≠ 0)
+        (Nat.log2 (0 + (yatesZeta x.n (countMasks x)).length + 1) +
           listMax (fun v => (encNat v).length) (yatesZeta x.n (countMasks x)) + 10))
     have hp3 := Nat.le_mul_of_pos_left ((Nat.log2 (0 + (yatesZeta x.n (countMasks x)).length + 1) +
           listMax (fun v => (encNat v).length) (yatesZeta x.n (countMasks x)) + 10) ^ D)
@@ -3262,7 +3269,8 @@ private theorem computableInO_joined_of {out : ℕ → Bool} {T S : ℕ → ℕ}
           (2 ^ x.n + ((encSymAndInstance x).length + 1) ^ c_q) * (x.n + 1) ^ c_q ≤
             symBox C_in G x :=
         ⟨((Nat.mul_le_mul_right _ (Nat.pow_le_pow_right (Nat.succ_pos _) hCt)).trans
-          (Nat.le_add_left _ _)).trans (Nat.le_mul_of_pos_right _ (Nat.one_le_pow _ _ (Nat.succ_pos _))),
+          (Nat.le_add_left _ _)).trans
+            (Nat.le_mul_of_pos_right _ (Nat.one_le_pow _ _ (Nat.succ_pos _))),
           by simpa only [symBox, Nat.zero_add, Nat.mul_one] using
             symBox_mono hCq (fun s => Nat.zero_le (G s)) x (F₁ := fun _ => 0) (F₂ := G)⟩
       obtain ⟨h1, h2⟩ := key T
@@ -3332,7 +3340,8 @@ private theorem computableInO_joined_of {out : ℕ → Bool} {T S : ℕ → ℕ}
     have h4 : ((encNat (Nat.size x.gates.length)).length +
           (4 * x.n + 6 * Nat.log2 A + 32) + 1) ^ d_js ≤
         (Nat.size x.gates.length + 1) * ((joinInput x).length + 1) *
-          ((encNat (Nat.size x.gates.length)).length + (4 * x.n + 6 * Nat.log2 A + 32) + 1) ^ d_js :=
+          ((encNat (Nat.size x.gates.length)).length + (4 * x.n + 6 * Nat.log2 A + 32) + 1) ^
+            d_js :=
       Nat.le_mul_of_pos_left _ (by positivity)
     have hdist : (Nat.size x.gates.length + 1) * (((joinInput x).length + 1) *
           ((encNat (Nat.size x.gates.length)).length + (4 * x.n + 6 * Nat.log2 A + 32) + 1) ^ d_js +
@@ -3349,6 +3358,14 @@ private def joinInput (out : ℕ → Bool) (x : SymAndInstance) : List JoinItem 
 private def joined (out : ℕ → Bool) (x : SymAndInstance) : List JoinItem :=
   radixSortLSB (Nat.size x.gates.length) (joinInput out x)
 
+private theorem mem_joinInput_of_mem_joined {out : ℕ → Bool} {x : SymAndInstance} {p : JoinItem}
+    (hp : p ∈ joined out x) : p ∈ joinInput out x :=
+  (mem_radixStep_iff).1 hp
+
+private theorem length_joined (out : ℕ → Bool) (x : SymAndInstance) :
+    (joined out x).length = (joinInput out x).length :=
+  length_radixStep _ 0 _
+
 private theorem computableInO_extracted_of {out : ℕ → Bool} {T S : ℕ → ℕ}
     (hT_mono : Monotone T) (hS_mono : Monotone S)
     (hout : ComputableInO out encNat encBool T S) :
@@ -3359,10 +3376,6 @@ private theorem computableInO_extracted_of {out : ℕ → Bool} {T S : ℕ → �
       (symBox C_ex T) (symBox C_ex S) := by
   obtain ⟨C_j, hjoined⟩ := computableInO_joined_of hT_mono hS_mono hout
   obtain ⟨d_ex, hex_raw⟩ := computableInO_extractMatched
-  have hmem_joined : ∀ x : SymAndInstance, ∀ p ∈ joined out x, p ∈ joinInput out x :=
-    fun x p hp => (mem_radixStep_iff).1 hp
-  have hlen_joined : ∀ x : SymAndInstance, (joined out x).length = (joinInput out x).length :=
-    fun x => length_radixStep _ 0 _
   obtain ⟨D, C_ex, hdD, hD1, hCj, hCD⟩ : ∃ D C, d_ex ≤ D ∧ 1 ≤ D ∧ C_j ≤ C ∧ 2 * D + 4 ≤ C :=
     ⟨d_ex + 1, C_j + 2 * d_ex + 6, by omega, by omega, by omega, by omega⟩
   obtain ⟨K, hK⟩ : ∃ K, ∀ G (x : SymAndInstance),
@@ -3370,12 +3383,13 @@ private theorem computableInO_extracted_of {out : ℕ → Bool} {T S : ℕ → �
           (listMax (fun p : JoinItem => (encJoinItem p).length) (joined out x) + 1) ^ D ≤
         K * symBox C_ex G x := ⟨2 * 17 ^ D * (2 * 3 ^ (D + 1) * 2 ^ D), fun G x => by
     set A := (encSymAndInstance x).length + 1
-    have hlen_j := hlen_joined x
+    have hlen_j := length_joined out x
     have hlen_in := length_joinInput_le out x
     have hg_le := gates_length_le_encSymAndInstance x
     have hmax_j : listMax (fun p : JoinItem => (encJoinItem p).length) (joined out x) ≤
         4 * x.n + 6 * Nat.log2 A + 32 :=
-      listMax_le fun p hp => length_encJoinItem_joinInput_le out x p (hmem_joined x p hp)
+      listMax_le fun p hp =>
+        length_encJoinItem_joinInput_le out x p (mem_joinInput_of_mem_joined hp)
     have h1 : 4 * x.n + 6 * Nat.log2 A + 34 ≤ 17 * (x.n + 1) * (Nat.log2 A + 2) := by nlinarith
     have h2n : 1 ≤ 2 ^ x.n := Nat.one_le_two_pow
     have hlen2 : (joined out x).length + 1 ≤ 2 * (2 ^ x.n + A) := by
@@ -3437,10 +3451,6 @@ theorem computableInO_truthTableList_of_computableInO {out : ℕ → Bool} {T S 
     extractMatched false (joined out x)
   let restored (x : SymAndInstance) : List (List Bool × Bool) :=
     radixSortLSB x.n (extracted x)
-  have hmem_joined : ∀ x : SymAndInstance, ∀ p ∈ joined out x, p ∈ joinInput out x :=
-    fun x p hp => (mem_radixStep_iff).1 hp
-  have hlen_joined : ∀ x : SymAndInstance, (joined out x).length = (joinInput out x).length :=
-    fun x => length_radixStep _ 0 _
   have hlen_join_in := length_joinInput_le out
   have hextract_bounds : ∀ x : SymAndInstance,
       (extracted x).length ≤ (joined out x).length ∧
@@ -3470,7 +3480,7 @@ theorem computableInO_truthTableList_of_computableInO {out : ℕ → Bool} {T S 
     obtain ⟨hl, hm⟩ := hrec false (joined out x)
     refine ⟨hl, fun r hr => ?_⟩
     obtain ⟨p, hp, hr1⟩ := hm r hr
-    have hp_in := hmem_joined x p hp
+    have hp_in := mem_joinInput_of_mem_joined hp
     have hk_lt : p.2.2.1 < 2 ^ x.n := by
       rw [joinInput, List.mem_append] at hp_in
       rcases hp_in with hp_in | hp_in
@@ -3493,7 +3503,7 @@ theorem computableInO_truthTableList_of_computableInO {out : ℕ → Bool} {T S 
     computableInO_radixSortLSB_symBox hextract (fun x r hr => (hextract_bounds x).2 r hr)
       fun x => by
         have h1 := (hextract_bounds x).1
-        have h2 := hlen_joined x
+        have h2 := length_joined out x
         have h3 := hlen_join_in x
         have h4 := gates_length_le_encSymAndInstance x
         have h5 : 1 ≤ 2 ^ x.n := Nat.one_le_two_pow
@@ -3513,7 +3523,7 @@ theorem computableInO_truthTableList_of_computableInO {out : ℕ → Bool} {T S 
           2 * (2 ^ x.n + ((encSymAndInstance x).length + 1)) := by
         have h1 : (restored x).length = (extracted x).length := length_radixStep _ 0 _
         have h2 := (hextract_bounds x).1
-        have h3 := hlen_joined x
+        have h3 := length_joined out x
         have h4 := hlen_join_in x
         have h5 := gates_length_le_encSymAndInstance x
         have h6 : 1 ≤ 2 ^ x.n := Nat.one_le_two_pow
@@ -3609,17 +3619,8 @@ theorem computableInO_countList :
   refine List.ext_getElem (by rw [SymAndInstance.length_countList, yatesZeta_countMasks_eq,
       List.length_map, List.length_range]) fun k hk1 hk2 => ?_
   have hk : k < 2 ^ x.n := by simpa only [SymAndInstance.length_countList] using hk1
-  rw [SymAndInstance.getElem_countList x (fun _ => false) k hk1]
-  have hcnt := count_eq_subsetZeta_filter (x.toSymAnd fun _ => false)
-    ((BitString.equivFin x.n).symm ⟨k, hk⟩)
-  have hmask_eq : Finset.univ.filter (fun i : Fin x.n =>
-      ((BitString.equivFin x.n).symm ⟨k, hk⟩) i = true) = maskSet x.n k := by
-    ext i
-    simp [BitString.equivFin_symm_apply, mem_maskSet]
-  have hg : (x.toSymAnd fun _ => false).gateMultiplicity =
-      fun T => (x.gates.map (gateSet x.n)).count T := by
-    funext T; simp [gateMultiplicity, SymAndInstance.toSymAnd]
-  rw [hcnt, hmask_eq, hg, subsetZeta_listCount_eq_countP]
+  rw [SymAndInstance.getElem_countList x (fun _ => false) k hk1,
+    count_toSymAnd_equivFin_symm x _ k hk]
   simp only [yatesZeta_countMasks_eq, List.getElem_map, List.getElem_range, hk, ↓reduceDIte]
 
 end MultiTapeTM
