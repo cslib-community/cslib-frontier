@@ -240,9 +240,9 @@ private theorem prod_weight_le (hp : p.Good)
           (if ¬ p.isV t ∧ τ t then p.β else 1) *
           if p.isV t ∧ τ t = false then
             1 + p.α⁻¹ * if W.1.1.edge t = W.2.1.edge t then 1 else 0 else 1) := by
-    by_cases ht : p.isV t <;> by_cases hτ : τ t = true
-    · simp [Quad.weight, ht, hτ]
-    · simp [Quad.weight, ht, hτ]
+    by_cases ht : p.isV t
+    · by_cases hτ : τ t = true <;> simp [Quad.weight, ht, hτ]
+    by_cases hτ : τ t = true
     · simp only [Quad.weight, ht, hτ, Bool.false_eq_true, ite_false, ite_true, not_false_eq_true,
         false_and, and_self, mul_one]
       gcongr
@@ -278,14 +278,13 @@ theorem second_trace_le (hp : p.Good)
     have hnn (τ : Fin p.n → Bool) :
         0 ≤ if W.HasType τ then p.D * ∏ t, W.weight p (τ t) t else 0 := by
       split_ifs
-      · exact mul_nonneg (Nat.cast_nonneg _) (Finset.prod_nonneg fun t _ => W.weight_nonneg hp _ t)
-      · rfl
+      exacts [mul_nonneg (Nat.cast_nonneg _) (Finset.prod_nonneg fun t _ => W.weight_nonneg hp _ t),
+        le_rfl]
     by_cases h : W.HasType W.type
     · simp only [h, ite_true]
       rw [← Nat.cast_sum]
-      refine (sum_local_le hp hcard W).trans (le_trans (le_of_eq ?_)
+      exact (sum_local_le hp hcard W).trans ((ite_eq_left h).ge.trans
         (Finset.single_le_sum (fun τ _ => hnn τ) (Finset.mem_univ W.type)))
-      rw [ite_eq_left h]
     · simp only [h, ite_false, Finset.sum_const_zero]
       exact Finset.sum_nonneg fun τ _ => hnn τ
   refine second_trace_le_sum_local.trans ?_
