@@ -1046,19 +1046,15 @@ theorem mul_sum_clog_le_cost_of_computesMonotoneShift {n q m : ℕ}
         (↑(univ : Finset (Fin (n * q))) : Set (Fin (n * q))).PairwiseDisjoint (pathGates k) := by
       intro u₁ _ u₂ _ hne
       change Disjoint (pathGates k u₁) (pathGates k u₂)
-      rw [disjoint_left]
-      intro g hg₁ hg₂
-      have heq₁ := ((hpath k u₁).2.1 g hg₁).1 (fun r => decide (r = u₁))
-      have heq₂ := ((hpath k u₂).2.1 g hg₂).1 (fun r => decide (r = u₁))
-      have hcontra := heq₁.symm.trans heq₂
-      simp [hne.symm] at hcontra
+      refine disjoint_left.2 fun g hg₁ hg₂ => ?_
+      have := (((hpath k u₁).2.1 g hg₁).1 fun r => decide (r = u₁)).symm.trans
+        (((hpath k u₂).2.1 g hg₂).1 fun r => decide (r = u₁))
+      simp [hne.symm] at this
     rw [← card_biUnion hdisj, card_eq_sum_ones, c.program.cost_eq_sum]
     calc ∑ g ∈ univ.biUnion (pathGates k), 1
-        = ∑ g ∈ univ.biUnion (pathGates k), binaryCost (c.program.lines g).op := by
-          refine sum_congr rfl fun g hg => ?_
-          rw [mem_biUnion] at hg
-          obtain ⟨u, _, hgu⟩ := hg
-          exact (((hpath k u).2.1 g hgu).2).symm
+        = ∑ g ∈ univ.biUnion (pathGates k), binaryCost (c.program.lines g).op :=
+          sum_congr rfl fun g hg => by
+            obtain ⟨u, _, hgu⟩ := mem_biUnion.1 hg; exact ((hpath k u).2.1 g hgu).2.symm
       _ ≤ ∑ g : Fin c.size, binaryCost (c.program.lines g).op :=
           sum_le_univ_sum_of_nonneg fun _ => Nat.zero_le _
   -- Step (c): for each output `(j, b)`, the `n` shifts `k = j - i` have path-length sum ≥ ∑ clog.
@@ -1072,27 +1068,19 @@ theorem mul_sum_clog_le_cost_of_computesMonotoneShift {n q m : ℕ}
       intro d
       let inWire : Fin n → Fin (n * q + m) :=
         fun i => Fin.castAdd m (finProdFinEquiv (i, b))
-      have hinj : Function.Injective inWire := fun i₁ i₂ h => by
-        have h' := Fin.castAdd_injective (n * q) m h
-        exact (Prod.mk.inj (finProdFinEquiv.injective h')).1
+      have hinj : Function.Injective inWire := fun i₁ i₂ h =>
+        (Prod.mk.inj (finProdFinEquiv.injective (Fin.castAdd_injective (n * q) m h))).1
       calc ((univ : Finset (Fin n)).filter fun i => L i ≤ d).card
           = (((univ : Finset (Fin n)).filter fun i => L i ≤ d).image inWire).card :=
             (card_image_of_injective _ hinj).symm
         _ ≤ (inputsWithin c.program d w).card := by
             refine card_le_card fun v hv => ?_
-            rw [mem_image] at hv
-            obtain ⟨i, hi, rfl⟩ := hv
-            rw [mem_filter] at hi
+            obtain ⟨i, hi, rfl⟩ := mem_image.1 hv
+            have hji : (cyclicShiftPerm (cyclicShiftPerm i j)).symm i = j :=
+              show i + (j - i) = j by rw [add_comm, sub_add_cancel]
             have hmem := (hpath (cyclicShiftPerm i j) (finProdFinEquiv (i, b))).1
-            have hout_eq :
-                outIdx (cyclicShiftPerm i j) (finProdFinEquiv (i, b)) =
-                  finProdFinEquiv (j, b) := by
-              have hji : (cyclicShiftPerm (cyclicShiftPerm i j)).symm i = j := by
-                change i + (j - i) = j
-                rw [add_comm, sub_add_cancel]
-              simp only [outIdx, Equiv.symm_apply_apply, hji]
-            rw [hout_eq] at hmem
-            exact inputsWithin_mono c.program hi.2 w hmem
+            simp only [outIdx, Equiv.symm_apply_apply, hji] at hmem
+            exact inputsWithin_mono c.program (mem_filter.1 hi).2 w hmem
         _ ≤ 2 ^ d := card_inputsWithin_le_two_pow c.program d w
     simpa [L] using sum_clog_le_sum_of_card_filter_le_two_pow (univ : Finset (Fin n)) L hcard
   -- Combine Steps (b) and (c) by reindexing `k = cyclicShiftPerm i j = j - i`.
@@ -1103,29 +1091,17 @@ theorem mul_sum_clog_le_cost_of_computesMonotoneShift {n q m : ℕ}
       _ ≤ ∑ j : Fin n, ∑ b : Fin q,
             ∑ i : Fin n, (pathGates (cyclicShiftPerm i j) (finProdFinEquiv (i, b))).card :=
           sum_le_sum fun j _ => sum_le_sum fun b _ => hper_output j b
-      _ = ∑ j : Fin n, ∑ i : Fin n,
-            ∑ b : Fin q, (pathGates (cyclicShiftPerm i j) (finProdFinEquiv (i, b))).card :=
-          sum_congr rfl fun _ _ => Finset.sum_comm
-      _ = ∑ i : Fin n, ∑ j : Fin n,
-            ∑ b : Fin q, (pathGates (cyclicShiftPerm i j) (finProdFinEquiv (i, b))).card :=
-          Finset.sum_comm
       _ = ∑ i : Fin n, ∑ b : Fin q,
             ∑ j : Fin n, (pathGates (cyclicShiftPerm i j) (finProdFinEquiv (i, b))).card :=
-          sum_congr rfl fun _ _ => Finset.sum_comm
+          (sum_congr rfl fun _ _ => Finset.sum_comm).trans
+            (Finset.sum_comm.trans (sum_congr rfl fun _ _ => Finset.sum_comm))
       _ = ∑ i : Fin n, ∑ b : Fin q,
-            ∑ k : Fin n, (pathGates k (finProdFinEquiv (i, b))).card := by
-          refine sum_congr rfl fun i _ => sum_congr rfl fun b _ => ?_
-          exact Equiv.sum_comp (cyclicShiftPerm i)
+            ∑ k : Fin n, (pathGates k (finProdFinEquiv (i, b))).card :=
+          sum_congr rfl fun i _ => sum_congr rfl fun b _ => Equiv.sum_comp (cyclicShiftPerm i)
             fun k => (pathGates k (finProdFinEquiv (i, b))).card
-      _ = ∑ i : Fin n, ∑ k : Fin n,
-            ∑ b : Fin q, (pathGates k (finProdFinEquiv (i, b))).card :=
-          sum_congr rfl fun _ _ => Finset.sum_comm
-      _ = ∑ k : Fin n, ∑ i : Fin n,
-            ∑ b : Fin q, (pathGates k (finProdFinEquiv (i, b))).card :=
-          Finset.sum_comm
-      _ = ∑ k : Fin n, ∑ u : Fin (n * q), (pathGates k u).card := by
-          refine sum_congr rfl fun k _ => ?_
-          rw [← finProdFinEquiv.sum_comp, Fintype.sum_prod_type]
+      _ = ∑ k : Fin n, ∑ u : Fin (n * q), (pathGates k u).card :=
+          (sum_congr rfl fun _ _ => Finset.sum_comm).trans (Finset.sum_comm.trans
+            (sum_congr rfl fun k _ => by rw [← finProdFinEquiv.sum_comp, Fintype.sum_prod_type]))
       _ ≤ ∑ _k : Fin n, c.program.cost binaryCost := sum_le_sum fun k _ => hper_shift k
       _ = n * c.program.cost binaryCost := by simp
   exact Nat.le_of_mul_le_mul_left htotal (Nat.pos_of_ne_zero hn)
