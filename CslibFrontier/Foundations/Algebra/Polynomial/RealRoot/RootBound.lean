@@ -384,9 +384,8 @@ private theorem norm_det_vandermonde_sq_le {d : ℕ} (hd : 2 ≤ d) (r : Fin d �
       refine (pow_le_pow_left₀ (norm_nonneg _) hdiff 2).trans_eq ?_
       rw [mul_pow, mul_pow, ← pow_mul, mul_comm (d - 2) 2]
     have hsum_sq : (∑ k : Fin d, (k : ℝ) ^ 2) ≤ (d : ℝ) ^ 3 / 3 := by
-      have h6 := six_mul_sum_range_sq_le d
       have h6R : (6 : ℝ) * ∑ k ∈ Finset.range d, (k : ℝ) ^ 2 ≤ 2 * (d : ℝ) ^ 3 := by
-        exact_mod_cast h6
+        exact_mod_cast six_mul_sum_range_sq_le d
       rw [← Fin.sum_univ_eq_sum_range] at h6R
       linarith
     have hpowM : (max 1 ‖r j₀‖) ^ (2 * (d - 2)) ≤ (max 1 ‖r j₀‖) ^ (2 * (d - 1)) :=
@@ -416,10 +415,7 @@ private theorem norm_det_vandermonde_sq_le {d : ℕ} (hd : 2 ≤ d) (r : Fin d �
       Finset.prod_const, Finset.filter_ne', Finset.card_erase_of_mem (Finset.mem_univ _),
       Finset.card_univ, Fintype.card_fin, show d + 2 = 3 + (d - 1) by omega, pow_add]
     ring
-  have hprod_M : (∏ i : Fin d, (max 1 ‖r i‖) ^ (2 * (d - 1))) =
-      (∏ i : Fin d, max 1 ‖r i‖) ^ (2 * (d - 1)) := by
-    rw [Finset.prod_pow]
-  rw [hprod_coeff, hprod_M] at hprod_bound
+  rw [hprod_coeff, Finset.prod_pow] at hprod_bound
   exact hhad.trans hprod_bound
 
 /-- Mignotte-type root-separation lower bound in terms of the Mahler measure of `p : ℤ[X]`:
@@ -437,38 +433,29 @@ theorem mignotte_sep_mahler_complex {p : ℤ[X]} (hd : 2 ≤ p.natDegree)
   let pC : ℂ[X] := p.map (algebraMap ℤ ℂ)
   have hinjC : Function.Injective (algebraMap ℤ ℂ) := Int.cast_injective
   have hp0 : p ≠ 0 := fun h0 => by simp only [h0, natDegree_zero] at hd; omega
-  have hleadZ : p.leadingCoeff ≠ 0 := leadingCoeff_ne_zero.mpr hp0
   have hleadC : (algebraMap ℤ ℂ) p.leadingCoeff ≠ 0 := by
-    simp only [eq_intCast, Int.cast_ne_zero, ne_eq]
-    exact hleadZ
+    simpa only [eq_intCast, Int.cast_ne_zero] using leadingCoeff_ne_zero.mpr hp0
   have hdegC : pC.natDegree = d := natDegree_map_eq_of_injective hinjC p
   have hpC0 : pC ≠ 0 := (Polynomial.map_ne_zero_iff hinjC).mpr hp0
   have hpC_sep : pC.Separable := by
-    have hmap : pC = (p.map (algebraMap ℤ ℚ)).map (algebraMap ℚ ℂ) := by
+    rw [show pC = (p.map (algebraMap ℤ ℚ)).map (algebraMap ℚ ℂ) by
       rw [Polynomial.map_map, Subsingleton.elim ((algebraMap ℚ ℂ).comp (algebraMap ℤ ℚ))
-        (algebraMap ℤ ℂ)]
-    rw [hmap]
+        (algebraMap ℤ ℂ)]]
     exact hsep.map
   have hsplits : pC.Splits := IsAlgClosed.splits pC
   have hlen : pC.roots.toList.length = pC.natDegree := by
     rw [Multiset.length_toList, ← hsplits.natDegree_eq_card_roots]
   let L := pC.roots.toList
   let r : Fin pC.natDegree → ℂ := fun i => L[i.1]'(i.2.trans_eq hlen.symm)
-  have hList_eq : List.ofFn r = L := by
-    refine List.ext_get ?_ fun n hn1 hn2 => ?_
-    · rw [List.length_ofFn]
-      exact hlen.symm
-    · simp only [List.get_eq_getElem, List.getElem_ofFn, r]
+  have hList_eq : List.ofFn r = L := List.ext_get (by rw [List.length_ofFn, hlen]) fun n _ _ => by
+    simp only [List.get_eq_getElem, List.getElem_ofFn, r]
   have hr_roots : Finset.univ.val.map r = pC.roots := by
     change Multiset.ofList (List.map r (List.finRange pC.natDegree)) = pC.roots
     rw [← List.ofFn_eq_map, hList_eq, Multiset.coe_toList]
   have hr_inj : Function.Injective r := by
     have hnodup_L : L.Nodup := Multiset.coe_nodup.mp (by
-      rw [Multiset.coe_toList]
-      exact nodup_roots hpC_sep)
-    intro i j hij
-    have heq := (List.Nodup.getElem_inj_iff hnodup_L).mp hij
-    exact Fin.ext heq
+      rw [Multiset.coe_toList]; exact nodup_roots hpC_sep)
+    exact fun i j hij => Fin.ext ((List.Nodup.getElem_inj_iff hnodup_L).mp hij)
   have hα_mem : α ∈ L := Multiset.mem_toList.mpr ((mem_roots hpC0).mpr hα.eq_zero)
   have hβ_mem : β ∈ L := Multiset.mem_toList.mpr ((mem_roots hpC0).mpr hβ.eq_zero)
   obtain ⟨i₀', hi₀', hri₀⟩ := List.mem_iff_getElem.mp hα_mem
@@ -477,10 +464,7 @@ theorem mignotte_sep_mahler_complex {p : ℤ[X]} (hd : 2 ≤ p.natDegree)
   let j₀ : Fin pC.natDegree := ⟨j₀', hj₀'.trans_eq hlen⟩
   have hr_i₀ : r i₀ = α := hri₀
   have hr_j₀ : r j₀ = β := hrj₀
-  have hij_ne : i₀ ≠ j₀ := by
-    intro heq
-    apply hne
-    rw [← hr_i₀, ← hr_j₀, heq]
+  have hij_ne : i₀ ≠ j₀ := fun heq => hne (by rw [← hr_i₀, ← hr_j₀, heq])
   have hd_pos : 0 < pC.natDegree := by rw [hdegC]; omega
   have hdiscr_vand := discr_eq_leadingCoeff_pow_mul_det_vandermonde_sq hsplits hd_pos r hr_roots
   have hdiscr_map : pC.discr = ((p.discr : ℤ) : ℂ) := by
@@ -491,10 +475,7 @@ theorem mignotte_sep_mahler_complex {p : ℤ[X]} (hd : 2 ≤ p.natDegree)
   have hpC_discr_ne0 : pC.discr ≠ 0 := by
     rw [hdiscr_vand]
     exact mul_ne_zero (pow_ne_zero _ (leadingCoeff_ne_zero.mpr hpC0)) (pow_ne_zero _ hvand_ne0)
-  have hp_discr_ne0 : p.discr ≠ 0 := by
-    intro hz
-    apply hpC_discr_ne0
-    rw [hdiscr_map, hz, Int.cast_zero]
+  have hp_discr_ne0 : p.discr ≠ 0 := fun hz => hpC_discr_ne0 (by rw [hdiscr_map, hz, Int.cast_zero])
   have hdiscr_norm_ge1 : (1 : ℝ) ≤ ‖pC.discr‖ := by
     rw [hdiscr_map, Complex.norm_intCast]
     exact_mod_cast Int.one_le_abs hp_discr_ne0
