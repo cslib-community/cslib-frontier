@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing
+import CslibFrontier.Foundations.Geometry.FiniteLineAvoidance
 import CslibFrontier.Foundations.Geometry.Polygonal.RouteInterior
 
 /-!
@@ -21,6 +22,7 @@ identifies the remaining intersections as shared graph endpoints.
 
 * `HasRegularContacts` records the local segment and vertex contact conditions.
 * `HasRegularContacts.edge_contact_cases` classifies contacts between two distinct edges.
+* `HasRegularContacts.open_inter_subsingleton` bounds each indexed open intersection.
 * `HasRegularContacts.point_notMem_other_support` excludes listed points from independent edges.
 -/
 
@@ -75,6 +77,17 @@ structure HasRegularContacts {G : Graph} (D : PolygonalDrawing G) : Prop where
     ¬∀ i, z ∈ openSegment ℝ (D.segmentStart (f i)) (D.segmentFinish (f i))
   /-- Different edges can only share listed endpoints at declared vertices. -/
   shared_ends_are_vertices : D.SharedSegmentEndsAreVertices
+
+/-- Distinct segment occurrences in a regular drawing have at most one open point in common. -/
+theorem HasRegularContacts.open_inter_subsingleton {G : Graph} {D : PolygonalDrawing G}
+    (hD : D.HasRegularContacts) (i j : D.SegmentIndex) (hij : i ≠ j) :
+    (openSegment ℝ (D.segmentStart i) (D.segmentFinish i) ∩
+      openSegment ℝ (D.segmentStart j) (D.segmentFinish j)).Subsingleton := by
+  intro x hx y hy
+  have hne := hD.lines_ne_at_intersections i j hij x hx.1 hx.2
+  exact (segment_inter_subsingleton_of_affineSpan_ne hne).anti
+    (Set.inter_subset_inter (openSegment_subset_segment ℝ _ _)
+      (openSegment_subset_segment ℝ _ _)) hx hy
 
 /-- A contact between two different edges is either in both segment interiors
 or at matching ends of the two graph routes. -/
