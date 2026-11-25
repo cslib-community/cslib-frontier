@@ -112,21 +112,14 @@ private theorem realize_openFormula {L' : Language} {M : Type*} [L'.Structure M]
     (φ : L'.BoundedFormula (Fin m) k) (w : Fin (m + k) → M) :
     (openFormula φ).Realize w ↔ evalSub φ w := by
   rw [openFormula, Formula.realize_relabel, BoundedFormula.realize_toFormula]
-  have hl : (w ∘ finSumFinEquiv) ∘ Sum.inl = w ∘ Fin.castAdd k :=
-    funext fun i => congrArg w (finSumFinEquiv_apply_left i)
-  have hr : (w ∘ finSumFinEquiv) ∘ Sum.inr = w ∘ Fin.natAdd m :=
-    funext fun j => congrArg w (finSumFinEquiv_apply_right j)
-  rw [hl, hr]
-  rfl
+  exact iff_of_eq (congrArg₂ _
+    (funext fun i => congrArg w (finSumFinEquiv_apply_left i))
+    (funext fun j => congrArg w (finSumFinEquiv_apply_right j)))
 
 private theorem evalSub_zero {L' : Language} {M : Type*} [L'.Structure M] {m : ℕ}
     (φ : L'.Formula (Fin m)) (w : Fin m → M) :
-    evalSub (k := 0) φ w ↔ φ.Realize w := by
-  have hl : w ∘ Fin.castAdd 0 = w := funext fun _ => rfl
-  have hr : w ∘ (Fin.natAdd m : Fin 0 → Fin m) = default := Subsingleton.elim _ _
-  change BoundedFormula.Realize φ (w ∘ Fin.castAdd 0) (w ∘ (Fin.natAdd m : Fin 0 → Fin m)) ↔
-    BoundedFormula.Realize φ w default
-  rw [hl, hr]
+    evalSub (k := 0) φ w ↔ φ.Realize w :=
+  iff_of_eq (congrArg (BoundedFormula.Realize φ w) (Subsingleton.elim _ _))
 
 private theorem evalSub_imp {L' : Language} {M : Type*} [L'.Structure M] {m k : ℕ}
     (φ₁ φ₂ : L'.BoundedFormula (Fin m) k) (w : Fin (m + k) → M) :
@@ -206,9 +199,7 @@ private theorem comp_stepRightArg {M : Type*} {N : ℕ} (u : Fin (N + 2) → M) 
     u ∘ stepRightArg N =
       Fin.snoc (fun i => u (Fin.castSucc (Fin.castSucc i))) (u (Fin.last (N + 1))) := by
   funext p
-  refine Fin.lastCases ?_ (fun i => ?_) p
-  · simp only [Function.comp_apply, stepRightArg, Fin.lastCases_last, Fin.snoc_last]
-  · simp only [Function.comp_apply, stepRightArg, Fin.lastCases_castSucc, Fin.snoc_castSucc]
+  exact Fin.lastCases (by simp [stepRightArg]) (fun _ => by simp [stepRightArg]) p
 
 /-- Definite clauses for a quantifier-free base case `φ`: `openFormula φ → pos_φ` and
 `∼openFormula φ → neg_φ`. -/
@@ -482,14 +473,10 @@ private theorem rootTarget_le_of_holds_auxClauses :
             (by
               rw [realize_succ, Term.realize_var, Term.realize_var]
               simp only [u, Fin.snoc_last, Fin.snoc_castSucc])
-            (by
-              refine List.forall_mem_cons.mpr ⟨?_, List.forall_mem_singleton.mpr ?_⟩
-              · change u ∘ Fin.castSucc ∈ R (.inr (.inl ()))
-                rw [hleft]
-                exact ihj hj₀
-              · change u ∘ stepRightArg (m + k) ∈ R (.inr (.inr (.inl true)))
-                rw [hright]
-                exact ih true (hw ⟨j + 1, hj⟩))
+            (List.forall_mem_cons.mpr
+              ⟨show u ∘ Fin.castSucc ∈ R (.inr (.inl ())) from hleft.symm ▸ ihj hj₀,
+                List.forall_mem_singleton.mpr (show u ∘ stepRightArg (m + k) ∈
+                  R (.inr (.inr (.inl true))) from hright.symm ▸ ih true (hw ⟨j + 1, hj⟩))⟩)
           change u ∘ stepRightArg (m + k) ∈ R (.inr (.inl ())) at hu
           rwa [hright] at hu
       have hn : 2 ≤ n := Fact.out
