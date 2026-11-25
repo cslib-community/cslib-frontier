@@ -2743,8 +2743,6 @@ the unmodified RAW ranks and the completed maximum through the original source/u
 normalizer. Same-slice stationarity proves that the preparatory walk preserves this
 literal normalizer exactly; pointwise PREP need not converge to pointwise true preparation.
 The decoder's reusable stability API therefore accepts the normalizer difference directly.
-The former pointwise PREP moment estimate is retained as an optional coarse bound, not the
-allocation route.
 
 The actual pre-walk incoming preparation responds to RAW perturbations through the original
 row, incoming-column and source-by-terminal ranks. Conditional Jensen and the full rectangle
