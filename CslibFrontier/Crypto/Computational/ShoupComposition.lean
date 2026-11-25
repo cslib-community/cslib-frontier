@@ -481,8 +481,7 @@ private theorem computableInPolyTime_shoupAdvance {γ : Type} {encIn : γ ↪ Li
       dsimp only [iterF, shoupIterStep, par]
       exact ⟨by omega, hstep_len a _ (length_shoupStepInput _ _ _ _ _ _)⟩)
     (size := fun a => 2 * (lo a + hi a + b a) + 4)
-    (ComputableInPolyTime.polyBounded (show ComputableInPolyTime
-      (fun a => 2 * (lo a + hi a + b a) + 4) encIn encUnary from by fun_prop))
+    (ComputableInPolyTime.polyBounded (by fun_prop))
     (fun a i acc hi_lt ⟨hacc1, hacc2⟩ => by
       simp only [length_encPair, encUnary_apply, encBits_apply, List.length_replicate, hacc2]
       omega)
@@ -637,11 +636,9 @@ theorem length_shoupPackMasks (b s t iStar : ℕ) (step : List Bool → List Boo
     rw [Function.iterate_succ_apply]
     apply ih
     dsimp only [shoupPackStep]
-    by_cases htrig : (decide (acc.rem - 1 = 0) || shoupIsLastOcc iStar (acc.rem - 1)) = true
-    · simp only [htrig, ↓reduceIte]
-      exact BitString.length_replaceRow (BitString.length_listXor _ _) _
-    · simp only [Bool.eq_false_iff.mpr htrig, Bool.false_eq_true, ↓reduceIte]
-      exact h
+    split <;> dsimp only
+    · exact BitString.length_replaceRow (BitString.length_listXor _ _) _
+    · exact h
 
 private theorem padicValNat_two_lt_maskCount {a t : ℕ} (h : a ≤ t) :
     padicValNat 2 a < shoupMaskCount t :=
