@@ -110,7 +110,8 @@ theorem IsPartitionCover.of_embedding {C : κ → Set X × Set Y}
     · obtain ⟨w, rfl⟩ := hw'
       rw [e.injective.extend_apply] at hxC hyC
       exact hmem w x hx hxC y hy hyC
-    · simp [Function.extend_apply' _ _ _ hw'] at hxC
+    · rw [Function.extend_apply' _ _ _ hw'] at hxC
+      exact absurd hxC (Set.notMem_empty x)
   · obtain ⟨w, hw, hunique⟩ := hcov x hx y hy hR
     refine ⟨e w, ?_, fun w' hw' => ?_⟩
     · dsimp only
@@ -120,7 +121,8 @@ theorem IsPartitionCover.of_embedding {C : κ → Set X × Set Y}
       · obtain ⟨u, rfl⟩ := hex
         rw [e.injective.extend_apply] at hw'
         exact congrArg e (hunique u hw')
-      · simp [Function.extend_apply' _ _ _ hex] at hw'
+      · rw [Function.extend_apply' _ _ _ hex] at hw'
+        exact absurd hw'.1 (Set.notMem_empty x)
 
 /-- A partition cover indexed by a finite type `κ` bounds `partitionCoverNumber` by `|κ|`. -/
 theorem IsPartitionCover.partitionCoverNumber_le [Fintype κ] {C : κ → Set X × Set Y}
@@ -197,7 +199,9 @@ theorem coverNumber_le_sum_fibers {ι₁ ι₂ : Type*} [Fintype ι₁] [Fintype
     obtain ⟨w, hw1, hw2⟩ := (hC (f x) (g y)).2 x ⟨hxA, rfl⟩ y ⟨hyB, rfl⟩ hR
     exact ⟨⟨(f x, g y), w⟩, ⟨rfl, hw1⟩, ⟨rfl, hw2⟩⟩
   refine hcov.coverNumber_le.trans_eq ?_
-  simp [κ, Fintype.card_sigma, Fintype.sum_prod_type]
+  congr 1
+  rw [Fintype.card_sigma, Fintype.sum_prod_type]
+  simp only [Fintype.card_fin]
 
 /-- Partitioning `A` by `f : X → ι₁` and `B` by `g : Y → ι₂` bounds `partitionCoverNumber` by the
 sum of the fiberwise partition cover numbers. -/
@@ -215,10 +219,15 @@ theorem partitionCoverNumber_le_sum_fibers {ι₁ ι₂ : Type*} [Fintype ι₁]
       (hC i j).1 w x ⟨hxA, hxC.1⟩ hxC.2 y ⟨hyB, hyC.1⟩ hyC.2, fun x hxA y hyB hR => ?_⟩
     obtain ⟨w, ⟨hw1, hw2⟩, hunique⟩ := (hC (f x) (g y)).2 x ⟨hxA, rfl⟩ y ⟨hyB, rfl⟩ hR
     refine ⟨⟨(f x, g y), w⟩, ⟨⟨rfl, hw1⟩, ⟨rfl, hw2⟩⟩, ?_⟩
-    rintro ⟨⟨i', j'⟩, w'⟩ ⟨⟨rfl, hxC'⟩, ⟨rfl, hyC'⟩⟩
+    rintro ⟨⟨i', j'⟩, w'⟩ ⟨⟨hxi, hxC'⟩, ⟨hyj, hyC'⟩⟩
+    have hi : i' = f x := hxi.symm
+    have hj : j' = g y := hyj.symm
+    subst hi hj
     exact congrArg (Sigma.mk (f x, g y)) (hunique w' ⟨hxC', hyC'⟩)
   refine hcov.partitionCoverNumber_le.trans_eq ?_
-  simp [κ, Fintype.card_sigma, Fintype.sum_prod_type]
+  congr 1
+  rw [Fintype.card_sigma, Fintype.sum_prod_type]
+  simp only [Fintype.card_fin]
 
 /-! ### Equivalence with `(ℕ, +, ·)`-semiring rank (`rk_+`) -/
 
@@ -251,9 +260,12 @@ theorem partitionCoverNumber_eq_iInf_nonnegRank_nat (z : Bool) (R : X → Y → 
       partitionCoverNumber_le_iff.2 ⟨fun i => ({x | T x i ≠ 0}, {y | U i y ≠ 0}), ?_, ?_⟩
     · intro i x _ hx y _ hy
       by_contra hRz
-      have hM0 := h0 x y hRz
-      rw [← hTU, Matrix.mul_apply, sum_eq_zero_iff] at hM0
-      exact mul_ne_zero hx hy (hM0 i (mem_univ i))
+      have hM0 : M x y = 0 := h0 x y hRz
+      rw [← hTU, Matrix.mul_apply] at hM0
+      have hterm : T x i * U i y ≤ ∑ k : Fin r, T x k * U k y :=
+        single_le_sum (f := fun k : Fin r => T x k * U k y) (fun _ _ => Nat.zero_le _) (mem_univ i)
+      have hpos : 0 < T x i * U i y := Nat.mul_pos (Nat.pos_of_ne_zero hx) (Nat.pos_of_ne_zero hy)
+      omega
     · intro x _ y _ hRnz
       have hM1 : ∑ k : Fin r, T x k * U k y = 1 := by
         rw [← Matrix.mul_apply, hTU]
@@ -271,17 +283,22 @@ theorem partitionCoverNumber_eq_iInf_nonnegRank_nat (z : Bool) (R : X → Y → 
       rw [sum_eq_single i₀]
       · simp only [T, U, hx₀, hy₀, ↓reduceIte, mul_one]
       · intro i _ hi
-        simp only [T, U, mul_eq_zero, ite_eq_right_iff, one_ne_zero, imp_false]
-        by_contra! h
-        exact hi (huniq i h)
-      · simp
+        have hnot : ¬(x ∈ (C i).1 ∧ y ∈ (C i).2) := fun h => hi (huniq i h)
+        by_cases hx : x ∈ (C i).1
+        · have hy : y ∉ (C i).2 := fun hy => hnot ⟨hx, hy⟩
+          simp only [T, U, hx, hy, ↓reduceIte, mul_zero]
+        · simp only [T, hx, ↓reduceIte, zero_mul]
+      · intro hi₀
+        exact absurd (mem_univ i₀) hi₀
     have hM0 : ∀ x y, ¬R x y z → M x y = 0 := by
       intro x y hRz
       change ∑ i : Fin r, T x i * U i y = 0
       refine sum_eq_zero fun i _ => ?_
-      simp only [T, U, mul_eq_zero, ite_eq_right_iff, one_ne_zero, imp_false]
-      by_contra! h
-      exact hRz (hC.1 i x (Set.mem_univ x) h.1 y (Set.mem_univ y) h.2)
+      by_cases hx : x ∈ (C i).1
+      · have hy : y ∉ (C i).2 := fun hy =>
+          hRz (hC.1 i x (Set.mem_univ x) hx y (Set.mem_univ y) hy)
+        simp only [T, U, hx, hy, ↓reduceIte, mul_zero]
+      · simp only [T, hx, ↓reduceIte, zero_mul]
     have hfac : M.HasNonnegFactorization (Fin r) :=
       ⟨T, U, fun _ _ => Nat.zero_le _, fun _ _ => Nat.zero_le _, rfl⟩
     exact iInf_le_of_le M (iInf_le_of_le ⟨hM1, hM0⟩
