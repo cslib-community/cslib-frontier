@@ -208,8 +208,8 @@ private theorem card_oneInclusionEdges_fin_le :
       have hsub : (↑(T false ∪ T true) : Set (Fin n → Bool)) ⊆
           Fin.tail '' (S : Set (Fin (n + 1) → Bool)) := fun g hg => by
         rcases mem_union.mp hg with h | h <;> exact ⟨_, (mem_filter.mp h).2, Fin.tail_cons _ _⟩
-      simpa only [card_map] using
-        hS (W.map (Fin.succEmb n)) (by rw [coe_map]; exact setShatters_image_succ (hW.superset hsub))
+      simpa only [card_map] using hS (W.map (Fin.succEmb n))
+        (by rw [coe_map]; exact setShatters_image_succ (hW.superset hsub))
     have hsh_inter : ∀ W : Finset (Fin n),
         SetShatters (↑(T false ∩ T true) : Set (Fin n → Bool)) ↑W → W.card + 1 ≤ d := by
       intro W hW
@@ -749,7 +749,8 @@ theorem isPACLearnerFor_oneInclusionLearner {C : ConceptClass α Bool} {d m : �
         (measurable_snd.comp measurable_snd)).compl
     exact measurable_measure_prodMk_left hmis
   calc μ {S | (ε.val : ℝ≥0∞) < error D (oneInclusionLearner C S)}
-      ≤ μ {S | (ε.val : ℝ≥0∞) ≤ error D (oneInclusionLearner C S)} := measure_mono (Set.ofPred_subset_ofPred.2 fun _ => le_of_lt)
+      ≤ μ {S | (ε.val : ℝ≥0∞) ≤ error D (oneInclusionLearner C S)} :=
+        measure_mono (Set.ofPred_subset_ofPred.2 fun _ => le_of_lt)
     _ ≤ (∫⁻ S, error D (oneInclusionLearner C S) ∂μ) / ε.val :=
         meas_ge_le_lintegral_div hmeas_err.aemeasurable hε ENNReal.coe_ne_top
     _ ≤ (d : ℝ≥0∞) / (m + 1) / ε.val := by
