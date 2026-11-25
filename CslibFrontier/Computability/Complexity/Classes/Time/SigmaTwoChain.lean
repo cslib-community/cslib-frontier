@@ -456,12 +456,13 @@ theorem mem_SigmaTwoTIME_of_chain {π σ : Type} {eP : π ↪ List Bool} {eS : �
       rfl
     refine ⟨u, hlen, fun v hv => ?_⟩
     change chainCheck rF rG (eP (P a)) (eS s₀) u v = true
-    rcases hR : cvRest (eS s₀) u v with _ | ⟨w, _ | ⟨w', r⟩⟩
+    rcases hR : cvRest (eS s₀) u v with _ | ⟨w, rest⟩
     · exact chainCheck_nil hR
-    · have hR' := hR
-      rw [cvRest, hws] at hR'
-      obtain ⟨hi, hw, hr⟩ := drop_map_range_eq_cons hR'
-      have him : leadingTrues v = m := by
+    have hR' := hR
+    rw [cvRest, hws] at hR'
+    obtain ⟨hi, hw, hr⟩ := drop_map_range_eq_cons hR'
+    rcases rest with _ | ⟨w', r⟩
+    · have him : leadingTrues v = m := by
         by_contra hne
         rw [List.drop_eq_getElem_cons (by simp; omega)] at hr
         exact List.cons_ne_nil _ _ hr.symm
@@ -469,17 +470,12 @@ theorem mem_SigmaTwoTIME_of_chain {π σ : Type} {eP : π ↪ List Bool} {eS : �
       simp only [encPair_apply, encBool_apply, hgoalm] at hg
       rw [chainCheck_single hR, hw, him, hg]
       rfl
-    · have hR' := hR
-      rw [cvRest, hws] at hR'
-      obtain ⟨hi, hw, hr⟩ := drop_map_range_eq_cons hR'
-      obtain ⟨hi', hw', -⟩ := drop_map_range_eq_cons hr.symm
+    · obtain ⟨hi', hw', -⟩ := drop_map_range_eq_cons hr.symm
       rw [chainCheck_cons_cons hR, hu₁, hw, hw']
       have hx := heqF u (P a, (step^[leadingTrues v] s₀, bw))
         (hlen ▸ hLF (hTn _ (by omega)))
-      have hnext' : next (P a, (step^[leadingTrues v] s₀, bw)) =
-          step^[leadingTrues v + 1] s₀ := by
-        rw [Function.iterate_succ_apply']
-      rw [hnext'] at hx
+      rw [show next (P a, (step^[leadingTrues v] s₀, bw)) = step^[leadingTrues v + 1] s₀ from
+        (Function.iterate_succ_apply' step _ _).symm] at hx
       simp only [encPair_apply, encBits_apply, encBool_apply] at hx
       rw [hx]
       simp
