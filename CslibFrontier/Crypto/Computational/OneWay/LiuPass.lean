@@ -208,9 +208,7 @@ private theorem computableInPolyTime_truncGen {G : List Bool → List Bool}
     ComputableInPolyTime (truncGen G) (encPair encUnary encBits) encBits := by
   have hGp := hG.comp (ComputableInPolyTime.snd encUnary encBits)
   exact ComputableInPolyTime.bitsTakeWithInput hGp
-    (ComputableInPolyTime.unary_sub'
-      ((ComputableInPolyTime.encoding_length encBits).comp hGp)
-      (ComputableInPolyTime.fst encUnary encBits))
+    (((ComputableInPolyTime.encoding_length encBits).comp hGp).unary_sub' (by fun_prop))
 
 private def thresholdValue (γ d c n : ℕ) : ℕ :=
   let m := n + γ * Nat.log 2 n - c
@@ -219,28 +217,17 @@ private def thresholdValue (γ d c n : ℕ) : ℕ :=
 private theorem computableInPolyTime_thresholdValue (γ d c : ℕ) :
     ComputableInPolyTime (thresholdValue γ d c) encUnary encUnary := by
   unfold thresholdValue
-  have hlog : ComputableInPolyTime (Nat.log 2) encUnary encUnary :=
-    ComputableInPolyTime.binary_log_two.comp ComputableInPolyTime.unary_to_binary
-  have hid : ComputableInPolyTime (fun n : ℕ => n) encUnary encUnary :=
-    ComputableInPolyTime.id'
-  have hc (k : ℕ) : ComputableInPolyTime (fun _ : ℕ => k) encUnary encUnary :=
-    ComputableInPolyTime.const k
+  have hlog := ComputableInPolyTime.unary_log_two
   have hm := ComputableInPolyTime.unary_sub'
-    (ComputableInPolyTime.unary_add' hid (ComputableInPolyTime.unary_mul' (hc γ) hlog)) (hc c)
-  have hleft := ComputableInPolyTime.unary_sub' hm
-    (ComputableInPolyTime.unary_add' (ComputableInPolyTime.unary_mul' (hc 2) hlog) (hc 3))
-  exact ComputableInPolyTime.unary_sub' hleft
-    (ComputableInPolyTime.unary_mul' (hc d)
-      (ComputableInPolyTime.unary_add' (hlog.comp hm) (hc 1)))
+    (ComputableInPolyTime.unary_add' .id' (ComputableInPolyTime.unary_mul' (.const γ) hlog))
+    (.const c)
+  exact ComputableInPolyTime.unary_sub'
+    (hm.unary_sub' (ComputableInPolyTime.unary_add' (.unary_mul' (.const 2) hlog) (.const 3)))
+    (ComputableInPolyTime.unary_mul' (.const d) (.unary_add' (hlog.comp hm) (.const 1)))
 
 private theorem computableInPolyTime_mul_log_two_succ (d : ℕ) :
     ComputableInPolyTime (fun x : List Bool => d * (Nat.log 2 x.length + 1)) encBits encNat :=
-  ComputableInPolyTime.unary_to_binary.comp
-    (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const d)
-      (ComputableInPolyTime.unary_add'
-        ((ComputableInPolyTime.binary_log_two.comp ComputableInPolyTime.unary_to_binary).comp
-          (ComputableInPolyTime.encoding_length encBits))
-        (ComputableInPolyTime.const 1)))
+  ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
 
 private noncomputable def thresholdDistinguisher (γ d c : ℕ) (H : List Bool → ProbComp ℕ) :
     Distinguisher := fun n y =>
@@ -255,8 +242,7 @@ private theorem isPPT_thresholdDistinguisher (γ d c : ℕ) {H : List Bool → P
       (fun v => decide (thresholdValue γ d c p.1 ≤ v)) <$>
         H (p.2.take (p.1 + γ * Nat.log 2 p.1 - c)))
   have hp1 := ComputableInPolyTime.fst encUnary encBits
-  have hlog :=
-    (ComputableInPolyTime.binary_log_two.comp ComputableInPolyTime.unary_to_binary).comp hp1
+  have hlog := ComputableInPolyTime.unary_log_two.comp hp1
   have hprep : ComputableInPolyTime
       (fun p : ℕ × List Bool => p.2.take (p.1 + γ * Nat.log 2 p.1 - c))
       (encPair encUnary encBits) encBits :=
@@ -265,28 +251,12 @@ private theorem isPPT_thresholdDistinguisher (γ d c : ℕ) {H : List Bool → P
         (ComputableInPolyTime.unary_add' hp1
           (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const γ) hlog))
         (ComputableInPolyTime.const c))
-  have hcmp : ComputableInPolyTime
-      (fun pair : (ℕ × List Bool) × ℕ => decide (thresholdValue γ d c pair.1.1 ≤ pair.2))
-      (encPair (encPair encUnary encBits) encNat) encBool := by
-    have hthr : ComputableInPolyTime
-        (fun pair : (ℕ × List Bool) × ℕ => thresholdValue γ d c pair.1.1)
-        (encPair (encPair encUnary encBits) encNat) encUnary :=
-      (computableInPolyTime_thresholdValue γ d c).comp
-        ((ComputableInPolyTime.fst encUnary encBits).comp
-          (ComputableInPolyTime.fst _ _))
-    have hmin : ComputableInPolyTime
-        (fun pair : (ℕ × List Bool) × ℕ => min (thresholdValue γ d c pair.1.1) pair.2)
-        (encPair (encPair encUnary encBits) encNat) encUnary :=
-      ComputableInPolyTime.binary_min_unary' hthr (ComputableInPolyTime.snd _ _)
-    have heq :
-        (fun pair : (ℕ × List Bool) × ℕ => decide (thresholdValue γ d c pair.1.1 ≤ pair.2)) =
-        (fun pair : (ℕ × List Bool) × ℕ =>
-          decide (thresholdValue γ d c pair.1.1 ≤ min (thresholdValue γ d c pair.1.1) pair.2)) := by
-      funext pair
-      simp
-    rw [heq]
-    exact ComputableInPolyTime.unary_le' hthr hmin
-  exact (hH.preprocess hprep).map_with hcmp
+  have hthr : ComputableInPolyTime
+      (fun pair : (ℕ × List Bool) × ℕ => thresholdValue γ d c pair.1.1)
+      (encPair (encPair encUnary encBits) encNat) encUnary :=
+    (computableInPolyTime_thresholdValue γ d c).comp (hp1.comp (ComputableInPolyTime.fst _ _))
+  refine (hH.preprocess hprep).map_with ?_
+  simpa using hthr.unary_le' (hthr.binary_min_unary' (ComputableInPolyTime.snd _ _))
 
 /-! ### Theorem 5.2: Conditional EP-PRGs imply $K^t$ is mildly hard on average
 (M2a polynomial-threshold form) -/
@@ -478,11 +448,8 @@ private theorem oneSided_succ_le_of_threshold_bounds
   have hfail_le_sq : 1 - p_succ ≤ 1 / (2 * ((m + 1 : ℕ) : ℝ) ^ 2) := by
     have h1 : (1 : ℝ) ≤ 8 * ((m + 1 : ℕ) : ℝ) ^ (γ + α) := by
       exact_mod_cast Nat.one_le_iff_ne_zero.mpr (by positivity : 8 * (m + 1) ^ (γ + α) ≠ 0)
-    calc
-      1 - p_succ = 1 * (1 - p_succ) := (one_mul _).symm
-      _ ≤ (8 * ((m + 1 : ℕ) : ℝ) ^ (γ + α)) * (1 / ((16 * (m + 1) ^ (γ + α + 2) : ℕ) : ℝ)) :=
-        mul_le_mul h1 hfail_lt.le hfail_nonneg (by positivity)
-      _ = 1 / (2 * ((m + 1 : ℕ) : ℝ) ^ 2) := hq_cancel
+    exact (le_mul_of_one_le_left hfail_nonneg h1).trans
+      ((mul_le_mul_of_nonneg_left hfail_lt.le (by positivity)).trans_eq hq_cancel)
   have h_comb : 1 / (m : ℝ) ≤ 1 / ((m + 1 : ℕ) : ℝ) ^ 2 + 3 / (2 * (n : ℝ) ^ 2) := by
     have hdiv_add : 1 / (2 * (n : ℝ) ^ 2) + 1 / (n : ℝ) ^ 2 = 3 / (2 * (n : ℝ) ^ 2) := by ring
     have hdiv_m : 1 / (2 * ((m + 1 : ℕ) : ℝ) ^ 2) + 1 / (2 * ((m + 1 : ℕ) : ℝ) ^ 2) =
