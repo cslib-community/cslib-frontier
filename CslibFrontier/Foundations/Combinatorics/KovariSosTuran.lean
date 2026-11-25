@@ -70,13 +70,9 @@ theorem kovari_sos_turan (S : Finset (α × β)) {s : ℕ}
   -- The column of `S` at `b`, and its size.
   set col : β → Finset α := fun b => univ.filter fun a => (a, b) ∈ S with hcol
   have hsum : ∑ b, #(col b) = #S := by
-    rw [← card_sigma]
-    refine card_bij (fun p _ => (p.2, p.1)) (fun p hp => by simpa [hcol] using hp) ?_ ?_
-    · rintro ⟨b, a⟩ - ⟨b', a'⟩ - h
-      simp only [Prod.mk.injEq] at h
-      rw [h.1, h.2]
-    · rintro ⟨a, b⟩ h
-      exact ⟨⟨b, a⟩, by simpa [hcol] using h, rfl⟩
+    simp only [hcol, card_filter]
+    rw [sum_comm, ← Fintype.sum_prod_type']
+    simp
   -- Each `s`-element set of rows lies in fewer than `s` columns.
   have hfew : ∀ I ∈ powersetCard s (univ : Finset α),
       #(univ.filter fun b => I ⊆ col b) ≤ s - 1 := by
@@ -143,13 +139,10 @@ theorem kovari_sos_turan (S : Finset (α × β)) {s : ℕ}
       _ = t * (m - t) ^ (t + 1) * m.choose (t + 1) := by ring
   -- `|S| - t n ≤ ∑_b x_b`.
   have hlin : #S - t * n ≤ ∑ b, x b := by
-    rw [← hsum]
-    have : ∑ b, #(col b) ≤ ∑ b, x b + t * n :=
-      calc ∑ b, #(col b) ≤ ∑ b, (x b + t) :=
-            sum_le_sum fun b _ => by simp only [hx]; omega
-        _ = ∑ b, x b + t * n := by
-            rw [sum_add_distrib, sum_const, card_univ, smul_eq_mul, mul_comm]
-    omega
+    rw [← hsum, tsub_le_iff_right]
+    calc ∑ b, #(col b) ≤ ∑ b, (x b + t) := sum_le_sum fun b _ => le_tsub_add
+      _ = ∑ b, x b + t * n := by
+          rw [sum_add_distrib, sum_const, card_univ, smul_eq_mul, mul_comm]
   calc n * (#S - t * n) ^ (t + 1)
       ≤ n * (∑ b, x b) ^ (t + 1) := by gcongr
     _ ≤ n * (n ^ t * ∑ b, x b ^ (t + 1)) := by
