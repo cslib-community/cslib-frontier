@@ -123,9 +123,7 @@ theorem run_repeatedSquaring (k : ℕ) :
   ext1
   · rfl
   · funext r
-    rcases r with _ | _ | _ | r
-    · exact Nat.add_zero _
-    all_goals rfl
+    rcases r with _ | _ | _ | r <;> rfl
 
 /-- On input `k`, the program halts after `4 k + 5` steps. -/
 theorem isHalted_run_repeatedSquaring (k : ℕ) :
@@ -135,8 +133,7 @@ theorem isHalted_run_repeatedSquaring (k : ℕ) :
 /-- On input `k`, the program halts with `2 ^ 2 ^ k` in the output register `0`. -/
 theorem output_run_repeatedSquaring (k : ℕ) :
     (run repeatedSquaring (4 * k + 5) (State.init [k])).regs.output = 2 ^ 2 ^ k := by
-  rw [run_repeatedSquaring]
-  rfl
+  rw [run_repeatedSquaring]; rfl
 
 /-- Under unit cost, the run on `k` takes time `4 k + 5`: it halts after `4 k + 5` steps and not
 before. -/
@@ -145,8 +142,7 @@ theorem time_unitCost_repeatedSquaring (k : ℕ) :
   refine time_unitCost fun j hj hhalt => ?_
   have h := run_eq_of_le (show j ≤ 4 * k + 4 by omega) hhalt
   rw [run_four_mul_add_four_repeatedSquaring] at h
-  rw [← h] at hhalt
-  simp at hhalt
+  simp [← h] at hhalt
 
 /-- **Repeated squaring computes `k ↦ 2 ^ 2 ^ k` within unit time `4 k + 5`.** -/
 theorem computesInTime_unitCost_repeatedSquaring :
@@ -164,16 +160,14 @@ theorem two_pow_lt_of_computesInTime_logCost {p : Program} {T : (Fin 1 → ℕ) 
     (h : ComputesInTime logCost 1 p (fun x => 2 ^ 2 ^ x 0) T) (x : Fin 1 → ℕ) :
     2 ^ x 0 < T x := by
   obtain ⟨n, -, hout, htime⟩ := h x
-  have hx : List.ofFn x = [x 0] := by simp
-  rw [hx] at hout htime
-  have hread : (run p n (State.init [x 0])).regs.read 0 = 2 ^ 2 ^ x 0 := hout
+  rw [show List.ofFn x = [x 0] by simp] at hout htime
   have hinit (r : ℕ) : bitLength ((State.init [x 0]).regs.read r) ≤ bitLength (x 0) := by
     rcases r with _ | r
     · exact le_rfl
-    · change bitLength 0 ≤ _
-      exact one_le_bitLength _
+    · exact one_le_bitLength _
   have hlen := bitLength_read_run_le (p := p) hinit n 0
-  rw [hread, bitLength_two_pow] at hlen
+  rw [show (run p n (State.init [x 0])).regs.read 0 = 2 ^ 2 ^ x 0 from hout,
+    bitLength_two_pow] at hlen
   have hx0 : bitLength (x 0) ≤ 2 ^ x 0 :=
     (bitLength_le_iff (Nat.two_pow_pos _).ne').2
       (Nat.lt_two_pow_self.trans_le (Nat.pow_le_pow_right Nat.two_pos Nat.lt_two_pow_self.le))
@@ -198,11 +192,10 @@ program computing it is bounded by no polynomial in `4 k + 5`: for all `c` and `
 theorem exists_mul_pow_lt_of_computesInTime_logCost {p : Program} {T : (Fin 1 → ℕ) → ℕ}
     (h : ComputesInTime logCost 1 p (fun x => 2 ^ 2 ^ x 0) T) (c d : ℕ) :
     ∃ x : Fin 1 → ℕ, c * (4 * x 0 + 5) ^ d < T x := by
-  have hpoly : PolynomiallyBounded fun k => c * (4 * k + 5) ^ d :=
-    polynomiallyBounded_iff_le.2 ⟨c * 5 ^ d, d, fun k => by
-      rw [mul_assoc, ← mul_pow]
-      exact Nat.mul_le_mul_left c (Nat.pow_le_pow_left (by omega) d)⟩
-  obtain ⟨k, hk⟩ := hpoly.eventually_lt_two_pow.exists
+  obtain ⟨k, hk⟩ := (polynomiallyBounded_iff_le.2 ⟨c * 5 ^ d, d, fun k => by
+    rw [mul_assoc, ← mul_pow]
+    exact Nat.mul_le_mul_left c (Nat.pow_le_pow_left (by omega) d)⟩ :
+      PolynomiallyBounded fun k => c * (4 * k + 5) ^ d).eventually_lt_two_pow.exists
   exact ⟨![k], hk.trans (two_pow_lt_of_computesInTime_logCost h ![k])⟩
 
 end Cslib.RAM

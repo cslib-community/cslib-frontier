@@ -337,14 +337,29 @@ end IPGame
 
 open IPGame
 
+/-- Random coin string `x.2.1` of a repeated verifier message input `(inst, coins, round, tr)`. -/
+abbrev IPGame.msgCoins {α : Type} (x : α × List Bool × ℕ × List Bool) : List Bool := x.2.1
+
+/-- Round index `x.2.2.1` of a repeated verifier message input `(inst, coins, round, tr)`. -/
+abbrev IPGame.msgRound {α : Type} (x : α × List Bool × ℕ × List Bool) : ℕ := x.2.2.1
+
+/-- Transcript prefix `x.2.2.2` of a repeated verifier message input `(inst, coins, round, tr)`. -/
+abbrev IPGame.msgTranscript {α : Type} (x : α × List Bool × ℕ × List Bool) : List Bool := x.2.2.2
+
+/-- Random coin string `x.2.1` of a repeated verifier decision input `(inst, coins, tr)`. -/
+abbrev IPGame.decCoins {α : Type} (x : α × List Bool × List Bool) : List Bool := x.2.1
+
+/-- Full transcript `x.2.2` of a repeated verifier decision input `(inst, coins, tr)`. -/
+abbrev IPGame.decTranscript {α : Type} (x : α × List Bool × List Bool) : List Bool := x.2.2
+
 /-- The messages of `T(n)` parallel copies of a private-coin game verifier `msg` with shape `G`
 and `ρ(n)` coins: copy `i` uses row `i` of the coins. -/
 def IPGame.repeatVerifierMsg (enc : α ↪ List Bool) (G : List (IPMove × Polynomial ℕ))
     (T ρ : Polynomial ℕ) (msg : α × List Bool × ℕ × List Bool → List Bool)
     (x : α × List Bool × ℕ × List Bool) : List Bool :=
   repeatMsg (T.eval (enc x.1).length) (evalShape G (enc x.1).length)
-    (fun i j p => msg (x.1, BitString.listRow (ρ.eval (enc x.1).length) i x.2.1, j, p)) x.2.2.1
-    x.2.2.2
+    (fun i j p => msg (x.1, BitString.listRow (ρ.eval (enc x.1).length) i (msgCoins x), j, p))
+    (msgRound x) (msgTranscript x)
 
 /-- The decision of `T(n)` parallel copies of a private-coin game verifier `dec` with shape `G`
 and `ρ(n)` coins: all copies accept. -/
@@ -352,7 +367,8 @@ def IPGame.repeatVerifierDec (enc : α ↪ List Bool) (G : List (IPMove × Polyn
     (T ρ : Polynomial ℕ) (dec : α × List Bool × List Bool → Bool)
     (x : α × List Bool × List Bool) : Bool :=
   repeatDec (T.eval (enc x.1).length) (evalShape G (enc x.1).length)
-    (fun i t => dec (x.1, BitString.listRow (ρ.eval (enc x.1).length) i x.2.1, t)) x.2.2
+    (fun i t => dec (x.1, BitString.listRow (ρ.eval (enc x.1).length) i (decCoins x), t))
+    (decTranscript x)
 
 theorem IPGame.computableInPolyTime_repeatVerifierMsg {enc : α ↪ List Bool}
     (G : List (IPMove × Polynomial ℕ)) (T ρ : Polynomial ℕ)

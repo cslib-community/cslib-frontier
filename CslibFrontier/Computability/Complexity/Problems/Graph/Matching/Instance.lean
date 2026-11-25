@@ -160,9 +160,9 @@ theorem evenConstraints_matchingInstance (G : Graph) :
       BitString.IsEvenDeltaMatroid {t : Fin c.scope.length → Bool |
         c.rel.sem (List.ofFn t) = true} := by
     simp only [matchingInstance, List.mem_append, List.mem_map, mem_distinctVertices] at hc
-    rcases hc with ⟨v, _, rfl⟩ | ⟨v, _, rfl⟩
-    · exact CSP.Table.isEvenDeltaMatroid_exactlyOne _ (List.cons_ne_nil _ _)
-    · exact CSP.Table.isEvenDeltaMatroid_pinTable false
+    rcases hc with ⟨_, _, rfl⟩ | ⟨_, _, rfl⟩
+    exacts [CSP.Table.isEvenDeltaMatroid_exactlyOne _ (List.cons_ne_nil _ _),
+      CSP.Table.isEvenDeltaMatroid_pinTable false]
   exact fun i => hgood _ (List.getElem_mem i.isLt)
 
 end Cslib.Complexity.Graph

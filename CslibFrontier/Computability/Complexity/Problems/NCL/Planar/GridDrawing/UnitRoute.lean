@@ -103,10 +103,10 @@ private theorem segmentWalk_trace (p q : GridRouting.Point)
     .inl ⟨u, hu, rfl⟩
   rw [Orthogonal.support_segmentWalk haxis, Orthogonal.realPoint_mem_segment_iff haxis] at hm
   dsimp only [integerPoint] at hm
-  refine ⟨(u.1.toNat, u.2.toNat), ?_, ?_⟩
+  refine ⟨(u.1.toNat, u.2.toNat), Prod.ext ?_ ?_, by dsimp only; omega⟩
   · dsimp only [integerPoint]
-    exact Prod.ext (by omega) (by omega)
-  · dsimp only
+    omega
+  · dsimp only [integerPoint]
     omega
 
 /-- Every consecutive pair in the support of a unit-grid walk has Manhattan length one. -/
@@ -116,17 +116,12 @@ private theorem unit_walk_support {a b : Orthogonal.Point} (w : unitGraph.Walk a
   | nil =>
     intro e he
     exact False.elim (List.not_mem_nil he)
-  | @cons a b c hab w ih =>
+  | cons hab w ih =>
     cases w with
     | nil =>
       intro e he
-      obtain rfl := List.mem_singleton.1 he
-      exact hab
-    | cons hbc w =>
-      intro e he
-      rcases List.mem_cons.1 he with rfl | he
-      · exact hab
-      · exact ih e he
+      exact List.mem_singleton.1 he ▸ hab
+    | cons _ _ => exact List.forall_mem_cons.2 ⟨hab, ih⟩
 
 end GridDrawing
 
@@ -147,18 +142,13 @@ private theorem unitWalk_trace {p q : Point} (P : Path p q) (u : Orthogonal.Poin
   | horizontal x x' y =>
     rw [unitWalk, GridDrawing.support_segmentUnitWalk] at hu
     obtain ⟨v, hv, hm⟩ := segmentWalk_trace (x, y) (x', y) (.inr rfl) u hu
-    refine ⟨v, hv, ?_⟩
-    dsimp only [Contains] at hm ⊢
-    omega
-  | vertical x y y' h =>
+    exact ⟨v, hv, by dsimp only [Contains] at hm ⊢; omega⟩
+  | vertical x y y' _ =>
     rw [unitWalk, GridDrawing.support_segmentUnitWalk] at hu
     obtain ⟨v, hv, hm⟩ := segmentWalk_trace (x, y) (x, y') (.inl rfl) u hu
-    refine ⟨v, hv, ?_⟩
-    dsimp only [Contains] at hm ⊢
-    omega
+    exact ⟨v, hv, by dsimp only [Contains] at hm ⊢; omega⟩
   | comp r s ihr ihs =>
-    rw [unitWalk, SimpleGraph.Walk.mem_support_append_iff] at hu
-    rcases hu with hu | hu
+    rcases (SimpleGraph.Walk.mem_support_append_iff _ _).mp hu with hu | hu
     · obtain ⟨x, hx, hp⟩ := ihr hu
       exact ⟨x, hx, .inl hp⟩
     · obtain ⟨x, hx, hp⟩ := ihs hu

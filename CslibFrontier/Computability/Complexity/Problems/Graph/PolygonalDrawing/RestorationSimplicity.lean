@@ -46,28 +46,17 @@ theorem IsEmbedding.restoredRoute_simple {G : Graph} {u v : ℕ}
   let p := D.outsideRoute v ρ j
   let C := D.restoredVertex a b
   have hvertex (side : Bool) : (contractionLift G u v (j, side)).vertex =
-      Dart.vertex (G := G) (e, side) := by
-    exact contractionLift_vertex_contractedIndex G u v e side
+      Dart.vertex (G := G) (e, side) :=
+    contractionLift_vertex_contractedIndex G u v e side
   have htarget (side : Bool) (h : Dart.vertex (G := G) (e, side) = u ∨
-      Dart.vertex (G := G) (e, side) = v) : Dart.vertex (j, side) = v := by
-    apply (contractionLift_vertex_eq_iff G u v (j, side)).mpr
-    simpa only [hvertex] using h
+      Dart.vertex (G := G) (e, side) = v) : Dart.vertex (j, side) = v :=
+    (contractionLift_vertex_eq_iff G u v (j, side)).mpr (by simpa only [hvertex] using h)
   have hball (w : ℕ) (hw : w = u ∨ w = v) : C w ∈ Metric.ball (D.vertex v) ρ :=
     D.restoredVertex_mem_ball huv ha hb w hw
-  have hfirst (w : ℕ) (hw : w = u ∨ w = v) (p : Route) :
-      restoreFirst u v w a b p = Route.prepend (C w) p :=
-    D.restoreFirst_eq_prepend huv w hw a b p
-  have hlast (w : ℕ) (hw : w = u ∨ w = v) (p : Route) :
-      restoreLast u v w a b p = p.append (C w) :=
-    D.restoreLast_eq_append huv w hw a b p
-  have hfirst_none (w : ℕ) (hw : ¬(w = u ∨ w = v)) (p : Route) :
-      restoreFirst u v w a b p = p := restoreFirst_eq_self u v w hw a b p
-  have hlast_none (w : ℕ) (hw : ¬(w = u ∨ w = v)) (p : Route) :
-      restoreLast u v w a b p = p := restoreLast_eq_self u v w hw a b p
   change (restoreLast u v w₁ a b (restoreFirst u v w₀ a b p)).IsSimple
   by_cases h₀ : w₀ = u ∨ w₀ = v
   · by_cases h₁ : w₁ = u ∨ w₁ = v
-    · rw [hlast w₁ h₁, hfirst w₀ h₀]
+    · rw [D.restoreLast_eq_append huv w₁ h₁, D.restoreFirst_eq_prepend huv w₀ h₀]
       apply hD.attach_outsideRoute_simple v hρ hcut (hball w₀ h₀) (hball w₁ h₁) j
         (htarget false h₀) (htarget true h₁) (hsimple j)
       intro s t hs ht heq
@@ -78,14 +67,14 @@ theorem IsEmbedding.restoredRoute_simple {G : Graph} {u v : ℕ}
       apply hD.split_spoke_contact hρ ha hb f hsep hpa hpb
         ⟨(j, false), htarget false h₀⟩ ⟨(j, true), htarget true h₁⟩ hne hs ht
       simpa only [hvertex] using heq
-    · rw [hlast_none w₁ h₁, hfirst w₀ h₀]
+    · rw [restoreLast_eq_self u v w₁ h₁, D.restoreFirst_eq_prepend huv w₀ h₀]
       exact hD.prepend_outsideRoute_simple v hρ hcut (hball w₀ h₀) j
         (htarget false h₀) (hsimple j)
   · by_cases h₁ : w₁ = u ∨ w₁ = v
-    · rw [hlast w₁ h₁, hfirst_none w₀ h₀]
+    · rw [D.restoreLast_eq_append huv w₁ h₁, restoreFirst_eq_self u v w₀ h₀]
       exact hD.append_outsideRoute_simple v hρ hcut (hball w₁ h₁) j
         (htarget true h₁) (hsimple j)
-    · rw [hlast_none w₁ h₁, hfirst_none w₀ h₀]
+    · rw [restoreLast_eq_self u v w₁ h₁, restoreFirst_eq_self u v w₀ h₀]
       exact hsimple j
 
 end Cslib.Complexity.Graph.PolygonalDrawing

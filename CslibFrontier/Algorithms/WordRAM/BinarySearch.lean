@@ -340,15 +340,14 @@ theorem lowerBound_sorted_spec (I : LowerBoundInput) (hsort : I.arr.Pairwise (·
   obtain ⟨_, hb2, hlt_seg, hge_seg⟩ := lowerBound_spec I.ltKey hmono
   refine ⟨by simpa [LowerBoundInput.result] using hb2, fun i hi => ?_, fun i hi hge => ?_⟩
   · have hi_lt : i < I.arr.length := by
-      simp only [LowerBoundInput.result] at hi; omega
-    have h := hlt_seg i (Nat.zero_le _) hi
-    rw [LowerBoundInput.ltKey, decide_eq_true_eq,
-      getElem!_pos I.arr.toArray i (by simpa using hi_lt), List.getElem_toArray] at h
-    exact h
-  · have h := hge_seg i hge hi
-    simp only [LowerBoundInput.ltKey, decide_eq_false_iff_not, not_lt,
-      getElem!_pos I.arr.toArray i (by simpa using hi), List.getElem_toArray] at h
-    exact h
+      simp only [LowerBoundInput.result] at hi
+      omega
+    simpa only [LowerBoundInput.ltKey, decide_eq_true_eq,
+      getElem!_pos I.arr.toArray i (by simpa using hi_lt), List.getElem_toArray] using
+      hlt_seg i (Nat.zero_le _) hi
+  · simpa only [LowerBoundInput.ltKey, decide_eq_false_iff_not, not_lt,
+      getElem!_pos I.arr.toArray i (by simpa using hi), List.getElem_toArray] using
+      hge_seg i hge hi
 
 private abbrev loReg : Fin 10 := 0
 private abbrev hiReg : Fin 10 := 1
@@ -442,66 +441,35 @@ private theorem arrayProbeCode_spec (I : LowerBoundInput) {w : ℕ}
       s'.regs hiReg = s.regs hiReg ∧
       s'.regs midReg = s.regs midReg ∧
       (0 < s'.regs resReg ↔ I.ltKey (s.regs midReg) = true) := by
-  set m := s.regs midReg
-  have hmem_m : s.mem (2 + m) = I.arr[m] := hs.arr_holds.get m hm
-  have hf_addr : Fits w (2 + m) := hw.of_le (by omega)
-  set s₁ := s.set tmpReg (2 + m)
-  have e₁ : ExecWithin w (.op (.bin .add tmpReg arrBaseReg midReg)) s s₁ 1 := by
-    simpa only [BinOp.eval, hs.base_eq] using
-      (ExecWithin.bin (f := .add) (d := tmpReg) (i := arrBaseReg) (j := midReg) (x := s)
-        (by simpa only [BinOp.eval, hs.base_eq] using hf_addr))
-  set s₂ := s₁.set tmpReg I.arr[m]
-  have e₂ : ExecWithin (B := .standard) w (.op (.load tmpReg tmpReg)) s₁ s₂ 1 := by
-    have ht : s₁.regs tmpReg = 2 + m := Data.set_regs_self s tmpReg _
-    have hm' : s₁.mem (s₁.regs tmpReg) = I.arr[m] := ht ▸ hmem_m
-    simpa only [hm'] using (ExecWithin.load (B := .standard) (d := tmpReg) (a := tmpReg) (x := s₁))
-  have hs₂ : ArraySearchInv I s₂ := (hs.set_other tmpReg _).set_other tmpReg _
-  have hs₂_tmp : s₂.regs tmpReg = I.arr[m] := Data.set_regs_self s₁ tmpReg _
-  have hs₂_lo : s₂.regs loReg = s.regs loReg :=
-    (Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_of_ne (by decide) _)
-  have hs₂_hi : s₂.regs hiReg = s.regs hiReg :=
-    (Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_of_ne (by decide) _)
-  have hs₂_mid : s₂.regs midReg = m :=
-    (Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_of_ne (by decide) _)
+  have hmem_m : s.mem (2 + s.regs midReg) = I.arr[s.regs midReg] := hs.arr_holds.get _ hm
+  have hf_addr : Fits w (2 + s.regs midReg) := hw.of_le (by omega)
+  refine WP.exists_execWithin ?_
   unfold arrayProbeCode
-  by_cases hlt : I.arr[m] < I.key
-  · have hc : (Cond.lt tmpReg keyReg).Holds s₂ := by
-      simp only [Cond.holds_lt, hs₂_tmp, hs₂.key_eq]; exact hlt
-    have e₃ : ExecWithin (B := .standard) w
-        (ram[ if tmpReg < keyReg then [ resReg ← oneReg ] else [ resReg ← zeroReg ] ])
-        s₂ (s₂.set resReg 1) 2 := by
-      have ec : ExecWithin (B := .standard) w (.op (.copy resReg oneReg))
-          s₂ (s₂.set resReg 1) 1 := by
-        simpa only [hs₂.one_eq] using
-          (ExecWithin.copy (B := .standard) (d := resReg) (s := oneReg) (x := s₂))
-      exact ExecWithin.branch_pos hc ec
-    refine ⟨s₂.set resReg 1, (e₁.seq (e₂.seq e₃)).mono (by omega),
-      hs₂.set_other resReg 1,
-      (Data.set_regs_of_ne (by decide) 1).trans hs₂_lo,
-      (Data.set_regs_of_ne (by decide) 1).trans hs₂_hi,
-      (Data.set_regs_of_ne (by decide) 1).trans hs₂_mid, ?_⟩
-    simp only [Data.set_regs_self, Nat.zero_lt_one, true_iff, LowerBoundInput.ltKey,
-      decide_eq_true_eq, getElem!_pos I.arr.toArray m (by simpa using hm), List.getElem_toArray]
-    exact hlt
-  · have hc : ¬(Cond.lt tmpReg keyReg).Holds s₂ := by
-      simp only [Cond.holds_lt, hs₂_tmp, hs₂.key_eq]; exact hlt
-    have e₃ : ExecWithin (B := .standard) w
-        (ram[ if tmpReg < keyReg then [ resReg ← oneReg ] else [ resReg ← zeroReg ] ])
-        s₂ (s₂.set resReg 0) 3 := by
-      have ec : ExecWithin (B := .standard) w (.op (.copy resReg zeroReg))
-          s₂ (s₂.set resReg 0) 1 := by
-        simpa only [hs₂.zero_eq] using
-          (ExecWithin.copy (B := .standard) (d := resReg) (s := zeroReg) (x := s₂))
-      exact ExecWithin.branch_neg hc ec
-    refine ⟨s₂.set resReg 0, (e₁.seq (e₂.seq e₃)).mono (by omega),
-      hs₂.set_other resReg 0,
-      (Data.set_regs_of_ne (by decide) 0).trans hs₂_lo,
-      (Data.set_regs_of_ne (by decide) 0).trans hs₂_hi,
-      (Data.set_regs_of_ne (by decide) 0).trans hs₂_mid, ?_⟩
-    simp only [Data.set_regs_self, Nat.lt_irrefl, false_iff, LowerBoundInput.ltKey,
-      Bool.not_eq_true, decide_eq_false_iff_not,
-      getElem!_pos I.arr.toArray m (by simpa using hm), List.getElem_toArray]
-    exact hlt
+  wram_exec [hs.base_eq, hmem_m, hf_addr, hs.key_eq, hs.one_eq, hs.zero_eq]
+  · refine ⟨⟨?_, ?_, ?_, ?_, ?_, hs.arr_holds⟩, ?_, ?_, ?_, ?_⟩
+    · wram_simp [hs.zero_eq]
+    · wram_simp [hs.one_eq]
+    · wram_simp [hs.base_eq]
+    · wram_simp [hs.key_eq]
+    · wram_simp [hs.out_eq]
+    · wram_simp
+    · wram_simp
+    · wram_simp
+    · wram_simp [LowerBoundInput.ltKey,
+        getElem!_pos I.arr.toArray (s.regs midReg) (by simpa using hm),
+        List.getElem_toArray, hc, decide_true]
+  · refine ⟨⟨?_, ?_, ?_, ?_, ?_, hs.arr_holds⟩, ?_, ?_, ?_, ?_⟩
+    · wram_simp [hs.zero_eq]
+    · wram_simp [hs.one_eq]
+    · wram_simp [hs.base_eq]
+    · wram_simp [hs.key_eq]
+    · wram_simp [hs.out_eq]
+    · wram_simp
+    · wram_simp
+    · wram_simp
+    · wram_simp [LowerBoundInput.ltKey,
+        getElem!_pos I.arr.toArray (s.regs midReg) (by simpa using hm),
+        List.getElem_toArray, hc, decide_false, Bool.false_eq_true]
 
 /-- `lowerBoundCode` executes within `13 * (Nat.log 2 |I.arr| + 1) + 13` instructions from
 `Data.init I.encode` whenever `Fits w (|I.arr| + 3)`, writing `[I.result]` as a length-prefixed
@@ -546,34 +514,14 @@ theorem lowerBoundCode_exec (I : LowerBoundInput) {w : ℕ} (hw : Fits w (I.arr.
       y.mem (2 + I.arr.length) = 1 ∧
       y.mem (2 + I.arr.length + 1) = I.result ∧
       Block.HoldsList 2 I.arr y.mem := by
-    set s₁ := x₂.write (2 + I.arr.length) 1
-    have f₁ : ExecWithin (B := .standard) w (.op (.store out oneReg)) x₂ s₁ 1 := by
-      simpa only [hx₂_inv.out_eq, hx₂_inv.one_eq] using
-        (ExecWithin.store (B := .standard) (a := out) (s := oneReg) (x := x₂))
-    set s₂ := s₁.set tmpReg (2 + I.arr.length + 1)
-    have f₂ : ExecWithin w (.op (.bin .add tmpReg out oneReg)) s₁ s₂ 1 := by
-      have ho' : s₁.regs out = 2 + I.arr.length := hx₂_inv.out_eq
-      have h1' : s₁.regs oneReg = 1 := hx₂_inv.one_eq
-      simpa only [BinOp.eval, ho', h1'] using
-        (ExecWithin.bin (f := .add) (d := tmpReg) (i := out) (j := oneReg) (x := s₁)
-          (by simpa only [BinOp.eval, ho', h1'] using hf_out1))
-    set y := s₂.write (2 + I.arr.length + 1) I.result
-    have f₃ : ExecWithin (B := .standard) w (.op (.store tmpReg loReg)) s₂ y 1 := by
-      have ht' : s₂.regs tmpReg = 2 + I.arr.length + 1 := Data.set_regs_self s₁ tmpReg _
-      have hl' : s₂.regs loReg = I.result :=
-        (Data.set_regs_of_ne (by decide) _).trans hx₂_lo
-      simpa only [ht', hl'] using
-        (ExecWithin.store (B := .standard) (a := tmpReg) (s := loReg) (x := s₂))
-    refine ⟨y, f₁.seq (f₂.seq f₃),
-      by simp only [y, s₂, s₁, Data.write_regs, Data.set_regs,
-           Function.update_of_ne (by decide : out ≠ tmpReg)]; exact hx₂_inv.out_eq,
-      ?_, ?_, ?_⟩
-    · simp only [y, s₂, s₁, Data.write_mem, Data.set_mem]
-      rw [Function.update_of_ne (by omega), Function.update_self]
-    · simp only [y, Data.write_mem, Function.update_self]
-    · exact hx₂_inv.arr_holds.frame fun a _ ha2 => by
-        simp only [y, s₂, s₁, Data.write_mem, Data.set_mem]
-        rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
+    refine WP.exists_execWithin ?_
+    unfold lowerBoundFinish
+    wram_exec [hx₂_inv.out_eq, hx₂_inv.one_eq, hx₂_lo, hf_out1]
+    refine ⟨?_, ?_, ?_, hx₂_inv.arr_holds.frame fun a _ ha2 => ?_⟩
+    · wram_simp [hx₂_inv.out_eq]
+    · wram_simp
+    · wram_simp
+    · wram_simp
   obtain ⟨y, efin, hy_out, hy_m0, hy_m1, hy_arr⟩ := hfin
   have hout_list : outputList y.mem (y.regs out) = [I.result] :=
     outputList_eq_iff.mpr ⟨by rw [hy_out, List.length_singleton]; exact hy_m0,

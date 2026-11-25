@@ -85,13 +85,10 @@ theorem RSADesc.unitResidue_injective (desc : RSADesc) : Function.Injective desc
 
 /-- The residues of units are exactly the residues coprime to `N`. -/
 theorem RSADesc.mem_range_unitResidue_iff (desc : RSADesc) (x : Fin desc.modulus) :
-    x ∈ Set.range desc.unitResidue ↔ Nat.Coprime x desc.modulus := by
-  constructor
-  · rintro ⟨u, rfl⟩
-    exact ZMod.val_coe_unit_coprime u
-  · intro hx
-    refine ⟨ZMod.unitOfCoprime x hx, Fin.ext ?_⟩
-    simp [unitResidue, ZMod.val_natCast, Nat.mod_eq_of_lt x.isLt]
+    x ∈ Set.range desc.unitResidue ↔ Nat.Coprime x desc.modulus :=
+  ⟨fun ⟨u, h⟩ => h ▸ ZMod.val_coe_unit_coprime u,
+    fun hx => ⟨ZMod.unitOfCoprime x hx,
+      Fin.ext (by simp [unitResidue, ZMod.val_natCast, Nat.mod_eq_of_lt x.isLt])⟩⟩
 
 /-- The RSA inversion experiment with a uniform unit preimage ([BonehShoup2023], §10.6.2,
 p. 416): sample `desc ← gen n`, draw `x` uniformly from `(ZMod N)ˣ`, and run

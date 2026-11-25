@@ -55,9 +55,7 @@ theorem decodeChecked_encode (encode : Option (View k State b) → Fin ℓ → B
 theorem decodeChecked_invalid (encode : Option (View k State b) → Fin ℓ → Bool)
     (decode : (Fin ℓ → Bool) → Option (View k State b)) (w : Fin ℓ → Bool)
     (hw : ∀ v, encode v ≠ w) : decodeChecked encode decode w = none := by
-  have hnot : ¬ ∀ i, encode (decode w) i = w i :=
-    fun h => hw (decode w) (funext h)
-  simp [decodeChecked, hnot]
+  simp [decodeChecked, show ¬ ∀ i, encode (decode w) i = w i from fun h => hw _ (funext h)]
 
 variable (machine : MultiTapePTM k Bool State) (input : List Bool) (b : ℕ)
   (σ : Schedule k q)
@@ -82,15 +80,12 @@ theorem child_lt (i : ℕ) (hi : 0 < i) (j : Fin (k * 3 + 1)) : child σ i j < i
   | succ n =>
     simp only [child]
     split_ifs with hn
-    · refine Fin.cases ?_ (fun p => ?_) j
-      · simp only [Fin.cases_zero]
-        omega
-      · simp only [Fin.cases_succ]
-        split
-        next => omega
-        next i hp =>
-          have hprev := (lastBefore_eq_some_iff.mp hp).1
-          change (i : ℕ) < n at hprev
+    · refine Fin.cases (by simp) (fun p => ?_) j
+      simp only [Fin.cases_succ]
+      split
+      · omega
+      · next i hp =>
+          have hprev : (i : ℕ) < n := (lastBefore_eq_some_iff.mp hp).1
           omega
     · omega
 
@@ -126,23 +121,9 @@ theorem intervalGate_value {n : ℕ} (hn : n < q) :
   simp only [intervalGate, child, dite_eq_left hn, Fin.cases_zero, Fin.cases_succ,
     Equiv.symm_apply_apply]
   congr 2 with h d : 2
-  split
-  next hfirst =>
-    rw [value]
-    split
-    next => rfl
-    next j hsecond =>
-      have hc := hfirst.symm.trans hsecond
-      cases hc
-  next j hfirst =>
-    split
-    next hsecond =>
-      have hc := hsecond.symm.trans hfirst
-      cases hc
-    next j' hsecond =>
-      have heq : j = j' := Option.some.inj (hfirst.symm.trans hsecond)
-      subst j'
-      rfl
+  cases lastBefore (InWindow σ h (portBlock σ ⟨n, hn⟩ h d)) ⟨n, hn⟩
+  · rw [value]
+  · rfl
 
 variable (hdecode : Function.LeftInverse decode encode)
 
@@ -182,16 +163,14 @@ variable [NeZero b]
 theorem eval_tree_final_eq_some_iff (v : View k State b) :
     (tree machine input b σ encode decode q q).eval = encode (some v) ↔
       actualSchedule machine input b (q := q) = σ ∧ v = trueView machine input b σ q := by
-  rw [eval_tree machine input b σ encode decode hdecode le_rfl le_rfl]
-  rw [hdecode.injective.eq_iff]
+  rw [eval_tree machine input b σ encode decode hdecode le_rfl le_rfl, hdecode.injective.eq_iff]
   exact value_final_eq_some_iff machine input b σ v
 
 /-- A wrong movement guess evaluates to the encoded FAIL value. -/
 theorem eval_tree_final_eq_fail_iff :
     (tree machine input b σ encode decode q q).eval = encode none ↔
       actualSchedule machine input b (q := q) ≠ σ := by
-  rw [eval_tree machine input b σ encode decode hdecode le_rfl le_rfl]
-  rw [hdecode.injective.eq_iff]
+  rw [eval_tree machine input b σ encode decode hdecode le_rfl le_rfl, hdecode.injective.eq_iff]
   exact value_final_eq_none_iff machine input b σ
 
 end Turing.MultiTapePTM.BlockComputation

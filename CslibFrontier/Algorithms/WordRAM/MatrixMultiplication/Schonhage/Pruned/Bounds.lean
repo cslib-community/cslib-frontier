@@ -80,48 +80,35 @@ def magnitudeBound (L A B : ℕ) : ℕ := A + B + 10 ^ L * (A * B)
 /-- The positive-endpoint inequality makes the nonnegative envelope a signed fitting value. -/
 theorem magnitudeBound_fits {w L A B : ℕ} (hw : 0 < w)
     (hfit : magnitudeBound L A B < 2 ^ (w - 1)) :
-    GenericRAM.Signed.Fits w (magnitudeBound L A B : ℤ) := by
-  refine ⟨hw, ?_, ?_⟩
-  · have hp : (0 : ℤ) ≤ 2 ^ (w - 1) := by positivity
-    have hm : (0 : ℤ) ≤ (magnitudeBound L A B : ℕ) := by positivity
-    omega
-  · exact_mod_cast hfit
+    GenericRAM.Signed.Fits w (magnitudeBound L A B : ℤ) :=
+  ⟨hw, (neg_nonpos.mpr (by positivity)).trans (Nat.cast_nonneg _),
+    by exact_mod_cast hfit⟩
 
 /-- The original bound on one input entry derives its signed fit through the common envelope. -/
 theorem fits_left {w L A B : ℕ} {z : ℤ}
     (hfit : GenericRAM.Signed.Fits w (magnitudeBound L A B : ℤ)) (hz : |z| ≤ (A : ℤ)) :
-    GenericRAM.Signed.Fits w z := by
-  apply hfit.of_natAbs_le
-  have hz' : z.natAbs ≤ A := by
-    rw [← Int.natCast_natAbs] at hz
-    exact_mod_cast hz
-  exact hz'.trans (by unfold magnitudeBound; omega)
+    GenericRAM.Signed.Fits w z :=
+  hfit.of_natAbs_le ((Int.ofNat_le.mp (Int.natCast_natAbs z ▸ hz)).trans
+    (by simp only [magnitudeBound]; omega))
 
 /-- The right operand uses the same envelope, including the zero-input boundary. -/
 theorem fits_right {w L A B : ℕ} {z : ℤ}
     (hfit : GenericRAM.Signed.Fits w (magnitudeBound L A B : ℤ)) (hz : |z| ≤ (B : ℤ)) :
-    GenericRAM.Signed.Fits w z := by
-  apply hfit.of_natAbs_le
-  have hz' : z.natAbs ≤ B := by
-    rw [← Int.natCast_natAbs] at hz
-    exact_mod_cast hz
-  exact hz'.trans (by unfold magnitudeBound; omega)
+    GenericRAM.Signed.Fits w z :=
+  hfit.of_natAbs_le ((Int.ofNat_le.mp (Int.natCast_natAbs z ▸ hz)).trans
+    (by simp only [magnitudeBound]; omega))
 
 /-- The leaf product fits the same envelope, including when either input bound is zero. -/
 theorem fits_product {w L A B : ℕ} {a b : ℤ}
     (hfit : GenericRAM.Signed.Fits w (magnitudeBound L A B : ℤ))
     (ha : |a| ≤ (A : ℤ)) (hb : |b| ≤ (B : ℤ)) : GenericRAM.Signed.Fits w (a * b) := by
   apply hfit.of_natAbs_le
-  have ha' : a.natAbs ≤ A := by
-    rw [← Int.natCast_natAbs] at ha
-    exact_mod_cast ha
-  have hb' : b.natAbs ≤ B := by
-    rw [← Int.natCast_natAbs] at hb
-    exact_mod_cast hb
   rw [Int.natAbs_mul]
   have hp : A * B ≤ 10 ^ L * (A * B) :=
-    Nat.le_mul_of_pos_left _ (by positivity : 0 < (10 : ℕ) ^ L)
-  exact (Nat.mul_le_mul ha' hb').trans (hp.trans (by unfold magnitudeBound; omega))
+    Nat.le_mul_of_pos_left _ (Nat.one_le_pow L 10 (by decide))
+  refine (Nat.mul_le_mul (Int.ofNat_le.mp (Int.natCast_natAbs a ▸ ha))
+    (Int.ofNat_le.mp (Int.natCast_natAbs b ▸ hb))).trans ?_
+  exact hp.trans (by simp only [magnitudeBound]; omega)
 
 /-- A partial sum at any remaining depth fits by the original global magnitude inequality. -/
 theorem fits_partialValue {w L n A B : ℕ} (hn : n + 1 ≤ L)
@@ -130,13 +117,9 @@ theorem fits_partialValue {w L n A B : ℕ} (hn : n + 1 ≤ L)
     (hb : ∀ v, |b v| ≤ (B : ℤ)) (S : Finset (OutStr (n + 1)))
     (q : OutStr (n + 1)) (k : ℕ) : GenericRAM.Signed.Fits w (partialValue a b S q k) := by
   apply hfit.of_natAbs_le
-  have h := abs_partialValue_le a b A B ha hb S q k
-  have hnat : (partialValue a b S q k).natAbs ≤ 10 ^ (n + 1) * (A * B) := by
-    rw [← Int.natCast_natAbs] at h
-    exact_mod_cast h
-  have hp := Nat.pow_le_pow_right (by decide : 1 ≤ (10 : ℕ)) hn
-  have hm := Nat.mul_le_mul_right (A * B) hp
-  exact hnat.trans (hm.trans (by unfold magnitudeBound; omega))
+  have hnat := Int.ofNat_le.mp (Int.natCast_natAbs _ ▸ abs_partialValue_le a b A B ha hb S q k)
+  exact hnat.trans ((Nat.mul_le_mul_right _ (Nat.pow_le_pow_right (by decide) hn)).trans
+    (by simp only [magnitudeBound]; omega))
 
 /-- Every returned child result fits, including an unselected or skipped zero value. -/
 theorem fits_childResult {w L n A B : ℕ} (hn : n ≤ L)
@@ -145,12 +128,8 @@ theorem fits_childResult {w L n A B : ℕ} (hn : n ≤ L)
     (hb : ∀ v, |b v| ≤ (B : ℤ)) (S : Finset (OutStr (n + 1)))
     (lam : Term) (q : OutStr n) : GenericRAM.Signed.Fits w (Pruned.childResult a b S lam q) := by
   apply hfit.of_natAbs_le
-  have h := abs_childResult_le a b A B ha hb S lam q
-  have hnat : (Pruned.childResult a b S lam q).natAbs ≤ 10 ^ n * (A * B) := by
-    rw [← Int.natCast_natAbs] at h
-    exact_mod_cast h
-  have hp := Nat.pow_le_pow_right (by decide : 1 ≤ (10 : ℕ)) hn
-  have hm := Nat.mul_le_mul_right (A * B) hp
-  exact hnat.trans (hm.trans (by unfold magnitudeBound; omega))
+  have hnat := Int.ofNat_le.mp (Int.natCast_natAbs _ ▸ abs_childResult_le a b A B ha hb S lam q)
+  exact hnat.trans ((Nat.mul_le_mul_right _ (Nat.pow_le_pow_right (by decide) hn)).trans
+    (by simp only [magnitudeBound]; omega))
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PrunedQuery

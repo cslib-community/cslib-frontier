@@ -87,9 +87,8 @@ theorem exec_count_coefficients {w n p k : ℕ} (x : Data 128)
     (fun _ _ => Cslib.Algorithms.ExactTriangle.CountPrime.rowMajorCoefficient_le
       hpositive.ne' hpadding wAB wBC wAC)
     residue product h0 h1 h2 htable hw
-  refine ⟨y, he, memory, ?_, regs⟩
-  rw [result]
-  exact Cslib.Algorithms.ExactTriangle.CountPrime.sum_rowMajorCoefficient
-    hpositive.ne' hpadding wAB wBC wAC
+  exact ⟨y, he, memory,
+    result.trans (Cslib.Algorithms.ExactTriangle.CountPrime.sum_rowMajorCoefficient
+      hpositive.ne' hpadding wAB wBC wAC), regs⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.CountPrime

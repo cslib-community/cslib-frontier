@@ -131,13 +131,8 @@ variable {w : ℕ} {p : Program B r} {s : State r}
 theorem stepRand_eq_ofOutcome_of_ne_rand
     (h : ∀ dst src, p[s.pc]? ≠ some (.rand dst src)) :
     stepRand w p (.running s) = pure (.ofOutcome s.data (step w p s)) := by
-  rcases hpc : p[s.pc]? with _ | (_ | _ | _ | _ | ⟨dst, src⟩)
-  · simp only [stepRand, hpc]
-  · simp only [stepRand, hpc]
-  · simp only [stepRand, hpc]
-  · simp only [stepRand, hpc]
-  · simp only [stepRand, hpc]
-  · exact absurd hpc (h dst src)
+  rcases hpc : p[s.pc]? with _ | (_ | _ | _ | _ | ⟨dst, src⟩) <;>
+    first | exact absurd hpc (h _ _) | simp only [stepRand, hpc]
 
 theorem stepRand_halted (v : ℕ) (d : Data r) :
     stepRand w p (.halted v d) = pure (.halted v d) := rfl
@@ -193,19 +188,13 @@ theorem stepRand_rand_of_not_fits {dst src : Fin r} (hp : p[s.pc]? = some (.rand
 `stepRand`. -/
 theorem stepRand_of_step_eq_next {t : State r} (h : step w p s = .next t) :
     stepRand w p (.running s) = pure (.running t) := by
-  have hnr : ∀ dst src, p[s.pc]? ≠ some (.rand dst src) := fun _ _ hpc => by
-    rw [step_rand hpc] at h
-    cases h
-  rw [stepRand_eq_ofOutcome_of_ne_rand hnr, h]
+  rw [stepRand_eq_ofOutcome_of_ne_rand (fun _ _ hpc => nomatch (step_rand hpc).symm.trans h), h]
   rfl
 
 /-- A deterministic `halt` step agrees unconditionally with `stepRand`, retaining `s.data`. -/
 theorem stepRand_of_step_eq_halt {v : ℕ} (h : step w p s = .halt v) :
     stepRand w p (.running s) = pure (.halted v s.data) := by
-  have hnr : ∀ dst src, p[s.pc]? ≠ some (.rand dst src) := fun _ _ hpc => by
-    rw [step_rand hpc] at h
-    cases h
-  rw [stepRand_eq_ofOutcome_of_ne_rand hnr, h]
+  rw [stepRand_eq_ofOutcome_of_ne_rand (fun _ _ hpc => nomatch (step_rand hpc).symm.trans h), h]
   rfl
 
 end StepRand
@@ -300,53 +289,32 @@ theorem evalRand_mapOp (φ : B.Hom B') (w : ℕ) (p : Program B r) (T : ℕ) (s 
 theorem stepRand_bounded {w : ℕ} {p : Program B r} {cfg cfg' : RandCfg r}
     (hcfg : cfg.Bounded w) (hmem : cfg' ∈ (stepRand w p cfg).support) :
     cfg'.Bounded w := by
+  have hpure {c : RandCfg r} (h : stepRand w p cfg = pure c) (hb : c.Bounded w) :
+      cfg'.Bounded w :=
+    (OracleComp.eq_of_mem_supportWith_pure (h ▸ hmem)).symm ▸ hb
   cases cfg with
-  | halted v d =>
-    cases OracleComp.eq_of_mem_supportWith_pure hmem
-    exact hcfg
-  | faulted =>
-    cases OracleComp.eq_of_mem_supportWith_pure hmem
-    trivial
+  | halted v d => exact hpure (stepRand_halted v d) hcfg
+  | faulted => exact hpure stepRand_faulted trivial
   | running s =>
     have hs : s.data.Bounded w := hcfg
     cases hpc : p[s.pc]? with
-    | none =>
-      rw [stepRand_none hpc] at hmem
-      cases OracleComp.eq_of_mem_supportWith_pure hmem
-      trivial
+    | none => exact hpure (stepRand_none hpc) trivial
     | some instr =>
       cases instr with
       | op o =>
         cases ho : o.eval w s.data with
-        | none =>
-          rw [stepRand_op_fault hpc ho] at hmem
-          cases OracleComp.eq_of_mem_supportWith_pure hmem
-          trivial
-        | some x =>
-          rw [stepRand_op hpc ho] at hmem
-          cases OracleComp.eq_of_mem_supportWith_pure hmem
-          exact hs.op ho
-      | jump t =>
-        rw [stepRand_jump hpc] at hmem
-        cases OracleComp.eq_of_mem_supportWith_pure hmem
-        exact hs
-      | branch c t =>
-        rw [stepRand_branch hpc] at hmem
-        cases OracleComp.eq_of_mem_supportWith_pure hmem
-        exact hs
-      | halt i =>
-        rw [stepRand_halt hpc] at hmem
-        cases OracleComp.eq_of_mem_supportWith_pure hmem
-        exact ⟨hs.1 i, hs⟩
+        | none => exact hpure (stepRand_op_fault hpc ho) trivial
+        | some x => exact hpure (stepRand_op hpc ho) (hs.op ho)
+      | jump _ => exact hpure (stepRand_jump hpc) hs
+      | branch _ _ => exact hpure (stepRand_branch hpc) hs
+      | halt i => exact hpure (stepRand_halt hpc) ⟨hs.1 i, hs⟩
       | rand dst src =>
         by_cases hfit : Fits w (s.data.regs src)
         · rw [stepRand_rand_of_fits hpc hfit] at hmem
           obtain ⟨k, -, hk⟩ := OracleComp.mem_supportWith_bind_iff.mp hmem
           cases OracleComp.eq_of_mem_supportWith_pure hk
           exact hs.set (hfit.of_le (Nat.le_of_lt_succ k.isLt))
-        · rw [stepRand_rand_of_not_fits hpc hfit] at hmem
-          cases OracleComp.eq_of_mem_supportWith_pure hmem
-          trivial
+        · exact hpure (stepRand_rand_of_not_fits hpc hfit) trivial
 
 /-- Clocked randomized execution preserves `RandCfg.Bounded w`. -/
 theorem runRand_bounded {w : ℕ} {p : Program B r} {T : ℕ} {cfg cfg' : RandCfg r}
@@ -376,10 +344,9 @@ theorem stepRand_eq_of_isRandFree {w : ℕ} {p : Program B r} (hp : p.IsRandFree
 
 /-- Injectivity of `pure` in `OracleComp` via its singleton support. -/
 private theorem pure_injective {α : Type} {a b : α}
-    (h : (pure a : ProbComp α) = pure b) : a = b := by
-  have hmem : a ∈ (pure a : ProbComp α).support := rfl
-  rw [h] at hmem
-  exact OracleComp.eq_of_mem_supportWith_pure hmem
+    (h : (pure a : ProbComp α) = pure b) : a = b :=
+  OracleComp.eq_of_mem_supportWith_pure
+    (Eq.mp (congrArg (fun x : ProbComp α => a ∈ x.support) h) rfl)
 
 /-- A deterministic `m`-step `Runs` lifts unconditionally to `runRand` (no `IsRandFree` needed, as
 `Runs` never visits `Instr.rand`). -/
@@ -482,13 +449,9 @@ theorem runRand_eq_of_randHaltsWithin {w T T' : ℕ} {p : Program B r} {s : Stat
     runRand w p T' (.running s) = runRand w p T (.running s) := by
   obtain ⟨k, rfl⟩ : ∃ k, T' = T + k := ⟨T' - T, by omega⟩
   rw [runRand_add]
-  have hcongr : (runRand w p T (.running s) >>= runRand w p k) =
-      (runRand w p T (.running s) >>= pure) := by
-    refine OracleComp.bind_congr_on_support fun cfg hmem => ?_
-    obtain ⟨v, d, rfl⟩ := h cfg hmem
-    exact runRand_halted w p k v d
-  rw [bind_pure] at hcongr
-  exact hcongr
+  refine (OracleComp.bind_congr_on_support fun cfg hmem => ?_).trans (bind_pure _)
+  obtain ⟨v, d, rfl⟩ := h cfg hmem
+  exact runRand_halted w p k v d
 
 /-- Increasing fuel preserves the output distribution once `RandHaltsWithin` holds. -/
 theorem evalRand_eq_of_randHaltsWithin {w T T' : ℕ} {p : Program B r} {s : State r}

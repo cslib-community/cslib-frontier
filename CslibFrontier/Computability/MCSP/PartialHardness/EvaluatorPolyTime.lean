@@ -82,11 +82,8 @@ private theorem foldr_max_eq_zero_or_mem (l : List ℕ) :
   | nil => simp
   | cons a l ih =>
     rw [List.foldr_cons]
-    rcases max_choice a (l.foldr max 0) with h | h <;> rw [h]
-    · simp
-    · rcases ih with h' | h'
-      · simp [h']
-      · simp [h']
+    rcases max_choice a (l.foldr max 0) with h | h <;>
+      simp only [h, List.mem_cons] <;> tauto
 
 /-- The largest weight of `I`, `0` when there is none. -/
 def maxWeight (I : CMMSAInstance) : ℕ := I.weights.foldr max 0
@@ -108,15 +105,15 @@ theorem maxWeight_le {I : CMMSAInstance} {b : ℕ} (h : ∀ w ∈ I.weights, w �
 /-- **The seed width is `⌈log₂ (w_max λ)⌉`** for the largest weight `w_max`. -/
 theorem seedWidth_eq (I : CMMSAInstance) (lam : ℕ) :
     seedWidth I lam = Nat.clog 2 (maxWeight I * lam) := by
-  refine le_antisymm (Finset.sup_le fun v hv => ?_) ?_
-  · refine Nat.clog_mono_right _ (Nat.mul_le_mul_right _ (le_maxWeight ?_))
-    rw [List.getD_eq_getElem _ _ (Finset.mem_range.1 hv)]
+  refine le_antisymm (Finset.sup_le fun v hv => Nat.clog_mono_right _ <| Nat.mul_le_mul_right _ <|
+    le_maxWeight ?_) ?_
+  · rw [List.getD_eq_getElem _ _ (Finset.mem_range.1 hv)]
     exact List.getElem_mem _
   · rcases maxWeight_eq_zero_or_mem I with h | h
     · simp [h]
     · obtain ⟨v, hv, hw⟩ := List.getElem_of_mem h
-      refine le_trans (le_of_eq ?_) (Finset.le_sup (f := varLength I lam) (Finset.mem_range.2 hv))
-      rw [varLength, List.getD_eq_getElem _ _ hv, hw]
+      exact le_of_eq_of_le (by rw [varLength, List.getD_eq_getElem _ _ hv, hw])
+        (Finset.le_sup (f := varLength I lam) (Finset.mem_range.2 hv))
 
 /-! ### Polynomial time -/
 
@@ -154,10 +151,9 @@ theorem computableInPolyTime_varLength {I : α → CMMSAInstance} {lam v : α �
 @[fun_prop]
 theorem computableInPolyTime_maxWeight {I : α → CMMSAInstance}
     (hI : ComputableInPolyTime I input CMMSAInstance.encoding) :
-    ComputableInPolyTime (fun a => maxWeight (I a)) input encUnary := by
-  refine ComputableInPolyTime.of_enc_eq ((ComputableInPolyTime.unary_foldl_max 0).comp
-    (CMMSAInstance.isPolyTime_weights hI)) fun a => ?_
-  rw [Function.comp_apply, maxWeight, List.foldl_eq_foldr]
+    ComputableInPolyTime (fun a => maxWeight (I a)) input encUnary :=
+  ((ComputableInPolyTime.unary_foldl_max 0).comp (CMMSAInstance.isPolyTime_weights hI)).of_enc_eq
+    fun _ => by rw [Function.comp_apply, maxWeight, List.foldl_eq_foldr]
 
 /-- The width of the formula index is polynomial-time, in unary. -/
 @[fun_prop]
@@ -213,8 +209,7 @@ theorem computableInPolyTime_slotOffset {I : α → CMMSAInstance} {lam t q : α
 private theorem two_pow_inputLength_eq (I : CMMSAInstance) (Δ k lam : ℕ) :
     2 ^ inputLength I Δ k lam =
       2 ^ indexWidth I * ((2 ^ seedWidth I lam) ^ k * 2) ^ (Δ * Δ) := by
-  rw [inputLength, slotWidth, pow_add]
-  ring
+  rw [inputLength, slotWidth, pow_add]; ring
 
 /-- The number `2 ^ L` of table entries is polynomial-time, in unary. -/
 theorem computableInPolyTime_two_pow_inputLength {I : α → CMMSAInstance} {lam : α → ℕ}
@@ -238,9 +233,7 @@ theorem two_pow_inputLength_le (I : CMMSAInstance) (Δ k lam : ℕ) :
     2 ^ inputLength I Δ k lam ≤
       2 * (I.formulas.length + 1) * ((2 * (maxWeight I * lam + 1)) ^ k * 2) ^ (Δ * Δ) := by
   rw [two_pow_inputLength_eq, seedWidth_eq, indexWidth]
-  gcongr
-  · exact Nat.two_pow_clog_two_le _
-  · exact Nat.two_pow_clog_two_le _
+  gcongr <;> exact Nat.two_pow_clog_two_le _
 
 /-! ### The evaluator -/
 
@@ -325,26 +318,24 @@ theorem computableInPolyTime_entryN {I : α → CMMSAInstance} {lam x : α → �
     ComputableInPolyTime (fun a => entryN (I a) Δ k (lam a) (T a) (x a))
       input (encOption encBool) := by
   have hj := computableInPolyTime_mod_two_pow_indexWidth hI hx
-  have hφ := ComputableInPolyTime.listGetD_binary (encA := encDNFOver encNat)
-    (encL := encList (encDNFOver encNat)) [] (CMMSAInstance.isPolyTime_formulas hI) hj
-  have hlen := (ComputableInPolyTime.length_list _).comp hφ
+  have hlen := (ComputableInPolyTime.length_list _).comp <|
+    ComputableInPolyTime.listGetD_binary (encA := encDNFOver encNat)
+      (encL := encList (encDNFOver encNat)) [] (CMMSAInstance.isPolyTime_formulas hI) hj
   have hnot (t : ℕ) := ComputableInPolyTime.bool_not.comp
     (ComputableInPolyTime.unary_lt' (ComputableInPolyTime.const t) hlen)
   have hpar (t : ℕ) :=
     computableInPolyTime_termParityN Δ k hI hlam hT hx (ComputableInPolyTime.const t)
-  have hyes := ComputableInPolyTime.allConst (List.range Δ) fun t _ =>
-    ComputableInPolyTime.bool_or' (hnot t) (hpar t)
-  have hno := ComputableInPolyTime.allConst (List.range Δ) fun t _ =>
-    ComputableInPolyTime.bool_or' (hnot t) (ComputableInPolyTime.bool_not.comp (hpar t))
-  have hsome (b : Bool) : ComputableInPolyTime (fun _ : α => some b) input (encOption encBool) :=
-    ComputableInPolyTime.const _
   unfold entryN
   exact ComputableInPolyTime.ite_decide
     (ComputableInPolyTime.binary_lt' hj (ComputableInPolyTime.unary_to_binary.comp
       ((ComputableInPolyTime.length_list _).comp (CMMSAInstance.isPolyTime_formulas hI))))
-    (ComputableInPolyTime.ite' (encC := encBool) hyes (hsome true)
-      (ComputableInPolyTime.ite' (encC := encBool) hno (hsome false)
-        (ComputableInPolyTime.const _)))
+    (ComputableInPolyTime.ite' (encC := encBool)
+      (ComputableInPolyTime.allConst (List.range Δ) fun t _ =>
+        ComputableInPolyTime.bool_or' (hnot t) (hpar t)) (ComputableInPolyTime.const _)
+      (ComputableInPolyTime.ite' (encC := encBool)
+        (ComputableInPolyTime.allConst (List.range Δ) fun t _ =>
+          ComputableInPolyTime.bool_or' (hnot t) (ComputableInPolyTime.bool_not.comp (hpar t)))
+        (ComputableInPolyTime.const _) (ComputableInPolyTime.const _)))
     (ComputableInPolyTime.const _)
 
 /-- The whole table computed from explicit tables is polynomial-time, for fixed `Δ` and `k`: the
@@ -391,7 +382,6 @@ theorem computableInPolyTime_toInstance {I : α → CMMSAInstance} {lam : α →
     ComputableInPolyTime (fun a => toInstance (I a) Δ k (lam a) P (f a)) input PartialMCSP.enc :=
   ((computableInPolyTime_tableN Δ k hI hlam hT).prod
     (computableInPolyTime_sizeThreshold P hI hlam)).of_enc_eq fun a => by
-    rw [PartialMCSP.enc_apply, ← tableN_eq_ofFn (hf a) P]
-    rfl
+    rw [PartialMCSP.enc_apply, ← tableN_eq_ofFn (hf a) P]; rfl
 
 end Cslib.PartialMCSP.FromCMMSA

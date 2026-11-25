@@ -114,15 +114,14 @@ theorem cutWeight_congr {E : List WeightedEdge} {side side' : ℕ → Bool}
     (h : ∀ v ∈ endpoints E, side v = side' v) : cutWeight E side = cutWeight E side' := by
   unfold cutWeight
   congr 2
-  refine List.filter_congr fun e he => ?_
-  have h₁ : e.u ∈ endpoints E := List.mem_flatMap.2 ⟨e, he, by simp⟩
-  have h₂ : e.v ∈ endpoints E := List.mem_flatMap.2 ⟨e, he, by simp⟩
-  simp only [crosses, h _ h₁, h _ h₂]
+  exact List.filter_congr fun e he => by
+    simp only [crosses, h e.u (List.mem_flatMap.2 ⟨e, he, by simp⟩),
+      h e.v (List.mem_flatMap.2 ⟨e, he, by simp⟩)]
 
 theorem length_endpoints (E : List WeightedEdge) : (endpoints E).length = 2 * E.length := by
   induction E with
   | nil => rfl
-  | cons e E ih =>
+  | cons _ _ ih =>
     simp only [endpoints, List.flatMap_cons, List.length_append, List.length_cons,
       List.length_nil] at ih ⊢
     omega
@@ -181,13 +180,10 @@ theorem mem_MaxCut_iff_endpoints {x : MaxCutInstance} :
     x ∈ MaxCut ↔ ∃ S : Finset ℕ, (∀ v ∈ S, v ∈ endpoints x.edges) ∧
       x.bound ≤ cutWeight x.edges (fun v => decide (v ∈ S)) := by
   classical
-  constructor
-  · rintro ⟨S, hS⟩
-    refine ⟨S.filter (· ∈ endpoints x.edges), fun v hv => (Finset.mem_filter.1 hv).2, ?_⟩
-    rwa [cutWeight_congr (side' := fun v => decide (v ∈ S)) fun v hv => by
-      simp [Finset.mem_filter, hv]]
-  · rintro ⟨S, -, hS⟩
-    exact ⟨S, hS⟩
+  refine ⟨fun ⟨S, hS⟩ => ⟨S.filter (· ∈ endpoints x.edges), fun _ hv => (Finset.mem_filter.1 hv).2,
+    ?_⟩, fun ⟨S, _, hS⟩ => ⟨S, hS⟩⟩
+  rwa [cutWeight_congr (side' := fun v => decide (v ∈ S)) fun _ hv => by
+    simp [Finset.mem_filter, hv]]
 
 /-- `MaxCut.verifier` verifies `MaxCut` with certificates of twice the length of the encoded
 instance. -/
@@ -196,13 +192,14 @@ theorem isVerifier : IsVerifier encMaxCut (2 * Polynomial.X) verifier MaxCut := 
       x.bound ≤ cutWeight x.edges (fun v => decide (v ∈ S))} :=
     Set.ext fun _ => mem_MaxCut_iff_endpoints
   rw [hset]
-  refine isVerifier_subsetVerifier (fun x => ?_) fun x l _ _ => ?_
-  · rw [encMaxCut_apply]
-    have : x.edges.length ≤ (encMaxCutFields (x.edges, x.bound)).length :=
-      (length_le_length_encList _ _).trans (length_le_encPair_left _ _ (x.edges, x.bound))
-    simp only [length_endpoints, Polynomial.eval_mul, Polynomial.eval_ofNat, Polynomial.eval_X]
-    omega
-  · simp only [Function.uncurry_apply_pair, check, decide_eq_true_eq, List.mem_toFinset]
+  refine isVerifier_subsetVerifier (fun x => ?_) fun _ _ _ _ => by
+    simp only [Function.uncurry_apply_pair, check, decide_eq_true_eq, List.mem_toFinset]
+  rw [encMaxCut_apply]
+  have := (length_le_length_encList encWeightedEdge x.edges).trans
+    (length_le_encPair_left (encList encWeightedEdge) encNat (x.edges, x.bound))
+  simp only [encMaxCutFields, length_endpoints, Polynomial.eval_mul, Polynomial.eval_ofNat,
+    Polynomial.eval_X]
+  omega
 
 /-- `MaxCut` belongs to `NP`. -/
 theorem mem_NP : MaxCut ∈ NP encMaxCut :=
@@ -215,14 +212,11 @@ theorem mem_Partition_iff_exists_side {a : List ℕ} :
     a ∈ Partition ↔ ∃ side : ℕ → Bool,
       2 * (((List.range a.length).filter side).map (a.getD · 0)).sum = a.sum := by
   rw [mem_Partition_iff_sublist]
-  constructor
-  · rintro ⟨s, hs, hsum⟩
-    obtain ⟨w, -, rfl⟩ := exists_maskSelect_eq hs
-    exact ⟨fun i => w.getD i false, by rwa [← maskSelect_eq_map_filter_range a w 0]⟩
-  · rintro ⟨side, hside⟩
-    refine ⟨_, ?_, hside⟩
-    conv_rhs => rw [← List.map_getD_range a 0]
-    exact List.filter_sublist.map _
+  refine ⟨fun ⟨_, hs, hsum⟩ => let ⟨w, _, hw⟩ := exists_maskSelect_eq hs
+    ⟨fun i => w.getD i false, by rwa [← maskSelect_eq_map_filter_range a w 0, hw]⟩,
+    fun ⟨side, hside⟩ => ⟨_, ?_, hside⟩⟩
+  conv_rhs => rw [← List.map_getD_range a 0]
+  exact List.filter_sublist.map _
 
 namespace Partition
 
@@ -250,40 +244,26 @@ theorem cutWeight_productEdges (a : List ℕ) (side : ℕ → Bool) (n : ℕ) :
       simp only [productEdges, List.range_succ, List.flatMap_append, List.flatMap_cons,
         List.flatMap_nil, List.append_nil]
     rw [hstep, MaxCut.cutWeight_append, ih]
-    simp only [MaxCut.cutWeight, MaxCut.crosses, List.filter_map, List.map_map,
-      Function.comp_def, List.range_succ, List.filter_append, List.filter_cons, List.filter_nil,
-      List.map_append, List.sum_append]
-    cases h : side n
-    · simp only [Bool.not_false, Bool.bne_false, ite_true, Bool.false_eq_true, ite_false,
-        List.map_cons, List.map_nil, List.sum_cons, List.sum_nil, List.sum_map_mul_right]
-      ring
-    · simp only [Bool.not_true, Bool.bne_true, ite_true, Bool.false_eq_true, ite_false,
-        List.map_cons, List.map_nil, List.sum_cons, List.sum_nil, List.sum_map_mul_right]
-      ring
+    simp only [MaxCut.cutWeight, MaxCut.crosses, List.filter_map, List.map_map, Function.comp_def,
+      List.range_succ, List.filter_append, List.filter_cons, List.filter_nil, List.map_append,
+      List.sum_append]
+    cases side n <;>
+      simp only [Bool.not_false, Bool.not_true, Bool.bne_false, Bool.bne_true, ite_true,
+        Bool.false_eq_true, ite_false, List.map_cons, List.map_nil, List.sum_cons, List.sum_nil,
+        List.sum_map_mul_right] <;> ring
 
 /-- `A * B` reaches `⌈(A + B)² / 4⌉` only when `A = B`, since `(A + B)² = 4 * A * B + (A - B)²`. -/
 private theorem ceil_quarter_sq_le_mul_iff (A B : ℕ) :
     ((A + B) * (A + B) + 3) / 4 ≤ A * B ↔ A = B := by
-  constructor
-  · intro h
-    by_contra hne
-    rcases Nat.lt_or_gt_of_ne hne with hlt | hlt
-    · obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_lt hlt
-      have hsq : (A + (A + d + 1)) * (A + (A + d + 1)) =
-          4 * (A * (A + d + 1)) + (d + 1) * (d + 1) := by ring
-      have hd : 1 ≤ (d + 1) * (d + 1) := Nat.one_le_iff_ne_zero.2 (by positivity)
-      rw [hsq] at h
-      omega
-    · obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_lt hlt
-      have hsq : (B + d + 1 + B) * (B + d + 1 + B) =
-          4 * ((B + d + 1) * B) + (d + 1) * (d + 1) := by ring
-      have hd : 1 ≤ (d + 1) * (d + 1) := Nat.one_le_iff_ne_zero.2 (by positivity)
-      rw [hsq] at h
-      omega
-  · rintro rfl
-    have hsq : (A + A) * (A + A) = 4 * (A * A) := by ring
-    rw [hsq]
-    omega
+  refine ⟨fun h => ?_, fun h => by
+    subst h
+    rw [show (A + A) * (A + A) = 4 * (A * A) by ring]
+    omega⟩
+  have hle : ((A + B) * (A + B) : ℤ) ≤ 4 * (A * B) := by
+    exact_mod_cast (show (A + B) * (A + B) ≤ 4 * (A * B) by omega)
+  have hsq : ((A : ℤ) - B) ^ 2 = 0 := le_antisymm (by
+    linarith [show ((A : ℤ) - B) ^ 2 = (A + B) * (A + B) - 4 * (A * B) by ring]) (sq_nonneg _)
+  exact_mod_cast sub_eq_zero.mp (sq_eq_zero_iff.mp hsq)
 
 /-- **Correctness of the reduction to `MaxCut`.** -/
 theorem toMaxCut_mem_iff (a : List ℕ) : toMaxCut a ∈ MaxCut ↔ a ∈ Partition := by
@@ -295,25 +275,19 @@ theorem toMaxCut_mem_iff (a : List ℕ) : toMaxCut a ∈ MaxCut ↔ a ∈ Partit
     simpa using List.sum_map_filter_add_sum_map_filter_not (fun i => side i = true) (a.getD · 0)
       (List.range a.length)
   rw [mem_Partition_iff_exists_side]
-  constructor
-  · rintro ⟨S, hS⟩
-    refine ⟨fun v => decide (v ∈ S), ?_⟩
-    simp only [toMaxCut, cutWeight_productEdges] at hS
+  refine ⟨fun ⟨S, hS⟩ => ⟨fun v => decide (v ∈ S), ?_⟩, fun ⟨side, hside⟩ => ?_⟩
+  · simp only [toMaxCut, cutWeight_productEdges] at hS
     rw [← hsplit fun v => decide (v ∈ S), ceil_quarter_sq_le_mul_iff] at hS
     have := hsplit fun v => decide (v ∈ S)
     omega
-  · rintro ⟨side, hside⟩
-    set S := ((List.range a.length).filter side).toFinset with hS
+  · set S := ((List.range a.length).filter side).toFinset with hS
     refine ⟨S, ?_⟩
-    have hcongr (p q : ℕ → Bool) (hp : ∀ i < a.length, p i = q i) :
-        (List.range a.length).filter p = (List.range a.length).filter q :=
-      List.filter_congr fun i hi => hp i (List.mem_range.1 hi)
     have h₁ : (List.range a.length).filter (fun v => decide (v ∈ S)) =
         (List.range a.length).filter side :=
-      hcongr _ _ fun i hi => by simp [hS, hi]
+      List.filter_congr fun i hi => by simp [hS, List.mem_range.1 hi]
     have h₂ : (List.range a.length).filter (fun v => !decide (v ∈ S)) =
         (List.range a.length).filter (fun v => !side v) :=
-      hcongr _ _ fun i hi => by simp [hS, hi]
+      List.filter_congr fun i hi => by simp [hS, List.mem_range.1 hi]
     simp only [toMaxCut, cutWeight_productEdges]
     rw [h₁, h₂, ← hsplit side, ceil_quarter_sq_le_mul_iff]
     have := hsplit side

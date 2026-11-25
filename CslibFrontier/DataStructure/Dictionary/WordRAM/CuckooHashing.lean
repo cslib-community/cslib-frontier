@@ -335,13 +335,8 @@ private theorem tsum_seedLaw_insertSeedSteps_le {c_exp n_max U V C_walk C_reh v 
             (insertBaseSteps c_exp n_max U + 3 : ℝ≥0∞) + (R : ℝ≥0∞) := by
           dsimp only [insertWorstSteps, R]; push_cast; ring
         rw [hw_eq, mul_add]
-        calc p θ * (insertBaseSteps c_exp n_max U + 3 : ℝ≥0∞) + p θ * (R : ℝ≥0∞)
-          _ = p θ * (insertBaseSteps c_exp n_max U + 3 : ℝ≥0∞) + 0 + p θ * (R : ℝ≥0∞) := by simp
-          _ ≤ p θ * (insertBaseSteps c_exp n_max U + 3 : ℝ≥0∞) +
-              (p θ * (cuckooWalkRounds (evalHash1 θ) (evalHash2 θ) (maxEvictions n_max)
-                (Dictionary.dom s) u : ℝ≥0∞)) * (evictIterSteps c_exp n_max U : ℝ≥0∞) +
-              p θ * (R : ℝ≥0∞) :=
-            add_le_add (add_le_add le_rfl zero_le) le_rfl
+        gcongr
+        exact le_self_add
     calc (∑' θ : Seed c_exp n_max U M, p θ * (insertSeedSteps c_exp n_max U ks θ s u + 3))
       _ ≤ ∑' θ : Seed c_exp n_max U M,
             (p θ * (insertBaseSteps c_exp n_max U + 3 : ℝ≥0∞) +
@@ -373,16 +368,9 @@ private theorem tsum_seedLaw_insertSeedSteps_le {c_exp n_max U V C_walk C_reh v 
               exact le_of_lt (Nat.lt_mul_div_succ R hD_pos)
             have hD_ne_zero : (D : ℝ≥0∞) ≠ 0 := Nat.cast_ne_zero.mpr (by omega)
             have hD_ne_top : (D : ℝ≥0∞) ≠ ⊤ := ENNReal.natCast_ne_top D
-            have hcast_max (k : ℕ) : ((max k 1 : ℕ) : ℝ≥0∞) = max (k : ℝ≥0∞) 1 := by
-              rcases eq_or_ne k 0 with rfl | hk
-              · rw [max_eq_right (Nat.zero_le 1), Nat.cast_one, Nat.cast_zero,
-                  max_eq_right zero_le]
-              · rw [max_eq_left (Nat.one_le_iff_ne_zero.mpr hk),
-                  max_eq_left (Nat.one_le_cast.mpr (Nat.one_le_iff_ne_zero.mpr hk))]
             have hD_cast : (D : ℝ≥0∞) =
                 max (n_max : ℝ≥0∞) 1 * max (maxEvictions n_max : ℝ≥0∞) 1 := by
-              dsimp only [D]
-              simp only [Nat.cast_mul, hcast_max]
+              simp only [D, Nat.cast_mul, Nat.mono_cast.map_max, Nat.cast_one]
             have hprob' : p.toOuterMeasure F ≤ (C_reh : ℝ≥0∞) / (D : ℝ≥0∞) := by
               rw [hD_cast]
               exact hprob
@@ -989,15 +977,8 @@ theorem cuckoo_steps_expected_amortized (w base c_exp n_max U V : ℕ)
                   4 * rehashAmortizedSteps c_exp n_max U) : ℕ) := by
                 push_cast; ring
       exact hstep_ch.trans (Nat.cast_le.mpr (charge_le_expectedOpCharge hU s o))
-    refine ⟨ν_final, (∑' p, ν p * T_step p) + T_rest, hex_cons, hseed_final, hrep_final, ?_⟩
-    calc (∑' p, ν p * T_step p) + T_rest
-      _ ≤ (expectedOpCharge c_exp s o : ℝ≥0∞) +
-            ((Dictionary.spec U V n_max).totalCost (expectedOpCharge c_exp)
-              ((Dictionary.spec U V n_max).stepFn s o).1 os : ℝ≥0∞) :=
-          add_le_add hstep_cost hamort_rest
-      _ = ((Dictionary.spec U V n_max).totalCost (expectedOpCharge c_exp) s (o :: os) :
-            ℝ≥0∞) :=
-          (Nat.cast_add _ _).symm
+    exact ⟨ν_final, (∑' p, ν p * T_step p) + T_rest, hex_cons, hseed_final, hrep_final,
+      (add_le_add hstep_cost hamort_rest).trans_eq (Nat.cast_add _ _).symm⟩
 
 /-- **Unconditional end-to-end expected-amortized theorem for Pagh–Rodler cuckoo hashing.**
 Whenever `U ≤ max n_max 4 ^ c_exp`, starting from zeroed memory in

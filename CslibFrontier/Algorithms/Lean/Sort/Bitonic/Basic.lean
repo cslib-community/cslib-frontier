@@ -116,6 +116,14 @@ theorem compareLayer_perm [LinearOrder κ] (key : α → κ) {n : ℕ}
     (List.ofFn (compareLayer key ascending input)).Perm (List.ofFn input) :=
   (Function.Involutive.toPerm _ (source_involutive key ascending input)).ofFn_comp_perm input
 
+private theorem perm_fin_append {m : ℕ} {f₁ f₂ : Fin m → α} {g : Fin (m + m) → α}
+    (h1 : (List.ofFn f₁).Perm (List.ofFn (g ∘ Fin.castAdd m)))
+    (h2 : (List.ofFn f₂).Perm (List.ofFn (g ∘ Fin.natAdd m))) :
+    (List.ofFn (Fin.append f₁ f₂)).Perm (List.ofFn g) := by
+  have h := h1.append h2
+  have hsplit : Fin.append (g ∘ Fin.castAdd m) (g ∘ Fin.natAdd m) = g := Fin.append_castAdd_natAdd
+  rwa [← List.ofFn_fin_append, ← List.ofFn_fin_append, hsplit] at h
+
 /-- Bitonic merge preserves the multiset of complete records on every input. -/
 theorem merge_perm [LinearOrder κ] (key : α → κ) (depth : ℕ)
     (ascending : Bool) (input : Fin (arity depth) → α) :
@@ -124,12 +132,9 @@ theorem merge_perm [LinearOrder κ] (key : α → κ) (depth : ℕ)
   | zero => exact List.Perm.refl _
   | succ depth ih =>
     let compared := compareLayer key (n := arity depth) ascending input
-    have h := (ih ascending (compared ∘ Fin.castAdd (arity depth))).append
-      (ih ascending (compared ∘ Fin.natAdd (arity depth)))
-    have hsplit : Fin.append (compared ∘ Fin.castAdd (arity depth))
-        (compared ∘ Fin.natAdd (arity depth)) = compared := Fin.append_castAdd_natAdd
-    rw [← List.ofFn_fin_append, ← List.ofFn_fin_append, hsplit] at h
-    exact h.trans (compareLayer_perm key ascending input)
+    exact (perm_fin_append (ih ascending (compared ∘ Fin.castAdd (arity depth)))
+      (ih ascending (compared ∘ Fin.natAdd (arity depth)))).trans
+      (compareLayer_perm key ascending input)
 
 /-- Batcher sorting preserves complete records, not merely their projected keys. -/
 theorem sort_perm [LinearOrder κ] (key : α → κ) (depth : ℕ)
@@ -138,11 +143,8 @@ theorem sort_perm [LinearOrder κ] (key : α → κ) (depth : ℕ)
   induction depth generalizing ascending with
   | zero => exact List.Perm.refl _
   | succ depth ih =>
-    have h := (ih true (input ∘ Fin.castAdd (arity depth))).append
-      (ih false (input ∘ Fin.natAdd (arity depth)))
-    have hsplit : Fin.append (input ∘ Fin.castAdd (arity depth))
-        (input ∘ Fin.natAdd (arity depth)) = input := Fin.append_castAdd_natAdd
-    rw [← List.ofFn_fin_append, ← List.ofFn_fin_append, hsplit] at h
-    exact (merge_perm key (depth + 1) ascending _).trans h
+    exact (merge_perm key (depth + 1) ascending _).trans
+      (perm_fin_append (ih true (input ∘ Fin.castAdd (arity depth)))
+        (ih false (input ∘ Fin.natAdd (arity depth))))
 
 end Cslib.BitonicSort

@@ -10,7 +10,6 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpSwarBTree
 import Mathlib.Algebra.BigOperators.Fin
-import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 
 /-!
@@ -234,7 +233,7 @@ theorem btreeLookup_eq_of_subtree {fpBits W_val tMin : ℕ} {sl : BTreeSlice}
     (hv : ValidSubtree true fpBits W_val tMin sl.alloc sl.nodes 0 (2 ^ fpBits - 1) mapFn T)
     (hfuel : T.height ≤ hMaxBTree) (hq : q < 2 ^ fpBits) :
     btreeLookup fpBits W_val tMin sl q = mapFn q := by
-  have hhi : 2 ^ fpBits - 1 < 2 ^ fpBits := Nat.sub_one_lt (by positivity)
+  have hhi : 2 ^ fpBits - 1 < 2 ^ fpBits := Nat.sub_one_lt (Nat.two_pow_pos fpBits).ne'
   obtain ⟨cntL, loL, hiL, _, _, hloL_q, hq_hiL, hhiL_le, hv_leaf, _⟩ :=
     descendToLeaf_reaches_leaf ht2 hcap hv hhi (Nat.zero_le q) (by omega) hfuel
   rw [hroot] at hv_leaf
@@ -274,7 +273,7 @@ private theorem btreeModifyLeaf_subtree_spec {fpBits W_val tMin : ℕ} {sl : BTr
         T'.height = T.height ∧
         T'.potential tMin ≤ T.potential tMin ∧
         ValidSubtree true fpBits W_val tMin sl'.alloc sl'.nodes 0 (2 ^ fpBits - 1) mapFn' T' := by
-  have hhi : 2 ^ fpBits - 1 < 2 ^ fpBits := Nat.sub_one_lt (by positivity)
+  have hhi : 2 ^ fpBits - 1 < 2 ^ fpBits := Nat.sub_one_lt (Nat.two_pow_pos fpBits).ne'
   obtain ⟨cntL, loL, hiL, _, _, hloL_q, hq_hiL, hhiL_le, hv_leaf, hlift⟩ :=
     descendToLeaf_reaches_leaf ht2 hcap hv hhi (Nat.zero_le q) (by omega) hfuel
   rw [hroot] at hv_leaf hlift
@@ -400,13 +399,17 @@ private theorem mem_nodeSet_erase_of_child {idx cnt v : ℕ} {cs : Fin (cnt + 1)
 private theorem childLo_window {W lo K K' a i m : ℕ}
     (hkeys : ∀ j < m, laneGet W K' j = laneGet W K (a + j)) (him : i ≤ m) :
     childLo W (childLo W lo K a) K' i = childLo W lo K (a + i) := by
-  grind [childLo]
+  rcases Nat.eq_zero_or_pos i with rfl | hi
+  · simp [childLo]
+  · simp [childLo, hi.ne', hkeys (i - 1) (by omega), show a + (i - 1) = a + i - 1 by omega]
 
 /-- Right endpoint of child `i` of a window of `m + 1` children starting at child `a`. -/
 private theorem childHi_window {W hi cnt K K' a i m : ℕ}
     (hkeys : ∀ j < m, laneGet W K' j = laneGet W K (a + j)) (him : i ≤ m) (ham : a + m ≤ cnt) :
     childHi W (childHi W hi cnt K (a + m)) m K' i = childHi W hi cnt K (a + i) := by
-  grind [childHi]
+  rcases eq_or_lt_of_le him with rfl | hi
+  · simp [childHi]
+  · simp [childHi, hi, show a + i < cnt by omega, hkeys i hi]
 
 /-- A window of `m + 1` consecutive children `a, …, a + m` of a valid branch, together with a node
 `nodes' idx'` holding the `m` separators between them and their `m + 1` child indices, is a valid
@@ -637,7 +640,8 @@ theorem splitRootIfFull_spec {fpBits W_val tMin : ℕ} {sl : BTreeSlice}
       have hvals_lt : sl.alloc + (sl.alloc + 1) <<< W_val < 2 ^ ((1 + 1) * W_val) := by
         have := Nat.mul_le_mul_right (2 ^ W_val) (show sl.alloc + 2 ≤ 2 ^ W_val by omega)
         rw [Nat.shiftLeft_eq, show (1 + 1) * W_val = W_val + W_val by omega, Nat.pow_add]
-        linarith
+        rw [show sl.alloc + 2 = (sl.alloc + 1) + 1 by omega, Nat.add_mul, Nat.one_mul] at this
+        omega
       simp only [ValidSubtree, Function.update_self, ↓reduceIte, le_refl, Nat.one_mul,
         Nat.sub_self, hlane0]
       refine ⟨by omega, trivial, trivial, by omega, hsep_lt, hvals_lt, Nat.zero_le _, hsep_hi,

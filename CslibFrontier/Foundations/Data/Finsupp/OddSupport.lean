@@ -55,9 +55,8 @@ def oddSupport (m : σ →₀ ℕ) : Finset σ :=
 /-- A coordinate is in the odd support exactly when the exponent there is odd. -/
 theorem mem_oddSupport {m : σ →₀ ℕ} {i : σ} : i ∈ oddSupport m ↔ m i % 2 = 1 := by
   rw [oddSupport, mem_filter, mem_support_iff, and_iff_right_iff_imp]
-  intro h h0
-  rw [h0] at h
-  exact absurd h (by decide)
+  rintro h h0
+  simp [h0] at h
 
 /-- The zero exponent vector has empty odd support. -/
 @[simp] theorem oddSupport_zero : oddSupport (0 : σ →₀ ℕ) = ∅ := by
@@ -69,8 +68,7 @@ and the other is even. -/
 theorem oddSupport_add [DecidableEq σ] (m n : σ →₀ ℕ) :
     oddSupport (m + n) = oddSupport m ∆ oddSupport n := by
   ext i
-  rw [mem_symmDiff, mem_oddSupport, mem_oddSupport, mem_oddSupport, add_apply]
-  omega
+  rw [mem_symmDiff, mem_oddSupport, mem_oddSupport, mem_oddSupport, add_apply]; omega
 
 /-- The exponent vector of `xᵢ` has odd support `{i}`. -/
 @[simp] theorem oddSupport_single_one (i : σ) : oddSupport (single i 1) = {i} := by
@@ -96,10 +94,9 @@ theorem oddSupport_add [DecidableEq σ] (m n : σ →₀ ℕ) :
     rw [sum_insert hi, oddSupport_add, ih]
     ext j
     rw [mem_symmDiff, mem_oddSupport, single_apply, mem_insert]
-    by_cases hj : j = i
-    · subst hj
-      simp [hi]
-    · simp [Ne.symm hj, hj]
+    rcases eq_or_ne j i with rfl | hj
+    · simp [hi]
+    · simp [hj, Ne.symm hj]
 
 /-- The odd support of `m` has at most `degree m` elements. -/
 theorem card_oddSupport_le_degree (m : σ →₀ ℕ) : #(oddSupport m) ≤ m.degree := by

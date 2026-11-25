@@ -12,10 +12,6 @@ public import Mathlib.Analysis.SpecialFunctions.Pow.Real
 public import Mathlib.Topology.MetricSpace.Lipschitz
 import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Analysis.MeanInequalitiesPow
-import Mathlib.Tactic.FieldSimp
-import Mathlib.Tactic.GCongr
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Positivity
 
 /-!
 # Root errors and the homogeneous loss
@@ -227,10 +223,9 @@ theorem homogeneousLoss_sum_le {ι : Type*} (t : Finset ι) (hs : s ≠ 0) {w F 
   · -- Every weighted pair vanishes, so the left side is `L(0, 0) = 0`.
     have hzero : ∀ i ∈ t, w i * S i = 0 :=
       (sum_eq_zero_iff_of_nonneg fun i hi => mul_nonneg (hw i hi) (hS i hi)).1 hA0.symm
-    have hD0 : ∑ i ∈ t, w i * D i = 0 := sum_eq_zero fun i hi => by
-      have := mul_le_mul_of_nonneg_left (hD i hi) (hw i hi)
-      have := mul_nonneg (hw i hi) (abs_nonneg (F i - F' i))
-      linarith [hzero i hi]
+    have hD0 : ∑ i ∈ t, w i * D i = 0 := sum_eq_zero fun i hi => le_antisymm
+      ((mul_le_mul_of_nonneg_left (hD i hi) (hw i hi)).trans_eq (hzero i hi))
+      (mul_nonneg (hw i hi) (abs_nonneg _))
     have hl : |∑ i ∈ t, w i * F i - ∑ i ∈ t, w i * F' i| = 0 :=
       le_antisymm (hD0 ▸ hdiff) (abs_nonneg _)
     rw [homogeneousLoss, hl, zero_pow hs, zero_div]
@@ -283,9 +278,8 @@ theorem mul_min_pow_le_homogeneousLoss (hs : s ≠ 0) {C₀ G a : ℝ} (hC₀ : 
   · -- `H + H' ≤ (3 C₀ + 3) (a + G)`, and `a / (a + G)^{k+1} ≤ 1 / (a + G)^k`.
     have hsum : H + H' ≤ (3 * C₀ + 3) * (a + G) := by nlinarith
     rcases (add_nonneg hH hH').eq_or_lt with h0 | hpos
-    · have h1 : H = 0 := by linarith
-      have h2 : H' = 0 := by linarith
-      simp [h1, h2]
+    · obtain ⟨rfl, rfl⟩ : H = 0 ∧ H' = 0 := ⟨by linarith, by linarith⟩
+      simp
     have hd : 0 ≤ |H - H'| := abs_nonneg _
     calc a * min 1 (|H - H'| / (a + G)) ^ (k + 1)
         ≤ a * (|H - H'| / (a + G)) ^ (k + 1) := by gcongr; exact min_le_right _ _
@@ -298,8 +292,7 @@ theorem mul_min_pow_le_homogeneousLoss (hs : s ≠ 0) {C₀ G a : ℝ} (hC₀ : 
           rw [mul_pow]; field_simp
       _ ≤ (3 * C₀ + 3) ^ k * (|H - H'| ^ (k + 1) / (H + H') ^ k) := by gcongr
       _ ≤ 2 * (3 * C₀ + 3) ^ k * (|H - H'| ^ (k + 1) / (H + H') ^ k) := by
-          have : 0 ≤ (3 * C₀ + 3) ^ k * (|H - H'| ^ (k + 1) / (H + H') ^ k) := by positivity
-          linarith
+          rw [mul_assoc]; exact le_mul_of_one_le_left (by positivity) one_le_two
   · -- `|H - H'| > H' / 2`, `H + H' < 3 H' / 2` and `H' > a`, so the loss is at least
     -- `H' / (2 · 3^k) ≥ a / (2 · 3^k)`.
     push Not at hcase

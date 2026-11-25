@@ -272,12 +272,10 @@ theorem ncard_readAt_le (v : Vertex c) : ((network c I Acc).readAt v).ncard ≤ 
 private theorem readIn_network (W : Set (Vertex c)) :
     (network c I Acc).readIn W = {i | ∃ hi : Reach c (.input i), .signal ⟨.input i, hi⟩ ∈ W} := by
   ext i
-  constructor
-  · rintro ⟨v, hv, hi⟩
-    obtain ⟨hr, rfl⟩ := site_eq_some hi
-    exact ⟨hr, hv⟩
-  · rintro ⟨hi, hv⟩
-    exact ⟨_, hv, site_of_reach hi⟩
+  refine ⟨?_, fun ⟨hi, hv⟩ => ⟨_, hv, site_of_reach hi⟩⟩
+  rintro ⟨v, hv, hi⟩
+  obtain ⟨hr, rfl⟩ := site_eq_some hi
+  exact ⟨hr, hv⟩
 
 /-- Signals are reachable inputs and reachable gates. -/
 private def signalEquiv :
@@ -382,14 +380,18 @@ private theorem card_signal_le_card_consumer : Nat.card (Signal c) ≤ Nat.card 
   exact Nat.card_le_card_of_injective (fun w => ⟨w, ⟨0, fanout_pos w⟩⟩) fun w w' h =>
     congrArg Sigma.fst h
 
+/-- There are at most `r` slots per inner gate. -/
+private theorem card_slot_le_innerSize {r : ℕ} (hfan : c.FanInAtMost r) :
+    Nat.card (Slot c) ≤ r * c.innerSize := by
+  have h := (card_slot_le hfan univ).trans (Nat.mul_le_mul_left r (card_innerGateIn_le univ))
+  rwa [Nat.card_congr (Equiv.subtypeUnivEquiv fun t => mem_univ (owner (.inl t)))] at h
+
 /-- **The number of signals** is at most `r s + m` for fan-in at most `r`, where `s` counts the
 inner gates and `m` the outputs. -/
 theorem card_signal_le_innerSize {r : ℕ} (hfan : c.FanInAtMost r) :
-    Nat.card (Signal c) ≤ r * c.innerSize + m := by
-  have hslot : Nat.card (Slot c) ≤ r * c.innerSize := by
-    have h := (card_slot_le hfan univ).trans (Nat.mul_le_mul_left r (card_innerGateIn_le univ))
-    rwa [Nat.card_congr (Equiv.subtypeUnivEquiv fun t => mem_univ (owner (.inl t)))] at h
-  exact card_signal_le_card_consumer.trans (card_consumer ▸ Nat.add_le_add_right hslot m)
+    Nat.card (Signal c) ≤ r * c.innerSize + m :=
+  card_signal_le_card_consumer.trans
+    (card_consumer ▸ Nat.add_le_add_right (card_slot_le_innerSize hfan) m)
 
 /-- **The number of signals** is at most `r * c.size + m` for fan-in at most `r`. -/
 theorem card_signal_le {r : ℕ} (hfan : c.FanInAtMost r) :
@@ -508,9 +510,7 @@ theorem ncard_touching_add_ncard_readIn_le_multiarySize {r : ℕ} (hfan : c.FanI
   have hr : r * Nat.card {g : InnerGateIn c W // ¬ IsUnaryGateIn g} ≤
       (r - 1) * Nat.card {g : InnerGateIn c W // ¬ IsUnaryGateIn g} +
         Nat.card {g : InnerGateIn c W // ¬ IsUnaryGateIn g} := by
-    rcases r with _ | r
-    · simp
-    · simp [add_mul]
+    rcases r with _ | r <;> simp [add_mul]
   omega
 
 /-- **The count inside a closed set.** For fan-in at most `r`, the edges at a closed set of
@@ -555,8 +555,7 @@ private theorem card_edge_add_ncard_read_le_multiarySize {r : ℕ} (hfan : c.Fan
       Nat.card (Vertex c) + (r - 1) * c.multiarySize := by
   have h := ncard_touching_add_ncard_readIn_le_multiarySize I Acc hfan (graph c).edgeCut_univ
   have htouch : (graph c).touching univ = univ := eq_univ_of_forall fun _ => Or.inl (mem_univ _)
-  rw [htouch, ncard_univ, ncard_univ] at h
-  exact h
+  rwa [htouch, ncard_univ, ncard_univ] at h
 
 /-- **The cycle rank, charging only multiary gates.** For fan-in at most `r`, if the graph is
 connected (as it is for one output), its cycle rank and the number of inputs read by the network
@@ -583,9 +582,7 @@ the inner gates and `m` the outputs. -/
 theorem card_vertex_le {r : ℕ} (hfan : c.FanInAtMost r) :
     Nat.card (Vertex c) ≤ 2 * r * c.innerSize + 3 * m := by
   have hcons := card_consumer (c := c)
-  have hslot : Nat.card (Slot c) ≤ r * c.innerSize := by
-    have h := (card_slot_le hfan univ).trans (Nat.mul_le_mul_left r (card_innerGateIn_le univ))
-    rwa [Nat.card_congr (Equiv.subtypeUnivEquiv fun t => mem_univ (owner (.inl t)))] at h
+  have hslot := card_slot_le_innerSize hfan
   have := card_signal_le_card_consumer (c := c)
   rw [card_vertex, mul_assoc]
   omega

@@ -152,18 +152,14 @@ theorem exists_isRLM_tikhonov [ProperSpace E] {ℓ : E → Z → ℝ} {K : Set E
     have hev : ∀ᶠ w in cocompact E ⊓ Filter.principal K, f w₀ ≤ f w := by
       rw [eventually_inf_principal]
       filter_upwards [tendsto_norm_cocompact_atTop.eventually_ge_atTop ρ₀] with w hw hwK
-      have h1 : 1 ≤ ‖w‖ := by
-        have := div_nonneg (abs_nonneg (f w₀ - min c 0)) hr.le
-        linarith
+      have h1 : 1 ≤ ‖w‖ := by linarith [div_nonneg (abs_nonneg (f w₀ - min c 0)) hr.le]
       have h2 : |f w₀ - min c 0| ≤ r * ‖w‖ := by
         have : |f w₀ - min c 0| / r ≤ ‖w‖ := by linarith
         rwa [div_le_iff₀ hr, mul_comm] at this
-      have h3 : r * ‖w‖ ≤ r * ‖w‖ ^ 2 :=
-        calc r * ‖w‖ = r * ‖w‖ * 1 := by ring
-          _ ≤ r * ‖w‖ * ‖w‖ := mul_le_mul_of_nonneg_left h1 (by positivity)
-          _ = r * ‖w‖ ^ 2 := by ring
-      have := hlow w hwK
-      linarith [le_abs_self (f w₀ - min c 0)]
+      have h3 : r * ‖w‖ ≤ r * ‖w‖ ^ 2 := by
+        rw [sq]
+        exact mul_le_mul_of_nonneg_left (le_mul_of_one_le_right (norm_nonneg w) h1) hr.le
+      linarith [hlow w hwK, le_abs_self (f w₀ - min c 0)]
     exact hf.exists_isMinOn' hK hw₀ hev
   choose A hAK hAmin using h
   exact ⟨A, ⟨hAK, hAmin⟩⟩
@@ -234,7 +230,7 @@ theorem IsRLM.norm_sub_le {ℓ : E → Z → ℝ} {R : E → ℝ} {K : Set E} {m
   · rw [← hd]
     positivity
   · rw [le_div_iff₀ (by positivity)]
-    nlinarith
+    exact le_of_mul_le_mul_right (by linarith [show d * (σ * m) * d = σ * m * d ^ 2 by ring]) hd
 
 /-- **RLM rules with a strongly convex regularizer are uniformly stable**: under the hypotheses of
 `Cslib.MachineLearning.IsRLM.norm_sub_le`, replacing one of `m` examples changes the loss of the
@@ -386,7 +382,7 @@ theorem IsRLM.integral_trueRisk_le_add_sqrt [MeasurableSpace Z] {ℓ : E → Z �
   have hw2 : r * ‖w‖ ^ 2 ≤ r * B ^ 2 := by gcongr
   have hstab : (ρ : ℝ) ^ 2 / (r * m) = r * B ^ 2 / 2 := by
     rw [div_eq_iff (by positivity)]
-    nlinarith
+    linear_combination -hr2 / 2
   have hρt : (ρ : ℝ) * t = 2 * B * r := by
     have hsq : ((ρ : ℝ) * t) ^ 2 = (2 * B * r) ^ 2 := by
       have : ((ρ : ℝ) * t) ^ 2 * m = (2 * B * r) ^ 2 * m := by

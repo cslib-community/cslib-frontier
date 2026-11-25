@@ -55,8 +55,7 @@ The first marker is removed; its mapped successor survives. Short inputs are unc
 
 private theorem survivor_nodup {x y : ℕ} {ps : List ℕ} (hn : (x :: y :: ps).Nodup) :
     ((y :: ps).map (Function.update id y x)).Nodup := by
-  apply List.Nodup.map_on _ hn.of_cons
-  intro a ha b hb he
+  refine List.Nodup.map_on (fun a ha b hb he => ?_) hn.of_cons
   rw [Function.update_id_apply_eq_iff] at he
   rcases he with he | ⟨rfl, _⟩ | ⟨_, rfl⟩
   · exact he
@@ -67,39 +66,28 @@ private theorem survivor_nodup {x y : ℕ} {ps : List ℕ} (hn : (x :: y :: ps).
 program. No target witness, rotation, genus or runtime premise is supplied. -/
 theorem accepted_fuseHead (I : State Rel) (hI : I.Accepted) : (fuseHead I).Accepted := by
   rcases I with ⟨F, ports, c⟩
-  cases ports with
-  | nil => exact hI
-  | cons x ports =>
-    cases ports with
-    | nil => exact hI
-    | cons y ps =>
-      let v : Fin (ps.length + 2) → ℕ := Fin.cons x (Fin.cons y ps.get)
-      let f := Function.update id y x
-      have hv : List.ofFn v = x :: y :: ps := by
-        rw [List.ofFn_cons, List.ofFn_cons, List.ofFn_get]
-      have ht : List.ofFn (fun i : Fin (ps.length + 1) => f (v i.succ)) =
-          (y :: ps).map f := by
-        simp [v]
-      have hn := hI.1
-      have hxy : x ≠ y := by
-        intro he
-        exact (List.nodup_cons.mp hn).1 (by simp [he])
-      let w : Witness F (List.ofFn v) := ⟨c, by rw [hv]; exact hI.2⟩
-      have hk : ∀ a ∈ F.vars ++ List.ofFn v, ∀ b ∈ F.vars ++ List.ofFn v,
-          f a = f b ↔ Function.update id (v 1) (v 0) a =
-            Function.update id (v 1) (v 0) b := by
-        intro a _ b _
-        rfl
-      have htail : (List.ofFn (fun i : Fin (ps.length + 1) => f (v i.succ))).Nodup := by
-        rw [ht]
-        exact survivor_nodup hn
-      let out := w.identifyFirstTwoOfFn f hxy hk htail
-      have hc := w.identifyFirstTwoOfFn_certificate f hxy hk htail
-      have h := out.accepted
-      change OrderedBoundary.verify (F.relabel f)
-        (List.ofFn (fun i : Fin (ps.length + 1) => f (v i.succ))) out.certificate = true at h
-      rw [hc, ht] at h
-      exact ⟨survivor_nodup hn, h⟩
+  rcases ports with _ | ⟨x, _ | ⟨y, ps⟩⟩
+  · exact hI
+  · exact hI
+  · let v : Fin (ps.length + 2) → ℕ := Fin.cons x (Fin.cons y ps.get)
+    let f := Function.update id y x
+    have hv : List.ofFn v = x :: y :: ps := by
+      rw [List.ofFn_cons, List.ofFn_cons, List.ofFn_get]
+    have ht : List.ofFn (fun i : Fin (ps.length + 1) => f (v i.succ)) = (y :: ps).map f := by
+      simp [v]
+    have hn := hI.1
+    have hxy : x ≠ y := fun he => (List.nodup_cons.mp hn).1 (by simp [he])
+    let w : Witness F (List.ofFn v) := ⟨c, hv.symm ▸ hI.2⟩
+    have hk : ∀ a ∈ F.vars ++ List.ofFn v, ∀ b ∈ F.vars ++ List.ofFn v,
+        f a = f b ↔ Function.update id (v 1) (v 0) a = Function.update id (v 1) (v 0) b :=
+      fun _ _ _ _ => Iff.rfl
+    have htail : (List.ofFn (fun i : Fin (ps.length + 1) => f (v i.succ))).Nodup :=
+      ht ▸ survivor_nodup hn
+    have h := (w.identifyFirstTwoOfFn f hxy hk htail).accepted
+    change OrderedBoundary.verify (F.relabel f)
+      (List.ofFn (fun i : Fin (ps.length + 1) => f (v i.succ))) _ = true at h
+    rw [w.identifyFirstTwoOfFn_certificate f hxy hk htail, ht] at h
+    exact ⟨survivor_nodup hn, h⟩
 
 /-- A fused satisfying assignment is exactly a source assignment equating the selected
 pair and agreeing on every other natural name, including all unused names. This statement
@@ -111,22 +99,13 @@ theorem eval_fuseHead_iff (sem : Rel → List Bool → Bool) (F : CSP Rel ℕ)
       ∃ τ : ℕ → Bool, F.eval sem τ = true ∧ τ x = τ y ∧
         ∀ z, z ≠ y → τ z = σ z := by
   rw [fuseHead, CSP.eval_relabel]
-  constructor
-  · intro h
-    refine ⟨σ ∘ Function.update id y x, h, ?_, ?_⟩
-    · simp [hxy]
-    · intro z hz
-      simp [hz]
-  · rintro ⟨τ, ht, he, hagree⟩
-    have hassign : σ ∘ Function.update id y x = τ := by
-      funext z
-      by_cases hz : z = y
-      · subst z
-        simpa only [Function.comp_apply, Function.update_self] using
-          (hagree x hxy).symm.trans he
-      · simpa only [Function.comp_apply, Function.update_of_ne hz, id_eq]
-          using (hagree z hz).symm
-    rw [hassign]
-    exact ht
+  refine ⟨fun h => ⟨σ ∘ Function.update id y x, h, by simp [hxy], fun z hz => by simp [hz]⟩, ?_⟩
+  rintro ⟨τ, ht, he, hagree⟩
+  convert ht using 2
+  funext z
+  by_cases hz : z = y
+  · subst z
+    simpa using (hagree x hxy).symm.trans he
+  · simpa [hz] using (hagree z hz).symm
 
 end Cslib.Complexity.CSP.CrossInsertion

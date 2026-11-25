@@ -89,26 +89,23 @@ theorem ofCoeffList_eval_mulFit (n : ℕ) (p q : List α) :
     simp only [FreeM.eval_bind]
     rw [show n.succ.succ = m + k by simp only [m, k]; omega, ofCoeffList_takeD_add p,
       ofCoeffList_takeD_add q]
-    have hp₀ : p₀.length = m := List.takeD_length _ _ _
-    have hp₁ : p₁.length = k := List.takeD_length _ _ _
-    have hq₀ : q₀.length = m := List.takeD_length _ _ _
-    have hq₁ : q₁.length = k := List.takeD_length _ _ _
     set s := (addList p₀ p₁).eval honest with hs
     set t := (addList q₀ q₁).eval honest with ht
-    have hsl : s.length ≤ k := by rw [hs, length_eval_addList, hp₀, hp₁]; omega
-    have htl : t.length ≤ k := by rw [ht, length_eval_addList, hq₀, hq₁]; omega
+    have hsl : s.length ≤ k := by
+      rw [hs, length_eval_addList, List.takeD_length, List.takeD_length]; omega
+    have htl : t.length ≤ k := by
+      rw [ht, length_eval_addList, List.takeD_length, List.takeD_length]; omega
     have hlen₀ := length_eval_mulFit honest m p₀ q₀
     rw [ofCoeffList_eval_addAt _ (by simp only [List.length_append, hlen₀]; omega),
       ofCoeffList_eval_subList, ofCoeffList_eval_subList, ofCoeffList_append, ofCoeffList_cons,
-      hlen₀, ih₀, ih₁, ih₁, ofCoeffList_takeD_of_length_le hp₀.le,
-      ofCoeffList_takeD_of_length_le hq₀.le, ofCoeffList_takeD_of_length_le hsl,
-      ofCoeffList_takeD_of_length_le htl, ofCoeffList_takeD_of_length_le hp₁.le,
-      ofCoeffList_takeD_of_length_le hq₁.le, hs, ht, ofCoeffList_eval_addList,
-      ofCoeffList_eval_addList, C_0, zero_add]
+      hlen₀, ih₀, ih₁, ih₁, ofCoeffList_takeD_of_length_le (List.takeD_length _ _ _).le,
+      ofCoeffList_takeD_of_length_le (List.takeD_length _ _ _).le,
+      ofCoeffList_takeD_of_length_le hsl, ofCoeffList_takeD_of_length_le htl,
+      ofCoeffList_takeD_of_length_le (List.takeD_length _ _ _).le,
+      ofCoeffList_takeD_of_length_le (List.takeD_length _ _ _).le, hs, ht,
+      ofCoeffList_eval_addList, ofCoeffList_eval_addList, C_0, zero_add]
     have hX : (X : α[X]) ^ (2 * m - 1) * X = X ^ m * X ^ m := by
-      rw [← pow_succ, ← pow_add]
-      congr 1
-      omega
+      rw [← pow_succ, ← pow_add, show 2 * m - 1 + 1 = m + m by omega]
     linear_combination (ofCoeffList p₁ * ofCoeffList q₁) * hX
 
 end Karatsuba

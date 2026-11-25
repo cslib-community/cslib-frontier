@@ -116,26 +116,6 @@ private theorem program_split {Label : Type} (wire : Label → Wire)
   rw [before_append wire hi pre post y hy, ← List.map_erase hi,
     List.erase_append_right (y :: post) hy, List.erase_cons_head]
 
-private def boundedWord {Label : Type} {a b : List Color} {xs ys : List Label}
-    (W : BoundedWiring (Γ := Cell) a b xs ys) (k : ℕ) : Word :=
-  (planarizeAlong Cell.expand W.wiring.diagram).toWord Prim.interp k
-
-private theorem boundedWord_transport {Label : Type} {a b a' b' : List Color}
-    {xs ys xs' ys' : List Label} (ha : a = a') (hb : b = b') (hx : xs = xs') (hy : ys = ys')
-    (h : BoundedWiring (Γ := Cell) a b xs ys = BoundedWiring (Γ := Cell) a' b' xs' ys')
-    (W : BoundedWiring (Γ := Cell) a b xs ys) (k : ℕ) :
-    boundedWord (h.mp W) k = boundedWord W k := by
-  subst a' b' xs' ys'
-  rfl
-
-private theorem boundedWord_transport_rev {Label : Type} {a b a' b' : List Color}
-    {xs ys xs' ys' : List Label} (ha : a = a') (hb : b = b') (hx : xs = xs') (hy : ys = ys')
-    (h : BoundedWiring (Γ := Cell) a' b' xs' ys' = BoundedWiring (Γ := Cell) a b xs ys)
-    (W : BoundedWiring (Γ := Cell) a b xs ys) (k : ℕ) :
-    boundedWord (h.mpr W) k = boundedWord W k := by
-  subst a' b' xs' ys'
-  rfl
-
 private theorem labelledBits_swap {Label : Type} (c d : Color) (x y : Label)
     (u : Label → Bool) :
     labelledBits (Labeling.swap (Γ := Cell) c d x y) u =
@@ -159,9 +139,7 @@ private theorem bits_pull {Label : Type} (wire : Label → Wire) (pre post : Lis
   induction pre generalizing k with
   | nil => rfl
   | cons x xs ih =>
-    rw [List.map_cons, pull_cons]
-    rw [configurationBits_append, configurationBits_singleton]
-    rw [ih]
+    rw [List.map_cons, pull_cons, configurationBits_append, configurationBits_singleton, ih]
     change _ = labelledBits
       (((Labeling.id [(wire x).color] [x] rfl).tensor
         (Labeling.moveLeft (Γ := Cell) (wire y).color y
@@ -172,29 +150,57 @@ private theorem bits_pull {Label : Type} (wire : Label → Wire) (pre post : Lis
             (xs ++ post) (by simp)))) (fun a => (wire a).bit)
     simp only [labelledBits_comp, labelledBits_tensor, labelledBits_id, labelledBits_swap,
       List.nil_append]
-    change _ = _ ++
-      ((Opcode.cross (wire x).color (wire y).color (wire x).bit (wire y).bit).configuration ++ [])
-    rw [List.append_nil]
+    exact (congrArg (_ ++ ·) (List.append_nil _)).symm
 
-private def boundedBits {Label : Type} {a b : List Color} {xs ys : List Label}
-    (W : BoundedWiring (Γ := Cell) a b xs ys) (u : Label → Bool) : List Bool :=
-  labelledBits W.wiring.labeling u
-
-private theorem boundedBits_transport {Label : Type} {a b a' b' : List Color}
-    {xs ys xs' ys' : List Label} (ha : a = a') (hb : b = b') (hx : xs = xs') (hy : ys = ys')
+private theorem wiring_transport {Label α : Type}
+    (f : ∀ {a b : List Color} {xs ys : List Label}, Wiring Cell a b xs ys → α)
+    {a b a' b' : List Color} {xs ys xs' ys' : List Label}
+    (ha : a = a') (hb : b = b') (hx : xs = xs') (hy : ys = ys')
     (h : BoundedWiring (Γ := Cell) a b xs ys = BoundedWiring (Γ := Cell) a' b' xs' ys')
-    (W : BoundedWiring (Γ := Cell) a b xs ys) (u : Label → Bool) :
-    boundedBits (h.mp W) u = boundedBits W u := by
-  subst a' b' xs' ys'
-  rfl
+    (W : BoundedWiring (Γ := Cell) a b xs ys) :
+    f (h.mp W).wiring = f W.wiring := by
+  subst ha hb hx hy; rfl
 
-private theorem boundedBits_transport_rev {Label : Type} {a b a' b' : List Color}
-    {xs ys xs' ys' : List Label} (ha : a = a') (hb : b = b') (hx : xs = xs') (hy : ys = ys')
+private theorem wiring_transport_rev {Label α : Type}
+    (f : ∀ {a b : List Color} {xs ys : List Label}, Wiring Cell a b xs ys → α)
+    {a b a' b' : List Color} {xs ys xs' ys' : List Label}
+    (ha : a = a') (hb : b = b') (hx : xs = xs') (hy : ys = ys')
     (h : BoundedWiring (Γ := Cell) a' b' xs' ys' = BoundedWiring (Γ := Cell) a b xs ys)
-    (W : BoundedWiring (Γ := Cell) a b xs ys) (u : Label → Bool) :
-    boundedBits (h.mpr W) u = boundedBits W u := by
-  subst a' b' xs' ys'
-  rfl
+    (W : BoundedWiring (Γ := Cell) a b xs ys) :
+    f (h.mpr W).wiring = f W.wiring := by
+  subst ha hb hx hy; rfl
+
+private theorem program_hom {Label β : Type} [DecidableEq Label] (wire : Label → Wire)
+    (hi : Function.Injective wire) (F : List (ℕ × Opcode) → List β)
+    (G : ∀ {a b : List Color} {xs ys : List Label}, Wiring Cell a b xs ys → ℕ → List β)
+    (happend : ∀ p q, F (p ++ q) = F p ++ F q) (hnil : ∀ k, F [] = G (Wiring.id [] [] rfl) k)
+    (hstep : ∀ (y : Label) (pre post ys : List Label)
+      (W : Wiring Cell
+        (pre.map (fun a => (wire a).color) ++ post.map (fun a => (wire a).color))
+        (ys.map (fun a => (wire a).color)) (pre ++ post) ys) (k : ℕ),
+      G ((Wiring.moveLeft (Γ := Cell) (wire y).color y
+          (post.map (fun a => (wire a).color)) post (List.length_map ..).symm
+          (pre.map (fun a => (wire a).color)) pre (List.length_map ..).symm).comp
+          ((Wiring.id [(wire y).color] [y] rfl).tensor W)) k =
+        F (pull k (wire y) (pre.map wire)) ++ G W (k + 1))
+    (ys xs : List Label) (hp : xs.Perm ys) (hn : xs.Nodup) (k : ℕ) :
+    F (RoutingData.program ⟨ys.map wire, xs.map wire, k⟩) =
+      G (reorder (Γ := Cell) (fun a => (wire a).color) ys xs hp) k := by
+  change _ = G (reorderBounded (Γ := Cell) (fun a => (wire a).color) ys xs hp).wiring k
+  induction ys generalizing xs k with
+  | nil =>
+    obtain rfl := List.perm_nil.1 hp
+    exact hnil k
+  | cons y ys ih =>
+    generalize hs : splitAt y xs (hp.mem_iff.mpr (List.mem_cons_self ..)) = z
+    obtain ⟨pre, post, rfl⟩ := z
+    have ht : (pre ++ post).Perm ys := (List.perm_middle.symm.trans hp).cons_inv
+    rw [program_split wire hi ys pre post y hn k, happend, ih _ ht (split_nodup hn).2 (k + 1)]
+    conv_rhs => unfold reorderBounded; rw [hs]
+    dsimp only
+    rw [wiring_transport_rev (fun W => G W k) (by simp only [List.map_append, List.map_cons])
+      rfl rfl rfl, hstep,
+      wiring_transport (fun W => G W (k + 1)) List.map_append rfl rfl rfl]
 
 /-- Prefix-filter routing expands to the exact canonical colored reordering word. -/
 theorem expand_program {Label : Type} [DecidableEq Label] (wire : Label → Wire)
@@ -202,36 +208,14 @@ theorem expand_program {Label : Type} [DecidableEq Label] (wire : Label → Wire
     (hn : xs.Nodup) (k : ℕ) :
     expand (RoutingData.program ⟨ys.map wire, xs.map wire, k⟩) =
       (planarizeAlong Cell.expand
-        (reorder (Γ := Cell) (fun a => (wire a).color) ys xs hp).diagram).toWord Prim.interp k := by
-  change _ = boundedWord (reorderBounded (Γ := Cell) (fun a => (wire a).color) ys xs hp) k
-  induction ys generalizing xs k with
-  | nil =>
-    obtain rfl := List.perm_nil.1 hp
-    rfl
-  | cons y ys ih =>
-    generalize hs : splitAt y xs (hp.mem_iff.mpr (List.mem_cons_self ..)) = z
-    obtain ⟨pre, post, rfl⟩ := z
-    have hn' := (split_nodup hn).2
-    rw [program_split wire hi ys pre post y hn k]
-    rw [expand_append]
-    rw [expand_pull wire pre y (post.map (fun a => (wire a).color))]
-    have ht : (pre ++ post).Perm ys := (List.perm_middle.symm.trans hp).cons_inv
-    rw [ih _ ht hn' (k + 1)]
-    conv_rhs => unfold reorderBounded; rw [hs]
-    dsimp only
-    rw [boundedWord_transport_rev (by simp only [List.map_append, List.map_cons]) rfl rfl rfl]
-    change _ =
-      (planarizeAlong Cell.expand
-        ((Wiring.moveLeft (Γ := Cell) (wire y).color y
-          (post.map (fun a => (wire a).color)) post (List.length_map ..).symm
-          (pre.map (fun a => (wire a).color)) pre (List.length_map ..).symm).comp
-          ((Wiring.id [(wire y).color] [y] rfl).tensor _)).diagram).toWord Prim.interp k
-    change _ =
-      (planarizeAlong Cell.expand (Diagram.moveLeft (Γ := Cell)
-        (pre.map (fun a => (wire a).color)) (wire y).color
-        (post.map (fun a => (wire a).color)))).toWord Prim.interp k ++
-      boundedWord _ (k + 1)
-    rw [boundedWord_transport (List.map_append) rfl rfl rfl]
+        (reorder (Γ := Cell) (fun a => (wire a).color) ys xs hp).diagram).toWord Prim.interp k :=
+  program_hom wire hi expand
+    (fun W k => (planarizeAlong Cell.expand W.diagram).toWord Prim.interp k)
+    expand_append (fun _ => rfl)
+    (fun y pre post _ W k => by
+      rw [expand_pull wire pre y (post.map (fun a => (wire a).color))]
+      rfl)
+    ys xs hp hn k
 
 /-- Routing serializes the actual canonical crossover configurations in creation order. -/
 theorem configurationBits_program {Label : Type} [DecidableEq Label] (wire : Label → Wire)
@@ -240,31 +224,13 @@ theorem configurationBits_program {Label : Type} [DecidableEq Label] (wire : Lab
     configurationBits (RoutingData.program ⟨ys.map wire, xs.map wire, k⟩) =
       extendedBits (reorder (Γ := Cell) (fun a => (wire a).color) ys xs hp).diagram
         ((fun a => (wire a).bit) ∘ (reorder (Γ := Cell)
-          (fun a => (wire a).color) ys xs hp).labeling.label) := by
-  change _ = boundedBits (reorderBounded (Γ := Cell) (fun a => (wire a).color) ys xs hp)
-    (fun a => (wire a).bit)
-  induction ys generalizing xs k with
-  | nil =>
-    obtain rfl := List.perm_nil.1 hp
-    rfl
-  | cons y ys ih =>
-    generalize hs : splitAt y xs (hp.mem_iff.mpr (List.mem_cons_self ..)) = z
-    obtain ⟨pre, post, rfl⟩ := z
-    have hn' := (split_nodup hn).2
-    rw [program_split wire hi ys pre post y hn k]
-    rw [configurationBits_append, bits_pull wire pre post y k]
-    have ht : (pre ++ post).Perm ys := (List.perm_middle.symm.trans hp).cons_inv
-    rw [ih _ ht hn' (k + 1)]
-    conv_rhs => unfold reorderBounded; rw [hs]
-    dsimp only
-    rw [boundedBits_transport_rev (by simp only [List.map_append, List.map_cons]) rfl rfl rfl]
-    change _ = labelledBits
-      ((Labeling.moveLeft (Γ := Cell) (wire y).color y
-        (post.map (fun a => (wire a).color)) post (List.length_map ..).symm
-        (pre.map (fun a => (wire a).color)) pre (List.length_map ..).symm).comp
-        ((Labeling.id [(wire y).color] [y] rfl).tensor _)) (fun a => (wire a).bit)
-    rw [labelledBits_comp, labelledBits_tensor, labelledBits_id, List.nil_append]
-    change _ = labelledBits _ (fun a => (wire a).bit) ++ boundedBits _ (fun a => (wire a).bit)
-    rw [boundedBits_transport (List.map_append) rfl rfl rfl]
+          (fun a => (wire a).color) ys xs hp).labeling.label) :=
+  program_hom wire hi configurationBits
+    (fun W _ => labelledBits W.labeling (fun a => (wire a).bit))
+    configurationBits_append (fun _ => rfl)
+    (fun y pre post _ W k => by
+      dsimp only [Wiring.comp, Wiring.tensor, Wiring.moveLeft, Wiring.id]
+      rw [labelledBits_comp, labelledBits_tensor, labelledBits_id, List.nil_append, bits_pull])
+    ys xs hp hn k
 
 end Cslib.Complexity.NCL.Planar.Embedding.PolyTime

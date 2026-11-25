@@ -91,21 +91,13 @@ theorem tower_four_recurrences {M r : ℕ} {I : Type} [Fintype I]
       15 * towerSide T.toTournament A.label base D n false +
       3 * towerJoint T.toTournament A.label base D n true) := by
   have he : (D - (n + 1) + 1) + n = D := by omega
+  have hcount : D - (n + 1) + 1 = D - n := by omega
   have hf : NestedFamily (towerFamily T.toTournament A.label base n (D - (n + 1) + 1)) := by
     apply towerFamily_nested
     rwa [he]
-  have H := recursive_four_recurrences T A
-    (towerFamily T.toTournament A.label base n (D - (n + 1) + 1)) hf hr
-  dsimp only at H
-  change (sideSensitivity
-    (towerFamily T.toTournament A.label base (n + 1) (D - (n + 1))) true ≤ _) ∧
-    (jointSensitivity (towerFamily T.toTournament A.label base (n + 1) (D - (n + 1))) true ≤ _) ∧
-    (sideSensitivity (towerFamily T.toTournament A.label base (n + 1) (D - (n + 1))) false ≤ _) ∧
-    (jointSensitivity (towerFamily T.toTournament A.label base (n + 1) (D - (n + 1))) false ≤ _)
-      at H
-  have hcount : D - (n + 1) + 1 = D - n := by omega
-  rw [hcount] at H
-  exact H
+  unfold towerSide towerJoint
+  rw [← hcount]
+  exact recursive_four_recurrences T A _ hf hr
 
 end Internal
 

@@ -98,11 +98,10 @@ private theorem result_ready {s : (indexedMinPQSpec n K).State}
     (ha : (subroutineImpl hS hK).toStandard.argMatch o x.regs)
     (he : Exec w Program.code.toStandard.code x y N) : (resultRecoding hS hK).ready o y := by
   obtain ⟨z, _, a, m, hex, _, _, _, _, _⟩ := (subroutineImpl hS hK).step_exec o hr hv ha
-  have hcanonical := subroutineImpl_exec_nativeObservation hS hK o hr hv ha hex
   obtain ⟨rfl, _⟩ := he.unique (hex.mapSimulates .exactStandard)
   change nativeObservation (K := K) o y.regs = (subroutineImpl hS hK).decode o y.regs
   rw [subroutineImpl_toBase, subroutineBase_decode]
-  exact hcanonical
+  exact subroutineImpl_exec_nativeObservation hS hK o hr hv ha hex
 
 private theorem projected_program_eq :
     (subroutineImpl hS hK).toStandard.toDynamicProgram (resultRecoding hS hK) =
@@ -110,11 +109,10 @@ private theorem projected_program_eq :
   have he : (subroutineImpl hS hK).toStandard.encode = Program.code.encode := by
     change (subroutineImpl hS hK).toSubroutineBase.encode = _
     rw [subroutineImpl_toBase]
-    exact funext fun o => subroutineBase_encode hS hK o
+    exact funext (subroutineBase_encode hS hK)
   dsimp only [SubroutineBase.toDynamicProgram, SubroutineCode.toDynamicProgram,
     dynamicProgram, resultRecoding]
-  rw [he]
-  rfl
+  rw [he]; rfl
 
 private theorem projected_potential (x : Data Program.registers) :
     (subroutineImpl hS hK).toStandard.potential x = 0 := by
@@ -144,10 +142,8 @@ theorem certificate_rep_iff {hn : Fits w n} (s : (indexedMinPQSpec n K).State)
     (certificate hS hK).rep s x ↔ Representation.Rep base hn hK s x := by
   let C := (subroutineImpl hS hK).toStandard.toCertificate
     (resultRecoding hS hK) (result_ready hS hK)
-  have hc : (certificate hS hK).rep s x ↔ C.rep s x :=
-    Eq.rec (motive := fun _ h => (h ▸ C).rep s x ↔ C.rep s x)
-      Iff.rfl (projected_program_eq hS hK)
-  exact hc.trans (projected_rep_iff hS hK s x)
+  exact (Eq.rec (motive := fun _ h => (h ▸ C).rep s x ↔ C.rep s x)
+    Iff.rfl (projected_program_eq hS hK)).trans (projected_rep_iff hS hK s x)
 
 /-- Every actual admissible call pays its body allowance, one identity-copy instruction and
 its final halt. Canonical observations are actual words in the fixed bank. -/
@@ -158,12 +154,9 @@ theorem instruction_bound :
   have hn : Fits w n := hS.of_le (by wram_omega)
   have hrC : (subroutineImpl hS hK).toStandard.rep s x :=
     (projected_rep_iff hS hK s x).mpr ((certificate_rep_iff (hn := hn) hS hK s x).mp hr)
-  have heC : ((subroutineImpl hS hK).toStandard.toDynamicProgram
-      (resultRecoding hS hK)).ExecOp w x o a y trace := by
-    rw [projected_program_eq]
-    exact he
   have h := (subroutineImpl hS hK).toStandard.toBound
-    (resultRecoding hS hK) (result_ready hS hK) (projected_potential hS hK) hrC hv heC
+    (resultRecoding hS hK) (result_ready hS hK) (projected_potential hS hK) hrC hv
+    (by rwa [projected_program_eq])
   change trace.instructions ≤ (subroutineImpl hS hK).charge s o + 2 at h
   rwa [projected_charge] at h
 
@@ -182,16 +175,13 @@ theorem run_client_bound {hn : Fits w n} {α : Type*} (p : (indexedMinPQSpec n K
       DataStructure.total DynamicProgram.OperationTrace.instructions traces ≤
         (indexedMinPQSpec n K).totalCost (fun _ o => operationTime o + 2) s
           ((indexedMinPQSpec n K).clientHistory s p) := by
-  have hrc : (subroutineImpl hS hK).toStandard.rep s x :=
-    (projected_rep_iff hS hK s x).mpr hr
   obtain ⟨y, tr, he, hy, ht⟩ := (subroutineImpl hS hK).toStandard.run_client_bound
-    (resultRecoding hS hK) (result_ready hS hK) (projected_potential hS hK) p hrc hv
-  refine ⟨y, tr, ?_, (projected_rep_iff hS hK _ y).mp hy, ?_⟩
-  · rw [projected_program_eq] at he
-    exact he
-  · change DataStructure.total DynamicProgram.OperationTrace.instructions tr ≤
-      (indexedMinPQSpec n K).totalCost (fun s o => (subroutineImpl hS hK).charge s o + 2) s
-        ((indexedMinPQSpec n K).clientHistory s p) at ht
-    simpa only [projected_charge] using ht
+    (resultRecoding hS hK) (result_ready hS hK) (projected_potential hS hK) p
+    ((projected_rep_iff hS hK s x).mpr hr) hv
+  refine ⟨y, tr, by rwa [projected_program_eq] at he, (projected_rep_iff hS hK _ y).mp hy, ?_⟩
+  change DataStructure.total DynamicProgram.OperationTrace.instructions tr ≤
+    (indexedMinPQSpec n K).totalCost (fun s o => (subroutineImpl hS hK).charge s o + 2) s
+      ((indexedMinPQSpec n K).clientHistory s p) at ht
+  simpa only [projected_charge] using ht
 
 end Cslib.DataStructure.PriorityQueue.BinaryHeap.Native

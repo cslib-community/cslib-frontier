@@ -114,21 +114,13 @@ private theorem body_step {w N R : ℕ} (hfN : Fits w N) (hfR : Fits w (R + 1)) 
   wram_call (NatGcd.exec (w := w)) renamed [hfN, hfR.of_le (by omega : A ≤ R + 1)]
     with y₂ ⟨⟨hg₂, -⟩, hout₂⟩
   wram_simp [gcdMap, NatGcd.a, NatGcd.b] at hg₂
-  have hy₂n : y₂.regs n = N := by regs_frame
-  have hy₂r : y₂.regs r = R := by regs_frame
-  have hy₂a : y₂.regs a = A := by regs_frame
-  have hy₂l : y₂.regs lim = R + 1 := by regs_frame
-  have hy₂ok : y₂.regs ok = y.regs ok := by regs_frame
-  have hy₂p : y₂.regs phi = ((Finset.range A).filter R.Coprime).card := by regs_frame
-  have hy₂1 : y₂.regs one = 1 := by regs_frame
   let o := if Nat.gcd N A = 1 ∨ Nat.gcd N A = N then y.regs ok else 0
   refine WP.seq ?_
   refine WP.cut (fun y₃ T₃ => T₃ ≤ 7 ∧ y₃.regs ga = R ∧
       y₃.regs gb = A ∧ y₃.regs n = N ∧ y₃.regs r = R ∧ y₃.regs a = A ∧
       y₃.regs lim = R + 1 ∧ y₃.regs ok = o ∧
       y₃.regs phi = ((Finset.range A).filter R.Coprime).card ∧ y₃.regs one = 1) ?_ ?_
-  · wram_exec [hg₂, hy₂1, hy₂n, hy₂ok, hy₂r, hy₂a] <;>
-      { wram_simp [hy₂n, hy₂r, hy₂a, hy₂l, hy₂ok, hy₂p, hy₂1]; dsimp [o]; simp_all }
+  · wram_exec * [hg₂] <;> { wram_simp *; dsimp [o]; simp_all }
   · rintro y₃ T₃ ⟨hT₃, hy₃ga, hy₃gb, hy₃n, hy₃r, hy₃a, hy₃l, hy₃ok, hy₃p, hy₃1⟩
     wram_call (NatGcd.exec (w := w)) renamed
       [hy₃ga, hy₃gb, hfR.of_le (by omega : R ≤ R + 1), hfR.of_le (by omega : A ≤ R + 1)]
@@ -145,16 +137,7 @@ private theorem body_step {w N R : ℕ} (hfN : Fits w N) (hfR : Fits w (R + 1)) 
       (Finset.card_filter_le _ _).trans (Finset.card_range A).le
     have ho_le : o ≤ 1 := by dsimp [o]; split_ifs <;> omega
     have ho_iff : o = 1 ↔ ∀ b < A + 1, Nat.gcd N b = 1 ∨ Nat.gcd N b = N := by
-      dsimp [o]
-      constructor
-      · intro h b hb
-        split_ifs at h with hc'
-        rcases Nat.lt_succ_iff_lt_or_eq.mp hb with hb | rfl
-        · exact hyiff.mp h b hb
-        · exact hc'
-      · intro h
-        simp only [h A (by omega), ↓reduceIte]
-        exact hyiff.mpr fun b hb => h b (by omega)
+      rw [Nat.forall_lt_succ_right, ← hyiff]; dsimp [o]; split_ifs with h <;> simp [h]
     wram_exec [hg₄, hy₄1, hy₄p, hy₄a] <;>
       { have hcard : ((Finset.range (A + 1)).filter R.Coprime).card =
             ((Finset.range A).filter R.Coprime).card + (if R.Coprime A then 1 else 0) := by

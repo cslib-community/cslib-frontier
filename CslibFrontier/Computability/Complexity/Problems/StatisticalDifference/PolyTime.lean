@@ -158,12 +158,8 @@ theorem computableInPolyTime_polarize_log {α : Type} {enc : α ↪ List Bool} (
   have hK2 : ComputableInPolyTime (fun a => K a + 2) enc encUnary := by fun_prop
   have hclog : ComputableInPolyTime (fun a => Nat.clog 2 (K a + 2)) enc encUnary :=
     (unary_clog_const 2).comp hK2
-  have hlam : ComputableInPolyTime (fun a => m * Nat.clog 2 (K a + 2) - 1) enc encUnary := by
-    fun_prop
-  have hell : ComputableInPolyTime (fun a => (2 ^ b) ^ Nat.clog 2 (K a + 2)) enc encUnary :=
-    unary_pow_clog_const hK2 (2 ^ b) 2
   simpa only [log_two_add_one_add_one, ← pow_mul] using
-    computableInPolyTime_polarize_comp hx hlam hell hK
+    computableInPolyTime_polarize_comp hx (by fun_prop) (unary_pow_clog_const hK2 (2 ^ b) 2) hK
 
 /-- **The Polarization Lemma with a polynomial-time map** [SahaiVadhan2003, Lemma 3.3 and the
 remark after its proof], for constant thresholds `0 ≤ β < α² ≤ 1`. There are constants `m ≥ 1`
@@ -225,8 +221,7 @@ theorem exists_computableInPolyTime_polarize_length {α β : ℝ} (hβ : 0 ≤ �
         (α ≤ x.distance → 1 - (1 / 2) ^ ((encSDInstance x).length + 1) ≤ (f x).distance) ∧
         (x.distance ≤ β → (f x).distance ≤ (1 / 2) ^ ((encSDInstance x).length + 1)) := by
   obtain ⟨m, b, -, h⟩ := exists_computableInPolyTime_polarize hβ hβα hα hα1
-  obtain ⟨hf, hdist⟩ := h _ (encoding_length encSDInstance)
-  exact ⟨_, hf, hdist⟩
+  exact ⟨_, h _ (encoding_length encSDInstance)⟩
 
 end SDInstance
 

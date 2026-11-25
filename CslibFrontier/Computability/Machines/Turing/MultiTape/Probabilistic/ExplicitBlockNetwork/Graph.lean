@@ -191,9 +191,8 @@ theorem firstAfterNum_eq (σ : ℕ) (i : Fin q) (h : Fin k) (δ : Fin 3) :
       Bool.and_eq_false_iff, decide_eq_false_iff_not]
     refine ⟨⟨hlt, (inWindowNum_iff σ i i' h δ).mpr hw⟩, i'.isLt, fun j hj => ?_⟩
     by_cases hij : i.val < j
-    · refine Or.inr ?_
-      rw [Bool.eq_false_iff, ne_eq, inWindowNum_iff σ i ⟨j, by omega⟩ h δ]
-      exact hmin ⟨j, by omega⟩ hij hj
+    · exact Or.inr (Bool.eq_false_iff.mpr
+        (mt (inWindowNum_iff σ i ⟨j, by omega⟩ h δ).mp (hmin ⟨j, by omega⟩ hij hj)))
     · exact Or.inl hij
 
 /-! ### Edge targets and endpoints on numbers -/
@@ -272,13 +271,8 @@ theorem edgeTargetNum_blockEdgeEquiv (σ m : ℕ) (e : BlockEdge k q) :
       hdiv, hmod, hmod3, hdiv3, firstAfterNum_eq σ i h δ]
     simp only [edgeTarget]
     cases firstAfter (InWindow (scheduleOfNat k q σ) h
-        (portBlock (scheduleOfNat k q σ) i h δ)) i with
-    | none =>
-      simp only [Option.map_none, Option.getD_none, Option.elim_none]
-      rw [val_explicitVertexEquiv_sink, val_blockEdgeEquiv_inr]
-    | some i' =>
-      simp only [Option.map_some, Option.getD_some, Option.elim_some]
-      rw [val_explicitVertexEquiv_interval]
+        (portBlock (scheduleOfNat k q σ) i h δ)) i <;>
+      simp [val_explicitVertexEquiv_sink, val_blockEdgeEquiv_inr, val_explicitVertexEquiv_interval]
 
 /-- The number of the interval that the block edge numbered `n` leaves. -/
 @[expose] def blockSrcNum (k q n : ℕ) : ℕ := if n < q then n else (n - q) / (k * 3)
@@ -289,8 +283,7 @@ theorem blockSrcNum_blockEdgeEquiv (m : ℕ) (e : BlockEdge k q) :
       explicitVertexEquiv k q m (.inl (.inl (e.elim id Prod.fst))) := by
   rw [val_explicitVertexEquiv_interval]
   rcases e with i | ⟨i, h, δ⟩
-  · rw [val_blockEdgeEquiv_inl, blockSrcNum, ite_eq_left i.isLt]
-    rfl
+  · simp [val_blockEdgeEquiv_inl, blockSrcNum, i.isLt]
   · rw [val_blockEdgeEquiv_inr, blockSrcNum, ite_eq_right (by omega), Nat.add_sub_cancel_left,
       (blockEdge_div_mod i h δ).1]
     rfl

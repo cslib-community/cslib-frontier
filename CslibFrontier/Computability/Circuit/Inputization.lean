@@ -97,8 +97,8 @@ theorem mem_nonInputComponents {g : (Fin n → U) → Fin k → U} {h : (Fin n �
 theorem card_nonInputComponents_le (g : (Fin n → U) → Fin k → U) :
     #(nonInputComponents g) ≤ k := by
   classical
-  refine (card_filter_le _ _).trans ?_
-  simpa using card_image_le (s := univ) (f := fun j x => g x j)
+  exact (card_filter_le _ _).trans
+    (by simpa using card_image_le (s := univ) (f := fun j x => g x j))
 
 /-- When the components of `g` are pairwise distinct and none is an input projection, all `k` of
 them are counted. -/
@@ -106,12 +106,10 @@ theorem card_nonInputComponents_eq {g : (Fin n → U) → Fin k → U}
     (hinj : Function.Injective fun j x => g x j) (hproj : ∀ j i, (fun x => g x j) ≠ fun x => x i) :
     #(nonInputComponents g) = k := by
   classical
-  have hfilter : nonInputComponents g = univ.image fun j x => g x j := by
-    unfold nonInputComponents
-    refine filter_true_of_mem fun h hh => ?_
-    obtain ⟨j, -, rfl⟩ := mem_image.mp hh
-    exact hproj j
-  rw [hfilter, card_image_of_injective _ hinj, card_univ, Fintype.card_fin]
+  rw [nonInputComponents, filter_true_of_mem fun h hh => by
+      obtain ⟨j, -, rfl⟩ := mem_image.mp hh
+      exact hproj j,
+    card_image_of_injective _ hinj, card_univ, Fintype.card_fin]
 
 open Classical in
 /-- The gates of `p` computing a component of `g`. -/
@@ -195,30 +193,23 @@ private theorem Program.exists_inputize (I : Interpretation σ U) (g : (Fin n �
   | s + 1, .gate p line => by
       classical
       obtain ⟨s', q, gates, hgates, hcount⟩ := Program.exists_inputize I g p
-      let l := line.mapWires (liftWire gates)
-      have hl (x : Fin n → U) :
-          l.eval I (Fin.append x (g x)) (q.eval I (Fin.append x (g x))) =
-            line.eval I x (p.eval I x) :=
-        line.eval_mapWires _ I x _ _ _ (trace_liftWire hgates x)
       have hsplit : #((p.gate line).componentGates I g) = #(p.componentGates I g) +
           if ∃ j, (p.gate line).gateFunction I (Fin.last s) = fun x => g x j then 1 else 0 := by
         simp only [Program.componentGates, card_filter, Fin.sum_univ_castSucc,
           Program.gateFunction_gate_castSucc]
       by_cases hlast : ∃ j, (p.gate line).gateFunction I (Fin.last s) = fun x => g x j
       · obtain ⟨j, hj⟩ := hlast
-        refine ⟨s', q, Fin.lastCases (Wire.input (Fin.natAdd n j)) gates, fun x t => ?_, ?_⟩
-        · refine Fin.lastCases ?_ (fun t => ?_) t
-          · simpa using (congrFun hj x).symm
-          · simpa using hgates x t
-        · rw [hsplit, ite_eq_left ⟨j, hj⟩]
-          omega
-      · refine ⟨s' + 1, q.gate l,
-          Fin.lastCases (Wire.gate (Fin.last s')) fun t => (gates t).castSucc, fun x t => ?_, ?_⟩
-        · refine Fin.lastCases ?_ (fun t => ?_) t
-          · simpa [Program.trace] using hl x
-          · simpa using hgates x t
-        · rw [hsplit, ite_eq_right hlast]
-          omega
+        exact ⟨s', q, Fin.lastCases (Wire.input (Fin.natAdd n j)) gates,
+          fun x => Fin.lastCases (by simpa using (congrFun hj x).symm)
+            fun t => by simpa using hgates x t,
+          by rw [hsplit, ite_eq_left ⟨j, hj⟩]; omega⟩
+      · exact ⟨s' + 1, q.gate (line.mapWires (liftWire gates)),
+          Fin.lastCases (Wire.gate (Fin.last s')) fun t => (gates t).castSucc,
+          fun x => Fin.lastCases
+            (by simpa [Program.trace] using
+              line.eval_mapWires _ I x _ _ _ (trace_liftWire hgates x))
+            fun t => by simpa using hgates x t,
+          by rw [hsplit, ite_eq_right hlast]; omega⟩
 
 /-- **Inputization** (generalizing [Ilango, Loff and Oliveira][IlangoLoffOliveira2020],
 Proposition 14 and the proof of Lemma 16, p. 22:22). In a circuit computing `g` followed by `f`,

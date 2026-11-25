@@ -173,16 +173,10 @@ theorem dens_amsSketch_error_le [Fintype ι] [DecidableEq α] [Fintype Y] [Decid
     (hh.mono (by norm_num)).expect_sq_sum_mul_sign hε hε₀ _ _
   simp only [run_amsSketch, hF]
   rcases eq_or_ne s [] with rfl | hs
-  · have hempty : ({ω : Fin (2 * r) → Fin k → ι | η * ∑ a ∈ ([] : List α).toFinset,
-        (([] : List α).count a : ℝ) ^ 2 < |medianOfMeans (fun θ => (∑ a ∈ ([] : List α).toFinset,
-          (([] : List α).count a : ℝ) * sgn (h θ a)) ^ 2) ω - ∑ a ∈ ([] : List α).toFinset,
-            (([] : List α).count a : ℝ) ^ 2|} : Finset _) = ∅ := by
-      have : Nonempty (Fin (2 * r)) := ⟨⟨0, by omega⟩⟩
-      refine filter_false_of_mem fun ω _ => ?_
-      simp only [List.toFinset_nil, sum_empty, mul_zero, sub_zero, not_lt, medianOfMeans,
-        ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow, expect_const_zero, median_const,
-        abs_zero, le_refl]
-    rw [hempty, dens_empty, NNRat.cast_zero]
+  · have : Nonempty (Fin (2 * r)) := ⟨⟨0, by omega⟩⟩
+    simp only [List.toFinset_nil, sum_empty, mul_zero, sub_zero, medianOfMeans, ne_eq,
+      OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow, expect_const_zero, median_const,
+      abs_zero, lt_self_iff_false, filter_false, dens_empty, NNRat.cast_zero]
     positivity
   · have hpos : 0 < ∑ a ∈ s.toFinset, ((s.count a : ℝ)) ^ 2 := by
       obtain ⟨a, ha⟩ := List.exists_mem_of_ne_nil s hs
@@ -199,8 +193,7 @@ theorem dens_amsSketch_error_le [Fintype ι] [DecidableEq α] [Fintype Y] [Decid
         _ = 6 * (∑ a ∈ s.toFinset, ((s.count a : ℝ)) ^ 2) ^ 2 := by ring
         _ ≤ k * η ^ 2 * (∑ a ∈ s.toFinset, ((s.count a : ℝ)) ^ 2) ^ 2 := by gcongr
         _ = _ := by ring
-    have := dens_abs_medianOfMeans_sub_gt_le (r := r) g (by positivity) hvar
-    rwa [hmean] at this
+    simpa only [hmean] using dens_abs_medianOfMeans_sub_gt_le (r := r) g (by positivity) hvar
 
 /-- The error of the randomized AMS sketch is the fraction of bad seeds. -/
 theorem errorProb_ams [Fintype ι] [Nonempty ι] (R : List α → ℝ → Prop) (s : List α)
@@ -245,9 +238,8 @@ theorem spaceLE_ams [Fintype ι] [Nonempty ι] (hsgn : ∀ y, |sgn y| ≤ 1) {m 
   refine Algorithm.spaceLE_of_subset_finset (T := {ω} ×ˢ
     Fintype.piFinset fun _ => Fintype.piFinset fun _ => Icc (-(m : ℤ)) m) ?_ ?_
   · rintro _ ⟨s, hs, rfl⟩
-    rw [mem_coe, mem_product, Fintype.mem_piFinset]
-    refine ⟨?_, fun i => Fintype.mem_piFinset.2 fun l => mem_Icc_state_amsSketch_snd hsgn ω hs i l⟩
-    rw [state_amsSketch, mem_singleton]
+    simp only [mem_coe, mem_product, Fintype.mem_piFinset]
+    exact ⟨by simp [state_amsSketch], fun i l => mem_Icc_state_amsSketch_snd hsgn ω hs i l⟩
   · rw [card_product, card_singleton, one_mul, Fintype.card_piFinset_Icc, Fintype.card_fin,
       Fintype.card_fin]
     exact hb
@@ -263,16 +255,13 @@ theorem exists_injOn_iUnion_reachable_amsSketch [Fintype ι] (hsgn : ∀ y, |sgn
     ∃ enc : AMSState ι r k → BitString b,
       Set.InjOn enc (⋃ ω, (amsSketch h sgn r k ω).reachable m) := by
   classical
-  let T : Finset (AMSState ι r k) := (univ : Finset (Fin (2 * r) → Fin k → ι)) ×ˢ
-    Fintype.piFinset fun _ => Fintype.piFinset fun _ => Icc (-(m : ℤ)) m
-  refine Algorithm.exists_injOn_of_subset_finset (T := T) ?_ ?_
+  refine Algorithm.exists_injOn_of_subset_finset
+    (T := (univ : Finset (Fin (2 * r) → Fin k → ι)) ×ˢ
+      Fintype.piFinset fun _ => Fintype.piFinset fun _ => Icc (-(m : ℤ)) m) ?_ ?_
   · rintro _ ⟨_, ⟨ω, rfl⟩, s, hs, rfl⟩
-    rw [mem_coe, mem_product, Fintype.mem_piFinset]
-    exact ⟨mem_univ _, fun i => Fintype.mem_piFinset.2 fun l =>
-      mem_Icc_state_amsSketch_snd hsgn ω hs i l⟩
-  · rw [card_product, Fintype.card_piFinset_Icc, Fintype.card_fin, Fintype.card_fin, card_univ,
-      Fintype.card_pi, prod_const, card_univ, Fintype.card_fin, Fintype.card_pi, prod_const,
-      card_univ, Fintype.card_fin, ← pow_mul, mul_comm k, ← mul_pow]
-    exact hb
+    simp only [mem_coe, mem_product, mem_univ, true_and, Fintype.mem_piFinset]
+    exact mem_Icc_state_amsSketch_snd hsgn ω hs
+  · simpa only [card_product, Fintype.card_piFinset_Icc, Fintype.card_fin, card_univ,
+      Fintype.card_pi, prod_const, ← pow_mul, mul_comm k, ← mul_pow] using hb
 
 end Cslib.Streaming

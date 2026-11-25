@@ -92,15 +92,13 @@ theorem traceNorm_sub_sq_div_two_le_relativeEntropy {ρ σ : Matrix ι ι ℂ}
     obtain ⟨hi, he⟩ := relativeEntropyReal_resolventIntegral hρ.posSemidef hσ.posSemidef hsupport
     obtain ⟨U, hU, hUval, _⟩ := traceNorm_eq_max_re_trace (ρ - σ)
     have hd : (Uᴴ * ρ).trace.re - (Uᴴ * σ).trace.re = d := by
-      rw [Matrix.mul_sub, trace_sub, Complex.sub_re] at hUval
-      exact hUval
+      rwa [Matrix.mul_sub, trace_sub, Complex.sub_re] at hUval
     have hg : IntervalIntegrable (fun s : ℝ => (1 - s) * d ^ 2) volume 0 1 :=
       (by fun_prop : Continuous (fun s : ℝ => (1 - s) * d ^ 2)).intervalIntegrable _ _
     have hval : (∫ s in (0 : ℝ)..1, (1 - s) * d ^ 2) = d ^ 2 / 2 := by
-      have hc : IntervalIntegrable (fun _ : ℝ => (1 : ℝ)) volume 0 1 := intervalIntegrable_const
-      have hl : IntervalIntegrable (fun x : ℝ => x) volume 0 1 :=
-        continuous_id.intervalIntegrable 0 1
-      rw [intervalIntegral.integral_mul_const, intervalIntegral.integral_sub hc hl,
+      rw [intervalIntegral.integral_mul_const,
+        intervalIntegral.integral_sub intervalIntegrable_const
+          (continuous_id'.intervalIntegrable 0 1),
         intervalIntegral.integral_const, integral_id]
       ring
     rw [← he, ← hval]
@@ -115,8 +113,7 @@ theorem traceNorm_sub_sq_div_two_le_relativeEntropy {ρ σ : Matrix ι ι ℂ}
       hρ.posSemidef hσ.posSemidef).2 (Set.mem_range_self X)
     rw [resolvent_test_value hρ hσ hU a b t] at hbound
     have ht : t = (1 - a) / a := by
-      change s / a = (1 - (1 - s)) / a
-      congr 1
+      simp only [t, a]
       ring
     have hanorm : ρ.trace.re = 1 := by rw [hρ.trace_eq_one, Complex.one_re]
     change a * d ^ 2 ≤ (relativeEntropyResolvent t ρ σ - a * ρ.trace.re) / a ^ 2
