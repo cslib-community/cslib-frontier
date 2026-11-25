@@ -148,9 +148,7 @@ private theorem mem_hist {E ov u y i} :
   rw [List.mem_iff_getElem?]
   constructor
   · rintro ⟨k, hk⟩
-    have hky : k < y := by
-      have := (List.getElem?_eq_some_iff.1 hk).1
-      rwa [length_hist] at this
+    have hky : k < y := by simpa [length_hist] using (List.getElem?_eq_some_iff.1 hk).1
     rw [getElem?_hist E ov u hky] at hk
     exact ⟨k, hky, Option.some_injective _ hk⟩
   · rintro ⟨k, hk, hc⟩
@@ -171,11 +169,7 @@ theorem canc_eq_some {E ov u y i} :
     constructor
     · rintro ⟨h1, h2, ⟨h3, h4⟩, h5⟩
       refine ⟨h1, by omega, h3, fun k hk hc => h4 ⟨k, hk, hc⟩, fun j hj hji hE => ?_⟩
-      have := h5 j hj hji
-      simp only [Bool.and_eq_false_iff, Bool.not_eq_false', decide_eq_true_eq] at this
-      rcases this with h | h
-      · simp [hE] at h
-      · exact h
+      simpa [hE] using h5 j hj hji
     · rintro ⟨h1, h2, h3, h4, h5⟩
       refine ⟨h1, by omega, ⟨h3, fun ⟨k, hk, hc⟩ => h4 k hk hc⟩, fun j hj hji => ?_⟩
       cases hE : E j y
@@ -195,9 +189,7 @@ theorem canc_eq_none {E ov u y} :
       decide_eq_true_eq, mem_hist, Bool.false_eq_true, false_or]
     constructor
     · intro h i hu hy hE
-      rcases h i hu (by omega) with h | h
-      · simp [hE] at h
-      · exact h
+      exact (h i hu (by omega)).resolve_left (by simp [hE])
     · intro h i hu hy
       cases hE : E i y
       · simp
@@ -229,15 +221,11 @@ theorem canc_congr {E₁ E₂ : ℕ → ℕ → Bool} {ov : ℕ → Bool} {u x :
       congr 2
       unfold step
       congr 1
-      refine bfind_congr fun i hi hiy => ?_
-      rw [h i y hi (by omega) (by omega)]
+      exact bfind_congr fun i hi hiy => by rw [h i y hi (by omega) (by omega)]
   intro y hy
-  unfold canc
-  rw [hh y (by omega)]
-  unfold step
-  congr 1
-  refine bfind_congr fun i hi hiy => ?_
-  rw [h i y hi (by omega) hy]
+  have := hh (y + 1) (by omega)
+  rw [hist, hist] at this
+  exact List.singleton_inj.1 (List.append_inj' this rfl).2
 
 /-- The run is computable, uniformly in a parameter, whenever the eligibility predicate and the
 override are. -/
@@ -355,8 +343,7 @@ theorem canc_override {E : ℕ → ℕ → Bool} {u : ℕ} {ov : ℕ → Bool}
       by_contra hc
       rw [Bool.not_eq_false, hov] at hc
       obtain ⟨j'', hj'', hc⟩ := hc
-      rw [h] at hc
-      cases hc
+      cases h.symm.trans hc
       omega
     refine canc_eq_some.2 ⟨hovy, hj, hjy, hE, fun k hk hc => hnc k hk ((ih k hk j hj).1 hc),
       fun j' hu hj' hE' => ?_⟩
