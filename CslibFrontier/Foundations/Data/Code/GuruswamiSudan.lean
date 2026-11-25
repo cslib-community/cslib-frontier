@@ -208,8 +208,7 @@ theorem IsWeightedInterpolant.rootMultiplicity_le_of_min (hQ : IsWeightedInterpo
     (hmin : ∀ Q', IsWeightedInterpolant α w mult d D Q' → Q.natDegree ≤ Q'.natDegree)
     (hmult : ∀ i, mult i ≤ m) (P : F[X]) :
     Q.rootMultiplicity P ≤ m := by
-  by_contra hlt
-  push Not at hlt
+  by_contra! hlt
   set r := Q.rootMultiplicity P
   obtain ⟨S, hQS⟩ := pow_rootMultiplicity_dvd Q P
   change Q = (Y - C P) ^ r * S at hQS
@@ -623,25 +622,19 @@ theorem exists_guruswamiSudan_of_eps [Nonempty ι] (hα : Function.Injective α)
     linarith
   · push Not at hgap
     have hρ'pos : 0 < ρ' := div_pos (Nat.cast_pos.2 (by omega)) hnR
-    have hρ'leρ : ρ' ≤ ρ := by
-      dsimp only [ρ', ρ]
-      gcongr
-      exact_mod_cast Nat.sub_le k 1
+    have hρ'leρ : ρ' ≤ ρ := by dsimp only [ρ', ρ]; gcongr; exact_mod_cast Nat.sub_le k 1
     set m : ℕ := ⌊Real.sqrt ρ' / (2 * ε)⌋₊ + 1
     set t : ℕ := ⌈(Real.sqrt ρ + ε) * n⌉₊
     set D : ℕ := m * t - 1
     have hm_pos : 1 ≤ m := Nat.le_add_left 1 _
     have hm_bound : m ≤ ⌊1 / (2 * ε)⌋₊ + 1 := by
-      dsimp only [m]
-      gcongr
+      dsimp only [m]; gcongr
       exact Real.sqrt_le_one.2 ((div_le_one hnR).2 (by exact_mod_cast (by omega : k - 1 ≤ n)))
     have ht_ge : (Real.sqrt ρ + ε) * n ≤ (t : ℝ) := Nat.le_ceil _
     have ht_pos : 0 < t := Nat.cast_pos.1 ((mul_pos (by positivity) hnR).trans_le ht_ge)
     have ht_le_n : t ≤ n := Nat.ceil_le.2 (by nlinarith)
     have hD1 : D + 1 = m * t := Nat.sub_add_cancel (Nat.mul_pos hm_pos ht_pos)
-    have hD_lt : D < m * n := by
-      have hmt_le : m * t ≤ m * n := Nat.mul_le_mul_left m ht_le_n
-      omega
+    have hD_lt : D < m * n := by have := Nat.mul_le_mul_left m ht_le_n; omega
     have hm_gt : Real.sqrt ρ' / (2 * ε) < (m : ℝ) := by
       simpa [m] using Nat.lt_floor_add_one (Real.sqrt ρ' / (2 * ε))
     have ht_ge' : (Real.sqrt ρ' + ε) * n ≤ (t : ℝ) :=
@@ -653,9 +646,7 @@ theorem exists_guruswamiSudan_of_eps [Nonempty ι] (hα : Function.Injective α)
       have h2 := mul_lt_mul_of_pos_right ((div_lt_iff₀ (by positivity)).1 hm_gt)
         (Real.sqrt_pos.2 hρ'pos)
       linarith [Real.mul_self_sqrt hρ'pos.le]
-    have hnd_eq : (n : ℝ) * ((k - 1 : ℕ) : ℝ) = ρ' * (n : ℝ) ^ 2 := by
-      dsimp only [ρ']
-      field_simp
+    have hnd_eq : (n : ℝ) * ((k - 1 : ℕ) : ℝ) = ρ' * (n : ℝ) ^ 2 := by dsimp only [ρ']; field_simp
     have hstepR :
         (n : ℝ) * ((k - 1 : ℕ) : ℝ) * ((m : ℝ) + 1) < (t : ℝ) * ((m : ℝ) * (t : ℝ) + 1) := by
       have h1 : (n : ℝ) * ((k - 1 : ℕ) : ℝ) <
@@ -668,12 +659,10 @@ theorem exists_guruswamiSudan_of_eps [Nonempty ι] (hα : Function.Injective α)
     have hstepN : n * (k - 1) * (m + 1) < t * (m * t + 1) := by exact_mod_cast hstepR
     have hineq : n * (k - 1) * m * (m + 1) < (D + 1) * (D + 2) := by
       rw [show D + 2 = m * t + 1 by omega, hD1]
-      have hmul := Nat.mul_lt_mul_of_pos_left hstepN hm_pos
-      linarith
+      linarith [Nat.mul_lt_mul_of_pos_left hstepN hm_pos]
     refine ⟨m, D, hm_pos, hm_bound, hD_lt,
       fun w => ⟨card_guruswamiSudan_mul_le, fun P hP hdist => ?_⟩⟩
-    rw [mem_guruswamiSudan_iff_of_lt hα hk hineq]
-    refine ⟨hP, ?_⟩
+    refine (mem_guruswamiSudan_iff_of_lt hα hk hineq).2 ⟨hP, ?_⟩
     have hcard_sumR : (#{i | P.eval (α i) = w i} : ℝ) +
         (hammingDist (fun i => P.eval (α i)) w : ℝ) = n := by
       exact_mod_cast card_filter_eq_add_hammingDist (fun i => P.eval (α i)) w
