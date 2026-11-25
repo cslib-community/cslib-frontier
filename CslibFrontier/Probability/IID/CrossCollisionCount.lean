@@ -97,8 +97,7 @@ private theorem sum_sum_mul_sum {ι : Type*} [Fintype ι] (f : ι → (Fin k →
   rw [Finset.sum_comm]
   refine sum_congr rfl fun x _ => ?_
   rw [Finset.sum_comm]
-  refine sum_congr rfl fun y _ => sum_congr rfl fun i _ => ?_
-  ring
+  exact sum_congr rfl fun y _ => sum_congr rfl fun i _ => by ring
 
 /-- **Mean of the cross-collision count**: for `k` draws from `p` and `l` independent draws from
 `q`, the expected number of colliding pairs across the samples is `k l ∑ a, p(a) q(a)`. -/
@@ -124,8 +123,7 @@ theorem sum_sum_iid_mul_crossCollisionCount_sq :
       ∑ ab : α × α, ((occurrenceCount x ab.1 : ℝ) * occurrenceCount x ab.2) *
         ((occurrenceCount y ab.1 : ℝ) * occurrenceCount y ab.2) := by
     rw [crossCollisionCount_eq_sum, sq, sum_mul_sum, ← Finset.univ_product_univ, sum_product]
-    refine sum_congr rfl fun a _ => sum_congr rfl fun b _ => ?_
-    ring
+    exact sum_congr rfl fun a _ => sum_congr rfl fun b _ => by ring
   simp only [hsq]
   rw [sum_sum_mul_sum, Fintype.sum_prod_type]
   simp only [sum_iid_mul_occurrenceCount_mul_occurrenceCount]
@@ -181,15 +179,17 @@ theorem sum_sum_iid_mul_crossCollisionCount_mul_collisionCount :
       k * (l * (l - 1) * (l - 2) / 2) * collisionProbability q *
           ∑ a, (p a).toReal * (q a).toReal +
         k * (l * (l - 1)) * ∑ a, (p a).toReal * (q a).toReal ^ 2 := by
-  have h (x : Fin k → α) (y : Fin l → α) : (crossCollisionCount x y : ℝ) * collisionCount y =
-      ∑ a, (occurrenceCount x a : ℝ) * ((collisionCount y : ℝ) * occurrenceCount y a) := by
-    rw [crossCollisionCount_eq_sum, sum_mul]
-    exact sum_congr rfl fun a _ => by ring
-  simp only [h]
-  rw [sum_sum_mul_sum]
-  simp only [sum_iid_mul_collisionCount_mul_occurrenceCount, sum_iid_mul_occurrenceCount]
-  rw [mul_sum, mul_sum, ← sum_add_distrib]
-  exact sum_congr rfl fun a _ => by ring
+  rw [Finset.sum_comm]
+  calc _ = ∑ y, ∑ x, (iid q l y).toReal * (iid p k x).toReal *
+          ((collisionCount y : ℝ) * crossCollisionCount y x) :=
+        sum_congr rfl fun y _ => sum_congr rfl fun x _ => by
+          rw [show (crossCollisionCount x y : ℝ) = crossCollisionCount y x by
+            simp only [crossCollisionCount_eq_sum, mul_comm]]
+          ring
+    _ = _ := by
+        rw [sum_sum_iid_mul_collisionCount_mul_crossCollisionCount q p l k]
+        simp only [mul_comm (q _).toReal, mul_comm ((q _).toReal ^ 2)]
+        ring
 
 end Moments
 
