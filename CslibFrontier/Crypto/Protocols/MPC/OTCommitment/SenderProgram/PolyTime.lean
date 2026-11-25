@@ -64,10 +64,8 @@ private theorem senderLoop_eq
   | succ k ih =>
     simp only [List.replicate_succ, List.foldlM_cons, senderLoopStep,
       Nat.add_sub_cancel, bind_assoc, pure_bind, ih, senderViewProgram_succ, map_bind]
-    apply congrArg (Bind.bind (choose k st))
-    apply funext
-    rintro ⟨t, middle⟩
-    simp [List.reverse_cons, List.append_assoc]
+    exact congrArg (Bind.bind (choose k st))
+      (funext fun ⟨_, _⟩ => by simp [List.reverse_cons, List.append_assoc])
 
 /-- Native list transcript generation, uniformly in the unary count and charged initial state.
 Only the combined round's final state needs additive growth on supported choices. -/
@@ -150,17 +148,14 @@ theorem senderClosedProgram_isPPT {Output : Type}
         (encPair (encFinite Phased.Observation) (encPair stateEncoding outputEncoding)))
       (fun p => senderClosedProgram choose receive p.1 p.2 finish) := by
   have hview := senderViewProgram_isPPT stateEncoding choose receive hchoose hreceive growth hgrowth
-  have hselected := selectedBits_polyTime
-  have hopen := openPairs_polyTime
   have hextract : ComputableInPolyTime
       (fun tables : List (Fin 4 → Bool) => extractPairs (tables.map fun t =>
         (t (boolPairToFin4 (false, false)), t (boolPairToFin4 (false, true)))))
-      (encList (encFinEnum (Fin 4 → Bool))) encBool := by
-    apply extractPairs_polyTime.comp
-    apply ComputableInPolyTime.mapWithInput (encA := encFinEnum (Fin 4 → Bool)) .id'
-    exact (ComputableInPolyTime.of_finite
-      (fun t : Fin 4 → Bool =>
-        (t (boolPairToFin4 (false, false)), t (boolPairToFin4 (false, true))))).comp (.snd _ _)
+      (encList (encFinEnum (Fin 4 → Bool))) encBool :=
+    extractPairs_polyTime.comp (ComputableInPolyTime.mapWithInput
+      (encA := encFinEnum (Fin 4 → Bool)) .id'
+      ((ComputableInPolyTime.of_finite fun t : Fin 4 → Bool =>
+        (t (boolPairToFin4 (false, false)), t (boolPairToFin4 (false, true)))).comp (.snd _ _)))
   have hobserve : ComputableInPolyTime
       (fun p : Option Bool × Bool =>
         if p.1 == some p.2 then Phased.Observation.opened p.2 else .aborted)
@@ -183,8 +178,8 @@ theorem senderClosedProgram_isPPT {Output : Type}
   have hchoices := hcontext.snd'
   have htables := hcontext.fst'.snd'.fst'
   have hstate := hcontext.fst'.snd'.snd'
-  have hresultBit := hopen.comp
-    (hchoices.prod ((hselected.comp (htables.prod hchoices)).prod hresult.fst'))
+  have hresultBit := openPairs_polyTime.comp
+    (hchoices.prod ((selectedBits_polyTime.comp (htables.prod hchoices)).prod hresult.fst'))
   have hobs := hobserve.comp (hresultBit.prod (hextract.comp htables))
   exact (ComputableInPolyTime.const Phased.Observation.receipt).prod
     (hobs.prod (hstate.prod hresult.snd'))

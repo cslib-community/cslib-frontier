@@ -108,9 +108,7 @@ theorem not_solves_bounded_density {d : ℕ} (P : KWRoundProtocol ι M d)
   let C : ℝ := 32768 * (194 : ℝ) ^ d * k
   let K (i : ℕ) : ℝ := (194 : ℝ) ^ i * k
   let B (i : ℕ) : ℝ := C ^ i * p
-  have hp : 0 ≤ p := by
-    obtain ⟨r, hr, hrp, _⟩ := h.2.2.2.2
-    exact hr.le.trans hrp
+  have hp : 0 ≤ p := let ⟨_, hr, hrp, _⟩ := h.2.2.2.2; hr.le.trans hrp
   have hC : 1 ≤ C := by
     have hh : 1 ≤ (194 : ℝ) ^ d := one_le_pow₀ (by norm_num)
     dsimp [C]
@@ -154,35 +152,24 @@ theorem not_solves_bilateral_density {d : ℕ} (P : KWRoundProtocol ι M (d + 1)
     have hh : 1 ≤ (194 : ℝ) ^ d := one_le_pow₀ (by norm_num)
     nlinarith [mul_nonneg (show 0 ≤ (194 : ℝ) ^ d by positivity) hm]
   have hcap : p ≤ 1 / 4 := by
-    have ht := mul_le_mul_of_nonneg_right (one_le_pow₀ (n := d) hC) hp.le
-    simp only [one_mul] at ht
-    exact ht.trans hbudget
+    simpa only [one_mul] using
+      (mul_le_mul_of_nonneg_right (one_le_pow₀ (n := d) hC) hp.le).trans hbudget
   intro hsol
   cases P with
   | output i =>
-    have h : DensityRectangle X Y p k := ⟨hX, hY, hdX, hdY, p, hp, le_rfl, Or.inl hleft⟩
-    exact h.not_separated (by linarith) i hsol
+    exact DensityRectangle.not_separated ⟨hX, hY, hdX, hdY, p, hp, le_rfl, Or.inl hleft⟩
+      (by linarith) i hsol
   | alice send next =>
     obtain ⟨a, hne, hdef⟩ := exists_uniformDeficit_fiber_le X hX send hM
-    let X' := X.filter (fun x => send x = a)
-    have hnew : DensityRectangle X' Y p (m + k) := by
-      refine ⟨hne, hY, by linarith, by linarith, p, hp, le_rfl, Or.inl ?_⟩
-      intro x hx
-      exact (hleft x (Finset.mem_filter.mp hx).1).mono_right
-        hp.le (by linarith) (by linarith)
     exact (next a).not_solves_bounded_density hM (k := m + k) (by linarith) (by linarith) hbudget
-      hnew (solves_next_of_alice hsol (Finset.filter_subset _ X)
-        fun x hx => (Finset.mem_filter.mp hx).2)
+      ⟨hne, hY, by linarith, by linarith, p, hp, le_rfl, Or.inl fun x hx =>
+        (hleft x (Finset.mem_filter.mp hx).1).mono_right hp.le (by linarith) (by linarith)⟩
+      (solves_next_of_alice hsol (Finset.filter_subset _ X) fun _ hx => (Finset.mem_filter.mp hx).2)
   | bob send next =>
     obtain ⟨a, hne, hdef⟩ := exists_uniformDeficit_fiber_le Y hY send hM
-    let Y' := Y.filter (fun y => send y = a)
-    have hnew : DensityRectangle X Y' p (m + k) := by
-      refine ⟨hX, hne, by linarith, by linarith, p, hp, le_rfl, Or.inr ?_⟩
-      intro y hy
-      exact (hright y (Finset.mem_filter.mp hy).1).mono_right
-        hp.le (by linarith) (by linarith)
     exact (next a).not_solves_bounded_density hM (k := m + k) (by linarith) (by linarith) hbudget
-      hnew (solves_next_of_bob hsol (Finset.filter_subset _ Y)
-        fun y hy => (Finset.mem_filter.mp hy).2)
+      ⟨hX, hne, by linarith, by linarith, p, hp, le_rfl, Or.inr fun y hy =>
+        (hright y (Finset.mem_filter.mp hy).1).mono_right hp.le (by linarith) (by linarith)⟩
+      (solves_next_of_bob hsol (Finset.filter_subset _ Y) fun _ hy => (Finset.mem_filter.mp hy).2)
 
 end Cslib.Communication.RoundProtocol

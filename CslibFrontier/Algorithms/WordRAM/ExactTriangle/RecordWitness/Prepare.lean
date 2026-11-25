@@ -52,19 +52,16 @@ theorem prepare_input {w m n g p A : ℕ} (values : List ℤ)
         z.regs (productBank 42) ≤ PreparationInput.wordBound n (D m) g p A := by
   have hDn : D m ≤ n := (Nat.le_self_pow (by decide : 18 ≠ 0) (D m)).trans hN
   have hw : PreparationInput.width n (D m) g p A ≤ w + 2 := by
-    unfold admissionWidth RecordProduct.admissionWidth at hW
-    omega
+    unfold admissionWidth RecordProduct.admissionWidth at hW; omega
   obtain ⟨a, ha, hout, hi, -⟩ := PreparationInput.exec_input values hlen
     (by omega) hDn hg hp hv hw
   have ha' : ExecWithin (w + 2) Instances.program
       (.init (PreparationInput.input n (D m) g p values)) a
       (RecordProduct.preparationTime n (D m) g p values - 1) := ha
-  have hf : Function.Injective RecordProduct.producerBank := by
-    intro i j h
-    exact Fin.ext (congrArg (fun k : Fin 320 => k.val) h)
-  have hf' : Function.Injective productBank := by
-    intro i j h
-    exact Fin.ext (congrArg (fun k : Fin 400 => k.val) h)
+  have hf : Function.Injective RecordProduct.producerBank := fun _ _ h =>
+    Fin.ext (congrArg (fun k : Fin 320 => k.val) h)
+  have hf' : Function.Injective productBank := fun _ _ h =>
+    Fin.ext (congrArg (fun k : Fin 400 => k.val) h)
   let x₀ : Data 320 := .init (PreparationInput.input n (D m) g p values)
   let x := a.extend RecordProduct.producerBank x₀
   have hx : ExecWithin (w + 2) RecordProduct.produce x₀ x
@@ -84,13 +81,11 @@ theorem prepare_input {w m n g p A : ℕ} (values : List ℤ)
     · change Function.update y.regs (productBank RecordProduct.Reg.ordinal) 0
         (productBank (RecordProduct.producerBank j)) = a.regs j
       have hne : productBank (RecordProduct.producerBank j) ≠
-          productBank RecordProduct.Reg.ordinal := by
-        intro he
+          productBank RecordProduct.Reg.ordinal := fun he => by
         have hh := congrArg (fun k : Fin 400 => k.val) he
         change j.val = 64 at hh
         omega
-      rw [Function.update_of_ne hne]
-      exact low j
+      exact (Function.update_of_ne hne _ _).trans (low j)
     · rfl
   obtain ⟨idx, hidx, hord⟩ := RecordProduct.first_index (fun q => values.getD q 0)
     hD hDn hg (by omega : p ≠ 0)
@@ -103,13 +98,8 @@ theorem prepare_input {w m n g p A : ℕ} (values : List ℤ)
   have hb := PreparationInput.bounded_reachable values hlen (by omega) hDn hg hp hv hw
     ⟨Instances.program.size, a⟩ t hr
   refine ⟨hi, a, idx, z, ⟨t, ht, he⟩, hout, hidx, hord, ?_, zmap, rfl, ?_⟩
-  · have hpos : 1 ≤ RecordProduct.preparationTime n (D m) g p values := by
-      dsimp only [RecordProduct.preparationTime, Instances.timeBound]
-      omega
-    exact (hy.seq hz).mono (by omega)
-  · have hheap : z.regs (productBank 42) = a.regs Instances.heap :=
-      congrArg (fun d : Data 64 => d.regs Instances.heap) zmap
-    rw [hheap]
-    exact (hb.1 Instances.heap).le
+  · exact (hy.seq hz).mono
+      (by dsimp only [RecordProduct.preparationTime, Instances.timeBound]; omega)
+  · exact (congrArg (fun d : Data 64 => d.regs Instances.heap) zmap).trans_le (hb.1 _).le
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.RecordWitness

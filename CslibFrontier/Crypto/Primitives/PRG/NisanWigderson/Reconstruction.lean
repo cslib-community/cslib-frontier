@@ -116,22 +116,15 @@ def ofTrial (f : (Fin n → Bool) → Bool) (t : Trial ℓ m) : Reconstruction D
 theorem guess_ofTrial (f : (Fin n → Bool) → Bool) (test : (Fin m → Bool) → Bool)
     (t : Trial ℓ m) : (ofTrial D f t).guess test = trialGuess D f test t := by
   funext x
-  have hinput : (fun j : Fin m => if h : (j : ℕ) < t.pos then (ofTrial D f t).table ⟨j, h⟩
-        (fun k => x k) else if j = t.pos then t.bit else (ofTrial D f t).pad j) =
-      fun j : Fin m => if h : (j : ℕ) < t.pos then
-        Fin.take t.pos t.pos.isLt.le (generator D f (D.extend t.pos x t.seed)) ⟨j, h⟩
-        else if j = t.pos then t.bit else t.pad j := by
-    funext j
-    by_cases h : (j : ℕ) < t.pos
-    · simp only [h, ↓reduceDIte, ofTrial, Fin.take_apply]
-      exact dependsOn_generator_extend D f t.pos _ t.seed fun k hk => dite_eq_left hk
-    · have hlt (hji : j ≠ t.pos) : t.pos < j :=
-        lt_of_le_of_ne (not_lt.mp h) (Ne.symm hji)
-      simp only [h, ↓reduceDIte]
-      split_ifs with hji
-      · rfl
-      · simp [pad, ofTrial, hlt hji]
-  exact congrArg (fun y => if test y then t.bit else !t.bit) hinput
+  refine congrArg (fun y => if test y then t.bit else !t.bit) (funext fun j => ?_)
+  by_cases h : (j : ℕ) < t.pos
+  · simp only [h, ↓reduceDIte, ofTrial, Fin.take_apply]
+    exact dependsOn_generator_extend D f t.pos _ t.seed fun k hk => dite_eq_left hk
+  · simp only [ofTrial, h, ↓reduceDIte]
+    by_cases hji : j = t.pos
+    · simp only [hji, ↓reduceIte]
+    · simp only [hji, ↓reduceIte, pad, (lt_of_le_of_ne (not_lt.mp h) (Ne.symm hji) : t.pos < j),
+        ↓reduceDIte]
 
 end Reconstruction
 
@@ -143,8 +136,7 @@ def reconstructionBits (D : Design ℓ n a m) (i : Fin m) : ℕ :=
 /-- A reconstruction has at most `m 2 ^ a` bits. -/
 theorem reconstructionBits_le (D : Design ℓ n a m) (i : Fin m) :
     reconstructionBits D i ≤ m * 2 ^ a := by
-  have htable : ∑ j : Fin i, (2 : ℕ) ^ #(D.overlap i (Fin.castLE i.isLt.le j)) ≤
-      (i : ℕ) * 2 ^ a := by
+  have htable : ∑ j : Fin i, (2 : ℕ) ^ #(D.overlap i (Fin.castLE i.isLt.le j)) ≤ i * 2 ^ a := by
     calc _ ≤ ∑ _j : Fin i, (2 : ℕ) ^ a := sum_le_sum fun j _ =>
           Nat.pow_le_pow_right two_pos (D.card_overlap_le (Fin.ne_of_gt j.isLt))
       _ = i * 2 ^ a := by simp
@@ -185,12 +177,11 @@ theorem div_two_mul_le_dens_mem_candidates (hm : 0 < m) {ε : ℝ} (hε₀ : 0 �
       (Generator.idealExperiment (fun y => PMF.pure (test y)) true).toReal) :
     ε / (2 * m) ≤
       (dens {t : Trial ℓ m | x ∈ C.candidates (trialGuess D (C.encode x) test t)} : ℝ) := by
-  refine (div_two_mul_le_dens_goodTrials D (C.encode x) test hm hε₀ hε).trans ?_
-  refine NNRat.cast_le.mpr (dens_le_dens fun t ht => ?_)
+  refine (div_two_mul_le_dens_goodTrials D (C.encode x) test hm hε₀ hε).trans
+    (NNRat.cast_le.mpr (dens_le_dens fun t ht => ?_))
   rw [mem_goodTrials, trialAgreement] at ht
-  simp only [mem_filter, mem_univ, true_and]
-  refine hC.mem_candidates_of_half_add_le ?_
-  simpa only [eq_comm] using ht
+  simpa only [mem_filter, mem_univ, true_and] using
+    hC.mem_candidates_of_half_add_le (by simpa only [eq_comm] using ht)
 
 /-- **Repeated sampling and list decoding** [Hirahara2018]. Under the hypotheses of
 `div_two_mul_le_dens_mem_candidates`, the at most `k L` candidates listed by `k` independent
@@ -202,12 +193,9 @@ theorem one_sub_pow_le_dens_mem_trialCandidates (hm : 0 < m) {ε : ℝ} (hε₀ 
     1 - (1 - ε / (2 * m)) ^ k ≤
       (dens {ts : Fin k → Trial ℓ m | x ∈ trialCandidates C D (C.encode x) test ts} : ℝ) := by
   have : NeZero m := ⟨hm.ne'⟩
-  have h := Fintype.one_sub_pow_le_dens_filter_exists_apply_mem (ι := Fin k)
-    (div_two_mul_le_dens_mem_candidates C D test hm hε₀ hC hε)
-  rw [Fintype.card_fin] at h
-  refine h.trans_eq ?_
-  congr 3
-  ext ts
+  refine (Fintype.card_fin k ▸ Fintype.one_sub_pow_le_dens_filter_exists_apply_mem (ι := Fin k)
+    (div_two_mul_le_dens_mem_candidates C D test hm hε₀ hC hε)).trans_eq ?_
+  congr 3 with ts
   simp [trialCandidates]
 
 end ListDecoding

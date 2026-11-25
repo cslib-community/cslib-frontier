@@ -497,6 +497,15 @@ section TreeEquilibria
 
 variable {V : Type*} [Fintype V]
 
+/-- A sum over `V` vanishing at `u` and bounded by `c` elsewhere is at most `(|V| - 1) * c`. -/
+private theorem sum_le_card_sub_one_mul {f : V → ℝ} {u : V} {c : ℝ}
+    (hu : f u = 0) (hf : ∀ x, x ≠ u → f x ≤ c) :
+    ∑ x, f x ≤ ((Fintype.card V - 1 : ℕ) : ℝ) * c := by
+  classical
+  rw [← sum_erase_add _ _ (mem_univ u), hu, add_zero, ← card_univ,
+    ← card_erase_of_mem (mem_univ u), ← nsmul_eq_mul, ← sum_const]
+  exact sum_le_sum fun x hx => hf x (ne_of_mem_erase hx)
+
 /-- In a tree `T`, if `u ∈ edgeSide T a b` and `v ∉ edgeSide T a b`, every walk from `u` to `v`
 crosses `s(a, b)` and `T.dist u v = T.dist u b + T.dist b v`. -/
 private theorem dist_eq_add_of_edgeSide {T : SimpleGraph V} (hT : T.IsTree) {a b u v : V}
@@ -641,14 +650,8 @@ theorem IsPureNash.socialCost_le_five_mul_of_isTree [DecidableEq V] {α : ℝ} (
               (le_div_iff₀ hn_pos).mpr (by linarith)
             linarith
       have hsum_uc : ∑ u : V, ((formedGraph s).dist u c : ℝ) ≤
-          ((Fintype.card V - 1 : ℕ) : ℝ) * (1 + 2 * α / (Fintype.card V : ℝ)) := by
-        rw [← sum_erase_add _ _ (mem_univ c)]
-        simp only [SimpleGraph.dist_self, Nat.cast_zero, add_zero]
-        calc ∑ u ∈ univ.erase c, ((formedGraph s).dist u c : ℝ)
-          _ ≤ ∑ _u ∈ univ.erase c, (1 + 2 * α / (Fintype.card V : ℝ)) :=
-              sum_le_sum fun u hu => hdist_c u (ne_of_mem_erase hu)
-          _ = ((Fintype.card V - 1 : ℕ) : ℝ) * (1 + 2 * α / (Fintype.card V : ℝ)) := by
-              rw [sum_const, card_erase_of_mem (mem_univ c), card_univ, nsmul_eq_mul]
+          ((Fintype.card V - 1 : ℕ) : ℝ) * (1 + 2 * α / (Fintype.card V : ℝ)) :=
+        sum_le_card_sub_one_mul (by simp) hdist_c
       have hpair_sum : ∑ u : V, ∑ v : V, ((formedGraph s).dist u v : ℝ) ≤
           2 * ((Fintype.card V - 1 : ℕ) : ℝ) * ∑ u : V, ((formedGraph s).dist u c : ℝ) := by
         have hinner : ∀ u : V, ∑ v : V, ((formedGraph s).dist u v : ℝ) ≤
@@ -671,23 +674,10 @@ theorem IsPureNash.socialCost_le_five_mul_of_isTree [DecidableEq V] {α : ℝ} (
         rw [sum_add_distrib, ← mul_sum] at h1
         have h2 : (∑ u : V, ∑ v ∈ univ.erase u, ((formedGraph s).dist v c : ℝ)) =
             ((Fintype.card V - 1 : ℕ) : ℝ) * ∑ v : V, ((formedGraph s).dist v c : ℝ) := by
-          have hex : ∀ u : V, (∑ v ∈ univ.erase u, ((formedGraph s).dist v c : ℝ)) =
-              ∑ v : V, if v = u then 0 else ((formedGraph s).dist v c : ℝ) := fun u => by
-            rw [← sum_erase_add (s := univ) (a := u)
-              (f := fun v => if v = u then 0 else ((formedGraph s).dist v c : ℝ)) (mem_univ u)]
-            simp only [↓reduceIte, add_zero]
-            refine sum_congr rfl fun v hv => ?_
-            simp [ne_of_mem_erase hv]
-          simp only [hex]
-          rw [sum_comm, mul_sum]
-          refine sum_congr rfl fun v _ => ?_
-          rw [← sum_erase_add _ _ (mem_univ v)]
-          simp only [↓reduceIte, add_zero]
-          have hc_eq : (∑ u ∈ univ.erase v,
-              if v = u then 0 else ((formedGraph s).dist v c : ℝ)) =
-              ∑ _u ∈ univ.erase v, ((formedGraph s).dist v c : ℝ) :=
-            sum_congr rfl fun u hu => by simp [(ne_of_mem_erase hu).symm]
-          rw [hc_eq, sum_const, card_erase_of_mem (mem_univ v), card_univ, nsmul_eq_mul]
+          simp only [sum_erase_eq_sub (mem_univ _), sum_sub_distrib, sum_const, card_univ,
+            nsmul_eq_mul]
+          rw [Nat.cast_sub hn.le, Nat.cast_one]
+          ring
         linarith
       have hm : (formedGraph s).edgeSet.ncard = Fintype.card V - 1 := by
         have hc_edge := hT.card_edgeFinset
@@ -756,13 +746,11 @@ theorem IsPureNash.socialCost_le_three_mul_sub_one_of_dist_le {α : ℝ} (hα₀
     have hconn : H.Connected := hs.connected
     have hdist_total : ∑ u : V, ∑ v : V, (H.dist u v : ℝ) ≤
         d * ((Fintype.card V : ℝ) * (Fintype.card V - 1 : ℕ)) := by
-      have hinner : ∀ u : V, ∑ v : V, (H.dist u v : ℝ) ≤ d * (Fintype.card V - 1 : ℕ) := fun u => by
-        rw [← sum_erase_add _ _ (mem_univ u)]
-        simp only [SimpleGraph.dist_self, Nat.cast_zero, add_zero]
-        calc ∑ v ∈ univ.erase u, (H.dist u v : ℝ)
-          _ ≤ ∑ _v ∈ univ.erase u, d := sum_le_sum fun v _ => hd u v
-          _ = d * (Fintype.card V - 1 : ℕ) := by
-              rw [sum_const, card_erase_of_mem (mem_univ u), card_univ, nsmul_eq_mul, mul_comm]
+      have hinner : ∀ u : V, ∑ v : V, (H.dist u v : ℝ) ≤ d * (Fintype.card V - 1 : ℕ) := fun u =>
+        calc ∑ v : V, (H.dist u v : ℝ)
+          _ ≤ ((Fintype.card V - 1 : ℕ) : ℝ) * d :=
+              sum_le_card_sub_one_mul (u := u) (by simp) fun v _ => hd u v
+          _ = d * (Fintype.card V - 1 : ℕ) := mul_comm _ _
       calc ∑ u : V, ∑ v : V, (H.dist u v : ℝ)
         _ ≤ ∑ _u : V, d * (Fintype.card V - 1 : ℕ) := sum_le_sum fun u _ => hinner u
         _ = d * ((Fintype.card V : ℝ) * (Fintype.card V - 1 : ℕ)) := by
@@ -802,28 +790,20 @@ theorem IsPureNash.socialCost_le_three_mul_sub_one_of_dist_le {α : ℝ} (hα₀
         exact ⟨p, hpw, by omega⟩
       let par : V → V := fun w => if hw : w ≠ v₀ then (hex_par w hw).choose else v₀
       let H₀ : SimpleGraph V := parentGraph par
+      have hpar0 : par v₀ = v₀ := by simp [par]
+      have hpar_adj : ∀ x, par x ≠ x → H.Adj (par x) x := fun x hx => by
+        by_cases hx0 : x ≠ v₀
+        · simpa [par, hx0] using (hex_par x hx0).choose_spec.1
+        · rw [not_not.1 hx0] at hx
+          exact absurd hpar0 hx
       have hH₀_le : H₀ ≤ H := by
         intro x y hxy
         rw [parentGraph_adj] at hxy
         rcases hxy.2 with hp | hp
-        · by_cases hx : x ≠ v₀
-          · have hspec := (hex_par x hx).choose_spec.1
-            have hpx : (hex_par x hx).choose = y := by simpa [par, hx] using hp
-            rw [hpx] at hspec
-            exact hspec.symm
-          · push Not at hx
-            subst x
-            simp only [par, ne_eq, not_true_eq_false, ↓reduceDIte] at hp
-            exact absurd hp hxy.1
-        · by_cases hy : y ≠ v₀
-          · have hspec := (hex_par y hy).choose_spec.1
-            have hpy : (hex_par y hy).choose = x := by simpa [par, hy] using hp
-            rw [hpy] at hspec
-            exact hspec
-          · push Not at hy
-            subst y
-            simp only [par, ne_eq, not_true_eq_false, ↓reduceDIte] at hp
-            exact absurd hp.symm hxy.1
+        · rw [← hp]
+          exact (hpar_adj x (hp ▸ hxy.1.symm)).symm
+        · rw [← hp]
+          exact hpar_adj y (hp ▸ hxy.1)
       have hH₀_dist_root : ∀ k : ℕ, ∀ x : V, H.dist v₀ x = k →
           H₀.Reachable v₀ x ∧ H₀.dist v₀ x ≤ k := by
         intro k
@@ -867,15 +847,13 @@ theorem IsPureNash.socialCost_le_three_mul_sub_one_of_dist_le {α : ℝ} (hα₀
             rw [mem_edgeFinset, mem_edgeSet, parentGraph_adj] at he
             rw [mem_image]
             rcases he.2 with hp | hp
-            · have hx : x ≠ v₀ := fun h => by
-                subst h
-                simp only [par, ne_eq, not_true_eq_false, ↓reduceDIte] at hp
-                exact he.1 hp
+            · have hx : x ≠ v₀ := fun h => he.1 <| by
+                rw [h] at hp ⊢
+                exact hpar0.symm.trans hp
               exact ⟨x, mem_erase.mpr ⟨hx, mem_univ x⟩, by rw [hp]⟩
-            · have hy : y ≠ v₀ := fun h => by
-                subst h
-                simp only [par, ne_eq, not_true_eq_false, ↓reduceDIte] at hp
-                exact he.1 hp.symm
+            · have hy : y ≠ v₀ := fun h => he.1 <| by
+                rw [h] at hp ⊢
+                exact hp.symm.trans hpar0
               exact ⟨y, mem_erase.mpr ⟨hy, mem_univ y⟩, by rw [hp, Sym2.eq_swap]⟩
         calc H₀.edgeFinset.card
           _ ≤ ((univ.erase v₀).image fun x => s(x, par x)).card := card_le_card hsub
@@ -912,25 +890,22 @@ theorem IsPureNash.socialCost_le_three_mul_sub_one_of_dist_le {α : ℝ} (hα₀
         have hne_u := hs.playerCost_le hα₀ fun x => hconn_dev u x
         rw [playerCost_def, playerCost_def, Function.update_self] at hne_u
         have hdist_diff : ∑ x : V, (((formedGraph s_dev).dist u x : ℝ) - (H.dist u x : ℝ)) ≤
-            (2 * d - 1) * (Fintype.card V - 1 : ℕ) := by
-          rw [← sum_erase_add _ _ (mem_univ u)]
-          simp only [SimpleGraph.dist_self, Nat.cast_zero, sub_self, add_zero]
-          calc ∑ x ∈ univ.erase u, (((formedGraph s_dev).dist u x : ℝ) - (H.dist u x : ℝ))
-            _ ≤ ∑ _x ∈ univ.erase u, (2 * d - 1) :=
-                sum_le_sum fun x hx => by
-                  have hxu : u ≠ x := (ne_of_mem_erase hx).symm
-                  have h1 : (1 : ℝ) ≤ (H.dist u x : ℝ) := by
-                    exact_mod_cast hconn.pos_dist_of_ne hxu
-                  have h2 : ((formedGraph s_dev).dist u x : ℝ) ≤ 2 * d := by
-                    have he := edist_anti hle_dev (u := u) (v := x)
-                    rw [← (hconn_dev u x).coe_dist_eq_edist, ← (hH₀_conn u x).coe_dist_eq_edist]
-                      at he
-                    have hle0 : ((formedGraph s_dev).dist u x : ℝ) ≤ (H₀.dist u x : ℝ) := by
-                      exact_mod_cast he
-                    exact hle0.trans (hH₀_diam u x)
-                  linarith
-            _ = (2 * d - 1) * (Fintype.card V - 1 : ℕ) := by
-                rw [sum_const, card_erase_of_mem (mem_univ u), card_univ, nsmul_eq_mul, mul_comm]
+            (2 * d - 1) * (Fintype.card V - 1 : ℕ) :=
+          calc ∑ x : V, (((formedGraph s_dev).dist u x : ℝ) - (H.dist u x : ℝ))
+            _ ≤ ((Fintype.card V - 1 : ℕ) : ℝ) * (2 * d - 1) :=
+                sum_le_card_sub_one_mul (u := u) (by simp)
+                  fun x hx => by
+                    have h1 : (1 : ℝ) ≤ (H.dist u x : ℝ) := by
+                      exact_mod_cast hconn.pos_dist_of_ne hx.symm
+                    have h2 : ((formedGraph s_dev).dist u x : ℝ) ≤ 2 * d := by
+                      have he := edist_anti hle_dev (u := u) (v := x)
+                      rw [← (hconn_dev u x).coe_dist_eq_edist, ← (hH₀_conn u x).coe_dist_eq_edist]
+                        at he
+                      have hle0 : ((formedGraph s_dev).dist u x : ℝ) ≤ (H₀.dist u x : ℝ) := by
+                        exact_mod_cast he
+                      exact hle0.trans (hH₀_diam u x)
+                    linarith
+            _ = (2 * d - 1) * (Fintype.card V - 1 : ℕ) := mul_comm _ _
         rw [sum_sub_distrib] at hdist_diff
         dsimp only [s_dev, H] at hdist_diff
         linarith

@@ -617,13 +617,7 @@ private theorem condY_seedErrX_le {α β T L Seed : Type}
     · simp only [hmem, ↓reduceIte]; exact le_rfl
     · simp only [hmem, ↓reduceIte]
       exact mul_nonneg (mul_nonneg ENNReal.toReal_nonneg ENNReal.toReal_nonneg) dist_nonneg
-  · simp only [hG, ↓reduceIte]
-    refine le_of_eq (Finset.sum_eq_zero fun ℓ _ => ?_)
-    have hnot : (τ, ℓ) ∉ {p : T × L | p.1 ∈ S.good ∧
-        δ / Fintype.card L ≤
-          ((((S.PY p.1).map fun y => (leak p.1 y, y)).map Prod.fst) p.2).toReal} :=
-      fun h => hG h.1
-    simp only [hnot, ↓reduceIte]
+  · simp [hG]
 
 /-- Conditioning the `X`-side preserves `seedErrY` for any `Y`-measurable seed depending only on
 the old transcript. -/
@@ -749,13 +743,7 @@ private theorem extractX_condY_seedErrX_le {α β T L Seed : Type} {nX m : ℕ}
     · simp only [hmem, ↓reduceIte]; exact le_rfl
     · simp only [hmem, ↓reduceIte]
       exact mul_nonneg ENNReal.toReal_nonneg (mul_nonneg ENNReal.toReal_nonneg dist_nonneg)
-  · simp only [hG, ↓reduceIte]
-    refine le_of_eq (Finset.sum_eq_zero fun ℓ _ => ?_)
-    have hnot : (τ, ℓ) ∉ {p : T × L | p.1 ∈ S.good ∧
-        δ / Fintype.card L ≤
-          ((((S.PY p.1).map fun y => (leak p.1 y, y)).map Prod.fst) p.2).toReal} :=
-      fun h => hG h.1
-    simp only [hnot, ↓reduceIte]
+  · simp [hG]
 
 /-- Symmetric `Y`-side extraction followed by `condX`. -/
 private theorem extractY_condX_seedErrY_le {α β T L Seed : Type} {nY m : ℕ}
@@ -768,6 +756,19 @@ private theorem extractY_condX_seedErrY_le {α β T L Seed : Type} {nY m : ℕ}
     (S.condX leak hδ).seedErrY (fun p y => ext (projY y) (seedOf p) + shiftOf p) ≤
       S.seedErrX (fun τ x => seedOf (τ, leak τ x)) + ε :=
   extractX_condY_seedErrX_le S.swap projY hε hδ hext hY leak seedOf shiftOf
+
+open Classical in
+/-- A `μ`-average of terms bounded by `1` is at most the `μ`-mass outside `G` plus the average
+restricted to `G`. -/
+private theorem sum_mul_le_compl_add {T : Type} [Fintype T] (μ : PMF T) (G : Set T)
+    (d : T → ℝ) (hd : ∀ τ, d τ ≤ 1) :
+    ∑ τ, (μ τ).toReal * d τ ≤
+      (μ.toOuterMeasure Gᶜ).toReal + ∑ τ, if τ ∈ G then (μ τ).toReal * d τ else 0 := by
+  rw [toOuterMeasure_apply_toReal, ← Finset.sum_add_distrib]
+  refine Finset.sum_le_sum fun τ _ => ?_
+  by_cases hG : τ ∈ G
+  · simp [hG]
+  · simpa [hG] using mul_le_of_le_one_right ENNReal.toReal_nonneg (hd τ)
 
 /-- **Final extraction readout**: converts `extractX_good_sum` into a joint statistical distance
 bound against an independent uniform string alongside any `(τ, y)`-measurable observation
@@ -807,17 +808,8 @@ private theorem extractX_dist_le {α β T Seed Obs : Type} {nX m : ℕ}
   rw [hL, hR]
   refine (dist_map_le _ _ f).trans ?_
   rw [dist_bind_pair]
-  have hsplit : ∑ τ : T, (S.μ τ).toReal * dist (P τ) (Q τ) ≤
-      (S.μ.toOuterMeasure S.goodᶜ).toReal +
-      ∑ τ : T, if τ ∈ S.good then (S.μ τ).toReal * dist (P τ) (Q τ) else 0 := by
-    rw [toOuterMeasure_apply_toReal, ← Finset.sum_add_distrib]
-    refine Finset.sum_le_sum fun τ _ => ?_
-    by_cases hG : τ ∈ S.good
-    · have hnot : τ ∉ S.goodᶜ := not_not.mpr hG
-      simp only [hG, hnot, ↓reduceIte, zero_add, le_rfl]
-    · have hmem : τ ∈ S.goodᶜ := hG
-      simp only [hG, hmem, ↓reduceIte, add_zero]
-      exact mul_le_of_le_one_right ENNReal.toReal_nonneg (dist_le_one _ _)
+  have hsplit := sum_mul_le_compl_add S.μ S.good (fun τ => dist (P τ) (Q τ))
+    fun _ => dist_le_one _ _
   have hgood := extractX_good_sum S projX hε hext hX seed shift
   linarith [S.hbad]
 
@@ -855,18 +847,8 @@ private theorem seedErrY_dist_le {α β T Output Obs : Type}
       dist (P τ) (Q τ) = dist ((S.PY τ).map (seed τ)) (PMF.uniformOfFintype Output) := by
     rw [dist_bind_pair, ← Finset.sum_mul, PMF.sum_toReal, one_mul]
   simp_rw [hPQ]
-  have hsplit : ∑ τ : T, (S.μ τ).toReal *
-        dist ((S.PY τ).map (seed τ)) (PMF.uniformOfFintype Output) ≤
-      (S.μ.toOuterMeasure S.goodᶜ).toReal + S.seedErrY seed := by
-    rw [toOuterMeasure_apply_toReal, seedErrY, ← Finset.sum_add_distrib]
-    refine Finset.sum_le_sum fun τ _ => ?_
-    by_cases hG : τ ∈ S.good
-    · have hnot : τ ∉ S.goodᶜ := not_not.mpr hG
-      simp only [hG, hnot, ↓reduceIte, zero_add, le_rfl]
-    · have hmem : τ ∈ S.goodᶜ := hG
-      simp only [hG, hmem, ↓reduceIte, add_zero]
-      exact mul_le_of_le_one_right ENNReal.toReal_nonneg (dist_le_one _ _)
-  linarith [S.hbad]
+  exact (sum_mul_le_compl_add S.μ S.good _ fun _ => dist_le_one _ _).trans
+    (add_le_add S.hbad le_rfl)
 
 /-- **Support-preserving uniform-lifting on `CondState`**:
 if `(g τ y, f τ y)` has `S.seedErrY ≤ η` on `BitString d1 × BitString m1`, there is a nearby state
@@ -1700,50 +1682,28 @@ theorem isLinearWeakSeedCB_vander {t ℓ : ℕ} (hℓ : ℓ ≠ 0) (ht : t + 1 �
   have hinj : Set.InjOn (fun b => BinaryField.equivBits hℓ (evalB b a₀))
       (conditionalSnd JB rest).support := by
     intro b₁ hb₁ b₂ hb₂ heq
-    have hev₀ : evalB b₁ a₀ = evalB b₂ a₀ := (BinaryField.equivBits hℓ).injective heq
-    let poly : Polynomial (BinaryField ℓ) :=
-      ∑ i : Fin (t + 1), Polynomial.C
-        ((BinaryField.equivBits hℓ).symm (BitString.block b₁ i) -
-         (BinaryField.equivBits hℓ).symm (BitString.block b₂ i)) * Polynomial.X ^ i.1
-    have hpoly_eval (x : BinaryField ℓ) : poly.eval x = evalB b₁ x - evalB b₂ x := by
-      dsimp only [poly, evalB]
-      rw [← Polynomial.coe_evalRingHom, map_sum]
-      simp only [Polynomial.coe_evalRingHom, Polynomial.eval_mul, Polynomial.eval_C,
-        Polynomial.eval_pow, Polynomial.eval_X, sub_mul, Finset.sum_sub_distrib]
-    have hdeg : poly.natDegree ≤ t := by
-      refine (Polynomial.natDegree_sum_le _ _).trans ?_
-      rw [Finset.fold_max_le]
-      refine ⟨Nat.zero_le t, fun i _ => (Polynomial.natDegree_mul_le).trans ?_⟩
-      simp only [Polynomial.natDegree_C, zero_add, Polynomial.natDegree_X_pow]
-      omega
-    have hpoly_zero : poly = 0 := by
-      by_contra hne
-      have hroots : ∀ x ∈ insert a₀ pts, x ∈ poly.roots := fun x hx => by
-        rw [Polynomial.mem_roots hne, Polynomial.IsRoot, hpoly_eval, sub_eq_zero]
+    let P (b : BitString ((t + 1) * ℓ)) : Polynomial.degreeLT (BinaryField ℓ) (t + 1) :=
+      (Polynomial.degreeLTEquiv _ (t + 1)).symm fun i =>
+        (BinaryField.equivBits hℓ).symm (BitString.block b i)
+    have heval (b : BitString ((t + 1) * ℓ)) (x : BinaryField ℓ) :
+        (P b : Polynomial (BinaryField ℓ)).eval x = evalB b x := by
+      rw [Polynomial.eval_eq_sum_degreeLTEquiv (P b).2, Subtype.coe_eta,
+        LinearEquiv.apply_symm_apply]
+    have hP : (P b₁ : Polynomial (BinaryField ℓ)) - P b₂ = 0 := by
+      refine Polynomial.eq_zero_of_natDegree_lt_card_of_eval_eq_zero' _ (insert a₀ pts)
+        (fun x hx => ?_) ?_
+      · rw [Polynomial.eval_sub, heval, heval, sub_eq_zero]
         rcases Finset.mem_insert.mp hx with rfl | hpx
-        · exact hev₀
+        · exact (BinaryField.equivBits hℓ).injective heq
         · exact (congrFun (hfix b₁ hb₁) ⟨x, hpx⟩).trans (congrFun (hfix b₂ hb₂) ⟨x, hpx⟩).symm
-      have hcard_le : (insert a₀ pts).card ≤ poly.roots.card :=
-        Multiset.card_le_card
-          ((Multiset.le_iff_subset (insert a₀ pts).nodup).mpr fun x hx => hroots x hx)
-      have hcard_ins : (insert a₀ pts).card = t + 1 := by
-        rw [Finset.card_insert_of_notMem ha₀_notMem, hpts_card]
-      have hle_deg := Polynomial.card_roots' poly
-      omega
-    apply BitString.blocksEquiv.injective
-    funext i
-    have hcoeff : poly.coeff i.1 = 0 := by rw [hpoly_zero, Polynomial.coeff_zero]
-    dsimp only [poly] at hcoeff
-    rw [← Polynomial.lcoeff_apply, map_sum] at hcoeff
-    simp only [Polynomial.lcoeff_apply, Polynomial.coeff_C_mul, Polynomial.coeff_X_pow] at hcoeff
-    rw [Finset.sum_eq_single i] at hcoeff
-    · simp only [↓reduceIte, mul_one, sub_eq_zero] at hcoeff
-      exact (BinaryField.equivBits hℓ).symm.injective hcoeff
-    · intro j _ hji
-      by_cases heq : i.1 = j.1
-      · exact absurd (Fin.ext heq.symm) hji
-      · simp [heq]
-    · intro h; exact absurd (Finset.mem_univ i) h
+      · rw [Finset.card_insert_of_notMem ha₀_notMem, hpts_card]
+        by_cases h0 : (P b₁ : Polynomial (BinaryField ℓ)) - P b₂ = 0
+        · simp [h0]
+        · exact (Polynomial.natDegree_lt_iff_degree_lt h0).mpr
+            (Polynomial.mem_degreeLT.mp (Submodule.sub_mem _ (P b₁).2 (P b₂).2))
+    refine BitString.blocksEquiv.injective (funext fun i => ?_)
+    exact (BinaryField.equivBits hℓ).symm.injective (congrFun
+      ((Polynomial.degreeLTEquiv _ (t + 1)).symm.injective (Subtype.ext (sub_eq_zero.mp hP))) i)
   have hkα : kSrc - (t * ℓ : ℕ) - Real.logb 2 δ⁻¹ ≤
       minEntropy ((conditionalSnd JB rest).map fun b => BinaryField.equivBits hℓ (evalB b a₀)) := by
     refine le_minEntropy_map_of_injOn (conditionalSnd JB rest) hinj ?_

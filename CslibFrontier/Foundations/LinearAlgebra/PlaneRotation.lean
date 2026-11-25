@@ -64,8 +64,7 @@ theorem reflection_comp_reflection (Ra Rb : E →ₗ[K] E) {a e : E} {γ : ℝ}
     Rb (Ra ((Real.cos φ : K) • a + (Real.sin φ : K) • e)) =
       -((Real.cos (φ - 2 * γ) : K) • a + (Real.sin (φ - 2 * γ) : K) • e) := by
   have hsc : (Real.sin γ : K) ^ 2 + (Real.cos γ : K) ^ 2 = 1 := by
-    rw [← RCLike.ofReal_pow, ← RCLike.ofReal_pow, ← RCLike.ofReal_add,
-      Real.sin_sq_add_cos_sq, RCLike.ofReal_one]
+    exact_mod_cast Real.sin_sq_add_cos_sq γ
   have hea : (Real.sin γ : K) • ((Real.sin γ : K) • a + (Real.cos γ : K) • e) +
       (Real.cos γ : K) • ((Real.cos γ : K) • a - (Real.sin γ : K) • e) = a := by
     linear_combination (norm := module) hsc • a

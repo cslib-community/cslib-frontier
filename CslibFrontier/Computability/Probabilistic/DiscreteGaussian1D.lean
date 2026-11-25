@@ -157,16 +157,10 @@ private theorem lt_sampleZRadius_sub_one (inp : SampleZInput) (hsSq : 0 < inp.sS
       ((inp.tail : ℝ) * Real.sqrt (inp.sSq : ℝ)) ^ 2 < ((Nat.sqrt m + 1 : ℕ) : ℝ) ^ 2 := by
     have h1 := sampleZRadius_target_sq inp hsSq
     have h2 : ((inp.tail ^ 2 * inp.sSq.num.natAbs : ℕ) : ℝ) / (inp.sSq.den : ℝ) < (m : ℝ) + 1 := by
-      rw [div_lt_iff₀ hden_r]
-      have h := Nat.lt_mul_div_succ (inp.tail ^ 2 * inp.sSq.num.natAbs) hden_pos
-      have h' : ((inp.tail ^ 2 * inp.sSq.num.natAbs : ℕ) : ℝ) <
-          (inp.sSq.den : ℝ) * ((m : ℝ) + 1) := by exact_mod_cast h
-      linarith only [h']
-    have h3 : m + 1 ≤ (Nat.sqrt m + 1) ^ 2 := by
-      rw [sq]
-      exact Nat.succ_le_of_lt (Nat.lt_succ_sqrt m)
-    have h3' : (m : ℝ) + 1 ≤ ((Nat.sqrt m + 1 : ℕ) : ℝ) ^ 2 := by exact_mod_cast h3
-    linarith only [h1, h2, h3']
+      rw [div_lt_iff₀' hden_r]
+      exact_mod_cast Nat.lt_mul_div_succ (inp.tail ^ 2 * inp.sSq.num.natAbs) hden_pos
+    have h3 : (m : ℝ) + 1 ≤ ((Nat.sqrt m + 1 : ℕ) : ℝ) ^ 2 := by exact_mod_cast Nat.lt_succ_sqrt' m
+    linarith only [h1, h2, h3]
   have hlt : (inp.tail : ℝ) * Real.sqrt (inp.sSq : ℝ) < ((Nat.sqrt m + 1 : ℕ) : ℝ) :=
     lt_of_pow_lt_pow_left₀ 2 (Nat.cast_nonneg _) hsq_lt
   have hR : (sampleZRadius inp : ℝ) - 1 = ((Nat.sqrt m + 1 : ℕ) : ℝ) := by
@@ -178,13 +172,11 @@ private theorem sampleZRadius_le (inp : SampleZInput) (hsSq : 0 < inp.sSq) :
   set m : ℕ := (inp.tail ^ 2 * inp.sSq.num.natAbs) / inp.sSq.den
   have hden_r : (0 : ℝ) < (inp.sSq.den : ℝ) := by exact_mod_cast inp.sSq.den_pos
   have hsq_le : ((Nat.sqrt m : ℕ) : ℝ) ^ 2 ≤ ((inp.tail : ℝ) * Real.sqrt (inp.sSq : ℝ)) ^ 2 := by
-    have h1 : (Nat.sqrt m : ℕ) ^ 2 ≤ m := by rw [sq]; exact Nat.sqrt_le m
+    have h1 : ((Nat.sqrt m : ℕ) : ℝ) ^ 2 ≤ (m : ℝ) := by exact_mod_cast Nat.sqrt_le' m
     have h2 : (m : ℝ) ≤ ((inp.tail ^ 2 * inp.sSq.num.natAbs : ℕ) : ℝ) / (inp.sSq.den : ℝ) := by
       rw [le_div_iff₀ hden_r]
       exact_mod_cast Nat.div_mul_le_self (inp.tail ^ 2 * inp.sSq.num.natAbs) inp.sSq.den
-    have h3 := sampleZRadius_target_sq inp hsSq
-    have h1' : ((Nat.sqrt m : ℕ) : ℝ) ^ 2 ≤ (m : ℝ) := by exact_mod_cast h1
-    linarith only [h1', h2, h3]
+    linarith only [h1, h2, sampleZRadius_target_sq inp hsSq]
   have hle : (Nat.sqrt m : ℝ) ≤ (inp.tail : ℝ) * Real.sqrt (inp.sSq : ℝ) :=
     le_of_pow_le_pow_left₀ two_ne_zero (by positivity) hsq_le
   unfold sampleZRadius
@@ -380,116 +372,72 @@ private theorem abs_sampleZWeightNum_div_sub_gaussianWeight_le
   have hqBits12 : 12 ≤ qBits := by omega
   have h2q_pos : (0 : ℝ) < (2 : ℝ) ^ qBits := by positivity
   have h2p_pos : (0 : ℝ) < (2 : ℝ) ^ inp.prec := by positivity
+  have h2q : (2 : ℝ) ^ qBits = (2 : ℝ) ^ inp.prec * (2 : ℝ) ^ shift := pow_add _ _ _
   have hKpos : 0 < K := by dsimp only [K]; positivity
-  have hsSq_r : (0 : ℝ) < (inp.sSq : ℝ) := by exact_mod_cast hsSq
-  have hs_sq : s ^ 2 = (inp.sSq : ℝ) := Real.sq_sqrt hsSq_r.le
+  have hs0 : 0 < s := by linarith only [hs1]
+  have hs_sq : s ^ 2 = (inp.sSq : ℝ) := Real.sq_sqrt (by exact_mod_cast hsSq.le)
   have hr_nonneg : (0 : ℚ) ≤ r := div_nonneg (sq_nonneg _) hsSq.le
+  have hr0 : (0 : ℝ) ≤ r := by exact_mod_cast hr_nonneg
   have hr_cast : (r : ℝ) = ((x : ℝ) - (inp.center : ℝ)) ^ 2 / s ^ 2 := by
     dsimp only [r, sampleZRatArg]; rw [hs_sq]; push_cast; rfl
   have hr_nat : (r : ℝ) = (r.num.natAbs : ℝ) / (r.den : ℝ) := rat_eq_natAbs_div_den hr_nonneg
   have hx_dist : |(x : ℝ) - (inp.center : ℝ)| ≤ ((inp.tail : ℝ) + 3) * s := by
     have h1 := finToInt_abs_sub_le inp hsSq i
     dsimp only [x, s] at h1 ⊢
-    rw [add_mul]
     linarith only [h1, hs1]
   have hr_div_K : (r : ℝ) / (K : ℝ) ≤ 1 / 4 := by
-    rw [hr_cast]
-    have hsq : ((x : ℝ) - (inp.center : ℝ)) ^ 2 ≤ (((inp.tail : ℝ) + 3) * s) ^ 2 := by
-      rw [← sq_abs ((x : ℝ) - (inp.center : ℝ))]
-      exact pow_le_pow_left₀ (abs_nonneg _) hx_dist 2
-    have hdiv : ((x : ℝ) - (inp.center : ℝ)) ^ 2 / s ^ 2 ≤ ((inp.tail : ℝ) + 3) ^ 2 := by
-      rw [div_le_iff₀ (sq_pos_of_pos (by linarith only [hs1] : 0 < s)), ← mul_pow]
-      exact hsq
+    have hsq : ((x : ℝ) - (inp.center : ℝ)) ^ 2 ≤ (((inp.tail : ℝ) + 3) * s) ^ 2 :=
+      sq_le_sq' (abs_le.mp hx_dist).1 (abs_le.mp hx_dist).2
     have hK_r : (K : ℝ) = 4 * ((inp.tail : ℝ) + 3) ^ 2 := by dsimp only [K]; push_cast; ring
-    rw [hK_r, div_le_div_iff₀ (by positivity) (by norm_num)]
-    linarith only [hdiv]
+    rw [hr_cast, hK_r, div_div, div_le_iff₀ (by positivity)]
+    linarith only [hsq]
+  have hrK0 : 0 ≤ (r : ℝ) / (K : ℝ) := by positivity
   set zReal : ℝ := Real.pi * (r : ℝ) / (K : ℝ)
-  have hzReal0 : 0 ≤ zReal := by
-    dsimp only [zReal]
-    have : 0 ≤ (r : ℝ) := by exact_mod_cast hr_nonneg
-    positivity
+  have hzReal : zReal = Real.pi * ((r : ℝ) / (K : ℝ)) := mul_div_assoc _ _ _
+  have hzReal0 : 0 ≤ zReal := by rw [hzReal]; positivity
   have hpiErr : |(piFp : ℝ) / (2 : ℝ) ^ qBits - Real.pi| ≤ 1 / (2 : ℝ) ^ qBits := by
     have h := abs_piApprox_div_sub_pi_le qBits
-    rw [zpow_neg, zpow_natCast, ← one_div] at h
-    exact h
-  have hdenK_pos : (0 : ℝ) < ((r.den * K : ℕ) : ℝ) := by
-    have : 0 < r.den * K := Nat.mul_pos r.den_pos hKpos
-    exact_mod_cast this
+    rwa [zpow_neg, zpow_natCast, ← one_div] at h
+  have hdenK_pos : (0 : ℝ) < ((r.den * K : ℕ) : ℝ) := by positivity
+  -- `zFp / 2 ^ qBits` is the floor of `(piFp / 2 ^ qBits) * (r / K)` at scale `2 ^ qBits`.
+  have hexact : ((piFp * r.num.natAbs : ℕ) : ℝ) / ((r.den * K : ℕ) : ℝ) / (2 : ℝ) ^ qBits =
+      ((piFp : ℝ) / (2 : ℝ) ^ qBits) * ((r : ℝ) / (K : ℝ)) := by
+    rw [hr_nat]; push_cast; ring
   have hzFp_le_exact : (zFp : ℝ) / (2 : ℝ) ^ qBits ≤
       ((piFp : ℝ) / (2 : ℝ) ^ qBits) * ((r : ℝ) / (K : ℝ)) := by
-    have h1 : (zFp : ℝ) ≤ ((piFp * r.num.natAbs : ℕ) : ℝ) / ((r.den * K : ℕ) : ℝ) := by
-      rw [le_div_iff₀ hdenK_pos]
-      exact_mod_cast Nat.div_mul_le_self (piFp * r.num.natAbs) (r.den * K)
-    have h2 : ((piFp * r.num.natAbs : ℕ) : ℝ) / ((r.den * K : ℕ) : ℝ) / (2 : ℝ) ^ qBits =
-        ((piFp : ℝ) / (2 : ℝ) ^ qBits) * ((r : ℝ) / (K : ℝ)) := by
-      rw [hr_nat]; push_cast; ring
-    rw [← h2]
-    exact div_le_div_of_nonneg_right h1 h2q_pos.le
+    rw [← hexact]
+    refine div_le_div_of_nonneg_right ((le_div_iff₀ hdenK_pos).mpr ?_) h2q_pos.le
+    exact_mod_cast Nat.div_mul_le_self (piFp * r.num.natAbs) (r.den * K)
   have hzFp_gt_exact :
       ((piFp : ℝ) / (2 : ℝ) ^ qBits) * ((r : ℝ) / (K : ℝ)) - 1 / (2 : ℝ) ^ qBits <
         (zFp : ℝ) / (2 : ℝ) ^ qBits := by
     have h1 : ((piFp * r.num.natAbs : ℕ) : ℝ) / ((r.den * K : ℕ) : ℝ) < (zFp : ℝ) + 1 := by
-      rw [div_lt_iff₀ hdenK_pos]
-      have h := Nat.lt_mul_div_succ (piFp * r.num.natAbs) (Nat.mul_pos r.den_pos hKpos)
-      have h' : ((piFp * r.num.natAbs : ℕ) : ℝ) <
-          ((r.den * K : ℕ) : ℝ) * ((zFp : ℝ) + 1) := by exact_mod_cast h
-      linarith only [h']
-    have h2 : ((piFp * r.num.natAbs : ℕ) : ℝ) / ((r.den * K : ℕ) : ℝ) / (2 : ℝ) ^ qBits =
-        ((piFp : ℝ) / (2 : ℝ) ^ qBits) * ((r : ℝ) / (K : ℝ)) := by
-      rw [hr_nat]; push_cast; ring
+      rw [div_lt_iff₀' hdenK_pos]
+      exact_mod_cast Nat.lt_mul_div_succ (piFp * r.num.natAbs) (Nat.mul_pos r.den_pos hKpos)
     have h3 := div_lt_div_of_pos_right h1 h2q_pos
-    rw [h2, add_div] at h3
+    rw [hexact, add_div] at h3
     linarith only [h3]
   have hzErr : |zReal - (zFp : ℝ) / (2 : ℝ) ^ qBits| ≤ 2 / (2 : ℝ) ^ qBits := by
-    have hrK0 : 0 ≤ (r : ℝ) / (K : ℝ) := by
-      have : 0 ≤ (r : ℝ) := by exact_mod_cast hr_nonneg
-      positivity
-    have h1 : |((piFp : ℝ) / (2 : ℝ) ^ qBits) * ((r : ℝ) / (K : ℝ)) - zReal| ≤
-        (1 / 4) / (2 : ℝ) ^ qBits := by
-      have hrew : ((piFp : ℝ) / (2 : ℝ) ^ qBits) * ((r : ℝ) / (K : ℝ)) - zReal =
-          ((piFp : ℝ) / (2 : ℝ) ^ qBits - Real.pi) * ((r : ℝ) / (K : ℝ)) := by
-        dsimp only [zReal]; ring
-      rw [hrew, abs_mul, abs_of_nonneg hrK0]
-      calc
-        |(piFp : ℝ) / (2 : ℝ) ^ qBits - Real.pi| * ((r : ℝ) / (K : ℝ)) ≤
-            (1 / (2 : ℝ) ^ qBits) * (1 / 4) := mul_le_mul hpiErr hr_div_K hrK0 (by positivity)
-        _ = (1 / 4) / (2 : ℝ) ^ qBits := by ring
-    have h2 : |((piFp : ℝ) / (2 : ℝ) ^ qBits) * ((r : ℝ) / (K : ℝ)) - (zFp : ℝ) / (2 : ℝ) ^ qBits| ≤
-        1 / (2 : ℝ) ^ qBits := by
-      rw [abs_le]; constructor <;> linarith only [hzFp_le_exact, hzFp_gt_exact]
-    have htri : |zReal - (zFp : ℝ) / (2 : ℝ) ^ qBits| ≤
-        |((piFp : ℝ) / (2 : ℝ) ^ qBits) * ((r : ℝ) / (K : ℝ)) - zReal| +
-          |((piFp : ℝ) / (2 : ℝ) ^ qBits) * ((r : ℝ) / (K : ℝ)) - (zFp : ℝ) / (2 : ℝ) ^ qBits| := by
-      rw [abs_sub_comm (((piFp : ℝ) / (2 : ℝ) ^ qBits) * ((r : ℝ) / (K : ℝ))) zReal]
-      exact abs_sub_le _ _ _
-    have hcomb : (1 / 4) / (2 : ℝ) ^ qBits + 1 / (2 : ℝ) ^ qBits ≤ 2 / (2 : ℝ) ^ qBits := by
-      rw [← add_div]
-      exact div_le_div_of_nonneg_right (by norm_num) h2q_pos.le
-    linarith only [htri, h1, h2, hcomb]
+    have hpi1 := mul_le_mul_of_nonneg_right (abs_le.mp hpiErr).1 hrK0
+    have hpi2 := mul_le_mul_of_nonneg_right (abs_le.mp hpiErr).2 hrK0
+    have hq4 := mul_le_mul_of_nonneg_left hr_div_K (one_div_pos.mpr h2q_pos).le
+    have h2 : 2 / (2 : ℝ) ^ qBits = 2 * (1 / (2 : ℝ) ^ qBits) := by ring
+    rw [hzReal, abs_le, h2]
+    constructor <;> linarith only [hpi1, hpi2, hq4, hzFp_le_exact, hzFp_gt_exact,
+      one_div_pos.mpr h2q_pos]
   have hzFp_le : zFp ≤ 2 ^ qBits := by
-    have hpi4 : Real.pi < 3.15 := Real.pi_lt_d4.trans (by norm_num)
     have h2q : (4096 : ℝ) ≤ (2 : ℝ) ^ qBits := by
       have : 2 ^ 12 ≤ 2 ^ qBits := Nat.pow_le_pow_right (by omega) hqBits12
       exact_mod_cast this
-    have hzReal_lt : zReal ≤ 3.15 / 4 := by
-      have : zReal = Real.pi * ((r : ℝ) / (K : ℝ)) := by dsimp only [zReal]; ring
-      rw [this]
-      have hrK0 : 0 ≤ (r : ℝ) / (K : ℝ) := by
-        have : 0 ≤ (r : ℝ) := by exact_mod_cast hr_nonneg
-        positivity
-      calc
-        Real.pi * ((r : ℝ) / (K : ℝ)) ≤ 3.15 * (1 / 4) :=
-          mul_le_mul hpi4.le hr_div_K hrK0 (by norm_num)
-        _ = 3.15 / 4 := by ring
+    have hzReal_le : zReal ≤ 3.15 / 4 := by
+      rw [hzReal]
+      linarith only [mul_le_mul (Real.pi_lt_d4.trans (by norm_num : (3.1416 : ℝ) < 3.15)).le
+        hr_div_K hrK0 (by norm_num)]
+    have h2div : 2 / (2 : ℝ) ^ qBits ≤ 2 / 4096 :=
+      div_le_div_of_nonneg_left (by norm_num) (by norm_num) h2q
     have hzFp_lt : (zFp : ℝ) / (2 : ℝ) ^ qBits ≤ 1 := by
-      have hsub := (abs_le.mp hzErr).1
-      have h2div : 2 / (2 : ℝ) ^ qBits ≤ 2 / 4096 :=
-        div_le_div_of_nonneg_left (by norm_num) (by norm_num) h2q
-      linarith only [hsub, hzReal_lt, h2div]
-    have hle_r : (zFp : ℝ) ≤ ((2 ^ qBits : ℕ) : ℝ) := by
-      push_cast
-      exact (div_le_one h2q_pos).mp hzFp_lt
-    exact_mod_cast hle_r
+      linarith only [(abs_le.mp hzErr).1, hzReal_le, h2div]
+    exact_mod_cast (div_le_one h2q_pos).mp hzFp_lt
   have hexp_err := abs_expNegPow_div_sub_exp_le qBits zFp K hzFp_le hzReal0 hzErr
   have hKz : -(K : ℝ) * zReal = -Real.pi * ‖(x : ℝ) - (inp.center : ℝ)‖ ^ 2 / s ^ 2 := by
     dsimp only [zReal]
@@ -498,25 +446,21 @@ private theorem abs_sampleZWeightNum_div_sub_gaussianWeight_le
     field_simp
   have hraw_err : |(raw : ℝ) / (2 : ℝ) ^ qBits -
       gaussianWeight s ((x : ℝ) - (inp.center : ℝ))| ≤ (1 / 2 : ℝ) / (2 : ℝ) ^ inp.prec := by
+    have hb_nat : 2 * (K * (4 * (qBits + 2) + 4)) ≤ 2 ^ shift := by
+      simpa only [K, qBits, shift, Nat.mul_assoc] using sampleZShift_bound inp.tail inp.prec
+    have hb_r : 2 * ((K : ℝ) * (4 * ((qBits : ℝ) + 2) + 4)) ≤ (2 : ℝ) ^ shift := by
+      exact_mod_cast hb_nat
     have hbound : (K : ℝ) * (4 * ((qBits : ℝ) + 2) + 4) / (2 : ℝ) ^ qBits ≤
         (1 / 2 : ℝ) / (2 : ℝ) ^ inp.prec := by
-      have hb_nat : 2 * (K * (4 * (qBits + 2) + 4)) ≤ 2 ^ shift := by
-        simpa only [K, qBits, shift, Nat.mul_assoc] using sampleZShift_bound inp.tail inp.prec
-      have hb_r : 2 * ((K : ℝ) * (4 * ((qBits : ℝ) + 2) + 4)) ≤ (2 : ℝ) ^ shift := by
-        exact_mod_cast hb_nat
-      have h2q : (2 : ℝ) ^ qBits = (2 : ℝ) ^ inp.prec * (2 : ℝ) ^ shift := by
-        dsimp only [qBits]; rw [pow_add]
-      have hmul := mul_le_mul_of_nonneg_left hb_r h2p_pos.le
       rw [div_le_div_iff₀ h2q_pos h2p_pos, h2q]
-      linarith only [hmul]
-    have hgw : gaussianWeight s ((x : ℝ) - (inp.center : ℝ)) = Real.exp (-(K : ℝ) * zReal) := by
-      unfold gaussianWeight; rw [hKz]
-    rw [hgw]
+      linarith only [mul_le_mul_of_nonneg_left hb_r h2p_pos.le]
+    unfold gaussianWeight
+    rw [← hKz]
     exact hexp_err.trans hbound
-  have hraw_le : raw ≤ 2 ^ qBits := expNegPow_le qBits zFp K
   have hround_le : (raw + 2 ^ (shift - 1)) / 2 ^ shift ≤ 2 ^ inp.prec := by
     have h1 : raw + 2 ^ (shift - 1) < (2 ^ inp.prec + 1) * 2 ^ shift := by
-      have h2q : 2 ^ qBits = 2 ^ inp.prec * 2 ^ shift := by dsimp only [qBits]; rw [pow_add]
+      have hraw_le : raw ≤ 2 ^ qBits := expNegPow_le qBits zFp K
+      have h2q : 2 ^ qBits = 2 ^ inp.prec * 2 ^ shift := pow_add _ _ _
       have hhalf : 2 ^ (shift - 1) < 2 ^ shift := Nat.pow_lt_pow_right (by omega) (by omega)
       rw [Nat.add_mul, one_mul]
       omega
@@ -531,21 +475,11 @@ private theorem abs_sampleZWeightNum_div_sub_gaussianWeight_le
   have hshift_scaled :
       |(((raw + 2 ^ (shift - 1)) / 2 ^ shift : ℕ) : ℝ) / (2 : ℝ) ^ inp.prec -
           (raw : ℝ) / (2 : ℝ) ^ qBits| ≤ (1 / 2 : ℝ) / (2 : ℝ) ^ inp.prec := by
-    have h2q : (2 : ℝ) ^ qBits = (2 : ℝ) ^ inp.prec * (2 : ℝ) ^ shift := by
-      dsimp only [qBits]; rw [pow_add]
     rw [h2q, ← div_div, div_right_comm (raw : ℝ), ← sub_div, abs_div, abs_of_pos h2p_pos]
     exact div_le_div_of_nonneg_right hshift_err h2p_pos.le
-  rw [hw_eq, zpow_neg, zpow_natCast, ← one_div]
-  calc
-    |(((raw + 2 ^ (shift - 1)) / 2 ^ shift : ℕ) : ℝ) / (2 : ℝ) ^ inp.prec -
-        gaussianWeight s ((x : ℝ) - (inp.center : ℝ))| ≤
-      |(((raw + 2 ^ (shift - 1)) / 2 ^ shift : ℕ) : ℝ) / (2 : ℝ) ^ inp.prec -
-          (raw : ℝ) / (2 : ℝ) ^ qBits| +
-        |(raw : ℝ) / (2 : ℝ) ^ qBits - gaussianWeight s ((x : ℝ) - (inp.center : ℝ))| :=
-      abs_sub_le _ _ _
-    _ ≤ (1 / 2 : ℝ) / (2 : ℝ) ^ inp.prec + (1 / 2 : ℝ) / (2 : ℝ) ^ inp.prec :=
-      add_le_add hshift_scaled hraw_err
-    _ = 1 / (2 : ℝ) ^ inp.prec := by ring
+  rw [hw_eq, zpow_neg, zpow_natCast]
+  exact (abs_sub_le _ ((raw : ℝ) / (2 : ℝ) ^ qBits) _).trans
+    ((add_le_add hshift_scaled hraw_err).trans_eq (by ring))
 
 
 /-- Non-dependent single-block rejection specification for `sampleZ` outputting `Option ℤ`. -/
@@ -743,24 +677,13 @@ private theorem sampleZFinSpec_singleLaw_some (inp : SampleZInput)
     rw [hcoin, div_eq_mul_inv, ENNReal.mul_inv (Or.inl (by positivity)) (Or.inl (by simp))]
     ring
   · intro idx hne
-    have hzero : ((PMF.uniformOfFintype (Fin (2 ^ inp.prec))).map fun coin =>
-        if h : idx.val < 2 * R + 1 then
-          let j : Fin (2 * R + 1) := ⟨idx.val, h⟩
-          if coin.val < sampleZWeightNum inp (finToInt (inp.center.floor) R j) then some j
-          else none
-        else none) (some i) = 0 := by
-      rw [PMF.map_apply]
-      refine tsum_eq_zero_iff.mpr fun coin => ?_
-      by_cases hlt : idx.val < 2 * R + 1
-      · simp only [hlt, ↓reduceDIte]
-        by_cases hc : coin.val <
-            sampleZWeightNum inp (finToInt (inp.center.floor) R ⟨idx.val, hlt⟩)
-        · simp only [hc, ↓reduceIte, Option.some.injEq, Fin.ext_iff]
-          have hne_val : i.val ≠ idx.val := fun h => hne (Fin.ext h.symm)
-          simp [hne_val]
-        · simp [hc]
-      · simp [hlt]
-    rw [hzero, mul_zero]
+    rw [PMF.map_apply]
+    refine mul_eq_zero_of_right _ (tsum_eq_zero_iff.mpr fun coin => ?_)
+    have hne_val : i.val ≠ idx.val := fun h => hne (Fin.ext h.symm)
+    by_cases hlt : idx.val < 2 * R + 1
+    · by_cases hc : coin.val < sampleZWeightNum inp (finToInt (inp.center.floor) R ⟨idx.val, hlt⟩)
+        <;> simp [hlt, hc, Fin.ext_iff, hne_val]
+    · simp [hlt]
 
 /-- Elementary `dist` bound between two finite normalized PMFs from unnormalized weights. -/
 private theorem dist_normalize_fin_le {n : ℕ} {u v : Fin n → ℝ}
@@ -818,13 +741,7 @@ private theorem closeTo_map_restrict_of_finset {α : Type} (μ : PMF α) (S : Fi
       μ.toOuterMeasure (E ∩ (S : Set α)) + μ.toOuterMeasure (S : Set α)ᶜ := by
     rw [PMF.toOuterMeasure_apply, PMF.toOuterMeasure_apply, PMF.toOuterMeasure_apply, ← tsum_add]
     refine tsum_le_tsum fun x => ?_
-    by_cases hxS : x ∈ (S : Set α)
-    · by_cases hxE : x ∈ E
-      · simp [hxE, hxS]
-      · simp [hxE, hxS]
-    · by_cases hxE : x ∈ E
-      · simp [hxE, hxS]
-      · simp [hxE, hxS]
+    by_cases hxS : x ∈ (S : Set α) <;> by_cases hxE : x ∈ E <;> simp [hxE, hxS]
   have hle_map : μ.toOuterMeasure (E ∩ (S : Set α)) ≤ (μS.map Subtype.val).toOuterMeasure E := by
     rw [PMF.toOuterMeasure_apply, PMF.toOuterMeasure_apply]
     refine tsum_le_tsum fun x => ?_
@@ -885,16 +802,10 @@ theorem closeTo_eval_sampleZ_discreteGaussian
     by_contra hlt
     push Not at hlt
     have hR := lt_sampleZRadius_sub_one inp hsSq
-    have hlow : cF - (R : ℤ) ≤ x := by
-      have h1 : ((cF - (R : ℤ) - 1 : ℤ) : ℝ) < (x : ℝ) := by
-        push_cast; linarith only [hfloor.1, hR, (abs_lt.mp hlt).1]
-      have h2 : cF - (R : ℤ) - 1 < x := by exact_mod_cast h1
-      omega
-    have hhigh : x ≤ cF + (R : ℤ) := by
-      have h1 : (x : ℝ) < ((cF + (R : ℤ) + 1 : ℤ) : ℝ) := by
-        push_cast; linarith only [hfloor.2, hR, (abs_lt.mp hlt).2]
-      have h2 : x < cF + (R : ℤ) + 1 := by exact_mod_cast h1
-      omega
+    have hlow : cF - (R : ℤ) - 1 < x := Int.cast_lt (R := ℝ) |>.mp <| by
+      push_cast; linarith only [hfloor.1, hR, (abs_lt.mp hlt).1]
+    have hhigh : x < cF + (R : ℤ) + 1 := Int.cast_lt (R := ℝ) |>.mp <| by
+      push_cast; linarith only [hfloor.2, hR, (abs_lt.mp hlt).2]
     have hmem : x ∈ S := by
       refine Finset.mem_image.mpr
         ⟨⟨(x - (cF - (R : ℤ))).toNat, by omega⟩, Finset.mem_univ _, ?_⟩
@@ -985,8 +896,7 @@ theorem closeTo_eval_sampleZ_discreteGaussian
   -- Bound `∑ |u i - v i|` and `U ≥ s / 8`
   have hdiff_i (i : Fin (2 * R + 1)) : |u i - v i| ≤ 1 / (2 : ℝ) ^ inp.prec := by
     have h := abs_sampleZWeightNum_div_sub_gaussianWeight_le inp hsSq hs1 i
-    rw [zpow_neg, zpow_natCast, ← one_div] at h
-    exact h
+    rwa [zpow_neg, zpow_natCast, ← one_div] at h
   have hsum_diff : ∑ i, |u i - v i| ≤ (2 * (inp.tail : ℝ) + 6) * s / (2 : ℝ) ^ inp.prec := by
     calc
       ∑ i : Fin (2 * R + 1), |u i - v i| ≤

@@ -119,10 +119,9 @@ theorem GapSVP.not_isYes_and_isNo {γ : ℝ} (hγ : 1 ≤ γ) (L : Submodule ℤ
 /-- The reduction from `GapSVP_γ` to `SVP_γ`: for `γ ≥ 0`, comparing the norm of an `SVP_γ`
 solution with `γ · d` answers `GapSVP_γ` correctly on `(L, d)`. -/
 theorem GapSVP.isCorrect_decideOfSVP {γ : ℝ} (hγ : 0 ≤ γ) {L : Submodule ℤ E} {v : E}
-    (hv : SVP.IsSolution γ L v) (d : ℝ) : GapSVP.IsCorrect γ L d (GapSVP.decideOfSVP γ d v) := by
-  refine ⟨fun hy => decide_eq_true ?_, fun hn => decide_eq_false (not_le.2 ?_)⟩
-  · exact hv.norm_le.trans (mul_le_mul_of_nonneg_left hy hγ)
-  · exact lt_of_lt_of_le hn (minimum_le_norm hv.mem hv.ne_zero)
+    (hv : SVP.IsSolution γ L v) (d : ℝ) : GapSVP.IsCorrect γ L d (GapSVP.decideOfSVP γ d v) :=
+  ⟨fun hy => decide_eq_true (hv.norm_le.trans (mul_le_mul_of_nonneg_left hy hγ)),
+    fun hn => decide_eq_false (not_le.2 (hn.trans_le (minimum_le_norm hv.mem hv.ne_zero)))⟩
 
 variable [ProperSpace E]
 
@@ -169,10 +168,10 @@ theorem SIVP.IsSolution.one_le [FiniteDimensional ℝ E] [ProperSpace E] {γ : �
   let i₀ : Fin (finrank ℤ L) := ⟨0, hn'⟩
   have hL : L ≠ ⊥ :=
     (Submodule.ne_bot_iff L).2 ⟨v i₀, hv.mem i₀, hv.linearIndependent.ne_zero i₀⟩
-  have hr : 0 ≤ γ * successiveMinimum L (finrank ℤ L) := (norm_nonneg _).trans (hv.norm_le i₀)
-  have hle := successiveMinimum_le_of_linearIndependent hv.linearIndependent hv.mem hr hv.norm_le
-  have hpos := (minimum_pos hL).trans_le (minimum_le_successiveMinimum L hL hn' hrank.le)
-  by_contra hγ
+  have hle := successiveMinimum_le_of_linearIndependent hv.linearIndependent hv.mem
+    ((norm_nonneg _).trans (hv.norm_le i₀)) hv.norm_le
+  have := (minimum_pos hL).trans_le (minimum_le_successiveMinimum L hL hn' hrank.le)
+  by_contra
   nlinarith
 
 end SIVP
@@ -191,11 +190,8 @@ theorem SVP.isSolution_of_isReduced {b : Fin (n + 1) → E}
   have hL : Submodule.span ℤ (Set.range b) ≠ ⊥ :=
     (Submodule.ne_bot_iff _).2 ⟨b 0, hmem, hb0⟩
   have hpos : 0 < Real.sqrt 2 ^ n := by positivity
-  refine ⟨hmem, hb0, ?_⟩
-  rw [← div_le_iff₀' hpos]
-  refine (le_minimum_iff hL).2 fun x hx hx0 => ?_
-  rw [div_le_iff₀' hpos]
-  exact hb.norm_le_sqrt_two_pow_mul hx hx0
+  exact ⟨hmem, hb0, (div_le_iff₀' hpos).1 <| (le_minimum_iff hL).2 fun _ hx hx0 =>
+    (div_le_iff₀' hpos).2 (hb.norm_le_sqrt_two_pow_mul hx hx0)⟩
 
 end LLL
 

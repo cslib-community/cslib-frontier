@@ -86,8 +86,7 @@ private theorem eval_idealJoint_maskedOT_of_eq_sender {G M : Type} (mask unmask 
     ProbComp.eval (idealJoint (otFunctionality M) J (Sm J) q) =
       (maskedOT mask unmask samplePads).realJoint (otWorld G) J q := by
   subst hJ
-  rw [hSm]
-  exact idealJoint_maskedOT_sender mask unmask samplePads q hmask
+  exact hSm ▸ idealJoint_maskedOT_sender mask unmask samplePads q hmask
 
 /-- The sender's simulator of the fair-coin DDH transfer at a fixed group description, inputs and
 test: `advantage_ddhOTProbSenderGame_le` for the environment that chooses the inputs `q` and
@@ -109,12 +108,11 @@ private theorem advantage_idealJoint_ddhOTSenderSimProb_le (F : PrimeOrderGroupF
         else pure ⟨fun i => Fin.cases (motive := fun i => OTIn (F.Carrier d') i)
           (F.generator d', F.generator d') (fun _ => false) i, []⟩
       guess := fun _ d' _ r => if h : d' = d then g (h ▸ r) else pure false }
-  have hchoose : Z.choose n d = pure ⟨q, []⟩ := dite_eq_left rfl
-  have hguess : ∀ s r, Z.guess n d s r = g r := fun _ _ => dite_eq_left rfl
   have h := F.advantage_ddhOTProbSenderGame_le (fun _ => PMF.pure d) Z n
   rw [Game.advantage_comm] at h
   simpa only [ProtocolFamily.realGame, ProtocolFamily.idealGame, PMF.monad_bind_eq_bind,
-    PMF.pure_bind, hchoose, hguess, ProbComp.eval_pure] using h
+    PMF.pure_bind, show Z.choose n d = pure ⟨q, []⟩ from dite_eq_left rfl,
+    show ∀ s r, Z.guess n d s r = g r from fun _ _ => dite_eq_left rfl, ProbComp.eval_pure] using h
 
 /-- A challenged fair-coin DDH transfer that corrupts the sender slot alone: the ideal round game,
 with simulators whose member at `{0}` is `F.ddhOTSenderSimProb n d`, and the real round game are
@@ -134,9 +132,8 @@ private theorem advantage_roundGame_ddhOTProb_sender_le (F : PrimeOrderGroupFami
           (Sum.inr c)) ≤ 2 / 2 ^ n := by
   obtain ⟨op, J, q, g⟩ := c
   obtain rfl : J = {0} := hc
-  have h := advantage_idealJoint_ddhOTSenderSimProb_le F n d q g
-  rw [← hS₂] at h
-  exact h
+  dsimp only [roundGame, Sum.elim_inr, otWorld]
+  exact hS₂.symm ▸ advantage_idealJoint_ddhOTSenderSimProb_le F n d q g
 
 /-- Step towards [LindellPinkas2009], Theorem 7 for a corrupted garbler, not the cited result
 (#6045): a statistical bound at each parameter, with no asymptotic statement
@@ -227,41 +224,33 @@ theorem advantage_setup_composedProtocol_maskedOT_ddhOTProb_garbler_le
   rw [hT₁]
   refine h.trans ((Finset.sum_le_sum fun j _ => ?_).trans_eq
     (by rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul]))
-  have hE : ∀ d c', Sum.inr c' ∈ (composeSeqBatchOTRoundEnv (c n).evaluatorLen (List Bool)
+  have hE (d c') (hc' : Sum.inr c' ∈ (composeSeqBatchOTRoundEnv (c n).evaluatorLen (List Bool)
       (protocol Gs n (c n)) noOracleWorld
       ((maskedOT (mask d) (unmask d) (samplePads d)).compose fun _ => F.ddhOTProbProtocol n d)
       (fun J => composeSim (maskedOT (mask d) (unmask d) (samplePads d)) (Sm n d J)
-        (fun _ => S₂ n d))
-      {0} (x d) (D d) 0 j).support →
-        c'.coalition = ({0} : Finset (Fin 2)) ∧
-          (otOutputs (M := List Bool) c'.query 1 : List Bool).length = L :=
-    fun d c' hc' =>
-      coalition_length_of_mem_support_composeSeqBatchOTRoundEnv _ _ _ _ _ _ _ _ _ _ {0} L
-        (fun r hr => (forallChallenge_protocol_iff n (c n) {0} _ (x d) r).mpr
-          ⟨Finset.ext fun _ => mem_subCoalition, hlen d r hr⟩) hc'
+        (fun _ => S₂ n d)) {0} (x d) (D d) 0 j).support) :=
+    coalition_length_of_mem_support_composeSeqBatchOTRoundEnv _ _ _ _ _ _ _ _ _ _ {0} L
+      (fun r hr => (forallChallenge_protocol_iff n (c n) {0} _ (x d) r).mpr
+        ⟨Finset.ext fun _ => mem_subCoalition, hlen d r hr⟩) hc'
   refine (add_le_add (b := 0) ?_ ?_).trans_eq (zero_add _)
   · refine Game.advantage_bind_le_nnreal _ _ _ fun d =>
-      Game.advantage_bind_le_of_support _ _ _ fun e he => ?_
-    cases e with
-    | inl b => simp only [Sum.elim_inl, Game.advantage_self, le_refl]
-    | inr c' =>
-      simp only [Sum.elim_inr]
-      rw [eval_idealJoint_maskedOT_of_eq_sender (mask d) (unmask d) (samplePads d) (Sm n d)
-        (hSm d) (hE d c' he).1 c'.query fun r => hmask d r _ (hE d c' he).2,
-        Game.advantage_self]
+      Game.advantage_bind_le_of_support _ _ _ ?_
+    rintro (_ | c') he
+    · simp
+    · simp only [Sum.elim_inr, eval_idealJoint_maskedOT_of_eq_sender (mask d) (unmask d)
+        (samplePads d) (Sm n d) (hSm d) (hE d c' he).1 c'.query fun r =>
+          hmask d r _ (hE d c' he).2, Game.advantage_self, le_rfl]
   · refine Game.advantage_bind_le_nnreal _ _ _ fun d =>
-      Game.advantage_bind_le_of_support _ _ _ fun e he => ?_
-    cases e with
-    | inl b => simp only [Sum.elim_inl, Game.advantage_self, zero_le]
-    | inr c' =>
-      simp only [Sum.elim_inr]
-      refine Game.advantage_bind_le_of_support _ _ _ fun e₂ he₂ => ?_
-      cases e₂ with
-      | inl b => simp only [roundGame, Sum.elim_inl, Game.advantage_self, zero_le]
-      | inr c₂ =>
-        refine advantage_roundGame_ddhOTProb_sender_le F n d (S₂ n d) (hS₂ d) c₂ ?_
-        refine ForallChallenge.of_mem_support_composeRoundEnv
-          (Q := fun _ J _ => J = ({0} : Finset (Fin 2))) _ _ _ _ _ _ _ _ _ (fun c₁ _ => ?_) he₂
+      Game.advantage_bind_le_of_support _ _ _ ?_
+    rintro (_ | c') he
+    · simp
+    · simp only [Sum.elim_inr]
+      refine Game.advantage_bind_le_of_support _ _ _ ?_
+      rintro (_ | c₂) he₂
+      · simp [roundGame]
+      · refine advantage_roundGame_ddhOTProb_sender_le F n d (S₂ n d) (hS₂ d) c₂
+          (ForallChallenge.of_mem_support_composeRoundEnv (Q := fun _ J _ => J = {0})
+            _ _ _ _ _ _ _ _ _ (fun _ _ => ?_) he₂)
         refine ⟨?_, fun _ => trivial⟩
         rw [(hE d c' he).1]
         exact Finset.ext fun _ => mem_subCoalition

@@ -188,6 +188,10 @@ namespace Compiler
 variable {F : Type u} [Field F] {σ : Signature.{v}} {I : Interpretation σ F} {N : ℕ}
   {M : Matrix (Fin N) (Fin N) F} {c : Circuit σ N N}
 
+/-- A set of coordinates and its complement together have `N` elements. -/
+private theorem ncard_add_ncard_compl_fin (S : Set (Fin N)) : S.ncard + Sᶜ.ncard = N := by
+  rw [ncard_add_ncard_compl, Nat.card_eq_fintype_card, Fintype.card_fin]
+
 /-- The outputs of a circuit computing `x ↦ M x`. -/
 private theorem eval_eq_mulVec (hc : c.Computes I fun x => M *ᵥ x) (x : Fin N → F) (o : Fin N) :
     c.eval I x o = (M *ᵥ x) o :=
@@ -292,9 +296,7 @@ theorem exists_injective_frontier (hM : M.IsTotallyRegular) (hc : c.Computes I f
       c.program.trace I x e.signal.1 = c.program.trace I x' e.signal.1 :=
     fun e he => congrFun hxx' ⟨e, he⟩
   have hcompl : ∀ S : Set (Fin N), Sᶜ.ncard = N - S.ncard := fun S => by
-    have := ncard_add_ncard_compl S
-    rw [Nat.card_eq_fintype_card, Fintype.card_fin] at this
-    omega
+    have := ncard_add_ncard_compl_fin S; omega
   -- Two inputs that agree on a set `B` of coordinates, and whose outputs agree on a set `R` of at
   -- least `|Bᶜ|` outputs, are equal: the matrix is totally regular.
   have key (B R : Set (Fin N)) (z y : Fin N → F) (hBR : Bᶜ.ncard ≤ R.ncard) (hzy : EqOn z y B)
@@ -353,16 +355,9 @@ theorem eval_eq_of_eqOn_inCut {U : Type*} {n m : ℕ} {c : Circuit σ n m} (I : 
           c.program.trace I x w.1 = c.program.trace I x' w.1 := by
     intro w hw k
     induction k with
-    | zero =>
-      intro hk hj
-      by_cases hs : Vertex.signal w ∈ P
-      · exact hw hs
-      · exact hcut (.feed ⟨w, ⟨0, hk⟩⟩) ⟨hs, hj⟩
-    | succ k ih =>
-      intro hk hj
-      by_cases hs : Vertex.junction ⟨w, ⟨k, Nat.lt_of_succ_lt hk⟩⟩ ∈ P
-      · exact ih (Nat.lt_of_succ_lt hk) hs
-      · exact hcut (.feed ⟨w, ⟨k + 1, hk⟩⟩) ⟨hs, hj⟩
+    | zero => exact fun hk hj => (em _).elim hw fun hs => hcut (.feed ⟨w, ⟨0, hk⟩⟩) ⟨hs, hj⟩
+    | succ k ih => exact fun hk hj =>
+        (em _).elim (ih (Nat.lt_of_succ_lt hk)) fun hs => hcut (.feed ⟨w, ⟨k + 1, hk⟩⟩) ⟨hs, hj⟩
   have hwire : ∀ (w : Wire n c.size) (hw : Reach c w),
       Vertex.signal ⟨w, hw⟩ ∈ P → c.program.trace I x w = c.program.trace I x' w := by
     refine c.program.wire_induction (fun i hi hP => hin ⟨_, hP, site_of_reach hi⟩) ?_
@@ -407,10 +402,7 @@ theorem min_le_ncard_inCut (hM : M.IsTotallyRegular) (hc : c.Computes I fun x =>
   set Y : Set (Fin N) := {o | Vertex.output o ∈ P}
   set k := min (N - X.ncard) Y.ncard
   have hXcompl : Xᶜ.toFinset.card = N - X.ncard := by
-    rw [← ncard_eq_toFinset_card']
-    have := ncard_add_ncard_compl X
-    rw [Nat.card_eq_fintype_card, Fintype.card_fin] at this
-    omega
+    rw [← ncard_eq_toFinset_card']; have := ncard_add_ncard_compl_fin X; omega
   obtain ⟨C₀, hC₀X, hC₀k⟩ := Finset.exists_subset_card_eq
     (s := Xᶜ.toFinset) (n := k) (by omega)
   set B : Set (Fin N) := (C₀ : Set (Fin N))ᶜ
@@ -418,8 +410,8 @@ theorem min_le_ncard_inCut (hM : M.IsTotallyRegular) (hc : c.Computes I fun x =>
   have hBc : Bᶜ.toFinset.card = k := by
     rw [← ncard_eq_toFinset_card', compl_compl, ncard_coe_finset, hC₀k]
   have hBcard : B.ncard = N - k := by
-    have := ncard_add_ncard_compl B
-    rw [compl_compl, ncard_coe_finset, hC₀k, Nat.card_eq_fintype_card, Fintype.card_fin] at this
+    have := ncard_add_ncard_compl_fin B
+    rw [compl_compl, ncard_coe_finset, hC₀k] at this
     omega
   set Win : Set (Wire N c.size) := (fun e : Edge c => e.signal.1) '' (graph c).inCut P
   set W' : Set (Wire N c.size) := Win ∪ (Wire.input '' B)
@@ -460,28 +452,15 @@ theorem min_le_ncard_outCut (hM : M.IsTotallyRegular) (hc : c.Computes I fun x =
     ext i
     obtain ⟨hi, -⟩ := exists_reachable_of_isTotallyRegular hM hc i i
     constructor
-    · rintro ⟨v, hvP, hsite⟩ hvP'
-      obtain ⟨u, huP, hsite'⟩ := hvP'
-      have hvu : v = u := Option.some.inj (hsite.symm.trans hsite')
-      exact hvP (hvu ▸ huP)
-    · intro hiP
-      exact ⟨.signal ⟨.input i, hi⟩, fun hP => hiP ⟨_, hP, site_of_reach hi⟩, site_of_reach hi⟩
-  have hXle : (G.readIn P).ncard ≤ N := by
-    have := ncard_add_ncard_compl (G.readIn P)
-    rw [Nat.card_eq_fintype_card, Fintype.card_fin] at this
-    omega
-  have hXc : N - (G.readIn Pᶜ).ncard = (G.readIn P).ncard := by
-    rw [hread_compl]
-    have := ncard_add_ncard_compl (G.readIn P)
-    rw [Nat.card_eq_fintype_card, Fintype.card_fin] at this
-    omega
-  have hYc : {o : Fin N | Vertex.output o ∈ Pᶜ}.ncard =
-      N - {o : Fin N | Vertex.output o ∈ P}.ncard := by
-    change {o : Fin N | Vertex.output o ∈ P}ᶜ.ncard = _
-    have := ncard_add_ncard_compl {o : Fin N | Vertex.output o ∈ P}
-    rw [Nat.card_eq_fintype_card, Fintype.card_fin] at this
-    omega
-  rwa [hXc, hYc] at h
+    · rintro ⟨v, hvP, hsite⟩ ⟨u, huP, hsite'⟩
+      exact hvP (Option.some.inj (hsite.symm.trans hsite') ▸ huP)
+    · exact fun hiP =>
+        ⟨.signal ⟨.input i, hi⟩, fun hP => hiP ⟨_, hP, site_of_reach hi⟩, site_of_reach hi⟩
+  have hX := ncard_add_ncard_compl_fin (G.readIn P)
+  have hY := ncard_add_ncard_compl_fin {o : Fin N | Vertex.output o ∈ P}
+  rw [hread_compl] at h
+  change min (N - (G.readIn P)ᶜ.ncard) {o : Fin N | Vertex.output o ∈ P}ᶜ.ncard ≤ _ at h
+  omega
 
 /-- **Unbalanced cut demand for totally regular maps.** For *every* set `P` of vertices in the
 graph of a circuit with linear capacity computing `x ↦ M x` for a totally regular `N × N` matrix
@@ -495,14 +474,8 @@ theorem min_le_ncard_edgeCut (hM : M.IsTotallyRegular) (hc : c.Computes I fun x 
       ((graph c).edgeCut P).ncard := by
   have hin := min_le_ncard_inCut hM hc hcap P
   have hout := min_le_ncard_outCut hM hc hcap P
-  have hX : ((network c I fun _ => univ).readIn P).ncard ≤ N := by
-    have := ncard_add_ncard_compl ((network c I fun _ => univ).readIn P)
-    rw [Nat.card_eq_fintype_card, Fintype.card_fin] at this
-    omega
-  have hY : {o : Fin N | Vertex.output o ∈ P}.ncard ≤ N := by
-    have := ncard_add_ncard_compl {o : Fin N | Vertex.output o ∈ P}
-    rw [Nat.card_eq_fintype_card, Fintype.card_fin] at this
-    omega
+  have hX := ncard_add_ncard_compl_fin ((network c I fun _ => univ).readIn P)
+  have hY := ncard_add_ncard_compl_fin {o : Fin N | Vertex.output o ∈ P}
   rw [(graph c).ncard_edgeCut_eq_add P]
   omega
 

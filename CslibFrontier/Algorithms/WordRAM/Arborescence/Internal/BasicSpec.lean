@@ -168,9 +168,14 @@ public theorem argMinArrayProg_spec {w n : ℕ} (predBase costBase : ℕ)
       subst idx s
       have hp_k : s₀.mem (predBase + k) = if pred ⟨k, hk⟩ then 1 else 0 := hp_mem ⟨k, hk⟩
       have hc_k : s₀.mem (costBase + k) = Signed.encode (val ⟨k, hk⟩) := hc_mem ⟨k, hk⟩
+      have hst : (Memory.spec 0).clientState s₀ (argMinStep (a, ⟨k, bestIdx, bestCost⟩)) = s₀ := by
+        unfold argMinStep
+        dsimp only [a]
+        rw [clientState_bind_read, clientState_bind_read]
+        split_ifs <;> rfl
       refine ⟨by dsimp only [ArgMinStepSafe, a]; exact ⟨h2, hfit_p.of_le (by omega),
           hfit_c.of_le (by omega), hfit_n.of_le (by omega)⟩,
-        ?_, ?_, ?_, fun _ _ => ?_, ?_⟩
+        ?_, ?_, by rw [hst], fun _ _ => by rw [hst], ?_⟩
       · unfold argMinStep
         exact validHistory_read_bind (by dsimp only [a]; omega)
           (validHistory_read_bind (by dsimp only [a]; omega)
@@ -180,14 +185,6 @@ public theorem argMinArrayProg_spec {w n : ℕ} (predBase costBase : ℕ)
         rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read,
           memoryCost_bind', memoryCost_read, clientResult_read, clientState_read]
         split_ifs <;> simp [client_simps]
-      · unfold argMinStep
-        dsimp only [a]
-        rw [clientState_bind_read, clientState_bind_read]
-        split_ifs <;> rfl
-      · unfold argMinStep
-        dsimp only [a]
-        rw [clientState_bind_read, clientState_bind_read]
-        split_ifs <;> rfl
       · rw [foldl_take_finRange_succ hk stepFn none]
         generalize hacc : ((List.finRange n).take k).foldl stepFn none = acc at hbi hbc ⊢
         dsimp only [stepFn]
@@ -271,13 +268,24 @@ private theorem fillSelectRowProg_spec {w n ws : ℕ} (vFin : Fin n)
           if a[vFin.1][col] then 1 else 0 := ha_r vFin ⟨col, hcol⟩
       have hc_mc : sr.mem (curCostBase ws n + vFin.1 * n + col) =
           Signed.encode c[vFin.1][col] := hc_r vFin ⟨col, hcol⟩
+      have hout : ∀ x, ¬(candPredBase ws n ≤ x ∧ x < candCostBase ws n + n) →
+          ((Memory.spec 0).clientState sr (selectRowStep (rowArgs, col))).mem x = sr.mem x := by
+        intro x hx
+        dsimp only [candPredBase, candCostBase] at hx
+        simp only [selectRowStep, rowArgs, client_simps, candPredBase, candCostBase]
+        rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
       refine ⟨by dsimp only [SelectRowStepSafe, rowArgs]; exact ⟨h1,
           hws.of_le (by dsimp only [wsSize, curAdjBase]; nlinarith),
           hws.of_le (by dsimp only [wsSize, curCostBase]; nlinarith),
           hws.of_le (by dsimp only [wsSize, candPredBase]; nlinarith),
           hws.of_le (by dsimp only [wsSize, candCostBase]; nlinarith),
-          hws.of_le (by dsimp only [wsSize]; nlinarith)⟩, ?_, ?_, ?_, ?_, ?_, ?_,
-        ?_, ?_, ?_⟩
+          hws.of_le (by dsimp only [wsSize]; nlinarith)⟩, ?_, ?_, ?_, hout, ?_, ?_,
+        fun u c0 => (hout _ (by
+          have := List.mul_add_lt_sq u.isLt c0.isLt
+          dsimp only [curAdjBase, candPredBase, candCostBase]; omega)).trans (ha_r u c0),
+        fun u c0 => (hout _ (by
+          have := List.mul_add_lt_sq u.isLt c0.isLt
+          dsimp only [curCostBase, candPredBase, candCostBase]; omega)).trans (hc_r u c0), ?_⟩
       · unfold selectRowStep
         dsimp only [rowArgs]
         exact validHistory_read_bind
@@ -298,24 +306,8 @@ private theorem fillSelectRowProg_spec {w n ws : ℕ} (vFin : Fin n)
           memoryCost_bind', memoryCost_write, memoryCost_bind', memoryCost_write]
         simp [client_simps]
       · simp [selectRowStep, rowArgs, client_simps]
-      · intro x hx
-        dsimp only [candPredBase, candCostBase] at hx
-        simp only [selectRowStep, rowArgs, client_simps, candPredBase, candCostBase]
-        rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
       · simp [selectRowStep, rowArgs, client_simps]
       · simpa [selectRowStep, rowArgs, client_simps] using hfr_r
-      · intro u c0
-        have := u.isLt; have := c0.isLt
-        simp only [selectRowStep, rowArgs, client_simps]
-        rw [Function.update_of_ne (by dsimp only [curAdjBase, candCostBase]; nlinarith),
-          Function.update_of_ne (by dsimp only [curAdjBase, candPredBase]; nlinarith)]
-        exact ha_r u c0
-      · intro u c0
-        have := u.isLt; have := c0.isLt
-        simp only [selectRowStep, rowArgs, client_simps]
-        rw [Function.update_of_ne (by dsimp only [curCostBase, candCostBase]; nlinarith),
-          Function.update_of_ne (by dsimp only [curCostBase, candPredBase]; nlinarith)]
-        exact hc_r u c0
       · intro c0 hc0
         simp only [selectRowStep, rowArgs, client_simps]
         by_cases heq : c0.1 = col
@@ -413,17 +405,11 @@ public theorem selectParentsProg_spec {w n ws k : ℕ} (r : Fin n)
           refine validHistory_bind_step hrow.2.1 ?_
           refine validHistory_bind_step harg.2.1 ?_
           rw [harg.2.2.2.1]
-          split_ifs
-          · exact validHistory_write_bind
-              (by dsimp only [wsSize, frameParentBase, frameBase] at hf hfr ⊢;
-                  rw [hrow.2.2.2.1]; nlinarith)
-              (hws.of_le (by dsimp only [wsSize]; omega))
-              (validHistory_pure w _ _)
-          · exact validHistory_write_bind
-              (by dsimp only [wsSize, frameParentBase, frameBase] at hf hfr ⊢;
-                  rw [hrow.2.2.2.1]; nlinarith)
-              (hws.of_le (by dsimp only [wsSize]; omega))
-              (validHistory_pure w _ _)
+          split_ifs <;> exact validHistory_write_bind
+            (by dsimp only [wsSize, frameParentBase, frameBase] at hf hfr ⊢;
+                rw [hrow.2.2.2.1]; nlinarith)
+            (hws.of_le (by dsimp only [wsSize]; omega))
+            (validHistory_pure w _ _)
       · unfold selectOuterStep
         dsimp only [sa]
         rw [memoryCost_bind', memoryCost_read, clientState_read]
@@ -470,26 +456,26 @@ public theorem selectParentsProg_spec {w n ws k : ℕ} (r : Fin n)
       · rw [foldl_take_finRange_succ hm]
         unfold selectOuterStep
         dsimp only [sa]
+        have hne_adj (u col : Fin n) :
+            curAdjBase ws n + u.1 * n + col.1 ≠ frameParentBase ws n k + m := by
+          have := List.mul_add_lt_sq u.isLt col.isLt
+          dsimp only [curAdjBase, frameParentBase, frameBase]; omega
+        have hne_cost (u col : Fin n) :
+            curCostBase ws n + u.1 * n + col.1 ≠ frameParentBase ws n k + m := by
+          have := List.mul_add_lt_sq u.isLt col.isLt
+          dsimp only [curCostBase, frameParentBase, frameBase]; omega
         by_cases hmr : m = r.1
         · have hopt_r : optFn r = some r := by simp [optFn]
           simp only [hmr, ↓reduceIte, client_simps]
-          refine ⟨trivial, ?_, hfr, ?_, ?_, ?_⟩
+          rw [hmr] at hne_adj hne_cost
+          refine ⟨trivial, ?_, hfr,
+            fun u col => (Function.update_of_ne (hne_adj u col) _ _).trans (ha_s u col),
+            fun u col => (Function.update_of_ne (hne_cost u col) _ _).trans (hc_s u col),
+            fun j hj => ?_⟩
           · rw [show (⟨r.1, _⟩ : Fin n) = r from Fin.ext rfl, hopt_r]
             simp [hfeas, hmr]
-          · intro u col
-            have := List.mul_add_lt_sq u.isLt col.isLt
-            rw [Function.update_of_ne
-              (by dsimp only [curAdjBase, frameParentBase, frameBase]; omega)]
-            exact ha_s u col
-          · intro u col
-            have := List.mul_add_lt_sq u.isLt col.isLt
-            rw [Function.update_of_ne
-              (by dsimp only [curCostBase, frameParentBase, frameBase]; omega)]
-            exact hc_s u col
-          · intro j hj
-            by_cases hjm : j.1 = m
-            · have hjr : j = r := Fin.ext (hjm.trans hmr)
-              subst hjr
+          · by_cases hjm : j.1 = m
+            · obtain rfl : j = r := Fin.ext (hjm.trans hmr)
               simp [hopt_r]
             · rw [Function.update_of_ne (by omega)]
               exact hpar j (by omega)
@@ -502,59 +488,22 @@ public theorem selectParentsProg_spec {w n ws k : ℕ} (r : Fin n)
           dsimp only [s1, rowArgs, vFin] at harg_s harg_r
           simp only [hmr, ↓reduceIte, client_simps, harg_s, harg_r]
           rw [show (⟨m, hm⟩ : Fin n) = vFin from rfl, ← hopt_v]
-          have hrow_fr := hrow.2.2.2.1
-          have hrow_mod := hrow.2.2.2.2.1
-          have hrow_a := hrow.2.2.2.2.2.1
-          have hrow_c := hrow.2.2.2.2.2.2.1
+          obtain ⟨-, -, -, hrow_fr, hrow_mod, hrow_a, hrow_c, -⟩ := hrow
           dsimp only [rowArgs, vFin] at hrow_fr hrow_mod hrow_a hrow_c
-          cases hopt_case : optFn vFin with
-          | some wBest =>
-            have hwlt : wBest.1 < n := wBest.isLt
-            simp only [optFinIdx, hwlt, ↓reduceIte, client_simps, Option.isSome_some,
-              Bool.and_true]
-            refine ⟨trivial, hfeas, hrow_fr.trans hfr, ?_, ?_, ?_⟩
-            · intro u col
-              have := List.mul_add_lt_sq u.isLt col.isLt
-              rw [Function.update_of_ne
-                (by dsimp only [curAdjBase, frameParentBase, frameBase]; omega)]
-              exact hrow_a u col
-            · intro u col
-              have := List.mul_add_lt_sq u.isLt col.isLt
-              rw [Function.update_of_ne
-                (by dsimp only [curCostBase, frameParentBase, frameBase]; omega)]
-              exact hrow_c u col
-            · intro j hj
-              by_cases hjm : j.1 = m
-              · have hjv : j = vFin := Fin.ext hjm
-                subst hjv
-                simp [hopt_case, vFin]
-              · rw [Function.update_of_ne (by omega),
-                  hrow_mod _ (by
-                    dsimp only [candPredBase, candCostBase, frameParentBase, frameBase]; omega)]
-                exact hpar j (by omega)
-          | none =>
-            simp only [optFinIdx, lt_irrefl, ↓reduceIte, client_simps, Option.isSome_none,
-              Bool.and_false]
-            refine ⟨trivial, rfl, hrow_fr.trans hfr, ?_, ?_, ?_⟩
-            · intro u col
-              have := List.mul_add_lt_sq u.isLt col.isLt
-              rw [Function.update_of_ne
-                (by dsimp only [curAdjBase, frameParentBase, frameBase]; omega)]
-              exact hrow_a u col
-            · intro u col
-              have := List.mul_add_lt_sq u.isLt col.isLt
-              rw [Function.update_of_ne
-                (by dsimp only [curCostBase, frameParentBase, frameBase]; omega)]
-              exact hrow_c u col
-            · intro j hj
-              by_cases hjm : j.1 = m
-              · have hjv : j = vFin := Fin.ext hjm
-                subst hjv
-                simp [hopt_case, vFin]
-              · rw [Function.update_of_ne (by omega),
-                  hrow_mod _ (by
-                    dsimp only [candPredBase, candCostBase, frameParentBase, frameBase]; omega)]
-                exact hpar j (by omega))
+          cases hopt_case : optFn vFin <;>
+            simp only [optFinIdx, Fin.is_lt, lt_irrefl, ↓reduceIte, client_simps,
+              Option.isSome_some, Option.isSome_none, Bool.and_true, Bool.and_false] <;>
+            refine ⟨trivial, by first | exact hfeas | rfl, hrow_fr.trans hfr,
+              fun u col => (Function.update_of_ne (hne_adj u col) _ _).trans (hrow_a u col),
+              fun u col => (Function.update_of_ne (hne_cost u col) _ _).trans (hrow_c u col),
+              fun j hj => ?_⟩ <;>
+            by_cases hjm : j.1 = m
+          all_goals first
+            | (obtain rfl : j = vFin := Fin.ext hjm
+               simp [hopt_case, vFin])
+            | (rw [Function.update_of_ne (by omega), hrow_mod _ (by
+                dsimp only [candPredBase, candCostBase, frameParentBase, frameBase]; omega)]
+               exact hpar j (by omega)))
     ⟨0, 1⟩ s₀ ⟨rfl, rfl, rfl, ha, hc, fun _ h => absurd h (Nat.not_lt_zero _)⟩
   have htake : (List.finRange n).take n = List.finRange n := List.take_of_length_le (by simp)
   obtain ⟨hsafe_it, hvh_it, hmc_it, hfr_it, hmod_it, _, hfeas_it, _, _, _, hpar_it⟩ := h
@@ -603,9 +552,15 @@ private theorem hasCycleFromProg_spec {w n parentBase : ℕ} (x : Fin n) (f : Pa
       have hmem_cur : s₀.mem (parentBase + cur) = (f[curFin.1]).1 := by
         rw [hcur]
         exact hf_mem curFin
+      have hst : (Memory.spec 0).clientState s₀
+          (hasCycleStep (⟨n, parentBase, x.1⟩, ⟨m, cur, hit⟩)) = s₀ := by
+        unfold hasCycleStep
+        dsimp only
+        rw [clientState_bind_read]
+        split_ifs <;> rfl
       refine ⟨by dsimp only [HasCycleStepSafe]; exact ⟨h1, hfit_p.of_le (by omega),
           hfit_n.of_le (by omega)⟩,
-        ?_, ?_, ?_, fun _ _ => ?_, ?_⟩
+        ?_, ?_, by rw [hst], fun _ _ => by rw [hst], ?_⟩
       · unfold hasCycleStep
         dsimp only
         exact validHistory_read_bind (by omega) (by split_ifs <;> trivial)
@@ -613,14 +568,6 @@ private theorem hasCycleFromProg_spec {w n parentBase : ℕ} (x : Fin n) (f : Pa
         dsimp only
         rw [memoryCost_bind', memoryCost_read]
         split_ifs <;> simp [client_simps]
-      · unfold hasCycleStep
-        dsimp only
-        rw [clientState_bind_read]
-        split_ifs <;> rfl
-      · unfold hasCycleStep
-        dsimp only
-        rw [clientState_bind_read]
-        split_ifs <;> rfl
       · unfold hasCycleStep
         dsimp only
         simp only [client_simps, hmem_cur, List.range_succ, List.any_append, List.any_cons,
@@ -672,8 +619,16 @@ public theorem findCycleProg_spec {w n parentBase : ℕ} (r : Fin n) (f : Parent
       subst vIdx s
       set vFin : Fin n := ⟨m, hm⟩
       have hcyc := hasCycleFromProg_spec vFin f s₀ h1 hfit_p hfit_n hp_f hf_mem
+      have hc_s : ((Memory.spec 0).runClient s₀
+          (hasCycleFromProg ⟨n, parentBase, m⟩)).2.1 = s₀ := hcyc.2.2.2.1
+      have hst : (Memory.spec 0).clientState s₀
+          (findCycleOuterStep (⟨n, r.1, parentBase⟩, ⟨m, foundIdx⟩)) = s₀ := by
+        unfold findCycleOuterStep
+        dsimp only
+        simp only [client_simps]
+        repeat (split_ifs <;> simp only [client_simps, hc_s])
       refine ⟨by dsimp only [FindCycleOuterStepSafe]; exact ⟨h1, hfit_n.of_le (by omega), hcyc.1⟩,
-        ?_, ?_, ?_, fun _ _ => ?_, ?_⟩
+        ?_, ?_, by rw [hst], fun _ _ => by rw [hst], ?_⟩
       · unfold findCycleOuterStep
         refine validHistory_read_bind hf0 ?_
         dsimp only
@@ -692,22 +647,6 @@ public theorem findCycleProg_spec {w n parentBase : ℕ} (r : Fin n) (f : Parent
         · rw [memoryCost_bind', hcyc.2.2.2.1]
           have hc_le : memoryCost (hasCycleFromProg ⟨n, parentBase, m⟩) s₀ ≤ n := hcyc.2.2.1
           split_ifs <;> simp only [client_simps] <;> omega
-      · unfold findCycleOuterStep
-        dsimp only
-        have hc_s := hcyc.2.2.2.1
-        dsimp only [vFin] at hc_s
-        have hc_s' : ((Memory.spec 0).runClient s₀
-            (hasCycleFromProg ⟨n, parentBase, m⟩)).2.1 = s₀ := hc_s
-        simp only [client_simps]
-        repeat (split_ifs <;> simp only [client_simps, hc_s'])
-      · unfold findCycleOuterStep
-        dsimp only
-        have hc_s := hcyc.2.2.2.1
-        dsimp only [vFin] at hc_s
-        have hc_s' : ((Memory.spec 0).runClient s₀
-            (hasCycleFromProg ⟨n, parentBase, m⟩)).2.1 = s₀ := hc_s
-        simp only [client_simps]
-        repeat (split_ifs <;> simp only [client_simps, hc_s'])
       · rw [foldl_take_finRange_succ hm stepFn none]
         generalize hacc : ((List.finRange n).take m).foldl stepFn none = acc at hfd ⊢
         dsimp only [stepFn]
@@ -728,8 +667,6 @@ public theorem findCycleProg_spec {w n parentBase : ℕ} (r : Fin n) (f : Parent
             exact ⟨trivial, trivial, trivial⟩
           · have hvr : (⟨m, hm⟩ == r) = false :=
               beq_false_of_ne (fun h => hmr (congrArg Fin.val h))
-            have hc_s : ((Memory.spec 0).runClient s₀
-                (hasCycleFromProg ⟨n, parentBase, m⟩)).2.1 = s₀ := hcyc.2.2.2.1
             have hc_r : (Memory.spec 0).clientResult s₀ (hasCycleFromProg ⟨n, parentBase, m⟩) =
                 if hasCycleFrom ⟨m, hm⟩ f then 1 else 0 := hcyc.2.2.2.2
             simp only [hmr, hvr, Bool.false_eq_true, ↓reduceIte, hc_r]

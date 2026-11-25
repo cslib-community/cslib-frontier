@@ -78,22 +78,8 @@ input storage, even when their declared binary width is malformed. -/
 theorem parse_eq_some_iff (e : Q ≃ Fin s) (b : ℕ) (word : List Bool) (raw : RawResult k Q) :
     parse e (b, word) = some raw ↔ b ≠ 0 ∧ word.length = width k s b ∧
       word.headD false = true ∧ raw = payload e b word := by
-  constructor
-  · intro hp
-    unfold parse at hp
-    split at hp
-    · contradiction
-    · rename_i hbad
-      have hb : b ≠ 0 := fun h => hbad (Or.inl h)
-      have hw : word.length = width k s b := by
-        by_contra h
-        exact hbad (Or.inr h)
-      split at hp
-      · rename_i ht
-        exact ⟨hb, hw, ht, (Option.some.inj hp).symm⟩
-      · contradiction
-  · rintro ⟨hb, hw, ht, rfl⟩
-    simp only [parse, hb, hw, ne_eq, not_true_eq_false, or_self, ↓reduceIte, ht]
+  simp only [parse]
+  grind
 
 
 /-- Native length measurement of an actual stored bit word. -/
@@ -348,22 +334,16 @@ private theorem cells_getD (word : List Bool) (i : ℕ) (hi : 2 * i + 1 < word.l
     (cells word).getD i 0 = cellCode (word.getD (2 * i) false) (word.getD (2 * i + 1) false) := by
   induction i generalizing word with
   | zero =>
-    rcases word with _ | ⟨first, word⟩
+    rcases word with _ | ⟨_, _ | ⟨_, _⟩⟩
     · simp at hi
-    rcases word with _ | ⟨second, word⟩
     · simp at hi
-    rfl
+    · rfl
   | succ i ih =>
-    rcases word with _ | ⟨first, word⟩
+    rcases word with _ | ⟨_, _ | ⟨_, word⟩⟩
     · simp at hi
-    rcases word with _ | ⟨second, word⟩
     · simp at hi
-    have hrest : 2 * i + 1 < word.length := by simp only [List.length_cons] at hi; omega
-    rw [cells, List.getD_cons_succ]
-    rw [show 2 * (i + 1) + 1 = ((2 * i + 1) + 1) + 1 from by omega,
-      show 2 * (i + 1) = (2 * i + 1) + 1 from by omega]
-    simp only [List.getD_cons_succ]
-    exact ih word hrest
+    · simp only [cells, Nat.mul_succ, List.getD_cons_succ]
+      exact ih word (by simp only [List.length_cons] at hi; omega)
 
 private theorem slice_ofFn {n : ℕ} (bits : BitString n) (offset count : ℕ)
     (h : offset + count ≤ n) :

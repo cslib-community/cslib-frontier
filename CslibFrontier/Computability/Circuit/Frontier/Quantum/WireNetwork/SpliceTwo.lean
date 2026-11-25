@@ -100,51 +100,39 @@ private theorem ncard_incidence_spliceTwo_inr {V E V_add E_int W : Type} [Decida
     · by_cases hq0 : q = q₀
       · subst hq0
         have hnot1 : (.inr q : (E ⊕ (Bool ⊕ E_int)) ⊕ W) ∉ S₁ := by
-          dsimp only [S₁]; split_ifs
-          · simp [hq_ne]
-          · simp
+          dsimp only [S₁]
+          split_ifs <;> simp [hq_ne]
         simp [Multigraph.mem_incidenceSet, capGraph, spliceTwoTip, S₀, S_int, hnot1, eq_comm]
       · by_cases hq1 : q = q₁
         · subst hq1
           have hnot0 : (.inr q : (E ⊕ (Bool ⊕ E_int)) ⊕ W) ∉ S₀ := by
-            dsimp only [S₀]; split_ifs
-            · simp [hq0]
-            · simp
+            dsimp only [S₀]
+            split_ifs <;> simp [hq0]
           simp only [Multigraph.mem_incidenceSet, capGraph, spliceTwoTip, hq0, ↓reduceIte]
           simp [S₁, S_int, hnot0, eq_comm]
         · simp [Multigraph.mem_incidenceSet, capGraph, spliceTwoTip, S₀, S₁, S_int, hq0, hq1]
   have hfin₀ : S₀.Finite := by dsimp only [S₀]; split_ifs <;> simp
   have hfin₁ : S₁.Finite := by dsimp only [S₁]; split_ifs <;> simp
   have hfin_int : S_int.Finite := (toFinite _).image _
-  have hd₀ : Disjoint S₀ (S₁ ∪ S_int) := by
-    rw [Set.disjoint_left]
-    intro x hx0 hx12
-    dsimp only [S₀] at hx0
+  have hd₀ : Disjoint S₀ (S₁ ∪ S_int) := Set.disjoint_left.mpr fun x hx0 hx12 => by
+    dsimp only [S₀, S₁, S_int] at hx0 hx12
     split_ifs at hx0
     · rcases hx0 with rfl | rfl
       · rcases hx12 with hx1 | ⟨_, _, h⟩
-        · dsimp only [S₁] at hx1; split_ifs at hx1 <;> simp at hx1
+        · split_ifs at hx1 <;> simp at hx1
         · cases h
       · rcases hx12 with hx1 | ⟨_, _, h⟩
-        · dsimp only [S₁] at hx1
-          split_ifs at hx1
-          · simp [hq_ne] at hx1
-          · exact hx1
+        · split_ifs at hx1 <;> simp [hq_ne] at hx1
         · cases h
     · exact hx0
-  have hd₁ : Disjoint S₁ S_int := by
-    rw [Set.disjoint_left]
-    rintro x hx1 ⟨_, _, rfl⟩
+  have hd₁ : Disjoint S₁ S_int := Set.disjoint_left.mpr fun _ hx1 ⟨_, _, h⟩ => by
+    subst h
     dsimp only [S₁] at hx1
     split_ifs at hx1 <;> simp at hx1
   have hc₀ : S₀.ncard = if v = v₀ then 2 else 0 := by
-    dsimp only [S₀]; split_ifs
-    · rw [ncard_insert_of_notMem (by simp), ncard_singleton]
-    · exact ncard_empty _
+    by_cases hv : v = v₀ <;> simp [S₀, hv]
   have hc₁ : S₁.ncard = if v = v₁ then 2 else 0 := by
-    dsimp only [S₁]; split_ifs
-    · rw [ncard_insert_of_notMem (by simp), ncard_singleton]
-    · exact ncard_empty _
+    by_cases hv : v = v₁ <;> simp [S₁, hv]
   have hc_int : S_int.ncard = (G_int.incidenceSet v).ncard :=
     ncard_image_of_injective _ fun _ _ h => Sum.inr.inj (Sum.inr.inj (Sum.inl.inj h))
   rw [hpart, ncard_union_eq hd₀ hfin₀ (hfin₁.union hfin_int),

@@ -237,13 +237,8 @@ private theorem runReal_le_and_runFb_le (S : Scheme PK SK M R CT K)
     congr 1
     ext x
     simp
-  let H' := fbTable (S.usesFallback G pk sk c) s H Hfb
-  have e₁ : S.runReal A b pk sk s G H Hfb m kRand =
-      OracleComp.interpret (S.eagerHandler G H' ⟨sk, pk, s⟩ c) prog := rfl
-  have e₂ : S.runFb A b pk sk s G H Hfb m kRand =
-      OracleComp.interpret (S.eagerFbHandler G H Hfb ⟨sk, pk, s⟩ c) prog := rfl
-  rw [e₁, e₂, hY, e (S.eagerHandler G H' ⟨sk, pk, s⟩ c),
-    e (S.eagerFbHandler G H Hfb ⟨sk, pk, s⟩ c)]
+  dsimp only [runReal, runFb]
+  rw [hY, e _, e _]
   refine ⟨?_, ?_⟩
   · rw [← h.bad_eq]
     exact h.bind_apply_le prog [] _ true
@@ -272,13 +267,8 @@ private theorem expect_le_add [Fintype M] [Finite R] [Fintype CT] [Finite K]
     (h : ∀ pk sk s G H Hfb m kRand, F₁ pk sk s G H Hfb m kRand true ≤
       F₂ pk sk s G H Hfb m kRand true + F₃ pk sk s G H Hfb m kRand true) :
     S.expect F₁ true ≤ S.expect F₂ true + S.expect F₃ true := by
-  refine Probability.PMF.bind_apply_le_add_on_support _ _ fun ks _ => ?_
-  refine Probability.PMF.bind_apply_le_add_on_support _ _ fun s _ => ?_
-  refine Probability.PMF.bind_apply_le_add_on_support _ _ fun G _ => ?_
-  refine Probability.PMF.bind_apply_le_add_on_support _ _ fun H _ => ?_
-  refine Probability.PMF.bind_apply_le_add_on_support _ _ fun Hfb _ => ?_
-  refine Probability.PMF.bind_apply_le_add_on_support _ _ fun m _ => ?_
-  refine Probability.PMF.bind_apply_le_add_on_support _ _ fun kRand _ => ?_
+  iterate 7
+    refine Probability.PMF.bind_apply_le_add_on_support _ _ fun _ _ => ?_
   exact h _ _ _ _ _ _ _ _
 
 /-- The run of `eagerFbGame` queries `H` at the independent seed with probability at most
@@ -287,30 +277,19 @@ private theorem expect_hitSeed_le [Fintype M] [Finite R] [Fintype CT] [Finite K]
     (S : Scheme PK SK M R CT K) (A : ROAdversary PK M R CT K) {qG qH : ℕ}
     (hq : ROQueryBounds A qG qH) {p : ℝ≥0} (hp : ∀ m, ProbComp.eval S.sampleMsg m ≤ p)
     (b : Bool) : S.expect (S.hitSeed A b) true ≤ qH * p := by
-  refine Probability.PMF.bind_apply_le_on_support _ fun ks _ => ?_
-  rw [PMF.bind_comm (ProbComp.eval S.sampleMsg)]
-  refine Probability.PMF.bind_apply_le_on_support _ fun G _ => ?_
-  rw [PMF.bind_comm (ProbComp.eval S.sampleMsg)]
-  refine Probability.PMF.bind_apply_le_on_support _ fun H _ => ?_
-  rw [PMF.bind_comm (ProbComp.eval S.sampleMsg)]
-  refine Probability.PMF.bind_apply_le_on_support _ fun Hfb _ => ?_
-  rw [PMF.bind_comm (ProbComp.eval S.sampleMsg)]
-  refine Probability.PMF.bind_apply_le_on_support _ fun m _ => ?_
-  rw [PMF.bind_comm (ProbComp.eval S.sampleMsg)]
-  refine Probability.PMF.bind_apply_le_on_support _ fun kRand _ => ?_
-  change ((ProbComp.eval S.sampleMsg).bind fun s =>
-    (S.logRunFb A b ks.1 ks.2 G H Hfb m kRand).bind fun x =>
-      PMF.pure (decide (s ∈ x.2))) true ≤ _
+  refine Probability.PMF.bind_apply_le_on_support _ fun _ _ => ?_
+  iterate 5
+    rw [PMF.bind_comm (ProbComp.eval S.sampleMsg)]
+    refine Probability.PMF.bind_apply_le_on_support _ fun _ _ => ?_
+  dsimp only [hitSeed, PMF.map]
   rw [PMF.bind_comm (ProbComp.eval S.sampleMsg)]
   refine Probability.PMF.bind_apply_le_on_support _ fun x hx => ?_
   have hlen : x.2.length ≤ qH := by
-    have hcost := (hq ⟨ks.1, encT S.pke G ks.1 m,
-      if b then kRand else H (false, m, encT S.pke G ks.1 m)⟩).2
-    simpa using hcost.measure_le _ List.length
+    simpa using (hq _).2.measure_le _ List.length
       (fun q st res st' hmem => by
         rw [show st' = logM q st from snd_eq_of_mem_support_map_pair hmem]
         exact length_logM q st)
-      (show (x.1, x.2) ∈ _ from hx)
+      hx
   have hμ : ∀ s, ((ProbComp.eval S.sampleMsg).map id) s ≤ p := fun s => by
     rw [PMF.map_id]; exact hp s
   change ((ProbComp.eval S.sampleMsg).map fun s => decide (s ∈ x.2)) true ≤ _
@@ -369,20 +348,15 @@ theorem advantage_eagerIndCcaGame_eagerFbGame_le [Fintype M] [Finite R] [Fintype
     (b : Bool) :
     (Game.advantage (S.eagerIndCcaGame A b) (S.eagerFbGame A b) : ℝ) ≤ qH * (p : ℝ) := by
   classical
+  rw [eagerIndCcaGame_eq_expect, eagerFbGame_eq_expect]
   have hbad := S.expect_hitSeed_le A hq hp b
-  have hB : ((qH : ℝ≥0∞) * p) ≠ ⊤ := ENNReal.mul_ne_top (ENNReal.natCast_ne_top qH)
-    ENNReal.coe_ne_top
-  have h := Game.advantage_le_of_apply_le hB
-    (game1 := S.eagerIndCcaGame A b) (game2 := S.eagerFbGame A b)
-    (by
-      rw [eagerIndCcaGame_eq_expect, eagerFbGame_eq_expect]
-      exact (S.expect_le_add _ _ _ fun pk sk s G H Hfb m kRand =>
-        (S.runReal_le_and_runFb_le A b pk sk s G H Hfb m kRand).1).trans (by gcongr))
-    (by
-      rw [eagerIndCcaGame_eq_expect, eagerFbGame_eq_expect]
-      exact (S.expect_le_add _ _ _ fun pk sk s G H Hfb m kRand =>
-        (S.runReal_le_and_runFb_le A b pk sk s G H Hfb m kRand).2).trans (by gcongr))
-  simpa [ENNReal.toReal_mul] using h
+  have hB : ((qH : ℝ≥0∞) * p) ≠ ⊤ :=
+    ENNReal.mul_ne_top (ENNReal.natCast_ne_top qH) ENNReal.coe_ne_top
+  simpa [ENNReal.toReal_mul] using Game.advantage_le_of_apply_le hB
+    ((S.expect_le_add _ _ _ fun pk sk s G H Hfb m kRand =>
+      (S.runReal_le_and_runFb_le A b pk sk s G H Hfb m kRand).1).trans (by gcongr))
+    ((S.expect_le_add _ _ _ fun pk sk s G H Hfb m kRand =>
+      (S.runReal_le_and_runFb_le A b pk sk s G H Hfb m kRand).2).trans (by gcongr))
 
 end Scheme
 

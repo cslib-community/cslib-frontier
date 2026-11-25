@@ -161,6 +161,6 @@ theorem dens_abs_sum_ite_mul_sign_gt_le (hh : IsTwoUniversal (PMF.uniformOfFinty
   calc (𝔼 p, N p ^ 2) ≤ V / w := hsecond
     _ ≤ 1 / 3 * t ^ 2 := by
       rw [div_le_iff₀ hw0]
-      nlinarith [hw]
+      linarith
 
 end Cslib.Probability.CountSketch

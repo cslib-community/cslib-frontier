@@ -84,15 +84,11 @@ private theorem exists_markerPayload (f : BitString n → BitString n)
       simp only [marked, Bool.and_eq_true, decide_eq_true_eq, hbit, hrep, repKey,
         Prod.ext_iff]
     funext bit
-    apply Bool.eq_iff_iff.mpr
+    have hi : row (e ⟨(z, j), hrow⟩) = (z, j) := congrArg Subtype.val (e.symm_apply_apply _)
+    refine Bool.eq_iff_iff.mpr ?_
     simp only [value, decide_eq_true_eq, match_iff]
-    constructor
-    · rintro ⟨i, hi, hb⟩
-      simpa [stored, hi] using hb
-    · intro hb
-      let i := e ⟨(z, j), hrow⟩
-      have hi : row i = (z, j) := congrArg Subtype.val (e.symm_apply_apply _)
-      exact ⟨i, hi, by simpa [stored, hi] using hb⟩
+    exact ⟨fun ⟨i, hi, hb⟩ => by simpa [stored, hi] using hb,
+      fun hb => ⟨_, hi, by simpa [stored, hi] using hb⟩⟩
 
 /-- Select a cycle marker by its representative and the high bits of the phase, then advance
 by the value of the low `b` bits. -/

@@ -37,14 +37,12 @@ private theorem reachable_map_inl {V V' E E' : Type} {G : Multigraph V E}
     G'.toSimpleGraph.Reachable (f u) (f w) := by
   obtain ⟨p⟩ := hr
   induction p with
-  | nil => exact SimpleGraph.Reachable.refl _
-  | @cons a b c hab _ ih =>
+  | nil => exact .refl _
+  | cons hab _ ih =>
     obtain ⟨hab_ne, e₀, he₀⟩ := Multigraph.toSimpleGraph_adj.mp hab
     obtain ⟨e', he'⟩ := hedges e₀
-    refine (Multigraph.toSimpleGraph_adj.mpr
-      ⟨fun h => hab_ne (f.injective h), e', ?_⟩).reachable.trans ih
-    rw [he', he₀]
-    rfl
+    exact (Multigraph.toSimpleGraph_adj.mpr
+      ⟨fun h => hab_ne (f.injective h), e', he'.trans (he₀ ▸ rfl)⟩).reachable.trans ih
 
 private theorem mem_closed_iff_of_reachable {V E : Type} {G : Multigraph V E}
     {Comp : Set V} (hcut : G.edgeCut Comp = ∅) {u w : V}
@@ -52,12 +50,11 @@ private theorem mem_closed_iff_of_reachable {V E : Type} {G : Multigraph V E}
   obtain ⟨p⟩ := hr
   induction p with
   | nil => exact Iff.rfl
-  | @cons a b c hab _ ih =>
+  | cons hab _ ih =>
     obtain ⟨_, e, hends⟩ := Multigraph.toSimpleGraph_adj.mp hab
-    have hce := G.edgeCut_eq_empty_iff.mp hcut e
-    rcases Sym2.eq_iff.mp hends with ⟨h1, h2⟩ | ⟨h1, h2⟩
-    · exact (h1 ▸ h2 ▸ hce).trans ih
-    · exact (h1 ▸ h2 ▸ hce.symm).trans ih
+    rcases Sym2.eq_iff.mp hends with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+    · exact (G.edgeCut_eq_empty_iff.mp hcut e).trans ih
+    · exact (G.edgeCut_eq_empty_iff.mp hcut e).symm.trans ih
 
 /-- Capped multigraph obtained by joining each wire `q : W`'s current `tip q : V` to a degree-one
 output leaf `.inr q : V ⊕ W` via edge `.inr q : E ⊕ W`. -/
@@ -73,14 +70,12 @@ private def capGraph {V E W : Type} (G : Multigraph V E) (tip : W → V) :
 private theorem capGraph_loopless {V E W : Type} {G : Multigraph V E} (hG : G.Loopless)
     (tip : W → V) : (capGraph G tip).Loopless := by
   rintro (e | q)
-  · exact fun h => hG e (Sum.inl.inj h)
+  · exact (hG e <| Sum.inl.inj ·)
   · exact Sum.inl_ne_inr
 
 private theorem capGraph_incidence_inr {V E W : Type} (G : Multigraph V E) (tip : W → V)
     (q : W) : (capGraph G tip).incidenceSet (.inr q) = {.inr q} := by
-  ext (e | q')
-  · simp [Multigraph.mem_incidenceSet, capGraph]
-  · simp [Multigraph.mem_incidenceSet, capGraph, eq_comm]
+  ext (_ | _) <;> simp [Multigraph.mem_incidenceSet, capGraph, eq_comm]
 
 /-- Compiled capped wire-segment tensor network for an active unitary `M : Matrix (W → Bool) _ ℂ`
 using `s` two-qubit gates and maximum degree `d` (`d = 3` or `d = 4`). -/
@@ -144,16 +139,13 @@ private theorem ncard_incidence_eq_of_bij {V V' E E' W : Type}
     (hsurj : ∀ e' ∈ (capGraph G' tip').incidenceSet (.inl (fV u)), ∃ e, emb e = e') :
     ((capGraph G' tip').incidenceSet (.inl (fV u))).ncard =
       ((capGraph G tip).incidenceSet (.inl u)).ncard := by
-  have himg : (capGraph G' tip').incidenceSet (.inl (fV u)) =
-      emb '' (capGraph G tip).incidenceSet (.inl u) := by
-    ext e'
-    constructor
-    · intro he'
-      obtain ⟨e, rfl⟩ := hsurj e' he'
-      exact ⟨e, (hmap e).mpr he', rfl⟩
-    · rintro ⟨e, he, rfl⟩
-      exact (hmap e).mp he
-  rw [himg, ncard_image_of_injective _ emb.injective]
+  suffices (capGraph G' tip').incidenceSet (.inl (fV u)) =
+      emb '' (capGraph G tip).incidenceSet (.inl u) by
+    rw [this, ncard_image_of_injective _ emb.injective]
+  ext e'
+  refine ⟨fun he' => ?_, fun ⟨e, he, h⟩ => h ▸ (hmap e).mp he⟩
+  obtain ⟨e, rfl⟩ := hsurj e' he'
+  exact ⟨e, (hmap e).mpr he', rfl⟩
 
 /-- Base open state for `[] : List (ActiveGate W)`. -/
 private noncomputable def openStateNil (d : ℕ) (W : Type) [Fintype W] [DecidableEq W] :
@@ -348,9 +340,7 @@ private noncomputable def openStateOne {d : ℕ} {W : Type} [Fintype W] [Decidab
 
 private theorem activeGate_wires_ne {W : Type} (g : ActiveGate W) (h2 : g.1.val = 2) :
     g.2.2 ⟨0, by omega⟩ ≠ g.2.2 ⟨1, by omega⟩ := fun h => by
-  have hv := congrArg Fin.val (g.2.2.injective h)
-  dsimp only at hv
-  omega
+  simpa using congrArg Fin.val (g.2.2.injective h)
 
 private theorem placeAct_two_mul_apply {W : Type} [Fintype W] [DecidableEq W]
     (g : ActiveGate W) (h2 : g.1.val = 2) (M : Matrix (W → Bool) (W → Bool) ℂ)
@@ -367,7 +357,11 @@ private theorem placeAct_two_mul_apply {W : Type} [Fintype W] [DecidableEq W]
   set q₀ : W := g.2.2 i₀
   set q₁ : W := g.2.2 i₁
   have hq_ne : q₀ ≠ q₁ := activeGate_wires_ne g h2
-  rw [Matrix.mul_apply]
+  have hi_cases (i : Fin g.1.val) : i = i₀ ∨ i = i₁ := by
+    rcases (by omega : i.val = 0 ∨ i.val = 1) with h | h
+    · exact Or.inl (Fin.ext h)
+    · exact Or.inr (Fin.ext h)
+  have hi_ne : i₁ ≠ i₀ := fun h => by simpa [i₀, i₁] using congrArg Fin.val h
   have hplace (z : W → Bool) :
       (placeAct g : Matrix (W → Bool) (W → Bool) ℂ) y z =
         if ∀ q, q ≠ q₀ ∧ q ≠ q₁ → y q = z q then
@@ -375,54 +369,36 @@ private theorem placeAct_two_mul_apply {W : Type} [Fintype W] [DecidableEq W]
             (fun i => if i = i₀ then y q₀ else y q₁)
             (fun i => if i = i₀ then z q₀ else z q₁)
         else 0 := by
-    rw [placeAct_apply]
-    have hiff : (∀ q : W, (¬∃ i, g.2.2 i = q) → y q = z q) ↔
-        ∀ q, q ≠ q₀ ∧ q ≠ q₁ → y q = z q := by
-      refine forall_congr' fun q => imp_congr_left
-        ⟨fun h => ⟨fun h0 => h ⟨i₀, h0.symm⟩, fun h1 => h ⟨i₁, h1.symm⟩⟩,
-         fun ⟨h0, h1⟩ ⟨i, hi⟩ => ?_⟩
-      rcases (by omega : i.val = 0 ∨ i.val = 1) with hi0 | hi1
-      · exact h0 (hi.symm.trans (congrArg g.2.2 (Fin.ext hi0)))
-      · exact h1 (hi.symm.trans (congrArg g.2.2 (Fin.ext hi1)))
-    rw [if_congr hiff rfl rfl]
-    split_ifs with h
-    · have hcomp_eq (w : W → Bool) : (w ∘ g.2.2) = fun i => if i = i₀ then w q₀ else w q₁ :=
-        funext fun i => by
-          by_cases hi0 : i = i₀
-          · subst hi0; simp only [Function.comp_apply, ↓reduceIte, q₀]
-          · have hi0_v : i.val ≠ 0 := fun h => hi0 (Fin.ext h)
-            have hi1 : i = i₁ := Fin.ext (by dsimp only [i₁]; omega)
-            subst hi1; simp only [Function.comp_apply, hi0, ↓reduceIte, q₁]
-      rw [hcomp_eq y, hcomp_eq z]
+    rw [placeAct_apply, if_congr (forall_congr' fun q => imp_congr_left
+      ⟨fun h => ⟨fun h0 => h ⟨i₀, h0.symm⟩, fun h1 => h ⟨i₁, h1.symm⟩⟩,
+        fun (h : q ≠ q₀ ∧ q ≠ q₁) ⟨i, hi⟩ =>
+          (hi_cases i).elim (fun e => h.1 (hi ▸ congrArg g.2.2 e))
+            fun e => h.2 (hi ▸ congrArg g.2.2 e)⟩) rfl rfl]
+    have hcomp (w : W → Bool) : w ∘ g.2.2 = fun i => if i = i₀ then w q₀ else w q₁ :=
+      funext fun i => by rcases hi_cases i with rfl | rfl <;> simp [hi_ne, q₀, q₁]
+    split_ifs
+    · rw [hcomp y, hcomp z]
     · rfl
+  rw [Matrix.mul_apply]
   simp_rw [hplace, ite_mul, zero_mul]
-  let fupd (p : Bool × Bool) : W → Bool :=
-    Function.update (Function.update y q₁ p.2) q₀ p.1
-  have hfupd_inj : Function.Injective fupd := fun p₁ p₂ h => by
-    have h0 : p₁.1 = p₂.1 := by simpa [fupd] using congrFun h q₀
-    have h1 : p₁.2 = p₂.2 := by simpa [fupd, hq_ne.symm] using congrFun h q₁
-    exact Prod.ext h0 h1
-  have hfilt : (Finset.univ.filter fun z : W → Bool =>
-      ∀ q, q ≠ q₀ ∧ q ≠ q₁ → y q = z q) = Finset.univ.image fupd := by
-    ext z
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_image]
-    constructor
-    · intro hz
-      refine ⟨(z q₀, z q₁), funext fun q => ?_⟩
-      by_cases h0 : q = q₀
-      · subst h0; simp only [fupd, Function.update_self]
-      · by_cases h1 : q = q₁
-        · subst h1; simp only [fupd, ne_eq, h0, not_false_eq_true, Function.update_of_ne,
-            Function.update_self]
-        · simp only [fupd, ne_eq, h0, h1, not_false_eq_true, Function.update_of_ne,
-            hz q ⟨h0, h1⟩]
-    · rintro ⟨⟨z₀, z₁⟩, rfl⟩ q ⟨h0, h1⟩
-      simp only [fupd, ne_eq, h0, h1, not_false_eq_true, Function.update_of_ne]
-  rw [← Finset.sum_filter, hfilt, Finset.sum_image (fun _ _ _ _ h => hfupd_inj h),
-    Fintype.sum_prod_type]
-  refine Finset.sum_congr rfl fun z₀ _ => Finset.sum_congr rfl fun z₁ _ => ?_
-  simp only [fupd, Function.update_self, ne_eq, hq_ne.symm, not_false_eq_true,
-    Function.update_of_ne]
+  let fupd (p : Bool × Bool) : W → Bool := Function.update (Function.update y q₁ p.2) q₀ p.1
+  have hinv {z : W → Bool} (hz : ∀ q, q ≠ q₀ ∧ q ≠ q₁ → y q = z q) : fupd (z q₀, z q₁) = z :=
+    funext fun q => by
+      rcases eq_or_ne q q₀ with rfl | h0
+      · simp [fupd]
+      · rcases eq_or_ne q q₁ with rfl | h1
+        · simp [fupd, h0]
+        · simp [fupd, h0, h1, hz q ⟨h0, h1⟩]
+  rw [← Finset.sum_filter, ← Fintype.sum_prod_type fun p : Bool × Bool =>
+    (g.2.1 : Matrix (Fin g.1.val → Bool) (Fin g.1.val → Bool) ℂ)
+      (fun i => if i = i₀ then y q₀ else y q₁) (fun i => if i = i₀ then p.1 else p.2) *
+    M (fupd p) x]
+  exact Finset.sum_nbij' (fun z => (z q₀, z q₁)) fupd (fun _ _ => Finset.mem_univ _)
+    (fun _ _ => Finset.mem_filter.mpr ⟨Finset.mem_univ _, fun q ⟨h0, h1⟩ => by simp [fupd, h0, h1]⟩)
+    (fun z hz => hinv (Finset.mem_filter.mp hz).2) (fun ⟨_, _⟩ _ => by simp [fupd, hq_ne.symm])
+    (fun z hz => by
+      dsimp only
+      rw [hinv (Finset.mem_filter.mp hz).2])
 
 private theorem OpenState.contract_update_two {d : ℕ} {W : Type} [Fintype W] [DecidableEq W]
     {M : Matrix (W → Bool) (W → Bool) ℂ} {s : ℕ} (S : OpenState d W M s)
@@ -451,29 +427,22 @@ private theorem OpenState.contract_update_two {d : ℕ} {W : Type} [Fintype W] [
     (t := Finset.univ (α := S.E ⊕ W → Bool))]
   congr 1
   refine Finset.sum_congr rfl fun γ _ => ?_
-  have hupd_prod (z₀ z₁ : Bool) :
+  have hupd (z₀ z₁ : Bool) :
       (∏ q : W, S.tipMat q (Function.update (Function.update y q₁ z₁) q₀ z₀ q) (γ (.inr q))) =
       S.tipMat q₀ z₀ (γ (.inr q₀)) * S.tipMat q₁ z₁ (γ (.inr q₁)) *
         ∏ q ∈ (Finset.univ.erase q₀).erase q₁, S.tipMat q (y q) (γ (.inr q)) := by
-    rw [← Finset.mul_prod_erase Finset.univ _ (Finset.mem_univ q₀),
-      ← Finset.mul_prod_erase (Finset.univ.erase q₀) _
-        (Finset.mem_erase.mpr ⟨hq_ne.symm, Finset.mem_univ q₁⟩)]
-    have hupd0 : Function.update (Function.update y q₁ z₁) q₀ z₀ q₀ = z₀ :=
-      Function.update_self _ _ _
-    have hupd1 : Function.update (Function.update y q₁ z₁) q₀ z₀ q₁ = z₁ := by
-      rw [Function.update_of_ne hq_ne.symm, Function.update_self]
-    rw [hupd0, hupd1, mul_assoc]
+    rw [← Finset.mul_prod_erase _ _ (Finset.mem_univ q₀),
+      ← Finset.mul_prod_erase _ _ (Finset.mem_erase.mpr ⟨hq_ne.symm, Finset.mem_univ q₁⟩),
+      Function.update_self, Function.update_of_ne hq_ne.symm, Function.update_self, mul_assoc]
     congr 2
     refine Finset.prod_congr rfl fun q hq => ?_
-    have hq1 : q ≠ q₁ := (Finset.mem_erase.mp hq).1
-    have hq0 : q ≠ q₀ := (Finset.mem_erase.mp (Finset.mem_erase.mp hq).2).1
-    rw [Function.update_of_ne hq0, Function.update_of_ne hq1]
-  simp_rw [hupd_prod]
-  rw [Finset.sum_comm]
+    rw [Function.update_of_ne (Finset.mem_erase.mp (Finset.mem_erase.mp hq).2).1,
+      Function.update_of_ne (Finset.mem_erase.mp hq).1]
+  simp_rw [hupd]
+  rw [Finset.sum_comm, Finset.mul_sum, Finset.sum_mul]
+  refine Finset.sum_congr rfl fun _ _ => ?_
   rw [Finset.mul_sum, Finset.sum_mul]
-  refine Finset.sum_congr rfl fun z₀ _ => ?_
-  rw [Finset.mul_sum, Finset.sum_mul]
-  exact Finset.sum_congr rfl fun z₁ _ => by ring
+  exact Finset.sum_congr rfl fun _ _ => by ring
 
 
 end Cslib.Circuits.Frontier

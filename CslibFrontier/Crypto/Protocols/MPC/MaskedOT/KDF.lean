@@ -193,11 +193,7 @@ private theorem bind_eval_maskedOTPadTest_uniformList (H : F.Desc × List Bool �
       congrArg (·.bind f) (Cslib.BitString.uniformList_map_listXor_length len w)
   simp only [kdfPads, bind_assoc, pure_bind, ProbComp.eval_bind, ProbComp.eval_uniform,
     Cslib.BitString.eval_sampleList]
-  cases hσ : (x 1 : Bool)
-  · simp only [Bool.false_eq_true, ↓reduceIte, PMF.bind_const]
-    exact congrArg (PMF.bind _) (funext fun a => hpad _ fun u => ProbComp.eval
-      (maskedOTPadTest (F.kdfMask H d) x D (a • F.generator d) u))
-  · simp only [↓reduceIte, PMF.bind_const]
+  cases hσ : (x 1 : Bool) <;> simp only [Bool.false_eq_true, ↓reduceIte, PMF.bind_const] <;>
     exact congrArg (PMF.bind _) (funext fun a => hpad _ fun u => ProbComp.eval
       (maskedOTPadTest (F.kdfMask H d) x D (a • F.generator d) u))
 
@@ -388,15 +384,13 @@ theorem bind_roundGame_idealJoint_kdfMaskedOT_eq_kdfIdealGame (setup : ℕ → P
     PMF.monad_bind_eq_bind]
   refine PMF.bind_congr_on_support _ _ _ fun d hd => ?_
   rw [bind_bind_bind_comm]
-  refine PMF.bind_congr_on_support _ _ _ fun e he => ?_
-  cases e with
-  | inl b => simp only [roundGame, Sum.elim_inl, ProbComp.eval_pure, PMF.bind_const]
-  | inr c =>
-    obtain ⟨op, J, q, g⟩ := c
-    obtain rfl : J = ({1} : Finset (Fin 2)) := hE d hd _ he
-    simp only [roundGame, Sum.elim_inr, hSm d, ↓reduceDIte]
-    exact (bind_eval_idealJoint_maskedOT_receiver _ _ _ q g).trans
-      (F.bind_eval_maskedOTPadTest_uniformList H (msgLen n) d q g).symm
+  refine PMF.bind_congr_on_support _ _ _ fun
+    | .inl _, _ => by simp only [roundGame, Sum.elim_inl, ProbComp.eval_pure, PMF.bind_const]
+    | .inr ⟨_, J, q, g⟩, he => by
+      obtain rfl : J = ({1} : Finset (Fin 2)) := hE d hd _ he
+      simp only [roundGame, Sum.elim_inr, hSm d, ↓reduceDIte]
+      exact (bind_eval_idealJoint_maskedOT_receiver _ _ _ q g).trans
+        (F.bind_eval_maskedOTPadTest_uniformList H (msgLen n) d q g).symm
 
 /-- **The real round game of a sampled environment is its real key-derivation game.** Step toward
 #6045; original bookkeeping, not a cited result. Draw `d ← setup n` and a challenge from the
@@ -425,17 +419,15 @@ theorem bind_roundGame_realJoint_kdfMaskedOT_eq_kdfRealGame (setup : ℕ → PMF
     PMF.monad_bind_eq_bind]
   refine PMF.bind_congr_on_support _ _ _ fun d hd => ?_
   rw [bind_bind_bind_comm]
-  refine PMF.bind_congr_on_support _ _ _ fun e he => ?_
-  cases e with
-  | inl b => simp only [roundGame, Sum.elim_inl, ProbComp.eval_pure, PMF.bind_const]
-  | inr c =>
-    obtain ⟨op, J, q, g⟩ := c
-    obtain ⟨rfl, hout⟩ : J = ({1} : Finset (Fin 2)) ∧
-        (otOutputs (M := List Bool) q 1 : List Bool).length = msgLen n := hE d hd _ he
-    simp only [roundGame, Sum.elim_inr, ↓reduceDIte]
-    exact (bind_realJoint_maskedOT_receiver _ _ _ q
-      (fun r => F.kdfMask_kdfMask H d r (hout.trans (hH d hd r).symm)) g).trans
-      (F.bind_eval_maskedOTPadTest_key H d q g).symm
+  refine PMF.bind_congr_on_support _ _ _ fun
+    | .inl _, _ => by simp only [roundGame, Sum.elim_inl, ProbComp.eval_pure, PMF.bind_const]
+    | .inr ⟨_, J, q, g⟩, he => by
+      obtain ⟨rfl, hout⟩ : J = ({1} : Finset (Fin 2)) ∧
+          (otOutputs (M := List Bool) q 1 : List Bool).length = msgLen n := hE d hd _ he
+      simp only [roundGame, Sum.elim_inr, ↓reduceDIte]
+      exact (bind_realJoint_maskedOT_receiver _ _ _ q
+        (fun r => F.kdfMask_kdfMask H d r (hout.trans (hH d hd r).symm)) g).trans
+        (F.bind_eval_maskedOTPadTest_key H d q g).symm
 
 /-- **The round-game advantage of a sampled environment is its key-derivation advantage.** Step
 toward #6045; original bookkeeping, not a cited result and not a security theorem: the right-hand
@@ -486,28 +478,19 @@ private theorem advantage_bind_elim_le_of_exists_bind {C R : Type} (e : PMF (Boo
     (h : ∀ c, Sum.inr c ∈ e.support → ∃ K : R → Game, A c = p.bind K ∧ B c = p'.bind K) :
     Game.advantage (e.bind (Sum.elim PMF.pure A)) (e.bind (Sum.elim PMF.pure B)) ≤ ε := by
   classical
-  have h' : ∀ c, ∃ K : R → Game, Sum.inr c ∈ e.support → A c = p.bind K ∧ B c = p'.bind K := by
-    intro c
-    by_cases hc : Sum.inr c ∈ e.support
-    · obtain ⟨K, hK⟩ := h c hc
-      exact ⟨K, fun _ => hK⟩
-    · exact ⟨fun _ => PMF.pure false, fun hc' => absurd hc' hc⟩
+  have h' : ∀ c, ∃ K : R → Game, Sum.inr c ∈ e.support → A c = p.bind K ∧ B c = p'.bind K :=
+    fun c =>
+      if hc : Sum.inr c ∈ e.support then
+        let ⟨K, hK⟩ := h c hc
+        ⟨K, fun _ => hK⟩
+      else ⟨fun _ => PMF.pure false, fun hc' => absurd hc' hc⟩
   choose K hK using h'
-  have hA : e.bind (Sum.elim PMF.pure A) =
-      p.bind fun r => e.bind (Sum.elim PMF.pure fun c => K c r) :=
-    (PMF.bind_congr_on_support e _ (fun z => p.bind fun r => Sum.elim PMF.pure (fun c => K c r) z)
-      fun z hz => by
-        cases z with
-        | inl b => exact (PMF.bind_const _ _).symm
-        | inr c => exact (hK c hz).1).trans (PMF.bind_comm e p _)
-  have hB : e.bind (Sum.elim PMF.pure B) =
-      p'.bind fun r => e.bind (Sum.elim PMF.pure fun c => K c r) :=
-    (PMF.bind_congr_on_support e _ (fun z => p'.bind fun r => Sum.elim PMF.pure (fun c => K c r) z)
-      fun z hz => by
-        cases z with
-        | inl b => exact (PMF.bind_const _ _).symm
-        | inr c => exact (hK c hz).2).trans (PMF.bind_comm e p' _)
-  rw [hA, hB]
+  have hpull {X : C → Game} {q : PMF R} (hq : ∀ c, Sum.inr c ∈ e.support → X c = q.bind (K c)) :
+      e.bind (Sum.elim PMF.pure X) = q.bind fun r => e.bind (Sum.elim PMF.pure fun c => K c r) :=
+    (PMF.bind_congr_on_support e _ (fun z => q.bind fun r => Sum.elim PMF.pure (fun c => K c r) z)
+      fun | .inl _, _ => (PMF.bind_const _ _).symm | .inr c, hz => hq c hz).trans
+      (PMF.bind_comm e q _)
+  rw [hpull fun c hc => (hK c hc).1, hpull fun c hc => (hK c hc).2]
   exact hp _
 
 /-- **The round-game advantage of a sampled environment with pads close to uniform.** Step toward
@@ -552,13 +535,10 @@ theorem advantage_bind_roundGame_kdfMaskedOT_le_kdf (setup : ℕ → PMF F.Desc)
               (otWorld (F.Carrier d)) J q)) ≤
       Game.advantage (F.kdfIdealGame setup msgLen (F.roundEnvToKDFDistinguisher H E) n)
         (F.kdfRealGame setup H (F.roundEnvToKDFDistinguisher H E) n) + (ε + ε) := by
-  obtain ⟨Sm₀, hSm₀⟩ : ∃ Sm₀ : (d : F.Desc) → (J : Finset (Fin 2)) → CoalitionSimulator
-      (maskedOTSchedule (F.Carrier d) (List Bool)) (OTIn (List Bool))
-      (MaskedOTCoins (F.Carrier d)) (OTOut (List Bool)) J,
-      ∀ d, Sm₀ d {1} = maskedOTReceiverSim (F.kdfMask H d) (F.kdfPads d)
-        (Cslib.BitString.sampleList (msgLen n)) :=
-    ⟨fun d => Function.update (Sm d) {1} (maskedOTReceiverSim (F.kdfMask H d) (F.kdfPads d)
-      (Cslib.BitString.sampleList (msgLen n))), fun d => Function.update_self ..⟩
+  let Sm₀ (d : F.Desc) := Function.update (Sm d) {1}
+    (maskedOTReceiverSim (F.kdfMask H d) (F.kdfPads d) (Cslib.BitString.sampleList (msgLen n)))
+  have hSm₀ (d : F.Desc) : Sm₀ d {1} = maskedOTReceiverSim (F.kdfMask H d) (F.kdfPads d)
+      (Cslib.BitString.sampleList (msgLen n)) := Function.update_self ..
   have hkdf := F.advantage_bind_roundGame_kdfMaskedOT_eq_kdf setup H msgLen n Sm₀ hSm₀ E
     (fun d _ => hH d) (fun d _ => hE d)
   have hI := Game.advantage_bind_le_nnreal (setup n)
@@ -566,16 +546,12 @@ theorem advantage_bind_roundGame_kdfMaskedOT_le_kdf (setup : ℕ → PMF F.Desc)
       ProbComp.eval (idealJoint (otWorld (List Bool) op) J (Sm d J) q)))
     (fun d => (ProbComp.eval (E n d)).bind (roundGame fun op J q =>
       ProbComp.eval (idealJoint (otWorld (List Bool) op) J (Sm₀ d J) q))) (ε := ε) fun d =>
-    advantage_bind_elim_le_of_exists_bind _ _ _ (hpads d) _ _ fun c hc => by
-      obtain ⟨op, J, q, g⟩ := c
+    advantage_bind_elim_le_of_exists_bind _ _ _ (hpads d) _ _ fun ⟨_, J, q, g⟩ hc => by
       obtain rfl : J = ({1} : Finset (Fin 2)) := (hE d _ hc).1
-      have h₁ := (bind_eval_idealJoint_maskedOT_receiver (F.kdfMask H d) (samplePads d)
-        (Cslib.BitString.sampleList (msgLen n)) q g).trans (ProbComp.eval_bind _ _)
-      have h₂ := (bind_eval_idealJoint_maskedOT_receiver (F.kdfMask H d) (F.kdfPads d)
-        (Cslib.BitString.sampleList (msgLen n)) q g).trans (ProbComp.eval_bind _ _)
-      rw [← hSm d] at h₁
-      rw [← hSm₀ d] at h₂
-      exact ⟨_, h₁, h₂⟩
+      dsimp only
+      rw [hSm d, hSm₀ d]
+      exact ⟨_, (bind_eval_idealJoint_maskedOT_receiver _ _ _ q g).trans (ProbComp.eval_bind _ _),
+        (bind_eval_idealJoint_maskedOT_receiver _ _ _ q g).trans (ProbComp.eval_bind _ _)⟩
   have hR := Game.advantage_bind_le_nnreal (setup n)
     (fun d => (ProbComp.eval (E n d)).bind (roundGame fun _ J q =>
       (maskedOT (F.kdfMask H d) (F.kdfMask H d) (samplePads d)).realJoint
@@ -583,10 +559,8 @@ theorem advantage_bind_roundGame_kdfMaskedOT_le_kdf (setup : ℕ → PMF F.Desc)
     (fun d => (ProbComp.eval (E n d)).bind (roundGame fun _ J q =>
       (maskedOT (F.kdfMask H d) (F.kdfMask H d) (F.kdfPads d)).realJoint
         (otWorld (F.Carrier d)) J q)) (ε := ε) fun d =>
-    advantage_bind_elim_le_of_exists_bind _ _ _ (hpads d) _ _ fun c hc => by
-      obtain ⟨op, J, q, g⟩ := c
-      obtain ⟨rfl, hout⟩ : J = ({1} : Finset (Fin 2)) ∧
-          (otOutputs (M := List Bool) q 1 : List Bool).length = msgLen n := hE d _ hc
+    advantage_bind_elim_le_of_exists_bind _ _ _ (hpads d) _ _ fun ⟨_, J, q, g⟩ hc => by
+      obtain ⟨rfl, hout⟩ := hE d _ hc
       have hmask (r : F.Carrier d) := F.kdfMask_kdfMask H d r (hout.trans (hH d r).symm)
       exact ⟨_, (bind_realJoint_maskedOT_receiver _ _ (samplePads d) q hmask g).trans
           (ProbComp.eval_bind _ _),

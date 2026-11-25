@@ -108,9 +108,7 @@ theorem exists_isFlippable {c k : ℕ} {α : ℝ} (hG : IsLeftBounded G c)
   set U := uniqueNeighbors G E
   have hE0 : 0 < #E := hammingDist_pos.2 hyw
   have hU : (2 * α - c) * #E ≤ #U := hE.le_card_uniqueNeighbors hG hk
-  have hcU : c * #E < 2 * #U := by
-    have : (c : ℝ) * #E < 2 * #U := by cast_nlinarith [hE0]
-    exact_mod_cast this
+  have hcU : c * #E < 2 * #U := by exact_mod_cast (by cast_nlinarith [hE0] : (c : ℝ) * #E < 2 * #U)
   have hsum : ∑ i ∈ E, #(U.bipartiteAbove G i) = #U := by
     rw [sum_card_bipartiteAbove_eq_sum_card_bipartiteBelow]
     calc ∑ j ∈ U, #(E.bipartiteBelow G j) = ∑ j ∈ U, 1 :=
@@ -202,17 +200,14 @@ theorem card_unsat_flipOn_add (x : ι → Bool) (i : ι) :
     rw [add_comm]
     congr 2 <;> ext j <;> simp only [mem_filter, mem_univ, true_and] <;> tauto
   rw [key x, key (flipOn {i} x)]
-  have h1 : (filter (fun j => ¬ G i j ∧ syndrome G (flipOn {i} x) j = true) univ) =
-      filter (fun j => ¬ G i j ∧ syndrome G x j = true) univ := by
-    ext j
-    simp only [mem_filter, mem_univ, true_and, syndrome_flipOn]
-    by_cases h : G i j <;> simp [h]
-  have h2 : (filter (fun j => G i j ∧ syndrome G (flipOn {i} x) j = true) univ) =
-      filter (fun j => G i j ∧ syndrome G x j = false) univ := by
-    ext j
-    simp only [mem_filter, mem_univ, true_and, syndrome_flipOn]
-    by_cases h : G i j <;> simp [h]
-  rw [h1, h2]
+  have h1 : #{j | ¬ G i j ∧ syndrome G (flipOn {i} x) j = true} =
+      #{j | ¬ G i j ∧ syndrome G x j = true} := by
+    refine congrArg card (Finset.ext fun j => ?_)
+    by_cases h : G i j <;> simp [h, syndrome_flipOn]
+  have h2 : #{j | G i j ∧ syndrome G (flipOn {i} x) j = true} =
+      #{j | G i j ∧ syndrome G x j = false} := by
+    refine congrArg card (Finset.ext fun j => ?_)
+    by_cases h : G i j <;> simp [h, syndrome_flipOn]
   omega
 
 /-- Flipping a flippable variable decreases the number of violated checks. -/
@@ -250,28 +245,16 @@ theorem hammingDist_lt_and_card_unsat_le {c k : ℕ} {α : ℝ} (hG : IsLeftBoun
   induction hy with
   | refl =>
     refine ⟨?_, le_rfl⟩
-    rcases Nat.eq_zero_or_pos (hammingDist x w) with h0 | hpos
-    · rw [h0] at hx ⊢
-      by_contra hk
-      push Not at hk
-      have : k = 0 := by omega
-      subst this
-      simp at hx
-    · by_contra hk
-      push Not at hk
-      rcases Nat.eq_zero_or_pos k with hk0 | hk0
-      · subst hk0
-        have : (0 : ℝ) ≤ c * hammingDist x w := by positivity
-        simp only [Nat.cast_zero, mul_zero] at hx
-        linarith
-      obtain ⟨i, hi⟩ := card_pos.1 hpos
-      have h1 := hE {i} (by rw [card_singleton]; omega)
-      have h2 := card_neighbors_le hG {i}
-      rw [card_singleton, Nat.cast_one, mul_one] at h1
-      rw [card_singleton, mul_one] at h2
-      have hαc : α ≤ c := h1.trans (by exact_mod_cast h2)
-      have hk0 : (0 : ℝ) ≤ k := Nat.cast_nonneg k
-      cast_nlinarith [hk]
+    rcases k.eq_zero_or_pos with rfl | hk0
+    · simp only [Nat.cast_zero, mul_zero] at hx
+      exact absurd hx (not_lt.2 (by positivity))
+    by_contra! hk
+    obtain ⟨i, -⟩ := card_pos.1 (hk0.trans_le hk)
+    have h1 := hE {i} (by rw [card_singleton]; omega)
+    have h2 := card_neighbors_le hG {i}
+    simp only [card_singleton, Nat.cast_one, mul_one] at h1 h2
+    have hαc : α ≤ c := h1.trans (by exact_mod_cast h2)
+    cast_nlinarith [hk, hk0]
   | tail _ hstep ih =>
     rename_i y z _
     obtain ⟨ihd, ihu⟩ := ih
@@ -279,18 +262,16 @@ theorem hammingDist_lt_and_card_unsat_le {c k : ℕ} {α : ℝ} (hG : IsLeftBoun
     refine ⟨?_, hz⟩
     obtain ⟨i, -, rfl⟩ := hstep
     have hd := hammingDist_flip_le_add_one y w i
-    rcases Nat.lt_or_ge (hammingDist (flipOn {i} y) w) k with h | h
-    · exact h
-    · exfalso
-      have hdk : hammingDist (flipOn {i} y) w = k := by omega
-      have h1 := hE.le_card_uniqueNeighbors hG hdk.le
-      have h2 := card_le_card (uniqueNeighbors_subset_unsat (y := flipOn {i} y) hw)
-      have h3 := card_unsat_le hG (y := x) hw
-      have h4 : (#(uniqueNeighbors G {l | flipOn {i} y l ≠ w l}) : ℝ) ≤ c * hammingDist x w := by
-        exact_mod_cast h2.trans (hz.trans h3)
-      change (2 * α - c) * (hammingDist (flipOn {i} y) w : ℝ) ≤ _ at h1
-      rw [hdk] at h1
-      linarith
+    by_contra! h
+    have hdk : hammingDist (flipOn {i} y) w = k := by omega
+    have h1 := hE.le_card_uniqueNeighbors hG hdk.le
+    have h2 := card_le_card (uniqueNeighbors_subset_unsat (y := flipOn {i} y) hw)
+    have h3 := card_unsat_le hG (y := x) hw
+    have h4 : (#(uniqueNeighbors G {l | flipOn {i} y l ≠ w l}) : ℝ) ≤ c * hammingDist x w := by
+      exact_mod_cast h2.trans (hz.trans h3)
+    change (2 * α - c) * (hammingDist (flipOn {i} y) w : ℝ) ≤ _ at h1
+    rw [hdk] at h1
+    linarith
 
 /-- **Correctness of flip decoding** [GuruswamiSharma2010, §1.1.1]. Under the hypotheses of
 `exists_isFlippable` and `hammingDist_lt_and_card_unsat_le`, a word reached from `x` in which no
@@ -329,8 +310,7 @@ theorem decode_eq_of_reflTransGen {c k : ℕ} {α : ℝ} (hG : IsLeftBounded G c
   | case2 n y hp => exact eq_of_flip_stuck hG hE hα hw hx hy ((hpick y).2 hp)
   | case3 n y i hp ih =>
     have hi := (hpick y).1 i hp
-    have hstep : FlipStep G y (flipOn {i} y) := ⟨i, hi, rfl⟩
-    exact ih (hy.tail hstep) (by have := card_unsat_flipOn_lt hi; omega)
+    exact ih (hy.tail ⟨i, hi, rfl⟩) (by have := card_unsat_flipOn_lt hi; omega)
 
 /-- **Flip decoding** [SipserSpielman1996] [GuruswamiSharma2010, §1.1]. If left degrees are at
 most `c`, sets of at most `k` variables expand by `α` with `3 c < 4 α`, `w` is a codeword and

@@ -109,10 +109,8 @@ theorem zeroSum_B (A : Matrix M N ℝ) : (zeroSum A).B = -A := by rfl
 theorem isZeroSum_zeroSum (A : Matrix M N ℝ) : (zeroSum A).IsZeroSum := by rfl
 
 theorem IsZeroSum.eq_zeroSum {G : BimatrixGame M N} (hG : G.IsZeroSum) : G = zeroSum G.A := by
-  cases G
-  dsimp only [IsZeroSum] at hG
-  subst hG
-  rfl
+  rcases G with ⟨A, B⟩
+  exact congrArg (BimatrixGame.mk A) hG
 
 @[simp]
 theorem swap_zeroSum (A : Matrix M N ℝ) : (zeroSum A).swap = zeroSum (-Aᵀ) := by
@@ -189,13 +187,8 @@ theorem IsMinimaxOptimal.isMinimaxFeasible {A : Matrix M N ℝ} {y : N → ℝ} 
 
 private theorem convex_isMinimaxFeasible (A : Matrix M N ℝ) (v : ℝ) :
     Convex ℝ {y : N → ℝ | IsMinimaxFeasible A y v} := by
-  have heq : {y : N → ℝ | IsMinimaxFeasible A y v} =
-      {y : N → ℝ | IsMaximinFeasible (-Aᵀ) y (-v)} := by
-    ext y
-    simp only [Set.mem_ofPred_eq, IsMinimaxFeasible, IsMaximinFeasible, vecMul_neg,
-      vecMul_transpose, Pi.neg_apply, neg_le_neg_iff]
-  rw [heq]
-  exact convex_isMaximinFeasible (-Aᵀ) (-v)
+  simpa only [IsMinimaxFeasible, IsMaximinFeasible, vecMul_neg, vecMul_transpose, Pi.neg_apply,
+    neg_le_neg_iff] using convex_isMaximinFeasible (-Aᵀ) (-v)
 
 end MinimaxDefs
 
@@ -255,20 +248,17 @@ minimax-optimal strategies. -/
 theorem isMinimaxValue_transpose_iff (A : Matrix M N ℝ) (v : ℝ) :
     Probability.IsMinimaxValue Aᵀ v ↔
       (∃ x : M → ℝ, IsMaximinOptimal A x v) ∧ ∃ y : N → ℝ, IsMinimaxOptimal A y v := by
-  constructor
+  refine ⟨?_, ?_⟩
   · rintro ⟨⟨q, hq⟩, ⟨p, hp⟩⟩
-    have hx : IsMaximinFeasible A p.weights v := by
-      refine ⟨isMixedStrategy_weights p, fun j => (hp j).trans_eq ?_⟩
-      rfl
-    have hy : IsMinimaxFeasible A q.weights v := by
-      refine ⟨isMixedStrategy_weights q, fun i => (le_of_eq ?_).trans (hq i)⟩
-      exact sum_congr rfl fun j _ => mul_comm _ _
-    obtain ⟨hx_opt, hy_opt⟩ := isMaximinOptimal_and_isMinimaxOptimal_of_feasible hx hy
+    obtain ⟨hx_opt, hy_opt⟩ := isMaximinOptimal_and_isMinimaxOptimal_of_feasible
+      ⟨isMixedStrategy_weights p, hp⟩
+      ⟨isMixedStrategy_weights q, fun i =>
+        (sum_congr rfl fun _ _ => mul_comm _ _).le.trans (hq i)⟩
     exact ⟨⟨p.weights, hx_opt⟩, ⟨q.weights, hy_opt⟩⟩
   · rintro ⟨⟨x, hx, -⟩, ⟨y, hy, -⟩⟩
     exact Probability.IsMinimaxValue.of_weights hy.isMixedStrategy.nonneg
       hy.isMixedStrategy.sum_eq_one
-      (fun i => (le_of_eq (sum_congr rfl fun j _ => mul_comm _ _)).trans (hy.mulVec_le i))
+      (fun i => (sum_congr rfl fun _ _ => mul_comm _ _).le.trans (hy.mulVec_le i))
       hx.isMixedStrategy.nonneg hx.isMixedStrategy.sum_eq_one hx.le_vecMul
 
 /-- **Strong LP duality / minimax existence for zero-sum matrix games** ([TardosVazirani2007],
@@ -286,25 +276,18 @@ if `(x, v₁)` is maximin-optimal and `(y, v₂)` is minimax-optimal, then `v₁
 theorem eq_of_isMaximinOptimal_of_isMinimaxOptimal {A : Matrix M N ℝ} {x : M → ℝ} {y : N → ℝ}
     {v₁ v₂ : ℝ} (hx : IsMaximinOptimal A x v₁) (hy : IsMinimaxOptimal A y v₂) :
     v₁ = v₂ := by
-  obtain ⟨i₀, -⟩ := hx.isMaximinFeasible.isMixedStrategy.exists_pos
-  obtain ⟨j₀, -⟩ := hy.isMinimaxFeasible.isMixedStrategy.exists_pos
-  have : Nonempty M := ⟨i₀⟩
-  have : Nonempty N := ⟨j₀⟩
+  have : Nonempty M := ⟨hx.isMaximinFeasible.isMixedStrategy.exists_pos.choose⟩
+  have : Nonempty N := ⟨hy.isMinimaxFeasible.isMixedStrategy.exists_pos.choose⟩
   obtain ⟨xStar, yStar, vStar, hxStar, hyStar⟩ := exists_isMaximinOptimal_and_isMinimaxOptimal A
-  have h₁ : v₁ = vStar :=
-    le_antisymm (hxStar.2 x v₁ hx.isMaximinFeasible) (hx.2 xStar vStar hxStar.isMaximinFeasible)
-  have h₂ : v₂ = vStar :=
-    le_antisymm (hy.2 yStar vStar hyStar.isMinimaxFeasible)
-      (hyStar.2 y v₂ hy.isMinimaxFeasible)
-  exact h₁.trans h₂.symm
+  exact le_antisymm (hx.isMaximinFeasible.le_of_isMinimaxFeasible hy.isMinimaxFeasible)
+    ((hy.2 yStar vStar hyStar.isMinimaxFeasible).trans (hx.2 xStar vStar hxStar.isMaximinFeasible))
 
 /-- At any pair of maximin-optimal `(x, v₁)` and minimax-optimal `(y, v₂)` solutions, player 1's
 expected payoff `(zeroSum A).payoff₁ x y` equals the maximin optimum `v₁`. -/
 theorem payoff₁_zeroSum_eq_of_lpOptimal {A : Matrix M N ℝ} {x : M → ℝ} {y : N → ℝ}
     {v₁ v₂ : ℝ} (hx : IsMaximinOptimal A x v₁) (hy : IsMinimaxOptimal A y v₂) :
     (zeroSum A).payoff₁ x y = v₁ := by
-  have hv : v₁ = v₂ := eq_of_isMaximinOptimal_of_isMinimaxOptimal hx hy
-  subst hv
+  rcases eq_of_isMaximinOptimal_of_isMinimaxOptimal hx hy with rfl
   exact le_antisymm (hy.isMinimaxFeasible.payoff₁_le hx.isMaximinFeasible.isMixedStrategy)
     (hx.isMaximinFeasible.le_payoff₁ hy.isMinimaxFeasible.isMixedStrategy)
 
@@ -314,16 +297,14 @@ the column player's minimax LP, then `(x, y)` is a Nash equilibrium of `zeroSum 
 theorem isNash_zeroSum_of_lpOptimal {A : Matrix M N ℝ} {x : M → ℝ} {y : N → ℝ}
     {v₁ v₂ : ℝ} (hx : IsMaximinOptimal A x v₁) (hy : IsMinimaxOptimal A y v₂) :
     (zeroSum A).IsNash x y := by
-  have hv : v₁ = v₂ := eq_of_isMaximinOptimal_of_isMinimaxOptimal hx hy
-  subst hv
-  have hpay : (zeroSum A).payoff₁ x y = v₁ := payoff₁_zeroSum_eq_of_lpOptimal hx hy
+  rcases eq_of_isMaximinOptimal_of_isMinimaxOptimal hx hy with rfl
+  have hpay := payoff₁_zeroSum_eq_of_lpOptimal hx hy
   refine isNash_iff.2 ⟨isBestResponse₁_iff_le_payoff₁.2
-    ⟨hx.isMaximinFeasible.isMixedStrategy, fun i => ?_⟩,
-    isBestResponse₂_iff_le_payoff₂.2 ⟨hy.isMinimaxFeasible.isMixedStrategy, fun j => ?_⟩⟩
-  · rw [zeroSum_A, hpay]
-    exact hy.isMinimaxFeasible.mulVec_le i
-  · rw [zeroSum_B, payoff₂_zeroSum, hpay, vecMul_neg, Pi.neg_apply, neg_le_neg_iff]
-    exact hx.isMaximinFeasible.le_vecMul j
+    ⟨hx.isMaximinFeasible.isMixedStrategy, fun i => by
+      simpa only [zeroSum_A, hpay] using hy.isMinimaxFeasible.mulVec_le i⟩,
+    isBestResponse₂_iff_le_payoff₂.2 ⟨hy.isMinimaxFeasible.isMixedStrategy, fun j => by
+      simpa only [zeroSum_B, payoff₂_zeroSum, hpay, vecMul_neg, Pi.neg_apply, neg_le_neg_iff]
+        using hx.isMaximinFeasible.le_vecMul j⟩⟩
 
 /-- Every Nash equilibrium `(x, y)` of `zeroSum A` is a primal-dual optimal pair at the equilibrium
 payoff `(zeroSum A).payoff₁ x y` ([TardosVazirani2007], Section 1.4.2, pp. 17–18). -/
@@ -331,18 +312,13 @@ theorem isNash_zeroSum_iff_lpOptimal_payoff₁ {A : Matrix M N ℝ} {x : M → �
     (zeroSum A).IsNash x y ↔
       IsMaximinOptimal A x ((zeroSum A).payoff₁ x y) ∧
         IsMinimaxOptimal A y ((zeroSum A).payoff₁ x y) := by
-  constructor
-  · intro h
-    obtain ⟨h₁, h₂⟩ := isNash_iff.1 h
-    have hx_feas : IsMaximinFeasible A x ((zeroSum A).payoff₁ x y) := by
-      refine ⟨h₁.isMixedStrategy, fun j => ?_⟩
-      have hj := h₂.le_payoff₂ j
-      rwa [zeroSum_B, payoff₂_zeroSum, vecMul_neg, Pi.neg_apply, neg_le_neg_iff] at hj
-    have hy_feas : IsMinimaxFeasible A y ((zeroSum A).payoff₁ x y) :=
-      ⟨h₂.isMixedStrategy, fun i => by simpa only [zeroSum_A] using h₁.le_payoff₁ i⟩
-    exact isMaximinOptimal_and_isMinimaxOptimal_of_feasible hx_feas hy_feas
-  · rintro ⟨hx, hy⟩
-    exact isNash_zeroSum_of_lpOptimal hx hy
+  refine ⟨fun h => ?_, fun ⟨hx, hy⟩ => isNash_zeroSum_of_lpOptimal hx hy⟩
+  obtain ⟨h₁, h₂⟩ := isNash_iff.1 h
+  exact isMaximinOptimal_and_isMinimaxOptimal_of_feasible
+    ⟨h₁.isMixedStrategy, fun j => by
+      simpa only [zeroSum_B, payoff₂_zeroSum, vecMul_neg, Pi.neg_apply, neg_le_neg_iff] using
+        h₂.le_payoff₂ j⟩
+    ⟨h₂.isMixedStrategy, fun i => by simpa only [zeroSum_A] using h₁.le_payoff₁ i⟩
 
 /-- **Primal-dual LP characterization of zero-sum Nash equilibria** ([TardosVazirani2007],
 Section 1.4.2 and Theorem 1.11, pp. 17–18): `(x, y)` is a Nash equilibrium of `zeroSum A` iff
@@ -393,16 +369,12 @@ theorem IsZeroSum.convex_isNash {G : BimatrixGame M N} (hG : G.IsZeroSum) :
     Convex ℝ {p : (M → ℝ) × (N → ℝ) | G.IsNash p.1 p.2} := by
   rintro ⟨x₁, y₁⟩ h₁ ⟨x₂, y₂⟩ h₂ a b ha hb hab
   rw [Set.mem_ofPred_eq] at h₁ h₂ ⊢
-  set v : ℝ := G.payoff₁ x₁ y₁
-  have hv₂ : G.payoff₁ x₂ y₂ = v := (hG.payoff₁_eq_of_isNash h₁ h₂).symm
   obtain ⟨hx₁, hy₁⟩ := hG.isNash_iff_payoff₁.1 h₁
   obtain ⟨hx₂, hy₂⟩ := hG.isNash_iff_payoff₁.1 h₂
-  rw [hv₂] at hx₂ hy₂
-  have hx : IsMaximinFeasible G.A (a • x₁ + b • x₂) v :=
-    convex_isMaximinFeasible G.A v hx₁.isMaximinFeasible hx₂.isMaximinFeasible ha hb hab
-  have hy : IsMinimaxFeasible G.A (a • y₁ + b • y₂) v :=
-    convex_isMinimaxFeasible G.A v hy₁.isMinimaxFeasible hy₂.isMinimaxFeasible ha hb hab
-  exact hG.isNash_iff.2 ⟨v, isMaximinOptimal_and_isMinimaxOptimal_of_feasible hx hy⟩
+  rw [← hG.payoff₁_eq_of_isNash h₁ h₂] at hx₂ hy₂
+  exact hG.isNash_iff.2 ⟨_, isMaximinOptimal_and_isMinimaxOptimal_of_feasible
+    (convex_isMaximinFeasible G.A _ hx₁.isMaximinFeasible hx₂.isMaximinFeasible ha hb hab)
+    (convex_isMinimaxFeasible G.A _ hy₁.isMinimaxFeasible hy₂.isMinimaxFeasible ha hb hab)⟩
 
 end ZeroSumLP
 

@@ -58,17 +58,11 @@ theorem RatLe.word {Ω : Type*} [DecidableEq Ω] (w : List Ω) :
             Series.letter (F := F) a ((b :: o).take (k + 1 + 1)) *
               Series.word w ((b :: o).drop (k + 1 + 1)) = 0 := by
           intro k hk
-          have hk' : k < o.length := Finset.mem_range.1 hk
-          obtain ⟨c, o', rfl⟩ : ∃ c o', o = c :: o' := by
-            cases o with
-            | nil => simp at hk'
-            | cons c o' => exact ⟨c, o', rfl⟩
-          simp [Series.letter]
+          rcases o with _ | ⟨c, o'⟩
+          · simp at hk
+          · simp [Series.letter]
         rw [Finset.sum_eq_zero hzero, zero_add]
-        by_cases hb : b = a
-        · subst hb
-          by_cases ho : o = w <;> simp [Series.letter, Series.word, ho]
-        · simp [Series.letter, Series.word, hb]
+        by_cases hb : b = a <;> by_cases ho : o = w <;> simp [Series.letter, Series.word, hb, ho]
     rw [e] at h
     exact h.mono (by simp; omega)
 
@@ -78,10 +72,7 @@ variable {Z Γ : Type*} [Fintype Z] [DecidableEq Z] [Finite Γ] [DecidableEq Γ]
 
 theorem hat_word (w : List (Z × Γ)) (v : Z → List Γ) :
     hat (Series.word w : Series F (Z × Γ)) v = if v = proj w then 1 else 0 := by
-  simp only [hat, Series.word, Finset.sum_ite_eq', mem_fib]
-  by_cases h : v = proj w
-  · simp [h]
-  · simp [h, Ne.symm h]
+  simp [hat, Series.word, mem_fib, eq_comm]
 
 /-- The body of a loop: a weighted sum of finitely many words. -/
 @[expose] def Series.body {Z Γ κ : Type*} [DecidableEq Z] [DecidableEq Γ] [Fintype κ]
@@ -95,10 +86,7 @@ theorem RatLe.body {Z Γ κ : Type*} [DecidableEq Z] [DecidableEq Γ] [Fintype �
 
 theorem hat_body {κ : Type*} [Fintype κ] (wd : κ → List (Z × Γ)) (c : κ → F) (v : Z → List Γ) :
     hat (Series.body wd c) v = ∑ k, if v = proj (wd k) then c k else 0 := by
-  rw [Series.body, hat_sum]
-  refine Finset.sum_congr rfl fun k _ => ?_
-  rw [hat_smul, hat_word]
-  simp
+  simp [Series.body, hat_sum, hat_smul, hat_word]
 
 end Channel
 

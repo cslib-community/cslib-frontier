@@ -135,11 +135,9 @@ def encNoise (P : Params) (F : List Bool → List Bool → List Bool) (r : List 
   BitString.length_lowBits _ _
 
 /-- **The counters have distinct words.** The words of the counters `0, …, 2k` are distinct. -/
-theorem nonceWord_injOn (P : Params) : Set.InjOn (nonceWord P) (Set.Iic (2 * P.k)) := by
-  intro N hN M hM h
-  have hlt (x : ℕ) (hx : x ≤ 2 * P.k) : x < 2 ^ nonceLen P :=
-    lt_of_le_of_lt hx (Nat.lt_size_self _)
-  exact BitString.lowBits_injective_of_lt (hlt N hN) (hlt M hM) h
+theorem nonceWord_injOn (P : Params) : Set.InjOn (nonceWord P) (Set.Iic (2 * P.k)) :=
+  fun _ hN _ hM => BitString.lowBits_injective_of_lt (hN.trans_lt (Nat.lt_size_self _))
+    (hM.trans_lt (Nat.lt_size_self _))
 
 /-! ### The noise that encryption decodes -/
 
@@ -163,8 +161,8 @@ private theorem cbdVecResidues_flatten_map_take {k n q η : ℕ} (blocks : List 
     (hk : blocks.length = k) (hblocks : ∀ block ∈ blocks, n * (2 * η) ≤ block.length) :
     cbdVecResidues k n q η (blocks.map (List.take (n * (2 * η)))).flatten =
       blocks.map (cbdResidues n q η) := by
-  unfold cbdVecResidues
   subst hk
+  unfold cbdVecResidues
   rw [show blocks.length = (blocks.map (List.take (n * (2 * η)))).length by simp,
     BitString.listRows_flatten _ fun block hblock => ?_]
   · simp only [List.map_map, Function.comp_def, cbdResidues_take]
@@ -185,12 +183,10 @@ theorem cbd_keyNoise (P : Params) (F : List Bool → List Bool → List Bool) (�
   set S := (List.range P.k).map fun N => F σ (nonceWord P N)
   set E := (List.range P.k).map fun i => F σ (nonceWord P (P.k + i))
   have hw : w ≤ prfLen P := Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ (le_max_left _ _))
-  have hS : ∀ block ∈ S, w ≤ block.length := by
-    intro block hblock
+  have hS (block) (hblock : block ∈ S) : w ≤ block.length := by
     obtain ⟨N, hN, rfl⟩ := List.mem_map.mp hblock
     exact hw.trans (hF N (by have := List.mem_range.mp hN; omega))
-  have hE : ∀ block ∈ E, w ≤ block.length := by
-    intro block hblock
+  have hE (block) (hblock : block ∈ E) : w ≤ block.length := by
     obtain ⟨i, hi, rfl⟩ := List.mem_map.mp hblock
     exact hw.trans (hF _ (by have := List.mem_range.mp hi; omega))
   have hsplit :
@@ -202,11 +198,12 @@ theorem cbd_keyNoise (P : Params) (F : List Bool → List Bool → List Bool) (�
   have hlen : (S.map (List.take w)).flatten.length = P.k * w := by
     rw [length_flatten_map_take _ hS]
     simp [S]
-  refine ⟨?_, ?_⟩
-  · rw [hsplit, List.take_left' hlen, cbdVecResidues_flatten_map_take _ (by simp [S]) hS]
-    simp [S]
-  · rw [hsplit, List.drop_left' hlen, cbdVecResidues_flatten_map_take _ (by simp [E]) hE]
-    simp [E]
+  exact ⟨by
+      rw [hsplit, List.take_left' hlen, cbdVecResidues_flatten_map_take _ (by simp [S]) hS]
+      simp [S],
+    by
+      rw [hsplit, List.drop_left' hlen, cbdVecResidues_flatten_map_take _ (by simp [E]) hE]
+      simp [E]⟩
 
 /-- **Encryption decodes `CBD_η(F(r, N))`.** If `F r` has at least `prfLen P` bits at the word of
 each counter `N ≤ 2k`, the polynomials that `encDetWord` decodes from the coins `encNoise P F r`
@@ -226,13 +223,11 @@ theorem cbd_encNoise (P : Params) (F : List Bool → List Bool → List Bool) (r
   set w₂ := P.n * (2 * P.η₂)
   set B₁ := (List.range P.k).map fun N => F r (nonceWord P N)
   set B₂ := (List.range P.k).map fun i => F r (nonceWord P (P.k + i))
-  have h₁ : ∀ block ∈ B₁, w₁ ≤ block.length := by
-    intro block hblock
+  have h₁ (block) (hblock : block ∈ B₁) : w₁ ≤ block.length := by
     obtain ⟨N, hN, rfl⟩ := List.mem_map.mp hblock
     exact (Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ (le_max_left _ _))).trans
       (hF N (by have := List.mem_range.mp hN; omega))
-  have h₂ : ∀ block ∈ B₂, w₂ ≤ block.length := by
-    intro block hblock
+  have h₂ (block) (hblock : block ∈ B₂) : w₂ ≤ block.length := by
     obtain ⟨i, hi, rfl⟩ := List.mem_map.mp hblock
     exact (Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ (le_max_right _ _))).trans
       (hF _ (by have := List.mem_range.mp hi; omega))
@@ -241,28 +236,29 @@ theorem cbd_encNoise (P : Params) (F : List Bool → List Bool → List Bool) (r
     unfold encNoise expandNoise
     rw [show 2 * P.k + 1 = P.k + P.k + 1 by omega, List.range_succ, List.range_add,
       List.flatMap_append, List.flatMap_append, List.append_assoc, List.flatMap_singleton]
-    refine congrArg₂ (· ++ ·) ?_ (congrArg₂ (· ++ ·) ?_ ?_)
+    refine congrArg₂ (· ++ ·) ?_ (congrArg₂ (· ++ ·) ?_ (by simp [encWidth, w₂, two_mul]))
     · rw [List.flatMap_def]
       simp only [B₁, List.map_map]
       exact congrArg _ (List.map_congr_left fun N hN => by
         simp [encWidth, List.mem_range.mp hN, w₁])
     · rw [List.flatMap_def]
       simp only [B₂, List.map_map]
-      exact congrArg _ (List.map_congr_left fun i _ => by simp [encWidth, w₂])
-    · simp [encWidth, w₂, two_mul]
+      exact congrArg _ (List.map_congr_left fun _ _ => by simp [encWidth, w₂])
   have hlen₁ : (B₁.map (List.take w₁)).flatten.length = P.k * w₁ := by
     rw [length_flatten_map_take _ h₁]
     simp [B₁]
   have hlen₂ : (B₂.map (List.take w₂)).flatten.length = P.k * w₂ := by
     rw [length_flatten_map_take _ h₂]
     simp [B₂]
-  refine ⟨?_, ?_, ?_⟩
-  · rw [hsplit, List.take_left' hlen₁, cbdVecResidues_flatten_map_take _ (by simp [B₁]) h₁]
-    simp [B₁]
-  · rw [hsplit, List.drop_left' hlen₁, List.take_left' hlen₂,
-      cbdVecResidues_flatten_map_take _ (by simp [B₂]) h₂]
-    simp [B₂]
-  · rw [hsplit, ← List.drop_drop, List.drop_left' hlen₁, List.drop_left' hlen₂, cbdResidues_take]
+  exact ⟨by
+      rw [hsplit, List.take_left' hlen₁, cbdVecResidues_flatten_map_take _ (by simp [B₁]) h₁]
+      simp [B₁],
+    by
+      rw [hsplit, List.drop_left' hlen₁, List.take_left' hlen₂,
+        cbdVecResidues_flatten_map_take _ (by simp [B₂]) h₂]
+      simp [B₂],
+    by rw [hsplit, ← List.drop_drop, List.drop_left' hlen₁, List.drop_left' hlen₂,
+      cbdResidues_take]⟩
 
 /-! ### Key generation and the family -/
 
@@ -325,13 +321,10 @@ theorem _root_.Turing.MultiTapeTM.ComputableInPolyTime.expandNoise {P : α → P
     ComputableInPolyTime (fun a => expandNoise (P a) F (seed a) (count a) (width a)) input
       encBits := by
   unfold Cslib.Crypto.MLKEM.expandNoise
-  have hfst := ComputableInPolyTime.fst input encUnary
-  have hsnd := ComputableInPolyTime.snd input encUnary
-  have hvalue := hF.comp ((hseed.comp hfst).prod
-    (ComputableInPolyTime.nonceWord (hP.comp hfst) hsnd))
-  exact ComputableInPolyTime.flatMapToBitsWithInput (enc := encUnary)
-    (ComputableInPolyTime.range.comp hcount)
-    (ComputableInPolyTime.bitsTakeWithInput hvalue hwidth)
+  let hfst := ComputableInPolyTime.fst input encUnary
+  exact .flatMapToBitsWithInput (enc := encUnary) (.comp .range hcount)
+    (.bitsTakeWithInput (hF.comp ((hseed.comp hfst).prod (.nonceWord (hP.comp hfst) (.snd _ _))))
+      hwidth)
 
 /-- The noise widths of encryption, with computed parameters and counter. -/
 theorem _root_.Turing.MultiTapeTM.ComputableInPolyTime.encWidth {P : α → Params} {N : α → ℕ}

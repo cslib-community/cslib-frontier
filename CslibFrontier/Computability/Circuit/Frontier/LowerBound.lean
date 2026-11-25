@@ -139,10 +139,9 @@ theorem eventually_card_mul_sq_le_ncard (hSK : DenseRectangleFree S K) :
   -- `log |S| ≥ log q + 2 log K + (n / 2) log q > log (q K ^ 2)`.
   have hSlog : Real.log q + 2 * Real.log (K n) < Real.log (S n).ncard := by nlinarith
   have hSpos : (0 : ℝ) < (S n).ncard := by
-    by_contra! h0
-    have : ((S n).ncard : ℝ) = 0 := le_antisymm h0 (Nat.cast_nonneg _)
-    rw [this, Real.log_zero] at hSlog
-    nlinarith [Real.log_nonneg (show (1 : ℝ) ≤ q by linarith)]
+    refine Nat.cast_pos.2 (Nat.pos_of_ne_zero fun h0 => ?_)
+    rw [h0, Nat.cast_zero, Real.log_zero] at hSlog
+    linarith
   have : Real.log (q * K n ^ 2 : ℝ) ≤ Real.log (S n).ncard := by
     rw [Real.log_mul (by positivity) (by positivity), Real.log_pow]
     cast_linarith
@@ -186,10 +185,8 @@ private theorem eventually_lt_of_frontier_of_bound {A M : ℝ} (hA : 0 < A) (hM 
   refine ⟨η, hη, fun C => ?_⟩
   filter_upwards [H η hη (min_le_left _ _) C e he] with n hn
   intro s v ρ w hs hv hvs hρ hw hsupply
-  have hlogK : 0 ≤ Real.logb q (K n) := by
-    rcases Nat.eq_zero_or_pos (K n) with h | h
-    · simp [h]
-    · exact Real.logb_nonneg hq (by exact_mod_cast h)
+  have hlogK : 0 ≤ Real.logb q (K n) :=
+    div_nonneg (Real.log_natCast_nonneg _) (Real.log_nonneg hq.le)
   have hlog0 : 0 ≤ Real.log (v + 1) := Real.log_nonneg (by linarith)
   have hlogV0 : 0 ≤ Real.logb q (v + 1) := Real.logb_nonneg hq (by linarith)
   have hlogV : (A + η + 1) * Real.logb q (v + 1) ≤ κ * Real.log (v + 1) := by
@@ -269,8 +266,7 @@ private theorem eventually_lt_of_graph_of_bound {r : ℕ} (hr : 2 ≤ r) {A M : 
     hSK.isLittleO_log hSK.isLittleO_deficit (isLittleO_zero (fun n : ℕ => (n : ℝ)) atTop) hε
   obtain ⟨C, hC⟩ := hlayout η hη
   filter_upwards [H C, hSK.eventually_rectangleFree, eventually_card_mul_sq_le_ncard hSK] with
-    n hn hfreen hbign
-  intro g V E _ _ G hconn hloop hdeg hV hrank hwidth
+    n hn hfreen hbign g V E _ _ G hconn hloop hdeg hV hrank hwidth
   obtain ⟨π, hπ⟩ := hC V E G hconn hloop hdeg
   have hr' : (2 : ℝ) ≤ r := by exact_mod_cast hr
   have hg : (0 : ℝ) ≤ g := Nat.cast_nonneg g
@@ -278,10 +274,8 @@ private theorem eventually_lt_of_graph_of_bound {r : ℕ} (hr : 2 ≤ r) {A M : 
     rw [← ncard_pos (toFinite _)]
     exact lt_of_lt_of_le (Nat.mul_pos Nat.card_pos (pow_pos hfreen.pos 2)) hbign
   have hlogS := logb_ncard_le_self hSne
-  have hlogK : 0 ≤ Real.logb q (K n) := by
-    rcases Nat.eq_zero_or_pos (K n) with h | h
-    · simp [h]
-    · exact Real.logb_nonneg hq (by exact_mod_cast h)
+  have hlogK : 0 ≤ Real.logb q (K n) :=
+    div_nonneg (Real.log_natCast_nonneg _) (Real.log_nonneg hq.le)
   have hlogV : 0 ≤ Real.logb q (Nat.card V + 1) :=
     Real.logb_nonneg hq (by linarith [Nat.cast_nonneg (α := ℝ) (Nat.card V)])
   refine hn ((r - 1) * g) (Nat.card V) G.cycleRank (G.width π) (mul_nonneg (by linarith) hg)
@@ -362,8 +356,8 @@ theorem eventually_lt_mul_innerSize {r : ℕ} (hr : 2 ≤ r) {A : ℝ} (hA : 0 <
     ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
       (c : Circuit σ n 1), c.FanInAtMost r → c.Decides I Acc (S n) →
         (1 + 1 / A - ε) * n < (r - 1) * c.innerSize := by
-  filter_upwards [eventually_lt_mul_multiarySize.{u, v} hr hA hlayout hSK hε] with n hn
-  intro σ I Acc c hfan hS
+  filter_upwards [eventually_lt_mul_multiarySize.{u, v} hr hA hlayout hSK hε] with
+    n hn σ I Acc c hfan hS
   refine (hn σ I Acc c hfan hS).trans_le ?_
   have hr' : (0 : ℝ) ≤ (r : ℝ) - 1 := by cast_linarith [hr]
   exact mul_le_mul_of_nonneg_left (Nat.cast_le.mpr c.multiarySize_le_innerSize) hr'
@@ -378,8 +372,8 @@ theorem eventually_lt_multiarySize {A : ℝ} (hA : 0 < A) (hlayout : LayoutBound
     ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
       (c : Circuit σ n 1), c.FanInAtMost 2 → c.Decides I Acc (S n) →
         (1 + 1 / A - ε) * n < c.multiarySize := by
-  filter_upwards [eventually_lt_mul_multiarySize le_rfl hA hlayout hSK hε] with n hn
-  intro σ I Acc c hfan hS
+  filter_upwards [eventually_lt_mul_multiarySize le_rfl hA hlayout hSK hε] with n hn σ I Acc c
+    hfan hS
   simpa only [Nat.cast_ofNat, show (2 : ℝ) - 1 = 1 by norm_num, one_mul] using
     hn σ I Acc c hfan hS
 
@@ -392,8 +386,7 @@ theorem eventually_lt_innerSize {A : ℝ} (hA : 0 < A) (hlayout : LayoutBound 3 
     ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
       (c : Circuit σ n 1), c.FanInAtMost 2 → c.Decides I Acc (S n) →
         (1 + 1 / A - ε) * n < c.innerSize := by
-  filter_upwards [eventually_lt_multiarySize.{u, v} hA hlayout hSK hε] with n hn
-  intro σ I Acc c hfan hS
+  filter_upwards [eventually_lt_multiarySize.{u, v} hA hlayout hSK hε] with n hn σ I Acc c hfan hS
   exact (hn σ I Acc c hfan hS).trans_le (Nat.cast_le.mpr c.multiarySize_le_innerSize)
 
 /-- **The worst-case multiary claim with coefficient `L`.** Let `U` be a finite alphabet with at
@@ -414,8 +407,7 @@ def MultiaryLowerBound (L : ℝ) : Prop :=
 theorem MultiaryLowerBound.mono {L L' : ℝ} (h : MultiaryLowerBound.{u, v} L) (hL : L' ≤ L) :
     MultiaryLowerBound.{u, v} L' := by
   intro U _ _ S K hSK ε hε
-  filter_upwards [h U S K hSK ε hε] with n hn
-  intro σ I Acc c hfan hS
+  filter_upwards [h U S K hSK ε hε] with n hn σ I Acc c hfan hS
   exact lt_of_le_of_lt (mul_le_mul_of_nonneg_right (sub_le_sub_right hL ε) (Nat.cast_nonneg n))
     (hn σ I Acc c hfan hS)
 
@@ -444,8 +436,7 @@ theorem MultiaryLowerBound.circuitLowerBound {L : ℝ} (h : MultiaryLowerBound.{
 theorem CircuitLowerBound.mono {L L' : ℝ} (h : CircuitLowerBound.{u, v} L) (hL : L' ≤ L) :
     CircuitLowerBound.{u, v} L' := by
   intro U _ _ S K hSK ε hε
-  filter_upwards [h U S K hSK ε hε] with n hn
-  intro σ I Acc c hfan hS
+  filter_upwards [h U S K hSK ε hε] with n hn σ I Acc c hfan hS
   exact lt_of_le_of_lt (mul_le_mul_of_nonneg_right (sub_le_sub_right hL ε) (Nat.cast_nonneg n))
     (hn σ I Acc c hfan hS)
 

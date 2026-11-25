@@ -219,26 +219,18 @@ theorem smallSet_mem_PPolyOn (hNP : NP encBits ⊆ PPolyOn encBits) :
     smallSet ∈ PPolyOn encQuery := by
   let e1 := encPair encQuery encBits
   let e2 := encPair e1 encBits
-  have hq2 : ComputableInPolyTime (fun r : (Query × List Bool) × List Bool => r.1.1) e2
-      encQuery :=
-    (fst encQuery encBits).comp (fst e1 encBits)
-  have hq1 : ComputableInPolyTime (fun r : Query × List Bool => r.1) e1 encQuery :=
-    fst encQuery encBits
+  have hn := encQuery_arity_deg.computableInPolyTime
+  have hs := encQuery_size_deg.computableInPolyTime
+  have hℓ := encQuery_power_deg.computableInPolyTime
+  have hthr := encQuery_threshold_deg.computableInPolyTime
   have hN : ComputableInPolyTime (fun r : (Query × List Bool) × List Bool =>
       r.1.1.power * certLength r.1.1.arity r.1.1.size) e2 encUnary := by
-    have hn := encQuery_arity_deg.computableInPolyTime.comp hq2
-    have hs := encQuery_size_deg.computableInPolyTime.comp hq2
-    have hℓ := encQuery_power_deg.computableInPolyTime.comp hq2
     unfold certLength
     fun_prop
-  have hu : ComputableInPolyTime (fun r : Query × List Bool => r.1.threshold) e1 encUnary :=
-    encQuery_threshold_deg.computableInPolyTime.comp hq1
+  have hu : ComputableInPolyTime (fun r : Query × List Bool => r.1.threshold) e1 encUnary := by
+    fun_prop
   have hW : ComputableInPolyTime (fun q : Query => (q.threshold + 1) *
       (q.threshold * (q.power * certLength q.arity q.size) + q.threshold)) encQuery encUnary := by
-    have hn := encQuery_arity_deg.computableInPolyTime
-    have hs := encQuery_size_deg.computableInPolyTime
-    have hℓ := encQuery_power_deg.computableInPolyTime
-    have hu := encQuery_threshold_deg.computableInPolyTime
     unfold certLength
     fun_prop
   have h3 : {r : ((Query × List Bool) × List Bool) × List Bool | coverTest r = true} ∈

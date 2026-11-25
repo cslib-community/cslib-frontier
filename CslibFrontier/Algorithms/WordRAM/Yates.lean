@@ -643,19 +643,9 @@ private theorem passProg_spec {w n : ℕ}
             change Function.update s.mem (2 + kHi.1) (next kHi) (2 + kHi.1) = _
             rw [Function.update_self, ite_eq_left hex]
           · have hne_val : k.1 ≠ hiIdx (2 ^ i.1) p := fun h => hk (Fin.ext h)
-            have hne_addr : 2 + k.1 ≠ 2 + hiIdx (2 ^ i.1) p := by omega
-            have hiff : (∃ r < p + 1, hiIdx (2 ^ i.1) r = k.1) ↔
-                (∃ r < p, hiIdx (2 ^ i.1) r = k.1) := by
-              constructor
-              · rintro ⟨r, hr, heq⟩
-                rcases Nat.lt_succ_iff_lt_or_eq.mp hr with hlt | rfl
-                · exact ⟨r, hlt, heq⟩
-                · exact False.elim (hne_val heq.symm)
-              · rintro ⟨r, hr, heq⟩
-                exact ⟨r, Nat.lt_succ_of_lt hr, heq⟩
             change Function.update s.mem (2 + hiIdx (2 ^ i.1) p) (next kHi) (2 + k.1) = _
-            rw [Function.update_of_ne hne_addr, hs_arr k]
-            simp only [hiff])
+            rw [Function.update_of_ne (by omega), hs_arr k]
+            simp only [Nat.exists_lt_succ_right, Ne.symm hne_val, or_false])
     0 s₀ ⟨rfl, rfl, fun _ _ => rfl, fun k => by simpa using harr k⟩
   obtain ⟨hsafe, hvh, hmc, hfr', _, _, _, hlow', harr'⟩ := hit
   refine ⟨hsafe, hvh, hmc, hfr', hlow', fun k => ?_⟩
@@ -711,10 +701,7 @@ private theorem butterflyProg_spec {w n : ℕ}
     (fun i hi step s ⟨hstep_eq, hs_fr, hs_len, hs_arr⟩ => by
       subst hstep_eq
       have hhalf : half = 2 ^ (n - 1) := by
-        dsimp only [half]
-        rw [show 2 ^ n = 2 ^ (n - 1) * 2 by
-          rw [← pow_succ, show n - 1 + 1 = n by omega],
-          Nat.mul_div_cancel _ (by norm_num)]
+        simpa only [pow_one] using Nat.pow_div (show 1 ≤ n by omega) (show 0 < 2 by norm_num)
       let prev := ((List.finRange n).take i).foldl (tablePass opWord) t₀
       let idxFin : Fin n := ⟨i, hi⟩
       have htake_succ : (List.finRange n).take (i + 1) = (List.finRange n).take i ++ [idxFin] :=
@@ -778,11 +765,8 @@ private theorem butterflyProg_spec {w n : ℕ}
   · rw [hbf_eq, memoryCost_bind', hp_mc, hp_st, hp_res, zero_add,
       memoryCost_bind', memoryCost_write, memoryCost_bind', memoryCost_pure, Nat.add_zero]
     have h2le : 2 ^ (n - 1) ≤ 2 ^ n := Nat.pow_le_pow_right (by norm_num) (Nat.sub_le n 1)
-    have hmul : 3 * 2 ^ (n - 1) * n ≤ 3 * n * 2 ^ n := by
-      calc
-        3 * 2 ^ (n - 1) * n ≤ 3 * 2 ^ n * n :=
-          Nat.mul_le_mul_right n (Nat.mul_le_mul_left 3 h2le)
-        _ = 3 * n * 2 ^ n := by ring
+    have hmul : 3 * 2 ^ (n - 1) * n ≤ 3 * n * 2 ^ n :=
+      (Nat.mul_right_comm 3 _ n).trans_le (Nat.mul_le_mul_left _ h2le)
     exact Nat.add_le_add_left (hit_mc.trans hmul) 1 |>.trans_eq (by ring)
   · have hst_bf : (Memory.spec 0).clientState s₀ (butterflyProg opProg n) =
         (Memory.spec 0).clientState s₂ (iterate (outerStep opProg) half n 1) := by

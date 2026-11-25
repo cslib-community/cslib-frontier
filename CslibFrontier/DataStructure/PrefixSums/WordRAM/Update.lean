@@ -116,9 +116,7 @@ private theorem updateBody_exec (hx : Entry b n i δ x) (hi : i < n)
   obtain ⟨hz, ho, ht, hp, hl, hi', hd⟩ := hx
   refine WP.execWithin ?_
   unfold updateBody updateNext
-  wram_exec [hp, hl, hi', hd, ho, ht, hv]
-  · simp only [hc, ↓reduceIte]
-  · simp only [hc, ↓reduceIte]
+  wram_exec [hp, hl, hi', hd, ho, ht, hv] <;> simp only [hc, ↓reduceIte]
 
 private theorem updateNext_entry (hx : Entry b n i δ x) :
     Entry (if i < n / 2 then b + 1 else b + n / 2 + n / 2) (n / 2)

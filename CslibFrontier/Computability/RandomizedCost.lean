@@ -261,9 +261,9 @@ theorem ecomplexity_le_of_forall_distributionalComplexity_le [Finite A] {c : ℕ
   obtain ⟨m₀, hm₀⟩ := hc
   have : Nonempty {m : M // C.cost m ≤ c} := ⟨⟨m₀, hm₀⟩⟩
   obtain ⟨μ, hμ, hmax⟩ := PMF.exists_maxCost_le_and_forall_errorProb_le
-    (cost := C.cost) (Acc := fun m x => R x (C.eval m x)) (D := A) (c := c) (ε := ε) fun ν hν => by
-      obtain ⟨m, herr, hm⟩ := distributionalComplexity_le_iff.mp (h ν hν)
-      exact ⟨m, hm, herr⟩
+    (cost := C.cost) (Acc := fun m x => R x (C.eval m x)) (D := A) (c := c) (ε := ε) fun ν hν =>
+      let ⟨m, herr, hm⟩ := distributionalComplexity_le_iff.mp (h ν hν)
+      ⟨m, hm, herr⟩
   exact ecomplexity_le_iff.mpr ⟨μ, hμ, hmax⟩
 
 /-- Budget-`c` minimax equivalence on a finite promise set `A`: when a strategy of cost at most `c`
@@ -330,9 +330,8 @@ theorem maxCost_amplify_le
     PMF.maxCost C.cost (C.amplify runAll μ r) ≤ 2 * r * c := by
   refine PMF.maxCost_le_iff.mpr fun m hm => ?_
   obtain ⟨ms, hms, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hm
-  have hd : ∀ i, C.cost (ms i) ≤ c := fun i => by
+  exact_mod_cast hcost fun i => by
     exact_mod_cast (PMF.le_maxCost ((PMF.mem_support_iid_iff _ _).mp hms i)).trans hμ
-  exact_mod_cast hcost hd
 
 /-- Strict-majority error reduction: if `μ` computes `f` on `A` with error `ε ≤ 1 / 2`, then the
 strict majority of `2 r` independent runs computes `f` on `A` with error `(4 ε (1 - ε)) ^ r`. -/
@@ -344,14 +343,12 @@ theorem Solves.amplify
   intro x hx
   set e : M → Bool := fun m => decide (C.eval m x ≠ f x)
   have he : ((μ.map e) true).toReal ≤ ε := by
-    have h := hμ x hx
-    rw [errorProb, PMF.errorProb] at h
-    rwa [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply,
-      show e ⁻¹' {true} = {m | ¬f x = C.eval m x} by
-        ext m
-        simp only [e, Set.mem_preimage, Set.mem_singleton_iff, decide_eq_true_eq,
-          Set.mem_ofPred_eq]
-        exact ne_comm]
+    have hpre : e ⁻¹' {true} = {m | ¬f x = C.eval m x} := by
+      ext
+      simp only [e, Set.mem_preimage, Set.mem_singleton_iff, decide_eq_true_eq, Set.mem_ofPred_eq]
+      exact ne_comm
+    rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply, hpre]
+    exact hμ x hx
   refine le_trans ?_ (PMF.iid_card_ge_le he hε r)
   rw [errorProb, PMF.errorProb, RandomizedCost.amplify, PMF.toOuterMeasure_map_apply, PMF.iid_map,
     PMF.toOuterMeasure_map_apply]
@@ -511,10 +508,8 @@ variable {M : Type u} {X : Type v} {Y : Type w}
 /-- Expected second component of a point-mass `(output, cost)` law `PMF.pure p`. -/
 theorem tsum_pure_snd_natCast (p : Y × ℕ) :
     (∑' z : Y × ℕ, (PMF.pure p) z * (z.2 : ℝ≥0∞)) = (p.2 : ℝ≥0∞) := by
-  rw [tsum_eq_single p]
-  · simp
-  · intro z hz
-    simp [PMF.pure_apply, hz]
+  rw [tsum_eq_single p fun z hz => by simp [PMF.pure_apply, hz]]
+  simp
 
 /-- When a joint `(output, cost)` law `run` is a mixture `μ.bind fun m => PMF.pure (out m, c m)`
 of deterministic outcomes, its expected cost is the `μ`-average of `c`. -/
@@ -533,13 +528,9 @@ theorem good_of_mem_support_coinFixing {μ : PMF M} {run : X → PMF (Y × ℕ)}
     {m : M} (hm : m ∈ μ.support) :
     ∀ x ∈ A, Good x (evalOut m x) := by
   intro x hx
-  have hmap : (run x).map Prod.fst = μ.map (fun m => evalOut m x) := by
-    rw [hlaw x hx, PMF.map_bind]
-    simp only [PMF.pure_map]
-    exact PMF.bind_pure_comp (fun m => evalOut m x) μ
   apply hcorr x hx
-  rw [hmap, PMF.mem_support_map_iff]
-  exact ⟨m, hm, rfl⟩
+  rw [hlaw x hx, PMF.mem_support_map_iff]
+  exact ⟨(evalOut m x, costAt m x), (PMF.mem_support_bind_iff _ _ _).mpr ⟨m, hm, by simp⟩, rfl⟩
 
 /-- Coin-fixing averaging for zero-error computations: if `run x` decomposes through a coin law
 `μ` on `A` and on `ν.support`, and every supported output on `A` satisfies `Good x`, then some

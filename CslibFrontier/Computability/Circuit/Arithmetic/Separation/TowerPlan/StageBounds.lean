@@ -89,9 +89,8 @@ theorem normBound_nonneg : 0 ≤ normBound FL Uu A lhat := by
 /-- The norm of the loads after the start. -/
 private theorem kap_zero_le : T.kap (edgeLoads (load lhat n o) 0) ≤
     √h * (r * Fintype.card (T.X 0) / 2) * startBound T Uu A lhat := by
-  have h1 (e : T.Ed 0) : edgeLoads (load lhat n o) 0 e ≤ startBound T Uu A lhat := by
-    rw [edgeLoads_of_lt _ (Nat.succ_pos J)]
-    exact load_start_le e
+  have h1 (e : T.Ed 0) : edgeLoads (load lhat n o) 0 e ≤ startBound T Uu A lhat :=
+    edgeLoads_of_lt (load lhat n o) (Nat.succ_pos J) e ▸ load_start_le e
   have h2 : (2 * Fintype.card (T.Ed 0) : ℝ) = h * (r * Fintype.card (T.X 0)) := by
     exact_mod_cast T.two_mul_card_Ed (Nat.zero_le J)
   refine (pow_le_pow_iff_left₀ (Tower.kap_nonneg _) (by positivity) two_ne_zero).1 ?_
@@ -109,9 +108,7 @@ private theorem kap_add_le (hρ : StageRate FL ρ) {j : ℕ} (hj : j ≤ J) :
     T.kap (edgeLoads (load lhat n o) j) +
       √FL.contraction * FL.scale / b * Fintype.card (T.X j) ≤ ρ ^ j * normBound FL Uu A lhat := by
   induction j with
-  | zero =>
-    rw [pow_zero, one_mul, normBound]
-    exact add_le_add_left kap_zero_le _
+  | zero => simpa only [pow_zero, one_mul, normBound] using add_le_add_left kap_zero_le _
   | succ j ih =>
     have h1 := norm_load_le (lhat := lhat) (n := n) (o := o) hρ.r_pos hρ.b_pos hρ.h_pos hρ.b_le
       hρ.ρ_pos.le hρ.one_add_le ⟨j, by omega⟩
@@ -121,16 +118,14 @@ private theorem kap_add_le (hρ : StageRate FL ρ) {j : ℕ} (hj : j ≤ J) :
     have h3 := mul_le_mul_of_nonneg_right hρ.two_le
       (by positivity : 0 ≤ √FL.contraction * FL.scale / b * Fintype.card (T.X (j + 1)))
     rw [hX] at h2
-    rw [pow_succ]
-    linarith
+    rw [pow_succ]; linarith
 
 /-- The norm of the loads of the level `j` is at most `ρ ^ j` times the bound for the norms. -/
 theorem kap_edgeLoads_le (hρ : StageRate FL ρ) {j : ℕ} (hj : j ≤ J) :
     T.kap (edgeLoads (load lhat n o) j) ≤ ρ ^ j * normBound FL Uu A lhat := by
   have := Real.sqrt_nonneg FL.contraction
-  have := kap_add_le (lhat := lhat) (n := n) (o := o) (Uu := Uu) hρ hj
   have : 0 ≤ √FL.contraction * FL.scale / b * Fintype.card (T.X j) := by positivity
-  linarith
+  linarith [kap_add_le (lhat := lhat) (n := n) (o := o) (Uu := Uu) hρ hj]
 
 variable (FL) in
 /-- The bound for the units between a chamber and its parent. -/
@@ -145,10 +140,7 @@ theorem incidentSum_le_edgeBound (hρ : StageRate FL ρ) {j : ℕ} (hj : j ≤ J
   have hXj : (0 : ℝ) < Fintype.card (T.X j) := by exact_mod_cast Fintype.card_pos_iff.2 ⟨c⟩
   have hX : (Fintype.card (T.X 0) : ℝ) = D ^ j * Fintype.card (T.X j) := by
     exact_mod_cast T.card_X_zero hj
-  have hD : (0 : ℝ) < D := by
-    have := hρ.b_pos
-    have := hρ.b_le
-    exact_mod_cast (by omega : 0 < D)
+  have hD : (0 : ℝ) < D := Nat.cast_pos.2 (by linarith [hρ.b_pos, hρ.b_le])
   have hk := normBound_nonneg (FL := FL) (Uu := Uu) (A := A) (lhat := lhat)
   have e1 : √(2 * h / Fintype.card (T.X j)) = √(2 * h / Fintype.card (T.X 0)) * √D ^ j := by
     rw [← Real.sqrt_sq (by positivity : 0 ≤ √(2 * h / Fintype.card (T.X 0)) * √D ^ j), mul_pow,

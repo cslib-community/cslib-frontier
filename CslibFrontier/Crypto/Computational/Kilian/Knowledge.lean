@@ -150,45 +150,26 @@ theorem computableInPolyTime_kilianTablePassesFrac {V : PCPVerifier α} {enc : �
     (hcoins : ∀ a, V.coins a ≤ c * (Nat.log 2 (enc a).length + 1)) (num den : ℕ) :
     ComputableInPolyTime (kilianTablePassesFrac V num den)
       (encKilianExtractedTable enc) encBool := by
-  have hstmt : ComputableInPolyTime (fun ext : KilianExtractedTable α => ext.stmt)
-      (encKilianExtractedTable enc) enc :=
-    encKilianExtractedTable_stmt_polyTime enc ComputableInPolyTime.id'
-  have htab : ComputableInPolyTime (fun ext : KilianExtractedTable α => ext.table)
-      (encKilianExtractedTable enc) encBits :=
-    encKilianExtractedTable_table_polyTime enc ComputableInPolyTime.id'
-  have hcoinsEnum : ComputableInPolyTime
-      (fun ext : KilianExtractedTable α => BitString.enumList (V.coins ext.stmt))
-      (encKilianExtractedTable enc) (encList encBits) :=
-    (PCPVerifier.isPolyTime_enumCoins hV hcoins).comp hstmt
-  have hqTable : ComputableInPolyTime
-      (fun ext : KilianExtractedTable α => V.queryTable ext.stmt)
-      (encKilianExtractedTable enc) (encList encNat) :=
-    (PCPVerifier.isPolyTime_queryTable hV hcoins).comp hstmt
+  have hstmt := encKilianExtractedTable_stmt_polyTime enc ComputableInPolyTime.id'
+  have htab := encKilianExtractedTable_table_polyTime enc ComputableInPolyTime.id'
+  have hcoinsEnum := (PCPVerifier.isPolyTime_enumCoins hV hcoins).comp hstmt
   have hp1 := ComputableInPolyTime.fst (encKilianExtractedTable enc) encBits
   have hp2 := ComputableInPolyTime.snd (encKilianExtractedTable enc) encBits
-  have hqueries : ComputableInPolyTime
-      (fun p : KilianExtractedTable α × List Bool => V.queries (p.1.stmt, p.2))
-      (encPair (encKilianExtractedTable enc) encBits) (encList encNat) :=
-    hV.queries.comp ((hstmt.comp hp1).prod hp2)
   have hq1 := ComputableInPolyTime.fst (encPair (encKilianExtractedTable enc) encBits) encNat
-  have hq2 := ComputableInPolyTime.snd (encPair (encKilianExtractedTable enc) encBits) encNat
   have hpos : ComputableInPolyTime
       (fun q : (KilianExtractedTable α × List Bool) × ℕ => kilianPosition V q.1.1.stmt q.2)
       (encPair (encPair (encKilianExtractedTable enc) encBits) encNat) encUnary :=
-    ComputableInPolyTime.idxOfWithInput (hqTable.comp (hp1.comp hq1)) hq2
+    ComputableInPolyTime.idxOfWithInput
+      (((PCPVerifier.isPolyTime_queryTable hV hcoins).comp hstmt).comp (hp1.comp hq1))
+      (ComputableInPolyTime.snd _ encNat)
   have hbit : ComputableInPolyTime
       (fun q : (KilianExtractedTable α × List Bool) × ℕ =>
         q.1.1.table.getD (kilianPosition V q.1.1.stmt q.2) false)
       (encPair (encPair (encKilianExtractedTable enc) encBits) encNat) encBool :=
     ComputableInPolyTime.bitsGetDWithInput (htab.comp (hp1.comp hq1)) hpos false
-  have hbits : ComputableInPolyTime
-      (fun p : KilianExtractedTable α × List Bool =>
-        (V.queries (p.1.stmt, p.2)).map fun a => p.1.table.getD (kilianPosition V p.1.stmt a) false)
-      (encPair (encKilianExtractedTable enc) encBits) encBits :=
-    ComputableInPolyTime.listToBits.comp
-      (ComputableInPolyTime.mapWithInput
-        (f := fun p a => p.1.table.getD (kilianPosition V p.1.stmt a) false)
-        hqueries hbit)
+  have hbits := ComputableInPolyTime.listToBits.comp (ComputableInPolyTime.mapWithInput
+    (f := fun p a => p.1.table.getD (kilianPosition V p.1.stmt a) false)
+    (hV.queries.comp ((hstmt.comp hp1).prod hp2)) hbit)
   have htest : ComputableInPolyTime
       (fun p : KilianExtractedTable α × List Bool =>
         V.verdict ((p.1.stmt, p.2),
@@ -204,22 +185,10 @@ theorem computableInPolyTime_kilianTablePassesFrac {V : PCPVerifier α} {enc : �
               ext.table.getD (kilianPosition V ext.stmt a) false))
       (encKilianExtractedTable enc) encUnary :=
     ComputableInPolyTime.countPWithInput hcoinsEnum htest
-  have hcoinsLen : ComputableInPolyTime
-      (fun ext : KilianExtractedTable α => (BitString.enumList (V.coins ext.stmt)).length)
-      (encKilianExtractedTable enc) encUnary :=
-    (ComputableInPolyTime.length_list encBits).comp hcoinsEnum
-  have hlt : ComputableInPolyTime
-      (fun ext : KilianExtractedTable α =>
-        decide (num * (BitString.enumList (V.coins ext.stmt)).length <
-          den * ((BitString.enumList (V.coins ext.stmt)).countP fun ρ =>
-            V.verdict ((ext.stmt, ρ),
-              (V.queries (ext.stmt, ρ)).map fun a =>
-                ext.table.getD (kilianPosition V ext.stmt a) false))))
-      (encKilianExtractedTable enc) encBool :=
-    ComputableInPolyTime.unary_lt.comp
-      ((ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const num) hcoinsLen).prod
-        (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const den) hpassed))
-  exact hlt
+  exact ComputableInPolyTime.unary_lt.comp
+    ((ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const num)
+      ((ComputableInPolyTime.length_list encBits).comp hcoinsEnum)).prod
+      (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const den) hpassed))
 
 /-! ### Amplified strict-PPT knowledge extractor -/
 

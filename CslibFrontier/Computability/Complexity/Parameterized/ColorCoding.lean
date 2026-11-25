@@ -155,58 +155,38 @@ theorem reaches_iff {m v : ℕ} :
   · rintro ⟨p, hp, hnd, hm⟩
     refine ⟨hp.2.1 v (by simp), (hm _).2 (by simp), ?_⟩
     rcases List.eq_nil_or_concat' p with rfl | ⟨L, u, rfl⟩
-    · left
-      exact Nat.eq_two_pow_of_testBit fun c => by simpa using hm c
-    · right
-      have hch := hp.2.2
-      rw [List.isChain_append] at hch
-      have hnd' := hnd
-      rw [List.map_append, List.nodup_append] at hnd'
-      have hva : χ v ∉ (L ++ [u]).map χ := fun h => hnd'.2.2 _ h _ (by simp) rfl
-      refine ⟨u, ⟨L, ⟨(List.nodup_append.1 hp.1).1,
-        fun x hx => hp.2.1 x (List.mem_append_left _ hx), hch.1⟩, hnd'.1, fun c => ?_⟩,
+    · exact .inl (Nat.eq_two_pow_of_testBit fun c => by simpa using hm c)
+    · rw [List.map_append, List.nodup_append] at hnd
+      have hch := List.isChain_append.1 hp.2.2
+      have hva : χ v ∉ (L ++ [u]).map χ := fun h => hnd.2.2 _ h _ (by simp) rfl
+      refine .inr ⟨u, ⟨L, ⟨(List.nodup_append.1 hp.1).1,
+        fun x hx => hp.2.1 x (List.mem_append_left _ hx), hch.1⟩, hnd.1, fun c => ?_⟩,
         hch.2.2 u (by simp) v (by simp)⟩
-      rw [Nat.testBit_sub_two_pow ((hm _).2 (by simp)), Bool.and_eq_true, hm,
-        decide_eq_true_iff]
-      constructor
-      · rintro ⟨hc, hne⟩
-        simpa [hne] using hc
-      · intro hc
-        refine ⟨by simp_all, fun h => hva (h ▸ hc)⟩
+      rw [Nat.testBit_sub_two_pow ((hm _).2 (by simp)), Bool.and_eq_true, hm, decide_eq_true_iff,
+        List.map_append, List.mem_append, List.map_singleton, List.mem_singleton]
+      exact ⟨fun ⟨hc, hne⟩ => hc.resolve_right hne,
+        fun hc => ⟨.inl hc, fun h => hva (h ▸ hc)⟩⟩
   · rintro ⟨hv, hbit, rfl | ⟨u, ⟨p, hp, hnd, hm⟩, hadj⟩⟩
     · refine ⟨[], ⟨by simp, by simpa using hv, by simp⟩, by simp, fun c => ?_⟩
-      rw [Nat.testBit_two_pow]
-      simp [eq_comm]
+      simp [Nat.testBit_two_pow, eq_comm]
     · have hva : χ v ∉ (p ++ [u]).map χ := fun h => by
-        have := (hm (χ v)).2 h
-        rw [Nat.testBit_sub_two_pow hbit] at this
-        simp at this
+        simpa [Nat.testBit_sub_two_pow hbit] using (hm (χ v)).2 h
       have hvp : v ∉ p ++ [u] := fun h => hva (List.mem_map_of_mem h)
-      refine ⟨p ++ [u], ⟨?_, fun x hx => ?_, ?_⟩, ?_, fun c => ?_⟩
-      · exact List.nodup_append.2 ⟨hp.1, by simp, fun a ha b hb => by
-          simp only [List.mem_singleton] at hb
-          exact hb ▸ fun h => hvp (h ▸ ha)⟩
-      · rw [List.mem_append, List.mem_singleton] at hx
-        rcases hx with hx | rfl
-        · exact hp.2.1 x hx
-        · exact hv
-      · rw [List.isChain_append]
-        refine ⟨hp.2.2, by simp, fun x hx y hy => ?_⟩
+      refine ⟨p ++ [u], ⟨List.nodup_append.2 ⟨hp.1, by simp, fun a ha b hb =>
+          List.mem_singleton.1 hb ▸ fun h => hvp (h ▸ ha)⟩,
+        fun x hx => (List.mem_append.1 hx).elim (hp.2.1 x) fun hx => List.mem_singleton.1 hx ▸ hv,
+        ?_⟩, ?_, fun c => ?_⟩
+      · refine List.isChain_append.2 ⟨hp.2.2, by simp, fun x hx y hy => ?_⟩
         simp only [List.getLast?_append, List.getLast?_singleton, Option.some_or,
           Option.mem_def, Option.some.injEq, List.head?_cons] at hx hy
-        subst hx hy
-        exact hadj
+        exact hx ▸ hy ▸ hadj
       · rw [List.map_append, List.nodup_append]
-        exact ⟨hnd, by simp, fun a ha b hb => by
-          simp only [List.map_cons, List.map_nil, List.mem_singleton] at hb
-          exact hb ▸ fun h => hva (h ▸ ha)⟩
+        exact ⟨hnd, by simp, fun a ha b hb =>
+          List.mem_singleton.1 (by simpa using hb) ▸ fun h => hva (h ▸ ha)⟩
       · have := hm c
         rw [Nat.testBit_sub_two_pow hbit, Bool.and_eq_true, decide_eq_true_iff] at this
         rw [List.map_append, List.mem_append, ← this, List.map_singleton, List.mem_singleton]
-        by_cases hc : c = χ v
-        · subst hc
-          simp [hbit]
-        · simp [hc]
+        by_cases hc : c = χ v <;> simp [hc, hbit]
 
 theorem table_succ (N : ℕ) :
     table G χ (N + 1) = table G χ N ++ [entry G χ (table G χ N) N] := by
@@ -235,11 +215,7 @@ theorem mem_table_getD {N m v : ℕ} (hm : m < N) :
       refine and_congr_right fun _ => and_congr_right fun hbit => or_congr_right ?_
       have hlt : m - 2 ^ χ v < m := Nat.sub_lt_self (Nat.two_pow_pos _)
         (Nat.ge_two_pow_of_testBit hbit)
-      constructor
-      · rintro ⟨u, hu, hadj⟩
-        exact ⟨u, (ih hlt).1 hu, (Graph.adjBool_eq_true_iff G u v).1 hadj⟩
-      · rintro ⟨u, hu, hadj⟩
-        exact ⟨u, (ih hlt).2 hu, (Graph.adjBool_eq_true_iff G u v).2 hadj⟩
+      exact exists_congr fun u => and_congr (ih hlt) (Graph.adjBool_eq_true_iff G u v)
 
 /-- The colorful paths on `k` vertices with colors less than `k` are the colorful paths ending
 anywhere with color set `{0, …, k - 1}`. -/
@@ -248,17 +224,16 @@ theorem exists_reaches_iff {k : ℕ} (hk : 0 < k) :
       (p.map χ).Nodup ∧ ∀ v ∈ p, χ v < k := by
   constructor
   · rintro ⟨v, p, hp, hnd, hm⟩
-    have hmem : ∀ c, c ∈ (p ++ [v]).map χ ↔ c < k := fun c => by
+    have hmem (c : ℕ) : c ∈ (p ++ [v]).map χ ↔ c < k := by
       rw [← hm, Nat.testBit_two_pow_sub_one, decide_eq_true_iff]
-    refine ⟨p ++ [v], hp, ?_, hnd, fun x hx => (hmem _).1 (List.mem_map_of_mem hx)⟩
     have hfs : ((p ++ [v]).map χ).toFinset = Finset.range k := by
       ext c
       rw [List.mem_toFinset, hmem, Finset.mem_range]
+    refine ⟨p ++ [v], hp, ?_, hnd, fun x hx => (hmem _).1 (List.mem_map_of_mem hx)⟩
     rw [← List.length_map (f := χ), ← List.toFinset_card_of_nodup hnd, hfs, Finset.card_range]
   · rintro ⟨p, hp, hlen, hnd, hlt⟩
     rcases List.eq_nil_or_concat' p with rfl | ⟨L, v, rfl⟩
-    · rw [List.length_nil] at hlen
-      omega
+    · simp at hlen; omega
     have hfs : ((L ++ [v]).map χ).toFinset = Finset.range k :=
       Finset.eq_of_subset_of_card_le
         (fun c hc => by
@@ -349,42 +324,26 @@ private theorem computableInPolyTime_entryCapped :
       (encPair ColorCoding.encStepInput encNat) encNat := by fun_prop
   have hmU : ComputableInPolyTime (fun q : ColorCoding.StepInput × ℕ => q.1.mask)
       (encPair ColorCoding.encStepInput encNat) encUnary := by fun_prop
-  have hmB : ComputableInPolyTime (fun q : ColorCoding.StepInput × ℕ => q.1.mask)
-      (encPair ColorCoding.encStepInput encNat) encNat := unary_to_binary.comp hmU
-  have hT : ComputableInPolyTime (fun q : ColorCoding.StepInput × ℕ => q.1.table)
-      (encPair ColorCoding.encStepInput encNat) ColorCoding.encTable := by fun_prop
-  have hcol : ComputableInPolyTime
+  have hmB := unary_to_binary.comp hmU
+  have hcap := binary_min_unary' hmU
+    (by fun_prop : ComputableInPolyTime
       (fun q : ColorCoding.StepInput × ℕ => colorOf q.1.input.graph q.1.input.colors q.2)
-      (encPair ColorCoding.encStepInput encNat) encNat := by fun_prop
-  have hcap : ComputableInPolyTime
-      (fun q : ColorCoding.StepInput × ℕ =>
-        min q.1.mask (colorOf q.1.input.graph q.1.input.colors q.2))
-      (encPair ColorCoding.encStepInput encNat) encUnary := binary_min_unary' hmU hcol
-  have hpow : ComputableInPolyTime
-      (fun q : ColorCoding.StepInput × ℕ =>
-        2 ^ min q.1.mask (colorOf q.1.input.graph q.1.input.colors q.2))
-      (encPair ColorCoding.encStepInput encNat) encNat := binary_two_pow.comp hcap
-  have hbit := binary_testBit hmB hcap
-  have heq := beq hmB hpow
-  have hsub := binary_sub' hmB hpow
-  have hrow := listGetD_binary (encA := encList encNat) [] hT hsub
-  have hany : ComputableInPolyTime
-      (fun q : ColorCoding.StepInput × ℕ =>
-        (q.1.table.getD
-            (q.1.mask - 2 ^ min q.1.mask (colorOf q.1.input.graph q.1.input.colors q.2)) []).any
-          fun u => q.1.input.graph.adjBool u q.2)
-      (encPair ColorCoding.encStepInput encNat) encBool := by
-    refine anyWithInput hrow ?_
-    have hG' : ComputableInPolyTime
+      (encPair ColorCoding.encStepInput encNat) encNat)
+  have hpow := binary_two_pow.comp hcap
+  have hrow := listGetD_binary (encA := encList encNat) []
+    (by fun_prop : ComputableInPolyTime (fun q : ColorCoding.StepInput × ℕ => q.1.table)
+      (encPair ColorCoding.encStepInput encNat) ColorCoding.encTable)
+    (binary_sub' hmB hpow)
+  have hany := anyWithInput
+    (test := fun (q : ColorCoding.StepInput × ℕ) u => q.1.input.graph.adjBool u q.2) hrow <|
+    Graph.computableInPolyTime_adjBool_comp
+      (by fun_prop : ComputableInPolyTime
         (fun p : (ColorCoding.StepInput × ℕ) × ℕ => p.1.1.input.graph)
-        (encPair (encPair ColorCoding.encStepInput encNat) encNat) encGraph := by fun_prop
-    exact Graph.computableInPolyTime_adjBool_comp hG' (snd _ _) (hv.comp (fst _ _))
-  have htest := bool_and' hbit (bool_or.comp (heq.prod hany))
-  have hV : ComputableInPolyTime
-      (fun q : ColorCoding.StepInput => q.input.graph.distinctVertices)
-      ColorCoding.encStepInput (encList encNat) := by fun_prop
+        (encPair (encPair ColorCoding.encStepInput encNat) encNat) encGraph)
+      (snd _ _) (hv.comp (fst _ _))
   unfold ColorCoding.entryCapped
-  exact filterWithInput hV htest
+  exact filterWithInput (by fun_prop)
+    (bool_and' (binary_testBit hmB hcap) (bool_or.comp ((beq hmB hpow).prod hany)))
 
 open ComputableInPolyTime in
 /-- The table on `N` color sets, for `N` in unary (`ColorCoding.TableInput`), is polynomial-time. -/
@@ -393,21 +352,18 @@ theorem ColorCoding.computableInPolyTime_table :
       (fun x : TableInput => table x.graph (colorOf x.graph x.colors) x.numSets)
       encTableInput encTable := by
   simp only [table_eq_foldl]
-  have hwrap : ComputableInPolyTime
-      (fun q : (TableInput × List (List ℕ)) × ℕ => (⟨q.1.1, q.1.2, q.2⟩ : StepInput))
-      (encPair (encPair encTableInput encTable) encUnary) encStepInput := by
-    fun_prop
   have hstep : ComputableInPolyTime
       (fun q : (TableInput × List (List ℕ)) × ℕ =>
         q.1.2 ++ [entryCapped q.1.1.graph (colorOf q.1.1.graph q.1.1.colors) q.1.2 q.2])
       (encPair (encPair encTableInput encTable) encUnary) encTable :=
-    listAppend' (snd' (fst _ _)) (cons' (computableInPolyTime_entryCapped.comp hwrap) (const []))
-  have hnumSets : ComputableInPolyTime (fun x : TableInput => x.numSets)
-      encTableInput encUnary := by fun_prop
+    listAppend' (snd' (fst _ _)) (cons' (computableInPolyTime_entryCapped.comp
+      (by fun_prop : ComputableInPolyTime
+        (fun q : (TableInput × List (List ℕ)) × ℕ => (⟨q.1.1, q.1.2, q.2⟩ : StepInput))
+        (encPair (encPair encTableInput encTable) encUnary) encStepInput)) (const []))
   have hV : ComputableInPolyTime (fun x : TableInput => x.graph.distinctVertices)
       encTableInput (encList encNat) := by fun_prop
   refine foldlWithInput_of_bounded_growth (encA := encUnary) (encL := encList encUnary)
-    (const []) ⟨range.comp hnumSets, hstep, inferInstance, inferInstance⟩
+    (const []) ⟨range.comp (by fun_prop), hstep, inferInstance, inferInstance⟩
     (growth := fun x => 2 * (encList encNat x.graph.distinctVertices).length + 1)
     ⟨((PolyBounded.const 2).mul hV.polyBounded_length).add (.const 1), fun x T m _ => ?_⟩
   simp only [encTable, encList_append, List.length_append, encList_cons, encList_nil,
@@ -437,22 +393,19 @@ theorem colorfulPathBool_eq_true_iff (x : ColorfulPathInstance) :
   obtain ⟨G, cs, k⟩ := x
   rcases Nat.eq_zero_or_pos k with rfl | hk
   · exact iff_of_true (by simp [colorfulPathBool]) ⟨[], by simp [Graph.IsVertexPath]⟩
-  have hk0 : (k == 0) = false := by simpa using hk.ne'
   have hlt : 2 ^ k - 1 < 2 ^ k := Nat.sub_lt (Nat.two_pow_pos k) Nat.one_pos
-  rw [colorfulPathBool, hk0, Bool.false_or, Bool.and_eq_true, decide_eq_true_iff,
-    ColorCoding.lastEntryNonempty, Bool.not_eq_true', List.isEmpty_eq_false_iff]
-  constructor
-  · rintro ⟨hkn, hne⟩
-    rw [Nat.min_eq_right hkn] at hne
+  rw [colorfulPathBool, beq_eq_false_iff_ne.2 hk.ne', Bool.false_or, Bool.and_eq_true,
+    decide_eq_true_iff, ColorCoding.lastEntryNonempty, Bool.not_eq_true', List.isEmpty_eq_false_iff]
+  refine ⟨fun ⟨hkn, hne⟩ => ?_, fun hx => ?_⟩
+  · rw [Nat.min_eq_right hkn] at hne
     obtain ⟨v, hv⟩ := List.exists_mem_of_ne_nil _ hne
     exact (ColorCoding.exists_reaches_iff hk).1 ⟨v, (ColorCoding.mem_table_getD hlt).1 hv⟩
-  · intro hx
-    obtain ⟨p, hp, hlen, -⟩ := id hx
+  · obtain ⟨p, hp, hlen, -⟩ := id hx
     have hkn : k ≤ G.distinctVertices.length := hlen.symm.trans_le hp.length_le
-    refine ⟨hkn, ?_⟩
-    rw [Nat.min_eq_right hkn]
     obtain ⟨v, hv⟩ := (ColorCoding.exists_reaches_iff hk).2 hx
-    exact List.ne_nil_of_mem ((ColorCoding.mem_table_getD hlt).2 hv)
+    refine ⟨hkn, by
+      rw [Nat.min_eq_right hkn]
+      exact List.ne_nil_of_mem ((ColorCoding.mem_table_getD hlt).2 hv)⟩
 
 open ComputableInPolyTime in
 private theorem computableInPolyTime_colorfulPathPad :

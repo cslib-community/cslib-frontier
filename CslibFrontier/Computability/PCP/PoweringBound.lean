@@ -110,14 +110,12 @@ and `0 ≤ a ≤ e`, then `a ^ 2 ≤ x (a + P)`. -/
 private theorem sq_le_mul_add_of_le {a e x P : ℝ} (ha : 0 ≤ a) (hae : a ≤ e) (hP : 0 ≤ P)
     (hx : 0 ≤ x) (h : e ^ 2 ≤ x * (e + P)) : a ^ 2 ≤ x * (a + P) := by
   rcases (add_nonneg (ha.trans hae) hP).eq_or_lt with h₀ | h₀
-  · have : a = 0 := by linarith
-    subst this
+  · obtain rfl : a = 0 := by linarith
     simpa using mul_nonneg hx hP
   · have h₁ : a ^ 2 * (e + P) ≤ e ^ 2 * (a + P) := by
       nlinarith [mul_nonneg (mul_nonneg ha (ha.trans hae)) (sub_nonneg.2 hae),
         mul_nonneg hP (mul_nonneg (sub_nonneg.2 hae) (add_nonneg ha (ha.trans hae)))]
-    have h₂ : e ^ 2 * (a + P) ≤ x * (e + P) * (a + P) := by gcongr
-    nlinarith
+    nlinarith [show e ^ 2 * (a + P) ≤ x * (e + P) * (a + P) by gcongr]
 
 /-- Truncating the increasing second-moment ratio at any nonnegative threshold gives a linear
 bound below that threshold, with its exact denominator retained. -/
@@ -144,16 +142,13 @@ probability at most `1 / (2 K)`. -/
 private theorem one_sub_inv_pow_le {q K : ℕ} (hq : 2 ≤ q) (hK : 1 ≤ K) :
     (1 - (q : ℝ)⁻¹) ^ (2 * K * (q - 1)) ≤ (2 * K : ℝ)⁻¹ := by
   have hq₁ : (0 : ℝ) < q - 1 := by cast_linarith [hq]
-  have hr : 1 - (q : ℝ)⁻¹ = (1 + ((q : ℝ) - 1)⁻¹)⁻¹ := by
-    field_simp
-    ring
   have hn : ((2 * K * (q - 1) : ℕ) : ℝ) * ((q : ℝ) - 1)⁻¹ = 2 * K := by
     push_cast [Nat.cast_sub (by omega : 1 ≤ q)]
     field_simp
   have hb := one_add_mul_le_pow (a := ((q : ℝ) - 1)⁻¹) (by linarith [inv_pos.2 hq₁])
     (2 * K * (q - 1))
   rw [hn] at hb
-  rw [hr, inv_pow]
+  rw [show 1 - (q : ℝ)⁻¹ = (1 + ((q : ℝ) - 1)⁻¹)⁻¹ by field_simp; ring, inv_pow]
   exact inv_anti₀ (by positivity) (by cast_linarith [hK])
 
 end Auxiliary
@@ -245,8 +240,7 @@ theorem expect_killTime_eq_and_hit [Fintype V] [Fintype D] [Nonempty D]
       by_cases h₁ : R.toConstraintGraph.Satisfies σ d <;>
         by_cases h₂ : R.report T A hiT (d.1, r) = σ d.1 <;>
         by_cases h₃ : R.report T A hjT ((R.graph.rot d).1, s) = σ (R.graph.rot d).1 <;>
-        simp only [h₁, h₂, h₃, not_true_eq_false, not_false_eq_true, true_and, false_and,
-          and_false, ↓reduceIte, mul_one, mul_zero]
+        simp [h₁, h₂, h₃]
     simp only [h, truthProb, dite_eq_left hiT, dite_eq_left hjT, ← mul_expect, ← expect_mul,
       mul_assoc]
   rw [hrhs, ← expect_prod_ite_killTime_eq hℓ]
@@ -384,12 +378,9 @@ private theorem numHits_sq_le_add_sum (A : V → WalkLabels D T → α) (σ : V 
     simp only [h, c]
     split_ifs with h₁ h₂
     · exact le_rfl
-    · exact absurd ((ConstraintGraph.mem_unsatEdges).2 h₁.2.1) h₂
-    · exact zero_le_one
-    · exact le_rfl
-  have hh₀ (i : Fin T) : 0 ≤ h i := by
-    simp only [h]
-    positivity
+    · exact absurd (ConstraintGraph.mem_unsatEdges.2 h₁.2.1) h₂
+    all_goals norm_num
+  have hh₀ (i : Fin T) : 0 ≤ h i := by simp only [h]; positivity
   rw [hN, sq, sum_mul_sum, ← sum_add_distrib]
   refine sum_le_sum fun i _ ↦ ?_
   calc ∑ j, h i * h j
@@ -421,7 +412,9 @@ theorem expect_mem_unsatEdges_mul_le (σ : V → α) {i j : Fin T} (hij : i < j)
     R.toConstraintGraph.expect_mem_unsatEdges σ
   have hb₂ : 𝔼 d, b d ^ 2 = R.toConstraintGraph.unsatFrac σ := by
     rw [← hb]
-    exact expect_congr rfl fun d _ ↦ by simp only [b]; split_ifs <;> norm_num
+    refine expect_congr rfl fun d _ ↦ ?_
+    simp only [b]
+    split_ifs <;> norm_num
   rw [hb, hb₂] at h
   have hlam : 0 ≤ R.graph.spectralExpansion ^ (j - (i + 1) : ℕ) :=
     pow_nonneg R.graph.spectralExpansion_nonneg _
@@ -444,27 +437,24 @@ private theorem ite_expect_walkDart_mem_unsatEdges_mul_le (σ : V → α) (i j :
   have hε : 0 ≤ R.toConstraintGraph.unsatFrac σ := R.toConstraintGraph.unsatFrac_nonneg σ
   have hg (a b : Fin T) :
       0 ≤ if a < b then R.graph.spectralExpansion ^ (b - (a + 1) : ℕ) else 0 := by positivity
+  have hlt {a b : Fin T} (hab : a < b) :
+      (𝔼 p : V × (Fin T → D) × (Fin T → Fin q),
+        (if R.graph.walkDart (p.1, p.2.1) a ∈ R.toConstraintGraph.unsatEdges σ then 1 else 0 : ℝ) *
+          if R.graph.walkDart (p.1, p.2.1) b ∈ R.toConstraintGraph.unsatEdges σ then 1 else 0) ≤
+        R.toConstraintGraph.unsatFrac σ ^ 2 +
+          R.toConstraintGraph.unsatFrac σ * R.graph.spectralExpansion ^ (b - (a + 1) : ℕ) := by
+    rw [Fintype.expect_comp_fst_snd_fst (γ := Fin T → Fin q)
+      (fun w ↦ (if R.graph.walkDart w a ∈ R.toConstraintGraph.unsatEdges σ then 1 else 0) *
+        (if R.graph.walkDart w b ∈ R.toConstraintGraph.unsatEdges σ then 1 else 0))]
+    linarith [R.expect_mem_unsatEdges_mul_le T σ hab]
   rcases lt_trichotomy i j with hij | rfl | hij
-  · rw [ite_eq_right hij.ne, Fintype.expect_comp_fst_snd_fst (γ := Fin T → Fin q)
-      (fun w ↦ (if R.graph.walkDart w i ∈ R.toConstraintGraph.unsatEdges σ then 1 else 0) *
-        (if R.graph.walkDart w j ∈ R.toConstraintGraph.unsatEdges σ then 1 else 0)),
-      ite_eq_left hij]
-    linarith [R.expect_mem_unsatEdges_mul_le T σ hij, mul_nonneg hε (hg j i)]
+  · rw [ite_eq_right hij.ne, ite_eq_left hij]
+    linarith [hlt hij, mul_nonneg hε (hg j i)]
   · rw [ite_eq_left rfl]
     have := mul_nonneg hε (hg i i)
     positivity
-  · rw [ite_eq_right hij.ne', show (𝔼 p : V × (Fin T → D) × (Fin T → Fin q),
-        (if R.graph.walkDart (p.1, p.2.1) i ∈ R.toConstraintGraph.unsatEdges σ then 1 else 0 : ℝ) *
-          if R.graph.walkDart (p.1, p.2.1) j ∈ R.toConstraintGraph.unsatEdges σ then 1 else 0) =
-        𝔼 p : V × (Fin T → D) × (Fin T → Fin q),
-        (if R.graph.walkDart (p.1, p.2.1) j ∈ R.toConstraintGraph.unsatEdges σ then 1 else 0 : ℝ) *
-          if R.graph.walkDart (p.1, p.2.1) i ∈ R.toConstraintGraph.unsatEdges σ then 1 else 0 from
-        expect_congr rfl fun p _ ↦ mul_comm _ _,
-      Fintype.expect_comp_fst_snd_fst (γ := Fin T → Fin q)
-      (fun w ↦ (if R.graph.walkDart w j ∈ R.toConstraintGraph.unsatEdges σ then 1 else 0) *
-        (if R.graph.walkDart w i ∈ R.toConstraintGraph.unsatEdges σ then 1 else 0)),
-      ite_eq_left hij]
-    linarith [R.expect_mem_unsatEdges_mul_le T σ hij, mul_nonneg hε (hg i j)]
+  · rw [ite_eq_right hij.ne', expect_congr rfl fun p _ ↦ mul_comm _ _, ite_eq_left hij]
+    linarith [hlt hij, mul_nonneg hε (hg i j)]
 
 open Classical in
 /-- **The second moment** [Dinur, Lemma 5.2][Dinur2005]: on an expander, the number of hits of a
@@ -486,9 +476,9 @@ theorem expect_numHits_sq_le (A : V → WalkLabels D T → α) (σ : V → α)
   have hε : 0 ≤ ε := R.toConstraintGraph.unsatFrac_nonneg σ
   have hlam₀ : 0 ≤ lam := R.graph.spectralExpansion_nonneg
   -- the errors sum to a geometric series at every step
-  have hgsum : ∑ i, ∑ j, g i j ≤ T * (1 / (1 - lam)) := by
-    calc ∑ i, ∑ j, g i j ≤ ∑ _i : Fin T, 1 / (1 - lam) := by
-          refine sum_le_sum fun i _ ↦ ?_
+  have hgsum : ∑ i, ∑ j, g i j ≤ T * (1 / (1 - lam)) :=
+    calc ∑ i, ∑ j, g i j
+        ≤ ∑ _i : Fin T, 1 / (1 - lam) := sum_le_sum fun i _ ↦ by
           simpa [g] using (Fin.sum_univ_eq_sum_range
             (fun j ↦ if (i : ℕ) < j then lam ^ (j - (i + 1)) else 0) T).le.trans
             (sum_ite_lt_pow_le hlam₀ hlam T i)
@@ -501,8 +491,7 @@ theorem expect_numHits_sq_le (A : V → WalkLabels D T → α) (σ : V → α)
         rw [expect_add_distrib, expect_sum_comm]
         simp only [expect_sum_comm]
         congr 1
-        refine sum_congr rfl fun i _ ↦ sum_congr rfl fun j _ ↦ ?_
-        split_ifs <;> simp
+        exact sum_congr rfl fun i _ ↦ sum_congr rfl fun j _ ↦ by split_ifs <;> simp
     _ ≤ 𝔼 p, (R.numHits T q A σ p : ℝ) +
           ∑ i : Fin T, ∑ j : Fin T, (ε ^ 2 + ε * g i j + ε * g j i) := by
         gcongr with i _ j _
@@ -512,8 +501,7 @@ theorem expect_numHits_sq_le (A : V → WalkLabels D T → α) (σ : V → α)
             T ^ 2 * ε ^ 2 + ε * ∑ i, ∑ j, g i j + ε * ∑ i, ∑ j, g i j := by
           simp only [sum_add_distrib, ← mul_sum, sum_const, card_univ, Fintype.card_fin,
             nsmul_eq_mul]
-          rw [sum_comm (f := fun i j ↦ g j i)]
-          ring
+          rw [sum_comm (f := fun i j ↦ g j i)]; ring
         rw [hsum, show 2 * (T : ℝ) * ε / (1 - lam) = 2 * (ε * (T * (1 / (1 - lam)))) by ring]
         linarith [mul_le_mul_of_nonneg_left hgsum hε]
 
@@ -528,10 +516,8 @@ private theorem expect_numHits_ne_zero_le (A : V → WalkLabels D T → α) (σ 
   by_cases h : (R.numHits T q A σ p : ℝ) = 0
   · rw [ite_eq_left h]
     split_ifs <;> norm_num
-  · obtain ⟨i, hi⟩ : ({i ∈ range T | R.Hit T q A σ p i} : Finset ℕ).Nonempty := by
-      rw [nonempty_iff_ne_empty]
-      intro h'
-      exact h (by simp [numHits, h'])
+  · obtain ⟨i, hi⟩ : ({i ∈ range T | R.Hit T q A σ p i} : Finset ℕ).Nonempty :=
+      nonempty_iff_ne_empty.2 fun h' ↦ h (by simp [numHits, h'])
     rw [ite_eq_right h, ite_eq_left (ConstraintGraph.mem_unsatEdges.2
       (R.not_satisfies_of_hit (mem_filter.1 hi).2))]
 
@@ -625,10 +611,10 @@ theorem le_unsatVal_power_min (hq : 2 ≤ q) (hT : T = 4 * Fintype.card α * (q 
       (R.power T q).toConstraintGraph.unsatVal := by
   set K := Fintype.card α
   have hK : 1 ≤ K := Fintype.card_pos
-  have hK' : (1 : ℝ) ≤ K := by exact_mod_cast hK
+  have hK' : (1 : ℝ) ≤ K := Nat.one_le_cast.2 hK
   have hq' : (1 : ℝ) ≤ q - 1 := by cast_linarith [hq]
   -- the killed walks surviving their first `2 |α| (q - 1)` steps are few
-  have hm : 1 ≤ K * (q - 1) := Nat.one_le_iff_ne_zero.2 (Nat.mul_ne_zero (by omega) (by omega))
+  have hm : 1 ≤ K * (q - 1) := Nat.mul_pos hK (by omega)
   have hH : 2 * (2 * K * (q - 1) - 1) + 1 < T := by
     rw [hT, show 4 * K * (q - 1) = 4 * (K * (q - 1)) by ring,
       show 2 * K * (q - 1) = 2 * (K * (q - 1)) by ring]
@@ -636,16 +622,17 @@ theorem le_unsatVal_power_min (hq : 2 ≤ q) (hT : T = 4 * Fintype.card α * (q 
   have hsurv : (1 - (q : ℝ)⁻¹) ^ (2 * K * (q - 1) - 1 + 1) ≤ (2 * K : ℝ)⁻¹ := by
     rw [Nat.sub_add_cancel (by rw [show 2 * K * (q - 1) = 2 * (K * (q - 1)) by ring]; omega)]
     exact one_sub_inv_pow_le hq hK
-  have h2K : (2 * K : ℝ)⁻¹ ≤ (K : ℝ)⁻¹ := inv_anti₀ (by positivity) (by linarith)
   set c : ℝ := (q - 1) / (4 * K ^ 2)
-  have hc₀ : 0 ≤ c := by positivity
   have hc : c ≤ ((q : ℝ) - 1) * ((K : ℝ)⁻¹ - (1 - (q : ℝ)⁻¹) ^ (2 * K * (q - 1) - 1 + 1)) ^ 2 := by
     have h : (2 * K : ℝ)⁻¹ ≤ (K : ℝ)⁻¹ - (1 - (q : ℝ)⁻¹) ^ (2 * K * (q - 1) - 1 + 1) := by
-      have : (K : ℝ)⁻¹ = 2 * (2 * K : ℝ)⁻¹ := by field_simp
-      linarith
-    calc c = (q - 1) * ((2 * K : ℝ)⁻¹) ^ 2 := by simp only [c]; field_simp; ring
+      linarith [show (K : ℝ)⁻¹ = 2 * (2 * K : ℝ)⁻¹ by field_simp]
+    calc c = (q - 1) * ((2 * K : ℝ)⁻¹) ^ 2 := by
+          simp only [c]
+          field_simp
+          ring
       _ ≤ _ := by gcongr
-  exact R.le_unsatVal_power_of_le T q _ hH (hsurv.trans h2K) hc₀ hc hμ hμ₁ hδ
+  exact R.le_unsatVal_power_of_le T q _ hH (hsurv.trans (inv_anti₀ (by positivity) (by linarith)))
+    (by positivity) hc hμ hμ₁ hδ
 
 /-- **The powering bound** [Dinur, Section 5][Dinur2005]: the standard cutoff gains a factor
 linear in `q`, up to threshold `1 / T²`. The more precise `le_unsatVal_power_min` permits larger
@@ -659,13 +646,12 @@ theorem le_unsatVal_power (hq : 2 ≤ q) (hT : T = 4 * Fintype.card α * (q - 1)
   have hK : 1 ≤ K := Fintype.card_pos
   have hq' : (1 : ℝ) ≤ q - 1 := by cast_linarith [hq]
   have hμ' : 0 < 1 - μ := sub_pos.2 hμ₁
-  have hT₀ : 0 < T := by rw [hT]; exact Nat.mul_pos (by lia) (by lia)
-  have hcancel : (T : ℝ) ^ 2 * (1 / (T : ℝ) ^ 2) = 1 := by
-    have : (T : ℝ) ≠ 0 := by exact_mod_cast hT₀.ne'
-    field_simp
+  have hT₀ : (T : ℝ) ≠ 0 := by
+    rw [Nat.cast_ne_zero, hT]
+    exact (Nat.mul_pos (by omega) (by omega)).ne'
   have hpow := R.le_unsatVal_power_min T q hq hT hμ hμ₁ (δ := 1 / T ^ 2) (by positivity)
   dsimp only at hpow
-  rw [hcancel] at hpow
+  rw [show (T : ℝ) ^ 2 * (1 / (T : ℝ) ^ 2) = 1 by field_simp] at hpow
   set c : ℝ := (q - 1) / (4 * K ^ 2)
   refine le_trans ?_ hpow
   gcongr ?_ * _
@@ -675,15 +661,13 @@ theorem le_unsatVal_power (hq : 2 ≤ q) (hT : T = 4 * Fintype.card α * (q - 1)
     rw [hT]
     push_cast [Nat.cast_sub (by omega : 1 ≤ q)]
     ring
-  rw [hTc, div_le_div_iff₀ (by positivity) (by positivity)]
   have e : c ^ 2 * (4 * K ^ 2 + 16 * K ^ 4 + 128 * K ^ 5 / (1 - μ)) =
       c * (q - 1) + (q - 1) ^ 2 + (q - 1) * (2 * (4 * K * (q - 1)) / (1 - μ)) := by
     simp only [c]
     field_simp
     ring
-  rw [e]
-  have : 0 ≤ (q - 1 : ℝ) * (2 * (4 * K * (q - 1)) / (1 - μ)) := by positivity
-  nlinarith
+  rw [hTc, div_le_div_iff₀ (by positivity) (by positivity), e]
+  nlinarith [show 0 ≤ (q - 1 : ℝ) * (2 * (4 * K * (q - 1)) / (1 - μ)) by positivity]
 
 end Bound
 

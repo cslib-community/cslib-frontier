@@ -76,13 +76,10 @@ theorem wronskian_ne_zero {F : Type*} [Field F] [Algebra F A] (δ : Derivation F
       simp only [Fin.val_castSucc, leibniz, smul_eq_mul, sum_add_distrib] at h₁
       rwa [sum_congr rfl fun x _ => mul_comm (v x) (δ (δ^[i] (g x))), h₂, add_zero] at h₁
     have hkill {u : Fin (r + 1) → A} (hu : ∀ i : Fin r, ∑ j, δ^[i] (g j) * u j = 0)
-        (hlast : u (Fin.last r) = 0) (j : Fin r) : u j.castSucc = 0 := by
-      have h0 : (fun j : Fin r => u j.castSucc) = 0 :=
-        eq_zero_of_mulVec_eq_zero hM' (funext fun i => by
-          have h := hu i
-          rw [Fin.sum_univ_castSucc, hlast, mul_zero, add_zero] at h
-          exact h)
-      exact congrFun h0 j
+        (hlast : u (Fin.last r) = 0) (j : Fin r) : u j.castSucc = 0 :=
+      congrFun (eq_zero_of_mulVec_eq_zero hM' <| funext fun i => by
+        simpa only [wronskianMatrix, mulVec, dotProduct, of_apply, Function.comp_apply,
+          Pi.zero_apply, Fin.sum_univ_castSucc, hlast, mul_zero, add_zero] using hu i) j
     set c := v (Fin.last r) with hc
     by_cases hc0 : c = 0
     · refine hv0 (funext fun j => ?_)
@@ -95,15 +92,8 @@ theorem wronskian_ne_zero {F : Type*} [Field F] [Algebra F A] (δ : Derivation F
         | cast j =>
           have h := hkill (u := fun j => c * δ (v j) - δ c * v j)
             (fun i => by
-              have h₁ := hrow' i
-              have h₂ := hrow i.castSucc
-              simp only [Fin.val_castSucc] at h₂
-              simp only [mul_sub, sum_sub_distrib]
-              have e₁ : ∑ j, δ^[i] (g j) * (c * δ (v j)) = c * ∑ j, δ^[i] (g j) * δ (v j) := by
-                rw [mul_sum]; exact sum_congr rfl fun _ _ => by ring
-              have e₂ : ∑ j, δ^[i] (g j) * (δ c * v j) = δ c * ∑ j, δ^[i] (g j) * v j := by
-                rw [mul_sum]; exact sum_congr rfl fun _ _ => by ring
-              rw [e₁, e₂, h₁, h₂, mul_zero, mul_zero, sub_zero])
+              simp_rw [mul_sub, sum_sub_distrib, mul_left_comm _ c, mul_left_comm _ (δ c),
+                ← mul_sum, hrow' i, ← Fin.val_castSucc i, hrow i.castSucc, mul_zero, sub_zero])
             (by simp only [← hc]; ring) j
           linear_combination h
       choose l hl using fun j => hδ (v j) c hc0 (hprop j)

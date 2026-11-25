@@ -137,13 +137,10 @@ theorem Rep.setKeyVal {base capNodes t w : ℕ} {tr : BTree ℕ ℕ} {x : Data 2
 theorem Rep.isWF {base capNodes t w : ℕ} {tr : BTree ℕ ℕ} {x : Data 20}
     (hr : Rep base capNodes t w tr x) : BTree.IsWF t tr := by
   rcases hr.tree_spec with ⟨_, rfl⟩ | ⟨_, _, rfl, hv, hs, _⟩
-  · exact {
-      two_le := hr.two_le
-      rootKeys_le := Nat.zero_le _
-      rootKeys_pos := fun h => (h rfl).elim
-      occupied_of_mem_children := fun _ hc => nomatch hc
-      balanced := .leaf
-      sorted := List.isSortedAssoc_nil }
+  · exact { two_le := hr.two_le, rootKeys_le := Nat.zero_le _,
+            rootKeys_pos := fun h => (h rfl).elim,
+            occupied_of_mem_children := (fun _ hc => nomatch hc),
+            balanced := .leaf, sorted := List.isSortedAssoc_nil }
   · exact hv.isWF hr.two_le hs
 
 /-- Every represented B-tree has sorted key-value inorder traversal `tr.toList`. -/
@@ -188,19 +185,21 @@ theorem initCode_spec {w base capNodes t : ℕ} {x : Data 20}
   have hymem : y.mem = Function.update (Function.update x.mem base 0) (base + 1) 0 := by
     dsimp only [y]
     wram_simp
-  have hcnt0 : allocCount base y = 0 := by
-    simp only [allocCount, hymem, Function.update_self]
-  have hrep : Rep base capNodes t w .leaf y := by
-    refine ⟨hexec.bounded hbdd, ht, ?_, ?_, hfit, ?_, Or.inl ⟨hcnt0, rfl⟩⟩
-    · dsimp only [y]; wram_simp; exact hbase
-    · dsimp only [y]; wram_simp; exact hdeg
-    · change allocCount base y ≤ capNodes; rw [hcnt0]; omega
-  refine ⟨y, hexec, hrep, hcnt0, ?_⟩
-  rw [hymem]
-  simpa only [Finset.union_idempotent] using
-    (Modifies.write_of_owns (base := base) (n := arenaWords t capNodes)
-      ⟨le_rfl, by simp only [arenaWords]; omega⟩ 0).trans
+  have hcnt0 : allocCount base y = 0 := by simp only [allocCount, hymem, Function.update_self]
+  refine ⟨y, hexec, ⟨hexec.bounded hbdd, ht, ?_, ?_, hfit, ?_, Or.inl ⟨hcnt0, rfl⟩⟩, hcnt0, ?_⟩
+  · dsimp only [y]
+    wram_simp
+    exact hbase
+  · dsimp only [y]
+    wram_simp
+    exact hdeg
+  · change allocCount base y ≤ capNodes
+    omega
+  · rw [hymem]
+    simpa only [Finset.union_idempotent] using
       (Modifies.write_of_owns (base := base) (n := arenaWords t capNodes)
-        ⟨by omega, by simp only [arenaWords]; omega⟩ 0)
+        ⟨le_rfl, by simp only [arenaWords]; omega⟩ 0).trans
+        (Modifies.write_of_owns (base := base) (n := arenaWords t capNodes)
+          ⟨by omega, by simp only [arenaWords]; omega⟩ 0)
 
 end Cslib.DataStructure.BTree.WordRAM

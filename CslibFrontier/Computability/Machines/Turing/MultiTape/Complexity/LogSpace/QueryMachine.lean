@@ -238,23 +238,12 @@ theorem streamState_passNext (s : σ) {j : ℕ} (hj : j ≤ w.length) :
   | zero => simp
   | succ j ih =>
     rw [MultiTapeTM.streamState_succ _ _ _ (by omega), ih (by omega), passNext]
-    simp only [Prod.mk.injEq, true_and]
-    rw [List.take_succ_eq_append_getElem (by omega)]
+    simp only [Prod.mk.injEq, true_and, List.getElem?_take]
     by_cases hq : j = M.query s
     · subst hq
-      simp
-    · simp only [decide_eq_true_eq, hq, ↓reduceIte]
-      rcases lt_or_gt_of_ne hq with hlt | hgt
-      · have h₁ : (List.take j w).length ≤ M.query s := by
-          simp only [List.length_take]
-          omega
-        have h₂ : (List.take j w ++ [w[j]]).length ≤ M.query s := by
-          enc_len [List.length_take, List.length_singleton]
-        rw [List.getElem?_eq_none h₁, List.getElem?_eq_none h₂]
-      · have h₁ : M.query s < (List.take j w).length := by
-          simp only [List.length_take]
-          omega
-        rw [List.getElem?_append_left h₁]
+      simp [List.getElem?_eq_getElem (l := w) (i := M.query s) (by omega)]
+    · have hlt_iff : M.query s < j + 1 ↔ M.query s < j := by omega
+      simp [hq, hlt_iff]
 
 theorem streamState_passNext_length (s : σ) :
     MultiTapeTM.streamState ((s, 0, none) : PassState σ) (passNext M) w w.length =
@@ -285,46 +274,15 @@ theorem passNext_inSpace
     (hquery : ComputableInSpace M'.query encS' encNat fun s => (encS' s).length) :
     ComputableInSpace (passNext M') (encPair (encPass encS') encBool) (encPass encS')
       fun p => (encPair (encPass encS') encBool p).length := by
-  have hq1 : ComputableInSpace (fun p : PassState σ' × Bool => p.1)
-      (encPair (encPass encS') encBool) (encPass encS')
-      fun p => (encPair (encPass encS') encBool p).length := fst _ _
-  have hs : ComputableInSpace (fun p : PassState σ' × Bool => p.1.1)
-      (encPair (encPass encS') encBool) encS'
-      fun p => (encPair (encPass encS') encBool p).length :=
-    fst' hq1
-  have hrest : ComputableInSpace (fun p : PassState σ' × Bool => p.1.2)
-      (encPair (encPass encS') encBool) (encPair encNat (encOption encBool))
-      fun p => (encPair (encPass encS') encBool p).length :=
-    snd' hq1
-  have hpos : ComputableInSpace (fun p : PassState σ' × Bool => p.1.2.1)
-      (encPair (encPass encS') encBool) encNat
-      fun p => (encPair (encPass encS') encBool p).length :=
-    fst' hrest
-  have hfd : ComputableInSpace (fun p : PassState σ' × Bool => p.1.2.2)
-      (encPair (encPass encS') encBool) (encOption encBool)
-      fun p => (encPair (encPass encS') encBool p).length :=
-    snd' hrest
-  have hb : ComputableInSpace (fun p : PassState σ' × Bool => p.2)
-      (encPair (encPass encS') encBool) encBool
-      fun p => (encPair (encPass encS') encBool p).length := snd _ _
-  have hsucc : ComputableInSpace (fun p : PassState σ' × Bool => p.1.2.1 + 1)
-      (encPair (encPass encS') encBool) encNat
-      fun p => (encPair (encPass encS') encBool p).length :=
-    budget_natSucc hpos
-  have hqs : ComputableInSpace (fun p : PassState σ' × Bool => M'.query p.1.1)
-      (encPair (encPass encS') encBool) encNat
-      fun p => (encPair (encPass encS') encBool p).length :=
-    budget_comp_linear hquery hs
-  have heq : ComputableInSpace
-      (fun p : PassState σ' × Bool => decide (p.1.2.1 = M'.query p.1.1))
-      (encPair (encPass encS') encBool) encBool
-      fun p => (encPair (encPass encS') encBool p).length :=
-    budget_natEq hpos hqs
-  have hsome : ComputableInSpace (fun p : PassState σ' × Bool => some p.2)
-      (encPair (encPass encS') encBool) (encOption encBool)
-      fun p => (encPair (encPass encS') encBool p).length :=
-    budget_optionSome hb
-  exact budget_prod hs (budget_prod hsucc (budget_ite heq hsome hfd))
+  have hq1 := fst (encPass encS') encBool
+  have hs := fst' hq1
+  have hrest := snd' hq1
+  have hpos := fst' hrest
+  have hfd := snd' hrest
+  have hb := snd (encPass encS') encBool
+  exact budget_prod hs (budget_prod (budget_natSucc hpos)
+    (budget_ite (budget_natEq hpos (budget_comp_linear hquery hs))
+      (budget_optionSome hb) hfd))
 
 theorem passEmit_inSpace
     (hemit : ComputableInSpace M'.emit (encStateRead encS') encBits
@@ -589,10 +547,9 @@ theorem computableInSpace {α β : Type} {enc : α ↪ List Bool} {encOut : β �
     (hf : ∀ a, encOut (f a) = M.output (enc a) (time a))
     (S : α → ℕ) (hlog : ∀ a, Nat.log2 (enc a).length + 1 ≤ S a)
     (hsize : ∃ c, ∀ a, ∀ t ≤ time a, (encS (M.run (enc a) t)).length ≤ c * S a) :
-    ∃ t c, ComputableInTimeAndSpace f enc encOut t fun a => c * S a := by
-  exact M.computableInSpaceFrom hquery hnext hemit hhalted hfinish time S
-    (ComputableInSpace.budget_const M.init)
-    hhalt hpre hf hlog hsize
+    ∃ t c, ComputableInTimeAndSpace f enc encOut t fun a => c * S a :=
+  M.computableInSpaceFrom hquery hnext hemit hhalted hfinish time S
+    (ComputableInSpace.budget_const M.init) hhalt hpre hf hlog hsize
 
 /-- **Query machines run in logarithmic space.** Let a query machine halt on every encoded input
 `enc a`, first after `time a` steps, with output `encOut (f a)`. If its states along these runs

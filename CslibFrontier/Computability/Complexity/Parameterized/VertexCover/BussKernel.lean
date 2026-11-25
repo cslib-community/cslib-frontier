@@ -12,6 +12,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LinearSp
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Tactic.PolyTime
 import Mathlib.Data.List.GetD
 
 /-!
@@ -474,59 +475,51 @@ open ComputableInPolyTime
 theorem computableInPolyTime_degree :
     ComputableInPolyTime (fun p : Graph × ℕ => degree p.1 p.2)
       (encPair encGraph encNat) encUnary := by
-  unfold degree
-  fun_prop
+  fun_prop [degree]
 
 /-- Testing for a high vertex is polynomial-time. -/
 @[fun_prop]
 theorem computableInPolyTime_isHigh :
     ComputableInPolyTime (fun p : VertexCoverInstance × ℕ => isHigh p.1 p.2)
       (encPair encVertexCoverInstance encNat) encBool := by
-  unfold isHigh
-  fun_prop
+  fun_prop [isHigh]
 
 /-- Listing the high vertices is polynomial-time. -/
 @[fun_prop]
 theorem computableInPolyTime_high :
     ComputableInPolyTime high encVertexCoverInstance (encList encNat) := by
-  unfold high
-  fun_prop
+  fun_prop [high]
 
 /-- Listing the low vertices is polynomial-time. -/
 @[fun_prop]
 theorem computableInPolyTime_low :
     ComputableInPolyTime low encVertexCoverInstance (encList encNat) := by
-  unfold low
-  fun_prop
+  fun_prop [low]
 
 /-- Testing for an active vertex is polynomial-time. -/
 @[fun_prop]
 theorem computableInPolyTime_isActive :
     ComputableInPolyTime (fun p : VertexCoverInstance × ℕ => isActive p.1 p.2)
       (encPair encVertexCoverInstance encNat) encBool := by
-  unfold isActive
-  fun_prop
+  fun_prop [isActive]
 
 /-- Listing the active vertices is polynomial-time. -/
 @[fun_prop]
 theorem computableInPolyTime_active :
     ComputableInPolyTime active encVertexCoverInstance (encList encNat) := by
-  unfold active
-  fun_prop
+  fun_prop [active]
 
 /-- The kernel target is computed in unary in polynomial time. -/
 @[fun_prop]
 theorem computableInPolyTime_param :
     ComputableInPolyTime param encVertexCoverInstance encUnary := by
-  unfold param
-  fun_prop
+  fun_prop [param]
 
 /-- The number of kernel vertices is computed in unary in polynomial time. -/
 @[fun_prop]
 theorem computableInPolyTime_numVertices :
     ComputableInPolyTime numVertices encVertexCoverInstance encUnary := by
-  unfold numVertices
-  fun_prop
+  fun_prop [numVertices]
 
 /-- The tests of the kernel are polynomial-time. The capped target `cap x` is computed in unary
 and converted to binary to compare it with the binary target. -/
@@ -545,49 +538,7 @@ theorem computableInPolyTime_accept :
 theorem computableInPolyTime_edges :
     ComputableInPolyTime edges encVertexCoverInstance
       (encList (encPair encNat encNat)) := by
-  unfold edges
-  have hrange :
-      ComputableInPolyTime (fun x : VertexCoverInstance => List.range (active x).length)
-        encVertexCoverInstance (encList encUnary) :=
-    ComputableInPolyTime.range.comp
-      ((ComputableInPolyTime.length_list encNat).comp computableInPolyTime_active)
-  refine flatMapWithInput hrange ?_
-  have hfilt_range :
-      ComputableInPolyTime (fun p : VertexCoverInstance × ℕ => List.range (active p.1).length)
-        (encPair encVertexCoverInstance encUnary) (encList encUnary) :=
-    hrange.comp (ComputableInPolyTime.fst _ _)
-  have hG : ComputableInPolyTime (fun p : (VertexCoverInstance × ℕ) × ℕ => p.1.1.graph)
-      (encPair (encPair encVertexCoverInstance encUnary) encUnary) encGraph :=
-    (by fun_prop : ComputableInPolyTime (fun x : VertexCoverInstance => x.graph)
-      encVertexCoverInstance encGraph).comp
-      ((ComputableInPolyTime.fst encVertexCoverInstance encUnary).comp
-        (ComputableInPolyTime.fst _ _))
-  have hact : ComputableInPolyTime (fun p : (VertexCoverInstance × ℕ) × ℕ => active p.1.1)
-      (encPair (encPair encVertexCoverInstance encUnary) encUnary) (encList encNat) :=
-    computableInPolyTime_active.comp
-      ((ComputableInPolyTime.fst encVertexCoverInstance encUnary).comp
-        (ComputableInPolyTime.fst _ _))
-  have hi : ComputableInPolyTime (fun p : (VertexCoverInstance × ℕ) × ℕ => p.1.2)
-      (encPair (encPair encVertexCoverInstance encUnary) encUnary) encUnary :=
-    (ComputableInPolyTime.snd encVertexCoverInstance encUnary).comp
-      (ComputableInPolyTime.fst _ _)
-  have hj : ComputableInPolyTime (fun p : (VertexCoverInstance × ℕ) × ℕ => p.2)
-      (encPair (encPair encVertexCoverInstance encUnary) encUnary) encUnary :=
-    ComputableInPolyTime.snd _ _
-  have hadj :
-      ComputableInPolyTime
-        (fun p : (VertexCoverInstance × ℕ) × ℕ =>
-          p.1.1.graph.adjBool ((active p.1.1).getD p.1.2 0) ((active p.1.1).getD p.2 0))
-        (encPair (encPair encVertexCoverInstance encUnary) encUnary) encBool :=
-    Graph.computableInPolyTime_adjBool_comp hG
-      (listGetDWithInput hact hi 0)
-      (listGetDWithInput hact hj 0)
-  have hpair :
-      ComputableInPolyTime (fun p : (VertexCoverInstance × ℕ) × ℕ => (p.1.2, p.2))
-        (encPair (encPair encVertexCoverInstance encUnary) encUnary)
-        (encPair encNat encNat) :=
-    (unary_to_binary.comp hi).prod (unary_to_binary.comp hj)
-  exact mapWithInput (filterWithInput hfilt_range hadj) hpair
+  polytime [edges]
 
 /-- Building the kernel graph is polynomial-time. -/
 @[fun_prop]

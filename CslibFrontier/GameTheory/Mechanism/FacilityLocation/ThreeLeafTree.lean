@@ -115,10 +115,8 @@ variable {V : Type*} [Finite V] {W : WeightedGraph V} {T : Tripod W}
 
 private lemma mem_inter_eq_center {r s : Fin 3} (hrs : r ≠ s) {x : MetricGraph W}
     (hr : x ∈ interval T.center (T.leaf r)) (hs : x ∈ interval T.center (T.leaf s)) :
-    x = T.center := by
-  have hx : x ∈ interval T.center (T.leaf r) ∩ interval T.center (T.leaf s) := ⟨hr, hs⟩
-  rw [T.inter_eq hrs] at hx
-  exact Set.mem_singleton_iff.mp hx
+    x = T.center :=
+  Set.mem_singleton_iff.mp (T.inter_eq hrs ▸ ⟨hr, hs⟩)
 
 private lemma leg_unique_of_ne_center {r s : Fin 3} {x : MetricGraph W} (hx : x ≠ T.center)
     (hr : x ∈ interval T.center (T.leaf r)) (hs : x ∈ interval T.center (T.leaf s)) :
@@ -130,102 +128,60 @@ private lemma center_mem_interval_of_ne_leg (hT : W.graph.IsTree) {r s : Fin 3} 
     {x y : MetricGraph W}
     (hx : x ∈ interval T.center (T.leaf r)) (hy : y ∈ interval T.center (T.leaf s)) :
     T.center ∈ interval x y := by
-  set m := treeMedian hT T.center x y
-  have hmx : m ∈ interval T.center x := treeMedian_mem_xy hT T.center x y
-  have hmy : m ∈ interval T.center y := treeMedian_mem_zx hT T.center x y |> fun h => by
-    rwa [interval_comm] at h
-  have hmr : m ∈ interval T.center (T.leaf r) :=
-    interval_subset_of_mem hT (left_mem_interval _ _) hx hmx
-  have hms : m ∈ interval T.center (T.leaf s) :=
-    interval_subset_of_mem hT (left_mem_interval _ _) hy hmy
-  have hmc : m = T.center := mem_inter_eq_center hrs hmr hms
-  rw [← hmc]
-  exact treeMedian_mem_yz hT T.center x y
+  have hmr : treeMedian hT T.center x y ∈ interval T.center (T.leaf r) :=
+    interval_subset_of_mem hT (left_mem_interval _ _) hx (treeMedian_mem_xy hT T.center x y)
+  have hms : treeMedian hT T.center x y ∈ interval T.center (T.leaf s) :=
+    interval_subset_of_mem hT (left_mem_interval _ _) hy
+      (interval_comm y T.center ▸ treeMedian_mem_zx hT T.center x y)
+  exact mem_inter_eq_center hrs hmr hms ▸ treeMedian_mem_yz hT T.center x y
 
 private lemma mem_branch_center_leaf_iff (hT : W.graph.IsTree) (r : Fin 3) (x : MetricGraph W) :
     x ∈ branch T.center (T.leaf r) ↔ x ∈ interval T.center (T.leaf r) ∧ x ≠ T.center := by
-  constructor
-  · intro hx
-    have hxc : x ≠ T.center := fun h => notMem_branch_self T.center (T.leaf r) (h ▸ hx)
-    obtain ⟨s, hs⟩ := T.cover x
-    by_cases hrs : r = s
-    · subst hrs; exact ⟨hs, hxc⟩
-    · exfalso
-      have hc : T.center ∈ interval (T.leaf r) x :=
-        center_mem_interval_of_ne_leg hT hrs (right_mem_interval _ _) hs
-      exact hx hc
-  · rintro ⟨hx, hxc⟩ hc
-    rw [mem_interval_iff] at hx hc
-    have hpos : 0 < dist T.center x := dist_pos.mpr hxc.symm
-    have htri : dist (T.leaf r) x ≤ dist (T.leaf r) T.center + dist T.center x :=
-      dist_triangle _ _ _
-    rw [_root_.dist_comm (T.leaf r) T.center] at hc
-    rw [_root_.dist_comm x (T.leaf r)] at hx
-    linarith
+  refine ⟨fun hx => ?_, fun ⟨hx, hxc⟩ hc => ?_⟩
+  · obtain ⟨s, hs⟩ := T.cover x
+    rcases eq_or_ne r s with rfl | hrs
+    · exact ⟨hs, fun h => notMem_branch_self T.center (T.leaf r) (h ▸ hx)⟩
+    · exact (hx (center_mem_interval_of_ne_leg hT hrs (right_mem_interval _ _) hs)).elim
+  · rw [mem_interval_iff, _root_.dist_comm x (T.leaf r)] at hx
+    rw [mem_interval_iff, _root_.dist_comm (T.leaf r) T.center] at hc
+    linarith [dist_pos.mpr hxc.symm, dist_triangle (T.leaf r) T.center x]
 
 private lemma mem_branch_outward_iff (hT : W.graph.IsTree) {r : Fin 3} {y : MetricGraph W}
     (hy : y ∈ interval T.center (T.leaf r)) (_hyl : y ≠ T.leaf r) (x : MetricGraph W) :
     x ∈ branch y (T.leaf r) ↔
       x ∈ interval T.center (T.leaf r) ∧ dist T.center y < dist T.center x := by
-  constructor
-  · intro hx
-    have hxy : x ≠ y := fun h => notMem_branch_self y (T.leaf r) (h ▸ hx)
-    obtain ⟨s, hs⟩ := T.cover x
-    by_cases hrs : r = s
-    · subst hrs
-      refine ⟨hs, ?_⟩
-      by_contra hle
-      have hdx : dist T.center x ≤ dist T.center y := le_of_not_gt hle
-      have hx_cy : x ∈ interval T.center y := mem_interval_of_mem_interval_dist_le hT hs hy hdx
-      have hy_lx : y ∈ interval (T.leaf r) x := by
-        rw [interval_comm]
-        rw [mem_interval_iff] at hx_cy hy ⊢
-        have hxl : dist x (T.leaf r) = dist T.center (T.leaf r) - dist T.center x := by
-          rw [mem_interval_iff] at hs; linarith
-        linarith
-      exact hx hy_lx
-    · exfalso
-      have hc_lx : T.center ∈ interval (T.leaf r) x :=
-        center_mem_interval_of_ne_leg hT hrs (right_mem_interval _ _) hs
-      have hy_lx : y ∈ interval (T.leaf r) x := by
-        have hy_lc : y ∈ interval (T.leaf r) T.center := by rwa [interval_comm]
-        exact interval_subset_of_mem hT (left_mem_interval _ _) hc_lx hy_lc
-      exact hx hy_lx
-  · rintro ⟨hx, hlt⟩ hy_lx
-    have hdy_le : dist T.center y ≤ dist T.center x := le_of_lt hlt
-    have hy_cx : y ∈ interval T.center x := mem_interval_of_mem_interval_dist_le hT hy hx hdy_le
-    rw [mem_interval_iff] at hy hx hy_lx hy_cx
-    rw [_root_.dist_comm (T.leaf r) y, _root_.dist_comm (T.leaf r) x] at hy_lx
+  refine ⟨fun hx => ?_, fun ⟨hx, hlt⟩ hy_lx => ?_⟩
+  · obtain ⟨s, hs⟩ := T.cover x
+    rcases eq_or_ne r s with rfl | hrs
+    · refine ⟨hs, lt_of_not_ge fun hdx => hx ?_⟩
+      have hx_cy := mem_interval_of_mem_interval_dist_le hT hs hy hdx
+      rw [interval_comm, mem_interval_iff]
+      rw [mem_interval_iff] at hx_cy hy hs
+      linarith
+    · have hc_lx := center_mem_interval_of_ne_leg hT hrs (right_mem_interval _ _) hs
+      exact (hx (interval_subset_of_mem hT (left_mem_interval _ _) hc_lx
+        (interval_comm T.center (T.leaf r) ▸ hy))).elim
+  · have hy_cx := mem_interval_of_mem_interval_dist_le hT hy hx hlt.le
+    rw [mem_interval_iff] at hy hx hy_cx
+    rw [mem_interval_iff, _root_.dist_comm (T.leaf r) y, _root_.dist_comm (T.leaf r) x] at hy_lx
     linarith
 
 private lemma mem_branch_inward_iff (hT : W.graph.IsTree) {r : Fin 3} {y : MetricGraph W}
     (hy : y ∈ interval T.center (T.leaf r)) (hyc : y ≠ T.center) (x : MetricGraph W) :
     x ∈ branch y T.center ↔
       x ≠ y ∧ ¬ (x ∈ interval T.center (T.leaf r) ∧ dist T.center y < dist T.center x) := by
-  constructor
-  · intro hx
-    refine ⟨fun h => notMem_branch_self y T.center (h ▸ hx), ?_⟩
-    rintro ⟨hxr, hlt⟩
-    have hy_cx : y ∈ interval T.center x :=
-      mem_interval_of_mem_interval_dist_le hT hy hxr (le_of_lt hlt)
-    exact hx hy_cx
-  · rintro ⟨hxy, hnot⟩ hy_cx
-    obtain ⟨s, hs⟩ := T.cover x
-    by_cases hrs : r = s
-    · subst hrs
-      have hle : dist T.center x ≤ dist T.center y := by
-        by_contra hgt
-        exact hnot ⟨hs, lt_of_not_ge hgt⟩
-      have hge : dist T.center y ≤ dist T.center x := by
-        rw [mem_interval_iff] at hy_cx
-        linarith [dist_nonneg (x := y) (y := x)]
-      have hdeq : dist T.center x = dist T.center y := le_antisymm hle hge
-      exact hxy (eq_of_mem_interval_dist_eq hT hs hy hdeq)
-    · have hc_yx : T.center ∈ interval y x := center_mem_interval_of_ne_leg hT hrs hy hs
-      rw [mem_interval_iff] at hy_cx hc_yx
-      rw [_root_.dist_comm y T.center] at hc_yx
-      have hpos : 0 < dist T.center y := dist_pos.mpr hyc.symm
-      linarith
+  refine ⟨fun hx => ⟨fun h => notMem_branch_self y T.center (h ▸ hx), fun ⟨hxr, hlt⟩ =>
+    hx (mem_interval_of_mem_interval_dist_le hT hy hxr hlt.le)⟩, fun ⟨hxy, hnot⟩ hy_cx => ?_⟩
+  obtain ⟨s, hs⟩ := T.cover x
+  rcases eq_or_ne r s with rfl | hrs
+  · have hle : dist T.center x ≤ dist T.center y := le_of_not_gt fun hgt => hnot ⟨hs, hgt⟩
+    rw [mem_interval_iff] at hy_cx
+    exact hxy (eq_of_mem_interval_dist_eq hT hs hy
+      (le_antisymm hle (by linarith [dist_nonneg (x := y) (y := x)])))
+  · have hc_yx := center_mem_interval_of_ne_leg hT hrs hy hs
+    rw [mem_interval_iff] at hy_cx
+    rw [mem_interval_iff, _root_.dist_comm y T.center] at hc_yx
+    linarith [dist_pos.mpr hyc.symm]
 
 private lemma branch_eq_outward_or_inward (hT : W.graph.IsTree) {r : Fin 3} {y q : MetricGraph W}
     (hy : y ∈ interval T.center (T.leaf r)) (hyc : y ≠ T.center) (hqy : q ≠ y) :
@@ -233,55 +189,37 @@ private lemma branch_eq_outward_or_inward (hT : W.graph.IsTree) {r : Fin 3} {y q
   by_cases h : q ∈ interval T.center (T.leaf r) ∧ dist T.center y < dist T.center q
   · have hyl : y ≠ T.leaf r := by
       rintro rfl
-      have hq_le : dist T.center q ≤ dist T.center (T.leaf r) := by
-        have hm := h.1
-        rw [mem_interval_iff] at hm
-        linarith [dist_nonneg (x := q) (y := T.leaf r)]
-      linarith [h.2]
-    refine Or.inl ⟨hyl, ?_⟩
-    have hq_mem : q ∈ branch y (T.leaf r) := (mem_branch_outward_iff hT hy hyl q).mpr h
-    exact branch_eq_of_mem hT hq_mem
-  · refine Or.inr ?_
-    have hq_mem : q ∈ branch y T.center := (mem_branch_inward_iff hT hy hyc q).mpr ⟨hqy, h⟩
-    exact branch_eq_of_mem hT hq_mem
+      have hm := mem_interval_iff.mp h.1
+      linarith [dist_nonneg (x := q) (y := T.leaf r), h.2]
+    exact Or.inl ⟨hyl, branch_eq_of_mem hT ((mem_branch_outward_iff hT hy hyl q).mpr h)⟩
+  · exact Or.inr (branch_eq_of_mem hT ((mem_branch_inward_iff hT hy hyc q).mpr ⟨hqy, h⟩))
 
 private lemma branch_center_eq_leaf (hT : W.graph.IsTree) {q : MetricGraph W} (hqc : q ≠ T.center) :
-    ∃ r : Fin 3, branch T.center q = branch T.center (T.leaf r) := by
-  obtain ⟨r, hr⟩ := T.cover q
-  refine ⟨r, ?_⟩
-  have hq_mem : q ∈ branch T.center (T.leaf r) := (mem_branch_center_leaf_iff hT r q).mpr ⟨hr, hqc⟩
-  exact branch_eq_of_mem hT hq_mem
+    ∃ r : Fin 3, branch T.center q = branch T.center (T.leaf r) :=
+  let ⟨r, hr⟩ := T.cover q
+  ⟨r, branch_eq_of_mem hT ((mem_branch_center_leaf_iff hT r q).mpr ⟨hr, hqc⟩)⟩
 
 private lemma branch_center_ne_of_ne (hT : W.graph.IsTree) {r s : Fin 3} (hrs : r ≠ s) :
-    branch T.center (T.leaf r) ≠ branch T.center (T.leaf s) := by
-  intro heq
-  have hmem : T.leaf r ∈ branch T.center (T.leaf s) :=
-    heq ▸ mem_branch_self (T.leaf_ne_center r)
-  have hr := ((mem_branch_center_leaf_iff hT s (T.leaf r)).mp hmem).1
-  exact T.leaf_ne_center r (mem_inter_eq_center hrs (right_mem_interval _ _) hr)
+    branch T.center (T.leaf r) ≠ branch T.center (T.leaf s) := fun heq =>
+  T.leaf_ne_center r (mem_inter_eq_center hrs (right_mem_interval _ _)
+    ((mem_branch_center_leaf_iff hT s (T.leaf r)).mp
+      (heq ▸ mem_branch_self (T.leaf_ne_center r))).1)
 
 private lemma branch_outward_ne_inward (hT : W.graph.IsTree) {r : Fin 3} {y : MetricGraph W}
     (hy : y ∈ interval T.center (T.leaf r)) (hyc : y ≠ T.center) (hyl : y ≠ T.leaf r) :
-    branch y (T.leaf r) ≠ branch y T.center := by
-  intro heq
-  have hmem : T.leaf r ∈ branch y T.center := heq ▸ mem_branch_self hyl.symm
-  have hnot := ((mem_branch_inward_iff hT hy hyc (T.leaf r)).mp hmem).2
-  have hlt : dist T.center y < dist T.center (T.leaf r) := by
-    rw [mem_interval_iff] at hy
-    have hpos : 0 < dist y (T.leaf r) := dist_pos.mpr hyl
-    linarith
-  exact hnot ⟨right_mem_interval _ _, hlt⟩
+    branch y (T.leaf r) ≠ branch y T.center := fun heq => by
+  have hnot := ((mem_branch_inward_iff hT hy hyc (T.leaf r)).mp (heq ▸ mem_branch_self hyl.symm)).2
+  rw [mem_interval_iff] at hy
+  exact hnot ⟨right_mem_interval _ _, by linarith [dist_pos.mpr hyl]⟩
 
 private lemma exists_point_on_leg_dist (hT : W.graph.IsTree) (r : Fin 3) {d : ℝ}
     (hd0 : 0 ≤ d) (hd : d ≤ dist T.center (T.leaf r)) :
     ∃ p ∈ interval T.center (T.leaf r), dist T.center p = d := by
   obtain ⟨φ, hφ_iso, hφ0, _, hφ_range⟩ := exists_isometry_interval hT T.center (T.leaf r)
   let dPt : Set.Icc (0 : ℝ) (dist T.center (T.leaf r)) := ⟨d, hd0, hd⟩
-  let zPt : Set.Icc (0 : ℝ) (dist T.center (T.leaf r)) := ⟨0, le_rfl, dist_nonneg⟩
   refine ⟨φ dPt, hφ_range ▸ Set.mem_range_self dPt, ?_⟩
   rw [← hφ0, hφ_iso.dist_eq, Subtype.dist_eq, Real.dist_eq]
-  change |0 - d| = d
-  rw [zero_sub, abs_neg, abs_of_nonneg hd0]
+  simpa only [zero_sub, abs_neg] using abs_of_nonneg hd0
 
 end TripodGeometry
 
@@ -307,15 +245,12 @@ theorem dichotomy (P : ThreeLeafScheme T) :
     (∃ r : Fin 3, 0 < P.low r ∧ ∀ s : Fin 3, s ≠ r → P.low s = 0 ∧ P.high s = 0) ∨
       (∀ r : Fin 3, P.low r = 0) := by
   by_cases h : ∃ r : Fin 3, 0 < P.low r
-  · left
-    obtain ⟨r, hr⟩ := h
-    refine ⟨r, hr, fun s hsr => ?_⟩
+  · obtain ⟨r, hr⟩ := h
+    refine Or.inl ⟨r, hr, fun s hsr => ?_⟩
     have hhigh : P.high s = 0 := P.exclusive_legs hsr.symm hr
-    have hlow : P.low s = 0 := le_antisymm ((P.low_le_high s).trans_eq hhigh) (P.low_nonneg s)
-    exact ⟨hlow, hhigh⟩
-  · right
-    push Not at h
-    exact fun r => le_antisymm (h r) (P.low_nonneg r)
+    exact ⟨le_antisymm ((P.low_le_high s).trans_eq hhigh) (P.low_nonneg s), hhigh⟩
+  · push Not at h
+    exact Or.inr fun r => le_antisymm (h r) (P.low_nonneg r)
 
 private lemma high_nonneg (P : ThreeLeafScheme T) (r : Fin 3) : 0 ≤ P.high r :=
   (P.low_nonneg r).trans (P.low_le_high r)
@@ -759,25 +694,19 @@ theorem eval_isAnonymous [Nonempty V] (hT : W.graph.IsTree) (P : ThreeLeafScheme
     IsAnonymous (P.eval hT) := by
   intro σ x
   rw [eval, eval]
-  refine ((P.toTreeEMVS hT).eval_eq_iff hT (x ∘ σ) ((P.toTreeEMVS hT).eval hT x)).mpr ?_
-  intro q hq S hS hw
-  have hEq := ((P.toTreeEMVS hT).eval_eq_iff hT x ((P.toTreeEMVS hT).eval hT x)).mp rfl
+  refine ((P.toTreeEMVS hT).eval_eq_iff hT (x ∘ σ) ((P.toTreeEMVS hT).eval hT x)).mpr
+    fun q hq S hS hw => ?_
   let S' : Finset (Fin 3) := S.map σ.toEmbedding
-  have hS' : ∀ i : Fin 3, i ∈ S' ↔ x i ∈ branch ((P.toTreeEMVS hT).eval hT x) q := by
-    intro i
+  have hS' (i : Fin 3) : i ∈ S' ↔ x i ∈ branch ((P.toTreeEMVS hT).eval hT x) q := by
     simp only [S', Finset.mem_map, Equiv.coe_toEmbedding]
-    constructor
-    · rintro ⟨j, hj, rfl⟩
-      exact (hS j).mp hj
-    · intro hi
-      refine ⟨σ.symm i, (hS (σ.symm i)).mpr ?_, σ.apply_symm_apply i⟩
-      simpa only [Function.comp_apply, Equiv.apply_symm_apply] using hi
+    exact ⟨fun ⟨j, hj, h⟩ => h ▸ (hS j).mp hj, fun hi =>
+      ⟨σ.symm i, (hS (σ.symm i)).mpr (by simpa using hi), σ.apply_symm_apply i⟩⟩
   have hcard : S'.card = S.card := Finset.card_map _
-  have hw' : (P.toTreeEMVS hT).win ((P.toTreeEMVS hT).eval hT x) q S' := by
-    rcases hw with ⟨r, hy, hyl, hqm, h⟩ | ⟨r, hy, hyc, hqm, h⟩
-    · exact Or.inl ⟨r, hy, hyl, hqm, by simpa only [outwardWin, hcard] using h⟩
-    · exact Or.inr ⟨r, hy, hyc, hqm, by simpa only [inwardWin, hcard] using h⟩
-  exact hEq q hq S' hS' hw'
+  refine (((P.toTreeEMVS hT).eval_eq_iff hT x ((P.toTreeEMVS hT).eval hT x)).mp rfl)
+    q hq S' hS' ?_
+  rcases hw with ⟨r, hy, hyl, hqm, h⟩ | ⟨r, hy, hyc, hqm, h⟩
+  · exact Or.inl ⟨r, hy, hyl, hqm, by simpa only [outwardWin, hcard] using h⟩
+  · exact Or.inr ⟨r, hy, hyc, hqm, by simpa only [inwardWin, hcard] using h⟩
 
 end ThreeLeafScheme
 
@@ -791,52 +720,32 @@ private lemma eval_twoVal_mem_branch_iff [Nonempty V] (hT : W.graph.IsTree)
     (E : TreeEMVS W (Fin 3)) {y q : MetricGraph W} (hqy : q ≠ y) (S : Finset (Fin 3)) :
     E.eval hT (fun i => if i ∈ S then q else y) ∈ branch y q ↔ E.win y q S := by
   let x : Fin 3 → MetricGraph W := fun i => if i ∈ S then q else y
-  constructor
-  · intro hmem
-    by_contra hnot
-    have heq : E.eval hT x = y := by
-      refine (E.eval_eq_iff hT x y).mpr fun q' hq' T' hT' hw' => ?_
+  have hx_iff (i : Fin 3) : i ∈ S ↔ x i ∈ branch y q := by
+    by_cases hi : i ∈ S <;> simp [x, hi, mem_branch_self hqy, notMem_branch_self]
+  refine ⟨fun hmem => by_contra fun hnot => ?_, fun hw => by_contra fun hnot => ?_⟩
+  · have heq : E.eval hT x = y := (E.eval_eq_iff hT x y).mpr fun q' hq' T' hT' hw' => by
       by_cases hbr : branch y q' = branch y q
-      · have hTS : T' = S := Finset.ext fun i => by
-          rw [hT' i, hbr]
-          by_cases hi : i ∈ S <;> simp [x, hi, mem_branch_self hqy, notMem_branch_self]
-        rw [hTS, E.branch_eq hq' hqy hbr] at hw'
-        exact hnot hw'
+      · have hTS : T' = S := Finset.ext fun i => (hT' i).trans (hbr ▸ (hx_iff i).symm)
+        exact hnot ((E.branch_eq hq' hqy hbr ▸ hTS ▸ hw'))
       · have hdisj := branch_disjoint_of_ne hT hbr
         have hTempty : T' = ∅ := Finset.eq_empty_of_forall_notMem fun i hi => by
           have hx_in := (hT' i).mp hi
-          by_cases hiS : i ∈ S
-          · simp only [x, hiS, ↓reduceIte] at hx_in
-            exact Set.disjoint_left.mp hdisj hx_in (mem_branch_self hqy)
-          · simp only [x, hiS, ↓reduceIte] at hx_in
-            exact notMem_branch_self y q' hx_in
+          by_cases hiS : i ∈ S <;> simp only [x, hiS, ↓reduceIte] at hx_in
+          · exact Set.disjoint_left.mp hdisj hx_in (mem_branch_self hqy)
+          · exact notMem_branch_self y q' hx_in
         exact E.empty_false hq' (hTempty ▸ hw')
     rw [heq] at hmem
     exact notMem_branch_self y q hmem
-  · intro hw
-    set z := E.eval hT x
+  · set z := E.eval hT x
     have hEq := (E.eval_eq_iff hT x z).mp rfl
-    by_contra hnot
-    have hzy : z ≠ y := by
-      intro h
-      rw [h] at hEq
-      refine hEq q hqy S (fun i => ?_) hw
-      by_cases hi : i ∈ S <;> simp [x, hi, mem_branch_self hqy, notMem_branch_self]
-    have hy_qz : y ∈ interval q z := by
-      by_contra hy_n
-      exact hnot hy_n
-    have hq_in : q ∈ branch z y := by
-      intro hz_yq
-      rw [mem_interval_iff] at hy_qz hz_yq
-      rw [_root_.dist_comm q y, _root_.dist_comm q z] at hy_qz
-      have hpos : 0 < dist y z := dist_pos.mpr hzy.symm
-      linarith
-    have hall : ∀ i : Fin 3, i ∈ (Finset.univ : Finset (Fin 3)) ↔ x i ∈ branch z y := fun i => by
-      simp only [Finset.mem_univ, true_iff]
-      by_cases hi : i ∈ S
-      · simp only [x, hi, ↓reduceIte]; exact hq_in
-      · simp only [x, hi, ↓reduceIte]; exact mem_branch_self hzy.symm
-    exact hEq y hzy.symm Finset.univ hall (E.univ_true hzy.symm)
+    have hzy : z ≠ y := fun h => (h ▸ hEq) q hqy S hx_iff hw
+    have hy_qz : y ∈ interval q z := Classical.not_not.mp hnot
+    have hq_in : q ∈ branch z y := fun hz_yq => by
+      rw [mem_interval_iff, _root_.dist_comm q y, _root_.dist_comm q z] at hy_qz
+      rw [mem_interval_iff] at hz_yq
+      linarith [dist_pos.mpr hzy.symm]
+    refine hEq y hzy.symm Finset.univ (fun i => ?_) (E.univ_true hzy.symm)
+    by_cases hi : i ∈ S <;> simp [x, hi, hq_in, mem_branch_self hzy.symm]
 
 private lemma win_congr_card_of_isAnonymous [Nonempty V] (hT : W.graph.IsTree)
     (E : TreeEMVS W (Fin 3)) (hanon : IsAnonymous (E.eval hT))
@@ -857,215 +766,172 @@ theorem isStrategyProof_surjective_anonymous_iff_threeLeafScheme [Nonempty V]
     (hT : W.graph.IsTree) (T : Tripod W) (f : (Fin 3 → MetricGraph W) → MetricGraph W) :
     ((Mechanism.deterministic f).IsStrategyProof ∧ Function.Surjective f ∧ IsAnonymous f) ↔
       ∃ P : ThreeLeafScheme T, f = P.eval hT := by
-  constructor
-  · rintro ⟨hf_sp, hf_onto, hf_anon⟩
-    obtain ⟨E, rfl⟩ :=
-      (isStrategyProof_and_surjective_iff_exists_treeEMVS hT f).mp ⟨hf_sp, hf_onto⟩
-    let thrSet (S : Finset (Fin 3)) (r : Fin 3) : Set ℝ :=
-      {0} ∪ {d | ∃ y ∈ interval T.center (T.leaf r),
-        y ≠ T.leaf r ∧ dist T.center y = d ∧ E.win y (T.leaf r) S}
-    have hthr_bdd : ∀ S r, BddAbove (thrSet S r) := fun S r =>
-      ⟨dist T.center (T.leaf r), by
-        rintro d (rfl | ⟨y, hy, _, rfl, _⟩)
+  refine ⟨?_, fun ⟨P, hP⟩ => hP ▸ ⟨P.eval_isStrategyProof hT, P.eval_surjective hT,
+    P.eval_isAnonymous hT⟩⟩
+  rintro ⟨hf_sp, hf_onto, hf_anon⟩
+  obtain ⟨E, rfl⟩ :=
+    (isStrategyProof_and_surjective_iff_exists_treeEMVS hT f).mp ⟨hf_sp, hf_onto⟩
+  let thrSet (S : Finset (Fin 3)) (r : Fin 3) : Set ℝ :=
+    {0} ∪ {d | ∃ y ∈ interval T.center (T.leaf r),
+      y ≠ T.leaf r ∧ dist T.center y = d ∧ E.win y (T.leaf r) S}
+  have hleg_le {r : Fin 3} {y : MetricGraph W} (hy : y ∈ interval T.center (T.leaf r)) :
+      dist T.center y ≤ dist T.center (T.leaf r) := by
+    rw [mem_interval_iff] at hy
+    linarith [dist_nonneg (x := y) (y := T.leaf r)]
+  have hthr_bdd (S : Finset (Fin 3)) (r : Fin 3) : BddAbove (thrSet S r) :=
+    ⟨dist T.center (T.leaf r), by
+      rintro d (rfl | ⟨y, hy, _, rfl, _⟩)
+      · exact dist_nonneg
+      · exact hleg_le hy⟩
+  have hthr_ne (S : Finset (Fin 3)) (r : Fin 3) : (thrSet S r).Nonempty := ⟨0, Or.inl rfl⟩
+  let low (r : Fin 3) : ℝ := sSup (thrSet {0} r)
+  let high (r : Fin 3) : ℝ := sSup (thrSet {0, 1} r)
+  have hthr_iff (S : Finset (Fin 3)) (r : Fin 3) {y : MetricGraph W}
+      (hy : y ∈ interval T.center (T.leaf r)) (hyl : y ≠ T.leaf r) :
+      E.win y (T.leaf r) S ↔ dist T.center y < sSup (thrSet S r) := by
+    refine ⟨fun hw => ?_, fun hlt => ?_⟩
+    · obtain ⟨p, hp_int, hpy, hpl, hwp⟩ := E.open_interior hyl.symm hw
+      have hp_leg : p ∈ interval T.center (T.leaf r) :=
+        interval_subset_of_mem hT hy (right_mem_interval _ _) hp_int
+      have hlt : dist T.center y < dist T.center p := by
+        rw [mem_interval_iff] at hy hp_int
+        linarith [mem_interval_iff.mp hp_leg, dist_pos.mpr hpy.symm]
+      exact hlt.trans_le (le_csSup (hthr_bdd S r) (Or.inr ⟨p, hp_leg, hpl, rfl, hwp⟩))
+    · obtain ⟨d, rfl | ⟨p, hp_leg, hpl, rfl, hwp⟩, hyd⟩ :=
+        (lt_csSup_iff (hthr_bdd S r) (hthr_ne S r)).mp hlt
+      · linarith [dist_nonneg (x := T.center) (y := y)]
+      · refine E.nesting hyl.symm hpl.symm (fun x hx => ?_) hwp
+        obtain ⟨hxr, hlt'⟩ := (mem_branch_outward_iff hT hp_leg hpl x).mp hx
+        exact (mem_branch_outward_iff hT hy hyl x).mpr ⟨hxr, hyd.trans hlt'⟩
+  have hlow_iff (r : Fin 3) {y : MetricGraph W} := hthr_iff {0} r (y := y)
+  have hhigh_iff (r : Fin 3) {y : MetricGraph W} := hthr_iff {0, 1} r (y := y)
+  let P : ThreeLeafScheme T :=
+    { low := low
+      high := high
+      low_nonneg := fun r => le_csSup (hthr_bdd {0} r) (Or.inl rfl)
+      low_le_high := fun r => csSup_le (hthr_ne {0} r) fun d hd => by
+        rcases hd with rfl | ⟨y, hy, hyl, rfl, hw⟩
+        · exact le_csSup (hthr_bdd {0, 1} r) (Or.inl rfl)
+        · exact le_csSup (hthr_bdd {0, 1} r)
+            (Or.inr ⟨y, hy, hyl, rfl, E.mono hyl.symm (by decide) hw⟩)
+      high_le_dist := fun r => csSup_le (hthr_ne {0, 1} r) fun d hd => by
+        rcases hd with rfl | ⟨y, hy, _, rfl, _⟩
         · exact dist_nonneg
-        · rw [mem_interval_iff] at hy; linarith [dist_nonneg (x := y) (y := T.leaf r)]⟩
-    have hthr_ne : ∀ S r, (thrSet S r).Nonempty := fun _ _ => ⟨0, Or.inl rfl⟩
-    let low (r : Fin 3) : ℝ := sSup (thrSet {0} r)
-    let high (r : Fin 3) : ℝ := sSup (thrSet {0, 1} r)
-    have hthr_iff : ∀ S r {y : MetricGraph W}, y ∈ interval T.center (T.leaf r) → y ≠ T.leaf r →
-        (E.win y (T.leaf r) S ↔ dist T.center y < sSup (thrSet S r)) := by
-      intro S r y hy hyl
-      constructor
-      · intro hw
-        obtain ⟨p, hp_int, hpy, hpl, hwp⟩ := E.open_interior hyl.symm hw
-        have hp_leg : p ∈ interval T.center (T.leaf r) :=
-          interval_subset_of_mem hT hy (right_mem_interval _ _) hp_int
-        have hlt : dist T.center y < dist T.center p := by
-          rw [mem_interval_iff] at hy hp_int
-          have hp_cy : dist T.center p = dist T.center y + dist y p := by
-            have h1 := mem_interval_iff.mp hp_leg
-            linarith
-          have hpos : 0 < dist y p := dist_pos.mpr hpy.symm
-          linarith
-        exact hlt.trans_le (le_csSup (hthr_bdd S r) (Or.inr ⟨p, hp_leg, hpl, rfl, hwp⟩))
-      · intro hlt
-        obtain ⟨d, hd_mem, hyd⟩ := (lt_csSup_iff (hthr_bdd S r) (hthr_ne S r)).mp hlt
-        rcases hd_mem with rfl | ⟨p, hp_leg, hpl, rfl, hwp⟩
-        · linarith [dist_nonneg (x := T.center) (y := y)]
-        · have hsub : branch p (T.leaf r) ⊆ branch y (T.leaf r) := by
-            intro x hx
-            have hx' := (mem_branch_outward_iff hT hp_leg hpl x).mp hx
-            exact (mem_branch_outward_iff hT hy hyl x).mpr ⟨hx'.1, hyd.trans hx'.2⟩
-          exact E.nesting hyl.symm hpl.symm hsub hwp
-    have hlow_iff : ∀ r {y : MetricGraph W}, y ∈ interval T.center (T.leaf r) → y ≠ T.leaf r →
-        (E.win y (T.leaf r) {0} ↔ dist T.center y < low r) := fun r => hthr_iff {0} r
-    have hhigh_iff : ∀ r {y : MetricGraph W}, y ∈ interval T.center (T.leaf r) → y ≠ T.leaf r →
-        (E.win y (T.leaf r) {0, 1} ↔ dist T.center y < high r) := fun r => hthr_iff {0, 1} r
-    let P : ThreeLeafScheme T :=
-      { low := low
-        high := high
-        low_nonneg := fun r => le_csSup (hthr_bdd {0} r) (Or.inl rfl)
-        low_le_high := fun r => csSup_le (hthr_ne {0} r) fun d hd => by
-          rcases hd with rfl | ⟨y, hy, hyl, rfl, hw⟩
-          · exact le_csSup (hthr_bdd {0, 1} r) (Or.inl rfl)
-          · refine le_csSup (hthr_bdd {0, 1} r) (Or.inr ⟨y, hy, hyl, rfl, ?_⟩)
-            exact E.mono hyl.symm (by decide) hw
-        high_le_dist := fun r => csSup_le (hthr_ne {0, 1} r) fun d hd => by
-          rcases hd with rfl | ⟨y, hy, _, rfl, _⟩
-          · exact dist_nonneg
-          · rw [mem_interval_iff] at hy; linarith [dist_nonneg (x := y) (y := T.leaf r)]
-        exclusive_legs := fun {r s} hrs hlr => by
-          by_contra hne
-          have hhs : 0 < high s :=
-            lt_of_le_of_ne (le_csSup (hthr_bdd {0, 1} s) (Or.inl rfl)) (Ne.symm hne)
-          have hw1 : E.win T.center (T.leaf r) {0} :=
-            (hlow_iff r (left_mem_interval _ _) (T.leaf_ne_center r).symm).mpr
-              (by simpa only [_root_.dist_self] using hlr)
-          have hw2 : E.win T.center (T.leaf s) {0, 1} :=
-            (hhigh_iff s (left_mem_interval _ _) (T.leaf_ne_center s).symm).mpr
-              (by simpa only [_root_.dist_self] using hhs)
-          have hw2c : E.win T.center (T.leaf s) ({0}ᶜ : Finset (Fin 3)) :=
-            (win_congr_card_of_isAnonymous hT E hf_anon (T.leaf_ne_center s) (by decide)).mp hw2
-          exact E.exclusive (T.leaf_ne_center r) (T.leaf_ne_center s)
-            (branch_center_ne_of_ne hT hrs) ⟨hw1, hw2c⟩ }
-    have hin_iff : ∀ (S S' : Finset (Fin 3)) (thr : Fin 3 → ℝ),
-        Sᶜ.card = S'.card → (∀ r, 0 ≤ thr r) →
-        (∀ r {y : MetricGraph W}, y ∈ interval T.center (T.leaf r) → y ≠ T.leaf r →
-          (E.win y (T.leaf r) S' ↔ dist T.center y < thr r)) →
-        ∀ r {y : MetricGraph W}, y ∈ interval T.center (T.leaf r) → y ≠ T.center →
-          (E.win y T.center S ↔ thr r < dist T.center y) := by
-      intro S S' thr hcard hthr0 hout_iff r y hy hyc
-      constructor
-      · intro hw
-        obtain ⟨p, hp_int, hpy, hpc, hwp⟩ := E.open_interior hyc.symm hw
-        have hp_leg : p ∈ interval T.center (T.leaf r) :=
-          interval_subset_of_mem hT (left_mem_interval _ _) hy (by rwa [interval_comm] at hp_int)
-        have hdp_lt : dist T.center p < dist T.center y := by
-          rw [interval_comm] at hp_int
-          rw [mem_interval_iff] at hp_int
-          have hpos : 0 < dist p y := dist_pos.mpr hpy
-          linarith
-        have hpl : p ≠ T.leaf r := by
-          rintro rfl
-          have hy_le : dist T.center y ≤ dist T.center (T.leaf r) := by
-            rw [mem_interval_iff] at hy; linarith [dist_nonneg (x := y) (y := T.leaf r)]
-          linarith
-        have hnot_out : ¬ E.win p (T.leaf r) Sᶜ := fun h =>
-          E.exclusive hpc.symm hpl.symm (branch_outward_ne_inward hT hp_leg hpc hpl).symm ⟨hwp, h⟩
-        have hnot_S' : ¬ E.win p (T.leaf r) S' := fun h =>
-          hnot_out ((win_congr_card_of_isAnonymous hT E hf_anon hpl.symm hcard.symm).mp h)
-        have hle : thr r ≤ dist T.center p := le_of_not_gt fun hlt =>
-          hnot_S' ((hout_iff r hp_leg hpl).mpr hlt)
-        exact hle.trans_lt hdp_lt
-      · intro hlt
-        have hdy_le : dist T.center y ≤ dist T.center (T.leaf r) := by
-          rw [mem_interval_iff] at hy; linarith [dist_nonneg (x := y) (y := T.leaf r)]
-        set t := (thr r + dist T.center y) / 2
-        have hthr_t : thr r < t := by dsimp only [t]; linarith
-        have hty : t < dist T.center y := by dsimp only [t]; linarith
-        have ht0 : 0 ≤ t := (hthr0 r).trans hthr_t.le
-        obtain ⟨p, hp_leg, hdp⟩ := exists_point_on_leg_dist hT r ht0 (hty.le.trans hdy_le)
-        have hpy : p ≠ y := fun h => by rw [h] at hdp; linarith
-        have hpl : p ≠ T.leaf r := fun h => by rw [h] at hdp; linarith
-        have hnot_S' : ¬ E.win p (T.leaf r) S' := fun hw =>
-          hthr_t.not_ge (hdp ▸ le_of_lt ((hout_iff r hp_leg hpl).mp hw))
-        have hbr_py : branch p y = branch p (T.leaf r) :=
-          branch_eq_of_mem hT ((mem_branch_outward_iff hT hp_leg hpl y).mpr ⟨hy, hdp ▸ hty⟩)
-        have hnot_py : ¬ E.win p y Sᶜ := by
-          rw [E.branch_eq hpy.symm hpl.symm hbr_py]
-          intro hw
-          exact hnot_S' ((win_congr_card_of_isAnonymous hT E hf_anon hpl.symm hcard).mp hw)
-        have hw_yp : E.win y p S := by
-          have hd := E.duality hpy hnot_py
-          rwa [compl_compl] at hd
-        have hbr_yp : branch y p = branch y T.center :=
-          branch_eq_of_mem hT ((mem_branch_inward_iff hT hy hyc p).mpr
-            ⟨hpy, fun h => by linarith [h.2, hdp, hty]⟩)
-        rwa [← E.branch_eq hpy hyc.symm hbr_yp]
-    have hin1_iff := hin_iff {0} {0, 1} high (by decide) P.high_nonneg hhigh_iff
-    have hin2_iff := hin_iff {0, 1} {0} low (by decide) P.low_nonneg hlow_iff
-    have hwin_eq : ∀ y q : MetricGraph W, q ≠ y → ∀ S : Finset (Fin 3),
-        E.win y q S ↔ (P.toTreeEMVS hT).win y q S := by
-      intro y q hqy S
-      have hSle : S.card ≤ 3 := by simpa only [Fintype.card_fin] using Finset.card_le_univ S
-      have hwin_card : ∀ (q₀ : MetricGraph W) (hq₀ : q₀ ≠ y) (P₁ P₂ : Prop),
-          (P₁ → P₂) → (E.win y q₀ {0} ↔ P₁) → (E.win y q₀ {0, 1} ↔ P₂) →
-          (E.win y q₀ S ↔ (P₁ ∧ 1 ≤ S.card) ∨ (P₂ ∧ 2 ≤ S.card) ∨ 3 ≤ S.card) := by
-        intro q₀ hq₀ P₁ P₂ h12 hP₁ hP₂
-        by_cases h0 : S.card = 0
-        · rw [Finset.card_eq_zero.mp h0]
-          refine iff_of_false (E.empty_false hq₀) ?_
-          rintro (⟨_, h⟩ | ⟨_, h⟩ | h) <;> simp at h
-        · by_cases h1 : S.card = 1
-          · rw [win_congr_card_of_isAnonymous hT E hf_anon hq₀
-              (show S.card = ({0} : Finset (Fin 3)).card by simp [h1]), hP₁]
-            exact ⟨fun h => Or.inl ⟨h, by omega⟩, fun h => by rcases h with ⟨h, _⟩ | ⟨_, h⟩ | h <;>
-              first | exact h | omega⟩
-          · by_cases h2 : S.card = 2
-            · rw [win_congr_card_of_isAnonymous hT E hf_anon hq₀
-                (show S.card = ({0, 1} : Finset (Fin 3)).card by simp [h2]), hP₂]
-              exact ⟨fun h => Or.inr (Or.inl ⟨h, by omega⟩),
-                fun h => by rcases h with ⟨h, _⟩ | ⟨h, _⟩ | h <;>
-                  first | exact h12 h | exact h | omega⟩
-            · have h3 : S.card = 3 := by omega
-              have hSu : S = Finset.univ := Finset.eq_univ_of_card S (by simpa using h3)
-              rw [hSu]
-              exact iff_of_true (E.univ_true hq₀) (Or.inr (Or.inr (by decide)))
-      have hwin_out : ∀ r, y ∈ interval T.center (T.leaf r) → y ≠ T.leaf r →
-          (E.win y (T.leaf r) S ↔ P.outwardWin r (dist T.center y) S) := fun r hy hyl =>
-        hwin_card (T.leaf r) hyl.symm _ _ (fun h => h.trans_le (P.low_le_high r))
-          (hlow_iff r hy hyl) (hhigh_iff r hy hyl)
-      have hwin_in : ∀ r, y ∈ interval T.center (T.leaf r) → y ≠ T.center →
-          (E.win y T.center S ↔ P.inwardWin r (dist T.center y) S) := fun r hy hyc =>
-        hwin_card T.center hyc.symm _ _ (fun h => (P.low_le_high r).trans_lt h)
-          (hin1_iff r hy hyc) (hin2_iff r hy hyc)
-      obtain ⟨r, hy⟩ := T.cover y
-      by_cases hyc : y = T.center
-      · subst hyc
-        obtain ⟨s, hbr⟩ := branch_center_eq_leaf hT hqy
-        rw [E.branch_eq hqy (T.leaf_ne_center s) hbr,
-          (P.toTreeEMVS hT).branch_eq hqy (T.leaf_ne_center s) hbr]
-        rw [hwin_out s (left_mem_interval _ _) (T.leaf_ne_center s).symm]
-        constructor
-        · intro hw
-          exact Or.inl ⟨s, left_mem_interval _ _, (T.leaf_ne_center s).symm,
-            mem_branch_self (T.leaf_ne_center s), hw⟩
-        · rintro (⟨s', _, _, hqm, hw⟩ | ⟨_, _, hne, _, _⟩)
-          · have hss' : s = s' := by
-              by_contra hne
-              exact branch_center_ne_of_ne hT hne (branch_eq_of_mem hT hqm)
-            subst hss'
-            exact hw
-          · exact absurd rfl hne
-      · rcases branch_eq_outward_or_inward hT hy hyc hqy with ⟨hyl, hbr⟩ | hbr
-        · rw [E.branch_eq hqy hyl.symm hbr, (P.toTreeEMVS hT).branch_eq hqy hyl.symm hbr,
-            hwin_out r hy hyl]
-          constructor
-          · intro hw
-            exact Or.inl ⟨r, hy, hyl, mem_branch_self hyl.symm, hw⟩
-          · rintro (⟨r', hy', _, _, hw⟩ | ⟨r', hy', _, hqm, _⟩)
-            · have hrr' : r = r' := leg_unique_of_ne_center hyc hy hy'
-              subst hrr'; exact hw
-            · have hrr' : r = r' := leg_unique_of_ne_center hyc hy hy'
-              subst hrr'
-              exact absurd (branch_eq_of_mem hT hqm) (branch_outward_ne_inward hT hy hyc hyl)
-        · rw [E.branch_eq hqy (Ne.symm hyc) hbr, (P.toTreeEMVS hT).branch_eq hqy (Ne.symm hyc) hbr,
-            hwin_in r hy hyc]
-          constructor
-          · intro hw
-            exact Or.inr ⟨r, hy, hyc, mem_branch_self (Ne.symm hyc), hw⟩
-          · rintro (⟨r', hy', hyl', hqm, _⟩ | ⟨r', hy', _, _, hw⟩)
-            · have hrr' : r = r' := leg_unique_of_ne_center hyc hy hy'
-              subst hrr'
-              exact absurd (branch_eq_of_mem hT hqm).symm (branch_outward_ne_inward hT hy hyc hyl')
-            · have hrr' : r = r' := leg_unique_of_ne_center hyc hy hy'
-              subst hrr'; exact hw
-    refine ⟨P, funext fun x => ?_⟩
-    rw [ThreeLeafScheme.eval]
-    refine ((P.toTreeEMVS hT).eval_eq_iff hT x (E.eval hT x)).mpr (fun q hq S hS hw => ?_) |>.symm
-    exact ((E.eval_eq_iff hT x (E.eval hT x)).mp rfl) q hq S hS ((hwin_eq _ q hq S).mpr hw)
-  · rintro ⟨P, rfl⟩
-    exact ⟨P.eval_isStrategyProof hT, P.eval_surjective hT, P.eval_isAnonymous hT⟩
+        · exact hleg_le hy
+      exclusive_legs := fun {r s} hrs hlr => by_contra fun hne => by
+        have hhs : 0 < high s :=
+          lt_of_le_of_ne (le_csSup (hthr_bdd {0, 1} s) (Or.inl rfl)) (Ne.symm hne)
+        have hw1 : E.win T.center (T.leaf r) {0} :=
+          (hlow_iff r (left_mem_interval _ _) (T.leaf_ne_center r).symm).mpr
+            (by simpa only [_root_.dist_self] using hlr)
+        have hw2 : E.win T.center (T.leaf s) ({0}ᶜ : Finset (Fin 3)) :=
+          (win_congr_card_of_isAnonymous hT E hf_anon (T.leaf_ne_center s) (by decide)).mp
+            ((hhigh_iff s (left_mem_interval _ _) (T.leaf_ne_center s).symm).mpr
+              (by simpa only [_root_.dist_self] using hhs))
+        exact E.exclusive (T.leaf_ne_center r) (T.leaf_ne_center s)
+          (branch_center_ne_of_ne hT hrs) ⟨hw1, hw2⟩ }
+  have hin_iff (S S' : Finset (Fin 3)) (thr : Fin 3 → ℝ)
+      (hcard : Sᶜ.card = S'.card) (hthr0 : ∀ r, 0 ≤ thr r)
+      (hout_iff : ∀ r {y : MetricGraph W}, y ∈ interval T.center (T.leaf r) → y ≠ T.leaf r →
+        (E.win y (T.leaf r) S' ↔ dist T.center y < thr r))
+      (r : Fin 3) {y : MetricGraph W} (hy : y ∈ interval T.center (T.leaf r))
+      (hyc : y ≠ T.center) :
+      E.win y T.center S ↔ thr r < dist T.center y := by
+    refine ⟨fun hw => ?_, fun hlt => ?_⟩
+    · obtain ⟨p, hp_int, hpy, hpc, hwp⟩ := E.open_interior hyc.symm hw
+      have hp_leg : p ∈ interval T.center (T.leaf r) :=
+        interval_subset_of_mem hT (left_mem_interval _ _) hy (interval_comm y T.center ▸ hp_int)
+      have hdp_lt : dist T.center p < dist T.center y := by
+        rw [interval_comm, mem_interval_iff] at hp_int
+        linarith [dist_pos.mpr hpy]
+      have hpl : p ≠ T.leaf r := fun h => hdp_lt.not_ge (h ▸ hleg_le hy)
+      have hle : thr r ≤ dist T.center p := le_of_not_gt fun hlt =>
+        E.exclusive hpc.symm hpl.symm (branch_outward_ne_inward hT hp_leg hpc hpl).symm
+          ⟨hwp, (win_congr_card_of_isAnonymous hT E hf_anon hpl.symm hcard.symm).mp
+            ((hout_iff r hp_leg hpl).mpr hlt)⟩
+      exact hle.trans_lt hdp_lt
+    · set t := (thr r + dist T.center y) / 2
+      have hthr_t : thr r < t := by dsimp only [t]; linarith
+      have hty : t < dist T.center y := by dsimp only [t]; linarith
+      obtain ⟨p, hp_leg, hdp⟩ := exists_point_on_leg_dist hT r ((hthr0 r).trans hthr_t.le)
+        (hty.le.trans (hleg_le hy))
+      have hpy : p ≠ y := fun h => by rw [h] at hdp; linarith
+      have hpl : p ≠ T.leaf r := fun h => by rw [h] at hdp; linarith [hleg_le hy]
+      have hbr_py : branch p y = branch p (T.leaf r) :=
+        branch_eq_of_mem hT ((mem_branch_outward_iff hT hp_leg hpl y).mpr ⟨hy, hdp ▸ hty⟩)
+      have hnot_py : ¬ E.win p y Sᶜ := fun hw => by
+        rw [E.branch_eq hpy.symm hpl.symm hbr_py] at hw
+        exact hthr_t.not_ge (hdp ▸ ((hout_iff r hp_leg hpl).mp
+          ((win_congr_card_of_isAnonymous hT E hf_anon hpl.symm hcard).mp hw)).le)
+      have hbr_yp : branch y p = branch y T.center :=
+        branch_eq_of_mem hT ((mem_branch_inward_iff hT hy hyc p).mpr
+          ⟨hpy, fun h => by linarith [h.2, hdp, hty]⟩)
+      simpa only [compl_compl, ← E.branch_eq hpy hyc.symm hbr_yp] using E.duality hpy hnot_py
+  have hin1_iff (r : Fin 3) {y : MetricGraph W} :=
+    hin_iff {0} {0, 1} high (by decide) P.high_nonneg hhigh_iff r (y := y)
+  have hin2_iff (r : Fin 3) {y : MetricGraph W} :=
+    hin_iff {0, 1} {0} low (by decide) P.low_nonneg hlow_iff r (y := y)
+  have hwin_eq (y q : MetricGraph W) (hqy : q ≠ y) (S : Finset (Fin 3)) :
+      E.win y q S ↔ (P.toTreeEMVS hT).win y q S := by
+    have hSle : S.card ≤ 3 := by simpa only [Fintype.card_fin] using Finset.card_le_univ S
+    have hwin_card (q₀ : MetricGraph W) (hq₀ : q₀ ≠ y) {P₁ P₂ : Prop}
+        (h12 : P₁ → P₂) (hP₁ : E.win y q₀ {0} ↔ P₁) (hP₂ : E.win y q₀ {0, 1} ↔ P₂) :
+        E.win y q₀ S ↔ (P₁ ∧ 1 ≤ S.card) ∨ (P₂ ∧ 2 ≤ S.card) ∨ 3 ≤ S.card := by
+      rcases (by omega : S.card = 0 ∨ S.card = 1 ∨ S.card = 2 ∨ S.card = 3) with
+        h0 | h1 | h2 | h3
+      · rw [Finset.card_eq_zero.mp h0]
+        exact iff_of_false (E.empty_false hq₀) (by rintro (⟨_, h⟩ | ⟨_, h⟩ | h) <;> simp at h)
+      · have hc1 : S.card = ({0} : Finset (Fin 3)).card := by simp [h1]
+        rw [win_congr_card_of_isAnonymous hT E hf_anon hq₀ hc1, hP₁]
+        refine ⟨fun h => Or.inl ⟨h, by omega⟩, fun h => ?_⟩
+        rcases h with ⟨h, _⟩ | ⟨_, h⟩ | h <;> first | exact h | omega
+      · have hc2 : S.card = ({0, 1} : Finset (Fin 3)).card := by simp [h2]
+        rw [win_congr_card_of_isAnonymous hT E hf_anon hq₀ hc2, hP₂]
+        refine ⟨fun h => Or.inr (Or.inl ⟨h, by omega⟩), fun h => ?_⟩
+        rcases h with ⟨h, _⟩ | ⟨h, _⟩ | h <;> first | exact h12 h | exact h | omega
+      · rw [Finset.eq_univ_of_card S (by simpa using h3)]
+        exact iff_of_true (E.univ_true hq₀) (Or.inr (Or.inr (by decide)))
+    have hwin_out (r : Fin 3) (hy : y ∈ interval T.center (T.leaf r)) (hyl : y ≠ T.leaf r) :
+        E.win y (T.leaf r) S ↔ P.outwardWin r (dist T.center y) S :=
+      hwin_card (T.leaf r) hyl.symm (fun h => h.trans_le (P.low_le_high r))
+        (hlow_iff r hy hyl) (hhigh_iff r hy hyl)
+    have hwin_in (r : Fin 3) (hy : y ∈ interval T.center (T.leaf r)) (hyc : y ≠ T.center) :
+        E.win y T.center S ↔ P.inwardWin r (dist T.center y) S :=
+      hwin_card T.center hyc.symm (fun h => (P.low_le_high r).trans_lt h)
+        (hin1_iff r hy hyc) (hin2_iff r hy hyc)
+    obtain ⟨r, hy⟩ := T.cover y
+    by_cases hyc : y = T.center
+    · subst hyc
+      obtain ⟨s, hbr⟩ := branch_center_eq_leaf hT hqy
+      rw [E.branch_eq hqy (T.leaf_ne_center s) hbr,
+        (P.toTreeEMVS hT).branch_eq hqy (T.leaf_ne_center s) hbr,
+        hwin_out s (left_mem_interval _ _) (T.leaf_ne_center s).symm]
+      refine ⟨fun hw => Or.inl ⟨s, left_mem_interval _ _, (T.leaf_ne_center s).symm,
+        mem_branch_self (T.leaf_ne_center s), hw⟩, ?_⟩
+      rintro (⟨s', _, _, hqm, hw⟩ | ⟨_, _, hne, _, _⟩)
+      · obtain rfl : s = s' := by_contra fun hne =>
+          branch_center_ne_of_ne hT hne (branch_eq_of_mem hT hqm)
+        exact hw
+      · exact absurd rfl hne
+    · rcases branch_eq_outward_or_inward hT hy hyc hqy with ⟨hyl, hbr⟩ | hbr
+      · rw [E.branch_eq hqy hyl.symm hbr, (P.toTreeEMVS hT).branch_eq hqy hyl.symm hbr,
+          hwin_out r hy hyl]
+        refine ⟨fun hw => Or.inl ⟨r, hy, hyl, mem_branch_self hyl.symm, hw⟩, ?_⟩
+        rintro (⟨r', hy', _, _, hw⟩ | ⟨r', hy', _, hqm, _⟩)
+        · exact leg_unique_of_ne_center hyc hy hy' ▸ hw
+        · obtain rfl := leg_unique_of_ne_center hyc hy hy'
+          exact absurd (branch_eq_of_mem hT hqm) (branch_outward_ne_inward hT hy hyc hyl)
+      · rw [E.branch_eq hqy (Ne.symm hyc) hbr, (P.toTreeEMVS hT).branch_eq hqy (Ne.symm hyc) hbr,
+          hwin_in r hy hyc]
+        refine ⟨fun hw => Or.inr ⟨r, hy, hyc, mem_branch_self (Ne.symm hyc), hw⟩, ?_⟩
+        rintro (⟨r', hy', hyl', hqm, _⟩ | ⟨r', hy', _, _, hw⟩)
+        · obtain rfl := leg_unique_of_ne_center hyc hy hy'
+          exact absurd (branch_eq_of_mem hT hqm).symm (branch_outward_ne_inward hT hy hyc hyl')
+        · exact leg_unique_of_ne_center hyc hy hy' ▸ hw
+  refine ⟨P, funext fun x => ?_⟩
+  rw [ThreeLeafScheme.eval]
+  exact (((P.toTreeEMVS hT).eval_eq_iff hT x (E.eval hT x)).mpr fun q hq S hS hw =>
+    ((E.eval_eq_iff hT x (E.eval hT x)).mp rfl) q hq S hS ((hwin_eq _ q hq S).mpr hw)).symm
 
 end Characterization
 

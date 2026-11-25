@@ -56,6 +56,12 @@ theorem head_drop_check {input : List Bool} (p : (machine I P F C).RunPath input
   rw [step_check_words I P F C coin] at hcoin
   simpa only [RelSeries.head_drop] using hcoin.symm
 
+/-- A path headed by a word-holding configuration has its work heads at the origin. -/
+private theorem head_mem_window {input : List Bool} {p : (machine I P F C).RunPath input}
+    {q ws out} {s : ℕ} (hhead : p.head = wordsCfg input q ws out) (i : Fin k) :
+    p.head.workTapePos i ∈ window s := by
+  simp [hhead, mem_window]
+
 /-- A path stays in a window when its configurations before `cut` and its suffix from `cut` do. -/
 private theorem inWindow_of_drop {k' : ℕ} {S : Type} {ntm : MultiTapeNTM k' Bool S}
     {input : List Bool} (p : ntm.RunPath input) (cut : Fin (p.length + 1)) {s : ℕ}
@@ -66,13 +72,8 @@ private theorem inWindow_of_drop {k' : ℕ} {S : Type} {ntm : MultiTapeNTM k' Bo
   · exact hpre j hj i
   · have hindex : j.val - cut.val < (p.drop cut).length + 1 := by
       simp only [RelSeries.drop_length]; omega
-    have h := htail _ ⟨⟨j.val - cut.val, hindex⟩, rfl⟩ i
-    have heq : (p.drop cut) ⟨j.val - cut.val, hindex⟩ = p j := by
-      dsimp [RelSeries.drop]
-      congr 1
-      apply Fin.ext
-      simp only [Nat.sub_add_cancel (by omega : cut.val ≤ j.val)]
-    rwa [heq] at h
+    simpa [RelSeries.drop, Nat.sub_add_cancel (Nat.not_lt.mp hj)] using
+      htail _ ⟨⟨j.val - cut.val, hindex⟩, rfl⟩ i
 
 /-- Any prefix begun at a finalizer stays in its deterministic window, including arbitrary
 halted self-loop padding after the finalizer ends. -/
@@ -84,9 +85,8 @@ theorem finish_inWindow {input : List Bool} {ws : Fin k → List Bool} {out : Li
     (hhead : p.head = wordsCfg input (some (.finish F.q₀)) ws out) : p.InWindow s := by
   obtain ⟨ws', e, _, q₀, hqhead, hqlast, _, hspace⟩ := hF input ws out ⟨rfl, rfl⟩
   obtain ⟨q, hhead', hlast', _, hmem⟩ := q₀.exists_running (by rw [hqlast]; rfl)
-  have hmap : p.head = q.head.mapState finishState := by
-    rw [hhead', hqhead, mapState_wordsCfg]
-    exact hhead
+  have hmap : p.head = q.head.mapState finishState :=
+    hhead.trans (by simp [hhead', hqhead, mapState_wordsCfg, finishState])
   have hwin := MultiTapeNTM.RunPath.inWindow_of_space_le (p := q₀)
     (by simp [hqhead]) hspace
   rintro _ ⟨n, rfl⟩ i
@@ -95,16 +95,14 @@ theorem finish_inWindow {input : List Bool} {ws : Fin k → List Bool} {out : Li
     exact hwin _ (hmem _ ⟨_, rfl⟩) i
   · have hq : q.length < p.length + 1 := by omega
     have hfinal : p ⟨q.length, hq⟩ = wordsCfg input none ws' (out ++ e) := by
-      have h := follows_finish I P F C p q hmap q.length hq (Nat.lt_succ_self _)
-      change p ⟨q.length, hq⟩ = q.last.mapState finishState at h
+      have h : p ⟨q.length, hq⟩ = q.last.mapState finishState :=
+        follows_finish I P F C p q hmap q.length hq (Nat.lt_succ_self _)
       simpa [hlast', hqlast, finishState] using h
     have hhalt : (p ⟨q.length, hq⟩).Halted := by rw [hfinal]; rfl
-    have heq : p n = p ⟨q.length, hq⟩ := by
-      have h := MultiTapeNTM.RunPath.last_eq_of_halted (p.take n)
+    have heq : p n = p ⟨q.length, hq⟩ :=
+      MultiTapeNTM.RunPath.last_eq_of_halted (p.take n)
         ⟨q.length, by simp only [RelSeries.take]; omega⟩
         (show ((p.take n) ⟨q.length, by simp only [RelSeries.take]; omega⟩).Halted from hhalt)
-      change p n = p ⟨q.length, hq⟩ at h
-      exact h
     simp [heq, hfinal, mem_window]
 
 /-- **Every native pass-loop prefix stays in one fixed window.** Each of the two pass routines
@@ -126,10 +124,8 @@ theorem choose_inWindow {input : List Bool} (Inv : (Fin k → List Bool) → Pro
       intro p hlen ws out hInv hhead
       by_cases hzero : p.length = 0
       · rintro _ ⟨j, rfl⟩ i
-        have hj : j = 0 := by omega
-        subst hj
-        change p.head.workTapePos i ∈ _
-        simp [hhead, mem_window]
+        obtain rfl : j = 0 := by omega
+        exact head_mem_window I P F C hhead i
       have hone : 1 < p.length + 1 := by omega
       have hfirst := p.step ⟨0, by omega⟩
       change (machine I P F C).Step p.head (p ⟨1, hone⟩) at hfirst
@@ -148,15 +144,12 @@ theorem choose_inWindow {input : List Bool} (Inv : (Fin k → List Bool) → Pro
       have hbefore (j : ℕ) (hj : j < p.length + 1) (hj' : j ≤ q.length + 1) :
           ∀ i, (p ⟨j, hj⟩).workTapePos i ∈ window s := by
         cases j with
-        | zero =>
-          intro i
-          change p.head.workTapePos i ∈ _
-          simp [hhead, mem_window]
+        | zero => exact head_mem_window I P F C hhead
         | succ j =>
           have hp : j < p₁.length + 1 := by simp only [p₁, RelSeries.drop_length]; omega
           have hq : j < q.length + 1 := by omega
-          have heq := follows_pass I P F C b p₁ q hmap j hp hq
-          change p ⟨j + 1, hj⟩ = (q ⟨j, hq⟩).mapState (passState b) at heq
+          have heq : p ⟨j + 1, hj⟩ = (q ⟨j, hq⟩).mapState (passState b) :=
+            follows_pass I P F C b p₁ q hmap j hp hq
           intro i
           rw [heq]
           exact hwin _ (hmem _ ⟨_, rfl⟩) i
@@ -166,9 +159,9 @@ theorem choose_inWindow {input : List Bool} (Inv : (Fin k → List Bool) → Pro
       have hcheck : q.length + 1 < p.length := by omega
       have hcfg : p ⟨q.length + 1, by omega⟩ =
           wordsCfg input (some .check) ws' (out ++ e) := by
-        have heq := follows_pass I P F C b p₁ q hmap q.length
-          (by simp only [p₁, RelSeries.drop_length]; omega) (Nat.lt_succ_self _)
-        change p ⟨q.length + 1, by omega⟩ = q.last.mapState (passState b) at heq
+        have heq : p ⟨q.length + 1, by omega⟩ = q.last.mapState (passState b) :=
+          follows_pass I P F C b p₁ q hmap q.length
+            (by simp only [p₁, RelSeries.drop_length]; omega) (Nat.lt_succ_self _)
         simpa [hlast', hqlast, passState] using heq
       have hnext := head_drop_check I P F C p ⟨q.length + 1, hcheck⟩ hcfg
       let cut : Fin (p.length + 1) := ⟨q.length + 2, by omega⟩
@@ -196,10 +189,8 @@ private theorem check_inWindow {input : List Bool} (Inv : (Fin k → List Bool) 
     (hInv : Inv ws) (hhead : p.head = wordsCfg input (some .check) ws out) : p.InWindow s := by
   by_cases hzero : p.length = 0
   · rintro _ ⟨j, rfl⟩ i
-    have : j = 0 := by omega
-    subst j
-    change p.head.workTapePos i ∈ _
-    simp [hhead, mem_window]
+    obtain rfl : j = 0 := by omega
+    exact head_mem_window I P F C hhead i
   have hroute := head_drop_check I P F C p ⟨0, by omega⟩ hhead
   have htail : MultiTapeNTM.RunPath.InWindow (p.drop ⟨1, by omega⟩) s := by
     by_cases hblank : ws C = []
@@ -208,14 +199,8 @@ private theorem check_inWindow {input : List Bool} (Inv : (Fin k → List Bool) 
     · exact choose_inWindow I P F C Inv hP hF _ hInv (by simpa [hblank] using hroute)
   apply inWindow_of_drop p ⟨1, by omega⟩ _ htail
   intro j hj i
-  have : j = 0 := by
-    apply Fin.ext
-    change j.val < 1 at hj
-    simp only [Fin.val_zero]
-    omega
-  subst j
-  change p.head.workTapePos i ∈ _
-  simp [hhead, mem_window]
+  obtain rfl : j = 0 := Fin.ext (by simpa using hj)
+  exact head_mem_window I P F C hhead i
 
 /-- **The complete native loop uses one common window on every computation prefix.** Tidy
 initialization establishes the word invariant, the selected passes preserve it, and finalization
@@ -248,8 +233,8 @@ theorem runsInSpace_of_transforms {input : List Bool}
     by_cases hq : q.length < p.length + 1
     · let cut : Fin (p.length + 1) := ⟨q.length, hq⟩
       have hcfg : p.toRunPath cut = wordsCfg input (some .check) ws e := by
-        have h := follows_init I P F C p.toRunPath q hmap q.length hq (Nat.lt_succ_self _)
-        change p.toRunPath cut = q.last.mapState initState at h
+        have h : p.toRunPath cut = q.last.mapState initState :=
+          follows_init I P F C p.toRunPath q hmap q.length hq (Nat.lt_succ_self _)
         simpa [hlast', hqlast, initState] using h
       exact inWindow_of_drop p.toRunPath cut (fun j hj => hpre j hj.le)
         (check_inWindow I P F C Inv hP hF (p.toRunPath.drop cut) hInv (by simpa using hcfg))

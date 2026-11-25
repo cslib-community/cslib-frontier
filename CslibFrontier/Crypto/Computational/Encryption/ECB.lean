@@ -387,12 +387,6 @@ private theorem isOraclePPTOn_ecbChallenge {ℓ : ℕ → ℕ}
   have hn : ComputableInPolyTime
       (fun q : ((ℕ × List Bool) × Bool) × Encryption.ChoiceOut (List Bool) => q.1.1.1)
         ecbStateEnc encUnary := by fun_prop
-  have hc0 : ComputableInPolyTime
-      (fun q : ((ℕ × List Bool) × Bool) × Encryption.ChoiceOut (List Bool) => q.2.1.1)
-        ecbStateEnc encBits := by fun_prop
-  have hc1 : ComputableInPolyTime
-      (fun q : ((ℕ × List Bool) × Bool) × Encryption.ChoiceOut (List Bool) => q.2.1.2)
-        ecbStateEnc encBits := by fun_prop
   have hsel : ComputableInPolyTime
       (fun q : ((ℕ × List Bool) × Bool) × Encryption.ChoiceOut (List Bool) =>
         if q.1.2 then q.2.1.2 else q.2.1.1) ecbStateEnc encBits := by fun_prop
@@ -425,7 +419,7 @@ private theorem isOraclePPTOn_ecbChallenge {ℓ : ℕ → ℕ}
     ((ComputableInPolyTime.const (encIn := ecbStateEnc) (encOut := encBool) false).beq
       (by fun_prop)).isOraclePPTOn
   unfold ecbChallenge
-  exact IsOraclePPTOn.cond (E.computableInPolyTime_ecbValid hℓ hn hc0 hc1)
+  exact IsOraclePPTOn.cond (E.computableInPolyTime_ecbValid hℓ hn (by fun_prop) (by fun_prop))
     (hreplies.bind_with hguess) hno
 
 /-- **Efficiency of the distinguisher.** For a polynomial-time block bound `ℓ` and every uniform
@@ -460,15 +454,8 @@ theorem PRP.ecb_demOneTimeKeyINDCPAOn {E : BlockCipher} (hE : E.PRP) {ℓ : ℕ 
     (hℓ : ComputableInPolyTime ℓ encUnary encUnary) :
     Encryption.DEMOneTimeKeyINDCPAOn (E.ecbValid ℓ) encBits E.keyLen E.ecbEncrypt := by
   intro A hA
-  have h :=
+  simpa only [advantage_demKeyGameOn_ecbEncrypt] using
     (hE (E.ecbToPrpDistinguisher ℓ A) (E.isOraclePPT_ecbToPrpDistinguisher hℓ hA)).const_mul 2
-  have heq : (fun n => Game.advantage
-      (ProbComp.eval (Encryption.demKeyGameOn (E.ecbValid ℓ) E.keyLen E.ecbEncrypt A false n))
-      (ProbComp.eval (Encryption.demKeyGameOn (E.ecbValid ℓ) E.keyLen E.ecbEncrypt A true n))) =
-      fun n => 2 * Game.advantage (ProbComp.eval (E.prpRealGame (E.ecbToPrpDistinguisher ℓ A) n))
-        (ProbComp.eval (prpIdealGame E.blockLen (E.ecbToPrpDistinguisher ℓ A) n)) :=
-    funext fun n => E.advantage_demKeyGameOn_ecbEncrypt ℓ A n
-  exact (congrArg Negligible heq).mpr h
 
 /-- **Single-block ECB semantic security** ([BonehShoup2023], §4.1.4, pp. 102, 104): if `E` is a
 secure block cipher, its ECB cipher on messages of at most one `blockLen n`-bit block
@@ -477,11 +464,9 @@ messages (which are equal) and pairs of single `blockLen n`-bit blocks (the data
 theorem PRP.ecb_demOneTimeKeyINDCPAOn_one {E : BlockCipher} (hE : E.PRP) :
     Encryption.DEMOneTimeKeyINDCPAOn (E.ecbAdmissible fun _ => 1) encBits E.keyLen
       E.ecbEncrypt := by
-  have heq : E.ecbAdmissible (fun _ => 1) = E.ecbValid (fun _ => 1) := by
-    ext n pk m₀ m₁
-    exact (E.ecbValid_eq_ecbAdmissible_of_le_one le_rfl pk m₀ m₁).symm
-  rw [heq]
-  exact hE.ecb_demOneTimeKeyINDCPAOn (ComputableInPolyTime.const 1)
+  convert hE.ecb_demOneTimeKeyINDCPAOn (ComputableInPolyTime.const 1) using 1
+  ext n pk m₀ m₁
+  exact (E.ecbValid_eq_ecbAdmissible_of_le_one le_rfl pk m₀ m₁).symm
 
 /-! ### The two-block attack on words -/
 
@@ -511,8 +496,7 @@ private theorem ecbBlocks_append_pair {n : ℕ} (hw : 1 ≤ E.blockLen n) {u v :
   have hdiv : (u ++ v).length / E.blockLen n = 2 := by
     rw [List.length_append, hu, hv, ← Nat.two_mul]
     exact Nat.mul_div_cancel 2 hw
-  have hflat : ([u, v] : List (List Bool)).flatten = u ++ v := by simp
-  rw [ecbBlocks, hdiv, ← hflat]
+  rw [ecbBlocks, hdiv, show u ++ v = ([u, v] : List (List Bool)).flatten by simp]
   exact BitString.listRows_flatten [u, v] (by simp [hu, hv])
 
 /-- Evaluating `demKeyGameOn` with `ecbTwoBlockAdversary` outputs `!bit` with probability `1`
@@ -560,8 +544,7 @@ private theorem eval_demKeyGameOn_ecbTwoBlockAdversary {ℓ : ℕ → ℕ} {n : 
     · simp only [↓reduceIte, Bool.not_true, decide_eq_false_iff_not]
       intro heq
       have hdec := congrArg (E.decrypt n (List.ofFn k)) heq
-      rw [E.decrypt_encrypt n _ _ List.length_ofFn List.length_replicate,
-        E.decrypt_encrypt n _ _ List.length_ofFn List.length_replicate] at hdec
+      simp only [E.decrypt_encrypt n _ _ List.length_ofFn List.length_replicate] at hdec
       exact hxy hdec
   simp only [Encryption.demKeyGameOn, ecbTwoBlockAdversary, ecbEncrypt, ProbComp.eval_bind,
     BitString.eval_sampleList, BitString.uniformList, PMF.bind_map, Function.comp_def,

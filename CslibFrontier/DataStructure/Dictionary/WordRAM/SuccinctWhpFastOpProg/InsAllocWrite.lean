@@ -284,47 +284,12 @@ theorem fastInsertAllocGenProg_fastStep {c U V w n_max base b X : ℕ}
       mul_add_lt_mul_bound hb hk
     obtain ⟨hwo_mc, hwo_vp, hwo_step⟩ := writePoolOwnerGenProg_fastStep henv hp_lt
       (by omega : b * capBackWhp n_max + k ≤ n_max) hwb_step.2.1 hwb_step.2.2.1 (s := s2)
-    have hpop_st : (Memory.spec 0).clientState s (insPopFreeSlotGenProg (cp, base)) = s1 := by
-      unfold insPopFreeSlotGenProg; dsimp only; simp only [pure_bind]
-      rw [clientState_bind, ht_st, ht_res, clientState_bind, hp_st, hp_res,
-        clientState_bind, clientState_pure_whp]
-    have hpop_res : (Memory.spec 0).clientResult s (insPopFreeSlotGenProg (cp, base)) = pSlot := by
-      unfold insPopFreeSlotGenProg; dsimp only; simp only [pure_bind]
-      rw [clientResult_bind, ht_st, ht_res, clientResult_bind, hp_st, hp_res,
-        clientResult_bind, clientResult_pure_whp]
-    have hpop_mc : memoryCost (insPopFreeSlotGenProg (cp, base)) s ≤ 4 := by
-      unfold insPopFreeSlotGenProg; dsimp only
-      simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      dsimp only [cp, top'] at hp_st hp_res hp_mc hwh_mc ⊢
-      rw [ht_st, ht_res, ht_mc, hp_st, hp_res, hp_mc, memoryCost_pure]; omega
-    have hpop_vp : ValidProg w (base + largeSpaceWhp c U V w n_max) s
-        (insPopFreeSlotGenProg (cp, base)) := by
-      unfold insPopFreeSlotGenProg; dsimp only; simp only [pure_bind]
-      refine validProg_bind ht_vp ?_; rw [ht_st, ht_res]
-      refine validProg_bind hp_vp ?_; rw [hp_st, hp_res]
-      exact validProg_bind hwh_vp (validProg_pure _)
-    unfold insAllocBackyardProg; dsimp only
-    simp only [wp_large_capFront hth, pure_bind]
-    have hs'_eq : (Memory.spec 0).clientState s
-        (insPopFreeSlotGenProg (cp, base) >>= fun p =>
-          insBindBackSlotGenProg ((((cp, base), b), k), p)) =
-        (Memory.spec 0).clientState s2
-          (writePoolOwnerGenProg (((cp, base), pSlot), b * capBackWhp n_max + k)) := by
-      rw [clientState_bind, hpop_st, hpop_res]
-      unfold insBindBackSlotGenProg; dsimp only
-      simp only [cp, wp_large_capBack hth, pure_bind]
-      rw [clientState_bind]
-    rw [hs'_eq]
-    refine ⟨?_, ?_, (hwh_step.trans hwb_step).trans hwo_step⟩
-    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      rw [hpop_st, hpop_res]
-      unfold insBindBackSlotGenProg; dsimp only
-      simp only [wp_large_capBack hth, pure_bind, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      dsimp only [s1, s2, cp, k, pSlot] at hpop_mc hwb_mc hwo_mc ⊢; omega
-    · refine validProg_bind hpop_vp ?_; rw [hpop_st, hpop_res]
-      unfold insBindBackSlotGenProg; dsimp only
-      simp only [wp_large_capBack hth, pure_bind]
-      exact validProg_bind hwb_vp hwo_vp
+    unfold insAllocBackyardProg insPopFreeSlotGenProg insBindBackSlotGenProg; dsimp only
+    simp only [wp_large_capFront hth, wp_large_capBack hth, pure_bind]
+    exact CostBoundedStep.elim (.bind (.bind ⟨ht_st, ht_res, ht_mc.le, ht_vp⟩ <|
+      .bind ⟨hp_st, hp_res, hp_mc.le, hp_vp⟩ <| .bind ⟨rfl, rfl, hwh_mc.le, hwh_vp⟩ (.pure _ _)) <|
+      .bind ⟨rfl, rfl, hwb_mc.le, hwb_vp⟩ ⟨rfl, rfl, hwo_mc.le, hwo_vp⟩) (by omega)
+      ((hwh_step.trans hwb_step).trans hwo_step)
   · simp only [hcf, ↓reduceIte, memoryCost_pure]
     exact ⟨Nat.zero_le _, validProg_pure _, FastStateStep.refl hseed hrep⟩
 
@@ -401,19 +366,9 @@ theorem insWriteQVAtGenProg_fastStep {c U V w n_max base b X q_val v_val : ℕ}
     writeValGenProg_fastStep henv hps_lt hv_lt hwq_step.2.1 hwq_step.2.2.1 (s := s1)
   dsimp only
   unfold insWriteQVAtGenProg; dsimp only
-  have hs'_eq : (Memory.spec 0).clientState s
-      (physSlotGenProg (((cp, base), b), X) >>= fun p =>
-        writeQuotGenProg (((cp, base), p), q_val) >>= fun _ =>
-        writeValGenProg (((cp, base), p), v_val)) =
-      (Memory.spec 0).clientState s1
-        (writeValGenProg (((cp, base), fs.physSlot n_max b X), v_val)) := by
-    rw [clientState_bind, hps_st, hps_res, clientState_bind]
-  rw [hs'_eq]
-  refine ⟨?_, ?_, hwq_step.trans hwv_step⟩
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hps_st, hps_res]; dsimp only [s1, cp] at hps_mc hwq_mc hwv_mc ⊢; omega
-  · refine validProg_bind hps_vp ?_; rw [hps_st, hps_res]
-    exact validProg_bind hwq_vp hwv_vp
+  exact CostBoundedStep.elim (.bind ⟨hps_st, hps_res, hps_mc, hps_vp⟩ <|
+    .bind ⟨rfl, rfl, hwq_mc.le, hwq_vp⟩ ⟨rfl, rfl, hwv_mc.le, hwv_vp⟩) (by omega)
+    (hwq_step.trans hwv_step)
 
 /-- Set `bktCount b := X + 1` and `locState b X := tag` (`d = ((((cp, base), b), X), tag)`). -/
 @[irreducible] private def insWriteCntLocGenProg :
@@ -479,17 +434,8 @@ private theorem insWriteCntLocGenProg_fastStep {c U V w n_max base b X tag : ℕ
     hwb_step.2.1 hwb_step.2.2.1 (s := s1)
   dsimp only
   unfold insWriteCntLocGenProg; dsimp only; simp only [pure_bind]
-  have hs'_eq : (Memory.spec 0).clientState s
-      (writeBktFieldGenProg ((((cp, base), b), 0), X + 1) >>= fun _ =>
-        writeFastLocGenProg ((((cp, base), b), X), tag)) =
-      (Memory.spec 0).clientState s1
-        (writeFastLocGenProg ((((cp, base), b), X), tag)) := by
-    rw [clientState_bind]
-  rw [hs'_eq]
-  refine ⟨?_, ?_, hwb_step.trans hwl_step⟩
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    dsimp only [s1, cp] at hwb_mc hwl_mc ⊢; omega
-  · exact validProg_bind hwb_vp hwl_vp
+  exact CostBoundedStep.elim (.bind ⟨rfl, rfl, hwb_mc.le, hwb_vp⟩ ⟨rfl, rfl, hwl_mc.le, hwl_vp⟩)
+    (by omega) (hwb_step.trans hwl_step)
 
 /-- Increment `liveInsCount b` by `1` (`d = ((cp, base), b)`). -/
 @[irreducible] private def insIncLiveInsGenProg :
@@ -569,17 +515,8 @@ private theorem insIncLiveInsGenProg_fastStep {c U V w n_max base b : ℕ}
   simp only [setBktField] at hwb_step
   dsimp only
   unfold insIncLiveInsGenProg; dsimp only; simp only [pure_bind]
-  have hs'_eq : (Memory.spec 0).clientState s
-      (readBktFieldGenProg (((cp, base), b), 3) >>= fun lic =>
-        writeBktFieldGenProg ((((cp, base), b), 3), lic + 1)) =
-      (Memory.spec 0).clientState s
-        (writeBktFieldGenProg ((((cp, base), b), 3), fs.liveInsCount b + 1)) := by
-    rw [clientState_bind, h3_st, h3_res]
-  rw [hs'_eq]
-  refine ⟨?_, ?_, hwb_step⟩
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [h3_st, h3_res, h3_mc]; dsimp only [cp] at hwb_mc ⊢; omega
-  · refine validProg_bind h3_vp ?_; rw [h3_st, h3_res]; exact hwb_vp
+  exact CostBoundedStep.elim (.bind ⟨h3_st, h3_res, h3_mc.le, h3_vp⟩ ⟨rfl, rfl, hwb_mc.le, hwb_vp⟩)
+    (by omega) hwb_step
 
 /-- Finish collision insertion (`hasFpCollision = true`): write `bktCount`, `locState := 2 + curEp`,
 and insert `(b, X)` into `buf curEp` (`d = ((((cp, base), b), X), rKey)`). -/
@@ -753,20 +690,9 @@ theorem insFinishCollisionGenProg_fastStep {c U V w n_max base b X rKey : ℕ}
       hna_cap hia_cap hb hX_tl (rKey := rKey) (s := s1)
   dsimp only
   unfold insFinishCollisionGenProg; dsimp only; simp only [pure_bind]
-  have hs'_eq : (Memory.spec 0).clientState s
-      (readHdrProg (base, hdrCurEp) >>= fun ep =>
-        insWriteCntLocGenProg ((((cp, base), b), X), 2 + ep) >>= fun _ =>
-        bufInsertGenProg ((((cp, base), ep), rKey), (b, X))) =
-      (Memory.spec 0).clientState s1
-        (bufInsertGenProg ((((cp, base), fs.curEp), rKey), (b, X))) := by
-    rw [clientState_bind, hep_st, hep_res, clientState_bind]
-  rw [hs'_eq]
-  refine ⟨?_, ?_, hwc_step.trans hbi_step⟩
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hep_st, hep_res, hep_mc]
-    dsimp only [s1, cp] at hwc_mc hbi_mc ⊢; omega
-  · refine validProg_bind hep_vp ?_; rw [hep_st, hep_res]
-    exact validProg_bind hwc_vp hbi_vp
+  exact CostBoundedStep.elim (.bind ⟨hep_st, hep_res, hep_mc.le, hep_vp⟩ <|
+    .bind ⟨rfl, rfl, hwc_mc, hwc_vp⟩ ⟨rfl, rfl, hbi_mc, hbi_vp⟩) (by omega)
+    (hwc_step.trans hbi_step)
 
 theorem insFinishDirectGenProg_fastStep {c U V w n_max base b X fp lIdx : ℕ}
     {θ : SeedWhp c U n_max} {fs : FastState} {lm : ℕ → Option ℕ} {s : Memory.State}
@@ -817,18 +743,9 @@ theorem insFinishDirectGenProg_fastStep {c U V w n_max base b X fp lIdx : ℕ}
     insIncLiveInsGenProg_fastStep (fs := fs2) henv hb hlic hbi_step.2.1 hbi_step.2.2.1 (s := s2)
   dsimp only
   unfold insFinishDirectGenProg; dsimp only; simp only [pure_bind]
-  have hs'_eq : (Memory.spec 0).clientState s
-      (insWriteCntLocGenProg ((((cp, base), b), X), 1) >>= fun _ =>
-        btreeInsertGenProg ((((cp, base), fs.liveSliceIdx b), fp), X) >>= fun _ =>
-        insIncLiveInsGenProg ((cp, base), b)) =
-      (Memory.spec 0).clientState s2
-        (insIncLiveInsGenProg ((cp, base), b)) := by
-    rw [clientState_bind, clientState_bind]
-  rw [hs'_eq]
-  refine ⟨?_, ?_, (hwc_step.trans hbi_step).trans hic_step⟩
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    dsimp only [s1, s2, cp] at hwc_mc hbi_mc hic_mc ⊢; omega
-  · exact validProg_bind hwc_vp (validProg_bind hbi_vp hic_vp)
+  exact CostBoundedStep.elim (.bind ⟨rfl, rfl, hwc_mc, hwc_vp⟩ <|
+    .bind ⟨rfl, rfl, hbi_mc, hbi_vp⟩ ⟨rfl, rfl, hic_mc, hic_vp⟩) (by omega)
+    ((hwc_step.trans hbi_step).trans hic_step)
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
 

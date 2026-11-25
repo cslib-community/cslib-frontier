@@ -46,18 +46,10 @@ theorem self_mem_iteratedPDerivSpan (p : MvPolynomial σ R) : p ∈ iteratedPDer
 /-- The space of all partial derivatives of a polynomial is closed under partial derivatives. -/
 theorem pderiv_mem_iteratedPDerivSpan (i : σ) {p q : MvPolynomial σ R}
     (hq : q ∈ iteratedPDerivSpan p) : pderiv i q ∈ iteratedPDerivSpan p := by
-  refine Submodule.span_induction (p := fun q _ => pderiv i q ∈ iteratedPDerivSpan p)
-    ?_ ?_ ?_ ?_ hq
-  · rintro _ ⟨⟨k, α⟩, rfl⟩
-    have h := iteratedPDeriv_mem_iteratedPDerivSpan (Fin.cons i α) p
-    rwa [iteratedPDeriv_succ_apply, Fin.cons_zero, Fin.tail_cons] at h
-  · rw [map_zero]
-    exact zero_mem _
-  · intro x y _ _ hx hy
-    rw [map_add]
-    exact add_mem hx hy
-  · intro r x _ hx
-    rw [Derivation.map_smul]
-    exact Submodule.smul_mem _ _ hx
+  change q ∈ (iteratedPDerivSpan p).comap (pderiv i).toLinearMap
+  refine Submodule.span_le.mpr ?_ hq
+  rintro _ ⟨⟨k, α⟩, rfl⟩
+  have h := iteratedPDeriv_mem_iteratedPDerivSpan (Fin.cons i α) p
+  rwa [iteratedPDeriv_succ_apply, Fin.cons_zero, Fin.tail_cons] at h
 
 end MvPolynomial

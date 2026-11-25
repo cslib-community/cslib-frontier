@@ -85,13 +85,12 @@ theorem wellFormed : (graph (n := n) H hq).WellFormed :=
 private theorem rowInputs_length_le (i : Fin n) :
     (SelectorNetwork.AndOr.rowInputs (PortGraph.network H n) (rowSection H hq) i).length ≤ q := by
   let xs := SelectorNetwork.AndOr.rowInputs (PortGraph.network H n) (rowSection H hq) i
-  have hn : xs.Nodup := (PortGraph.network H n).characters_nodup.filter _
-  have hinj : Set.InjOn Prod.snd (↑xs.toFinset : Set (Fin n × Fin q)) := by
-    intro c hc d hd hcd
+  have hinj : Set.InjOn Prod.snd (↑xs.toFinset : Set (Fin n × Fin q)) := fun c hc d hd hcd => by
     have hc' := (of_decide_eq_true (List.mem_filter.mp (List.mem_toFinset.mp hc)).2).1
     have hd' := (of_decide_eq_true (List.mem_filter.mp (List.mem_toFinset.mp hd)).2).1
-    rw [PortGraph.network_row] at hc' hd'
-    exact Prod.ext (hc'.trans hd'.symm) hcd
+    exact Prod.ext (((PortGraph.network_row H c).symm.trans hc').trans
+      (hd'.symm.trans (PortGraph.network_row H d))) hcd
+  have hn : xs.Nodup := (PortGraph.network H n).characters_nodup.filter _
   change xs.length ≤ q
   rw [← List.toFinset_card_of_nodup hn, ← Finset.card_image_of_injOn hinj]
   exact (Finset.card_le_univ _).trans_eq (by simp)
@@ -100,15 +99,11 @@ private theorem rowInputs_length_le (i : Fin n) :
 theorem input_arity_le (v : Vert (Fin n) (Fin n × Fin q) (RelationSite q n)) :
     (SelectorNetwork.AndOr.cell (PortGraph.network H n)
       (rowSection H hq) v).top.length ≤ 3 * q := by
-  rcases v with i | (c | r)
-  · change (Gadgets.OrTree.bundle _).length ≤ _
-    rw [Gadgets.OrTree.length_bundle]
-    exact (rowInputs_length_le H hq i).trans (by omega)
-  · change (Gadgets.OrTree.bundle _).length ≤ _
-    rw [Gadgets.OrTree.length_bundle]
-    have hc := PortGraph.selectorWeight_le H c
-    change ((PortGraph.network H n).incident c).length + 1 ≤ 3 * q + 1 at hc
-    omega
+  rcases v with i | (c | _)
+  · exact (Gadgets.OrTree.length_bundle _).le.trans ((rowInputs_length_le H hq i).trans (by omega))
+  · have hc : ((PortGraph.network H n).incident c).length + 1 ≤ 3 * q + 1 :=
+      PortGraph.selectorWeight_le H c
+    exact (Gadgets.OrTree.length_bundle _).le.trans (by omega)
   · exact Nat.zero_le _
 
 /-- Shared slots zero and one plus every private creation slot fit in one fixed local interval. -/

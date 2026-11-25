@@ -245,16 +245,10 @@ private theorem transGen_cycle_forward {R : V → V → Prop} {k : ℕ} (hk : 0 
     induction m, hm using Nat.le_induction with
     | base => exact hstep ⟨0, hk⟩
     | succ m hm ihm =>
-      have hmod : ((m % k) + 1) % k = (m + 1) % k := by
-        simp [Nat.add_mod]
       have hs := hstep ⟨m % k, Nat.mod_lt _ hk⟩
-      have hs' : Relation.TransGen R (f ⟨m % k, Nat.mod_lt _ hk⟩)
-          (f ⟨(m + 1) % k, Nat.mod_lt _ hk⟩) := by
-        convert hs using 2
-        exact Fin.ext hmod.symm
-      exact Relation.TransGen.trans ihm hs'
-  have h := hwalk k hk
-  simpa only [Nat.mod_self] using h
+      simp only [Nat.mod_add_mod] at hs
+      exact ihm.trans hs
+  simpa only [Nat.mod_self] using hwalk k hk
 
 private theorem transGen_cycle_backward {R : V → V → Prop} {k : ℕ} (hk : 0 < k) (f : Fin k → V)
     (hstep : ∀ i : Fin k, Relation.TransGen R (f ⟨(i.val + 1) % k, Nat.mod_lt _ hk⟩) (f i)) :
@@ -287,9 +281,7 @@ theorem isEmpty_disputeWheel (hGR : GaoRexfordConditions S) : IsEmpty (DisputeWh
   have hrp_vf : ∀ i : Fin W.size, IsValleyFree hGR.rel (W.rim i ++ W.pivot (W.next i)) :=
     fun i => hGR.valleyFree (W.node i) _ (hrp_perm i)
   have hrim_head : ∀ i : Fin W.size, (W.rim i).head? = some (W.node i) := fun i => by
-    have h1 := (hrp_sp i).1
-    rw [List.head?_append_of_ne_nil _ (W.rim_nonempty i)] at h1
-    exact h1
+    simpa only [List.head?_append_of_ne_nil _ (W.rim_nonempty i)] using (hrp_sp i).1
   have hchain : ∀ i : Fin W.size, (W.rim i ++
       W.node (W.next i) :: nextHop (W.next i) :: pivTail (W.next i)).IsChain S.graph.Adj :=
     fun i => by rw [← hpiv_eq (W.next i)]; exact (hrp_sp i).2.2.1
@@ -323,35 +315,26 @@ theorem isEmpty_disputeWheel (hGR : GaoRexfordConditions S) : IsEmpty (DisputeWh
         exact hcust_rim
       exact valleyFree_customer_propagate (hrim_head i) (hchain i) (hvf i) hfirst
     obtain ⟨i₀, hi₀⟩ := hex
-    have hall_cust : ∀ i : Fin W.size, hGR.rel (W.node i) (nextHop i) = .customer := by
-      have hshift : ∀ m : ℕ,
-          hGR.rel (W.node ⟨(i₀.val + m) % W.size, Nat.mod_lt _ W.size_pos⟩)
-            (nextHop ⟨(i₀.val + m) % W.size, Nat.mod_lt _ W.size_pos⟩) = .customer := by
-        intro m
-        induction m with
-        | zero =>
-          have hidx : (⟨(i₀.val + 0) % W.size, Nat.mod_lt _ W.size_pos⟩ : Fin W.size) = i₀ := by
-            apply Fin.ext
-            simp [Nat.mod_eq_of_lt i₀.isLt]
-          rwa [hidx]
-        | succ m ihm =>
-          have h2 := (hprop ⟨(i₀.val + m) % W.size, Nat.mod_lt _ W.size_pos⟩ ihm).2
-          have hmod : ((i₀.val + m) % W.size + 1) % W.size = (i₀.val + (m + 1)) % W.size := by
-            rw [Nat.add_mod, Nat.mod_mod, ← Nat.add_mod, Nat.add_assoc]
-          have hidx : W.next ⟨(i₀.val + m) % W.size, Nat.mod_lt _ W.size_pos⟩ =
-              ⟨(i₀.val + (m + 1)) % W.size, Nat.mod_lt _ W.size_pos⟩ := Fin.ext hmod
-          rwa [hidx] at h2
-      intro i
-      let m := (i.val + W.size - i₀.val) % W.size
-      have hidx : (⟨(i₀.val + m) % W.size, Nat.mod_lt _ W.size_pos⟩ : Fin W.size) = i := by
-        apply Fin.ext
-        dsimp [m]
-        have h1 : (i₀.val + (i.val + W.size - i₀.val) % W.size) % W.size =
-            (i₀.val + (i.val + W.size - i₀.val)) % W.size := by
-          simp [Nat.add_mod]
-        rw [h1, show i₀.val + (i.val + W.size - i₀.val) = i.val + W.size by omega,
-          Nat.add_mod_right, Nat.mod_eq_of_lt i.isLt]
-      simpa only [hidx] using hshift m
+    -- The customer property spreads from `i₀` to spoke `(i₀ + m) % W.size` for every `m`, hence to
+    -- every spoke.
+    have hshift : ∀ m : ℕ,
+        hGR.rel (W.node ⟨(i₀.val + m) % W.size, Nat.mod_lt _ W.size_pos⟩)
+          (nextHop ⟨(i₀.val + m) % W.size, Nat.mod_lt _ W.size_pos⟩) = .customer := by
+      intro m
+      induction m with
+      | zero => simpa only [Nat.add_zero, Nat.mod_eq_of_lt i₀.isLt, Fin.eta] using hi₀
+      | succ m ihm =>
+        have hidx : W.next ⟨(i₀.val + m) % W.size, Nat.mod_lt _ W.size_pos⟩ =
+            ⟨(i₀.val + (m + 1)) % W.size, Nat.mod_lt _ W.size_pos⟩ :=
+          Fin.ext (by simp only [DisputeWheel.next, Nat.mod_add_mod, Nat.add_assoc])
+        simpa only [hidx] using (hprop _ ihm).2
+    have hall_cust : ∀ i : Fin W.size, hGR.rel (W.node i) (nextHop i) = .customer := fun i => by
+      have hidx : (⟨(i₀.val + (i.val + W.size - i₀.val)) % W.size, Nat.mod_lt _ W.size_pos⟩ :
+          Fin W.size) = i := Fin.ext (by
+        dsimp only
+        rw [show i₀.val + (i.val + W.size - i₀.val) = i.val + W.size by omega, Nat.add_mod_right,
+          Nat.mod_eq_of_lt i.isLt])
+      simpa only [hidx] using hshift (i.val + W.size - i₀.val)
     have hcyc := transGen_cycle_forward W.size_pos W.node fun i => (hprop i (hall_cust i)).1
     exact hGR.noCustomerProviderCycle _ hcyc
   · -- Case 2: no spoke has a customer pivot path; backward propagation forces a reverse

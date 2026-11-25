@@ -95,6 +95,27 @@ theorem outputArm_isWalk (hw : w.IsWalk) (hclosed : w.finish = w.start)
     rw [Walk.finish_drop, hclosed]
   · simp [outputArm, Walk.snoc, Walk.finish, Walk.finishFrom_append, Walk.finishFrom]
 
+private theorem edges_snoc (p : Walk F) (b x : Occurrence F) :
+    (p.snoc b x).edges = p.edges ++ [b, x] := by
+  change Walk.edgesOf (p.steps ++ [(b, x)]) = _
+  rw [Walk.edgesOf_append]
+  rfl
+
+private theorem cutAt_attachPort_flip {D Q : DAG F} {a : Arc F} {x : Occurrence F}
+    {sub : Walk F} (f : OccurrenceLabeling F Bool)
+    (hp : D.PairedCopies) (hq : Q.PairedCopies) (hs : Q.Subgraph D) (hsupp : Q.Supported)
+    (ha : a ∈ D.arcs) (hocc : Q.arcs.image Arc.occurrence = sub.edges.toFinset) :
+    ((D.cutAt Q.copies a).attachPort ⟨x, a.time, !a.incoming⟩).flip f =
+      (sub.snoc a.occurrence x).flip f := by
+  unfold DAG.flip Walk.flip
+  simp only [attachPort]
+  rw [cutAt_arcs hp hq hs hsupp ha, Finset.image_insert, Finset.image_insert, hocc, edges_snoc]
+  apply congrArg (fun es => BitString.flipOn es f)
+  ext o
+  simp only [mem_insert, List.mem_toFinset, List.mem_append,
+    List.mem_cons, List.not_mem_nil, or_false]
+  tauto
+
 /-- Completing the graph cut of a prefix flips exactly the executable prefix arm. -/
 theorem inputArm_flip {ts : List ℕ} {pivot : ℕ} (hw : w.IsWalk)
     (hd : w.DistinctCopies ts) (h : (blossomDAG w ts pivot).Supported)
@@ -103,29 +124,12 @@ theorem inputArm_flip {ts : List ℕ} {pivot : ℕ} (hw : w.IsWalk)
       decide (j.val < pivot)⟩
     (((blossomDAG w ts pivot).cutAt
       (blossomDAG (w.take j.val) (ts.take j.val) pivot).copies a).attachPort
-        ⟨x, a.time, !a.incoming⟩).flip f = (inputArm w j x).flip f := by
-  dsimp only
-  have hp := blossomDAG_pairedCopies hw hd (pivot := pivot)
-  have hq := blossomDAG_pairedCopies (hw.take j.val) (hd.take j.val) (pivot := pivot)
-  have hs := blossomDAG_take_subgraph h j.val
-  have ha := List.mem_toFinset.mpr (blossomArcs_get_mem hd.1 pivot j.val j.isLt).1
-  change (⟨w.steps[j.val].1, ts[j.val]'(by have := hd.1; omega),
-    decide (j.val < pivot)⟩ : Arc F) ∈ (blossomDAG w ts pivot).arcs at ha
-  unfold DAG.flip
-  simp only [attachPort]
-  rw [cutAt_arcs hp hq hs (blossomDAG_supported _ _ _) ha,
-    Finset.image_insert, Finset.image_insert,
-    blossomDAG_occurrences _ _ pivot (hd.take j.val).1]
-  apply congrArg (fun es => BitString.flipOn es f)
-  change insert x (insert w.steps[j.val].1 (w.take j.val).edges.toFinset) =
-    (Walk.edgesOf ((w.take j.val).steps ++ [(w.steps[j.val].1, x)])).toFinset
-  rw [Walk.edgesOf_append]
-  change insert x (insert w.steps[j.val].1 (w.take j.val).edges.toFinset) =
-    ((w.take j.val).edges ++ [w.steps[j.val].1, x]).toFinset
-  ext o
-  simp only [mem_insert, List.mem_toFinset, List.mem_append,
-    List.mem_cons, List.not_mem_nil, or_false]
-  tauto
+        ⟨x, a.time, !a.incoming⟩).flip f = (inputArm w j x).flip f :=
+  cutAt_attachPort_flip f (blossomDAG_pairedCopies hw hd)
+    (blossomDAG_pairedCopies (hw.take j.val) (hd.take j.val))
+    (blossomDAG_take_subgraph h j.val) (blossomDAG_supported _ _ _)
+    (List.mem_toFinset.mpr (blossomArcs_get_mem hd.1 pivot j.val j.isLt).1)
+    (blossomDAG_occurrences _ _ pivot (hd.take j.val).1)
 
 /-- Completing the graph cut of a suffix flips exactly the executable reverse-suffix arm. -/
 theorem outputArm_flip {ts : List ℕ} {pivot : ℕ} (hw : w.IsWalk)
@@ -136,31 +140,13 @@ theorem outputArm_flip {ts : List ℕ} {pivot : ℕ} (hw : w.IsWalk)
     (((blossomDAG w ts pivot).cutAt
       (blossomDAG (w.drop (j.val + 1)) (ts.drop (j.val + 1))
         (pivot - (j.val + 1))).copies a).attachPort
-          ⟨x, a.time, !a.incoming⟩).flip f = (outputArm w j x).flip f := by
-  dsimp only
-  have hp := blossomDAG_pairedCopies hw hd (pivot := pivot)
-  have hq := blossomDAG_pairedCopies (hw.drop (j.val + 1)) (hd.drop (j.val + 1))
-    (pivot := pivot - (j.val + 1))
-  have hs := blossomDAG_drop_subgraph hd.1 h (j.val + 1)
-  have ha := List.mem_toFinset.mpr (blossomArcs_get_mem hd.1 pivot j.val j.isLt).2
-  change (⟨w.steps[j.val].2, ts[j.val]'(by have := hd.1; omega),
-    decide (pivot ≤ j.val + 1)⟩ : Arc F) ∈ (blossomDAG w ts pivot).arcs at ha
-  unfold DAG.flip
-  simp only [attachPort]
-  rw [cutAt_arcs hp hq hs (blossomDAG_supported _ _ _) ha,
-    Finset.image_insert, Finset.image_insert,
-    blossomDAG_occurrences _ _ (pivot - (j.val + 1)) (hd.drop (j.val + 1)).1]
-  apply congrArg (fun es => BitString.flipOn es f)
-  change insert x (insert w.steps[j.val].2 (w.drop (j.val + 1)).edges.toFinset) =
-    (Walk.edgesOf ((w.drop (j.val + 1)).reverse.steps ++ [(w.steps[j.val].2, x)])).toFinset
-  rw [Walk.edgesOf_append]
-  change insert x (insert w.steps[j.val].2 (w.drop (j.val + 1)).edges.toFinset) =
-    ((w.drop (j.val + 1)).reverse.edges ++ [w.steps[j.val].2, x]).toFinset
-  rw [Walk.edges_reverse]
-  ext o
-  simp only [mem_insert, List.mem_toFinset, List.mem_append, List.mem_reverse,
-    List.mem_cons, List.not_mem_nil, or_false]
-  tauto
+          ⟨x, a.time, !a.incoming⟩).flip f = (outputArm w j x).flip f :=
+  cutAt_attachPort_flip f (blossomDAG_pairedCopies hw hd)
+    (blossomDAG_pairedCopies (hw.drop (j.val + 1)) (hd.drop (j.val + 1)))
+    (blossomDAG_drop_subgraph hd.1 h (j.val + 1)) (blossomDAG_supported _ _ _)
+    (List.mem_toFinset.mpr (blossomArcs_get_mem hd.1 pivot j.val j.isLt).2)
+    (by rw [blossomDAG_occurrences _ _ _ (hd.drop (j.val + 1)).1, Walk.edges_reverse,
+      List.toFinset_reverse])
 
 /-- Two actual arm candidates per step at the outside port's original constraint. -/
 @[expose] def armCandidates (w : Walk F) (x : Occurrence F) : List (Walk F) :=
@@ -268,26 +254,21 @@ theorem attachmentWalk_spec {f : OccurrenceLabeling F Bool} (hb : w.IsBlossom Ta
 /-- Every arm uses old blossom incidences and its one actual external boundary port only. -/
 theorem armCandidates_edges {x : Occurrence F} {p : Walk F} (hp : p ∈ armCandidates w x)
     {o : Occurrence F} (ho : o ∈ p.edges) : o = x ∨ o ∈ w.edges := by
+  have hsnoc {sub : Walk F} {b : Occurrence F} (h : o ∈ (sub.snoc b x).edges)
+      (hsub : ∀ e ∈ sub.edges, e ∈ w.edges) (hb : b ∈ w.edges) : o = x ∨ o ∈ w.edges := by
+    rw [edges_snoc] at h
+    simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at h
+    rcases h with h | rfl | rfl
+    · exact Or.inr (hsub o h)
+    · exact Or.inr hb
+    · exact Or.inl rfl
   obtain ⟨j, _, rfl | rfl⟩ := (mem_armCandidates x p).mp hp
-  · change o ∈ Walk.edgesOf ((w.take j.val).steps ++ [(w.steps[j.val].1, x)]) at ho
-    rw [Walk.edgesOf_append] at ho
-    change o ∈ (w.take j.val).edges ++ [w.steps[j.val].1, x] at ho
-    rcases List.mem_append.mp ho with ho | ho
-    · exact Or.inr ((List.take_sublist j.val w.steps).flatMap
-        (fun s => [s.1, s.2]) |>.subset ho)
-    · rcases List.mem_cons.mp ho with rfl | ho
-      · exact Or.inr (List.mem_flatMap.mpr ⟨w.steps[j.val], List.getElem_mem j.isLt, by simp⟩)
-      · exact Or.inl (List.mem_singleton.mp ho)
-  · change o ∈ Walk.edgesOf ((w.drop (j.val + 1)).reverse.steps ++
-      [(w.steps[j.val].2, x)]) at ho
-    rw [Walk.edgesOf_append] at ho
-    change o ∈ (w.drop (j.val + 1)).reverse.edges ++ [w.steps[j.val].2, x] at ho
-    rcases List.mem_append.mp ho with ho | ho
-    · rw [Walk.edges_reverse, List.mem_reverse] at ho
-      exact Or.inr ((List.drop_sublist (j.val + 1) w.steps).flatMap
-        (fun s => [s.1, s.2]) |>.subset ho)
-    · rcases List.mem_cons.mp ho with rfl | ho
-      · exact Or.inr (List.mem_flatMap.mpr ⟨w.steps[j.val], List.getElem_mem j.isLt, by simp⟩)
-      · exact Or.inl (List.mem_singleton.mp ho)
+  · exact hsnoc ho
+      (fun e he => (List.take_sublist j.val w.steps).flatMap (fun s => [s.1, s.2]) |>.subset he)
+      (List.mem_flatMap.mpr ⟨w.steps[j.val], List.getElem_mem j.isLt, by simp⟩)
+  · exact hsnoc ho
+      (fun e he => (List.drop_sublist (j.val + 1) w.steps).flatMap (fun s => [s.1, s.2]) |>.subset
+        (by rwa [Walk.edges_reverse, List.mem_reverse] at he))
+      (List.mem_flatMap.mpr ⟨w.steps[j.val], List.getElem_mem j.isLt, by simp⟩)
 
 end Cslib.Logic.PL.CSP.Blossom

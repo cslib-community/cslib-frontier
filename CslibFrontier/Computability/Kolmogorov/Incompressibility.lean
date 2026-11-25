@@ -68,9 +68,8 @@ theorem encard_setOf_ecomplexity_lt (r : ℕ) : {x | M.ecomplexity x < r}.encard
   have hle : {x | M.ecomplexity x < r}.encard ≤ {p : List Bool | p.length < r}.encard :=
     Set.encard_le_encard_of_injOn (fun _ hx => (hf hx).1)
       fun _ hx _ hy hxy => (hf hx).2.unique (hxy ▸ (hf hy).2)
-  have htop : {p : List Bool | p.length < r}.encard ≠ ⊤ :=
-    ne_top_of_le_ne_top (by simp)
-      (le_self_add.trans_eq (BitString.encard_setOf_length_lt_add_one r))
+  have htop := ne_top_of_le_ne_top (by simp)
+    (le_self_add.trans_eq (BitString.encard_setOf_length_lt_add_one r))
   rw [← ENat.add_one_le_iff (ne_top_of_le_ne_top htop hle),
     ← BitString.encard_setOf_length_lt_add_one r]
   exact add_le_add_left hle 1
@@ -87,9 +86,9 @@ theorem encard_setOf_etimeBoundedComplexity_lt (t r : ℕ) :
 theorem encard_setOf_ecomplexity_le_lt {β : Type*} {enc : β → α} (henc : enc.Injective)
     (s : ℕ) : {b | M.ecomplexity (enc b) ≤ s}.encard < 2 ^ (s + 1) := by
   rw [← henc.encard_image]
-  refine (Set.encard_le_encard ?_).trans_lt (M.encard_setOf_ecomplexity_lt (s + 1))
-  rintro _ ⟨b, hb, rfl⟩
-  exact (show M.ecomplexity (enc b) ≤ s from hb).trans_lt (by exact_mod_cast s.lt_succ_self)
+  exact lt_of_le_of_lt (Set.encard_le_encard fun _ ⟨b, hb, h⟩ => h ▸
+    (show M.ecomplexity (enc b) ≤ s from hb).trans_lt (by exact_mod_cast s.lt_succ_self))
+    (M.encard_setOf_ecomplexity_lt (s + 1))
 
 /-- Under an injective encoding `enc`, fewer than `2 ^ (s + 1)` values `b` have time-bounded
 complexity of `enc b` at most `s`, for every time bound. -/
@@ -110,10 +109,9 @@ theorem exists_mem_le_ecomplexity {s : Set α} {r : ℕ} (hs : 2 ^ r ≤ s.encar
 /-- All but fewer than `2 ^ r` elements of a finite set have complexity at least `r`. -/
 theorem ncard_lt_ncard_setOf_le_ecomplexity_add {s : Set α} (hs : s.Finite) (r : ℕ) :
     s.ncard < {x ∈ s | r ≤ M.ecomplexity x}.ncard + 2 ^ r := by
-  have hsub : s ⊆ {x ∈ s | r ≤ M.ecomplexity x} ∪ {x | M.ecomplexity x < r} := fun x hx => by
-    by_cases h : (r : ℕ∞) ≤ M.ecomplexity x
-    · exact .inl ⟨hx, h⟩
-    · exact .inr (not_le.mp h)
+  classical
+  have hsub : s ⊆ {x ∈ s | r ≤ M.ecomplexity x} ∪ {x | M.ecomplexity x < r} := fun x hx =>
+    if h : (r : ℕ∞) ≤ M.ecomplexity x then .inl ⟨hx, h⟩ else .inr (not_le.mp h)
   have hfin : {x ∈ s | r ≤ M.ecomplexity x}.Finite := hs.subset fun _ hx => hx.1
   rw [← ENat.natCast_lt_natCast, Nat.cast_add, hs.cast_ncard_eq, hfin.cast_ncard_eq, Nat.cast_pow,
     Nat.cast_ofNat]
@@ -142,26 +140,23 @@ theorem exists_length_eq_forall_le_etimeBoundedComplexity (n : ℕ) :
 /-- **Most strings are nearly incompressible.** Fewer than `2 ^ (n - c)` strings of length `n`
 have complexity below `n - c`. -/
 theorem encard_setOf_length_eq_ecomplexity_lt (n c : ℕ) :
-    {x : List Bool | x.length = n ∧ M.ecomplexity x < (n - c : ℕ)}.encard < 2 ^ (n - c) := by
-  refine (Set.encard_le_encard ?_).trans_lt (M.encard_setOf_ecomplexity_lt (n - c))
-  exact fun _ hx => hx.2
+    {x : List Bool | x.length = n ∧ M.ecomplexity x < (n - c : ℕ)}.encard < 2 ^ (n - c) :=
+  lt_of_le_of_lt (Set.encard_le_encard fun _ hx => hx.2) (M.encard_setOf_ecomplexity_lt (n - c))
 
 /-- Fewer than `2 ^ (n - c)` strings of length `n` have time-bounded complexity below `n - c`. -/
 theorem encard_setOf_length_eq_etimeBoundedComplexity_lt (t n c : ℕ) :
     {x : List Bool | x.length = n ∧ M.etimeBoundedComplexity t x < (n - c : ℕ)}.encard <
-      2 ^ (n - c) := by
-  refine (Set.encard_le_encard ?_).trans_lt (M.encard_setOf_etimeBoundedComplexity_lt t (n - c))
-  exact fun _ hx => hx.2
+      2 ^ (n - c) :=
+  lt_of_le_of_lt (Set.encard_le_encard fun _ hx => hx.2)
+    (M.encard_setOf_etimeBoundedComplexity_lt t (n - c))
 
 /-- All but fewer than `2 ^ (n - c)` of the `2 ^ n` strings of length `n` have complexity at least
 `n - c`. -/
 theorem two_pow_lt_ncard_setOf_length_eq_le_ecomplexity_add (n c : ℕ) :
     2 ^ n < {x : List Bool | x.length = n ∧ (n - c : ℕ) ≤ M.ecomplexity x}.ncard + 2 ^ (n - c) := by
-  have hfin : {x : List Bool | x.length = n}.Finite :=
-    Set.finite_of_encard_eq_coe (BitString.encard_setOf_length_eq n)
-  have hcard : {x : List Bool | x.length = n}.ncard = 2 ^ n := by
-    rw [← ENat.natCast_inj, hfin.cast_ncard_eq, BitString.encard_setOf_length_eq, Nat.cast_pow,
-      Nat.cast_ofNat]
+  have hfin := Set.finite_of_encard_eq_coe (BitString.encard_setOf_length_eq n)
+  have hcard : {x : List Bool | x.length = n}.ncard = 2 ^ n := ENat.natCast_inj.mp <| by
+    rw [hfin.cast_ncard_eq, BitString.encard_setOf_length_eq, Nat.cast_pow, Nat.cast_ofNat]
   simpa only [hcard, Set.mem_ofPred_eq] using M.ncard_lt_ncard_setOf_le_ecomplexity_add hfin (n - c)
 
 end Strings

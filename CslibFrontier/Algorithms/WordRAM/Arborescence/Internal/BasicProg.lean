@@ -243,9 +243,7 @@ private theorem selectRowStep_realizes :
       SelectRowStepSafe (fun _ _ => 0) := by
   unfold selectRowStep
   realize
-  all_goals
-    obtain ⟨h1, ha, hc, hp, hco, hi⟩ := h
-    first | exact h1 | exact ha | exact hc | exact hp | exact hco | exact hi
+  all_goals tauto
 
 /-- Fills candidate feasibility and cost arrays for row `a.v`. -/
 @[expose] public def fillSelectRowProg (a : SelectRowArgs) : Memory.Prog ℕ :=
@@ -407,9 +405,7 @@ private theorem hasCycleStep_realizes :
       HasCycleStepSafe (fun _ _ => 0) := by
   unfold hasCycleStep
   realize
-  all_goals
-    obtain ⟨h1, hp, hs⟩ := h
-    first | exact h1 | exact hp | exact hs
+  all_goals tauto
 
 /-- Walks `a.n` parent pointers from `a.start` and returns `1` iff `a.start` lies on a cycle. -/
 @[expose] public def hasCycleFromProg (a : HasCycleArgs) : Memory.Prog ℕ := do
@@ -482,9 +478,7 @@ private theorem findCycleOuterStep_realizes :
       encFindCycleState FindCycleOuterStepSafe (fun _ _ => 0) := by
   unfold findCycleOuterStep
   realize [hasCycleFromProg_realizes]
-  all_goals
-    obtain ⟨h1, hv, hcyc⟩ := h
-    first | exact h1 | exact hv | exact hcyc
+  all_goals tauto
 
 /-- Returns the least non-root vertex lying on a cycle, or `a.n` if the parent map is acyclic. -/
 @[expose] public def findCycleProg (a : FindCycleArgs) : Memory.Prog ℕ := do
@@ -552,9 +546,7 @@ private theorem cycleMaskStep_realizes :
       encCycleMaskState CycleMaskStepSafe (fun _ _ => 0) := by
   unfold cycleMaskStep
   realize
-  all_goals
-    obtain ⟨h1, hp, hm, hs⟩ := h
-    first | exact h1 | exact hp | exact hm | exact hs
+  all_goals tauto
 
 /-- Walks `a.n` steps from `a.x0`, setting `maskBase[v] := 1` along the cycle. -/
 @[expose] public def cycleMaskLoopProg (a : CycleMaskArgs) : Memory.Prog ℕ := do

@@ -45,16 +45,14 @@ theorem pop_entry {r w base capacity : ℕ} (x : Data (registerCount r))
       (∀ j, ChanHe.Traversal.Outside j → (j.val < 64 ∨ 71 ≤ j.val) →
         y.regs (preprocessingRegisters r j) = x.regs (preprocessingRegisters r j)) ∧
       ∀ j, y.regs (controllerRegisters r j) = x.regs (controllerRegisters r j) := by
-  obtain ⟨p, hp, hs, hl, hm, hf⟩ :=
-    ChanHe.Traversal.pop_entry (x.comap (preprocessingRegisters r)) e es h2 hcap hr
-  obtain ⟨y, hy, hQ, hframe⟩ := Exec.rename_post (preprocessing_injective r)
+  obtain ⟨y, hy, ⟨hs, hl, hm, hf⟩, hframe⟩ := Exec.rename_post (preprocessing_injective r)
     (Q := fun p => ChanHe.Traversal.WordStack.Rep w base capacity
       (es.flatMap ChanHe.Traversal.Entry.words) (p.comap ChanHe.Traversal.registers) ∧
       e.Loaded p ∧ Modifies (ChanHe.Traversal.WordStack.footprint base capacity) x.mem p.mem ∧
       ∀ j, ChanHe.Traversal.Outside j → (j.val < 64 ∨ 71 ≤ j.val) →
         p.regs j = x.regs (preprocessingRegisters r j))
-    ⟨p, hp, hs, hl, hm, hf⟩
-  exact ⟨y, hy, hQ.1, hQ.2.1, hQ.2.2.1, hQ.2.2.2,
+    (ChanHe.Traversal.pop_entry (x.comap (preprocessingRegisters r)) e es h2 hcap hr)
+  exact ⟨y, hy, hs, hl, hm, hf,
     fun j => hframe _ (fun i => (controller_ne_preprocessing j i).symm)⟩
 
 private theorem copy_self {r w : ℕ} (x : Data (registerCount r)) :
@@ -119,8 +117,7 @@ theorem body_live {r w T : ℕ} {x a y : Data (registerCount r)}
       (preprocessingRegisters r ChanHe.Traversal.zero)).Holds a := by
     change a.regs _ ≠ a.regs _
     have hf' : a.regs (preprocessingRegisters r (ChanHe.Traversal.slot 0)) = e.fuel := hl.1
-    rw [hf', hz]
-    exact hf
+    rwa [hf', hz]
   have hg (j : Fin 3) : ¬(Cond.eq
       (preprocessingRegisters r (ChanHe.Traversal.arrayLength j))
       (preprocessingRegisters r ChanHe.Traversal.zero)).Holds a := by

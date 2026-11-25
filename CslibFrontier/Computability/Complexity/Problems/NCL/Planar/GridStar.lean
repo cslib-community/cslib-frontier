@@ -88,32 +88,13 @@ theorem intersection {a b : ℕ} (h : a + b = 3) {e f : Fin a ⊕ Fin b}
     unfold center
     split_ifs <;> omega
   suffices hp : p.1 = center a ∧ p.2 = 1 from Prod.ext hp.1 hp.2
-  cases e with
-  | inl i =>
-    cases f with
-    | inl j =>
-      have hi := i.isLt
-      have hj := j.isLt
-      have hij : i.val ≠ j.val := fun hh => hef (congrArg Sum.inl (Fin.ext hh))
-      simp only [Contains] at he hf
-      rcases hc with hc | hc | hc | hc <;> omega
-    | inr j =>
-      have hi := i.isLt
-      have hj := j.isLt
-      simp only [Contains] at he hf
-      rcases hc with hc | hc | hc | hc <;> omega
-  | inr i =>
-    cases f with
-    | inl j =>
-      have hi := i.isLt
-      have hj := j.isLt
-      simp only [Contains] at he hf
-      rcases hc with hc | hc | hc | hc <;> omega
-    | inr j =>
-      have hi := i.isLt
-      have hj := j.isLt
-      have hij : i.val ≠ j.val := fun hh => hef (congrArg Sum.inr (Fin.ext hh))
-      simp only [Contains] at he hf
-      rcases hc with hc | hc | hc | hc <;> omega
+  rcases e with i | i <;> rcases f with j | j
+  on_goal 1 => have : i.val ≠ j.val := fun hh => hef (congrArg Sum.inl (Fin.ext hh))
+  on_goal 4 => have : i.val ≠ j.val := fun hh => hef (congrArg Sum.inr (Fin.ext hh))
+  all_goals
+    have := i.isLt
+    have := j.isLt
+    simp only [Contains] at he hf
+    rcases hc with hc | hc | hc | hc <;> omega
 
 end Cslib.Complexity.NCL.GridStar

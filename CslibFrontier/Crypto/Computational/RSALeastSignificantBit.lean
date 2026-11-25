@@ -294,24 +294,15 @@ theorem computableInPolyTime_lsbQueries {α : Type} {enc : α ↪ List Bool} {N 
       (encPair enc encUnary) encNat := by
     have hk : ComputableInPolyTime (fun p : α × ℕ => p.2) (encPair enc encUnary) encNat :=
       ComputableInPolyTime.unary_to_binary.comp (ComputableInPolyTime.snd enc encUnary)
-    have hexp : ComputableInPolyTime (fun p : α × ℕ => (p.2 + 1) * e p.1)
-        (encPair enc encUnary) encNat :=
-      ComputableInPolyTime.binary_mul'
-        (ComputableInPolyTime.binary_add' hk (ComputableInPolyTime.const 1))
-        (he.comp (ComputableInPolyTime.fst enc encUnary))
-    exact ComputableInPolyTime.binary_powMod (ComputableInPolyTime.const 2) hexp
+    exact ComputableInPolyTime.binary_powMod (ComputableInPolyTime.const 2)
+      (.binary_mul' (.binary_add' hk (.const 1)) (he.comp (.fst enc encUnary)))
       (hN.comp (ComputableInPolyTime.fst enc encUnary)) (fun p => hpos p.1)
   have hstep : ComputableInPolyTime
       (fun p : α × ℕ => 2 ^ ((p.2 + 1) * e p.1) * y p.1 % N p.1)
       (encPair enc encUnary) encNat := by
-    have hmul : ComputableInPolyTime
-        (fun p : α × ℕ => (2 ^ ((p.2 + 1) * e p.1) % N p.1) * y p.1 % N p.1)
-        (encPair enc encUnary) encNat :=
-      ComputableInPolyTime.binary_mod'
-        (ComputableInPolyTime.binary_mul' hpow
-          (hy.comp (ComputableInPolyTime.fst enc encUnary)))
-        (hN.comp (ComputableInPolyTime.fst enc encUnary))
-    simpa only [Nat.mod_mul_mod] using hmul
+    simpa only [Nat.mod_mul_mod, Function.comp_def] using ComputableInPolyTime.binary_mod'
+      (ComputableInPolyTime.binary_mul' hpow (hy.comp (ComputableInPolyTime.fst enc encUnary)))
+      (hN.comp (ComputableInPolyTime.fst enc encUnary))
   exact ComputableInPolyTime.mapWithInput hrange hstep
 
 /-- Computing `lsbRecover N m bits = (BitString.binaryValue bits * N + 2 ^ m - 1) / 2 ^ m` is
@@ -325,12 +316,7 @@ theorem computableInPolyTime_lsbRecover {α : Type} {enc : α ↪ List Bool}
     ComputableInPolyTime.bitsBinaryValue.comp (ComputableInPolyTime.listToBits.comp hbits)
   have hpow : ComputableInPolyTime (fun a => 2 ^ m a) enc encNat :=
     ComputableInPolyTime.binary_two_pow.comp hm
-  have hnum : ComputableInPolyTime (fun a => BitString.binaryValue (bits a) * N a + 2 ^ m a - 1)
-      enc encNat :=
-    ComputableInPolyTime.binary_sub'
-      (ComputableInPolyTime.binary_add' (ComputableInPolyTime.binary_mul' hval hN) hpow)
-      (ComputableInPolyTime.const 1)
-  exact ComputableInPolyTime.binary_div' hnum hpow
+  exact .binary_div' (.binary_sub' (.binary_add' (.binary_mul' hval hN) hpow) (.const 1)) hpow
 
 /-- `lsbInverter P` runs in uniform strict polynomial time whenever the predictor `P` is PPT. -/
 theorem isPPT_lsbInverter {P : RSAPredictor} (hP : P.IsPPT) : (lsbInverter P).IsPPT := by
@@ -345,25 +331,17 @@ theorem isPPT_lsbInverter {P : RSAPredictor} (hP : P.IsPPT) : (lsbInverter P).Is
       (fun p : RSAInput × ℕ =>
         ({ secParam := p.1.secParam, publicKey := p.1.publicKey,
            challenge := ⟨p.2 % p.1.publicKey.N, Nat.mod_lt _ p.1.challenge.pos⟩ } : RSAInput))
-      (encPair encRSAInput encNat) encRSAInput := by
-    have hraw : ComputableInPolyTime
-        (fun p : RSAInput × ℕ =>
-          (p.1.secParam, p.1.publicKey, p.2 % p.1.publicKey.N))
-        (encPair encRSAInput encNat) (encPair encUnary (encPair encRSAPublicKey encNat)) :=
+      (encPair encRSAInput encNat) encRSAInput :=
+    (ComputableInPolyTime.prod (by fun_prop)
       (ComputableInPolyTime.prod (by fun_prop)
-        (ComputableInPolyTime.prod (by fun_prop)
-          (ComputableInPolyTime.binary_mod' (by fun_prop) (by fun_prop))))
-    exact hraw.of_enc_eq fun _ => rfl
-  have hqueryPPT : IsPPTOn (encPair encRSAInput encNat) encBool
-      (fun p : RSAInput × ℕ =>
-        P p.1.secParam p.1.publicKey ⟨p.2 % p.1.publicKey.N, Nat.mod_lt _ p.1.challenge.pos⟩) :=
-    hP.preprocess hprepare
+        (ComputableInPolyTime.binary_mod' (by fun_prop)
+          (by fun_prop)))).of_enc_eq fun _ => rfl
   have hmapM : IsPPTOn encRSAInput (encList encBool)
       (fun x : RSAInput =>
         (lsbQueries x.publicKey.N x.publicKey.e x.challenge x.publicKey.N.size).mapM
           fun query => P x.secParam x.publicKey
             ⟨query % x.publicKey.N, Nat.mod_lt _ x.challenge.pos⟩) :=
-    IsPPTOn.mapMWith hqueryPPT hqueries
+    IsPPTOn.mapMWith (hP.preprocess hprepare) hqueries
   have hpost : ComputableInPolyTime
       (fun p : RSAInput × List Bool =>
         lsbRecover p.1.publicKey.N p.1.publicKey.N.size p.2 % p.1.publicKey.N)

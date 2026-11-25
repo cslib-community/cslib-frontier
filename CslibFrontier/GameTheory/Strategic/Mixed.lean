@@ -87,8 +87,7 @@ theorem productWeight_single [∀ i, DecidableEq (S i)] (s t : ∀ i, S i) :
     productWeight (fun i => Pi.single (s i) 1) t = if t = s then 1 else 0 := by
   rw [productWeight_def]
   split_ifs with h
-  · subst h
-    exact prod_eq_one fun i _ => Pi.single_eq_same _ _
+  · exact h ▸ prod_eq_one fun _ _ => Pi.single_eq_same _ _
   · obtain ⟨i, hi⟩ := Function.ne_iff.1 h
     exact prod_eq_zero (mem_univ i) (Pi.single_eq_of_ne hi _)
 
@@ -99,22 +98,18 @@ variable [DecidableEq ι]
 theorem productWeight_update (p : ∀ i, S i → ℝ) (s : ∀ i, S i) (i : ι) (a : S i) :
     p i (s i) * productWeight p (Function.update s i a) = p i a * productWeight p s := by
   unfold productWeight
-  rw [prod_eq_mul_prod_sdiff_singleton_of_mem (mem_univ i)
-      (fun j => p j (Function.update s i a j)),
-    prod_eq_mul_prod_sdiff_singleton_of_mem (mem_univ i) (fun j => p j (s j))]
-  have h : ∏ j ∈ univ \ {i}, p j (Function.update s i a j) = ∏ j ∈ univ \ {i}, p j (s j) :=
-    prod_congr rfl fun j hj => by rw [Function.update_of_ne (by simpa using hj)]
-  rw [h, Function.update_self]
+  rw [prod_eq_mul_prod_sdiff_singleton_of_mem (mem_univ i),
+    prod_eq_mul_prod_sdiff_singleton_of_mem (mem_univ i) (fun j => p j (s j)),
+    prod_congr rfl fun j hj => by rw [Function.update_of_ne (by simpa using hj)],
+    Function.update_self]
   ring
 
 variable [∀ i, Fintype (S i)]
 
 /-- The product weights of probability vectors sum to `1`. -/
 theorem sum_productWeight {p : ∀ i, S i → ℝ} (hp : ∀ i, ∑ a, p i a = 1) :
-    ∑ s, productWeight p s = 1 := by
-  unfold productWeight
-  rw [← Fintype.prod_sum]
-  exact prod_eq_one fun i _ => hp i
+    ∑ s, productWeight p s = 1 :=
+  Fintype.prod_sum p ▸ prod_eq_one fun i _ => hp i
 
 /-- The expectation of a function of coordinate `i` under the product weights is its expectation
 under `p i`, if the other `p j` are probability vectors. -/
@@ -122,18 +117,17 @@ theorem sum_productWeight_mul_apply {p : ∀ i, S i → ℝ} {i : ι}
     (hp : ∀ j, j ≠ i → ∑ a, p j a = 1) (g : S i → ℝ) :
     ∑ s, productWeight p s * g (s i) = ∑ a, p i a * g a := by
   set q := Function.update p i fun a => p i a * g a
-  have hqi : ∀ a, q i a = p i a * g a := fun a => congrFun (Function.update_self i _ p) a
-  have hqj : ∀ j ∈ univ.erase i, ∀ a, q j a = p j a := fun j hj a =>
+  have hqi (a) : q i a = p i a * g a := congrFun (Function.update_self i _ p) a
+  have hqj (j) (hj : j ∈ univ.erase i) (a) : q j a = p j a :=
     congrFun (Function.update_of_ne (ne_of_mem_erase hj) _ p) a
-  have hq : ∀ s, productWeight p s * g (s i) = ∏ j, q j (s j) := fun s => by
-    rw [productWeight_def, ← mul_prod_erase univ (fun j => p j (s j)) (mem_univ i),
-      ← mul_prod_erase univ (fun j => q j (s j)) (mem_univ i), hqi,
-      prod_congr rfl fun j hj => hqj j hj (s j)]
-    ring
-  have hrest : ∏ j ∈ univ.erase i, ∑ a, q j a = 1 := prod_eq_one fun j hj =>
-    (sum_congr rfl fun a _ => hqj j hj a).trans (hp j (ne_of_mem_erase hj))
-  rw [sum_congr rfl fun s _ => hq s, ← Fintype.prod_sum q,
-    ← mul_prod_erase univ (fun j => ∑ a, q j a) (mem_univ i), hrest, mul_one]
+  rw [sum_congr rfl (g := fun s => ∏ j, q j (s j)) fun s _ => by
+      rw [productWeight_def, ← mul_prod_erase univ (fun j => p j (s j)) (mem_univ i),
+        ← mul_prod_erase univ (fun j => q j (s j)) (mem_univ i), hqi,
+        prod_congr rfl fun j hj => hqj j hj (s j)]
+      ring,
+    ← Fintype.prod_sum q, ← mul_prod_erase univ (fun j => ∑ a, q j a) (mem_univ i),
+    prod_eq_one fun j hj => (sum_congr rfl fun a _ => hqj j hj a).trans
+      (hp j (ne_of_mem_erase hj)), mul_one]
   simp only [hqi]
 
 /-- The **product distribution** of the mixed strategies `p i`, as a finitely supported
@@ -166,19 +160,15 @@ theorem sum_mul_sum_productWeight_update (p : ∀ i, S i → ℝ) {i : ι} (hp :
   calc ∑ a, p i a * ∑ s, productWeight p s * f (Function.update s i a)
       = ∑ x : S i × (∀ j, S j),
           p i x.1 * (productWeight p x.2 * f (Function.update x.2 i x.1)) := by
-        rw [Fintype.sum_prod_type]
-        simp only [mul_sum]
+        simp only [Fintype.sum_prod_type, mul_sum]
     _ = ∑ x : S i × (∀ j, S j), p i x.1 * (productWeight p x.2 * f x.2) :=
-        Fintype.sum_equiv
-          ⟨fun x => (x.2 i, Function.update x.2 i x.1),
-            fun x => (x.2 i, Function.update x.2 i x.1), fun x => by simp, fun x => by simp⟩
-          _ _ fun x => by
-            simp only [Equiv.coe_fn_mk]
+        Fintype.sum_equiv ⟨fun x => (x.2 i, Function.update x.2 i x.1),
+          fun x => (x.2 i, Function.update x.2 i x.1), fun _ => by simp, fun _ => by simp⟩ _ _
+          fun x => by
+            dsimp only [Equiv.coe_fn_mk]
             rw [← mul_assoc, ← mul_assoc, productWeight_update]
     _ = ∑ s, productWeight p s * f s := by
-        rw [Fintype.sum_prod_type]
-        simp only [← mul_sum]
-        rw [← sum_mul, hp, one_mul]
+        simp only [Fintype.sum_prod_type, ← mul_sum, ← sum_mul, hp, one_mul]
 
 /-- If `K` does not depend on coordinate `i`, then averaging `u (s i) * K s` over all profiles `s`
 depends on `u` only through its total mass `∑ b, u b`: after multiplying by `card (S i)`, it is
@@ -188,16 +178,12 @@ private theorem card_mul_sum_mul_of_update (i : ι) (u : S i → ℝ) (K : (∀ 
     (Fintype.card (S i) : ℝ) * ∑ s, u (s i) * K s = (∑ b, u b) * ∑ s, K s := by
   calc (Fintype.card (S i) : ℝ) * ∑ s, u (s i) * K s
       = ∑ x : S i × (∀ j, S j), u (x.2 i) * K x.2 := by
-        rw [Fintype.sum_prod_type]
-        simp only [sum_const, card_univ, nsmul_eq_mul]
+        simp only [Fintype.sum_prod_type, sum_const, card_univ, nsmul_eq_mul]
     _ = ∑ x : S i × (∀ j, S j), u x.1 * K x.2 :=
-        Fintype.sum_equiv
-          ⟨fun x => (x.2 i, Function.update x.2 i x.1),
-            fun x => (x.2 i, Function.update x.2 i x.1), fun x => by simp, fun x => by simp⟩
-          _ _ fun x => by
-            simp only [Equiv.coe_fn_mk, hK]
-    _ = (∑ b, u b) * ∑ s, K s := by
-        rw [Fintype.sum_prod_type, sum_mul_sum]
+        Fintype.sum_equiv ⟨fun x => (x.2 i, Function.update x.2 i x.1),
+          fun x => (x.2 i, Function.update x.2 i x.1), fun _ => by simp, fun _ => by simp⟩ _ _
+          fun x => by simp only [Equiv.coe_fn_mk, hK]
+    _ = (∑ b, u b) * ∑ s, K s := by rw [Fintype.sum_prod_type, sum_mul_sum]
 
 namespace CostGame
 
@@ -224,29 +210,19 @@ total mass: replacing `p i` by any `q` of the same total mass does not change it
 theorem deviationCost_update_self (G : CostGame ι S) (p : ∀ i, S i → ℝ) {i : ι} {q : S i → ℝ}
     (hq : ∑ b, q b = ∑ b, p i b) (a : S i) :
     G.deviationCost (Function.update p i q) i a = G.deviationCost p i a := by
-  have key : ∀ r : ∀ j, S j → ℝ, (∀ j, j ≠ i → r j = p j) →
+  have key (r : ∀ j, S j → ℝ) (hr : ∀ j, j ≠ i → r j = p j) :
       (Fintype.card (S i) : ℝ) * G.deviationCost r i a = (∑ b, r i b) *
         ∑ s, (∏ j ∈ univ.erase i, p j (s j)) * G.cost i (Function.update s i a) := by
-    intro r hr
-    have hK : ∀ (s : ∀ j, S j) (b : S i),
-        (∏ j ∈ univ.erase i, p j (Function.update s i b j)) *
-          G.cost i (Function.update (Function.update s i b) i a)
-        = (∏ j ∈ univ.erase i, p j (s j)) * G.cost i (Function.update s i a) := by
-      intro s b
+    rw [← card_mul_sum_mul_of_update i (r i) _ fun s b => by
       rw [Function.update_idem]
-      congr 1
-      exact prod_congr rfl fun j hj => by rw [Function.update_of_ne (ne_of_mem_erase hj)]
-    rw [← card_mul_sum_mul_of_update i (r i)
-      (fun s => (∏ j ∈ univ.erase i, p j (s j)) * G.cost i (Function.update s i a)) hK,
-      deviationCost_def]
-    congr 1
-    refine sum_congr rfl fun s _ => ?_
+      exact congrArg (· * _) (prod_congr rfl fun j hj =>
+        by rw [Function.update_of_ne (ne_of_mem_erase hj)]), deviationCost_def]
+    refine congrArg _ (sum_congr rfl fun s _ => ?_)
     rw [productWeight_def, ← mul_prod_erase univ (fun j => r j (s j)) (mem_univ i), mul_assoc]
-    congr 2
-    exact prod_congr rfl fun j hj => by rw [hr j (ne_of_mem_erase hj)]
+    exact congrArg (_ * ·) (congrArg (· * _) (prod_congr rfl fun j hj =>
+      by rw [hr j (ne_of_mem_erase hj)]))
   have : Nonempty (S i) := ⟨a⟩
-  have hcard : (Fintype.card (S i) : ℝ) ≠ 0 := Nat.cast_ne_zero.2 Fintype.card_ne_zero
-  refine mul_left_cancel₀ hcard ?_
+  refine mul_left_cancel₀ (Nat.cast_ne_zero.2 (Fintype.card_ne_zero (α := S i))) ?_
   rw [key _ fun j hj => Function.update_of_ne hj q p, key p fun _ _ => rfl,
     Function.update_self, hq]
 

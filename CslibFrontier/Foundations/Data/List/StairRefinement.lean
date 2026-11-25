@@ -74,10 +74,9 @@ theorem cat_eq_cons {A : Fin K → List Γ} {a : Γ} {W : List Γ} (h : cat A = 
       · rw [cat_succ, Function.update_of_ne (Fin.succ_ne_zero i).symm, hA, List.nil_append, ← h3]
         congr 1
         funext j
-        by_cases e : j = i
-        · subst e; simp
-        · rw [Function.update_of_ne e,
-            Function.update_of_ne (fun h => e (Fin.succ_injective _ h))]
+        rcases eq_or_ne j i with rfl | e
+        · simp
+        · simp [e, (Fin.succ_injective _).ne e]
     · rw [hA, List.cons_append, List.cons.injEq] at h
       refine ⟨0, l, fun j hj => absurd hj (Fin.not_lt_zero j), by rw [hA, h.1], ?_⟩
       rw [cat_succ, Function.update_self, ← h.2]
@@ -90,20 +89,18 @@ theorem cat_of_cons {A : Fin K → List Γ} {a : Γ} {i : Fin K} {l : List Γ}
   | zero => exact i.elim0
   | succ K ih =>
     rw [cat_succ, cat_succ]
-    by_cases e : i = 0
-    · subst e
-      rw [h2, Function.update_self, List.cons_append]
+    rcases eq_or_ne i 0 with rfl | e
+    · rw [h2, Function.update_self, List.cons_append]
       congr 3
     · obtain ⟨i', rfl⟩ := Fin.exists_succ_eq.2 e
       rw [Function.update_of_ne (Ne.symm e), h1 0 (Fin.succ_pos i'),
-        List.nil_append, List.nil_append]
-      rw [ih (A := fun j => A j.succ) (i := i') (fun j hj => h1 _ (by simpa using hj)) h2]
+        List.nil_append, List.nil_append,
+        ih (A := fun j => A j.succ) (i := i') (fun j hj => h1 _ (by simpa using hj)) h2]
       congr 2
       funext j
-      by_cases e' : j = i'
-      · subst e'; simp
-      · rw [Function.update_of_ne e',
-          Function.update_of_ne (fun h => e' (Fin.succ_injective _ h))]
+      rcases eq_or_ne j i' with rfl | e'
+      · simp
+      · simp [e', (Fin.succ_injective _).ne e']
 
 /-- Staircase support condition on a matrix of words. -/
 @[expose] def Stair (X : Fin K → Fin K → List Γ) : Prop :=
@@ -125,9 +122,7 @@ private def upd (X : Fin K → Fin K → List Γ) (a b : Fin K) (l : List Γ) :
 private theorem upd_row (X : Fin K → Fin K → List Γ) (a b : Fin K) (l : List Γ) :
     upd X a b l a = Function.update (X a) b l := by
   funext b'
-  by_cases e : b' = b
-  · subst e; simp [upd]
-  · simp [upd, e]
+  rcases eq_or_ne b' b with rfl | e <;> simp [upd, *]
 
 private theorem upd_row_ne (X : Fin K → Fin K → List Γ) (a b : Fin K) (l : List Γ) {a' : Fin K}
     (h : a' ≠ a) : upd X a b l a' = X a' := by
@@ -136,9 +131,7 @@ private theorem upd_row_ne (X : Fin K → Fin K → List Γ) (a b : Fin K) (l : 
 private theorem upd_col (X : Fin K → Fin K → List Γ) (a b : Fin K) (l : List Γ) :
     (fun a' => upd X a b l a' b) = Function.update (fun a' => X a' b) a l := by
   funext a'
-  by_cases e : a' = a
-  · subst e; simp [upd]
-  · simp [upd, e]
+  rcases eq_or_ne a' a with rfl | e <;> simp [upd, *]
 
 private theorem upd_col_ne (X : Fin K → Fin K → List Γ) (a b : Fin K) (l : List Γ) {b' : Fin K}
     (h : b' ≠ b) : (fun a' => upd X a b l a' b') = fun a' => X a' b' := by
@@ -150,34 +143,30 @@ private theorem IsRef.first {A B : Fin K → List Γ} {X : Fin K → Fin K → L
     ∃ b x m, X a b = c :: x ∧ (∀ j < b, B j = []) ∧ B b = c :: m ∧
       IsRef (Function.update A a l) (Function.update B b m) (upd X a b x) := by
   obtain ⟨b, x, hx1, hx2, hx3⟩ := cat_eq_cons ((h.row a).trans h2)
-  have hrow : ∀ j < a, ∀ b', X j b' = [] :=
-    fun j hj b' => cat_eq_nil.1 ((h.row j).trans (h1 j hj)) b'
-  have hcol : ∀ j < b, ∀ a', X a' j = [] := by
-    intro j hj a'
-    rcases lt_trichotomy a' a with h' | h' | h'
+  have hrow (j : Fin K) (hj : j < a) (b' : Fin K) : X j b' = [] :=
+    cat_eq_nil.1 ((h.row j).trans (h1 j hj)) b'
+  have hcol (j : Fin K) (hj : j < b) (a' : Fin K) : X a' j = [] := by
+    rcases lt_trichotomy a' a with h' | rfl | h'
     · exact hrow a' h' j
-    · subst h'; exact hx1 j hj
+    · exact hx1 j hj
     · by_contra hne
       exact absurd (h.stair a a' b j (by simp [hx2]) hne h') (not_le.2 hj)
   have hB := cat_of_cons (A := fun a' => X a' b) (i := a) (l := x)
     (fun j hj => hrow j hj b) hx2
   rw [h.col b] at hB
-  refine ⟨b, x, _, hx2, fun j hj => ?_, hB, ?_, ?_, ?_⟩
-  · rw [← h.col j]; exact cat_eq_nil.2 fun a' => hcol j hj a'
+  refine ⟨b, x, _, hx2, fun j hj => (h.col j).symm.trans (cat_eq_nil.2 (hcol j hj)), hB,
+    ?_, fun a' => ?_, fun b' => ?_⟩
   · intro a₁ a₂ b₁ b₂ n1 n2 hlt
-    have key : ∀ a' b', upd X a b x a' b' ≠ [] → X a' b' ≠ [] := by
-      intro a' b' hn
+    have key (a' b' : Fin K) (hn : upd X a b x a' b' ≠ []) : X a' b' ≠ [] := by
       by_cases e : a' = a ∧ b' = b
       · obtain ⟨rfl, rfl⟩ := e; simp [hx2]
       · simpa [upd, e] using hn
     exact h.stair _ _ _ _ (key _ _ n1) (key _ _ n2) hlt
-  · intro a'
-    by_cases e : a' = a
-    · subst e; rw [upd_row, Function.update_self, hx3]
+  · rcases eq_or_ne a' a with rfl | e
+    · rw [upd_row, Function.update_self, hx3]
     · rw [upd_row_ne _ _ _ _ e, Function.update_of_ne e, h.row]
-  · intro b'
-    by_cases e : b' = b
-    · subst e; rw [upd_col, Function.update_self]
+  · rcases eq_or_ne b' b with rfl | e
+    · rw [upd_col, Function.update_self]
     · rw [upd_col_ne _ _ _ _ e, Function.update_of_ne e, h.col]
 
 theorem IsRef.cat_eq {A B : Fin K → List Γ} {X : Fin K → Fin K → List Γ} (h : IsRef A B X) :
@@ -185,12 +174,10 @@ theorem IsRef.cat_eq {A B : Fin K → List Γ} {X : Fin K → Fin K → List Γ}
   generalize hW : cat A = W
   induction W generalizing A B X with
   | nil =>
-    symm
-    rw [cat_eq_nil] at hW ⊢
-    intro b
-    rw [← h.col b, cat_eq_nil]
-    intro a
-    exact cat_eq_nil.1 ((h.row a).trans (hW a)) b
+    rw [eq_comm, cat_eq_nil]
+    rw [cat_eq_nil] at hW
+    exact fun b => (h.col b).symm.trans
+      (cat_eq_nil.2 fun a => cat_eq_nil.1 ((h.row a).trans (hW a)) b)
   | cons c W ih =>
     obtain ⟨a, l, h1, h2, h3⟩ := cat_eq_cons hW
     obtain ⟨b, x, m, -, hb, hB, href⟩ := h.first h1 h2
@@ -208,23 +195,20 @@ theorem IsRef.unique {A B : Fin K → List Γ} {X Y : Fin K → Fin K → List �
     obtain ⟨a, l, h1, h2, h3⟩ := cat_eq_cons hW
     obtain ⟨b, x, m, hx, hb, hB, href⟩ := h.first h1 h2
     obtain ⟨b', y, m', hy, hb', hB', href'⟩ := h'.first h1 h2
-    have eb : b = b' := by
-      rcases lt_trichotomy b b' with e | e | e
-      · rw [hb' b e] at hB; simp at hB
-      · exact e
-      · rw [hb b' e] at hB'; simp at hB'
-    subst eb
-    rw [hB] at hB'
-    obtain rfl : m = m' := by simpa using hB'
+    obtain rfl : b = b' := by
+      rcases lt_trichotomy b b' with e | rfl | e
+      · simp [hb' b e] at hB
+      · rfl
+      · simp [hb b' e] at hB'
+    obtain rfl : m = m' := by simpa [hB] using hB'
     have hrec := ih href href' h3
     funext a' b'
+    have h4 := congrFun (congrFun hrec a') b'
     by_cases e : a' = a ∧ b' = b
     · obtain ⟨rfl, rfl⟩ := e
-      have h4 := congrFun (congrFun hrec a') b'
       simp only [upd, and_self, ite_true] at h4
       rw [hx, hy, h4]
-    · have h4 := congrFun (congrFun hrec a') b'
-      simpa [upd, e] using h4
+    · simpa [upd, e] using h4
 
 theorem IsRef.exists {A B : Fin K → List Γ} (h : cat A = cat B) : ∃ X, IsRef A B X := by
   generalize hW : cat A = W
@@ -232,50 +216,47 @@ theorem IsRef.exists {A B : Fin K → List Γ} (h : cat A = cat B) : ∃ X, IsRe
   | nil =>
     have hB : cat B = [] := h ▸ hW
     rw [cat_eq_nil] at hW hB
-    refine ⟨fun _ _ => [], fun _ _ _ _ hne => absurd rfl hne, fun a => ?_, fun b => ?_⟩
-    · rw [hW, cat_eq_nil]; exact fun _ => rfl
-    · rw [hB, cat_eq_nil]; exact fun _ => rfl
+    exact ⟨fun _ _ => [], fun _ _ _ _ hne => absurd rfl hne,
+      fun a => (cat_eq_nil.2 fun _ => rfl).trans (hW a).symm,
+      fun b => (cat_eq_nil.2 fun _ => rfl).trans (hB b).symm⟩
   | cons c W ih =>
     obtain ⟨a, l, h1, h2, h3⟩ := cat_eq_cons hW
     obtain ⟨b, m, g1, g2, g3⟩ := cat_eq_cons (h ▸ hW)
     obtain ⟨X, hX⟩ := ih (h3.trans g3.symm) h3
-    have hrow : ∀ j < a, ∀ b', X j b' = [] := fun j hj b' =>
+    have hrow (j : Fin K) (hj : j < a) (b' : Fin K) : X j b' = [] :=
       cat_eq_nil.1 ((hX.row j).trans (by rw [Function.update_of_ne hj.ne, h1 j hj])) b'
-    have hcol : ∀ j < b, ∀ a', X a' j = [] := fun j hj a' =>
+    have hcol (j : Fin K) (hj : j < b) (a' : Fin K) : X a' j = [] :=
       cat_eq_nil.1 ((hX.col j).trans (by rw [Function.update_of_ne hj.ne, g1 j hj])) a'
-    refine ⟨upd X a b (c :: X a b), ?_, ?_, ?_⟩
-    · have key : ∀ a' b', upd X a b (c :: X a b) a' b' ≠ [] →
-          (a' = a ∧ b' = b) ∨ X a' b' ≠ [] := by
-        intro a' b' hn
+    refine ⟨upd X a b (c :: X a b), ?_, fun a' => ?_, fun b' => ?_⟩
+    · have key (a' b' : Fin K) (hn : upd X a b (c :: X a b) a' b' ≠ []) :
+          ((a' = a ∧ b' = b) ∨ X a' b' ≠ []) ∧ a ≤ a' ∧ b ≤ b' := by
         by_cases e : a' = a ∧ b' = b
-        · exact Or.inl e
-        · exact Or.inr (by simpa [upd, e] using hn)
-      have key2 : ∀ a' b', upd X a b (c :: X a b) a' b' ≠ [] → a ≤ a' ∧ b ≤ b' := by
-        intro a' b' hn
-        rcases key a' b' hn with ⟨rfl, rfl⟩ | hne
-        · exact ⟨le_rfl, le_rfl⟩
-        · exact ⟨not_lt.1 fun hl => hne (hrow _ hl _), not_lt.1 fun hl => hne (hcol _ hl _)⟩
+        · obtain ⟨rfl, rfl⟩ := e
+          exact ⟨Or.inl ⟨rfl, rfl⟩, le_rfl, le_rfl⟩
+        · have hne : X a' b' ≠ [] := by simpa [upd, e] using hn
+          exact ⟨Or.inr hne, not_lt.1 fun hl => hne (hrow _ hl _),
+            not_lt.1 fun hl => hne (hcol _ hl _)⟩
       intro a₁ a₂ b₁ b₂ n1 n2 hlt
-      rcases key a₁ b₁ n1 with ⟨rfl, rfl⟩ | m1
-      · exact (key2 _ _ n2).2
-      · rcases key a₂ b₂ n2 with ⟨rfl, rfl⟩ | m2
-        · exact absurd (key2 _ _ n1).1 (not_le.2 hlt)
+      rcases (key a₁ b₁ n1).1 with ⟨rfl, rfl⟩ | m1
+      · exact (key _ _ n2).2.2
+      · rcases (key a₂ b₂ n2).1 with ⟨rfl, rfl⟩ | m2
+        · exact absurd (key _ _ n1).2.1 (not_le.2 hlt)
         · exact hX.stair _ _ _ _ m1 m2 hlt
-    · intro a'
-      by_cases e : a' = a
-      · subst e
-        rw [upd_row, cat_of_cons (a := c) (i := b) (l := X a' b), Function.update_idem,
+    · rcases eq_or_ne a' a with rfl | e
+      · rw [upd_row, cat_of_cons (a := c) (i := b) (l := X a' b), Function.update_idem,
           Function.update_eq_self, hX.row, Function.update_self, h2]
-        · intro j hj; rw [Function.update_of_ne hj.ne]; exact hcol j hj a'
+        · intro j hj
+          rw [Function.update_of_ne hj.ne]
+          exact hcol j hj a'
         · simp
       · rw [upd_row_ne _ _ _ _ e, hX.row, Function.update_of_ne e]
-    · intro b'
-      by_cases e : b' = b
-      · subst e
-        rw [upd_col, cat_of_cons (i := a) (l := X a b') (a := c), Function.update_idem]
+    · rcases eq_or_ne b' b with rfl | e
+      · rw [upd_col, cat_of_cons (i := a) (l := X a b') (a := c), Function.update_idem]
         · rw [Function.update_eq_self (f := fun a' => X a' b') a,
             hX.col, Function.update_self, g2]
-        · intro j hj; rw [Function.update_of_ne hj.ne]; exact hrow j hj b'
+        · intro j hj
+          rw [Function.update_of_ne hj.ne]
+          exact hrow j hj b'
         · simp
       · rw [upd_col_ne _ _ _ _ e, hX.col, Function.update_of_ne e]
 

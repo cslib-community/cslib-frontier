@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.VariableElimination.FlattenScope
+import CslibFrontier.Foundations.Data.List.Counting
 import CslibFrontier.Tactic.Realize
 
 /-!
@@ -88,35 +89,25 @@ private theorem dedupFilterBack_spec {w : ℕ} {args : DedupArgs} {flat : List �
       res.2 = outScope.length ∧
       HoldsIn res.1 outScope s' ∧
       memoryCost (dedupFilterBack args) s ≤ 1 + args.flatLen * (2 + W_out) := by
-  dsimp only
+  obtain ⟨x, flatPtr, flatLen⟩ := args
+  dsimp only at hflat hlen hW hfit
+  subst hlen
   unfold dedupFilterBack
-  let outBuf := s.frontier
-  have hv_a : (Memory.spec w).ValidHistory s
-      ((Memory.spec w).clientHistory s (Memory.allocDirty args.flatLen)) :=
-    validHistory_allocDirty hfit
-  let s₀ : Memory.State := ⟨s.mem, outBuf + args.flatLen⟩
-  have hwf₀ : Memory.WellFormed w s₀ := hwf.step (o := .allocDirty args.flatLen) hfit
-  have hloop : ∀ (ys : List ℕ) (acc : List ℕ) (t : Memory.State),
-      Memory.WellFormed w t →
-      t.frontier = outBuf + args.flatLen →
-      PreservesBelow outBuf s t →
-      args.flatPtr + ys.length ≤ outBuf →
-      Block.HoldsList args.flatPtr ys s.mem →
-      ys.length + acc.length ≤ args.flatLen →
-      (ys.foldr (dedupStepPure args.x) acc).length ≤ W_out →
-      Block.HoldsList (outBuf + args.flatLen - acc.length) acc t.mem →
-      let st₀ : DedupState := ⟨ys.length, outBuf + args.flatLen - acc.length, acc.length⟩
-      let p := iterate dedupBackStep (args.x, args.flatPtr) ys.length st₀
+  dsimp only
+  have hloop : ∀ (ys acc : List ℕ) (t : Memory.State), Memory.WellFormed w t →
+      t.frontier = s.frontier + flat.length → PreservesBelow s.frontier s t →
+      flatPtr + ys.length ≤ s.frontier → Block.HoldsList flatPtr ys s.mem →
+      ys.length + acc.length ≤ flat.length → (ys.foldr (dedupStepPure x) acc).length ≤ W_out →
+      Block.HoldsList (s.frontier + flat.length - acc.length) acc t.mem →
+      let p := iterate dedupBackStep (x, flatPtr) ys.length
+        ⟨ys.length, s.frontier + flat.length - acc.length, acc.length⟩
       let r := (Memory.spec 0).clientResult t p
       let t' := (Memory.spec 0).clientState t p
-      let out := ys.foldr (dedupStepPure args.x) acc
+      let out := ys.foldr (dedupStepPure x) acc
       (Memory.spec w).ValidHistory t ((Memory.spec w).clientHistory t p) ∧
-        t'.frontier = outBuf + args.flatLen ∧
-        PreservesBelow outBuf s t' ∧
-        r.outStart = outBuf + args.flatLen - out.length ∧
-        r.outLen = out.length ∧
-        out.length ≤ args.flatLen ∧
-        Block.HoldsList r.outStart out t'.mem ∧
+        t'.frontier = s.frontier + flat.length ∧ PreservesBelow s.frontier s t' ∧
+        r.outStart = s.frontier + flat.length - out.length ∧ r.outLen = out.length ∧
+        out.length ≤ flat.length ∧ Block.HoldsList r.outStart out t'.mem ∧
         memoryCost p t ≤ ys.length * (2 + W_out) := by
     intro ys
     induction ys using List.reverseRecOn with
@@ -124,224 +115,90 @@ private theorem dedupFilterBack_spec {w : ℕ} {args : DedupArgs} {flat : List �
       intro acc t _ hfr hpres _ _ hroom _ hacc
       simp only [List.length_nil, Nat.zero_add, List.foldr_nil, Nat.zero_mul] at hroom ⊢
       exact ⟨validHistory_pure w t _, hfr, hpres, rfl, rfl, hroom, hacc, by simp [iterate]⟩
-    | append_singleton ys' v ih =>
+    | append_singleton ys v ih =>
       intro acc t hwf_t hfr hpres hys_b hys_h hroom hW_cur hacc
-      rw [List.length_append, List.length_singleton] at hys_b hroom
-      obtain ⟨hys'_h, hv_h⟩ := Block.holdsList_append_iff.mp hys_h
-      have hv_mem_s : s.mem (args.flatPtr + ys'.length) = v :=
-        (Block.holdsList_cons_iff.mp hv_h).1
-      have hv_mem_t : t.mem (args.flatPtr + ys'.length) = v :=
-        (hpres.2.2 _ (by omega)).trans hv_mem_s
       have hacc_W : acc.length ≤ W_out :=
-        (length_le_foldr_dedupStepPure args.x (ys' ++ [v]) acc).trans hW_cur
-      let outStart := outBuf + args.flatLen - acc.length
-      let st₀ : DedupState := ⟨(ys' ++ [v]).length, outStart, acc.length⟩
-      have hpos_eq : st₀.remPos - 1 = ys'.length := by
-        dsimp only [st₀]; rw [List.length_append, List.length_singleton]; omega
-      let msArgs : MemScanArgs := ⟨v, outStart, acc.length⟩
-      have hms_val : (Memory.spec w).ValidHistory t
-          ((Memory.spec w).clientHistory t (memScan msArgs)) :=
-        memScan_valid msArgs (by dsimp only [msArgs, outStart]; omega)
-      have hms_res : (Memory.spec 0).clientResult t (memScan msArgs) =
+        (length_le_foldr_dedupStepPure x (ys ++ [v]) acc).trans hW_cur
+      simp only [List.length_append, List.length_singleton, List.foldr_append, List.foldr_cons,
+        List.foldr_nil] at hys_b hroom hW_cur ⊢
+      obtain ⟨hys_h, hv_h⟩ := Block.holdsList_append_iff.mp hys_h
+      have hv_mem : t.mem (flatPtr + ys.length) = v :=
+        (hpres.2.2 _ (by omega)).trans (Block.holdsList_cons_iff.mp hv_h).1
+      have hms_res : (Memory.spec 0).clientResult t
+          (memScan ⟨v, s.frontier + flat.length - acc.length, acc.length⟩) =
           if v ∈ acc then 1 else 0 := memScan_result hacc rfl
-      have hms_cost : memoryCost (memScan msArgs) t ≤ W_out :=
-        (memScan_cost msArgs t).trans hacc_W
-      have hr_t (addr : ℕ) : (Memory.spec 0).clientState t (Memory.read addr) = t := rfl
-      have hres_t (addr : ℕ) : (Memory.spec 0).clientResult t (Memory.read addr) = t.mem addr := rfl
-      have hlen_ys : (ys' ++ [v]).length = ys'.length + 1 := by simp
-      dsimp only
-      rw [hlen_ys]
-      have hiter_eq : iterate dedupBackStep (args.x, args.flatPtr) (ys'.length + 1)
-          ⟨ys'.length + 1, outStart, acc.length⟩ =
-          (dedupBackStep ((args.x, args.flatPtr), ⟨ys'.length + 1, outStart, acc.length⟩) >>=
-            iterate dedupBackStep (args.x, args.flatPtr) ys'.length) := rfl
-      rw [hiter_eq]
-      have hfoldr_eq : (ys' ++ [v]).foldr (dedupStepPure args.x) acc =
-          ys'.foldr (dedupStepPure args.x) (dedupStepPure args.x v acc) := by
-        rw [List.foldr_append, List.foldr_cons, List.foldr_nil]
-      rw [hfoldr_eq] at hW_cur ⊢
-      by_cases hcond : v = args.x ∨ v ∈ acc
-      · have hguard : v = args.x ∨ (Memory.spec 0).clientResult t (memScan msArgs) = 1 := by
-          rcases hcond with h1 | h2
-          · exact Or.inl h1
-          · exact Or.inr (by rw [hms_res, ite_eq_left h2])
-        have hstep_val : (Memory.spec w).ValidHistory t ((Memory.spec w).clientHistory t
-            (dedupBackStep ((args.x, args.flatPtr), ⟨ys'.length + 1, outStart, acc.length⟩))) := by
-          unfold dedupBackStep
-          dsimp only
-          rw [Nat.add_sub_cancel]
-          refine validHistory_read_bind (by omega) ?_
-          rw [hv_mem_t]
+      have hms_val := memScan_valid (w := w) ⟨v, s.frontier + flat.length - acc.length, acc.length⟩
+        (s := t) (by dsimp only; omega)
+      have hms_cost : memoryCost (memScan ⟨v, s.frontier + flat.length - acc.length, acc.length⟩) t
+          ≤ acc.length := memScan_cost _ t
+      let step := dedupBackStep ((x, flatPtr),
+        ⟨ys.length + 1, s.frontier + flat.length - acc.length, acc.length⟩)
+      let out₁ := dedupStepPure x v acc
+      -- One step reads `v`, scans the output so far for it, and prepends it unless it is `x` or
+      -- already present.
+      obtain ⟨t₁, hst, hres, hval, hcost, hwf₁, hfr₁, hpres₁, hacc₁, hout₁⟩ : ∃ t₁ : Memory.State,
+          (Memory.spec 0).clientState t step = t₁ ∧
+          (Memory.spec 0).clientResult t step =
+            ⟨ys.length, s.frontier + flat.length - out₁.length, out₁.length⟩ ∧
+          (Memory.spec w).ValidHistory t ((Memory.spec w).clientHistory t step) ∧
+          memoryCost step t ≤ 2 + W_out ∧ Memory.WellFormed w t₁ ∧ t₁.frontier = t.frontier ∧
+          PreservesBelow s.frontier s t₁ ∧
+          Block.HoldsList (s.frontier + flat.length - out₁.length) out₁ t₁.mem ∧
+          out₁.length ≤ acc.length + 1 := by
+        simp only [step, out₁, dedupBackStep, dedupStepPure, Nat.add_sub_cancel]
+        rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
+          memoryCost_bind', memoryCost_read, clientState_read, clientResult_read, hv_mem,
+          StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
+          memoryCost_bind', memScan_state, hms_res]
+        by_cases hcond : v = x ∨ v ∈ acc
+        · have hg : v = x ∨ (if v ∈ acc then 1 else 0) = 1 := hcond.imp_right (ite_eq_left ·)
+          rw [ite_eq_left hg, ite_eq_left hcond, memoryCost_pure]
+          refine ⟨t, rfl, rfl, validHistory_read_bind (by omega) ?_, by omega, hwf_t, rfl, hpres,
+            hacc, by omega⟩
+          rw [hv_mem]
           refine validHistory_bind_step hms_val ?_
-          rw [memScan_state, ite_eq_left hguard]
+          rw [memScan_state, hms_res, ite_eq_left hg]
           exact validHistory_pure w t _
-        have hstep_st : (Memory.spec 0).clientState t
-            (dedupBackStep ((args.x, args.flatPtr), ⟨ys'.length + 1, outStart, acc.length⟩)) =
-            t := by
-          unfold dedupBackStep
-          dsimp only
-          rw [Nat.add_sub_cancel, StateTransitionSpec.clientState_bind, hr_t, hres_t, hv_mem_t,
-            StateTransitionSpec.clientState_bind, memScan_state, ite_eq_left hguard]
-          rfl
-        have hstep_res : (Memory.spec 0).clientResult t
-            (dedupBackStep ((args.x, args.flatPtr), ⟨ys'.length + 1, outStart, acc.length⟩)) =
-            ⟨ys'.length, outStart, acc.length⟩ := by
-          unfold dedupBackStep
-          dsimp only
-          rw [Nat.add_sub_cancel, StateTransitionSpec.clientResult_bind, hr_t, hres_t, hv_mem_t,
-            StateTransitionSpec.clientResult_bind, memScan_state, ite_eq_left hguard]
-          rfl
-        have hstep_cost : memoryCost
-            (dedupBackStep ((args.x, args.flatPtr), ⟨ys'.length + 1, outStart, acc.length⟩)) t ≤
-            2 + W_out := by
-          unfold dedupBackStep
-          dsimp only
-          rw [Nat.add_sub_cancel, memoryCost_bind', memoryCost_read, hr_t, hres_t, hv_mem_t,
-            memoryCost_bind', memScan_state, ite_eq_left hguard, memoryCost_pure]
-          dsimp only [msArgs] at hms_cost
-          omega
-        have hdedup_eq : dedupStepPure args.x v acc = acc := by
-          unfold dedupStepPure; exact ite_eq_left hcond
-        rw [hdedup_eq] at hW_cur ⊢
-        obtain ⟨hv_i, hfr_i, hpres_i, hst_i, hlen_i, hle_i, hholds_i, hcost_i⟩ :=
-          ih acc t hwf_t hfr hpres (by omega) hys'_h (by omega) hW_cur hacc
-        rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_bind,
-          hstep_st, hstep_res, memoryCost_bind', hstep_st, hstep_res]
-        refine ⟨validHistory_bind_step hstep_val (by simpa [hstep_st, hstep_res] using hv_i),
-          hfr_i, hpres_i, hst_i, hlen_i, hle_i, hholds_i, ?_⟩
-        calc memoryCost _ t + _
-            ≤ (2 + W_out) + ys'.length * (2 + W_out) := Nat.add_le_add hstep_cost hcost_i
-          _ = (ys'.length + 1) * (2 + W_out) := by ring
-      · have hnot_guard : ¬ (v = args.x ∨ (Memory.spec 0).clientResult t (memScan msArgs) = 1) := by
-          rintro (h1 | h2)
-          · exact hcond (Or.inl h1)
-          · have hnot_in : v ∉ acc := fun hm => hcond (Or.inr hm)
-            rw [hms_res, ite_eq_right hnot_in] at h2
-            cases h2
-        have hv_fit : Fits w v := hv_mem_t ▸ hwf_t.mem_fits (args.flatPtr + ys'.length)
-        have hout_lt : outStart - 1 < t.frontier := by dsimp only [outStart]; omega
-        let t₁ : Memory.State := ⟨Function.update t.mem (outStart - 1) v, t.frontier⟩
-        have hwf₁ : Memory.WellFormed w t₁ :=
-          hwf_t.step (o := .write (outStart - 1) v) ⟨hout_lt, hv_fit⟩
-        have hstep_val : (Memory.spec w).ValidHistory t ((Memory.spec w).clientHistory t
-            (dedupBackStep ((args.x, args.flatPtr), ⟨ys'.length + 1, outStart, acc.length⟩))) := by
-          unfold dedupBackStep
-          dsimp only
-          rw [Nat.add_sub_cancel]
-          refine validHistory_read_bind (by omega) ?_
-          rw [hv_mem_t]
-          refine validHistory_bind_step hms_val ?_
-          rw [memScan_state, ite_eq_right hnot_guard]
-          exact validHistory_write_bind hout_lt hv_fit (validHistory_pure w _ _)
-        have hstep_st : (Memory.spec 0).clientState t
-            (dedupBackStep ((args.x, args.flatPtr), ⟨ys'.length + 1, outStart, acc.length⟩)) =
-            t₁ := by
-          unfold dedupBackStep
-          dsimp only
-          rw [Nat.add_sub_cancel, StateTransitionSpec.clientState_bind, hr_t, hres_t, hv_mem_t,
-            StateTransitionSpec.clientState_bind, memScan_state, ite_eq_right hnot_guard,
-            StateTransitionSpec.clientState_bind]
-          rfl
-        have hout_sub : outStart - 1 = outBuf + args.flatLen - (v :: acc).length := by
-          dsimp only [outStart]; simp only [List.length_cons]; omega
-        have hstep_res : (Memory.spec 0).clientResult t
-            (dedupBackStep ((args.x, args.flatPtr), ⟨ys'.length + 1, outStart, acc.length⟩)) =
-            ⟨ys'.length, outBuf + args.flatLen - (v :: acc).length, (v :: acc).length⟩ := by
-          unfold dedupBackStep
-          dsimp only
-          rw [Nat.add_sub_cancel, StateTransitionSpec.clientResult_bind, hr_t, hres_t, hv_mem_t,
-            StateTransitionSpec.clientResult_bind, memScan_state, ite_eq_right hnot_guard,
-            StateTransitionSpec.clientResult_bind]
-          change (⟨ys'.length, outStart - 1, acc.length + 1⟩ : DedupState) = _
-          rw [hout_sub]
-          rfl
-        have hstep_cost : memoryCost
-            (dedupBackStep ((args.x, args.flatPtr), ⟨ys'.length + 1, outStart, acc.length⟩)) t ≤
-            2 + W_out := by
-          unfold dedupBackStep
-          dsimp only
-          rw [Nat.add_sub_cancel, memoryCost_bind', memoryCost_read, hr_t, hres_t, hv_mem_t,
-            memoryCost_bind', memScan_state, ite_eq_right hnot_guard,
-            memoryCost_bind', memoryCost_write, memoryCost_pure]
-          dsimp only [msArgs] at hms_cost
-          omega
-        have hpres₁ : PreservesBelow outBuf s t₁ := by
-          refine ⟨le_rfl, by dsimp only [t₁]; omega, fun a ha => ?_⟩
-          have hne : a ≠ outStart - 1 := by dsimp only [outStart]; omega
-          change Function.update t.mem (outStart - 1) v a = s.mem a
-          rw [Function.update_of_ne hne]
-          exact hpres.2.2 a ha
-        have hacc₁ : Block.HoldsList (outBuf + args.flatLen - (v :: acc).length) (v :: acc)
-            t₁.mem := by
-          rw [← hout_sub]
-          refine Block.holdsList_cons_iff.mpr ⟨Function.update_self _ v t.mem, ?_⟩
-          have hpos1 : outStart - 1 + 1 = outStart := by dsimp only [outStart]; omega
-          rw [hpos1]
-          exact hacc.frame fun a hlo hhi =>
-            Function.update_of_ne (by dsimp only [outStart] at hlo ⊢; omega) v t.mem
-        have hdedup_eq : dedupStepPure args.x v acc = v :: acc := by
-          unfold dedupStepPure; exact ite_eq_right hcond
-        rw [hdedup_eq] at hW_cur ⊢
-        obtain ⟨hv_i, hfr_i, hpres_i, hst_i, hlen_i, hle_i, hholds_i, hcost_i⟩ :=
-          ih (v :: acc) t₁ hwf₁ hfr hpres₁ (by omega) hys'_h (by simp; omega) hW_cur hacc₁
-        rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_bind,
-          hstep_st, hstep_res, memoryCost_bind', hstep_st, hstep_res]
-        refine ⟨validHistory_bind_step hstep_val (by simpa [hstep_st, hstep_res] using hv_i),
-          hfr_i, hpres_i, hst_i, hlen_i, hle_i, hholds_i, ?_⟩
-        calc memoryCost _ t + _
-            ≤ (2 + W_out) + ys'.length * (2 + W_out) := Nat.add_le_add hstep_cost hcost_i
-          _ = (ys'.length + 1) * (2 + W_out) := by ring
+        · have hg : ¬(v = x ∨ (if v ∈ acc then 1 else 0) = 1) := by
+            simp only [not_or] at hcond; simp [hcond.1, hcond.2]
+          have hout_lt : s.frontier + flat.length - acc.length - 1 < t.frontier := by omega
+          have hv_fit : Fits w v := hv_mem ▸ hwf_t.mem_fits _
+          rw [ite_eq_right hg, ite_eq_right hcond, memoryCost_bind', memoryCost_write,
+            memoryCost_pure]
+          simp only [List.length_cons, ← Nat.sub_sub]
+          refine ⟨⟨Function.update t.mem (s.frontier + flat.length - acc.length - 1) v, t.frontier⟩,
+            rfl, rfl, validHistory_read_bind (by omega) ?_, by omega,
+            hwf_t.step (o := .write _ v) ⟨hout_lt, hv_fit⟩, rfl,
+            ⟨hpres.1, hpres.2.1, fun a ha => (Function.update_of_ne (by omega) _ _).trans
+              (hpres.2.2 a ha)⟩,
+            Block.holdsList_cons_iff.mpr ⟨Function.update_self _ v t.mem, ?_⟩, le_rfl⟩
+          · rw [hv_mem]
+            refine validHistory_bind_step hms_val ?_
+            rw [memScan_state, hms_res, ite_eq_right hg]
+            exact validHistory_write_bind hout_lt hv_fit (validHistory_pure w _ _)
+          · rw [Nat.sub_add_cancel (by omega)]
+            exact hacc.frame fun a hlo _ => Function.update_of_ne (by omega) v t.mem
+      obtain ⟨hv_i, hfr_i, hpres_i, hst_i, hlen_i, hle_i, hholds_i, hcost_i⟩ :=
+        ih out₁ t₁ hwf₁ (hfr₁.trans hfr) hpres₁ (by omega) hys_h (by omega) hW_cur hacc₁
+      have hiter : iterate dedupBackStep (x, flatPtr) (ys.length + 1)
+          ⟨ys.length + 1, s.frontier + flat.length - acc.length, acc.length⟩ =
+          step >>= iterate dedupBackStep (x, flatPtr) ys.length := rfl
+      rw [hiter, validHistory_bind', StateTransitionSpec.clientResult_bind,
+        StateTransitionSpec.clientState_bind, memoryCost_bind', hst, hres]
+      exact ⟨⟨hval, hv_i⟩, hfr_i, hpres_i, hst_i, hlen_i, hle_i, hholds_i, by linarith⟩
   obtain ⟨hv_l, hfr_l, hpres_l, hst_l, hlen_l, hle_l, hholds_l, hcost_l⟩ :=
-    hloop flat [] s₀ hwf₀ rfl ⟨le_rfl, Nat.le_add_right _ _, fun _ _ => rfl⟩
-      hflat.1 hflat.2 (by simp [hlen]) hW (Block.holdsList_nil _ _)
+    hloop flat [] ⟨s.mem, s.frontier + flat.length⟩
+      (hwf.step (o := .allocDirty flat.length) hfit) rfl
+      ⟨le_rfl, Nat.le_add_right _ _, fun _ _ => rfl⟩ hflat.1 hflat.2 (by simp) hW
+      (Block.holdsList_nil _ _)
   simp only [List.length_nil, Nat.sub_zero] at hv_l hfr_l hpres_l hst_l hlen_l hholds_l hcost_l
-  have ha_st : (Memory.spec 0).clientState s (Memory.allocDirty args.flatLen) = s₀ := rfl
-  have ha_res : (Memory.spec 0).clientResult s (Memory.allocDirty args.flatLen) = outBuf := rfl
-  have hpure_st {α : Type} (x : α) (u : Memory.State) :
-      (Memory.spec 0).clientState u (pure x) = u := rfl
-  have hpure_res {α : Type} (x : α) (u : Memory.State) :
-      (Memory.spec 0).clientResult u (pure x) = x := rfl
-  rw [← hlen]
-  rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_bind]
-  rw [hlen, ha_st, ha_res,
+  rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_bind,
+    memoryCost_bind', clientState_allocDirty, clientResult_allocDirty, memoryCost_allocDirty,
     StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_bind,
-    hpure_res, hpure_st, ← hlen]
-  refine ⟨validHistory_bind_step (by rw [hlen]; exact hv_a) ?_,
-    by simpa [hlen] using hfr_l,
-    by simpa [outBuf, hlen] using hpres_l,
-    ?_,
-    by simpa [hlen] using hlen_l, ?_, ?_⟩
-  · rw [hlen, ha_st, ha_res]
-    exact validHistory_bind_step (by simpa [hlen] using hv_l) (validHistory_pure w _ _)
-  · have hst' : ((Memory.spec 0).clientResult s₀
-        (iterate dedupBackStep (args.x, args.flatPtr) flat.length
-          ⟨flat.length, outBuf + flat.length, 0⟩)).outStart =
-        outBuf + flat.length - (flat.foldr (dedupStepPure args.x) []).length := by
-      simpa [hlen] using hst_l
-    have hle' : (flat.foldr (dedupStepPure args.x) []).length ≤ flat.length := by
-      simpa [hlen] using hle_l
-    dsimp only [outBuf] at hst' ⊢
-    rw [hst']
-    omega
-  · refine ⟨?_, by simpa [hlen] using hholds_l⟩
-    have hfr' : ((Memory.spec 0).clientState s₀
-        (iterate dedupBackStep (args.x, args.flatPtr) flat.length
-          ⟨flat.length, outBuf + flat.length, 0⟩)).frontier = outBuf + flat.length := by
-      simpa [hlen] using hfr_l
-    have hst' : ((Memory.spec 0).clientResult s₀
-        (iterate dedupBackStep (args.x, args.flatPtr) flat.length
-          ⟨flat.length, outBuf + flat.length, 0⟩)).outStart =
-        outBuf + flat.length - (flat.foldr (dedupStepPure args.x) []).length := by
-      simpa [hlen] using hst_l
-    rw [hfr', hst']
-    omega
-  · rw [hlen, memoryCost_bind', memoryCost_allocDirty, ha_st, ha_res,
-      memoryCost_bind', memoryCost_pure, Nat.add_zero]
-    have hc' : memoryCost (iterate dedupBackStep (args.x, args.flatPtr) args.flatLen
-        ⟨args.flatLen, outBuf + args.flatLen, 0⟩) s₀ ≤ args.flatLen * (2 + W_out) := by
-      simpa [hlen] using hcost_l
-    rw [← hlen] at hc' ⊢
-    omega
+    memoryCost_bind', StateTransitionSpec.clientResult_pure, StateTransitionSpec.clientState_pure,
+    memoryCost_pure]
+  exact ⟨validHistory_allocDirty_bind hfit (validHistory_bind_step hv_l (validHistory_pure w _ _)),
+    hfr_l, hpres_l, by omega, hlen_l, ⟨by omega, hholds_l⟩, by omega⟩
 
 private theorem bool_rec_reflects {p : Prop} {b : Bool} (hr : b.Reflects p)
     {f : false.Reflects p → Prop} {t : true.Reflects p → Prop}
@@ -433,64 +290,32 @@ theorem buildOutScope_spec {w : ℕ} {args : BuildOutScopeArgs}
         2 + args.bucketLen * (3 + 2 * maxScope + maxScope * (2 + W_out)) := by
   dsimp only
   unfold buildOutScope
-  let flat := bucket.flatMap FactorTable.scope
-  let K := flat.length
-  have hK_le : K ≤ args.bucketLen * maxScope := by
-    rw [← hlen]
-    dsimp only [K, flat]
-    rw [List.length_flatMap]
-    have hsum := List.sum_le_length_nsmul (bucket.map fun a => a.scope.length) maxScope
-      fun _ hn => by
-        rcases List.mem_map.mp hn with ⟨f, hf, rfl⟩
-        exact hmax f hf
-    simpa [smul_eq_mul] using hsum
-  have hss_val := sumScopeLen_valid (w := w) (args := ⟨args.bucketPtr, args.bucketLen⟩) hb hlen
-  have hss_st := sumScopeLen_state ⟨args.bucketPtr, args.bucketLen⟩ s
-  have hss_res : (Memory.spec 0).clientResult s (sumScopeLen ⟨args.bucketPtr, args.bucketLen⟩) =
-      K := sumScopeLen_result hb hlen
+  have hK_le : (bucket.flatMap FactorTable.scope).length ≤ args.bucketLen * maxScope :=
+    hlen ▸ List.length_flatMap_le hmax
   have hss_cost := sumScopeLen_cost ⟨args.bucketPtr, args.bucketLen⟩ s
   obtain ⟨hfl_val, hfl_fr, hfl_pres, hfl_res, hfl_holds, hfl_cost⟩ :=
-    flattenScopes_spec (w := w) (args := ⟨args.bucketPtr, args.bucketLen, K⟩) hwf hb hlen rfl hmax
+    flattenScopes_spec (w := w) (args := ⟨args.bucketPtr, args.bucketLen, _⟩) hwf hb hlen rfl hmax
       (hfit.of_le (by dsimp only; omega))
-  let s₁ := (Memory.spec 0).clientState s (flattenScopes ⟨args.bucketPtr, args.bucketLen, K⟩)
-  have hwf₁ : Memory.WellFormed w s₁ := wellFormed_clientState hwf hfl_val
-  have hW_foldr : (flat.foldr (dedupStepPure args.x) []).length ≤ W_out := by
-    rw [← bucketOutScope_eq_foldr]; exact hW
+  have hwf₁ := wellFormed_clientState hwf hfl_val
+  rw [validHistory_bind', StateTransitionSpec.clientResult_bind,
+    StateTransitionSpec.clientState_bind, memoryCost_bind', sumScopeLen_state,
+    sumScopeLen_result hb hlen, validHistory_bind', StateTransitionSpec.clientResult_bind,
+    StateTransitionSpec.clientState_bind, memoryCost_bind', hfl_res, bucketOutScope_eq_foldr]
+  rw [hfl_res] at hfl_holds
+  generalize (Memory.spec 0).clientState s (flattenScopes ⟨args.bucketPtr, args.bucketLen,
+    (bucket.flatMap FactorTable.scope).length⟩) = s₁ at hwf₁ hfl_fr hfl_pres hfl_holds ⊢
   obtain ⟨hdd_val, hdd_fr, hdd_pres, hdd_lo, hdd_len, hdd_holds, hdd_cost⟩ :=
-    dedupFilterBack_spec (w := w) (args := ⟨args.x, s.frontier, K⟩) hwf₁
-      (by simpa [hfl_res] using hfl_holds) rfl hW_foldr
-      (hfit.of_le (by
-        change s₁.frontier + K ≤ s.frontier + 2 * (args.bucketLen * maxScope)
-        have h1 : s₁.frontier = s.frontier + K := hfl_fr
-        rw [h1]; omega))
-  rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_bind,
-    hss_st, hss_res,
-    StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_bind,
-    hfl_res, bucketOutScope_eq_foldr]
-  refine ⟨validHistory_bind_step hss_val ?_, ?_, hfl_pres.trans (hdd_pres.mono_bound hfl_pres.2.1),
-    hfl_pres.2.1.trans hdd_lo, hdd_len, hdd_holds, ?_⟩
-  · rw [hss_st, hss_res]
-    refine validHistory_bind_step hfl_val ?_
-    rw [hfl_res]
-    exact hdd_val
-  · change ((Memory.spec 0).clientState s₁ (dedupFilterBack ⟨args.x, s.frontier, K⟩)).frontier ≤
-        s.frontier + 2 * (args.bucketLen * maxScope)
-    have h1 : s₁.frontier = s.frontier + K := hfl_fr
-    have h2 : ((Memory.spec 0).clientState s₁
-        (dedupFilterBack ⟨args.x, s.frontier, K⟩)).frontier = s₁.frontier + K := hdd_fr
-    rw [h2, h1]
-    omega
-  · rw [memoryCost_bind', hss_st, hss_res, memoryCost_bind', hfl_res]
-    dsimp only at hss_cost hfl_cost hdd_cost
-    have hdd_le : K * (2 + W_out) ≤ args.bucketLen * maxScope * (2 + W_out) :=
-      Nat.mul_le_mul_right _ hK_le
-    calc memoryCost (sumScopeLen ⟨args.bucketPtr, args.bucketLen⟩) s +
-          (memoryCost (flattenScopes ⟨args.bucketPtr, args.bucketLen, K⟩) s +
-            memoryCost (dedupFilterBack ⟨args.x, s.frontier, K⟩) s₁)
-        ≤ args.bucketLen + ((1 + args.bucketLen * (2 + 2 * maxScope)) +
-            (1 + args.bucketLen * maxScope * (2 + W_out))) :=
-          Nat.add_le_add hss_cost (Nat.add_le_add hfl_cost (by omega))
-      _ = 2 + args.bucketLen * (3 + 2 * maxScope + maxScope * (2 + W_out)) := by ring
+    dedupFilterBack_spec (w := w) (args := ⟨args.x, s.frontier, _⟩) hwf₁ hfl_holds rfl
+      (bucketOutScope_eq_foldr args.x bucket ▸ hW) (hfit.of_le (by dsimp only at hfl_fr ⊢; omega))
+  dsimp only at hss_cost hfl_cost hdd_cost hfl_fr hdd_fr
+  refine ⟨⟨sumScopeLen_valid hb hlen, hfl_val, hdd_val⟩, by omega,
+    hfl_pres.trans (hdd_pres.mono_bound hfl_pres.2.1), hfl_pres.2.1.trans hdd_lo, hdd_len,
+    hdd_holds, ?_⟩
+  have hK_cost := Nat.mul_le_mul_right (2 + W_out) hK_le
+  calc _ ≤ args.bucketLen + ((1 + args.bucketLen * (2 + 2 * maxScope)) +
+        (1 + args.bucketLen * maxScope * (2 + W_out))) :=
+      Nat.add_le_add hss_cost (Nat.add_le_add hfl_cost (by omega))
+    _ = 2 + args.bucketLen * (3 + 2 * maxScope + maxScope * (2 + W_out)) := by ring
 
 theorem buildOutScope_realizes :
     Realizes .exact buildOutScope WordEncoding.encode WordEncoding.encode
@@ -510,30 +335,16 @@ theorem buildOutScope_realizes :
     rw [sumScopeLen_state, sumScopeLen_result hb hlen]
     exact ⟨bucket, hlen, hb, rfl⟩
   · exact h.1
-  · obtain ⟨_, bucket, hlen, hb, hfit⟩ := h
-    let K := (bucket.flatMap FactorTable.scope).length
-    have hscK : ∀ f ∈ bucket, f.scope.length ≤ K := fun f hf => by
-      dsimp only [K]
-      rw [List.length_flatMap]
-      exact List.le_sum_of_mem
-        (List.mem_map_of_mem (f := fun g : FactorTable ℕ ℕ => g.scope.length) hf)
+  all_goals
+    obtain ⟨_, bucket, hlen, hb, hfit⟩ := h
+    have hscK : ∀ f ∈ bucket, f.scope.length ≤ (bucket.flatMap FactorTable.scope).length :=
+      fun f hf => by rw [List.length_flatMap]; exact List.le_sum_of_mem (List.mem_map_of_mem hf)
     rw [sumScopeLen_state, sumScopeLen_result hb hlen]
     obtain ⟨_, hfl_fr, _, hfl_res, _, _⟩ :=
-      flattenScopes_spec (w := w) (args := ⟨d.bucketPtr, d.bucketLen, K⟩) hmem hb hlen rfl
-        hscK (hfit.of_le (by dsimp only [K]; omega))
-    rw [hfl_res, hfl_fr]
-  · obtain ⟨_, bucket, hlen, hb, hfit⟩ := h
-    let K := (bucket.flatMap FactorTable.scope).length
-    have hscK : ∀ f ∈ bucket, f.scope.length ≤ K := fun f hf => by
-      dsimp only [K]
-      rw [List.length_flatMap]
-      exact List.le_sum_of_mem
-        (List.mem_map_of_mem (f := fun g : FactorTable ℕ ℕ => g.scope.length) hf)
-    rw [sumScopeLen_state, sumScopeLen_result hb hlen]
-    obtain ⟨_, hfl_fr, _, _, _, _⟩ :=
-      flattenScopes_spec (w := w) (args := ⟨d.bucketPtr, d.bucketLen, K⟩) hmem hb hlen rfl
-        hscK (hfit.of_le (by dsimp only [K]; omega))
-    rw [hfl_fr]
-    exact hfit.of_le (by dsimp only [K]; omega)
+      flattenScopes_spec (w := w) (args := ⟨d.bucketPtr, d.bucketLen, _⟩) hmem hb hlen rfl hscK
+        (hfit.of_le (by dsimp only; omega))
+  · rw [hfl_res, hfl_fr]
+  · rw [hfl_fr]
+    exact hfit.of_le (by dsimp only; omega)
 
 end Cslib.Algorithms.WordRAM.VariableElimination

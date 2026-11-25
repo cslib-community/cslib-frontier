@@ -14,7 +14,6 @@ import CslibFrontier.Logics.Propositional.Algebraic.CNF.Parity
 import Mathlib.Algebra.BigOperators.Group.Finset.Sigma
 import Mathlib.Algebra.CharP.Two
 import Mathlib.RingTheory.MvPolynomial.Basic
-import Mathlib.Tactic.LinearCombination
 
 /-!
 # Tseitin formulas are easy for the Nullstellensatz in characteristic `2`
@@ -61,7 +60,6 @@ polynomials add up to `1`. The Boolean axioms are not needed, and neither is con
 theorem ns_refutableInDegree_tseitinFormula_of_charP_two {k : ℕ}
     (hk : ∀ v, #(Multigraph.incidence ends v) ≤ k) (h : parityOn univ χ = true) :
     NS.RefutableInDegree ((tseitinFormula ends χ).toBoolPolys R) k := by
-  have h2 : (2 : MvPolynomial E R) = 0 := CharTwo.two_eq_zero
   -- the clauses, indexed by a vertex and an assignment of the wrong parity to its edges
   let f : (Σ _ : V, Finset E) → MvPolynomial E R := fun p =>
     (Clause.exclude (Multigraph.incidence ends p.1) fun i => decide (i ∈ p.2)).toBoolPoly R
@@ -84,23 +82,18 @@ theorem ns_refutableInDegree_tseitinFormula_of_charP_two {k : ℕ}
   -- the total charge is odd
   have hcharge : ∑ v, (if χ v then (1 : MvPolynomial E R) else 0) = 1 := by
     have hodd : #{v | χ v = true} % 2 = 1 := by simpa [parityOn] using h
-    obtain ⟨m, hm⟩ : ∃ m, #{v | χ v = true} = 2 * m + 1 :=
-      ⟨_, (Nat.div_add_mod _ 2).symm.trans (by rw [hodd])⟩
-    rw [sum_boole, hm]
-    push_cast
-    rw [h2, zero_mul, zero_add]
+    rw [sum_boole, CharP.cast_eq_mod (R := MvPolynomial E R) (p := 2) #{v | χ v = true},
+      hodd, Nat.cast_one]
   -- the handshake argument: every edge other than a self-loop is at exactly two vertices
   have hhand : ∑ v, ∑ i ∈ Multigraph.incidence ends v, (X i : MvPolynomial E R) = 0 := by
-    rw [sum_comm' (t' := univ) (s' := fun e => {v | v ∈ ends e ∧ ¬(ends e).IsDiag}) (by simp)]
-    refine sum_eq_zero fun e _ => ?_
-    obtain ⟨a, b, hab⟩ : ∃ a b, ends e = s(a, b) := Sym2.ind (f := fun z => ∃ a b, z = s(a, b))
-      (fun a b => ⟨a, b, rfl⟩) (ends e)
-    by_cases hab' : a = b
-    · rw [filter_false_of_mem fun v _ => by simp [hab, hab'], sum_empty]
-    · rw [show ({v | v ∈ ends e ∧ ¬(ends e).IsDiag} : Finset V) = {a, b} by
-        ext v
-        simp [hab, hab'], sum_pair hab']
-      linear_combination X e * h2
+    rw [sum_comm' (t' := univ) (s' := fun e => if (ends e).IsDiag then ∅ else (ends e).toFinset)]
+    · refine sum_eq_zero fun e _ => ?_
+      by_cases he : (ends e).IsDiag
+      · simp [he]
+      · simp only [he, ↓reduceIte, sum_const, Sym2.card_toFinset_of_not_isDiag _ he,
+          CharTwo.two_nsmul]
+    · intro v e
+      by_cases he : (ends e).IsDiag <;> simp [he, Sym2.mem_toFinset]
   have h1 : ∑ p ∈ s, f p * 1 = 1 := by
     simp only [mul_one, s, f]
     rw [sum_sigma, sum_congr rfl fun v _ => sum_toBoolPoly_exclude_parityOn_ne (R := R)

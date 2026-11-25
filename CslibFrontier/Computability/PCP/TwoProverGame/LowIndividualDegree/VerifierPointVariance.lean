@@ -97,8 +97,7 @@ theorem weightedPointVariance_le_verifier (S : CommutingStrategy Q Q Ans Ans A) 
       2 * (𝔼 i : Fin (n + 1), 𝔼 u : Point F (n + 1), e i u) := by
     rw [mul_expect]
     refine expect_le_expect fun i _ => ?_
-    have h := hlocal i
-    simpa only [X, ← mul_sub, hnorm, f, weightedPointResampling] using h
+    simpa only [X, ← mul_sub, hnorm, f, weightedPointResampling] using hlocal i
   let ec (u : Point F (n + 1)) := ∑ g, φ.norm (X u g - Y u g) ^ 2
   let ea (i : Fin (n + 1)) (u : Point F (n + 1)) := ∑ g, φ.norm (Y u g - Z i u g) ^ 2
   let er (i : Fin (n + 1)) (u : Point F (n + 1)) := ∑ g, φ.norm (Z i u g - C i u g) ^ 2
@@ -128,11 +127,9 @@ theorem weightedPointVariance_le_verifier (S : CommutingStrategy Q Q Ans Ans A) 
   have hall := expect_le_expect (s := (univ : Finset (Fin (n + 1)))) fun i _ =>
     expect_le_expect (s := (univ : Finset (Point F (n + 1)))) fun u _ => he i u
   simp only [← mul_expect, expect_add_distrib, Fintype.expect_const] at hall
-  have hn : 0 ≤ (n + 1 : ℝ) := by positivity
   have hglobal := weightedPointVariance_le_resampling φ (decodedPoint S.bob) T
   rw [Nat.cast_succ] at hglobal
-  refine hglobal.trans
-    (mul_le_mul_of_nonneg_left ?_ hn)
+  refine hglobal.trans (mul_le_mul_of_nonneg_left ?_ (by positivity))
   linarith only [hvar, hall, hc, ha, hr]
 
 end Cslib.PCP.LowIndividualDegree

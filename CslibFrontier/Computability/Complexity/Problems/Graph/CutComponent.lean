@@ -52,22 +52,18 @@ theorem split_component_separates {G H : Graph} (a b : Dart G) (hb : b.vertex = 
   have markNew : marked w := Or.inl rfl
   have markOld : ¬marked a.vertex := by
     rintro (h | ⟨h, _⟩)
-    · exact hfresh a h
-    · exact h rfl
+    exacts [hfresh a h, h rfl]
   have markAway (d : Dart G) (hd : d.vertex ≠ a.vertex) :
       marked (e d).vertex ↔ inClass d.vertex := by
     rw [hend, ite_eq_right (fun h => hd (hcut d h))]
     exact or_iff_right (hfresh d)
   have markCut (d : Dart G) (hd : d.vertex = a.vertex) :
       marked (e d).vertex ↔ inClass d.reverse.vertex := by
-    have hclass' : inClass d.reverse.vertex ↔ selected d :=
-      ⟨fun ⟨_, h⟩ => (hclass d hd).mpr h, fun h => ⟨hloop d hd, (hclass d hd).mp h⟩⟩
-    rw [hend, hclass']
     by_cases h : selected d
-    · rw [ite_eq_left h]
-      exact iff_of_true markNew h
-    · rw [ite_eq_right h, hd]
-      exact iff_of_false markOld h
+    · rw [hend, ite_eq_left h]
+      exact iff_of_true markNew ⟨hloop d hd, (hclass d hd).mp h⟩
+    · rw [hend, ite_eq_right h, hd]
+      exact iff_of_false markOld fun ⟨_, hr⟩ => h ((hclass d hd).mpr hr)
   have markReverse (d : Dart H) : marked d.vertex = marked d.reverse.vertex := by
     obtain ⟨d, rfl⟩ := e.surjective d
     change marked (e d).vertex = marked (e d.reverse).vertex
@@ -78,19 +74,17 @@ theorem split_component_separates {G H : Graph} (a b : Dart G) (hb : b.vertex = 
     · rw [markAway d hd, markCut d.reverse hrev, Dart.reverse_reverse]
     have hreach : K.Reachable ⟨d.vertex, hd⟩ ⟨d.reverse.vertex, hrev⟩ := by
       by_cases he : d.vertex = d.reverse.vertex
-      · have heq : (⟨d.vertex, hd⟩ : {u : ℕ // u ≠ a.vertex}) = ⟨d.reverse.vertex, hrev⟩ :=
-          Subtype.ext he
-        rw [heq]
+      · exact (Subtype.ext he : (⟨d.vertex, hd⟩ : {u : ℕ // u ≠ a.vertex}) =
+          ⟨d.reverse.vertex, hrev⟩) ▸ .rfl
       apply SimpleGraph.Adj.reachable
       exact d.adj_vertex_reverse he
     rw [markAway d hd, markAway d.reverse hrev]
     exact ⟨fun ⟨_, h⟩ => ⟨hrev, h.trans hreach⟩, fun ⟨_, h⟩ => ⟨hd, h.trans hreach.symm⟩⟩
   have ha' : (e a).vertex = w := by rw [hend, ite_eq_left ((hclass a rfl).mpr .rfl)]
   have hb' : (e b).vertex = a.vertex := by rw [hend, ite_eq_right hbOutside, hb]
-  have hsep : ¬SameComponent H w a.vertex := by
-    intro h
+  have hsep : ¬SameComponent H w a.vertex := fun h => by
     have hm := Dart.eq_of_sameComponent (fun d : Dart H => marked d.vertex)
-      (fun d g h => congrArg marked h) markReverse (d := e a) (e := e b) (by rwa [ha', hb'])
+      (fun _ _ h => congrArg marked h) markReverse (d := e a) (e := e b) (by rwa [ha', hb'])
     rw [ha', hb'] at hm
     exact markOld (hm ▸ markNew)
   refine ⟨hsep, fun root => ?_⟩
@@ -107,17 +101,15 @@ theorem split_darts_endpoints_declared {G H : Graph}
       if selected d then w else d.vertex) :
     ∀ v ∈ H.incidenceVertices, v ∈ H.vertices := by
   let e : Dart G ≃ Dart H := E.prodCongr (Equiv.refl Bool)
-  have hend (d : Dart G) : (e d).vertex = _ := hEnds d
   intro v hv
-  obtain ⟨i, hi⟩ := List.mem_iff_get.mp hv
-  change H.incidenceVertices[i.val] = v at hi
-  let j : Fin (2 * H.edges.length) := ⟨i.val, i.isLt.trans_eq (incidenceVertices_length H)⟩
+  obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hv
+  let j : Fin (2 * H.edges.length) := ⟨i, hi.trans_eq (incidenceVertices_length H)⟩
   obtain ⟨d, hd⟩ := e.surjective ((Dart.indexEquiv H).symm j)
-  have heq : (e d).index = i.val := by
-    have h := congrArg (Dart.indexEquiv H) hd
-    rw [(Dart.indexEquiv H).apply_symm_apply] at h
-    exact congrArg Fin.val h
-  rw [← hi, ← List.getD_eq_getElem _ _ i.isLt, ← heq, Dart.vertex_index, hend, hvertices]
+  have heq : (e d).index = i :=
+    congrArg Fin.val ((congrArg (Dart.indexEquiv H) hd).trans
+      ((Dart.indexEquiv H).apply_symm_apply j))
+  rw [← List.getD_eq_getElem _ _ hi, ← heq, Dart.vertex_index,
+    show (e d).vertex = _ from hEnds d, hvertices]
   split
   · exact List.mem_cons_self
   · exact List.mem_cons_of_mem _ (RotationSystem.vertex_mem hG d)
@@ -133,14 +125,12 @@ theorem vertex_preimage_split_darts {G H : Graph} (v w : ℕ)
       if selected d then w else d.vertex) (i : Fin H.edges.length) (b : Bool) :
     Dart.vertex (G := G) (E.symm i, b) =
       Function.update id w v (Dart.vertex (G := H) (i, b)) := by
-  let d : Dart G := (E.symm i, b)
-  have hd := hEnds d
-  change Dart.vertex (G := H) (E (E.symm i), b) = _ at hd
+  have hd := hEnds (E.symm i, b)
   rw [E.apply_symm_apply] at hd
-  change d.vertex = Function.update id w v (Dart.vertex (G := H) (i, b))
-  split at hd
+  rw [hd]
+  split
   · rename_i h
-    rw [hd, Function.update_self, hselected d h]
-  · rw [hd, Function.update_of_ne (hfresh d), id_eq]
+    rw [Function.update_self, hselected _ h]
+  · rw [Function.update_of_ne (hfresh _), id_eq]
 
 end Cslib.Complexity.Graph

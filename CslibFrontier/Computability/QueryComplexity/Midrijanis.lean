@@ -60,19 +60,15 @@ theorem exists_card_eq_degree_forall_exists_isSensitiveBlock_subset (f : Boolean
       ∀ x, ∃ B, B ⊆ S ∧ IsSensitiveBlock f x B := by
   obtain ⟨S, hScard, hScoeff⟩ := exists_card_eq_totalDegree_fourierCoeff_ne_zero hf
   change #S = degree f at hScard
-  have hS : S.Nonempty := card_pos.1 (by omega)
-  have hmax (T : Finset (Fin n)) (hST : S ⊂ T) :
-      fourierCoeff (fun x => bitVal ℝ (f x)) T = 0 :=
-    fourierCoeff_eq_zero_of_mem_lowDegree (mem_lowDegree_totalDegree _)
-      (by change degree f < #T; rw [← hScard]; exact card_lt_card hST)
   refine ⟨S, hScard, fun x => ?_⟩
-  obtain ⟨y, hy, hfy⟩ := exists_ne_on_face_of_fourierCoeff_maximal hS hScoeff hmax x
-  refine ⟨({i | y i ≠ x i} : Finset (Fin n)), ?_, ?_⟩
-  · intro i hi
-    by_contra hiS
-    exact (mem_filter.1 hi).2 (hy i hiS)
-  · rw [IsSensitiveBlock, flipBlock_filter_ne]
-    exact fun h => hfy (congrArg (bitVal ℝ) h)
+  obtain ⟨y, hy, hfy⟩ := exists_ne_on_face_of_fourierCoeff_maximal
+    (card_pos.1 (by omega)) hScoeff
+    (fun T hST => fourierCoeff_eq_zero_of_mem_lowDegree (mem_lowDegree_totalDegree _)
+      (hScard.symm.trans_lt (card_lt_card hST))) x
+  refine ⟨({i | y i ≠ x i} : Finset (Fin n)),
+    fun i hi => by_contradiction fun hiS => (mem_filter.1 hi).2 (hy i hiS), ?_⟩
+  rw [IsSensitiveBlock, flipBlock_filter_ne]
+  exact fun h => hfy (congrArg (bitVal ℝ) h)
 
 end QueryComplexity
 
@@ -90,35 +86,29 @@ theorem complexity_le_degree_mul_blockSensitivity (f : BooleanFunction n) :
   intro m
   induction m with
   | zero =>
-    intro f hf
-    have h := complexity_le_blockSensitivity_pow_three f
-    simpa [Nat.eq_zero_of_le_zero hf] using h
+    exact fun f hf => by
+      simpa [Nat.eq_zero_of_le_zero hf] using complexity_le_blockSensitivity_pow_three f
   | succ m ih =>
     intro f hf
     by_cases hd : degree f = 0
-    · have hbs : blockSensitivity f = 0 := by
-        have := blockSensitivity_le_two_mul_degree_sq f
-        simp only [hd, ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow, mul_zero] at this
-        exact Nat.eq_zero_of_le_zero this
-      have h := complexity_le_blockSensitivity_pow_three f
-      simpa [hbs, hd] using h
+    · have hbs : blockSensitivity f = 0 := Nat.eq_zero_of_le_zero <| by
+        simpa [hd] using blockSensitivity_le_two_mul_degree_sq f
+      simpa [hbs, hd] using complexity_le_blockSensitivity_pow_three f
     obtain ⟨S, hScard, hS⟩ := exists_card_eq_degree_forall_exists_isSensitiveBlock_subset f hd
-    refine (complexity_le_card_add S (d := degree f * m) fun a => ?_).trans_eq ?_
-    · have hbs : blockSensitivity (fun y => f (S.piecewise a y)) ≤ m := by
-        refine Finset.sup_le fun z _ => ?_
+    refine (complexity_le_card_add S (d := degree f * m) fun a => ?_).trans_eq
+      (by rw [hScard, Nat.mul_succ, Nat.add_comm])
+    have hbs : blockSensitivity (fun y => f (S.piecewise a y)) ≤ m :=
+      Finset.sup_le fun z _ => by
         obtain ⟨B, hBS, hB⟩ := hS (S.piecewise a z)
         have := (blockSensitivityAt_comp_piecewise_add_one_le a z hBS hB).trans
           ((blockSensitivityAt_le_blockSensitivity f _).trans hf)
         omega
-      have hdeg : degree (fun y => f (S.piecewise a y)) ≤ degree f := by
-        refine degree_le_iff_mem_lowDegree.2
-          (comp_mem_lowDegree (φ := fun y => S.piecewise a y) ?_ (mem_lowDegree_totalDegree _))
-        intro i
-        by_cases hi : i ∈ S
-        · simpa [hi] using const_mem_lowDegree (R := ℝ) (ι := Fin n) 1 (bitVal ℝ (a i))
-        · simpa [hi] using bitVal_mem_lowDegree (R := ℝ) i
-      exact (ih _ hbs).trans (Nat.mul_le_mul_right m hdeg)
-    · rw [hScard, Nat.mul_succ, Nat.add_comm]
+    refine (ih _ hbs).trans (Nat.mul_le_mul_right m (degree_le_iff_mem_lowDegree.2 <|
+      comp_mem_lowDegree (φ := fun y => S.piecewise a y) (fun i => ?_)
+        (mem_lowDegree_totalDegree _)))
+    by_cases hi : i ∈ S
+    · simpa [hi] using const_mem_lowDegree (R := ℝ) (ι := Fin n) 1 (bitVal ℝ (a i))
+    · simpa [hi] using bitVal_mem_lowDegree (R := ℝ) i
 
 /-- **The cubic degree bound**: `D(f) ≤ 2 deg(f)³` for every total Boolean function
 [Midrijanis2004], Theorem 4. -/

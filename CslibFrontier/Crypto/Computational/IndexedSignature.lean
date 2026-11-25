@@ -206,8 +206,7 @@ theorem isPPTOn_run_indexedSigningOracle (S : IndexedSignatureScheme) {adversary
           (pair.1.2.2, (requestDecoder.decode pair.2.1.2).1,
             (requestDecoder.decode pair.2.1.2).2)) ?_).bind_with ?_
       · polytime
-      · apply ComputableInPolyTime.isPPTOn
-        polytime
+      · exact ComputableInPolyTime.isPPTOn (by polytime)
     · ppt
   apply hadversary.run_interpret_preprocess
     (prepare := fun caller : ℕ × (List Bool × List Bool) => (caller.1, caller.2.1))
@@ -219,25 +218,22 @@ theorem isPPTOn_run_indexedSigningOracle (S : IndexedSignatureScheme) {adversary
   intro caller request signed _ result hresult
   have hu := length_unframe_le request.2
   have hmsg := length_dropFrame_le request.2
-  have hdecode :
-      requestDecoder.decode request.2 = ((unframe request.2).length, dropFrame request.2) := rfl
   unfold indexedSigningOracle at hresult
   dsimp only at hresult
-  rw [hdecode] at hresult
+  rw [show requestDecoder.decode request.2 =
+      ((unframe request.2).length, dropFrame request.2) from rfl] at hresult
   split_ifs at hresult with hguard
   · simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.mem_support_bind_iff,
       PMF.mem_support_pure_iff] at hresult
     obtain ⟨sig, hsig, rfl⟩ := hresult
     have hsigLen := hlen (caller.2.2, (unframe request.2).length, dropFrame request.2) sig hsig
     simp only [encBits_apply, encUnary_apply, length_encPair, List.length_replicate] at hsigLen
-    refine ⟨trivial, ?_, ?_⟩
-    · have hpow : c * (2 * caller.2.2.length + 1 + (2 * (unframe request.2).length + 1 +
-          (dropFrame request.2).length) + 1) ^ d ≤
-          c * (2 * caller.2.2.length + 3 * request.2.length + 4) ^ d :=
-        Nat.mul_le_mul_left c (Nat.pow_le_pow_left (by omega) d)
-      dsimp only
-      omega
-    · enc_len
+    refine ⟨trivial, ?_, by enc_len⟩
+    have hpow := Nat.mul_le_mul_left c (Nat.pow_le_pow_left
+      (show 2 * caller.2.2.length + 1 + (2 * (unframe request.2).length + 1 +
+          (dropFrame request.2).length) + 1 ≤
+        2 * caller.2.2.length + 3 * request.2.length + 4 by omega) d)
+    dsimp only; omega
   · simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hresult
     subst hresult
     exact ⟨trivial, by simp, by lia⟩
@@ -248,7 +244,6 @@ for every oracle-PPT forger. -/
 theorem isPPTOn_indexedEufCmaGame (S : IndexedSignatureScheme) {adversary : IndexedForger}
     (hadversary : IsOraclePPT encIndexedSignedMessage adversary) :
     IsPPTOn encUnary encBool (S.indexedEufCmaGame adversary) := by
-  have hrun := S.isPPTOn_run_indexedSigningOracle hadversary
   have hverify := S.verify_polyTime
   have hpost : ComputableInPolyTime
       (fun pair : (ℕ × (List Bool × List Bool)) ×
@@ -258,9 +253,9 @@ theorem isPPTOn_indexedEufCmaGame (S : IndexedSignatureScheme) {adversary : Inde
           S.verify pair.1.2.1 pair.2.1.1 pair.2.1.2.1 pair.2.1.2.2)
       (encPair (encPair encUnary (encPair encBits encBits))
         (encPair (encPair encUnary (encPair encBits encBits))
-          (encList (encPair encUnary encBits)))) encBool := by
-    polytime
-  exact S.keyGen_ppt.bind_with (hrun.bind_with hpost.isPPTOn)
+          (encList (encPair encUnary encBits)))) encBool := by polytime
+  exact S.keyGen_ppt.bind_with ((S.isPPTOn_run_indexedSigningOracle hadversary).bind_with
+    hpost.isPPTOn)
 
 /-- Existential unforgeability of an indexed scheme under adaptive chosen-message attack
 ([BonehShoup2023], Definition 14.6, with the differences listed in the module docstring) against

@@ -207,18 +207,12 @@ including arbitrary malformed words. The small allocated seed law separately req
     Scheme.computableInPolyTime_modLinkGuessCoins hchoose hencrypt hguess bit hchooseCoins
       hencCoins hcapacity hn htailtail hchallenge htape
   unfold modLeveledGuessCoins
-  apply ComputableInPolyTime.ite_decide
-  · simpa [Function.comp_def] using hfirst
-  · apply ComputableInPolyTime.ite_decide
-    · simpa [Function.comp_def] using hsecond
-    · exact .const _
-    · exact hguess.comp (show ComputableInPolyTime (fun a =>
+  refine .ite_decide (by simpa [Function.comp_def] using hfirst) ?_ ?_
+  · refine .ite_decide (by simpa [Function.comp_def] using hsecond) (.const _)
+      (hguess.comp (show ComputableInPolyTime (fun a =>
         ((n a, (state a).tail.tail, false :: challenge a), (tape a).take (guessCoins (n a))))
-        input (encPair Encryption.encGuessInput encBits) by fun_prop)
-  · apply ComputableInPolyTime.ite_decide
-    · simpa [Function.comp_def] using hsecond
-    · exact hlink true
-    · exact hlink false
+        input (encPair Encryption.encGuessInput encBits) by fun_prop))
+  · exact .ite_decide (by simpa [Function.comp_def] using hsecond) (hlink true) (hlink false)
 
 /-- Replay the actual modular selector and the selected branch. Link branches use a prefix
 of the common payload; zero-link branches discard the three selector blocks. No ideal uniform
@@ -292,24 +286,21 @@ theorem eval_modLeveledAdversary_choose_eq_map_coins (E : Scheme)
     rw [hsize, BitString.uniformList_map_split (coins n) (2 * coins n + zeroCoins) afterHop]
     simp only [pmf_norm, modLeveledAdversary, hpos, and_self, ↓reduceIte, ProbComp.sampleModIndex,
       ProbComp.sampleModNat, ProbComp.sampleBinaryNat, BitString.eval_sampleList]
+    -- both link branches use a prefix of the common payload
+    have hbudget : 2 * coins n + depth n * keyCoins ≤ 2 * coins n + zeroCoins := by omega
+    have hlaw (bit : Bool) := E.eval_modLinkAdversary_choose_eq_map_coins evaluateKey coins depth
+      capacity (publicKeyGame E adversary bit) n keyCoins challengePk hkey
+    simp only [← BitString.uniformList_take hbudget, PMF.map_comp] at hlaw
     congr 1 with first : 1
     by_cases hfirst : index 3 first = 0
     · change min 3 (BitString.binaryValue first % 3) = 0 at hfirst
-      have hlaw := E.eval_modLinkAdversary_choose_eq_map_coins evaluateKey coins depth capacity
-        (publicKeyGame E adversary false) n keyCoins challengePk hkey
-      have hbudget : 2 * coins n + depth n * keyCoins ≤ 2 * coins n + zeroCoins := by omega
-      rw [← BitString.uniformList_take hbudget, PMF.map_comp] at hlaw
       simpa only [pmf_norm, afterHop, index, hfirst, ↓reduceIte] using
-          congrArg (PMF.map (tagLeveledChoice false false)) hlaw
+          congrArg (PMF.map (tagLeveledChoice false false)) (hlaw false)
     · change ¬min 3 (BitString.binaryValue first % 3) = 0 at hfirst
       by_cases hsecond : min 3 (BitString.binaryValue first % 3) = 1
-      · have hlaw := E.eval_modLinkAdversary_choose_eq_map_coins evaluateKey coins depth capacity
-          (publicKeyGame E adversary true) n keyCoins challengePk hkey
-        have hbudget : 2 * coins n + depth n * keyCoins ≤ 2 * coins n + zeroCoins := by omega
-        rw [← BitString.uniformList_take hbudget, PMF.map_comp] at hlaw
-        simpa only [pmf_norm, afterHop, index, hfirst, hsecond, ↓reduceIte,
+      · simpa only [pmf_norm, afterHop, index, hfirst, hsecond, ↓reduceIte,
           Nat.one_ne_zero] using
-            congrArg (PMF.map (tagLeveledChoice false true ∘ swapLeveledChoice)) hlaw
+            congrArg (PMF.map (tagLeveledChoice false true ∘ swapLeveledChoice)) (hlaw true)
       · have hsize : 2 * coins n + zeroCoins = coins n + (coins n + zeroCoins) := by omega
         have hsplit := BitString.uniformList_map_split3 (coins n) (coins n) zeroCoins
           (fun second third rest =>
@@ -384,21 +375,10 @@ unary caps. The zero-link callback supplies its own already-certified actual rep
       (Encryption.encChoiceOut encBool) (Encryption.encChoiceOut encBool) :=
     (hchoice.fst'.snd'.prod hchoice.fst'.fst').prod hchoice.snd'
   unfold modLeveledChooseCoins
-  apply ComputableInPolyTime.ite_decide
-  · fun_prop
-  · apply ComputableInPolyTime.ite_decide
-    · fun_prop
-    · exact (htag false false).comp hlink
-    · apply ComputableInPolyTime.ite_decide
-      · fun_prop
-      · exact (htag false true).comp (hswap.comp hlink)
-      · apply ComputableInPolyTime.ite_decide
-        · fun_prop
-        · apply ComputableInPolyTime.ite_decide
-          · fun_prop
-          · exact (htag true false).comp hzeroActive
-          · exact .const _
-        · exact .const _
-  · exact (htag true false).comp hzeroFallback
+  refine .ite_decide (by fun_prop) ?_ ((htag true false).comp hzeroFallback)
+  refine .ite_decide (by fun_prop) ((htag false false).comp hlink) ?_
+  refine .ite_decide (by fun_prop) ((htag false true).comp (hswap.comp hlink)) ?_
+  refine .ite_decide (by fun_prop) ?_ (.const _)
+  exact .ite_decide (by fun_prop) ((htag true false).comp hzeroActive) (.const _)
 
 end Cslib.Crypto.Homomorphic.Leveled

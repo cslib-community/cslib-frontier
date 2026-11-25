@@ -73,14 +73,11 @@ theorem record_view {n D g p : ℕ} (values : ℕ → ℤ) (initial y : Data 64)
     h.2.2.2.2.2.1.trans (congrArg (fun v => v + K * H * (6 + 2 * (n * D))) hout.symm)
   have hbase : base + 6 ≤ y.regs Instances.heap := by
     have hh := Nat.mul_le_mul_right (6 + 2 * (n * D)) (Nat.succ_le_of_lt hiCount)
-    rw [hheap]
-    dsimp only [base]
-    nlinarith only [hh]
+    rw [hheap]; dsimp only [base]; nlinarith only [hh]
   have hqEnd : q + 2 * Q ≤ y.regs Instances.heap := by
     have hq := RecordProduct.query_end_le_output values hp (by omega) hDn idx hidx
     change q + 2 * Q ≤ 5 + 6 * N + p + 2 * N * p + 3 * K at hq
-    rw [hheap, hout]
-    omega
+    rw [hheap, hout]; omega
   have hfirst : idx.piece * pieceSize D g ≤ n := (piece_start_lt hD hg hj).le
   obtain ⟨hdr, -, -⟩ := PreparationSpec.instance_readback values wAB hp
     (by intro a b; rfl) hD hDn hg h idx hidx
@@ -88,13 +85,9 @@ theorem record_view {n D g p : ℕ} (values : ℕ → ℤ) (initial y : Data 64)
     (by omega) hDn h idx.residue idx.chunk hk).1
   rw [hcard] at hcoord
   dsimp only
-  refine ⟨?_, hbase, hqEnd, hfirst, ?_, hcoord, ?_⟩
-  · rw [hheap, hout]
-    dsimp only [N]
-    omega
-  · simpa only [base, ord, RecordProduct.recordOrdinal, Q, RecordProduct.recordQueryCount,
-      q, RecordProduct.recordQueries, hout, N, K, C, hcard, Block.Realizes, Block.read] using hdr
-  · intro j hj
-    exact h.2.2.2.2.2.2.2.2.2.2.2 j (Or.inl hj)
+  refine ⟨by rw [hheap, hout]; dsimp only [N]; omega, hbase, hqEnd, hfirst, ?_, hcoord,
+    fun j hj => h.2.2.2.2.2.2.2.2.2.2.2 j (Or.inl hj)⟩
+  simpa only [base, ord, RecordProduct.recordOrdinal, Q, RecordProduct.recordQueryCount,
+    q, RecordProduct.recordQueries, hout, N, K, C, hcard, Block.Realizes, Block.read] using hdr
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.RecordWitness

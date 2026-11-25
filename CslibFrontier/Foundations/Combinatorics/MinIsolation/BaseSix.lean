@@ -80,10 +80,8 @@ variable {α P : Type*} {ℓ : ℕ}
 theorem levelWeight_lt_pow (level : ℕ) (word seed : Fin ℓ → Bool) :
     levelWeight level word seed < 6 ^ (level + ℓ) := by
   calc
-    levelWeight level word seed ≤ ∑ j : Fin ℓ, levelBitCoeff level j := by
-      apply sum_le_sum
-      intro j _
-      cases word j <;> cases seed j <;> simp
+    levelWeight level word seed ≤ ∑ j : Fin ℓ, levelBitCoeff level j :=
+      sum_le_sum fun j _ => by cases word j <;> cases seed j <;> simp
     _ = 6 ^ level * ∑ k ∈ range ℓ, 6 ^ k := by
       rw [mul_sum, ← Fin.sum_univ_eq_sum_range]
       calc
@@ -106,16 +104,10 @@ coefficient at `j`. -/
 theorem levelWeight_update (level : ℕ) (word seed : Fin ℓ → Bool) (j : Fin ℓ) :
     levelWeight level word (update seed j true) =
       levelWeight level word (update seed j false) + levelBitCoeff level j * (word j).toNat := by
-  let delta := levelBitCoeff level j * (word j).toNat
-  have hdelta : (∑ k : Fin ℓ, if k = j then delta else 0) = delta := by simp
   simp only [levelWeight]
-  change _ = _ + delta
-  rw [← hdelta, ← sum_add_distrib]
-  refine sum_congr rfl fun k _ => ?_
-  by_cases h : k = j
-  · subst k
-    simp [delta]
-  · simp [h]
+  rw [← show (∑ k : Fin ℓ, if k = j then levelBitCoeff level j * (word j).toNat else 0) =
+      levelBitCoeff level j * (word j).toNat by simp, ← sum_add_distrib]
+  exact sum_congr rfl fun k _ => by by_cases h : k = j <;> simp [h]
 
 private theorem two_mul_sum_six_pow_le (m : ℕ) :
     2 * (∑ k ∈ range m, (2 : ℕ) ^ (m - k) * 6 ^ k) ≤ 6 ^ m := by
@@ -123,14 +115,13 @@ private theorem two_mul_sum_six_pow_le (m : ℕ) :
   | zero => simp
   | succ m ih =>
     have hsum : (∑ k ∈ range m, (2 : ℕ) ^ (m + 1 - k) * 6 ^ k) =
-        2 * (∑ k ∈ range m, (2 : ℕ) ^ (m - k) * 6 ^ k) := by
+        2 * ∑ k ∈ range m, (2 : ℕ) ^ (m - k) * 6 ^ k := by
       rw [mul_sum]
       refine sum_congr rfl fun k hk => ?_
       have := mem_range.mp hk
       rw [show m + 1 - k = m - k + 1 by omega, pow_succ]
-      ac_rfl
-    rw [sum_range_succ, hsum, Nat.add_sub_cancel_left, pow_succ 6]
-    simp only [pow_one]
+      ring
+    rw [sum_range_succ, hsum, Nat.add_sub_cancel_left, pow_one, pow_succ 6]
     omega
 
 private theorem sum_six_pow_multiset_eq_sum_range (s : Multiset α) (level : α → ℕ) {m : ℕ}
@@ -140,21 +131,15 @@ private theorem sum_six_pow_multiset_eq_sum_range (s : Multiset α) (level : α 
   induction s using Multiset.induction_on with
   | empty => simp
   | cons a t ih =>
-    have ha : level a < m := hlt a (Multiset.mem_cons_self a t)
-    have ht : ∀ x ∈ t, level x < m := fun x hx => hlt x (Multiset.mem_cons_of_mem hx)
-    rw [Multiset.map_cons, Multiset.sum_cons, ih ht]
     have hfilter (k : ℕ) :
         ((a ::ₘ t).filter fun x => level x = k).card * 6 ^ k =
           (if level a = k then 6 ^ k else 0) +
             (t.filter fun x => level x = k).card * 6 ^ k := by
       rw [Multiset.filter_cons]
-      split_ifs with h
-      · simp [Nat.add_mul, Nat.add_comm]
-      · simp
+      split_ifs <;> simp [Nat.add_mul, Nat.add_comm]
+    rw [Multiset.map_cons, Multiset.sum_cons, ih fun x hx => hlt x (Multiset.mem_cons_of_mem hx)]
     simp_rw [hfilter, sum_add_distrib]
-    congr 1
-    rw [sum_ite_eq]
-    simp [ha]
+    simp [sum_ite_eq, hlt a (Multiset.mem_cons_self a t)]
 
 /-- If every element of a multiset has level strictly below `m` and at most `2 ^ (m - k)`
 elements sit at each level `k < m`, then all elements together contribute at most half of
@@ -224,13 +209,12 @@ theorem multisetWeight_update_bounds (level : α → ℕ) (code : α → Fin ℓ
     | empty => simp
     | cons a t ih =>
       simp only [Multiset.map_cons, Multiset.sum_cons, Nat.add_mul]
-      apply Nat.add_le_add _ ih
-      cases code a j <;> simp [levelBitCoeff]
-  have htail := two_mul_sum_six_pow_multiset_le rest level hlt hcard
-  have hscaled := Nat.mul_le_mul_right (6 ^ (ℓ - (j.val + 1))) htail
+      exact Nat.add_le_add (by cases code a j <;> simp [levelBitCoeff]) ih
+  have hscaled := Nat.mul_le_mul_right (6 ^ (ℓ - (j.val + 1)))
+    (two_mul_sum_six_pow_multiset_le rest level hlt hcard)
   rw [Nat.mul_assoc] at hscaled
-  have hdouble := (Nat.mul_le_mul_left 2 hsum).trans hscaled
-  change 2 * _ ≤ levelBitCoeff m j at hdouble
+  have hdouble : 2 * (rest.map fun x => levelBitCoeff (level x) j * (code x j).toNat).sum ≤
+      levelBitCoeff m j := (Nat.mul_le_mul_left 2 hsum).trans hscaled
   omega
 
 /-- Hoza's exchange argument: a pointwise minimum over a nonempty finite family of seed functions
@@ -253,23 +237,18 @@ theorem minWeight_update_bounds (weight : P → (Fin ℓ → Bool) → ℕ)
     (min'_mem (F.image fun p => weight p (update seed j false)) (hne.image _))
   obtain ⟨p₁, hp₁, h₁⟩ := mem_image.mp
     (min'_mem (F.image fun p => weight p (update seed j true)) (hne.image _))
-  have hb₀ := (hbound p₀ hp₀).2
-  have hb₁ := (hbound p₁ hp₁).1
-  rw [h₀] at hb₀
-  rw [h₁] at hb₁
-  exact ⟨(Nat.add_le_add_right (min'_le _ _ (mem_image_of_mem _ hp₁)) _).trans hb₁,
-    (min'_le _ _ (mem_image_of_mem _ hp₀)).trans hb₀⟩
+  exact ⟨(Nat.add_le_add_right (min'_le _ _ (mem_image_of_mem _ hp₁)) _).trans
+      (h₁ ▸ (hbound p₁ hp₁).1),
+    (min'_le _ _ (mem_image_of_mem _ hp₀)).trans (h₀ ▸ (hbound p₀ hp₀).2)⟩
 
 private theorem update_agrees {x y : Fin ℓ → Bool} (j : Fin ℓ)
     (h : ∀ i : Fin ℓ, i.val < j.val → x i = y i) :
     ∀ i : Fin ℓ, i.val < j.val + 1 → update x j (y j) i = y i := by
   intro i hi
-  by_cases hij : i = j
-  · subst i
-    simp
-  · have hval : i.val ≠ j.val := fun he => hij (Fin.ext he)
-    rw [update_of_ne hij]
-    exact h i (by omega)
+  rcases eq_or_ne i j with rfl | hij
+  · simp
+  · rw [update_of_ne hij]
+    exact h i (lt_of_le_of_ne (Nat.lt_succ_iff.mp hi) (Fin.val_ne_of_ne hij))
 
 private theorem suffix_change_le (δ : (Fin ℓ → Bool) → ℤ) {A : ℤ} (hA : 0 ≤ A)
     (hstep : ∀ x j b, |δ (update x j b) - δ x| ≤ 3 * (A * 6 ^ (ℓ - (j.val + 1))))
@@ -280,14 +259,11 @@ private theorem suffix_change_le (δ : (Fin ℓ → Bool) → ℤ) {A : ℤ} (hA
   · let j : Fin ℓ := ⟨k, hlt⟩
     let x' := update x j (y j)
     have htail := suffix_change_le δ hA hstep (k + 1) (by omega) x' y (update_agrees j hxy)
-    have hhead := hstep x j (y j)
-    have htriangle : |δ y - δ x| ≤ |δ y - δ x'| + |δ x' - δ x| := by
-      convert abs_add_le (δ y - δ x') (δ x' - δ x) using 2
-      ring
-    have hexp : ℓ - k = ℓ - (k + 1) + 1 := by omega
-    change |δ x' - δ x| ≤ 3 * (A * 6 ^ (ℓ - (k + 1))) at hhead
+    have hhead : |δ x' - δ x| ≤ 3 * (A * 6 ^ (ℓ - (k + 1))) := hstep x j (y j)
+    have htri : |δ y - δ x| ≤ |δ y - δ x'| + |δ x' - δ x| := by
+      simpa only [sub_add_sub_cancel] using abs_add_le (δ y - δ x') (δ x' - δ x)
     have hscale : 3 * (A * 6 ^ (ℓ - k)) = 18 * (A * 6 ^ (ℓ - (k + 1))) := by
-      rw [hexp, pow_succ]
+      rw [show ℓ - k = ℓ - (k + 1) + 1 by omega, pow_succ]
       ring
     rw [hscale]
     omega
@@ -309,16 +285,12 @@ private theorem eq_of_agrees_on_equal_bits {c d : Fin ℓ → Bool} (δ : (Fin �
     obtain ⟨j, hj⟩ := Function.ne_iff.mp hne
     exact ⟨j.val, j, rfl, hj⟩
   obtain ⟨j, hj, hjdiff⟩ := Nat.find_spec hex
-  have hagree : ∀ i : Fin ℓ, i.val < j.val → x i = y i := by
-    intro i hi
-    by_contra hdiff
-    exact Nat.find_min hex (hj ▸ hi) ⟨i, rfl, hdiff⟩
-  have hsmall := suffix_change_le δ hA.le hstep (j.val + 1) j.isLt
-    (update x j (y j)) y (update_agrees j hagree)
+  have hsmall := suffix_change_le δ hA.le hstep (j.val + 1) j.isLt (update x j (y j)) y
+    (update_agrees j fun i hi => by_contra fun hd => Nat.find_min hex (hj ▸ hi) ⟨i, rfl, hd⟩)
   have hlarge := hgap x j (y j) hjdiff (hjdiff ∘ hxy j)
   rw [hy, zero_sub, abs_neg] at hsmall
   rw [hx, sub_zero] at hlarge
-  have hpos : 0 < A * 6 ^ (ℓ - (j.val + 1)) := by positivity
+  have : 0 < A * 6 ^ (ℓ - (j.val + 1)) := by positivity
   omega
 
 private theorem abs_update_sub_eq {δ : (Fin ℓ → Bool) → ℤ} {x : Fin ℓ → Bool}
@@ -326,10 +298,8 @@ private theorem abs_update_sub_eq {δ : (Fin ℓ → Bool) → ℤ} {x : Fin ℓ
     |δ (update x j b) - δ x| = |δ (update x j true) - δ (update x j false)| := by
   cases hj : x j <;> cases b
   · exact (h hj).elim
-  · have hself : update x j false = x := update_eq_self_iff.mpr hj.symm
-    rw [hself]
-  · have hself : update x j true = x := update_eq_self_iff.mpr hj.symm
-    rw [hself, abs_sub_comm]
+  · rw [show update x j false = x from update_eq_self_iff.mpr hj.symm]
+  · rw [show update x j true = x from update_eq_self_iff.mpr hj.symm, abs_sub_comm]
   · exact (h hj).elim
 
 /-- If two seed functions satisfy the two-sided base-six derivative bound at the same scale level
@@ -366,36 +336,24 @@ theorem card_tyingSeeds_le_of_update_bounds (f g : (Fin ℓ → Bool) → ℕ)
     · exact (by omega : (levelBitCoeff m j : ℤ) ≤ -_).trans (neg_le_abs _)
     · exact (by omega : (levelBitCoeff m j : ℤ) ≤ _).trans (le_abs_self _)
     · exact (h rfl).elim
-  have hstep (x : Fin ℓ → Bool) (j : Fin ℓ) (b : Bool) :
-      |δ (update x j b) - δ x| ≤ 3 * (A * 6 ^ (ℓ - (j.val + 1))) := by
-    by_cases h : x j = b
-    · rw [update_eq_self_iff.mpr h.symm, sub_self, abs_zero]
-      positivity
-    · rw [abs_update_sub_eq h, ← hcoeff]
-      exact (hflip x j).1
-  have hgap (x : Fin ℓ → Bool) (j : Fin ℓ) (b : Bool) :
-      x j ≠ b → c j ≠ d j →
-        A * 6 ^ (ℓ - (j.val + 1)) ≤ |δ (update x j b) - δ x| := by
-    intro h hcode
-    rw [abs_update_sub_eq h, ← hcoeff]
-    exact (hflip x j).2 hcode
   let agree := univ.filter fun j => c j = d j
-  let restrict (seed : Fin ℓ → Bool) (j : agree) := seed j
   have hcount : (univ.filter fun seed => f seed = g seed).card ≤
       (univ : Finset (agree → Bool)).card := by
-    refine card_le_card_of_injOn restrict (fun _ _ => mem_univ _) ?_
-    intro x hx y hy he
-    have hzero (seed : Fin ℓ → Bool) (h : seed ∈ univ.filter fun s => f s = g s) :
-        δ seed = 0 := by simp [δ, (mem_filter.mp h).2]
-    apply eq_of_agrees_on_equal_bits δ hA hstep hgap (hzero x hx) (hzero y hy)
-    intro j hj
-    exact congrFun he ⟨j, mem_filter.mpr ⟨mem_univ _, hj⟩⟩
-  have hagree : agree.card = ℓ - hammingDist c d := by
-    have hcard := card_filter_add_card_filter_not (s := (univ : Finset (Fin ℓ)))
-      (fun j => c j = d j)
-    rw [card_univ, Fintype.card_fin] at hcard
-    change agree.card + hammingDist c d = ℓ at hcard
-    omega
-  rwa [card_univ, Fintype.card_fun, Fintype.card_bool, Fintype.card_coe, hagree] at hcount
+    refine card_le_card_of_injOn (fun seed (j : agree) => seed j) (fun _ _ => mem_univ _)
+      fun x hx y hy he => eq_of_agrees_on_equal_bits δ hA (fun z j b => ?_)
+        (fun z j b h hc => ?_) (by simp [δ, (mem_filter.mp hx).2])
+        (by simp [δ, (mem_filter.mp hy).2]) fun j hj =>
+          congrFun he ⟨j, mem_filter.mpr ⟨mem_univ _, hj⟩⟩
+    · by_cases h : z j = b
+      · rw [update_eq_self_iff.mpr h.symm, sub_self, abs_zero]; positivity
+      · rw [abs_update_sub_eq h, ← hcoeff]
+        exact (hflip z j).1
+    · rw [abs_update_sub_eq h, ← hcoeff]
+      exact (hflip z j).2 hc
+  have hcard := card_filter_add_card_filter_not (s := (univ : Finset (Fin ℓ))) (fun j => c j = d j)
+  rw [card_univ, Fintype.card_fin] at hcard
+  change agree.card + hammingDist c d = ℓ at hcard
+  rwa [card_univ, Fintype.card_fun, Fintype.card_bool, Fintype.card_coe,
+    show agree.card = ℓ - hammingDist c d by omega] at hcount
 
 end Cslib.MinIsolation.BaseSix
