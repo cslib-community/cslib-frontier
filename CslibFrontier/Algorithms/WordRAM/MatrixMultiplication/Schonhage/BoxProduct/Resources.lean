@@ -52,27 +52,18 @@ theorem timeBound_le {L m N : ℕ} (hm : m ≤ L) (t : ℕ) (qs : List (Fin N ×
   let G := (L + 1) ^ 2
   have hG : 1 ≤ G := by dsimp only [G]; nlinarith only [Nat.zero_le L]
   have hLG : L + 1 ≤ G := by dsimp only [G]; nlinarith only [Nat.zero_le L]
-  have hS : 1 ≤ S := by
-    apply Nat.succ_le_of_lt
-    dsimp only [S, workShape]
-    positivity
+  have hS : 0 < S := by dsimp only [S, workShape]; positivity
   have hF : 1 + N * D m + qs.length + 2 ^ L + (numBands L m N + 1) * 10 ^ L +
       numBands L m N ^ 2 ≤ S := by
-    have hmul : numBands L m N ^ 2 ≤
-        numBands L m N ^ 2 * ((boxes L m t).card + 1) := by
-      simpa only [Nat.mul_one] using Nat.mul_le_mul_left (numBands L m N ^ 2)
-        (show 1 ≤ (boxes L m t).card + 1 by omega)
-    exact (Nat.add_le_add_left hmul _).trans (Nat.le_add_right _ _)
-  have hT : 10 ^ L ≤ S := by
-    have hmul : 10 ^ L ≤ (numBands L m N + 1) * 10 ^ L :=
-      Nat.le_mul_of_pos_left _ (by omega)
-    exact hmul.trans ((Nat.le_add_left _ _).trans
-      ((Nat.le_add_right _ _).trans (Nat.le_add_right _ _)))
+    have : numBands L m N ^ 2 ≤ numBands L m N ^ 2 * ((boxes L m t).card + 1) :=
+      Nat.le_mul_of_pos_right _ (by omega)
+    dsimp only [S, workShape]; omega
+  have hT : 10 ^ L ≤ S :=
+    le_add_right (le_add_right (le_add_left (Nat.le_mul_of_pos_left _ (by omega))))
   have hB : numBands L m N ^ 2 * ((boxes L m t).card + 1) ≤ S :=
     (Nat.le_add_left _ _).trans (Nat.le_add_right _ _)
   have hQ : qs.length ≤ S :=
-    (Nat.le_add_left _ _).trans ((Nat.le_add_right _ _).trans
-      ((Nat.le_add_right _ _).trans ((Nat.le_add_right _ _).trans (Nat.le_add_right _ _))))
+    le_add_right (le_add_right (le_add_right (le_add_right (Nat.le_add_left _ _))))
   have hA : qs.length * (∑ d ∈ Finset.range (t + 1), alpha m d) ≤ S :=
     Nat.le_add_left _ _
   have hf := (frontTime_le L m N qs.length).trans
@@ -90,8 +81,7 @@ theorem timeBound_le {L m N : ℕ} (hm : m ≤ L) (t : ℕ) (qs : List (Fin N ×
     have hQS := Nat.mul_le_mul_right (41 * S) hG
     unfold batchUnit
     nlinarith only [hA', hQ', hQS]
-  have hunit : 1 ≤ G * S := by
-    simpa only [Nat.one_mul] using Nat.mul_le_mul hG hS
+  have hunit : 1 ≤ G * S := Nat.mul_pos hG hS
   unfold timeBound
   rw [sum_tileCharge hm t qs]
   change _ ≤ 32768 * G * S

@@ -113,9 +113,7 @@ theorem exec_queryProgram {w L m t AA BB D V K A B Q O : ℕ}
       wram_exec [vn, vo, va, vp.one]
       refine ⟨by regs_frame, by wram_simp, ?_, by wram_simp, by wram_simp, ?_, ?_⟩
       · wram_simp [vs]; simp only [List.length_cons]; omega
-      · intro p hp
-        wram_simp
-        exact vf p (by omega)
+      · exact fun p hp => by wram_simp; exact vf p (by omega)
       · exact vr.transport hAA hBB hDir (by rw [hK]) fun p hp => by wram_simp
     have zcodes (i : Fin qs.length) : z.mem (Q + 1 + i.val) =
         (PrunedQuery.queryIndex (qs.get i)).val := by
@@ -133,9 +131,7 @@ theorem exec_queryProgram {w L m t AA BB D V K A B Q O : ℕ}
         (show (Cond.lt Reg.next Reg.stop).Holds x from by
           simp only [Cond.Holds, hnext, hstop, List.length_cons]; omega) hbdy hy
       exact he.mono (by simp only [queryTime, List.map_cons, List.sum_cons]; omega)
-    · simpa only [List.length_cons, Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using yn
-    · simpa only [List.length_cons, Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using ys
-    · simpa only [List.length_cons, Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using yo
+    iterate 3 (simp only [List.length_cons]; omega)
     · intro i
       refine Fin.cases ?_ (fun j => ?_) i
       · change y.mem (O + 0) = Signed.encode (BoxQuery.queryValue m t η a b)
