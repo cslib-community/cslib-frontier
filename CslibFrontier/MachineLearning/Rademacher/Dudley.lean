@@ -282,7 +282,8 @@ private theorem intervalIntegral_sqrt_log_div_le {α R C : ℝ} (hα : 0 < α) (
     have hα_log := mul_nonneg hα.le (hlog_nonneg hα (hαR.trans hRC))
     rw [Real.log_div hC.ne' hα.ne'] at hα_log
     rw [intervalIntegral.integral_congr hcongr,
-      intervalIntegral.integral_sub intervalIntegrable_const intervalIntegral.intervalIntegrable_log',
+      intervalIntegral.integral_sub intervalIntegrable_const
+        intervalIntegral.intervalIntegrable_log',
       integral_log, intervalIntegral.integral_const, smul_eq_mul, ht_sq,
       Real.log_div hC.ne' hR.ne']
     linarith
