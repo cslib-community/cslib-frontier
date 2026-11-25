@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.FineGrained.Reduction
+public import CslibFrontier.Computability.Complexity.FineGrained.SatisfiabilityHypothesis
 public import CslibFrontier.Computability.Complexity.Problems.Clique
 public import CslibFrontier.Computability.Complexity.Problems.Coloring
 public import CslibFrontier.Computability.Complexity.Problems.Hamiltonian.Sparse
@@ -58,6 +59,9 @@ is false, so the `ETH`-conditional lower bounds below hold vacuously. They are k
 statements; the reductions and size bounds behind them are unconditional.
 
 ## Main results
+
+* `Cslib.Complexity.SH.not_decidableInPowerExpTime_ThreeColoring`: under SH, no fixed power
+  saving below one in the exponent for 3-coloring measured in vertices plus edges.
 
 * `Cslib.Complexity.ETH.not_decidableInSubexpTime_ThreeColoring`: no `2 ^ o(|V| + |E|)` algorithm
   for 3-coloring.
@@ -208,5 +212,16 @@ theorem ETH.not_decidableInSubexpTime_HamPath (h : ETH) :
       simp only [Function.comp_apply, DirHamPath.toHamPath, SAT.toSparseDirHamPath,
         Graph.length_split_fst, Graph.length_split_snd]
       omega
+
+/-- Under SH, 3-coloring has no fixed power saving below one in the exponent, measured in
+the number of declared vertices and edges. -/
+theorem SH.not_decidableInPowerExpTime_ThreeColoring (h : SH) {p : ℝ}
+    (hp : 0 < p) (hp1 : p < 1) :
+    ¬DecidableInPowerExpTime ThreeColoring encGraph
+      (fun G => G.vertices.length + G.edges.length) p :=
+  h.not_decidableInPowerExpTime_of_linear_reduction hp hp1 SAT.computableInPolyTime_toThreeColoring
+    (fun φ _ => (SAT.toThreeColoring_mem_iff φ).symm) (K := 93) fun φ hφ => by
+      have := SAT.length_toThreeColoring_le hφ
+      nlinarith
 
 end Cslib.Complexity

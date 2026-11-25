@@ -138,6 +138,12 @@ example (h : ETH) :
    h.not_decidableInSubexpTime_of_reduction (f := id) ComputableInPolyTime.id'
     (fun φ hφ => ⟨fun h => h.2, fun h' => ⟨hφ, h'⟩⟩) (k := 1) fun φ _ => by simp⟩
 
+/-- The SH transfer specializes to a square-root exponent with polynomial input overhead. -/
+example (h : SH) :
+    ¬DecidableInPowerExpTime ThreeColoring encGraph
+      (fun G => G.vertices.length + G.edges.length) (1 / 2) :=
+  h.not_decidableInPowerExpTime_ThreeColoring (by norm_num) (by norm_num)
+
 /-! ### Axioms -/
 
 /-- info: 'Cslib.Complexity.SAT.toDirHamPath_eq' does not depend on any axioms -/
