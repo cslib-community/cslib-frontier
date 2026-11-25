@@ -404,17 +404,12 @@ private theorem NonCopositive.complete_of_mem {M : SymRatMatrix} (hM : M ∈ Non
   refine (length_encList_le encNat p hpow_elem).trans ?_
   simp only [Polynomial.eval_mul, Polynomial.eval_X, Polynomial.eval_add,
     Polynomial.eval_ofNat, Polynomial.eval_pow, Polynomial.eval_one, hp_len]
-  calc n * (2 * (8 * (L + 1) ^ 2 + 1) + 1) = n * (16 * (L + 1) ^ 2 + 3) := by ring
-    _ ≤ L * (16 * (L + 1) ^ 2 + 3) := Nat.mul_le_mul_right _ hn_le_L
+  exact (Nat.mul_le_mul_right _ hn_le_L).trans_eq' (by ring)
 
 theorem NonCopositive.exists_check_eq_true_iff (M : SymRatMatrix) :
-    (∃ p : List ℕ, NonCopositive.check M p = true) ↔ M ∈ NonCopositive := by
-  constructor
-  · rintro ⟨p, hp⟩
-    exact NonCopositive.sound_of_check hp
-  · intro hM
-    obtain ⟨p, hp, _⟩ := NonCopositive.complete_of_mem hM
-    exact ⟨p, hp⟩
+    (∃ p : List ℕ, NonCopositive.check M p = true) ↔ M ∈ NonCopositive :=
+  ⟨fun ⟨_, hp⟩ => NonCopositive.sound_of_check hp, fun hM =>
+    let ⟨p, hp, _⟩ := NonCopositive.complete_of_mem hM; ⟨p, hp⟩⟩
 
 @[local fun_prop]
 private theorem computableInPolyTime_rows :
@@ -444,10 +439,7 @@ theorem NonCopositive.mem_NP : NonCopositive ∈ NP encSymRatMatrix := by
       NP encSymRatMatrix :=
     mem_NP_of_witness (Decoder.list Decoder.nat) NonCopositive.computableInPolyTime_check
       (fun _ _ => Iff.rfl)
-      (fun M _ h => by
-        obtain ⟨p', hp', hlen⟩ :=
-          NonCopositive.complete_of_mem (NonCopositive.sound_of_check h)
-        exact ⟨p', hp', hlen⟩)
+      (fun _ _ h => NonCopositive.complete_of_mem (NonCopositive.sound_of_check h))
   have hset : {M : SymRatMatrix | ∃ p : List ℕ, NonCopositive.check M p = true} = NonCopositive :=
     Set.ext NonCopositive.exists_check_eq_true_iff
   rwa [← hset]
@@ -620,10 +612,10 @@ private theorem cliqueToSymRatMatrix_mem_iff_two_le {G : Graph} {k : ℕ}
       simp [cliqueEntry, hij, heij]
     · have hij_v : G.distinctVertices[i.1] ≠ G.distinctVertices[j.1] :=
         fun h => hij (G.nodup_distinctVertices.getElem_inj_iff.1 h)
-      by_cases hadj : G.adjBool G.distinctVertices[i.1] G.distinctVertices[j.1] = true
-      · have hH : H.Adj (eFin i) (eFin j) := (G.adjBool_eq_true_iff _ _).1 hadj
-        simp [cliqueEntry, hij_v, hadj, hH]
-      · have hH : ¬ H.Adj (eFin i) (eFin j) := fun h => hadj ((G.adjBool_eq_true_iff _ _).2 h)
+      have hH : H.Adj (eFin i) (eFin j) ↔
+          G.adjBool G.distinctVertices[i.1] G.distinctVertices[j.1] = true :=
+        (G.adjBool_eq_true_iff _ _).symm
+      by_cases hadj : G.adjBool G.distinctVertices[i.1] G.distinctVertices[j.1] = true <;>
         simp [cliqueEntry, hij_v, hadj, hH]
   have hnc_iff :
       cliqueToSymRatMatrix ⟨G, k⟩ ∈ NonCopositive ↔
@@ -646,14 +638,10 @@ theorem cliqueToSymRatMatrix_mem_iff (gk : CliqueInstance) :
       simp [cliqueToSymRatMatrix_rows, cliqueToRows, singletonSymRatMatrix]
     exact iff_of_true hin (SymRatMatrix.ext hrows ▸ singleton_neg_nonCopositive)
   · by_cases hemp : G.distinctVertices.isEmpty = true
-    · have hnot : (⟨G, k⟩ : CliqueInstance) ∉ Clique := by
-        intro hmem
-        rw [mem_Clique_iff] at hmem
-        obtain ⟨S, hSG, hS⟩ := hmem
+    · have hnot : (⟨G, k⟩ : CliqueInstance) ∉ Clique := fun hmem => by
+        obtain ⟨S, hSG, hS⟩ := mem_Clique_iff.1 hmem
         obtain ⟨v, hvS⟩ := Finset.card_pos.1 (by rw [hS.card_eq]; dsimp only; omega)
-        have hv : v ∈ G.distinctVertices := Graph.mem_distinctVertices.2 (hSG v hvS)
-        rw [List.isEmpty_iff.1 hemp] at hv
-        cases hv
+        simpa [List.isEmpty_iff.1 hemp] using Graph.mem_distinctVertices.2 (hSG v hvS)
       have hrows : (cliqueToSymRatMatrix ⟨G, k⟩).rows = (singletonSymRatMatrix 1).rows := by
         simp [cliqueToSymRatMatrix_rows, cliqueToRows, hk0, hemp, singletonSymRatMatrix]
       exact iff_of_false hnot (SymRatMatrix.ext hrows ▸ fun h => h singleton_pos_copositive)
