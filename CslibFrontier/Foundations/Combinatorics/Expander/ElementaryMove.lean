@@ -201,15 +201,10 @@ private theorem fiber_bound (hH : 3 ≤ H) (k : Fin H) (g : (Fin H → ZMod P) �
     𝔼 F, nz (F k) * (g F - fib g k (F k)) ^ 2 ≤ 2048 * H * dir g := by
   -- A partner `σ i ∉ {i, k}` for every coordinate `i`.
   have hσ (i : Fin H) : ∃ j, j ≠ i ∧ j ≠ k := by
-    by_contra h
-    push Not at h
-    have hsub : (univ : Finset (Fin H)) ⊆ {i, k} := fun j _ ↦ by
-      by_cases hj : j = i
-      · simp [hj]
-      · simp [h j hj]
-    have := (card_le_card hsub).trans (card_insert_le _ _)
-    simp only [card_univ, Fintype.card_fin, card_singleton] at this
-    omega
+    obtain ⟨j, -, hj⟩ := exists_mem_notMem_of_card_lt_card (s := {i, k}) (t := univ)
+      (card_le_two.trans_lt (by simp only [card_univ, Fintype.card_fin]; omega))
+    simp only [mem_insert, mem_singleton, not_or] at hj
+    exact ⟨j, hj⟩
   choose σ hσ using hσ
   -- Coordinates on the fiber `{F k = c}`: `F = update (c • w) k c`.
   set Ψ : ZMod P → (Fin H → ZMod P) → (Fin H → ZMod P) := fun c w ↦ update (c • w) k c with hΨ
@@ -227,8 +222,7 @@ private theorem fiber_bound (hH : 3 ≤ H) (k : Fin H) (g : (Fin H → ZMod P) �
     refine expect_congr rfl fun c _ ↦ ?_
     by_cases hc : c = 0
     · simp [hG, nz, hc]
-    · have h1 : nz c = 1 := by simp [nz, hc]
-      simp only [hG, h1, one_mul]
+    · simp only [hG, show nz c = 1 by simp [nz, hc], one_mul]
       rw [hfib hc g]
       exact hfib hc fun F ↦ (g F - 𝔼 F', g (update F' k c)) ^ 2
   -- The coordinate `k` of `w` is not seen.
@@ -250,24 +244,16 @@ private theorem fiber_bound (hH : 3 ≤ H) (k : Fin H) (g : (Fin H → ZMod P) �
     conv_rhs => rw [expect_comm]
     refine expect_le_expect fun c _ ↦ ?_
     by_cases hc : c = 0
-    · have h0 : nz c = 0 := by simp [nz, hc]
-      have hz (w : Fin H → ZMod P) : G (M (c, w)) - G (c, w) = 0 := by
-        simp only [hG, hM₁, h0, zero_mul, sub_self]
-      simp only [hz]
-      rw [show (0 : ℝ) ^ 2 = 0 by norm_num, expect_const_zero]
+    · simp only [hG, hM₁, show nz c = 0 by simp [nz, hc], zero_mul, sub_self, ne_eq,
+        OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow, expect_const_zero]
       exact expect_nonneg fun _ _ ↦ sq_nonneg _
-    · have h1 : nz c = 1 := by simp [nz, hc]
-      have : ∀ w, G (M (c, w)) - G (c, w) = g (elementaryMove a b (Ψ c w)) - g (Ψ c w) := by
-        intro w
-        simp only [hG, hM₁, h1, one_mul, hM]
-      simp only [this]
+    · simp only [hG, hM₁, show nz c = 1 by simp [nz, hc], one_mul, hM]
       exact (hfib hc fun F ↦ (g (elementaryMove a b F) - g F) ^ 2).le
   -- The four moves of the pair `(i, σ i)`, for `i ≠ k`.
   have hi (i : Fin H) (hik : i ≠ k) :
       𝔼 q, (G q - 𝔼 a, G (q.1, update q.2 i a)) ^ 2 ≤ 2048 * dir g := by
     set j := σ i
-    have hji : j ≠ i := (hσ i).1
-    have hjk : j ≠ k := (hσ i).2
+    obtain ⟨hji, hjk⟩ := hσ i
     refine (expect_sq_sub_expect_update_le_pairShearTranslation (Equiv.refl _) (Equiv.refl _)
       hji.symm G).trans ?_
     rw [Fin.sum_univ_four]
@@ -289,9 +275,8 @@ private theorem fiber_bound (hH : 3 ≤ H) (k : Fin H) (g : (Fin H → ZMod P) �
   refine (Fintype.expect_sq_sub_expect_le_sum_expect_sq_sub_update G).trans ?_
   calc ∑ i, 𝔼 q, (G q - 𝔼 a, G (q.1, update q.2 i a)) ^ 2 ≤ ∑ _i : Fin H, 2048 * dir g := by
         refine sum_le_sum fun i _ ↦ ?_
-        by_cases hik : i = k
-        · subst hik
-          rw [hk]
+        rcases eq_or_ne i k with rfl | hik
+        · rw [hk]
           positivity
         · exact hi i hik
     _ = 2048 * H * dir g := by
@@ -402,29 +387,15 @@ theorem exists_expect_sq_sub_le_elementaryMove (hH : 3 ≤ H) (g : (Fin H → ZM
         mul_nonneg this (sq_nonneg (g F - 2 * fib g k (F k) + ybar))]
     by_cases hk : k = k₀
     · subst hk
-      have hQ := expect_nz_nz_sq_le h01.symm g
-      have hb := (expect_nz_sq_sub_le (k := k₁) (l := k₀) g).2
-      have := hS k₀
-      have := hS k₁
-      have := hS0 k₁
-      have := hS0 k₀
-      nlinarith
-    · have hQ := expect_nz_nz_sq_le hk g
-      have hb := (expect_nz_sq_sub_le (k := k) (l := k₀) g).1
-      have := hS k
-      have := hS k₀
-      have := hS0 k
-      have := hS0 k₀
-      nlinarith
+      linarith [expect_nz_nz_sq_le h01.symm g, (expect_nz_sq_sub_le (k := k₁) (l := k₀) g).2,
+        hS k₀, hS k₁]
+    · linarith [expect_nz_nz_sq_le hk g, (expect_nz_sq_sub_le (k := k) (l := k₀) g).1, hS k, hS k₀]
   -- Every nonzero vector has a nonzero coordinate.
   have hpt (F : Fin H → ZMod P) :
       (if F = 0 then 0 else (g F - ybar) ^ 2) ≤ ∑ k, nz (F k) * (g F - ybar) ^ 2 := by
     split_ifs with hF
     · exact sum_nonneg fun k _ ↦ mul_nonneg (nz_nonneg _) (sq_nonneg _)
-    · obtain ⟨k, hk⟩ : ∃ k, F k ≠ 0 := by
-        by_contra h
-        push Not at h
-        exact hF (funext h)
+    · obtain ⟨k, hk : F k ≠ 0⟩ := Function.ne_iff.1 hF
       have h1 : nz (F k) = 1 := by simp [nz, hk]
       calc (g F - ybar) ^ 2 = nz (F k) * (g F - ybar) ^ 2 := by rw [h1, one_mul]
         _ ≤ _ := single_le_sum (f := fun k ↦ nz (F k) * (g F - ybar) ^ 2)
