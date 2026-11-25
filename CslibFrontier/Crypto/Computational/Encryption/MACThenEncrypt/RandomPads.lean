@@ -576,7 +576,8 @@ theorem isOraclePPT_mteCIToPrfDistinguisher (M : MACScheme) (ptLen : ℕ → ℕ
       exact ⟨trivial, by simp, Nat.le_add_right _ _⟩
   unfold mteCIToPrfDistinguisher
   exact (IsOraclePPTOn.cond (by polytime)
-    ((M.keyGen_ppt.preprocess (hparam.comp (ComputableInPolyTime.fst encUnary encBits))).isOraclePPTOn.bind_with
+    ((M.keyGen_ppt.preprocess
+        (hparam.comp (ComputableInPolyTime.fst encUnary encBits))).isOraclePPTOn.bind_with
       (hrun.bind_with (isOraclePPTOn_mteCIToPrfPost M ptLen hptLenPoly)))
     (ComputableInPolyTime.const false).isOraclePPTOn).isOraclePPT
 
