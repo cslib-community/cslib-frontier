@@ -79,8 +79,9 @@ theorem IsTwoUniversal.leftover_hash_of_heavy_probability [Nonempty Output] {see
       rw [filter_apply_toReal]
       split_ifs with hx
       · apply (div_le_iff₀ hgood).mpr
-        change (source x).toReal ≤ mass at hx
-        nlinarith
+        calc (source x).toReal ≤ mass := hx
+          _ = 2 * mass * (1 / 2) := by ring
+          _ ≤ 2 * mass * (source.toOuterMeasure good).toReal := by gcongr
       · positivity
     have hclose : dist source conditioned =
         (source.toOuterMeasure {x | mass < (source x).toReal}).toReal := by
