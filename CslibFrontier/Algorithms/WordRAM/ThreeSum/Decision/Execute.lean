@@ -77,12 +77,11 @@ theorem exec_large {κ w r : ℕ} (input : List ℤ) (c : Host.Callee r)
   let S := 13 + (2 + ((m + 1) * (7 * m + 15) + 8)) + 19 +
     (4 * (F + 1) + 5) + (4 * envelopeExponent κ + 8)
   have hppw := (preprocessing_width_le κ c.widthCoefficient n).trans hw
-  have hfrontw := (ChanHe.Preprocessing.frontend_width_le κ n).trans hppw
   have hw2 : w - 2 + 2 = w := by
     have := (four_le_width κ c.widthCoefficient n).trans hw
     omega
   obtain ⟨p, rs, hp, ho, hbase, hcount, hend, hnd, _, hkeys, hcounts, _, _, hparams, _⟩ :=
-    Frontend.exec_input input hfrontw hvalues
+    Frontend.exec_input input ((ChanHe.Preprocessing.frontend_width_le κ n).trans hppw) hvalues
   have hcard : rs.length ≤ n := by
     simpa only [List.length_map] using hnd.length_le_of_subset (fun k hk => (hkeys k).mp hk)
   obtain ⟨q, hq, rfl, hframe⟩ := ExecWithin.rename_post (x := x) (Q := fun q => q = p)
@@ -92,7 +91,6 @@ theorem exec_large {κ w r : ℕ} (input : List ℤ) (c : Host.Callee r)
   obtain ⟨b, hb, hi⟩ := initialize_forest (w := w - 2) rs q
     (by simpa only [hw2] using hw) (by simpa only [hw2] using hq.bounded hx)
     ((hqc _).trans hlen) ((hqc _).trans hans) ho hparams hbase hcount hend hcard
-  rw [hw2] at hb
   let a := ChanHe.Preprocessing.arena κ n b.mem
   have hresources := arena_resources κ n b.mem
   obtain ⟨s, y, he, hy, _, hout⟩ := forest_exec (w := w - 2) c
@@ -100,13 +98,14 @@ theorem exec_large {κ w r : ℕ} (input : List ℤ) (c : Host.Callee r)
     ⟨hresources.1.le, hresources.2⟩ (ChanHe.Preprocessing.arena_ready hppw b.mem)
     hi rfl rfl rfl (ChanHe.Preprocessing.arena_frontend_before κ n b.mem)
     hkeys hnd hcard hvalues
-  rw [hw2] at he
+  rw [hw2] at hb he
   have hnodes : ChanHe.Traversal.Math.output (Nat.primesLE a.m) a.Λ
       ((ChanHe.Preprocessing.entries l U rs).map ChanHe.Traversal.Entry.task) =
       Cslib.Algorithms.ThreeSum.ChanHe.allNodes n U (fun i : Fin n => input[i]) :=
     ChanHe.Preprocessing.entries_output hkeys (fun p hp => (hcounts p hp).2) hvalues
   have hN : 4 * a.N = instanceLength κ n := by
-    dsimp only [a, ChanHe.Preprocessing.arena, instanceLength, U]; omega
+    dsimp only [a, ChanHe.Preprocessing.arena, instanceLength, U]
+    omega
   refine ⟨y, ?_, hy.boolean, ?_⟩
   · change ExecWithin w (forest c.code) b y
       ((ForestCursor.mk 0 []).credit a l U rs
@@ -114,44 +113,41 @@ theorem exec_large {κ w r : ℕ} (input : List ℤ) (c : Host.Callee r)
           (c.time (Host.sideLength (4 * a.N)) (2 * (n + 2) ^ envelopeExponent κ + 1)) + 8) + 2)
       at he
     rw [hN] at he
-    have hcredit : (ForestCursor.mk 0 []).credit a l U rs (callbackTime κ c n) =
+    change ExecWithin w (forest c.code) b y
+      ((ForestCursor.mk 0 []).credit a l U rs (callbackTime κ c n) + 2) at he
+    rw [show (ForestCursor.mk 0 []).credit a l U rs (callbackTime κ c n) =
         l.count * (ChanHe.Traversal.rootTime F (n + 1) m (2 * m ^ 2) + 17) +
           (Cslib.Algorithms.ThreeSum.ChanHe.allNodes n U
-            (fun i : Fin n => input[i])).length * callbackTime κ c n := by
+            (fun i : Fin n => input[i])).length * callbackTime κ c n by
       change l.count * (ChanHe.Traversal.rootTime a.fuel a.n a.m a.N + 17) +
         (ChanHe.Traversal.Math.output (Nat.primesLE a.m) a.Λ
           ((ChanHe.Preprocessing.entries l U rs).map ChanHe.Traversal.Entry.task)).length *
             callbackTime κ c n = _
-      rw [hnodes]; rfl
-    change ExecWithin w (forest c.code) b y
-      ((ForestCursor.mk 0 []).credit a l U rs (callbackTime κ c n) + 2) at he
-    rw [hcredit] at he
+      rw [hnodes]; rfl] at he
     have hbudget : (Frontend.cost κ n - 1) + S +
         (l.count * (ChanHe.Traversal.rootTime F (n + 1) m (2 * m ^ 2) + 17) +
           (Cslib.Algorithms.ThreeSum.ChanHe.allNodes n U
             (fun i : Fin n => input[i])).length * callbackTime κ c n + 2) =
         largeCost κ c n (Cslib.Algorithms.ThreeSum.ChanHe.allNodes n U
           (fun i : Fin n => input[i])).length := by
-      dsimp only [largeCost, forestCost, S, l, m, F, U]; omega
+      dsimp only [largeCost, forestCost, S, l, m, F, U]
+      omega
     have hcost := allNodes_cost_le κ c n (fun i : Fin n => input[i])
     obtain ⟨tf, htf, hfe⟩ := hq
     obtain ⟨ts, hts, hse⟩ := hb
     obtain ⟨tl, htl, hle⟩ := he
-    cases hse with
-    | seq hprepare hrest =>
-      cases hrest with
-      | seq henvelope hpower =>
-        exact (hfe.seq (hprepare.seq (henvelope.seq (hpower.seq hle)))).within.mono (by
-          dsimp only [n, U, m, F, S, l] at htf hts htl hbudget hcost ⊢; omega)
+    cases hse with | seq hprepare hrest => cases hrest with | seq henvelope hpower =>
+    exact (hfe.seq (hprepare.seq (henvelope.seq (hpower.seq hle)))).within.mono (by
+      dsimp only [n, U, m, F, S, l] at htf hts htl hbudget hcost ⊢
+      omega)
   · have hv : y.regs (controllerRegisters r answer) = 1 ↔
         ∃ node ∈ s.nodes, Convolution (instanceLength κ n) (node.oneArray (2 * U)) := by
       have hv := hy.verdict
       change y.regs (controllerRegisters r answer) = 1 ↔
         ∃ node ∈ s.nodes, Convolution (4 * a.N) (node.oneArray a.U) at hv
       rwa [hN] at hv
-    have hcorrect := Cslib.Algorithms.ThreeSum.ChanHe.instances_correct n U (by omega)
-      (fun i : Fin n => input[i]) (fun i => hvalues _ (List.getElem_mem i.isLt))
-    rw [hv, hout.trans hnodes, hcorrect]
+    rw [hv, hout.trans hnodes, Cslib.Algorithms.ThreeSum.ChanHe.instances_correct n U (by omega)
+      (fun i : Fin n => input[i]) (fun i => hvalues _ (List.getElem_mem i.isLt))]
     simp only [Cslib.Algorithms.ThreeSum.ChanHe.instances, List.mem_map, instanceLength, U]
     exact ⟨fun ⟨node, hnode, hconv⟩ => ⟨_, ⟨node, hnode, rfl⟩, hconv⟩,
       fun ⟨_, ⟨node, hnode, rfl⟩, hs⟩ => ⟨node, hnode, hs⟩⟩
