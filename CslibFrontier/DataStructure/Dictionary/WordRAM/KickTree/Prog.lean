@@ -386,21 +386,12 @@ theorem allocKickTableProg_spec (p : KickTreeParams) (hw : 0 < p.w) (s : Memory.
       occAt base p s'.mem = (fun _ => 0) ∧
       elevAt base p s'.mem = (fun _ => 0) ∧
       metaAt base p s'.mem = (fun _ => 0) := by
-  have hzero_all : ∀ a, s.frontier ≤ a ∧ a < s.frontier + totalSpace p →
-      clear s.mem s.frontier (totalSpace p) a = 0 := fun a ⟨ha1, ha2⟩ =>
-    clear_of_owns ⟨ha1, ha2⟩
-  have hout_all : ∀ a, ¬(s.frontier ≤ a ∧ a < s.frontier + totalSpace p) →
-      clear s.mem s.frontier (totalSpace p) a = s.mem a := fun a ha =>
-    clear_of_not_owns ha
   have hzero : ∀ a, s.frontier + p.hSpace ≤ a → a < s.frontier + totalSpace p →
-      clear s.mem s.frontier (totalSpace p) a = 0 := fun a ha1 ha2 =>
-    hzero_all a ⟨by omega, ha2⟩
-  exact ⟨rfl, rfl, hzero_all, hout_all,
-    quotAt_zero_of_init p hw hzero,
-    valAt_zero_of_init p hw hzero,
-    occAt_zero_of_init p hw hzero,
-    elevAt_zero_of_init p hw hzero,
-    metaAt_zero_of_init p hw hzero⟩
+      clear s.mem s.frontier (totalSpace p) a = 0 := fun _ ha1 ha2 =>
+    clear_of_owns ⟨Nat.le_of_add_right_le ha1, ha2⟩
+  exact ⟨rfl, rfl, fun _ ha => clear_of_owns ha, fun _ ha => clear_of_not_owns ha,
+    quotAt_zero_of_init p hw hzero, valAt_zero_of_init p hw hzero, occAt_zero_of_init p hw hzero,
+    elevAt_zero_of_init p hw hzero, metaAt_zero_of_init p hw hzero⟩
 
 /-! ### 3. Bit-Packed Slot Query Subroutine (`Option ℕ`) -/
 
