@@ -171,10 +171,7 @@ theorem totalItems_insertIntoTail (F : Facility cfg α) (item : α) (F' : Facili
   dsimp [insertIntoTail] at hins
   split_ifs at hins with hlt
   · cases hins
-    dsimp [totalItems]
-    rw [List.length_append]
-    simp only [List.length_singleton]
-    omega
+    simp only [totalItems, List.length_append, List.length_singleton]; omega
 
 /-- Promote a saturated full tail cubby to a tier-0 full cubby and open a fresh empty tail. -/
 @[expose] def promoteFullTail (F : Facility cfg α) : Option (Facility cfg α) :=
@@ -189,10 +186,8 @@ theorem totalItems_promoteFullTail (F : Facility cfg α) (F' : Facility cfg α)
     F'.totalItems = F.totalItems := by
   dsimp [promoteFullTail] at hprom
   split_ifs at hprom with hfull
-  · injection hprom with hprom'
-    rw [← hprom']
-    simp only [totalItems, TailCubby.empty, List.map_append, List.sum_append, List.map_cons,
-               List.map_nil, List.sum_cons, List.sum_nil, List.length_nil, Nat.add_zero]
+  · cases hprom
+    simp [totalItems, TailCubby.empty]
 
 /-- Capacity arithmetic behind tier merging in the $j$-destruction rebuild (`arXiv:2111.00602`
 §5.2, p. 31; compare Lemma 19, p. 29 for linear-time cubby construction): merging `t_j` full
@@ -202,15 +197,11 @@ theorem merge_tier_length (j : Fin cfg.kEff) (cubbies : List (List α))
     (hcount : cubbies.length = cfg.t j)
     (hall : ∀ l ∈ cubbies, l.length = cfg.r ⟨j.val, Nat.lt_succ_of_lt j.isLt⟩) :
     cubbies.flatten.length = cfg.r ⟨j.val + 1, Nat.succ_lt_succ j.isLt⟩ := by
-  rw [List.length_flatten]
   have hmap : cubbies.map List.length =
-      List.replicate cubbies.length (cfg.r ⟨j.val, Nat.lt_succ_of_lt j.isLt⟩) := by
-    rw [List.eq_replicate_iff]
-    simp only [List.length_map, true_and]
-    intro a ha
-    rcases List.mem_map.mp ha with ⟨x, hx, rfl⟩
-    exact hall x hx
-  rw [hmap, List.sum_replicate_nat, hcount]
+      List.replicate cubbies.length (cfg.r ⟨j.val, Nat.lt_succ_of_lt j.isLt⟩) :=
+    List.eq_replicate_iff.mpr ⟨by simp, fun a ha =>
+      let ⟨x, hx, heq⟩ := List.mem_map.mp ha; heq ▸ hall x hx⟩
+  rw [List.length_flatten, hmap, List.sum_replicate_nat, hcount]
   exact cfg.t_mul_r j
 
 /-! ### 4. Non-Hash Tail Replacement on Deletion (`arXiv:2111.00602` §5.2, p. 31) -/
@@ -257,24 +248,17 @@ theorem totalItems_tailReplace (F : Facility cfg α) (cIdx sIdx rIdx : ℕ) (F' 
     simp only [hfc] at hrep
     split_ifs at hrep with hslot hrand
     · cases hrep
-      dsimp [totalItems]
+      obtain ⟨hidx_lt, hget⟩ := List.getElem?_eq_some_iff.mp hfc
       have hmap : (List.set F.fullCubbies cIdx
             ⟨fullCubby.tier, fullCubby.items.set sIdx (F.tail.items[rIdx]),
              by rw [List.length_set, fullCubby.hlen]⟩).map (fun c => c.items.length) =
           F.fullCubbies.map (fun c => c.items.length) := by
-        obtain ⟨hidx_lt, hget⟩ := List.getElem?_eq_some_iff.mp hfc
         rw [List.map_set]
         dsimp
-        rw [List.length_set, ← hget]
-        have hmap_lt : cIdx < (List.map (fun c => c.items.length) F.fullCubbies).length := by
-          simpa using hidx_lt
-        rw [← List.getElem_map (f := fun c => c.items.length) (l := F.fullCubbies)
-          (i := cIdx) (h := hmap_lt)]
-        rw [List.set_getElem_self]
-      rw [hmap]
-      have htail_len : (F.tail.items.eraseIdx rIdx).length + 1 = F.tail.items.length :=
-        List.length_eraseIdx_add_one hrand
-      omega
+        rw [List.length_set, ← hget, ← List.getElem_map (f := fun c => c.items.length)
+          (l := F.fullCubbies) (i := cIdx) (h := by simpa using hidx_lt), List.set_getElem_self]
+      have htail_len := List.length_eraseIdx_add_one hrand
+      simp only [totalItems, hmap]; omega
 
 end Facility
 
