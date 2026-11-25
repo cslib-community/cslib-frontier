@@ -182,6 +182,31 @@ class CanonicalTest(unittest.TestCase):
                 "```code``` | B\n--- | ---\nAnother line. Still a cell.\n",
                 "```code``` | B\n--- | ---\nAnother line.\nStill a cell.\n",
             ),
+            # GFM §4.10 tables with Pandoc-only `:::` divs or `$$...$$` math in headers or rows.
+            (
+                "A | B\n--- | ---\n:::note\nAnother line. Still a cell.\n",
+                "A | B\n--- | ---\n:::note\nAnother line.\nStill a cell.\n",
+            ),
+            (
+                "A | B\n--- | ---\n$$x = 1.$$\nAnother line. Still a cell.\n",
+                "A | B\n--- | ---\n$$x = 1.$$\nAnother line.\nStill a cell.\n",
+            ),
+            (
+                ":::note | B\n--- | ---\nAnother line. Still a cell.\n",
+                ":::note | B\n--- | --- Another line.\nStill a cell.\n",
+            ),
+            (
+                ":::note | B\n--- | ---\nAnother line. Still a cell.\n",
+                ":::note | B\n--- | ---\nAnother line.\nStill a cell.\n",
+            ),
+            (
+                "$$x$$\n| --- |\nAnother line. Still a cell.\n",
+                "$$x$$\n| --- |\nAnother line.\nStill a cell.\n",
+            ),
+            (
+                "$$x$$ | B\n--- | ---\nAnother line. Still a cell.\n",
+                "$$x$$ | B\n--- | ---\nAnother line.\nStill a cell.\n",
+            ),
             # Blocks opened on the first line of a list item (`- <pre>`, `- ``` `, `- $$`,
             # `- #`, `- >`, `- A | B`), including unindented raw-HTML continuations.
             (
@@ -216,10 +241,22 @@ class CanonicalTest(unittest.TestCase):
                 "- A | B\n  --- | ---\n  Source note. Keep it in one cell.\n",
                 "- A | B\n  --- | ---\n  Source note.\n  Keep it in one cell.\n",
             ),
-            # Block quote with a lazy continuation line.
+            # Block quote with lazy continuation lines (including across `:::`, `$$` and `#`).
             (
                 "> Quote starts.\nLazy continuation. Keep it.\n",
                 "> Quote starts.\nLazy continuation.\nKeep it.\n",
+            ),
+            (
+                "> Quote.\n:::note\nLazy line. Still quote.\n",
+                "> Quote.\n:::note\nLazy line.\nStill quote.\n",
+            ),
+            (
+                "> Quote.\n$$x = 1.$$\nLazy line. Still quote.\n",
+                "> Quote.\n$$x = 1.$$\nLazy line.\nStill quote.\n",
+            ),
+            (
+                "> Quote.\n# Not a heading in Pandoc.\nLazy line. Still quote.\n",
+                "> Quote.\n# Not a heading in Pandoc.\nLazy line.\nStill quote.\n",
             ),
         )
         for original, mutated in cases:
@@ -288,7 +325,8 @@ class CommandTest(unittest.TestCase):
             status, output = self.run_main("--compare", str(old_pre), str(new_pre))
             self.assertEqual(status, 1)
             self.assertIn("block 1 differs", output)
-            for cell_row in ("#tag. Single cell.", "<i>brief</i> | B", "```code``` | B"):
+            for cell_row in ("#tag. Single cell.", "<i>brief</i> | B", "```code``` | B",
+                             ":::note", "$$x = 1.$$"):
                 old_tbl = pathlib.Path(tmp) / "tbl_old.md"
                 new_tbl = pathlib.Path(tmp) / "tbl_new.md"
                 old_tbl.write_text(f"A | B\n--- | ---\n{cell_row}\nAnother line. Still a cell.\n",
