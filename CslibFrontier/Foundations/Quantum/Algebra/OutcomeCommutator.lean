@@ -196,10 +196,6 @@ private theorem mixedDefect_le_average_map (φ : AlgState A)
       refine sum_congr rfl fun c _ => ?_
       rw [sum_comm]
       exact (sum_congr rfl fun a' _ => sum_comm).trans sum_comm
-    change (∑ c : γ, ∑ b : β, ∑ a with f x a = c, (φ (q b * p a * q b)).re) +
-      (∑ c : γ, ∑ b : β, ∑ a with f x a = c, (φ (q b * r a)).re) -
-        2 * (∑ c : γ, ∑ b : β, ∑ a' with f x a' = c,
-          ∑ a with f x a = c, (φ (q b * p a * q b * r a')).re) = _
     rw [hfib, hfib, hthird]
   -- the diagonal survives every map; off the diagonal a collision costs at most `κ`
   have hmean (a a' : α) : (𝔼 x, if f x a' = f x a then w a a' else 0) ≤
