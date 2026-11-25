@@ -948,15 +948,12 @@ private theorem effective_cut_le {lam B_sup : ℝ} (hlam0 : 0 ≤ lam) (hlam1 : 
           rcases hg_pair x₁ with h | h <;> rw [h] <;> exact Subtype.prop _
         let gx : D.Q.external := ⟨g_of x₁, hg_ext⟩
         have hm₁ : gx ∈ ({D.Q.quotient.outerHigh D.score (D.Q.quotient.src x₁.1) x₁.1,
-            D.Q.quotient.outerHigh D.score (D.Q.quotient.tgt x₁.1) x₁.1} : Set D.Q.external) := by
-          rcases hg_pair x₁ with h | h
-          · exact Or.inl (Subtype.ext h)
-          · exact Or.inr (Subtype.ext h)
+            D.Q.quotient.outerHigh D.score (D.Q.quotient.tgt x₁.1) x₁.1} : Set D.Q.external) :=
+          Or.imp Subtype.ext Subtype.ext (hg_pair x₁)
         have hm₂ : gx ∈ ({D.Q.quotient.outerHigh D.score (D.Q.quotient.src x₂.1) x₂.1,
-            D.Q.quotient.outerHigh D.score (D.Q.quotient.tgt x₂.1) x₂.1} : Set D.Q.external) := by
-          rcases hg_pair x₂ with h | h
-          · exact Or.inl (Subtype.ext (hg_eq.trans h))
-          · exact Or.inr (Subtype.ext (hg_eq.trans h))
+            D.Q.quotient.outerHigh D.score (D.Q.quotient.tgt x₂.1) x₂.1} : Set D.Q.external) :=
+          Or.imp (fun h => Subtype.ext (hg_eq.trans h)) (fun h => Subtype.ext (hg_eq.trans h))
+            (hg_pair x₂)
         exact disjoint_left.mp hdisj hm₁ hm₂
       have h1 := Nat.card_le_card_of_injective _ hinj_g
       rwa [Nat.card_coe_set_eq, Nat.card_coe_set_eq] at h1
@@ -1108,6 +1105,8 @@ private theorem exists_satisfies_of_isAcceptingPath {x : ι → Bool}
       · dsimp only [x']; rw [ite_eq_left hit]; exact hx_t hit
       · dsimp only [x']; rw [ite_eq_right hit]
         exact congrFun hdom ⟨i, hi, hit⟩
+    have hrev (ht : t ≤ Nat.card D.StepNode) :
+        (D.branchingProgram N).revealed t = N.readIn (D.pastVerts t) := ite_eq_left ht
     -- At `t = Nat.card D.StepNode`, `pastVerts t = univ` and only unread inputs are updated.
     rcases eq_or_lt_of_le (Nat.lt_succ_iff.mp ht_all) with rfl | ht_lt
     · refine ⟨α_t, x', hx'_eq, ?_, fun s hs => ?_⟩
@@ -1115,11 +1114,8 @@ private theorem exists_satisfies_of_isAcceptingPath {x : ι → Bool}
         refine N.constraint_congr v x_t x' α_t α_t (fun i hsite => ?_) (fun _ _ => rfl)
           (hsat_t v (by rw [D.pastVerts_of_card_le le_rfl]; trivial))
         have hirev : i ∈ (D.branchingProgram N).revealed (Nat.card D.StepNode) := by
-          change i ∈ if Nat.card D.StepNode ≤ Nat.card D.StepNode then _ else _
-          rw [ite_eq_left le_rfl]
-          exact ⟨v, by rw [D.pastVerts_of_card_le le_rfl]; trivial, hsite⟩
-        dsimp only [x']
-        exact (ite_eq_left hirev).symm
+          rw [hrev le_rfl, D.pastVerts_of_card_le le_rfl]; exact ⟨v, trivial, hsite⟩
+        dsimp only [x']; exact (ite_eq_left hirev).symm
       · rcases Nat.of_le_succ hs with hs' | rfl
         · exact hγ_t s hs'
         · exact hγ.accept.trans (D.stateAt_of_card_le (Nat.le_succ _) α_t).symm
@@ -1211,13 +1207,10 @@ private theorem exists_satisfies_of_isAcceptingPath {x : ι → Bool}
         refine N.constraint_congr v y x' β α' (fun i hsite => ?_) (fun g hg => ?_)
           (hcon_step v (hsdiff ▸ hv_new))
         · have hnot_rev : i ∉ (D.branchingProgram N).revealed t := by
-            change i ∉ if t ≤ Nat.card D.StepNode then N.readIn (D.pastVerts t) else univ
-            rw [ite_eq_left ht_lt.le]
+            rw [hrev ht_lt.le]
             rintro ⟨u, hu, husite⟩
-            have huv : u = v := Option.some.inj (husite.symm.trans hsite)
-            exact hv_compl (huv ▸ hu)
-          dsimp only [x']
-          exact (ite_eq_right hnot_rev).symm
+            exact hv_compl (Option.some.inj (husite.symm.trans hsite) ▸ hu)
+          dsimp only [x']; exact (ite_eq_right hnot_rev).symm
         · symm
           apply hα'_touch_compl
           rw [hG] at hg
@@ -1233,11 +1226,8 @@ private theorem exists_satisfies_of_isAcceptingPath {x : ι → Bool}
         · refine N.constraint_congr v x_t x' α_t α' (fun i hsite => ?_) (fun g hg => ?_)
             (hsat_t v hv_old)
           · have hirev : i ∈ (D.branchingProgram N).revealed t := by
-              change i ∈ if t ≤ Nat.card D.StepNode then N.readIn (D.pastVerts t) else univ
-              rw [ite_eq_left ht_lt.le]
-              exact ⟨v, hv_old, hsite⟩
-            dsimp only [x']
-            exact (ite_eq_left hirev).symm
+              rw [hrev ht_lt.le]; exact ⟨v, hv_old, hsite⟩
+            dsimp only [x']; exact (ite_eq_left hirev).symm
           · rw [hG] at hg
             symm
             rw [hα'_not_int]
@@ -1531,12 +1521,8 @@ private theorem ncard_edges_step_le [Finite ι] (hdeg : (graph c).MaxDegreeLE 3)
       rw [D.stepLayout.initial_succ ht, mem_insert_iff] at hinr
       exact hinr.resolve_right fun hinr_t =>
         he_not (D.mem_actPairs_of_le (Nat.le_succ t) he_1 hinr_t)
-    refine (ncard_le_ncard hsub_x).trans ?_
-    rcases x with u | e₀
-    · have hem : {e : D.eqPairs | (.inr e : D.StepNode) = .inl u} = ∅ := by ext e; simp
-      rw [hem, ncard_empty]; exact Nat.zero_le 1
-    · have hsg : {e : D.eqPairs | (.inr e : D.StepNode) = .inr e₀} = {e₀} := by ext e; simp
-      rw [hsg, ncard_singleton]
+    exact (ncard_le_ncard hsub_x).trans (ncard_le_one_iff_subsingleton.mpr
+      fun _ ha _ hb => Sum.inr_injective (Eq.trans ha (Eq.symm hb)))
   -- Every `f ∈ singleCut (t + 1) \ E_extra` lies in `singleCut t`.
   have hpersist_single {f : Edge c} (hf₁ : f ∈ D.singleCut (t + 1)) (hnot_ex : f ∉ E_extra) :
       f ∈ D.singleCut t := by
@@ -1580,13 +1566,8 @@ private theorem ncard_edges_step_le [Finite ι] (hdeg : (graph c).MaxDegreeLE 3)
       E_extra.domRestrict β, a, A_gain.domRestrict (D.rectIdx · β)), ?_⟩
     subst ha
     dsimp only [ψ]
-    refine Prod.ext ?_ (Prod.ext rfl ?_)
-    · ext f <;> simp only [stateAt, domRestrict_apply] <;> split_ifs <;> rfl
-    · ext f
-      · simp only [stateAt, domRestrict_apply]
-        split_ifs <;> rfl
-      · simp only [stateAt, domRestrict_apply]
-        split_ifs <;> rfl
+    refine Prod.ext ?_ (Prod.ext rfl ?_) <;>
+      ext f <;> simp only [stateAt, domRestrict_apply] <;> split_ifs <;> rfl
   have hNw_le : Nw.ncard ≤ 1 := D.ncard_newly_le N hclean_N hm ht
   calc ((D.branchingProgram N).edges t).ncard
       ≤ (range ψ).ncard := ncard_le_ncard hsub (toFinite _)
