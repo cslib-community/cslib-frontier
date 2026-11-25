@@ -84,49 +84,40 @@ theorem eventually_exists_formula_separating_approxMCSP_of_isBigO
         F.eval interpretation T = false) := by
   obtain ⟨C, hC, hbound⟩ := hsize.exists_pos
   have hbound' : ∀ᶠ m in atTop,
-      (formulaSize (L.slice m) : ℝ) ≤ C * (2 : ℝ) ^ ((m : ℝ) ^ δ) := by
-    filter_upwards [hbound.bound] with m hm
-    simpa only [Real.norm_natCast, Real.norm_eq_abs, Nat.abs_cast,
-      abs_of_pos (Real.rpow_pos_of_pos (by norm_num : (0 : ℝ) < 2) _)] using hm
+      (formulaSize (L.slice m) : ℝ) ≤ C * (2 : ℝ) ^ ((m : ℝ) ^ δ) :=
+    hbound.bound.mono fun m hm => by
+      simpa only [Real.norm_natCast, Real.norm_eq_abs, Nat.abs_cast,
+        abs_of_pos (Real.rpow_pos_of_pos (by norm_num : (0 : ℝ) < 2) _)] using hm
   obtain ⟨M, hM⟩ := eventually_atTop.mp hbound'
-  have hsmall := hquery.eventually_mul_natCeil_two_rpow_le C hC.le 2 hε
-  filter_upwards [hsmall, eventually_ge_atTop M] with n hn hnM
+  filter_upwards [hquery.eventually_mul_natCeil_two_rpow_le C hC.le 2 hε,
+    eventually_ge_atTop M] with n hn hnM
   let q := approxMCSPQueryEncLength n (s₂ n) (k n)
   let B := ⌈C * (2 : ℝ) ^ ((q : ℝ) ^ δ)⌉₊
   obtain ⟨F, hF, hyes, hno⟩ :=
     exists_formula_separating_approxMCSP_of_agrees hag (hk n) (hs n)
-      (card_computableFunctions_le_two_pow n (s₂ n)) (B := B) (by
-        intro m hm
+      (card_computableFunctions_le_two_pow n (s₂ n)) (B := B) fun m hm => by
         have hlen : n ≤ SuccinctMCSP.ofFunctionEncLength n m (s₂ n) := by
           grind [SuccinctMCSP.ofFunctionEncLength]
-        have hle : SuccinctMCSP.ofFunctionEncLength n m (s₂ n) ≤ q :=
-          ofFunctionEncLength_le_approxMCSPQueryEncLength hm
-        have hexp : (2 : ℝ) ^ ((SuccinctMCSP.ofFunctionEncLength n m (s₂ n) : ℝ) ^ δ)
-            ≤ (2 : ℝ) ^ ((q : ℝ) ^ δ) :=
-          Real.rpow_le_rpow_of_exponent_le (by norm_num)
-            (Real.rpow_le_rpow (Nat.cast_nonneg _) (by exact_mod_cast hle) hδ)
-        have hreal := (hM _ (hnM.trans hlen)).trans
-          (mul_le_mul_of_nonneg_left hexp hC.le)
-        exact_mod_cast hreal.trans (Nat.le_ceil _))
+        have hexp : (2 : ℝ) ^ ((SuccinctMCSP.ofFunctionEncLength n m (s₂ n) : ℝ) ^ δ) ≤
+            (2 : ℝ) ^ ((q : ℝ) ^ δ) :=
+          Real.rpow_le_rpow_of_exponent_le (by norm_num) (Real.rpow_le_rpow (Nat.cast_nonneg _)
+            (Nat.cast_le.mpr (ofFunctionEncLength_le_approxMCSPQueryEncLength hm)) hδ)
+        exact_mod_cast ((hM _ (hnM.trans hlen)).trans
+          (mul_le_mul_of_nonneg_left hexp hC.le)).trans (Nat.le_ceil _)
   have hn' : 2 * (B : ℝ) ≤ (2 : ℝ) ^ (ε * (n : ℝ)) := by
     simpa only [Nat.cast_mul, Nat.cast_ofNat] using hn
-  have hF' : (F.leafSize : ℝ) ≤ ((2 : ℝ) ^ n + 1) * (B : ℝ) := by
-    exact_mod_cast hF
-  have htwo : (1 : ℝ) ≤ (2 : ℝ) ^ n := by
-    exact_mod_cast (Nat.one_le_two_pow (n := n))
-  refine ⟨F, hF'.trans ?_, hyes, hno⟩
-  calc
-    ((2 : ℝ) ^ n + 1) * (B : ℝ) ≤ (2 : ℝ) ^ n * (2 * (B : ℝ)) := by
-      calc
-        ((2 : ℝ) ^ n + 1) * (B : ℝ) ≤ (2 * (2 : ℝ) ^ n) * (B : ℝ) :=
-          mul_le_mul_of_nonneg_right (by linarith) (Nat.cast_nonneg B)
-        _ = (2 : ℝ) ^ n * (2 * (B : ℝ)) := by ring
-    _ ≤ (2 : ℝ) ^ n * (2 : ℝ) ^ (ε * (n : ℝ)) :=
-      mul_le_mul_of_nonneg_left hn' (by positivity)
+  have htwo : (1 : ℝ) ≤ (2 : ℝ) ^ n := by exact_mod_cast Nat.one_le_two_pow (n := n)
+  refine ⟨F, (show (F.leafSize : ℝ) ≤ ((2 : ℝ) ^ n + 1) * B by exact_mod_cast hF).trans ?_,
+    hyes, hno⟩
+  calc ((2 : ℝ) ^ n + 1) * (B : ℝ)
+      ≤ (2 : ℝ) ^ n * (2 * (B : ℝ)) :=
+        (mul_le_mul_of_nonneg_right (show (2 : ℝ) ^ n + 1 ≤ 2 * (2 : ℝ) ^ n by linarith)
+          (Nat.cast_nonneg B)).trans_eq (by ring)
+    _ ≤ (2 : ℝ) ^ n * (2 : ℝ) ^ (ε * (n : ℝ)) := mul_le_mul_of_nonneg_left hn' (by positivity)
     _ = ((2 ^ n : ℕ) : ℝ) ^ (1 + ε) := by
-      rw [← Real.rpow_natCast, ← Real.rpow_add (by norm_num : (0 : ℝ) < 2)]
-      rw [show (n : ℝ) + ε * n = (n : ℝ) * (1 + ε) by ring]
-      rw [Real.rpow_natCast_mul (by norm_num : (0 : ℝ) ≤ 2)]
+      rw [← Real.rpow_natCast, ← Real.rpow_add (by norm_num : (0 : ℝ) < 2),
+        show (n : ℝ) + ε * n = (n : ℝ) * (1 + ε) by ring,
+        Real.rpow_natCast_mul (by norm_num : (0 : ℝ) ≤ 2)]
       norm_cast
 
 /-- **Oliveira–Santhanam Theorem 17(ii), for every language agreeing with `SuccinctMCSP`**,

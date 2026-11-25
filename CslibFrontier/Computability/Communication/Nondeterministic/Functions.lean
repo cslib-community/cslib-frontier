@@ -98,13 +98,12 @@ theorem ecomplexityFun_disjointness (v : ℕ) :
     simp only [disjointness, decide_eq_true_eq, Bool.and_eq_false_iff]
     intro i
     cases hxi : x i
-    · simp
-    · cases hyi : y i
-      · simp
-      · simpa [hx i hxi] using hy i hyi
+    · left
+      rfl
+    · right
+      exact Bool.eq_false_iff.mpr fun hyi => Bool.noConfusion ((hx i hxi).symm.trans (hy i hyi))
   · simp only [disjointness, decide_eq_true_eq, Bool.and_eq_false_iff] at h
-    refine ⟨x, fun i hi => hi, fun i hi => ?_⟩
-    simpa [hi] using h i
+    exact ⟨x, fun _ hi => hi, fun i hi => by simpa [hi] using h i⟩
   · exact le_ecomplexityFun_of_isFoolingSet (isFoolingSet_disjointness univ) (by simp)
       (by rw [card_image_of_injective _ fun x y h => congrArg Prod.fst h, card_univ,
         BitString.card])
@@ -120,11 +119,11 @@ theorem ecomplexityFun_not_disjointness (v : ℕ) :
 theorem HasCover.card_dotProduct_le {k : ℕ} {z : Bool}
     (hk : HasCover z (fun (x y : BitString v) b => x ⬝ᵥ y = b) Set.univ Set.univ k) :
     #{q : BitString v × BitString v | q.1 ⬝ᵥ q.2 = z} ≤ 2 ^ k * 2 ^ v := by
-  have h : #{q ∈ (univ : Finset (BitString v)) ×ˢ univ | q.1 ⬝ᵥ q.2 = z} ≤ 2 ^ k * 2 ^ v :=
-    HasCover.card_le_two_pow_mul
+  simpa only [univ_product_univ] using
+    (HasCover.card_le_two_pow_mul
       (fun S _ T _ h => by simpa using BitString.card_mul_le_two_pow_of_dotProduct_eq S T z h)
-      (by simpa only [coe_univ] using hk)
-  rwa [univ_product_univ] at h
+      (by simpa only [coe_univ] using hk) :
+        #{q ∈ (univ : Finset (BitString v)) ×ˢ univ | q.1 ⬝ᵥ q.2 = z} ≤ _)
 
 /-- The inner product is `1` on `(4^v - 2^v)/2` pairs. -/
 private theorem two_mul_card_dotProduct_eq_true_add_two_pow :
@@ -135,9 +134,8 @@ private theorem two_mul_card_dotProduct_eq_true_add_two_pow :
 private theorem card_dotProduct_eq_true_add_card_dotProduct_eq_false :
     #{q : BitString v × BitString v | q.1 ⬝ᵥ q.2 = true} +
       #{q : BitString v × BitString v | q.1 ⬝ᵥ q.2 = false} = 2 ^ v * 2 ^ v := by
-  have := card_filter_add_card_filter_not (s := univ)
+  simpa [Fintype.card_fun, BitString] using card_filter_add_card_filter_not (s := univ)
     fun q : BitString v × BitString v => q.1 ⬝ᵥ q.2 = true
-  simpa [Fintype.card_fun, BitString] using this
 
 /-- `N¹(IP_v) ≥ v - 1`: for `v ≥ 2`, more than `2^(v-2)` rectangles are needed, and for `v ≤ 1`
 the bound is `0`. -/
@@ -147,30 +145,24 @@ theorem le_ecomplexityFun_true_dotProduct (v : ℕ) :
   rcases Nat.lt_or_ge v 2 with hv | hv
   · simp [show v - 1 = 0 by omega]
   refine le_ecomplexityFun_iff.mpr fun k hk => ?_
-  have hT := hk.card_dotProduct_le
-  have hcount := two_mul_card_dotProduct_eq_true_add_two_pow (v := v)
   norm_cast
   by_contra! hlt
   have hk4 : 2 ^ k * 4 ≤ 2 ^ v := by
     rw [show 2 ^ k * 4 = 2 ^ (k + 2) by ring]
-    exact Nat.pow_le_pow_right (by norm_num) (by omega)
-  have hN : 4 ≤ 2 ^ v := (Nat.pow_le_pow_right (by norm_num) hv : 2 ^ 2 ≤ 2 ^ v)
-  nlinarith
+    exact Nat.pow_le_pow_right two_pos (by omega)
+  have hN : 4 ≤ 2 ^ v := Nat.pow_le_pow_right two_pos hv
+  nlinarith [hk.card_dotProduct_le, two_mul_card_dotProduct_eq_true_add_two_pow (v := v)]
 
 /-- `N⁰(IP_v) ≥ v`: more than `2^(v-1)` rectangles are needed. -/
 theorem le_ecomplexityFun_false_dotProduct (v : ℕ) :
     (v : ℕ∞) ≤ ecomplexityFun false (fun x y : BitString v => x ⬝ᵥ y) Set.univ Set.univ := by
   refine le_ecomplexityFun_iff.mpr fun k hk => ?_
-  have hF := hk.card_dotProduct_le
-  have hcount := two_mul_card_dotProduct_eq_true_add_two_pow (v := v)
-  have hsum := card_dotProduct_eq_true_add_card_dotProduct_eq_false (v := v)
   norm_cast
   by_contra! hlt
-  have hk2 : 2 ^ k * 2 ≤ 2 ^ v := by
-    rw [← pow_succ]
-    exact Nat.pow_le_pow_right (by norm_num) hlt
+  have hk2 : 2 ^ k * 2 ≤ 2 ^ v := pow_succ 2 k ▸ Nat.pow_le_pow_right two_pos hlt
   have hN : 0 < 2 ^ v := by positivity
-  nlinarith
+  nlinarith [hk.card_dotProduct_le, two_mul_card_dotProduct_eq_true_add_two_pow (v := v),
+    card_dotProduct_eq_true_add_card_dotProduct_eq_false (v := v)]
 
 end Nondeterministic
 
