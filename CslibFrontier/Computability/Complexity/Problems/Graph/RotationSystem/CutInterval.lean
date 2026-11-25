@@ -46,40 +46,28 @@ theorem sameCycle_swap_cutInterval_iff (a b : Dart G) (hab : a.vertex = b.vertex
   have hca : r.rotate c = a := r.rotate.apply_symm_apply a
   have hc : a.vertex = c.vertex := hca ▸ r.vertex_rotate c
   have hnext := r.rotationDistance_rotate_of_ne a b hab hproper
-  have hnextVertex : a.vertex = (r.rotate b).vertex := hab.trans (r.vertex_rotate b).symm
   have hlast := r.rotationDistance_of_rotate_eq a c hc hca
-  have hperiod := r.rotationDistance_lt_period hnextVertex
+  have hperiod := r.rotationDistance_lt_period (hab.trans (r.vertex_rotate b).symm)
   have hb : selected b := ⟨hab.symm, le_rfl⟩
-  have hcOut : ¬ selected c := by
-    rintro ⟨_, h⟩
-    omega
-  have hnextOut : ¬ selected (r.rotate b) := by
-    rintro ⟨_, h⟩
-    omega
+  have hcOut : ¬ selected c := fun ⟨_, h⟩ => by omega
+  have hnextOut : ¬ selected (r.rotate b) := fun ⟨_, h⟩ => by omega
   have hstable (x : Dart G) : selected ((r.rotate * swap b c) x) ↔ selected x := by
-    by_cases hxb : x = b
-    · subst x
-      rw [Perm.mul_apply, swap_apply_left, hca]
+    rcases eq_or_ne x b with rfl | hxb
+    · rw [Perm.mul_apply, swap_apply_left, hca]
       exact iff_of_true ⟨rfl, by rw [r.rotationDistance_self]; omega⟩ hb
-    by_cases hxc : x = c
-    · subst x
-      rw [Perm.mul_apply, swap_apply_right]
-      exact iff_of_false hnextOut hcOut
+    rcases eq_or_ne x c with rfl | hxc
+    · rw [Perm.mul_apply, swap_apply_right]; exact iff_of_false hnextOut hcOut
     rw [Perm.mul_apply, swap_apply_of_ne_of_ne hxb hxc]
     by_cases hv : x.vertex = a.vertex
-    · have hxnext : r.rotate x ≠ a := fun h => hxc (r.rotate.injective (h.trans hca.symm))
-      have hdist := r.rotationDistance_rotate_of_ne a x hv.symm hxnext
-      have hdiff : r.rotationDistance a x ≠ r.rotationDistance a b := by
-        intro h
-        exact hxb ((r.pow_rotationDistance a x hv.symm).symm.trans
-          (h ▸ r.pow_rotationDistance a b hab))
-      simp only [selected, r.vertex_rotate, hv, true_and, hdist]
-      omega
+    · have hdist := r.rotationDistance_rotate_of_ne a x hv.symm fun h =>
+        hxc (r.rotate.injective (h.trans hca.symm))
+      have hdiff : r.rotationDistance a x ≠ r.rotationDistance a b := fun h =>
+        hxb ((r.pow_rotationDistance a x hv.symm).symm.trans (h ▸ r.pow_rotationDistance a b hab))
+      simp only [selected, r.vertex_rotate, hv, true_and, hdist]; omega
     · simp [selected, hv, r.vertex_rotate]
   change (r.rotate * swap b c).SameCycle d e ↔ d.vertex = e.vertex ∧ (selected d ↔ selected e)
   rw [Perm.CycleSurgery.sameCycle_mul_swap_iff_of_separating
-    ((r.sameCycle_iff b c).mpr (hab.symm.trans hc)) selected hb hcOut hstable,
-    r.sameCycle_iff]
+    ((r.sameCycle_iff b c).mpr (hab.symm.trans hc)) selected hb hcOut hstable, r.sameCycle_iff]
 
 /-- Move a proper directed interval to a vertex label distinct from all original incident
 vertices. The split retains every edge occurrence and end tag, and its rotation in these
@@ -98,24 +86,18 @@ theorem exists_split_cutInterval (a b : Dart G) (hab : a.vertex = b.vertex)
     r.rotationDistance a d ≤ r.rotationDistance a b
   obtain ⟨H, E, hdecl, hEnds⟩ := G.exists_split_darts selected w
   let D : Dart G ≃ Dart H := Equiv.prodCongr E (Equiv.refl Bool)
-  have hvertex (d : Dart G) : (D d).vertex = if selected d then w else d.vertex := hEnds d
   let f := r.rotate * swap b (r.rotate.symm a)
-  let s : RotationSystem H :=
-    { rotate := D.permCongr f
-      sameCycle_iff := by
-        intro d e
-        obtain ⟨d, rfl⟩ := D.surjective d
-        obtain ⟨e, rfl⟩ := D.surjective e
-        rw [Perm.sameCycle_equiv_iff D f _ (fun x => by
-          rw [Equiv.permCongr_apply, Equiv.symm_apply_apply]),
-          r.sameCycle_swap_cutInterval_iff a b hab hproper, hvertex, hvertex]
-        change d.vertex = e.vertex ∧ (selected d ↔ selected e) ↔
-          (if selected d then w else d.vertex) = (if selected e then w else e.vertex)
-        by_cases hd : selected d <;> by_cases he : selected e
-        · simp [hd, he, hd.1.trans he.1.symm]
-        · simp [hd, he, Ne.symm (hfresh e)]
-        · simp [hd, he, hfresh d]
-        · simp [hd, he] }
-  exact ⟨H, E, s, hdecl, hEnds, rfl⟩
+  refine ⟨H, E, ⟨D.permCongr f, fun d e => ?_⟩, hdecl, hEnds, rfl⟩
+  obtain ⟨d, rfl⟩ := D.surjective d; obtain ⟨e, rfl⟩ := D.surjective e
+  have hvertex (d : Dart G) : (D d).vertex = _ := hEnds d
+  rw [Perm.sameCycle_equiv_iff D f _ fun x => by rw [Equiv.permCongr_apply, Equiv.symm_apply_apply],
+    r.sameCycle_swap_cutInterval_iff a b hab hproper, hvertex, hvertex]
+  change d.vertex = e.vertex ∧ (selected d ↔ selected e) ↔
+    (if selected d then w else d.vertex) = (if selected e then w else e.vertex)
+  by_cases hd : selected d <;> by_cases he : selected e
+  · simp [hd, he, hd.1.trans he.1.symm]
+  · simp [hd, he, Ne.symm (hfresh e)]
+  · simp [hd, he, hfresh d]
+  · simp [hd, he]
 
 end Cslib.Complexity.Graph.RotationSystem

@@ -101,9 +101,7 @@ theorem randomGraphProb_not (n : ℕ) (P : SimpleGraph (Fin n) → Prop) :
 
 theorem randomGraphProb_le_one (n : ℕ) (P : SimpleGraph (Fin n) → Prop) :
     randomGraphProb n P ≤ 1 := by
-  have h := randomGraphProb_not n P
-  have h0 := randomGraphProb_nonneg n fun G => ¬P G
-  linarith
+  linarith [randomGraphProb_not n P, randomGraphProb_nonneg n fun G => ¬P G]
 
 theorem randomGraphProb_mono {n : ℕ} {P Q : SimpleGraph (Fin n) → Prop} (h : ∀ G, P G → Q G) :
     randomGraphProb n P ≤ randomGraphProb n Q :=
@@ -116,26 +114,21 @@ theorem randomGraphProb_false (n : ℕ) : randomGraphProb n (fun _ => False) = 0
 @[simp]
 theorem randomGraphProb_true (n : ℕ) : randomGraphProb n (fun _ => True) = 1 := by
   have h := randomGraphProb_not n fun _ => True
-  simp only [not_true_eq_false, randomGraphProb_false] at h
-  linarith
+  simp only [not_true_eq_false, randomGraphProb_false] at h; linarith
 
 /-- A property of positive probability holds for some graph. -/
 theorem exists_of_randomGraphProb_pos {n : ℕ} {P : SimpleGraph (Fin n) → Prop}
     (h : 0 < randomGraphProb n P) : ∃ G, P G := by
-  by_contra hne
-  push Not at hne
-  have := randomGraphProb_mono (Q := fun _ => False) fun G hG => hne G hG
-  rw [randomGraphProb_false] at this
-  linarith
+  by_contra! hne
+  have := randomGraphProb_mono (Q := fun _ => False) hne
+  rw [randomGraphProb_false] at this; linarith
 
 /-- **Union bound.** -/
 theorem randomGraphProb_exists_le {ι : Type*} (n : ℕ) (I : Finset ι)
     (P : ι → SimpleGraph (Fin n) → Prop) :
     randomGraphProb n (fun G => ∃ i ∈ I, P i G) ≤ ∑ i ∈ I, randomGraphProb n (P i) := by
-  have hset : {G | ∃ i ∈ I, P i G} = ⋃ i ∈ I, {G | P i G} := by
-    ext G
-    simp only [Set.mem_ofPred_eq, Set.mem_iUnion, exists_prop]
-  rw [randomGraphProb, hset]
+  rw [randomGraphProb, show {G | ∃ i ∈ I, P i G} = ⋃ i ∈ I, {G | P i G} by
+    ext G; simp only [Set.mem_ofPred_eq, Set.mem_iUnion, exists_prop]]
   exact Cslib.Probability.PMF.toOuterMeasure_toReal_biUnion_finset_le _ I fun i => {G | P i G}
 
 /-- If an involution of the graphs on `Fin n` exchanges `P` and `¬ P`, then `P` has probability
@@ -143,13 +136,11 @@ exactly `1/2`. -/
 theorem randomGraphProb_eq_half_of_involutive {n : ℕ} {P : SimpleGraph (Fin n) → Prop}
     (τ : SimpleGraph (Fin n) → SimpleGraph (Fin n)) (hτ : Function.Involutive τ)
     (hP : ∀ G, P (τ G) ↔ ¬P G) : randomGraphProb n P = 1 / 2 := by
-  have hcard : Nat.card {G // P G} = Nat.card {G // ¬P G} :=
-    Nat.card_congr ((hτ.toPerm τ).subtypeEquiv fun G => by
-      rw [Function.Involutive.coe_toPerm, hP, not_not])
   have h : randomGraphProb n P = randomGraphProb n fun G => ¬P G := by
-    rw [randomGraphProb_eq, randomGraphProb_eq, hcard]
-  rw [randomGraphProb_not] at h
-  linarith
+    rw [randomGraphProb_eq, randomGraphProb_eq, (Nat.card_congr ((hτ.toPerm τ).subtypeEquiv
+      fun G => by rw [Function.Involutive.coe_toPerm, hP, not_not]) :
+        Nat.card {G // P G} = Nat.card {G // ¬P G})]
+  rw [randomGraphProb_not] at h; linarith
 
 /-- Toggle the potential edge `uv`. -/
 private def toggleEdge {n : ℕ} (u v : Fin n) (G : SimpleGraph (Fin n)) : SimpleGraph (Fin n) :=
@@ -161,21 +152,16 @@ private theorem toggleEdge_involutive {n : ℕ} (u v : Fin n) :
 
 /-- In `G(n, 1/2)`, each potential edge is present with probability `1/2`. -/
 theorem randomGraphProb_adj {n : ℕ} {u v : Fin n} (huv : u ≠ v) :
-    randomGraphProb n (fun G => G.Adj u v) = 1 / 2 := by
-  refine randomGraphProb_eq_half_of_involutive (toggleEdge u v) (toggleEdge_involutive u v)
-    fun G => ?_
-  rw [toggleEdge, SimpleGraph.symmDiff_adj, SimpleGraph.edge_adj]
-  simp only [and_self, true_or, ne_eq, huv, not_false_eq_true, not_true_eq_false, and_false,
-    false_or, true_and]
+    randomGraphProb n (fun G => G.Adj u v) = 1 / 2 :=
+  randomGraphProb_eq_half_of_involutive (toggleEdge u v) (toggleEdge_involutive u v) fun _ => by
+    simp [toggleEdge, SimpleGraph.symmDiff_adj, SimpleGraph.edge_adj, huv]
 
 /-- For `n ≥ 2`, `G(n, 1/2)` has an even number of edges with probability exactly `1/2`. -/
 theorem randomGraphProb_evenEdges {n : ℕ} (hn : 2 ≤ n) :
-    randomGraphProb n SimpleGraph.EvenEdges = 1 / 2 := by
-  let u : Fin n := ⟨0, by omega⟩
-  let v : Fin n := ⟨1, by omega⟩
-  have huv : u ≠ v := Fin.ne_of_val_ne zero_ne_one
-  exact randomGraphProb_eq_half_of_involutive (toggleEdge u v) (toggleEdge_involutive u v)
-    (SimpleGraph.evenEdges_symmDiff_edge_iff huv)
+    randomGraphProb n SimpleGraph.EvenEdges = 1 / 2 :=
+  randomGraphProb_eq_half_of_involutive (toggleEdge ⟨0, by omega⟩ ⟨1, by omega⟩)
+    (toggleEdge_involutive _ _)
+    (SimpleGraph.evenEdges_symmDiff_edge_iff (Fin.ne_of_val_ne zero_ne_one))
 
 /-! ### `G(n, 1/2)` is the uniform random graph -/
 
@@ -191,27 +177,24 @@ theorem binomialRandom_real_eq_randomGraphProb {p : I} (hp : (p : ℝ) = 1 / 2) 
     (P : SimpleGraph (Fin n) → Prop) :
     G(Fin n, p).real {G | P G} = randomGraphProb n P := by
   classical
-  have hσ : toNNReal (σ p) = toNNReal p := NNReal.eq (by
-    rw [coe_toNNReal, coe_toNNReal, coe_symm_eq, hp]
-    norm_num)
+  have hσ : toNNReal (σ p) = toNNReal p := NNReal.eq <| by
+    rw [coe_toNNReal, coe_toNNReal, coe_symm_eq, hp]; norm_num
   -- Every graph has the same probability `c`.
   obtain ⟨c, hc⟩ : ∃ c : ENNReal, ((toNNReal p : ENNReal) ^ (Nat.card (Fin n)).choose 2) = c :=
     ⟨_, rfl⟩
-  have hsingle : ∀ G : SimpleGraph (Fin n), G(Fin n, p) {G} = c := fun G => by
+  have hsingle (G : SimpleGraph (Fin n)) : G(Fin n, p) {G} = c := by
     have hle : G.edgeSet.ncard ≤ (Nat.card (Fin n)).choose 2 := by
-      rw [← SimpleGraph.coe_edgeFinset, Set.ncard_coe_finset, Nat.card_eq_fintype_card]
-      exact G.card_edgeFinset_le_card_choose_two
+      simpa only [← SimpleGraph.coe_edgeFinset, Set.ncard_coe_finset, Nat.card_eq_fintype_card]
+        using G.card_edgeFinset_le_card_choose_two
     rw [SimpleGraph.binomialRandom_singleton, hσ, ← pow_add, Nat.add_sub_cancel' hle, hc]
-  have hset : ∀ S : Set (SimpleGraph (Fin n)), G(Fin n, p) S = S.ncard * c := fun S => by
+  have hset (S : Set (SimpleGraph (Fin n))) : G(Fin n, p) S = S.ncard * c := by
     rw [← Set.coe_toFinset S, ← sum_measure_singleton, Finset.sum_congr rfl fun G _ => hsingle G,
       Finset.sum_const, nsmul_eq_mul, Set.ncard_coe_finset]
   -- Total mass one forces `c = 1 / #(SimpleGraph (Fin n))`.
-  have hc' : c = (Nat.card (SimpleGraph (Fin n)) : ENNReal)⁻¹ := by
-    refine ENNReal.eq_inv_of_mul_eq_one_left ?_
-    rw [mul_comm, ← Set.ncard_univ, ← hset, measure_univ]
+  have hc' : c = (Nat.card (SimpleGraph (Fin n)) : ENNReal)⁻¹ :=
+    ENNReal.eq_inv_of_mul_eq_one_left <| by rw [mul_comm, ← Set.ncard_univ, ← hset, measure_univ]
   rw [randomGraphProb_eq, measureReal_def, hset, hc', ENNReal.toReal_mul, ENNReal.toReal_inv,
-    ENNReal.toReal_natCast, ENNReal.toReal_natCast, div_eq_mul_inv,
-    ← Nat.card_coe_set_eq {G | P G}]
+    ENNReal.toReal_natCast, ENNReal.toReal_natCast, div_eq_mul_inv, ← Nat.card_coe_set_eq {G | P G}]
   rfl
 
 end Binomial
