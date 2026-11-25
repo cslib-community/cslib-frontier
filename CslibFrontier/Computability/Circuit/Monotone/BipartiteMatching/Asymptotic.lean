@@ -86,17 +86,7 @@ private theorem sixtyFour_mul_pow_three_le_two_pow {s : ℕ} (hs : 20 ≤ s) : 6
   induction s, hs using Nat.le_induction with
   | base => norm_num
   | succ s hs ih =>
-    have h1 : 20 * s ^ 2 ≤ s ^ 3 := by
-      have := Nat.mul_le_mul_left (s ^ 2) hs
-      rw [show s ^ 3 = s ^ 2 * s by ring]
-      linarith
-    have h2 : 20 * s ≤ s ^ 2 := by
-      have := Nat.mul_le_mul_left s hs
-      rw [sq]
-      linarith
-    calc 64 * (s + 1) ^ 3 ≤ 2 * (64 * s ^ 3) := by nlinarith
-      _ ≤ 2 * 2 ^ s := Nat.mul_le_mul_left 2 ih
-      _ = 2 ^ (s + 1) := by ring
+    linarith [Nat.mul_le_mul_left (s ^ 2) hs, Nat.mul_le_mul_left s hs, pow_succ 2 s]
 
 /-- **An `n ^ Ω(log n)` lower bound for separating circuits.** For `⌊log₂ n⌋ ≥ 320`, every monotone
 circuit accepting the perfect matchings of permutations and rejecting the graphs of two-colourings
@@ -110,13 +100,10 @@ theorem two_pow_sq_lt_size_of_separates_ofPerm_ofColoring {n : ℕ} (hn : 320 �
   have hn0 : n ≠ 0 := by
     rintro rfl
     simp at hn
-  have hL : 320 ≤ Nat.log 2 n := hn
   have h2L : 2 ^ Nat.log 2 n ≤ n := Nat.pow_log_le_self 2 hn0
   have hnL : n < 2 ^ (Nat.log 2 n + 1) := Nat.lt_pow_succ_log_self Nat.one_lt_two n
-  obtain ⟨L, hLdef⟩ : ∃ L, Nat.log 2 n = L := ⟨_, rfl⟩
-  rw [hLdef] at hL h2L hnL ⊢
-  obtain ⟨s, hsdef⟩ : ∃ s, L / 16 = s := ⟨_, rfl⟩
-  rw [hsdef]
+  generalize Nat.log 2 n = L at hn h2L hnL ⊢
+  generalize hsdef : L / 16 = s
   have hs : 20 ≤ s := by omega
   have hsL : 16 * s ≤ L := by omega
   have hLs : L + 1 ≤ 16 * s + 16 := by omega
@@ -134,15 +121,11 @@ theorem two_pow_sq_lt_size_of_separates_ofPerm_ofColoring {n : ℕ} (hn : 320 �
   have hqs : 1 ≤ q * s := by
     rw [← hqdef]
     exact Nat.mul_pos (Nat.mul_pos (by positivity) (by rw [← hKdef]; positivity)) (by omega)
-  have hr2 : 2 ≤ r := by
-    have := Nat.one_le_pow 2 (q * s) hqs
-    omega
+  have hr2 : 2 ≤ r := by linarith [Nat.one_le_pow 2 (q * s) hqs]
   refine lt_size_of_separates_ofPerm_ofColoring (r := r) (s := s) (q := q) hr2
     (by omega) (by omega) ?_ ?_ (two_pow_mul_errorCap_mul_lt ?_) hC₁ hC₂
   · -- `4 ^ (s + 1) ≤ 2 n + 1`
-    calc 4 ^ (s + 1) = 2 ^ (2 * s + 2) := by
-          rw [show 2 * s + 2 = 2 * (s + 1) by ring, pow_mul]
-          norm_num
+    calc 4 ^ (s + 1) = 2 ^ (2 * (s + 1)) := by norm_num [pow_mul]
       _ ≤ 2 ^ (16 * s) := Nat.pow_le_pow_right two_pos (by omega)
       _ ≤ 2 * n + 1 := by omega
   · -- the positive budget
@@ -186,11 +169,8 @@ theorem two_pow_sq_lt_size_of_separates_ofPerm_ofColoring {n : ℕ} (hn : 320 �
       omega
     have hB : (2 ^ s - 1) ^ q * 2 ^ K ≤ 2 ^ (s * q) := by
       have h := Nat.pow_le_pow_left (Nat.two_mul_pred_pow_le (b := 2 ^ s) Nat.one_le_two_pow) K
-      rw [mul_pow, ← pow_mul, ← pow_mul, ← pow_mul] at h
-      calc (2 ^ s - 1) ^ q * 2 ^ K = 2 ^ K * (2 ^ s - 1) ^ (2 ^ s * K) := by
-            rw [mul_comm, ← hqdef]
-        _ ≤ 2 ^ (s * (2 ^ s * K)) := h
-        _ = 2 ^ (s * q) := by rw [hqdef]
+      rw [mul_pow, ← pow_mul, ← pow_mul, ← pow_mul, hqdef] at h
+      exact (mul_comm _ _).trans_le h
     refine Nat.lt_of_mul_lt_mul_right (a := 2 ^ K) ?_
     calc 2 ^ (s + 1) * (matchings n s).card * (2 ^ s - 1) ^ q * 2 ^ (s ^ 2) * 2 ^ K
         = 2 ^ (s + 1) * (matchings n s).card * 2 ^ (s ^ 2) * ((2 ^ s - 1) ^ q * 2 ^ K) := by ring
