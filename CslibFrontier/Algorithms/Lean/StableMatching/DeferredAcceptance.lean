@@ -248,12 +248,10 @@ private theorem sq_aux (n : ℕ) :
   rcases n with _ | _ | m
   · simp
   · simp
-  · have h1 : m + 1 + 1 - 1 = m + 1 := rfl
-    have h2 : m + 1 + 1 - 2 = m := rfl
-    rw [h1, h2]
-    constructor
-    · ring
-    · nlinarith
+  · change (m + 1) * m + (m + 1) = (m + 1) ^ 2 ∧ (m + 2) * m ≤ (m + 1) ^ 2
+    refine ⟨by ring, ?_⟩
+    have : (m + 2) * m + 1 = (m + 1) ^ 2 := by ring
+    omega
 
 /-- The total number of rejections in an invariant state is at most `(n - 1)^2`. -/
 theorem sum_le {s : State n} (hs : I.Inv s) : ∑ p, s p ≤ (n - 1) ^ 2 := by
@@ -311,21 +309,13 @@ theorem run_fixed_of_le {j k : ℕ} (hjk : j ≤ k) (h : I.step (I.run j) = I.ru
 
 /-- Deferred acceptance stops after at most `(n - 1)^2` rejections. -/
 theorem step_run_fixed : I.step (I.run ((n - 1) ^ 2)) = I.run ((n - 1) ^ 2) := by
-  rcases I.run_fixed_or_sum ((n - 1) ^ 2 + 1) with ⟨j, hj, hfix⟩ | hsum
-  · rcases Nat.lt_or_ge j ((n - 1) ^ 2 + 1) with hlt | hge
-    · rw [I.run_fixed_of_le (by omega : j ≤ (n - 1) ^ 2) hfix, hfix]
-    · have hj' : j = (n - 1) ^ 2 + 1 := by omega
-      subst hj'
-      have h1 := I.run_fixed_or_sum ((n - 1) ^ 2)
-      rcases h1 with ⟨i, hi, hfix'⟩ | hsum'
-      · rw [I.run_fixed_of_le hi hfix', hfix']
-      · rcases I.step_cases (I.run ((n - 1) ^ 2)) with ⟨h, -⟩ | ⟨p, -, h⟩
-        · exact h
-        · have := I.sum_le (I.inv_step (I.inv_run ((n - 1) ^ 2)))
-          rw [h, sum_update_succ, hsum'] at this
-          omega
-  · have := I.sum_le (I.inv_run ((n - 1) ^ 2 + 1))
-    omega
+  rcases I.run_fixed_or_sum ((n - 1) ^ 2) with ⟨i, hi, hfix⟩ | hsum
+  · rw [I.run_fixed_of_le hi hfix, hfix]
+  · rcases I.step_cases (I.run ((n - 1) ^ 2)) with ⟨h, -⟩ | ⟨p, -, h⟩
+    · exact h
+    · have := I.sum_le (I.inv_step (I.inv_run ((n - 1) ^ 2)))
+      rw [h, sum_update_succ, hsum] at this
+      omega
 
 
 /-- The state reached by deferred acceptance. -/
