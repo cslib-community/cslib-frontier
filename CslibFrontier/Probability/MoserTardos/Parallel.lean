@@ -476,12 +476,8 @@ private theorem witnessRel_prefix_eq_singleton (R : ι → ι → Prop) [Decidab
 private theorem witnessRel_append_eq_pushList (R : ι → ι → Prop) [DecidableRel R] [DecidableEq ι]
     {i : ι} {suff : List ι} (hsuff : ∀ j ∈ suff, ¬R i j) (w : List ι) :
     witnessRel R i (suff ++ w) = pushList R w {(i, 0)} := by
-  induction w using List.reverseRecOn with
-  | nil =>
-    rw [List.append_nil, pushList, List.foldl_nil, witnessRel_prefix_eq_singleton R hsuff]
-  | append_singleton w j ih =>
-    rw [← List.append_assoc, witnessRel_append_singleton, ih, pushList_append]
-    simp [pushList]
+  rw [witnessRel, List.foldl_append, ← witnessRel, witnessRel_prefix_eq_singleton R hsuff]
+  rfl
 
 private theorem parallel_step_adj [DecidableEq V] (vbl : ι → Finset V) (A : ι → Set (∀ v, α v))
     (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V))
