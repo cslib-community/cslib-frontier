@@ -222,11 +222,15 @@ theorem sum_card_branchAugmentedScope_le [Fintype ι] [DecidableEq ι]
         #(branchAugmentedScope (heavyVars univ F (fun i => equationScope (P i)) b₀)
           e I P b f)) ≤ (b₀ + 1) * n' := by
   let scope := branchAugmentedScope (heavyVars univ F (fun i => equationScope (P i)) b₀) e I P b
-  rw [show (∑ f, #(scope f)) = ∑ v : Fin n', #{f | v ∈ scope f} by
+  have hdouble : (∑ f, #(scope f)) = ∑ v : Fin n', #{f | v ∈ scope f} := by
     simpa only [totalIncidence, varIncidence] using
-      (sum_varIncidence_eq_totalIncidence univ univ scope fun _ _ => subset_univ _).symm]
-  refine (sum_le_sum fun v _ => varIncidence_branchAugmentedScope_le F I P b₀ hIF e b v).trans_eq ?_
-  rw [sum_const, card_univ, Fintype.card_fin, smul_eq_mul, mul_comm]
+      (sum_varIncidence_eq_totalIncidence univ univ scope fun _ _ => subset_univ _).symm
+  rw [hdouble]
+  calc ∑ v : Fin n', #{f | v ∈ scope f}
+      ≤ ∑ _v : Fin n', (b₀ + 1) :=
+        sum_le_sum fun v _ => varIncidence_branchAugmentedScope_le F I P b₀ hIF e b v
+    _ = (b₀ + 1) * n' := by
+        rw [sum_const, card_univ, Fintype.card_fin, smul_eq_mul, mul_comm]
 
 /-- Specializing `S` and relabeling along `e` never increases the scope cardinality of an equation:
 `#(branchEquationScope S e P b i) ≤ #(equationScope (P i))`. -/
@@ -383,9 +387,11 @@ theorem Feasible.branch_domainExaminationBound_le [Fintype ι]
     exact_mod_cast branchDegreeBudget_le (k := k) hm hn
   have hq : (q : ℝ) ≤ ((k * (2 * c + 4) : ℕ) : ℝ) * (n' : ℝ) *
       ((rowBound β n' : ℝ) / numNodes n') := by
-    refine Nat.cast_div_le.trans ?_
-    rw [Nat.cast_mul, mul_div_assoc]
-    exact mul_le_mul_of_nonneg_right hd_le (by positivity)
+    calc (q : ℝ)
+        ≤ ((d * rowBound β n' : ℕ) : ℝ) / numNodes n' := Nat.cast_div_le
+      _ = (d : ℝ) * ((rowBound β n' : ℝ) / numNodes n') := by rw [Nat.cast_mul, mul_div_assoc]
+      _ ≤ (((k * (2 * c + 4) : ℕ) : ℝ) * (n' : ℝ)) * ((rowBound β n' : ℝ) / numNodes n') :=
+          mul_le_mul_of_nonneg_right hd_le (by positivity)
   simpa only [Nat.cast_add, Nat.cast_ofNat] using
     hF.domainExaminationBound_le_mul_exp_rowCost D s (Nat.cast_nonneg _) hq
 
@@ -416,12 +422,17 @@ theorem sum_branch_domainExaminationBound_le [Fintype ι] [DecidableEq ι]
       (2 : ℝ) ^ (Fintype.card ι / s_div) *
         (2 * (numNodes n' : ℝ) * (numGroups n' : ℝ) *
           Real.exp (((k * (2 * c + 4) + 4 : ℕ) : ℝ) * (n' : ℝ) * rowCost β n')) := by
-  refine ⟨(card_le_two_mul_freeVar_of_heavyVars F (fun i => equationScope (P i)) hs_div hM e).1,
-    (sum_le_sum hexam).trans ?_⟩
-  rw [sum_const, nsmul_eq_mul]
-  exact mul_le_mul_of_nonneg_right
-    (by exact_mod_cast card_branchAssignments_heavyVars_le_two_pow_div F
-          (fun i => equationScope (P i)) (by omega) hM)
-    (by positivity)
+  refine ⟨(card_le_two_mul_freeVar_of_heavyVars F (fun i => equationScope (P i)) hs_div hM e).1, ?_⟩
+  let S := heavyVars univ F (fun i => equationScope (P i)) b₀
+  let B := 2 * (numNodes n' : ℝ) * (numGroups n' : ℝ) *
+    Real.exp (((k * (2 * c + 4) + 4 : ℕ) : ℝ) * (n' : ℝ) * rowCost β n')
+  have hcard : (#(branchAssignments S) : ℝ) ≤ (2 : ℝ) ^ (Fintype.card ι / s_div) := by
+    exact_mod_cast card_branchAssignments_heavyVars_le_two_pow_div F
+      (fun i => equationScope (P i)) (by omega) hM
+  calc ∑ b ∈ branchAssignments S, examSum b
+      ≤ ∑ _b ∈ branchAssignments S, B := sum_le_sum hexam
+    _ = (#(branchAssignments S) : ℝ) * B := by rw [sum_const, nsmul_eq_mul]
+    _ ≤ (2 : ℝ) ^ (Fintype.card ι / s_div) * B :=
+        mul_le_mul_of_nonneg_right hcard (by positivity)
 
 end Cslib.Complexity.SubexponentialSAT.ReplacementParams

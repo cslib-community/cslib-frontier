@@ -135,12 +135,12 @@ theorem child_tensor_inl_eq_tensor (β : M → ℕ) (g : G) (v : {v // S.group v
     refine N.tensor_congr _ _ _ fun e he => ?_
     by_cases ht : N.tgt e = v.1
     · rw [dite_eq_left ht, dite_eq_left (ht ▸ v.2)]
-    · exact absurd (he.resolve_right ht ▸ S.side_src e) (by rw [hv]; decide)
+    · exact absurd (he.resolve_right ht ▸ S.side_src e) (hv ▸ Bool.noConfusion)
   · simp only [child, hv, ↓reduceIte]
     refine N.tensor_congr _ _ _ fun e he => ?_
     by_cases hs : N.src e = v.1
     · rw [dite_eq_left hs, dite_eq_left (hs ▸ v.2)]
-    · exact absurd (he.resolve_left hs ▸ S.side_tgt e) (by rw [hv]; decide)
+    · exact absurd (he.resolve_left hs ▸ S.side_tgt e) (hv ▸ Bool.noConfusion)
 
 end ModeSplitting
 
@@ -180,7 +180,8 @@ private theorem filter_isLeft_false_map {g : G}
   | nil => rfl
   | cons c cs ih =>
     rcases c with c | c
-    · rw [List.filter_cons_of_neg (by simp), List.filterMap_cons_none (f := Sum.getRight?) rfl, ih]
+    · rw [List.filter_cons_of_neg (by simp), List.filterMap_cons_none (f := Sum.getRight?) rfl,
+        ih]
     · rw [List.filter_cons_of_pos rfl, List.filterMap_cons_some (f := Sum.getRight?) rfl,
         List.map_cons, List.map_cons, List.map_cons, ih, dite_eq_left c.2]
       rfl

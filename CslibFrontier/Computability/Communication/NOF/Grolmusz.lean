@@ -126,13 +126,13 @@ theorem chainTerm_eq (z : Fin k → Bool) (c₀ : Bool) (c : Fin k → Bool) (t 
 theorem sum_chainTerm (z : Fin k → Bool) (c₀ : Bool) (c : Fin k → Bool) (hc : c ≠ z) :
     ∑ t, chainTerm z c₀ c t = c₀ * ∏ l, c l := by
   set E : ℕ → Bool := fun t => c₀ && decide (c = chain z t) with hE
-  rw [show ∑ t, chainTerm z c₀ c t = ∑ t ∈ range k, (E t + E (t + 1)) from
-      (Finset.sum_congr rfl fun t _ => chainTerm_eq z c₀ c t).trans
-        (Fin.sum_univ_eq_sum_range (fun t => E t + E (t + 1)) k),
-    sum_range_add_succ,
-    show E 0 = 0 from (by
-      simp [hE, show chain z 0 = z from funext fun _ => by simp [chain], hc] : E 0 = false),
-    zero_add, prod_bool_eq_decide]
+  have hsum : ∑ t, chainTerm z c₀ c t = ∑ t ∈ range k, (E t + E (t + 1)) :=
+    (Finset.sum_congr rfl fun t _ => chainTerm_eq z c₀ c t).trans
+      (Fin.sum_univ_eq_sum_range (fun t => E t + E (t + 1)) k)
+  have h0 : E 0 = 0 := by
+    have hz : chain z 0 = z := funext fun _ => by simp [chain]
+    simp [hE, hz, hc]
+  rw [hsum, sum_range_add_succ, h0, zero_add, prod_bool_eq_decide]
   simp only [hE, show chain z k = fun _ => true from funext fun l => by simp [chain, l.isLt],
     Bool.mul_eq_and]
   exact congrArg (c₀ && ·) (decide_eq_decide.mpr funext_iff)
@@ -244,7 +244,8 @@ theorem ecomplexityFun_gip_le_of_le_mul (hn : n ≤ B * (2 ^ k - 1)) :
     have := @Nat.one_le_two_pow k
     omega
   rcases Nat.eq_zero_or_pos s with h0 | hpos
-  · obtain rfl : n = 0 := by
+  · -- No columns at all.
+    obtain rfl : n = 0 := by
       rw [h0, mul_zero] at hn
       omega
     exact ecomplexityFun_gip_le_of_block Fin.elim0 fun _ => by simp

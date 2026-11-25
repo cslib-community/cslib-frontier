@@ -168,9 +168,11 @@ variable [Fintype V]
 /-- Every kernel row has norm at least one, from its entry `1` at its own vertex. -/
 private theorem one_le_norm_kernelRow (q : ℝ) (R : ℕ) (v : V) : 1 ≤ ‖kernelRow G q R v‖ := by
   have h : 1 ≤ ‖kernelRow G q R v‖ ^ 2 := by
-    rw [EuclideanSpace.real_norm_sq_eq, ← one_pow 2, ← kernelRow_self (G := G) q R v]
-    exact single_le_sum (f := fun z => kernelRow G q R v z ^ 2) (fun _ _ => sq_nonneg _)
-      (mem_univ v)
+    rw [EuclideanSpace.real_norm_sq_eq]
+    calc (1 : ℝ) = kernelRow G q R v v ^ 2 := by rw [kernelRow_self, one_pow]
+      _ ≤ ∑ z, kernelRow G q R v z ^ 2 :=
+        single_le_sum (f := fun z => kernelRow G q R v z ^ 2) (fun _ _ => sq_nonneg _)
+          (mem_univ v)
   nlinarith [norm_nonneg (kernelRow G q R v)]
 
 /-- Coordinate `z` of the unit kernel row of `v` is `kernelRow G q R v z` divided by
@@ -203,11 +205,12 @@ private theorem card_edist_eq_le {D : ℕ} (hD : 2 ≤ D) (hdeg : ∀ v, G.degre
     (d : ℕ) : #{v | G.edist u v = d} ≤ D * (D - 1) ^ d := by
   cases d with
   | zero =>
-    rw [show ({v | G.edist u v = ((0 : ℕ) : ℕ∞)} : Finset V) = {u} by
+    have h0 : ({v | G.edist u v = ((0 : ℕ) : ℕ∞)} : Finset V) = {u} := by
       ext v
       simp only [mem_filter, mem_univ, true_and, mem_singleton, Nat.cast_zero,
         SimpleGraph.edist_eq_zero_iff]
-      exact eq_comm, card_singleton, pow_zero, mul_one]
+      exact eq_comm
+    rw [h0, card_singleton, pow_zero, mul_one]
     omega
   | succ d =>
     rw [Nat.cast_add, Nat.cast_one, pow_succ]

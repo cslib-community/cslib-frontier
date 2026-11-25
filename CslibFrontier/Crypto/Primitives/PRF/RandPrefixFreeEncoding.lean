@@ -259,11 +259,12 @@ of all bit strings, for `0 < n` ([BonehShoup2023], §6.10, p. 242). -/
 theorem isRandPrefixFreeEncoding_cmacRpf {n : ℕ} (hn : 0 < n) :
     IsRandPrefixFreeEncoding (PMF.uniformOfFintype (BitString n × BitString n)) (cmacRpf n)
       ((2 : ℝ≥0∞) ^ n)⁻¹ := by
-  rw [show ((2 : ℝ≥0∞) ^ n)⁻¹ =
-      Fintype.card (BitString n) / Fintype.card (BitString n × BitString n) by
+  have hratio : ((2 : ℝ≥0∞) ^ n)⁻¹ =
+      Fintype.card (BitString n) / Fintype.card (BitString n × BitString n) := by
     rw [Fintype.card_prod, Cslib.BitString.card, Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat,
       ENNReal.div_eq_inv_mul, ENNReal.mul_inv (Or.inl (by positivity)) (Or.inl (by simp)),
-      mul_assoc, ENNReal.inv_mul_cancel (by positivity) (by simp), mul_one]]
+      mul_assoc, ENNReal.inv_mul_cancel (by positivity) (by simp), mul_one]
+  rw [hratio]
   refine IsRandPrefixFreeEncoding.of_card_le (c := Fintype.card (BitString n)) (rpf := cmacRpf n)
     (fun _ m => by simpa [cmacRpf, ← List.length_pos_iff] using cmacCore_snd_ne_nil hn m)
     fun m₀ m₁ hm => ?_

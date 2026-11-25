@@ -231,8 +231,9 @@ theorem mem_lowDegree_self (f : (ι → Bool) → R) : f ∈ lowDegree R ι (Fin
         split_ifs
         · exact bitVal_mem_lowDegree i
         · exact one_sub_mem_lowDegree (bitVal_mem_lowDegree i)
-  rw [show f = ∑ a, f a • fun x : ι → Bool => ∏ i, if a i then bitVal R (x i)
-      else 1 - bitVal R (x i) from funext fun x => by
+  have hf : f = ∑ a, f a • fun x : ι → Bool => ∏ i, if a i then bitVal R (x i)
+      else 1 - bitVal R (x i) := by
+    funext x
     simp only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul]
     rw [Finset.sum_eq_single x]
     · rw [Finset.prod_eq_one fun i _ => by cases x i <;> simp [bitVal], mul_one]
@@ -240,7 +241,8 @@ theorem mem_lowDegree_self (f : (ι → Bool) → R) : f ∈ lowDegree R ι (Fin
       obtain ⟨i, hi⟩ := Function.ne_iff.1 hax
       rw [Finset.prod_eq_zero (mem_univ i)
         (by cases ha : a i <;> cases hx : x i <;> simp_all [bitVal]), mul_zero]
-    · simp]
+    · simp
+  rw [hf]
   exact Submodule.sum_mem _ fun a _ => Submodule.smul_mem _ _ (hδ a)
 
 /-- **The dimension of the functions of degree at most `D`** is at most the number of sets of at
@@ -248,8 +250,11 @@ most `D` coordinates. -/
 theorem finrank_lowDegree_le [StrongRankCondition R] (D : ℕ) :
     Module.finrank R (lowDegree R ι D) ≤ #{S : Finset ι | #S ≤ D} := by
   classical
-  rw [lowDegree, show monomial R '' {S | #S ≤ D} =
-    (({S : Finset ι | #S ≤ D} : Finset _).image (monomial R) : Set _) by ext; simp]
+  have himg : monomial R '' {S | #S ≤ D} =
+      (({S : Finset ι | #S ≤ D} : Finset _).image (monomial R) : Set _) := by
+    ext
+    simp
+  rw [lowDegree, himg]
   exact (finrank_span_finset_le_card _).trans card_image_le
 
 /-- There are at most `(n + 1) ^ D` sets of at most `D` of the `n` coordinates. -/

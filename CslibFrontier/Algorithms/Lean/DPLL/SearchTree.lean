@@ -101,8 +101,9 @@ theorem eval_searchTree (φ : CNF ℕ) : (fuel : ℕ) → (π : List (Literal �
   | fuel, π, hf, hd, σ, hσ => by
     cases hs : status φ π with
     | conflict =>
-      rw [show searchTree φ fuel π = .leaf (falsifiedClause φ π) by
-        cases fuel <;> simp [searchTree, hs]]
+      have hleaf : searchTree φ fuel π = .leaf (falsifiedClause φ π) := by
+        cases fuel <;> simp [searchTree, hs]
+      rw [hleaf]
       exact falsifiedClause_spec hs hσ
     | sat => cases fuel <;> simp [dfs, hs] at hd
     | branch l =>
@@ -110,9 +111,10 @@ theorem eval_searchTree (φ : CNF ℕ) : (fuel : ℕ) → (π : List (Literal �
       rw [dfs, hs, Option.or_eq_none_iff] at hd
       have hd' (b : Bool) : dfs φ fuel ((l.1, b) :: π) = none := by
         rcases l with ⟨_, _ | _⟩ <;> cases b <;> simp_all [Std.Sat.Literal.negate]
-      rw [show (searchTree φ (fuel + 1) π).eval σ =
-          (searchTree φ fuel ((l.1, σ l.1) :: π)).eval σ by
-        cases hv : σ l.1 <;> simp [searchTree, hs, hv]]
+      have heval : (searchTree φ (fuel + 1) π).eval σ =
+          (searchTree φ fuel ((l.1, σ l.1) :: π)).eval σ := by
+        cases hv : σ l.1 <;> simp [searchTree, hs, hv]
+      rw [heval]
       exact eval_searchTree φ fuel ((l.1, σ l.1) :: π) (hlen' _ rfl) (hd' _) σ
         (List.forall_mem_cons.2 ⟨rfl, hσ⟩)
   termination_by fuel => fuel
@@ -248,10 +250,11 @@ theorem runLog_add_nodes (φ : CNF ℕ) (out : List (Literal ℕ) → List ℕ) 
         (k + nodes φ fuel (l.negate :: lits t)) (hlen l rfl) hd.1
       have ih₂ := runLog_add_nodes φ out fuel (⟨l.negate, true⟩ :: t) k (hlen l.negate rfl) hd.2
       simp only [lits_cons, backtrack_cons_false, backtrack_cons_true] at ih₁ ih₂
-      rw [show k + nodes φ (fuel + 1) (lits t) =
-          (k + nodes φ fuel (l.negate :: lits t) + nodes φ fuel (l :: lits t)) + 1 by
+      have hn : k + nodes φ (fuel + 1) (lits t) =
+          (k + nodes φ fuel (l.negate :: lits t) + nodes φ fuel (l :: lits t)) + 1 := by
         simp only [nodes, hs]
-        omega, runLog, step, hs]
+        omega
+      rw [hn, runLog, step, hs]
       simp only [ih₁, ih₂, preorder, hs, List.append_assoc]
   termination_by fuel => fuel
 
