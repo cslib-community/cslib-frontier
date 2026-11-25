@@ -65,52 +65,47 @@ private theorem computable_incidencePort :
       ((ComputableInPolyTime.unary_mod.comp
         (ComputableInPolyTime.id'.prod (.const 3))).of_enc_eq fun _ => rfl)
   have hiv : ComputableInPolyTime Graph.incidenceVertices encGraph (encList encNat) := by
-    unfold Graph.incidenceVertices
-    fun_prop
+    unfold Graph.incidenceVertices; fun_prop
   have htake : ComputableInPolyTime (fun q : List ℕ × ℕ => q.1.take q.2)
       (encPair (encList encNat) encUnary) (encList encNat) := by fun_prop
-  have hc : ComputableInPolyTime (fun p : Graph × ℕ =>
-      (p.1.incidenceVertices.take p.2).count (p.1.incidenceVertices.getD p.2 0))
-      (encPair encGraph encUnary) encUnary := by fun_prop
-  exact hmod.comp hc
+  exact hmod.comp (show ComputableInPolyTime (fun p : Graph × ℕ =>
+    (p.1.incidenceVertices.take p.2).count (p.1.incidenceVertices.getD p.2 0))
+    (encPair encGraph encUnary) encUnary by fun_prop)
 
 attribute [local fun_prop] computable_incidencePort
 
 private theorem computable_canonicalPorts :
     ComputableInPolyTime Graph.canonicalPorts encGraph
       (encList (encPair (encFinEnum (Fin 3)) (encFinEnum (Fin 3)))) := by
-  have hlen : ComputableInPolyTime (fun G : Graph => G.edges.length) encGraph encUnary := by
-    fun_prop
   unfold Graph.canonicalPorts
-  exact ComputableInPolyTime.mapWithInput (ComputableInPolyTime.range.comp hlen) (by fun_prop)
+  exact ComputableInPolyTime.mapWithInput
+    (ComputableInPolyTime.range.comp
+      (show ComputableInPolyTime (fun G : Graph => G.edges.length) encGraph encUnary by fun_prop))
+    (by fun_prop)
 
 attribute [local fun_prop] computable_canonicalPorts
 
 /-- `Layout.center` is computable in polynomial time from a unary index. -/
 theorem computable_layoutCenter :
     ComputableInPolyTime Layout.center encUnary encPoint := by
-  unfold Layout.center encPoint
-  fun_prop
+  unfold Layout.center encPoint; fun_prop
 
 private theorem computable_layoutColumn :
     ComputableInPolyTime (fun p : ℕ × Fin 3 => Layout.column p.1 p.2)
       (encPair encUnary (encFinEnum (Fin 3))) encIntBin := by
-  unfold Layout.column
-  fun_prop
+  unfold Layout.column; fun_prop
 
 private theorem computable_layoutTrack :
     ComputableInPolyTime (fun p : ℕ × ℕ => Layout.track p.1 p.2)
       (encPair encUnary encUnary) encIntBin := by
-  unfold Layout.track
-  fun_prop
+  unfold Layout.track; fun_prop
 
 attribute [local fun_prop] computable_layoutCenter computable_layoutColumn computable_layoutTrack
 
 private theorem computable_layoutElbow :
     ComputableInPolyTime (fun p : ℕ × Fin 3 => Layout.elbow p.1 p.2)
       (encPair encUnary (encFinEnum (Fin 3))) encPoint := by
-  unfold Layout.elbow encPoint
-  fun_prop
+  unfold Layout.elbow encPoint; fun_prop
 
 attribute [local fun_prop] computable_layoutElbow
 
@@ -119,8 +114,7 @@ private theorem computable_layoutRoute :
       Layout.route p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2)
       (encPair encUnary (encPair encUnary (encPair encUnary
         (encPair encUnary (encPair (encFinEnum (Fin 3)) (encFinEnum (Fin 3))))))) encRoute := by
-  unfold Layout.route encRoute
-  fun_prop
+  unfold Layout.route encRoute; fun_prop
 
 attribute [local fun_prop] computable_layoutRoute
 
@@ -144,11 +138,11 @@ theorem computableInPolyTime_paths :
   change ComputableInPolyTime (fun φ =>
     ((SAT.incidenceGraph φ).orthogonalRoutes (SAT.incidenceGraph φ).canonicalPorts).map
       (subdivideWithin (budget φ))) encCNF (encList encRoute)
-  have hraw := computable_orthogonalRoutes.comp (SAT.computableInPolyTime_incidenceGraph encNat)
-  have hargs : ComputableInPolyTime (fun p : CNF ℕ × Route => (budget p.1, p.2))
-      (encPair encCNF encRoute) (encPair encUnary encRoute) := by fun_prop
-  have hsub := computableInPolyTime_subdivideWithin.comp hargs
-  simpa only [Function.comp_def, encCNF] using ComputableInPolyTime.mapWithInput hraw hsub
+  simpa only [Function.comp_def, encCNF] using ComputableInPolyTime.mapWithInput
+    (computable_orthogonalRoutes.comp (SAT.computableInPolyTime_incidenceGraph encNat))
+    (computableInPolyTime_subdivideWithin.comp
+      (show ComputableInPolyTime (fun p : CNF ℕ × Route => (budget p.1, p.2))
+        (encPair encCNF encRoute) (encPair encUnary encRoute) by fun_prop))
 
 private def endpointColumns (p : Graph × ℕ) : Point :=
   (Layout.column (p.1.vertices.idxOf (p.1.edgeEndpoint p.2 false))
@@ -178,27 +172,26 @@ private theorem computable_edgeRange :
     ComputableInPolyTime (fun G : Graph => List.range G.edges.length) encGraph
       (encList encUnary) :=
   ComputableInPolyTime.range.comp
-    ((ComputableInPolyTime.length_list (encPair encNat encNat)).comp
-      (by fun_prop))
+    ((ComputableInPolyTime.length_list (encPair encNat encNat)).comp (by fun_prop))
 
 private theorem computable_candidateRow :
     ComputableInPolyTime candidateRow (encPair encGraph encUnary) (encList encPoint) := by
-  have hlist := computable_edgeRange.comp (ComputableInPolyTime.fst encGraph encUnary)
-  have harg : ComputableInPolyTime (fun p : (Graph × ℕ) × ℕ => (p.1.1, p.1.2, p.2))
-      (encPair (encPair encGraph encUnary) encUnary)
-      (encPair encGraph (encPair encUnary encUnary)) := by fun_prop
-  have hbody := computable_candidatePair.comp harg
   change ComputableInPolyTime (fun p : Graph × ℕ =>
     (List.range p.1.edges.length).flatMap fun j => candidatePair (p.1, p.2, j)) _ _
-  simpa only [Function.comp_def] using ComputableInPolyTime.flatMapWithInput hlist hbody
+  simpa only [Function.comp_def] using ComputableInPolyTime.flatMapWithInput
+    (computable_edgeRange.comp (ComputableInPolyTime.fst encGraph encUnary))
+    (computable_candidatePair.comp
+      (show ComputableInPolyTime (fun p : (Graph × ℕ) × ℕ => (p.1.1, p.1.2, p.2))
+        (encPair (encPair encGraph encUnary) encUnary)
+        (encPair encGraph (encPair encUnary encUnary)) by fun_prop))
 
 private theorem computable_crossingCandidates :
     ComputableInPolyTime (fun G : Graph => G.crossingCandidates G.canonicalPorts)
       encGraph (encList encPoint) := by
-  have h := ComputableInPolyTime.flatMapWithInput
-    (f := fun G i => candidateRow (G, i)) (encB := encPoint)
-    computable_edgeRange computable_candidateRow
-  simpa only [candidateRow, candidatePair, endpointColumns, Graph.crossingCandidates] using h
+  simpa only [candidateRow, candidatePair, endpointColumns, Graph.crossingCandidates] using
+    ComputableInPolyTime.flatMapWithInput
+      (f := fun G i => candidateRow (G, i)) (encB := encPoint)
+      computable_edgeRange computable_candidateRow
 
 attribute [local fun_prop] computable_crossingCandidates
 
@@ -206,8 +199,7 @@ private theorem computable_orthogonalPositions :
     ComputableInPolyTime Graph.orthogonalPositions encGraph encRoute := by
   unfold Graph.orthogonalPositions encRoute
   exact (ComputableInPolyTime.map computable_layoutCenter).comp
-    (ComputableInPolyTime.range.comp
-      ((ComputableInPolyTime.length_list encNat).comp (by fun_prop)))
+    (ComputableInPolyTime.range.comp ((ComputableInPolyTime.length_list encNat).comp (by fun_prop)))
 
 attribute [local fun_prop] computable_orthogonalPositions
 
@@ -219,8 +211,7 @@ theorem computable_distinctPoints :
   have hrep : ComputableInPolyTime (fun n => List.replicate n true) encUnary encBits :=
     ComputableInPolyTime.of_eq fun _ => rfl
   have hlen : ComputableInPolyTime (fun l : Route => l.length) encRoute encUnary := by fun_prop
-  unfold encRoute at *
-  fun_prop
+  unfold encRoute at *; fun_prop
 
 private theorem computable_crossingPredicate :
     ComputableInPolyTime (fun p : CNF ℕ × Point =>
@@ -233,12 +224,11 @@ private theorem computable_crossingPredicate :
 @[fun_prop]
 theorem computableInPolyTime_crossingSites :
     ComputableInPolyTime crossingSites encCNF encRoute := by
-  have hc := computable_crossingCandidates.comp (SAT.computableInPolyTime_incidenceGraph encNat)
   have hf := ComputableInPolyTime.filterWithInput
     (test := fun φ p => !((SAT.incidenceGraph φ).orthogonalPositions.contains p) &&
       decide (2 ≤ ((paths φ).filter fun r => r.contains p).length))
-    hc computable_crossingPredicate
-  have h := computable_distinctPoints.comp hf
+    (computable_crossingCandidates.comp (SAT.computableInPolyTime_incidenceGraph encNat))
+    computable_crossingPredicate
   change ComputableInPolyTime (fun φ =>
     selectDistinct
       (((SAT.incidenceGraph φ).crossingCandidates (SAT.incidenceGraph φ).canonicalPorts).filter
@@ -248,7 +238,7 @@ theorem computableInPolyTime_crossingSites :
         ((((SAT.incidenceGraph φ).crossingCandidates (SAT.incidenceGraph φ).canonicalPorts).filter
           fun p => !((SAT.incidenceGraph φ).orthogonalPositions.contains p) &&
             decide (2 ≤ ((paths φ).filter fun r => r.contains p).length)).length) true)) _ _
-  simpa only [Function.comp_def, encCNF] using h
+  simpa only [Function.comp_def, encCNF] using computable_distinctPoints.comp hf
 
 /-- Looking up the path for a syntactic literal occurrence is native polynomial-time. -/
 @[fun_prop]

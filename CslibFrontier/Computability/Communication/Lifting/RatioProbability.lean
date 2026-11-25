@@ -39,14 +39,10 @@ theorem conditional_atomCap_le_of_ratio (w : ParityTest F Y) {τY σ : ℝ}
       (n : ℝ) ^ (2 * w.parity.card) / τY ^ w.parity.card := by
   have hA : (0 : ℝ) < #(agreeOn Y w.conditioned w.assignment) := by
     exact_mod_cast w.supported.card_pos
-  have hp := pow_le_pow_left₀ hσ hστ w.conditioned.card
-  apply (div_le_iff₀ (mul_pos hA (pow_pos hτY _))).mpr
-  calc
-    _ ≤ (n : ℝ) ^ (2 * w.parity.card) * σ ^ w.conditioned.card *
-        #(agreeOn Y w.conditioned w.assignment) := hratio
-    _ ≤ (n : ℝ) ^ (2 * w.parity.card) * τY ^ w.conditioned.card *
-        #(agreeOn Y w.conditioned w.assignment) := by gcongr
-    _ = _ := by rw [pow_add]; field_simp
+  refine (div_le_iff₀ (mul_pos hA (pow_pos hτY _))).mpr (hratio.trans ?_)
+  refine (mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left
+    (pow_le_pow_left₀ hσ hστ _) (by positivity)) hA.le).trans_eq ?_
+  rw [pow_add]; field_simp
 
 /-- Ratio eligibility bounds the parity-test sampling cost by the XOR discrepancy with an
 explicit per-coordinate amplification. -/
@@ -60,18 +56,14 @@ theorem tailCost_le_of_ratio [NeZero m] (w : ParityTest F Y)
         discrepancy (PMF.uniformOfFintype ((w.parity → Fin m) × (w.parity → Fin m)))
           (fun x y => ∑ i, g (x i) (y i)) := by
   have hcap := w.conditional_atomCap_le_of_ratio hτY hσ hστ hratio
-  calc
-    _ ≤ 2 * ((τX ^ w.parity.card)⁻¹ *
-        ((n : ℝ) ^ (2 * w.parity.card) / τY ^ w.parity.card) *
-        ((m : ℝ) ^ w.parity.card * (m : ℝ) ^ w.parity.card) *
-        discrepancy (PMF.uniformOfFintype ((w.parity → Fin m) × (w.parity → Fin m)))
-          (fun x y => ∑ i, g (x i) (y i))) := by
-      unfold tailCost
-      gcongr
-      exact discrepancy_nonneg
-    _ = _ := by
-      simp only [mul_pow, pow_mul, div_eq_mul_inv]
-      ring
+  refine (?_ : w.tailCost g τX τY ≤ 2 * ((τX ^ w.parity.card)⁻¹ *
+    ((n : ℝ) ^ (2 * w.parity.card) / τY ^ w.parity.card) *
+    ((m : ℝ) ^ w.parity.card * (m : ℝ) ^ w.parity.card) *
+    discrepancy (PMF.uniformOfFintype ((w.parity → Fin m) × (w.parity → Fin m)))
+      (fun x y => ∑ i, g (x i) (y i)))).trans_eq (by
+    simp only [mul_pow, pow_mul, div_eq_mul_inv]; ring)
+  unfold tailCost; gcongr
+  exact discrepancy_nonneg
 
 /-- The intrinsic ratio estimate combined with the elementary XOR bound uses only the
 single-block gadget discrepancy. -/
@@ -88,21 +80,20 @@ theorem tailCost_fourth_pow_le_of_ratio [NeZero m] (w : ParityTest F Y)
       (PMF.uniformOfFintype ((w.parity → Fin m) × (w.parity → Fin m)))
       (fun x y => ∑ i, g (x i) (y i)) := discrepancy_nonneg
   have hnonneg : 0 ≤ w.tailCost g τX τY := by unfold tailCost; positivity
-  have h := pow_le_pow_left₀ hnonneg
-    (w.tailCost_le_of_ratio g hτX hτY hσ hστ hratio) 4
-  have hx := discrepancy_xor_fourth_pow_le (κ := w.parity) g
-  calc
+  calc w.tailCost g τX τY ^ 4
     _ ≤ (2 * A ^ w.parity.card *
         discrepancy (PMF.uniformOfFintype ((w.parity → Fin m) × (w.parity → Fin m)))
-          (fun x y => ∑ i, g (x i) (y i))) ^ 4 := h
+          (fun x y => ∑ i, g (x i) (y i))) ^ 4 :=
+      pow_le_pow_left₀ hnonneg (w.tailCost_le_of_ratio g hτX hτY hσ hστ hratio) 4
     _ = 16 * (A ^ 4) ^ w.parity.card *
         discrepancy (PMF.uniformOfFintype ((w.parity → Fin m) × (w.parity → Fin m)))
           (fun x y => ∑ i, g (x i) (y i)) ^ 4 := by
-      simp only [mul_pow, ← pow_mul, Nat.mul_comm w.parity.card 4]
-      norm_num
+      simp only [mul_pow, ← pow_mul, Nat.mul_comm w.parity.card 4]; norm_num
     _ ≤ 16 * (A ^ 4) ^ w.parity.card *
         (4 * discrepancy (PMF.uniformOfFintype (Fin m × Fin m)) g) ^ w.parity.card :=
-      mul_le_mul_of_nonneg_left (by simpa only [Fintype.card_coe] using hx) (by positivity)
+      mul_le_mul_of_nonneg_left
+        (by simpa only [Fintype.card_coe] using discrepancy_xor_fourth_pow_le (κ := w.parity) g)
+        (by positivity)
     _ = _ := by simp only [A, mul_pow]; ring
 
 /-- A single explicit gadget-discrepancy inequality supplies a geometric tail budget of
@@ -123,38 +114,29 @@ theorem tailCost_le_geometric_budget_of_ratio [NeZero m] (w : ParityTest F Y)
     (4 * discrepancy (PMF.uniformOfFintype (Fin m × Fin m)) g)
   have hd : 0 ≤ discrepancy (PMF.uniformOfFintype (Fin m × Fin m)) g := discrepancy_nonneg
   have hD : 0 ≤ D := by dsimp [D]; positivity
-  have hbound : 4096 * D ≤ (q / (2 * n)) ^ 4 := by dsimp [D]; nlinarith [hdisc]
-  have hp := pow_le_pow_left₀ (by positivity : (0 : ℝ) ≤ 4096 * D) hbound w.parity.card
+  have hp := pow_le_pow_left₀ (by positivity : (0 : ℝ) ≤ 4096 * D)
+    (show 4096 * D ≤ (q / (2 * n)) ^ 4 by dsimp [D]; nlinarith [hdisc]) w.parity.card
   rw [mul_pow] at hp
-  have hs : (4096 : ℝ) ≤ 4096 ^ w.parity.card :=
-    le_self_pow₀ (by norm_num) (card_ne_zero.mpr hS)
-  have hscale := mul_le_mul_of_nonneg_right hs (pow_nonneg hD w.parity.card)
+  have hscale := mul_le_mul_of_nonneg_right
+    (le_self_pow₀ (by norm_num : (1 : ℝ) ≤ 4096) (card_ne_zero.mpr hS))
+    (pow_nonneg hD w.parity.card)
   have hfour := w.tailCost_fourth_pow_le_of_ratio g hτX hτY hσ hστ hratio
-  have hfinal : w.tailCost g τX τY ^ 4 ≤
-      (((1 / 2 : ℝ) * (1 / (2 * n) : ℝ) ^ w.parity.card) *
-        ((1 / 2 : ℝ) * q ^ w.parity.card)) ^ 4 := by
-    calc
-      _ ≤ 16 * D ^ w.parity.card := hfour
-      _ ≤ (1 / 256 : ℝ) * (4096 ^ w.parity.card * D ^ w.parity.card) := by nlinarith
-      _ ≤ (1 / 256 : ℝ) * ((q / (2 * n)) ^ 4) ^ w.parity.card := by linarith
-      _ = _ := by
-        simp only [div_eq_mul_inv, mul_pow, ← pow_mul, Nat.mul_comm w.parity.card 4]
-        ring
   have hnR : (0 : ℝ) < n := by exact_mod_cast (Nat.zero_lt_of_lt hn)
-  have hright : 0 ≤ ((1 / 2 : ℝ) * (1 / (2 * n) : ℝ) ^ w.parity.card) *
-      ((1 / 2 : ℝ) * q ^ w.parity.card) := by positivity
-  exact le_of_pow_le_pow_left₀ (by norm_num) hright hfinal
+  refine le_of_pow_le_pow_left₀ (n := 4) (by norm_num) (by positivity) ?_
+  calc w.tailCost g τX τY ^ 4
+    _ ≤ 16 * D ^ w.parity.card := hfour
+    _ ≤ (1 / 256 : ℝ) * ((q / (2 * n)) ^ 4) ^ w.parity.card := by nlinarith
+    _ = _ := by
+      simp only [div_eq_mul_inv, mul_pow, ← pow_mul, Nat.mul_comm w.parity.card 4]; ring
 
 /-- Unconditional tests automatically satisfy the intrinsic slice-ratio condition. -/
 theorem ratio_card_le_of_conditioned_eq_empty (w : ParityTest F Y)
     (hn : 1 ≤ n) (σ : ℝ) (hJ : w.conditioned = ∅) :
     (#Y : ℝ) ≤ (n : ℝ) ^ (2 * w.parity.card) * σ ^ w.conditioned.card *
       #(agreeOn Y w.conditioned w.assignment) := by
-  have hnR : (1 : ℝ) ≤ n := by exact_mod_cast hn
-  have hp : (1 : ℝ) ≤ (n : ℝ) ^ (2 * w.parity.card) := one_le_pow₀ hnR
-  simp only [hJ, card_empty, pow_zero, mul_one]
-  have heq : agreeOn Y ∅ w.assignment = Y := by simp [agreeOn]
-  rw [heq]
+  have hp : (1 : ℝ) ≤ (n : ℝ) ^ (2 * w.parity.card) := one_le_pow₀ (by exact_mod_cast hn)
+  simp only [hJ, card_empty, pow_zero, mul_one,
+    show agreeOn Y ∅ w.assignment = Y by simp [agreeOn]]
   nlinarith [(Nat.cast_nonneg Y.card : (0 : ℝ) ≤ Y.card)]
 
 /-- Density and ratio eligibility force the conditioning set to be small compared with the
@@ -166,16 +148,12 @@ theorem density_ratio_pow_le (w : ParityTest F Y) {τY σ : ℝ}
     (τY / σ) ^ w.conditioned.card ≤ (n : ℝ) ^ (2 * w.parity.card) := by
   have hA : (0 : ℝ) < #(agreeOn Y w.conditioned w.assignment) := by
     exact_mod_cast w.supported.card_pos
-  have hd : (#(agreeOn Y w.conditioned w.assignment) : ℝ) *
-      τY ^ w.conditioned.card ≤ #Y := by
+  have hd : (#(agreeOn Y w.conditioned w.assignment) : ℝ) * τY ^ w.conditioned.card ≤ #Y := by
     rcases w.conditioned.eq_empty_or_nonempty with he | he
     · simp [he, agreeOn]
     · exact hY w.conditioned w.conditioned_subset he w.assignment
-  have hp : τY ^ w.conditioned.card ≤
-      (n : ℝ) ^ (2 * w.parity.card) * σ ^ w.conditioned.card := by
-    apply le_of_mul_le_mul_right (a := (#(agreeOn Y w.conditioned w.assignment) : ℝ)) _ hA
-    nlinarith
-  rw [div_pow]
-  exact (div_le_iff₀ (pow_pos hσ _)).mpr hp
+  rw [div_pow, div_le_iff₀ (pow_pos hσ _)]
+  exact le_of_mul_le_mul_right (a := (#(agreeOn Y w.conditioned w.assignment) : ℝ))
+    (by nlinarith) hA
 
 end Cslib.Communication.Lifting.ParityTest
