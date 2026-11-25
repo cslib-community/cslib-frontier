@@ -30,12 +30,9 @@ namespace Cslib.InductiveCounting
 
 variable {N width source : ℕ} {edge : ℕ → ℕ → Bool} {bad : ℕ → Bool} {s : State}
 
-private theorem sub_mul_step {u N : ℕ} (hu : u < N) (c : ℕ) :
-    (N - u) * c = (N - u - 1) * c + c := by
-  have he : N - u = (N - u - 1) + 1 := by omega
-  calc
-    _ = ((N - u - 1) + 1) * c := congrArg (· * c) he
-    _ = _ := by rw [Nat.add_mul, Nat.one_mul]
+private theorem mul_eq_pred_mul_add {m : ℕ} (hm : 0 < m) (c : ℕ) :
+    m * c = (m - 1) * c + c := by
+  rw [← Nat.add_one_mul, Nat.sub_add_cancel hm]
 
 private theorem sub_add_one (N u : ℕ) : N - (u + 1) = N - u - 1 := by omega
 
@@ -65,7 +62,7 @@ theorem rank_instruction_lt (hi : Invariant N edge bad source s)
     simp only [instruction, hp]
     split_ifs with hk'
     · simp only [rank, hp, Nat.sub_zero]
-      rw [sub_mul_step hk]
+      rw [mul_eq_pred_mul_add (Nat.sub_pos_of_lt hk)]
       omega
     · have he : N - s.round = 1 := by omega
       simp only [rank, hp, ↓reduceIte, he, Nat.one_mul]
@@ -77,7 +74,7 @@ theorem rank_instruction_lt (hi : Invariant N edge bad source s)
     simp only [instruction, hp]
     split_ifs with hv'
     · simp only [rank, hp, hf, Bool.false_eq_true, ↓reduceIte, Nat.sub_zero]
-      rw [sub_mul_step hv']
+      rw [mul_eq_pred_mul_add (Nat.sub_pos_of_lt hv')]
       omega
     · have hv' : s.target = N := by omega
       simp only [rank, hp, hv', Nat.sub_self, Nat.zero_mul, Nat.add_zero]
@@ -94,11 +91,10 @@ theorem rank_instruction_lt (hi : Invariant N edge bad source s)
     simp only [instruction, hp]
     split_ifs with hu' hb
     · simp only [rank, hp]
-      rw [sub_mul_step hu']
+      rw [mul_eq_pred_mul_add (Nat.sub_pos_of_lt hu')]
       omega
     · simp only [rank, hp]
-      rw [sub_add_one N s.candidate]
-      rw [sub_mul_step hu']
+      rw [sub_add_one N s.candidate, mul_eq_pred_mul_add (Nat.sub_pos_of_lt hu')]
       omega
     · have hu' : s.candidate = N := by omega
       simp only [rank, hp, hu', Nat.sub_self, Nat.zero_mul]
@@ -113,28 +109,14 @@ theorem rank_instruction_lt (hi : Invariant N edge bad source s)
     · simp only [rank, hp, reject]
       omega
     · simp only [rank, hp]
-      have hr' : 0 < s.remaining := Nat.pos_of_ne_zero hz
-      rw [show s.remaining * (width + 3) =
-        (s.remaining - 1) * (width + 3) + (width + 3) from by
-          conv_lhs => rw [show s.remaining = (s.remaining - 1) + 1 by omega]
-          rw [Nat.add_mul, Nat.one_mul]]
+      rw [mul_eq_pred_mul_add (Nat.pos_of_ne_zero hz)]
       omega
   | guess =>
     simp only [instruction, hp]
-    split_ifs with hz hv
-    · simp only [rank, hp, hz]
-      omega
-    · simp only [rank, hp, reject]
-      omega
-    · simp only [rank, hp]
-      omega
+    split_ifs with hz hv <;> simp only [rank, hp, hz, reject] <;> omega
   | edge =>
     simp only [instruction, hp]
-    split_ifs
-    · simp only [rank, hp]
-      omega
-    · simp only [rank, hp, reject]
-      omega
+    split_ifs <;> simp only [rank, hp, reject] <;> omega
   | observe =>
     simp only [instruction, hp, rank]
     rw [sub_add_one N s.candidate]

@@ -82,10 +82,7 @@ theorem exec_arithmeticForm {w q t₁ t₂ A : ℕ} (base dst : Fin 64) (sign : 
     simpa only [hz, Data.comap_mem, Data.set_mem] using hsmem.trans hrmem
   have hdisj (t : ℕ) (ht : t * q + q ≤ 4 * q) :
       x.regs base + t * q + q ≤ x.regs dst ∨ x.regs dst + q ≤ x.regs base + t * q ∨
-        x.regs base + t * q = x.regs dst := by
-    rcases hsep with h | h
-    · exact Or.inl (by omega)
-    · exact Or.inr (Or.inl (by omega))
+        x.regs base + t * q = x.regs dst := by omega
   wram_call (Signed.ArrayArithmetic.exec
       (decide (sign < 0)) (z.comap f) (fun j => u (t₁ * q + j)) (fun j => u (t₂ * q + j))
       hzl hbound (fun _ hj => hu _ (by omega)) (fun _ hj => hu _ (by omega))
@@ -96,8 +93,8 @@ theorem exec_arithmeticForm {w q t₁ t₂ A : ℕ} (base dst : Fin 64) (sign : 
       (by rw [hzb, hzo]; exact hdisj t₂ hq₂)) renamed (Fin.castLE_injective _)
     with y ⟨⟨values, frame, _⟩, hframe⟩
   refine ⟨by omega, fun j hj => by simpa only [hzo, decide_eq_true_eq] using values j hj,
-    fun a ha => (frame a (by simpa only [hzo] using ha)).trans (congrFun hzm a), ?_⟩
-  intro i hi htemp
+    fun a ha => (frame a (by simpa only [hzo] using ha)).trans (congrFun hzm a),
+    fun i hi htemp => ?_⟩
   have hyi : y.regs i = z.regs i := hframe i (fun j hj => by
     have hv := congrArg Fin.val hj; change j.val = i.val at hv; omega)
   have hit : i ≠ Reg.target := Fin.ne_of_val_ne (by change i.val ≠ 11; omega)

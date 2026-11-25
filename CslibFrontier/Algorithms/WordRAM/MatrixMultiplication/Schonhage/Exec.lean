@@ -55,13 +55,12 @@ theorem exec_coordinates {w L : ℕ} (hw : 0 < w) (side : Bool) (arr : ℕ → �
   let P (j : ℕ) (y : Data 32) : Prop := Progress side L j arr initial y
   have hbody (y : Data 32) (hy : P (y.regs stage) y) (hlt : y.regs stage < L) :
       ∃ z, ExecWithin (w + 2) (stageBody side) y z (207 * 10 ^ L + 12) ∧
-        P (y.regs stage + 1) z ∧ z.regs stage = y.regs stage + 1 := by
-    obtain ⟨z, he, hz⟩ := progress_step hw hlt side arr initial y hy A hA ha hmag haddr
-    exact ⟨z, he, hz, hz.stage⟩
+        P (y.regs stage + 1) z ∧ z.regs stage = y.regs stage + 1 :=
+    (progress_step hw hlt side arr initial y hy A hA ha hmag haddr).imp
+      fun _ ⟨he, hz⟩ => ⟨he, hz, hz.stage⟩
   obtain ⟨y, he, hy, _⟩ := ExecWithin.loop_count P (fun _ hy => hy.fixed.1) hbody
     (by rw [hx.stage]; omega) (by simpa only [hx.stage] using hx)
-  refine ⟨y, ?_, hy⟩
-  simpa only [hx.stage, Nat.sub_zero, Nat.add_assoc] using he
+  exact ⟨y, by simpa only [hx.stage, Nat.sub_zero, Nat.add_assoc] using he, hy⟩
 
 /-- The encoder runs from a concrete flat memory layout and preserves every cell outside
 its output/scratch region. Only the original input magnitude and explicit address bounds are
@@ -84,50 +83,29 @@ theorem exec {w L : ℕ} (hw : 0 < w) (side : Bool) (arr : ℕ → ℤ) (x : Dat
   have hcap := hp.fixed.2.1
   have hcap1 : 1 ≤ 10 ^ L := Nat.one_le_pow L 10 (by decide)
   have hsfit : Fits (w + 2) (u.regs src + u.regs capacity) := by
-    rw [hsource, hcap]
-    apply haddr.of_le
     have hb := (buffer_address_le L L).1
-    unfold addressBound
-    omega
+    rw [hsource, hcap]; exact haddr.of_le (by unfold addressBound; omega)
   have hdfit : Fits (w + 2) (u.regs output + u.regs capacity) := by
-    rw [hout, hcap]
-    apply haddr.of_le
     have h7 := Nat.pow_le_pow_left (by decide : 7 ≤ 10) L
-    unfold addressBound outputBase
-    omega
+    rw [hout, hcap]; exact haddr.of_le (by unfold addressBound outputBase; omega)
   have hdisj : u.regs src + u.regs capacity ≤ u.regs output ∨
       u.regs output + u.regs capacity ≤ u.regs src ∨ u.regs src = u.regs output := by
     rw [hsource, hout, hcap]
-    by_cases hL : L = 0
-    · rcases hL with rfl
-      left
-      decide
-    · rcases source_cases (L := L) (j := L) (by omega) with h | h
-      · exact Or.inr (Or.inr h)
-      · right
-        left
-        rw [h]
-        rfl
+    rcases Nat.eq_zero_or_pos L with rfl | hL
+    · left; decide
+    rcases source_cases (L := L) (j := L) (by omega) with h | h
+    exacts [Or.inr (Or.inr h), Or.inr (Or.inl (by rw [h]; rfl))]
   obtain ⟨y, hy, hymem, hyr⟩ := exec_copyOut u (haddr.of_le (by unfold addressBound; omega))
     hsfit hdfit hdisj
-  have he : ExecWithin (w + 2) (program side) x y (timeBound L) := by
-    have hwhole := hz.seq (hu.seq hy)
-    apply hwhole.mono
-    rw [hcap]
-    unfold timeBound
-    have hLcap : L ≤ L * 10 ^ L := by nlinarith only [Nat.mul_le_mul_left L hcap1]
-    nlinarith only [hcap1, hLcap]
-  refine ⟨y, he, ?_, ?_, ?_, ?_⟩
-  · intro p hpp
-    rw [hymem, hsource, hout, hcap, ArrayCopy.copyPrefix_read hpp]
-    have h := hp.values p hpp 0 (by simp)
-    simpa only [Nat.sub_self, pow_zero, Nat.mul_one, Nat.add_zero] using h
-  · intro a haout
-    rw [hymem, hsource, hout, hcap, ArrayCopy.copyPrefix_outside ?_]
-    · exact hp.frame a haout
-    · unfold scratchBase at haout
-      omega
-  · regs_frame
-  · regs_frame
+  have hLcap : L ≤ L * 10 ^ L := Nat.le_mul_of_pos_right L hcap1
+  refine ⟨y, (hz.seq (hu.seq hy)).mono
+      (by rw [hcap]; unfold timeBound; nlinarith only [hcap1, hLcap]),
+    fun p hpp => ?_, fun a haout => ?_, by regs_frame, by regs_frame⟩
+  · rw [hymem, hsource, hout, hcap, ArrayCopy.copyPrefix_read hpp]
+    simpa only [Nat.sub_self, pow_zero, Nat.mul_one, Nat.add_zero] using
+      hp.values p hpp 0 (by simp)
+  · rw [hymem, hsource, hout, hcap,
+      ArrayCopy.copyPrefix_outside (by unfold scratchBase at haout; omega)]
+    exact hp.frame a haout
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Encoding

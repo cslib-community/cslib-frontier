@@ -112,38 +112,17 @@ theorem exec {w base keyBits : ℕ} (xs : List ℕ) (x : Data 16)
         z.regs bit = y.regs bit + 1 := by
     obtain ⟨hyn, hyB, hyo, hy2, hyp, hym, hyf⟩ := hy
     have hl : (passes (y.regs bit) xs).length = n := (passes_perm _ _).length_eq
-    have hdis : y.regs src + n ≤ y.regs dst ∨ y.regs dst + n ≤ y.regs src := by
-      rcases hyp with ⟨ha, hb⟩ | ⟨ha, hb⟩ <;> omega
-    have hsf : Fits w (y.regs src + n) := hfit.of_le (by
-      rcases hyp with ⟨ha, hb⟩ | ⟨ha, hb⟩ <;> omega)
-    have hdf : Fits w (y.regs dst + n) := hfit.of_le (by
-      rcases hyp with ⟨ha, hb⟩ | ⟨ha, hb⟩ <;> omega)
-    have hwds : ∀ v ∈ passes (y.regs bit) xs, Fits w v := fun v hv =>
-      hwords v ((passes_perm _ _).mem_iff.mp hv)
     obtain ⟨z, he, hzm, hzs, hzd, hzb, hzf⟩ := pass_exec (passes (y.regs bit) xs) y
-      (hyn.trans hl.symm) rfl rfl rfl hyo hy2 hym hwds
-      (by simpa only [hl] using hdis) (by simpa only [hl] using hsf)
-      (by simpa only [hl] using hdf) (hbits.of_le (by omega)) (h2.of_le (by omega))
-    refine ⟨z, by simpa only [hl] using he, ?_, hzb⟩
-    refine ⟨by regs_frame, by regs_frame, by regs_frame, by regs_frame,
-      ?_, ?_, ?_⟩
-    · rw [hzs, hzd]
-      rcases hyp with ⟨ha, hb⟩ | ⟨ha, hb⟩
-      · exact Or.inr ⟨hb, ha⟩
-      · exact Or.inl ⟨hb, ha⟩
-    · rw [hzs, passes]
-      exact hzm
-    · intro a hnot
-      have hnot' : a ∉ (Block.mk (y.regs dst) (passes (y.regs bit) xs).length).footprint := by
-        intro ha
-        apply hnot
-        rw [Block.mem_footprint] at ha ⊢
-        change y.regs dst ≤ a ∧
-          a < y.regs dst + (passes (y.regs bit) xs).length at ha
-        change base ≤ a ∧ a < base + 2 * n
-        rw [hl] at ha
-        rcases hyp with ⟨ha', hb'⟩ | ⟨ha', hb'⟩ <;> omega
-      exact (hzf a hnot').trans (hyf a hnot)
+      (hyn.trans hl.symm) rfl rfl rfl hyo hy2 hym
+      (fun v hv => hwords v ((passes_perm _ _).mem_iff.mp hv)) (by rw [hl]; omega)
+      (hfit.of_le (by rw [hl]; omega)) (hfit.of_le (by rw [hl]; omega))
+      (hbits.of_le (by omega)) (h2.of_le (by omega))
+    refine ⟨z, by simpa only [hl] using he, ⟨by regs_frame, by regs_frame, by regs_frame,
+      by regs_frame, ?_, by rw [hzs, passes]; exact hzm, fun a hnot => ?_⟩, hzb⟩
+    · rw [hzs, hzd]; exact hyp.symm.imp And.symm And.symm
+    · refine (hzf a fun ha => hnot ?_).trans (hyf a hnot)
+      simp only [Block.mem_footprint, Block.Owns, hl] at ha ⊢
+      omega
   let x₀ := ((x.set one 1).set two 2).set bit 0
   have hx₀ : P (x₀.regs bit) x₀ := by
     refine ⟨by regs_frame, by regs_frame, by simp +decide [x₀], by simp +decide [x₀],

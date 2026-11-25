@@ -112,13 +112,7 @@ private theorem prod_natAbs_le_of_forall₂ {d W : ℕ}
         · exact hhead _ (Array.getElem_mem_toList hidx)
         · simp
       simp only [List.map_cons, List.prod_cons, Int.natAbs_mul, List.sum_cons, pow_add]
-      calc (FactorTable.evalAt d f σ).natAbs *
-              ((fs.map fun g => FactorTable.evalAt d g σ).prod).natAbs
-          ≤ (d ^ b.1 * W ^ b.2) *
-              (d ^ (bs.map Prod.fst).sum * W ^ (bs.map Prod.snd).sum) :=
-            Nat.mul_le_mul hf ih
-        _ = (d ^ b.1 * d ^ (bs.map Prod.fst).sum) *
-              (W ^ b.2 * W ^ (bs.map Prod.snd).sum) := by ring
+      exact (Nat.mul_le_mul hf ih).trans_eq (by ring)
 
 private theorem filter_forall₂ {α β : Type*} (p : α → Bool) {R : α → β → Prop} :
     ∀ {l : List α} {bs : List β}, List.Forall₂ R l bs →
@@ -130,20 +124,10 @@ private theorem filter_forall₂ {α β : Type*} (p : α → Bool) {R : α → �
   | a :: l, x :: b, .cons hab hrest => by
       rcases filter_forall₂ p hrest with ⟨b₁, b₂, h₁, h₂, hsum⟩
       by_cases ha : p a = true
-      · refine ⟨x :: b₁, b₂, ?_, ?_, ?_⟩
-        · simpa [ha] using List.Forall₂.cons hab h₁
-        · simpa [ha] using h₂
-        · intro g
-          simp only [List.map_cons, List.sum_cons]
-          have := hsum g
-          omega
-      · refine ⟨b₁, x :: b₂, ?_, ?_, ?_⟩
-        · simpa [ha] using h₁
-        · simpa [ha] using List.Forall₂.cons hab h₂
-        · intro g
-          simp only [List.map_cons, List.sum_cons]
-          have := hsum g
-          omega
+      · refine ⟨x :: b₁, b₂, by simpa [ha] using h₁.cons hab, by simpa [ha] using h₂, fun g => ?_⟩
+        simp only [List.map_cons, List.sum_cons]; have := hsum g; omega
+      · refine ⟨b₁, x :: b₂, by simpa [ha] using h₁, by simpa [ha] using h₂.cons hab, fun g => ?_⟩
+        simp only [List.map_cons, List.sum_cons]; have := hsum g; omega
 
 private theorem intBudgetInvariant_elimVar [DecidableEq V] {d W M₀ k : ℕ} (x : V)
     {s : ElimState ℤ V} (hs : IntBudgetInvariant d W M₀ k s) :
@@ -154,49 +138,26 @@ private theorem intBudgetInvariant_elimVar [DecidableEq V] {d W M₀ k : ℕ} (x
     simp only [hx, ↓reduceIte]
     split_ifs with hb
     · refine ⟨iso + 1, buds, hforall, ?_, by omega, hsnd⟩
-      calc (s.scalar * (d : ℤ)).natAbs
-          = s.scalar.natAbs * d := by simp [Int.natAbs_mul]
-        _ ≤ d ^ iso * d := Nat.mul_le_mul_right d hiso
-        _ = d ^ (iso + 1) := (pow_succ d iso).symm
+      rw [Int.natAbs_mul, Int.natAbs_natCast, pow_succ]
+      exact Nat.mul_le_mul_right d hiso
     · let p := fun f : FactorTable ℤ V => decide (x ∈ f.scope)
       rcases filter_forall₂ p hforall with ⟨budsB, budsR, hB, hR, hsum⟩
-      have hrest : (s.live.filter fun f => !p f) =
-          s.live.filter fun f => decide (x ∉ f.scope) := by
-        simp only [p, decide_not]
-      rw [hrest] at hR
+      simp only [p] at hR
       let tNew := (budsB.map Prod.fst).sum + 1
       let mNew := (budsB.map Prod.snd).sum
       have hnew : IntBudgetFor d W (elimBucketTable d x (s.live.filter p)) (tNew, mNew) := by
         intro z hz
         simp only [elimBucketTable, Array.toList_ofFn, List.mem_ofFn] at hz
         rcases hz with ⟨idx, rfl⟩
-        have hprod : ∀ a : Fin d,
-            Int.natAbs ((List.map (fun f => FactorTable.evalAt d f fun v =>
-              if v = x then a.1 else assignScope (bucketOutScope x (s.live.filter p))
-                (lsbDecode d (bucketOutScope x (s.live.filter p)).length idx.1) v)
-              (s.live.filter p)).prod) ≤
-            d ^ (budsB.map Prod.fst).sum * W ^ (budsB.map Prod.snd).sum :=
-          fun a => prod_natAbs_le_of_forall₂ hB _
-        calc Int.natAbs (∑ a : Fin d, _)
-            ≤ ∑ a : Fin d, Int.natAbs ((List.map (fun f => FactorTable.evalAt d f fun v =>
-                if v = x then a.1 else assignScope (bucketOutScope x (s.live.filter p))
-                  (lsbDecode d (bucketOutScope x (s.live.filter p)).length idx.1) v)
-                (s.live.filter p)).prod) :=
-              Int.natAbs_sum_le _ _
-          _ ≤ ∑ _ : Fin d, d ^ (budsB.map Prod.fst).sum * W ^ (budsB.map Prod.snd).sum :=
-              Finset.sum_le_sum fun a _ => hprod a
-          _ = d * (d ^ (budsB.map Prod.fst).sum * W ^ (budsB.map Prod.snd).sum) := by
-              simp [Finset.sum_const, smul_eq_mul]
-          _ = d ^ tNew * W ^ mNew := by
-              simp only [tNew, mNew, pow_succ']
-              ring
-      refine ⟨iso, (tNew, mNew) :: budsR, List.Forall₂.cons hnew hR, hiso, ?_, ?_⟩
-      · have := hsum Prod.fst
-        simp only [List.map_cons, List.sum_cons, tNew]
-        omega
-      · have := hsum Prod.snd
-        simp only [List.map_cons, List.sum_cons, mNew]
-        omega
+        refine (Int.natAbs_sum_le _ _).trans <|
+          (Finset.sum_le_sum fun a _ => prod_natAbs_le_of_forall₂ hB _).trans_eq ?_
+        simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul, tNew, mNew,
+          pow_succ']
+        ring
+      have h₁ := hsum Prod.fst
+      have h₂ := hsum Prod.snd
+      refine ⟨iso, (tNew, mNew) :: budsR, List.Forall₂.cons hnew hR, hiso, ?_, ?_⟩ <;>
+        simp only [List.map_cons, List.sum_cons, tNew, mNew] <;> omega
   · simp only [elimVar, hx, ↓reduceIte]
     exact ⟨iso, buds, hforall, hiso, by omega, hsnd⟩
 
@@ -366,17 +327,14 @@ section RationalCost
 
 private theorem natAbs_num_divInt_le (a : ℤ) {b : ℕ} (hb : 0 < b) :
     (Rat.divInt a b).num.natAbs ≤ a.natAbs := by
-  by_cases ha : a = 0
-  · subst ha; simp
-  · have hb_ne : (b : ℤ) ≠ 0 := by omega
-    have hdvd := Rat.num_dvd a hb_ne
-    have hnat : (Rat.divInt a b).num.natAbs ∣ a.natAbs := Int.natAbs_dvd_natAbs.mpr hdvd
-    exact Nat.le_of_dvd (Int.natAbs_pos.mpr ha) hnat
+  rcases eq_or_ne a 0 with rfl | ha
+  · simp
+  · exact Nat.le_of_dvd (Int.natAbs_pos.mpr ha)
+      (Int.natAbs_dvd_natAbs.mpr (Rat.num_dvd a (by omega)))
 
 private theorem den_divInt_le (a : ℤ) {b : ℕ} (hb : 0 < b) :
-    (Rat.divInt a b).den ≤ b := by
-  have hdvd : (Rat.divInt a b).den ∣ b := Int.ofNat_dvd.mp (Rat.den_dvd a b)
-  exact Nat.le_of_dvd hb hdvd
+    (Rat.divInt a b).den ≤ b :=
+  Nat.le_of_dvd hb (Int.ofNat_dvd.mp (Rat.den_dvd a b))
 
 /-- Reduced rational multiplication bounds: `|(a * b).num| ≤ |a.num| * |b.num|` and
 `(a * b).den ≤ a.den * b.den`. -/
@@ -406,10 +364,8 @@ theorem rat_add_bounds (a b : ℚ) :
     rw [mul_comm (b.num : ℚ) (a.den : ℚ)]
   rw [heq]
   have hnum : (a.num * (b.den : ℤ) + b.num * (a.den : ℤ)).natAbs ≤
-      a.num.natAbs * b.den + b.num.natAbs * a.den := by
-    calc (a.num * (b.den : ℤ) + b.num * (a.den : ℤ)).natAbs
-        ≤ (a.num * (b.den : ℤ)).natAbs + (b.num * (a.den : ℤ)).natAbs := Int.natAbs_add_le _ _
-      _ = a.num.natAbs * b.den + b.num.natAbs * a.den := by simp [Int.natAbs_mul]
+      a.num.natAbs * b.den + b.num.natAbs * a.den :=
+    (Int.natAbs_add_le _ _).trans_eq (by simp [Int.natAbs_mul])
   exact ⟨le_trans (natAbs_num_divInt_le _ hden_pos) hnum, den_divInt_le _ hden_pos⟩
 
 /-- Height and denominator bounds for a rational list product. -/
@@ -430,9 +386,7 @@ theorem rat_sum_finset_bounds {P Q : ℕ} (hQ : 1 ≤ Q) (f : ℕ → ℚ) :
       (∑ i ∈ Finset.range c, f i).num.natAbs ≤ c * P * Q ^ (c - 1) ∧
         (∑ i ∈ Finset.range c, f i).den ≤ Q ^ c
   | 0, _ => by simp
-  | 1, h => by
-      have h0 := h 0 (by decide)
-      simpa using h0
+  | 1, h => by simpa using h 0 (by decide)
   | c + 2, h => by
       have ih := rat_sum_finset_bounds hQ f (c + 1) fun i hi => h i (by omega)
       have hlast := h (c + 1) (by omega)
@@ -443,14 +397,9 @@ theorem rat_sum_finset_bounds {P Q : ℕ} (hQ : 1 ≤ Q) (f : ℕ → ℚ) :
         exact Nat.mul_le_mul ih.2 hlast.2
       have hnum_le : (∑ i ∈ Finset.range (c + 1), f i).num.natAbs * (f (c + 1)).den +
           (f (c + 1)).num.natAbs * (∑ i ∈ Finset.range (c + 1), f i).den ≤
-          (c + 2) * P * Q ^ (c + 1) := by
-        calc (∑ i ∈ Finset.range (c + 1), f i).num.natAbs * (f (c + 1)).den +
-              (f (c + 1)).num.natAbs * (∑ i ∈ Finset.range (c + 1), f i).den
-            ≤ ((c + 1) * P * Q ^ c) * Q + P * Q ^ (c + 1) :=
-              Nat.add_le_add (Nat.mul_le_mul ih.1 hlast.2) (Nat.mul_le_mul hlast.1 ih.2)
-          _ = (c + 1) * P * Q ^ (c + 1) + P * Q ^ (c + 1) := by
-              rw [pow_succ Q c]; ring
-          _ = (c + 2) * P * Q ^ (c + 1) := by ring
+          (c + 2) * P * Q ^ (c + 1) :=
+        (Nat.add_le_add (Nat.mul_le_mul ih.1 hlast.2) (Nat.mul_le_mul hlast.1 ih.2)).trans_eq
+          (by rw [Nat.add_sub_cancel]; ring)
       exact ⟨le_trans hn hnum_le, le_trans hd hden_le⟩
 
 /-- Single-step direct rational elimination bounds on `elimBucketTable d x bucket`. -/
@@ -507,9 +456,7 @@ theorem rat_elimBucketTable_bounds {V : Type*} [DecidableEq V] {d A B : ℕ} (hB
 private theorem array_map_getD_zero {α β : Type*} [Zero α] [Zero β]
     (g : α → β) (hg : g 0 = 0) (a : Array α) (i : ℕ) :
     (a.map g).getD i 0 = g (a.getD i 0) := by
-  by_cases h : i < a.size
-  · simp [Array.getD, h]
-  · simp [Array.getD, h, hg]
+  by_cases h : i < a.size <;> simp [Array.getD, h, hg]
 
 private theorem evalAt_mapHom {R S V : Type*} [Semiring R] [Semiring S] (φ : R →+* S)
     (d : ℕ) (f : FactorTable R V) (σ : V → ℕ) :
@@ -529,24 +476,16 @@ theorem contractionOn_zipWith_scale {R V : Type*} [CommSemiring R] [DecidableEq 
   intro scales factors declared hlen
   rw [FactorTable.contractionOn, FactorTable.contractionOn, Finset.mul_sum]
   refine Finset.sum_congr rfl fun σ _ => ?_
-  have hprod : ((List.zipWith scaleFactor scales factors).map fun f =>
-      f.evalAt d fun v => if h : v ∈ declared then (σ ⟨v, h⟩).1 else 0).prod =
-      scales.prod * (factors.map fun f =>
-        f.evalAt d fun v => if h : v ∈ declared then (σ ⟨v, h⟩).1 else 0).prod := by
-    induction scales generalizing factors with
-    | nil =>
-        cases factors with
-        | nil => simp
-        | cons _ _ => simp at hlen
-    | cons c cs ih =>
-        cases factors with
-        | nil => simp at hlen
-        | cons f fs =>
-            simp only [List.length_cons, Nat.succ.injEq] at hlen
-            simp only [List.zipWith_cons_cons, List.map_cons, List.prod_cons, evalAt_scale]
-            rw [ih fs hlen]
-            ring
-  exact hprod
+  induction scales generalizing factors with
+  | nil => cases factors <;> simp at hlen ⊢
+  | cons c cs ih =>
+      cases factors with
+      | nil => simp at hlen
+      | cons f fs =>
+          simp only [List.length_cons, Nat.succ.injEq] at hlen
+          simp only [List.zipWith_cons_cons, List.map_cons, List.prod_cons, evalAt_scale]
+          rw [ih fs hlen]
+          ring
 
 private theorem elimVar_mapHom {R S V : Type*} [Semiring R] [Semiring S] [DecidableEq V]
     (φ : R →+* S) (d : ℕ) (x : V) (s : ElimState R V) :
@@ -595,10 +534,8 @@ private theorem result_mapHom {R S V : Type*} [Semiring R] [Semiring S] (φ : R 
     (s : ElimState R V) : (s.mapHom φ).result = φ s.result := by
   simp only [ElimState.result, ElimState.mapHom, map_mul, map_list_prod, List.map_map,
     Function.comp_def]
-  congr 1
-  congr 1
-  refine List.map_congr_left fun f _ => ?_
-  exact array_map_getD_zero φ (map_zero φ) f.entries 0
+  congr 2
+  exact List.map_congr_left fun f _ => array_map_getD_zero φ (map_zero φ) f.entries 0
 
 /-- Denominator-cleared rational variable elimination: scaling integer factor tables `factorsℤ`
 by positive denominators `denoms` preserves the exact rational contraction modulo a single division
@@ -673,17 +610,13 @@ theorem rat_cleared_result_bounds {V : Type*} [DecidableEq V] {d W D : ℕ}
         declared)).result = (z : ℚ) / (P : ℚ) :=
     result_eliminateOrder_ratScaled d denoms factorsℤ declared order hlen hcover
   rw [hres]
-  have hPpos : 0 < P := by
-    by_contra h0
-    have hPe : P = 0 := by omega
-    exact Nat.lt_irrefl 0 (hDpos 0 (List.prod_eq_zero_iff.mp hPe))
+  have hPpos : 0 < P := Nat.pos_of_ne_zero fun h0 =>
+    Nat.lt_irrefl 0 (hDpos 0 (List.prod_eq_zero_iff.mp h0))
   have hPle : P ≤ D ^ factorsℤ.length := by
     rw [← hlen]
     exact List.prod_le_pow_length denoms D hDle
-  have hmk : (z : ℚ) / (P : ℚ) = Rat.divInt z P := by
-    rw [← Int.cast_natCast P, ← Rat.divInt_eq_div]
-  rw [hmk]
-  refine ⟨le_trans (natAbs_num_divInt_le z hPpos)
+  rw [← Int.cast_natCast P, ← Rat.divInt_eq_div]
+  exact ⟨le_trans (natAbs_num_divInt_le z hPpos)
       (natAbs_result_eliminateOrder_le hd hW factorsℤ declared order hWle),
     le_trans (den_divInt_le z hPpos) hPle⟩
 
@@ -705,21 +638,11 @@ theorem length_encRat_cleared_result_le {V : Type*} [DecidableEq V] {d W D : ℕ
   dsimp only
   rcases rat_cleared_result_bounds hd hW denoms factorsℤ declared order hlen hDpos hDle hWle
       hcover with ⟨hnum, hden⟩
-  have hr :
-      (encRat (eliminateOrder d order (ElimState.ofFactors
-        (List.zipWith (fun (q : ℕ) f =>
-          scaleFactor ((q : ℚ)⁻¹) (mapFactorHom (Int.castRingHom ℚ) f)) denoms factorsℤ)
-        declared)).result).length ≤
-      2 * (d ^ order.length * W ^ factorsℤ.length).size + (D ^ factorsℤ.length).size + 3 :=
-    length_encRat_le _ hnum hden
-  have h1 : (d ^ order.length * W ^ factorsℤ.length).size ≤
-      order.length * d.size + factorsℤ.length * W.size + 2 :=
-    le_trans (Nat.size_mul_le _ _)
-      (by
-        have ha := Nat.size_pow_le d order.length
-        have hb := Nat.size_pow_le W factorsℤ.length
-        omega)
-  have h2 : (D ^ factorsℤ.length).size ≤ factorsℤ.length * D.size + 1 := Nat.size_pow_le D _
+  have hr := length_encRat_le _ hnum hden
+  have := Nat.size_mul_le (d ^ order.length) (W ^ factorsℤ.length)
+  have := Nat.size_pow_le d order.length
+  have := Nat.size_pow_le W factorsℤ.length
+  have := Nat.size_pow_le D factorsℤ.length
   omega
 
 end RationalCost
@@ -805,13 +728,9 @@ theorem length_encIntFactorRecord_le (rec : IntFactorRecord) {VBits WBits : ℕ}
   rw [encIntFactorRecord_apply, length_encPair]
   dsimp only
   have hs : (encList encNat rec.scope).length ≤ rec.scope.length * (2 * VBits + 1) :=
-    length_encList_le encNat rec.scope fun v hvm => by
-      rw [length_encNat_eq_size]
-      exact hv v hvm
+    length_encList_le encNat rec.scope fun v hvm => (length_encNat_eq_size v).trans_le (hv v hvm)
   have he : (encList encIntBin rec.entries).length ≤ rec.entries.length * (2 * WBits + 1) :=
-    length_encList_le encIntBin rec.entries fun z hzm => by
-      rw [length_encIntBin]
-      exact hw z hzm
+    length_encList_le encIntBin rec.entries fun z hzm => (length_encIntBin z).trans_le (hw z hzm)
   omega
 
 /-- Encoded bit length of a `RatFactorRecord` bounded by scope variable and `encRat` entry
@@ -824,9 +743,7 @@ theorem length_encRatFactorRecord_le (rec : RatFactorRecord) {VBits RBits : ℕ}
   rw [encRatFactorRecord_apply, length_encPair]
   dsimp only
   have hs : (encList encNat rec.scope).length ≤ rec.scope.length * (2 * VBits + 1) :=
-    length_encList_le encNat rec.scope fun v hvm => by
-      rw [length_encNat_eq_size]
-      exact hv v hvm
+    length_encList_le encNat rec.scope fun v hvm => (length_encNat_eq_size v).trans_le (hv v hvm)
   have he := length_encList_le encRat rec.entries hq
   omega
 
@@ -841,14 +758,11 @@ theorem length_encModFactorRecord_le (rec : ModFactorRecord) {VBits : ℕ}
   rw [encModFactorRecord_apply, length_encPair, length_encPair]
   dsimp only
   have hs : (encList encNat rec.scope).length ≤ rec.scope.length * (2 * VBits + 1) :=
-    length_encList_le encNat rec.scope fun v hvm => by
-      rw [length_encNat_eq_size]
-      exact hv v hvm
+    length_encList_le encNat rec.scope fun v hvm => (length_encNat_eq_size v).trans_le (hv v hvm)
   have he : (encList encNat rec.entries).length ≤
       rec.entries.length * (2 * rec.modulus.size + 1) :=
-    length_encList_le encNat rec.entries fun k hkm => by
-      rw [length_encNat_eq_size]
-      exact Nat.size_le_size (Nat.le_of_lt (hw k hkm))
+    length_encList_le encNat rec.entries fun k hkm =>
+      (length_encNat_eq_size k).trans_le (Nat.size_le_size (hw k hkm).le)
   rw [length_encNat_eq_size]
   omega
 

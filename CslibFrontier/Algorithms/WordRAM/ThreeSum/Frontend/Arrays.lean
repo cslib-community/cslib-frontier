@@ -62,28 +62,14 @@ def ScanParametersPreserved (x y : Data 48) : Prop :=
 theorem ScanReady.transfer {w : ℕ} {rs : List (ℕ × ℕ)} {x y : Data 48}
     (h : ScanReady w rs x) (he : ScanParametersPreserved x y) : ScanReady w rs y := by
   obtain ⟨hm, hr⟩ := he
-  have eq (j : Fin 48) (hlt : j.val < 27) (hj : j ≠ beta ∧ j ≠ beta' ∧ j ≠ digit ∧ j ≠ mode) :
+  have eq (j : Fin 48) (hlt : j.val < 27 := by decide)
+      (hj : j ≠ beta ∧ j ≠ beta' ∧ j ≠ digit ∧ j ≠ mode := by decide) :
       y.regs j = x.regs j := hr j hlt hj.1 hj.2.1 hj.2.2.1 hj.2.2.2
-  constructor
-  · simpa only [eq len (by decide) (by decide)] using h.length
-  · simpa only [eq zero (by decide) (by decide), eq one (by decide) (by decide),
-    eq two (by decide) (by decide),
-      eq three (by decide) (by decide), eq four (by decide) (by decide),
-        eq five (by decide) (by decide)] using h.constants
-  · simpa only [eq Scan.keys (by decide) (by decide), hm] using h.keys
-  · simpa only [eq Scan.counts (by decide) (by decide), hm] using h.counts
-  · exact h.words
-  · simpa only [eq magnitude (by decide) (by decide)] using h.absolute
-  · exact h.double
-  · simpa only [eq magnitude (by decide) (by decide)] using h.labels
-  · exact h.small
-  · simpa only [eq Scan.keys (by decide) (by decide)] using h.keyAddress
-  · simpa only [eq Scan.counts (by decide) (by decide)] using h.countAddress
-  · simpa only [eq dst (by decide) (by decide)] using h.outputAddress
-  · simpa only [eq Scan.keys (by decide) (by decide),
-    eq dst (by decide) (by decide)] using h.keysBefore
-  · simpa only [eq Scan.counts (by decide) (by decide),
-    eq dst (by decide) (by decide)] using h.countsBefore
+  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, h14⟩ := h
+  simp only [← eq len, ← eq zero, ← eq one, ← eq two, ← eq three, ← eq four, ← eq five,
+    ← eq Scan.keys, ← eq Scan.counts, ← eq magnitude, ← eq dst, ← hm]
+    at h1 h2 h3 h4 h6 h8 h10 h11 h12 h13 h14
+  exact ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, h14⟩
 
 /-- Invoke the proved native scan from its actual arithmetic/layout context. -/
 theorem ScanReady.exec {w : ℕ} {rs : List (ℕ × ℕ)} {x : Data 48}
@@ -110,9 +96,7 @@ private theorem exec_singleton {w : ℕ} (x : Data 48) (rs : List (ℕ × ℕ))
   wram_simp
   refine ⟨fun i => by simp [Block.read], fun a ha => ?_⟩
   apply Function.update_of_ne (fun he => ha ?_)
-  rw [Block.mem_footprint]
-  dsimp only [Block.Owns]
-  omega
+  simp only [Block.mem_footprint, Block.Owns]; omega
 
 /-- Select exactly the array named by one physical slot. Every split/multiplicity setup is
 executed; the width and label budget are scalar runtime values, independent of code size. -/
@@ -128,12 +112,9 @@ theorem pick_exec {w U Λ j : ℕ} (x : Data 48) (rs : List (ℕ × ℕ))
   obtain ⟨hz, h1, h2, h3, h4, h5⟩ := h.constants
   have frame {mem : ℕ → ℕ}
       (hf : Modifies (Block.mk (x.regs dst) rs.length).footprint x.mem mem) :
-      Modifies (Block.mk (x.regs dst) (rs.length + 1)).footprint x.mem mem := by
-    intro a ha
-    apply hf a (fun hmem => ha ?_)
-    rw [Block.mem_footprint] at hmem ⊢
-    dsimp only [Block.Owns] at hmem ⊢
-    omega
+      Modifies (Block.mk (x.regs dst) (rs.length + 1)).footprint x.mem mem :=
+    fun a ha => hf a fun hmem => ha (by
+      simp only [Block.mem_footprint, Block.Owns] at hmem ⊢; omega)
   have hsmall := h.small
   refine WP.exists_execWithin ?_
   unfold pick split splitSetup extra
@@ -214,9 +195,6 @@ theorem body_exec {w U Λ j : ℕ} (x : Data 48) (rs : List (ℕ × ℕ))
   wram_simp [haddr]
   refine ⟨by ram_keep hmem, fun b hb hb0 hb1 => ?_⟩
   wram_simp [hb0, hb1]
-  refine hf b (fun hfp => ?_)
-  rw [Block.mem_footprint] at hfp
-  dsimp only [Block.Owns] at hfp
-  omega
+  exact hf b fun hfp => by simp only [Block.mem_footprint, Block.Owns] at hfp; omega
 
 end Cslib.Algorithms.WordRAM.ThreeSum.Frontend.Arrays

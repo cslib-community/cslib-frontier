@@ -610,24 +610,20 @@ theorem wp_contract {s : Memory.State} (hs : Inv L w s) {u v : ℕ}
   rintro _ s₂ t₂ ⟨hf₂, hfr₂, hm₂, ht₂⟩
   refine wp_mono ?_ (wp_shrink hs hW (fun _ _ => rfl) huv' hk hS hf₂ (fun a ha => ?_) ?_ ?_
     (by simpa using hm₂))
-  · rintro _ s' t ⟨hf, hfr, habs', hs', ht⟩
-    exact ⟨hf, hfr, habs', hs', by omega⟩
+  · exact fun _ s' t ⟨hf, hfr, habs', hs', ht⟩ => ⟨hf, hfr, habs', hs', by omega⟩
   · have hout := L.not_owns_of_not_mem ha
-    rw [hfr₂ a hout.1]
-    dsimp only
-    rw [Function.update_of_ne (hout.2.2.2 u (by omega)), Function.update_of_ne hout.2.2.1]
-  · rw [hfr₂ _ L.not_owns_total]
-    dsimp only
-    rw [Function.update_of_ne (L.total_ne_degree u), Function.update_self]
+    simp only [hfr₂ a hout.1, Function.update_of_ne (hout.2.2.2 u (by omega)),
+      Function.update_of_ne hout.2.2.1]
+  · simp only [hfr₂ _ L.not_owns_total, Function.update_of_ne (L.total_ne_degree u),
+      Function.update_self]
   · intro a ha
     rw [hfr₂ _ (L.not_owns_degree (by omega))]
     dsimp only
-    have hda : s.mem (L.degree.base + a) = rowDeg W a := hdeg a
     by_cases hau : a = u'
     · subst hau
       exact Function.update_self _ _ _
     · rw [Function.update_of_ne (fun h => hau (Fin.ext (show (a : ℕ) = u by omega))),
-        Function.update_of_ne (L.total_ne_degree a).symm, hda,
+        Function.update_of_ne (L.total_ne_degree a).symm, hdeg a,
         rowDeg_mergePair_other hW huv' hau ha]
 
 end Cslib.Algorithms.Lean.Karger.Memory

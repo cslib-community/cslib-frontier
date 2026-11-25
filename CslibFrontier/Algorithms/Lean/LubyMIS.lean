@@ -238,9 +238,8 @@ theorem Invariant.step {s : State V} (h : Invariant G s) (σ : Ranking V) :
     · exact h.isIndepSet hu hv huv hadj
     · exact (h.disjoint v ((mem_joiners G).1 hv).1 u hu).1 hadj
     · exact (h.disjoint u ((mem_joiners G).1 hu).1 v hv).1 hadj.symm
-    · have h1 := ((mem_joiners G).1 hu).2 v ((mem_joiners G).1 hv).1 hadj
-      have h2 := ((mem_joiners G).1 hv).2 u ((mem_joiners G).1 hu).1 hadj.symm
-      exact lt_asymm h1 h2
+    · exact lt_asymm (((mem_joiners G).1 hu).2 v ((mem_joiners G).1 hv).1 hadj)
+        (((mem_joiners G).1 hv).2 u ((mem_joiners G).1 hu).1 hadj.symm)
   · intro v hv u hu
     rw [mem_step_live] at hv
     rw [step_chosen, mem_union] at hu
@@ -316,9 +315,7 @@ theorem maximal_of_mem_support_lubyMIS {k : ℕ} (hk : Fintype.card V ≤ k) {S 
         · exact absurd he hne.ne_empty
         · have := card_step_live_lt G hne σ
           exact Or.inr (by omega)) s hs
-  rcases hcard with he | hcard
-  · exact he
-  · exact card_eq_zero.1 (by omega)
+  exact hcard.elim id fun h => card_eq_zero.1 (by omega)
 
 /-- **Independence.** After any number of phases, every possible output is an independent set. -/
 theorem isIndepSet_of_mem_support_lubyMIS {k : ℕ} {S : Finset V}
@@ -378,12 +375,8 @@ private theorem degree_step_add_le (σ : Ranking V) (v : V) :
     have hu' : u ∈ H.neighborFinset v := (SimpleGraph.mem_neighborFinset _ _ _).2 hu
     rw [hdeg0, zero_add, sum_eq_single_of_mem u hu']
     · rw [ite_eq_left hW]
-    · intro u' hu'' hne
-      rw [ite_eq_right]
-      intro hW'
-      have h1 : σ u < σ u' := hW u' (mem_union_right _ hu'') hne
-      have h2 : σ u' < σ u := hW' u (mem_union_right _ hu') (Ne.symm hne)
-      exact lt_asymm h1 h2
+    · exact fun u' hu'' hne => ite_eq_right fun hW' =>
+        lt_asymm (hW u' (mem_union_right _ hu'') hne) (hW' u (mem_union_right _ hu') hne.symm)
   · push Not at hex
     rw [sum_eq_zero fun u hu => ite_eq_right (hex u hu), add_zero]
     exact hdeg
@@ -413,30 +406,23 @@ theorem two_mul_sum_liveEdges_step_le :
     rw [sum_comm]
     refine sum_congr rfl fun u _ => ?_
     rw [← sum_filter, sum_const, smul_eq_mul]
+  have hmem : ∀ u v, H.Adj u v → u ∈ H.neighborFinset u ∪ H.neighborFinset v := fun _ _ huv =>
+    mem_union_right _ ((SimpleGraph.mem_neighborFinset _ _ _).2 huv.symm)
   have haS : ∀ u v, H.Adj u v → a u v * (H.degree u + H.degree v) ≥ N := by
     intro u v huv
-    have hu : u ∈ H.neighborFinset u ∪ H.neighborFinset v :=
-      mem_union_right _ ((SimpleGraph.mem_neighborFinset _ _ _).2 huv.symm)
     calc N = a u v * (H.neighborFinset u ∪ H.neighborFinset v).card :=
-          (card_filter_least_mul_card hu).symm
+          (card_filter_least_mul_card (hmem u v huv)).symm
       _ ≤ a u v * (H.degree u + H.degree v) := by
           refine Nat.mul_le_mul_left _ ?_
           rw [← SimpleGraph.card_neighborFinset_eq_degree,
             ← SimpleGraph.card_neighborFinset_eq_degree]
           exact card_union_le _ _
-  have hsym : ∀ u v, H.Adj u v → a u v = a v u := by
-    intro u v huv
-    have hu : u ∈ H.neighborFinset u ∪ H.neighborFinset v :=
-      mem_union_right _ ((SimpleGraph.mem_neighborFinset _ _ _).2 huv.symm)
-    have hv : v ∈ H.neighborFinset v ∪ H.neighborFinset u :=
-      mem_union_right _ ((SimpleGraph.mem_neighborFinset _ _ _).2 huv)
-    have h1 := card_filter_least_mul_card hu
-    have h2 : a v u * (H.neighborFinset u ∪ H.neighborFinset v).card =
-        Fintype.card (Ranking V) := by
+  have hsym : ∀ u v, H.Adj u v → a u v = a v u := fun u v huv => by
+    have h2 : a v u * (H.neighborFinset u ∪ H.neighborFinset v).card = N := by
       rw [union_comm]
-      exact card_filter_least_mul_card hv
-    have hpos : 0 < (H.neighborFinset u ∪ H.neighborFinset v).card := card_pos.2 ⟨u, hu⟩
-    exact Nat.eq_of_mul_eq_mul_right hpos (h1.trans h2.symm)
+      exact card_filter_least_mul_card (hmem v u huv.symm)
+    exact Nat.eq_of_mul_eq_mul_right (card_pos.2 ⟨u, hmem u v huv⟩)
+      ((card_filter_least_mul_card (hmem u v huv)).trans h2.symm)
   -- The counted removals total at least `N` times the live edges.
   have hTlow : N * liveEdges G s ≤ ∑ v, ∑ u ∈ H.neighborFinset v, a u v * H.degree v := by
     have hswap : ∑ v, ∑ u ∈ H.neighborFinset v, a u v * H.degree v =

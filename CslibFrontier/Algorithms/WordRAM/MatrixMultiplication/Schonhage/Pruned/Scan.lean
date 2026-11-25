@@ -90,22 +90,13 @@ theorem exec_scan {w N capacity : ℕ} (child : Bool) (x : Data registers) (inpu
       (hwidth.of_le (by rw [hys]; omega)) (hwidth.of_le (by rw [hyo, hcount]; omega))
       (hwidth.of_le (by rw [hcount]; omega)) (hwidth.of_le (by omega))
     have hsource (i : ℕ) (hi : i < N) : z.mem (x.regs listBase + i) = input i := by
-      rw [hmf]
-      · exact hread i hi
-      · rw [hyo]
-        change ¬(x.regs childList ≤ x.regs listBase + i ∧
-          x.regs listBase + i < x.regs childList + capacity)
-        rcases hsrcOut with h | h <;> omega
-      · rw [hys]
-        change ¬(x.regs stamps ≤ x.regs listBase + i ∧
-          x.regs listBase + i < x.regs stamps + capacity)
-        rcases hsrcStamp with h | h <;> omega
+      rw [hmf _ (by simp only [hyo, Block.Owns]; omega) (by simp only [hys, Block.Owns]; omega)]
+      exact hread i hi
     refine ⟨z, hz, ⟨(hrf epoch (by decide)).trans hye, ?_, ?_, hsource, ?_, ?_⟩, hidx⟩
     · simpa only [hyt, ← scanSet_succ] using hcz
     · simpa only [hyo, hys, hye, hyt, ← scanSet_succ] using htz
-    · intro a hao has
-      rw [hmf a (by simpa only [hyo] using hao) (by simpa only [hys] using has)]
-      exact hframe a hao has
+    · exact fun a hao has => (hmf a (by simpa only [hyo] using hao)
+        (by simpa only [hys] using has)).trans (hframe a hao has)
     · exact fun i hi => (hrf i (fun h => hi (Or.inl h))).trans (hfrozen i hi)
   refine WP.exists_execWithin ?_
   dsimp only [E] at hE

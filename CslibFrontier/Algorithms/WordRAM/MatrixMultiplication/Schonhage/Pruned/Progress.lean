@@ -109,18 +109,16 @@ theorem exec_ready_enter {w L f a0 b0 n d p E : ℕ} (S : Finset (OutStr (n + 1)
       input (fun _ _ => rfl) hcodes (hfit.of_le (by unfold nodeBudget; omega))
   have hrow (j : ℕ) (hj : j < 4) :
       ¬(Block.mk (f + 4 * (L + 1) + (L + 1) * 10 ^ L + d * 10 ^ L)
-        (10 ^ L)).Owns (f + 4 * d + j) := by
-    dsimp only [Block.Owns]
-    omega
+        (10 ^ L)).Owns (f + 4 * d + j) := by dsimp only [Block.Owns]; omega
   have hstamp (q : ℕ) :
       ¬(Block.mk (f + 4 * (L + 1) + (L + 1) * 10 ^ L + d * 10 ^ L)
         (10 ^ L)).Owns (f + 4 * (L + 1) + 2 * (L + 1) * 10 ^ L + q) := by
     dsimp only [Block.Owns]
     have hm := Nat.mul_le_mul_right (10 ^ L) (by omega : d + 1 ≤ L + 1)
-    rintro ⟨_, hlt⟩
-    nlinarith only [hm, hlt]
+    rintro ⟨_, hlt⟩; nlinarith only [hm, hlt]
   refine ⟨y, hy, ⟨hregs, hlevel, hmode, hactive.trans hx.active_eq, ?_, hread, ?_,
-    ?_, ?_, ?_, hframe⟩⟩
+    by rw [hE, hx.epoch_eq], by simp only [Nat.zero_mul, Nat.add_zero, hE, hx.epoch_eq, le_refl],
+    ?_, hframe⟩⟩
   · intro j
     change y.mem (f + 4 * d + j.val) = ![S.card, p, 10 ^ d, 0] j
     rw [hmem]
@@ -139,11 +137,8 @@ theorem exec_ready_enter {w L f a0 b0 n d p E : ℕ} (S : Finset (OutStr (n + 1)
     obtain ⟨i, hi, hqi⟩ := hx.exists_read hq
     have hval : f + 4 * (L + 1) + (L + 1) * 10 ^ L + d * 10 ^ L +
         (queryIndex q).val ≠ f + 4 * d + 3 := by omega
-    rw [hmem, Function.update_of_ne hval, partialValue_zero, show encode 0 = 0 from rfl]
-    rw [← hqi]
+    rw [hmem, Function.update_of_ne hval, partialValue_zero, show encode 0 = 0 from rfl, ← hqi]
     exact zeroQueryPrefix_at hi
-  · rw [hE, hx.epoch_eq]
-  · simp only [Nat.zero_mul, Nat.add_zero, hE, hx.epoch_eq, le_refl]
   · intro q hq
     rw [hmem, Function.update_of_ne (by omega), zeroQueryPrefix_outside hcodes (hstamp q),
       hE, hx.epoch_eq]

@@ -64,11 +64,9 @@ public theorem exec_prepareSnapshot {w L m N Q : ℕ} (hm : m ≤ L) (x : Data 1
   obtain ⟨p, hp, pp, pm, _⟩ := exec_parameters hm x hL hmemory hN hfit
   obtain ⟨l, hl, lp, lm⟩ := exec_layout p pp (by rw [pm]; exact hQ) hfit
   obtain ⟨y, hy, yp, ym⟩ := exec_saveInput l lp hfit
-  refine ⟨y, (hp.seq (hl.seq hy)).mono (by unfold snapshotTime; omega), yp, ?_, ?_⟩
-  · intro j hj
-    rw [ym, ArrayCopy.copyPrefix_read hj, Nat.zero_add, lm, pm]
-  · intro a ha
-    rw [ym, ArrayCopy.copyPrefix_outside (by rcases ha with ha | ha <;> omega), lm, pm]
+  refine ⟨y, (hp.seq (hl.seq hy)).mono (by unfold snapshotTime; omega), yp,
+    fun j hj => by rw [ym, ArrayCopy.copyPrefix_read hj, Nat.zero_add, lm, pm],
+    fun a ha => by rw [ym, ArrayCopy.copyPrefix_outside (by omega), lm, pm]⟩
 
 /-- Continue actual routing from computed parameters and actual original snapshot words. -/
 public theorem exec_routingFromSnapshot {w L m N : ℕ} (hm : m ≤ L) (qs : List (Fin N × Fin N))
@@ -111,7 +109,7 @@ public theorem exec_routingFromSnapshot {w L m N : ℕ} (hm : m ≤ L) (qs : Lis
     rw [qm, ArrayCopy.copyPrefix_outside (by omega)]
     exact hsnapshot j hj
   have qframe (a : ℕ) (ha : a < 5 ∨ groupedBase L m N qs.length ≤ a) : q.mem a = x.mem a := by
-    rw [qm, ArrayCopy.copyPrefix_outside (by rcases ha with ha | ha <;> omega)]
+    rw [qm, ArrayCopy.copyPrefix_outside (by omega)]
   have qinput (i : ℕ) (hi : i < qs.length) :
       q.mem (5 + 2 * i) = (Wanted.inputPairs qs i).1 ∧
         q.mem (5 + 2 * i + 1) = (Wanted.inputPairs qs i).2 := by
@@ -140,19 +138,10 @@ public theorem exec_routingFromSnapshot {w L m N : ℕ} (hm : m ≤ L) (qs : Lis
   have hoff : snapshotBase L m N qs.length + inputEnd m N qs.length =
       offsetBase L m N qs.length := rfl
   have hg : originalBase L m N qs.length + qs.length = groupedBase L m N qs.length := rfl
-  refine ⟨y, w.mem, ?_, yp, ⟨yo, yc, yi⟩, wv, wo, ?_, ?_⟩
-  · apply (hq.seq (hw.seq hy)).mono
-    unfold routingFromSnapshotTime
-    omega
-  · intro j hj
-    rw [yf _ (Or.inl (by omega)), wf _ (Or.inr (by omega))]
-    exact qsnapshot j hj
-  · intro a ha
-    rw [yf _ (by rcases ha with ha | ha <;> omega), wf _ (by
-      rcases ha with ha | ha
-      · exact Or.inl (by unfold Wanted.inputLimit; omega)
-      · exact Or.inr (by omega))]
-    exact qframe a ha
+  refine ⟨y, w.mem, (hq.seq (hw.seq hy)).mono (by unfold routingFromSnapshotTime; omega), yp,
+    ⟨yo, yc, yi⟩, wv, wo, fun j hj => ?_, fun a ha => ?_⟩
+  · rw [yf _ (Or.inl (by omega)), wf _ (Or.inr (by omega))]; exact qsnapshot j hj
+  · rw [yf _ (by omega), wf _ (by unfold Wanted.inputLimit; omega)]; exact qframe a ha
 
 /-- Real original coordinates suffice to establish all routing invariants and a protected
 copy of the entire original input. Header zero and outside memory may be arbitrary. -/
@@ -188,14 +177,11 @@ public theorem exec_prepareRouting {w L m N : ℕ} (hm : m ≤ L) (qs : List (Fi
   obtain ⟨y, old, hy, yp, yg, yv, yo, ys, yf⟩ := exec_routingFromSnapshot hm qs s sp x.mem ss
     ((sf 1 (Or.inl (by omega))).trans hL) ((sf 2 (Or.inl (by omega))).trans hmemory)
     ((sf 3 (Or.inl (by omega))).trans hN) ((sf 4 (Or.inl (by omega))).trans hQ) hqueries hfit
-  refine ⟨y, old, ?_, yp, yg, yv, yo, ys, ?_⟩
-  · obtain ⟨p, A, B, hp, hr, hAB⟩ := ExecWithin.seq_iff.mp hs
-    obtain ⟨l, C, E, hl, hs, hCE⟩ := ExecWithin.seq_iff.mp hr
-    exact (hp.seq (hl.seq (hs.seq hy))).mono (by
-      unfold snapshotTime routingFromSnapshotTime routingTimeBound at *
-      omega)
-  · intro a ha
-    rw [yf a ha]
-    exact sf a (by rcases ha with ha | ha <;> omega)
+  refine ⟨y, old, ?_, yp, yg, yv, yo, ys, fun a ha => (yf a ha).trans (sf a (by omega))⟩
+  obtain ⟨p, A, B, hp, hr, hAB⟩ := ExecWithin.seq_iff.mp hs
+  obtain ⟨l, C, E, hl, hs, hCE⟩ := ExecWithin.seq_iff.mp hr
+  exact (hp.seq (hl.seq (hs.seq hy))).mono (by
+    unfold snapshotTime routingFromSnapshotTime routingTimeBound at *
+    omega)
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.QueriedProduct

@@ -81,22 +81,16 @@ private theorem card_equal_constrained_minima_le
       exact minIntervalWeight_le code seed layers column hne (hmem.mpr hp)
     · rw [← hqeq, hweight seed q]
       exact isMinOn_iff.mp hpmin q (hmem.mp hq)
-  by_cases h₁ : (paths u).Nonempty
-  · by_cases h₂ : (paths v).Nonempty
-    · refine le_trans (card_le_card ?_) (card_tyingSeeds_le code (by omega) hk hmax
-        column h₁ h₂ (col u) (col v) (hcol u hu) (hcol v hv))
-      intro seed hseed
-      obtain ⟨p, hp, q, hq, hpmin, hqmin, heq⟩ := (mem_filter.mp hseed).2
-      exact mem_filter.mpr ⟨mem_univ _, (hmin seed h₁ hp hpmin).trans
-        (heq.trans (hmin seed h₂ hq hqmin).symm)⟩
-    · refine (card_le_card (t := ∅) ?_).trans (by simp)
-      intro seed hs
-      obtain ⟨_, _, q, hq, _⟩ := (mem_filter.mp hs).2
-      exact (h₂ ⟨q, hmem.mpr hq⟩).elim
-  · refine (card_le_card (t := ∅) ?_).trans (by simp)
-    intro seed hs
-    obtain ⟨p, hp, _⟩ := (mem_filter.mp hs).2
-    exact (h₁ ⟨p, hmem.mpr hp⟩).elim
+  by_cases h : (paths u).Nonempty ∧ (paths v).Nonempty
+  · refine le_trans (card_le_card ?_) (card_tyingSeeds_le code (by omega) hk hmax
+      column h.1 h.2 (col u) (col v) (hcol u hu) (hcol v hv))
+    intro seed hseed
+    obtain ⟨p, hp, q, hq, hpmin, hqmin, heq⟩ := (mem_filter.mp hseed).2
+    exact mem_filter.mpr ⟨mem_univ _, (hmin seed h.1 hp hpmin).trans
+      (heq.trans (hmin seed h.2 hq hqmin).symm)⟩
+  · refine (card_le_card (t := ∅) fun seed hs => ?_).trans (by simp)
+    obtain ⟨p, hp, q, hq, _⟩ := (mem_filter.mp hs).2
+    exact (h ⟨⟨p, hmem.mpr hp⟩, q, hmem.mpr hq⟩).elim
 
 local notation "Vertex" => Fin (n + 1) × W
 
@@ -152,10 +146,8 @@ theorem card_nonisolatingSeeds_le [Fintype W]
       have hmax : ∀ i ∈ Icc (G.layer a + 1) (G.layer b - 1),
           multiplicity 2 i ≤ multiplicity 2 (dominantLayer a b ht.1) := by
         simpa only [hlayer] using hs.2
-      refine (card_equal_constrained_minima_le Prod.snd code hk hmax ?_ ?_).trans ?_
-      · exact hlayer _
-      · exact hlayer _
-      · exact Nat.pow_le_pow_right (by decide) (Nat.sub_le_sub_left (hd x y ht.2) ℓ)
+      exact (card_equal_constrained_minima_le Prod.snd code hk hmax (hlayer _) (hlayer _)).trans
+        (Nat.pow_le_pow_right (by decide) (Nat.sub_le_sub_left (hd x y ht.2) ℓ))
     · simp [events, ht]
   have hcover : (univ.filter fun seed => ¬G.IsMinIsolating (weight seed)) ⊆
       univ.biUnion events := by
@@ -168,10 +160,8 @@ theorem card_nonisolatingSeeds_le [Fintype W]
     have hk := mem_Icc.mp (dominantLayer_spec a b h).1
     refine ⟨dominantLayer a b h, by rw [hlayer]; omega, by rw [hlayer]; omega, ?_⟩
     intro u v hu hv hne p q hp hq hpmin hqmin heq
-    have huv : u.2 ≠ v.2 := by
-      intro hcol
-      apply hne
-      exact Prod.ext (Fin.ext ((hlayer u).symm.trans (hu.trans (hv.symm.trans (hlayer v))))) hcol
+    have huv : u.2 ≠ v.2 := fun hcol =>
+      hne (Prod.ext (Fin.ext ((hlayer u).symm.trans (hu.trans (hv.symm.trans (hlayer v))))) hcol)
     have ht : a.1.val + 1 < b.1.val ∧ u.2 ≠ v.2 := ⟨h, huv⟩
     have hue : dominantVertex a b h u.2 = u :=
       Prod.ext (Fin.ext (hu.symm.trans (hlayer u))) rfl

@@ -273,10 +273,8 @@ private theorem finSel_snoc {m k : ℕ} (idxs : List ℕ) (hk : k = idxs.length)
 
 private theorem pairwise_lt_strictMono {n k : ℕ} {cols : List ℕ} (hk : k = cols.length)
     (hpw : cols.Pairwise (· < ·)) (hcols : ∀ c ∈ cols, c < n) :
-    StrictMono (finSel cols hk hcols) := by
-  intro a b hab
-  change cols[a.val] < cols[b.val]
-  exact (List.pairwise_iff_getElem.mp hpw) a.val b.val (hk ▸ a.isLt) (hk ▸ b.isLt) hab
+    StrictMono (finSel cols hk hcols) := fun a b hab =>
+  (List.pairwise_iff_getElem.mp hpw) a.val b.val (hk ▸ a.isLt) (hk ▸ b.isLt) hab
 
 /-- A value is missed by `finSel idxs` exactly when it does not occur in the list `idxs`. -/
 private theorem forall_finSel_ne_iff {m k : ℕ} {idxs : List ℕ} {hk : k = idxs.length}
@@ -318,8 +316,7 @@ structure BareissInv (T : IntTable) (stepCols : ℕ) (st : BareissState) : Prop 
 
 private theorem findPivotRow_none {st : BareissState} {c : ℕ}
     (hnone : findPivotRow st c = none) :
-    ∀ r < st.table.numRows, r ∉ st.pivotRows → st.table.entry r c = 0 := by
-  intro r hr hnr
+    ∀ r < st.table.numRows, r ∉ st.pivotRows → st.table.entry r c = 0 := fun r hr hnr => by
   simpa [hnr] using List.find?_eq_none.mp hnone r (List.mem_range.mpr hr)
 
 private theorem findPivotRow_some {st : BareissState} {c p : ℕ}
@@ -414,10 +411,8 @@ private theorem bareissInv_step_some {T : IntTable} {c p : ℕ} (hc : c < T.numC
       ((∀ a, S a ≠ r) ∨ ∃ a, S a = r ∧ j < C a) →
       Matrix.bareissMatrix T.toMatrix (Fin.snoc S ⟨p, hp_m⟩) (Fin.snoc C ⟨c, hc⟩) r j = 0 :=
     fun j hjlt => bareissMatrix_snoc_zero_of_forall_int T.toMatrix hΔ hp_fin ⟨c, hc⟩ hΔ' j _
-      (Or.inl hp_fin) fun r hr => by
-        rcases hr with hnr | ⟨a, rfl, hja⟩
-        · exact hinv.term_cols r hnr j hjlt
-        · exact hinv.echelon_zero a j hja
+      (Or.inl hp_fin) fun r hr => hr.elim (hinv.term_cols r · j hjlt)
+        fun ⟨a, ha, hja⟩ => ha ▸ hinv.echelon_zero a j hja
   simp only [bareissStep, hfind]
   refine BareissInv.of_sel (k := st.pivotRows.length + 1) (hk := by simp)
     (wellFormed := Cslib.RowTable.wellFormed_tabulate _ _ _) (dims := hinv.dims)
@@ -1079,17 +1074,15 @@ theorem rationalElim_entry_bounds (M : RatTable) {b : ℕ}
   · intro r hr q hq
     simp only [rationalElim, List.mem_append, List.mem_map, List.mem_replicate] at hr
     rcases hr with ⟨p, hp, rfl⟩ | ⟨_, rfl⟩
-    · simp only [scaledIntRow, List.mem_map, List.mem_range] at hq
-      obtain ⟨j, hj, rfl⟩ := hq
+    · obtain ⟨j, hj, rfl⟩ := List.mem_map.mp hq
       exact divInt_bounds_of_le hinv.pivotDet_ne_zero
-        (hbd.1 ⟨p, hinv.row_lt p hp⟩ ⟨j, hinv.dims.2 ▸ hj⟩) hbd.2
+        (hbd.1 ⟨p, hinv.row_lt p hp⟩ ⟨j, hinv.dims.2 ▸ List.mem_range.mp hj⟩) hbd.2
     · obtain ⟨_, rfl⟩ := List.mem_replicate.mp hq
       simpa using h1B
   · intro v hv q hq
     simp only [rationalElim, List.mem_map] at hv
     obtain ⟨j, hj, rfl⟩ := hv
-    simp only [buildKernelVec, List.mem_map, List.mem_range] at hq
-    obtain ⟨c, _, rfl⟩ := hq
+    obtain ⟨c, _, rfl⟩ := List.mem_map.mp hq
     simpa only [neg_one_mul] using find?_zip_divInt_bounds hinv (M := B) hbd (c := c)
       (j := ⟨j, (mem_computeNonPivotCols.1 hj).1⟩) (-1) (by decide)
       (d := if c = j then 1 else 0) (by split_ifs <;> simpa using h1B)
@@ -1110,19 +1103,16 @@ theorem ratSolve_entry_bounds (sys : LinearSystemInput) {b : ℕ}
   have hinv := bareissElimCols_inv (clearDenoms_wellFormed augRat)
     (colLimit := sys.matrix.numCols) (Nat.le_succ _)
   have hB_aug : ∀ i : Fin augRat.numRows, ∀ j : Fin augRat.numCols,
-      (augRat.toMatrix i j).num.natAbs ≤ 2 ^ b ∧ (augRat.toMatrix i j).den ≤ 2 ^ b := by
-    intro i j
+      (augRat.toMatrix i j).num.natAbs ≤ 2 ^ b ∧ (augRat.toMatrix i j).den ≤ 2 ^ b := fun i j => by
     rw [augmentRatTable_toMatrix_apply]
     split_ifs with hj
-    · exact hbA ⟨i.val, i.isLt⟩ ⟨j.val, hj⟩
-    · exact hb_rhs ⟨i.val, i.isLt⟩
+    exacts [hbA ⟨i.val, i.isLt⟩ ⟨j.val, hj⟩, hb_rhs ⟨i.val, i.isLt⟩]
   have hbd := bareissInv_entry_bound hinv (clearDenoms_abs_le augRat hB_aug)
   have h1B : 1 ≤ B := one_le_stageEntryBound _ _ _
   simp only [ratSolve] at hx
   split_ifs at hx with hcons
-  obtain rfl := Option.some.inj hx
-  simp only [List.mem_map, List.mem_range] at hq
-  obtain ⟨c, _, rfl⟩ := hq
+  cases hx
+  obtain ⟨c, _, rfl⟩ := List.mem_map.mp hq
   simpa only [one_mul] using find?_zip_divInt_bounds hinv (M := B) hbd (c := c)
     (j := ⟨sys.matrix.numCols, Nat.lt_succ_self _⟩) 1 (by decide) (d := 0) (by simpa using h1B)
 
