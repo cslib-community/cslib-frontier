@@ -34,11 +34,9 @@ theorem length_encTable_differenceTable_le (arity : Rel → ℕ)
     (sem : Rel → List Bool → Bool) (r : Rel) :
     (encTable (differenceTable arity sem r)).length ≤
       2 * (encNat (arity r)).length + 1 + 2 ^ arity r * (6 * arity r + 1) := by
-  rw [length_encTable (wellFormed_differenceTable arity sem r)]
-  have hrows := length_rows_differenceTable_le arity sem r
-  simpa only [arity_differenceTable] using
-    Nat.add_le_add_left (Nat.mul_le_mul_right (6 * arity r + 1) hrows)
-      (2 * (encNat (arity r)).length + 1)
+  rw [length_encTable (wellFormed_differenceTable arity sem r), arity_differenceTable]
+  gcongr
+  exact length_rows_differenceTable_le arity sem r
 
 /-- Each emitted white table has at most 81 fully framed bits, independent of face length. -/
 theorem length_encTable_evenTable_le {n : ℕ} (hn : n ≤ 3) :
@@ -48,12 +46,9 @@ theorem length_encTable_evenTable_le {n : ℕ} (hn : n ≤ 3) :
 /-- Nonempty raw boundary scans include their starting edge whenever it is in range. -/
 theorem whiteScope_nonempty (cert : Graph.RotationCertificate) (edge : ℕ)
     (hedge : edge < F.occurrences.length) : 0 < (whiteScope F cert edge).length := by
-  apply List.length_pos_iff.mpr
-  apply List.ne_nil_of_mem (a := edge)
-  apply List.mem_filter.mpr
-  refine ⟨List.mem_range.mpr hedge, List.any_eq_true.mpr ?_⟩
-  exact ⟨0, List.mem_range.mpr (by omega), by
-    simp only [walk, Function.iterate_zero, id_eq, decide_true]⟩
+  refine List.length_pos_iff.mpr (List.ne_nil_of_mem (a := edge) (List.mem_filter.mpr ?_))
+  refine ⟨List.mem_range.mpr hedge, List.any_eq_true.mpr ⟨0, List.mem_range.mpr (by omega), ?_⟩⟩
+  simp only [walk, Function.iterate_zero, id_eq, decide_true]
 
 /-- Every emitted white face has a genuine nonempty boundary, including raw certificates. -/
 theorem whiteScopes_nonempty (cert : Graph.RotationCertificate) :
@@ -109,14 +104,18 @@ theorem length_body_le (arity : Rel → ℕ) (sem : Rel → List Bool → Bool)
   rw [List.length_append]
   omega
 
+private theorem auxiliaryPrefix_whiteScopes_le (cert : Graph.RotationCertificate)
+    (h : verifyRotation (incidenceGraph F) cert = true) :
+    auxiliaryPrefix (whiteScopes F cert) (whiteScopes F cert).length ≤ F.occurrences.length := by
+  simpa only [length_flatten_whiteScopes cert h] using auxiliaryPrefix_all_le (whiteScopes F cert)
+
 /-- Every body variable lies in the consecutive old-edge-plus-auxiliary interval. -/
 theorem body_names_lt (arity : Rel → ℕ) (sem : Rel → List Bool → Bool)
     (cert : Graph.RotationCertificate) (h : verifyRotation (incidenceGraph F) cert = true)
     (v : ℕ) (hv : v ∈ (body arity sem F cert).vars) : v < 2 * F.occurrences.length := by
   have hc := count_vars_body arity sem cert h v
   have hp := List.count_pos_iff.mpr hv
-  have ha := auxiliaryPrefix_all_le (whiteScopes F cert)
-  rw [length_flatten_whiteScopes cert h] at ha
+  have ha := auxiliaryPrefix_whiteScopes_le cert h
   split_ifs at hc <;> omega
 
 /-- The body's variable set is exactly one dense interval; unused auxiliary names are not
@@ -143,21 +142,21 @@ theorem length_vars_body_le (arity : Rel → ℕ) (sem : Rel → List Bool → B
     (body arity sem F cert).vars.length ≤ 4 * F.occurrences.length := by
   have hl := List.sum_toFinset_count_eq_length (body arity sem F cert).vars
   rw [vars_toFinset_body arity sem cert h] at hl
-  have hc : (∑ v ∈ Finset.range (F.occurrences.length +
-      auxiliaryPrefix (whiteScopes F cert) (whiteScopes F cert).length),
-      (body arity sem F cert).vars.count v) =
-      2 * (F.occurrences.length +
-        auxiliaryPrefix (whiteScopes F cert) (whiteScopes F cert).length) := by
-    calc
-      _ = ∑ _v ∈ Finset.range (F.occurrences.length +
-          auxiliaryPrefix (whiteScopes F cert) (whiteScopes F cert).length), 2 := by
-        apply Finset.sum_congr rfl
-        intro v hv
-        rw [count_vars_body arity sem cert h, ite_eq_left (Finset.mem_range.mp hv)]
-      _ = _ := by simp [Nat.mul_comm]
-  have ha := auxiliaryPrefix_all_le (whiteScopes F cert)
-  rw [length_flatten_whiteScopes cert h] at ha
+  set n := F.occurrences.length + auxiliaryPrefix (whiteScopes F cert) (whiteScopes F cert).length
+  have hc : ∑ v ∈ Finset.range n, (body arity sem F cert).vars.count v = 2 * n := by
+    rw [Finset.sum_congr rfl fun v hv => by
+      rw [count_vars_body arity sem cert h, ite_eq_left (Finset.mem_range.mp hv)]]
+    simp [Nat.mul_comm]
+  have ha := auxiliaryPrefix_whiteScopes_le cert h
   omega
+
+private theorem verifyRotation_of_compile_guard {arity : Rel → ℕ} {sem : Rel → List Bool → Bool}
+    {input : CSP Rel ℕ × Graph.RotationCertificate}
+    (hg : (validArity arity input.1 && verifyRotationCertificate input.1 input.2 &&
+      input.1.all (fun c => nonemptySymbol arity sem c.rel)) = true) :
+    verifyRotation (incidenceGraph input.1) input.2 = true := by
+  simp only [Bool.and_eq_true] at hg
+  exact ((verifyRotationCertificate_eq_true_iff input.1 input.2).mp hg.1.2).1
 
 /-- Every raw compiler output has at most `C + M + 2` constraints. Rejection uses two pins. -/
 theorem length_compile_le (arity : Rel → ℕ) (sem : Rel → List Bool → Bool)
@@ -165,12 +164,7 @@ theorem length_compile_le (arity : Rel → ℕ) (sem : Rel → List Bool → Boo
     (compile arity sem input).length ≤ input.1.length + input.1.occurrences.length + 2 := by
   unfold compile
   split_ifs with hg
-  · have hp : (validArity arity input.1 = true ∧
-        verifyRotationCertificate input.1 input.2 = true) ∧
-        input.1.all (fun c => nonemptySymbol arity sem c.rel) = true := by
-      simpa only [Bool.and_eq_true] using hg
-    obtain ⟨h, _, _⟩ := (verifyRotationCertificate_eq_true_iff input.1 input.2).mp hp.1.2
-    exact (length_body_le arity sem input.2 h).trans (by omega)
+  · exact (length_body_le arity sem input.2 (verifyRotation_of_compile_guard hg)).trans (by omega)
   · change 2 ≤ _
     omega
 
@@ -180,12 +174,8 @@ theorem compile_names_lt (arity : Rel → ℕ) (sem : Rel → List Bool → Bool
     (v : ℕ) (hv : v ∈ (compile arity sem input).vars) : v < 2 * input.1.occurrences.length + 1 := by
   unfold compile at hv
   split_ifs at hv with hg
-  · have hp : (validArity arity input.1 = true ∧
-        verifyRotationCertificate input.1 input.2 = true) ∧
-        input.1.all (fun c => nonemptySymbol arity sem c.rel) = true := by
-      simpa only [Bool.and_eq_true] using hg
-    obtain ⟨h, _, _⟩ := (verifyRotationCertificate_eq_true_iff input.1 input.2).mp hp.1.2
-    exact (body_names_lt arity sem input.2 h v hv).trans (Nat.lt_succ_self _)
+  · exact (body_names_lt arity sem input.2 (verifyRotation_of_compile_guard hg) v hv).trans
+      (Nat.lt_succ_self _)
   · have he : v = 0 := by simpa [rejectEdge, CSP.vars] using hv
     omega
 
@@ -195,12 +185,8 @@ theorem length_vars_compile_le (arity : Rel → ℕ) (sem : Rel → List Bool �
     (compile arity sem input).vars.length ≤ 4 * input.1.occurrences.length + 2 := by
   unfold compile
   split_ifs with hg
-  · have hp : (validArity arity input.1 = true ∧
-        verifyRotationCertificate input.1 input.2 = true) ∧
-        input.1.all (fun c => nonemptySymbol arity sem c.rel) = true := by
-      simpa only [Bool.and_eq_true] using hg
-    obtain ⟨h, _, _⟩ := (verifyRotationCertificate_eq_true_iff input.1 input.2).mp hp.1.2
-    exact (length_vars_body_le arity sem input.2 h).trans (by omega)
+  · exact (length_vars_body_le arity sem input.2 (verifyRotation_of_compile_guard hg)).trans
+      (by omega)
   · change 2 ≤ _
     omega
 
