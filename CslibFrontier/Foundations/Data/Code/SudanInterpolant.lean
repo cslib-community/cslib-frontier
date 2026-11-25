@@ -243,14 +243,11 @@ theorem coeff_coeff_bivariateOf (M : Finset (ℕ × ℕ)) (c : ℕ × ℕ → F)
     ((monomial m.2 (monomial m.1 (c m))).coeff b).coeff a = if (a, b) = m then c m else 0)]
   · exact Finset.sum_ite_eq M (a, b) c
   · obtain ⟨a', b'⟩ := m
-    simp only [coeff_monomial, Prod.mk.injEq]
-    by_cases hb : b' = b
-    · subst hb
-      by_cases ha : a' = a
-      · subst ha
-        simp
-      · simp [coeff_monomial, Ne.symm ha]
-    · simp [Ne.symm hb]
+    rcases eq_or_ne b' b with rfl | hb
+    · rcases eq_or_ne a' a with rfl | ha
+      · simp [coeff_monomial]
+      · simp [coeff_monomial, ha.symm]
+    · simp [coeff_monomial, hb.symm]
 
 /-- The value of `bivariateOf M c` at `(x, y)` is `∑ m ∈ M, c m * x ^ m.1 * y ^ m.2`. -/
 theorem evalEval_bivariateOf (M : Finset (ℕ × ℕ)) (c : ℕ × ℕ → F) (x y : F) :
@@ -391,14 +388,10 @@ theorem minDegPoly_eq_zero_of_forall_eq_zero (entry : κ → ℕ × ℕ → F) (
     (h0 : ∀ j : Fin (D / d + 1), minDegKernelVecUpTo entry d D j = 0) :
     minDegPoly entry d D = 0 := by
   have hb : (fun j : Fin (D / d + 1) =>
-      if minDegKernelVecUpTo entry d D j = 0 then (0 : F) else 1) = 0 := by
-    funext j
-    simp [h0 j]
-  have hcoeffs : minDegCoeffs entry d D = 0 := by
-    simp only [minDegCoeffs, firstFlags_of_eq_zero hb, Pi.zero_apply, zero_smul, sum_const_zero]
+      if minDegKernelVecUpTo entry d D j = 0 then (0 : F) else 1) = 0 :=
+    funext fun j => by simp [h0 j]
   ext b a
-  rw [minDegPoly, coeff_coeff_bivariateOf, hcoeffs]
-  simp
+  simp [minDegPoly, minDegCoeffs, firstFlags_of_eq_zero hb]
 
 /-- `minDegPoly` always satisfies every linear constraint `L k _ = 0` (for all `d, D`, including
 when `minDegPoly = 0` or `d = 0`). -/
@@ -447,18 +440,13 @@ private theorem minDegKernelVecUpTo_ne_zero (entry : κ → ℕ × ℕ → F) (L
   refine kernelVec_ne_zero _ ⟨fun col =>
     (Q.coeff (M.equivFin.symm col : ℕ × ℕ).2).coeff (M.equivFin.symm col : ℕ × ℕ).1,
     ?_, funext fun t => ?_⟩
-  · obtain ⟨b, hb⟩ : ∃ b, Q.coeff b ≠ 0 := by
-      by_contra h
-      push Not at h
-      exact hQ0 (by ext b : 2; rw [h b, coeff_zero])
-    obtain ⟨a, ha⟩ : ∃ a, (Q.coeff b).coeff a ≠ 0 := by
-      by_contra h
-      push Not at h
-      exact hb (by ext a; rw [h a, coeff_zero])
+  · obtain ⟨b, hb⟩ : ∃ b, Q.coeff b ≠ 0 :=
+      not_forall.1 fun h => hQ0 (by ext b : 2; rw [h b, coeff_zero])
+    obtain ⟨a, ha⟩ : ∃ a, (Q.coeff b).coeff a ≠ 0 :=
+      not_forall.1 fun h => hb (by ext a; rw [h a, coeff_zero])
     intro h0
-    have := congrFun h0 (M.equivFin ⟨(a, b), hsupp a b ha⟩)
-    simp only [Equiv.symm_apply_apply, Pi.zero_apply] at this
-    exact ha this
+    have h := congrFun h0 (M.equivFin ⟨(a, b), hsupp a b ha⟩)
+    exact ha (by simpa only [Equiv.symm_apply_apply, Pi.zero_apply] using h)
   · change monomialMatrix entry M t ⬝ᵥ _ = 0
     obtain ⟨k, rfl⟩ := (Fintype.equivFin κ).surjective t
     rw [monomialMatrix_dotProduct, ← hL, ← hQL k]
@@ -719,12 +707,9 @@ theorem exists_eq_mul_eval_ne_zero {α w : ι → F} {d D : ℕ} (hα : Function
     · have h := hQ.evalEval_eq_zero i
       rw [evalEval_X_sub_C_mul, evalEval_X_sub_C_mul] at h
       rw [evalEval_X_sub_C_mul]
-      by_cases hi : w i - P.eval (α i) = 0
-      · rw [hi, zero_mul]
-      · have h' := mul_eq_zero.1 h
-        rcases h' with h' | h'
-        · exact absurd h' hi
-        · exact h'
+      rcases mul_eq_zero.1 h with h' | h'
+      · rw [h', zero_mul]
+      · exact h'
   have hmon : (Y - C P).Monic := monic_X_sub_C P
   have := hmin _ hS
   rw [hmon.natDegree_mul' (by simpa using hS0), natDegree_X_sub_C] at this

@@ -112,26 +112,20 @@ private theorem sum_mul_log_lt_of_ne {S : Type*} [Fintype S] {p q : S → ℝ}
     (hp_pos : ∀ s, 0 < p s) (hq_pos : ∀ s, 0 < q s) (hpq : p ≠ q) :
     ∑ s, q s * Real.log (p s) < ∑ s, q s * Real.log (q s) := by
   obtain ⟨s₀, hs₀⟩ := Function.ne_iff.mp hpq
-  have hle : ∀ s : S, q s * (Real.log (p s) - Real.log (q s)) ≤ p s - q s := by
-    intro s
-    have hqs : 0 < q s := hq_pos s
-    have hdiv : 0 < p s / q s := div_pos (hp_pos s) hqs
-    rw [← Real.log_div (hp_pos s).ne' hqs.ne']
-    calc q s * Real.log (p s / q s)
-        ≤ q s * (p s / q s - 1) :=
-          mul_le_mul_of_nonneg_left (Real.log_le_sub_one_of_pos hdiv) hqs.le
-      _ = p s - q s := by rw [mul_sub, mul_div_cancel₀ _ hqs.ne', mul_one]
+  have hstep (s : S) :
+      q s * (Real.log (p s) - Real.log (q s)) = q s * Real.log (p s / q s) ∧
+        q s * (p s / q s - 1) = p s - q s :=
+    ⟨by rw [Real.log_div (hp_pos s).ne' (hq_pos s).ne'],
+      by rw [mul_sub, mul_div_cancel₀ _ (hq_pos s).ne', mul_one]⟩
+  have hle (s : S) : q s * (Real.log (p s) - Real.log (q s)) ≤ p s - q s := by
+    rw [(hstep s).1, ← (hstep s).2]
+    exact mul_le_mul_of_nonneg_left
+      (Real.log_le_sub_one_of_pos (div_pos (hp_pos s) (hq_pos s))) (hq_pos s).le
   have hlt : q s₀ * (Real.log (p s₀) - Real.log (q s₀)) < p s₀ - q s₀ := by
-    have hqs : 0 < q s₀ := hq_pos s₀
-    have hdiv : 0 < p s₀ / q s₀ := div_pos (hp_pos s₀) hqs
-    have hne1 : p s₀ / q s₀ ≠ 1 := fun h => hs₀ ((div_eq_one_iff_eq hqs.ne').mp h)
-    rw [← Real.log_div (hp_pos s₀).ne' hqs.ne']
-    calc q s₀ * Real.log (p s₀ / q s₀)
-        < q s₀ * (p s₀ / q s₀ - 1) :=
-          mul_lt_mul_of_pos_left (Real.log_lt_sub_one_of_pos hdiv hne1) hqs
-      _ = p s₀ - q s₀ := by rw [mul_sub, mul_div_cancel₀ _ hqs.ne', mul_one]
-  have hsum : ∑ s, q s * (Real.log (p s) - Real.log (q s)) < ∑ s, (p s - q s) :=
-    Finset.sum_lt_sum (fun s _ => hle s) ⟨s₀, mem_univ s₀, hlt⟩
+    rw [(hstep s₀).1, ← (hstep s₀).2]
+    exact mul_lt_mul_of_pos_left (Real.log_lt_sub_one_of_pos (div_pos (hp_pos s₀) (hq_pos s₀))
+      fun h => hs₀ ((div_eq_one_iff_eq (hq_pos s₀).ne').mp h)) (hq_pos s₀)
+  have hsum := Finset.sum_lt_sum (fun s _ => hle s) ⟨s₀, mem_univ s₀, hlt⟩
   simp only [mul_sub, sum_sub_distrib, hp.sum_eq_one, hq.sum_eq_one, sub_self] at hsum
   linarith
 
@@ -170,12 +164,9 @@ theorem isMixedStrategy_signalProb : IsMixedStrategy M.signalProb := by
     ⟨fun s => sum_nonneg fun θ _ => mul_nonneg (M.prior_pos θ).le (M.likelihood_pos θ s).le, ?_⟩
   simp only [signalProb]
   rw [sum_comm]
-  calc ∑ θ, ∑ s, M.prior θ * M.likelihood θ s
-      = ∑ θ, M.prior θ * ∑ s, M.likelihood θ s := by
-        refine sum_congr rfl fun θ _ => (mul_sum _ _ _).symm
-    _ = ∑ θ, M.prior θ := by
-        refine sum_congr rfl fun θ _ => by rw [(M.isMixedStrategy_likelihood θ).sum_eq_one, mul_one]
-    _ = 1 := M.isMixedStrategy_prior.sum_eq_one
+  simp_rw [← mul_sum, show ∀ θ, ∑ s, M.likelihood θ s = 1 from
+    fun θ => (M.isMixedStrategy_likelihood θ).sum_eq_one, mul_one]
+  exact M.isMixedStrategy_prior.sum_eq_one
 
 /-- Posterior probability `Pr(t | S^i = s)` over product quality types given signal `s`
 [FriedmanResnickSami2007, §27.4.1, p. 686]. -/
@@ -204,12 +195,9 @@ theorem isMixedStrategy_peerPosterior (s : S) :
   refine isMixedStrategy_iff.mpr ⟨fun s' => (M.peerPosterior_pos s s').le, ?_⟩
   simp only [peerPosterior]
   rw [sum_comm]
-  calc ∑ θ, ∑ s', M.typePosterior s θ * M.likelihood θ s'
-      = ∑ θ, M.typePosterior s θ * ∑ s', M.likelihood θ s' :=
-        sum_congr rfl fun θ _ => (mul_sum _ _ _).symm
-    _ = ∑ θ, M.typePosterior s θ :=
-        sum_congr rfl fun θ _ => by rw [(M.isMixedStrategy_likelihood θ).sum_eq_one, mul_one]
-    _ = 1 := (M.isMixedStrategy_typePosterior s).sum_eq_one
+  simp_rw [← mul_sum, show ∀ θ, ∑ s', M.likelihood θ s' = 1 from
+    fun θ => (M.isMixedStrategy_likelihood θ).sum_eq_one, mul_one]
+  exact (M.isMixedStrategy_typePosterior s).sum_eq_one
 
 theorem signalProb_mul_peerPosterior (s s' : S) :
     M.signalProb s * M.peerPosterior s s' =
@@ -266,17 +254,10 @@ theorem sum_condSignalProb_mul_ref [DecidableEq S] {I : Type*} [Fintype I]
       invFun := fun ⟨si, sr, rest⟩ j =>
         if hji : j = i then si else if hjr : j = r then sr else rest ⟨j, hji, hjr⟩
       left_inv := fun f => by
-        ext j
-        dsimp only
-        split_ifs with h₁ h₂
-        · subst h₁; rfl
-        · subst h₂; rfl
-        · rfl
-      right_inv := fun ⟨si, sr, rest⟩ => by
-        refine Prod.ext (by simp) (Prod.ext ?_ ?_)
-        · simp [hri]
-        · ext ⟨j, hji, hjr⟩
-          simp [hji, hjr] }
+        ext j; dsimp only
+        split_ifs <;> subst_vars <;> rfl
+      right_inv := fun ⟨si, sr, rest⟩ =>
+        Prod.ext (by simp) (Prod.ext (by simp [hri]) (by ext ⟨j, hji, hjr⟩; simp [hji, hjr])) }
   rw [Fintype.sum_equiv equiv _ fun p =>
     M.condSignalProb i s_i (equiv.symm p) * g ((equiv.symm p) r)]
   · simp only [Fintype.sum_prod_type]
@@ -289,42 +270,27 @@ theorem sum_condSignalProb_mul_ref [DecidableEq S] {I : Type*} [Fintype I]
     refine sum_congr rfl fun s_r _ => ?_
     rw [← sum_mul]
     congr 1
-    have hprod_split : ∀ (θ : Θ) (rest : Rest → S),
+    have hprod_split (θ : Θ) (rest : Rest → S) :
         ∏ j : I, M.likelihood θ ((equiv.symm (s_i, s_r, rest)) j) =
           M.likelihood θ s_i * M.likelihood θ s_r * ∏ j : Rest, M.likelihood θ (rest j) := by
-      intro θ rest
       let f := equiv.symm (s_i, s_r, rest)
-      have h1 : ∏ j : I, M.likelihood θ (f j) =
-          M.likelihood θ (f i) * ∏ j ∈ univ.erase i, M.likelihood θ (f j) := by
-        rw [← mul_prod_erase univ (fun j => M.likelihood θ (f j)) (mem_univ i)]
-      have hr_mem : r ∈ univ.erase i := mem_erase.mpr ⟨hri, mem_univ r⟩
-      have h2 : ∏ j ∈ univ.erase i, M.likelihood θ (f j) =
-          M.likelihood θ (f r) * ∏ j ∈ (univ.erase i).erase r, M.likelihood θ (f j) := by
-        rw [← mul_prod_erase (univ.erase i) (fun j => M.likelihood θ (f j)) hr_mem]
-      have h3 : ∏ j ∈ (univ.erase i).erase r, M.likelihood θ (f j) =
-          ∏ j : Rest, M.likelihood θ (rest j) := by
-        have hset : (univ.erase i).erase r =
-            (univ : Finset Rest).map ⟨Subtype.val, Subtype.val_injective⟩ := by
-          ext j; simp [Rest, and_comm]
-        rw [hset, prod_map]
-        refine prod_congr rfl fun ⟨j, hj⟩ _ => ?_
-        simp [f, equiv, hj.1, hj.2]
-      have hfi : f i = s_i := by simp [f, equiv]
-      have hfr : f r = s_r := by simp [f, equiv, hri]
-      rw [h1, h2, h3, hfi, hfr, mul_assoc]
+      have hset : (univ.erase i).erase r =
+          (univ : Finset Rest).map ⟨Subtype.val, Subtype.val_injective⟩ := by
+        ext j; simp [Rest, and_comm]
+      rw [← mul_prod_erase univ (fun j => M.likelihood θ (f j)) (mem_univ i),
+        ← mul_prod_erase (univ.erase i) (fun j => M.likelihood θ (f j))
+          (mem_erase.mpr ⟨hri, mem_univ r⟩), hset, prod_map]
+      have hrest : ∏ x : Rest, M.likelihood θ (f x.1) = ∏ j : Rest, M.likelihood θ (rest j) :=
+        prod_congr rfl fun ⟨j, hj⟩ _ => by simp [f, equiv, hj.1, hj.2]
+      rw [Function.Embedding.coeFn_mk, hrest]
+      simp [f, equiv, hri, mul_assoc]
     have hsum_joint : ∑ rest : Rest → S, M.jointSignalProb (equiv.symm (s_i, s_r, rest)) =
         ∑ θ, M.prior θ * M.likelihood θ s_i * M.likelihood θ s_r := by
       simp only [jointSignalProb, hprod_split]
       rw [sum_comm]
       refine sum_congr rfl fun θ _ => ?_
-      calc ∑ x : Rest → S,
-            M.prior θ * (M.likelihood θ s_i * M.likelihood θ s_r * ∏ j : Rest, M.likelihood θ (x j))
-          = (M.prior θ * M.likelihood θ s_i * M.likelihood θ s_r) *
-              ∑ x : Rest → S, ∏ j : Rest, M.likelihood θ (x j) := by
-            rw [mul_sum]
-            refine sum_congr rfl fun x _ => by ring
-        _ = M.prior θ * M.likelihood θ s_i * M.likelihood θ s_r := by
-            rw [M.sum_prod_likelihood_compl (fun j => j ≠ i ∧ j ≠ r) θ, mul_one]
+      simp only [← mul_assoc, ← mul_sum]
+      rw [M.sum_prod_likelihood_compl (fun j => j ≠ i ∧ j ≠ r) θ, mul_one]
     have hpos_ne := (M.signalProb_pos s_i).ne'
     simp only [div_eq_mul_inv, ← sum_mul]
     rw [hsum_joint, ← M.signalProb_mul_peerPosterior s_i s_r]
@@ -404,17 +370,12 @@ theorem truthful_isStrictBayesNash_logPeerTransfer [DecidableEq S] {I : Type*}
     (M.isMixedStrategy_peerPosterior report) (M.isMixedStrategy_peerPosterior s_i)
     (M.peerPosterior_pos report) (M.peerPosterior_pos s_i)
     (fun heq => hne (hrel heq))
-  have hmul : ∑ s_r : S, M.peerPosterior s_i s_r * (α * Real.log (M.peerPosterior report s_r)) <
-      ∑ s_r : S, M.peerPosterior s_i s_r * (α * Real.log (M.peerPosterior s_i s_r)) := by
-    have hpull : ∀ x : S,
-        ∑ s_r : S, M.peerPosterior s_i s_r * (α * Real.log (M.peerPosterior x s_r)) =
-          α * ∑ s_r : S, M.peerPosterior s_i s_r * Real.log (M.peerPosterior x s_r) := by
-      intro x
-      rw [mul_sum]
-      exact sum_congr rfl fun s_r _ => by ring
-    rw [hpull report, hpull s_i]
-    exact mul_lt_mul_of_pos_left hlt hα
-  linarith
+  have hpull (x : S) :
+      ∑ s_r : S, M.peerPosterior s_i s_r * (α * Real.log (M.peerPosterior x s_r)) =
+        α * ∑ s_r : S, M.peerPosterior s_i s_r * Real.log (M.peerPosterior x s_r) := by
+    rw [mul_sum]
+    exact sum_congr rfl fun _ _ => by ring
+  linarith [hpull report, hpull s_i, mul_lt_mul_of_pos_left hlt hα]
 
 /-- Ex-ante expected base log score `∑_s Pr(s) ∑_{s'} Pr(s' | s) ln Pr(s' | s)` when acquiring a
 signal and reporting truthfully, assuming reference rater `r(i)` reports truthfully
@@ -444,25 +405,20 @@ theorem exists_scale_effort_incentive [Nontrivial S]
         α * M.informedExpectedLogScore + β - c) ∧
       ∀ {I : Type*} (r : I → I) (x : I → S) (i : I), 0 ≤ M.logPeerTransfer r α β x i := by
   classical
-  have hgap_pos : ∀ s₀ : S, 0 < M.informedExpectedLogScore - M.uninformedExpectedLogScore s₀ := by
-    intro s₀
+  have hgap_pos (s₀ : S) : 0 < M.informedExpectedLogScore - M.uninformedExpectedLogScore s₀ := by
     obtain ⟨s₁, hs₁⟩ := exists_ne s₀
+    have hterm (s : S) (hne : s₀ ≠ s) :
+        0 < M.signalProb s * (∑ s', M.peerPosterior s s' * Real.log (M.peerPosterior s s') -
+          ∑ s', M.peerPosterior s s' * Real.log (M.peerPosterior s₀ s')) :=
+      mul_pos (M.signalProb_pos s) (sub_pos.mpr <| sum_mul_log_lt_of_ne
+        (M.isMixedStrategy_peerPosterior s₀) (M.isMixedStrategy_peerPosterior s)
+        (M.peerPosterior_pos s₀) (M.peerPosterior_pos s) fun heq => hne (hrel heq))
     rw [informedExpectedLogScore, uninformedExpectedLogScore, ← sum_sub_distrib]
-    refine sum_pos' (fun s _ => ?_) ⟨s₁, mem_univ s₁, ?_⟩
-    · rw [← mul_sub]
-      by_cases hs : s₀ = s
-      · subst hs; simp
-      · have hlt := sum_mul_log_lt_of_ne
-          (M.isMixedStrategy_peerPosterior s₀) (M.isMixedStrategy_peerPosterior s)
-          (M.peerPosterior_pos s₀) (M.peerPosterior_pos s)
-          (fun heq => hs (hrel heq))
-        exact mul_nonneg (M.signalProb_pos s).le (by linarith)
-    · rw [← mul_sub]
-      have hlt := sum_mul_log_lt_of_ne
-        (M.isMixedStrategy_peerPosterior s₀) (M.isMixedStrategy_peerPosterior s₁)
-        (M.peerPosterior_pos s₀) (M.peerPosterior_pos s₁)
-        (fun heq => hs₁.symm (hrel heq))
-      exact mul_pos (M.signalProb_pos s₁) (by linarith)
+    refine sum_pos' (fun s _ => ?_) ⟨s₁, mem_univ s₁, by rw [← mul_sub]; exact hterm s₁ hs₁.symm⟩
+    rw [← mul_sub]
+    rcases eq_or_ne s₀ s with rfl | hs
+    · simp
+    · exact (hterm s hs).le
   obtain ⟨s_bar⟩ : Nonempty S := inferInstance
   let gapSet : Finset ℝ := univ.image fun s₀ : S =>
     M.informedExpectedLogScore - M.uninformedExpectedLogScore s₀
