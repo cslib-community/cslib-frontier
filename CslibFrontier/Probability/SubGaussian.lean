@@ -60,8 +60,7 @@ private theorem lintegral_exp_mul_sq_gaussianReal {a : ℝ} (ha : a < 1 / 2) :
   have hpt (x : ℝ) : gaussianPDF 0 1 x * ENNReal.ofReal (Real.exp (a * x ^ 2)) =
       ENNReal.ofReal ((Real.sqrt (2 * Real.pi))⁻¹ * Real.exp (-(1 / 2 - a) * x ^ 2)) := by
     have hexp : -(x - 0) ^ 2 / (2 * ((1 : ℝ≥0) : ℝ)) + a * x ^ 2 = -(1 / 2 - a) * x ^ 2 := by
-      push_cast
-      ring
+      push_cast; ring
     rw [gaussianPDF, gaussianPDFReal, ← ENNReal.ofReal_mul (by positivity), mul_assoc,
       ← Real.exp_add, hexp, NNReal.coe_one, mul_one]
   rw [gaussianReal_of_var_ne_zero 0 one_ne_zero,
@@ -96,9 +95,8 @@ theorem HasSubgaussianMGF.lintegral_exp_mul_sq_le {Ω : Type*} {mΩ : Measurable
     simp only [mgf] at h
     rw [h]
     congr 2
-    rw [mul_pow, ht]
     push_cast
-    ring
+    linear_combination -(y ^ 2 / 2) * ht
   have hmeas : AEMeasurable (Function.uncurry fun ω x => ENNReal.ofReal (Real.exp (t * X ω * x)))
       (μ.prod (gaussianReal 0 1)) :=
     (Real.measurable_exp.comp_aemeasurable
@@ -108,16 +106,13 @@ theorem HasSubgaussianMGF.lintegral_exp_mul_sq_le {Ω : Type*} {mΩ : Measurable
         lintegral_congr fun ω => hgauss (X ω)
     _ = ∫⁻ x, ∫⁻ ω, ENNReal.ofReal (Real.exp (t * x * X ω)) ∂μ ∂gaussianReal 0 1 := by
         rw [lintegral_lintegral_swap hmeas]
-        refine lintegral_congr fun x => lintegral_congr fun ω => ?_
-        rw [mul_right_comm]
+        exact lintegral_congr fun x => lintegral_congr fun ω => by rw [mul_right_comm]
     _ ≤ ∫⁻ x, ENNReal.ofReal (Real.exp ((s * c) * x ^ 2)) ∂gaussianReal 0 1 := by
         refine lintegral_mono fun x => ?_
         rw [← ofReal_integral_eq_lintegral_ofReal (hX.integrable_exp_mul _)
           (ae_of_all _ fun _ => (Real.exp_pos _).le)]
-        refine ENNReal.ofReal_le_ofReal ((hX.mgf_le (t * x)).trans_eq ?_)
-        congr 1
-        rw [mul_pow, ht]
-        ring
+        refine ENNReal.ofReal_le_ofReal ((hX.mgf_le (t * x)).trans_eq (congrArg Real.exp ?_))
+        linear_combination ((c : ℝ) * x ^ 2 / 2) * ht
     _ = ENNReal.ofReal (Real.sqrt (1 - 2 * s * c))⁻¹ := by
         rw [lintegral_exp_mul_sq_gaussianReal (by linarith), mul_assoc]
 
@@ -142,9 +137,8 @@ theorem hasSubgaussianMGF_integral_sub_sum_div {Z : Type*} [MeasurableSpace Z] (
       conv_rhs => rw [← (measurePreserving_eval (fun _ : Fin m => D) i).map_eq]
       rw [integral_map (measurable_pi_apply i).aemeasurable hf.aestronglyMeasurable]
     have hfi : Measurable fun S : Fin m → Z => f (S i) := hf.comp (measurable_pi_apply i)
-    have h := (hasSubgaussianMGF_of_mem_Icc (μ := Measure.pi fun _ : Fin m => D)
-      hfi.aemeasurable (ae_of_all _ fun S => hf01 (S i))).neg
-    refine h.congr (ae_of_all _ fun S => ?_)
+    refine (hasSubgaussianMGF_of_mem_Icc (μ := Measure.pi fun _ : Fin m => D)
+      hfi.aemeasurable (ae_of_all _ fun S => hf01 (S i))).neg.congr (ae_of_all _ fun S => ?_)
     simp only [Pi.neg_apply, hmean, neg_sub]
   have hind : iIndepFun (fun i (S : Fin m → Z) => ∫ z, f z ∂D - f (S i))
       (Measure.pi fun _ => D) :=
@@ -161,9 +155,8 @@ theorem hasSubgaussianMGF_integral_sub_sum_div {Z : Type*} [MeasurableSpace Z] (
     push_cast [NNReal.coe_mk]
     field_simp
     ring
-  convert hsum using 1
-  · funext S
-    simp only [Finset.sum_sub_distrib, Finset.sum_const, Finset.card_univ, Fintype.card_fin,
+  convert hsum using 2 with S
+  · simp only [Finset.sum_sub_distrib, Finset.sum_const, Finset.card_univ, Fintype.card_fin,
       nsmul_eq_mul]
     field_simp
   · exact hc
