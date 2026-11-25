@@ -299,10 +299,7 @@ theorem missedProbes_eq_iff {m : ℕ} {O : Finset (Fin m)} {σ : Equiv.Perm (Fin
   constructor
   · intro heq
     have hall := (le_missedProbes_iff_allOccupied i₀.isLt.le σ).mp heq.ge
-    have hlt : missedProbesFrom O σ m 0 < m := by
-      change missedProbes O σ < m
-      rw [heq]
-      exact i₀.isLt
+    have hlt : missedProbesFrom O σ m 0 < m := heq.trans_lt i₀.isLt
     obtain ⟨hidx, hnot⟩ := notMem_at_missedProbesFrom (O := O) (σ := σ) (by omega) hlt
     have hi₀ : (⟨0 + missedProbesFrom O σ m 0, hidx⟩ : Fin m) = i₀ := by
       ext
@@ -513,9 +510,8 @@ theorem sum_div_pow_add_tail {n m : ℕ} (hnm : n < m) (j : ℕ) :
 `m / (m - n)`. -/
 theorem sum_div_pow_le {n m : ℕ} (hnm : n < m) (j : ℕ) :
     (∑ k ∈ Finset.range j, ((n : ℝ≥0∞) / (m : ℝ≥0∞)) ^ k) ≤
-      (m : ℝ≥0∞) / ((m - n : ℕ) : ℝ≥0∞) := by
-  rw [← sum_div_pow_add_tail hnm j]
-  exact le_self_add
+      (m : ℝ≥0∞) / ((m - n : ℕ) : ℝ≥0∞) :=
+  le_self_add.trans_eq (sum_div_pow_add_tail hnm j)
 
 /-- When `2 * n ≤ m` and `0 < m`, `m / (m - n) ≤ 2` (`1 / (1 - α) ≤ 2` for load factor `α ≤ 1 / 2`).
 -/
@@ -685,9 +681,8 @@ theorem TableRep.card_otherOccupiedSlots {U m : ℕ} {π : Fin U → Equiv.Perm 
 /-- Under `TableRep π s T`, `(otherOccupiedSlots T u).card ≤ (Dictionary.dom s).card`. -/
 theorem TableRep.card_otherOccupiedSlots_le {U m : ℕ} {π : Fin U → Equiv.Perm (Fin m)}
     {s : Dictionary.State U} {T : Table U m} (hrep : TableRep π s T) (u : Fin U) :
-    (otherOccupiedSlots T u).card ≤ (Dictionary.dom s).card := by
-  rw [hrep.card_otherOccupiedSlots u]
-  exact Finset.card_erase_le
+    (otherOccupiedSlots T u).card ≤ (Dictionary.dom s).card :=
+  (hrep.card_otherOccupiedSlots u).trans_le Finset.card_erase_le
 
 /-- When `s u = none`, no slot in `T` holds key `u`, so `otherOccupiedSlots T u = occupiedSlots T`.
 -/
@@ -836,48 +831,38 @@ theorem TableRep.tableInsert {U m : ℕ} (hm : 0 < m) {π : Fin U → Equiv.Perm
     {s : Dictionary.State U} {T : Table U m} (hrep : TableRep π s T) (u : Fin U) (v : ℕ)
     (hO : (otherOccupiedSlots T u).card < m) :
     TableRep π (Function.update s u (some v)) (tableInsert hm π T u v) := by
-  have hlt_u : missedProbes (otherOccupiedSlots T u) (π u) < m :=
-    missedProbes_lt_of_card_lt hO (π u)
-  have hself_mp :
-      missedProbes (otherOccupiedSlots (UniformProbing.tableInsert hm π T u v) u) (π u) =
-        missedProbes (otherOccupiedSlots T u) (π u) := by
-    rw [otherOccupiedSlots_tableInsert_self hm hrep u v hO]
+  have hlt_u := missedProbes_lt_of_card_lt hO (π u)
+  have hself := otherOccupiedSlots_tableInsert_self hm hrep u v hO
   have hupd := tableInsert_eq_update_targetSlot hm π T u v hO
-  refine ⟨?_, ?_⟩
-  · intro j w vw hj
-    rw [hupd] at hj
+  refine ⟨fun j w vw hj => ?_, fun w vw hsw' => ?_⟩
+  · rw [hupd] at hj
     by_cases hju : j = targetSlot π T u hO
     · subst hju
       simp only [Function.update_self, Option.some.injEq, Prod.mk.injEq] at hj
-      rcases hj with ⟨rfl, rfl⟩
-      refine ⟨Function.update_self _ _ _, by rw [hself_mp]; exact hlt_u, ?_⟩
-      simp only [targetSlot, probeSlotIndex, hself_mp]
+      obtain ⟨rfl, rfl⟩ := hj
+      exact ⟨Function.update_self _ _ _, by rwa [hself],
+        by simp only [targetSlot, probeSlotIndex, hself]⟩
     · rw [Function.update_of_ne hju] at hj
       obtain ⟨hsw, hlt_w, hj_eq⟩ := hrep.slot_spec j w vw hj
       have hwu : w ≠ u := by
         rintro rfl
         exact hju (hrep.slot_eq_of_same_key hj (hrep.key_spec w vw hsw).2)
       have hw_mp := hrep.missedProbes_tableInsert_of_isSome hm u v hO (w := w) (by simp [hsw])
-      refine ⟨by simp [Function.update_of_ne hwu, hsw], by omega, ?_⟩
-      simp only [hw_mp]
-      exact hj_eq
-  · intro w vw hsw'
-    by_cases hwu : w = u
+      exact ⟨by simp [Function.update_of_ne hwu, hsw], by omega, by simpa only [hw_mp] using hj_eq⟩
+  · by_cases hwu : w = u
     · subst hwu
-      simp only [Function.update_self, Option.some.injEq] at hsw'
-      subst hsw'
-      refine ⟨by rw [hself_mp]; exact hlt_u, ?_⟩
+      obtain rfl : v = vw := by simpa using hsw'
+      refine ⟨by rwa [hself], ?_⟩
       rw [congrFun hupd]
-      simp only [hself_mp]
-      exact Function.update_self (targetSlot π T w hO) (some (w, v)) T
+      simp only [hself]
+      exact Function.update_self _ _ T
     · simp only [Function.update_of_ne hwu] at hsw'
       obtain ⟨hlt_w, hTw⟩ := hrep.key_spec w vw hsw'
       have hw_mp := hrep.missedProbes_tableInsert_of_isSome hm u v hO (w := w) (by simp [hsw'])
-      have hne_slot := hrep.slot_ne_targetSlot hO hTw hwu
-      refine ⟨by rw [hw_mp]; exact hlt_w, ?_⟩
+      refine ⟨by rwa [hw_mp], ?_⟩
       rw [congrFun hupd]
       simp only [hw_mp]
-      rw [Function.update_of_ne hne_slot, hTw]
+      rw [Function.update_of_ne (hrep.slot_ne_targetSlot hO hTw hwu), hTw]
 
 /-- Inserting `(u, v)` leaves `probeCount · u (π u)` unchanged. -/
 theorem TableRep.probeCount_tableInsert_self {U m : ℕ} (hm : 0 < m)
@@ -925,12 +910,10 @@ theorem TableRep.card_otherOccupiedSlots_lt_of_valid {U V n_max m : ℕ} (_hm : 
     {u : Fin U} {v : ℕ} (hval : (Dictionary.spec U V n_max).valid s (.insert u v)) :
     (otherOccupiedSlots T u).card < m := by
   rcases hval.1 with hlt | hisSome
-  · have hle := hrep.card_otherOccupiedSlots_le u
-    omega
+  · exact (hrep.card_otherOccupiedSlots_le u).trans_lt (by omega)
   · rw [hrep.card_otherOccupiedSlots u]
-    have hmem : u ∈ Dictionary.dom s := Dictionary.mem_dom_iff_isSome.mpr hisSome
-    have herase := Finset.card_erase_lt_of_mem hmem
-    omega
+    exact (Finset.card_erase_lt_of_mem (Dictionary.mem_dom_iff_isSome.mpr hisSome)).trans_le
+      (hs.trans hcap)
 
 /-- Any valid operation history preserves `TableRep`. -/
 theorem tableRep_runTableFrom {U V n_max m : ℕ} (hm : 0 < m) (hcap : n_max ≤ m)
@@ -944,8 +927,7 @@ theorem tableRep_runTableFrom {U V n_max m : ℕ} (hm : 0 < m) (hcap : n_max ≤
     have hs' : (Dictionary.dom ((Dictionary.spec U V n_max).stepFn s o).1).card ≤ n_max :=
       Dictionary.card_dom_step_le_of_valid hs hvh.1
     cases o with
-    | query u =>
-      exact ih hrep hs' hvh.2
+    | query u => exact ih hrep hs' hvh.2
     | insert u v =>
       have hO : (otherOccupiedSlots T u).card < m :=
         hrep.card_otherOccupiedSlots_lt_of_valid hm hcap hs hvh.1
@@ -974,8 +956,7 @@ theorem probeCount_runTableFrom_of_isSome {U V n_max m : ℕ} (hm : 0 < m) (hcap
     have hs' : (Dictionary.dom ((Dictionary.spec U V n_max).stepFn s o).1).card ≤ n_max :=
       Dictionary.card_dom_step_le_of_valid hs hvh.1
     cases o with
-    | query u =>
-      exact ih hrep hs' hw hvh.2
+    | query u => exact ih hrep hs' hw hvh.2
     | insert u v =>
       have hO : (otherOccupiedSlots T u).card < m :=
         hrep.card_otherOccupiedSlots_lt_of_valid hm hcap hs hvh.1
@@ -1063,11 +1044,7 @@ theorem not_mem_insert_of_run_eq_none {U V n_max : ℕ} {u : Fin U} :
   | [], _, _, _ => List.not_mem_nil
   | o :: os, s, hnone, v => fun hmem => by
     rcases List.mem_cons.mp hmem with rfl | htail
-    · have his := isSome_run_of_isSome (V := V) (n_max := n_max) (u := u) os
-        (s₀ := ((Dictionary.spec U V n_max).stepFn s (.insert u v)).1) (by simp)
-      change (((Dictionary.spec U V n_max).run s (.insert u v :: os)).1 u).isSome at his
-      rw [hnone] at his
-      cases his
+    · exact Option.not_isSome_iff_eq_none.2 hnone (isSome_run_of_isSome os (by simp))
     · exact not_mem_insert_of_run_eq_none
         (s := ((Dictionary.spec U V n_max).stepFn s o).1) hnone v htail
 
@@ -1139,11 +1116,9 @@ theorem expect_probeCount_of_eq_none_le_two {U V n_max m : ℕ} (hm : 0 < m) (h2
     (∑' π : Fin U → Equiv.Perm (Fin m),
       PMF.uniformOfFintype (Fin U → Equiv.Perm (Fin m)) π *
         (probeCount (runTable hm π ops) u (π u) : ℝ≥0∞)) ≤ 2 := by
-  have hdom_le :
-      (Dictionary.dom ((Dictionary.spec U V n_max).run (Dictionary.empty U) ops).1).card ≤ n_max :=
-    Dictionary.card_dom_run_empty_le hvh
-  refine (expect_probeCount_of_eq_none_le hm (by omega) hvh hu (by omega)).trans ?_
-  exact div_sub_le_two hm (by omega)
+  have hdom_le := Dictionary.card_dom_run_empty_le hvh
+  exact (expect_probeCount_of_eq_none_le hm (by omega) hvh hu (by omega)).trans
+    (div_sub_le_two hm (by omega))
 
 /-- **Per-key successful-search bound from the proof of Theorem 11.8 of [CLRS2009], third edition,
 p. 276**:
@@ -1168,11 +1143,7 @@ theorem expect_probeCount_of_mem_dom_le {U V n_max m : ℕ} (hm : 0 < m) (hcap :
       (m : ℝ≥0∞) / ((m - (Dictionary.dom s₁).card : ℕ) : ℝ≥0∞) := by
   intro s₁
   have hvh₁ := ((StateTransitionSpec.validHistory_append _ _ _).mp hvh).1
-  have hcongr : ∀ π : Fin U → Equiv.Perm (Fin m),
-      probeCount (runTable hm π (ops₁ ++ (.insert u v₀ :: ops₂))) u (π u) =
-        probeCount (runTable hm π ops₁) u (π u) :=
-    fun π => probeCount_runTable_eq_firstInsert hm hcap π hvh
-  simp_rw [hcongr]
+  simp_rw [probeCount_runTable_eq_firstInsert hm hcap _ hvh]
   exact expect_probeCount_of_eq_none_le hm hcap hvh₁ hu₁ hcard₁
 
 /-- **Half-load per-key successful-search bound from the proof of Theorem 11.8 ([CLRS2009], third
@@ -1189,11 +1160,9 @@ theorem expect_probeCount_of_mem_dom_le_two {U V n_max m : ℕ} (hm : 0 < m) (h2
       PMF.uniformOfFintype (Fin U → Equiv.Perm (Fin m)) π *
         (probeCount (runTable hm π (ops₁ ++ (.insert u v₀ :: ops₂))) u (π u) : ℝ≥0∞)) ≤ 2 := by
   have hvh₁ := ((StateTransitionSpec.validHistory_append _ _ _).mp hvh).1
-  have hdom₁_le :
-      (Dictionary.dom ((Dictionary.spec U V n_max).run (Dictionary.empty U) ops₁).1).card ≤ n_max :=
-    Dictionary.card_dom_run_empty_le hvh₁
-  refine (expect_probeCount_of_mem_dom_le hm (by omega) hvh hu₁ (by omega)).trans ?_
-  exact div_sub_le_two hm (by omega)
+  have hdom₁_le := Dictionary.card_dom_run_empty_le hvh₁
+  exact (expect_probeCount_of_mem_dom_le hm (by omega) hvh hu₁ (by omega)).trans
+    (div_sub_le_two hm (by omega))
 
 /-! ## Section 4: Lazy Random-Oracle Equivalence (`RandomOracle.uniform_interpret_eq_lazy`) -/
 
