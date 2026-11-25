@@ -451,9 +451,7 @@ theorem topoCode_spec (G : Graph) {w : ℕ} (hfit : Fits w G.wordBound) :
       simp only [x₂]; mem_upd
       rw [Function.update_self]
     · change y.mem (P + 1 + i.val) = (topoWords G)[i.val]
-      have hi : i.val < G.n := by
-        have h : i.val < (topoWords G).length := i.isLt
-        omega
+      have hi : i.val < G.n := hlen ▸ i.isLt
       rw [hy_cp i.val hi, List.getD_eq_getElem _ 0 (by exact i.isLt)]
   · rw [hy_out, hlen]; exact hP_fit.of_le (by omega)
 
@@ -501,9 +499,7 @@ theorem sccCode_spec (G : Graph) {w : ℕ} (hfit : Fits w G.wordBound) :
     refine ⟨?_, fun i => ?_⟩
     · rw [hlen]; simp only [y]; mem_upd; rw [Function.update_self]
     · change y.mem (P + 1 + i.val) = (sccWords G)[i.val]
-      have hi : i.val < G.n := by
-        have h : i.val < (sccWords G).length := i.isLt
-        omega
+      have hi : i.val < G.n := hlen ▸ i.isLt
       simp only [y]; mem_upd
       rw [Function.update_of_ne (by omega), ← hC,
         show C + i.val = C + (⟨i.val, hi⟩ : Fin G.n).val from rfl, hs₁_comp ⟨i.val, hi⟩]
