@@ -253,17 +253,12 @@ private theorem parentD_findAux_eq_findPathGo (uf : Batteries.UnionFind) :
     omega
   | fuel + 1, x, i, hle => by
     by_cases h : uf.arr[x.1].parent = x.1
-    · rw [Batteries.UnionFind.findAux_s, ite_eq_left h, findPathGo]
-      rw [ite_eq_left h]
+    · rw [Batteries.UnionFind.findAux_s, ite_eq_left h, findPathGo, ite_eq_left h]
       split_ifs with him
       · rw [List.mem_singleton] at him
         subst him
-        have hxroot : uf.parent x.1 = x.1 := by
-          change Batteries.UnionFind.parentD uf.arr x.1 = x.1
-          rw [Batteries.UnionFind.parentD_eq x.2]
-          exact h
-        rw [Batteries.UnionFind.rootD_eq_self.mpr hxroot]
-        exact hxroot
+        have hxroot : uf.parent x.1 = x.1 := (Batteries.UnionFind.parentD_eq x.2).trans h
+        exact hxroot.trans (Batteries.UnionFind.rootD_eq_self.mpr hxroot).symm
       · rfl
     · have ih := parentD_findAux_eq_findPathGo uf fuel ⟨uf.arr[x.1].parent, uf.parent'_lt x.1 x.2⟩ i
         (by
@@ -610,19 +605,11 @@ private theorem findSteps_add_potentialCore_le {uf : Batteries.UnionFind}
       · exact hpot_drop u hud
       · rw [Nat.add_zero]
         exact hpot_le u (Finset.mem_range.mp hu)
-    have hsz : uf'.size = uf.size := compressWithSteps_size uf x
-    have hfilter_eq : (Finset.range uf.size).filter (· ∈ S_drop) = S_drop := by
-      ext u
-      simp only [Finset.mem_filter, Finset.mem_range]
-      exact ⟨fun h => h.2, fun h => ⟨Finset.mem_range.mp (hdrop_sub h), h⟩⟩
-    have hboole :
-        ∑ u ∈ Finset.range uf.size, (if u ∈ S_drop then (1 : ℕ) else 0) = S_drop.card := by
-      rw [← Finset.sum_filter (fun u => u ∈ S_drop) (fun _ => (1 : ℕ)), hfilter_eq,
-        Finset.sum_const, Nat.nsmul_eq_mul, Nat.mul_one]
     unfold potentialCore
-    rw [hsz]
-    rw [Finset.sum_add_distrib, hboole] at hsum_le
-    exact hsum_le
+    rw [compressWithSteps_size uf x]
+    rwa [Finset.sum_add_distrib, ← Finset.sum_filter (fun u => u ∈ S_drop) (fun _ => (1 : ℕ)),
+      Finset.filter_mem_eq_inter, Finset.inter_eq_right.mpr hdrop_sub, Finset.sum_const,
+      Nat.nsmul_eq_mul, Nat.mul_one] at hsum_le
   have hkeep_card : S_keep.card ≤ q + 1 := by
     let S_keep_roots := S_keep.filter (fun u => uf.parent u = u)
     let S_keep_nonroots := S_keep.filter (fun u => uf.parent u ≠ u)
@@ -873,20 +860,15 @@ private theorem two_finds_union_step_core {n : ℕ} {s : State n} (x y : Fin n)
     rw [compressWithSteps_size c₁.1 y', compressWithSteps_size s.uf x']
     exact c₁.2.1.2⟩
   let ry : Fin c₂.1.size := ⟨c₂.2.1.1, by rw [compressWithSteps_size c₁.1 y']; exact c₂.2.1.2⟩
-  have hxroot : c₂.1.parent rx.1 = rx.1 := by
-    have hroot1 : c₁.1.rootD c₁.2.1.1 = c₁.2.1.1 := by
-      rw [rootD_compressWithSteps, congrArg (fun p => (p.2.1 : ℕ)) (compressWithSteps_eq s.uf x'),
-        Batteries.UnionFind.rootD_rootD]
-    have hroot2 : c₂.1.rootD c₁.2.1.1 = c₁.2.1.1 := by
-      change (compressWithSteps c₁.1 y').1.rootD c₁.2.1.1 = c₁.2.1.1
-      rw [rootD_compressWithSteps, hroot1]
-    exact Batteries.UnionFind.rootD_eq_self.mp hroot2
-  have hyroot : c₂.1.parent ry.1 = ry.1 := by
-    have hroot2 : c₂.1.rootD c₂.2.1.1 = c₂.2.1.1 := by
-      change (compressWithSteps c₁.1 y').1.rootD c₂.2.1.1 = c₂.2.1.1
-      rw [rootD_compressWithSteps, congrArg (fun p => (p.2.1 : ℕ)) (compressWithSteps_eq c₁.1 y'),
-        Batteries.UnionFind.rootD_rootD]
-    exact Batteries.UnionFind.rootD_eq_self.mp hroot2
+  have hc_root {uf : Batteries.UnionFind} (z : Fin uf.size) :
+      (compressWithSteps uf z).1.rootD (compressWithSteps uf z).2.1.1 =
+        (compressWithSteps uf z).2.1.1 := by
+    rw [rootD_compressWithSteps, congrArg (fun p => (p.2.1 : ℕ)) (compressWithSteps_eq uf z),
+      Batteries.UnionFind.rootD_rootD]
+  have hxroot : c₂.1.parent rx.1 = rx.1 :=
+    Batteries.UnionFind.rootD_eq_self.mp ((rootD_compressWithSteps c₁.1 y' _).trans (hc_root x'))
+  have hyroot : c₂.1.parent ry.1 = ry.1 :=
+    Batteries.UnionFind.rootD_eq_self.mp (hc_root y')
   have hlink := link_pot_core hvalid₂ hq hd (by rwa [hsz₂]) hxroot hyroot zs
   change (c₁.2.2 + c₂.2.2 + 1) + potentialCore zs q d (c₂.1.link rx ry _) ≤ _
   dsimp only [c₁, c₂, x', y'] at hfinds hlink ⊢
@@ -1048,15 +1030,9 @@ theorem tarjan_run_two_param {n : ℕ} {β : Type} (client : (spec n).Client β)
     rw [tarjanPotentialAt_init] at hconst
     dsimp only at hconst
     have hnd : n * max 1 d ≤ 2 * m := by
-      rw [max_eq_right (Nat.succ_pos _)]
-      cases Nat.eq_zero_or_pos n with
-      | inl hn =>
-        subst hn
-        simp
-      | inr hn =>
-        have hdiv : n * (m / n) ≤ m := Nat.mul_div_le m n
-        rw [Nat.mul_add, Nat.mul_one]
-        omega
+      have hdiv : n * (m / n) ≤ m := Nat.mul_div_le m n
+      rw [max_eq_right (Nat.succ_pos _), Nat.mul_add, Nat.mul_one]
+      omega
     have hinit : n * (Nat.inverseAckermannTwo m n * max 1 d) ≤
         m * (2 * Nat.inverseAckermannTwo m n) := by
       calc
@@ -1070,20 +1046,17 @@ theorem tarjan_run_two_param {n : ℕ} {β : Type} (client : (spec n).Client β)
         m * (3 * Nat.inverseAckermannTwo m n + 2) +
           n * (Nat.inverseAckermannTwo m n * max 1 d) :=
       le_trans (Nat.le_add_right _ _) hconst
-    have hcalc : total id (run (init n) client).traces ≤
-        m * (5 * Nat.inverseAckermannTwo m n + 2) := by
-      calc
-        total id (run (init n) client).traces ≤
-            m * (3 * Nat.inverseAckermannTwo m n + 2) +
-              n * (Nat.inverseAckermannTwo m n * max 1 d) := hbound
-        _ ≤ m * (3 * Nat.inverseAckermannTwo m n + 2) +
-              m * (2 * Nat.inverseAckermannTwo m n) := Nat.add_le_add_left hinit _
-        _ = m * ((3 * Nat.inverseAckermannTwo m n + 2) + 2 * Nat.inverseAckermannTwo m n) :=
-          (Nat.mul_add _ _ _).symm
-        _ = m * (5 * Nat.inverseAckermannTwo m n + 2) := by
-          congr 1
-          omega
-    exact hcalc
+    calc
+      total id (run (init n) client).traces ≤
+          m * (3 * Nat.inverseAckermannTwo m n + 2) +
+            n * (Nat.inverseAckermannTwo m n * max 1 d) := hbound
+      _ ≤ m * (3 * Nat.inverseAckermannTwo m n + 2) +
+            m * (2 * Nat.inverseAckermannTwo m n) := Nat.add_le_add_left hinit _
+      _ = m * ((3 * Nat.inverseAckermannTwo m n + 2) + 2 * Nat.inverseAckermannTwo m n) :=
+        (Nat.mul_add _ _ _).symm
+      _ = m * (5 * Nat.inverseAckermannTwo m n + 2) := by
+        congr 1
+        omega
 
 /-- Linear abstract step-count corollary of `tarjan_run_two_param`: whenever `n * Nat.log 2 n ≤ m`,
 every `m`-operation adaptive client on `Fin n` records at most `7 * m` pointer/link steps

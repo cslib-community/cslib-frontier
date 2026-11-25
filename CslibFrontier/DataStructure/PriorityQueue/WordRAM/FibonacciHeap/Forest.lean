@@ -456,9 +456,7 @@ private theorem CutStep.replace_child_valid {n : ℕ} {st st' : RawState n} {pen
   · intro j hj_set
     have hj : j < cs.length := by simpa only [List.length_set] using hj_set
     have hroot_j : ((cs.set i c')[j]'hj_set).root = (cs[j]).root := by
-      rcases eq_or_ne j i with rfl | hji
-      · simp [hc'_r]
-      · simp [List.getElem_set_ne (Ne.symm hji)]
+      by_cases hji : i = j <;> simp [hji, hc'_r]
     have hnc : (cs[j]).root ≠ cur := if hji : j = i then hji ▸ hroot_ne else hne_cur j hj hji
     have hr_in : (cs[j]).root ∈ (FHTree.node u cs).nodes :=
       child_mem_node (List.getElem_mem hj) (cs[j]).root_mem_nodes
@@ -467,12 +465,8 @@ private theorem CutStep.replace_child_valid {n : ℕ} {st st' : RawState n} {pen
     rw [hroot_j, hs.mark.2 _ hr_in hnc]
     by_cases hwp : (cs[j]).root = p
     · have := hs.deg.1
-      rw [hwp] at hro ⊢
-      simp only [↓reduceIte]
-      omega
-    · simp only [Option.some.injEq, hwp, ↓reduceIte]
-      rw [hs.deg.2 _ hr_in hwp]
-      omega
+      simp only [hwp, ↓reduceIte] at hro ⊢; omega
+    · simp only [Option.some.injEq, hwp, ↓reduceIte, hs.deg.2 _ hr_in hwp]; omega
   · intro T_c hTc
     rcases mem_set_exists_idx cs i c' T_c hTc with rfl | ⟨j, hj, hji, rfl⟩
     · exact hvalid_c'
@@ -578,11 +572,9 @@ theorem ValidSubtree.mark_pending {n : ℕ} {st st' : RawState n} {z : Fin n} {T
         have hr := hrank i hi
         rw [(hunch (cs[i]).root hci).2.1]
         by_cases hwz : (cs[i]).root = z
-        · rw [hwz] at hr ⊢
-          simp only [reduceCtorEq, ↓reduceIte, Nat.add_zero] at hr ⊢
-          omega
-        · simp only [Option.some.injEq, hwz, reduceCtorEq, ↓reduceIte, Nat.add_zero] at hr ⊢
-          rw [hm_other _ hci hwz]; exact hr)
+        · simp only [hwz, reduceCtorEq, ↓reduceIte, Nat.add_zero] at hr ⊢; omega
+        · simpa only [Option.some.injEq, hwz, reduceCtorEq, ↓reduceIte, Nat.add_zero,
+            hm_other _ hci hwz] using hr)
       (fun c hc => ih c hc
         (fun x hx => hm_other x (child_mem_node hc hx))
         (fun x hx => hunch x (child_mem_node hc hx))
@@ -914,11 +906,10 @@ theorem ValidSubtree.par_ne_self {n : ℕ} {st : RawState n} {pending : Option (
     have hu_not : u ∉ forestNodes cs := (List.nodup_cons.mp hnd).1
     obtain ⟨c, hc, hv_c⟩ := mem_forestNodes_iff.mp hv
     rw [c.nodes_eq] at hv_c
-    rcases List.mem_cons.mp hv_c with hvc_eq | hv_desc_c
+    rcases List.mem_cons.mp hv_c with rfl | hv_desc_c
     · have hpc := hpar c hc
-      rw [← hvc_eq] at hpc
-      have huv : u = v := Fin.ext (by omega)
-      exact hu_not (huv ▸ hv)
+      obtain rfl : u = c.root := Fin.ext (by omega)
+      exact hu_not hv
     · exact (hsub c hc).par_ne_self (forestNodes_nodup_tree (List.nodup_cons.mp hnd).2 hc)
         hv_desc_c hpv
 

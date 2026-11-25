@@ -257,20 +257,15 @@ theorem sum_holeCost (S : Finset α) {rs : List α} (hrs : ∀ r ∈ rs, r ∈ S
     simp only [holeCost, pathLen]
     by_cases hrq : r = q
     · subst hrq
-      have hsum : ∀ h ∈ S.erase r, (if r = h then M.dist r r + holeCost M r r rs
-          else holeCost M h r rs) = holeCost M h r rs := fun h hh => by
-        have hne : r ≠ h := fun hrh => (Finset.ne_of_mem_erase hh) hrh.symm
-        simp only [hne, ↓reduceIte]
-      rw [Finset.sum_congr rfl hsum, ih', M.dist_self r, Nat.zero_add]
+      rw [Finset.sum_congr rfl fun _ hh => ite_eq_right (Finset.ne_of_mem_erase hh).symm,
+        ih', M.dist_self r, Nat.zero_add]
     · have hr : r ∈ S.erase q := Finset.mem_erase.2 ⟨hrq, hrS⟩
       have hq : q ∈ S.erase r := Finset.mem_erase.2 ⟨Ne.symm hrq, hqS⟩
       rw [← Finset.add_sum_erase _ _ hr, ite_eq_left rfl, ← ih',
         ← Finset.add_sum_erase _ _ hq, Finset.erase_right_comm, Nat.add_assoc]
       congr 2
-      refine Finset.sum_congr rfl fun h hh => ?_
-      have hne : r ≠ h := fun hrh =>
-        (Finset.ne_of_mem_erase (Finset.mem_of_mem_erase hh)) hrh.symm
-      simp only [hne, ↓reduceIte]
+      exact Finset.sum_congr rfl fun _ hh =>
+        ite_eq_right (Finset.ne_of_mem_erase (Finset.mem_of_mem_erase hh)).symm
 
 private theorem card_insert_image {s₀ : Fin k → α} (hs₀ : Function.Injective s₀) {z : α}
     (hz : ∀ i, s₀ i ≠ z) : (insert z (Finset.univ.image s₀)).card = k + 1 := by
@@ -453,27 +448,19 @@ theorem exists_ratio_violation {s₀ : Fin k → α} (hs₀ : Function.Injective
   have hmem : ∀ r ∈ reqs, r ∈ S := fun r hr =>
     (lazify M A).mem_adaptiveRequests (Q := (· ∈ S))
       (fun {_} _ => (uncovered_spec hS z _).1) trivial hr
-  have hhead : reqs = z :: reqs.tail := by
-    change uncovered S z s₀ :: _ = _
-    rw [hu]
-    rfl
+  have hhead : reqs = z :: reqs.tail := congrArg (· :: reqs.tail) hu
   obtain ⟨off, hv, hoff⟩ := exists_shadow_le M hs₀ hz hk (rest := reqs.tail)
     fun r hr => hmem r (List.mem_of_mem_tail hr)
   rw [← hhead] at hv hoff
   obtain ⟨h1, h2⟩ := lazy_costFrom_ge M hS z A (n + 1) (A.init s₀) s₀
     (A.valid_init trivial).1 hs₀ hs₀S
-  have hL : (lazify M A).cost s₀ reqs =
-      (lazify M A).costFrom (A.init s₀, s₀) reqs := (lazify M A).cost_eq_costFrom trivial reqs
   rw [hu] at h1
-  change pathLen M z reqs.tail ≤ (lazify M A).costFrom (A.init s₀, s₀) reqs at h1
-  change n + 1 ≤ (lazify M A).costFrom (A.init s₀, s₀) reqs at h2
-  have hA := cost_lazify_le M A s₀ reqs
-  rw [hL] at hA
+  have hA := ((lazify M A).cost_eq_costFrom trivial reqs).symm.trans_le (cost_lazify_le M A s₀ reqs)
   refine ⟨reqs, off, hv, ?_⟩
   set O := (problem M k).scheduleCost s₀ reqs off
   set C := A.cost s₀ reqs
-  have hn : n + 1 ≤ C := by omega
-  have hO : k * O ≤ I + C := by omega
+  have hn : n + 1 ≤ C := h2.trans hA
+  have hO : k * O ≤ I + C := hoff.trans (Nat.add_le_add_left (h1.trans hA) I)
   have hqO : k * q * O ≤ q * I + q * C := by
     rw [Nat.mul_comm k q, Nat.mul_assoc, ← Nat.mul_add]
     exact Nat.mul_le_mul_left q hO

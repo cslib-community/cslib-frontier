@@ -205,10 +205,8 @@ theorem consecutivePairs_join {q r : Route} {p : Point}
     rcases q with _ | ⟨b, q⟩
     · rcases r with _ | ⟨b, r⟩
       · simp at hr
-      · have ha : a = p := Option.some.inj hq
-        have hb : b = p := Option.some.inj hr
-        subst ha
-        subst hb
+      · obtain rfl : a = p := Option.some.inj hq
+        obtain rfl : b = a := Option.some.inj hr
         rfl
     · exact congrArg ((a, b) :: ·) (ih (by simpa only [List.getLast?_cons_cons] using hq))
 
@@ -416,15 +414,12 @@ theorem first_segment_tail_contact {a b : Point} {r : Route}
   · simpa [support, List.consecutivePairs] using hq
   · obtain ⟨f, hf, hpf⟩ := mem_support_segment (by simp) hq
     have hfmem := List.of_mem_zip hf
-    have hne : (a, b) ≠ f := fun h => hnot (by simpa only [← h] using hfmem.1)
-    have hf' : f ∈ (a :: b :: c :: r).consecutivePairs := by
-      simpa only [List.consecutivePairs, List.tail_cons, List.zip_cons_cons, List.mem_cons]
-        using Or.inr hf
-    have hc := hs.2 (a, b) (by simp [List.consecutivePairs]) f hf' hne p hp hpf
+    have hc := hs.2 (a, b) (by simp [List.consecutivePairs]) f (List.mem_cons_of_mem _ hf)
+      (fun h => hnot (by simpa only [← h] using hfmem.1)) p hp hpf
     refine hc.1.resolve_left fun (hpa : p = realPoint a) => hnot ?_
-    rcases hc.2 with hpf | hpf
-    · exact realPoint_injective (hpa.symm.trans hpf) ▸ hfmem.1
-    · exact realPoint_injective (hpa.symm.trans hpf) ▸ List.mem_of_mem_tail hfmem.2
+    rcases hc.2 with hpf | hpf <;> obtain rfl := realPoint_injective (hpa.symm.trans hpf)
+    · exact hfmem.1
+    · exact List.mem_of_mem_tail hfmem.2
 
 /-- Unit subdivision of a continuously simple orthogonal route has no repeated lattice points.
 The proof uses the original segments' endpoint-contact certificates, not support equality alone. -/
