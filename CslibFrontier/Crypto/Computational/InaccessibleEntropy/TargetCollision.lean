@@ -529,9 +529,8 @@ theorem succProbability_targetCollisionGame_rompelCompression_le
         choice.1 x₁
     · simp only [PMF.pure_apply, reduceCtorEq, ↓reduceIte]; exact zero_le
     · obtain ⟨hx₀, hx₁, hne, hcol⟩ := isCollision_eq_true_iff.mp hW
-      rw [isCollision_eq_true_iff.mpr
-        ⟨by simpa only [KeyedCompressionFamily.validInput, rompelCompression] using hx₀,
-          by simpa only [KeyedCompressionFamily.validInput, rompelCompression] using hx₁, hne, by
+      simp only [KeyedCompressionFamily.validInput, rompelCompression] at hx₀ hx₁
+      rw [isCollision_eq_true_iff.mpr ⟨hx₀, hx₁, hne, by
             change rompelCandidateEval G n qStar K choice.1 = rompelCandidateEval G n qStar K x₁
             rw [← listRow_rompelCompressionEval G n K choice.1 hqStar,
               ← listRow_rompelCompressionEval G n K x₁ hqStar]
@@ -606,15 +605,13 @@ theorem succProbability_targetCollisionGame_rompelCompression_le
           BitString.listXor_pair_self_left_of_length choice.1 hz_len]
       have hne_iff : BitString.listXor W [w₁, yStar] ≠ zWord ↔ choice.1 ≠ w₁ := by
         rw [← hx₀, ne_eq, BitString.listXor_pair_left_inj hw₁_len hw₀_len yStar, ne_comm]
-      have hv₀ : validBase n choice.1 = true := by
-        simp [validBase, hw₀_len, W, G.outLen_add_shrink n]
-      have hv₁ : validBase n w₁ = true := by
-        simp [validBase, hw₁_len, W, G.outLen_add_shrink n]
+      have hv {w : List Bool} (hw : w.length = W) : validBase n w = true := by
+        simp [validBase, hw, W, G.outLen_add_shrink n]
       dsimp only [W] at hx₀ hne_iff ⊢
       congr 1
       apply Bool.eq_iff_iff.mpr
       rw [decide_eq_true_eq, isCollision_eq_true_iff]
-      simp only [BitString.length_listXor, true_and, hne_iff, hv₀, hv₁, hShift,
+      simp only [BitString.length_listXor, true_and, hne_iff, hv hw₀_len, hv hw₁_len, hShift,
         rompelShiftedStep, hx₀, eq_comm]
     obtain ⟨val, hval⟩ : ∃ val : ℕ → ℝ≥0, ∀ q, Game.succProbability (candTrial q) = val q :=
       ⟨_, fun _ => rfl⟩
