@@ -51,49 +51,10 @@ open Cslib.DataStructure.Dictionary.WordRAM.Succinct
 
 attribute [local simp] clientResult_pure_whp clientState_pure_whp
 
-/-- Bundled `clientState`, `clientResult`, `memoryCost` bound and `ValidProg` facts for running
-`p` from `s`. -/
-private def CStep {α : Type} (w F : ℕ) (s : Memory.State) (p : Memory.Prog α)
-    (s' : Memory.State) (r : α) (C : ℕ) : Prop :=
-  (Memory.spec 0).clientState s p = s' ∧ (Memory.spec 0).clientResult s p = r ∧
-    memoryCost p s ≤ C ∧ ValidProg w F s p
-
-private theorem CStep.pure {α : Type} {w F : ℕ} (s : Memory.State) (x : α) :
-    CStep w F s (Pure.pure x) s x 0 :=
-  ⟨rfl, rfl, (memoryCost_pure x s).le, validProg_pure x⟩
-
-private theorem CStep.bind {α β : Type} {w F C₁ C₂ : ℕ} {s s₁ s₂ : Memory.State}
-    {f : Memory.Prog α} {g : α → Memory.Prog β} {x : α} {y : β}
-    (hf : CStep w F s f s₁ x C₁) (hg : CStep w F s₁ (g x) s₂ y C₂) :
-    CStep w F s (f >>= g) s₂ y (C₁ + C₂) := by
-  obtain ⟨h1, h2, h3, h4⟩ := hf
-  refine ⟨?_, ?_, ?_, validProg_bind h4 (by rw [h1, h2]; exact hg.2.2.2)⟩
-  · rw [clientState_bind, h1, h2]; exact hg.1
-  · rw [clientResult_bind, h1, h2]; exact hg.2.1
-  · rw [memoryCost_bind', h1, h2]; exact Nat.add_le_add h3 hg.2.2.1
-
-private theorem CStep.weaken {α : Type} {w F C C' : ℕ} {s s' : Memory.State}
-    {p : Memory.Prog α} {r r' : α} (h : CStep w F s p s' r C) (hr : r = r') (hC : C ≤ C') :
-    CStep w F s p s' r' C' :=
-  ⟨h.1, hr ▸ h.2.1, h.2.2.1.trans hC, h.2.2.2⟩
-
-private theorem CStep.ite {α : Type} {w F C : ℕ} {s s' : Memory.State} {c : Prop}
-    [Decidable c] {p₁ p₂ : Memory.Prog α} {r₁ r₂ : α}
-    (h₁ : CStep w F s p₁ s' r₁ C) (h₂ : CStep w F s p₂ s' r₂ C) :
-    CStep w F s (if c then p₁ else p₂) s' (if c then r₁ else r₂) C := by
-  split_ifs
-  · exact h₁
-  · exact h₂
-
-private theorem CStep.if_pos {α : Type} {w F C : ℕ} {s s' : Memory.State} {c : Prop}
-    [Decidable c] {p₁ p₂ : Memory.Prog α} {r : α} (hc : c) (h : CStep w F s p₁ s' r C) :
-    CStep w F s (if c then p₁ else p₂) s' r C := by
-  rwa [ite_eq_left hc]
-
-private theorem CStep.if_neg {α : Type} {w F C : ℕ} {s s' : Memory.State} {c : Prop}
-    [Decidable c] {p₁ p₂ : Memory.Prog α} {r : α} (hc : ¬c) (h : CStep w F s p₂ s' r C) :
-    CStep w F s (if c then p₁ else p₂) s' r C := by
-  rwa [ite_eq_right hc]
+private theorem CostBoundedStep.weaken {α : Type} {w F C C' : ℕ} {s s' : Memory.State}
+    {p : Memory.Prog α} {r r' : α} (h : CostBoundedStep w F s p s' r C) (hr : r = r')
+    (hC : C ≤ C') : CostBoundedStep w F s p s' r' C' :=
+  hr ▸ h.mono hC
 
 /-- Guard 1 (`insCheckCapPoolGenProg`): check `totalLocalCoordsWhp ≤ X ∨ (cf ≤ X ∧ poolFreeTop = 0)`
 without mutating memory, returning `(0, 0)` if rejected or `(1, X)` if accepted. -/
@@ -162,7 +123,7 @@ theorem insCheckCapPoolGenProg_spec {c U V w n_max base b : ℕ}
   dsimp only
   unfold insCheckCapPoolGenProg; dsimp only
   simp only [wp_large_totalLoc hth, wp_large_capFront hth, pure_bind]
-  exact CStep.weaken (.bind ⟨hc0_st, hc0_res, hc0_mc.le, hc0_vp⟩ <|
+  exact CostBoundedStep.weaken (.bind ⟨hc0_st, hc0_res, hc0_mc.le, hc0_vp⟩ <|
     .bind ⟨ht_st, ht_res, ht_mc.le, ht_vp⟩ <| .ite (.pure _ _) (.pure _ _)) rfl (by omega)
 
 /-- Return `1` iff `(bufLookup (fs.buf ep) rKey).isSome`, else `0` (`d = (((cp, base), ep), rKey)`).
@@ -199,7 +160,7 @@ private theorem insBufIsSomeGenProg_spec {c U V w n_max base ep rKey : ℕ}
     bufLookupGenProg_spec henv hep (hrep.buf_rep hep) hv (rKey := rKey) (s := s)
   dsimp only
   unfold insBufIsSomeGenProg
-  exact CStep.weaken (.bind ⟨hl_st, hl_res, hl_mc, hl_vp⟩ (.pure _ _))
+  exact CostBoundedStep.weaken (.bind ⟨hl_st, hl_res, hl_mc, hl_vp⟩ (.pure _ _))
     (by rcases bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf ep) rKey with _ | ⟨_, _⟩ <;> rfl)
     (by omega)
 
@@ -290,11 +251,11 @@ private theorem insOldBufSomeGenProg_spec {c U V w n_max base rKey : ℕ}
   unfold insOldBufSomeGenProg; dsimp only; simp only [pure_bind]
   by_cases hle3 : fs.rebStage ≤ 3
   · obtain ⟨oldMap, hv_old⟩ := hbo_fn hle3
-    exact CStep.weaken (.bind ⟨hst_st, hst_res, hst_mc.le, hst_vp⟩ <|
+    exact CostBoundedStep.weaken (.bind ⟨hst_st, hst_res, hst_mc.le, hst_vp⟩ <|
       .bind ⟨hro_st, hro_res, hro_mc.le, hro_vp⟩ <|
       .if_pos hle3 (insBufIsSomeGenProg_spec henv hold_or hrep hv_old (rKey := rKey)))
       (by simp [hle3]) (by omega)
-  · exact CStep.weaken (.bind ⟨hst_st, hst_res, hst_mc.le, hst_vp⟩ <|
+  · exact CostBoundedStep.weaken (.bind ⟨hst_st, hst_res, hst_mc.le, hst_vp⟩ <|
       .bind ⟨hro_st, hro_res, hro_mc.le, hro_vp⟩ <| .if_neg hle3 (.pure _ _))
       (by simp [hle3]) (by omega)
 
@@ -382,7 +343,7 @@ theorem insCheckRKeyGuardsGenProg_spec {c U V w n_max base rKey : ℕ}
     insOldBufSomeGenProg_spec henv hce hbo_fn hrep (rKey := rKey) (s := s)
   dsimp only
   unfold insCheckRKeyGuardsGenProg; dsimp only; simp only [pure_bind]
-  refine CStep.weaken (.bind ⟨hce_st, hce_res, hce_mc.le, hce_vp⟩ <|
+  refine CostBoundedStep.weaken (.bind ⟨hce_st, hce_res, hce_mc.le, hce_vp⟩ <|
     .bind ⟨hc_st, hc_res, hc_mc, hc_vp⟩ <| .bind ⟨ho_st, ho_res, ho_mc, ho_vp⟩ <|
     .ite (.pure _ _) (.pure _ _)) ?_ (by omega)
   by_cases h1 : (bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp) rKey).isSome = true <;>
@@ -545,7 +506,7 @@ theorem insReadFpLiveGenProg_spec {c U V w n_max base b : ℕ}
   obtain ⟨hbt_st, hbt_res, hbt_mc, hbt_vp⟩ :=
     btreeLookupGenProg_spec henv hlIdx hins (hrep.slice_rep hlIdx) hv_sl hfp_lt (s := s)
   rw [← hv_sl.lookup_eq hth hins hfp_lt] at hbt_res
-  have hev : CStep w (base + largeSpaceWhp c U V w n_max) s
+  have hev : CostBoundedStep w (base + largeSpaceWhp c U V w n_max) s
       (insEvalLiveFpGenProg ((mkWhpParams c U V w n_max, base), (b, u.val))) s
       (fp, fs.liveSliceIdx b) (hashEvalCostWhp c + 4) := by
     unfold insEvalLiveFpGenProg; dsimp only; rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
@@ -555,8 +516,8 @@ theorem insReadFpLiveGenProg_spec {c U V w n_max base b : ℕ}
   dsimp only
   unfold insReadFpLiveGenProg; dsimp only
   rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
-  refine CStep.weaken (.bind hev <| .bind ⟨hbt_st, hbt_res, hbt_mc, hbt_vp⟩ <| .pure _ _) ?_
-    (by omega)
+  refine CostBoundedStep.weaken
+    (.bind hev <| .bind ⟨hbt_st, hbt_res, hbt_mc, hbt_vp⟩ <| .pure _ _) ?_ (by omega)
   cases btreeLookup (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
     (fs.slices (fs.liveSliceIdx b)) fp <;> rfl
 
@@ -614,10 +575,10 @@ private theorem insReadCurBufItemAllocProg_spec {c U V w n_max base : ℕ}
   unfold insReadCurBufItemAllocProg; simp only [pure_bind]
   rcases hce with hc0 | hc1
   · rw [hc0] at hce_res ⊢
-    exact CStep.weaken (.bind ⟨hce_st, hce_res, hce_mc.le, hce_vp⟩ <|
+    exact CostBoundedStep.weaken (.bind ⟨hce_st, hce_res, hce_mc.le, hce_vp⟩ <|
       .if_pos rfl ⟨hi0_st, hi0_res, hi0_mc.le, hi0_vp⟩) rfl (by omega)
   · rw [hc1] at hce_res ⊢
-    exact CStep.weaken (.bind ⟨hce_st, hce_res, hce_mc.le, hce_vp⟩ <|
+    exact CostBoundedStep.weaken (.bind ⟨hce_st, hce_res, hce_mc.le, hce_vp⟩ <|
       .if_neg (by decide) ⟨hi1_st, hi1_res, hi1_mc.le, hi1_vp⟩) rfl (by omega)
 
 /-- Guard 3 active helper (`hasFpCollision = true`): return `0` iff
@@ -747,7 +708,7 @@ theorem insCheckFpCapOptGenProg_spec {c U V w n_max base rKey : ℕ}
       insReadCurBufItemAllocProg_spec henv hce hrep (s := s)
     unfold insCheckFpCapActiveGenProg; dsimp only
     simp only [wp_large_bufItemCap hth, pure_bind]
-    refine CStep.weaken (.bind ⟨hce_st, hce_res, hce_mc.le, hce_vp⟩ <|
+    refine CostBoundedStep.weaken (.bind ⟨hce_st, hce_res, hce_mc.le, hce_vp⟩ <|
       .bind ⟨hev_st, hev_res, hev_mc, hev_vp⟩ <| .bind ⟨hia_st, hia_res, hia_mc, hia_vp⟩ <|
       .ite (.pure _ _) (.pure _ _)) ?_ (by omega)
     cases bufEverPresent (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp) rKey <;>

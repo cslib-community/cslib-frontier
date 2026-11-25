@@ -51,53 +51,6 @@ open Cslib.DataStructure.Dictionary.WordRAM.Succinct
 
 attribute [local simp] clientResult_pure_whp clientState_pure_whp
 
-/-- Bundled `clientState`, `clientResult`, `memoryCost` bound and `ValidProg` facts for running
-`p` from `s`. -/
-private def CStep {α : Type} (w F : ℕ) (s : Memory.State) (p : Memory.Prog α)
-    (s' : Memory.State) (r : α) (C : ℕ) : Prop :=
-  (Memory.spec 0).clientState s p = s' ∧ (Memory.spec 0).clientResult s p = r ∧
-    memoryCost p s ≤ C ∧ ValidProg w F s p
-
-/-- A read-only spec with exact cost as a `CStep`. -/
-private theorem CStep.of {α : Type} {w F C : ℕ} {s : Memory.State} {p : Memory.Prog α} {r : α}
-    (h : (Memory.spec 0).clientState s p = s ∧ (Memory.spec 0).clientResult s p = r ∧
-      memoryCost p s = C ∧ ValidProg w F s p) : CStep w F s p s r C :=
-  ⟨h.1, h.2.1, h.2.2.1.le, h.2.2.2⟩
-
-private theorem CStep.pure {α : Type} {w F : ℕ} (s : Memory.State) (x : α) :
-    CStep w F s (Pure.pure x) s x 0 :=
-  ⟨rfl, rfl, (memoryCost_pure x s).le, validProg_pure x⟩
-
-private theorem CStep.bind {α β : Type} {w F C₁ C₂ : ℕ} {s s₁ s₂ : Memory.State}
-    {f : Memory.Prog α} {g : α → Memory.Prog β} {x : α} {y : β}
-    (hf : CStep w F s f s₁ x C₁) (hg : CStep w F s₁ (g x) s₂ y C₂) :
-    CStep w F s (f >>= g) s₂ y (C₁ + C₂) := by
-  obtain ⟨h1, h2, h3, h4⟩ := hf
-  refine ⟨?_, ?_, ?_, validProg_bind h4 (by rw [h1, h2]; exact hg.2.2.2)⟩
-  · rw [clientState_bind, h1, h2]; exact hg.1
-  · rw [clientResult_bind, h1, h2]; exact hg.2.1
-  · rw [memoryCost_bind', h1, h2]; exact Nat.add_le_add h3 hg.2.2.1
-
-private theorem CStep.mono {α : Type} {w F C C' : ℕ} {s s' : Memory.State} {p : Memory.Prog α}
-    {r : α} (h : CStep w F s p s' r C) (hC : C ≤ C') : CStep w F s p s' r C' :=
-  ⟨h.1, h.2.1, h.2.2.1.trans hC, h.2.2.2⟩
-
-private theorem CStep.if_pos {α : Type} {w F C : ℕ} {s s' : Memory.State} {c : Prop}
-    [Decidable c] {p₁ p₂ : Memory.Prog α} {r : α} (hc : c) (h : CStep w F s p₁ s' r C) :
-    CStep w F s (if c then p₁ else p₂) s' r C := by
-  rwa [ite_eq_left hc]
-
-private theorem CStep.if_neg {α : Type} {w F C : ℕ} {s s' : Memory.State} {c : Prop}
-    [Decidable c] {p₁ p₂ : Memory.Prog α} {r : α} (hc : ¬c) (h : CStep w F s p₂ s' r C) :
-    CStep w F s (if c then p₁ else p₂) s' r C := by
-  rwa [ite_eq_right hc]
-
-/-- Read a `CStep` off as a cost bound, validity and a property of the final state. -/
-private theorem CStep.elim {α : Type} {w F C C' : ℕ} {s s' : Memory.State} {p : Memory.Prog α}
-    {r : α} {P : Memory.State → Prop} (h : CStep w F s p s' r C) (hC : C ≤ C') (hP : P s') :
-    memoryCost p s ≤ C' ∧ ValidProg w F s p ∧ P ((Memory.spec 0).clientState s p) :=
-  ⟨h.2.2.1.trans hC, h.2.2.2, by rw [h.1]; exact hP⟩
-
 /-- Sub-helper 6.1a: delete `rKey_u` from `buf 0` (`st_del = 2`) or `buf 1` (`st_del = 3`). -/
 @[irreducible] def delRemBufGenProg :
     ((WhpCoreParams × ℕ) × ℕ) × ℕ → Memory.Prog Unit
@@ -274,32 +227,38 @@ theorem delRemLiveGenProg_fastStep {c U V w n_max base b st_del fp_live_u : ℕ}
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
     FastStateStep base c U V w n_max θ { fs with slices := slices1 } s s' := by
   have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
-  have hS := CStep.of (readHdrProg_spec (w := w) (F := base + largeSpaceWhp c U V w n_max)
-    (base := base) (hdrOff := hdrRebStage) (by dsimp [hdrRebStage]; omega) (s := s))
+  have hS := CostBoundedStep.of
+    (readHdrProg_spec (w := w) (F := base + largeSpaceWhp c U V w n_max)
+      (base := base) (hdrOff := hdrRebStage) (by dsimp [hdrRebStage]; omega) (s := s))
   rw [hrep.2.2.2.2.2.1] at hS
-  have hO := CStep.of (readOldEpProg_spec (w := w) (F := base + largeSpaceWhp c U V w n_max)
-    (by dsimp [hdrCurEp]; omega) hce hrep.2.2.2.1 (s := s))
-  have h8 := CStep.of (readBktFieldGenProg_spec henv hb (by decide : 8 < 10) hrep (s := s))
+  have hO := CostBoundedStep.of
+    (readOldEpProg_spec (w := w) (F := base + largeSpaceWhp c U V w n_max)
+      (by dsimp [hdrCurEp]; omega) hce hrep.2.2.2.1 (s := s))
+  have h8 := CostBoundedStep.of
+    (readBktFieldGenProg_spec henv hb (by decide : 8 < 10) hrep (s := s))
   simp only [getBktField] at h8
-  have hIL := CStep.of (inLiveTreeProg_spec (w := w) (F := base + largeSpaceWhp c U V w n_max)
-    (rebStage := fs.rebStage) (oldEp := fs.oldEp) (rebDoneB := fs.rebDoneFlag b) (st := st_del)
-    (s := s))
+  have hIL := CostBoundedStep.of
+    (inLiveTreeProg_spec (w := w) (F := base + largeSpaceWhp c U V w n_max)
+      (rebStage := fs.rebStage) (oldEp := fs.oldEp) (rebDoneB := fs.rebDoneFlag b) (st := st_del)
+      (s := s))
   dsimp only
   unfold delRemLiveGenProg
   simp only [pure_bind]
   by_cases hin : inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) st_del = true
   · rw [ite_eq_left hin] at hIL ⊢
-    have h2 := CStep.of (readBktFieldGenProg_spec henv hb (by decide : 2 < 10) hrep (s := s))
+    have h2 := CostBoundedStep.of
+      (readBktFieldGenProg_spec henv hb (by decide : 2 < 10) hrep (s := s))
     simp only [getBktField] at h2
     have hlIdx : fs.liveSliceIdx b < 3 * numBucketsWhp n_max := by
       unfold FastState.liveSliceIdx; omega
     obtain ⟨hbd_mc, hbd_vp, hbd_step⟩ :=
       btreeDeleteGenProg_fastStep henv hlIdx hins hseed hrep hv_l hfp (s := s)
-    exact CStep.elim (.bind hS <| .bind hO <| .bind h8 <| .bind hIL <| .if_pos rfl <|
+    exact CostBoundedStep.elim (.bind hS <| .bind hO <| .bind h8 <| .bind hIL <| .if_pos rfl <|
       .bind h2 ⟨rfl, rfl, hbd_mc, hbd_vp⟩) (by omega) hbd_step
   · rw [ite_eq_right hin] at hIL ⊢
-    exact CStep.elim (.bind hS <| .bind hO <| .bind h8 <| .bind hIL <| .if_neg (by decide) <|
-      .pure _ _) (by omega) (FastStateStep.refl hseed hrep)
+    exact CostBoundedStep.elim
+      (.bind hS <| .bind hO <| .bind h8 <| .bind hIL <| .if_neg (by decide) <| .pure _ _)
+      (by omega) (FastStateStep.refl hseed hrep)
 
 /-- Active deletion helper for `delRemOmGenProg`: read `overmarsRole b` and delete `fp_live_u`
 from `overmarsSlice[b]`. -/
@@ -423,16 +382,19 @@ private theorem readInLiveTagGenProg_spec {c U V w n_max base b st : ℕ}
     memoryCost prog s ≤ 5 ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
   have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
-  have hS := CStep.of (readHdrProg_spec (w := w) (F := base + largeSpaceWhp c U V w n_max)
-    (base := base) (hdrOff := hdrRebStage) (by dsimp [hdrRebStage]; omega) (s := s))
+  have hS := CostBoundedStep.of
+    (readHdrProg_spec (w := w) (F := base + largeSpaceWhp c U V w n_max)
+      (base := base) (hdrOff := hdrRebStage) (by dsimp [hdrRebStage]; omega) (s := s))
   rw [hrep.2.2.2.2.2.1] at hS
-  have hO := CStep.of (readOldEpProg_spec (w := w) (F := base + largeSpaceWhp c U V w n_max)
-    (by dsimp [hdrCurEp]; omega) hce hrep.2.2.2.1 (s := s))
-  have h8 := CStep.of (readBktFieldGenProg_spec henv hb (by decide : 8 < 10) hrep (s := s))
+  have hO := CostBoundedStep.of
+    (readOldEpProg_spec (w := w) (F := base + largeSpaceWhp c U V w n_max)
+      (by dsimp [hdrCurEp]; omega) hce hrep.2.2.2.1 (s := s))
+  have h8 := CostBoundedStep.of
+    (readBktFieldGenProg_spec henv hb (by decide : 8 < 10) hrep (s := s))
   simp only [getBktField] at h8
   dsimp only
   unfold readInLiveTagGenProg
-  exact CStep.mono (.bind hS <| .bind hO <| .bind h8 <| CStep.of (inLiveTreeProg_spec (w := w)
+  exact CostBoundedStep.mono (.bind hS <| .bind hO <| .bind h8 <| .of (inLiveTreeProg_spec (w := w)
     (rebStage := fs.rebStage) (oldEp := fs.oldEp) (rebDoneB := fs.rebDoneFlag b) (st := st)))
     (by omega)
 
@@ -521,8 +483,10 @@ theorem delRemOmGenProg_fastStep {c U V w n_max base b loc_del st_del fp_live_u 
     memoryCost prog s ≤ 285 ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
     FastStateStep base c U V w n_max θ { fs with slices := slices2 } s s' := by
-  have h5 := CStep.of (readBktFieldGenProg_spec henv hb (by decide : 5 < 10) hrep (s := s))
-  have h6 := CStep.of (readBktFieldGenProg_spec henv hb (by decide : 6 < 10) hrep (s := s))
+  have h5 := CostBoundedStep.of
+    (readBktFieldGenProg_spec henv hb (by decide : 5 < 10) hrep (s := s))
+  have h6 := CostBoundedStep.of
+    (readBktFieldGenProg_spec henv hb (by decide : 6 < 10) hrep (s := s))
   have hIL := readInLiveTagGenProg_spec henv hce hb hrep (st := st_del) (s := s)
   simp only [getBktField] at h5 h6
   have hcond_iff :
@@ -538,16 +502,17 @@ theorem delRemOmGenProg_fastStep {c U V w n_max base b loc_del st_del fp_live_u 
       inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) st_del = true
   · rw [ite_eq_left hcond]
     obtain ⟨hins_om, om, hv_om⟩ := hom_fn hcond.1
-    have h4 := CStep.of (readBktFieldGenProg_spec henv hb (by decide : 4 < 10) hrep (s := s))
+    have h4 := CostBoundedStep.of
+      (readBktFieldGenProg_spec henv hb (by decide : 4 < 10) hrep (s := s))
     simp only [getBktField] at h4
     have homIdx : fs.overmarsSliceIdx b < 3 * numBucketsWhp n_max := by
       unfold FastState.overmarsSliceIdx; omega
     obtain ⟨hbd_mc, hbd_vp, hbd_step⟩ :=
       btreeDeleteGenProg_fastStep henv homIdx hins_om hseed hrep hv_om hfp (s := s)
-    exact CStep.elim (.bind h5 <| .bind h6 <| .bind hIL <| .if_pos (hcond_iff.mpr hcond) <|
-      .bind h4 ⟨rfl, rfl, hbd_mc, hbd_vp⟩) (by omega) hbd_step
+    exact CostBoundedStep.elim (.bind h5 <| .bind h6 <| .bind hIL <|
+      .if_pos (hcond_iff.mpr hcond) <| .bind h4 ⟨rfl, rfl, hbd_mc, hbd_vp⟩) (by omega) hbd_step
   · rw [ite_eq_right hcond]
-    exact CStep.elim (.bind h5 <| .bind h6 <| .bind hIL <|
+    exact CostBoundedStep.elim (.bind h5 <| .bind h6 <| .bind hIL <|
       .if_neg (fun h => hcond (hcond_iff.mp h)) <| .pure _ _) (by omega)
       (FastStateStep.refl hseed hrep)
 

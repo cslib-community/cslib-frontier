@@ -51,33 +51,6 @@ open Cslib.DataStructure.Dictionary.WordRAM.Succinct
 
 attribute [local simp] clientResult_pure_whp clientState_pure_whp
 
-/-- Bundled `clientState`, `clientResult`, `memoryCost` bound and `ValidProg` facts for running
-`p` from `s`. -/
-private def CStep {α : Type} (w F : ℕ) (s : Memory.State) (p : Memory.Prog α)
-    (s' : Memory.State) (r : α) (C : ℕ) : Prop :=
-  (Memory.spec 0).clientState s p = s' ∧ (Memory.spec 0).clientResult s p = r ∧
-    memoryCost p s ≤ C ∧ ValidProg w F s p
-
-private theorem CStep.pure {α : Type} {w F : ℕ} (s : Memory.State) (x : α) :
-    CStep w F s (Pure.pure x) s x 0 :=
-  ⟨rfl, rfl, (memoryCost_pure x s).le, validProg_pure x⟩
-
-private theorem CStep.bind {α β : Type} {w F C₁ C₂ : ℕ} {s s₁ s₂ : Memory.State}
-    {f : Memory.Prog α} {g : α → Memory.Prog β} {x : α} {y : β}
-    (hf : CStep w F s f s₁ x C₁) (hg : CStep w F s₁ (g x) s₂ y C₂) :
-    CStep w F s (f >>= g) s₂ y (C₁ + C₂) := by
-  obtain ⟨h1, h2, h3, h4⟩ := hf
-  refine ⟨?_, ?_, ?_, validProg_bind h4 (by rw [h1, h2]; exact hg.2.2.2)⟩
-  · rw [clientState_bind, h1, h2]; exact hg.1
-  · rw [clientResult_bind, h1, h2]; exact hg.2.1
-  · rw [memoryCost_bind', h1, h2]; exact Nat.add_le_add h3 hg.2.2.1
-
-/-- Read a `CStep` off as a cost bound, validity and a property of the final state. -/
-private theorem CStep.elim {α : Type} {w F C C' : ℕ} {s s' : Memory.State} {p : Memory.Prog α}
-    {r : α} {P : Memory.State → Prop} (h : CStep w F s p s' r C) (hC : C ≤ C') (hP : P s') :
-    memoryCost p s ≤ C' ∧ ValidProg w F s p ∧ P ((Memory.spec 0).clientState s p) :=
-  ⟨h.2.2.1.trans hC, h.2.2.2, by rw [h.1]; exact hP⟩
-
 /-- Pop one free slot from `poolFreeStack[poolFreeTop - 1]` and decrement `poolFreeTop`. -/
 @[irreducible] private def insPopFreeSlotGenProg :
     WhpCoreParams × ℕ → Memory.Prog ℕ
@@ -313,7 +286,7 @@ theorem fastInsertAllocGenProg_fastStep {c U V w n_max base b X : ℕ}
       (by omega : b * capBackWhp n_max + k ≤ n_max) hwb_step.2.1 hwb_step.2.2.1 (s := s2)
     unfold insAllocBackyardProg insPopFreeSlotGenProg insBindBackSlotGenProg; dsimp only
     simp only [wp_large_capFront hth, wp_large_capBack hth, pure_bind]
-    exact CStep.elim (.bind (.bind ⟨ht_st, ht_res, ht_mc.le, ht_vp⟩ <|
+    exact CostBoundedStep.elim (.bind (.bind ⟨ht_st, ht_res, ht_mc.le, ht_vp⟩ <|
       .bind ⟨hp_st, hp_res, hp_mc.le, hp_vp⟩ <| .bind ⟨rfl, rfl, hwh_mc.le, hwh_vp⟩ (.pure _ _)) <|
       .bind ⟨rfl, rfl, hwb_mc.le, hwb_vp⟩ ⟨rfl, rfl, hwo_mc.le, hwo_vp⟩) (by omega)
       ((hwh_step.trans hwb_step).trans hwo_step)
@@ -393,7 +366,7 @@ theorem insWriteQVAtGenProg_fastStep {c U V w n_max base b X q_val v_val : ℕ}
     writeValGenProg_fastStep henv hps_lt hv_lt hwq_step.2.1 hwq_step.2.2.1 (s := s1)
   dsimp only
   unfold insWriteQVAtGenProg; dsimp only
-  exact CStep.elim (.bind ⟨hps_st, hps_res, hps_mc, hps_vp⟩ <|
+  exact CostBoundedStep.elim (.bind ⟨hps_st, hps_res, hps_mc, hps_vp⟩ <|
     .bind ⟨rfl, rfl, hwq_mc.le, hwq_vp⟩ ⟨rfl, rfl, hwv_mc.le, hwv_vp⟩) (by omega)
     (hwq_step.trans hwv_step)
 
@@ -461,8 +434,8 @@ private theorem insWriteCntLocGenProg_fastStep {c U V w n_max base b X tag : ℕ
     hwb_step.2.1 hwb_step.2.2.1 (s := s1)
   dsimp only
   unfold insWriteCntLocGenProg; dsimp only; simp only [pure_bind]
-  exact CStep.elim (.bind ⟨rfl, rfl, hwb_mc.le, hwb_vp⟩ ⟨rfl, rfl, hwl_mc.le, hwl_vp⟩) (by omega)
-    (hwb_step.trans hwl_step)
+  exact CostBoundedStep.elim (.bind ⟨rfl, rfl, hwb_mc.le, hwb_vp⟩ ⟨rfl, rfl, hwl_mc.le, hwl_vp⟩)
+    (by omega) (hwb_step.trans hwl_step)
 
 /-- Increment `liveInsCount b` by `1` (`d = ((cp, base), b)`). -/
 @[irreducible] private def insIncLiveInsGenProg :
@@ -542,7 +515,7 @@ private theorem insIncLiveInsGenProg_fastStep {c U V w n_max base b : ℕ}
   simp only [setBktField] at hwb_step
   dsimp only
   unfold insIncLiveInsGenProg; dsimp only; simp only [pure_bind]
-  exact CStep.elim (.bind ⟨h3_st, h3_res, h3_mc.le, h3_vp⟩ ⟨rfl, rfl, hwb_mc.le, hwb_vp⟩)
+  exact CostBoundedStep.elim (.bind ⟨h3_st, h3_res, h3_mc.le, h3_vp⟩ ⟨rfl, rfl, hwb_mc.le, hwb_vp⟩)
     (by omega) hwb_step
 
 /-- Finish collision insertion (`hasFpCollision = true`): write `bktCount`, `locState := 2 + curEp`,
@@ -717,7 +690,7 @@ theorem insFinishCollisionGenProg_fastStep {c U V w n_max base b X rKey : ℕ}
       hna_cap hia_cap hb hX_tl (rKey := rKey) (s := s1)
   dsimp only
   unfold insFinishCollisionGenProg; dsimp only; simp only [pure_bind]
-  exact CStep.elim (.bind ⟨hep_st, hep_res, hep_mc.le, hep_vp⟩ <|
+  exact CostBoundedStep.elim (.bind ⟨hep_st, hep_res, hep_mc.le, hep_vp⟩ <|
     .bind ⟨rfl, rfl, hwc_mc, hwc_vp⟩ ⟨rfl, rfl, hbi_mc, hbi_vp⟩) (by omega)
     (hwc_step.trans hbi_step)
 
@@ -770,7 +743,7 @@ theorem insFinishDirectGenProg_fastStep {c U V w n_max base b X fp lIdx : ℕ}
     insIncLiveInsGenProg_fastStep (fs := fs2) henv hb hlic hbi_step.2.1 hbi_step.2.2.1 (s := s2)
   dsimp only
   unfold insFinishDirectGenProg; dsimp only; simp only [pure_bind]
-  exact CStep.elim (.bind ⟨rfl, rfl, hwc_mc, hwc_vp⟩ <|
+  exact CostBoundedStep.elim (.bind ⟨rfl, rfl, hwc_mc, hwc_vp⟩ <|
     .bind ⟨rfl, rfl, hbi_mc, hbi_vp⟩ ⟨rfl, rfl, hic_mc, hic_vp⟩) (by omega)
     ((hwc_step.trans hbi_step).trans hic_step)
 

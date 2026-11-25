@@ -49,37 +49,6 @@ open Cslib.DataStructure.Dictionary.WordRAM.Succinct
 
 attribute [local simp] clientResult_pure_whp clientState_pure_whp
 
-/-- Bundled `clientState`, `clientResult`, `memoryCost` bound and `ValidProg` facts for running
-`p` from `s`. -/
-private def CStep {α : Type} (w F : ℕ) (s : Memory.State) (p : Memory.Prog α)
-    (s' : Memory.State) (r : α) (C : ℕ) : Prop :=
-  (Memory.spec 0).clientState s p = s' ∧ (Memory.spec 0).clientResult s p = r ∧
-    memoryCost p s ≤ C ∧ ValidProg w F s p
-
-private theorem CStep.pure {α : Type} {w F : ℕ} (s : Memory.State) (x : α) :
-    CStep w F s (Pure.pure x) s x 0 :=
-  ⟨rfl, rfl, (memoryCost_pure x s).le, validProg_pure x⟩
-
-private theorem CStep.bind {α β : Type} {w F C₁ C₂ : ℕ} {s s₁ s₂ : Memory.State}
-    {f : Memory.Prog α} {g : α → Memory.Prog β} {x : α} {y : β}
-    (hf : CStep w F s f s₁ x C₁) (hg : CStep w F s₁ (g x) s₂ y C₂) :
-    CStep w F s (f >>= g) s₂ y (C₁ + C₂) := by
-  obtain ⟨h1, h2, h3, h4⟩ := hf
-  refine ⟨?_, ?_, ?_, validProg_bind h4 (by rw [h1, h2]; exact hg.2.2.2)⟩
-  · rw [clientState_bind, h1, h2]; exact hg.1
-  · rw [clientResult_bind, h1, h2]; exact hg.2.1
-  · rw [memoryCost_bind', h1, h2]; exact Nat.add_le_add h3 hg.2.2.1
-
-private theorem CStep.mono {α : Type} {w F C C' : ℕ} {s s' : Memory.State} {p : Memory.Prog α}
-    {r : α} (h : CStep w F s p s' r C) (hC : C ≤ C') : CStep w F s p s' r C' :=
-  ⟨h.1, h.2.1, h.2.2.1.trans hC, h.2.2.2⟩
-
-/-- Read a `CStep` off as a cost bound, validity and a property of the final state. -/
-private theorem CStep.elim {α : Type} {w F C C' : ℕ} {s s' : Memory.State} {p : Memory.Prog α}
-    {r : α} {P : Memory.State → Prop} (h : CStep w F s p s' r C) (hC : C ≤ C') (hP : P s') :
-    memoryCost p s ≤ C' ∧ ValidProg w F s p ∧ P ((Memory.spec 0).clientState s p) :=
-  ⟨h.2.2.1.trans hC, h.2.2.2, by rw [h.1]; exact hP⟩
-
 /-- Guard helper for `delRemRebGenProg`: return `1` iff Stage 2 is actively scanning bucket `b`
 past `loc_del` and `st_del ∈ {1, 2 + oldEp}`. -/
 @[irreducible] private def delRemRebCheckProg :
@@ -402,7 +371,7 @@ theorem delRemRebGenProg_fastStep {c U V w n_max base b loc_del st_del : ℕ}
       (rebActiveB && decide (loc_del < fs.rebScanCursor ∧
         (st_del = 1 ∨ st_del = 2 + fs.oldEp))) = true := by
     cases rebActiveB <;> simp
-  have hck : CStep w (base + largeSpaceWhp c U V w n_max) s
+  have hck : CostBoundedStep w (base + largeSpaceWhp c U V w n_max) s
       (delRemRebCheckProg ((((cp, base), b), loc_del), st_del)) s
       (if (if rebActiveB then 1 else 0) = 1 ∧ loc_del < fs.rebScanCursor ∧
         (st_del = 1 ∨ st_del = 2 + fs.oldEp) then 1 else 0) 10 := by
@@ -439,7 +408,7 @@ theorem delRemRebGenProg_fastStep {c U V w n_max base b loc_del st_del : ℕ}
       rw [← hfp_eq]; exact fpOfSaltOpt_lt c U n_max _ _ θ.2
     obtain ⟨hbd_mc, hbd_vp, hbd_step⟩ :=
       btreeDeleteGenProg_fastStep henv hrIdx hins_r hseed hrep hv_r hfp_lt (s := s)
-    have hact : CStep w (base + largeSpaceWhp c U V w n_max) s
+    have hact : CostBoundedStep w (base + largeSpaceWhp c U V w n_max) s
         (delRemRebActiveProg (((mkWhpParams c U V w n_max, base), b), u.val))
         ((Memory.spec 0).clientState s (btreeDeleteGenProg
           (((cp, base), fs.rebSliceIdx b), fpOfSalt c U n_max θ.2 fs.rebCandSalt u))) ()
@@ -449,10 +418,10 @@ theorem delRemRebGenProg_fastStep {c U V w n_max base b loc_del st_del : ℕ}
       exact .mono (.bind (.bind ⟨hst_cs, hres_cs, hmc_cs.le, hvp_cs⟩ <|
         .bind ⟨hmh_st, hmh_res, hmh_mc.le, hmh_vp⟩ ⟨hfp_st, hfp_res, hfp_mc, hfp_vp⟩) <|
         .bind ⟨hrs_st, hrs_res, hrs_mc.le, hrs_vp⟩ ⟨rfl, rfl, hbd_mc, hbd_vp⟩) (by omega)
-    exact CStep.elim (.bind hck hact) (by omega) hbd_step
+    exact CostBoundedStep.elim (.bind hck hact) (by omega) hbd_step
   · rw [ite_eq_right hcond]
     rw [ite_eq_right (fun h => hcond (hcond_iff.mp h))] at hck
-    exact CStep.elim (.bind hck (.pure _ _)) (by omega) (FastStateStep.refl hseed hrep)
+    exact CostBoundedStep.elim (.bind hck (.pure _ _)) (by omega) (FastStateStep.refl hseed hrep)
 
 /-- Read `(st_del, (rKey_u, fp_live_u))` for `fastDeleteRemoveGenProg` without mutating memory. -/
 @[irreducible] def delRemReadInfoGenProg :
@@ -556,7 +525,7 @@ theorem delRemReadInfoGenProg_spec {c U V w n_max base b loc_del : ℕ}
   unfold delRemReadInfoGenProg
   dsimp only
   rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
-  exact CStep.mono (.bind ⟨hst_l, hres_l, hmc_l.le, hvp_l⟩ <|
+  exact CostBoundedStep.mono (.bind ⟨hst_l, hres_l, hmc_l.le, hvp_l⟩ <|
     .bind ⟨hmh_st, hmh_res, hmh_mc.le, hmh_vp⟩ <| .bind ⟨hrk_st, hrk_res, hrk_mc, hrk_vp⟩ <|
     .bind ⟨hs1_st, hs1_res, hs1_mc.le, hs1_vp⟩ <|
     .bind ⟨hfp_st, hfp_res, hfp_mc, hfp_vp⟩ (.pure _ _)) (by omega)

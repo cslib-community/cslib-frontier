@@ -46,46 +46,14 @@ open Cslib.DataStructure.Dictionary.WordRAM.Succinct
 
 attribute [local simp] clientResult_pure_whp clientState_pure_whp
 
-/-- Bundled `clientState`, `clientResult`, `memoryCost` bound and `ValidProg` facts for running
-`p` from `s`. -/
-private def CStep {α : Type} (w F : ℕ) (s : Memory.State) (p : Memory.Prog α)
-    (s' : Memory.State) (r : α) (C : ℕ) : Prop :=
-  (Memory.spec 0).clientState s p = s' ∧ (Memory.spec 0).clientResult s p = r ∧
-    memoryCost p s ≤ C ∧ ValidProg w F s p
-
-private theorem CStep.pure {α : Type} {w F : ℕ} (s : Memory.State) (x : α) :
-    CStep w F s (Pure.pure x) s x 0 :=
-  ⟨rfl, rfl, (memoryCost_pure x s).le, validProg_pure x⟩
-
-private theorem CStep.bind {α β : Type} {w F C₁ C₂ : ℕ} {s s₁ s₂ : Memory.State}
-    {f : Memory.Prog α} {g : α → Memory.Prog β} {x : α} {y : β}
-    (hf : CStep w F s f s₁ x C₁) (hg : CStep w F s₁ (g x) s₂ y C₂) :
-    CStep w F s (f >>= g) s₂ y (C₁ + C₂) := by
-  obtain ⟨h1, h2, h3, h4⟩ := hf
-  refine ⟨?_, ?_, ?_, validProg_bind h4 (by rw [h1, h2]; exact hg.2.2.2)⟩
-  · rw [clientState_bind, h1, h2]; exact hg.1
-  · rw [clientResult_bind, h1, h2]; exact hg.2.1
-  · rw [memoryCost_bind', h1, h2]; exact Nat.add_le_add h3 hg.2.2.1
-
-private theorem CStep.mono {α : Type} {w F C C' : ℕ} {s s' : Memory.State} {p : Memory.Prog α}
-    {r : α} (h : CStep w F s p s' r C) (hC : C ≤ C') : CStep w F s p s' r C' :=
-  ⟨h.1, h.2.1, h.2.2.1.trans hC, h.2.2.2⟩
-
-/-- Read a `CStep` off as a cost bound, validity and a property of the final state. -/
-private theorem CStep.elim {α : Type} {w F C C' : ℕ} {s s' : Memory.State} {p : Memory.Prog α}
-    {r : α} {P : Memory.State → Prop} (h : CStep w F s p s' r C) (hC : C ≤ C') (hP : P s') :
-    memoryCost p s ≤ C' ∧ ValidProg w F s p ∧ P ((Memory.spec 0).clientState s p) :=
-  ⟨h.2.2.1.trans hC, h.2.2.2, by rw [h.1]; exact hP⟩
-
-/-- `readBktFieldGenProg_spec` as a `CStep`. -/
-private theorem CStep.readBkt {c U V w n_max base b i : ℕ} {fs : FastState} {s : Memory.State}
-    (henv : WhpLargeEnv c U V w n_max w base) (hb : b < numBucketsWhp n_max) (hi : i < 10)
-    (hrep : FastMemRep base c U V w n_max fs s.mem) :
-    CStep w (base + largeSpaceWhp c U V w n_max) s
+/-- `readBktFieldGenProg_spec` as a `CostBoundedStep`. -/
+private theorem CostBoundedStep.readBkt {c U V w n_max base b i : ℕ} {fs : FastState}
+    {s : Memory.State} (henv : WhpLargeEnv c U V w n_max w base) (hb : b < numBucketsWhp n_max)
+    (hi : i < 10) (hrep : FastMemRep base c U V w n_max fs s.mem) :
+    CostBoundedStep w (base + largeSpaceWhp c U V w n_max) s
       (readBktFieldGenProg (((mkWhpCoreParams c U V w n_max, base), b), i)) s
       (getBktField fs b i) 2 :=
-  let ⟨h1, h2, h3, h4⟩ := readBktFieldGenProg_spec henv hb hi hrep
-  ⟨h1, h2, h3.le, h4⟩
+  .of (readBktFieldGenProg_spec henv hb hi hrep)
 
 /-- Sub-helper 6.2b (Overmars insert+inc): insert `(fp_live_last, loc_del)` into `omIdx` and
 increment `overmarsInsCount b`. -/
@@ -196,8 +164,9 @@ private theorem delMoveOmInsertIncProg_fastStep {c U V w n_max base b loc_del fp
   dsimp only
   unfold delMoveOmInsertIncProg
   simp only [cp, pure_bind]
-  exact CStep.elim (.bind ⟨rfl, rfl, hbi_mc, hbi_vp⟩ <|
-    .bind (CStep.readBkt henv hb (by decide : 7 < 10) hbi_step.2.2.1) ⟨rfl, rfl, hwb_mc.le, hwb_vp⟩)
+  exact CostBoundedStep.elim (.bind ⟨rfl, rfl, hbi_mc, hbi_vp⟩ <|
+    .bind (CostBoundedStep.readBkt henv hb (by decide : 7 < 10) hbi_step.2.2.1)
+      ⟨rfl, rfl, hwb_mc.le, hwb_vp⟩)
     (by omega) (hbi_step.trans hwb_step)
 
 /-- Active Overmars helper for `delMoveOmSubProg` once `overmarsActive b = 1`. -/
@@ -358,20 +327,20 @@ private theorem delMoveOmSubProg_fastStep {c U V w n_max base b loc_del loc_last
   dsimp only
   unfold delMoveOmSubProg
   simp only [cp, pure_bind]
-  have h5 := CStep.readBkt henv hb (by decide : 5 < 10) hrep (s := s)
+  have h5 := CostBoundedStep.readBkt henv hb (by decide : 5 < 10) hrep (s := s)
   by_cases ha1 : fs.overmarsActive b = 1
   · rw [ite_eq_left ha1]
     obtain ⟨hins_lt, om, hv_om⟩ := hom_fn ha1
     have homIdx : fs.overmarsSliceIdx b < 3 * numBucketsWhp n_max := by
       unfold FastState.overmarsSliceIdx; omega
     -- The active branch reads fields 5, 6 and 4, then runs the cursor case split.
-    have hpre : ∀ {s₂ C}, CStep w (base + largeSpaceWhp c U V w n_max) s
+    have hpre : ∀ {s₂ C}, CostBoundedStep w (base + largeSpaceWhp c U V w n_max) s
         (if loc_last < fs.overmarsCursor b then
           btreeUpdateGenProg ((((cp, base), fs.overmarsSliceIdx b), fp_live_last), loc_del)
         else if loc_del < fs.overmarsCursor b then
           delMoveOmInsertIncProg (((cp, base), (b, fs.overmarsSliceIdx b)), (fp_live_last, loc_del))
         else pure ()) s₂ () C →
-        CStep w (base + largeSpaceWhp c U V w n_max) s
+        CostBoundedStep w (base + largeSpaceWhp c U V w n_max) s
           (readBktFieldGenProg (((cp, base), b), 5) >>= fun omAct =>
             if omAct = 1 then
               delMoveOmActiveProg (((cp, base), b), ((loc_del, loc_last), fp_live_last))
@@ -380,27 +349,29 @@ private theorem delMoveOmSubProg_fastStep {c U V w n_max base b loc_del loc_last
       refine .bind h5 ?_
       simp only [getBktField, ite_eq_left ha1]
       unfold delMoveOmActiveProg; simp only [pure_bind]
-      exact .bind (CStep.readBkt henv hb (by decide : 6 < 10) hrep) <|
-        .bind (CStep.readBkt henv hb (by decide : 4 < 10) hrep) h
+      exact .bind (CostBoundedStep.readBkt henv hb (by decide : 6 < 10) hrep) <|
+        .bind (CostBoundedStep.readBkt henv hb (by decide : 4 < 10) hrep) h
     by_cases hll_c : loc_last < fs.overmarsCursor b
     · rw [ite_eq_left hll_c]
       obtain ⟨hbu_mc, hbu_vp, hbu_step⟩ :=
         btreeUpdateGenProg_fastStep henv homIdx hins_lt.le hseed hrep hv_om hfp hval_ld (s := s)
-      exact CStep.elim (hpre (by rw [ite_eq_left hll_c]; exact ⟨rfl, rfl, hbu_mc, hbu_vp⟩))
-        (by omega) hbu_step
+      exact CostBoundedStep.elim
+        (hpre (by rw [ite_eq_left hll_c]; exact ⟨rfl, rfl, hbu_mc, hbu_vp⟩)) (by omega) hbu_step
     · rw [ite_eq_right hll_c]
       by_cases hld_c : loc_del < fs.overmarsCursor b
       · rw [ite_eq_left hld_c]
         obtain ⟨hmi_mc, hmi_vp, hmi_step⟩ :=
           delMoveOmInsertIncProg_fastStep henv hb hor hld hfp hins_lt hv_om hseed hrep (s := s)
-        exact CStep.elim
+        exact CostBoundedStep.elim
           (hpre (by rw [ite_eq_right hll_c, ite_eq_left hld_c]; exact ⟨rfl, rfl, hmi_mc, hmi_vp⟩))
           (by omega) hmi_step
       · rw [ite_eq_right hld_c]
-        exact CStep.elim (hpre (by rw [ite_eq_right hll_c, ite_eq_right hld_c]; exact .pure _ _))
+        exact CostBoundedStep.elim
+          (hpre (by rw [ite_eq_right hll_c, ite_eq_right hld_c]; exact .pure _ _))
           (by omega) (FastStateStep.refl hseed hrep)
   · rw [ite_eq_right ha1]
-    exact CStep.elim (.bind h5 (by simp only [getBktField, ite_eq_right ha1]; exact .pure _ _))
+    exact CostBoundedStep.elim
+      (.bind h5 (by simp only [getBktField, ite_eq_right ha1]; exact .pure _ _))
       (by omega) (FastStateStep.refl hseed hrep)
 
 /-- Active helper for `delMoveLiveOmGenProg` once `inLiveTree` holds. -/
@@ -624,26 +595,26 @@ theorem delMoveLiveOmGenProg_fastStep
     obtain ⟨hom_mc, hom_vp, hom_step⟩ :=
       delMoveOmSubProg_fastStep (fs := fs_bu) henv hb hor hld hfp hom_fn'
         hbu_step.2.1 hbu_step.2.2.1 (loc_last := loc_last) (s := s_bu)
-    have hact : CStep w (base + largeSpaceWhp c U V w n_max) s
+    have hact : CostBoundedStep w (base + largeSpaceWhp c U V w n_max) s
         (delMoveLiveOmActiveProg ((((cp, base), b), (loc_del, loc_last)), fp_live_last))
         ((Memory.spec 0).clientState s_bu
           (delMoveOmSubProg (((cp, base), b), ((loc_del, loc_last), fp_live_last)))) () 2714 := by
       unfold delMoveLiveOmActiveProg; simp only [pure_bind]
-      exact .mono (.bind (CStep.readBkt henv hb (by decide : 2 < 10) hrep) <|
+      exact .mono (.bind (CostBoundedStep.readBkt henv hb (by decide : 2 < 10) hrep) <|
         .bind ⟨rfl, rfl, hbu_mc, hbu_vp⟩ ⟨rfl, rfl, hom_mc, hom_vp⟩) (by omega)
     simp only [hin, and_true]
-    exact CStep.elim (.bind ⟨hst_s, hres_s, hmc_s.le, hvp_s⟩ <|
+    exact CostBoundedStep.elim (.bind ⟨hst_s, hres_s, hmc_s.le, hvp_s⟩ <|
       .bind ⟨hst_o, hres_o, hmc_o.le, hvp_o⟩ <|
-      .bind (CStep.readBkt henv hb (by decide : 8 < 10) hrep) <|
+      .bind (CostBoundedStep.readBkt henv hb (by decide : 8 < 10) hrep) <|
       .bind ⟨hst_il, hres_il, hmc_il.le, hvp_il⟩ hact) (by omega) (hbu_step.trans hom_step)
   · rw [ite_eq_right hin] at hres_il ⊢
     have hfls : ¬(fs.overmarsActive b = 1 ∧
         inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) st_last = true) :=
       fun ⟨_, h⟩ => hin h
     rw [ite_eq_right hfls]
-    exact CStep.elim (.bind ⟨hst_s, hres_s, hmc_s.le, hvp_s⟩ <|
+    exact CostBoundedStep.elim (.bind ⟨hst_s, hres_s, hmc_s.le, hvp_s⟩ <|
       .bind ⟨hst_o, hres_o, hmc_o.le, hvp_o⟩ <|
-      .bind (CStep.readBkt henv hb (by decide : 8 < 10) hrep) <|
+      .bind (CostBoundedStep.readBkt henv hb (by decide : 8 < 10) hrep) <|
       .bind ⟨hst_il, hres_il, hmc_il.le, hvp_il⟩ (.pure _ _)) (by omega)
       (FastStateStep.refl hseed hrep)
 
