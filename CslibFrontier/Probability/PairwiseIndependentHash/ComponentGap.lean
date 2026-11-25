@@ -126,24 +126,10 @@ theorem expect_sq_le_torusMove [NeZero M] (hH : 2 ≤ H) (f : (Fin H → ZMod M)
       𝔼 p, (F (pairShearTranslationMove (Equiv.refl Unit) (Equiv.refl Unit) i (σ i) k p) -
         F p) ^ 2 ≤ D := by
     have hσi : i ≠ σ i := (hσ i).symm
-    fin_cases k
-    · have := hterm (.inl ⟨(i, σ i), hσi⟩)
-      simp only [torusMove_inl] at this
-      refine le_trans (le_of_eq ?_) this
-      rw [← hU]
-      rfl
-    · have := hterm (.inl ⟨(σ i, i), hσi.symm⟩)
-      simp only [torusMove_inl] at this
-      refine le_trans (le_of_eq ?_) this
-      rw [← hU]
-      rfl
-    · have := hterm (.inr i)
-      simp only [torusMove_inr] at this
-      refine le_trans (le_of_eq ?_) this
-      rw [← hU]
-      rfl
-    · have := hterm (.inr (σ i))
-      simp only [torusMove_inr] at this
+    fin_cases k <;>
+      [have := hterm (.inl ⟨(i, σ i), hσi⟩); have := hterm (.inl ⟨(σ i, i), hσi.symm⟩);
+        have := hterm (.inr i); have := hterm (.inr (σ i))] <;>
+    · simp only [torusMove_inl, torusMove_inr] at this
       refine le_trans (le_of_eq ?_) this
       rw [← hU]
       rfl
@@ -204,20 +190,16 @@ theorem expect_sq_le_componentMove (hH : 3 ≤ H)
     linarith [h g hg]
   have htorus (g : (Fin H → ZMod M) → ℝ) (hg : 𝔼 w, g w = 0) :
       𝔼 w, g w ^ 2 ≤ 38912 * H ^ 2 * ∑ k, 𝔼 w, (g (torusMove H M k w) - g w) ^ 2 := by
-    refine (expect_sq_le_torusMove (by omega) g hg).trans ?_
-    have hD : 0 ≤ ∑ k, 𝔼 w, (g (torusMove H M k w) - g w) ^ 2 :=
-      sum_nonneg fun _ _ ↦ expect_nonneg fun _ _ ↦ sq_nonneg _
-    have : (2048 * H : ℝ) ≤ 38912 * H ^ 2 := by
-      have : (1 : ℝ) ≤ H := by exact_mod_cast (by omega : 1 ≤ H)
-      nlinarith
-    exact mul_le_mul_of_nonneg_right this hD
+    refine (expect_sq_le_torusMove (by omega) g hg).trans <| mul_le_mul_of_nonneg_right ?_
+      (sum_nonneg fun _ _ ↦ expect_nonneg fun _ _ ↦ sq_nonneg _)
+    have : (1 : ℝ) ≤ H := by exact_mod_cast (by omega : 1 ≤ H)
+    nlinarith
   have h := mul_expect_sq_le_boxProdPerms
     (σ := piPerms fun j ↦ affineMove (P j) H (L j) 1) (τ := torusMove H M)
     (fun g hg ↦ mul_expect_sq_le_piPerms _
       (fun j ↦ hc _ fun g hg ↦ expect_sq_le_affineMove hH g hg) g hg)
     (hc _ htorus) f hf
-  rw [one_div_mul_eq_div, div_le_iff₀ hH0, mul_comm] at h
-  exact h
+  rwa [one_div_mul_eq_div, div_le_iff₀ hH0, mul_comm] at h
 
 /-- **The second eigenvalue of the product walk** over `J` channels and the free-bit torus is at
 most `1 - 1 / (77824 (J + 1) H ^ 4)`, for `H ≥ 3`, uniformly in the moduli: the single-component
@@ -227,8 +209,7 @@ theorem secondEigenvalue_ofPerms_componentMove_le (hH : 3 ≤ H) :
   have hH0 : (0 : ℝ) < H := by exact_mod_cast (by omega : 0 < H)
   rcases subsingleton_or_nontrivial
       ((∀ j, Frame (P j) H 1 × (Fin H → ZMod (L j))) × (Fin H → ZMod M)) with hV | hV
-  · rw [secondEigenvalue_eq_zero_of_subsingleton, sub_nonneg]
-    rw [div_le_one (by positivity)]
+  · rw [secondEigenvalue_eq_zero_of_subsingleton, sub_nonneg, div_le_one (by positivity)]
     have : (1 : ℝ) ≤ H ^ 4 := one_le_pow₀ (by exact_mod_cast (by omega : 1 ≤ H))
     have : (0 : ℝ) ≤ J := Nat.cast_nonneg _
     nlinarith
