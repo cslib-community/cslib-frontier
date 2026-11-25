@@ -27,7 +27,8 @@ quadratic growth away from it.
 
 * `Cslib.CAT0.exists_isPointAt`, `Cslib.CAT0.existsUnique_dist_eq`: for `t ∈ [0, 1]`, exactly one
   point has distances `t|xv|` and `(1 − t)|xv|` from `x` and `v`, and it satisfies the inequality
-  of the point at fraction `t` (part (a)).
+  of the point at fraction `t` (part (a)); `Cslib.CAT0.apply_eq_of_dist_eq`: so an isometry that
+  fixes `x` and `v` fixes it.
 * `Cslib.CAT0.dist_sq_add_dist_sq_le`: `|xv|² + |yu|² ≤ |xu|² + |yv|² + 2|xy||uv|`, the
   quadrilateral inequality; `Cslib.CAT0.dist_sq_add_dist_sq_le_sides` and
   `Cslib.CAT0.sides_eq_of_dist_sq_add_dist_sq_eq` for the diagonals of a quadrangle (part (b)).
@@ -173,6 +174,14 @@ theorem isPointAt_of_dist {x v c : Y} {t : ℝ} (h0 : 0 ≤ t) (h1 : t ≤ 1)
     (e1 : dist x c = t * dist x v) (e2 : dist c v = (1 - t) * dist x v) : IsPointAt x v t c := by
   obtain ⟨b, hb⟩ := exists_isPointAt x v h0 h1
   rwa [hb.eq_of_dist e1 e2]
+
+/-- An isometry that fixes `x` and `v` fixes the point with the distances of the point at
+fraction `t ∈ [0, 1]` between them: by part (a) it is the only such point. -/
+theorem apply_eq_of_dist_eq {f : Y → Y} (hf : Isometry f) {x v q : Y} (hx : f x = x)
+    (hv : f v = v) {t : ℝ} (h0 : 0 ≤ t) (h1 : t ≤ 1) (e1 : dist x q = t * dist x v)
+    (e2 : dist q v = (1 - t) * dist x v) : f q = q :=
+  (existsUnique_dist_eq x v h0 h1).unique ⟨by rw [← e1, ← hf.dist_eq x q, hx],
+    by rw [← e2, ← hf.dist_eq q v, hv]⟩ ⟨e1, e2⟩
 
 /-! ### The quadrilateral inequality (part (b)) -/
 

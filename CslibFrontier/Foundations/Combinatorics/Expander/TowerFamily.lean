@@ -12,6 +12,7 @@ public import CslibFrontier.Foundations.Combinatorics.Expander.Reindex
 public import CslibFrontier.Foundations.Combinatorics.Expander.Tower
 public import Mathlib.Data.Nat.Log
 import CslibFrontier.Foundations.Data.Nat.Log
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # Zig-zag expanders on every vertex count
@@ -84,7 +85,6 @@ theorem spectralExpansion_zigzagTowerFamily_le (H : RotationMap B D)
     (zigzagTowerFamily H e numbering hb n).spectralExpansion ≤
       1 - (1 - c) ^ 2 / (16 * b ^ 2) := by
   have hc0 : 0 ≤ c := by nlinarith [H.spectralExpansion_nonneg, sq_nonneg c]
-  have hbR : (2 : ℝ) ≤ b := by exact_mod_cast hb
   have hgap : 0 ≤ 1 - c := sub_nonneg.mpr hc1
   unfold zigzagTowerFamily
   split
@@ -102,6 +102,6 @@ theorem spectralExpansion_zigzagTowerFamily_le (H : RotationMap B D)
     rw [spectralExpansion_eq_zero_of_subsingleton]
     apply sub_nonneg.mpr
     apply (div_le_iff₀ (by positivity : 0 < (16 : ℝ) * b ^ 2)).mpr
-    nlinarith
+    cast_nlinarith [hb]
 
 end Cslib.RotationMap

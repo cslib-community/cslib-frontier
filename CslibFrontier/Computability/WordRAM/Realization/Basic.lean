@@ -127,6 +127,11 @@ theorem memoryCost_bind {β : Type} (p : Memory.Prog α) (q : α → Memory.Prog
       memoryCost (q ((Memory.spec 0).clientResult s p)) ((Memory.spec 0).clientState s p) :=
   memoryCost_bind p q s
 
+/-- A result map issues no memory operation of its own. -/
+@[client_simps] theorem memoryCost_map {β : Type} (f : α → β) (p : Memory.Prog α)
+    (s : Memory.State) : memoryCost (f <$> p) s = memoryCost p s := by
+  rw [← bind_pure_comp, memoryCost_bind', memoryCost_pure, Nat.add_zero]
+
 /-- Parameterless-bound `ExecWithin` adapter for `Realizes.SpecWith` and `Realizes.With`. -/
 abbrev Realizes.execWithin (B : Basis) {r : ℕ} (w : ℕ) (_ : Fin r) (c : Code B r)
     (x y : Data r) (T : ℕ) : Prop :=

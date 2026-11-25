@@ -11,24 +11,24 @@ public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDra
 public import CslibFrontier.Foundations.Geometry.Polygonal.Neighborhood
 
 /-!
-# Local segment neighborhoods of polygonal graph embeddings
+# Local segment neighborhoods of polygonal graph drawings
 
-Every declared vertex of a polygonal embedding has a positive-radius ball meeting only
-first or last segments actually incident to that vertex. The finite neighborhood is
-constructed from the segment arrangement. Both ends of a loop are retained.
-
-This proves a local straight-segment fact; it does not assume or establish a vertex-split
-patch, an isotopy theorem, Jordan separation or the numerical-genus bridge.
+A vertex reached only at its incident route endpoints has a positive-radius ball
+meeting only the first or last segments at that vertex. The finite segment arrangement
+supplies the radius, retaining both ends of a loop. A polygonal embedding satisfies
+the vertex contact hypothesis for every declared vertex.
 -/
 
 public section
 
 namespace Cslib.Complexity.Graph.PolygonalDrawing
 
-/-- Near a declared vertex, every segment met by an embedding is an actual first or last
-segment at that named vertex. The radius is proved to exist from finite real geometry. -/
-theorem IsEmbedding.exists_vertex_ball {G : Graph} {D : PolygonalDrawing G}
-    (hD : D.IsEmbedding) (v : ℕ) (hv : v ∈ G.1) :
+/-- If the drawing reaches a vertex only at its corresponding endpoint parameters,
+then a neighborhood of that vertex meets only its first or last incident segments. -/
+theorem exists_vertex_ball_of_vertex_contacts {G : Graph} (D : PolygonalDrawing G) (v : ℕ)
+    (hcontacts : ∀ e (i : Fin (D.route e).segments) (t : ℝ), t ∈ Set.Icc 0 1 →
+      (D.route e).eval i t = D.vertex v →
+        ∃ b, (D.route e).AtEnd i t b ∧ Dart.vertex (e, b) = v) :
     ∃ ε > 0, ∀ e (i : Fin (D.route e).segments) w,
       w ∈ Metric.ball (D.vertex v) ε →
       w ∈ segment ℝ ((D.route e).point i.castSucc) ((D.route e).point i.succ) →
@@ -42,7 +42,7 @@ theorem IsEmbedding.exists_vertex_ball {G : Graph} {D : PolygonalDrawing G}
   have hcenter := hball ⟨e, i⟩ w hw hseg
   rw [segment_eq_image_lineMap] at hcenter
   obtain ⟨t, ht, heq⟩ := hcenter
-  obtain ⟨b, hb, hvertex⟩ := hD.vertex_contacts e i t ht v hv heq
+  obtain ⟨b, hb, hvertex⟩ := hcontacts e i t ht heq
   have hi0 : (0 : ℝ) ≤ i.val := Nat.cast_nonneg _
   have hi1 : (i.val : ℝ) + 1 ≤ (D.route e).segments := by exact_mod_cast i.isLt
   cases b
@@ -58,5 +58,16 @@ theorem IsEmbedding.exists_vertex_ball {G : Graph} {D : PolygonalDrawing G}
       dsimp [Polygonal.Route.AtEnd, Polygonal.Route.position] at hb
       linarith [ht.2]
     exact_mod_cast hi
+
+/-- Near a declared vertex, every segment met by an embedding is an actual first or last
+segment at that named vertex. -/
+theorem IsEmbedding.exists_vertex_ball {G : Graph} {D : PolygonalDrawing G}
+    (hD : D.IsEmbedding) (v : ℕ) (hv : v ∈ G.1) :
+    ∃ ε > 0, ∀ e (i : Fin (D.route e).segments) w,
+      w ∈ Metric.ball (D.vertex v) ε →
+      w ∈ segment ℝ ((D.route e).point i.castSucc) ((D.route e).point i.succ) →
+        (i.val = 0 ∧ Dart.vertex (e, false) = v) ∨
+        (i.val + 1 = (D.route e).segments ∧ Dart.vertex (e, true) = v) :=
+  D.exists_vertex_ball_of_vertex_contacts v (fun e i t ht => hD.vertex_contacts e i t ht v hv)
 
 end Cslib.Complexity.Graph.PolygonalDrawing

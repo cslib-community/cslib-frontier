@@ -15,6 +15,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Foundations.Data.Nat.Bits
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Uniform
@@ -646,8 +647,7 @@ theorem pedersenHidingGame_eq (setup : ℕ → PMF F.Desc) (adversary : Encrypti
         (F.pedersen d).hidingExperiment (F.pedersenHidingAdversary adversary n d) b := by
   simp only [CommitmentScheme.hidingGame, pedersenKeyDist, Game.withSetup,
     Commitment.Scheme.hidingExperiment, pedersen_keyGen, bind_assoc, pure_bind,
-    ProbComp.eval_bind, ProbComp.eval_uniform, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
-    PMF.bind_bind, PMF.pure_bind, pedersenHidingForKey_eq]
+    ProbComp.eval_uniform, pedersenHidingForKey_eq, pmf_norm]
 
 /-- For any non-identity commitment key `h ≠ 0`, `F.pedersenScheme.hidingForKey ⟨d, h⟩` produces the
 exact same output distribution for any two hidden bits `b₁` and `b₂`, against every (even
@@ -801,9 +801,7 @@ theorem pedersenBindingGame_eq (setup : ℕ → PMF F.Desc)
           F.pedersenCollisionOf d h <$> adversary n (F.pedersenScheme.encodeKey ⟨d, h⟩) := by
   simp only [CommitmentScheme.bindingGame, pedersenKeyDist, Game.withSetup,
     Commitment.Scheme.bindingExperiment, pedersen_keyGen, bind_assoc, pure_bind, bind_map_left,
-    isBindingCollision_pedersenCollisionOf, ProbComp.eval_bind, ProbComp.eval_pure,
-    ProbComp.eval_uniform, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind,
-    PMF.pure_bind]
+    isBindingCollision_pedersenCollisionOf, ProbComp.eval_uniform, pmf_norm]
 
 /-- Turn a `pedersenScheme` binding adversary into a discrete-logarithm adversary
 ([BonehShoup2023], Section 10.6.1, Theorem 10.4, pp. 414–415). It gives the adversary the
@@ -881,9 +879,7 @@ theorem succProbability_pedersenBindingGame_le_discreteLogGame (setup : ℕ → 
         dlExperiment (F.order d) (F.generator d) (F.pedersenToDL fun h =>
           F.pedersenCollisionOf d h <$> adversary n (F.pedersenScheme.encodeKey ⟨d, h⟩)) := by
     simp only [discreteLogGame, Game.withSetup, dlExperiment, pedersenToDLAdversary_encode,
-      ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure, ProbComp.eval_uniform,
-      PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_map, Function.comp_def,
-      ofBits_bits, ZMod.natCast_zmod_val]
+      ProbComp.eval_uniform, ofBits_bits, ZMod.natCast_zmod_val, pmf_norm]
   rw [pedersenBindingGame_eq, hDL]
   refine ENNReal.toNNReal_mono (PMF.apply_ne_top _ _)
     (PMF.bind_apply_mono_on_support (setup n) true fun d _ => ?_)

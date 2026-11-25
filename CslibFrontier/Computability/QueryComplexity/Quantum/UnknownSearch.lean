@@ -118,8 +118,8 @@ theorem sum_regProb_run_grover (hN : 0 < N) (x : Fin N → Bool) (k : ℕ) :
         (Real.sin ((2 * k + 1) * searchAngle N (weight x)) / Real.sqrt (weight x)) ^ 2 := by
     intro i hi
     simp only [regProb_eq_sum, run_grover_of_weight hN, Fintype.sum_prod_type, Fintype.sum_bool,
-      Fintype.univ_unit, sum_singleton, ite_true, Bool.false_eq_true, ite_false, norm_zero,
-      Complex.norm_real, Real.norm_eq_abs, sq_abs, (mem_filter.mp hi).2]
+      Fintype.univ_unit, sum_singleton, groverControl_mk, ite_true, Bool.false_eq_true, ite_false,
+      norm_zero, Complex.norm_real, Real.norm_eq_abs, sq_abs, (mem_filter.mp hi).2]
     ring
   rw [sum_congr rfl hterm, sum_const, nsmul_eq_mul]
   change (weight x : ℝ) * _ = _
@@ -268,7 +268,7 @@ theorem run_randomGrover_ctrl (hN : 0 < N) {m T : ℕ} (hT : m ≤ T + 1) (x : F
     (run (randomGrover N m) (randomGroverInit N m) x T).ofLp (i, true, w) = 0 := by
   have := congrArg (fun φ => φ.ofLp (i, true, w.1)) (slice_run_randomGrover hN hT x w.2)
   simp only [slice_apply, PiLp.smul_apply, flipCtrl_apply, smul_eq_mul, Bool.not_true,
-    run_grover_of_weight hN, Bool.false_eq_true, ite_false, mul_zero] at this
+    run_grover_of_weight hN, groverControl_mk, Bool.false_eq_true, ite_false, mul_zero] at this
   exact this
 
 /-- **The success probability of a random number of iterations**: after `T ≥ m - 1` queries,

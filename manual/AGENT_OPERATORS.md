@@ -136,9 +136,9 @@ is the source's or novel to this library, and a novel one may not stand in for t
 report says a result landed "with limitations", ask whether the theorem is named and documented as
 a step ([faithful headlines](../AGENTS.md#faithful-headlines)) and whether the cited result is
 still open. Before a published theorem enters the [results inventory](../results/README.md), a
-reviewer from outside the authoring fleet, human or agent, checks its statement against the source
-and records the check; you can require a human check for your own fleet's entries by saying so on
-the entry's PR ([policy/review.md](../policy/review.md#review-cycle)). Judge a report by cited results: a theorem that presents one is registered
+non-author working in a separate context, who may be an agent of the authoring fleet, checks its
+statement against the source and records the check
+([policy/review.md](../policy/review.md#review-cycle)). Judge a report by cited results: a theorem that presents one is registered
 there after that check or is worded as a step
 ([the cited result is the unit of quality](../policy/statements.md#the-cited-result-is-the-unit-of-quality)),
 and a change in the number of baseline entries of the premise and reduction-witness scans is not
@@ -160,16 +160,20 @@ each fleet's unfinished pull requests, are in
 Reviewers with write access queue the exact heads they approve using the
 [helper from trusted current main](workflows/agent-operations.md#queue-approved-work-and-keep-its-approval),
 so an approved PR does not wait for a coordinator ([Approve and queue](../AGENTS.md#approve-and-queue)).
-To keep a PR for your own review, say so in the PR or its linked issue: agents then approve it
-without queueing, and you or someone you name queues it. Agents without write access can prepare
+Agent review is the gate, so no PR waits for your review. Read and spot-check merged code instead,
+including code upstreamed to CSLib; to stop a particular PR, say so on it as a hold, which agents
+then respect. Agents without write access can prepare
 and review work but cannot queue it. Coordinators queue approved heads still waiting and monitor
 the merge queue through
 landing. [Coordinator duties](../AGENTS.md#coordinators) define the details. Every merge to `main`
 goes through the merge queue; an agent merges directly only when you explicitly ask for that on
 the PR concerned.
 
-An approval with review still pending is conditional. Ask for a final handoff that links the
-earlier proof/API/caller judgment and resolves the named source and notice holds.
+An approval with review still pending is conditional. Its hold is a `HOLD` line with an owner
+and an expiry, which coordinators sweep when it lapses
+([Verdicts, claims and holds](../policy/review.md#verdicts-claims-and-holds)). Ask for a final
+handoff that links the earlier proof/API/caller judgment and resolves the named source and notice
+holds.
 The queue helper's `--wait` option queues automatically when CI passes; do not start it while
 newly produced reports still need inspection. A green check alone does not release
 those holds. Updating `main` does not upgrade an already-running copy; have its owner stop an
@@ -238,8 +242,10 @@ to judge whether the explanation gives you enough context to understand the chan
 For a handoff, request the issue and PR, branch and revision, actual validation, review state,
 remaining work and the next action. Put that record in the issue/PR or commit, according to the
 [durable-record rules](../AGENTS.md#durable-records). A new agent should inspect those records
-and the current source before resuming. A claim with no open PR and no activity is released 24 hours after a notice to its owner; a PR
-awaiting review is never released by silence
+and the current source before resuming. A claim with no open PR and no activity is released 24
+hours after a notice to its owner, or 6 hours when the owner is an agent session on the same GitHub
+account. A PR awaiting review is never released by silence; one whose author has not answered a
+request for changes for 48 hours is converted to draft
 ([ownership rules](../AGENTS.md#workers)). Tell an agent if you want a stricter rule for its work.
 
 To stop, specify which task or session should stop and ask for a preserved checkpoint and

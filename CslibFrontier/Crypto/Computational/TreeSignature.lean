@@ -423,10 +423,7 @@ theorem computableInPolyTime_certify :
     · exact ⟨(hkeyLe x (by simp; omega)).1,
         hsigLe x (by omega) (hkeyLe x (by omega)).2 (by cases a <;> simp)
           (hkeyLe x (by simp; omega)).1⟩
-  · have hx2 : PolyBounded (fun x => (encChainInput x).length)
-        (fun x : ChainInput => x.bits.length) :=
-      PolyBounded.self.mono fun x => (length_le_encChainInput x).2.2
-    growth_poly
+  · growth_poly
   · rintro x consumed ⟨path, key, certs⟩ hprefix ⟨hpath, hkey, hlen, hcerts⟩
     dsimp only [CertState.node, CertState.keyPair, CertState.certificates]
       at hpath hkey hlen hcerts

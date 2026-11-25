@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Circuit.Frontier.Compiler
 public import Mathlib.Analysis.SpecialFunctions.Log.Base
 import CslibFrontier.Computability.Circuit.Complexity
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # From small circuits to wide graphs
@@ -301,9 +302,7 @@ theorem exists_graph_of_decides_multiarySize (hr : 2 ≤ r) (hfan : c.FanInAtMos
             (c.multiarySize + n) * Nat.card U ^ Nat.card U) + 3 :=
           Nat.add_le_add_right (Nat.mul_le_mul_left (2 * r) hsize) 3
   · refine (cycleRank_le_multiarySize hfan' (pow_ncard_compl_read_lt hS' hfree hbig)).trans ?_
-    have hrm : (0 : ℝ) ≤ (r : ℝ) - 1 := by
-      have : (2 : ℝ) ≤ r := by exact_mod_cast hr
-      linarith
+    have hrm : (0 : ℝ) ≤ (r : ℝ) - 1 := by cast_linarith [hr]
     have hm' : (c'.multiarySize : ℝ) ≤ c.multiarySize := by exact_mod_cast hmult
     linarith [mul_le_mul_of_nonneg_left hm' hrm]
 

@@ -13,6 +13,7 @@ public import CslibFrontier.Crypto.Computational.OneWay
 public import CslibFrontier.Crypto.Computational.SecondPreimageResistant
 import CslibFrontier.Crypto.Game.Order
 import CslibFrontier.Crypto.Negligible
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.Guessing.UniformList
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Bool
@@ -264,9 +265,7 @@ theorem succProbability_secondPreimageGame_keyDigest_le
     exact BitString.uniformList_add n (2 * n + r)
   apply Game.succProbability_mono
   simp only [secondPreimageGame, secondPreimageExperiment, collisionGame,
-    secondPreimageToCollisionFinder, ProbComp.eval_bind, ProbComp.eval_pure,
-    BitString.eval_sampleList, hsplit, PMF.bind_bind, PMF.bind_map, PMF.pure_bind,
-    Function.comp_def]
+    secondPreimageToCollisionFinder, BitString.eval_sampleList, hsplit, pmf_norm]
   refine PMF.bind_apply_mono_on_support _ _ fun key hkey => ?_
   refine PMF.bind_apply_mono_on_support _ _ fun message hmessage => ?_
   have hklen := BitString.length_of_mem_support_uniformList hkey
@@ -356,9 +355,8 @@ theorem succProbability_inversionGameOn_ignoreHeadBit_succ_le (f : List Bool →
       Game.succProbability
         (ProbComp.eval (inversionGameOn f valid (ignoreHeadBitInverter adversary) n)) := by
   refine Game.succProbability_mono ?_
-  simp only [inversionGameOn, ignoreHeadBit, ignoreHeadBitInverter, ProbComp.eval_bind,
-    ProbComp.eval_pure, ProbComp.eval_map, BitString.eval_sampleList, BitString.uniformList_succ,
-    PMF.bind_bind, PMF.bind_map, Function.comp_def, List.tail_cons, PMF.bind_const]
+  simp only [inversionGameOn, ignoreHeadBit, ignoreHeadBitInverter, BitString.eval_sampleList,
+    BitString.uniformList_succ, List.tail_cons, PMF.bind_const, pmf_norm]
   refine PMF.bind_apply_mono_on_support _ _ fun x _ => ?_
   refine PMF.bind_apply_mono_on_support _ _ fun w _ => ?_
   cases hwin : (valid (n + 1) w && f w.tail == f x)
@@ -524,9 +522,8 @@ theorem not_oneWayOn_plantEasyBranch (k : ℕ) (H : List Bool → List Bool)
         (((1 / 2 : ℝ≥0) ^ k : ℝ≥0) : ℝ≥0∞) ≤
           ProbComp.eval
             (inversionGameOn (plantEasyBranch k H) valid (plantEasyBranchInverter k) n) true := by
-      simp only [inversionGameOn, plantEasyBranchInverter, ProbComp.eval_bind,
-        ProbComp.eval_pure, BitString.eval_sampleList, hsplit, PMF.bind_bind, PMF.bind_map,
-        PMF.pure_bind, Function.comp_def]
+      simp only [inversionGameOn, plantEasyBranchInverter, BitString.eval_sampleList, hsplit,
+        pmf_norm]
       rw [PMF.bind_apply]
       refine (mul_one (((1 / 2 : ℝ≥0) ^ k : ℝ≥0) : ℝ≥0∞)).symm.trans_le ?_
       refine (mul_le_mul_of_nonneg_right hmass zero_le).trans ?_

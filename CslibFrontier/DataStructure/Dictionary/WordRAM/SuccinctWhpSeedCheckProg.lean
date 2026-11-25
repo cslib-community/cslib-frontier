@@ -162,8 +162,7 @@ private theorem realizes_initOmRoleStep :
       InitOmRoleStepPre
       (fun _ _ => 0) := by
   unfold initOmRoleStepProg
-  have hwp := realizes_writePackedGen
-  realize
+  realize [realizes_writePackedGen]
   all_goals (
     rcases d with ⟨rt, b⟩
     dsimp only [InitOmRoleStepPre] at h
@@ -336,8 +335,7 @@ private theorem realizes_initFreeStackStep :
       InitFreeStackStepPre
       (fun _ _ => 0) := by
   unfold initFreeStackStepProg
-  have hwp := realizes_writePackedGen
-  realize
+  realize [realizes_writePackedGen]
   all_goals (
     rcases d with ⟨rt, j⟩
     dsimp only [InitFreeStackStepPre] at h
@@ -555,11 +553,8 @@ theorem realizes_initFastGen :
       (fun w d _ => WhpLargeEnvGen w d.1 d.2)
       (fun _ _ => 0) := by
   unfold initFastGenProg
-  have hmk := realizes_mkInitFastRtGen
-  have hom := realizes_initOmRoleLoop
-  have hfs := realizes_initFreeStackLoop
-  have hhd := realizes_initFastHdrs
-  realize
+  realize [realizes_mkInitFastRtGen, realizes_initOmRoleLoop, realizes_initFreeStackLoop,
+      realizes_initFastHdrs]
   all_goals (
     rcases d with ⟨cp, base⟩
     obtain ⟨c, U, V, w₀, n_max, henv, rfl⟩ := h
@@ -1008,9 +1003,8 @@ private theorem realizes_chkBalStep :
       ChkBalStepPre
       (fun _ _ => 0) := by
   unfold chkBalStepProg
-  have hrp := realizes_readPackedGen
   have hcs : ∀ y s', (Memory.spec 0).clientState s' (readPackedGenProg y) = s' := fun _ _ => rfl
-  realize
+  realize [realizes_readPackedGen]
   all_goals (
     rcases d with ⟨⟨crt, N⟩, b, okAcc⟩
     dsimp only [ChkBalStepPre] at h
@@ -1167,11 +1161,8 @@ private theorem realizes_csrRKeyAt :
       CsrRKeyAtPre
       (fun _ _ => 0) := by
   unfold csrRKeyAtProg
-  have hsbl := realizes_scanBucketLoop
-  have hrp := realizes_readPackedGen
-  have hrk := realizes_rKeyOfQuotRt
   have hcs : ∀ y s', (Memory.spec 0).clientState s' (readPackedGenProg y) = s' := fun _ _ => rfl
-  realize
+  realize [realizes_scanBucketLoop, realizes_readPackedGen, realizes_rKeyOfQuotRt]
   all_goals (
     rcases d with ⟨⟨crt, hrt⟩, i⟩
     dsimp only [CsrRKeyAtPre] at h
@@ -1270,8 +1261,7 @@ private theorem realizes_chkRKeyInnerStep :
       ChkRKeyInnerStepPre
       (fun _ _ => 0) := by
   unfold chkRKeyInnerStepProg
-  have hrk := realizes_csrRKeyAt
-  realize
+  realize [realizes_csrRKeyAt]
   all_goals (
     rcases d with ⟨⟨⟨crt, hrt⟩, target⟩, j, ok⟩
     dsimp only [ChkRKeyInnerStepPre] at h
@@ -1412,9 +1402,7 @@ private theorem realizes_chkRKeyOuterStep :
       ChkRKeyOuterStepPre
       (fun _ _ => 0) := by
   unfold chkRKeyOuterStepProg
-  have hrk := realizes_csrRKeyAt
-  have hin := realizes_chkRKeyInnerLoop
-  realize
+  realize [realizes_csrRKeyAt, realizes_chkRKeyInnerLoop]
   all_goals (
     rcases d with ⟨⟨crt, hrt⟩, i, ok⟩
     dsimp only [ChkRKeyOuterStepPre] at h
@@ -1576,11 +1564,8 @@ private theorem realizes_csrFpAt :
       CsrFpAtPre
       (fun _ _ => 0) := by
   unfold csrFpAtProg
-  have hsbl := realizes_scanBucketLoop
-  have hrp := realizes_readPackedGen
-  have hfp := realizes_fpOfQuotRt
   have hcs : ∀ y s', (Memory.spec 0).clientState s' (readPackedGenProg y) = s' := fun _ _ => rfl
-  realize
+  realize [realizes_scanBucketLoop, realizes_readPackedGen, realizes_fpOfQuotRt]
   all_goals (
     rcases d with ⟨⟨⟨crt, hrt⟩, salt⟩, idx⟩
     dsimp only [CsrFpAtPre] at h
@@ -1683,8 +1668,7 @@ private theorem realizes_chkFpInnerStep :
       ChkFpInnerStepPre
       (fun _ _ => 0) := by
   unfold chkFpInnerStepProg
-  have hfp := realizes_csrFpAt
-  realize
+  realize [realizes_csrFpAt]
   all_goals (
     rcases d with ⟨⟨⟨⟨⟨crt, hrt⟩, salt⟩, lo⟩, target⟩, j, ok⟩
     dsimp only [ChkFpInnerStepPre] at h
@@ -1827,9 +1811,7 @@ private theorem realizes_chkFpOuterStep :
       ChkFpOuterStepPre
       (fun _ _ => 0) := by
   unfold chkFpOuterStepProg
-  have hfp := realizes_csrFpAt
-  have hin := realizes_chkFpInnerLoop
-  realize
+  realize [realizes_csrFpAt, realizes_chkFpInnerLoop]
   all_goals (
     rcases d with ⟨⟨⟨⟨crt, hrt⟩, salt⟩, lo⟩, t, ok⟩
     dsimp only [ChkFpOuterStepPre] at h
@@ -2002,9 +1984,8 @@ private theorem realizes_findSaltStep :
       FindSaltStepPre
       (fun _ _ => 0) := by
   unfold findSaltStepProg
-  have hfo := realizes_chkFpOuterLoop
   have hcs_r : ∀ a s', (Memory.spec 0).clientState s' (Memory.read a) = s' := fun _ _ => rfl
-  realize
+  realize [realizes_chkFpOuterLoop]
   all_goals (
     rcases d with ⟨⟨⟨crt, hrt⟩, lo, len⟩, salt, prev⟩
     dsimp only [FindSaltStepPre] at h
@@ -2181,8 +2162,7 @@ private theorem realizes_writeSaltResult :
       WriteSaltResultPre
       (fun _ _ => 0) := by
   unfold writeSaltResultProg
-  have hwp := realizes_writePackedGen
-  realize
+  realize [realizes_writePackedGen]
   all_goals (
     rcases d with ⟨⟨⟨⟨base, offBm⟩, gBits, w_in⟩, sMax, b⟩, allOk, s1⟩
     dsimp only [WriteSaltResultPre] at h
@@ -2294,11 +2274,8 @@ private theorem realizes_findSaltsBktStep :
       FindSaltsBktStepPre
       (fun _ _ => 0) := by
   unfold findSaltsBktStepProg
-  have hrp := realizes_readPackedGen
-  have hfsl := realizes_findSaltLoop
-  have hws := realizes_writeSaltResult
   have hcs : ∀ y s', (Memory.spec 0).clientState s' (readPackedGenProg y) = s' := fun _ _ => rfl
-  realize
+  realize [realizes_readPackedGen, realizes_findSaltLoop, realizes_writeSaltResult]
   all_goals (
     rcases d with ⟨⟨crt, hrt⟩, b, allOk⟩
     dsimp only [FindSaltsBktStepPre] at h
@@ -2725,12 +2702,9 @@ private theorem realizes_checkGoodSeedBody :
       (fun w d s => ChkHashEnv w d.1 d.2 s)
       (fun _ _ => 0) := by
   unfold checkGoodSeedBodyProg
-  have hrp := realizes_readPackedGen
-  have hbl := realizes_chkBalLoop
-  have hrl := realizes_chkRKeyOuterLoop
-  have hsl := realizes_findSaltsBktLoop
   have hcs : ∀ y s', (Memory.spec 0).clientState s' (readPackedGenProg y) = s' := fun _ _ => rfl
-  realize
+  realize [realizes_readPackedGen, realizes_chkBalLoop, realizes_chkRKeyOuterLoop,
+      realizes_findSaltsBktLoop]
   all_goals (
     rcases d with ⟨crt, hrt⟩
     obtain ⟨c, U, V, w₀, n_max, θ, henv, heq_crt, heq_hrt, hseed⟩ := h
@@ -2779,10 +2753,7 @@ theorem realizes_checkGoodSeedOnStateGen :
           SeedWhpMemRep base c U w₀ n_max θ s.mem)
       (fun _ _ => 0) := by
   unfold checkGoodSeedOnStateGenProg
-  have hmc := realizes_mkChkRtGen
-  have hmh := realizes_mkHashRtGen
-  have hbd := realizes_checkGoodSeedBody
-  realize
+  realize [realizes_mkChkRtGen, realizes_mkHashRtGen, realizes_checkGoodSeedBody]
   all_goals (
     rcases d with ⟨wp, base⟩
     obtain ⟨c, U, V, w₀, n_max, θ, henv, rfl, hseed⟩ := h

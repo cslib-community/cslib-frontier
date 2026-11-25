@@ -146,7 +146,7 @@ theorem answer_inSpace : ComputableInSpace (answer (k := k) (Q := Q))
   have hleft := (snd (QueryGate.encParams Interpolation.encContext) (encPair encNat encNat)).snd'
   exact sumElim hleft
     (budget_const (encIn := encPair (QueryGate.encState Interpolation.encContext)
-      (SupplierChunk.encState (k := k) (Q := Q))) (encB := encNat) 0 (.refl _))
+      (SupplierChunk.encState (k := k) (Q := Q))) (encB := encNat) 0)
 
 /-- Resumption charges the appended returned coordinate and the retained output prefix. -/
 theorem resume_inSpace : ComputableInSpace
@@ -179,7 +179,7 @@ theorem request_inSpace : ComputableInSpace (request (k := k) (Q := Q)) encCalle
         (enc₁ := Interpolation.encState (k := k) (Q := Q))).inO_one)
       (start_inSpace (k := k) (Q := Q))
   refine (budget_ite (budget_natLt hchunk hcount) hSome
-    (budget_const (encB := encOption Interpolation.encState) none (.refl _))).of_enc_eq ?_
+    (budget_const (encB := encOption Interpolation.encState) none)).of_enc_eq ?_
   rintro ⟨⟨params, count⟩, chunk, values⟩
   by_cases h : chunk < count <;> simp [request, h]
 
@@ -189,15 +189,15 @@ theorem initial_inSpace : ComputableInSpace (initial (k := k) (Q := Q)) encParam
   have hid : ComputableInSpace (fun a : Params => a) encParams encParams
       (fun a => (encParams a).length) := of_inO (ComputableInO.of_eq (f := id) fun _ => rfl)
   have hcaller := budget_prod hid (budget_prod
-    (budget_const (encB := encNat) 0 (.refl _))
-    (budget_const (encB := encList encNat) [] (.refl _)))
+    (budget_const (encB := encNat) 0)
+    (budget_const (encB := encList encNat) []))
   exact (budget_comp_linear
     (of_inO (ComputableInO.inl encCaller
       (encPair encCaller (Interpolation.encState (k := k) (Q := Q))))) hcaller).of_enc_eq
         fun _ => rfl
 
 private theorem caller_query_inSpace : ComputableInSpace caller.query encCaller encNat
-    (fun a => (encCaller a).length) := budget_const 0 (.refl _)
+    (fun a => (encCaller a).length) := budget_const 0
 
 private theorem caller_next_inSpace : ComputableInSpace caller.next
     (encPair encCaller (encOption encBool)) encCaller
@@ -206,7 +206,7 @@ private theorem caller_next_inSpace : ComputableInSpace caller.next
 
 private theorem caller_emit_inSpace : ComputableInSpace caller.emit
     (encPair encCaller (encOption encBool)) encBits
-    (fun a => (encPair encCaller (encOption encBool) a).length) := budget_const [] (.refl _)
+    (fun a => (encPair encCaller (encOption encBool) a).length) := budget_const []
 
 private theorem caller_halted_inSpace : ComputableInSpace caller.halted encCaller encBool
     (fun a => (encCaller a).length) := by
@@ -222,7 +222,7 @@ private theorem caller_halted_inSpace : ComputableInSpace caller.halted encCalle
         simp [caller, h, hn]
 
 private theorem caller_finish_inSpace : ComputableInSpace caller.finish encCaller encBits
-    (fun a => (encCaller a).length) := budget_const [] (.refl _)
+    (fun a => (encCaller a).length) := budget_const []
 
 /-- The active interpolation callee reads the same original query input. -/
 theorem machine_query_inSpace (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) :

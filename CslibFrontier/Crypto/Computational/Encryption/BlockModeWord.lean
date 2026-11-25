@@ -19,7 +19,7 @@ import CslibFrontier.Languages.Probabilistic.QueryCount.Scale
 In the asymptotic CPA game `symmetricCPAGameOn blockPairValid`, an adversary at parameter `n`
 submits pairs of words. `blockModeWordAdversary adversary n` reads it as a `BlockModeAdversary n`
 for the typed experiments of `RandomFunctionHybrid.lean`. An admissible request `(m₀, m₁)` becomes
-the query made of their `n`-bit blocks (`BitString.padBlocks`); the answer `(iv, cs)` is flattened
+the query made of their `n`-bit blocks (`BitString.toBlocks`); the answer `(iv, cs)` is flattened
 back into the word `iv ++ cs`. Inadmissible requests are answered with `[]` and no query. Word-level
 reductions for block modes are compared with the typed reductions through this adapter, which
 inherits a block budget from the word adversary's query budget.
@@ -31,7 +31,7 @@ inherits a block budget from the word adversary's query budget.
 
 ## Main results
 
-* `Cslib.Crypto.blockModeSelect_padBlocks`: an admissible pair of at most `ℓ` blocks selects the
+* `Cslib.Crypto.blockModeSelect_toBlocks`: an admissible pair of at most `ℓ` blocks selects the
   blocks of the chosen message.
 * `Cslib.Crypto.isCostBounded_blockModeWordAdversary`: `Q` requests ask for at most `Q * ℓ`
   blocks when the queries are capped at `ℓ` blocks each.
@@ -55,7 +55,7 @@ def blockModeWordQuery (n : ℕ) (request : Unit × List Bool) :
     (fun answer : BitString n × List (BitString n) =>
         List.ofFn answer.1 ++ answer.2.flatMap List.ofFn) <$>
       ProbOracleComp.query (spec := BlockModeSpec n)
-        (BitString.padBlocks n m0.length m0, BitString.padBlocks n m1.length m1)
+        (BitString.toBlocks n m0, BitString.toBlocks n m1)
   else
     pure []
 
@@ -68,17 +68,17 @@ noncomputable def blockModeWordAdversary (adversary : OracleDistinguisher) (n : 
 
 /-- An admissible pair whose messages have at most `ℓ` blocks selects the blocks of the message
 chosen by `bit`. -/
-theorem blockModeSelect_padBlocks {n ℓ : ℕ} {m₀ m₁ : List Bool} (bit : Bool)
+theorem blockModeSelect_toBlocks {n ℓ : ℕ} {m₀ m₁ : List Bool} (bit : Bool)
     (hvalid : blockPairValid n m₀ m₁ = true) (hℓ : m₀.length / n ≤ ℓ) :
     blockModeSelect ℓ bit
-        (BitString.padBlocks n m₀.length m₀, BitString.padBlocks n m₁.length m₁) =
-      BitString.padBlocks n (if bit then m₁ else m₀).length (if bit then m₁ else m₀) := by
+        (BitString.toBlocks n m₀, BitString.toBlocks n m₁) =
+      BitString.toBlocks n (if bit then m₁ else m₀) := by
   have hlen : m₀.length = m₁.length := by
     simpa [blockPairValid] using ((Bool.and_eq_true _ _).mp hvalid).1
-  have hcond : (BitString.padBlocks n m₀.length m₀).length =
-      (BitString.padBlocks n m₁.length m₁).length ∧
-      (BitString.padBlocks n m₀.length m₀).length ≤ ℓ := by
-    rw [BitString.length_padBlocks, BitString.length_padBlocks, ← hlen]
+  have hcond : (BitString.toBlocks n m₀).length =
+      (BitString.toBlocks n m₁).length ∧
+      (BitString.toBlocks n m₀).length ≤ ℓ := by
+    rw [BitString.length_toBlocks, BitString.length_toBlocks, ← hlen]
     exact ⟨rfl, hℓ⟩
   rw [blockModeSelect, ite_eq_left hcond]
   cases bit <;> rfl
