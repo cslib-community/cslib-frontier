@@ -63,7 +63,9 @@ variable {ι : Type*} [Fintype ι] [DecidableEq ι]
 private theorem card_filter_dotProduct_eq_zero_mul_two {x : ι → ZMod 2} (hx : x ≠ 0) :
     #{r : ι → ZMod 2 | r ⬝ᵥ x = 0} * 2 = 2 ^ Fintype.card ι := by
   have hsign (z : ZMod 2) : (-1 : ℝ) ^ z.val = if z = 0 then 1 else -1 := by
-    rcases (by revert z; decide : z = 0 ∨ z = 1) with rfl | rfl <;> simp [ZMod.val_one]
+    obtain rfl | rfl : z = 0 ∨ z = 1 := by revert z; decide
+    · simp
+    · simp [ZMod.val_one]
   have h := sum_neg_one_pow_val_dotProduct x
   simp only [hx, ite_false, hsign, sum_ite, sum_const, nsmul_eq_mul, mul_one, mul_neg] at h
   have hsplit := card_filter_add_card_filter_not (s := (univ : Finset (ι → ZMod 2)))
@@ -82,13 +84,16 @@ theorem exists_mulVec_ne_zero_of_card_lt {B : Finset (ι → ZMod 2)} (h0 : 0 �
     (hB : #B < 2 ^ c) : ∃ H : Matrix (Fin c) ι (ZMod 2), ∀ x ∈ B, H *ᵥ x ≠ 0 := by
   classical
   by_contra! hbad
-  have hle := (card_le_card (s := (univ : Finset (Matrix (Fin c) ι (ZMod 2))))
-    (t := B.biUnion fun x => {H | ∀ y ∈ ({x} : Finset _), H *ᵥ y = 0}) fun H _ =>
-      let ⟨x, hx, hHx⟩ := hbad H; mem_biUnion.2 ⟨x, hx, by simpa using hHx⟩).trans card_biUnion_le
-  rw [sum_congr rfl fun x _ => card_filter_forall_mulVec_eq_zero {x} c, card_univ,
-    show Fintype.card (Matrix (Fin c) ι (ZMod 2)) = 2 ^ (Fintype.card ι * c) by
-      change Fintype.card (Fin c → ι → ZMod 2) = _
-      simp [ZMod.card, ← pow_mul, mul_comm]] at hle
+  have hcover : (univ : Finset (Matrix (Fin c) ι (ZMod 2))) ⊆
+      B.biUnion fun x => {H : Matrix (Fin c) ι (ZMod 2) | ∀ y ∈ ({x} : Finset _), H *ᵥ y = 0} := by
+    intro H _
+    obtain ⟨x, hx, hHx⟩ := hbad H
+    exact mem_biUnion.2 ⟨x, hx, by simpa using hHx⟩
+  have hle := (card_le_card hcover).trans card_biUnion_le
+  have hcard : Fintype.card (Matrix (Fin c) ι (ZMod 2)) = 2 ^ (Fintype.card ι * c) := by
+    change Fintype.card (Fin c → ι → ZMod 2) = _
+    simp [ZMod.card, ← pow_mul, mul_comm]
+  rw [sum_congr rfl fun x _ => card_filter_forall_mulVec_eq_zero {x} c, card_univ, hcard] at hle
   have hsum : (∑ x ∈ B, #{r : ι → ZMod 2 | ∀ y ∈ ({x} : Finset _), r ⬝ᵥ y = 0} ^ c) * 2 ^ c =
       #B * 2 ^ (Fintype.card ι * c) := by
     rw [sum_mul, sum_congr rfl fun x hx => ?_, sum_const, smul_eq_mul]
@@ -138,7 +143,8 @@ theorem exists_linearMap_injective_and_le_hammingDist {δ : ℝ} (hδ₀ : 0 ≤
   -- The kernel of `H` has dimension at least `n`.
   have hdim : n ≤ Module.finrank (ZMod 2) (parityCheckCode H) := by
     have := card_le_finrank_parityCheckCode_add H
-    simp only [Fintype.card_fin] at this; omega
+    simp only [Fintype.card_fin] at this
+    omega
   obtain ⟨f, hf⟩ := Module.Free.exists_linearMap_injective_of_linearIndependent_of_rank_le
     (M := Fin n → ZMod 2) (Module.finBasis (ZMod 2) (parityCheckCode H)).linearIndependent
     (by rw [rank_fin_fun, Cardinal.mk_fin]; exact_mod_cast hdim)
@@ -153,8 +159,9 @@ theorem exists_linearMap_injective_and_le_hammingDist {δ : ℝ} (hδ₀ : 0 ≤
 /-- `1 - H(δ)` is positive for `0 ≤ δ < 1 / 2`. -/
 private theorem sub_binEntropy_div_log_two_pos {δ : ℝ} (hδ : δ < 1 / 2) :
     0 < 1 - binEntropy δ / log 2 := by
-  rw [sub_pos, div_lt_one (log_pos one_lt_two)]
-  exact binEntropy_lt_log_two.2 (by norm_num; linarith)
+  rw [sub_pos, div_lt_one (log_pos one_lt_two), binEntropy_lt_log_two]
+  norm_num at hδ ⊢
+  linarith
 
 /-- **Constant-rate codes exist** [Arora and Barak, Lemma 17.9][AroraBarak09]. For `0 ≤ δ < 1 / 2`
 and every `n`, there is an injective map `E : {0,1}ⁿ → {0,1}ᵐ`, here linear, with

@@ -140,10 +140,12 @@ theorem rand {dst src : Fin r} (hfit : Fits w (x.regs src))
     ExecRandLaw (B := B) w (.rand dst src) x P 1 1 f
       ((Probability.PMF.uniformOfFintype (Fin (x.regs src + 1))).map
         fun k => f (x.set dst k.val)) := by
-  refine ⟨_, ExecRand.rand hfit, ?_, fun z hz => ?_, ?_⟩
+  refine ⟨_, ExecRand.rand hfit, ?_, ?_, ?_⟩
   · simpa only [Nat.add_zero] using
       (ProbComp.isQueryBounded_unifFin (x.regs src)).bind fun _ => .pure _ 0
-  · supp_cases hz with ⟨k, rfl⟩; exact ⟨hk k, le_rfl⟩
+  · intro z hz
+    supp_cases hz with ⟨k, rfl⟩
+    exact ⟨hk k, le_rfl⟩
   · simp only [map_bind, map_pure, ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_unifFin]
     rfl
 
@@ -196,8 +198,10 @@ theorem foldr_seq_det {y : Data r} (cs : List (Code B r)) {last : Code B r}
 theorem seq_det_right (h₁ : ExecRandLaw w c₁ x P T₁ R f μ)
     (h₂ : ∀ y, P y → ∃ y', ExecWithin w c₂ y y' T₂ ∧ Q y' ∧ f y' = f y) :
     ExecRandLaw w (.seq c₁ c₂) x Q (T₁ + T₂) R f μ := by
-  simpa only [PMF.bind_pure, Nat.add_zero] using seq (g := f) (κ := PMF.pure) (R₂ := 0) h₁
-    fun y hy => by obtain ⟨y', hy', hQ, hf⟩ := h₂ y hy; exact hf ▸ of_execWithin hy' hQ
+  simpa only [PMF.bind_pure, Nat.add_zero] using
+    seq (g := f) (κ := PMF.pure) (R₂ := 0) h₁ fun y hy => by
+      obtain ⟨y', hy', hQ, hf⟩ := h₂ y hy
+      exact hf ▸ of_execWithin hy' hQ
 
 /-- A `rand` instruction followed by deterministic code: drawing `k` uniformly from
 `[0, x.regs src]` leads to `y k`. -/

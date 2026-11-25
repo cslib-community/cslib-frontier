@@ -143,9 +143,13 @@ theorem prob_subset_load_ge_le_exp (G : LoadBalancingGame ι M) {p : ι → M �
   have hmean' : ∑ i : ι, ∑ a : M, (pmf i a).toReal * score i a ≤ μ / z := by
     refine (?_ : _ = (∑ i ∈ S, p i j * (G.weight i / G.speed j)) / z).trans_le
       (div_le_div_of_nonneg_right hmean hz.le)
-    rw [sum_div, show ∑ i ∈ S, p i j * (G.weight i / G.speed j) / z =
-      ∑ i : ι, if i ∈ S then p i j * (G.weight i / G.speed j) / z else 0 by
-        rw [← sum_filter]; refine sum_congr (by ext; simp) fun _ _ => rfl]
+    have hsub1 : ∑ i ∈ S, p i j * (G.weight i / G.speed j) / z =
+        ∑ i : ι, if i ∈ S then p i j * (G.weight i / G.speed j) / z else 0 := by
+      rw [← sum_filter]
+      refine sum_congr ?_ fun _ _ => rfl
+      ext
+      simp
+    rw [sum_div, hsub1]
     refine sum_congr rfl fun i _ => ?_
     rw [sum_eq_single j (fun a _ ha => by simp [score, ha]) (by simp)]
     by_cases hi : i ∈ S <;> simp [score, pmf, hi, mixedStrategyToPMF_toReal, mul_div_assoc]
@@ -165,9 +169,13 @@ theorem prob_subset_load_ge_le_exp (G : LoadBalancingGame ι M) {p : ι → M �
   refine sum_congr rfl fun A _ => ?_
   have hsum_score : ∑ i : ι, score i (A i) =
       (∑ i ∈ S with A i = j, G.weight i / G.speed j) / z := by
-    rw [sum_filter, sum_div, show ∑ i ∈ S, (if A i = j then G.weight i / G.speed j else 0) / z =
-      ∑ i : ι, if i ∈ S then (if A i = j then G.weight i / G.speed j else 0) / z else 0 by
-        rw [← sum_filter]; refine sum_congr (by ext; simp) fun _ _ => rfl]
+    have hsub2 : ∑ i ∈ S, (if A i = j then G.weight i / G.speed j else 0) / z =
+        ∑ i : ι, if i ∈ S then (if A i = j then G.weight i / G.speed j else 0) / z else 0 := by
+      rw [← sum_filter]
+      refine sum_congr ?_ fun _ _ => rfl
+      ext
+      simp
+    rw [sum_filter, sum_div, hsub2]
     refine sum_congr rfl fun i _ => ?_
     by_cases hi : i ∈ S <;> by_cases hA : A i = j <;> simp [score, hi, hA]
   simp only [Set.mem_ofPred_eq, hsum_score, div_le_div_iff_of_pos_right hz]
@@ -194,12 +202,15 @@ theorem IsIdentical.expectedLoad_le_two_mul_optMakespan {G : LoadBalancingGame �
       have hpij_le1 : p i j ≤ 1 :=
         hp1 i ▸ single_le_sum (fun m _ => (hp.1 i).nonneg m) (mem_univ j)
       nlinarith [(hp.1 i).nonneg k, G.weight_nonneg i]
+    have hload := G.sum_speed_mul_expectedLoad hp1
+    simp_rw [hId _, one_mul] at hload
     have hsum : (Fintype.card M : ℝ) * G.expectedLoad p j ≤
-        (∑ r : ι, G.weight r) + (Fintype.card M : ℝ) * G.weight i := by
-      have hload := G.sum_speed_mul_expectedLoad hp1
-      simp_rw [hId _, one_mul] at hload
-      simpa only [sum_add_distrib, sum_const, card_univ, nsmul_eq_mul, hload] using
-        (sum_le_sum fun k (_ : k ∈ univ) => hle_k k)
+        (∑ r : ι, G.weight r) + (Fintype.card M : ℝ) * G.weight i :=
+      calc (Fintype.card M : ℝ) * G.expectedLoad p j
+          = ∑ _k : M, G.expectedLoad p j := by rw [sum_const, card_univ, nsmul_eq_mul]
+        _ ≤ ∑ k : M, (G.expectedLoad p k + G.weight i) := sum_le_sum fun k _ => hle_k k
+        _ = (∑ r : ι, G.weight r) + (Fintype.card M : ℝ) * G.weight i := by
+              rw [sum_add_distrib, sum_const, card_univ, nsmul_eq_mul, hload]
     have hm_pos : (0 : ℝ) < Fintype.card M := Nat.cast_pos.mpr Fintype.card_pos
     nlinarith [hId.sum_weight_le_card_mul_optMakespan, hId.weight_le_optMakespan i]
   · push Not at hpos
@@ -405,11 +416,13 @@ theorem IsIdentical.expectedMakespan_le_seven_mul_optMakespan_of_weight_le
       field_simp [hopt_pos.ne', hlogm_pos.ne']
       ring
     simp only [hload, hexp_eq] at hch
-    refine hch.trans ((Real.exp_le_exp.mpr
-      (by nlinarith : _ ≤ -(2 * Real.log (m : ℝ)))).trans_eq ?_)
-    rw [Real.exp_neg,
-      show (2 : ℝ) * Real.log (m : ℝ) = ((2 : ℕ) : ℝ) * Real.log (m : ℝ) by norm_num,
-      Real.exp_nat_mul, Real.exp_log hm_pos, one_div]
+    calc (∑ A : ι → M, if 6 * G.optMakespan ≤ G.load A j then productWeight p A else 0)
+        ≤ Real.exp ((4 - 6 * Real.log 3) * Real.log (m : ℝ)) := hch
+      _ ≤ Real.exp (-(2 * Real.log (m : ℝ))) := Real.exp_le_exp.mpr (by nlinarith)
+      _ = 1 / (m : ℝ) ^ 2 := by
+          rw [Real.exp_neg,
+            show (2 : ℝ) * Real.log (m : ℝ) = ((2 : ℕ) : ℝ) * Real.log (m : ℝ) by norm_num,
+            Real.exp_nat_mul, Real.exp_log hm_pos, one_div]
 
 end IdenticalMixedPoA
 

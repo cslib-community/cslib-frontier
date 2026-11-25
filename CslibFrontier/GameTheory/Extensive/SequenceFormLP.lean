@@ -120,7 +120,9 @@ theorem exists_seqMat_transpose_mulVec_ge [DecidableEq ι] [∀ j h, Finite (Act
   have hdiff : ∀ k : ℕ, k + 1 ≤ maxLen →
       M * r ^ (maxLen - k) - (Fintype.card S : ℝ) * (M * r ^ (maxLen - (k + 1))) =
         M * r ^ (maxLen - (k + 1)) := fun k hk => by
-    rw [show maxLen - k = (maxLen - (k + 1)) + 1 by omega, pow_succ]; dsimp only [r]; ring
+    rw [show maxLen - k = (maxLen - (k + 1)) + 1 by omega, pow_succ]
+    dsimp only [r]
+    ring
   have hsome_no_ext : ∀ (σ : SeqVar T i) (h : S),
       (∀ a : Act i h.1, SeqVar.infoSeqExt hpr h.2 a ≠ σ) →
       (seqMat T i *ᵥ Pi.single σ (1 : ℝ)) (some h) =
@@ -155,7 +157,13 @@ theorem exists_seqMat_transpose_mulVec_ge [DecidableEq ι] [∀ j h, Finite (Act
       have hcard : (U.card : ℝ) ≤ Fintype.card S := by exact_mod_cast card_le_univ U
       have hmul := mul_le_mul_of_nonneg_right hcard
         (show 0 ≤ M * r ^ (maxLen - (k + 1)) by positivity)
-      linarith [hdiff k hlen1, hbM σ, hpow_ge (maxLen - (k + 1))]
+      calc b σ
+          ≤ M * r ^ (maxLen - (k + 1)) := (hbM σ).trans (hpow_ge (maxLen - (k + 1)))
+        _ = M * r ^ (maxLen - k) - (Fintype.card S : ℝ) * (M * r ^ (maxLen - (k + 1))) :=
+            (hdiff k hlen1).symm
+        _ ≤ M * r ^ (maxLen - k) +
+              ∑ h ∈ U, p (some h) * (if T.infoSeq i h.1 = σ.1 then (-1 : ℝ) else 0) := by
+            linarith
     · push Not at hex
       rw [sum_eq_zero fun h hh => by simp [hex h hh], add_zero]
       exact (hbM σ).trans (hpow_ge _)
@@ -247,15 +255,19 @@ theorem exists_isGreatest_isLeast_seqLP [DecidableEq ι] [∀ j h, Fintype (Act 
       let f := fun r => max (q r) 0
       let g := fun r => max (-q r) 0
       have hfg : f - g = q := funext fun r => max_sub_max_neg (q r)
-      exact ⟨Sum.elim f g, ⟨fun r => by cases r <;> simp [f, g],
-        by rw [(hvec_elim f g).1, hfg]; exact hq⟩, by rw [(hvec_elim f g).2, hfg]⟩
+      refine ⟨Sum.elim f g, ⟨fun r => by cases r <;> simp [f, g], ?_⟩, ?_⟩
+      · rw [(hvec_elim f g).1, hfg]
+        exact hq
+      · rw [(hvec_elim f g).2, hfg]
   have hP : ∃ x, 0 ≤ x ∧ A *ᵥ x ≤ rhs :=
     ⟨_, (hAx_iff _).2 (isRealizationPlan_pureToRealizationPlan hpr fun _ => Classical.arbitrary _)⟩
   obtain ⟨q₀, hq₀⟩ := exists_seqMat_transpose_mulVec_ge hpr b
   obtain ⟨y₀, hy₀, _⟩ := hdualLift q₀ hq₀
   obtain ⟨v, ⟨⟨xOpt, hxOpt, hvx⟩, hmax⟩, ⟨⟨yOpt, ⟨_, hyOpt_le⟩, hvy⟩, hmin⟩⟩ :=
     Matrix.exists_isGreatest_isLeast_dotProduct_of_nonneg A rhs b hP ⟨y₀, hy₀⟩
-  have hyOpt_eq : yOpt = Sum.elim (yOpt ∘ .inl) (yOpt ∘ .inr) := by ext r; cases r <;> rfl
+  have hyOpt_eq : yOpt = Sum.elim (yOpt ∘ .inl) (yOpt ∘ .inr) := by
+    ext r
+    cases r <;> rfl
   obtain ⟨hvf, hvo⟩ := hvec_elim (yOpt ∘ .inl) (yOpt ∘ .inr)
   rw [← hyOpt_eq] at hvf hvo
   refine ⟨v, ⟨⟨xOpt, (hAx_iff xOpt).1 hxOpt, hvx⟩,
@@ -280,9 +292,10 @@ private theorem isRealizationPlan_max_iff_dual [DecidableEq ι] [∀ j h, Fintyp
     fun x' q hx' => by
       rw [Matrix.dotProduct_mulVec, Matrix.vecMul_transpose, hx'.2, seqRhs_dotProduct]
   have hweak : ∀ x' q, T.IsRealizationPlan i x' → c ≤ (seqMat T i)ᵀ *ᵥ q → c ⬝ᵥ x' ≤ q none :=
-    fun x' q hx' hq => by
-      rw [dotProduct_comm, ← hxEq x' q hx']
-      exact dotProduct_le_dotProduct_of_nonneg_left hq hx'.1
+    fun x' q hx' hq =>
+      calc c ⬝ᵥ x' = x' ⬝ᵥ c := dotProduct_comm _ _
+        _ ≤ x' ⬝ᵥ ((seqMat T i)ᵀ *ᵥ q) := dotProduct_le_dotProduct_of_nonneg_left hq hx'.1
+        _ = q none := hxEq x' q hx'
   refine ⟨fun ⟨hx, hbest⟩ => ?_, fun ⟨hx, q, hq, hcs⟩ => ⟨hx, fun x' hx' => ?_⟩⟩
   · obtain ⟨v, ⟨⟨xMax, hxMax, hvx⟩, hmax⟩, ⟨⟨q, hq, hvq⟩, _⟩⟩ :=
       exists_isGreatest_isLeast_seqLP hpr c
@@ -617,15 +630,17 @@ private theorem exists_behavior_diff_eq_single [∀ i h, Nonempty (Act i h)]
           cases post with
           | nil => exact hτ (Subtype.ext (by rw [SeqVar.infoSeqExt_val, hsplit, hpre_eq]))
           | cons q post' =>
-            have hq_fst : q.1 ∈ target.map Sigma.fst :=
-              List.mem_map.2 ⟨q, hall q (by rw [hsplit]; simp), rfl⟩
+            have hq_mem : q ∈ τ.1 := by
+              rw [hsplit]
+              simp
+            have hq_fst : q.1 ∈ target.map Sigma.fst := List.mem_map.2 ⟨q, hall q hq_mem, rfl⟩
             have hzn := hpr.noRepeatedInfoSet z
             rw [← hz, List.map_append] at hzn
             have hnodup : (τ.1.map Sigma.fst).Nodup := List.Nodup.of_append_left hzn
-            rw [show τ.1 = target ++ q :: post' by
-                rw [hsplit, hpre_eq]
-                simp [target, List.append_assoc],
-              List.map_append, List.nodup_append] at hnodup
+            have hsplit' : τ.1 = target ++ q :: post' := by
+              rw [hsplit, hpre_eq]
+              simp [target, List.append_assoc]
+            rw [hsplit', List.map_append, List.nodup_append] at hnodup
             exact hnodup.2.2 q.1 hq_fst q.1 List.mem_cons_self rfl
         · rw [realizationProbBehavior_congr β₁ β₀ fun ⟨ph, pa⟩ hp => by
             have hne : (⟨ph, pa⟩ : Choice H Act i) ≠ ⟨h₀, a₀⟩ := fun h => hmem (h ▸ hp)
@@ -798,7 +813,8 @@ theorem exists_seq_lp_minimax [∀ i h, Fintype (Act i h)] [∀ i h, Nonempty (A
         rw [Fintype.sum_sum_type]
         dsimp only [M]
         simp only [Sum.elim_inl, Sum.elim_inr, zero_mul, sum_const_zero, add_zero, neg_mul,
-          sum_neg_distrib]; rfl
+          sum_neg_distrib]
+        rfl
     have hlcp : ∀ τ, (M *ᵥ Sum.elim x q) (.inr (.inr (.inr τ))) =
         -((A₀ᵀ *ᵥ x) τ) + (E₂ᵀ *ᵥ q) τ := fun τ => by
       rw [Matrix.mulVec, dotProduct]
@@ -842,7 +858,8 @@ theorem exists_seq_lp_minimax [∀ i h, Fintype (Act i h)] [∀ i h, Nonempty (A
       rw [Fintype.sum_sum_type, Fintype.sum_sum_type, Fintype.sum_sum_type]
       simp only [Sum.elim_inl, Sum.elim_inr]
       have hs : ∑ σ₀ : SeqVar T false, s σ₀ * (if σ₀ = σ then (-1 : ℝ) else 0) = -s σ := by
-        rw [sum_eq_single σ (fun _ _ hne => by simp [hne]) (fun h => absurd (mem_univ σ) h)]; simp
+        rw [sum_eq_single σ (fun _ _ hne => by simp [hne]) (fun h => absurd (mem_univ σ) h)]
+        simp
       rw [hs]
       simp only [Matrix.mulVec, dotProduct, Matrix.transpose_apply, Pi.sub_apply, mul_neg,
         sum_neg_distrib, sub_eq_add_neg]
@@ -926,7 +943,9 @@ theorem exists_seq_lp_minimax [∀ i h, Fintype (Act i h)] [∀ i h, Nonempty (A
   dsimp only at hval_u hval_v
   let xStar : SeqVar T false → ℝ := uStar ∘ .inl
   let qStar : S₂ → ℝ := uStar ∘ .inr
-  have huStar_eq : uStar = Sum.elim xStar qStar := by ext c; cases c <;> rfl
+  have huStar_eq : uStar = Sum.elim xStar qStar := by
+    ext c
+    cases c <;> rfl
   have hxStar_qStar := (hM_mulVec xStar qStar).1 (huStar_eq ▸ huStar_le)
   have hqStar_val : qStar none = val := by rw [← hval_u, huStar_eq, hobj_eval]
   let sStar : SeqVar T false → ℝ := fun σ => vStar (.inl σ)
@@ -951,7 +970,8 @@ theorem exists_seq_lp_minimax [∀ i h, Fintype (Act i h)] [∀ i h, Nonempty (A
     le_antisymm (hpStar_val ▸ hweak_opt.2) (hqStar_val ▸ hweak_opt.1)
   have hbr0 : T.IsSeqBestResponseFalse xStar yStar :=
     ⟨hxStar_qStar.1, fun x' hx' => by
-      have hw := seq_weak_duality_upper hx' hpStar_feas; rwa [hpStar_val, ← hmid] at hw⟩
+      have hw := seq_weak_duality_upper hx' hpStar_feas
+      rwa [hpStar_val, ← hmid] at hw⟩
   have hbr1 : T.IsSeqBestResponseTrue yStar xStar :=
     ⟨hyStar_feas, fun y' hy' => by
       have hw := seq_weak_duality_lower hy' hxStar_qStar.2

@@ -280,7 +280,8 @@ private theorem processNodeStep_full {w : ℕ} (inst : MWISInstance) (descBase :
         ≤ prefixMaxSum tblList (k + 1) + B := by
           dsimp only [capO, capB, jFin] at h1 h2 ⊢
           omega
-      _ ≤ (n - (k + 1) + 1) * B := by rw [Nat.succ_mul]; exact Nat.add_le_add_right hpfx B
+      _ ≤ (n - (k + 1)) * B + B := Nat.add_le_add_right hpfx B
+      _ = (n - (k + 1) + 1) * B := by rw [Nat.succ_mul]
       _ ≤ (n + 1) * B := Nat.mul_le_mul_right B (by dsimp only [n]; omega)
       _ = (n + 1) * M * W := (Nat.mul_assoc (n + 1) M W).symm
   have hfit_capB : Fits w capB := hfit_val.of_le (by dsimp only [n, M, W] at hsum_caps_le; omega)
@@ -311,7 +312,7 @@ private theorem processNodeStep_full {w : ℕ} (inst : MWISInstance) (descBase :
     (by simpa only [hj_tlen] using hj_tbl.1)
     (hp_bag.mono_frontier hp_a) rfl (hp_blo.trans (le_trans (by omega) hlay.desc_hi))
     hbest_init List.length_replicate
-    (fun x hx => by rw [List.eq_of_mem_replicate hx]; exact Nat.zero_le _) hcand_le hfit_capB
+    (fun _ hx => List.eq_of_mem_replicate hx ▸ Nat.zero_le _) hcand_le hfit_capB
   let t_c := (Memory.spec 0).clientState t_a (childPassProg cpArgs)
   have hlay_c : NodeLayout inst descBase tblList t_c :=
     hlay.mono_frontier (hp_a.trans hp_cp)
@@ -416,78 +417,80 @@ private theorem processNodeStep_full {w : ℕ} (inst : MWISInstance) (descBase :
       (memoryCost (childPassProg cpArgs) t_a +
         memoryCost (parentPassProg ppArgs) t_c)))))))))) ≤ _
     omega
-  refine ⟨hv_step, by rw [hres_ev]; omega,
-    by rw [hst_eq, hfr_pp, hfr_cp]; change t.frontier + tblPLen ≤ t.frontier + 2 ^ M; omega,
+  refine ⟨hv_step, by rw [hres_ev]; omega, ?_,
     by rwa [hst_eq], hpfx_next, hc_step, fun h4 => ?_⟩
-  have h2 : Fits w 2 := h4.of_le (by decide)
-  have hfit_tfr : Fits w t.frontier := hfit_fr.of_le (Nat.le_add_right _ _)
-  dsimp only [a]
-  rw [hp_read, hj_len_m, hj_pow_m, hp_len_m, hp_pow_m]
-  have hdJ_f (off : ℕ) (h : off < 4) : Fits w (descBase + 4 * (k + 1) + off) ∧ Fits w 4 :=
-    ⟨hfit_tfr.of_le (hdJ_lt off h).le, h4⟩
-  have hdP_f (off : ℕ) (h : off < 4) : Fits w (descBase + 4 * pFin.val + off) ∧ Fits w 4 :=
-    ⟨hfit_tfr.of_le (hdP_lt off h).le, h4⟩
-  have hcp_safe : ChildPassPre w cpArgs t_a :=
-    ⟨h2, inst.numVerts, inst.adjMatrix, inst.weights,
-      inst.bagAt jFin, inst.bagAt pFin, tblList jFin, List.replicate tblPLen 0, capB,
-      inst.adjMatrix_len, inst.weights_len, rfl,
-      hlay_a.adj_holds, hlay.adj_holds.1, hlay_a.wt_holds, hlay.wt_holds.1,
-      hj_bag.mono_frontier hp_a, rfl, hj_blo.trans (le_trans (by omega) hlay.desc_hi),
-      inst.bagAt_mem_lt jFin, hj_tbl.mono_frontier hp_a, hj_tlen,
-      by simpa only [hj_tlen] using hj_tbl.1,
-      hp_bag.mono_frontier hp_a, rfl, hp_blo.trans (le_trans (by omega) hlay.desc_hi),
-      hbest_init, List.length_replicate,
-      by have : (inst.bagAt jFin).length * inst.maxWeight ≤ B := Nat.mul_le_mul_right _ hj_len_le
-         dsimp only [cpArgs, capB, B, W, M, MWISInstance.maxWeight] at *; omega,
-      hfit_tfr.of_le (by
-        have h := hlay.adj_holds.1
-        rw [inst.adjMatrix_len] at h
-        dsimp only [cpArgs, m]; omega),
-      hfit_tfr.of_le (by
-        have h := hlay.wt_holds.1
-        rw [inst.weights_len] at h
-        dsimp only [cpArgs]; omega),
-      hfit_tfr.of_le (by have := hj_bag.1; dsimp only [cpArgs, jFin]; omega),
-      hfit_tfr.of_le (by
-        have h := hj_tbl.1
-        rw [hj_tlen] at h
-        dsimp only [cpArgs, jFin]; omega),
-      hfit_tfr.of_le (by have := hp_bag.1; dsimp only [cpArgs]; omega),
-      hfit_fr.of_le (le_trans hp_pow_le (Nat.le_add_left _ _)),
-      hfit_fr.of_le (Nat.add_le_add_left hp_pow_le _), hfit_capB⟩
-  have hpp_safe : ParentPassPre w ppArgs t_c :=
-    ⟨h2, inst.bagAt jFin, inst.bagAt pFin, tblList pFin, bestL, capO, capB,
-      hj_bag.mono_frontier (hp_a.trans hp_cp), rfl,
-      by rw [hj_val] at *; dsimp only [ppArgs]; exact hj_blo.trans (le_trans (by omega) hp_tlo),
-      hp_bag.mono_frontier (hp_a.trans hp_cp), rfl,
-      by dsimp only [ppArgs]; exact hp_blo.trans (le_trans (by omega) hp_tlo),
-      hp_tbl.mono_frontier (hp_a.trans hp_cp), hp_tlen, rfl,
-      by simpa only [hp_tlen] using hp_tbl.1,
-      hbest_cp, hbestL_len, le_rfl, List.foldl_max_le (Nat.zero_le _) hbestL_le,
-      hfit_tfr.of_le (by have := hj_bag.1; dsimp only [ppArgs, jFin]; omega),
-      hfit_tfr.of_le (by have := hp_bag.1; dsimp only [ppArgs]; omega),
-      hfit_tfr.of_le (by
-        have h := hp_tbl.1
-        rw [hp_tlen] at h
-        dsimp only [ppArgs, tblPLen]; omega),
-      hfit_fr.of_le (le_trans hp_pow_le (Nat.le_add_left _ _)),
-      hfit_fr.of_le (Nat.add_le_add_left hp_pow_le _), hfit_sum⟩
-  exact ⟨hfit_tfr.of_le (by dsimp only [a] at hpar_lt_fr; omega),
-    by simpa only [Nat.add_zero] using hdJ_f 0 (by decide), hdJ_f 1 (by decide),
-    hdJ_f 2 (by decide), hdJ_f 3 (by decide),
-    by simpa only [Nat.add_zero] using hdP_f 0 (by decide), hdP_f 1 (by decide),
-    hdP_f 2 (by decide), hdP_f 3 (by decide), hcp_safe, hpp_safe, by omega⟩
-
-private theorem step_frontier_bound {w s_fr t_fr n j M : ℕ} (hj : j + 1 ≤ n)
-    (hfr : t_fr ≤ s_fr + (n - (j + 1)) * 2 ^ M) (hpeak : Fits w (s_fr + n * 2 ^ M)) :
-    t_fr + 2 ^ M ≤ s_fr + (n - j) * 2 ^ M ∧ Fits w (t_fr + 2 ^ M) := by
-  have hsub : t_fr + 2 ^ M ≤ s_fr + (n - j) * 2 ^ M := by
-    calc t_fr + 2 ^ M
-        ≤ (s_fr + (n - (j + 1)) * 2 ^ M) + 2 ^ M := Nat.add_le_add_right hfr _
-      _ = s_fr + (n - (j + 1) + 1) * 2 ^ M := by rw [Nat.add_assoc, ← Nat.succ_mul]
-      _ = s_fr + (n - j) * 2 ^ M := by rw [show n - (j + 1) + 1 = n - j by omega]
-  exact ⟨hsub, hpeak.of_le (hsub.trans (Nat.add_le_add_left
-    (Nat.mul_le_mul_right _ (Nat.sub_le _ _)) _))⟩
+  · rw [hst_eq, hfr_pp, hfr_cp]
+    change t.frontier + tblPLen ≤ t.frontier + 2 ^ M
+    omega
+  · have h2 : Fits w 2 := h4.of_le (by decide)
+    have hfit_tfr : Fits w t.frontier := hfit_fr.of_le (Nat.le_add_right _ _)
+    dsimp only [a]
+    rw [hp_read, hj_len_m, hj_pow_m, hp_len_m, hp_pow_m]
+    have hdJ_f (off : ℕ) (h : off < 4) : Fits w (descBase + 4 * (k + 1) + off) ∧ Fits w 4 :=
+      ⟨hfit_tfr.of_le (hdJ_lt off h).le, h4⟩
+    have hdP_f (off : ℕ) (h : off < 4) : Fits w (descBase + 4 * pFin.val + off) ∧ Fits w 4 :=
+      ⟨hfit_tfr.of_le (hdP_lt off h).le, h4⟩
+    have hcp_safe : ChildPassPre w cpArgs t_a :=
+      ⟨h2, inst.numVerts, inst.adjMatrix, inst.weights,
+        inst.bagAt jFin, inst.bagAt pFin, tblList jFin, List.replicate tblPLen 0, capB,
+        inst.adjMatrix_len, inst.weights_len, rfl,
+        hlay_a.adj_holds, hlay.adj_holds.1, hlay_a.wt_holds, hlay.wt_holds.1,
+        hj_bag.mono_frontier hp_a, rfl, hj_blo.trans (le_trans (by omega) hlay.desc_hi),
+        inst.bagAt_mem_lt jFin, hj_tbl.mono_frontier hp_a, hj_tlen,
+        by simpa only [hj_tlen] using hj_tbl.1,
+        hp_bag.mono_frontier hp_a, rfl, hp_blo.trans (le_trans (by omega) hlay.desc_hi),
+        hbest_init, List.length_replicate,
+        by have : (inst.bagAt jFin).length * inst.maxWeight ≤ B := Nat.mul_le_mul_right _ hj_len_le
+           dsimp only [cpArgs, capB, B, W, M, MWISInstance.maxWeight] at *; omega,
+        hfit_tfr.of_le (by
+          have h := hlay.adj_holds.1
+          rw [inst.adjMatrix_len] at h
+          dsimp only [cpArgs, m]; omega),
+        hfit_tfr.of_le (by
+          have h := hlay.wt_holds.1
+          rw [inst.weights_len] at h
+          dsimp only [cpArgs]; omega),
+        hfit_tfr.of_le (by
+          have := hj_bag.1
+          dsimp only [cpArgs, jFin]; omega),
+        hfit_tfr.of_le (by
+          have h := hj_tbl.1
+          rw [hj_tlen] at h
+          dsimp only [cpArgs, jFin]; omega),
+        hfit_tfr.of_le (by
+          have := hp_bag.1
+          dsimp only [cpArgs]; omega),
+        hfit_fr.of_le (le_trans hp_pow_le (Nat.le_add_left _ _)),
+        hfit_fr.of_le (Nat.add_le_add_left hp_pow_le _), hfit_capB⟩
+    have hpp_safe : ParentPassPre w ppArgs t_c :=
+      ⟨h2, inst.bagAt jFin, inst.bagAt pFin, tblList pFin, bestL, capO, capB,
+        hj_bag.mono_frontier (hp_a.trans hp_cp), rfl,
+        by
+          rw [hj_val] at *
+          dsimp only [ppArgs]
+          exact hj_blo.trans (le_trans (by omega) hp_tlo),
+        hp_bag.mono_frontier (hp_a.trans hp_cp), rfl,
+        by dsimp only [ppArgs]; exact hp_blo.trans (le_trans (by omega) hp_tlo),
+        hp_tbl.mono_frontier (hp_a.trans hp_cp), hp_tlen, rfl,
+        by simpa only [hp_tlen] using hp_tbl.1,
+        hbest_cp, hbestL_len, le_rfl, List.foldl_max_le (Nat.zero_le _) hbestL_le,
+        hfit_tfr.of_le (by
+          have := hj_bag.1
+          dsimp only [ppArgs, jFin]; omega),
+        hfit_tfr.of_le (by
+          have := hp_bag.1
+          dsimp only [ppArgs]; omega),
+        hfit_tfr.of_le (by
+          have h := hp_tbl.1
+          rw [hp_tlen] at h
+          dsimp only [ppArgs, tblPLen]; omega),
+        hfit_fr.of_le (le_trans hp_pow_le (Nat.le_add_left _ _)),
+        hfit_fr.of_le (Nat.add_le_add_left hp_pow_le _), hfit_sum⟩
+    exact ⟨hfit_tfr.of_le (by dsimp only [a] at hpar_lt_fr; omega),
+      by simpa only [Nat.add_zero] using hdJ_f 0 (by decide), hdJ_f 1 (by decide),
+      hdJ_f 2 (by decide), hdJ_f 3 (by decide),
+      by simpa only [Nat.add_zero] using hdP_f 0 (by decide), hdP_f 1 (by decide),
+      hdP_f 2 (by decide), hdP_f 3 (by decide), hcp_safe, hpp_safe, by omega⟩
 
 /-- Layout preservation, telescoping table-entry bound, agreement with `tablesInst`, and cost bound
 for `processNodesProg`. -/
@@ -540,7 +543,8 @@ theorem processNodesProg_spec {w : ℕ} (inst : MWISInstance) (descBase : ℕ)
       memoryCost (iterate processNodeStep args k k) st ≤ k * stepCost by
     obtain ⟨hv_l, ⟨hfr_l, hfin_l⟩, hc_l⟩ := this n s₁
       (fun i => List.replicate (2 ^ (inst.bagAt i).length) 0) le_rfl (by simp) hlay₁
-      (by rw [prefixMaxSum_replicate_zero]; simp) fun i s hs => by
+      (by simp [prefixMaxSum_replicate_zero])
+      fun i s hs => by
         simp [tablesInst_zero, List.getD_eq_getElem?_getD, Array.getD_eq_getD_getElem?, hs]
     unfold processNodesProg
     exact ⟨validHistory_bind_step hv_l (validHistory_pure w _ ()),
@@ -557,7 +561,13 @@ theorem processNodesProg_spec {w : ℕ} (inst : MWISInstance) (descBase : ℕ)
     exact ⟨validHistory_pure w st 0, ⟨hfr, tblList, hlay, hpfx, hagree⟩, by simp [memoryCost_pure]⟩
   | succ k ih =>
     intro st tblList hk hfr hlay hpfx hagree
-    obtain ⟨hfr_sub, hfit_fr⟩ := step_frontier_bound hk hfr hfit_peak
+    have hfr_sub : st.frontier + 2 ^ M ≤ s₁.frontier + (n - k) * 2 ^ M := by
+      calc st.frontier + 2 ^ M
+          ≤ (s₁.frontier + (n - (k + 1)) * 2 ^ M) + 2 ^ M := Nat.add_le_add_right hfr _
+        _ = s₁.frontier + (n - (k + 1) + 1) * 2 ^ M := by rw [Nat.add_assoc, ← Nat.succ_mul]
+        _ = s₁.frontier + (n - k) * 2 ^ M := by rw [show n - (k + 1) + 1 = n - k by omega]
+    have hfit_fr : Fits w (st.frontier + 2 ^ M) := hfit_peak.of_le
+      (hfr_sub.trans (Nat.add_le_add_left (Nat.mul_le_mul_right _ (Nat.sub_le _ _)) _))
     obtain ⟨hv_step, hres_step, hfr_step, hlay_next, hpfx_next, hc_step, _⟩ :=
       processNodeStep_full (w := w) inst descBase rfl hk hlay hpfx hfit_fr hfit_val
     let jFin : Fin (n + 1) := ⟨k + 1, by omega⟩
@@ -594,15 +604,20 @@ theorem processNodesProg_spec {w : ℕ} (inst : MWISInstance) (descBase : ℕ)
         rw [Function.update_of_ne hip, Fin.getElem_fin,
           Vector.getElem_set_ne _ _ fun h => hip (Fin.ext h).symm]
         exact hagree i s hs
-    obtain ⟨hv_rem, hprops_rem, hc_rem⟩ := ih _ tblList' (by omega)
+    let st₁ := (Memory.spec 0).clientState st (processNodeStep (args, k + 1))
+    obtain ⟨hv_rem, hprops_rem, hc_rem⟩ := ih st₁ tblList' (by omega)
       (hfr_step.trans hfr_sub) hlay_next hpfx_next hagree_next
     have hiter_eq : iterate processNodeStep args (k + 1) (k + 1) =
         (processNodeStep (args, k + 1) >>= iterate processNodeStep args k) := rfl
     rw [hiter_eq]
-    refine ⟨validHistory_bind_step hv_step (by rwa [hres_step]),
-      by rw [StateTransitionSpec.clientState_bind, hres_step]; exact hprops_rem, ?_⟩
-    rw [memoryCost_bind', hres_step, Nat.succ_mul, Nat.add_comm (k * stepCost)]
-    exact Nat.add_le_add hc_step hc_rem
+    refine ⟨validHistory_bind_step hv_step (by rwa [hres_step]), ?_, ?_⟩
+    · rw [StateTransitionSpec.clientState_bind, hres_step]
+      exact hprops_rem
+    · rw [memoryCost_bind', hres_step]
+      calc memoryCost (processNodeStep (args, k + 1)) st +
+            memoryCost (iterate processNodeStep args k k) st₁
+          ≤ stepCost + k * stepCost := Nat.add_le_add hc_step hc_rem
+        _ = (k + 1) * stepCost := by ring
 
 /-- Exact-basis Word-RAM realization certificate for `processNodesProg`. -/
 theorem processNodesProg_realizes :
@@ -629,20 +644,30 @@ theorem processNodesProg_realizes :
     dsimp only at hnv hadjP hwtP hparP hnn
     subst hnv hadjP hwtP hparP hnn
     rfl
+  let M := inst.maxBagLen
   refine iterationSafe_of_stepInv _ _ w d
     (fun (j : ℕ) (curNode : ℕ) (t : Memory.State) =>
       j ≤ inst.numNodes ∧ curNode = j ∧
-      t.frontier ≤ s.frontier + (inst.numNodes - j) * 2 ^ inst.maxBagLen ∧
+      t.frontier ≤ s.frontier + (inst.numNodes - j) * 2 ^ M ∧
       ∃ tblList : Fin (inst.numNodes + 1) → List ℕ,
         NodeLayout inst d.descBase tblList t ∧
-        prefixMaxSum tblList j ≤ (inst.numNodes - j) * (inst.maxBagLen * inst.maxWeight))
+        prefixMaxSum tblList j ≤ (inst.numNodes - j) * (M * inst.maxWeight))
     (fun j curNode t ⟨hj_le, hcur_eq, hfr_t, tblList, hlay_t, hpfx_t⟩ => ?_)
     ⟨by rw [hnn], rfl, by rw [hnn]; simp, tblInit, hlay₀, by rw [hnn, hpfx₀]; simp⟩
   subst hcur_eq
-  obtain ⟨hfr_sub, hfit_fr⟩ := step_frontier_bound hj_le hfr_t hfit_peak
+  have hfr_sub : t.frontier + 2 ^ M ≤ s.frontier + (inst.numNodes - j) * 2 ^ M := by
+    calc t.frontier + 2 ^ M
+        ≤ (s.frontier + (inst.numNodes - (j + 1)) * 2 ^ M) + 2 ^ M := Nat.add_le_add_right hfr_t _
+      _ = s.frontier + (inst.numNodes - (j + 1) + 1) * 2 ^ M := by
+          rw [Nat.add_assoc, ← Nat.succ_mul]
+      _ = s.frontier + (inst.numNodes - j) * 2 ^ M := by
+          rw [show inst.numNodes - (j + 1) + 1 = inst.numNodes - j by omega]
+  have hfit_fr : Fits w (t.frontier + 2 ^ M) := hfit_peak.of_le
+    (hfr_sub.trans (Nat.add_le_add_left (Nat.mul_le_mul_right _ (Nat.sub_le _ _)) _))
   obtain ⟨_, hres_s, hfr_s, hlay_s, hpfx_s, _, hsafe_fn⟩ :=
     processNodeStep_full (w := w) inst d.descBase hd_eq hj_le hlay_t hpfx_t hfit_fr hfit_val
-  exact ⟨by dsimp only [processNodeStep]; exact hsafe_fn h4,
-    Nat.le_of_succ_le hj_le, hres_s, hfr_s.trans hfr_sub, _, hlay_s, hpfx_s⟩
+  refine ⟨?_, Nat.le_of_succ_le hj_le, hres_s, hfr_s.trans hfr_sub, _, hlay_s, hpfx_s⟩
+  dsimp only [processNodeStep]
+  exact hsafe_fn h4
 
 end Cslib.Algorithms.WordRAM.TreeDecomposition

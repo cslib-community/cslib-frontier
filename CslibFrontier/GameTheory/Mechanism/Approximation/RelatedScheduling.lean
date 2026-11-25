@@ -426,13 +426,14 @@ theorem lexOptWork_isAntitoneWork [LinearOrder (J → M)] {w : J → ℝ} (hw : 
   have hwork_lt : work w ax i < work w ay i := lt_of_not_ge hnot
   -- Every schedule's makespan at `cx` is at most its makespan at `cy`.
   have hmono (a : J → M) : relatedMakespan w cx a ≤ relatedMakespan w cy a :=
-    (relatedMakespan_le_iff w cx a).2 fun k => by
-      refine (?_ : cx k * work w a k ≤ cy k * work w a k).trans
-        (cost_mul_work_le_relatedMakespan w cy a k)
-      rcases eq_or_ne k i with rfl | hki
-      · simp only [cx, cy, Function.update_self]
-        exact mul_le_mul_of_nonneg_right hlt.le (work_nonneg hw a k)
-      · simp only [cx, cy, Function.update_of_ne hki, le_rfl]
+    (relatedMakespan_le_iff w cx a).2 fun k =>
+      calc cx k * work w a k
+        _ ≤ cy k * work w a k := by
+          rcases eq_or_ne k i with rfl | hki
+          · simp only [cx, cy, Function.update_self]
+            exact mul_le_mul_of_nonneg_right hlt.le (work_nonneg hw a k)
+          · simp only [cx, cy, Function.update_of_ne hki, le_rfl]
+        _ ≤ relatedMakespan w cy a := cost_mul_work_le_relatedMakespan w cy a k
   have hopt_x : relatedMakespan w cx ax = optRelatedMakespan w cx := lexOptAlloc_isOptimal w cx
   have hopt_y : relatedMakespan w cy ay = optRelatedMakespan w cy := lexOptAlloc_isOptimal w cy
   have hax_le_ay : relatedMakespan w cx ax ≤ relatedMakespan w cx ay :=
@@ -450,8 +451,11 @@ theorem lexOptWork_isAntitoneWork [LinearOrder (J → M)] {w : J → ℝ} (hw : 
     (relatedMakespan_le_iff w cy ax).2 fun k => by
       rcases eq_or_ne k i with rfl | hki
       · exact hax_cy_i.le
-      · simpa only [cx, cy, Function.update_of_ne hki] using
-          (cost_mul_work_le_relatedMakespan w cx ax k).trans (hax_le_ay.trans (hmono ay))
+      · calc cy k * work w ax k
+          _ = cx k * work w ax k := by simp only [cx, cy, Function.update_of_ne hki]
+          _ ≤ relatedMakespan w cx ax := cost_mul_work_le_relatedMakespan w cx ax k
+          _ ≤ relatedMakespan w cx ay := hax_le_ay
+          _ ≤ relatedMakespan w cy ay := hmono ay
   have hax_opt_cy : relatedMakespan w cy ax = optRelatedMakespan w cy :=
     (le_antisymm hax_cy_le hay_le_ax_cy).trans hopt_y
   -- Now `ax` attains `relatedMakespan w cy ax = relatedMakespan w cy ay` on some machine `k₀`.
@@ -496,10 +500,13 @@ theorem lexOptWork_eq_zero_of_large_cost [LinearOrder (J → M)] [Nontrivial M] 
       · simp only [cx, Function.update_of_ne hki, work, aAllK, Finset.filter_true, W, le_refl]
       · rw [work, Finset.filter_false_of_mem fun _ _ => Ne.symm hmk, Finset.sum_empty, mul_zero]
         exact mul_nonneg (hc k).le (Finset.sum_nonneg fun j _ => hw j)
-    have hle_opt : x * work w (lexOptAlloc w cx) i ≤ c k * W := by
-      simpa only [cx, Function.update_self] using
-        ((cost_mul_work_le_relatedMakespan w cx (lexOptAlloc w cx) i).trans_eq
-          (lexOptAlloc_isOptimal w cx)).trans hopt_le
+    have hle_opt : x * work w (lexOptAlloc w cx) i ≤ c k * W :=
+      calc x * work w (lexOptAlloc w cx) i
+        _ = cx i * work w (lexOptAlloc w cx) i := by simp only [cx, Function.update_self]
+        _ ≤ relatedMakespan w cx (lexOptAlloc w cx) :=
+              cost_mul_work_le_relatedMakespan w cx (lexOptAlloc w cx) i
+        _ = optRelatedMakespan w cx := lexOptAlloc_isOptimal w cx
+        _ ≤ c k * W := hopt_le
     refine Finset.sum_eq_zero fun j hj => ?_
     by_contra hne0
     have hwj_pos : 0 < w j := lt_of_le_of_ne (hw j) (Ne.symm hne0)

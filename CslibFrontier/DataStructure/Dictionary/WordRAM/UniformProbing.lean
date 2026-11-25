@@ -1356,8 +1356,9 @@ theorem encode_matches {c_exp U n_max : ℕ} (op : Dictionary.Op U) (regs : Fin 
   | query u =>
     exact ⟨rfl, by simp +decide [subroutineCode, encodeOp, opKey], fun _ _ h => nomatch h⟩
   | insert u v =>
-    exact ⟨rfl, by simp +decide [subroutineCode, encodeOp, opKey],
-      by rintro _ _ ⟨⟩; simp +decide [subroutineCode, encodeOp]⟩
+    refine ⟨rfl, by simp +decide [subroutineCode, encodeOp, opKey], ?_⟩
+    rintro _ _ ⟨⟩
+    simp +decide [subroutineCode, encodeOp]
 
 theorem arguments_fit {w base c_exp U V n_max : ℕ}
     (hS : Fits w (base + space c_exp n_max))
@@ -1567,10 +1568,11 @@ theorem step_exec_spec {w base c_exp U V n_max : ℕ}
       (opCode_execWithin hS hV (hsupp p hp).1 o hv (hU_fit (opKey o))
         (hsupp p hp).2.1 (hsupp p hp).2.2.1 (hsupp p hp).2.2.2)
     have hy : yOf p = _ := dite_eq_left hp
-    refine ⟨by simpa only [PMF.pure_map, hy, T_probe, hp, ↓reduceIte, opPathSteps] using
-        ExecCodeDist.of_execWithin e, fun q hq => ?_⟩
-    obtain rfl : q = (p.1, yOf p) := by simpa using hq
-    exact ⟨decodeOp_eq_step o _ (by rwa [hy]), hy ▸ hrep_y, hy ▸ hmod⟩
+    refine ⟨?_, fun q hq => ?_⟩
+    · simpa only [PMF.pure_map, hy, T_probe, hp, ↓reduceIte, opPathSteps] using
+        ExecCodeDist.of_execWithin e
+    · obtain rfl : q = (p.1, yOf p) := by simpa using hq
+      exact ⟨decodeOp_eq_step o _ (by rwa [hy]), hy ▸ hrep_y, hy ▸ hmod⟩
   · intro θ'
     simpa [PMF.map_bind] using hseed θ'
   · simp only [Nat.cast_zero, mul_zero, tsum_zero, add_zero]

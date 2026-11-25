@@ -422,14 +422,16 @@ theorem IsMaxNashWelfare.isEF1 {A : BundleAllocation n m}
         rcases Finset.mem_insert.1 hk with rfl | hkA
         · rwa [huBi]
         · have hk_pos : 0 < W.bundleVal k (A.bundle k) := W.mem_posAgents.1 hkA
-          have hki : k ≠ i := fun hEq => by rw [hEq, hui0] at hk_pos; exact lt_irrefl 0 hk_pos
+          have hki : k ≠ i := fun hEq => absurd (hEq ▸ hui0) hk_pos.ne'
           rcases eq_or_ne k j with rfl | hkj
-          · rw [huBj]; linarith
+          · rw [huBj]
+            linarith
           · rwa [BundleAllocation.transferGood_bundle_other A g hg hki hkj]
       have hi_notA : i ∉ W.posAgents A := by simp [hui0]
       have hcard_gt : (W.posAgents A).card < (W.posAgents B).card := by
         calc (W.posAgents A).card < (insert i (W.posAgents A)).card := by
-              rw [Finset.card_insert_of_notMem hi_notA]; omega
+              rw [Finset.card_insert_of_notMem hi_notA]
+              omega
           _ ≤ (W.posAgents B).card := Finset.card_le_card hsub_pos
       exact not_lt_of_ge (hcard_max B hcompB) hcard_gt
   · -- `u_j(A_j) = 0`: transferring `g₁` (`0 < w_i(g₁)`, `w_j(g₁) = 0`) from `j` to `i`
@@ -443,7 +445,8 @@ theorem IsMaxNashWelfare.isEF1 {A : BundleAllocation n m}
       BundleAllocation.isComplete_transferGood j i g₁ hg₁ hcompA, fun k => ?_, i, ?_⟩
     · simp only [toMonotoneValuation_val]
       rcases eq_or_ne k i with rfl | hki
-      · rw [W.bundleVal_transfer_target hji hg₁]; linarith
+      · rw [W.bundleVal_transfer_target hji hg₁]
+        linarith
       · rcases eq_or_ne k j with rfl | hkj
         · rw [W.bundleVal_transfer_source hji hg₁, huj0, hwjg₁, sub_zero]
         · rw [BundleAllocation.transferGood_bundle_other A g₁ hg₁ hki hkj]

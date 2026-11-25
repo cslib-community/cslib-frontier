@@ -61,8 +61,8 @@ private theorem disjoint_insertedSet_activeKeys {U V n t₀ r : ℕ} (s : HardKe
   obtain ⟨j, rfl⟩ := hu
   obtain ⟨k, hk⟩ := hact
   have hge : s.keys (liftDelPerm s.delPerm ⟨n + (t₀ + j.val), by have := j.isLt; omega⟩) =
-      s.keys ⟨n + (t₀ + j.val), by have := j.isLt; omega⟩ :=
-    congrArg s.keys (liftDelPerm_apply_ge s.delPerm (by omega) (by have := j.isLt; omega))
+      s.keys ⟨n + (t₀ + j.val), by have := j.isLt; omega⟩ := by
+    rw [liftDelPerm_apply_ge s.delPerm (by omega) (by have := j.isLt; omega)]
   rw [← hge] at hk
   have hidx := congrArg Fin.val ((liftDelPerm s.delPerm).injective (s.keys.injective hk))
   dsimp only at hidx
@@ -116,8 +116,14 @@ theorem prob_isModeSeedConsistent_queryFreeInnerDist_le (withQueries : Bool)
   have hA (s : HardKeyValSeed U V n) : s.insertedSet t₀ m ht₀ ⊆ pool s :=
     Finset.subset_sdiff.mpr ⟨Finset.subset_univ _, disjoint_insertedSet_activeKeys s ht₀⟩
   refine prob_queryFreePool_eq_le withQueries hU hV hm hm_n hg hspace hbudget hcorr
-    { pool := pool, hcard := hcard, hA := hA, hdisj := fun _ => Finset.sdiff_disjoint,
-      hact := fun τ _ s => ?_, Fg := _, hFg := fun _ => rfl, hne := fun s => ?_ }
+    { pool := pool
+      hcard := hcard
+      hA := hA
+      hdisj := fun _ => Finset.sdiff_disjoint
+      hact := fun τ _ s => ?_
+      Fg := _
+      hFg := fun _ => rfl
+      hne := fun s => ?_ }
   · dsimp only [pool]
     rw [actSeed8Equiv_activeKeys, Finset.map_sdiff]
     congr 1
@@ -167,16 +173,20 @@ theorem expected_card_modeConsistent_segmentRest_lt_half_le (withQueries : Bool)
       rw [← Finset.card_pos, card_inter_filter_powersetCard (hA_pool s) (card_insertedSet s ht₀),
         hcard_pool]
       exact mul_pos (Nat.choose_pos (Nat.zero_le m)) (Nat.choose_pos (by omega))
-    exact ⟨B, Finset.mem_filter.mpr ⟨(Finset.mem_filter.mp hB).1,
-      by rw [(Finset.mem_filter.mp hB).2]; omega⟩⟩
+    obtain ⟨hBm, hB0⟩ := Finset.mem_filter.mp hB
+    exact ⟨B, Finset.mem_filter.mpr ⟨hBm, by omega⟩⟩
   refine (prob_and_expect_innerPoolDist_lt_half_le (by omega) hV ht₀ hrest_ge
     (Real.rpow_nonneg (Nat.cast_nonneg U) _) pool hcard_pool hA_pool
     (IsModeSeedConsistent withQueries D_det t₀ m ht₀ γ t) (fun g hg hne_g => ?_) hne).2
   exact prob_queryFreePool_eq_le withQueries hU hV hm hm_n hg hspace hbudget hcorr
-    { pool := pool, hcard := hcard_pool, hA := hA_pool,
-      hdisj := fun s => disjoint_insertedSet_activeKeys s hrest,
-      hact := fun τ δ s => actSeed8Equiv_insertedSet τ δ s t₀ r_rest hrest,
-      Fg := _, hFg := fun _ => rfl, hne := hne_g }
+    { pool := pool
+      hcard := hcard_pool
+      hA := hA_pool
+      hdisj := fun s => disjoint_insertedSet_activeKeys s hrest
+      hact := fun τ δ s => actSeed8Equiv_insertedSet τ δ s t₀ r_rest hrest
+      Fg := _
+      hFg := fun _ => rfl
+      hne := hne_g }
 
 private theorem outer_lemma_of_val_budget (withQueries : Bool) {U V n cells w : ℕ}
     {R_outer R_inner γ t : ℝ} (hU : 3 * n ≤ U) (hV : 1 ≤ V)

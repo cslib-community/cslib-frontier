@@ -53,7 +53,7 @@ private theorem monomial_divided_differences (x : Fin n → A) (e : Fin n →₀
   classical
   by_cases he0 : e = 0
   · subst e
-    exact ⟨fun _ => 0, by simp, by simp, by simp, by simp⟩
+    refine ⟨fun _ => 0, ?_, ?_, ?_, ?_⟩ <;> simp
   · obtain ⟨i, hi⟩ := Finsupp.ne_iff.mp he0
     have hi : e i ≠ 0 := by simpa only [Finsupp.zero_apply] using hi
     let e' := e - Finsupp.single i 1
@@ -153,10 +153,11 @@ theorem purePowerDifference_degree (x : A) (i : Fin n) (d : ℕ) :
 theorem purePowerDifference_lower_degree (x : A) (i : Fin n) {d : ℕ} (hd : 1 ≤ d) :
     (purePowerDifference x i d - X i ^ d).totalDegree < d := by
   classical
-  rw [show purePowerDifference x i d - X i ^ d =
-      ∑ k ∈ Finset.range d, C (x ^ (d - k)) * X i ^ k by
+  have heq : purePowerDifference x i d - X i ^ d =
+      ∑ k ∈ Finset.range d, C (x ^ (d - k)) * X i ^ k := by
     simp only [purePowerDifference, Finset.sum_range_succ, Nat.sub_self, pow_zero,
-      C_1, one_mul, add_sub_cancel_right]]
+      C_1, one_mul, add_sub_cancel_right]
+  rw [heq]
   refine lt_of_le_of_lt (totalDegree_finsetSum_le (d := d - 1) fun k hk => ?_) (by omega)
   rw [C_mul_X_pow_eq_monomial]
   have := Finset.mem_range.mp hk

@@ -124,10 +124,11 @@ theorem idxOf_reverse_add_idxOf {l : List α} (hl : l.Nodup) {x : α} (hx : x �
 /-- In an arrangement, exactly `l.idxOf r` items precede `r`. -/
 theorem card_filter_idxOf_lt [Fintype α] {l : List α} (hl : IsArrangement l) (r : α) :
     (Finset.univ.filter fun x => l.idxOf x < l.idxOf r).card = l.idxOf r := by
-  rw [show (Finset.univ.filter fun x => l.idxOf x < l.idxOf r) = (l.take (l.idxOf r)).toFinset by
-      ext x
-      simp [List.mem_take_iff_idxOf_lt (hl.2 x)],
-    List.toFinset_card_of_nodup (hl.1.sublist (List.take_sublist _ _)), List.length_take,
+  have h : (Finset.univ.filter fun x => l.idxOf x < l.idxOf r) =
+      (l.take (l.idxOf r)).toFinset := by
+    ext x
+    simp [List.mem_take_iff_idxOf_lt (hl.2 x)]
+  rw [h, List.toFinset_card_of_nodup (hl.1.sublist (List.take_sublist _ _)), List.length_take,
     Nat.min_eq_left List.idxOf_le_length]
 
 /-! ### Inversions -/
@@ -170,12 +171,13 @@ theorem two_mul_inversions_le [Fintype α] (l l' : List α) :
     2 * inversions l l' ≤ Fintype.card α * (Fintype.card α - 1) := by
   have hdisj : Disjoint (inversionSet l l') (inversionSet l' l) :=
     Finset.disjoint_left.2 fun ⟨_, _⟩ h₁ h₂ => by rw [mem_inversionSet] at h₁ h₂; omega
-  have hcard := Finset.card_le_card (s := inversionSet l l' ∪ inversionSet l' l)
-    (t := (Finset.univ : Finset α).offDiag) fun ⟨x, y⟩ h =>
-      Finset.mem_offDiag.2 ⟨Finset.mem_univ _, Finset.mem_univ _, fun hxy => by
-        dsimp only at hxy
-        subst hxy
-        rw [Finset.mem_union, mem_inversionSet, mem_inversionSet] at h; omega⟩
+  have hsub : inversionSet l l' ∪ inversionSet l' l ⊆ (Finset.univ : Finset α).offDiag :=
+    fun ⟨x, y⟩ h => Finset.mem_offDiag.2 ⟨Finset.mem_univ _, Finset.mem_univ _, fun hxy => by
+      dsimp only at hxy
+      subst hxy
+      rw [Finset.mem_union, mem_inversionSet, mem_inversionSet] at h
+      omega⟩
+  have hcard := Finset.card_le_card hsub
   rw [Finset.card_union_of_disjoint hdisj, Finset.offDiag_card, Finset.card_univ,
     ← Nat.mul_sub_one] at hcard
   have hc := inversions_comm l l'

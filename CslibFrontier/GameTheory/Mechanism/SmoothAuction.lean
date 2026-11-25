@@ -230,10 +230,16 @@ theorem IsSmoothMechanism.welfare_ge {X : Set (ι → ℝ)}
       exact sum_congr rfl fun _ _ => sum_congr rfl fun _ _ => by ring
     have hDtot : ∑ z ∈ (D i).weights.support, (D i).weights z = 1 := (D i).total
     rw [hswap]
-    simp only [Finsupp.sum]
-    refine (sum_le_sum fun z _ => mul_le_mul_of_nonneg_left (expected_utility_ge_of_cce hσ i z)
-      (Convexity.StdSimplex.weights_nonneg z)).trans_eq ?_
-    rw [← sum_mul, hDtot, one_mul, Finsupp.sum]
+    calc (D i).weights.sum (fun z wt => wt * σ.weights.sum fun b w =>
+            w * M.utility i (v i) (update (fun j => (b j : ℝ)) i (z : ℝ)))
+        ≤ (D i).weights.sum (fun _ wt => wt * σ.weights.sum fun b w =>
+            w * M.utility i (v i) (fun j => (b j : ℝ))) := by
+          simp only [Finsupp.sum]
+          exact sum_le_sum fun z _ => mul_le_mul_of_nonneg_left (expected_utility_ge_of_cce hσ i z)
+            (Convexity.StdSimplex.weights_nonneg z)
+      _ = σ.weights.sum (fun b w => w * M.utility i (v i) (fun j => (b j : ℝ))) := by
+          simp only [Finsupp.sum]
+          rw [← sum_mul, hDtot, one_mul]
   have hsm_exp : lam * socialWelfare v x -
         μ * σ.weights.sum (fun b w => w * ∑ i, M.payment (fun j => (b j : ℝ)) i) ≤
       σ.weights.sum (fun b w => w * ∑ i, M.utility i (v i) (fun j => (b j : ℝ))) := by
@@ -257,7 +263,9 @@ theorem IsSmoothMechanism.welfare_ge {X : Set (ι → ℝ)}
         sum_sub_distrib, ← mul_sum, ← mul_sum, htot, mul_one]
     have hcomm : ∀ g : (ι → ℝ≥0) → ι → ℝ,
         σ.weights.sum (fun b w => w * ∑ i, g b i) = ∑ i, σ.weights.sum fun b w => w * g b i :=
-      fun _ => by simp only [Finsupp.sum, mul_sum]; exact sum_comm
+      fun _ => by
+        simp only [Finsupp.sum, mul_sum]
+        exact sum_comm
     have hR := sum_le_sum fun i (_ : i ∈ univ) => hdev_le i
     rw [← hcomm, ← hcomm] at hR; linarith
   exact div_max_one_mul_le hsm_exp hir_sum hpay_exp
@@ -427,24 +435,36 @@ theorem IsSmoothMechanism.integral_welfare_ge_of_isBayesNash {X : Set (ι → �
       exact integrable_finsetSum _ fun z _ => (hdev_int i (z : ℝ) z.coe_nonneg (v i)).const_mul _
     have hint_le := integral_mono_ae ((integrable_const _).sub (hpay_sum_int.const_mul μ))
       (integrable_finsetSum _ fun i _ => hR_int_i i) <| by
-        filter_upwards [hbox] with w hw; exact hD _ fun j => hβ.nonneg (hw j)
+        filter_upwards [hbox] with w hw
+        exact hD _ fun j => hβ.nonneg (hw j)
     dsimp only [Pi.sub_apply] at hint_le
     rw [integral_sub (integrable_const _) (hpay_sum_int.const_mul μ), integral_const,
       probReal_univ, one_smul, integral_const_mul,
       integral_finsetSum _ fun i _ => hR_int_i i] at hint_le
     refine hint_le.trans (sum_le_sum fun i _ => ?_)
+    have hDtot : ∑ z ∈ (D i).weights.support, (D i).weights z = 1 := (D i).total
     rw [hslice_eq i (hv i)]
     simp only [Finsupp.sum]
     rw [integral_finsetSum (D i).weights.support fun (z : ℝ≥0) _ =>
       (hdev_int i (z : ℝ) z.coe_nonneg (v i)).const_mul _]
-    refine (le_of_eq <| sum_congr rfl fun z _ => by
-      rw [integral_const_mul, M.integral_utility_update_eq
-        (halloc_dev i (z : ℝ) z.coe_nonneg) (hpay_dev i (z : ℝ) z.coe_nonneg) (v i)]).trans ?_
-    have hDtot : ∑ z ∈ (D i).weights.support, (D i).weights z = 1 := (D i).total
-    refine (sum_le_sum fun (z : ℝ≥0) _ => mul_le_mul_of_nonneg_left
-      ((hβ i (v i) (hv i)).2 (z : ℝ) z.coe_nonneg)
-      (Convexity.StdSimplex.weights_nonneg z)).trans_eq ?_
-    rw [← sum_mul, hDtot, one_mul]
+    calc ∑ z ∈ (D i).weights.support,
+            ∫ w, (D i).weights z * M.utility i (v i) (update (fun j => β j (w j)) i (z : ℝ))
+              ∂Measure.pi ν
+        = ∑ z ∈ (D i).weights.support,
+            (D i).weights z * (v i * M.interimAllocation ν β i (z : ℝ) -
+              M.interimPayment ν β i (z : ℝ)) :=
+          sum_congr rfl fun z _ => by
+            rw [integral_const_mul, M.integral_utility_update_eq
+              (halloc_dev i (z : ℝ) z.coe_nonneg) (hpay_dev i (z : ℝ) z.coe_nonneg) (v i)]
+      _ ≤ ∑ z ∈ (D i).weights.support,
+            (D i).weights z * (v i * M.interimAllocation ν β i (β i (v i)) -
+              M.interimPayment ν β i (β i (v i))) :=
+          sum_le_sum fun z _ => mul_le_mul_of_nonneg_left
+            ((hβ i (v i) (hv i)).2 (z : ℝ) z.coe_nonneg)
+            (Convexity.StdSimplex.weights_nonneg z)
+      _ = v i * M.interimAllocation ν β i (β i (v i)) -
+            M.interimPayment ν β i (β i (v i)) := by
+          rw [← sum_mul, hDtot, one_mul]
   have hmain := integral_mono_ae ((hx_int.const_mul lam).sub (integrable_const (μ * P)))
     (integrable_finsetSum _ fun i _ => M.interimSliceUtil_comp_integrable (hutil_eq i)) hpt
   dsimp only [Pi.sub_apply] at hmain
@@ -453,9 +473,11 @@ theorem IsSmoothMechanism.integral_welfare_ge_of_isBayesNash {X : Set (ι → �
     integral_finsetSum _ fun i _ => M.interimSliceUtil_comp_integrable (hutil_eq i),
     sum_congr rfl fun i _ => M.integral_interimSliceUtil_eq (hutil_eq i),
     ← integral_finsetSum _ fun i _ => hutil_eq i] at hmain
-  exact div_max_one_mul_le hmain
-    (by rw [integral_finsetSum _ fun i _ => hutil_eq i]; exact sum_nonneg fun i _ => hir i)
-    hpay_nonneg (M.integral_welfare_eq_add_payment hutil_eq hpay_eq)
+  have hir_tot : 0 ≤ ∫ v, ∑ i, M.utility i (v i) (fun j => β j (v j)) ∂Measure.pi ν := by
+    rw [integral_finsetSum _ fun i _ => hutil_eq i]
+    exact sum_nonneg fun i _ => hir i
+  exact div_max_one_mul_le hmain hir_tot hpay_nonneg
+    (M.integral_welfare_eq_add_payment hutil_eq hpay_eq)
 
 end Bayesian
 
@@ -615,7 +637,9 @@ private theorem isSmoothMechanism_of_winner {lam : ℝ}
       w * FirstPrice.mechanism.utility i (v i) (update b i (z : ℝ))) (Finset.mem_univ i₀)]
     have htail : 0 ≤ ∑ j ∈ univ.erase i₀, (D j).weights.sum
         (fun z w => w * FirstPrice.mechanism.utility j (v j) (update b j (z : ℝ))) :=
-      sum_nonneg fun j hj => by simp only [D, ne_of_mem_erase hj, ↓reduceIte]; exact hu0 b j
+      sum_nonneg fun j hj => by
+        simp only [D, ne_of_mem_erase hj, ↓reduceIte]
+        exact hu0 b j
     simp only [D, ↓reduceIte]
     linarith [hD₀ b hb]
 
@@ -649,8 +673,9 @@ theorem isSmoothMechanism_grid {K : ℕ} (hK : 1 ≤ K) :
   set q : ℝ := Real.exp (-1 / (K : ℝ))
   have hK_pos : (0 : ℝ) < K := Nat.cast_pos.2 (by omega)
   have hq_pos : 0 < q := Real.exp_pos _
-  have hq_lt1 : q < 1 := Real.exp_lt_one_iff.2
-    (by rw [neg_div]; exact neg_neg_of_pos (by positivity))
+  have hq_lt1 : q < 1 := by
+    rw [Real.exp_lt_one_iff, neg_div]
+    exact neg_neg_of_pos (by positivity)
   have hqK : q ^ K = Real.exp (-1) := by
     dsimp [q]
     rw [← Real.exp_nat_mul]
@@ -681,8 +706,9 @@ theorem isSmoothMechanism_grid {K : ℕ} (hK : 1 ≤ K) :
     nlinarith [hv i₀, hq_lt1.le]
   · push Not at hhigh
     let S_win : Finset (Fin K) := univ.filter fun k => B < (grid k : ℝ)
-    have hlast : (⟨K - 1, by omega⟩ : Fin K) ∈ S_win := by
-      simp only [S_win, mem_filter, Finset.mem_univ, true_and, grid]
+    let k_last : Fin K := ⟨K - 1, by omega⟩
+    have hlast : k_last ∈ S_win := by
+      simp only [S_win, mem_filter, Finset.mem_univ, true_and, grid, k_last]
       rwa [show K - 1 + 1 = K by omega]
     set k₀ : Fin K := S_win.min' ⟨_, hlast⟩
     have hk₀_lt : B < v i₀ * (1 - q ^ (k₀.val + 1)) := (mem_filter.1 (Finset.min'_mem S_win _)).2
@@ -709,9 +735,16 @@ theorem isSmoothMechanism_grid {K : ℕ} (hK : 1 ≤ K) :
           1 / (K : ℝ) * (v i₀ * q ^ (k.val + 1)) ≤
         ∑ k : Fin K, 1 / (K : ℝ) *
           FirstPrice.mechanism.utility i₀ (v i₀) (update b i₀ (grid k : ℝ)) :=
-      (sum_le_sum fun k hk => mul_le_mul_of_nonneg_left (hwin_ge k (mem_filter.1 hk).2)
-        (by positivity)).trans (sum_le_sum_of_subset_of_nonneg (filter_subset _ _) fun k _ _ =>
-          mul_nonneg (by positivity) (utility_nonneg_of_le b i₀ (hgrid_le k)))
+      calc ∑ k ∈ univ.filter (fun k : Fin K => k₀.val ≤ k.val),
+            1 / (K : ℝ) * (v i₀ * q ^ (k.val + 1))
+          ≤ ∑ k ∈ univ.filter (fun k : Fin K => k₀.val ≤ k.val),
+              1 / (K : ℝ) * FirstPrice.mechanism.utility i₀ (v i₀) (update b i₀ (grid k : ℝ)) :=
+            sum_le_sum fun k hk => mul_le_mul_of_nonneg_left (hwin_ge k (mem_filter.1 hk).2)
+              (by positivity)
+        _ ≤ ∑ k : Fin K, 1 / (K : ℝ) *
+              FirstPrice.mechanism.utility i₀ (v i₀) (update b i₀ (grid k : ℝ)) :=
+            sum_le_sum_of_subset_of_nonneg (filter_subset _ _) fun k _ _ =>
+              mul_nonneg (by positivity) (utility_nonneg_of_le b i₀ (hgrid_le k))
     have hico_eq : ∑ k ∈ univ.filter (fun k : Fin K => k₀.val ≤ k.val),
           1 / (K : ℝ) * (v i₀ * q ^ (k.val + 1)) =
         ∑ m ∈ Ico k₀.val K, 1 / (K : ℝ) * (v i₀ * q ^ (m + 1)) :=
@@ -728,12 +761,14 @@ theorem isSmoothMechanism_grid {K : ℕ} (hK : 1 ≤ K) :
       | refl => simp
       | @step m hkm ih => rw [Finset.sum_Ico_succ_top hkm, ih, pow_succ]; ring
     have htele : q * v i₀ * (q ^ k₀.val - q ^ K) ≤
-        ∑ m ∈ Ico k₀.val K, 1 / (K : ℝ) * (v i₀ * q ^ (m + 1)) := by
-      rw [← hsum_sub, mul_sum]
-      refine sum_le_sum fun m _ => ?_
-      have hmul := mul_le_mul_of_nonneg_right h1q_le
-        (mul_nonneg (hv i₀) (pow_nonneg hq_pos.le (m + 1)))
-      linarith [show q * v i₀ * (q ^ m - q ^ (m + 1)) = (1 - q) * (v i₀ * q ^ (m + 1)) by ring]
+        ∑ m ∈ Ico k₀.val K, 1 / (K : ℝ) * (v i₀ * q ^ (m + 1)) :=
+      calc q * v i₀ * (q ^ k₀.val - q ^ K)
+          = ∑ m ∈ Ico k₀.val K, q * v i₀ * (q ^ m - q ^ (m + 1)) := by rw [← hsum_sub, mul_sum]
+        _ ≤ ∑ m ∈ Ico k₀.val K, 1 / (K : ℝ) * (v i₀ * q ^ (m + 1)) := by
+          refine sum_le_sum fun m _ => ?_
+          have hmul := mul_le_mul_of_nonneg_right h1q_le
+            (mul_nonneg (hv i₀) (pow_nonneg hq_pos.le (m + 1)))
+          linarith [show q * v i₀ * (q ^ m - q ^ (m + 1)) = (1 - q) * (v i₀ * q ^ (m + 1)) by ring]
     rw [hqK] at htele
     have h2 := mul_le_mul_of_nonneg_left
       (by linarith : v i₀ - B - v i₀ * Real.exp (-1) ≤ v i₀ * q ^ k₀.val - v i₀ * Real.exp (-1))
@@ -744,7 +779,9 @@ private theorem le_of_forall_exp_neg_inv_mul_le {A W : ℝ} (hW : 0 ≤ W)
     (hK : ∀ K : ℕ, 1 ≤ K → Real.exp (-1 / (K : ℝ)) * W ≤ A) : W ≤ A := by
   by_contra hlt
   push Not at hlt
-  have hW_pos : 0 < W := lt_of_le_of_ne hW fun h => by subst h; linarith [hK 1 le_rfl]
+  have hW_pos : 0 < W := lt_of_le_of_ne hW fun h => by
+    subst h
+    linarith [hK 1 le_rfl]
   obtain ⟨K, hK_gt⟩ := exists_nat_gt (W / (W - A))
   have hK_pos : 0 < K := Nat.pos_of_ne_zero fun h => by
     subst h
@@ -753,8 +790,10 @@ private theorem le_of_forall_exp_neg_inv_mul_le {A W : ℝ} (hW : 0 ≤ W)
   have hexp_ge : 1 - 1 / (K : ℝ) ≤ Real.exp (-1 / (K : ℝ)) := by
     rw [neg_div]; linarith [Real.add_one_le_exp (-(1 / (K : ℝ)))]
   have hstep1 := (mul_le_mul_of_nonneg_right hexp_ge hW).trans (hK K hK_pos)
-  have hstep3 := (le_div_iff₀ hKR).1
-    (by linarith [show (1 - 1 / (K : ℝ)) * W = W - W / (K : ℝ) by ring] : W - A ≤ W / (K : ℝ))
+  have hstep2 : W - A ≤ W / (K : ℝ) := by
+    have hring : (1 - 1 / (K : ℝ)) * W = W - W / (K : ℝ) := by ring
+    linarith
+  have hstep3 : (W - A) * (K : ℝ) ≤ W := (le_div_iff₀ hKR).1 hstep2
   linarith [(div_lt_iff₀ (by linarith : 0 < W - A)).1 hK_gt]
 
 omit [LinearOrder ι] in
@@ -880,7 +919,8 @@ theorem welfare_ge_half_of_noOverbidding {v : ι → ℝ} (hv : 0 ≤ v) {x : ι
   classical
   rcases FirstPrice.singleItemFeasible_cases hx with hall0 | ⟨i₀, hi₀, hj0⟩
   · rw [show socialWelfare v x = 0 from sum_eq_zero fun i _ => by rw [hall0 i, mul_zero],
-      mul_zero]; simp only [Finsupp.sum]
+      mul_zero]
+    simp only [Finsupp.sum]
     exact sum_nonneg fun b _ => mul_nonneg (Convexity.StdSimplex.weights_nonneg b)
       (sum_nonneg fun i _ => mul_nonneg (hv i) (vickrey_allocation_nonneg _ i))
   · have hsw : socialWelfare v x = v i₀ := by
@@ -920,7 +960,8 @@ theorem welfare_ge_half_of_noOverbidding {v : ι → ℝ} (hv : 0 ≤ v) {x : ι
           w * Vickrey.mechanism.utility j (v j) (fun k => (b k : ℝ))) +
           σ.weights.sum fun b w => w * ∑ j, Vickrey.mechanism.payment (fun k => (b k : ℝ)) j := by
       simp only [Finsupp.sum, ← Vickrey.mechanism.sum_utility_add_sum_payment v, mul_add,
-        sum_add_distrib, mul_sum]; rw [sum_comm]
+        sum_add_distrib, mul_sum]
+      rw [sum_comm]
     rw [← add_sum_erase _ _ (Finset.mem_univ i₀)] at hwel_eq
     have hrest : 0 ≤ ∑ j ∈ univ.erase i₀, σ.weights.sum fun b w =>
         w * Vickrey.mechanism.utility j (v j) (fun k => (b k : ℝ)) :=
@@ -1054,7 +1095,8 @@ theorem exists_overbidding_isPureNash_welfare_zero :
     (allocation_binary (fun j : Fin 2 => (b j : ℝ)) 1).resolve_right fun h1 =>
       absurd ((allocation_eq_one_iff.1 h1).unique hw0) (by decide)
   refine ⟨v, b, v, fun i => by fin_cases i <;> simp [v],
-    ⟨fun i => by fin_cases i <;> simp [v], by simp [Fin.sum_univ_two, v]⟩,
+    ⟨fun i => by fin_cases i <;> simp [v],
+      by simp [Fin.sum_univ_two, v]⟩,
     by simp [socialWelfare, Fin.sum_univ_two, v], ?_, ?_⟩
   · intro i z
     fin_cases i
@@ -1065,11 +1107,12 @@ theorem exists_overbidding_isPureNash_welfare_zero :
       rw [Mechanism.coe_update_nnreal b 0 z]
       simp [Mechanism.utility, Vickrey.mechanism, v, highestOtherBid_update, hob0]
     · have hob1 : highestOtherBid (fun j : Fin 2 => (b j : ℝ)) 1 = 2 := by
-        refine le_antisymm (highestOtherBid_le_iff.2 ⟨by norm_num, fun j hj => by
-          fin_cases j <;> simp_all [b]⟩) ?_
-        have hle := le_highestOtherBid (b := fun j : Fin 2 => (b j : ℝ))
-          (i := 1) (j := 0) (by decide)
-        simpa [b] using hle
+        refine le_antisymm ?_ ?_
+        · refine highestOtherBid_le_iff.2 ⟨by norm_num, fun j hj => ?_⟩
+          fin_cases j <;> simp_all [b]
+        · have hle := le_highestOtherBid (b := fun j : Fin 2 => (b j : ℝ))
+            (i := 1) (j := 0) (by decide)
+          simpa [b] using hle
       dsimp [Mechanism.toCostGame]
       rw [Mechanism.coe_update_nnreal b 1 z]
       simp only [Mechanism.utility, Vickrey.mechanism, hlose, mul_zero, sub_self, neg_zero,

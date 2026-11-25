@@ -245,10 +245,10 @@ theorem MoulinScheme.ofPhantoms_eval_eq_phantomMedian (hab : a ≤ b)
     set Sx := Finset.univ.filter fun i : ι => (x i : ℝ) ≤ z
     set Sy := Finset.univ.filter fun j : Fin (Fintype.card ι - 1) => (y j : ℝ) ≤ z
     have hsum_card : (Finset.univ.filter fun u => Sum.elim x y u ≤ z).card = Sx.card + Sy.card := by
-      rw [show (Finset.univ.filter fun u : ι ⊕ Fin (Fintype.card ι - 1) => Sum.elim x y u ≤ z) =
-          Sx.map ⟨Sum.inl, Sum.inl_injective⟩ ∪ Sy.map ⟨Sum.inr, Sum.inr_injective⟩ by
-        ext (_ | _) <;> simp [Sx, Sy],
-        Finset.card_union_of_disjoint, Finset.card_map, Finset.card_map]
+      have heq : (Finset.univ.filter fun u : ι ⊕ Fin (Fintype.card ι - 1) => Sum.elim x y u ≤ z) =
+          Sx.map ⟨Sum.inl, Sum.inl_injective⟩ ∪ Sy.map ⟨Sum.inr, Sum.inr_injective⟩ := by
+        ext (_ | _) <;> simp [Sx, Sy]
+      rw [heq, Finset.card_union_of_disjoint, Finset.card_map, Finset.card_map]
       rw [Finset.disjoint_left]
       rintro _ hu1 hu2
       rcases Finset.mem_map.mp hu1 with ⟨_, _, rfl⟩

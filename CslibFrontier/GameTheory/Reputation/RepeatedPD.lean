@@ -166,11 +166,10 @@ theorem discountedPayoff_cons {δ B : ℝ} (hδ₀ : 0 ≤ δ) (hδ₁ : δ < 1)
     (hu : ∀ t, |u t| ≤ B) :
     discountedPayoff δ u = (1 - δ) * u 0 + δ * discountedPayoff δ (fun t => u (t + 1)) := by
   have hsum := summable_pow_mul_of_bdd hδ₀ hδ₁ hu
-  rw [discountedPayoff, hsum.tsum_eq_zero_add, pow_zero, one_mul,
-    show (fun t : ℕ => δ ^ (t + 1) * u (t + 1)) = fun t => δ * (δ ^ t * u (t + 1)) by
-      ext t
-      ring,
-    tsum_mul_left, discountedPayoff]
+  have htail : (fun t : ℕ => δ ^ (t + 1) * u (t + 1)) = fun t => δ * (δ ^ t * u (t + 1)) :=
+    funext fun _ => by ring
+  rw [discountedPayoff, hsum.tsum_eq_zero_add, pow_zero, one_mul, htail, tsum_mul_left,
+    discountedPayoff]
   ring
 
 private theorem discountedPayoff_ite_zero {δ : ℝ} (hδ₀ : 0 ≤ δ) (hδ₁ : δ < 1) (a c : ℝ) :
@@ -359,7 +358,8 @@ private theorem forall_contPayoff₁_le_iff {δ : ℝ} (hδ₀ : 0 ≤ δ) (hδ�
     have htail : contPayoff₁ δ σ₁' σ₂ (h ++ [⟨a, σ₂ h⟩]) =
         contPayoff₁ δ σ₁ σ₂ (h ++ [⟨a, σ₂ h⟩]) := by
       unfold contPayoff₁
-      congr 1; ext t
+      congr 1
+      ext t
       rw [roundAt_congr_of_gt hgt (fun _ _ => rfl) (by simp)]
     have hbell := contPayoff₁_bellman hδ₀ hδ₁ σ₁' σ₂ h
     simp only [σ₁', ↓reduceIte, htail] at hbell

@@ -132,11 +132,11 @@ theorem relatedPureLowerTierCount_eq_mul_succ (k : ℕ) {t : ℕ} (ht : t < k) :
     ring
   have hpow : 2 ^ (k - t) = 2 ^ (k - (t + 1)) * 2 := by
     rw [show k - t = k - (t + 1) + 1 by omega, pow_succ]
-  rw [hpow,
-    show k.factorial / t.factorial = q * (t + 1) by
-      rw [hq', Nat.mul_div_cancel_left _ (Nat.factorial_pos t)],
-    show k.factorial / (t + 1).factorial = q by
-      rw [hq, Nat.mul_div_cancel_left _ (Nat.factorial_pos (t + 1))]]
+  have h1 : k.factorial / t.factorial = q * (t + 1) := by
+    rw [hq', Nat.mul_div_cancel_left _ (Nat.factorial_pos t)]
+  have h2 : k.factorial / (t + 1).factorial = q := by
+    rw [hq, Nat.mul_div_cancel_left _ (Nat.factorial_pos (t + 1))]
+  rw [hpow, h1, h2]
   ring
 
 instance (k : ℕ) : Nonempty (relatedPureLowerMachine k) :=
@@ -225,10 +225,11 @@ theorem isPureNash_relatedPureLowerNE (k : ℕ) :
     linarith [show (0 : ℝ) ≤ (2 : ℝ) ^ t.val / (2 : ℝ) ^ r.val by positivity]
   · set d : ℕ := t.val - r.val
     have htr : t.val = r.val + d := by omega
-    rw [show (2 : ℝ) ^ t.val / (2 : ℝ) ^ r.val = (2 : ℝ) ^ d by
-      rw [htr, pow_add, mul_div_cancel_left₀ _ (by positivity)]]
+    have hdiv : (2 : ℝ) ^ t.val / (2 : ℝ) ^ r.val = (2 : ℝ) ^ d := by
+      rw [htr, pow_add, mul_div_cancel_left₀ _ (by positivity)]
     have h2d : (d : ℝ) + 1 ≤ (2 : ℝ) ^ d := by exact_mod_cast (Nat.lt_two_pow_self : d + 1 ≤ 2 ^ d)
     have htr' : (t.val : ℝ) = (r.val : ℝ) + (d : ℝ) := by exact_mod_cast htr
+    rw [hdiv]
     push_cast
     linarith
 
@@ -238,8 +239,11 @@ theorem makespan_relatedPureLowerNE (k : ℕ) :
   refine le_antisymm (((relatedPureLower k).makespan_le_iff _).mpr fun ⟨r, _⟩ => ?_) ?_
   · rw [load_relatedPureLowerNE]
     exact_mod_cast Nat.le_of_lt_succ r.isLt
-  · simpa [load_relatedPureLowerNE] using (relatedPureLower k).load_le_makespan
-      (relatedPureLowerNE k) ⟨Fin.last k, ⟨0, relatedPureLowerTierCount_pos k le_rfl⟩⟩
+  · calc (k : ℝ) = (relatedPureLower k).load (relatedPureLowerNE k)
+            ⟨Fin.last k, ⟨0, relatedPureLowerTierCount_pos k le_rfl⟩⟩ := by
+          simp [load_relatedPureLowerNE]
+      _ ≤ (relatedPureLower k).makespan (relatedPureLowerNE k) :=
+          (relatedPureLower k).load_le_makespan _ _
 
 /-- Optimal-like assignment placing each job of type `t` on a distinct machine of tier `t`. -/
 private def relatedPureLowerOpt (k : ℕ) :
@@ -340,15 +344,6 @@ private theorem exp_lt_card_relatedPureLowerMachine {k : ℕ} (hk : 2 ≤ k) :
     exact_mod_cast tierCount_zero_le_card k
   linarith
 
-private theorem inv_mul_log_div_log_log_mul_le {k C X opt : ℝ}
-    (hk : 2 ≤ k) (hC : 0 < C) (hexp : Real.exp k < X)
-    (hlog : Real.log X ≤ C * k * Real.log k) (hopt : opt ≤ 1) :
-    (1 / C) * (Real.log X / Real.log (Real.log X)) * opt ≤ k := by
-  obtain ⟨hll_pos, hle⟩ := Real.inv_mul_log_div_log_log_le hk hC hexp hlog
-  have hlog_pos : 0 < Real.log X :=
-    Real.log_pos ((Real.one_lt_exp_iff.mpr (by linarith)).trans hexp)
-  exact (mul_le_mul_of_nonneg_left hopt (by positivity)).trans (by linarith)
-
 /-- **Asymptotic pure PoA lower bound along the `k`-tier family**: for every `k ≥ 2`,
 `relatedPureLowerNE k` achieves makespan at least
 `(1 / 3) * (log |M| / log (log |M|)) * optMakespan`. -/
@@ -375,9 +370,14 @@ theorem makespan_relatedPureLowerNE_ge_log_div_log_log {k : ℕ} (hk : 2 ≤ k) 
       _ ≤ 3 * (k : ℝ) * Real.log (k : ℝ) := by
           nlinarith [Real.add_mul_log_two_le (d := 1) hk_real zero_le_one,
             Real.log_pos (by linarith : (1 : ℝ) < k)]
+  obtain ⟨_, hratio_le_k⟩ :=
+    Real.inv_mul_log_div_log_log_le hk_real (by norm_num : (0 : ℝ) < 3) hexp_lt hlogM_le
   rw [makespan_relatedPureLowerNE]
-  exact inv_mul_log_div_log_log_mul_le hk_real (by norm_num) hexp_lt hlogM_le
-    (optMakespan_relatedPureLower_le_one k)
+  calc (1 / 3 : ℝ) * (Real.log (M : ℝ) / Real.log (Real.log (M : ℝ))) *
+          (relatedPureLower k).optMakespan
+      ≤ (1 / 3 : ℝ) * (Real.log (M : ℝ) / Real.log (Real.log (M : ℝ))) * 1 :=
+        mul_le_mul_of_nonneg_left (optMakespan_relatedPureLower_le_one k) (by positivity)
+    _ ≤ (k : ℝ) := by linarith
 
 /-- **Uniformly related pure PoA lower bound for all `m ≥ 13`** ([CzumajVocking2002];
 [Vocking2007], Theorem 20.9; locator not re-verified against primary PDF): for every `m ≥ 13`,
@@ -392,9 +392,11 @@ theorem exists_relatedPureNash_makespan_ge_log_div_log_log {m : ℕ} [NeZero m] 
         G.makespan A := by
   let M : ℕ → ℕ := fun k => Fintype.card (relatedPureLowerMachine k)
   -- Pick the largest `k ≥ 2` with `M k ≤ m`.
-  have hS_ne : ((range (m + 1)).filter fun k => 2 ≤ k ∧ M k ≤ m).Nonempty :=
-    ⟨2, mem_filter.mpr ⟨mem_range.mpr (by omega), le_rfl,
-      by dsimp only [M]; rw [card_relatedPureLowerMachine_two]; exact hm⟩⟩
+  have hS_ne : ((range (m + 1)).filter fun k => 2 ≤ k ∧ M k ≤ m).Nonempty := by
+    refine ⟨2, mem_filter.mpr ⟨mem_range.mpr (by omega), le_rfl, ?_⟩⟩
+    dsimp only [M]
+    rw [card_relatedPureLowerMachine_two]
+    exact hm
   obtain ⟨k, hk_mem, hk_max⟩ :=
     exists_max_image ((range (m + 1)).filter fun k => 2 ≤ k ∧ M k ≤ m) id hS_ne
   obtain ⟨_, hk2, hMk_le⟩ := mem_filter.mp hk_mem
@@ -479,12 +481,13 @@ theorem exists_relatedPureNash_makespan_ge_log_div_log_log {m : ℕ} [NeZero m] 
       · positivity
     · let jtop : Fin m := embedM ⟨Fin.last k, ⟨0, relatedPureLowerTierCount_pos k le_rfl⟩⟩
       have htop_lt : jtop.val < M k := (eM.symm _).isLt
-      refine (le_of_eq ?_).trans (G.load_le_makespan A jtop)
-      rw [hload_embed (relatedPureLowerNE k) jtop, dite_eq_left htop_lt,
-        show (⟨jtop.val, htop_lt⟩ : Fin (M k)) =
-          eM.symm ⟨Fin.last k, ⟨0, relatedPureLowerTierCount_pos k le_rfl⟩⟩ from Fin.ext rfl,
-        eM.apply_symm_apply, load_relatedPureLowerNE]
-      simp
+      have hfin : (⟨jtop.val, htop_lt⟩ : Fin (M k)) =
+          eM.symm ⟨Fin.last k, ⟨0, relatedPureLowerTierCount_pos k le_rfl⟩⟩ := Fin.ext rfl
+      calc (k : ℝ) = G.load A jtop := by
+            rw [hload_embed (relatedPureLowerNE k) jtop, dite_eq_left htop_lt, hfin,
+              eM.apply_symm_apply, load_relatedPureLowerNE]
+            simp
+        _ ≤ G.makespan A := G.load_le_makespan A jtop
   have hopt_le1 : G.optMakespan ≤ 1 := by
     refine (G.optMakespan_le Aopt).trans ((G.makespan_le_iff Aopt).mpr fun j => ?_)
     rw [hload_embed (relatedPureLowerOpt k) j]
@@ -514,8 +517,13 @@ theorem exists_relatedPureNash_makespan_ge_log_div_log_log {m : ℕ} [NeZero m] 
       _ ≤ 5 * (k : ℝ) * Real.log (k : ℝ) := by
           linarith [Real.add_mul_log_two_le (d := 2) hk_real (by norm_num),
             Real.add_one_mul_log_add_one_le hk_real]
+  obtain ⟨_, hratio_le_k⟩ :=
+    Real.inv_mul_log_div_log_log_le hk_real (by norm_num : (0 : ℝ) < 5) hexp_lt_m hlogm_le
   refine ⟨n, G, A, hA_isNE, hopt_pos, ?_⟩
   rw [hmsA]
-  exact inv_mul_log_div_log_log_mul_le hk_real (by norm_num) hexp_lt_m hlogm_le hopt_le1
+  calc (1 / 5 : ℝ) * (Real.log (m : ℝ) / Real.log (Real.log (m : ℝ))) * G.optMakespan
+      ≤ (1 / 5 : ℝ) * (Real.log (m : ℝ) / Real.log (Real.log (m : ℝ))) * 1 :=
+        mul_le_mul_of_nonneg_left hopt_le1 (by positivity)
+    _ ≤ (k : ℝ) := by linarith
 
 end Cslib.GameTheory.LoadBalancingGame

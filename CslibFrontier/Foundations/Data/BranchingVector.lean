@@ -183,11 +183,15 @@ theorem le_mul_pow {T : ℕ → ℝ} {steps : List ℕ} {C : ℝ}
   | ind n ih =>
     refine (hrec.step_le n (fun m => C * r ^ m) ih).trans (max_le ?_ ?_)
     · simpa only [mul_one] using mul_le_mul_of_nonneg_left (one_le_pow₀ hr) hrec.base_nonneg
-    · rw [List.sum_map_mul_left,
-        sum_pow_sub_eq hr_pos n fun d hd => of_decide_eq_true (List.mem_filter.mp hd).2,
-        ← mul_assoc]
-      exact mul_le_of_le_one_right (mul_nonneg hrec.base_nonneg (by positivity))
-        ((charSum_filter_le (· ≤ n) steps hr_pos.le).trans hchar)
+    · have hfilt : charSum (steps.filter (· ≤ n)) r ≤ 1 :=
+        (charSum_filter_le (· ≤ n) steps hr_pos.le).trans hchar
+      calc ((steps.filter (· ≤ n)).map fun d => C * r ^ (n - d)).sum
+          = C * r ^ n * charSum (steps.filter (· ≤ n)) r := by
+            rw [List.sum_map_mul_left,
+              sum_pow_sub_eq hr_pos n fun d hd => of_decide_eq_true (List.mem_filter.mp hd).2,
+              ← mul_assoc]
+        _ ≤ C * r ^ n :=
+            mul_le_of_le_one_right (mul_nonneg hrec.base_nonneg (by positivity)) hfilt
 
 /-- Unit-base specialization `T n ≤ r ^ n` when `C = 1`. -/
 theorem le_pow {T : ℕ → ℝ} {steps : List ℕ}
@@ -448,20 +452,23 @@ theorem nodeCount_le_mul_pow {r : ℝ} (hr : 1 ≤ r) (hchar : charSum T.steps r
       List.map_map]
     obtain ⟨steps', hsub, hrel⟩ := T.children_steps s hleaf
     have hsum1 : ((T.children s).map ((Nat.cast : ℕ → ℝ) ∘ T.nodeCount)).sum ≤
-        ((T.children s).map fun c => (m : ℝ) * r ^ T.measure c).sum :=
-      List.sum_le_sum fun c hc => by
-        have hlt : T.measure c < m := hm ▸ T.measure_child_lt hleaf hc
-        have hle_m : (T.measure c + 1 : ℝ) ≤ m := by exact_mod_cast hlt
-        exact (nodeCount_le_mul_pow hr hchar c).trans
-          (mul_le_mul_of_nonneg_right hle_m (by positivity))
-    rw [List.sum_map_mul_left] at hsum1
+        (m : ℝ) * ((T.children s).map fun c => r ^ T.measure c).sum := by
+      rw [← List.sum_map_mul_left]
+      refine List.sum_le_sum fun c hc => ?_
+      have hlt : T.measure c < m := hm ▸ T.measure_child_lt hleaf hc
+      have hle_m : (T.measure c + 1 : ℝ) ≤ m := by exact_mod_cast hlt
+      exact (nodeCount_le_mul_pow hr hchar c).trans
+        (mul_le_mul_of_nonneg_right hle_m (by positivity))
     have hsum2 := T.sum_children_pow_le hr (hm ▸ hrel) (f := fun c => r ^ T.measure c)
       fun _ _ => le_rfl
+    have hchar' : charSum steps' r ≤ 1 := (charSum_sublist hsub (by linarith)).trans hchar
     have htot : ((T.children s).map ((Nat.cast : ℕ → ℝ) ∘ T.nodeCount)).sum ≤ (m : ℝ) * r ^ m :=
-      (hsum1.trans (mul_le_mul_of_nonneg_left hsum2 (Nat.cast_nonneg m))).trans <| by
-        rw [← mul_assoc]
-        exact mul_le_of_le_one_right (by positivity)
-          ((charSum_sublist hsub (by linarith)).trans hchar)
+      calc ((T.children s).map ((Nat.cast : ℕ → ℝ) ∘ T.nodeCount)).sum
+          ≤ (m : ℝ) * ((T.children s).map fun c => r ^ T.measure c).sum := hsum1
+        _ ≤ (m : ℝ) * (r ^ m * charSum steps' r) :=
+            mul_le_mul_of_nonneg_left hsum2 (Nat.cast_nonneg m)
+        _ = (m : ℝ) * r ^ m * charSum steps' r := (mul_assoc _ _ _).symm
+        _ ≤ (m : ℝ) * r ^ m := mul_le_of_le_one_right (by positivity) hchar'
     linarith
   · rw [T.nodeCount_of_isLeaf hleaf, Nat.cast_one]
     nlinarith [Nat.cast_nonneg (α := ℝ) m]
@@ -516,12 +523,16 @@ theorem charSum_binary : charSum [1, 1] 2 = 1 := by
 /-- `1 < goldenBranchFactor`. -/
 theorem one_lt_goldenBranchFactor : 1 < goldenBranchFactor := by
   unfold goldenBranchFactor
-  linarith [Real.sqrt_one ▸ Real.sqrt_lt_sqrt (by norm_num) (by norm_num : (1 : ℝ) < 5)]
+  have h5 : (1 : ℝ) < Real.sqrt 5 := by
+    rw [← Real.sqrt_one]
+    exact Real.sqrt_lt_sqrt (by norm_num) (by norm_num)
+  linarith
 
 /-- `goldenBranchFactor < 2` (in fact `< 5 / 3`). -/
 theorem goldenBranchFactor_lt_two : goldenBranchFactor < 2 := by
   unfold goldenBranchFactor
-  linarith [(Real.sqrt_lt' (by norm_num : (0 : ℝ) < 3)).mpr (by norm_num : (5 : ℝ) < 3 ^ 2)]
+  have h5 : Real.sqrt 5 < 3 := (Real.sqrt_lt' (by norm_num)).mpr (by norm_num)
+  linarith
 
 /-- Fibonacci `[1, 2]` branching has exact characteristic sum `1` at `goldenBranchFactor`. -/
 theorem charSum_fibonacci : charSum [1, 2] goldenBranchFactor = 1 := by
@@ -556,8 +567,9 @@ For `k = 1, 2, 3` this gives `3 / 2`, `7 / 4`, `15 / 8`, all strictly below `2`.
 /-- For `k ≥ 1`, `1 < prefixBranchFactor k`. -/
 theorem one_lt_prefixBranchFactor {k : ℕ} (hk : 1 ≤ k) : 1 < prefixBranchFactor k := by
   unfold prefixBranchFactor
-  linarith [(pow_le_pow_of_le_one (by norm_num) (by norm_num : (1 / 2 : ℝ) ≤ 1) hk).trans_eq
-    (pow_one _)]
+  have hpow : (1 / 2 : ℝ) ^ k ≤ 1 / 2 := by
+    simpa only [pow_one] using pow_le_pow_of_le_one (by norm_num) (by norm_num) hk
+  linarith
 
 /-- `prefixBranchFactor k < 2` for every `k`. -/
 theorem prefixBranchFactor_lt_two (k : ℕ) : prefixBranchFactor k < 2 := by
@@ -570,9 +582,14 @@ private theorem geom_inv_sum_mul_sub_one (r : ℝ) (hr : r ≠ 0) (k : ℕ) :
   | zero => simp
   | succ k ih =>
     rw [List.range'_1_concat, List.map_append, List.sum_append, List.map_singleton,
-      List.sum_singleton, Nat.add_comm 1 k, mul_add, ih, pow_succ, sub_mul, one_mul,
-      show r * ((r⁻¹) ^ k * r⁻¹) = (r * r⁻¹) * (r⁻¹) ^ k by ring, mul_inv_cancel₀ hr, one_mul]
-    ring
+      List.sum_singleton, Nat.add_comm 1 k, mul_add, ih]
+    calc 1 - (r⁻¹) ^ k + (r - 1) * (r⁻¹) ^ (k + 1)
+        = 1 - (r⁻¹) ^ k + (r * r⁻¹ * (r⁻¹) ^ k - (r⁻¹) ^ (k + 1)) := by
+          rw [pow_succ (r⁻¹) k]
+          ring
+      _ = 1 - (r⁻¹) ^ (k + 1) := by
+          rw [mul_inv_cancel₀ hr]
+          ring
 
 /-- **Closed-form `k`-clause branching bound.** For every `k ≥ 1`,
 `charSum (prefixSteps k) (prefixBranchFactor k) ≤ 1`. -/

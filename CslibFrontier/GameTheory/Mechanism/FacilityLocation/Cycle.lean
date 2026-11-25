@@ -668,12 +668,15 @@ private theorem local_invariance_vertex {V : Type*} (W : WeightedGraph V) [Finit
     exact mem_image_Icc_of_dist_le_circle W hs hδL hsa hsb hr hda_y hdb_y
   by_cases h1 : d.edge = d₁.edge
   · obtain rfl := dart_eq_of_edge_eq_of_fst_eq h1 (hd_fst.trans hd₁_fst.symm)
-    exact on_cycle (-r_y) (by rw [abs_neg, abs_of_pos hry_pos]; exact hry_3)
-      (by rw [show s₀ + (-r_y) = s₀ - r_y by ring, hr1 r_y ⟨hry_pos.le, hry_3⟩, hy_ray])
+    refine on_cycle (-r_y) ?_ ?_
+    · rw [abs_neg, abs_of_pos hry_pos]
+      exact hry_3
+    · rw [show s₀ + (-r_y) = s₀ - r_y by ring, hr1 r_y ⟨hry_pos.le, hry_3⟩, hy_ray]
   · by_cases h2 : d.edge = d₂.edge
     · obtain rfl := dart_eq_of_edge_eq_of_fst_eq h2 (hd_fst.trans hd₂_fst.symm)
-      exact on_cycle r_y (by rw [abs_of_pos hry_pos]; exact hry_3)
-        (hy_ray.trans (hr2 r_y ⟨hry_pos.le, hry_3⟩).symm)
+      refine on_cycle r_y ?_ (hy_ray.trans (hr2 r_y ⟨hry_pos.le, hry_3⟩).symm)
+      rw [abs_of_pos hry_pos]
+      exact hry_3
     · exfalso
       have hfull1' : ∀ r ∈ Set.Icc 0 δ, circleMap hs.1 (s₀ - r) = rayPt W d₁ r :=
         fun r hr => hr1 r ⟨hr.1, by linarith [hr.2]⟩
@@ -770,7 +773,9 @@ private theorem local_moulin_circle {V : Type*} (W : WeightedGraph V) [Finite V]
   have hφ : Isometry φ := isometry_iff_dist_eq.mpr fun t₁ t₂ => by
     have hsub : (s₀ - δ + (t₁ : ℝ)) - (s₀ - δ + (t₂ : ℝ)) = (t₁ : ℝ) - t₂ := by ring
     have habs : |(t₁ : ℝ) - t₂| ≤ 2 * δ :=
-      abs_sub_le_iff.mpr ⟨by linarith [t₁.2.2, t₂.2.1], by linarith [t₁.2.1, t₂.2.2]⟩
+      abs_sub_le_iff.mpr
+        ⟨by linarith [t₁.2.2, t₂.2.1],
+         by linarith [t₁.2.1, t₂.2.2]⟩
     rw [Subtype.dist_eq, Real.dist_eq, circleMap_dist_eq_of_le hs
       (by rw [hsub]; linarith [hδL, walkLength_pos_of_not_nil hs.1.not_nil]), hsub]
   have hrange : ∀ x : Fin 2 → MetricGraph W, (∀ i, x i ∈ Set.range φ) → f x ∈ Set.range φ := by
@@ -778,12 +783,17 @@ private theorem local_moulin_circle {V : Type*} (W : WeightedGraph V) [Finite V]
     obtain ⟨t0, h0⟩ := hx 0; obtain ⟨t1, h1⟩ := hx 1
     have hx_eq : x = ![circleMap hs.1 (s₀ + ((t0 : ℝ) - δ)),
         circleMap hs.1 (s₀ + ((t1 : ℝ) - δ))] := by
-      ext i; fin_cases i <;> [exact h0.symm.trans (by dsimp only [φ]; congr 1; ring);
-        exact h1.symm.trans (by dsimp only [φ]; congr 1; ring)]
+      ext i
+      fin_cases i
+      · exact h0.symm.trans (congrArg (circleMap hs.1) (by ring))
+      · exact h1.symm.trans (congrArg (circleMap hs.1) (by ring))
     obtain ⟨r, hr, hreq⟩ := hinv ((t0 : ℝ) - δ) ⟨by linarith [t0.2.1], by linarith [t0.2.2]⟩
       ((t1 : ℝ) - δ) ⟨by linarith [t1.2.1], by linarith [t1.2.2]⟩
-    exact ⟨⟨r + δ, by linarith [hr.1], by linarith [hr.2]⟩,
-      by dsimp only [φ]; rw [hx_eq, ← hreq]; congr 1; ring⟩
+    refine ⟨⟨r + δ, ?_, ?_⟩, ?_⟩
+    · linarith [hr.1]
+    · linarith [hr.2]
+    · rw [hx_eq, ← hreq]
+      exact congrArg (circleMap hs.1) (by ring)
   obtain ⟨E, hE⟩ := moulinScheme_of_isometry (by linarith) φ hφ hf_sp hrange
     fun y ⟨t, ht⟩ => ⟨fun _ => y, fun _ => ⟨t, ht⟩, hf_unam y ⟨_, ht⟩⟩
   refine ⟨δ, s₀ - δ + E.alpha {0}, hδ_pos, hδL,
@@ -915,18 +925,21 @@ private theorem eq_of_circle_shift_bounds {V : Type*} (W : WeightedGraph V) [Fin
   have hσ_sq : σ * σ = 1 := by rcases hσ with rfl | rfl <;> norm_num
   have hnegσ : -σ = 1 ∨ -σ = -1 := by rcases hσ with rfl | rfl <;> [right; left] <;> norm_num
   have hσρ : |σ * ρ| ≤ 2 * η := by rw [abs_mul, hσ_abs, one_mul]; exact hρ
-  have hshift (X : ℝ) : s + ρ = (s + σ * X) + (-σ) * (X - σ * ρ) := by
-    rcases hσ with rfl | rfl <;> ring
+  have hshift (X : ℝ) : s + ρ = (s + σ * X) + (-σ) * (X - σ * ρ) :=
+    calc s + ρ = s + (σ * σ) * ρ := by rw [hσ_sq, one_mul]
+      _ = (s + σ * X) + (-σ) * (X - σ * ρ) := by ring
   rcases lt_trichotomy (σ * ρ) 0 with hneg | hzero | hpos
   · rw [hy_cm, hshift (R + η'), dist_circleMap_add_mul_dir hs hnegσ _ _
-      (by linarith [hη'.1, hη'.2]) (by linarith [(abs_le.mp hσρ).1, hη'.2, hη_L])] at hb
+      (by linarith [hη'.1, hη'.2])
+      (by linarith [(abs_le.mp hσρ).1, hη'.2, hη_L])] at hb
     linarith
   · have hρ0 : ρ = 0 := by
       have h := congrArg (σ * ·) hzero
       rwa [← mul_assoc, hσ_sq, one_mul, mul_zero] at h
     simpa only [hρ0, add_zero] using hy_cm
   · rw [hy_cm, hshift R, dist_circleMap_add_mul_dir hs hnegσ _ _
-      (by linarith [(abs_le.mp hσρ).2]) (by linarith)] at hb₀
+      (by linarith [(abs_le.mp hσρ).2])
+      (by linarith)] at hb₀
     linarith
 
 /-- Near a cycle vertex `circleMap s_v = vertex v`, any interior point `edgePoint d' t'` with

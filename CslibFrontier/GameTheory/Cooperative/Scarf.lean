@@ -234,8 +234,11 @@ private theorem scarf_payoff_lemma {A : Type*} [Fintype A] [Nonempty A] (G : NTU
   have hsing_mem (q : A → ℝ) (i : A) : M * q i ∈ TSet q :=
     ⟨{i}, Finset.singleton_nonempty i, (hv i _).2 (by dsimp only [base]; linarith)⟩
   have hT_closed (q : A → ℝ) : IsClosed (TSet q) := by
-    rw [show TSet q = ⋃ S : {S : Finset A // S.Nonempty},
-        {t : ℝ | (fun i => base q i + t) ∈ G.feasible S.1} by ext; simp [TSet]]
+    have hUnion : TSet q = ⋃ S : {S : Finset A // S.Nonempty},
+        {t : ℝ | (fun i => base q i + t) ∈ G.feasible S.1} := by
+      ext
+      simp [TSet]
+    rw [hUnion]
     exact isClosed_iUnion_of_finite fun S =>
       (G.isClosed S.2).preimage (continuous_pi fun _ => continuous_const.add continuous_id)
   have hT_bdd (q : A → ℝ) : BddAbove (TSet q) := by
@@ -549,28 +552,30 @@ theorem nonemptyCore_toNTUGame_iff [Fintype A] (G : CooperativeGame A) :
 theorem individualValue_toNTUGame (G : CooperativeGame A) (i : A) :
     G.toNTUGame.individualValue i = G.val {i} := by
   unfold NTUGame.individualValue
-  rw [show ((fun x : A → ℝ => x i) '' G.toNTUGame.feasible {i}) = Set.Iic (G.val {i}) by
+  have himg : ((fun x : A → ℝ => x i) '' G.toNTUGame.feasible {i}) = Set.Iic (G.val {i}) := by
     ext t
     simp only [Set.mem_image, mem_toNTUGame_feasible, Finset.sum_singleton, Set.mem_Iic]
-    exact ⟨fun ⟨x, hx, hxt⟩ => hxt ▸ hx, fun ht => ⟨fun _ => t, ht, rfl⟩⟩, csSup_Iic]
+    exact ⟨fun ⟨x, hx, hxt⟩ => hxt ▸ hx, fun ht => ⟨fun _ => t, ht, rfl⟩⟩
+  rw [himg, csSup_Iic]
 
 theorem toNTUGame_isBounded [Finite A] [Nonempty A] (G : CooperativeGame A) :
     G.toNTUGame.IsBounded := by
   classical
   have := Fintype.ofFinite A
-  refine ⟨fun i => ⟨G.val {i}, by rintro _ ⟨x, hx, rfl⟩; simpa [mem_toNTUGame_feasible] using hx⟩,
-    ?_⟩
-  let f : Finset A → ℝ := fun S => G.val S - ∑ j ∈ S, G.val {j}
-  let M : ℝ := Finset.univ.sup' Finset.univ_nonempty f
-  let vmax : ℝ := Finset.univ.sup' Finset.univ_nonempty fun i : A => G.val {i}
-  refine ⟨vmax + max M 0, fun S _ x hx hir i hi => ?_⟩
-  have hsub : x i - G.val {i} ≤ ∑ j ∈ S, x j - ∑ j ∈ S, G.val {j} := by
-    rw [← Finset.sum_sub_distrib]
-    exact Finset.single_le_sum
-      (fun j hj => sub_nonneg.2 (G.individualValue_toNTUGame j ▸ hir j hj)) hi
-  have hM : G.val S - ∑ j ∈ S, G.val {j} ≤ M := Finset.le_sup' f (Finset.mem_univ S)
-  linarith [(mem_toNTUGame_feasible G S x).1 hx,
-    Finset.le_sup' (fun k : A => G.val {k}) (Finset.mem_univ i), le_max_left M 0]
+  refine ⟨fun i => ⟨G.val {i}, ?_⟩, ?_⟩
+  · rintro _ ⟨x, hx, rfl⟩
+    simpa [mem_toNTUGame_feasible] using hx
+  · let f : Finset A → ℝ := fun S => G.val S - ∑ j ∈ S, G.val {j}
+    let M : ℝ := Finset.univ.sup' Finset.univ_nonempty f
+    let vmax : ℝ := Finset.univ.sup' Finset.univ_nonempty fun i : A => G.val {i}
+    refine ⟨vmax + max M 0, fun S _ x hx hir i hi => ?_⟩
+    have hsub : x i - G.val {i} ≤ ∑ j ∈ S, x j - ∑ j ∈ S, G.val {j} := by
+      rw [← Finset.sum_sub_distrib]
+      exact Finset.single_le_sum
+        (fun j hj => sub_nonneg.2 (G.individualValue_toNTUGame j ▸ hir j hj)) hi
+    have hM : G.val S - ∑ j ∈ S, G.val {j} ≤ M := Finset.le_sup' f (Finset.mem_univ S)
+    linarith [(mem_toNTUGame_feasible G S x).1 hx,
+      Finset.le_sup' (fun k : A => G.val {k}) (Finset.mem_univ i), le_max_left M 0]
 
 theorem toNTUGame_isBalanced_iff [Fintype A] [DecidableEq A] [Nonempty A] (G : CooperativeGame A) :
     G.toNTUGame.IsBalanced ↔

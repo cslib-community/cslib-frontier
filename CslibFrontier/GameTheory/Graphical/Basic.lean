@@ -387,18 +387,22 @@ theorem sum_productWeight_mul_restrict (P : ι → Prop) [DecidablePred P]
   have hrest : ∑ v : (∀ j : {j // ¬ P j}, S j.1), ∏ j : {j // ¬ P j}, p j.1 (v j) = 1 := by
     rw [← Fintype.prod_sum (fun j : {j // ¬ P j} => p j.1)]
     exact prod_eq_one fun j _ => hp j.1 j.2
-  rw [← Fintype.sum_equiv e _ (fun s => productWeight p s * f (fun j => s j.1)) fun _ => rfl,
-    Fintype.sum_prod_type]
-  refine sum_congr rfl fun u _ => ?_
-  have hu (v : ∀ j : {j // ¬ P j}, S j.1) :
-      productWeight p (e (u, v)) * f (fun j => e (u, v) j.1) =
-        ((∏ j : {j // P j}, p j.1 (u j)) * f u) * ∏ j : {j // ¬ P j}, p j.1 (v j) := by
-    have hrestrict : (fun j : {j // P j} => e (u, v) j.1) = u := by
-      ext j
-      simp [e, Equiv.piEquivPiSubtypeProd, j.2]
-    rw [hprod u v, hrestrict]
-    ring
-  simp only [hu, ← Finset.mul_sum, hrest, mul_one]
+  rw [← Fintype.sum_equiv e _ (fun s => productWeight p s * f (fun j => s j.1)) fun _ => rfl]
+  calc ∑ x : (∀ j : {j // P j}, S j.1) × (∀ j : {j // ¬ P j}, S j.1),
+        productWeight p (e x) * f (fun j => e x j.1)
+      = ∑ u : (∀ j : {j // P j}, S j.1), ∑ v : (∀ j : {j // ¬ P j}, S j.1),
+          ((∏ j : {j // P j}, p j.1 (u j)) * f u) *
+            (∏ j : {j // ¬ P j}, p j.1 (v j)) := by
+        rw [Fintype.sum_prod_type]
+        refine sum_congr rfl fun u _ => sum_congr rfl fun v _ => ?_
+        have hrestrict : (fun j : {j // P j} => e (u, v) j.1) = u := by
+          ext j
+          simp [e, Equiv.piEquivPiSubtypeProd, j.2]
+        rw [hprod u v, hrestrict]
+        ring
+    _ = ∑ u : (∀ j : {j // P j}, S j.1), (∏ j : {j // P j}, p j.1 (u j)) * f u := by
+        refine sum_congr rfl fun u _ => ?_
+        rw [← Finset.mul_sum, hrest, mul_one]
 
 /-- Expected payoff `M_i(p) = E_{s ∼ p}[M.payoff i s]` of player `i` under independent mixed
 strategies `p` ([Kearns2007], §7.2, p. 162). -/

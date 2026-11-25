@@ -181,7 +181,9 @@ theorem le_mul_optSocialCost [Nonempty G] {x : ι → G} {α c : ℝ} (hα : 0 �
   · obtain ⟨y⟩ := ‹Nonempty G›
     simpa only [zero_mul] using h y
   · rw [mul_comm, ← div_le_iff₀ hpos, le_optSocialCost_iff]
-    exact fun y => by rw [div_le_iff₀ hpos, mul_comm]; exact h y
+    intro y
+    rw [div_le_iff₀ hpos, mul_comm]
+    exact h y
 
 /-- The optimal extended social cost is at most the extended social cost at any location `y`. -/
 theorem optSocialECost_le_socialECost (x : ι → G) (y : G) :
@@ -449,8 +451,9 @@ theorem isStrategyProof_iff [DecidableEq ι] {M : Mechanism ι G} :
       expectedECost (M x) (x i) ≤ expectedECost (M y) (x i) := by
   refine ⟨fun h x y i hxy => ?_, fun h x i z =>
     h x (Function.update x i z) i fun j hj => (Function.update_of_ne hj _ _).symm⟩
-  rw [show y = Function.update x i (y i) from funext fun j => by
-    by_cases hj : j = i <;> simp [Function.update, hj, hxy]]
+  have hy : y = Function.update x i (y i) := funext fun j => by
+    by_cases hj : j = i <;> simp [Function.update, hj, hxy]
+  rw [hy]
   exact h x i (y i)
 
 /-- Weak group strategyproofness stated in negated form: no nonempty coalition `A` can deviate so

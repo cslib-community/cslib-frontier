@@ -441,9 +441,13 @@ private theorem minDegKernelVecUpTo_ne_zero (entry : κ → ℕ × ℕ → F) (L
     (Q.coeff (M.equivFin.symm col : ℕ × ℕ).2).coeff (M.equivFin.symm col : ℕ × ℕ).1,
     ?_, funext fun t => ?_⟩
   · obtain ⟨b, hb⟩ : ∃ b, Q.coeff b ≠ 0 :=
-      not_forall.1 fun h => hQ0 (by ext b : 2; rw [h b, coeff_zero])
+      not_forall.1 fun h => hQ0 <| by
+        ext b : 2
+        rw [h b, coeff_zero]
     obtain ⟨a, ha⟩ : ∃ a, (Q.coeff b).coeff a ≠ 0 :=
-      not_forall.1 fun h => hb (by ext a; rw [h a, coeff_zero])
+      not_forall.1 fun h => hb <| by
+        ext a
+        rw [h a, coeff_zero]
     intro h0
     have h := congrFun h0 (M.equivFin ⟨(a, b), hsupp a b ha⟩)
     exact ha (by simpa only [Equiv.symm_apply_apply, Pi.zero_apply] using h)

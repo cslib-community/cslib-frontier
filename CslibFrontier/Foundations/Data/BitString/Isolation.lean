@@ -95,9 +95,10 @@ theorem isolation_cons_ge (S : Finset (Fin (n + 1) → Bool)) (b : Bool) (τ : F
   · have h0 : (0 : Fin (n + 1)) ∈ B := by
       simp only [B, mem_filter, mem_univ, true_and, Fin.cons_zero]
       rwa [update_cons_zero]
-    rw [← card_map (Fin.succEmb n),
-      ← card_insert_of_notMem (a := (0 : Fin (n + 1))) (by simp [Fin.succ_ne_zero])]
-    exact card_le_card (insert_subset h0 hA)
+    calc A.card + 1
+        = (insert 0 (A.map (Fin.succEmb n))).card := by
+          rw [card_insert_of_notMem (by simp [Fin.succ_ne_zero]), card_map]
+      _ ≤ B.card := card_le_card (insert_subset h0 hA)
 
 /-- The sum over `S` of a function of `σ`, split by the first coordinate. -/
 private theorem sum_split (S : Finset (Fin (n + 1) → Bool)) (f : (Fin (n + 1) → Bool) → ℕ) :
@@ -108,11 +109,13 @@ private theorem sum_split (S : Finset (Fin (n + 1) → Bool)) (f : (Fin (n + 1) 
     sum_nbij' (fun τ : Fin n → Bool => Fin.cons b τ) (fun σ => Fin.tail σ)
       (fun _ hτ => mem_filter.2 ⟨mem_slice.1 hτ, rfl⟩)
       (fun σ hσ => by
-        rw [mem_slice, ← (mem_filter.1 hσ).2, Fin.cons_self_tail]; exact (mem_filter.1 hσ).1)
+        rw [mem_slice, ← (mem_filter.1 hσ).2, Fin.cons_self_tail]
+        exact (mem_filter.1 hσ).1)
       (fun _ _ => Fin.tail_cons _ _)
       (fun σ hσ => by
         change Fin.cons b (Fin.tail σ) = σ
-        rw [← (mem_filter.1 hσ).2]; exact Fin.cons_self_tail σ)
+        rw [← (mem_filter.1 hσ).2]
+        exact Fin.cons_self_tail σ)
       (fun _ _ => rfl)
   rw [hsplit, hsplit, ← sum_filter_add_sum_filter_not S (fun σ => σ 0 = true)]
   congr 1
@@ -145,8 +148,10 @@ theorem two_pow_le_sum_two_pow_isolation :
     ∀ {n : ℕ} (S : Finset (Fin n → Bool)), S.Nonempty →
       2 ^ n ≤ ∑ σ ∈ S, 2 ^ isolation S σ
   | 0, S, ⟨σ, hσ⟩ =>
-    Nat.one_le_two_pow.trans (single_le_sum (f := fun σ => 2 ^ isolation S σ)
-      (fun _ _ => Nat.zero_le _) hσ)
+    calc 2 ^ 0
+        ≤ 2 ^ isolation S σ := Nat.one_le_two_pow
+      _ ≤ ∑ σ ∈ S, 2 ^ isolation S σ :=
+          single_le_sum (f := fun σ => 2 ^ isolation S σ) (fun _ _ => Nat.zero_le _) hσ
   | n + 1, S, hS => by
     rw [sum_split S fun σ => 2 ^ isolation S σ]
     by_cases h0 : (slice S false).Nonempty <;> by_cases h1 : (slice S true).Nonempty

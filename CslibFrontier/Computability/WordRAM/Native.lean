@@ -432,7 +432,9 @@ theorem transport_polyTime (enc : B.genericModel.Encoding)
         (FiniteState.run (cfg a) p.toGeneric j (initState a))).length ≤ bound a) :
     ComputableInPolyTime f ei enc.value :=
   FiniteState.transport_polyTime enc N p.toGeneric cSteps cCfg cInit
-    (fun a => let ⟨m, hm, hex⟩ := hExec a; ⟨m, hm, hden a ▸ executes_toGeneric_iff.mpr hex⟩)
+    (fun a =>
+      let ⟨m, hm, hex⟩ := hExec a
+      ⟨m, hm, hden a ▸ executes_toGeneric_iff.mpr hex⟩)
     hN hSteps hCfg hInit hStepsBound hB hOutLen
 
 /-- Automatic `ComputableInPolyTime` transport corollary from `WordRAM.Executes` under a
@@ -451,7 +453,9 @@ theorem transport_polyTime_of_le_const (enc : B.genericModel.Encoding)
     (K : ℕ) (hStepsLe : ∀ a, steps a ≤ K) :
     ComputableInPolyTime f ei enc.value :=
   FiniteState.transport_polyTime_of_le_const enc N p.toGeneric cSteps cCfg cInit
-    (fun a => let ⟨m, hm, hex⟩ := hExec a; ⟨m, hm, hden a ▸ executes_toGeneric_iff.mpr hex⟩)
+    (fun a =>
+      let ⟨m, hm, hex⟩ := hExec a
+      ⟨m, hm, hden a ▸ executes_toGeneric_iff.mpr hex⟩)
     hN hSteps hCfg hInit K hStepsLe
 
 end

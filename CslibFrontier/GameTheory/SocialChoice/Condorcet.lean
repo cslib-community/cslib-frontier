@@ -87,11 +87,11 @@ theorem support_add_support (P : Profile V A) {a b : A} (hab : a ≠ b) :
     support P a b + support P b a = Fintype.card V := by
   classical
   unfold support
-  rw [show (Finset.univ.filter fun i => (P i).Prefers b a) =
-      Finset.univ.filter fun i => ¬ (P i).Prefers a b by
+  have hfilter : (Finset.univ.filter fun i => (P i).Prefers b a) =
+      Finset.univ.filter fun i => ¬ (P i).Prefers a b := by
     ext i
-    simp [((P i).not_prefers_iff hab).symm],
-    Finset.card_filter_add_card_filter_not, Finset.card_univ]
+    simp [((P i).not_prefers_iff hab).symm]
+  rw [hfilter, Finset.card_filter_add_card_filter_not, Finset.card_univ]
 
 theorem support_eq_card_of_forall {P : Profile V A} {a b : A}
     (h : ∀ i, (P i).Prefers a b) : support P a b = Fintype.card V := by
@@ -173,12 +173,14 @@ private theorem card_filter_fin_lt (e : V ≃ Fin (Fintype.card V)) {m : ℕ}
   classical
   let emb : Fin m ↪ V := ⟨fun k => e.symm ⟨k.1, k.2.trans_le hm⟩,
     fun _ _ h => Fin.ext (Fin.mk.inj (e.symm.injective h))⟩
-  rw [show (Finset.univ.filter fun i : V => (e i : ℕ) < m) = Finset.univ.map emb by
+  have hset : (Finset.univ.filter fun i : V => (e i : ℕ) < m) = Finset.univ.map emb := by
     ext i
     simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_map]
-    exact ⟨fun hi => ⟨⟨e i, hi⟩, e.symm_apply_apply i⟩,
-      by rintro ⟨k, rfl⟩; change (e (e.symm ⟨k.1, _⟩) : ℕ) < m; simp [k.2]⟩,
-    Finset.card_map, Finset.card_univ, Fintype.card_fin]
+    refine ⟨fun hi => ⟨⟨e i, hi⟩, e.symm_apply_apply i⟩, ?_⟩
+    rintro ⟨k, rfl⟩
+    change (e (e.symm ⟨k.1, _⟩) : ℕ) < m
+    simp [k.2]
+  rw [hset, Finset.card_map, Finset.card_univ, Fintype.card_fin]
 
 private def threeBlockProfile (e : V ≃ Fin (Fintype.card V)) (c₀ c₁ : ℕ)
     (r₀ r₁ r₂ : Ranking A) : Profile V A :=
@@ -332,9 +334,13 @@ theorem pluralityCount_eq_zero_of_forall_isTop {P : Profile V A} {a b : A} (hab 
 theorem sum_pluralityCount [Fintype A] [Nonempty A] (P : Profile V A) :
     ∑ a, pluralityCount P a = Fintype.card V := by
   classical
-  rw [Finset.sum_congr rfl fun a _ => show pluralityCount P a =
-      (Finset.univ.filter fun i : V => (P i).top = a).card by
-    unfold pluralityCount; congr 1; ext i; simp [(P i).isTop_iff_eq_top, eq_comm]]
+  have hcongr (a : A) :
+      pluralityCount P a = (Finset.univ.filter fun i : V => (P i).top = a).card := by
+    unfold pluralityCount
+    congr 1
+    ext i
+    simp [(P i).isTop_iff_eq_top, eq_comm]
+  rw [Finset.sum_congr rfl fun a _ => hcongr a]
   exact (Finset.card_eq_sum_card_fiberwise (f := fun i : V => (P i).top)
     (s := Finset.univ) (t := Finset.univ) fun _ _ => Finset.mem_univ _).symm.trans
     Finset.card_univ
@@ -404,15 +410,14 @@ theorem not_isDictator_plurality [Finite A] [Nontrivial A] (t : Ranking A)
     · simp only [P, hj, ↓reduceIte, iff_false]
       exact fun h => ham (h.unique (t.isTop_toTop m))⟩
   have hcnt_m : pluralityCount P m = Fintype.card V - 1 := by
-    rw [pluralityCount, show (Finset.univ.filter fun j : V => (P j).IsTop m) =
-        Finset.univ.erase i by
+    have hset : (Finset.univ.filter fun j : V => (P j).IsTop m) = Finset.univ.erase i := by
       ext j
       by_cases hj : j = i
       · simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_erase, ne_eq,
           P, hj, ↓reduceIte, not_true_eq_false, false_and, iff_false]
         exact fun h => ham ((t.isTop_toTop a).unique h)
-      · simp [P, hj, t.isTop_toTop m],
-      Finset.card_erase_of_mem (Finset.mem_univ i), Finset.card_univ]
+      · simp [P, hj, t.isTop_toTop m]
+    rw [pluralityCount, hset, Finset.card_erase_of_mem (Finset.mem_univ i), Finset.card_univ]
   have hPm : plurality t P = m := plurality_eq_of_isTop t fun x hxm => by
     rw [pluralityRanking_prefers, hcnt_m]
     by_cases hxa : x = a
@@ -421,11 +426,12 @@ theorem not_isDictator_plurality [Finite A] [Nontrivial A] (t : Ranking A)
       by_cases hgt : 1 < Fintype.card V - 1
       · exact .inl hgt
       · exact .inr ⟨by omega, t.isTop_top x hxm⟩
-    · rw [show pluralityCount P x = 0 from Finset.card_eq_zero.2 (Finset.filter_eq_empty_iff.2
-        fun j _ hjx => by
+    · have hcnt0 : pluralityCount P x = 0 :=
+        Finset.card_eq_zero.2 <| Finset.filter_eq_empty_iff.2 fun j _ hjx => by
           by_cases hj : j = i <;> simp only [P, hj, ↓reduceIte] at hjx
           · exact hxa (hjx.unique (t.isTop_toTop a))
-          · exact hxm (hjx.unique (t.isTop_toTop m)))]
+          · exact hxm (hjx.unique (t.isTop_toTop m))
+      rw [hcnt0]
       exact .inl (by omega)
   have hdict := (isDictator_iff_of_surjective (surjective_plurality t)).1 hi P a (hPm ▸ ham)
   rw [hPm, show P i = t.toTop a by simp [P]] at hdict
@@ -579,38 +585,40 @@ theorem not_isDictator_borda [Nontrivial A] (hV : 2 ≤ Fintype.card V) (i : V) 
   let P : Profile V A := fun j => if j = i then r else r.reverse
   have hcard_top : ∀ {s : Ranking A} {z : A}, s.IsTop z →
       (Finset.univ.filter fun x => s.Prefers z x).card = Fintype.card A - 1 := fun {s z} hz => by
-    rw [show (Finset.univ.filter fun x => s.Prefers z x) = Finset.univ.erase z by
-      ext x; simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_erase,
-        ne_eq, and_true]
-      exact ⟨fun h => (s.ne_of_prefers h).symm, hz x⟩,
-      Finset.card_erase_of_mem (Finset.mem_univ z), Finset.card_univ]
+    have hset : (Finset.univ.filter fun x => s.Prefers z x) = Finset.univ.erase z := by
+      ext x
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_erase, ne_eq, and_true]
+      exact ⟨fun h => (s.ne_of_prefers h).symm, hz x⟩
+    rw [hset, Finset.card_erase_of_mem (Finset.mem_univ z), Finset.card_univ]
   have hcard_bot : ∀ {s : Ranking A} {z : A}, s.IsBottom z →
       (Finset.univ.filter fun x => s.Prefers z x).card = 0 := fun {s z} hz =>
     Finset.card_eq_zero.2 (Finset.filter_eq_empty_iff.2 fun x _ hzx =>
       s.asymm hzx (hz x (s.ne_of_prefers hzx).symm))
   have hscore_a : bordaScore P a = Fintype.card A - 1 := by
-    rw [bordaScore, Finset.sum_congr rfl fun j _ => show
-      (Finset.univ.filter fun x => (P j).Prefers a x).card =
-        if j = i then Fintype.card A - 1 else 0 by
+    have hcongr (j : V) :
+        (Finset.univ.filter fun x => (P j).Prefers a x).card =
+          if j = i then Fintype.card A - 1 else 0 := by
       by_cases hj : j = i
       · simp only [P, hj, ↓reduceIte]
         exact hcard_top htop_a
       · simp only [P, hj, ↓reduceIte]
-        exact hcard_bot fun x hxa => r.reverse_prefers.2 (htop_a x hxa)]
-    simp
+        exact hcard_bot fun x hxa => r.reverse_prefers.2 (htop_a x hxa)
+    simp [bordaScore, hcongr]
   have hscore_b : bordaScore P b = (Fintype.card V - 1) * (Fintype.card A - 1) := by
-    rw [bordaScore, Finset.sum_congr rfl fun j _ => show
-      (Finset.univ.filter fun x => (P j).Prefers b x).card =
-        if j = i then 0 else Fintype.card A - 1 by
+    have hcongr (j : V) :
+        (Finset.univ.filter fun x => (P j).Prefers b x).card =
+          if j = i then 0 else Fintype.card A - 1 := by
       by_cases hj : j = i
       · simp only [P, hj, ↓reduceIte]
         exact hcard_bot hbot_b
       · simp only [P, hj, ↓reduceIte]
-        exact hcard_top fun x hxb => r.reverse_prefers.2 (hbot_b x hxb),
-      Finset.sum_ite, Finset.sum_const_zero, zero_add,
-      show (Finset.univ.filter fun j : V => ¬ j = i) = Finset.univ.erase i by ext; simp,
-      Finset.sum_const_nat fun _ _ => rfl, Finset.card_erase_of_mem (Finset.mem_univ i),
-      Finset.card_univ]
+        exact hcard_top fun x hxb => r.reverse_prefers.2 (hbot_b x hxb)
+    have hset : (Finset.univ.filter fun j : V => ¬ j = i) = Finset.univ.erase i := by
+      ext
+      simp
+    rw [bordaScore, Finset.sum_congr rfl fun j _ => hcongr j, Finset.sum_ite,
+      Finset.sum_const_zero, zero_add, hset, Finset.sum_const_nat fun _ _ => rfl,
+      Finset.card_erase_of_mem (Finset.mem_univ i), Finset.card_univ]
   have hdict : (borda P).Prefers a b := hi P a b (by simp [P, htop_a b hab.symm])
   rw [borda_prefers, hscore_a, hscore_b] at hdict
   have := Nat.mul_le_mul_right (Fintype.card A - 1) (show 1 ≤ Fintype.card V - 1 by omega)

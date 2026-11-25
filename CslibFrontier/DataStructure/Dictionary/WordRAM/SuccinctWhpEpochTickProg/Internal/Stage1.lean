@@ -58,10 +58,12 @@ private theorem stage1_pos_after_queue {c U V n_max : ℕ} {θ : SeedWhp c U n_m
   intro fs_q
   dsimp only [fs_q]
   by_cases hrq0 : fs.rebQueued b₀ = 0
-  · rw [ite_eq_left hrq0]; intro _
+  · rw [ite_eq_left hrq0]
+    intro _
     have hb_z : Function.update fs.dirtyBuckets fs.dirtyCount b₀ 0 < numBucketsWhp n_max := by
       by_cases hdc0 : fs.dirtyCount = 0
-      · rw [hdc0, Function.update_self]; exact hb₀
+      · rw [hdc0, Function.update_self]
+        exact hb₀
       · rw [Function.update_of_ne (Ne.symm hdc0)]
         exact hd0 (Nat.pos_of_ne_zero hdc0)
     exact ⟨hb_z, rebSliceIdx_lt_of_core hc hb_z⟩
@@ -260,16 +262,14 @@ private theorem stage1FinishGenProg_fastStep {c U V w n_max base : ℕ}
   by_cases hdc0 : fs.dirtyCount = 0
   · obtain ⟨ht3_mc, ht3_vp, ht3_step⟩ := tickToStage3Prog_fastStep henv hseed hrep (s := s)
     rw [ite_eq_left hdc0, clientState_bind, hdc_st, hdc_res, ite_eq_left hdc0]
-    refine ⟨?_, validProg_bind_read_eq hdc_vp hdc_st hdc_res
-      (by rw [ite_eq_left hdc0]; exact ht3_vp), ht3_step⟩
+    refine ⟨?_, validProg_bind_read_eq hdc_vp hdc_st hdc_res (by rwa [ite_eq_left hdc0]), ht3_step⟩
     simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
     rw [hdc_st, hdc_res, hdc_mc, ite_eq_left hdc0]; omega
   · obtain ⟨hb0, hr0⟩ := hpos_fn (Nat.pos_of_ne_zero hdc0)
     obtain ⟨he2_mc, he2_vp, he2_step⟩ :=
       stage1EnterStage2Prog_fastStep henv (Nat.pos_of_ne_zero hdc0) hb0 hr0 hseed hrep (s := s)
     rw [ite_eq_right hdc0, clientState_bind, hdc_st, hdc_res, ite_eq_right hdc0]
-    refine ⟨?_, validProg_bind_read_eq hdc_vp hdc_st hdc_res
-      (by rw [ite_eq_right hdc0]; exact he2_vp), he2_step⟩
+    refine ⟨?_, validProg_bind_read_eq hdc_vp hdc_st hdc_res (by rwa [ite_eq_right hdc0]), he2_step⟩
     simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
     rw [hdc_st, hdc_res, hdc_mc, ite_eq_right hdc0]
     dsimp only [cp] at he2_mc ⊢
@@ -363,16 +363,21 @@ private theorem stage1QueueBucketProg_fastStep {c U V w n_max base b : ℕ}
       (fs := { fs with rebQueued := Function.update fs.rebQueued b 1 })
       henv hdc_lt hb hw_step.2.1 hw_step.2.2.1 (s := s1)
     rw [ite_eq_left hrq0, clientState_bind, h9_st, h9_res, ite_eq_left hrq0, clientState_bind]
-    refine ⟨?_, validProg_bind_read_eq h9_vp h9_st h9_res
-      (by rw [ite_eq_left hrq0]; exact validProg_bind hw_vp hpd_vp), hw_step.trans hpd_step⟩
-    simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [h9_st, h9_res, h9_mc, ite_eq_left hrq0]; simp only [memoryCost_bind]
-    dsimp only [s1, cp] at hw_mc hpd_mc ⊢; omega
+    refine ⟨?_, validProg_bind_read_eq h9_vp h9_st h9_res ?_, hw_step.trans hpd_step⟩
+    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
+      rw [h9_st, h9_res, h9_mc, ite_eq_left hrq0]
+      simp only [memoryCost_bind]
+      dsimp only [s1, cp] at hw_mc hpd_mc ⊢
+      omega
+    · rw [ite_eq_left hrq0]
+      exact validProg_bind hw_vp hpd_vp
   · rw [ite_eq_right hrq0, clientState_bind, h9_st, h9_res, ite_eq_right hrq0]
-    refine ⟨?_, validProg_bind_read_eq h9_vp h9_st h9_res
-      (by rw [ite_eq_right hrq0]; exact validProg_pure _), FastStateStep.refl hseed hrep⟩
-    simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [h9_st, h9_res, h9_mc, ite_eq_right hrq0, memoryCost_pure]; omega
+    refine ⟨?_, validProg_bind_read_eq h9_vp h9_st h9_res ?_, FastStateStep.refl hseed hrep⟩
+    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
+      rw [h9_st, h9_res, h9_mc, ite_eq_right hrq0, memoryCost_pure]
+      omega
+    · rw [ite_eq_right hrq0]
+      exact validProg_pure _
 
 /-- Execute Stage 1 of `epochTick` (`d = (cp, base)`). -/
 @[irreducible] def epochTickStage1GenProg :

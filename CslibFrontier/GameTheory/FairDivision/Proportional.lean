@@ -553,12 +553,15 @@ private theorem countQueries_evenPazAux_le (n : ℕ)
       rw [countQueries_mOfFn_const oracle _ (fun _ => countQueries_evenPazMarkQuery _ _ _ _ _ _)]
       obtain ⟨hlogL, hlogR⟩ := clog_half_le_pred hm2
       have hr_pos : 1 ≤ Nat.clog 2 m := Nat.clog_pos (by omega) (by omega)
-      have halg : m * 2 + (2 * (m / 2) * (Nat.clog 2 m - 1) +
-          2 * (m - m / 2) * (Nat.clog 2 m - 1)) = 2 * m * Nat.clog 2 m := by
-        zify [Nat.div_le_self m 2, hr_pos]; ring
-      exact (Nat.add_le_add_left (Nat.add_le_add
-        ((ih (m / 2) (by omega) _ _ _).trans (Nat.mul_le_mul_left _ hlogL))
-        ((ih (m - m / 2) (by omega) _ _ _).trans (Nat.mul_le_mul_left _ hlogR))) _).trans_eq halg
+      calc _ ≤ m * 2 + (2 * (m / 2) * Nat.clog 2 (m / 2) +
+            2 * (m - m / 2) * Nat.clog 2 (m - m / 2)) :=
+            Nat.add_le_add_left (Nat.add_le_add (ih (m / 2) (by omega) _ _ _)
+              (ih (m - m / 2) (by omega) _ _ _)) _
+        _ ≤ m * 2 + (2 * (m / 2) * (Nat.clog 2 m - 1) +
+            2 * (m - m / 2) * (Nat.clog 2 m - 1)) := by gcongr
+        _ = 2 * m * Nat.clog 2 m := by
+            zify [Nat.div_le_self m 2, hr_pos]
+            ring
 
 /-- **Even–Paz `O(n log n)` Robertson–Webb query bound:** `evenPazQ n` makes at most
 `2 * n * Nat.clog 2 n` queries against every oracle. -/

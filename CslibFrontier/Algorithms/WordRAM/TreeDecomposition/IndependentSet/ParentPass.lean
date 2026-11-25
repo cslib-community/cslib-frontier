@@ -289,9 +289,10 @@ theorem parentPassProg_spec {w : ℕ} (args : ParentPassArgs)
       rw [Function.update_of_ne (by omega)]
       exact hout addr haddr
     have hpfx_next : HoldsIn args.tblPPtr (parentPassPrefix LB LP oldL bestL (curS + 1)) st₁ := by
-      rw [← parentPassPrefix_step LB LP oldL bestL hcur_lt,
-        show oldL[curS] + bestL.getD (restrictMask LB LP curS) 0 = newVal by
-          dsimp only [newVal, rKey]; rw [holdVal_eq, hbestVal_eq]]
+      have hnew_eq : oldL[curS] + bestL.getD (restrictMask LB LP curS) 0 = newVal := by
+        dsimp only [newVal, rKey]
+        rw [holdVal_eq, hbestVal_eq]
+      rw [← parentPassPrefix_step LB LP oldL bestL hcur_lt, hnew_eq]
       exact holdsIn_set hcur_st
     have hc_step : memoryCost (parentPassStep (args, curS)) st ≤ stepCost := by
       have hr_s (x : ℕ) : (Memory.spec 0).clientState st (Memory.read x) = st := rfl
@@ -315,7 +316,10 @@ theorem parentPassProg_spec {w : ℕ} (args : ParentPassArgs)
         show curS + (rem + 1) = curS + 1 + rem by omega]
       exact hpfx_rem
     · rw [memoryCost_bind', hst_step, hres_step]
-      exact (Nat.add_le_add hc_step hc_rem).trans_eq (by ring)
+      calc memoryCost (parentPassStep (args, curS)) st +
+            memoryCost (iterate parentPassStep args rem (curS + 1)) st₁
+          ≤ stepCost + rem * stepCost := Nat.add_le_add hc_step hc_rem
+        _ = (rem + 1) * stepCost := by ring
 
 /-- Exact-basis Word-RAM realization certificate for `parentPassProg`. -/
 theorem parentPassProg_realizes :

@@ -151,11 +151,12 @@ private theorem inChild_correct (right : Bool) (body : Code M (layout extra (reg
     have ucur : u.ptr 0 = some nl.address :=
       (ptr 0 (by simp [layout]) (by simp [layout]) (by simp [layout])).trans tcur
     simp [pm_simps, State.deref, ucur, ((represents_nodeAt_iff ..).mp repU).2.1.1, record]
-  exact ⟨_, (ExecWithin.seq (ExecWithin.op_eq nav) (ExecWithin.seq bodyExec
-      (ExecWithin.seq connected (ExecWithin.op_eq back)))).mono (by omega), repU, semantic.2.1,
-    by simp, by simpa [ptr 1 (by simp [layout]) (by simp [layout]) (by simp [layout])] using
-      built.top,
-    fun z hz => by rw [State.heap_setPtr, heap]; exact semantic.2.2 z hz⟩
+  refine ⟨_, (ExecWithin.seq (ExecWithin.op_eq nav) (ExecWithin.seq bodyExec
+    (ExecWithin.seq connected (ExecWithin.op_eq back)))).mono (by omega), repU, semantic.2.1,
+    by simp, ?_, fun z hz => ?_⟩
+  · simpa [ptr 1 (by simp [layout]) (by simp [layout]) (by simp [layout])] using built.top
+  · rw [State.heap_setPtr, heap]
+    exact semantic.2.2 z hz
 
 /-- A double rotation: promote the inner grandchild twice. -/
 private theorem double_correct (right : Bool) (zero maxSucc : M.Op) (encode : ℕ → M.Value)

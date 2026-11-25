@@ -119,13 +119,15 @@ theorem choose_sub_mul_pow_le {m ℓ s : ℕ} (hs : s ≤ ℓ) (hℓ : ℓ ≤ m
     have hstep := choose_succ_right_eq m (ℓ - (s + 1))
     rw [show ℓ - (s + 1) + 1 = ℓ - s by omega] at hstep
     have h₁ : m.choose (ℓ - (s + 1)) * (m - ℓ + 1) ≤ m.choose (ℓ - s) * ℓ :=
-      (Nat.mul_le_mul_left _ (by omega : m - ℓ + 1 ≤ m - (ℓ - (s + 1)))).trans
-        (hstep.symm.trans_le (Nat.mul_le_mul_left _ (by omega)))
+      calc m.choose (ℓ - (s + 1)) * (m - ℓ + 1)
+          ≤ m.choose (ℓ - (s + 1)) * (m - (ℓ - (s + 1))) := Nat.mul_le_mul_left _ (by omega)
+        _ = m.choose (ℓ - s) * (ℓ - s) := hstep.symm
+        _ ≤ m.choose (ℓ - s) * ℓ := Nat.mul_le_mul_left _ (by omega)
     calc m.choose (ℓ - (s + 1)) * (m - ℓ + 1) ^ (s + 1)
         = m.choose (ℓ - (s + 1)) * (m - ℓ + 1) * (m - ℓ + 1) ^ s := by ring
-      _ ≤ m.choose ℓ * ℓ ^ s * ℓ :=
-          (Nat.mul_le_mul_right _ h₁).trans
-            (by rw [mul_right_comm]; exact Nat.mul_le_mul_right _ (ih (by omega)))
+      _ ≤ m.choose (ℓ - s) * ℓ * (m - ℓ + 1) ^ s := Nat.mul_le_mul_right _ h₁
+      _ = m.choose (ℓ - s) * (m - ℓ + 1) ^ s * ℓ := by ring
+      _ ≤ m.choose ℓ * ℓ ^ s * ℓ := Nat.mul_le_mul_right _ (ih (by omega))
       _ = m.choose ℓ * ℓ ^ (s + 1) := by ring
 
 /-- If `ℓ` and `q ℓ` together fit into `m`, lowering `ℓ` by `s ≤ ℓ` divides the number of
@@ -212,16 +214,20 @@ private theorem pow_add_mul_pow_sub_one_le (d : ℕ) {n : ℕ} (hn : 1 ≤ n) :
 theorem two_mul_pred_pow_le {b : ℕ} (hb : 1 ≤ b) :
     2 * (b - 1) ^ b ≤ b ^ b := by
   obtain ⟨d, rfl⟩ : ∃ d, b = d + 1 := ⟨b - 1, by omega⟩
-  refine (le_of_eq (by ring : 2 * d ^ (d + 1) = d ^ (d + 1) + d * d ^ d)).trans ?_
-  exact (Nat.add_le_add_left (Nat.mul_le_mul_right (d ^ d) (Nat.le_succ d)) _).trans
-    (pow_add_mul_pow_sub_one_le d (Nat.succ_pos d))
+  calc 2 * d ^ (d + 1)
+      = d ^ (d + 1) + d * d ^ d := by ring
+    _ ≤ d ^ (d + 1) + (d + 1) * d ^ d :=
+        Nat.add_le_add_left (Nat.mul_le_mul_right (d ^ d) (Nat.le_succ d)) _
+    _ ≤ (d + 1) ^ (d + 1) := pow_add_mul_pow_sub_one_le d (Nat.succ_pos d)
 
 /-- For `1 ≤ b`, `2 ^ r * C(b * m - m, b * r) ≤ C(b * m, b * r)`. -/
 theorem two_pow_mul_choose_sub_le {b m : ℕ} (hb : 1 ≤ b) (r : ℕ) :
     2 ^ r * (b * m - m).choose (b * r) ≤ (b * m).choose (b * r) := by
-  have hpow : 2 ^ r * (b - 1) ^ (b * r) ≤ b ^ (b * r) := by
-    rw [pow_mul, ← Nat.mul_pow, pow_mul b]
-    exact Nat.pow_le_pow_left (two_mul_pred_pow_le hb) r
+  have hpow : 2 ^ r * (b - 1) ^ (b * r) ≤ b ^ (b * r) :=
+    calc 2 ^ r * (b - 1) ^ (b * r)
+        = (2 * (b - 1) ^ b) ^ r := by rw [Nat.mul_pow, ← pow_mul]
+      _ ≤ (b ^ b) ^ r := Nat.pow_le_pow_left (two_mul_pred_pow_le hb) r
+      _ = b ^ (b * r) := by rw [← pow_mul]
   have hchoose := choose_mul_sub_mul_pow_le b m (b * r)
   refine Nat.le_of_mul_le_mul_right (c := b ^ (b * r)) ?_ (by positivity)
   calc 2 ^ r * (b * m - m).choose (b * r) * b ^ (b * r)

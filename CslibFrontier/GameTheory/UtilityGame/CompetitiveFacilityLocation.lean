@@ -676,21 +676,27 @@ theorem exists_withOpeningCost_poa_gt (C : ℝ) :
   have hM1 : 1 ≤ M := le_trans (by norm_num) (le_max_left 2 (C + 1))
   have hMC : C < M := lt_of_lt_of_le (by linarith) (le_max_right 2 (C + 1))
   refine ⟨openingCostTrapGame M, openingCostTrapFee M, ![false, false], ![true, true],
-    fun _ _ _ => by dsimp only [openingCostTrapGame]; split_ifs <;> constructor <;> linarith,
-    fun _ _ => by dsimp only [openingCostTrapFee]; split_ifs <;> linarith, ?_,
-    by rw [openingCostTrap_profileValue hM1]; norm_num,
-    by rw [openingCostTrap_profileValue hM1, openingCostTrap_profileValue hM1]; norm_num; linarith⟩
-  have hpot :=
-    ((openingCostTrapGame M).isBasic_withOpeningCost (openingCostTrapFee M)).isExactPotential
-  exact hpot.isGeneralizedOrdinalPotential.isPureNash_of_forall_update_le
-    (neg_le_neg_of_fin_two_bool_update
-      ((openingCostTrapGame M).withOpeningCost (openingCostTrapFee M)).profileValue
-      (by
-        rw [openingCostTrap_profileValue hM1, openingCostTrap_profileValue hM1]
-        norm_num)
-      (by
-        rw [openingCostTrap_profileValue hM1, openingCostTrap_profileValue hM1]
-        norm_num))
+    ?_, ?_, ?_, ?_, ?_⟩
+  · intro _ i b
+    dsimp only [openingCostTrapGame]
+    split_ifs <;> constructor <;> linarith
+  · intro i b
+    dsimp only [openingCostTrapFee]
+    split_ifs <;> linarith
+  · have hpot :=
+      ((openingCostTrapGame M).isBasic_withOpeningCost (openingCostTrapFee M)).isExactPotential
+    refine hpot.isGeneralizedOrdinalPotential.isPureNash_of_forall_update_le
+      (neg_le_neg_of_fin_two_bool_update
+        ((openingCostTrapGame M).withOpeningCost (openingCostTrapFee M)).profileValue ?_ ?_)
+    · rw [openingCostTrap_profileValue hM1, openingCostTrap_profileValue hM1]
+      norm_num
+    · rw [openingCostTrap_profileValue hM1, openingCostTrap_profileValue hM1]
+      norm_num
+  · rw [openingCostTrap_profileValue hM1]
+    norm_num
+  · rw [openingCostTrap_profileValue hM1, openingCostTrap_profileValue hM1]
+    norm_num
+    linarith
 
 end OpeningCosts
 

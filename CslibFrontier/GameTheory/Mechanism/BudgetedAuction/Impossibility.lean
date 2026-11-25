@@ -210,8 +210,10 @@ private theorem unconstrained_winner_payment_eq {M : BudgetedMechanism ι} {m : 
     have hp_nn : 0 ≤ p := hnn _ (update_pos hθ j ⟨ht_pos, hBigB_pos⟩) j
     let s := max ((θ i).val / 2) ((θ i).val - ((θ i).val * m - p) / (2 * m))
     have hs_pos : 0 < s := lt_max_of_lt_left (half_pos (hθ i).1)
-    have hs_lt : s < (θ i).val := max_lt (half_lt_self (hθ i).1)
-      (by linarith [div_pos (sub_pos.mpr hlt) (by positivity : 0 < 2 * m)])
+    have hs_lt : s < (θ i).val := by
+      refine max_lt (half_lt_self (hθ i).1) ?_
+      have : 0 < ((θ i).val * m - p) / (2 * m) := div_pos (sub_pos.mpr hlt) (by positivity)
+      linarith
     have hsm_gt : p < s * m := by
       have hmul := mul_le_mul_of_nonneg_right (le_max_right ((θ i).val / 2)
         ((θ i).val - ((θ i).val * m - p) / (2 * m))) hm.le
@@ -435,8 +437,10 @@ private theorem payoff_at_overreport_budget {M : BudgetedMechanism ι} {m : ℝ}
     have hpin := pinning_of_isPrivateBudgetDSIC_isParetoOptimal hm hnn hbf hir hpo hic
       (hprof_pos k) hij
       (by simp only [prof, Function.update_self]
-          have : 5 / (2 * m) * m = 5 / 2 := by field_simp [hm.ne']
-          linarith [mul_le_mul_of_nonneg_right hkt_hi hm.le])
+          calc t k * m
+            _ ≤ 5 / (2 * m) * m := mul_le_mul_of_nonneg_right hkt_hi hm.le
+            _ = 5 / 2 := by field_simp [hm.ne']
+            _ < 10 := by norm_num)
       (fun r hri hrj => by
         simp only [prof, Function.update_self, Function.update_of_ne hri, hbase_rest r hri hrj]
         have : (1 : ℝ) / (2 * m) < 1 / m := (div_lt_div_iff₀ (by positivity) hm).mpr (by linarith)
@@ -446,8 +450,9 @@ private theorem payoff_at_overreport_budget {M : BudgetedMechanism ι} {m : ℝ}
             (div_lt_div_iff₀ (by positivity) hm).mpr (by linarith)
           linarith)
       (by simp only [prof, Function.update_self, Function.update_of_ne hij.symm, hbase_j]
-          have : (1 : ℝ) = (1 / m) * m := by field_simp [hm.ne']
-          linarith [mul_le_mul_of_nonneg_right hkt_lo hm.le])
+          calc (1 : ℝ)
+            _ = (1 / m) * m := by field_simp [hm.ne']
+            _ ≤ t k * m := mul_le_mul_of_nonneg_right hkt_lo hm.le)
     simpa only [prof, Function.update_self, Function.update_of_ne hij.symm, hbase_j] using hpin.2.1
   have hp0 : (M.outcome (prof 0)).payment i = 0 := by
     have ha0 : (M.outcome (prof 0)).alloc i = 0 := by
@@ -460,7 +465,7 @@ private theorem payoff_at_overreport_budget {M : BudgetedMechanism ι} {m : ℝ}
       (M.outcome (prof k.succ)).payment i - (M.outcome (prof k.castSucc)).payment i ≤
         1 / ((k.val : ℝ) + 6) := by
     have hic_k := hic (prof k.succ) (hprof_pos k.succ) i ⟨t k.castSucc, 10⟩
-      ⟨by dsimp only [t]; positivity, by norm_num⟩
+      ⟨div_pos (by positivity) (by positivity), by norm_num⟩
       (by simpa only [prof, Function.update_idem, Function.update_self] using
             hbf _ (hprof_pos k.castSucc) i)
     have hupd : Function.update (prof k.succ) i ⟨t k.castSucc, 10⟩ = prof k.castSucc := by
@@ -531,14 +536,18 @@ theorem not_exists_privateBudgetDSIC_isParetoOptimal {m : ℝ} (hm : 0 < m)
   rw [h0_eq, hx0] at hic0
   rw [h1_eq, hx1] at hic1
   have h100_mul : (100 / m) * (3 / 5 * m) = 60 := by field_simp [hm.ne']; ring
-  have halloc_sum : (M.outcome θstar).alloc i₀ + (M.outcome θstar).alloc i₁ ≤ m := by
-    rw [← Finset.sum_pair hne]
-    exact (Finset.sum_le_sum_of_subset_of_nonneg (Finset.subset_univ _)
-      fun k _ _ => (hfeas θstar hθ_pos).1 k).trans (hfeas θstar hθ_pos).2
+  have halloc_sum : (M.outcome θstar).alloc i₀ + (M.outcome θstar).alloc i₁ ≤ m :=
+    calc (M.outcome θstar).alloc i₀ + (M.outcome θstar).alloc i₁
+      _ = ∑ k ∈ ({i₀, i₁} : Finset ι), (M.outcome θstar).alloc k := (Finset.sum_pair hne).symm
+      _ ≤ ∑ k, (M.outcome θstar).alloc k :=
+            Finset.sum_le_sum_of_subset_of_nonneg (Finset.subset_univ _)
+              fun k _ _ => (hfeas θstar hθ_pos).1 k
+      _ ≤ m := (hfeas θstar hθ_pos).2
   have h100_bound :
       (100 / m) * ((M.outcome θstar).alloc i₀ + (M.outcome θstar).alloc i₁) ≤ 100 :=
-    (mul_le_mul_of_nonneg_left halloc_sum (div_nonneg (by norm_num) hm.le)).trans_eq
-      (by field_simp [hm.ne'])
+    calc (100 / m) * ((M.outcome θstar).alloc i₀ + (M.outcome θstar).alloc i₁)
+      _ ≤ (100 / m) * m := mul_le_mul_of_nonneg_left halloc_sum (div_nonneg (by norm_num) hm.le)
+      _ = 100 := by field_simp [hm.ne']
   linarith [hnn θstar hθ_pos i₀, hnn θstar hθ_pos i₁]
 
 end Proof

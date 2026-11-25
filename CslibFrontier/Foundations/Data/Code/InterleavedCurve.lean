@@ -179,9 +179,10 @@ theorem berlekampWelchInterleaved_eq_some_iff {F ι κ : Type*} [Field F] [Finty
   have hbw (r : κ) := berlekampWelch_eq_some hα hunique (hdeg r)
     ((hammingDist_row_le (fun i r => (P r).eval (α i)) W r).trans hdist)
   have hsome : ∀ r : κ, (berlekampWelch α e k fun i => W i r).isSome := fun r => by simp [hbw r]
+  have hget : (fun r : κ => (berlekampWelch α e k fun i => W i r).get (hsome r)) = P :=
+    funext fun r => Option.some.inj ((Option.some_get (hsome r)).trans (hbw r))
   unfold berlekampWelchInterleaved
-  rw [dite_eq_left hsome, show (fun r => (berlekampWelch α e k fun i => W i r).get (hsome r)) = P
-    from funext fun r => Option.some.inj ((Option.some_get (hsome r)).trans (hbw r))]
+  rw [dite_eq_left hsome, hget]
   exact ite_eq_left hdist
 
 /-- **Failure characterization of `berlekampWelchInterleaved` in the unique-decoding regime**
@@ -239,8 +240,9 @@ private lemma toOuterMeasure_sum_pow_smul_le_div_of_curve {F ι : Type*}
       (B m : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞) := by
   classical
   rcases m with _ | r
-  · exact False.elim ((hfar 0 (Submodule.zero_mem _)).not_ge
-      (by rw [eq_zero_of_fin_zero W, hammingDist_self]; exact Nat.zero_le e))
+  · refine False.elim ((hfar 0 (Submodule.zero_mem _)).not_ge ?_)
+    rw [eq_zero_of_fin_zero W, hammingDist_self]
+    exact Nat.zero_le e
   · refine Cslib.Probability.PMF.toOuterMeasure_uniformOfFintype_le_div Fintype.card_pos ?_
     rw [mul_comm (B (r + 1))]
     refine Nat.mul_le_mul_left (Fintype.card F) (le_of_not_gt fun hlt => ?_)
@@ -383,8 +385,12 @@ theorem toOuterMeasure_sum_smul_reedSolomon_close_le_johnson
 private lemma siegel_multiplicity_le_eta {c n_sq ρ q η m_val : ℝ}
     (hc : 0 ≤ c) (hn : 0 ≤ n_sq) (hρ : 0 < ρ) (hq : 0 < q) (hη : 0 < η)
     (hpow : m_val ^ 6 ≤ 64 / (η ^ 6)) :
-    1800 * c * (m_val ^ 6) * n_sq / (ρ * q) ≤ 115200 * c * n_sq / (ρ * (η ^ 6) * q) :=
-  (by gcongr : _ ≤ 1800 * c * (64 / (η ^ 6)) * n_sq / (ρ * q)).trans_eq (by field_simp; ring)
+    1800 * c * (m_val ^ 6) * n_sq / (ρ * q) ≤ 115200 * c * n_sq / (ρ * (η ^ 6) * q) := by
+  calc 1800 * c * (m_val ^ 6) * n_sq / (ρ * q)
+      ≤ 1800 * c * (64 / (η ^ 6)) * n_sq / (ρ * q) := by gcongr
+    _ = 115200 * c * n_sq / (ρ * (η ^ 6) * q) := by
+        field_simp
+        ring
 
 /-- **Original explicit-constant interleaved Reed–Solomon proximity bound up to `1 - √ρ - η`
 (affine-vector batching)** (in the setting of
@@ -470,19 +476,21 @@ theorem toOuterMeasure_sum_pow_smul_reedSolomon_close_le_johnson
           (((k : ℝ) / (Fintype.card ι : ℝ)) * (Fintype.card F : ℝ))) := by
   classical
   rcases m with _ | r
-  · exact False.elim ((hfar 0 (Submodule.zero_mem _)).not_ge
-      (by rw [eq_zero_of_fin_zero W, hammingDist_self]; exact Nat.zero_le e))
+  · refine False.elim ((hfar 0 (Submodule.zero_mem _)).not_ge ?_)
+    rw [eq_zero_of_fin_zero W, hammingDist_self]
+    exact Nat.zero_le e
   · rw [Nat.add_sub_cancel]
     rcases Nat.eq_zero_or_pos r with rfl | hr
-    · rw [show {z : F | ∃ c ∈ reedSolomon α k,
-          hammingDist (fun i => ∑ r : Fin 1, z ^ (r : ℕ) • W i r) c ≤ e} = ∅ from
-        Set.eq_empty_iff_forall_notMem.2 fun z ⟨c, hc, hd⟩ => ?_]
-      · simp
-      · refine (hfar (fun i _ => c i) (mem_interleavedLinear.2 fun _ => hc)).not_ge
-          (le_trans (Finset.card_le_card fun i hi => ?_) hd)
-        simp only [Finset.mem_filter, Finset.mem_univ, true_and, Fin.sum_univ_one, Fin.val_zero,
-          pow_zero, one_smul] at hi ⊢
-        exact fun hEq => hi (funext fun j => Fin.eq_zero j ▸ hEq)
+    · have hemp : {z : F | ∃ c ∈ reedSolomon α k,
+          hammingDist (fun i => ∑ r : Fin 1, z ^ (r : ℕ) • W i r) c ≤ e} = ∅ :=
+        Set.eq_empty_iff_forall_notMem.2 fun z ⟨c, hc, hd⟩ => by
+          refine (hfar (fun i _ => c i) (mem_interleavedLinear.2 fun _ => hc)).not_ge
+            (le_trans (Finset.card_le_card fun i hi => ?_) hd)
+          simp only [Finset.mem_filter, Finset.mem_univ, true_and, Fin.sum_univ_one, Fin.val_zero,
+            pow_zero, one_smul] at hi ⊢
+          exact fun hEq => hi (funext fun j => Fin.eq_zero j ▸ hEq)
+      rw [hemp]
+      simp
     · let T : Finset F := Finset.univ.filter fun z =>
         ∃ c ∈ reedSolomon α k, hammingDist (fun i => ∑ j : Fin (r + 1), z ^ (j : ℕ) • W i j) c ≤ e
       refine Cslib.Probability.PMF.toOuterMeasure_uniformOfFintype_le_of_dens_le _ T

@@ -126,8 +126,10 @@ private theorem ratioCoord_of_div_eq {a b t : ℝ} (h : a / b = ratioInv t) :
 theorem ratioInv_ratioCoord {a b : ℝ} (ha : 0 < a) (hb : 0 < b) :
     ratioInv (ratioCoord a b) = a / b := by
   have hy : 0 < a / b := div_pos ha hb
-  rw [ratioCoord_eq, ratioInv, show (a / b - (a / b)⁻¹) ^ 2 + 4 = (a / b + (a / b)⁻¹) ^ 2 by
-    field_simp; ring, Real.sqrt_sq (by positivity)]
+  have hsq : (a / b - (a / b)⁻¹) ^ 2 + 4 = (a / b + (a / b)⁻¹) ^ 2 := by
+    field_simp
+    ring
+  rw [ratioCoord_eq, ratioInv, hsq, Real.sqrt_sq (by positivity)]
   ring
 
 theorem ratioCoord_mul {a b c : ℝ} (hc : c ≠ 0) : ratioCoord (c * a) (c * b) = ratioCoord a b := by
@@ -228,8 +230,9 @@ open DattaBinary (var chain extra)
 theorem toUnit_pos (t : ℝ) : 0 < toUnit t :=
   div_pos (ratioInv_pos t) (by linarith [ratioInv_pos t])
 
-theorem toUnit_lt_one (t : ℝ) : toUnit t < 1 :=
-  (div_lt_one (by linarith [ratioInv_pos t])).2 (by linarith)
+theorem toUnit_lt_one (t : ℝ) : toUnit t < 1 := by
+  rw [toUnit, div_lt_one (by linarith [ratioInv_pos t])]
+  linarith
 
 theorem ratioCoord_toUnit (t : ℝ) : ratioCoord (toUnit t) (1 - toUnit t) = t :=
   ratioCoord_of_div_eq <| by

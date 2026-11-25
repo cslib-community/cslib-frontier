@@ -377,10 +377,20 @@ theorem disconnectedNonGroves_not_groves :
   rintro ⟨h, hh, hpay⟩
   let bLo : Fin 2 → Bool → ℝ := ![twoOutcomeVal 0, twoOutcomeVal (-1)]
   let bHi : Fin 2 → Bool → ℝ := ![twoOutcomeVal 2, twoOutcomeVal (-1)]
-  have hLo := hpay bLo (fun j => by fin_cases j <;> [exact Or.inl rfl; exact rfl]) 0
-  have hHi := hpay bHi (fun j => by fin_cases j <;> [exact Or.inr rfl; exact rfl]) 0
-  have h0eq : h 0 bHi = h 0 bLo := by
-    rw [show bHi = Function.update bLo 0 (twoOutcomeVal 2) by funext j; fin_cases j <;> rfl, hh]
+  have hbLo (j : Fin 2) : bLo j ∈ disconnectedDomains j := by
+    fin_cases j
+    · exact Or.inl rfl
+    · exact rfl
+  have hbHi (j : Fin 2) : bHi j ∈ disconnectedDomains j := by
+    fin_cases j
+    · exact Or.inr rfl
+    · exact rfl
+  have hupd : bHi = Function.update bLo 0 (twoOutcomeVal 2) := by
+    funext j
+    fin_cases j <;> rfl
+  have h0eq : h 0 bHi = h 0 bLo := by rw [hupd, hh]
+  have hLo := hpay bLo hbLo 0
+  have hHi := hpay bHi hbHi 0
   simp only [groves, disconnectedNonGroves, welfare, Fin.sum_univ_two,
     show (Finset.univ : Finset (Fin 2)).erase 0 = {1} by decide, Finset.sum_singleton, bLo, bHi,
     Matrix.cons_val_zero, Matrix.cons_val_one, twoOutcomeVal] at hLo hHi

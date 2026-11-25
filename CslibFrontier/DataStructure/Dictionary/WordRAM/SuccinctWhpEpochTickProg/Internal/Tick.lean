@@ -116,8 +116,11 @@ private theorem tickStageAllPure_clk_and_stage5 (c U n_max : ℕ) (θ : SeedWhp 
           have hp := rebScanSteps_preserved θ b 16 fs
           unfold epochTickStage2PostScan epochTickStage2AfterSwap epochTickStage2Swap
           dsimp only
-          split_ifs <;> exact ⟨hp.curEp, hp.epochClock,
-            by first | exact le_rfl | (rw [hp.rebStage]; omega)⟩
+          split_ifs
+          · exact ⟨hp.curEp, hp.epochClock, by rw [hp.rebStage]; omega⟩
+          · exact ⟨hp.curEp, hp.epochClock, le_rfl⟩
+          · exact ⟨hp.curEp, hp.epochClock, by rw [hp.rebStage]; omega⟩
+          · exact ⟨hp.curEp, hp.epochClock, by rw [hp.rebStage]; omega⟩
         · rw [ite_eq_right h2]; exact ⟨rfl, rfl, by omega⟩
       · rw [ite_eq_right h1]; exact ⟨rfl, rfl, le_rfl⟩
     exact ⟨hclk.1, hclk.2.1, by omega⟩
@@ -245,7 +248,7 @@ private theorem readHdr_bind_fastStep {c U V w n_max base hdrOff v cost : ℕ}
     (Nat.add_lt_add_left hoff base) (s := s)
   rw [hval] at hres
   dsimp only
-  refine ⟨?_, ?_, by rw [clientState_bind, hst, hres]; exact hk.2.2⟩
+  refine ⟨?_, ?_, ?_⟩
   · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
     rw [hst, hres, hmc]
     have := hk.1
@@ -253,6 +256,8 @@ private theorem readHdr_bind_fastStep {c U V w n_max base hdrOff v cost : ℕ}
   · refine validProg_bind hvp ?_
     rw [hst, hres]
     exact hk.2.1
+  · rw [clientState_bind, hst, hres]
+    exact hk.2.2
 
 private theorem epochTickStageAllGenProg_fastStep {c U V w n_max base : ℕ}
     {θ : SeedWhp c U n_max} {fs : FastState} {dict : State U} {s : Memory.State}
@@ -402,17 +407,17 @@ private theorem epochTickRolloverGenProg_fastStep {c U V w n_max base : ℕ}
       (fun h6 => by dsimp [hdrCurEp] at h6; omega) hseed hrep (hdrOff := hdrCurEp)
       (val := 1 - fs1.curEp) (s := s)
     set sc1 := (Memory.spec 0).clientState s (writeHdrProg ((base, hdrCurEp), 1 - fs1.curEp))
-    have hw2 := writeHdrZeroStep (fs := { fs1 with curEp := 1 - fs1.curEp }) henv
-      (by dsimp [hdrEpochClock]; decide) hw1.2.2.2.1 hw1.2.2.2.2.1
-      (hdrOff := hdrEpochClock) (s := sc1)
+    set fs2 : FastState := { fs1 with curEp := 1 - fs1.curEp }
+    have hw2 := writeHdrZeroStep (fs := fs2) henv (by dsimp [hdrEpochClock]; decide)
+      hw1.2.2.2.1 hw1.2.2.2.2.1 (hdrOff := hdrEpochClock) (s := sc1)
     set sc2 := (Memory.spec 0).clientState sc1 (writeHdrProg ((base, hdrEpochClock), 0))
-    have hw3 := writeHdrZeroStep (fs := { fs1 with curEp := 1 - fs1.curEp, epochClock := 0 }) henv
-      (by dsimp [hdrRebStage]; decide) hw2.2.2.2.1 hw2.2.2.2.2.1 (hdrOff := hdrRebStage) (s := sc2)
+    set fs3 : FastState := { fs2 with epochClock := 0 }
+    have hw3 := writeHdrZeroStep (fs := fs3) henv (by dsimp [hdrRebStage]; decide)
+      hw2.2.2.2.1 hw2.2.2.2.2.1 (hdrOff := hdrRebStage) (s := sc2)
     set sc3 := (Memory.spec 0).clientState sc2 (writeHdrProg ((base, hdrRebStage), 0))
-    have hw4 := writeHdrZeroStep
-      (fs := { fs1 with curEp := 1 - fs1.curEp, epochClock := 0, rebStage := 0 }) henv
-      (by dsimp [hdrStageCursor]; decide) hw3.2.2.2.1 hw3.2.2.2.2.1 (hdrOff := hdrStageCursor)
-      (s := sc3)
+    set fs4 : FastState := { fs3 with rebStage := 0 }
+    have hw4 := writeHdrZeroStep (fs := fs4) henv (by dsimp [hdrStageCursor]; decide)
+      hw3.2.2.2.1 hw3.2.2.2.2.1 (hdrOff := hdrStageCursor) (s := sc3)
     have hwc := seqUnitProg_fastStep hw1 (seqUnitProg_fastStep hw2 (seqUnitProg_fastStep hw3 hw4))
     refine ⟨_, rfl,
       readHdr_bind_fastStep (cost := 9) (by dsimp [hdrEpochClock]; omega) hh.epochClock ?_⟩

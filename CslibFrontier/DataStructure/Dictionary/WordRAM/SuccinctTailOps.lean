@@ -299,8 +299,12 @@ theorem slotOf_gmAppendTail {n_max : ℕ} {gm : ℕ → ℕ} {b : ℕ}
     · rw [hptr]
     · have hr'_cap : j - gm (gmQIdx b') * slabSize n_max < tailCapPerBucket n_max :=
         lt_of_lt_of_le (by omega) (htail.r_le b' hb')
+      have hne : b' * tailCapPerBucket n_max + (j - gm (gmQIdx b') * slabSize n_max) ≠
+          b * tailCapPerBucket n_max + gm (gmRIdx b) := fun heq => by
+        obtain ⟨rfl, _⟩ := flat_descriptor_inj hr'_cap hr heq
+        omega
       rw [gmTailPtrIdx, hptr_val _ (mul_tailCapPerBucket_add_lt_maxTailItems hb' hr'_cap),
-        ite_eq_right fun heq => by obtain ⟨rfl, _⟩ := flat_descriptor_inj hr'_cap hr heq; omega]
+        ite_eq_right hne]
 
 /-- The relocated tail `t_del` and the relinked descriptor `d_last` of `gmRemoveTail` are in
 range. -/

@@ -376,7 +376,12 @@ theorem keyMaskProg_spec {w : ℕ} (args : MaskTransArgs) {LB LP : List ℕ}
         simp only [hsm, Bool.false_eq_true, ↓reduceIte, Nat.left_distrib, Nat.mul_one,
           Nat.zero_add, ← Nat.mul_assoc, Nat.mul_comm pow2 2] <;> omega
     · rw [memoryCost_bind', hst_step, hres_step]
-      exact (Nat.add_le_add hc_step hc_rest).trans_eq (by ring)
+      calc memoryCost (keyMaskStep (env, ⟨curP, pow2, acc⟩)) s +
+            memoryCost (iterate keyMaskStep env rest.length
+              ⟨curP + 1, 2 * pow2, acc + addTerm⟩) s
+          ≤ (args.bagBLen + 1) + rest.length * (args.bagBLen + 1) :=
+            Nat.add_le_add hc_step hc_rest
+        _ = (rest.length + 1) * (args.bagBLen + 1) := by ring
 
 /-- Exact-basis Word-RAM realization certificate for `keyMaskProg`. -/
 theorem keyMaskProg_realizes :
@@ -571,7 +576,12 @@ theorem restrictMaskProg_spec {w : ℕ} (args : MaskTransArgs) {LB LP : List ℕ
           Nat.zero_add, ← Nat.mul_assoc, Nat.mul_comm pow2 2])
       omega
     · rw [memoryCost_bind', hst_step, hres_step]
-      exact (Nat.add_le_add hc_step hc_rest).trans_eq (by ring)
+      calc memoryCost (restrictStep (env, ⟨curP, curS, pow2, acc⟩)) s +
+            memoryCost (iterate restrictStep env rest.length
+              ⟨curP + 1, curS / 2, 2 * pow2, acc + addTerm⟩) s
+          ≤ (args.bagBLen + 1) + rest.length * (args.bagBLen + 1) :=
+            Nat.add_le_add hc_step hc_rest
+        _ = (rest.length + 1) * (args.bagBLen + 1) := by ring
 
 /-- Exact-basis Word-RAM realization certificate for `restrictMaskProg`. -/
 theorem restrictMaskProg_realizes :

@@ -458,7 +458,8 @@ theorem fastStepPureGenProg_spec {c U V w n_max base : ℕ}
       · rw [clientState_bind, clientState_bind, clientState_pure_whp]
         exact hfd_step.trans het_step
   · have hnot : epochTickWillSucceed n_max fs = false := Bool.eq_false_iff.mpr hok
-    rw [hnot] at hck_res; simp only [Bool.false_eq_true, ↓reduceIte] at hck_res
+    rw [hnot] at hck_res
+    simp only [Bool.false_eq_true, ↓reduceIte] at hck_res
     refine ⟨?_, ?_, ?_⟩
     · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
       rw [hck_st, hck_res]

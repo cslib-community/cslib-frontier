@@ -209,10 +209,11 @@ private theorem welfare_shiftUp_sub [Fintype ι] [DecidableEq ι]
       by_cases hlt : b.val < t.val
       · exact ⟨b, Finset.mem_erase.mpr ⟨Fin.ne_of_val_ne (by dsimp [last]; omega),
           Finset.mem_univ b⟩, by simp [hlt]⟩
-      · refine ⟨⟨b.val - 1, by omega⟩,
-          Finset.mem_erase.mpr ⟨Fin.ne_of_val_ne (by dsimp [last]; omega), Finset.mem_univ _⟩, ?_⟩
-        simp only [show ¬(⟨b.val - 1, by omega⟩ : Fin k).val < t.val by dsimp; omega,
-          ↓reduceIte, Fin.ext_iff]
+      · let b1 : Fin k := ⟨b.val - 1, by omega⟩
+        refine ⟨b1, Finset.mem_erase.mpr ⟨Fin.ne_of_val_ne (by dsimp [b1, last]; omega),
+          Finset.mem_univ _⟩, ?_⟩
+        have hb1 : ¬b1.val < t.val := by dsimp [b1]; omega
+        simp only [hb1, ↓reduceIte, Fin.ext_iff, b1]
         omega
     · intro r hr
       have hrne : r.val ≠ k - 1 := Fin.ext_iff.not.mp (Finset.ne_of_mem_erase hr)
@@ -344,7 +345,8 @@ theorem vcg_payment_slot_eq_minEnvyFreePrice [Fintype ι] [DecidableEq ι]
       obtain ⟨r, rfl⟩ := hsurj
       rcases eq_or_ne r t with rfl | hrt
       · have := Fin.pos r
-        exact False.elim (hj ⟨⟨k - 1, by omega⟩, shiftUp_last σ r (σ r) htail (by dsimp; omega)⟩)
+        exact False.elim <| hj ⟨⟨k - 1, by omega⟩,
+          shiftUp_last σ r (σ r) htail (by dsimp; omega)⟩
       · exact False.elim (hj (mem_range_shiftUp_of_ne hrt))
 
 /-- Every unassigned bidder pays `0` under the VCG mechanism on `Fin k ↪ ι`. -/

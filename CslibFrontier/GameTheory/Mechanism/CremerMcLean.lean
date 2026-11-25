@@ -1095,13 +1095,17 @@ theorem exists_nonneg_val_not_exists_isBIC_of_not_hasConvexIndependentBeliefs
     ↓reduceIte] at hrent
   have h1 : (∑ ti' : {ti' : T i₀ // ti' ≠ ti₀}, w ti' *
       ∑ t_opp : OppProfile T i₀, P.condBelief i₀ ti'.1 t_opp *
-        ((if ti'.1 = ti₀ then (1 : ℝ) else 2) - 1)) = 1 := by
-    have hcongr : ∀ ti' : {ti' : T i₀ // ti' ≠ ti₀},
-        (∑ t_opp : OppProfile T i₀, P.condBelief i₀ ti'.1 t_opp *
-          ((if ti'.1 = ti₀ then (1 : ℝ) else 2) - 1)) = 1 := fun ti' => by
-      simpa only [ite_eq_right ti'.2, show (2 : ℝ) - 1 = 1 by norm_num, mul_one] using
-        P.sum_condBelief_eq_one i₀ ti'.1
-    simpa only [hcongr, mul_one] using hw.sum_eq_one
+        ((if ti'.1 = ti₀ then (1 : ℝ) else 2) - 1)) = 1 :=
+    calc ∑ ti' : {ti' : T i₀ // ti' ≠ ti₀}, w ti' *
+          ∑ t_opp : OppProfile T i₀, P.condBelief i₀ ti'.1 t_opp *
+            ((if ti'.1 = ti₀ then (1 : ℝ) else 2) - 1)
+        = ∑ ti' : {ti' : T i₀ // ti' ≠ ti₀}, w ti' *
+            ∑ t_opp : OppProfile T i₀, P.condBelief i₀ ti'.1 t_opp :=
+          sum_congr rfl fun ti' _ => by
+            simp [ite_eq_right ti'.2, show (2 : ℝ) - 1 = 1 by norm_num]
+      _ = ∑ ti' : {ti' : T i₀ // ti' ≠ ti₀}, w ti' := by
+          simp only [P.sum_condBelief_eq_one, mul_one]
+      _ = 1 := hw.sum_eq_one
   linarith
 
 /-- **Crémer–McLean Bayesian characterization** ([CremerMcLean1988]): for any finite outcome space

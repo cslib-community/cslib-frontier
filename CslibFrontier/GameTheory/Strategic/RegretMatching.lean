@@ -478,9 +478,11 @@ theorem extRegretMatching_isApproxCoarseCorrelatedEquilibrium {M : ℝ} (hM : 0 
       (fun i => 2 * M * √(Fintype.card (S i) / T))
       (timeAverage G.extRegretMatchingDist T hT) := by
   have hT' : (0 : ℝ) < T := Nat.cast_pos.mpr hT
-  rw [show (fun i => 2 * M * √(Fintype.card (S i) / T)) =
-      fun i => (2 * M * √((T : ℝ) * Fintype.card (S i))) / T by
-    ext i; rw [mul_div_assoc (2 * M), Real.sqrt_mul_div_self hT']]
+  have hslack : (fun i => 2 * M * √(Fintype.card (S i) / T)) =
+      fun i => (2 * M * √((T : ℝ) * Fintype.card (S i))) / T := by
+    ext i
+    rw [mul_div_assoc (2 * M), Real.sqrt_mul_div_self hT']
+  rw [hslack]
   refine timeAverage_isApproxCoarseCorrelatedEquilibrium hT fun i a => ?_
   have hbd := regretMatching_externalRegret_le_of_abs_le
     (ℓ := fun s c => G.deviationCost (G.extRegretMatchingDynamics s) i c)
@@ -579,9 +581,13 @@ theorem intRegretMatching_isApproxCorrelatedEquilibrium {M : ℝ} (hM : 0 ≤ M)
       (fun i => 2 * M * √(Fintype.card (S i) * (Fintype.card (S i) - 1 : ℕ) / T))
       (timeAverage G.intRegretMatchingDist T hT) := by
   have hT' : (0 : ℝ) < T := Nat.cast_pos.mpr hT
-  rw [show (fun i => 2 * M * √(Fintype.card (S i) * (Fintype.card (S i) - 1 : ℕ) / T)) =
-      fun i => (2 * M * √((T : ℝ) * (Fintype.card (S i) * (Fintype.card (S i) - 1 : ℕ)))) / T by
-    ext i; rw [mul_div_assoc (2 * M), Real.sqrt_mul_div_self hT']]
+  have hslack :
+      (fun i => 2 * M * √(Fintype.card (S i) * (Fintype.card (S i) - 1 : ℕ) / T)) =
+        fun i =>
+          (2 * M * √((T : ℝ) * (Fintype.card (S i) * (Fintype.card (S i) - 1 : ℕ)))) / T := by
+    ext i
+    rw [mul_div_assoc (2 * M), Real.sqrt_mul_div_self hT']
+  rw [hslack]
   refine timeAverage_productDist_isApproxCorrelatedEquilibrium G hT
     G.intRegretMatchingDynamics_nonneg G.sum_intRegretMatchingDynamics fun i δ => ?_
   have hbd := internalRegretMatching_swapRegret_le

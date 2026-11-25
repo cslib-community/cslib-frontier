@@ -426,14 +426,21 @@ theorem IsQuasiDemand.mem_demandSet_of_budget_pos {u : (G → ℝ) → ℝ} {p :
   set c : ℝ := max (1 / 2) (1 - δ / 2)
   have hc_pos : 0 < c := lt_of_lt_of_le (by norm_num) (le_max_left _ _)
   have hc_lt_1 : c < 1 := max_lt (by norm_num) (by linarith)
-  have hclose := hδ hc_pos.le (by
-    rw [Real.dist_eq, abs_of_neg (sub_neg.2 hc_lt_1)]; linarith [le_max_right (1 / 2) (1 - δ / 2)])
+  have hc_dist : dist c 1 < δ := by
+    rw [Real.dist_eq, abs_of_neg (sub_neg.2 hc_lt_1)]
+    linarith [le_max_right (1 / 2) (1 - δ / 2)]
+  have hclose := hδ hc_pos.le hc_dist
   rw [one_smul, Real.dist_eq] at hclose
   have hm_le : m ≤ c * expenditure p b := by
     rw [← expenditure_smul_right]
     exact hq.2 (c • b) (fun g => mul_nonneg hc_pos.le (hb.1 g)) (by linarith [(abs_lt.1 hclose).1])
-  have _ := expenditure_nonneg hp hb.1
-  linarith [mul_le_mul_of_nonneg_left hb.2 hc_pos.le, mul_lt_mul_of_pos_right hc_lt_1 hm]
+  have hexp_nn : 0 ≤ expenditure p b := expenditure_nonneg hp hb.1
+  have hc_exp_lt : c * expenditure p b < m :=
+    calc
+      c * expenditure p b ≤ c * m := mul_le_mul_of_nonneg_left hb.2 hc_pos.le
+      _ < 1 * m := mul_lt_mul_of_pos_right hc_lt_1 hm
+      _ = m := one_mul m
+  linarith
 
 end ConsumerWelfare
 
@@ -777,17 +784,25 @@ theorem IsEquilibrium.budget_mul_utility_le {M : LinearFisherMarket I G}
     · -- Since `expenditure p (x j) = 0`, `x i + x j` is budget-feasible for buyer `i`.
       have hexp0 : expenditure p (x j) = 0 :=
         le_antisymm (by simpa [← hbj0] using hdem_j.1.2) (expenditure_nonneg heq.1 hdem_j.1.1)
-      have hle := hdem_i.2 (x i + x j) ⟨fun g => add_nonneg (hdem_i.1.1 g) (hdem_j.1.1 g),
-        by rw [expenditure_add, hexp0, add_zero]; exact hdem_i.1.2⟩
+      have hfeas_ij : Market.IsBudgetFeasible p (M.budget i) (x i + x j) := by
+        refine ⟨fun g => add_nonneg (hdem_i.1.1 g) (hdem_j.1.1 g), ?_⟩
+        rw [expenditure_add, hexp0, add_zero]
+        exact hdem_i.1.2
+      have hle := hdem_i.2 (x i + x j) hfeas_ij
       simp only [linearUtility_eq_sum, Pi.add_apply, mul_add, sum_add_distrib] at hle ⊢
       have hnn : 0 ≤ ∑ g, M.utility i g * x j g :=
         sum_nonneg fun g _ => mul_nonneg (M.utility_nonneg i g) (hdem_j.1.1 g)
       nlinarith [M.budget_nonneg i]
-  · have hopt := hdem_i.2 ((M.budget i / M.budget j) • x j)
-      ⟨fun g => mul_nonneg (div_nonneg (M.budget_nonneg i) hbj_pos.le) (hdem_j.1.1 g), by
-        rw [expenditure_smul_right]
-        exact (mul_le_mul_of_nonneg_left hdem_j.1.2
-          (div_nonneg (M.budget_nonneg i) hbj_pos.le)).trans_eq (div_mul_cancel₀ _ hbj_pos.ne')⟩
+  · let scaled : G → ℝ := (M.budget i / M.budget j) • x j
+    have hfeas : Market.IsBudgetFeasible p (M.budget i) scaled := by
+      refine ⟨fun g => mul_nonneg (div_nonneg (M.budget_nonneg i) hbj_pos.le) (hdem_j.1.1 g), ?_⟩
+      rw [expenditure_smul_right]
+      calc
+        (M.budget i / M.budget j) * expenditure p (x j)
+          ≤ (M.budget i / M.budget j) * M.budget j :=
+            mul_le_mul_of_nonneg_left hdem_j.1.2 (div_nonneg (M.budget_nonneg i) hbj_pos.le)
+        _ = M.budget i := div_mul_cancel₀ _ hbj_pos.ne'
+    have hopt := hdem_i.2 scaled hfeas
     rw [linearUtility_smul] at hopt
     have hmul := mul_le_mul_of_nonneg_left hopt hbj_pos.le
     have hcancel : M.budget j * ((M.budget i / M.budget j) * linearUtility (M.utility i) (x j)) =

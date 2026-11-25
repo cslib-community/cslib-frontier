@@ -366,9 +366,11 @@ theorem valid_of_mem_support_build {fuel : ℕ} {keys : List X} (hkeys : keys.No
     have hsecj : ∀ j, ((sec j).get (hs j)).range = (bucketOf keys t.values j).length ^ 2 - 1 ∧
         Set.InjOn ((sec j).get (hs j)).apply {x | x ∈ bucketOf keys t.values j} := fun j =>
       mem_supportWith_buildSecondary (by rw [Option.some_get]; exact hsec j)
-    refine ⟨rfl, by simp only [hcard]; exact hgood, fun j hj => ?_, fun j x hx y hy hxy => ?_⟩
+    refine ⟨rfl, ?_, fun j hj => ?_, fun j x hx y hy hxy => ?_⟩
+    · simp only [hcard]
+      exact hgood
     · rw [hcard] at hj ⊢
-      have : 0 < (bucketOf keys t.values j).length ^ 2 := by positivity
+      have hpos : 0 < (bucketOf keys t.values j).length ^ 2 := by positivity
       dsimp only
       rw [(hsecj j).1]
       omega

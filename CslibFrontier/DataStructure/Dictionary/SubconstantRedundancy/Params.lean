@@ -94,8 +94,9 @@ private theorem clmul_of_schedule (P : TreeSchedule) {n r L : ℕ}
     calc (6 * L ^ 2 + 6) * L ≤ 7 * L ^ 2 * L := by gcongr; omega
       _ ≤ 7 * (4 * (L / 3)) ^ 2 * (4 * (L / 3)) := by gcongr
       _ = 448 * (L / 3) ^ 3 := by ring
-      _ ≤ L / 3 * (L / 3) ^ 3 := Nat.mul_le_mul_right _ (by omega)
-      _ ≤ 2 ^ (L / 3) := by rw [← pow_succ']; exact Nat.pow_le_two_pow (by decide) (by omega)
+      _ ≤ L / 3 * (L / 3) ^ 3 := by gcongr; omega
+      _ ≤ 2 ^ (L / 3) := by
+        rw [← pow_succ']; exact Nat.pow_le_two_pow (by decide) (by omega)
   calc 2 ^ (2 * (Nat.log 2 (max P.cap 2) / 3)) * (6 * Nat.clog 2 (max P.paddedUniv 2) + 6) * r
       = 2 ^ (2 * (L / 3)) * (6 * Nat.clog 2 (max P.paddedUniv 2) + 6) * r := by
         rw [hcap, max_eq_left hn2, ← hL_eq]
@@ -194,7 +195,8 @@ private theorem leafAndClmul_of_schedule (P : TreeSchedule) {n r L t : ℕ}
             _ ≤ L / 2 := hexp_half
   have hm_r := mul_le_of_le_two_pow_half hmatch_le hr_half hn_2L
   have hmm_r := mul_le_of_le_two_pow_half hminimap_le hr_half hn_2L
-  rw [Nat.add_mul, Nat.add_mul]; omega
+  rw [Nat.add_mul, Nat.add_mul]
+  omega
 
 /-- The metadata of a node at a level `j ≥ 3` takes at most `t ^ 15` bits, when the key IDs at
 levels `j - 1` and `j` have `O(t)` bits and the expected load of the node is at most `t ^ 11`. -/
@@ -217,11 +219,14 @@ private theorem nodeMetaBits_le_of_schedule (P : TreeSchedule) {t j : ℕ} (ht_g
   have hseed : P.nodeHashSeedBits j ≤ 2671 * t ^ 12 := by
     have hic := P.idCompressorSeedBits_le_of_two_le (by omega : 2 ≤ j) hjk
     have hrsb : (if j < P.depth then P.routerSeedBits j else 0) ≤ t ^ 11 := by
-      split_ifs with hlt; exacts [(Nat.le_self_pow two_ne_zero _).trans ((hsq hlt).trans hnf),
-        Nat.zero_le _]
+      split_ifs with hlt
+      · exact (Nat.le_self_pow two_ne_zero _).trans ((hsq hlt).trans hnf)
+      · exact Nat.zero_le _
     have h11 : t ^ 11 ≤ t ^ 12 := Nat.pow_le_pow_right (by omega) (by decide)
     have h1 : t ≤ t ^ 12 := Nat.le_self_pow (by decide) t
-    dsimp only [TreeSchedule.nodeHashSeedBits]; rw [ite_eq_right (by omega)]; omega
+    dsimp only [TreeSchedule.nodeHashSeedBits]
+    rw [ite_eq_right (by omega)]
+    omega
   have hwait := (P.waitingListBits_le_of_two_le (by omega : 2 ≤ j) hjk).trans
     (hmul 5 444 (by omega) hid_prev)
   dsimp only [TreeSchedule.nodeMetaBits]
@@ -461,10 +466,11 @@ theorem totalTreeBits_le_infoBits_add {U V n R p_min q_min p_max q_max : ℕ}
     rw [canonicalSchedule_cap, canonicalSchedule_nFloor_div_eq h hlt.le]
     exact (Nat.lt_mul_div_succ n ((canonicalSchedule h).numNodes_pos ℓ)).le) hU3
   rw [canonicalSchedule_valBound, canonicalSchedule_cap] at htot
-  have := infoBits_paddedUniv_le h
-  have := redundancySlack_le_mul_effRedundancy h
-  have := effRedundancy_pos h.redundancy_pos n
-  have := effRedundancy_le n R
-  dsimp only [spaceConst]; omega
+  have hpad_info := infoBits_paddedUniv_le h
+  have hslack := redundancySlack_le_mul_effRedundancy h
+  have hRe_pos : 1 ≤ effRedundancy n R := effRedundancy_pos h.redundancy_pos n
+  have hRe_le : effRedundancy n R ≤ R := effRedundancy_le n R
+  dsimp only [spaceConst]
+  omega
 
 end Cslib.DataStructure.Dictionary.SubconstantRedundancy

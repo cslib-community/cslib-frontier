@@ -68,8 +68,10 @@ private lemma det_submatrix_col_equiv {κ ι R : Type*} [CommRing R] [Fintype ι
     open Classical in
     (A.submatrix f e).det = (A.submatrix (f ∘ e.symm) id).det := by
   classical
-  rw [show A.submatrix f e = (A.submatrix (f ∘ e.symm) id).submatrix e e by ext; simp,
-    Matrix.det_submatrix_equiv_self]
+  have hsub : A.submatrix f e = (A.submatrix (f ∘ e.symm) id).submatrix e e := by
+    ext
+    simp
+  rw [hsub, Matrix.det_submatrix_equiv_self]
 
 section Signs
 
@@ -93,7 +95,9 @@ theorem signOfK_sq {a : K} (ha : a ≠ 0) : signOfK a * signOfK a = 1 := by
 theorem signOfK_eq_neg_of_mul_lt_zero {a b : K} (h : a * b < 0) :
     signOfK b = -signOfK a := by
   have ha : a ≠ 0 := fun ha0 => by simp [ha0] at h
-  have hmul : signOfK a * signOfK b = -1 := by rw [← signOfK_mul]; simp [signOfK, h]
+  have hmul : signOfK a * signOfK b = -1 := by
+    rw [← signOfK_mul]
+    simp [signOfK, h]
   calc signOfK b = signOfK a * signOfK a * signOfK b := by rw [signOfK_sq ha, one_mul]
     _ = -signOfK a := by rw [mul_assoc, hmul, mul_neg_one]
 
@@ -397,7 +401,8 @@ theorem halfEdgeIndex_true_eq_neg_false {m n : ℕ}
     simp only [π_t, π_f, Equiv.Perm.mul_apply, Equiv.trans_apply, Equiv.ofBijective_apply,
       hswap_fun, Function.comp_apply]
   have hsign : (Equiv.Perm.sign π_t : ℤ) = -(Equiv.Perm.sign π_f : ℤ) := by
-    rw [hπ, Equiv.Perm.sign_mul, Equiv.Perm.sign_swap (by simp)]; simp [Units.val_neg]
+    rw [hπ, Equiv.Perm.sign_mul, Equiv.Perm.sign_swap (by simp)]
+    simp [Units.val_neg]
   change (Equiv.Perm.sign π_t : ℤ) * _ * _ = -((Equiv.Perm.sign π_f : ℤ) * _ * _)
   rw [hsign]; ring
 

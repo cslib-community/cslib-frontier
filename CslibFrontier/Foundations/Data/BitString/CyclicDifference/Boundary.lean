@@ -168,10 +168,11 @@ theorem mem_cyclicDifferenceRelation_zeroRestriction {n : ℕ} (i : Fin (n + 2))
     exact ⟨cyclicDifference (y ∘ zeroPort i), ⟨_, hy, rfl⟩,
       cyclicDifference_zeroPort i y, cyclicDifference_zeroPort_differencePort i y⟩
   · rintro ⟨s, ⟨x, hx, rfl⟩, hi, rfl⟩
-    exact ⟨x ∘ retainPort i,
-      show (x ∘ retainPort i) ∘ zeroPort i ∈ P by rwa [comp_retainPort_zeroPort i x hi], by
-      rw [← cyclicDifference_zeroPort_differencePort i (x ∘ retainPort i),
-        comp_retainPort_zeroPort i x hi]⟩
+    refine ⟨x ∘ retainPort i, ?_, ?_⟩
+    · change (x ∘ retainPort i) ∘ zeroPort i ∈ P
+      rwa [comp_retainPort_zeroPort i x hi]
+    · rw [← cyclicDifference_zeroPort_differencePort i (x ∘ retainPort i),
+        comp_retainPort_zeroPort i x hi]
 
 /-- Old port 0 is retained as free port 0. -/
 @[simp] theorem capPort_zero (n : ℕ) : @capPort n 0 = Sum.inl 0 := by
@@ -192,8 +193,10 @@ theorem mem_cyclicDifferenceRelation_zeroRestriction {n : ℕ} (i : Fin (n + 2))
 /-- Old ports from 4 onward retain their order, shifted down by two. -/
 theorem capPort_of_four_le {n : ℕ} (j : Fin (n + 4)) (h : 4 ≤ j.val) :
     capPort j = Sum.inl ⟨j.val - 2, by omega⟩ := by
-  simp only [capPort, show j.val ≠ 2 by omega, show j.val ≠ 3 by omega,
-    show ¬j.val < 2 by omega, ite_false, dite_false]
+  have h2 : j.val ≠ 2 := by omega
+  have h3 : j.val ≠ 3 := by omega
+  have hlt : ¬j.val < 2 := by omega
+  simp only [capPort, h2, h3, hlt, ite_false, dite_false]
 
 /-- Retained difference edges start at the corresponding new free ports of a cap. -/
 theorem capPort_capDifferencePort {n : ℕ} (j : Fin (n + 2)) :
@@ -217,11 +220,14 @@ theorem capPort_next_capDifferencePort {n : ℕ} (j : Fin (n + 2)) :
     simp [capDifferencePort]
   by_cases hlast : j.val = n + 1
   · obtain rfl : j = Fin.last (n + 1) := Fin.ext hlast
-    rw [show capDifferencePort (Fin.last (n + 1)) = Fin.last (n + 3) by
-      fin_index [capDifferencePort], finRotate_last, finRotate_last]
+    have he : capDifferencePort (Fin.last (n + 1)) = Fin.last (n + 3) := by
+      fin_index [capDifferencePort]
+    rw [he, finRotate_last, finRotate_last]
     exact capPort_zero n
-  rw [show finRotate (n + 4) (capDifferencePort j) = ⟨j.val + 3, by omega⟩ by
-    fin_index [val_finRotate, capDifferencePort], capPort_of_four_le _ (by dsimp; omega)]
+  have hlt3 : j.val + 3 < n + 4 := by omega
+  have he : finRotate (n + 4) (capDifferencePort j) = ⟨j.val + 3, hlt3⟩ := by
+    fin_index [val_finRotate, capDifferencePort]
+  rw [he, capPort_of_four_le _ (by dsimp; omega)]
   exact congrArg Sum.inl (by fin_index [val_finRotate])
 
 /-- The cap retains precisely the differences in order `0,3,4,…`. -/
@@ -284,9 +290,10 @@ theorem mem_cyclicDifferenceRelation_capRelation {n : ℕ}
       cyclicDifference_capPort_pair y z, cyclicDifference_capPort y z⟩
   · rintro ⟨s, ⟨x, hx, rfl⟩, hi, rfl⟩
     have he := comp_capRetainPort_capPort x ((cyclicDifference_pair_eq_iff x).mp hi)
-    exact ⟨x ∘ capRetainPort,
-      ⟨fun _ => x 2, show (Sum.elim (x ∘ capRetainPort) fun _ => x 2) ∘ capPort ∈ P by rwa [he]⟩,
-      by rw [← cyclicDifference_capPort (x ∘ capRetainPort) (fun _ => x 2), he]⟩
+    refine ⟨x ∘ capRetainPort, ⟨fun _ => x 2, ?_⟩, ?_⟩
+    · change (Sum.elim (x ∘ capRetainPort) fun _ => x 2) ∘ capPort ∈ P
+      rwa [he]
+    · rw [← cyclicDifference_capPort (x ∘ capRetainPort) (fun _ => x 2), he]
 
 /-- The retained difference map is the standard increasing embedding omitting `i`. -/
 theorem differencePort_eq_succAbove {n : ℕ} (i : Fin (n + 2)) :
@@ -355,7 +362,8 @@ theorem exists_capDifferencePort {n : ℕ} (k : Fin (n + 4))
   · exact ⟨0, Fin.ext h0.symm⟩
   have hk1 : k.val ≠ 1 := fun h => h1 (Fin.ext h)
   have hk2 : k.val ≠ 2 := fun h => h2 (Fin.ext h)
-  exact ⟨⟨k.val - 2, by omega⟩, by fin_index [val_capDifferencePort]⟩
+  refine ⟨⟨k.val - 2, by omega⟩, ?_⟩
+  fin_index [val_capDifferencePort]
 
 /-- A pair after the cap lifts to exactly the old pair or the old quartet. -/
 theorem eq_pair_or_quartet_of_cap {n : ℕ} (j : Fin (n + 2)) (hj : j ≠ 0)
@@ -375,7 +383,8 @@ theorem eq_pair_or_quartet_of_cap {n : ℕ} (j : Fin (n + 2)) (hj : j ≠ 0)
     · subst k
       simp [flipOn, hb, Ne.symm (capDifferencePort_ne_one j)]
     by_cases hk2 : k = 2
-    · subst k; simp [flipOn, ← hs, hb, Ne.symm (capDifferencePort_ne_two j), Fin.ext_iff,
+    · subst k
+      simp [flipOn, ← hs, hb, Ne.symm (capDifferencePort_ne_two j), Fin.ext_iff,
         Nat.mod_eq_of_lt (by omega : 2 < n + 4)]
     exact he k hk1 hk2
   | true =>

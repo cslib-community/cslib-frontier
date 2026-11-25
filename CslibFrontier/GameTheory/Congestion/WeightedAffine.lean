@@ -116,41 +116,47 @@ namespace WeightedCongestionGame
 
 /-! ### Golden-ratio smoothness algebra -/
 
-private lemma sqrt_five_bounds : 2 < Real.sqrt 5 ∧ Real.sqrt 5 < 3 :=
-  ⟨by rw [← Real.sqrt_sq (by norm_num : (0 : ℝ) ≤ 2)]
-      exact Real.sqrt_lt_sqrt (by norm_num) (by norm_num),
-   by rw [← Real.sqrt_sq (by norm_num : (0 : ℝ) ≤ 3)]
-      exact Real.sqrt_lt_sqrt (by norm_num) (by norm_num)⟩
+private lemma sqrt_five_bounds : 2 < Real.sqrt 5 ∧ Real.sqrt 5 < 3 := by
+  constructor
+  · rw [← Real.sqrt_sq (by norm_num : (0 : ℝ) ≤ 2)]
+    exact Real.sqrt_lt_sqrt (by norm_num) (by norm_num)
+  · rw [← Real.sqrt_sq (by norm_num : (0 : ℝ) ≤ 3)]
+    exact Real.sqrt_lt_sqrt (by norm_num) (by norm_num)
 
 /-- Real smoothness inequality underlying Awerbuch–Azar–Epstein's `(3 + √5) / 2` bound:
 `x² + x y ≤ (5 + √5) / 4 * x² + (√5 - 1) / 4 * y²` for all real numbers `x` and `y`, with equality
 when `y = (1 + √5) / 2 * x`. -/
 theorem sq_add_mul_le_golden_smooth (x y : ℝ) :
     x ^ 2 + x * y ≤ (5 + Real.sqrt 5) / 4 * x ^ 2 + (Real.sqrt 5 - 1) / 4 * y ^ 2 := by
+  have hs5 : Real.sqrt 5 ^ 2 = 5 := Real.sq_sqrt (by norm_num)
   have hid : (Real.sqrt 5 - 1) / 4 * ((Real.sqrt 5 + 1) / 2 * x - y) ^ 2 =
       (1 + Real.sqrt 5) / 4 * x ^ 2 - x * y + (Real.sqrt 5 - 1) / 4 * y ^ 2 := by
     calc (Real.sqrt 5 - 1) / 4 * ((Real.sqrt 5 + 1) / 2 * x - y) ^ 2
       _ = (Real.sqrt 5 ^ 2 - 1) * (Real.sqrt 5 + 1) / 16 * x ^ 2 -
             (Real.sqrt 5 ^ 2 - 1) / 4 * x * y + (Real.sqrt 5 - 1) / 4 * y ^ 2 := by ring
-      _ = _ := by rw [Real.sq_sqrt (by norm_num)]; ring
+      _ = (1 + Real.sqrt 5) / 4 * x ^ 2 - x * y + (Real.sqrt 5 - 1) / 4 * y ^ 2 := by
+            rw [hs5]; ring
   linarith [mul_nonneg (by linarith [sqrt_five_bounds.1] : 0 ≤ (Real.sqrt 5 - 1) / 4)
     (sq_nonneg ((Real.sqrt 5 + 1) / 2 * x - y))]
 
 private lemma golden_smooth_ratio :
     ((5 + Real.sqrt 5) / 4) / (1 - (Real.sqrt 5 - 1) / 4) = (3 + Real.sqrt 5) / 2 := by
+  have hs5 : Real.sqrt 5 ^ 2 = 5 := Real.sq_sqrt (by norm_num)
   rw [div_eq_iff (by linarith [sqrt_five_bounds.2])]
   calc (5 + Real.sqrt 5) / 4
-    _ = (15 + 2 * Real.sqrt 5 - Real.sqrt 5 ^ 2) / 8 := by rw [Real.sq_sqrt (by norm_num)]; ring
+    _ = (15 + 2 * Real.sqrt 5 - Real.sqrt 5 ^ 2) / 8 := by rw [hs5]; ring
     _ = (3 + Real.sqrt 5) / 2 * (1 - (Real.sqrt 5 - 1) / 4) := by ring
 
 private lemma goldenRatio_identities {φ : ℝ} (hφ : φ = (1 + Real.sqrt 5) / 2) :
     0 < φ ∧ φ ^ 2 = φ + 1 ∧ (3 + Real.sqrt 5) / 2 = φ ^ 2 := by
   subst hφ
+  have hs5 : Real.sqrt 5 ^ 2 = 5 := Real.sq_sqrt (by norm_num)
+  have hgt2 : 2 < Real.sqrt 5 := sqrt_five_bounds.1
   have hφ_sq : ((1 + Real.sqrt 5) / 2) ^ 2 = (1 + Real.sqrt 5) / 2 + 1 := by
     calc ((1 + Real.sqrt 5) / 2) ^ 2
       _ = (1 + 2 * Real.sqrt 5 + Real.sqrt 5 ^ 2) / 4 := by ring
-      _ = _ := by rw [Real.sq_sqrt (by norm_num)]; ring
-  exact ⟨by linarith [sqrt_five_bounds.1], hφ_sq, by linarith⟩
+      _ = (1 + Real.sqrt 5) / 2 + 1 := by rw [hs5]; ring
+  exact ⟨by linarith, hφ_sq, by linarith⟩
 
 /-! ### Equilibrium inequalities, smoothness, and `(3 + √5) / 2` Price of Anarchy -/
 
@@ -386,13 +392,20 @@ theorem aaeTriangleGame_weighted_golden :
     simp only [CostGame.socialCost, huniv4, toCostGame_cost, unitCost, aaeTriangleLoad_eq]
     norm_num [aaeTriangleGame, aaeTrianglePaths, Fin.isValue]
     ring
-  refine ⟨fun i a => ?_, by rw [htrue]; positivity, ?_⟩
+  refine ⟨fun i a => ?_, ?_, ?_⟩
   · fin_cases i <;> cases a <;> simp only [toCostGame_cost, unitCost, aaeTriangleLoad_eq] <;>
       norm_num [aaeTriangleGame, aaeTrianglePaths, Function.update, Fin.isValue] <;>
       nlinarith [hφ_sq, hφ_pos]
-  · simp only [CostGame.socialCost, huniv4, toCostGame_cost, unitCost, aaeTriangleLoad_eq, hgolden]
-    norm_num [aaeTriangleGame, aaeTrianglePaths, Fin.isValue]
-    nlinarith [hφ_sq]
+  · rw [htrue]
+    positivity
+  · calc (aaeTriangleGame φ 1).toCostGame.socialCost (fun _ => false)
+      _ = 2 * φ * (φ + (φ + 1)) + 2 * (φ + 1) := by
+            simp only [CostGame.socialCost, huniv4, toCostGame_cost, unitCost, aaeTriangleLoad_eq]
+            norm_num [aaeTriangleGame, aaeTrianglePaths, Fin.isValue]
+            ring
+      _ = (3 + Real.sqrt 5) / 2 * (aaeTriangleGame φ 1).toCostGame.socialCost (fun _ => true) := by
+            rw [htrue, hgolden]
+            nlinarith [hφ_sq]
 
 /-- Resource sets of a **three-player** weighted game attaining `(3 + √5) / 2`
 ([NisanRoughgardenTardosVazirani2007], Chapter 18, Exercise 18.2(b); locator not re-verified
@@ -434,16 +447,23 @@ theorem exists_three_player_socialCost_eq_golden_mul :
     simp only [CostGame.socialCost, huniv3, toCostGame_cost, unitCost, hload]
     norm_num [W, threePlayerGoldenPaths, Fin.isValue]
     ring
-  refine ⟨W, fun _ => false, fun _ => true,
-    ⟨fun _ => 1, fun _ => 0, fun _ => zero_le_one, fun _ => le_rfl, fun _ x => by simp [W]⟩,
-    fun i => by fin_cases i <;> simp [W, hφ_pos],
-    fun i a => ?_, by rw [htrue]; positivity, ?_⟩
+  refine ⟨W, fun _ => false, fun _ => true, ?_, ?_, fun i a => ?_, ?_, ?_⟩
+  · exact ⟨fun _ => 1, fun _ => 0, fun _ => zero_le_one, fun _ => le_rfl, fun _ x => by simp [W]⟩
+  · intro i
+    fin_cases i <;> simp [W, hφ_pos]
   · fin_cases i <;> cases a <;> simp only [toCostGame_cost, unitCost, hload] <;>
       norm_num [W, threePlayerGoldenPaths, Function.update, Fin.isValue] <;>
       nlinarith [hφ_sq, hφ_pos]
-  · simp only [CostGame.socialCost, huniv3, toCostGame_cost, unitCost, hload, hgolden]
-    norm_num [W, threePlayerGoldenPaths, Fin.isValue]
-    nlinarith [hφ_sq]
+  · rw [htrue]
+    positivity
+  · calc W.toCostGame.socialCost (fun _ => false)
+      _ = 2 * (1 + φ) + 2 * φ * (φ + (1 + φ)) := by
+            simp only [CostGame.socialCost, huniv3, toCostGame_cost, unitCost, hload]
+            norm_num [W, threePlayerGoldenPaths, Fin.isValue]
+            ring
+      _ = (3 + Real.sqrt 5) / 2 * W.toCostGame.socialCost (fun _ => true) := by
+            rw [htrue, hgolden]
+            nlinarith [hφ_sq]
 
 end TightnessWitnesses
 
@@ -544,7 +564,8 @@ theorem socialCost_le_twoPlayerRatio_mul_of_isPureNash {S : Fin 2 → Type*} {E 
               W.latency e (W.load (Function.update s i t') e) else 0) -
             (if decide (e ∈ W.resources i (s i)) then W.latency e (W.load s e) else 0)) := by
     simp only [toCostGame_cost, unitCost, Function.update_self, Finset.sum_sub_distrib,
-      decide_eq_true_eq, Finset.sum_ite_mem, Finset.univ_inter]; ring
+      decide_eq_true_eq, Finset.sum_ite_mem, Finset.univ_inter]
+    ring
   have hpt (e : E) :
       D * (W.load s e * W.latency e (W.load s e)) +
           D * (w₀ * ((if decide (e ∈ W.resources 0 (s' 0)) then
@@ -673,8 +694,7 @@ theorem isSmooth_two_zero_of_card_le_two (hcard : Fintype.card ι ≤ 2) (h : C.
           Finset.sum_le_sum fun e _ => by
             rw [hl, hl]
             have hk_sq : (C.load s' e : ℝ) ≤ (C.load s' e : ℝ) ^ 2 := by
-              exact_mod_cast (Nat.eq_zero_or_pos (C.load s' e)).elim (by rintro h0; simp [h0])
-                fun _ => Nat.le_self_pow two_ne_zero _
+              exact_mod_cast Nat.le_self_pow two_ne_zero (C.load s' e)
             push_cast
             nlinarith [mul_le_mul_of_nonneg_left hk_sq (ha e), hb e,
               (Nat.cast_nonneg (C.load s' e) : (0 : ℝ) ≤ C.load s' e)]

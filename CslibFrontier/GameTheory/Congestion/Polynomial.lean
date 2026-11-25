@@ -113,7 +113,8 @@ private theorem add_two_pow_lt_add_one_pow_succ {d : ℕ} (hd : 1 ≤ d) :
   have hu_pos : 0 < u := by linarith
   have hpow : (1 + 1 / u) ^ d ≤ Real.exp (d * (1 / u)) := by
     rw [Real.exp_nat_mul]
-    exact pow_le_pow_left₀ (by positivity) (by linarith [Real.add_one_le_exp (1 / u)]) d
+    exact pow_le_pow_left₀ (by positivity)
+      (by linarith [Real.add_one_le_exp (1 / u)]) d
   have hexp_lt : (1 + 1 / u) ^ d < u :=
     (hpow.trans_lt (Real.exp_lt_exp.2 (by rw [mul_one_div, div_lt_one hu_pos]; linarith))).trans_le
       (exp_one_le_four.trans hu4)
@@ -184,9 +185,11 @@ theorem polynomialRoot_pow_eq {d : ℕ} (hd : 1 ≤ d) :
 
 theorem polynomialRoot_gt_one {d : ℕ} (hd : 1 ≤ d) : 1 < polynomialRoot d := by
   by_contra! hle
-  linarith [polynomialRoot_pow_eq hd, pow_le_one₀ (n := d + 1) (polynomialRoot_pos d).le hle,
-    (one_lt_pow₀ (by linarith [polynomialRoot_pos d]) (by omega : d ≠ 0) :
-      (1 : ℝ) < (1 + polynomialRoot d) ^ d)]
+  have hpos := polynomialRoot_pos d
+  have h1 : polynomialRoot d ^ (d + 1) ≤ 1 := pow_le_one₀ hpos.le hle
+  have h2 : (1 : ℝ) < (1 + polynomialRoot d) ^ d :=
+    one_lt_pow₀ (by linarith) (by omega)
+  linarith [polynomialRoot_pow_eq hd]
 
 /-- For every `d ≥ 1`, the characteristic root satisfies `polynomialRoot d < d + 1`. -/
 theorem polynomialRoot_lt_succ {d : ℕ} (hd : 1 ≤ d) : polynomialRoot d < (d : ℝ) + 1 := by
@@ -215,7 +218,8 @@ theorem polynomialRoot_strictMono {j d : ℕ} (hj : 1 ≤ j) (hjd : j < d) :
     · rw [heq, polynomialRoot_pow_eq hj]
     · have h := pow_succ_mul_one_add_pow_lt (d := j) hφd_pos hlt
       rw [polynomialRoot_pow_eq hj] at h
-      exact le_of_mul_le_mul_right (by linarith) (by positivity : 0 < (1 + φj) ^ j)
+      have hpos : 0 < (1 + φj) ^ j := by positivity
+      exact le_of_mul_le_mul_right (by linarith) hpos
   obtain ⟨m, hm, rfl⟩ : ∃ m, 1 ≤ m ∧ d = j + m := ⟨d - j, by omega, by omega⟩
   have hφd1 := polynomialRoot_gt_one hd
   have hlt_m : φd ^ m < (1 + φd) ^ m := pow_lt_pow_left₀ (by linarith) hφd_pos.le (by omega)
@@ -257,12 +261,18 @@ theorem one_le_polynomialSmoothLam (d : ℕ) : 1 ≤ polynomialSmoothLam d := by
   split_ifs with hd0
   · exact le_rfl
   have hd : 1 ≤ d := Nat.one_le_iff_ne_zero.2 hd0
+  have hφ0 : 0 < polynomialRoot d := polynomialRoot_pos d
   have hφ1 : 1 < polynomialRoot d := polynomialRoot_gt_one hd
-  have hpow : 1 + polynomialRoot d ≤ polynomialRoot d ^ (d + 1) := by
-    rw [polynomialRoot_pow_eq hd]
-    simpa only [pow_one] using pow_le_pow_right₀ (by linarith) hd
-  rw [div_mul_eq_mul_div, one_le_div (by positivity)]
-  nlinarith [show (0 : ℝ) ≤ d by positivity]
+  calc (1 : ℝ)
+      ≤ ((d : ℝ) + 1 + polynomialRoot d) / (((d : ℝ) + 1) * (1 + polynomialRoot d)) *
+          (1 + polynomialRoot d) := by
+        rw [div_mul_eq_mul_div, one_le_div (by positivity)]
+        nlinarith [show (0 : ℝ) ≤ d by positivity]
+    _ ≤ ((d : ℝ) + 1 + polynomialRoot d) / (((d : ℝ) + 1) * (1 + polynomialRoot d)) *
+          polynomialRoot d ^ (d + 1) := by
+        gcongr
+        rw [polynomialRoot_pow_eq hd]
+        simpa only [pow_one] using pow_le_pow_right₀ (by linarith) hd
 
 /-- Exact smoothness ratio: for `d ≥ 1`,
 `polynomialSmoothLam d / (1 - polynomialSmoothMu d) = polynomialRoot d ^ (d + 1)`. -/
@@ -293,11 +303,21 @@ theorem polynomialSmoothMu_mono {j d : ℕ} (hjd : j ≤ d) :
   have hd0 : d ≠ 0 := by omega
   unfold polynomialSmoothMu
   simp only [hj0, hd0, ↓reduceIte]
-  rw [div_le_div_iff₀ (by positivity) (by positivity)]
   have hjd' : (j : ℝ) ≤ d := Nat.cast_le.2 hjd
-  nlinarith [mul_nonneg (by positivity : (0 : ℝ) ≤ (j : ℝ) * d) (sub_nonneg.2 hφ_lt.le),
-    mul_nonneg (sub_nonneg.2 hjd') (by positivity : 0 ≤ polynomialRoot j * polynomialRoot d),
-    mul_le_mul hjd' hφ_lt.le hφj.le (by positivity)]
+  have hf1 : (j : ℝ) / ((j : ℝ) + 1) ≤ (d : ℝ) / ((d : ℝ) + 1) := by
+    rw [div_le_div_iff₀ (by positivity) (by positivity)]
+    linarith
+  have hf2 : polynomialRoot j / (1 + polynomialRoot j) ≤
+      polynomialRoot d / (1 + polynomialRoot d) := by
+    rw [div_le_div_iff₀ (by positivity) (by positivity)]
+    linarith
+  calc (j : ℝ) * polynomialRoot j / (((j : ℝ) + 1) * (1 + polynomialRoot j))
+      = ((j : ℝ) / ((j : ℝ) + 1)) * (polynomialRoot j / (1 + polynomialRoot j)) := by
+        field_simp
+    _ ≤ ((d : ℝ) / ((d : ℝ) + 1)) * (polynomialRoot d / (1 + polynomialRoot d)) :=
+        mul_le_mul hf1 hf2 (by positivity) (by positivity)
+    _ = (d : ℝ) * polynomialRoot d / (((d : ℝ) + 1) * (1 + polynomialRoot d)) := by
+        field_simp
 
 theorem polynomialSmoothLam_mono {j d : ℕ} (hjd : j ≤ d) :
     polynomialSmoothLam j ≤ polynomialSmoothLam d := by
@@ -569,7 +589,8 @@ theorem mul_add_one_sq_le_quadraticSmooth (y z : ℕ) :
         ((z : ℝ) - 2) * ((z : ℝ) - 3) * (7 * (z : ℝ) + 16) by ring]
   have hy2 : (2 : ℝ) ≤ y := Nat.ofNat_le_cast.2 (by omega)
   have hstep : 4 * ((y : ℝ) * ((z : ℝ) + 1) ^ 2) ≤ (y : ℝ) * (2 * (z : ℝ) + y) ^ 2 := by
-    have := pow_le_pow_left₀ (by positivity) (by linarith : 2 * ((z : ℝ) + 1) ≤ 2 * (z : ℝ) + y) 2
+    have hle : 2 * ((z : ℝ) + 1) ≤ 2 * (z : ℝ) + y := by linarith
+    have := pow_le_pow_left₀ (by positivity) hle 2
     nlinarith [Nat.cast_nonneg (α := ℝ) y]
   have hsos : 0 ≤ 36 * (115 * (y : ℝ) ^ 3 + 7 * (z : ℝ) ^ 3) -
       171 * (y : ℝ) * (2 * (z : ℝ) + y) ^ 2 := by

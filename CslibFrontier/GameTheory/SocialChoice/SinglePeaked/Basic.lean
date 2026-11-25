@@ -208,10 +208,11 @@ theorem isSinglePeaked_iff_convex (R : WeakRanking (Set.Icc a b)) (p : Set.Icc a
         · exact ⟨div_nonneg (by linarith) (by linarith),
             (div_lt_one (by linarith)).mpr (by linarith)⟩
         · refine ⟨div_nonneg_of_nonpos (by linarith) (by linarith), ?_⟩
-          rw [show t = ((p : ℝ) - y) / ((p : ℝ) - x) by
-            dsimp [t]
+          have ht_eq : t = ((p : ℝ) - y) / ((p : ℝ) - x) := by
+            dsimp only [t]
             rw [← neg_div_neg_eq]
-            congr 1 <;> ring]
+            congr 1 <;> ring
+          rw [ht_eq]
           exact (div_lt_one (by linarith)).mpr (by linarith)
       have hy_eq : (⟨t * x + (1 - t) * p,
           ⟨by nlinarith [x.2.1, p.2.1], by nlinarith [x.2.2, p.2.2]⟩⟩ : Set.Icc a b) = y := by
@@ -400,8 +401,8 @@ theorem eq_leftExtreme_of_peak_eq {hab : a ≤ b} {R : Preference a b}
     (hpeak : R.peak = ⟨a, le_rfl, hab⟩) : R = leftExtreme hab := by
   ext x y
   exact ⟨fun hxy => not_lt.mp fun hyx =>
-    R.prefers_of_between_right (by rw [hpeak]; exact y.2.1) hyx hxy,
-    fun hxy => R.atLeast_of_between_right (by rw [hpeak]; exact x.2.1) hxy⟩
+    R.prefers_of_between_right (by simpa only [hpeak] using y.2.1) hyx hxy,
+    fun hxy => R.atLeast_of_between_right (by simpa only [hpeak] using x.2.1) hxy⟩
 
 /-- There is a unique single-peaked preference with peak at the right endpoint `b`
 ([SchummerVohra2007], §10.2.1, p. 247). -/
@@ -409,8 +410,8 @@ theorem eq_rightExtreme_of_peak_eq {hab : a ≤ b} {R : Preference a b}
     (hpeak : R.peak = ⟨b, hab, le_rfl⟩) : R = rightExtreme hab := by
   ext x y
   exact ⟨fun hxy => not_lt.mp fun hlt =>
-    R.prefers_of_between_left hlt (by rw [hpeak]; exact y.2.2) hxy,
-    fun hxy => R.atLeast_of_between_left hxy (by rw [hpeak]; exact x.2.2)⟩
+    R.prefers_of_between_left hlt (by simpa only [hpeak] using y.2.2) hxy,
+    fun hxy => R.atLeast_of_between_left hxy (by simpa only [hpeak] using x.2.2)⟩
 
 end Preference
 
@@ -645,21 +646,23 @@ theorem IsStrategyProof.isClosed_optionSet (hf : f.IsStrategyProof)
   classical
   rw [← closure_subset_iff_isClosed]
   intro z hz
-  let zPt : Set.Icc a b := ⟨z, isClosed_Icc.closure_subset_iff.mpr
-    (by rintro _ ⟨x, -, rfl⟩; exact x.2) hz⟩
+  have hsub : Subtype.val '' f.optionSet P i ⊆ Set.Icc a b := by
+    rintro _ ⟨x, -, rfl⟩
+    exact x.2
+  let zPt : Set.Icc a b := ⟨z, isClosed_Icc.closure_subset_iff.mpr hsub hz⟩
   have hopt_upd : ∀ {R' : Preference a b} {y : Set.Icc a b}, y ∈ f.optionSet P i →
       R'.AtLeast (f (Function.update P i R')) y := by
     rintro R' y ⟨Q, hQ, hQy⟩
     have h := hf (Function.update P i R') Q i fun j hji => by
       rw [Function.update_of_ne hji, hQ j hji]
     rwa [Function.update_self, hQy] at h
-  rw [show Subtype.val '' f.optionSet P i =
+  have hsplit : Subtype.val '' f.optionSet P i =
       ((Subtype.val '' f.optionSet P i) ∩ Set.Iic z) ∪
-      ((Subtype.val '' f.optionSet P i) ∩ Set.Ici z) by
+      ((Subtype.val '' f.optionSet P i) ∩ Set.Ici z) := by
     ext t
     simp only [Set.mem_union, Set.mem_inter_iff, Set.mem_Iic, Set.mem_Ici]
-    exact ⟨fun ht => (le_total t z).imp (⟨ht, ·⟩) (⟨ht, ·⟩), fun h => h.elim And.left And.left⟩,
-    closure_union] at hz
+    exact ⟨fun ht => (le_total t z).imp (⟨ht, ·⟩) (⟨ht, ·⟩), fun h => h.elim And.left And.left⟩
+  rw [hsplit, closure_union] at hz
   rcases hz with hzL | hzR
   · let P_L := Function.update P i (Preference.preferLeft zPt)
     refine ⟨f P_L, (mem_optionSet_iff_update P i _).mpr ⟨_, rfl⟩, ?_⟩
@@ -749,12 +752,13 @@ theorem IsStrategyProof.optionSet_eq_Icc [Finite ι] [DecidableEq ι]
           at h
         exact h
       obtain ⟨⟨j₀, hj₀⟩, _⟩ := (isParetoOptimal_iff_peaks_bounds.mp hPO) Q_L
-      have hfQL_eq : f Q_L = z := Subtype.ext <| le_antisymm hfQL_le <|
-        (show (z : ℝ) ≤ (Q_L j₀).peak by
-          dsimp only [Q_L]
-          split_ifs with hc
-          · simp
-          · push Not at hc; exact hc.2.le).trans hj₀
+      have hzj₀ : (z : ℝ) ≤ (Q_L j₀).peak := by
+        dsimp only [Q_L]
+        split_ifs with hc
+        · simp
+        · push Not at hc
+          exact hc.2.le
+      have hfQL_eq : f Q_L = z := Subtype.ext (le_antisymm hfQL_le (hzj₀.trans hj₀))
       have hfQR_eq_z : f Q_R = z := Function.update_induction (x := Q_L) (y := Q_R)
         (P := fun R => f R = z) hfQL_eq fun R _ hR j hjQL hjne => by
         have hj_cond : j = i ∨ ((P j).peak : ℝ) ≤ z := by_contra fun hnot => hjne <| by

@@ -332,10 +332,10 @@ theorem validStep_lifoNext {k : Nat} (hk : 0 < k) {q : List α} (hnodup : q.Nodu
       · have hlen' : rest.length = k - 1 := by
           simp only [List.length_cons] at hlen hlt
           omega
-        rw [lifoNext_cons_of_length_eq hk hlen' hp, List.toFinset_cons (a := p),
-          ← show ((e :: rest).toFinset).erase e = rest.toFinset by
-            rw [List.toFinset_cons, Finset.erase_insert
-              (by simpa only [List.mem_toFinset] using (List.nodup_cons.mp hnodup).1)]]
+        have herase : ((e :: rest).toFinset).erase e = rest.toFinset := by
+          rw [List.toFinset_cons, Finset.erase_insert
+            (by simpa only [List.mem_toFinset] using (List.nodup_cons.mp hnodup).1)]
+        rw [lifoNext_cons_of_length_eq hk hlen' hp, List.toFinset_cons (a := p), ← herase]
         exact validStep_replace ((List.toFinset_card_le _).trans hlen)
           hps (List.mem_toFinset.mpr List.mem_cons_self)
 

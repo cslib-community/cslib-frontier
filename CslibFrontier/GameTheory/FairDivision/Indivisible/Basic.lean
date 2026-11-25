@@ -733,7 +733,10 @@ theorem isEF1_roundRobin (hn : 0 < n) : W.toMonotoneValuation.IsEF1 (W.roundRobi
         · exact hpos
       refine hmap T' (fun t => t.val / n - 1)
         (fun t ht => (Finset.mem_filter.1 (Finset.mem_sdiff.1 ht).1).2)
-        (fun t₁ ht₁ t₂ ht₂ h => by have := hq_pos t₁ ht₁; have := hq_pos t₂ ht₂; omega)
+        (fun t₁ ht₁ t₂ ht₂ h => by
+          have := hq_pos t₁ ht₁
+          have := hq_pos t₂ ht₂
+          omega)
         fun t ht => ?_
       have hlt_step : n * (t.val / n - 1) + i.val < n * (t.val / n) := by
         calc n * (t.val / n - 1) + i.val

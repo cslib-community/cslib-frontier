@@ -166,8 +166,10 @@ private theorem noAdjScanProg_spec {w m : ℕ} (args : NoAdjArgs) {adjL xs : Lis
     have hu_lt : u < m := hus u List.mem_cons_self
     have hidx_lt : args.x * m + u < adjL.length := by
       rw [hadj_len]
-      exact (Nat.add_lt_add_left hu_lt _).trans_le
-        (by rw [← Nat.succ_mul]; exact Nat.mul_le_mul_right m hx)
+      calc args.x * m + u
+          < args.x * m + m := Nat.add_lt_add_left hu_lt _
+        _ = (args.x + 1) * m := by rw [Nat.succ_mul]
+        _ ≤ m * m := Nat.mul_le_mul_right _ hx
     have hadj_addr_lt : args.adjPtr + args.x * args.numVerts + u < s.frontier := by
       have := hadj.1
       rw [hnv, Nat.add_assoc]
@@ -214,9 +216,10 @@ private theorem holdsIn_drop_step {m len j cur : ℕ} {xs : List ℕ} {t : Memor
     (hrem : HoldsIn cur (xs.drop (len - (j + 1))) t) :
     t.mem cur < m ∧ HoldsIn (cur + 1) (xs.drop (len - j)) t := by
   have hj_lt : len - (j + 1) < xs.length := by omega
-  rw [show xs.drop (len - (j + 1)) = xs[len - (j + 1)] :: xs.drop (len - j) by
+  have hdrop_eq : xs.drop (len - (j + 1)) = xs[len - (j + 1)] :: xs.drop (len - j) := by
     rw [show len - j = (len - (j + 1)) + 1 by omega]
-    exact List.drop_eq_getElem_cons hj_lt, HoldsIn.cons_iff] at hrem
+    exact List.drop_eq_getElem_cons hj_lt
+  rw [hdrop_eq, HoldsIn.cons_iff] at hrem
   exact ⟨hrem.2.1 ▸ hxs_lt _ (List.getElem_mem hj_lt), hrem.2.2⟩
 
 private theorem noAdjScanProg_realizes :
@@ -243,9 +246,10 @@ private theorem noAdjScanProg_realizes :
       ⟨le_rfl, rfl, le_rfl, hadj_h, by simpa only [Nat.sub_self, List.drop_zero] using hxs_h⟩
     dsimp only [noAdjStep]
     obtain ⟨hu_lt, hrem_next⟩ := holdsIn_drop_step hxs_len hj_le hxs_lt hrem
-    have hprod_lt : d.x * m + t.mem st.cur < m * m :=
-      (Nat.add_lt_add_left hu_lt _).trans_le
-        (by rw [← Nat.succ_mul]; exact Nat.mul_le_mul_right m hx_lt)
+    have hprod_lt : d.x * m + t.mem st.cur < m * m := by
+      calc d.x * m + t.mem st.cur < d.x * m + m := Nat.add_lt_add_left hu_lt _
+        _ = (d.x + 1) * m := by rw [Nat.succ_mul]
+        _ ≤ m * m := Nat.mul_le_mul_right m hx_lt
     have hcur_fit : Fits w (st.cur + 1) := hptr_fit.of_le (by omega)
     have hmul_fit : Fits w (d.x * d.numVerts) := by
       rw [hnv]; exact hadj_fit.of_le (by omega)
@@ -480,7 +484,12 @@ theorem indepBagProg_spec {w m : ℕ} (args : IndepBagArgs) {adjL xs : List ℕ}
           simp [hbit, hna, hind]
     · rw [memoryCost_bind', hst_step, hres_step]
       simp only [List.length_cons]
-      exact (Nat.add_le_add hc_step hc_rest).trans (by nlinarith)
+      calc memoryCost (indepBagStep (env, ⟨cur, (u :: rest).length, curM, ok⟩)) s +
+            memoryCost
+              (iterate indepBagStep env rest.length ⟨cur + 1, rest.length, curM / 2, ok'⟩) s
+          ≤ (2 * rest.length + 1) + rest.length * (2 * rest.length + 1) :=
+            Nat.add_le_add hc_step hc_rest
+        _ ≤ (rest.length + 1) * (2 * (rest.length + 1) + 1) := by nlinarith
 
 /-- Exact-basis Word-RAM realization certificate for `indepBagProg`. -/
 theorem indepBagProg_realizes :

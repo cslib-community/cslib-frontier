@@ -279,17 +279,22 @@ private theorem isAssortative_minEnvyFreeBid [Fintype ι] [DecidableEq ι] {μ :
   refine ⟨hanti, fun i j hj => ?_⟩
   rw [minEnvyFreeBid_of_not_mem_range μ v σ hj]
   have hk : 0 < k := Fin.pos i
-  have hlast : v j ≤ minEnvyFreeBid μ v σ (σ ⟨k - 1, by omega⟩) := by
+  let k_last : Fin k := ⟨k - 1, by omega⟩
+  have hlast : v j ≤ minEnvyFreeBid μ v σ (σ k_last) := by
     rcases eq_or_ne k 1 with hk1 | hk1
-    · have h0 : (⟨k - 1, by omega⟩ : Fin k) = ⟨0, hk⟩ := Fin.ext (by dsimp; omega)
+    · have h0 : k_last = ⟨0, hk⟩ := Fin.ext (by dsimp [k_last]; omega)
       simpa only [h0, minEnvyFreeBid_slot_zero μ v σ hk] using hσ.unassigned_le ⟨0, hk⟩ j hj
-    · have hfin : (⟨k - 1, by omega⟩ : Fin k) = ⟨k - 2 + 1, by omega⟩ := Fin.ext (by dsimp; omega)
+    · have hfin : k_last = ⟨k - 2 + 1, by omega⟩ :=
+        Fin.ext (by dsimp [k_last]; omega)
       rw [hfin, minEnvyFreeBid_slot_succ μ v σ (k - 2) (by omega)]
       refine (?_ : v j ≤ _).trans (price_div_ctr_antitone hlef hμ hμ_pos (k - 2) (by omega))
       rw [← hfin, minEnvyFreePrice_last μ v σ hk,
-        mul_div_cancel_left₀ _ (hμ_pos ⟨k - 1, by omega⟩).ne']
+        mul_div_cancel_left₀ _ (hμ_pos k_last).ne']
       exact le_maxUnassignedValue v σ hj
-  exact hlast.trans (hanti (show i ≤ ⟨k - 1, by omega⟩ by change i.val ≤ k - 1; omega))
+  have hi_le : i ≤ k_last := by
+    change i.val ≤ k - 1
+    omega
+  exact hlast.trans (hanti hi_le)
 
 /-- For any assortative assignment `σ`, the bid profile `minEnvyFreeBid μ v σ` together with `σ`
 is a tie-robust full-information Nash equilibrium of the unit-weight GSP auction. -/
@@ -345,7 +350,8 @@ theorem isGSPEquilibrium_minEnvyFreeBid [Fintype ι] [DecidableEq ι] {μ : Fin 
           exact minEnvyFreeBid_slot_zero μ v σ (Fin.pos s)
         nlinarith
       · let s' : Fin k := ⟨s.val - 1, by omega⟩
-        have hs_eq : s = ⟨s'.val + 1, by dsimp [s']; omega⟩ := Fin.ext (by dsimp [s']; omega)
+        have hs_eq : s = ⟨s'.val + 1, by dsimp [s']; omega⟩ :=
+          Fin.ext (by dsimp [s']; omega)
         have hval : b (σ s) = p s' / μ s' := by
           conv_lhs => rw [hs_eq]
           exact minEnvyFreeBid_slot_succ μ v σ s'.val (by dsimp [s']; omega)
