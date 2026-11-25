@@ -106,18 +106,23 @@ theorem eventually_exists_formula_separating_approxMCSP_of_isBigO
           (mul_le_mul_of_nonneg_left hexp hC.le)).trans (Nat.le_ceil _)
   have hn' : 2 * (B : ℝ) ≤ (2 : ℝ) ^ (ε * (n : ℝ)) := by
     simpa only [Nat.cast_mul, Nat.cast_ofNat] using hn
-  have htwo : (1 : ℝ) ≤ (2 : ℝ) ^ n := by exact_mod_cast Nat.one_le_two_pow (n := n)
-  refine ⟨F, (show (F.leafSize : ℝ) ≤ ((2 : ℝ) ^ n + 1) * B by exact_mod_cast hF).trans ?_,
-    hyes, hno⟩
-  calc ((2 : ℝ) ^ n + 1) * (B : ℝ)
-      ≤ (2 : ℝ) ^ n * (2 * (B : ℝ)) :=
-        (mul_le_mul_of_nonneg_right (show (2 : ℝ) ^ n + 1 ≤ 2 * (2 : ℝ) ^ n by linarith)
-          (Nat.cast_nonneg B)).trans_eq (by ring)
-    _ ≤ (2 : ℝ) ^ n * (2 : ℝ) ^ (ε * (n : ℝ)) := mul_le_mul_of_nonneg_left hn' (by positivity)
+  have hF' : (F.leafSize : ℝ) ≤ ((2 : ℝ) ^ n + 1) * (B : ℝ) := by
+    exact_mod_cast hF
+  have htwo : (1 : ℝ) ≤ (2 : ℝ) ^ n := by
+    exact_mod_cast (Nat.one_le_two_pow (n := n))
+  refine ⟨F, hF'.trans ?_, hyes, hno⟩
+  calc
+    ((2 : ℝ) ^ n + 1) * (B : ℝ) ≤ (2 : ℝ) ^ n * (2 * (B : ℝ)) := by
+      calc
+        ((2 : ℝ) ^ n + 1) * (B : ℝ) ≤ (2 * (2 : ℝ) ^ n) * (B : ℝ) :=
+          mul_le_mul_of_nonneg_right (by linarith) (Nat.cast_nonneg B)
+        _ = (2 : ℝ) ^ n * (2 * (B : ℝ)) := by ring
+    _ ≤ (2 : ℝ) ^ n * (2 : ℝ) ^ (ε * (n : ℝ)) :=
+      mul_le_mul_of_nonneg_left hn' (by positivity)
     _ = ((2 ^ n : ℕ) : ℝ) ^ (1 + ε) := by
-      rw [← Real.rpow_natCast, ← Real.rpow_add (by norm_num : (0 : ℝ) < 2),
-        show (n : ℝ) + ε * n = (n : ℝ) * (1 + ε) by ring,
-        Real.rpow_natCast_mul (by norm_num : (0 : ℝ) ≤ 2)]
+      rw [← Real.rpow_natCast, ← Real.rpow_add (by norm_num : (0 : ℝ) < 2)]
+      rw [show (n : ℝ) + ε * n = (n : ℝ) * (1 + ε) by ring]
+      rw [Real.rpow_natCast_mul (by norm_num : (0 : ℝ) ≤ 2)]
       norm_cast
 
 /-- **Oliveira–Santhanam Theorem 17(ii), for every language agreeing with `SuccinctMCSP`**,
