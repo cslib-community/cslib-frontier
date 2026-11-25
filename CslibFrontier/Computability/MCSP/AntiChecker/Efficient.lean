@@ -110,9 +110,7 @@ theorem exists_antiChecker_circuit_le_of_NP_subset_PPoly (hNP : NP encBits ⊆ P
       have h1 : 1 ≤ 5001 ^ c₀ * m ^ (5 * c₀) :=
         Nat.one_le_iff_ne_zero.2 (Nat.mul_ne_zero (by positivity) (by positivity))
       rw [mul_pow, ← pow_mul]
-      refine max_le ?_ ?_
-      · nlinarith
-      · nlinarith
+      exact max_le (by nlinarith) (by nlinarith)
     have hG : G.size ≤ 4270 * 2 ^ n * m ^ 5 := by
       rw [size_generator]
       have hR : R ≤ 610 * m ^ 4 := antiCheckerRounds_le n s
@@ -131,10 +129,8 @@ theorem exists_antiChecker_circuit_le_of_NP_subset_PPoly (hNP : NP encBits ⊆ P
       _ ≤ 2 ^ n * (A + 5 + 5 * c₀) * m ^ (A + 5 + 5 * c₀) := by
           gcongr <;> omega
   · -- Correctness: every sample's input appears as a block.
-    intro f hf
-    have hac := isAntiChecker_samplesOf_generator hn hagree hf
-    intro g hg
-    obtain ⟨x, hx, hgx⟩ := hac g hg
+    intro f hf g hg
+    obtain ⟨x, hx, hgx⟩ := isAntiChecker_samplesOf_generator hn hagree hf g hg
     refine ⟨x, ?_, hgx⟩
     rw [Set.mem_ofPred_eq, map_fst_samplesOf, List.mem_ofFn] at hx
     obtain ⟨j, rfl⟩ := hx
@@ -196,9 +192,8 @@ theorem exists_antiChecker_circuit_of_NP_subset_PPoly (hNP : NP encBits ⊆ PPol
     eventually_mul_floor_div_add_le_floor hβ] with n hpoly hconst hn hgap
   -- `X = 2 ^ (β n)`.
   set X : ℝ := a ^ n with hX_def
-  have hpow (x : ℝ) : (2 : ℝ) ^ (x * n) = ((2 : ℝ) ^ x) ^ n := by
+  have hXβ : (2 : ℝ) ^ (β * n) = X := by
     rw [Real.rpow_mul (by norm_num), Real.rpow_natCast]
-  have hXβ : (2 : ℝ) ^ (β * n) = X := hpow β
   have hX10 : (2 : ℝ) ^ (10 * β * n) = X ^ 10 := by
     rw [show 10 * β * n = β * n * (10 : ℕ) by push_cast; ring,
       Real.rpow_mul_natCast (by norm_num : (0 : ℝ) ≤ 2), hXβ]
@@ -221,10 +216,8 @@ theorem exists_antiChecker_circuit_of_NP_subset_PPoly (hNP : NP encBits ⊆ PPol
   -- Enough rounds.
   have hRt : antiCheckerRounds n s ≤ t := by
     rw [Nat.le_floor_iff (by rw [hX10]; positivity), hX10]
-    have hR := antiCheckerRounds_le n s
-    have hR' : (antiCheckerRounds n s : ℝ) ≤ 610 * ((n + s + 1 : ℕ) : ℝ) ^ 4 := by exact_mod_cast hR
-    have hm0 : (0 : ℝ) ≤ ((n + s + 1 : ℕ) : ℝ) := Nat.cast_nonneg _
-    calc (antiCheckerRounds n s : ℝ) ≤ 610 * ((n + s + 1 : ℕ) : ℝ) ^ 4 := hR'
+    calc (antiCheckerRounds n s : ℝ) ≤ 610 * ((n + s + 1 : ℕ) : ℝ) ^ 4 := by
+          exact_mod_cast antiCheckerRounds_le n s
       _ ≤ 610 * (2 * X) ^ 4 := by gcongr
       _ = 9760 * X ^ 4 := by ring
       _ ≤ X ^ 6 * X ^ 4 := by
@@ -235,14 +228,12 @@ theorem exists_antiChecker_circuit_of_NP_subset_PPoly (hNP : NP encBits ⊆ PPol
   obtain ⟨C, hsize, hanti⟩ := hc n s t hn hRt
   refine ⟨C, ?_, fun f hf => hanti f ?_⟩
   · -- Size: `2 ^ n c (n + s + 1) ^ c ≤ 2 ^ n (c 2 ^ c) X ^ c ≤ 2 ^ n X ^ (c + 1)`.
-    have hsize' : (C.size : ℝ) ≤ 2 ^ n * c * ((n + s + 1 : ℕ) : ℝ) ^ c := by exact_mod_cast hsize
     have hRHS : (2 : ℝ) ^ ((n : ℝ) + (c + 1 : ℕ) * β * n) = 2 ^ n * X ^ (c + 1) := by
       rw [Real.rpow_add (by norm_num), Real.rpow_natCast,
         show ((c + 1 : ℕ) : ℝ) * β * n = β * n * (c + 1 : ℕ) by ring,
         Real.rpow_mul_natCast (by norm_num : (0 : ℝ) ≤ 2), hXβ]
     rw [hRHS]
-    have hm0 : (0 : ℝ) ≤ ((n + s + 1 : ℕ) : ℝ) := Nat.cast_nonneg _
-    calc (C.size : ℝ) ≤ 2 ^ n * c * ((n + s + 1 : ℕ) : ℝ) ^ c := hsize'
+    calc (C.size : ℝ) ≤ 2 ^ n * c * ((n + s + 1 : ℕ) : ℝ) ^ c := by exact_mod_cast hsize
       _ ≤ 2 ^ n * c * (2 * X) ^ c := by gcongr
       _ = 2 ^ n * (c * 2 ^ c) * X ^ c := by ring
       _ ≤ 2 ^ n * X * X ^ c := by gcongr; linarith
