@@ -123,15 +123,13 @@ theorem ancestor_constraint_length (m : Meeting F) {c : Copy F}
     (hc : m.ancestor? = some (.inr c)) :
     m.commonNodes.length = 2 * ((m.commonNodes.length - 1) / 2) + 2 := by
   have hpos : 0 < m.commonNodes.length := by
-    cases he : m.commonNodes with
-    | nil => simp [ancestor?, he] at hc
-    | cons a as => simp
+    cases he : m.commonNodes <;> simp_all [ancestor?]
   have hstep := (m.ancestor_constraint_index_lt hc).1
   by_cases hm : (m.commonNodes.length - 1) % 2 = 1
   · omega
-  · have hi : m.commonNodes.length - 1 = 2 * ((m.commonNodes.length - 1) / 2) := by omega
-    have hh := (m.ancestor_at_common_index hc).1
-    rw [hi, m.left.nodes_getElem?_even (m.older.ancestry_length _) _ (Nat.le_of_lt hstep)] at hh
+  · have hh := (m.ancestor_at_common_index hc).1
+    rw [show m.commonNodes.length - 1 = 2 * ((m.commonNodes.length - 1) / 2) by omega,
+      m.left.nodes_getElem?_even (m.older.ancestry_length _) _ (Nat.le_of_lt hstep)] at hh
     cases hh
 
 /-- The two steps selected by the raw constraint-LCA branch use that actual copied node. -/
@@ -142,29 +140,22 @@ theorem Trace.constraint_first_copies (h : Trace sem f m) {c : Copy F}
     (inArc m.older.stamp s).copy = c ∧ (inArc m.older.stamp t).copy = c := by
   let k := (m.commonNodes.length - 1) / 2
   have hlen : m.commonNodes.length = 2 * k + 2 := m.ancestor_constraint_length hc
-  have hside : ∀ (p : Ancestry F) (u : V) (s : Occurrence F × Occurrence F),
-      p = m.older.ancestry u → k < p.walk.steps.length →
-      p.nodes[m.commonNodes.length - 1]? = some (.inr c) → p.walk.steps[k]? = some s →
+  have hside {u : V} {s : Occurrence F × Occurrence F}
+      (hk : k < (m.older.ancestry u).walk.steps.length)
+      (hn : (m.older.ancestry u).nodes[m.commonNodes.length - 1]? = some (.inr c))
+      (hs : (m.older.ancestry u).walk.steps[k]? = some s) :
       (inArc m.older.stamp s).copy = c := by
-    intro p u s hp hk hn hs
-    have hpl : p.times.length = p.walk.steps.length := by
-      rw [hp]
-      exact m.older.ancestry_length _
-    have hs' : p.walk.steps[k] = s := by
+    have hpl := m.older.ancestry_length u
+    have hs' : (m.older.ancestry u).walk.steps[k] = s := by
       simpa only [List.getElem?_eq_getElem hk, Option.some.injEq] using hs
-    have htime : p.times[k]'(by omega) =
-        m.older.stamp (p.walk.steps[k]).1 := by
-      have hh := h.expansion.grown.ancestry_times_eq_stamp u
-      rw [← hp] at hh
-      simp only [hh, List.getElem_map]
-    have hi : m.commonNodes.length - 1 = 2 * k + 1 := by omega
-    rw [hi, p.nodes_getElem?_odd hpl k hk] at hn
-    have hh := Sum.inr.inj (Option.some.inj hn)
-    simpa only [htime, hs', inArc, Arc.copy] using hh
-  exact ⟨hside _ _ s rfl (m.ancestor_constraint_index_lt hc).1
-      (m.ancestor_at_common_index hc).1 hs,
-    hside _ _ t rfl (m.ancestor_constraint_index_lt hc).2
-      (m.ancestor_at_common_index hc).2 ht⟩
+    have htime : (m.older.ancestry u).times[k]'(by omega) =
+        m.older.stamp ((m.older.ancestry u).walk.steps[k]).1 := by
+      simp only [h.expansion.grown.ancestry_times_eq_stamp u, List.getElem_map]
+    rw [show m.commonNodes.length - 1 = 2 * k + 1 by omega,
+      (m.older.ancestry u).nodes_getElem?_odd hpl k hk] at hn
+    simpa only [htime, hs', inArc, Arc.copy] using Sum.inr.inj (Option.some.inj hn)
+  exact ⟨hside (m.ancestor_constraint_index_lt hc).1 (m.ancestor_at_common_index hc).1 hs,
+    hside (m.ancestor_constraint_index_lt hc).2 (m.ancestor_at_common_index hc).2 ht⟩
 
 private theorem Trace.stamp_gt_of_drop_succ (h : Trace sem f m) {u : V} {k : ℕ}
     {s t : Occurrence F × Occurrence F}
@@ -739,10 +730,8 @@ theorem Trace.blossom_prepare_isWalk (h : Trace sem f m) {b : BlossomData F}
     (hb : m.blossomData = some b) : b.prepare.IsWalk ∧ Inconsistent f b.prepare.start := by
   obtain ⟨n, hp⟩ := blossom_prepare_prefix hb
   rw [hp]
-  refine ⟨h.left_directed.walk.take n, ?_⟩
-  apply (mem_roots f _).mp
-  rw [← h.roots_eq]
-  exact h.expansion.grown.ancestry_start_root h.expansion.visited
+  exact ⟨h.left_directed.walk.take n,
+    (mem_roots f _).mp (h.roots_eq ▸ h.expansion.grown.ancestry_start_root h.expansion.visited)⟩
 
 /-- A variable LCA of an actual terminal event is a root. Its returned preparatory
 path is therefore empty, as specified in source Section 5.3. -/
@@ -827,8 +816,7 @@ theorem Trace.blossom_base_inconsistent (h : Trace sem f m) (hF : EdgeInstance F
   obtain ⟨hw, hr⟩ := h.blossom_prepare_isWalk hb
   rw [← blossom_prepare_finish hb, ← mem_defects, hw.defects_flip hF]
   by_cases hn : b.prepare.steps = []
-  · have he : b.prepare.finish = b.prepare.start := by simp [Walk.finish, hn, Walk.finishFrom]
-    simp [he, mem_defects, hr]
+  · simp [Walk.finish, hn, Walk.finishFrom, mem_defects, hr]
   · have hc := h.blossom_prepare_finish_consistent hb hn
     have he : b.prepare.finish ≠ b.prepare.start := fun he => hc (he.symm ▸ hr)
     simp [Finset.mem_symmDiff, mem_defects, hc, he]
@@ -842,15 +830,12 @@ theorem Trace.blossom_prepare_card_defects (h : Trace sem f m) (hF : EdgeInstanc
   obtain ⟨hw, hr⟩ := h.blossom_prepare_isWalk hb
   rw [hw.defects_flip hF]
   by_cases hn : b.prepare.steps = []
-  · have he : b.prepare.finish = b.prepare.start := by simp [Walk.finish, hn, Walk.finishFrom]
-    simp [he]
-  · have hc := h.blossom_prepare_finish_consistent hb hn
-    have hrm := mem_defects.mpr hr
-    have hcm := mem_defects.not.mpr hc
-    rw [Finset.symmDiff_singleton_eq (defects f) b.prepare.start, ite_eq_left hrm]
-    have he : b.prepare.finish ∉ (defects f).erase b.prepare.start :=
-      fun hm => hcm (Finset.mem_of_mem_erase hm)
-    rw [Finset.symmDiff_singleton_eq, ite_eq_right he, Finset.card_insert_of_notMem he]
+  · simp [Walk.finish, hn, Walk.finishFrom]
+  · have hrm := mem_defects.mpr hr
+    have he : b.prepare.finish ∉ (defects f).erase b.prepare.start := fun hm =>
+      h.blossom_prepare_finish_consistent hb hn (mem_defects.mp (Finset.mem_of_mem_erase hm))
+    rw [Finset.symmDiff_singleton_eq (defects f) b.prepare.start, ite_eq_left hrm,
+      Finset.symmDiff_singleton_eq, ite_eq_right he, Finset.card_insert_of_notMem he]
     exact Finset.card_erase_add_one hrm
 
 /-- Source Lemma 41, arXiv:1602.03124v6, printed pp. 19–20: the actual returned cycle
@@ -891,10 +876,9 @@ theorem search_blossom_correct (sem : Rel → List Bool → Bool)
       ValidLabeling sem (b.prepare.flip f) ∧
       (defects (b.prepare.flip f)).card = (defects f).card := by
   have ht := search_trace sem f hF
-  rw [hr] at ht
-  have he := run_event_roots sem f (Forest.roots f) [] (incidenceList F)
-  change (search sem f).Classified at he
-  rw [hr] at he
+  have he : (search sem f).Classified :=
+    run_event_roots sem f (Forest.roots f) [] (incidenceList F)
+  rw [hr] at ht he
   obtain ⟨b, hb⟩ := Option.isSome_iff_exists.mp (m.blossomData_isSome he)
   exact ⟨b, hb, ht.blossom_correct hF hf hM hb, ht.blossom_prepare_valid hF hf hM hb,
     ht.blossom_prepare_card_defects hF hb⟩

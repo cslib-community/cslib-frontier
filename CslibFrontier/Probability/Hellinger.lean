@@ -143,9 +143,7 @@ noncomputable def hellingerDist (p q : PMF α) : ℝ :=
   Real.sqrt (hellingerSq p q)
 
 theorem bhattacharyya_eq_tsum (p q : PMF α) :
-    bhattacharyya p q = ∑' a, Real.sqrt ((p a).toReal * (q a).toReal) := by
-  unfold bhattacharyya
-  rfl
+    bhattacharyya p q = ∑' a, Real.sqrt ((p a).toReal * (q a).toReal) := by rw [bhattacharyya]
 
 theorem bhattacharyya_eq_sum [Fintype α] (p q : PMF α) :
     bhattacharyya p q = ∑ a, Real.sqrt ((p a).toReal * (q a).toReal) :=
@@ -155,16 +153,13 @@ theorem bhattacharyya_nonneg (p q : PMF α) : 0 ≤ bhattacharyya p q :=
   tsum_nonneg fun _ => Real.sqrt_nonneg _
 
 theorem bhattacharyya_le_one (p q : PMF α) : bhattacharyya p q ≤ 1 := by
-  have hsum : Summable (fun a => ((p a).toReal + (q a).toReal) / 2) :=
-    ((summable_toReal p).add (summable_toReal q)).div_const 2
-  have hle : bhattacharyya p q ≤ ∑' a, ((p a).toReal + (q a).toReal) / 2 :=
-    Summable.tsum_le_tsum (fun _ => sqrt_mul_le_add_div_two ENNReal.toReal_nonneg
-      ENNReal.toReal_nonneg) (summable_sqrt_toReal_mul p q) hsum
-  have hrhs : ∑' a, ((p a).toReal + (q a).toReal) / 2 = 1 := by
-    rw [tsum_div_const, Summable.tsum_add (summable_toReal p) (summable_toReal q),
-      tsum_toReal, tsum_toReal]
-    norm_num
-  linarith
+  refine (Summable.tsum_le_tsum
+    (fun _ => sqrt_mul_le_add_div_two ENNReal.toReal_nonneg ENNReal.toReal_nonneg)
+    (summable_sqrt_toReal_mul p q)
+    (((summable_toReal p).add (summable_toReal q)).div_const 2)).trans_eq ?_
+  rw [tsum_div_const, Summable.tsum_add (summable_toReal p) (summable_toReal q),
+    tsum_toReal, tsum_toReal]
+  norm_num
 
 theorem bhattacharyya_comm (p q : PMF α) : bhattacharyya p q = bhattacharyya q p := by
   simp only [bhattacharyya, mul_comm]
@@ -174,9 +169,7 @@ theorem bhattacharyya_self (p : PMF α) : bhattacharyya p p = 1 := by
   simp only [bhattacharyya, ← sq, Real.sqrt_sq ENNReal.toReal_nonneg, tsum_toReal]
 
 theorem hellingerSq_eq_one_sub_bhattacharyya (p q : PMF α) :
-    hellingerSq p q = 1 - bhattacharyya p q := by
-  unfold hellingerSq
-  rfl
+    hellingerSq p q = 1 - bhattacharyya p q := by rw [hellingerSq]
 
 theorem hellingerSq_eq_tsum (p q : PMF α) :
     hellingerSq p q = (∑' a, (Real.sqrt (p a).toReal - Real.sqrt (q a).toReal) ^ 2) / 2 := by
@@ -262,14 +255,10 @@ theorem bhattacharyya_pure_right (p : PMF α) (a : α) :
   rw [bhattacharyya_comm, bhattacharyya_pure_left]
 
 theorem hellingerDist_eq_sqrt_hellingerSq (p q : PMF α) :
-    hellingerDist p q = Real.sqrt (hellingerSq p q) := by
-  unfold hellingerDist
-  rfl
+    hellingerDist p q = Real.sqrt (hellingerSq p q) := by rw [hellingerDist]
 
 theorem hellingerDist_eq_sqrt_one_sub_bhattacharyya (p q : PMF α) :
-    hellingerDist p q = Real.sqrt (1 - bhattacharyya p q) := by
-  unfold hellingerDist hellingerSq
-  rfl
+    hellingerDist p q = Real.sqrt (1 - bhattacharyya p q) := by rw [hellingerDist, hellingerSq]
 
 @[simp]
 theorem hellingerDist_sq (p q : PMF α) : hellingerDist p q ^ 2 = hellingerSq p q :=
@@ -312,10 +301,8 @@ theorem hellingerDist_triangle [Finite α] (p q r : PMF α) :
     ring
   have hexp : ∑ a, (u a + v a) ^ 2 = ∑ a, u a ^ 2 + 2 * ∑ a, u a * v a + ∑ a, v a ^ 2 := by
     simp only [add_sq, Finset.sum_add_distrib, Finset.mul_sum, mul_assoc]
-  have hsq_le : hellingerSq p r ≤ (hellingerDist p q + hellingerDist q r) ^ 2 := by
-    linarith [hellingerDist_sq p q, hellingerDist_sq q r]
   exact Real.sqrt_le_iff.mpr ⟨add_nonneg (hellingerDist_nonneg _ _) (hellingerDist_nonneg _ _),
-    hsq_le⟩
+    by linarith [hellingerDist_sq p q, hellingerDist_sq q r]⟩
 
 /-- Lower bound on half-`L¹` statistical distance: `h²(p, q) ≤ dist p q`. -/
 theorem hellingerSq_le_dist [Fintype α] (p q : PMF α) :
@@ -323,11 +310,8 @@ theorem hellingerSq_le_dist [Fintype α] (p q : PMF α) :
   rw [hellingerSq_eq_sum, dist_eq]
   refine div_le_div_of_nonneg_right (Finset.sum_le_sum fun a _ => ?_) (by norm_num)
   rw [abs_toReal_sub_eq, ← sq_abs, sq]
-  have habs_le : |Real.sqrt (p a).toReal - Real.sqrt (q a).toReal| ≤
-      Real.sqrt (p a).toReal + Real.sqrt (q a).toReal := by
-    rw [abs_le]
-    constructor <;> linarith [Real.sqrt_nonneg (p a).toReal, Real.sqrt_nonneg (q a).toReal]
-  exact mul_le_mul_of_nonneg_left habs_le (abs_nonneg _)
+  refine mul_le_mul_of_nonneg_left (abs_le.mpr ⟨?_, ?_⟩) (abs_nonneg _) <;>
+    linarith [Real.sqrt_nonneg (p a).toReal, Real.sqrt_nonneg (q a).toReal]
 
 /-- Le Cam's sharp upper bound relating statistical distance and Hellinger distance:
 `dist p q ^ 2 ≤ hellingerSq p q * (2 - hellingerSq p q)`. -/
