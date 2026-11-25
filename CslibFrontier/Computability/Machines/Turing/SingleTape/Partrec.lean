@@ -301,30 +301,21 @@ omit [Primcodable Symbol] in
 omit [Primcodable Symbol] in
 theorem extractWord_eq_some_iff {b : BiTape Symbol} {l : List Symbol} :
     b.extractWord = some l ↔ b = BiTape.mk₁ l := by
-  constructor
-  · intro h
-    unfold extractWord at h
-    split_ifs at h with hleft
-    have hleft_eq : b.left = StackTape.nil := by
-      apply StackTape.ext
-      exact List.isEmpty_iff.mp hleft
-    have hcons_list : (StackTape.cons b.head b.right).toList = (StackTape.mapSome l).toList := by
-      rw [unmapSome_eq_some_iff.mp h, StackTape.mapSome]
-    have hcons : StackTape.cons b.head b.right = StackTape.mapSome l :=
-      StackTape.ext hcons_list
-    have h1 : b.head = (StackTape.mapSome l).head := by grind [StackTape.head_cons]
-    have h2 : b.right = (StackTape.mapSome l).tail := by grind [StackTape.tail_cons]
-    have hhead : b.head = (BiTape.mk₁ l).head :=
-      h1.trans (by cases l <;> rfl)
-    have hright : b.right = (BiTape.mk₁ l).right :=
-      h2.trans (by cases l <;> rfl)
-    have hleft_mk₁ : b.left = (BiTape.mk₁ l).left :=
-      hleft_eq.trans (by cases l <;> rfl)
-    rcases b with ⟨bh, bl, br⟩
-    dsimp only at hhead hleft_mk₁ hright
-    rw [hhead, hleft_mk₁, hright]
-  · rintro rfl
-    exact extractWord_mk₁ l
+  refine ⟨fun h => ?_, fun h => h ▸ extractWord_mk₁ l⟩
+  unfold extractWord at h
+  split_ifs at h with hleft
+  have hleft_eq : b.left = StackTape.nil := StackTape.ext (List.isEmpty_iff.mp hleft)
+  have hcons : StackTape.cons b.head b.right = StackTape.mapSome l :=
+    StackTape.ext (by rw [unmapSome_eq_some_iff.mp h, StackTape.mapSome])
+  have h1 : b.head = (BiTape.mk₁ l).head :=
+    (by grind [StackTape.head_cons] : b.head = (StackTape.mapSome l).head).trans
+      (by cases l <;> rfl)
+  have h2 : b.right = (BiTape.mk₁ l).right :=
+    (by grind [StackTape.tail_cons] : b.right = (StackTape.mapSome l).tail).trans
+      (by cases l <;> rfl)
+  rcases b with ⟨bh, bl, br⟩
+  dsimp only at h1 h2 hleft_eq
+  rw [h1, h2, hleft_eq.trans (by cases l <;> rfl : StackTape.nil = (BiTape.mk₁ l).left)]
 
 theorem primrec_extractWord :
     Primrec (extractWord : BiTape Symbol → Option (List Symbol)) :=
@@ -380,32 +371,24 @@ theorem primrec_initCfg (tm : SingleTapeTM Symbol) :
 /-- The single-step transition function of any `SingleTapeTM` is primitive recursive. -/
 theorem primrec_step (tm : SingleTapeTM Symbol) :
     Primrec tm.step := by
-  have htr : Primrec₂ tm.tr := Primrec₂.mk (Primrec.dom_finite _)
   have hstate : Primrec fun c : tm.Cfg => c.state :=
     Primrec.fst.comp (Primrec.of_equiv (e := tm.cfgEquiv))
   have htape : Primrec fun c : tm.Cfg => c.BiTape :=
     Primrec.snd.comp (Primrec.of_equiv (e := tm.cfgEquiv))
-  have hact_sym : Primrec fun a : Stmt Symbol => a.symbol :=
-    Primrec.fst.comp (Primrec.of_equiv (e := stmtEquiv Symbol))
-  have hact_dir : Primrec fun a : Stmt Symbol => a.movement :=
-    Primrec.snd.comp (Primrec.of_equiv (e := stmtEquiv Symbol))
+  have hres : Primrec fun p : tm.Cfg × tm.State => tm.tr p.2 p.1.BiTape.head :=
+    (Primrec₂.mk (Primrec.dom_finite _)).comp .snd (BiTape.primrec_head.comp (htape.comp .fst))
+  have hact := Primrec.of_equiv (e := stmtEquiv Symbol)
   have hsome : Primrec₂ fun (c : tm.Cfg) (q : tm.State) =>
       let res := tm.tr q c.BiTape.head
-      (⟨res.2, (c.BiTape.write res.1.symbol).optionMove res.1.movement⟩ : tm.Cfg) := by
-    have hres : Primrec fun p : tm.Cfg × tm.State => tm.tr p.2 p.1.BiTape.head :=
-      htr.comp Primrec.snd (BiTape.primrec_head.comp (htape.comp Primrec.fst))
-    have hnew_tape : Primrec fun p : tm.Cfg × tm.State =>
-        (p.1.BiTape.write (tm.tr p.2 p.1.BiTape.head).1.symbol).optionMove
-          (tm.tr p.2 p.1.BiTape.head).1.movement :=
-      BiTape.primrec_optionMove.comp
-        (BiTape.primrec_write.comp (htape.comp Primrec.fst)
-          (hact_sym.comp (Primrec.fst.comp hres)))
-        (hact_dir.comp (Primrec.fst.comp hres))
-    exact Primrec₂.mk <| (Primrec.of_equiv_symm (e := tm.cfgEquiv)).comp
-      (Primrec.pair (Primrec.snd.comp hres) hnew_tape)
+      (⟨res.2, (c.BiTape.write res.1.symbol).optionMove res.1.movement⟩ : tm.Cfg) :=
+    Primrec₂.mk <| (Primrec.of_equiv_symm (e := tm.cfgEquiv)).comp <|
+      Primrec.pair (Primrec.snd.comp hres) <|
+        BiTape.primrec_optionMove.comp
+          (BiTape.primrec_write.comp (htape.comp .fst)
+            (Primrec.fst.comp (hact.comp (Primrec.fst.comp hres))))
+          (Primrec.snd.comp (hact.comp (Primrec.fst.comp hres)))
   exact (Primrec.option_casesOn hstate (Primrec.const none)
-    (Primrec.option_some.comp (hsome.comp Primrec.fst Primrec.snd)).to₂).of_eq fun ⟨q, t⟩ => by
-      cases q <;> rfl
+    (Primrec.option_some.comp (hsome.comp .fst .snd)).to₂).of_eq fun ⟨q, _⟩ => by cases q <;> rfl
 
 /-- `StateTransition.eval tm.step` is partial recursive for every `SingleTapeTM Symbol`. -/
 theorem partrec_stateTransition_eval (tm : SingleTapeTM Symbol) :
@@ -457,11 +440,10 @@ lemma relatesWithinSteps_stepOrStay_iterate (tm : SingleTapeTM Symbol) (c : tm.C
   | succ t ih =>
     rcases ih with ⟨n, hnt, hrel⟩
     rw [Function.iterate_succ_apply']
-    rcases hstep : tm.step (tm.stepOrStay^[t] c) with _ | c'
-    · simp only [stepOrStay, hstep, Option.getD_none]
-      exact ⟨n, by omega, hrel⟩
-    · simp only [stepOrStay, hstep, Option.getD_some]
-      exact ⟨n + 1, by omega, .tail _ _ _ n hrel hstep⟩
+    rcases hstep : tm.step (tm.stepOrStay^[t] c) with _ | c' <;>
+      simp only [stepOrStay, hstep, Option.getD_none, Option.getD_some]
+    · exact ⟨n, by omega, hrel⟩
+    · exact ⟨n + 1, by omega, .tail _ _ _ n hrel hstep⟩
 
 omit [Primcodable Symbol] in
 /-- `tm.OutputsWithinTime l l' t` holds if and only if `t` iterations of `tm.stepOrStay` from
@@ -469,14 +451,12 @@ omit [Primcodable Symbol] in
 theorem outputsWithinTime_iff_stepOrStay_iterate (tm : SingleTapeTM Symbol)
     (l l' : List Symbol) (t : ℕ) :
     tm.OutputsWithinTime l l' t ↔ tm.stepOrStay^[t] (tm.initCfg l) = tm.haltCfg l' := by
-  constructor
-  · rintro ⟨n, hnt, hrel⟩
-    have hn := tm.stepOrStay_iterate_of_relatesInSteps hrel
-    obtain ⟨k, rfl⟩ := Nat.exists_eq_add_of_le hnt
-    rw [Nat.add_comm, Function.iterate_add_apply, hn, haltCfg, tm.stepOrStay_iterate_of_none]
-  · intro h
+  refine ⟨fun ⟨n, hnt, hrel⟩ => ?_, fun h => by
     rw [OutputsWithinTime, ← h]
-    exact tm.relatesWithinSteps_stepOrStay_iterate (tm.initCfg l) t
+    exact tm.relatesWithinSteps_stepOrStay_iterate _ t⟩
+  obtain ⟨k, rfl⟩ := Nat.exists_eq_add_of_le hnt
+  rw [Nat.add_comm, Function.iterate_add_apply, tm.stepOrStay_iterate_of_relatesInSteps hrel,
+    haltCfg, tm.stepOrStay_iterate_of_none]
 
 theorem primrec_stepOrStay (tm : SingleTapeTM Symbol) :
     Primrec tm.stepOrStay :=
@@ -492,20 +472,16 @@ omit [Primcodable Symbol] in
 /-- `l' ∈ tm.runFor l t` holds if and only if `tm.OutputsWithinTime l l' t`. -/
 theorem mem_runFor_iff (tm : SingleTapeTM Symbol) {l l' : List Symbol} {t : ℕ} :
     l' ∈ tm.runFor l t ↔ tm.OutputsWithinTime l l' t := by
-  rw [outputsWithinTime_iff_stepOrStay_iterate]
-  unfold runFor
-  generalize tm.stepOrStay^[t] (tm.initCfg l) = c
-  rcases c with ⟨_ | q, b⟩
-  · simp [haltCfg, BiTape.extractWord_eq_some_iff]
-  · simp [haltCfg]
+  rw [outputsWithinTime_iff_stepOrStay_iterate, runFor]
+  rcases tm.stepOrStay^[t] (tm.initCfg l) with ⟨_ | q, b⟩ <;>
+    simp [haltCfg, BiTape.extractWord_eq_some_iff]
 
 omit [Primcodable Symbol] in
 theorem runFor_mono (tm : SingleTapeTM Symbol) (l : List Symbol) {t₁ t₂ : ℕ} (ht : t₁ ≤ t₂)
     {l' : List Symbol} (h : l' ∈ tm.runFor l t₁) :
     l' ∈ tm.runFor l t₂ := by
   rw [mem_runFor_iff] at h ⊢
-  rcases h with ⟨n, hnt, hrel⟩
-  exact ⟨n, hnt.trans ht, hrel⟩
+  exact let ⟨n, hnt, hrel⟩ := h; ⟨n, hnt.trans ht, hrel⟩
 
 theorem primrec_runFor (tm : SingleTapeTM Symbol) :
     Primrec₂ tm.runFor := by
@@ -536,12 +512,8 @@ omit [Primcodable Symbol] in
     l' ∈ tm.eval l ↔ tm.Outputs l l' := by
   rw [eval, Nat.rfindOpt_mono (fun ht h => tm.runFor_mono l ht h)]
   simp only [mem_runFor_iff, OutputsWithinTime, Relation.RelatesWithinSteps]
-  constructor
-  · rintro ⟨t, n, _, hrel⟩
-    exact hrel.reflTransGen
-  · intro h
-    rcases h.relatesInSteps with ⟨n, hn⟩
-    exact ⟨n, n, le_rfl, hn⟩
+  exact ⟨fun ⟨_, _, _, hrel⟩ => hrel.reflTransGen,
+    fun h => let ⟨n, hn⟩ := h.relatesInSteps; ⟨n, n, le_rfl, hn⟩⟩
 
 /-- The partial word evaluation `tm.eval` of any `SingleTapeTM Symbol` is partial recursive. -/
 theorem partrec_eval (tm : SingleTapeTM Symbol) :
