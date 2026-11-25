@@ -675,7 +675,8 @@ theorem sturmReducedVariations_sub_eq_card_roots_Ioc {p : ℝ[X]} (hp : p ≠ 0)
     exact Finset.filter_congr fun r _ => by
       rcases le_or_gt r a with hra | har
       · exact iff_of_true (hra.trans hab) (Or.inl hra)
-      · exact ⟨fun hrb => Or.inr ⟨har, hrb⟩, fun h => h.elim (fun h' => (har.not_ge h').elim) And.right⟩
+      · exact ⟨fun hrb => Or.inr ⟨har, hrb⟩,
+          fun h => h.elim (fun h' => (har.not_ge h').elim) And.right⟩
   have hdisj : Disjoint (p.roots.toFinset.filter (· ≤ a))
       (p.roots.toFinset.filter (fun r => a < r ∧ r ≤ b)) :=
     Finset.disjoint_filter.2 fun _ _ hra h => hra.not_gt h.1
