@@ -703,19 +703,8 @@ theorem programLog_spec_pow (N : ℕ) (φ : CNF ℕ) (hN : ∀ c ∈ φ, ∀ l �
   set E := (encode N φ).length
   have hE : 1 ≤ E := by simp [E, encode]
   have hd' : 2 ^ (depth φ + 1) ≤ 2 * 2 ^ N := by rw [Nat.pow_succ] at hd; omega
-  have hp : 1 ≤ 2 ^ N := Nat.one_le_two_pow
-  have hNp : N < 2 ^ N := Nat.lt_two_pow_self
-  have h₁ : 2 ^ (depth φ + 1) * (60 * E + 78) ≤ 2 * 2 ^ N * (138 * E) :=
-    Nat.mul_le_mul hd' (by omega)
-  have h₂ : 10 * N ≤ 10 * (2 ^ N * E) := by
-    have : 2 ^ N ≤ 2 ^ N * E := Nat.le_mul_of_pos_right _ hE
-    omega
-  have h₃ : 15 ≤ 15 * (2 ^ N * E) := by
-    have : 1 ≤ 2 ^ N * E := Nat.mul_pos hp hE
-    omega
-  have : 2 * 2 ^ N * (138 * E) = 276 * (2 ^ N * E) := by ring
-  have : 301 * 2 ^ N * E = 301 * (2 ^ N * E) := by ring
-  omega
+  linarith [Nat.mul_le_mul_right (60 * E + 78) hd', Nat.mul_le_mul_left (2 ^ N) hE,
+    Nat.one_le_two_pow (n := N), Nat.lt_two_pow_self (n := N)]
 
 /-- **The variant takes `2 ^ Ω(n log n)` instructions on the pigeonhole formulas.** For `m > n`, an
 injective map `f` numbering the variables of `PHP^m_n` below `N`, and a word size `w` that fits
