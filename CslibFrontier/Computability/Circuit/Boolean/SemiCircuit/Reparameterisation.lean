@@ -103,10 +103,7 @@ theorem WellFormed.swap (hC : C.WellFormed) {x Q : ℕ} {c : Bool} {T : Finset �
     change i ∈ insert x (C.aux.erase Q) at hi'
     simp only [Finset.mem_insert, Finset.mem_erase] at hi hi'
     rcases hi with rfl | ⟨hix, hp⟩ <;> rcases hi' with rfl | ⟨hiQ, ha⟩
-    · exact hQx rfl
-    · exact hiQ rfl
-    · exact hix rfl
-    · exact hC.notMem_aux_of_mem_params hp ha
+    exacts [hQx rfl, hiQ rfl, hix rfl, hC.notMem_aux_of_mem_params hp ha]
   · change i ∈ insert Q (C.params.erase x) at hi
     rcases Finset.mem_insert.1 hi with rfl | hi
     · exact hC.notMem_gates_of_mem_aux hQ hg
@@ -129,8 +126,7 @@ theorem WellFormed.swap (hC : C.WellFormed) {x Q : ℕ} {c : Bool} {T : Finset �
       generalize ∑ i ∈ T.erase x, u i = s at h1
       cases a <;> cases b <;> cases c <;> cases s <;> simp_all
     · rw [hu j (Finset.mem_of_mem_erase hj), Function.update_of_ne (Finset.ne_of_mem_erase hj)]
-  · have hparams : ∀ j ∈ C.params, val j = val' j := by
-      intro j hj
+  · have hparams : ∀ j ∈ C.params, val j = val' j := fun j hj => by
       by_cases hjx : j = x
       · subst hjx
         rw [haff.solve hxT heq, haff.solve hxT heq', hagree Q (Finset.mem_insert_self _ _),
