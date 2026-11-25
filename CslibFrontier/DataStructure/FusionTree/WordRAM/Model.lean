@@ -424,16 +424,10 @@ def ContentFits (w : ℕ) (p : Parameters) : Tree → Prop
 /-- Cached child minima fit whenever all explicit tree contents fit. -/
 theorem ContentFits.minimum {w : ℕ} {p : Parameters} {t : Tree} (ht : ContentFits w p t) :
     Fits w t.minimum := by
-  cases t with
-  | leaf xs =>
-    cases xs with
-    | nil => exact fits_zero w
-    | cons x xs =>
-      simp only [ContentFits] at ht
-      exact ht x (by simp)
-  | node m cs =>
-    simp only [ContentFits] at ht
-    exact ht.1
+  rcases t with (_ | ⟨x, xs⟩) | ⟨m, cs⟩ <;> simp only [ContentFits] at ht
+  · exact fits_zero w
+  · exact ht x List.mem_cons_self
+  · exact ht.1
 
 /-- The fit assumption for the arena bounds every owned access address. -/
 theorem ArenaFits.address {w base a : ℕ} {t : Tree} (ha : ArenaFits w base t)
@@ -481,9 +475,7 @@ private theorem encode_fits {w : ℕ} {p : Parameters} (t : Tree) :
       · exact (ha.child ⟨j.val / 2, by omega⟩).of_le (Nat.le_add_right _ _)
     · apply ih _ _ ht.2.2 v hv
       simpa only [ArenaFits, Nat.add_assoc, span] using ha
-  | nil =>
-    rename_i base ha ht v hv
-    simp [encodeForest] at hv
+  | nil => simp_all [encodeForest]
   | cons t ts iht ihs =>
     rename_i base ha ht v hv
     have hbound : Fits w (base + span t + (ts.map span).sum) := by

@@ -371,22 +371,14 @@ theorem bssLTS_mTr_iff {P V : Type*} [Fintype P] [DecidableEq P] [DecidableEq V]
     (bssLTS F).MTr s₀ xl s ↔ bssValidTrace F s₀ xl ∧ s = bssRun s₀ xl := by
   induction xl generalizing s₀ with
   | nil =>
-    constructor
-    · intro h
-      cases h
-      exact ⟨trivial, rfl⟩
-    · rintro ⟨_, rfl⟩
-      exact LTS.MTr.refl
+    refine ⟨fun h => ?_, fun ⟨_, hs⟩ => hs ▸ .refl⟩
+    cases h
+    exact ⟨trivial, rfl⟩
   | cons act xl ih =>
-    constructor
-    · intro h
-      cases h with
-      | stepL htr hmtr =>
-        rcases htr with ⟨hen, rfl⟩
-        obtain ⟨hv, hs⟩ := (ih (bssStep s₀ act)).mp hmtr
-        exact ⟨⟨hen, hv⟩, hs⟩
-    · rintro ⟨⟨hen, hv⟩, rfl⟩
-      exact LTS.MTr.stepL ⟨hen, rfl⟩ ((ih (bssStep s₀ act)).mpr ⟨hv, rfl⟩)
+    refine ⟨fun h => ?_, fun ⟨⟨hen, hv⟩, hs⟩ => .stepL ⟨hen, rfl⟩ ((ih _).mpr ⟨hv, hs⟩)⟩
+    rcases h with _ | ⟨⟨hen, rfl⟩, hmtr⟩
+    obtain ⟨hv, hs⟩ := (ih _).mp hmtr
+    exact ⟨⟨hen, hv⟩, hs⟩
 
 /-! ### Trace snapshots and causal precedence -/
 
@@ -496,24 +488,16 @@ private theorem broadcastIn_append_some {xl : List (BSSAction P V)} {act : BSSAc
 private theorem bssStep_vt_le (s : BSSState P V) (act : BSSAction P V) (q : P) :
     (s.proc q).vt ≤ ((bssStep s act).proc q).vt := by
   cases act with
-  | broadcast p _ | crashBroadcast p _ _ =>
+  | broadcast p _ | crashBroadcast p _ _ | deliver p _ =>
     rcases eq_or_ne q p with rfl | hqp
-    · simp only [bssStep, bssExecBroadcast, bssExecCrashBroadcast, Function.update_self,
-        bssBroadcastPacket, bssNextTimestamp]
+    · simp only [bssStep, bssExecBroadcast, bssExecCrashBroadcast, bssExecDeliver,
+        Function.update_self, bssBroadcastPacket, bssNextTimestamp]
       exact le_update_self_iff.mpr (Nat.le_succ _)
-    · simp only [bssStep, bssExecBroadcast, bssExecCrashBroadcast, Function.update_of_ne hqp,
-        le_rfl]
-  | deliver p _ =>
-    rcases eq_or_ne q p with rfl | hqp
-    · simp only [bssStep, bssExecDeliver, Function.update_self]
-      exact le_update_self_iff.mpr (Nat.le_succ _)
-    · simp only [bssStep, bssExecDeliver, Function.update_of_ne hqp, le_rfl]
-  | recv _ =>
-    simp only [bssStep, bssExecRecv, Function.apply_update (fun _ => BSSProcState.vt),
-      Function.update_eq_self, le_rfl]
-  | crash _ =>
-    simp only [bssStep, bssExecCrash, Function.apply_update (fun _ => BSSProcState.vt),
-      Function.update_eq_self, le_rfl]
+    · simp only [bssStep, bssExecBroadcast, bssExecCrashBroadcast, bssExecDeliver,
+        Function.update_of_ne hqp, le_rfl]
+  | recv _ | crash _ =>
+    simp only [bssStep, bssExecRecv, bssExecCrash,
+      Function.apply_update (fun _ => BSSProcState.vt), Function.update_eq_self, le_rfl]
   | stutter => exact le_rfl
 
 /-- Multi-step vector-clock monotonicity along `bssRun`. -/
@@ -533,12 +517,10 @@ private theorem bssStep_delivered_prefix (s : BSSState P V) (act : BSSAction P V
         Function.update_self, List.prefix_append]
     · simp only [bssStep, bssExecBroadcast, bssExecCrashBroadcast, bssExecDeliver,
         Function.update_of_ne hqp, List.prefix_refl]
-  | recv _ =>
-    simp only [bssStep, bssExecRecv, Function.apply_update (fun _ => BSSProcState.delivered),
-      Function.update_eq_self, List.prefix_refl]
-  | crash _ =>
-    simp only [bssStep, bssExecCrash, Function.apply_update (fun _ => BSSProcState.delivered),
-      Function.update_eq_self, List.prefix_refl]
+  | recv _ | crash _ =>
+    simp only [bssStep, bssExecRecv, bssExecCrash,
+      Function.apply_update (fun _ => BSSProcState.delivered), Function.update_eq_self,
+      List.prefix_refl]
   | stutter => exact List.prefix_refl _
 
 /-- Multi-step `delivered` prefix monotonicity along `bssRun`. -/
@@ -1149,9 +1131,7 @@ private theorem omega_vt_mono {F : Set P} {ss : ωSequence (BSSState P V)}
     {xs : ωSequence (BSSAction P V)} (he : (bssLTS F).OmegaExecution ss xs)
     {i j : ℕ} (hij : i ≤ j) (q : P) :
     ((ss i).proc q).vt ≤ ((ss j).proc q).vt := by
-  have hmtr := he.extract_mTr hij
-  obtain ⟨_, hrun⟩ := (bssLTS_mTr_iff F (ss i) (xs.extract i j) (ss j)).mp hmtr
-  rw [hrun]
+  rw [((bssLTS_mTr_iff F (ss i) (xs.extract i j) (ss j)).mp (he.extract_mTr hij)).2]
   exact bssRun_vt_le (ss i) (xs.extract i j) q
 
 /-- Monotonicity of `delivered` along an `OmegaExecution` of `bssLTS F`: once `pkt` has been
@@ -1161,9 +1141,7 @@ theorem bss_omega_delivered_mono {F : Set P} {ss : ωSequence (BSSState P V)}
     {i j : ℕ} (hij : i ≤ j) {q : P} {pkt : Packet P V}
     (h : pkt ∈ ((ss i).proc q).delivered) :
     pkt ∈ ((ss j).proc q).delivered := by
-  have hmtr := he.extract_mTr hij
-  obtain ⟨_, hrun⟩ := (bssLTS_mTr_iff F (ss i) (xs.extract i j) (ss j)).mp hmtr
-  rw [hrun]
+  rw [((bssLTS_mTr_iff F (ss i) (xs.extract i j) (ss j)).mp (he.extract_mTr hij)).2]
   exact (bssRun_delivered_prefix (ss i) (xs.extract i j) q).subset h
 
 /-! ### Stability of buffered deliverable packets -/

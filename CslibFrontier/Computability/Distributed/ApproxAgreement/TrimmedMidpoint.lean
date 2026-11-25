@@ -396,19 +396,14 @@ private lemma card_sub_le_countP_map {P : Type*}
     (hval : ∀ p ∈ S, p ∉ F → f p ∈ Set.Icc lo hi) :
     (S.val.map f).card - t ≤ (S.val.map f).countP (fun x => lo ≤ x ∧ x ≤ hi) := by
   classical
-  have hsub : (S \ F).val.map f ≤ S.val.map f :=
-    Multiset.map_le_map (Finset.val_le_iff.mpr Finset.sdiff_subset)
-  have hall : ∀ x ∈ (S \ F).val.map f, lo ≤ x ∧ x ≤ hi := by
-    intro x hx
-    obtain ⟨p, hp, rfl⟩ := Multiset.mem_map.mp hx
-    have hp' := Finset.mem_sdiff.mp hp
-    exact hval p hp'.1 hp'.2
-  have hcnt_hon : ((S \ F).val.map f).countP (fun x => lo ≤ x ∧ x ≤ hi) = (S \ F).card := by
-    rw [Multiset.countP_eq_card_filter, Multiset.filter_eq_self.mpr hall, Multiset.card_map]
-    rfl
+  have hall : ∀ x ∈ (S \ F).val.map f, lo ≤ x ∧ x ≤ hi :=
+    Multiset.forall_mem_map_iff.mpr fun p hp =>
+      hval p (Finset.mem_sdiff.mp hp).1 (Finset.mem_sdiff.mp hp).2
   have hle_cnt : (S \ F).card ≤ (S.val.map f).countP (fun x => lo ≤ x ∧ x ≤ hi) := by
-    rw [← hcnt_hon]
-    exact Multiset.countP_le_of_le _ hsub
+    have hsub := Multiset.countP_le_of_le (fun x => lo ≤ x ∧ x ≤ hi)
+      (Multiset.map_le_map (f := f) (Finset.val_le_iff.mpr (Finset.sdiff_subset (s := S) (t := F))))
+    rwa [Multiset.countP_eq_card_filter, Multiset.filter_eq_self.mpr hall, Multiset.card_map,
+      ← Finset.card_def] at hsub
   rw [Multiset.card_map, ← Finset.card_def]
   finset_card
 

@@ -361,11 +361,8 @@ theorem le_columnDetector (hch : RetentionChannels X Y f π cπ Cπ Cpair Cvar) 
   have hsumL : ∑ s, ∑ t ∈ T, L s t ≤ #A * π * Fintype.card ι * (#T * D / K) := by
     have heq : ∑ s, ∑ t ∈ T, L s t =
         ∑ x ∈ A, (#{s | X s x} : ℝ) * #{t ∈ T | gate t x < 1} := by
-      have h1 : ∀ s t, L s t = ∑ x ∈ A,
-          (if X s x then (1 : ℝ) else 0) * (if gate t x < 1 then 1 else 0) := fun s t => by
-        simp only [L, natCast_card_filter, ite_zero_mul_ite_zero, mul_one]
-      simp only [h1, natCast_card_filter, sum_mul_sum]
-      exact (sum_congr rfl fun s _ => sum_comm).trans sum_comm
+      simp only [L, natCast_card_filter, sum_mul_sum, ite_zero_mul_ite_zero, mul_one]
+      exact (sum_congr rfl fun _ _ => sum_comm).trans sum_comm
     rw [heq]
     have hKr : (0 : ℝ) < K := by exact_mod_cast hKpos
     calc ∑ x ∈ A, (#{s | X s x} : ℝ) * #{t ∈ T | gate t x < 1}
@@ -386,15 +383,12 @@ theorem le_columnDetector (hch : RetentionChannels X Y f π cπ Cπ Cpair Cvar) 
       refine sum_congr rfl fun x _ => ?_
       by_cases hX : X s x <;> by_cases hg : gate t x < 1 <;> simp [hX, hg]
     have hJle : (J : ℝ) ≤ #{x ∈ A | X s x ∧ ¬ gate t x < 1} := by grind
-    refine (le_kthLargest_iff hJ one_pos).mpr ?_
-    refine Nat.cast_le.mp (hJle.trans ?_)
-    refine Nat.cast_le.mpr (card_le_card fun x hx => ?_)
+    refine (le_kthLargest_iff hJ one_pos).mpr <| Nat.cast_le.mp <| hJle.trans <|
+      Nat.cast_le.mpr <| card_le_card fun x hx => ?_
     simp only [mem_filter, mem_univ, true_and, A] at hx ⊢
     refine ⟨hx.2.1, ?_⟩
-    have hϕx : ϕ (G x y / f) = 1 := hϕδ _ (by rw [le_div_iff₀ hf]; exact hx.1)
-    have hgx : gate t x = 1 := le_antisymm (hρ1 _) (not_lt.mp hx.2.2)
-    simp only [gate] at hgx
-    rw [hϕx, hgx, one_mul]
+    rw [hϕδ _ ((le_div_iff₀ hf).mpr hx.1),
+      show rowGate ρ K f G {w | Y t w} x = 1 from le_antisymm (hρ1 _) (not_lt.mp hx.2.2), one_mul]
   -- sum the pointwise bound `trial ≥ 1 - [bad start draw] - [many gate failures]`
   set b1 : ι → ℝ := fun s => if 2 * N s < #A * π then 1 else 0
   set b2 : ι → κ → ℝ := fun s t => if #A * π < 4 * L s t then 1 else 0
@@ -409,8 +403,7 @@ theorem le_columnDetector (hch : RetentionChannels X Y f π cπ Cπ Cpair Cvar) 
     by_cases h2 : #A * π < 4 * L s t
     · simp only [b1, b2, h1, h2, ↓reduceIte]
       linarith
-    · simp only [b1, b2, h1, h2, ↓reduceIte, sub_zero]
-      exact hgood s t h1 h2
+    · simpa only [b1, b2, h1, h2, ↓reduceIte, sub_zero] using hgood s t h1 h2
   have hb1 : ∑ s, b1 s ≤ Cvar / (#A * π) * Fintype.card ι := by
     have ht := hch.tail A hA
     rw [dens_cast, div_le_iff₀ hιr] at ht

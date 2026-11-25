@@ -570,13 +570,8 @@ theorem Valid.step_or_normal {S : State n} {d : ℕ} (hS : S.Valid f) (hf : IsAf
     fun G hG hand x y hargs hx hy hxy => ?_⟩
   · have hxu : x ∈ S.unpaired := mem_unpaired.2 ⟨hx, fun hp => h5 ⟨x, hp, e, he, hxe⟩⟩
     have hex : Sum.inr e ∈ S.children x := (SemiCircuit.inr_mem_children _).2 ⟨he, hxe⟩
-    refine ⟨hxu, ?_⟩
-    by_contra hlt
-    have h1 : S.deg x = 1 := by
-      have := Finset.card_pos.2 ⟨_, hex⟩
-      change 0 < S.deg x at this
-      omega
-    exact hdel (Or.inr (Or.inr (Or.inr ⟨x, hxu, e, children_eq_singleton h1.le hex⟩)))
+    exact ⟨hxu, by_contra fun hlt => hdel (Or.inr (Or.inr (Or.inr
+      ⟨x, hxu, e, children_eq_singleton (Nat.le_of_not_lt hlt) hex⟩)))⟩
   · have hxu : x ∈ S.unpaired :=
       mem_unpaired.2 ⟨hx, fun hp => h6 ⟨G, hG, x, y, hand, hargs, hp, hy, hxy⟩⟩
     exact ⟨hxu, two_le_deg_of_not_andOnIsolated h2 hG hand hargs hxu hy hxy⟩

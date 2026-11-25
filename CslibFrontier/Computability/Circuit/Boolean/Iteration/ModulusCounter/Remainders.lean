@@ -253,9 +253,7 @@ theorem short_remainder_circuit (k m T : ℕ) (hT : T < 2 ^ m) :
   have hout : wires (remainder (k := k) T) ⊆
       wordWires (fun x => if decide (equivBitVec x = (0 : BitVec k)) then 0 else r x) := by
     rintro _ ⟨i, rfl⟩
-    refine ⟨i, ?_⟩
-    funext x
-    simp only [hval, getLsbD_equivBitVec]
+    exact ⟨i, funext fun x => by simp only [hval, getLsbD_equivBitVec]⟩
   obtain ⟨out, ho, hs⟩ := (h.mono Set.Subset.rfl hout le_rfl).exists_circuit_outputs
   exact ⟨out, ho, by nlinarith⟩
 
@@ -371,10 +369,8 @@ theorem variable_time_counter_iff_remainder (m k : ℕ) :
     have hout : wires (inputTimeRemainder m k) ⊆
         wires (fun x => c.eval interpretation (init x)) := by
       rintro _ ⟨i, rfl⟩
-      refine ⟨Fin.natAdd k i, ?_⟩
-      funext x
-      change c.eval interpretation (init x) (Fin.natAdd k i) =
-        inputTimeRemainder m k x i
+      refine ⟨Fin.natAdd k i, funext fun x => ?_⟩
+      dsimp only
       rw [hc (init x)]
       simp only [inputTimeIterate, init, Fin.append_right, Fin.append_left, counterStep,
         ModulusCounter.iterate_power]

@@ -197,24 +197,17 @@ private theorem silenceAt_empty (k : ℕ) (C : Finset P) (p : P) (alive : ℕ �
     silenceAt k C p ∅ alive = extAlive (k + 1) (insert p C) (extAlive k C alive) := by
   funext r j i
   unfold silenceAt extAlive
-  by_cases hlt : r < k
-  · have hlt' : r < k + 1 := by omega
-    simp only [hlt, hlt', ↓reduceIte]
-  · by_cases heq : r = k
-    · subst heq
-      simp
-    · have hlt' : ¬(r < k + 1) := by omega
-      simp only [hlt, heq, hlt', ↓reduceIte]
+  rcases lt_trichotomy r k with hlt | rfl | hgt
+  · simp [hlt, Nat.lt_succ_of_lt hlt]
+  · simp
+  · simp [Nat.not_lt.mpr hgt.le, hgt.ne', Nat.not_lt.mpr hgt]
 
 private theorem silenceAt_univ [Fintype P] (k : ℕ) (C : Finset P) (p : P)
     (alive : ℕ → P → P → Bool) :
     silenceAt k C p Finset.univ alive = extAlive k (insert p C) alive := by
   funext r j i
   unfold silenceAt extAlive
-  split_ifs with h₁ h₂
-  · rfl
-  · simp [Finset.mem_insert, not_or, and_comm]
-  · rfl
+  split_ifs <;> simp [Finset.mem_insert, not_or, and_comm]
 
 private theorem extAlive_succ_silenceAt (k : ℕ) (C : Finset P) (p : P) (U : Finset P)
     (alive : ℕ → P → P → Bool) :
@@ -435,13 +428,7 @@ private theorem reindex_state {P Q S S' M M' : Type*} [DecidableEq P] [Decidable
     rw [Equiv.apply_symm_apply]
     congr 1
     funext j
-    by_cases hj : eP.symm j ∈ F
-    · have hj' : j ∈ F.map eP.toEmbedding := by
-        simpa only [Finset.mem_map_equiv] using hj
-      simp only [hj, hj', ↓reduceIte, Equiv.symm_apply_apply]
-    · have hj' : j ∉ F.map eP.toEmbedding := by
-        simpa only [Finset.mem_map_equiv] using hj
-      simp only [hj, hj', ↓reduceIte, reindex, Equiv.apply_symm_apply]
+    by_cases hj : eP.symm j ∈ F <;> simp [hj, reindex]
 
 private theorem reindex_decision {P Q S S' M M' : Type*} [DecidableEq P] [DecidableEq Q]
     (eP : P ≃ Q) (eS : S' ≃ S) (eM : M' ≃ M) (π : Protocol Q S M)

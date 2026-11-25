@@ -279,10 +279,9 @@ theorem gossipHistory_strongAccuracy {P : Type*} [DecidableEq P]
     {F : FailurePattern P} {sched : P → ℕ → List (GossipPacket P)}
     (hadm : AdmissibleGossipSchedule F sched) {H : DetectorHistory P}
     (hSA : StrongAccuracy F H) :
-    StrongAccuracy F (gossipHistory H sched) := by
-  intro t p hp q _
-  exact gossipHistory_preserves_perpetual_notMem hadm H (fun t' ht' r hr =>
-    hSA t' p (fun hmem => hp (F.mem_of_le (Nat.le_of_lt ht') hmem)) r hr) q
+    StrongAccuracy F (gossipHistory H sched) := fun _ _ hp q _ =>
+  gossipHistory_preserves_perpetual_notMem hadm H (fun t' ht' r hr =>
+    hSA t' _ (fun hmem => hp (F.mem_of_le ht'.le hmem)) r hr) q
 
 /-- Discrete-tick gossip-transducer step for #7503 (after
 [Chandra and Toueg, Lemma 3.2, p. 237][ChandraToueg1996]): `gossipHistory` preserves
@@ -291,10 +290,9 @@ theorem gossipHistory_weakAccuracy {P : Type*} [DecidableEq P]
     {F : FailurePattern P} {sched : P → ℕ → List (GossipPacket P)}
     (hadm : AdmissibleGossipSchedule F sched) {H : DetectorHistory P}
     (hWA : WeakAccuracy F H) :
-    WeakAccuracy F (gossipHistory H sched) := by
-  obtain ⟨p, hp, hns⟩ := hWA
-  exact ⟨p, hp, fun t q _ =>
-    gossipHistory_preserves_perpetual_notMem hadm H (fun t' _ r hr => hns t' r hr) q⟩
+    WeakAccuracy F (gossipHistory H sched) :=
+  hWA.imp fun _ ⟨hp, hns⟩ =>
+    ⟨hp, fun _ q _ => gossipHistory_preserves_perpetual_notMem hadm H (fun t' _ => hns t') q⟩
 
 /-- Discrete-tick gossip-transducer step for #7503 (Property P1, after
 [Chandra and Toueg, Lemma 3.1, p. 237][ChandraToueg1996]): on finite `P`, if `H` satisfies
@@ -383,11 +381,10 @@ theorem gossipHistory_eventualStrongAccuracy {P : Type*} [Finite P] [DecidableEq
     {F : FailurePattern P} {sched : P → ℕ → List (GossipPacket P)}
     (hadm : AdmissibleGossipSchedule F sched) {H : DetectorHistory P}
     (hESA : EventualStrongAccuracy F H) :
-    EventualStrongAccuracy F (gossipHistory H sched) := by
-  obtain ⟨t₁, ht₁⟩ := hESA
-  obtain ⟨T, hT⟩ := exists_uniform_threshold fun p hp =>
-    gossipHistory_preserves_eventual_notMem hadm H hp (fun t' ht' r hr => ht₁ t' ht' p hp r hr)
-  exact ⟨T, hT⟩
+    EventualStrongAccuracy F (gossipHistory H sched) :=
+  let ⟨_, ht₁⟩ := hESA
+  exists_uniform_threshold fun _ hp =>
+    gossipHistory_preserves_eventual_notMem hadm H hp fun t' ht' r hr => ht₁ t' ht' _ hp r hr
 
 /-- Discrete-tick gossip-transducer step for #7503 (after
 [Chandra and Toueg, Lemma 3.3, p. 237][ChandraToueg1996]): `gossipHistory` preserves
@@ -396,10 +393,9 @@ theorem gossipHistory_eventualWeakAccuracy {P : Type*} [Finite P] [DecidableEq P
     {F : FailurePattern P} {sched : P → ℕ → List (GossipPacket P)}
     (hadm : AdmissibleGossipSchedule F sched) {H : DetectorHistory P}
     (hEWA : EventualWeakAccuracy F H) :
-    EventualWeakAccuracy F (gossipHistory H sched) := by
-  obtain ⟨t₁, p, hp, ht₁⟩ := hEWA
-  obtain ⟨T, hT⟩ := gossipHistory_preserves_eventual_notMem hadm H hp ht₁
-  exact ⟨T, p, hp, hT⟩
+    EventualWeakAccuracy F (gossipHistory H sched) :=
+  let ⟨_, p, hp, ht₁⟩ := hEWA
+  (gossipHistory_preserves_eventual_notMem hadm H hp ht₁).imp fun _ hT => ⟨p, hp, hT⟩
 
 /-! ### The four completeness-boosting reductions (`Q → P`, `W → S`, `◇Q → ◇P`, `◇W → ◇S`) -/
 
@@ -506,20 +502,19 @@ theorem admissible_syncGossipSchedule {P : Type*} [DecidableEq P]
     AdmissibleGossipSchedule F (syncGossipSchedule F procs) where
   valid_delivery p t pkt hpkt := by
     by_cases hp : p ∈ F t
-    · simp only [syncGossipSchedule, hp, ↓reduceIte, List.not_mem_nil] at hpkt
+    · simp [syncGossipSchedule, hp] at hpkt
     · simp only [syncGossipSchedule, hp, ↓reduceIte, List.mem_map, List.mem_filter,
         decide_eq_true_eq] at hpkt
       obtain ⟨q, ⟨_, hq⟩, rfl⟩ := hpkt
       exact ⟨hp, le_rfl, hq⟩
   unique_delivery_tick p t₁ t₂ pkt h₁ h₂ := by
-    by_cases hp₁ : p ∈ F t₁
-    · simp only [syncGossipSchedule, hp₁, ↓reduceIte, List.not_mem_nil] at h₁
-    · by_cases hp₂ : p ∈ F t₂
-      · simp only [syncGossipSchedule, hp₂, ↓reduceIte, List.not_mem_nil] at h₂
-      · simp only [syncGossipSchedule, hp₁, hp₂, ↓reduceIte, List.mem_map] at h₁ h₂
-        obtain ⟨_, _, rfl⟩ := h₁
-        obtain ⟨_, _, heq⟩ := h₂
-        exact (congrArg GossipPacket.sendTick heq).symm
+    have hs {t} (h : pkt ∈ syncGossipSchedule F procs p t) : pkt.sendTick = t := by
+      by_cases hp : p ∈ F t
+      · simp [syncGossipSchedule, hp] at h
+      · simp only [syncGossipSchedule, hp, ↓reduceIte, List.mem_map] at h
+        obtain ⟨_, _, rfl⟩ := h
+        rfl
+    exact (hs h₁).symm.trans (hs h₂)
   fair_delivery q hq p hp t₀ := by
     refine ⟨t₀, t₀, le_rfl, le_rfl, ?_⟩
     simp only [syncGossipSchedule, hp t₀, ↓reduceIte, List.mem_map, List.mem_filter,

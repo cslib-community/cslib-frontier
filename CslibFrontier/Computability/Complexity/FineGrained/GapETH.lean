@@ -152,10 +152,7 @@ clauses (`1 - φ.unsatVal ≤ P.soundness`). -/
 theorem mem_yes_GapKSAT {P : GapKSATSpec} {φ : CNF ℕ} :
     φ ∈ (GapKSAT P).yes ↔ (∀ c ∈ φ, c.length ≤ P.width) ∧ φ.unsatVal ≤ 1 - P.completeness := by
   rw [GapKSAT, PromiseProblem.yes_restrict, Set.mem_inter_iff, PromiseProblem.mem_yes_gapMax]
-  change (P.completeness ≤ 1 - φ.unsatVal) ∧ (∀ c ∈ φ, c.length ≤ P.width) ↔ _
-  constructor <;> rintro ⟨h1, h2⟩
-  · exact ⟨h2, by linarith⟩
-  · exact ⟨by linarith, h1⟩
+  exact ⟨fun ⟨h1, h2⟩ => ⟨h2, by linarith⟩, fun ⟨h1, h2⟩ => ⟨by linarith, h1⟩⟩
 
 /-- No-instances of `GapKSAT P` are `≤ P.width`-CNFs with `1 - P.soundness ≤ φ.unsatVal`. -/
 theorem mem_no_GapKSAT {P : GapKSATSpec} {φ : CNF ℕ} :
@@ -163,10 +160,7 @@ theorem mem_no_GapKSAT {P : GapKSATSpec} {φ : CNF ℕ} :
   rw [GapKSAT, PromiseProblem.no_restrict, Set.mem_inter_iff,
     PromiseProblem.mem_no_gapMax_of_lt (c := fun _ => P.completeness) (s := fun _ => P.soundness)
       P.soundness_lt_completeness]
-  change (1 - φ.unsatVal ≤ P.soundness) ∧ (∀ c ∈ φ, c.length ≤ P.width) ↔ _
-  constructor <;> rintro ⟨h1, h2⟩
-  · exact ⟨h2, by linarith⟩
-  · exact ⟨by linarith, h1⟩
+  exact ⟨fun ⟨h1, h2⟩ => ⟨h2, by linarith⟩, fun ⟨h1, h2⟩ => ⟨by linarith, h1⟩⟩
 
 /-- At perfect completeness `1`, the yes-instances of `GapKSAT` are `KSAT k`. -/
 theorem yes_GapKSAT_perfect (k : ℕ) {s : ℝ} (hs0 : 0 ≤ s) (hs1 : s < 1) :
@@ -297,24 +291,17 @@ theorem computableInPolyTime_leafAccepts :
   rw [heq]
   have hlen : ComputableInPolyTime (fun q : Leaf => q.formula.length) encLeaf encUnary :=
     CNF.computableInPolyTime_length (encV := encNat) (by fun_prop)
-  have hcl : ComputableInPolyTime (fun p : Leaf × Clause ℕ => p.2)
-      (encPair encLeaf (encClause encNat)) (encClause encNat) := snd _ _
   have hbit : ComputableInPolyTime
       (fun p : (Leaf × Clause ℕ) × ℕ =>
         p.1.1.index.bits.getD (p.1.1.varsList.idxOf p.2) false)
-      (encPair (encPair encLeaf (encClause encNat)) encNat) encBool := by
-    fun_prop
-  have heval : ComputableInPolyTime
-      (fun p : Leaf × Clause ℕ =>
-        !Clause.eval (fun v => p.1.index.bits.getD (p.1.varsList.idxOf v) false) p.2)
-      (encPair encLeaf (encClause encNat)) encBool :=
-    bool_not.comp (Clause.computableInPolyTime_eval hcl hbit)
+      (encPair (encPair encLeaf (encClause encNat)) encNat) encBool := by fun_prop
   have hcnt : ComputableInPolyTime
       (fun q : Leaf =>
         q.formula.countP fun c =>
           !Clause.eval (fun v => q.index.bits.getD (q.varsList.idxOf v) false) c)
       encLeaf encUnary :=
-    countPWithInput (encA := encClause encNat) (by fun_prop) heval
+    countPWithInput (encA := encClause encNat) (by fun_prop)
+      (bool_not.comp (Clause.computableInPolyTime_eval (snd _ _) hbit))
   fun_prop
 
 end MaxSATThresholdSearch

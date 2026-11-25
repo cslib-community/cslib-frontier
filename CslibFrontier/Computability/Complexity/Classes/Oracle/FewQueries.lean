@@ -198,9 +198,7 @@ private theorem fst_popStep (p : FiniteConfig k Bool Control Operation × List B
 private theorem length_snd_popStep_le (p : FiniteConfig k Bool Control Operation × List Bool) :
     (machine.popStep p).2.length ≤ p.2.length := by
   unfold popStep
-  split_ifs
-  · simp
-  · exact le_rfl
+  split_ifs <;> simp
 
 variable [Finite Control]
 
@@ -352,9 +350,8 @@ theorem mem_FPSearch_of_computableInPolyTimeWithOracleQueries_of_two_pow_le (hR 
     cases hj : (List.range (N a)).find? (fun j => ok (a, j)) with
     | none => simp [hj] at hw
     | some j =>
-      have hokj : ok (a, j) = true := List.find?_some (p := fun j => ok (a, j)) hj
       simp only [hj, Option.elim_some] at hw
-      exact (hRV a w).2 (by simpa only [ok, hw, Option.elim_some] using hokj)
+      exact (hRV a w).2 (by simpa only [ok, hw, Option.elim_some] using List.find?_some hj)
   · -- the true answers, as the bits of a number below `N a`
     obtain ⟨w₀, hw₀⟩ : ∃ w₀, f a = some w₀ := Option.ne_none_iff_exists'.mp
       fun h => (hsolve a).2 h ha
@@ -370,15 +367,13 @@ theorem mem_FPSearch_of_computableInPolyTimeWithOracleQueries_of_two_pow_le (hR 
         (fun i => by rw [getD_bits_foldr_bit, List.append_nil]),
         OracleComp.run_interpret_popAnswer, (hprog a).1, hw₀]
     have hok_true : ok (a, answers.foldr Nat.bit 0) = true := by
-      simp only [ok, hcand_true, Option.elim_some]
-      exact (hRV a w₀).1 ((hsolve a).1 w₀ hw₀)
+      simpa only [ok, hcand_true, Option.elim_some] using (hRV a w₀).1 ((hsolve a).1 w₀ hw₀)
     simp only [g] at hw
     cases hj : (List.range (N a)).find? (fun j => ok (a, j)) with
     | none => exact List.find?_eq_none.mp hj _ (List.mem_range.mpr hlt) hok_true
     | some j =>
-      have hokj : ok (a, j) = true := List.find?_some (p := fun j => ok (a, j)) hj
       simp only [hj, Option.elim_some] at hw
-      simp [ok, hw] at hokj
+      simpa [ok, hw] using List.find?_some hj
 
 /-- **Logarithmically many queries do not help**
 [Goldreich, Exercise 2.10][Goldreich2006DraftR1]. A search problem in `PC` (`FNP`) solved in

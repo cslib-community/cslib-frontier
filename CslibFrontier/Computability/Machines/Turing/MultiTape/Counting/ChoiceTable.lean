@@ -149,10 +149,9 @@ private theorem step_buffer_before_end {width : ℕ} (hw : 0 < width)
       bufferCfg cfg state ⟨cursor.val + 1, hcursor⟩
         ⟨2 * value.val + bit.toNat, hvalue⟩ := by
   rw [step_table hw machine rfl]
-  simp only [scan, bufferCfg, ite_eq_right (by omega : cursor.val + 1 ≠ width)]
-  rw [MultiTapeNTM.ChoiceTable.apply_idle]
-  simp only [advance, Cfg.mk.injEq, Option.some.injEq, ScanState.mk.injEq,
-    and_true, true_and]
+  simp only [scan, bufferCfg, ite_eq_right (by omega : cursor.val + 1 ≠ width),
+    MultiTapeNTM.ChoiceTable.apply_idle, advance, Cfg.mk.injEq, Option.some.injEq,
+    ScanState.mk.injEq, and_true, true_and]
   constructor
   · fin_index
   · fin_index
@@ -170,8 +169,7 @@ private theorem step_buffer_at_end {width : ℕ} (hw : 0 < width)
       2 * value.val + bit.toNat]? = some action := by
     simpa only [localActions, actions, hs] using hact
   change (scan hw machine _ cfg.inputSymbol cfg.workTapeSymbols bit).apply _ = _
-  simp only [scan, bufferCfg, hcursor, ↓reduceIte]
-  rw [hact']
+  simp only [scan, bufferCfg, hcursor, ↓reduceIte, hact']
   exact apply_perform hw cfg state cursor value action
 
 private theorem stepCoins_prefix {width : ℕ} (hw : 0 < width)
@@ -231,9 +229,7 @@ private theorem reject_ne_accept {width : ℕ}
     (cfg : Cfg k Bool (ScanState width State) input) :
     (reject.apply cfg).output ≠ [true] := by
   simp only [reject, Action.apply, Option.toList_some]
-  intro h
-  have := congrArg List.getLast? h
-  simp at this
+  exact fun h => by simpa using congrArg List.getLast? h
 
 private theorem reject_continuation {width : ℕ} (hw : 0 < width)
     (machine : MultiTapeCTM k Bool State) (cfg : Cfg k Bool (ScanState width State) input)
@@ -309,19 +305,16 @@ private theorem binaryCertificate_eq_zeros {width : ℕ} {indices : List ℕ}
         List.replicate (binaryCertificate width indices).length false ↔
       indices = List.replicate indices.length 0 := by
   rw [length_binaryCertificate hsmall, ← binaryCertificate_zeros]
-  constructor
-  · intro h
-    have h' := congrArg (binaryIndices indices.length width) h
-    rw [binaryIndices_binaryCertificate hsmall] at h'
-    have hz : (List.replicate indices.length 0).length = indices.length := List.length_replicate
-    have hzero := binaryIndices_binaryCertificate (width := width)
-      (indices := List.replicate indices.length 0) (by
-        intro index hi
-        obtain ⟨_, rfl⟩ := List.mem_replicate.mp hi
-        positivity)
-    rw [hz] at hzero
-    rwa [hzero] at h'
-  · exact congrArg (binaryCertificate width)
+  refine ⟨fun h => ?_, congrArg (binaryCertificate width)⟩
+  have h' := congrArg (binaryIndices indices.length width) h
+  have hzero : binaryIndices indices.length width
+      (binaryCertificate width (List.replicate indices.length 0)) =
+      List.replicate indices.length 0 := by
+    simpa only [List.length_replicate] using binaryIndices_binaryCertificate
+      (indices := List.replicate indices.length 0) fun _ hi => by
+        rw [(List.mem_replicate.mp hi).2]
+        positivity
+  rwa [binaryIndices_binaryCertificate hsmall, hzero] at h'
 
 private theorem append_eq_zeros (left right : List Bool) :
     left ++ right = List.replicate (left ++ right).length false ↔
@@ -479,12 +472,9 @@ private theorem acceptCount_partial {width : ℕ} (hw : 0 < width)
       apply List.ofFn_injective
       rw [hp, hext, List.take_left' (by simp)]
     refine ⟨extended, Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_⟩, hprefWord⟩
-    simp only [decide_eq_true_eq]
-    apply (haccept extended).mpr
-    refine ⟨?_, ?_⟩
-    · rw [hprefWord]
-      simpa only [decide_eq_true_eq] using (Finset.mem_filter.mp hword).2
-    · rw [hext, List.drop_left' (by simp)]
+    simpa only [decide_eq_true_eq] using (haccept extended).mpr
+      ⟨hprefWord.symm ▸ by simpa only [decide_eq_true_eq] using (Finset.mem_filter.mp hword).2,
+        by rw [hext, List.drop_left' (by simp)]⟩
 
 /-- Each occurrence-labelled terminal accepting branch corresponds to exactly one binary word.
 Repeated actions retain their multiplicity, while early halts have a unique zero continuation. -/
@@ -497,10 +487,8 @@ theorem acceptCount_table {width : ℕ} (hw : 0 < width)
   rw [acceptCount, ← machine.card_binaryCertificateAccepts
     (Cfg.init machine.initial input) hbound count (fun out => out == [true])]
   unfold MultiTapePTM.acceptCount Complexity.acceptCount
-  apply congrArg Finset.card
-  apply Finset.filter_congr
-  intro word _
-  simp only [decide_eq_true_eq, MultiTapePTM.runClosedCoins_eq_output_stepCoins]
+  refine congrArg Finset.card (Finset.filter_congr fun word _ => ?_)
+  rw [decide_eq_true_eq, MultiTapePTM.runClosedCoins_eq_output_stepCoins]
   exact stepCoins_full hw machine (Cfg.init machine.initial input) count
     (List.ofFn word) List.length_ofFn
 

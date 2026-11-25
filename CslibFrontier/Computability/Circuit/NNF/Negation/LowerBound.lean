@@ -112,12 +112,7 @@ theorem mate_mate_mem_otherNbrs {c c' : Fin 3} (h : c' ≠ c) (u : V) :
   mem_union_right _ (mem_image.mpr ⟨c', mem_erase.mpr ⟨h, mem_univ _⟩, rfl⟩)
 
 theorem card_otherNbrs_le (c : Fin 3) (u : V) : (M.otherNbrs c u).card ≤ 4 := by
-  have h : ((univ : Finset (Fin 3)).erase c).card = 2 := by simp
-  refine (card_union_le _ _).trans ?_
-  have h1 := card_image_le (s := (univ : Finset (Fin 3)).erase c) (f := fun c' => M.mate c' u)
-  have h2 := card_image_le (s := (univ : Finset (Fin 3)).erase c)
-    (f := fun c' => M.mate c' (M.mate c u))
-  omega
+  exact (card_union_le _ _).trans ((add_le_add card_image_le card_image_le).trans_eq (by simp))
 
 theorem self_notMem_otherNbrs (c : Fin 3) (u : V) : u ∉ M.otherNbrs c u := by
   simp only [otherNbrs, mem_union, mem_image, mem_erase, mem_univ, and_true, not_or, not_exists,
@@ -294,14 +289,11 @@ noncomputable def witness (u : V) (x : V → Bool) : V :=
 
 theorem witness_congr {u : V} {x x' : V → Bool} (h : ∀ t ∉ M.ends c S, x t = x' t) :
     M.witness c S R u x = M.witness c S R u x' := by
-  have hiff : (∃ y ∈ R, M.IsIndep y ∧ (∀ t ∉ M.ends c S, y t = x t) ∧ y u = true) ↔
-      (∃ y ∈ R, M.IsIndep y ∧ (∀ t ∉ M.ends c S, y t = x' t) ∧ y u = true) :=
-    exists_congr fun y => and_congr_right fun _ => and_congr_right fun _ => and_congr_left
-      fun _ => forall₂_congr fun t ht => by rw [h t ht]
+  classical
   unfold witness
-  by_cases h1 : ∃ y ∈ R, M.IsIndep y ∧ (∀ t ∉ M.ends c S, y t = x t) ∧ y u = true
-  · rw [ite_eq_left h1, ite_eq_left (hiff.mp h1)]
-  · rw [ite_eq_right h1, ite_eq_right (mt hiff.mpr h1)]
+  refine if_congr ?_ rfl rfl
+  exact exists_congr fun y => and_congr_right fun _ => and_congr_right fun _ => and_congr_left
+    fun _ => forall₂_congr fun t ht => by rw [h t ht]
 
 theorem witness_eq (u : V) (x : V → Bool) :
     M.witness c S R u x = u ∨ M.witness c S R u x = M.mate c u := by
@@ -620,19 +612,14 @@ private theorem mem_nbhdPre {c : Fin 3} {t u' : V} (h : t ∈ M.edgeNbhd c u') :
 
 private theorem card_nbhdPre_le (c : Fin 3) (t : V) : #(M.nbhdPre c t) ≤ 7 := by
   refine (card_insert_le _ _).trans ?_
-  have h1 := card_image_le (s := (univ : Finset (Fin 3))) (f := fun c' => M.mate c' t)
-  have h2 := card_image_le (s := (univ : Finset (Fin 3))) (f := fun c' => M.mate c (M.mate c' t))
-  have := card_union_le (univ.image fun c' => M.mate c' t)
-    (univ.image fun c' => M.mate c (M.mate c' t))
-  simp only [card_univ, Fintype.card_fin] at h1 h2
+  have h := (card_union_le (univ.image fun c' => M.mate c' t)
+    (univ.image fun c' => M.mate c (M.mate c' t))).trans (add_le_add card_image_le card_image_le)
+  simp only [card_univ, Fintype.card_fin] at h
   omega
 
 theorem card_edgeNbhd_le (c : Fin 3) (u : V) : #(M.edgeNbhd c u) ≤ 6 := by
-  have := card_otherNbrs_le (M := M) c u
-  have h1 := card_insert_le (M.mate c u) (M.otherNbrs c u)
-  have h2 := card_insert_le u (insert (M.mate c u) (M.otherNbrs c u))
-  simp only [edgeNbhd]
-  omega
+  refine (card_insert_le _ _).trans (Nat.succ_le_succ ((card_insert_le _ _).trans ?_))
+  exact Nat.succ_le_succ (card_otherNbrs_le c u)
 
 /-- An edge's neighbourhood meets the neighbourhoods of at most `42` edges of its colour. -/
 private theorem card_filter_not_disjoint_le (c : Fin 3) (U : Finset V) (u : V) :

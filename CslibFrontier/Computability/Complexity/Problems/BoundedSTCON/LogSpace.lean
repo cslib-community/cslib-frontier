@@ -127,44 +127,38 @@ private theorem read_header (hB : I.graph.n ≤ B) :
     (by rfl) (by rfl) (fun _ _ => by simp)
     (fun j hj => hb hj (by omega) (by omega))
     (fun j hj => by
-      simp only [framed, eval_add, eval_mul, eval_const, eval_reg,
-        List.getD_cons_zero]
-      rw [hN j hj.le]
-      simp [hj])
+      simp only [framed, eval_add, eval_mul, eval_const, eval_reg, List.getD_cons_zero,
+        hN j hj.le, Option.some.injEq, decide_eq_true_eq, hj])
     (by
-      simp only [framed, eval_add, eval_mul, eval_const, eval_reg,
-        List.getD_cons_zero]
-      rw [hN _ le_rfl]
-      simp) 0 (Nat.zero_le _)
+      simp only [framed, eval_add, eval_mul, eval_const, eval_reg, List.getD_cons_zero,
+        hN _ le_rfl, lt_irrefl, decide_false, ne_eq, Option.some.injEq, Bool.false_eq_true,
+        not_false_eq_true])
+    0 (Nat.zero_le _)
   have hs' := reachesOut_count (P := writer) (w := encBoundedSTCON I)
     (n := I.graph.s) (u := 1) (c := 2) (fun j => [I.graph.n, j, 0, 0, 0, 0, 0, 0])
     (by rfl) (by rfl) (fun _ _ => by simp)
     (fun j hj => hb le_rfl (by omega) (by omega))
     (fun j hj => by
-      simp only [framed, eval_add, eval_mul, eval_const, eval_reg,
-        List.getD_cons_succ, List.getD_cons_zero]
-      rw [hS j hj.le]
-      simp [hj])
+      simp only [framed, eval_add, eval_mul, eval_const, eval_reg, List.getD_cons_succ,
+        List.getD_cons_zero, hS j hj.le, Option.some.injEq, decide_eq_true_eq, hj])
     (by
-      simp only [framed, eval_add, eval_mul, eval_const, eval_reg,
-        List.getD_cons_succ, List.getD_cons_zero]
-      rw [hS _ le_rfl]
-      simp) 0 (Nat.zero_le _)
+      simp only [framed, eval_add, eval_mul, eval_const, eval_reg, List.getD_cons_succ,
+        List.getD_cons_zero, hS _ le_rfl, lt_irrefl, decide_false, ne_eq, Option.some.injEq,
+        Bool.false_eq_true, not_false_eq_true])
+    0 (Nat.zero_le _)
   have ht' := reachesOut_count (P := writer) (w := encBoundedSTCON I)
     (n := I.graph.t) (u := 2) (c := 4)
     (fun j => [I.graph.n, I.graph.s, j, 0, 0, 0, 0, 0])
     (by rfl) (by rfl) (fun _ _ => by simp)
     (fun j hj => hb le_rfl (by omega) (by omega))
     (fun j hj => by
-      simp only [framed, eval_add, eval_mul, eval_const, eval_reg,
-        List.getD_cons_succ, List.getD_cons_zero]
-      rw [hT j hj.le]
-      simp [hj])
+      simp only [framed, eval_add, eval_mul, eval_const, eval_reg, List.getD_cons_succ,
+        List.getD_cons_zero, hT j hj.le, Option.some.injEq, decide_eq_true_eq, hj])
     (by
-      simp only [framed, eval_add, eval_mul, eval_const, eval_reg,
-        List.getD_cons_succ, List.getD_cons_zero]
-      rw [hT _ le_rfl]
-      simp) 0 (Nat.zero_le _)
+      simp only [framed, eval_add, eval_mul, eval_const, eval_reg, List.getD_cons_succ,
+        List.getD_cons_zero, hT _ le_rfl, lt_irrefl, decide_false, ne_eq, Option.some.injEq,
+        Bool.false_eq_true, not_false_eq_true])
+    0 (Nat.zero_le _)
   exact hn.trans (hs'.trans ht')
 
 
@@ -379,19 +373,11 @@ theorem computableInLogSpace_layered :
   have hcap := Nat.min_le_right I.bound I.graph.n
   have hnB : I.graph.n ≤ B := by dsimp [B]; nlinarith
   have hLB : L ≤ B := by dsimp [B]; nlinarith
-  have hNB : I.layered.n ≤ B := by
-    change (I.cap + 1) * I.graph.n ≤ B
-    change min I.bound I.graph.n ≤ I.graph.n at hcap
-    dsimp [B, cap]
-    nlinarith
-  have hsource : (I.graph.s : ℕ) ≤ I.layered.n := by
-    have := I.graph.s.isLt
-    change (I.graph.s : ℕ) ≤ (I.cap + 1) * I.graph.n
-    nlinarith
+  have hNB : I.layered.n ≤ B := by dsimp [layered, B, cap]; nlinarith
+  have hsource : (I.graph.s : ℕ) ≤ I.layered.n := by dsimp [layered]; nlinarith [I.graph.s.isLt]
   have htarget : I.cap * I.graph.n + I.graph.t ≤ I.layered.n := by
-    have := I.graph.t.isLt
-    change I.cap * I.graph.n + I.graph.t ≤ (I.cap + 1) * I.graph.n
-    nlinarith
+    dsimp [layered]
+    nlinarith [I.graph.t.isLt]
   obtain ⟨p, hp, hparse⟩ := I.read_bound_loop I.bound.bits (j := 2 * I.graph.encode.length + 1)
     (a := 0) (p := 1) I.input_bound hnB (by omega) (Nat.zero_le _)
     (by have := I.graph.n_pos; omega)

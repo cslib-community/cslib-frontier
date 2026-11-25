@@ -223,20 +223,18 @@ theorem distHard_problem : DistHard DistNP problem := by
       2 ^ (2 * c.length + 4) * (6 * n + 5) ^ 2 * (2 * n + 1) ^ 2 :=
     ⟨Polynomial.C (2 ^ (2 * c.length + 4)) * (Polynomial.C 6 * Polynomial.X + Polynomial.C 5) ^ 2 *
       (Polynomial.C 2 * Polynomial.X + Polynomial.C 1) ^ 2, fun n => by simp⟩
-  obtain ⟨f, hf⟩ : ∃ f : List Bool → List Bool, ∀ x, f x =
-      encode c (code num den x) (N.eval x.length - (header c (code num den x)).length) :=
-    ⟨_, fun _ => rfl⟩
+  let f (x : List Bool) : List Bool :=
+    encode c (code num den x) (N.eval x.length - (header c (code num den x)).length)
   have hhead (x : List Bool) : (header c (code num den x)).length ≤ N.eval x.length := by
     have := length_header_code_le hcdf hden0 c x
     rw [hN]
     omega
   have hflen (x : List Bool) : (f x).length = N.eval x.length := by
-    rw [hf, length_encode]
     have := hhead x
+    rw [length_encode]
     omega
-  have hfinj : Function.Injective f := fun x x' h => by
-    rw [hf, hf] at h
-    exact code_injective hcdf hden0 (encode_injective h).2.1
+  have hfinj : Function.Injective f := fun x x' h =>
+    code_injective hcdf hden0 (encode_injective h).2.1
   have hfpoly : ComputableInPolyTime f encBits encBits := by
     have hcode := code_polyTime hnum hden
     have hh : ComputableInPolyTime (fun x => (header c (code num den x)).length) encBits
@@ -245,12 +243,11 @@ theorem distHard_problem : DistHard DistNP problem := by
         (header_polyTime.comp ((ComputableInPolyTime.const c).prod hcode))
     have hNx : ComputableInPolyTime (fun x : List Bool => N.eval x.length) encBits encUnary :=
       (ComputableInPolyTime.unary_eval N).comp ComputableInPolyTime.length_bits
-    rw [show f = _ from funext hf]
     exact encode_polyTime (ComputableInPolyTime.const c) hcode
       (ComputableInPolyTime.unary_sub' hNx hh)
   refine ⟨⟨f, fun n => N.eval n, P, hfpoly, fun n x _ => ?_, fun n y => ?_⟩⟩
   · -- correctness
-    rw [problem_lang, hf, encode_mem_BH_iff, accepts_iff]
+    rw [problem_lang, encode_mem_BH_iff, accepts_iff]
     have hhx := hhead x
     have hRle : R.eval x.length ≤ N.eval x.length - (header c (code num den x)).length := by
       have := length_header_code_le hcdf hden0 c x
@@ -273,20 +270,16 @@ theorem distHard_problem : DistHard DistNP problem := by
           _ ≤ cT * (8 * x.length + 7 + q.eval x.length) ^ dT :=
             Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (by omega) _)
           _ ≤ _ := Nat.le_add_right _ _
-      have hwR : 2 * x.length + 1 + q.eval x.length ≤ R.eval x.length := by
-        rw [hR]
-        exact Nat.le_add_left _ _
+      have hwR : 2 * x.length + 1 + q.eval x.length ≤ R.eval x.length :=
+        hR x.length ▸ Nat.le_add_left _ _
       refine ⟨frame x ++ w, by enc_len, ?_⟩
       · rw [hc, show frame (code num den x) ++ (frame x ++ w) =
             encPair encBits encBits (code num den x, frame x ++ w) by
           rw [encPair_apply]; rfl]
         rw [runFor_eq_of_computesInTimeAndSpace (htm (code num den x, frame x ++ w))
           (hTb.trans hRle)]
-        have hv : codeVerifier num den q V (code num den x, frame x ++ w) = true := by
-          simp only [codeVerifier, unframe_frame_append, dropFrame_frame_append, hw, hVw,
-            decide_true, Bool.and_self]
-        rw [hv]
-        rfl
+        simp only [codeVerifier, unframe_frame_append, dropFrame_frame_append, hw, hVw,
+          decide_true, Bool.and_self, encBool_apply]
     · rintro ⟨v, -, hrun⟩
       rw [hc, show frame (code num den x) ++ v = encPair encBits encBits (code num den x, v) by
         rw [encPair_apply]; rfl] at hrun
@@ -301,7 +294,7 @@ theorem distHard_problem : DistHard DistNP problem := by
     by_cases hy : ∃ x ∈ (L.ens.dist n).support, f x = y
     · obtain ⟨x, hx, rfl⟩ := hy
       obtain rfl := L.ens.length_eq n x hx
-      rw [Probability.PMF.map_apply_of_injective _ hfinj, problem_ens, ← hflen x, hf,
+      rw [Probability.PMF.map_apply_of_injective _ hfinj, problem_ens, ← hflen x,
         uniformBH_dist_encode, hP]
       rw [← div_eq_mul_inv, ENNReal.le_div_iff_mul_le (Or.inl (pow_ne_zero _ two_ne_zero))
         (Or.inl (by finiteness)), mul_comm]

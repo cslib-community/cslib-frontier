@@ -283,10 +283,7 @@ private theorem rank_lt_of_lines_eq {N g : ℕ} (p : Program prefixSignature N g
   cases hw : wires a with
   | input _ => exact Nat.zero_lt_succ _
   | gate j =>
-    have hex : ∃ s, (p.lines k).wires s = .gate j := by
-      rw [h]
-      exact ⟨a, hw⟩
-    rcases hex with ⟨s, hs⟩
+    obtain ⟨s, hs⟩ : ∃ s, (p.lines k).wires s = .gate j := h ▸ ⟨a, hw⟩
     exact Nat.succ_lt_succ (p.lt_of_lines_wires_eq_gate k s j hs)
 
 @[elab_as_elim]
@@ -411,27 +408,22 @@ private theorem card_mulGates_eq_cost {N g : ℕ} (p : Program prefixSignature N
       · simp only [Finset.mem_filter, Finset.mem_univ, true_and, Program.lines_gate_last,
           Line.mapWires_op, Finset.mem_union, Finset.mem_map, Function.Embedding.coeFn_mk,
           Fin.castSucc_ne_last, and_false, exists_false, false_or]
-        split_ifs with h
-        · simp only [h, Finset.mem_singleton]
-        · simp only [h, Finset.notMem_empty]
+        split_ifs with h <;> simp only [h, Finset.mem_singleton, Finset.notMem_empty]
       · simp only [Finset.mem_filter, Finset.mem_univ, true_and, Program.lines_gate_castSucc,
           Line.mapWires_op, Finset.mem_union, Finset.mem_map, Function.Embedding.coeFn_mk,
           Fin.castSucc_inj, exists_eq_right]
-        split_ifs
-        · simp only [Finset.mem_singleton, Fin.castSucc_ne_last, or_false]
-        · simp only [Finset.notMem_empty, or_false]
+        split_ifs <;> simp only [Finset.mem_singleton, Fin.castSucc_ne_last, Finset.notMem_empty,
+          or_false]
     rw [hbij, Finset.card_union_of_disjoint]
     · rw [Finset.card_map]
       cases line.op <;> simp only [reduceCtorEq, ↓reduceIte, Finset.card_singleton,
         Finset.card_empty]
     · rw [Finset.disjoint_right]
       intro k hk
-      split_ifs at hk with h
-      · rw [Finset.mem_singleton] at hk
-        subst hk
-        simp only [Finset.mem_map, Function.Embedding.coeFn_mk, Fin.castSucc_ne_last, and_false,
-          exists_false, not_false_eq_true]
-      · exact False.elim (Finset.notMem_empty k hk)
+      split_ifs at hk <;> simp only [Finset.mem_singleton, Finset.notMem_empty] at hk
+      subst hk
+      simp only [Finset.mem_map, Function.Embedding.coeFn_mk, Fin.castSucc_ne_last, and_false,
+        exists_false, not_false_eq_true]
 
 private def ancMul {N g : ℕ} (p : Program prefixSignature N g) : Wire N g → Finset (Fin g)
   | .input _ => ∅
@@ -719,11 +711,8 @@ private theorem universal_mul_sets {N : ℕ} (hN : 1 ≤ N) {c : PrefixCircuit N
     | gate g =>
       exact ⟨g, rfl, hop g hs, hs ▸ hword⟩
   choose lastMul hlastStrip hlastOp hlastWord using hlastMul
-  have hlastInj : Function.Injective lastMul := by
-    intro r₁ r₂ heq
-    have hw1 := hlastWord r₁
-    rw [heq, hlastWord r₂] at hw1
-    have hlen := congrArg List.length hw1
+  have hlastInj : Function.Injective lastMul := fun r₁ r₂ heq => by
+    have hlen := congrArg List.length ((hlastWord r₁).symm.trans (heq ▸ hlastWord r₂))
     simp only [List.length_range'] at hlen
     exact Fin.ext (by omega)
   have hOut_sub : Finset.univ.image lastMul ⊆ B := by

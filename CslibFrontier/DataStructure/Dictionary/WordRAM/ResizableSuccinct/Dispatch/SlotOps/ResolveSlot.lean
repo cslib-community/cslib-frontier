@@ -121,12 +121,10 @@ theorem clientResult_compLastSlotOfGenProg {U V w N metaBase b : ℕ} {s : Memor
       clientState_readCompGMGenProg, prog_clientResult_bind,
       clientResult_readCompGMGenProg hptr_lt, clientState_readCompGMGenProg,
       prog_clientResult_pure]
-    unfold slotOf bCount; simp only [hb0, ↓reduceIte, hb]
-    have hnot : ¬(gm (gmQIdx b) * slabSize N + gm (gmRIdx b) - 1 < gm (gmQIdx b) * slabSize N) :=
-      by omega
-    have hsub : gm (gmQIdx b) * slabSize N + gm (gmRIdx b) - 1 - gm (gmQIdx b) * slabSize N =
-        gm (gmRIdx b) - 1 := by omega
-    rw [ite_eq_right hnot, hsub]; rfl
+    unfold slotOf bCount
+    simp only [hb0, ↓reduceIte, hb, Nat.add_sub_assoc hr_pos, Nat.add_sub_cancel_left]
+    rw [ite_eq_right (not_lt.mpr (Nat.le_add_right _ _))]
+    rfl
 
 /-- Precondition for retrieving the last physical slot of bucket `b`. -/
 @[expose] def CompLastSlotOfPre (w : ℕ) : (CompParams × ℕ) × ℕ → Memory.State → Prop
@@ -224,12 +222,10 @@ theorem clientState_compResolveIndexedSlotGenProg
     (d : ((CompParams × ℕ) × ℕ) × ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s (compResolveIndexedSlotGenProg d) = s := by
   rcases d with ⟨⟨⟨cp, metaBase⟩, b⟩, j⟩
-  unfold StateTransitionSpec.clientState
-  dsimp only [compResolveIndexedSlotGenProg, compResolveMultiSlotGenProg]
+  unfold StateTransitionSpec.clientState compResolveIndexedSlotGenProg compResolveMultiSlotGenProg
   by_cases hb0 : cpBucketBits cp = 0
-  · rw [ite_eq_left hb0]; rfl
-  · rw [ite_eq_right hb0, prog_runClient_state_bind]
-    simp only [StateTransitionSpec.clientState, runClient_state_readCompGMGenProg]
+  · simp [hb0]
+  · simp only [hb0, ↓reduceIte, prog_runClient_state_bind, runClient_state_readCompGMGenProg]
     split_ifs <;> simp
 
 @[simp] theorem runClient_state_compResolveIndexedSlotGenProg
@@ -292,19 +288,17 @@ theorem clientResult_compResolveIndexedSlotGenProg {U V w N metaBase b j : ℕ} 
       clientState_readCompGMGenProg]
     by_cases hj_slab : j < gm (gmQIdx b) * slabSize N
     · simp only [gm] at hj_slab
-      simp only [hj_slab, ↓reduceIte]
-      rw [prog_clientResult_bind,
+      simp only [hj_slab, ↓reduceIte, prog_clientResult_bind,
         clientResult_readCompGMGenProg (slabDir_read_bounds hb_pos hb hj_cap).2,
-        clientState_readCompGMGenProg, prog_clientResult_pure,
-        slabDir_read_eq (gm := compGmAt metaBase U w N s.mem) hslot hb_pos hb hj_cap hj_slab]
-      unfold slotOf; simp only [hb0, gm, hj_slab, ↓reduceIte]
+        prog_clientResult_pure,
+        slabDir_read_eq (gm := compGmAt metaBase U w N s.mem) hslot hb_pos hb hj_cap hj_slab,
+        slotOf, hb0, gm]
     · have hN : 0 < N := Nat.pos_of_ne_zero (by intro h0; subst h0; exact hb0 rfl)
       obtain ⟨hptr_lt, _⟩ := tailPtr_read_bounds hN hb_pos hb hslot hj_bc hj_slab
       simp only [gm] at hj_slab hptr_lt
-      simp only [hj_slab, ↓reduceIte]
-      rw [prog_clientResult_bind, clientResult_readCompGMGenProg hptr_lt,
-        clientState_readCompGMGenProg, prog_clientResult_pure]
-      unfold slotOf; simp only [hb0, gm, hj_slab, ↓reduceIte]; rfl
+      simp only [hj_slab, ↓reduceIte, prog_clientResult_bind,
+        clientResult_readCompGMGenProg hptr_lt, prog_clientResult_pure, slotOf, hb0, gm]
+      rfl
 
 private def CompResolveMultiSlotPre (w : ℕ) :
     ((CompParams × ℕ) × ℕ) × ℕ → Memory.State → Prop

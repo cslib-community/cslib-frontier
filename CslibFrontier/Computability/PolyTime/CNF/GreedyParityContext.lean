@@ -164,11 +164,8 @@ private theorem selectCertificate_eq (count : C × List (List Bool) → ℕ)
   have hp := (run_params count a.1 a.2.1 a.2.2.1
     (candidateTupleCount a.2.1 a.2.2.1) a.2.2.2).2.1
   rw [run_eq] at hp
-  simp only [Function.comp_apply, countIn, initIn, run_eq, extract,
-    selectBestTestRow, show (IndexFold.run
-      (selectBestStep (fun rows => count (a.1, rows)))
-      (candidateTupleCount a.2.1 a.2.2.1) ((a.2.1, a.2.2.1), a.2.2.2, none)).2.1.1 = a.2.1
-      by rw [hp]]
+  simp only [Function.comp_apply, countIn, initIn, run_eq, extract, selectBestTestRow]
+  rw [congrArg Prod.fst hp]
 
 /-- One fixed native selector for all encoded contexts. Empty candidate spaces return the zero
 row, exactly as `selectBestTestRow`; otherwise its first-minimum semantics are unchanged. -/
@@ -436,11 +433,10 @@ private theorem select_bounds {count : C × List (List Bool) → ℕ}
     (fun _ => by dsimp only [countIn]; omega) fun ⟨c, m, P, rows⟩ R hR j hj => ?_
   let st := IndexFold.run (step count) j (c, (m, P), rows, none)
   have hparams := run_params count c m P j rows
-  have hidx : st.1 = j := IndexFold.run_index (step count) j (c, (m, P), rows, none)
   have haug_st : augment st = (c, rows ++ [materializeTestRow m (decodeTestTuple m P j)]) := by
     simp only [augment, augCandidateRows, candRowOfState]
-    rw [hparams.1, hparams.2.2, hidx,
-      show st.2.2.1.1 = m by rw [hparams.2.1], show st.2.2.1.2 = P by rw [hparams.2.1]]
+    rw [hparams.1, hparams.2.2, IndexFold.run_index (step count) j (c, (m, P), rows, none),
+      congrArg Prod.fst hparams.2.1, congrArg Prod.snd hparams.2.1]
   exact haug_st ▸ hR j hj
 
 /-- Uniform selector time and polynomial workspace, measured in the full context/input encoding.
@@ -627,10 +623,9 @@ theorem computableInO_selectBestTestRow {countSys : List (List Bool) → ℕ}
   refine (h.comp' (unitInput encSelectBestIn)).mono_le (fun ⟨m, P, rows⟩ => ?_)
     fun ⟨m, P, rows⟩ => ?_
   all_goals
-    have hl : (encInput encUnit ((), m, P, rows)).length =
-        (encSelectBestIn (m, P, rows)).length + 1 := length_unitInput encSelectBestIn (m, P, rows)
     dsimp only
-    rw [hl]
+    rw [show (encInput encUnit ((), m, P, rows)).length =
+      (encSelectBestIn (m, P, rows)).length + 1 from length_unitInput encSelectBestIn (m, P, rows)]
   · nlinarith [Nat.zero_le (candidateTupleCount m P * (encSelectBestIn (m, P, rows)).length)]
   · omega
 
@@ -676,10 +671,8 @@ theorem computableInO_greedyParityRows {countSys : List (List Bool) → ℕ}
   refine (h.comp' (unitInput encGreedyIn)).mono_le (fun ⟨n, m, P, rows⟩ => ?_)
     fun ⟨n, m, P, rows⟩ => ?_
   all_goals
-    have hl : (encGreedyInput encUnit ((), n, m, P, rows)).length =
-        (encGreedyIn (n, m, P, rows)).length + 1 := length_unitInput encGreedyIn (n, m, P, rows)
     dsimp only
-    rw [hl]
+    rw [show (encGreedyInput encUnit ((), n, m, P, rows)).length = _ from length_unitInput _ _]
   · have hM : 1 ≤ (3 * n + 1) * (candidateTupleCount m P + 1) := Nat.mul_pos (by omega) (by omega)
     generalize (3 * n + 1) * (candidateTupleCount m P + 1) = M at hM ⊢
     nlinarith [Nat.mul_le_mul_right (encGreedyIn (n, m, P, rows)).length hM]

@@ -215,31 +215,21 @@ private lemma moveCounters_zero {m : ℕ} (cs : Fin m → ℕ) : moveCounters cs
 private lemma moveCounters_single_one {m : ℕ} (cs : Fin m → ℕ) (x : Fin m) :
     moveCounters cs (Pi.single x 1) = update cs x (cs x + 1) := by
   funext i
-  by_cases hi : i = x
-  · subst hi
-    simp [moveCounters]
-  · simp [moveCounters, hi]
+  rcases eq_or_ne i x with rfl | hi <;> simp [moveCounters, *]
 
 private lemma moveCounters_single_neg_one {m : ℕ} (cs : Fin m → ℕ) (x : Fin m) :
     moveCounters cs (Pi.single x (-1)) = update cs x (cs x - 1) := by
   funext i
-  by_cases hi : i = x
-  · subst hi
-    simp [moveCounters]
-    omega
+  rcases eq_or_ne i x with rfl | hi
+  · simp [moveCounters]; omega
   · simp [moveCounters, hi]
 
 private lemma moveCounters_transfer {m : ℕ} (cs : Fin m → ℕ) {x y : Fin m} (hxy : x ≠ y) :
     moveCounters cs (transfer x y) = update (update cs x (cs x - 1)) y (cs y + 1) := by
   funext i
-  by_cases hx : i = x
-  · subst hx
-    simp [moveCounters, transfer, hxy]
-    omega
-  · by_cases hy : i = y
-    · subst hy
-      simp [moveCounters, transfer, hx]
-    · simp [moveCounters, transfer, hx, hy]
+  rcases eq_or_ne i x with rfl | hx
+  · simp [moveCounters, transfer, hxy]; omega
+  · rcases eq_or_ne i y with rfl | hy <;> simp [moveCounters, transfer, *]
 
 /-- The first stage of tape `j`, or `finish` after the last tape. -/
 private def phaseAt (k j : ℕ) : Phase k := if h : j < k then .tape ⟨j, h⟩ else .finish
@@ -536,9 +526,7 @@ variable (tm : MultiTapeTM k Bool State) {input : List Bool}
 private lemma apply_workTapes (a : Action k Bool State) (c : Cfg k Bool State input) (j : Fin k) :
     (a.apply c).workTapes j =
       update (c.workTapes j) (c.workTapePos j) (written a c.workTapeSymbols j) := by
-  rcases h : (a.workTapes j).1 with _ | s
-  · simp [Action.apply, written, Cfg.workTapeSymbols, h]
-  · simp [Action.apply, written, h]
+  rcases h : (a.workTapes j).1 with _ | s <;> simp [Action.apply, written, Cfg.workTapeSymbols, h]
 
 /-- The simulator is at the start of a step of `tm` from `c`: the counters encode the work tapes
 of `c`, and the scratch counter is zero. -/

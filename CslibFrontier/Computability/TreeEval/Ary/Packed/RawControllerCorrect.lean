@@ -148,9 +148,8 @@ theorem toCfg_step_ofCfg (hd : 0 < d)
   | call c t =>
     cases hread : read (Ary.Iter.path st) with
     | leaf v =>
-      have hrp : reply.1 = 1 ∧ ∀ i : Fin r, (reply.2.getD i 0 : ZMod p) = e v i := by
+      obtain ⟨htag, hvalues⟩ : reply.1 = 1 ∧ ∀ i : Fin r, (reply.2.getD i 0 : ZMod p) = e v i := by
         simpa only [ReplyCorrect, hread] using hreply
-      obtain ⟨htag, hvalues⟩ := hrp
       rw [show reply = (1, reply.2) from Prod.ext htag rfl]
       exact toCfg_step_call_leaf hd e E (units p) read S st c t v reply.2 hread hvalues
     | none =>
@@ -188,11 +187,9 @@ theorem toCfg_step_ofCfg (hd : 0 < d)
       by_cases hu : fr.undo = true
       · by_cases hj : fr.child.val + 1 < d
         · let child : Fin d := ⟨fr.child.val + 1, hj⟩
-          have hreg : reg d fr.target.val (fr.child.val + 1) =
-              (Ary.reg fr.target child).val := reg_eq fr.target child
           rw [Ary.Iter.step_ret_undo_next hd e E (units p) read S fr st hu hj]
           simp only [step, hvalid, ↓reduceIte, stepCore, ofFrame, hu, hj, ↓reduceIte]
-          rw [hreg]
+          rw [reg_eq fr.target child]
           change toCfg p d r hd
             (scaleBank p r (reg d fr.target fr.child) (Reader.unitInv p fr.round) (ofRegs S),
               ({ fr with child := child, undo := true } :: st).map ofFrame,
@@ -213,12 +210,10 @@ theorem toCfg_step_ofCfg (hd : 0 < d)
       · have huf : fr.undo = false := Bool.eq_false_iff.mpr hu
         by_cases hj : fr.child.val + 1 < d
         · let child : Fin d := ⟨fr.child.val + 1, hj⟩
-          have hreg : reg d fr.target.val (fr.child.val + 1) =
-              (Ary.reg fr.target child).val := reg_eq fr.target child
           rw [Ary.Iter.step_ret_forward_next hd e E (units p) read S fr st huf hj]
           simp only [step, hvalid, ↓reduceIte, stepCore, ofFrame, huf, hj,
             Bool.false_eq_true, ↓reduceIte]
-          rw [hreg]
+          rw [reg_eq fr.target child]
           change toCfg p d r hd
             (scaleBank p r (reg d fr.target child) (fr.round + 1) (ofRegs S),
               ({ fr with child := child, undo := false } :: st).map ofFrame,
@@ -231,9 +226,7 @@ theorem toCfg_step_ofCfg (hd : 0 < d)
           rw [Ary.Iter.step_ret_forward_last hd e E (units p) read S fr st huf hj]
           simp only [step, hvalid, ↓reduceIte, stepCore, ofFrame, huf, hj,
             Bool.false_eq_true, ↓reduceIte]
-          have hreg : reg d fr.target.val 0 = (Ary.reg fr.target ⟨0, hd⟩).val :=
-            reg_eq fr.target ⟨0, hd⟩
-          rw [hreg]
+          rw [reg_eq fr.target ⟨0, hd⟩]
           change toCfg p d r hd
             (subBank p r fr.target fr.coeff.val reply.2 (ofRegs S),
               ({ fr with child := ⟨0, hd⟩, undo := true } :: st).map ofFrame,
@@ -355,12 +348,10 @@ private theorem canonical_ret {bank : List ℕ} {st : List Frame}
 omit [Fact p.Prime] in
 private theorem canonical_call {bank : List ℕ} {st : List Frame} {c t : ℕ}
     (hbank : CanonicalBank p d r bank) (hst : ∀ fr ∈ st, CanonicalFrame p d fr)
-    (hc : c < p) (ht : t < d + 1) : Canonical p d r (bank, st, some (c, t)) := by
-  refine ⟨hbank, hst, ?_⟩
-  intro c' t' h
-  simp only [State.mode, Option.some.injEq, Prod.mk.injEq] at h
-  rcases h with ⟨rfl, rfl⟩
-  exact ⟨hc, ht⟩
+    (hc : c < p) (ht : t < d + 1) : Canonical p d r (bank, st, some (c, t)) :=
+  ⟨hbank, hst, by
+    rintro _ _ ⟨rfl, rfl⟩
+    exact ⟨hc, ht⟩⟩
 
 private theorem canonical_beginRound (hd : 0 < d) {bank : List ℕ} {st : List Frame}
     (hbank : CanonicalBank p d r bank) (hst : ∀ fr ∈ st, CanonicalFrame p d fr)
@@ -425,11 +416,10 @@ private theorem canonical_ofCfg (q : Ary.Iter.Cfg (ZMod p) d r)
       typed.target.isLt⟩
   · cases hm : q.mode with
     | ret =>
-      intro c t h
-      simp only [ofCfg, ofMode, hm] at h
-      cases h
+      intro _ _ h
+      simp [ofCfg, ofMode, hm] at h
     | call c t =>
-      intro c' t' h
+      intro _ _ h
       simp only [ofCfg, ofMode, hm, State.mode, Option.some.injEq, Prod.mk.injEq] at h
       rcases h with ⟨rfl, rfl⟩
       exact ⟨ZMod.val_lt c, t.isLt⟩
@@ -443,10 +433,8 @@ theorem step_ofCfg (hd : 0 < d)
     (reply : Reply) (hreply : ReplyCorrect e E read q reply)
     (hround : ∀ fr ∈ q.stack, fr.round < p - 1) :
     step p d r reply (ofCfg q) = ofCfg (Ary.Iter.step hd e E (units p) read q) := by
-  have hcanonical := canonical_step hd reply (ofCfg q) (canonical_ofCfg q hround)
-  have heq := ofCfg_toCfg hd (step p d r reply (ofCfg q)) hcanonical
-  rw [toCfg_step_ofCfg hd e E read q reply hreply hround] at heq
-  exact heq.symm
+  rw [← ofCfg_toCfg hd _ (canonical_step hd reply (ofCfg q) (canonical_ofCfg q hround)),
+    toCfg_step_ofCfg hd e E read q reply hreply hround]
 
 /-- Every consecutive raw transition realizes the existing iterative controller, from its
 canonical initial representation, when each requested reply satisfies its explicit contract. -/
@@ -487,8 +475,7 @@ theorem exists_iterate_step_root (hd : 0 < d)
   rw [iterate_step_ofCfg hd e E T.nodeAt (Ary.Iter.initialCfg S c t) answer hanswer]
   · rw [hN]
   · intro n fr hfr
-    have hbounds := Ary.Iter.runFrom_initial_bounds T hd e E (units p) S c t n
-    have hr := hbounds.2 fr hfr
-    simpa only [units, List.length_map, List.length_range] using hr
+    simpa only [units, List.length_map, List.length_range] using
+      (Ary.Iter.runFrom_initial_bounds T hd e E (units p) S c t n).2 fr hfr
 
 end Cslib.TreeEval.Ary.Packed.RawController

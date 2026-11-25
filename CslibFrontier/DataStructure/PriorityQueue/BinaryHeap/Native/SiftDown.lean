@@ -96,9 +96,7 @@ instance (d : Argument) (k : ℕ) : Decidable (guard d k) :=
 /-- Positive positions turn the source multiplication test into a native threshold test. -/
 theorem guard_iff {d : Argument} {k : ℕ} (ht : d.control = d.size / 2 + 1) (hk : 1 ≤ k) :
     guard d k ↔ 1 ≤ k ∧ 2 * k ≤ d.size := by
-  unfold guard
-  rw [ht]
-  omega
+  simp only [guard, ht]; omega
 
 /-- Every child edge increases the base-two logarithm by exactly one. -/
 private theorem log_child {k c : ℕ} (hk : 1 ≤ k) (hc : c / 2 = k) :
@@ -131,10 +129,9 @@ theorem finish_loop_eq (d : Argument) (ht : d.control = d.size / 2 + 1) (fuel k 
       split
       · simp only [bind_assoc, pure_bind]
         congr 1 with _ : 1
-        apply ih c (by omega)
         have hl := log_child hk hc
         have hm := Nat.log_mono_right (b := 2) hcS
-        omega
+        exact ih c (by omega) (by omega)
       · simp only [pure_bind, boundedWhile_of_not guard step d fuel (d.size + 1) hstop]
     rw [BinaryHeap.Memory.siftDown]
     by_cases hg : guard d k
@@ -193,12 +190,10 @@ theorem step_triple {w : ℕ} {d : Argument} {k : ℕ} {s : Memory.State}
     split
     · obtain ⟨hshape', -, -, -, -, -⟩ :=
         hshape.swap (a := k) (b := c) hk (by omega) hc1 hcS (by omega)
-      refine BinaryHeap.Memory.swap_bind hn hA (by omega) (by omega) hvk hvc <|
-        Triple.pure ?_
-      refine ⟨⟨ht, hn, hA, hshape', hc1, by omega⟩, ?_⟩
       have hl := log_child hk hc
       have hm := Nat.log_mono_right (b := 2) hcS
-      wram_omega
+      exact BinaryHeap.Memory.swap_bind hn hA (by omega) (by omega) hvk hvc <|
+        Triple.pure ⟨⟨ht, hn, hA, hshape', hc1, Nat.le_succ_of_le hcS⟩, by wram_omega⟩
     · refine Triple.pure ⟨⟨ht, hn, hA, hshape, by omega, le_rfl⟩, ?_⟩
       have hm : Nat.log 2 d.size ≤ Nat.log 2 (d.size + 1) := Nat.log_mono_right (by omega)
       unfold rank; omega
@@ -328,9 +323,7 @@ theorem exec_siftDown {r : ℕ} (frontier : Fin r) (src : Fin 6 → Fin r)
       HeapInv n L.base S y.mem ∧
       BinaryHeap.Memory.Rearranges L (memoryState frontier x) (memoryState frontier y) ∧
       ∀ i, i ≠ frontier → (∀ j, tmp j ≠ i) → y.regs i = x.regs i := by
-  have hn : Fits w n := by
-    have h : Fits w ((x.regs ∘ src) 0) := hx.1 (src 0)
-    rwa [hin] at h
+  have hn : Fits w n := Eq.mp (congrArg (Fits w) (congrFun hin 0)) (hx.1 (src 0))
   obtain ⟨hv, hc, hpost⟩ := triple_iff.mp
     (BinaryHeap.Memory.siftDown_triple hn hA hkS hshape hord)
   have hI : Safe w (((⟨n, L⟩ : HeapLayout), S), k) (memoryState frontier x) :=
