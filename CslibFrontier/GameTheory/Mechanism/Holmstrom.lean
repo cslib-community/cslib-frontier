@@ -99,25 +99,15 @@ theorem IsSmoothlyConnected.of_convex [Finite Ω] {S : Set (Ω → ℝ)} (hS : C
   have := Fintype.ofFinite Ω
   intro v₀ hv₀ v₁ hv₁
   refine ⟨fun t => (1 - t) • v₀ + t • v₁, fun _ ω => v₁ ω - v₀ ω,
-    Finset.univ.fold max 0 (fun ω => |v₁ ω - v₀ ω|), ?_, ?_, ?_, ?_, ?_⟩
-  · ext ω; simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, sub_zero, one_mul, zero_mul,
-      add_zero]
-  · ext ω; simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, sub_self, zero_mul, one_mul,
-      zero_add]
-  · intro t ht
-    exact hS hv₀ hv₁ (sub_nonneg.2 ht.2) ht.1 (by ring)
-  · intro ω t _
-    have h1 : HasDerivAt (fun s : ℝ => ((1 - s) • v₀ + s • v₁) ω) (v₁ ω - v₀ ω) t := by
-      have ha := ((hasDerivAt_const t (1 : ℝ)).fun_sub (hasDerivAt_id t)).mul_const (v₀ ω)
-      have hb := (hasDerivAt_id t).mul_const (v₁ ω)
-      have hab : HasDerivAt (fun s : ℝ => (1 - s) * v₀ ω + s * v₁ ω)
-          ((0 - 1) * v₀ ω + 1 * v₁ ω) t := ha.fun_add hb
-      have hring : (0 - 1) * v₀ ω + 1 * v₁ ω = v₁ ω - v₀ ω := by ring
-      rw [hring] at hab
-      exact hab
-    exact h1.hasDerivWithinAt
-  · intro ω _ _
-    exact (Finset.le_fold_max _).2 (Or.inr ⟨ω, Finset.mem_univ ω, le_rfl⟩)
+    Finset.univ.fold max 0 (fun ω => |v₁ ω - v₀ ω|),
+    by simp only [sub_zero, one_smul, zero_smul, add_zero],
+    by simp only [sub_self, zero_smul, one_smul, zero_add],
+    fun t ht => hS hv₀ hv₁ (sub_nonneg.2 ht.2) ht.1 (by ring), fun ω t _ => ?_,
+    fun ω _ _ => (Finset.le_fold_max _).2 (Or.inr ⟨ω, Finset.mem_univ ω, le_rfl⟩)⟩
+  have h := (((hasDerivAt_const t (1 : ℝ)).fun_sub (hasDerivAt_id t)).mul_const (v₀ ω)).fun_add
+    ((hasDerivAt_id t).mul_const (v₁ ω))
+  rw [show (0 - 1) * v₀ ω + 1 * v₁ ω = v₁ ω - v₀ ω by ring] at h
+  exact h.hasDerivWithinAt
 
 /-! ### Payment uniqueness along convex segments and smooth curves -/
 
@@ -149,39 +139,29 @@ private theorem utility_curve_properties [DecidableEq ι] {M : Mechanism ι Ω} 
       ∀ t ∈ Ioo (0 : ℝ) 1, DifferentiableAt ℝ U t →
         HasDerivAt U (γ' t (M.outcome (Function.update b i (γ t)))) t := by
   intro U
-  have hlip_coord : ∀ (ω : Ω) {s t : ℝ}, s ∈ Icc (0 : ℝ) 1 → t ∈ Icc (0 : ℝ) 1 →
+  have hlip_coord (ω : Ω) {s t : ℝ} (hs : s ∈ Icc (0 : ℝ) 1) (ht : t ∈ Icc (0 : ℝ) 1) :
       |γ s ω - γ t ω| ≤ K * |s - t| := by
-    intro ω s t hs ht
-    have h := Convex.norm_image_sub_le_of_norm_hasDerivWithin_le
+    simpa only [Real.norm_eq_abs] using Convex.norm_image_sub_le_of_norm_hasDerivWithin_le
       (f := fun r => γ r ω) (f' := fun r => γ' r ω) (s := Icc 0 1) (C := K)
-      (fun r hr => hγd ω r hr) (fun r hr => by rw [Real.norm_eq_abs]; exact hγK ω r hr)
+      (fun r hr => hγd ω r hr) (fun r hr => (Real.norm_eq_abs _).trans_le (hγK ω r hr))
       (convex_Icc 0 1) ht hs
-    simpa only [Real.norm_eq_abs] using h
   have hlipU : LipschitzOnWith (⟨K, hK0⟩ : NNReal) U (uIcc 0 1) := by
     rw [uIcc_of_le zero_le_one]
     refine lipschitzOnWith_iff_dist_le_mul.2 fun s hs t ht => ?_
     change |M.utility i (γ s) (Function.update b i (γ s)) -
       M.utility i (γ t) (Function.update b i (γ t))| ≤ K * |s - t|
-    have h1 := dsic_utility_sandwich hM hb (hγV s hs) (hγV t ht)
-    have h2 := dsic_utility_sandwich hM hb (hγV t ht) (hγV s hs)
-    have hb1 := hlip_coord (M.outcome (Function.update b i (γ t))) hs ht
-    have hb2 := hlip_coord (M.outcome (Function.update b i (γ s))) hs ht
-    rw [abs_le] at hb1 hb2 ⊢
-    constructor <;> linarith
+    have hb1 := abs_le.1 (hlip_coord (M.outcome (Function.update b i (γ t))) hs ht)
+    have hb2 := abs_le.1 (hlip_coord (M.outcome (Function.update b i (γ s))) hs ht)
+    exact abs_le.2 ⟨by linarith [dsic_utility_sandwich hM hb (hγV s hs) (hγV t ht)],
+      by linarith [dsic_utility_sandwich hM hb (hγV t ht) (hγV s hs)]⟩
   refine ⟨hlipU.absolutelyContinuousOnInterval, fun t ht hdiff => ?_⟩
   set ω₀ := M.outcome (Function.update b i (γ t))
   have hγt : HasDerivAt (fun s => γ s ω₀) (γ' t ω₀) t :=
     (hγd ω₀ t (Ioo_subset_Icc_self ht)).hasDerivAt (Icc_mem_nhds ht.1 ht.2)
   have hmin : IsLocalMin (fun s => U s - γ s ω₀) t := by
     filter_upwards [Icc_mem_nhds ht.1 ht.2] with s hs
-    have h := dsic_utility_sandwich hM hb (hγV s hs) (hγV t (Ioo_subset_Icc_self ht))
-    linarith
-  have hderiv : HasDerivAt (fun s => U s - γ s ω₀) (deriv U t - γ' t ω₀) t :=
-    hdiff.hasDerivAt.sub hγt
-  have hzero : deriv U t - γ' t ω₀ = 0 := hmin.hasDerivAt_eq_zero hderiv
-  have heq : deriv U t = γ' t ω₀ := sub_eq_zero.1 hzero
-  rw [← heq]
-  exact hdiff.hasDerivAt
+    linarith [dsic_utility_sandwich hM hb (hγV s hs) (hγV t (Ioo_subset_Icc_self ht))]
+  exact sub_eq_zero.1 (hmin.hasDerivAt_eq_zero (hdiff.hasDerivAt.sub hγt)) ▸ hdiff.hasDerivAt
 
 /-- **DSIC payment uniqueness on smoothly connected domains** ([Holmstrom1979]; locator not
 re-verified against primary PDF): if two DSIC mechanisms `M₁, M₂` on `V` share the same outcome
@@ -193,34 +173,27 @@ theorem payment_sub_eq_of_isSmoothlyConnected [DecidableEq ι] {M₁ M₂ : Mech
     M₁.payment (Function.update b i v₁) i - M₂.payment (Function.update b i v₁) i =
       M₁.payment (Function.update b i v₀) i - M₂.payment (Function.update b i v₀) i := by
   obtain ⟨γ, γ', K, hγ0, hγ1, hγV, hγd, hγK⟩ := hV v₀ hv₀ v₁ hv₁
-  set K' := max K 0
-  have hK'0 : 0 ≤ K' := le_max_right K 0
-  have hγK' : ∀ (ω : Ω) (t : ℝ), t ∈ Icc (0 : ℝ) 1 → |γ' t ω| ≤ K' := fun ω t ht =>
+  have hγK' : ∀ (ω : Ω) (t : ℝ), t ∈ Icc (0 : ℝ) 1 → |γ' t ω| ≤ max K 0 := fun ω t ht =>
     (hγK ω t ht).trans (le_max_left K 0)
-  obtain ⟨hAC₁, hD₁⟩ := utility_curve_properties hM₁ hb hK'0 hγV hγd hγK'
-  obtain ⟨hAC₂, hD₂⟩ := utility_curve_properties hM₂ hb hK'0 hγV hγd hγK'
+  obtain ⟨hAC₁, hD₁⟩ := utility_curve_properties hM₁ hb (le_max_right K 0) hγV hγd hγK'
+  obtain ⟨hAC₂, hD₂⟩ := utility_curve_properties hM₂ hb (le_max_right K 0) hγV hγd hγK'
   set U₁ : ℝ → ℝ := fun t => M₁.utility i (γ t) (Function.update b i (γ t))
   set U₂ : ℝ → ℝ := fun t => M₂.utility i (γ t) (Function.update b i (γ t))
-  have hAC : AbsolutelyContinuousOnInterval (fun t => U₁ t - U₂ t) 0 1 := hAC₁.sub hAC₂
-  have hne01 : ∀ᵐ t : ℝ, t ≠ 0 ∧ t ≠ 1 := by
-    have h0 : ∀ᵐ t : ℝ, t ≠ 0 := by
-      rw [ae_iff]; simp only [ne_eq, not_not, ofPred_eq_eq_singleton, Real.volume_singleton]
-    have h1 : ∀ᵐ t : ℝ, t ≠ 1 := by
-      rw [ae_iff]; simp only [ne_eq, not_not, ofPred_eq_eq_singleton, Real.volume_singleton]
-    filter_upwards [h0, h1] with t ht0 ht1 using ⟨ht0, ht1⟩
+  have hae_ne (c : ℝ) : ∀ᵐ t : ℝ, t ≠ c := by
+    rw [ae_iff]
+    simp only [ne_eq, not_not, ofPred_eq_eq_singleton, Real.volume_singleton]
   have hzero : ∀ᵐ t : ℝ, t ∈ uIcc (0 : ℝ) 1 → HasDerivAt (fun s => U₁ s - U₂ s) 0 t := by
-    filter_upwards [hAC₁.ae_differentiableAt, hAC₂.ae_differentiableAt, hne01] with t hd₁ hd₂ hne ht
+    filter_upwards [hAC₁.ae_differentiableAt, hAC₂.ae_differentiableAt, hae_ne 0, hae_ne 1]
+      with t hd₁ hd₂ ht0 ht1 ht
     have ht' : t ∈ Ioo (0 : ℝ) 1 := by
       rw [uIcc_of_le zero_le_one] at ht
-      exact ⟨lt_of_le_of_ne ht.1 hne.1.symm, lt_of_le_of_ne ht.2 hne.2⟩
+      exact ⟨lt_of_le_of_ne ht.1 ht0.symm, lt_of_le_of_ne ht.2 ht1⟩
     have h1 := hD₁ t ht' (hd₁ ht)
-    have h2 := hD₂ t ht' (hd₂ ht)
     rw [hout] at h1
-    simpa only [sub_self] using h1.fun_sub h2
-  obtain ⟨C, hC⟩ := hAC.const_of_ae_hasDerivAt_zero hzero
-  have h0C := hC 0 (by rw [uIcc_of_le zero_le_one]; exact ⟨le_rfl, zero_le_one⟩)
-  have h1C := hC 1 (by rw [uIcc_of_le zero_le_one]; exact ⟨zero_le_one, le_rfl⟩)
-  have hdiff : U₁ 1 - U₂ 1 = U₁ 0 - U₂ 0 := h1C.trans h0C.symm
+    simpa only [sub_self] using h1.fun_sub (hD₂ t ht' (hd₂ ht))
+  obtain ⟨C, hC⟩ := (hAC₁.sub hAC₂).const_of_ae_hasDerivAt_zero hzero
+  have hdiff : U₁ 1 - U₂ 1 = U₁ 0 - U₂ 0 :=
+    (hC 1 right_mem_uIcc).trans (hC 0 left_mem_uIcc).symm
   simp only [U₁, U₂, utility, hγ0, hγ1, hout] at hdiff
   linarith
 
@@ -238,12 +211,8 @@ theorem payment_sub_eq_of_convex [DecidableEq ι] {M₁ M₂ : Mechanism ι Ω}
     M₁.payment (Function.update b i v₁) i - M₂.payment (Function.update b i v₁) i =
       M₁.payment (Function.update b i v₀) i - M₂.payment (Function.update b i v₀) i := by
   let γ : ℝ → Ω → ℝ := fun t => (1 - t) • v₀ + t • v₁
-  have hγ0 : γ 0 = v₀ := by
-    ext ω; simp only [γ, Pi.add_apply, Pi.smul_apply, smul_eq_mul, sub_zero, one_mul, zero_mul,
-      add_zero]
-  have hγ1 : γ 1 = v₁ := by
-    ext ω; simp only [γ, Pi.add_apply, Pi.smul_apply, smul_eq_mul, sub_self, zero_mul, one_mul,
-      zero_add]
+  have hγ0 : γ 0 = v₀ := by simp only [γ, sub_zero, one_smul, zero_smul, add_zero]
+  have hγ1 : γ 1 = v₁ := by simp only [γ, sub_self, zero_smul, one_smul, zero_add]
   have hγV : ∀ t ∈ Icc (0 : ℝ) 1, γ t ∈ V i := fun t ht =>
     hV hv₀ hv₁ (sub_nonneg.2 ht.2) ht.1 (by ring)
   let X : ℝ → ℝ := fun t =>
@@ -252,16 +221,15 @@ theorem payment_sub_eq_of_convex [DecidableEq ι] {M₁ M₂ : Mechanism ι Ω}
       SingleParameter.IsTruthfulOn X
         (fun t => M.payment (Function.update b i (γ t)) i -
           v₀ (M₁.outcome (Function.update b i (γ t))))
-        (Icc 0 1) := by
-    intro t ht s hs
+        (Icc 0 1) := fun t ht s hs => by
     have hbs : ∀ j, Function.update b i (γ s) j ∈ V j := fun j => by
       rcases eq_or_ne j i with rfl | hj
-      · rw [Function.update_self]; exact hγV s hs
-      · rw [Function.update_of_ne hj]; exact hb j
+      · simpa only [Function.update_self] using hγV s hs
+      · simpa only [Function.update_of_ne hj] using hb j
     have h := hM i (Function.update b i (γ s)) (γ t) hbs (hγV t ht)
     simp only [utility, Function.update_idem, γ, Pi.add_apply, Pi.smul_apply, smul_eq_mul,
       houtM] at h
-    simp only [X]
+    dsimp only [X]
     linarith
   have hP₁ := (hT M₁ rfl hM₁).payment_eq (v := 1) ⟨zero_le_one, le_rfl⟩
   have hP₂ := (hT M₂ hout.symm hM₂).payment_eq (v := 1) ⟨zero_le_one, le_rfl⟩
@@ -370,16 +338,9 @@ agent `0` the amount `3/2` when `true` is chosen (instead of the Groves external
 theorem disconnectedNonGroves_isWelfareMaximizingOn :
     IsWelfareMaximizingOn disconnectedNonGroves.outcome disconnectedDomains := by
   intro b _ ω
-  simp only [disconnectedNonGroves]
-  by_cases h : welfare b false ≤ welfare b true
-  · rw [decide_eq_true h]
-    cases ω
-    · exact h
-    · exact le_rfl
-  · rw [decide_eq_false h]
-    cases ω
-    · exact le_rfl
-    · exact (not_le.1 h).le
+  by_cases h : welfare b false ≤ welfare b true <;> cases ω <;>
+    simp only [disconnectedNonGroves, h, decide_true, decide_false, le_refl, le_of_not_ge,
+      not_false_eq_true]
 
 /-- `disconnectedNonGroves` is DSIC on the disconnected domain `disconnectedDomains`:
 type `0` prefers `(false, 0)` over `(true, 3/2)` (`0 ≥ -3/2`), while type `2` prefers
@@ -391,21 +352,18 @@ theorem disconnectedNonGroves_isDSICOn :
     simpa only [disconnectedDomains, Matrix.cons_val_zero, Set.mem_insert_iff,
       Set.mem_singleton_iff] using hb 0
   have hb1 : b 1 = twoOutcomeVal (-1) := Set.mem_singleton_iff.1 (hb 1)
-  rcases (show i = 0 ∨ i = 1 by fin_cases i <;> decide) with rfl | rfl
-  · have hv0 : v = twoOutcomeVal 0 ∨ v = twoOutcomeVal 2 := by
+  rcases i with ⟨_ | _ | n, hn⟩
+  · rw [Fin.zero_eta] at hv ⊢
+    have hv0 : v = twoOutcomeVal 0 ∨ v = twoOutcomeVal 2 := by
       simpa only [disconnectedDomains, Matrix.cons_val_zero, Set.mem_insert_iff,
         Set.mem_singleton_iff] using hv
-    rcases hb0 with hb0 | hb0 <;> rcases hv0 with rfl | rfl
-    · rw [← hb0, Function.update_eq_self]
-    · simp only [utility, disconnectedNonGroves, welfare, Fin.sum_univ_two, Function.update_self,
-        Function.update_of_ne (by decide : (1 : Fin 2) ≠ 0), hb0, hb1, twoOutcomeVal]
-      norm_num
-    · simp only [utility, disconnectedNonGroves, welfare, Fin.sum_univ_two, Function.update_self,
-        Function.update_of_ne (by decide : (1 : Fin 2) ≠ 0), hb0, hb1, twoOutcomeVal]
-      norm_num
-    · rw [← hb0, Function.update_eq_self]
-  · have hv1 : v = twoOutcomeVal (-1) := Set.mem_singleton_iff.1 hv
-    rw [hv1, ← hb1, Function.update_eq_self]
+    simp only [utility, disconnectedNonGroves, welfare, Fin.sum_univ_two, Function.update_self,
+      Function.update_of_ne (by decide : (1 : Fin 2) ≠ 0), hb1, true_and]
+    rcases hb0 with hb0 | hb0 <;> rcases hv0 with rfl | rfl <;>
+      rw [hb0] <;> norm_num [twoOutcomeVal]
+  · rw [Fin.mk_one] at hv ⊢
+    rw [Set.mem_singleton_iff.1 hv, ← hb1, Function.update_eq_self]
+  · omega
 
 /-- **Connectedness is necessary for Groves uniqueness**: `disconnectedNonGroves` is DSIC and
 welfare-maximizing on `disconnectedDomains`, yet no Groves pivot `h` reproduces its payments on
@@ -419,25 +377,13 @@ theorem disconnectedNonGroves_not_groves :
   rintro ⟨h, hh, hpay⟩
   let bLo : Fin 2 → Bool → ℝ := ![twoOutcomeVal 0, twoOutcomeVal (-1)]
   let bHi : Fin 2 → Bool → ℝ := ![twoOutcomeVal 2, twoOutcomeVal (-1)]
-  have hbLo : ∀ j, bLo j ∈ disconnectedDomains j := fun j => by
-    fin_cases j
-    · exact Or.inl rfl
-    · exact rfl
-  have hbHi : ∀ j, bHi j ∈ disconnectedDomains j := fun j => by
-    fin_cases j
-    · exact Or.inr rfl
-    · exact rfl
-  have hupd : Function.update bLo 0 (twoOutcomeVal 2) = bHi := by
-    funext j
-    fin_cases j <;> rfl
+  have hLo := hpay bLo (fun j => by fin_cases j <;> [exact Or.inl rfl; exact rfl]) 0
+  have hHi := hpay bHi (fun j => by fin_cases j <;> [exact Or.inr rfl; exact rfl]) 0
   have h0eq : h 0 bHi = h 0 bLo := by
-    rw [← hupd, hh]
-  have hLo := hpay bLo hbLo 0
-  have hHi := hpay bHi hbHi 0
-  have herase : (Finset.univ : Finset (Fin 2)).erase 0 = {1} := by decide
-  simp only [groves, disconnectedNonGroves, welfare, Fin.sum_univ_two, herase,
-    Finset.sum_singleton, bLo, bHi, Matrix.cons_val_zero, Matrix.cons_val_one,
-    twoOutcomeVal] at hLo hHi
+    rw [show bHi = Function.update bLo 0 (twoOutcomeVal 2) by funext j; fin_cases j <;> rfl, hh]
+  simp only [groves, disconnectedNonGroves, welfare, Fin.sum_univ_two,
+    show (Finset.univ : Finset (Fin 2)).erase 0 = {1} by decide, Finset.sum_singleton, bLo, bHi,
+    Matrix.cons_val_zero, Matrix.cons_val_one, twoOutcomeVal] at hLo hHi
   norm_num at hLo hHi
   linarith
 
@@ -446,22 +392,14 @@ continuous coordinate function `t ↦ γ t true` staying in `{0, 2}` cannot conn
 theorem not_isSmoothlyConnected_disconnectedDomains :
     ¬ IsSmoothlyConnected (disconnectedDomains 0) := by
   intro hsc
-  obtain ⟨γ, γ', _, h0, h1, hmem, hderiv, _⟩ :=
+  obtain ⟨γ, _, _, h0, h1, hmem, hderiv, _⟩ :=
     hsc (twoOutcomeVal 0) (Or.inl rfl) (twoOutcomeVal 2) (Or.inr rfl)
-  have hcont : ContinuousOn (fun t => γ t true) (Icc 0 1) :=
-    fun t ht => (hderiv true t ht).continuousWithinAt
-  have hvals : ∀ t ∈ Icc (0 : ℝ) 1, γ t true = 0 ∨ γ t true = 2 := fun t ht => by
-    have hmem' : γ t = twoOutcomeVal 0 ∨ γ t = twoOutcomeVal 2 := by
-      simpa only [disconnectedDomains, Matrix.cons_val_zero, Set.mem_insert_iff,
-        Set.mem_singleton_iff] using hmem t ht
-    rcases hmem' with h | h
-    · left; simp only [h, twoOutcomeVal, ↓reduceIte]
-    · right; simp only [h, twoOutcomeVal, ↓reduceIte]
-  have h0' : γ 0 true = 0 := by simp only [h0, twoOutcomeVal, ↓reduceIte]
-  have h1' : γ 1 true = 2 := by simp only [h1, twoOutcomeVal, ↓reduceIte]
-  have hivt := intermediate_value_Icc zero_le_one hcont
-  have hmem1 : (1 : ℝ) ∈ Icc (γ 0 true) (γ 1 true) := by rw [h0', h1']; norm_num
-  obtain ⟨t, ht, hteq⟩ := hivt hmem1
-  rcases hvals t ht with h | h <;> linarith
+  obtain ⟨t, ht, hteq⟩ := intermediate_value_Icc zero_le_one
+    (fun t ht => (hderiv true t ht).continuousWithinAt)
+    (by simp only [h0, h1, twoOutcomeVal, ↓reduceIte]; norm_num : (1 : ℝ) ∈ Icc _ _)
+  have hmem' : γ t = twoOutcomeVal 0 ∨ γ t = twoOutcomeVal 2 := by
+    simpa only [disconnectedDomains, Matrix.cons_val_zero, Set.mem_insert_iff,
+      Set.mem_singleton_iff] using hmem t ht
+  rcases hmem' with h | h <;> simp only [h, twoOutcomeVal, ↓reduceIte] at hteq <;> linarith
 
 end Cslib.GameTheory.Mechanism

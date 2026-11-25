@@ -125,10 +125,8 @@ private theorem inChild_correct (right : Bool) (body : Code M (layout extra (reg
   obtain ⟨-, -, no, -, dis⟩ := (nodeAt_distinct_iff ..).mp distinct
   have nav : (Op.loadPtr 0 (childField right) 0).effect s = s.setPtr 0 (some o) := by
     cases right <;> simp [pm_simps, State.deref, cursor, hl, record, childField, hroot]
-  obtain ⟨nl, c, d, rfl⟩ : ∃ nl c d, new = .node nl c d := by
-    cases new with
-    | nil => exact (nonempty rfl).elim
-    | node nl c d => exact ⟨nl, c, d, rfl⟩
+  rcases new with _ | ⟨nl, c, d⟩
+  · exact (nonempty rfl).elim
   have tcur : t.ptr 0 = some nl.address := built.cursor
   have read : t.deref 0 = some (record (root c) (root d) (some label.address) nl) := by
     simp [State.deref, tcur, built.rep.1]
@@ -147,21 +145,17 @@ private theorem inChild_correct (right : Bool) (body : Code M (layout extra (reg
     distinct built.rep built.distinct (by simpa only [built.footprint] using no)
     (by simpa only [built.footprint] using dis) built.frame
   rw [fieldEq, tcur] at heap
-  have repU : Represents u.heap parent (nodeAt right label (.node nl c d) sibling) := by
-    rw [heap]
-    exact semantic.1
+  have repU : Represents u.heap parent (nodeAt right label (.node nl c d) sibling) :=
+    heap ▸ semantic.1
   have back : (Op.loadPtr 0 2 0).effect u = u.setPtr 0 (some label.address) := by
     have ucur : u.ptr 0 = some nl.address :=
       (ptr 0 (by simp [layout]) (by simp [layout]) (by simp [layout])).trans tcur
-    have child := ((represents_nodeAt_iff ..).mp repU).2.1.1
-    simp [pm_simps, State.deref, ucur, child, record]
-  refine ⟨_, (ExecWithin.seq (ExecWithin.op_eq nav) (ExecWithin.seq bodyExec
-    (ExecWithin.seq connected (ExecWithin.op_eq back)))).mono (by omega), repU, semantic.2.1,
-    by simp, ?_, fun z hz => ?_⟩
-  · have keep := ptr 1 (by simp [layout]) (by simp [layout]) (by simp [layout])
-    simpa [keep] using built.top
-  · rw [State.heap_setPtr, heap]
-    exact semantic.2.2 z hz
+    simp [pm_simps, State.deref, ucur, ((represents_nodeAt_iff ..).mp repU).2.1.1, record]
+  exact ⟨_, (ExecWithin.seq (ExecWithin.op_eq nav) (ExecWithin.seq bodyExec
+      (ExecWithin.seq connected (ExecWithin.op_eq back)))).mono (by omega), repU, semantic.2.1,
+    by simp, by simpa [ptr 1 (by simp [layout]) (by simp [layout]) (by simp [layout])] using
+      built.top,
+    fun z hz => by rw [State.heap_setPtr, heap]; exact semantic.2.2 z hz⟩
 
 /-- A double rotation: promote the inner grandchild twice. -/
 private theorem double_correct (right : Bool) (zero maxSucc : M.Op) (encode : ℕ → M.Value)
@@ -425,9 +419,8 @@ theorem balance_correct (zero maxSucc : M.Op) (heavy le : M.Test) (encode : ℕ 
   cases tree with
   | node => simp [root]
   | nil =>
-    have matched := built.matched
     cases eq : AVLTree.balance (label.data 0) A B with
     | nil => exact (balance_ne_nil _ _ _ eq).elim
-    | node => simp [eq, Matches] at matched
+    | node => exact absurd built.matched (by simp [eq, Matches])
 
 end Cslib.DataStructure.AVLTree.PointerMachine.Structured
