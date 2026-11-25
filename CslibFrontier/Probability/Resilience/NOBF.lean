@@ -90,15 +90,13 @@ noncomputable def extendUniform (Q : Finset ι) (D' : PMF (↥Qᶜ → Bool)) :
         (fun v i => if h : i ∈ Q then v ⟨i, h⟩ else u ⟨i, mem_compl.mpr h⟩)).map
           Qᶜ.restrict = PMF.pure u := by
     rw [PMF.map_comp]
-    have hfun : (fun (v : ↥Q → Bool) => Qᶜ.restrict fun i =>
-        if h : i ∈ Q then v ⟨i, h⟩ else u ⟨i, mem_compl.mpr h⟩) = Function.const _ u := by
-      funext _ ⟨i, hi⟩
-      dsimp only [Function.const_apply, Finset.restrict]
-      rw [dite_eq_right (fun h => absurd h (mem_compl.mp hi))]
     change PMF.map (fun (v : ↥Q → Bool) => Qᶜ.restrict fun i =>
         if h : i ∈ Q then v ⟨i, h⟩ else u ⟨i, mem_compl.mpr h⟩)
       (PMF.uniformOfFintype (↥Q → Bool)) = PMF.pure u
-    rw [hfun, PMF.map_const]
+    rw [show (fun (v : ↥Q → Bool) => Qᶜ.restrict fun i =>
+        if h : i ∈ Q then v ⟨i, h⟩ else u ⟨i, mem_compl.mpr h⟩) = Function.const _ u by
+      funext _ ⟨i, hi⟩
+      exact dite_eq_right fun h => absurd h (mem_compl.mp hi), PMF.map_const]
   simp_rw [hinner, PMF.bind_pure]
 
 /-- Any restriction `D.map T.restrict` preserves `k`-wise `ε`-bias. -/
@@ -132,26 +130,19 @@ theorem bias_extendUniform_of_not_disjoint {Q S : Finset ι} (hSQ : ¬Disjoint S
     have h1 : (∏ i ∈ S.filter (· ∈ Q),
         (-1 : ℝ) ^ ((if h : i ∈ Q then v ⟨i, h⟩ else u ⟨i, mem_compl.mpr h⟩).toNat)) =
         chi ℝ S_Q v := by
-      have hmap : S_Q.map (Function.Embedding.subtype (· ∈ Q)) = S.filter (· ∈ Q) := by
-        ext i
-        simp [S_Q]
-      rw [← hmap, prod_map, chi]
-      refine prod_congr rfl fun j _ => ?_
-      simp [j.2]
+      rw [← show S_Q.map (Function.Embedding.subtype (· ∈ Q)) = S.filter (· ∈ Q) by ext; simp [S_Q],
+        prod_map, chi]
+      exact prod_congr rfl fun j _ => by simp [j.2]
     have h2 : (∏ i ∈ S.filter (· ∉ Q),
-        (-1 : ℝ) ^ ((if h : i ∈ Q then v ⟨i, h⟩ else u ⟨i, mem_compl.mpr h⟩).toNat)) = c := by
-      refine prod_congr rfl fun i hi => ?_
-      have hiQ : i ∉ Q := (mem_filter.mp hi).2
-      simp [hiQ]
+        (-1 : ℝ) ^ ((if h : i ∈ Q then v ⟨i, h⟩ else u ⟨i, mem_compl.mpr h⟩).toNat)) = c :=
+      prod_congr rfl fun i hi => by simp [(mem_filter.mp hi).2]
     rw [h1, h2, mul_comm]
-  calc ∑ v : ↥Q → Bool, (PMF.uniformOfFintype (↥Q → Bool) v).toReal *
-        chi ℝ S (fun i => if h : i ∈ Q then v ⟨i, h⟩ else u ⟨i, mem_compl.mpr h⟩)
-      = c * ∑ v : ↥Q → Bool, (PMF.uniformOfFintype (↥Q → Bool) v).toReal * chi ℝ S_Q v := by
-        rw [mul_sum]
-        refine sum_congr rfl fun v _ => by rw [hchi v]; ring
-    _ = c * 0 := by
-        rw [sum_uniformOfFintype_mul, expect_chi, ite_eq_right hS_Q_ne.ne_empty]
-    _ = 0 := mul_zero c
+  rw [show (∑ v : ↥Q → Bool, (PMF.uniformOfFintype (↥Q → Bool) v).toReal *
+      chi ℝ S (fun i => if h : i ∈ Q then v ⟨i, h⟩ else u ⟨i, mem_compl.mpr h⟩)) =
+      c * ∑ v : ↥Q → Bool, (PMF.uniformOfFintype (↥Q → Bool) v).toReal * chi ℝ S_Q v by
+    rw [mul_sum]
+    exact sum_congr rfl fun v _ => by rw [hchi v]; ring,
+    sum_uniformOfFintype_mul, expect_chi, ite_eq_right hS_Q_ne.ne_empty, mul_zero]
 
 private theorem map_subtype_compl_eq {Q S : Finset ι} (hSQ : Disjoint S Q) :
     (S.subtype (· ∈ Qᶜ)).map (Function.Embedding.subtype (· ∈ Qᶜ)) = S := by
@@ -230,19 +221,10 @@ theorem isKWiseResilient_iff_forall_compl {t q : ℕ} {ε : ℝ} {f : (ι → Bo
     IsKWiseResilient t q ε f ↔
       ∀ Q : Finset ι, #Q = q → ∀ D' : PMF (↥Qᶜ → Bool), IsKWiseIndependent t D' →
         coalitionInfluence (extendUniform Q D') Q f ≤ ε := by
-  constructor
-  · intro hf Q hQ D' hD'
-    exact hf Q hQ (extendUniform Q D') (isKWiseIndependent_extendUniform hD')
-  · intro h Q hQ D hD
-    have hD' : IsKWiseIndependent t (D.map Qᶜ.restrict) :=
-      isKWiseIndependent_map_restrict hD Qᶜ
-    have heq : coalitionInfluence D Q f =
-        coalitionInfluence (extendUniform Q (D.map Qᶜ.restrict)) Q f := by
-      rw [coalitionInfluence_eq_sum_map_restrict D Q f,
-        coalitionInfluence_eq_sum_map_restrict (extendUniform Q (D.map Qᶜ.restrict)) Q f,
-        map_restrict_compl_extendUniform]
-    have hle := h Q hQ (D.map Qᶜ.restrict)
-    exact heq.trans_le (hle hD')
+  refine ⟨fun hf Q hQ D' hD' => hf Q hQ _ (isKWiseIndependent_extendUniform hD'),
+    fun h Q hQ D hD => ?_⟩
+  rw [coalitionInfluence_eq_of_map_restrict_eq (map_restrict_compl_extendUniform Q _).symm]
+  exact h Q hQ _ (isKWiseIndependent_map_restrict hD Qᶜ)
 
 /-- A `t`-independent `(q, ε)`-resilient function bounds every smaller coalition `#Q ≤ q` whenever
 `q ≤ Fintype.card ι`. -/
@@ -326,16 +308,10 @@ private theorem sum_bitVal_sub_le_coalitionInfluence_add_dist (Z D : PMF (ι →
   · rw [ite_eq_right hu, mul_zero, zero_add,
       fiberBitSum_eq_of_not_isUndetermined Z Q f hu,
       fiberBitSum_eq_of_not_isUndetermined D Q f hu, ← sub_mul]
-    have hb0 : 0 ≤ bitVal ℝ (f (defaultExtend Q u)) := by cases f (defaultExtend Q u) <;> norm_num
-    have hb1 : bitVal ℝ (f (defaultExtend Q u)) ≤ 1 := by cases f (defaultExtend Q u) <;> norm_num
-    calc ((Z.map Qᶜ.restrict u).toReal - (D.map Qᶜ.restrict u).toReal) *
-          bitVal ℝ (f (defaultExtend Q u))
-        ≤ max 0 ((Z.map Qᶜ.restrict u).toReal - (D.map Qᶜ.restrict u).toReal) *
-          bitVal ℝ (f (defaultExtend Q u)) :=
-          mul_le_mul_of_nonneg_right (le_max_right _ _) hb0
-      _ ≤ max 0 ((Z.map Qᶜ.restrict u).toReal - (D.map Qᶜ.restrict u).toReal) * 1 :=
-          mul_le_mul_of_nonneg_left hb1 (le_max_left _ _)
-      _ = max 0 ((Z.map Qᶜ.restrict u).toReal - (D.map Qᶜ.restrict u).toReal) := mul_one _
+    have hb : 0 ≤ bitVal ℝ (f (defaultExtend Q u)) ∧ bitVal ℝ (f (defaultExtend Q u)) ≤ 1 := by
+      cases f (defaultExtend Q u) <;> norm_num
+    nlinarith [le_max_left (0 : ℝ) ((Z.map Qᶜ.restrict u).toReal - (D.map Qᶜ.restrict u).toReal),
+      le_max_right (0 : ℝ) ((Z.map Qᶜ.restrict u).toReal - (D.map Qᶜ.restrict u).toReal)]
 
 /-- **Sharp NOBF extraction lemma**: if `Z` and `D` agree on `Qᶜ` up to statistical distance
 `dist (Z.map Qᶜ.restrict) (D.map Qᶜ.restrict)`, then for any Boolean function `f`, the
@@ -395,19 +371,12 @@ theorem dist_map_uniformOfFintype_bool_le_of_isKWiseSmallBias_restrict
     (hf_res : IsKWiseResilient t q ε₂ f) :
     dist (Z.map f) (PMF.uniformOfFintype Bool) ≤ ε₁ + ε₂ + (Fintype.card ι : ℝ) ^ t * γ := by
   obtain ⟨D', hD'_ind, hdist⟩ := exists_isKWiseIndependent_dist_le_of_isKWiseSmallBias hγ hZ
-  let D : PMF (ι → Bool) := extendUniform Q D'
-  have hD_ind : IsKWiseIndependent t D := isKWiseIndependent_extendUniform hD'_ind
-  have hmain := dist_map_uniformOfFintype_bool_le_of_coalitionInfluence Z D Q f
-  have hD_bias := hf_bias D hD_ind
-  have hD_res := hf_res.coalitionInfluence_le_of_card_le hQq hq hD_ind
-  have hm : D.map Qᶜ.restrict = D' := map_restrict_compl_extendUniform Q D'
-  rw [hm] at hmain
+  have hD_ind := isKWiseIndependent_extendUniform (Q := Q) hD'_ind
+  have hmain := dist_map_uniformOfFintype_bool_le_of_coalitionInfluence Z (extendUniform Q D') Q f
+  rw [map_restrict_compl_extendUniform] at hmain
   have hcard : (Fintype.card ↥Qᶜ : ℝ) ^ t * γ ≤ (Fintype.card ι : ℝ) ^ t * γ := by
     gcongr
-    have hle : Fintype.card ↥Qᶜ ≤ Fintype.card ι := by
-      rw [Fintype.card_coe]
-      exact card_le_univ Qᶜ
-    exact_mod_cast hle
-  linarith
+    exact_mod_cast Fintype.card_coe Qᶜ ▸ card_le_univ Qᶜ
+  linarith [hf_bias _ hD_ind, hf_res.coalitionInfluence_le_of_card_le hQq hq hD_ind]
 
 end Cslib.BitString

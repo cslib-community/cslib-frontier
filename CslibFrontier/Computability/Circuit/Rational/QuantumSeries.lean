@@ -77,9 +77,8 @@ omit [AddCommGroup Γ] [LinearOrder Γ] [IsOrderedAddMonoid Γ] [Nontrivial R] i
 private lemma line_isUnit (B : Γ → Rˣ) {g : Γ} {x : R} (hx : x ∈ line (K := K) B g) (hne : x ≠ 0) :
     IsUnit x := by
   obtain ⟨a, rfl⟩ := Submodule.mem_span_singleton.mp hx
-  have ha : a ≠ 0 := by intro h; simp [h] at hne
   rw [Algebra.smul_def]
-  exact ((isUnit_iff_ne_zero.mpr ha).map (algebraMap K R)).mul (B g).isUnit
+  exact ((isUnit_iff_ne_zero.mpr fun h => hne (by simp [h])).map (algebraMap K R)).mul (B g).isUnit
 
 /-- The Hahn-series subring with each coefficient on its prescribed monomial line. -/
 def coefficientRing (B : Γ → Rˣ) (h0 : B 0 = 1)
@@ -112,24 +111,16 @@ def coefficientRing (B : Γ → Rˣ) (h0 : B 0 = 1)
 private lemma coefficientRing_noZeroDivisors (B : Γ → Rˣ) (h0 : B 0 = 1)
     (hB : ∀ g h, ∃ c : K, (B g : R) * (B h : R) = c • (B (g + h) : R)) :
     NoZeroDivisors (coefficientRing B h0 hB) := by
-  constructor
-  intro x y hxy
-  by_contra hn
-  have hx : x ≠ 0 := fun hx => hn (Or.inl hx)
-  have hy : y ≠ 0 := fun hy => hn (Or.inr hy)
-  have hx' : (x : HahnSeries Γ R) ≠ 0 := by exact_mod_cast hx
-  have hy' : (y : HahnSeries Γ R) ≠ 0 := by exact_mod_cast hy
-  have hxu : IsUnit (x : HahnSeries Γ R).leadingCoeff :=
-    line_isUnit B (by rw [HahnSeries.leadingCoeff_eq]; exact x.property _)
-      (HahnSeries.leadingCoeff_ne_zero.mpr hx')
-  have hyu : IsUnit (y : HahnSeries Γ R).leadingCoeff :=
-    line_isUnit B (by rw [HahnSeries.leadingCoeff_eq]; exact y.property _)
-      (HahnSeries.leadingCoeff_ne_zero.mpr hy')
+  refine ⟨fun {x y} hxy => or_iff_not_imp_left.mpr fun hx => by_contra fun hy => ?_⟩
+  have hunit (z : coefficientRing B h0 hB) (hz : z ≠ 0) :
+      IsUnit (z : HahnSeries Γ R).leadingCoeff :=
+    line_isUnit B (by rw [HahnSeries.leadingCoeff_eq]; exact z.property _)
+      (HahnSeries.leadingCoeff_ne_zero.mpr (by exact_mod_cast hz))
   have hh := congrArg (fun z : coefficientRing B h0 hB =>
     (z : HahnSeries Γ R).coeff ((x : HahnSeries Γ R).order + (y : HahnSeries Γ R).order)) hxy
   change ((x : HahnSeries Γ R) * (y : HahnSeries Γ R)).coeff _ = 0 at hh
   rw [HahnSeries.coeff_mul_order_add_order] at hh
-  exact (hxu.mul hyu).ne_zero hh
+  exact ((hunit x hx).mul (hunit y hy)).ne_zero hh
 
 end
 end Rational.QuantumSeries
@@ -241,26 +232,21 @@ lemma normalized_pos (x : HahnSeries Γ R) (u : Rˣ)
   let y := x - HahnSeries.single x.order x.leadingCoeff
   have hi : (↑u⁻¹ : R) * x.leadingCoeff = 1 := by rw [hu]; simp
   by_cases hy : y = 0
-  · have hx : x = HahnSeries.single x.order x.leadingCoeff := sub_eq_zero.mp hy
-    have hh : HahnSeries.single (-x.order) (↑u⁻¹ : R) * x = 1 := by
-      calc
-        _ = HahnSeries.single (-x.order) (↑u⁻¹ : R) * HahnSeries.single x.order x.leadingCoeff :=
-          congrArg (fun z => HahnSeries.single (-x.order) (↑u⁻¹ : R) * z) hx
-        _ = 1 := by rw [single_mul_single, hi, neg_add_cancel, single_zero_one]
+  · have hh : HahnSeries.single (-x.order) (↑u⁻¹ : R) * x = 1 := by
+      conv_lhs => arg 2; rw [sub_eq_zero.mp hy]
+      rw [single_mul_single, hi, neg_add_cancel, single_zero_one]
     simp [hh]
   · have hy' : 0 < (HahnSeries.single (-x.order) (↑u⁻¹ : R) * y).order := by
       rw [order_single_mul_of_isRegular (u⁻¹).isUnit.isRegular hy]
-      have : x.order < y.order :=
-        order_lt_order_of_eq_add_single (sub_add_cancel x _).symm hy
-      simpa using add_lt_add_left this (-x.order)
+      simpa using add_lt_add_left
+        (order_lt_order_of_eq_add_single (sub_add_cancel x _).symm hy) (-x.order)
     have heq : 1 - HahnSeries.single (-x.order) (↑u⁻¹ : R) * x =
         -(HahnSeries.single (-x.order) (↑u⁻¹ : R) * y) := by
-      calc
-        _ = 1 - HahnSeries.single (-x.order) (↑u⁻¹ : R) *
-            (y + HahnSeries.single x.order x.leadingCoeff) :=
-          congrArg (fun z => 1 - HahnSeries.single (-x.order) (↑u⁻¹ : R) * z)
-            (sub_add_cancel x _).symm
-        _ = _ := by rw [mul_add, single_mul_single, hi, neg_add_cancel, single_zero_one]; abel
+      conv_lhs =>
+        arg 2; arg 2
+        rw [← sub_add_cancel x (HahnSeries.single x.order x.leadingCoeff)]
+      rw [mul_add, single_mul_single, hi, neg_add_cancel, single_zero_one]
+      abel
     rw [heq, orderTop_neg]
     exact zero_lt_orderTop_of_order hy'
 
@@ -278,8 +264,7 @@ lemma normalized_right_inverse (x : HahnSeries Γ R) (u : Rˣ)
   change (v * x) * (geometricPowers (1 - v * x)).hsum = 1 at hh
   calc
     _ = (v' * ((v * x) * (geometricPowers (1 - v * x)).hsum)) * v := by
-      simp only [← mul_assoc, hv, one_mul]
-      rfl
+      simp only [← mul_assoc, hv, one_mul]; rfl
     _ = 1 := by rw [hh, mul_one, hv]
 
 end
@@ -302,21 +287,14 @@ private lemma line_inv_unit {g : Γ} (u : Rˣ) (hu : ↑u ∈ line (K := K) B g)
   obtain ⟨a, ha⟩ := Submodule.mem_span_singleton.mp hu
   obtain ⟨c, hc⟩ := hB g (-g)
   rw [add_neg_cancel, h0, Units.val_one] at hc
-  have ha0 : a ≠ 0 := by intro h; simp only [h, zero_smul] at ha; exact u.ne_zero ha.symm
-  have hc0 : c ≠ 0 := by
-    intro h
-    simp only [h, zero_smul] at hc
-    exact ((B g).isUnit.mul (B (-g)).isUnit).ne_zero hc
+  have ha0 : a ≠ 0 := fun h => u.ne_zero (by simpa [h] using ha.symm)
+  have hc0 : c ≠ 0 := fun h => by simp [h] at hc
   have hy : (u : R) * ((a * c)⁻¹ • (B (-g) : R)) = 1 := by
-    rw [← ha, smul_mul_assoc, mul_smul_comm, hc, smul_smul, smul_smul]
-    rw [show a * (a * c)⁻¹ * c = 1 by field_simp, one_smul]
+    rw [← ha, smul_mul_assoc, mul_smul_comm, hc, smul_smul, smul_smul,
+      show a * (a * c)⁻¹ * c = 1 by field_simp, one_smul]
   have heq : (↑u⁻¹ : R) = (a * c)⁻¹ • (B (-g) : R) := by
-    calc
-      _ = (↑u⁻¹ : R) * 1 := (mul_one _).symm
-      _ = (↑u⁻¹ : R) * ((u : R) * ((a * c)⁻¹ • (B (-g) : R))) := by rw [hy]
-      _ = _ := by rw [← mul_assoc]; simp
-  rw [heq]
-  exact Submodule.smul_mem _ _ (Submodule.subset_span (Set.mem_singleton _))
+    simpa [← mul_assoc] using congrArg ((↑u⁻¹ : R) * ·) hy.symm
+  exact heq ▸ Submodule.smul_mem _ _ (Submodule.subset_span (Set.mem_singleton _))
 
 omit [Nontrivial R] in
 /-- A single-term Hahn series with coefficient in `line B g` belongs to
@@ -324,21 +302,18 @@ omit [Nontrivial R] in
 lemma single_mem {g : Γ} {r : R} (hr : r ∈ line (K := K) B g) :
     HahnSeries.single g r ∈ coefficientRing B h0 hB := by
   intro a
-  by_cases h : g = a
-  · subst a; simpa using hr
-  · simp [Ne.symm h]
+  rcases eq_or_ne g a with rfl | h
+  · simpa using hr
+  · simp [h.symm]
 
 omit [Nontrivial R] in
 /-- The sum of a summable family in `coefficientRing B h0 hB` belongs to
 `coefficientRing B h0 hB`. -/
 lemma hsum_mem {α : Type*} (x : SummableFamily Γ R α)
     (hx : ∀ i, x i ∈ coefficientRing B h0 hB) :
-    x.hsum ∈ coefficientRing B h0 hB := by
-  intro g
+    x.hsum ∈ coefficientRing B h0 hB := fun g => by
   rw [coeff_hsum_eq_sum]
-  apply Submodule.sum_mem
-  intro i hi
-  exact hx i g
+  exact Submodule.sum_mem _ fun i _ => hx i g
 
 /-- The geometric-series right inverse of a series in `coefficientRing B h0 hB` with unit
 leading coefficient belongs to `coefficientRing B h0 hB`. -/
@@ -346,38 +321,23 @@ lemma inverse_candidate_mem (x : HahnSeries Γ R)
     (hx : x ∈ coefficientRing B h0 hB) (u : Rˣ) (hu : x.leadingCoeff = (u : R)) :
     (geometricPowers (1 - HahnSeries.single (-x.order) (↑u⁻¹ : R) * x)).hsum *
       HahnSeries.single (-x.order) (↑u⁻¹ : R) ∈ coefficientRing B h0 hB := by
-  have hline : x.leadingCoeff ∈ line (K := K) B x.order := by
-    rw [leadingCoeff_eq]; exact hx _
   let v : HahnSeries Γ R := HahnSeries.single (-x.order) (↑u⁻¹ : R)
   have hv : v ∈ coefficientRing B h0 hB :=
-    single_mem B h0 hB (line_inv_unit B h0 hB u (hu ▸ hline))
-  let z : HahnSeries Γ R := 1 - v * x
-  have hz : z ∈ coefficientRing B h0 hB :=
+    single_mem B h0 hB (line_inv_unit B h0 hB u (hu ▸ by rw [leadingCoeff_eq]; exact hx _))
+  have hz : 1 - v * x ∈ coefficientRing B h0 hB :=
     (coefficientRing B h0 hB).sub_mem (coefficientRing B h0 hB).one_mem
       ((coefficientRing B h0 hB).mul_mem hv hx)
-  have hz0 : 0 < z.orderTop := normalized_pos x u hu
-  have hpow : ∀ i, geometricPowers z i ∈ coefficientRing B h0 hB := by
-    intro i
-    rw [geometricPowers_of_orderTop_pos hz0]
-    exact (coefficientRing B h0 hB).pow_mem hz i
-  exact (coefficientRing B h0 hB).mul_mem (hsum_mem B h0 hB _ hpow) hv
+  refine (coefficientRing B h0 hB).mul_mem (hsum_mem B h0 hB _ fun i => ?_) hv
+  rw [geometricPowers_of_orderTop_pos (normalized_pos x u hu)]
+  exact (coefficientRing B h0 hB).pow_mem hz i
 
 private lemma inverse_exists (x : coefficientRing B h0 hB) (hx : x ≠ 0) :
     ∃ y : coefficientRing B h0 hB, x * y = 1 := by
-  have hx' : (x : HahnSeries Γ R) ≠ 0 := by
-    intro h; apply hx; exact Subtype.ext h
-  have hline : (x : HahnSeries Γ R).leadingCoeff ∈
-      line (K := K) B (x : HahnSeries Γ R).order := by
-    rw [leadingCoeff_eq]; exact x.property _
-  obtain ⟨u, hu⟩ := line_isUnit (K := K) B hline (leadingCoeff_ne_zero.mpr hx')
-  let y : HahnSeries Γ R := (geometricPowers
-    (1 - HahnSeries.single (-(x : HahnSeries Γ R).order) (↑u⁻¹ : R) * (x : HahnSeries Γ R))).hsum *
-      HahnSeries.single (-(x : HahnSeries Γ R).order) (↑u⁻¹ : R)
-  have hy : y ∈ coefficientRing B h0 hB :=
-    inverse_candidate_mem B h0 hB x x.property u hu.symm
-  have heq := normalized_right_inverse (x : HahnSeries Γ R) u hu.symm
-  refine ⟨⟨y, hy⟩, ?_⟩
-  exact Subtype.ext heq
+  have hx' : (x : HahnSeries Γ R) ≠ 0 := fun h => hx (Subtype.ext h)
+  obtain ⟨u, hu⟩ := line_isUnit (K := K) B
+    (by rw [leadingCoeff_eq]; exact x.property _) (leadingCoeff_ne_zero.mpr hx')
+  exact ⟨⟨_, inverse_candidate_mem B h0 hB x x.property u hu.symm⟩,
+    Subtype.ext (normalized_right_inverse (x : HahnSeries Γ R) u hu.symm)⟩
 
 /-- Every element of `coefficientRing B h0 hB` is either a unit or zero. -/
 lemma coefficientRing_isUnit_or_eq_zero (x : coefficientRing B h0 hB) :

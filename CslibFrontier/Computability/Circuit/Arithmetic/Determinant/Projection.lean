@@ -115,8 +115,7 @@ theorem isProjection_det_iff_exists_isSubstMatrix {P : MvPolynomial σ K} {m : �
   constructor
   · rintro ⟨ρ, rfl⟩
     exact ⟨Matrix.of fun i j => Sum.elim X (fun a => C a) (ρ (finProdFinEquiv (i, j))),
-      fun i j => ⟨ρ (finProdFinEquiv (i, j)), rfl⟩,
-      (projection_det_genericMatrix ρ).symm⟩
+      fun i j => ⟨ρ (finProdFinEquiv (i, j)), rfl⟩, (projection_det_genericMatrix ρ).symm⟩
   · rintro ⟨M, hM, rfl⟩
     have h := hM.isProjection_det
     rwa [Fintype.card_fin] at h
@@ -138,9 +137,9 @@ projection of `(genericMatrix K m).det`, then `P` is a projection of `(genericMa
 theorem isProjection_det_mono {P : MvPolynomial σ K} {m k : ℕ} (hmk : m ≤ k)
     (hP : IsProjection P (genericMatrix K m).det) :
     IsProjection P (genericMatrix K k).det := by
-  have hone : IsProjection (1 : MvPolynomial σ K) (genericMatrix K (k - m)).det :=
-    isProjection_det_iff_exists_isSubstMatrix.mpr ⟨1, .one, Matrix.det_one⟩
-  have h := hP.det_mul hone
+  have h := hP.det_mul
+    (isProjection_det_iff_exists_isSubstMatrix.mpr ⟨1, .one, Matrix.det_one⟩ :
+      IsProjection 1 (genericMatrix K (k - m)).det)
   rwa [mul_one, Nat.add_sub_of_le hmk] at h
 
 /-! ### Acyclic specialization branching programs -/
@@ -252,21 +251,17 @@ private theorem pathSum_abpCombine {R : Type*} [CommRing R] {k₁ k₂ : ℕ}
     simp only [Equiv.symm_apply_apply]
   simp only [Pi.add_apply, hvm, Matrix.vecMul_fromBlocks, Matrix.vecMul_zero, add_zero]
   rcases y with a | b
-  · simp only [q, Function.comp_apply, Equiv.symm_apply_apply, Sum.elim_inl]
-    have hsingle : (Pi.single 0 (1 : R) : Fin ((k₁ + k₂ + 1) + 2) → R) (abpEquiv k₁ k₂ (.inl a)) =
-        (Pi.single 0 (1 : R) : Fin (k₁ + 2) → R) a := by
-      rw [← abpEquiv_inl_zero k₁ k₂]
-      by_cases ha : a = 0
-      · subst ha; simp only [Pi.single_eq_same]
-      · rw [Pi.single_eq_of_ne (fun h => ha (Sum.inl.inj ((abpEquiv k₁ k₂).injective h))),
-          Pi.single_eq_of_ne ha]
-    rw [hsingle]
-    exact congrFun hq₁ a
+  · simp only [q, Function.comp_apply, Equiv.symm_apply_apply, Sum.elim_inl, Sum.elim_comp_inl,
+      ← abpEquiv_inl_zero k₁ k₂]
+    rcases eq_or_ne a 0 with rfl | ha
+    · simpa only [Pi.add_apply, Pi.single_eq_same] using congrFun hq₁ 0
+    · simpa only [Pi.add_apply,
+        Pi.single_eq_of_ne (fun h => ha (Sum.inl.inj ((abpEquiv k₁ k₂).injective h))),
+        Pi.single_eq_of_ne ha] using congrFun hq₁ a
   · simp only [q, Function.comp_apply, Equiv.symm_apply_apply, Sum.elim_inr]
-    have hne : abpEquiv k₁ k₂ (.inr b) ≠ 0 := by
-      rw [← abpEquiv_inl_zero k₁ k₂]
-      exact fun h => nomatch (abpEquiv k₁ k₂).injective h
-    rw [Pi.single_eq_of_ne hne, zero_add]
+    rw [Pi.single_eq_of_ne (by
+      rw [← abpEquiv_inl_zero k₁ k₂]; exact fun h => nomatch (abpEquiv k₁ k₂).injective h),
+      zero_add]
     exact hr b
 
 /-- A specialization branching program of size `k + 1` gives a projection of the
@@ -318,12 +313,9 @@ theorem mul {k₁ k₂ : ℕ} {P Q : MvPolynomial σ K}
     pathSum_abpCombine r hq₁ fun b => ?_, ?_⟩
   · have hB_eval : (q₁ ᵥ* B) b = q₁ (Fin.last (k₁ + 1)) * (q₂ 0 * N₂ 0 b.succ) := by
       rw [pathSum_zero hN₂ hq₂, one_mul, Matrix.vecMul, dotProduct,
-        Finset.sum_eq_single (Fin.last (k₁ + 1))]
-      · simp only [B, Matrix.of_apply, ↓reduceIte]
-      · intro a _ ha
-        simp only [B, Matrix.of_apply, ha, ↓reduceIte, mul_zero]
-      · intro h
-        exact absurd (Finset.mem_univ _) h
+        Finset.sum_eq_single (Fin.last (k₁ + 1)) (fun a _ ha => by simp [B, ha])
+          (fun h => absurd (Finset.mem_univ _) h)]
+      simp [B]
     have hD_eval : (r ᵥ* N₂.submatrix Fin.succ Fin.succ) b =
         q₁ (Fin.last (k₁ + 1)) * ∑ b' : Fin (k₂ + 1), q₂ b'.succ * N₂ b'.succ b.succ := by
       simp only [r, Matrix.vecMul, dotProduct, Matrix.submatrix_apply, Finset.mul_sum, mul_assoc]
@@ -359,21 +351,17 @@ theorem add {k₁ k₂ : ℕ} {P Q : MvPolynomial σ K}
       have hrest : ∑ a ∈ (Finset.univ.erase 0).erase (Fin.last (k₁ + 1)), q₁ a * B a b = 0 :=
         Finset.sum_eq_zero fun a ha => by
           rcases Finset.mem_erase.mp ha with ⟨hal, ha0⟩
-          have ha0' : a ≠ 0 := (Finset.mem_erase.mp ha0).1
-          simp only [B, Matrix.of_apply, ha0', hal, false_and, ↓reduceIte, mul_zero]
+          simp [B, (Finset.mem_erase.mp ha0).1, hal]
       rw [hrest, add_zero, pathSum_zero hN₁ hq₁, pathSum_zero hN₂ hq₂]
       simp only [B, Matrix.of_apply, ↓reduceIte, h0_ne.symm, true_and, mul_ite, mul_one, mul_zero]
     have hD_eval : (r ᵥ* N₂.submatrix Fin.succ Fin.succ) b =
         ∑ b' : Fin (k₂ + 1), q₂ b'.succ * N₂ b'.succ b.succ := by
       rw [Matrix.vecMul, dotProduct]
       refine Finset.sum_congr rfl fun b' _ => ?_
-      simp only [r, Matrix.submatrix_apply]
-      by_cases hb' : b' = Fin.last k₂
-      · subst hb'
-        have hle : b.succ ≤ (Fin.last k₂).succ :=
-          Fin.succ_le_succ_iff.mpr (Fin.le_last b)
-        rw [hN₂ _ _ hle, mul_zero, mul_zero]
-      · simp only [hb', ↓reduceIte, add_zero]
+      rcases eq_or_ne b' (Fin.last k₂) with rfl | hb'
+      · rw [Matrix.submatrix_apply, hN₂ _ _ (Fin.succ_le_succ_iff.mpr (Fin.le_last b)),
+          mul_zero, mul_zero]
+      · simp [r, Matrix.submatrix_apply, hb']
     rw [hB_eval, hD_eval, add_right_comm,
       ← Fin.sum_univ_succ (fun i => q₂ i * N₂ i b.succ), ← dotProduct, ← Matrix.vecMul,
       ← pathSum_succ hq₂ b]

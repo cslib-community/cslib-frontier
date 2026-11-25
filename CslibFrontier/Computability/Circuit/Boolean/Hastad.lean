@@ -100,12 +100,9 @@ noncomputable instance (s : ℕ) (ρ : PartialAssignment (Fin n)) (f : BitString
 
 /-- Restricting further keeps a function shallow. -/
 theorem Shallow.mono {f : BitString n → Bool} (hf : Shallow s ρ f) (h : ρ'.Extends ρ) :
-    Shallow s ρ' f := by
-  refine lt_of_le_of_lt ?_ hf
-  have : DecisionTree.complexity (fun x => f (ρ.fill (ρ'.fill x))) ≤
-      DecisionTree.complexity fun y => f (ρ.fill y) :=
-    complexity_comp_fill_le ρ' fun y => f (ρ.fill y)
-  simpa only [PartialAssignment.fill_fill_of_extends h] using this
+    Shallow s ρ' f :=
+  lt_of_le_of_lt (by simpa only [Function.comp_def, PartialAssignment.fill_fill_of_extends h] using
+    complexity_comp_fill_le ρ' fun y => f (ρ.fill y)) hf
 
 /-- A function shallow for one bound is shallow for every larger bound. -/
 theorem Shallow.of_le {f : BitString n → Bool} {s' : ℕ} (h : Shallow s ρ f) (hs : s ≤ s') :
@@ -152,15 +149,12 @@ private theorem exists_dnf_of_trees {m : ℕ} (c : Bool) (t : Fin m → Decision
       nodup_of_mem_toDNF hu⟩
   · rw [Bool.eq_iff_iff, DNF.eval_eq_true_iff, decide_eq_true_iff]
     simp only [List.mem_flatten, List.mem_ofFn]
-    constructor
-    · rintro ⟨u, ⟨_, ⟨j, rfl⟩, hu⟩, hux⟩
-      refine ⟨j, ?_⟩
-      rw [← eval_map (· != c), ← eval_toDNF, DNF.eval_eq_true_iff]
-      exact ⟨u, hu, hux⟩
-    · rintro ⟨j, hj⟩
-      rw [← eval_map (· != c), ← eval_toDNF, DNF.eval_eq_true_iff] at hj
-      obtain ⟨u, hu, hux⟩ := hj
-      exact ⟨u, ⟨_, ⟨j, rfl⟩, hu⟩, hux⟩
+    exact ⟨fun ⟨u, ⟨_, ⟨j, rfl⟩, hu⟩, hux⟩ =>
+      ⟨j, by rw [← eval_map (· != c), ← eval_toDNF, DNF.eval_eq_true_iff]; exact ⟨u, hu, hux⟩⟩,
+      fun ⟨j, hj⟩ =>
+      let ⟨u, hu, hux⟩ :=
+        (DNF.eval_eq_true_iff _ _).1 (by rwa [← eval_map (· != c), ← eval_toDNF] at hj)
+      ⟨u, ⟨_, ⟨j, rfl⟩, hu⟩, hux⟩⟩
 
 /-- **Operations applied to shallow functions are narrow formulas in disjunctive normal form**, up
 to negation: a disjunction is the disjunction of the paths to `true` of decision trees for its
@@ -174,9 +168,7 @@ theorem exists_dnf_of_shallow {op : Op} (hop : op ≠ .not) {args : Fin op.arity
   | not => exact absurd rfl hop
   | and m =>
     obtain ⟨D, hD, heval⟩ := exists_dnf_of_trees true t hd
-    refine ⟨D, true, hD, fun y => ?_⟩
-    rw [heval, Bool.eq_iff_iff]
-    simp [ht]
+    exact ⟨D, true, hD, fun y => by rw [heval, Bool.eq_iff_iff]; simp [ht]⟩
   | or m =>
     obtain ⟨D, hD, heval⟩ := exists_dnf_of_trees false t hd
     exact ⟨D, false, hD, fun y => by simp [heval, ht]⟩
@@ -195,11 +187,10 @@ private theorem card_filter_not_shallow_le_of_ne_not {op : Op} (hop : op ≠ .no
   obtain ⟨hρ', hdeep⟩ := mem_filter.1 hρ'
   refine mem_filter.2 ⟨hρ', ?_⟩
   have hext := (PartialAssignment.mem_extensions.1 hρ').1
-  have : (fun x => DNF.eval (ρ'.fill x) D) =
-      (· != b) ∘ fun x => interpretation op (fun j => args j (ρ.fill (ρ'.fill x))) := by
-    funext x
-    rw [heval, Function.comp_apply]
-  rw [this, complexity_comp_of_injective (by cases b <;> decide)]
+  rw [show (fun x => DNF.eval (ρ'.fill x) D) =
+      (· != b) ∘ fun x => interpretation op (fun j => args j (ρ.fill (ρ'.fill x))) from
+    funext fun x => by rw [heval, Function.comp_apply],
+    complexity_comp_of_injective (by cases b <;> decide)]
   simpa only [PartialAssignment.fill_fill_of_extends hext] using not_lt.1 hdeep
 
 /-- **The switching step for one operation.** If the arguments of an operation are shallow under
@@ -208,13 +199,12 @@ private theorem card_filter_not_shallow_le {op : Op} {args : Fin op.arity → Bi
     (h : ∀ j, Shallow s ρ (args j)) (ℓ : ℕ) :
     #{ρ' ∈ ρ.extensions ℓ | ¬ Shallow s ρ' fun x => interpretation op fun j => args j x} ≤
       #(ρ.extensions (ℓ - s)) * (4 * s) ^ s := by
-  by_cases hop : op = .not
-  · subst hop
-    have hG : Shallow s ρ fun x => interpretation .not fun j => args j x := (h 0).not
+  rcases eq_or_ne op .not with rfl | hop
+  · have hG : Shallow s ρ fun x => interpretation .not fun j => args j x := (h 0).not
     rw [filter_false_of_mem fun ρ' hρ' => not_not.2 (hG.mono
       (PartialAssignment.mem_extensions.1 hρ').1)]
     simp
-  exact card_filter_not_shallow_le_of_ne_not hop (fun j => (h j).of_le s.le_succ) ℓ s
+  · exact card_filter_not_shallow_le_of_ne_not hop (fun j => (h j).of_le s.le_succ) ℓ s
 
 /-- At most `#E(ℓ - s) (4k)^s` extensions of `ρ` are at most a `2 ^ (-s)` fraction of those with
 `ℓ` free bits, when `s ≤ ℓ` and `ℓ` is at most a `1 / (16 k + 1)` fraction of the free bits of
@@ -323,30 +313,24 @@ theorem two_pow_mul_card_filter_exists_not_shallow_le {p : Program signature n g
       #{k | p.depths k ≤ j} * #(PartialAssignment.withFree (Fin n) (n / (16 * s + 1) ^ j)) := by
   induction j with
   | zero =>
-    rw [filter_false_of_mem fun ρ _ => fun ⟨k, hk, _⟩ => absurd hk (by
-      have := p.depths_pos k
-      omega)]
+    rw [filter_false_of_mem fun ρ _ ⟨k, hk, _⟩ => absurd hk (p.depths_pos k).not_ge]
     simp
   | succ j ih =>
-    have ih := ih (by omega)
     set ℓ := n / (16 * s + 1) ^ j
     set ℓ' := n / (16 * s + 1) ^ (j + 1)
     have hsℓ' : s ≤ ℓ' := Nat.le_div_pow_of_mul_pow_le (by omega) hj hn
     have hℓ : (16 * s + 1) * ℓ' ≤ ℓ := Nat.mul_div_pow_succ_le n _ j
-    have hℓ'ℓ : ℓ' ≤ ℓ := le_trans (Nat.le_mul_of_pos_left _ (by omega)) hℓ
     -- the gates of depth at most `j + 1`
     have hG : #{k | p.depths k ≤ j} + #{k | p.depths k = j + 1} ≤ #{k | p.depths k ≤ j + 1} := by
       rw [← card_union_of_disjoint (disjoint_filter.2 fun k _ h₁ h₂ => by omega)]
-      refine card_le_card fun k hk => ?_
-      simp only [mem_filter, mem_univ, true_and, mem_union] at hk ⊢
-      omega
+      exact card_le_card fun k hk => by
+        simp only [mem_filter, mem_univ, true_and, mem_union] at hk ⊢; omega
     -- each restriction with `ℓ` free bits has few bad extensions, unless it is bad itself
-    refine PartialAssignment.mul_card_filter_withFree_le hℓ'ℓ (Nat.div_le_self _ _) ih
-      (fun ρ hρ hb => ?_) hG
-    refine two_pow_mul_card_filter_extensions_le hs hsℓ'
-      ((PartialAssignment.mem_withFree.1 hρ).symm ▸ hℓ) fun k hk => ?_
-    by_contra h
-    exact hb ⟨k, hk, h⟩
+    refine PartialAssignment.mul_card_filter_withFree_le
+      ((Nat.le_mul_of_pos_left _ (by omega)).trans hℓ) (Nat.div_le_self _ _) (ih (by omega))
+      (fun ρ hρ hb => two_pow_mul_card_filter_extensions_le hs hsℓ'
+        ((PartialAssignment.mem_withFree.1 hρ).symm ▸ hℓ) fun k hk =>
+        by_contra fun h => hb ⟨k, hk, h⟩) hG
 
 /-! ### Circuits -/
 
@@ -358,10 +342,8 @@ theorem shallow_output {C : Circuit signature n 1} (hs : 2 ≤ s)
   cases hw : C.outputs 0 with
   | input i => exact shallow_proj hs ρ i
   | gate k =>
-    refine hρ k ?_
-    have := C.outputDepths_le_depth 0
-    simpa only [Circuit.outputDepths, Function.comp_apply, hw, Program.wireDepths_gateWire]
-      using this
+    exact hρ k (by simpa only [Circuit.outputDepths, Function.comp_apply, hw,
+      Program.wireDepths_gateWire] using C.outputDepths_le_depth 0)
 
 /-- **Håstad's theorem** for circuits with unbounded fan-in. A circuit of depth `d` computing the
 parity of `n` bits has at least `2 ^ s` gates, for every `s ≥ 2` with `s (16 s + 1) ^ d ≤ n`. -/
@@ -370,7 +352,6 @@ theorem two_pow_le_size_of_computes_parity {C : Circuit signature n 1}
     (hn : s * (16 * s + 1) ^ C.depth ≤ n) : 2 ^ s ≤ C.size := by
   by_contra! hS
   set ℓ := n / (16 * s + 1) ^ C.depth
-  have hsℓ : s ≤ ℓ := Nat.le_div_pow_of_mul_pow_le (by omega) le_rfl hn
   -- fewer than all restrictions leaving `ℓ` bits free make some gate deep
   have h := two_pow_mul_card_filter_exists_not_shallow_le (p := C.program) hs hn C.depth le_rfl
   have hW : 0 < #(PartialAssignment.withFree (Fin n) ℓ) := by
@@ -378,19 +359,16 @@ theorem two_pow_le_size_of_computes_parity {C : Circuit signature n 1}
     exact Nat.mul_pos (Nat.choose_pos (Nat.div_le_self _ _)) (by positivity)
   have hlt : #{ρ ∈ PartialAssignment.withFree (Fin n) ℓ | ∃ k, C.program.depths k ≤ C.depth ∧
       ¬ Shallow s ρ fun x => C.program.eval interpretation x k} <
-      #(PartialAssignment.withFree (Fin n) ℓ) := by
-    refine Nat.lt_of_mul_lt_mul_left (a := 2 ^ s) (h.trans_lt ?_)
-    exact Nat.mul_lt_mul_of_pos_right ((card_filter_le _ _).trans_lt (by simpa using hS)) hW
+      #(PartialAssignment.withFree (Fin n) ℓ) :=
+    Nat.lt_of_mul_lt_mul_left (a := 2 ^ s) (h.trans_lt
+      (Nat.mul_lt_mul_of_pos_right ((card_filter_le _ _).trans_lt (by simpa using hS)) hW))
   obtain ⟨ρ, hρ, hgood⟩ := exists_mem_notMem_of_card_lt_card hlt
-  have hall : ∀ k, C.program.depths k ≤ C.depth →
-      Shallow s ρ fun x => C.program.eval interpretation x k := fun k hk => by
-    by_contra hdeep
-    exact hgood (mem_filter.2 ⟨hρ, k, hk, hdeep⟩)
-  have hout := shallow_output hs hall
-  have heq : (fun x => C.program.trace interpretation x (C.outputs 0)) = parity n :=
-    funext fun x => congrFun (hC x) 0
-  rw [heq] at hout
-  exact not_shallow_parity ((PartialAssignment.mem_withFree.1 hρ).symm ▸ hsℓ) hout
+  have hout := shallow_output hs fun k hk =>
+    by_contra fun hdeep => hgood (mem_filter.2 ⟨hρ, k, hk, hdeep⟩)
+  rw [show (fun x => C.program.trace interpretation x (C.outputs 0)) = parity n from
+    funext fun x => congrFun (hC x) 0] at hout
+  exact not_shallow_parity ((PartialAssignment.mem_withFree.1 hρ).symm ▸
+    Nat.le_div_pow_of_mul_pow_le (by omega) le_rfl hn) hout
 
 /-- **Håstad's theorem** for formulas with unbounded fan-in. A formula of depth `d` computing the
 parity of `n` bits has at least `2 ^ s` operation nodes, for every `s ≥ 2` with

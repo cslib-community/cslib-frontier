@@ -145,12 +145,9 @@ def zeroCount : ℕ :=
 -/
 theorem zeroCount_pos_iff : 0 < zeroCount wAB wBC wAC ↔ HasZeroTriangle wAB wBC wAC := by
   classical
-  simp only [zeroCount, Finset.card_pos, HasZeroTriangle]
-  constructor
-  · rintro ⟨⟨a, b, c⟩, h⟩
-    exact ⟨a, b, c, (Finset.mem_filter.mp h).2⟩
-  · rintro ⟨a, b, c, h⟩
-    exact ⟨⟨a, b, c⟩, Finset.mem_filter.mpr ⟨Finset.mem_univ _, h⟩⟩
+  simp only [zeroCount, Finset.card_pos, HasZeroTriangle, Finset.Nonempty, Finset.mem_filter,
+    Finset.mem_univ, true_and]
+  exact ⟨fun ⟨⟨a, b, c⟩, h⟩ => ⟨a, b, c, h⟩, fun ⟨a, b, c, h⟩ => ⟨⟨a, b, c⟩, h⟩⟩
 
 /-- Partition the modular-zero triples into false positives and exact zero-sum triples. The
 exact-zero count is independent of the modulus.
@@ -188,14 +185,9 @@ theorem coeff_matP_mul_matQ {p : ℕ} (hp : p ≠ 0) (a b : Fin n) (r : ℕ) (hr
   classical
   -- `(PQ)[a,b]` is the sum over `c` of `x^(w(a,c) mod p + w(b,c) mod p)`, and the coefficient of
   -- `x^r` in each term is 1 or 0.
-  rw [Matrix.mul_apply]
-  simp only [matP, matQ, Matrix.of_apply, ← pow_add]
-  rw [map_sum]
-  simp only [CyclicIntRing.coeff_x_pow]
-  rw [Finset.card_filter]
-  push_cast
-  refine Finset.sum_congr rfl fun c _ => ?_
-  simp only [eq_add_toNat_emod_iff hp hr]
+  simp only [Matrix.mul_apply, matP, matQ, Matrix.of_apply, ← pow_add, map_sum,
+    CyclicIntRing.coeff_x_pow, Finset.card_filter, Nat.cast_sum, Nat.cast_ite, Nat.cast_one,
+    Nat.cast_zero, eq_add_toNat_emod_iff hp hr]
 
 /-- Recover the total modular-zero count from the cyclic matrix product by summing, over `(a,b)`,
 the coefficient at the residue of `-wAB a b`.
@@ -273,29 +265,28 @@ theorem card_falsePositive_primes_le (hD : 16 ≤ D) (hT : WeightsBoundedBy wAB 
       ≤ Real.logb (Real.sqrt D / 2) (3 * (n : ℝ) ^ κ) := by
   have hsqrt := Real.four_le_sqrt_natCast hD
   set divisors := (Nat.sqrtPrimeWindow D).filter fun p => IsFalsePositive wAB wBC wAC p t
-  have hmem : ∀ p ∈ divisors,
-      p.Prime ∧ Real.sqrt D / 2 ≤ (p : ℝ) ∧ (p : ℤ) ∣ weightSum wAB wBC wAC t.a t.b t.c := by
-    intro p hp
-    obtain ⟨hrange, -, hdvd⟩ := Finset.mem_filter.1 hp
-    obtain ⟨hprime, hge, -⟩ := Nat.mem_sqrtPrimeWindow.1 hrange
-    exact ⟨hprime, hge, hdvd⟩
+  have hmem (p : ℕ) (hp : p ∈ divisors) :
+      p.Prime ∧ Real.sqrt D / 2 ≤ (p : ℝ) ∧ (p : ℤ) ∣ weightSum wAB wBC wAC t.a t.b t.c :=
+    let ⟨hrange, _, hdvd⟩ := Finset.mem_filter.1 hp
+    let ⟨hprime, hge, _⟩ := Nat.mem_sqrtPrimeWindow.1 hrange
+    ⟨hprime, hge, hdvd⟩
   -- Their product divides the nonzero `weightSum`, whose absolute value is at most `3n^κ`.
   have hdvd : ∏ p ∈ divisors, p ∣ (weightSum wAB wBC wAC t.a t.b t.c).natAbs :=
     Finset.prod_primes_dvd _ (fun p hp => (hmem p hp).1.prime)
       fun p hp => Int.natCast_dvd.1 (hmem p hp).2.2
-  have hprod : ∏ p ∈ divisors, (p : ℝ) ≤ 3 * (n : ℝ) ^ κ :=
-    calc ∏ p ∈ divisors, (p : ℝ) = ((∏ p ∈ divisors, p : ℕ) : ℝ) := (Nat.cast_prod _ _).symm
+  -- Each of these primes is at least `√D/2`.
+  have hbound : (Real.sqrt D / 2) ^ divisors.card ≤ 3 * (n : ℝ) ^ κ :=
+    calc (Real.sqrt D / 2) ^ divisors.card
+        ≤ ∏ p ∈ divisors, (p : ℝ) := by
+          rw [← Finset.prod_const]
+          exact Finset.prod_le_prod₀ (fun _ _ => by linarith) fun p hp => (hmem p hp).2.1
+      _ = ((∏ p ∈ divisors, p : ℕ) : ℝ) := (Nat.cast_prod _ _).symm
       _ ≤ ((weightSum wAB wBC wAC t.a t.b t.c).natAbs : ℝ) := by
           exact_mod_cast Nat.le_of_dvd (Int.natAbs_pos.2 ht) hdvd
       _ = ((|weightSum wAB wBC wAC t.a t.b t.c| : ℤ) : ℝ) := Nat.cast_natAbs _
       _ ≤ 3 * (n : ℝ) ^ κ := (abs_weightSum_le wAB wBC wAC) hT _ _ _
-  -- Each of these primes is at least `√D/2`.
-  have hpow : (Real.sqrt D / 2) ^ divisors.card ≤ ∏ p ∈ divisors, (p : ℝ) := by
-    rw [← Finset.prod_const]
-    exact Finset.prod_le_prod₀ (fun _ _ => by linarith) fun p hp => (hmem p hp).2.1
-  have hY : 0 < 3 * (n : ℝ) ^ κ := lt_of_lt_of_le (by positivity) (hpow.trans hprod)
-  rw [Real.le_logb_iff_rpow_le (by linarith) hY, Real.rpow_natCast]
-  exact hpow.trans hprod
+  rwa [Real.le_logb_iff_rpow_le (by linarith) (lt_of_lt_of_le (by positivity) hbound),
+    Real.rpow_natCast]
 
 /-- Sum the per-triple prime-divisibility bound over all `n^3` triples. For `D ≥ 16`, `κ ≥ 1` and
 edge weights bounded by `n^κ`, the sum of false-positive counts is at most `n^3 * logb (sqrt D /
@@ -313,27 +304,21 @@ theorem sum_falsePositiveCount_le (hD : 16 ≤ D) (hκ : 1 ≤ κ) (hT : Weights
         ((Nat.sqrtPrimeWindow D).filter fun p => IsFalsePositive wAB wBC wAC p t).card := by
     simp only [falsePositiveCount, Finset.card_filter]
     exact Finset.sum_comm
-  have hterm : ∀ t : Triangle n,
+  have hterm (t : Triangle n) :
       (((Nat.sqrtPrimeWindow D).filter fun p => IsFalsePositive wAB wBC wAC p t).card : ℝ)
         ≤ Real.logb (Real.sqrt D / 2) (3 * (n : ℝ) ^ κ) := by
-    intro t
     by_cases ht : weightSum wAB wBC wAC t.a t.b t.c = 0
     · -- A zero triangle is a false positive of no prime.
       rw [Finset.filter_eq_empty_iff.2 fun p _ h => h.1 ht, Finset.card_empty, Nat.cast_zero]
-      have hn : (1 : ℝ) ≤ n := by exact_mod_cast Fin.pos t.a
-      have hpow : (1 : ℝ) ≤ (n : ℝ) ^ κ := Real.one_le_rpow hn (by linarith)
+      have hpow : (1 : ℝ) ≤ (n : ℝ) ^ κ :=
+        Real.one_le_rpow (by exact_mod_cast Fin.pos t.a) (by linarith)
       exact Real.logb_nonneg (by linarith) (by linarith)
     · -- Otherwise this is the bound of `card_falsePositive_primes_le` for this triple.
       convert (card_falsePositive_primes_le wAB wBC wAC) hD hT t ht
   rw [hswap, Nat.cast_sum]
-  calc ∑ t : Triangle n,
-        (((Nat.sqrtPrimeWindow D).filter fun p => IsFalsePositive wAB wBC wAC p t).card : ℝ)
-      ≤ ∑ _t : Triangle n, Real.logb (Real.sqrt D / 2) (3 * (n : ℝ) ^ κ) :=
-        Finset.sum_le_sum fun t _ => hterm t
-    _ = (n : ℝ) ^ 3 * Real.logb (Real.sqrt D / 2) (3 * (n : ℝ) ^ κ) := by
-        rw [Finset.sum_const, Finset.card_univ, Triangle.card, nsmul_eq_mul]
-        push_cast
-        ring
+  exact (Finset.sum_le_sum fun t _ => hterm t).trans_eq <| by
+    rw [Finset.sum_const, Finset.card_univ, Triangle.card, nsmul_eq_mul]
+    push_cast; ring
 
 end Selection
 
