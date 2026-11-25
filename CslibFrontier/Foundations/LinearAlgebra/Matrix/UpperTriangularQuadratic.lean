@@ -107,15 +107,21 @@ theorem isUpperTriangular_upperQuadratic [Add R] [Zero R] (M : Matrix ι ι R) :
 @[simp]
 theorem upperQuadratic_zero [AddZeroClass R] :
     (0 : Matrix ι ι R).upperQuadratic = 0 := by
-  ext i j; simp only [upperQuadratic_apply, Matrix.zero_apply]; split_ifs <;> simp
+  ext i j
+  simp only [upperQuadratic_apply, Matrix.zero_apply]
+  split_ifs <;> simp
 
 theorem upperQuadratic_add [AddCommMonoid R] (M N : Matrix ι ι R) :
     (M + N).upperQuadratic = M.upperQuadratic + N.upperQuadratic := by
-  ext i j; simp only [upperQuadratic_apply, Matrix.add_apply]; split_ifs <;> abel
+  ext i j
+  simp only [upperQuadratic_apply, Matrix.add_apply]
+  split_ifs <;> abel
 
 theorem upperQuadratic_neg [AddCommGroup R] (M : Matrix ι ι R) :
     (-M).upperQuadratic = -M.upperQuadratic := by
-  ext i j; simp only [upperQuadratic_apply, Matrix.neg_apply]; split_ifs <;> abel
+  ext i j
+  simp only [upperQuadratic_apply, Matrix.neg_apply]
+  split_ifs <;> abel
 
 theorem upperQuadratic_sub [AddCommGroup R] (M N : Matrix ι ι R) :
     (M - N).upperQuadratic = M.upperQuadratic - N.upperQuadratic := by
@@ -124,7 +130,9 @@ theorem upperQuadratic_sub [AddCommGroup R] (M N : Matrix ι ι R) :
 theorem upperQuadratic_smul {S : Type*} [Monoid S] [AddMonoid R] [DistribMulAction S R]
     (c : S) (M : Matrix ι ι R) :
     (c • M).upperQuadratic = c • M.upperQuadratic := by
-  ext i j; simp only [upperQuadratic_apply, Matrix.smul_apply]; split_ifs <;> simp [smul_add]
+  ext i j
+  simp only [upperQuadratic_apply, Matrix.smul_apply]
+  split_ifs <;> simp [smul_add]
 
 end Definition
 
@@ -141,12 +149,21 @@ private theorem sum_sum_eq_zero_of_diag_of_lt {α : Type*} [Fintype α] [LinearO
     · simp [h, lt_asymm h]
     · simp [hdiag]
     · simp [h, lt_asymm h]
-  rw [Finset.sum_congr rfl fun i _ => Finset.sum_congr rfl fun j _ => hsplit i j]
-  simp only [Finset.sum_add_distrib]
-  rw [Finset.sum_comm (f := fun i j => if j < i then f i j else 0), ← Finset.sum_add_distrib]
-  refine Finset.sum_eq_zero fun i _ => ?_
-  rw [← Finset.sum_add_distrib]
-  exact Finset.sum_eq_zero fun j _ => if h : i < j then by simp [h, hlt h] else by simp [h]
+  calc
+    ∑ i : α, ∑ j : α, f i j
+        = ∑ i : α, ∑ j : α, ((if i < j then f i j else 0) + if j < i then f i j else 0) :=
+          Finset.sum_congr rfl fun i _ => Finset.sum_congr rfl fun j _ => hsplit i j
+    _ = (∑ i : α, ∑ j : α, if i < j then f i j else 0) +
+          ∑ i : α, ∑ j : α, if i < j then f j i else 0 := by
+          simp only [Finset.sum_add_distrib]
+          rw [Finset.sum_comm (f := fun i j => if j < i then f i j else 0)]
+    _ = ∑ i : α, ∑ j : α, ((if i < j then f i j else 0) + if i < j then f j i else 0) := by
+          simp only [Finset.sum_add_distrib]
+    _ = 0 := by
+          refine Finset.sum_eq_zero fun i _ => Finset.sum_eq_zero fun j _ => ?_
+          by_cases h : i < j
+          · simp [h, hlt h]
+          · simp [h]
 
 /-- Evaluate `Matrix.toQuadraticForm'` as `v ⬝ᵥ M *ᵥ v`. -/
 @[simp]
@@ -175,9 +192,12 @@ theorem isAlt_toLinearMap₂'_iff [Fintype ι] [DecidableEq ι] [CommRing R] {A 
   rw [Matrix.toLinearMap₂'_apply]
   simp_rw [← e.sum_comp]
   refine sum_sum_eq_zero_of_diag_of_lt _ (fun a => by simp [hdiag]) fun a b _ => ?_
-  simp only [smul_eq_mul]
-  rw [show x (e a) * (x (e b) * A (e a) (e b)) + x (e b) * (x (e a) * A (e b) (e a)) =
-    x (e a) * x (e b) * (A (e a) (e b) + A (e b) (e a)) by ring, hsymm, mul_zero]
+  calc
+    x (e a) • x (e b) • A (e a) (e b) + x (e b) • x (e a) • A (e b) (e a)
+        = x (e a) * x (e b) * (A (e a) (e b) + A (e b) (e a)) := by
+          simp only [smul_eq_mul]
+          ring
+    _ = 0 := by rw [hsymm, mul_zero]
 
 /-- Linear-order form of `Matrix.isAlt_toLinearMap₂'_iff`: it suffices to check `A i j + A j i = 0`
 on `i < j`. -/
@@ -185,13 +205,17 @@ theorem isAlt_toLinearMap₂'_iff_of_lt [Fintype ι] [DecidableEq ι] [LinearOrd
     {A : Matrix ι ι R} :
     (Matrix.toLinearMap₂' R (S₁ := R) (S₂ := R) A).IsAlt ↔
       (∀ i, A i i = 0) ∧ ∀ ⦃i j⦄, i < j → A i j + A j i = 0 := by
-  refine ⟨fun h => let ⟨hd, hs⟩ := isAlt_toLinearMap₂'_diag_and_symm h; ⟨hd, fun i j _ => hs i j⟩,
-    fun ⟨hdiag, hlt⟩ x => ?_⟩
-  rw [Matrix.toLinearMap₂'_apply]
-  refine sum_sum_eq_zero_of_diag_of_lt _ (fun i => by simp [hdiag]) fun i j hij => ?_
-  simp only [smul_eq_mul]
-  rw [show x i * (x j * A i j) + x j * (x i * A j i) = x i * x j * (A i j + A j i) by ring,
-    hlt hij, mul_zero]
+  refine ⟨fun h => ?_, fun ⟨hdiag, hlt⟩ x => ?_⟩
+  · obtain ⟨hd, hs⟩ := isAlt_toLinearMap₂'_diag_and_symm h
+    exact ⟨hd, fun i j _ => hs i j⟩
+  · rw [Matrix.toLinearMap₂'_apply]
+    refine sum_sum_eq_zero_of_diag_of_lt _ (fun i => by simp [hdiag]) fun i j hij => ?_
+    calc
+      x i • x j • A i j + x j • x i • A j i
+          = x i * x j * (A i j + A j i) := by
+            simp only [smul_eq_mul]
+            ring
+      _ = 0 := by rw [hlt hij, mul_zero]
 
 /-- Two matrices induce the same quadratic form (`Matrix.toQuadraticForm'`) if and only if the
 bilinear form of their difference is alternating. -/
@@ -230,7 +254,9 @@ theorem eq_upperQuadratic_of_isUpperTriangular_of_isAlt [Fintype ι] [DecidableE
   rcases lt_trichotomy i j with hij | rfl | hji
   · have hs := hsymm i j
     simp only [Matrix.sub_apply, hN hij, upperQuadratic_apply_of_lt _ hij] at hs ⊢
-    exact sub_eq_zero.mp (by convert hs using 1; ring)
+    refine sub_eq_zero.mp ?_
+    convert hs using 1
+    ring
   · simpa [Matrix.sub_apply, sub_eq_zero] using hdiag i
   · simp [hji, hN hji]
 

@@ -206,38 +206,43 @@ private lemma isPacking_replicate {l bin : List ℕ} {k : ℕ} (hsum : bin.sum �
 
 /-- The first phase fits into `m` bins. -/
 theorem isPacking_yao₁ (m : ℕ) :
-    IsPacking 41 (replicate (6 * m) 6) (replicate m (replicate 6 6)) :=
-  isPacking_replicate (by decide) fun x => by
-    simp only [count_replicate]; split_ifs <;> omega
+    IsPacking 41 (replicate (6 * m) 6) (replicate m (replicate 6 6)) := by
+  refine isPacking_replicate (by decide) fun x => ?_
+  simp only [count_replicate]
+  split_ifs <;> omega
 
 /-- The first two phases fit into `3 * m` bins. -/
 theorem isPacking_yao₂ (m : ℕ) :
     IsPacking 41 (replicate (6 * m) 6 ++ replicate (6 * m) 14)
-      (replicate (3 * m) [6, 6, 14, 14]) :=
-  isPacking_replicate (by decide) fun x => by
-    simp only [count_append, count_replicate, count_cons, count_nil, beq_iff_eq]
-    split_ifs <;> omega
+      (replicate (3 * m) [6, 6, 14, 14]) := by
+  refine isPacking_replicate (by decide) fun x => ?_
+  simp only [count_append, count_replicate, count_cons, count_nil, beq_iff_eq]
+  split_ifs <;> omega
 
 /-- All three phases fit into `6 * m` bins. -/
 theorem isPacking_yao₃ (m : ℕ) :
     IsPacking 41 (replicate (6 * m) 6 ++ replicate (6 * m) 14 ++ replicate (6 * m) 21)
-      (replicate (6 * m) [6, 14, 21]) :=
-  isPacking_replicate (by decide) fun x => by
-    simp only [count_append, count_replicate, count_cons, count_nil, beq_iff_eq]
-    split_ifs <;> omega
+      (replicate (6 * m) [6, 14, 21]) := by
+  refine isPacking_replicate (by decide) fun x => ?_
+  simp only [count_append, count_replicate, count_cons, count_nil, beq_iff_eq]
+  split_ifs <;> omega
 
 /-- Every packing of the first phase has at least `m` bins: a bin holds at most six items of
 size `6`. -/
 theorem le_length_of_isPacking_yao₁ {m : ℕ} {Q : List (List ℕ)}
     (hQ : IsPacking 41 (replicate (6 * m) 6) Q) : m ≤ Q.length := by
-  have := hQ.count_le_mul_length 6 (k := 6) fun b _ => by have := six_mul_count_add_le_sum b; omega
+  have := hQ.count_le_mul_length 6 (k := 6) fun b _ => by
+    have := six_mul_count_add_le_sum b
+    omega
   simp at this; omega
 
 /-- Every packing of the first two phases has at least `3 * m` bins: a bin holds at most two
 items of size `14`. -/
 theorem le_length_of_isPacking_yao₂ {m : ℕ} {Q : List (List ℕ)}
     (hQ : IsPacking 41 (replicate (6 * m) 6 ++ replicate (6 * m) 14) Q) : 3 * m ≤ Q.length := by
-  have := hQ.count_le_mul_length 14 (k := 2) fun b _ => by have := six_mul_count_add_le_sum b; omega
+  have := hQ.count_le_mul_length 14 (k := 2) fun b _ => by
+    have := six_mul_count_add_le_sum b
+    omega
   simp [count_replicate] at this; omega
 
 /-- Every packing of all three phases has at least `6 * m` bins: a bin holds at most one item of
@@ -245,32 +250,39 @@ size `21`. -/
 theorem le_length_of_isPacking_yao₃ {m : ℕ} {Q : List (List ℕ)}
     (hQ : IsPacking 41 (replicate (6 * m) 6 ++ replicate (6 * m) 14 ++ replicate (6 * m) 21) Q) :
     6 * m ≤ Q.length := by
-  have := hQ.count_le_mul_length 21 (k := 1) fun b _ => by have := six_mul_count_add_le_sum b; omega
+  have := hQ.count_le_mul_length 21 (k := 1) fun b _ => by
+    have := six_mul_count_add_le_sum b
+    omega
   simp [count_replicate] at this; omega
 
 /-- The `6 * m` items of size `14` of the two-phase input fit into `3 * m` bins. -/
 theorem isPacking_twoPhase₁ (m : ℕ) :
-    IsPacking 41 (replicate (6 * m) 14) (replicate (3 * m) [14, 14]) :=
-  isPacking_replicate (by decide) fun x => by
-    simp only [count_replicate, count_cons, count_nil, beq_iff_eq]; split_ifs <;> omega
+    IsPacking 41 (replicate (6 * m) 14) (replicate (3 * m) [14, 14]) := by
+  refine isPacking_replicate (by decide) fun x => ?_
+  simp only [count_replicate, count_cons, count_nil, beq_iff_eq]
+  split_ifs <;> omega
 
 /-- Both phases of the two-phase input fit into `6 * m` bins. -/
 theorem isPacking_twoPhase₂ (m : ℕ) :
-    IsPacking 41 (replicate (6 * m) 14 ++ replicate (6 * m) 21) (replicate (6 * m) [14, 21]) :=
-  isPacking_replicate (by decide) fun x => by
-    simp only [count_append, count_replicate, count_cons, count_nil, beq_iff_eq]
-    split_ifs <;> omega
+    IsPacking 41 (replicate (6 * m) 14 ++ replicate (6 * m) 21) (replicate (6 * m) [14, 21]) := by
+  refine isPacking_replicate (by decide) fun x => ?_
+  simp only [count_append, count_replicate, count_cons, count_nil, beq_iff_eq]
+  split_ifs <;> omega
 
 /-- Every packing of `6 * m` items of size `14` has at least `3 * m` bins. -/
 theorem le_length_of_isPacking_twoPhase₁ {m : ℕ} {Q : List (List ℕ)}
     (hQ : IsPacking 41 (replicate (6 * m) 14) Q) : 3 * m ≤ Q.length := by
-  have := hQ.count_le_mul_length 14 (k := 2) fun b _ => by have := six_mul_count_add_le_sum b; omega
+  have := hQ.count_le_mul_length 14 (k := 2) fun b _ => by
+    have := six_mul_count_add_le_sum b
+    omega
   simp at this; omega
 
 /-- Every packing of both phases of the two-phase input has at least `6 * m` bins. -/
 theorem le_length_of_isPacking_twoPhase₂ {m : ℕ} {Q : List (List ℕ)}
     (hQ : IsPacking 41 (replicate (6 * m) 14 ++ replicate (6 * m) 21) Q) : 6 * m ≤ Q.length := by
-  have := hQ.count_le_mul_length 21 (k := 1) fun b _ => by have := six_mul_count_add_le_sum b; omega
+  have := hQ.count_le_mul_length 21 (k := 1) fun b _ => by
+    have := six_mul_count_add_le_sum b
+    omega
   simp [count_replicate] at this; omega
 
 namespace OnlinePacker

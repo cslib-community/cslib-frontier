@@ -49,8 +49,9 @@ theorem synthesis_flaggedWords (k : ℕ) (s : Set (BooleanFunction a))
       (wires fun x i => decide (∃ w, flag w x = true ∧ w i = true)) (3 * 2 ^ k) := by
   induction k generalizing s with
   | zero =>
-    exact (Synthesis.of_subset (by rintro _ ⟨i, rfl⟩; exact i.elim0)).mono .rfl .rfl
-      (Nat.zero_le _)
+    refine (Synthesis.of_subset ?_).mono .rfl .rfl (Nat.zero_le _)
+    rintro _ ⟨i, rfl⟩
+    exact i.elim0
   | succ k ih =>
     let merged (w : BitString k) : BooleanFunction a :=
       fun x => flag (Fin.cons false w) x || flag (Fin.cons true w) x
@@ -105,10 +106,11 @@ theorem synthesis_allMinterms {k : ℕ} (s : Set (BooleanFunction a))
       (Set.range fun w : BitString k => fun x => decide (bits x = w))
       (4 * 2 ^ k) := by
   refine (Synthesis.circuit (I := interpretation) (s := s) (mintermCircuit k)
-    (fun i x => bits x i) fun i => hb ⟨i, rfl⟩).mono .rfl ?_
-    (by have := size_mintermCircuit_add_three_le k; lia)
-  rintro _ ⟨w, rfl⟩
-  exact ⟨BitString.equivFin k w, funext fun _ => by simp⟩
+    (fun i x => bits x i) fun i => hb ⟨i, rfl⟩).mono .rfl ?_ ?_
+  · rintro _ ⟨w, rfl⟩
+    exact ⟨BitString.equivFin k w, funext fun _ => by simp⟩
+  · have := size_mintermCircuit_add_three_le k
+    lia
 
 /-- Testing a whole key reuses the minterm for each half-word. -/
 private theorem synthesize_matches {l r : ℕ} (keys : Fin M → BitString (l + r)) :
@@ -183,8 +185,9 @@ bitwise OR of their values, and missing keys return the all-false word. -/
 theorem exists_lookupOr (keys values : Fin M → BitString n) :
     ∃ c : Circuit signature n n, c.Computes interpretation (lookupOr keys values) ∧
       c.size ≤ 3 * M + 16 * 2 ^ ((n + 1) / 2) := by
-  obtain ⟨c, hc, hs⟩ := (synthesis_singleLookupOr (inputs n) id
-    (by rintro _ ⟨i, rfl⟩; exact ⟨i, rfl⟩) keys values).exists_circuit_outputs
+  have hin : wires (id : BitString n → BitString n) ⊆ inputs n := fun _ ⟨i, h⟩ => ⟨i, h⟩
+  obtain ⟨c, hc, hs⟩ :=
+    (synthesis_singleLookupOr (inputs n) id hin keys values).exists_circuit_outputs
   exact ⟨c, hc, by lia⟩
 
 /-- Read a hardwired word of any width on a finite domain, given the query wires. The key and

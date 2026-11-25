@@ -64,6 +64,7 @@ import CslibFrontierResults.Entries.RandomOracleKDF
 import CslibFrontierResults.Entries.RelabelToFront
 import CslibFrontierResults.Entries.Roberts
 import CslibFrontierResults.Entries.SamplableNotComputable
+import CslibFrontierResults.Entries.SatisfiabilityHypothesis
 import CslibFrontierResults.Entries.SecurityEconomics
 import CslibFrontierResults.Entries.SelfClosingDoor
 import CslibFrontierResults.Entries.SergeevAdditiveMultiplicative

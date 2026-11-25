@@ -143,8 +143,9 @@ private theorem ncard_incidence_eq_of_bij {V V' E E' W : Type}
       emb '' (capGraph G tip).incidenceSet (.inl u) by
     rw [this, ncard_image_of_injective _ emb.injective]
   ext e'
-  exact ⟨fun he' => let ⟨e, he⟩ := hsurj e' he'; ⟨e, (hmap e).mpr (he ▸ he'), he⟩,
-    fun ⟨e, he, h⟩ => h ▸ (hmap e).mp he⟩
+  refine ⟨fun he' => ?_, fun ⟨e, he, h⟩ => h ▸ (hmap e).mp he⟩
+  obtain ⟨e, rfl⟩ := hsurj e' he'
+  exact ⟨e, (hmap e).mpr he', rfl⟩
 
 /-- Base open state for `[] : List (ActiveGate W)`. -/
 private noncomputable def openStateNil (d : ℕ) (W : Type) [Fintype W] [DecidableEq W] :
@@ -357,8 +358,9 @@ private theorem placeAct_two_mul_apply {W : Type} [Fintype W] [DecidableEq W]
   set q₁ : W := g.2.2 i₁
   have hq_ne : q₀ ≠ q₁ := activeGate_wires_ne g h2
   have hi_cases (i : Fin g.1.val) : i = i₀ ∨ i = i₁ := by
-    rcases (by omega : i.val = 0 ∨ i.val = 1) with h | h <;>
-      [exact Or.inl (Fin.ext h); exact Or.inr (Fin.ext h)]
+    rcases (by omega : i.val = 0 ∨ i.val = 1) with h | h
+    · exact Or.inl (Fin.ext h)
+    · exact Or.inr (Fin.ext h)
   have hi_ne : i₁ ≠ i₀ := fun h => by simpa [i₀, i₁] using congrArg Fin.val h
   have hplace (z : W → Bool) :
       (placeAct g : Matrix (W → Bool) (W → Bool) ℂ) y z =
@@ -382,9 +384,11 @@ private theorem placeAct_two_mul_apply {W : Type} [Fintype W] [DecidableEq W]
   let fupd (p : Bool × Bool) : W → Bool := Function.update (Function.update y q₁ p.2) q₀ p.1
   have hinv {z : W → Bool} (hz : ∀ q, q ≠ q₀ ∧ q ≠ q₁ → y q = z q) : fupd (z q₀, z q₁) = z :=
     funext fun q => by
-      by_cases h0 : q = q₀; · subst h0; simp [fupd]
-      by_cases h1 : q = q₁; · subst h1; simp [fupd, h0]
-      simp [fupd, h0, h1, hz q ⟨h0, h1⟩]
+      rcases eq_or_ne q q₀ with rfl | h0
+      · simp [fupd]
+      · rcases eq_or_ne q q₁ with rfl | h1
+        · simp [fupd, h0]
+        · simp [fupd, h0, h1, hz q ⟨h0, h1⟩]
   rw [← Finset.sum_filter, ← Fintype.sum_prod_type fun p : Bool × Bool =>
     (g.2.1 : Matrix (Fin g.1.val → Bool) (Fin g.1.val → Bool) ℂ)
       (fun i => if i = i₀ then y q₀ else y q₁) (fun i => if i = i₀ then p.1 else p.2) *
@@ -392,7 +396,9 @@ private theorem placeAct_two_mul_apply {W : Type} [Fintype W] [DecidableEq W]
   exact Finset.sum_nbij' (fun z => (z q₀, z q₁)) fupd (fun _ _ => Finset.mem_univ _)
     (fun _ _ => Finset.mem_filter.mpr ⟨Finset.mem_univ _, fun q ⟨h0, h1⟩ => by simp [fupd, h0, h1]⟩)
     (fun z hz => hinv (Finset.mem_filter.mp hz).2) (fun ⟨_, _⟩ _ => by simp [fupd, hq_ne.symm])
-    (fun z hz => by dsimp only; rw [hinv (Finset.mem_filter.mp hz).2])
+    (fun z hz => by
+      dsimp only
+      rw [hinv (Finset.mem_filter.mp hz).2])
 
 private theorem OpenState.contract_update_two {d : ℕ} {W : Type} [Fintype W] [DecidableEq W]
     {M : Matrix (W → Bool) (W → Bool) ℂ} {s : ℕ} (S : OpenState d W M s)
@@ -407,15 +413,20 @@ private theorem OpenState.contract_update_two {d : ℕ} {W : Type} [Fintype W] [
   have hstep1 : (∑ z₀ : Bool, ∑ z₁ : Bool,
       K z₀ z₁ * M (Function.update (Function.update y q₁ z₁) q₀ z₀) x) =
       S.scalar * ∑ z₀ : Bool, ∑ z₁ : Bool, ∑ γ : S.E ⊕ W → Bool,
-        K z₀ z₁ * ((∏ u : S.V, S.openF u x γ) *
-          ∏ q : W, S.tipMat q
-            (Function.update (Function.update y q₁ z₁) q₀ z₀ q) (γ (.inr q))) := by
-    rw [Finset.mul_sum]; refine Finset.sum_congr rfl fun z₀ _ => ?_
-    rw [Finset.mul_sum]; refine Finset.sum_congr rfl fun z₁ _ => ?_
+        K z₀ z₁ *
+          ((∏ u : S.V, S.openF u x γ) *
+            ∏ q : W, S.tipMat q (Function.update (Function.update y q₁ z₁) q₀ z₀ q)
+              (γ (.inr q))) := by
+    rw [Finset.mul_sum]
+    refine Finset.sum_congr rfl fun z₀ _ => ?_
+    rw [Finset.mul_sum]
+    refine Finset.sum_congr rfl fun z₁ _ => ?_
     rw [S.contract _ x, ← mul_assoc, mul_comm (K z₀ z₁) S.scalar, mul_assoc, Finset.mul_sum]
   rw [hstep1, Finset.sum_comm]
-  simp_rw [Finset.sum_comm (s := Finset.univ (α := Bool)) (t := Finset.univ (α := S.E ⊕ W → Bool))]
-  congr 1; refine Finset.sum_congr rfl fun γ _ => ?_
+  simp_rw [Finset.sum_comm (s := Finset.univ (α := Bool))
+    (t := Finset.univ (α := S.E ⊕ W → Bool))]
+  congr 1
+  refine Finset.sum_congr rfl fun γ _ => ?_
   have hupd (z₀ z₁ : Bool) :
       (∏ q : W, S.tipMat q (Function.update (Function.update y q₁ z₁) q₀ z₀ q) (γ (.inr q))) =
       S.tipMat q₀ z₀ (γ (.inr q₀)) * S.tipMat q₁ z₁ (γ (.inr q₁)) *
@@ -423,7 +434,8 @@ private theorem OpenState.contract_update_two {d : ℕ} {W : Type} [Fintype W] [
     rw [← Finset.mul_prod_erase _ _ (Finset.mem_univ q₀),
       ← Finset.mul_prod_erase _ _ (Finset.mem_erase.mpr ⟨hq_ne.symm, Finset.mem_univ q₁⟩),
       Function.update_self, Function.update_of_ne hq_ne.symm, Function.update_self, mul_assoc]
-    congr 2; refine Finset.prod_congr rfl fun q hq => ?_
+    congr 2
+    refine Finset.prod_congr rfl fun q hq => ?_
     rw [Function.update_of_ne (Finset.mem_erase.mp (Finset.mem_erase.mp hq).2).1,
       Function.update_of_ne (Finset.mem_erase.mp hq).1]
   simp_rw [hupd]

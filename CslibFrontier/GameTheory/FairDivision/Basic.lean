@@ -144,11 +144,8 @@ theorem apply_eq_sub {a b : ℝ} (ha : 0 ≤ a) (hab : a ≤ b) (hb : b ≤ 1) :
 theorem apply_mono {a b c d : ℝ} (hc : 0 ≤ c) (hca : c ≤ a) (hbd : b ≤ d) (hd : d ≤ 1) :
     v a b ≤ v c d := by
   by_cases hab : a ≤ b
-  · have h1 := v.val_add hc hca hab (hbd.trans hd)
-    have h2 := v.val_add hc (hca.trans hab) hbd hd
-    have hnn1 : 0 ≤ v c a := v.val_nonneg hc (hab.trans (hbd.trans hd))
-    have hnn2 : 0 ≤ v b d := v.val_nonneg (hc.trans (hca.trans hab)) hd
-    linarith
+  · linarith [v.val_add hc hca hab (hbd.trans hd), v.val_add hc (hca.trans hab) hbd hd,
+      v.val_nonneg hc (hab.trans (hbd.trans hd)), v.val_nonneg (hc.trans (hca.trans hab)) hd]
   · rw [v.val_of_ge (le_of_not_ge hab)]
     exact v.val_nonneg hc hd
 
@@ -159,21 +156,15 @@ theorem apply_mono_right {a x y : ℝ} (ha : 0 ≤ a) (hxy : x ≤ y) (hy : y �
 
 /-- Continuity of `x ↦ v a x` on `[a, 1]` for any `0 ≤ a`. -/
 theorem continuousOn_right {a : ℝ} (ha0 : 0 ≤ a) :
-    ContinuousOn (v a) (Set.Icc a 1) := by
-  have hsub : Set.Icc a 1 ⊆ Set.Icc 0 1 :=
-    fun x hx => ⟨ha0.trans hx.1, hx.2⟩
-  have hcont : ContinuousOn (fun x => v 0 x - v 0 a) (Set.Icc a 1) :=
-    (v.continuousOn.mono hsub).sub continuousOn_const
-  exact hcont.congr fun x hx => v.apply_eq_sub ha0 hx.1 hx.2
+    ContinuousOn (v a) (Set.Icc a 1) :=
+  ((v.continuousOn.mono (t := Set.Icc a 1) fun _ hx => ⟨ha0.trans hx.1, hx.2⟩).sub
+    continuousOn_const).congr fun _ hx => v.apply_eq_sub ha0 hx.1 hx.2
 
 /-- **Intermediate-value cut existence:** for `a ∈ [0, 1]` and `0 ≤ α ≤ v a 1`, there exists a cut
 point `x ∈ [a, 1]` with `v a x = α`. -/
 theorem exists_cut {a α : ℝ} (ha0 : 0 ≤ a) (ha1 : a ≤ 1) (hα0 : 0 ≤ α) (hα1 : α ≤ v a 1) :
-    ∃ x ∈ Set.Icc a 1, v a x = α := by
-  have hmem : α ∈ Set.Icc (v a a) (v a 1) := by
-    rw [v.apply_self]
-    exact ⟨hα0, hα1⟩
-  exact intermediate_value_Icc ha1 (continuousOn_right v ha0) hmem
+    ∃ x ∈ Set.Icc a 1, v a x = α :=
+  intermediate_value_Icc ha1 (continuousOn_right v ha0) ⟨by rwa [v.apply_self], hα1⟩
 
 /-- Construct a `CakeValuation` from a cumulative distribution function `F : ℝ → ℝ` satisfying
 `F 0 = 0`, `F 1 = 1`, monotonicity on `[0, 1]`, and continuity on `[0, 1]`. -/
@@ -335,15 +326,10 @@ theorem bundleVal_perm {B₁ B₂ : List CakePiece} (h : B₁.Perm B₂) :
 
 /-- Every bundle of pieces contained in `[0, 1]` has nonnegative value. -/
 theorem bundleVal_nonneg {B : List CakePiece}
-    (hB : ∀ p ∈ B, 0 ≤ p.left ∧ p.right ≤ 1) : 0 ≤ v.bundleVal B := by
-  induction B with
-  | nil => simp only [bundleVal_nil, le_refl]
-  | cons p ps ih =>
-    rw [bundleVal_cons]
-    have hp := hB p List.mem_cons_self
-    have hps := ih fun q hq => hB q (List.mem_cons_of_mem p hq)
-    have hpv : 0 ≤ v.pieceVal p := v.val_nonneg hp.1 hp.2
-    linarith
+    (hB : ∀ p ∈ B, 0 ≤ p.left ∧ p.right ≤ 1) : 0 ≤ v.bundleVal B :=
+  List.sum_nonneg fun _ hx => by
+    obtain ⟨p, hp, rfl⟩ := List.mem_map.1 hx
+    exact v.val_nonneg (hB p hp).1 (hB p hp).2
 
 end CakeValuation
 
@@ -407,12 +393,10 @@ theorem endpoints_mem_of_mem_intervalsOfCutsOn {a b : ℝ} {cuts : List ℝ}
     a ≤ p.left ∧ p.left ≤ p.right ∧ p.right ≤ b := by
   induction cuts generalizing a with
   | nil =>
-    simp only [intervalsOfCutsOn, List.mem_singleton] at hp
-    subst hp
+    rcases List.mem_singleton.mp hp with rfl
     exact ⟨le_rfl, hord, le_rfl⟩
   | cons c cs ih =>
-    simp only [intervalsOfCutsOn, List.mem_cons] at hp
-    rcases hp with rfl | hp'
+    rcases List.mem_cons.mp hp with rfl | hp'
     · exact ⟨le_rfl, hord.1, hord.2.le⟩
     · obtain ⟨h1, h2, h3⟩ := ih hord.2 hp'
       exact ⟨hord.1.trans h1, h2, h3⟩
@@ -509,22 +493,18 @@ agents' bundles. -/
 theorem sum_bundleVal_eq_one {n : ℕ} {D : DividedCake n} (hP : D.IsValidPartition)
     (u : CakeValuation) :
     ∑ j : Fin n, u.bundleVal (D.pieces j) = 1 := by
-  have hperm : u.bundleVal D.allPieces = 1 := by
-    rw [u.bundleVal_perm hP.2, bundleVal_intervalsOfCuts u hP.1]
-  rw [allPieces, bundleVal_flatten, List.map_ofFn, Fin.sum_ofFn] at hperm
-  exact hperm
+  simpa only [allPieces, bundleVal_flatten, List.map_ofFn, Fin.sum_ofFn, Function.comp_def] using
+    (u.bundleVal_perm hP.2).trans (bundleVal_intervalsOfCuts u hP.1)
 
 /-- **Envy-freeness implies proportionality** for every valid partition of `[0, 1]`. -/
 theorem IsEnvyFree.isProportional {n : ℕ} {D : DividedCake n} {v : Fin n → CakeValuation}
     (hP : D.IsValidPartition) (hEF : D.IsEnvyFree v) : D.IsProportional v := by
   intro i
-  have hn_pos : (0 : ℝ) < n := Nat.cast_pos.mpr i.pos
-  have hsum : ∑ j : Fin n, (v i).bundleVal (D.pieces j) = 1 := sum_bundleVal_eq_one hP (v i)
-  have hle : ∑ j : Fin n, (v i).bundleVal (D.pieces j) ≤
-      ∑ _j : Fin n, (v i).bundleVal (D.pieces i) :=
-    Finset.sum_le_sum fun j _ => hEF i j
-  rw [hsum, Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul] at hle
-  rwa [div_le_iff₀' hn_pos]
+  have hle : (1 : ℝ) ≤ n * (v i).bundleVal (D.pieces i) := by
+    simpa only [sum_bundleVal_eq_one hP (v i), Finset.sum_const, Finset.card_univ,
+      Fintype.card_fin, nsmul_eq_mul] using
+      Finset.sum_le_sum (s := Finset.univ) fun j _ => hEF i j
+  rwa [div_le_iff₀' (Nat.cast_pos.mpr i.pos)]
 
 end DividedCake
 
@@ -604,15 +584,13 @@ theorem IsValidOracle.eval_cutIn_spec {Agent : Type} {v : Agent → CakeValuatio
     (cutIn i a b α).eval oracle ∈ Set.Icc a b ∧
       v i a ((cutIn i a b α).eval oracle) = α := by
   refine ⟨eval_cutIn_mem_Icc oracle i hab α, ?_⟩
-  have hα1 : α ≤ v i a 1 := hαb.trans ((v i).apply_mono_right ha hb le_rfl)
-  obtain ⟨⟨hax, hx1⟩, hvx⟩ := ho.2 i a α ha (hab.trans hb) hα0 hα1
+  obtain ⟨⟨hax, hx1⟩, hvx⟩ := ho.2 i a α ha (hab.trans hb) hα0
+    (hαb.trans ((v i).apply_mono_right ha hb le_rfl))
   simp only [cutIn, FreeM.eval_map, FreeM.eval_lift, max_eq_right hax]
   by_cases hxb : oracle (.cut i a α) ≤ b
   · rw [min_eq_right hxb, hvx]
-  · have hbx : b ≤ oracle (.cut i a α) := le_of_not_ge hxb
-    rw [min_eq_left hbx]
-    have hle : v i a b ≤ α := hvx ▸ (v i).apply_mono_right ha hbx hx1
-    exact le_antisymm hle hαb
+  · rw [min_eq_left (le_of_not_ge hxb)]
+    exact le_antisymm (hvx ▸ (v i).apply_mono_right ha (le_of_not_ge hxb) hx1) hαb
 
 /-- Canonical Robertson–Webb oracle induced by a valuation profile `v` via intermediate value. -/
 noncomputable def oracleOf {Agent : Type} (v : Agent → CakeValuation) :
@@ -629,9 +607,8 @@ noncomputable def oracleOf {Agent : Type} (v : Agent → CakeValuation) :
 theorem isValidOracle_oracleOf {Agent : Type} (v : Agent → CakeValuation) :
     IsValidOracle v (oracleOf v) := by
   refine ⟨fun _ _ _ => rfl, fun i a α ha0 ha1 hα0 hα1 => ?_⟩
-  have h : 0 ≤ a ∧ a ≤ 1 ∧ 0 ≤ α ∧ α ≤ v i a 1 := ⟨ha0, ha1, hα0, hα1⟩
   dsimp only [oracleOf]
-  rw [dite_eq_left h]
+  rw [dite_eq_left ⟨ha0, ha1, hα0, hα1⟩]
   exact Classical.choose_spec ((v i).exists_cut ha0 ha1 hα0 hα1)
 
 /-- Embed `RWQuery (Fin n)` into `RWQuery ℕ` via `Fin.val`, providing a size-uniform query
@@ -657,16 +634,7 @@ theorem countQueries_liftFin {n : ℕ} {α : Type}
         | .cut i a t => oracle (.cut i.1 a t)) := by
   induction p with
   | pure _ => rfl
-  | lift_bind op cont ih =>
-    cases op with
-    | eval i a b =>
-      change 1 + (liftFin (cont (oracle (.eval i.1 a b)))).countQueries oracle =
-        1 + (cont (oracle (.eval i.1 a b))).countQueries _
-      rw [ih]
-    | cut i a t =>
-      change 1 + (liftFin (cont (oracle (.cut i.1 a t)))).countQueries oracle =
-        1 + (cont (oracle (.cut i.1 a t))).countQueries _
-      rw [ih]
+  | lift_bind op _ ih => cases op <;> exact congrArg (1 + ·) (ih _)
 
 end RWQuery
 

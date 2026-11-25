@@ -540,7 +540,8 @@ private theorem evalGate_take (k : ℕ) (f : ValidCircuit)
           labelBits (A (Wire.ofNat v v.isLt))).take (f.1.n + g)).length
         (BitString.lowBits (wireWidth f.1.n (toCircuit f).size) a).reverse = a := by
     rw [BitString.boundedBinaryValue_eq, ← ofBits_reverse, List.reverse_reverse,
-      ofBits_lowBits hw, List.length_take, List.length_ofFn]; omega
+      ofBits_lowBits hw, List.length_take, List.length_ofFn]
+    omega
   rw [hp₁, hp₂, hp₃, hval _ (by omega) (by omega), hval _ (by omega) (by omega),
     getD_take_labels A (by omega) (by omega), getD_take_labels A (by omega) (by omega)]
   simp only [getD_labelBits, take_labelBits]

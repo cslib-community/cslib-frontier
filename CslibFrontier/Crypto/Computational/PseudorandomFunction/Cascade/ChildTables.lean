@@ -60,12 +60,9 @@ private theorem cascadeFamily_oneBlock {inLen : ℕ → ℕ}
 private theorem add_width_le_of_dvd {width depth length : ℕ} (hdvd : width ∣ length)
     (hdepth : depth * width < length) : depth * width + width ≤ length := by
   obtain ⟨blocks, rfl⟩ := hdvd
-  have hblocks : depth < blocks := by
-    by_contra h
-    have hle := Nat.mul_le_mul_right width (Nat.le_of_not_gt h)
-    exact (not_le_of_gt hdepth) (by simpa only [Nat.mul_comm width blocks] using hle)
   rw [← Nat.succ_mul, Nat.mul_comm width blocks]
-  exact Nat.mul_le_mul_right width hblocks
+  exact Nat.mul_le_mul_right width <| Nat.lt_of_not_ge fun h =>
+    hdepth.not_ge (by simpa only [Nat.mul_comm width blocks] using Nat.mul_le_mul_right width h)
 
 private theorem realChildAnswer_eq {inLen : ℕ → ℕ}
     {family : List Bool → List Bool → List Bool} {valid : List Bool → Bool} {n depth : ℕ}
@@ -84,40 +81,38 @@ private theorem realChildAnswer_eq {inLen : ℕ → ℕ}
     have hparent : List.ofFn (BitString.ofList cut query) = query.take cut := by
       rw [← BitString.ofList_take]
       exact BitString.ofFn_ofList (by simp [Nat.min_eq_left h.le])
-    have hlenBlock : inLen n ≤ (query.drop cut).length := by
-      simp only [List.length_drop]
-      omega
     let block := (query.drop cut).take (inLen n)
     have hblock : block.length = inLen n := by
-      simp only [block, List.length_take, Nat.min_eq_left hlenBlock]
+      simp only [block, List.length_take, List.length_drop]
+      omega
     have hbits : List.ofFn (BitString.ofList (inLen n) (query.drop cut)) = block := by
       rw [← BitString.ofList_take]
       exact BitString.ofFn_ofList hblock
-    have hrem : inLen n ∣ (query.drop (cut + inLen n)).length := by
-      rw [List.length_drop]
-      exact Nat.dvd_sub ha (dvd_add (Nat.dvd_mul_left _ _) (dvd_refl _))
     have hsplit : block ++ query.drop (cut + inLen n) = query.drop cut := by
       rw [← List.drop_drop]
       exact List.take_append_drop _ _
-    let key := List.ofFn (parents ⟨query.take cut, by
-      exact (List.length_take ..).trans_le (Nat.min_le_left ..)⟩)
+    let key := List.ofFn (parents ⟨query.take cut,
+      (List.length_take ..).trans_le (Nat.min_le_left ..)⟩)
     have hkey : key.length = n := List.length_ofFn
     have hbase : (family key block).length = n :=
       (hlen key block (by rw [hkey, hblock])).trans hkey
-    have hlong : depth * inLen n < query.length := h
-    simp only [prefixHybridIndependentLabelOracle, hv, ↓reduceIte, hlong, hparent, hbits]
+    have hrem : inLen n ∣ (query.drop (cut + inLen n)).length := by
+      rw [List.length_drop]
+      exact Nat.dvd_sub ha (dvd_add (Nat.dvd_mul_left _ _) (dvd_refl _))
+    simp only [prefixHybridIndependentLabelOracle, hv, ↓reduceIte,
+      show depth * inLen n < query.length from h, hparent, hbits]
     change cascadeFamily inLen family key (query.drop cut) =
       cascadeFamily inLen family (List.ofFn (BitString.ofList n (family key block)))
         (query.drop (cut + inLen n))
     rw [BitString.ofFn_ofList hbase, ← hsplit,
       cascadeFamily_append hlen key (by rwa [hkey])
-        (by rw [hkey, hblock]) (by rwa [hkey]),
+        (by rw [hkey, hblock])
+        (by rwa [hkey]),
       cascadeFamily_oneBlock (key := key) (block := block) (by rwa [hkey]) (by rw [hkey, hblock])]
   · have hs : query.length ≤ depth * inLen n := Nat.le_of_not_gt h
-    have hshort : ¬ depth * inLen n < query.length := h
     rw [prefixHybridSplitAnswer_of_length_le hs]
-    simp [prefixHybridIndependentLabelOracle, hv, hshort, List.take_of_length_le hs,
-      List.drop_eq_nil_of_le hs]
+    simp [prefixHybridIndependentLabelOracle, hv, show ¬ depth * inLen n < query.length from h,
+      List.take_of_length_le hs, List.drop_eq_nil_of_le hs]
 
 /-- In the real child-function world, independent parent keys reproduce the previous cascade
 hybrid for a prefix-free client. The domain uses whole blocks, and the base family preserves

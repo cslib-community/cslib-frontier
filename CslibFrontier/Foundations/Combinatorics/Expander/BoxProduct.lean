@@ -90,14 +90,14 @@ theorem mul_expect_sq_le_boxProdPerms {c : ℝ}
   -- The fiber averages `g` and the decomposition `𝔼 f² = 𝔼 g² + 𝔼 (f - g)²`.
   set g : V → ℝ := fun v ↦ 𝔼 w, f (v, w) with hg
   have hsplit : 𝔼 p, f p ^ 2 = 𝔼 v, g v ^ 2 + 𝔼 v, 𝔼 w, (f (v, w) - g v) ^ 2 := by
-    have h := Fintype.expect_add_sq_of_expect_fiber_eq_zero g
-      (g := fun p ↦ f p - g p.1) (Fintype.expect_sub_expect_fiber f)
-    simpa only [add_sub_cancel, Fintype.expect_prod_type, Fintype.expect_const] using h
+    simpa only [add_sub_cancel, Fintype.expect_prod_type, Fintype.expect_const] using
+      Fintype.expect_add_sq_of_expect_fiber_eq_zero g
+        (g := fun p ↦ f p - g p.1) (Fintype.expect_sub_expect_fiber f)
   -- The second family controls the parts of average zero on the fibers.
   have hfib (v : V) :
       c * 𝔼 w, (f (v, w) - g v) ^ 2 ≤ ∑ k, 𝔼 w, (f (v, τ k w) - f (v, w)) ^ 2 := by
-    have := hτ (fun w ↦ f (v, w) - g v) (Fintype.expect_sub_expect_fiber f v)
-    simpa only [sub_sub_sub_cancel_right] using this
+    simpa only [sub_sub_sub_cancel_right] using
+      hτ (fun w ↦ f (v, w) - g v) (Fintype.expect_sub_expect_fiber f v)
   -- The first family controls the fiber averages, by Jensen's inequality.
   have hg0 : 𝔼 v, g v = 0 := by rw [← Fintype.expect_prod_type]; exact hf
   have hjensen (k : K) (v : V) : (g (σ k v) - g v) ^ 2 ≤ 𝔼 w, (f (σ k v, w) - f (v, w)) ^ 2 := by
@@ -149,15 +149,12 @@ theorem secondEigenvalue_ofPerms_boxProdPerms_le [Nonempty K] [Nonempty K'] :
   · -- On at most one vertex `λ₂ = 0`, and the bound is nonnegative as `λ₂ ≥ -1` for the factors.
     rw [secondEigenvalue_eq_zero_of_subsingleton, sub_nonneg, div_le_one hKK]
     have ha2 : a ≤ 2 * Fintype.card K := by
-      have := (ofPerms σ).neg_one_le_secondEigenvalue
-      have : (0 : ℝ) ≤ Fintype.card K := Nat.cast_nonneg _
       simp only [a]
-      nlinarith
+      nlinarith [(ofPerms σ).neg_one_le_secondEigenvalue, Nat.cast_nonneg (α := ℝ) (Fintype.card K)]
     have hb2 : b ≤ 2 * Fintype.card K' := by
-      have := (ofPerms τ).neg_one_le_secondEigenvalue
-      have : (0 : ℝ) ≤ Fintype.card K' := Nat.cast_nonneg _
       simp only [b]
-      nlinarith
+      nlinarith [(ofPerms τ).neg_one_le_secondEigenvalue,
+        Nat.cast_nonneg (α := ℝ) (Fintype.card K')]
     linarith [min_le_left a b, min_le_right a b]
   have h := secondEigenvalue_ofPerms_le (boxProdPerms σ τ) (c := 2 * min a b) fun f hf ↦
     mul_expect_sq_le_boxProdPerms
@@ -166,8 +163,7 @@ theorem secondEigenvalue_ofPerms_boxProdPerms_le [Nonempty K] [Nonempty K'] :
       (fun g hg ↦ (mul_le_mul_of_nonneg_right (by linarith [min_le_right a b])
         (expect_nonneg fun _ _ ↦ sq_nonneg _)).trans (mul_expect_sq_le_of_secondEigenvalue τ g hg))
       f hf
-  refine h.trans_eq ?_
-  rw [Fintype.card_sum, Nat.cast_add, mul_div_mul_left _ _ two_ne_zero]
+  exact h.trans_eq (by rw [Fintype.card_sum, Nat.cast_add, mul_div_mul_left _ _ two_ne_zero])
 
 /-- **The lazy box product is an expander** when both factors are: its spectral expansion is at most
 `1 - min (|K| (1 - λ₂(σ))) (|K'| (1 - λ₂(τ))) / (2 (|K| + |K'|))`. -/

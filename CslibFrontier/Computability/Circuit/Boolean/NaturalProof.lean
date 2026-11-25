@@ -132,7 +132,8 @@ theorem truthTableTest_truthTable_eq_true_iff {C : Set (BooleanFunction n)}
 theorem card_filter_truthTableTest (C : Set (BooleanFunction n)) :
     #{T | truthTableTest C T = true} = C.ncard := by
   rw [← Set.ncard_image_of_injective _ (truthTable n).injective, ← Set.ncard_coe_finset]
-  congr 1; ext T
+  congr 1
+  ext T
   obtain ⟨f, rfl⟩ := (truthTable n).surjective T
   simp
 
@@ -217,13 +218,16 @@ theorem IsUseful.eventually_forall_not (hC : IsUseful Λ C) {P : ∀ n, BooleanF
     (hP : ∀ n, ∃ f, P n f) :
     ∀ᶠ n in atTop, ∀ f ∈ C n, ¬ P n f := by
   classical
+  -- wherever possible, a function in `C n` satisfying `P`
   let g (n) : BooleanFunction n := if h : ∃ f ∈ C n, P n f then h.choose else (hP n).choose
   have hg (n) : P n (g n) := by
-    dsimp only [g]; split_ifs with h
+    dsimp only [g]
+    split_ifs with h
     exacts [h.choose_spec.2, (hP n).choose_spec]
   filter_upwards [hC _ (hΛ g hg)] with n hn f hf hPf
   have h : ∃ f ∈ C n, P n f := ⟨f, hf, hPf⟩
-  exact hn (by rw [Language.slice_ofSlices]; simpa only [g, dite_eq_left h] using h.choose_spec.1)
+  rw [Language.slice_ofSlices] at hn
+  exact hn (by simpa only [g, dite_eq_left h] using h.choose_spec.1)
 
 /-- If `Λ` contains `SIZE s`, with `s` positive, a property useful against `Λ` eventually holds
 only for functions needing more than `s n` gates. -/
@@ -263,7 +267,9 @@ theorem exists_complexity_truthTableTest_le (hC : truthTableLanguage C ∈ PPoly
   calc a * (2 ^ n + 1) ^ d ≤ 2 ^ a * (2 ^ (n + 1)) ^ d := by
         gcongr
         · exact Nat.lt_two_pow_self.le
-        · rw [pow_succ]; have := Nat.one_le_two_pow (n := n); omega
+        · rw [pow_succ]
+          have := Nat.one_le_two_pow (n := n)
+          omega
     _ = 2 ^ (a + (n + 1) * d) := by rw [← pow_mul, ← pow_add]
     _ ≤ 2 ^ ((a + 2 * d) * n) := Nat.pow_le_pow_right two_pos (by nlinarith)
 
@@ -342,13 +348,15 @@ theorem not_isUseful_PPoly_of_isNatural {F : ∀ n, Key n → BooleanFunction n}
   obtain ⟨n, hn, hlarge, hn1, hsec⟩ := ((isUseful_PPoly_iff.1 (huseful.anti le_rfl hDC) s hs).and
     (ha.and ((eventually_ge_atTop 1).and (hsecure (a + b + 1))))).exists
   refine not_secure_truthTableGenerator
-    ((hb n hn1).trans (Nat.pow_le_pow_right two_pos (by nlinarith))) hn (hF n)
-    (lt_of_lt_of_le (b := ((2 : ℝ) ^ (a * n))⁻¹) ?_ ?_) hsec
-  · rw [NNReal.coe_inv, NNReal.coe_pow, NNReal.coe_ofNat]
-    exact (inv_lt_inv₀ (by positivity) (by positivity)).2
-      (pow_lt_pow_right₀ one_lt_two (by nlinarith))
-  · rw [le_div_iff₀ (by positivity), inv_mul_le_iff₀ (by positivity)]
+    ((hb n hn1).trans (Nat.pow_le_pow_right two_pos (by nlinarith))) hn (hF n) ?_ hsec
+  -- the density of `D n` is at least `2 ^ (-a n)`, more than `2 ^ (-(a + b + 1) n)`
+  have hdensity : ((2 : ℝ) ^ (a * n))⁻¹ ≤ (D n).ncard / 2 ^ 2 ^ n := by
+    rw [le_div_iff₀ (by positivity), inv_mul_le_iff₀ (by positivity)]
     exact_mod_cast hlarge
+  refine lt_of_lt_of_le ?_ hdensity
+  rw [NNReal.coe_inv, NNReal.coe_pow, NNReal.coe_ofNat]
+  exact (inv_lt_inv₀ (by positivity) (by positivity)).2
+    (pow_lt_pow_right₀ one_lt_two (by nlinarith))
 
 /-! ### Hard functions -/
 
@@ -360,18 +368,20 @@ theorem two_pow_two_pow_le_two_mul_ncard_setOf_lt_complexity (hn : 16 ≤ n) :
   set s := 2 ^ n / (5 * n)
   have hle : {f : BooleanFunction n | complexity interpretation (single f) ≤ s}.ncard ≤
       2 ^ (2 ^ n / 4) := by
-    rw [show {f : BooleanFunction n | complexity interpretation (single f) ≤ s} =
-        (computableFunctions n s : Set (BooleanFunction n)) by
-        ext; simp only [Set.mem_ofPred_eq, Finset.mem_coe,
-          mem_computableFunctions_iff_complexity_le],
-      Set.ncard_coe_finset]
+    have h : {f : BooleanFunction n | complexity interpretation (single f) ≤ s} =
+        (computableFunctions n s : Set (BooleanFunction n)) := by
+      ext f
+      simp only [Set.mem_ofPred_eq, Finset.mem_coe, mem_computableFunctions_iff_complexity_le]
+    rw [h, Set.ncard_coe_finset]
     exact card_computableFunctions_two_pow_div_five_mul_le hn
   have hsum := Set.ncard_add_ncard_compl {f : BooleanFunction n |
     complexity interpretation (single f) ≤ s}
-  rw [show {f : BooleanFunction n | complexity interpretation (single f) ≤ s}ᶜ =
-        {f | s < complexity interpretation (single f)} by ext; simp,
-      Nat.card_eq_fintype_card, Fintype.card_fun, Fintype.card_bool, Fintype.card_fun,
-      Fintype.card_bool, Fintype.card_fin] at hsum
+  have hcompl : {f : BooleanFunction n | complexity interpretation (single f) ≤ s}ᶜ =
+      {f | s < complexity interpretation (single f)} := by
+    ext f
+    simp
+  rw [hcompl, Nat.card_eq_fintype_card, Fintype.card_fun, Fintype.card_bool, Fintype.card_fun,
+    Fintype.card_bool, Fintype.card_fin] at hsum
   have hquarter : 2 * 2 ^ (2 ^ n / 4) ≤ 2 ^ 2 ^ n := by
     rw [← pow_succ']
     have : 2 ^ 2 ≤ 2 ^ n := Nat.pow_le_pow_right two_pos (by omega)
@@ -382,10 +392,11 @@ theorem two_pow_two_pow_le_two_mul_ncard_setOf_lt_complexity (hn : 16 ≤ n) :
 for `n ≥ 16` they are at least half of all functions. -/
 theorem isLarge_setOf_lt_complexity :
     IsLarge fun n => {f : BooleanFunction n |
-      2 ^ n / (5 * n) < complexity interpretation (single f)} :=
-  ⟨1, (eventually_ge_atTop 16).mono fun n hn =>
-    (two_pow_two_pow_le_two_mul_ncard_setOf_lt_complexity hn).trans
-      (Nat.mul_le_mul_right _ (by rw [one_mul]; exact Nat.le_self_pow (by omega) 2))⟩
+      2 ^ n / (5 * n) < complexity interpretation (single f)} := by
+  refine ⟨1, (eventually_ge_atTop 16).mono fun n hn => ?_⟩
+  refine (two_pow_two_pow_le_two_mul_ncard_setOf_lt_complexity hn).trans
+    (Nat.mul_le_mul_right _ ?_)
+  simpa only [one_mul] using Nat.le_self_pow (by omega) 2
 
 /-- Circuits of polynomial size eventually compute no function that needs more than
 `2 ^ n / (5 n)` gates. -/

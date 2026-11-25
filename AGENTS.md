@@ -251,7 +251,8 @@ Dequeue a queued PR before pushing to it. A restack, such as one that only merge
 `references.bib` or `manual/sources.md`, keeps its approval without fresh review when
 `python3 scripts/check_restack.py <approved head> <new head>` passes, run from a checkout of
 current `origin/main`, and CI passes at the new head; the non-author who queues reruns the
-command. `scripts/restack_mechanical.py` performs aggregate-only and bibliography-only restacks.
+command. `scripts/restack_mechanical.py` performs restacks whose only conflicts are in the
+aggregates, `references.bib` or `manual/sources.md`.
 Never trust a `merge=union` result for the import aggregates; regenerate them with
 `lake exe mk_all`.
 

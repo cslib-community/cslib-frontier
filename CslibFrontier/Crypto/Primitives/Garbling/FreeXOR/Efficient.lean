@@ -207,7 +207,9 @@ private theorem evalGate_eq_evalGateCut (k w : ℕ) (body : List Bool)
     exact ⟨by rw [List.take_of_length_le hzip], fun l hl =>
       (List.mem_append.mp hl).elim (hstate l) fun hl => (List.mem_singleton.mp hl) ▸ hzip⟩
   · exact ⟨rfl, fun l hl => (List.mem_append.mp hl).elim (hstate l) fun hl => by
-      rw [List.mem_singleton.mp hl]; simp only [List.length_zipWith, List.length_take]; omega⟩
+      rw [List.mem_singleton.mp hl]
+      simp only [List.length_zipWith, List.length_take]
+      omega⟩
 
 private theorem foldl_evalGate_eq (k w : ℕ) (body : List Bool) (gates : List ℕ) :
     ∀ state : List (List Bool) × ℕ, (∀ l ∈ state.1, l.length ≤ k + 2) →
@@ -218,7 +220,8 @@ private theorem foldl_evalGate_eq (k w : ℕ) (body : List Bool) (gates : List �
   | cons g gates ih =>
     intro state hstate
     obtain ⟨heq, hnext⟩ := evalGate_eq_evalGateCut hash k w body state g hstate
-    rw [List.foldl_cons, List.foldl_cons, ← heq]; exact ih _ hnext
+    rw [List.foldl_cons, List.foldl_cons, ← heq]
+    exact ih _ hnext
 
 private theorem length_evalGateCut_le (k w : ℕ) (body : List Bool)
     (state : List (List Bool) × ℕ) (g : ℕ) :
@@ -369,10 +372,12 @@ private theorem evalWord_polyTime :
       ((PointPermute.fnDecoder.decode p.1).1.1 + 2) p.2, 0))
     (hdec.fst'.fst'.prod ((PointPermute.wireWidth_polyTime hdec.fst'.snd'.fst'
       hdec.fst'.snd'.snd'.snd').prod hdec.snd'))
-    (by polytime) (by polytime [BitString.listRows, BitString.listRow])
-    (evalGateCut_polyTime hf) (hgrowth.polyBounded_length.mono fun p => by simp)
+    (by polytime)
+    (by polytime [BitString.listRows, BitString.listRow])
+    (evalGateCut_polyTime hf)
+    (hgrowth.polyBounded_length.mono fun p => by simp)
     (fun p state g _ => length_evalGateCut_le hash _ _ _ _ _)
-  rw [show (fun (F, X) => evalWord hash F X) = fun p : List Bool × List Bool =>
+  have heq : (fun (F, X) => evalWord hash F X) = fun p : List Bool × List Bool =>
       ((((List.range (PointPermute.fnDecoder.decode p.1).1.2.2.2).foldl
         (fun state g => evalGateCut hash (PointPermute.fnDecoder.decode p.1).1.1
           (PointPermute.wireWidth (PointPermute.fnDecoder.decode p.1).1.2.1
@@ -381,9 +386,12 @@ private theorem evalWord_polyTime :
         (BitString.listRows (PointPermute.fnDecoder.decode p.1).1.2.1
           ((PointPermute.fnDecoder.decode p.1).1.1 + 2) p.2, 0)).1).drop
         ((PointPermute.fnDecoder.decode p.1).1.2.1 + (PointPermute.fnDecoder.decode p.1).1.2.2.2 -
-          (PointPermute.fnDecoder.decode p.1).1.2.2.1)).flatten from funext fun p => by
+          (PointPermute.fnDecoder.decode p.1).1.2.2.1)).flatten := funext fun p => by
     rw [← foldl_evalGate_eq hash _ _ _ _ _ fun l hl => by
-      obtain ⟨i, -, rfl⟩ := List.mem_map.mp hl; simp]; rfl]
+      obtain ⟨i, -, rfl⟩ := List.mem_map.mp hl
+      simp]
+    rfl
+  rw [heq]
   exact (ComputableInPolyTime.bitsFlatten (ComputableInPolyTime.listDropWithInput
     (ComputableInPolyTime.fst _ _) (ComputableInPolyTime.snd _ _))).comp
     (hfold.fst'.prod (by polytime))
@@ -411,18 +419,20 @@ private theorem propagateWords_polyTime :
   have hn := data_polyTime.fst'
   have hgrowth : ComputableInPolyTime (fun x : ℕ × ValidCircuit × List Bool =>
       2 * (x.1 + 2) + 1) encGbInput encUnary := by polytime
-  rw [show (fun x : ℕ × ValidCircuit × List Bool =>
+  have hprop : (fun x : ℕ × ValidCircuit × List Bool =>
       propagateWords x.1 x.2.1.1 x.2.2 x.2.1.1.q) = fun x =>
       x.2.1.1.gateList.foldl (propagateWordStep x.1 x.2.2)
-        ((List.range x.2.1.1.n).map (HalfGates.inputWord x.1 x.2.2)) from funext fun x => by
+        ((List.range x.2.1.1.n).map (HalfGates.inputWord x.1 x.2.2)) := funext fun x => by
     rw [propagateWords_eq_foldl _ _ _ le_rfl,
-      List.take_of_length_le (ConventionalCircuit.length_gateList _).le]]
+      List.take_of_length_le (ConventionalCircuit.length_gateList _).le]
+  rw [hprop]
   exact ComputableInPolyTime.foldlWith_of_bounded_growth
     (encP := encPair encUnary encBits)
     (encL := encList (encPair encNat (encPair encNat encBits))) (encB := encList encBits)
     (encA := encPair encNat (encPair encNat encBits)) (encIn := encGbInput)
     (step := fun par ws gate => propagateWordStep par.1 par.2 ws gate)
-    (par := fun x => (x.1, x.2.2)) (list := fun x => x.2.1.1.gateList)
+    (par := fun x => (x.1, x.2.2))
+    (list := fun x => x.2.1.1.gateList)
     (init := fun x => (List.range x.2.1.1.n).map (HalfGates.inputWord x.1 x.2.2))
     (hk.prod hcoins) data_polyTime.snd'.snd'
     (by polytime [HalfGates.inputWord, BitString.listRow]) propagateWordStep_polyTime
@@ -475,7 +485,8 @@ include hf in
 private theorem fnWord_polyTime :
     ComputableInPolyTime (fun x : ℕ × ValidCircuit × List Bool =>
       fnWord hash x.1 x.2.1.1 x.2.2) encGbInput encBits := by
-  have hd := data_polyTime; have hP := propagateWords_polyTime
+  have hd := data_polyTime
+  have hP := propagateWords_polyTime
   have hg := hd.snd'.snd'
   have hq := (ComputableInPolyTime.length_list _).comp hg
   have hk := ComputableInPolyTime.fst encUnary (encPair encValidCircuit encBits)
@@ -516,7 +527,8 @@ private theorem decInfoWord_polyTime :
   have hd := data_polyTime
   have hs : ComputableInPolyTime (fun x : ℕ × ValidCircuit × List Bool =>
       x.2.1.1.n + x.2.1.1.q - x.2.1.1.m) encGbInput encUnary := by
-    have hn := hd.fst'; have hm := hd.snd'.fst'
+    have hn := hd.fst'
+    have hm := hd.snd'.fst'
     have hq : ComputableInPolyTime (fun x : ℕ × ValidCircuit × List Bool => x.2.1.1.q)
         encGbInput encUnary := by
       simpa only [Function.comp_def, ConventionalCircuit.length_gateList] using

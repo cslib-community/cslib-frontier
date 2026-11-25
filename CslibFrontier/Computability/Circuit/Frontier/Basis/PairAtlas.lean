@@ -130,12 +130,10 @@ theorem HasUnambiguousRectangles.transpose {M : Matrix m n Bool} {k : ℕ}
     (h : HasUnambiguousRectangles M k) : HasUnambiguousRectangles Mᵀ k := by
   obtain ⟨row, col, hcov⟩ := h
   refine ⟨col, row, fun j i => ?_⟩
-  have hswap : (Finset.univ.filter fun r : Fin k => col r j && row r i) =
-      Finset.univ.filter fun r : Fin k => row r i && col r j := by
-    ext r
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Bool.and_comm]
-  rw [hswap]
-  exact hcov i j
+  rw [Matrix.transpose_apply, ← hcov i j]
+  congr 1
+  ext r
+  simp [Bool.and_comm]
 
 /-- Padding with empty rectangles raises the rectangle budget monotonically. -/
 theorem HasUnambiguousRectangles.mono {M : Matrix m n Bool} {k k' : ℕ}
@@ -144,19 +142,12 @@ theorem HasUnambiguousRectangles.mono {M : Matrix m n Bool} {k k' : ℕ}
   refine ⟨fun r i => if hlt : r.val < k then row ⟨r.val, hlt⟩ i else false,
     fun r j => if hlt : r.val < k then col ⟨r.val, hlt⟩ j else false, fun i j => ?_⟩
   rw [← hcov i j]
-  symm
-  refine Finset.card_bij (fun r _ => Fin.castLE hle r)
-    (fun r hr => ?_) (fun r₁ _ r₂ _ heq => Fin.ext (by simpa using congrArg Fin.val heq))
-    fun r hr => ?_
-  · simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hr ⊢
-    simp only [Fin.val_castLE, r.isLt, ↓reduceDIte, Fin.eta]
-    exact hr
-  · simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hr
-    by_cases hlt : r.val < k
-    · refine ⟨⟨r.val, hlt⟩, ?_, Fin.ext rfl⟩
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and]
-      simpa [hlt] using hr
-    · simp [hlt] at hr
+  refine (Finset.card_bij (fun r _ => Fin.castLE hle r)
+    (fun r hr => by simpa [r.isLt] using hr)
+    (fun r₁ _ r₂ _ heq => Fin.ext (by simpa using congrArg Fin.val heq)) fun r hr => ?_).symm
+  by_cases hlt : r.val < k
+  · exact ⟨⟨r.val, hlt⟩, by simpa [hlt] using hr, Fin.ext rfl⟩
+  · simp [hlt] at hr
 
 /-- An unambiguous `k`-rectangle cover gives an exact `{0, 1}` matrix factorization over any
 semiring `R`. -/
@@ -167,14 +158,11 @@ theorem IsUnambiguousCover.mul_eq_communicationMatrix (R : Type*) [Semiring R]
       Matrix.of (fun (r : Fin k) j => if col r j then (1 : R) else 0) =
       Communication.communicationMatrix R M := by
   ext i j
-  rw [Matrix.mul_apply]
-  dsimp only [Communication.communicationMatrix, Matrix.of_apply]
   have hterm (r : Fin k) :
       (if row r i then (1 : R) else 0) * (if col r j then 1 else 0) =
-        if (row r i && col r j) = true then 1 else 0 := by
-    cases row r i <;> cases col r j <;> simp
-  simp only [hterm, Finset.sum_boole]
-  rw [h i j]
+        if (row r i && col r j) = true then 1 else 0 := by cases row r i <;> cases col r j <;> simp
+  simp only [Matrix.mul_apply, Communication.communicationMatrix, Matrix.of_apply, hterm,
+    Finset.sum_boole, h i j]
   cases M i j <;> simp
 
 /-- An unambiguous `k`-rectangle cover yields a nonnegative factorization of
@@ -184,12 +172,9 @@ theorem HasUnambiguousRectangles.hasNonnegFactorization (R : Type*) [Semiring R]
     (Communication.communicationMatrix R M).HasNonnegFactorization (Fin k) := by
   obtain ⟨row, col, hcov⟩ := h
   refine ⟨Matrix.of fun i r => if row r i then 1 else 0,
-    Matrix.of fun r j => if col r j then 1 else 0,
-    fun i r => ?_, fun r j => ?_, hcov.mul_eq_communicationMatrix R⟩
-  · simp only [Matrix.of_apply]
-    split_ifs <;> [exact zero_le_one; exact le_rfl]
-  · simp only [Matrix.of_apply]
-    split_ifs <;> [exact zero_le_one; exact le_rfl]
+    Matrix.of fun r j => if col r j then 1 else 0, fun i r => ?_, fun r j => ?_,
+    hcov.mul_eq_communicationMatrix R⟩ <;>
+    (simp only [Matrix.of_apply]; split_ifs <;> [exact zero_le_one; exact le_rfl])
 
 /-- An unambiguous `k`-rectangle cover bounds the nonnegative rank by `k`. -/
 theorem HasUnambiguousRectangles.nonnegRank_le (R : Type*) [Semiring R] [PartialOrder R]
@@ -249,30 +234,20 @@ def pairMatrix (relU relV : Bool → Bool → Bool → Bool) :
   | (b, d), (a, c) =>
     (relU a b false && relV c d false) || (relU a b true && relV c d true)
 
-private theorem ite_add_ite_eq_ite_or {x y : Bool}
-    (h : (if x then 1 else 0) + (if y then 1 else 0) ≤ 1) :
-    (if x then 1 else 0) + (if y then 1 else 0) = if x || y then 1 else 0 := by
-  cases x <;> cases y <;> simp_all
-
 /-- When at most one internal wire `e` witnesses every boundary assignment, `pairCount` agrees with
 the `{0, 1}` indicator of `pairMatrix`. -/
 theorem pairCount_eq_ite_pairMatrix {relU relV : Bool → Bool → Bool → Bool}
     (hmult : ∀ bd ac, pairCount relU relV bd ac ≤ 1) (bd ac : Bool × Bool) :
     pairCount relU relV bd ac = if pairMatrix relU relV bd ac then 1 else 0 := by
-  rcases bd with ⟨b, d⟩
-  rcases ac with ⟨a, c⟩
-  exact ite_add_ite_eq_ite_or (hmult (b, d) (a, c))
+  rcases bd, ac with ⟨⟨b, d⟩, ⟨a, c⟩⟩
+  exact (by decide : ∀ x y : Bool,
+    (if x then 1 else 0) + (if y then 1 else 0) ≤ 1 →
+      (if x then 1 else 0) + (if y then 1 else 0) = if x || y then 1 else 0)
+    _ _ (hmult (b, d) (a, c))
 
 /-- Bitmask decoder on `Bool × Bool`, encoding `(x, y)` as `2 * x + y ∈ {0, 1, 2, 3}`. -/
 private def maskPred (mask : ℕ) : Bool × Bool → Bool
   | (x, y) => mask.testBit ((if x then 2 else 0) + (if y then 1 else 0))
-
-/-- Flipping the shared wire `e ↦ !e` inside both relations leaves `pairMatrix` unchanged. -/
-private theorem pairMatrix_flip_internal (relU relV : Bool → Bool → Bool → Bool) :
-    pairMatrix (fun a b e => relU a b (!e)) (fun c d e => relV c d (!e)) =
-      pairMatrix relU relV := by
-  ext ⟨b, d⟩ ⟨a, c⟩
-  simp only [pairMatrix, Bool.not_false, Bool.not_true, Bool.or_comm]
 
 /-- Swapping the two endpoints `(u, v)` transposes `pairMatrix` up to swapping the components of
 `Bool × Bool`. -/
@@ -287,9 +262,7 @@ private theorem pairMatrix_swap (relU relV : Bool → Bool → Bool → Bool) :
 /-- `COPY – COPY` has unique internal wire witnesses (`pairCount ≤ 1`). -/
 theorem pairCount_copy_copy_le_one (bd ac : Bool × Bool) :
     pairCount copyRel copyRel bd ac ≤ 1 := by
-  rcases bd with ⟨b, d⟩
-  rcases ac with ⟨a, c⟩
-  decide +revert
+  rcases bd, ac with ⟨⟨b, d⟩, ⟨a, c⟩⟩; decide +revert
 
 /-- `COPY – COPY` partitions unambiguously into `2` combinatorial rectangles (`1` bit). -/
 theorem hasUnambiguousRectangles_copy_copy :
@@ -303,19 +276,14 @@ private theorem hasUnambiguousRectangles_xor_base :
 /-- Every `XOR – XOR` pair has unique internal wire witnesses (`pairCount ≤ 1`). -/
 theorem pairCount_xor_xor_le_one (n₁ n₂ : Bool) (bd ac : Bool × Bool) :
     pairCount (xorRel n₁) (xorRel n₂) bd ac ≤ 1 := by
-  rcases bd with ⟨b, d⟩
-  rcases ac with ⟨a, c⟩
-  decide +revert
+  rcases bd, ac with ⟨⟨b, d⟩, ⟨a, c⟩⟩; decide +revert
 
 /-- Every `XOR – XOR` pair partitions unambiguously into `2` combinatorial rectangles (`1` bit). -/
 theorem hasUnambiguousRectangles_xor_xor (n₁ n₂ : Bool) :
-    HasUnambiguousRectangles (pairMatrix (xorRel n₁) (xorRel n₂)) 2 := by
-  have heq : pairMatrix (xorRel n₁) (xorRel n₂) =
-      (pairMatrix (xorRel false) (xorRel false)).submatrix
-        (fun (b, d) => (b ^^ n₁, d ^^ n₂)) id := by
-    decide +revert
-  rw [heq]
-  exact hasUnambiguousRectangles_xor_base.submatrix_equiv _ _
+    HasUnambiguousRectangles (pairMatrix (xorRel n₁) (xorRel n₂)) 2 :=
+  (by decide +revert : (pairMatrix (xorRel false) (xorRel false)).submatrix
+      (fun (b, d) => (b ^^ n₁, d ^^ n₂)) id = pairMatrix (xorRel n₁) (xorRel n₂)) ▸
+    hasUnambiguousRectangles_xor_base.submatrix_equiv _ _
 
 private theorem hasUnambiguousRectangles_copy_and_base (port : Fin 3) :
     HasUnambiguousRectangles (pairMatrix copyRel (andTypeRel false false false port)) 3 := by
@@ -327,43 +295,30 @@ private theorem hasUnambiguousRectangles_copy_and_base (port : Fin 3) :
 /-- Every `COPY – U₂` pair has unique internal wire witnesses (`pairCount ≤ 1`). -/
 theorem pairCount_copy_andType_le_one (nx ny nz : Bool) (port : Fin 3) (bd ac : Bool × Bool) :
     pairCount copyRel (andTypeRel nx ny nz port) bd ac ≤ 1 := by
-  rcases bd with ⟨b, d⟩
-  rcases ac with ⟨a, c⟩
-  decide +revert
+  rcases bd, ac with ⟨⟨b, d⟩, ⟨a, c⟩⟩; decide +revert
 
 /-- **The `COPY – U₂` `3`-rectangle theorem.** For every polarity `(nx, ny, nz)` and every port
 `port : Fin 3`, `COPY – U₂` partitions unambiguously into `3` combinatorial rectangles. -/
 theorem hasUnambiguousRectangles_copy_andType (nx ny nz : Bool) (port : Fin 3) :
     HasUnambiguousRectangles (pairMatrix copyRel (andTypeRel nx ny nz port)) 3 := by
-  fin_cases port <;> dsimp only
-  · change HasUnambiguousRectangles (pairMatrix copyRel (andTypeRel nx ny nz 0)) 3
-    have heq : pairMatrix copyRel (andTypeRel nx ny nz 0) =
-        (pairMatrix copyRel (andTypeRel false false false 0)).submatrix
-          (fun (b, d) => (b ^^ nx, d ^^ ny)) (fun (a, c) => (a ^^ nx, c ^^ nz)) := by
-      decide +revert
-    rw [heq]
-    exact (hasUnambiguousRectangles_copy_and_base 0).submatrix_equiv _ _
-  · change HasUnambiguousRectangles (pairMatrix copyRel (andTypeRel nx ny nz 1)) 3
-    have heq : pairMatrix copyRel (andTypeRel nx ny nz 1) =
-        (pairMatrix copyRel (andTypeRel false false false 1)).submatrix
-          (fun (b, d) => (b ^^ ny, d ^^ nz)) (fun (a, c) => (a ^^ ny, c ^^ nx)) := by
-      decide +revert
-    rw [heq]
-    exact (hasUnambiguousRectangles_copy_and_base 1).submatrix_equiv _ _
-  · change HasUnambiguousRectangles (pairMatrix copyRel (andTypeRel nx ny nz 2)) 3
-    have heq : pairMatrix copyRel (andTypeRel nx ny nz 2) =
-        (pairMatrix copyRel (andTypeRel false false false 2)).submatrix
-          (fun (b, d) => (b ^^ nz, d ^^ ny)) (fun (a, c) => (a ^^ nz, c ^^ nx)) := by
-      decide +revert
-    rw [heq]
-    exact (hasUnambiguousRectangles_copy_and_base 2).submatrix_equiv _ _
+  fin_cases port
+  · exact (by decide +revert : (pairMatrix copyRel (andTypeRel false false false 0)).submatrix
+        (fun (b, d) => (b ^^ nx, d ^^ ny)) (fun (a, c) => (a ^^ nx, c ^^ nz)) =
+        pairMatrix copyRel (andTypeRel nx ny nz 0)) ▸
+      (hasUnambiguousRectangles_copy_and_base 0).submatrix_equiv _ _
+  · exact (by decide +revert : (pairMatrix copyRel (andTypeRel false false false 1)).submatrix
+        (fun (b, d) => (b ^^ ny, d ^^ nz)) (fun (a, c) => (a ^^ ny, c ^^ nx)) =
+        pairMatrix copyRel (andTypeRel nx ny nz 1)) ▸
+      (hasUnambiguousRectangles_copy_and_base 1).submatrix_equiv _ _
+  · exact (by decide +revert : (pairMatrix copyRel (andTypeRel false false false 2)).submatrix
+        (fun (b, d) => (b ^^ nz, d ^^ ny)) (fun (a, c) => (a ^^ nz, c ^^ nx)) =
+        pairMatrix copyRel (andTypeRel nx ny nz 2)) ▸
+      (hasUnambiguousRectangles_copy_and_base 2).submatrix_equiv _ _
 
 /-- Every `U₂ – COPY` pair has unique internal wire witnesses (`pairCount ≤ 1`). -/
 theorem pairCount_andType_copy_le_one (nx ny nz : Bool) (port : Fin 3) (bd ac : Bool × Bool) :
     pairCount (andTypeRel nx ny nz port) copyRel bd ac ≤ 1 := by
-  rcases bd with ⟨b, d⟩
-  rcases ac with ⟨a, c⟩
-  decide +revert
+  rcases bd, ac with ⟨⟨b, d⟩, ⟨a, c⟩⟩; decide +revert
 
 /-- **The `U₂ – COPY` `3`-rectangle theorem.** -/
 theorem hasUnambiguousRectangles_andType_copy (nx ny nz : Bool) (port : Fin 3) :
@@ -387,9 +342,7 @@ theorem pairCount_andType_out_in_le_one (nx₁ ny₁ nz₁ nx₂ ny₂ nz₂ : B
     (bd ac : Bool × Bool) :
     pairCount (andTypeRel nx₁ ny₁ nz₁ 2)
       (andTypeRel nx₂ ny₂ nz₂ ⟨portV.val, by omega⟩) bd ac ≤ 1 := by
-  rcases bd with ⟨b, d⟩
-  rcases ac with ⟨a, c⟩
-  fin_cases portV <;> decide +revert
+  rcases bd, ac with ⟨⟨b, d⟩, ⟨a, c⟩⟩; fin_cases portV <;> decide +revert
 
 /-- **The `U₂(out = e) – U₂(in = e)` `3`-rectangle theorem (`128` directed pairs).** -/
 theorem hasUnambiguousRectangles_andType_out_in (nx₁ ny₁ nz₁ nx₂ ny₂ nz₂ : Bool)
@@ -397,25 +350,19 @@ theorem hasUnambiguousRectangles_andType_out_in (nx₁ ny₁ nz₁ nx₂ ny₂ n
     HasUnambiguousRectangles
       (pairMatrix (andTypeRel nx₁ ny₁ nz₁ 2)
         (andTypeRel nx₂ ny₂ nz₂ ⟨portV.val, by omega⟩)) 3 := by
-  fin_cases portV <;> dsimp only
-  · change HasUnambiguousRectangles
-      (pairMatrix (andTypeRel nx₁ ny₁ nz₁ 2) (andTypeRel nx₂ ny₂ nz₂ 0)) 3
-    have heq : pairMatrix (andTypeRel nx₁ ny₁ nz₁ 2) (andTypeRel nx₂ ny₂ nz₂ 0) =
+  fin_cases portV
+  · exact (by decide +revert :
         (pairMatrix (andTypeRel false false (nz₁ ^^ nx₂) 2)
           (andTypeRel false false false 0)).submatrix
-            (fun (b, d) => (b ^^ ny₁, d ^^ ny₂)) (fun (a, c) => (a ^^ nx₁, c ^^ nz₂)) := by
-      decide +revert
-    rw [heq]
-    exact (hasUnambiguousRectangles_and_and_base 0 (nz₁ ^^ nx₂)).submatrix_equiv _ _
-  · change HasUnambiguousRectangles
-      (pairMatrix (andTypeRel nx₁ ny₁ nz₁ 2) (andTypeRel nx₂ ny₂ nz₂ 1)) 3
-    have heq : pairMatrix (andTypeRel nx₁ ny₁ nz₁ 2) (andTypeRel nx₂ ny₂ nz₂ 1) =
+          (fun (b, d) => (b ^^ ny₁, d ^^ ny₂)) (fun (a, c) => (a ^^ nx₁, c ^^ nz₂)) =
+        pairMatrix (andTypeRel nx₁ ny₁ nz₁ 2) (andTypeRel nx₂ ny₂ nz₂ 0)) ▸
+      (hasUnambiguousRectangles_and_and_base 0 (nz₁ ^^ nx₂)).submatrix_equiv _ _
+  · exact (by decide +revert :
         (pairMatrix (andTypeRel false false (nz₁ ^^ ny₂) 2)
           (andTypeRel false false false 1)).submatrix
-            (fun (b, d) => (b ^^ ny₁, d ^^ nz₂)) (fun (a, c) => (a ^^ nx₁, c ^^ nx₂)) := by
-      decide +revert
-    rw [heq]
-    exact (hasUnambiguousRectangles_and_and_base 1 (nz₁ ^^ ny₂)).submatrix_equiv _ _
+          (fun (b, d) => (b ^^ ny₁, d ^^ nz₂)) (fun (a, c) => (a ^^ nx₁, c ^^ nx₂)) =
+        pairMatrix (andTypeRel nx₁ ny₁ nz₁ 2) (andTypeRel nx₂ ny₂ nz₂ 1)) ▸
+      (hasUnambiguousRectangles_and_and_base 1 (nz₁ ^^ ny₂)).submatrix_equiv _ _
 
 /-- Every DAG-oriented `U₂(in = e) – U₂(out = e)` pair has unique internal wire witnesses
 (`pairCount ≤ 1`). -/
@@ -423,9 +370,7 @@ theorem pairCount_andType_in_out_le_one (nx₁ ny₁ nz₁ nx₂ ny₂ nz₂ : B
     (bd ac : Bool × Bool) :
     pairCount (andTypeRel nx₁ ny₁ nz₁ ⟨portU.val, by omega⟩)
       (andTypeRel nx₂ ny₂ nz₂ 2) bd ac ≤ 1 := by
-  rcases bd with ⟨b, d⟩
-  rcases ac with ⟨a, c⟩
-  fin_cases portU <;> decide +revert
+  rcases bd, ac with ⟨⟨b, d⟩, ⟨a, c⟩⟩; fin_cases portU <;> decide +revert
 
 /-- **The `U₂(in = e) – U₂(out = e)` `3`-rectangle theorem (`128` directed pairs).** -/
 theorem hasUnambiguousRectangles_andType_in_out (nx₁ ny₁ nz₁ nx₂ ny₂ nz₂ : Bool)
@@ -460,75 +405,51 @@ inductive U2InRel : (Bool → Bool → Bool → Bool) → Prop
 theorem U2OutRel.swap {rel : Bool → Bool → Bool → Bool} (h : U2OutRel rel) :
     U2OutRel (fun a b e => rel b a e) := by
   rcases h with ⟨na, nb⟩ | ⟨nx, ny, nz⟩
-  · have heq : (fun a b e => copyPolarRel na nb b a e) = copyPolarRel nb na := by decide +revert
-    rw [heq]
-    exact .copy nb na
-  · have heq : (fun a b e => andTypeRel nx ny nz 2 b a e) = andTypeRel ny nx nz 2 := by
-      decide +revert
-    rw [heq]
-    exact .gate ny nx nz
+  · exact (by decide +revert : copyPolarRel nb na = fun a b e => copyPolarRel na nb b a e) ▸
+      .copy nb na
+  · exact (by decide +revert : andTypeRel ny nx nz 2 = fun a b e => andTypeRel nx ny nz 2 b a e) ▸
+      .gate ny nx nz
 
 /-- `U2InRel` is closed under swapping its two outer pins `(c, d) ↦ (d, c)`. -/
 theorem U2InRel.swap {rel : Bool → Bool → Bool → Bool} (h : U2InRel rel) :
     U2InRel (fun c d e => rel d c e) := by
   rcases h with ⟨nc, nd⟩ | ⟨nx, ny, nz, port⟩
-  · have heq : (fun c d e => copyPolarRel nc nd d c e) = copyPolarRel nd nc := by decide +revert
-    rw [heq]
-    exact .copy nd nc
-  · fin_cases port <;> dsimp only
-    · change U2InRel fun c d e => andTypeRel nx ny nz 0 d c e
-      have heq : (fun c d e => andTypeRel nx ny nz 0 d c e) = andTypeRel ny nx nz 1 := by
-        decide +revert
-      rw [heq]
-      exact .gate ny nx nz 1
-    · change U2InRel fun c d e => andTypeRel nx ny nz 1 d c e
-      have heq : (fun c d e => andTypeRel nx ny nz 1 d c e) = andTypeRel ny nx nz 0 := by
-        decide +revert
-      rw [heq]
-      exact .gate ny nx nz 0
+  · exact (by decide +revert : copyPolarRel nd nc = fun c d e => copyPolarRel nc nd d c e) ▸
+      .copy nd nc
+  · fin_cases port
+    · exact (by decide +revert : andTypeRel ny nx nz 1 =
+        fun c d e => andTypeRel nx ny nz 0 d c e) ▸ .gate ny nx nz 1
+    · exact (by decide +revert : andTypeRel ny nx nz 0 =
+        fun c d e => andTypeRel nx ny nz 1 d c e) ▸ .gate ny nx nz 0
 
 /-- `U2OutRel` is closed under flipping polarities on all three pins. -/
 theorem U2OutRel.flip {rel : Bool → Bool → Bool → Bool} (h : U2OutRel rel) (fa fb fe : Bool) :
     U2OutRel (fun a b e => rel (a ^^ fa) (b ^^ fb) (e ^^ fe)) := by
   rcases h with ⟨na, nb⟩ | ⟨nx, ny, nz⟩
-  · have heq : (fun a b e => copyPolarRel na nb (a ^^ fa) (b ^^ fb) (e ^^ fe)) =
-        copyPolarRel (na ^^ fa ^^ fe) (nb ^^ fb ^^ fe) := by decide +revert
-    rw [heq]
-    exact .copy _ _
-  · have heq : (fun a b e => andTypeRel nx ny nz 2 (a ^^ fa) (b ^^ fb) (e ^^ fe)) =
-        andTypeRel (nx ^^ fa) (ny ^^ fb) (nz ^^ fe) 2 := by decide +revert
-    rw [heq]
-    exact .gate _ _ _
+  · exact (by decide +revert : copyPolarRel (na ^^ fa ^^ fe) (nb ^^ fb ^^ fe) =
+      fun a b e => copyPolarRel na nb (a ^^ fa) (b ^^ fb) (e ^^ fe)) ▸ .copy _ _
+  · exact (by decide +revert : andTypeRel (nx ^^ fa) (ny ^^ fb) (nz ^^ fe) 2 =
+      fun a b e => andTypeRel nx ny nz 2 (a ^^ fa) (b ^^ fb) (e ^^ fe)) ▸ .gate _ _ _
 
 /-- `U2InRel` is closed under flipping polarities on all three pins. -/
 theorem U2InRel.flip {rel : Bool → Bool → Bool → Bool} (h : U2InRel rel) (fc fd fe : Bool) :
     U2InRel (fun c d e => rel (c ^^ fc) (d ^^ fd) (e ^^ fe)) := by
   rcases h with ⟨nc, nd⟩ | ⟨nx, ny, nz, port⟩
-  · have heq : (fun c d e => copyPolarRel nc nd (c ^^ fc) (d ^^ fd) (e ^^ fe)) =
-        copyPolarRel (nc ^^ fc ^^ fe) (nd ^^ fd ^^ fe) := by decide +revert
-    rw [heq]
-    exact .copy _ _
-  · fin_cases port <;> dsimp only
-    · change U2InRel fun c d e => andTypeRel nx ny nz 0 (c ^^ fc) (d ^^ fd) (e ^^ fe)
-      have heq : (fun c d e => andTypeRel nx ny nz 0 (c ^^ fc) (d ^^ fd) (e ^^ fe)) =
-          andTypeRel (nx ^^ fe) (ny ^^ fd) (nz ^^ fc) 0 := by decide +revert
-      rw [heq]
-      exact .gate _ _ _ 0
-    · change U2InRel fun c d e => andTypeRel nx ny nz 1 (c ^^ fc) (d ^^ fd) (e ^^ fe)
-      have heq : (fun c d e => andTypeRel nx ny nz 1 (c ^^ fc) (d ^^ fd) (e ^^ fe)) =
-          andTypeRel (nx ^^ fc) (ny ^^ fe) (nz ^^ fd) 1 := by decide +revert
-      rw [heq]
-      exact .gate _ _ _ 1
+  · exact (by decide +revert : copyPolarRel (nc ^^ fc ^^ fe) (nd ^^ fd ^^ fe) =
+      fun c d e => copyPolarRel nc nd (c ^^ fc) (d ^^ fd) (e ^^ fe)) ▸ .copy _ _
+  · fin_cases port
+    · exact (by decide +revert : andTypeRel (nx ^^ fe) (ny ^^ fd) (nz ^^ fc) 0 =
+        fun c d e => andTypeRel nx ny nz 0 (c ^^ fc) (d ^^ fd) (e ^^ fe)) ▸ .gate _ _ _ 0
+    · exact (by decide +revert : andTypeRel (nx ^^ fc) (ny ^^ fe) (nz ^^ fd) 1 =
+        fun c d e => andTypeRel nx ny nz 1 (c ^^ fc) (d ^^ fd) (e ^^ fe)) ▸ .gate _ _ _ 1
 
 /-- Every oriented `U₂ + COPY` pair `(relU, relV)` has unique internal wire witnesses
 (`pairCount ≤ 1`). -/
 theorem pairCount_u2_le_one {relU relV : Bool → Bool → Bool → Bool}
     (hU : U2OutRel relU) (hV : U2InRel relV) (bd ac : Bool × Bool) :
     pairCount relU relV bd ac ≤ 1 := by
-  rcases bd with ⟨b, d⟩
-  rcases ac with ⟨a, c⟩
-  rcases hU with ⟨na, nb⟩ | ⟨nx₁, ny₁, nz₁⟩ <;>
-    rcases hV with ⟨nc, nd⟩ | ⟨nx₂, ny₂, nz₂, port⟩
+  rcases bd, ac with ⟨⟨b, d⟩, ⟨a, c⟩⟩
+  rcases hU with ⟨na, nb⟩ | ⟨nx₁, ny₁, nz₁⟩ <;> rcases hV with ⟨nc, nd⟩ | ⟨nx₂, ny₂, nz₂, port⟩
   · decide +revert
   · fin_cases port <;> decide +revert
   · decide +revert
@@ -539,27 +460,20 @@ partitions unambiguously into `3` combinatorial rectangles. -/
 theorem hasUnambiguousRectangles_u2 {relU relV : Bool → Bool → Bool → Bool}
     (hU : U2OutRel relU) (hV : U2InRel relV) :
     HasUnambiguousRectangles (pairMatrix relU relV) 3 := by
-  rcases hU with ⟨na, nb⟩ | ⟨nx₁, ny₁, nz₁⟩ <;>
-    rcases hV with ⟨nc, nd⟩ | ⟨nx₂, ny₂, nz₂, port⟩
-  · have heq : pairMatrix (copyPolarRel na nb) (copyPolarRel nc nd) =
-        (pairMatrix copyRel copyRel).submatrix
-          (fun (b, d) => (b ^^ nb, d ^^ nd)) (fun (a, c) => (a ^^ na, c ^^ nc)) := by
-      decide +revert
-    rw [heq]
-    exact (hasUnambiguousRectangles_copy_copy.mono (by decide)).submatrix_equiv _ _
-  · have heq : pairMatrix (copyPolarRel na nb) (andTypeRel nx₂ ny₂ nz₂ ⟨port.val, by omega⟩) =
+  rcases hU with ⟨na, nb⟩ | ⟨nx₁, ny₁, nz₁⟩ <;> rcases hV with ⟨nc, nd⟩ | ⟨nx₂, ny₂, nz₂, port⟩
+  · exact (by decide +revert : (pairMatrix copyRel copyRel).submatrix
+        (fun (b, d) => (b ^^ nb, d ^^ nd)) (fun (a, c) => (a ^^ na, c ^^ nc)) =
+        pairMatrix (copyPolarRel na nb) (copyPolarRel nc nd)) ▸
+      (hasUnambiguousRectangles_copy_copy.mono (by decide)).submatrix_equiv _ _
+  · exact (by fin_cases port <;> decide +revert :
         (pairMatrix copyRel (andTypeRel nx₂ ny₂ nz₂ ⟨port.val, by omega⟩)).submatrix
-          (fun (b, d) => (b ^^ nb, d)) (fun (a, c) => (a ^^ na, c)) := by
-      fin_cases port <;> decide +revert
-    rw [heq]
-    exact (hasUnambiguousRectangles_copy_andType nx₂ ny₂ nz₂ ⟨port.val, by omega⟩).submatrix_equiv
-      _ _
-  · have heq : pairMatrix (andTypeRel nx₁ ny₁ nz₁ 2) (copyPolarRel nc nd) =
-        (pairMatrix (andTypeRel nx₁ ny₁ nz₁ 2) copyRel).submatrix
-          (fun (b, d) => (b, d ^^ nd)) (fun (a, c) => (a, c ^^ nc)) := by
-      decide +revert
-    rw [heq]
-    exact (hasUnambiguousRectangles_andType_copy nx₁ ny₁ nz₁ 2).submatrix_equiv _ _
+          (fun (b, d) => (b ^^ nb, d)) (fun (a, c) => (a ^^ na, c)) =
+        pairMatrix (copyPolarRel na nb) (andTypeRel nx₂ ny₂ nz₂ ⟨port.val, by omega⟩)) ▸
+      (hasUnambiguousRectangles_copy_andType nx₂ ny₂ nz₂ ⟨port.val, by omega⟩).submatrix_equiv _ _
+  · exact (by decide +revert : (pairMatrix (andTypeRel nx₁ ny₁ nz₁ 2) copyRel).submatrix
+        (fun (b, d) => (b, d ^^ nd)) (fun (a, c) => (a, c ^^ nc)) =
+        pairMatrix (andTypeRel nx₁ ny₁ nz₁ 2) (copyPolarRel nc nd)) ▸
+      (hasUnambiguousRectangles_andType_copy nx₁ ny₁ nz₁ 2).submatrix_equiv _ _
   · exact hasUnambiguousRectangles_andType_out_in nx₁ ny₁ nz₁ nx₂ ny₂ nz₂ port
 
 /-! ### Exact `3 < 4` rank vs nonnegative-rank separation on `AND → XOR` -/
@@ -615,13 +529,9 @@ theorem rank_andXorMatrix (R : Type*) [CommRing R] [StrongRankCondition R] :
   · rw [← andXorLeft_mul_andXorRight R]
     exact (Matrix.rank_mul_le_right _ _).trans
       ((Matrix.rank_le_card_height _).trans_eq (Fintype.card_fin 3))
-  · calc 3 = (1 : Matrix (Fin 3) (Fin 3) R).rank := by rw [Matrix.rank_one, Fintype.card_fin]
-      _ = (andXorRowSel R * Communication.communicationMatrix R andXorMatrix *
-            andXorColInv R).rank := by
-        rw [andXorRowSel_mul_andXorColInv R]
-      _ ≤ (andXorRowSel R * Communication.communicationMatrix R andXorMatrix).rank :=
-        Matrix.rank_mul_le_left _ _
-      _ ≤ (Communication.communicationMatrix R andXorMatrix).rank := Matrix.rank_mul_le_right _ _
+  · simpa [andXorRowSel_mul_andXorColInv R, Matrix.rank_one] using
+      (Matrix.rank_mul_le_left (andXorRowSel R * Communication.communicationMatrix R andXorMatrix)
+        (andXorColInv R)).trans (Matrix.rank_mul_le_right _ _)
 
 /-- Over `ℝ`, the `AND → XOR` transfer matrix has rank `3`. -/
 theorem rank_andXorMatrix_real : (Communication.communicationMatrix ℝ andXorMatrix).rank = 3 :=
@@ -675,30 +585,17 @@ theorem rank_signMatrix_andXorMatrix_real :
   · rw [← andXorSignLeft_mul_andXorSignRight]
     exact (Matrix.rank_mul_le_right _ _).trans
       ((Matrix.rank_le_card_height _).trans_eq (Fintype.card_fin 2))
-  · calc 2 = (1 : Matrix (Fin 2) (Fin 2) ℝ).rank := by rw [Matrix.rank_one, Fintype.card_fin]
-      _ = (andXorSignRowSel * Communication.signMatrix ℝ andXorMatrix * andXorSignColInv).rank := by
-        rw [andXorSignRowSel_mul_andXorSignColInv]
-      _ ≤ (andXorSignRowSel * Communication.signMatrix ℝ andXorMatrix).rank :=
-        Matrix.rank_mul_le_left _ _
-      _ ≤ (Communication.signMatrix ℝ andXorMatrix).rank := Matrix.rank_mul_le_right _ _
+  · simpa [andXorSignRowSel_mul_andXorSignColInv, Matrix.rank_one] using
+      (Matrix.rank_mul_le_left (andXorSignRowSel * Communication.signMatrix ℝ andXorMatrix)
+        andXorSignColInv).trans (Matrix.rank_mul_le_right _ _)
 
 private theorem not_two_by_two_andXorMatrix (i₁ i₂ j₁ j₂ : Bool × Bool)
     (hi : i₁ ≠ i₂) (hj : j₁ ≠ j₂) :
     ¬(andXorMatrix i₁ j₁ = true ∧ andXorMatrix i₁ j₂ = true ∧
       andXorMatrix i₂ j₁ = true ∧ andXorMatrix i₂ j₂ = true) := by
-  rcases i₁ with ⟨b₁, d₁⟩
-  rcases i₂ with ⟨b₂, d₂⟩
-  rcases j₁ with ⟨a₁, c₁⟩
-  rcases j₂ with ⟨a₂, c₂⟩
+  rcases i₁, i₂ with ⟨⟨b₁, d₁⟩, ⟨b₂, d₂⟩⟩
+  rcases j₁, j₂ with ⟨⟨a₁, c₁⟩, ⟨a₂, c₂⟩⟩
   decide +revert
-
-private theorem card_row_andXorMatrix_le_two (i : Bool × Bool) :
-    (Finset.univ.filter fun j => andXorMatrix i j = true).card ≤ 2 := by
-  revert i; decide
-
-private theorem card_col_andXorMatrix_le_two (j : Bool × Bool) :
-    (Finset.univ.filter fun i => andXorMatrix i j = true).card ≤ 2 := by
-  revert j; decide
 
 /-- `andXorMatrix` is `K_{2,2}`-free: no `2 × 2` combinatorial rectangle consists entirely of
 `true` entries, so every monochromatic `true`-rectangle has size at most `2`. -/
@@ -708,30 +605,21 @@ theorem card_product_le_two_of_andXorMatrix (A B : Finset (Bool × Bool))
   rcases lt_or_ge A.card 2 with hA | hA
   · interval_cases hAc : A.card
     · simp
-    · obtain ⟨i, hi⟩ := Finset.card_eq_one.mp hAc
-      subst hi
-      have hBsub : B ⊆ Finset.univ.filter fun j => andXorMatrix i j = true := fun j hj =>
-        Finset.mem_filter.2 ⟨Finset.mem_univ j, hAB i (Finset.mem_singleton_self i) j hj⟩
-      have hBc := (Finset.card_le_card hBsub).trans (card_row_andXorMatrix_le_two i)
-      omega
+    · obtain ⟨i, rfl⟩ := Finset.card_eq_one.mp hAc
+      simpa using (Finset.card_le_card fun j hj => Finset.mem_filter.2
+        ⟨Finset.mem_univ j, hAB i (Finset.mem_singleton_self i) j hj⟩).trans
+        ((by decide : ∀ i, (Finset.univ.filter fun j => andXorMatrix i j = true).card ≤ 2) i)
   · rcases lt_or_ge B.card 2 with hB | hB
     · interval_cases hBc : B.card
       · simp
-      · obtain ⟨j, hj⟩ := Finset.card_eq_one.mp hBc
-        subst hj
-        have hAsub : A ⊆ Finset.univ.filter fun i => andXorMatrix i j = true := fun i hi =>
-          Finset.mem_filter.2 ⟨Finset.mem_univ i, hAB i hi j (Finset.mem_singleton_self j)⟩
-        have hAc := (Finset.card_le_card hAsub).trans (card_col_andXorMatrix_le_two j)
-        omega
-    · obtain ⟨i₁, hi₁, i₂, hi₂, hij⟩ := Finset.one_lt_card.mp (by omega : 1 < A.card)
-      obtain ⟨j₁, hj₁, j₂, hj₂, hjj⟩ := Finset.one_lt_card.mp (by omega : 1 < B.card)
+      · obtain ⟨j, rfl⟩ := Finset.card_eq_one.mp hBc
+        simpa using (Finset.card_le_card fun i hi => Finset.mem_filter.2
+          ⟨Finset.mem_univ i, hAB i hi j (Finset.mem_singleton_self j)⟩).trans
+          ((by decide : ∀ j, (Finset.univ.filter fun i => andXorMatrix i j = true).card ≤ 2) j)
+    · obtain ⟨i₁, hi₁, i₂, hi₂, hij⟩ := Finset.one_lt_card.mp hA
+      obtain ⟨j₁, hj₁, j₂, hj₂, hjj⟩ := Finset.one_lt_card.mp hB
       exact (not_two_by_two_andXorMatrix i₁ i₂ j₁ j₂ hij hjj
         ⟨hAB i₁ hi₁ j₁ hj₁, hAB i₁ hi₁ j₂ hj₂, hAB i₂ hi₂ j₁ hj₁, hAB i₂ hi₂ j₂ hj₂⟩).elim
-
-private theorem card_support_andXorMatrix :
-    (Finset.univ.filter fun p : (Bool × Bool) × (Bool × Bool) =>
-      andXorMatrix p.1 p.2 = true).card = 8 := by
-  decide
 
 /-- **Exact nonnegative rank of `AND → XOR` (`nonnegRank = 4 > 3 = rank`).** Because `andXorMatrix`
 has `8` ones and every `1`-rectangle covers at most `2` ones, no `3` nonnegative rank-one matrices
@@ -739,44 +627,31 @@ can sum to `andXorMatrix`. -/
 theorem nonnegRank_andXorMatrix_real :
     (Communication.communicationMatrix ℝ andXorMatrix).nonnegRank = 4 := by
   apply le_antisymm
-  · refine (Matrix.nonnegRank_le_card_height fun i j => ?_).trans_eq ?_
-    · dsimp only [Communication.communicationMatrix, Matrix.of_apply]
-      split_ifs <;> norm_num
-    · simp
+  · exact (Matrix.nonnegRank_le_card_height fun i j => by
+      dsimp only [Communication.communicationMatrix, Matrix.of_apply]; split_ifs <;> norm_num
+    ).trans_eq (by simp)
   · rw [Matrix.le_nonnegRank_iff]
-    intro r ⟨T, U, hT, hU, hTU⟩
-    set supp := Finset.univ.filter fun p : (Bool × Bool) × (Bool × Bool) =>
-      andXorMatrix p.1 p.2 = true
+    rintro r ⟨T, U, hT, hU, hTU⟩
     let rect (k : Fin r) : Finset ((Bool × Bool) × (Bool × Bool)) :=
       (Finset.univ.filter fun i => T i k ≠ 0) ×ˢ (Finset.univ.filter fun j => U k j ≠ 0)
-    have hrect_le (k : Fin r) : (rect k).card ≤ 2 := by
-      refine card_product_le_two_of_andXorMatrix _ _ fun i hi j hj => ?_
-      have hne : (T * U) i j ≠ 0 :=
-        (Matrix.mul_apply_ne_zero_iff_of_nonneg hT hU i j).2
+    have hrect_le (k : Fin r) : (rect k).card ≤ 2 :=
+      card_product_le_two_of_andXorMatrix _ _ fun i hi j hj => by
+        have hne := hTU ▸ (Matrix.mul_apply_ne_zero_iff_of_nonneg hT hU i j).2
           ⟨k, (Finset.mem_filter.mp hi).2, (Finset.mem_filter.mp hj).2⟩
-      rw [hTU] at hne
-      dsimp only [Communication.communicationMatrix, Matrix.of_apply] at hne
-      by_contra hf
-      simp [hf] at hne
-    have hsub : supp ⊆ Finset.univ.biUnion rect := by
-      intro ⟨i, j⟩ hp
-      have hij : andXorMatrix i j = true := (Finset.mem_filter.mp hp).2
+        by_contra hf; simp [Communication.communicationMatrix, hf] at hne
+    have hsub : (Finset.univ.filter fun p : (Bool × Bool) × (Bool × Bool) =>
+        andXorMatrix p.1 p.2 = true) ⊆ Finset.univ.biUnion rect := fun ⟨i, j⟩ hp => by
       have hne : (T * U) i j ≠ 0 := by
-        rw [hTU]
-        dsimp only [Communication.communicationMatrix, Matrix.of_apply]
-        rw [hij]
-        norm_num
+        simp [hTU, Communication.communicationMatrix, (Finset.mem_filter.mp hp).2]
       obtain ⟨k, hik, hkj⟩ := (Matrix.mul_apply_ne_zero_iff_of_nonneg hT hU i j).1 hne
       exact Finset.mem_biUnion.2 ⟨k, Finset.mem_univ k,
         Finset.mem_product.2 ⟨Finset.mem_filter.2 ⟨Finset.mem_univ i, hik⟩,
           Finset.mem_filter.2 ⟨Finset.mem_univ j, hkj⟩⟩⟩
-    have h8 : 8 ≤ 2 * r :=
-      calc 8 = supp.card := card_support_andXorMatrix.symm
-        _ ≤ (Finset.univ.biUnion rect).card := Finset.card_le_card hsub
-        _ ≤ ∑ k : Fin r, (rect k).card := Finset.card_biUnion_le
-        _ ≤ ∑ _k : Fin r, 2 := Finset.sum_le_sum fun k _ => hrect_le k
-        _ = 2 * r := by rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul,
-          mul_comm]
+    have hsupp : (Finset.univ.filter fun p : (Bool × Bool) × (Bool × Bool) =>
+        andXorMatrix p.1 p.2 = true).card = 8 := by decide
+    have h8 : 8 ≤ 2 * r := by
+      simpa [hsupp, mul_comm] using (Finset.card_le_card hsub).trans
+        (Finset.card_biUnion_le.trans (Finset.sum_le_sum fun k _ => hrect_le k))
     exact_mod_cast (by omega : 4 ≤ r)
 
 end Cslib.Circuits.Frontier.Basis

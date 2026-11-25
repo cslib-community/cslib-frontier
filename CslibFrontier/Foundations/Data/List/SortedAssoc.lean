@@ -96,18 +96,15 @@ theorem lookup_eq_some_iff_mem (h : (l.map Prod.fst).Nodup) :
     List.lookup k l = some b ↔ (k, b) ∈ l := by
   refine ⟨mem_of_lookup_eq_some, fun hm => ?_⟩
   induction l with
-  | nil => exact absurd hm List.not_mem_nil
+  | nil => cases hm
   | cons a l ih =>
     obtain ⟨a₁, a₂⟩ := a
-    rw [List.map_cons, List.nodup_cons] at h
-    rcases List.mem_cons.1 hm with heq | hm'
-    · cases heq
+    obtain ⟨h1, h2⟩ := List.nodup_cons.1 h
+    rcases List.mem_cons.1 hm with h_eq | hm'
+    · obtain ⟨rfl, rfl⟩ := Prod.mk.inj h_eq
       exact List.lookup_cons_self
-    · have hk : k ≠ a₁ := by
-        rintro rfl
-        exact h.1 (List.mem_map.2 ⟨_, hm', rfl⟩)
-      rw [lookup_cons_of_ne hk]
-      exact ih h.2 hm'
+    · rw [lookup_cons_of_ne fun hk => h1 (List.mem_map.2 ⟨(k, b), hm', hk⟩)]
+      exact ih h2 hm'
 
 end Lookup
 
@@ -176,14 +173,10 @@ theorem isSortedAssoc_append_cons_iff :
     (l₁ ++ (k, v) :: l₂).IsSortedAssoc ↔
       l₁.IsSortedAssoc ∧ l₂.IsSortedAssoc ∧ (∀ p ∈ l₁, p.1 < k) ∧ ∀ p ∈ l₂, k < p.1 := by
   rw [isSortedAssoc_append_iff, isSortedAssoc_cons_iff]
-  constructor
-  · rintro ⟨h₁, ⟨h₂, hl₂⟩, h₃⟩
-    exact ⟨h₁, hl₂, fun p hp => h₃ p hp (k, v) (List.mem_cons_self ..), h₂⟩
-  · rintro ⟨h₁, hl₂, h₃, h₂⟩
-    refine ⟨h₁, ⟨h₂, hl₂⟩, fun p hp q hq => ?_⟩
-    rcases List.mem_cons.1 hq with rfl | hq
-    · exact h₃ p hp
-    · exact (h₃ p hp).trans (h₂ q hq)
+  exact ⟨fun ⟨h₁, ⟨h₂, hl₂⟩, h₃⟩ =>
+      ⟨h₁, hl₂, fun p hp => h₃ p hp (k, v) (List.mem_cons_self ..), h₂⟩,
+    fun ⟨h₁, hl₂, h₃, h₂⟩ => ⟨h₁, ⟨h₂, hl₂⟩, fun p hp q hq =>
+      (List.mem_cons.1 hq).elim (fun h => h ▸ h₃ p hp) fun hq => (h₃ p hp).trans (h₂ q hq)⟩⟩
 
 /-- A sublist of a sorted association list is sorted. -/
 theorem IsSortedAssoc.sublist (h : l₂.IsSortedAssoc) (hs : l₁.Sublist l₂) : l₁.IsSortedAssoc :=
@@ -215,39 +208,28 @@ theorem IsSortedAssoc.lookup_eq_some_iff (h : l.IsSortedAssoc) :
 theorem IsSortedAssoc.head?_eq_some_iff (h : l.IsSortedAssoc) :
     l.head? = some p ↔ p ∈ l ∧ ∀ q ∈ l, p.1 ≤ q.1 := by
   cases l with
-  | nil => simp only [List.head?_nil, reduceCtorEq, List.not_mem_nil, false_and]
+  | nil => simp
   | cons a l =>
     rw [isSortedAssoc_cons_iff] at h
     simp only [List.head?_cons, Option.some.injEq, List.mem_cons]
-    constructor
-    · rintro rfl
-      refine ⟨Or.inl rfl, fun q hq => ?_⟩
-      rcases hq with rfl | hq
-      · exact le_rfl
-      · exact (h.1 q hq).le
-    · rintro ⟨hp, hle⟩
-      rcases hp with rfl | hp
-      · rfl
-      · exact absurd (hle a (Or.inl rfl)) (not_le.2 (h.1 p hp))
+    exact ⟨fun ha => ha ▸ ⟨Or.inl rfl, fun q hq => hq.elim (fun hq => hq ▸ le_rfl) fun hq =>
+        (h.1 q hq).le⟩,
+      fun ⟨hp, hle⟩ => hp.elim Eq.symm fun hp => absurd (hle a (Or.inl rfl)) (h.1 p hp).not_ge⟩
 
 /-- The last entry of a sorted association list is its entry of greatest key. -/
 theorem IsSortedAssoc.getLast?_eq_some_iff (h : l.IsSortedAssoc) :
     l.getLast? = some p ↔ p ∈ l ∧ ∀ q ∈ l, q.1 ≤ p.1 := by
-  have aux : ∀ {b : α × β}, l.getLast? = some b → b ∈ l ∧ ∀ q ∈ l, q.1 ≤ b.1 := by
-    intro b hb
+  have aux {b : α × β} (hb : l.getLast? = some b) : b ∈ l ∧ ∀ q ∈ l, q.1 ≤ b.1 := by
     obtain ⟨l', rfl⟩ := List.getLast?_eq_some_iff.1 hb
     rw [isSortedAssoc_append_iff] at h
-    refine ⟨List.mem_append_right _ (List.mem_singleton_self _), fun q hq => ?_⟩
-    rcases List.mem_append.1 hq with hq | hq
-    · exact (h.2.2 q hq b (List.mem_singleton_self _)).le
-    · rw [List.mem_singleton.1 hq]
+    exact ⟨List.mem_append_right _ (List.mem_singleton_self _), fun q hq =>
+      (List.mem_append.1 hq).elim (fun hq => (h.2.2 q hq b (List.mem_singleton_self _)).le)
+        fun hq => (List.mem_singleton.1 hq) ▸ le_rfl⟩
   refine ⟨aux, fun ⟨hp, hle⟩ => ?_⟩
-  obtain ⟨b, hb⟩ : ∃ b, l.getLast? = some b :=
-    Option.isSome_iff_exists.1
-      (by simpa only [Option.isSome_iff_ne_none, ne_eq, List.getLast?_eq_none_iff] using
-        List.ne_nil_of_mem hp)
+  obtain ⟨b, hb⟩ := Option.ne_none_iff_exists'.1
+    (mt List.getLast?_eq_none_iff.1 (List.ne_nil_of_mem hp))
   obtain ⟨hbl, hble⟩ := aux hb
-  rw [hb, h.eq_of_fst_eq hbl hp (le_antisymm (hle b hbl) (hble p hp))]
+  exact hb.trans (congrArg some (h.eq_of_fst_eq hbl hp (le_antisymm (hle b hbl) (hble p hp))))
 
 end List
 
@@ -272,11 +254,7 @@ theorem erase_def : erase k l = l.filter fun p => p.1 ≠ k := rfl
 @[simp] theorem erase_nil : erase k ([] : List (α × β)) = [] := rfl
 
 theorem erase_cons : erase k (p :: l) = if p.1 = k then erase k l else p :: erase k l := by
-  unfold erase
-  rw [List.filter_cons]
-  by_cases hp : p.1 = k
-  · simp only [hp, ne_eq, not_true_eq_false, decide_false, Bool.false_eq_true, ↓reduceIte]
-  · simp only [hp, ne_eq, not_false_eq_true, decide_true, ↓reduceIte]
+  by_cases hp : p.1 = k <;> simp [erase, hp]
 
 /-- Erasure distributes over concatenation. -/
 @[simp, grind =] theorem erase_append : erase k (l₁ ++ l₂) = erase k l₁ ++ erase k l₂ := by
@@ -376,115 +354,84 @@ theorem eq_or_mem_of_mem_insert (hq : q ∈ insert k v l) : q = (k, v) ∨ q ∈
   induction l with
   | nil => exact Or.inl (List.mem_singleton.1 hq)
   | cons a l ih =>
-    obtain ⟨a₁, a₂⟩ := a
     rw [insert_cons] at hq
     split_ifs at hq with h₁ h₂
     · exact List.mem_cons.1 hq
-    · rcases List.mem_cons.1 hq with rfl | hq
-      · exact Or.inl rfl
-      · exact Or.inr (List.mem_cons_of_mem _ hq)
-    · rcases List.mem_cons.1 hq with rfl | hq
-      · exact Or.inr (List.mem_cons_self ..)
-      · rcases ih hq with h | h
-        · exact Or.inl h
-        · exact Or.inr (List.mem_cons_of_mem _ h)
+    · exact (List.mem_cons.1 hq).imp_right (List.mem_cons_of_mem _)
+    · exact (List.mem_cons.1 hq).elim (fun h => Or.inr (h ▸ List.mem_cons_self ..))
+        fun h => (ih h).imp_right (List.mem_cons_of_mem _)
 
 /-- Insertion preserves sortedness. -/
 theorem isSortedAssoc_insert (h : l.IsSortedAssoc) : (insert k v l).IsSortedAssoc := by
   induction l with
-  | nil =>
-    exact List.isSortedAssoc_cons_iff.2
-      ⟨fun _ h => absurd h List.not_mem_nil, List.isSortedAssoc_nil⟩
+  | nil => simp
   | cons a l ih =>
-    obtain ⟨a₁, a₂⟩ := a
     rw [List.isSortedAssoc_cons_iff] at h
     rw [insert_cons]
     split_ifs with h₁ h₂
-    · rw [List.isSortedAssoc_cons_iff, List.isSortedAssoc_cons_iff]
-      refine ⟨fun q hq => ?_, h⟩
-      rcases List.mem_cons.1 hq with rfl | hq
-      · exact h₁
-      · exact h₁.trans (h.1 q hq)
-    · subst h₂
-      exact List.isSortedAssoc_cons_iff.2 h
-    · rw [List.isSortedAssoc_cons_iff]
-      refine ⟨fun q hq => ?_, ih h.2⟩
-      have hak : a₁ < k := lt_of_le_of_ne (not_lt.1 h₁) (Ne.symm h₂)
-      rcases eq_or_mem_of_mem_insert hq with rfl | hq
-      · exact hak
-      · exact h.1 q hq
+    · exact List.isSortedAssoc_cons_iff.2 ⟨fun q hq => (List.mem_cons.1 hq).elim
+        (fun hq => hq ▸ h₁) fun hq => h₁.trans (h.1 q hq), List.isSortedAssoc_cons_iff.2 h⟩
+    · exact List.isSortedAssoc_cons_iff.2 ⟨fun q hq => h₂ ▸ h.1 q hq, h.2⟩
+    · refine List.isSortedAssoc_cons_iff.2 ⟨fun q hq => ?_, ih h.2⟩
+      exact (eq_or_mem_of_mem_insert hq).elim
+        (fun hq => hq ▸ lt_of_le_of_ne (not_lt.1 h₁) (Ne.symm h₂)) (h.1 q)
 
 /-- The inserted entry is present, on any list. -/
 theorem mem_insert_self : (k, v) ∈ insert k v l := by
   induction l with
   | nil => exact List.mem_cons_self ..
   | cons a l ih =>
-    obtain ⟨a₁, a₂⟩ := a
     rw [insert_cons]
-    split_ifs
-    · exact List.mem_cons_self ..
-    · exact List.mem_cons_self ..
-    · exact List.mem_cons_of_mem _ ih
+    split_ifs <;> simp [ih]
 
 /-- An entry with a different key survives insertion, on any list. -/
 theorem mem_insert_of_mem (hq : q ∈ l) (hne : q.1 ≠ k) : q ∈ insert k v l := by
   induction l with
-  | nil => exact absurd hq List.not_mem_nil
+  | nil => cases hq
   | cons a l ih =>
-    obtain ⟨a₁, a₂⟩ := a
     rw [insert_cons]
     split_ifs with h₁ h₂
     · exact List.mem_cons_of_mem _ hq
-    · rcases List.mem_cons.1 hq with rfl | hq'
-      · exact absurd h₂.symm hne
-      · exact List.mem_cons_of_mem _ hq'
-    · rcases List.mem_cons.1 hq with rfl | hq'
-      · exact List.mem_cons_self ..
-      · exact List.mem_cons_of_mem _ (ih hq')
+    · exact List.mem_cons_of_mem _ ((List.mem_cons.1 hq).resolve_left fun h => hne (h ▸ h₂.symm))
+    · exact (List.mem_cons.1 hq).elim (fun h => h ▸ List.mem_cons_self ..)
+        fun hq' => List.mem_cons_of_mem _ (ih hq')
 
 /-- On a sorted list, the entries after insertion are the new entry and the old entries with
 other keys. -/
 @[simp] theorem mem_insert_iff (h : l.IsSortedAssoc) :
     q ∈ insert k v l ↔ q = (k, v) ∨ q ∈ l ∧ q.1 ≠ k := by
-  constructor
-  · intro hq
-    rcases eq_or_mem_of_mem_insert hq with rfl | hql
-    · exact Or.inl rfl
-    · by_cases hk : q.1 = k
-      · exact Or.inl ((isSortedAssoc_insert h).eq_of_fst_eq hq mem_insert_self hk)
-      · exact Or.inr ⟨hql, hk⟩
-  · rintro (rfl | ⟨hql, hk⟩)
-    · exact mem_insert_self
-    · exact mem_insert_of_mem hql hk
+  refine ⟨fun hq => (eq_or_mem_of_mem_insert hq).elim Or.inl fun hql => ?_,
+    fun hq => hq.elim (fun h => h ▸ mem_insert_self) fun ⟨hql, hk⟩ => mem_insert_of_mem hql hk⟩
+  exact if hk : q.1 = k then Or.inl ((isSortedAssoc_insert h).eq_of_fst_eq hq mem_insert_self hk)
+    else Or.inr ⟨hql, hk⟩
 
 /-- Lookup of the inserted key finds the new value, on any list. -/
 @[simp, grind =] theorem lookup_insert_self : List.lookup k (insert k v l) = some v := by
   induction l with
-  | nil => simp only [insert_nil, List.lookup_cons_self]
+  | nil => simp
   | cons a l ih =>
     obtain ⟨a₁, a₂⟩ := a
     rw [insert_cons]
     split_ifs with h₁ h₂
-    · simp only [List.lookup_cons_self]
-    · simp only [List.lookup_cons_self]
+    · exact List.lookup_cons_self
+    · exact List.lookup_cons_self
     · rw [List.lookup_cons_of_ne h₂, ih]
 
 /-- Insertion does not change lookup at other keys, on any list. -/
 @[simp] theorem lookup_insert_of_ne (hne : k' ≠ k) :
     List.lookup k' (insert k v l) = List.lookup k' l := by
   induction l with
-  | nil =>
-    simp only [insert_nil, List.lookup_cons, beq_eq_false_iff_ne.2 hne, List.lookup_nil]
+  | nil => exact List.lookup_cons_of_ne hne
   | cons a l ih =>
     obtain ⟨a₁, a₂⟩ := a
     rw [insert_cons]
+    dsimp only
     split_ifs with h₁ h₂
-    · rw [List.lookup_cons_of_ne hne]
-    · subst h₂
-      rw [List.lookup_cons_of_ne hne, List.lookup_cons_of_ne hne]
+    · exact List.lookup_cons_of_ne hne
+    · rw [List.lookup_cons_of_ne hne, List.lookup_cons_of_ne (h₂ ▸ hne)]
     · by_cases hka : k' = a₁
       · subst hka
-        simp only [List.lookup_cons_self]
+        rw [List.lookup_cons_self, List.lookup_cons_self]
       · rw [List.lookup_cons_of_ne hka, List.lookup_cons_of_ne hka, ih]
 
 /-- On a sorted list, insertion keeps the length if the key was present and adds one
@@ -492,26 +439,23 @@ otherwise. -/
 theorem length_insert (h : l.IsSortedAssoc) :
     (insert k v l).length = if (List.lookup k l).isSome then l.length else l.length + 1 := by
   induction l with
-  | nil =>
-    simp only [insert_nil, List.length_singleton, List.lookup_nil, Option.isSome_none,
-      Bool.false_eq_true, ↓reduceIte, List.length_nil, Nat.zero_add]
+  | nil => simp
   | cons a l ih =>
     obtain ⟨a₁, a₂⟩ := a
     rw [List.isSortedAssoc_cons_iff] at h
+    rw [insert_cons]
+    dsimp only
     by_cases h₁ : k < a₁
-    · have hnone : List.lookup k ((a₁, a₂) :: l) = none := by
-        refine List.lookup_eq_none_of_forall_ne fun p hp => ?_
-        rcases List.mem_cons.1 hp with rfl | hp
-        · exact h₁.ne'
-        · exact (h₁.trans (h.1 p hp)).ne'
-      simp only [insert_cons, h₁, ↓reduceIte, hnone, List.length_cons, Option.isSome_none,
-        Bool.false_eq_true]
-    · by_cases h₂ : k = a₁
+    · rw [ite_eq_left h₁]
+      have hnone : List.lookup k ((a₁, a₂) :: l) = none :=
+        List.lookup_eq_none_of_forall_ne fun p hp =>
+          (List.mem_cons.1 hp).elim (fun hp => hp ▸ h₁.ne') fun hp => (h₁.trans (h.1 p hp)).ne'
+      simp [hnone]
+    · rw [ite_eq_right h₁]
+      by_cases h₂ : k = a₁
       · subst h₂
-        simp only [insert_cons, lt_self_iff_false, ↓reduceIte, List.lookup_cons_self,
-          Option.isSome_some, List.length_cons]
-      · simp only [insert_cons, h₁, h₂, ↓reduceIte, List.length_cons, ih h.2,
-          List.lookup_cons_of_ne h₂]
+        simp
+      · simp only [h₂, ↓reduceIte, List.length_cons, ih h.2, List.lookup_cons_of_ne h₂]
         split_ifs <;> rfl
 
 /-- Insertion skips a prefix whose keys are all below `k`. -/
@@ -578,19 +522,11 @@ theorem succ?_def : succ? k l = (l.filter fun p => k < p.1).head? := rfl
 
 /-- The predecessor in a singleton: the entry itself when its key is below `k`. -/
 theorem pred?_singleton : pred? k [(k', v)] = if k' < k then some (k', v) else none := by
-  by_cases h : k' < k
-  · simp only [pred?, List.filter_cons, List.filter_nil, h, decide_true, ↓reduceIte,
-      List.getLast?_singleton]
-  · simp only [pred?, List.filter_cons, List.filter_nil, h, decide_false, Bool.false_eq_true,
-      ↓reduceIte, List.getLast?_nil]
+  by_cases h : k' < k <;> simp [pred?, h]
 
 /-- The successor in a singleton: the entry itself when its key is above `k`. -/
 theorem succ?_singleton : succ? k [(k', v)] = if k < k' then some (k', v) else none := by
-  by_cases h : k < k'
-  · simp only [succ?, List.filter_cons, List.filter_nil, h, decide_true, ↓reduceIte,
-      List.head?_cons]
-  · simp only [succ?, List.filter_cons, List.filter_nil, h, decide_false, Bool.false_eq_true,
-      ↓reduceIte, List.head?_nil]
+  by_cases h : k < k' <;> simp [succ?, h]
 
 /-- The predecessor in a cons: the head is the fallback when its key is below `k`. -/
 @[simp] theorem pred?_cons :
@@ -598,14 +534,12 @@ theorem succ?_singleton : succ? k [(k', v)] = if k < k' then some (k', v) else n
   by_cases h : k' < k
   · simp only [pred?, List.filter_cons, h, decide_true, ↓reduceIte, List.getLast?_cons]
     cases (l.filter fun p => decide (p.1 < k)).getLast? <;> rfl
-  · simp only [pred?, List.filter_cons, h, decide_false, Bool.false_eq_true, ↓reduceIte]
+  · simp [pred?, h]
 
 /-- The successor in a cons: the head when its key is above `k`, else the successor in the tail. -/
 @[simp] theorem succ?_cons :
     succ? k ((k', v) :: l) = if k < k' then some (k', v) else succ? k l := by
-  by_cases h : k < k'
-  · simp only [succ?, List.filter_cons, h, decide_true, ↓reduceIte, List.head?_cons]
-  · simp only [succ?, List.filter_cons, h, decide_false, Bool.false_eq_true, ↓reduceIte]
+  by_cases h : k < k' <;> simp [succ?, h]
 
 /-- The predecessor in a concatenation is the predecessor in the suffix, else in the prefix. -/
 @[simp, grind =] theorem pred?_append : pred? k (l₁ ++ l₂) = (pred? k l₂).or (pred? k l₁) := by
@@ -645,9 +579,7 @@ theorem range_def {lo hi : α} : range lo hi l = l.filter fun p => lo ≤ p.1 �
 @[simp] theorem range_cons {lo hi : α} :
     range lo hi (p :: l) =
       if lo ≤ p.1 ∧ p.1 ≤ hi then p :: range lo hi l else range lo hi l := by
-  by_cases h : lo ≤ p.1 ∧ p.1 ≤ hi
-  · simp only [range, List.filter_cons, h, and_self, decide_true, ↓reduceIte]
-  · simp only [range, List.filter_cons, decide_eq_true_eq, h, ↓reduceIte]
+  by_cases h : lo ≤ p.1 ∧ p.1 ≤ hi <;> simp [range, h]
 
 /-- The range is empty exactly when every entry lies outside the closed interval. -/
 @[simp] theorem range_eq_nil_iff {lo hi : α} :
@@ -662,9 +594,7 @@ theorem rank_def : rank k l = (l.filter fun p => p.1 < k).length := rfl
 /-- The first entry contributes to rank exactly when its key is strictly below the query. -/
 @[simp] theorem rank_cons :
     rank k (p :: l) = if p.1 < k then rank k l + 1 else rank k l := by
-  by_cases hp : p.1 < k
-  · simp only [rank, List.filter_cons, hp, decide_true, ↓reduceIte, List.length_cons]
-  · simp only [rank, List.filter_cons, hp, decide_false, Bool.false_eq_true, ↓reduceIte]
+  by_cases hp : p.1 < k <;> simp [rank, hp]
 
 /-- Rank is zero exactly when all keys are at least the query. -/
 @[simp] theorem rank_eq_zero_iff : rank k l = 0 ↔ ∀ p ∈ l, k ≤ p.1 := by
@@ -701,15 +631,9 @@ theorem rank_eq_length_takeWhile (h : l.IsSortedAssoc) :
   | nil => rfl
   | cons a l ih =>
     rw [List.isSortedAssoc_cons_iff] at h
-    rw [rank, List.filter_cons, List.takeWhile_cons]
+    rw [rank_cons, List.takeWhile_cons]
     by_cases ha : a.1 < k
-    · simp only [ha, decide_true, ↓reduceIte, List.length_cons]
-      rw [← rank, ih h.2]
-    · have hnil : l.filter (fun p => decide (p.1 < k)) = [] := by
-        refine List.filter_eq_nil_iff.2 fun q hq => ?_
-        simp only [decide_eq_true_eq, not_lt]
-        exact (not_lt.1 ha).trans (h.1 q hq).le
-      rw [hnil]
-      simp only [ha, decide_false, Bool.false_eq_true, ↓reduceIte, List.length_nil]
+    · simp [ha, ih h.2]
+    · simp [ha, rank_eq_zero_iff.2 fun q hq => (not_lt.1 ha).trans (h.1 q hq).le]
 
 end Cslib.SortedAssoc

@@ -110,16 +110,22 @@ theorem thm_cn_segments (hw : IsPrice K w) {Q : Type} (a b : Q → Y) {M : ℕ} 
             if (l : ℕ) < j then w (a q) (b q) else 0 by
       split_ifs <;> first | rw [hw.self, sub_self] | omega | rw [sub_zero]
     rw [Finset.sum_sub_distrib, sum_fin_ite_lt hj, sum_fin_ite_lt (hjj.trans hj)] at h4
-    exact (mul_le_mul_of_nonneg_left h4 (by positivity)).trans_eq (by field_simp; ring)
+    refine (mul_le_mul_of_nonneg_left h4 (by positivity)).trans_eq ?_
+    field_simp
+    ring
   · simp only [Sum.elim_inl, Sum.elim_inr, id, ← Finset.mul_sum]
     have hEq (l : Fin M) : w (a q) (if (l : ℕ) < j then b q else a q) =
-        if (l : ℕ) < j then w (a q) (b q) else 0 := by split_ifs; exacts [rfl, hw.self _]
+        if (l : ℕ) < j then w (a q) (b q) else 0 := by
+          split_ifs
+          exacts [rfl, hw.self _]
     simp only [hEq, sum_fin_ite_lt hj]
     field_simp
     ring
   · simp only [Sum.elim_inl, Sum.elim_inr, id, ← Finset.mul_sum]
     have hEq (l : Fin M) : w (b q) (if (l : ℕ) < j then b q else a q) =
-        if (l : ℕ) < j then 0 else w (a q) (b q) := by split_ifs; exacts [hw.self _, hw.symm _ _]
+        if (l : ℕ) < j then 0 else w (a q) (b q) := by
+          split_ifs
+          exacts [hw.self _, hw.symm _ _]
     simp only [hEq, sum_fin_ite_lt hj]
     field_simp
     ring
@@ -192,17 +198,24 @@ theorem thm_cn_fan (hw : IsPrice K w) (x : Bool → Y) (m z : Y)
     exact le_antisymm (by simpa using a3 b 0 (Nat.zero_le _)) (hw1.nonneg _ _)
   have hm (b : Bool) : w1 (Sum.inr (b, n ^ 2)) (Sum.inl m) = 0 := by
     have h := a4 b (n ^ 2) le_rfl
-    push_cast at h; rw [div_self (by positivity), sub_self, zero_mul] at h
-    rw [hw1.symm]; exact le_antisymm h (hw1.nonneg _ _)
+    push_cast at h
+    rw [div_self (by positivity), sub_self, zero_mul] at h
+    rw [hw1.symm]
+    exact le_antisymm h (hw1.nonneg _ _)
   have hγ (b : Bool) (i : ℕ) (hi : i < n ^ 2) :
       w1 (Sum.inr (b, i)) (Sum.inr (b, i + 1)) ≤ D / n ^ 2 := by
     have h := a2 b i (i + 1) (Nat.le_succ i) hi
-    push_cast at h; rw [add_sub_cancel_left, one_div_mul_eq_div] at h
+    push_cast at h
+    rw [add_sub_cancel_left, one_div_mul_eq_div] at h
     exact h.trans (div_le_div_of_nonneg_right (hD b) (by positivity))
   have hρ (j : ℕ) (hj : j ≤ n ^ 2 * T) : 0 ≤ 1 - (j : ℝ) / (n ^ 2 * T) := by
-    rw [sub_nonneg, div_le_one (by positivity)]; exact_mod_cast hj
+    rw [sub_nonneg, div_le_one (by positivity)]
+    exact_mod_cast hj
   refine ⟨w2, hw2, fun a b => by rw [old, old, e2, e1], fun b => by rw [γ, old, e2, hx],
-    fun b => by rw [γ, old, e2, hm], fun b i hi => by rw [γ, γ, e2]; exact hγ b i hi,
+    fun b => by rw [γ, old, e2, hm],
+    fun b i hi => by
+      rw [γ, γ, e2]
+      exact hγ b i hi,
     fun b i j hj => ?_, fun b i j hj => ?_, fun b i j hi hj => ?_, fun b i j hj => ?_,
     fun j hj => ?_⟩
   · dsimp only [old, γ, G]
@@ -214,7 +227,8 @@ theorem thm_cn_fan (hw : IsPrice K w) (x : Bool → Y) (m z : Y)
   · dsimp only [old, γ, G]
     rw [e2, hw1.symm (Sum.inl z)]
     have h := b2 (b, i) j (j + 1) (Nat.le_succ j) hj
-    push_cast at h; rw [add_sub_cancel_left] at h
+    push_cast at h
+    rw [add_sub_cancel_left] at h
     exact h.trans_eq (by field_simp)
   · dsimp only [G]
     have h := b1 (b, i) (b, i + 1) j hj
@@ -227,7 +241,8 @@ theorem thm_cn_fan (hw : IsPrice K w) (x : Bool → Y) (m z : Y)
   · dsimp only [G]
     have h := b1 (true, n ^ 2) (false, n ^ 2) j hj
     have h7 : w1 (Sum.inr (true, n ^ 2)) (Sum.inr (false, n ^ 2)) = 0 := by
-      rw [dist_congr_of_zero hw1 (hm true), hw1.symm]; exact hm false
+      rw [dist_congr_of_zero hw1 (hm true), hw1.symm]
+      exact hm false
     rw [hw1.self, mul_zero, add_zero, h7, mul_zero] at h
     exact le_antisymm h (hw2.nonneg _ _)
 
@@ -268,8 +283,9 @@ theorem γ_le (F : IsFan K w x m z D T n d) (hn : 0 < n) (b : Bool) (i i' : ℕ)
     (hi' : i' ≤ n ^ 2) :
     (n : ℝ) ^ 2 * d (γ b i) (γ b i') ≤ |(i : ℝ) - i'| * D := by
   have hn' : (0 : ℝ) < n := by exact_mod_cast hn
-  exact (mul_le_mul_of_nonneg_left (dist_chain_le F.price (γ b) (F.γ_step b) i i' hi hi')
-    (by positivity)).trans_eq (by field_simp)
+  refine (mul_le_mul_of_nonneg_left (dist_chain_le F.price (γ b) (F.γ_step b) i i' hi hi')
+    (by positivity)).trans_eq ?_
+  field_simp
 
 theorem G_i_le (F : IsFan K w x m z D T n d) (hn : 0 < n) (b : Bool) (i i' j : ℕ)
     (hi : i ≤ n ^ 2)
@@ -277,17 +293,19 @@ theorem G_i_le (F : IsFan K w x m z D T n d) (hn : 0 < n) (b : Bool) (i i' j : �
     (hj : j ≤ n ^ 2 * T) :
     (n : ℝ) ^ 2 * d (G b i j) (G b i' j) ≤ (1 - j / (n ^ 2 * T)) * (|(i : ℝ) - i'| * D) := by
   have hn' : (0 : ℝ) < n := by exact_mod_cast hn
-  exact (mul_le_mul_of_nonneg_left
+  refine (mul_le_mul_of_nonneg_left
     (dist_chain_le F.price (fun i => G b i j) (fun i hi => F.G_step_i b i j hi hj) i i' hi hi')
-    (by positivity)).trans_eq (by field_simp)
+    (by positivity)).trans_eq ?_
+  field_simp
 
 theorem G_j_le (F : IsFan K w x m z D T n d) (hn : 0 < n) (b : Bool) (i j j' : ℕ)
     (hj : j ≤ n ^ 2 * T)
     (hj' : j' ≤ n ^ 2 * T) :
     (n : ℝ) ^ 2 * d (G b i j) (G b i j') ≤ |(j : ℝ) - j'| / T * d (FanPts.old z) (γ b i) := by
   have hn' : (0 : ℝ) < n := by exact_mod_cast hn
-  exact (mul_le_mul_of_nonneg_left (dist_chain_le F.price (G b i) (F.G_step_j b i) j j' hj hj')
-    (by positivity)).trans_eq (by field_simp)
+  refine (mul_le_mul_of_nonneg_left (dist_chain_le F.price (G b i) (F.G_step_j b i) j j' hj hj')
+    (by positivity)).trans_eq ?_
+  field_simp
 
 theorem z_γ_last (F : IsFan K w x m z D T n d) (b : Bool) : d (FanPts.old z) (γ b (n ^ 2)) =
     w z m := by
@@ -332,7 +350,8 @@ theorem lipschitz (F : IsFan K w x m z D T n d) (hT : 0 < T) (hn : 0 < n) (b : B
   have h8 : |((clamp (n ^ 2 * T) (P.1 + P.2 + n) : ℕ) : ℝ) -
       (clamp (n ^ 2 * T) ((P + h).1 + (P + h).2 + n) : ℕ)| ≤ |(h.1 : ℝ)| + |(h.2 : ℝ)| :=
     (abs_clamp_sub_le _ _ _).trans (by
-      rw [Prod.fst_add, Prod.snd_add]; push_cast
+      rw [Prod.fst_add, Prod.snd_add]
+      push_cast
       rw [show ((P.1 : ℝ) + P.2 + n) - (P.1 + h.1 + (P.2 + h.2) + n) = -((h.1 : ℝ) + h.2) by ring,
         abs_neg]
       exact abs_add_le _ _)
@@ -360,15 +379,17 @@ theorem step_ii (F : IsFan K w x m z D T n d) (hT : 0 < T) (hn : 0 < n) (b : Boo
   have hn' : (0 : ℝ) < n := by exact_mod_cast hn
   have hT' : (0 : ℝ) < T := by exact_mod_cast hT
   have h6 := F.G_i_le hn b (clamp (n ^ 2) i) (clamp (n ^ 2) (i + 1))
-    (clamp (n ^ 2 * T) (i + k + n)) (clamp_le _ _) (clamp_le _ _) (clamp_le _ _)
+      (clamp (n ^ 2 * T) (i + k + n)) (clamp_le _ _)
+    (clamp_le _ _) (clamp_le _ _)
   rw [clamp_window h0 h1] at h6
   rw [fanDist, fanPt_mk, fanPt_mk, show i + 1 + (k - 1) + n = i + k + n by ring]
   refine h6.trans ?_
   have h8 : 0 ≤ 1 - ((i : ℝ) + k + n) / (n ^ 2 * T) := by
-    rw [sub_nonneg, div_le_one (by positivity)]; exact_mod_cast h1
-  exact mul_le_mul_of_nonneg_left
-    ((mul_le_mul_of_nonneg_right (abs_clamp_sub_clamp_succ_le _ i) (F.D_nonneg hn)).trans_eq
-      (one_mul D)) h8
+    rw [sub_nonneg, div_le_one (by positivity)]
+    exact_mod_cast h1
+  apply mul_le_mul_of_nonneg_left _ h8
+  calc _ ≤ 1 * D := mul_le_mul_of_nonneg_right (abs_clamp_sub_clamp_succ_le _ i) (F.D_nonneg hn)
+    _ = D := one_mul D
 
 /-- The distance from z gives a lower bound for W_n: n²(ρL_i − ρ′L_i′) ≤ W_n(P(i,k), P(i′,k′)). -/
 theorem from_z (F : IsFan K w x m z D T n d) (b : Bool) (i k i' k' : ℤ) (h0 : 0 ≤ i + k + n)
@@ -414,14 +435,17 @@ theorem fanLen_le (F : IsFan K w x m z D T n d) (hn : 0 < n) (b : Bool)
 
 theorem fanLen_step (F : IsFan K w x m z D T n d) (hn : 0 < n) (b : Bool) (i : ℤ) :
     |(n : ℝ) ^ 2 * (fanLen d z n b (i + 1) - fanLen d z n b i)| ≤ D := by
-  have h1 := (F.γ_le hn b (clamp (n ^ 2) i) (clamp (n ^ 2) (i + 1)) (clamp_le _ _)
-    (clamp_le _ _)).trans ((mul_le_mul_of_nonneg_right (abs_clamp_sub_clamp_succ_le _ i)
-      (F.D_nonneg hn)).trans_eq (one_mul D))
+  have h1 := F.γ_le hn b (clamp (n ^ 2) i) (clamp (n ^ 2) (i + 1)) (clamp_le _ _) (clamp_le _ _)
+  have h2 : |((clamp (n ^ 2) i : ℕ) : ℝ) - (clamp (n ^ 2) (i + 1) : ℕ)| * D ≤ D := by
+    calc _ ≤ 1 * D := mul_le_mul_of_nonneg_right (abs_clamp_sub_clamp_succ_le _ i) (F.D_nonneg hn)
+      _ = D := one_mul D
   have h3 := F.price.triangle (FanPts.old z) (γ b (clamp (n ^ 2) i)) (γ b (clamp (n ^ 2) (i + 1)))
   have h4 := F.price.triangle (FanPts.old z) (γ b (clamp (n ^ 2) (i + 1))) (γ b (clamp (n ^ 2) i))
   rw [F.price.symm (γ b (clamp (n ^ 2) (i + 1))) (γ b (clamp (n ^ 2) i))] at h4
+  have h5 : (0 : ℝ) ≤ (n : ℝ) ^ 2 := by positivity
   unfold fanLen
-  exact abs_le.mpr ⟨by nlinarith [sq_nonneg (n : ℝ)], by nlinarith [sq_nonneg (n : ℝ)]⟩
+  rw [abs_le]
+  constructor <;> nlinarith
 
 theorem fanPot_sub_le (F : IsFan K w x m z D T n d) (b : Bool) (P P' : ℤ × ℤ) :
     (n : ℝ) ^ 2 * (fanPot d x T n b P - fanPot d x T n b P') ≤ fanDist d T n (b, P) (b, P') := by
@@ -562,8 +586,10 @@ theorem fanL_le (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (n : ℕ) (b :
 
 theorem fanL_bd (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) : WindowFn.Bounded fun
     n b i _ =>
-    fanL d z n b i :=
-  ⟨D + w z m, fun n b i _ => by rw [abs_of_nonneg (fanL_nonneg hd n b i)]; exact fanL_le hd n b i⟩
+    fanL d z n b i := by
+  refine ⟨D + w z m, fun n b i k => ?_⟩
+  rw [abs_of_nonneg (fanL_nonneg hd n b i)]
+  exact fanL_le hd n b i
 
 /-- … so Λ₂ ≤ (D + |zm|)². -/
 theorem thm_cn_Λ₂_le (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) : fanΛ₂ d z ≤
@@ -588,8 +614,10 @@ theorem thm_cn_i (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT : 2 ≤ T
     simp only [Prod.mk_add_mk, Int.cast_one, abs_one, Int.cast_zero, abs_zero, add_zero,
       mul_one] at h1
     have h2 := fanP_sub_le hd n b (i + 1, k) (i, k)
+    have h3 := fanP_sub_le hd n b (i, k) (i + 1, k)
     rw [H.symm] at h2
-    exact abs_le.mpr ⟨by linarith [fanP_sub_le hd n b (i, k) (i + 1, k)], by linarith⟩
+    rw [abs_le]
+    constructor <;> linarith
   have h1 : Tendsto (fun n : ℕ => 2 * D - 2 * (w z (x true) + w z (x false)) / T * (1 / (n : ℝ)))
       atTop (𝓝 (2 * D)) := by
     simpa using (tendsto_one_div_atTop_nhds_zero_nat.const_mul
@@ -600,7 +628,8 @@ theorem thm_cn_i (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT : 2 ≤ T
     have g1 : w (x true) (x false) ≤ fanP d x T n true (((max n 1 : ℕ) : ℤ) ^ 2, k)
         + fanP d x T n false (((max n 1 : ℕ) : ℤ) ^ 2, k) := (hd n).fanPot_last (k : ℤ)
     have k2 : (k : ℤ) + max n 1 ≤ (max n 1 : ℕ) ^ 2 * T := by
-      rw [e]; exact_mod_cast (by omega : k + n ≤ n ^ 2 * T)
+      rw [e]
+      exact_mod_cast (by omega : k + n ≤ n ^ 2 * T)
     have g2 : fanP d x T n true (0, k) ≤ ((k : ℝ) + max n 1) / ((max n 1 : ℕ) ^ 2 * T) *
         w z (x true) := (hd n).fanPot_zero true (k : ℤ) (by rw [e]; positivity) k2
     have g3 : fanP d x T n false (0, k) ≤ ((k : ℝ) + max n 1) / ((max n 1 : ℕ) ^ 2 * T) *
@@ -657,13 +686,15 @@ theorem thm_cn_ii (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT : 2 ≤ 
     rw [e] at g
     have g := g (by positivity) (by exact_mod_cast (by omega : i + k + n ≤ n ^ 2 * T))
     push_cast at g
-    rw [show translateDist (fanWs d T) 0 (1, -1) n b i k = fanWs d T n b (i, k) (i + 1, k - 1) by
-      simp [translateDist, sub_eq_add_neg]]
+    have h2 :
+        translateDist (fanWs d T) 0 (1, -1) n b i k = fanWs d T n b (i, k) (i + 1, k - 1) := by
+      simp [translateDist, sub_eq_add_neg]
+    rw [h2]
     refine g.trans ?_
     rw [mul_comm]
     refine mul_le_mul_of_nonneg_left ?_ hD0
-    rw [windowPlace_natCast hi.le b k, show θ * ((i : ℝ) / n ^ 2) = i / (n ^ 2 * T) by
-      rw [hθ]; field_simp]
+    have h4 : θ * ((i : ℝ) / n ^ 2) = i / (n ^ 2 * T) := by rw [hθ]; field_simp
+    rw [windowPlace_natCast hi.le b k, h4]
     linarith [div_le_div_of_nonneg_right
       (show (i : ℝ) ≤ i + k + n by linarith [Nat.cast_nonneg (α := ℝ) k])
       (show (0 : ℝ) ≤ n ^ 2 * T by positivity)]
@@ -701,18 +732,21 @@ theorem thm_cn_iii (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT : 2 ≤
     have g : _ → _ → fanWs d T n b (i, k) (i, k + 1) ≤ fanL d z n b i / T :=
       (hd n).step_iii ((by simp : 0 < max n 1)) b i k
     rw [e] at g
-    rw [show translateDist (fanWs d T) 0 (0, 1) n b i k = fanWs d T n b (i, k) (i, k + 1) by
-      simp [translateDist]]
+    have h2 : translateDist (fanWs d T) 0 (0, 1) n b i k = fanWs d T n b (i, k) (i, k + 1) := by
+      simp [translateDist]
+    rw [h2]
     exact (g (by positivity) (by exact_mod_cast (by omega : i + k + 1 + n ≤ n ^ 2 * T))).trans_eq
       (by simp only [Pi.smul_apply, smul_eq_mul, hθ]; ring)
   have h2 : rms (θ • (fun n b i _ => fanL d z n b i : WindowFn)) ^ 2 = θ ^ 2 * fanΛ₂ d z := by
-    rw [rms_sq (hLf.smul θ), show (θ • (fun n b i _ => fanL d z n b i : WindowFn) : WindowFn) *
+    have hsmul : (θ • (fun n b i _ => fanL d z n b i : WindowFn) : WindowFn) *
         (θ • (fun n b i _ => fanL d z n b i : WindowFn)) =
-        (θ ^ 2) • ((fun n b i _ => fanL d z n b i : WindowFn) *
-          (fun n b i _ => fanL d z n b i : WindowFn)) from
-      funext fun _ => funext fun _ => funext fun _ => funext fun _ => by
-        simp only [Pi.mul_apply, Pi.smul_apply, smul_eq_mul]; ring,
-      mean_smul (hLf.mul hLf), fanΛ₂]
+        (θ ^ 2) •
+            ((fun n b i _ => fanL d z n b i : WindowFn) *
+                (fun n b i _ => fanL d z n b i : WindowFn)) := by
+      funext n b i k
+      simp only [Pi.mul_apply, Pi.smul_apply, smul_eq_mul]
+      ring
+    rw [rms_sq (hLf.smul θ), hsmul, mean_smul (hLf.mul hLf), fanΛ₂]
   rw [← h2]
   exact pow_le_pow_left₀ (meanNorm_nonneg _ _) ((meanNorm_le_meanLength _ _).trans h1) 2
 
@@ -728,14 +762,16 @@ theorem thm_cn_iv_bound (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (n : �
     induction S with
     | zero => simp
     | succ S ih =>
-      rw [show (n : ℝ) ^ 2 * (fanL d z n b (i + (S + 1 : ℕ)) - fanL d z n b i) =
+      have e : (n : ℝ) ^ 2 * (fanL d z n b (i + (S + 1 : ℕ)) - fanL d z n b i) =
           n ^ 2 * (fanL d z n b (i + S + 1) - fanL d z n b (i + S))
-            + n ^ 2 * (fanL d z n b (i + S) - fanL d z n b i) by
-              push_cast
-              rw [← add_assoc]
-              ring]
+            + n ^ 2 * (fanL d z n b (i + S) - fanL d z n b i) := by
+        push_cast
+        rw [← add_assoc]
+        ring
+      rw [e]
       refine (abs_add_le _ _).trans ?_
-      push_cast; linarith [fanL_step hd n b (i + S)]
+      push_cast
+      linarith [fanL_step hd n b (i + S)]
   rw [show (n : ℝ) ^ 2 * (fanL d z n b (i + S) ^ 2 - fanL d z n b i ^ 2) =
       (fanL d z n b (i + S) + fanL d z n b i) *
         (n ^ 2 * (fanL d z n b (i + S) - fanL d z n b i)) by ring, abs_mul]
@@ -801,7 +837,9 @@ theorem thm_cn_iv_square (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT :
   have g := abs_le.1 (g k0 k1)
   push_cast at g
   set r : ℝ := 1 - (i + k + n) / (n ^ 2 * T) with hr
-  have hr0 : 0 ≤ r := by rw [hr, sub_nonneg, div_le_one (by positivity)]; exact_mod_cast k1
+  have hr0 : 0 ≤ r := by
+    rw [hr, sub_nonneg, div_le_one (by positivity)]
+    exact_mod_cast k1
   have hr1 : 1 - r ≤ 2 * (1 / T) := by
     rw [hr, sub_sub_cancel, div_le_iff₀ (by positivity)]
     exact (by exact_mod_cast (by omega : i + k + n ≤ 2 * n ^ 2) :
@@ -831,9 +869,10 @@ theorem thm_cn_iv_mean (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT : 2
   rw [rms_sq (H.bounded _ _)]
   obtain ⟨hZb, hZm⟩ := mean_steps (F := fun n b i _ => fanL d z n b i ^ 2) (fanL_sq_bd hd) S
   have hsh := hLf.shift S 0
-  have h4 : mean ((fun n b i _ => fanL d z n b (i + S) : WindowFn) *
-      (fun n b i _ => fanL d z n b (i + S) : WindowFn)) = fanΛ₂ d z :=
-    mean_shift_left (hLf.mul hLf) S
+  have h4 : mean
+      ((fun n b i _ => fanL d z n b (i + S) : WindowFn) *
+          (fun n b i _ => fanL d z n b (i + S) : WindowFn)) =
+      fanΛ₂ d z := mean_shift_left (hLf.mul hLf) S
   have h3 : mean ((A * S * θ) ^ 2 • ((fun n b i _ => fanL d z n b (i + S) : WindowFn) *
         (fun n b i _ => fanL d z n b (i + S) : WindowFn))
       + ((A * S * θ) •
@@ -847,7 +886,9 @@ theorem thm_cn_iv_mean (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT : 2
     have e0 : translateDist (fanWs d T) 0 (S • (1, -1 - (A : ℤ))) n b i k =
         fanWs d T n b (i, k) (i + S, k - S - (A * S : ℕ)) := by
       simp only [translateDist, add_zero, Prod.smul_mk, Prod.mk_add_mk, nsmul_eq_mul]
-      exact congrArg (fanWs d T n b (i, k)) (Prod.ext (by ring) (by push_cast; ring))
+      refine congrArg (fanWs d T n b (i, k)) (Prod.ext (by ring) ?_)
+      push_cast
+      ring
     simp only [Pi.add_apply, Pi.mul_apply, Pi.smul_apply, smul_eq_mul, e0]
     linarith [thm_cn_iv_square hd hT A S hnn b hi hk]
   rw [mean_add ((hsh.mul hsh).smul _) ((hZb.smul _).add (WindowFn.Bounded.const _)),
@@ -868,15 +909,17 @@ theorem thm_cn_iv (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT : 2 ≤ 
           2 * D * (D + w z m)) ≤
       meanNorm (fanW d T) (1, -1 - (A : ℤ)) ^ 2 := by
   set Q := (A : ℝ) ^ 2 * ((1 / T : ℝ) ^ 2 * fanΛ₂ d z)
-    + A * (1 / T * (w z m ^ 2 - (w z (x true) ^ 2 + w z (x false) ^ 2) / 2) -
-      4 * (1 / T : ℝ) ^ 2 * D * (D + w z m))
+    + A * (1 / T * (w z m ^ 2 - (w z (x true) ^ 2 + w z (x false) ^ 2) / 2) - 4 * (1 / T : ℝ) ^ 2 *
+        D * (D + w z m))
+    with hQdef
   rcases lt_or_ge Q 0 with h | hQ
   · exact h.le.trans (sq_nonneg _)
-  have h1 : √Q ≤ meanNorm (fanW d T) (1, -1 - (A : ℤ)) :=
-    le_meanNorm _ _ fun S _ => (abs_le_of_sq_le_sq'
-      (by rw [mul_pow, Real.sq_sqrt hQ]; exact thm_cn_iv_mean hd hT A S)
-      (meanLength_nonneg _ _)).2
-  exact (Real.sq_sqrt hQ).symm.trans_le (pow_le_pow_left₀ (Real.sqrt_nonneg _) h1 2)
+  have h1 : √Q ≤ meanNorm (fanW d T) (1, -1 - (A : ℤ)) := by
+    refine le_meanNorm _ _ fun S _ => (abs_le_of_sq_le_sq' ?_ (meanLength_nonneg _ _)).2
+    rw [mul_pow, Real.sq_sqrt hQ]
+    exact thm_cn_iv_mean hd hT A S
+  calc Q = √Q ^ 2 := (Real.sq_sqrt hQ).symm
+    _ ≤ _ := pow_le_pow_left₀ (Real.sqrt_nonneg _) h1 2
 
 /-- **The end** of the proof of Theorem C.1. By Lemma C.2 the second differences of l ↦
 N(1,−1−l)² are 2N(0,1)², so
@@ -903,10 +946,13 @@ theorem thm_cn_end (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT : 2 ≤
   have c1 (j : ℕ) : N (1, -1 - ((j + 2 : ℕ) : ℤ)) ^ 2 + N (1, -1 - (j : ℤ)) ^ 2 ≤
       2 * N (1, -1 - ((j + 1 : ℕ) : ℤ)) ^ 2 + 2 * (θ ^ 2 * Λ₂) := by
     have h := par (1, -1 - ((j + 1 : ℕ) : ℤ)) (0, 1)
-    rw [show ((1, -1 - ((j + 1 : ℕ) : ℤ)) : ℤ × ℤ) + (0, 1) = (1, -1 - (j : ℤ)) by
-        ext <;> simp; ring,
-      show ((1, -1 - ((j + 1 : ℕ) : ℤ)) : ℤ × ℤ) - (0, 1) = (1, -1 - ((j + 2 : ℕ) : ℤ)) by
-        ext <;> simp; ring] at h
+    have e1 : ((1, -1 - ((j + 1 : ℕ) : ℤ)) : ℤ × ℤ) + (0, 1) = (1, -1 - (j : ℤ)) :=
+      Prod.ext (by simp)
+        (by simp; ring)
+    have e2 : ((1, -1 - ((j + 1 : ℕ) : ℤ)) : ℤ × ℤ) - (0, 1) = (1, -1 - ((j + 2 : ℕ) : ℤ)) :=
+      Prod.ext (by simp)
+        (by simp; ring)
+    rw [e1, e2] at h
     linarith
   have c2 := le_of_second_diff_le (f := fun j : ℕ => N (1, -1 - (j : ℤ)) ^ 2)
     (φ := N (1, 0) ^ 2) c0 c1
@@ -937,21 +983,27 @@ theorem isPrice_sq_le_of_mid {Y : Type} {w : Y → Y → ℝ} (hw : IsPrice K w)
     (h3 : w x v = 2 * D) : w z m ^ 2 ≤ 1 / 2 * w z x ^ 2 + 1 / 2 * w z v ^ 2 - D ^ 2 := by
   have hD0 : 0 ≤ D := (hw.nonneg _ _).trans h1
   have hB0 : 0 ≤ w z m := hw.nonneg _ _
+  -- for θ = 1/T: divide by θ
   have key (T : ℕ) (hT : 2 ≤ T) : w z m ^ 2 - (w z x ^ 2 + w z v ^ 2) / 2 + D ^ 2 ≤
       1 / T * (D ^ 2 + (D + w z m) ^ 2 + 4 * D * (D + w z m)) := by
     have hT0 : 0 < T := by omega
     have hθ0 : (0 : ℝ) < 1 / T := one_div_pos.2 (Nat.cast_pos.2 hT0)
     choose d hd using fun n : ℕ => thm_cn_fan hw (fun b => cond b x v) m z
-      (by rintro (_ | _) <;> assumption) hT0 ((by simp : 0 < max n 1))
+      (by rintro (_ | _) <;> assumption) hT0
+      ((by simp : 0 < max n 1))
     have h4 := thm_cn_end hd hT h3
     simp only [Bool.cond_true, Bool.cond_false] at h4
     exact le_of_mul_le_mul_left
       (by nlinarith [mul_le_mul_of_nonneg_left (thm_cn_Λ₂_le hd) (sq_nonneg (1 / T : ℝ))]) hθ0
+  -- let θ → 0
   have hT : Tendsto (fun T : ℕ => 1 / (T : ℝ) * (D ^ 2 + (D + w z m) ^ 2 + 4 * D * (D + w z m)))
       atTop (𝓝 0) := by
     rw [← zero_mul (D ^ 2 + (D + w z m) ^ 2 + 4 * D * (D + w z m))]
     exact tendsto_one_div_atTop_nhds_zero_nat.mul_const _
-  linarith [ge_of_tendsto hT (by filter_upwards [eventually_ge_atTop 2] with T hT; exact key T hT)]
+  have h4 := ge_of_tendsto hT <| by
+    filter_upwards [eventually_ge_atTop 2] with T hT
+    exact key T hT
+  linarith
 
 end
 

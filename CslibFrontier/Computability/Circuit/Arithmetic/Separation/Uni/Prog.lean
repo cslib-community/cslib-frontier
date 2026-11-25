@@ -122,11 +122,15 @@ theorem runs_ct {A : Type*} [CommRing A] {M K : Type} [Finite M] [Fintype K] [De
       fun _ => rfl, fun _ => rfl⟩
     (fun r z => ?_) fun _ => by simp).mono ?_
   · obtain ⟨w, l⟩ := r
-    rcases eq_or_ne z (tp .cp true) with rfl | h1; · simp [emCt, cn, bw, on, flatMap_unit]
-    rcases eq_or_ne z (tp .fr false) with rfl | h2; · simp [emCt, cn, bw, on, flatMap_unit]
-    rcases eq_or_ne z (tp .cp false) with rfl | h3; · simp [emCt, cn1, bw, on, flatMap_unit]
+    rcases eq_or_ne z (tp .cp true) with rfl | h1
+    · simp [emCt, cn, bw, on, flatMap_unit]
+    rcases eq_or_ne z (tp .fr false) with rfl | h2
+    · simp [emCt, cn, bw, on, flatMap_unit]
+    rcases eq_or_ne z (tp .cp false) with rfl | h3
+    · simp [emCt, cn1, bw, on, flatMap_unit]
     simp [emCt, on, h1, h2, h3]
-  · simp only [List.length_append, Finset.sum_add_distrib, sum_on, hc, hc2]; simp
+  · simp only [List.length_append, Finset.sum_add_distrib, sum_on, hc, hc2]
+    simp
 
 /-- Initial register word: `0` of length `l.length + 1`. -/
 @[expose] def i0 (l : List Unit) : List Bool := List.replicate (l.length + 1) false
@@ -160,13 +164,15 @@ theorem runs_in {A : Type*} [CommRing A] {M K : Type} [Finite M] [Fintype K] [De
   · by_cases h1 : z ∈ rgs false
     · obtain ⟨i, rfl⟩ := (mem_rgs _ _).1 h1
       simp [emIn, i0, bw, on, mem_rgs, flatMap_unit, List.replicate_succ']
-    rcases eq_or_ne z (tp .cp false) with rfl | h2; · simp [emIn, i1, bw, on, mem_rgs, flatMap_unit]
+    rcases eq_or_ne z (tp .cp false) with rfl | h2
+    · simp [emIn, i1, bw, on, mem_rgs, flatMap_unit]
     rcases eq_or_ne z lsF with rfl | h3
     · simp [emIn, rec'_eq, on, mem_rgs, flatMap_unit, List.replicate_succ']
     simp [emIn, on, h1, h2, h3]
   · have hc : (insert (tp .cp false) (rgs false) : Finset (Zc K)).card = 6 := by
       rw [Finset.card_insert_of_notMem (by simp [mem_rgs]), card_rgs]
-    simp only [List.length_append, Finset.sum_add_distrib, sum_on, hc, card_rgs]; simp
+    simp only [List.length_append, Finset.sum_add_distrib, sum_on, hc, card_rgs]
+    simp
 
 section Steps
 
@@ -304,7 +310,8 @@ theorem runs_ed {A : Type*} [CommRing A] {M K : Type} [Finite M] [Fintype K] [De
     | .tp .cp true => simp [ed1, emEd, on, mem_rgs, bw]
     | .tp (.rg _) false | .tp .md _ | .tp .cp false | .tp .fr _ | .tp .lk _ | .tp .ls _
     | .tp (.bk _) _ | .tp (.cm _) _ | .inp _ => simp [ed1, emEd, on, mem_rgs]
-  · simp only [List.length_append, Finset.sum_add_distrib, sum_on, card_rgs]; simp
+  · simp only [List.length_append, Finset.sum_add_distrib, sum_on, card_rgs]
+    simp
 
 /-- Emissions copying the lookup tape onto the list tape followed by the block separator `bar`. -/
 @[expose] def emAp {M K : Type} [DecidableEq K] (w : List (Sy M K)) :

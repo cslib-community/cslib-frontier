@@ -236,14 +236,14 @@ end
 /-- The horizontal bit of a quarter is the parity of its horizontal coordinate. -/
 @[simp] theorem quadrantAt_xBit (x y : Nat) :
     (quadrantAt x y).xBit = (x % 2 == 1) := by
-  cases hx : (x % 2 == 1) <;> cases hy : (y % 2 == 1) <;>
-    simp [quadrantAt, hx, hy, Quadrant.ofBits, Quadrant.xBit]
+  unfold quadrantAt
+  cases x % 2 == 1 <;> cases y % 2 == 1 <;> rfl
 
 /-- The vertical bit of a quarter is the parity of its vertical coordinate. -/
 @[simp] theorem quadrantAt_yBit (x y : Nat) :
     (quadrantAt x y).yBit = (y % 2 == 1) := by
-  cases hx : (x % 2 == 1) <;> cases hy : (y % 2 == 1) <;>
-    simp [quadrantAt, hx, hy, Quadrant.ofBits, Quadrant.yBit]
+  unfold quadrantAt
+  cases x % 2 == 1 <;> cases y % 2 == 1 <;> rfl
 
 /-- Thick component at quarter coordinates, grouped by pairs in each direction. -/
 @[expose] def componentAt (grid : Nat → Nat → Index) (x y : Nat) : Thick :=
@@ -296,58 +296,6 @@ structure CycleOn (grid : Nat → Nat → Index) (west east south north : Nat) :
   eastLane : ∀ y, south < y → y < north →
     containsLine (indexThick (grid east y)) .r2 = true
 
-private theorem r1_children {parent : Index}
-    (h : containsLine (indexThick parent) .r1 = true) :
-    containsLine (indexThick ((childBlock parent 0 0))) .r1 = true ∧
-      containsLine (indexThick ((childBlock parent 1 0))) .r1 = true := by
-  revert parent
-  decide +kernel
-
-private theorem r3_children {parent : Index}
-    (h : containsLine (indexThick parent) .r3 = true) :
-    containsLine (indexThick ((childBlock parent 0 0))) .r3 = true ∧
-      containsLine (indexThick ((childBlock parent 1 0))) .r3 = true := by
-  revert parent
-  decide +kernel
-
-private theorem r0_children {parent : Index}
-    (h : containsLine (indexThick parent) .r0 = true) :
-    containsLine (indexThick ((childBlock parent 0 0))) .r0 = true ∧
-      containsLine (indexThick ((childBlock parent 0 1))) .r0 = true := by
-  revert parent
-  decide +kernel
-
-private theorem r2_children {parent : Index}
-    (h : containsLine (indexThick parent) .r2 = true) :
-    containsLine (indexThick ((childBlock parent 0 0))) .r2 = true ∧
-      containsLine (indexThick ((childBlock parent 0 1))) .r2 = true := by
-  revert parent
-  decide +kernel
-
-private theorem southeastChild_r1_of_b {parent : Index}
-    (h : indexThick parent = .b) :
-    containsLine (indexThick ((childBlock parent 1 0))) .r1 = true := by
-  revert parent
-  decide +kernel
-
-private theorem southeastChild_r3_of_a {parent : Index}
-    (h : indexThick parent = .a) :
-    containsLine (indexThick ((childBlock parent 1 0))) .r3 = true := by
-  revert parent
-  decide +kernel
-
-private theorem northwestChild_r0_of_b {parent : Index}
-    (h : indexThick parent = .b) :
-    containsLine (indexThick ((childBlock parent 0 1))) .r0 = true := by
-  revert parent
-  decide +kernel
-
-private theorem northwestChild_r2_of_c {parent : Index}
-    (h : indexThick parent = .c) :
-    containsLine (indexThick ((childBlock parent 0 1))) .r2 = true := by
-  revert parent
-  decide +kernel
-
 /-- The parity split used by both horizontal and vertical lane refinement. -/
 private theorem refinedLane {coarse fine : Nat → Index} {lower upper : Nat}
     (property : Index → Prop) (oddChild : Index → Index)
@@ -358,54 +306,39 @@ private theorem refinedLane {coarse fine : Nat → Index} {lower upper : Nat}
     (boundary : property (oddChild (coarse lower))) :
     ∀ x, 2 * lower < x → x < 2 * upper → property (fine x) := by
   intro x hl hu
-  have parity : x % 2 = 0 ∨ x % 2 = 1 := by omega
-  rcases parity with heven | hodd
-  · have eq : x = 2 * (x / 2) := by omega
-    rw [eq, even]
-    exact (children _ (parent (x / 2) (by omega) (by omega))).1
-  · have eq : x = 2 * (x / 2) + 1 := by omega
-    rw [eq, odd]
-    by_cases h : x / 2 = lower
-    · simpa only [h] using boundary
-    · exact (children _ (parent (x / 2) (by omega) (by omega))).2
+  rcases Nat.even_or_odd' x with ⟨k, rfl | rfl⟩
+  · exact even k ▸ (children _ (parent k (by omega) (by omega))).1
+  · rw [odd]
+    exact if h : k = lower then h ▸ boundary else (children _ (parent k (by omega) (by omega))).2
 
-private theorem refinedHorizontalLane
-    {grid : Nat → Nat → Index} {west east row : Nat}
-    (line : ThickLine)
-    (parentLane : ∀ x, west < x → x < east →
-      containsLine (indexThick (grid x row)) line = true)
-    (children : ∀ {parent : Index},
-      containsLine (indexThick parent) line = true →
-        containsLine (indexThick ((childBlock parent 0 0))) line = true ∧
-        containsLine (indexThick ((childBlock parent 1 0))) line = true)
-    (boundary : containsLine
-      (indexThick ((childBlock (grid west row) 1 0))) line = true) :
+private theorem refinedHorizontalLane {grid : Nat → Nat → Index} {west east row : Nat}
+    {line : ThickLine} {corner : Thick}
+    (hcert : (∀ p : Index, containsLine (indexThick p) line = true →
+        containsLine (indexThick (childBlock p 0 0)) line = true ∧
+          containsLine (indexThick (childBlock p 1 0)) line = true) ∧
+      ∀ p : Index, indexThick p = corner →
+        containsLine (indexThick (childBlock p 1 0)) line = true)
+    (parentLane : ∀ x, west < x → x < east → containsLine (indexThick (grid x row)) line = true)
+    (hwest : indexThick (grid west row) = corner) :
     ∀ x, 2 * west < x → x < 2 * east →
-      containsLine (indexThick (refineIndexGrid grid x (2 * row))) line = true := by
-  exact refinedLane (fun p => containsLine (indexThick p) line = true)
-    (fun p => childBlock p 1 0)
-    (fun x => refineIndexGrid_even_even grid x row)
-    (fun x => refineIndexGrid_odd_even grid x row)
-    parentLane (fun _ h => children h) boundary
+      containsLine (indexThick (refineIndexGrid grid x (2 * row))) line = true :=
+  refinedLane _ _ (fun x => refineIndexGrid_even_even grid x row)
+    (fun x => refineIndexGrid_odd_even grid x row) parentLane hcert.1 (hcert.2 _ hwest)
 
-private theorem refinedVerticalLane
-    {grid : Nat → Nat → Index} {south north column : Nat}
-    (line : ThickLine)
+private theorem refinedVerticalLane {grid : Nat → Nat → Index} {south north column : Nat}
+    {line : ThickLine} {corner : Thick}
+    (hcert : (∀ p : Index, containsLine (indexThick p) line = true →
+        containsLine (indexThick (childBlock p 0 0)) line = true ∧
+          containsLine (indexThick (childBlock p 0 1)) line = true) ∧
+      ∀ p : Index, indexThick p = corner →
+        containsLine (indexThick (childBlock p 0 1)) line = true)
     (parentLane : ∀ y, south < y → y < north →
       containsLine (indexThick (grid column y)) line = true)
-    (children : ∀ {parent : Index},
-      containsLine (indexThick parent) line = true →
-        containsLine (indexThick ((childBlock parent 0 0))) line = true ∧
-        containsLine (indexThick ((childBlock parent 0 1))) line = true)
-    (boundary : containsLine
-      (indexThick ((childBlock (grid column south) 0 1))) line = true) :
+    (hsouth : indexThick (grid column south) = corner) :
     ∀ y, 2 * south < y → y < 2 * north →
-      containsLine (indexThick (refineIndexGrid grid (2 * column) y)) line = true := by
-  exact refinedLane (fun p => containsLine (indexThick p) line = true)
-    (fun p => childBlock p 0 1)
-    (fun y => refineIndexGrid_even_even grid column y)
-    (fun y => refineIndexGrid_even_odd grid column y)
-    parentLane (fun _ h => children h) boundary
+      containsLine (indexThick (refineIndexGrid grid (2 * column) y)) line = true :=
+  refinedLane _ _ (fun y => refineIndexGrid_even_even grid column y)
+    (fun y => refineIndexGrid_even_odd grid column y) parentLane hcert.1 (hcert.2 _ hsouth)
 
 /-- An oriented red cycle transfers across grids agreeing from the origin through its
 northeast corner. -/
@@ -435,14 +368,10 @@ theorem CycleOn.refine {grid : Nat → Nat → Index}
   southeast := by simpa using (childBlock_thick_southwest (grid east south)).trans cycle.southeast
   northwest := by simpa using (childBlock_thick_southwest (grid west north)).trans cycle.northwest
   northeast := by simpa using (childBlock_thick_southwest (grid east north)).trans cycle.northeast
-  southLane := refinedHorizontalLane .r1 cycle.southLane r1_children
-    (southeastChild_r1_of_b cycle.southwest)
-  northLane := refinedHorizontalLane .r3 cycle.northLane r3_children
-    (southeastChild_r3_of_a cycle.northwest)
-  westLane := refinedVerticalLane .r0 cycle.westLane r0_children
-    (northwestChild_r0_of_b cycle.southwest)
-  eastLane := refinedVerticalLane .r2 cycle.eastLane r2_children
-    (northwestChild_r2_of_c cycle.southeast)
+  southLane := refinedHorizontalLane (by decide +kernel) cycle.southLane cycle.southwest
+  northLane := refinedHorizontalLane (by decide +kernel) cycle.northLane cycle.northwest
+  westLane := refinedVerticalLane (by decide +kernel) cycle.westLane cycle.southwest
+  eastLane := refinedVerticalLane (by decide +kernel) cycle.eastLane cycle.southeast
 
 /-- Every twice-substituted tile contains the same oriented red board. -/
 theorem fixed_cycle (parent : Index) :
@@ -604,9 +533,9 @@ theorem BoundedPath.path
     (path : BoundedPath indexGrid width height first second parity) :
     Path indexGrid first second parity := by
   induction path with
-  | refl port _ => exact Path.refl port
-  | ofLink link _ _ => exact Path.ofLink link
-  | trans _ _ firstIH secondIH => exact Path.trans firstIH secondIH
+  | refl port => exact .refl port
+  | ofLink link => exact .ofLink link
+  | trans _ _ ih₁ ih₂ => exact .trans ih₁ ih₂
 
 /-- The first endpoint of a bounded red walk lies in its bounding rectangle. -/
 theorem BoundedPath.first_inBounds
@@ -614,9 +543,6 @@ theorem BoundedPath.first_inBounds
     {first second : Port} {parity : Bool}
     (path : BoundedPath indexGrid width height first second parity) :
     PortInBounds first width height := by
-  induction path with
-  | refl _ hport => exact hport
-  | ofLink _ hfirst _ => exact hfirst
-  | trans _ _ firstIH _ => exact firstIH
+  induction path <;> assumption
 
 end Cslib.WangTile.Robinson

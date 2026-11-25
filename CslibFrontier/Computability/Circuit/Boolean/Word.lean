@@ -81,17 +81,20 @@ value is not a position. Positions beyond `2 ^ k` are never selected. -/
 theorem selectBits_of_toNat_lt (index : BitVec k) (values : Fin R → BitString w)
     (hi : index.toNat < R) : selectBits index values = values ⟨index.toNat, hi⟩ := by
   funext bit
-  rw [Bool.eq_iff_iff]
+  apply Bool.eq_iff_iff.mpr
   simp only [selectBits, decide_eq_true_eq]
-  exact ⟨fun ⟨j, hj, hv⟩ => (show (⟨index.toNat, hi⟩ : Fin R) = j from Fin.ext hj) ▸ hv,
-    fun hv => ⟨_, rfl, hv⟩⟩
+  constructor
+  · rintro ⟨j, hj, hv⟩
+    rwa [show (⟨index.toNat, hi⟩ : Fin R) = j from Fin.ext hj]
+  · exact fun hv => ⟨_, rfl, hv⟩
 
 /-- An index whose value is not a position selects all-false. -/
 theorem selectBits_of_le_toNat (index : BitVec k) (values : Fin R → BitString w)
     (hi : R ≤ index.toNat) : selectBits index values = fun _ => false := by
   funext bit
   simp only [selectBits, decide_eq_false_iff_not, not_exists, not_and]
-  exact fun j hj => absurd hj (by omega)
+  intro j hj
+  omega
 
 /-- An in-range position written as an index selects exactly its bit string. -/
 theorem selectBits_ofNat (hR : R ≤ 2 ^ k) (values : Fin R → BitString w) (j : Fin R) :
@@ -112,7 +115,8 @@ variable {n k w R : ℕ} {s : Set (BooleanFunction n)}
 theorem mux {f a b : BooleanFunction n} (hf : f ∈ s) (ha : a ∈ s) (hb : b ∈ s) :
     Synthesis interpretation s {fun x => if f x then a x else b x} 4 := by
   convert ((of_mem hf).and (of_mem ha)).or ((of_mem hf).not.and (of_mem hb)) using 2
-  funext x; cases f x <;> simp
+  funext x
+  cases f x <;> simp
 
 section Arithmetic
 
@@ -125,7 +129,8 @@ private lemma carry_step {s' : Set (BooleanFunction n)} (c : Bool) (t : ℕ) {m 
     Synthesis interpretation s' {fun x => BitVec.carry (t + 1) (a x) (b x) c} (m + 4) := by
   convert ((hat.and hbt).or ((hat.or hbt).and hct)).mono Set.Subset.rfl Set.Subset.rfl
     (by omega : _ ≤ m + 4) using 2
-  funext x; rw [BitVec.carry_succ]
+  funext x
+  rw [BitVec.carry_succ]
   cases (a x).getLsbD t <;> cases (b x).getLsbD t <;> cases BitVec.carry t (a x) (b x) c <;> rfl
 
 /-- One carry chain uses four gates per bit and its initial constant. -/
@@ -255,7 +260,9 @@ theorem selectBits (index : BitString n → BitVec k) (values : Fin R → BitStr
               (word_eq_const index hi (BitVec.ofNat k j.val)).and (of_mem (hv j bit))
           · convert (Synthesis.const false).mono Set.Subset.rfl Set.Subset.rfl
               (Nat.le_add_left 1 _) using 2
-            funext x; have := (index x).isLt; simp only [Bool.and_eq_false_imp, decide_eq_true_eq]
+            funext x
+            have := (index x).isLt
+            simp only [Bool.and_eq_false_imp, decide_eq_true_eq]
             omega
 
 end Synthesis

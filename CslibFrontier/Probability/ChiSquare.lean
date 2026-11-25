@@ -195,14 +195,17 @@ theorem chiSquare_eq_zero_iff [Finite α] {p q : PMF α} (h : p.support ⊆ q.su
   let := Fintype.ofFinite α
   rw [chiSquare_eq_sum h, Finset.sum_eq_zero_iff_of_nonneg (fun _ _ =>
     div_nonneg (sq_nonneg _) ENNReal.toReal_nonneg)]
-  refine ⟨fun hzero => ?_, by rintro rfl _ _; simp⟩
-  ext a
-  by_cases ha : q a = 0
-  · rw [ha, apply_eq_zero_of_support h ha]
-  · have hqpos := (ENNReal.toReal_pos ha (q.apply_ne_top a)).ne'
-    have hsub := sub_eq_zero.mp
-      (sq_eq_zero_iff.mp ((div_eq_zero_iff.mp (hzero a (Finset.mem_univ a))).resolve_right hqpos))
-    exact (ENNReal.toReal_eq_toReal_iff' (p.apply_ne_top a) (q.apply_ne_top a)).mp hsub
+  constructor
+  · intro hzero
+    ext a
+    by_cases ha : q a = 0
+    · rw [ha, apply_eq_zero_of_support h ha]
+    · have hqpos := (ENNReal.toReal_pos ha (q.apply_ne_top a)).ne'
+      have hsub := sub_eq_zero.mp
+        (sq_eq_zero_iff.mp ((div_eq_zero_iff.mp (hzero a (Finset.mem_univ a))).resolve_right hqpos))
+      exact (ENNReal.toReal_eq_toReal_iff' (p.apply_ne_top a) (q.apply_ne_top a)).mp hsub
+  · rintro rfl _ _
+    simp
 
 theorem echiSquare_eq_zero_iff [Finite α] {p q : PMF α} : echiSquare p q = 0 ↔ p = q := by
   exact ⟨fun h => (chiSquare_eq_zero_iff (echiSquare_ne_top_iff.mp (by simp [h]))).mp
@@ -381,8 +384,10 @@ theorem one_add_chiSquare_bind_pi_eq [Fintype θ] [Fintype ι] {α : ι → Type
       ∑ t, ∑ t', (μ t).toReal * (μ t').toReal *
         ∏ i, ∑ a, (K t i a).toReal * (K t' i a).toReal / (q i a).toReal := by
   classical
-  rw [one_add_chiSquare_bind_eq μ (fun t => pi (K t)) (pi q) fun t ht u hu => by
-    rw [mem_support_pi_iff] at hu ⊢; exact fun i => h t ht i (hu i)]
+  have hsup : ∀ t ∈ μ.support, (pi (K t)).support ⊆ (pi q).support := fun t ht u hu => by
+    rw [mem_support_pi_iff] at hu ⊢
+    exact fun i => h t ht i (hu i)
+  rw [one_add_chiSquare_bind_eq μ (fun t => pi (K t)) (pi q) hsup]
   refine Finset.sum_congr rfl fun t _ => Finset.sum_congr rfl fun t' _ => congrArg _ ?_
   simp_rw [pi_apply, ENNReal.toReal_prod, ← Finset.prod_mul_distrib, ← Finset.prod_div_distrib]
   exact (Fintype.prod_sum fun i a => (K t i a).toReal * (K t' i a).toReal / (q i a).toReal).symm
@@ -416,19 +421,24 @@ theorem exp_neg_half_sum_mul_log_div_le_bhattacharyya [Fintype α] {p q : PMF α
     (p := fun a => -Real.log ((p a).toReal / (q a).toReal) / 2)
     (fun _ _ => ENNReal.toReal_nonneg) (sum_toReal p) (fun _ _ => Set.mem_univ _)
   simp only [smul_eq_mul] at hj
-  rw [show (∑ a, (p a).toReal * (-Real.log ((p a).toReal / (q a).toReal) / 2)) =
-    -(∑ a, (p a).toReal * Real.log ((p a).toReal / (q a).toReal)) / 2 by
-      rw [← Finset.sum_neg_distrib, Finset.sum_div]
-      exact Finset.sum_congr rfl fun _ _ => by ring] at hj
+  have hexp : (∑ a, (p a).toReal * (-Real.log ((p a).toReal / (q a).toReal) / 2)) =
+      -(∑ a, (p a).toReal * Real.log ((p a).toReal / (q a).toReal)) / 2 := by
+    rw [← Finset.sum_neg_distrib, Finset.sum_div]
+    exact Finset.sum_congr rfl fun _ _ => by ring
+  rw [hexp] at hj
   rw [bhattacharyya_eq_sum]
   refine hj.trans_eq (Finset.sum_congr rfl fun a _ => ?_)
   by_cases hpa : p a = 0
   · simp [hpa]
   · obtain ⟨hp, hq⟩ := support_toReal_pos h hpa
     rw [Real.exp_half, Real.exp_neg, Real.exp_log (div_pos hp hq), inv_div]
-    nth_rw 1 [← Real.sqrt_sq hp.le]
-    rw [← Real.sqrt_mul (sq_nonneg _)]
-    exact congrArg Real.sqrt (by field_simp)
+    calc
+      (p a).toReal * Real.sqrt ((q a).toReal / (p a).toReal)
+          = Real.sqrt ((p a).toReal ^ 2) * Real.sqrt ((q a).toReal / (p a).toReal) := by
+            rw [Real.sqrt_sq hp.le]
+      _ = Real.sqrt ((p a).toReal * (q a).toReal) := by
+            rw [← Real.sqrt_mul (sq_nonneg _)]
+            exact congrArg Real.sqrt (by field_simp)
 
 /-- Comparison between squared Hellinger distance and KL divergence (natural log):
 `2 * hellingerSq p q ≤ (klDiv p.toMeasure q.toMeasure).toReal` when `p.support ⊆ q.support`. -/

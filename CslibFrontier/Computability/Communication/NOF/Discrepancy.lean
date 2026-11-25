@@ -118,28 +118,33 @@ theorem isCylinderIntersection_iff [DecidableEq ι] {C : Set (∀ j, X j)} :
   classical
   constructor
   · rintro ⟨D, hD, rfl⟩
+    -- Player `i` accepts when some input with the view they see lies in `D i`.
     refine ⟨fun i v => decide (∃ y ∈ D i, view i y = v), Set.ext fun x => ?_⟩
     simp only [Set.mem_iInter, mem_cylinderIntersection, decide_eq_true_eq]
     refine forall_congr' fun i => ⟨fun hx => ⟨x, hx, rfl⟩, fun ⟨y, hy, hyx⟩ => ?_⟩
+    -- `x` is `y` with its `i`-th part replaced by `x i`.
     have hxy : Function.update y i (x i) = x := funext fun j =>
       if hj : j = i then hj ▸ Function.update_self ..
       else (Function.update_of_ne hj ..).trans (congrFun hyx ⟨j, hj⟩)
     exact hxy ▸ (hD i y (x i)).mpr hy
   · rintro ⟨φ, rfl⟩
     exact ⟨fun i => {x | φ i (view i x) = true},
-      fun _ _ _ => by simp only [Set.mem_ofPred_eq, view_update_self], by ext; simp⟩
+      fun _ _ _ => by simp only [Set.mem_ofPred_eq, view_update_self],
+      Set.ext fun _ => by simp⟩
 
 /-- **Leaves are cylinder intersections**: the inputs reaching a given leaf form a cylinder
 intersection. -/
 theorem Protocol.isCylinderIntersection_leaf [DecidableEq ι] {Z : Type*} (p : Protocol X Z)
     (l : Fin p.leafCount) : IsCylinderIntersection {x | p.leaf x = l} := by
+  -- The `i`-th cylinder: the inputs that player `i` cannot tell apart from one reaching `l`.
   refine ⟨fun i => {x | ∃ y, p.leaf y = l ∧ view i y = view i x},
     fun _ _ _ => by simp only [Set.mem_ofPred_eq, view_update_self], Set.ext fun x => ?_⟩
   simp only [Set.mem_ofPred_eq, Set.mem_iInter]
   refine ⟨fun hx i => ⟨x, hx, rfl⟩, fun hx => ?_⟩
   choose y hy hview using hx
   rcases isEmpty_or_nonempty ι with hι | ⟨⟨i⟩⟩
-  · have := p.leafCount_eq_one_of_isEmpty
+  · -- With no players a protocol is a single leaf.
+    have := p.leafCount_eq_one_of_isEmpty
     exact Fin.ext (by have := (p.leaf x).isLt; have := l.isLt; omega)
   · rw [p.leaf_eq_of_view_eq hview (fun j j' => (hy j).trans (hy j').symm) i, hy i]
 
@@ -163,9 +168,12 @@ omit [Fintype ι] [DecidableEq ι] [∀ i, Fintype (X i)] in
 theorem abs_sum_mul_signVal_le_one {α : Type*} [Finite α] (ν : PMF α) (f : α → Bool)
     (s : Finset α) : |∑ x ∈ s, (ν x).toReal * signVal (f x)| ≤ 1 := by
   have := Fintype.ofFinite α
-  refine (abs_sum_le_sum_abs _ _).trans <| (sum_congr rfl fun x _ => ?_).trans_le <|
-    (sum_le_univ_sum_of_nonneg fun _ => ENNReal.toReal_nonneg).trans_eq (PMF.sum_toReal ν)
-  rw [abs_mul, abs_signVal, mul_one, abs_of_nonneg ENNReal.toReal_nonneg]
+  calc |∑ x ∈ s, (ν x).toReal * signVal (f x)|
+      ≤ ∑ x ∈ s, |(ν x).toReal * signVal (f x)| := abs_sum_le_sum_abs _ _
+    _ = ∑ x ∈ s, (ν x).toReal := sum_congr rfl fun x _ => by
+        rw [abs_mul, abs_signVal, mul_one, abs_of_nonneg ENNReal.toReal_nonneg]
+    _ ≤ ∑ x, (ν x).toReal := sum_le_univ_sum_of_nonneg fun _ => ENNReal.toReal_nonneg
+    _ = 1 := PMF.sum_toReal ν
 
 theorem abs_sum_le_discrepancy (ν : PMF (∀ i, X i)) (f : (∀ i, X i) → Bool)
     (φ : ∀ i, View X i → Bool) :
@@ -204,6 +212,7 @@ theorem abs_sum_mul_signVal_le (p : Protocol X Bool) (ν : PMF (∀ i, X i))
     rw [← sum_mul, abs_mul, abs_signVal, mul_one]
     exact abs_sum_le_discrepancy ν f φ
   | speak i send p₀ p₁ ih₀ ih₁ =>
+    -- The tests after player `i` writes the bit `b`.
     let ψ (b : Bool) : ∀ j, View X j → Bool :=
       Function.update φ i fun v => φ i v && (send v == b)
     have hψ (b : Bool) (x : ∀ j, X j) :
@@ -223,17 +232,21 @@ theorem abs_sum_mul_signVal_le (p : Protocol X Bool) (ν : PMF (∀ i, X i))
       simp only [sum_filter, hψ, ← sum_add_distrib]
       refine sum_congr rfl fun x _ => ?_
       by_cases hx : x ∈ cylinderIntersection φ <;> cases hs : send (view i x) <;> simp [hx, hs]
+    rw [hsplit]
     have hD : 0 ≤ discrepancy ν f := discrepancy_nonneg
-    have h₀ := mul_le_mul_of_nonneg_right
-      (pow_le_pow_right₀ (a := (2 : ℝ)) one_le_two (le_max_left p₀.depth p₁.depth)) hD
-    have h₁ := mul_le_mul_of_nonneg_right
-      (pow_le_pow_right₀ (a := (2 : ℝ)) one_le_two (le_max_right p₀.depth p₁.depth)) hD
-    rw [hsplit, depth_speak, pow_succ]
-    linarith [abs_add_le (∑ x with x ∈ cylinderIntersection (ψ false),
-        (ν x).toReal * signVal (f x) * signVal (p₀.run x))
-      (∑ x with x ∈ cylinderIntersection (ψ true),
-        (ν x).toReal * signVal (f x) * signVal (p₁.run x)),
-      ih₀ (ψ false), ih₁ (ψ true)]
+    have h₀ : (2 : ℝ) ^ p₀.depth ≤ 2 ^ max p₀.depth p₁.depth :=
+      pow_le_pow_right₀ one_le_two (le_max_left _ _)
+    have h₁ : (2 : ℝ) ^ p₁.depth ≤ 2 ^ max p₀.depth p₁.depth :=
+      pow_le_pow_right₀ one_le_two (le_max_right _ _)
+    calc _ ≤ |∑ x with x ∈ cylinderIntersection (ψ false),
+            (ν x).toReal * signVal (f x) * signVal (p₀.run x)| +
+          |∑ x with x ∈ cylinderIntersection (ψ true),
+            (ν x).toReal * signVal (f x) * signVal (p₁.run x)| := abs_add_le _ _
+      _ ≤ 2 ^ p₀.depth * discrepancy ν f + 2 ^ p₁.depth * discrepancy ν f :=
+          add_le_add (ih₀ (ψ false)) (ih₁ (ψ true))
+      _ ≤ 2 ^ max p₀.depth p₁.depth * discrepancy ν f +
+            2 ^ max p₀.depth p₁.depth * discrepancy ν f := by gcongr
+      _ = 2 ^ (speak i send p₀ p₁).depth * discrepancy ν f := by rw [depth_speak, pow_succ]; ring
 
 /-- The correlation under `ν` of `f` with the output of a protocol is `1 - 2 ε`, where `ε` is the
 probability that the protocol errs on inputs drawn from `ν`. -/
@@ -241,7 +254,8 @@ theorem sum_mul_signVal_eq (p : Protocol X Bool) (ν : PMF (∀ i, X i)) (f : (�
     ∑ x, (ν x).toReal * signVal (f x) * signVal (p.run x) =
       1 - 2 * p.distributionalError ν (fun x b => f x = b) := by
   classical
-  rw [distributionalError, PMF.errorProb_eq_sum, ← PMF.sum_toReal ν, mul_sum, ← sum_sub_distrib]
+  rw [distributionalError, PMF.errorProb_eq_sum, ← PMF.sum_toReal ν, mul_sum,
+    ← sum_sub_distrib]
   refine sum_congr rfl fun x _ => ?_
   rw [mul_assoc, signVal_mul_signVal]
   by_cases h : f x = p.run x <;> simp only [h, ite_true, ite_false] <;> ring
@@ -255,7 +269,9 @@ theorem two_mul_le_two_pow_mul_discrepancy (p : Protocol X Bool) {γ : ℝ}
     2 * γ ≤ 2 ^ p.depth * discrepancy ν f := by
   have h := p.abs_sum_mul_signVal_le ν f fun _ _ => true
   simp only [cylinderIntersection_true, Set.mem_univ, filter_true, p.sum_mul_signVal_eq] at h
-  exact (le_trans (by linarith) (le_abs_self _)).trans h
+  calc 2 * γ ≤ |1 - 2 * p.distributionalError ν (fun x b => f x = b)| :=
+        le_trans (by linarith) (le_abs_self _)
+    _ ≤ 2 ^ p.depth * discrepancy ν f := h
 
 /-- **The discrepancy bound for exact protocols**: a protocol computing `f` has
 `1 ≤ 2 ^ depth · disc_ν(f)`, that is, it sends at least `log₂ (1 / disc_ν(f))` bits. -/

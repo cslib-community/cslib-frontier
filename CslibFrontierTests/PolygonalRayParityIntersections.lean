@@ -8,6 +8,7 @@ module
 -- upstream: local-only (ordinary straight-observation parity clients)
 
 public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityIntersections
+import CslibFrontier.Foundations.Geometry.Polygonal.Perturbation
 import CslibFrontier.Foundations.Geometry.Polygonal.RouteIntersectionCutEnds
 import CslibFrontier.Foundations.Geometry.Polygonal.RouteIntersectionParity
 import CslibFrontier.Foundations.Geometry.Polygonal.RouteParity
@@ -724,7 +725,7 @@ example :
     have he : p.finish = c := Finset.mem_singleton.mp h
     have hr := congrArg Complex.re he
     norm_num [p, c] at hr
-  obtain ⟨r, -, hgerm, -, -, hray⟩ :=
+  obtain ⟨r, -, hgerm, -, -, hray, -⟩ :=
     Route.exists_concat_add_rayParity isOpen_univ hconn {c} {c} (fun _ h => h)
       (fun z _ => Set.mem_univ z) p q rfl (Set.mem_univ p.finish) ha
       (u := ⟨1, 1⟩) (by
@@ -834,6 +835,49 @@ example :
     · exact hm
     · simpa [bend] using hε
   exact hmove (bend m).point rfl rfl hdist w hw
+
+-- The observation is the route start. The next node stays fixed and a later bend can move.
+open Classical in
+example :
+    let p (m : ℂ) : Route := ⟨2, ![0, 1, m, 3]⟩
+    ∃ ε : ℝ, 0 < ε ∧ ∀ m : ℂ, dist m ⟨2, 1⟩ < ε →
+      (0 : ℂ) ∈ segment ℝ ((p m).point 0) ((p m).point 1) ∧
+        ∀ u : ℂ, (p m).rayParity u 0 = (p ⟨2, 1⟩).rayParity u 0 := by
+  let p (m : ℂ) : Route := ⟨2, ![0, 1, m, 3]⟩
+  let c : ℂ := ⟨2, 1⟩
+  let K := Complex.reLm ⁻¹' Set.Ici (1 : ℝ)
+  have hK : Convex ℝ K := (convex_Ici _).linear_preimage Complex.reLm
+  have haway {a b : ℂ} (ha : a ∈ K) (hb : b ∈ K) :
+      (0 : ℂ) ∉ segment ℝ a b := by
+    intro h
+    have hh := hK.segment_subset ha hb h
+    change (1 : ℝ) ≤ (0 : ℂ).re at hh
+    norm_num at hh
+  obtain ⟨ε, hε, hmove⟩ :=
+    (p c).exists_pos_rayParity_eq_of_fixed_observation_segments {0}
+  refine ⟨ε, hε, fun m hm => ?_⟩
+  have hdist (i : Fin ((p c).segments + 1)) : dist ((p m).point i) ((p c).point i) < ε := by
+    fin_cases i
+    · simpa [p] using hε
+    · simpa [p] using hε
+    · exact hm
+    · simpa [p] using hε
+  have hfixed (i : Fin (p c).segments)
+      (h : ∃ z ∈ ({0} : Finset ℂ), z ∈ segment ℝ ((p c).point i.castSucc) ((p c).point i.succ)) :
+      (p m).point i.castSucc = (p c).point i.castSucc ∧
+        (p m).point i.succ = (p c).point i.succ := by
+    obtain ⟨z, hz, hzseg⟩ := h
+    rw [Finset.mem_singleton] at hz
+    subst z
+    fin_cases i
+    · exact ⟨rfl, rfl⟩
+    · change (0 : ℂ) ∈ segment ℝ 1 c at hzseg
+      exact (haway (by norm_num [K]) (by norm_num [K, c]) hzseg).elim
+    · change (0 : ℂ) ∈ segment ℝ c 3 at hzseg
+      exact (haway (by norm_num [K, c]) (by norm_num [K]) hzseg).elim
+  obtain ⟨hseg, hpar⟩ :=
+    hmove (p m).point rfl rfl hdist hfixed 0 (Finset.mem_singleton_self 0)
+  exact ⟨(hseg 0).mpr (left_mem_segment ℝ (0 : ℂ) 1), hpar⟩
 
 private def retracedSegment (a b : ℂ) : Route where
   bends := 1
@@ -1038,5 +1082,43 @@ example :
       rw [AffineMap.lineMap_apply_module, hs, smul_neg, neg_add_cancel]
   exact (Route.intersectionParity_line_split_of_disjoint (a := -2) (b := 2)
     (l := 1 / 8) (u := 3 / 8) (by norm_num) (by norm_num) (by norm_num) hsep).symm.trans hcross
+
+private def verticalWithBend : Route :=
+  (Route.line 0 ⟨0, 1⟩).concat (Route.line ⟨0, 1⟩ ⟨0, 2⟩)
+
+private def verticalBend : Fin verticalWithBend.bends := ⟨0, by
+  have h := Route.segments_concat (Route.line 0 ⟨0, 1⟩) (Route.line ⟨0, 1⟩ ⟨0, 2⟩)
+  change verticalWithBend.bends + 1 = 2 at h
+  omega⟩
+
+-- Coincident bends in two routes can be separated while both routes retain odd parity.
+example : ∃ bend : Bool → Fin verticalWithBend.bends → ℂ,
+    bend false verticalBend ≠ bend true verticalBend ∧
+    ∀ i, (verticalWithBend.replaceBends (bend i)).start = 0 ∧
+      (verticalWithBend.replaceBends (bend i)).finish = ⟨0, 2⟩ ∧
+      (verticalWithBend.replaceBends (bend i)).rayParity 1 ⟨-1, 1 / 2⟩ = true := by
+  let z : ℂ := ⟨-1, 1 / 2⟩
+  have hjoin : (Route.line 0 ⟨0, 1⟩).finish = (Route.line ⟨0, 1⟩ ⟨0, 2⟩).start := rfl
+  have hz : z ∉ verticalWithBend.support := by
+    rw [verticalWithBend, Route.support_concat _ _ hjoin, Route.support_line, Route.support_line]
+    rintro (h | h) <;>
+      rw [segment_eq_image_lineMap] at h <;>
+      obtain ⟨t, _, ht⟩ := h <;>
+      have hreal := congrArg Complex.re ht <;>
+      norm_num [z, AffineMap.lineMap_apply_module', Complex.real_smul] at hreal
+  have hodd : verticalWithBend.rayParity 1 z = true := by
+    rw [verticalWithBend, Route.rayParity_concat _ _ hjoin, Route.rayParity_line,
+      Route.rayParity_line]
+    norm_num [z, RayCrosses, horizontalIntercept, Bool.add_eq_xor]
+  obtain ⟨bend, _, hpar, hinj, _, _, _⟩ := Route.exists_replaceBends_avoiding_spans
+    (fun _ : Bool => verticalWithBend) ∅ {z}
+    (fun _ _ hw => (Finset.mem_singleton.mp hw).symm ▸ hz) (η := 1 / 10) (by norm_num)
+  refine ⟨bend, ?_, fun i =>
+    ⟨?_, ?_, ((hpar i z (Finset.mem_singleton_self z)).2 1).trans hodd⟩⟩
+  · intro h
+    have he := hinj (a₁ := ⟨false, verticalBend⟩) (a₂ := ⟨true, verticalBend⟩) h
+    exact Bool.false_ne_true (congrArg Sigma.fst he)
+  · exact (Route.start_replaceBends _ _).trans (Route.endpoint_concat _ _ hjoin false)
+  · exact (Route.finish_replaceBends _ _).trans (Route.endpoint_concat _ _ hjoin true)
 
 end CslibFrontierTests.PolygonalRayParityIntersections

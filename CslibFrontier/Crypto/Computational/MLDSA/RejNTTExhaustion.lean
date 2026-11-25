@@ -46,9 +46,11 @@ private theorem count_accepted {n : ℕ} (b : Fin n → Triple) :
     rw [List.ofFn_succ, List.flatten_cons, Fin.sum_univ_succ]
     by_cases h : rejects (b 0)
     · simp only [tripleBytes, List.cons_append, List.nil_append, rejNTTCoefficients,
-        Nat.not_lt.mpr h, h, ite_false, ite_true] at ht ⊢; omega
+        Nat.not_lt.mpr h, h, ite_false, ite_true] at ht ⊢
+      omega
     · simp only [tripleBytes, List.cons_append, List.nil_append, rejNTTCoefficients,
-        Nat.lt_of_not_ge h, h, ite_false, ite_true, List.length_cons] at ht ⊢; omega
+        Nat.lt_of_not_ge h, h, ite_false, ite_true, List.length_cons] at ht ⊢
+      omega
 
 private def groupBytes (n : ℕ) : FixedBytes (n * 3) ≃ (Fin n → Triple) :=
   (Equiv.arrowCongr finProdFinEquiv.symm (Equiv.refl Byte)).trans (Equiv.curry _ _ _)
@@ -57,8 +59,11 @@ private theorem flatten_groupBytes {n : ℕ} (t : FixedBytes (n * 3)) :
     (List.ofFn (fun i => tripleBytes (groupBytes n t i))).flatten = List.ofFn t := by
   rw [List.ofFn_mul t]
   refine congrArg List.flatten (congrArg List.ofFn (funext fun i => ?_))
-  have hj (j : Fin 3) : groupBytes n t i j =
-      t ⟨i.val * 3 + j.val, by have := i.isLt; have := j.isLt; omega⟩ := by
+  have hlt (j : Fin 3) : i.val * 3 + j.val < n * 3 := by
+    have := i.isLt
+    have := j.isLt
+    omega
+  have hj (j : Fin 3) : groupBytes n t i j = t ⟨i.val * 3 + j.val, hlt j⟩ := by
     change t ⟨j.val + 3 * i.val, _⟩ = _
     exact congrArg t (Fin.ext (by dsimp only; omega))
   simp [tripleBytes, List.ofFn_succ, hj]
@@ -75,10 +80,13 @@ private theorem rejects_mem {b : Triple} (hb : rejects b) (j : Fin 3) :
   fin_cases j
   · simp [tailBytes]
   · change b 1 ∈ Icc (224 : Byte) 255
-    rw [mem_Icc]; change 224 ≤ (b 1).val ∧ (b 1).val ≤ 255; omega
+    rw [mem_Icc]
+    change 224 ≤ (b 1).val ∧ (b 1).val ≤ 255
+    omega
   · change b 2 ∈ ({127, 255} : Finset Byte)
     simp only [mem_insert, mem_singleton, Fin.ext_iff]
-    change (b 2).val = 127 ∨ (b 2).val = 255; omega
+    change (b 2).val = 127 ∨ (b 2).val = 255
+    omega
 
 private def allowed : Finset Triple := Fintype.piFinset tailBytes
 
@@ -127,20 +135,27 @@ theorem prob_rejNTTPoly_exhaustion :
   let P := PMF.uniformOfFintype (Fin 298 → Triple)
   let J := (univ : Finset (Fin 298)).powersetCard 43
   rw [← PMF.uniformOfFintype_map_equiv (groupBytes 298).symm, PMF.toOuterMeasure_map_apply]
-  refine (PMF.toOuterMeasure_toReal_mono P fun b => covers_exhaustion b).trans_lt
-    ((PMF.toOuterMeasure_toReal_biUnion_finset_le P J atPositions).trans_lt ?_)
-  rw [sum_congr rfl fun j hj => by rw [prob_atPositions, (mem_powersetCard.mp hj).2],
-    sum_const, nsmul_eq_mul]
   have hc : J.card < 2 ^ 174 := by
     rw [show J.card = Nat.choose 298 43 by simp [J], Nat.choose_eq_descFactorial_div_factorial]
     decide +kernel
-  exact (mul_lt_mul_of_pos_right (Nat.cast_lt.mpr hc) (by positivity)).trans_eq (by norm_num)
+  calc (P.toOuterMeasure ((groupBytes 298).symm ⁻¹' {t | rejNTTPoly (List.ofFn t) = none})).toReal
+      ≤ (P.toOuterMeasure (⋃ j ∈ J, atPositions j)).toReal :=
+        PMF.toOuterMeasure_toReal_mono P fun b => covers_exhaustion b
+    _ ≤ ∑ j ∈ J, (P.toOuterMeasure (atPositions j)).toReal :=
+        PMF.toOuterMeasure_toReal_biUnion_finset_le P J atPositions
+    _ = J.card * (1 / 1024 : ℝ) ^ 43 := by
+        rw [sum_congr rfl fun j hj => by rw [prob_atPositions, (mem_powersetCard.mp hj).2],
+          sum_const, nsmul_eq_mul]
+    _ < (2 : ℝ) ^ 174 * (1 / 1024 : ℝ) ^ 43 :=
+        mul_lt_mul_of_pos_right (by exact_mod_cast hc) (by positivity)
+    _ = 1 / (2 : ℝ) ^ 256 := by norm_num
 
 private theorem isSome_ofFnM {n : ℕ} {α : Type*} (f : Fin n → Option α)
     (h : ∀ i, (f i).isSome) : (Vector.ofFnM f).isSome := by
   have hf : f = fun i => (pure ((f i).get (h i)) : Option α) :=
     funext fun i => (Option.some_get (h i)).symm
-  rw [hf, Vector.ofFnM_pure]; rfl
+  rw [hf, Vector.ofFnM_pure]
+  rfl
 
 private theorem expandA_exhausts_at_cell (H : Xofs) (s : Level) (rho : List Byte)
     (t : MatrixPrefixes s) (h : (H.withMatrixPrefixes s rho t).expandA s rho = none) :
@@ -172,7 +187,9 @@ theorem prob_expandA_exhaustion (H : Xofs) (s : Level) (rho : List Byte) :
     ((PMF.toOuterMeasure_toReal_biUnion_finset_le P J bad).trans_lt ?_)
   · obtain ⟨i, j, hij⟩ := expandA_exhausts_at_cell H s rho t ht
     exact Set.mem_iUnion₂.mpr ⟨(i, j), mem_univ _, hij⟩
-  · have hne : J.Nonempty := ⟨(⟨0, by cases s <;> decide⟩, ⟨0, by cases s <;> decide⟩), mem_univ _⟩
+  · have hne : J.Nonempty :=
+      ⟨(⟨0, by cases s <;> decide⟩,
+        ⟨0, by cases s <;> decide⟩), mem_univ _⟩
     refine (sum_lt_sum_of_nonempty (g := fun _ => 1 / (2 : ℝ) ^ 256) hne fun p _ => ?_).trans_eq
       (by simp [J, div_eq_mul_inv])
     have hproj : P.map (fun t => t p.1 p.2) = PMF.uniformOfFintype (FixedBytes 894) := by

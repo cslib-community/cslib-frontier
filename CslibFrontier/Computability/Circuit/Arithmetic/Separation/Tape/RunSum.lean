@@ -315,10 +315,9 @@ private theorem good_of_respectsRules (h : RespectsRules i e x g) :
     · simpa [ruleLits, hM, Fin.ext_iff] using this
     · simp [ruleLits, hM] at this
   · intro s b τ γ ho
-    have := h (.readTape s b τ γ (g.place (.tp s b) τ.castSucc)) trivial
-    simpa [ruleLits, ho] using this
+    simpa [ruleLits, ho] using h (.readTape s b τ γ (g.place (.tp s b) τ.castSucc)) trivial
   · intro s b p hp
-    exact by simpa [ruleLits] using h (.blankTape s b (g.place (.tp s b) (Fin.last t)) p) hp
+    simpa [ruleLits] using h (.blankTape s b (g.place (.tp s b) (Fin.last t)) p) hp
   · intro j τ γ ho
     have := h (.readInput j τ γ (g.place (.inp j) τ.castSucc)) trivial
     by_cases hN : (g.place (.inp j) τ.castSucc).1 < N
@@ -337,22 +336,17 @@ private theorem respectsRules_of_good (h : Good i e x g.letter g.state g.place g
   · simp [ruleLits, h.first] at hl
   · simp [ruleLits, h.last] at hl
   · have hM : 0 < M := (Nat.zero_le _).trans_lt (g.place z 0).2
-    have hl' : g.place z 0 ≠ ⟨0, hM⟩ := by simpa [ruleLits, hM] using hl
-    exact hl' (Fin.ext (h.zero z hr))
+    exact (by simpa [ruleLits, hM] using hl : _ ≠ _) (Fin.ext (h.zero z hr))
   · simp only [ruleLits, List.forall_mem_cons, RunBit.elim_place, RunBit.elim_letter,
       decide_eq_true_eq] at hl
     obtain ⟨rfl, rfl, hl⟩ := hl
     have hs := h.step z τ
-    have hM := (g.place z τ.succ).2
-    rw [hs] at hM
-    rw [dite_eq_left hM] at hl
+    rw [dite_eq_left (hs ▸ (g.place z τ.succ).2)] at hl
     exact (by simpa using hl : _ ≠ _) (Fin.ext hs)
   · simp only [ruleLits, List.forall_mem_cons, RunBit.elim_place, decide_eq_true_eq] at hl
     obtain ⟨rfl, hl⟩ := hl
     have hs := h.link j j' hr
-    have hM := (g.place (.inp j') 0).2
-    rw [hs] at hM
-    rw [dite_eq_left hM] at hl
+    rw [dite_eq_left (hs ▸ (g.place (.inp j') 0).2)] at hl
     exact (by simpa using hl : _ ≠ _) (Fin.ext hs)
   · simp only [ruleLits, List.forall_mem_cons, RunBit.elim_place, RunBit.elim_letter,
       RunBit.elim_content, decide_eq_true_eq, decide_eq_false_iff_not] at hl
@@ -366,13 +360,11 @@ private theorem respectsRules_of_good (h : Good i e x g.letter g.state g.place g
       decide_eq_true_eq] at hl
     obtain ⟨ho, rfl, hl⟩ := hl
     obtain ⟨hN, hx⟩ := h.read j τ γ ho
-    rw [dite_eq_left hN] at hl
-    simp [hx] at hl
+    simp [dite_eq_left hN, hx] at hl
   · simp only [ruleLits, List.forall_mem_cons, RunBit.elim_place, decide_eq_true_eq] at hl
     obtain ⟨rfl, hl⟩ := hl
     obtain ⟨hN, hx⟩ := h.sep j
-    rw [dite_eq_left hN] at hl
-    simp [hx] at hl
+    simp [dite_eq_left hN, hx] at hl
 
 /-- **The forbidding clauses check certificates**: an assignment respects the rules in force
 exactly when it is a certificate of a run from `i` to `e` on the input with code `x`. -/
@@ -401,17 +393,13 @@ theorem prod_stepLits [Fintype Γ] [Fintype S] [Fintype Q] (mu : Letter S (Fin n
   rw [← (RunStep.equivProd Γ S Q n t).symm.prod_comp, Fintype.prod_prod_type]
   refine prod_congr rfl fun τ _ => ?_
   rw [prod_eq_single (g.letter τ, g.state τ.castSucc, g.state τ.succ)]
-  · rw [ite_eq_left_iff.2]
-    · rfl
-    · intro h
-      exact absurd (by simp [stepLits, RunStep.equivProd]) h
+  · exact ite_eq_left (by simp [stepLits, RunStep.equivProd])
   · rintro ⟨a, q, q'⟩ _ hne
     refine ite_eq_right fun h => hne ?_
     simp only [stepLits, RunStep.equivProd, Equiv.coe_fn_symm_mk, List.forall_mem_cons,
       RunBit.elim_letter, RunBit.elim_state, decide_eq_true_eq] at h
     rw [h.1, h.2.1, h.2.2.1]
-  · intro h
-    exact absurd (mem_univ _) h
+  · exact fun h => absurd (mem_univ _) h
 
 open scoped Classical in
 /-- **The forbidding clauses select the certificates**: their product is `1` on a certificate and
@@ -422,16 +410,14 @@ theorem prod_ruleLits [Fintype Γ] [Fintype S] (i e : Q) (x : Fin N × Option Γ
       (if r.InForce then (0 : F) else 1) else 1) =
         if Good i e x g.letter g.state g.place g.content then 1 else 0 := by
   split_ifs with hg
-  · have hh := (respectsRules_iff_good i e x g).2 hg
-    refine prod_eq_one fun r _ => ?_
+  · refine prod_eq_one fun r _ => ?_
     by_cases hr : r.InForce
-    · rw [ite_eq_right (hh r hr)]
+    · exact ite_eq_right ((respectsRules_iff_good i e x g).2 hg r hr)
     · simp [hr]
-  · have hh : ¬ RespectsRules i e x g := fun h => hg ((respectsRules_iff_good i e x g).1 h)
+  · have hh : ¬ RespectsRules i e x g := mt (respectsRules_iff_good i e x g).1 hg
     unfold RespectsRules at hh
     push Not at hh
     obtain ⟨r, hr, hl⟩ := hh
-    refine prod_eq_zero (mem_univ r) ?_
-    rw [ite_eq_left hl, ite_eq_left hr]
+    exact prod_eq_zero (mem_univ r) (by rw [ite_eq_left hl, ite_eq_left hr])
 
 end Cslib.Circuits.Arithmetic.Separation.Tape

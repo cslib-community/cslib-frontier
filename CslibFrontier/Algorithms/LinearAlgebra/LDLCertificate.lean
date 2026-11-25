@@ -153,7 +153,8 @@ product, so that the kernel evaluates it. -/
 /-- `rowsMul` computes the matrix product, with no shape hypothesis on `A` or `B`. -/
 theorem ofLists_rowsMul [NonUnitalNonAssocSemiring α] (l m n : ℕ) (A B : List (List α)) :
     ofLists l n (rowsMul l m n A B) = ofLists l m A * ofLists m n B := by
-  rw [ofLists_mul]; congr 1
+  rw [ofLists_mul]
+  congr 1
   refine List.map_congr_left fun row _ => List.map_congr_left fun col _ => ?_
   rw [rowDot_eq_sum _ (List.length_take_le _ _), ListMatrix.dotProduct_eq]
   exact Finset.sum_congr rfl fun _ _ => by simp [ofList_apply, List.getD_eq_getElem?_getD]
@@ -415,7 +416,8 @@ private theorem entry_eq_of_scaled {v : ℚ} {a : ℤ} {b S : ℕ} {D : ℤ} (hb
     (hv : (a : ℚ) = v * b) (h : a * (S : ℤ) = D * b) : v * S = D := by
   have h' : (a : ℚ) * S = D * b := by exact_mod_cast h
   rw [hv] at h'
-  exact mul_right_cancel₀ (by positivity : (b : ℚ) ≠ 0) (by linear_combination h')
+  apply mul_right_cancel₀ (Nat.cast_ne_zero.2 hb.ne')
+  linear_combination h'
 
 /-- The product `L * diagonal d * Lᵀ` is symmetric. -/
 private theorem transpose_LDLt : (c.L n * diagonal (c.d n) * (c.L n)ᵀ)ᵀ =
@@ -438,11 +440,11 @@ private theorem eq_of_factorsLower {β : Type*} [Zero β] {num : β → ℤ} {de
     have hi : (i : ℕ) < c.lower.length := hlen ▸ i.is_lt
     have hj : (j : ℕ) < c.lower.length := hlen ▸ j.is_lt
     have hMi : (i : ℕ) < rows.length := hrows ▸ i.is_lt
-    have hMij : (j : ℕ) < rows[(i : ℕ)].length := by
-      rw [hrow _ (List.getElem_mem hMi)]; exact j.is_lt
+    have hMij : (j : ℕ) < rows[(i : ℕ)].length := (hrow _ (List.getElem_mem hMi)).symm ▸ j.is_lt
     have hai : (scaleRow (denLcm c.lower[(i : ℕ)]) c.lower[(i : ℕ)]).length = i + 1 := by
       simpa [scaleRow] using (unitLowerFrom_spec hl i hi).1
     have hji' : (j : ℕ) < i + 1 := by have : (j : ℕ) ≤ i := hji; omega
+    -- the integer identity at entry `(i, j)`
     have h₁ := all_zip_getElem hcheck (i := i) hMi (by simpa using hi)
     simp only [List.getElem_map] at h₁
     have h₂ := all_zip_getElem h₁ (i := j) (by simp [hai, hMij, hji'])
@@ -452,9 +454,11 @@ private theorem eq_of_factorsLower {β : Type*} [Zero β] {num : β → ℤ} {de
       rw [List.getD_eq_getElem _ _ hMi, List.getD_eq_getElem _ _ hMij]
     rw [hx] at h₂
     have hq := entry_eq_of_scaled (hden i j) (hval i j) h₂
+    -- the integer dot product, as a sum over `Fin n`
     rw [rowDot_eq_sum (n := n) _ (by simp [scaleRow, hdlen])] at hq
     simp only [getD_zipWith_mul, Int.cast_sum, Int.cast_mul,
       cast_getD_scaleRow (fun _ hq => den_dvd_denLcm hq)] at hq
+    -- divide out the scales
     have := denLcm_pos c.lower[(i : ℕ)]
     have := denLcm_pos c.lower[(j : ℕ)]
     have := denLcm_pos c.diag

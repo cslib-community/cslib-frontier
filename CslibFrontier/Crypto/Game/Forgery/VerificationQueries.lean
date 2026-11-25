@@ -334,11 +334,14 @@ private theorem eval_vqForgeExperiment_zero {PK SK M Sig : Type} [Inhabited Sig]
         cases hsig : signer sk s.log m with
         | none =>
           rw [hsig, ProbComp.eval_pure, PMF.mem_support_pure_iff] at hz
-          subst hz; simp
+          subst hz
+          simp
         | some reply =>
           rw [hsig, ProbComp.eval_map, PMF.mem_support_map_iff] at hz
-          obtain ⟨_, -, rfl⟩ := hz; simp
-      | inr p => cases z.2.won <;> simp)
+          obtain ⟨_, -, rfl⟩ := hz
+          simp
+      | inr p =>
+        cases z.2.won <;> simp)
     ⟨[], false⟩ ((), st) hmem
   cases hwon : st.won
   · simp
@@ -614,7 +617,8 @@ private theorem le_mul_add_of_le_sum {Q : ℕ} {p B c ε : ℝ≥0∞} {idx W : 
       Finset.sum_le_sum fun j hj =>
         mul_le_mul_left (tsub_le_iff_right.mpr (hidx j (Finset.mem_range.mp hj))) _
     _ = c * ∑ j ∈ Finset.range Q, idx j * W j := by
-      simp_rw [mul_assoc]; exact (Finset.mul_sum _ _ _).symm
+      simp_rw [mul_assoc]
+      exact (Finset.mul_sum _ _ _).symm
     _ ≤ c * B := mul_le_mul_right hB c
   calc
     p = (1 - ε + ε) * p := by rw [tsub_add_cancel_of_le hε_le, one_mul]
@@ -1273,9 +1277,17 @@ theorem succProbability_vqForgeExperiment_prf_le {Key D R : Type} [Fintype Key] 
       rw [succProbability_vqForgeExperiment_zero _ _ _ fun _ => hzero]
       exact zero_le
   change Game.succProbability (ProbComp.eval (vqForgeExperiment _ _ _ A)) ≤ _
-  rw [← hreal, ← Game.advantage_pure_false]
-  exact (Game.advantage_triangle _
-      (ProbComp.eval (PRF.idealExperiment (vqMacToPrfAdversary A))) _).trans
-    (by rw [Game.advantage_pure_false]; exact add_le_add le_rfl hideal_le)
+  rw [← hreal]
+  calc Game.succProbability (ProbComp.eval (PRF.realExperiment F (vqMacToPrfAdversary A)))
+      = Game.advantage (ProbComp.eval (PRF.realExperiment F (vqMacToPrfAdversary A)))
+          (PMF.pure false) := (Game.advantage_pure_false _).symm
+    _ ≤ PRF.advantage F (vqMacToPrfAdversary A) +
+          Game.advantage (ProbComp.eval (PRF.idealExperiment (vqMacToPrfAdversary A)))
+            (PMF.pure false) := Game.advantage_triangle _ _ _
+    _ = PRF.advantage F (vqMacToPrfAdversary A) +
+          Experiment.succProbability (PRF.idealExperiment (vqMacToPrfAdversary A)) := by
+        rw [Game.advantage_pure_false]
+    _ ≤ PRF.advantage F (vqMacToPrfAdversary A) + Q_v / Fintype.card R :=
+        add_le_add le_rfl hideal_le
 
 end Cslib.Crypto

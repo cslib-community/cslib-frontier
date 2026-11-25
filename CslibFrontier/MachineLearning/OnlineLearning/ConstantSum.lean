@@ -302,7 +302,7 @@ private theorem coupledMW_gap_le {M₀ : I → J → ℝ} (hM₀ : ∀ i j, M₀
         exact sum_mul_mem_Icc hq0 hq1 fun j => hM₀ i j
       · rw [hℓ₂_eq]
         have h := sum_mul_mem_Icc hp0 hp1 fun i => hM₀ i j
-        exact ⟨by linarith [h.2], by linarith [h.1]⟩
+        exact ⟨sub_nonneg.mpr h.2, sub_le_self _ h.1⟩
   have hT_pos : (0 : ℝ) < T := Nat.cast_pos.mpr hT
   have hsT : 0 < √(T : ℝ) := sqrt_pos.mpr hT_pos
   refine ⟨averageProb p T, averageProb q T,
@@ -380,10 +380,12 @@ theorem ciSup_ciInf_eq_ciInf_ciSup (M : I → J → ℝ) :
     have hB : 0 < B := by linarith
     let M₀ : I → J → ℝ := fun i j => (M i j + B) / (2 * B)
     have hM₀ : ∀ i j, M₀ i j ∈ Set.Icc (0 : ℝ) 1 := fun i j => by
-      have habs : |M i j| ≤ Bmax :=
-        (single_le_sum (f := fun j' : J => |M i j'|) (fun _ _ => abs_nonneg _) (mem_univ j)).trans
-          (single_le_sum (f := fun i' : I => ∑ j' : J, |M i' j'|)
-            (fun _ _ => sum_nonneg fun _ _ => abs_nonneg _) (mem_univ i))
+      have habs : |M i j| ≤ Bmax := by
+        calc |M i j| ≤ ∑ j' : J, |M i j'| :=
+              single_le_sum (f := fun j' : J => |M i j'|) (fun _ _ => abs_nonneg _) (mem_univ j)
+          _ ≤ Bmax :=
+              single_le_sum (f := fun i' : I => ∑ j' : J, |M i' j'|)
+                (fun _ _ => sum_nonneg fun _ _ => abs_nonneg _) (mem_univ i)
       have hlow : -B ≤ M i j := by linarith [neg_le_of_abs_le habs]
       have hhigh : M i j ≤ B := by linarith [le_of_abs_le habs]
       dsimp only [M₀]

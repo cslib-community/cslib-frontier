@@ -90,7 +90,9 @@ theorem parseFuel_readNode_sound (arity : τ → ℕ)
         tokens value ++ rest = stream ∧ Forest arity 1 (tokens value) := by
   intro fuel
   induction fuel with
-  | zero => intro _ _ _ h; simp [parseFuel] at h
+  | zero =>
+    intro _ _ _ h
+    simp [parseFuel] at h
   | succ fuel ih =>
     rintro (_ | ⟨token, stream⟩) value rest h
     · simp [parseFuel] at h

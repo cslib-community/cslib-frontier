@@ -471,7 +471,9 @@ private theorem isPPTOn_blsBankReplay (P : PairingGroupFamily)
           List.mem_cons] at hentry
         exact hentry.elim (fun h => h ▸ hsampleLen) (hinv.1 entry)
     · cases hrem : state.remaining with
-      | nil => rw [hrem] at hs; cases hs
+      | nil =>
+        rw [hrem] at hs
+        cases hs
       | cons hd tl => exact hinv.2 s (hrem ▸ List.mem_cons_of_mem _ (by simpa [hrem] using hs))
   have hreplyLen :
       (blsBankReplyWord P caller.groupParameters caller.leftZeroWord caller.rightZeroWord
@@ -777,8 +779,16 @@ private theorem succProbability_eufCmaGame_blsNativeROMScheme_le
     · exact zero_le
   have hreal : (Game.succProbability (eufCmaGame idealScheme A) : ℝ) ≤
       (Game.succProbability (eufCmaGame (P.toPairingGroupFamily.blsTypedROMScheme d)
-        (blsDecodedForger P d A)) : ℝ) := by exact_mod_cast hideal_le
-  exact hadv.trans (by push_cast; exact add_le_add hreal le_rfl)
+        (blsDecodedForger P d A)) : ℝ) := by
+    exact_mod_cast hideal_le
+  calc
+    (Game.succProbability (eufCmaGame (P.blsNativeROMScheme n d) A) : ℝ)
+        ≤ (Game.succProbability (eufCmaGame idealScheme A) : ℝ) +
+            ((1 : ℝ≥0) / 2 ^ n : ℝ) := hadv
+    _ ≤ (Game.succProbability (eufCmaGame (P.toPairingGroupFamily.blsTypedROMScheme d)
+          (blsDecodedForger P d A)) : ℝ) + (1 : ℝ) / 2 ^ n := by
+        push_cast
+        exact add_le_add hreal le_rfl
 
 private theorem blsBankLookupEntry_map_eq (q : ℕ) (key : List Bool)
     (tabW : List BLSBankEntry) (tabT : List (List Bool × ((Bool × ZMod q) × ℕ)))
@@ -787,7 +797,10 @@ private theorem blsBankLookupEntry_map_eq (q : ℕ) (key : List Bool)
     ((blsBankLookupEntry tabW key).map fun e => (e.coin, (e.exponent : ZMod q))) =
       (tabT.lookup key).map Prod.fst := by
   induction tabW generalizing tabT with
-  | nil => cases tabT with | nil => rfl | cons _ _ => cases htab
+  | nil =>
+    cases tabT with
+    | nil => rfl
+    | cons _ _ => cases htab
   | cons hdW tlW ihW =>
     cases tabT with
     | nil => cases htab
@@ -855,7 +868,8 @@ private theorem blsWordBankStep_eq_blsBankedReductionStep
       wRun.2.table.map (fun e => (e.query, (e.coin, (e.exponent : ZMod (P.G₀.order d))))) =
         tRun.2.1.map (fun e => (e.1, e.2.1)) := by
   induction prog using OracleComp.induction generalizing tabW tabT aborted count with
-  | pure a => exact ⟨rfl, rfl, rfl, htab⟩
+  | pure a =>
+    exact ⟨rfl, rfl, rfl, htab⟩
   | query_bind q cont ih =>
     rcases q with ⟨op, word⟩
     let stW : BLSBankState := ⟨tabW, aborted, samples.drop count⟩
@@ -1243,7 +1257,8 @@ theorem CoCDH.eufCma_blsNativeROMScheme (P : DecodablePairingGroupFamily)
         (hkeyBound n))
   obtain ⟨k, Control, hfinite, machine, c, e, -, hgame⟩ :=
     exists_eufCmaGame_savedCoinForger
-      (gen := fun n => P.G₁.toFamily.schnorrSigKeyGen n (description n)) hgen hprogram
+      (gen := fun n => P.G₁.toFamily.schnorrSigKeyGen n (description n))
+      hgen hprogram
   let adv := P.blsBankedCoCDHAdversary machine c e keyC keyD
   have hbreak : Negligible fun n =>
       Game.succProbability (P.G₀.coCdhGame P.G₁ (fun m => PMF.pure (description m)) adv n) :=
@@ -1251,7 +1266,9 @@ theorem CoCDH.eufCma_blsNativeROMScheme (P : DecodablePairingGroupFamily)
   let budget := savedCoinBudget c e keyC keyD
   let K (n : ℕ) := budget n + budget n + 1
   have hbudget : PolynomiallyBounded budget := polynomiallyBounded_savedCoinBudget c e keyC keyD
-  have hK : PolynomiallyBounded K := by dsimp only [K]; fun_prop
+  have hK : PolynomiallyBounded K := by
+    dsimp only [K]
+    fun_prop
   have hKdiv : Negligible (fun n => (K n : ℝ≥0) / 2 ^ n) :=
     Negligible.polynomiallyBounded_div hK negligible_inv_two_pow
   have hsum : Negligible (fun n =>
@@ -1303,7 +1320,9 @@ theorem CoCDH.eufCma_blsNativeROMScheme (P : DecodablePairingGroupFamily)
     _ ≤ 3 * ((2 * (budget n + 1) : ℕ) : ℝ) *
           ((Game.succProbability
             (P.G₀.coCdhGame P.G₁ (fun m => PMF.pure (description m)) adv n) : ℝ) +
-            (K n : ℝ) / 2 ^ n) + 1 / 2 ^ n := by gcongr; norm_num
+            (K n : ℝ) / 2 ^ n) + 1 / 2 ^ n := by
+              gcongr
+              norm_num
     _ = _ := by push_cast; ring
 
 /-- **Asymptotic SUF-CMA security of native BLS signatures from co-CDH** (`[BonehShoup2023]`,

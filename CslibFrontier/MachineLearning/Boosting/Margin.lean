@@ -392,14 +392,20 @@ private theorem exp_mul_voteWeight_mul_two_sqrt {ε ρ : ℝ} (hε₀ : 0 < ε) 
     exp (ρ * voteWeight ε) * (2 * √(ε * (1 - ε))) =
       2 * ε ^ ((1 - ρ) / 2) * (1 - ε) ^ ((1 + ρ) / 2) := by
   have h1m : 0 < 1 - ε := by linarith
-  rw [voteWeight, show ρ * (Real.log ((1 - ε) / ε) / 2) = Real.log ((1 - ε) / ε) * (ρ / 2) by ring,
-    ← Real.rpow_def_of_pos (div_pos h1m hε₀), Real.div_rpow h1m.le hε₀.le, div_eq_mul_inv,
-    ← Real.rpow_neg hε₀.le, Real.sqrt_eq_rpow, Real.mul_rpow hε₀.le h1m.le,
-    show (1 - ε) ^ (ρ / 2) * ε ^ (-(ρ / 2)) * (2 * (ε ^ ((1 : ℝ) / 2) * (1 - ε) ^ ((1 : ℝ) / 2))) =
-      2 * (ε ^ ((1 : ℝ) / 2) * ε ^ (-(ρ / 2))) * ((1 - ε) ^ ((1 : ℝ) / 2) * (1 - ε) ^ (ρ / 2)) by
-      ring,
-    ← Real.rpow_add hε₀, ← Real.rpow_add h1m]
-  ring_nf
+  have harg : ρ * (Real.log ((1 - ε) / ε) / 2) = Real.log ((1 - ε) / ε) * (ρ / 2) := by ring
+  have hexp : exp (ρ * voteWeight ε) = (1 - ε) ^ (ρ / 2) * ε ^ (-(ρ / 2)) := by
+    rw [voteWeight, harg, ← Real.rpow_def_of_pos (div_pos h1m hε₀),
+      Real.div_rpow h1m.le hε₀.le, div_eq_mul_inv, Real.rpow_neg hε₀.le]
+  have hsqrt : √(ε * (1 - ε)) = ε ^ ((1 : ℝ) / 2) * (1 - ε) ^ ((1 : ℝ) / 2) := by
+    rw [Real.sqrt_eq_rpow, Real.mul_rpow hε₀.le h1m.le]
+  rw [hexp, hsqrt]
+  calc (1 - ε) ^ (ρ / 2) * ε ^ (-(ρ / 2)) *
+        (2 * (ε ^ ((1 : ℝ) / 2) * (1 - ε) ^ ((1 : ℝ) / 2)))
+      = 2 * (ε ^ ((1 : ℝ) / 2) * ε ^ (-(ρ / 2))) *
+          ((1 - ε) ^ ((1 : ℝ) / 2) * (1 - ε) ^ (ρ / 2)) := by ring
+    _ = 2 * ε ^ ((1 - ρ) / 2) * (1 - ε) ^ ((1 + ρ) / 2) := by
+        rw [← Real.rpow_add hε₀, ← Real.rpow_add h1m]
+        ring_nf
 
 /-- Monotonicity of `ε ↦ ε ^ p * (1 - ε) ^ (1 - p)` on `(0, p]`, by `log t ≤ t - 1`. -/
 private theorem rpow_mul_one_sub_rpow_le {ε b p : ℝ} (hε₀ : 0 < ε) (hεb : ε ≤ b)
@@ -672,11 +678,16 @@ theorem marginCount_normalizedScore_le_pow (S : Fin m → α × Bool)
             (Real.rpow_nonneg h1p.le _),
           ← Real.rpow_mul h1m.le, ← Real.rpow_mul h1p.le]
         have h2pow : (2 : ℝ) ^ ((1 - ρ) / 2) * (2 : ℝ) ^ ((1 + ρ) / 2) = 2 := by
-          rw [← Real.rpow_add zero_lt_two, show (1 - ρ) / 2 + (1 + ρ) / 2 = 1 by ring,
-            Real.rpow_one]
+          rw [← Real.rpow_add zero_lt_two,
+            show (1 - ρ) / 2 + (1 + ρ) / 2 = 1 by ring, Real.rpow_one]
         rw [mul_assoc, ← mul_div_mul_comm, h2pow, mul_div_cancel₀ _ two_ne_zero]
         ring_nf
-      exact hhalf_eq ▸ by simpa only [mul_assoc] using mul_le_mul_of_nonneg_left hmono zero_le_two
+      calc 2 * ε ^ ((1 - ρ) / 2) * (1 - ε) ^ ((1 + ρ) / 2)
+          = 2 * (ε ^ ((1 - ρ) / 2) * (1 - ε) ^ ((1 + ρ) / 2)) := by ring
+        _ ≤ 2 * ((1 / 2 - γ) ^ ((1 - ρ) / 2) * (1 - (1 / 2 - γ)) ^ ((1 + ρ) / 2)) :=
+            mul_le_mul_of_nonneg_left hmono zero_le_two
+        _ = √((1 - 2 * γ) ^ (1 - ρ) * (1 + 2 * γ) ^ (1 + ρ)) := by
+            rw [← mul_assoc, hhalf_eq]
   calc ∏ t ∈ range T, 2 * (rounds S A t).error S ^ ((1 - ρ) / 2) *
         (1 - (rounds S A t).error S) ^ ((1 + ρ) / 2)
       ≤ ∏ _t ∈ range T, √((1 - 2 * γ) ^ (1 - ρ) * (1 + 2 * γ) ^ (1 + ρ)) :=

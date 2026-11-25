@@ -70,26 +70,19 @@ theorem ConvexOn.add_le_of_hasFDerivWithinAt (hf : ConvexOn ℝ K f) {x y : F} {
     f x + f' (y - x) ≤ f y := by
   set φ : ℝ → F := fun s => x + s • (y - x) with hφ
   have hφK : MapsTo φ (Icc 0 1) K := fun s hs => by
-    have := hf.1 hx hy (sub_nonneg.mpr hs.2) hs.1 (by ring : 1 - s + s = 1)
-    convert this using 1
+    convert hf.1 hx hy (sub_nonneg.mpr hs.2) hs.1 (by ring) using 1
     simp only [hφ]
     module
-  have hconv : ConvexOn ℝ (Icc (0 : ℝ) 1) (f ∘ φ) := by
-    refine ⟨convex_Icc 0 1, fun a ha b hb p q hp hq hpq => ?_⟩
-    have hφab : φ (p • a + q • b) = p • φ a + q • φ b := by
-      obtain rfl : q = 1 - p := by linarith
-      simp only [hφ]
-      module
-    simp only [Function.comp_apply]
-    rw [hφab]
-    exact hf.2 (hφK ha) (hφK hb) hp hq hpq
-  have hderφ : HasDerivAt φ (y - x) 0 := by
-    have := ((hasDerivAt_id (0 : ℝ)).smul_const (y - x)).const_add x
-    simpa only [one_smul, hφ, id] using this
-  have hfd : HasFDerivWithinAt f f' K (φ 0) := by
-    simpa only [hφ, zero_smul, add_zero] using hd
+  have hconv : ConvexOn ℝ (Icc (0 : ℝ) 1) (f ∘ φ) := ⟨convex_Icc 0 1,
+    fun a ha b hb p q hp hq hpq => by
+      simpa only [Function.comp_apply, show φ (p • a + q • b) = p • φ a + q • φ b by
+        simp only [hφ, show q = 1 - p by linarith]; module] using
+        hf.2 (hφK ha) (hφK hb) hp hq hpq⟩
   have hder : HasDerivWithinAt (f ∘ φ) (f' (y - x)) (Icc 0 1) 0 :=
-    hfd.comp_hasDerivWithinAt (0 : ℝ) hderφ.hasDerivWithinAt hφK
+    (by simpa only [hφ, zero_smul, add_zero] using hd : HasFDerivWithinAt f f' K (φ 0))
+      |>.comp_hasDerivWithinAt 0
+      (by simpa only [one_smul, hφ, id] using
+        (((hasDerivAt_id (0 : ℝ)).smul_const (y - x)).const_add x).hasDerivWithinAt) hφK
   have h := hconv.le_slope_of_hasDerivWithinAt_Ioi (by simp) (by simp) zero_lt_one
     (hder.mono_of_mem_nhdsWithin (Icc_mem_nhdsGT zero_lt_one))
   simp only [slope_def_field, Function.comp_apply, hφ, zero_smul, add_zero, one_smul,
@@ -119,18 +112,15 @@ theorem convexOn_of_forall_add_le (hK : Convex ℝ K) {g : F → F →L[ℝ] ℝ
   refine ⟨hK, fun x hx y hy a b ha hb hab => ?_⟩
   set p := a • x + b • y
   have hp : p ∈ K := hK hx hy ha hb hab
+  have h0 : a • (x - p) + b • (y - p) = 0 := by
+    simp only [smul_sub, p, show b = 1 - a by linarith]
+    module
   have hlin : a * g p (x - p) + b * g p (y - p) = 0 := by
-    have h : a • (x - p) + b • (y - p) = 0 := by
-      simp only [smul_sub, p]
-      rw [show b = 1 - a by linarith]
-      module
-    rw [← smul_eq_mul, ← smul_eq_mul, ← map_smul, ← map_smul, ← map_add, h, map_zero]
+    rw [← smul_eq_mul, ← smul_eq_mul, ← map_smul, ← map_smul, ← map_add, h0, map_zero]
   have e1 := mul_le_mul_of_nonneg_left (hsub p hp x hx) ha
   have e2 := mul_le_mul_of_nonneg_left (hsub p hp y hy) hb
-  rw [mul_add] at e1 e2
-  have hfp : f p = a * f p + b * f p := by rw [← add_mul, hab, one_mul]
   simp only [smul_eq_mul]
-  linarith
+  linarith [show f p = a * f p + b * f p by rw [← add_mul, hab, one_mul]]
 
 /-- A strictly convex function lies strictly above its tangent hyperplane at any point where it is
 differentiable within its domain: `f x + f' (y - x) < f y` for `x y ∈ K` with `y ≠ x`. -/
@@ -145,10 +135,7 @@ theorem StrictConvexOn.add_lt_of_hasFDerivWithinAt (hf : StrictConvexOn ℝ K f)
       hf.2 hx hy hxy.symm (by norm_num : (0 : ℝ) < 1 / 2) (by norm_num : (0 : ℝ) < 1 / 2)
         (by norm_num)
   have hsub := hf.convexOn.add_le_of_hasFDerivWithinAt hx hm hd
-  have hdiff : m - x = (1 / 2 : ℝ) • (y - x) := by
-    simp only [m]
-    module
-  rw [hdiff, map_smul, smul_eq_mul] at hsub
+  rw [show m - x = (1 / 2 : ℝ) • (y - x) by simp only [m]; module, map_smul, smul_eq_mul] at hsub
   linarith
 
 /-- A strictly convex function lies strictly above its tangent hyperplane at any point of
@@ -166,36 +153,25 @@ theorem strictConvexOn_of_forall_add_lt (hK : Convex ℝ K) {g : F → F →L[�
   refine ⟨hK, fun x hx y hy hxy a b ha hb hab => ?_⟩
   set p := a • x + b • y
   have hp : p ∈ K := hK hx hy ha.le hb.le hab
-  have hxp : x ≠ p := by
-    intro h
+  have hxp : x ≠ p := fun h => by
     have h0 : b • (y - x) = 0 := by
-      have : p - x = b • (y - x) := by
-        simp only [p]
-        rw [show a = 1 - b by linarith]
-        module
-      rw [← this, h, sub_self]
+      rw [show b • (y - x) = p - x by simp only [p, show a = 1 - b by linarith]; module,
+        ← h, sub_self]
     exact hxy (sub_eq_zero.mp ((smul_eq_zero.mp h0).resolve_left hb.ne')).symm
-  have hyp : y ≠ p := by
-    intro h
+  have hyp : y ≠ p := fun h => by
     have h0 : a • (x - y) = 0 := by
-      have : p - y = a • (x - y) := by
-        simp only [p]
-        rw [show b = 1 - a by linarith]
-        module
-      rw [← this, h, sub_self]
+      rw [show a • (x - y) = p - y by simp only [p, show b = 1 - a by linarith]; module,
+        ← h, sub_self]
     exact hxy (sub_eq_zero.mp ((smul_eq_zero.mp h0).resolve_left ha.ne'))
+  have h0 : a • (x - p) + b • (y - p) = 0 := by
+    simp only [smul_sub, p, show b = 1 - a by linarith]
+    module
   have hlin : a * g p (x - p) + b * g p (y - p) = 0 := by
-    have h : a • (x - p) + b • (y - p) = 0 := by
-      simp only [smul_sub, p]
-      rw [show b = 1 - a by linarith]
-      module
-    rw [← smul_eq_mul, ← smul_eq_mul, ← map_smul, ← map_smul, ← map_add, h, map_zero]
+    rw [← smul_eq_mul, ← smul_eq_mul, ← map_smul, ← map_smul, ← map_add, h0, map_zero]
   have e1 := mul_lt_mul_of_pos_left (hsub p hp x hx hxp) ha
   have e2 := mul_lt_mul_of_pos_left (hsub p hp y hy hyp) hb
-  rw [mul_add] at e1 e2
-  have hfp : f p = a * f p + b * f p := by rw [← add_mul, hab, one_mul]
   simp only [smul_eq_mul]
-  linarith
+  linarith [show f p = a * f p + b * f p by rw [← add_mul, hab, one_mul]]
 
 end Normed
 
@@ -234,16 +210,12 @@ and `‖g x‖ ≤ ρ` on `K`, then `|f x - f y| ≤ ρ * ‖x - y‖` for `x y 
 theorem abs_sub_le_of_forall_add_inner_le {g : E → E} {ρ : ℝ}
     (hsub : ∀ x ∈ K, ∀ y ∈ K, f x + ⟪g x, y - x⟫ ≤ f y) (hg : ∀ x ∈ K, ‖g x‖ ≤ ρ) {x y : E}
     (hx : x ∈ K) (hy : y ∈ K) : |f x - f y| ≤ ρ * ‖x - y‖ := by
-  have h1 := hsub x hx y hy
-  have h2 := hsub y hy x hx
-  have b1 : |⟪g x, y - x⟫| ≤ ρ * ‖x - y‖ := by
-    rw [norm_sub_rev]
-    exact (abs_real_inner_le_norm _ _).trans
-      (mul_le_mul_of_nonneg_right (hg x hx) (norm_nonneg _))
+  have b1 : |⟪g x, y - x⟫| ≤ ρ * ‖x - y‖ := norm_sub_rev x y ▸
+    (abs_real_inner_le_norm _ _).trans (mul_le_mul_of_nonneg_right (hg x hx) (norm_nonneg _))
   have b2 : |⟪g y, x - y⟫| ≤ ρ * ‖x - y‖ :=
     (abs_real_inner_le_norm _ _).trans (mul_le_mul_of_nonneg_right (hg y hy) (norm_nonneg _))
   rw [abs_le] at b1 b2 ⊢
-  constructor <;> linarith
+  exact ⟨by linarith [hsub y hy x hx], by linarith [hsub x hx y hy]⟩
 
 /-- The first-order bound for an `m`-strongly convex function with a gradient within its domain:
 `f x + ⟪g, y - x⟫ + m / 2 * ‖y - x‖ ^ 2 ≤ f y` for `x y ∈ K`. -/

@@ -193,18 +193,21 @@ theorem logb_card_le_entropy_of_basis [Nonempty ι]
       one_mul] at hle
     exact hle
   let π : Matrix ι ι ℂ := (Fintype.card ι : ℂ)⁻¹ • 1
-  have hπ_dens : IsDensityMatrix π :=
-    ⟨by
-      rw [show π = (Fintype.card ι : ℝ)⁻¹ • (1 : Matrix ι ι ℂ) by ext i j; simp [π]]
-      exact PosSemidef.one.smul (inv_nonneg.mpr (Nat.cast_nonneg _)),
-     by simp [π, trace_smul, trace_one]⟩
+  have hπ_dens : IsDensityMatrix π := by
+    refine ⟨?_, by simp [π, trace_smul, trace_one]⟩
+    have hπ_real : π = (Fintype.card ι : ℝ)⁻¹ • (1 : Matrix ι ι ℂ) := by
+      ext i j
+      simp [π]
+    rw [hπ_real]
+    exact PosSemidef.one.smul (inv_nonneg.mpr (Nat.cast_nonneg _))
   have hπ_avg : encryptAvg p U ρa π = ρ₀ := by
     have hcard_ne : (Fintype.card ι : ℂ) ≠ 0 := Nat.cast_ne_zero.mpr Fintype.card_ne_zero
-    rw [show π = (Fintype.card ι : ℂ)⁻¹ • ∑ x : ι, pureState (ket x) by
-        simp only [π, pureState_ket_eq_single, sum_single_one],
-      encryptAvg_smul, encryptAvg_sum]
-    simp_rw [show ∀ x : ι, encryptAvg p U ρa (pureState (ket x)) = ρ₀ from
-      fun x => h.encryptAvg_eq (ket x) ⟨x, rfl⟩]
+    have hπ_sum : π = (Fintype.card ι : ℂ)⁻¹ • ∑ x : ι, pureState (ket x) := by
+      simp only [π, pureState_ket_eq_single, sum_single_one]
+    have hall (x : ι) : encryptAvg p U ρa (pureState (ket x)) = ρ₀ :=
+      h.encryptAvg_eq (ket x) ⟨x, rfl⟩
+    rw [hπ_sum, encryptAvg_smul, encryptAvg_sum]
+    simp_rw [hall]
     ext p₁ p₂
     rw [Matrix.smul_apply, Matrix.sum_apply, Finset.sum_const, Finset.card_univ, nsmul_eq_mul,
       smul_eq_mul, inv_mul_cancel_left₀ hcard_ne]
@@ -342,11 +345,13 @@ theorem encryptAvg_single_eq_zero_of_ne {p : PMF K}
               · exact absurd (hxi.trans hyi.symm) hne_i
             exact (sq_eq_one_iff.mp hsq).resolve_right
               (ne_of_gt (lt_of_lt_of_le (by norm_num : (-1 : ℝ) < 0) (norm_nonneg _)))
-          · simp only [φ, hi, ↓reduceDIte]; exact norm_ket (x i)
+          · simp only [φ, hi, ↓reduceDIte]
+            exact norm_ket (x i)
         let Ψ : EuclideanSpace ℂ (α → Bool) :=
           WithLp.toLp 2 fun u => ∏ i : α, (φ i).ofLp (u i)
         have hΨ_support (u : α → Bool) (hu : ¬ ∀ i, i ∉ D → u i = x i) : Ψ.ofLp u = 0 := by
-          push Not at hu; obtain ⟨i, hiD, hui⟩ := hu
+          push Not at hu
+          obtain ⟨i, hiD, hui⟩ := hu
           exact Finset.prod_eq_zero (Finset.mem_univ i) (by simp [φ, hiD, hui])
         have hΨ_range (u : α → Bool) (hu : ∀ i, i ∉ D → u i = x i) :
             ∃ w : ↥D → Bool, embed w = u :=
@@ -436,7 +441,8 @@ theorem encryptAvg_single_eq_zero_of_ne {p : PMF K}
               rw [← hd]
               refine Finset.card_lt_card (Finset.ssubset_iff_subset_ne.mpr
                 ⟨fun i hi => by_contra fun hiD => by
-                    have hne_i := (Finset.mem_filter.mp hi).2; simp [embed, hiD] at hne_i,
+                    have hne_i := (Finset.mem_filter.mp hi).2
+                    simp [embed, hiD] at hne_i,
                   fun heq => hw'_ne_flip <| funext fun ⟨i, hi⟩ => by
                     have hne_i := (Finset.mem_filter.mp (heq ▸ hi)).2
                     simp only [embed, flip, hi, ↓reduceDIte] at hne_i ⊢
@@ -449,16 +455,23 @@ theorem encryptAvg_single_eq_zero_of_ne {p : PMF K}
           congr 2
           · rw [hmul_amp, Finset.prod_eq_one fun j _ => by cases w j <;> cases v j <;> simp,
               mul_one]
-          · rw [hmul_amp, mul_assoc, ← Finset.prod_mul_distrib]
-            congr 1
-            exact Finset.prod_congr rfl fun j _ => by
-              dsimp only [flip]
-              rcases Bool.eq_false_or_eq_true (w j) with hw | hw <;>
-                rcases Bool.eq_false_or_eq_true (v j) with hv | hv <;> simp [hw, hv]
+          · calc Ψ.ofLp (embed w) * star (Ψ.ofLp (embed (flip w)))
+                = (2 : ℂ)⁻¹ ^ d * ∏ j : ↥D,
+                    (if w j && v j then Complex.I else 1) *
+                      star (if flip w j && v j then Complex.I else 1) := hmul_amp w (flip w)
+              _ = (2 : ℂ)⁻¹ ^ d * (∏ j : ↥D, if v j then -Complex.I else 1) *
+                    (∏ j : ↥D, if w j && v j then (-1 : ℂ) else 1) := by
+                  rw [mul_assoc, ← Finset.prod_mul_distrib]
+                  congr 1
+                  refine Finset.prod_congr rfl fun j _ => ?_
+                  dsimp only [flip]
+                  rcases Bool.eq_false_or_eq_true (w j) with hw | hw <;>
+                    rcases Bool.eq_false_or_eq_true (v j) with hv | hv <;> simp [hw, hv]
+        have hdiag_sum : (∑ _w : ↥D → Bool, ((2 : ℂ)⁻¹ ^ d) • ρ₀) = ρ₀ := by
+          ext p₁ p₂
+          simp [Matrix.sum_apply, hd]
         simp_rw [hinner] at henc_Ψ
-        rw [Finset.sum_add_distrib,
-          show (∑ _w : ↥D → Bool, ((2 : ℂ)⁻¹ ^ d) • ρ₀) = ρ₀ by
-            ext p₁ p₂; simp [Matrix.sum_apply, hd]] at henc_Ψ
+        rw [Finset.sum_add_distrib, hdiag_sum] at henc_Ψ
         have hzero := add_eq_left.mp henc_Ψ
         have hc_ne : ((2 : ℂ)⁻¹ ^ d * ∏ j : ↥D, if v j then -Complex.I else 1) ≠ 0 :=
           mul_ne_zero (pow_ne_zero d (inv_ne_zero (by norm_num)))
@@ -485,7 +498,8 @@ theorem encryptAvg_single_eq_zero_of_ne {p : PMF K}
         · rw [ite_eq_right hw0]
           obtain ⟨j₀, hj₀⟩ := Function.ne_iff.mp hw0
           exact Finset.prod_eq_zero (Finset.mem_univ j₀) (by
-            rw [Bool.eq_true_of_not_eq_false hj₀, Fintype.sum_bool]; simp)
+            rw [Bool.eq_true_of_not_eq_false hj₀, Fintype.sum_bool]
+            simp)
       simp_rw [hchar, ite_smul, zero_smul, Finset.sum_ite_eq', Finset.mem_univ, ite_true,
         hembed_zero, hembed_flip_zero] at hsum_v
       exact (smul_eq_zero.mp hsum_v).resolve_left (pow_ne_zero d (by norm_num))
@@ -507,7 +521,8 @@ theorem exists_basis_pqc_of_unentangled {p : PMF K}
   have hcardQ : Fintype.card Q = 2 ^ Fintype.card α := by
     rw [Fintype.card_fun, Fintype.card_bool]
   have hscale :
-      ((Real.sqrt (Fintype.card Q) : ℂ))⁻¹ * ((Real.sqrt (Fintype.card Q) : ℂ))⁻¹ =
+      ((Real.sqrt (Fintype.card Q) : ℂ))⁻¹ *
+        ((Real.sqrt (Fintype.card Q) : ℂ))⁻¹ =
         (Fintype.card Q : ℂ)⁻¹ := by
     rw [← mul_inv, ← Complex.ofReal_mul, Real.mul_self_sqrt (Nat.cast_nonneg _)]
     push_cast
@@ -535,7 +550,8 @@ theorem exists_basis_pqc_of_unentangled {p : PMF K}
       · rw [ite_eq_right ha]
         refine Finset.sum_eq_zero fun z _ => ?_
         by_cases hza : z = y + a
-        · subst hza; simp [show y + a ≠ y + a' from fun he => ha (add_left_cancel he)]
+        · subst hza
+          simp [show y + a ≠ y + a' from fun he => ha (add_left_cancel he)]
         · simp [hza]
     simp_rw [hinner]
     by_cases ha : a = a'
@@ -552,7 +568,8 @@ theorem exists_basis_pqc_of_unentangled {p : PMF K}
         exact inv_mul_cancel₀ (pow_ne_zero _ (by norm_num))
       · rw [ite_eq_right hb, Matrix.one_apply_ne (fun hp => hb (Prod.mk.inj hp).2),
           Complex.ofReal_zero, mul_zero]
-    · rw [Matrix.one_apply_ne (fun hp => ha (Prod.mk.inj hp).1)]; simp [ha]
+    · rw [Matrix.one_apply_ne (fun hp => ha (Prod.mk.inj hp).1)]
+      simp [ha]
   let e : ((Q × Q) × κ) ≃ (Q × (Q × κ)) := Equiv.prodAssoc Q Q κ
   let reind := reindexAlgEquiv ℂ ℂ e.symm
   have hreind_unitary {M : Matrix (Q × (Q × κ)) (Q × (Q × κ)) ℂ}
@@ -581,7 +598,8 @@ theorem exists_basis_pqc_of_unentangled {p : PMF K}
     ext ⟨y, z₀⟩ ⟨y', z₀'⟩
     rw [pureState_ket_eq_single, mul_single_one_mul_apply, Matrix.smul_apply, Matrix.sum_apply,
       Finset.sum_eq_single z₀ (fun _ _ hz => by
-        rw [Matrix.sum_apply]; exact Finset.sum_eq_zero fun _ _ => by simp [kroneckerMap_apply, hz])
+        rw [Matrix.sum_apply]
+        exact Finset.sum_eq_zero fun _ _ => by simp [kroneckerMap_apply, hz])
         (by simp),
       Matrix.sum_apply,
       Finset.sum_eq_single z₀' (fun _ _ hz' => by simp [kroneckerMap_apply, hz']) (by simp)]
@@ -604,12 +622,15 @@ theorem exists_basis_pqc_of_unentangled {p : PMF K}
               ((U k : Matrix (Q × κ) (Q × κ) ℂ) * (single z z' (1 : ℂ) ⊗ₖ ρa) *
                 (U k : Matrix (Q × κ) (Q × κ) ℂ)ᴴ)) := by
     let M₁ := reind ((1 : Matrix Q Q ℂ) ⊗ₖ (U k : Matrix (Q × κ) (Q × κ) ℂ))
+    have hassoc :
+        (M₁ * (B ⊗ₖ (1 : Matrix κ κ ℂ))) * (pureState (ket (a, b)) ⊗ₖ ρa) *
+            ((B ⊗ₖ (1 : Matrix κ κ ℂ))ᴴ * M₁ᴴ) =
+          M₁ * ((B ⊗ₖ (1 : Matrix κ κ ℂ)) * (pureState (ket (a, b)) ⊗ₖ ρa) *
+            (B ⊗ₖ (1 : Matrix κ κ ℂ))ᴴ) * M₁ᴴ := by
+      simp only [Matrix.mul_assoc]
     change (M₁ * (B ⊗ₖ (1 : Matrix κ κ ℂ))) * (pureState (ket (a, b)) ⊗ₖ ρa) *
         (M₁ * (B ⊗ₖ (1 : Matrix κ κ ℂ)))ᴴ = _
-    rw [conjTranspose_mul, show (M₁ * (B ⊗ₖ (1 : Matrix κ κ ℂ))) * (pureState (ket (a, b)) ⊗ₖ ρa) *
-        ((B ⊗ₖ (1 : Matrix κ κ ℂ))ᴴ * M₁ᴴ) =
-        M₁ * ((B ⊗ₖ (1 : Matrix κ κ ℂ)) * (pureState (ket (a, b)) ⊗ₖ ρa) *
-          (B ⊗ₖ (1 : Matrix κ κ ℂ))ᴴ) * M₁ᴴ by simp only [Matrix.mul_assoc],
+    rw [conjTranspose_mul, hassoc,
       conjTranspose_kronecker, conjTranspose_one, ← mul_kronecker_mul, ← mul_kronecker_mul,
       Matrix.one_mul, Matrix.mul_one, hBell_ket, smul_kronecker, sum_kronecker]
     simp_rw [sum_kronecker, hreind_assoc]
@@ -623,27 +644,34 @@ theorem exists_basis_pqc_of_unentangled {p : PMF K}
       Matrix.one_mul, Matrix.mul_one]
   unfold encryptAvg
   simp_rw [hstep, smul_comm _ (Fintype.card Q : ℂ)⁻¹, ← Finset.smul_sum]
-  rw [show (∑ k : K, (p k).toReal • ∑ z : Q, ∑ z' : Q,
-        reind ((pauliString a b * single z z' (1 : ℂ) * (pauliString a b)ᴴ) ⊗ₖ
-          ((U k : Matrix (Q × κ) (Q × κ) ℂ) * (single z z' (1 : ℂ) ⊗ₖ ρa) *
-            (U k : Matrix (Q × κ) (Q × κ) ℂ)ᴴ))) =
-      ∑ z : Q, ∑ z' : Q,
-        reind ((pauliString a b * single z z' (1 : ℂ) * (pauliString a b)ᴴ) ⊗ₖ
-          encryptAvg p U ρa (single z z' (1 : ℂ))) by
+  have hswap :
+      (∑ k : K, (p k).toReal • ∑ z : Q, ∑ z' : Q,
+          reind ((pauliString a b * single z z' (1 : ℂ) * (pauliString a b)ᴴ) ⊗ₖ
+            ((U k : Matrix (Q × κ) (Q × κ) ℂ) * (single z z' (1 : ℂ) ⊗ₖ ρa) *
+              (U k : Matrix (Q × κ) (Q × κ) ℂ)ᴴ))) =
+        ∑ z : Q, ∑ z' : Q,
+          reind ((pauliString a b * single z z' (1 : ℂ) * (pauliString a b)ᴴ) ⊗ₖ
+            encryptAvg p U ρa (single z z' (1 : ℂ))) := by
     ext p₁ p₂
     simp only [reind, coe_reindexAlgEquiv, reindex_apply, submatrix_apply, Matrix.sum_apply,
       Matrix.smul_apply, kroneckerMap_apply, encryptAvg, Complex.real_smul, Finset.mul_sum]
     rw [Finset.sum_comm]
     refine sum_congr rfl fun z _ => ?_
     rw [Finset.sum_comm]
-    exact sum_congr rfl fun _ _ => sum_congr rfl fun _ _ => by ring]
-  simp_rw [show ∀ z : Q, (∑ z' : Q,
-      reind ((pauliString a b * single z z' (1 : ℂ) * (pauliString a b)ᴴ) ⊗ₖ
-        encryptAvg p U ρa (single z z' (1 : ℂ)))) =
-      reind ((pauliString a b * single z z (1 : ℂ) * (pauliString a b)ᴴ) ⊗ₖ ρ₀) from fun z =>
-    Finset.sum_eq_single z
-      (fun z' _ hz' => by rw [encryptAvg_single_eq_zero_of_ne h (Ne.symm hz'), kronecker_zero]; rfl)
-      (by simp) |>.trans (by rw [encryptAvg_single_diag_eq h z])]
+    exact sum_congr rfl fun _ _ => sum_congr rfl fun _ _ => by ring
+  rw [hswap]
+  have hcollapse (z : Q) :
+      (∑ z' : Q,
+          reind ((pauliString a b * single z z' (1 : ℂ) * (pauliString a b)ᴴ) ⊗ₖ
+            encryptAvg p U ρa (single z z' (1 : ℂ)))) =
+        reind ((pauliString a b * single z z (1 : ℂ) * (pauliString a b)ᴴ) ⊗ₖ ρ₀) := by
+    rw [Finset.sum_eq_single z
+      (fun z' _ hz' => by
+        rw [encryptAvg_single_eq_zero_of_ne h (Ne.symm hz'), kronecker_zero]
+        rfl)
+      (by simp),
+      encryptAvg_single_diag_eq h z]
+  simp_rw [hcollapse]
   have hsum_pauli :
       (∑ z : Q, pauliString a b * single z z (1 : ℂ) * (pauliString a b)ᴴ) = 1 := by
     rw [← Finset.sum_mul, ← Finset.mul_sum, sum_single_one, Matrix.mul_one]

@@ -147,12 +147,10 @@ theorem BoundedErrorAt.repeatMajority {enc : α ↪ List Bool} {p : Polynomial �
   unfold ErrorExponentAt
   have hlen : (12 * q * p).eval (enc a).length =
       2 * (6 * q).eval (enc a).length * p.eval (enc a).length := by
-    simp only [Polynomial.eval_mul, Polynomial.eval_ofNat]
-    ring
-  have hR : (6 * q).eval (enc a).length = 6 * q.eval (enc a).length := by simp
+    simp only [Polynomial.eval_mul, Polynomial.eval_ofNat]; ring
   rw [hlen]
   exact (Nat.mul_le_mul_left _ (card_filter_repeatMajority_eq_not_le a b)).trans
-    (BitString.two_pow_mul_card_filter_card_filter_block_le hR
+    (BitString.two_pow_mul_card_filter_card_filter_block_le (by simp)
       (fun s => V (a, List.ofFn s) = b) h)
 
 /-- Error at most `2 ^ (-q(n)) ≤ 1 / 4` on an instance is bounded error on that instance. -/
@@ -161,11 +159,8 @@ theorem ErrorExponentAt.boundedErrorAt {enc : α ↪ List Bool} {q p : Polynomia
     (hq : 2 ≤ q.eval (enc a).length) : BoundedErrorAt enc p V a b := by
   refine BitString.two_mul_two_pow_le_of_four_mul_card_filter_not_le
     (fun r => V (a, List.ofFn r) = b) ?_
-  have hnot : (univ.filter fun r : BitString (p.eval (enc a).length) => ¬V (a, List.ofFn r) = b) =
-      univ.filter fun r : BitString (p.eval (enc a).length) => V (a, List.ofFn r) = !b :=
-    filter_congr fun _ _ => by cases b <;> simp
-  rw [hnot]
-  exact (Nat.mul_le_mul_right _ (Nat.pow_le_pow_right (by norm_num) hq)).trans h
+  cases b <;> simpa using
+    (Nat.mul_le_mul_right _ (Nat.pow_le_pow_right (by norm_num) hq)).trans h
 
 namespace PromiseProblem
 

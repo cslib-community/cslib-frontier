@@ -98,29 +98,20 @@ normalization through its proved conditional mean; deterministic inputs are reta
 /-- Every actual child is earlier, including the newly completed maximum and normalized row. -/
 theorem rank_lt_of_mem_children {parent child : PilotRowTask} (h : child ∈ parent.children) :
     child.rank < parent.rank := by
-  cases parent with
-  | pilot t =>
-    cases t with
-    | correction i =>
-      cases i with
-      | zero => simp [children, PilotTask.children] at h
-      | succ i =>
-        simp only [children, List.mem_cons, List.not_mem_nil, or_false] at h
-        rcases h with rfl | rfl | rfl <;> simp only [rank, PilotTask.rank] <;> omega
-    | base => simp [children, PilotTask.children] at h
-    | input i | score i | detector i | maximum i =>
-      obtain ⟨s, hs, rfl⟩ := List.mem_map.mp h
-      have := PilotTask.rank_lt_of_mem_children hs
-      simp only [rank]
-      omega
-  | preparation i =>
-    simp only [children, List.mem_singleton] at h
-    subst child
-    simp only [rank, PilotTask.rank]
-    omega
-  | normalized i =>
+  match parent with
+  | .pilot (.correction 0) | .pilot .base => simp [children, PilotTask.children] at h
+  | .pilot (.correction (i + 1)) | .normalized i =>
     simp only [children, List.mem_cons, List.not_mem_nil, or_false] at h
     rcases h with rfl | rfl | rfl <;> simp only [rank, PilotTask.rank] <;> omega
+  | .pilot (.input i) | .pilot (.score i) | .pilot (.detector i) | .pilot (.maximum i) =>
+    obtain ⟨s, hs, rfl⟩ := List.mem_map.mp h
+    have := PilotTask.rank_lt_of_mem_children hs
+    simp only [rank]
+    omega
+  | .preparation i =>
+    obtain rfl := List.mem_singleton.mp h
+    simp only [rank, PilotTask.rank]
+    omega
 
 /-- Expanded tasks have a fixed number of slots per finite pilot iteration. -/
 @[expose] def iteration : PilotRowTask → ℕ
@@ -135,7 +126,7 @@ theorem rank_le {t : PilotRowTask} {k : ℕ} (h : t.iteration ≤ k) :
     have := PilotTask.rank_le h
     simp only [rank]
     omega
-  | preparation i | normalized i => simp only [iteration, rank] at *; omega
+  | preparation _ | normalized _ => simp only [iteration, rank] at *; omega
 
 /-- The original rank is preserved up to a fixed factor on deterministic tasks. -/
 theorem rank_pilot (t : PilotTask) : (pilot t).rank = 3 * t.rank := rfl
@@ -158,10 +149,8 @@ theorem scheduled_child_cost_le {parent child : PilotRowTask} (hchild : child �
 In particular the right base call resets the source to the midpoint rate. -/
 theorem rank_lt_of_mem_inputRequests {f u : ℝ} {i : ℕ} {r : PilotTask.Request}
     (hr : r ∈ PilotTask.inputRequests f u i) :
-    (pilot r.task).rank < (pilot (.input i)).rank := by
-  have := PilotTask.rank_lt_of_mem_inputRequests hr
-  simp only [rank]
-  omega
+    (pilot r.task).rank < (pilot (.input i)).rank :=
+  Nat.mul_lt_mul_of_pos_left (PilotTask.rank_lt_of_mem_inputRequests hr) (by decide)
 
 /-- The expanded pilot order pays for a real child call with its inherited/reset source rate. -/
 theorem input_request_cost_le {f u a A : ℝ} {i : ℕ} {r : PilotTask.Request}
@@ -176,14 +165,12 @@ theorem input_request_cost_le {f u a A : ℝ} {i : ℕ} {r : PilotTask.Request}
       (2 : ℝ) ^ (-Cslib.LogSpaceEstimation.precision (16 * c) A M
         (pilot (.input i)).rank a u - A + (d : ℝ) / (16 * c) + 1 / 16) *
           Cslib.LogSpaceEstimation.scaleMajorant h := by
-  have hrank := rank_lt_of_mem_inputRequests hr
-  have hrates : r.endRate = f ∧ u ≤ r.sourceRate := by
+  obtain ⟨rfl, hrates⟩ : r.endRate = f ∧ u ≤ r.sourceRate := by
     simp only [PilotTask.inputRequests, List.mem_cons, List.not_mem_nil, or_false] at hr
     rcases hr with rfl | rfl | rfl <;> exact ⟨rfl, by first | exact le_rfl | exact huf⟩
-  apply Cslib.LogSpaceEstimation.scheduled_child_cost_le hA M d c
-    (pilot (.input i)).rank (pilot r.task).rank hc h hrank
-    ha (hrates.1.symm ▸ hf) hu hrates.2
-  rwa [hrates.1]
+  exact Cslib.LogSpaceEstimation.scheduled_child_cost_le hA M d c
+    (pilot (.input i)).rank (pilot r.task).rank hc h (rank_lt_of_mem_inputRequests hr)
+    ha hf hu hrates hscale
 
 /-- Sampled rows use independent source/terminal seeds; old tasks retain their exact types. -/
 abbrev Value (V κ Γ Ζ : Type u) : PilotRowTask → Type _
@@ -366,14 +353,11 @@ theorem value_score_recipe (j : ℕ) : A.value (.pilot (.score j)) =
 theorem value_detector_recipe (j : ℕ) : A.value (.pilot (.detector j)) =
     PilotRowRecipe.detector P X Y (A.value (.pilot (.score j))) := by
   ext y
-  change columnDetector X Y P.ϕ P.ρ P.J P.K f
-    (PilotTask.value P X Y f C (.input j)) y = min 1 (max 0 _)
-  have h0 := columnDetector_nonneg (X := X) (Y := Y) (ϕ := P.ϕ) (ρ := P.ρ)
-    (J := P.J) (K := P.K) (f := f) (G := PilotTask.value P X Y f C (.input j)) (y := y)
-  have h1 := columnDetector_le_one (X := X) (Y := Y) (ϕ := P.ϕ) (ρ := P.ρ)
-    (J := P.J) (K := P.K) (f := f) (G := PilotTask.value P X Y f C (.input j)) (y := y)
-    P.ϕ_nonneg P.ϕ_le_one P.ρ_le_one
-  exact (min_eq_right h1).symm.trans (congrArg (min 1) (max_eq_right h0).symm)
+  let c := columnDetector X Y P.ϕ P.ρ P.J P.K f
+    (PilotTask.value P X Y f C (.input j)) y
+  change c = min 1 (max 0 c)
+  rw [max_eq_right (columnDetector_nonneg ..),
+    min_eq_right (columnDetector_le_one P.ϕ_nonneg P.ϕ_le_one P.ρ_le_one)]
 
 /-- The true running maximum stays in the vector range at every iteration. -/
 theorem value_maximum_mem_Icc (j : ℕ) (y : V) :
@@ -381,11 +365,10 @@ theorem value_maximum_mem_Icc (j : ℕ) (y : V) :
   induction j with
   | zero =>
     change pilotMax _ _ _ _ 0 y ∈ Set.Icc (0 : ℝ) 1
-    rw [pilotMax_zero]
-    exact ⟨le_rfl, zero_le_one⟩
+    exact pilotMax_zero (V := V) ▸ ⟨le_rfl, zero_le_one⟩
   | succ j ih =>
-    have hd := PilotRowRecipe.detector_mem_Icc P X Y (A.value (.pilot (.score j))) y
-    rw [← A.value_detector_recipe] at hd
+    have hd := A.value_detector_recipe j ▸
+      PilotRowRecipe.detector_mem_Icc P X Y (A.value (.pilot (.score j))) y
     change PilotTask.value P X Y f C (.maximum (j + 1)) y ∈ Set.Icc (0 : ℝ) 1
     rw [PilotTask.value_maximum_succ, Pi.sup_apply]
     exact ⟨ih.1.trans (le_max_left _ _), max_le ih.2 hd.2⟩
@@ -507,50 +490,44 @@ variable
 /-- The channel constructor preserves its `I` parameter. -/
 theorem ofChannels_I :
     (ofChannels P X Y hXY hYX hf hπ hcπ hpair hC hC1 hi
-      I τ h τ₀ hQ hτ0 hτ1 hτ₀ hτ hI).I = I := by
-  unfold ofChannels
-  exact CorrectionSamplingLaws.ofHierarchyChannels_I P X Y hXY hYX hf hπ hpair hi
+      I τ h τ₀ hQ hτ0 hτ1 hτ₀ hτ hI).I = I :=
+  CorrectionSamplingLaws.ofHierarchyChannels_I P X Y hXY hYX hf hπ hpair hi
     _ I τ h τ₀ hQ hτ0 hτ1 hτ₀ hτ hI
 
 /-- The channel constructor preserves its `τ` parameter. -/
 theorem ofChannels_τ :
     (ofChannels P X Y hXY hYX hf hπ hcπ hpair hC hC1 hi
-      I τ h τ₀ hQ hτ0 hτ1 hτ₀ hτ hI).τ = τ := by
-  unfold ofChannels
-  exact CorrectionSamplingLaws.ofHierarchyChannels_τ P X Y hXY hYX hf hπ hpair hi
+      I τ h τ₀ hQ hτ0 hτ1 hτ₀ hτ hI).τ = τ :=
+  CorrectionSamplingLaws.ofHierarchyChannels_τ P X Y hXY hYX hf hπ hpair hi
     _ I τ h τ₀ hQ hτ0 hτ1 hτ₀ hτ hI
 
 /-- The channel constructor preserves its `ρ` parameter. -/
 theorem ofChannels_ρ :
     (ofChannels P X Y hXY hYX hf hπ hcπ hpair hC hC1 hi
-      I τ h τ₀ hQ hτ0 hτ1 hτ₀ hτ hI).ρ = P.ρ := by
-  unfold ofChannels
-  exact CorrectionSamplingLaws.ofHierarchyChannels_ρ P X Y hXY hYX hf hπ hpair hi
+      I τ h τ₀ hQ hτ0 hτ1 hτ₀ hτ hI).ρ = P.ρ :=
+  CorrectionSamplingLaws.ofHierarchyChannels_ρ P X Y hXY hYX hf hπ hpair hi
     _ I τ h τ₀ hQ hτ0 hτ1 hτ₀ hτ hI
 
 /-- The channel constructor preserves its `Kc` parameter. -/
 theorem ofChannels_Kc :
     (ofChannels P X Y hXY hYX hf hπ hcπ hpair hC hC1 hi
       I τ h τ₀ hQ hτ0 hτ1 hτ₀ hτ hI).Kc = ⌈4 * (1
-        + Cpair * P.R)⌉₊ := by
-  unfold ofChannels
-  exact CorrectionSamplingLaws.ofHierarchyChannels_Kc P X Y hXY hYX hf hπ hpair hi
+        + Cpair * P.R)⌉₊ :=
+  CorrectionSamplingLaws.ofHierarchyChannels_Kc P X Y hXY hYX hf hπ hpair hi
     _ I τ h τ₀ hQ hτ0 hτ1 hτ₀ hτ hI
 
 /-- The pilot channel constructor retains its preparation cutoff. -/
 theorem ofChannels_h :
     (ofChannels P X Y hXY hYX hf hπ hcπ hpair hC hC1 hi
-      I τ h τ₀ hQ hτ0 hτ1 hτ₀ hτ hI).h = h := by
-  unfold ofChannels
-  exact CorrectionSamplingLaws.ofHierarchyChannels_h P X Y hXY hYX hf hπ hpair hi
+      I τ h τ₀ hQ hτ0 hτ1 hτ₀ hτ hI).h = h :=
+  CorrectionSamplingLaws.ofHierarchyChannels_h P X Y hXY hYX hf hπ hpair hi
     _ I τ h τ₀ hQ hτ0 hτ1 hτ₀ hτ hI
 
 /-- The pilot channel constructor retains the hierarchy row rank. -/
 theorem ofChannels_K :
     (ofChannels P X Y hXY hYX hf hπ hcπ hpair hC hC1 hi
-      I τ h τ₀ hQ hτ0 hτ1 hτ₀ hτ hI).K = P.K := by
-  unfold ofChannels
-  exact CorrectionSamplingLaws.ofHierarchyChannels_K P X Y hXY hYX hf hπ hpair hi
+      I τ h τ₀ hQ hτ0 hτ1 hτ₀ hτ hI).K = P.K :=
+  CorrectionSamplingLaws.ofHierarchyChannels_K P X Y hXY hYX hf hπ hpair hi
     _ I τ h τ₀ hQ hτ0 hτ1 hτ₀ hτ hI
 
 end Matrix.HierarchyParams.PilotSampling

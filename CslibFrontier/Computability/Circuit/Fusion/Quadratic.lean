@@ -74,12 +74,8 @@ def stages : ℕ → Fin pairs.length → Set U
 
 /-- Reconstruction is monotone in the supplied pair values. -/
 theorem readState_mono {s t : Fin pairs.length → Set U} (h : s ≤ t) :
-    readState target input pairs s ≤ readState target input pairs t := by
-  intro a point hp
-  rcases hp with hu | hi | ⟨j, hj, hx⟩
-  · exact Or.inl hu
-  · exact Or.inr (Or.inl hi)
-  · exact Or.inr (Or.inr ⟨j, hj, h j hx⟩)
+    readState target input pairs s ≤ readState target input pairs t :=
+  fun _ _ hp => hp.imp_right <| Or.imp_right <| Exists.imp fun j => And.imp_right (h j ·)
 
 /-- Pair propagation is monotone. -/
 theorem step_mono : Monotone (step target input pairs) :=
@@ -88,11 +84,8 @@ theorem step_mono : Monotone (step target input pairs) :=
 
 /-- Pair values only grow as rounds proceed. -/
 theorem stages_mono : Monotone (stages target input pairs) := by
-  apply monotone_nat_of_le_succ
-  intro k
-  induction k with
-  | zero => exact bot_le
-  | succ k ih => exact step_mono target input pairs ih
+  refine monotone_nat_of_le_succ fun k => ?_
+  induction k with | zero => exact bot_le | succ _ ih => exact step_mono target input pairs ih
 
 private theorem readState_congr_point {s t : Fin pairs.length → Set U} {point : U}
     (h : ∀ j, point ∈ s j ↔ point ∈ t j) (a : Set ↥(targetᶜ)) :
@@ -102,46 +95,36 @@ private theorem readState_congr_point {s t : Fin pairs.length → Set U} {point 
 
 private theorem finite_chain_stable {m : ℕ} (a : ℕ → Finset (Fin m)) (ha : Monotone a)
     (hstep : ∀ k, a k = a (k + 1) → a (k + 1) = a (k + 2)) : a m = a (m + 1) := by
-  have hcard (k : ℕ) : (a k).card ≤ m := by
-    simpa using Finset.card_le_card (Finset.subset_univ (a k))
-  have hanti : Antitone (fun k => m - (a k).card) := by
-    intro k l hkl
-    exact Nat.sub_le_sub_left (Finset.card_le_card (ha hkl)) m
-  have heq (k : ℕ) (h : m - (a k).card = m - (a (k + 1)).card) :
-      a k = a (k + 1) := by
-    apply Finset.eq_of_subset_of_card_le (ha (Nat.le_succ k))
-    have := hcard k
-    have := hcard (k + 1)
-    lia
-  obtain ⟨k, hk, hstable⟩ := Nat.stabilises_of_antitone hanti (fun k h => by
-    rw [hstep k (heq k h)])
-  apply heq m
-  rw [hstable m (by lia), hstable (m + 1) (by lia)]
+  have hanti : Antitone fun k => m - (a k).card :=
+    fun _ _ hkl => Nat.sub_le_sub_left (Finset.card_le_card (ha hkl)) m
+  have heq (k : ℕ) (h : m - (a k).card = m - (a (k + 1)).card) : a k = a (k + 1) := by
+    refine Finset.eq_of_subset_of_card_le (ha (Nat.le_succ k)) ?_
+    have := Finset.card_le_univ (a k); have := Finset.card_le_univ (a (k + 1))
+    simp only [Fintype.card_fin] at *; lia
+  obtain ⟨k, hk, hstable⟩ := Nat.stabilises_of_antitone hanti fun k h => by rw [hstep k (heq k h)]
+  exact heq m ((hstable m (by lia)).trans (hstable (m + 1) (by lia)).symm)
 
 /-- Every point's pair state stabilizes within the number of listed pairs, independently of
 how many points the carrier contains. -/
 theorem stages_stable :
     stages target input pairs pairs.length = stages target input pairs (pairs.length + 1) := by
   classical
-  funext j
-  ext point
+  funext j; ext point
   let a (k : ℕ) : Finset (Fin pairs.length) :=
-    Finset.univ.filter (fun i => point ∈ stages target input pairs k i)
-  have ha : Monotone a := by
-    intro k l hkl i hi
-    simp only [a, Finset.mem_filter, Finset.mem_univ, true_and] at hi ⊢
-    exact stages_mono target input pairs hkl i hi
+    Finset.univ.filter fun i => point ∈ stages target input pairs k i
+  have ha : Monotone a := fun _ _ hkl _ hi => by
+    simpa only [a, Finset.mem_filter, Finset.mem_univ, true_and] using
+      stages_mono target input pairs hkl _ (Finset.mem_filter.mp hi).2
   have hstep (k : ℕ) (h : a k = a (k + 1)) : a (k + 1) = a (k + 2) := by
-    have hpoint (i) : point ∈ stages target input pairs k i ↔
+    have hpt (i) : point ∈ stages target input pairs k i ↔
         point ∈ stages target input pairs (k + 1) i := by
-      have := Finset.ext_iff.mp h i
-      simpa only [a, Finset.mem_filter, Finset.mem_univ, true_and] using this
+      simpa only [a, Finset.mem_filter, Finset.mem_univ, true_and] using Finset.ext_iff.mp h i
     ext i
     simp only [a, Finset.mem_filter, Finset.mem_univ, true_and, stages, step, Set.mem_inter_iff]
-    exact and_congr (readState_congr_point target input pairs hpoint _)
-      (readState_congr_point target input pairs hpoint _)
-  have := Finset.ext_iff.mp (finite_chain_stable a ha hstep) j
-  simpa only [a, Finset.mem_filter, Finset.mem_univ, true_and] using this
+    exact and_congr (readState_congr_point target input pairs hpt _)
+      (readState_congr_point target input pairs hpt _)
+  simpa only [a, Finset.mem_filter, Finset.mem_univ, true_and] using
+    Finset.ext_iff.mp (finite_chain_stable a ha hstep) j
 
 /-- All finite propagation stages are contained in the generated pair values. -/
 private theorem stages_le_pairValues (k : ℕ) :
@@ -149,24 +132,21 @@ private theorem stages_le_pairValues (k : ℕ) :
   induction k with
   | zero => exact bot_le
   | succ k ih =>
-    have h := step_mono target input pairs ih
     intro j
-    have hj := h j
-    change _ ⊆ readState target input pairs (pairValues target input pairs) _ ∩
-      readState target input pairs (pairValues target input pairs) _ at hj
+    have hj : _ ⊆ readState target input pairs (pairValues target input pairs) _ ∩
+        readState target input pairs (pairValues target input pairs) _ :=
+      step_mono target input pairs ih j
     simpa only [readState_pairValues, stages, pairValues] using hj
 
 /-- After one round per pair, reconstruction is exactly the generated semifilter closure. -/
 theorem readState_stages :
     readState target input pairs (stages target input pairs pairs.length) =
       pairClosure target input pairs := by
-  apply le_antisymm
-  · exact (readState_mono target input pairs (stages_le_pairValues target input pairs _)).trans_eq
-      (readState_pairValues target input pairs)
-  · apply pairClosure_le_readState
-    intro j
-    change stages target input pairs (pairs.length + 1) j ⊆ _
-    rw [← stages_stable]
+  refine le_antisymm
+    ((readState_mono target input pairs (stages_le_pairValues target input pairs _)).trans_eq
+      (readState_pairValues target input pairs)) ?_
+  apply pairClosure_le_readState; intro j
+  change stages target input pairs (pairs.length + 1) j ⊆ _; rw [← stages_stable]
 
 /-- Preserve the external inputs while performing one native circuit update. -/
 noncomputable def roundCircuit : Circuit Monotone.signature
@@ -200,18 +180,15 @@ theorem eval_stageCircuit (k : ℕ) :
   | zero =>
     refine ⟨∅, ?_⟩
     simp only [circuit_simps, stageCircuit, Circuit.iterate, Function.comp_id, initialCircuit]
-    congr 1 with j : 1
-    induction j using Fin.lastCases <;> simp [Monotone.const, stages]
+    congr 1 with j : 1; induction j using Fin.lastCases <;> simp [Monotone.const, stages]
   | succ k ih =>
     obtain ⟨output, houtput⟩ := ih
     refine ⟨readState target input pairs (stages target input pairs k) ∅, ?_⟩
-    have hrestrict : Fin.lastCases output (stages target input pairs k) ∘ Fin.castSucc =
-        stages target input pairs k := by
-      funext j
-      simp only [Function.comp_apply, Fin.lastCases_castSucc]
     simp only [stageCircuit, Circuit.iterate, Circuit.eval_comp] at houtput ⊢
     rw [houtput]
-    simp only [circuit_simps, roundCircuit, Fin.append_comp_castAdd, eval_updateCircuit, hrestrict]
+    simp only [circuit_simps, roundCircuit, Fin.append_comp_castAdd, eval_updateCircuit,
+      show Fin.lastCases output (stages target input pairs k) ∘ Fin.castSucc =
+        stages target input pairs k from funext fun _ => by simp]
     rfl
 
 /-- A union tree has one disjunction per argument and its seed constant. -/
@@ -277,15 +254,13 @@ noncomputable def PairCover.toCircuit (c : PairCover target input) :
     c.toCircuit.eval (Monotone.setInterpretation U) input = fun _ => target := by
   obtain ⟨output, houtput⟩ := PairClosureCompiler.eval_stageCircuit target input c.pairs
     c.pairs.length
-  have hrestrict : Fin.lastCases output
-      (PairClosureCompiler.stages target input c.pairs c.pairs.length) ∘ Fin.castSucc =
-        PairClosureCompiler.stages target input c.pairs c.pairs.length := by
-    funext j
-    simp only [Function.comp_apply, Fin.lastCases_castSucc]
   funext i
   rw [PairCover.toCircuit, Circuit.eval_comp, houtput, Formula.eval_toCircuit,
-    PairClosureCompiler.eval_readFormula, hrestrict, PairClosureCompiler.readState_stages,
-    c.pairClosure_empty]
+    PairClosureCompiler.eval_readFormula,
+    show Fin.lastCases output (PairClosureCompiler.stages target input c.pairs c.pairs.length) ∘
+      Fin.castSucc = PairClosureCompiler.stages target input c.pairs c.pairs.length from
+      funext fun _ => by simp,
+    PairClosureCompiler.readState_stages, c.pairClosure_empty]
 
 /-- The compiled circuit of a `t`-pair cover over `n` inputs has at most `4 (t + 1)² (n + t + 1)`
 gates in total, counting unions and constants. -/

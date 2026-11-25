@@ -208,9 +208,9 @@ theorem exists_good [DecidableEq Γ] (hM : N + t < M) (hN : (wordOf (List.ofFn u
     have hlt := (List.getElem?_eq_some_iff.1 hg).1
     have hb := base_add_lt u j
     simp only [place0, h3, Fin.val_castSucc]
-    exact ⟨by omega, decide_eq_true (by
-      rw [wordOf_getElem, List.getElem?_append_left (by simpa using hlt), List.getElem?_map, hg]
-      rfl)⟩
+    refine ⟨by omega, decide_eq_true ?_⟩
+    rw [wordOf_getElem, List.getElem?_append_left (by simpa using hlt), List.getElem?_map, hg]
+    rfl
   · intro j
     have hb := base_add_lt u j
     have hP : place0 o (.inp j) + (emit ((List.ofFn o).take t) (.inp j)).length =

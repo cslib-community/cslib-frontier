@@ -43,6 +43,9 @@ branches that add entries between the same neighbours conflict as text;
 `scripts/resolve_bib_conflict.py` merges the file entry by entry and refuses when both sides
 changed one entry. To have `git merge` use it for `references.bib`, run once per clone:
 `git config merge.bibkeys.driver 'python3 scripts/resolve_bib_conflict.py --driver %O %A %B'`.
+The manual's [bibliography](manual/sources.md) has one too, which merges its entries by key and
+the lines of each entry three ways, so edits to different lines of one entry merge:
+`git config merge.sourcesmd.driver 'python3 scripts/resolve_sources_conflict.py --driver %O %A %B'`.
 The `mk_all` import aggregates have a similar opt-in driver, which merges their import lines as
 sets and writes them sorted:
 `git config merge.leanagg.driver 'python3 scripts/resolve_aggregate_conflict.py %O %A %B'`.

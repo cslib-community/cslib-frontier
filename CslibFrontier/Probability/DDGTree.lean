@@ -195,15 +195,21 @@ theorem tendsto_run_none_of_generates {T : DDGTree α} {p : PMF α}
   have htend : Tendsto (fun n => ∑ a ∈ s, T.run n (some a)) atTop (𝓝 (∑ a ∈ s, p a)) :=
     tendsto_finsetSum s fun a _ => hT a ▸ T.tendsto_run_outputProb a
   obtain ⟨N, hN⟩ := Filter.eventually_atTop.mp (htend.eventually (lt_mem_nhds hs))
-  refine ⟨N, fun n hn => le_of_not_gt fun hgt => ?_⟩
+  refine ⟨N, fun n hn => ?_⟩
   let sm : Finset (Option α) := s.map ⟨Option.some, Option.some_injective α⟩
   have hle1 : T.run n none + ∑ a ∈ s, T.run n (some a) ≤ 1 := by
-    rw [← show ∑ o ∈ insert none sm, T.run n o = T.run n none + ∑ a ∈ s, T.run n (some a) from
-      (Finset.sum_insert (by simp [sm])).trans (congrArg (_ + ·) (Finset.sum_map _ _ _)),
-      ← (T.run n).tsum_coe]
+    have hsum : ∑ o ∈ insert none sm, T.run n o =
+        T.run n none + ∑ a ∈ s, T.run n (some a) := by
+      rw [Finset.sum_insert (by simp [sm]), Finset.sum_map]
+      rfl
+    rw [← hsum, ← (T.run n).tsum_coe]
     exact sum_le_tsum _
-  exact hle1.not_gt <| (add_tsub_cancel_of_le (min_le_right ε 1)).symm.trans_lt <|
-    ENNReal.add_lt_add ((min_le_left ε 1).trans_lt hgt) (hN n hn)
+  by_contra! hgt
+  refine hle1.not_gt ?_
+  calc (1 : ℝ≥0∞)
+      = δ + (1 - δ) := (add_tsub_cancel_of_le (min_le_right ε 1)).symm
+    _ < T.run n none + ∑ a ∈ s, T.run n (some a) :=
+        ENNReal.add_lt_add ((min_le_left ε 1).trans_lt hgt) (hN n hn)
 
 /-! ## The tail-sum formula -/
 
@@ -364,11 +370,11 @@ private theorem sum_label [DecidableEq α] (hmono : ∀ k a, 2 * t k a ≤ t (k 
     rw [sum_pick _ (Finset.nodup_toList _) a (by rw [Finset.sum_map_toList]; exact le_rfl)]
     simp
   | succ k ih =>
-    rw [total_succ hmono, Finset.sum_range_add,
-      show ∑ y ∈ Finset.range (2 * total t k), (if label t (k + 1) y = some a then 1 else 0) =
-        2 * t k a by
-        rw [← ih, ← sum_range_two_mul_div]
-        exact Finset.sum_congr rfl fun y hy => by rw [label_succ_of_lt (Finset.mem_range.mp hy)]]
+    have h1 : ∑ y ∈ Finset.range (2 * total t k), (if label t (k + 1) y = some a then 1 else 0) =
+        2 * t k a := by
+      rw [← ih, ← sum_range_two_mul_div]
+      exact Finset.sum_congr rfl fun y hy => by rw [label_succ_of_lt (Finset.mem_range.mp hy)]
+    rw [total_succ hmono, Finset.sum_range_add, h1]
     simp only [label_succ_add]
     rw [sum_pick (fun a => t (k + 1) a - 2 * t k a) (Finset.nodup_toList _) a
       (by rw [Finset.sum_map_toList])]
@@ -467,9 +473,12 @@ theorem run_ofCounts (hmono : ∀ k a, 2 * t k a ≤ t (k + 1) a)
   obtain ⟨r, hr⟩ := Nat.exists_eq_add_of_le (show total t n ≤ 2 ^ n from hkraft n)
   rw [ofCounts, run_node hmono, hr, Finset.sum_range_add]
   simp only [zero_add, zero_mul]
-  rw [sum_label hmono, Finset.sum_eq_zero fun i _ => ite_eq_right fun h => by
-      have := label_lt hmono h; omega,
-    add_zero, ENNReal.div_eq_inv_mul, ← ENNReal.inv_pow, mul_comm]
+  have hzero : ∑ i ∈ Finset.range r,
+      (if label t n (total t n + i) = some a then 1 else 0) = 0 :=
+    Finset.sum_eq_zero fun i _ => ite_eq_right fun h => by
+      have := label_lt hmono h
+      omega
+  rw [sum_label hmono, hzero, add_zero, ENNReal.div_eq_inv_mul, ← ENNReal.inv_pow, mul_comm]
 
 end Profile
 

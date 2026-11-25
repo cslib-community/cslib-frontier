@@ -77,21 +77,14 @@ def codecModulus (d : CodecWidth) : ℕ :=
 
 /-- The selected coefficient modulus is positive. -/
 theorem codecModulus_pos (d : CodecWidth) : 0 < codecModulus d := by
-  by_cases h : d.val = 12
-  · rw [codecModulus, ite_eq_left h]
-    decide
-  · rw [codecModulus, ite_eq_right h]
-    exact Nat.two_pow_pos d.val
+  by_cases h : d.val = 12 <;> simp [codecModulus, h]
 
 instance (d : CodecWidth) : NeZero (codecModulus d) :=
   ⟨(codecModulus_pos d).ne'⟩
 
 /-- The codec modulus fits in the `d` bits allocated to a coefficient. -/
 theorem codecModulus_le_two_pow (d : CodecWidth) : codecModulus d ≤ 2 ^ d.val := by
-  by_cases h : d.val = 12
-  · rw [codecModulus, ite_eq_left h, h]
-    decide
-  · rw [codecModulus, ite_eq_right h]
+  by_cases h : d.val = 12 <;> simp [codecModulus, h]
 
 /-- The 256 coefficients consumed and produced by the FIPS 203 byte codec. -/
 abbrev Coefficients (d : CodecWidth) := Fin 256 → ZMod (codecModulus d)
@@ -158,17 +151,10 @@ theorem rawCoefficient_byteEncode (d : CodecWidth) (F : Coefficients d) (i : Fin
 theorem byteEncode_byteDecode_of_raw_lt (d : CodecWidth) (B : EncodedBytes d)
     (hraw : ∀ i, rawCoefficient d B i < codecModulus d) :
     byteEncode d (byteDecode d B) = B := by
-  have hval (i : Fin 256) : (byteDecode d B i).val = rawCoefficient d B i := by
-    rw [byteDecode, ZMod.val_natCast_of_lt (hraw i)]
-  have hw (r : Fin (32 * d.val)) : (B r).val < 2 ^ 8 := by
-    exact (B r).isLt
+  have hval (i : Fin 256) : (byteDecode d B i).val = rawCoefficient d B i :=
+    ZMod.val_natCast_of_lt (hraw i)
   have hrepack := BitString.packWords_readPackedField (h := 8) (B := 32 * d.val)
-    (s := d.val) (by decide) d.pos (fun r => (B r).val) hw
-  funext r
-  apply Fin.ext
-  change BitString.packWords
-      (fun a => ((byteDecode d B) ⟨a / d.val % 256, Nat.mod_lt _ (by decide)⟩).val.testBit
-        (a % d.val)) 8 (32 * d.val) r = (B r).val
+    (s := d.val) (by decide) d.pos (fun r => (B r).val) fun r => (B r).isLt
   have hstreams :
       BitString.packWords
           (fun a => ((byteDecode d B)
@@ -177,18 +163,12 @@ theorem byteEncode_byteDecode_of_raw_lt (d : CodecWidth) (B : EncodedBytes d)
         BitString.packWords
           (fun a => (BitString.readPackedField 8 (fun r => (B r).val)
             (a / d.val * d.val) d.val).testBit (a % d.val)) 8 (32 * d.val) := by
-    apply BitString.packWords_congr
-    intro a ha
-    have hindex : a / d.val < 256 := by
-      apply (Nat.div_lt_iff_lt_mul d.pos).mpr
-      omega
+    refine BitString.packWords_congr fun a ha => ?_
+    have hindex : a / d.val < 256 := (Nat.div_lt_iff_lt_mul d.pos).mpr (by omega)
     rw [hval]
-    change (BitString.readPackedField 8 (fun r => (B r).val)
-      (a / d.val % 256 * d.val) d.val).testBit (a % d.val) =
-        (BitString.readPackedField 8 (fun r => (B r).val)
-          (a / d.val * d.val) d.val).testBit (a % d.val)
-    rw [Nat.mod_eq_of_lt hindex]
-  exact (congrFun hstreams r).trans (congrFun hrepack r)
+    simp only [rawCoefficient, Nat.mod_eq_of_lt hindex]
+  funext r
+  exact Fin.ext ((congrFun hstreams r).trans (congrFun hrepack r))
 
 /-- Below width 12 the coefficient modulus is the full `d`-bit range. -/
 theorem codecModulus_eq_two_pow {d : CodecWidth} (h : d.val ≤ 11) :
@@ -198,11 +178,9 @@ theorem codecModulus_eq_two_pow {d : CodecWidth} (h : d.val ≤ 11) :
 /-- For every width `d ≤ 11`, encoding and decoding are inverse in the byte-to-coefficient
 direction as well. -/
 theorem byteEncode_byteDecode (d : CodecWidth) (h : d.val ≤ 11) (B : EncodedBytes d) :
-    byteEncode d (byteDecode d B) = B := by
-  apply byteEncode_byteDecode_of_raw_lt
-  intro i
-  rw [codecModulus_eq_two_pow h]
-  exact rawCoefficient_lt_two_pow d B i
+    byteEncode d (byteDecode d B) = B :=
+  byteEncode_byteDecode_of_raw_lt d B fun i =>
+    codecModulus_eq_two_pow h ▸ rawCoefficient_lt_two_pow d B i
 
 /-- A byte string is canonical when decoding and re-encoding does not change it.
 
@@ -229,18 +207,12 @@ theorem isCanonical_of_le_eleven (d : CodecWidth) (h : d.val ≤ 11) (B : Encode
 the ML-KEM modulus 3329. -/
 theorem isCanonical_width12_iff (B : EncodedBytes width12) :
     IsCanonical width12 B ↔ ∀ i, rawCoefficient width12 B i < 3329 := by
-  constructor
-  · intro hcanonical i
-    change byteEncode width12 (byteDecode width12 B) = B at hcanonical
-    have hfield := congrArg (fun X : EncodedBytes width12 => rawCoefficient width12 X i)
-      hcanonical
-    rw [rawCoefficient_byteEncode] at hfield
-    rw [← hfield]
-    exact ZMod.val_lt _
-  · intro hraw
-    change byteEncode width12 (byteDecode width12 B) = B
-    apply byteEncode_byteDecode_of_raw_lt
-    intro i
-    simpa [codecModulus, width12] using hraw i
+  change byteEncode width12 (byteDecode width12 B) = B ↔ _
+  refine ⟨fun hcanonical i => ?_, fun hraw =>
+    byteEncode_byteDecode_of_raw_lt width12 B fun i =>
+      by simpa [codecModulus, width12] using hraw i⟩
+  have hfield := congrArg (fun X : EncodedBytes width12 => rawCoefficient width12 X i) hcanonical
+  rw [rawCoefficient_byteEncode] at hfield
+  exact hfield ▸ ZMod.val_lt _
 
 end Cslib.Crypto.MLKEM

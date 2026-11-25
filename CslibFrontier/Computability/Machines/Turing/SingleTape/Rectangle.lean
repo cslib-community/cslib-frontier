@@ -146,20 +146,10 @@ theorem crossing_rectangle_bit_sum_bound [Fintype X] [Fintype Y]
       4 * Nat.clog 2 (Fintype.card tm.State + 2) * ∑ p, time p := by
   classical
   let d := Nat.clog 2 (Fintype.card tm.State + 2)
-  let L := (bits - 2) / d
+  obtain ⟨L, hL0, hbitsL⟩ := tm.exists_crossing_length_of_bits (r := 2) (by decide) hbits
+  have hsmall : 4 * (Fintype.card (Option tm.State) + 1) ^ L ≤ 2 ^ bits := by simpa using hL0
   let q := Fintype.card X * Fintype.card Y
   let short := 2 * R * (Fintype.card (Option tm.State) + 1) ^ L
-  have hd : 0 < d := Nat.clog_pos one_lt_two (by omega)
-  have hpow : Fintype.card (Option tm.State) + 1 ≤ 2 ^ d := by
-    rw [Fintype.card_option]
-    exact Nat.le_pow_clog one_lt_two _
-  have hdiv : d * L + (bits - 2) % d = bits - 2 := Nat.div_add_mod (bits - 2) d
-  have hmod := Nat.mod_lt (bits - 2) hd
-  have hsmall : 4 * (Fintype.card (Option tm.State) + 1) ^ L ≤ 2 ^ bits := by
-    calc 4 * (Fintype.card (Option tm.State) + 1) ^ L
-        ≤ 4 * (2 ^ d) ^ L := Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hpow L)
-      _ = 2 ^ (d * L + 2) := by rw [← pow_mul, pow_add]; ring
-      _ ≤ 2 ^ bits := Nat.pow_le_pow_right (by omega) (by omega)
   have hshort : 2 * short ≤ q := by
     calc 2 * short = (4 * (Fintype.card (Option tm.State) + 1) ^ L) * R := by ring
       _ ≤ 2 ^ bits * R := Nat.mul_le_mul_right R hsmall
@@ -168,7 +158,7 @@ theorem crossing_rectangle_bit_sum_bound [Fintype X] [Fintype Y]
     (S := Finset.univ) (fun p _ => hprefix p.1) hrectangle time (fun p _ => htime p) L
   calc q * ((middle.length + 1) * bits)
       ≤ (2 * (q - short)) * ((middle.length + 1) * (2 * (d * L))) :=
-        Nat.mul_le_mul (by omega) (Nat.mul_le_mul_left _ (by omega))
+        Nat.mul_le_mul (by omega) (Nat.mul_le_mul_left _ hbitsL)
     _ = 4 * d * ((middle.length + 1) * (q - short) * L) := by ring
     _ ≤ 4 * d * ∑ p, time p :=
         Nat.mul_le_mul_left _ (by simpa only [Finset.card_univ, Fintype.card_prod] using h)

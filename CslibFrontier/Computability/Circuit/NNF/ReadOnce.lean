@@ -90,12 +90,12 @@ def nnfRank : NNFNode L S → ℕ
 theorem nnfGate_and {v l r : NNFNode L S} (h : P.nnfGate ord v = .and l r) :
     nnfRank l < nnfRank v ∧ nnfRank r < nnfRank v := by
   rcases v with ⟨t, q⟩ | ⟨t, b⟩ | ⟨t, q, b⟩
-  · simp only [nnfGate] at h; split at h <;> cases h
+  · simp only [nnfGate] at h
+    split at h <;> cases h
   · cases h
-  · simp only [nnfGate, NNF.Gate.and.injEq] at h
-    obtain ⟨rfl, rfl⟩ := h
-    simp only [nnfRank, Fin.val_succ]
+  · obtain ⟨rfl, rfl⟩ := NNF.Gate.and.inj h
     have := t.isLt
+    simp only [nnfRank, Fin.val_succ]
     omega
 
 theorem nnfGate_or {v l r : NNFNode L S} (h : P.nnfGate ord v = .or l r) :
@@ -103,8 +103,7 @@ theorem nnfGate_or {v l r : NNFNode L S} (h : P.nnfGate ord v = .or l r) :
   rcases v with ⟨t, q⟩ | ⟨t, b⟩ | ⟨t, q, b⟩
   · simp only [nnfGate] at h
     split at h
-    · simp only [NNF.Gate.or.injEq] at h
-      obtain ⟨rfl, rfl⟩ := h
+    · obtain ⟨rfl, rfl⟩ := NNF.Gate.or.inj h
       simp [nnfRank]
     · cases h
   · cases h
@@ -133,22 +132,16 @@ theorem eval_state (x : ι → Bool) :
   | succ k ih =>
     intro t q hk
     have ht : t.val < L := by omega
-    have hor : (P.toNNF ord).gate (.inl (t, q)) =
-        .or (.inr (.inr (⟨t, ht⟩, q, false))) (.inr (.inr (⟨t, ht⟩, q, true))) := by
-      simp [toNNF, nnfGate, ht]
-    have hand (b : Bool) : (P.toNNF ord).gate (.inr (.inr (⟨t, ht⟩, q, b))) =
-        .and (.inr (.inl (⟨t, ht⟩, b))) (.inl ((⟨t, ht⟩ : Fin L).succ, P.step ⟨t, ht⟩ q b)) := rfl
-    have hlit (b : Bool) : (P.toNNF ord).gate (.inr (.inl (⟨t, ht⟩, b))) =
-        .lit (ord ⟨t, ht⟩) b := rfl
     have hnext (b : Bool) := ih (⟨t, ht⟩ : Fin L).succ (P.step ⟨t, ht⟩ q b)
       (by simp only [Fin.val_succ]; omega)
-    have hrun (b : Bool) (hb : x (ord ⟨t, ht⟩) = b) :
-        P.runFrom (x ∘ ord) t q = P.runFrom (x ∘ ord) (t + 1) (P.step ⟨t, ht⟩ q b) := by
-      simpa [hb] using P.runFrom_step (x ∘ ord) ht q
-    rw [NNF.eval_or hor, NNF.eval_and (hand false), NNF.eval_and (hand true),
-      NNF.eval_lit (hlit false), NNF.eval_lit (hlit true), hnext, hnext]
-    simp only [Fin.val_succ]
-    cases hx : x (ord ⟨t, ht⟩) <;> simp [hrun _ hx]
+    rw [NNF.eval_or (show (P.toNNF ord).gate (.inl (t, q)) = _ from dite_eq_left ht),
+      NNF.eval_and (show (P.toNNF ord).gate (.inr (.inr (⟨t, ht⟩, q, false))) = _ from rfl),
+      NNF.eval_and (show (P.toNNF ord).gate (.inr (.inr (⟨t, ht⟩, q, true))) = _ from rfl),
+      NNF.eval_lit (show (P.toNNF ord).gate (.inr (.inl (⟨t, ht⟩, false))) = _ from rfl),
+      NNF.eval_lit (show (P.toNNF ord).gate (.inr (.inl (⟨t, ht⟩, true))) = _ from rfl),
+      hnext, hnext, P.runFrom_step (x ∘ ord) ht q]
+    simp only [Fin.val_succ, Function.comp_apply]
+    cases x (ord ⟨t, ht⟩) <;> simp
 
 /-- **The circuit computes the program** on the variables in the order `ord`. -/
 theorem toFun_toNNF (x : ι → Bool) : (P.toNNF ord).toFun x = P.eval (x ∘ ord) := by
@@ -173,30 +166,26 @@ theorem vars_state_subset :
   | succ k ih =>
     intro t q hk
     have ht : t.val < L := by omega
-    have hor : (P.toNNF ord).gate (.inl (t, q)) =
-        .or (.inr (.inr (⟨t, ht⟩, q, false))) (.inr (.inr (⟨t, ht⟩, q, true))) := by
-      simp [toNNF, nnfGate, ht]
     have hsub (b : Bool) : (P.toNNF ord).vars (.inr (.inr (⟨t, ht⟩, q, b))) ⊆
         (Finset.univ.filter fun j : Fin L => t.val ≤ j.val).image ord := by
       rw [NNF.vars_and (show (P.toNNF ord).gate (.inr (.inr (⟨t, ht⟩, q, b))) = _ from rfl),
         NNF.vars_lit (show (P.toNNF ord).gate (.inr (.inl (⟨t, ht⟩, b))) = _ from rfl)]
       refine Finset.union_subset (Finset.singleton_subset_iff.mpr
         (Finset.mem_image_of_mem _ (by simp)))
-        ((ih _ _ (by simp only [Fin.val_succ]; omega)).trans ?_)
-      refine Finset.image_subset_image fun j hj => ?_
+        ((ih _ _ (by simp only [Fin.val_succ]; omega)).trans
+          (Finset.image_subset_image fun j hj => ?_))
       simp only [Fin.val_succ, Finset.mem_filter, Finset.mem_univ, true_and] at hj ⊢
       omega
-    rw [NNF.vars_or hor]
+    rw [NNF.vars_or (show (P.toNNF ord).gate (.inl (t, q)) = _ from dite_eq_left ht)]
     exact Finset.union_subset (hsub false) (hsub true)
 
 /-- **The circuit is decomposable** when the order reads every variable at most once. -/
 theorem isDecomposable_toNNF (hord : Function.Injective ord) : (P.toNNF ord).IsDecomposable := by
-  rintro v l r hg
-  rcases v with ⟨t, q⟩ | ⟨t, b⟩ | ⟨t, q, b⟩
-  · simp only [toNNF, nnfGate] at hg; split at hg <;> cases hg
+  rintro (⟨t, q⟩ | ⟨t, b⟩ | ⟨t, q, b⟩) l r hg
+  · simp only [toNNF, nnfGate] at hg
+    split at hg <;> cases hg
   · cases hg
-  · simp only [toNNF, nnfGate, NNF.Gate.and.injEq] at hg
-    obtain ⟨rfl, rfl⟩ := hg
+  · obtain ⟨rfl, rfl⟩ := NNF.Gate.and.inj hg
     rw [NNF.vars_lit (i := ord t) (b := b) rfl, Finset.disjoint_singleton_left]
     intro hmem
     obtain ⟨j, hj, hjt⟩ := Finset.mem_image.mp (P.vars_state_subset ord _ t.succ _ rfl hmem)
@@ -207,13 +196,11 @@ omit [DecidableEq ι] in
 /-- **The circuit is deterministic**: the two branches of a state node disagree on the variable
 read. -/
 theorem isDeterministic_toNNF : (P.toNNF ord).IsDeterministic := by
-  rintro v l r hg x ⟨hl, hr⟩
-  rcases v with ⟨t, q⟩ | ⟨t, b⟩ | ⟨t, q, b⟩
+  rintro (⟨t, q⟩ | ⟨t, b⟩ | ⟨t, q, b⟩) l r hg x ⟨hl, hr⟩
   · simp only [toNNF, nnfGate] at hg
     split at hg
     next ht =>
-      simp only [NNF.Gate.or.injEq] at hg
-      obtain ⟨rfl, rfl⟩ := hg
+      obtain ⟨rfl, rfl⟩ := NNF.Gate.or.inj hg
       rw [NNF.eval_and rfl, NNF.eval_lit rfl] at hl hr
       cases hx : x (ord ⟨t, ht⟩) <;> simp_all
     · cases hg
@@ -258,23 +245,16 @@ theorem eval_ofList (items : List (ι × Λ)) (start : S) (step : Λ → S → B
     (ofList items start step accept).eval (x ∘ listOrder items) =
       accept (items.foldl (fun s a => step a.2 s (x a.1)) start) := by
   set P := ofList items start step accept
-  have key : ∀ (pre suf : List (ι × Λ)), items = pre ++ suf → ∀ s,
+  have key (pre suf : List (ι × Λ)) (h : items = pre ++ suf) (s : S) :
       suf.foldlIdx (fun i s a => P.stepAt i s (x a.1)) s pre.length =
         suf.foldl (fun s a => step a.2 s (x a.1)) s := by
-    intro pre suf
-    induction suf generalizing pre with
-    | nil => intros; rfl
+    induction suf generalizing pre s with
+    | nil => rfl
     | cons a suf ih =>
-      intro h s
-      have hlt : pre.length < items.length := by rw [h]; simp
-      have ha : items[pre.length] = a := by simp [h]
-      rw [List.foldlIdx_cons, List.foldl_cons, ← ih (pre ++ [a]) (by simp [h]),
-        List.length_append, List.length_singleton]
-      simp only [P, stepAt, ofList, hlt, dite_true, Fin.getElem_fin, ha]
-  rw [eval, finalState_eq]
-  have hofn : List.ofFn (x ∘ listOrder items) = items.map fun a => x a.1 := by
-    rw [← List.ofFn_getElem_eq_map]; rfl
-  rw [hofn, List.foldlIdx_map]
+      rw [List.foldlIdx_cons, List.foldl_cons, ← ih (pre ++ [a]) (by simp [h])]
+      simp [P, stepAt, ofList, h]
+  rw [eval, finalState_eq, show List.ofFn (x ∘ listOrder items) = items.map (x ·.1) by
+    rw [← List.ofFn_getElem_eq_map]; rfl, List.foldlIdx_map]
   exact congrArg accept (key [] items rfl P.start)
 
 end Cslib.BranchingPrograms.ReadOnceProgram
