@@ -104,14 +104,11 @@ def IsImplicationMinimal (r : ℕ) (F : Finset (Finset α)) : Prop :=
 intersection, which is strictly contained in one of them. -/
 private theorem card_le_one_of_isImplicationMinimal_two {F : Finset (Finset α)}
     (hF : IsImplicationMinimal 2 F) : F.card ≤ 1 := by
-  refine card_le_one.2 fun a ha b hb => ?_
-  by_contra hab
-  have himp : ImpliedBy 2 F (a ∩ b) := by
-    refine Or.inr ⟨le_rfl, ![a, b], fun i => by fin_cases i <;> simpa, fun i j hij => ?_⟩
-    fin_cases i <;> fin_cases j <;> simp_all [inter_comm]
+  refine card_le_one.2 fun a ha b hb => by_contra fun hab => ?_
+  have himp : ImpliedBy 2 F (a ∩ b) := Or.inr ⟨le_rfl, ![a, b], fun i => by fin_cases i <;> simpa,
+    fun i j hij => by fin_cases i <;> fin_cases j <;> simp_all [inter_comm]⟩
   by_cases hUa : a ∩ b = a
-  · have hab' : a ∩ b ⊂ b := ssubset_of_subset_of_ne inter_subset_right fun h => hab (hUa ▸ h)
-    exact hF b hb _ hab' himp
+  · exact hF b hb _ (ssubset_of_subset_of_ne inter_subset_right (hab ∘ (hUa ▸ ·))) himp
   · exact hF a ha _ (ssubset_of_subset_of_ne inter_subset_left hUa) himp
 
 /-- Splitting by the trace on a member `D ∈ F` and removing it keeps implication-minimality, with
@@ -128,38 +125,25 @@ private theorem isImplicationMinimal_image_sdiff {r : ℕ} (hr : 2 ≤ r) {F : F
   have hXD i := (mem_filter.1 (hX i)).2
   have hCW : C ⊆ W := hWD ▸ inter_subset_left
   refine hF W hWF (U' ∪ C) ?_
-    (Or.inr ⟨by omega, Fin.snoc (α := fun _ => Finset α) X D, fun i => ?_, fun i j hij => ?_⟩)
+    (Or.inr ⟨by omega, Fin.snoc (α := fun _ => Finset α) X D, ?_, ?_⟩)
   · obtain ⟨x, hxW, hxU⟩ := exists_of_ssubset hU'
-    refine (ssubset_iff_of_subset (union_subset (hU'.1.trans sdiff_subset) hCW)).2
-      ⟨x, (mem_sdiff.1 hxW).1, ?_⟩
-    rw [mem_union, not_or]
-    exact ⟨hxU, (mem_sdiff.1 hxW).2⟩
-  · induction i using Fin.lastCases with
-    | last => simpa using hD
-    | cast i => simpa using hXF i
-  · induction i using Fin.lastCases with
-    | last =>
-      induction j using Fin.lastCases with
-      | last => exact absurd rfl hij
-      | cast j =>
-        simp only [Fin.snoc_last, Fin.snoc_castSucc]
-        rw [inter_comm, hXD j]
-        exact subset_union_right
-    | cast i =>
-      induction j using Fin.lastCases with
-      | last =>
-        simp only [Fin.snoc_last, Fin.snoc_castSucc]
-        rw [hXD i]
-        exact subset_union_right
-      | cast j =>
-        simp only [Fin.snoc_castSucc]
-        intro x hx
-        by_cases hxC : x ∈ C
-        · exact mem_union_right _ hxC
-        · refine mem_union_left _ (hV'U' i j (fun h => hij (by rw [h])) ?_)
-          rw [← hXV' i, ← hXV' j]
-          exact mem_inter.2 ⟨mem_sdiff.2 ⟨(mem_inter.1 hx).1, hxC⟩,
-            mem_sdiff.2 ⟨(mem_inter.1 hx).2, hxC⟩⟩
+    exact (ssubset_iff_of_subset (union_subset (hU'.1.trans sdiff_subset) hCW)).2
+      ⟨x, (mem_sdiff.1 hxW).1, by simp [hxU, (mem_sdiff.1 hxW).2]⟩
+  · exact Fin.lastCases (by simpa using hD) (fun i => by simpa using hXF i)
+  · intro i j hij
+    induction i using Fin.lastCases <;> induction j using Fin.lastCases
+    · exact absurd rfl hij
+    · simp only [Fin.snoc_last, Fin.snoc_castSucc]; rw [inter_comm, hXD _]; exact subset_union_right
+    · simp only [Fin.snoc_last, Fin.snoc_castSucc]; rw [hXD _]; exact subset_union_right
+    · rename_i i j
+      simp only [Fin.snoc_castSucc]
+      intro x hx
+      by_cases hxC : x ∈ C
+      · exact mem_union_right _ hxC
+      · refine mem_union_left _ (hV'U' i j (hij ∘ congrArg Fin.castSucc) ?_)
+        rw [← hXV' i, ← hXV' j]
+        exact mem_inter.2 ⟨mem_sdiff.2 ⟨(mem_inter.1 hx).1, hxC⟩,
+          mem_sdiff.2 ⟨(mem_inter.1 hx).2, hxC⟩⟩
 
 /-- **The Alon–Boppana family bound.** An implication-minimal family for `r ≥ 2` of sets of at most
 `k` elements has at most `(r - 1) ^ k` members [Alon and Boppana, Lemma 3.2][AlonBoppana1987]. -/
@@ -174,29 +158,22 @@ theorem card_le_pow_of_isImplicationMinimal {r k : ℕ} (hr : 2 ≤ r) {F : Fins
     have hDk := hk D hD
     have hfiber (C : Finset α) (hC : C ∈ D.powerset) :
         (F.filter (· ∩ D = C)).card ≤ (r - 1) ^ (k - C.card) := by
-      rw [← card_image_of_injOn (f := (· \ C)) fun W hW W' hW' h => by
-        have hW := (mem_filter.1 hW).2
-        have hW' := (mem_filter.1 hW').2
-        simp only at h
-        rw [← sdiff_union_of_subset (hW ▸ inter_subset_left : C ⊆ W),
-          ← sdiff_union_of_subset (hW' ▸ inter_subset_left : C ⊆ W'), h]]
-      refine ih (fun W' hW' => ?_) (isImplicationMinimal_image_sdiff hr hF hD C)
+      rw [← card_image_of_injOn (f := (· \ C)) fun W hW W' hW' (h : W \ C = W' \ C) => by
+        rw [← sdiff_union_of_subset ((mem_filter.1 hW).2 ▸ inter_subset_left : C ⊆ W),
+          ← sdiff_union_of_subset ((mem_filter.1 hW').2 ▸ inter_subset_left : C ⊆ W'), h]]
+      refine ih (fun _ hW' => ?_) (isImplicationMinimal_image_sdiff hr hF hD C)
       obtain ⟨W, hW, rfl⟩ := mem_image.1 hW'
-      obtain ⟨hWF, hWD⟩ := mem_filter.1 hW
-      rw [card_sdiff_of_subset (hWD ▸ inter_subset_left)]
-      exact Nat.sub_le_sub_right (hk W hWF) _
+      rw [card_sdiff_of_subset ((mem_filter.1 hW).2 ▸ inter_subset_left)]
+      exact Nat.sub_le_sub_right (hk W (mem_filter.1 hW).1) _
     calc F.card = ∑ C ∈ D.powerset, (F.filter (· ∩ D = C)).card :=
           card_eq_sum_card_fiberwise fun W _ => mem_powerset.2 inter_subset_right
       _ ≤ ∑ C ∈ D.powerset, (r - 1) ^ (k - D.card) * (1 ^ C.card * (r - 1) ^ (D.card - C.card)) :=
           sum_le_sum fun C hC => by
-            rw [one_pow, one_mul, ← pow_add]
-            refine (hfiber C hC).trans_eq (congrArg _ ?_)
             have := card_le_card (mem_powerset.1 hC)
-            omega
+            simpa only [one_pow, one_mul, ← pow_add, show k - D.card + (D.card - C.card) =
+              k - C.card by omega] using hfiber C hC
       _ = (r - 1) ^ (k - D.card) * r ^ D.card := by
-          rw [← mul_sum, sum_pow_mul_eq_add_pow]
-          congr 2
-          omega
+          rw [← mul_sum, sum_pow_mul_eq_add_pow, show 1 + (r - 1) = r by omega]
       _ ≤ r ^ (k - D.card) * r ^ D.card :=
           Nat.mul_le_mul_right _ (Nat.pow_le_pow_left (Nat.sub_le _ _) _)
       _ = r ^ k := by rw [← pow_add, Nat.sub_add_cancel hDk]
