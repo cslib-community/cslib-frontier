@@ -492,18 +492,14 @@ private theorem isOraclePPT_etmMACForgerOf {S : Type} (encS : S ↪ List Bool) (
       List.length_take_le _ _
     exact ⟨by rw [hreply]; enc_len, by lia⟩
 
-private theorem etmMACHandler_support {S : Type} (E : SymmetricCipher) (n tb : ℕ)
-    (ke msg : List Bool) (cond : Bool) (next old : S) {result : List Bool × S}
-    (hresult : result ∈ OracleComp.support
-      ((if cond then do
-        let c ← ProbOracleComp.sample (E.encrypt n ke msg)
-        (fun tag => (encPair encBits encBits (c, tag), next)) <$>
-          (List.take tb <$> ProbOracleComp.query ((), c))
-      else
-        pure ([], old)) : WordOracleComp Unit (List Bool × S))) :
+private theorem etmMACHandlerOn_support {S : Type} (allow : S → Bool) (next : S → S)
+    (E : SymmetricCipher) (n tb : ℕ) (ke : List Bool) (req : Unit × List Bool) (s : S)
+    {result : List Bool × S}
+    (hresult : result ∈ OracleComp.support (etmMACHandlerOn allow next E n tb ke req s)) :
     result.1 = [] ∨
-      ∃ c ∈ (ProbComp.eval (E.encrypt n ke msg)).support,
+      ∃ c ∈ (ProbComp.eval (E.encrypt n ke req.2)).support,
         ∃ rawTag, result.1 = encPair encBits encBits (c, List.take tb rawTag) := by
+  unfold etmMACHandlerOn at hresult
   supp_cases hresult [mem_supportWith_sample] with
     ⟨-, c, hc, _, ⟨rawTag, -, rfl⟩, rfl, rfl⟩ | ⟨-, rfl, rfl⟩
   · exact Or.inr ⟨c, hc, rawTag, rfl⟩
@@ -517,7 +513,7 @@ theorem isOraclePPT_etmToMACForger (E : SymmetricCipher) (M : MACScheme) {tagBou
     IsOraclePPT (encPair encBits encBits) (etmToMACForger E M tagBound adversary) :=
   isOraclePPT_etmMACForgerOf (encFinEnum Unit) () (ComputableInPolyTime.const ())
     (fun ⟨⟩ => by decide) E M htagBound (etmToMACHandler E) (by ppt [etmToMACHandler])
-    (fun _ _ _ _ _ _ => etmMACHandler_support E _ _ _ _ _ _ _) hadversary
+    (fun n tb ke req s _ => etmMACHandlerOn_support (fun _ => true) id E n tb ke req s) hadversary
 
 private theorem list_contains_map_encPair (pairs : List (List Bool × List Bool))
     (p : List Bool × List Bool) :
@@ -715,20 +711,16 @@ private theorem isQueryBounded_sample_run_interpret {S α β : Type}
       | inr req =>
         exact hhandler k req s
 
-private theorem isQueryBounded_etmMACQuery {S : Type} (E : SymmetricCipher) (n tagBound : ℕ)
-    (ke msg : List Bool) (cond : Bool) (next old : S) :
-    ((if cond then do
-      let c ← ProbOracleComp.sample (E.encrypt n ke msg)
-      (fun tag => (encPair encBits encBits (c, tag), next)) <$>
-        (List.take tagBound <$> ProbOracleComp.query ((), c))
-    else
-      pure ([], old)) : WordOracleComp Unit (List Bool × S)).IsQueryBounded 1 := by
+private theorem isQueryBounded_etmMACHandlerOn {S : Type} (allow : S → Bool) (next : S → S)
+    (E : SymmetricCipher) (n tagBound : ℕ) (ke : List Bool) (req : Unit × List Bool) (s : S) :
+    (etmMACHandlerOn allow next E n tagBound ke req s).IsQueryBounded 1 := by
+  unfold etmMACHandlerOn
   split_ifs
   · simpa only [Nat.zero_add, OracleComp.isCostBounded_map_iff] using
-      (ProbOracleComp.IsQueryBounded.sample (E.encrypt n ke msg)).bind fun c => by
+      (ProbOracleComp.IsQueryBounded.sample (E.encrypt n ke req.2)).bind fun c => by
         simp only [OracleComp.isCostBounded_map_iff]
         exact ProbOracleComp.IsQueryBounded.query ((), c)
-  · exact OracleComp.IsCostBounded.pure ([], old) 1
+  · exact OracleComp.IsCostBounded.pure ([], s) 1
 
 /-- **Query-count preservation for `etmToMACForger`** ([BonehShoup2023], Section 9.4.1,
 Theorem 9.2, Part 1, printed p. 367): if `adversary n []` makes at most `Q` encryption queries,
@@ -738,7 +730,7 @@ theorem isQueryBounded_etmToMACForger (E : SymmetricCipher) (M : MACScheme)
     (hq : (adversary n []).IsQueryBounded Q) :
     (etmToMACForger E M tagBound adversary n aux).IsQueryBounded Q :=
   isQueryBounded_sample_run_interpret (E.keyGen n) (etmToMACHandler E n (tagBound n))
-    (fun ke req s => isQueryBounded_etmMACQuery E n (tagBound n) ke req.2 _ () s) _ hq ()
+    (isQueryBounded_etmMACHandlerOn (fun _ => true) id E n (tagBound n)) _ hq ()
 
 /-- Open stateful handler that simulates the `oneTimeCIEncryptionOracle` of `encryptThenMAC E M`
 inside `M.sufOneTimeGame` ([BonehShoup2023], Section 9.4.1, Theorem 9.2): maintains a boolean flag
@@ -788,7 +780,8 @@ theorem isOraclePPT_etmToOneTimeMACForger (E : SymmetricCipher) (M : MACScheme)
   isOraclePPT_etmMACForgerOf encBool false (ComputableInPolyTime.const false)
     (by simp [encBool_apply]) E M htagBound (etmToOneTimeMACHandler E)
     (by ppt [etmToOneTimeMACHandler])
-    (fun _ _ _ _ _ _ => etmMACHandler_support E _ _ _ _ _ _ _) hadversary
+    (fun n tb ke req s _ => etmMACHandlerOn_support (! ·) (fun _ => true) E n tb ke req s)
+    hadversary
 
 /-- **Query-count preservation for `etmToOneTimeMACForger`** ([BonehShoup2023], Section 9.4.1,
 Theorem 9.2, printed p. 367): if `adversary n []` makes at most `Q` encryption queries, then
@@ -798,7 +791,7 @@ theorem isQueryBounded_etmToOneTimeMACForger (E : SymmetricCipher) (M : MACSchem
     (hq : (adversary n []).IsQueryBounded Q) :
     (etmToOneTimeMACForger E M tagBound adversary n aux).IsQueryBounded Q :=
   isQueryBounded_sample_run_interpret (E.keyGen n) (etmToOneTimeMACHandler E n (tagBound n))
-    (fun ke req s => isQueryBounded_etmMACQuery E n (tagBound n) ke req.2 _ true s) _ hq false
+    (isQueryBounded_etmMACHandlerOn (! ·) (fun _ => true) E n (tagBound n)) _ hq false
 
 /-- Running `etmToOneTimeMACForger E M tagBound adversary` in `M.sufOneTimeGame` produces the
 exact same winning distribution as running `adversary` in
