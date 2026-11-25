@@ -78,8 +78,7 @@ theorem exec_construct {w n D g p : ℕ} (values : ℕ → ℤ)
       C idx.residue.val := QuerySpec.card_residueClass _ hp R (by intro pair; rfl) idx.residue
   have hk' : idx.chunk < C idx.residue.val ⌈/⌉ queryCap n D := by
     simpa only [numChunks, hcard] using hk
-  have hchunk : chunk < K :=
-    ChunkCatalogue.before_add_lt C (queryCap n D) idx.residue.isLt hk'
+  have hchunk : chunk < K := ChunkCatalogue.before_add_lt C (queryCap n D) idx.residue.isLt hk'
   have hdiv : x.regs Instances.produced / x.regs Instances.pieces = chunk := by
     rw [hi, cursor.pieces]; exact Nat.mul_add_div_of_lt chunk hj
   have hmod : x.regs Instances.produced % x.regs Instances.pieces = idx.piece := by
