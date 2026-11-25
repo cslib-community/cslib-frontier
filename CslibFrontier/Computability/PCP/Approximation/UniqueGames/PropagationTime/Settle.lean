@@ -245,9 +245,7 @@ theorem settleCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L))
             ⟨1, le_rfl, exec_nop rRem z1⟩
           obtain ⟨z2, hz2_ex, hz2C, hz2Ch, hz2Rem, hz2CL, hz2Idx, hz2m⟩ :=
             execWithin_inc_rRem (g := g) (z := z1) (by rwa [hz1Rem]) hz1C
-          rw [hz1Ch] at hz2Ch
-          rw [hz1Rem] at hz2Rem
-          rw [hz1CL] at hz2CL
+          rw [hz1Ch] at hz2Ch; rw [hz1Rem] at hz2Rem; rw [hz1CL] at hz2CL
           rw [hz1Idx] at hz2Idx; rw [hz1m] at hz2m
           have hsame_tab : tabAt (k + 1) = tabAt k := by
             have hgv' : (tabAt k).getD v none = none := hgv
