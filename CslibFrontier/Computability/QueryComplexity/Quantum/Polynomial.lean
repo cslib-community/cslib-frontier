@@ -101,13 +101,13 @@ private theorem re_im_mem_lowDegree {f : (ι → Bool) → ℂ} (hf : f ∈ lowD
   induction hf using Submodule.span_induction with
   | mem g hg =>
     obtain ⟨S, hS, rfl⟩ := hg
-    simp only [monomial_complex, Complex.ofReal_re, Complex.ofReal_im]
-    exact ⟨monomial_mem_lowDegree hS, const_mem_lowDegree D 0⟩
+    simpa only [monomial_complex, Complex.ofReal_re, Complex.ofReal_im] using
+      And.intro (monomial_mem_lowDegree hS) (const_mem_lowDegree D 0)
   | zero => exact ⟨const_mem_lowDegree D 0, const_mem_lowDegree D 0⟩
-  | add g h _ _ hg hh =>
+  | add _ _ _ _ hg hh =>
     simp only [Pi.add_apply, Complex.add_re, Complex.add_im]
     exact ⟨Submodule.add_mem _ hg.1 hh.1, Submodule.add_mem _ hg.2 hh.2⟩
-  | smul c g _ hg =>
+  | smul c _ _ hg =>
     simp only [Pi.smul_apply, smul_eq_mul, Complex.mul_re, Complex.mul_im]
     exact ⟨Submodule.sub_mem _ (Submodule.smul_mem _ c.re hg.1) (Submodule.smul_mem _ c.im hg.2),
       Submodule.add_mem _ (Submodule.smul_mem _ c.re hg.2) (Submodule.smul_mem _ c.im hg.1)⟩
@@ -153,26 +153,25 @@ theorem amplitude_mem_lowDegree (U : ℕ → State N W →ₗᵢ[ℂ] State N W)
   | succ t ih =>
     have h : (fun x => (run U ψ₀ x (t + 1)).ofLp p) = ∑ q, fun x =>
         (U (t + 1) (EuclideanSpace.single q 1)).ofLp p *
-          ((if q.2.1 && x q.1 then -1 else 1) * (run U ψ₀ x t).ofLp q) := by
-      funext x
-      have := linearMap_apply_eq_sum (U (t + 1)).toLinearMap (phaseOracle x (run U ψ₀ x t)) p
-      simp only [LinearIsometry.coe_toLinearMap] at this
-      simp only [run, Finset.sum_apply, this, phaseOracle_apply]
+          ((if q.2.1 && x q.1 then -1 else 1) * (run U ψ₀ x t).ofLp q) := funext fun x => by
+      have hl := linearMap_apply_eq_sum (U (t + 1)).toLinearMap (phaseOracle x (run U ψ₀ x t)) p
+      simp only [LinearIsometry.coe_toLinearMap] at hl
+      simp only [run, Finset.sum_apply, hl, phaseOracle_apply]
     rw [h]
-    refine sum_mem_lowDegree _ fun q _ => ?_
-    obtain ⟨i, b, w⟩ := q
+    refine sum_mem_lowDegree _ fun ⟨i, b, w⟩ _ => ?_
     have hfac : (fun x : Fin N → Bool => (if b && x i then -1 else 1 : ℂ)) ∈
         lowDegree ℂ (Fin N) 1 := by
       cases b
       · simpa using const_mem_lowDegree (R := ℂ) (ι := Fin N) 1 1
-      · convert Submodule.sub_mem _ (one_mem_lowDegree (R := ℂ) (ι := Fin N) 1)
-          (Submodule.smul_mem _ (2 : ℂ) (bitVal_mem_lowDegree (R := ℂ) i)) using 1
-        funext x
-        cases hx : x i <;> norm_num [bitVal, hx]
-    have := Submodule.smul_mem _ ((U (t + 1) (EuclideanSpace.single (i, b, w) 1)).ofLp p)
+      · have hf : (fun x : Fin N → Bool => (if true && x i then -1 else 1 : ℂ)) =
+            1 - (2 : ℂ) • fun x => bitVal ℂ (x i) :=
+          funext fun x => by cases hx : x i <;> norm_num [bitVal, hx]
+        rw [hf]
+        exact Submodule.sub_mem _ (one_mem_lowDegree (R := ℂ) (ι := Fin N) 1)
+          (Submodule.smul_mem _ (2 : ℂ) (bitVal_mem_lowDegree (R := ℂ) i))
+    have hsm := Submodule.smul_mem _ ((U (t + 1) (EuclideanSpace.single (i, b, w) 1)).ofLp p)
       (mul_mem_lowDegree hfac (ih (i, b, w)))
-    rw [Nat.add_comm 1 t] at this
-    exact this
+    rwa [Nat.add_comm 1 t] at hsm
 
 /-- **The acceptance probability after `T` queries is a polynomial of degree at most `2T`**
 [Beals, Buhrman, Cleve, Mosca, de Wolf][BealsBuhrmanCleveMoscaDeWolf2001]: for every set `S` of
@@ -182,12 +181,11 @@ theorem measureProb_run_mem_lowDegree (U : ℕ → State N W →ₗᵢ[ℂ] Stat
     (T : ℕ) (S : Finset (Fin N × Bool × W)) :
     (fun x => measureProb (run U ψ₀ x T) S) ∈ lowDegree ℝ (Fin N) (2 * T) := by
   have h : (fun x => measureProb (run U ψ₀ x T) S) = ∑ p ∈ S,
-      ((fun x => ((run U ψ₀ x T).ofLp p).re) ^ 2 + (fun x => ((run U ψ₀ x T).ofLp p).im) ^ 2) := by
-    funext x
+      ((fun x => ((run U ψ₀ x T).ofLp p).re) ^ 2 +
+        (fun x => ((run U ψ₀ x T).ofLp p).im) ^ 2) := funext fun x => by
     simp only [measureProb, Finset.sum_apply, Pi.add_apply, Pi.pow_apply, Complex.sq_norm,
       Complex.normSq_apply]
-    refine sum_congr rfl fun p _ => ?_
-    ring
+    exact sum_congr rfl fun p _ => by ring
   rw [h]
   exact sum_mem_lowDegree _ fun p _ => Submodule.add_mem _
     (pow_mem_lowDegree (re_mem_lowDegree (amplitude_mem_lowDegree U ψ₀ T p)) 2)
@@ -197,10 +195,9 @@ theorem measureProb_run_mem_lowDegree (U : ℕ → State N W →ₗᵢ[ℂ] Stat
 private theorem measureProb_run_mem_Icc (U : ℕ → State N W →ₗᵢ[ℂ] State N W) {ψ₀ : State N W}
     (hψ₀ : ‖ψ₀‖ = 1) (T : ℕ) (S : Finset (Fin N × Bool × W)) (x : Fin N → Bool) :
     measureProb (run U ψ₀ x T) S ∈ Set.Icc (-0 : ℝ) (1 + 0) := by
-  refine ⟨by simpa using measureProb_nonneg _ S, ?_⟩
-  have := measureProb_le_measureProb_univ (run U ψ₀ x T) S
-  rw [measureProb_univ, norm_run, hψ₀] at this
-  simpa using this
+  have h := measureProb_le_measureProb_univ (run U ψ₀ x T) S
+  rw [measureProb_univ, norm_run, hψ₀] at h
+  exact ⟨by simpa using measureProb_nonneg _ S, by simpa using h⟩
 
 /-- **Approximate degree bounds quantum queries** [Beals, Buhrman, Cleve, Mosca, de
 Wolf][BealsBuhrmanCleveMoscaDeWolf2001]: if a `T`-query algorithm accepts every input `x`, by an
@@ -219,8 +216,8 @@ theorem degree_le_two_mul {f : BooleanFunction N} (U : ℕ → State N W →ₗ�
     (ψ₀ : State N W) (T : ℕ) (S : Finset (Fin N × Bool × W))
     (h : ∀ x, measureProb (run U ψ₀ x T) S = bitVal ℝ (f x)) :
     degree f ≤ 2 * T := by
-  have := approxDegree_le_two_mul (f := f) (ε := 0) U ψ₀ T S fun x => by simp [h x]
-  rwa [approxDegree_zero] at this
+  simpa only [approxDegree_zero] using
+    approxDegree_le_two_mul (f := f) (ε := 0) U ψ₀ T S fun x => by simp [h x]
 
 /-- **Block sensitivity bounds exact quantum queries** [Beals, Buhrman, Cleve, Mosca, de
 Wolf][BealsBuhrmanCleveMoscaDeWolf2001]: if a `T`-query algorithm accepts every input `x`, by an
@@ -231,8 +228,7 @@ theorem blockSensitivity_le_eight_mul_sq {f : BooleanFunction N}
     blockSensitivity f ≤ 8 * T ^ 2 :=
   (blockSensitivity_le_two_mul_degree_sq f).trans <| by
     have := Nat.pow_le_pow_left (degree_le_two_mul U ψ₀ T S h) 2
-    rw [mul_pow] at this
-    omega
+    rw [mul_pow] at this; omega
 
 /-- **Block sensitivity bounds bounded-error quantum queries**: if a `T`-query algorithm with a unit
 initial state accepts every input `x`, by an outcome in `S`, with probability within `ε < 1/2` of
@@ -244,8 +240,7 @@ theorem one_sub_two_mul_mul_blockSensitivity_le {f : BooleanFunction N} {ε : �
     (1 - 2 * ε) * blockSensitivity f ≤ 8 * (1 - ε) * T ^ 2 := by
   have := one_sub_two_mul_mul_blockSensitivity_le_of_mem_Icc
     (measureProb_run_mem_lowDegree U ψ₀ T S) h (measureProb_run_mem_Icc U hψ₀ T S) hε
-  push_cast at this
-  linarith
+  push_cast at this; linarith
 
 /-- **Block sensitivity bounds bounded-error quantum queries** [Beals, Buhrman, Cleve, Mosca, de
 Wolf][BealsBuhrmanCleveMoscaDeWolf2001]: if a `T`-query algorithm with a unit initial state accepts
@@ -257,8 +252,7 @@ theorem blockSensitivity_le_sixteen_mul_sq {f : BooleanFunction N}
     (h : ∀ x, |measureProb (run U ψ₀ x T) S - bitVal ℝ (f x)| ≤ 1 / 3) :
     blockSensitivity f ≤ 16 * T ^ 2 := by
   have := Quantum.one_sub_two_mul_mul_blockSensitivity_le U hψ₀ T S h (by norm_num)
-  have h' : (blockSensitivity f : ℝ) ≤ 16 * T ^ 2 := by linarith
-  exact_mod_cast h'
+  exact_mod_cast (by linarith : (blockSensitivity f : ℝ) ≤ 16 * T ^ 2)
 
 /-- **Deterministic simulation of bounded-error quantum queries** [Beals, Buhrman, Cleve, Mosca,
 de Wolf][BealsBuhrmanCleveMoscaDeWolf2001]: if a `T`-query algorithm with a unit initial state

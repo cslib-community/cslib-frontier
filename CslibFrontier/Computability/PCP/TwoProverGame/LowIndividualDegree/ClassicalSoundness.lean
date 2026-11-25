@@ -52,7 +52,6 @@ private theorem consistency_loss_eq_expect (a b : Q → Ans) :
     rw [TwoProverGame.winProb, branchGame_questions, branchQuestions_consistency,
       consistencyQuestions, branchGame_accepts, PMF.toOuterMeasure_map_apply]
     rfl
-  rw [hscore]
   have hs := Probability.PMF.toOuterMeasure_toReal_add_compl U event
   have he : (U.toOuterMeasure eventᶜ).toReal =
       𝔼 u : Pt, if accepts d (.point u) (.point u) (a (.point u)) (b (.point u))
@@ -61,8 +60,7 @@ private theorem consistency_loss_eq_expect (a b : Q → Ans) :
       div_eq_inv_mul, Finset.mul_sum]
     simp only [U, Probability.PMF.uniformOfFintype_apply, ENNReal.toReal_inv,
       ENNReal.toReal_natCast, Set.mem_compl_iff, event, Set.mem_ofPred_eq, ite_not]
-  rw [← he]
-  linarith
+  linarith [hscore, hs, he]
 
 private theorem exists_poly_decoded_loss_le (a b : Q → Ans) {k : ℕ} (hk : (n + 1) * d ≤ k) :
     let ε := 1 - (game (F := F) n d).winProb a b
@@ -96,8 +94,7 @@ private theorem exists_poly_decoded_loss_le (a b : Q → Ans) {k : ℕ} (hk : (n
       (R.map fun g => MvPolynomial.eval u g.val) = ∑ g, w g * cost g u := by
     rw [hpoint, ← hw, ← sum_sub_distrib]
     refine sum_congr rfl fun g _ => ?_
-    unfold cost
-    split_ifs <;> simp
+    by_cases hd : decodePoint (a (.point u)) = MvPolynomial.eval u g.val <;> simp [cost, hd]
   change (𝔼 u : Pt, (1 - Measurement.agreement φ (decodedPoint S.toCommuting.alice u)
     (R.map fun g => MvPolynomial.eval u g.val))) ≤ _ at h
   simp_rw [hcost, expect_sum_comm, ← mul_expect, S,
@@ -105,11 +102,8 @@ private theorem exists_poly_decoded_loss_le (a b : Q → Ans) {k : ℕ} (hk : (n
   let : Nonempty Poly := ⟨⟨0, by simp⟩⟩
   obtain ⟨g, hg⟩ := Finite.exists_min fun g : Poly => 𝔼 u : Pt, cost g u
   refine ⟨g, le_trans ?_ h⟩
-  calc
-    (𝔼 u : Pt, cost g u) = ∑ p, w p * (𝔼 u : Pt, cost g u) := by
-      rw [← sum_mul, hw, one_mul]
-    _ ≤ ∑ p, w p * (𝔼 u : Pt, cost p u) :=
-      sum_le_sum fun p _ => mul_le_mul_of_nonneg_left (hg p) (hw₀ p)
+  simpa only [← sum_mul, hw, one_mul] using
+    sum_le_sum (s := univ) fun p _ => mul_le_mul_of_nonneg_left (hg p) (hw₀ p)
 
 open Classical in
 /-- One bounded-individual-degree polynomial simultaneously explains the raw point answers
@@ -126,10 +120,10 @@ theorem exists_polynomial_of_classical_winProb (a b : Q → Ans) {k : ℕ} (hk :
   have hbranch : 1 - (branchGame (F := F) n d .consistency).winProb a b ≤ 3 * ε := by
     classical
     let S := QuantumStrategy.ofDeterministic a b
-    have h := branch_loss_le_three_mul n d .consistency S.answers
-    change 1 - (branchGame (F := F) n d .consistency).quantumWinProb S ≤
-      3 * (1 - (game (F := F) n d).quantumWinProb S) at h
-    simpa only [S, TwoProverGame.quantumWinProb_ofDeterministic] using h
+    have h0 : 1 - (branchGame (F := F) n d .consistency).quantumWinProb S ≤
+        3 * (1 - (game (F := F) n d).quantumWinProb S) :=
+      branch_loss_le_three_mul n d .consistency S.answers
+    simpa only [S, TwoProverGame.quantumWinProb_ofDeterministic] using h0
   rw [consistency_loss_eq_expect] at hbranch
   refine ⟨g, le_trans ?_ (add_le_add h hbranch)⟩
   rw [← expect_add_distrib]

@@ -79,8 +79,7 @@ theorem nextTally_eq_expected (hw : Passes r s k w) :
     ext u
     rw [mem_union, mem_frontier_iff hw]
     exact ⟨fun h => by by_cases hu : u ∈ round r s k <;> tauto,
-      fun h => h.elim
-        (fun hu => mem_round.mpr (reachableWithin_mono (Nat.le_succ k) (mem_round.mp hu)))
+      Or.rec (fun hu => mem_round.mpr (reachableWithin_mono (Nat.le_succ k) (mem_round.mp hu)))
         And.left⟩
   unfold nextTally expected
   congr 1
@@ -95,8 +94,7 @@ private theorem predecessor_distance (hv : v ∉ round r s k) {u : α}
     (hu : u ∈ round r s k) (he : r u v) : distance r s u = k := by
   obtain ⟨hp, hle⟩ := distance_spec (mem_round.mp hu)
   by_contra hne
-  have hstep : RelatesInSteps r s v (distance r s u + 1) := hp.trans (.single he)
-  exact hv (mem_round.mpr ⟨_, by omega, hstep⟩)
+  exact hv (mem_round.mpr ⟨_, by omega, hp.trans (.single he)⟩)
 
 private theorem shortest_snoc (hv : v ∉ round r s k) {u : α}
     (hu : u ∈ round r s k) (he : r u v) {p : List α}
@@ -111,17 +109,16 @@ private theorem exists_shortest_prefix {p : List α}
       p.dropLast.length = distance r s u + 1 := by
   have hi : k < p.length := by omega
   have hlast : k + 1 < p.length := by omega
-  let u := p[k]
+  have heq : p.length - 1 = k + 1 := by omega
   have hlast_eq : p[k + 1] = v := by
-    have heq : p.length - 1 = k + 1 := by omega
     simpa only [heq] using hp.1.getElem_length_sub_one
-  have he : r u v := hlast_eq ▸ hp.1.isChain.getElem k hlast
+  have he : r p[k] v := hlast_eq ▸ hp.1.isChain.getElem k hlast
   have htake := hp.1.take hi
   have hlen : (p.take (k + 1)).length = k + 1 := by simp [hp.2]
-  have hu : u ∈ round r s k := mem_round.mpr ⟨k, le_rfl, htake.relatesInSteps hlen⟩
+  have hu : p[k] ∈ round r s k := mem_round.mpr ⟨k, le_rfl, htake.relatesInSteps hlen⟩
   have hdrop : p.dropLast = p.take (k + 1) := by simp [List.dropLast_eq_take, hp.2]
-  refine ⟨u, hu, he, hdrop.symm ▸ htake, ?_⟩
-  rw [hdrop, hlen, predecessor_distance hv hu he]
+  exact ⟨p[k], hu, he, hdrop.symm ▸ htake,
+    by rw [hdrop, hlen, predecessor_distance hv hu he]⟩
 
 /-- Assuming uniqueness in the current round, a newly reached vertex has one shortest walk
 exactly when it has one predecessor in the current round. -/
@@ -129,27 +126,23 @@ theorem existsUnique_shortest_iff_predecessor (hw : Passes r s k w) (hv : v ∈ 
     (hprev : ∃! t, Passes r s k t) :
     (∃! p : List α, p.IsChainFromTo r s v ∧ p.length = distance r s v + 1) ↔
       ∃! u, u ∈ round r s k ∧ r u v := by
-  have huniq := (existsUnique_passes_iff.mp hprev)
+  have huniq := existsUnique_passes_iff.mp hprev
   have hold := ((mem_frontier_iff hw).mp hv).2
   rw [distance_eq_succ_of_mem_frontier hw hv]
-  change (∃! p : List α, p.IsChainFromTo r s v ∧ p.length = k + 2) ↔ _
-  constructor
+  refine ⟨?_, ?_⟩
   · rintro ⟨p, hp, hpu⟩
-    obtain ⟨u, hu, he, hchain, hlen⟩ := exists_shortest_prefix hp hold
+    obtain ⟨u, hu, he, hchain, _⟩ := exists_shortest_prefix hp hold
     refine ⟨u, ⟨hu, he⟩, fun y hy => ?_⟩
     obtain ⟨q, hq, _⟩ := huniq y hy.1
-    have hq' := hpu (q ++ [v]) (shortest_snoc hold hy.1 hy.2 hq)
     have hdrop : q = p.dropLast := by
-      simpa using congrArg List.dropLast hq'
-    cases hdrop
-    exact hq.1.getLast_eq.symm.trans hchain.getLast_eq
+      simpa using congrArg List.dropLast (hpu (q ++ [v]) (shortest_snoc hold hy.1 hy.2 hq))
+    exact hq.1.getLast_eq.symm.trans (hdrop ▸ hchain.getLast_eq)
   · rintro ⟨u, ⟨hu, he⟩, huu⟩
     obtain ⟨p, hp, hpu⟩ := huniq u hu
     refine ⟨p ++ [v], shortest_snoc hold hu he hp, fun q hq => ?_⟩
     obtain ⟨y, hy, hye, hqchain, hqlen⟩ := exists_shortest_prefix hq hold
     obtain rfl : y = u := huu y ⟨hy, hye⟩
-    have hd := hpu q.dropLast ⟨hqchain, hqlen⟩
-    rw [← hd, ← hq.1.getLast_eq]
+    rw [← hpu q.dropLast ⟨hqchain, hqlen⟩, ← hq.1.getLast_eq]
     exact (List.dropLast_append_getLast hq.1.ne_nil).symm
 
 /-- A unique current transcript extends to a unique next-round transcript exactly when all
@@ -158,14 +151,11 @@ theorem existsUnique_passes_succ_iff (hw : Passes r s k w) (hprev : ∃! t, Pass
     (∃! t, Passes r s (k + 1) t) ↔
       ∀ v ∈ frontier r w, ∃! u, u ∈ round r s k ∧ r u v := by
   rw [existsUnique_passes_iff]
-  constructor
-  · intro h v hv
-    exact (existsUnique_shortest_iff_predecessor hw hv hprev).mp
-      (h v ((mem_frontier_iff hw).mp hv).1)
-  · intro h v hv
-    by_cases hcur : v ∈ round r s k
-    · exact (existsUnique_passes_iff.mp hprev) v hcur
-    · have hnew := (mem_frontier_iff hw).mpr ⟨hv, hcur⟩
-      exact (existsUnique_shortest_iff_predecessor hw hnew hprev).mpr (h v hnew)
+  refine ⟨fun h v hv => (existsUnique_shortest_iff_predecessor hw hv hprev).mp
+    (h v ((mem_frontier_iff hw).mp hv).1), fun h v hv => ?_⟩
+  by_cases hcur : v ∈ round r s k
+  · exact (existsUnique_passes_iff.mp hprev) v hcur
+  · have hnew := (mem_frontier_iff hw).mpr ⟨hv, hcur⟩
+    exact (existsUnique_shortest_iff_predecessor hw hnew hprev).mpr (h v hnew)
 
 end Cslib.DoubleCounting

@@ -32,11 +32,9 @@ variable {F : CSP Table ℕ}
 theorem deviations_zero_of_agree (f g : OccurrenceLabeling F Bool) (vs : List ℕ)
     (h : ∀ o : Occurrence F, o.var ∈ vs → g o = f o) (i : Fin F.length) :
     deviations (localTuple f i) (localTuple g i) (positions vs F[i.val].scope) = 0 := by
-  apply (deviations_eq_zero_iff _ _ _).mpr
-  intro j hj
+  refine (deviations_eq_zero_iff _ _ _).mpr fun j hj => ?_
   have hjb := List.mem_range.mp (List.mem_filter.mp hj).1
-  have hv := (mem_positions vs i ⟨j, hjb⟩).mp hj
-  simpa [localTuple, hjb] using h ⟨i, ⟨j, hjb⟩⟩ hv
+  simpa [localTuple, hjb] using h ⟨i, ⟨j, hjb⟩⟩ ((mem_positions vs i ⟨j, hjb⟩).mp hj)
 
 /-- One changed internal occurrence contributes one deviation at its original constraint and
 zero at all other original constraints, regardless of repeated copied visits or table arity. -/
@@ -53,34 +51,26 @@ theorem deviations_of_one_flip (f g : OccurrenceLabeling F Bool) (vs : List ℕ)
     calc
       _ = (positions vs F[ei.val].scope).count ej.val := by
         rw [List.count_eq_countP]
-        apply List.countP_congr
-        intro j hj
+        refine List.countP_congr fun j hj => ?_
         have hjb := List.mem_range.mp (List.mem_filter.mp hj).1
-        have hv := (mem_positions vs ei ⟨j, hjb⟩).mp hj
-        have hh := h ⟨ei, ⟨j, hjb⟩⟩ hv
-        have hgj : (localTuple g ei).getD j false = g ⟨ei, ⟨j, hjb⟩⟩ := by
+        have hh := h ⟨ei, ⟨j, hjb⟩⟩ ((mem_positions vs ei ⟨j, hjb⟩).mp hj)
+        have hloc (k : OccurrenceLabeling F Bool) :
+            (localTuple k ei).getD j false = k ⟨ei, ⟨j, hjb⟩⟩ := by
           simp [localTuple, hjb]
-        have hfj : (localTuple f ei).getD j false = f ⟨ei, ⟨j, hjb⟩⟩ := by
-          simp [localTuple, hjb]
-        rw [hgj, hfj, hh]
+        rw [hloc, hloc, hh]
         by_cases hj0 : j = ej.val
         · simp [hj0]
-        · have hne : (⟨ei, ⟨j, hjb⟩⟩ : Occurrence F) ≠ ⟨ei, ej⟩ := by
-            intro heq
-            exact hj0 (congrArg (fun o : Occurrence F => o.2.val) heq)
-          simp [hne, hj0]
+        · have hne : (⟨ei, ⟨j, hjb⟩⟩ : Occurrence F) ≠ ⟨ei, ej⟩ :=
+            fun heq => hj0 (congrArg (·.2.val) heq)
+          simp [hj0, hne]
       _ = 1 := List.count_eq_one_of_mem
         (validPositions_eq_true.mp (validPositions_positions vs F[ei.val].scope)).1
         ((mem_positions vs ei ej).mpr hev)
   · rw [ite_eq_right hi]
-    apply (deviations_eq_zero_iff _ _ _).mpr
-    intro j hj
+    refine (deviations_eq_zero_iff _ _ _).mpr fun j hj => ?_
     have hjb := List.mem_range.mp (List.mem_filter.mp hj).1
-    have hov := (mem_positions vs i ⟨j, hjb⟩).mp hj
-    have hne : (⟨i, ⟨j, hjb⟩⟩ : Occurrence F) ≠ ⟨ei, ej⟩ := by
-      intro heq
-      exact hi (congrArg Sigma.fst heq)
-    simpa [localTuple, hjb, hne] using h ⟨i, ⟨j, hjb⟩⟩ hov
+    have hne : (⟨i, ⟨j, hjb⟩⟩ : Occurrence F) ≠ ⟨ei, ej⟩ := fun heq => hi (congrArg Sigma.fst heq)
+    simpa [localTuple, hjb, hne] using h ⟨i, ⟨j, hjb⟩⟩ ((mem_positions vs i ⟨j, hjb⟩).mp hj)
 
 /-- Projection with the honest reference connector row. -/
 @[expose] def projectZero (f : OccurrenceLabeling F Bool) (vs : List ℕ)
@@ -95,28 +85,21 @@ theorem deviations_of_one_flip (f g : OccurrenceLabeling F Bool) (vs : List ℕ)
 /-- Matching endpoint rows create no new connector defects. -/
 theorem connectorDefects_matches (vs : List ℕ) (bits : Fin F.length → Bool) :
     connectorDefects F vs bits ((touched F vs).map bits) = [] := by
-  apply List.eq_nil_iff_forall_not_mem.mpr
-  intro v hv
+  refine List.eq_nil_iff_forall_not_mem.mpr fun v hv => ?_
   obtain ⟨k, hk, _⟩ := List.mem_map.mp hv
   have hh := (List.mem_filter.mp hk).2
-  have hread : ((touched F vs).map bits).getD k.val false = bits (touched F vs)[k.val] := by
-    rw [List.getD_eq_getElem _ _ (by simpa only [List.length_map] using k.isLt), List.getElem_map]
-  rw [hread] at hh
+  rw [List.getD_eq_getElem _ _ (by simpa only [List.length_map] using k.isLt),
+    List.getElem_map] at hh
   simp at hh
 
 /-- The indicated touched constraint supplies an actual accepted central exactly-one row. -/
 theorem sem_touched_indicator (vs : List ℕ) (i : Fin F.length) (hi : i ∈ touched F vs) :
     (exactlyOne (connectors F vs)).sem
       ((touched F vs).map fun j => decide (j = i)) = true := by
-  apply (sem_exactlyOne_eq_true _ _).mpr
-  refine ⟨by simp, ?_⟩
-  have he : ((touched F vs).map fun j => decide (j = i)).count true = (touched F vs).count i := by
-    simp only [List.count_eq_countP, List.countP_map, Function.comp_def]
-    apply List.countP_congr
-    intro j _
-    by_cases hj : j = i <;> simp [hj]
-  rw [he]
-  exact List.count_eq_one_of_mem (nodup_touched F vs) hi
+  refine (sem_exactlyOne_eq_true _ _).mpr ⟨by simp, ?_⟩
+  refine Eq.trans ?_ (List.count_eq_one_of_mem (nodup_touched F vs) hi)
+  simp only [List.count_eq_countP, List.countP_map, Function.comp_def]
+  exact List.countP_congr fun j _ => by by_cases hj : j = i <;> simp [hj]
 
 /-- Zero internal changes project to a valid actual contracted labeling. -/
 theorem valid_projectZero {f g : OccurrenceLabeling F Bool} (hf : ValidLabeling sem f)
@@ -124,9 +107,8 @@ theorem valid_projectZero {f g : OccurrenceLabeling F Bool} (hf : ValidLabeling 
     (h : ∀ o : Occurrence F, o.var ∈ vs → g o = f o) :
     ValidLabeling sem (projectZero f vs g) := by
   apply valid_transport hf hg vs (fun _ => false)
-  · apply (sem_exactlyOne_eq_true _ _).mpr
-    exact ⟨by simp [listSingle], count_true_listSingle (by
-      simpa only [length_connectors] using List.length_pos_iff.mpr hne)⟩
+  · exact (sem_exactlyOne_eq_true _ _).mpr ⟨by simp [listSingle],
+      count_true_listSingle (by simpa only [length_connectors] using List.length_pos_iff.mpr hne)⟩
   · intro i _
     rw [deviations_zero_of_agree f g vs h i]
     omega
@@ -139,10 +121,8 @@ theorem valid_projectOne {f g : OccurrenceLabeling F Bool} (hf : ValidLabeling s
     (hg : ValidLabeling sem g) (vs : List ℕ) (e : Occurrence F) (hev : e.var ∈ vs)
     (h : ∀ o : Occurrence F, o.var ∈ vs → g o = if o = e then !(f o) else f o) :
     ValidLabeling sem (projectOne f vs g e.1) := by
-  have ht : e.1 ∈ touched F vs := (mem_touched vs e.1).mpr (by
-    intro hn
-    have hm := (mem_positions vs e.1 e.2).mpr hev
-    simp only [hn, List.not_mem_nil] at hm)
+  have ht : e.1 ∈ touched F vs := (mem_touched vs e.1).mpr fun hn =>
+    List.not_mem_nil (hn ▸ (mem_positions vs e.1 e.2).mpr hev)
   apply valid_transport hf hg vs (fun i => decide (i = e.1)) (sem_touched_indicator vs e.1 ht)
   · intro i _
     rw [deviations_of_one_flip f g vs e hev h i]

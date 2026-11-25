@@ -111,9 +111,8 @@ theorem ghash_eq_sum (k : F) (z : List F) :
   | nil => simp
   | cons a z ih =>
     rw [ghash_cons, ih]
-    change _ = ∑ i : Fin (z.length + 1), (a :: z)[i] * k ^ (z.length + 1 - i)
-    rw [Fin.sum_univ_succ]
-    simp
+    simpa using (Fin.sum_univ_succ fun i : Fin (z.length + 1) =>
+      (a :: z)[i] * k ^ (z.length + 1 - i)).symm
 
 /-- A leading zero block does not change the hash, so (9.18) on its own does not separate inputs
 of different lengths. -/
@@ -179,9 +178,8 @@ theorem isDeltaUniversalHash_ghashBits {w : ℕ} (e : F ≃+ BitString w) {X : T
   have h := (isDeltaUniversalHash_ghash (F := F) (ℓ := ℓ) (fun x => (enc x).map e.symm)
     (fun x x' h => hinj (List.map_injective_iff.mpr e.symm.injective h))
     (fun x x' h => by
-      simpa only [List.length_map] using hlast x x' (e.symm.injective (by
-        rw [← map_zero e.symm, List.getLastD_map, List.getLastD_map] at h
-        exact h)))
+      simpa only [List.length_map] using hlast x x'
+        (e.symm.injective (by rwa [← map_zero e.symm, List.getLastD_map, List.getLastD_map] at h)))
     (fun x => by simpa only [List.length_map] using hlen x)).postcompose
     e.toAddMonoidHom e.injective
   rw [← PMF.uniformOfFintype_map_equiv e.symm.toEquiv, hcard] at h
@@ -206,14 +204,9 @@ theorem gcmBlocks_inj {s s' : List Bool} (hlen : s.length = s'.length)
     (h : gcmBlocks s = gcmBlocks s') : s = s' := by
   refine List.ext_getElem hlen fun t ht ht' => ?_
   have hi : t / 128 < (gcmBlocks s).length := by rw [length_gcmBlocks]; omega
-  have hi' : t / 128 < (gcmBlocks s').length := by rw [length_gcmBlocks]; omega
-  have hb : (gcmBlocks s)[t / 128] = (gcmBlocks s')[t / 128] := List.getElem_of_eq h hi
-  have hbit := congrFun hb ⟨t % 128, Nat.mod_lt _ (by norm_num)⟩
-  rw [gcmBlocks_getElem_apply, gcmBlocks_getElem_apply] at hbit
-  have ht128 : t / 128 * 128 + t % 128 = t := Nat.div_add_mod' t 128
-  simp only [ht128] at hbit
-  simpa [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem ht,
-    List.getElem?_eq_getElem ht'] using hbit
+  have hbit := congrFun (List.getElem_of_eq h hi) ⟨t % 128, Nat.mod_lt _ (by norm_num)⟩
+  simpa [gcmBlocks_getElem_apply, Nat.div_add_mod' t 128, List.getD_eq_getElem?_getD,
+    List.getElem?_eq_getElem ht, List.getElem?_eq_getElem ht'] using hbit
 
 /-- The block `length(d) ‖ length(c)` of line (∗): the 64-bit numbers `a` and `b`, each most
 significant bit first. -/
@@ -226,15 +219,13 @@ theorem gcmLengthBlock_inj {a b a' b' : ℕ} (ha : a < 2 ^ 64) (hb : b < 2 ^ 64)
     (ha' : a' < 2 ^ 64) (hb' : b' < 2 ^ 64) (h : gcmLengthBlock a b = gcmLengthBlock a' b') :
     a = a' ∧ b = b' := by
   have hfst (x y : ℕ) (i : Fin 64) : gcmLengthBlock x y ⟨63 - i, by omega⟩ = x.testBit i := by
-    change (if 63 - (i : ℕ) < 64 then _ else _) = _
-    rw [ite_eq_left (by omega), show 63 - (63 - (i : ℕ)) = i by omega]
+    simp [gcmLengthBlock, show 63 - (i : ℕ) < 64 by omega, show 63 - (63 - (i : ℕ)) = i by omega]
   have hsnd (x y : ℕ) (i : Fin 64) : gcmLengthBlock x y ⟨127 - i, by omega⟩ = y.testBit i := by
-    change (if 127 - (i : ℕ) < 64 then _ else _) = _
-    rw [ite_eq_right (by omega), show 127 - (127 - (i : ℕ)) = i by omega]
+    simp [gcmLengthBlock, show ¬ 127 - (i : ℕ) < 64 by omega,
+      show 127 - (127 - (i : ℕ)) = i by omega]
   refine ⟨BitString.lowBits_injective_of_lt ha ha' ?_,
     BitString.lowBits_injective_of_lt hb hb' ?_⟩ <;>
-    rw [BitString.lowBits_eq_ofFn, BitString.lowBits_eq_ofFn] <;>
-    refine congrArg List.ofFn (funext fun i => ?_)
+    simp only [BitString.lowBits_eq_ofFn] <;> refine congrArg List.ofFn (funext fun i => ?_)
   · rw [← hfst a b i, ← hfst a' b' i, h]
   · rw [← hsnd a b i, ← hsnd a' b' i, h]
 
@@ -258,19 +249,16 @@ theorem isDeltaUniversalHash_ghashBits_gcmHashInput (e : F ≃+ BitString 128) {
     (hlen : ∀ x, (gcmHashInput (d x) (c x)).length ≤ ℓ) :
     IsDeltaUniversalHash (PMF.uniformOfFintype (BitString 128))
       (fun k x => ghashBits e k (gcmHashInput (d x) (c x))) (ℓ / 2 ^ 128) := by
-  have hlens : ∀ x x',
-      (gcmHashInput (d x) (c x)).getLastD 0 = (gcmHashInput (d x') (c x')).getLastD 0 →
-      (d x).length = (d x').length ∧ (c x).length = (c x').length := by
-    intro x x' h
-    simp only [gcmHashInput, List.getLastD_concat] at h
-    exact gcmLengthBlock_inj (hd x) (hc x) (hd x') (hc x') h
+  have hlens (x x') (h : (gcmHashInput (d x) (c x)).getLastD 0 =
+      (gcmHashInput (d x') (c x')).getLastD 0) :
+      (d x).length = (d x').length ∧ (c x).length = (c x').length :=
+    gcmLengthBlock_inj (hd x) (hc x) (hd x') (hc x') (by simpa [gcmHashInput] using h)
   refine isDeltaUniversalHash_ghashBits e _ (fun x x' h => ?_) (fun x x' h => ?_) hlen
   · obtain ⟨hdl, hcl⟩ := hlens x x' (congrArg (·.getLastD 0) h)
-    simp only [gcmHashInput] at h
-    have h1 := List.append_inj_left' h rfl
-    have h2 := List.append_inj h1 (by rw [length_gcmBlocks, length_gcmBlocks, hdl])
-    exact hinj x x' (gcmBlocks_inj hdl h2.1) (gcmBlocks_inj hcl h2.2)
+    obtain ⟨h1, h2⟩ := List.append_inj (List.append_inj_left' h rfl)
+      (by simp [length_gcmBlocks, hdl])
+    exact hinj x x' (gcmBlocks_inj hdl h1) (gcmBlocks_inj hcl h2)
   · obtain ⟨hdl, hcl⟩ := hlens x x' h
-    rw [length_gcmHashInput, length_gcmHashInput, hdl, hcl]
+    simp [length_gcmHashInput, hdl, hcl]
 
 end Cslib.Crypto

@@ -65,17 +65,16 @@ theorem rowNormPow_fine_omission_le {Γ Υ V : Type*}
     exact mul_le_mul (hX x) (hY y) (by positivity) (by positivity)
   rw [rowNormPow_const_eq_dens_sum]
   calc
-    _ ≤ (N * u)⁻¹ * ∑ x, ∑ y, (Cu * u * (Ca * a)) *
-        ((Cb * b) ^ 3 * H x y / a ^ 4) := by
+    _ ≤ (N * u)⁻¹ * ∑ x, ∑ y, (Cu * u * (Ca * a)) * ((Cb * b) ^ 3 * H x y / a ^ 4) := by
       apply mul_le_mul_of_nonneg_left _ (by positivity)
       exact sum_le_sum fun x _ => sum_le_sum fun y _ =>
         mul_le_mul (hdens x y) (hpoint x y) (by positivity) (by positivity)
-    _ = (N * u)⁻¹ * (Cu * u * (Ca * a) * (Cb * b) ^ 3 / a ^ 4) *
-        ∑ x, ∑ y, H x y := by simp only [← mul_sum, ← sum_div]; ring
+    _ = (N * u)⁻¹ * (Cu * u * (Ca * a) * (Cb * b) ^ 3 / a ^ 4) * ∑ x, ∑ y, H x y := by
+      simp only [← mul_sum, ← sum_div]; ring
     _ ≤ (N * u)⁻¹ * (Cu * u * (Ca * a) * (Cb * b) ^ 3 / a ^ 4) *
         ((Fintype.card V : ℝ) * R) := by
       apply mul_le_mul_of_nonneg_left _ (by positivity)
-      simpa using sum_le_sum (fun x (_ : x ∈ (univ : Finset V)) => hrow x)
+      simpa using sum_le_sum fun x (_ : x ∈ (univ : Finset V)) => hrow x
     _ ≤ (N * u)⁻¹ * (Cu * u * (Ca * a) * (Cb * b) ^ 3 / a ^ 4) * (N * R) :=
       mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_right hcard hR) (by positivity)
     _ = _ := by field_simp
@@ -93,19 +92,15 @@ theorem omitted_fine_cost_le (M c : ℕ) (hc : 0 < c) (h : ℤ) (hh : h < 0)
   have hcR : (0 : ℝ) < c := by exact_mod_cast hc
   have hhR : (h : ℝ) < 0 := by exact_mod_cast hh
   have habs : (h.natAbs : ℝ) = -(h : ℝ) := by
-    have heq : |(h : ℝ)| = (h.natAbs : ℝ) := by simp
-    rw [abs_of_neg hhR] at heq
-    exact heq.symm
-  have hcut : (M : ℝ) ≤ c * (1 + (h.natAbs : ℝ)) := by
-    exact_mod_cast homit
-  have hbudget : (M : ℝ) / (2 * c) ≤ (1 + (h.natAbs : ℝ)) / 2 := by
-    apply (div_le_iff₀ (by positivity : (0 : ℝ) < 2 * c)).2
-    nlinarith
+    rw [← abs_of_neg hhR]
+    simp
+  have hcut : (M : ℝ) ≤ c * (1 + (h.natAbs : ℝ)) := by exact_mod_cast homit
+  have hbudget : (M : ℝ) / (2 * c) ≤ (1 + -(h : ℝ)) / 2 := by
+    rw [div_le_iff₀ (by positivity)]
+    nlinarith [habs]
   rw [binNormCost, ite_eq_right (not_le.mpr hhR), scaleMajorant,
     ← Real.rpow_add (by norm_num : (0 : ℝ) < 2)]
-  apply Real.rpow_le_rpow_of_exponent_le (by norm_num)
-  rw [habs] at hbudget ⊢
-  linarith
+  exact Real.rpow_le_rpow_of_exponent_le (by norm_num) (by linarith)
 
 /-- The sum of all actual omitted fine-bin norm costs is bounded independently of the number
 of bins. The exponential budget tail multiplies the same convergent scale majorant as the
@@ -128,17 +123,13 @@ theorem omission_tail_le_parent {A a u : ℝ} (M c i : ℕ) (hc : 0 < c)
     (2 : ℝ) ^ (1 / 2 - (M : ℝ) / (2 * c)) ≤
       (2 : ℝ) ^ (-precision (16 * c) A M i a u - A) := by
   have hcR : (0 : ℝ) < c := by exact_mod_cast hc
-  have hiR : (1 : ℝ) ≤ i := by exact_mod_cast hi
-  have hAi : A ≤ A * i := le_mul_of_one_le_right (by linarith) hiR
+  have hAi : A ≤ A * i := le_mul_of_one_le_right (by linarith) (by exact_mod_cast hi)
   have hla := Real.logb_nonpos (by norm_num : (1 : ℝ) < 2) ha.le ha1
   have hlu := Real.logb_nonpos (by norm_num : (1 : ℝ) < 2) hu.le hu1
   have hp : precision (16 * c) A M i a u ≤ (M : ℝ) / (16 * c) - A := by
-    dsimp only [precision]
-    linarith
+    dsimp only [precision]; linarith
   have hratio : (M : ℝ) / (2 * c) = 8 * ((M : ℝ) / (16 * c)) := by field_simp; ring
-  apply Real.rpow_le_rpow_of_exponent_le (by norm_num)
-  rw [hratio]
-  linarith
+  exact Real.rpow_le_rpow_of_exponent_le (by norm_num) (by linarith)
 
 /-- Omitted deterministic tables have a uniformly summable total norm, derived from their
 entry and row-mass bounds, rather than an assumed per-bin error certificate. This is the

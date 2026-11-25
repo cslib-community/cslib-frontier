@@ -130,7 +130,7 @@ private theorem Derivation.checkLRATAux_lratSteps {c : Clause ℕ} (d : φ.Deriv
   induction d with
   | @mem c hc =>
     intro k db hk hdb
-    have hidx : φ.idxOf c < φ.length := List.idxOf_lt_length_of_mem hc
+    have := List.idxOf_lt_length_of_mem hc
     exact ⟨db, fun _ => rfl, hdb.2 c hc, le_rfl, by simp [lratSteps]; omega, hdb, fun _ _ => rfl⟩
   | @resolvent c₁ c₂ v d₁ d₂ hv₁ hv₂ ih₁ ih₂ =>
     intro k db hk hdb
@@ -140,28 +140,24 @@ private theorem Derivation.checkLRATAux_lratSteps {c : Clause ℕ} (d : φ.Deriv
       ih₂ (d₁.lratSteps k).next db₁ (by omega) hdb₁
     generalize d₁.lratSteps k = r₁ at *
     generalize d₂.lratSteps r₁.next = r₂ at *
-    have hid₁' : db₂.find? (·.1 == r₁.id) = some (r₁.id, c₁) := (hpres₂ _ hlt₁).trans hid₁
-    have hprop := propagateHints_resolvent (v := v) hid₁' hid₂
+    have hprop := propagateHints_resolvent (v := v) ((hpres₂ _ hlt₁).trans hid₁) hid₂
     -- the new entry has a number above every older one
-    have hne : ∀ j < r₂.next, (r₂.next == j) = false := fun j hj => by simp; omega
-    refine ⟨(r₂.next, c₁.resolvent c₂ v) :: db₂, fun rest => ?_, ?_, ?_, ?_, ⟨?_, ?_⟩, ?_⟩
-    · simp only [List.append_assoc, List.singleton_append]
-      rw [hrun₁, hrun₂]
+    refine ⟨(r₂.next, c₁.resolvent c₂ v) :: db₂, fun rest => ?_, ?_, ?_, ?_,
+      ⟨fun e he => ?_, fun c hc => ?_⟩, fun j hj => ?_⟩
+    · simp only [List.append_assoc, List.singleton_append, hrun₁, hrun₂]
       simp only [checkLRATAux, Clause.ofDIMACS_toDIMACS] at hprop ⊢
       simp [hprop]
     · simp
     · omega
     · omega
-    · intro e he
-      rcases List.mem_cons.1 he with rfl | he
+    · rcases List.mem_cons.1 he with rfl | he
       · simp
-      · have := hdb₂.1 e he; omega
-    · intro c hc
-      have hidx : φ.idxOf c < φ.length := List.idxOf_lt_length_of_mem hc
+      · exact Nat.lt_succ_of_lt (hdb₂.1 e he)
+    · have := List.idxOf_lt_length_of_mem hc
       rw [List.find?_cons_of_neg (by simp; omega)]
       exact hdb₂.2 c hc
-    · intro j hj
-      rw [List.find?_cons_of_neg (by simp; omega), hpres₂ j (by omega), hpres₁ j hj]
+    · rw [List.find?_cons_of_neg (by simp; omega)]
+      rw [hpres₂ j (by omega), hpres₁ j hj]
 
 /-- The numbering of the clauses of a formula by `checkLRAT`, from `n + 1` on, finds every clause
 under the number of its first occurrence. -/
@@ -174,28 +170,22 @@ private theorem find?_zipIdx_idxOf {c : Clause ℕ} :
     by_cases hc : c' = c
     · subst hc
       simp [List.zipIdx_cons]
-    · have hmem : c ∈ φ := (List.mem_cons.1 h).resolve_left (Ne.symm hc)
-      have := find?_zipIdx_idxOf φ (n + 1) hmem
+    · have := find?_zipIdx_idxOf φ (n + 1) ((List.mem_cons.1 h).resolve_left (Ne.symm hc))
       simp only [List.zipIdx_cons, List.map_cons, List.find?_cons, List.idxOf_cons_ne _ hc]
         at this ⊢
-      rw [show (n + 1 == (φ.idxOf c).succ + n + 1) = false by simp,
+      rwa [show (n + 1 == (φ.idxOf c).succ + n + 1) = false by simp,
         show (φ.idxOf c).succ + n + 1 = φ.idxOf c + (n + 1) + 1 by omega]
-      exact this
 
 /-- **The checker accepts the certificate of every tree-like refutation.** -/
 theorem Derivation.checkLRAT_toLRAT (d : φ.Derivation []) : φ.checkLRAT d.toLRAT = true := by
   have hgood : LRATGood φ (φ.length + 1) φ.lratDB := by
-    refine ⟨fun e he => ?_, fun c hc => by
-      have := find?_zipIdx_idxOf φ 0 hc
-      simp only [Nat.add_zero] at this
-      exact this⟩
-    obtain ⟨p, hp, rfl⟩ := List.mem_map.1 (show e ∈ φ.zipIdx.map fun e => (e.2 + 1, e.1) from he)
-    have := List.snd_lt_add_of_mem_zipIdx hp
-    simp only at this ⊢
-    omega
+    refine ⟨fun e he => ?_, fun c hc => ?_⟩
+    · obtain ⟨p, hp, rfl⟩ := List.mem_map.1 (show e ∈ φ.zipIdx.map fun e => (e.2 + 1, e.1) from he)
+      exact Nat.succ_lt_succ (by simpa using List.snd_lt_add_of_mem_zipIdx hp)
+    · have h0 := find?_zipIdx_idxOf φ 0 hc
+      rwa [Nat.add_zero] at h0
   obtain ⟨db, hrun, hid, -, -, -, -⟩ := d.checkLRATAux_lratSteps _ _ (by omega) hgood
-  simp only [checkLRAT, toLRAT, List.toList_toArray, hrun, checkLRATAux, propagateHints_cons,
-    hid]
+  simp only [checkLRAT, toLRAT, List.toList_toArray, hrun, checkLRATAux, propagateHints_cons, hid]
   rfl
 
 end CNF
