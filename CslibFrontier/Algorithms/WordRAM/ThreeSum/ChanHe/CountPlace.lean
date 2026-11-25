@@ -150,10 +150,8 @@ theorem exec {w M N U t : ℕ} (x : Data 64) (values : ℕ → ℤ) (neg : Bool)
         y.regs i = x.regs i := by
   have hemod : encode (M : ℤ) = M + M := by simp [encode, two_mul]
   have hf : Fits (w + 2) (encode (M : ℤ)) := (encode_fits hmod).mono (by omega)
-  have fs : Fits (w + 2) (x.regs src + x.regs len) := hfit.of_le (by
-    dsimp only [budget]; omega)
-  have fk : Fits (w + 2) (x.regs scratch + x.regs len) := hfit.of_le (by
-    dsimp only [budget]; omega)
+  have fs : Fits (w + 2) (x.regs src + x.regs len) := hfit.of_le (by dsimp only [budget]; omega)
+  have fk : Fits (w + 2) (x.regs scratch + x.regs len) := hfit.of_le (by dsimp only [budget]; omega)
   have fh : Fits (w + 2) (x.regs hist + M) := hfit.of_le (by dsimp only [budget]; omega)
   have fn : Fits (w + 2) (x.regs len * x.regs len + x.regs len + 1) :=
     hfit.of_le (by dsimp only [budget]; omega)
@@ -161,16 +159,9 @@ theorem exec {w M N U t : ℕ} (x : Data 64) (values : ℕ → ℤ) (neg : Bool)
   unfold program prepare
   refine WP.exists_execWithin ?_
   wram_exec [hmreg, ← hemod, hf]
-  wram_call (CountCall.exec 2 _ values hM hmod
-    (by wram_simp) (by wram_simp [CountCall.length]; exact hsigned)
-    (by wram_simp [CountCall.source, CountCall.length]; exact fs)
-    (by wram_simp [CountCall.scratch, CountCall.length]; exact fk)
-    (by wram_simp [CountCall.histogram]; exact fh)
-    (by wram_simp [CountCall.length]; exact fn)
-    (by wram_simp [CountCall.source, CountCall.length, CountCall.scratch]; exact hsk)
-    (by wram_simp [CountCall.scratch, CountCall.length, CountCall.histogram]; exact hkh)
-    (by wram_simp [CountCall.source, CountCall.length]; exact hinput)
-    (by wram_simp [CountCall.length]; exact hinj)) with a ⟨ham, _, har⟩
+  wram_call (CountCall.exec 2 _ values hM hmod ..) [CountCall.length, CountCall.source,
+    CountCall.scratch, CountCall.histogram, hsigned, fs, fk, fh, fn, hsk, hkh, hinput, hinj]
+    with a ⟨ham, _, har⟩
   replace ham :
       a.mem = Count.memory x.mem values (x.regs len) M (x.regs scratch) (x.regs hist) := by
     wram_simp [CountCall.length, CountCall.scratch, CountCall.histogram] at ham
@@ -181,21 +172,12 @@ theorem exec {w M N U t : ℕ} (x : Data 64) (values : ℕ → ℤ) (neg : Bool)
     wram_simp [hm]
   wram_exec [ar src, ar scratch, ar len, ar hist, ar heavy, ar packed, ar modulus, ar tag,
     ar column, ar distance, ar negative]
-  wram_call (Place.exec _ values neg hM hN
-      (by wram_simp [Data.comap_regs]; exact hc)
-      (by wram_simp [Data.comap_regs]; exact hd) ht
-      (by wram_simp [Data.comap_regs]; exact hmreg)
-      (by wram_simp [Data.comap_regs]; exact htag)
-      (by wram_simp [Data.comap_regs]; exact hneg)
-      (by wram_simp [Data.comap_regs]; exact hbdd)
+  wram_call (Place.exec _ values neg hM hN _ _ ht _ _ _ _
       (by
         rw [Place.budget]
         wram_simp [Data.comap_regs]
         exact hfit.of_le (by dsimp only [budget]; omega))
-      (by wram_simp [Data.comap_regs]; exact hsh)
-      (by wram_simp [Data.comap_regs]; exact hhp)
-      (by wram_simp [Data.comap_regs]; exact hpk)
-      (by wram_simp [Data.comap_regs]; exact hkh)
+      _ _ _ _
       (by
         wram_simp [Data.comap_regs, Data.comap_mem]
         intro i hi
@@ -211,6 +193,7 @@ theorem exec {w M N U t : ℕ} (x : Data 64) (values : ℕ → ℤ) (neg : Bool)
         intro r hr
         rw [ham, Count.memory, Histogram.memory_read _ _ _ _ _ _ hr]
         rfl)) renamed registers_injective
+      [Data.comap_regs, hc, hd, hmreg, htag, hneg, hbdd, hsh, hhp, hpk, hkh]
     with y ⟨⟨hbm, hbc, _⟩, hframe⟩
   have hb (i : Fin 64) (hi : 32 ≤ i.val) (k : Fin 32) : registers k ≠ i :=
     Fin.ne_of_val_ne (by dsimp only [registers]; omega)
