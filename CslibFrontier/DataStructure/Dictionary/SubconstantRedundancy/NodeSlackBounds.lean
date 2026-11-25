@@ -10,7 +10,6 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.SeedBounds
 import CslibFrontier.Foundations.Data.Nat.Log
-import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
 /-!
@@ -60,7 +59,7 @@ theorem delta_pos_of_le_depth {U V n R p_min q_min p_max q_max : ℕ}
   rw [canonicalSchedule_delta_eq h j]
   dsimp only [delta]
   rw [← canonicalSchedule_nFloor_eq h j]
-  exact (Nat.le_nthRoot_iff (by decide)).mpr (by nlinarith)
+  exact (Nat.le_nthRoot_iff (by decide)).mpr (by rw [one_pow]; exact Nat.one_le_pow 2 _ hy1)
 
 private theorem numNodes_mul_tableCap_of_schedule (P : TreeSchedule) {ℓ : ℕ}
     (h1 : 1 ≤ ℓ) (hlt : ℓ < P.depth)
@@ -322,8 +321,10 @@ private theorem rootExtra_and_poolDir_of_schedule (P : TreeSchedule) {n r L s1 p
       omega
     refine Nat.clog_le_of_le_pow ((Nat.div_le_self _ _).trans ?_)
     calc P.paddedUniv + P.cap - 1 ≤ 2 ^ (2 * (p_max + 2) * L + 1) := by rw [pow_succ']; omega
-      _ ≤ 2 ^ s1 ^ 2 := Nat.pow_le_pow_right Nat.two_pos
-          (by linarith [Nat.mul_le_mul (hpL.trans hL_s1) hL_s1])
+      _ ≤ 2 ^ s1 ^ 2 := Nat.pow_le_pow_right Nat.two_pos (by
+          have := Nat.mul_le_mul (hpL.trans hL_s1) hL_s1
+          rw [Nat.add_mul, Nat.one_mul] at this
+          rw [sq]; omega)
   have hextra_r : (P.numNodes 1 * P.tableCap 1 - P.rootValPoolCap) *
       Nat.clog 2 ((P.paddedUniv + P.cap - 1) / P.cap) * r ≤ n :=
     calc _ ≤ P.numNodes 1 * P.delta 1 * s1 ^ 2 * s1 :=

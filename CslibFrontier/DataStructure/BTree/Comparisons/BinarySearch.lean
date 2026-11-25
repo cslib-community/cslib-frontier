@@ -160,8 +160,13 @@ theorem countQueries_lookupBinQ_le_of_occupied (ht : 0 < t) (hk : tr.rootKeys �
         zero_add]
       generalize (slotBinM LEQuery.ask k rest).eval oracle = i
       rcases hc' : (node first rest).children[i]? with _ | c
-      · rcases rest[i]? with _ | e <;> simp <;> grind
-      · have := hB i c hc'; rcases rest[i]? with _ | e <;> simp <;> grind)
+      · rcases rest[i]? with _ | e
+        · simp; omega
+        · by_cases hk : oracle (.le e.1 k) = true <;> simp [hk]
+      · have := hB i c hc'
+        rcases rest[i]? with _ | e
+        · simp; omega
+        · by_cases hk : oracle (.le e.1 k) = true <;> simp [hk]; omega)
     hk hc
 
 /-- Rank by binary in-node search makes at most `⌈log₂ (2 * t)⌉` comparisons per level, under

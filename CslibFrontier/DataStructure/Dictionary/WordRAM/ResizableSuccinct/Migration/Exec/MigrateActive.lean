@@ -14,7 +14,6 @@ public import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Migration.Exec.MigrateFinish
 import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Migration.Exec.MigrateSetupParams
 import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Migration.Exec.MigrateSetupShift
-import Mathlib.Tactic.Linarith
 
 /-!
 # Single-Tape `1 · OPT` Active Epoch Migration (`migrateActiveCode`)
@@ -135,9 +134,9 @@ private theorem migrateSetupCode_exec {U V w N_old n n_init base : ℕ}
     migrateSetupShiftCode_exec hn hev hfr hfit_peak hs₈b hs₈f habi₈ hbelow₈ hsplit₈
       hs₈_base hs₈_cnt hs₈_nn hs₈_nm hs₈_off hs₈_iwo hs₈_iwn hs₈_ar hs₈_pf hs₈_k hs₈_oid
       hs₈_ohp hs₈_ocp hs₈_nhp hs₈_ncp
-  refine ⟨y, steps_p + steps_s, hex_p.seq_eq hex_s, ?_, hrest⟩
-  have hf1 := one_le_migFactor
-  nlinarith only [hc_p, hc_s, hn, hf1]
+  refine ⟨y, steps_p + steps_s, hex_p.seq_eq hex_s, (Nat.add_le_add hc_p hc_s).trans ?_, hrest⟩
+  rw [← Nat.add_mul]
+  exact Nat.mul_le_mul_right n (by generalize migFactor = F; omega)
 
 
 /-- **Distributional Single-Tape `1 · OPT` Rebuild (`migrateActiveCode_execRCodeDist`):**
@@ -214,7 +213,9 @@ theorem migrateActiveCode_execRCodeDist {U V w N_old n n_init base : ℕ}
   refine ⟨zOf, T_mig, hex_full, hpost, hcost.trans ((Nat.cast_le (α := ℝ≥0∞)).mpr ?_)⟩
   have hf1 := one_le_migFactor
   unfold migLinearFactor
-  nlinarith only [hc_set, hn, hf1]
+  refine (Nat.add_le_add_right (Nat.add_le_add hc_set (Nat.le_mul_of_pos_right 826 hn)) _).trans ?_
+  simp only [← Nat.add_mul]
+  exact Nat.mul_le_mul_right n (by generalize migFactor = F at hf1 ⊢; omega)
 
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct
