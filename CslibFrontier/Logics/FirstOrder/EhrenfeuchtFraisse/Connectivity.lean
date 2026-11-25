@@ -139,31 +139,25 @@ end Realize
 theorem stepTwoArc_fin_iff {m : ℕ} (x y : Fin m) :
     StepTwoArc (Fin m) x y ↔ (x : ℕ) + 2 = y ∨ ((x : ℕ) + 1 = m ∧ (y : ℕ) = 1) ∨
       ((x : ℕ) + 2 = m ∧ (y : ℕ) = 0) := by
-  have hx := x.2
-  have hy := y.2
+  have hx := x.2; have hy := y.2
   simp only [stepTwoArc_iff, Fin.covBy_iff, Nat.covBy_iff_add_one_eq, Fin.le_def]
-  refine or_congr ⟨?_, ?_⟩ (or_congr ⟨?_, ?_⟩ ⟨?_, ?_⟩)
-  · rintro ⟨z, h₁, h₂⟩
-    omega
-  · intro h
-    exact ⟨⟨x + 1, by omega⟩, rfl, by simp only; omega⟩
-  · rintro ⟨h₁, z, h₂, h₃⟩
-    have := h₁ ⟨m - 1, by omega⟩
+  refine or_congr ⟨fun ⟨_, _, _⟩ => by omega,
+      fun _ => ⟨⟨x + 1, by omega⟩, rfl, by simp only; omega⟩⟩
+    (or_congr ⟨fun ⟨h₁, _, h₂, _⟩ => ?_, fun _ =>
+      ⟨fun t => by have := t.2; omega, ⟨0, by omega⟩, fun _ => Nat.zero_le _,
+        by simp only; omega⟩⟩
+      ⟨fun ⟨⟨z, h₁, _⟩, h₃⟩ => ?_, fun _ =>
+        ⟨⟨⟨m - 1, by omega⟩, fun t => by have := t.2; simp only; omega, by simp only; omega⟩,
+          fun _ => by omega⟩⟩)
+  · have := h₁ ⟨m - 1, by omega⟩
     have := h₂ ⟨0, by omega⟩
     simp only at *
     omega
-  · rintro ⟨h₁, h₂⟩
-    exact ⟨fun t => by have := t.2; omega, ⟨0, by omega⟩, fun t => Nat.zero_le _,
-      by simp only; omega⟩
-  · rintro ⟨⟨z, h₁, h₂⟩, h₃⟩
-    have := h₁ ⟨m - 1, by omega⟩
+  · have := h₁ ⟨m - 1, by omega⟩
     have := h₃ ⟨0, by omega⟩
     have := z.2
     simp only at *
     omega
-  · rintro ⟨h₁, h₂⟩
-    exact ⟨⟨⟨m - 1, by omega⟩, fun t => by have := t.2; simp only; omega, by simp only; omega⟩,
-      fun t => by omega⟩
 
 /-- Adjacency in the step-two graph on `Fin m`, in terms of values. -/
 theorem stepTwoGraph_adj_fin_iff {m : ℕ} (x y : Fin m) :
@@ -195,45 +189,31 @@ private theorem stepTwoGraph_fin_connected_of_odd {m : ℕ} (hm : Odd m) :
     (h x).symm.trans (h y)
   intro x
   obtain ⟨j, hj | hj⟩ := Nat.even_or_odd' x.1
-  · have := reachable_even h0 j (by omega)
-    convert this using 1
-    exact Fin.ext hj
-  · have ht : 0 < t := by have := x.2; omega
-    have h1 : 1 < 2 * t + 1 := by omega
-    have h10 : (stepTwoGraph (Fin (2 * t + 1))).Reachable ⟨0, h0⟩ ⟨1, h1⟩ :=
-      (reachable_even h0 t (by omega)).trans (SimpleGraph.Adj.reachable
-        ((stepTwoGraph_adj_fin_iff _ _).2 ⟨by simp only; omega, .inr (.inl ⟨rfl, rfl⟩)⟩))
-    refine h10.trans ?_
-    have := reachable_odd h1 j (by omega)
-    convert this using 1
-    exact Fin.ext hj
+  · exact (show (⟨2 * j, by omega⟩ : Fin _) = x from Fin.ext hj.symm) ▸
+      reachable_even h0 j (by omega)
+  · have h1 : 1 < 2 * t + 1 := by have := x.2; omega
+    exact ((reachable_even h0 t (by omega)).trans <| SimpleGraph.Adj.reachable <|
+      (stepTwoGraph_adj_fin_iff _ _).2 ⟨by simp only; omega, .inr (.inl ⟨rfl, rfl⟩)⟩).trans
+      ((show (⟨2 * j + 1, by omega⟩ : Fin _) = x from Fin.ext hj.symm) ▸
+        reachable_odd h1 j (by omega))
 
 private theorem not_stepTwoGraph_fin_connected_of_even {m : ℕ} (hm : Even m) :
     ¬ (stepTwoGraph (Fin m)).Connected := by
-  intro hc
-  obtain ⟨t, rfl⟩ := hm
-  rcases Nat.eq_zero_or_pos t with rfl | ht
-  · exact hc.nonempty.elim fun x => x.elim0
-  have hpar : ∀ x y : Fin (t + t), (stepTwoGraph _).Adj x y → (x : ℕ) % 2 = (y : ℕ) % 2 := by
-    intro x y h
-    rw [stepTwoGraph_adj_fin_iff] at h
-    omega
-  have h01 := hc.preconnected ⟨0, by omega⟩ ⟨1, by omega⟩
-  rw [SimpleGraph.reachable_iff_reflTransGen] at h01
-  have key : ∀ y, Relation.ReflTransGen (stepTwoGraph (Fin (t + t))).Adj ⟨0, by omega⟩ y →
-      (y : ℕ) % 2 = 0 := by
-    intro y hy
-    induction hy with
+  rintro hc
+  obtain ⟨_ | t, rfl⟩ := hm
+  · exact hc.nonempty.elim Fin.elim0
+  have key : ∀ y, Relation.ReflTransGen (stepTwoGraph (Fin (t + 1 + (t + 1)))).Adj
+      ⟨0, by omega⟩ y → (y : ℕ) % 2 = 0 := by
+    intro y hy; induction hy with
     | refl => rfl
-    | tail _ hab ih => rw [← hpar _ _ hab, ih]
-  exact absurd (key _ h01) (by simp)
+    | tail _ hab ih => rw [stepTwoGraph_adj_fin_iff] at hab; omega
+  exact absurd (key ⟨1, by omega⟩ <| (SimpleGraph.reachable_iff_reflTransGen _ _).1 <|
+    hc.preconnected _ _) (by simp)
 
 /-- The step-two graph on `Fin m` is connected exactly when `m` is odd. -/
-theorem stepTwoGraph_fin_connected_iff {m : ℕ} : (stepTwoGraph (Fin m)).Connected ↔ Odd m := by
-  rcases Nat.even_or_odd m with h | h
-  · exact ⟨fun hc => absurd hc (not_stepTwoGraph_fin_connected_of_even h),
-      fun ho => absurd h (Nat.not_even_iff_odd.2 ho)⟩
-  · exact ⟨fun _ => h, fun _ => stepTwoGraph_fin_connected_of_odd h⟩
+theorem stepTwoGraph_fin_connected_iff {m : ℕ} : (stepTwoGraph (Fin m)).Connected ↔ Odd m :=
+  ⟨fun h => Nat.not_even_iff_odd.1 fun he => not_stepTwoGraph_fin_connected_of_even he h,
+    stepTwoGraph_fin_connected_of_odd⟩
 
 /-! ### Transport along order isomorphisms -/
 

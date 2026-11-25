@@ -661,20 +661,11 @@ private theorem coeffs_dyadicWeightNormFixed_cases {Op : Type u} {Struct : Type 
       (dyadicWeightNormFixed m κ W hm r).inner.coeffs = dyadicSwitchCoeffs κ W.coeffs ∨
       (dyadicWeightNormFixed m κ W hm r).inner.coeffs = oneSubSwitchCoeffs κ W.coeffs ∨
       (dyadicWeightNormFixed m κ W hm r).inner.coeffs = diffSwitchCoeffs κ W.coeffs := by
-  unfold dyadicWeightNormFixed
+  unfold dyadicWeightNormFixed oneSubSwitchCoeffs diffSwitchCoeffs
   dsimp only [FixedRecipe.congrVal]
   simp only [FixedRecipe.coeffs_dite]
-  split_ifs <;> try exact Or.inl rfl
-  · right; right; left
-    unfold oneSubSwitchCoeffs
-    simp only [FixedRecipe.coeffs_shiftClip, FixedRecipe.coeffs_pairAvg,
-      FixedRecipe.coeffs_neg, FixedRecipe.coeffs_const, coeffs_dyadicSwitchNormFixed]
-  · right; right; right
-    unfold diffSwitchCoeffs
-    simp only [FixedRecipe.coeffs_shiftClip, FixedRecipe.coeffs_pairAvg,
-      FixedRecipe.coeffs_neg, coeffs_dyadicSwitchNormFixed]
-  · right; left
-    exact coeffs_dyadicSwitchNormFixed ..
+  split_ifs <;> simp [FixedRecipe.coeffs_shiftClip, FixedRecipe.coeffs_pairAvg,
+    FixedRecipe.coeffs_neg, FixedRecipe.coeffs_const, coeffs_dyadicSwitchNormFixed]
 
 /-- Certified `UniformStreamRecipe` computing
 `dyadicWeight m r (2 ^ (m + 1) * max 0 (W.targetVal val sEnv))` for any scale index `r : ℕ` when
@@ -696,20 +687,17 @@ private theorem shiftClipVal_inv64_scaled (r : ℕ) {c : ℝ}
     (hc : c ∈ Set.Icc (1 / 4 : ℝ) 1) :
     shiftClipVal (4 - (r : ℤ)) (1 / (64 * c)) =
       (1 / 2) * ((1 / (2 : ℝ) ^ (r + 1)) * (1 / c)) := by
-  have hr_ge1 : (1 : ℝ) ≤ (2 : ℝ) ^ r := one_le_pow₀ (by norm_num)
-  have h4rc : 1 ≤ 4 * (2 : ℝ) ^ r * c := by nlinarith [hc.1]
-  have h0 : 0 ≤ (1 / 2 : ℝ) * ((1 / (2 : ℝ) ^ (r + 1)) * (1 / c)) := by
-    have : 0 < c := by linarith [hc.1]
-    positivity
+  have hc0 : 0 < c := by linarith [hc.1]
+  have hr1 : (1 : ℝ) ≤ (2 : ℝ) ^ r := one_le_pow₀ (by norm_num)
+  have h0 : 0 ≤ (1 / 2 : ℝ) * ((1 / (2 : ℝ) ^ (r + 1)) * (1 / c)) := by positivity
   refine shiftClipVal_eq_of_mul_eq ?_ (by linarith) ?_
   · rw [zpow_sub₀ (by norm_num), zpow_natCast, pow_succ]
     norm_num
     field_simp
     ring
-  · have hp : (2 : ℝ) ^ (r + 1) = 2 * (2 : ℝ) ^ r := by ring
-    rw [hp, show (1 / 2 : ℝ) * ((1 / (2 * (2 : ℝ) ^ r)) * (1 / c)) = 1 / (4 * (2 : ℝ) ^ r * c) by
+  · rw [pow_succ', show (1 / 2 : ℝ) * (1 / (2 * 2 ^ r) * (1 / c)) = 1 / (4 * 2 ^ r * c) by
       field_simp; ring]
-    exact (div_le_one (by positivity)).mpr h4rc
+    exact (div_le_one (by positivity)).mpr (by nlinarith [hc.1])
 
 /-- `FixedRecipe` computing the `r`-th clamped dyadic reciprocal term `(1 / 2) * (1 / 2 ^ (r + 1)) /
 max (1 / 4) (min 1 (w / 2 ^ (r + 1)))` for `w = 2 ^ (m + 1) * max 0 (W.targetVal val sEnv)`. -/
@@ -779,10 +767,10 @@ private theorem coeffs_invScaledNormFixed {Op : Type u} {Struct : Type v}
     (invScaledNormFixed m κ W hm r).inner.coeffs = invScaledCoeffs κ W.coeffs := by
   unfold invScaledNormFixed invScaledCoeffs
   dsimp only [FixedRecipe.congrVal]
-  rw [FixedRecipe.coeffs_shiftClip, FixedRecipe.coeffs_recip64]
-  · simp only [FixedRecipe.ofRecipe, FixedRecipe.coeffs_shiftClip,
-      FixedRecipe.coeffs_max, FixedRecipe.coeffs_min, FixedRecipe.coeffs_const]
-  · exact fun _ => quarter_clamped_mem_Icc _
+  rw [FixedRecipe.coeffs_shiftClip,
+    FixedRecipe.coeffs_recip64 _ (fun _ => quarter_clamped_mem_Icc _)]
+  simp only [FixedRecipe.ofRecipe, FixedRecipe.coeffs_shiftClip,
+    FixedRecipe.coeffs_max, FixedRecipe.coeffs_min, FixedRecipe.coeffs_const]
 
 /-- Leaf reciprocal factor `(1 / 2) * (1 / 2 ^ (r + 1)) * (1 / max (1 / 4) (min 1 (w / 2 ^ (r+1))))`
 for scale `r` in the smooth dyadic reciprocal decomposition. -/
@@ -819,11 +807,7 @@ private theorem mul_coeffs_le_of_bounds {Op : Type u} {Struct : Type v}
     UniformStreamRecipe.congrTarget, UniformStreamRecipe.weakenValid, UniformStreamRecipe.comp,
     tR, leafB, leafA1, leafA2] at hwA hwB hwC hwI ⊢
   rw [hBa, hBb, hBc, hBi]
-  refine ⟨?_, ?_, ?_, (le_max_right 8 _).trans' ?_⟩
-  · gcongr
-  · gcongr
-  · gcongr
-  · gcongr
+  exact ⟨by gcongr, by gcongr, by gcongr, (le_max_right 8 _).trans' (by gcongr)⟩
 
 private theorem coeffs_le_of_eq {Op : Type u} {Struct : Type v}
     {d : ℕ} {hd : 1 ≤ d} {V : (Op → ℕ → ℤ) → (Struct → Bool) → Prop}
@@ -834,8 +818,7 @@ private theorem coeffs_le_of_eq {Op : Type u} {Struct : Type v}
     (hC : c.coeffC ≤ mC) (hI : c.intrinsicCoeff ≤ mI) :
     F.toRecipe.coeffA ≤ mA ∧ F.toRecipe.coeffB ≤ mB ∧
       F.toRecipe.coeffC ≤ mC ∧ F.toRecipe.intrinsicCoeff ≤ mI := by
-  subst hEq
-  exact ⟨hA, hB, hC, hI⟩
+  subst hEq; exact ⟨hA, hB, hC, hI⟩
 
 private theorem max_zero_two_pow_mul_le (m : ℕ) {q : ℝ} (hq : q ≤ 1) :
     Max.max (0 : ℝ) ((2 : ℝ) ^ m * q) ≤ (2 : ℝ) ^ m :=
@@ -847,10 +830,8 @@ private theorem sum_fin_two_pow_prefix {m : ℕ} (f : ℕ → ℝ) :
       ∑ r ∈ range (m + 1), f r := by
   have hm_lt : m + 1 ≤ 2 ^ (m + 1) := (Nat.lt_two_pow_self (n := m + 1)).le
   rw [Fin.sum_univ_eq_sum_range (fun k => if k ≤ m then f k else 0), ← sum_filter]
-  congr 1
-  ext k
-  simp only [mem_filter, mem_range]
-  omega
+  refine congrArg₂ _ (Finset.ext fun k => ?_) rfl
+  simp only [mem_filter, mem_range]; omega
 
 /-- `FixedRecipe` computing `1 / (1 + max 0 (2 ^ m * R.targetVal val sEnv))` via the smooth dyadic
 partition of unity over `r ∈ {0, ..., m}`. -/
@@ -1141,18 +1122,17 @@ private theorem threshold_mem_unit {ι : Type u} {s : Finset ι} {n : ℕ} {ρ z
     Cslib.RowCompression.threshold s n ρ z w ∈ Set.Icc (0 : ℝ) 1 := by
   refine ⟨Cslib.RowCompression.threshold_nonneg, ?_⟩
   unfold Cslib.RowCompression.threshold
-  refine max_le (abs_le.mp hz).2 (max_le (abs_le.mp hρ).2 ?_)
-  exact kthLargest_le zero_le_one fun x hx => max_le (hw x hx 0) (hw x hx 1)
+  exact max_le (abs_le.mp hz).2 <| max_le (abs_le.mp hρ).2 <|
+    kthLargest_le zero_le_one fun x hx => max_le (hw x hx 0) (hw x hx 1)
 
 private theorem newDefault_mem_unit {ι : Type u} {s : Finset ι} {n K : ℕ} {ρ z : ℝ}
     {w : ι → Fin 2 → ℝ} (hρ : |ρ| ≤ 1) (hz : |z| ≤ 1)
     (hw : ∀ x ∈ s, ∀ μ, |w x μ| ≤ 1) :
     Cslib.RowCompression.newDefault s n K ρ z w ∈ Set.Icc (0 : ℝ) 1 := by
   refine ⟨Cslib.RowCompression.newDefault_nonneg, ?_⟩
-  have hu := (threshold_mem_unit (n := n) hρ hz hw).2
   unfold Cslib.RowCompression.newDefault
-  refine max_le hu ((min_le_left _ _).trans (max_le (abs_le.mp hz).2 ?_))
-  exact kthLargest_le zero_le_one fun x hx => (abs_le.mp (hw x hx 0)).2
+  exact max_le (threshold_mem_unit hρ hz hw).2 <| (min_le_left _ _).trans <|
+    max_le (abs_le.mp hz).2 <| kthLargest_le zero_le_one fun x hx => (abs_le.mp (hw x hx 0)).2
 
 /-- Compose `zeroPaddedRankListRecipe` over `items`, padding off-list elements with `0` and
 lifting child validity and coefficient bounds from a uniform template `tpl`. -/
